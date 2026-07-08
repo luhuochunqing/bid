@@ -51,10 +51,6 @@
                   >
                     设为{{ s.name }}
                   </el-dropdown-item>
-                  <el-dropdown-item divided @click="handleUploadDeliverable(task)" v-if="isTaskAssignee(task)">
-                    <el-icon><Upload /></el-icon>
-                    上传交付物
-                  </el-dropdown-item>
                   <el-dropdown-item divided @click="handleDeleteTask(task)" v-if="canDeleteTask(task)">
                     <el-icon><Delete /></el-icon>
                     <span class="delete-task-label">删除任务</span>
@@ -102,12 +98,6 @@
       <div class="submit-tip">所有任务已完成并审核通过，可开始标书编写</div>
     </div>
 
-    <TaskDeliverableUploadDialog
-      v-model="showUploadDialog"
-      :task="currentTask"
-      @save="handleSaveDeliverable"
-    />
-
     <!-- CO-413: 驳回原因弹窗（REVIEW → TODO 必填） -->
     <el-dialog v-model="rejectDialogVisible" title="驳回任务" width="480px" :close-on-click-modal="false">
       <div v-if="rejectingTask" class="reject-task-name">任务：{{ rejectingTask.name }}</div>
@@ -135,7 +125,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { MoreFilled, User, Calendar, Document, Upload, DocumentAdd, Delete } from '@element-plus/icons-vue'
+import { MoreFilled, User, Calendar, Document, DocumentAdd, Delete } from '@element-plus/icons-vue'
 import draggable from 'vuedraggable'
 import { useProjectStore } from '@/stores/project'
 import { useUserStore } from '@/stores/user'
@@ -146,7 +136,6 @@ import { hexToSoftBackground } from '@/utils/color.js'
 import { validateSubmitForReview } from '@/composables/useTaskSubmissionValidation.js'
 import { getTaskDeliverableDownloadUrl } from '@/api/modules/taskDeliverables.js'
 import { downloadWithFilename } from '@/utils/download.js'
-import TaskDeliverableUploadDialog from './TaskDeliverableUploadDialog.vue'
 
 const props = defineProps({
   tasks: {
@@ -160,42 +149,10 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['task-click', 'status-change', 'submit-to-document', 'add-deliverable', 'remove-deliverable', 'remove-task'])
+const emit = defineEmits(['task-click', 'status-change', 'submit-to-document', 'remove-deliverable', 'remove-task'])
 
 const projectStore = useProjectStore()
 const userStore = useUserStore()
-
-// 交付物上传对话框
-const showUploadDialog = ref(false)
-const currentTask = ref(null)
-
-const handleUploadDeliverable = (task) => {
-  currentTask.value = task
-  showUploadDialog.value = true
-}
-
-const handleSaveDeliverable = async (payload) => {
-  if (!currentTask.value) return
-  const typeMap = {
-    document: 'DOCUMENT', qualification: 'QUALIFICATION',
-    technical: 'TECHNICAL', quotation: 'QUOTATION', other: 'OTHER',
-  }
-  try {
-    const saved = await projectStore.addDeliverable(props.projectId, currentTask.value.id, {
-      name: payload.name,
-      deliverableType: typeMap[payload.type] || 'DOCUMENT',
-      size: payload.file ? `${(payload.file.size / 1024).toFixed(1)}KB` : null,
-      fileType: payload.file?.type || null,
-      file: payload.file,
-      uploaderId: userStore.currentUser?.id ?? null,
-      uploaderName: userStore.userName,
-    })
-    emit('add-deliverable', currentTask.value.id, saved)
-    ElMessage.success('交付物已保存')
-  } catch (error) {
-    ElMessage.error(error?.message || '保存交付物失败')
-  }
-}
 
 const statuses = computed(() => projectStore.taskStatuses)
 

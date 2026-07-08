@@ -18,7 +18,6 @@ const mockProjectStore = vi.hoisted(() => ({
   taskStatuses: [],
   taskStatusesLoaded: true,
   loadTaskStatuses: vi.fn(),
-  addDeliverable: vi.fn(),
   removeDeliverable: vi.fn(),
   removeTask: vi.fn(),
   submitToBidDocument: vi.fn(),
@@ -109,7 +108,6 @@ describe('TaskBoard (dynamic columns)', () => {
     setActivePinia(createPinia())
     mockProjectStore.taskStatuses = mockStatuses
     mockProjectStore.loadTaskStatuses = vi.fn()
-    mockProjectStore.addDeliverable = vi.fn()
     mockProjectStore.removeDeliverable = vi.fn()
     mockProjectStore.removeTask = vi.fn()
     mockProjectStore.currentProject = null
@@ -152,26 +150,8 @@ describe('TaskBoard (dynamic columns)', () => {
     const wrapper = mountBoard({ tasks: [{ id: 1, name: 'T1', status: 'TODO', assigneeId: 9 }] })
     await flushPromises()
     const items = wrapper.findAllComponents({ name: 'ElDropdownItem' })
-    // 4 status transitions + 1 "上传交付物" = 5
-    expect(items.length).toBeGreaterThanOrEqual(5)
-  })
-
-  it('non-assignee does not see "上传交付物" dropdown item', async () => {
-    const wrapper = mountBoard({ tasks: [{ id: 1, name: 'T1', status: 'TODO', assigneeId: 999 }] })
-    await flushPromises()
-    const items = wrapper.findAllComponents({ name: 'ElDropdownItem' })
-    // 4 status transitions only — "上传交付物" hidden by v-if
+    // 4 status transitions，无上传交付物
     expect(items.length).toBe(4)
-  })
-
-  it('task assignee sees "上传交付物" dropdown item', async () => {
-    const wrapper = mountBoard({ tasks: [{ id: 1, name: 'T1', status: 'TODO', assigneeId: 9 }] })
-    await flushPromises()
-    const items = wrapper.findAllComponents({ name: 'ElDropdownItem' })
-    // 4 status transitions + "上传交付物" = 5
-    expect(items.length).toBeGreaterThanOrEqual(5)
-    const allText = wrapper.text()
-    expect(allText).toContain('上传交付物')
   })
 
   it('status-change items are disabled for non-assignee', async () => {
@@ -208,39 +188,6 @@ describe('TaskBoard (dynamic columns)', () => {
     expect(items.at(1).props('disabled')).toBe(true) // 当前状态 REVIEW
     expect(items.at(2).props('disabled')).toBe(false) // REVIEW → COMPLETED (通过)
     expect(items.at(3).props('disabled')).toBe(true)
-  })
-
-  it('uploads the selected file through projectStore and emits the saved deliverable', async () => {
-    const file = new File(['技术方案'], '技术方案.docx', {
-      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    })
-    const saved = {
-      id: 501,
-      name: '技术方案.docx',
-      deliverableType: 'TECHNICAL',
-      url: 'project-documents://12/技术方案.docx',
-    }
-    mockProjectStore.addDeliverable.mockResolvedValue(saved)
-    const task = { id: 31, name: '编写技术方案', status: 'TODO', assigneeId: 9 }
-    const wrapper = mountBoard({ projectId: '12', tasks: [task] })
-    await flushPromises()
-
-    // 直接调用 handleSaveDeliverable 的等价逻辑来测试
-    // 由于上传对话框拆分为子组件，这里测试组件的 add-deliverable 事件触发逻辑
-    wrapper.vm.handleUploadDeliverable(task)
-    await flushPromises()
-    // 模拟子组件 emit save 事件，触发 handleSaveDeliverable
-    const payload = { name: '技术方案.docx', type: 'technical', file }
-    await wrapper.vm.handleSaveDeliverable(payload)
-
-    expect(mockProjectStore.addDeliverable).toHaveBeenCalledWith('12', 31, expect.objectContaining({
-      name: '技术方案.docx',
-      deliverableType: 'TECHNICAL',
-      file,
-      uploaderId: 9,
-      uploaderName: '测试用户',
-    }))
-    expect(wrapper.emitted('add-deliverable')?.[0]).toEqual([31, saved])
   })
 
   // Regression for IJSVX7 问题二：分配人创建任务后，看板「待办」列必须出现该任务
@@ -453,7 +400,6 @@ describe('TaskBoard (store bootstrap)', () => {
         taskStatuses: [],
         taskStatusesLoaded: false,
         loadTaskStatuses: loadFn,
-        addDeliverable: vi.fn(),
         removeDeliverable: vi.fn(),
         submitToBidDocument: vi.fn(),
       }),

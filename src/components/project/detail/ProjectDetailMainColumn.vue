@@ -35,7 +35,6 @@
           @generate-tasks="ctx.handleGenerateTasks"
           @open-score-parse="scoreParseRef?.open()"
           @open-decompose="taskDecomposeRef?.open()"
-          @add-deliverable="ctx.handleAddDeliverable"
           @remove-deliverable="ctx.handleRemoveDeliverable"
           @submit-to-document="ctx.handleSubmitToDocument"
           @submit-review="ctx.handleSubmitReview"

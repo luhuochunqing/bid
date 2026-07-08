@@ -38,14 +38,6 @@
       <ProjectDocumentTable :project-id="item.projectId" readonly />
     </div>
 
-    <!-- TASK 操作：交付物上传 + 提交（@click.stop 防止点按钮冒泡触发卡片点击） -->
-    <TaskBoardTaskActions
-      v-if="item.type === 'TASK'"
-      :item="item"
-      @click.stop
-      @deliverable-changed="(t) => emit('deliverable-changed', t)"
-    />
-
     <!-- BID_REVIEW 操作：通过/驳回 -->
     <TaskBoardBidReviewActions
       v-if="item.type === 'BID_REVIEW'"
@@ -59,9 +51,7 @@
 <script setup>
 import { computed } from 'vue'
 import { User, Calendar, OfficeBuilding } from '@element-plus/icons-vue'
-import { useTaskActions } from '@/composables/useTaskActions.js'
 import ProjectDocumentTable from '@/views/Project/stages/components/ProjectDocumentTable.vue'
-import TaskBoardTaskActions from './TaskBoardTaskActions.vue'
 import TaskBoardBidReviewActions from './TaskBoardBidReviewActions.vue'
 
 const props = defineProps({
@@ -70,7 +60,9 @@ const props = defineProps({
 })
 const emit = defineEmits(['status-change', 'deliverable-changed', 'task-click'])
 
-const { hasDeliverable } = useTaskActions()
+function hasDeliverable(task) {
+  return Array.isArray(task?.deliverables) && task.deliverables.length > 0
+}
 
 const PRIORITY_TYPE_MAP = { HIGH: 'danger', MEDIUM: 'warning', LOW: 'info' }
 const PRIORITY_TEXT_MAP = { HIGH: '高', MEDIUM: '中', LOW: '低' }
