@@ -5,6 +5,8 @@ import com.xiyu.bid.batch.repository.TenderAssignmentRecordRepository;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationDepartmentEntity;
+import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationDepartmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
 import com.xiyu.bid.repository.TenderRepository;
@@ -50,10 +52,12 @@ class TenderQueryServiceTest {
     private TenderAttachmentRepository tenderAttachmentRepository;
     @Mock
     private TenderAssignmentRecordRepository tenderAssignmentRecordRepository;
+    @Mock
+    private OrganizationDepartmentRepository organizationDepartmentRepository;
 
     private TenderQueryService createService() {
         return new TenderQueryService(tenderRepository, tenderMapper, tenderAttachmentRepository, accessGuard,
-                projectRepository, userRepository, tenderAssignmentRecordRepository);
+                projectRepository, userRepository, tenderAssignmentRecordRepository, organizationDepartmentRepository);
     }
 
     private Tender tender(long id, String title) {
@@ -310,7 +314,7 @@ class TenderQueryServiceTest {
     }
 
     @Test
-    @DisplayName("department 为空时应从项目负责人用户反查部门回填")
+    @DisplayName("department 为空时应通过 department_code 关联 organization_departments 反查部门名回填")
     void shouldBackfillDepartmentFromProjectManagerUserWhenEmpty() {
         TenderDTO dto = new TenderDTO();
         dto.setId(1L);
@@ -321,13 +325,22 @@ class TenderQueryServiceTest {
         when(tenderAssignmentRecordRepository.findLatestByTenderIds(Set.of(1L))).thenReturn(List.of());
         User manager = new User();
         manager.setId(99L);
-        manager.setDepartmentName("华东事业部");
+        // 生产环境 users.department_name 多为空，但 department_code 存的是 OSS external_dept_id
+        manager.setDepartmentCode("700498910");
+        manager.setDepartmentName("");
         when(userRepository.findByIdIn(Set.of(99L))).thenReturn(List.of(manager));
+        OrganizationDepartmentEntity dept = new OrganizationDepartmentEntity();
+        dept.setSourceApp("oss");
+        dept.setDepartmentCode("2501");
+        dept.setExternalDeptId("700498910");
+        dept.setDepartmentName("东部二区");
+        when(organizationDepartmentRepository.findBySourceAppAndExternalDeptIdIn("oss", Set.of("700498910")))
+                .thenReturn(List.of(dept));
 
         TenderQueryService service = createService();
         service.enrichAssignmentInfoBatch(List.of(dto));
 
-        assertThat(dto.getDepartment()).isEqualTo("华东事业部");
+        assertThat(dto.getDepartment()).isEqualTo("东部二区");
     }
 
     @Test
@@ -342,7 +355,7 @@ class TenderQueryServiceTest {
         when(tenderAssignmentRecordRepository.findLatestByTenderIds(Set.of(1L))).thenReturn(List.of());
         User manager = new User();
         manager.setId(99L);
-        manager.setDepartmentName("华东事业部");
+        manager.setDepartmentCode("700498910");
         when(userRepository.findByIdIn(Set.of(99L))).thenReturn(List.of(manager));
 
         TenderQueryService service = createService();
@@ -352,7 +365,7 @@ class TenderQueryServiceTest {
     }
 
     @Test
-    @DisplayName("department 为空但项目负责人用户无部门时保持为空")
+    @DisplayName("department 为空且用户无 department_code 时保持为空")
     void shouldKeepDepartmentNullWhenProjectManagerHasNoDepartment() {
         TenderDTO dto = new TenderDTO();
         dto.setId(1L);
@@ -363,7 +376,8 @@ class TenderQueryServiceTest {
         when(tenderAssignmentRecordRepository.findLatestByTenderIds(Set.of(1L))).thenReturn(List.of());
         User manager = new User();
         manager.setId(99L);
-        manager.setDepartmentName(null);
+        // department_code 为空，无法反查
+        manager.setDepartmentCode(null);
         when(userRepository.findByIdIn(Set.of(99L))).thenReturn(List.of(manager));
 
         TenderQueryService service = createService();
