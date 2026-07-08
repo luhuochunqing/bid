@@ -114,10 +114,16 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
         // 3. Menu permissions — 优先用 OSS 缓存的实时权限，缓存未命中时用 DB 兜底
         if (menuPermissions != null) {
-            authorities.addAll(menuPermissions);
+            // specs/032: OSS 用户过滤 "all"（内部 admin 专属权限键，OSS 用户不应持有）
+            if (isOssUser) {
+                menuPermissions.stream().filter(p -> !"all".equals(p)).forEach(authorities::add);
+            } else {
+                authorities.addAll(menuPermissions);
+            }
 
             // Admin role or having "all" permission gets all known permissions dynamically
-            if (menuPermissions.contains("all") || "admin".equalsIgnoreCase(roleCode) || User.Role.ADMIN == legacyRole) {
+            // specs/032: OSS 用户严格按 OSS 返回的菜单权限鉴权，不因 roleCode=admin 触发扩散
+            if (!isOssUser && (menuPermissions.contains("all") || "admin".equalsIgnoreCase(roleCode) || User.Role.ADMIN == legacyRole)) {
                 for (RoleProfileCatalog.SeedDefinition def : RoleProfileCatalog.seedDefinitions()) {
                     if (def.menuPermissions() != null) {
                         authorities.addAll(def.menuPermissions());
@@ -130,16 +136,24 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         // 4. catalog 基线权限（仅对已注册标准角色）
         //    OSS 缓存权限只表达菜单可见性，需补充 catalog 中的细粒度业务权限；
         //    本地 DB 显式 menu_permissions 仍保持权威，仅为空时才 fallback 到 catalog。
+        //    specs/032: OSS 用户合并 catalog seed 时过滤 "all"，避免 OSS admin 用户拿到 all 权限
         if (roleCode != null && !roleCode.isBlank() && RoleProfileCatalog.isRegisteredCode(roleCode)
                 && (usingOssCachedPermissions || menuPermissions == null || menuPermissions.isEmpty())) {
             RoleProfileCatalog.SeedDefinition catalogDef = RoleProfileCatalog.definitionForCode(roleCode);
             if (catalogDef != null && catalogDef.menuPermissions() != null) {
-                authorities.addAll(catalogDef.menuPermissions());
+                if (isOssUser) {
+                    catalogDef.menuPermissions().stream()
+                            .filter(p -> !"all".equals(p))
+                            .forEach(authorities::add);
+                } else {
+                    authorities.addAll(catalogDef.menuPermissions());
+                }
             }
         }
 
         // Fallback for Admin legacy role
-        if (User.Role.ADMIN == legacyRole || "admin".equalsIgnoreCase(roleCode)) {
+        // specs/032: OSS 用户不补发系统级权限键（system.admin/warehouse.manage 仅本地 admin 持有）
+        if (!isOssUser && (User.Role.ADMIN == legacyRole || "admin".equalsIgnoreCase(roleCode))) {
             authorities.add(RoleProfileCatalog.WAREHOUSE_MANAGE_PERMISSION);
             // system.admin：仅 admin 持有的系统级权限键（Constitution VI，specs/024-preauthorize-unification）
             authorities.add(RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION);

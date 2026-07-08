@@ -36,7 +36,9 @@ export const useUserStore = defineStore('user', {
       menuPermissions: (state) => Array.isArray(state.currentUser?.menuPermissions) ? state.currentUser.menuPermissions : [],
       hasPermission: (state) => (permissionKey) => {
         const perms = Array.isArray(state.currentUser?.menuPermissions) ? state.currentUser.menuPermissions : []
-        if (perms.includes('all')) return true
+        // specs/032: OSS 用户严格按 OSS 返回的菜单权限鉴权，不短路放行 "all"
+        // "all" 是内部 admin 专属权限键，OSS 用户不应持有（即使后端漏过，前端也防御性兜底）
+        if (perms.includes('all') && !state.currentUser?.isOssUser) return true
         return perms.includes(permissionKey)
       },
       isBidAdmin: (state) => {

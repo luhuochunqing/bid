@@ -562,4 +562,56 @@ class DataScopeConfigServiceTest {
 
         assertThat(perms).containsExactlyInAnyOrder("dashboard", "settings", "audit");
     }
+
+    @Test
+    @DisplayName("OSS admin 用户 getRoleMenuPermissions 不含 all（specs/032 权限扩散修复）")
+    void getRoleMenuPermissions_OssAdminUserShouldNotContainAll() {
+        // specs/032: OSS admin 用户合并 catalog seed 时应过滤 "all"，
+        // 避免前端 hasPermission 短路放行所有菜单
+        User user = User.builder()
+                .id(18L).username("oss_admin_032").fullName("OSS Admin 032")
+                .role(User.Role.MANAGER)
+                .externalOrgSourceApp("oss-app")
+                .enabled(true)
+                .build();
+        OssPermissionCache ossPermissionCache = new OssPermissionCache();
+        // OSS 缓存 roleCode=admin，menuPermissions 含 "all"
+        ossPermissionCache.put("oss_admin_032", RoleProfileCatalog.ADMIN_CODE,
+                List.of("dashboard", "all"), null);
+        DataScopeConfigService serviceWithCache = new DataScopeConfigService(
+                systemSettingRepository, userRepository, roleProfileRepository,
+                roleProfileBootstrap, new ObjectMapper(), ossPermissionCache);
+
+        List<String> perms = serviceWithCache.getRoleMenuPermissions(user);
+
+        // OSS admin 用户不含 "all"（catalog admin seed 的 "all" 被过滤）
+        assertThat(perms).contains("dashboard");
+        assertThat(perms).doesNotContain("all");
+    }
+
+    @Test
+    @DisplayName("本地 admin 用户 getRoleMenuPermissions 仍含 all（specs/032 回归）")
+    void getRoleMenuPermissions_LocalAdminUserShouldContainAllRegression() {
+        // specs/032 回归: 本地 admin 行为不变，仍含 "all"
+        RoleProfile adminProfile = RoleProfile.builder()
+                .code(RoleProfileCatalog.ADMIN_CODE)
+                .name("管理员")
+                .build();
+        adminProfile.setMenuPermissions(List.of("all"));
+        User adminUser = User.builder()
+                .id(19L)
+                .username("local-admin-032")
+                .fullName("本地管理员 032")
+                .role(User.Role.ADMIN)
+                .roleProfile(adminProfile)
+                .externalOrgSourceApp(null)
+                .enabled(true)
+                .build();
+        when(roleProfileRepository.findByCodeIgnoreCase(RoleProfileCatalog.ADMIN_CODE))
+                .thenReturn(Optional.of(adminProfile));
+
+        List<String> perms = dataScopeConfigService.getRoleMenuPermissions(adminUser);
+
+        assertThat(perms).contains("all");
+    }
 }

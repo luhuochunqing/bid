@@ -55,6 +55,8 @@ export const normalizeUser = (authPayload) => ({
   roleName: authPayload?.roleName || '',
   dept: authPayload?.dept || authPayload?.departmentName || '',
   deptCode: authPayload?.deptCode || authPayload?.departmentCode || '',
+  // specs/032: 透传 OSS 用户标识，前端 hasPermission 据此对 OSS 用户不短路放行 "all"
+  isOssUser: Boolean(authPayload?.isOssUser),
   allowedProjectIds: normalizeAllowedProjectIds(authPayload?.allowedProjectIds),
   allowedDepts: normalizeAllowedDepts(authPayload?.allowedDepts),
   menuPermissions: normalizeMenuPermissions(authPayload?.menuPermissions)

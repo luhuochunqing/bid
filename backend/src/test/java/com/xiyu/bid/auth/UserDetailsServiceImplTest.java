@@ -472,9 +472,9 @@ class UserDetailsServiceImplTest {
     }
 
     @Test
-    @DisplayName("OSS 缓存 admin 角色含 all 权限时应展开全部 seed 权限")
-    void ossCachedAdminRoleShouldExpandAllSeedPermissions() {
-        // OSS 缓存角色=admin + menuPermissions=["all"] → 触发全 seed 权限展开
+    @DisplayName("OSS 缓存 admin 角色含 all 权限时不应展开 seed 权限（specs/032 权限扩散修复）")
+    void ossCachedAdminRoleShouldNotExpandAllSeedPermissions() {
+        // specs/032: OSS 用户严格按 OSS 返回的菜单权限鉴权，不因 roleCode=admin 触发扩散
         RoleProfile roleProfile = RoleProfile.builder()
                 .code(RoleProfileCatalog.BID_SPECIALIST_CODE)
                 .name("投标专员")
@@ -496,13 +496,71 @@ class UserDetailsServiceImplTest {
 
         UserDetails details = userDetailsService.loadUserByUsername("oss_admin_all");
 
-        // admin + all → 展开所有 seed 权限（含各角色的细粒度权限）
+        // OSS admin 用户不扩散：不含其他角色的细粒度权限
         assertThat(details.getAuthorities())
                 .extracting("authority")
                 .contains("admin", "ROLE_ADMIN")
+                .doesNotContain("bidding.manage", "task.review", "retrospective.submit",
+                        "brand-auth.edit", "certificate.manage", "qualification.view");
+    }
+
+    @Test
+    @DisplayName("OSS admin 用户 authorities 不含 system.admin/warehouse.manage（specs/032）")
+    void ossAdminUserShouldNotHaveSystemAdminPermission() {
+        RoleProfile roleProfile = RoleProfile.builder()
+                .code(RoleProfileCatalog.BID_SPECIALIST_CODE)
+                .name("投标专员")
+                .build();
+        User user = User.builder()
+                .username("oss_admin_sys")
+                .password("{noop}password")
+                .email("oss_admin_sys@example.com")
+                .fullName("oss_admin_sys")
+                .role(User.Role.MANAGER)
+                .roleProfile(roleProfile)
+                .externalOrgSourceApp("OSS")
+                .enabled(true)
+                .build();
+        when(userRepository.findByUsername("oss_admin_sys")).thenReturn(Optional.of(user));
+        OssPermissionCache.CacheEntry entry = new OssPermissionCache.CacheEntry(
+                RoleProfileCatalog.ADMIN_CODE, List.of("bidding"), null, Instant.now().plusSeconds(60));
+        when(ossPermissionCache.getEntry("oss_admin_sys")).thenReturn(Optional.of(entry));
+
+        UserDetails details = userDetailsService.loadUserByUsername("oss_admin_sys");
+
+        assertThat(details.getAuthorities())
+                .extracting("authority")
+                .doesNotContain(RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION,
+                        RoleProfileCatalog.WAREHOUSE_MANAGE_PERMISSION);
+    }
+
+    @Test
+    @DisplayName("本地 admin 用户 authorities 仍含 all/system.admin/warehouse.manage（回归）")
+    void localAdminUserShouldHaveAllAndSystemAdminPermissionRegression() {
+        RoleProfile roleProfile = RoleProfile.builder()
+                .code(RoleProfileCatalog.ADMIN_CODE)
+                .name("管理员")
+                .build();
+        roleProfile.setMenuPermissions(List.of("all"));
+        User user = User.builder()
+                .username("local_admin_regression")
+                .password("{noop}password")
+                .email("local_admin@example.com")
+                .fullName("local_admin")
+                .role(User.Role.ADMIN)
+                .roleProfile(roleProfile)
+                .enabled(true)
+                .build();
+        when(userRepository.findByUsername("local_admin_regression")).thenReturn(Optional.of(user));
+
+        UserDetails details = userDetailsService.loadUserByUsername("local_admin_regression");
+
+        assertThat(details.getAuthorities())
+                .extracting("authority")
+                .contains("all", RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION,
+                        RoleProfileCatalog.WAREHOUSE_MANAGE_PERMISSION)
                 .contains("bidding.manage", "task.review", "retrospective.submit",
-                        "warehouse.manage", "brand-auth.edit")
-                .contains("certificate.manage", "qualification.view");
+                        "brand-auth.edit", "certificate.manage", "qualification.view");
     }
 
     @Test
