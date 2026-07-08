@@ -314,7 +314,7 @@ const handleSubmit = async () => {
       ElMessage.success('新增成功')
       visible.value = false; emit('submitted', newId)
     }
-  } catch (e) { ElMessage.error(e.response?.data?.message || '保存失败') }
+  } catch (e) { ElMessage.error(e.response?.data?.msg || e.response?.data?.message || '保存失败') }
   finally { submitting.value = false }
 }
 </script>

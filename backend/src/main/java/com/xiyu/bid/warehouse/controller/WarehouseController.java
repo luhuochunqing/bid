@@ -131,6 +131,8 @@ public class WarehouseController {
     public ResponseEntity<ApiResponse<WarehouseEntity>> create(@Valid @RequestBody WarehouseDTO dto) {
         if (!dto.getEndDate().isAfter(dto.getStartDate()))
             return ResponseEntity.badRequest().body(ApiResponse.error("结束时间必须晚于开始时间"));
+        if (repo.existsByName(dto.getName()))
+            return ResponseEntity.badRequest().body(ApiResponse.error("该仓库已存在"));
         WarehouseEntity e = warehouseMapper.toEntity(dto);
         e.setStatus(WarehouseStatus.IN_USE);
         WarehouseEntity saved = repo.save(e);
