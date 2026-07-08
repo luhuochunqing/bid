@@ -28,8 +28,6 @@ import java.util.List;
 @PreAuthorize("hasAnyRole('ADMIN', 'BIDADMIN', 'BID_TEAMLEADER')")
 public class AlertRuleController {
 
-    private static final String REQUIRED_ROLE = "hasAnyRole('ADMIN', 'BIDADMIN', 'BID_TEAMLEADER')";
-
     private final AlertRuleService alertRuleService;
 
     @PostMapping

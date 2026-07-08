@@ -94,6 +94,7 @@ public class AlertRuleExecutionService {
         int thresholdScore = rule.getThreshold().intValue();
         RiskAssessmentDTO.RiskLevel thresholdLevel = RiskAssessmentDTO.RiskLevel.fromScore(thresholdScore);
 
+        // 全表扫描：风险等级检查需覆盖所有标讯（无状态过滤，因任何状态都可能有风险等级）
         for (Tender tender : tenderRepository.findAll()) {
             if (tender.getRiskLevel() == null) {
                 continue;

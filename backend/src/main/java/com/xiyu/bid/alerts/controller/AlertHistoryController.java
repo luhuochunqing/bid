@@ -41,8 +41,6 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize("hasAnyRole('ADMIN', 'BIDADMIN', 'BID_TEAMLEADER')")
 public class AlertHistoryController {
 
-    private static final String REQUIRED_ROLE = "hasAnyRole('ADMIN', 'BIDADMIN', 'BID_TEAMLEADER')";
-
     private final AlertHistoryService alertHistoryService;
     private final AlertHistoryQueryService alertHistoryQueryService;
     private final AlertHistoryCommandService alertHistoryCommandService;

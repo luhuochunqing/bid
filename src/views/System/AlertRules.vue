@@ -54,8 +54,11 @@
             <el-option label="大于" value="GREATER_THAN" />
             <el-option label="小于等于/提前提醒" value="LESS_THAN" />
             <el-option label="等于" value="EQUALS" />
-            <el-option label="包含" value="CONTAINS" />
+            <el-option label="包含（仅文本类型）" value="CONTAINS" disabled />
           </el-select>
+          <div v-if="form.condition === 'CONTAINS'" class="form-hint">
+            当前所有规则类型均为数值阈值，"包含"条件暂不适用
+          </div>
         </el-form-item>
         <el-form-item label="阈值">
           <el-input-number
@@ -207,4 +210,5 @@ function getConditionLabel(condition) {
 .alert-rules-container { padding: 20px; }
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
 .page-header h2 { margin: 0; }
+.form-hint { color: var(--el-text-color-secondary); font-size: 12px; margin-top: 4px; }
 </style>

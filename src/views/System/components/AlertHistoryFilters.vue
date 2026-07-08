@@ -45,7 +45,7 @@
 
 <script setup>
 // 告警历史过滤栏：包含视图切换 + 状态/严重性筛选 + 重置/查询按钮
-// 通过 v-model:viewMode 和 v-model:filters 与父组件双向绑定
+// 通过 update:viewMode 和 update:filters 事件与父组件通信
 defineProps({
   viewMode: { type: String, default: 'all' },
   filters: {
