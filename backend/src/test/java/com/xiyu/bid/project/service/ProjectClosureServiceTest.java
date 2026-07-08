@@ -57,6 +57,7 @@ class ProjectClosureServiceTest {
     private com.xiyu.bid.documentexport.service.DocumentExportService documentExportService;
     private ProjectAccessScopeService projectAccessScopeService;
     private ProjectClosurePermissionGuard closurePermissionGuard;
+    private com.xiyu.bid.project.notification.ProjectNotificationService projectNotificationService;
     private ProjectClosureService service;
 
     private static final Long PID = 1L;
@@ -82,7 +83,8 @@ class ProjectClosureServiceTest {
         closurePermissionGuard = mock(ProjectClosurePermissionGuard.class);
         // Guard 默认放行（多数用例不关心审核权）；涉及审核权阻断的用例会单独 stub 抛异常
         lenient().doNothing().when(closurePermissionGuard).assertCanReviewClosure(eq(PID));
-        service = new ProjectClosureService(closureRepo, projectRepo, stageService, depositAssembler, taskAssembler, userRepository, notificationService, documentExportService, projectDocumentRepo, projectAccessScopeService, closurePermissionGuard, mock(com.xiyu.bid.notification.service.NotificationRecipientResolver.class));
+        projectNotificationService = mock(com.xiyu.bid.project.notification.ProjectNotificationService.class);
+        service = new ProjectClosureService(closureRepo, projectRepo, stageService, depositAssembler, taskAssembler, userRepository, notificationService, documentExportService, projectDocumentRepo, projectAccessScopeService, closurePermissionGuard, mock(com.xiyu.bid.notification.service.NotificationRecipientResolver.class), projectNotificationService);
         // 默认：无任务（即零任务 = 可结项）
         lenient().when(taskRepo.findByProjectId(PID)).thenReturn(List.of());
         Project p = new Project();

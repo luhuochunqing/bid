@@ -14,6 +14,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Optional;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.repository.ProjectRepository;
+import com.xiyu.bid.service.ProjectAccessScopeService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -38,6 +40,10 @@ class TaskServiceTest {
     private ProjectNotificationService notificationService;
     @Mock
     private TaskHistoryRecorder taskHistoryRecorder;
+    @Mock
+    private ProjectRepository projectRepository;
+    @Mock
+    private ProjectAccessScopeService projectAccessScopeService;
 
     @InjectMocks
     private TaskService taskService;
@@ -139,5 +145,43 @@ class TaskServiceTest {
 
         assertThat(result).isNotNull();
         verify(notificationService, never()).notifyTaskAssigned(any(), any(), any(), any());
+    }
+
+    @Test
+    void testUpdateTaskStatusSendsNotification() {
+        Long taskId = 100L;
+        Long projectId = 10L;
+        String taskTitle = "Test Task";
+        Long assigneeId = 5L;
+        String actorUsername = "admin";
+        Long actorUserId = 1L;
+
+        Task existingTask = Task.builder()
+                .id(taskId)
+                .projectId(projectId)
+                .title(taskTitle)
+                .status(Task.Status.TODO)
+                .assigneeId(assigneeId)
+                .build();
+
+        when(taskRepository.findById(taskId)).thenReturn(Optional.of(existingTask));
+        when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(projectRepository.existsById(projectId)).thenReturn(true);
+        when(projectAccessScopeService.getAllowedProjectIdsForCurrentUser()).thenReturn(java.util.Collections.emptyList());
+
+        User actor = new User();
+        actor.setId(actorUserId);
+        when(userRepository.findByUsername(actorUsername)).thenReturn(Optional.of(actor));
+
+        TaskDTO expectedDto = TaskDTO.builder().id(taskId).build();
+        when(taskDtoMapper.toDTO(any(Task.class), any(), any())).thenReturn(expectedDto);
+
+        taskService.updateTaskStatus(taskId, Task.Status.REVIEW, actorUsername);
+
+        verify(notificationService).notifyTaskStatusChanged(
+                eq(projectId), eq(taskId), eq(taskTitle),
+                eq("待处理"), eq("审核中"),
+                eq(assigneeId), eq(actorUserId)
+        );
     }
 }
