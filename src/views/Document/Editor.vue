@@ -7,6 +7,7 @@
       :can-archive="canUseEditorArchiveActions"
       @back="handleGoBack"
       @preview="handlePreview"
+      @case-recommend="handleCaseRecommend"
       @export="handleExport"
       @archive="handleArchive"
       @save="handleSave"
@@ -54,6 +55,13 @@
         @start-assembly="handleStartAssembly"
       />
     </div>
+
+    <CaseSliceRecommendDrawer
+      v-model="showCaseRecommend"
+      :project-id="route.params.id"
+      :default-query="currentSection?.title"
+      @insert="handleInsertCaseSlice"
+    />
   </div>
 </template>
 
@@ -65,6 +73,7 @@ import EditorHeader from './editor/components/EditorHeader.vue'
 import SectionTreePanel from './editor/components/SectionTreePanel.vue'
 import EditorCenterPane from './editor/components/EditorCenterPane.vue'
 import AssemblyPanel from './editor/components/AssemblyPanel.vue'
+import CaseSliceRecommendDrawer from './editor/components/CaseSliceRecommendDrawer.vue'
 import { parseSectionMetadata } from './documentEditorHelpers.js'
 import { useDocumentAssembly } from './useDocumentAssembly.js'
 import { useDocumentKnowledge } from './useDocumentKnowledge.js'
@@ -91,8 +100,21 @@ const sectionTreePanelRef = ref(null)
 const sectionTreeRef = computed(() => sectionTreePanelRef.value?.sectionTreeRef || null)
 const zoomLevel = ref(100)
 const baseFontSize = 14
+const showCaseRecommend = ref(false)
 
 const handleContentChange = () => {}
+
+function handleCaseRecommend() {
+  showCaseRecommend.value = true
+}
+
+function handleInsertCaseSlice(item) {
+  if (!currentSection.value || !item) return
+  const content = item.textPreview || item.title || ''
+  currentSection.value.content = `${currentSection.value.content || ''}\n\n> 来源：案例切片 · ${item.projectDir}\n\n${content}\n`
+  showCaseRecommend.value = false
+  ElMessage.success('案例切片已插入到当前章节')
+}
 
 const {
   knowledgeMatches,

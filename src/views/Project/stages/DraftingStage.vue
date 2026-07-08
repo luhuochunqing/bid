@@ -18,6 +18,9 @@
           <el-button v-if="perm.canAIRecommendCase" type="success" link class="header-action header-action--orange" :icon="Search" @click="aiDrawerVisible = true">
             AI智能推荐案例
           </el-button>
+          <el-button type="success" link class="header-action header-action--orange" :icon="Search" @click="caseSliceDrawerVisible = true">
+            案例切片检索
+          </el-button>
           <el-button v-if="perm.canAIBidDocumentQualityCheck" type="success" link class="header-action header-action--tender" :icon="DocumentChecked" @click="ctx.runBidDocumentQualityCheck?.()">
             AI标书质量核查
           </el-button>
@@ -144,6 +147,7 @@
   </el-dialog>
 
   <AiRecommendDrawer v-model="aiDrawerVisible" :project-id="projectId" />
+  <CaseSliceRecommendDrawer v-model="caseSliceDrawerVisible" :project-id="projectId" />
   <QualityCheckDialog ref="qualityCheckRef" :project-id="projectId" />
 </template>
 
@@ -158,6 +162,7 @@ import { STAGE_TRANSITION_MAP } from '@/constants/projectStages.js'
 import { useUserStore } from '@/stores/user'
 import ProjectDocumentTable from './components/ProjectDocumentTable.vue'
 import AiRecommendDrawer from './components/AiRecommendDrawer.vue'
+import CaseSliceRecommendDrawer from '@/views/Document/editor/components/CaseSliceRecommendDrawer.vue'
 import QualityCheckDialog from './components/QualityCheckDialog.vue'
 import { useProjectDetailContext } from '@/composables/projectDetail/context.js'
 import { useProjectDraftingPermissions, canDeleteDocumentAs } from '@/composables/projectDetail/useProjectDraftingPermissions.js'
@@ -192,6 +197,7 @@ const emit = defineEmits(['advanced', 'switch-tab'])
 const { exportDocumentsAsZip } = useProjectDocumentsExport(props.projectId)
 const view = ref(null)
 const aiDrawerVisible = ref(false)
+const caseSliceDrawerVisible = ref(false)
 const advancing = ref(false)
 const advanceError = ref('')
 const bidFiles = ref([])

@@ -9,6 +9,7 @@
     </div>
     <div class="header-actions">
       <el-button :icon="View" @click="$emit('preview')">预览</el-button>
+      <el-button :icon="Search" @click="$emit('case-recommend')">案例推荐</el-button>
       <el-button v-if="canExport" :icon="Download" @click="$emit('export')">导出</el-button>
       <el-button v-if="canArchive" :icon="DocumentChecked" @click="$emit('archive')">归档</el-button>
       <el-button type="primary" :icon="Check" @click="$emit('save')">保存</el-button>
@@ -22,7 +23,8 @@ import {
   View,
   Download,
   DocumentChecked,
-  Check
+  Check,
+  Search
 } from '@element-plus/icons-vue'
 
 defineProps({
@@ -32,7 +34,7 @@ defineProps({
   canArchive: { type: Boolean, default: false }
 })
 
-defineEmits(['back', 'preview', 'export', 'archive', 'save'])
+defineEmits(['back', 'preview', 'case-recommend', 'export', 'archive', 'save'])
 </script>
 
 <style scoped>
