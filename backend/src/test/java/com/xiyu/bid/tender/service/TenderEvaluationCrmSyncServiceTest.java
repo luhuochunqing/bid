@@ -261,11 +261,11 @@ class TenderEvaluationCrmSyncServiceTest {
         assertThat(result.evaluationCustomerInfos()).isEmpty();
     }
 
-    // ---------- Test 8: 同 position 多对接人去重（Sentry Bug XIYU-X 回归测试） ----------
+    // ---------- Test 8: 同 position 多对接人保留全部（CO-526 修复 + 生产反馈回归测试） ----------
 
     @Test
-    @DisplayName("CRM 返回多个同 position 对接人时只保留第一个，避免 uk_eval_role_info 唯一约束冲突")
-    void testSyncFromCrm_duplicatePositionContacts_deduplicates() {
+    @DisplayName("CRM 返回多个同 position 对接人时全部保留：第一个用标准 roleKey，重复者落到 EXTERNAL_ROLE_N 并保留 POSITION")
+    void testSyncFromCrm_duplicatePositionContacts_keepAllWithExternalRole() {
         // given — CRM 返回 2 个 position=1 的对接人
         Tender tender = new Tender();
         tender.setCrmOpportunityId(CC_CODE);
@@ -279,15 +279,31 @@ class TenderEvaluationCrmSyncServiceTest {
         // when
         TenderEvaluationSubmitRequest result = syncService.syncFromCrm(tender, userReq, USERNAME);
 
-        // then — 只保留第一个对接人张三的 14 行，第二个李四被跳过
+        // then — 两条对接人均保留，共 28 行
         List<EvaluationCustomerInfoDTO> infos = result.evaluationCustomerInfos();
-        assertThat(infos).hasSize(14); // 1 个对接人 × 14 维度
-        // 验证是张三而不是李四
+        assertThat(infos).hasSize(28); // 2 个对接人 × 14 维度
+
+        // 第一个对接人张三：标准 roleKey
         assertThat(infos.get(0).roleKey()).isEqualTo("PROJECT_HIGHEST_DECISION_MAKER");
         assertThat(infos.get(0).infoKey()).isEqualTo("NAME");
         assertThat(infos.get(0).value()).isEqualTo("张三");
-        // 不应出现李四
-        assertThat(infos).noneMatch(row -> "李四".equals(row.value()));
+
+        // 第二个对接人李四：落到 EXTERNAL_ROLE_1，但 POSITION 字段仍保留 "1"
+        List<EvaluationCustomerInfoDTO> liSiRows = infos.stream()
+                .filter(row -> "李四".equals(row.value()))
+                .toList();
+        assertThat(liSiRows).isNotEmpty();
+        assertThat(liSiRows.get(0).roleKey()).isEqualTo("EXTERNAL_ROLE_1");
+        assertThat(liSiRows.get(0).infoKey()).isEqualTo("NAME");
+
+        EvaluationCustomerInfoDTO liSiPosition = infos.stream()
+                .filter(row -> "EXTERNAL_ROLE_1".equals(row.roleKey()) && "POSITION".equals(row.infoKey()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(liSiPosition.value()).isEqualTo("1");
+
+        // 不应再出现跳过日志中暗示的丢弃行为：李四必须存在
+        assertThat(infos).anyMatch(row -> "李四".equals(row.value()));
     }
 
     // ---------- helpers ----------

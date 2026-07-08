@@ -193,14 +193,30 @@ export function useCrmOpportunitySelector(props, emit) {
         // 避免与按 position 映射的对接人撞车丢人。EXTERNAL_ROLE_N 是后端
         // TenderEvaluationCustomerInfoPolicy.isValidRoleKey 认可的合法 roleKey，前端
         // getCustomerInfoRoleLabel 也支持渲染为"外部对接人N"。
+        // CO-526: 同一个已知 position 出现多个对接人时，第一个保留标准 roleKey，后续重复者落到
+        // EXTERNAL_ROLE_N，但 POSITION 字段仍记录原始 position，与后端 CrmEvaluationMapper 保持同步，
+        // 避免 tender_evaluation_customer_info 表的 uk_eval_role_info 唯一约束冲突。
         let externalRoleSeq = 0
+        const seenPositions = new Set()
         customerInfos = contacts.map((c) => {
-          const roleKey = CRM_POSITION_TO_ROLE[c.position] || `EXTERNAL_ROLE_${++externalRoleSeq}`
+          const standardRole = CRM_POSITION_TO_ROLE[c.position]
+          const isKnownPosition = standardRole !== undefined
+          let roleKey = standardRole
+          if (isKnownPosition) {
+            if (seenPositions.has(c.position)) {
+              roleKey = `EXTERNAL_ROLE_${++externalRoleSeq}`
+            } else {
+              seenPositions.add(c.position)
+            }
+          }
+          if (!roleKey) {
+            roleKey = `EXTERNAL_ROLE_${++externalRoleSeq}`
+          }
           return {
             roleKey,
             NAME: c.name || '',
             CONTACT_INFO: c.phone || c.email || '',
-            POSITION: CRM_POSITION_TO_ROLE[c.position] ? c.position : null,
+            POSITION: isKnownPosition ? c.position : null,
           XIYU_CONTACT: c.ehsyProjectManager || '',
           CONTACT_METHOD: c.contactMethod || '',
           INFO_TENDENCY_BASIS: c.preferenceBasis || '',
