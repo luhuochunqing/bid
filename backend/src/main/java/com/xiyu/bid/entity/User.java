@@ -55,7 +55,12 @@ public class User {
     @Column(nullable = false)
     private Role role;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    // P0 回滚（2026-07-08）：PR !1842 把 roleProfile 改为 LAZY 导致生产事故。
+    // JwtAuthenticationFilter 在非事务 Filter 中调用 EffectiveRoleResolver.resolveRoleCode(user)
+    // → user.getRoleCode() → roleProfile.getCode() 触发 LazyInitializationException，
+    // 所有本地用户登录后请求均认证失败（traceId=5560ee68... 等共 8 次 ERROR）。
+    // 保持 EAGER 直到 Filter 链中不再访问 roleProfile，或改用 join-fetch 仓库方法。
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "role_id", nullable = true)
     private RoleProfile roleProfile;
 
