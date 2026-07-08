@@ -308,4 +308,85 @@ class TenderQueryServiceTest {
         assertThat(dto.getProjectManagerName()).isNull();
         assertThat(dto.getAssigneeName()).isNull();
     }
+
+    @Test
+    @DisplayName("department 为空时应从项目负责人用户反查部门回填")
+    void shouldBackfillDepartmentFromProjectManagerUserWhenEmpty() {
+        TenderDTO dto = new TenderDTO();
+        dto.setId(1L);
+        dto.setProjectManagerId(99L);
+        dto.setDepartment(null);
+
+        when(projectRepository.findByTenderIdIn(Set.of(1L))).thenReturn(List.of());
+        when(tenderAssignmentRecordRepository.findLatestByTenderIds(Set.of(1L))).thenReturn(List.of());
+        User manager = new User();
+        manager.setId(99L);
+        manager.setDepartmentName("华东事业部");
+        when(userRepository.findByIdIn(Set.of(99L))).thenReturn(List.of(manager));
+
+        TenderQueryService service = createService();
+        service.enrichAssignmentInfoBatch(List.of(dto));
+
+        assertThat(dto.getDepartment()).isEqualTo("华东事业部");
+    }
+
+    @Test
+    @DisplayName("department 已有值时不被用户部门覆盖")
+    void shouldNotOverrideDepartmentWhenAlreadyPresent() {
+        TenderDTO dto = new TenderDTO();
+        dto.setId(1L);
+        dto.setProjectManagerId(99L);
+        dto.setDepartment("已有部门");
+
+        when(projectRepository.findByTenderIdIn(Set.of(1L))).thenReturn(List.of());
+        when(tenderAssignmentRecordRepository.findLatestByTenderIds(Set.of(1L))).thenReturn(List.of());
+        User manager = new User();
+        manager.setId(99L);
+        manager.setDepartmentName("华东事业部");
+        when(userRepository.findByIdIn(Set.of(99L))).thenReturn(List.of(manager));
+
+        TenderQueryService service = createService();
+        service.enrichAssignmentInfoBatch(List.of(dto));
+
+        assertThat(dto.getDepartment()).isEqualTo("已有部门");
+    }
+
+    @Test
+    @DisplayName("department 为空但项目负责人用户无部门时保持为空")
+    void shouldKeepDepartmentNullWhenProjectManagerHasNoDepartment() {
+        TenderDTO dto = new TenderDTO();
+        dto.setId(1L);
+        dto.setProjectManagerId(99L);
+        dto.setDepartment(null);
+
+        when(projectRepository.findByTenderIdIn(Set.of(1L))).thenReturn(List.of());
+        when(tenderAssignmentRecordRepository.findLatestByTenderIds(Set.of(1L))).thenReturn(List.of());
+        User manager = new User();
+        manager.setId(99L);
+        manager.setDepartmentName(null);
+        when(userRepository.findByIdIn(Set.of(99L))).thenReturn(List.of(manager));
+
+        TenderQueryService service = createService();
+        service.enrichAssignmentInfoBatch(List.of(dto));
+
+        assertThat(dto.getDepartment()).isNull();
+    }
+
+    @Test
+    @DisplayName("department 为空且项目负责人 ID 为 null 时不抛 NPE")
+    void shouldNotThrowNpeWhenProjectManagerIdIsNull() {
+        TenderDTO dto = new TenderDTO();
+        dto.setId(1L);
+        dto.setProjectManagerId(null);
+        dto.setDepartment(null);
+
+        when(projectRepository.findByTenderIdIn(Set.of(1L))).thenReturn(List.of());
+        when(tenderAssignmentRecordRepository.findLatestByTenderIds(Set.of(1L))).thenReturn(List.of());
+
+        TenderQueryService service = createService();
+
+        assertThatCode(() -> service.enrichAssignmentInfoBatch(List.of(dto)))
+                .doesNotThrowAnyException();
+        assertThat(dto.getDepartment()).isNull();
+    }
 }
