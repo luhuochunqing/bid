@@ -29,7 +29,8 @@ export function isFileLike(value) {
 export function normalizeTaskAttachmentFiles(attachments = []) {
   return (Array.isArray(attachments) ? attachments : [attachments])
     .map((item) => item?.raw || item?.file || item)
-    .filter((file) => isFileLike(file))
+    // CO-529: 已保存的附件记录（有 id 无 raw/file）不应被当成新文件重复上传
+    .filter((file) => isFileLike(file) && !file.id)
 }
 
 export function createTaskAttachmentPayload(file, userStore = {}) {
@@ -43,10 +44,14 @@ export function createTaskAttachmentPayload(file, userStore = {}) {
 }
 
 export async function uploadTaskAttachments(task, attachments, { projectStore, projectId, userStore } = {}) {
-  const files = normalizeTaskAttachmentFiles(attachments)
+  // CO-529: 已保存的附件记录（有 id 无 raw/file）不应被重复上传；
+  // 提交时 localValue.attachments 会混有已保存记录，过滤掉它们再统计和上传。
+  const items = Array.isArray(attachments) ? attachments : [attachments]
+  const uploadItems = items.filter((item) => item && (item.raw || item.file || !item.id))
+  const files = normalizeTaskAttachmentFiles(uploadItems)
   // CO-519: 用户选了文件但全部提取失败（非 File 对象），明确抛错避免静默失败
   // 上游 uploadTaskAttachmentsWithFallback 会 catch 并给用户友好提示
-  const inputCount = Array.isArray(attachments) ? attachments.filter(Boolean).length : (attachments ? 1 : 0)
+  const inputCount = uploadItems.filter(Boolean).length
   if (inputCount > 0 && files.length === 0) {
     throw new Error('文件读取失败，请刷新页面后重新选择；如仍失败，请尝试更换浏览器（推荐 Chrome 最新版）')
   }

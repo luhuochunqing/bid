@@ -88,6 +88,13 @@ describe('taskAssigneePayload', () => {
       const emptyWrapper = { raw: { name: 'empty.pdf' } }  // raw 不是 File/Blob
       expect(normalizeTaskAttachmentFiles([validFile, emptyWrapper])).toEqual([validFile])
     })
+
+    // CO-529: 已保存的附件记录（有 id 无 raw/file）不应被当成新文件重复上传
+    it('filters out saved attachment records (CO-529)', () => {
+      const validFile = new File(['content'], 'valid.pdf')
+      const savedRecord = { id: 100, name: 'saved.pdf', size: 1024, fileType: 'application/pdf' }
+      expect(normalizeTaskAttachmentFiles([validFile, savedRecord])).toEqual([validFile])
+    })
   })
 
   describe('createTaskAttachmentPayload', () => {
@@ -175,6 +182,36 @@ describe('taskAssigneePayload', () => {
 
       expect(uploadTaskAttachment).toHaveBeenCalledTimes(1)
       expect(uploadTaskAttachment).toHaveBeenCalledWith('p1', 1, expect.objectContaining({ name: 'valid.pdf' }))
+      expect(task.attachments).toEqual([saved])
+    })
+
+    // CO-529: 已保存附件记录不应触发上传，也不应抛"文件读取失败"
+    it('skips saved attachment records without throwing', async () => {
+      const uploadTaskAttachment = vi.fn()
+      const projectStore = { uploadTaskAttachment }
+      const task = { id: 1, attachments: [] }
+      const savedRecord = { id: 100, name: 'saved.pdf', size: 1024, fileType: 'application/pdf' }
+
+      await expect(
+        uploadTaskAttachments(task, [savedRecord], { projectStore, projectId: 'p1', userStore: {} })
+      ).resolves.toBeUndefined()
+
+      expect(uploadTaskAttachment).not.toHaveBeenCalled()
+      expect(task.attachments).toEqual([])
+    })
+
+    it('uploads new files and ignores saved records', async () => {
+      const saved = { id: 200, name: 'new.pdf' }
+      const uploadTaskAttachment = vi.fn().mockResolvedValue(saved)
+      const projectStore = { uploadTaskAttachment }
+      const task = { id: 1, attachments: [] }
+      const validFile = new File(['x'], 'new.pdf')
+      const savedRecord = { id: 100, name: 'saved.pdf', size: 1024, fileType: 'application/pdf' }
+
+      await uploadTaskAttachments(task, [savedRecord, validFile], { projectStore, projectId: 'p1', userStore: {} })
+
+      expect(uploadTaskAttachment).toHaveBeenCalledTimes(1)
+      expect(uploadTaskAttachment).toHaveBeenCalledWith('p1', 1, expect.objectContaining({ name: 'new.pdf' }))
       expect(task.attachments).toEqual([saved])
     })
   })
@@ -352,6 +389,31 @@ describe('taskAssigneePayload', () => {
       expect(result).toBe(true)
       expect(uploadTaskAttachment).not.toHaveBeenCalled()
       expect(addDeliverable).not.toHaveBeenCalled()
+    })
+
+    // CO-529: 已保存附件记录不应触发 warning，也不应阻塞交付物和任务流转
+    it('仅已保存附件 + 交付物成功 → 整体成功，无 warning', async () => {
+      const uploadTaskAttachment = vi.fn()
+      const addDeliverable = vi.fn().mockResolvedValue({ id: 200, name: 'deliverable.pdf' })
+      const deps = makeDeps({ uploadTaskAttachment, addDeliverable })
+      const message = { warning: vi.fn() }
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const task = { id: 1, attachments: [], assigneeId: 1 }
+      const savedRecord = { id: 100, name: 'saved.pdf', size: 1024, fileType: 'application/pdf' }
+
+      const result = await uploadTaskFilesWithFallback(
+        task,
+        { attachments: [savedRecord], deliverableFiles: [new File(['y'], 'deliverable.pdf')] },
+        deps,
+        makeMessages(),
+        message
+      )
+
+      expect(result).toBe(true)
+      expect(uploadTaskAttachment).not.toHaveBeenCalled()
+      expect(addDeliverable).toHaveBeenCalledTimes(1)
+      expect(message.warning).not.toHaveBeenCalled()
+      consoleSpy.mockRestore()
     })
   })
 })
