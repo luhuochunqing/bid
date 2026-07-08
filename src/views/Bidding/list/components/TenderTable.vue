@@ -34,6 +34,13 @@
         </template>
       </el-table-column>
 
+      <!-- 标讯状态 -->
+      <el-table-column prop="status" label="标讯状态" width="120" align="center">
+        <template #default="{ row = {} } = {}">
+          <el-tag :type="getTenderStatusTagType(row.status)" size="small">{{ getTenderStatusText(row.status) }}</el-tag>
+        </template>
+      </el-table-column>
+
       <!-- 来源平台 -->
       <el-table-column prop="source" label="来源平台" width="120" align="center">
         <template #default="{ row = {} } = {}">
@@ -82,13 +89,6 @@
       <el-table-column prop="bidOpeningTime" label="开标时间" width="150" align="center">
         <template #default="{ row = {} } = {}">
           <span class="date-cell">{{ row.bidOpeningTime ? formatDate(row.bidOpeningTime) : '-' }}</span>
-        </template>
-      </el-table-column>
-
-      <!-- 标讯状态 -->
-      <el-table-column prop="status" label="标讯状态" width="120" align="center">
-        <template #default="{ row = {} } = {}">
-          <el-tag :type="getTenderStatusTagType(row.status)" size="small">{{ getTenderStatusText(row.status) }}</el-tag>
         </template>
       </el-table-column>
 
