@@ -21,10 +21,12 @@ import com.xiyu.bid.tender.entity.TenderEvaluation;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -145,26 +147,39 @@ public class ProjectQueryService {
                         a.getSecondaryLeadUserId()))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-        Map<Long, String> leadUserNameMap = leadUserIds.isEmpty()
-                ? java.util.Collections.emptyMap()
-                : userRepository.findByIdIn(leadUserIds).stream()
-                        .collect(Collectors.toMap(
-                                User::getId,
-                                User::getFullName,
-                                (a, b) -> a));
-
         // 项目负责人部门为空时，从项目 managerId 反查用户部门兜底回填
         Set<Long> managerIds = projects.stream()
                 .map(ProjectDTO::getManagerId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
-        // CO-441: Collectors.toMap 不允许 null value，孤儿 manager_id 或部门为空的用户会触发 NPE。
-        // 改用 HashMap 显式 put 允许 null value。
-        Map<Long, String> managerDepartmentMap = new java.util.HashMap<>();
-        if (!managerIds.isEmpty()) {
-            userRepository.findByIdIn(managerIds)
-                    .forEach(user -> managerDepartmentMap.put(user.getId(), user.getDepartmentName()));
-        }
+
+        // 合并 secondary lead 姓名查询与 manager 部门查询，减少一次 DB round-trip。
+        Set<Long> allUserIds = Stream.concat(leadUserIds.stream(), managerIds.stream())
+                .collect(Collectors.toSet());
+        Map<Long, User> userMap = allUserIds.isEmpty()
+                ? java.util.Collections.emptyMap()
+                : userRepository.findByIdIn(allUserIds).stream()
+                        .collect(Collectors.toMap(
+                                User::getId,
+                                Function.identity(),
+                                (a, b) -> a));
+
+        // CO-441: 用 HashMap 显式 put，允许 null value，避免 Collectors.toMap 对 null value 抛 NPE。
+        Map<Long, String> leadUserNameMap = new HashMap<>();
+        leadUserIds.forEach(id -> {
+            User user = userMap.get(id);
+            if (user != null) {
+                leadUserNameMap.put(id, user.getFullName());
+            }
+        });
+
+        Map<Long, String> managerDepartmentMap = new HashMap<>();
+        managerIds.forEach(id -> {
+            User user = userMap.get(id);
+            if (user != null) {
+                managerDepartmentMap.put(id, user.getDepartmentName());
+            }
+        });
 
         // Batch-fetch evaluations for list fields (shortlistedCount, customerRevenue)
         Map<Long, TenderEvaluation> evalMap = tenderIds.isEmpty()
@@ -259,17 +274,13 @@ public class ProjectQueryService {
             }
 
             // 项目负责人部门为空时，从项目 managerId 反查用户部门兜底回填
-            if (isBlank(dto.getLeaderDepartment()) && dto.getManagerId() != null) {
+            if (StringUtils.isBlank(dto.getLeaderDepartment()) && dto.getManagerId() != null) {
                 String dept = managerDepartmentMap.get(dto.getManagerId());
-                if (!isBlank(dept)) {
+                if (!StringUtils.isBlank(dept)) {
                     dto.setLeaderDepartment(dept);
                 }
             }
         }
-    }
-
-    private boolean isBlank(String value) {
-        return value == null || value.isBlank();
     }
 
     private List<ProjectDTO> mergeDemoProjectsIfNeeded(
