@@ -17,6 +17,7 @@ import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.notification.service.NotificationRecipientResolver;
 import com.xiyu.bid.repository.ProjectRepository;
+import io.sentry.Sentry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -40,6 +41,10 @@ import java.util.Set;
  * 方法体用 try-catch 包裹 {@link DataAccessException}（DB 故障，可降级），
  * 其他 {@link RuntimeException}（编程 bug）也 catch 但带完整 stacktrace 记录，
  * 不重抛。这保证告警扫描、告警历史写入等主流程不会被通知系统的故障拖垮。</p>
+ *
+ * <p><b>Sentry 上报</b>（CO-564）：编程 bug 级别的 {@link RuntimeException}（如 NPE）
+ * 不仅写日志，还通过 {@code Sentry.captureException} 上报，让运维可主动发现告警链路
+ * 静默失败。{@link DataAccessException} 属于 DB 故障降级，不上报（已有 DB 健康监控）。</p>
  *
  * <p><b>跳过条件</b>：
  * <ul>
@@ -144,16 +149,18 @@ public class AlertNotificationOrchestrator {
                         alertHistory.getId(), result.notificationId());
             }
         } catch (DataAccessException e) {
-            // DB 故障：降级记录，不影响主流程
+            // DB 故障：降级记录，不影响主流程（DB 健康另有监控，不上报 Sentry）
             log.warn("告警通知发送失败（DB 异常，降级跳过）：alertHistoryId={}, ruleType={}, error={}",
                     alertHistory.getId(), alertRule.getType(), e.getMessage());
         } catch (RuntimeException e) {
-            // 编程 bug 或其他异常：记录完整 stacktrace 供排查，不重抛
-            log.error("告警通知发送异常（非 DB 异常，请排查）：alertHistoryId={}, ruleType={}, error={}",
+            // CO-564: 编程 bug（如 NPE）会导致告警通知静默失败，违背告警系统核心职责。
+            // 不重抛（避免中断扫描主流程），但通过 Sentry 上报让运维可主动发现并修复。
+            log.error("告警通知发送异常（非 DB 异常，已上报 Sentry）：alertHistoryId={}, ruleType={}, error={}",
                     alertHistory.getId(),
                     alertRule.getType(),
                     e.getMessage(),
                     e);
+            Sentry.captureException(e);
         }
     }
 

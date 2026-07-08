@@ -9,13 +9,16 @@ import com.xiyu.bid.notification.core.DispatchResult;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.notification.service.NotificationRecipientResolver;
+import io.sentry.Sentry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataAccessException;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -25,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -127,17 +131,41 @@ class AlertNotificationOrchestratorTest {
     }
 
     @Test
-    @DisplayName("notificationApplicationService 抛异常 → 不重抛")
-    void shouldNotPropagateExceptionFromNotificationService() {
+    @DisplayName("notificationApplicationService 抛 RuntimeException → 不重抛，且上报 Sentry（CO-564）")
+    void shouldNotPropagateRuntimeExceptionAndReportToSentry() {
         AlertHistory history = buildHistory();
         AlertRule rule = buildRule();
         when(notificationRecipientResolver.getUserIdsByRoleCodes(any()))
                 .thenReturn(List.of(100L));
         when(systemActorResolver.resolveCached()).thenReturn(1L);
+        RuntimeException npe = new NullPointerException("编程 bug");
         when(notificationApplicationService.createNotification(any(), any()))
-                .thenThrow(new RuntimeException("DB down"));
+                .thenThrow(npe);
 
-        assertDoesNotThrow(() -> orchestrator.dispatchNotification(history, rule, Map.of("k", "v")));
+        try (MockedStatic<Sentry> sentry = mockStatic(Sentry.class)) {
+            assertDoesNotThrow(() -> orchestrator.dispatchNotification(history, rule, Map.of("k", "v")));
+            // CO-564: 编程 bug 级异常必须上报 Sentry，让运维可主动发现告警链路静默失败
+            sentry.verify(() -> Sentry.captureException(npe));
+        }
+    }
+
+    @Test
+    @DisplayName("notificationApplicationService 抛 DataAccessException → 不重抛，且不上报 Sentry（DB 故障降级）")
+    void shouldNotPropagateDataAccessExceptionAndNotReportToSentry() {
+        AlertHistory history = buildHistory();
+        AlertRule rule = buildRule();
+        when(notificationRecipientResolver.getUserIdsByRoleCodes(any()))
+                .thenReturn(List.of(100L));
+        when(systemActorResolver.resolveCached()).thenReturn(1L);
+        DataAccessException dbEx = new org.springframework.dao.QueryTimeoutException("DB 查询超时");
+        when(notificationApplicationService.createNotification(any(), any()))
+                .thenThrow(dbEx);
+
+        try (MockedStatic<Sentry> sentry = mockStatic(Sentry.class)) {
+            assertDoesNotThrow(() -> orchestrator.dispatchNotification(history, rule, Map.of("k", "v")));
+            // DB 故障另有健康监控，不上报 Sentry（避免噪声）
+            sentry.verifyNoInteractions();
+        }
     }
 
     @Test
