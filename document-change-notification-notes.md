@@ -73,13 +73,51 @@
 
 ## 遇到的坑
 
-（实施过程中遇到再补充）
+### Review P0-1：企微跳转 404（已修复）
+
+**根因**：第一版实现完成后的系统性 Review 发现——`WeComMessageFormatter` 按 `sourceEntityType` 硬编码拼路径：
+- 我用 `sourceEntityType="DOCUMENT"` + `sourceEntityId=documentId`
+- 企微外发会命中 `case "DOCUMENT" -> "/document/editor/" + entityId` → 跳到文档智能编辑器
+- 但实际应该跳 `/project/{projectId}/drafting`（项目详情页 drafting 阶段）
+- 前端通知中心会读 payload.targetUrl（正确跳转），企微外发不读（跳错）
+
+**修复（根治方案）**：4 个 record 链加 targetUrl 字段
+1. `NotificationCreatedEvent` 加 targetUrl + 7→8 参数向后兼容构造器
+2. `NotificationDeliveryCommand` 加 targetUrl + `@JsonInclude(NON_NULL)`（序列化兼容）
+3. `NotificationApplicationService` 从 payload 提取 targetUrl（仅 "/" 开头的绝对路径被采用，防开放重定向）
+4. `WeComMessageFormatter.format` 增加 6 参数重载，targetUrl 优先于 entityType 映射
+
+**收益**：根治整类问题。未来 @提及、任务通知等凡是希望企微跳到非默认页的，都通过 payload.targetUrl 即可。
+
+### Review P1-2：未对齐 Spec 030（已修复）
+
+**根因**：第一版参考了 `ProjectNotificationService.notifyStageTransition` 的旧模式（团队全员广播），没参考到更新的 `TaskReviewNotificationService` 标准。Spec 030 / 案例 06131 明确要求"通知接收人按 `ProjectAccessScopeService.canAccessProject` 过滤"——否则被通知的人点击跳转后会被 403 拦截。
+
+**修复**：仿 `TaskReviewNotificationService.filterRecipientsSafe` 模式：
+- 注入 `ProjectAccessScopeService`
+- 用 `NotificationRecipientFilter.filterRecipients` 过滤候选接收人
+- 异常降级为原候选广播（符合 Constitution VII §2 "装饰性操作失败必须降级"）
+- 新增 3 个测试：剔除无访问权、降级广播、全部被过滤时跳过
+
+**教训**：实现新通知服务时，参考标尺应该是 `TaskReviewNotificationService`（最新标准）而非 `ProjectNotificationService` 的旧方法（散落的技术债）。
 
 ## 改动清单
 
-1. `DocumentChangeNotificationService.java`（新建）— 文档变更通知独立服务，含 `notifyDocumentChanged` 方法
+### 初始实现（commit 760681ebe）
+1. `DocumentChangeNotificationService.java`（新建）— 文档变更通知独立服务
 2. `ProjectDocumentWorkflowService.java` — 注入 + 上传/删除两处调用
-3. `DocumentChangeNotificationServiceTest.java`（新建）— 6 个分支测试
+3. `DocumentChangeNotificationServiceTest.java`（新建）— 分支测试
 4. `ProjectDocumentWorkflowServiceTest.java` — setUp mock + 3 个新测试
 5. `ProjectWorkflowServiceTest.java` — 构造器参数适配
 6. 模块 README 更新（notification + projectworkflow）
+
+### Review 修复（P0-1 + P1-2）
+7. `WeComMessageFormatter.java` — format 加 6 参数重载，payload targetUrl 优先
+8. `NotificationCreatedEvent.java` — 加 targetUrl 字段 + 向后兼容构造器
+9. `NotificationDeliveryCommand.java` — 加 targetUrl 字段 + `@JsonInclude(NON_NULL)`
+10. `NotificationApplicationService.java` — 从 payload 提取 targetUrl 放入 event
+11. `WeComPushService.java` — 透传 command.targetUrl() 给 formatter
+12. `DocumentChangeNotificationService.java` — 接入 Spec 030 `NotificationRecipientFilter` + `ProjectAccessScopeService`
+13. `WeComMessageFormatterTest.java` — 6 个新测试覆盖 targetUrl 覆盖逻辑
+14. `NotificationApplicationServiceTest.java` — 3 个新测试覆盖 targetUrl 提取
+15. `DocumentChangeNotificationServiceTest.java` — 3 个新测试覆盖 Spec 030 过滤/降级
