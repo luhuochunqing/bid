@@ -170,23 +170,21 @@ public class TenderQueryService {
             Map<Long, String> assigneeNames = fetchAssigneeNames(tenderIds);
 
             for (TenderDTO dto : dtos) {
+                // 同一 dto 只查一次 ManagerInfo，name 和 department 共用（避免重复 HashMap lookup）
+                ManagerInfo info = managerInfo.get(dto.getId());
                 // CO-333: 标讯自身已存项目负责人姓名时不被项目 managerId 反查覆盖，
                 // 避免管理员点击「立即投标」生成项目后，前端项目负责人显示值发生变化。
-                if (dto.getProjectManagerName() == null || dto.getProjectManagerName().isBlank()) {
-                    ManagerInfo info = managerInfo.get(dto.getId());
-                    if (info != null && info.managerName != null) {
-                        dto.setProjectManagerName(info.managerName);
-                    }
+                if ((dto.getProjectManagerName() == null || dto.getProjectManagerName().isBlank())
+                        && info != null && info.managerName() != null) {
+                    dto.setProjectManagerName(info.managerName());
                 }
                 dto.setAssigneeName(assigneeNames.get(dto.getId()));
 
                 // department 为空时从项目负责人用户反查部门回填
                 // 数据源与 managerName 一致：均通过 Project.managerId 反查，避免 Tender.projectManagerId 78% NULL 的坑
-                if (StringUtils.isBlank(dto.getDepartment())) {
-                    ManagerInfo info = managerInfo.get(dto.getId());
-                    if (info != null && !StringUtils.isBlank(info.managerDeptName)) {
-                        dto.setDepartment(info.managerDeptName);
-                    }
+                if (StringUtils.isBlank(dto.getDepartment())
+                        && info != null && !StringUtils.isBlank(info.managerDeptName())) {
+                    dto.setDepartment(info.managerDeptName());
                 }
             }
         } catch (RuntimeException e) {
