@@ -224,6 +224,7 @@ async function backfillReportFiles(ids) {
       .map(id => docMap.get(Number(id)))
       .filter(Boolean)
       .map(doc => ({
+        uid: doc.id,
         name: doc.name || '复盘报告',
         url: doc.fileUrl || '',
         response: { data: doc },
