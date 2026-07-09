@@ -21,6 +21,10 @@ import java.time.Instant;
  * application 层依赖接口而非直接 new ObsClient，避免 SDK 泄漏（R1 修复）。</p>
  *
  * <p>D4-1 修复：ObsClient 改为单例复用，@PostConstruct 初始化，@PreDestroy 关闭。</p>
+ *
+ * <p>自定义域名支持：若配置了 {@code downloadCustomDomain}（如 widbid-obs.ehsy.com），
+ * 会创建专用的 {@code downloadObsClient}，以自定义域名作为 endpoint 生成预签名 URL。
+ * 签名基于自定义域名计算，外部系统（如 CRM）可直接通过该域名访问 OBS 文件。</p>
  */
 @Slf4j
 @Service
@@ -29,6 +33,8 @@ public class HuaweiObsDownloadUrlGateway implements ObsDownloadUrlGateway {
 
     private final ObsProperties obsProperties;
     private ObsClient obsClient;
+    /** 下载专用 ObsClient（使用自定义域名作为 endpoint），为 null 时复用 obsClient。 */
+    private ObsClient downloadObsClient;
 
     @PostConstruct
     void initObsClient() {
@@ -37,14 +43,31 @@ public class HuaweiObsDownloadUrlGateway implements ObsDownloadUrlGateway {
                     obsProperties.getAccessKey(),
                     obsProperties.getSecretKey(),
                     obsProperties.getEndpoint());
+            // 配置了自定义域名时，创建专用下载 ObsClient
+            String customDomain = obsProperties.getDownloadCustomDomain();
+            if (customDomain != null && !customDomain.isBlank()) {
+                String downloadEndpoint = customDomain.startsWith("http")
+                        ? customDomain
+                        : "https://" + customDomain;
+                this.downloadObsClient = new ObsClient(
+                        obsProperties.getAccessKey(),
+                        obsProperties.getSecretKey(),
+                        downloadEndpoint);
+                log.info("OBS 下载自定义域名已启用: {} (endpoint={})", customDomain, downloadEndpoint);
+            }
         }
     }
 
     @PreDestroy
     void closeObsClient() {
-        if (obsClient != null) {
+        closeQuietly(obsClient);
+        closeQuietly(downloadObsClient);
+    }
+
+    private void closeQuietly(ObsClient client) {
+        if (client != null) {
             try {
-                obsClient.close();
+                client.close();
             } catch (IOException | RuntimeException e) {
                 log.warn("关闭 ObsClient 失败", e);
             }
@@ -63,7 +86,9 @@ public class HuaweiObsDownloadUrlGateway implements ObsDownloadUrlGateway {
         request.setBucketName(bucket);
         request.setObjectKey(objectKey);
 
-        String signedUrl = obsClient.createTemporarySignature(request).getSignedUrl();
+        // 优先使用自定义域名 ObsClient 生成预签名 URL
+        ObsClient signer = downloadObsClient != null ? downloadObsClient : obsClient;
+        String signedUrl = signer.createTemporarySignature(request).getSignedUrl();
 
         return new SignedDownloadUrl(
                 signedUrl,
