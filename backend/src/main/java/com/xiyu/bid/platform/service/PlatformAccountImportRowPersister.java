@@ -6,6 +6,7 @@ import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Component
@@ -18,8 +19,13 @@ public class PlatformAccountImportRowPersister {
     /**
      * INSERT-only: 每行创建一个新的 PlatformAccount。
      * 不执行 upsert（账户和 CA 无自然去重键）。
+     *
+     * <p><b>CO-560 事务传播改为 REQUIRES_NEW</b>：每行独立事务，一行失败只回滚该行，
+     * 不影响其他行。根因：原 REQUIRED 传播下，单行 DB 异常（如字段超长）会把外层事务
+     * 标记为 rollback-only，Hibernate Session 中毒（null id 实体残留），后续行全部抛
+     * AssertionFailure + UnexpectedRollbackException。
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void persist(ParsedAccountRow row, Long contactPersonId) {
         String encryptedPassword = passwordEncryptionUtil.encrypt(row.password());
 
