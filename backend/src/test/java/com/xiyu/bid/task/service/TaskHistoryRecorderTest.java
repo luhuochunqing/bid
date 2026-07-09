@@ -54,7 +54,7 @@ class TaskHistoryRecorderTest {
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(actor));
         when(historyRepository.save(any(TaskHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        recorder.recordUpdate(before, after, "alice");
+        recorder.recordUpdate(before, after, "alice", "西安地铁项目");
 
         ArgumentCaptor<TaskHistory> historyCaptor = ArgumentCaptor.forClass(TaskHistory.class);
         verify(historyRepository).save(historyCaptor.capture());
@@ -71,6 +71,7 @@ class TaskHistoryRecorderTest {
         assertThat(event.entityId()).isEqualTo(99L);
         assertThat(event.actorUserId()).isEqualTo(7L);
         assertThat(event.metadata()).containsEntry("projectId", 10L);
+        assertThat(event.metadata()).containsEntry("projectName", "西安地铁项目");
         assertThat(event.before()).containsEntry("title", "准备商务标");
         assertThat(event.after()).containsEntry("title", "准备商务标 V2");
     }

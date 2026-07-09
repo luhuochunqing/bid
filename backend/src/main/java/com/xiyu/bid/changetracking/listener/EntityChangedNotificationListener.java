@@ -8,6 +8,7 @@ import com.xiyu.bid.changetracking.core.ChangeDiffPolicy;
 import com.xiyu.bid.changetracking.core.FieldChange;
 import com.xiyu.bid.changetracking.event.EntityChangedEvent;
 import com.xiyu.bid.notification.core.NotificationType;
+import com.xiyu.bid.notification.core.TaskNotificationTitleFormatter;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.subscription.entity.Subscription;
@@ -68,7 +69,7 @@ public class EntityChangedNotificationListener {
             return;
         }
 
-        String title = buildTitle(event.entityType(), event.entityTitle());
+        String title = buildTitle(event);
         Map<String, Object> payload = new LinkedHashMap<>(event.metadata());
         payload.put("changes", changes);
 
@@ -96,10 +97,14 @@ public class EntityChangedNotificationListener {
         return NotificationType.INFO;
     }
 
-    private static String buildTitle(String entityType, String entityTitle) {
+    private String buildTitle(EntityChangedEvent event) {
+        String entityType = event.entityType();
+        String entityTitle = event.entityTitle();
         String safe = entityTitle == null || entityTitle.isBlank() ? "对象" : entityTitle;
         if ("TASK".equals(entityType)) {
-            return "任务《" + safe + "》有更新";
+            Object projectNameValue = event.metadata().get("projectName");
+            String projectName = projectNameValue instanceof String s ? s : null;
+            return TaskNotificationTitleFormatter.format("任务更新", projectName, safe);
         }
         return "《" + safe + "》有更新";
     }

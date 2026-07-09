@@ -42,7 +42,7 @@ public class TaskHistoryRecorder {
     }
 
     @Transactional
-    public void recordUpdate(Task before, Task after, String actorUsername) {
+    public void recordUpdate(Task before, Task after, String actorUsername, String projectName) {
         if (before == null || after == null || after.getId() == null) {
             return;
         }
@@ -56,6 +56,11 @@ public class TaskHistoryRecorder {
                 .snapshotJson(serialize(afterSnapshot))
                 .build());
         if (actorUserId != null) {
+            Map<String, Object> metadata = new LinkedHashMap<>();
+            metadata.put("projectId", after.getProjectId());
+            if (projectName != null) {
+                metadata.put("projectName", projectName);
+            }
             eventPublisher.publishEvent(new EntityChangedEvent(
                     "TASK",
                     after.getId(),
@@ -63,7 +68,7 @@ public class TaskHistoryRecorder {
                     beforeSnapshot,
                     afterSnapshot,
                     after.getTitle(),
-                    Map.of("projectId", after.getProjectId())
+                    metadata
             ));
         }
     }
