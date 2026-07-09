@@ -74,3 +74,45 @@ describe('ProjectBasicInfoCard customerTypeLabel 渲染', () => {
     expect(item.text()).toBe('央企')
   })
 })
+
+// 项目类型展示位需通过 projectTypeLabel 翻译回中文（PR !1571 同款遗漏）
+describe('ProjectBasicInfoCard projectTypeLabel 渲染', () => {
+  beforeEach(() => {
+    httpClientGet.mockReset()
+    messageWarning.mockReset()
+  })
+
+  it.each([
+    ['OFFICE', '办公'],
+    ['COMPREHENSIVE', '综合'],
+    ['COLLECTIVE', '集采'],
+    ['INDUSTRIAL', '工业品'],
+    ['OTHER', '其他'],
+  ])('renders projectType enum "%s" as localized label "%s"', (enumValue, expectedLabel) => {
+    const wrapper = mount(ProjectBasicInfoCard, {
+      props: { project: { projectType: enumValue } },
+      global: { stubs },
+    })
+    const item = wrapper.find('.desc-item[data-label="项目类型"]')
+    expect(item.exists()).toBe(true)
+    expect(item.text()).toBe(expectedLabel)
+  })
+
+  it('renders "-" for null projectType', () => {
+    const wrapper = mount(ProjectBasicInfoCard, {
+      props: { project: { projectType: null } },
+      global: { stubs },
+    })
+    const item = wrapper.find('.desc-item[data-label="项目类型"]')
+    expect(item.text()).toBe('-')
+  })
+
+  it('falls back to raw value for unknown projectType (历史中文数据兼容)', () => {
+    const wrapper = mount(ProjectBasicInfoCard, {
+      props: { project: { projectType: '集采' } },
+      global: { stubs },
+    })
+    const item = wrapper.find('.desc-item[data-label="项目类型"]')
+    expect(item.text()).toBe('集采')
+  })
+})
