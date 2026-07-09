@@ -6,9 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
-import com.xiyu.bid.notification.core.NotificationType;
-import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
+import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.project.notification.TaskReviewNotificationService;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
@@ -51,6 +50,7 @@ class ProjectTaskWorkflowService {
             new TypeReference<>() {};
 
     private final ProjectWorkflowGuardService guardService;
+    private final ProjectRepository projectRepository;
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
@@ -75,7 +75,7 @@ class ProjectTaskWorkflowService {
     }
 
     ProjectTaskViewDTO createProjectTask(Long projectId, ProjectTaskCreateRequest request, String creatorUsername) {
-        Project project = guardService.requireWorkflowMutationProject(projectId);
+        guardService.requireWorkflowMutationProject(projectId);
         User assigneeUser = resolveAssignee(request.getAssigneeId(), creatorUsername);
         Task task = Task.builder()
                 .projectId(projectId)
@@ -98,19 +98,9 @@ class ProjectTaskWorkflowService {
         Task saved = taskRepository.save(task);
         String assigneeName = assigneeUser != null ? assigneeUser.getFullName() : request.getAssigneeName();
         if (saved.getAssigneeId() != null) {
-            try {
-                String projectName = project.getName();
-                String taskTitle = saved.getTitle();
-                notificationService.createNotification(
-                        new CreateNotificationRequest(NotificationType.INFO.name(), "TASK", saved.getId(),
-                                "任务分配 - " + projectName + " - " + taskTitle,
-                                saved.getDescription() != null ? saved.getDescription() : "请在投标项目中查看任务详情",
-                                Map.of("projectId", String.valueOf(saved.getProjectId()), "projectName", projectName),
-                                Collections.singletonList(saved.getAssigneeId())),
-                        saved.getAssigneeId());
-            } catch (RuntimeException e) {
-                log.warn("Failed to notify assignee for task {}: {}", saved.getId(), e.getMessage());
-            }
+            Long creatorUserId = resolveCreatorUserId(creatorUsername);
+            projectNotificationService.notifyTaskAssigned(
+                    projectId, saved.getId(), saved.getTitle(), saved.getAssigneeId(), creatorUserId);
         }
         return toTaskView(saved, assigneeName);
     }
@@ -168,7 +158,7 @@ class ProjectTaskWorkflowService {
             task.setExtendedFieldsJson(serializeExtendedFields(extendedFields));
         }
         Task saved = taskRepository.save(task);
-        taskHistoryRecorder.recordUpdate(before, saved, actorUsername);
+        taskHistoryRecorder.recordUpdate(before, saved, actorUsername, resolveProjectName(projectId));
 
         // 通知：任务提交审核 → 通知有权限审核的人
         if (before.getStatus() == Task.Status.TODO && saved.getStatus() == Task.Status.REVIEW) {
@@ -205,7 +195,7 @@ class ProjectTaskWorkflowService {
                 .build();
         Task saved = taskRepository.save(task);
         if (draft.getAssigneeId() != null && draft.getProjectId() != null) {
-            projectNotificationService.notifyTaskAssigned(draft.getProjectId(), saved.getId(), draft.getAssigneeId(), 0L);
+            projectNotificationService.notifyTaskAssigned(draft.getProjectId(), saved.getId(), saved.getTitle(), draft.getAssigneeId(), 0L);
         }
         return toTaskView(saved, draft.getAssigneeName());
     }
@@ -296,6 +286,24 @@ class ProjectTaskWorkflowService {
                 .uploader(doc.getUploaderName())
                 .createdAt(doc.getCreatedAt())
                 .build();
+    }
+
+    private Long resolveCreatorUserId(String creatorUsername) {
+        if (!hasText(creatorUsername)) {
+            return 0L;
+        }
+        return userRepository.findByUsername(creatorUsername)
+                .map(User::getId)
+                .orElse(0L);
+    }
+
+    private String resolveProjectName(Long projectId) {
+        if (projectId == null) {
+            return null;
+        }
+        return projectRepository.findById(projectId)
+                .map(Project::getName)
+                .orElse(null);
     }
 
     private User resolveAssignee(Long assigneeId) {

@@ -5,7 +5,6 @@ package com.xiyu.bid.project.notification;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.RoleProfileCatalog;
-import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.matrixcollaboration.entity.ProjectMember;
 import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
@@ -49,8 +48,6 @@ class ProjectNotificationServiceTest {
     @Mock
     private ProjectRepository projectRepository;
     @Mock
-    private TaskRepository taskRepository;
-    @Mock
     private UserRepository userRepository;
     @Mock
     private ProjectMemberRepository projectMemberRepository;
@@ -80,7 +77,7 @@ class ProjectNotificationServiceTest {
         ProjectEventNotificationDispatcher eventDispatcher = new ProjectEventNotificationDispatcher(
                 notificationService, projectRepository, recipientResolver);
         svc = new ProjectNotificationService(notificationService, projectRepository,
-                taskRepository, userRepository, projectMemberRepository, leadAssignmentRepository, effectiveRoleResolver,
+                userRepository, projectMemberRepository, leadAssignmentRepository, effectiveRoleResolver,
                 recipientResolver, eventDispatcher);
         // 默认 stubbing：resolver 返回空列表，避免 UnnecessaryStubbingException；
         // 各测试按需 override
@@ -115,14 +112,6 @@ class ProjectNotificationServiceTest {
         RoleProfile profile = RoleProfile.builder().code(roleCode).name(roleCode).build();
         u.setRoleProfile(profile);
         return u;
-    }
-
-    private Task task(Long id, String title) {
-        Task t = new Task();
-        t.setId(id);
-        t.setTitle(title);
-        t.setProjectId(PID);
-        return t;
     }
 
     private ProjectMember member(Long userId, String permissionLevel) {
@@ -307,11 +296,10 @@ class ProjectNotificationServiceTest {
         @DisplayName("non-bid-otherDept 角色 → targetUrl 指向 /project/{id}/drafting")
         void sendsToAssigneeWithProjectDraftingUrl() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(taskRepository.findById(TASK_ID)).thenReturn(Optional.of(task(TASK_ID, "任务标题")));
             when(userRepository.findById(ASSIGNEE_ID)).thenReturn(Optional.of(userWithRole("bid-Team")));
             when(effectiveRoleResolver.resolveRoleCode(any(User.class))).thenReturn("bid-Team");
 
-            svc.notifyTaskAssigned(PID, TASK_ID, ASSIGNEE_ID, UID);
+            svc.notifyTaskAssigned(PID, TASK_ID, "任务标题", ASSIGNEE_ID, UID);
 
             verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
             CreateNotificationRequest req = requestCaptor.getValue();
@@ -325,11 +313,10 @@ class ProjectNotificationServiceTest {
         @DisplayName("bid-otherDept 角色 → targetUrl 指向 /task-board（CO-474 根因修复）")
         void sendsToBidOtherDeptWithTaskBoardUrl() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(taskRepository.findById(TASK_ID)).thenReturn(Optional.of(task(TASK_ID, "任务标题")));
             when(userRepository.findById(ASSIGNEE_ID)).thenReturn(Optional.of(userWithRole(RoleProfileCatalog.BID_OTHER_DEPT_CODE)));
             when(effectiveRoleResolver.resolveRoleCode(any(User.class))).thenReturn(RoleProfileCatalog.BID_OTHER_DEPT_CODE);
 
-            svc.notifyTaskAssigned(PID, TASK_ID, ASSIGNEE_ID, UID);
+            svc.notifyTaskAssigned(PID, TASK_ID, "任务标题", ASSIGNEE_ID, UID);
 
             verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
             CreateNotificationRequest req = requestCaptor.getValue();
@@ -346,7 +333,7 @@ class ProjectNotificationServiceTest {
             when(effectiveRoleResolver.resolveRoleCode(any(User.class))).thenReturn("bid-Team");
             when(projectRepository.findById(PID)).thenReturn(Optional.empty());
 
-            svc.notifyTaskAssigned(PID, TASK_ID, ASSIGNEE_ID, UID);
+            svc.notifyTaskAssigned(PID, TASK_ID, "任务标题", ASSIGNEE_ID, UID);
 
             verify(notificationService, never()).createNotification(any(), any());
         }

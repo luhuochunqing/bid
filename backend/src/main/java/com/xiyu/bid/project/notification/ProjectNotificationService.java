@@ -12,8 +12,8 @@ import com.xiyu.bid.notification.core.TaskNotificationTargetUrlResolver;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.project.core.ProjectStage;
+import com.xiyu.bid.notification.core.TaskNotificationTitleFormatter;
 import com.xiyu.bid.repository.ProjectRepository;
-import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.security.EffectiveRoleResolver;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +35,6 @@ public class ProjectNotificationService {
 
     private final NotificationApplicationService notificationService;
     private final ProjectRepository projectRepository;
-    private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final ProjectLeadAssignmentRepository leadAssignmentRepository;
@@ -104,22 +103,24 @@ public class ProjectNotificationService {
      * @param assigneeId 被分配人 ID
      * @param assignedBy 分配人 ID（用于审计，可为 0L 表示系统）
      */
-    public void notifyTaskAssigned(Long projectId, Long taskId, Long assigneeId, Long assignedBy) {
+    public void notifyTaskAssigned(Long projectId, Long taskId, String taskTitle,
+                                    Long assigneeId, Long assignedBy) {
         if (assigneeId == null) return;
         User assignee = userRepository.findById(assigneeId).orElse(null);
         String roleCode = assignee != null ? effectiveRoleResolver.resolveRoleCode(assignee) : null;
         String targetUrl = TaskNotificationTargetUrlResolver.resolveTargetUrl(projectId, taskId, roleCode);
-        sendTaskAssignedNotification(projectId, taskId, assigneeId, assignedBy, targetUrl);
+        sendTaskAssignedNotification(projectId, taskId, taskTitle, assigneeId, assignedBy, targetUrl);
     }
 
-    private void sendTaskAssignedNotification(Long projectId, Long taskId, Long assigneeId,
-                                              Long assignedBy, String targetUrl) {
+    private void sendTaskAssignedNotification(Long projectId, Long taskId, String taskTitle,
+                                              Long assigneeId, Long assignedBy, String targetUrl) {
         try {
             Project project = findProject(projectId);
             if (project == null) return;
             String projectName = project.getName();
-            String taskTitle = resolveTaskTitle(taskId);
-            String body = String.format("项目名称：%s\n任务名称：%s\n\n请关注项目进展。", projectName, taskTitle);
+            String safeTitle = TaskNotificationTitleFormatter.format("任务分配", projectName, taskTitle);
+            String body = String.format("项目名称：%s\n任务名称：%s\n\n请关注项目进展。", projectName,
+                    taskTitle == null ? "" : taskTitle);
             Map<String, Object> payload = new HashMap<>();
             payload.put("projectId", String.valueOf(projectId));
             payload.put("projectName", projectName);
@@ -131,7 +132,7 @@ public class ProjectNotificationService {
                     NotificationType.INFO.name(),
                     "PROJECT",
                     projectId,
-                    "任务分配 - " + projectName + " - " + taskTitle,
+                    safeTitle,
                     body,
                     payload,
                     List.of(assigneeId)
@@ -140,15 +141,6 @@ public class ProjectNotificationService {
             log.warn("sendTaskAssignedNotification failed for project={}, task={}: {}",
                     projectId, taskId, e.getMessage());
         }
-    }
-
-    private String resolveTaskTitle(Long taskId) {
-        if (taskId == null) {
-            return "";
-        }
-        return taskRepository.findById(taskId)
-                .map(task -> task.getTitle() == null ? "" : task.getTitle())
-                .orElse("");
     }
 
     public void notifyBidReviewResult(Long projectId, Long recipientId, boolean approved, Long reviewerId) {

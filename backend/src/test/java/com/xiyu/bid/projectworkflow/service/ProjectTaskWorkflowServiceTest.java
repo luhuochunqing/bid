@@ -13,6 +13,7 @@ import com.xiyu.bid.projectworkflow.dto.ProjectTaskStatusUpdateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectTaskViewDTO;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
+import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.task.dto.TaskDeliverableDTO;
@@ -30,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -46,29 +48,35 @@ class ProjectTaskWorkflowServiceTest {
 
     private ProjectTaskWorkflowService service;
     private TaskRepository taskRepository;
+    private ProjectRepository projectRepository;
     private ProjectWorkflowGuardService guardService;
     private TaskDeliverableRepository taskDeliverableRepository;
     private ProjectDocumentRepository projectDocumentRepository;
     private NotificationApplicationService notificationService;
     private UserRepository userRepository;
+    private ProjectNotificationService projectNotificationService;
 
     @BeforeEach
     void setUp() {
         taskRepository = mock(TaskRepository.class);
+        projectRepository = mock(ProjectRepository.class);
         userRepository = mock(UserRepository.class);
         guardService = mock(ProjectWorkflowGuardService.class);
         TaskHistoryRecorder taskHistoryRecorder = mock(TaskHistoryRecorder.class);
         ProjectTaskDeliverableCollector deliverableCollector = mock(ProjectTaskDeliverableCollector.class);
         notificationService = mock(NotificationApplicationService.class);
-        ProjectNotificationService projectNotificationService = mock(ProjectNotificationService.class);
+        projectNotificationService = mock(ProjectNotificationService.class);
         com.xiyu.bid.project.notification.TaskReviewNotificationService taskReviewNotificationService =
                 mock(com.xiyu.bid.project.notification.TaskReviewNotificationService.class);
         ObjectMapper objectMapper = new ObjectMapper();
         taskDeliverableRepository = mock(TaskDeliverableRepository.class);
         projectDocumentRepository = mock(ProjectDocumentRepository.class);
+        lenient().when(projectRepository.findById(10L))
+                .thenReturn(java.util.Optional.of(Project.builder().id(10L).name("西安地铁项目").build()));
 
         service = new ProjectTaskWorkflowService(
                 guardService,
+                projectRepository,
                 taskRepository,
                 userRepository,
                 objectMapper,
@@ -302,11 +310,7 @@ class ProjectTaskWorkflowServiceTest {
 
         service.createProjectTask(projectId, req, "creator");
 
-        ArgumentCaptor<CreateNotificationRequest> captor = ArgumentCaptor.forClass(CreateNotificationRequest.class);
-        verify(notificationService).createNotification(captor.capture(), eq(8L));
-        CreateNotificationRequest request = captor.getValue();
-        assertThat(request.title()).isEqualTo("任务分配 - 西安地铁项目 - 编写技术标书");
-        assertThat(request.sourceEntityType()).isEqualTo("TASK");
-        assertThat(request.sourceEntityId()).isEqualTo(500L);
+        verify(projectNotificationService).notifyTaskAssigned(
+                eq(projectId), eq(500L), eq("编写技术标书"), eq(8L), eq(7L));
     }
 }

@@ -3,6 +3,7 @@
 // Pos: Service/业务编排层
 // 维护声明: 仅维护任务 CRUD 与项目数据权限编排；人员分配和团队工作量留在 TaskAssignmentSupport。
 package com.xiyu.bid.task.service;
+import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
@@ -93,7 +94,7 @@ public class TaskService {
     }
     private void notifyAssigneeIfNeeded(TaskDTO task, Long assignedBy) {
         if (task.getAssigneeId() != null && task.getProjectId() != null) {
-            notificationService.notifyTaskAssigned(task.getProjectId(), task.getId(), task.getAssigneeId(), assignedBy);
+            notificationService.notifyTaskAssigned(task.getProjectId(), task.getId(), task.getTitle(), task.getAssigneeId(), assignedBy);
         }
     }
     @Transactional(readOnly = true)
@@ -148,7 +149,7 @@ public class TaskService {
             task.setExtendedFieldsJson(taskDtoMapper.serializeExtendedFields(taskDTO.getExtendedFields()));
         }
         Task saved = taskRepository.save(task);
-        taskHistoryRecorder.recordUpdate(before, saved, actorUsername);
+        taskHistoryRecorder.recordUpdate(before, saved, actorUsername, resolveProjectName(saved.getProjectId()));
         TaskDTO result = nameResolver.toDTOWithNames(saved);
         notifyAssigneeIfChanged(oldAssigneeId, result, resolveCreatorUserId(actorUsername));
         return result;
@@ -156,7 +157,7 @@ public class TaskService {
     private void notifyAssigneeIfChanged(Long oldAssigneeId, TaskDTO updated, Long updatedBy) {
         Long newAssigneeId = updated.getAssigneeId();
         if (newAssigneeId != null && !Objects.equals(oldAssigneeId, newAssigneeId) && updated.getProjectId() != null) {
-            notificationService.notifyTaskAssigned(updated.getProjectId(), updated.getId(), newAssigneeId, updatedBy);
+            notificationService.notifyTaskAssigned(updated.getProjectId(), updated.getId(), updated.getTitle(), newAssigneeId, updatedBy);
         }
     }
     @Transactional
@@ -221,7 +222,7 @@ public class TaskService {
         Task.Status oldStatus = before.getStatus();
         task.setStatus(status);
         Task saved = taskRepository.save(task);
-        taskHistoryRecorder.recordUpdate(before, saved, actorUsername);
+        taskHistoryRecorder.recordUpdate(before, saved, actorUsername, resolveProjectName(saved.getProjectId()));
         // 蓝图 §消息中心-系统通知 序号 2：任务状态变更通知
         if (oldStatus != status && task.getProjectId() != null) {
             notificationService.notifyTaskStatusChanged(
@@ -244,10 +245,10 @@ public class TaskService {
         Task before = TaskSnapshots.copy(task);
         assignmentSupport.applyAssignment(task, assignmentSupport.resolveAssignmentSnapshot(request, currentUser));
         Task saved = taskRepository.save(task);
-        taskHistoryRecorder.recordUpdate(before, saved, username);
+        taskHistoryRecorder.recordUpdate(before, saved, username, resolveProjectName(saved.getProjectId()));
         // 通知 #4: 分配投标负责人 → 被分配人
         if (request != null && request.getAssigneeId() != null) {
-            notificationService.notifyTaskAssigned(task.getProjectId(), task.getId(), request.getAssigneeId(), currentUser.getId());
+            notificationService.notifyTaskAssigned(task.getProjectId(), task.getId(), task.getTitle(), request.getAssigneeId(), currentUser.getId());
         }
         return nameResolver.toDTOWithNames(saved);
     }
@@ -292,5 +293,13 @@ public class TaskService {
     private static boolean hasText(String v) { return v != null && !v.isBlank(); }
     private boolean isAssignedReviewer(Long projectId, Long uid) {
         return uid != null && bidDocumentReviewRepository.findByProjectId(projectId).map(r -> uid.equals(r.getReviewerId())).orElse(false);
+    }
+    private String resolveProjectName(Long projectId) {
+        if (projectId == null) {
+            return null;
+        }
+        return projectRepository.findById(projectId)
+                .map(Project::getName)
+                .orElse(null);
     }
 }

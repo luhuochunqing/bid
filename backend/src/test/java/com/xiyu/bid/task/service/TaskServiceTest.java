@@ -1,5 +1,6 @@
 package com.xiyu.bid.task.service;
 
+import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
@@ -133,7 +134,7 @@ class TaskServiceTest {
             return t;
         });
 
-        TaskDTO expectedDto = TaskDTO.builder().id(100L).projectId(projectId).assigneeId(assigneeId).build();
+        TaskDTO expectedDto = TaskDTO.builder().id(100L).projectId(projectId).assigneeId(assigneeId).title("System Task with assignee").build();
         when(userRepository.findById(any())).thenReturn(Optional.empty());
         when(userRepository.findByUsername(any())).thenReturn(Optional.empty());
         when(taskDtoMapper.toDTO(any(Task.class), isNull(), isNull())).thenReturn(expectedDto);
@@ -141,7 +142,7 @@ class TaskServiceTest {
         TaskDTO result = taskService.createSystemTask(taskDTO);
 
         assertThat(result).isNotNull();
-        verify(notificationService).notifyTaskAssigned(eq(projectId), eq(100L), eq(assigneeId), eq(0L));
+        verify(notificationService).notifyTaskAssigned(eq(projectId), eq(100L), eq("System Task with assignee"), eq(assigneeId), eq(0L));
     }
 
     @Test
@@ -169,7 +170,7 @@ class TaskServiceTest {
         TaskDTO result = taskService.createSystemTask(taskDTO);
 
         assertThat(result).isNotNull();
-        verify(notificationService, never()).notifyTaskAssigned(any(), any(), any(), any());
+        verify(notificationService, never()).notifyTaskAssigned(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -192,6 +193,7 @@ class TaskServiceTest {
         when(taskRepository.findById(taskId)).thenReturn(Optional.of(existingTask));
         when(taskRepository.save(any(Task.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(projectRepository.existsById(projectId)).thenReturn(true);
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(Project.builder().id(projectId).name("西安地铁项目").build()));
         when(projectAccessScopeService.getAllowedProjectIdsForCurrentUser()).thenReturn(java.util.Collections.emptyList());
 
         User actor = new User();

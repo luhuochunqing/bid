@@ -6,6 +6,7 @@ package com.xiyu.bid.project.notification;
 
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.notification.core.NotificationType;
+import com.xiyu.bid.notification.core.TaskNotificationTitleFormatter;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.notification.service.NotificationRecipientResolver;
@@ -153,7 +154,7 @@ public class ProjectEventNotificationDispatcher {
                     NotificationType.TASK_UPDATE.name(),
                     "PROJECT",
                     projectId,
-                    "任务状态变更 - " + projectName,
+                    TaskNotificationTitleFormatter.format("任务状态变更", projectName, taskName),
                     body,
                     payload,
                     recipientIds

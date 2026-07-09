@@ -1,11 +1,9 @@
 package com.xiyu.bid.changetracking.listener;
 
 import com.xiyu.bid.changetracking.event.EntityChangedEvent;
-import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.notification.core.DispatchResult;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
-import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.subscription.entity.Subscription;
 import com.xiyu.bid.subscription.repository.SubscriptionRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,7 +15,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -34,14 +31,12 @@ class EntityChangedNotificationListenerTest {
     private SubscriptionRepository subscriptionRepository;
     @Mock
     private NotificationApplicationService notificationService;
-    @Mock
-    private ProjectRepository projectRepository;
 
     private EntityChangedNotificationListener listener;
 
     @BeforeEach
     void setUp() {
-        listener = new EntityChangedNotificationListener(subscriptionRepository, notificationService, projectRepository);
+        listener = new EntityChangedNotificationListener(subscriptionRepository, notificationService);
     }
 
     private static Subscription subscription(Long userId) {
@@ -162,7 +157,7 @@ class EntityChangedNotificationListenerTest {
             Map.of("title", "准备商务标"),
             Map.of("title", "准备商务标 V2"),
             "准备商务标 V2",
-            Map.of("projectId", 10L)
+            Map.of("projectId", 10L, "projectName", "西安地铁项目")
         ));
 
         ArgumentCaptor<CreateNotificationRequest> captor =
@@ -171,6 +166,7 @@ class EntityChangedNotificationListenerTest {
         CreateNotificationRequest request = captor.getValue();
         assertThat(request.type()).isEqualTo("TASK_UPDATE");
         assertThat(request.payload()).containsEntry("projectId", 10L);
+        assertThat(request.payload()).containsEntry("projectName", "西安地铁项目");
     }
 
     @Test
@@ -182,8 +178,6 @@ class EntityChangedNotificationListenerTest {
             .build();
         when(subscriptionRepository.findByTargetEntityTypeAndTargetEntityId("TASK", 99L))
             .thenReturn(List.of(taskSubscriber));
-        when(projectRepository.findById(10L))
-            .thenReturn(Optional.of(Project.builder().id(10L).name("西安地铁项目").build()));
         when(notificationService.createNotification(any(), any())).thenReturn(DispatchResult.valid());
 
         listener.onEntityChanged(new EntityChangedEvent(
@@ -193,7 +187,7 @@ class EntityChangedNotificationListenerTest {
             Map.of("title", "准备商务标"),
             Map.of("title", "准备商务标 V2"),
             "准备商务标 V2",
-            Map.of("projectId", 10L)
+            Map.of("projectId", 10L, "projectName", "西安地铁项目")
         ));
 
         ArgumentCaptor<CreateNotificationRequest> captor =
