@@ -18,6 +18,7 @@ import com.xiyu.bid.warehouse.infrastructure.WarehouseAttachmentRepository;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseOperationLogRepository;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseAttachmentEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseOperationLogEntity;
+import com.xiyu.bid.warehouse.application.WarehouseNameValidator;
 import com.xiyu.bid.warehouse.service.WarehouseFilterService;
 import com.xiyu.bid.warehouse.service.WarehouseLogService;
 import com.xiyu.bid.warehouse.service.WarehouseMapper;
@@ -57,6 +58,7 @@ public class WarehouseController {
     private final WarehouseOperationLogRepository oplogRepo;
     private final WarehouseMapper warehouseMapper;
     private final WarehouseLogService warehouseLogService;
+    private final WarehouseNameValidator warehouseNameValidator;
     private final UserResolver userResolver;
 
     // ── List (multi-dimensional filter) ─────────────────────────────────────────
@@ -131,6 +133,8 @@ public class WarehouseController {
     public ResponseEntity<ApiResponse<WarehouseEntity>> create(@Valid @RequestBody WarehouseDTO dto) {
         if (!dto.getEndDate().isAfter(dto.getStartDate()))
             return ResponseEntity.badRequest().body(ApiResponse.error("结束时间必须晚于开始时间"));
+        if (warehouseNameValidator.isNameTaken(dto.getName()))
+            return ResponseEntity.badRequest().body(ApiResponse.error("该仓库已存在"));
         WarehouseEntity e = warehouseMapper.toEntity(dto);
         e.setStatus(WarehouseStatus.IN_USE);
         WarehouseEntity saved = repo.save(e);

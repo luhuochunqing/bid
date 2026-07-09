@@ -8,7 +8,6 @@ import com.xiyu.bid.warehouse.infrastructure.WarehouseEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseImportExcelReader;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseImportTaskEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseImportTaskRepository;
-import com.xiyu.bid.warehouse.infrastructure.WarehouseRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,7 +46,7 @@ class WarehouseImportAppServiceTest {
     @Mock
     private WarehouseImportTaskStateService taskState;
     @Mock
-    private WarehouseRepository warehouseRepo;
+    private WarehouseNameValidator warehouseNameValidator;
 
     private WarehouseImportAppService service;
 
@@ -58,7 +57,7 @@ class WarehouseImportAppServiceTest {
     void setUp() {
         service = new WarehouseImportAppService(
                 importTaskRepo, excelReader, rowPersister,
-                attachmentProcessor, correctionFileGenerator, taskState, warehouseRepo);
+                attachmentProcessor, correctionFileGenerator, taskState, warehouseNameValidator);
 
         WarehouseImportTaskEntity task = WarehouseImportTaskEntity.builder()
                 .id(TASK_ID)
@@ -66,7 +65,7 @@ class WarehouseImportAppServiceTest {
                 .build();
         lenient().when(importTaskRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
         lenient().when(importTaskRepo.findById(TASK_ID)).thenReturn(java.util.Optional.of(task));
-        lenient().when(warehouseRepo.findAll()).thenReturn(List.of());
+        lenient().when(warehouseNameValidator.loadExistingNames()).thenReturn(java.util.Set.of());
         lenient().when(attachmentProcessor.attachFiles(any(), any(), any(), any()))
                 .thenReturn(new WarehouseImportAttachmentProcessor.AttachmentResult(0, List.of()));
     }
@@ -91,7 +90,7 @@ class WarehouseImportAppServiceTest {
     void existingWarehouseName_rejectedWithoutUpdate() throws IOException {
         when(excelReader.read(any(byte[].class)))
                 .thenReturn(sheetWithRow(validCells("已有仓库")));
-        when(warehouseRepo.findAll()).thenReturn(List.of(existingEntity("已有仓库")));
+        when(warehouseNameValidator.loadExistingNames()).thenReturn(java.util.Set.of("已有仓库"));
 
         service.executeImportAsync(TASK_ID, new byte[0], List.of(), operator());
 
@@ -109,7 +108,7 @@ class WarehouseImportAppServiceTest {
     void mixedRows_newImportedAndExistingRejected() throws IOException {
         when(excelReader.read(any(byte[].class)))
                 .thenReturn(sheetWithRows(validCells("已有仓库"), validCells("新仓库")));
-        when(warehouseRepo.findAll()).thenReturn(List.of(existingEntity("已有仓库")));
+        when(warehouseNameValidator.loadExistingNames()).thenReturn(java.util.Set.of("已有仓库"));
         when(rowPersister.persist(any(), any())).thenAnswer(inv -> {
             WarehouseImportRow r = inv.getArgument(0);
             return savedEntity(r.sanitizedName);
@@ -164,14 +163,6 @@ class WarehouseImportAppServiceTest {
         cells[WarehouseImportPolicy.COL_LESSOR] = "出租方";
         cells[WarehouseImportPolicy.COL_LESSEE] = "承租方";
         return cells;
-    }
-
-    private WarehouseEntity existingEntity(String name) {
-        WarehouseEntity entity = new WarehouseEntity();
-        entity.setId(99L);
-        entity.setName(name);
-        entity.setStatus(com.xiyu.bid.warehouse.domain.WarehouseStatus.IN_USE);
-        return entity;
     }
 
     private WarehouseEntity savedEntity(String name) {
