@@ -1,9 +1,0 @@
-version: 1
-task: "fix-crm-obs-direct-url"
-locks:
-  - path: "backend/src/main/resources/application.yml"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/claude/fix-crm-obs-direct-url"
-    expiresAt: "2026-07-10T08:58:41.592Z"
-    reason: "新增 xiyu.obs.download-custom-domain 配置项（CRM 打不开 OBS 直传文件修复）"

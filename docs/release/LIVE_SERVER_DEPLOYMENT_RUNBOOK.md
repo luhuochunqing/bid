@@ -203,6 +203,78 @@ ssh -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" jetty@172.16.38.78 '
 - `XIYU_ORG_EVENT_SERVICE_NAME=BidSystemOrgConsumer`
 - `XIYU_ORG_DIRECTORY_BASE_URL=https://base-oss-test.ehsy.com`
 
+### 6.2 外部配置覆盖检查（2026-07-09 第 65/66 次部署事故，必检）
+
+> **背景**：第 65 次部署后 OSS 用户 06234 无法登录，代码修复（PR !1949）部署后仍然无效。
+> 根因是服务器通过 `SPRING_CONFIG_IMPORT=optional:file:/etc/xiyu-bid/application-org-mappings.yml` 导入了一个外部配置文件，
+> 其中 06234 的 role-code 是 `bid-SystemAdmin`（旧错误值），覆盖了 jar 内 `application.yml` 的 `/bidAdmin`（修复后正确值）。
+> **外部配置文件优先级高于 jar 内配置，是不可见的配置漂移源。**
+> 完整教训见 `docs/lessons/oss-integration-lessons.md` §4。
+
+#### 检查 1：确认 SPRING_CONFIG_IMPORT 引入的外部配置文件
+
+```bash
+ssh jetty@172.16.38.78 'grep "SPRING_CONFIG_IMPORT" /etc/xiyu-bid/backend.env'
+```
+
+期望输出：
+```
+SPRING_CONFIG_IMPORT=optional:file:/etc/xiyu-bid/application-org-mappings.yml
+```
+
+如果输出为空，说明没有外部配置覆盖（可跳过后续检查）。如果输出非空，必须执行检查 2 和检查 3。
+
+#### 检查 2：外部配置文件中的 person-to-role-mappings 与 jar 内配置一致性
+
+```bash
+# 1. 提取外部配置文件中所有 person-identifier + role-code 对
+ssh jetty@172.16.38.78 '
+  awk "/person-identifier:/{pid=\$0} /role-code:/{print pid\" | \"\$0}" /etc/xiyu-bid/application-org-mappings.yml
+'
+
+# 2. 提取 jar 内 application.yml 中所有 person-identifier + role-code 对
+unzip -p .release/${RELEASE_ID}/backend/app.jar BOOT-INF/classes/application.yml \
+  | awk '/person-identifier:/{pid=$0} /role-code:/{print pid" | "$0}'
+
+# 3. 逐项对比两者的 role-code 是否一致
+# 如果不一致，必须先修复外部配置文件再部署
+```
+
+#### 检查 3：role-code 必须在 RoleProfileCatalog 7 个标准角色中
+
+```bash
+# 7 个标准角色：admin / /bidAdmin / bid-TeamLeader / bid-projectLeader / bid-Team / bid-administration / bid-otherDept
+# 如果外部配置文件中出现 bid-SystemAdmin 等非标准角色，必须立即修复
+
+ssh jetty@172.16.38.78 '
+  grep "role-code:" /etc/xiyu-bid/application-org-mappings.yml \
+    | grep -v -E "role-code: (admin|/bidAdmin|bid-TeamLeader|bid-projectLeader|bid-Team|bid-administration|bid-otherDept)\s*$" \
+    | grep -v "^\s*#" \
+    && echo "❌ 发现非标准角色码，必须修复" \
+    || echo "✅ 所有角色码均为标准角色"
+'
+```
+
+#### 修复方法
+
+如果发现外部配置文件与 jar 内配置不一致，或包含非标准角色码：
+
+```bash
+# 1. 备份外部配置文件
+sudo cp /etc/xiyu-bid/application-org-mappings.yml /etc/xiyu-bid/application-org-mappings.yml.bak.$(date +%Y%m%d%H%M%S)
+
+# 2. 修复 role-code（示例：bid-SystemAdmin -> /bidAdmin）
+sudo sed -i '/person-identifier: "06234"/{n;s/role-code: bid-SystemAdmin/role-code: \/bidAdmin/}' /etc/xiyu-bid/application-org-mappings.yml
+
+# 3. 确认修复
+grep -A 1 "person-identifier: \"06234\"" /etc/xiyu-bid/application-org-mappings.yml
+
+# 4. 重启后端
+sudo systemctl restart xiyu-bid-backend
+```
+
+> **关键纪律**：修复涉及配置变更时，必须同步更新服务器外部配置文件。不能只改代码和 jar 内配置，外部配置文件没有随代码修复一起更新会导致配置漂移，代码修复完全无效。
+
 ## 7. 数据库备份
 
 发布前在服务器上执行：
