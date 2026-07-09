@@ -395,4 +395,43 @@ class MarginSqlDateCoercionContractTest {
                 .as("String 类型 exp_return_date 下规则3金额匹配应命中「已退回」")
                 .isEqualTo("已退回");
     }
+
+    // ── CO-490 日期类型修复：toLdt 必须处理 java.sql.Date ──────────────────
+    //
+    // 根因：SQL 里 STR_TO_DATE(..., '%Y-%m-%d') 返回 MySQL DATE 类型，
+    // JDBC 映射为 java.sql.Date（不是 Timestamp）。修复前 toLdt 只处理
+    // Timestamp，导致缴纳日期 / 应退日期全部丢失（返回 null）。
+
+    @Test
+    void mapRow_handlesSqlDate_forPaymentDate() {
+        // STR_TO_DATE(..., '%Y-%m-%d') → MySQL DATE → JDBC java.sql.Date
+        Object[] row = rowWithExpReturn(null);
+        row[7] = java.sql.Date.valueOf("2026-07-09");   // C_PAY_DATE
+        MarginDTO dto = MarginQuerySupport.mapRow(row);
+        assertThat(dto.getPaymentDate())
+                .as("java.sql.Date 类型的 payment_date 必须转换为 LocalDateTime，不能返回 null")
+                .isNotNull()
+                .isEqualTo(LocalDateTime.of(2026, 7, 9, 0, 0));
+    }
+
+    @Test
+    void mapRow_handlesSqlDate_forExpectedReturnDate() {
+        Object[] row = rowWithExpReturn(java.sql.Date.valueOf("2025-12-31"));
+        MarginDTO dto = MarginQuerySupport.mapRow(row);
+        assertThat(dto.getExpectedReturnDate())
+                .as("java.sql.Date 类型的 exp_return_date 必须转换为 LocalDateTime")
+                .isNotNull()
+                .isEqualTo(LocalDateTime.of(2025, 12, 31, 0, 0));
+    }
+
+    @Test
+    void mapRow_handlesSqlDate_forActualReturnDate() {
+        Object[] row = rowWithExpReturn(null);
+        row[14] = java.sql.Date.valueOf("2026-08-01");   // C_ACT_RETURN
+        MarginDTO dto = MarginQuerySupport.mapRow(row);
+        assertThat(dto.getActualReturnDate())
+                .as("java.sql.Date 类型的 actual_return_date 必须转换为 LocalDateTime")
+                .isNotNull()
+                .isEqualTo(LocalDateTime.of(2026, 8, 1, 0, 0));
+    }
 }

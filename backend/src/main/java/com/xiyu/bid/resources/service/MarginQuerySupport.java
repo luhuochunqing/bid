@@ -228,6 +228,11 @@ final class MarginQuerySupport {
         if (v instanceof Timestamp ts) {
             return ts.toLocalDateTime();
         }
+        // STR_TO_DATE(..., '%Y-%m-%d') 返回 MySQL DATE 类型，JDBC 映射为 java.sql.Date
+        // （不是 Timestamp），必须单独处理，否则缴纳日期/应退日期全部丢失。
+        if (v instanceof java.sql.Date d) {
+            return d.toLocalDate().atStartOfDay();
+        }
         return null;
     }
 }
