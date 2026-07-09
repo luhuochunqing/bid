@@ -118,14 +118,27 @@ describe('useQualificationDetail - CO-554 行下载按附件数自动选 zip/单
     expect(httpMock.post).not.toHaveBeenCalled()
   })
 
-  it('无附件（fileUrl 也为空）：应弹错误，不调任何下载接口', async () => {
+  it('无附件：应弹警告（v3 改），不调任何下载接口，不下到 txt', async () => {
     const row = { id: 7, name: '无附件资质', attachments: [] }
 
     await composable.handleDownloadFile(row)
 
     expect(httpMock.post).not.toHaveBeenCalled()
     expect(httpMock.get).not.toHaveBeenCalled()
-    expect(elMessageMock.error).toHaveBeenCalledWith('下载失败')
+    expect(elMessageMock.warning).toHaveBeenCalledWith('该资质没有可下载的附件')
+    expect(elMessageMock.error).not.toHaveBeenCalled()
+  })
+
+  it('CO-554 v3 关键回归：主表 fileUrl 有脏数据但 attachments 为空，不下载、不下到 txt', async () => {
+    // 这是用户报的 bug 场景：无附件却显示下载按钮，点下载得到 txt
+    const row = { id: 7, name: '脏数据资质', fileUrl: 'stale-orphan-url.pdf', attachments: [] }
+
+    await composable.handleDownloadFile(row)
+
+    // 不应调任何下载接口（fileUrl 兜底分支已移除）
+    expect(httpMock.get).not.toHaveBeenCalled()
+    expect(httpMock.post).not.toHaveBeenCalled()
+    expect(elMessageMock.warning).toHaveBeenCalledWith('该资质没有可下载的附件')
   })
 
   it('附件 fileUrl 为空字符串应被过滤（视为无可下载附件）', async () => {
