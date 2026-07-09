@@ -5,6 +5,7 @@ import com.xiyu.bid.entity.User;
 import com.xiyu.bid.matrixcollaboration.entity.ProjectMember;
 import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
 import com.xiyu.bid.notification.core.NotificationRecipientFilter;
+import com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicy;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Component;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * 通知接收人解析器 — 收敛"按角色/项目解析接收人"的通用逻辑。
@@ -44,6 +46,7 @@ public class NotificationRecipientResolver {
     private final UserRepository userRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final ProjectAccessScopeService projectAccessScopeService;
+    private final ProjectNotificationRecipientPolicy projectRecipientPolicy;
 
     /**
      * 解析项目管理员用户 ID 列表（admin/bidAdmin/bid-TeamLeader）。
@@ -78,6 +81,33 @@ public class NotificationRecipientResolver {
                     roleCodes, e.getMessage());
             return List.of();
         }
+    }
+
+    /**
+     * 按项目角色解析接收人用户 ID 列表。
+     *
+     * <p>委托给 {@link ProjectNotificationRecipientPolicy}，收敛项目维度通知接收人解析逻辑。</p>
+     *
+     * @param projectId     项目 ID
+     * @param roles         目标项目角色集合
+     * @param excludeUserId 要排除的用户 ID（通常为操作人自己，可为 null）
+     * @return 去重、保序后的接收人用户 ID 列表
+     */
+    public List<Long> resolveProjectRecipients(Long projectId, Set<ProjectNotificationRecipientPolicy.ProjectRole> roles, Long excludeUserId) {
+        return projectRecipientPolicy.resolveRecipients(projectId, roles, excludeUserId);
+    }
+
+    /**
+     * 按项目角色解析接收人用户 ID 列表（支持任务执行人）。
+     *
+     * @param projectId      项目 ID
+     * @param roles          目标项目角色集合
+     * @param excludeUserId  要排除的用户 ID（通常为操作人自己，可为 null）
+     * @param taskExecutorId 任务执行人用户 ID（仅在 roles 包含 TASK_EXECUTOR 时使用，可为 null）
+     * @return 去重、保序后的接收人用户 ID 列表
+     */
+    public List<Long> resolveProjectRecipients(Long projectId, Set<ProjectNotificationRecipientPolicy.ProjectRole> roles, Long excludeUserId, Long taskExecutorId) {
+        return projectRecipientPolicy.resolveRecipients(projectId, roles, excludeUserId, taskExecutorId);
     }
 
     /**

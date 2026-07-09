@@ -1,13 +1,13 @@
 package com.xiyu.bid.project.notification;
 
 import com.xiyu.bid.entity.Project;
-import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
-import com.xiyu.bid.notification.service.NotificationRecipientResolver;
 import com.xiyu.bid.notification.core.NotificationType;
+import com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicy.ProjectRole;
 import com.xiyu.bid.notification.core.TaskNotificationTargetUrlResolver;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
+import com.xiyu.bid.notification.service.NotificationRecipientResolver;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.security.EffectiveRoleResolver;
@@ -18,11 +18,12 @@ import org.springframework.stereotype.Component;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 任务审核流程通知服务。
  * <p>职责：任务提交审核、审核结果（通过/驳回）的通知派发。</p>
- * <p>接收人策略委托给 {@link RoleProfileCatalog#TASK_MUTATION_ALLOWED_ROLES}。</p>
+ * <p>提交审核的接收人策略委托给 {@link ProjectRole}。</p>
  *
  * <p><b>Spec 030 / 06131 案例修复</b>：notifyTaskReviewSubmitted 在派发前按
  * {@link NotificationRecipientResolver#filterByProjectAccess} 过滤候选接收人，
@@ -44,15 +45,18 @@ public class TaskReviewNotificationService {
     /**
      * 通知所有有权限审核任务的人：任务已提交审核。
      *
+     * <p>接收人：投标管理员 / 投标组长（有权限审核任务的角色）。</p>
+     *
      * <p><b>Spec 030 / 06131 案例修复</b>：派发前按项目可见性过滤候选接收人，
-     * 剔除对该项目无访问权的用户（避免被通知的人点击跳转后被 403 拦截）。
-     * 过滤逻辑失败时降级为原候选广播（优先保证通知送达而非精准）。</p>
+     * 剔除对该项目无访问权的用户（避免被通知的人点击跳转后被 403 拦截）。</p>
      */
     public void notifyTaskReviewSubmitted(Long projectId, Long taskId, String taskTitle,
                                            String submitterName, Long submittedBy) {
         Project project = projectRepository.findById(projectId).orElse(null);
         if (project == null) return;
-        List<Long> candidateIds = getTaskReviewerUserIds(submittedBy);
+
+        Set<ProjectRole> roles = Set.of(ProjectRole.BID_ADMIN, ProjectRole.BID_TEAM_LEADER);
+        List<Long> candidateIds = recipientResolver.resolveProjectRecipients(projectId, roles, submittedBy);
         if (candidateIds.isEmpty()) return;
 
         // Spec 030：按项目可见性过滤候选接收人（D 组复用 NotificationRecipientResolver）
@@ -95,15 +99,6 @@ public class TaskReviewNotificationService {
                 List.of(assigneeId), reviewerId, targetUrl);
     }
 
-    private List<Long> getTaskReviewerUserIds(Long excludedUserId) {
-        List<Long> ids = userRepository.findEnabledByRoleProfileCodes(RoleProfileCatalog.TASK_MUTATION_ALLOWED_ROLES)
-                .stream().map(User::getId).toList();
-        if (excludedUserId != null) {
-            ids = ids.stream().filter(id -> !id.equals(excludedUserId)).toList();
-        }
-        return ids;
-    }
-
     private void send(Long projectId, String projectName, Long taskId, String title,
                       String body, List<Long> recipientIds, Long senderId, String targetUrl) {
         try {
@@ -122,4 +117,3 @@ public class TaskReviewNotificationService {
         }
     }
 }
-

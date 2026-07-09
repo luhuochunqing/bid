@@ -8,6 +8,7 @@ import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.matrixcollaboration.entity.ProjectMember;
 import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
+import com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicy;
 import com.xiyu.bid.notification.service.NotificationRecipientResolver;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
@@ -15,7 +16,6 @@ import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.entity.ProjectLeadAssignment;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
-import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.security.EffectiveRoleResolver;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +30,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -244,7 +245,15 @@ class ProjectNotificationServiceTest {
         @DisplayName("sends INFO to all team members when project found with members")
         void sendsToAllTeamMembers() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(recipientResolver.getProjectMemberUserIds(PID, null))
+            Set<ProjectNotificationRecipientPolicy.ProjectRole> expectedRoles = Set.of(
+                    ProjectNotificationRecipientPolicy.ProjectRole.BID_ADMIN,
+                    ProjectNotificationRecipientPolicy.ProjectRole.BID_TEAM_LEADER,
+                    ProjectNotificationRecipientPolicy.ProjectRole.BID_LEAD,
+                    ProjectNotificationRecipientPolicy.ProjectRole.BID_ASSISTANT,
+                    ProjectNotificationRecipientPolicy.ProjectRole.PROJECT_OWNER);
+            when(recipientResolver.resolveProjectRecipients(PID, expectedRoles, UID))
+                    .thenReturn(List.of(1L, 2L));
+            when(recipientResolver.filterByProjectAccess(List.of(1L, 2L), PID))
                     .thenReturn(List.of(1L, 2L));
 
             svc.notifyStageTransition(PID, ProjectStage.DRAFTING, ProjectStage.EVALUATING, UID);
@@ -257,7 +266,15 @@ class ProjectNotificationServiceTest {
         @DisplayName("legacy signature uses system actor instead of null createdBy")
         void legacySignatureUsesSystemActor() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(recipientResolver.getProjectMemberUserIds(PID, null))
+            Set<ProjectNotificationRecipientPolicy.ProjectRole> expectedRoles = Set.of(
+                    ProjectNotificationRecipientPolicy.ProjectRole.BID_ADMIN,
+                    ProjectNotificationRecipientPolicy.ProjectRole.BID_TEAM_LEADER,
+                    ProjectNotificationRecipientPolicy.ProjectRole.BID_LEAD,
+                    ProjectNotificationRecipientPolicy.ProjectRole.BID_ASSISTANT,
+                    ProjectNotificationRecipientPolicy.ProjectRole.PROJECT_OWNER);
+            when(recipientResolver.resolveProjectRecipients(PID, expectedRoles, SYSTEM_USER_ID))
+                    .thenReturn(List.of(1L, 2L));
+            when(recipientResolver.filterByProjectAccess(List.of(1L, 2L), PID))
                     .thenReturn(List.of(1L, 2L));
 
             svc.notifyStageTransition(PID, ProjectStage.DRAFTING, ProjectStage.EVALUATING);
@@ -303,10 +320,14 @@ class ProjectNotificationServiceTest {
 
             verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
             CreateNotificationRequest req = requestCaptor.getValue();
+            assertThat(req.type()).isEqualTo("TASK_UPDATE");
             assertThat(req.recipientUserIds()).containsExactly(ASSIGNEE_ID);
             assertThat(req.title()).isEqualTo("任务分配 - 测试项目 - 任务标题");
+            assertThat(req.body()).isEqualTo("【测试项目】新任务「任务标题」已指派给您，请尽快处理");
             assertThat(req.payload()).containsEntry("targetUrl", "/project/" + PID + "/drafting");
-            assertThat(req.payload()).containsEntry("taskId", String.valueOf(TASK_ID));
+            assertThat(req.payload()).containsEntry("taskId", TASK_ID);
+            assertThat(req.payload()).containsEntry("projectId", PID);
+            assertThat(req.payload()).containsEntry("projectName", "测试项目");
         }
 
         @Test
@@ -320,10 +341,12 @@ class ProjectNotificationServiceTest {
 
             verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
             CreateNotificationRequest req = requestCaptor.getValue();
+            assertThat(req.type()).isEqualTo("TASK_UPDATE");
             assertThat(req.recipientUserIds()).containsExactly(ASSIGNEE_ID);
             assertThat(req.title()).isEqualTo("任务分配 - 测试项目 - 任务标题");
+            assertThat(req.body()).isEqualTo("【测试项目】新任务「任务标题」已指派给您，请尽快处理");
             assertThat(req.payload()).containsEntry("targetUrl", "/task-board?taskId=" + TASK_ID + "&projectId=" + PID);
-            assertThat(req.payload()).containsEntry("taskId", String.valueOf(TASK_ID));
+            assertThat(req.payload()).containsEntry("taskId", TASK_ID);
         }
 
         @Test

@@ -1,9 +1,11 @@
 package com.xiyu.bid.project.notification;
 
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.matrixcollaboration.entity.ProjectMember;
 import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
+import com.xiyu.bid.notification.core.NotificationMessagePolicy;
 import com.xiyu.bid.notification.service.NotificationRecipientResolver;
 import com.xiyu.bid.notification.core.NotificationType;
 import com.xiyu.bid.project.entity.ProjectLeadAssignment;
@@ -12,7 +14,6 @@ import com.xiyu.bid.notification.core.TaskNotificationTargetUrlResolver;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.project.core.ProjectStage;
-import com.xiyu.bid.notification.core.TaskNotificationTitleFormatter;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.security.EffectiveRoleResolver;
@@ -21,7 +22,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -117,24 +117,16 @@ public class ProjectNotificationService {
         try {
             Project project = findProject(projectId);
             if (project == null) return;
-            String projectName = project.getName();
-            String safeTitle = TaskNotificationTitleFormatter.format("任务分配", projectName, taskTitle);
-            String body = String.format("项目名称：%s\n任务名称：%s\n\n请关注项目进展。", projectName,
-                    taskTitle == null ? "" : taskTitle);
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("projectId", String.valueOf(projectId));
-            payload.put("projectName", projectName);
-            if (taskId != null) {
-                payload.put("taskId", String.valueOf(taskId));
-            }
-            payload.put("targetUrl", targetUrl);
+            Task task = Task.builder().id(taskId).title(taskTitle).projectId(projectId).build();
+            NotificationMessagePolicy.NotificationMessage message =
+                    NotificationMessagePolicy.forTaskAssigned(project, task, targetUrl);
             notificationService.createNotification(new CreateNotificationRequest(
-                    NotificationType.INFO.name(),
-                    "PROJECT",
-                    projectId,
-                    safeTitle,
-                    body,
-                    payload,
+                    message.type(),
+                    message.sourceEntityType(),
+                    message.sourceEntityId(),
+                    message.title(),
+                    message.body(),
+                    message.payload(),
                     List.of(assigneeId)
             ), assignedBy == null ? SYSTEM_USER_ID : assignedBy);
         } catch (RuntimeException e) {
