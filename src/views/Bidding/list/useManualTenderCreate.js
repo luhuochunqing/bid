@@ -76,14 +76,14 @@ function hasGlobalHttpErrorMessage(error) {
   return Boolean(error?.isAxiosError || error?.response || error?.code === 'ECONNABORTED')
 }
 
-async function parseAndBackfill({ form, source, warningMessage }) {
+async function parseAndBackfill({ form, source, warningMessage, skipMetadata = false }) {
   const response = await source.parse()
   if (!response?.success) {
     throw new Error(response?.msg || warningMessage)
   }
   applyParsedFields(form, normalizeManualTenderParseResult(response.data))
-  // 旧流程（/parse 一站式）回填 attachments 元数据
-  applySourceDocumentMetadata(form, source.file, response.data)
+  // 旧流程（/parse 一站式）回填 attachments 元数据；OBS 直传时跳过，保留 obs-direct: URL
+  if (!skipMetadata) applySourceDocumentMetadata(form, source.file, response.data)
 }
 
 export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreateTender }) {
@@ -150,7 +150,6 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
       parsingManualDocument.value = true
       obsUsed = await tryObsUpload(uploadFile, manualForm.value.attachments, fileIndex)
     }
-
     // Step 1: 上传即保存（即使后续 AI 解析失败，文件也已保存）
     let storedDoc = null
     try {
@@ -198,6 +197,7 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
         form: manualForm.value,
         source: parseSource,
         warningMessage: '文档自动识别失败',
+        skipMetadata: obsUsed,
       })
       ElMessage.success('DeepSeek/AI 已识别标讯文件内容，可继续编辑后保存')
     } catch (error) {
