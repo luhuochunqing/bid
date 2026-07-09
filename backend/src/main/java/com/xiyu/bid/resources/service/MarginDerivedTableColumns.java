@@ -129,14 +129,14 @@ final class MarginDerivedTableColumns {
           + "       NULLIF(t.bidding_person_name, ''))"
           + "       COLLATE utf8mb4_unicode_ci as bidding_leader_name,"
           + "     f.amount,"
-          + "     COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.actualPaymentDate')), 1, 10), ''), '%Y-%m-%d'), NULLIF(f.payment_date, '0000-00-00 00:00:00')) as payment_date,"
+          + "     CAST(COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.actualPaymentDate')), 1, 10), ''), '%Y-%m-%d'), NULLIF(f.payment_date, '0000-00-00 00:00:00')) AS DATETIME) as payment_date,"
           + "     " + DEPOSIT_PAYMENT_METHOD_CASE + ","
           + "     COALESCE(NULLIF(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.payee')), ''), f.return_to) as payee_name,"
           + "     JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.payeeAccount')) as payee_account,"
-          + "     COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d'), NULLIF(f.fee_date, '0000-00-00 00:00:00')) as exp_return_date,"
+          + "     CAST(COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d'), NULLIF(f.fee_date, '0000-00-00 00:00:00')) AS DATETIME) as exp_return_date,"
           + "     " + returnedAmountExpr("f.amount") + " as returned_amount,"
           + "     " + serviceFeeAmountExpr() + " as service_fee_amount,"
-          + "     NULLIF(pc.deposit_return_date, '0000-00-00 00:00:00') as actual_return_date,"
+          + "     CAST(NULLIF(pc.deposit_return_date, '0000-00-00 00:00:00') AS DATETIME) as actual_return_date,"
           + "     f.status, f.created_at";
 
     /** 派生表 pid 分支 SELECT 列（listBase + countBase 共用）。
@@ -159,14 +159,14 @@ final class MarginDerivedTableColumns {
           + "       NULLIF(t.bidding_person_name, ''))"
           + "       COLLATE utf8mb4_unicode_ci as bidding_leader_name,"
           + "     pid.deposit_amount,"
-          + "     STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.actualPaymentDate')), 1, 10), ''), '%Y-%m-%d') as payment_date,"
+          + "     CAST(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.actualPaymentDate')), 1, 10), ''), '%Y-%m-%d') AS DATETIME) as payment_date,"
           + "     " + DEPOSIT_PAYMENT_METHOD_CASE + ","
           + "     NULLIF(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.payee')), '') as payee_name,"
           + "     JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.payeeAccount')) as payee_account,"
-          + "     STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d') as exp_return_date,"
+          + "     CAST(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''), '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d') AS DATETIME) as exp_return_date,"
           + "     " + returnedAmountExpr("pid.deposit_amount") + " as returned_amount,"
           + "     " + serviceFeeAmountExpr() + " as service_fee_amount,"
-          + "     NULLIF(pc.deposit_return_date, '0000-00-00 00:00:00') as actual_return_date,"
+          + "     CAST(NULLIF(pc.deposit_return_date, '0000-00-00 00:00:00') AS DATETIME) as actual_return_date,"
           + "     'PENDING' as status,"
           + "     COALESCE(pid.created_at, p.created_at) as created_at";
 }
