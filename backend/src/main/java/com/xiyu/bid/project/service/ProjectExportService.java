@@ -95,7 +95,7 @@ public class ProjectExportService {
             "C", "C级");
 
     public ExportResult exportProjectsAsExcel(
-            String status, String name, String ownerUnit, String projectType,
+            List<Long> ids, String status, String name, String ownerUnit, String projectType,
             String customerType, String priority, String sourceModule, String bidStatus,
             String stage, Long projectLeaderId, Long biddingLeaderId,
             String projectLeaderName, String biddingLeaderName, String leaderDepartment,
@@ -105,6 +105,11 @@ public class ProjectExportService {
         // 确保导出字段与 GET /api/projects 返回完全一致（含 secondaryBiddingLeaderName、
         // revenue、shortlistedCount、priority、stage 等），同时复用 access scope 过滤。
         List<ProjectDTO> all = projectQueryService.getAllProjects();
+
+        // CO-563: 选中数据时仅导出对应 ID；未传 ids 时导出全量（与列表过滤行为一致）。
+        if (ids != null && !ids.isEmpty()) {
+            all = all.stream().filter(p -> ids.contains(p.getId())).toList();
+        }
 
         // ── 内存过滤（与 ProjectController.getAllProjects 过滤逻辑保持一致）──
         if (status != null && !status.isBlank()) {

@@ -219,6 +219,7 @@ public class ProjectController {
     @GetMapping("/export")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<InputStreamResource> exportProjects(
+            @RequestParam(required = false) List<Long> ids,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String ownerUnit,
@@ -236,8 +237,9 @@ public class ProjectController {
             @RequestParam(required = false) String region,
             @RequestParam(required = false) String biddingPlatform,
             @RequestParam(required = false) String bidMonth) throws Exception {
-        log.info("GET /api/projects/export - Exporting projects (status={})", status);
-        var result = projectExportService.exportProjectsAsExcel(status, name, ownerUnit, projectType, customerType, priority, sourceModule, bidStatus, stage, projectLeaderId, biddingLeaderId, projectLeaderName, biddingLeaderName, leaderDepartment, region, biddingPlatform, bidMonth);
+        // CO-563: ids 非空时仅导出选中数据；为空时按过滤条件导出全量（保持原行为）
+        log.info("GET /api/projects/export - Exporting projects (ids={}, status={})", ids, status);
+        var result = projectExportService.exportProjectsAsExcel(ids, status, name, ownerUnit, projectType, customerType, priority, sourceModule, bidStatus, stage, projectLeaderId, biddingLeaderId, projectLeaderName, biddingLeaderName, leaderDepartment, region, biddingPlatform, bidMonth);
         var headers = new HttpHeaders();
         headers.setContentDispositionFormData("attachment", "投标项目列表_" + result.filename());
         return ResponseEntity.ok().headers(headers).contentType(MediaType.APPLICATION_OCTET_STREAM).body(new InputStreamResource(result.data()));

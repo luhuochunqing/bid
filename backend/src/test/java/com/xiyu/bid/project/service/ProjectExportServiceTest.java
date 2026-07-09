@@ -48,7 +48,7 @@ class ProjectExportServiceTest {
         when(projectQueryService.getAllProjects()).thenReturn(List.of(buildSampleDTO()));
 
         var result = exportService.exportProjectsAsExcel(
-                null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null);
 
         try (var wb = readWorkbook(result)) {
@@ -75,7 +75,7 @@ class ProjectExportServiceTest {
         when(projectQueryService.getAllProjects()).thenReturn(List.of(buildSampleDTO()));
 
         var result = exportService.exportProjectsAsExcel(
-                null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null);
 
         try (var wb = readWorkbook(result)) {
@@ -107,7 +107,7 @@ class ProjectExportServiceTest {
         when(projectQueryService.getAllProjects()).thenReturn(List.of(buildSampleDTO()));
 
         var result = exportService.exportProjectsAsExcel(
-                null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null);
 
         try (var wb = readWorkbook(result)) {
@@ -128,7 +128,7 @@ class ProjectExportServiceTest {
         when(projectQueryService.getAllProjects()).thenReturn(List.of(dto));
 
         var result = exportService.exportProjectsAsExcel(
-                null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null);
 
         try (var wb = readWorkbook(result)) {
@@ -151,7 +151,7 @@ class ProjectExportServiceTest {
         when(projectQueryService.getAllProjects()).thenReturn(List.of(matching, nonMatching));
 
         var result = exportService.exportProjectsAsExcel(
-                null, null, null, null, null, null, null, "INITIATED",
+                null, null, null, null, null, null, null, null, "INITIATED",
                 null, null, null, null, null, null, null, null, null);
 
         try (var wb = readWorkbook(result)) {
@@ -163,11 +163,32 @@ class ProjectExportServiceTest {
     }
 
     @Test
+    void exportProjectsAsExcel_shouldFilterByIdsWhenProvided() throws Exception {
+        // CO-563: 传入 ids 时仅导出选中项目，忽略其他数据
+        ProjectDTO selected = buildSampleDTO();           // id=1L
+        ProjectDTO other = buildSampleDTO();
+        other.setId(2L);
+        other.setName("其他项目");
+        when(projectQueryService.getAllProjects()).thenReturn(List.of(selected, other));
+
+        var result = exportService.exportProjectsAsExcel(
+                List.of(1L), null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null);
+
+        try (var wb = readWorkbook(result)) {
+            XSSFSheet sheet = wb.getSheetAt(0);
+            // header + 1 data row（仅 id=1 的项目）
+            assertThat(sheet.getLastRowNum()).isEqualTo(1);
+            assertThat(sheet.getRow(1).getCell(0).getStringCellValue()).isEqualTo("测试项目");
+        }
+    }
+
+    @Test
     void exportProjectsAsExcel_shouldHandleEmptyProjectList() throws Exception {
         when(projectQueryService.getAllProjects()).thenReturn(List.of());
 
         var result = exportService.exportProjectsAsExcel(
-                null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null);
 
         try (var wb = readWorkbook(result)) {
