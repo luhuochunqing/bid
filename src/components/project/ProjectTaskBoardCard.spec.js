@@ -68,7 +68,7 @@ describe('ProjectTaskBoardCard', () => {
     const userStore = useUserStore()
     userStore.currentUser = { id: 1, role: 'admin' }
   })
-  it('exposes independent tender breakdown entry separately from score draft decomposition', async () => {
+  it('exposes independent tender breakdown entry', async () => {
     const wrapper = mount(ProjectTaskBoardCard, {
       props: {
         canManageProjectTasks: true,
@@ -81,10 +81,8 @@ describe('ProjectTaskBoardCard', () => {
     })
 
     await wrapper.find('[data-test="tender-breakdown-button"]').trigger('click')
-    await wrapper.find('[data-test="score-draft-button"]').trigger('click')
 
     expect(wrapper.emitted('tender-breakdown')).toHaveLength(1)
-    expect(wrapper.emitted('score-draft-decompose')).toHaveLength(1)
   })
 
   it('keeps task board header actions visually separated by action purpose', () => {
@@ -101,9 +99,6 @@ describe('ProjectTaskBoardCard', () => {
 
     expect(wrapper.find('[data-test="tender-breakdown-button"]').classes()).toEqual(
       expect.arrayContaining(['header-action', 'header-action--tender']),
-    )
-    expect(wrapper.find('[data-test="score-draft-button"]').classes()).toEqual(
-      expect.arrayContaining(['header-action', 'header-action--score']),
     )
   })
 
@@ -256,56 +251,56 @@ describe('CO-345: 任务看板顶部按钮按角色预过滤', () => {
     })
   }
 
-  it('admin 角色：3 个管理按钮都可见', () => {
+  it('admin 角色：2 个管理按钮都可见（score-draft-button 已隐藏）', () => {
     const w = mountWithRole('admin')
     expect(w.find('[data-test="tender-breakdown-button"]').exists()).toBe(true)
-    expect(w.find('[data-test="score-draft-button"]').exists()).toBe(true)
+    expect(w.find('[data-test="score-draft-button"]').exists()).toBe(false)
     expect(w.find('[data-test="add-task-button"]').exists()).toBe(true)
   })
 
-  it('/bidAdmin 角色：3 个管理按钮都可见', () => {
+  it('/bidAdmin 角色：2 个管理按钮都可见（score-draft-button 已隐藏）', () => {
     const w = mountWithRole('/bidAdmin')
     expect(w.find('[data-test="tender-breakdown-button"]').exists()).toBe(true)
-    expect(w.find('[data-test="score-draft-button"]').exists()).toBe(true)
+    expect(w.find('[data-test="score-draft-button"]').exists()).toBe(false)
     expect(w.find('[data-test="add-task-button"]').exists()).toBe(true)
   })
 
-  it('bid-TeamLeader 角色：3 个管理按钮都可见', () => {
+  it('bid-TeamLeader 角色：2 个管理按钮都可见（score-draft-button 已隐藏）', () => {
     const w = mountWithRole('bid-TeamLeader')
     expect(w.find('[data-test="tender-breakdown-button"]').exists()).toBe(true)
-    expect(w.find('[data-test="score-draft-button"]').exists()).toBe(true)
+    expect(w.find('[data-test="score-draft-button"]').exists()).toBe(false)
     expect(w.find('[data-test="add-task-button"]').exists()).toBe(true)
   })
 
-  it('bid-projectLeader 角色：3 个管理按钮都可见', () => {
+  it('bid-projectLeader 角色：2 个管理按钮都可见（score-draft-button 已隐藏）', () => {
     const w = mountWithRole('bid-projectLeader')
     expect(w.find('[data-test="tender-breakdown-button"]').exists()).toBe(true)
-    expect(w.find('[data-test="score-draft-button"]').exists()).toBe(true)
+    expect(w.find('[data-test="score-draft-button"]').exists()).toBe(false)
     expect(w.find('[data-test="add-task-button"]').exists()).toBe(true)
   })
 
-  it('bid-Team 角色：3 个管理按钮都可见', () => {
+  it('bid-Team 角色：2 个管理按钮都可见（score-draft-button 已隐藏）', () => {
     const w = mountWithRole('bid-Team')
     expect(w.find('[data-test="tender-breakdown-button"]').exists()).toBe(true)
-    expect(w.find('[data-test="score-draft-button"]').exists()).toBe(true)
+    expect(w.find('[data-test="score-draft-button"]').exists()).toBe(false)
     expect(w.find('[data-test="add-task-button"]').exists()).toBe(true)
   })
 
-  it('bid-otherDept 角色：3 个管理按钮都不可见', () => {
+  it('bid-otherDept 角色：2 个管理按钮都不可见', () => {
     const w = mountWithRole('bid-otherDept')
     expect(w.find('[data-test="tender-breakdown-button"]').exists()).toBe(false)
     expect(w.find('[data-test="score-draft-button"]').exists()).toBe(false)
     expect(w.find('[data-test="add-task-button"]').exists()).toBe(false)
   })
 
-  it('bid-administration 角色：3 个管理按钮都不可见', () => {
+  it('bid-administration 角色：2 个管理按钮都不可见', () => {
     const w = mountWithRole('bid-administration')
     expect(w.find('[data-test="tender-breakdown-button"]').exists()).toBe(false)
     expect(w.find('[data-test="score-draft-button"]').exists()).toBe(false)
     expect(w.find('[data-test="add-task-button"]').exists()).toBe(false)
   })
 
-  it('staff 角色：3 个管理按钮都不可见', () => {
+  it('staff 角色：2 个管理按钮都不可见', () => {
     const w = mountWithRole('staff')
     expect(w.find('[data-test="tender-breakdown-button"]').exists()).toBe(false)
     expect(w.find('[data-test="score-draft-button"]').exists()).toBe(false)
