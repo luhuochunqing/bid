@@ -47,7 +47,7 @@ const stubs = {
 
 const mockCa = {
   id: 1,
-  platformIds: ['政采云'],
+  relatedPlatforms: '政采云',
   caType: 'ENTITY_CA',
   caTypeLabel: '实体CA',
   sealTypeLabel: '公章',

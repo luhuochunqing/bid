@@ -58,7 +58,7 @@ const stubs = {
 
 const mockCa = {
   id: 1,
-  platformIds: ['政采云'],
+  relatedPlatforms: '政采云',
   caType: 'ENTITY_CA',
   sealTypeLabel: '公章',
   holderName: '西域科技',

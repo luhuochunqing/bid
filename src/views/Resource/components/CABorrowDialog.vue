@@ -130,9 +130,8 @@ const projectOptions = computed(() => {
 const caLabel = computed(() => {
   const ca = props.ca
   if (!ca) return ''
-  const platforms = Array.isArray(ca.platformIds) && ca.platformIds.length
-    ? ca.platformIds.map(p => (typeof p === 'object' ? p.accountName : `#${p}`)).join(', ')
-    : ''
+  // CO-566: 关联平台直接用 relatedPlatforms 文本
+  const platforms = ca.relatedPlatforms || ''
   const seal = ca.sealTypeLabel || ca.sealType || ''
   const holder = ca.holderName || ''
   return [holder, platforms, seal].filter(Boolean).join(' / ')

@@ -105,9 +105,8 @@ const caLabel = computed(() => {
   // CO-466: 优先使用后端 enrich 的 caName（与审批/借用列表一致）
   if (ca.caName) return ca.caName
   // fallback 到拼装逻辑（与 CABorrowDialog caLabel 格式统一）
-  const platforms = Array.isArray(ca.platformIds) && ca.platformIds.length
-    ? ca.platformIds.map(p => (typeof p === 'object' ? p.accountName : `#${p}`)).join(', ')
-    : ''
+  // CO-566: 关联平台直接用 relatedPlatforms 文本
+  const platforms = ca.relatedPlatforms || ''
   const seal = ca.sealTypeLabel || ca.sealType || ''
   const holder = ca.holderName || ''
   return [holder, platforms, seal].filter(Boolean).join(' / ')

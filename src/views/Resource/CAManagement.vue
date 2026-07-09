@@ -88,9 +88,9 @@
       >
         <el-table-column type="selection" width="45" />
         <el-table-column type="index" label="序号" width="70" />
-        <el-table-column label="关联平台" min-width="120">
+        <el-table-column label="关联平台" min-width="120" show-overflow-tooltip>
           <template #default="{ row }">
-            <span v-if="row.platformIds.length">{{ row.platformIds.map(id => row.platformNamesById?.[id] || id).join(', ') }}</span>
+            <span v-if="row.relatedPlatforms">{{ row.relatedPlatforms }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
@@ -165,9 +165,9 @@
         empty-text="暂无 CA 证书数据"
       >
         <el-table-column type="index" label="序号" width="70" />
-        <el-table-column label="关联平台" min-width="140">
+        <el-table-column label="关联平台" min-width="140" show-overflow-tooltip>
           <template #default="{ row }">
-            <span v-if="row.platformIds.length">{{ row.platformIds.map(id => row.platformNamesById?.[id] || id).join(', ') }}</span>
+            <span v-if="row.relatedPlatforms">{{ row.relatedPlatforms }}</span>
             <span v-else>-</span>
           </template>
         </el-table-column>
@@ -477,7 +477,7 @@ const filteredData = computed(() => {
 
   if (f.platform) {
     const kw = f.platform.toLowerCase()
-    list = list.filter(c => c.platformIds.some(p => String(p).toLowerCase().includes(kw)))
+    list = list.filter(c => (c.relatedPlatforms || '').toLowerCase().includes(kw))
   }
   if (f.caType) {
     list = list.filter(c => c.caType === f.caType)
@@ -494,7 +494,7 @@ const filteredData = computed(() => {
   if (f.keyword) {
     const kw = f.keyword.toLowerCase()
     list = list.filter(c =>
-      c.platformIds.some(p => String(p).toLowerCase().includes(kw)) ||
+      (c.relatedPlatforms || '').toLowerCase().includes(kw) ||
       (c.custodianName || '').toLowerCase().includes(kw) ||
       (c.currentBorrowerName || '').toLowerCase().includes(kw) ||
       (c.caPlatformUrl || '').toLowerCase().includes(kw)

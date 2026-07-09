@@ -58,12 +58,6 @@ function calcRemainingDays(expiryDate) {
   return Math.ceil((d.getTime() - Date.now()) / (24 * 60 * 60 * 1000))
 }
 
-function parsePlatformIds(platformIds) {
-  if (!platformIds) return []
-  if (Array.isArray(platformIds)) return platformIds
-  try { return JSON.parse(platformIds) } catch { return [platformIds] }
-}
-
 export function normalizeCaCertificate(item) {
   if (!item) return null
   const expiryDate = item.expiryDate ? formatDate(item.expiryDate) : ''
@@ -71,11 +65,8 @@ export function normalizeCaCertificate(item) {
 
   return {
     id: item.id,
-    // 关联平台
-    platformIds: parsePlatformIds(item.platformIds),
-    platformIdsRaw: item.platformIds,
-    // CO-479: 平台 ID→名称映射，用于展示平台名称而非数字 ID
-    platformNamesById: item.platformNamesById || {},
+    // CO-566: 关联平台改为文本（多个用逗号分隔），不再绑定平台账号ID
+    relatedPlatforms: item.relatedPlatforms || '',
     // CA类型
     caType: item.caType || 'ENTITY_CA',
     caTypeLabel: CA_TYPE_MAP[item.caType] || item.caType || '实体CA',

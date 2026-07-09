@@ -7,29 +7,13 @@
     top="5vh"
   >
     <el-form ref="formRef" :model="form" :rules="rules" label-width="120px" size="default">
-      <el-form-item label="关联平台" prop="platformIds">
-        <el-select
-          v-model="form.platformIds"
-          multiple
-          filterable
-          collapse-tags
-          collapse-tags-tooltip
-          :max-collapse-tags="3"
-          :loading="platformOptionsLoading"
-          :remote-method="searchPlatforms"
-          remote
-          reserve-keyword
-          placeholder="请选择已存在的投标平台（可多选）"
-          style="width: 100%"
-        >
-          <el-option
-            v-for="p in platformOptions"
-            :key="p.id"
-            :label="p.accountName || p.platform"
-            :value="p.id"
-          />
-        </el-select>
-        <div class="form-help">支持多选（公章CA可在多个平台共用）；只能选择已有的投标平台账号。</div>
+      <el-form-item label="关联平台" prop="relatedPlatforms">
+        <el-input
+          v-model="form.relatedPlatforms"
+          placeholder="请输入关联平台名称，多个用逗号分隔"
+          maxlength="500"
+        />
+        <div class="form-help">多个平台用逗号分隔，如：新疆政采网, 百度B2B</div>
       </el-form-item>
 
       <el-form-item label="CA 类型" prop="caType">
@@ -65,7 +49,7 @@
         />
       </el-form-item>
 
-      <el-form-item label="CA 密码" prop="caPassword" :required="form.caType === 'ENTITY_CA' && !isEdit">
+      <el-form-item label="CA 密码" prop="caPassword">
         <div class="password-input-wrapper">
           <el-input
             v-model="form.caPassword"
@@ -79,7 +63,7 @@
             <el-icon><View v-if="!passwordRevealed" /><Hide v-else /></el-icon>
           </el-button>
         </div>
-        <div class="form-help">{{ isEdit ? '留空则不修改密码；点击眼睛图标可查看当前密码' : '请输入 CA 密码（将加密存储）' }}</div>
+        <div class="form-help">{{ isEdit ? '留空则不修改密码；点击眼睛图标可查看当前密码' : '选填，将加密存储' }}</div>
       </el-form-item>
 
       <el-form-item label="有效期至" prop="expiryDate">
@@ -154,7 +138,6 @@
 
 <script setup>
 import { ref, reactive, computed, watch } from 'vue'
-import { usePlatformAccountSearch } from '@/composables/usePlatformAccountSearch.js'
 import UserPicker from '@/components/common/UserPicker.vue'
 import { View, Hide } from '@element-plus/icons-vue'
 import { useCaPasswordReveal } from '../composables/useCaPasswordReveal'
@@ -174,11 +157,11 @@ const visible = computed({
 
 const isEdit = computed(() => !!props.ca?.id)
 const formRef = ref(null)
-const { platformOptions, platformOptionsLoading, searchPlatforms } = usePlatformAccountSearch()
 
 function createDefaultForm() {
   return {
-    platformIds: [],
+    // CO-566: 关联平台改为文本
+    relatedPlatforms: '',
     caType: 'ENTITY_CA',
     sealType: ['OFFICIAL_SEAL'],
     electronicAccount: '',
@@ -211,13 +194,8 @@ watch(() => props.ca, (ca) => {
   resetPasswordState()  // 重置密码显示状态
   if (ca) {
     form.id = ca.id
-    form.platformIds = Array.isArray(ca.platformIds)
-      ? ca.platformIds.map(v => Number(v)).filter(v => Number.isFinite(v))
-      : []
-    // Pre-populate the dropdown with the linked platforms so the labels render
-    if (form.platformIds.length) {
-      platformOptions.value = form.platformIds.map(id => ({ id, accountName: ca.platformNamesById?.[id] || `平台 #${id}` }))
-    }
+    // CO-566: 关联平台直接用文本回填
+    form.relatedPlatforms = ca.relatedPlatforms || ''
     form.caType = ca.caType || 'ENTITY_CA'
     form.sealType = ca.sealType ? ca.sealType.split(',').map(s => s.trim()).filter(s => s) : ['OFFICIAL_SEAL']
     form.electronicAccount = ca.electronicAccount || ''
@@ -235,14 +213,8 @@ watch(() => props.ca, (ca) => {
   } else {
     Object.assign(form, createDefaultForm())
     delete form.id
-    platformOptions.value = []
   }
-  if (visible.value) searchPlatforms('')
 }, { immediate: true })
-
-watch(visible, (open) => {
-  if (open) searchPlatforms('')
-})
 
 // CO-451: 编辑模式下为 UserPicker 提供 initialOptions（用于显示"姓名（工号）"格式）
 const custodianInitialOptions = computed(() => {
@@ -262,13 +234,11 @@ watch(() => form.caType, (val) => {
   }
 })
 
+// CO-566: CA 密码改为非必填（实体CA/电子CA均不强制）
 const rules = computed(() => ({
   caType: [{ required: true, message: '请选择 CA 类型', trigger: 'change' }],
   sealType: [{ required: true, message: '请选择印章类型', trigger: 'change' }],
   electronicAccount: [{ required: true, message: '电子CA必须填写账号', trigger: 'blur' }],
-  caPassword: form.caType === 'ENTITY_CA' && !isEdit.value
-    ? [{ required: true, message: '实体CA必须填写密码', trigger: 'blur' }]
-    : [],
   expiryDate: [{ required: true, message: '请选择有效期', trigger: 'change' }],
   custodianId: [{ required: true, message: '请选择保管员', trigger: 'change' }]
 }))
@@ -279,7 +249,6 @@ async function handleSubmit() {
 
   const submitData = {
     ...form,
-    platformIds: form.platformIds.map(v => Number(v)),
     sealType: Array.isArray(form.sealType) ? form.sealType.join(',') : form.sealType
   }
 
