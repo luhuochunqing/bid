@@ -263,6 +263,14 @@ xiyu:
             - "bidding-list"
           "1003":
             - "project"
+            # CO-560: 追加 retrospective.submit 操作权限键
+            # 原因：spec 032 修复 OSS 权限扩散后，OSS 用户的 authorities 严格等于 OSS 菜单码映射出的内部权限键。
+            # 但 OSS 菜单映射表中 1003 只映射到 ["project"]，没有 retrospective.submit，
+            # 导致所有 OSS 用户（包括 admin/bid-TeamLeader/bid-Team）提交复盘时 @PreAuthorize(hasAuthority('retrospective.submit')) 返回 403。
+            # 按业务语义，复盘是项目流程的子环节，挂到 1003（投标项目）菜单码下合理。
+            # OSS 端按角色配置 1003 菜单：bid-projectLeader/bid-TeamLeader/bidAdmin/bid-Team 都配 1003，
+            # 这些角色在 RoleProfileCatalog 中都持有 retrospective.submit，映射对齐。
+            - "retrospective.submit"
           "100301":
             - "project-list"
           "100302":
