@@ -14,7 +14,7 @@ import java.util.List;
 public class PlatformAccountImportPolicy {
 
     public static final String[] HEADERS = {
-            "平台名称*", "平台网址*", "登录账号*", "登录密码*",
+            "平台名称*", "平台网址*", "登录账号*", "登录密码",
             "账号保管员工号*", "是否有CA", "备注",
             "注册人", "注册手机", "注册邮箱"
     };
@@ -77,11 +77,10 @@ public class PlatformAccountImportPolicy {
         String registerPhone = cellAt(cells, COL_REGISTER_PHONE).trim();
         String registerEmail = cellAt(cells, COL_REGISTER_EMAIL).trim();
 
-        // Required field validation
+        // Required field validation (CO-567: 登录密码非必填，不再校验空)
         if (accountName.isEmpty()) errors.add("平台名称不能为空");
         if (url.isEmpty()) errors.add("平台网址不能为空");
         if (username.isEmpty()) errors.add("登录账号不能为空");
-        if (password.isEmpty()) errors.add("登录密码不能为空");
 
         // Field length validation (CO-560: 超长在此行级失败，不触发 DB 异常)
         validateLength(registrant, LEN_REGISTRANT, "注册人", errors);

@@ -51,8 +51,8 @@ public class PlatformAccount {
     @Column(nullable = false, length = LEN_USERNAME)
     private String username;
 
-    /** Encrypted password. */
-    @Column(nullable = false)
+    /** Encrypted password. CO-567: 可空，NULL 表示该账户无平台密码。 */
+    @Column
     private String password;
 
     /** Display name of the platform. */

@@ -13,6 +13,7 @@ const mockAccountDetail = {
   platform: '政采云',
   username: 'admin001',
   password: '',
+  hasPassword: true,
   url: 'https://gov.example.com',
   contactPerson: '张三（001）',
   contactPersonLabel: '张三（001）',
