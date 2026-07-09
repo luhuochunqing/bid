@@ -3251,3 +3251,134 @@ cd backend && mvn test -Dtest='ResponsibilityArchitectureTest,OssMenuPermissionM
 - `docs/lessons/lessons-learned.md` §47 — OSS 用户权限扩散根因
 - `docs/lessons/oss-integration-lessons.md` — OSS 菜单码 1:N 映射集成经验
 - `docs/lessons/decisions.md` ## 4 — admin 专属权限过滤统一化决策
+
+## 49. OSS 权限键必须全量盘点补全：单点修复是债务积累，不是完结（CO-560 / 2026-07-09）
+
+### 问题背景
+
+2026-07-09，测试服务器 172.16.38.78 报 OSS 用户提交复盘报告 403。按 §23 全链路日志 SOP 排查：
+
+- 10 次 `POST /api/projects/{id}/retrospective` 全部 status=403
+- traceId 溯源：user=10208 isOssUser=true，authorities 列表无 `retrospective.submit`
+- 代码证据链：`ProjectRetrospectiveController#submit` 标注 `@PreAuthorize("hasAuthority('retrospective.submit')")`，但 `application.yml` 中 1003（投标项目）菜单码只映射到 `["project"]`，缺 `retrospective.submit`
+
+**用户感知与真相的差异**：用户以为"报错 201"是错误，实际 201 是 URL 中的项目 ID，HTTP 状态码是 403。
+
+### 系统盘点：单点修复不够
+
+第一次修复只补了 `retrospective.submit` 一个键就提交。用户立即追问："其他的权限会不会也有这样的问题？帮我系统地盘点一下，这次务必改掉所有的问题。"
+
+脚本对比 `RoleProfileCatalog.menuPermissions`（45 个权限键）与 `application.yml` 的 `menu-code-to-permission-key-mappings`，找出 **30 个缺失权限键**。后端 + 前端并行扫描确认每个缺失键的实际影响：
+
+| 缺失类型 | 数量 | 影响 |
+|---|---|---|
+| 工作台 widget 可见性（`dashboard:view_*` + `dashboard.quickStart`） | 15 | OSS 用户工作台 widget 缺失 |
+| 标讯操作（`bidding.manage/create/delete/sync` + `tender.view`） | 5 | OSS 用户标讯列表按钮不显示 |
+| 投标项目操作（`project.create/view` + `evaluation.update` + `result.register` + `retrospective.review` + `closure.request/review` + `lead.assign`） | 8 | OSS 用户工作台"创建项目"按钮缺失；未来加 @PreAuthorize 会 403 |
+| 资质证书（`certificate.manage`） | 1 | OSS 用户资质页面 isAdmin 判定失败 |
+| 告警规则（`settings-alerts`） | 1 | OSS 用户告警规则路由 403（路由 meta 要求 `['settings', 'settings-alerts']` 全部命中） |
+| `analytics` 命名不一致 | 1 | OSS 用户工作台汇总数据不显示（catalog 用 `analytics`，OSS 此前只有 `analytics-dashboard`） |
+| 任务看板（`task.assign/review` + `task.view.own/handle.own`） | 4 | OSS 用户告警待办加载失败；未来加 @PreAuthorize 会 403 |
+
+### 关键根因
+
+**spec 032 修复 OSS 权限扩散后，OSS 用户 authorities 严格等于 OSS 菜单码映射出的内部权限键**。`RoleProfileCatalog` 中角色声明的 `menuPermissions` 只对本地用户走 catalog fallback 生效，OSS 用户不走此路径。如果 catalog 中声明的权限键在 OSS 映射表中没有来源：
+
+1. **前端 `hasPermission(xxx)` 对 OSS 用户返回 false** → UI 元素缺失（按钮/卡片不显示）
+2. **未来给这些键加 `@PreAuthorize(hasAuthority('xxx'))` 会重演 403 事故**
+
+**`tender.view` 就是前车之鉴**：此前因 OSS 缺映射被迫回退为 `hasAnyRole`（`TenderController.java:135-139` 注释），这正是单点修补而非系统盘点的代价。
+
+### 修复方案
+
+**修复原则**：单点修复是债务积累，必须全量盘点。
+
+**操作**：按 OSS 菜单码业务语义归类，把 30 个缺失权限键挂到合适的父菜单下：
+
+| OSS 菜单码 | 追加权限键 |
+|---|---|
+| 1001 工作台 | `dashboard.quickStart` + 14 个 `dashboard:view_*` |
+| 1002 标讯中心 | `bidding.manage/create/delete/sync` + `tender.view` |
+| 1003 投标项目 | `project.create/view` + `evaluation.update` + `result.register` + `retrospective.review` + `closure.request/review` + `lead.assign` |
+| 1005 资源管理 | `deposit.return.fill` |
+| 100402 资质库 | `certificate.manage` |
+| 1007 数据分析 | `analytics`（与 `analytics-dashboard` 共存，命名不一致需双映射） |
+| 1010 系统设置 | `settings-alerts` |
+| 1011 任务看板 | `task.assign/review` + `task.view.own` + `task.handle.own` |
+
+**`analytics` 命名不一致处理**：catalog 用 `analytics`，OSS 此前只有 `analytics-dashboard`，两者是不同字符串。保留 `analytics-dashboard` 用于路由，新增 `analytics` 用于业务逻辑。
+
+### 防复发守卫（双重保险）
+
+**守卫 1**（已在第一次修复中建立）：`PreAuthorizeAuthorityOssMappingCoverageTest#allHasAuthorityKeys_mustHaveOssMappingSource`
+- 扫描所有 `@PreAuthorize(hasAuthority('xxx'))` 用法
+- 校验权限键在 OSS 映射表中有来源
+
+**守卫 2**（本次系统盘点新增）：`PreAuthorizeAuthorityOssMappingCoverageTest#allCatalogPermissionKeys_mustHaveOssMappingSource`
+- 从 `RoleProfileCatalog.seedDefinitions()` 反向扫描所有角色 `menuPermissions`
+- 校验每个权限键（除 admin 专属 `"all"`）都在 OSS 映射表中有来源
+- 未来给 catalog 新增权限键时，如果忘了在 OSS 映射表加来源，架构测试会立即失败
+
+### 时间线
+
+| 阶段 | 内容 |
+|---|---|
+| 全链路日志 SOP 排查 | 10 次 POST /retrospective 全部 403 → traceId 溯源 → 代码证据链 |
+| 第一次修复 | 补 `retrospective.submit` + 守卫 1 → PR !1948 第一次 push |
+| 系统盘点 | 用户追问"其他权限会不会也有" → 脚本对比 + 后端/前端并行扫描 |
+| 全量补全 | 30 个权限键一次性补齐 + 守卫 2 → PR !1948 第二次 push |
+| 反向验证 | 临时移除 `tender.view` → 守卫精确报告 → BUILD FAILURE → 恢复后通过 |
+
+### 验证命令
+
+```bash
+cd /Users/user/xiyu/worktrees/cursor/backend
+# 双重守卫测试
+mvn test -Dtest='PreAuthorizeAuthorityOssMappingCoverageTest,OssMenuPermissionMappingCoverageTest'
+# 完整测试套
+mvn test -Dtest='PreAuthorizeAuthorityOssMappingCoverageTest,OssMenuPermissionMappingCoverageTest,UserDetailsServiceImplTest,ArchitectureTest,FPJavaArchitectureTest,MaintainabilityArchitectureTest,RoleProfileCatalogTest,RoleProfileCatalogTenderLifecycleTest'
+# 反向验证（临时移除一个映射 → 应失败 → 恢复 → 通过）
+```
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| 单点修复 `retrospective.submit` 后就准备收尾 | OSS 权限键缺失是系统性问题，不是单点问题 | 修复 OSS 权限 403 时，必须全量盘点 catalog 与 OSS 映射的差集 |
+| `tender.view` 已因 OSS 缺映射被迫回退为 `hasAnyRole` | 单点修补会积累成历史债 | 修复时遇到"回退为 hasAnyRole"注释，必须同时补全映射，避免同类问题延续 |
+| `analytics` 与 `analytics-dashboard` 命名不一致 | 权限键字符串不一致会导致前端 hasPermission 失败 | catalog 与 OSS 映射的权限键必须字符串严格一致；命名不一致时双映射共存 |
+| 守卫 1 只覆盖已使用的 `@PreAuthorize` 用法 | catalog 中声明但未在 @PreAuthorize 使用的权限键是定时炸弹 | 必须从 catalog 反向扫描（守卫 2），覆盖所有声明的权限键 |
+
+### 操作规范（建议固化到 CLAUDE.md / SECURITY.md）
+
+1. **修复 OSS 权限 403 时，必须全量盘点 catalog 与 OSS 映射的差集**：
+   ```bash
+   # 脚本对比 RoleProfileCatalog.menuPermissions 与 application.yml 的 menu-code-to-permission-key-mappings
+   # 找出 catalog 中有但 OSS 映射中没有的权限键
+   ```
+   单点修复不允许直接提交 PR，必须同时给出全量盘点的差集分析。
+
+2. **遇到"已回退为 hasAnyRole"注释，必须同时补全映射**：
+   - 注释中提到的 `@PreAuthorize(hasAuthority('xxx'))` 因 OSS 缺映射回退为 `hasAnyRole`
+   - 必须同时补全 OSS 映射，避免同类问题延续
+   - 补全后可在后续 PR 恢复为 `hasAuthority`
+
+3. **权限键命名不一致时双映射共存**：
+   - catalog 与 OSS 映射的权限键字符串不一致时（如 `analytics` vs `analytics-dashboard`）
+   - 不要强行归一化（会破坏路由或前端代码）
+   - 双映射共存，每个键保留各自的语义
+
+4. **架构守卫必须双向覆盖**：
+   - 正向：扫描 `@PreAuthorize(hasAuthority('xxx'))` 用法，校验权限键在 OSS 映射中有来源
+   - 反向：扫描 `RoleProfileCatalog.menuPermissions`，校验每个权限键在 OSS 映射中有来源
+   - 两个方向缺一不可，否则会漏掉"声明但未使用"的定时炸弹
+
+### 相关文件
+
+- PR !1948 — `fix(permission): CO-560 系统盘点补全所有 catalog 业务操作权限键 OSS 映射`
+- `docs/lessons/lessons-learned.md` §47 — OSS 用户权限扩散根因（spec 032）
+- `docs/lessons/lessons-learned.md` §48 — 止血补丁与技术债清偿必须分 PR（CO-551）
+- `backend/src/main/java/com/xiyu/bid/entity/RoleProfileCatalog.java` — 角色 menuPermissions 真相来源
+- `backend/src/main/resources/application.yml` — OSS 菜单码 → 内部权限键映射表
+- `backend/src/main/java/com/xiyu/bid/tender/controller/TenderController.java:135-139` — `tender.view` 历史回退注释
+- `backend/src/test/java/com/xiyu/bid/architecture/PreAuthorizeAuthorityOssMappingCoverageTest.java` — 双重守卫
