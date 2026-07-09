@@ -157,6 +157,7 @@ import QualDetailDrawer from './components/qualification/QualDetailDrawer.vue'
 import RetireConfirmDialog from './components/qualification/RetireConfirmDialog.vue'
 import { useQualificationList } from './components/qualification/useQualificationList.js'
 import { useQualificationDetail } from './components/qualification/useQualificationDetail.js'
+import { hasDownloadableAttachment } from './components/qualification/hasDownloadableAttachment.js'
 import { useRetireDialog } from '@/composables/useRetireDialog.js'
 
 const userStore = useUserStore()
@@ -202,10 +203,6 @@ const handleBatchExport = () => {
     })
     .catch(() => ElMessage.error('批量导出失败'))
 }
-const hasDownloadableAttachment = (row) =>
-  (row.fileUrl && row.fileUrl.trim()) ||
-  (row.attachments && row.attachments.some(a => a.fileUrl && a.fileUrl.trim()))
-
 const handleBatchDownload = () => {
   if (!selectedRows.value.length) {
     ElMessage.warning('请先选择要下载的资质证书')

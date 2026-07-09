@@ -117,13 +117,21 @@ export function useQualificationDetail({ qualifications, fetchQualifications }) 
     window.open(url, '_blank')
   }
 
-  // 行下载：多附件打包 zip，单附件下原文件，兜底走旧 fileUrl
-  // CO-554 fix: 此前只下 attachments[0]，其余附件下载入口缺失。现按附件数自动选 zip/单文件。
+  // 行下载：多附件打包 zip，单附件下原文件，无附件提示不下载
+  // CO-554 fix v2: 按附件数自动选 zip/单文件。
+  // CO-554 fix v3: 去掉主表 fileUrl 兜底——它是不一致缓存值，导致无附件但 fileUrl 有脏数据时
+  //                也下载，结果拿到错误响应存成 txt。判定和下载都只认 attachments（附件表真相）。
   const handleDownloadFile = async (row) => {
     const qId = row.id
     const atts = Array.isArray(row.attachments) ? row.attachments : []
     const downloadableAtts = atts.filter((a) => a.fileUrl && String(a.fileUrl).trim())
     const downloadableCount = downloadableAtts.length
+
+    // 无附件：直接提示，不下载（避免主表脏 fileUrl 导致下到 txt）
+    if (downloadableCount === 0) {
+      ElMessage.warning('该资质没有可下载的附件')
+      return
+    }
 
     // 多附件：复用 /batch-download 打包 zip（后端已遍历 attachments 去重命名）
     if (downloadableCount > 1 && qId) {
@@ -145,44 +153,25 @@ export function useQualificationDetail({ qualifications, fetchQualifications }) 
     }
 
     // 单附件：走 attachment-id 接口
-    if (downloadableCount === 1) {
-      const att = downloadableAtts[0]
-      const attId = att.id
-      if (qId && attId) {
-        try {
-          const res = await http.get(`/api/knowledge/qualifications/${qId}/attachments/${attId}`, { responseType: 'blob' })
-          const url = window.URL.createObjectURL(new Blob([res.data]))
-          const a = document.createElement('a')
-          a.href = url
-          a.download = att.fileName || row.name || '资质附件'
-          document.body.appendChild(a)
-          a.click()
-          a.remove()
-          window.URL.revokeObjectURL(url)
-          return
-        } catch {
-          /* fall through to legacy fallback */
-        }
-      }
-    }
-
-    // 兜底：旧数据直接使用 fileUrl
-    if (row.fileUrl) {
+    const att = downloadableAtts[0]
+    const attId = att.id
+    if (qId && attId) {
       try {
-        const res = await http.get(row.fileUrl, { responseType: 'blob' })
+        const res = await http.get(`/api/knowledge/qualifications/${qId}/attachments/${attId}`, { responseType: 'blob' })
         const url = window.URL.createObjectURL(new Blob([res.data]))
         const a = document.createElement('a')
         a.href = url
-        a.download = row.name || '资质附件'
+        a.download = att.fileName || row.name || '资质附件'
         document.body.appendChild(a)
         a.click()
         a.remove()
         window.URL.revokeObjectURL(url)
+        return
       } catch {
         ElMessage.error('下载失败')
       }
     } else {
-      ElMessage.error('下载失败')
+      ElMessage.warning('附件信息不完整，请刷新后重试')
     }
   }
 
