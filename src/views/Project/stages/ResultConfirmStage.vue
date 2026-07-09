@@ -249,6 +249,7 @@ async function backfillEvidenceFiles(ids) {
       .map(id => docMap.get(Number(id)))
       .filter(Boolean)
       .map(doc => ({
+        uid: doc.id,
         name: doc.name || '凭证文件',
         url: doc.fileUrl || '',
         response: { data: doc },

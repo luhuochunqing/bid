@@ -372,6 +372,7 @@ async function loadBidFiles() {
     const res = await getDocuments(props.projectId, { documentCategory: 'BID' })
     const docs = res?.data || []
     bidFiles.value = docs.map(doc => ({
+      uid: doc.id,
       name: doc.name || '投标文件',
       url: doc.fileUrl || '',
       response: { data: doc },

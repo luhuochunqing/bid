@@ -69,6 +69,7 @@ watch(() => props.existingDocIds, async (ids) => {
       .map(id => docMap.get(Number(id)))
       .filter(Boolean)
       .map(doc => ({
+        uid: doc.id,
         name: doc.name || '开标一览表',
         url: doc.fileUrl || '',
         response: { data: doc },
