@@ -142,6 +142,10 @@ xiyu:
     allowed-actions: ${XIYU_OBS_ALLOWED_ACTIONS:obs:object:PutObject,obs:object:GetObject,obs:object:DeleteObject,obs:bucket:ListBucketMultipartUploads}
     # 下载预签名 URL 默认有效期（秒）
     download-url-expire-seconds: ${XIYU_OBS_DOWNLOAD_URL_EXPIRE:300}
+    # 下载预签名 URL 使用的自定义域名（如 widbid-obs.ehsy.com）。
+    # 用户在华为云 OBS 控制台为桶绑定的自定义域名，配置后 CRM 可直接通过该域名访问 OBS 文件。
+    # 为空时退化为标准 OBS endpoint（obs.cn-east-3.myhuaweicloud.com）。
+    download-custom-domain: ${XIYU_OBS_DOWNLOAD_CUSTOM_DOMAIN:}
 
   tender:
     abandon-roles: ${XIYU_TENDER_ABANDON_ROLES:ADMIN,MANAGER}

@@ -49,6 +49,17 @@ public class ObsProperties implements ObsUploadConfig {
     private Integer downloadUrlExpireSeconds = 300;
 
     /**
+     * 下载预签名 URL 使用的自定义域名（如 widbid-obs.ehsy.com）。
+     *
+     * <p>用户在华为云 OBS 控制台为桶绑定的自定义域名。配置后，
+     * {@link HuaweiObsDownloadUrlGateway} 会用此域名作为 endpoint 生成预签名 URL，
+     * 使外部系统（如 CRM）可直接通过该域名访问 OBS 文件，无需经过 XiYu 后端代理。</p>
+     *
+     * <p>为空时退化为标准 OBS endpoint（如 obs.cn-east-3.myhuaweicloud.com）。</p>
+     */
+    private String downloadCustomDomain;
+
+    /**
      * 是否使用 IAM 委托（AssumeAgency）换取临时凭证。
      * 未配置 agencyName 或 domainName 时退化为 AK/SK 直传模式。
      */

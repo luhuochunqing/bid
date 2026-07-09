@@ -1,5 +1,6 @@
 package com.xiyu.bid.integration.external;
 
+import com.xiyu.bid.file.application.ObsShareUrlSigner;
 import com.xiyu.bid.tender.dto.TenderAttachmentDTO;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import org.junit.jupiter.api.AfterEach;
@@ -8,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -281,4 +283,89 @@ class TenderIntegrationMapperToDownloadUrlTest {
         field.setAccessible(true);
         field.set(null, value);
     }
+
+    /**
+     * 通过反射设置静态字段 obsShareUrlSigner，模拟 @Autowired 注入。
+     */
+    private static void setObsShareUrlSigner(ObsShareUrlSigner signer) throws Exception {
+        Field field = TenderAttachmentUrlResolver.class.getDeclaredField("obsShareUrlSigner");
+        field.setAccessible(true);
+        field.set(null, signer);
+    }
+
+    // ── obs-direct: 前缀 URL 转换（OBS 直传文件 CRM 回传修复）──────────────
+
+    @Test
+    @DisplayName("obs-direct:{uploadId} 在 obsShareUrlSigner 为 null 时原样返回（回退行为）")
+    void toIntegrationDownloadUrl_obsDirectWithoutSigner_returnsAsIs() {
+        // obsShareUrlSigner 为 null（单元测试默认场景），obs-direct: 原样返回
+        String result = TenderAttachmentUrlResolver.toIntegrationDownloadUrl("obs-direct:upload-abc-123");
+        assertThat(result).isEqualTo("obs-direct:upload-abc-123");
+    }
+
+    @Test
+    @DisplayName("obs-direct:{uploadId} 配置了 signer 时转换为 OBS 预签名 URL")
+    void toIntegrationDownloadUrl_obsDirectWithSigner_returnsPresignedUrl() throws Exception {
+        ObsShareUrlSigner mockSigner = org.mockito.Mockito.mock(ObsShareUrlSigner.class);
+        org.mockito.Mockito.when(mockSigner.trySign("obs-direct:upload-abc-123"))
+                .thenReturn(Optional.of("https://widbid-obs.ehsy.com/bids/test.pdf?Signature=xxx"));
+        setObsShareUrlSigner(mockSigner);
+
+        try {
+            String result = TenderAttachmentUrlResolver.toIntegrationDownloadUrl("obs-direct:upload-abc-123");
+            assertThat(result).startsWith("https://widbid-obs.ehsy.com/");
+            assertThat(result).contains("Signature=xxx");
+        } finally {
+            setObsShareUrlSigner(null);
+        }
+    }
+
+    @Test
+    @DisplayName("obs-direct:{uploadId} signer 返回 empty 时回退为原值")
+    void toIntegrationDownloadUrl_obsDirectSignerEmpty_returnsOriginal() throws Exception {
+        ObsShareUrlSigner mockSigner = org.mockito.Mockito.mock(ObsShareUrlSigner.class);
+        org.mockito.Mockito.when(mockSigner.trySign("obs-direct:non-existent"))
+                .thenReturn(Optional.empty());
+        setObsShareUrlSigner(mockSigner);
+
+        try {
+            String result = TenderAttachmentUrlResolver.toIntegrationDownloadUrl("obs-direct:non-existent");
+            assertThat(result).isEqualTo("obs-direct:non-existent");
+        } finally {
+            setObsShareUrlSigner(null);
+        }
+    }
+
+    @Test
+    @DisplayName("obs-direct:{uploadId} toDownloadUrl 也走 OBS 预签名路径")
+    void toDownloadUrl_obsDirectWithSigner_returnsPresignedUrl() throws Exception {
+        ObsShareUrlSigner mockSigner = org.mockito.Mockito.mock(ObsShareUrlSigner.class);
+        org.mockito.Mockito.when(mockSigner.trySign("obs-direct:upload-abc-123"))
+                .thenReturn(Optional.of("https://widbid-obs.ehsy.com/bids/test.pdf?Signature=yyy"));
+        setObsShareUrlSigner(mockSigner);
+
+        try {
+            String result = TenderAttachmentUrlResolver.toDownloadUrl("obs-direct:upload-abc-123");
+            assertThat(result).startsWith("https://widbid-obs.ehsy.com/");
+        } finally {
+            setObsShareUrlSigner(null);
+        }
+    }
+
+    @Test
+    @DisplayName("obs-direct:{uploadId} toIntegrationFullUrl 也走 OBS 预签名路径")
+    void toIntegrationFullUrl_obsDirectWithSigner_returnsPresignedUrl() throws Exception {
+        ObsShareUrlSigner mockSigner = org.mockito.Mockito.mock(ObsShareUrlSigner.class);
+        org.mockito.Mockito.when(mockSigner.trySign("obs-direct:upload-abc-123"))
+                .thenReturn(Optional.of("https://widbid-obs.ehsy.com/bids/test.pdf?Signature=zzz"));
+        setObsShareUrlSigner(mockSigner);
+
+        try {
+            String result = TenderAttachmentUrlResolver.toIntegrationFullUrl("obs-direct:upload-abc-123");
+            assertThat(result).startsWith("https://widbid-obs.ehsy.com/");
+        } finally {
+            setObsShareUrlSigner(null);
+        }
+    }
 }
+

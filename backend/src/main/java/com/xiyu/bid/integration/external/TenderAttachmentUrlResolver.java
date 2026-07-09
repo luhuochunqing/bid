@@ -1,8 +1,10 @@
-// Input: fileUrl 字符串（doc-insight:// / http(s):// / /api/... 相对路径）
-// Output: 转换后的下载 URL（XiYu 内部端点 或 CRM 集成端点）
+// Input: fileUrl 字符串（obs-direct: / doc-insight:// / http(s):// / /api/... 相对路径）
+// Output: 转换后的下载 URL（OBS 预签名 URL / XiYu 内部端点 / CRM 集成端点）
 // Pos: integration.external — 附件 URL 转换器，承载 publicBaseUrl 配置和端点选择逻辑
 package com.xiyu.bid.integration.external;
 
+import com.xiyu.bid.file.application.ObsShareUrlSigner;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -10,37 +12,49 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import static com.xiyu.bid.apikey.infrastructure.ApiKeyAuthConstants.DEFAULT_QUERY_PARAM;
 
 /**
  * 附件下载 URL 转换器（CO-280 403 修复）。
  *
- * <p>承载两条 URL 转换路径：
- * <ul>
- *   <li>{@link #toDownloadUrl}：XiYu 内部下载端点 {@code /api/doc-insight/download}，
- *       需要 XiYu 登录态。适用于 XiYu 内部用户（通过 {@code TenderQueryService} / {@code TenderMapper}）。</li>
- *   <li>{@link #toIntegrationDownloadUrl}：CRM 集成下载端点 {@code /api/integration/tenders/attachments/download}，
- *       走 X-API-Key 认证。适用于 CRM 跨系统访问。</li>
- * </ul>
- *
- * <p>从 {@code TenderIntegrationMapper} 抽取，避免 mapper 类超过 300 行行数预算。
- * {@code publicBaseUrl} 配置通过 {@link Value @Value} 注入到静态字段，
- * 使静态方法也能读取。
+ * <p>三条转换路径：obs-direct:{uploadId} → OBS 预签名 URL（{@link ObsShareUrlSigner}）；
+ * doc-insight:// → XiYu 内部端点；http(s):// → 原样返回。
+ * {@code publicBaseUrl} 通过 {@link Value @Value} 注入静态字段，
+ * {@code obsShareUrlSigner} 通过 {@link Autowired @Autowired} 注入静态字段。
  */
 @Component
 public class TenderAttachmentUrlResolver {
 
-    /**
-     * 公开端点根地址（如 https://winbid-test.ehsy.com）。
-     * 用于生成可跨域访问的完整下载 URL，供外部系统（如 CRM）直接渲染。
-     * 开发环境默认为空，返回相对路径（同源部署）。
-     */
+    /** 公开端点根地址（如 https://winbid-test.ehsy.com）。 */
     private static String publicBaseUrl;
 
     @Value("${xiyu.public-base-url:}")
     public void setPublicBaseUrl(String value) {
         TenderAttachmentUrlResolver.publicBaseUrl = value;
+    }
+
+    /** OBS 分享 URL 签发器，单元测试中为 null。 */
+    private static ObsShareUrlSigner obsShareUrlSigner;
+
+    @Autowired
+    public void setObsShareUrlSigner(ObsShareUrlSigner signer) {
+        TenderAttachmentUrlResolver.obsShareUrlSigner = signer;
+    }
+
+    /**
+     * 尝试将 obs-direct:{uploadId} 转换为 OBS 预签名 URL。
+     * 非 obs-direct: 前缀返回 empty（让后续逻辑接管）；签发失败也返回 empty。
+     */
+    private static Optional<String> tryResolveObsDirect(String url) {
+        if (url == null || !url.startsWith(ObsShareUrlSigner.OBS_DIRECT_PREFIX)) {
+            return Optional.empty();
+        }
+        if (obsShareUrlSigner == null) {
+            return Optional.empty();
+        }
+        return obsShareUrlSigner.trySign(url);
     }
 
     /**
@@ -57,6 +71,11 @@ public class TenderAttachmentUrlResolver {
     public static String toDownloadUrl(String u) {
         if (u == null || u.isBlank()) {
             return u;
+        }
+        // obs-direct: → OBS 预签名 URL（签发失败回退为原值）
+        Optional<String> obsSigned = tryResolveObsDirect(u);
+        if (obsSigned.isPresent()) {
+            return obsSigned.get();
         }
         if (u.startsWith("/api/doc-insight/download?")) {
             return prependPublicBaseUrl(u);
@@ -85,6 +104,11 @@ public class TenderAttachmentUrlResolver {
         if (u == null || u.isBlank()) {
             return u;
         }
+        // obs-direct: → OBS 预签名 URL（签发失败回退为原值）
+        Optional<String> obsSigned = tryResolveObsDirect(u);
+        if (obsSigned.isPresent()) {
+            return obsSigned.get();
+        }
         // 已是集成下载地址，幂等返回
         if (u.startsWith("/api/integration/tenders/attachments/download?")) {
             return prependPublicBaseUrl(u);
@@ -112,6 +136,11 @@ public class TenderAttachmentUrlResolver {
      */
     public static String toFullUrl(String url) {
         if (url == null) return null;
+        // obs-direct: → OBS 预签名 URL（签发失败回退为原值）
+        Optional<String> obsSigned = tryResolveObsDirect(url);
+        if (obsSigned.isPresent()) {
+            return obsSigned.get();
+        }
         if (url.startsWith("doc-insight://")) {
             return toDownloadUrl(url);
         }
@@ -128,6 +157,11 @@ public class TenderAttachmentUrlResolver {
      */
     public static String toIntegrationFullUrl(String url) {
         if (url == null) return null;
+        // obs-direct: → OBS 预签名 URL（签发失败回退为原值）
+        Optional<String> obsSigned = tryResolveObsDirect(url);
+        if (obsSigned.isPresent()) {
+            return obsSigned.get();
+        }
         if (url.startsWith("doc-insight://")) {
             return toIntegrationDownloadUrl(url);
         }
