@@ -140,26 +140,27 @@ public class OssLoginFlowService {
         }
 
         // Step 3: GET /oauth/getUserPermission - 获取系统权限
-        try {
-            CrmUserPermission permission = permissionService.getUserPermission(accessToken, permissionSystemName);
-            if (permission != null && !permission.isEmpty()) {
-                result.permission(permission);
-                log.info("OSS user permission retrieved for user={}", username);
-            }
-        } catch (RuntimeException e) {
-            log.warn("OSS getUserPermission failed (non-fatal): {}", e.getMessage());
+        // 不 catch：API 调用失败时异常传播到 AuthService.login 的 catch 块，
+        // 保留旧缓存（比用空权限覆盖缓存更安全）。API 成功返回空数据是正常业务状态，不抛异常。
+        CrmUserPermission permission = permissionService.getUserPermission(accessToken, permissionSystemName);
+        if (permission != null && !permission.isEmpty()) {
+            result.permission(permission);
+            log.info("OSS user permission retrieved for user={}", username);
+        } else {
+            log.warn("OSS getUserPermission returned empty for user={}, system={} — "
+                    + "user may have no menu permissions configured in OSS", username, permissionSystemName);
         }
 
         // Step 4: POST /oss/.../getUserJobListByJobNumberList - 获取用户角色
+        // 不 catch：API 调用失败时异常传播到 AuthService.login 的 catch 块，
+        // 保留旧缓存。避免 null jobList 导致 cacheOssPermissions 中角色解析失败并 invalidate 缓存。
         if (jobNumber != null && !jobNumber.isBlank()) {
-            try {
-                CrmJobListResponse jobList = roleService.getUserJobList(List.of(jobNumber));
-                if (jobList != null) {
-                    result.jobList(jobList);
-                    log.info("OSS user job list retrieved for user={}, jobNumber={}", username, jobNumber);
-                }
-            } catch (RuntimeException e) {
-                log.warn("OSS getUserJobList failed (non-fatal): {}", e.getMessage());
+            CrmJobListResponse jobList = roleService.getUserJobList(List.of(jobNumber));
+            if (jobList != null) {
+                result.jobList(jobList);
+                log.info("OSS user job list retrieved for user={}, jobNumber={}", username, jobNumber);
+            } else {
+                log.warn("OSS getUserJobList returned null for user={}, jobNumber={}", username, jobNumber);
             }
         }
 
