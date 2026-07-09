@@ -5,8 +5,10 @@
 package com.xiyu.bid.project.notification;
 
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.entity.Task;
+import com.xiyu.bid.notification.core.NotificationMessagePolicy;
 import com.xiyu.bid.notification.core.NotificationType;
-import com.xiyu.bid.notification.core.TaskNotificationTitleFormatter;
+import com.xiyu.bid.notification.core.ProjectNotificationRole;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.notification.service.NotificationRecipientResolver;
@@ -16,11 +18,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 /**
  * 项目事件通知分发器。
@@ -43,39 +43,34 @@ public class ProjectEventNotificationDispatcher {
 
     /**
      * 通知项目团队：阶段自动推进（蓝图 §消息中心-系统通知 序号 6）。
+     *
+     * <p>接收人：投标管理员 / 投标组长 / 主投标负责人 / 投标辅助人员 / 项目负责人。</p>
      */
     public void notifyStageTransition(Long projectId, ProjectStage fromStage, ProjectStage toStage, Long userId) {
         try {
             Project project = findProject(projectId);
             if (project == null) return;
 
-            List<Long> teamMemberIds = recipientResolver.getProjectMemberUserIds(projectId, null);
-            if (teamMemberIds.isEmpty()) return;
+            Set<ProjectNotificationRole> roles = Set.of(
+                    ProjectNotificationRole.BID_ADMIN,
+                    ProjectNotificationRole.BID_TEAM_LEADER,
+                    ProjectNotificationRole.BID_LEAD,
+                    ProjectNotificationRole.BID_ASSISTANT,
+                    ProjectNotificationRole.PROJECT_OWNER);
+            List<Long> recipientIds = recipientResolver.resolveAndFilterProjectRecipients(projectId, roles, userId);
+            if (recipientIds.isEmpty()) return;
 
-            String projectName = project.getName();
-            String customerName = project.getCustomer();
-            String prefix = (customerName != null && !customerName.isBlank())
-                    ? String.format("【%s - %s】", customerName, projectName)
-                    : String.format("【%s】", projectName);
-            String fromLabel = fromStage != null ? fromStage.getDisplayName() : "未知";
-            String toLabel = toStage != null ? toStage.getDisplayName() : "未知";
-            String body = String.format("%s阶段发生自动流转：%s → %s", prefix, fromLabel, toLabel);
-
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("projectId", String.valueOf(projectId));
-            payload.put("projectName", projectName);
-            payload.put("fromStage", fromStage != null ? fromStage.name() : "");
-            payload.put("toStage", toStage != null ? toStage.name() : "");
-            payload.put("targetUrl", "/project/" + projectId);
+            NotificationMessagePolicy.NotificationMessage message = NotificationMessagePolicy.forStageTransition(
+                    project, project.getCustomer(), fromStage, toStage, "/project/" + projectId);
 
             notificationService.createNotification(new CreateNotificationRequest(
-                    NotificationType.SYSTEM.name(),
-                    "PROJECT",
-                    projectId,
-                    "阶段变更 - " + projectName,
-                    body,
-                    payload,
-                    teamMemberIds
+                    message.type(),
+                    message.sourceEntityType(),
+                    message.sourceEntityId(),
+                    message.title(),
+                    message.body(),
+                    message.payload(),
+                    recipientIds
             ), userId == null ? SYSTEM_USER_ID : userId);
         } catch (RuntimeException e) {
             log.warn("notifyStageTransition failed for project={}: {}", projectId, e.getMessage());
@@ -84,35 +79,32 @@ public class ProjectEventNotificationDispatcher {
 
     /**
      * 通知项目团队：项目已结项归档（蓝图 §消息中心-系统通知 序号 1）。
+     *
+     * <p>接收人：投标管理员 / 投标组长 / 主投标负责人 / 投标辅助人员。</p>
      */
     public void notifyProjectArchived(Long projectId, String customerName, Long userId) {
         try {
             Project project = findProject(projectId);
             if (project == null) return;
 
-            String projectName = project.getName();
-            String prefix = (customerName != null && !customerName.isBlank())
-                    ? String.format("【%s - %s】", customerName, projectName)
-                    : String.format("【%s】", projectName);
-            String body = prefix + "已结项归档，所有字段锁定，资料已自动归档";
-
-            List<Long> recipientIds = new ArrayList<>(recipientResolver.getProjectMemberUserIds(projectId, null));
-            recipientIds.addAll(recipientResolver.getAdminUserIds());
-            recipientIds = recipientIds.stream().distinct().collect(Collectors.toList());
+            Set<ProjectNotificationRole> roles = Set.of(
+                    ProjectNotificationRole.BID_ADMIN,
+                    ProjectNotificationRole.BID_TEAM_LEADER,
+                    ProjectNotificationRole.BID_LEAD,
+                    ProjectNotificationRole.BID_ASSISTANT);
+            List<Long> recipientIds = recipientResolver.resolveAndFilterProjectRecipients(projectId, roles, userId);
             if (recipientIds.isEmpty()) return;
 
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("projectId", String.valueOf(projectId));
-            payload.put("projectName", projectName);
-            payload.put("targetUrl", "/project/" + projectId + "/closure");
+            NotificationMessagePolicy.NotificationMessage message = NotificationMessagePolicy.forProjectArchived(
+                    project, customerName, "/project/" + projectId + "/closure");
 
             notificationService.createNotification(new CreateNotificationRequest(
-                    NotificationType.SYSTEM.name(),
-                    "PROJECT",
-                    projectId,
-                    "项目结项归档 - " + projectName,
-                    body,
-                    payload,
+                    message.type(),
+                    message.sourceEntityType(),
+                    message.sourceEntityId(),
+                    message.title(),
+                    message.body(),
+                    message.payload(),
                     recipientIds
             ), userId == null ? SYSTEM_USER_ID : userId);
         } catch (RuntimeException e) {
@@ -122,6 +114,8 @@ public class ProjectEventNotificationDispatcher {
 
     /**
      * 通知任务相关人员：任务状态已变更（蓝图 §消息中心-系统通知 序号 2）。
+     *
+     * <p>接收人：主投标负责人 / 投标辅助人员 / 任务执行人。</p>
      */
     public void notifyTaskStatusChanged(Long projectId, Long taskId, String taskName,
                                         String fromStatus, String toStatus,
@@ -130,33 +124,25 @@ public class ProjectEventNotificationDispatcher {
             Project project = findProject(projectId);
             if (project == null) return;
 
-            String projectName = project.getName();
-            String body = String.format("【%s】任务「%s」状态发生变更：%s → %s",
-                    projectName, taskName != null ? taskName : "", fromStatus, toStatus);
-
-            List<Long> recipientIds = new ArrayList<>(recipientResolver.getProjectMemberUserIds(projectId, actorUserId));
-            if (assigneeId != null && !recipientIds.contains(assigneeId)
-                    && !assigneeId.equals(actorUserId)) {
-                recipientIds.add(assigneeId);
-            }
+            Set<ProjectNotificationRole> roles = Set.of(
+                    ProjectNotificationRole.BID_LEAD,
+                    ProjectNotificationRole.BID_ASSISTANT,
+                    ProjectNotificationRole.TASK_EXECUTOR);
+            List<Long> recipientIds = recipientResolver.resolveAndFilterProjectRecipients(
+                    projectId, roles, actorUserId, assigneeId);
             if (recipientIds.isEmpty()) return;
 
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("projectId", String.valueOf(projectId));
-            payload.put("projectName", projectName);
-            payload.put("taskId", String.valueOf(taskId));
-            payload.put("taskName", taskName != null ? taskName : "");
-            payload.put("fromStatus", fromStatus);
-            payload.put("toStatus", toStatus);
-            payload.put("targetUrl", "/project/" + projectId + "/drafting");
+            Task task = Task.builder().id(taskId).title(taskName).projectId(projectId).build();
+            NotificationMessagePolicy.NotificationMessage message = NotificationMessagePolicy.forTaskStatusChanged(
+                    project, task, fromStatus, toStatus, "/project/" + projectId + "/drafting");
 
             notificationService.createNotification(new CreateNotificationRequest(
-                    NotificationType.TASK_UPDATE.name(),
-                    "PROJECT",
-                    projectId,
-                    TaskNotificationTitleFormatter.format("任务状态变更", projectName, taskName),
-                    body,
-                    payload,
+                    message.type(),
+                    message.sourceEntityType(),
+                    message.sourceEntityId(),
+                    message.title(),
+                    message.body(),
+                    message.payload(),
                     recipientIds
             ), actorUserId == null ? SYSTEM_USER_ID : actorUserId);
         } catch (RuntimeException e) {
@@ -171,6 +157,8 @@ public class ProjectEventNotificationDispatcher {
 
     /**
      * 通知审核人有新标书待审核（蓝图 §消息中心-系统通知 序号 3）。
+     *
+     * <p>接收人：当前标书审核记录 reviewerId（单个）。没有对应工厂方法，保留现有文案以保持兼容。</p>
      */
     public void notifyBidReviewSubmitted(Long projectId, Long reviewerId, Long submittedBy,
                                          String tenderTitle, String bidOpeningTime,
@@ -191,7 +179,7 @@ public class ProjectEventNotificationDispatcher {
                     projectName, safePurchaserName, safeBidOpeningTime, safeSubmitterName);
 
             Map<String, Object> payload = Map.of(
-                    "projectId", String.valueOf(projectId),
+                    "projectId", projectId,
                     "projectName", projectName,
                     "tenderTitle", safeTenderTitle,
                     "bidOpeningTime", safeBidOpeningTime,

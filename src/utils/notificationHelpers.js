@@ -12,10 +12,13 @@ import {
 } from '@element-plus/icons-vue'
 
 export const NOTIFICATION_ICON_BY_TYPE = {
-  DEADLINE: Warning,
-  DOCUMENT_CHANGE: Document,
-  MENTION: ChatDotRound,
+  INFO: InfoFilled,
   SYSTEM: InfoFilled,
+  MENTION: ChatDotRound,
+  APPROVAL: Document,
+  DEADLINE: Warning,
+  TASK_UPDATE: Bell,
+  DOCUMENT_CHANGE: Document,
   DEFAULT: Bell
 }
 

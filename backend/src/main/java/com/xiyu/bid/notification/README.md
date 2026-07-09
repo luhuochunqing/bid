@@ -14,6 +14,7 @@
 | `NotificationType.java` | Core Enum | 通知类型枚举 |
 | `NotificationDispatchPolicy.java` | Core Policy | 派发校验纯核心 |
 | `NotificationReadPolicy.java` | Core Policy | 已读校验纯核心 |
+| `NotificationMessagePolicy.java` | Core Policy | 蓝图 §消息中心-系统通知类 6 条通知文案模板纯核心（项目结项归档/任务状态变更/任务分配/@ 提及/文档变更/阶段自动推进） |
 | `Notification.java` | Entity | 通知内容实体 |
 | `UserNotification.java` | Entity | 用户通知状态实体 |
 | `NotificationRepository.java` | Repository | 通知数据访问 |
@@ -23,6 +24,8 @@
 | `CreateNotificationRequest.java` | DTO | 创建请求 record |
 | `NotificationAssembler.java` | DTO Mapper | Entity→DTO 转换 |
 | `NotificationApplicationService.java` | Service | 应用编排服务 |
+| `ProjectNotificationRecipientPolicy.java` | Service Policy | 按项目角色（投标管理员/组长/负责人/辅助人员/业主/任务执行人/审核人/成员）解析接收人用户 ID |
+| `NotificationRecipientResolver.java` | Service | 通知接收人通用解析器；按项目角色委托 `ProjectNotificationRecipientPolicy`，并补充管理员、项目成员、项目可见性过滤 |
 | `NotificationController.java` | Controller | REST 端点 |
 
 ## API 端点
@@ -38,10 +41,11 @@
 | 枚举值 | 触发源 | 说明 |
 |---|---|---|
 | `INFO` / `SYSTEM` | 多处 | 通用信息/系统通知 |
-| `MENTION` | `MentionApplicationService` | @ 提及 |
+| `SYSTEM` | `ProjectEventNotificationDispatcher` / `ProjectNotificationService.notifyProjectArchived` / `notifyStageTransition` | 项目结项归档、阶段自动推进（蓝图 §消息中心-系统通知 序号 1、6） |
+| `MENTION` | `MentionApplicationService` | @ 提及（蓝图 §消息中心-系统通知 序号 4） |
 | `APPROVAL` | `ProjectNotificationService` | 立项/复盘/结项审核 |
-| `TASK_UPDATE` | `EntityChangedNotificationListener`（订阅扇出） + `TaskReviewNotificationService` | 任务变更/审核结果 |
-| `DOCUMENT_CHANGE` | `ProjectNotificationService.notifyDocumentChanged` ← `ProjectDocumentWorkflowService` | 文档上传/删除（蓝图 §消息中心-系统通知 序号 5） |
+| `TASK_UPDATE` | `ProjectEventNotificationDispatcher` / `TaskReviewNotificationService` | 任务分配、任务状态变更（蓝图 §消息中心-系统通知 序号 2、3） |
+| `DOCUMENT_CHANGE` | `DocumentChangeNotificationService` ← `ProjectDocumentWorkflowService` | 文档上传/删除（蓝图 §消息中心-系统通知 序号 5） |
 | `BID_REVIEW` | `ProjectNotificationService.notifyBidReviewSubmitted` | 标书审核 |
 | `DEADLINE` | `tenderreminder`、`TaskDueReminderScanTask` | 截止/到期提醒 |
 | `TENDER_MATCH` | 标讯匹配 | 标讯匹配 |

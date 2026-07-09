@@ -23,6 +23,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -94,9 +95,11 @@ class BudgetAlertDispatchServiceNotificationTest {
     @DisplayName("新建告警(created=true)时调用 createAndNotifyIfNew，payload 含正确字段")
     void shouldDispatchNotificationWhenAlertCreated() {
         when(projectRepository.findActiveProjects()).thenReturn(List.of(project));
-        when(tenderRepository.findById(10L)).thenReturn(Optional.of(tender));
+        // P0-2: 批量加载 Tender，使用 findAllById
+        when(tenderRepository.findAllById(Set.of(10L))).thenReturn(List.of(tender));
         // 已用费用 8000 → 占比 80% (> 70 触发)
-        when(expenseRepository.sumAmountByProjectId(1L)).thenReturn(new BigDecimal("8000"));
+        when(expenseRepository.sumAmountByProjectIdIn(List.of(1L)))
+                .thenReturn(List.<Object[]>of(new Object[]{1L, new BigDecimal("8000")}));
 
         AlertHistory savedHistory = AlertHistory.builder()
                 .id(301L)
@@ -132,8 +135,10 @@ class BudgetAlertDispatchServiceNotificationTest {
     @DisplayName("复用已有告警(created=false)时仍调用 createAndNotifyIfNew（由模板方法决定是否发通知）")
     void shouldStillCallCreateAndNotifyIfNewWhenAlertReused() {
         when(projectRepository.findActiveProjects()).thenReturn(List.of(project));
-        when(tenderRepository.findById(10L)).thenReturn(Optional.of(tender));
-        when(expenseRepository.sumAmountByProjectId(1L)).thenReturn(new BigDecimal("8000"));
+        // P0-2: 批量加载 Tender，使用 findAllById
+        when(tenderRepository.findAllById(Set.of(10L))).thenReturn(List.of(tender));
+        when(expenseRepository.sumAmountByProjectIdIn(List.of(1L)))
+                .thenReturn(List.<Object[]>of(new Object[]{1L, new BigDecimal("8000")}));
 
         AlertHistory existingHistory = AlertHistory.builder()
                 .id(401L)
@@ -159,9 +164,11 @@ class BudgetAlertDispatchServiceNotificationTest {
     @DisplayName("费用占比未超阈值时不调用 createAndNotifyIfNew")
     void shouldNotCreateAlertWhenExpenseRatioBelowThreshold() {
         when(projectRepository.findActiveProjects()).thenReturn(List.of(project));
-        when(tenderRepository.findById(10L)).thenReturn(Optional.of(tender));
+        // P0-2: 批量加载 Tender，使用 findAllById
+        when(tenderRepository.findAllById(Set.of(10L))).thenReturn(List.of(tender));
         // 已用费用 5000 → 占比 50% (<= 70 不触发)
-        when(expenseRepository.sumAmountByProjectId(1L)).thenReturn(new BigDecimal("5000"));
+        when(expenseRepository.sumAmountByProjectIdIn(List.of(1L)))
+                .thenReturn(List.<Object[]>of(new Object[]{1L, new BigDecimal("5000")}));
 
         budgetAlertDispatchService.dispatch(budgetRule);
 

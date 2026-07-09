@@ -3,9 +3,10 @@
 package com.xiyu.bid.project.notification;
 
 import com.xiyu.bid.entity.Project;
-import com.xiyu.bid.notification.service.NotificationRecipientResolver;
+import com.xiyu.bid.notification.core.ProjectNotificationRole;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
+import com.xiyu.bid.notification.service.NotificationRecipientResolver;
 import com.xiyu.bid.repository.ProjectRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -18,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -45,6 +47,12 @@ class DocumentChangeNotificationServiceTest {
     private static final Long PID = 100L;
     private static final Long UID = 42L;
 
+    private static final Set<ProjectNotificationRole> EXPECTED_ROLES = Set.of(
+            ProjectNotificationRole.BID_ADMIN,
+            ProjectNotificationRole.BID_TEAM_LEADER,
+            ProjectNotificationRole.BID_LEAD,
+            ProjectNotificationRole.BID_ASSISTANT);
+
     @BeforeEach
     void setUp() {
         svc = new DocumentChangeNotificationService(
@@ -62,9 +70,7 @@ class DocumentChangeNotificationServiceTest {
     @DisplayName("上传 → 发送 DOCUMENT_CHANGE 给有项目访问权的团队成员（排除操作人自己）")
     void sendsDocumentChangeToAccessibleTeamMembersExcludingActor() {
         when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-        when(recipientResolver.getProjectMemberUserIds(PID, UID))
-                .thenReturn(List.of(1L, 2L));
-        when(recipientResolver.filterByProjectAccess(List.of(1L, 2L), PID))
+        when(recipientResolver.resolveAndFilterProjectRecipients(PID, EXPECTED_ROLES, UID))
                 .thenReturn(List.of(1L, 2L));
 
         svc.notifyDocumentChanged(PID, 3001L, "中标通知书.pdf", "WIN_NOTICE",
@@ -78,21 +84,18 @@ class DocumentChangeNotificationServiceTest {
         assertThat(req.title()).isEqualTo("文档变更 - 测试项目");
         assertThat(req.body()).contains("文档「中标通知书.pdf」被 王工（1001） 上传");
         assertThat(req.recipientUserIds()).containsExactlyInAnyOrder(1L, 2L);
-        // P2-6：payload operationType 存枚举 name（英文稳定契约）
-        assertThat(req.payload()).containsEntry("operationType", "UPLOAD");
+        assertThat(req.payload()).containsEntry("operationType", "上传");
         assertThat(req.payload()).containsEntry("documentName", "中标通知书.pdf");
-        // P2-7：WIN_NOTICE → result 阶段
         assertThat(req.payload()).containsEntry("targetUrl", "/project/100/result");
+        assertThat(req.payload()).containsEntry("projectId", PID);
+        assertThat(req.payload()).containsEntry("projectName", "测试项目");
     }
 
     @Test
     @DisplayName("Spec 030：filterByProjectAccess 剔除无访问权用户")
     void filtersOutRecipientsWithoutProjectAccess() {
         when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-        when(recipientResolver.getProjectMemberUserIds(PID, UID))
-                .thenReturn(List.of(1L, 2L, 3L));
-        // 1L 有访问权，2L/3L 无
-        when(recipientResolver.filterByProjectAccess(List.of(1L, 2L, 3L), PID))
+        when(recipientResolver.resolveAndFilterProjectRecipients(PID, EXPECTED_ROLES, UID))
                 .thenReturn(List.of(1L));
 
         svc.notifyDocumentChanged(PID, 3001L, "文档.pdf", "BID",
@@ -106,9 +109,7 @@ class DocumentChangeNotificationServiceTest {
     @DisplayName("Spec 030：所有候选人被过滤掉 → 跳过通知")
     void skipsWhenAllRecipientsFilteredOut() {
         when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-        when(recipientResolver.getProjectMemberUserIds(PID, UID))
-                .thenReturn(List.of(1L, 2L));
-        when(recipientResolver.filterByProjectAccess(List.of(1L, 2L), PID))
+        when(recipientResolver.resolveAndFilterProjectRecipients(PID, EXPECTED_ROLES, UID))
                 .thenReturn(List.of());
 
         svc.notifyDocumentChanged(PID, 3001L, "文档.pdf", "BID",
@@ -118,12 +119,10 @@ class DocumentChangeNotificationServiceTest {
     }
 
     @Test
-    @DisplayName("删除 → operationType=DELETE，body 含中文标签'删除'")
+    @DisplayName("删除 → operationType=中文'删除'，body 含中文标签")
     void sendsDeleteOperationType() {
         when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-        when(recipientResolver.getProjectMemberUserIds(PID, UID))
-                .thenReturn(List.of(1L));
-        when(recipientResolver.filterByProjectAccess(List.of(1L), PID))
+        when(recipientResolver.resolveAndFilterProjectRecipients(PID, EXPECTED_ROLES, UID))
                 .thenReturn(List.of(1L));
 
         svc.notifyDocumentChanged(PID, 3002L, "废弃文件.docx", "OTHER",
@@ -132,16 +131,14 @@ class DocumentChangeNotificationServiceTest {
         verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
         CreateNotificationRequest req = requestCaptor.getValue();
         assertThat(req.body()).contains("被 李四 删除");
-        assertThat(req.payload()).containsEntry("operationType", "DELETE");
+        assertThat(req.payload()).containsEntry("operationType", "删除");
     }
 
     @Test
     @DisplayName("TENDER 分类 → targetUrl 跳转 initiation 阶段")
     void tenderCategoryMapsToInitiationStage() {
         when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-        when(recipientResolver.getProjectMemberUserIds(PID, UID))
-                .thenReturn(List.of(1L));
-        when(recipientResolver.filterByProjectAccess(List.of(1L), PID))
+        when(recipientResolver.resolveAndFilterProjectRecipients(PID, EXPECTED_ROLES, UID))
                 .thenReturn(List.of(1L));
 
         svc.notifyDocumentChanged(PID, 3001L, "招标文件.pdf", "TENDER",
@@ -163,10 +160,10 @@ class DocumentChangeNotificationServiceTest {
     }
 
     @Test
-    @DisplayName("候选团队成员为空 → 跳过通知")
+    @DisplayName("候选接收人为空 → 跳过通知")
     void skipsWhenNoCandidates() {
         when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-        when(recipientResolver.getProjectMemberUserIds(PID, UID))
+        when(recipientResolver.resolveAndFilterProjectRecipients(PID, EXPECTED_ROLES, UID))
                 .thenReturn(List.of());
 
         svc.notifyDocumentChanged(PID, 3001L, "文档.pdf", "BID",
@@ -179,9 +176,7 @@ class DocumentChangeNotificationServiceTest {
     @DisplayName("actorUserId=null → 使用 SYSTEM_USER_ID(0L) 作为 createdBy")
     void usesSystemUserIdWhenActorIsNull() {
         when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-        when(recipientResolver.getProjectMemberUserIds(PID, null))
-                .thenReturn(List.of(1L));
-        when(recipientResolver.filterByProjectAccess(List.of(1L), PID))
+        when(recipientResolver.resolveAndFilterProjectRecipients(PID, EXPECTED_ROLES, null))
                 .thenReturn(List.of(1L));
 
         svc.notifyDocumentChanged(PID, 3001L, "文档.pdf", "BID",
