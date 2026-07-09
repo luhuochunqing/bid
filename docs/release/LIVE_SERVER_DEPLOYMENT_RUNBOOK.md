@@ -146,7 +146,6 @@ ssh -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" \
 ssh -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" jetty@172.16.38.78 '
   set -e
   systemctl is-active nginx xiyu-bid-backend
-  curl -fsS http://127.0.0.1:8080/actuator/health
   curl -fsS http://127.0.0.1:18080/actuator/health
   sha256sum /opt/xiyu-bid/shared/backend/app.jar
   test -d /opt/xiyu-bid
@@ -383,7 +382,7 @@ ssh -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" jetty@172.16.38.78 "
   BACKEND_RUNTIME_DIR=/opt/xiyu-bid/shared/backend \
   BACKEND_JAR_PATH=/opt/xiyu-bid/shared/backend/app.jar \
   DEPLOYED_RELEASE_RECORD=/opt/xiyu-bid/deployed-release.json \
-  HEALTHCHECK_URL=http://127.0.0.1:8080/actuator/health \
+  HEALTHCHECK_URL=http://127.0.0.1:18080/actuator/health \
   SYSTEMCTL_SUDO=true \
   FLYWAY_REPAIR_RUNNER=/tmp/flyway-repair-runner.sh \
   bash /opt/xiyu-bid/incoming/remote-deploy-${RELEASE_ID}.sh
@@ -411,7 +410,6 @@ ssh -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" jetty@172.16.38.78 '
   set -euo pipefail
   systemctl is-active nginx xiyu-bid-backend
   curl -fsS http://127.0.0.1:18080/actuator/health
-  curl -fsS http://127.0.0.1:8080/actuator/health
   curl -fsSI http://127.0.0.1:8080/ | sed -n "1,12p"
 
   curl -sS -i -X OPTIONS http://127.0.0.1:8080/api/auth/login \
@@ -520,7 +518,7 @@ ssh -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" jetty@172.16.38.78 '
   cp "$backup_dir/deployed-release.json" /opt/xiyu-bid/deployed-release.json
   sudo systemctl start xiyu-bid-backend
 
-  curl -fsS http://127.0.0.1:8080/actuator/health
+  curl -fsS http://127.0.0.1:18080/actuator/health
 '
 ```
 
@@ -550,7 +548,6 @@ rg "172\\.16\\.38\\.78:8080|172\\.16\\.38\\.78[^:]" /srv/www/xiyu-bid/assets/*.j
 先在服务器内测：
 
 ```bash
-curl -fsS http://127.0.0.1:8080/actuator/health
 curl -fsS http://127.0.0.1:18080/actuator/health
 ```
 
@@ -572,7 +569,7 @@ curl -fsS http://127.0.0.1:18080/actuator/health
 
 ```bash
 systemctl is-active xiyu-bid-backend
-curl -fsS http://127.0.0.1:8080/actuator/health
+curl -fsS http://127.0.0.1:18080/actuator/health
 sudo journalctl -u xiyu-bid-backend --since "10 min ago" --no-pager
 ```
 
