@@ -6,7 +6,7 @@
 import httpClient from '../client.js'
 import { apiModeFailure, demoReadonlyFailure, isDemoEntityId, isNumericId } from './projectApiGuards.js'
 
-export async function parseTenderBreakdown(projectId, file) {
+export async function parseTenderBreakdown(projectId, payload) {
   if (!isNumericId(projectId)) {
     return apiModeFailure('project')
   }
@@ -15,8 +15,19 @@ export async function parseTenderBreakdown(projectId, file) {
     return demoReadonlyFailure()
   }
 
-  const formData = new FormData()
-  formData.set('file', file, file?.name || '招标文件')
+  // 双模式：有 file → multipart；无 file 有 fileUrl → JSON（OBS 直传）
+  const formData = payload instanceof FormData ? payload : (() => {
+    const fd = new FormData()
+    fd.set('file', payload, payload?.name || '招标文件')
+    return fd
+  })()
+  if (formData.get('fileUrl')) {
+    return httpClient.post(`/api/projects/${projectId}/tender-breakdown`, {
+      fileName: formData.get('fileName') || '招标文件',
+      fileType: formData.get('fileType') || 'application/octet-stream',
+      fileUrl: formData.get('fileUrl'),
+    }, { timeout: 120000, silentError: true })
+  }
   return httpClient.post(`/api/projects/${projectId}/tender-breakdown`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 120000,

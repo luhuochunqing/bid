@@ -16,6 +16,16 @@
       </div>
     </el-upload>
 
+    <ObsUploadProgress
+      :visible="obsUploading || obsProgressPercent > 0"
+      :file-name="obsCurrentFile?.name || ''"
+      :file-size="obsCurrentFile?.size || 0"
+      :progress-percent="obsProgressPercent"
+      :uploading="obsUploading"
+      :has-error="!!obsError"
+      @cancel="handleObsCancel"
+    />
+
     <div class="upload-actions">
       <el-button type="primary" :loading="agent.importing.value" @click="agent.importTenderDocument()">
         上传招标文件并核对要求
@@ -37,10 +47,13 @@
 
 <script setup>
 import { computed } from 'vue'
+import ObsUploadProgress from '@/components/common/ObsUploadProgress.vue'
 import { useProjectDetailContext } from '@/composables/projectDetail/context.js'
 
 const detail = useProjectDetailContext()
 const agent = detail.bidAgent
+const { uploading: obsUploading, progressPercent: obsProgressPercent, currentFile: obsCurrentFile, error: obsError } = agent.obsUpload || {}
+const handleObsCancel = () => agent.obsUpload?.cancel?.()
 
 const importSummary = computed(() => {
   const document = agent.importResult.value?.document

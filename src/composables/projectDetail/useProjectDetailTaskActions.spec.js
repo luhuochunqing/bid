@@ -397,7 +397,7 @@ describe('useProjectDetailTaskActions', () => {
 
     expect(result).toBe(false)
     expect(projectsApi.getTenderBreakdownReadiness).toHaveBeenCalledWith(12)
-    expect(projectsApi.parseTenderBreakdown).toHaveBeenCalledWith(12, file)
+    expect(projectsApi.parseTenderBreakdown).toHaveBeenCalledWith(12, expect.any(FormData))
     expect(success).toHaveBeenCalledWith('招标文件已拆解，可继续生成任务或标书初稿')
   })
 

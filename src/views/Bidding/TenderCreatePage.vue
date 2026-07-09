@@ -21,6 +21,7 @@
       :saving="saving"
       :is-read-only="isReadOnly"
       :parsing-document="parsingDocument"
+      :obs-upload="obsUpload"
       :accept-file-types="ACCEPT_FILE_TYPES"
       @parse-paste="handlePastedTextParse"
       @file-change="handleFileChange"
@@ -81,7 +82,7 @@ const route = useRoute()
 const userStore = useUserStore()
 
 const { form, rules, regions, customerTypes, projectTypes, priorities, canSave, populateForm, validateBeforeSave } = useTenderCreateForm()
-const { parsingDocument, handleFileChange, handleFileRemove, handlePastedTextParse } = useTenderAiParse(form)
+const { parsingDocument, obsUpload, handleFileChange, handleFileRemove, handlePastedTextParse } = useTenderAiParse(form)
 
 const editTenderId = computed(() => { const id = route.query.edit; return id ? Number(id) : null })
 const isEditMode = computed(() => !!editTenderId.value)

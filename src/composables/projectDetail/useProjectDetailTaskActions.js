@@ -4,8 +4,11 @@ import { normalizeProjectTaskList, openScoreDraftDialogWhenTenderSourceMissing }
 import { createTaskAssigneePayload, uploadTaskFilesWithFallback } from './taskAssigneePayload.js'
 import { normalizeTaskStatusForApi, taskFormDtoToBackend, taskBackendToCard } from '@/views/Project/project-utils'
 import { tasksApi } from '@/api/modules/tasks.js'
+import { useObsUpload } from '@/composables/useObsUpload.js'
+import { tryObsDirectUpload, callApiWithObsFallback } from '@/composables/useObsUploadFallback.js'
 export function useProjectDetailTaskActions(context) {
   const { route, userStore, projectStore, projectsApi, tenderBreakdownApi = projectsApi, isApiProject, message, state, workflow } = context
+  const obsUpload = useObsUpload({ businessType: 'tender-breakdown' })
   const pushActivity = (action) => state.activities.value.unshift({ id: Date.now(), user: userStore.userName, action, time: new Date().toLocaleString('zh-CN', { hour12: false }) })
   const ensureTaskList = () => {
     if (!state.project.value) {
@@ -168,7 +171,13 @@ export function useProjectDetailTaskActions(context) {
       }
 
       state.tenderBreakdownParsing.value = true
-      const result = await tenderBreakdownApi.parseTenderBreakdown(route.params.id, file)
+      const obsFileUrl = await tryObsDirectUpload(obsUpload, file)
+      const result = await callApiWithObsFallback(
+        file,
+        obsFileUrl,
+        (formData) => tenderBreakdownApi.parseTenderBreakdown(route.params.id, formData),
+        file.name || '招标文件',
+      )
       if (!result?.success || !result?.data?.document?.snapshotId) {
         throw new Error(result?.msg || '招标文件解析失败')
       }
@@ -426,5 +435,5 @@ export function useProjectDetailTaskActions(context) {
     }
   }
 
-  return { handleGenerateTasks, handleScoreDraftGenerated, handleOpenScoreDraftDecompose, handleOpenTenderBreakdown, handleTenderBreakdownUpload, handleAddTask, handleResetTasks, handleTaskClick, handleSaveTask, handleTaskStatusChange, handleRemoveDeliverable, handleSubmitReview, handleSubmitToDocument }
+  return { obsUpload, handleGenerateTasks, handleScoreDraftGenerated, handleOpenScoreDraftDecompose, handleOpenTenderBreakdown, handleTenderBreakdownUpload, handleAddTask, handleResetTasks, handleTaskClick, handleSaveTask, handleTaskStatusChange, handleRemoveDeliverable, handleSubmitReview, handleSubmitToDocument }
 }

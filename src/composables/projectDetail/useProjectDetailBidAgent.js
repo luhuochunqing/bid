@@ -4,6 +4,8 @@
 
 import { computed, ref } from 'vue'
 import { bidAgentApi as defaultBidAgentApi } from '@/api/modules/bidAgent.js'
+import { useObsUpload } from '@/composables/useObsUpload.js'
+import { tryObsDirectUpload, callApiWithObsFallback } from '@/composables/useObsUploadFallback.js'
 import { useScoringCriteria } from './useScoringCriteria.js'
 import { useFullAnalysis } from './useFullAnalysis.js'
 
@@ -82,6 +84,7 @@ export function useProjectDetailBidAgent(context) {
       message?.error?.(text)
     }
   }
+  const obsUpload = useObsUpload({ businessType: 'bid-agent-tender' })
 
   // Extract scoring criteria logic to separate composable to keep file under 300 lines
   const scoringCriteriaComposable = useScoringCriteria({
@@ -126,18 +129,18 @@ export function useProjectDetailBidAgent(context) {
   const importTenderDocument = async () => {
     if (!tenderFile.value) { error.value = '请先选择招标文件'; message?.warning?.(error.value); return null }
     importing.value = true; error.value = ''; applyResult.value = null; reviewResult.value = null; importResult.value = null; currentRun.value = null
-
     try {
-      const formData = new FormData()
-      formData.set('file', tenderFile.value, selectedTenderFileName.value || '招标文件')
-      const response = await bidAgentApi.importTenderDocument(projectId.value, formData)
+      const obsFileUrl = await tryObsDirectUpload(obsUpload, tenderFile.value)
+      const response = await callApiWithObsFallback(
+        tenderFile.value,
+        obsFileUrl,
+        (formData) => bidAgentApi.importTenderDocument(projectId.value, formData),
+        selectedTenderFileName.value || '招标文件',
+      )
       if (isFailedResponse(response)) throw new Error(response.msg || '解析招标文件失败')
       const parsedResult = getResponseData(response)
       importResult.value = parsedResult
-      
-      // Instead of auto-running AI, we show the workbench for human verification
       showWorkbench.value = true
-      
       return parsedResult
     } catch (err) {
       reportError(err, '解析招标文件失败')
@@ -218,8 +221,6 @@ export function useProjectDetailBidAgent(context) {
     } finally { riskClassificationLoading.value = false }
   }
 
-
-
   const fetchRun = async (runId = currentRunId.value) => {
     if (!runId) return null
     fetching.value = true
@@ -279,7 +280,7 @@ export function useProjectDetailBidAgent(context) {
   }
 
   return {
-    drawerVisible, showWorkbench, currentRun, applyResult, reviewResult,
+    drawerVisible, showWorkbench, currentRun, applyResult, reviewResult, obsUpload,
     importResult, tenderFile, error, importing, creating, fetching,
     applying, reviewing, qualificationMatch, qualificationMatchLoading,
     technicalRequirements, technicalRequirementsLoading, commercialRequirements,

@@ -86,8 +86,16 @@ export function normalizeBidAgentRun(data = null) {
 
 export const bidAgentApi = {
   async importTenderDocument(projectId, formData) {
-    return httpClient.post(`/api/projects/${projectId}/bid-agent/tender-documents`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
+    // 双模式：有 file → multipart；无 file 有 fileUrl → JSON（OBS 直传）
+    if (formData.get('file')) {
+      return httpClient.post(`/api/projects/${projectId}/bid-agent/tender-documents`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+    }
+    return httpClient.post(`/api/projects/${projectId}/bid-agent/tender-documents`, {
+      fileName: formData.get('fileName') || '招标文件',
+      fileType: formData.get('fileType') || 'application/octet-stream',
+      fileUrl: formData.get('fileUrl'),
     })
   },
 
