@@ -25,7 +25,7 @@ import java.util.Objects;
  *   <li>不依赖 Spring/JPA 等框架，可独立单元测试（FP-Java Contract）</li>
  *   <li>字段标签使用中文，与 CO-515 需求"变更字段"展示一致</li>
  *   <li>敏感字段（caPassword）不展示实际值，变更时统一显示"已更新"</li>
- *   <li>platformIds 由 Service 层单独处理（需查关联表），本类只处理实体本身字段</li>
+ *   <li>关联平台（relatedPlatforms）为文本字段，CO-566 起直接参与实体字段 diff</li>
  * </ul>
  */
 public final class CaFieldDiffCalculator {
@@ -42,6 +42,7 @@ public final class CaFieldDiffCalculator {
         FIELD_LABELS.put("holderName", "持有人");
         FIELD_LABELS.put("expiryDate", "有效期至");
         FIELD_LABELS.put("caPlatformUrl", "平台地址/APP");
+        FIELD_LABELS.put("relatedPlatforms", "关联平台");
         FIELD_LABELS.put("custodianId", "保管员");
         FIELD_LABELS.put("custodianName", "保管员姓名");
         FIELD_LABELS.put("remarks", "备注");
@@ -99,6 +100,10 @@ public final class CaFieldDiffCalculator {
         // caPlatformUrl
         if (!Objects.equals(before.getCaPlatformUrl(), after.getCaPlatformUrl())) {
             changes.add(format("caPlatformUrl", before.getCaPlatformUrl(), after.getCaPlatformUrl()));
+        }
+        // CO-566: relatedPlatforms（关联平台文本）
+        if (!Objects.equals(before.getRelatedPlatforms(), after.getRelatedPlatforms())) {
+            changes.add(format("relatedPlatforms", before.getRelatedPlatforms(), after.getRelatedPlatforms()));
         }
         // custodianId
         if (!Objects.equals(before.getCustodianId(), after.getCustodianId())) {

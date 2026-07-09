@@ -4,16 +4,12 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import java.time.LocalDate;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
 
 @Data
 public class CaCertificateRequest {
-    private static final Set<String> VALID_SEAL_TYPES = Set.of(
-            "OFFICIAL_SEAL", "LEGAL_PERSON_SEAL", "LEGAL_SIGN", "CONTACT_SIGN");
 
-    private List<Long> platformIds;
+    /** CO-566: 关联平台改为文本（多个用逗号分隔），不再绑定平台账号ID。 */
+    private String relatedPlatforms;
 
     @NotBlank(message = "CA类型不能为空")
     private String caType;

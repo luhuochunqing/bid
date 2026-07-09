@@ -1,12 +1,10 @@
-// Input: CaCertificateRepository / CaCertificatePlatformRepository / PasswordEncryptionUtil mocks
+// Input: CaCertificateRepository / PasswordEncryptionUtil mocks
 // Output: CaCertificateExportService unit tests — Excel export with header/data/password verification
 // Pos: Test/纯核心验证
 package com.xiyu.bid.resources.service;
 
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
 import com.xiyu.bid.resources.entity.CaCertificateEntity;
-import com.xiyu.bid.resources.entity.CaCertificatePlatformEntity;
-import com.xiyu.bid.resources.repository.CaCertificatePlatformRepository;
 import com.xiyu.bid.resources.repository.CaCertificateRepository;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,22 +31,21 @@ class CaCertificateExportServiceTest {
     @Mock
     private CaCertificateRepository certificateRepository;
     @Mock
-    private CaCertificatePlatformRepository platformLinkRepository;
-    @Mock
     private PasswordEncryptionUtil passwordEncryptionUtil;
 
     private CaCertificateExportService exportService;
 
+    // CO-566: 第 10 列由"关联平台ID"改为"关联平台"（文本）
     private static final String[] EXPECTED_HEADERS = {
             "CA类型", "印章类型", "持有人", "保管员姓名",
             "有效期至", "颁发机构", "电子账号", "CA密码",
-            "平台URL", "关联平台ID", "借用状态", "证书状态", "备注"
+            "平台URL", "关联平台", "借用状态", "证书状态", "备注"
     };
 
     @BeforeEach
     void setUp() {
         exportService = new CaCertificateExportService(
-                certificateRepository, platformLinkRepository, passwordEncryptionUtil);
+                certificateRepository, passwordEncryptionUtil);
     }
 
     @Test
@@ -87,12 +84,12 @@ class CaCertificateExportServiceTest {
                 .electronicAccount("acc@test.com")
                 .caPassword("ENC_CIPHER_TEXT")
                 .caPlatformUrl("https://ca.example.com")
+                .relatedPlatforms("新疆政采网")
                 .borrowStatus("IN_STOCK")
                 .status("ACTIVE")
                 .remarks("测试备注")
                 .build();
         when(certificateRepository.findAll(any(Specification.class))).thenReturn(List.of(entity));
-        when(platformLinkRepository.findByCaCertificateIdIn(anyCollection())).thenReturn(List.of());
         when(passwordEncryptionUtil.decrypt("ENC_CIPHER_TEXT")).thenReturn("PlainP@ss1");
 
         byte[] result = exportService.exportToExcel(
@@ -111,7 +108,8 @@ class CaCertificateExportServiceTest {
             assertThat(row.getCell(6).getStringCellValue()).isEqualTo("acc@test.com");
             assertThat(row.getCell(7).getStringCellValue()).isEqualTo("PlainP@ss1");
             assertThat(row.getCell(8).getStringCellValue()).isEqualTo("https://ca.example.com");
-            assertThat(row.getCell(9).getStringCellValue()).isEmpty();
+            // CO-566: 关联平台直接输出 relatedPlatforms 文本
+            assertThat(row.getCell(9).getStringCellValue()).isEqualTo("新疆政采网");
             assertThat(row.getCell(10).getStringCellValue()).isEqualTo("在库");
             assertThat(row.getCell(11).getStringCellValue()).isEqualTo("有效");
             assertThat(row.getCell(12).getStringCellValue()).isEqualTo("测试备注");
@@ -133,7 +131,6 @@ class CaCertificateExportServiceTest {
                 .status("EXPIRING")
                 .build();
         when(certificateRepository.findAllById(anyCollection())).thenReturn(List.of(entity));
-        when(platformLinkRepository.findByCaCertificateIdIn(anyCollection())).thenReturn(List.of());
 
         // 即使传了 filters，因为有 selectedIds，应走 findAllById 路径
         byte[] result = exportService.exportToExcel(
@@ -152,8 +149,8 @@ class CaCertificateExportServiceTest {
     }
 
     @Test
-    @DisplayName("关联平台 ID — 多个 ID 以逗号拼接输出")
-    void exportToExcel_multiplePlatformIds_joinedByComma() throws Exception {
+    @DisplayName("关联平台为空 — 输出空字符串")
+    void exportToExcel_emptyRelatedPlatforms_outputsEmptyString() throws Exception {
         CaCertificateEntity entity = CaCertificateEntity.builder()
                 .id(1L)
                 .caType("ENTITY_CA")
@@ -162,20 +159,16 @@ class CaCertificateExportServiceTest {
                 .custodianId(10L)
                 .custodianName("李保管")
                 .expiryDate(LocalDate.of(2026, 12, 31))
+                .relatedPlatforms(null)
                 .build();
         when(certificateRepository.findAll(any(Specification.class))).thenReturn(List.of(entity));
-        when(platformLinkRepository.findByCaCertificateIdIn(anyCollection())).thenReturn(List.of(
-                platformLink(1L, 100L),
-                platformLink(1L, 200L),
-                platformLink(1L, 300L)
-        ));
 
         byte[] result = exportService.exportToExcel(
                 new CaCertificateExportService.CaExportFilters(null, null, null, null, null), null);
 
         try (XSSFWorkbook wb = new XSSFWorkbook(new ByteArrayInputStream(result))) {
             var row = wb.getSheetAt(0).getRow(1);
-            assertThat(row.getCell(9).getStringCellValue()).isEqualTo("100,200,300");
+            assertThat(row.getCell(9).getStringCellValue()).isEmpty();
         }
     }
 
@@ -194,7 +187,6 @@ class CaCertificateExportServiceTest {
                 .status("ACTIVE")
                 .build();
         when(certificateRepository.findAll(any(Specification.class))).thenReturn(List.of(entity));
-        when(platformLinkRepository.findByCaCertificateIdIn(anyCollection())).thenReturn(List.of());
 
         byte[] result = exportService.exportToExcel(
                 new CaCertificateExportService.CaExportFilters(null, null, null, null, null), null);
@@ -219,7 +211,6 @@ class CaCertificateExportServiceTest {
                 .caPassword(null)
                 .build();
         when(certificateRepository.findAll(any(Specification.class))).thenReturn(List.of(entity));
-        when(platformLinkRepository.findByCaCertificateIdIn(anyCollection())).thenReturn(List.of());
 
         byte[] result = exportService.exportToExcel(
                 new CaCertificateExportService.CaExportFilters(null, null, null, null, null), null);
@@ -228,12 +219,5 @@ class CaCertificateExportServiceTest {
             var row = wb.getSheetAt(0).getRow(1);
             assertThat(row.getCell(7).getStringCellValue()).isEmpty();
         }
-    }
-
-    private CaCertificatePlatformEntity platformLink(Long caId, Long platformId) {
-        return CaCertificatePlatformEntity.builder()
-                .caCertificateId(caId)
-                .platformAccountId(platformId)
-                .build();
     }
 }
