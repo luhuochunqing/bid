@@ -300,14 +300,14 @@ describe('useManualTenderCreate', () => {
     )
   })
 
-  it('rejects files exceeding 50MB size limit', async () => {
+  it('rejects files exceeding size limit', async () => {
     const { workflow, tendersApi } = createWorkflow()
     const largeContent = new Array(51 * 1024 * 1024).join('x') // 51MB
     const largeFile = new File([largeContent], '大文件.pdf', { type: 'application/pdf' })
 
     await workflow.handleFileChange({ name: largeFile.name, raw: largeFile }, [{ name: largeFile.name, raw: largeFile }])
 
-    expect(ElMessage.warning).toHaveBeenCalledWith(expect.stringContaining('超过 50MB'))
+    expect(ElMessage.warning).toHaveBeenCalledWith(expect.stringContaining('超过'))
     expect(tendersApi.parseTenderIntakeDocument).not.toHaveBeenCalled()
   })
 

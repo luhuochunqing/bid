@@ -2,7 +2,6 @@
 // Output: 上传状态 + 进度 + 控制函数
 // Pos: src/composables/ - OBS 直传上传 composable
 import { ref, computed } from 'vue'
-import { ElMessage } from 'element-plus'
 import { requestUploadToken, notifyUploadCompleted } from '../api/files.js'
 
 /**
@@ -117,14 +116,10 @@ export function useObsUpload(options = {}) {
         fileSize: file.size,
       }
 
-      ElMessage.success('文件上传成功')
       return completedFile.value
     } catch (err) {
-      if (cancelled) {
-        ElMessage.info('上传已取消')
-      } else {
+      if (!cancelled) {
         error.value = err
-        ElMessage.error(err?.message || '上传失败')
       }
       throw err
     } finally {

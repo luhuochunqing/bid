@@ -12,7 +12,7 @@ import { buildManualTenderPayload, normalizeManualTenderParseResult } from './he
 const PASTED_TEXT_MAX_LENGTH = 500000
 
 const SUPPORTED_PARSE_EXTENSIONS = new Set(['.doc', '.docx', '.pdf'])
-const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
+const MAX_FILE_SIZE = (isObsEnabled ? 500 : 50) * 1024 * 1024 // OBS 启用 500MB，否则 50MB
 
 function resolveUploadFile(file) {
   if (file instanceof File || file instanceof Blob) return file
@@ -29,7 +29,7 @@ function validateFileSize(file) {
   const uploadFile = resolveUploadFile(file)
   if (!uploadFile) return { valid: false, message: '无法读取文件' }
   if (uploadFile.size > MAX_FILE_SIZE) {
-    return { valid: false, message: `文件 "${uploadFile.name}" 超过 50MB 限制` }
+    return { valid: false, message: `文件 "${uploadFile.name}" 超过 ${isObsEnabled ? '500MB' : '50MB'} 限制` }
   }
   return { valid: true }
 }

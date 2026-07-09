@@ -2,10 +2,12 @@ import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { tendersApi } from '@/api/modules/tenders.js'
 import { useTenderObsUpload } from './useTenderObsUpload.js'
+import { isObsEnabled } from '@/composables/useObsUploadFallback.js'
 
 const ACCEPT_FILE_TYPES = '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 const PASTED_TEXT_MAX_LENGTH = 500000
-const MAX_FILE_SIZE = 50 * 1024 * 1024
+// OBS 直传启用时放宽到 500MB，未启用时保持 50MB（APISIX 网关限制）
+const MAX_FILE_SIZE = (isObsEnabled ? 500 : 50) * 1024 * 1024
 
 export function useTenderAiParse(form) {
   const parsingDocument = ref(false)
@@ -40,7 +42,7 @@ export function useTenderAiParse(form) {
     })
     if (!uploadFile) return
     if (uploadFile.size > MAX_FILE_SIZE) {
-      ElMessage.warning(`文件 "${uploadFile.name}" 超过 50MB 限制`)
+      ElMessage.warning(`文件 "${uploadFile.name}" 超过 ${isObsEnabled ? '500MB' : '50MB'} 限制`)
       form.value.attachments = fileList.filter(f => {
         const fFile = resolveUploadFile(f)
         return fFile && fFile.size <= MAX_FILE_SIZE
