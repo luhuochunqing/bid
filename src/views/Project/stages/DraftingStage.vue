@@ -1,11 +1,11 @@
 <template>
   <!-- CO-558: 项目文档下载/删除按钮按角色矩阵控制。
-       下载/导出仅 admin/组长 + 该项目分配的投标负责人/辅助（bid-Team 且匹配 lead 分配）可见。
-       不复用 perm.canDownloadDocument：它只判 roleGroup，会把 bid-projectLeader（项目负责人）
-       误放行；且投标文件区下载仍依赖 canDownloadDocument，不能改其定义，故此处单独计算。 -->
+       下载/导出仅 投标管理员/组长 + 该项目分配的投标负责人/辅助（bid-Team 且匹配 lead 分配）可见。
+       不用 isProjectLeadMatch：它对 bid-projectLeader(=primaryLeadId) 返回 true，会误放行项目负责人；
+       isAssignedBidSpecialist 显式限定 role==='bid-Team'，彻底排除 bid-projectLeader。 -->
   <ProjectDocumentTable
     :project-id="projectId"
-    :can-download="perm.isAdminLead || perm.isProjectLeadMatch"
+    :can-download="perm.isAdminLead || perm.isAssignedBidSpecialist"
     :can-delete="perm.isAdminLead"
     @export="exportDocumentsAsZip"
   />
