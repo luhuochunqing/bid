@@ -33,7 +33,7 @@ public class BidFileUploadedEventHandler {
 
         // Phase 3：CompleteUploadUseCase 已直接转到 COMPLETED，此处跳过后处理。
         // 未来如需病毒扫描/OCR，可在 CompleteUploadUseCase 中恢复 UPLOADED 状态并启用后处理。
-        if (bidFile.getStatus().isDownloadable()) {
+        if (bidFile.getStatus() == BidFileStatus.COMPLETED) {
             log.info("文件已是完成状态，跳过后处理，uploadId={}", uploadId);
             return;
         }
