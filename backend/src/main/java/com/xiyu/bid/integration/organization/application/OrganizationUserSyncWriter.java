@@ -65,10 +65,9 @@ public class OrganizationUserSyncWriter {
         ResolvedRole resolvedRole = jobRoleLookupResolver.resolve(enrichedSnapshot, jobRoleLookupMap);
         String resolvedRoleCode = resolvedRole.roleCode();
 
-        if (!LoginRoleWhitelist.isAllowed(resolvedRoleCode)) {
-            // 角色未匹配白名单：不分配角色、不创建新用户；已存在用户则按 OSS 在职状态
-            // 刷新 enabled 与基础信息（不再强制禁用——enabled 反映在职状态，登录由
-            // AuthService.requireOssRole + UserDetailsServiceImpl 白名单独立拦截）
+        if (!LoginRoleWhitelist.isAllowed(resolvedRoleCode) && properties.isSkipUnmappedUsers()) {
+            // 白名单模式（skipUnmappedUsers=true）：未匹配角色的用户不创建，已存在则刷新在职状态
+            // 非白名单模式（skipUnmappedUsers=false）：继续创建无角色用户，登录时由 OssPermissionCache 决定角色
             handleUserWithoutResolvedRole(sourceApp, eventKey, snapshot, existingUser);
             return Optional.empty();
         }
