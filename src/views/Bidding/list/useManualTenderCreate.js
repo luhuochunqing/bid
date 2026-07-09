@@ -5,12 +5,13 @@
 
 import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { useTenderObsUpload } from './composables/useTenderObsUpload.js'
-import { MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_TEXT } from '@/composables/useObsUploadFallback.js'
 import { createManualTenderForm } from './constants.js'
 import { buildManualTenderPayload, normalizeManualTenderParseResult } from './helpers.js'
 
 const PASTED_TEXT_MAX_LENGTH = 500000
+// 标讯文件上传走 multipart（APISIX 网关限制 50MB）；不接 OBS，因为后端 doc-insight
+// /store、/parse、/parse-existing 均不支持 fileUrl，接 OBS 会导致 AI 解析功能丢失。
+const MAX_FILE_SIZE = 50 * 1024 * 1024
 
 const SUPPORTED_PARSE_EXTENSIONS = new Set(['.doc', '.docx', '.pdf'])
 
@@ -28,8 +29,8 @@ function isSupportedParseFile(file) {
 function validateFileSize(file) {
   const uploadFile = resolveUploadFile(file)
   if (!uploadFile) return { valid: false, message: '无法读取文件' }
-  if (uploadFile.size > MAX_FILE_SIZE_BYTES) {
-    return { valid: false, message: `文件 "${uploadFile.name}" 超过 ${MAX_FILE_SIZE_TEXT} 限制` }
+  if (uploadFile.size > MAX_FILE_SIZE) {
+    return { valid: false, message: `文件 "${uploadFile.name}" 超过 50MB 限制` }
   }
   return { valid: true }
 }
@@ -92,7 +93,6 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
   const savingManual = ref(false)
   const parsingManualDocument = ref(false)
   const manualForm = ref(createManualTenderForm())
-  const { obsUpload, tryUpload: tryObsUpload } = useTenderObsUpload('manual-tender', '标讯文件已上传至 OBS')
 
   // Guard: ensure pastedText never exceeds the maxlength regardless of browser/element-plus quirks
   watch(
@@ -122,7 +122,7 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
       // 移除超大的文件
       const filteredList = fileList.filter((f) => {
         const fFile = resolveUploadFile(f)
-        return fFile && fFile.size <= MAX_FILE_SIZE_BYTES
+        return fFile && fFile.size <= MAX_FILE_SIZE
       })
       manualForm.value.attachments = filteredList
       return
@@ -142,11 +142,8 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
 
     if (!uploadFile || !isSupportedParseFile(uploadFile)) return
 
-    // OBS 直传：成功后跳过 store/parse（后端不支持 fileUrl，继续上传会 413）
-    parsingManualDocument.value = true
-    const obsUsed = await tryObsUpload(uploadFile, manualForm.value.attachments, fileIndex)
-    if (obsUsed) { parsingManualDocument.value = false; return }
     // Step 1: 上传即保存（即使后续 AI 解析失败，文件也已保存）
+    parsingManualDocument.value = true
     let storedDoc = null
     try {
       const storeResponse = await tendersApi.storeTenderDocument(uploadFile, { entityId: 'manual-tender' })
@@ -282,7 +279,6 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
     manualForm,
     savingManual,
     parsingManualDocument,
-    obsUpload,
     resetManualForm,
     handleFileChange,
     handleFileRemove,

@@ -1,16 +1,15 @@
 import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { tendersApi } from '@/api/modules/tenders.js'
-import { useTenderObsUpload } from './useTenderObsUpload.js'
-import { MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_TEXT } from '@/composables/useObsUploadFallback.js'
 
 const ACCEPT_FILE_TYPES = '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 const PASTED_TEXT_MAX_LENGTH = 500000
+// 标讯文件上传走 multipart（APISIX 网关限制 50MB）；不接 OBS，因为后端 doc-insight
+// /store、/parse、/parse-existing 均不支持 fileUrl，接 OBS 会导致 AI 解析功能丢失。
+const MAX_FILE_SIZE = 50 * 1024 * 1024
 
 export function useTenderAiParse(form) {
   const parsingDocument = ref(false)
-  // OBS 直传：VITE_OBS_ENABLED=true 时启用，失败回退到 multipart
-  const { obsUpload, tryUpload: tryObsUpload } = useTenderObsUpload('create-tender', '标讯文件已上传至 OBS')
 
   watch(() => form.value.pastedText, (val) => {
     if (val && val.length > PASTED_TEXT_MAX_LENGTH) {
@@ -39,11 +38,11 @@ export function useTenderAiParse(form) {
       return f.name === file?.name
     })
     if (!uploadFile) return
-    if (uploadFile.size > MAX_FILE_SIZE_BYTES) {
-      ElMessage.warning(`文件 "${uploadFile.name}" 超过 ${MAX_FILE_SIZE_TEXT} 限制`)
+    if (uploadFile.size > MAX_FILE_SIZE) {
+      ElMessage.warning(`文件 "${uploadFile.name}" 超过 50MB 限制`)
       form.value.attachments = fileList.filter(f => {
         const fFile = resolveUploadFile(f)
-        return fFile && fFile.size <= MAX_FILE_SIZE_BYTES
+        return fFile && fFile.size <= MAX_FILE_SIZE
       })
       return
     }
@@ -52,10 +51,6 @@ export function useTenderAiParse(form) {
       form.value.attachments = fileList.filter(f => isSupportedParseFile(resolveUploadFile(f)))
       return
     }
-
-    // OBS 直传：成功则跳过 store/parse（后端不支持 fileUrl，避免 413）
-    const obsUsed = await tryObsUpload(uploadFile, form.value.attachments, fileIndex)
-    if (obsUsed) return
 
     await runAiParse(async () => {
       let storedDoc = null
@@ -219,7 +214,7 @@ export function useTenderAiParse(form) {
   }
 
   return {
-    parsingDocument, obsUpload, handleFileChange, handleFileRemove, handlePastedTextParse,
+    parsingDocument, handleFileChange, handleFileRemove, handlePastedTextParse,
     ACCEPT_FILE_TYPES,
   }
 }

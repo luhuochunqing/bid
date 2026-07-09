@@ -137,7 +137,7 @@
             </el-col>
             <el-col :span="24">
               <el-form-item label="标讯文件">
-                <div class="upload-hint">{{ uploadHint }}</div>
+                <div class="upload-hint">支持 PDF/Word 文件上传（≤50MB），上传即保存，自动 AI 解析回填表单字段</div>
                 <el-upload
                   class="manual-tender-upload"
                   :auto-upload="false"
@@ -152,18 +152,9 @@
                 >
                   <el-icon class="el-icon--upload"><Upload /></el-icon>
                   <div class="el-upload__text">
-                    {{ parsingDocument ? 'DeepSeek/AI 解析中...' : uploadDragText }}
+                    {{ parsingDocument ? 'DeepSeek/AI 解析中...' : '将文件拖到此处，或点击选择附件（PDF/Word ≤50MB）' }}
                   </div>
                 </el-upload>
-                <ObsUploadProgress
-                  :visible="obsUploading || obsProgressPercent > 0"
-                  :file-name="obsCurrentFile?.name || ''"
-                  :file-size="obsCurrentFile?.size || 0"
-                  :progress-percent="obsProgressPercent"
-                  :uploading="obsUploading"
-                  :has-error="!!obsError"
-                  @cancel="handleObsCancel"
-                />
               </el-form-item>
             </el-col>
           </el-row>
@@ -182,10 +173,8 @@
 import { computed, ref, shallowRef } from 'vue'
 import { DocumentCopy, Upload } from '@element-plus/icons-vue'
 import AdaptiveFormPage from '@/components/common/AdaptiveFormPage.vue'
-import ObsUploadProgress from '@/components/common/ObsUploadProgress.vue'
 import { chinaRegionOptions } from '@/components/common/chinaRegionData.js'
 import { useRegionCascaderValue, REGION_CASCADER_PROPS, createRegionCascaderAutoClose } from '@/composables/useRegionCascaderValue.js'
-import { isObsEnabled, MAX_FILE_SIZE_TEXT } from '@/composables/useObsUploadFallback.js'
 import {
   CUSTOMER_TYPE_OPTIONS,
   MANUAL_FORM_RULES,
@@ -194,15 +183,6 @@ import {
 } from '../constants.js'
 
 const ACCEPT_FILE_TYPES = '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-const maxSizeText = MAX_FILE_SIZE_TEXT
-// OBS 直传模式（大文件走 OBS）下后端 doc-insight 不支持 fileUrl，AI 解析被跳过；
-// 用动态文案告知用户改用粘贴识别或手动填写。
-const uploadHint = isObsEnabled
-  ? `支持 PDF/Word 文件上传（≤${maxSizeText}），上传至 OBS 即保存。注：OBS 直传暂不支持 AI 自动解析，请改用粘贴识别或手动填写`
-  : `支持 PDF/Word 文件上传（≤${maxSizeText}），上传即保存，自动 AI 解析回填表单字段`
-const uploadDragText = isObsEnabled
-  ? `将文件拖到此处，或点击选择附件（PDF/Word ≤${maxSizeText}，OBS 直传）`
-  : `将文件拖到此处，或点击选择附件（PDF/Word ≤${maxSizeText}）`
 
 const modelValue = defineModel({ type: Boolean, default: false })
 const form = defineModel('form', { type: Object, required: true })
@@ -214,12 +194,7 @@ const props = defineProps({
   customerTypes: { type: Array, default: () => CUSTOMER_TYPE_OPTIONS },
   priorities: { type: Array, default: () => PRIORITY_OPTIONS },
   projectTypes: { type: Array, default: () => PROJECT_TYPE_OPTIONS },
-  // OBS 直传状态对象（由父级 useObsUpload composable 注入，ref 在模板中自动解包）
-  obsUpload: { type: Object, default: () => ({}) },
 })
-// 解构响应式状态供模板使用（ref 在模板中自动解包；obsUpload 为空对象时解构得 undefined，ObsUploadProgress 不显示）
-const { uploading: obsUploading, progressPercent: obsProgressPercent, currentFile: obsCurrentFile, error: obsError } = props.obsUpload || {}
-const handleObsCancel = () => props.obsUpload?.cancel?.()
 
 const emit = defineEmits(['reset', 'submit', 'file-change', 'file-remove', 'parse-pasted-text'])
 
