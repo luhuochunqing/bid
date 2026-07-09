@@ -10,7 +10,7 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024
 export function useTenderAiParse(form) {
   const parsingDocument = ref(false)
   // OBS 直传：VITE_OBS_ENABLED=true 时启用，失败回退到 multipart
-  const { obsUpload, tryUpload: tryObsUpload } = useTenderObsUpload('create-tender', '标讯文件已上传至 OBS（AI 自动识别已跳过，可手动填写）')
+  const { obsUpload, tryUpload: tryObsUpload } = useTenderObsUpload('create-tender', '标讯文件已上传至 OBS')
 
   watch(() => form.value.pastedText, (val) => {
     if (val && val.length > PASTED_TEXT_MAX_LENGTH) {
@@ -53,8 +53,8 @@ export function useTenderAiParse(form) {
       return
     }
 
-    // OBS 直传：成功则跳过 store/parse，失败回退到 runAiParse
-    if (await tryObsUpload(uploadFile, form.value.attachments, fileIndex)) return
+    // OBS 直传：成功则标记 obsUsed，继续走 store/parse 流程
+    const obsUsed = await tryObsUpload(uploadFile, form.value.attachments, fileIndex)
 
     await runAiParse(async () => {
       let storedDoc = null
@@ -62,7 +62,7 @@ export function useTenderAiParse(form) {
         const storeResponse = await tendersApi.storeTenderDocument(uploadFile, { entityId: 'create-tender' })
         if (storeResponse?.success && storeResponse.data) {
           storedDoc = storeResponse.data
-          applyAttachmentFileUrl(file, uploadFile, storedDoc, fileIndex)
+          if (!obsUsed) applyAttachmentFileUrl(file, uploadFile, storedDoc, fileIndex)
         }
       } catch (storeError) {
         console.warn('标讯文件存储失败，回退到一站式解析:', storeError?.message || storeError)
@@ -83,8 +83,8 @@ export function useTenderAiParse(form) {
       const hasAiFailure = warnings.some(w => String(w).startsWith('AI_DOCUMENT_ANALYSIS_FAILED'))
       const hasScannedDoc = warnings.some(w => String(w).startsWith('SCANNED_DOCUMENT'))
 
-      // 一站式解析回退时，仍需从解析结果回填 fileUrl。
-      applyAttachmentFileUrl(file, uploadFile, response.data, fileIndex)
+      // 一站式解析回退时，仍需从解析结果回填 fileUrl（OBS 已写入时跳过）
+      if (!obsUsed) applyAttachmentFileUrl(file, uploadFile, response.data, fileIndex)
 
       if (hasScannedDoc) {
         return '该文件可能是扫描件，无法提取文字。文件已保存，请手动填写标讯信息。'

@@ -17,6 +17,8 @@ function createWorkflow(overrides = {}) {
     create: vi.fn(),
     parseTenderIntakeDocument: vi.fn(),
     parseTenderIntakeText: vi.fn(),
+    storeTenderDocument: vi.fn(),
+    parseExistingTenderDocument: vi.fn(),
   }
   const workflow = useManualTenderCreate({
     tendersApi,

@@ -94,7 +94,7 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
   const parsingManualDocument = ref(false)
   const manualForm = ref(createManualTenderForm())
   // OBS 直传：VITE_OBS_ENABLED=true 时启用，失败回退到 multipart
-  const { obsUpload, tryUpload: tryObsUpload } = useTenderObsUpload('manual-tender', '标讯文件已上传至 OBS（AI 自动识别已跳过，可手动填写）')
+  const { obsUpload, tryUpload: tryObsUpload } = useTenderObsUpload('manual-tender', '标讯文件已上传至 OBS')
 
   // Guard: ensure pastedText never exceeds the maxlength regardless of browser/element-plus quirks
   watch(
@@ -144,12 +144,11 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
 
     if (!uploadFile || !isSupportedParseFile(uploadFile)) return
 
-    // OBS 直传：上传到 OBS 跳过 store/parse（失败回退到 Step 1/2）
+    // OBS 直传：上传到 OBS（失败则回退到 Step 1/2），成功时继续走 store/parse AI 解析
+    let obsUsed = false
     if (isObsEnabled) {
       parsingManualDocument.value = true
-      const obsOk = await tryObsUpload(uploadFile, manualForm.value.attachments, fileIndex)
-      parsingManualDocument.value = false
-      if (obsOk) return
+      obsUsed = await tryObsUpload(uploadFile, manualForm.value.attachments, fileIndex)
     }
 
     // Step 1: 上传即保存（即使后续 AI 解析失败，文件也已保存）
@@ -158,16 +157,18 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
       const storeResponse = await tendersApi.storeTenderDocument(uploadFile, { entityId: 'manual-tender' })
       if (storeResponse?.success && storeResponse.data) {
         storedDoc = storeResponse.data
-        // 直接按索引回写 fileType 和 fileUrl，避免匹配失败
-        if (fileIndex >= 0 && manualForm.value.attachments[fileIndex]) {
-          const att = manualForm.value.attachments[fileIndex]
-          if (uploadFile.type) att.fileType = uploadFile.type
-          if (storedDoc.fileUrl) {
-            att.url = storedDoc.fileUrl
-            att.fileUrl = storedDoc.fileUrl
+        if (!obsUsed) {
+          // 直接按索引回写 fileType 和 fileUrl，避免匹配失败
+          if (fileIndex >= 0 && manualForm.value.attachments[fileIndex]) {
+            const att = manualForm.value.attachments[fileIndex]
+            if (uploadFile.type) att.fileType = uploadFile.type
+            if (storedDoc.fileUrl) {
+              att.url = storedDoc.fileUrl
+              att.fileUrl = storedDoc.fileUrl
+            }
           }
+          applySourceDocumentMetadata(manualForm.value, uploadFile, storedDoc)
         }
-        applySourceDocumentMetadata(manualForm.value, uploadFile, storedDoc)
         ElMessage.success('标讯文件已上传保存')
       } else {
         console.warn('文件存储返回异常:', storeResponse?.msg)
