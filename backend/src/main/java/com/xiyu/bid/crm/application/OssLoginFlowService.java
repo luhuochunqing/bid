@@ -1,5 +1,6 @@
 package com.xiyu.bid.crm.application;
 
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.security.domain.LoginRoleWhitelist;
 import com.xiyu.bid.crm.config.CrmProperties;
 import com.xiyu.bid.crm.infrastructure.CrmHttpClient;
@@ -9,7 +10,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * OSS 登录流程服务。
@@ -197,6 +201,22 @@ public class OssLoginFlowService {
             }
 
             List<String> menuPermissions = ossRoleResolver.mapOssPermissionsToInternal(permission, permissionSystemName);
+
+            // 【紧急修复 429 Too Many Requests 死循环】
+            // 如果用户是从 application.yml 的白名单强制映射的角色（如 06234 强制映射为 /bidAdmin），
+            // 由于她的 OSS 岗位（如"投标项目负责人"）在 OSS 端并没有配置管理员的菜单权限，
+            // 导致 menuPermissions 缺失关键菜单（如 dashboard 等），前端会触发无限重定向死循环。
+            // 因此，对于白名单特权用户，我们直接合并系统基线目录中该角色的标准菜单权限。
+            if (ossRoleResolver.isWhitelistedPerson(jobNumber, username)) {
+                RoleProfileCatalog.SeedDefinition def = RoleProfileCatalog.definitionForCode(resolvedRoleCode);
+                if (def != null && def.menuPermissions() != null) {
+                    Set<String> merged = new HashSet<>(menuPermissions);
+                    merged.addAll(def.menuPermissions());
+                    menuPermissions = new ArrayList<>(merged);
+                    log.info("OSS login: merged catalog menu permissions for whitelisted person={}, role={}", username, resolvedRoleCode);
+                }
+            }
+
             ossPermissionCache.put(username, resolvedRoleCode, menuPermissions, permission);
             log.info("OSS login: permission cached (not written to DB): username={}, roleCode={}, menuPermissions={}",
                     username, resolvedRoleCode, menuPermissions);
