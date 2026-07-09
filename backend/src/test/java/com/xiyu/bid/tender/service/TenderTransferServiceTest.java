@@ -3,6 +3,7 @@ package com.xiyu.bid.tender.service;
 import com.xiyu.bid.batch.repository.TenderAssignmentRecordRepository;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.project.service.ProjectManagerDepartmentEnricher;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +46,8 @@ class TenderTransferServiceTest {
     private TenderAuditService tenderAuditService;
     @Mock
     private TenderAssignmentNotifier assignmentNotifier;
+    @Mock
+    private ProjectManagerDepartmentEnricher departmentEnricher;
 
     private TenderTransferService service;
 
@@ -52,7 +55,7 @@ class TenderTransferServiceTest {
     void setUp() {
         service = new TenderTransferService(
                 tenderRepository, userRepository, assignmentRecordRepository,
-                tenderAuditService, assignmentNotifier);
+                tenderAuditService, assignmentNotifier, departmentEnricher);
     }
 
     @Test
@@ -137,5 +140,51 @@ class TenderTransferServiceTest {
         assertThatThrownBy(() -> service.transfer(1L, 20L, 99L))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("标讯状态已变更，无法转派");
+    }
+
+    // ====================================================================
+    // CO-537 根因修复：department 写入时持久化（用 enricher 反查，不用 user.departmentName）
+    // ====================================================================
+
+    @Test
+    @DisplayName("CO-537: 转派时 department 通过 enricher 反查持久化，不用 user.departmentName")
+    void transfer_shouldPersistDepartmentViaEnricherNotUserDepartmentName() {
+        // Given: newOwner.departmentName 为空（模拟生产环境），但 enricher 能反查到部门名
+        Tender tender = Tender.builder()
+                .id(1L).title("测试标讯").status(Tender.Status.TRACKING)
+                .projectManagerId(10L).projectManagerName("旧负责人").build();
+        User newOwner = User.builder().id(20L).fullName("新负责人").departmentName("").enabled(true).build();
+
+        when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
+        when(userRepository.findById(20L)).thenReturn(Optional.of(newOwner));
+        when(userRepository.findById(99L)).thenReturn(Optional.of(
+                User.builder().id(99L).fullName("操作人").build()));
+        when(departmentEnricher.resolveDepartmentNameByUserId(20L)).thenReturn("研发中心");
+
+        // When
+        service.transfer(1L, 20L, 99L);
+
+        // Then: tender.department 应为 enricher 反查结果，而非 user.departmentName（空字符串）
+        org.assertj.core.api.Assertions.assertThat(tender.getDepartment()).isEqualTo("研发中心");
+        verify(departmentEnricher).resolveDepartmentNameByUserId(20L);
+    }
+
+    @Test
+    @DisplayName("CO-537: enricher 查不到部门时 department 保持 null（不强制写入空值）")
+    void transfer_enricherReturnsNull_departmentStaysNull() {
+        Tender tender = Tender.builder()
+                .id(1L).title("测试标讯").status(Tender.Status.TRACKING)
+                .projectManagerId(10L).projectManagerName("旧负责人").build();
+        User newOwner = User.builder().id(20L).fullName("新负责人").departmentName("").enabled(true).build();
+
+        when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
+        when(userRepository.findById(20L)).thenReturn(Optional.of(newOwner));
+        when(userRepository.findById(99L)).thenReturn(Optional.of(
+                User.builder().id(99L).fullName("操作人").build()));
+        when(departmentEnricher.resolveDepartmentNameByUserId(20L)).thenReturn(null);
+
+        service.transfer(1L, 20L, 99L);
+
+        org.assertj.core.api.Assertions.assertThat(tender.getDepartment()).isNull();
     }
 }

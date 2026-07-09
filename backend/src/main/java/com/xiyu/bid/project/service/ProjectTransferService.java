@@ -64,6 +64,7 @@ public class ProjectTransferService {
     private final ProjectInitiationDetailsRepository initiationDetailsRepository;
     private final TenderAssignmentRecordRepository assignmentRecordRepository;
     private final ProjectTransferNotifier notifier;
+    private final ProjectManagerDepartmentEnricher departmentEnricher;
 
     /**
      * 执行项目转移。
@@ -119,6 +120,11 @@ public class ProjectTransferService {
         // 5. 获取旧负责人姓名（用于审计和通知）
         String oldOwnerName = resolveUserName(oldOwnerId);
 
+        // CO-537 根因修复：department 通过 enricher 反查持久化（user.department_code → organization_departments），
+        // 不用 User.getDepartmentName()（生产环境多为空字符串）。
+        // 在 details/tender 更新前一次性解析，两处复用。
+        String resolvedDepartment = departmentEnricher.resolveDepartmentNameByUserId(newOwnerId);
+
         // 6. 更新 project.manager_id
         project.setManagerId(newOwnerId);
         projectRepository.save(project);
@@ -127,8 +133,8 @@ public class ProjectTransferService {
         detailsOpt.ifPresent(details -> {
             details.setOwnerUserId(newOwnerId);
             details.setProjectLeaderName(newOwner.getFullName());
-            // CO-537: 同步回填项目负责人部门
-            details.setLeaderDepartment(newOwner.getDepartmentName());
+            // CO-537: 项目负责人部门通过 enricher 反查回填
+            details.setLeaderDepartment(resolvedDepartment);
             initiationDetailsRepository.save(details);
         });
 
@@ -144,8 +150,8 @@ public class ProjectTransferService {
                 Tender tender = tenderOpt.get();
                 tender.setProjectManagerId(newOwnerId);
                 tender.setProjectManagerName(newOwner.getFullName());
-                // CO-537: 同步回填标讯"项目部门"
-                tender.setDepartment(newOwner.getDepartmentName());
+                // CO-537: 标讯"项目部门"通过 enricher 反查回填
+                tender.setDepartment(resolvedDepartment);
                 tenderRepository.save(tender);
                 tenderUpdated = true;
 

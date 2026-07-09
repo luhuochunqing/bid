@@ -8,6 +8,7 @@ import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
+import com.xiyu.bid.project.service.ProjectManagerDepartmentEnricher;
 import com.xiyu.bid.repository.TenderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +29,7 @@ public class BatchTenderAssignAppService {
     private final BatchTenderAssignmentSupport assignmentSupport;
     private final NotificationApplicationService notificationAppService;
     private final com.xiyu.bid.tender.service.TenderAuditService tenderAuditService;
+    private final ProjectManagerDepartmentEnricher departmentEnricher;
 
     @Transactional
     public BatchOperationResponse batchAssign(BatchTenderAssignRequest request, User currentUser) {
@@ -97,7 +99,9 @@ public class BatchTenderAssignAppService {
             String oldManagerName = tender.getProjectManagerName();
             tender.setProjectManagerId(assignee.getId());
             tender.setProjectManagerName(assignee.getFullName());
-            tender.setDepartment(assignee.getDepartmentName());
+            // CO-537 根因修复：department 通过 enricher 反查持久化（user.department_code → organization_departments），
+            // 不用 User.getDepartmentName()（生产环境多为空字符串）
+            tender.setDepartment(departmentEnricher.resolveDepartmentNameByUserId(assignee.getId()));
             tender.setStatus(Tender.Status.TRACKING);
             changedTenders.add(tender);
             records.add(assignmentSupport.buildRecord(tender.getId(), assignee, request, currentUser));

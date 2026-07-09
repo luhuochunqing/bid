@@ -43,6 +43,7 @@ class ProjectTransferServiceTest {
     @Mock ProjectInitiationDetailsRepository initiationDetailsRepository;
     @Mock TenderAssignmentRecordRepository assignmentRecordRepository;
     @Mock ProjectTransferNotifier notifier;
+    @Mock ProjectManagerDepartmentEnricher departmentEnricher;
 
     ProjectTransferService service;
 
@@ -51,7 +52,7 @@ class ProjectTransferServiceTest {
         service = new ProjectTransferService(
                 projectRepository, userRepository, tenderRepository,
                 initiationDetailsRepository, assignmentRecordRepository,
-                notifier);
+                notifier, departmentEnricher);
     }
 
     private static RoleProfile roleProfile(String code) {
@@ -82,6 +83,8 @@ class ProjectTransferServiceTest {
         when(userRepository.findById(999L)).thenReturn(Optional.of(User.builder().id(999L).fullName("管理员").build()));
         when(tenderRepository.findById(743L)).thenReturn(Optional.of(tender));
         when(initiationDetailsRepository.findByProjectId(135L)).thenReturn(Optional.of(details));
+        // CO-537 根因修复：department 通过 enricher 反查，不用 user.departmentName
+        when(departmentEnricher.resolveDepartmentNameByUserId(7324L)).thenReturn("研发中心");
 
         // When
         ProjectTransferResponse response = service.transfer(135L, 7324L, 999L, "误派修正");
@@ -93,14 +96,14 @@ class ProjectTransferServiceTest {
         // Then - initiationDetails 更新
         assertThat(details.getOwnerUserId()).isEqualTo(7324L);
         assertThat(details.getProjectLeaderName()).isEqualTo("周子靖");
-        // CO-537: 项目负责人部门应同步回填
+        // CO-537: 项目负责人部门应通过 enricher 反查回填
         assertThat(details.getLeaderDepartment()).isEqualTo("研发中心");
         verify(initiationDetailsRepository).save(details);
 
         // Then - tender 更新
         assertThat(tender.getProjectManagerId()).isEqualTo(7324L);
         assertThat(tender.getProjectManagerName()).isEqualTo("周子靖");
-        // CO-537: 标讯"项目部门"应同步回填
+        // CO-537: 标讯"项目部门"应通过 enricher 反查回填
         assertThat(tender.getDepartment()).isEqualTo("研发中心");
         verify(tenderRepository).save(tender);
 
@@ -126,6 +129,45 @@ class ProjectTransferServiceTest {
         assertThat(response.getNewOwnerName()).isEqualTo("周子靖");
         assertThat(response.getTenderUpdated()).isTrue();
         assertThat(response.getTenderId()).isEqualTo(743L);
+    }
+
+    /**
+     * CO-537 根因修复：department 写入时通过 enricher 反查，不用 user.departmentName。
+     *
+     * <p>即使 newOwner.departmentName 为空（生产环境常见），enricher 仍能通过
+     * user.department_code → organization_departments 反查到部门名。
+     */
+    @Test
+    void transfer_shouldPersistDepartmentViaEnricherNotUserDepartmentName() {
+        // Given: newOwner.departmentName 为空（模拟生产环境），但 enricher 能反查到部门名
+        Project project = Project.builder()
+                .id(135L).name("测试项目").managerId(7246L).tenderId(743L).build();
+        User oldOwner = User.builder().id(7246L).fullName("陈梦瑶").build();
+        User newOwner = User.builder().id(7324L).fullName("周子靖").enabled(true)
+                .departmentName("")
+                .roleProfile(roleProfile("bid-projectLeader")).build();
+        Tender tender = new Tender();
+        tender.setId(743L);
+        tender.setProjectManagerId(7246L);
+        tender.setProjectManagerName("陈梦瑶");
+        ProjectInitiationDetails details = ProjectInitiationDetails.builder()
+                .id(1L).projectId(135L).ownerUserId(7246L).projectLeaderName("陈梦瑶").build();
+
+        when(projectRepository.findById(135L)).thenReturn(Optional.of(project));
+        when(userRepository.findById(7324L)).thenReturn(Optional.of(newOwner));
+        when(userRepository.findById(7246L)).thenReturn(Optional.of(oldOwner));
+        when(userRepository.findById(999L)).thenReturn(Optional.of(User.builder().id(999L).fullName("管理员").build()));
+        when(tenderRepository.findById(743L)).thenReturn(Optional.of(tender));
+        when(initiationDetailsRepository.findByProjectId(135L)).thenReturn(Optional.of(details));
+        when(departmentEnricher.resolveDepartmentNameByUserId(7324L)).thenReturn("研发中心");
+
+        // When
+        service.transfer(135L, 7324L, 999L, null);
+
+        // Then: department 应为 enricher 反查结果，而非 user.departmentName（空字符串）
+        assertThat(tender.getDepartment()).isEqualTo("研发中心");
+        assertThat(details.getLeaderDepartment()).isEqualTo("研发中心");
+        verify(departmentEnricher).resolveDepartmentNameByUserId(7324L);
     }
 
     @Test
@@ -181,8 +223,8 @@ class ProjectTransferServiceTest {
 
     @Test
     void transfer_success_with_null_newOwner_department_keeps_field_nullable() {
-        // CO-537 边界场景：newOwner.departmentName 为 null 时（OSS 用户可能无部门），
-        // 部门字段应被置为 null（与 newOwner.departmentName 一致），不抛异常
+        // CO-537 根因修复后边界场景：enricher 查不到部门（user.departmentCode 也为空）时，
+        // department 字段保持 null，不抛异常
         // Given
         Project project = Project.builder()
                 .id(135L).name("测试项目").managerId(7246L).tenderId(743L).build();
@@ -205,11 +247,13 @@ class ProjectTransferServiceTest {
         when(userRepository.findById(999L)).thenReturn(Optional.of(User.builder().id(999L).fullName("管理员").build()));
         when(tenderRepository.findById(743L)).thenReturn(Optional.of(tender));
         when(initiationDetailsRepository.findByProjectId(135L)).thenReturn(Optional.of(details));
+        // enricher 查不到部门（返回 null）
+        when(departmentEnricher.resolveDepartmentNameByUserId(7324L)).thenReturn(null);
 
         // When
         service.transfer(135L, 7324L, 999L, null);
 
-        // Then - 部门字段同步为 null（与 newOwner.departmentName 一致）
+        // Then - 部门字段为 null（enricher 查不到，不强制写入）
         assertThat(tender.getDepartment()).isNull();
         assertThat(details.getLeaderDepartment()).isNull();
     }
