@@ -2,8 +2,7 @@
   <div class="evidence-upload">
     <el-upload :with-credentials="true"
       v-model:file-list="fileList"
-      :action="uploadUrl"
-      :headers="uploadHeaders"
+      :http-request="customUpload"
       :data="{ documentCategory: 'OPEN_LIST' }"
       :accept="acceptedTypes"
       :before-upload="beforeUpload"
@@ -45,6 +44,7 @@ import { getApiUrl } from '@/api/config.js'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
 import { downloadWithFilename } from '@/utils/download.js'
 import { getDocuments } from '@/api/modules/projectDocuments.js'
+import { useObsProjectDocumentUpload } from '@/composables/useObsProjectDocumentUpload.js'
 
 const props = defineProps({
   projectId: { type: [String, Number], required: true },
@@ -78,6 +78,11 @@ watch(() => props.existingDocIds, async (ids) => {
 }, { immediate: true })
 const uploadUrl = computed(() => getApiUrl(`/api/projects/${props.projectId}/documents`))
 const acceptedTypes = '.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png'
+// OBS 直传：大文件绕过 APISIX 网关直传 OBS，失败回退到 multipart（修复 413）
+const { customUpload } = useObsProjectDocumentUpload(
+  () => props.projectId,
+  { uploaderId: () => userStore.currentUser?.id, uploaderName: () => userStore.userName }
+)
 const MAX_FILE_SIZE_MB = 10
 const ALLOWED_MIMES = [
   'application/pdf',

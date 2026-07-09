@@ -135,7 +135,6 @@
       v-model:form="manualCreate.manualForm.value"
       :saving="manualCreate.savingManual.value"
       :parsing-document="manualCreate.parsingManualDocument.value"
-      :obs-upload="manualCreate.obsUpload"
       @reset="manualCreate.resetManualForm"
       @file-change="manualCreate.handleFileChange"
       @file-remove="manualCreate.handleFileRemove"

@@ -52,7 +52,7 @@
 <el-form-item label="需要的支持及其他关键信息备注"><el-input v-model="form.supportNeeded" :disabled="fieldDisabled" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
 <el-form-item label="项目计划GAP">
     <el-input v-model="form.projectPlanGap" :disabled="fieldDisabled" type="textarea" :rows="3" maxlength="5000" />
-    <el-upload :with-credentials="true" v-model:file-list="planGapFiles" :action="planGapUploadUrl" :headers="planGapUploadHeaders" :before-upload="beforePlanGapUpload" :on-success="onPlanGapUploadSuccess" :on-remove="onPlanGapFileRemove" :disabled="fieldDisabled || !props.projectId || props.projectId === 'new'" multiple drag accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" :limit="5" style="margin-top:8px">
+    <el-upload :with-credentials="true" v-model:file-list="planGapFiles" :http-request="planGapCustomUpload" :before-upload="beforePlanGapUpload" :on-success="onPlanGapUploadSuccess" :on-remove="onPlanGapFileRemove" :disabled="fieldDisabled || !props.projectId || props.projectId === 'new'" multiple drag accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" :limit="5" style="margin-top:8px">
       <el-button size="small" type="primary">上传附件</el-button>
       <template #tip><div class="el-upload__tip">支持拖拽上传，最多5个文件，单个不超过10MB</div></template>
     </el-upload>
@@ -213,6 +213,7 @@ import AdaptiveFormPage from '@/components/common/AdaptiveFormPage.vue'
 import UserPicker from '@/components/common/UserPicker.vue'
 import ObsUploadProgress from '@/components/common/ObsUploadProgress.vue'
 import { useObsUpload } from '@/composables/useObsUpload.js'
+import { useObsProjectDocumentUpload } from '@/composables/useObsProjectDocumentUpload.js'
 import { useInitiationStageActions } from './useInitiationStageActions.js'
 import { POSITION_OPTIONS, CONTACT_METHOD_OPTIONS, TENDENCY_OPTIONS, IMPACT_OPTIONS } from '@/views/Bidding/detail/components/customerInfoMatrixConfig.js'
 
@@ -226,6 +227,11 @@ const form = reactive({ projectName: '', ownerUnit: '', createTime: new Date().t
 const custFixedRows = ref([]); const bidDocFiles = ref([]); const planGapFiles = ref([]); const existing = ref(false);
 const planGapUploadUrl = computed(() => getApiUrl(`/api/projects/${props.projectId}/documents`))
 const planGapUploadHeaders = computed(() => { const t = userStore?.token; return t ? { Authorization: 'Bearer ' + t } : {} })
+// OBS 直传：planGap 附件大文件绕过 APISIX 网关直传 OBS，失败回退到 multipart（修复 413）
+const { customUpload: planGapCustomUpload } = useObsProjectDocumentUpload(
+  () => props.projectId,
+  { uploaderId: () => userStore.currentUser?.id, uploaderName: () => userStore.userName }
+)
 function beforePlanGapUpload(file) { const max = 10 * 1024 * 1024; if (file.size > max) { ElMessage.error('文件不能超过10MB'); return false } return true }
 function onPlanGapUploadSuccess(res) { if (res?.data) { form.projectPlanGapFiles.push(res.data); ElMessage.success('附件上传成功') } }
 function onPlanGapFileRemove(file) { const idx = (form.projectPlanGapFiles || []).findIndex(f => f.id === file.id || f.uid === file.uid); if (idx !== -1) { form.projectPlanGapFiles.splice(idx, 1) } } const fieldLocked = ref(false); const submitting = ref(false); const saving = ref(false); const approving = ref(false); const rejecting = ref(false); const aiAssessing = ref(false); const uploadingDoc = ref(false); const errorMsg = ref(''); const reviewStatus = ref('')
