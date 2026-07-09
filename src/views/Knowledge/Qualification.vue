@@ -72,10 +72,18 @@
         </el-table-column>
         <el-table-column label="操作" width="220" fixed="right" align="center">
           <template #default="scope">
-            <el-button v-if="scope.row.fileUrl" link type="primary" size="small" @click.stop="handleDownloadFile(scope.row)">下载</el-button>
-            <el-button v-if="canManageQualification && (scope.row.status || '').toLowerCase() !== 'retired'" link type="primary" size="small" @click.stop="openEdit(scope.row)">编辑</el-button>
-            <el-button v-if="canManageQualification && (scope.row.status || '').toLowerCase() !== 'retired'" link type="danger" size="small" @click.stop="handleRetire(scope.row)">下架</el-button>
-            <el-button v-if="canManageQualification && (scope.row.status || '').toLowerCase() === 'retired'" link type="success" size="small" @click.stop="handleRestore(scope.row)">恢复</el-button>
+            <span class="kb-op-cell">
+              <span class="kb-op-slot">
+                <el-button v-if="hasDownloadableAttachment(scope.row)" link type="primary" size="small" @click.stop="handleDownloadFile(scope.row)">下载</el-button>
+              </span>
+              <span class="kb-op-slot">
+                <el-button v-if="canManageQualification && (scope.row.status || '').toLowerCase() !== 'retired'" link type="primary" size="small" @click.stop="openEdit(scope.row)">编辑</el-button>
+              </span>
+              <span class="kb-op-slot">
+                <el-button v-if="canManageQualification && (scope.row.status || '').toLowerCase() !== 'retired'" link type="danger" size="small" @click.stop="handleRetire(scope.row)">下架</el-button>
+                <el-button v-if="canManageQualification && (scope.row.status || '').toLowerCase() === 'retired'" link type="success" size="small" @click.stop="handleRestore(scope.row)">恢复</el-button>
+              </span>
+            </span>
           </template>
         </el-table-column>
       </el-table>
@@ -307,4 +315,7 @@ const handleFormSaved = () => {
 .retired-tag { text-decoration:line-through; opacity:0.6 }
 .batch-toolbar { display:flex; align-items:center; gap:12px; margin-bottom:12px; padding:8px 12px; background:var(--el-fill-color-light); border-radius:6px; border:1px solid var(--el-border-color-lighter) }
 .batch-info { margin-left:auto; color:var(--el-text-color-secondary); font-size:13px }
+// CO-554 fix: 操作栏按钮列对齐——每个按钮占固定宽度 slot，下载按钮有无不影响编辑/下架对齐
+.kb-op-cell { display:inline-flex; align-items:center; justify-content:center; gap:4px; }
+.kb-op-slot { display:inline-flex; width:44px; justify-content:center; }
 </style>

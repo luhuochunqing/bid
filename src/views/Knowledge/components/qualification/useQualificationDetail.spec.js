@@ -79,3 +79,61 @@ describe('useQualificationDetail - CO-368 附件删除走 DELETE 接口', () => 
     expect(elMessageMock.error).not.toHaveBeenCalled()
   })
 })
+
+describe('useQualificationDetail - CO-554 行下载按附件数自动选 zip/单文件', () => {
+  let composable
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // jsdom 没有 createObjectURL，mock 掉避免报错
+    if (!window.URL.createObjectURL) window.URL.createObjectURL = vi.fn(() => 'blob:mock')
+    if (!window.URL.revokeObjectURL) window.URL.revokeObjectURL = vi.fn()
+    const qualifications = { value: [] }
+    composable = useQualificationDetail({ qualifications, fetchQualifications: vi.fn() })
+  })
+
+  it('多附件：应调 /batch-download 打包 zip，不调单个附件接口', async () => {
+    httpMock.post.mockResolvedValue({ data: new Blob(['zip']) })
+    const row = {
+      id: 7, name: '多附件资质',
+      attachments: [
+        { id: 1, fileName: 'a.pdf', fileUrl: 'a.pdf' },
+        { id: 2, fileName: 'b.pdf', fileUrl: 'b.pdf' }
+      ]
+    }
+
+    await composable.handleDownloadFile(row)
+
+    expect(httpMock.post).toHaveBeenCalledWith('/api/knowledge/qualifications/batch-download', { ids: [7] }, { responseType: 'blob' })
+    expect(httpMock.get).not.toHaveBeenCalled()
+  })
+
+  it('单附件：应调 /qualifications/{id}/attachments/{attId} 下原文件', async () => {
+    httpMock.get.mockResolvedValue({ data: new Blob(['pdf']) })
+    const row = { id: 7, name: '单附件资质', attachments: [{ id: 9, fileName: 'only.pdf', fileUrl: 'only.pdf' }] }
+
+    await composable.handleDownloadFile(row)
+
+    expect(httpMock.get).toHaveBeenCalledWith('/api/knowledge/qualifications/7/attachments/9', { responseType: 'blob' })
+    expect(httpMock.post).not.toHaveBeenCalled()
+  })
+
+  it('无附件（fileUrl 也为空）：应弹错误，不调任何下载接口', async () => {
+    const row = { id: 7, name: '无附件资质', attachments: [] }
+
+    await composable.handleDownloadFile(row)
+
+    expect(httpMock.post).not.toHaveBeenCalled()
+    expect(httpMock.get).not.toHaveBeenCalled()
+    expect(elMessageMock.error).toHaveBeenCalledWith('下载失败')
+  })
+
+  it('附件 fileUrl 为空字符串应被过滤（视为无可下载附件）', async () => {
+    const row = { id: 7, name: '空 fileUrl 资质', attachments: [{ id: 1, fileName: 'blank.pdf', fileUrl: '  ' }] }
+
+    await composable.handleDownloadFile(row)
+
+    expect(httpMock.get).not.toHaveBeenCalled()
+    expect(httpMock.post).not.toHaveBeenCalled()
+  })
+})
