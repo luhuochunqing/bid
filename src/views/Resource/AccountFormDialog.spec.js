@@ -132,6 +132,29 @@ describe('AccountFormDialog', () => {
     expect(payload.contactEmail).toBeUndefined()
   })
 
+  it('CO-567: 平台密码非必填，新建时不填密码也能提交', async () => {
+    const createSpy = vi.spyOn(resourcesApi.accounts, 'create').mockResolvedValue({ success: true, data: {} })
+    vi.spyOn(resourcesApi.accounts, 'getList').mockResolvedValue({ data: { list: [] } })
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    const inputs = wrapper.findAll('input')
+    // DOM 顺序：accountName[0], url[1], username[2], password[3]（不填）
+    await inputs[0].setValue('测试平台')
+    await inputs[1].setValue('http://test.com')
+    await inputs[2].setValue('testuser')
+
+    const picker = wrapper.findComponent({ name: 'UserPicker' })
+    picker.vm.$emit('update:modelValue', 99)
+    await nextTick()
+
+    const buttons = wrapper.findAll('button')
+    await buttons[1].trigger('click')
+    await flushPromises()
+
+    expect(createSpy).toHaveBeenCalledOnce()
+  })
+
   // ── CO-474：账号字段调整 — 移除 绑定手机/绑定邮箱，新增 注册人/注册手机/注册邮箱，绑定联系人 → 账号保管员 ──
 
   it('CO-474: 表单包含 注册人/注册手机/注册邮箱 输入项', async () => {

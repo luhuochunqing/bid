@@ -7,7 +7,8 @@
           <el-descriptions-item label="网址">{{ data.url || '-' }}</el-descriptions-item>
           <el-descriptions-item label="平台账号">{{ data.username || '-' }}</el-descriptions-item>
           <el-descriptions-item label="平台密码">
-            <div class="password-cell">
+            <div v-if="!data.hasPassword" class="password-cell">-</div>
+            <div v-else class="password-cell">
               <span class="password-text">{{ password.displayText(data.id) }}</span>
               <el-button
                 size="small"

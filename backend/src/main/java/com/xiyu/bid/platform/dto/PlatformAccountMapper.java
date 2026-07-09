@@ -20,6 +20,7 @@ public final class PlatformAccountMapper {
             .registerEmail(account.getRegisterEmail())
             .url(account.getUrl())
             .hasCa(account.getHasCa())
+            .hasPassword(account.getPassword() != null)
             .remarks(account.getRemarks())
             .status(account.getStatus())
             .borrowedBy(account.getBorrowedBy())

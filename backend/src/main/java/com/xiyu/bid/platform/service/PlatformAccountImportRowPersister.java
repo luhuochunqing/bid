@@ -27,7 +27,11 @@ public class PlatformAccountImportRowPersister {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void persist(ParsedAccountRow row, Long contactPersonId) {
-        String encryptedPassword = passwordEncryptionUtil.encrypt(row.password());
+        // CO-567: 平台密码非必填，空则存 NULL（表示无密码）。
+        String rawPassword = row.password();
+        String encryptedPassword = (rawPassword == null || rawPassword.isBlank())
+                ? null
+                : passwordEncryptionUtil.encrypt(rawPassword);
 
         PlatformAccount account = PlatformAccount.builder()
                 .accountName(row.accountName())

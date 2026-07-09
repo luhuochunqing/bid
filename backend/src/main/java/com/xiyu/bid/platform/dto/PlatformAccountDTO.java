@@ -29,6 +29,8 @@ public class PlatformAccountDTO {
     private String url;
     /** Whether CA certificate is associated. */
     private Boolean hasCa;
+    /** CO-567: 是否已设置平台密码（不暴露密文，仅用于前端展示判断）。 */
+    private Boolean hasPassword;
     /** Remarks. */
     private String remarks;
     /** Registrant name (CO-474). */

@@ -63,7 +63,11 @@ public class PlatformAccountService {
         whitelistStore.checkCreatePermission(effectiveRoleResolver.resolveRoleCode(currentUser), currentUser);
         validateRequest(request);
 
-        String encryptedPassword = passwordEncryptionUtil.encrypt(request.getPassword());
+        // CO-567: 平台密码非必填，空则存 NULL（表示无密码），不再加密空串。
+        String rawPassword = request.getPassword();
+        String encryptedPassword = (rawPassword == null || rawPassword.trim().isEmpty())
+                ? null
+                : passwordEncryptionUtil.encrypt(rawPassword);
 
         PlatformAccount account = PlatformAccount.builder()
             .username(request.getUsername())
@@ -270,7 +274,6 @@ public class PlatformAccountService {
 
     private void validateRequest(PlatformAccountCreateRequest request) {
         if (request.getUsername() == null || request.getUsername().trim().isEmpty()) throw new IllegalArgumentException("Username cannot be null or empty");
-        if (request.getPassword() == null || request.getPassword().trim().isEmpty()) throw new IllegalArgumentException("Password cannot be null or empty");
         if (request.getAccountName() == null || request.getAccountName().trim().isEmpty()) throw new IllegalArgumentException("Account name cannot be null or empty");
     }
 }

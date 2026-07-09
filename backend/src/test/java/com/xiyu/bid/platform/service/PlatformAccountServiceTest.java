@@ -175,13 +175,16 @@ class PlatformAccountServiceTest {
     }
 
     @Test
-    @DisplayName("创建时密码为空抛出异常")
-    void createAccount_nullPassword_throws() {
+    @DisplayName("CO-567: 创建时密码为空允许创建（非必填），存储为 null 且不调用加密器")
+    void createAccount_nullPassword_succeeds_storesNull() {
         PlatformAccountCreateRequest req = validRequest();
         req.setPassword(null);
-        assertThatThrownBy(() -> service.createAccount(req, ADMIN_USER))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Password cannot be null");
+        when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        PlatformAccountDTO result = service.createAccount(req, ADMIN_USER);
+
+        assertThat(result.getHasPassword()).isFalse();
+        verify(passwordEncryptionUtil, never()).encrypt(any());
     }
 
     @Test

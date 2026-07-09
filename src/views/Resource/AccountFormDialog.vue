@@ -14,9 +14,9 @@
           </el-form-item>
         </el-col>
         <el-col :span="12">
-          <el-form-item label="平台密码" required>
+          <el-form-item label="平台密码">
             <el-input v-model="form.password" type="password" show-password
-              :placeholder="isEdit ? '留空则不修改密码' : '请输入平台密码'" maxlength="200"
+              :placeholder="isEdit ? '留空则不修改密码' : '请输入平台密码（选填）'" maxlength="200"
               @input="onPasswordInput" />
           </el-form-item>
         </el-col>
@@ -167,9 +167,7 @@ const submit = async () => {
     ElMessage.warning('请完整填写必填字段')
     return
   }
-  if (!isEdit.value && !payload.password) {
-    ElMessage.warning('请填写密码'); return
-  }
+  // CO-567: 平台密码改为非必填，创建时可不填写
 
   try {
     let res

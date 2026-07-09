@@ -15,9 +15,9 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * CO-545：验证 password 字段在 create/update 场景下的校验行为。
- * <p>create（OnCreate group）：password 必填，空则报「平台密码不能为空」。
- * <p>update（Default group）：password 不校验，允许空（表示不改密码）。
+ * CO-545 / CO-567：验证 password 字段在 create/update 场景下的校验行为。
+ * <p>CO-567：password 改为非必填，create/update 均允许为空（NULL 表示无密码）。
+ * <p>update（Default group）：username / accountName 仍由 Default @NotBlank 校验。
  */
 class PlatformAccountCreateRequestValidationTest {
 
@@ -32,18 +32,18 @@ class PlatformAccountCreateRequestValidationTest {
     }
 
     @Test
-    @DisplayName("CO-545: create 场景（OnCreate group）password 为空 → 报「平台密码不能为空」")
-    void create_passwordBlank_violatesOnCreateGroup() {
+    @DisplayName("CO-567: create 场景 password 为空 → 不再报密码校验错（已改为非必填）")
+    void create_passwordBlank_doesNotViolate() {
         PlatformAccountCreateRequest req = requestWithPassword("");
 
         Set<ConstraintViolation<PlatformAccountCreateRequest>> violations =
                 validator.validate(req, OnCreate.class, Default.class);
 
-        assertThat(violations).anyMatch(v -> v.getMessage().equals("平台密码不能为空"));
+        assertThat(violations).noneMatch(v -> v.getMessage().contains("密码"));
     }
 
     @Test
-    @DisplayName("CO-545: create 场景（OnCreate group）password 非空 → 通过")
+    @DisplayName("CO-567: create 场景 password 非空 → 通过")
     void create_passwordNotBlank_passesOnCreateGroup() {
         PlatformAccountCreateRequest req = requestWithPassword("secret123");
 

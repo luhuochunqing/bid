@@ -59,6 +59,16 @@ class PlatformAccountImportPolicyTest {
         }
 
         @Test
+        @DisplayName("CO-567: 登录密码为空时 valid()=true（已改为非必填）")
+        void emptyPassword_valid() {
+            String[] cells = validCells();
+            cells[3] = "";
+            ParsedAccountRow row = PlatformAccountImportPolicy.parseRow(2, cells);
+            assertThat(row.valid()).isTrue();
+            assertThat(row.password()).isEmpty();
+        }
+
+        @Test
         @DisplayName("工号为空时，valid() 为 false，错误包含提示")
         void emptyEmployeeNumber_invalid() {
             String[] cells = validCells();
