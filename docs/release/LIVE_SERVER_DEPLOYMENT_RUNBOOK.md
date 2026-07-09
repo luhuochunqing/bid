@@ -20,10 +20,10 @@
 | 部署记录 | `/opt/xiyu-bid/deployed-release.json` |
 | 后端 systemd 服务 | `xiyu-bid-backend` |
 | 后端环境变量文件 | `/etc/xiyu-bid/backend.env` |
-| 后端内部端口 | `127.0.0.1:18080` |
-| Nginx 对外端口 | `80` / `8080` |
-| 对外健康检查 | `http://172.16.38.78:8080/actuator/health` |
-| 内部健康检查 | `http://127.0.0.1:8080/actuator/health`、`http://127.0.0.1:18080/actuator/health` |
+| 后端内部端口 | `127.0.0.1:18080`（`SERVER_PORT=18080`，由 `/etc/xiyu-bid/backend.env` 注入） |
+| Nginx 对外端口 | `80` / `8080`（反代到后端 18080） |
+| 对外健康检查 | `http://172.16.38.78:8080/actuator/health`（经 Nginx 代理） |
+| 内部健康检查 | `http://127.0.0.1:18080/actuator/health`（直连后端，推荐排障用） |
 | MySQL Host | `winbid-01.test.rds.ehsy.com` |
 | MySQL DB | `winbid` |
 | MySQL User | `ea_bid` |

@@ -3463,3 +3463,53 @@ unzip -p app.jar BOOT-INF/classes/application.yml | grep -A 2 "person-identifier
 - `backend/src/main/java/com/xiyu/bid/crm/application/OssRoleResolver.java` — 角色解析逻辑
 - `backend/src/main/java/com/xiyu/bid/security/domain/LoginRoleWhitelist.java` — 角色白名单校验
 - `docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md` §6.2 — 部署预检检查点（已固化）
+
+---
+
+## 51. 首次生产部署复盘：测试环境通过 ≠ 生产环境通过（2026-07-09 首次生产部署）
+
+### 问题背景
+
+2026-07-09 执行西域数智化投标管理平台首次生产环境部署。部署前已完成 35 次测试环境部署、225 条 Flyway 迁移验证、完整的生产环境档案和部署 SOP。但首次部署仍遇到 5 个问题，导致从开始到业务可用耗时约 5 小时。
+
+### 五个根因
+
+| # | 问题 | 根因分类 | 测试环境能发现吗 |
+|---|------|---------|----------------|
+| 1 | V1092 collation 冲突 | 隐性配置差异（测试 utf8mb4_unicode_ci vs 生产 utf8mb4_0900_ai_ci） | ❌ |
+| 2 | skipUnmappedUsers 配置声明但代码未使用 | 配置-代码契约断裂 | ⚠️ 集成测试可以 |
+| 3 | 同步"假成功"掩盖问题（8572 条全标记 SUCCESS，实际只入库 168 条） | 统计口径不严谨 | ⚠️ 代码审查可以 |
+| 4 | 端口认知混乱（application-prod.yml 默认 8080，实际 SERVER_PORT=18080） | 文档中 Nginx 对外端口与后端内部端口混用 | ✅ |
+| 5 | 本地 HTTP_PROXY 干扰 curl（第 19/23/N 次复发） | 本地代理 | ✅ 已知但反复复发 |
+
+### 核心教训
+
+1. **测试环境通过 ≠ 生产环境通过** — collation、字符集、时区、SQL mode 这些隐性配置差异，只有在生产环境才会暴露
+2. **配置项声明 ≠ 配置生效** — `skipUnmappedUsers` 在 Properties 类中声明但代码未使用，单元测试只测了声明层没测行为层
+3. **"跳过"不等于"成功"** — 同步框架把 `upsert()` 返回 `Optional.empty()`（跳过）也标记为 `successItem`，导致 8572 条"假成功"掩盖了 8404 条跳过
+4. **Nginx 对外端口 ≠ 后端内部端口** — `application-prod.yml` 默认 `8080` 是 fallback 值从未实际使用，两个环境后端内部端口都是 `18080`（通过 `SERVER_PORT=18080` 注入），Nginx 对外端口 `80/8080` 反代到后端 `18080`
+5. **本地代理是排障隐形杀手** — macOS `HTTP_PROXY=127.0.0.1:7897` 导致 `curl http://172.16.10.149:18080` 走代理隧道超时，排障时必须 `curl --noproxy '*'` 或直接 ssh 到服务器内部执行
+
+### 端口对照表（测试和生产一致）
+
+| 层 | 端口 | 说明 |
+|----|------|------|
+| Nginx 对外 | 80 / 8080 | 浏览器和外部 curl 访问入口 |
+| 后端内部 | 18080 | `SERVER_PORT=18080`，通过 `/etc/xiyu-bid/backend.env` 注入 |
+| application-prod.yml 默认 | 8080 | 仅是 fallback 默认值，**从未实际使用** |
+| 本地开发环境（主工作区 trae） | 18089 | 仅本地开发用，与生产无关 |
+
+### 改进措施
+
+- V1092 collation 教训：临时表必须显式指定 `COLLATE` 与关联表对齐
+- skipUnmappedUsers 修复：1 行代码加 `properties.isSkipUnmappedUsers()` 条件 + 环境变量 `XIYU_ORG_SYNC_SKIP_UNMAPPED_USERS=false`
+- 端口对照表已更新到 `LIVE_SERVER_DEPLOYMENT_RUNBOOK.md` §1 和 `PROD_ENVIRONMENT_PROFILE.md` §1.2
+- 所有 curl 排障命令统一加 `--noproxy '*'`
+
+### 相关文件
+
+- `docs/release/deploy-report-2026-07-09-1st-prod.md` — 首次生产部署报告
+- `docs/release/postmortem-2026-07-09-1st-prod.md` — 复盘文档
+- `docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md` §1 — 端口记录（已更新）
+- `docs/release/PROD_ENVIRONMENT_PROFILE.md` §1.2 — 网络架构（端口已正确）
+- `backend/src/main/java/com/xiyu/bid/integration/organization/application/OrganizationUserSyncWriter.java` — skipUnmappedUsers 修复
