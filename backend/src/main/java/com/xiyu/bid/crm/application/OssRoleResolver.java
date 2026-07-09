@@ -1,5 +1,6 @@
 package com.xiyu.bid.crm.application;
 
+import com.xiyu.bid.integration.organization.application.OrganizationIntegrationProperties;
 import com.xiyu.bid.integration.organization.domain.policy.JobRoleLookupResolver;
 import com.xiyu.bid.integration.organization.domain.policy.OssMenuPermissionMapper;
 import com.xiyu.bid.integration.organization.infrastructure.mapper.PositionToRoleMapper;
@@ -33,6 +34,7 @@ public class OssRoleResolver {
 
     private final OssMenuPermissionMapper ossMenuPermissionMapper;
     private final PositionToRoleMapper positionToRoleMapper;
+    private final OrganizationIntegrationProperties orgProperties;
 
     /**
      * 从 OSS jobList 解析内部角色码。
@@ -61,6 +63,17 @@ public class OssRoleResolver {
         if (jobInfo == null) {
             log.warn("OSS login: jobInfo not found for jobNumber={}, denying role resolution for user={}", jobNumber, fallbackUsername);
             return null;
+        }
+
+        // 0. 从人员白名单映射解析（最高优先级，与后台同步保持一致，防止 06234 等特权账号被拒绝）
+        if (orgProperties != null && orgProperties.getPersonToRoleMappings() != null) {
+            for (OrganizationIntegrationProperties.PersonToRoleMapping mapping : orgProperties.getPersonToRoleMappings()) {
+                if (mapping.matches(jobNumber) || mapping.matches(fallbackUsername)) {
+                    String roleCode = mapping.getRoleCode() == null ? null : mapping.getRoleCode().trim();
+                    log.info("OSS login: role resolved from person-to-role-mappings: {}/{} -> {}", jobNumber, fallbackUsername, roleCode);
+                    return roleCode;
+                }
+            }
         }
 
         // 1. 从 sysRoleList 的 roleName 解析（不使用 roleCode，因为 OSS roleCode 是 OSS 系统角色码）
