@@ -1,12 +1,8 @@
 package com.xiyu.bid.resources.service;
 
-import com.xiyu.bid.platform.entity.PlatformAccount;
-import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.resources.dto.CaBorrowApplicationDTO;
 import com.xiyu.bid.resources.entity.CaBorrowApplicationEntity;
 import com.xiyu.bid.resources.entity.CaCertificateEntity;
-import com.xiyu.bid.resources.entity.CaCertificatePlatformEntity;
-import com.xiyu.bid.resources.repository.CaCertificatePlatformRepository;
 import com.xiyu.bid.resources.repository.CaCertificateRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -14,7 +10,6 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -25,19 +20,19 @@ import java.util.stream.Collectors;
  * CO-466: CA 借用申请列表 caName enricher.
  *
  * <p>从 CaBorrowService 拆出，避免 Service 超出 300 行预算。
- * 负责批量查询 CaCertificate + PlatformAccount，按前端 caLabel 契约
- * 拼装 caName 字符串填入 DTO。
+ * 负责批量查询 CaCertificate，按前端 caLabel 契约拼装 caName 字符串填入 DTO。
  *
  * <p>拼装规则（与前端 CABorrowDialog.vue caLabel 一致）：
- * <pre>caName = [holderName, platforms.join(', '), sealTypeLabel].filter(nonEmpty).join(' / ')</pre>
+ * <pre>caName = [holderName, relatedPlatforms, sealTypeLabel].filter(nonEmpty).join(' / ')</pre>
+ *
+ * <p>CO-566: 关联平台由关联表 ID 反查改为直接读取 CaCertificateEntity.relatedPlatforms 文本，
+ * 不再依赖 PlatformAccount / CaCertificatePlatformRepository。
  */
 @Component
 @RequiredArgsConstructor
 public class CaBorrowApplicationNameEnricher {
 
     private final CaCertificateRepository certificateRepository;
-    private final CaCertificatePlatformRepository platformLinkRepository;
-    private final PlatformAccountRepository platformAccountRepository;
 
     /**
      * 批量为借用申请 enrich caName 字段。
@@ -46,8 +41,6 @@ public class CaBorrowApplicationNameEnricher {
      * <ol>
      *   <li>collect 所有 caCertificateId</li>
      *   <li>一次性 findAllById 查 CaCertificateEntity</li>
-     *   <li>一次性 findByCaCertificateIdIn 查 platformLinks</li>
-     *   <li>一次性 findAllById 查 PlatformAccount</li>
      * </ol>
      */
     public List<CaBorrowApplicationDTO> enrich(List<CaBorrowApplicationEntity> apps) {
@@ -66,48 +59,25 @@ public class CaBorrowApplicationNameEnricher {
                 .collect(Collectors.toMap(CaCertificateEntity::getId, c -> c,
                         (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
 
-        List<CaCertificatePlatformEntity> links = platformLinkRepository.findByCaCertificateIdIn(caIds);
-        Set<Long> platformIds = links.stream()
-                .map(CaCertificatePlatformEntity::getPlatformAccountId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-        Map<Long, String> accountNameById = platformIds.isEmpty()
-                ? Collections.emptyMap()
-                : platformAccountRepository.findAllById(platformIds).stream()
-                    .collect(Collectors.toMap(PlatformAccount::getId, PlatformAccount::getAccountName,
-                            (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
-        Map<Long, List<Long>> platformIdsByCaId = links.stream().collect(Collectors.groupingBy(
-                CaCertificatePlatformEntity::getCaCertificateId,
-                LinkedHashMap::new,
-                Collectors.mapping(CaCertificatePlatformEntity::getPlatformAccountId, Collectors.toList())
-        ));
-
         return apps.stream().map(app -> {
             Long caId = app.getCaCertificateId();
             CaCertificateEntity cert = certMap.get(caId);
-            String caName = cert == null ? null
-                    : buildCaName(cert, platformIdsByCaId.getOrDefault(caId, List.of()), accountNameById);
+            String caName = cert == null ? null : buildCaName(cert);
             return CaBorrowApplicationDTO.from(app, caName);
         }).collect(Collectors.toList());
     }
 
     /**
-     * 拼装 CA 显示名：[持有人, 关联平台(逗号分隔), 印章中文].filter(nonEmpty).join(' / ')
+     * 拼装 CA 显示名：[持有人, 关联平台文本, 印章中文].filter(nonEmpty).join(' / ')
      */
-    private static String buildCaName(CaCertificateEntity cert, List<Long> platformIds,
-                                       Map<Long, String> accountNameById) {
+    private static String buildCaName(CaCertificateEntity cert) {
         List<String> parts = new ArrayList<>(3);
         if (cert.getHolderName() != null && !cert.getHolderName().isEmpty()) {
             parts.add(cert.getHolderName());
         }
-        if (platformIds != null && !platformIds.isEmpty()) {
-            String platforms = platformIds.stream()
-                    .map(accountNameById::get)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.joining(", "));
-            if (!platforms.isEmpty()) {
-                parts.add(platforms);
-            }
+        // CO-566: 关联平台直接用 relatedPlatforms 文本
+        if (cert.getRelatedPlatforms() != null && !cert.getRelatedPlatforms().isEmpty()) {
+            parts.add(cert.getRelatedPlatforms());
         }
         String sealLabel = sealTypeLabel(cert.getSealType());
         if (sealLabel != null && !sealLabel.isEmpty()) {

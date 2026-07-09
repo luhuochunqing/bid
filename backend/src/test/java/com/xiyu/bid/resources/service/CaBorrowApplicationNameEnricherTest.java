@@ -1,14 +1,10 @@
 package com.xiyu.bid.resources.service;
 
-import com.xiyu.bid.platform.entity.PlatformAccount;
-import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.resources.dto.CaBorrowApplicationDTO;
 import com.xiyu.bid.resources.entity.CaBorrowApplicationEntity;
 import com.xiyu.bid.resources.entity.CaBorrowApplicationEntity.BorrowStatus;
 import com.xiyu.bid.resources.entity.CaCertificateEntity;
 import com.xiyu.bid.resources.entity.CaCertificateEntity.CaBorrowStatus;
-import com.xiyu.bid.resources.entity.CaCertificatePlatformEntity;
-import com.xiyu.bid.resources.repository.CaCertificatePlatformRepository;
 import com.xiyu.bid.resources.repository.CaCertificateRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,35 +27,29 @@ import static org.mockito.Mockito.when;
  *
  * <p>修复契约：enricher 拼装规则与前端 CABorrowDialog.vue caLabel 一致：
  * <pre>
- * caName = [holderName, platforms.join(', '), sealTypeLabel].filter(nonEmpty).join(' / ')
+ * caName = [holderName, relatedPlatforms, sealTypeLabel].filter(nonEmpty).join(' / ')
  * </pre>
  *
- * <p>测试策略：直接构造 Enricher 组件，mock 三个 repository，验证 caName 拼装。
- * Service 层的接线（注入 enricher 并调用）由 ArchitectureTest 保证。
+ * <p>CO-566: 关联平台由关联表 ID 反查改为直接读取 relatedPlatforms 文本，
+ * enricher 不再依赖 PlatformAccount / CaCertificatePlatformRepository。
+ *
+ * <p>测试策略：直接构造 Enricher 组件，mock certificateRepository，验证 caName 拼装。
  */
 @ExtendWith(MockitoExtension.class)
 class CaBorrowApplicationNameEnricherTest {
 
     @Mock private CaCertificateRepository certificateRepository;
-    @Mock private CaCertificatePlatformRepository platformLinkRepository;
-    @Mock private PlatformAccountRepository platformAccountRepository;
 
     // ── caName 必须拼装"持有人 / 关联平台 / 印章" ──
 
     @Test
     void enrich_caName_shouldIncludeHolderPlatformsSeal() {
         CaBorrowApplicationNameEnricher enricher = newEnricher();
-        // CA: holderName=张三, sealType=OFFICIAL_SEAL(公章), platformIds=[101, 102]
-        CaCertificateEntity cert = cert(1L, "张三", "OFFICIAL_SEAL");
+        // CO-566: 关联平台直接用 relatedPlatforms 文本
+        CaCertificateEntity cert = cert(1L, "张三", "OFFICIAL_SEAL", "政采云, 国铁采购");
         CaBorrowApplicationEntity app = app(501L, 1L);
 
         when(certificateRepository.findAllById(any())).thenReturn(List.of(cert));
-        when(platformLinkRepository.findByCaCertificateIdIn(any())).thenReturn(List.of(
-                link(1L, 101L), link(1L, 102L)
-        ));
-        when(platformAccountRepository.findAllById(any())).thenReturn(List.of(
-                platform(101L, "政采云"), platform(102L, "国铁采购")
-        ));
 
         List<CaBorrowApplicationDTO> result = enricher.enrich(List.of(app));
 
@@ -72,28 +62,25 @@ class CaBorrowApplicationNameEnricherTest {
     @Test
     void enrich_holderEmpty_shouldOnlyShowPlatformsAndSeal() {
         CaBorrowApplicationNameEnricher enricher = newEnricher();
-        CaCertificateEntity cert = cert(2L, "", "LEGAL_PERSON_SEAL");
+        CaCertificateEntity cert = cert(2L, "", "LEGAL_PERSON_SEAL", "政采云");
         CaBorrowApplicationEntity app = app(502L, 2L);
 
         when(certificateRepository.findAllById(any())).thenReturn(List.of(cert));
-        when(platformLinkRepository.findByCaCertificateIdIn(any())).thenReturn(List.of(link(2L, 201L)));
-        when(platformAccountRepository.findAllById(any())).thenReturn(List.of(platform(201L, "政采云")));
 
         List<CaBorrowApplicationDTO> result = enricher.enrich(List.of(app));
 
         assertThat(result.get(0).getCaName()).isEqualTo("政采云 / 法人章");
     }
 
-    // ── platform 为空时 caName 只显示"持有人 / 印章" ──
+    // ── relatedPlatforms 为空时 caName 只显示"持有人 / 印章" ──
 
     @Test
-    void enrich_noPlatformLinks_shouldOnlyShowHolderAndSeal() {
+    void enrich_emptyRelatedPlatforms_shouldOnlyShowHolderAndSeal() {
         CaBorrowApplicationNameEnricher enricher = newEnricher();
-        CaCertificateEntity cert = cert(3L, "李四", "LEGAL_SIGN");
+        CaCertificateEntity cert = cert(3L, "李四", "LEGAL_SIGN", null);
         CaBorrowApplicationEntity app = app(503L, 3L);
 
         when(certificateRepository.findAllById(any())).thenReturn(List.of(cert));
-        when(platformLinkRepository.findByCaCertificateIdIn(any())).thenReturn(List.of());
 
         List<CaBorrowApplicationDTO> result = enricher.enrich(List.of(app));
 
@@ -106,13 +93,12 @@ class CaBorrowApplicationNameEnricherTest {
     void enrich_sealTypeLabel_shouldMapAllFourTypes() {
         CaBorrowApplicationNameEnricher enricher = newEnricher();
 
-        CaCertificateEntity official = cert(11L, "甲", "OFFICIAL_SEAL");
-        CaCertificateEntity legal = cert(12L, "乙", "LEGAL_PERSON_SEAL");
-        CaCertificateEntity legalSign = cert(13L, "丙", "LEGAL_SIGN");
-        CaCertificateEntity contactSign = cert(14L, "丁", "CONTACT_SIGN");
+        CaCertificateEntity official = cert(11L, "甲", "OFFICIAL_SEAL", null);
+        CaCertificateEntity legal = cert(12L, "乙", "LEGAL_PERSON_SEAL", null);
+        CaCertificateEntity legalSign = cert(13L, "丙", "LEGAL_SIGN", null);
+        CaCertificateEntity contactSign = cert(14L, "丁", "CONTACT_SIGN", null);
 
         when(certificateRepository.findAllById(any())).thenReturn(List.of(official, legal, legalSign, contactSign));
-        when(platformLinkRepository.findByCaCertificateIdIn(any())).thenReturn(List.of());
 
         List<CaBorrowApplicationEntity> apps = List.of(
                 app(1L, 11L), app(2L, 12L), app(3L, 13L), app(4L, 14L)
@@ -130,12 +116,11 @@ class CaBorrowApplicationNameEnricherTest {
     @Test
     void enrich_multipleApplicationsSameCa_shouldEnrichAll() {
         CaBorrowApplicationNameEnricher enricher = newEnricher();
-        CaCertificateEntity cert = cert(1L, "张三", "OFFICIAL_SEAL");
+        CaCertificateEntity cert = cert(1L, "张三", "OFFICIAL_SEAL", null);
         CaBorrowApplicationEntity app1 = app(901L, 1L);
         CaBorrowApplicationEntity app2 = app(902L, 1L);
 
         when(certificateRepository.findAllById(any())).thenReturn(List.of(cert));
-        when(platformLinkRepository.findByCaCertificateIdIn(any())).thenReturn(List.of());
 
         List<CaBorrowApplicationDTO> result = enricher.enrich(List.of(app1, app2));
 
@@ -149,13 +134,12 @@ class CaBorrowApplicationNameEnricherTest {
     @Test
     void enrich_multipleApplicationsDifferentCas_shouldEnrichRespectively() {
         CaBorrowApplicationNameEnricher enricher = newEnricher();
-        CaCertificateEntity cert1 = cert(1L, "张三", "OFFICIAL_SEAL");
-        CaCertificateEntity cert2 = cert(2L, "李四", "LEGAL_SIGN");
+        CaCertificateEntity cert1 = cert(1L, "张三", "OFFICIAL_SEAL", null);
+        CaCertificateEntity cert2 = cert(2L, "李四", "LEGAL_SIGN", null);
         CaBorrowApplicationEntity app1 = app(911L, 1L);
         CaBorrowApplicationEntity app2 = app(912L, 2L);
 
         when(certificateRepository.findAllById(any())).thenReturn(List.of(cert1, cert2));
-        when(platformLinkRepository.findByCaCertificateIdIn(any())).thenReturn(List.of());
 
         List<CaBorrowApplicationDTO> result = enricher.enrich(List.of(app1, app2));
 
@@ -171,7 +155,6 @@ class CaBorrowApplicationNameEnricherTest {
         CaBorrowApplicationEntity app = app(921L, 999L);
 
         when(certificateRepository.findAllById(any())).thenReturn(List.of());  // CA 已删
-        when(platformLinkRepository.findByCaCertificateIdIn(any())).thenReturn(List.of());
 
         List<CaBorrowApplicationDTO> result = enricher.enrich(List.of(app));
 
@@ -206,7 +189,7 @@ class CaBorrowApplicationNameEnricherTest {
     @Test
     void enrich_allFieldsEmpty_shouldReturnNullCaName() {
         CaBorrowApplicationNameEnricher enricher = newEnricher();
-        // holderName=null, sealType=null, 无 platformLinks
+        // holderName=null, sealType=null, relatedPlatforms=null
         CaCertificateEntity cert = CaCertificateEntity.builder()
                 .id(1L).caType("ENTITY_CA")
                 .expiryDate(LocalDate.now().plusDays(30))
@@ -215,7 +198,6 @@ class CaBorrowApplicationNameEnricherTest {
         CaBorrowApplicationEntity app = app(931L, 1L);
 
         when(certificateRepository.findAllById(any())).thenReturn(List.of(cert));
-        when(platformLinkRepository.findByCaCertificateIdIn(any())).thenReturn(List.of());
 
         List<CaBorrowApplicationDTO> result = enricher.enrich(List.of(app));
 
@@ -228,11 +210,10 @@ class CaBorrowApplicationNameEnricherTest {
     @Test
     void enrich_unknownSealType_shouldFallbackToRawValue() {
         CaBorrowApplicationNameEnricher enricher = newEnricher();
-        CaCertificateEntity cert = cert(1L, "张三", "CUSTOM_SEAL_TYPE");
+        CaCertificateEntity cert = cert(1L, "张三", "CUSTOM_SEAL_TYPE", null);
         CaBorrowApplicationEntity app = app(1L, 1L);
 
         when(certificateRepository.findAllById(any())).thenReturn(List.of(cert));
-        when(platformLinkRepository.findByCaCertificateIdIn(any())).thenReturn(List.of());
 
         List<CaBorrowApplicationDTO> result = enricher.enrich(List.of(app));
 
@@ -243,17 +224,14 @@ class CaBorrowApplicationNameEnricherTest {
     // ── helpers ──
 
     private CaBorrowApplicationNameEnricher newEnricher() {
-        return new CaBorrowApplicationNameEnricher(
-                certificateRepository,
-                platformLinkRepository,
-                platformAccountRepository
-        );
+        return new CaBorrowApplicationNameEnricher(certificateRepository);
     }
 
-    private CaCertificateEntity cert(Long id, String holderName, String sealType) {
+    private CaCertificateEntity cert(Long id, String holderName, String sealType, String relatedPlatforms) {
         return CaCertificateEntity.builder()
                 .id(id).caType("ENTITY_CA").sealType(sealType)
-                .holderName(holderName).expiryDate(LocalDate.now().plusDays(30))
+                .holderName(holderName).relatedPlatforms(relatedPlatforms)
+                .expiryDate(LocalDate.now().plusDays(30))
                 .custodianId(99L).custodianName("保管员")
                 .borrowStatus(CaBorrowStatus.IN_STOCK.name()).status("ACTIVE").build();
     }
@@ -262,15 +240,5 @@ class CaBorrowApplicationNameEnricherTest {
         return CaBorrowApplicationEntity.builder()
                 .id(id).caCertificateId(caCertificateId).applicantId(10L).applicantName("王五")
                 .status(BorrowStatus.PENDING_APPROVAL.name()).build();
-    }
-
-    private CaCertificatePlatformEntity link(Long caId, Long platformId) {
-        return CaCertificatePlatformEntity.builder()
-                .caCertificateId(caId).platformAccountId(platformId).build();
-    }
-
-    private PlatformAccount platform(Long id, String accountName) {
-        return PlatformAccount.builder()
-                .id(id).username("u" + id).password("x").accountName(accountName).build();
     }
 }

@@ -1,12 +1,9 @@
 package com.xiyu.bid.resources.service;
 
-import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.resources.domain.CaCertificateImportPolicy.ParsedCaRow;
 import com.xiyu.bid.resources.entity.CaCertificateEntity;
-import com.xiyu.bid.resources.entity.CaCertificatePlatformEntity;
-import com.xiyu.bid.resources.repository.CaCertificatePlatformRepository;
 import com.xiyu.bid.resources.repository.CaCertificateRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -19,14 +16,12 @@ import java.time.LocalDate;
 public class CaCertificateImportRowPersister {
 
     private final CaCertificateRepository caRepo;
-    private final CaCertificatePlatformRepository platformLinkRepo;
-    private final PlatformAccountRepository platformAccountRepo;
     private final UserRepository userRepository;
     private final PasswordEncryptionUtil passwordEncryptionUtil;
 
     /**
      * INSERT-only: 每行创建一个新的 CaCertificate。
-     * 关联平台通过名称查找。
+     * CO-566: 关联平台为纯文本，直接写入 related_platforms 列，不再反查平台账号。
      */
     @Transactional
     public void persist(ParsedCaRow row) {
@@ -37,7 +32,7 @@ public class CaCertificateImportRowPersister {
             custodianId = users.get(0).getId();
         }
 
-        // Encrypt password if provided
+        // Encrypt password if provided (CO-566: 密码非必填)
         String encryptedPassword = null;
         if (row.caPassword() != null && !row.caPassword().isBlank()) {
             encryptedPassword = passwordEncryptionUtil.encrypt(row.caPassword());
@@ -65,24 +60,12 @@ public class CaCertificateImportRowPersister {
                 .electronicAccount(row.electronicAccount())
                 .caPassword(encryptedPassword)
                 .caPlatformUrl(row.caPlatformUrl())
+                .relatedPlatforms(row.relatedPlatforms())
                 .borrowStatus("IN_STOCK")
                 .status(status)
                 .remarks(row.remarks())
                 .build();
 
-        final CaCertificateEntity saved = caRepo.save(entity);
-
-        // Link to platform accounts
-        if (!row.platformNames().isEmpty()) {
-            for (String platformName : row.platformNames()) {
-                platformAccountRepo.findByAccountName(platformName).ifPresent(pa -> {
-                    CaCertificatePlatformEntity link = CaCertificatePlatformEntity.builder()
-                            .caCertificateId(saved.getId())
-                            .platformAccountId(pa.getId())
-                            .build();
-                    platformLinkRepo.save(link);
-                });
-            }
-        }
+        caRepo.save(entity);
     }
 }

@@ -2,8 +2,6 @@ package com.xiyu.bid.resources.service;
 
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
-import com.xiyu.bid.platform.entity.PlatformAccount;
-import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.audit.event.EntityUpdatedEvent;
@@ -11,8 +9,6 @@ import com.xiyu.bid.resources.core.CaFieldDiffCalculator;
 import com.xiyu.bid.resources.dto.CaCertificateDTO;
 import com.xiyu.bid.resources.dto.CaCertificateRequest;
 import com.xiyu.bid.resources.entity.CaCertificateEntity;
-import com.xiyu.bid.resources.entity.CaCertificatePlatformEntity;
-import com.xiyu.bid.resources.repository.CaCertificatePlatformRepository;
 import com.xiyu.bid.resources.repository.CaCertificateRepository;
 import com.xiyu.bid.security.EffectiveRoleResolver;
 import lombok.RequiredArgsConstructor;
@@ -29,24 +25,17 @@ import jakarta.persistence.criteria.Predicate;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class CaCertificateService {
 
     private final CaCertificateRepository certificateRepository;
-    private final CaCertificatePlatformRepository platformLinkRepository;
     private final PasswordEncryptionUtil passwordEncryptionUtil;
     private final EffectiveRoleResolver effectiveRoleResolver;
     private final UserRepository userRepository;
     private final CustodianEmployeeNumberResolver custodianEmployeeNumberResolver;
-    /** CO-479: 用于查询平台账户名称 */
-    private final PlatformAccountRepository platformAccountRepository;
     /** CO-515: 事件发布器，用于发布 CA 编辑事件（audit 模块监听写日志，避免 Service 直接注入 IAuditLogService） */
     private final ApplicationEventPublisher eventPublisher;
 
@@ -54,10 +43,7 @@ public class CaCertificateService {
 
     @Transactional
     public CaCertificateDTO create(CaCertificateRequest request) {
-        if ("ENTITY_CA".equals(request.getCaType())
-                && (request.getCaPassword() == null || request.getCaPassword().isBlank())) {
-            throw new CaBusinessException("实体CA必须填写密码");
-        }
+        // CO-566: CA 密码改为非必填（实体CA/电子CA均不强制密码）
         String rawPassword = request.getCaPassword();
         String storedPassword = (rawPassword == null || rawPassword.isBlank())
                 ? null : passwordEncryptionUtil.encrypt(rawPassword);
@@ -72,6 +58,7 @@ public class CaCertificateService {
                 .holderName(request.getHolderName())
                 .expiryDate(request.getExpiryDate())
                 .caPlatformUrl(request.getCaPlatformUrl())
+                .relatedPlatforms(request.getRelatedPlatforms())
                 .custodianId(request.getCustodianId())
                 .custodianName(request.getCustodianName())
                 .borrowStatus("IN_STOCK")
@@ -79,9 +66,7 @@ public class CaCertificateService {
                 .remarks(request.getRemarks())
                 .build();
         CaCertificateEntity saved = certificateRepository.save(entity);
-        List<Long> platformIds = persistPlatformLinks(saved.getId(), request.getPlatformIds());
-        return CaCertificateDTO.from(saved, platformIds, false, null, custodianEmployeeNumber,
-                loadPlatformNamesById(platformIds));
+        return CaCertificateDTO.from(saved, false, null, custodianEmployeeNumber);
     }
 
     @Transactional
@@ -93,6 +78,7 @@ public class CaCertificateService {
         entity.setCaType(request.getCaType());
         entity.setSealType(SealTypeNormalizer.normalize(request.getSealType()));
         entity.setElectronicAccount(request.getElectronicAccount());
+        // CO-566: CA 密码非必填；留空表示不修改密码（保留原值）
         if (request.getCaPassword() != null && !request.getCaPassword().isEmpty()) {
             String storedPassword = passwordEncryptionUtil.encrypt(request.getCaPassword());
             entity.setCaPassword(storedPassword);
@@ -101,12 +87,12 @@ public class CaCertificateService {
         entity.setHolderName(request.getHolderName());
         entity.setExpiryDate(request.getExpiryDate());
         entity.setCaPlatformUrl(request.getCaPlatformUrl());
+        entity.setRelatedPlatforms(request.getRelatedPlatforms());
         entity.setCustodianId(request.getCustodianId());
         entity.setCustodianName(request.getCustodianName());
         entity.setStatus(computeStatus(request.getExpiryDate()));
         entity.setRemarks(request.getRemarks());
         CaCertificateEntity saved = certificateRepository.save(entity);
-        List<Long> platformIds = persistPlatformLinks(saved.getId(), request.getPlatformIds());
         // CO-451: 从 User 表获取保管员工号
         String custodianEmployeeNumber = custodianEmployeeNumberResolver.fetchEmployeeNumber(request.getCustodianId());
 
@@ -119,8 +105,7 @@ public class CaCertificateService {
                     saved.getId(), "CaCertificate", "UPDATE", summary));
         }
 
-        return CaCertificateDTO.from(saved, platformIds, false, null, custodianEmployeeNumber,
-                loadPlatformNamesById(platformIds));
+        return CaCertificateDTO.from(saved, false, null, custodianEmployeeNumber);
     }
 
     /**
@@ -136,6 +121,7 @@ public class CaCertificateService {
                 .holderName(source.getHolderName())
                 .expiryDate(source.getExpiryDate())
                 .caPlatformUrl(source.getCaPlatformUrl())
+                .relatedPlatforms(source.getRelatedPlatforms())
                 .custodianId(source.getCustodianId())
                 .custodianName(source.getCustodianName())
                 .remarks(source.getRemarks())
@@ -203,9 +189,7 @@ public class CaCertificateService {
         refreshStatusInMemory(entity);
         // CO-451: 从 User 表获取保管员工号
         String custodianEmployeeNumber = custodianEmployeeNumberResolver.fetchEmployeeNumber(entity.getCustodianId());
-        List<Long> platformIds = loadPlatformIds(id);
-        return CaCertificateDTO.from(entity, platformIds, false, null, custodianEmployeeNumber,
-                loadPlatformNamesById(platformIds));
+        return CaCertificateDTO.from(entity, false, null, custodianEmployeeNumber);
     }
 
     /**
@@ -227,61 +211,7 @@ public class CaCertificateService {
         String decrypted = passwordEncryptionUtil.decrypt(entity.getCaPassword());
         // CO-451: 从 User 表获取保管员工号
         String custodianEmployeeNumber = custodianEmployeeNumberResolver.fetchEmployeeNumber(entity.getCustodianId());
-        List<Long> platformIds = loadPlatformIds(id);
-        return CaCertificateDTO.from(entity, platformIds, true, decrypted, custodianEmployeeNumber,
-                loadPlatformNamesById(platformIds));
-    }
-
-    /**
-     * 持久化 CA 证书与平台账号的关联关系.
-     *
-     * <p>采用"全删全插"模式：先删除旧关联，再批量插入新关联.
-     *
-     * <p>CO-427: 删除后必须调用 {@code flush()} 强制立即执行 DELETE SQL，
-     * 否则 Hibernate 可能因 SQL 执行顺序优化导致 INSERT 在 DELETE 之前执行，
-     * 触发 {@code uk_cap_ca_platform} 唯一键约束异常.
-     */
-    private List<Long> persistPlatformLinks(Long caId, List<Long> platformIds) {
-        if (platformIds == null) return loadPlatformIds(caId);
-        platformLinkRepository.deleteByCaCertificateId(caId);
-        platformLinkRepository.flush();
-        List<Long> normalized = platformIds.stream()
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-        for (Long pid : normalized) {
-            platformLinkRepository.save(CaCertificatePlatformEntity.builder()
-                    .caCertificateId(caId)
-                    .platformAccountId(pid)
-                    .build());
-        }
-        return normalized;
-    }
-
-    private List<Long> loadPlatformIds(Long caId) {
-        return platformLinkRepository.findByCaCertificateId(caId).stream()
-                .map(CaCertificatePlatformEntity::getPlatformAccountId)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * CO-479: 批量查询平台账户名称，构建 ID→名称映射.
-     * <p>用于前端展示平台名称而非数字 ID。
-     *
-     * @param platformIds 平台账户 ID 列表
-     * @return ID→accountName 映射；空列表返回空 Map
-     */
-    private Map<Long, String> loadPlatformNamesById(List<Long> platformIds) {
-        if (platformIds == null || platformIds.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        List<PlatformAccount> accounts = platformAccountRepository.findAllById(platformIds);
-        return accounts.stream()
-                .collect(Collectors.toMap(
-                        PlatformAccount::getId,
-                        a -> a.getAccountName() != null ? a.getAccountName() : "",
-                        (a, b) -> a
-                ));
+        return CaCertificateDTO.from(entity, true, decrypted, custodianEmployeeNumber);
     }
 
     public Page<CaCertificateDTO> list(String status, String borrowStatus, String keyword,
@@ -318,14 +248,10 @@ public class CaCertificateService {
         Map<Long, String> employeeNumberMap = custodianEmployeeNumberResolver.batchFetchEmployeeNumbers(
                 entityPage.stream().map(CaCertificateEntity::getCustodianId).toList()
         );
-        return entityPage.map(entity -> {
-            List<Long> platformIds = loadPlatformIds(entity.getId());
-            return CaCertificateDTO.from(
-                    entity, platformIds, false, null,
-                    employeeNumberMap.get(entity.getCustodianId()),
-                    loadPlatformNamesById(platformIds)
-            );
-        });
+        return entityPage.map(entity -> CaCertificateDTO.from(
+                entity, false, null,
+                employeeNumberMap.get(entity.getCustodianId())
+        ));
     }
 
     public Map<String, Long> getOverview() {

@@ -3,8 +3,6 @@ package com.xiyu.bid.resources.service;
 import com.xiyu.bid.common.util.ExcelAutoSizeHelper;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
 import com.xiyu.bid.resources.entity.CaCertificateEntity;
-import com.xiyu.bid.resources.entity.CaCertificatePlatformEntity;
-import com.xiyu.bid.resources.repository.CaCertificatePlatformRepository;
 import com.xiyu.bid.resources.repository.CaCertificateRepository;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +24,6 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Arrays;
@@ -61,7 +58,7 @@ public class CaCertificateExportService {
     private static final String[] HEADERS = {
             "CA类型", "印章类型", "持有人", "保管员姓名",
             "有效期至", "颁发机构", "电子账号", "CA密码",
-            "平台URL", "关联平台ID", "借用状态", "证书状态", "备注"
+            "平台URL", "关联平台", "借用状态", "证书状态", "备注"
     };
 
     /** 导出记录上限（防止极端数据量拖垮内存，参考 CaseExportExcelAppService 的 10000 上限）。 */
@@ -78,7 +75,6 @@ public class CaCertificateExportService {
             "ACTIVE", "有效", "EXPIRING", "即将到期", "EXPIRED", "已过期", "INACTIVE", "已下架");
 
     private final CaCertificateRepository certificateRepository;
-    private final CaCertificatePlatformRepository platformLinkRepository;
     private final PasswordEncryptionUtil passwordEncryptionUtil;
 
     /**
@@ -178,9 +174,6 @@ public class CaCertificateExportService {
     }
 
     private void writeDataRows(Sheet sheet, List<CaCertificateEntity> data) {
-        // 批量预加载关联平台 ID，避免 N+1 查询
-        Map<Long, List<Long>> platformMap = loadPlatformMap(data);
-
         for (int i = 0; i < data.size(); i++) {
             CaCertificateEntity e = data.get(i);
             Row row = sheet.createRow(i + 1);
@@ -194,26 +187,12 @@ public class CaCertificateExportService {
             row.createCell(col++).setCellValue(nullSafe(e.getElectronicAccount()));
             row.createCell(col++).setCellValue(decryptPassword(e.getCaPassword()));
             row.createCell(col++).setCellValue(nullSafe(e.getCaPlatformUrl()));
-            row.createCell(col++).setCellValue(joinPlatformIds(platformMap.get(e.getId())));
+            // CO-566: 关联平台直接输出文本（不再 JOIN 关联表）
+            row.createCell(col++).setCellValue(nullSafe(e.getRelatedPlatforms()));
             row.createCell(col++).setCellValue(label(BORROW_STATUS_LABEL, e.getBorrowStatus()));
             row.createCell(col++).setCellValue(label(STATUS_LABEL, e.getStatus()));
             row.createCell(col).setCellValue(nullSafe(e.getRemarks()));
         }
-    }
-
-    /**
-     * 批量加载所有 CA 的关联平台 ID，避免每行 N+1 查询。
-     * 返回 Map<caId, List<platformAccountId>>。
-     */
-    private Map<Long, List<Long>> loadPlatformMap(List<CaCertificateEntity> data) {
-        if (data.isEmpty()) return Collections.emptyMap();
-        List<Long> caIds = data.stream().map(CaCertificateEntity::getId).toList();
-        return platformLinkRepository.findByCaCertificateIdIn(caIds).stream()
-                .collect(Collectors.groupingBy(
-                        CaCertificatePlatformEntity::getCaCertificateId,
-                        Collectors.mapping(
-                                CaCertificatePlatformEntity::getPlatformAccountId,
-                                Collectors.toList())));
     }
 
     private String decryptPassword(String stored) {
@@ -224,11 +203,6 @@ public class CaCertificateExportService {
             // 解密失败不中断整个导出，返回占位符以便定位问题数据
             return "******";
         }
-    }
-
-    private String joinPlatformIds(List<Long> ids) {
-        if (ids == null || ids.isEmpty()) return "";
-        return ids.stream().map(String::valueOf).collect(Collectors.joining(","));
     }
 
     private String label(Map<String, String> map, String key) {

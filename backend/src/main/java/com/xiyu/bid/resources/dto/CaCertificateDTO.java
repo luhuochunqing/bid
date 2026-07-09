@@ -5,17 +5,13 @@ import lombok.Builder;
 import lombok.Data;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 
 @Data
 @Builder
 public class CaCertificateDTO {
     private Long id;
-    private List<Long> platformIds;
-    /** CO-479: 平台 ID → 平台名称映射，用于前端展示平台名称而非数字 ID */
-    private Map<Long, String> platformNamesById;
+    /** CO-566: 关联平台改为文本（多个用逗号分隔），不再绑定平台账号ID。 */
+    private String relatedPlatforms;
     private String caType;
     private String sealType;
     private String electronicAccount;
@@ -35,18 +31,16 @@ public class CaCertificateDTO {
     private LocalDateTime updatedAt;
 
     /**
-     * Build a DTO from an entity. {@code platformIds} must be supplied
-     * by the caller (from the join table). {@code caPassword} is masked
-     * by default; pass {@code revealPassword=true} for admin reveal flows.
-     * CO-451: {@code custodianEmployeeNumber} is supplied by the caller
-     * (from User entity lookup).
+     * Build a DTO from an entity. {@code caPassword} is masked by default;
+     * pass {@code revealPassword=true} for admin reveal flows.
+     * CO-451: {@code custodianEmployeeNumber} is supplied by the caller (from User entity lookup).
      */
-    public static CaCertificateDTO from(CaCertificateEntity entity, List<Long> platformIds,
+    public static CaCertificateDTO from(CaCertificateEntity entity,
                                         boolean revealPassword, String decryptedPassword,
                                         String custodianEmployeeNumber) {
         return CaCertificateDTO.builder()
                 .id(entity.getId())
-                .platformIds(platformIds == null ? Collections.emptyList() : platformIds)
+                .relatedPlatforms(entity.getRelatedPlatforms())
                 .caType(entity.getCaType())
                 .sealType(entity.getSealType())
                 .electronicAccount(entity.getElectronicAccount())
@@ -67,25 +61,13 @@ public class CaCertificateDTO {
     }
 
     /** Legacy overload for backward compatibility (custodianEmployeeNumber = null) */
-    public static CaCertificateDTO from(CaCertificateEntity entity, List<Long> platformIds,
+    public static CaCertificateDTO from(CaCertificateEntity entity,
                                         boolean revealPassword, String decryptedPassword) {
-        return from(entity, platformIds, revealPassword, decryptedPassword, null);
+        return from(entity, revealPassword, decryptedPassword, null);
     }
 
-    public static CaCertificateDTO from(CaCertificateEntity entity, List<Long> platformIds) {
-        return from(entity, platformIds, false, null, null);
-    }
-
-    /**
-     * CO-479: 带 platformNamesById 的重载，用于前端展示平台名称而非数字 ID.
-     */
-    public static CaCertificateDTO from(CaCertificateEntity entity, List<Long> platformIds,
-                                        boolean revealPassword, String decryptedPassword,
-                                        String custodianEmployeeNumber,
-                                        Map<Long, String> platformNamesById) {
-        CaCertificateDTO dto = from(entity, platformIds, revealPassword, decryptedPassword, custodianEmployeeNumber);
-        dto.setPlatformNamesById(platformNamesById);
-        return dto;
+    public static CaCertificateDTO from(CaCertificateEntity entity) {
+        return from(entity, false, null, null);
     }
 
     private static String maskPassword(String stored) {

@@ -4,7 +4,7 @@ import CAReturnDialog from '../CAReturnDialog.vue'
 
 const mockCa = {
   id: 1,
-  platformIds: ['政采云'],
+  relatedPlatforms: '政采云',
   caType: 'ENTITY_CA',
   caTypeLabel: '实体CA',
   sealType: 'OFFICIAL_SEAL',
@@ -112,12 +112,12 @@ describe('CAReturnDialog', () => {
   })
 
   it('caName 缺失时 fallback 到拼装逻辑（统一 / 分隔，含 holder）', async () => {
-    // mockCa 有 platformIds: ['政采云'], sealTypeLabel: '公章'，但没有 holderName
+    // CO-566: mockCa 有 relatedPlatforms: '政采云', sealTypeLabel: '公章'，但没有 holderName
     const wrapper = mountDialog()
     await flushPromises()
 
-    // platformIds 是字符串数组，typeof 'string' !== 'object'，走 #${p} 分支
-    // 实际显示：'#政采云 / 公章'
-    expect(wrapper.vm.caLabel).toBe('#政采云 / 公章')
+    // relatedPlatforms 直接作为文本输出
+    // 实际显示：'政采云 / 公章'
+    expect(wrapper.vm.caLabel).toBe('政采云 / 公章')
   })
 })

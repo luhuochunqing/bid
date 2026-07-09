@@ -11,7 +11,7 @@ import { useUserStore } from '@/stores/user'
 const { mockCertificates, mockOverview } = vi.hoisted(() => ({
   mockCertificates: [
     {
-      id: 1, platformIds: ['政采云'], caType: 'ENTITY_CA', caTypeLabel: '实体CA',
+      id: 1, relatedPlatforms: '政采云', caType: 'ENTITY_CA', caTypeLabel: '实体CA',
       sealType: 'OFFICIAL_SEAL', sealTypeLabel: '公章',
       electronicAccount: '', caPasswordMasked: '******',
       expiryDate: '2027-06-01', remainingDays: 370,
@@ -23,7 +23,7 @@ const { mockCertificates, mockOverview } = vi.hoisted(() => ({
       remark: ''
     },
     {
-      id: 2, platformIds: ['深圳政采'], caType: 'ENTITY_CA', caTypeLabel: '实体CA',
+      id: 2, relatedPlatforms: '深圳政采', caType: 'ENTITY_CA', caTypeLabel: '实体CA',
       sealType: 'LEGAL_PERSON_SEAL', sealTypeLabel: '法人章',
       electronicAccount: '', caPasswordMasked: '******',
       expiryDate: '2026-06-15', remainingDays: 17,
@@ -35,7 +35,7 @@ const { mockCertificates, mockOverview } = vi.hoisted(() => ({
       remark: ''
     },
     {
-      id: 3, platformIds: ['北京政采'], caType: 'ELECTRONIC_CA', caTypeLabel: '电子CA',
+      id: 3, relatedPlatforms: '北京政采', caType: 'ELECTRONIC_CA', caTypeLabel: '电子CA',
       sealType: 'OFFICIAL_SEAL', sealTypeLabel: '公章',
       electronicAccount: 'bj_account', caPasswordMasked: '******',
       expiryDate: '2025-03-01', remainingDays: -455,
@@ -47,7 +47,7 @@ const { mockCertificates, mockOverview } = vi.hoisted(() => ({
       remark: ''
     },
     {
-      id: 4, platformIds: ['上海政采'], caType: 'ENTITY_CA', caTypeLabel: '实体CA',
+      id: 4, relatedPlatforms: '上海政采', caType: 'ENTITY_CA', caTypeLabel: '实体CA',
       sealType: 'LEGAL_SIGN', sealTypeLabel: '法人签字',
       electronicAccount: '', caPasswordMasked: '******',
       expiryDate: '2028-12-01', remainingDays: 920,
@@ -59,7 +59,7 @@ const { mockCertificates, mockOverview } = vi.hoisted(() => ({
       remark: ''
     },
     {
-      id: 5, platformIds: ['全国平台'], caType: 'ENTITY_CA', caTypeLabel: '实体CA',
+      id: 5, relatedPlatforms: '全国平台', caType: 'ENTITY_CA', caTypeLabel: '实体CA',
       sealType: 'OFFICIAL_SEAL,LEGAL_PERSON_SEAL', sealTypeLabel: '公章,法人章',
       electronicAccount: '', caPasswordMasked: '******',
       expiryDate: '2027-06-01', remainingDays: 370,
@@ -258,7 +258,7 @@ describe('CAManagement', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.vm.filteredData.length).toBe(1)
-    expect(wrapper.vm.filteredData[0].platformIds).toContain('深圳政采')
+    expect(wrapper.vm.filteredData[0].relatedPlatforms).toBe('深圳政采')
   })
 
   it('resets all filters', async () => {

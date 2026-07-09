@@ -28,7 +28,8 @@ public class CaCertificateImportPolicy {
     public static final int COL_ELECTRONIC_ACCOUNT = 6;
     public static final int COL_CA_PASSWORD = 7;
     public static final int COL_CA_PLATFORM_URL = 8;
-    public static final int COL_PLATFORM_NAMES = 9;
+    /** CO-566: 关联平台列改为文本（多个用逗号分隔），不再要求是已存在的平台账号名。 */
+    public static final int COL_RELATED_PLATFORMS = 9;
     public static final int COL_REMARKS = 10;
 
     public static final String[] CA_TYPE_OPTIONS = {"实体CA", "电子CA"};
@@ -76,7 +77,8 @@ public class CaCertificateImportPolicy {
         String electronicAccount = cellAt(cells, COL_ELECTRONIC_ACCOUNT).trim();
         String caPassword = cellAt(cells, COL_CA_PASSWORD).trim();
         String caPlatformUrl = cellAt(cells, COL_CA_PLATFORM_URL).trim();
-        String platformNamesRaw = cellAt(cells, COL_PLATFORM_NAMES).trim();
+        // CO-566: 关联平台为自由文本，保留原值（多个平台用逗号分隔），不做存在性校验。
+        String relatedPlatforms = cellAt(cells, COL_RELATED_PLATFORMS).trim();
         String remarks = cellAt(cells, COL_REMARKS).trim();
 
         // Required fields
@@ -137,18 +139,9 @@ public class CaCertificateImportPolicy {
             errors.add("电子CA必须填写电子账号");
         }
 
-        // Parse platform names
-        List<String> platformNames = new ArrayList<>();
-        if (!platformNamesRaw.isEmpty()) {
-            platformNames = Arrays.stream(platformNamesRaw.split("[,，;；]"))
-                    .map(String::trim)
-                    .filter(s -> !s.isEmpty())
-                    .toList();
-        }
-
         return new ParsedCaRow(rowIndex, caTypeCode, sealTypeCode, holderName, custodianName,
                 expiryDate, issuer, electronicAccount, caPassword, caPlatformUrl,
-                platformNames, remarks, errors);
+                relatedPlatforms, remarks, errors);
     }
 
     private static String cellAt(String[] cells, int index) {
@@ -161,7 +154,7 @@ public class CaCertificateImportPolicy {
             String caType, String sealType, String holderName, String custodianName,
             LocalDate expiryDate, String issuer, String electronicAccount,
             String caPassword, String caPlatformUrl,
-            List<String> platformNames, String remarks,
+            String relatedPlatforms, String remarks,
             List<String> errors
     ) {
         public boolean valid() { return errors == null || errors.isEmpty(); }

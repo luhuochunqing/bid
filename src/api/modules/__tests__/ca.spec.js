@@ -80,16 +80,17 @@ describe('normalizeCaCertificate — CO-435 修复颁发机构/持有人/备注�
     expect(normalizeCaCertificate(input).id).toBe(99)
   })
 
-  it('已有字段映射不受影响 — platformIds 为数组', () => {
-    const input = { id: 1, platformIds: [101, 102] }
+  // CO-566: 关联平台改为文本（relatedPlatforms），不再解析为 ID 数组
+  it('CO-566: relatedPlatforms 文本直接透传', () => {
+    const input = { id: 1, relatedPlatforms: '新疆政采网, 百度B2B' }
     const result = normalizeCaCertificate(input)
-    expect(result.platformIds).toEqual([101, 102])
+    expect(result.relatedPlatforms).toBe('新疆政采网, 百度B2B')
   })
 
-  it('已有字段映射不受影响 — platformIds 为 JSON 字符串', () => {
-    const input = { id: 1, platformIds: '[101, 102]' }
+  it('CO-566: relatedPlatforms 缺失时返回空字符串', () => {
+    const input = { id: 1 }
     const result = normalizeCaCertificate(input)
-    expect(result.platformIds).toEqual([101, 102])
+    expect(result.relatedPlatforms).toBe('')
   })
 
   it('已有字段映射不受影响 — custodianName 默认 dash', () => {

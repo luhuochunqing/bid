@@ -16,9 +16,6 @@ public class CaCertificateEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "platform_ids", length = 512)
-    private String platformIds;
-
     @Column(name = "ca_type", length = 20, nullable = false)
     private String caType;
 
@@ -42,6 +39,10 @@ public class CaCertificateEntity {
 
     @Column(name = "ca_platform_url", length = 500)
     private String caPlatformUrl;
+
+    /** CO-566: 关联平台改为文本（多个用逗号分隔），废弃原 ca_certificate_platforms 关联表。 */
+    @Column(name = "related_platforms", length = 500)
+    private String relatedPlatforms;
 
     @Column(name = "custodian_id", nullable = false)
     private Long custodianId;

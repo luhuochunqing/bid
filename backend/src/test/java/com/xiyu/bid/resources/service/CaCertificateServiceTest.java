@@ -1,17 +1,12 @@
 package com.xiyu.bid.resources.service;
 
 import com.xiyu.bid.entity.User;
-import com.xiyu.bid.platform.entity.PlatformAccount;
-import com.xiyu.bid.platform.repository.PlatformAccountRepository;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
 import com.xiyu.bid.resources.dto.CaCertificateDTO;
 import com.xiyu.bid.resources.dto.CaCertificateRequest;
 import com.xiyu.bid.resources.entity.CaCertificateEntity;
-import com.xiyu.bid.resources.entity.CaCertificatePlatformEntity;
-import com.xiyu.bid.resources.repository.CaCertificatePlatformRepository;
 import com.xiyu.bid.resources.repository.CaCertificateRepository;
 import com.xiyu.bid.repository.UserRepository;
-import com.xiyu.bid.resources.service.CaBusinessException;
 import com.xiyu.bid.security.EffectiveRoleResolver;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,8 +47,6 @@ class CaCertificateServiceTest {
     @Mock
     private CaCertificateRepository certificateRepository;
     @Mock
-    private CaCertificatePlatformRepository platformLinkRepository;
-    @Mock
     private PasswordEncryptionUtil passwordEncryptionUtil;
     @Mock
     private EffectiveRoleResolver effectiveRoleResolver;
@@ -61,8 +54,6 @@ class CaCertificateServiceTest {
     private UserRepository userRepository;
     @Mock
     private CustodianEmployeeNumberResolver custodianEmployeeNumberResolver;
-    @Mock
-    private PlatformAccountRepository platformAccountRepository;
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
@@ -122,18 +113,19 @@ class CaCertificateServiceTest {
         verify(certificateRepository, never()).save(any());
     }
 
-    // ── create/update 密码校验（CO-435 修复 + CO-454 电子CA非必填） ──
+    // ── create/update 密码校验（CO-566: CA 密码改为非必填） ──
 
     @Test
-    void create_entityCa_emptyPassword_throwsBusinessException() {
+    void create_entityCa_emptyPassword_shouldSucceed_co566() {
+        // CO-566: 实体CA密码不再必填，空密码应直接创建成功，不加密
         CaCertificateService service = newService();
         CaCertificateRequest req = buildRequest("ENTITY_CA", "");
+        CaCertificateEntity saved = caCertificate(1L, 20L);
+        when(certificateRepository.save(any())).thenReturn(saved);
 
-        assertThatThrownBy(() -> service.create(req))
-                .isInstanceOf(CaBusinessException.class)
-                .hasMessageContaining("实体CA必须填写密码");
+        assertThatCode(() -> service.create(req)).doesNotThrowAnyException();
 
-        verify(certificateRepository, never()).save(any());
+        verify(passwordEncryptionUtil, never()).encrypt(anyString());
     }
 
     @Test
@@ -246,65 +238,61 @@ class CaCertificateServiceTest {
                 .hasMessageContaining("印章类型必须包含有效选项");
     }
 
-    // ── CO-479: 列表/详情返回 platformNamesById（平台名称而非数字 ID） ──
+    // ── CO-566: relatedPlatforms（关联平台文本） ──
 
     @Test
-    void getById_withPlatformLinks_returnsPlatformNamesById() {
+    void create_withRelatedPlatforms_persistedAsText() {
+        CaCertificateService service = newService();
+        CaCertificateRequest req = buildRequest("ENTITY_CA", "secret");
+        req.setRelatedPlatforms("新疆政采网,百度B2B");
+        CaCertificateEntity saved = CaCertificateEntity.builder()
+                .id(1L)
+                .caType("ENTITY_CA")
+                .sealType("OFFICIAL_SEAL")
+                .relatedPlatforms("新疆政采网,百度B2B")
+                .expiryDate(LocalDate.now().plusDays(30))
+                .custodianId(20L)
+                .custodianName("保管员")
+                .borrowStatus("IN_STOCK")
+                .status("ACTIVE")
+                .build();
+        when(passwordEncryptionUtil.encrypt("secret")).thenReturn("encrypted");
+        when(certificateRepository.save(any())).thenReturn(saved);
+
+        CaCertificateDTO dto = service.create(req);
+
+        assertThat(dto.getRelatedPlatforms()).isEqualTo("新疆政采网,百度B2B");
+    }
+
+    @Test
+    void getById_returnsRelatedPlatformsText() {
         CaCertificateService service = newService();
         CaCertificateEntity ca = CaCertificateEntity.builder()
                 .id(1L)
                 .caType("ENTITY_CA")
+                .sealType("OFFICIAL_SEAL")
+                .relatedPlatforms("新疆政采网")
                 .expiryDate(LocalDate.now().plusDays(30))
                 .custodianId(20L)
                 .status("ACTIVE")
                 .borrowStatus("IN_STOCK")
                 .build();
         when(certificateRepository.findById(1L)).thenReturn(Optional.of(ca));
-        when(platformLinkRepository.findByCaCertificateId(1L)).thenReturn(List.of(
-                CaCertificatePlatformEntity.builder().caCertificateId(1L).platformAccountId(10L).build(),
-                CaCertificatePlatformEntity.builder().caCertificateId(1L).platformAccountId(20L).build()
-        ));
-        when(custodianEmployeeNumberResolver.fetchEmployeeNumber(20L)).thenReturn("EMP001");
-        when(platformAccountRepository.findAllById(List.of(10L, 20L))).thenReturn(List.of(
-                PlatformAccount.builder().id(10L).accountName("新疆政采网").build(),
-                PlatformAccount.builder().id(20L).accountName("百度B2B").build()
-        ));
-
-        CaCertificateDTO dto = service.getById(1L);
-
-        assertThat(dto.getPlatformIds()).containsExactly(10L, 20L);
-        assertThat(dto.getPlatformNamesById())
-                .containsEntry(10L, "新疆政采网")
-                .containsEntry(20L, "百度B2B");
-    }
-
-    @Test
-    void getById_emptyPlatformLinks_returnsEmptyPlatformNamesById() {
-        CaCertificateService service = newService();
-        CaCertificateEntity ca = CaCertificateEntity.builder()
-                .id(1L)
-                .caType("ENTITY_CA")
-                .expiryDate(LocalDate.now().plusDays(30))
-                .custodianId(20L)
-                .status("ACTIVE")
-                .borrowStatus("IN_STOCK")
-                .build();
-        when(certificateRepository.findById(1L)).thenReturn(Optional.of(ca));
-        when(platformLinkRepository.findByCaCertificateId(1L)).thenReturn(Collections.emptyList());
         when(custodianEmployeeNumberResolver.fetchEmployeeNumber(20L)).thenReturn("EMP001");
 
         CaCertificateDTO dto = service.getById(1L);
 
-        assertThat(dto.getPlatformIds()).isEmpty();
-        assertThat(dto.getPlatformNamesById()).isEmpty();
+        assertThat(dto.getRelatedPlatforms()).isEqualTo("新疆政采网");
     }
 
     @Test
-    void list_withPlatformLinks_returnsPlatformNamesById() {
+    void list_returnsRelatedPlatformsText() {
         CaCertificateService service = newService();
         CaCertificateEntity ca = CaCertificateEntity.builder()
                 .id(1L)
                 .caType("ENTITY_CA")
+                .sealType("OFFICIAL_SEAL")
+                .relatedPlatforms("新疆政采网")
                 .expiryDate(LocalDate.now().plusDays(30))
                 .custodianId(20L)
                 .status("ACTIVE")
@@ -313,47 +301,12 @@ class CaCertificateServiceTest {
         Page<CaCertificateEntity> page = new PageImpl<>(List.of(ca));
         when(certificateRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(PageRequest.class)))
                 .thenReturn(page);
-        when(platformLinkRepository.findByCaCertificateId(1L)).thenReturn(List.of(
-                CaCertificatePlatformEntity.builder().caCertificateId(1L).platformAccountId(10L).build()
-        ));
         when(custodianEmployeeNumberResolver.batchFetchEmployeeNumbers(any())).thenReturn(Collections.emptyMap());
-        when(platformAccountRepository.findAllById(List.of(10L))).thenReturn(List.of(
-                PlatformAccount.builder().id(10L).accountName("新疆政采网").build()
-        ));
 
         Page<CaCertificateDTO> result = service.list(null, null, null, null, null, PageRequest.of(0, 10));
 
         assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getContent().get(0).getPlatformNamesById())
-                .containsEntry(10L, "新疆政采网");
-    }
-
-    @Test
-    void list_platformAccountNotFound_returnsEmptyName() {
-        CaCertificateService service = newService();
-        CaCertificateEntity ca = CaCertificateEntity.builder()
-                .id(1L)
-                .caType("ENTITY_CA")
-                .expiryDate(LocalDate.now().plusDays(30))
-                .custodianId(20L)
-                .status("ACTIVE")
-                .borrowStatus("IN_STOCK")
-                .build();
-        Page<CaCertificateEntity> page = new PageImpl<>(List.of(ca));
-        when(certificateRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(PageRequest.class)))
-                .thenReturn(page);
-        when(platformLinkRepository.findByCaCertificateId(1L)).thenReturn(List.of(
-                CaCertificatePlatformEntity.builder().caCertificateId(1L).platformAccountId(999L).build()
-        ));
-        when(custodianEmployeeNumberResolver.batchFetchEmployeeNumbers(any())).thenReturn(Collections.emptyMap());
-        // platformAccountRepository.findAllById returns empty (platform account deleted)
-        when(platformAccountRepository.findAllById(List.of(999L))).thenReturn(Collections.emptyList());
-
-        Page<CaCertificateDTO> result = service.list(null, null, null, null, null, PageRequest.of(0, 10));
-
-        assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getContent().get(0).getPlatformIds()).containsExactly(999L);
-        assertThat(result.getContent().get(0).getPlatformNamesById()).isEmpty();
+        assertThat(result.getContent().get(0).getRelatedPlatforms()).isEqualTo("新疆政采网");
     }
 
     // ── CO-477: 读时刷新 status（避免持久化字段陈旧） ──
@@ -371,7 +324,6 @@ class CaCertificateServiceTest {
                 .borrowStatus("IN_STOCK")
                 .build();
         when(certificateRepository.findById(1L)).thenReturn(Optional.of(ca));
-        when(platformLinkRepository.findByCaCertificateId(1L)).thenReturn(Collections.emptyList());
         when(custodianEmployeeNumberResolver.fetchEmployeeNumber(20L)).thenReturn("EMP001");
 
         CaCertificateDTO dto = service.getById(1L);
@@ -392,7 +344,6 @@ class CaCertificateServiceTest {
                 .borrowStatus("IN_STOCK")
                 .build();
         when(certificateRepository.findById(1L)).thenReturn(Optional.of(ca));
-        when(platformLinkRepository.findByCaCertificateId(1L)).thenReturn(Collections.emptyList());
         when(custodianEmployeeNumberResolver.fetchEmployeeNumber(20L)).thenReturn("EMP001");
 
         CaCertificateDTO dto = service.getById(1L);
@@ -414,7 +365,6 @@ class CaCertificateServiceTest {
         Page<CaCertificateEntity> page = new PageImpl<>(List.of(staleCa));
         when(certificateRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(PageRequest.class)))
                 .thenReturn(page);
-        when(platformLinkRepository.findByCaCertificateId(1L)).thenReturn(Collections.emptyList());
         when(custodianEmployeeNumberResolver.batchFetchEmployeeNumbers(any())).thenReturn(Collections.emptyMap());
 
         Page<CaCertificateDTO> result = service.list(null, null, null, null, null, PageRequest.of(0, 10));
@@ -433,19 +383,17 @@ class CaCertificateServiceTest {
         req.setCustodianName("保管员");
         req.setIssuer("测试颁发机构");
         req.setHolderName("测试持有人");
-        req.setPlatformIds(Collections.emptyList());
+        req.setRelatedPlatforms("");
         return req;
     }
 
     private CaCertificateService newService() {
         return new CaCertificateService(
                 certificateRepository,
-                platformLinkRepository,
                 passwordEncryptionUtil,
                 effectiveRoleResolver,
                 userRepository,
                 custodianEmployeeNumberResolver,
-                platformAccountRepository,
                 eventPublisher
         );
     }
