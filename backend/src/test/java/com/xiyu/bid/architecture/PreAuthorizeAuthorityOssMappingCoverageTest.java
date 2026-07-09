@@ -1,5 +1,7 @@
 package com.xiyu.bid.architecture;
 
+import com.xiyu.bid.entity.RoleProfileCatalog;
+import com.xiyu.bid.entity.RoleProfileCatalog.SeedDefinition;
 import com.xiyu.bid.integration.organization.application.OrganizationIntegrationProperties;
 import com.tngtech.archunit.core.domain.JavaAnnotation;
 import com.tngtech.archunit.core.domain.JavaClasses;
@@ -128,5 +130,58 @@ class PreAuthorizeAuthorityOssMappingCoverageTest {
     }
 
     private record AuthorityUsage(String className, String methodName, String authorityKey) {
+    }
+
+    /**
+     * CO-560 系统盘点防复发守卫：从 RoleProfileCatalog 反向扫描，确保所有非 admin 专属的
+     * menuPermissions 权限键都已在 OSS 菜单映射表中有来源。
+     *
+     * <p>背景：catalog 中声明的 menuPermissions 是角色权限的真相来源。spec 032 修复 OSS 权限扩散后，
+     * OSS 用户的 authorities 严格等于 OSS 菜单码映射出的内部权限键。如果 catalog 中声明的权限键
+     * 在 OSS 映射表中没有来源，会导致：</p>
+     * <ol>
+     *   <li>前端 hasPermission(xxx) 对 OSS 用户返回 false → UI 元素缺失</li>
+     *   <li>未来加 @PreAuthorize(hasAuthority('xxx')) 会重演 tender.view / retrospective.submit
+     *       的 403 事故（tender.view 已被回退为 hasAnyRole）</li>
+     * </ol>
+     *
+     * <p>排除项：</p>
+     * <ul>
+     *   <li>{@code "all"}：admin 专属，OSS 用户不应获得（RoleProfileAdminPermissionFilter 过滤）</li>
+     * </ul>
+     */
+    @Test
+    @DisplayName("CO-560: RoleProfileCatalog 所有非 admin 专属权限键必须在 OSS 菜单映射表中有来源")
+    void allCatalogPermissionKeys_mustHaveOssMappingSource() {
+        // 1. 收集 catalog 所有角色的 menuPermissions
+        Set<String> catalogKeys = new HashSet<>();
+        for (SeedDefinition def : RoleProfileCatalog.seedDefinitions()) {
+            catalogKeys.addAll(def.menuPermissions());
+        }
+
+        // 2. 收集 OSS 映射表中所有已映射的内部权限键
+        Set<String> mappedKeys = new HashSet<>();
+        organizationIntegrationProperties.getDirectory()
+                .getMenuCodeToPermissionKeyMappings()
+                .values()
+                .forEach(mappedKeys::addAll);
+
+        // 3. 排除项：admin 专属权限键，OSS 用户不应通过 OSS 映射获得
+        Set<String> excludedKeys = Set.of("all");
+
+        // 4. 找出 catalog 中声明但 OSS 映射中没有来源的权限键
+        Set<String> missingKeys = catalogKeys.stream()
+                .filter(key -> !excludedKeys.contains(key))
+                .filter(key -> !mappedKeys.contains(key))
+                .collect(Collectors.toCollection(HashSet::new));
+
+        assertThat(missingKeys)
+                .as("以下 RoleProfileCatalog.menuPermissions 中的权限键在 OSS 菜单映射表中没有来源，" +
+                        "OSS 用户会因 authorities 缺失此键而导致前端 hasPermission 检查失败或未来 " +
+                        "@PreAuthorize(hasAuthority('xxx')) 403。" +
+                        "请在 application.yml " +
+                        "xiyu.integrations.organization.directory.menu-code-to-permission-key-mappings " +
+                        "中为对应 OSS 菜单码追加此权限键映射（参考 CO-560 修复模式）: %s", missingKeys)
+                .isEmpty();
     }
 }
