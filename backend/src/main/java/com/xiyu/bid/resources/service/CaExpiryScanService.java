@@ -166,6 +166,8 @@ public class CaExpiryScanService {
         req.setLevel(AlertHistory.AlertLevel.valueOf(level));
         req.setRelatedId(relatedId);
         req.setMessage(message);
+        // CO-546: CA 到期预警使用 DAILY_DEDUP 策略，当日去重，次日新建以触发每日通知
+        req.setDedupPolicy(com.xiyu.bid.alerts.domain.DedupPolicy.DAILY_DEDUP);
         return req;
     }
 
@@ -184,6 +186,9 @@ public class CaExpiryScanService {
         payload.put("expiryDate", cert.getExpiryDate());
         payload.put(AlertMessagePolicy.PAYLOAD_KEY_ALERT_SUB_TYPE, subType);
         payload.put("targetUrl", "/resources/ca-certificates");
+        // CO-546: 携带 custodianId 供 AlertNotificationOrchestrator 将 CA 保管员加入接收人，
+        // 与 returnBorrow 路径的 CaNotificationDispatcher 接收人范围对齐。
+        payload.put(AlertMessagePolicy.PAYLOAD_KEY_CUSTODIAN_ID, cert.getCustodianId());
         return payload;
     }
 

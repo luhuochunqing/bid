@@ -220,4 +220,78 @@ class AlertHistoryServiceTest {
         assertThat(result.getId()).isEqualTo(107L);
         verify(alertHistoryRepository).save(any(AlertHistory.class));
     }
+
+    // ===== CO-546: 每日重复通知场景（DAILY_DEDUP 策略） =====
+
+    @Test
+    @DisplayName("CO-546: DAILY_DEDUP 策略下昨日未处理告警今日扫描应新建，实现每日通知")
+    void shouldCreateNewAlertWhenPreviousUnresolvedFromYesterday() {
+        // 场景：CA 证书到期扫描使用 DAILY_DEDUP 策略，昨日创建的告警未处理（resolved=false），
+        // 今日扫描时应新建告警（而非复用），以触发每日通知。
+        AlertHistoryCreateRequest request = new AlertHistoryCreateRequest();
+        request.setRuleId(20L);
+        request.setLevel(AlertHistory.AlertLevel.MEDIUM);
+        request.setMessage("【CA即将到期】张三（CA）还有 5 天到期");
+        request.setRelatedId("CaCertificate:1");
+        request.setDedupPolicy(com.xiyu.bid.alerts.domain.DedupPolicy.DAILY_DEDUP);
+
+        AlertHistory yesterdayUnresolved = AlertHistory.builder()
+                .id(200L)
+                .ruleId(20L)
+                .level(AlertHistory.AlertLevel.MEDIUM)
+                .message("【CA即将到期】张三（CA）还有 6 天到期")
+                .relatedId("CaCertificate:1")
+                .resolved(false)
+                .createdAt(LocalDateTime.now().minusDays(1)) // 昨日创建
+                .build();
+
+        AlertHistory newAlert = AlertHistory.builder()
+                .id(201L)
+                .ruleId(20L)
+                .level(AlertHistory.AlertLevel.MEDIUM)
+                .message("【CA即将到期】张三（CA）还有 5 天到期")
+                .relatedId("CaCertificate:1")
+                .resolved(false)
+                .build();
+
+        when(alertHistoryRepository.findFirstByRuleIdAndRelatedIdOrderByCreatedAtDesc(
+                20L, "CaCertificate:1")).thenReturn(Optional.of(yesterdayUnresolved));
+        when(alertHistoryRepository.save(any(AlertHistory.class))).thenReturn(newAlert);
+
+        AlertHistory result = alertHistoryService.createAlertHistory(request);
+
+        assertThat(result.getId()).isEqualTo(201L);
+        verify(alertHistoryRepository).save(any(AlertHistory.class));
+    }
+
+    @Test
+    @DisplayName("CO-546: DAILY_DEDUP 策略下今日未处理告警今日扫描应复用，实现当日去重")
+    void shouldReuseUnresolvedAlertCreatedToday() {
+        // 场景：CA 证书到期扫描使用 DAILY_DEDUP 策略，今日已创建的告警未处理（resolved=false），
+        // 今日再次扫描时应复用（当日去重），避免当日重复通知。
+        AlertHistoryCreateRequest request = new AlertHistoryCreateRequest();
+        request.setRuleId(20L);
+        request.setLevel(AlertHistory.AlertLevel.MEDIUM);
+        request.setMessage("【CA即将到期】张三（CA）还有 5 天到期");
+        request.setRelatedId("CaCertificate:1");
+        request.setDedupPolicy(com.xiyu.bid.alerts.domain.DedupPolicy.DAILY_DEDUP);
+
+        AlertHistory todayUnresolved = AlertHistory.builder()
+                .id(200L)
+                .ruleId(20L)
+                .level(AlertHistory.AlertLevel.MEDIUM)
+                .message("【CA即将到期】张三（CA）还有 5 天到期")
+                .relatedId("CaCertificate:1")
+                .resolved(false)
+                .createdAt(LocalDateTime.now().minusHours(1)) // 今日创建
+                .build();
+
+        when(alertHistoryRepository.findFirstByRuleIdAndRelatedIdOrderByCreatedAtDesc(
+                20L, "CaCertificate:1")).thenReturn(Optional.of(todayUnresolved));
+
+        AlertHistory result = alertHistoryService.createAlertHistory(request);
+
+        assertThat(result).isSameAs(todayUnresolved);
+        verify(alertHistoryRepository, never()).save(any(AlertHistory.class));
+    }
 }

@@ -24,6 +24,9 @@ public final class AlertMessagePolicy {
     /** payload 中存放告警子类型的 key（用于 CA_EXPIRY 区分 EXPIRED/EXPIRING 等）。 */
     public static final String PAYLOAD_KEY_ALERT_SUB_TYPE = "alertSubType";
 
+    /** CO-546: payload 中存放 CA 保管员 ID 的 key，供编排器将其加入接收人列表。 */
+    public static final String PAYLOAD_KEY_CUSTODIAN_ID = "custodianId";
+
     private AlertMessagePolicy() {
         // 纯核心工具类，禁止实例化
     }

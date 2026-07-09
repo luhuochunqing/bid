@@ -196,6 +196,10 @@ public class CaBorrowService {
                 .statusAfter(BorrowStatus.RETURNED.name())
                 .build());
 
+        // CO-546: 保留 returnBorrow 时的到期通知触发，保证即时性。
+        // 定时扫描（每天 09:00）通过 DAILY_DEDUP 策略实现每日去重，
+        // returnBorrow 是低频事件，同日重复概率极低，
+        // 且管理员登记归还时立即收到到期提醒比避免重复更重要。
         if (cert != null) {
             long daysLeft = ChronoUnit.DAYS.between(LocalDate.now(), cert.getExpiryDate());
             if (daysLeft < 0) {
