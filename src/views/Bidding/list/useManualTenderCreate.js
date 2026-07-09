@@ -5,14 +5,14 @@
 
 import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { useTenderObsUpload, isObsEnabled } from './composables/useTenderObsUpload.js'
+import { useTenderObsUpload } from './composables/useTenderObsUpload.js'
+import { MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_TEXT } from '@/composables/useObsUploadFallback.js'
 import { createManualTenderForm } from './constants.js'
 import { buildManualTenderPayload, normalizeManualTenderParseResult } from './helpers.js'
 
 const PASTED_TEXT_MAX_LENGTH = 500000
 
 const SUPPORTED_PARSE_EXTENSIONS = new Set(['.doc', '.docx', '.pdf'])
-const MAX_FILE_SIZE = (isObsEnabled ? 500 : 50) * 1024 * 1024 // OBS 启用 500MB，否则 50MB
 
 function resolveUploadFile(file) {
   if (file instanceof File || file instanceof Blob) return file
@@ -28,8 +28,8 @@ function isSupportedParseFile(file) {
 function validateFileSize(file) {
   const uploadFile = resolveUploadFile(file)
   if (!uploadFile) return { valid: false, message: '无法读取文件' }
-  if (uploadFile.size > MAX_FILE_SIZE) {
-    return { valid: false, message: `文件 "${uploadFile.name}" 超过 ${isObsEnabled ? '500MB' : '50MB'} 限制` }
+  if (uploadFile.size > MAX_FILE_SIZE_BYTES) {
+    return { valid: false, message: `文件 "${uploadFile.name}" 超过 ${MAX_FILE_SIZE_TEXT} 限制` }
   }
   return { valid: true }
 }
@@ -76,14 +76,13 @@ function hasGlobalHttpErrorMessage(error) {
   return Boolean(error?.isAxiosError || error?.response || error?.code === 'ECONNABORTED')
 }
 
-async function parseAndBackfill({ form, source, warningMessage, skipMetadata = false }) {
+async function parseAndBackfill({ form, source, warningMessage }) {
   const response = await source.parse()
   if (!response?.success) {
     throw new Error(response?.msg || warningMessage)
   }
   applyParsedFields(form, normalizeManualTenderParseResult(response.data))
-  // 旧流程（/parse 一站式）回填 attachments 元数据；OBS 直传时跳过，保留 obs-direct: URL
-  if (!skipMetadata) applySourceDocumentMetadata(form, source.file, response.data)
+  applySourceDocumentMetadata(form, source.file, response.data)
 }
 
 export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreateTender }) {
@@ -123,7 +122,7 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
       // 移除超大的文件
       const filteredList = fileList.filter((f) => {
         const fFile = resolveUploadFile(f)
-        return fFile && fFile.size <= MAX_FILE_SIZE
+        return fFile && fFile.size <= MAX_FILE_SIZE_BYTES
       })
       manualForm.value.attachments = filteredList
       return
@@ -153,18 +152,16 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
       const storeResponse = await tendersApi.storeTenderDocument(uploadFile, { entityId: 'manual-tender' })
       if (storeResponse?.success && storeResponse.data) {
         storedDoc = storeResponse.data
-        if (!obsUsed) {
-          // 直接按索引回写 fileType 和 fileUrl，避免匹配失败
-          if (fileIndex >= 0 && manualForm.value.attachments[fileIndex]) {
-            const att = manualForm.value.attachments[fileIndex]
-            if (uploadFile.type) att.fileType = uploadFile.type
-            if (storedDoc.fileUrl) {
-              att.url = storedDoc.fileUrl
-              att.fileUrl = storedDoc.fileUrl
-            }
+        // 直接按索引回写 fileType 和 fileUrl，避免匹配失败
+        if (fileIndex >= 0 && manualForm.value.attachments[fileIndex]) {
+          const att = manualForm.value.attachments[fileIndex]
+          if (uploadFile.type) att.fileType = uploadFile.type
+          if (storedDoc.fileUrl) {
+            att.url = storedDoc.fileUrl
+            att.fileUrl = storedDoc.fileUrl
           }
-          applySourceDocumentMetadata(manualForm.value, uploadFile, storedDoc)
         }
+        applySourceDocumentMetadata(manualForm.value, uploadFile, storedDoc)
         ElMessage.success('标讯文件已上传保存')
       } else {
         console.warn('文件存储返回异常:', storeResponse?.msg)
@@ -174,7 +171,6 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
     }
 
     // Step 2: AI 解析（独立增强，失败不影响文件保存；优先 parseExisting 避免重复上传）
-    parsingManualDocument.value = true
     try {
       const parseSource = storedDoc?.storagePath
         ? {
@@ -194,7 +190,6 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
         form: manualForm.value,
         source: parseSource,
         warningMessage: '文档自动识别失败',
-        skipMetadata: obsUsed,
       })
       ElMessage.success('DeepSeek/AI 已识别标讯文件内容，可继续编辑后保存')
     } catch (error) {

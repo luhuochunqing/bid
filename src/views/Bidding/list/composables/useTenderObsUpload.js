@@ -3,7 +3,7 @@
 // Pos: src/views/Bidding/list/composables/ - 标讯模块 OBS 直传共享 composable
 import { ElMessage } from 'element-plus'
 import { useObsUpload } from '@/composables/useObsUpload.js'
-import { isObsEnabled, tryObsDirectUpload } from '@/composables/useObsUploadFallback.js'
+import { tryObsDirectUpload } from '@/composables/useObsUploadFallback.js'
 
 /**
  * 标讯模块 OBS 直传共享 composable。
@@ -37,5 +37,3 @@ export function useTenderObsUpload(businessType, successMessage = '文件已上�
 
   return { obsUpload, tryUpload }
 }
-
-export { isObsEnabled }

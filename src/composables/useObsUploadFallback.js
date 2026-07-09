@@ -6,6 +6,10 @@
 const OBS_DIRECT_PREFIX = 'obs-direct:'
 export const isObsEnabled = import.meta.env.VITE_OBS_ENABLED === 'true'
 
+// 集中导出文件大小限制（数值 + 文案），避免分散在多处硬编码导致不一致
+export const MAX_FILE_SIZE_BYTES = (isObsEnabled ? 500 : 50) * 1024 * 1024
+export const MAX_FILE_SIZE_TEXT = isObsEnabled ? '500MB' : '50MB'
+
 /**
  * 尝试 OBS 直传；失败时返回 null 让调用方走 multipart。
  *
