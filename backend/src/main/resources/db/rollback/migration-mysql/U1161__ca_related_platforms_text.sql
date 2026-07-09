@@ -1,5 +1,5 @@
--- Input: V1160__ca_related_platforms_text.sql
--- U1160: 回滚 V1160（CO-566 关联平台改文本）
+-- Input: V1161__ca_related_platforms_text.sql
+-- U1161: 回滚 V1161（CO-566 关联平台改文本）
 -- 反向操作：
 --   1. 恢复 ca_certificates.platform_ids 列（VARCHAR(512)）
 --   2. 从 ca_certificate_platforms 关联表回填 platform_ids（逗号分隔 ID 串）
