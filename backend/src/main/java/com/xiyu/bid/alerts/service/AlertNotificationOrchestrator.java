@@ -100,6 +100,10 @@ public class AlertNotificationOrchestrator {
                 addProjectSpecificRecipients(alertHistory, recipientUserIds);
             }
 
+            // 3.5 CO-546: CA_EXPIRY 类型：将 extraPayload 中的 custodianId 加入接收人，
+            // 保证 CA 保管员与 returnBorrow 路径一致地收到到期预警。
+            addCustodianRecipientIfPresent(extraPayload, recipientUserIds);
+
             // 4. 接收人列表为空 → 跳过
             if (recipientUserIds.isEmpty()) {
                 log.warn("跳过告警通知：无接收人，alertHistoryId={}, ruleType={}",
@@ -214,6 +218,39 @@ public class AlertNotificationOrchestrator {
                 }
             }
         }
+    }
+
+    /**
+     * CO-546: 若 extraPayload 携带 custodianId，将其加入接收人列表（去重）。
+     *
+     * <p>CA 到期预警的定时扫描路径此前仅广播给投标管理员/投标组长，缺少 CA 保管员。
+     * CaExpiryScanService 在 payload 中携带 custodianId，本方法将其合并进接收人列表，
+     * 与 returnBorrow 路径的 CaNotificationDispatcher 接收人范围对齐。</p>
+     *
+     * <p>类型容错：payload 是 {@code Map<String, Object>}，custodianId 可能以 Number 形式传入，
+     * 统一转 Long 比较去重。</p>
+     */
+    private void addCustodianRecipientIfPresent(Map<String, Object> extraPayload, List<Long> recipientUserIds) {
+        if (extraPayload == null) return;
+        Object raw = extraPayload.get("custodianId");
+        if (raw == null) return;
+        Long custodianId = toLongOrNull(raw);
+        if (custodianId == null) return;
+        if (!recipientUserIds.contains(custodianId)) {
+            recipientUserIds.add(custodianId);
+        }
+    }
+
+    private Long toLongOrNull(Object raw) {
+        if (raw instanceof Number n) return n.longValue();
+        if (raw instanceof String s) {
+            try {
+                return Long.parseLong(s);
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        return null;
     }
 
     /**

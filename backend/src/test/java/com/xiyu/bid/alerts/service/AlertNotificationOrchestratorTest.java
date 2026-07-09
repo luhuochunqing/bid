@@ -9,6 +9,7 @@ import com.xiyu.bid.notification.core.DispatchResult;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.notification.service.NotificationRecipientResolver;
+import com.xiyu.bid.repository.ProjectRepository;
 import io.sentry.Sentry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mockStatic;
@@ -60,6 +62,10 @@ class AlertNotificationOrchestratorTest {
     private NotificationRecipientResolver notificationRecipientResolver;
     @Mock
     private SystemActorResolver systemActorResolver;
+    @Mock
+    private ProjectRepository projectRepository;
+    @Mock
+    private AlertHistoryService alertHistoryService;
 
     @InjectMocks
     private AlertNotificationOrchestrator orchestrator;
@@ -201,5 +207,35 @@ class AlertNotificationOrchestratorTest {
 
         assertDoesNotThrow(() -> orchestrator.dispatchNotification(history, rule, null));
         verify(notificationApplicationService).createNotification(any(), eq(1L));
+    }
+
+    /**
+     * CO-546: extraPayload 含 custodianId 时，CA 保管员应被加入通知接收人列表。
+     *
+     * <p>定时扫描路径此前仅通知角色广播接收人（投标管理员/投标组长），缺少 CA 保管员。
+     * 通过 extraPayload 携带 custodianId，dispatchNotification 应将其与角色接收人合并，
+     * 保证 CA 保管员与 returnBorrow 路径一致地收到到期预警。</p>
+     */
+    @Test
+    @DisplayName("CO-546: extraPayload 含 custodianId → 保管员加入接收人列表")
+    void shouldAddCustodianToRecipientsWhenCustodianIdInPayload() {
+        AlertHistory history = buildHistory();
+        AlertRule rule = buildRule();
+        when(notificationRecipientResolver.getUserIdsByRoleCodes(any()))
+                .thenReturn(List.of(100L, 200L));
+        when(systemActorResolver.resolveCached()).thenReturn(1L);
+        when(notificationApplicationService.createNotification(any(), any()))
+                .thenReturn(DispatchResult.validWithId(99L));
+
+        orchestrator.dispatchNotification(history, rule, Map.of("custodianId", 99L));
+
+        ArgumentCaptor<CreateNotificationRequest> captor =
+                ArgumentCaptor.forClass(CreateNotificationRequest.class);
+        verify(notificationApplicationService).createNotification(captor.capture(), eq(1L));
+        List<Long> recipients = captor.getValue().recipientUserIds();
+        assertTrue(recipients.contains(99L),
+                "CA 保管员(99L) 必须在接收人列表中: " + recipients);
+        assertTrue(recipients.contains(100L),
+                "角色广播接收人(100L) 必须保留: " + recipients);
     }
 }

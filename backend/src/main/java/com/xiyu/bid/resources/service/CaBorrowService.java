@@ -23,9 +23,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -196,14 +194,11 @@ public class CaBorrowService {
                 .statusAfter(BorrowStatus.RETURNED.name())
                 .build());
 
-        if (cert != null) {
-            long daysLeft = ChronoUnit.DAYS.between(LocalDate.now(), cert.getExpiryDate());
-            if (daysLeft < 0) {
-                caNotificationDispatcher.onExpired(cert);
-            } else if (daysLeft <= 30) {
-                caNotificationDispatcher.onExpiring(cert, daysLeft);
-            }
-        }
+        // CO-546: 移除 returnBorrow 时的到期通知触发。
+        // 到期预警统一由 CaExpiryScanService 定时扫描（每天 09:00）负责发送，
+        // 避免与定时扫描在同一天重复发送通知。
+        // 此前逻辑：cert 即将到期时调用 caNotificationDispatcher.onExpiring/onExpired，
+        // 导致即将到期 CA 仅在归还时才通知保管员，与定时扫描路径不一致。
 
         log.info("CA借用申请 {} 由用户 {} 登记归还", applicationId, user.getId());
         return CaBorrowApplicationDTO.from(app);

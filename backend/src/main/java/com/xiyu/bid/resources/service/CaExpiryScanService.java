@@ -184,6 +184,9 @@ public class CaExpiryScanService {
         payload.put("expiryDate", cert.getExpiryDate());
         payload.put(AlertMessagePolicy.PAYLOAD_KEY_ALERT_SUB_TYPE, subType);
         payload.put("targetUrl", "/resources/ca-certificates");
+        // CO-546: 携带 custodianId 供 AlertNotificationOrchestrator 将 CA 保管员加入接收人，
+        // 与 returnBorrow 路径的 CaNotificationDispatcher 接收人范围对齐。
+        payload.put("custodianId", cert.getCustodianId());
         return payload;
     }
 

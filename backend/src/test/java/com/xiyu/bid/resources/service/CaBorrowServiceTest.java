@@ -5,6 +5,7 @@ import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.resources.dto.CaBorrowApplicationDTO;
 import com.xiyu.bid.resources.dto.CaBorrowRequest;
 import com.xiyu.bid.resources.entity.CaBorrowApplicationEntity;
+import com.xiyu.bid.resources.entity.CaBorrowApplicationEntity.BorrowStatus;
 import com.xiyu.bid.resources.entity.CaBorrowEventEntity;
 import com.xiyu.bid.resources.entity.CaCertificateEntity;
 import com.xiyu.bid.resources.entity.CaCertificateEntity.CaBorrowStatus;
@@ -13,6 +14,7 @@ import com.xiyu.bid.resources.repository.CaBorrowApplicationRepository;
 import com.xiyu.bid.resources.repository.CaBorrowEventRepository;
 import com.xiyu.bid.resources.repository.CaCertificateRepository;
 import com.xiyu.bid.security.EffectiveRoleResolver;
+import com.xiyu.bid.resources.dto.CaReturnRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -25,6 +27,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -131,6 +135,53 @@ class CaBorrowServiceTest {
         assertThat(dto.getApplicantEmployeeNumber()).isEqualTo("EMP001");
     }
 
+    // ── CO-546: returnBorrow 不应再触发到期通知（已由定时扫描统一负责） ──
+
+    /**
+     * CO-546: 登记归还时不应再触发 CaNotificationDispatcher.onExpiring/onExpired。
+     *
+     * <p>修复前：returnCertificate 在登记归还时调用 onExpiring/onExpired，导致即将到期 CA
+     * 仅在归还时才通知保管员，定时扫描路径不发送通知。
+     * 修复后：定时扫描统一负责到期预警，returnBorrow 不再触发，
+     * 避免与定时扫描在同一天重复发送。</p>
+     */
+    @Test
+    void returnCertificate_shouldNotTriggerExpiryNotification() {
+        CaBorrowService service = newService();
+        User user = user(50L, "admin", "管理员", "EMP999");
+        // 即将到期（5天后）+ 已借出状态
+        CaCertificateEntity cert = CaCertificateEntity.builder()
+                .id(1L)
+                .caType("ENTITY_CA")
+                .sealType("OFFICIAL_SEAL")
+                .expiryDate(LocalDate.now().plusDays(5))
+                .custodianId(99L)
+                .custodianName("保管员99")
+                .borrowStatus(CaBorrowStatus.IN_STOCK.name())
+                .status("ACTIVE")
+                .build();
+        CaBorrowApplicationEntity app = CaBorrowApplicationEntity.builder()
+                .id(100L)
+                .caCertificateId(1L)
+                .applicantId(50L)
+                .applicantName("管理员")
+                .status(BorrowStatus.APPROVED.name())
+                .approverId(99L)
+                .approverName("保管员99")
+                .borrowDurationType("SHORT_TERM")
+                .build();
+        when(userRepository.findByUsername("admin")).thenReturn(Optional.of(user));
+        when(borrowRepository.findById(100L)).thenReturn(Optional.of(app));
+        when(certificateRepository.findById(1L)).thenReturn(Optional.of(cert));
+        when(effectiveRoleResolver.resolveRoleCode(user)).thenReturn("/bidAdmin");
+
+        service.returnCertificate(100L, userDetails("admin"), returnRequest());
+
+        // 关键断言：不应触发到期通知（定时扫描统一负责）
+        verify(caNotificationDispatcher, never()).onExpiring(any(), anyLong());
+        verify(caNotificationDispatcher, never()).onExpired(any());
+    }
+
     // ── helpers ──
 
     private CaBorrowService newService() {
@@ -182,5 +233,12 @@ class CaBorrowServiceTest {
         UserDetails ud = org.mockito.Mockito.mock(UserDetails.class);
         when(ud.getUsername()).thenReturn(username);
         return ud;
+    }
+
+    private CaReturnRequest returnRequest() {
+        CaReturnRequest req = new CaReturnRequest();
+        req.setActualReturnDate(LocalDate.now());
+        req.setReturnNotes("正常归还");
+        return req;
     }
 }

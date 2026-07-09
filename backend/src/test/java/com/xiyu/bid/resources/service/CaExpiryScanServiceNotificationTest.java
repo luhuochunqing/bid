@@ -12,12 +12,14 @@ import com.xiyu.bid.resources.repository.CaBorrowApplicationRepository;
 import com.xiyu.bid.resources.repository.CaCertificateRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -152,6 +154,40 @@ class CaExpiryScanServiceNotificationTest {
         assertThat(created).isEqualTo(0);
         verify(alertNotificationOrchestrator, never())
                 .createAndNotifyIfNew(any(), any(), any());
+    }
+
+    /**
+     * CO-546: 证书即将到期，payload 中必须包含 custodianId，供通知编排器将 CA 保管员加入接收人。
+     *
+     * <p>定时扫描路径此前仅通知投标管理员/投标组长（角色广播），缺少 CA 保管员。
+     * 业务需求要求通知发送给 CA 保管员（与 returnBorrow 路径的 CaNotificationDispatcher 一致）。
+     * 通过在 payload 中携带 custodianId，AlertNotificationOrchestrator 可将其加入接收人列表。</p>
+     */
+    @Test
+    void scanCertificateExpiry_payloadContainsCustodianId() {
+        CaExpiryScanService service = newService();
+        CaCertificateEntity cert = CaCertificateEntity.builder()
+                .id(1L)
+                .holderName("张三")
+                .caType("CA")
+                .expiryDate(LocalDate.now().plusDays(5))
+                .status("ACTIVE")
+                .custodianId(99L)
+                .custodianName("保管员99")
+                .build();
+        AlertRule rule = caExpiryRule();
+        when(certificateRepository.findByStatusNot("INACTIVE")).thenReturn(List.of(cert));
+        when(alertRuleProvisioningService.ensureRule(
+                eq(AlertRule.AlertType.CA_EXPIRY), anyString(), anyInt())).thenReturn(rule);
+        stubCreateAsNew();
+
+        service.scanCertificateExpiry();
+
+        ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(alertNotificationOrchestrator)
+                .createAndNotifyIfNew(any(AlertHistoryCreateRequest.class), eq(rule), payloadCaptor.capture());
+        assertThat(payloadCaptor.getValue()).containsKey("custodianId");
+        assertThat(payloadCaptor.getValue().get("custodianId")).isEqualTo(99L);
     }
 
     private CaExpiryScanService newService() {

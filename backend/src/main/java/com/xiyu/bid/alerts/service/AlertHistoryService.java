@@ -95,7 +95,12 @@ public class AlertHistoryService {
      *
      * <p>复用条件：
      * <ul>
-     *   <li>告警未处理（resolved=false）→ 复用，避免重复创建未处理告警</li>
+     *   <li>告警未处理（resolved=false）：
+     *     <ul>
+     *       <li>createdAt 在今天 → 复用（当日去重，避免当日重复通知）</li>
+     *       <li>createdAt 在今天之前 → 不复用，允许新建（CO-546: 每日扫描应触发通知）</li>
+     *     </ul>
+     *   </li>
      *   <li>告警已处理（resolved=true）但处理时间在冷却期内（默认 24h）→ 复用，避免短期内重复告警</li>
      * </ul>
      *
@@ -104,8 +109,17 @@ public class AlertHistoryService {
      */
     private boolean shouldReuseAlert(AlertHistory alert) {
         if (alert.getResolved() == null || !alert.getResolved()) {
-            // 未处理告警 → 复用
-            return true;
+            // 未处理告警：当日去重（CO-546）
+            // - createdAt 在今天 → 复用，避免当日重复通知
+            // - createdAt 在今天之前 → 不复用，允许新建，以触发每日通知
+            java.time.LocalDateTime createdAt = alert.getCreatedAt();
+            if (createdAt == null) {
+                // 数据异常：无创建时间 → 默认复用，避免重复创建
+                return true;
+            }
+            java.time.LocalDate alertDate = createdAt.toLocalDate();
+            java.time.LocalDate today = java.time.LocalDate.now();
+            return alertDate.equals(today);
         }
         // 已处理告警 → 检查是否在冷却期内
         if (alert.getResolvedAt() == null) {
