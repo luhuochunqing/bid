@@ -131,7 +131,16 @@ export function canCurrentUserUploadTaskDeliverables(task, userStore = {}) {
 }
 
 export async function uploadTaskDeliverablesWithFallback(task, deliverableFiles, deps, fallbackMessage, message) {
-  if (!deliverableFiles?.length) return true
+  if (!deliverableFiles?.length) {
+    // XIYU-1E 关联排查：deliverableFiles 为空时静默跳过会导致用户误以为上传成功。
+    // 增加可观测日志，便于排查"用户选了文件但 ElUpload 状态异常导致文件列表丢失"的情况。
+    console.warn('[uploadTaskDeliverables] deliverableFiles 为空，跳过上传', {
+      taskId: task?.id,
+      taskName: task?.name,
+      hint: '若用户选择了文件但此处显示为空，可能是 ElUpload 组件状态不一致（file to be removed not found）',
+    })
+    return true
+  }
   if (!canCurrentUserUploadTaskDeliverables(task, deps?.userStore)) {
     message?.warning?.('仅任务执行人本人可上传交付物，请让执行人打开任务后上传')
     return false

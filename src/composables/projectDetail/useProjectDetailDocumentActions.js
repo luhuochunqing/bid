@@ -1,3 +1,4 @@
+import { ref } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { collaborationApi } from '@/api'
 import { taskBackendToCard } from '@/views/Project/project-utils'
@@ -26,6 +27,8 @@ export function useProjectDetailDocumentActions(context) {
     state,
   } = context
   const collaboration = collaborationApiOverride || collaborationApi
+  // XIYU-1E: 删除按钮防重复点击保护，记录正在删除的文档 id
+  const deletingDocId = ref(null)
   const pushActivity = (action) => state.activities.value.unshift({ id: Date.now(), user: userStore.userName, action, time: new Date().toLocaleString('zh-CN', { hour12: false }) })
   const ensureDocumentList = () => {
     if (!project.value) {
@@ -70,8 +73,17 @@ export function useProjectDetailDocumentActions(context) {
   }
 
   const handleDeleteDoc = async (doc) => {
+    // XIYU-1E: 防重复点击，同一文档正在删除中则忽略后续点击
+    if (deletingDocId.value !== null) return
     try {
       await ElMessageBox.confirm('确认删除该文档？', '提示', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
+    } catch (error) {
+      // 用户取消，不进入删除流程
+      if (error === 'cancel' || error?.toString?.()?.includes('cancel')) return
+      throw error
+    }
+    deletingDocId.value = doc?.id ?? null
+    try {
       if (isApiProject.value && /^\d+$/.test(String(doc?.id))) {
         const result = await projectsApi.deleteDocument(route.params.id, doc.id)
         if (!result?.success) throw new Error(result?.msg || '删除文档失败')
@@ -83,6 +95,8 @@ export function useProjectDetailDocumentActions(context) {
       if (error === 'cancel' || error?.toString?.()?.includes('cancel')) return
       const msg = error?.response?.data?.msg || error?.message
       if (msg) message.error(msg)
+    } finally {
+      deletingDocId.value = null
     }
   }
 
@@ -212,5 +226,5 @@ export function useProjectDetailDocumentActions(context) {
     project.value.documents = documentData?.success && Array.isArray(documentData.data) ? documentData.data : []
   }
 
-  return { handleUpload, handleDownload, handleDeleteDoc, handleAddDocument, handleShare, handleExport, handleArchiveDocuments, handleSetReminder, loadProjectWorkflowData }
+  return { handleUpload, handleDownload, handleDeleteDoc, handleAddDocument, handleShare, handleExport, handleArchiveDocuments, handleSetReminder, loadProjectWorkflowData, deletingDocId }
 }
