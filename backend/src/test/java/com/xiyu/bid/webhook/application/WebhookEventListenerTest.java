@@ -104,7 +104,7 @@ class WebhookEventListenerTest {
     }
 
     @Test
-    @DisplayName("ABANDONED -> 入队，bidInfoList 格式，crmStatus=6，feedback 含 remark + systemName")
+    @DisplayName("ABANDONED -> 入队，bidInfoList 格式，crmStatus=6，feedback remark 为空（CO-568）+ systemName")
     void abandoned_enqueuesWithBidInfoSync() throws Exception {
         WebhookEventListener l = listener();
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(mockTender()));
@@ -120,7 +120,8 @@ class WebhookEventListenerTest {
 
         JsonNode feedback = objectMapper.readTree(bidInfo.path("feedback").asText());
         assertThat(feedback.path("reason").asText()).isEqualTo("ABANDONED");
-        assertThat(feedback.path("remark").asText()).isEqualTo("客户预算过低，放弃投标");
+        // CO-568: 弃标时 remark 置空，弃标原因改由 abandonmentReason 独立字段承载
+        assertThat(feedback.path("remark").asText()).isEmpty();
         // CO-414: abandonmentReason 独立字段，值为用户填写的弃标原因
         assertThat(feedback.path("abandonmentReason").asText()).isEqualTo("客户预算过低，放弃投标");
         assertThat(feedback.path("operator").asText()).isEqualTo("李四（06100）");
