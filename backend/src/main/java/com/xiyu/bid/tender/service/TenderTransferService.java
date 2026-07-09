@@ -10,6 +10,7 @@ import com.xiyu.bid.batch.repository.TenderAssignmentRecordRepository;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
+import com.xiyu.bid.project.service.ProjectManagerDepartmentEnricher;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.tender.dto.TenderTransferResponse;
@@ -55,6 +56,7 @@ public class TenderTransferService {
     private final TenderAssignmentRecordRepository assignmentRecordRepository;
     private final TenderAuditService tenderAuditService;
     private final TenderAssignmentNotifier assignmentNotifier;
+    private final ProjectManagerDepartmentEnricher departmentEnricher;
 
     /**
      * 执行标讯转派。
@@ -98,9 +100,12 @@ public class TenderTransferService {
         }
 
         // 6. 更新标讯项目负责人及部门
+        // CO-537 根因修复：department 通过 enricher 反查持久化（user.department_code → organization_departments），
+        // 不用 User.getDepartmentName()（生产环境多为空字符串）
+        String resolvedDepartment = departmentEnricher.resolveDepartmentNameByUserId(newOwnerId);
         tender.setProjectManagerId(newOwnerId);
         tender.setProjectManagerName(newOwner.getFullName());
-        tender.setDepartment(newOwner.getDepartmentName());
+        tender.setDepartment(resolvedDepartment);
         tenderRepository.save(tender);
 
         // 7. 写入 TRANSFER 类型分配记录
@@ -132,7 +137,7 @@ public class TenderTransferService {
                 .tenderId(tenderId)
                 .oldOwnerId(oldOwnerId)
                 .newOwnerId(newOwnerId)
-                .department(newOwner.getDepartmentName())
+                .department(resolvedDepartment)
                 .status(tender.getStatus())
                 .build();
     }
