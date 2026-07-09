@@ -28,6 +28,9 @@ Thumbs.db
 *.log
 npm-debug.log*
 
+# Production environment profile (contains secrets, do not commit)
+docs/release/PROD_ENVIRONMENT_PROFILE.md
+
 # Generated reports
 docs/reports/*
 !docs/reports/.gitkeep
