@@ -19,6 +19,18 @@ vi.mock('@/api/modules/tenders.js', () => ({
   },
 }))
 
+const { mockTryUpload } = vi.hoisted(() => ({
+  mockTryUpload: vi.fn().mockResolvedValue(false),
+}))
+
+vi.mock('./useTenderObsUpload.js', () => ({
+  useTenderObsUpload: () => ({
+    obsUpload: {},
+    tryUpload: mockTryUpload,
+  }),
+  isObsEnabled: false,
+}))
+
 import { tendersApi } from '@/api/modules/tenders.js'
 
 // 模块级 helper：构造上传文件对象
@@ -30,6 +42,7 @@ function makeUploadFile(name, type = 'application/pdf', uid) {
 describe('useTenderAiParse', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    mockTryUpload.mockResolvedValue(false)
   })
 
   function mockParseResponse(documentId, overrides = {}) {
@@ -56,6 +69,18 @@ describe('useTenderAiParse', () => {
       },
     }
   }
+
+  it('skips storeTenderDocument when OBS direct upload succeeds', async () => {
+    mockTryUpload.mockResolvedValueOnce(true)
+    const form = ref({ attachments: [], pastedText: '' })
+    const { handleFileChange } = useTenderAiParse(form)
+    const file = makeUploadFile('tender.pdf', 'application/pdf', 1)
+
+    await handleFileChange(file, [file])
+
+    expect(tendersApi.storeTenderDocument).not.toHaveBeenCalled()
+    expect(tendersApi.parseTenderIntakeDocument).not.toHaveBeenCalled()
+  })
 
   it('stores the attachment first and backfills url/fileUrl before AI parse enhancement', async () => {
     const form = ref({ attachments: [], pastedText: '' })
@@ -182,7 +207,8 @@ describe('useTenderAiParse', () => {
 
 // ============================================================
 // OBS 启用模式回归测试
-// 重点验证：OBS 成功后 AI 解析仍执行；obs-direct: URL 不被 doc-insight:// 覆盖
+// 重点验证：OBS 成功后跳过 store+parse（后端不支持 fileUrl，继续上传会 413）；
+//           obs-direct: URL 保留；OBS 失败回退 multipart 时 store+parse 正常执行
 // ============================================================
 describe('useTenderAiParse (OBS 启用模式回归)', () => {
   beforeEach(() => {
@@ -221,75 +247,77 @@ describe('useTenderAiParse (OBS 启用模式回归)', () => {
     return { parser, form, tendersApi }
   }
 
-  it('OBS 成功后继续走 store→parse-existing，obs-direct: URL 不被覆盖', async () => {
+  it('OBS 成功后跳过 store+parse，obs-direct: URL 保留', async () => {
     const { parser, form, tendersApi } = await createParserWithObs({ obsSuccess: true })
     const file = makeUploadFile('tender.pdf', 'application/pdf', 1)
 
+    // 即便 mock 了成功响应，OBS 成功路径也不应调用它们
     tendersApi.storeTenderDocument.mockResolvedValue({
       success: true,
-      data: {
-        fileUrl: 'doc-insight://TENDER_INTAKE/create-tender/hash.pdf',
-        storagePath: 'TENDER_INTAKE/create-tender/hash.pdf',
-      },
+      data: { fileUrl: 'doc-insight://should-not-appear.pdf' },
     })
     tendersApi.parseExistingTenderDocument.mockResolvedValue({
       success: true,
-      data: {
-        documentId: 'doc-insight://TENDER_INTAKE/create-tender/hash.pdf',
-        extractedData: { tenderTitle: 'OBS 启用项目' },
-      },
+      data: { documentId: 'doc-insight://should-not-appear.pdf', extractedData: { tenderTitle: '不应回填' } },
     })
 
     await parser.handleFileChange(file, [file])
 
-    // AI 解析确实执行了
-    expect(tendersApi.storeTenderDocument).toHaveBeenCalled()
-    expect(tendersApi.parseExistingTenderDocument).toHaveBeenCalled()
-    // 表单字段回填
-    expect(form.value.title).toBe('OBS 启用项目')
-    // 关键回归断言：obs-direct: URL 保留
+    // 关键回归：store+parse 均被跳过（避免 413）
+    expect(tendersApi.storeTenderDocument).not.toHaveBeenCalled()
+    expect(tendersApi.parseExistingTenderDocument).not.toHaveBeenCalled()
+    expect(tendersApi.parseTenderIntakeDocument).not.toHaveBeenCalled()
+    // 表单字段不回填（因为 AI 解析被跳过）
+    expect(form.value.title).toBeUndefined()
+    // obs-direct: URL 保留
     expect(form.value.attachments[0]).toMatchObject({
       url: 'obs-direct:test-upload-id',
       fileUrl: 'obs-direct:test-upload-id',
+      fileType: 'application/pdf',
     })
   })
 
-  it('OBS 成功 + store 失败 → 仍走 parse 一站式，obs-direct: URL 保留', async () => {
+  it('OBS 成功后跳过 store+parse，store mock 失败不影响', async () => {
     const { parser, form, tendersApi } = await createParserWithObs({ obsSuccess: true })
     const file = makeUploadFile('tender.pdf', 'application/pdf', 1)
 
+    // 即便 store mock 失败，OBS 成功路径也不应调用它
     tendersApi.storeTenderDocument.mockRejectedValue(new Error('store failed'))
     tendersApi.parseTenderIntakeDocument.mockResolvedValue({
       success: true,
-      data: {
-        documentId: 'doc-insight://TENDER_INTAKE/create-tender/hash.pdf',
-        extractedData: { tenderTitle: 'Store 失败项目' },
-      },
+      data: { documentId: 'doc-insight://should-not-appear.pdf', extractedData: { tenderTitle: '不应回填' } },
     })
 
     await parser.handleFileChange(file, [file])
 
-    expect(tendersApi.parseTenderIntakeDocument).toHaveBeenCalled()
-    expect(form.value.title).toBe('Store 失败项目')
-    // obs-direct: URL 保留（applyAttachmentFileUrl 被 !obsUsed 守卫跳过）
+    // 关键回归：store/parse 均被跳过，store 失败不影响 OBS 成功路径
+    expect(tendersApi.storeTenderDocument).not.toHaveBeenCalled()
+    expect(tendersApi.parseTenderIntakeDocument).not.toHaveBeenCalled()
+    expect(tendersApi.parseExistingTenderDocument).not.toHaveBeenCalled()
+    // obs-direct: URL 保留
     expect(form.value.attachments[0]).toMatchObject({
       url: 'obs-direct:test-upload-id',
       fileUrl: 'obs-direct:test-upload-id',
     })
   })
 
-  it('OBS 成功 + AI 解析失败 → obs-direct: URL 保留，不崩溃', async () => {
+  it('OBS 成功后跳过 store+parse，parse mock 失败不影响', async () => {
     const { parser, form, tendersApi } = await createParserWithObs({ obsSuccess: true })
     const file = makeUploadFile('tender.pdf', 'application/pdf', 1)
 
+    // 即便 parse mock 失败，OBS 成功路径也不应调用它
     tendersApi.storeTenderDocument.mockResolvedValue({
       success: true,
-      data: { fileUrl: 'doc-insight://store.pdf', storagePath: 'path/store.pdf' },
+      data: { fileUrl: 'doc-insight://should-not-appear.pdf' },
     })
     tendersApi.parseExistingTenderDocument.mockRejectedValue(new Error('AI 解析挂了'))
 
     await parser.handleFileChange(file, [file])
 
+    // 关键回归：store+parse 均被跳过，parse 失败不影响 OBS 成功路径
+    expect(tendersApi.storeTenderDocument).not.toHaveBeenCalled()
+    expect(tendersApi.parseExistingTenderDocument).not.toHaveBeenCalled()
+    expect(tendersApi.parseTenderIntakeDocument).not.toHaveBeenCalled()
     // obs-direct: URL 保留
     expect(form.value.attachments[0]).toMatchObject({
       url: 'obs-direct:test-upload-id',
@@ -326,25 +354,29 @@ describe('useTenderAiParse (OBS 启用模式回归)', () => {
     })
   })
 
-  it('OBS 成功 + AI 返回扫描件警告 → obs-direct: URL 保留', async () => {
+  it('OBS 成功后跳过 store+parse，扫描件警告不触发', async () => {
     const { parser, form, tendersApi } = await createParserWithObs({ obsSuccess: true })
     const file = makeUploadFile('scanned.pdf', 'application/pdf', 1)
 
+    // 即便 mock 返回扫描件警告，OBS 成功路径也不应调用 parse
     tendersApi.storeTenderDocument.mockResolvedValue({
       success: true,
-      data: { fileUrl: 'doc-insight://store.pdf', storagePath: 'path/store.pdf' },
+      data: { fileUrl: 'doc-insight://should-not-appear.pdf' },
     })
     tendersApi.parseExistingTenderDocument.mockResolvedValue({
       success: true,
       data: {
-        documentId: 'doc-insight://TENDER_INTAKE/create-tender/hash.pdf',
+        documentId: 'doc-insight://should-not-appear.pdf',
         warnings: ['SCANNED_DOCUMENT: 该文件可能是扫描件'],
       },
     })
 
     await parser.handleFileChange(file, [file])
 
-    // 扫描件时不回填字段，但 URL 必须保留为 obs-direct:
+    // 关键回归：store+parse 均被跳过，扫描件警告不触发
+    expect(tendersApi.storeTenderDocument).not.toHaveBeenCalled()
+    expect(tendersApi.parseExistingTenderDocument).not.toHaveBeenCalled()
+    // obs-direct: URL 保留
     expect(form.value.attachments[0]).toMatchObject({
       url: 'obs-direct:test-upload-id',
       fileUrl: 'obs-direct:test-upload-id',

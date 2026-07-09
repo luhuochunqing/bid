@@ -3,10 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // 回归测试护板：默认 mock useTenderObsUpload 为"OBS 禁用"模式（返回 false），
 // 保证既有测试场景行为不变；OBS 启用场景由 OBS 启用回归组单独覆盖。
+const { mockTryUpload } = vi.hoisted(() => ({
+  mockTryUpload: vi.fn().mockResolvedValue(false),
+}))
+
 vi.mock('./composables/useTenderObsUpload.js', () => ({
   useTenderObsUpload: () => ({
     obsUpload: {},
-    tryUpload: vi.fn().mockResolvedValue(false),
+    tryUpload: mockTryUpload,
   }),
   isObsEnabled: false,
 }))
@@ -43,6 +47,7 @@ function createWorkflow(overrides = {}) {
 describe('useManualTenderCreate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockTryUpload.mockResolvedValue(false)
   })
 
   it('backfills editable manual form fields after a supported attachment is parsed', async () => {
@@ -300,6 +305,18 @@ describe('useManualTenderCreate', () => {
     )
   })
 
+  it('skips storeTenderDocument when OBS direct upload succeeds', async () => {
+    mockTryUpload.mockResolvedValueOnce(true)
+    const { workflow, tendersApi } = createWorkflow()
+    const file = new File(['tender'], '招标文件.pdf', { type: 'application/pdf' })
+
+    await workflow.handleFileChange({ name: file.name, raw: file, uid: '1' }, [{ name: file.name, raw: file, uid: '1' }])
+
+    expect(tendersApi.storeTenderDocument).not.toHaveBeenCalled()
+    expect(tendersApi.parseTenderIntakeDocument).not.toHaveBeenCalled()
+    expect(workflow.parsingManualDocument.value).toBe(false)
+  })
+
   it('rejects files exceeding size limit', async () => {
     const { workflow, tendersApi } = createWorkflow()
     const largeContent = new Array(51 * 1024 * 1024).join('x') // 51MB
@@ -412,7 +429,8 @@ describe('useManualTenderCreate', () => {
 
 // ============================================================
 // OBS 启用模式回归测试
-// 重点验证：OBS 成功后 AI 解析仍执行；obs-direct: URL 不被 doc-insight:// 覆盖
+// 重点验证：OBS 成功后跳过 store+parse（后端不支持 fileUrl，继续上传会 413）；
+//           obs-direct: URL 保留；OBS 失败回退 multipart 时 store+parse 正常执行
 // ============================================================
 describe('useManualTenderCreate (OBS 启用模式回归)', () => {
   beforeEach(() => {
@@ -455,87 +473,61 @@ describe('useManualTenderCreate (OBS 启用模式回归)', () => {
     return { workflow, tendersApi }
   }
 
-  it('OBS 成功后继续走 store→parse-existing，且 obs-direct: URL 不被 doc-insight:// 覆盖', async () => {
+  it('OBS 成功后跳过 store+parse，obs-direct: URL 保留', async () => {
     const { workflow, tendersApi } = await createWorkflowWithObs({ obsSuccess: true })
 
     const file = new File(['tender'], '招标文件.pdf', { type: 'application/pdf' })
-    tendersApi.storeTenderDocument.mockResolvedValue({
-      success: true,
-      data: {
-        fileUrl: 'doc-insight://TENDER_INTAKE/manual-tender/hash.pdf',
-        storagePath: 'TENDER_INTAKE/manual-tender/hash.pdf',
-      },
-    })
-    tendersApi.parseExistingTenderDocument.mockResolvedValue({
-      success: true,
-      data: {
-        documentId: 'doc-insight://TENDER_INTAKE/manual-tender/hash.pdf',
-        extractedData: { tenderTitle: '西域 OBS 项目' },
-      },
-    })
 
     await workflow.handleFileChange(
       { name: file.name, raw: file, uid: 1 },
       [{ name: file.name, raw: file, uid: 1 }],
     )
 
-    // 1. AI 解析确实执行了
-    expect(tendersApi.storeTenderDocument).toHaveBeenCalled()
-    expect(tendersApi.parseExistingTenderDocument).toHaveBeenCalled()
-    // 2. 表单字段回填
-    expect(workflow.manualForm.value.title).toBe('西域 OBS 项目')
-    // 3. 关键回归断言：obs-direct: URL 保留，store 的 doc-insight:// 没覆盖它
+    // OBS 成功 → 跳过 store + parse（后端不支持 fileUrl，避免 413）
+    expect(tendersApi.storeTenderDocument).not.toHaveBeenCalled()
+    expect(tendersApi.parseExistingTenderDocument).not.toHaveBeenCalled()
+    expect(tendersApi.parseTenderIntakeDocument).not.toHaveBeenCalled()
+    // obs-direct: URL 保留
     expect(workflow.manualForm.value.attachments[0]).toMatchObject({
       url: 'obs-direct:test-upload-id',
       fileUrl: 'obs-direct:test-upload-id',
     })
   })
 
-  it('OBS 成功 + store 失败 → 仍走 parse 一站式，obs-direct: URL 保留', async () => {
+  it('OBS 成功后跳过 store+parse，store 失败不影响', async () => {
     const { workflow, tendersApi } = await createWorkflowWithObs({ obsSuccess: true })
 
     const file = new File(['tender'], '招标文件.pdf', { type: 'application/pdf' })
     tendersApi.storeTenderDocument.mockRejectedValue(new Error('store failed'))
-    tendersApi.parseTenderIntakeDocument.mockResolvedValue({
-      success: true,
-      data: {
-        documentId: 'doc-insight://TENDER_INTAKE/manual-tender/hash.pdf',
-        extractedData: { tenderTitle: 'Store 失败项目' },
-      },
-    })
 
     await workflow.handleFileChange(
       { name: file.name, raw: file, uid: 1 },
       [{ name: file.name, raw: file, uid: 1 }],
     )
 
-    // store 失败，走 parseTenderIntakeDocument 一站式
-    expect(tendersApi.parseTenderIntakeDocument).toHaveBeenCalled()
-    expect(workflow.manualForm.value.title).toBe('Store 失败项目')
-    // obs-direct: URL 仍保留（parseAndBackfill 的 skipMetadata=true 生效）
+    // OBS 成功 → store 不被调用，store 失败不影响
+    expect(tendersApi.storeTenderDocument).not.toHaveBeenCalled()
+    expect(tendersApi.parseTenderIntakeDocument).not.toHaveBeenCalled()
+    // obs-direct: URL 保留
     expect(workflow.manualForm.value.attachments[0]).toMatchObject({
       url: 'obs-direct:test-upload-id',
       fileUrl: 'obs-direct:test-upload-id',
     })
   })
 
-  it('OBS 成功 + AI 解析失败 → obs-direct: URL 保留，表单字段不丢', async () => {
+  it('OBS 成功后跳过 store+parse，已有表单字段不丢', async () => {
     const { workflow, tendersApi } = await createWorkflowWithObs({ obsSuccess: true })
 
     const file = new File(['tender'], '招标文件.pdf', { type: 'application/pdf' })
     workflow.manualForm.value.title = '已有标题'
-    tendersApi.storeTenderDocument.mockResolvedValue({
-      success: true,
-      data: { fileUrl: 'doc-insight://store.pdf', storagePath: 'path/store.pdf' },
-    })
-    tendersApi.parseExistingTenderDocument.mockRejectedValue(new Error('AI 解析挂了'))
 
     await workflow.handleFileChange(
       { name: file.name, raw: file, uid: 1 },
       [{ name: file.name, raw: file, uid: 1 }],
     )
 
-    // AI 失败不影响已有表单
+    // store + parse 不被调用，已有表单不受影响
+    expect(tendersApi.storeTenderDocument).not.toHaveBeenCalled()
     expect(workflow.manualForm.value.title).toBe('已有标题')
     // obs-direct: URL 保留
     expect(workflow.manualForm.value.attachments[0]).toMatchObject({

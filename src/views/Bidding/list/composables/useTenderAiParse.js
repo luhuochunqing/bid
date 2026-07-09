@@ -55,8 +55,9 @@ export function useTenderAiParse(form) {
       return
     }
 
-    // OBS 直传：成功则标记 obsUsed，继续走 store/parse 流程
+    // OBS 直传：成功则跳过 store/parse（后端不支持 fileUrl，避免 413）
     const obsUsed = await tryObsUpload(uploadFile, form.value.attachments, fileIndex)
+    if (obsUsed) return
 
     await runAiParse(async () => {
       let storedDoc = null

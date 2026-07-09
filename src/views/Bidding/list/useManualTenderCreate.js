@@ -93,7 +93,6 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
   const savingManual = ref(false)
   const parsingManualDocument = ref(false)
   const manualForm = ref(createManualTenderForm())
-  // OBS 直传：VITE_OBS_ENABLED=true 时启用，失败回退到 multipart
   const { obsUpload, tryUpload: tryObsUpload } = useTenderObsUpload('manual-tender', '标讯文件已上传至 OBS')
 
   // Guard: ensure pastedText never exceeds the maxlength regardless of browser/element-plus quirks
@@ -144,12 +143,10 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
 
     if (!uploadFile || !isSupportedParseFile(uploadFile)) return
 
-    // OBS 直传：上传到 OBS（失败则回退到 Step 1/2），成功时继续走 store/parse AI 解析
-    let obsUsed = false
-    if (isObsEnabled) {
-      parsingManualDocument.value = true
-      obsUsed = await tryObsUpload(uploadFile, manualForm.value.attachments, fileIndex)
-    }
+    // OBS 直传：成功后跳过 store/parse（后端不支持 fileUrl，继续上传会 413）
+    parsingManualDocument.value = true
+    const obsUsed = await tryObsUpload(uploadFile, manualForm.value.attachments, fileIndex)
+    if (obsUsed) { parsingManualDocument.value = false; return }
     // Step 1: 上传即保存（即使后续 AI 解析失败，文件也已保存）
     let storedDoc = null
     try {

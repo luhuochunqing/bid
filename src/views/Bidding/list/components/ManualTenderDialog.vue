@@ -138,7 +138,7 @@
             <el-col :span="24">
               <el-form-item label="标讯文件">
                 <div class="upload-hint">
-                  支持 PDF/Word 文件上传（≤50MB），上传即保存，自动 AI 解析回填表单字段
+                  支持 PDF/Word 文件上传（≤{{ maxSizeText }}），上传即保存，自动 AI 解析回填表单字段
                 </div>
                 <el-upload
                   class="manual-tender-upload"
@@ -154,7 +154,7 @@
                 >
                   <el-icon class="el-icon--upload"><Upload /></el-icon>
                   <div class="el-upload__text">
-                    {{ parsingDocument ? 'DeepSeek/AI 解析中...' : '将文件拖到此处，或点击选择附件（PDF/Word ≤50MB）' }}
+                    {{ parsingDocument ? 'DeepSeek/AI 解析中...' : '将文件拖到此处，或点击选择附件（PDF/Word ≤' + maxSizeText + '）' }}
                   </div>
                 </el-upload>
                 <ObsUploadProgress
@@ -187,6 +187,7 @@ import AdaptiveFormPage from '@/components/common/AdaptiveFormPage.vue'
 import ObsUploadProgress from '@/components/common/ObsUploadProgress.vue'
 import { chinaRegionOptions } from '@/components/common/chinaRegionData.js'
 import { useRegionCascaderValue, REGION_CASCADER_PROPS, createRegionCascaderAutoClose } from '@/composables/useRegionCascaderValue.js'
+import { isObsEnabled } from '@/composables/useObsUploadFallback.js'
 import {
   CUSTOMER_TYPE_OPTIONS,
   MANUAL_FORM_RULES,
@@ -195,6 +196,7 @@ import {
 } from '../constants.js'
 
 const ACCEPT_FILE_TYPES = '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+const maxSizeText = isObsEnabled ? '500MB' : '50MB'
 
 const modelValue = defineModel({ type: Boolean, default: false })
 const form = defineModel('form', { type: Object, required: true })
