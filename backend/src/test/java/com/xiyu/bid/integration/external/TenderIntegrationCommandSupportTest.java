@@ -2,6 +2,7 @@ package com.xiyu.bid.integration.external;
 
 import com.xiyu.bid.crm.domain.AssignmentResult;
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.project.service.ProjectManagerDepartmentEnricher;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.tender.service.TenderAutoAssignmentService;
 import com.xiyu.bid.tender.service.TenderAssignmentNotifier;
@@ -31,6 +32,7 @@ class TenderIntegrationCommandSupportTest {
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private TenderRepository tenderRepository;
     @Mock private ProjectManagerIdResolver projectManagerIdResolver;
+    @Mock private ProjectManagerDepartmentEnricher departmentEnricher;
 
     private TenderIntegrationCommandSupport support;
 
@@ -42,7 +44,8 @@ class TenderIntegrationCommandSupportTest {
                 assignmentNotifier,
                 eventPublisher,
                 tenderRepository,
-                projectManagerIdResolver);
+                projectManagerIdResolver,
+                departmentEnricher);
         when(tenderRepository.save(any(Tender.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 

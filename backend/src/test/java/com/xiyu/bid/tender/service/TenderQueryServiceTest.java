@@ -7,6 +7,7 @@ import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationDepartmentEntity;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationDepartmentRepository;
+import com.xiyu.bid.project.service.ProjectManagerDepartmentEnricher;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
 import com.xiyu.bid.repository.TenderRepository;
@@ -56,8 +57,11 @@ class TenderQueryServiceTest {
     private OrganizationDepartmentRepository organizationDepartmentRepository;
 
     private TenderQueryService createService() {
+        // 用真实的 ProjectManagerDepartmentEnricher（内部逻辑简单，mock 反而增加维护成本）
+        ProjectManagerDepartmentEnricher enricher = new ProjectManagerDepartmentEnricher(
+                organizationDepartmentRepository, userRepository);
         TenderManagerInfoFetcher fetcher = new TenderManagerInfoFetcher(
-                projectRepository, userRepository, organizationDepartmentRepository);
+                projectRepository, userRepository, enricher);
         return new TenderQueryService(tenderRepository, tenderMapper, tenderAttachmentRepository, accessGuard,
                 projectRepository, userRepository, tenderAssignmentRecordRepository, fetcher);
     }

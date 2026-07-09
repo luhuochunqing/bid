@@ -1,6 +1,7 @@
 package com.xiyu.bid.integration.external;
 
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.project.service.ProjectManagerDepartmentEnricher;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.tender.service.TenderAssignmentNotifier;
 import com.xiyu.bid.tender.service.TenderAutoAssignmentService;
@@ -9,6 +10,7 @@ import com.xiyu.bid.batch.core.TenderStatusTransitionPolicy;
 import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
@@ -27,6 +29,8 @@ class TenderIntegrationCommandSupport {
     private final ApplicationEventPublisher eventPublisher;
     private final TenderRepository tenderRepository;
     private final ProjectManagerIdResolver projectManagerIdResolver;
+    /** 部门名反查：复用 ProjectManagerDepartmentEnricher（与 TenderCommandService 保持一致）。 */
+    private final ProjectManagerDepartmentEnricher departmentEnricher;
 
     /**
      * CO-302: 尝试自动分配标讯负责人.
@@ -78,7 +82,13 @@ class TenderIntegrationCommandSupport {
                         result.projectManagerName(), tender.getId());
             }
         }
-        tender.setDepartment(result.departmentName());
+        // 部门名：优先用 CRM/mapping 返回的，为空时从 projectManagerId 反查 user 部门
+        // 与 TenderCommandService.applyAssignmentResult 保持一致逻辑
+        String departmentName = result.departmentName();
+        if (StringUtils.isBlank(departmentName) && tender.getProjectManagerId() != null) {
+            departmentName = departmentEnricher.resolveDepartmentNameByUserId(tender.getProjectManagerId());
+        }
+        tender.setDepartment(departmentName);
     }
 
     /**

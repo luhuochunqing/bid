@@ -16,7 +16,7 @@ import com.xiyu.bid.tender.dto.TenderAttachmentDTO;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.integration.external.ProjectManagerIdResolver;
-import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationDepartmentRepository;
+import com.xiyu.bid.project.service.ProjectManagerDepartmentEnricher;
 import com.xiyu.bid.tender.entity.TenderAttachment;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -77,7 +77,7 @@ class TenderCommandServiceTest {
     @Mock
     private TenderCrmLinkPersistService crmLinkPersistService;
     @Mock
-    private OrganizationDepartmentRepository organizationDepartmentRepository;
+    private ProjectManagerDepartmentEnricher departmentEnricher;
 
     private TenderCommandService tenderCommandService;
     private TenderMapper tenderMapper;
@@ -102,7 +102,7 @@ class TenderCommandServiceTest {
                 tenderAuditService,
                 crmTenderSubjectChecker,
                 crmLinkPersistService,
-                organizationDepartmentRepository);
+                departmentEnricher);
 
         tender = Tender.builder()
                 .id(1L)

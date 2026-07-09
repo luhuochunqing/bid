@@ -2,13 +2,11 @@ package com.xiyu.bid.tender.service;
 
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.User;
-import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationDepartmentEntity;
-import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationDepartmentRepository;
+import com.xiyu.bid.project.service.ProjectManagerDepartmentEnricher;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import lombok.RequiredArgsConstructor;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -29,6 +27,7 @@ import java.util.stream.Collectors;
  * <p>合并 userIds 一次 user 查询，不增加 DB 调用次数。</p>
  *
  * <p>从 TenderQueryService 拆出（原 303 行超 300 行限制）。</p>
+ * <p>部门反查逻辑复用 {@link ProjectManagerDepartmentEnricher}，避免重复造轮子。</p>
  */
 @Component
 @RequiredArgsConstructor
@@ -36,10 +35,7 @@ public class TenderManagerInfoFetcher {
 
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
-    private final OrganizationDepartmentRepository organizationDepartmentRepository;
-
-    /** OSS 同步用户的 department_code 实际存的是 OSS external_dept_id。 */
-    private static final String OSS_SOURCE_APP = "oss";
+    private final ProjectManagerDepartmentEnricher departmentEnricher;
 
     /** tenderId → 项目负责人姓名/部门信息（同一 user 查询同时解析两个字段，避免重复 DB 调用）。 */
     public record ManagerInfo(String managerName, String managerDeptName) {
@@ -80,24 +76,8 @@ public class TenderManagerInfoFetcher {
                 : userRepository.findByIdIn(allUserIds).stream()
                         .collect(Collectors.toMap(User::getId, u -> u, (a, b) -> a));
 
-        // 批量查 organization_departments（users.department_code 存的是 OSS external_dept_id）
-        Map<Long, String> userIdToDeptCode = new HashMap<>();
-        for (User user : userMap.values()) {
-            if (StringUtils.isNotBlank(user.getDepartmentCode())) {
-                userIdToDeptCode.put(user.getId(), user.getDepartmentCode());
-            }
-        }
-        Set<String> externalDeptIds = userIdToDeptCode.values().isEmpty()
-                ? java.util.Collections.emptySet()
-                : new HashSet<>(userIdToDeptCode.values());
-        Map<String, String> externalDeptIdToName = externalDeptIds.isEmpty()
-                ? java.util.Collections.emptyMap()
-                : organizationDepartmentRepository
-                        .findBySourceAppAndExternalDeptIdIn(OSS_SOURCE_APP, externalDeptIds).stream()
-                        .collect(Collectors.toMap(
-                                OrganizationDepartmentEntity::getExternalDeptId,
-                                OrganizationDepartmentEntity::getDepartmentName,
-                                (a, b) -> a));
+        // 复用 ProjectManagerDepartmentEnricher 批量查部门名（避免重复造轮子）
+        Map<Long, String> userIdToDeptName = departmentEnricher.buildManagerDepartmentMap(allUserIds, userMap);
 
         // 构建 tenderId → ManagerInfo
         // managerName 从 project.managerId 取，deptName 从 tender.projectManagerId 取
@@ -107,14 +87,9 @@ public class TenderManagerInfoFetcher {
             Long projectMgrId = tenderToProjectManager.get(tenderId);
             Long tenderMgrId = tenderToTenderManager.get(tenderId);
 
-            User nameUser = projectMgrId != null ? userMap.get(projectMgrId) : null;
-            User deptUser = tenderMgrId != null ? userMap.get(tenderMgrId) : null;
-
+            User nameUser = userMap.get(projectMgrId);
             String managerName = nameUser != null ? nameUser.getFullName() : null;
-            String deptCode = deptUser != null ? deptUser.getDepartmentCode() : null;
-            String managerDeptName = StringUtils.isNotBlank(deptCode)
-                    ? externalDeptIdToName.get(deptCode)
-                    : null;
+            String managerDeptName = tenderMgrId != null ? userIdToDeptName.get(tenderMgrId) : null;
             result.put(tenderId, new ManagerInfo(managerName, managerDeptName));
         }
         return result;

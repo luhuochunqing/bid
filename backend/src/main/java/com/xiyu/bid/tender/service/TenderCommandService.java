@@ -7,8 +7,7 @@ import com.xiyu.bid.crm.application.CrmTenderSubjectChecker;
 import com.xiyu.bid.crm.domain.AssignmentResult;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.integration.external.ProjectManagerIdResolver;
-import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationDepartmentEntity;
-import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationDepartmentRepository;
+import com.xiyu.bid.project.service.ProjectManagerDepartmentEnricher;
 import com.xiyu.bid.tender.entity.TenderAttachment;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
@@ -63,11 +62,8 @@ public class TenderCommandService {
     private final TenderAuditService tenderAuditService;
     private final CrmTenderSubjectChecker crmTenderSubjectChecker;
     private final TenderCrmLinkPersistService crmLinkPersistService;
-    /** 部门名反查：自动分配时从 user.department_code 反查 organization_departments 部门名。 */
-    private final OrganizationDepartmentRepository organizationDepartmentRepository;
-
-    /** OSS 同步用户的 department_code 实际存的是 OSS external_dept_id。 */
-    private static final String OSS_SOURCE_APP = "oss";
+    /** 部门名反查：复用 ProjectManagerDepartmentEnricher（user.department_code → organization_departments.department_name）。 */
+    private final ProjectManagerDepartmentEnricher departmentEnricher;
 
     public TenderDTO createTender(TenderDTO tenderDTO) {
         return createTender(tenderDTO, null);
@@ -141,25 +137,9 @@ public class TenderCommandService {
         // 这样新建标讯在分配时就写入 department，不依赖查询时兜底
         String departmentName = result.departmentName();
         if (StringUtils.isBlank(departmentName) && tender.getProjectManagerId() != null) {
-            departmentName = resolveDepartmentNameByUserId(tender.getProjectManagerId());
+            departmentName = departmentEnricher.resolveDepartmentNameByUserId(tender.getProjectManagerId());
         }
         tender.setDepartment(departmentName);
-    }
-
-    /**
-     * 从 userId 反查部门名：user.department_code（OSS external_dept_id）→ organization_departments.department_name。
-     */
-    private String resolveDepartmentNameByUserId(Long userId) {
-        return userRepository.findById(userId)
-                .map(User::getDepartmentCode)
-                .filter(StringUtils::isNotBlank)
-                .map(deptCode -> organizationDepartmentRepository
-                        .findBySourceAppAndExternalDeptIdIn(OSS_SOURCE_APP, Set.of(deptCode))
-                        .stream()
-                        .findFirst()
-                        .map(OrganizationDepartmentEntity::getDepartmentName)
-                        .orElse(null))
-                .orElse(null);
     }
 
     public TenderDTO updateStatus(Long id, Tender.Status targetStatus) {

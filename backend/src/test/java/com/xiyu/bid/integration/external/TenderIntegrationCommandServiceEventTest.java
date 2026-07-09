@@ -10,6 +10,7 @@ import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
 import com.xiyu.bid.tender.service.TenderAutoAssignmentService;
 import com.xiyu.bid.tender.service.TenderAssignmentNotifier;
 import com.xiyu.bid.tender.service.TenderEvaluationSubmissionMapper;
+import com.xiyu.bid.project.service.ProjectManagerDepartmentEnricher;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.tender.service.TenderMapper;
 import com.xiyu.bid.tender.service.TenderAuditService;
@@ -70,6 +71,7 @@ class TenderIntegrationCommandServiceEventTest {
     @Mock private TenderAuditService tenderAuditService;
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private ProjectManagerIdResolver projectManagerIdResolver;
+    @Mock private ProjectManagerDepartmentEnricher departmentEnricher;
 
     private TenderIntegrationCommandService commandService;
 
@@ -88,7 +90,8 @@ class TenderIntegrationCommandServiceEventTest {
                 assignmentNotifier,
                 eventPublisher,
                 tenderRepository,
-                projectManagerIdResolver);
+                projectManagerIdResolver,
+                departmentEnricher);
         commandService = new TenderIntegrationCommandService(
                 tenderRepository, attachmentRepository, crmTenderLinkService, mapper, evaluationService, helper, support, eventPublisher,
                 tenderAuditService, userRepository);
