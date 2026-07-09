@@ -40,7 +40,7 @@ export function useTenderListPage() {
   const viewMode = ref(route.query.statusTab || 'all')
   const isMobile = ref(false)
   const currentPage = ref(Number(route.query.page) || 1)
-  const pageSize = ref(Number(route.query.pageSize) || 20)
+  const pageSize = ref(Number(route.query.pageSize) || 10)
   const followedTenders = ref([])
   const showParsingDialog = ref(false)
   const parseProgress = ref(0)
@@ -141,7 +141,7 @@ export function useTenderListPage() {
       priority: searchForm.value.priority || undefined,
       statusTab: viewMode.value !== 'all' ? viewMode.value : undefined,
       page: currentPage.value > 1 ? String(currentPage.value) : undefined,
-      pageSize: pageSize.value !== 20 ? String(pageSize.value) : undefined,
+      pageSize: pageSize.value !== 10 ? String(pageSize.value) : undefined,
     }
     router.replace({ query })
   }
