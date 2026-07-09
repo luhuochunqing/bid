@@ -8,7 +8,6 @@
             AI 评分标准解析
             <sup v-if="scoreRiskCount > 0" style="display:inline-block;background:#dc2626;color:#fff;border-radius:10px;font-size:10px;padding:1px 5px;margin-left:3px;line-height:1.3;">{{ scoreRiskCount > 99 ? '99+' : scoreRiskCount }}</sup>
           </el-button>
-          <el-button v-if="canUseAI" size="small" @click="emit('openDecompose')">AI 自动拆解任务</el-button>
           <el-button v-if="canManageTasks" type="primary" size="small" @click="showCreateDialog = true">新建任务</el-button>
         </div>
       </div>

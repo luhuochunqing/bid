@@ -21,17 +21,6 @@
           <el-button
             v-if="perm.canManageTaskBoardTopActions"
             link
-            type="warning"
-            class="header-action header-action--score"
-            :icon="DocumentChecked"
-            data-test="score-draft-button"
-            @click="$emit('score-draft-decompose')"
-          >
-            AI 自动拆解任务
-          </el-button>
-          <el-button
-            v-if="perm.canManageTaskBoardTopActions"
-            link
             type="primary"
             class="header-action header-action--add"
             :icon="Plus"

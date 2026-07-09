@@ -34,7 +34,6 @@ import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import LoginBrandSection from '@/components/login/LoginBrandSection.vue'
 import LoginForm from '@/components/login/LoginForm.vue'
-import SocialLogin from '@/components/login/SocialLogin.vue'
 import { ApiCode } from '@/constants/apiCode'
 
 const LoginDevAccountsHint = import.meta.env.DEV
