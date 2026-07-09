@@ -8,7 +8,7 @@ import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.notification.core.NotificationMessagePolicy;
 import com.xiyu.bid.notification.core.NotificationType;
-import com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicy.ProjectRole;
+import com.xiyu.bid.notification.core.ProjectNotificationRole;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.notification.service.NotificationRecipientResolver;
@@ -51,16 +51,13 @@ public class ProjectEventNotificationDispatcher {
             Project project = findProject(projectId);
             if (project == null) return;
 
-            Set<ProjectRole> roles = Set.of(
-                    ProjectRole.BID_ADMIN,
-                    ProjectRole.BID_TEAM_LEADER,
-                    ProjectRole.BID_LEAD,
-                    ProjectRole.BID_ASSISTANT,
-                    ProjectRole.PROJECT_OWNER);
-            List<Long> candidateIds = recipientResolver.resolveProjectRecipients(projectId, roles, userId);
-            if (candidateIds.isEmpty()) return;
-
-            List<Long> recipientIds = recipientResolver.filterByProjectAccess(candidateIds, projectId);
+            Set<ProjectNotificationRole> roles = Set.of(
+                    ProjectNotificationRole.BID_ADMIN,
+                    ProjectNotificationRole.BID_TEAM_LEADER,
+                    ProjectNotificationRole.BID_LEAD,
+                    ProjectNotificationRole.BID_ASSISTANT,
+                    ProjectNotificationRole.PROJECT_OWNER);
+            List<Long> recipientIds = recipientResolver.resolveAndFilterProjectRecipients(projectId, roles, userId);
             if (recipientIds.isEmpty()) return;
 
             NotificationMessagePolicy.NotificationMessage message = NotificationMessagePolicy.forStageTransition(
@@ -90,15 +87,12 @@ public class ProjectEventNotificationDispatcher {
             Project project = findProject(projectId);
             if (project == null) return;
 
-            Set<ProjectRole> roles = Set.of(
-                    ProjectRole.BID_ADMIN,
-                    ProjectRole.BID_TEAM_LEADER,
-                    ProjectRole.BID_LEAD,
-                    ProjectRole.BID_ASSISTANT);
-            List<Long> candidateIds = recipientResolver.resolveProjectRecipients(projectId, roles, userId);
-            if (candidateIds.isEmpty()) return;
-
-            List<Long> recipientIds = recipientResolver.filterByProjectAccess(candidateIds, projectId);
+            Set<ProjectNotificationRole> roles = Set.of(
+                    ProjectNotificationRole.BID_ADMIN,
+                    ProjectNotificationRole.BID_TEAM_LEADER,
+                    ProjectNotificationRole.BID_LEAD,
+                    ProjectNotificationRole.BID_ASSISTANT);
+            List<Long> recipientIds = recipientResolver.resolveAndFilterProjectRecipients(projectId, roles, userId);
             if (recipientIds.isEmpty()) return;
 
             NotificationMessagePolicy.NotificationMessage message = NotificationMessagePolicy.forProjectArchived(
@@ -130,15 +124,12 @@ public class ProjectEventNotificationDispatcher {
             Project project = findProject(projectId);
             if (project == null) return;
 
-            Set<ProjectRole> roles = Set.of(
-                    ProjectRole.BID_LEAD,
-                    ProjectRole.BID_ASSISTANT,
-                    ProjectRole.TASK_EXECUTOR);
-            List<Long> candidateIds = recipientResolver.resolveProjectRecipients(
+            Set<ProjectNotificationRole> roles = Set.of(
+                    ProjectNotificationRole.BID_LEAD,
+                    ProjectNotificationRole.BID_ASSISTANT,
+                    ProjectNotificationRole.TASK_EXECUTOR);
+            List<Long> recipientIds = recipientResolver.resolveAndFilterProjectRecipients(
                     projectId, roles, actorUserId, assigneeId);
-            if (candidateIds.isEmpty()) return;
-
-            List<Long> recipientIds = recipientResolver.filterByProjectAccess(candidateIds, projectId);
             if (recipientIds.isEmpty()) return;
 
             Task task = Task.builder().id(taskId).title(taskName).projectId(projectId).build();
@@ -188,7 +179,7 @@ public class ProjectEventNotificationDispatcher {
                     projectName, safePurchaserName, safeBidOpeningTime, safeSubmitterName);
 
             Map<String, Object> payload = Map.of(
-                    "projectId", String.valueOf(projectId),
+                    "projectId", projectId,
                     "projectName", projectName,
                     "tenderTitle", safeTenderTitle,
                     "bidOpeningTime", safeBidOpeningTime,

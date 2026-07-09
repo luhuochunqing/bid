@@ -185,6 +185,50 @@ public final class NotificationMessagePolicy {
         return new NotificationMessage(TYPE_SYSTEM, ENTITY_PROJECT, projectId, title, body, payload);
     }
 
+    /**
+     * 任务提交审核。
+     *
+     * <p>文案：{@code 任务：{taskTitle}\n提交人：{submitterName}\n\n该任务已提交审核，请尽快处理。}
+     */
+    public static NotificationMessage forTaskReviewSubmitted(
+            final Project project,
+            final Long taskId,
+            final String taskTitle,
+            final String submitterName,
+            final String targetUrl) {
+        Long projectId = projectId(project);
+        String projectName = projectName(project);
+        String safeTitle = nullToEmpty(taskTitle);
+        String safeName = nullToEmpty(submitterName);
+        String title = "任务审核通知 - " + projectName + " - " + safeTitle;
+        String body = "任务：" + safeTitle + "\n提交人：" + safeName
+                + "\n\n该任务已提交审核，请尽快处理。";
+        Map<String, Object> payload = taskPayload(projectId, projectName, taskId, safeTitle, targetUrl);
+        return new NotificationMessage(TYPE_TASK_UPDATE, ENTITY_PROJECT, projectId, title, body, payload);
+    }
+
+    /**
+     * 任务审核结果。
+     *
+     * <p>文案：{@code 任务：{taskTitle}\n审核结果：{action}\n\n您的任务已审核{action}，请查看。}
+     */
+    public static NotificationMessage forTaskReviewResult(
+            final Project project,
+            final Long taskId,
+            final String taskTitle,
+            final boolean approved,
+            final String targetUrl) {
+        Long projectId = projectId(project);
+        String projectName = projectName(project);
+        String safeTitle = nullToEmpty(taskTitle);
+        String action = approved ? "通过" : "驳回";
+        String title = "任务审核" + action + " - " + projectName + " - " + safeTitle;
+        String body = "任务：" + safeTitle + "\n审核结果：" + action
+                + "\n\n您的任务已审核" + action + "，请查看。";
+        Map<String, Object> payload = taskPayload(projectId, projectName, taskId, safeTitle, targetUrl);
+        return new NotificationMessage(TYPE_TASK_UPDATE, ENTITY_PROJECT, projectId, title, body, payload);
+    }
+
     private static Map<String, Object> basePayload(
             final Long projectId, final String projectName, final String targetUrl) {
         Map<String, Object> payload = new LinkedHashMap<>();

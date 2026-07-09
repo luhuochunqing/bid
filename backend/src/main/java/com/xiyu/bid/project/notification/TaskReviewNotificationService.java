@@ -2,8 +2,8 @@ package com.xiyu.bid.project.notification;
 
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.User;
-import com.xiyu.bid.notification.core.NotificationType;
-import com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicy.ProjectRole;
+import com.xiyu.bid.notification.core.NotificationMessagePolicy;
+import com.xiyu.bid.notification.core.ProjectNotificationRole;
 import com.xiyu.bid.notification.core.TaskNotificationTargetUrlResolver;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
@@ -15,18 +15,16 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
  * 任务审核流程通知服务。
  * <p>职责：任务提交审核、审核结果（通过/驳回）的通知派发。</p>
- * <p>提交审核的接收人策略委托给 {@link ProjectRole}。</p>
+ * <p>提交审核的接收人策略委托给 {@link ProjectNotificationRole}。</p>
  *
  * <p><b>Spec 030 / 06131 案例修复</b>：notifyTaskReviewSubmitted 在派发前按
- * {@link NotificationRecipientResolver#filterByProjectAccess} 过滤候选接收人，
+ * {@link NotificationRecipientResolver#resolveAndFilterProjectRecipients} 过滤候选接收人，
  * 剔除对该项目无访问权的用户。详见 specs/030-fix-task-review-notify-403/。</p>
  */
 @Component
@@ -52,27 +50,33 @@ public class TaskReviewNotificationService {
      */
     public void notifyTaskReviewSubmitted(Long projectId, Long taskId, String taskTitle,
                                            String submitterName, Long submittedBy) {
-        Project project = projectRepository.findById(projectId).orElse(null);
-        if (project == null) return;
+        try {
+            Project project = projectRepository.findById(projectId).orElse(null);
+            if (project == null) return;
 
-        Set<ProjectRole> roles = Set.of(ProjectRole.BID_ADMIN, ProjectRole.BID_TEAM_LEADER);
-        List<Long> candidateIds = recipientResolver.resolveProjectRecipients(projectId, roles, submittedBy);
-        if (candidateIds.isEmpty()) return;
+            Set<ProjectNotificationRole> roles = Set.of(ProjectNotificationRole.BID_ADMIN, ProjectNotificationRole.BID_TEAM_LEADER);
+            List<Long> reviewerIds = recipientResolver.resolveAndFilterProjectRecipients(projectId, roles, submittedBy);
+            if (reviewerIds.isEmpty()) {
+                log.info("TaskReview notification skipped - no accessible recipients for project {} task {}",
+                        projectId, taskId);
+                return;
+            }
 
-        // Spec 030：按项目可见性过滤候选接收人（D 组复用 NotificationRecipientResolver）
-        List<Long> reviewerIds = recipientResolver.filterByProjectAccess(candidateIds, projectId);
-        if (reviewerIds.isEmpty()) {
-            log.info("TaskReview notification skipped - no accessible recipients for project {} task {}",
-                    projectId, taskId);
-            return;
+            NotificationMessagePolicy.NotificationMessage message =
+                    NotificationMessagePolicy.forTaskReviewSubmitted(
+                            project, taskId, taskTitle, submitterName, "/project/" + projectId + "/drafting");
+            notificationService.createNotification(new CreateNotificationRequest(
+                    message.type(),
+                    message.sourceEntityType(),
+                    message.sourceEntityId(),
+                    message.title(),
+                    message.body(),
+                    message.payload(),
+                    reviewerIds
+            ), submittedBy == null ? SYSTEM_USER_ID : submittedBy);
+        } catch (RuntimeException e) {
+            log.warn("notifyTaskReviewSubmitted failed for project={}, task={}: {}", projectId, taskId, e.getMessage());
         }
-
-        String safeTitle = taskTitle != null ? taskTitle : "";
-        String safeName = submitterName != null ? submitterName : "";
-        String body = String.format("任务：%s\n提交人：%s\n\n该任务已提交审核，请尽快处理。", safeTitle, safeName);
-        send(projectId, project.getName(), taskId,
-                "任务审核通知 - " + project.getName() + " - " + safeTitle, body,
-                reviewerIds, submittedBy, "/project/" + projectId + "/drafting");
     }
 
     /**
@@ -85,35 +89,27 @@ public class TaskReviewNotificationService {
      */
     public void notifyTaskReviewResult(Long projectId, Long taskId, String taskTitle,
                                         Long assigneeId, boolean approved, Long reviewerId) {
-        if (assigneeId == null) return;
-        Project project = projectRepository.findById(projectId).orElse(null);
-        if (project == null) return;
-        User assignee = userRepository.findById(assigneeId).orElse(null);
-        String roleCode = assignee != null ? effectiveRoleResolver.resolveRoleCode(assignee) : null;
-        String targetUrl = TaskNotificationTargetUrlResolver.resolveTargetUrl(projectId, taskId, roleCode);
-        String safeTitle = taskTitle != null ? taskTitle : "";
-        String action = approved ? "通过" : "驳回";
-        String body = String.format("任务：%s\n审核结果：%s\n\n您的任务已审核%s，请查看。", safeTitle, action, action);
-        send(projectId, project.getName(), taskId,
-                "任务审核" + action + " - " + project.getName() + " - " + safeTitle, body,
-                List.of(assigneeId), reviewerId, targetUrl);
-    }
-
-    private void send(Long projectId, String projectName, Long taskId, String title,
-                      String body, List<Long> recipientIds, Long senderId, String targetUrl) {
         try {
-            if (recipientIds == null || recipientIds.isEmpty()) return;
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("projectId", String.valueOf(projectId));
-            payload.put("projectName", projectName);
-            if (taskId != null) payload.put("taskId", String.valueOf(taskId));
-            payload.put("targetUrl", targetUrl);
+            if (assigneeId == null) return;
+            Project project = projectRepository.findById(projectId).orElse(null);
+            if (project == null) return;
+            User assignee = userRepository.findById(assigneeId).orElse(null);
+            String roleCode = assignee != null ? effectiveRoleResolver.resolveRoleCode(assignee) : null;
+            String targetUrl = TaskNotificationTargetUrlResolver.resolveTargetUrl(projectId, taskId, roleCode);
+            NotificationMessagePolicy.NotificationMessage message =
+                    NotificationMessagePolicy.forTaskReviewResult(
+                            project, taskId, taskTitle, approved, targetUrl);
             notificationService.createNotification(new CreateNotificationRequest(
-                    NotificationType.TASK_UPDATE.name(), "PROJECT", projectId,
-                    title, body, payload, recipientIds
-            ), senderId == null ? SYSTEM_USER_ID : senderId);
+                    message.type(),
+                    message.sourceEntityType(),
+                    message.sourceEntityId(),
+                    message.title(),
+                    message.body(),
+                    message.payload(),
+                    List.of(assigneeId)
+            ), reviewerId == null ? SYSTEM_USER_ID : reviewerId);
         } catch (RuntimeException e) {
-            log.warn("TaskReviewNotification failed for project={}: {}", projectId, e.getMessage());
+            log.warn("notifyTaskReviewResult failed for project={}, task={}: {}", projectId, taskId, e.getMessage());
         }
     }
 }

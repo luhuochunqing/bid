@@ -1,4 +1,4 @@
-// Output: ProjectNotificationRecipientPolicy 全 ProjectRole 解析、去重、排除、降级覆盖
+// Output: ProjectNotificationRecipientPolicy 全 ProjectNotificationRole 解析、去重、排除、降级覆盖
 // Pos: notification/service/ - 项目通知接收人策略测试
 package com.xiyu.bid.notification.service;
 
@@ -19,14 +19,14 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-import static com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicy.ProjectRole.BID_ADMIN;
-import static com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicy.ProjectRole.BID_ASSISTANT;
-import static com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicy.ProjectRole.BID_LEAD;
-import static com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicy.ProjectRole.BID_REVIEWER;
-import static com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicy.ProjectRole.BID_TEAM_LEADER;
-import static com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicy.ProjectRole.PROJECT_MEMBER;
-import static com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicy.ProjectRole.PROJECT_OWNER;
-import static com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicy.ProjectRole.TASK_EXECUTOR;
+import static com.xiyu.bid.notification.core.ProjectNotificationRole.BID_ADMIN;
+import static com.xiyu.bid.notification.core.ProjectNotificationRole.BID_ASSISTANT;
+import static com.xiyu.bid.notification.core.ProjectNotificationRole.BID_LEAD;
+import static com.xiyu.bid.notification.core.ProjectNotificationRole.BID_REVIEWER;
+import static com.xiyu.bid.notification.core.ProjectNotificationRole.BID_TEAM_LEADER;
+import static com.xiyu.bid.notification.core.ProjectNotificationRole.PROJECT_MEMBER;
+import static com.xiyu.bid.notification.core.ProjectNotificationRole.PROJECT_OWNER;
+import static com.xiyu.bid.notification.core.ProjectNotificationRole.TASK_EXECUTOR;
 import static com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicyFixtures.assignment;
 import static com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicyFixtures.initiationDetails;
 import static com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicyFixtures.member;

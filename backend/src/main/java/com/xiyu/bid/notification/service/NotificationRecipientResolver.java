@@ -5,7 +5,7 @@ import com.xiyu.bid.entity.User;
 import com.xiyu.bid.matrixcollaboration.entity.ProjectMember;
 import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
 import com.xiyu.bid.notification.core.NotificationRecipientFilter;
-import com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicy;
+import com.xiyu.bid.notification.core.ProjectNotificationRole;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.RequiredArgsConstructor;
@@ -93,7 +93,7 @@ public class NotificationRecipientResolver {
      * @param excludeUserId 要排除的用户 ID（通常为操作人自己，可为 null）
      * @return 去重、保序后的接收人用户 ID 列表
      */
-    public List<Long> resolveProjectRecipients(Long projectId, Set<ProjectNotificationRecipientPolicy.ProjectRole> roles, Long excludeUserId) {
+    public List<Long> resolveProjectRecipients(Long projectId, Set<ProjectNotificationRole> roles, Long excludeUserId) {
         return projectRecipientPolicy.resolveRecipients(projectId, roles, excludeUserId);
     }
 
@@ -106,8 +106,36 @@ public class NotificationRecipientResolver {
      * @param taskExecutorId 任务执行人用户 ID（仅在 roles 包含 TASK_EXECUTOR 时使用，可为 null）
      * @return 去重、保序后的接收人用户 ID 列表
      */
-    public List<Long> resolveProjectRecipients(Long projectId, Set<ProjectNotificationRecipientPolicy.ProjectRole> roles, Long excludeUserId, Long taskExecutorId) {
+    public List<Long> resolveProjectRecipients(Long projectId, Set<ProjectNotificationRole> roles, Long excludeUserId, Long taskExecutorId) {
         return projectRecipientPolicy.resolveRecipients(projectId, roles, excludeUserId, taskExecutorId);
+    }
+
+    /**
+     * 按项目角色解析接收人并执行项目可见性过滤（Spec 030）。
+     *
+     * <p>把 {@link #resolveProjectRecipients} 与 {@link #filterByProjectAccess} 内聚为一步，
+     * 避免每个调用方重复编写过滤逻辑。</p>
+     *
+     * @param projectId     项目 ID
+     * @param roles         目标项目角色集合
+     * @param excludeUserId 要排除的用户 ID（通常为操作人自己，可为 null）
+     * @return 有项目访问权的接收人用户 ID 列表
+     */
+    public List<Long> resolveAndFilterProjectRecipients(Long projectId, Set<ProjectNotificationRole> roles, Long excludeUserId) {
+        return filterByProjectAccess(resolveProjectRecipients(projectId, roles, excludeUserId), projectId);
+    }
+
+    /**
+     * 按项目角色解析接收人并执行项目可见性过滤（支持任务执行人角色）。
+     *
+     * @param projectId      项目 ID
+     * @param roles          目标项目角色集合
+     * @param excludeUserId  要排除的用户 ID（通常为操作人自己，可为 null）
+     * @param taskExecutorId 任务执行人用户 ID（仅在 roles 包含 TASK_EXECUTOR 时使用，可为 null）
+     * @return 有项目访问权的接收人用户 ID 列表
+     */
+    public List<Long> resolveAndFilterProjectRecipients(Long projectId, Set<ProjectNotificationRole> roles, Long excludeUserId, Long taskExecutorId) {
+        return filterByProjectAccess(resolveProjectRecipients(projectId, roles, excludeUserId, taskExecutorId), projectId);
     }
 
     /**

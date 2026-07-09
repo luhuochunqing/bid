@@ -245,7 +245,7 @@ public class ProjectNotificationService {
                     projectId,
                     title + " - " + projectName,
                     body,
-                    Map.of("projectId", String.valueOf(projectId), "projectName", projectName,
+                    Map.of("projectId", projectId, "projectName", projectName,
                             "targetUrl", "/project/" + projectId + (targetPage.isEmpty() ? "" : "/" + targetPage)),
                     recipientIds
             ), userId);

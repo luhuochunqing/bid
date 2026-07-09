@@ -204,6 +204,45 @@ class NotificationMessagePolicyTest {
     }
 
     @Test
+    @DisplayName("任务提交审核：生成 TASK_UPDATE 类型消息")
+    void forTaskReviewSubmitted_shouldGenerateTaskReviewSubmittedMessage() {
+        NotificationMessagePolicy.NotificationMessage message =
+                NotificationMessagePolicy.forTaskReviewSubmitted(
+                        project(), TASK_ID, TASK_NAME, "张三", TARGET_URL);
+
+        assertThat(message.type()).isEqualTo(NotificationType.TASK_UPDATE.name());
+        assertThat(message.sourceEntityType()).isEqualTo("PROJECT");
+        assertThat(message.sourceEntityId()).isEqualTo(PROJECT_ID);
+        assertThat(message.title()).isEqualTo("任务审核通知 - " + PROJECT_NAME + " - " + TASK_NAME);
+        assertThat(message.body()).isEqualTo(
+                "任务：" + TASK_NAME + "\n提交人：张三\n\n该任务已提交审核，请尽快处理。");
+        assertThat(message.payload()).containsOnly(
+                entry("projectId", PROJECT_ID),
+                entry("projectName", PROJECT_NAME),
+                entry("taskId", TASK_ID),
+                entry("taskName", TASK_NAME),
+                entry("targetUrl", TARGET_URL));
+    }
+
+    @Test
+    @DisplayName("任务审核结果：生成 TASK_UPDATE 类型消息（通过/驳回）")
+    void forTaskReviewResult_shouldGenerateTaskReviewResultMessage() {
+        NotificationMessagePolicy.NotificationMessage approved =
+                NotificationMessagePolicy.forTaskReviewResult(
+                        project(), TASK_ID, TASK_NAME, true, TARGET_URL);
+        NotificationMessagePolicy.NotificationMessage rejected =
+                NotificationMessagePolicy.forTaskReviewResult(
+                        project(), TASK_ID, TASK_NAME, false, TARGET_URL);
+
+        assertThat(approved.title()).isEqualTo("任务审核通过 - " + PROJECT_NAME + " - " + TASK_NAME);
+        assertThat(approved.body()).isEqualTo(
+                "任务：" + TASK_NAME + "\n审核结果：通过\n\n您的任务已审核通过，请查看。");
+        assertThat(rejected.title()).isEqualTo("任务审核驳回 - " + PROJECT_NAME + " - " + TASK_NAME);
+        assertThat(rejected.body()).isEqualTo(
+                "任务：" + TASK_NAME + "\n审核结果：驳回\n\n您的任务已审核驳回，请查看。");
+    }
+
+    @Test
     @DisplayName("所有工厂方法：targetUrl 原样透传")
     void allFactories_shouldPassThroughTargetUrl() {
         String url = "/custom/url";
@@ -219,6 +258,10 @@ class NotificationMessagePolicyTest {
         assertThat(NotificationMessagePolicy.forDocumentChanged(project(), 1L, "d", "e", "f", url).payload())
                 .containsEntry("targetUrl", url);
         assertThat(NotificationMessagePolicy.forStageTransition(project(), CUSTOMER_NAME, ProjectStage.INITIATED, ProjectStage.DRAFTING, url).payload())
+                .containsEntry("targetUrl", url);
+        assertThat(NotificationMessagePolicy.forTaskReviewSubmitted(project(), TASK_ID, TASK_NAME, "a", url).payload())
+                .containsEntry("targetUrl", url);
+        assertThat(NotificationMessagePolicy.forTaskReviewResult(project(), TASK_ID, TASK_NAME, true, url).payload())
                 .containsEntry("targetUrl", url);
     }
 }

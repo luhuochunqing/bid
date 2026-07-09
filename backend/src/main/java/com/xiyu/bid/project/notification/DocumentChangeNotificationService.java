@@ -3,7 +3,7 @@ package com.xiyu.bid.project.notification;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.notification.core.DocumentChangeTargetUrlResolver;
 import com.xiyu.bid.notification.core.NotificationMessagePolicy;
-import com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicy.ProjectRole;
+import com.xiyu.bid.notification.core.ProjectNotificationRole;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.notification.service.NotificationRecipientResolver;
@@ -61,16 +61,12 @@ public class DocumentChangeNotificationService {
             Project project = projectRepository.findById(projectId).orElse(null);
             if (project == null) return;
 
-            Set<ProjectRole> roles = Set.of(
-                    ProjectRole.BID_ADMIN,
-                    ProjectRole.BID_TEAM_LEADER,
-                    ProjectRole.BID_LEAD,
-                    ProjectRole.BID_ASSISTANT);
-            List<Long> candidateIds = recipientResolver.resolveProjectRecipients(projectId, roles, actorUserId);
-            if (candidateIds.isEmpty()) return;
-
-            // Spec 030：按项目可见性过滤（D 组复用）
-            List<Long> recipientIds = recipientResolver.filterByProjectAccess(candidateIds, projectId);
+            Set<ProjectNotificationRole> roles = Set.of(
+                    ProjectNotificationRole.BID_ADMIN,
+                    ProjectNotificationRole.BID_TEAM_LEADER,
+                    ProjectNotificationRole.BID_LEAD,
+                    ProjectNotificationRole.BID_ASSISTANT);
+            List<Long> recipientIds = recipientResolver.resolveAndFilterProjectRecipients(projectId, roles, actorUserId);
             if (recipientIds.isEmpty()) {
                 log.info("DocumentChange notification skipped - no accessible recipients for project {} document {}",
                         projectId, documentId);

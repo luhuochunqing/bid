@@ -4,7 +4,7 @@ import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
-import com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicy.ProjectRole;
+import com.xiyu.bid.notification.core.ProjectNotificationRole;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.notification.service.NotificationRecipientResolver;
@@ -61,17 +61,13 @@ class TaskReviewNotificationServiceTest {
     private static final Long UID = 42L;
     private static final Long ASSIGNEE_ID = 55L;
     private static final Long SYSTEM_USER_ID = 0L;
-    private static final Set<ProjectRole> EXPECTED_REVIEWER_ROLES =
-            Set.of(ProjectRole.BID_ADMIN, ProjectRole.BID_TEAM_LEADER);
+    private static final Set<ProjectNotificationRole> EXPECTED_REVIEWER_ROLES =
+            Set.of(ProjectNotificationRole.BID_ADMIN, ProjectNotificationRole.BID_TEAM_LEADER);
 
     @BeforeEach
     void setUp() {
         svc = new TaskReviewNotificationService(notificationService, projectRepository,
                 userRepository, effectiveRoleResolver, recipientResolver);
-        // 默认 filterByProjectAccess 透传候选集合（既有用例语义保持不变）；
-        // 新增的过滤测试用例会 override 此 stub。
-        lenient().when(recipientResolver.filterByProjectAccess(any(), eq(PID)))
-                .thenAnswer(inv -> inv.getArgument(0));
     }
 
     private Project project(String name) {
@@ -109,7 +105,7 @@ class TaskReviewNotificationServiceTest {
         @DisplayName("sends TASK_UPDATE to BID_ADMIN/BID_TEAM_LEADER excluding submitter")
         void sendsToReviewersExcludingSubmitter() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(recipientResolver.resolveProjectRecipients(PID, EXPECTED_REVIEWER_ROLES, UID))
+            when(recipientResolver.resolveAndFilterProjectRecipients(PID, EXPECTED_REVIEWER_ROLES, UID))
                     .thenReturn(List.of(1L, 2L));
 
             svc.notifyTaskReviewSubmitted(PID, TASK_ID, "任务标题", "提交人", UID);
@@ -122,14 +118,14 @@ class TaskReviewNotificationServiceTest {
             assertThat(req.title()).isEqualTo("任务审核通知 - 测试项目 - 任务标题");
             assertThat(req.body()).contains("任务：任务标题").contains("提交人：提交人");
             assertThat(req.payload()).containsEntry("targetUrl", "/project/" + PID + "/drafting");
-            assertThat(req.payload()).containsEntry("taskId", String.valueOf(TASK_ID));
+            assertThat(req.payload()).containsEntry("taskId", TASK_ID);
         }
 
         @Test
         @DisplayName("null submitterId → does not exclude anyone, uses system actor")
         void nullSubmitterDoesNotExclude() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(recipientResolver.resolveProjectRecipients(PID, EXPECTED_REVIEWER_ROLES, null))
+            when(recipientResolver.resolveAndFilterProjectRecipients(PID, EXPECTED_REVIEWER_ROLES, null))
                     .thenReturn(List.of(1L));
 
             svc.notifyTaskReviewSubmitted(PID, TASK_ID, "任务标题", "提交人", null);
@@ -150,7 +146,7 @@ class TaskReviewNotificationServiceTest {
         @DisplayName("no reviewer candidates → no notification")
         void skipsWhenNoReviewers() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(recipientResolver.resolveProjectRecipients(PID, EXPECTED_REVIEWER_ROLES, UID))
+            when(recipientResolver.resolveAndFilterProjectRecipients(PID, EXPECTED_REVIEWER_ROLES, UID))
                     .thenReturn(List.of());
 
             svc.notifyTaskReviewSubmitted(PID, TASK_ID, "任务标题", "提交人", UID);
@@ -162,7 +158,7 @@ class TaskReviewNotificationServiceTest {
         @DisplayName("notification service throws → does not propagate")
         void handlesNotificationServiceException() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(recipientResolver.resolveProjectRecipients(PID, EXPECTED_REVIEWER_ROLES, UID))
+            when(recipientResolver.resolveAndFilterProjectRecipients(PID, EXPECTED_REVIEWER_ROLES, UID))
                     .thenReturn(List.of(1L));
             when(notificationService.createNotification(any(), any())).thenThrow(new RuntimeException("boom"));
 
@@ -175,10 +171,8 @@ class TaskReviewNotificationServiceTest {
         @DisplayName("spec030: 无项目权限的候选被过滤掉（06131 案例）")
         void filtersOutInaccessibleRecipients() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("西安地铁")));
-            when(recipientResolver.resolveProjectRecipients(PID, EXPECTED_REVIEWER_ROLES, UID))
-                    .thenReturn(List.of(1L, 2L, 3L, 4L));
-            // user 3 对项目 PID 无访问权（resolver 过滤掉）
-            when(recipientResolver.filterByProjectAccess(List.of(1L, 2L, 3L, 4L), PID))
+            // user 3 对项目 PID 无访问权（resolver 内部过滤掉）
+            when(recipientResolver.resolveAndFilterProjectRecipients(PID, EXPECTED_REVIEWER_ROLES, UID))
                     .thenReturn(List.of(1L, 2L, 4L));
 
             svc.notifyTaskReviewSubmitted(PID, TASK_ID, "缴纳保证金", "柏超", UID);
@@ -193,9 +187,7 @@ class TaskReviewNotificationServiceTest {
         @DisplayName("spec030: 所有候选被过滤掉时不创建通知，安全跳过")
         void skipsWhenAllRecipientsFilteredOut() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("欢乐谷")));
-            when(recipientResolver.resolveProjectRecipients(PID, EXPECTED_REVIEWER_ROLES, UID))
-                    .thenReturn(List.of(1L, 2L));
-            when(recipientResolver.filterByProjectAccess(List.of(1L, 2L), PID))
+            when(recipientResolver.resolveAndFilterProjectRecipients(PID, EXPECTED_REVIEWER_ROLES, UID))
                     .thenReturn(List.of());
 
             svc.notifyTaskReviewSubmitted(PID, TASK_ID, "授权整理", "王占俊", UID);
@@ -204,12 +196,10 @@ class TaskReviewNotificationServiceTest {
         }
 
         @Test
-        @DisplayName("spec030: filterByProjectAccess 降级后仍正常派发")
-        void filtersNormallyAfterFallback() {
+        @DisplayName("spec030: resolveAndFilterProjectRecipients 已排除提交人自己")
+        void filtersOutSubmitterSelf() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("西安地铁")));
-            when(recipientResolver.resolveProjectRecipients(PID, EXPECTED_REVIEWER_ROLES, UID))
-                    .thenReturn(List.of(1L, 2L, UID));
-            when(recipientResolver.filterByProjectAccess(any(), eq(PID)))
+            when(recipientResolver.resolveAndFilterProjectRecipients(PID, EXPECTED_REVIEWER_ROLES, UID))
                     .thenReturn(List.of(1L, 2L));
 
             svc.notifyTaskReviewSubmitted(PID, TASK_ID, "缴纳保证金", "柏超", UID);
@@ -223,9 +213,7 @@ class TaskReviewNotificationServiceTest {
         @DisplayName("spec030: 过滤后非空时正常派发，targetUrl 不变（仍为 /project/{id}/drafting）")
         void sendsToFilteredRecipients_withUnchangedTargetUrl() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(recipientResolver.resolveProjectRecipients(PID, EXPECTED_REVIEWER_ROLES, UID))
-                    .thenReturn(List.of(1L, 2L, 3L));
-            when(recipientResolver.filterByProjectAccess(any(), eq(PID)))
+            when(recipientResolver.resolveAndFilterProjectRecipients(PID, EXPECTED_REVIEWER_ROLES, UID))
                     .thenReturn(List.of(1L, 2L));
 
             svc.notifyTaskReviewSubmitted(PID, TASK_ID, "任务标题", "提交人", UID);
@@ -291,7 +279,7 @@ class TaskReviewNotificationServiceTest {
             assertThat(req.recipientUserIds()).containsExactly(ASSIGNEE_ID);
             assertThat(req.payload()).containsEntry("targetUrl",
                     "/task-board?taskId=" + TASK_ID + "&projectId=" + PID);
-            assertThat(req.payload()).containsEntry("taskId", String.valueOf(TASK_ID));
+            assertThat(req.payload()).containsEntry("taskId", TASK_ID);
         }
 
         @Test

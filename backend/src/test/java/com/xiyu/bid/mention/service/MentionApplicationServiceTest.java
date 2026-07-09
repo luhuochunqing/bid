@@ -10,6 +10,7 @@ import com.xiyu.bid.mention.repository.MentionRepository;
 import com.xiyu.bid.notification.core.DispatchResult;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
+import com.xiyu.bid.notification.service.NotificationRecipientResolver;
 import com.xiyu.bid.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -45,16 +46,22 @@ class MentionApplicationServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private NotificationRecipientResolver recipientResolver;
+
     private MentionApplicationService service;
 
     @BeforeEach
     void setUp() {
-        service = new MentionApplicationService(mentionRepository, notificationService, userRepository);
+        service = new MentionApplicationService(mentionRepository, notificationService, userRepository, recipientResolver);
         User mentioner = new User();
         mentioner.setId(1L);
         mentioner.setFullName("张三");
         // lenient：部分测试在调用 resolveMentionerName 前已提前返回
         lenient().when(userRepository.findById(1L)).thenReturn(Optional.of(mentioner));
+        // 默认不过滤（保持既有用例语义）
+        lenient().when(recipientResolver.filterByProjectAccess(any(), any()))
+                .thenAnswer(inv -> inv.getArgument(0));
     }
 
     @Test
@@ -187,6 +194,42 @@ class MentionApplicationServiceTest {
         assertThat(captured.payload()).containsEntry("projectId", "123");
         assertThat(captured.payload()).containsEntry("targetUrl", "/project/123/drafting?taskId=42");
         assertThat(captured.payload()).containsEntry("plainText", "@a");
+    }
+
+    @Test
+    @DisplayName("mentions are filtered by project access when projectId is present")
+    void mentions_AreFilteredByProjectAccess() {
+        Map<String, Object> payload = Map.of("projectId", 123L);
+        CreateMentionRequest req = new CreateMentionRequest(
+            "@[a](7) @[b](8) @[c](9)", "comment", 42L, "Comment", payload);
+        when(notificationService.createNotification(any(CreateNotificationRequest.class), anyLong()))
+            .thenReturn(DispatchResult.validWithId(100L));
+        when(recipientResolver.filterByProjectAccess(List.of(7L, 8L, 9L), 123L))
+            .thenReturn(List.of(7L, 9L));
+
+        MentionApplicationService.MentionResult result = service.createMention(req, 1L);
+
+        ArgumentCaptor<CreateNotificationRequest> captor =
+            ArgumentCaptor.forClass(CreateNotificationRequest.class);
+        verify(notificationService).createNotification(captor.capture(), anyLong());
+        assertThat(captor.getValue().recipientUserIds()).containsExactlyInAnyOrder(7L, 9L);
+        assertThat(result.mentionCount()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("all mentions filtered out by project access → no notification")
+    void allMentionsFilteredOut_ReturnsNoOp() {
+        Map<String, Object> payload = Map.of("projectId", 123L);
+        CreateMentionRequest req = new CreateMentionRequest(
+            "@[a](7) @[b](8)", "comment", 42L, "Comment", payload);
+        when(recipientResolver.filterByProjectAccess(List.of(7L, 8L), 123L))
+            .thenReturn(List.of());
+
+        MentionApplicationService.MentionResult result = service.createMention(req, 1L);
+
+        assertThat(result.mentionCount()).isZero();
+        verify(notificationService, never()).createNotification(any(), anyLong());
+        verify(mentionRepository, never()).saveAll(anyIterable());
     }
 
     @Test

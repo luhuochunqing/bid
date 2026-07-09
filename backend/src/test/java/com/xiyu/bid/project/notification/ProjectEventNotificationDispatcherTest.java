@@ -3,7 +3,7 @@
 package com.xiyu.bid.project.notification;
 
 import com.xiyu.bid.entity.Project;
-import com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicy.ProjectRole;
+import com.xiyu.bid.notification.core.ProjectNotificationRole;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.notification.service.NotificationRecipientResolver;
@@ -70,16 +70,14 @@ class ProjectEventNotificationDispatcherTest {
 
         @Test
         @DisplayName("sends SYSTEM to BID_ADMIN/BID_TEAM_LEADER/BID_LEAD/BID_ASSISTANT with blueprint title/body")
-        void sendsToProjectRoles() {
+        void sendsToProjectNotificationRoles() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目", "客户A")));
-            Set<ProjectRole> expectedRoles = Set.of(
-                    ProjectRole.BID_ADMIN,
-                    ProjectRole.BID_TEAM_LEADER,
-                    ProjectRole.BID_LEAD,
-                    ProjectRole.BID_ASSISTANT);
-            when(recipientResolver.resolveProjectRecipients(PID, expectedRoles, UID))
-                    .thenReturn(List.of(1L, 2L, 3L));
-            when(recipientResolver.filterByProjectAccess(List.of(1L, 2L, 3L), PID))
+            Set<ProjectNotificationRole> expectedRoles = Set.of(
+                    ProjectNotificationRole.BID_ADMIN,
+                    ProjectNotificationRole.BID_TEAM_LEADER,
+                    ProjectNotificationRole.BID_LEAD,
+                    ProjectNotificationRole.BID_ASSISTANT);
+            when(recipientResolver.resolveAndFilterProjectRecipients(PID, expectedRoles, UID))
                     .thenReturn(List.of(1L, 2L));
 
             dispatcher.notifyProjectArchived(PID, "客户A", UID);
@@ -102,9 +100,7 @@ class ProjectEventNotificationDispatcherTest {
         @DisplayName("no candidates after filtering → no notification")
         void skipsWhenNoAccessibleRecipients() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            when(recipientResolver.resolveProjectRecipients(any(), any(), eq(UID)))
-                    .thenReturn(List.of(1L));
-            when(recipientResolver.filterByProjectAccess(any(), eq(PID)))
+            when(recipientResolver.resolveAndFilterProjectRecipients(any(), any(), eq(UID)))
                     .thenReturn(List.of());
 
             dispatcher.notifyProjectArchived(PID, null, UID);
@@ -119,18 +115,16 @@ class ProjectEventNotificationDispatcherTest {
 
         @Test
         @DisplayName("sends SYSTEM to project roles + PROJECT_OWNER with stage display names")
-        void sendsToProjectRolesAndOwner() {
+        void sendsToProjectNotificationRolesAndOwner() {
             when(projectRepository.findById(PID))
                     .thenReturn(Optional.of(project("西安地铁", "西安地铁公司")));
-            Set<ProjectRole> expectedRoles = Set.of(
-                    ProjectRole.BID_ADMIN,
-                    ProjectRole.BID_TEAM_LEADER,
-                    ProjectRole.BID_LEAD,
-                    ProjectRole.BID_ASSISTANT,
-                    ProjectRole.PROJECT_OWNER);
-            when(recipientResolver.resolveProjectRecipients(PID, expectedRoles, UID))
-                    .thenReturn(List.of(1L, 2L));
-            when(recipientResolver.filterByProjectAccess(List.of(1L, 2L), PID))
+            Set<ProjectNotificationRole> expectedRoles = Set.of(
+                    ProjectNotificationRole.BID_ADMIN,
+                    ProjectNotificationRole.BID_TEAM_LEADER,
+                    ProjectNotificationRole.BID_LEAD,
+                    ProjectNotificationRole.BID_ASSISTANT,
+                    ProjectNotificationRole.PROJECT_OWNER);
+            when(recipientResolver.resolveAndFilterProjectRecipients(PID, expectedRoles, UID))
                     .thenReturn(List.of(1L, 2L));
 
             dispatcher.notifyStageTransition(PID, ProjectStage.DRAFTING, ProjectStage.EVALUATING, UID);
@@ -160,13 +154,11 @@ class ProjectEventNotificationDispatcherTest {
 
             when(projectRepository.findById(PID))
                     .thenReturn(Optional.of(Project.builder().id(PID).name("西安地铁项目").build()));
-            Set<ProjectRole> expectedRoles = Set.of(
-                    ProjectRole.BID_LEAD,
-                    ProjectRole.BID_ASSISTANT,
-                    ProjectRole.TASK_EXECUTOR);
-            when(recipientResolver.resolveProjectRecipients(PID, expectedRoles, actorUserId, assigneeId))
-                    .thenReturn(List.of(1L, 2L, assigneeId));
-            when(recipientResolver.filterByProjectAccess(List.of(1L, 2L, assigneeId), PID))
+            Set<ProjectNotificationRole> expectedRoles = Set.of(
+                    ProjectNotificationRole.BID_LEAD,
+                    ProjectNotificationRole.BID_ASSISTANT,
+                    ProjectNotificationRole.TASK_EXECUTOR);
+            when(recipientResolver.resolveAndFilterProjectRecipients(PID, expectedRoles, actorUserId, assigneeId))
                     .thenReturn(List.of(1L, 2L, assigneeId));
 
             dispatcher.notifyTaskStatusChanged(
@@ -190,9 +182,7 @@ class ProjectEventNotificationDispatcherTest {
         void skipsWhenAllFilteredOut() {
             when(projectRepository.findById(PID))
                     .thenReturn(Optional.of(Project.builder().id(PID).name("测试项目").build()));
-            when(recipientResolver.resolveProjectRecipients(any(), any(), any(), any()))
-                    .thenReturn(List.of(1L));
-            when(recipientResolver.filterByProjectAccess(any(), eq(PID)))
+            when(recipientResolver.resolveAndFilterProjectRecipients(any(), any(), any(), any()))
                     .thenReturn(List.of());
 
             dispatcher.notifyTaskStatusChanged(

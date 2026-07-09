@@ -6,6 +6,7 @@ import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.matrixcollaboration.entity.ProjectMember;
 import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
+import com.xiyu.bid.notification.core.ProjectNotificationRole;
 import com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicy;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
@@ -76,9 +77,9 @@ class NotificationRecipientResolverTest {
     @Test
     @DisplayName("resolveProjectRecipients：委托给 ProjectNotificationRecipientPolicy 三参数方法")
     void resolveProjectRecipients_delegatesToPolicy() {
-        Set<ProjectNotificationRecipientPolicy.ProjectRole> roles = Set.of(
-                ProjectNotificationRecipientPolicy.ProjectRole.BID_LEAD,
-                ProjectNotificationRecipientPolicy.ProjectRole.PROJECT_OWNER
+        Set<ProjectNotificationRole> roles = Set.of(
+                ProjectNotificationRole.BID_LEAD,
+                ProjectNotificationRole.PROJECT_OWNER
         );
         when(projectRecipientPolicy.resolveRecipients(100L, roles, 2L))
                 .thenReturn(List.of(1L, 3L));
@@ -91,8 +92,8 @@ class NotificationRecipientResolverTest {
     @Test
     @DisplayName("resolveProjectRecipients：支持任务执行人四参数委托")
     void resolveProjectRecipients_withTaskExecutor_delegatesToPolicy() {
-        Set<ProjectNotificationRecipientPolicy.ProjectRole> roles = Set.of(
-                ProjectNotificationRecipientPolicy.ProjectRole.TASK_EXECUTOR
+        Set<ProjectNotificationRole> roles = Set.of(
+                ProjectNotificationRole.TASK_EXECUTOR
         );
         when(projectRecipientPolicy.resolveRecipients(100L, roles, 2L, 8L))
                 .thenReturn(List.of(8L));

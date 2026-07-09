@@ -8,6 +8,7 @@ import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.matrixcollaboration.entity.ProjectMember;
 import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
+import com.xiyu.bid.notification.core.ProjectNotificationRole;
 import com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicy;
 import com.xiyu.bid.notification.service.NotificationRecipientResolver;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
@@ -245,15 +246,13 @@ class ProjectNotificationServiceTest {
         @DisplayName("sends INFO to all team members when project found with members")
         void sendsToAllTeamMembers() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            Set<ProjectNotificationRecipientPolicy.ProjectRole> expectedRoles = Set.of(
-                    ProjectNotificationRecipientPolicy.ProjectRole.BID_ADMIN,
-                    ProjectNotificationRecipientPolicy.ProjectRole.BID_TEAM_LEADER,
-                    ProjectNotificationRecipientPolicy.ProjectRole.BID_LEAD,
-                    ProjectNotificationRecipientPolicy.ProjectRole.BID_ASSISTANT,
-                    ProjectNotificationRecipientPolicy.ProjectRole.PROJECT_OWNER);
-            when(recipientResolver.resolveProjectRecipients(PID, expectedRoles, UID))
-                    .thenReturn(List.of(1L, 2L));
-            when(recipientResolver.filterByProjectAccess(List.of(1L, 2L), PID))
+            Set<ProjectNotificationRole> expectedRoles = Set.of(
+                    ProjectNotificationRole.BID_ADMIN,
+                    ProjectNotificationRole.BID_TEAM_LEADER,
+                    ProjectNotificationRole.BID_LEAD,
+                    ProjectNotificationRole.BID_ASSISTANT,
+                    ProjectNotificationRole.PROJECT_OWNER);
+            when(recipientResolver.resolveAndFilterProjectRecipients(PID, expectedRoles, UID))
                     .thenReturn(List.of(1L, 2L));
 
             svc.notifyStageTransition(PID, ProjectStage.DRAFTING, ProjectStage.EVALUATING, UID);
@@ -266,15 +265,13 @@ class ProjectNotificationServiceTest {
         @DisplayName("legacy signature uses system actor instead of null createdBy")
         void legacySignatureUsesSystemActor() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
-            Set<ProjectNotificationRecipientPolicy.ProjectRole> expectedRoles = Set.of(
-                    ProjectNotificationRecipientPolicy.ProjectRole.BID_ADMIN,
-                    ProjectNotificationRecipientPolicy.ProjectRole.BID_TEAM_LEADER,
-                    ProjectNotificationRecipientPolicy.ProjectRole.BID_LEAD,
-                    ProjectNotificationRecipientPolicy.ProjectRole.BID_ASSISTANT,
-                    ProjectNotificationRecipientPolicy.ProjectRole.PROJECT_OWNER);
-            when(recipientResolver.resolveProjectRecipients(PID, expectedRoles, SYSTEM_USER_ID))
-                    .thenReturn(List.of(1L, 2L));
-            when(recipientResolver.filterByProjectAccess(List.of(1L, 2L), PID))
+            Set<ProjectNotificationRole> expectedRoles = Set.of(
+                    ProjectNotificationRole.BID_ADMIN,
+                    ProjectNotificationRole.BID_TEAM_LEADER,
+                    ProjectNotificationRole.BID_LEAD,
+                    ProjectNotificationRole.BID_ASSISTANT,
+                    ProjectNotificationRole.PROJECT_OWNER);
+            when(recipientResolver.resolveAndFilterProjectRecipients(PID, expectedRoles, SYSTEM_USER_ID))
                     .thenReturn(List.of(1L, 2L));
 
             svc.notifyStageTransition(PID, ProjectStage.DRAFTING, ProjectStage.EVALUATING);

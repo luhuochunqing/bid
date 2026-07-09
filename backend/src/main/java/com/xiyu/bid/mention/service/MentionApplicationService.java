@@ -13,6 +13,7 @@ import com.xiyu.bid.notification.core.DispatchResult;
 import com.xiyu.bid.notification.core.NotificationMessagePolicy;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
+import com.xiyu.bid.notification.service.NotificationRecipientResolver;
 import com.xiyu.bid.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,15 +39,18 @@ public class MentionApplicationService {
     private final MentionRepository mentionRepository;
     private final NotificationApplicationService notificationService;
     private final UserRepository userRepository;
+    private final NotificationRecipientResolver recipientResolver;
 
     public MentionApplicationService(
         MentionRepository mentionRepository,
         NotificationApplicationService notificationService,
-        UserRepository userRepository
+        UserRepository userRepository,
+        NotificationRecipientResolver recipientResolver
     ) {
         this.mentionRepository = mentionRepository;
         this.notificationService = notificationService;
         this.userRepository = userRepository;
+        this.recipientResolver = recipientResolver;
     }
 
     public record MentionResult(int mentionCount, Long notificationId) {
@@ -65,6 +69,14 @@ public class MentionApplicationService {
         List<Long> recipients = filterRecipients(parsed.mentionedUserIds(), mentionerUserId);
         if (recipients.isEmpty()) {
             return MentionResult.noop();
+        }
+
+        Long projectId = resolveProjectId(request.payload());
+        if (projectId != null) {
+            recipients = recipientResolver.filterByProjectAccess(recipients, projectId);
+            if (recipients.isEmpty()) {
+                return MentionResult.noop();
+            }
         }
 
         String projectName = resolveProjectName(request.payload());
@@ -130,6 +142,24 @@ public class MentionApplicationService {
         }
         Object value = payload.get("projectName");
         return value != null ? value.toString() : "";
+    }
+
+    private static Long resolveProjectId(Map<String, Object> payload) {
+        if (payload == null) {
+            return null;
+        }
+        Object value = payload.get("projectId");
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        try {
+            return Long.parseLong(value.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private static String resolveTargetUrl(String sourceEntityType, Long sourceEntityId, Map<String, Object> payload) {
