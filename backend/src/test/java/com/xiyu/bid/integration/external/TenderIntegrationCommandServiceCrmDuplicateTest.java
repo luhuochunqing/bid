@@ -115,6 +115,75 @@ class TenderIntegrationCommandServiceCrmDuplicateTest {
     }
 
     @Test
+    @DisplayName("updateByExternalId 更新时 CRM 商机号已被占用应抛 409")
+    void updateByExternalId_withOccupiedCrmOpportunityId_shouldThrow409() {
+        Tender tender = new Tender();
+        tender.setId(1630L);
+        tender.setExternalId("crm:test-001");
+        tender.setTitle("测试标讯");
+        tender.setStatus(Tender.Status.PENDING_ASSIGNMENT);
+        when(tenderRepository.findByExternalId("crm:test-001")).thenReturn(Optional.of(tender));
+
+        org.mockito.Mockito.doAnswer(inv -> {
+            Tender t = inv.getArgument(0);
+            t.setCrmOpportunityId("CC20260703615");
+            t.setStatus(Tender.Status.EVALUATED);
+            return null;
+        }).when(crmTenderLinkService).linkIfPresent(any(Tender.class), eq("21246"));
+
+        doThrow(new BusinessException(409, "该 CRM 商机已被标讯 ID=926 关联，请先解除原关联"))
+                .when(crmOccupancyChecker).assertCrmOpportunityNotOccupied(eq(1630L), eq("CC20260703615"));
+
+        TenderUpdateRequest request = TenderUpdateRequest.builder()
+                .crmId("21246")
+                .build();
+
+        assertThatThrownBy(() -> commandService.updateByExternalId("crm", "test-001", request, null))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("该 CRM 商机已被标讯 ID=926 关联");
+
+        verify(crmOccupancyChecker).assertCrmOpportunityNotOccupied(1630L, "CC20260703615");
+        verify(tenderRepository, never()).save(any(Tender.class));
+    }
+
+    @Test
+    @DisplayName("updateByExternalId 并发写入触发唯一索引，应翻译为 409")
+    void updateByExternalId_concurrentDuplicateKey_shouldTranslateTo409() {
+        Tender tender = new Tender();
+        tender.setId(1630L);
+        tender.setExternalId("crm:test-001");
+        tender.setTitle("测试标讯");
+        tender.setStatus(Tender.Status.PENDING_ASSIGNMENT);
+        when(tenderRepository.findByExternalId("crm:test-001")).thenReturn(Optional.of(tender));
+
+        org.mockito.Mockito.doAnswer(inv -> {
+            Tender t = inv.getArgument(0);
+            t.setCrmOpportunityId("CC20260703615");
+            t.setStatus(Tender.Status.EVALUATED);
+            return null;
+        }).when(crmTenderLinkService).linkIfPresent(any(Tender.class), eq("21246"));
+
+        DataIntegrityViolationException dbEx = new DataIntegrityViolationException(
+                "could not execute statement [Duplicate entry 'CC20260703615' for key 'tenders.idx_tender_crm_opportunity_id']",
+                new SQLIntegrityConstraintViolationException(
+                        "Duplicate entry 'CC20260703615' for key 'tenders.idx_tender_crm_opportunity_id'"));
+        when(tenderRepository.save(any(Tender.class))).thenThrow(dbEx);
+        doThrow(new BusinessException(409, "CRM 商机已被其他标讯关联（并发冲突），请刷新后重试"))
+                .when(crmOccupancyChecker).translateUniqueConstraintViolation(dbEx);
+
+        TenderUpdateRequest request = TenderUpdateRequest.builder()
+                .crmId("21246")
+                .build();
+
+        assertThatThrownBy(() -> commandService.updateByExternalId("crm", "test-001", request, null))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("并发冲突");
+
+        verify(crmOccupancyChecker).assertCrmOpportunityNotOccupied(1630L, "CC20260703615");
+        verify(crmOccupancyChecker).translateUniqueConstraintViolation(dbEx);
+    }
+
+    @Test
     @DisplayName("pushTender 创建时并发写入触发唯一索引，应翻译为 409")
     void pushTender_createConcurrentDuplicateKey_shouldTranslateTo409() {
         when(tenderRepository.findByExternalId("crm:new-002")).thenReturn(Optional.empty());
