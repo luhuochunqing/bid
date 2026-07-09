@@ -250,11 +250,41 @@ xiyu:
         # 确保后端 @PreAuthorize(hasAuthority('xxx.manage')) 能正确放行。
         # 菜单 key（如 knowledge-qualification）供前端路由用，
         # 操作权限键（如 qualification.manage）供后端 @PreAuthorize 用。
+        # CO-560: 系统盘点后一次性补全所有 catalog 中声明但 OSS 映射缺失的业务操作权限键，
+        # 避免 OSS 用户在前端 hasPermission 检查中失败或未来加 @PreAuthorize 时重演 403 事故
+        # （tender.view 因 OSS 缺映射已被迫回退为 hasAnyRole，见 TenderController.java:135）。
         menu-code-to-permission-key-mappings:
           "1001":
             - "dashboard"
+            # CO-560: 工作台 widget 可见性 + 快速发起
+            # 这些键控制 Workbench.vue 中的 widget 组件渲染（DynamicLayoutRenderer）
+            # 以及工作台汇总数据加载（useWorkbenchMetrics.js）
+            - "dashboard.quickStart"
+            - "dashboard:view_welcome_banner"
+            - "dashboard:view_metric_cards"
+            - "dashboard:view_calendar"
+            - "dashboard:view_tender_list"
+            - "dashboard:view_technical_task"
+            - "dashboard:view_review_list"
+            - "dashboard:view_project_list"
+            - "dashboard:view_active_projects"
+            - "dashboard:view_team_task"
+            - "dashboard:view_global_projects"
+            - "dashboard:view_team_performance"
+            - "dashboard:view_approval_list"
+            - "dashboard:view_process_timeline"
+            - "dashboard:view_activity_list"
+            - "dashboard:view_priority_todos"
           "1002":
             - "bidding"
+            # CO-560: 标讯中心业务操作权限键（前端 helpers.js 控制按钮可见性）
+            - "bidding.manage"
+            - "bidding.create"
+            - "bidding.delete"
+            - "bidding.sync"
+            # tender.view 历史上因 OSS 缺映射被迫回退为 hasAnyRole（TenderController.java:135-139）
+            # 补全后可恢复为 hasAuthority('tender.view')
+            - "tender.view"
           "100201":
             - "bidding-list"
           "100202":
@@ -263,6 +293,24 @@ xiyu:
             - "bidding-list"
           "1003":
             - "project"
+            # CO-560: 投标项目业务操作权限键
+            # 原因：spec 032 修复 OSS 权限扩散后，OSS 用户 authorities 严格等于 OSS 菜单码映射出的内部权限键。
+            # 但 OSS 菜单映射表中 1003 只映射到 ["project"]，导致所有 OSS 用户在以下场景失败：
+            # - @PreAuthorize(hasAuthority('retrospective.submit')) 403（已被服务器日志铁证）
+            # - 前端 hasPermission('project.create') 返回 false → 工作台"创建项目"按钮不显示
+            # - 未来加 @PreAuthorize(hasAuthority('xxx')) 会重演 403 事故
+            # 业务语义：这些都是项目流程的子环节，挂到 1003（投标项目）合理。
+            # OSS 端按角色配置 1003 菜单：bid-projectLeader/bid-TeamLeader/bidAdmin/bid-Team 都配 1003，
+            # 这些角色在 RoleProfileCatalog 中都持有对应权限键，映射对齐。
+            - "project.create"
+            - "project.view"
+            - "evaluation.update"
+            - "result.register"
+            - "retrospective.submit"
+            - "retrospective.review"
+            - "closure.request"
+            - "closure.review"
+            - "lead.assign"
           "100301":
             - "project-list"
           "100302":
@@ -275,6 +323,8 @@ xiyu:
             - "knowledge-qualification"
             - "qualification.manage"
             - "qualification.view"
+            # CO-560: 资质证书管理（前端 useQualificationPage.js:29 isAdmin 判定）
+            - "certificate.manage"
           "100403":
             - "knowledge-personnel"
             - "personnel.manage"
@@ -297,6 +347,8 @@ xiyu:
             - "warehouse.manage"
           "1005":
             - "resource"
+            # CO-560: 保证金退还填写操作权限键（catalog 中 bid-projectLeader 持有）
+            - "deposit.return.fill"
           "100501":
             - "resource-margin"
           "100502":
@@ -314,7 +366,11 @@ xiyu:
           "1006":
             - "ai-center"
           "1007":
+            # CO-560: catalog 用 "analytics"，OSS 此前只映射 "analytics-dashboard"
+            # 两者是不同字符串，前端 useWorkbenchMetrics.js:47 / workbench-deadline-core.js:83
+            # 使用 'analytics' 控制工作台汇总数据加载，OSS 用户缺此键导致汇总不显示
             - "analytics-dashboard"
+            - "analytics"
           "1008":
             - "operation-logs"
           "1009":
@@ -322,23 +378,37 @@ xiyu:
           "1010":
             - "settings"
             - "system.admin"
+            # CO-560: 告警规则子菜单权限键（router/index.js:331,337 + sidebar-menu.js:133,138）
+            # 路由 meta 要求 ['settings', 'settings-alerts'] 全部命中（hasAllPermissions）
+            - "settings-alerts"
           "101001":
             - "settings"
             - "system.admin"
+            - "settings-alerts"
           "101002":
             - "settings"
             - "system.admin"
+            - "settings-alerts"
           "101003":
             - "settings-workflow-forms"
             - "system.admin"
           "101004":
             - "settings"
             - "system.admin"
+            - "settings-alerts"
           "101005":
             - "settings"
             - "system.admin"
+            - "settings-alerts"
           "1011":
             - "task-board"
+            # CO-560: 任务看板业务操作权限键
+            # task.assign/review：前端 Workbench.vue:155 + useProjectDetailState.js:82 使用
+            # task.view.own/handle.own：catalog 中 bid-Team/bid-otherDept 持有，防未来 @PreAuthorize
+            - "task.assign"
+            - "task.review"
+            - "task.view.own"
+            - "task.handle.own"
         # 未映射菜单编码处理：IGNORE 或 USE_NORMALIZED_CODE
         unmapped-menu-code-behavior: ${XIYU_ORG_UNMAPPED_MENU_BEHAVIOR:IGNORE}
       retry:
