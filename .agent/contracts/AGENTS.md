@@ -12,6 +12,41 @@
 5. **原子提交 + 测试证据，每变必测** → 详见 `RELIABILITY.md §关键硬约束`
 6. **恢复被回退的代码默认走 cherry-pick，禁止手工重写** → 详见 `RELIABILITY.md §回退恢复纪律`（git blame 可追溯性是团队资产）
 
+## "执行 co-数字" 标准开场三步（强制，不依赖任何 skill）
+
+用户说"执行 co-XXX"时，**无论 dev-credentials skill 是否在可用列表中**，必须先做这三步，不得跳过、不得用其他动作替代：
+
+1. **凭证自检**（只判存在性，绝不打印 token 值）：
+   ```bash
+   printf "GITEE=%s LINEAR=%s\n" "${GITEE_TOKEN:+<有值>}" "${LINEAR_API_KEY:+<有值>}"
+   ```
+   - 两个都 `<有值>` → 继续
+   - 任一为空 → 停下，告诉用户去检查 `~/.zshenv`，不要硬往下跑
+
+2. **查 Linear issue**（拿到标题/描述/状态/UUID）：
+   ```bash
+   curl -s -X POST https://api.linear.app/graphql \
+     -H "Content-Type: application/json" \
+     -H "Authorization: $LINEAR_API_KEY" \
+     -d '{"query":"query { issue(id: \"CO-XXX\") { id title identifier description state { name } team { id } } }"}'
+   ```
+
+3. **查 team states**（拿到状态机 UUID，后续流转要用）：
+   ```bash
+   curl -s -X POST https://api.linear.app/graphql \
+     -H "Content-Type: application/json" \
+     -H "Authorization: $LINEAR_API_KEY" \
+     -d '{"query":"query { team(id: \"<step2拿到的teamId>\") { states { nodes { id name type } } } }"}'
+   ```
+   缓存结果：记录"Todo / 开发中 / 评审中 / 已完成"对应的 stateId UUID。
+
+**禁止行为**：
+- 不查 Linear 就开始猜任务内容
+- skill 不在列表就放弃 Linear 访问（token 在 `~/.zshenv`，与 skill 无关）
+- 跳过凭证自检直接干活
+
+完成三步后，再按"按任务找信息"表进入正常流程。
+
 ## 按任务找信息
 
 | 你在做什么 | 先读 | 详情位置 |
