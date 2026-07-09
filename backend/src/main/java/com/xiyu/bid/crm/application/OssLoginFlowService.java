@@ -211,9 +211,20 @@ public class OssLoginFlowService {
                 RoleProfileCatalog.SeedDefinition def = RoleProfileCatalog.definitionForCode(resolvedRoleCode);
                 if (def != null && def.menuPermissions() != null) {
                     Set<String> merged = new HashSet<>(menuPermissions);
-                    merged.addAll(def.menuPermissions());
+                    if (def.menuPermissions().contains("all")) {
+                        // 将 "all" 显式展开为系统中所有注册的详细权限键，
+                        // 避免后续被 RoleProfileAdminPermissionFilter 按 "all" 过滤掉，
+                        // 确保白名单管理员拥有真正完整的菜单权限。
+                        for (RoleProfileCatalog.SeedDefinition seedDef : RoleProfileCatalog.seedDefinitions()) {
+                            if (seedDef.menuPermissions() != null) {
+                                merged.addAll(seedDef.menuPermissions());
+                            }
+                        }
+                    } else {
+                        merged.addAll(def.menuPermissions());
+                    }
                     menuPermissions = new ArrayList<>(merged);
-                    log.info("OSS login: merged catalog menu permissions for whitelisted person={}, role={}", username, resolvedRoleCode);
+                    log.info("OSS login: merged and unfolded catalog menu permissions for whitelisted person={}, role={}", username, resolvedRoleCode);
                 }
             }
 
