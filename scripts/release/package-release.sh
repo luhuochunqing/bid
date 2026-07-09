@@ -29,8 +29,10 @@ printf '==> Building frontend release assets\n'
 cd "$ROOT_DIR"
 # Sentry 前端错误追踪：通过环境变量注入 DSN（未配置时前端自动禁用）
 # 部署时传入：VITE_SENTRY_DSN=https://xxx@sentry.io/xxx bash scripts/release/package-release.sh
+# OBS 大文件直传：VITE_OBS_ENABLED=true 启用浏览器直传 OBS（后端须同时配好 XIYU_OBS_*）
 VITE_API_MODE=api \
 VITE_API_BASE_URL="$API_BASE_URL" \
+VITE_OBS_ENABLED="${VITE_OBS_ENABLED:-false}" \
 VITE_SENTRY_DSN="${VITE_SENTRY_DSN:-}" \
 VITE_SENTRY_ENVIRONMENT="${VITE_SENTRY_ENVIRONMENT:-production}" \
 VITE_SENTRY_TRACES_SAMPLE_RATE="${VITE_SENTRY_TRACES_SAMPLE_RATE:-0.1}" \
