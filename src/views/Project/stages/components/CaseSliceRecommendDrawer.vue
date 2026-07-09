@@ -7,6 +7,21 @@
     @open="handleOpen"
   >
     <div class="case-slice-drawer">
+      <!-- 评分项为空时的提示 -->
+      <el-alert
+        v-if="!scoreDraftsLoading && scoreDrafts.length === 0"
+        type="warning"
+        :closable="false"
+        show-icon
+      >
+        <template #title>
+          <div class="empty-score-alert">
+            <span>暂无评分项数据，请先在任务看板进行「AI 评分标准解析」</span>
+            <el-button type="primary" size="small" @click="handleGoToScoreParse">前往解析</el-button>
+          </div>
+        </template>
+      </el-alert>
+
       <!-- 评分项筛选 -->
       <div class="drawer-section">
         <label class="section-label">评分项</label>
@@ -105,9 +120,12 @@ const props = defineProps({
   projectId: { type: [String, Number], required: true },
 })
 
+const emit = defineEmits(['go-to-score-parse'])
+
 const visible = defineModel({ type: Boolean, default: false })
 
 const scoreDrafts = ref([])
+const scoreDraftsLoading = ref(false)
 const selectedScoringItem = ref('')
 const searchQuery = ref('')
 const recommendations = ref([])
@@ -126,17 +144,25 @@ const scoringItemGroups = computed(() => {
 
 async function handleOpen() {
   // 加载评分项列表
+  scoreDraftsLoading.value = true
   try {
     const result = await projectsApi.getScoreDrafts(props.projectId)
     scoreDrafts.value = Array.isArray(result?.data) ? result.data : []
   } catch {
     scoreDrafts.value = []
+  } finally {
+    scoreDraftsLoading.value = false
   }
   // 默认选中第一项并触发检索
   if (scoreDrafts.value.length > 0) {
     selectedScoringItem.value = scoreDrafts.value[0].scoreItemTitle
     await searchByQuery(selectedScoringItem.value)
   }
+}
+
+function handleGoToScoreParse() {
+  visible.value = false
+  emit('go-to-score-parse')
 }
 
 async function handleScoringItemChange() {
@@ -210,4 +236,7 @@ async function handleCopy(item) {
 .card-preview { font-size: 13px; color: var(--text-secondary-ui); line-height: 1.6; margin-bottom: 12px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .card-meta { font-size: 12px; color: var(--text-muted); display: flex; gap: 16px; margin-bottom: 12px; }
 .card-footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-top: 10px; border-top: 1px solid var(--gray-250); }
+
+.empty-score-alert { display: flex; align-items: center; gap: 12px; }
+.empty-score-alert span { flex: 1; }
 </style>
