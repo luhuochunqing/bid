@@ -414,7 +414,7 @@ BACKEND_SERVICE_NAME=xiyu-bid-backend
 BACKEND_RUNTIME_DIR=/opt/xiyu-bid/shared/backend
 BACKEND_JAR_PATH=/opt/xiyu-bid/shared/backend/app.jar
 DEPLOYED_RELEASE_RECORD=/opt/xiyu-bid/deployed-release.json
-HEALTHCHECK_URL=http://127.0.0.1:8080/actuator/health
+HEALTHCHECK_URL=http://127.0.0.1:18080/actuator/health
 SYSTEMCTL_SUDO=true
 ```
 
@@ -443,9 +443,9 @@ done
 ```bash
 # 服务端
 sudo systemctl is-active xiyu-bid-backend
-curl -fsS http://127.0.0.1:8080/actuator/health
-curl -fsS http://127.0.0.1:8080/actuator/health/liveness
-curl -fsS http://127.0.0.1:8080/actuator/health/readiness
+curl -fsS http://127.0.0.1:18080/actuator/health
+curl -fsS http://127.0.0.1:18080/actuator/health/liveness
+curl -fsS http://127.0.0.1:18080/actuator/health/readiness
 
 # 公网（本地执行）
 curl -fsS -o /dev/null -w "%{http_code}\n" http://172.16.38.78:8080/
@@ -456,3 +456,47 @@ curl -fsS http://172.16.38.78:8080/actuator/health
 
 - 完整登录态业务 smoke 需要 `PROD_SMOKE_USERNAME` / `PROD_SMOKE_PASSWORD`，目前作为 GitHub/Gitee secrets 管理，本地手动部署时通常不携带。
 - `/actuator/prometheus` 在 `protected` 模式下对匿名请求返回 `403`，属于预期行为。
+
+---
+
+## 10. 生产环境（172.16.10.149）首次上线
+
+### 10.1 环境拓扑
+
+| 组件 | 配置 |
+|------|------|
+| 主机 | `winbid-01.prod`（`172.16.10.149`） |
+| 前端生效目录 | `/srv/www/xiyu-bid` |
+| 后端 jar | `/opt/xiyu-bid/shared/backend/app.jar` |
+| 后端服务 | `xiyu-bid-backend`（systemd，以 `jetty` 用户运行） |
+| 后端监听端口 | `18080`（`SERVER_PORT=18080`，由 `/etc/xiyu-bid/backend.env` 注入） |
+| Nginx 入口 | `80` / `8080` 反代到 `127.0.0.1:18080` |
+| 数据库 | MySQL 8.0 RDS |
+| 配置文件 | `/etc/xiyu-bid/backend.env`（systemd `EnvironmentFile`） |
+
+### 10.2 测试与生产端口对照
+
+| 层 | 端口 | 说明 |
+|----|------|------|
+| Nginx 对外 | 80 / 8080 | 浏览器和外部 curl 访问入口（测试和生产一致） |
+| 后端内部 | 18080 | `SERVER_PORT=18080`，直连后端排障用 |
+| application-prod.yml 默认 | 8080 | 仅是 fallback 默认值，**从未实际使用** |
+| 本地开发环境 | 18089 | 仅主工作区 trae 本地开发用，与生产无关 |
+
+> **排障注意**：macOS 本地 `HTTP_PROXY=127.0.0.1:7897` 会干扰 curl 访问生产 IP。排障时统一加 `curl --noproxy '*'` 或直接 ssh 到服务器内部执行。
+
+### 10.3 首次上线（2026-07-09）
+
+**部署结果**：
+- 前端 + 后端 + Flyway 迁移（V1~V1092）全部成功
+- 人员数据全量同步：8528 用户同步成功（1313 enabled）
+- 已知问题 5 个（详见复盘文档 `docs/release/postmortem-2026-07-09-1st-prod.md`）
+
+**核心教训**（5 个根因）：
+1. V1092 collation 冲突（测试 utf8mb4_unicode_ci vs 生产 utf8mb4_0900_ai_ci）
+2. skipUnmappedUsers 配置声明但代码未使用（1 行代码修复）
+3. 同步"假成功"掩盖问题（8572 条全标记 SUCCESS 但实际只入库 168 条）
+4. 端口认知混乱（Nginx 8080 vs 后端 18080）
+5. 本地 HTTP_PROXY 干扰 curl
+
+完整复盘见 `docs/lessons/lessons-learned.md` §51。
