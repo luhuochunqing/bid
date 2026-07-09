@@ -105,7 +105,9 @@ public class AuthService {
             try {
                 ossLoginFlowService.authenticateDirect(request.getUsername(), request.getPassword());
             } catch (RuntimeException e) {
-                log.warn("OSS permission sync failed (non-fatal) for user={}: {}", user.getUsername(), e.getMessage());
+                log.error("OSS permission sync FAILED for user={}, will use stale cache (if available). "
+                        + "User may see outdated menu permissions until next successful login. "
+                        + "exception={}: {}", user.getUsername(), e.getClass().getSimpleName(), e.getMessage());
             }
             return loginWithoutPassword(user);
         }
