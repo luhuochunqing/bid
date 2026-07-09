@@ -201,7 +201,6 @@
 import { ref, reactive, computed, onMounted, shallowRef } from 'vue'
 import { ElMessage } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
-import { getApiUrl } from '@/api/config.js'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
 import { usersApi } from '@/api/modules/users.js'
 import { tendersApi } from '@/api/modules/tenders.js'
@@ -225,8 +224,6 @@ const form = reactive({ projectName: '', ownerUnit: '', createTime: new Date().t
 // CO-323: 客户信息矩阵由标讯评估表带入，初始 0 行（有数据才显示）
 // 值域 OPTIONS 复用评估表 customerInfoMatrixConfig.js，保证映射一致
 const custFixedRows = ref([]); const bidDocFiles = ref([]); const planGapFiles = ref([]); const existing = ref(false);
-const planGapUploadUrl = computed(() => getApiUrl(`/api/projects/${props.projectId}/documents`))
-const planGapUploadHeaders = computed(() => { const t = userStore?.token; return t ? { Authorization: 'Bearer ' + t } : {} })
 // OBS 直传：planGap 附件大文件绕过 APISIX 网关直传 OBS，失败回退到 multipart（修复 413）
 const { customUpload: planGapCustomUpload } = useObsProjectDocumentUpload(
   () => props.projectId,

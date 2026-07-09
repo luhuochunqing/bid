@@ -103,7 +103,7 @@ export function useInitiationStageActions({
       const result = await projectsApi.uploadDocument(props.projectId, formData)
       if (!result?.success || !result?.data) throw new Error(result?.msg || '招标文件上传失败')
       form.tenderDocumentId = result.data.id
-      bidDocFiles.value = [{ name: result.data.name || file.name, url: obsFileUrl || result.data.fileUrl || '', uploader: result.data.uploader || userStore.userName, status: 'success' }]
+      bidDocFiles.value = [{ uid: result.data.id, name: result.data.name || file.name, url: obsFileUrl || result.data.fileUrl || '', uploader: result.data.uploader || userStore.userName, status: 'success' }]
       ElMessage.success(`招标文件上传成功：${result.data.name || file.name}`)
     } catch (e) {
       errorMsg.value = e?.response?.data?.msg || e?.message || '招标文件上传失败'
@@ -179,7 +179,7 @@ export function useInitiationStageActions({
           const docs = docResp?.data || []
           if (docs.length > 0) {
             const doc = docs[0]
-            bidDocFiles.value = [{ name: doc.name, url: doc.fileUrl || '', uploader: doc.uploader || '', status: 'success' }]
+            bidDocFiles.value = [{ uid: doc.id, name: doc.name, url: doc.fileUrl || '', uploader: doc.uploader || '', status: 'success' }]
           }
         } catch (e) {
           console.warn('[InitiationStage] failed to load tender document', e)
@@ -205,6 +205,7 @@ export function useInitiationStageActions({
       // 修复：从 API 恢复招标文件列表，避免回切 tab 后上传组件显示为空
       if (data.tenderDocumentId) {
         bidDocFiles.value = [{
+          uid: data.tenderDocumentId,
           name: data.tenderDocumentName || data.tenderDocFileName || '招标文件',
           url: data.tenderDocumentUrl || data.tenderDocFileUrl || '',
           status: 'success',
@@ -215,6 +216,7 @@ export function useInitiationStageActions({
       // CO-323: 回填评估表带入的 GAP 附件到 el-upload file-list
       // （form.projectPlanGapFiles 已由上方 Object.assign(form, data) 覆盖，此处同步上传控件显示）
       planGapFiles.value = (data.projectPlanGapFiles || []).map(f => ({
+        uid: f.id,
         name: f.fileName || f.name || '',
         url: f.fileUrl || '',
         status: 'success',
