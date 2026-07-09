@@ -143,7 +143,7 @@
     </template>
   </el-dialog>
 
-  <CaseSliceRecommendDrawer v-model="aiDrawerVisible" :project-id="projectId" />
+  <CaseSliceRecommendDrawer v-model="aiDrawerVisible" :project-id="projectId" @go-to-score-parse="handleGoToScoreParse" />
   <QualityCheckDialog ref="qualityCheckRef" :project-id="projectId" />
 </template>
 
@@ -190,7 +190,7 @@ const props = defineProps({
   // 用于投标文件下载守卫：仅 DRAFTING 阶段允许下载，进入下一阶段后只读。
   currentStage: { type: String, default: '' },
 })
-const emit = defineEmits(['advanced', 'switch-tab'])
+const emit = defineEmits(['advanced', 'switch-tab', 'go-to-score-parse'])
 // CO-378: 项目文档打包导出（ProjectDocumentTable 的「导出」按钮 @export 事件）
 const { exportDocumentsAsZip } = useProjectDocumentsExport(props.projectId)
 const view = ref(null)
@@ -305,6 +305,10 @@ const qualityCheckRef = ref(null)
 watch(() => ctx.bidDocQualityResult?.value, (val) => {
   if (val?.issues?.length) qualityCheckRef.value?.open(val)
 }, { deep: true })
+
+function handleGoToScoreParse() {
+  emit('go-to-score-parse')
+}
 
 function beforeBidUpload(file) {
   const valid = ['.pdf', '.doc', '.docx', '.xlsx', '.jpg', '.png'].some(e => file.name.toLowerCase().endsWith(e))

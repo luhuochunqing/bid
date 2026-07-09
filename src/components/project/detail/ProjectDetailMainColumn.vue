@@ -44,7 +44,7 @@
           :project-id="ctx.project.id"
           :current-stage="currentProjectStage"
           @advanced="handleStageUpdated"
-        />
+          @go-to-score-parse="document.querySelector('.task-kanban')?.scrollIntoView({ behavior:'smooth', block:'start' }); scoreParseRef?.open()" />
       </div>
       <EvaluationStage
         v-else-if="activeStageTab === 'EVALUATING' && ctx.project?.id"
