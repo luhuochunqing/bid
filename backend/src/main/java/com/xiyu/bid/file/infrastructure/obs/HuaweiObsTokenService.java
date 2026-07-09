@@ -11,6 +11,9 @@ import com.huaweicloud.sdk.iam.v3.model.CreateTemporaryAccessKeyByAgencyResponse
 import com.huaweicloud.sdk.iam.v3.model.Credential;
 import com.huaweicloud.sdk.iam.v3.model.IdentityAssumerole;
 import com.huaweicloud.sdk.iam.v3.region.IamRegion;
+import com.xiyu.bid.file.domain.gateway.ObsTokenGateway;
+import com.xiyu.bid.file.domain.model.TemporaryCredentials;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,15 +24,34 @@ import java.util.List;
 /**
  * 华为云 OBS 临时凭证服务。
  *
- * <p>通过 IAM STS AssumeAgency 获取临时 AK/SK/SecurityToken，供前端直传 OBS 使用。</p>
+ * <p>通过 IAM STS AssumeAgency 获取临时 AK/SK/SecurityToken，供前端直传 OBS 使用。
+ * 实现 {@link ObsTokenGateway} 端口接口，application 层依赖接口而非本实现类。</p>
+ *
+ * <p>D4-1 修复：IamClient 改为单例复用，@PostConstruct 初始化（仅 agency 模式下创建）。
+ * 避免每次请求都 new IamClient 的开销。</p>
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class HuaweiObsTokenService {
+public class HuaweiObsTokenService implements ObsTokenGateway {
 
     private final ObsProperties obsProperties;
+    private IamClient iamClient;
 
+    @PostConstruct
+    void initIamClient() {
+        if (obsProperties.isEnabled() && obsProperties.isAgencyMode()) {
+            ICredential auth = new BasicCredentials()
+                    .withAk(obsProperties.getAccessKey())
+                    .withSk(obsProperties.getSecretKey());
+            this.iamClient = IamClient.newBuilder()
+                    .withCredential(auth)
+                    .withRegion(IamRegion.valueOf(obsProperties.getRegion()))
+                    .build();
+        }
+    }
+
+    @Override
     public TemporaryCredentials issueToken(String uploadId) {
         if (!obsProperties.isEnabled()) {
             throw new IllegalStateException("OBS 直传未启用");
@@ -46,15 +68,6 @@ public class HuaweiObsTokenService {
                     null,
                     Instant.now().plusSeconds(obsProperties.getTokenDurationSeconds()));
         }
-
-        ICredential auth = new BasicCredentials()
-                .withAk(obsProperties.getAccessKey())
-                .withSk(obsProperties.getSecretKey());
-
-        IamClient client = IamClient.newBuilder()
-                .withCredential(auth)
-                .withRegion(IamRegion.valueOf(obsProperties.getRegion()))
-                .build();
 
         try {
             IdentityAssumerole assumeRole = new IdentityAssumerole()
@@ -77,7 +90,7 @@ public class HuaweiObsTokenService {
                     new CreateTemporaryAccessKeyByAgencyRequest().withBody(body);
 
             CreateTemporaryAccessKeyByAgencyResponse response =
-                    client.createTemporaryAccessKeyByAgency(request);
+                    iamClient.createTemporaryAccessKeyByAgency(request);
 
             Credential creds = response.getCredential();
 
@@ -108,12 +121,5 @@ public class HuaweiObsTokenService {
             log.warn("无法解析 IAM 返回的过期时间 '{}', 使用默认有效期", expiresAt);
             return Instant.now().plusSeconds(obsProperties.getTokenDurationSeconds());
         }
-    }
-
-    public record TemporaryCredentials(
-            String accessKey,
-            String secretKey,
-            String securityToken,
-            Instant expiresAt) {
     }
 }

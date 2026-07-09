@@ -1,5 +1,6 @@
 package com.xiyu.bid.file.infrastructure.obs;
 
+import com.xiyu.bid.file.domain.gateway.ObsUploadConfig;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -9,12 +10,15 @@ import java.util.List;
 
 /**
  * 华为云 OBS 配置绑定。
+ *
+ * <p>D2-1 修复：实现 {@link ObsUploadConfig} 端口接口，
+ * application 层通过接口依赖，不直接依赖本配置类。</p>
  */
 @Getter
 @Setter
 @Configuration
 @ConfigurationProperties(prefix = "xiyu.obs")
-public class ObsProperties {
+public class ObsProperties implements ObsUploadConfig {
 
     private boolean enabled = false;
 
