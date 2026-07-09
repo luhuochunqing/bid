@@ -291,26 +291,31 @@ class TenderPermissionIntegrationTest {
     }
 
     @Test
-    @DisplayName("2.4 审计日志 GET /api/tenders/{id}/audit-logs: 投标项目负责人应 403（文档：变更日志仅管理员/组长，tender.view 不含项目负责人）")
+    @DisplayName("2.4 审计日志 GET /api/tenders/{id}/audit-logs: 投标项目负责人应放行（回退 hasAnyRole，与详情主体接口权限一致）")
     @WithMockUser(username = "projectLeader", roles = {"BID_PROJECTLEADER"})
     void getAuditLogs_byProjectLeader_returnsForbidden() throws Exception {
-        mockMvc.perform(get("/api/tenders/1/audit-logs"))
-                .andExpect(status().isForbidden());
+        // 紧急回退 hasAuthority('tender.view') → hasAnyRole：
+        // audit-logs 是标讯详情页子组件无条件调用的接口，权限应与详情主体接口一致。
+        int status = mockMvc.perform(get("/api/tenders/1/audit-logs"))
+                .andReturn().getResponse().getStatus();
+        assertThat(status).isNotEqualTo(403);
     }
 
     @Test
-    @DisplayName("2.4 审计日志 GET /api/tenders/{id}/audit-logs: 投标专员应 403（文档：变更日志仅管理员/组长）")
+    @DisplayName("2.4 审计日志 GET /api/tenders/{id}/audit-logs: 投标专员应放行（回退 hasAnyRole，与详情主体接口权限一致）")
     @WithMockUser(username = "bid-specialist", roles = {"BID_TEAM"})
     void getAuditLogs_byBidTeam_returnsForbidden() throws Exception {
-        mockMvc.perform(get("/api/tenders/1/audit-logs"))
-                .andExpect(status().isForbidden());
+        // 紧急回退：投标专员进标讯详情页不应 403
+        int status = mockMvc.perform(get("/api/tenders/1/audit-logs"))
+                .andReturn().getResponse().getStatus();
+        assertThat(status).isNotEqualTo(403);
     }
 
     @Test
-    @DisplayName("2.4 审计日志 GET /api/tenders/{id}/audit-logs: 投标组长应放行（文档：管理员/组长可看，持 tender.view）")
-    @WithMockUser(username = "bid-TeamLeader", authorities = {"tender.view"})
+    @DisplayName("2.4 审计日志 GET /api/tenders/{id}/audit-logs: 投标组长应放行（hasAnyRole 含 BID_TEAMLEADER）")
+    @WithMockUser(username = "bid-TeamLeader", roles = {"BID_TEAMLEADER"})
     void getAuditLogs_byBidTeamLeader_notForbidden() throws Exception {
-        // 组长持 tender.view 权限点（hasAuthority('tender.view')）
+        // 回退后用 hasAnyRole 鉴权，BID_TEAMLEADER 角色直接放行
         int status = mockMvc.perform(get("/api/tenders/1/audit-logs"))
                 .andReturn().getResponse().getStatus();
         assertThat(status).isNotEqualTo(403);
