@@ -1,5 +1,10 @@
+import { ref } from 'vue'
+
 export function useProjectDetailDocuments(context) {
   const { project, route, userStore, projectsApi, collaborationApi, isApiProject } = context
+
+  // XIYU-1E: 删除按钮防重复点击保护，记录正在删除的文档 id
+  const deletingDocId = ref(null)
 
   const downloadTextFile = (filename, content, mimeType = 'text/plain;charset=utf-8') => {
     const blob = new Blob([content], { type: mimeType })
@@ -36,16 +41,27 @@ export function useProjectDetailDocuments(context) {
 
   const handleDownload = (doc) => { downloadTextFile(doc.name, `文档：${doc.name}\n项目：${project.value?.name || ''}\n上传者：${doc.uploader || ''}`); context.message.success(`已下载 ${doc.name}`) }
   const handleDeleteDoc = async (doc) => {
+    // XIYU-1E: 防重复点击，同一文档正在删除中则忽略后续点击
+    if (deletingDocId.value !== null) return
     try {
       await context.confirm('确认删除该文档？', '提示', { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' })
+    } catch {
+      // 用户在 confirm 中点击了取消；无需处理。
+      return
+    }
+    deletingDocId.value = doc?.id ?? null
+    try {
       if (isApiProject.value && /^\d+$/.test(String(doc?.id))) {
         const result = await projectsApi.deleteDocument(route.params.id, doc.id)
         if (!result?.success) throw new Error(result?.msg || '删除文档失败')
       }
       if (Array.isArray(project.value?.documents)) project.value.documents = project.value.documents.filter((item) => String(item.id) !== String(doc.id))
       context.message.success('删除成功')
-    } catch {
-      // 用户在 confirm 中点击了取消；无需处理。
+    } catch (error) {
+      const msg = error?.response?.data?.msg || error?.message
+      if (msg) context.message.error(msg)
+    } finally {
+      deletingDocId.value = null
     }
   }
   const handleCreateDocument = async (docName, size = '1.2MB') => {
@@ -114,5 +130,5 @@ export function useProjectDetailDocuments(context) {
     } catch (error) { context.message.error(error.message || '设置提醒失败') }
   }
 
-  return { handleUpload, handleDownload, handleDeleteDoc, handleAddDocument, handleShare, handleExport, handleArchiveDocuments, handleSetReminder, handleCreateDocument }
+  return { handleUpload, handleDownload, handleDeleteDoc, handleAddDocument, handleShare, handleExport, handleArchiveDocuments, handleSetReminder, handleCreateDocument, deletingDocId }
 }

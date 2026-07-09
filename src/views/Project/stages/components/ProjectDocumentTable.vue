@@ -24,7 +24,7 @@
         <template #default="{ row }">
           <!-- CO-558: 下载/删除按钮按项目级权限控制（canDownload/canDelete 由父组件按角色矩阵传入） -->
           <el-button v-if="!readonly && canDownload" link type="primary" size="small" @click="handleDownload(row)">下载</el-button>
-          <el-button v-if="!readonly && canDelete" link type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+          <el-button v-if="!readonly && canDelete" link type="danger" size="small" :loading="deletingId === row.id" @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -60,6 +60,9 @@ const props = defineProps({
 const emit = defineEmits(['export'])
 const documents = ref([])
 const loading = ref(false)
+// XIYU-1E: 删除按钮 loading 保护，防止用户快速重复点击触发 ObjectOptimisticLockingFailureException
+// 记录正在删除的文档 id，同一行按钮显示 loading 且禁用重复点击
+const deletingId = ref(null)
 const fileInputRef = ref(null)
 const currentPage = ref(1)
 const pageSize = 5
@@ -115,8 +118,17 @@ async function handleDownload(row) {
 }
 
 async function handleDelete(row) {
+  // XIYU-1E: 防重复点击，同一文档正在删除中则忽略后续点击
+  if (deletingId.value !== null) return
   try {
     await ElMessageBox.confirm(`确认删除「${row.name}」？`, '删除确认', { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' })
+  } catch (error) {
+    // 用户取消，不进入删除流程
+    if (error === 'cancel' || error?.toString?.()?.includes('cancel')) return
+    throw error
+  }
+  deletingId.value = row.id
+  try {
     await projectsApi.deleteDocument(props.projectId, row.id)
     ElMessage.success('已删除')
     await loadDocuments()
@@ -129,6 +141,8 @@ async function handleDelete(row) {
     if (error === 'cancel' || error?.toString?.()?.includes('cancel')) return
     const msg = error?.response?.data?.msg || error?.message
     if (msg) ElMessage.error(msg)
+  } finally {
+    deletingId.value = null
   }
 }
 

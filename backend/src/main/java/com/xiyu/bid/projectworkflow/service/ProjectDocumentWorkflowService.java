@@ -15,6 +15,7 @@ import com.xiyu.bid.project.notification.DocumentOperationType;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -136,8 +137,15 @@ class ProjectDocumentWorkflowService {
                 currentUser.getId()
         );
 
-        projectDocumentRepository.delete(document);
-        projectDocumentBindingGateway.onDocumentDeleted(document);
+        // XIYU-1E: 并发删除幂等性保护——前端虽有防重复点击，但仍可能因网络重试、多标签页操作等
+        // 触发重复 DELETE。第一次成功后第二次会抛 ObjectOptimisticLockingFailureException
+        // （Hibernate StaleObjectStateException）。此时文档已被删除，视为幂等成功，不报错。
+        try {
+            projectDocumentRepository.delete(document);
+            projectDocumentBindingGateway.onDocumentDeleted(document);
+        } catch (ObjectOptimisticLockingFailureException e) {
+            // 文档已被另一事务删除，幂等成功，无需再触发 onDocumentDeleted（已触发过）
+        }
     }
 
     private void assertCanUploadProjectDocument() {
