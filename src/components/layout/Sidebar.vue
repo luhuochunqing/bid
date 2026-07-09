@@ -26,10 +26,10 @@
       >
         <!-- 直接按配置顺序渲染菜单项 -->
         <template v-for="item in filteredMenus" :key="item.path">
-          <!-- 单级菜单 -->
+          <!-- 单级菜单 / 仅一个子菜单：渲染为可点击项，点击直达子菜单 path -->
           <el-menu-item
-            v-if="!item.children || item.children.length === 0"
-            :index="item.path"
+            v-if="!item.children || item.children.length <= 1"
+            :index="item.children?.[0]?.path || item.path"
           >
             <CommonIcon :name="item.meta?.icon" size="md" />
             <template #title>{{ item.meta?.title }}</template>
@@ -75,10 +75,10 @@
     >
       <!-- 直接按配置顺序渲染菜单项 -->
       <template v-for="item in filteredMenus" :key="item.path">
-        <!-- 单级菜单 -->
+        <!-- 单级菜单 / 仅一个子菜单：渲染为可点击项，点击直达子菜单 path -->
         <el-menu-item
-          v-if="!item.children || item.children.length === 0"
-          :index="item.path"
+          v-if="!item.children || item.children.length <= 1"
+          :index="item.children?.[0]?.path || item.path"
         >
           <CommonIcon :name="item.meta?.icon" size="md" />
           <template #title>{{ item.meta?.title }}</template>
