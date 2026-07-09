@@ -30,8 +30,7 @@
     <div class="bid-upload-area">
       <el-upload :with-credentials="true"
         v-model:file-list="bidFiles"
-        :action="uploadUrl"
-        :headers="uploadHeaders"
+        :http-request="customUpload"
         :data="{ documentCategory: 'BID' }"
         :before-upload="beforeBidUpload"
         :disabled="bidDone || !perm.canManageBidFiles || reviewState === 'reviewing' || reviewState === 'approved'"
@@ -163,7 +162,9 @@ import { useProjectDetailContext } from '@/composables/projectDetail/context.js'
 import { useProjectDraftingPermissions, canDeleteDocumentAs } from '@/composables/projectDetail/useProjectDraftingPermissions.js'
 import { useProjectDocumentsExport } from '@/composables/projectDetail/useProjectDocumentsExport.js'
 import UserPicker from '@/components/common/UserPicker.vue'
-import { downloadWithFilename } from '@/utils/download.js'; const userStore = useUserStore()
+import { downloadWithFilename } from '@/utils/download.js'
+import { useObsProjectDocumentUpload } from '@/composables/useObsProjectDocumentUpload.js'
+const userStore = useUserStore()
 const ctx = useProjectDetailContext()
 const { bidAgent } = ctx
 
@@ -266,8 +267,12 @@ const currentReviewerDecision = computed(() => {
   const mine = reviewers.value.find(r => String(r.reviewerId) === String(uid))
   return mine?.decision || null
 })
-const uploadUrl = computed(() => getApiUrl(`/api/projects/${props.projectId}/documents`))
 const uploadHeaders = computed(() => { const t = userStore?.token; return t ? { Authorization: 'Bearer ' + t } : {} })
+// OBS 直传：大文件绕过 APISIX 网关直传 OBS，失败回退到 multipart（修复 413）
+const { customUpload } = useObsProjectDocumentUpload(
+  () => props.projectId,
+  { uploaderId: () => userStore.currentUser?.id, uploaderName: () => userStore.userName }
+)
 // CO-381: 投标文件下载守卫——仅当项目仍处于 DRAFTING 阶段（含 submit-review 的 REVIEWING 子状态）
 // 且当前用户有下载权限时允许下载。推进到 EVALUATING/CLOSED 等后续阶段后，文件名可见但下载禁用。
 const canDownloadBidFile = computed(() => perm.canDownloadDocument && props.currentStage === 'DRAFTING')

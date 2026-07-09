@@ -27,8 +27,7 @@
       <template #header><span class="section-title">凭证文件<span class="required-mark">*</span></span></template>
       <el-upload :with-credentials="true"
         v-model:file-list="evidenceFiles"
-        :action="uploadUrl"
-        :headers="uploadHeaders"
+        :http-request="customUpload"
         :data="{ documentCategory: 'WIN_NOTICE' }"
         :accept="acceptedTypes"
         :before-upload="beforeUpload"
@@ -113,6 +112,7 @@ import { getApiUrl } from '@/api/config.js'
 import { useUserStore } from '@/stores/user.js'
 import { downloadWithFilename } from '@/utils/download.js'
 import { getDocuments } from '@/api/modules/projectDocuments.js'
+import { useObsProjectDocumentUpload } from '@/composables/useObsProjectDocumentUpload.js'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
 const emit = defineEmits(['registered', 'switch-tab'])
@@ -149,6 +149,11 @@ const resultNextTab = computed(() => getResultConfirmNextTab(form.resultType))
 
 const uploadUrl = computed(() => getApiUrl(`/api/projects/${props.projectId}/documents`))
 const acceptedTypes = '.pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx'
+// OBS 直传：大文件绕过 APISIX 网关直传 OBS，失败回退到 multipart（修复 413）
+const { customUpload } = useObsProjectDocumentUpload(
+  () => props.projectId,
+  { uploaderId: () => userStore.currentUser?.id, uploaderName: () => userStore.userName }
+)
 const MAX_FILE_SIZE_MB = 10
 const ALLOWED_MIMES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
 

@@ -61,8 +61,7 @@
               <div class="field-item">
                 <label>退回凭证 <span class="required-mark">*</span></label>
                 <el-upload :with-credentials="true"
-                  :action="uploadUrl"
-                  :headers="uploadHeaders"
+                  :http-request="customUpload"
                   :data="{ documentCategory: 'DEPOSIT_RECEIPT' }"
                   :accept="acceptedTypes"
                   :before-upload="beforeUpload"
@@ -95,8 +94,7 @@
               <div class="field-item">
                 <label>证明文件 <span class="required-mark">*</span></label>
                 <el-upload :with-credentials="true"
-                  :action="uploadUrl"
-                  :headers="uploadHeaders"
+                  :http-request="customUpload"
                   :data="{ documentCategory: 'DEPOSIT_RECEIPT' }"
                   :accept="acceptedTypes"
                   :before-upload="beforeUpload"
@@ -135,8 +133,7 @@
               <div class="field-item full-width">
                 <label>证明文件 <span class="required-mark">*</span></label>
                 <el-upload :with-credentials="true"
-                  :action="uploadUrl"
-                  :headers="uploadHeaders"
+                  :http-request="customUpload"
                   :data="{ documentCategory: 'DEPOSIT_RECEIPT' }"
                   :accept="acceptedTypes"
                   :before-upload="beforeUpload"
@@ -283,6 +280,7 @@ import '@wangeditor/editor/dist/css/style.css'
 import { readinessToTooltip } from './readinessTooltip.js'
 import { downloadWithFilename } from '@/utils/download.js'
 import { useProjectDocumentsExport } from '@/composables/projectDetail/useProjectDocumentsExport.js'
+import { useObsProjectDocumentUpload } from '@/composables/useObsProjectDocumentUpload.js'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
 const emit = defineEmits(['closed'])
@@ -329,6 +327,11 @@ async function handleExportDocs() {
 // 文件上传配置
 const uploadUrl = computed(() => getApiUrl(`/api/projects/${props.projectId}/documents`))
 const acceptedTypes = '.pdf,.jpg,.jpeg,.png'
+// OBS 直传：大文件绕过 APISIX 网关直传 OBS，失败回退到 multipart（修复 413）
+const { customUpload } = useObsProjectDocumentUpload(
+  () => props.projectId,
+  { uploaderId: () => userStore.currentUser?.id, uploaderName: () => userStore.userName }
+)
 const MAX_FILE_SIZE_MB = 10
 const ALLOWED_MIMES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png']
 const depositEvidenceFiles = ref([])
