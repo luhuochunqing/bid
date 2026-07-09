@@ -44,7 +44,7 @@
           :project-id="ctx.project.id"
           :current-stage="currentProjectStage"
           @advanced="handleStageUpdated"
-          @go-to-score-parse="document.querySelector('.task-kanban')?.scrollIntoView({ behavior:'smooth', block:'start' }); scoreParseRef?.open()" />
+          @go-to-score-parse="handleGoToScoreParse" />
       </div>
       <EvaluationStage
         v-else-if="activeStageTab === 'EVALUATING' && ctx.project?.id"
@@ -256,10 +256,10 @@ watch(() => route?.params?.stage, (newStage) => {
   }
 }, { immediate: true })
 
-function handleSwitchTab(v) {
-  activeStageTab.value = v
+function handleSwitchTab(v) { activeStageTab.value = v }
+function handleGoToScoreParse() {
+  document.querySelector('.task-kanban')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); scoreParseRef.value?.open()
 }
-
 // 纯函数：同步 tab 到时间线快照的真实阶段
 function syncTabToRealStage() {
   const realStage = timelineRef.value?.snapshot?.currentStage
