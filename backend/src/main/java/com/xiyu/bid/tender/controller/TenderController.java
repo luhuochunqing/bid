@@ -132,7 +132,11 @@ public class TenderController {
     }
 
     @GetMapping("/{id}/audit-logs")
-    @PreAuthorize("hasAuthority('tender.view')")
+    // 紧急回退 hasAuthority('tender.view') → hasAnyRole：
+    // hasAuthority 鉴权对 OSS 用户失效（OSS 菜单权限不含 tender.view 权限点），
+    // 导致所有 OSS 用户（含 admin）进标讯详情页 audit-logs 接口 403。
+    // 详见 lessons-learned.md §23 全链路日志排查。后续走 Spec Kit 治本。
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM')")
     @Operation(summary = "标讯审计日志")
     public ResponseEntity<ApiResponse<List<com.xiyu.bid.audit.dto.AuditLogItemDTO>>> getAuditLogs(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("查询成功", tenderAuditService.getAuditLogs(id)));
