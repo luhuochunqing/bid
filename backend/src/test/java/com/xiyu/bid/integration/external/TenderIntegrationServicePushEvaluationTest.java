@@ -14,6 +14,7 @@ import com.xiyu.bid.project.service.ProjectManagerDepartmentEnricher;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.tender.dto.EvaluationBasicDTO;
+import com.xiyu.bid.tender.service.TenderCrmOccupancyChecker;
 import com.xiyu.bid.tender.service.TenderEvaluationDocumentService;
 import com.xiyu.bid.tender.service.TenderEvaluationSubmissionMapper;
 import com.xiyu.bid.tender.service.TenderMapper;
@@ -71,6 +72,7 @@ class TenderIntegrationServicePushEvaluationTest {
                 tenderRepository,
                 mock(ProjectManagerIdResolver.class),
                 mock(ProjectManagerDepartmentEnricher.class));
+        TenderCrmOccupancyChecker crmOccupancyChecker = new TenderCrmOccupancyChecker(tenderRepository);
         commandService = new TenderIntegrationCommandService(
                 tenderRepository,
                 mock(TenderAttachmentRepository.class),
@@ -81,7 +83,8 @@ class TenderIntegrationServicePushEvaluationTest {
                 support,
                 mock(ApplicationEventPublisher.class),
                 mock(TenderAuditService.class),
-                mock(UserRepository.class));
+                mock(UserRepository.class),
+                crmOccupancyChecker);
     }
 
     private TenderPushRequest.EvaluationUpdate buildEval(String roleKey, String infoKey, String value) {

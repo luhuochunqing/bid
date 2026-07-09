@@ -13,6 +13,7 @@ import com.xiyu.bid.project.service.ProjectManagerDepartmentEnricher;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.tender.service.TenderMapper;
 import com.xiyu.bid.tender.service.TenderAuditService;
+import com.xiyu.bid.tender.service.TenderCrmOccupancyChecker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,6 +50,7 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
     @Mock private TenderAutoAssignmentService autoAssignmentService;
     @Mock private TenderAssignmentNotifier assignmentNotifier;
     @Mock private TenderAuditService tenderAuditService;
+    @Mock private TenderCrmOccupancyChecker crmOccupancyChecker;
     @Mock private ApplicationEventPublisher eventPublisher;
     @Mock private ProjectManagerIdResolver projectManagerIdResolver;
     @Mock private ProjectManagerDepartmentEnricher departmentEnricher;
@@ -74,7 +76,7 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
                 departmentEnricher);
         commandService = new TenderIntegrationCommandService(
                 tenderRepository, attachmentRepository, crmTenderLinkService, mapper, evaluationService, helper, support, eventPublisher,
-                tenderAuditService, userRepository);
+                tenderAuditService, userRepository, crmOccupancyChecker);
         when(tenderRepository.save(any(Tender.class))).thenAnswer(inv -> inv.getArgument(0));
         TenderDTO stubDto = TenderDTO.builder().build();
         when(tenderMapper.toDTO(any(Tender.class))).thenReturn(stubDto);

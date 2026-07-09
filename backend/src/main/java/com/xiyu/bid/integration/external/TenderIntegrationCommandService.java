@@ -10,10 +10,12 @@ import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
 import com.xiyu.bid.util.InputSanitizer;
 import com.xiyu.bid.webhook.domain.OperatorDisplayName;
 import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
+import com.xiyu.bid.tender.service.TenderCrmOccupancyChecker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -38,6 +40,7 @@ public class TenderIntegrationCommandService {
     private final ApplicationEventPublisher eventPublisher;
     private final com.xiyu.bid.tender.service.TenderAuditService tenderAuditService;
     private final UserRepository userRepository;
+    private final TenderCrmOccupancyChecker crmOccupancyChecker;
 
     /**
      * 幂等推送标讯。
@@ -176,7 +179,15 @@ public class TenderIntegrationCommandService {
         crmTenderLinkService.linkIfPresent(tender, crmId);
         support.applyCrmFallback(tender, crmId, null);
 
-        Tender saved = tenderRepository.save(tender);
+        // CO-297: 创建前校验 CRM 商机号是否已被其他标讯占用，避免直接触发数据库唯一索引 500
+        crmOccupancyChecker.assertCrmOpportunityNotOccupied(null, crmId);
+        Tender saved;
+        try {
+            saved = tenderRepository.save(tender);
+        } catch (DataIntegrityViolationException ex) {
+            crmOccupancyChecker.translateUniqueConstraintViolation(ex);
+            throw ex;
+        }
         // CO-305: CRM 推送创建的标讯状态变为 EVALUATED 时发布 TenderStatusChangedEvent
         if (saved.getStatus() == Tender.Status.EVALUATED && initialStatus != Tender.Status.EVALUATED) {
             String operatorName = resolveOperatorName(userId);
