@@ -117,27 +117,55 @@ export function useQualificationDetail({ qualifications, fetchQualifications }) 
     window.open(url, '_blank')
   }
 
-  // 行下载：优先走 attachments[0] 的 attachment-id 接口，兜底走旧 fileUrl
+  // 行下载：多附件打包 zip，单附件下原文件，兜底走旧 fileUrl
+  // CO-554 fix: 此前只下 attachments[0]，其余附件下载入口缺失。现按附件数自动选 zip/单文件。
   const handleDownloadFile = async (row) => {
-    const att = row.attachments?.[0]
     const qId = row.id
-    const attId = att?.id
-    if (qId && attId) {
+    const atts = Array.isArray(row.attachments) ? row.attachments : []
+    const downloadableAtts = atts.filter((a) => a.fileUrl && String(a.fileUrl).trim())
+    const downloadableCount = downloadableAtts.length
+
+    // 多附件：复用 /batch-download 打包 zip（后端已遍历 attachments 去重命名）
+    if (downloadableCount > 1 && qId) {
       try {
-        const res = await http.get(`/api/knowledge/qualifications/${qId}/attachments/${attId}`, { responseType: 'blob' })
+        const res = await http.post('/api/knowledge/qualifications/batch-download', { ids: [qId] }, { responseType: 'blob' })
         const url = window.URL.createObjectURL(new Blob([res.data]))
         const a = document.createElement('a')
         a.href = url
-        a.download = att.fileName || row.name || '资质附件'
+        a.download = `${row.name || '资质附件'}_${new Date().toISOString().slice(0, 10)}.zip`
         document.body.appendChild(a)
         a.click()
         a.remove()
         window.URL.revokeObjectURL(url)
         return
       } catch {
-        /* fall through to legacy fallback */
+        ElMessage.error('下载失败')
+        return
       }
     }
+
+    // 单附件：走 attachment-id 接口
+    if (downloadableCount === 1) {
+      const att = downloadableAtts[0]
+      const attId = att.id
+      if (qId && attId) {
+        try {
+          const res = await http.get(`/api/knowledge/qualifications/${qId}/attachments/${attId}`, { responseType: 'blob' })
+          const url = window.URL.createObjectURL(new Blob([res.data]))
+          const a = document.createElement('a')
+          a.href = url
+          a.download = att.fileName || row.name || '资质附件'
+          document.body.appendChild(a)
+          a.click()
+          a.remove()
+          window.URL.revokeObjectURL(url)
+          return
+        } catch {
+          /* fall through to legacy fallback */
+        }
+      }
+    }
+
     // 兜底：旧数据直接使用 fileUrl
     if (row.fileUrl) {
       try {
