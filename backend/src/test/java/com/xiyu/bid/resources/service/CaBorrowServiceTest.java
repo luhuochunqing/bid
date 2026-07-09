@@ -28,6 +28,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -135,18 +136,17 @@ class CaBorrowServiceTest {
         assertThat(dto.getApplicantEmployeeNumber()).isEqualTo("EMP001");
     }
 
-    // ── CO-546: returnBorrow 不应再触发到期通知（已由定时扫描统一负责） ──
+    // ── CO-546: returnBorrow 保留到期通知触发（即时性优先） ──
 
     /**
-     * CO-546: 登记归还时不应再触发 CaNotificationDispatcher.onExpiring/onExpired。
+     * CO-546: 登记归还时仍应触发 CaNotificationDispatcher.onExpiring/onExpired。
      *
-     * <p>修复前：returnCertificate 在登记归还时调用 onExpiring/onExpired，导致即将到期 CA
-     * 仅在归还时才通知保管员，定时扫描路径不发送通知。
-     * 修复后：定时扫描统一负责到期预警，returnBorrow 不再触发，
-     * 避免与定时扫描在同一天重复发送。</p>
+     * <p>定时扫描（每天 09:00）通过 DAILY_DEDUP 策略实现每日去重；
+     * returnBorrow 是低频事件，保留即时通知比避免重复更重要。
+     * 管理员登记归还时立即收到到期提醒，避免错过处理窗口。</p>
      */
     @Test
-    void returnCertificate_shouldNotTriggerExpiryNotification() {
+    void returnCertificate_shouldTriggerExpiryNotificationForExpiringCert() {
         CaBorrowService service = newService();
         User user = user(50L, "admin", "管理员", "EMP999");
         // 即将到期（5天后）+ 已借出状态
@@ -177,9 +177,44 @@ class CaBorrowServiceTest {
 
         service.returnCertificate(100L, userDetails("admin"), returnRequest());
 
-        // 关键断言：不应触发到期通知（定时扫描统一负责）
-        verify(caNotificationDispatcher, never()).onExpiring(any(), anyLong());
-        verify(caNotificationDispatcher, never()).onExpired(any());
+        // 关键断言：即将到期 CA 归还时应触发 onExpiring
+        verify(caNotificationDispatcher).onExpiring(eq(cert), eq(5L));
+    }
+
+    @Test
+    void returnCertificate_shouldTriggerExpiredNotificationForExpiredCert() {
+        CaBorrowService service = newService();
+        User user = user(50L, "admin", "管理员", "EMP999");
+        // 已过期（1天前）+ 已借出状态
+        CaCertificateEntity cert = CaCertificateEntity.builder()
+                .id(1L)
+                .caType("ENTITY_CA")
+                .sealType("OFFICIAL_SEAL")
+                .expiryDate(LocalDate.now().minusDays(1))
+                .custodianId(99L)
+                .custodianName("保管员99")
+                .borrowStatus(CaBorrowStatus.IN_STOCK.name())
+                .status("EXPIRED")
+                .build();
+        CaBorrowApplicationEntity app = CaBorrowApplicationEntity.builder()
+                .id(100L)
+                .caCertificateId(1L)
+                .applicantId(50L)
+                .applicantName("管理员")
+                .status(BorrowStatus.APPROVED.name())
+                .approverId(99L)
+                .approverName("保管员99")
+                .borrowDurationType("SHORT_TERM")
+                .build();
+        when(userRepository.findByUsername("admin")).thenReturn(Optional.of(user));
+        when(borrowRepository.findById(100L)).thenReturn(Optional.of(app));
+        when(certificateRepository.findById(1L)).thenReturn(Optional.of(cert));
+        when(effectiveRoleResolver.resolveRoleCode(user)).thenReturn("/bidAdmin");
+
+        service.returnCertificate(100L, userDetails("admin"), returnRequest());
+
+        // 关键断言：已过期 CA 归还时应触发 onExpired
+        verify(caNotificationDispatcher).onExpired(eq(cert));
     }
 
     // ── helpers ──

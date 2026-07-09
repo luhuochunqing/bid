@@ -102,7 +102,10 @@ public class AlertNotificationOrchestrator {
 
             // 3.5 CO-546: CA_EXPIRY 类型：将 extraPayload 中的 custodianId 加入接收人，
             // 保证 CA 保管员与 returnBorrow 路径一致地收到到期预警。
-            addCustodianRecipientIfPresent(extraPayload, recipientUserIds);
+            // 仅对 CA_EXPIRY 类型执行，避免对其他告警类型产生不必要的 Map.get 开销。
+            if (alertRule.getType() == AlertRule.AlertType.CA_EXPIRY) {
+                addCustodianRecipientIfPresent(extraPayload, recipientUserIds);
+            }
 
             // 4. 接收人列表为空 → 跳过
             if (recipientUserIds.isEmpty()) {
@@ -232,7 +235,7 @@ public class AlertNotificationOrchestrator {
      */
     private void addCustodianRecipientIfPresent(Map<String, Object> extraPayload, List<Long> recipientUserIds) {
         if (extraPayload == null) return;
-        Object raw = extraPayload.get("custodianId");
+        Object raw = extraPayload.get(AlertMessagePolicy.PAYLOAD_KEY_CUSTODIAN_ID);
         if (raw == null) return;
         Long custodianId = toLongOrNull(raw);
         if (custodianId == null) return;

@@ -4,6 +4,7 @@
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.alerts.service;
 
+import com.xiyu.bid.alerts.domain.DedupPolicy;
 import com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest;
 import com.xiyu.bid.alerts.dto.AlertHistoryCreateResult;
 import com.xiyu.bid.alerts.entity.AlertHistory;
@@ -14,6 +15,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -46,6 +50,9 @@ public class AlertHistoryService {
      *   <li>返回 {@link AlertHistoryCreateResult} 明确区分新建 vs 复用，供调用方决定是否触发通知。</li>
      *   <li>P2-8: 如果最近一条告警已被处理但在冷却期内（默认 24h），也视为复用，
      *       避免告警被处理后短期内又因相同条件触发而重复创建。</li>
+     *   <li>CO-546: 支持通过 {@link AlertHistoryCreateRequest#getDedupPolicy()} 指定去重策略。
+     *       默认 {@link DedupPolicy#REUSE_UNTIL_RESOLVED} 保持历史行为；
+     *       CA 到期预警使用 {@link DedupPolicy#DAILY_DEDUP} 实现每日通知。</li>
      * </ul>
      *
      * @param request 创建请求
@@ -63,6 +70,9 @@ public class AlertHistoryService {
             throw new IllegalArgumentException("Message is required");
         }
 
+        DedupPolicy policy = request.getDedupPolicy() == null
+                ? DedupPolicy.REUSE_UNTIL_RESOLVED : request.getDedupPolicy();
+
         String relatedId = request.getRelatedId();
         boolean hasRelatedId = relatedId != null && !relatedId.trim().isEmpty();
         if (hasRelatedId) {
@@ -71,9 +81,9 @@ public class AlertHistoryService {
                     .findFirstByRuleIdAndRelatedIdOrderByCreatedAtDesc(
                             request.getRuleId(), relatedId)
                     .orElse(null);
-            if (latest != null && shouldReuseAlert(latest)) {
-                log.debug("复用已有告警：ruleId={}, relatedId={}, resolved={}, resolvedAt={}",
-                        request.getRuleId(), relatedId, latest.getResolved(), latest.getResolvedAt());
+            if (latest != null && shouldReuseAlert(latest, policy)) {
+                log.debug("复用已有告警：ruleId={}, relatedId={}, resolved={}, resolvedAt={}, policy={}",
+                        request.getRuleId(), relatedId, latest.getResolved(), latest.getResolvedAt(), policy);
                 return new AlertHistoryCreateResult(latest, false);
             }
         }
@@ -86,48 +96,54 @@ public class AlertHistoryService {
                 .resolved(false)
                 .build();
         AlertHistory saved = alertHistoryRepository.save(alertHistory);
-        log.debug("新建告警历史：ruleId={}, relatedId={}", request.getRuleId(), request.getRelatedId());
+        log.debug("新建告警历史：ruleId={}, relatedId={}, policy={}", request.getRuleId(), request.getRelatedId(), policy);
         return new AlertHistoryCreateResult(saved, true);
     }
 
     /**
      * P2-8: 判断是否应复用已有告警（不创建新告警）。
      *
-     * <p>复用条件：
+     * <p>复用条件根据 {@link DedupPolicy} 决定：
      * <ul>
-     *   <li>告警未处理（resolved=false）：
+     *   <li>{@link DedupPolicy#REUSE_UNTIL_RESOLVED}（默认，原行为）：
      *     <ul>
-     *       <li>createdAt 在今天 → 复用（当日去重，避免当日重复通知）</li>
-     *       <li>createdAt 在今天之前 → 不复用，允许新建（CO-546: 每日扫描应触发通知）</li>
+     *       <li>未处理告警 → 复用，直到人工 resolve</li>
+     *       <li>已处理告警在冷却期内（默认 24h）→ 复用</li>
      *     </ul>
      *   </li>
-     *   <li>告警已处理（resolved=true）但处理时间在冷却期内（默认 24h）→ 复用，避免短期内重复告警</li>
+     *   <li>{@link DedupPolicy#DAILY_DEDUP}（CO-546 CA 到期预警）：
+     *     <ul>
+     *       <li>未处理告警：createdAt 在今天 → 复用（当日去重）；否则新建（每日通知）</li>
+     *       <li>已处理告警在冷却期内 → 复用（与默认策略一致）</li>
+     *     </ul>
+     *   </li>
      * </ul>
      *
-     * @param alert 最近的告警记录
+     * @param alert  最近的告警记录
+     * @param policy 去重策略
      * @return true 表示复用（不创建新告警），false 表示新建
      */
-    private boolean shouldReuseAlert(AlertHistory alert) {
+    private boolean shouldReuseAlert(AlertHistory alert, DedupPolicy policy) {
         if (alert.getResolved() == null || !alert.getResolved()) {
-            // 未处理告警：当日去重（CO-546）
-            // - createdAt 在今天 → 复用，避免当日重复通知
-            // - createdAt 在今天之前 → 不复用，允许新建，以触发每日通知
-            java.time.LocalDateTime createdAt = alert.getCreatedAt();
-            if (createdAt == null) {
-                // 数据异常：无创建时间 → 默认复用，避免重复创建
-                return true;
+            // 未处理告警
+            if (policy == DedupPolicy.DAILY_DEDUP) {
+                // CO-546: 当日去重 — createdAt 在今天复用，昨日及之前新建
+                LocalDateTime createdAt = alert.getCreatedAt();
+                if (createdAt == null) {
+                    return true; // 数据异常：默认复用，避免重复创建
+                }
+                return createdAt.toLocalDate().equals(LocalDate.now());
             }
-            java.time.LocalDate alertDate = createdAt.toLocalDate();
-            java.time.LocalDate today = java.time.LocalDate.now();
-            return alertDate.equals(today);
+            // REUSE_UNTIL_RESOLVED（原行为）：未处理告警一律复用
+            return true;
         }
-        // 已处理告警 → 检查是否在冷却期内
+        // 已处理告警 → 检查是否在冷却期内（两种策略一致）
         if (alert.getResolvedAt() == null) {
             // 已处理但无处理时间（数据异常）→ 不复用，允许新建
             return false;
         }
         return alert.getResolvedAt().isAfter(
-                java.time.LocalDateTime.now().minusHours(RESOLVED_COOLDOWN_HOURS));
+                LocalDateTime.now().minusHours(RESOLVED_COOLDOWN_HOURS));
     }
 
     public AlertHistory getAlertHistoryById(Long id) {

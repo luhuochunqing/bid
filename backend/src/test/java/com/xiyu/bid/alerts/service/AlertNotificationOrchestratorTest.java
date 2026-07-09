@@ -93,6 +93,18 @@ class AlertNotificationOrchestratorTest {
                 .build();
     }
 
+    private AlertRule buildCaExpiryRule() {
+        return AlertRule.builder()
+                .id(2L)
+                .name("CA证书到期提醒")
+                .type(AlertRule.AlertType.CA_EXPIRY)
+                .condition(AlertRule.ConditionType.LESS_THAN)
+                .threshold(BigDecimal.valueOf(30))
+                .enabled(true)
+                .createdBy("system")
+                .build();
+    }
+
     @Test
     @DisplayName("正常流程：接收人非空且 systemActor 非空 → 调用 createNotification 一次")
     void shouldCallCreateNotificationWhenRecipientsAndActorPresent() {
@@ -210,24 +222,27 @@ class AlertNotificationOrchestratorTest {
     }
 
     /**
-     * CO-546: extraPayload 含 custodianId 时，CA 保管员应被加入通知接收人列表。
+     * CO-546: CA_EXPIRY 类型且 extraPayload 含 custodianId 时，CA 保管员应被加入通知接收人列表。
      *
      * <p>定时扫描路径此前仅通知角色广播接收人（投标管理员/投标组长），缺少 CA 保管员。
      * 通过 extraPayload 携带 custodianId，dispatchNotification 应将其与角色接收人合并，
      * 保证 CA 保管员与 returnBorrow 路径一致地收到到期预警。</p>
+     *
+     * <p>P1-6: 仅对 CA_EXPIRY 类型执行 custodianId 合并，避免对其他告警类型产生开销。</p>
      */
     @Test
-    @DisplayName("CO-546: extraPayload 含 custodianId → 保管员加入接收人列表")
+    @DisplayName("CO-546: CA_EXPIRY + extraPayload 含 custodianId → 保管员加入接收人列表")
     void shouldAddCustodianToRecipientsWhenCustodianIdInPayload() {
         AlertHistory history = buildHistory();
-        AlertRule rule = buildRule();
+        AlertRule rule = buildCaExpiryRule();
         when(notificationRecipientResolver.getUserIdsByRoleCodes(any()))
                 .thenReturn(List.of(100L, 200L));
         when(systemActorResolver.resolveCached()).thenReturn(1L);
         when(notificationApplicationService.createNotification(any(), any()))
                 .thenReturn(DispatchResult.validWithId(99L));
 
-        orchestrator.dispatchNotification(history, rule, Map.of("custodianId", 99L));
+        orchestrator.dispatchNotification(history, rule,
+                Map.of(com.xiyu.bid.alerts.domain.AlertMessagePolicy.PAYLOAD_KEY_CUSTODIAN_ID, 99L));
 
         ArgumentCaptor<CreateNotificationRequest> captor =
                 ArgumentCaptor.forClass(CreateNotificationRequest.class);
@@ -237,5 +252,31 @@ class AlertNotificationOrchestratorTest {
                 "CA 保管员(99L) 必须在接收人列表中: " + recipients);
         assertTrue(recipients.contains(100L),
                 "角色广播接收人(100L) 必须保留: " + recipients);
+    }
+
+    /**
+     * CO-546 P1-6: 非 CA_EXPIRY 类型（如 DEADLINE）即使 extraPayload 含 custodianId 也不合并。
+     *
+     * <p>custodianId 合并仅对 CA_EXPIRY 类型生效，避免其他告警类型意外接收 CA 保管员。</p>
+     */
+    @Test
+    @DisplayName("CO-546 P1-6: 非 CA_EXPIRY 类型不执行 custodianId 合并")
+    void shouldNotAddCustodianForNonCaExpiryType() {
+        AlertHistory history = buildHistory();
+        AlertRule rule = buildRule(); // DEADLINE 类型
+        when(notificationRecipientResolver.getUserIdsByRoleCodes(any()))
+                .thenReturn(List.of(100L, 200L));
+        when(systemActorResolver.resolveCached()).thenReturn(1L);
+        when(notificationApplicationService.createNotification(any(), any()))
+                .thenReturn(DispatchResult.validWithId(99L));
+
+        orchestrator.dispatchNotification(history, rule,
+                Map.of(com.xiyu.bid.alerts.domain.AlertMessagePolicy.PAYLOAD_KEY_CUSTODIAN_ID, 99L));
+
+        ArgumentCaptor<CreateNotificationRequest> captor =
+                ArgumentCaptor.forClass(CreateNotificationRequest.class);
+        verify(notificationApplicationService).createNotification(captor.capture(), eq(1L));
+        List<Long> recipients = captor.getValue().recipientUserIds();
+        org.assertj.core.api.Assertions.assertThat(recipients).doesNotContain(99L);
     }
 }

@@ -114,6 +114,7 @@ class AlertHistoryServiceIfAbsentTest {
                 .message("之前的测试告警")
                 .relatedId("Project:123")
                 .resolved(false)
+                .createdAt(LocalDateTime.now().minusDays(3)) // 3天前创建，默认策略仍应复用
                 .build();
 
         when(alertHistoryRepository.findFirstByRuleIdAndRelatedIdOrderByCreatedAtDesc(
@@ -123,6 +124,32 @@ class AlertHistoryServiceIfAbsentTest {
 
         assertThat(result.created()).isFalse();
         assertThat(result.alertHistory()).isSameAs(existing);
+        verify(alertHistoryRepository, never()).save(any(AlertHistory.class));
+    }
+
+    @Test
+    @DisplayName("CO-546: 默认策略下未处理告警跨日仍复用（保证不干扰其他告警类型）")
+    void shouldReuseUnresolvedAcrossDaysUnderDefaultPolicy() {
+        // 场景：DEADLINE 等告警使用默认 REUSE_UNTIL_RESOLVED 策略，
+        // 未处理告警即使 createdAt 在昨天也应复用，不新建。
+        AlertHistoryCreateRequest request = buildRequest("Project:123");
+        // 默认策略：request 未设置 dedupPolicy，使用 REUSE_UNTIL_RESOLVED
+        AlertHistory existing = AlertHistory.builder()
+                .id(101L)
+                .ruleId(1L)
+                .level(AlertHistory.AlertLevel.HIGH)
+                .message("之前的测试告警")
+                .relatedId("Project:123")
+                .resolved(false)
+                .createdAt(LocalDateTime.now().minusDays(1)) // 昨天创建
+                .build();
+
+        when(alertHistoryRepository.findFirstByRuleIdAndRelatedIdOrderByCreatedAtDesc(
+                1L, "Project:123")).thenReturn(Optional.of(existing));
+
+        AlertHistoryCreateResult result = alertHistoryService.createAlertHistoryIfAbsent(request);
+
+        assertThat(result.created()).isFalse();
         verify(alertHistoryRepository, never()).save(any(AlertHistory.class));
     }
 

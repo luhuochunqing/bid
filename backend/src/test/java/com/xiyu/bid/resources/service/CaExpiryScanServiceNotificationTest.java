@@ -186,8 +186,10 @@ class CaExpiryScanServiceNotificationTest {
         ArgumentCaptor<Map<String, Object>> payloadCaptor = ArgumentCaptor.forClass(Map.class);
         verify(alertNotificationOrchestrator)
                 .createAndNotifyIfNew(any(AlertHistoryCreateRequest.class), eq(rule), payloadCaptor.capture());
-        assertThat(payloadCaptor.getValue()).containsKey("custodianId");
-        assertThat(payloadCaptor.getValue().get("custodianId")).isEqualTo(99L);
+        Map<String, Object> payload = payloadCaptor.getValue();
+        assertThat(payload).containsKey(com.xiyu.bid.alerts.domain.AlertMessagePolicy.PAYLOAD_KEY_CUSTODIAN_ID);
+        assertThat(payload.get(com.xiyu.bid.alerts.domain.AlertMessagePolicy.PAYLOAD_KEY_CUSTODIAN_ID))
+                .isEqualTo(99L);
     }
 
     private CaExpiryScanService newService() {
