@@ -56,3 +56,14 @@
   justify-content: flex-end;
   margin-top: var(--space-md); // 16px
 }
+
+// CO-565: 表格操作列按钮一行显示，避免换行
+// 用法：<el-table-column class-name="kb-action-col" ...>
+:deep(.kb-action-col .cell) {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  white-space: nowrap;
+}

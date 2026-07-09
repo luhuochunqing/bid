@@ -56,7 +56,7 @@
                 <el-tag :type="row.statusTagType" :class="{ 'revoked-tag': row.status === 'REVOKED' }">{{ row.statusLabel }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" :width="canManage ? 180 : 80" fixed="right" align="center">
+            <el-table-column label="操作" :width="canManage ? 180 : 80" fixed="right" align="center" class-name="kb-action-col">
               <template #default="{row}">
                 <el-button type="primary" link size="small" @click.stop="openDetail(row)">查看</el-button>
                 <el-button v-if="canManage && row.status !== 'REVOKED'" type="primary" link size="small" @click.stop="openEdit(row)">编辑</el-button>
@@ -113,7 +113,7 @@
                 <el-tag :type="row.statusTagType" :class="{ 'revoked-tag': row.status === 'REVOKED' }">{{ row.statusLabel }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" :width="canManage ? 180 : 80" fixed="right" align="center">
+            <el-table-column label="操作" :width="canManage ? 180 : 80" fixed="right" align="center" class-name="kb-action-col">
               <template #default="{row}">
                 <el-button type="primary" link size="small" @click.stop="openDetail(row)">查看</el-button>
                 <el-button v-if="canManage && row.status !== 'REVOKED'" type="primary" link size="small" @click.stop="openEdit(row)">编辑</el-button>

@@ -112,7 +112,7 @@
         <el-table-column prop="status" label="状态" width="95" align="center">
           <template #default="{ row }"><el-tag :type="getStatusTagType(row.status)" effect="dark">{{ row.statusLabel }}</el-tag></template>
         </el-table-column>
-        <el-table-column label="操作" width="130" fixed="right" align="center">
+        <el-table-column label="操作" width="130" fixed="right" align="center" class-name="kb-action-col">
           <template #default="{ row }">
             <el-button v-if="canManagePerformance" type="primary" link size="small" @click.stop="openForm(row)">编辑</el-button>
             <el-button v-if="canManagePerformance" type="danger" link size="small" @click.stop="handleDelete(row)">删除</el-button>
