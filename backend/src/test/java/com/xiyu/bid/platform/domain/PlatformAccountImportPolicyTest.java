@@ -98,4 +98,56 @@ class PlatformAccountImportPolicyTest {
             assertThat(row.employeeNumber()).isEqualTo("20260509");
         }
     }
+
+    @Nested
+    @DisplayName("parseRow — 字段长度校验（CO-560 P0-1）")
+    class FieldLengthValidation {
+
+        private String[] validCells() {
+            return new String[]{
+                    "测试平台", "https://example.com", "admin", "pass123",
+                    "EMP001", "否", "",
+                    "", "", ""
+            };
+        }
+
+        @Test
+        @DisplayName("注册手机号超长：valid()=false，错误包含提示")
+        void registerPhoneTooLong_invalid() {
+            String[] cells = validCells();
+            cells[8] = "13800138000138001380001"; // 23 字符，超过 LEN_REGISTER_PHONE=20
+            ParsedAccountRow row = PlatformAccountImportPolicy.parseRow(2, cells);
+            assertThat(row.valid()).isFalse();
+            assertThat(row.errors()).anyMatch(s -> s.contains("注册手机"));
+        }
+
+        @Test
+        @DisplayName("注册手机号恰好 20 字符：valid()=true")
+        void registerPhoneAtLimit_valid() {
+            String[] cells = validCells();
+            cells[8] = "12345678901234567890"; // 恰好 20 字符
+            ParsedAccountRow row = PlatformAccountImportPolicy.parseRow(2, cells);
+            assertThat(row.valid()).isTrue();
+        }
+
+        @Test
+        @DisplayName("注册邮箱超长：valid()=false")
+        void registerEmailTooLong_invalid() {
+            String[] cells = validCells();
+            cells[9] = "a".repeat(201); // 超过 LEN_REGISTER_EMAIL=200
+            ParsedAccountRow row = PlatformAccountImportPolicy.parseRow(2, cells);
+            assertThat(row.valid()).isFalse();
+            assertThat(row.errors()).anyMatch(s -> s.contains("注册邮箱"));
+        }
+
+        @Test
+        @DisplayName("注册人超长：valid()=false")
+        void registrantTooLong_invalid() {
+            String[] cells = validCells();
+            cells[7] = "张".repeat(101); // 超过 LEN_REGISTRANT=100
+            ParsedAccountRow row = PlatformAccountImportPolicy.parseRow(2, cells);
+            assertThat(row.valid()).isFalse();
+            assertThat(row.errors()).anyMatch(s -> s.contains("注册人"));
+        }
+    }
 }

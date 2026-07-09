@@ -1017,4 +1017,59 @@ public class ArchitectureTest {
             .importClasses(TomapFixture3Arg.class);
         toMapMustHaveMergeFunction.check(ok);
     }
+
+    /**
+     * RULE 19: @Async 方法禁止同类内自调用（CO-560 防复发守卫）
+     *
+     * <p>根因：Spring AOP 代理无法拦截同类内 {@code this.} 调用，{@code @Async} 注解失效，
+     * 异步方法同步执行。CO-560 中 PlatformAccountImportAppService.executeImportAsync 自调用
+     * 导致异步失效 + 事务共享，单行 DB 异常触发 Hibernate Session 中毒 + UnexpectedRollbackException。
+     *
+     * <p>正确做法：将 @Async 方法提取到独立 Bean，跨类调用让代理生效（参见 §31 spec 031 R-002 决策）。
+     *
+     * <p>豁免清单：以下历史违规类暂缓治理（已记录技术债，后续逐步迁移）。
+     */
+    private static final Set<String> ASYNC_SELF_INVOCATION_EXEMPTIONS = Set.of(
+        "CaCertificateImportAppService",
+        "TenderImportAppService",
+        "WarehouseExportAppService",
+        "WarehouseImportAppService",
+        "WarehouseLedgerExportAppService"
+    );
+
+    @ArchTest
+    public static final ArchRule async_methods_should_not_be_self_invoked =
+        noClasses()
+            .should(new ArchCondition<JavaClass>("not self-invoke @Async methods within the same class") {
+                @Override
+                public void check(JavaClass javaClass, ConditionEvents events) {
+                    // 豁免历史违规类（后续逐步治理）
+                    if (ASYNC_SELF_INVOCATION_EXEMPTIONS.contains(javaClass.getSimpleName())) {
+                        return;
+                    }
+                    for (JavaMethod method : javaClass.getMethods()) {
+                        for (JavaMethodCall call : method.getMethodCallsFromSelf()) {
+                            // 只检查同类内的调用
+                            if (!call.getTarget().getOwner().equals(javaClass)) continue;
+                            String targetName = call.getTarget().getName();
+                            // 在同类中查找目标方法，检查是否有 @Async 注解
+                            for (JavaMethod targetMethod : javaClass.getMethods()) {
+                                if (targetMethod.getName().equals(targetName) &&
+                                    targetMethod.isAnnotatedWith(
+                                        org.springframework.scheduling.annotation.Async.class)) {
+                                    events.add(SimpleConditionEvent.violated(call,
+                                        javaClass.getSimpleName() + "." + method.getName() +
+                                        " self-invokes @Async method " + targetName +
+                                        " — Spring AOP proxy cannot intercept this. " +
+                                        "Extract to a separate bean (see spec 031 R-002)."));
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            })
+            .because("@Async self-invocation bypasses Spring AOP proxy — the annotation has no effect. "
+                + "Extract the @Async method to a separate bean so the proxy can intercept the cross-class call. "
+                + "See CO-560 and spec 031 R-002.");
 }

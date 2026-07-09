@@ -1,5 +1,7 @@
 package com.xiyu.bid.platform.domain;
 
+import com.xiyu.bid.platform.entity.PlatformAccount;
+
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -27,6 +29,13 @@ public class PlatformAccountImportPolicy {
     public static final int COL_REGISTRANT = 7;
     public static final int COL_REGISTER_PHONE = 8;
     public static final int COL_REGISTER_EMAIL = 9;
+
+    /** 字段长度上限（CO-560：行级校验，超长不触发 DB 异常）。
+     *  数值须与 {@link PlatformAccount} 实体 @Column(length=...) 保持一致。 */
+    public static final int LEN_REGISTRANT = PlatformAccount.LEN_REGISTRANT;
+    public static final int LEN_REGISTER_PHONE = 20;
+    public static final int LEN_REGISTER_EMAIL = 200;
+    public static final int LEN_REMARKS = 500;
 
     private PlatformAccountImportPolicy() {}
 
@@ -74,6 +83,12 @@ public class PlatformAccountImportPolicy {
         if (username.isEmpty()) errors.add("登录账号不能为空");
         if (password.isEmpty()) errors.add("登录密码不能为空");
 
+        // Field length validation (CO-560: 超长在此行级失败，不触发 DB 异常)
+        validateLength(registrant, LEN_REGISTRANT, "注册人", errors);
+        validateLength(registerPhone, LEN_REGISTER_PHONE, "注册手机", errors);
+        validateLength(registerEmail, LEN_REGISTER_EMAIL, "注册邮箱", errors);
+        validateLength(remarks, LEN_REMARKS, "备注", errors);
+
         // hasCa parsing
         Boolean hasCa = parseBoolean(hasCaStr);
 
@@ -96,6 +111,13 @@ public class PlatformAccountImportPolicy {
 
     private static String cellAt(String[] cells, int index) {
         return index < cells.length && cells[index] != null ? cells[index] : "";
+    }
+
+    /** 字段长度校验：超长则加入 errors（行级失败，不触发 DB 异常）。 */
+    private static void validateLength(String value, int maxLength, String fieldLabel, List<String> errors) {
+        if (value != null && value.length() > maxLength) {
+            errors.add(fieldLabel + "长度超过" + maxLength + "字符（当前" + value.length() + "字符）");
+        }
     }
 
     /** 解析后的一行数据 */

@@ -2,23 +2,14 @@ package com.xiyu.bid.platform.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import com.xiyu.bid.entity.User;
-import com.xiyu.bid.infrastructure.excel.SingleSheetExcelReader;
-import com.xiyu.bid.infrastructure.excel.SingleSheetExcelReader.WorkbookData;
-import com.xiyu.bid.platform.domain.PlatformAccountImportPolicy;
 import com.xiyu.bid.platform.infrastructure.persistence.entity.PlatformAccountImportTaskEntity;
 import com.xiyu.bid.platform.infrastructure.persistence.repository.PlatformAccountImportTaskJpaRepository;
 import com.xiyu.bid.repository.UserRepository;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -29,14 +20,18 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+/**
+ * PlatformAccountImportAppService 测试（CO-560 重构后）。
+ *
+ * <p>重构后 AppService 仅负责同步阶段（创建 PENDING 任务 + 委托给 AsyncRunner）。
+ * 异步执行逻辑的测试迁移到 {@link PlatformAccountImportAsyncRunnerTest}。
+ */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("PlatformAccountImportAppService 平台账户导入应用服务")
+@DisplayName("PlatformAccountImportAppService 平台账户导入应用服务（同步阶段）")
 class PlatformAccountImportAppServiceTest {
 
     @Mock
-    private SingleSheetExcelReader excelReader;
-    @Mock
-    private PlatformAccountImportRowPersister rowPersister;
+    private PlatformAccountImportAsyncRunner asyncRunner;
     @Mock
     private PlatformAccountImportTaskJpaRepository taskRepo;
     @Mock
@@ -46,138 +41,56 @@ class PlatformAccountImportAppServiceTest {
 
     private static final Long TASK_ID = 1L;
     private static final Long OPERATOR_ID = 100L;
-    private static final String VALID_EMPLOYEE_NUMBER = "EMP001";
-    private static final Long CUSTODIAN_USER_ID = 42L;
 
     @BeforeEach
     void setUp() {
-        service = new PlatformAccountImportAppService(
-                excelReader, rowPersister, taskRepo, userRepository);
+        service = new PlatformAccountImportAppService(asyncRunner, taskRepo, userRepository);
 
-        PlatformAccountImportTaskEntity task = new PlatformAccountImportTaskEntity();
-        task.setId(TASK_ID);
-        lenient().when(taskRepo.findById(TASK_ID)).thenReturn(Optional.of(task));
-        lenient().when(taskRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
-    }
-
-    private WorkbookData buildWorkbook(String employeeNumber) {
-        String[] header = PlatformAccountImportPolicy.HEADERS.clone();
-        String[] row = {
-                "测试平台", "https://example.com", "admin", "pass123",
-                employeeNumber, "否", "",
-                "", "", ""
-        };
-        return new WorkbookData(List.of(header, row));
+        // save 时模拟 DB 自动分配 ID
+        lenient().when(taskRepo.save(any())).thenAnswer(inv -> {
+            PlatformAccountImportTaskEntity t = inv.getArgument(0);
+            if (t.getId() == null) t.setId(TASK_ID);
+            return t;
+        });
     }
 
     @Nested
-    @DisplayName("executeImportAsync — 工号解析")
-    class EmployeeNumberResolution {
+    @DisplayName("triggerImport — 同步阶段")
+    class TriggerImport {
 
         @Test
-        @DisplayName("有效工号：成功解析为 userId，persist 收到正确的 contactPersonId")
-        void validEmployeeNumber_resolvesToUserId() throws Exception {
-            User custodian = User.builder().id(CUSTODIAN_USER_ID).employeeNumber(VALID_EMPLOYEE_NUMBER).build();
-            when(excelReader.read(any(byte[].class))).thenReturn(buildWorkbook(VALID_EMPLOYEE_NUMBER));
-            when(userRepository.findByEmployeeNumber(VALID_EMPLOYEE_NUMBER)).thenReturn(Optional.of(custodian));
+        @DisplayName("创建 PENDING 任务并委托给 AsyncRunner")
+        void createsPendingTask_andDelegatesToAsyncRunner() {
+            byte[] fileBytes = new byte[]{1, 2, 3};
+            String filename = "test.xlsx";
 
-            service.executeImportAsync(TASK_ID, new byte[0], OPERATOR_ID);
+            Long taskId = service.triggerImport(fileBytes, filename, OPERATOR_ID);
 
-            ArgumentCaptor<Long> contactPersonCaptor = ArgumentCaptor.forClass(Long.class);
-            verify(rowPersister).persist(any(), contactPersonCaptor.capture());
-            assertThat(contactPersonCaptor.getValue()).isEqualTo(CUSTODIAN_USER_ID);
-        }
-
-        @Test
-        @DisplayName("无效工号：不调用 persist，任务错误包含提示")
-        void invalidEmployeeNumber_addsErrorAndSkipsPersist() throws Exception {
-            String badNumber = "BAD999";
-            when(excelReader.read(any(byte[].class))).thenReturn(buildWorkbook(badNumber));
-            when(userRepository.findByEmployeeNumber(badNumber)).thenReturn(Optional.empty());
-
-            service.executeImportAsync(TASK_ID, new byte[0], OPERATOR_ID);
-
-            verify(rowPersister, never()).persist(any(), any());
+            assertThat(taskId).isEqualTo(TASK_ID);
 
             ArgumentCaptor<PlatformAccountImportTaskEntity> taskCaptor =
                     ArgumentCaptor.forClass(PlatformAccountImportTaskEntity.class);
-            verify(taskRepo, org.mockito.Mockito.atLeastOnce()).save(taskCaptor.capture());
-            PlatformAccountImportTaskEntity finalTask = taskCaptor.getAllValues().stream()
-                    .filter(t -> "COMPLETED".equals(t.getStatus()))
-                    .findFirst()
-                    .orElseThrow();
-            assertThat(finalTask.getErrorDetails()).contains("工号「" + badNumber + "」未匹配到用户");
-            assertThat(finalTask.getImportedRows()).isEqualTo(0);
-            assertThat(finalTask.getInvalidRows()).isGreaterThan(0);
-        }
-    }
+            verify(taskRepo).save(taskCaptor.capture());
+            PlatformAccountImportTaskEntity savedTask = taskCaptor.getValue();
+            assertThat(savedTask.getStatus()).isEqualTo("PENDING");
+            assertThat(savedTask.getSourceFilename()).isEqualTo(filename);
+            assertThat(savedTask.getCreatedBy()).isEqualTo(OPERATOR_ID);
 
-    @Nested
-    @DisplayName("executeImportAsync — 已取消登录账号唯一性校验")
-    class UsernameUniquenessRemoved {
-
-        private WorkbookData buildWorkbookWithRows(String[]... rows) {
-            String[] header = PlatformAccountImportPolicy.HEADERS.clone();
-            List<String[]> data = new ArrayList<>();
-            data.add(header);
-            data.addAll(Arrays.asList(rows));
-            return new WorkbookData(data);
-        }
-
-        private String[] row(String accountName, String username, String employeeNumber) {
-            return new String[]{
-                    accountName, "https://example.com", username, "pass123",
-                    employeeNumber, "否", "",
-                    "", "", ""
-            };
+            verify(asyncRunner).executeImportAsync(eq(TASK_ID), eq(fileBytes), eq(OPERATOR_ID));
         }
 
         @Test
-        @DisplayName("相同登录账号重复出现：所有行都应导入成功")
-        void duplicateUsername_rowsAllowed() throws Exception {
-            User custodian = User.builder().id(CUSTODIAN_USER_ID).employeeNumber(VALID_EMPLOYEE_NUMBER).build();
-            when(excelReader.read(any(byte[].class)))
-                    .thenReturn(buildWorkbookWithRows(
-                            row("平台A", "admin", VALID_EMPLOYEE_NUMBER),
-                            row("平台B", "admin", VALID_EMPLOYEE_NUMBER)));
-            when(userRepository.findByEmployeeNumber(VALID_EMPLOYEE_NUMBER)).thenReturn(Optional.of(custodian));
+        @DisplayName("操作人 username 正确回填到 createdByUsername")
+        void fillsCreatedByUsername_fromUser() {
+            User operator = User.builder().id(OPERATOR_ID).fullName("张三").build();
+            lenient().when(userRepository.findById(OPERATOR_ID)).thenReturn(Optional.of(operator));
 
-            service.executeImportAsync(TASK_ID, new byte[0], OPERATOR_ID);
+            service.triggerImport(new byte[0], "test.xlsx", OPERATOR_ID);
 
-            verify(rowPersister, times(2)).persist(any(), any());
             ArgumentCaptor<PlatformAccountImportTaskEntity> taskCaptor =
                     ArgumentCaptor.forClass(PlatformAccountImportTaskEntity.class);
-            verify(taskRepo, atLeastOnce()).save(taskCaptor.capture());
-            PlatformAccountImportTaskEntity finalTask = taskCaptor.getAllValues().stream()
-                    .filter(t -> "COMPLETED".equals(t.getStatus()))
-                    .findFirst()
-                    .orElseThrow();
-            assertThat(finalTask.getImportedRows()).isEqualTo(2);
-            assertThat(finalTask.getInvalidRows()).isEqualTo(0);
-        }
-
-        @Test
-        @DisplayName("CO-559: 平台名称重复允许导入（移除唯一性校验）")
-        void duplicateAccountName_bothRowsImported() throws Exception {
-            User custodian = User.builder().id(CUSTODIAN_USER_ID).employeeNumber(VALID_EMPLOYEE_NUMBER).build();
-            when(excelReader.read(any(byte[].class)))
-                    .thenReturn(buildWorkbookWithRows(
-                            row("同一平台", "user1", VALID_EMPLOYEE_NUMBER),
-                            row("同一平台", "user2", VALID_EMPLOYEE_NUMBER)));
-            when(userRepository.findByEmployeeNumber(VALID_EMPLOYEE_NUMBER)).thenReturn(Optional.of(custodian));
-
-            service.executeImportAsync(TASK_ID, new byte[0], OPERATOR_ID);
-
-            verify(rowPersister, times(2)).persist(any(), any());
-            ArgumentCaptor<PlatformAccountImportTaskEntity> taskCaptor =
-                    ArgumentCaptor.forClass(PlatformAccountImportTaskEntity.class);
-            verify(taskRepo, atLeastOnce()).save(taskCaptor.capture());
-            PlatformAccountImportTaskEntity finalTask = taskCaptor.getAllValues().stream()
-                    .filter(t -> "COMPLETED".equals(t.getStatus()))
-                    .findFirst()
-                    .orElseThrow();
-            assertThat(finalTask.getImportedRows()).isEqualTo(2);
-            assertThat(finalTask.getInvalidRows()).isEqualTo(0);
+            verify(taskRepo).save(taskCaptor.capture());
+            assertThat(taskCaptor.getValue().getCreatedByUsername()).isEqualTo("张三");
         }
     }
 }

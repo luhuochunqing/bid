@@ -1,10 +1,7 @@
 package com.xiyu.bid.platform.service;
 
 import com.xiyu.bid.entity.User;
-import com.xiyu.bid.infrastructure.excel.SingleSheetExcelReader;
-import com.xiyu.bid.infrastructure.excel.SingleSheetExcelReader.WorkbookData;
 import com.xiyu.bid.platform.domain.PlatformAccountImportPolicy;
-import com.xiyu.bid.platform.domain.PlatformAccountImportPolicy.ParsedAccountRow;
 import com.xiyu.bid.platform.infrastructure.persistence.entity.PlatformAccountImportTaskEntity;
 import com.xiyu.bid.platform.infrastructure.persistence.repository.PlatformAccountImportTaskJpaRepository;
 import com.xiyu.bid.common.util.ExcelAutoSizeHelper;
@@ -17,27 +14,33 @@ import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 平台账户导入应用服务（CO-560 重构后）。
+ *
+ * <p><b>职责</b>：仅负责同步阶段（创建 PENDING 任务记录）+ 查询/模板生成。
+ * 异步执行已提取到 {@link PlatformAccountImportAsyncRunner}，避免 @Async 自调用导致代理失效。
+ *
+ * <p><b>根因</b>：原 {@code executeImportAsync} 通过 {@code this.} 自调用，Spring AOP 代理失效，
+ * {@code @Async} 不生效，同步执行在 HTTP 请求线程内，与 {@code triggerImport} 的 {@code @Transactional}
+ * 共享同一事务，单行 DB 异常 → Hibernate Session 中毒 + UnexpectedRollbackException。
+ */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class PlatformAccountImportAppService {
 
-    private final SingleSheetExcelReader excelReader;
-    private final PlatformAccountImportRowPersister rowPersister;
+    private final PlatformAccountImportAsyncRunner asyncRunner;
     private final PlatformAccountImportTaskJpaRepository taskRepo;
     private final UserRepository userRepository;
 
-    /** 同步创建导入任务，返回 taskId。异步执行导入。 */
+    /** 同步创建导入任务，返回 taskId。异步执行导入（跨类调用，@Async 代理生效）。 */
     @Transactional
     public Long triggerImport(byte[] fileBytes, String filename, Long userId) {
         User user = userRepository.findById(userId).orElse(null);
@@ -48,99 +51,8 @@ public class PlatformAccountImportAppService {
         task.setCreatedByUsername(user != null ? user.getFullName() : null);
         task = taskRepo.save(task);
 
-        executeImportAsync(task.getId(), fileBytes, userId);
+        asyncRunner.executeImportAsync(task.getId(), fileBytes, userId);
         return task.getId();
-    }
-
-    @Async
-    public void executeImportAsync(Long taskId, byte[] fileBytes, Long userId) {
-        PlatformAccountImportTaskEntity task = taskRepo.findById(taskId).orElse(null);
-        if (task == null) return;
-
-        try {
-            // 1. 校验
-            updateStatus(task, "VALIDATING");
-            WorkbookData wb = excelReader.read(fileBytes);
-
-            // 2. 解析行
-            List<String> headerErrors = PlatformAccountImportPolicy.validateHeader(wb.header());
-            List<String> allErrors = new ArrayList<>(headerErrors);
-
-            List<ParsedAccountRow> rows = new ArrayList<>();
-            if (headerErrors.isEmpty()) {
-                for (String[] cells : wb.data()) {
-                    if (isEmptyRow(cells)) continue;
-                    rows.add(PlatformAccountImportPolicy.parseRow(rows.size() + 2, cells));
-                }
-            }
-
-            // 3. 统计
-            int total = rows.size();
-            long valid = rows.stream().filter(ParsedAccountRow::valid).count();
-            long invalid = total - valid;
-
-            task.setTotalRows(total);
-            task.setValidRows((int) valid);
-            task.setInvalidRows((int) invalid);
-            taskRepo.save(task);
-
-            // 4. 持久化
-            updateStatus(task, "IMPORTING");
-            int imported = 0;
-            int failed = 0;
-            for (ParsedAccountRow row : rows) {
-                if (!row.valid()) continue;
-                try {
-                    User custodian = userRepository.findByEmployeeNumber(row.employeeNumber()).orElse(null);
-                    if (custodian == null) {
-                        row.errors().add("工号「" + row.employeeNumber() + "」未匹配到用户");
-                        failed++;
-                        continue;
-                    }
-                    rowPersister.persist(row, custodian.getId());
-                    imported++;
-                } catch (RuntimeException e) {
-                    row.errors().add("导入失败: " + e.getMessage());
-                    failed++;
-                }
-            }
-
-            // 5. 完成
-            List<String> errorLines = new ArrayList<>(allErrors);
-            for (ParsedAccountRow row : rows) {
-                if (!row.valid()) {
-                    errorLines.add("第 " + row.rowIndex() + " 行: " +
-                            String.join("; ", row.errors()));
-                }
-            }
-
-            task.setImportedRows(imported);
-            task.setUpdatedRows(0); // INSERT-only, no updates
-            task.setInvalidRows((int) invalid + failed);
-            task.setErrorDetails(errorLines.isEmpty() ? null : String.join("\n", errorLines));
-            task.setStatus("COMPLETED");
-            task.setCompletedAt(LocalDateTime.now());
-            taskRepo.save(task);
-
-            log.info("PlatformAccount import task {} completed: {} total, {} imported, {} errors",
-                    taskId, total, imported, invalid + failed);
-        } catch (IOException | RuntimeException e) {
-            log.error("PlatformAccount import task {} failed", taskId, e);
-            updateStatus(task, "FAILED");
-            task.setErrorDetails("导入失败: " + e.getMessage());
-            task.setCompletedAt(LocalDateTime.now());
-            taskRepo.save(task);
-        }
-    }
-
-    private void updateStatus(PlatformAccountImportTaskEntity task, String status) {
-        task.setStatus(status);
-        taskRepo.save(task);
-    }
-
-    private boolean isEmptyRow(String[] cells) {
-        for (String c : cells) if (c != null && !c.isBlank()) return false;
-        return true;
     }
 
     /** 查询导入任务历史 */
