@@ -10,6 +10,7 @@ import com.xiyu.bid.tender.repository.TenderEvaluationCustomerInfoRepository;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
 import com.xiyu.bid.tender.service.TenderAutoAssignmentService;
 import com.xiyu.bid.tender.service.TenderAssignmentNotifier;
+import com.xiyu.bid.project.service.ProjectManagerDepartmentEnricher;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.tender.dto.EvaluationBasicDTO;
@@ -68,7 +69,8 @@ class TenderIntegrationServicePushEvaluationTest {
                 mock(TenderAssignmentNotifier.class),
                 mock(ApplicationEventPublisher.class),
                 tenderRepository,
-                mock(ProjectManagerIdResolver.class));
+                mock(ProjectManagerIdResolver.class),
+                mock(ProjectManagerDepartmentEnricher.class));
         commandService = new TenderIntegrationCommandService(
                 tenderRepository,
                 mock(TenderAttachmentRepository.class),

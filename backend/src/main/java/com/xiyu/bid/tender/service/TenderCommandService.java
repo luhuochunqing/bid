@@ -7,6 +7,7 @@ import com.xiyu.bid.crm.application.CrmTenderSubjectChecker;
 import com.xiyu.bid.crm.domain.AssignmentResult;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.integration.external.ProjectManagerIdResolver;
+import com.xiyu.bid.project.service.ProjectManagerDepartmentEnricher;
 import com.xiyu.bid.tender.entity.TenderAttachment;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
@@ -25,6 +26,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +36,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -59,6 +62,8 @@ public class TenderCommandService {
     private final TenderAuditService tenderAuditService;
     private final CrmTenderSubjectChecker crmTenderSubjectChecker;
     private final TenderCrmLinkPersistService crmLinkPersistService;
+    /** 部门名反查：复用 ProjectManagerDepartmentEnricher（user.department_code → organization_departments.department_name）。 */
+    private final ProjectManagerDepartmentEnricher departmentEnricher;
 
     public TenderDTO createTender(TenderDTO tenderDTO) {
         return createTender(tenderDTO, null);
@@ -128,7 +133,13 @@ public class TenderCommandService {
                         result.projectManagerName(), tender.getId());
             }
         }
-        tender.setDepartment(result.departmentName());
+        // 部门名：优先用 CRM/mapping 返回的，为空时从 projectManagerId 反查 user 部门
+        // 这样新建标讯在分配时就写入 department，不依赖查询时兜底
+        String departmentName = result.departmentName();
+        if (StringUtils.isBlank(departmentName) && tender.getProjectManagerId() != null) {
+            departmentName = departmentEnricher.resolveDepartmentNameByUserId(tender.getProjectManagerId());
+        }
+        tender.setDepartment(departmentName);
     }
 
     public TenderDTO updateStatus(Long id, Tender.Status targetStatus) {

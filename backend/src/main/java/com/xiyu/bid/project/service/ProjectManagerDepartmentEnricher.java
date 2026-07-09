@@ -3,12 +3,15 @@ package com.xiyu.bid.project.service;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationDepartmentEntity;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationDepartmentRepository;
+import com.xiyu.bid.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -27,6 +30,7 @@ public class ProjectManagerDepartmentEnricher {
     private static final String OSS_SOURCE_APP = "oss";
 
     private final OrganizationDepartmentRepository organizationDepartmentRepository;
+    private final UserRepository userRepository;
 
     /**
      * 构建 managerId → departmentName 映射。
@@ -64,5 +68,35 @@ public class ProjectManagerDepartmentEnricher {
         userIdToDeptCode.forEach((userId, deptCode) ->
                 result.put(userId, externalDeptIdToName.get(deptCode)));
         return result;
+    }
+
+    /**
+     * 单点反查部门名（用于单条标讯/项目创建场景）。
+     *
+     * <p>链路：userId → user.department_code（OSS external_dept_id）→ organization_departments.department_name。
+     *
+     * <p>批量场景请用 {@link #buildManagerDepartmentMap}，避免 N+1。
+     *
+     * @param userId 用户 ID
+     * @return 部门名；查不到返回 null
+     */
+    public String resolveDepartmentNameByUserId(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        Optional<User> userOpt = userRepository.findById(userId);
+        if (userOpt.isEmpty()) {
+            return null;
+        }
+        String deptCode = userOpt.get().getDepartmentCode();
+        if (StringUtils.isBlank(deptCode)) {
+            return null;
+        }
+        return organizationDepartmentRepository
+                .findBySourceAppAndExternalDeptIdIn(OSS_SOURCE_APP, Set.of(deptCode))
+                .stream()
+                .findFirst()
+                .map(OrganizationDepartmentEntity::getDepartmentName)
+                .orElse(null);
     }
 }

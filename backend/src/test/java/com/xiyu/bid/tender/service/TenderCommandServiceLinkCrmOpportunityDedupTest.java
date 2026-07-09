@@ -84,7 +84,8 @@ class TenderCommandServiceLinkCrmOpportunityDedupTest {
                 assignmentRecordRepository,
                 tenderAuditService,
                 crmTenderSubjectChecker,
-                crmLinkPersistService); // CO-501 修复后：独立 @Service 处理落库事务
+                crmLinkPersistService, // CO-501 修复后：独立 @Service 处理落库事务
+                null); // ProjectManagerDepartmentEnricher（本测试不涉及自动分配部门反查）
     }
 
     @Test
