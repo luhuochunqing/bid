@@ -32,9 +32,10 @@ vi.mock('@/api/modules/projectLifecycle.js', () => ({
   },
 }))
 
+const deleteDocumentMock = vi.fn(() => Promise.resolve({ success: true }))
 vi.mock('@/api/modules/projectDocuments.js', () => ({
   getDocuments: (...args) => getDocumentsMock(...args),
-  deleteDocument: vi.fn(),
+  deleteDocument: (...args) => deleteDocumentMock(...args),
   getDocumentDownloadUrl: (projectId, documentId) => `/api/projects/${projectId}/documents/${documentId}/download`,
 }))
 
@@ -608,5 +609,96 @@ describe('DraftingStage 多人审核 + CO-483 驳回后清空 - CO-483/CO-484', 
     expect(approveBtn).toBeTruthy()
     expect(rejectBtn.attributes('disabled')).toBeFalsy()
     expect(approveBtn.attributes('disabled')).toBeFalsy()
+  })
+})
+
+// 防复发：DELETE 按钮防重复点击守卫
+// 场景：用户点击"删除" → await deleteDocument() 期间按钮未禁用 → 用户又点 → 后端 404
+describe('DraftingStage handleRemoveBidFile 防重复点击 - 服务器 404 根因修复', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getDraftingMock.mockReset()
+    getDocumentsMock.mockReset()
+    deleteDocumentMock.mockReset()
+    getDraftingMock.mockImplementation(() => Promise.resolve({ data: { reviewStatus: null } }))
+    getDocumentsMock.mockImplementation(() => Promise.resolve({
+      data: [{ id: 842, name: '投标文件.pdf', documentCategory: 'BID', uploaderId: 42 }],
+    }))
+    deleteDocumentMock.mockImplementation(() => Promise.resolve({ success: true }))
+    mockCurrentUser.role = '/bidAdmin'
+  })
+
+  it('防复发核心断言：删除期间重复点击不会二次调用 deleteDocument', async () => {
+    let resolveDelete
+    deleteDocumentMock.mockImplementation(() => new Promise(r => { resolveDelete = r }))
+
+    const wrapper = await mountDraftingStage({ currentStage: 'DRAFTING' })
+    await flushPromises()
+
+    const deleteBtn = wrapper.findAll('button').find(b => b.text() === '删除')
+    expect(deleteBtn).toBeTruthy()
+
+    // 第一次点击（pending 中，未 resolve）
+    await deleteBtn.trigger('click')
+    await flushPromises()
+
+    // 第二次点击：应被守卫跳过，deleteDocument 仍只被调用 1 次
+    await deleteBtn.trigger('click')
+    await flushPromises()
+
+    expect(deleteDocumentMock).toHaveBeenCalledTimes(1)
+
+    // resolve 第一次的 Promise，让其完成
+    resolveDelete({ success: true })
+    await flushPromises()
+
+    // 完成后仍只被调用 1 次
+    expect(deleteDocumentMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('删除失败时释放锁，允许重试', async () => {
+    // 第一次抛错（用 mockImplementationOnce 避免 unhandled rejection）
+    deleteDocumentMock.mockImplementationOnce(() => Promise.reject(new Error('network error')))
+
+    const wrapper = await mountDraftingStage({ currentStage: 'DRAFTING' })
+    await flushPromises()
+
+    const deleteBtn = wrapper.findAll('button').find(b => b.text() === '删除')
+    await deleteBtn.trigger('click')
+    await flushPromises()
+
+    // 第一次失败
+    expect(deleteDocumentMock).toHaveBeenCalledTimes(1)
+
+    // 第二次应能再次调用（锁已释放）
+    deleteDocumentMock.mockImplementationOnce(() => Promise.resolve({ success: true }))
+    await deleteBtn.trigger('click')
+    await flushPromises()
+
+    expect(deleteDocumentMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('删除期间按钮置灰', async () => {
+    let resolveDelete
+    deleteDocumentMock.mockImplementation(() => new Promise(r => { resolveDelete = r }))
+
+    const wrapper = await mountDraftingStage({ currentStage: 'DRAFTING' })
+    await flushPromises()
+
+    const deleteBtn = wrapper.findAll('button').find(b => b.text() === '删除')
+    expect(deleteBtn.attributes('disabled')).toBeFalsy()
+
+    await deleteBtn.trigger('click')
+    await nextTick()
+
+    // 删除期间按钮应置灰
+    expect(deleteBtn.attributes('disabled')).toBeDefined()
+
+    resolveDelete({ success: true })
+    await flushPromises()
+    await nextTick()
+
+    // 完成后恢复可点击
+    expect(deleteBtn.attributes('disabled')).toBeFalsy()
   })
 })
