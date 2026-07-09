@@ -48,6 +48,7 @@
               link
               type="danger"
               size="small"
+              :disabled="isBidFileDeleting"
               @click.prevent="handleRemoveBidFile(file)"
             >删除</el-button>
           </div>
@@ -164,6 +165,7 @@ import { useProjectDocumentsExport } from '@/composables/projectDetail/useProjec
 import UserPicker from '@/components/common/UserPicker.vue'
 import { downloadWithFilename } from '@/utils/download.js'
 import { useObsProjectDocumentUpload } from '@/composables/useObsProjectDocumentUpload.js'
+import { useDeleteGuard } from '@/composables/useDeleteGuard.js'
 const userStore = useUserStore()
 const ctx = useProjectDetailContext()
 const { bidAgent } = ctx
@@ -273,6 +275,8 @@ const { customUpload } = useObsProjectDocumentUpload(
   () => props.projectId,
   { uploaderId: () => userStore.currentUser?.id, uploaderName: () => userStore.userName }
 )
+// 防重复点击守卫：DELETE 请求期间禁用同一 documentId 的二次点击
+const { isDeleting: isBidFileDeleting, safeDelete: safeDeleteBidFile } = useDeleteGuard()
 // CO-381: 投标文件下载守卫——仅当项目仍处于 DRAFTING 阶段（含 submit-review 的 REVIEWING 子状态）
 // 且当前用户有下载权限时允许下载。推进到 EVALUATING/CLOSED 等后续阶段后，文件名可见但下载禁用。
 const canDownloadBidFile = computed(() => perm.canDownloadDocument && props.currentStage === 'DRAFTING')
@@ -310,12 +314,19 @@ function beforeBidUpload(file) {
 
 async function handleRemoveBidFile(file) {
   const documentId = file.response?.data?.id
-  if (documentId) {
-    try { await deleteDocument(props.projectId, documentId) }
-    catch (error) { ElMessage.error(error?.message || '删除投标文件失败'); return }
+  const ok = await safeDeleteBidFile(documentId, async () => {
+    if (documentId) {
+      try { await deleteDocument(props.projectId, documentId) }
+      catch (error) { ElMessage.error(error?.message || '删除投标文件失败'); throw error }
+    }
+    bidFiles.value = bidFiles.value.filter((item) => item !== file)
+    ElMessage.success('投标文件已删除')
+  })
+  if (!ok && documentId == null) {
+    // documentId 缺失：兜底处理（从列表移除，不发 DELETE）
+    bidFiles.value = bidFiles.value.filter((item) => item !== file)
   }
-  bidFiles.value = bidFiles.value.filter((item) => item !== file)
-  ElMessage.success('投标文件已删除')
+  // ok=false 且 documentId 存在：deleteFn 内部已处理错误 UI，无需额外提示
 }
 
 async function load() {

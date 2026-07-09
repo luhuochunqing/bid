@@ -118,6 +118,7 @@
             link
             type="danger"
             size="small"
+            :disabled="isBidDocDeleting"
             @click.prevent="handleBidDocRemove"
           >删除</el-button>
         </div>
@@ -213,6 +214,7 @@ import UserPicker from '@/components/common/UserPicker.vue'
 import ObsUploadProgress from '@/components/common/ObsUploadProgress.vue'
 import { useObsUpload } from '@/composables/useObsUpload.js'
 import { useObsProjectDocumentUpload } from '@/composables/useObsProjectDocumentUpload.js'
+import { useDeleteGuard } from '@/composables/useDeleteGuard.js'
 import { useInitiationStageActions } from './useInitiationStageActions.js'
 import { POSITION_OPTIONS, CONTACT_METHOD_OPTIONS, TENDENCY_OPTIONS, IMPACT_OPTIONS } from '@/views/Bidding/detail/components/customerInfoMatrixConfig.js'
 
@@ -254,6 +256,8 @@ const uploadHeaders = computed(() => { const t = userStore?.token; return t ? { 
 const obsUpload = useObsUpload()
 // 解构响应式状态供模板使用（ref 在模板中自动解包）
 const { uploading: obsUploading, progressPercent: obsProgressPercent, currentFile: obsCurrentFile, error: obsError } = obsUpload
+// 防重复点击守卫：DELETE 请求期间禁用同一 documentId 的二次点击
+const { isDeleting: isBidDocDeleting, safeDelete: safeDeleteBidDoc } = useDeleteGuard()
 const riskTagType = computed(() => form.aiRiskLevel === 'HIGH' ? 'danger' : form.aiRiskLevel === 'MEDIUM' ? 'warning' : form.aiRiskLevel === 'LOW' ? 'success' : 'info')
 const riskTagText = computed(() => form.aiRiskLevel === 'HIGH' ? '高风险' : form.aiRiskLevel === 'MEDIUM' ? '中风险' : form.aiRiskLevel === 'LOW' ? '低风险' : '')
 const aiAlertType = computed(() => form.aiRiskLevel === 'HIGH' ? 'error' : form.aiRiskLevel === 'MEDIUM' ? 'warning' : 'success')
@@ -270,17 +274,24 @@ function handleBeforeRemove() {
 async function handleBidDocRemove() {
   if (handleBeforeRemove() === false) return
   const documentId = form.tenderDocumentId
-  if (documentId) {
-    try {
-      await projectsApi.deleteDocument(props.projectId, documentId)
-    } catch (error) {
-      ElMessage.error(error?.message || '删除招标文件失败')
-      return
+  const ok = await safeDeleteBidDoc(documentId, async () => {
+    if (documentId) {
+      try {
+        await projectsApi.deleteDocument(props.projectId, documentId)
+      } catch (error) {
+        ElMessage.error(error?.message || '删除招标文件失败')
+        throw error
+      }
     }
+    form.tenderDocumentId = null
+    bidDocFiles.value = []
+    ElMessage.success('招标文件已删除')
+  })
+  if (!ok && documentId == null) {
+    form.tenderDocumentId = null
+    bidDocFiles.value = []
   }
-  form.tenderDocumentId = null
-  bidDocFiles.value = []
-  ElMessage.success('招标文件已删除')
+  // ok=false 且 documentId 存在：deleteFn 内部已处理错误 UI
 }
 
 const { handleDocBeforeUpload, handleDownloadBidDoc, onDepositChange, handleApprove, handleReject, saveDraft, submit, load } = useInitiationStageActions({
