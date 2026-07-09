@@ -21,9 +21,10 @@ OSS 用户（无论 OSS 端配置什么角色）登录系统后，看到的菜�
 **Acceptance Scenarios**:
 
 1. **Given** OSS 用户 03063（跨部门协同人员，OSS sysRoleList 配 "投标系统管理员"）登录，OSS `getUserPermission` 返回 35 个菜单 codes，**When** 系统构建该用户的 `UserDetails` authorities，**Then** authorities 只包含这 35 个菜单 codes 映射出的内部权限键 + 自身角色 authority，不包含 `all`，不包含其他角色的 `menuPermissions`。
-2. **Given** OSS 用户 06234（投标管理部高级投标经理，OSS sysRoleList 配 "投标系统管理员"）登录，**When** 系统构建该用户的 `UserDetails` authorities，**Then** authorities 不包含 `system.admin` 权限键（该权限键仅系统超级管理员应持有）。
+2. **Given** OSS 用户 06234（投标管理部高级投标经理，OSS sysRoleList 配 "投标系统管理员"）登录，**When** 系统构建该用户的 `UserDetails` authorities，**Then** authorities 不包含 `all` 权限键（该权限键仅本地系统超级管理员应持有）。
+   > **⚠️ CO-551 修订（2026-07-09）**：本场景原规定"不包含 `system.admin`"，已被推翻。业务上 OSS 投标系统管理员需要访问系统设置与仓库功能，`system.admin` 和 `warehouse.manage` 不再被视为"本地系统管理员专属"，可由 OSS 端通过菜单授权（1010/100408）授予。仅 `all` 仍被过滤。
 3. **Given** OSS 用户 03063 登录后访问前端菜单，**When** 前端 `hasPermission` 渲染菜单，**Then** 只渲染 OSS 返回的 35 个菜单 codes 对应的菜单项，不渲染系统所有菜单。
-4. **Given** OSS 用户 03063 登录后访问任意需要 `system.admin` 权限键的接口，**When** 后端 `@PreAuthorize("hasAuthority('system.admin')")` 校验，**Then** 返回 403（因为 OSS 用户不再持有 `system.admin`）。
+4. **Given** OSS 用户 03063 登录后访问任意需要 `system.admin` 权限键的接口，**When** 后端 `@PreAuthorize("hasAuthority('system.admin')")` 校验，**Then** 返回 200（CO-551 修订：若 OSS 端授权了 1010 菜单，OSS 用户可持有 `system.admin`）。
 
 ---
 

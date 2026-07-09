@@ -36,12 +36,14 @@ public final class RoleProfileCatalog {
     public static final String QUALIFICATION_VIEW_PERMISSION = "qualification.view";
 
     /**
-     * 系统管理员专属权限键（Constitution VI 落地，specs/024-preauthorize-unification）。
+     * 系统管理接口鉴权限键（Constitution VI 落地，specs/024-preauthorize-unification）。
      *
-     * <p>仅授予 admin 角色，是 {@code hasRole('ADMIN')} 在权限键模型中的等价替代。
-     * admin 通过 {@code UserDetailsServiceImpl} 的 admin fallback 显式获得（同
-     * WAREHOUSE_MANAGE_PERMISSION 范式）；其他角色不持有，确保"仅系统管理员"语义严格。
+     * <p>本地 admin 通过 {@code UserDetailsServiceImpl} 的 admin fallback 显式获得；
+     * OSS 用户可由 OSS 端通过菜单授权（1010 设置菜单 → system.admin）持有（CO-551 修订）。
      * 用法：{@code @PreAuthorize("hasAuthority('" + SYSTEM_ADMIN_PERMISSION + "')")}</p>
+     *
+     * <p>历史：specs/032 曾规定此键仅本地 admin 持有，CO-551 因业务需求（OSS 投标系统管理员
+     * 需访问系统设置）推翻此限制，现仅 {@code all} 被视为本地系统超级管理员专属。</p>
      */
     public static final String SYSTEM_ADMIN_PERMISSION = "system.admin";
 

@@ -179,12 +179,13 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     private void addAdminFallbackAuthorities(Set<String> authorities, String roleCode,
                                              User.Role legacyRole, boolean isOssUser) {
         // Fallback for Admin legacy role
-        // specs/032: OSS 用户不补发系统级权限键（system.admin/warehouse.manage 仅本地 admin 持有）
+        // specs/032 + CO-551 修订：OSS 用户的 system.admin/warehouse.manage 由 OSS 菜单映射决定，
+        // 此处仅给本地 admin 补发；OSS 用户不走 fallback（其权限来自 OSS 菜单映射）。
         if (isOssUser || (User.Role.ADMIN != legacyRole && !"admin".equalsIgnoreCase(roleCode))) {
             return;
         }
         authorities.add(RoleProfileCatalog.WAREHOUSE_MANAGE_PERMISSION);
-        // system.admin：仅 admin 持有的系统级权限键（Constitution VI，specs/024-preauthorize-unification）
+        // system.admin：本地 admin fallback 补发；OSS 用户可由 OSS 菜单 1010 映射获得（CO-551）
         authorities.add(RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION);
     }
 
