@@ -5,7 +5,7 @@ import { createTaskAssigneePayload, uploadTaskFilesWithFallback } from './taskAs
 import { normalizeTaskStatusForApi, taskFormDtoToBackend, taskBackendToCard } from '@/views/Project/project-utils'
 import { tasksApi } from '@/api/modules/tasks.js'
 import { useObsUpload } from '@/composables/useObsUpload.js'
-const OBS_DIRECT_PREFIX = 'obs-direct:', isObsEnabled = import.meta.env.VITE_OBS_ENABLED === 'true'
+import { tryObsDirectUpload, callApiWithObsFallback } from '@/composables/useObsUploadFallback.js'
 export function useProjectDetailTaskActions(context) {
   const { route, userStore, projectStore, projectsApi, tenderBreakdownApi = projectsApi, isApiProject, message, state, workflow } = context
   const obsUpload = useObsUpload({ businessType: 'tender-breakdown' })
@@ -171,17 +171,13 @@ export function useProjectDetailTaskActions(context) {
       }
 
       state.tenderBreakdownParsing.value = true
-      let obsFileUrl = null
-      if (isObsEnabled) { try { obsFileUrl = OBS_DIRECT_PREFIX + (await obsUpload.upload(file)).uploadId } catch (e) { console.warn('OBS 直传失败，回退到 multipart:', e?.message || e) } }
-      const formData = new FormData()
-      if (obsFileUrl) { formData.set('fileUrl', obsFileUrl); formData.set('fileName', file.name || '招标文件'); formData.set('fileType', file.type || 'application/octet-stream') }
-      else formData.set('file', file, file.name || '招标文件')
-      let result; try { result = await tenderBreakdownApi.parseTenderBreakdown(route.params.id, formData) }
-      catch (apiErr) {
-        if (!obsFileUrl || apiErr?.response?.status !== 415) throw apiErr
-        const fb = new FormData(); fb.set('file', file, file.name || '招标文件')
-        result = await tenderBreakdownApi.parseTenderBreakdown(route.params.id, fb)
-      }
+      const obsFileUrl = await tryObsDirectUpload(obsUpload, file)
+      const result = await callApiWithObsFallback(
+        file,
+        obsFileUrl,
+        (formData) => tenderBreakdownApi.parseTenderBreakdown(route.params.id, formData),
+        file.name || '招标文件',
+      )
       if (!result?.success || !result?.data?.document?.snapshotId) {
         throw new Error(result?.msg || '招标文件解析失败')
       }

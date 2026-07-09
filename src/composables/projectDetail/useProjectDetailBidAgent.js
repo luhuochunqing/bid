@@ -5,9 +5,9 @@
 import { computed, ref } from 'vue'
 import { bidAgentApi as defaultBidAgentApi } from '@/api/modules/bidAgent.js'
 import { useObsUpload } from '@/composables/useObsUpload.js'
+import { tryObsDirectUpload, callApiWithObsFallback } from '@/composables/useObsUploadFallback.js'
 import { useScoringCriteria } from './useScoringCriteria.js'
 import { useFullAnalysis } from './useFullAnalysis.js'
-const OBS_DIRECT_PREFIX = 'obs-direct:', isObsEnabled = import.meta.env.VITE_OBS_ENABLED === 'true'
 
 function getResponseData(response) {
   return response?.data ?? null
@@ -130,17 +130,13 @@ export function useProjectDetailBidAgent(context) {
     if (!tenderFile.value) { error.value = '请先选择招标文件'; message?.warning?.(error.value); return null }
     importing.value = true; error.value = ''; applyResult.value = null; reviewResult.value = null; importResult.value = null; currentRun.value = null
     try {
-      let obsFileUrl = null
-      if (isObsEnabled) { try { obsFileUrl = OBS_DIRECT_PREFIX + (await obsUpload.upload(tenderFile.value)).uploadId } catch (e) { console.warn('OBS 直传失败，回退到 multipart:', e?.message || e) } }
-      const formData = new FormData()
-      if (obsFileUrl) { formData.set('fileUrl', obsFileUrl); formData.set('fileName', selectedTenderFileName.value || '招标文件'); formData.set('fileType', tenderFile.value.type || 'application/octet-stream') }
-      else formData.set('file', tenderFile.value, selectedTenderFileName.value || '招标文件')
-      let response; try { response = await bidAgentApi.importTenderDocument(projectId.value, formData) }
-      catch (apiErr) {
-        if (!obsFileUrl || apiErr?.response?.status !== 415) throw apiErr
-        const fb = new FormData(); fb.set('file', tenderFile.value, selectedTenderFileName.value || '招标文件')
-        response = await bidAgentApi.importTenderDocument(projectId.value, fb)
-      }
+      const obsFileUrl = await tryObsDirectUpload(obsUpload, tenderFile.value)
+      const response = await callApiWithObsFallback(
+        tenderFile.value,
+        obsFileUrl,
+        (formData) => bidAgentApi.importTenderDocument(projectId.value, formData),
+        selectedTenderFileName.value || '招标文件',
+      )
       if (isFailedResponse(response)) throw new Error(response.msg || '解析招标文件失败')
       const parsedResult = getResponseData(response)
       importResult.value = parsedResult

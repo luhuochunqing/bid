@@ -3,9 +3,7 @@
 // Pos: src/views/Bidding/list/composables/ - 标讯模块 OBS 直传共享 composable
 import { ElMessage } from 'element-plus'
 import { useObsUpload } from '@/composables/useObsUpload.js'
-
-const OBS_DIRECT_PREFIX = 'obs-direct:'
-const isObsEnabled = import.meta.env.VITE_OBS_ENABLED === 'true'
+import { isObsEnabled, tryObsDirectUpload } from '@/composables/useObsUploadFallback.js'
 
 /**
  * 标讯模块 OBS 直传共享 composable。
@@ -25,22 +23,16 @@ export function useTenderObsUpload(businessType, successMessage = '文件已上�
    * 成功时将 obs-direct:{uploadId} 写入 attachments[fileIndex] 的 url/fileUrl。
    */
   async function tryUpload(uploadFile, attachments, fileIndex) {
-    if (!isObsEnabled) return false
-    try {
-      const completed = await obsUpload.upload(uploadFile)
-      const obsFileUrl = OBS_DIRECT_PREFIX + completed.uploadId
-      if (fileIndex >= 0 && attachments[fileIndex]) {
-        const att = attachments[fileIndex]
-        if (uploadFile.type) att.fileType = uploadFile.type
-        att.url = obsFileUrl
-        att.fileUrl = obsFileUrl
-      }
-      ElMessage.success(successMessage)
-      return true
-    } catch (err) {
-      console.warn('OBS 直传失败，回退到传统 multipart 流程:', err?.message || err)
-      return false
+    const obsFileUrl = await tryObsDirectUpload(obsUpload, uploadFile)
+    if (!obsFileUrl) return false
+    if (fileIndex >= 0 && attachments[fileIndex]) {
+      const att = attachments[fileIndex]
+      if (uploadFile.type) att.fileType = uploadFile.type
+      att.url = obsFileUrl
+      att.fileUrl = obsFileUrl
     }
+    ElMessage.success(successMessage)
+    return true
   }
 
   return { obsUpload, tryUpload }
