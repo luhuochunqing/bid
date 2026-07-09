@@ -2,37 +2,44 @@ package com.xiyu.bid.file.infrastructure.obs;
 
 import com.obs.services.ObsClient;
 import com.obs.services.model.ObjectMetadata;
-import com.xiyu.bid.file.domain.gateway.ObsMetadataGateway;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.util.Optional;
 
 /**
- * 华为云 OBS 对象元数据查询适配器。
- *
- * <p>实现 {@link ObsMetadataGateway} 端口接口，封装 OBS SDK 访问细节。
- * application 层依赖接口而非本实现类。</p>
+ * 华为云 OBS 对象元数据查询服务。
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class HuaweiObsMetadataGateway implements ObsMetadataGateway {
+public class ObsMetadataService {
 
     private final ObsProperties obsProperties;
 
-    @Override
-    public Optional<Long> getContentLength(String bucket, String objectKey) {
+    /**
+     * 获取对象大小（字节）。
+     *
+     * @param bucket     桶名
+     * @param objectKey  对象键
+     * @return 对象大小，对象不存在时返回 null
+     */
+    public Long getContentLength(String bucket, String objectKey) {
         ObjectMetadata metadata = getObjectMetadata(bucket, objectKey);
-        return metadata != null ? Optional.ofNullable(metadata.getContentLength()) : Optional.empty();
+        return metadata != null ? metadata.getContentLength() : null;
     }
 
-    @Override
-    public Optional<String> getEtag(String bucket, String objectKey) {
+    /**
+     * 获取对象 ETag（非加密上传时即为文件 MD5）。
+     *
+     * @param bucket     桶名
+     * @param objectKey  对象键
+     * @return ETag，对象不存在时返回 null
+     */
+    public String getEtag(String bucket, String objectKey) {
         ObjectMetadata metadata = getObjectMetadata(bucket, objectKey);
-        return metadata != null ? Optional.ofNullable(metadata.getEtag()) : Optional.empty();
+        return metadata != null ? metadata.getEtag() : null;
     }
 
     private ObjectMetadata getObjectMetadata(String bucket, String objectKey) {
