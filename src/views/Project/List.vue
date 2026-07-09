@@ -189,8 +189,8 @@ const handleExport = async () => {
   try {
     const params = {}
     if (selectedProjects.value.length > 0) {
-      // CO-563: 选中数据时仅导出选中
-      params.ids = selectedProjects.value.map(p => p.id)
+      // CO-563: 选中数据时仅导出选中（join 为逗号串，匹配后端 @RequestParam List<Long>）
+      params.ids = selectedProjects.value.map(p => p.id).join(',')
     } else {
       // 未选中时按过滤条件导出全量
       if (searchForm.value.name) params.name = searchForm.value.name
