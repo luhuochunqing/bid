@@ -61,6 +61,46 @@ describe('useProjectDetailTaskActions', () => {
     expect(message.success).toHaveBeenCalledWith('任务已新增')
   })
 
+  it('API 项目新增任务时重复点击保存只调用一次 createTask', async () => {
+    const deferred = {}
+    deferred.promise = new Promise((resolve) => { deferred.resolve = resolve })
+    const createTask = vi.fn().mockImplementation(() => deferred.promise)
+    const state = {
+      project: ref({ id: 12, name: '测试项目', tasks: [] }),
+      activities: ref([]),
+      scoreDraftDialogVisible: ref(false),
+      currentTask: ref(null),
+      taskDialogVisible: ref(false),
+    }
+    const message = { success: vi.fn(), error: vi.fn(), warning: vi.fn() }
+
+    const { handleSaveTask, savingTask } = useProjectDetailTaskActions({
+      route: { params: { id: '12' } },
+      userStore: { userName: '测试用户', currentUser: { id: 9 } },
+      projectStore: {},
+      projectsApi: { createTask },
+      isApiProject: ref(true),
+      message,
+      state,
+      workflow: {},
+    })
+
+    const payload = {
+      mode: 'create',
+      data: { name: '重复点击测试', priority: 'medium' },
+    }
+    const p1 = handleSaveTask(payload)
+    expect(savingTask.value).toBe(true)
+    const p2 = handleSaveTask(payload)
+
+    deferred.resolve({ success: true, data: { id: 701, name: '重复点击测试', status: 'TODO' } })
+    await p1
+    await p2
+
+    expect(createTask).toHaveBeenCalledTimes(1)
+    expect(savingTask.value).toBe(false)
+  })
+
   it('API 项目新增任务时使用选中的组织人员作为真实 assignee', async () => {
     const createTask = vi.fn().mockResolvedValue({
       success: true,

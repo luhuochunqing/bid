@@ -1,8 +1,10 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { ref } from 'vue'
 import { setActivePinia, createPinia } from 'pinia'
 import { useUserStore } from '@/stores/user'
 import { useProjectStore } from '@/stores/project'
+import { projectDetailKey } from '@/composables/projectDetail/context.js'
 import ProjectTaskBoardCard from './ProjectTaskBoardCard.vue'
 
 vi.mock('@/api/modules/taskStatusDict.js', () => ({
@@ -190,6 +192,28 @@ describe('ProjectTaskBoardCard', () => {
     expect(emitted).toBeTruthy()
     expect(emitted[0][0]).toEqual(expect.objectContaining({ mode: 'create', data: expect.objectContaining({ name: 'New' }) }))
     expect(wrapper.vm.drawerVisible).toBe(false)
+  })
+
+  it('save button reflects savingTask from project detail context as loading state', async () => {
+    const wrapper = mount(ProjectTaskBoardCard, {
+      props: {
+        canManageProjectTasks: true,
+        tasks: [],
+        projectId: 12,
+      },
+      global: {
+        stubs: baseStubs,
+        provide: {
+          [projectDetailKey]: { savingTask: ref(true) },
+        },
+      },
+    })
+
+    await wrapper.find('[data-test="add-task-button"]').trigger('click')
+    await flushPromises()
+
+    const saveButton = wrapper.find('[data-test="task-drawer-save"]')
+    expect(saveButton.attributes('loading')).toBeDefined()
   })
 
   it('opens saved task attachment preview from the drawer container', async () => {
