@@ -15,7 +15,7 @@
       <el-descriptions-item label="项目名称">{{ project?.name }}</el-descriptions-item>
       <el-descriptions-item label="招标主体">{{ project?.ownerUnit }}</el-descriptions-item>
       <el-descriptions-item label="创建时间">{{ formatDate(project?.createdAt) }}</el-descriptions-item>
-      <el-descriptions-item label="项目类型">{{ project?.projectType }}</el-descriptions-item>
+      <el-descriptions-item label="项目类型">{{ projectTypeLabel(project?.projectType) }}</el-descriptions-item>
       <el-descriptions-item label="客户类型">{{ customerTypeLabel(project?.customerType) }}</el-descriptions-item>
       <el-descriptions-item label="优先级">
         <el-tag v-if="project?.priority" :type="priorityTagType(project?.priority)" size="small">{{ priorityLabel(project?.priority) }}</el-tag>
@@ -46,7 +46,7 @@ import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { InfoFilled } from '@element-plus/icons-vue'
 import { httpClient } from '@/api'
-import { priorityLabel, customerTypeLabel } from '@/views/Project/utils/projectListFormatters.js'
+import { priorityLabel, customerTypeLabel, projectTypeLabel } from '@/views/Project/utils/projectListFormatters.js'
 
 const props = defineProps({
   project: {
