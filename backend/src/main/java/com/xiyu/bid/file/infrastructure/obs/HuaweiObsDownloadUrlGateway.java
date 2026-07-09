@@ -1,6 +1,7 @@
 package com.xiyu.bid.file.infrastructure.obs;
 
 import com.obs.services.ObsClient;
+import com.obs.services.ObsConfiguration;
 import com.obs.services.model.HttpMethodEnum;
 import com.obs.services.model.TemporarySignatureRequest;
 import com.xiyu.bid.file.domain.gateway.ObsDownloadUrlGateway;
@@ -23,8 +24,9 @@ import java.time.Instant;
  * <p>D4-1 修复：ObsClient 改为单例复用，@PostConstruct 初始化，@PreDestroy 关闭。</p>
  *
  * <p>自定义域名支持：若配置了 {@code downloadCustomDomain}（如 widbid-obs.ehsy.com），
- * 会创建专用的 {@code downloadObsClient}，以自定义域名作为 endpoint 生成预签名 URL。
- * 签名基于自定义域名计算，外部系统（如 CRM）可直接通过该域名访问 OBS 文件。</p>
+ * 会创建专用的 {@code downloadObsClient}，以自定义域名作为 endpoint，启用 path-style 生成预签名 URL。
+ * path-style 避免 virtual-hosted-style 产生 {@code {bucket}.{custom-domain}} 二级子域名，
+ * 确保用户的 {@code *.ehsy.com} 通配符 SSL 证书能匹配自定义域名。</p>
  */
 @Slf4j
 @Service
@@ -43,17 +45,20 @@ public class HuaweiObsDownloadUrlGateway implements ObsDownloadUrlGateway {
                     obsProperties.getAccessKey(),
                     obsProperties.getSecretKey(),
                     obsProperties.getEndpoint());
-            // 配置了自定义域名时，创建专用下载 ObsClient
+            // 配置了自定义域名时，创建专用下载 ObsClient（path-style，避免二级子域名证书不匹配）
             String customDomain = obsProperties.getDownloadCustomDomain();
             if (customDomain != null && !customDomain.isBlank()) {
                 String downloadEndpoint = customDomain.startsWith("http")
                         ? customDomain
                         : "https://" + customDomain;
+                ObsConfiguration downloadConfig = new ObsConfiguration();
+                downloadConfig.setEndPoint(downloadEndpoint);
+                downloadConfig.setPathStyle(true);
                 this.downloadObsClient = new ObsClient(
                         obsProperties.getAccessKey(),
                         obsProperties.getSecretKey(),
-                        downloadEndpoint);
-                log.info("OBS 下载自定义域名已启用: {} (endpoint={})", customDomain, downloadEndpoint);
+                        downloadConfig);
+                log.info("OBS 下载自定义域名已启用 (path-style): {} (endpoint={})", customDomain, downloadEndpoint);
             }
         }
     }
