@@ -1,10 +1,14 @@
 package com.xiyu.bid.projectworkflow.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Task;
+import com.xiyu.bid.entity.User;
+import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
+import com.xiyu.bid.projectworkflow.dto.ProjectTaskCreateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectTaskStatusUpdateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectTaskViewDTO;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
@@ -17,6 +21,7 @@ import com.xiyu.bid.task.repository.TaskDeliverableRepository;
 import com.xiyu.bid.task.service.TaskHistoryRecorder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -26,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -43,15 +49,17 @@ class ProjectTaskWorkflowServiceTest {
     private ProjectWorkflowGuardService guardService;
     private TaskDeliverableRepository taskDeliverableRepository;
     private ProjectDocumentRepository projectDocumentRepository;
+    private NotificationApplicationService notificationService;
+    private UserRepository userRepository;
 
     @BeforeEach
     void setUp() {
         taskRepository = mock(TaskRepository.class);
-        UserRepository userRepository = mock(UserRepository.class);
+        userRepository = mock(UserRepository.class);
         guardService = mock(ProjectWorkflowGuardService.class);
         TaskHistoryRecorder taskHistoryRecorder = mock(TaskHistoryRecorder.class);
         ProjectTaskDeliverableCollector deliverableCollector = mock(ProjectTaskDeliverableCollector.class);
-        NotificationApplicationService notificationService = mock(NotificationApplicationService.class);
+        notificationService = mock(NotificationApplicationService.class);
         ProjectNotificationService projectNotificationService = mock(ProjectNotificationService.class);
         com.xiyu.bid.project.notification.TaskReviewNotificationService taskReviewNotificationService =
                 mock(com.xiyu.bid.project.notification.TaskReviewNotificationService.class);
@@ -270,5 +278,35 @@ class ProjectTaskWorkflowServiceTest {
         assertThat(dto.getStatus()).isEqualTo("done");
         assertThat(dto.getDeliverables()).hasSize(1);
         assertThat(dto.getDeliverables().get(0).getName()).isEqualTo("成果.docx");
+    }
+
+    // ---------- CO-539: 项目内任务创建通知标题统一 ----------
+
+    @Test
+    void co539_createProjectTask_notificationTitleContainsProjectAndTaskName() {
+        Long projectId = 10L;
+        Project project = Project.builder().id(projectId).name("西安地铁项目").build();
+        when(guardService.requireWorkflowMutationProject(projectId)).thenReturn(project);
+        when(taskRepository.save(any(Task.class))).thenAnswer(inv -> {
+            Task t = inv.getArgument(0);
+            t.setId(500L);
+            return t;
+        });
+        when(userRepository.findByUsername("creator")).thenReturn(java.util.Optional.of(
+                User.builder().id(7L).fullName("创建人").build()));
+
+        ProjectTaskCreateRequest req = ProjectTaskCreateRequest.builder()
+                .title("编写技术标书")
+                .assigneeId(8L)
+                .build();
+
+        service.createProjectTask(projectId, req, "creator");
+
+        ArgumentCaptor<CreateNotificationRequest> captor = ArgumentCaptor.forClass(CreateNotificationRequest.class);
+        verify(notificationService).createNotification(captor.capture(), eq(8L));
+        CreateNotificationRequest request = captor.getValue();
+        assertThat(request.title()).isEqualTo("任务分配 - 西安地铁项目 - 编写技术标书");
+        assertThat(request.sourceEntityType()).isEqualTo("TASK");
+        assertThat(request.sourceEntityId()).isEqualTo(500L);
     }
 }

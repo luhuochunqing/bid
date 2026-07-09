@@ -5,6 +5,7 @@ package com.xiyu.bid.project.notification;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.RoleProfileCatalog;
+import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.matrixcollaboration.entity.ProjectMember;
 import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
@@ -15,6 +16,7 @@ import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.entity.ProjectLeadAssignment;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
+import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.security.EffectiveRoleResolver;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +35,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -45,6 +48,8 @@ class ProjectNotificationServiceTest {
     private NotificationApplicationService notificationService;
     @Mock
     private ProjectRepository projectRepository;
+    @Mock
+    private TaskRepository taskRepository;
     @Mock
     private UserRepository userRepository;
     @Mock
@@ -75,12 +80,12 @@ class ProjectNotificationServiceTest {
         ProjectEventNotificationDispatcher eventDispatcher = new ProjectEventNotificationDispatcher(
                 notificationService, projectRepository, recipientResolver);
         svc = new ProjectNotificationService(notificationService, projectRepository,
-                userRepository, projectMemberRepository, leadAssignmentRepository, effectiveRoleResolver,
+                taskRepository, userRepository, projectMemberRepository, leadAssignmentRepository, effectiveRoleResolver,
                 recipientResolver, eventDispatcher);
         // 默认 stubbing：resolver 返回空列表，避免 UnnecessaryStubbingException；
         // 各测试按需 override
-        org.mockito.Mockito.lenient().when(recipientResolver.getAdminUserIds()).thenReturn(List.of());
-        org.mockito.Mockito.lenient().when(recipientResolver.getProjectMemberUserIds(any(), any()))
+        lenient().when(recipientResolver.getAdminUserIds()).thenReturn(List.of());
+        lenient().when(recipientResolver.getProjectMemberUserIds(any(), any()))
                 .thenReturn(List.of());
     }
 
@@ -110,6 +115,14 @@ class ProjectNotificationServiceTest {
         RoleProfile profile = RoleProfile.builder().code(roleCode).name(roleCode).build();
         u.setRoleProfile(profile);
         return u;
+    }
+
+    private Task task(Long id, String title) {
+        Task t = new Task();
+        t.setId(id);
+        t.setTitle(title);
+        t.setProjectId(PID);
+        return t;
     }
 
     private ProjectMember member(Long userId, String permissionLevel) {
@@ -294,6 +307,7 @@ class ProjectNotificationServiceTest {
         @DisplayName("non-bid-otherDept 角色 → targetUrl 指向 /project/{id}/drafting")
         void sendsToAssigneeWithProjectDraftingUrl() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
+            when(taskRepository.findById(TASK_ID)).thenReturn(Optional.of(task(TASK_ID, "任务标题")));
             when(userRepository.findById(ASSIGNEE_ID)).thenReturn(Optional.of(userWithRole("bid-Team")));
             when(effectiveRoleResolver.resolveRoleCode(any(User.class))).thenReturn("bid-Team");
 
@@ -302,6 +316,7 @@ class ProjectNotificationServiceTest {
             verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
             CreateNotificationRequest req = requestCaptor.getValue();
             assertThat(req.recipientUserIds()).containsExactly(ASSIGNEE_ID);
+            assertThat(req.title()).isEqualTo("任务分配 - 测试项目 - 任务标题");
             assertThat(req.payload()).containsEntry("targetUrl", "/project/" + PID + "/drafting");
             assertThat(req.payload()).containsEntry("taskId", String.valueOf(TASK_ID));
         }
@@ -310,6 +325,7 @@ class ProjectNotificationServiceTest {
         @DisplayName("bid-otherDept 角色 → targetUrl 指向 /task-board（CO-474 根因修复）")
         void sendsToBidOtherDeptWithTaskBoardUrl() {
             when(projectRepository.findById(PID)).thenReturn(Optional.of(project("测试项目")));
+            when(taskRepository.findById(TASK_ID)).thenReturn(Optional.of(task(TASK_ID, "任务标题")));
             when(userRepository.findById(ASSIGNEE_ID)).thenReturn(Optional.of(userWithRole(RoleProfileCatalog.BID_OTHER_DEPT_CODE)));
             when(effectiveRoleResolver.resolveRoleCode(any(User.class))).thenReturn(RoleProfileCatalog.BID_OTHER_DEPT_CODE);
 
@@ -318,6 +334,7 @@ class ProjectNotificationServiceTest {
             verify(notificationService).createNotification(requestCaptor.capture(), eq(UID));
             CreateNotificationRequest req = requestCaptor.getValue();
             assertThat(req.recipientUserIds()).containsExactly(ASSIGNEE_ID);
+            assertThat(req.title()).isEqualTo("任务分配 - 测试项目 - 任务标题");
             assertThat(req.payload()).containsEntry("targetUrl", "/task-board?taskId=" + TASK_ID + "&projectId=" + PID);
             assertThat(req.payload()).containsEntry("taskId", String.valueOf(TASK_ID));
         }

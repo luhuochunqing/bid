@@ -13,6 +13,7 @@ import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.repository.ProjectRepository;
+import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.security.EffectiveRoleResolver;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +35,7 @@ public class ProjectNotificationService {
 
     private final NotificationApplicationService notificationService;
     private final ProjectRepository projectRepository;
+    private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final ProjectLeadAssignmentRepository leadAssignmentRepository;
@@ -116,7 +118,8 @@ public class ProjectNotificationService {
             Project project = findProject(projectId);
             if (project == null) return;
             String projectName = project.getName();
-            String body = String.format("项目名称：%s\n\n请关注项目进展。", projectName);
+            String taskTitle = resolveTaskTitle(taskId);
+            String body = String.format("项目名称：%s\n任务名称：%s\n\n请关注项目进展。", projectName, taskTitle);
             Map<String, Object> payload = new HashMap<>();
             payload.put("projectId", String.valueOf(projectId));
             payload.put("projectName", projectName);
@@ -128,7 +131,7 @@ public class ProjectNotificationService {
                     NotificationType.INFO.name(),
                     "PROJECT",
                     projectId,
-                    "任务分配 - " + projectName,
+                    "任务分配 - " + projectName + " - " + taskTitle,
                     body,
                     payload,
                     List.of(assigneeId)
@@ -137,6 +140,15 @@ public class ProjectNotificationService {
             log.warn("sendTaskAssignedNotification failed for project={}, task={}: {}",
                     projectId, taskId, e.getMessage());
         }
+    }
+
+    private String resolveTaskTitle(Long taskId) {
+        if (taskId == null) {
+            return "";
+        }
+        return taskRepository.findById(taskId)
+                .map(task -> task.getTitle() == null ? "" : task.getTitle())
+                .orElse("");
     }
 
     public void notifyBidReviewResult(Long projectId, Long recipientId, boolean approved, Long reviewerId) {

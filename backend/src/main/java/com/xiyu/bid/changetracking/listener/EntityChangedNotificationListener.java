@@ -7,9 +7,11 @@ package com.xiyu.bid.changetracking.listener;
 import com.xiyu.bid.changetracking.core.ChangeDiffPolicy;
 import com.xiyu.bid.changetracking.core.FieldChange;
 import com.xiyu.bid.changetracking.event.EntityChangedEvent;
+import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.notification.core.NotificationType;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
+import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.subscription.entity.Subscription;
 import com.xiyu.bid.subscription.repository.SubscriptionRepository;
 import org.slf4j.Logger;
@@ -31,13 +33,16 @@ public class EntityChangedNotificationListener {
 
     private final SubscriptionRepository subscriptionRepository;
     private final NotificationApplicationService notificationService;
+    private final ProjectRepository projectRepository;
 
     public EntityChangedNotificationListener(
         SubscriptionRepository subscriptionRepository,
-        NotificationApplicationService notificationService
+        NotificationApplicationService notificationService,
+        ProjectRepository projectRepository
     ) {
         this.subscriptionRepository = subscriptionRepository;
         this.notificationService = notificationService;
+        this.projectRepository = projectRepository;
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -68,7 +73,7 @@ public class EntityChangedNotificationListener {
             return;
         }
 
-        String title = buildTitle(event.entityType(), event.entityTitle());
+        String title = buildTitle(event);
         Map<String, Object> payload = new LinkedHashMap<>(event.metadata());
         payload.put("changes", changes);
 
@@ -96,11 +101,31 @@ public class EntityChangedNotificationListener {
         return NotificationType.INFO;
     }
 
-    private static String buildTitle(String entityType, String entityTitle) {
+    private String buildTitle(EntityChangedEvent event) {
+        String entityType = event.entityType();
+        String entityTitle = event.entityTitle();
         String safe = entityTitle == null || entityTitle.isBlank() ? "对象" : entityTitle;
         if ("TASK".equals(entityType)) {
-            return "任务《" + safe + "》有更新";
+            String projectName = resolveProjectName(event.metadata().get("projectId"));
+            if (projectName == null || projectName.isBlank()) {
+                return "任务更新 - " + safe;
+            }
+            return "任务更新 - " + projectName + " - " + safe;
         }
         return "《" + safe + "》有更新";
+    }
+
+    private String resolveProjectName(Object projectIdValue) {
+        if (!(projectIdValue instanceof Number projectId) || projectId.longValue() <= 0) {
+            return null;
+        }
+        try {
+            return projectRepository.findById(projectId.longValue())
+                    .map(Project::getName)
+                    .orElse(null);
+        } catch (RuntimeException e) {
+            log.warn("Failed to resolve project name for notification title: {}", e.getMessage());
+            return null;
+        }
     }
 }

@@ -1,38 +1,47 @@
 package com.xiyu.bid.changetracking.listener;
 
 import com.xiyu.bid.changetracking.event.EntityChangedEvent;
+import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.notification.core.DispatchResult;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
+import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.subscription.entity.Subscription;
 import com.xiyu.bid.subscription.repository.SubscriptionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 class EntityChangedNotificationListenerTest {
 
+    @Mock
     private SubscriptionRepository subscriptionRepository;
+    @Mock
     private NotificationApplicationService notificationService;
+    @Mock
+    private ProjectRepository projectRepository;
+
     private EntityChangedNotificationListener listener;
 
     @BeforeEach
     void setUp() {
-        subscriptionRepository = mock(SubscriptionRepository.class);
-        notificationService = mock(NotificationApplicationService.class);
-        listener = new EntityChangedNotificationListener(subscriptionRepository, notificationService);
+        listener = new EntityChangedNotificationListener(subscriptionRepository, notificationService, projectRepository);
     }
 
     private static Subscription subscription(Long userId) {
@@ -162,5 +171,34 @@ class EntityChangedNotificationListenerTest {
         CreateNotificationRequest request = captor.getValue();
         assertThat(request.type()).isEqualTo("TASK_UPDATE");
         assertThat(request.payload()).containsEntry("projectId", 10L);
+    }
+
+    @Test
+    void onEntityChanged_TaskTitle_ShouldIncludeProjectNameAndTaskName() {
+        Subscription taskSubscriber = Subscription.builder()
+            .userId(2L)
+            .targetEntityType("TASK")
+            .targetEntityId(99L)
+            .build();
+        when(subscriptionRepository.findByTargetEntityTypeAndTargetEntityId("TASK", 99L))
+            .thenReturn(List.of(taskSubscriber));
+        when(projectRepository.findById(10L))
+            .thenReturn(Optional.of(Project.builder().id(10L).name("西安地铁项目").build()));
+        when(notificationService.createNotification(any(), any())).thenReturn(DispatchResult.valid());
+
+        listener.onEntityChanged(new EntityChangedEvent(
+            "TASK",
+            99L,
+            1L,
+            Map.of("title", "准备商务标"),
+            Map.of("title", "准备商务标 V2"),
+            "准备商务标 V2",
+            Map.of("projectId", 10L)
+        ));
+
+        ArgumentCaptor<CreateNotificationRequest> captor =
+            ArgumentCaptor.forClass(CreateNotificationRequest.class);
+        verify(notificationService).createNotification(captor.capture(), eq(1L));
+        assertThat(captor.getValue().title()).isEqualTo("任务更新 - 西安地铁项目 - 准备商务标 V2");
     }
 }

@@ -3,6 +3,7 @@ package com.xiyu.bid.projectworkflow.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.notification.core.NotificationType;
@@ -74,7 +75,7 @@ class ProjectTaskWorkflowService {
     }
 
     ProjectTaskViewDTO createProjectTask(Long projectId, ProjectTaskCreateRequest request, String creatorUsername) {
-        guardService.requireWorkflowMutationProject(projectId);
+        Project project = guardService.requireWorkflowMutationProject(projectId);
         User assigneeUser = resolveAssignee(request.getAssigneeId(), creatorUsername);
         Task task = Task.builder()
                 .projectId(projectId)
@@ -98,11 +99,13 @@ class ProjectTaskWorkflowService {
         String assigneeName = assigneeUser != null ? assigneeUser.getFullName() : request.getAssigneeName();
         if (saved.getAssigneeId() != null) {
             try {
+                String projectName = project.getName();
+                String taskTitle = saved.getTitle();
                 notificationService.createNotification(
                         new CreateNotificationRequest(NotificationType.INFO.name(), "TASK", saved.getId(),
-                                "新任务分配：" + saved.getTitle(),
+                                "任务分配 - " + projectName + " - " + taskTitle,
                                 saved.getDescription() != null ? saved.getDescription() : "请在投标项目中查看任务详情",
-                                Map.of("projectId", String.valueOf(saved.getProjectId())),
+                                Map.of("projectId", String.valueOf(saved.getProjectId()), "projectName", projectName),
                                 Collections.singletonList(saved.getAssigneeId())),
                         saved.getAssigneeId());
             } catch (RuntimeException e) {
