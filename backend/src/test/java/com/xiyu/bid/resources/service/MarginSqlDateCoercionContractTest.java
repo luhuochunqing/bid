@@ -114,7 +114,7 @@ class MarginSqlDateCoercionContractTest {
         String sql = MarginDerivedTableColumns.DERIVED_SELECT_FEES;
         assertThat(sql)
                 .as("actual_return_date 必须用 NULLIF 处理 zero date，防止 JDBC DataException")
-                .contains("NULLIF(pc.deposit_return_date, '0000-00-00 00:00:00') as actual_return_date");
+                .contains("NULLIF(pc.deposit_return_date, '0000-00-00 00:00:00')");
     }
 
     @Test
@@ -122,7 +122,68 @@ class MarginSqlDateCoercionContractTest {
         String sql = MarginDerivedTableColumns.DERIVED_SELECT_INIT;
         assertThat(sql)
                 .as("INIT 分支 actual_return_date 也必须用 NULLIF 处理 zero date")
-                .contains("NULLIF(pc.deposit_return_date, '0000-00-00 00:00:00') as actual_return_date");
+                .contains("NULLIF(pc.deposit_return_date, '0000-00-00 00:00:00')");
+    }
+
+    // ── CO-490 UNION ALL 类型推导根治：所有日期列必须 CAST AS DATETIME ──────
+    //
+    // 根因（Sentry XIYU-T）：NULLIF(..., '0000-00-00 00:00:00') 中的字符串字面量
+    // 导致 MySQL UNION ALL 把日期列推导为 char(19)，JDBC 返回 String，
+    // toLdt 对 String 返回 null → 所有日期字段丢失（含已退回数据的退回日期）。
+    //
+    // 修复：两个分支的 3 个日期列（payment_date / exp_return_date / actual_return_date）
+    // 都用 CAST(... AS DATETIME) 包裹，强制 UNION ALL 类型一致为 DATETIME。
+
+    @Test
+    void derivedSelectFees_castsPaymentDateAsDatetime() {
+        String sql = MarginDerivedTableColumns.DERIVED_SELECT_FEES;
+        assertThat(sql)
+                .as("FEES 分支 payment_date 必须 CAST AS DATETIME，防止 UNION ALL 推导为 char(19)")
+                .contains("CAST(COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''),"
+                        + " '$.actualPaymentDate')), 1, 10), ''), '%Y-%m-%d'), NULLIF(f.payment_date, '0000-00-00 00:00:00')) AS DATETIME) as payment_date");
+    }
+
+    @Test
+    void derivedSelectFees_castsExpReturnDateAsDatetime() {
+        String sql = MarginDerivedTableColumns.DERIVED_SELECT_FEES;
+        assertThat(sql)
+                .as("FEES 分支 exp_return_date 必须 CAST AS DATETIME")
+                .contains("CAST(COALESCE(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''),"
+                        + " '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d'), NULLIF(f.fee_date, '0000-00-00 00:00:00')) AS DATETIME) as exp_return_date");
+    }
+
+    @Test
+    void derivedSelectFees_castsActualReturnDateAsDatetime() {
+        String sql = MarginDerivedTableColumns.DERIVED_SELECT_FEES;
+        assertThat(sql)
+                .as("FEES 分支 actual_return_date 必须 CAST AS DATETIME")
+                .contains("CAST(NULLIF(pc.deposit_return_date, '0000-00-00 00:00:00') AS DATETIME) as actual_return_date");
+    }
+
+    @Test
+    void derivedSelectInit_castsPaymentDateAsDatetime() {
+        String sql = MarginDerivedTableColumns.DERIVED_SELECT_INIT;
+        assertThat(sql)
+                .as("INIT 分支 payment_date 必须 CAST AS DATETIME")
+                .contains("CAST(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''),"
+                        + " '$.actualPaymentDate')), 1, 10), ''), '%Y-%m-%d') AS DATETIME) as payment_date");
+    }
+
+    @Test
+    void derivedSelectInit_castsExpReturnDateAsDatetime() {
+        String sql = MarginDerivedTableColumns.DERIVED_SELECT_INIT;
+        assertThat(sql)
+                .as("INIT 分支 exp_return_date 必须 CAST AS DATETIME")
+                .contains("CAST(STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''),"
+                        + " '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d') AS DATETIME) as exp_return_date");
+    }
+
+    @Test
+    void derivedSelectInit_castsActualReturnDateAsDatetime() {
+        String sql = MarginDerivedTableColumns.DERIVED_SELECT_INIT;
+        assertThat(sql)
+                .as("INIT 分支 actual_return_date 必须 CAST AS DATETIME")
+                .contains("CAST(NULLIF(pc.deposit_return_date, '0000-00-00 00:00:00') AS DATETIME) as actual_return_date");
     }
 
     // ── CO-XXX UNION collation 冲突回归测试（防复发）─────────────────
@@ -199,7 +260,7 @@ class MarginSqlDateCoercionContractTest {
                 .as("CO-490: INIT 分支 payment_date 必须从任务 JSON actualPaymentDate 取值"
                   + "（STR_TO_DATE(NULLIF(...)) 解析），禁止硬编码 NULL")
                 .contains("STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''),"
-                        + " '$.actualPaymentDate')), 1, 10), ''), '%Y-%m-%d') as payment_date");
+                        + " '$.actualPaymentDate')), 1, 10), ''), '%Y-%m-%d') AS DATETIME) as payment_date");
         assertThat(sql)
                 .as("CO-490: INIT 分支禁止保留旧的 NULL as payment_date 硬编码")
                 .doesNotContain("NULL as payment_date");
@@ -212,7 +273,7 @@ class MarginSqlDateCoercionContractTest {
                 .as("CO-490: INIT 分支 exp_return_date 必须从任务 JSON expectedRefundDate 取值"
                   + "（STR_TO_DATE(NULLIF(...)) 解析），禁止硬编码 NULL")
                 .contains("STR_TO_DATE(NULLIF(SUBSTRING(JSON_UNQUOTE(JSON_EXTRACT(NULLIF(dt.extended_fields_json, ''),"
-                        + " '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d') as exp_return_date");
+                        + " '$.expectedRefundDate')), 1, 10), ''), '%Y-%m-%d') AS DATETIME) as exp_return_date");
     }
 
     @Test
@@ -351,12 +412,14 @@ class MarginSqlDateCoercionContractTest {
     void mapRow_doesNotThrowClassCast_whenExpReturnDateIsString() {
         // Sentry XIYU-T 复发场景：UNION ALL 把 exp_return_date 推导成 char(19)，
         // JDBC 拿到 String。修复前 label((Timestamp) r[C_EXP_RETURN]) 直接抛 CCE。
+        // CO-490 修复后 toLdt 能解析 String，日期值不再丢失。
         Object[] row = rowWithExpReturn("2025-12-31 00:00:00");
         MarginDTO dto = MarginQuerySupport.mapRow(row);
         assertThat(dto).as("String 类型 exp_return_date 不应抛 ClassCastException").isNotNull();
-        assertThat(dto.getStatusLabel())
-                .as("String 走 toLdt 返回 null → 不命中规则2 → 默认「未到期」")
-                .isEqualTo("未到期");
+        assertThat(dto.getExpectedReturnDate())
+                .as("String 类型 exp_return_date 必须被 toLdt 解析为 LocalDateTime，不能返回 null")
+                .isNotNull()
+                .isEqualTo(LocalDateTime.of(2025, 12, 31, 0, 0));
     }
 
     @Test
@@ -396,11 +459,16 @@ class MarginSqlDateCoercionContractTest {
                 .isEqualTo("已退回");
     }
 
-    // ── CO-490 日期类型修复：toLdt 必须处理 java.sql.Date ──────────────────
+    // ── CO-490 toLdt 完整类型处理：Timestamp / java.sql.Date / String ───────
     //
-    // 根因：SQL 里 STR_TO_DATE(..., '%Y-%m-%d') 返回 MySQL DATE 类型，
-    // JDBC 映射为 java.sql.Date（不是 Timestamp）。修复前 toLdt 只处理
-    // Timestamp，导致缴纳日期 / 应退日期全部丢失（返回 null）。
+    // 根因1：SQL 里 STR_TO_DATE(..., '%Y-%m-%d') 返回 MySQL DATE 类型，JDBC 映射为
+    // java.sql.Date（不是 Timestamp）。修复前 toLdt 只处理 Timestamp，导致缴纳日期 /
+    // 应退日期全部丢失（返回 null）。
+    //
+    // 根因2：MySQL UNION ALL 因 NULLIF 字符串字面量可能把日期列推导为 char(19)，
+    // JDBC 返回 String。toLdt 加了 java.sql.Date 后 String 仍然返回 null → 所有日期
+    // 字段丢失（含已退回数据的退回日期）。修复：增加 String 解析分支，兼容
+    // "2026-07-09" 和 "2026-07-09 00:00:00"。
 
     @Test
     void mapRow_handlesSqlDate_forPaymentDate() {
@@ -433,5 +501,38 @@ class MarginSqlDateCoercionContractTest {
                 .as("java.sql.Date 类型的 actual_return_date 必须转换为 LocalDateTime")
                 .isNotNull()
                 .isEqualTo(LocalDateTime.of(2026, 8, 1, 0, 0));
+    }
+
+    @Test
+    void mapRow_handlesStringDate_forPaymentDate() {
+        Object[] row = rowWithExpReturn(null);
+        row[7] = "2026-07-09 00:00:00";
+        MarginDTO dto = MarginQuerySupport.mapRow(row);
+        assertThat(dto.getPaymentDate())
+                .as("String 类型的 payment_date 必须被 toLdt 解析，不能返回 null")
+                .isNotNull()
+                .isEqualTo(LocalDateTime.of(2026, 7, 9, 0, 0));
+    }
+
+    @Test
+    void mapRow_handlesStringDate_forActualReturnDate() {
+        Object[] row = rowWithExpReturn(null);
+        row[14] = "2026-08-01 10:30:00";
+        MarginDTO dto = MarginQuerySupport.mapRow(row);
+        assertThat(dto.getActualReturnDate())
+                .as("String 类型的 actual_return_date 必须被 toLdt 解析（含时分秒）")
+                .isNotNull()
+                .isEqualTo(LocalDateTime.of(2026, 8, 1, 10, 30, 0));
+    }
+
+    @Test
+    void mapRow_handlesDateStringOnly_forPaymentDate() {
+        Object[] row = rowWithExpReturn(null);
+        row[7] = "2026-07-09";
+        MarginDTO dto = MarginQuerySupport.mapRow(row);
+        assertThat(dto.getPaymentDate())
+                .as("纯日期字符串 '2026-07-09' 必须被解析为当天 00:00:00")
+                .isNotNull()
+                .isEqualTo(LocalDateTime.of(2026, 7, 9, 0, 0));
     }
 }

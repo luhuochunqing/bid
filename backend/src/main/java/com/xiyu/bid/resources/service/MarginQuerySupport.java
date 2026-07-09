@@ -4,7 +4,10 @@ import com.xiyu.bid.resources.dto.MarginDTO;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
 
 /** SQL builders and row mapping for margin ledger queries. */
 final class MarginQuerySupport {
@@ -232,6 +235,21 @@ final class MarginQuerySupport {
         // （不是 Timestamp），必须单独处理，否则缴纳日期/应退日期全部丢失。
         if (v instanceof java.sql.Date d) {
             return d.toLocalDate().atStartOfDay();
+        }
+        // MySQL UNION ALL 因 NULLIF 中的字符串字面量可能把日期列推导为 char(19)，
+        // JDBC 返回 String 而非 Timestamp/Date（Sentry XIYU-T 根因）。
+        // 必须解析 String，否则所有日期字段（含 actual_return_date）全部丢失。
+        if (v instanceof String s && !s.isEmpty() && s.length() >= 10) {
+            try {
+                LocalDate date = LocalDate.parse(s.substring(0, 10));
+                if (s.length() >= 19) {
+                    return LocalDateTime.of(date,
+                            LocalTime.parse(s.substring(11, 19)));
+                }
+                return date.atStartOfDay();
+            } catch (DateTimeParseException e) {
+                return null;
+            }
         }
         return null;
     }
