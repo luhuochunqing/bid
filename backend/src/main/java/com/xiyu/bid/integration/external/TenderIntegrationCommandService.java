@@ -78,7 +78,15 @@ public class TenderIntegrationCommandService {
         crmTenderLinkService.linkIfPresent(tender, crmId);
         support.applyCrmFallback(tender, crmId, request.getCrmOpportunityName());
 
-        Tender saved = tenderRepository.save(tender);
+        // CO-297: 更新前校验 CRM 商机号是否已被其他标讯占用，避免直接触发数据库唯一索引 500
+        crmOccupancyChecker.assertCrmOpportunityNotOccupied(tender.getId(), tender.getCrmOpportunityId());
+        Tender saved;
+        try {
+            saved = tenderRepository.save(tender);
+        } catch (DataIntegrityViolationException ex) {
+            crmOccupancyChecker.translateUniqueConstraintViolation(ex);
+            throw ex;
+        }
         // CO-305: 更新后状态变为 EVALUATED 时发布 TenderStatusChangedEvent
         if (saved.getStatus() == Tender.Status.EVALUATED && previousStatus != Tender.Status.EVALUATED) {
             String operatorName = resolveOperatorName(userId);
@@ -137,7 +145,15 @@ public class TenderIntegrationCommandService {
             crmTenderLinkService.linkIfPresent(existing, crmId);
             support.applyCrmFallback(existing, crmId, null);
 
-            Tender saved = tenderRepository.save(existing);
+            // CO-297: 强制更新前校验 CRM 商机号是否已被其他标讯占用，避免直接触发数据库唯一索引 500
+            crmOccupancyChecker.assertCrmOpportunityNotOccupied(existing.getId(), existing.getCrmOpportunityId());
+            Tender saved;
+            try {
+                saved = tenderRepository.save(existing);
+            } catch (DataIntegrityViolationException ex) {
+                crmOccupancyChecker.translateUniqueConstraintViolation(ex);
+                throw ex;
+            }
             // CO-305: 强制更新后状态变为 EVALUATED 时发布 TenderStatusChangedEvent
             if (saved.getStatus() == Tender.Status.EVALUATED && previousStatus != Tender.Status.EVALUATED) {
                 String operatorName = resolveOperatorName(userId);
