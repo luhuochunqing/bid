@@ -1,5 +1,16 @@
 import { nextTick, ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+// 回归测试护板：默认 mock useTenderObsUpload 为"OBS 禁用"模式（返回 false），
+// 保证既有测试场景行为不变；OBS 启用场景由 OBS 启用回归组单独覆盖。
+vi.mock('./composables/useTenderObsUpload.js', () => ({
+  useTenderObsUpload: () => ({
+    obsUpload: {},
+    tryUpload: vi.fn().mockResolvedValue(false),
+  }),
+  isObsEnabled: false,
+}))
+
 import { useManualTenderCreate } from './useManualTenderCreate.js'
 
 vi.mock('element-plus', () => ({
@@ -396,5 +407,172 @@ describe('useManualTenderCreate', () => {
     workflow.handleFileRemove({ name: file.name, raw: file }, [])
 
     expect(workflow.manualForm.value.attachments).toEqual([])
+  })
+})
+
+// ============================================================
+// OBS 启用模式回归测试
+// 重点验证：OBS 成功后 AI 解析仍执行；obs-direct: URL 不被 doc-insight:// 覆盖
+// ============================================================
+describe('useManualTenderCreate (OBS 启用模式回归)', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+  })
+
+  // 通用 factory：模拟 tryUpload 的真实行为
+  // - obsSuccess=true：写入 obs-direct:{uploadId} 到 attachments 并返回 true
+  // - obsSuccess=false：返回 false（OBS 禁用或失败）
+  async function createWorkflowWithObs({ obsSuccess = true } = {}) {
+    vi.resetModules()
+    vi.doMock('./composables/useTenderObsUpload.js', () => {
+      const tryUpload = async (uploadFile, attachments, fileIndex) => {
+        if (!obsSuccess) return false
+        if (fileIndex >= 0 && attachments[fileIndex]) {
+          attachments[fileIndex].url = 'obs-direct:test-upload-id'
+          attachments[fileIndex].fileUrl = 'obs-direct:test-upload-id'
+          if (uploadFile.type) attachments[fileIndex].fileType = uploadFile.type
+        }
+        return true
+      }
+      return {
+        useTenderObsUpload: () => ({ obsUpload: {}, tryUpload }),
+        isObsEnabled: obsSuccess,
+      }
+    })
+    const { useManualTenderCreate: fresh } = await import('./useManualTenderCreate.js')
+    const tendersApi = {
+      create: vi.fn(),
+      parseTenderIntakeDocument: vi.fn(),
+      parseTenderIntakeText: vi.fn(),
+      storeTenderDocument: vi.fn(),
+      parseExistingTenderDocument: vi.fn(),
+    }
+    const workflow = fresh({
+      tendersApi,
+      refreshTenderList: vi.fn(),
+      canCreateTender: ref(true),
+    })
+    return { workflow, tendersApi }
+  }
+
+  it('OBS 成功后继续走 store→parse-existing，且 obs-direct: URL 不被 doc-insight:// 覆盖', async () => {
+    const { workflow, tendersApi } = await createWorkflowWithObs({ obsSuccess: true })
+
+    const file = new File(['tender'], '招标文件.pdf', { type: 'application/pdf' })
+    tendersApi.storeTenderDocument.mockResolvedValue({
+      success: true,
+      data: {
+        fileUrl: 'doc-insight://TENDER_INTAKE/manual-tender/hash.pdf',
+        storagePath: 'TENDER_INTAKE/manual-tender/hash.pdf',
+      },
+    })
+    tendersApi.parseExistingTenderDocument.mockResolvedValue({
+      success: true,
+      data: {
+        documentId: 'doc-insight://TENDER_INTAKE/manual-tender/hash.pdf',
+        extractedData: { tenderTitle: '西域 OBS 项目' },
+      },
+    })
+
+    await workflow.handleFileChange(
+      { name: file.name, raw: file, uid: 1 },
+      [{ name: file.name, raw: file, uid: 1 }],
+    )
+
+    // 1. AI 解析确实执行了
+    expect(tendersApi.storeTenderDocument).toHaveBeenCalled()
+    expect(tendersApi.parseExistingTenderDocument).toHaveBeenCalled()
+    // 2. 表单字段回填
+    expect(workflow.manualForm.value.title).toBe('西域 OBS 项目')
+    // 3. 关键回归断言：obs-direct: URL 保留，store 的 doc-insight:// 没覆盖它
+    expect(workflow.manualForm.value.attachments[0]).toMatchObject({
+      url: 'obs-direct:test-upload-id',
+      fileUrl: 'obs-direct:test-upload-id',
+    })
+  })
+
+  it('OBS 成功 + store 失败 → 仍走 parse 一站式，obs-direct: URL 保留', async () => {
+    const { workflow, tendersApi } = await createWorkflowWithObs({ obsSuccess: true })
+
+    const file = new File(['tender'], '招标文件.pdf', { type: 'application/pdf' })
+    tendersApi.storeTenderDocument.mockRejectedValue(new Error('store failed'))
+    tendersApi.parseTenderIntakeDocument.mockResolvedValue({
+      success: true,
+      data: {
+        documentId: 'doc-insight://TENDER_INTAKE/manual-tender/hash.pdf',
+        extractedData: { tenderTitle: 'Store 失败项目' },
+      },
+    })
+
+    await workflow.handleFileChange(
+      { name: file.name, raw: file, uid: 1 },
+      [{ name: file.name, raw: file, uid: 1 }],
+    )
+
+    // store 失败，走 parseTenderIntakeDocument 一站式
+    expect(tendersApi.parseTenderIntakeDocument).toHaveBeenCalled()
+    expect(workflow.manualForm.value.title).toBe('Store 失败项目')
+    // obs-direct: URL 仍保留（parseAndBackfill 的 skipMetadata=true 生效）
+    expect(workflow.manualForm.value.attachments[0]).toMatchObject({
+      url: 'obs-direct:test-upload-id',
+      fileUrl: 'obs-direct:test-upload-id',
+    })
+  })
+
+  it('OBS 成功 + AI 解析失败 → obs-direct: URL 保留，表单字段不丢', async () => {
+    const { workflow, tendersApi } = await createWorkflowWithObs({ obsSuccess: true })
+
+    const file = new File(['tender'], '招标文件.pdf', { type: 'application/pdf' })
+    workflow.manualForm.value.title = '已有标题'
+    tendersApi.storeTenderDocument.mockResolvedValue({
+      success: true,
+      data: { fileUrl: 'doc-insight://store.pdf', storagePath: 'path/store.pdf' },
+    })
+    tendersApi.parseExistingTenderDocument.mockRejectedValue(new Error('AI 解析挂了'))
+
+    await workflow.handleFileChange(
+      { name: file.name, raw: file, uid: 1 },
+      [{ name: file.name, raw: file, uid: 1 }],
+    )
+
+    // AI 失败不影响已有表单
+    expect(workflow.manualForm.value.title).toBe('已有标题')
+    // obs-direct: URL 保留
+    expect(workflow.manualForm.value.attachments[0]).toMatchObject({
+      url: 'obs-direct:test-upload-id',
+      fileUrl: 'obs-direct:test-upload-id',
+    })
+  })
+
+  it('OBS 失败回退 multipart → store+parse 正常回填 doc-insight URL', async () => {
+    const { workflow, tendersApi } = await createWorkflowWithObs({ obsSuccess: false })
+
+    const file = new File(['tender'], '招标文件.pdf', { type: 'application/pdf' })
+    tendersApi.storeTenderDocument.mockResolvedValue({
+      success: true,
+      data: {
+        fileUrl: 'doc-insight://TENDER_INTAKE/manual-tender/hash.pdf',
+        storagePath: 'TENDER_INTAKE/manual-tender/hash.pdf',
+      },
+    })
+    tendersApi.parseExistingTenderDocument.mockResolvedValue({
+      success: true,
+      data: {
+        documentId: 'doc-insight://TENDER_INTAKE/manual-tender/hash.pdf',
+        extractedData: { tenderTitle: '回退 multipart 项目' },
+      },
+    })
+
+    await workflow.handleFileChange(
+      { name: file.name, raw: file, uid: 1 },
+      [{ name: file.name, raw: file, uid: 1 }],
+    )
+
+    expect(workflow.manualForm.value.title).toBe('回退 multipart 项目')
+    // OBS 失败时 store 的 URL 被回填到 attachments
+    expect(workflow.manualForm.value.attachments[0]).toMatchObject({
+      url: 'doc-insight://TENDER_INTAKE/manual-tender/hash.pdf',
+      fileUrl: 'doc-insight://TENDER_INTAKE/manual-tender/hash.pdf',
+    })
   })
 })
