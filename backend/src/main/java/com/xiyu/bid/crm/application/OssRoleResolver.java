@@ -114,6 +114,20 @@ public class OssRoleResolver {
     }
 
     /**
+     * 判断给定用户是否在 application.yml 的 person-to-role-mappings 白名单中。
+     */
+    public boolean isWhitelistedPerson(String jobNumber, String fallbackUsername) {
+        if (orgProperties != null && orgProperties.getPersonToRoleMappings() != null) {
+            for (OrganizationIntegrationProperties.PersonToRoleMapping mapping : orgProperties.getPersonToRoleMappings()) {
+                if (mapping.matches(jobNumber) || mapping.matches(fallbackUsername)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
      * 将 OSS 权限码列表映射为内部菜单权限码列表。
      */
     public List<String> mapOssPermissionsToInternal(CrmUserPermission permission, String systemName) {
