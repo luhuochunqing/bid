@@ -422,4 +422,15 @@ router.beforeEach(async (to, from, next) => {
   }
 })
 
+// 全局错误捕获：处理前端部署后，用户浏览器缓存旧版 index.html 导致的按需加载 JS Chunk 404 问题
+router.onError((error) => {
+  const isChunkLoadFailed = error.message.includes('Failed to fetch dynamically imported module') 
+    || error.message.includes('Importing a module script failed');
+  
+  if (isChunkLoadFailed) {
+    console.warn('检测到前端版本更新，正在强制刷新页面获取最新资源...');
+    window.location.reload();
+  }
+})
+
 export default router
