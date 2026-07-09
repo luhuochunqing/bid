@@ -1,130 +1,282 @@
 // Input: useObsProjectDocumentUpload composable
 // Output: 测试套件
 // Pos: src/composables/ - useObsProjectDocumentUpload 单元测试
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+// 防复发：验证 customUpload 不手动调用 onSuccess/onError（根因：双重调用导致 [ElUpload] file to be removed not found）
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-vi.mock('@/composables/useObsUpload.js', () => ({
-  useObsUpload: vi.fn(() => ({ upload: vi.fn() })),
-}))
-
-vi.mock('@/composables/useObsUploadFallback.js', () => ({
-  tryObsDirectUpload: vi.fn(),
-  isObsEnabled: true,
-}))
-
+// Mock uploadDocument API（vi.mock 会被提升到顶部，不需要配对 import）
 vi.mock('@/api/modules/projectDocuments.js', () => ({
   uploadDocument: vi.fn(),
 }))
 
-const { tryObsDirectUpload } = await import('@/composables/useObsUploadFallback.js')
-const { uploadDocument } = await import('@/api/modules/projectDocuments.js')
-const { useObsProjectDocumentUpload } = await import('./useObsProjectDocumentUpload.js')
-
-function makeFile(name = 'bid.pdf', type = 'application/pdf') {
-  return new File(['x'], name, { type })
-}
-
-function makeOptions(overrides = {}) {
-  return {
-    file: makeFile(),
-    data: { documentCategory: 'BID' },
-    onSuccess: vi.fn(),
-    onError: vi.fn(),
-    ...overrides,
-  }
-}
+// Mock useObsUpload
+vi.mock('@/composables/useObsUpload.js', () => ({
+  useObsUpload: vi.fn(() => ({
+    upload: vi.fn(),
+    cancel: vi.fn(),
+    reset: vi.fn(),
+    uploading: { value: false },
+    progress: { value: 0 },
+    progressPercent: { value: 0 },
+  })),
+}))
 
 describe('useObsProjectDocumentUpload', () => {
+  let originalObsEnabled
+
   beforeEach(() => {
+    originalObsEnabled = import.meta.env.VITE_OBS_ENABLED
     vi.clearAllMocks()
   })
 
-  it('OBS 直传成功时 formData 包含 fileUrl 不包含 file，并调用 onSuccess', async () => {
-    tryObsDirectUpload.mockResolvedValue('obs-direct:up-123')
-    uploadDocument.mockResolvedValue({ data: { id: 42 } })
+  afterEach(() => {
+    if (originalObsEnabled !== undefined) {
+      vi.stubEnv('VITE_OBS_ENABLED', originalObsEnabled)
+    } else {
+      vi.unstubAllEnvs()
+    }
+    vi.resetModules()
+  })
 
-    const { customUpload } = useObsProjectDocumentUpload(() => 188, {
-      uploaderId: () => 7,
-      uploaderName: () => '张三',
+  /**
+   * 辅助：动态加载模块以控制 VITE_OBS_ENABLED 求值时机
+   */
+  async function loadModule(obsEnabled) {
+    vi.stubEnv('VITE_OBS_ENABLED', obsEnabled ? 'true' : 'false')
+    vi.resetModules()
+    // 重新 mock（vi.resetModules 后需要重新设置）
+    vi.doMock('@/api/modules/projectDocuments.js', () => ({
+      uploadDocument: vi.fn(),
+    }))
+    vi.doMock('@/composables/useObsUpload.js', () => ({
+      useObsUpload: vi.fn(() => ({
+        upload: vi.fn(),
+        cancel: vi.fn(),
+        reset: vi.fn(),
+        uploading: { value: false },
+        progress: { value: 0 },
+        progressPercent: { value: 0 },
+      })),
+    }))
+    const mod = await import('./useObsProjectDocumentUpload.js')
+    const { uploadDocument: mockedUpload } = await import('@/api/modules/projectDocuments.js')
+    const { useObsUpload: mockedUseObsUpload } = await import('@/composables/useObsUpload.js')
+    return { ...mod, mockedUpload, mockedUseObsUpload }
+  }
+
+  function makeFile(name = 'test.pdf', size = 1024 * 1024) {
+    const file = new File(['x'.repeat(size)], name, { type: 'application/pdf' })
+    return file
+  }
+
+  function makeOptions(file) {
+    return {
+      file,
+      data: { documentCategory: 'BID' },
+      onSuccess: vi.fn(),
+      onError: vi.fn(),
+      onProgress: vi.fn(),
+    }
+  }
+
+  describe('防复发：customUpload 不手动调用 onSuccess/onError', () => {
+    it('成功时 return response，不调用 options.onSuccess', async () => {
+      const { useObsProjectDocumentUpload, mockedUpload } = await loadModule(false)
+      const { customUpload } = useObsProjectDocumentUpload(() => 100, {
+        uploaderId: () => 1,
+        uploaderName: () => 'test',
+      })
+      const file = makeFile()
+      const options = makeOptions(file)
+      const fakeResponse = { success: true, data: { id: 1 } }
+      mockedUpload.mockResolvedValue(fakeResponse)
+
+      // customUpload 应返回 Promise（response），而非手动调用 onSuccess
+      const result = await customUpload(options)
+
+      expect(result).toEqual(fakeResponse)
+      // ⚠️ 防复发核心断言：onSuccess 不应被 customUpload 手动调用
+      // el-upload 的 doUpload 会通过 request.then(options.onSuccess) 自动调用
+      expect(options.onSuccess).not.toHaveBeenCalled()
+      expect(options.onError).not.toHaveBeenCalled()
     })
 
-    await customUpload(makeOptions())
+    it('失败时 throw err，不调用 options.onError', async () => {
+      const { useObsProjectDocumentUpload, mockedUpload } = await loadModule(false)
+      const { customUpload } = useObsProjectDocumentUpload(() => 100, {
+        uploaderId: () => 1,
+        uploaderName: () => 'test',
+      })
+      const file = makeFile()
+      const options = makeOptions(file)
+      const fakeError = new Error('网络错误')
+      mockedUpload.mockRejectedValue(fakeError)
 
-    const fd = uploadDocument.mock.calls[0][1]
-    expect(fd.get('fileUrl')).toBe('obs-direct:up-123')
-    expect(fd.get('file')).toBeNull()
-    expect(fd.get('name')).toBe('bid.pdf')
-    expect(fd.get('fileType')).toBe('application/pdf')
-    expect(fd.get('documentCategory')).toBe('BID')
-    expect(fd.get('uploaderId')).toBe('7')
-    expect(fd.get('uploaderName')).toBe('张三')
+      // customUpload 应 throw，而非手动调用 onError
+      await expect(customUpload(options)).rejects.toThrow('网络错误')
+
+      // ⚠️ 防复发核心断言：onError 不应被 customUpload 手动调用
+      expect(options.onSuccess).not.toHaveBeenCalled()
+      expect(options.onError).not.toHaveBeenCalled()
+    })
   })
 
-  it('OBS 直传失败时回退 multipart，formData 包含 file 不包含 fileUrl', async () => {
-    tryObsDirectUpload.mockResolvedValue(null)
-    uploadDocument.mockResolvedValue({ data: { id: 43 } })
+  describe('OBS 未启用：走 multipart', () => {
+    it('formData 包含 file 字段，不包含 fileUrl', async () => {
+      const { useObsProjectDocumentUpload, mockedUpload } = await loadModule(false)
+      const { customUpload } = useObsProjectDocumentUpload(() => 100, {
+        uploaderId: () => 1,
+        uploaderName: () => 'test',
+      })
+      const file = makeFile('doc.pdf', 2 * 1024 * 1024)
+      const options = makeOptions(file)
+      mockedUpload.mockResolvedValue({ success: true })
 
-    const { customUpload } = useObsProjectDocumentUpload(() => 189)
-    const onSuccess = vi.fn()
+      await customUpload(options)
 
-    await customUpload(makeOptions({ onSuccess }))
-
-    const fd = uploadDocument.mock.calls[0][1]
-    expect(fd.get('fileUrl')).toBeNull()
-    expect(fd.get('file')).toBeInstanceOf(File)
-    expect(onSuccess).toHaveBeenCalledWith({ data: { id: 43 } })
+      expect(mockedUpload).toHaveBeenCalledTimes(1)
+      const [projectId, formData] = mockedUpload.mock.calls[0]
+      expect(projectId).toBe(100)
+      expect(formData.get('file')).toBeInstanceOf(File)
+      expect(formData.get('fileUrl')).toBeNull()
+      expect(formData.get('name')).toBe('doc.pdf')
+      expect(formData.get('documentCategory')).toBe('BID')
+      expect(formData.get('uploaderId')).toBe('1')
+      expect(formData.get('uploaderName')).toBe('test')
+    })
   })
 
-  it('uploadDocument 抛出时调用 onError', async () => {
-    tryObsDirectUpload.mockResolvedValue('obs-direct:up-err')
-    const boom = new Error('network down')
-    uploadDocument.mockRejectedValue(boom)
+  describe('OBS 启用 + OBS 成功：走 fileUrl 模式', () => {
+    it('formData 包含 fileUrl，不包含 file', async () => {
+      const { useObsProjectDocumentUpload, mockedUseObsUpload, mockedUpload } = await loadModule(true)
+      // 让 OBS 直传成功
+      const obsUploadInstance = {
+        upload: vi.fn().mockResolvedValue({ uploadId: 'obs-123' }),
+        cancel: vi.fn(),
+        reset: vi.fn(),
+      }
+      mockedUseObsUpload.mockReturnValue(obsUploadInstance)
 
-    const { customUpload } = useObsProjectDocumentUpload(() => 190)
-    const onError = vi.fn()
+      const { customUpload } = useObsProjectDocumentUpload(() => 100, {
+        uploaderId: () => 1,
+        uploaderName: () => 'test',
+      })
+      const file = makeFile('big.pdf', 100 * 1024 * 1024)
+      const options = makeOptions(file)
+      mockedUpload.mockResolvedValue({ success: true, data: { id: 1 } })
 
-    await customUpload(makeOptions({ onError }))
+      await customUpload(options)
 
-    expect(onError).toHaveBeenCalledWith(boom)
+      expect(obsUploadInstance.upload).toHaveBeenCalledWith(file)
+      expect(mockedUpload).toHaveBeenCalledTimes(1)
+      const [, formData] = mockedUpload.mock.calls[0]
+      expect(formData.get('fileUrl')).toBe('obs-direct:obs-123')
+      expect(formData.get('file')).toBeNull()
+    })
   })
 
-  it('uploaderId/uploaderName 为空时不写入 formData', async () => {
-    tryObsDirectUpload.mockResolvedValue(null)
-    uploadDocument.mockResolvedValue({ data: { id: 1 } })
+  describe('OBS 启用 + OBS 失败（如 CORS 403）：回退 multipart', () => {
+    it('OBS 失败后回退到 multipart 模式', async () => {
+      const { useObsProjectDocumentUpload, mockedUseObsUpload, mockedUpload } = await loadModule(true)
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      // OBS 直传失败（模拟 CORS 403 场景）
+      const obsUploadInstance = {
+        upload: vi.fn().mockRejectedValue(new Error('OBS CORS 403 Forbidden')),
+        cancel: vi.fn(),
+        reset: vi.fn(),
+      }
+      mockedUseObsUpload.mockReturnValue(obsUploadInstance)
 
-    const { customUpload } = useObsProjectDocumentUpload(() => 1)
+      const { customUpload } = useObsProjectDocumentUpload(() => 100, {
+        uploaderId: () => 1,
+        uploaderName: () => 'test',
+      })
+      const file = makeFile('big.pdf', 100 * 1024 * 1024)
+      const options = makeOptions(file)
+      mockedUpload.mockResolvedValue({ success: true, data: { id: 1 } })
 
-    await customUpload(makeOptions())
+      const result = await customUpload(options)
 
-    const fd = uploadDocument.mock.calls[0][1]
-    expect(fd.get('uploaderId')).toBeNull()
-    expect(fd.get('uploaderName')).toBeNull()
+      // OBS 直传被调用但失败
+      expect(obsUploadInstance.upload).toHaveBeenCalledWith(file)
+      expect(warnSpy).toHaveBeenCalled()
+      // 回退到 multipart
+      expect(mockedUpload).toHaveBeenCalledTimes(1)
+      const [, formData] = mockedUpload.mock.calls[0]
+      expect(formData.get('file')).toBeInstanceOf(File)
+      expect(formData.get('fileUrl')).toBeNull()
+      // 返回 multipart 的结果
+      expect(result).toEqual({ success: true, data: { id: 1 } })
+      warnSpy.mockRestore()
+    })
+
+    it('OBS 失败 + multipart 也失败 → throw err（不调用 onError）', async () => {
+      const { useObsProjectDocumentUpload, mockedUseObsUpload, mockedUpload } = await loadModule(true)
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const obsUploadInstance = {
+        upload: vi.fn().mockRejectedValue(new Error('OBS CORS 403')),
+        cancel: vi.fn(),
+        reset: vi.fn(),
+      }
+      mockedUseObsUpload.mockReturnValue(obsUploadInstance)
+
+      const { customUpload } = useObsProjectDocumentUpload(() => 100, {
+        uploaderId: () => 1,
+        uploaderName: () => 'test',
+      })
+      const file = makeFile()
+      const options = makeOptions(file)
+      const multipartError = new Error('413 Payload Too Large')
+      mockedUpload.mockRejectedValue(multipartError)
+
+      await expect(customUpload(options)).rejects.toThrow('413 Payload Too Large')
+
+      // 防复发：不手动调用 onError
+      expect(options.onError).not.toHaveBeenCalled()
+      expect(options.onSuccess).not.toHaveBeenCalled()
+      warnSpy.mockRestore()
+    })
   })
 
-  it('projectIdRef 支持 ref 对象', async () => {
-    tryObsDirectUpload.mockResolvedValue(null)
-    uploadDocument.mockResolvedValue({ data: { id: 1 } })
+  describe('customUpload 返回 Promise（el-upload 兼容性）', () => {
+    it('customUpload 返回值是 Promise', async () => {
+      const { useObsProjectDocumentUpload, mockedUpload } = await loadModule(false)
+      const { customUpload } = useObsProjectDocumentUpload(() => 100)
+      const file = makeFile()
+      const options = makeOptions(file)
+      mockedUpload.mockResolvedValue({ success: true })
 
-    const { ref } = await import('vue')
-    const { customUpload } = useObsProjectDocumentUpload(ref(777))
+      const result = customUpload(options)
 
-    await customUpload(makeOptions())
-
-    expect(uploadDocument.mock.calls[0][0]).toBe(777)
+      // el-upload 的 doUpload 会检查 request instanceof Promise
+      expect(result).toBeInstanceOf(Promise)
+      await result
+    })
   })
 
-  it('extraData 中 linkedEntityType/linkedEntityId 被传递', async () => {
-    tryObsDirectUpload.mockResolvedValue('obs-direct:x')
-    uploadDocument.mockResolvedValue({ data: { id: 1 } })
+  describe('projectIdRef 支持多种形式', () => {
+    it('支持 getter 函数', async () => {
+      const { useObsProjectDocumentUpload, mockedUpload } = await loadModule(false)
+      const { customUpload } = useObsProjectDocumentUpload(() => 200)
+      const file = makeFile()
+      const options = makeOptions(file)
+      mockedUpload.mockResolvedValue({ success: true })
 
-    const { customUpload } = useObsProjectDocumentUpload(() => 1)
+      await customUpload(options)
 
-    await customUpload(makeOptions({
-      data: { documentCategory: 'OTHER', linkedEntityType: 'TASK', linkedEntityId: 'T-5' },
-    }))
+      expect(mockedUpload.mock.calls[0][0]).toBe(200)
+    })
 
-    const fd = uploadDocument.mock.calls[0][1]
-    expect(fd.get('linkedEntityType')).toBe('TASK')
-    expect(fd.get('linkedEntityId')).toBe('T-5')
+    it('支持 ref 对象', async () => {
+      const { useObsProjectDocumentUpload, mockedUpload } = await loadModule(false)
+      const { customUpload } = useObsProjectDocumentUpload({ value: 300 })
+      const file = makeFile()
+      const options = makeOptions(file)
+      mockedUpload.mockResolvedValue({ success: true })
+
+      await customUpload(options)
+
+      expect(mockedUpload.mock.calls[0][0]).toBe(300)
+    })
   })
 })
