@@ -1,4 +1,5 @@
 import { ElMessageBox } from 'element-plus'
+import { ref } from 'vue'
 import { taskTemplates } from './constants.js'
 import { normalizeProjectTaskList, openScoreDraftDialogWhenTenderSourceMissing } from './projectDetailTaskGeneration.js'
 import { createTaskAssigneePayload, uploadTaskFilesWithFallback } from './taskAssigneePayload.js'
@@ -9,6 +10,7 @@ import { tryObsDirectUpload, callApiWithObsFallback } from '@/composables/useObs
 export function useProjectDetailTaskActions(context) {
   const { route, userStore, projectStore, projectsApi, tenderBreakdownApi = projectsApi, isApiProject, message, state, workflow } = context
   const obsUpload = useObsUpload({ businessType: 'tender-breakdown' })
+  const savingTask = ref(false)
   const pushActivity = (action) => state.activities.value.unshift({ id: Date.now(), user: userStore.userName, action, time: new Date().toLocaleString('zh-CN', { hour12: false }) })
   const ensureTaskList = () => {
     if (!state.project.value) {
@@ -236,10 +238,13 @@ export function useProjectDetailTaskActions(context) {
   }
 
   const handleSaveTask = async (payload = {}) => {
-    const { mode = 'create', data = {}, done } = payload
-    if (!state.project.value) { message.warning('项目信息未加载'); return }
+    if (savingTask.value) return
+    savingTask.value = true
+    try {
+      const { mode = 'create', data = {}, done } = payload
+      if (!state.project.value) { message.warning('项目信息未加载'); return }
 
-    // CO-481: view 模式下保证金缴纳任务编辑执行人 → 仅更新执行人相关字段
+      // CO-481: view 模式下保证金缴纳任务编辑执行人 → 仅更新执行人相关字段
     if (mode === 'view' && data?.id != null && data.extendedFields?._taskType === 'deposit-payment') {
       const tasks = ensureTaskList()
       const target = tasks.find((t) => String(t.id) === String(data.id))
@@ -319,7 +324,10 @@ export function useProjectDetailTaskActions(context) {
     } catch (error) {
       message.error(resolveErrorMessage(error, '新增任务失败'))
     }
+  } finally {
+    savingTask.value = false
   }
+}
   const handleTaskStatusChange = async (task, newStatus, reviewComment) => {
     // CO-411: 传入的 task 可能是浅拷贝（CO-397 抽屉），按 id 查原引用再改，确保看板刷新
     const tasks = ensureTaskList()
@@ -435,5 +443,5 @@ export function useProjectDetailTaskActions(context) {
     }
   }
 
-  return { obsUpload, handleGenerateTasks, handleScoreDraftGenerated, handleOpenScoreDraftDecompose, handleOpenTenderBreakdown, handleTenderBreakdownUpload, handleAddTask, handleResetTasks, handleTaskClick, handleSaveTask, handleTaskStatusChange, handleRemoveDeliverable, handleSubmitReview, handleSubmitToDocument }
+  return { obsUpload, savingTask, handleGenerateTasks, handleScoreDraftGenerated, handleOpenScoreDraftDecompose, handleOpenTenderBreakdown, handleTenderBreakdownUpload, handleAddTask, handleResetTasks, handleTaskClick, handleSaveTask, handleTaskStatusChange, handleRemoveDeliverable, handleSubmitReview, handleSubmitToDocument }
 }

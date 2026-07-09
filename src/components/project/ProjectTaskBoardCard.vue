@@ -75,6 +75,7 @@
             v-if="drawerMode !== 'view' || canEditDepositTaskAssignee"
             type="primary"
             data-test="task-drawer-save"
+            :loading="savingTask"
             @click="handleSaveTask"
           >
             保存
@@ -90,11 +91,12 @@
 </template>
 
 <script setup>
-import { computed, getCurrentInstance, ref, reactive } from 'vue'
+import { computed, getCurrentInstance, inject, ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { DocumentChecked, List, Plus } from '@element-plus/icons-vue'
 import TaskBoard from '@/components/common/TaskBoard.vue'
 import TaskForm from '@/components/project/TaskForm.vue'
+import { projectDetailKey } from '@/composables/projectDetail/context.js'
 import { useProjectDraftingPermissions } from '@/composables/projectDetail/useProjectDraftingPermissions'
 import { useProjectStore } from '@/stores/project'
 import { useUserStore } from '@/stores/user'
@@ -131,6 +133,9 @@ const props = defineProps({
     default: true,
   },
 })
+
+const projectDetail = inject(projectDetailKey, null)
+const savingTask = computed(() => Boolean(projectDetail?.savingTask?.value))
 
 const perm = reactive(useProjectDraftingPermissions())
 const projectStore = useProjectStore()
