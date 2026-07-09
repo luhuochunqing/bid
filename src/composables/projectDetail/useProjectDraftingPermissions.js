@@ -119,6 +119,18 @@ export function useProjectDraftingPermissions(opts = {}) {
     return !!(primaryLeadId != null && String(primaryLeadId) === uid)
   })
 
+  /**
+   * CO-558：当前用户是否为「该项目分配的投标负责人/辅助人员」，且角色为 bid-Team（投标专员）。
+   *
+   * 与 isProjectLeadMatch 的关键区别：显式排除 bid-projectLeader（投标项目负责人/sales）。
+   * isProjectLeadMatch 对 bid-projectLeader 有放行分支（line 98-100，当其=primaryLeadId 时返回 true），
+   * 那是「投标提交」等流程的语义；而「项目文档下载」需求要求 bid-projectLeader 始终不可见，
+   * 仅 bid-Team 且被分配为该项目 lead 才可见。
+   */
+  const isAssignedBidSpecialist = computed(() =>
+    role.value === 'bid-Team' && isProjectLeadMatch.value
+  )
+
   // ── AI 能力 ────────────────────────────────────────────────────────────────
 
   /** AI评分标准解析（任务看板→评分标准拆解） */
@@ -247,6 +259,7 @@ export function useProjectDraftingPermissions(opts = {}) {
     isAdminLead,
     isLeadAssist,
     isExecutor,
+    isAssignedBidSpecialist,
     // AI
     canAIScoreDraftDecompose,
     canAITenderBreakdown,

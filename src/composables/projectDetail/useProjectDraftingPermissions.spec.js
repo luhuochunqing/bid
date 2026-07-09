@@ -86,6 +86,14 @@ function computeCanSelectReviewer(role, opts = {}) {
   return computeIsProjectLeadMatch(role, opts)
 }
 
+// CO-558: 对齐 useProjectDraftingPermissions.js 中 isAssignedBidSpecialist
+// 与 isProjectLeadMatch 的关键区别：显式排除 bid-projectLeader（投标项目负责人/sales），
+// 仅 role==='bid-Team' 且匹配该项目 lead 分配才返回 true。
+// 用于「项目文档下载/导出」权限：bid-projectLeader 即使=primaryLeadId 也不可见。
+function computeIsAssignedBidSpecialist(role, opts = {}) {
+  return role === 'bid-Team' && computeIsProjectLeadMatch(role, opts)
+}
+
 describe('resolveDraftingRoleGroup', () => {
   it.each([
     ['admin', 'admin_lead'],
@@ -306,6 +314,29 @@ function computeIsTaskAssignee(task, currentUserId) {
   return currentUserId != null && task?.assigneeId != null
     && String(currentUserId) === String(task.assigneeId)
 }
+
+describe('CO-558: isAssignedBidSpecialist — 项目文档下载权限（显式排除 bid-projectLeader）', () => {
+  // 真实场景：王凯毅 08687，bid-projectLeader，被设为某项目 primaryLeadId
+  it('bid-projectLeader 即使=primaryLeadId → false（项目负责人始终不可下载）', () => {
+    expect(computeIsAssignedBidSpecialist('bid-projectLeader', { currentUserId: 5052, primaryLeadId: 5052, secondaryLeadId: 6000 })).toBe(false)
+  })
+  it('bid-projectLeader ≠primaryLeadId → false', () => {
+    expect(computeIsAssignedBidSpecialist('bid-projectLeader', { currentUserId: 5052, primaryLeadId: 9999, secondaryLeadId: 6000 })).toBe(false)
+  })
+  it('bid-Team =primaryLeadId（投标负责人）→ true', () => {
+    expect(computeIsAssignedBidSpecialist('bid-Team', { currentUserId: 5052, primaryLeadId: 5052, secondaryLeadId: 6000 })).toBe(true)
+  })
+  it('bid-Team =secondaryLeadId（投标辅助）→ true', () => {
+    expect(computeIsAssignedBidSpecialist('bid-Team', { currentUserId: 6000, primaryLeadId: 5052, secondaryLeadId: 6000 })).toBe(true)
+  })
+  it('bid-Team 未分配该项目 → false', () => {
+    expect(computeIsAssignedBidSpecialist('bid-Team', { currentUserId: 7777, primaryLeadId: 5052, secondaryLeadId: 6000 })).toBe(false)
+  })
+  it('admin/组长 → false（由 isAdminLead 单独放行，此处只验证 specialist 维度）', () => {
+    expect(computeIsAssignedBidSpecialist('admin', { currentUserId: 1, primaryLeadId: 5052 })).toBe(false)
+    expect(computeIsAssignedBidSpecialist('bid-TeamLeader', { currentUserId: 2, primaryLeadId: 5052 })).toBe(false)
+  })
+})
 
 describe('isTaskAssignee — 任务执行人身份校验（TaskKanban.vue）', () => {
   it('当前用户 == task.assigneeId → true', () => {
