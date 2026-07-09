@@ -174,14 +174,20 @@ xiyu:
         # 投标管理员 + 投标系统管理员（按人员）：张頔、郑蓉蓉、袁思琪
         - person-identifier: "03595"  # 张頔
           role-code: /bidAdmin
+        - person-identifier: "dean_zhang@ehsy.com"  # 张頔（邮箱别名）
+          role-code: /bidAdmin
         - person-identifier: "06234"  # 郑蓉蓉
+          role-code: /bidAdmin
+        - person-identifier: "tina_zheng1@ehsy.com"  # 郑蓉蓉（邮箱别名）
           role-code: /bidAdmin
         - person-identifier: "11484"  # 袁思琪
           role-code: /bidAdmin
         # 投标组长（按人员）：袁思琪（兼任）
         - person-identifier: "11484"  # 袁思琪
           role-code: bid-TeamLeader
-        # 跨部门协同人员（按人员）：陈超、屈晓润、孙磊、忻鼎盛、刘成
+        - person-identifier: "suki_yuan@ehsy.com"  # 袁思琪（邮箱别名）
+          role-code: bid-TeamLeader
+        # 跨部门协同人员（按人员）：陈超、屈晓润、孙磊、忻鼎盛、刘成、09118、03063
         - person-identifier: "04727"  # 陈超（kelvin_chen）
           role-code: bid-otherDept
         - person-identifier: "07440"  # 屈晓润
@@ -191,6 +197,10 @@ xiyu:
         - person-identifier: "03483"  # 忻鼎盛
           role-code: bid-otherDept
         - person-identifier: "03895"  # 刘成（simon_liu）
+          role-code: bid-otherDept
+        - person-identifier: "09118"  # 跨部门协同人员
+          role-code: bid-otherDept
+        - person-identifier: "03063"  # 跨部门协同人员
           role-code: bid-otherDept
       # 按部门映射：通过部门名称正则匹配
       department-to-role-mappings:

@@ -3382,3 +3382,84 @@ mvn test -Dtest='PreAuthorizeAuthorityOssMappingCoverageTest,OssMenuPermissionMa
 - `backend/src/main/resources/application.yml` — OSS 菜单码 → 内部权限键映射表
 - `backend/src/main/java/com/xiyu/bid/tender/controller/TenderController.java:135-139` — `tender.view` 历史回退注释
 - `backend/src/test/java/com/xiyu/bid/architecture/PreAuthorizeAuthorityOssMappingCoverageTest.java` — 双重守卫
+---
+
+## 50. SPRING_CONFIG_IMPORT 外部配置覆盖导致代码修复无效（2026-07-09 第 65/66 次部署事故）
+
+### 问题背景
+
+2026-07-09 第 65 次部署后，OSS 用户 06234（郑蓉蓉）无法登录，报错 `ROLE_NOT_AUTHORIZED: 无有效 OSS 角色，不允许登录`。回滚到第 64 次后恢复。开发者修复代码（PR !1949 合并白名单用户 catalog 菜单权限）后第 66 次部署，**代码修复无效**，06234 仍然无法登录。
+
+### 事故时间线
+
+| 时间 | 操作 | 判断 |
+|------|------|------|
+| 17:37 第 65 次部署 | PR !1945 引入 person-to-role 优先解析 | 06234 登录失败 |
+| 17:46 回滚到第 64 次 | 回滚后 06234 恢复登录 | 误判根因为代码 bug |
+| 18:15 第 66 次部署 | PR !1949 修复菜单合并逻辑 | 06234 仍然登录失败 |
+| 18:21 排查日志 | 发现 `role resolved from person-to-role-mappings: 06234 -> bid-SystemAdmin` | 配置不是 /bidAdmin |
+| 18:22 检查 jar 内 application.yml | 06234 -> /bidAdmin ✅ | jar 内配置正确 |
+| 18:25 发现根因 | `/etc/xiyu-bid/application-org-mappings.yml` 中 06234 -> bid-SystemAdmin | **外部配置覆盖了 jar 内配置** |
+| 18:26 修复外部配置 | sed 改 bid-SystemAdmin 为 /bidAdmin + 重启 | 06234 恢复登录 ✅ |
+
+### 根因
+
+服务器通过 `SPRING_CONFIG_IMPORT=optional:file:/etc/xiyu-bid/application-org-mappings.yml` 导入了一个外部配置文件。Spring Boot 的 `SPRING_CONFIG_IMPORT` 导入的外部配置优先级**高于** jar 内 `application.yml`。
+
+外部配置文件 `/etc/xiyu-bid/application-org-mappings.yml` 中 06234 的 role-code 是 `bid-SystemAdmin`（旧的错误值），而 jar 内 `application.yml` 中是 `/bidAdmin`（修复后的正确值）。外部配置覆盖了 jar 内配置，导致代码修复（PR !1949）完全无效。
+
+### 故障链
+
+```
+PR !1945 引入 person-to-role 优先解析
+    ↓
+OssRoleResolver.resolveRoleCodeFromJobList() 从 person-to-role-mappings 解析得到 bid-SystemAdmin
+    ↓
+LoginRoleWhitelist.isAllowed(bid-SystemAdmin) → false（不在 RoleProfileCatalog 7 个标准角色中）
+    ↓
+OssLoginFlowService: "role not allowed for user=06234" → 清除权限缓存
+    ↓
+AuthService.login(): "no valid OSS role" → 403 登录失败
+    ↓
+UserDetailsServiceImpl: "fail-closed, no DB fallback" → 401 后续请求
+```
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 代码修复后部署，问题仍然存在 | 服务器外部配置文件可以覆盖 jar 内配置，代码修复不能改变外部配置 | 部署时必须检查 `SPRING_CONFIG_IMPORT` 引入的外部配置是否与 jar 内配置一致 |
+| 排查时只看代码和 jar 内配置 | 外部配置文件是不可见的配置漂移源 | 排查"配置看起来正确但行为异常"时，必须检查 `SPRING_CONFIG_IMPORT` |
+| 误判根因为代码 bug 后回滚 | 回滚前没有确认根因，错误回滚了正确修复 | 回滚前用"五个为什么"追问根因，确认被回滚的修复与根因无关 |
+| 外部配置文件中的 role-code 是旧值 | 外部配置文件没有随代码修复一起更新 | 修复涉及配置变更时，必须同步更新服务器外部配置文件 |
+
+### 操作规范（已固化到部署流程）
+
+1. **部署预检必须检查外部配置覆盖**：在 `LIVE_SERVER_DEPLOYMENT_RUNBOOK.md` §6 服务器预检中新增 §6.2，检查 `SPRING_CONFIG_IMPORT` 引入的外部配置文件中的 person-to-role-mappings 与 jar 内配置是否一致。
+2. **修复涉及配置变更时，必须同步更新服务器外部配置文件**：不能只改代码和 jar 内配置，还要检查 `/etc/xiyu-bid/application-org-mappings.yml` 是否需要同步更新。
+3. **排查"配置看起来正确但行为异常"时，必须检查 `SPRING_CONFIG_IMPORT`**：这是不可见的配置漂移源，jar 内配置正确不代表运行时配置正确。
+
+### 验证方法
+
+```bash
+# 检查 SPRING_CONFIG_IMPORT 引入的外部配置文件
+ssh jetty@172.16.38.78 'grep "SPRING_CONFIG_IMPORT" /etc/xiyu-bid/backend.env'
+# 期望输出：SPRING_CONFIG_IMPORT=optional:file:/etc/xiyu-bid/application-org-mappings.yml
+
+# 检查外部配置文件中的 person-to-role-mappings
+ssh jetty@172.16.38.78 'grep -A 2 "person-identifier: \"06234\"" /etc/xiyu-bid/application-org-mappings.yml'
+# 期望输出：role-code: /bidAdmin（不是 bid-SystemAdmin）
+
+# 对比 jar 内配置
+unzip -p app.jar BOOT-INF/classes/application.yml | grep -A 2 "person-identifier: \"06234\""
+# 期望输出：role-code: /bidAdmin
+```
+
+### 相关文件
+
+- `/etc/xiyu-bid/application-org-mappings.yml` — 服务器外部配置文件（通过 SPRING_CONFIG_IMPORT 导入）
+- `/etc/xiyu-bid/backend.env` — 包含 `SPRING_CONFIG_IMPORT` 环境变量
+- `backend/src/main/resources/application.yml` — jar 内配置（被外部配置覆盖）
+- `backend/src/main/java/com/xiyu/bid/crm/application/OssRoleResolver.java` — 角色解析逻辑
+- `backend/src/main/java/com/xiyu/bid/security/domain/LoginRoleWhitelist.java` — 角色白名单校验
+- `docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md` §6.2 — 部署预检检查点（已固化）
