@@ -63,7 +63,7 @@ class TenderQueryServiceTest {
         TenderManagerInfoFetcher fetcher = new TenderManagerInfoFetcher(
                 projectRepository, userRepository, enricher);
         return new TenderQueryService(tenderRepository, tenderMapper, tenderAttachmentRepository, accessGuard,
-                projectRepository, userRepository, tenderAssignmentRecordRepository, fetcher);
+                projectRepository, userRepository, tenderAssignmentRecordRepository, fetcher, enricher);
     }
 
     private Tender tender(long id, String title) {
@@ -226,6 +226,65 @@ class TenderQueryServiceTest {
         TenderDTO result = service.getTenderById(1L);
 
         assertThat(result.getProjectManagerName()).isEqualTo("李四");
+    }
+
+    @Test
+    @DisplayName("标讯详情: department 为空时应从 Tender.projectManagerId 反查部门回填（与列表路径一致）")
+    void shouldBackfillDepartmentInDetailWhenEmpty() {
+        Tender tender = tender(1L, "测试标讯");
+        tender.setProjectManagerId(99L);
+
+        when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
+        TenderDTO dto = new TenderDTO();
+        dto.setId(1L);
+        dto.setProjectManagerId(99L);
+        dto.setDepartment(null);
+        when(tenderMapper.toDTO(tender)).thenReturn(dto);
+
+        // 无关联项目（department 兜底不依赖 Project）
+        when(projectRepository.findByTenderId(1L)).thenReturn(List.of());
+        when(tenderAttachmentRepository.findByTenderId(1L)).thenReturn(List.of());
+
+        User manager = new User();
+        manager.setId(99L);
+        manager.setDepartmentCode("700498910");
+        manager.setDepartmentName("");
+        when(userRepository.findById(99L)).thenReturn(Optional.of(manager));
+        OrganizationDepartmentEntity dept = new OrganizationDepartmentEntity();
+        dept.setSourceApp("oss");
+        dept.setExternalDeptId("700498910");
+        dept.setDepartmentName("东部二区");
+        when(organizationDepartmentRepository.findBySourceAppAndExternalDeptIdIn("oss", Set.of("700498910")))
+                .thenReturn(List.of(dept));
+
+        TenderQueryService service = createService();
+        TenderDTO result = service.getTenderById(1L);
+
+        assertThat(result.getDepartment()).isEqualTo("东部二区");
+    }
+
+    @Test
+    @DisplayName("标讯详情: department 已有值时不触发反查（不被覆盖）")
+    void shouldNotOverrideDepartmentInDetailWhenAlreadyPresent() {
+        Tender tender = tender(1L, "测试标讯");
+        tender.setProjectManagerId(99L);
+
+        when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
+        TenderDTO dto = new TenderDTO();
+        dto.setId(1L);
+        dto.setProjectManagerId(99L);
+        dto.setDepartment("已有部门");
+        when(tenderMapper.toDTO(tender)).thenReturn(dto);
+
+        when(projectRepository.findByTenderId(1L)).thenReturn(List.of());
+        when(tenderAttachmentRepository.findByTenderId(1L)).thenReturn(List.of());
+
+        TenderQueryService service = createService();
+        TenderDTO result = service.getTenderById(1L);
+
+        assertThat(result.getDepartment()).isEqualTo("已有部门");
+        // department 已有值，不应触发 user 反查
+        verify(userRepository, never()).findById(any());
     }
 
     @Test

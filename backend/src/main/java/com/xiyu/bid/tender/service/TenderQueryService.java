@@ -8,6 +8,7 @@ import com.xiyu.bid.tender.entity.TenderAttachment;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.integration.external.TenderIntegrationMapper;
+import com.xiyu.bid.project.service.ProjectManagerDepartmentEnricher;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
 import com.xiyu.bid.repository.TenderRepository;
@@ -42,6 +43,7 @@ public class TenderQueryService {
     private final UserRepository userRepository;
     private final TenderAssignmentRecordRepository tenderAssignmentRecordRepository;
     private final TenderManagerInfoFetcher managerInfoFetcher;
+    private final ProjectManagerDepartmentEnricher departmentEnricher;
 
     public List<TenderDTO> searchTenders(TenderSearchCriteria criteria) {
         log.debug("Searching tenders with criteria: {}", criteria);
@@ -109,6 +111,23 @@ public class TenderQueryService {
                 .ifPresent(project -> enrichProjectManager(dto, project));
 
         enrichAssignee(dto, tenderId);
+        enrichDepartment(dto);
+    }
+
+    /**
+     * department 为空时从 Tender.projectManagerId 反查 user 部门回填。
+     *
+     * <p>数据源与批量路径 {@link #enrichAssignmentInfoBatch} 一致：
+     * Tender.projectManagerId（标讯自己的字段，方向正确，不从 Project 反查）。</p>
+     */
+    private void enrichDepartment(TenderDTO dto) {
+        if (StringUtils.isNotBlank(dto.getDepartment()) || dto.getProjectManagerId() == null) {
+            return;
+        }
+        String deptName = departmentEnricher.resolveDepartmentNameByUserId(dto.getProjectManagerId());
+        if (StringUtils.isNotBlank(deptName)) {
+            dto.setDepartment(deptName);
+        }
     }
 
     private void enrichProjectManager(TenderDTO dto, Project project) {
