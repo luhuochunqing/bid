@@ -2,6 +2,7 @@ package com.xiyu.bid.projectworkflow.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
@@ -212,8 +213,8 @@ class ProjectWorkflowServiceTest {
                 .title("归档后新增任务")
                 .priority(ProjectTaskCreateRequest.Priority.MEDIUM)
                 .build()))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("not in a valid state");
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("终态");
     }
 
     @Test

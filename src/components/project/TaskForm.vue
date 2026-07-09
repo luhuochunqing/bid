@@ -237,7 +237,14 @@ const canDeliver = computed(() => {
   const taskAssigneeId = localValue.assigneeId
   if (taskAssigneeId == null) return false
   const taskStatus = String(localValue.status || '').toLowerCase()
-  return String(taskAssigneeId) === String(currentUserId) && taskStatus === 'todo'
+  if (taskStatus !== 'todo') return false
+  if (String(taskAssigneeId) !== String(currentUserId)) return false
+  // CO-565: 项目进入终态（已中标/未中标/已流标/已放弃）后禁止提交审核
+  // 后端 ProjectWorkflowGuardService.requireWorkflowMutationProject 也会拦截，
+  // 前端提前隐藏按钮避免用户误操作触发 409 错误。
+  const projectStatus = String(projectStore.currentProject?.status || '').toUpperCase()
+  const TERMINAL_PROJECT_STATUSES = ['WON', 'LOST', 'FAILED', 'ABANDONED']
+  return !TERMINAL_PROJECT_STATUSES.includes(projectStatus)
 })
 // CO-448: 通过 extendedFields._taskType 识别保证金缴纳任务（替代标题字符串匹配，避免标题改动导致字段消失）
 const isDepositTask = computed(() => localValue.extendedFields?._taskType === 'deposit-payment')

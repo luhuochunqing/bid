@@ -51,6 +51,8 @@ const mockStoreState = reactive({
   taskExtendedFields: [],
   taskExtendedFieldsLoaded: false,
   loadTaskExtendedFields: vi.fn(async () => mockStoreState.taskExtendedFields),
+  // CO-565: 默认无 currentProject（与原行为兼容），测试用例可覆盖
+  currentProject: null,
 })
 
 vi.mock('@/stores/project', () => ({
@@ -152,6 +154,7 @@ describe('TaskForm', () => {
     // Reset extended fields before each test — avoids leakage across cases.
     mockStoreState.taskExtendedFields = []
     mockStoreState.taskExtendedFieldsLoaded = false
+    mockStoreState.currentProject = null
     mockStoreState.loadTaskExtendedFields.mockClear()
     getAssignableCandidatesMock.mockReset()
     getAssignableCandidatesMock.mockResolvedValue(defaultAssignmentCandidates)
@@ -867,5 +870,58 @@ describe('TaskForm', () => {
     const completionItem = formItems.find((el) => el.text().includes('完成情况说明'))
     expect(deliverableItem?.classes()).not.toContain('is-required')
     expect(completionItem?.classes()).not.toContain('is-required')
+  })
+
+  // CO-565: 项目进入终态后，canDeliver 应返回 false，隐藏提交审核按钮
+  describe('CO-565: canDeliver on terminal project', () => {
+    const baseTask = {
+      id: 50,
+      projectId: 12,
+      name: '终态项目下的任务',
+      assigneeId: 9, // = 当前 mock 用户 id
+      status: 'TODO',
+    }
+
+    it('hides deliverable upload when project status is WON', async () => {
+      mockStoreState.currentProject = { id: 12, status: 'WON' }
+      const wrapper = mount(TaskForm, {
+        props: { mode: 'view', modelValue: { ...baseTask } },
+        global: { stubs: globalStubs },
+      })
+      await flushPromises()
+      // canDeliver=false → 交付物上传区域不渲染
+      expect(wrapper.find('[data-test="task-deliverable-upload"]').exists()).toBe(false)
+    })
+
+    it('hides deliverable upload when project status is LOST', async () => {
+      mockStoreState.currentProject = { id: 12, status: 'LOST' }
+      const wrapper = mount(TaskForm, {
+        props: { mode: 'view', modelValue: { ...baseTask } },
+        global: { stubs: globalStubs },
+      })
+      await flushPromises()
+      expect(wrapper.find('[data-test="task-deliverable-upload"]').exists()).toBe(false)
+    })
+
+    it('shows deliverable upload when project status is BIDDING (non-terminal)', async () => {
+      mockStoreState.currentProject = { id: 12, status: 'BIDDING' }
+      const wrapper = mount(TaskForm, {
+        props: { mode: 'view', modelValue: { ...baseTask } },
+        global: { stubs: globalStubs },
+      })
+      await flushPromises()
+      expect(wrapper.find('[data-test="task-deliverable-upload"]').exists()).toBe(true)
+    })
+
+    it('shows deliverable upload when currentProject is null (backward compat)', async () => {
+      // 任务看板场景下 currentProject 可能未加载；保持原行为，不因 null 而隐藏
+      mockStoreState.currentProject = null
+      const wrapper = mount(TaskForm, {
+        props: { mode: 'view', modelValue: { ...baseTask } },
+        global: { stubs: globalStubs },
+      })
+      await flushPromises()
+      expect(wrapper.find('[data-test="task-deliverable-upload"]').exists()).toBe(true)
+    })
   })
 })
