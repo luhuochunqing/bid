@@ -272,7 +272,8 @@ class PlatformAccountImportAsyncRunnerTest {
                     .orElseThrow();
             // 第一行失败，第二行成功
             assertThat(finalTask.getImportedRows()).isEqualTo(1);
-            assertThat(finalTask.getErrorDetails()).contains("模拟 DB 异常");
+            // CO-560 补强：异常消息被翻译，不暴露原始 RuntimeException message
+            assertThat(finalTask.getErrorDetails()).contains("数据保存失败");
         }
     }
 }

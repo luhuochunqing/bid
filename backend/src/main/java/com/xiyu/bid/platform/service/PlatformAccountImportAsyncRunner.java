@@ -3,6 +3,7 @@ package com.xiyu.bid.platform.service;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.infrastructure.excel.SingleSheetExcelReader;
 import com.xiyu.bid.infrastructure.excel.SingleSheetExcelReader.WorkbookData;
+import com.xiyu.bid.platform.domain.PlatformAccountImportErrorMessageTranslator;
 import com.xiyu.bid.platform.domain.PlatformAccountImportPolicy;
 import com.xiyu.bid.platform.domain.PlatformAccountImportPolicy.ParsedAccountRow;
 import com.xiyu.bid.platform.infrastructure.persistence.entity.PlatformAccountImportTaskEntity;
@@ -104,7 +105,9 @@ public class PlatformAccountImportAsyncRunner {
                     imported++;
                 } catch (RuntimeException e) {
                     // CO-560: REQUIRES_NEW 传播下，单行失败只回滚该行事务，不影响外层
-                    row.errors().add("导入失败: " + e.getMessage());
+                    // CO-560 补强：异常消息翻译，不向用户暴露表结构/列名
+                    log.warn("PlatformAccount import row {} failed: {}", row.rowIndex(), e.getMessage());
+                    row.errors().add(PlatformAccountImportErrorMessageTranslator.translate(e));
                     failed++;
                 }
             }
