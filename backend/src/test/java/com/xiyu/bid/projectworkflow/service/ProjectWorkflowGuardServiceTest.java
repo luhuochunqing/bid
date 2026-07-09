@@ -1,6 +1,7 @@
 package com.xiyu.bid.projectworkflow.service;
 
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import org.junit.jupiter.api.Test;
@@ -75,9 +76,11 @@ class ProjectWorkflowGuardServiceTest {
                 .build();
         when(projectRepository.findById(anyLong())).thenReturn(Optional.of(project));
 
+        // CO-565: 改为 BusinessException(409)，避免 Sentry 噪声上报
         assertThatThrownBy(() -> projectWorkflowGuardService.requireWorkflowMutationProject(1L))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("not in a valid state");
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("终态")
+                .hasMessageContaining("已中标");
     }
 
     @Test

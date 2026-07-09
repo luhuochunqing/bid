@@ -2,6 +2,7 @@ package com.xiyu.bid.projectworkflow.service;
 
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Task;
+import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.entity.ProjectScoreDraft;
@@ -32,7 +33,11 @@ class ProjectWorkflowGuardService {
     Project requireWorkflowMutationProject(Long projectId) {
         Project project = requireProject(projectId);
         if (project.getStatus().isTerminal()) {
-            throw new IllegalStateException("Project is not in a valid state for workflow operations: " + project.getStatus());
+            // CO-565: 改用 BusinessException(409) 替代 IllegalStateException，
+            // 避免被 Sentry 当作系统缺陷上报（IllegalStateException 不在 NON_CRITICAL_EXCEPTIONS 过滤列表）。
+            // 业务语义：项目已进入终态，不允许再做工作流变更——这是正常的业务校验，不是系统 bug。
+            throw new BusinessException(409,
+                    "项目已进入终态（" + project.getStatus().displayName() + "），不允许修改任务状态");
         }
         return project;
     }
