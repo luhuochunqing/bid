@@ -56,7 +56,7 @@
         <el-table-column label="租赁合同" width="100" align="center">
           <template #default="s">{{ s.row.hasLeaseContract ? '是' : '否' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="150" fixed="right" align="center">
+        <el-table-column label="操作" width="150" fixed="right" align="center" class-name="kb-action-col">
           <template #default="s">
             <el-button v-if="canManage" link type="primary" size="small" @click.stop="openEdit(s.row)">编辑</el-button>
             <el-button v-if="canManage && s.row.status !== 'CLOSED'" link type="danger" size="small" @click.stop="handleClose(s.row)">关仓</el-button>
