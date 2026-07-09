@@ -143,7 +143,7 @@
     </template>
   </el-dialog>
 
-  <AiRecommendDrawer v-model="aiDrawerVisible" :project-id="projectId" />
+  <CaseSliceRecommendDrawer v-model="aiDrawerVisible" :project-id="projectId" />
   <QualityCheckDialog ref="qualityCheckRef" :project-id="projectId" />
 </template>
 
@@ -157,7 +157,7 @@ import { deleteDocument, getDocuments } from '@/api/modules/projectDocuments.js'
 import { STAGE_TRANSITION_MAP } from '@/constants/projectStages.js'
 import { useUserStore } from '@/stores/user'
 import ProjectDocumentTable from './components/ProjectDocumentTable.vue'
-import AiRecommendDrawer from './components/AiRecommendDrawer.vue'
+import CaseSliceRecommendDrawer from './components/CaseSliceRecommendDrawer.vue'
 import QualityCheckDialog from './components/QualityCheckDialog.vue'
 import { useProjectDetailContext } from '@/composables/projectDetail/context.js'
 import { useProjectDraftingPermissions, canDeleteDocumentAs } from '@/composables/projectDetail/useProjectDraftingPermissions.js'
