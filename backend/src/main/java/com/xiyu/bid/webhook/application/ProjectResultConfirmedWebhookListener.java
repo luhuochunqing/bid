@@ -90,22 +90,10 @@ public class ProjectResultConfirmedWebhookListener {
             return;
         }
         // CO-152：与 §4.1 WebhookEventListener 对称，入队时存操作者 username
-<<<<<<< Updated upstream
         String operatorUsername = operatorUsernameResolver.resolve(event.operatorUserId());
         // CO-277 / CO-152: 使用 operatorUsername 调 CRM 反查 code；crm_opportunity_id 为空时用 externalId 兜底。
         String crmOpportunityCode = tenderCrmOpportunityCodeResolver.resolveForTender(tender, operatorUsername);
         String crmOpportunityName = tender.getCrmOpportunityName() != null ? tender.getCrmOpportunityName() : "";
-=======
-        // #1641 修复：API Key 认证时 event.operatorUserId() 是 API Key 创建者 admin，没有 OSS token
-        // 改为优先用标讯创建人（creator_id），fallback 到项目负责人，再 fallback 到事件操作者
-        String operatorUsername = resolveOperatorUsername(tender.getCreatorId());
-        if (operatorUsername == null) {
-            operatorUsername = resolveOperatorUsername(tender.getProjectManagerId());
-        }
-        if (operatorUsername == null) {
-            operatorUsername = resolveOperatorUsername(event.operatorUserId());
-        }
->>>>>>> Stashed changes
         taskRepository.save(WebhookDeliveryTask.builder()
                 .tenderId(event.tenderId())
                 .externalId(null)

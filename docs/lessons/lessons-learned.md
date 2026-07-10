@@ -3551,7 +3551,6 @@ unzip -p app.jar BOOT-INF/classes/application.yml | grep -A 2 "person-identifier
 - `docs/release/PROD_ENVIRONMENT_PROFILE.md` §1.2 — 网络架构（端口已正确）
 - `backend/src/main/java/com/xiyu/bid/integration/organization/application/OrganizationUserSyncWriter.java` — skipUnmappedUsers 修复
 
-<<<<<<< HEAD
 ## 52. OSS 角色解析忽略 roleCode 字段：roleName 映射不全导致登录被拒（2026-07-10 / 用户 04569 / PR !1977）
 
 ### 问题背景

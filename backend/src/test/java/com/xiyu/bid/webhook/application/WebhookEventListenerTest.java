@@ -3,11 +3,7 @@ package com.xiyu.bid.webhook.application;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.entity.Tender;
-<<<<<<< Updated upstream
 import com.xiyu.bid.integration.external.ExternalSystemPrefix;
-=======
-import com.xiyu.bid.entity.User;
->>>>>>> Stashed changes
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTask;
@@ -300,65 +296,6 @@ class WebhookEventListenerTest {
         l.onTenderStatusChanged(event(Tender.Status.ABANDONED, "放弃投标", "张三"));
 
         verify(taskRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("#1641: creatorId 非空 → operatorUsername 用 creatorId 反查（跳过 operatorId/admin）")
-    void creatorIdPresent_operatorUsernameFromCreatorId() {
-        WebhookEventListener l = listener();
-        Tender tender = mockTender();
-        tender.setCreatorId(100L);
-        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender));
-
-        User creator = new User();
-        creator.setId(100L);
-        creator.setUsername("06234");
-        when(userRepository.findById(100L)).thenReturn(Optional.of(creator));
-
-        l.onTenderStatusChanged(event(Tender.Status.EVALUATED, null, "admin"));
-
-        WebhookDeliveryTask saved = captureSingleSaved();
-        assertThat(saved.getOperatorUsername()).isEqualTo("06234");
-    }
-
-    @Test
-    @DisplayName("#1641: creatorId 为 null → fallback 到 projectManagerId 反查")
-    void creatorIdNull_fallbackToProjectManagerId() {
-        WebhookEventListener l = listener();
-        Tender tender = mockTender();
-        tender.setCreatorId(null);
-        tender.setProjectManagerId(200L);
-        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender));
-
-        User manager = new User();
-        manager.setId(200L);
-        manager.setUsername("manager_user");
-        when(userRepository.findById(200L)).thenReturn(Optional.of(manager));
-
-        l.onTenderStatusChanged(event(Tender.Status.EVALUATED, null, "admin"));
-
-        WebhookDeliveryTask saved = captureSingleSaved();
-        assertThat(saved.getOperatorUsername()).isEqualTo("manager_user");
-    }
-
-    @Test
-    @DisplayName("#1641: creatorId 和 projectManagerId 都为 null → fallback 到 operatorId")
-    void creatorAndManagerNull_fallbackToOperatorId() {
-        WebhookEventListener l = listener();
-        Tender tender = mockTender();
-        tender.setCreatorId(null);
-        tender.setProjectManagerId(null);
-        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender));
-
-        User operator = new User();
-        operator.setId(493L);
-        operator.setUsername("operator_user");
-        when(userRepository.findById(493L)).thenReturn(Optional.of(operator));
-
-        l.onTenderStatusChanged(event(Tender.Status.EVALUATED, null, "admin"));
-
-        WebhookDeliveryTask saved = captureSingleSaved();
-        assertThat(saved.getOperatorUsername()).isEqualTo("operator_user");
     }
 
     private WebhookDeliveryTask captureSingleSaved() {

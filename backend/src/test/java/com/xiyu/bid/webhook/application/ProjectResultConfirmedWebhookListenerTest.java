@@ -3,7 +3,6 @@ package com.xiyu.bid.webhook.application;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.entity.Tender;
-import com.xiyu.bid.entity.User;
 import com.xiyu.bid.integration.external.ExternalSystemPrefix;
 import com.xiyu.bid.project.core.BidResultType;
 import com.xiyu.bid.project.domain.ProjectResultConfirmedEvent;
@@ -318,25 +317,6 @@ class ProjectResultConfirmedWebhookListenerTest {
         WebhookDeliveryTask saved = captureSaved();
         assertThat(saved.getOperatorUsername()).isNull();
         assertThat(saved.getStatus()).isEqualTo(WebhookDeliveryTaskStatus.PENDING);
-    }
-
-    @Test
-    @DisplayName("#1641: creatorId 非空 → operatorUsername 用 creatorId 反查（跳过 operatorUserId/admin）")
-    void creatorIdPresent_operatorUsernameFromCreatorId() {
-        Tender t = tender();
-        t.setCreatorId(100L);
-        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(t));
-        when(projectDocumentRepository.findAllById(List.of(1032L))).thenReturn(List.of());
-
-        User creator = new User();
-        creator.setId(100L);
-        creator.setUsername("creator_user");
-        when(userRepository.findById(100L)).thenReturn(Optional.of(creator));
-
-        listener(CRM_URL).onProjectResultConfirmed(event(BidResultType.WON));
-
-        WebhookDeliveryTask saved = captureSaved();
-        assertThat(saved.getOperatorUsername()).isEqualTo("creator_user");
     }
 
     private WebhookDeliveryTask captureSaved() {
