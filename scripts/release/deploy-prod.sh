@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
+# Input: repository source tree, installed toolchains, and release build environment variables
+# Output: production deployment executed on 172.16.10.149
+# Pos: scripts/release/ - Production deployment automation
+# 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+#
 # deploy-prod.sh — 生产环境一键部署脚本
 #
 # 功能：本地打包（注入 OBS + Sentry + 同源 API）→ scp 上传 → ssh 远程执行 remote-deploy.sh
-#
 # 用法：
 #   bash scripts/release/deploy-prod.sh                    # 使用当前 HEAD 作为 RELEASE_ID
 #   bash scripts/release/deploy-prod.sh <release-id>        # 指定 RELEASE_ID
