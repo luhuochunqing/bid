@@ -40,6 +40,9 @@ const IGNORED_ERRORS = [
   'Non-Error promise rejection captured',
   // 元素 Plus 内部警告（非关键）
   'ElementPlusError',
+  // Vite 动态导入 404（部署后浏览器缓存旧 chunk，已由 router.onError 自愈 reload）
+  'Failed to fetch dynamically imported module',
+  'Importing a module script failed',
 ]
 
 /**
