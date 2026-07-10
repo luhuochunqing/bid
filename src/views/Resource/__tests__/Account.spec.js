@@ -47,6 +47,7 @@ const { mockAccountsList, mockPasswordResponse } = vi.hoisted(() => ({
 const resourcesApiMock = {
   accounts: {
     getList: vi.fn(),
+    getDetail: vi.fn(),
     getPassword: vi.fn(),
     exportAccounts: vi.fn()
   }
@@ -307,6 +308,23 @@ describe('Account.vue — bid-projectLeader 视角工具栏隐藏管理操作', 
     const html = wrapper.html()
     expect(html).toContain('平台名称')
     expect(html).toContain('是否有 CA')
+  })
+
+  it('项目负责人视角可看到全部账号数据', async () => {
+    const wrapper = mountAccount()
+    await flushPromises()
+
+    expect(wrapper.vm.accounts.length).toBe(mockAccountsList.length)
+  })
+
+  it('项目负责人视角点击行不打开详情弹窗', async () => {
+    const wrapper = mountAccount()
+    await flushPromises()
+
+    await wrapper.vm.onRowClick(mockAccountsList[0])
+    await flushPromises()
+
+    expect(wrapper.vm.showDetailDialog).toBe(false)
   })
 })
 

@@ -74,6 +74,7 @@ class PlatformAccountServiceTest {
     private static final User BID_LEADER_USER = User.builder().id(4L).role(User.Role.MANAGER).build();
     private static final User BID_TEAM_USER = User.builder().id(5L).fullName("投标专员").employeeNumber("E005").role(User.Role.MANAGER).build();
     private static final User WHITELISTED_BID_TEAM_USER = User.builder().id(6L).username("00444").role(User.Role.MANAGER).build();
+    private static final User PROJECT_LEADER_USER = User.builder().id(7L).username("sales01").role(User.Role.MANAGER).build();
 
     @BeforeEach
     void setUp() {
@@ -99,6 +100,7 @@ class PlatformAccountServiceTest {
         lenient().when(effectiveRoleResolver.resolveRoleCode(BID_LEADER_USER)).thenReturn("bid-TeamLeader");
         lenient().when(effectiveRoleResolver.resolveRoleCode(BID_TEAM_USER)).thenReturn("bid-Team");
         lenient().when(effectiveRoleResolver.resolveRoleCode(WHITELISTED_BID_TEAM_USER)).thenReturn("bid-Team");
+        lenient().when(effectiveRoleResolver.resolveRoleCode(PROJECT_LEADER_USER)).thenReturn("bid-projectLeader");
         lenient().when(effectiveRoleResolver.resolveRoleCode(STAFF_USER)).thenReturn("manager");
         // CO-390：默认模拟 UserRepository.findAllById 返回空（contactPerson 无 userId 时不会调用）
         lenient().when(userRepository.findAllById(any())).thenReturn(List.of());
@@ -288,6 +290,25 @@ class PlatformAccountServiceTest {
         assertThat(result.get(0)).isInstanceOf(PlatformAccountSummaryDTO.class);
         PlatformAccountSummaryDTO summary = (PlatformAccountSummaryDTO) result.get(0);
         assertThat(summary.getStatus()).isEqualTo(AccountStatus.AVAILABLE);
+    }
+
+    @Test
+    @DisplayName("项目负责人（sales/bid-projectLeader）可查看全部账号的脱敏摘要")
+    void getAccountsForViewer_projectLeader_receivesSummaryDtoForAllAccounts() {
+        PlatformAccount accountA = accountWithId(1L);
+        accountA.setContactPerson(99L);
+        accountA.setStatus(AccountStatus.AVAILABLE);
+        PlatformAccount accountB = accountWithId(2L);
+        accountB.setContactPerson(88L);
+        accountB.setStatus(AccountStatus.IN_USE);
+        when(repository.findAll(any(org.springframework.data.domain.Sort.class)))
+                .thenReturn(List.of(accountA, accountB));
+
+        List<?> result = service.getAccountsForViewer(PROJECT_LEADER_USER);
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0)).isInstanceOf(PlatformAccountSummaryDTO.class);
+        assertThat(result.get(1)).isInstanceOf(PlatformAccountSummaryDTO.class);
     }
 
     // ── 更新 ──
