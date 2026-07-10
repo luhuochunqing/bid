@@ -92,10 +92,12 @@ class TenderIntegrationCommandSupport {
     }
 
     /**
-     * CRM 推送时如果商机 ID 为空，做兜底关联（按 externalId 反查 chanceId）。
+     * CRM 推送兜底：当 crmId 和 crmOpportunityCode 均为空时，用 externalId 反查 chanceId。
      */
-    void applyCrmFallback(Tender tender, String crmId, String crmOpportunityName) {
-        if (crmId == null || crmId.isBlank()) {
+    void applyCrmFallback(Tender tender, String crmId, String crmOpportunityCode, String crmOpportunityName) {
+        boolean hasCrmId = crmId != null && !crmId.isBlank();
+        boolean hasCode = crmOpportunityCode != null && !crmOpportunityCode.isBlank();
+        if (!hasCrmId && !hasCode) {
             if (tender.getCrmOpportunityId() == null || tender.getCrmOpportunityId().isBlank()) {
                 boolean linked = crmTenderLinkService.linkByChanceIdIfPresent(
                         tender,
@@ -112,11 +114,9 @@ class TenderIntegrationCommandSupport {
 
         tender.setEvaluationSource(Tender.EvaluationSource.CRM_PUSH);
         tender.setStatus(Tender.Status.EVALUATED);
-        if (tender.getCrmOpportunityId() == null || tender.getCrmOpportunityId().isBlank()) {
-            // CO-277: 纯数字 crmId 不存入，保持 null 让外层 linkByChanceIdIfPresent 兜底
-            if (crmId == null || crmId.isBlank() || !crmId.trim().matches("\\d+")) {
-                tender.setCrmOpportunityId(crmId);
-            }
+        // code 非空时直接存入（若 linkIfPresent 尚未设置）
+        if (hasCode && (tender.getCrmOpportunityId() == null || tender.getCrmOpportunityId().isBlank())) {
+            tender.setCrmOpportunityId(crmOpportunityCode);
         }
         if (crmOpportunityName != null && !crmOpportunityName.isBlank()
                 && (tender.getCrmOpportunityName() == null || tender.getCrmOpportunityName().isBlank())) {

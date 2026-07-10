@@ -94,19 +94,16 @@ public class TenderUpdateRequest {
     /** 项目评估数据 */
     private EvaluationUpdate evaluation;
 
-    /** CRM 商机 ID（传入后自动关联商机并分配项目负责人）。 */
+    /**
+     * CRM 商机主键 id（纯数字，如 20916）。
+     * <p>用于调用 CRM detail 接口查询项目负责人。不直接存入 crm_opportunity_id 列。
+     */
     private String crmId;
 
     /**
-     * CRM 商机标识（对外公开字段，语义同 {@link #crmId}）。
-     * <p>CO-276：CRM 通过 PUT 推送时使用 crmOpportunityId 字段名，与代码内 crmId 不一致，
-     * 导致 Jackson 反序列化时丢弃该字段、商机未关联、放弃/中标状态无法回传 CRM（tender 273 案例）。
-     * 新增此公开别名字段兼容 CRM 文档字段名，业务侧用
-     * {@code firstNonBlank(crmOpportunityId, crmId)} 合并取值，两者任一非空即可。
-     * <p>⚠️ CO-277 实测纠正：CRM 实际推送的是商机<strong>主键 id</strong>（纯数字如 20916），
-     * 而非商机编号 code（CC... 格式）。本字段值可能是 id 或 code，
-     * 由 {@code CrmTenderLinkService.applyCrmLinkAndAssignment} 自动识别并按 id 反查 code 后落库。
-     * 因此 {@code crmId}/{@code crmOpportunityId} 的语义是"CRM 推送的商机标识"，不保证是 code 格式。
+     * CRM 商机编号 code（CC 前缀格式，如 CC2026070932）。
+     * <p>非空时直接存入 tender.crm_opportunity_id，用于 webhook 回传 CRM。
+     * 与 {@link #crmId} 是两个独立字段：crmId 是主键 id，crmOpportunityId 是编号 code。
      */
     private String crmOpportunityId;
 

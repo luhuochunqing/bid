@@ -33,14 +33,15 @@ public class CrmTenderLinkService {
     private final UserRepository userRepository;
 
     /**
-     * 当 crmId 非空时，查询项目负责人并关联商机。
+     * 关联 CRM 商机并分配项目负责人。
      *
-     * @param tender 标讯实体（已保存或即将保存）
-     * @param crmId  CRM 商机编号，null/blank 时跳过
+     * @param tender              标讯实体（已保存或即将保存）
+     * @param crmId              CRM 商机主键 id（纯数字），用于查询项目负责人；可为空
+     * @param crmOpportunityCode CRM 商机编号 code（CC... 格式），直接存入 tender；可为空
      */
-    public void linkIfPresent(Tender tender, String crmId) {
-        if (crmId == null || crmId.isBlank()) return;
-        applyCrmLinkAndAssignment(tender, crmId);
+    public void linkIfPresent(Tender tender, String crmId, String crmOpportunityCode) {
+        if ((crmId == null || crmId.isBlank()) && (crmOpportunityCode == null || crmOpportunityCode.isBlank())) return;
+        applyCrmLinkAndAssignment(tender, crmId, crmOpportunityCode);
     }
 
     /**
@@ -87,53 +88,45 @@ public class CrmTenderLinkService {
 
     /**
      * 查询项目负责人并关联商机。
+     * <p>crmOpportunityCode（CC... 格式）直接存入 tender.crm_opportunity_id；
+     * crmId（数字主键）仅用于调用 CRM detail 接口查询项目负责人。
      *
-     * @param tender 标讯实体（已保存或即将保存）
-     * @param crmId  CRM 商机编号 code，或商机主键 id（纯数字，CO-277 兼容）
+     * @param tender              标讯实体
+     * @param crmId              CRM 商机主键 id（纯数字），可为空
+     * @param crmOpportunityCode CRM 商机编号 code（CC... 格式），可为空
      */
-    public void applyCrmLinkAndAssignment(Tender tender, String crmId) {
-        log.info("Applying CRM link for tender id={}, crmId={}", tender.getId(), crmId);
+    public void applyCrmLinkAndAssignment(Tender tender, String crmId, String crmOpportunityCode) {
+        log.info("Applying CRM link for tender id={}, crmId={}, crmOpportunityCode={}",
+                tender.getId(), crmId, crmOpportunityCode);
+        // code 非空时直接存入，不依赖 CRM API 调用
+        if (crmOpportunityCode != null && !crmOpportunityCode.isBlank()) {
+            tender.setCrmOpportunityId(crmOpportunityCode);
+        }
         try {
-            CrmProjectLeaderService.ProjectLeaderResult leader;
-            // CO-277: CRM 推送的 crmOpportunityId 实测传的是商机主键 id（纯数字如 20916），
-            // 而非编号 code（CC... 格式）。若是纯数字，按 id 反查详情拿 code；否则按 code 查 pageList。
-            // 背景：之前一律按 code 查，id 格式必然反查失败，降级分支把 id 直接存入 crm_opportunity_id，
-            // 导致后续 webhook 回传 payload code=20916，CRM 按编号匹配失败（tender 275 案例）。
-            Long chanceId = tryParseChanceId(crmId);
-            if (chanceId != null) {
-                leader = crmProjectLeaderService.findProjectLeaderByChanceId(chanceId, null);
-            } else {
-                leader = crmProjectLeaderService.findProjectLeaderByChanceCode(crmId, null);
+            CrmProjectLeaderService.ProjectLeaderResult leader = null;
+            // 优先用 crmId（数字主键）查项目负责人
+            if (crmId != null && !crmId.isBlank()) {
+                try {
+                    Long chanceId = Long.parseLong(crmId.trim());
+                    leader = crmProjectLeaderService.findProjectLeaderByChanceId(chanceId, null);
+                } catch (NumberFormatException e) {
+                    log.warn("CRM link: crmId '{}' is not numeric, skipping chanceId lookup", crmId);
+                }
+            }
+            // crmId 未命中时，尝试用 code 查
+            if (leader == null && crmOpportunityCode != null && !crmOpportunityCode.isBlank()) {
+                leader = crmProjectLeaderService.findProjectLeaderByChanceCode(crmOpportunityCode, null);
             }
             if (leader == null) {
-                log.warn("CRM link: no project leader found for crmId={}, setting EVALUATED", crmId);
-                // 未找到负责人时仍关联商机（状态设为已评估）。但仅当 crmId 是 code 格式时才直接存入——
-                // 若是 id 格式，存 id 会让外层 linkByChanceIdIfPresent 兜底因"已有值"被跳过，
-                // 且后续回传会用 id 当 code。保持 null 让兜底有机会用 sourceId 反查正确 code。
-                if (chanceId == null) {
-                    tender.setCrmOpportunityId(crmId);
-                }
+                log.warn("CRM link: no project leader found, setting EVALUATED");
                 tender.setStatus(Tender.Status.EVALUATED);
                 return;
             }
             applyLeaderAndStatus(tender, leader);
         } catch (RuntimeException e) {
-            log.error("CRM link failed for crmId={}, keeping PENDING_ASSIGNMENT: {}", crmId, e.getMessage());
-            // 降级：CRM 接口异常时不中断主流程，仅记录错误
-        }
-    }
-
-    /**
-     * 尝试将 crmId 解析为商机主键 id。纯数字视为 id，非纯数字（如 CC20260619285）视为 code。
-     *
-     * @return 解析成功的 id；null 表示 crmId 是 code 格式
-     */
-    private Long tryParseChanceId(String crmId) {
-        if (crmId == null || crmId.isBlank()) return null;
-        try {
-            return Long.parseLong(crmId.trim());
-        } catch (NumberFormatException e) {
-            return null;
+            log.error("CRM link failed for crmId={}, crmOpportunityCode={}: {}",
+                    crmId, crmOpportunityCode, e.getMessage());
+            // 降级：CRM 接口异常时不中断主流程，code 已存入，不影响 webhook 回传
         }
     }
 

@@ -104,10 +104,12 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
             t.setCrmOpportunityName("商机A");
             t.setStatus(Tender.Status.EVALUATED);
             return null;
-        }).when(crmTenderLinkService).linkIfPresent(any(Tender.class), org.mockito.ArgumentMatchers.eq("CHANCE_001"));
+        }).when(crmTenderLinkService).linkIfPresent(any(Tender.class),
+                org.mockito.ArgumentMatchers.eq("20916"), org.mockito.ArgumentMatchers.eq("CHANCE_001"));
 
         TenderUpdateRequest request = TenderUpdateRequest.builder()
-                .crmId("CHANCE_001")
+                .crmId("20916")
+                .crmOpportunityId("CHANCE_001")
                 .build();
 
         commandService.updateByExternalId("crm", "test-001", request, null);
@@ -119,20 +121,21 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
     }
 
     @Test
-    @DisplayName("CO-271: CRM 接口异常降级时 crmOpportunityId 用传入 crmId 兜底")
+    @DisplayName("CO-271: CRM 接口异常降级时 crmOpportunityId 用传入 code 兜底")
     void updateByExternalId_crmServiceThrows_fallbackSetsCrmOpportunityId() {
         Tender tender = createExistingTender();
         when(tenderRepository.findByExternalId("crm:test-001")).thenReturn(Optional.of(tender));
 
-        org.mockito.Mockito.doNothing().when(crmTenderLinkService).linkIfPresent(any(Tender.class), any());
+        org.mockito.Mockito.doNothing().when(crmTenderLinkService)
+                .linkIfPresent(any(Tender.class), any(), any());
 
         TenderUpdateRequest request = TenderUpdateRequest.builder()
-                .crmId("CHANCE_002")
+                .crmOpportunityId("CC20260619285")
                 .build();
 
         commandService.updateByExternalId("crm", "test-001", request, null);
 
-        assertThat(tender.getCrmOpportunityId()).isEqualTo("CHANCE_002");
+        assertThat(tender.getCrmOpportunityId()).isEqualTo("CC20260619285");
         assertThat(tender.getEvaluationSource()).isEqualTo(Tender.EvaluationSource.CRM_PUSH);
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
     }
@@ -166,7 +169,9 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
             t.setCrmOpportunityName("测试商机");
             t.setStatus(Tender.Status.EVALUATED);
             return null;
-        }).when(crmTenderLinkService).linkIfPresent(any(Tender.class), org.mockito.ArgumentMatchers.eq("CC20260619283"));
+        }).when(crmTenderLinkService).linkIfPresent(any(Tender.class),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq("CC20260619283"));
 
         TenderUpdateRequest request = TenderUpdateRequest.builder()
                 .crmOpportunityId("CC20260619283")
@@ -176,15 +181,17 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
         commandService.updateByExternalId("crm", "test-001", request, null);
 
         org.mockito.Mockito.verify(crmTenderLinkService)
-                .linkIfPresent(any(Tender.class), org.mockito.ArgumentMatchers.eq("CC20260619283"));
+                .linkIfPresent(any(Tender.class),
+                        org.mockito.ArgumentMatchers.isNull(),
+                        org.mockito.ArgumentMatchers.eq("CC20260619283"));
         assertThat(tender.getCrmOpportunityId()).isEqualTo("CC20260619283");
         assertThat(tender.getEvaluationSource()).isEqualTo(Tender.EvaluationSource.CRM_PUSH);
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
     }
 
     @Test
-    @DisplayName("CO-276: crmOpportunityId 与 crmId 同时传时优先用 crmOpportunityId")
-    void updateByExternalId_bothPresent_prefersCrmOpportunityId() {
+    @DisplayName("CO-276: crmId 和 crmOpportunityId 同时传时分别传递")
+    void updateByExternalId_bothPresent_passesSeparately() {
         Tender tender = createExistingTender();
         when(tenderRepository.findByExternalId("crm:test-001")).thenReturn(Optional.of(tender));
 
@@ -193,20 +200,21 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
             t.setCrmOpportunityId("CC-PUBLIC");
             t.setStatus(Tender.Status.EVALUATED);
             return null;
-        }).when(crmTenderLinkService).linkIfPresent(any(Tender.class), org.mockito.ArgumentMatchers.eq("CC-PUBLIC"));
+        }).when(crmTenderLinkService).linkIfPresent(any(Tender.class),
+                org.mockito.ArgumentMatchers.eq("20916"),
+                org.mockito.ArgumentMatchers.eq("CC-PUBLIC"));
 
         TenderUpdateRequest request = TenderUpdateRequest.builder()
-                .crmId("CC-LEGACY")
+                .crmId("20916")
                 .crmOpportunityId("CC-PUBLIC")
                 .build();
 
         commandService.updateByExternalId("crm", "test-001", request, null);
 
         org.mockito.Mockito.verify(crmTenderLinkService)
-                .linkIfPresent(any(Tender.class), org.mockito.ArgumentMatchers.eq("CC-PUBLIC"));
-        org.mockito.Mockito.verify(crmTenderLinkService,
-                org.mockito.Mockito.never())
-                .linkIfPresent(any(Tender.class), org.mockito.ArgumentMatchers.eq("CC-LEGACY"));
+                .linkIfPresent(any(Tender.class),
+                        org.mockito.ArgumentMatchers.eq("20916"),
+                        org.mockito.ArgumentMatchers.eq("CC-PUBLIC"));
     }
 
     @Test
@@ -215,7 +223,8 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
         Tender tender = createExistingTender();
         when(tenderRepository.findByExternalId("crm:test-001")).thenReturn(Optional.of(tender));
 
-        org.mockito.Mockito.doNothing().when(crmTenderLinkService).linkIfPresent(any(Tender.class), any());
+        org.mockito.Mockito.doNothing().when(crmTenderLinkService)
+                .linkIfPresent(any(Tender.class), any(), any());
 
         TenderUpdateRequest request = TenderUpdateRequest.builder()
                 .crmOpportunityId("CC20260619283")
@@ -231,43 +240,47 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
     }
 
     @Test
-    @DisplayName("CO-277 接收侧根因修复: crmId 是纯数字 id 且反查失败时, applyCrmFallback 不应把 id 存入 crm_opportunity_id")
-    void updateByExternalId_numericIdCrmId_crmLookupFails_fallbackDoesNotSetId() {
-        // 场景：CRM 推送 crmOpportunityId=20942（纯数字 id），CrmTenderLinkService 反查失败（token 异常等）
-        // CO-277 修复：applyCrmLinkAndAssignment 异常 catch 分支保持 null
-        // 本修复：applyCrmFallback 不应把纯数字 id 存入，保持 null 让 linkByChanceIdIfPresent 兜底
+    @DisplayName("字段分离: 仅传 crmId（数字主键）时, crm_opportunity_id 保持 null")
+    void updateByExternalId_numericCrmId_only_doesNotSetOpportunityId() {
+        // 场景：CRM 推送 crmId=20942（纯数字主键 id），不传 crmOpportunityId（code）
+        // 新逻辑：crmId 只用于 findProjectLeaderByChanceId 查项目负责人，不会存入 crm_opportunity_id
+        // 期望：crm_opportunity_id 保持 null，但 name 和状态仍应被设置
         Tender tender = createExistingTender();
         when(tenderRepository.findByExternalId("crm:test-001")).thenReturn(Optional.of(tender));
 
-        // 模拟 CrmTenderLinkService.linkIfPresent 反查失败（什么都不做，保持 crmOpportunityId=null）
-        org.mockito.Mockito.doNothing().when(crmTenderLinkService).linkIfPresent(any(Tender.class), any());
+        // 模拟 CrmTenderLinkService.linkIfPresent 反查失败（什么都不做）
+        org.mockito.Mockito.doNothing().when(crmTenderLinkService)
+                .linkIfPresent(any(Tender.class),
+                        org.mockito.ArgumentMatchers.eq("20942"),
+                        org.mockito.ArgumentMatchers.isNull());
 
         TenderUpdateRequest request = TenderUpdateRequest.builder()
-                .crmOpportunityId("20942")
+                .crmId("20942")
                 .crmOpportunityName("cye测试21对接人")
                 .build();
 
         commandService.updateByExternalId("crm", "test-001", request, null);
 
-        // 关键断言：纯数字 id 不应被存入 crm_opportunity_id
+        // 关键断言：crmId 是数字主键，不应被存入 crm_opportunity_id（字段分离设计）
         assertThat(tender.getCrmOpportunityId())
-                .as("纯数字 id 不应被存入 crm_opportunity_id（CO-277 接收侧根因修复）")
+                .as("crmId（数字主键）不应被存入 crm_opportunity_id（字段分离设计）")
                 .isNull();
-        // 但 crmOpportunityName 仍应被设置（name 不影响 CRM 匹配）
+        // 但 crmOpportunityName 仍应被设置
         assertThat(tender.getCrmOpportunityName()).isEqualTo("cye测试21对接人");
         assertThat(tender.getEvaluationSource()).isEqualTo(Tender.EvaluationSource.CRM_PUSH);
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
     }
 
     @Test
-    @DisplayName("CO-277 接收侧根因修复: crmId 是 code 格式（CC...）时, applyCrmFallback 保持原逻辑直接存入")
+    @DisplayName("字段分离: 仅传 crmOpportunityId（CC 格式）时, applyCrmFallback 直接存入 code")
     void updateByExternalId_codeFormatCrmId_crmLookupFails_fallbackSetsCode() {
         // 场景：CRM 推送 crmOpportunityId=CC20260621323（code 格式），CrmTenderLinkService 反查失败
         // 期望：code 格式仍走原逻辑直接存入（code 是 CRM 期望的格式，不会导致匹配失败）
         Tender tender = createExistingTender();
         when(tenderRepository.findByExternalId("crm:test-001")).thenReturn(Optional.of(tender));
 
-        org.mockito.Mockito.doNothing().when(crmTenderLinkService).linkIfPresent(any(Tender.class), any());
+        org.mockito.Mockito.doNothing().when(crmTenderLinkService)
+                .linkIfPresent(any(Tender.class), any(), any());
 
         TenderUpdateRequest request = TenderUpdateRequest.builder()
                 .crmOpportunityId("CC20260621323")
