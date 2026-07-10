@@ -83,6 +83,10 @@ public class TenderUpdateRequest {
     @Size(max = 5000)
     private String contentDesc;
 
+    /** 项目负责人姓名（传入后同步反查本地用户 ID 落库） */
+    @Size(max = 100)
+    private String projectManagerName;
+
     private List<TenderPushRequest.AttachmentRef> attachments;
 
     // ── 项目评估（v3.1 新增）─────────────────────────────────────────
