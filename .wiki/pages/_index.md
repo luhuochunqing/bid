@@ -37,6 +37,8 @@ health_checked: 2026-07-06
 - [[data-model]] — 数据模型
 - [[data-permission-hardening]] — 项目数据权限修复收口
 - [[deployment]] — 部署与上线
+- [[production-deployment-lessons]] — 生产环境首次部署实战教训（2026-07-09 首次上线）
+- [[oss-organization-sync-playbook]] — OSS 组织架构同步实战手册（skipUnmappedUsers / LoginRoleWhitelist / Kafka）
 - [[design-system]] — 设计系统基线
 - [[docinsight-engine]] — DocInsight 文档智能引擎
 - [[dynamic-form-engine]] — 动态表单自定义引擎

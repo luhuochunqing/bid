@@ -1,0 +1,9 @@
+version: 1
+task: "prod-deploy-1st-v1092"
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql/V1092__migrate_legacy_role_codes_to_oss_aligned.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/trae/prod-deploy-1st"
+    expiresAt: "2026-07-16T15:00:00.000Z"
+    reason: "prod 首次部署阻断修复（collation 冲突），PR 合入后可删"

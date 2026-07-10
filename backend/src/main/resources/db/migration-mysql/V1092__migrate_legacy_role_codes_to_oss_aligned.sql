@@ -23,10 +23,14 @@
 START TRANSACTION;
 
 -- 静态映射表：source_code = 旧角色码，target_code = 新角色码
-DROP TEMPORARY TABLE IF EXISTS tmp_role_mappings;
-CREATE TEMPORARY TABLE tmp_role_mappings (
-    source_code VARCHAR(100) PRIMARY KEY,
-    target_code VARCHAR(100) NOT NULL
+-- 注意：移除 DROP TEMPORARY TABLE IF EXISTS — Flyway 9.22.3 + MySQL 8.0.43 对不存在的
+-- 临时表返回 Error Code 1051，即使有 IF EXISTS 也会被 Flyway 当作迁移失败。
+-- 临时表在会话结束时会自动删除，无需显式 DROP。用 IF NOT EXISTS 防止重复创建。
+-- Collation：显式指定 utf8mb4_unicode_ci 与 roles/users 表对齐，
+-- 否则临时表用数据库默认 utf8mb4_0900_ai_ci，JOIN 时 Error 1267 (Illegal mix of collations)。
+CREATE TEMPORARY TABLE IF NOT EXISTS tmp_role_mappings (
+    source_code VARCHAR(100) COLLATE utf8mb4_unicode_ci PRIMARY KEY,
+    target_code VARCHAR(100) COLLATE utf8mb4_unicode_ci NOT NULL
 );
 INSERT INTO tmp_role_mappings (source_code, target_code) VALUES
     ('bidAdmin', '/bidAdmin'),
@@ -58,7 +62,9 @@ SET r_source.code = m.target_code,
     r_source.updated_at = NOW()
 WHERE r_target.id IS NULL;
 
--- 清理临时表
-DROP TEMPORARY TABLE IF EXISTS tmp_role_mappings;
+-- 不显式 DROP 临时表：会话结束时自动删除。
+-- 显式 DROP TEMPORARY TABLE IF EXISTS 在 Flyway 9.22.3 + MySQL 8.0.43 可能触发 Error Code 1051
+-- 被误判为迁移失败（即使表存在，某些 MySQL 配置下仍可能返回 WARNING）。
+-- 临时表生命周期与会话绑定，无需手动清理。
 
 COMMIT;
