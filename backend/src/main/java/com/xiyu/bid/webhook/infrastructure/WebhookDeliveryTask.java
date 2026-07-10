@@ -39,6 +39,10 @@ public class WebhookDeliveryTask {
     @Column(name = "external_id", length = 128)
     private String externalId;
 
+    /** CO-152 补齐：操作者 username，webhook 回调时用它取该用户的 OSS token 调 generateToken */
+    @Column(name = "operator_username", length = 128)
+    private String operatorUsername;
+
     @Column(name = "target_url", nullable = false, length = 1000)
     private String targetUrl;
 

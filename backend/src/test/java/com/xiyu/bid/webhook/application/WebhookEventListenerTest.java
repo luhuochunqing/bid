@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.repository.TenderRepository;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
 import com.xiyu.bid.webhook.infrastructure.CrmOpportunityCodeResolver;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTask;
@@ -52,19 +53,20 @@ class WebhookEventListenerTest {
     @Mock private WebhookDeliveryTaskRepository taskRepository;
     @Mock private TenderRepository tenderRepository;
     @Mock private CrmOpportunityCodeResolver crmOpportunityCodeResolver;
+    @Mock private UserRepository userRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private WebhookEventListener listener() {
         configureDefaultCodeResolverAnswer();
-        WebhookEventListener l = new WebhookEventListener(taskRepository, tenderRepository, objectMapper, crmOpportunityCodeResolver);
+        WebhookEventListener l = new WebhookEventListener(taskRepository, tenderRepository, objectMapper, crmOpportunityCodeResolver, userRepository);
         ReflectionTestUtils.setField(l, "crmWebhookUrl", CRM_URL);
         return l;
     }
 
     private WebhookEventListener listenerWithoutUrl() {
         configureDefaultCodeResolverAnswer();
-        WebhookEventListener l = new WebhookEventListener(taskRepository, tenderRepository, objectMapper, crmOpportunityCodeResolver);
+        WebhookEventListener l = new WebhookEventListener(taskRepository, tenderRepository, objectMapper, crmOpportunityCodeResolver, userRepository);
         ReflectionTestUtils.setField(l, "crmWebhookUrl", "");
         return l;
     }

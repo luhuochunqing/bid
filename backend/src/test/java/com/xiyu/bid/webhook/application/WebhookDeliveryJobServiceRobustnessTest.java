@@ -241,7 +241,7 @@ class WebhookDeliveryJobServiceRobustnessTest {
             initService();
             WebhookDeliveryTask task = makeTask(1L);
             when(taskRepository.findById(1L)).thenReturn(Optional.empty());
-            when(httpSender.send(any(), any()))
+            when(httpSender.send(any(), any(), any()))
                     .thenReturn(WebhookSendResult.success(200, "{}", LocalDateTime.now()));
 
             jobService.processTaskSafely(task);
@@ -258,7 +258,7 @@ class WebhookDeliveryJobServiceRobustnessTest {
             WebhookDeliveryTask task = makeTask(1L);
             task.setAttemptCount(0);
             when(taskRepository.findById(1L)).thenReturn(Optional.of(task));
-            when(httpSender.send(any(), any()))
+            when(httpSender.send(any(), any(), any()))
                     .thenReturn(WebhookSendResult.failure(429, "rate limited", "HTTP_429", LocalDateTime.now()));
 
             jobService.processTaskSafely(task);
@@ -276,7 +276,7 @@ class WebhookDeliveryJobServiceRobustnessTest {
             WebhookDeliveryTask task = makeTask(1L);
             task.setAttemptCount(0);
             when(taskRepository.findById(1L)).thenReturn(Optional.of(task));
-            when(httpSender.send(any(), any()))
+            when(httpSender.send(any(), any(), any()))
                     .thenReturn(WebhookSendResult.failure(400, "bad request", "HTTP_400", LocalDateTime.now()));
 
             jobService.processTaskSafely(task);
@@ -295,7 +295,7 @@ class WebhookDeliveryJobServiceRobustnessTest {
             WebhookDeliveryTask task = makeTask(1L);
             task.setAttemptCount(0);
             when(taskRepository.findById(1L)).thenReturn(Optional.of(task));
-            when(httpSender.send(any(), any()))
+            when(httpSender.send(any(), any(), any()))
                     .thenThrow(new ConnectException("Connection refused"));
 
             jobService.processTaskSafely(task);
@@ -313,7 +313,7 @@ class WebhookDeliveryJobServiceRobustnessTest {
             task.setAttemptCount(0);
             String longError = "x".repeat(2000);
             when(taskRepository.findById(1L)).thenReturn(Optional.of(task));
-            when(httpSender.send(any(), any()))
+            when(httpSender.send(any(), any(), any()))
                     .thenThrow(new RuntimeException(longError));
 
             jobService.processTaskSafely(task);
@@ -332,7 +332,7 @@ class WebhookDeliveryJobServiceRobustnessTest {
             WebhookDeliveryTask task = makeTask(1L);
             task.setAttemptCount(MAX_ATTEMPTS - 1);
             when(taskRepository.findById(1L)).thenReturn(Optional.of(task));
-            when(httpSender.send(any(), any()))
+            when(httpSender.send(any(), any(), any()))
                     .thenReturn(WebhookSendResult.failure(500, "server error", "HTTP_500", LocalDateTime.now()));
 
             jobService.processTaskSafely(task);
@@ -351,7 +351,7 @@ class WebhookDeliveryJobServiceRobustnessTest {
             WebhookDeliveryTask task = makeTask(1L);
             task.setAttemptCount(0);
             when(taskRepository.findById(1L)).thenReturn(Optional.of(task));
-            when(httpSender.send(any(), any()))
+            when(httpSender.send(any(), any(), any()))
                     .thenReturn(WebhookSendResult.failure(500, "error", "HTTP_500", LocalDateTime.now()));
 
             jobService.processTaskSafely(task);
@@ -370,7 +370,7 @@ class WebhookDeliveryJobServiceRobustnessTest {
             WebhookDeliveryTask task = makeTask(1L);
             task.setAttemptCount(0);
             when(taskRepository.findById(1L)).thenReturn(Optional.of(task));
-            when(httpSender.send(any(), any()))
+            when(httpSender.send(any(), any(), any()))
                     .thenReturn(WebhookSendResult.success(200, "{\"ok\":true}", LocalDateTime.now()));
 
             jobService.processTaskSafely(task);
@@ -395,6 +395,7 @@ class WebhookDeliveryJobServiceRobustnessTest {
                 .businessKey("100:admin")
                 .status(WebhookDeliveryTaskStatus.PENDING)
                 .attemptCount(0)
+                .operatorUsername("testuser")
                 .build();
     }
 }

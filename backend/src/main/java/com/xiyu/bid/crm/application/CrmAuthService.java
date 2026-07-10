@@ -32,6 +32,8 @@ public class CrmAuthService {
     private final OssPermissionCache permissionCache;
     private final CrmUserTokenCache userTokenCache;
     private final UserRepository userRepository;
+    private final OssUserTokenCache ossUserTokenCache;
+    private final UserProfileCache userProfileCache;
 
     /** OSS token 缓存（用于 OSS 组织架构接口） */
     private final CrmTokenCache ossTokenCache = new CrmTokenCache();
@@ -41,17 +43,14 @@ public class CrmAuthService {
     private volatile int consecutiveFailures = 0;
     private volatile Instant coolDownUntil = null;
 
-    // CO-152 Review D4-1: 用户 profile 缓存（username → fullName/crmSalesNo），避免每次 CRM 接口调用都查 DB
-    private final ConcurrentMap<String, CachedUserProfile> userProfileCache = new ConcurrentHashMap<>();
-    private record CachedUserProfile(String fullName, String crmSalesNo, Instant expiresAt) {}
-    private static final long USER_PROFILE_CACHE_TTL_SECONDS = 300; // 5 分钟
-
-    public CrmAuthService(CrmHttpClient httpClient, CrmProperties properties, OssPermissionCache permissionCache, CrmUserTokenCache userTokenCache, UserRepository userRepository) {
+    public CrmAuthService(CrmHttpClient httpClient, CrmProperties properties, OssPermissionCache permissionCache, CrmUserTokenCache userTokenCache, UserRepository userRepository, OssUserTokenCache ossUserTokenCache, UserProfileCache userProfileCache) {
         this.httpClient = httpClient;
         this.properties = properties;
         this.permissionCache = permissionCache;
         this.userTokenCache = userTokenCache;
         this.userRepository = userRepository;
+        this.ossUserTokenCache = ossUserTokenCache;
+        this.userProfileCache = userProfileCache;
     }
 
     /**
@@ -113,48 +112,34 @@ public class CrmAuthService {
         log.info("CRM JWT token cache cleared due to 401, will re-apply on next request");
     }
 
-    // ===== CO-152: 按用户维度 CRM token 管理 =====
+    // ===== CO-152: 按用户维度 CRM token 管理（webhook 严格模式见 WebhookCrmTokenResolver） =====
 
-    /**
-     * 获取当前用户的 CRM JWT token（CO-152）。
-     * crm_sales_no 有值 → 用 crmSalesNo；否则用 username 作为 salesNo（OSS 用户名即工号）。
-     */
+    /** 获取当前用户的 CRM JWT token（OSS token 不可用时回退全局共享 token）。 */
     public String getValidTokenForUser(String username) {
         if (username == null || username.isBlank()) {
             return getValidToken();
         }
-        CachedUserProfile p = getCachedUserProfile(username).orElse(null);
+        UserProfileCache.CachedUserProfile p = userProfileCache.get(username).orElse(null);
         if (p == null) {
             return getValidToken();
         }
         String salesNo = (p.crmSalesNo() != null && !p.crmSalesNo().isBlank()) ? p.crmSalesNo() : username;
         if (salesNo.equals(username) && p.crmSalesNo() == null) {
             String nickName = (p.fullName() != null && !p.fullName().isBlank()) ? p.fullName() : username;
-            p = new CachedUserProfile(nickName, salesNo, Instant.now().plusSeconds(USER_PROFILE_CACHE_TTL_SECONDS));
-            userProfileCache.put(username, p);
+            p = new UserProfileCache.CachedUserProfile(nickName, salesNo, Instant.now().plusSeconds(300));
+            userProfileCache.invalidate(username);
         }
         return resolveUserTokenFromCacheOrFetch(p, username);
     }
 
-    private Optional<CachedUserProfile> getCachedUserProfile(String username) {
-        CachedUserProfile cached = userProfileCache.get(username);
-        if (cached != null && Instant.now().isBefore(cached.expiresAt())) {
-            return Optional.of(cached);
-        }
-        return userRepository.findByUsername(username).map(u -> {
-            CachedUserProfile profile = new CachedUserProfile(
-                    u.getFullName(), u.getCrmSalesNo(),
-                    Instant.now().plusSeconds(USER_PROFILE_CACHE_TTL_SECONDS));
-            userProfileCache.put(username, profile);
-            return profile;
-        });
-    }
+    // getValidTokenForUserStrict 已拆到 WebhookCrmTokenResolver（webhook 专用，严格按用户身份）
+    // getValidTokenForUser 保留在此（非 webhook 场景，OSS token 不可用时回退全局）
 
-    private String resolveUserTokenFromCacheOrFetch(CachedUserProfile profile, String username) {
+    private String resolveUserTokenFromCacheOrFetch(UserProfileCache.CachedUserProfile profile, String username) {
         return userTokenCache.get(username).orElseGet(() -> fetchAndCacheUserToken(profile, username));
     }
 
-    private String fetchAndCacheUserToken(CachedUserProfile profile, String username) {
+    private String fetchAndCacheUserToken(UserProfileCache.CachedUserProfile profile, String username) {
         String token = applyCrmTokenForUser(profile.fullName(), profile.crmSalesNo());
         // CO-501 修复：从 JWT exp claim 算真实 TTL（不再写死 24h）。
         long ttlSeconds = JwtTtlResolver.resolveTtlSeconds(token);
@@ -166,7 +151,7 @@ public class CrmAuthService {
     public void handleUnauthorizedForUser(String username) {
         if (username != null && !username.isBlank()) {
             userTokenCache.invalidate(username);
-            userProfileCache.remove(username); // D4-1: 同步清 profile 缓存
+            userProfileCache.invalidate(username); // D4-1: 同步清 profile 缓存
             log.info("CRM JWT token cache cleared for user={} due to 401", username);
         }
     }
@@ -175,13 +160,14 @@ public class CrmAuthService {
     public void logoutUser(String username) {
         if (username != null && !username.isBlank()) {
             userTokenCache.invalidate(username);
-            userProfileCache.remove(username); // D4-1: 同步清 profile 缓存
+            userProfileCache.invalidate(username); // D4-1: 同步清 profile 缓存
             log.info("CRM JWT token cache invalidated for user={} (active invalidation)", username);
         }
     }
 
     /** 用指定用户的 nickName + salesNo 调 generateToken 获取专属 CRM JWT token。 */
     private String applyCrmTokenForUser(String nickName, String salesNo) {
+        // webhook 场景请走 WebhookCrmTokenResolver.getValidTokenForUserStrict(username)
         CrmToken ossToken;
         try {
             ossToken = ossTokenCache.getOrFetch(this::applyOssToken,
@@ -189,6 +175,11 @@ public class CrmAuthService {
         } catch (RuntimeException e) {
             throw new IllegalStateException("Cannot acquire CRM token: OSS token acquisition failed", e);
         }
+        return applyCrmTokenWithOssToken(ossToken.accessToken(), nickName, salesNo);
+    }
+
+    /** 用指定 OSS token 调 generateToken 换 CRM JWT（CO-152：供 WebhookCrmTokenResolver 调用）。 */
+    String applyCrmTokenWithOssToken(String ossAccessToken, String nickName, String salesNo) {
         String baseUrl = properties.getEffectiveChanceBaseUrl();
         String path = properties.getAuth().getGenerateTokenPath();
         log.info("CRM generateToken for user: baseUrl={}, path={}, nickName={}, salesNo={}",
@@ -197,7 +188,7 @@ public class CrmAuthService {
                 "{\"nickName\":\"%s\",\"salesNo\":\"%s\"}",
                 CrmJsonUtils.escapeJson(nickName), CrmJsonUtils.escapeJson(salesNo));
         CrmResponseHandler.CrmApiResponse response = httpClient.postWithAuth(
-                baseUrl, path, ossToken.accessToken(), body);
+                baseUrl, path, ossAccessToken, body);
         if (response.success() && response.data() != null && response.data().isTextual()) {
             log.info("CRM JWT token acquired for salesNo={}", salesNo);
             return response.data().asText();
@@ -287,10 +278,5 @@ public class CrmAuthService {
         }
         throw new IllegalStateException(
                 "CRM generateToken failed: code=" + response.code() + " msg=" + response.msg());
-    }
-
-
-    private static String escapeJson(String value) {
-        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
     }
 }

@@ -10,7 +10,9 @@ import com.xiyu.bid.crm.infrastructure.dto.BidInfoInnerDTO;
 import com.xiyu.bid.crm.infrastructure.dto.BidInfoSyncDTO;
 import com.xiyu.bid.crm.infrastructure.dto.CrmProjectStatus;
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.TenderRepository;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
 import com.xiyu.bid.webhook.infrastructure.CrmOpportunityCodeResolver;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTask;
@@ -54,6 +56,7 @@ public class WebhookEventListener {
     private final TenderRepository tenderRepository;
     private final ObjectMapper objectMapper;
     private final CrmOpportunityCodeResolver crmOpportunityCodeResolver;
+    private final UserRepository userRepository;
 
     @Value("${webhook.crm.url:}")
     private String crmWebhookUrl;
@@ -81,22 +84,39 @@ public class WebhookEventListener {
         String crmOpportunityCode = crmOpportunityCodeResolver.resolve(tender.getCrmOpportunityId());
         String crmOpportunityName = tender.getCrmOpportunityName() != null ? tender.getCrmOpportunityName() : "";
         String payload = buildPayload(event, crmStatus, crmOpportunityCode, crmOpportunityName);
+        // CO-152 补齐：入队时存操作者 username，回调时用它取该用户的 OSS token 调 generateToken
+        String operatorUsername = resolveOperatorUsername(event.operatorId());
         taskRepository.save(WebhookDeliveryTask.builder()
                 .tenderId(event.tenderId())
                 .externalId(event.externalId())
+                .operatorUsername(operatorUsername)
                 .targetUrl(crmWebhookUrl)
                 .eventType(EVENT_TYPE)
                 .businessKey(buildBusinessKey(event))
                 .payload(payload)
                 .status(WebhookDeliveryTaskStatus.PENDING)
                 .build());
-        log.info("Webhook delivery task enqueued for tender {}, newStatus={}, crmStatus={}, crmOpportunityCode={}, url={}",
+        log.info("Webhook delivery task enqueued for tender {}, newStatus={}, crmStatus={}, crmOpportunityCode={}, url={}, operatorUsername={}",
                 event.tenderId(), event.newStatus(), crmStatus,
-                crmOpportunityCode.isEmpty() ? "(none)" : crmOpportunityCode, crmWebhookUrl);
+                crmOpportunityCode.isEmpty() ? "(none)" : crmOpportunityCode, crmWebhookUrl, operatorUsername);
     }
 
     private String buildBusinessKey(TenderStatusChangedEvent event) {
         return "%s:%s:%s".formatted(event.tenderId(), event.newStatus().name(), event.occurredAt());
+    }
+
+    /**
+     * CO-152 补齐：通过 operatorId 反查 username，供 webhook 回调时取该用户的 OSS token。
+     * <p>
+     * 查不到时返回 null（webhook 链路会回退到全局共享 token 或抛异常，由调用方决定）。
+     */
+    private String resolveOperatorUsername(Long operatorId) {
+        if (operatorId == null) {
+            return null;
+        }
+        return userRepository.findById(operatorId)
+                .map(User::getUsername)
+                .orElse(null);
     }
 
     /**
