@@ -39,8 +39,8 @@ public class OssUserTokenCache {
     private static final Logger log = LoggerFactory.getLogger(OssUserTokenCache.class);
 
     static final String REDIS_KEY_PREFIX = "oss:token:";
-    /** 默认 TTL：1 周（用户要求） */
-    private static final long DEFAULT_TTL_SECONDS = 604800L;
+    /** 默认 TTL：1 周（用户要求）。package-private 供同包引用（如 OssLoginFlowService 兜底）。 */
+    static final long DEFAULT_TTL_SECONDS = 604800L;
     private static final Duration DEFAULT_TTL = Duration.ofSeconds(DEFAULT_TTL_SECONDS);
 
     private final Optional<StringRedisTemplate> redisTemplate;

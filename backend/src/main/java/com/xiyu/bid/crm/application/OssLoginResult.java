@@ -19,6 +19,7 @@ public class OssLoginResult {
     private final String username;
     private final boolean authenticated;
     private final String ossAccessToken;
+    private final long ossTokenExpiresInSeconds;
     private final JsonNode employeeInfo;
     private final CrmUserPermission permission;
     private final CrmJobListResponse jobList;
@@ -27,6 +28,7 @@ public class OssLoginResult {
         this.username = builder.username;
         this.authenticated = builder.authenticated;
         this.ossAccessToken = builder.ossAccessToken;
+        this.ossTokenExpiresInSeconds = builder.ossTokenExpiresInSeconds;
         this.employeeInfo = builder.employeeInfo;
         this.permission = builder.permission;
         this.jobList = builder.jobList;
@@ -42,6 +44,10 @@ public class OssLoginResult {
 
     public String ossAccessToken() {
         return ossAccessToken;
+    }
+
+    public long ossTokenExpiresInSeconds() {
+        return ossTokenExpiresInSeconds;
     }
 
     public JsonNode employeeInfo() {
@@ -107,6 +113,7 @@ public class OssLoginResult {
         private String username;
         private boolean authenticated;
         private String ossAccessToken;
+        private long ossTokenExpiresInSeconds;
         private JsonNode employeeInfo;
         private CrmUserPermission permission;
         private CrmJobListResponse jobList;
@@ -123,6 +130,11 @@ public class OssLoginResult {
 
         public Builder ossAccessToken(String value) {
             this.ossAccessToken = value;
+            return this;
+        }
+
+        public Builder ossTokenExpiresInSeconds(long value) {
+            this.ossTokenExpiresInSeconds = value;
             return this;
         }
 

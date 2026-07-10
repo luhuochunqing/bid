@@ -1,5 +1,6 @@
 package com.xiyu.bid.webhook.application;
 
+import com.xiyu.bid.crm.application.TokenUnavailableException;
 import com.xiyu.bid.platform.async.domain.AsyncFailureKind;
 import com.xiyu.bid.platform.async.domain.AsyncFailureClassifier;
 import org.springframework.stereotype.Component;
@@ -13,6 +14,10 @@ public class WebhookFailureClassifier implements AsyncFailureClassifier {
     @Override
     public AsyncFailureKind classify(Throwable error) {
         if (error instanceof HttpTimeoutException || error instanceof HttpConnectTimeoutException || error instanceof ConnectException) {
+            return AsyncFailureKind.TRANSIENT_DEPENDENCY;
+        }
+        // CO-152 补齐：用户 token 不可用（登出/过期/Redis 抖动）按临时故障重试 1/5/15min，不立即死信
+        if (error instanceof TokenUnavailableException) {
             return AsyncFailureKind.TRANSIENT_DEPENDENCY;
         }
         return AsyncFailureKind.BUG;

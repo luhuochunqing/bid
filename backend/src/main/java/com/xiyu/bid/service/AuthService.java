@@ -17,6 +17,7 @@ import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.RefreshSessionRepository;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.auth.AuthTokenHasher;
 import com.xiyu.bid.auth.JwtUtil;
 import com.xiyu.bid.auth.TokenRevocationService;
 import com.xiyu.bid.util.PasswordValidator;
@@ -31,14 +32,9 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.util.HexFormat;
 import java.util.Optional;
-import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -188,18 +184,38 @@ public class AuthService {
         // 登出不清 OSS 权限缓存（CO-362: Redis 持久化，清了会导致 cache miss → 403 → 看板空）。
         // 安全由 revokeAccessToken + 撤销 refresh session 保证。下次登录 OssLoginFlowService 会覆盖刷新。
         revokeAccessToken(accessToken);
+        // CO-152 补齐：登出清 OSS token 缓存，让异步 webhook 回调感知到用户已登出
+        // 优先从 refresh session 取 username；session 不可用时从 accessToken 解析
+        String usernameFromToken = extractUsernameFromAccessToken(accessToken);
+        if ((refreshToken == null || refreshToken.isBlank()) && usernameFromToken != null) {
+            ossUserTokenCache.invalidate(usernameFromToken);
+            log.info("OSS token cache invalidated on logout (no refresh token), user={}", usernameFromToken);
+            return;
+        }
         // CO-152: 登出不清 CRM token 缓存，让 TTL 自然过期避免重复 generateToken
         if (refreshToken == null || refreshToken.isBlank()) return;
-        refreshSessionRepository.findByTokenHash(hashToken(refreshToken))
+        refreshSessionRepository.findByTokenHash(AuthTokenHasher.hash(refreshToken))
                 .filter(session -> session.getRevokedAt() == null)
                 .ifPresent(session -> {
                     session.setRevokedAt(LocalDateTime.now());
                     refreshSessionRepository.save(session);
                     String username = session.getUser().getUsername();
-                    // CO-152 补齐：登出清 OSS token 缓存，让异步 webhook 回调感知到用户已登出
                     ossUserTokenCache.invalidate(username);
                     log.info("Refresh session revoked for user: {} (OSS token cache invalidated)", username);
                 });
+    }
+
+    /** 从 access token 解析 username（登出无 refresh session 时的兜底）。 */
+    private String extractUsernameFromAccessToken(String accessToken) {
+        if (accessToken == null || accessToken.isBlank()) {
+            return null;
+        }
+        try {
+            return jwtUtil.extractUsername(accessToken);
+        } catch (RuntimeException e) {
+            log.debug("Cannot extract username from access token on logout: {}", e.getMessage());
+            return null;
+        }
     }
 
     @Transactional
@@ -226,7 +242,7 @@ public class AuthService {
         if (refreshToken == null || refreshToken.isBlank()) {
             throw new InsufficientAuthenticationException("Refresh token is required");
         }
-        RefreshSession session = refreshSessionRepository.findByTokenHash(hashToken(refreshToken))
+        RefreshSession session = refreshSessionRepository.findByTokenHash(AuthTokenHasher.hash(refreshToken))
                 .orElseThrow(() -> new InsufficientAuthenticationException("Refresh token is invalid"));
         LocalDateTime now = LocalDateTime.now();
         if (session.getRevokedAt() != null || session.getExpiresAt().isBefore(now)) {
@@ -247,7 +263,7 @@ public class AuthService {
     }
 
     String hashTokenForTest(String token) {
-        return hashToken(token);
+        return AuthTokenHasher.hash(token);
     }
 
     /**
@@ -263,32 +279,13 @@ public class AuthService {
     }
 
     private String createRefreshSession(User user) {
-        String refreshToken = generateRefreshToken();
+        String refreshToken = AuthTokenHasher.generate();
         RefreshSession session = RefreshSession.builder()
                 .user(user)
-                .tokenHash(hashToken(refreshToken))
+                .tokenHash(AuthTokenHasher.hash(refreshToken))
                 .expiresAt(LocalDateTime.now().plusNanos(refreshExpiration * 1_000_000L))
                 .build();
         refreshSessionRepository.save(session);
         return refreshToken;
-    }
-
-    private String generateRefreshToken() {
-        return UUID.randomUUID().toString().replace("-", "")
-                + UUID.randomUUID().toString().replace("-", "");
-    }
-
-    private String hashToken(String token) {
-        if (token == null || token.isBlank()) {
-            throw new InsufficientAuthenticationException("Refresh token is invalid");
-        }
-
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hashed = digest.digest(token.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hashed);
-        } catch (NoSuchAlgorithmException ex) {
-            throw new IllegalStateException("SHA-256 digest unavailable", ex);
-        }
     }
 }

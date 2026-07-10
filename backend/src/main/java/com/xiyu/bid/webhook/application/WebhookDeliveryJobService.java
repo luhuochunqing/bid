@@ -49,6 +49,21 @@ public class WebhookDeliveryJobService {
     @Transactional
     public void processTaskSafely(WebhookDeliveryTask task) {
         WebhookDeliveryTask managedTask = taskRepository.findById(task.getId()).orElse(task);
+        // CO-152 补齐：历史任务（operator_username 为 NULL，V1163 迁移前已存在的死信/重试任务）直接死信
+        // 用户已确认"忽略历史死信任务"；生产环境全局 token 不可用，fallback 只会产生无意义错误日志
+        if (managedTask.getOperatorUsername() == null || managedTask.getOperatorUsername().isBlank()) {
+            log.warn("Webhook task {} skipped: no operator_username (legacy task before V1163), marking as DEAD_LETTER",
+                    managedTask.getId());
+            managedTask.setStatus(WebhookDeliveryTaskStatus.DEAD_LETTER);
+            managedTask.setLastErrorCode("LEGACY_NO_OPERATOR");
+            managedTask.setLastErrorMessage("Legacy task without operator_username (pre-V1163), cannot resolve user token");
+            managedTask.setUpdatedAt(LocalDateTime.now());
+            managedTask.setNextRetryAt(null);
+            taskRepository.save(managedTask);
+            observabilityRecorder.recordDeadLetter("webhook", managedTask.getEventType(),
+                    managedTask.getBusinessKey(), "LEGACY_NO_OPERATOR");
+            return;
+        }
         managedTask.setStatus(WebhookDeliveryTaskStatus.PROCESSING);
         managedTask.setUpdatedAt(LocalDateTime.now());
 

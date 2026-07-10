@@ -74,9 +74,11 @@ public class OssLoginFlowService {
         }
 
         String accessToken = loginResponse.data().path("access_token").asText();
+        long expiresIn = loginResponse.data().path("expires_in").asLong(OssUserTokenCache.DEFAULT_TTL_SECONDS);
         result.authenticated(true);
         result.ossAccessToken(accessToken);
-        log.info("OSS login succeeded for user={}", username);
+        result.ossTokenExpiresInSeconds(expiresIn);
+        log.info("OSS login succeeded for user={}, expiresIn={}s", username, expiresIn);
 
         if (accessToken == null || accessToken.isBlank()) {
             log.warn("OSS login returned empty access_token for user={}", username);
@@ -175,9 +177,12 @@ public class OssLoginFlowService {
 
         // Step 6（CO-152 补齐）：缓存用户的 OSS access_token 供异步 webhook 回调用
         // 用户登出时由 AuthService.logout 调 ossUserTokenCache.invalidate 主动清除
+        // TTL 优先用 OSS 响应的 expires_in；SSO 场景未走 /oauth/login 时用默认 1 周兜底
         if (username != null && !username.isBlank()
                 && built.getOssAccessToken() != null && !built.getOssAccessToken().isBlank()) {
-            long expiresIn = 604800L; // 默认 1 周（OSS /oauth/login 响应未带 expires_in 时的兜底）
+            long expiresIn = built.ossTokenExpiresInSeconds() > 0
+                    ? built.ossTokenExpiresInSeconds()
+                    : OssUserTokenCache.DEFAULT_TTL_SECONDS;
             ossUserTokenCache.put(username, built.getOssAccessToken(), expiresIn);
             log.debug("OSS access_token cached for user={} (TTL={}s), available for async webhook callback",
                     username, expiresIn);

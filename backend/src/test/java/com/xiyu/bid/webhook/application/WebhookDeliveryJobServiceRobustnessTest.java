@@ -395,6 +395,7 @@ class WebhookDeliveryJobServiceRobustnessTest {
                 .businessKey("100:admin")
                 .status(WebhookDeliveryTaskStatus.PENDING)
                 .attemptCount(0)
+                .operatorUsername("testuser")
                 .build();
     }
 }

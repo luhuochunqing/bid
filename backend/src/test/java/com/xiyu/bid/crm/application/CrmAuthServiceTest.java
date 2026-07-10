@@ -59,8 +59,9 @@ class CrmAuthServiceTest {
         properties.getAuth().setOauthLoginPath("/oauth/login");
         // 内存模式（无 Redis）
         userTokenCache = new CrmUserTokenCache();
+        UserProfileCache userProfileCache = new UserProfileCache(userRepository);
         authService = new CrmAuthService(httpClient, properties, permissionCache,
-                userTokenCache, userRepository, new OssUserTokenCache());
+                userTokenCache, userRepository, new OssUserTokenCache(), userProfileCache);
     }
 
     // ===== Issue 测试要点 #1: 配了工号用专属 token，没配用共享 token =====
