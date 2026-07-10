@@ -88,13 +88,8 @@ public class TenderIntegrationCommandService {
             throw ex;
         }
         // CO-305: 更新后状态变为 EVALUATED 时发布 TenderStatusChangedEvent
-        if (saved.getStatus() == Tender.Status.EVALUATED && previousStatus != Tender.Status.EVALUATED) {
-            String operatorName = resolveOperatorName(userId);
-            eventPublisher.publishEvent(TenderStatusChangedEvent.of(
-                    saved.getId(), saved.getExternalId(),
-                    previousStatus, Tender.Status.EVALUATED, saved.getTitle(),
-                    null, userId, operatorName, null, null));
-        }
+        // API Key 认证路径下 userId 是 API Key 创建者（如 admin），webhook 需要标讯实际创建者的 OSS token
+        publishEvaluatedEvent(saved, previousStatus, tender.getCreatorId() != null ? tender.getCreatorId() : userId);
         log.info("Updated tender id={} externalId={} crmId={} crmOpportunityId={}",
                 saved.getId(), externalId, crmId, saved.getCrmOpportunityId());
 
@@ -137,6 +132,9 @@ public class TenderIntegrationCommandService {
         if (Boolean.TRUE.equals(request.getForceUpdate())) {
             // CO-305: 记录更新前的状态，用于判断是否需要发布 Event
             Tender.Status previousStatus = existing.getStatus();
+            // API Key 认证路径下 userId 是 API Key 创建者（如 admin），不是实际业务操作人。
+            // 保留原始 creatorId，webhook 反查 CRM 需要实际创建者的 OSS token。
+            Long originalCreatorId = existing.getCreatorId();
             mapper.applyUpdate(existing, request);
             if (userId != null) {
                 existing.setCreatorId(userId);
@@ -155,13 +153,8 @@ public class TenderIntegrationCommandService {
                 throw ex;
             }
             // CO-305: 强制更新后状态变为 EVALUATED 时发布 TenderStatusChangedEvent
-            if (saved.getStatus() == Tender.Status.EVALUATED && previousStatus != Tender.Status.EVALUATED) {
-                String operatorName = resolveOperatorName(userId);
-                eventPublisher.publishEvent(TenderStatusChangedEvent.of(
-                        saved.getId(), saved.getExternalId(),
-                        previousStatus, Tender.Status.EVALUATED, saved.getTitle(),
-                        null, userId, operatorName, null, null));
-            }
+            // 优先用标讯原始创建者（有 OSS token），而非 API Key 创建者（admin）
+            publishEvaluatedEvent(saved, previousStatus, originalCreatorId != null ? originalCreatorId : userId);
             if (request.getEvaluation() != null) {
                 var eval = request.getEvaluation();
                 // CO-XXX: CRM 商机负责人优先，覆盖 CRM 推送的 XIYU_CONTACT 字段
@@ -205,13 +198,7 @@ public class TenderIntegrationCommandService {
             throw ex;
         }
         // CO-305: CRM 推送创建的标讯状态变为 EVALUATED 时发布 TenderStatusChangedEvent
-        if (saved.getStatus() == Tender.Status.EVALUATED && initialStatus != Tender.Status.EVALUATED) {
-            String operatorName = resolveOperatorName(userId);
-            eventPublisher.publishEvent(TenderStatusChangedEvent.of(
-                    saved.getId(), saved.getExternalId(),
-                    initialStatus, Tender.Status.EVALUATED, saved.getTitle(),
-                    null, userId, operatorName, null, null));
-        }
+        publishEvaluatedEvent(saved, initialStatus, userId);
         if (request.getEvaluation() != null) {
             var eval = request.getEvaluation();
             // CO-XXX: CRM 商机负责人优先，覆盖 CRM 推送的 XIYU_CONTACT 字段
@@ -295,5 +282,16 @@ public class TenderIntegrationCommandService {
         return userRepository.findById(userId)
                 .map(OperatorDisplayName::format)
                 .orElse("");
+    }
+
+    /** 状态变为 EVALUATED 时发布 TenderStatusChangedEvent */
+    private void publishEvaluatedEvent(Tender saved, Tender.Status previousStatus, Long operatorId) {
+        if (saved.getStatus() != Tender.Status.EVALUATED || previousStatus == Tender.Status.EVALUATED) {
+            return;
+        }
+        eventPublisher.publishEvent(TenderStatusChangedEvent.of(
+                saved.getId(), saved.getExternalId(),
+                previousStatus, Tender.Status.EVALUATED, saved.getTitle(),
+                null, operatorId, resolveOperatorName(operatorId), null, null));
     }
 }
