@@ -25,7 +25,7 @@ enum MarginQueryRole {
     ADMIN((pa, pi) -> ""),
     MANAGER((pa, pi) -> ""),
     STAFF(MarginQueryRole::staffFragment, true),
-    BID_TEAM(MarginQueryRole::staffFragment, true),
+    BID_TEAM((pa, pi) -> ""),
     BID_PROJECTLEADER(MarginQueryRole::ownerFragment, true),
     BID_TEAMLEADER(MarginQueryRole::ownerFragment, true),
     UNKNOWN(MarginQueryRole::staffFragment, true);
