@@ -3748,3 +3748,89 @@ K. 但 OSS 端未配置这些菜单 → 前端有权限、后端无对应 OSS �
 - `specs/032-fix-oss-permission-diffusion/` — 第一层止血 Spec Kit
 - `.wiki/pages/lessons-learned/CO-361-five-rounds-no-fix.md` — CO-361 五次反复修复的完整教训
 - `.wiki/pages/architecture/effective-role-resolution.md` — 角色码解析的工程规范
+
+---
+
+## 54. 父权限缺失导致 403：模块级 @PreAuthorize 与 OSS 叶子菜单的语义鸿沟（2026-07-10 / 账户管理 & CA 信息管理 / PR !1989）
+
+### 问题背景
+
+`PlatformAccountController` 和 `CaCertificateController` 使用类级 `@PreAuthorize("hasAuthority('resource')")` 作为模块入口兜底。业务上要求 `bid-projectLeader`（投标项目负责人/销售）也能看到账户管理和 CA 信息管理页面。
+
+- `RoleProfileCatalog` 中本地 `bid-projectLeader` 的 `menuPermissions` 包含 `resource`、`resource-account`、`resource-ca`。
+- 但 **OSS 端对该角色只下发子菜单** `100504` / `100505`，映射为 `resource-account` / `resource-ca`，**没有下发父菜单 `1005 → resource`**。
+
+结果：用户 5052 登录后 authorities 里只有 `resource-account` / `resource-ca`，请求 `/api/platform/accounts` 和 `/api/ca-certificates` 时在 Controller 层就被 403 拦截。
+
+### 修复历程
+
+| 轮次 | 改动 | 结果 |
+|---|---|---|
+| 第 1 轮 | 在 `PlatformAccountViewerPolicy` / `CaCertificate` Service 层放开 `bid-projectLeader` 可见性 | 仍 403，因为没到 Service 就被 `@PreAuthorize` 拦截 |
+| 第 2 轮 | 在 `UserDetailsServiceImpl` 兜底：持有任意 `resource-*` 子权限时自动补 `resource` 父权限 | ✅ 修复 |
+
+关键失误：第 2 轮代码修对后，**部署的 jar 里并不包含该修复**。线上 `deployed-release.json` 显示运行的是 `460ccb5d7`（构建于 14:12 CST），而修复提交 `c3fce0f88` 在 16:34 CST 才推送到远端，导致“代码改了但线上还是 403”。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| 只修 Service 层数据权限，没修 Controller 层入口权限 | 模块级 `@PreAuthorize` 是入口门禁，必须在放行业务前先放行入口 | 权限调整要同时检查三层：菜单导航（前端）、Controller 入口（@PreAuthorize）、Service/Policy 数据权限 |
+| OSS 只发子菜单，后端要求父权限 | 模块级父权限与 OSS 叶子菜单之间存在语义鸿沟，不能假设父权限一定存在 | 当 Controller 使用父权限 `X` 且存在子权限 `X-Y` 时，必须在 `UserDetailsServiceImpl` 中兜底推导 |
+| 修复后未验证线上 jar 是否包含修复 | 代码合入 ≠ 线上生效 | 部署后必须检查 `deployed-release.json` / jar 内容 / 真实用户 authorities 日志 |
+| 同一页面反复 403 | 第 2 次修同一个 bug 时必须停下来做根因分析，不能继续打补丁 | 反复修复时优先按 engineering-discipline 第四章 SOP 执行 |
+
+### 操作规范（建议固化到 CLAUDE.md / RULES.md）
+
+1. **模块级 `@PreAuthorize` 使用父权限时，必须检查 OSS 映射是否下发父菜单**：
+   - 若 OSS 只下发子菜单，必须在 `UserDetailsServiceImpl` 中显式兜底。
+   - 兜底模式：`if (authorities.stream().anyMatch(p -> p != null && p.startsWith("X-"))) authorities.add("X");`
+
+2. **权限改动三层验收**：
+   - 前端：sidebar / 按钮是否显示（`hasPermission`）
+   - 后端入口：`@PreAuthorize` 是否放行
+   - 后端数据：Service / Policy 是否返回正确数据范围
+
+3. **部署后必须验证真实用户 authorities**：
+   - 检查日志 `UserDetails authorities built: user=xxx authorities=[...]` 是否包含目标权限。
+   - 用受影响角色账号实测 API，确认返回 200 且数据范围正确。
+
+4. **第 2 次修同一个 bug 时强制根因分析**：
+   - 读取 `docs/lessons/lessons-learned.md` 同类问题。
+   - 用“5 个为什么”追问，至少定位到配置/代码/部署三个层面中的一个。
+
+### 验证命令
+
+```bash
+# 1. 检查 @PreAuthorize 使用的父权限是否有子权限兜底
+node scripts/check-parent-permission-fallback.mjs
+
+# 2. 检查线上 jar 是否包含修复
+ssh jetty@172.16.38.78 '
+  unzip -p /opt/xiyu-bid/shared/backend/app.jar \
+    BOOT-INF/classes/com/xiyu/bid/auth/UserDetailsServiceImpl.class \
+    | strings | grep -c "resource-"
+'
+
+# 3. 检查真实用户 authorities 是否包含 resource
+rg 'UserDetails authorities built.*user=5052' /var/log/xiyu-bid/application.json.log
+
+# 4. 验证受影响角色可访问
+GET /api/platform/accounts
+GET /api/ca-certificates?size=500
+```
+
+### 防复发措施
+
+- **pre-push 拦截脚本**：`scripts/check-parent-permission-fallback.mjs` 已接入 `scripts/pre-push-gate.sh` 9.8 节。
+  - 扫描 `@PreAuthorize(hasAuthority('X'))`。
+  - 若 `RoleProfileCatalog` 中存在 `X-Y` 子权限，则要求 `UserDetailsServiceImpl` 必须有 `X` 的兜底推导。
+  - 缺少兜底时阻断 push。
+
+### 相关文档
+
+- `docs/lessons/root-cause-analysis-resource-parent-permission-403.md` — 完整根因分析
+- `backend/src/main/java/com/xiyu/bid/auth/UserDetailsServiceImpl.java`
+- `backend/src/main/java/com/xiyu/bid/entity/RoleProfileCatalog.java`
+- `backend/src/test/java/com/xiyu/bid/auth/UserDetailsServiceImplTest.java`
+- `scripts/check-parent-permission-fallback.mjs`

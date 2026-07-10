@@ -390,6 +390,28 @@ else
   fi
 fi
 
+# ── 9.8. 父权限兜底拦截（账户/CA 页面 403 反复修复防复发） ──
+# 工程背景（2026-07-10 账户管理/CA 信息管理页面 403）：
+#   PlatformAccountController / CaCertificateController 类级使用 @PreAuthorize("hasAuthority('resource')")，
+#   但 OSS 端对 bid-projectLeader 只下发 resource-account / resource-ca 子菜单，未下发 resource 父菜单，
+#   导致 403。修复方式是在 UserDetailsServiceImpl 中兜底：持有任意 resource-* 子权限时自动补 resource。
+# 本门禁拦截新增/变更的父权限 @PreAuthorize 缺少子权限 → 父权限兜底的情况。
+# 逃生阀：PARENT_PERMISSION_FALLBACK_SKIP=1（仅限已记录豁免场景，需在 PR 描述说明理由）
+echo "── 父权限兜底拦截 ──"
+if [ ! -d "$ROOT_DIR/backend/src/main" ]; then
+  skip "无 Java 源码"
+elif [ "${BACKEND_CHANGED:-0}" -eq 0 ]; then
+  skip "父权限兜底拦截（无 backend/ 变更）"
+elif [ "${PARENT_PERMISSION_FALLBACK_SKIP:-0}" = "1" ]; then
+  skip "父权限兜底拦截（PARENT_PERMISSION_FALLBACK_SKIP=1 逃生阀）"
+else
+  if node "$ROOT_DIR/scripts/check-parent-permission-fallback.mjs" 2>&1; then
+    pass "父权限兜底拦截"
+  else
+    fail "父权限兜底拦截 — @PreAuthorize 使用父权限，但 UserDetailsServiceImpl 缺少子权限兜底。参考 scripts/check-parent-permission-fallback.mjs 修复。逃生阀：PARENT_PERMISSION_FALLBACK_SKIP=1"
+  fi
+fi
+
 # ── 10. 路由-E2E 兼容性检查 ────────────────────────────
 echo "── 路由-E2E 兼容 ──"
 STAGED_ROUTES=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -cE '^src/(router|views)/' || true)
