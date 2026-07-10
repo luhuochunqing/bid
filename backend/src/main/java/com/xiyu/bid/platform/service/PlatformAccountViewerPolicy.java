@@ -29,6 +29,21 @@ public final class PlatformAccountViewerPolicy {
         };
     }
 
+    /** 投标项目负责人（销售）可查看完整列表，但不可管理。 */
+    public static boolean isProjectLeaderRole(String roleCode) {
+        return roleCode != null && "bid-projectleader".equalsIgnoreCase(roleCode.trim());
+    }
+
+    /**
+     * 账户列表是否可查看完整 DTO（用于列表页）。
+     *
+     * <p>管理员 / 投标管理员 / 投标组长 / 投标项目负责人 可查看完整记录；
+     * 投标专员按绑定联系人逐行授权，其余角色脱敏。</p>
+     */
+    public static boolean canViewFullAccountList(String roleCode) {
+        return isPrivilegedRole(roleCode) || isProjectLeaderRole(roleCode);
+    }
+
     /** 投标专员需要按绑定联系人做逐行授权。 */
     public static boolean isBidTeamRole(String roleCode) {
         return roleCode != null && "bid-team".equalsIgnoreCase(roleCode.trim());

@@ -91,6 +91,8 @@ export function useCaBorrowEligibility() {
     if (!ca) return false
     const role = userStore.userRole
     if (isBidManager(role)) return true
+    // 投标项目负责人（销售）可发起借用申请
+    if (role === 'bid-projectLeader') return true
     if (role === 'bid-Team') {
       return ca.custodianId == null || ca.custodianId !== currentUserId.value
     }

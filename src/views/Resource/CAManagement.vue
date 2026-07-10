@@ -403,9 +403,13 @@ const borrowUploadHeaders = computed(() => ({
 // CO-409: 投标专员（bid-Team）进入完整管理员视图（10 列 + 统计 + 高级筛选），
 // 操作项按保管员差异化（canManageRow/canBorrowRow），对齐 CO-409 权限矩阵。
 // CO-393 注：bid-projectLeader 虽持 resource-ca 路由权限，但不在 isBidManager 内，仍走简化视图。
-const isManagerView = computed(() => isBidManager(userStore.userRole) || userStore.userRole === 'bid-Team')
+// 投标项目负责人（bid-projectLeader）可查看完整列表（只读全量），但不可创建/编辑/下架/查看详情。
+const isManagerView = computed(() => isBidManager(userStore.userRole)
+  || userStore.userRole === 'bid-Team'
+  || userStore.userRole === 'bid-projectLeader')
 
 // CO-409: 新增/批量导入操作项对投标专员（bid-Team）放开，与管理员一致。
+// 投标项目负责人（销售）仅可查看完整列表，不可新增/导入/导出。
 const canCreate = computed(() => isBidManager(userStore.userRole) || userStore.userRole === 'bid-Team')
 
 // Loading states
@@ -563,9 +567,9 @@ function resetFilters() {
   resetPage()
 }
 
-// Row click opens detail (admin/manager only)
+// Row click opens detail (admin/manager/bid-Team only; bid-projectLeader read-only)
 function handleRowClick(row) {
-  if (isManagerView.value) {
+  if (isManagerView.value && userStore.userRole !== 'bid-projectLeader') {
     handleView(row)
   }
 }

@@ -124,15 +124,16 @@ public class PlatformAccountService {
     /**
      * Get accounts projected for the given viewer.
      *
-     * <p>管理员 / 投标管理员 / 投标组长看到完整 DTO；投标专员对自己为绑定联系人的行
-     * 看到完整 DTO，其余行看到脱敏摘要；项目负责人等看到脱敏摘要。</p>
+     * <p>管理员 / 投标管理员 / 投标组长 / 投标项目负责人（销售）看到完整 DTO；
+     * 投标专员对自己为绑定联系人的行看到完整 DTO，其余行看到脱敏摘要；
+     * 其他角色看到脱敏摘要。</p>
      */
     public List<?> getAccountsForViewer(User viewer) {
         String code = viewer == null ? null : effectiveRoleResolver.resolveRoleCode(viewer);
-        boolean privileged = PlatformAccountViewerPolicy.isPrivilegedRole(code);
+        boolean fullView = PlatformAccountViewerPolicy.canViewFullAccountList(code);
         boolean bidTeam = PlatformAccountViewerPolicy.isBidTeamRole(code);
         return repository.findAll(Sort.by(Sort.Direction.DESC, "createdAt")).stream()
-            .map(account -> (privileged || (bidTeam && PlatformAccountContactMatcher.isContactPerson(account, viewer)))
+            .map(account -> (fullView || (bidTeam && PlatformAccountContactMatcher.isContactPerson(account, viewer)))
                 ? PlatformAccountMapper.toDTO(account)
                 : PlatformAccountMapper.toSummaryDTO(account))
             .collect(Collectors.toList());
