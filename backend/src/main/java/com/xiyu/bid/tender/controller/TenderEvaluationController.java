@@ -155,7 +155,7 @@ public class TenderEvaluationController {
      * <p>实例级权限：调用方必须是 latest assigned-by（service 层 canDecide 守）。
      */
     @PostMapping("/{tenderId}/review")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN')")
+    @PreAuthorize("hasAnyAuthority('bidding.manage', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN')")
     public ResponseEntity<ApiResponse<TenderEvaluationDTO>> reviewTender(
             @PathVariable Long tenderId,
             @Valid @RequestBody TenderReviewRequest request,
@@ -171,7 +171,7 @@ public class TenderEvaluationController {
      * <p>实例级权限：调用方必须是 latest assigned-by（service 层 canDecide 守）。
      */
     @PostMapping("/{tenderId}/bid")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN')")
+    @PreAuthorize("hasAnyAuthority('bidding.manage', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN')")
     public ResponseEntity<ApiResponse<TenderBidResult>> proceedToBid(
             @PathVariable Long tenderId,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -233,8 +233,7 @@ public class TenderEvaluationController {
      * V150: 删除评估表附件。
      */
     @DeleteMapping("/{tenderId}/evaluation/documents/{documentId}")
-    // TODO: [P3][specs/024] 需业务确认：admin 专属→system.admin；评估负责人可删→evaluation 权限键（§17）
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('system.admin')")
     public ResponseEntity<ApiResponse<Void>> deleteEvaluationDocument(
             @PathVariable Long tenderId,
             @PathVariable Long documentId) {

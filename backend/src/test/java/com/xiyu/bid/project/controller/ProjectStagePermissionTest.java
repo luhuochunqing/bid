@@ -65,7 +65,7 @@ class ProjectStagePermissionTest {
     void closureApprove_preAuthorize_matchesDoc() {
         String value = findMethod(ProjectClosureController.class, "approve")
                 .getAnnotation(PreAuthorize.class).value();
-        assertThat(value).isEqualTo("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_TEAM')");
+        assertThat(value).isEqualTo("hasAnyAuthority('closure.review', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN', 'ROLE_BID_TEAM')");
     }
 
     /** 按方法名查找（跨 Controller）。 */

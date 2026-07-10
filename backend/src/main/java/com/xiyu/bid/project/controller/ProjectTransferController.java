@@ -56,7 +56,7 @@ public class ProjectTransferController {
      * @return 转移结果
      */
     @PostMapping("/{projectId}/transfer")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BIDADMIN')")
+    @PreAuthorize("hasAnyAuthority('bidding.manage', 'ROLE_ADMIN', 'ROLE_BIDADMIN')")
     public ResponseEntity<ApiResponse<ProjectTransferResponse>> transferProject(
             @PathVariable Long projectId,
             @Valid @RequestBody ProjectTransferRequest request,

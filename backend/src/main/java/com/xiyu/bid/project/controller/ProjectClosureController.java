@@ -68,7 +68,7 @@ public class ProjectClosureController {
 
     /** 审核通过：系统管理员/投标管理员/投标组长/投标辅助。提交人(投标项目负责人)不可审核自己提交的结项。 */
     @PostMapping("/approve")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_TEAM')")
+    @PreAuthorize("hasAnyAuthority('closure.review', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN', 'ROLE_BID_TEAM')")
     @LogOperation
     public ResponseEntity<ApiResponse<ClosureDTO>> approve(
             @PathVariable Long projectId,
@@ -81,7 +81,7 @@ public class ProjectClosureController {
 
     /** 审核驳回：管理员/投标管理员/投标组长/投标辅助。提交人(投标项目负责人)不可审核自己提交的结项。 */
     @PostMapping("/reject")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_TEAM')")
+    @PreAuthorize("hasAnyAuthority('closure.review', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN', 'ROLE_BID_TEAM')")
     @LogOperation
     public ResponseEntity<ApiResponse<ClosureDTO>> reject(
             @PathVariable Long projectId,

@@ -240,6 +240,22 @@ else
     pass "Flyway 迁移目录守卫（commit 范围无 V/B 文件放在 db/migration/）"
   fi
 fi
+# ── 3.8. hasAnyRole 双轨制拦截 (spec-024/033) ───────────────
+echo "── hasAnyRole 双轨制拦截 ──"
+if [ "${BACKEND_CHANGED:-0}" -eq 1 ]; then
+  OFFENDERS=$(git diff --unified=0 "$GATE_BASE"..HEAD -- backend/src/main/java | grep '^+.*@PreAuthorize("hasAnyRole(' | grep -v 'SAFE:' || true)
+  if [ -n "$OFFENDERS" ]; then
+    fail "发现新增了单纯的 hasAnyRole 权限守卫，违反 spec-024/033 权限双轨制治理规则。
+    请改用 hasAnyAuthority('permissionKey', 'ROLE_xxx') 以同时兼容前端菜单权限与后端角色，或在行尾加 // SAFE: 豁免。
+    违规行：
+    $OFFENDERS"
+  else
+    pass "无违规的 hasAnyRole 新增"
+  fi
+else
+  skip "hasAnyRole 拦截（无 backend/ 变更）"
+fi
+
 # ── 4. 锁孤儿检查 ───────────────────────────────────────
 echo "── 锁孤儿检查 ──"
 if [ -f "$ROOT_DIR/package.json" ]; then

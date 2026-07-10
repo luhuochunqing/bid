@@ -35,7 +35,7 @@ class TenderControllerPermissionTest {
                 .getAnnotation(PreAuthorize.class);
 
         String value = annotation.value();
-        assertThat(value).isEqualTo("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_TEAM')");
+        assertThat(value).isEqualTo("hasAnyAuthority('bidding', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN', 'ROLE_BID_TEAM')");
         // 显式断言不含项目负责人（BID_PROJECTLEADER 和 SALES）
         assertThat(value).doesNotContain("BID_PROJECTLEADER", "SALES");
     }
@@ -48,7 +48,7 @@ class TenderControllerPermissionTest {
                 .getAnnotation(PreAuthorize.class);
 
         String value = annotation.value();
-        assertThat(value).isEqualTo("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_TEAM')");
+        assertThat(value).isEqualTo("hasAnyAuthority('bidding', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN', 'ROLE_BID_TEAM')");
         assertThat(value).doesNotContain("BID_PROJECTLEADER", "SALES");
     }
 
@@ -76,6 +76,6 @@ class TenderControllerPermissionTest {
                 .getMethod("transferTender", Long.class, TenderTransferRequest.class, UserDetails.class)
                 .getAnnotation(PreAuthorize.class);
 
-        assertThat(annotation.value()).isEqualTo("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN')");
+        assertThat(annotation.value()).isEqualTo("hasAnyAuthority('bidding.manage', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN')");
     }
 }

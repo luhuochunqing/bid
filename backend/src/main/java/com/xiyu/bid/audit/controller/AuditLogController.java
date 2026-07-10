@@ -29,7 +29,7 @@ public class AuditLogController {
     private final IAuditLogService auditLogService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'AUDITOR')")
+    @PreAuthorize("hasAnyAuthority('operation-logs', 'ROLE_ADMIN')")
     public ResponseEntity<ApiResponse<AuditLogQueryResponse>> getAuditLogs(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String action,
