@@ -118,9 +118,16 @@ class OpenAiSdkStructuredOutputTransport implements OpenAiStructuredOutputTransp
 
     private boolean supportsJsonObjectFallback(BadRequestException exception) {
         String message = exception.getMessage();
-        return message != null
-                && message.toLowerCase().contains("response_format")
-                && message.toLowerCase().contains("unavailable");
+        if (message == null) {
+            return false;
+        }
+        String lower = message.toLowerCase();
+        // 以下情况说明上游网关不支持 json_schema 结构化输出，应 fallback 到 json_object：
+        // 1. 明确说 response_format unavailable（OpenAI 官方错误消息）
+        // 2. 提到 response_format 但不支持（qwen/通义千问等国内网关的错误消息）
+        // 3. 直接提到 json_schema 不被支持
+        return lower.contains("response_format")
+                || lower.contains("json_schema");
     }
 
     private <T> T readValue(String content, Class<T> responseType) {
