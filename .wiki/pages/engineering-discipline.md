@@ -120,6 +120,7 @@ health_checked: 2026-07-10
 - 修复 CRM 状态映射后，引入了 webhook 格式错误
 - 修复 collation 冲突后，临时表 COLLATE 不匹配导致 JOIN 失败
 - 前端修复路由组件后，E2E 选择器失效
+- **AI fallback 双倍调用**（PR !1979 → !1982）：PR !1979 修复了 fallback 触发条件（让 `response_format`/`json_schema` 关键词匹配 BadRequest），但 fallback 机制每次都先尝试注定失败的 json_schema（10-25 秒），再 fallback 到 json_object（再 10-25 秒），导致 AI 解析耗时 22-50 秒、前端超时。根因是对 fallback 的性能假设有偏差——以为 fallback 是偶尔触发的异常路径，实际该 AI 网关每次都需要 fallback
 
 **为什么会导致反复修复**：
 修复一个 bug 可能影响其他代码路径，如果没有全面的回归测试，新 bug 会在后续暴露。
@@ -364,6 +365,7 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 | CRM 商机状态映射 | 1 次 | 枚举值凭直觉不查文档 | [[crm-integration-lessons]] §1 |
 | 通知 targetUrl 跳转失效 | 1 次 | 大小写不一致 | [[notification-system-pitfalls]] §1 |
 | AI Provider 硬编码 | 1 次 | 未读取 activeProvider 配置 | [[ai-provider-configuration]] §1 |
+| AI fallback 双倍调用 | 1 次 | 修 A 破 B：PR !1979 修 fallback 条件但引入每次双倍 AI 调用 | PR !1979 → !1982，OpenAiSdkStructuredOutputTransport |
 
 ### 6.4 pre-push 拦截脚本索引
 
@@ -441,3 +443,4 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 | 日期 | 变更内容 |
 |------|---------|
 | 2026-07-10 | 首次创建，从 CO-361、CO-280、SPRING_CONFIG_IMPORT 等案例提炼 7 大根因、SOP、规范 |
+| 2026-07-10 | 新增"AI fallback 双倍调用"案例到根因 5 + 案例库索引（PR !1979 → !1982） |
