@@ -106,7 +106,7 @@ class TenderEvaluationCrmSyncServiceTest {
         tender.setCrmOpportunityId(CC_CODE);
         TenderEvaluationSubmitRequest userReq = buildUserReq();
 
-        when(crmOpportunityCodeResolver.resolve(CC_CODE)).thenReturn(CC_CODE);
+        when(crmOpportunityCodeResolver.resolve(CC_CODE, USERNAME)).thenReturn(CC_CODE);
         when(crmChanceService.findByCode(CC_CODE, USERNAME)).thenReturn(buildCrmChance());
         when(crmContactPersonService.pageList(CHANCE_ID, USERNAME)).thenReturn(buildContactPersons());
 
@@ -150,7 +150,7 @@ class TenderEvaluationCrmSyncServiceTest {
         tender.setCrmOpportunityId(CC_CODE);
         TenderEvaluationSubmitRequest userReq = buildUserReq();
 
-        when(crmOpportunityCodeResolver.resolve(CC_CODE)).thenReturn(CC_CODE);
+        when(crmOpportunityCodeResolver.resolve(CC_CODE, USERNAME)).thenReturn(CC_CODE);
         when(crmChanceService.findByCode(CC_CODE, USERNAME)).thenReturn(null);
 
         // when
@@ -171,7 +171,7 @@ class TenderEvaluationCrmSyncServiceTest {
         tender.setCrmOpportunityId(CC_CODE);
         TenderEvaluationSubmitRequest userReq = buildUserReq();
 
-        when(crmOpportunityCodeResolver.resolve(CC_CODE)).thenReturn(CC_CODE);
+        when(crmOpportunityCodeResolver.resolve(CC_CODE, USERNAME)).thenReturn(CC_CODE);
         when(crmChanceService.findByCode(CC_CODE, USERNAME)).thenReturn(buildCrmChance());
         when(crmContactPersonService.pageList(CHANCE_ID, USERNAME)).thenReturn(Collections.emptyList());
 
@@ -201,7 +201,7 @@ class TenderEvaluationCrmSyncServiceTest {
         tender.setCrmOpportunityId(numericId);
         TenderEvaluationSubmitRequest userReq = buildUserReq();
 
-        when(crmOpportunityCodeResolver.resolve(numericId)).thenReturn(CC_CODE);
+        when(crmOpportunityCodeResolver.resolve(numericId, USERNAME)).thenReturn(CC_CODE);
         when(crmChanceService.findByCode(CC_CODE, USERNAME)).thenReturn(buildCrmChance());
         when(crmContactPersonService.pageList(CHANCE_ID, USERNAME)).thenReturn(buildContactPersons());
 
@@ -209,7 +209,7 @@ class TenderEvaluationCrmSyncServiceTest {
         TenderEvaluationSubmitRequest result = syncService.syncFromCrm(tender, userReq, USERNAME);
 
         // then
-        verify(crmOpportunityCodeResolver).resolve(numericId);
+        verify(crmOpportunityCodeResolver).resolve(numericId, USERNAME);
         verify(crmChanceService).findByCode(CC_CODE, USERNAME);
         // 结果 basic 来自 CRM
         assertThat(result.evaluationBasic().riskAssessment()).isEqualTo("风险较高");
@@ -227,7 +227,7 @@ class TenderEvaluationCrmSyncServiceTest {
         tender.setCrmOpportunityId(CC_CODE);
         TenderEvaluationSubmitRequest userReq = buildUserReq();
 
-        when(crmOpportunityCodeResolver.resolve(CC_CODE)).thenReturn(CC_CODE);
+        when(crmOpportunityCodeResolver.resolve(CC_CODE, USERNAME)).thenReturn(CC_CODE);
         when(crmChanceService.findByCode(CC_CODE, USERNAME))
                 .thenThrow(new RuntimeException("CRM HTTP timeout"));
 
@@ -247,7 +247,7 @@ class TenderEvaluationCrmSyncServiceTest {
         tender.setCrmOpportunityId(CC_CODE);
         TenderEvaluationSubmitRequest userReq = buildUserReq();
 
-        when(crmOpportunityCodeResolver.resolve(CC_CODE)).thenReturn(CC_CODE);
+        when(crmOpportunityCodeResolver.resolve(CC_CODE, USERNAME)).thenReturn(CC_CODE);
         when(crmChanceService.findByCode(CC_CODE, USERNAME)).thenReturn(buildCrmChance());
         when(crmContactPersonService.pageList(CHANCE_ID, USERNAME))
                 .thenThrow(new RuntimeException("CRM HTTP timeout"));
@@ -271,7 +271,7 @@ class TenderEvaluationCrmSyncServiceTest {
         tender.setCrmOpportunityId(CC_CODE);
         TenderEvaluationSubmitRequest userReq = buildUserReq();
 
-        when(crmOpportunityCodeResolver.resolve(CC_CODE)).thenReturn(CC_CODE);
+        when(crmOpportunityCodeResolver.resolve(CC_CODE, USERNAME)).thenReturn(CC_CODE);
         when(crmChanceService.findByCode(CC_CODE, USERNAME)).thenReturn(buildCrmChance());
         when(crmContactPersonService.pageList(CHANCE_ID, USERNAME))
                 .thenReturn(buildDuplicatePositionContacts());

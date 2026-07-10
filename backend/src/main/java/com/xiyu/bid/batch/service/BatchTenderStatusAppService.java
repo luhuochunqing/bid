@@ -41,7 +41,7 @@ public class BatchTenderStatusAppService {
         List<Tender> changedTenders = new ArrayList<>();
         for (Long tenderId : request.getTenderIds()) {
             tenderRepository.findById(tenderId).ifPresentOrElse(
-                    tender -> collectStatusUpdate(tender, targetStatus, changedTenders, response),
+                    tender -> collectStatusUpdate(tender, targetStatus, changedTenders, response, currentUser),
                     () -> response.addError(tenderId, "Tender not found", "NOT_FOUND")
             );
         }
@@ -58,7 +58,8 @@ public class BatchTenderStatusAppService {
             Tender tender,
             Tender.Status targetStatus,
             List<Tender> changedTenders,
-            BatchOperationResponse response
+            BatchOperationResponse response,
+            User currentUser
     ) {
         try {
             projectAccessGuard.requireTender(tender.getId());
@@ -66,9 +67,12 @@ public class BatchTenderStatusAppService {
             if (tender.getStatus() != targetStatus) {
                 Tender.Status previousStatus = tender.getStatus();
                 tender.setStatus(targetStatus);
+                Long operatorId = currentUser == null ? null : currentUser.getId();
+                String operatorName = currentUser == null ? null : currentUser.getFullName();
                 eventPublisher.publishEvent(TenderStatusChangedEvent.of(
                         tender.getId(), tender.getExternalId(),
-                        previousStatus, targetStatus, tender.getTitle()));
+                        previousStatus, targetStatus, tender.getTitle(),
+                        null, operatorId, operatorName, null, null));
                 changedTenders.add(tender);
             }
             response.addSuccess(tender.getId());

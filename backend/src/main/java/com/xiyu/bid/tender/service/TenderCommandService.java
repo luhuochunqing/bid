@@ -143,6 +143,10 @@ public class TenderCommandService {
     }
 
     public TenderDTO updateStatus(Long id, Tender.Status targetStatus) {
+        return updateStatus(id, targetStatus, null);
+    }
+
+    public TenderDTO updateStatus(Long id, Tender.Status targetStatus, Long userId) {
         log.debug("Updating tender status, id: {}, target: {}", id, targetStatus);
         Tender tender = tenderRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Tender", id.toString()));
@@ -152,7 +156,9 @@ public class TenderCommandService {
         Tender.Status previousStatus = tender.getStatus();
 
         tender.setStatus(targetStatus);
-        eventPublisher.publishEvent(TenderStatusChangedEvent.of(tender.getId(), tender.getExternalId(), previousStatus, targetStatus, tender.getTitle()));
+        eventPublisher.publishEvent(TenderStatusChangedEvent.of(
+                tender.getId(), tender.getExternalId(), previousStatus, targetStatus, tender.getTitle(),
+                null, userId, null, null, null));
         Tender updatedTender = tenderRepository.save(tender);
         log.info("Updated tender status, id: {}, status: {}", id, targetStatus);
         return tenderMapper.toDTO(updatedTender);

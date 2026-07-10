@@ -63,7 +63,7 @@ public class TenderEvaluationCrmSyncService {
             return userReq;
         }
 
-        String code = resolveOpportunityCode(rawOpportunityId);
+        String code = resolveOpportunityCode(rawOpportunityId, username);
         if (code == null || code.isBlank()) {
             return userReq;
         }
@@ -89,9 +89,9 @@ public class TenderEvaluationCrmSyncService {
                 userReq.evaluationRecommendation());
     }
 
-    private String resolveOpportunityCode(String rawOpportunityId) {
+    private String resolveOpportunityCode(String rawOpportunityId, String username) {
         try {
-            return crmOpportunityCodeResolver.resolve(rawOpportunityId);
+            return crmOpportunityCodeResolver.resolve(rawOpportunityId, username);
         } catch (RuntimeException e) {
             log.warn("CO-526: Failed to resolve CRM opportunity code '{}': {}", rawOpportunityId, e.getMessage());
             return null;

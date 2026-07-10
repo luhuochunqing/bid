@@ -10,11 +10,8 @@ import com.xiyu.bid.crm.infrastructure.dto.BidInfoInnerDTO;
 import com.xiyu.bid.crm.infrastructure.dto.BidInfoSyncDTO;
 import com.xiyu.bid.crm.infrastructure.dto.CrmProjectStatus;
 import com.xiyu.bid.entity.Tender;
-import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.TenderRepository;
-import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
-import com.xiyu.bid.webhook.infrastructure.CrmOpportunityCodeResolver;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTask;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTaskRepository;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTaskStatus;
@@ -41,6 +38,13 @@ import java.util.Set;
  * <p>⚠️ CO-314 变更：立即投标（→ BIDDING）不再触发 CRM 回调，仅放弃投标触发。
  * <p>⚠️ 2026-06-22 修复：原 tender.status_changed 格式 CRM 不识别（code:0 谎言），
  *    改为 bidInfoSync 格式（与 §4.2 ProjectResultConfirmedWebhookListener 一致）。
+ *
+ * <p><b>验收预期：</b>
+ * <ul>
+ *   <li>本监听器在事务提交后（AFTER_COMMIT）入队，实际的 CRM HTTP 调用由异步投递任务触发，不在本方法内执行。</li>
+ *   <li>入队时会解析操作者 username，用于异步投递阶段按用户维度换取 CRM JWT；
+ *       若操作者未登录过 OSS 或 OSS token 已过期，CRM 反查仍会失败。</li>
+ * </ul>
  */
 @Component
 @RequiredArgsConstructor
@@ -55,8 +59,8 @@ public class WebhookEventListener {
     private final WebhookDeliveryTaskRepository taskRepository;
     private final TenderRepository tenderRepository;
     private final ObjectMapper objectMapper;
-    private final CrmOpportunityCodeResolver crmOpportunityCodeResolver;
-    private final UserRepository userRepository;
+    private final TenderCrmOpportunityCodeResolver tenderCrmOpportunityCodeResolver;
+    private final OperatorUsernameResolver operatorUsernameResolver;
 
     @Value("${webhook.crm.url:}")
     private String crmWebhookUrl;
@@ -81,11 +85,13 @@ public class WebhookEventListener {
             log.warn("Tender {} not found, skip webhook", event.tenderId());
             return;
         }
-        String crmOpportunityCode = crmOpportunityCodeResolver.resolve(tender.getCrmOpportunityId());
+        // CO-152 补齐：入队时存操作者 username，回调时用它取该用户的 OSS token 调 generateToken
+        String operatorUsername = operatorUsernameResolver.resolve(event.operatorId());
+        // CO-277 / CO-152: 优先用 tender.crm_opportunity_id；为空时用 externalId 的 sourceId 兜底反查 code。
+        // 使用 operatorUsername 调 CRM，避免依赖全局共享账号。
+        String crmOpportunityCode = tenderCrmOpportunityCodeResolver.resolveForTender(tender, operatorUsername);
         String crmOpportunityName = tender.getCrmOpportunityName() != null ? tender.getCrmOpportunityName() : "";
         String payload = buildPayload(event, crmStatus, crmOpportunityCode, crmOpportunityName);
-        // CO-152 补齐：入队时存操作者 username，回调时用它取该用户的 OSS token 调 generateToken
-        String operatorUsername = resolveOperatorUsername(event.operatorId());
         taskRepository.save(WebhookDeliveryTask.builder()
                 .tenderId(event.tenderId())
                 .externalId(event.externalId())
@@ -103,20 +109,6 @@ public class WebhookEventListener {
 
     private String buildBusinessKey(TenderStatusChangedEvent event) {
         return "%s:%s:%s".formatted(event.tenderId(), event.newStatus().name(), event.occurredAt());
-    }
-
-    /**
-     * CO-152 补齐：通过 operatorId 反查 username，供 webhook 回调时取该用户的 OSS token。
-     * <p>
-     * 查不到时返回 null（webhook 链路会回退到全局共享 token 或抛异常，由调用方决定）。
-     */
-    private String resolveOperatorUsername(Long operatorId) {
-        if (operatorId == null) {
-            return null;
-        }
-        return userRepository.findById(operatorId)
-                .map(User::getUsername)
-                .orElse(null);
     }
 
     /**
