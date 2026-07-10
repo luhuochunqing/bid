@@ -14,6 +14,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.MethodParameter;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -64,6 +65,8 @@ class UserSearchControllerTest {
                     return TEST_USER;
                 }
             })
+            // 固定 Accept: application/json，避免 standalone MockMvc 在存在 XML 转换器时回退到 XML
+            .defaultRequest(get("/").accept(MediaType.APPLICATION_JSON))
             .build();
     }
 

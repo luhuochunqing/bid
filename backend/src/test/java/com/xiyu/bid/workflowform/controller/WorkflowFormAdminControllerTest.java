@@ -7,6 +7,7 @@ import com.xiyu.bid.workflowform.domain.FormBusinessType;
 import com.xiyu.bid.workflowform.application.view.WorkflowFormTrialSubmitView;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -31,7 +32,10 @@ class WorkflowFormAdminControllerTest {
     @BeforeEach
     void setUp() {
         adminService = mock(WorkflowFormAdminService.class);
-        mockMvc = MockMvcBuilders.standaloneSetup(new WorkflowFormAdminController(adminService)).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(new WorkflowFormAdminController(adminService))
+                // 固定 Accept: application/json，避免 standalone MockMvc 在存在 XML 转换器时回退到 XML
+                .defaultRequest(get("/").accept(MediaType.APPLICATION_JSON))
+                .build();
     }
 
     @Test
