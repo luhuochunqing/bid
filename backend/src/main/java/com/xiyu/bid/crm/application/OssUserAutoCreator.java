@@ -91,10 +91,12 @@ public class OssUserAutoCreator {
 
         RoleProfile roleProfile = roleProfileRepository.findByCodeIgnoreCase(roleCode).orElse(null);
         User.Role legacyRole = RoleProfileCatalog.legacyRoleForCode(roleCode);
+        // fail-closed：roleCode 无对应 legacyRole 映射时拒绝创建，禁止 fallback 到 MANAGER（最高权限）
+        // 注意：此处不能依赖 LoginRoleWhitelist，因为白名单校验在 OssDirectLoginService.tryDirectLogin
+        // 中执行（autoCreateIfAbsent 之后）。此处仅校验 roleCode 是已知角色。
         if (legacyRole == null) {
-            // 不应发生：roleCode 已通过 LoginRoleWhitelist 校验
-            legacyRole = User.Role.MANAGER;
-            log.warn("OSS auto-create: legacyRoleForCode returned null for roleCode={}, falling back to MANAGER", roleCode);
+            throw new IllegalStateException(
+                    "OSS auto-create refused: roleCode=" + roleCode + " has no legacy role mapping");
         }
 
         User user = User.builder()
@@ -126,7 +128,8 @@ public class OssUserAutoCreator {
         }
         for (String field : fields) {
             JsonNode value = node.path(field);
-            if (value != null && !value.isMissingNode() && !value.isNull()) {
+            // JsonNode.path() 永不返回 null，只返回 MissingNode，无需 null 检查
+            if (!value.isMissingNode() && !value.isNull()) {
                 String text = value.asText("");
                 if (!text.isBlank()) {
                     return text.trim();

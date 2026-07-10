@@ -29,11 +29,16 @@ public class OssDirectLoginService {
     /**
      * 尝试 OSS 直接登录：本地无用户记录时调用。
      * <p>
-     * 流程：OSS 实时鉴权 → 成功则自动创建本地 User → 返回 Optional.of(user)；
-     * 失败返回 Optional.empty()，由调用方决定抛异常。
+     * 流程：OSS 实时鉴权 → 成功则自动创建本地 User → 校验登录白名单 → 返回 Optional.of(user)；
+     * 鉴权失败返回 Optional.empty()，由调用方决定抛异常。
+     * <p>
+     * 白名单校验在自动创建之后执行：先创建本地记录（满足外键约束），
+     * 再检查 roleCode 是否在 LoginRoleWhitelist 允许范围内，
+     * 不允许的角色抛 RoleNotAuthorizedException（fail-closed）。
      *
      * @param request 登录请求（含 username/password）
      * @return OSS 鉴权成功并自动创建的 User；鉴权失败返回 empty
+     * @throws RoleNotAuthorizedException 如果 OSS 缓存角色不在登录白名单
      */
     public Optional<User> tryDirectLogin(LoginRequest request) {
         OssLoginResult ossResult = ossLoginFlowService.authenticateDirect(
@@ -44,6 +49,8 @@ public class OssDirectLoginService {
             return Optional.empty();
         }
         User user = ossUserAutoCreator.autoCreateIfAbsent(ossResult);
+        // 白名单校验：OSS 鉴权成功不等于允许登录，roleCode 必须在 LoginRoleWhitelist 范围内
+        requireOssRole(user);
         log.info("OSS direct login succeeded, local user auto-created: username={}, userId={}",
                 user.getUsername(), user.getId());
         return Optional.of(user);

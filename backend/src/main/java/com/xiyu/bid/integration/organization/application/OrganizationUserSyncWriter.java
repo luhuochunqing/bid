@@ -61,7 +61,8 @@ public class OrganizationUserSyncWriter {
         Optional<User> existingUser = userRepository.findByExternalOrgSourceAppAndExternalOrgUserId(sourceApp, snapshot.externalUserId());
         // Fallback: 若按 externalOrgSourceApp+externalOrgUserId 未查到，但按 username 已存在
         // 通过登录自动创建的 OSS 用户（externalOrgSourceApp="oss-login"），应复用而非重复创建。
-        // CO-XXX: 修复 OSS 登录自动创建用户与 Kafka 同步事件的合并问题
+        // 背景：AuthService 本地无记录时 OssUserAutoCreator 自动创建标记为 "oss-login" 的 User，
+        // 后续 Kafka 同步事件到达时应更新该记录而非新建。
         if (existingUser.isEmpty()) {
             existingUser = userRepository.findByUsername(snapshot.username())
                     .filter(User::isOssUser);
