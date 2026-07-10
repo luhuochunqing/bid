@@ -2,8 +2,9 @@
   "feature_id": "033",
   "name": "oss-local-permission-path-separation",
   "title": "OSS 与本地用户权限代码路径分离",
-  "status": "draft",
+  "status": "draft-post-evaluation",
   "created": "2026-07-10",
+  "updated": "2026-07-10",
   "branch": "agent/claude/oss-local-permission-path-separation",
   "root_cause_analysis": "docs/lessons/root-cause-analysis-oss-local-permission-dual-track.md",
   "related_specs": [
@@ -16,31 +17,48 @@
     "CO-373",
     "CO-551"
   ],
+  "recommended_strategy": "B（立即测试）→ A（中期 Delegate 拆分）+ 借鉴 C（admin seed 计算生成）",
   "proposed_approaches": [
     {
       "id": "A",
       "name": "代码路径分离（推荐根治）",
       "priority": "P1",
-      "summary": "OSS 用户走独立的 OssUserDetailsService + OssAuthResponseBuilder，ArchUnit 强制隔离"
+      "summary": "Delegate 模式 CompositeUserDetailsService + OssUserDetailsDelegate + LocalUserDetailsDelegate，ArchUnit 强制隔离 ..oss.. 包",
+      "design_added": "v2 新增 §架构设计 A：Delegate 模式伪代码 + Spring Security 单一 UserDetailsService 契约解决方案"
     },
     {
       "id": "B",
       "name": "强约束门禁（最小代价）",
       "priority": "P2",
-      "summary": "扩展 check-rolecode-direct-calls.mjs + ArchUnit 守卫 admin 分支 + 每个 OSS 角色权限不扩散测试"
+      "summary": "扩展 check-rolecode-direct-calls.mjs + ArchUnit 守卫 admin 分支 + 每个 OSS 角色权限不扩散测试",
+      "role": "组合策略中作为立即实施的'安全网'，方案 A 落地后仍保留"
     },
     {
       "id": "C",
       "name": "消除 all 短路 + admin 扩散（中间态）",
       "priority": "P3",
-      "summary": "删除扩散逻辑，本地 admin 走显式 seed，前端 hasPermission 删除 all 短路"
+      "summary": "admin seed 改为 allPermissionsUnion() 计算生成（不手动列举）；前端 all 短路保留不删除",
+      "revision": "v2 修正：admin seed 改为计算生成而非手动列举；前端 all 短路不删除"
     }
   ],
   "next_step": "speckit-clarify",
   "open_questions": [
-    "方案选择 A/B/C 需团队确认",
-    "User.getRoleCode() fallback 删除范围需盘点全仓调用点",
-    "ArchUnit ..oss.. 包定义需明确",
-    "方案 C 的 admin 显式 seed 与 RoleProfileCatalog 现有结构兼容性"
+    "已回答 4 个（方案选择/fallback 删除范围/..oss.. 包边界/admin seed）",
+    "新增 1 个：AssignmentCandidatePolicy Pure Core 重构是否拆为独立 spec（建议拆出，US-3 作为独立 sub-task）"
+  ],
+  "v2_changes": [
+    "新增 §推荐策略：B → A + 借鉴 C 的组合策略",
+    "新增 §架构设计 A：Delegate 模式（CompositeUserDetailsService）+ 伪代码",
+    "新增 §..oss.. 包边界定义：新增 com.xiyu.bid.oss.auth 包",
+    "新增 §迁移计划：13 处 getRoleCode() 直调点审计 + 分组迁移",
+    "新增 §回滚方案：触发条件 + 回滚步骤 + 验证",
+    "修正 FR-A001~A009：原 FR-A007 改为分步走（Phase 1 迁移 + Phase 2 删除 fallback）",
+    "修正 FR-C001：admin seed 改为 allPermissionsUnion() 计算生成",
+    "修正 FR-C002：前端 all 短路不删除",
+    "修正 SC-001：引用 spec 032 SC-001 而非重复定义",
+    "移动 Assumption #6 → Next Step",
+    "US-3 明确定位为'不阻塞 US-1/2'，建议拆为独立 sub-task",
+    "新增 Edge Cases：并发登录场景 + definitionForCode(null) fallback 风险",
+    "回答 Open Questions 1-4，新增 Open Question 5"
   ]
 }
