@@ -692,6 +692,72 @@ class UserDetailsServiceImplTest {
                 .doesNotContain("/bidAdmin");
     }
 
+    @Test
+    @DisplayName("OSS 用户只有 resource-* 子权限时自动补 resource 父权限")
+    void ossUserWithResourceChildrenShouldGainResourceParent() {
+        User user = ossUserWithRoleProfile("oss_project_leader_resource", User.Role.MANAGER,
+                RoleProfileCatalog.SALES_CODE);
+        when(userRepository.findByUsername(user.getUsername())).thenReturn(Optional.of(user));
+        // OSS 端对 bid-projectLeader 只下发 100504/100505 → 映射为 resource-account/resource-ca
+        when(ossPermissionCache.getEntry(user.getUsername())).thenReturn(Optional.of(
+                new OssPermissionCache.CacheEntry(RoleProfileCatalog.SALES_CODE,
+                        List.of("resource-account", "resource-ca"), null,
+                        Instant.now().plusSeconds(60))));
+
+        UserDetails details = userDetailsService.loadUserByUsername(user.getUsername());
+
+        assertThat(details.getAuthorities())
+                .extracting("authority")
+                .contains("resource-account", "resource-ca", "resource")
+                .contains(RoleProfileCatalog.SALES_CODE, "ROLE_BID_PROJECTLEADER", "ROLE_MANAGER");
+    }
+
+    @Test
+    @DisplayName("本地用户只有 resource-* 子权限时自动补 resource 父权限")
+    void localUserWithResourceChildrenShouldGainResourceParent() {
+        RoleProfile roleProfile = RoleProfile.builder()
+                .code(RoleProfileCatalog.SALES_CODE)
+                .name("投标项目负责人")
+                .build();
+        roleProfile.setMenuPermissions(List.of("resource-account", "resource-ca"));
+        User user = User.builder()
+                .username("local_project_leader_resource")
+                .password("{noop}password")
+                .email("local_plr@example.com")
+                .fullName("local_plr")
+                .role(User.Role.MANAGER)
+                .roleProfile(roleProfile)
+                .enabled(true)
+                .build();
+        when(userRepository.findByUsername(user.getUsername())).thenReturn(Optional.of(user));
+        when(ossPermissionCache.getEntry(user.getUsername())).thenReturn(Optional.empty());
+
+        UserDetails details = userDetailsService.loadUserByUsername(user.getUsername());
+
+        assertThat(details.getAuthorities())
+                .extracting("authority")
+                .contains("resource-account", "resource-ca", "resource")
+                .contains(RoleProfileCatalog.SALES_CODE, "ROLE_BID_PROJECTLEADER", "ROLE_MANAGER");
+    }
+
+    @Test
+    @DisplayName("没有 resource-* 子权限时不应补 resource 父权限")
+    void userWithoutResourceChildrenShouldNotGainResourceParent() {
+        User user = ossUserWithRoleProfile("oss_no_resource", User.Role.MANAGER,
+                RoleProfileCatalog.BID_OTHER_DEPT_CODE);
+        when(userRepository.findByUsername(user.getUsername())).thenReturn(Optional.of(user));
+        when(ossPermissionCache.getEntry(user.getUsername())).thenReturn(Optional.of(
+                new OssPermissionCache.CacheEntry(RoleProfileCatalog.BID_OTHER_DEPT_CODE,
+                        List.of("task.view.own", "task.handle.own"), null,
+                        Instant.now().plusSeconds(60))));
+
+        UserDetails details = userDetailsService.loadUserByUsername(user.getUsername());
+
+        assertThat(details.getAuthorities())
+                .extracting("authority")
+                .doesNotContain("resource");
+    }
+
     @ParameterizedTest(name = "OSS {0} 用户权限不扩散")
     @ValueSource(strings = {"admin", "/bidAdmin", "bid-TeamLeader", "bid-projectLeader",
             "bid-Team", "bid-otherDept", "bid-administration"})
