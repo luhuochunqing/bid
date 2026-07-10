@@ -231,7 +231,8 @@ const loadAccountDetail = async (row) => {
 
 // CO-400 修复：列表 N+1 detail 请求集中并发会触发后端 RateLimitFilter 返回 429，
 // 按批次限制并发数（每批 DETAIL_CONCURRENCY 个），在保持吞吐的同时避免撞限流。
-const DETAIL_CONCURRENCY = 5
+// 与 BAR 站点列表保持一致（PR !2000 SITE_DETAIL_BATCH_SIZE=2），避免生产环境仍触发 429。
+const DETAIL_CONCURRENCY = 2
 const loadDetailsInBatches = async (list) => {
   const results = []
   for (let i = 0; i < list.length; i += DETAIL_CONCURRENCY) {
