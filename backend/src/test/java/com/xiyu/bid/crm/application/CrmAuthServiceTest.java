@@ -288,12 +288,12 @@ class CrmAuthServiceTest {
     }
 
     @Test
-    @DisplayName("getValidTokenForCaller(blank) 直接失败，无系统账号兜底")
-    void getValidTokenForCaller_blank_throws() {
-        assertThatThrownBy(() -> authService.getValidTokenForCaller(null))
+    @DisplayName("getValidTokenForUser(blank) 直接失败，无系统账号兜底")
+    void getValidTokenForUser_blank_throws() {
+        assertThatThrownBy(() -> authService.getValidTokenForUser(null))
                 .isInstanceOf(TokenUnavailableException.class)
                 .hasMessageContaining("empty");
-        assertThatThrownBy(() -> authService.getValidTokenForCaller("  "))
+        assertThatThrownBy(() -> authService.getValidTokenForUser("  "))
                 .isInstanceOf(TokenUnavailableException.class);
     }
 

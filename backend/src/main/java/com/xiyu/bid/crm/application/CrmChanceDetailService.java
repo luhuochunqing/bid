@@ -47,7 +47,7 @@ public class CrmChanceDetailService {
         }
         String token;
         try {
-            token = authService.getValidTokenForCaller(username);
+            token = authService.getValidTokenForUser(username);
         } catch (TokenUnavailableException e) {
             log.warn("CRM chance detail skipped: token unavailable for id={}, username={}: {}",
                     id, username, e.getMessage());
@@ -59,9 +59,9 @@ public class CrmChanceDetailService {
         CrmResponseHandler.CrmApiResponse response = httpClient.post(baseUrl, path, token, null);
 
         if (response.isUnauthorized()) {
-            authService.handleUnauthorizedForCaller(username);
+            authService.handleUnauthorizedForUser(username);
             try {
-                token = authService.getValidTokenForCaller(username);
+                token = authService.getValidTokenForUser(username);
             } catch (TokenUnavailableException e) {
                 log.warn("CRM chance detail skipped after 401: id={}, username={}: {}",
                         id, username, e.getMessage());

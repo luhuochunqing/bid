@@ -57,14 +57,6 @@ public class CrmAuthService {
                 .orElseGet(() -> fetchAndCacheUserToken(profile, username));
     }
 
-    /**
-     * 兼容旧调用名：与 {@link #getValidTokenForUser(String)} 相同。
-     * <p>username 为空时<strong>不再</strong>走任何配置账号，直接失败。
-     */
-    public String getValidTokenForCaller(String username) {
-        return getValidTokenForUser(username);
-    }
-
     /** 用户 OSS token（仅步骤 1，供菜单等直连 OSS 的接口）。 */
     public String getValidOssTokenForUser(String username) {
         if (username == null || username.isBlank()) {
@@ -88,11 +80,6 @@ public class CrmAuthService {
         userProfileCache.invalidate(username);
         ossUserTokenCache.invalidate(username);
         log.info("User CRM JWT + profile + OSS cleared for user={} due to 401", username);
-    }
-
-    /** 与 {@link #handleUnauthorizedForUser(String)} 相同（无系统账号分支）。 */
-    public void handleUnauthorizedForCaller(String username) {
-        handleUnauthorizedForUser(username);
     }
 
     public void logoutUser(String username) {

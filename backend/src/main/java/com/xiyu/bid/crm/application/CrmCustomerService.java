@@ -29,7 +29,7 @@ public class CrmCustomerService {
     public CrmResponseHandler.CrmApiResponse searchCustomers(String keyword, int pageSize, String username) {
         String token;
         try {
-            token = authService.getValidTokenForCaller(username);
+            token = authService.getValidTokenForUser(username);
         } catch (TokenUnavailableException e) {
             log.warn("searchCustomers skipped: token unavailable for username={}: {}", username, e.getMessage());
             return new CrmResponseHandler.CrmApiResponse(401, "token unavailable", null, false);
@@ -40,9 +40,9 @@ public class CrmCustomerService {
         CrmResponseHandler.CrmApiResponse response = httpClient.post(baseUrl, path, token, body);
 
         if (response.isUnauthorized()) {
-            authService.handleUnauthorizedForCaller(username);
+            authService.handleUnauthorizedForUser(username);
             try {
-                token = authService.getValidTokenForCaller(username);
+                token = authService.getValidTokenForUser(username);
             } catch (TokenUnavailableException e) {
                 log.warn("searchCustomers skipped after 401: username={}: {}", username, e.getMessage());
                 return new CrmResponseHandler.CrmApiResponse(401, "token unavailable", null, false);
@@ -55,7 +55,7 @@ public class CrmCustomerService {
     public CrmResponseHandler.CrmApiResponse getCustomerContacts(List<String> customerIds, String username) {
         String token;
         try {
-            token = authService.getValidTokenForCaller(username);
+            token = authService.getValidTokenForUser(username);
         } catch (TokenUnavailableException e) {
             log.warn("getCustomerContacts skipped: token unavailable for username={}: {}", username, e.getMessage());
             return new CrmResponseHandler.CrmApiResponse(401, "token unavailable", null, false);

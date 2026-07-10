@@ -44,7 +44,7 @@ class CrmChanceDetailServiceTest {
         properties = new CrmProperties();
         properties.setBaseUrl("http://crm.example.com");
         service = new CrmChanceDetailService(httpClient, authService, properties);
-        when(authService.getValidTokenForCaller(any())).thenReturn("token");
+        when(authService.getValidTokenForUser(any())).thenReturn("token");
     }
 
     @Test

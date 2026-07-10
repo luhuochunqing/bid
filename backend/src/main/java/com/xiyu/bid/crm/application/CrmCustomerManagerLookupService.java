@@ -68,7 +68,7 @@ public class CrmCustomerManagerLookupService {
         Object request = buildRequest(companyId);
 
         try {
-            String token = authService.getValidTokenForCaller(username);
+            String token = authService.getValidTokenForUser(username);
             CrmResponseHandler.CrmApiResponse response = httpClient.post(
                     properties.getEffectiveCacBaseUrl(),
                     path,
