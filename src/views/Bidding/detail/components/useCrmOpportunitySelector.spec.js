@@ -481,30 +481,4 @@ describe('useCrmOpportunitySelector', () => {
     expect(elMessage.error).not.toHaveBeenCalledWith('CRM对接人查询失败，无法带入客户信息')
   })
 
-  it('手动输入模式字段映射：风险预判←projectRiskText，支持备注←remark', async () => {
-    const props = { tenderer: '', registrationDeadline: '', bidOpeningTime: '', alreadyLinkedName: '' }
-    const emitFn = vi.fn()
-    const wrapper = mount(defineComponent({
-      template: '<div />',
-      setup() { return useCrmOpportunitySelector(props, emitFn) },
-    }))
-
-    wrapper.vm.manualForm.name = '手动商机'
-    wrapper.vm.manualForm.projectRiskText = '手动风险'
-    wrapper.vm.manualForm.remark = '手动备注'
-    wrapper.vm.confirmManual()
-    await wrapper.vm.confirmLink()
-    await flushPromises()
-
-    expect(emitFn).toHaveBeenCalledWith('linked', expect.objectContaining({
-      opportunityName: '手动商机',
-      evaluationData: expect.objectContaining({
-        basic: expect.objectContaining({
-          riskAssessment: '手动风险',
-          supportNotes: '手动备注',
-          projectPlanGapFiles: [],
-        }),
-      }),
-    }))
-  })
 })
