@@ -8,12 +8,12 @@ import com.xiyu.bid.security.domain.LoginRoleWhitelist;
 import com.xiyu.bid.crm.application.OssPermissionCache;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.exception.RoleNotAuthorizedException;
 import com.xiyu.bid.permission.RoleProfileAdminPermissionFilter;
 import com.xiyu.bid.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -88,7 +88,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         // OSS 同步用户必须有白名单内的有效角色
         if (!LoginRoleWhitelist.isAllowed(roleCode)) {
             log.warn("UserDetails denied for OSS user={}: roleCode={} not allowed", user.getUsername(), roleCode);
-            throw new org.springframework.security.core.AuthenticationException("角色未授权，不允许访问") {};
+            throw new RoleNotAuthorizedException("角色未授权，不允许访问: " + roleCode);
         }
 
         Set<String> authorities = new LinkedHashSet<>();
@@ -99,15 +99,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         }
 
         if (roleCode != null && !roleCode.isBlank()) {
-            authorities.add(roleCode);
-            String authorityName = RoleProfileCatalog.toAuthorityName(roleCode);
-            if (authorityName != null) {
-                authorities.add("ROLE_" + authorityName);
-            }
-            User.Role compatLegacy = RoleProfileCatalog.legacyRoleForCode(roleCode);
-            if (compatLegacy != null && !skipLegacyCompat) {
-                authorities.add("ROLE_" + compatLegacy.name());
-            }
+            applyRoleCodeAuthorities(authorities, roleCode, skipLegacyCompat);
         }
 
         if (menuPermissions != null) {
@@ -158,6 +150,17 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     }
 
     private void addRoleCodeAuthorities(Set<String> authorities, String roleCode, boolean skipLegacyCompat) {
+        applyRoleCodeAuthorities(authorities, roleCode, skipLegacyCompat);
+    }
+
+    /**
+     * OSS 路径与本地路径共用的 roleCode → authorities 转换原语。
+     * <p>仅使用 RoleProfileCatalog 的纯函数转换方法（toAuthorityName/legacyRoleForCode），
+     * 不调用 seedDefinitions()/definitionForCode() 等可能触发权限扩散的方法。
+     * OSS 路径与本地路径共用此方法，避免逻辑重复导致后续修改遗漏。
+     */
+    private static void applyRoleCodeAuthorities(Set<String> authorities,
+                                                  String roleCode, boolean skipLegacyCompat) {
         if (roleCode == null || roleCode.isBlank()) {
             return;
         }
