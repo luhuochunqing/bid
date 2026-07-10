@@ -2,10 +2,9 @@
 package com.xiyu.bid.service;
 import com.xiyu.bid.crm.application.CrmAuthService;
 import com.xiyu.bid.crm.application.OssDelegationService;
+import com.xiyu.bid.crm.application.OssDirectLoginService;
 import com.xiyu.bid.crm.application.OssLoginFlowService;
-import com.xiyu.bid.crm.application.OssPermissionCache;
 import com.xiyu.bid.admin.service.DataScopeConfigService;
-import com.xiyu.bid.security.domain.LoginRoleWhitelist;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.integration.organization.application.OrganizationUserSyncWriter;
 import com.xiyu.bid.dto.AuthResponse;
@@ -15,7 +14,6 @@ import com.xiyu.bid.dto.RegisterRequest;
 import com.xiyu.bid.entity.RefreshSession;
 import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.User;
-import com.xiyu.bid.exception.RoleNotAuthorizedException;
 import com.xiyu.bid.repository.RefreshSessionRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.auth.JwtUtil;
@@ -57,7 +55,7 @@ public class AuthService {
     private final OssDelegationService ossDelegationService;
     private final CrmAuthService crmAuthService;
     private final OssLoginFlowService ossLoginFlowService;
-    private final OssPermissionCache ossPermissionCache;
+    private final OssDirectLoginService ossDirectLoginService;
     @Value("${jwt.refresh-expiration:604800000}")
     private long refreshExpiration;
     @Transactional
@@ -92,17 +90,27 @@ public class AuthService {
     }
     @Transactional
     public AuthSessionResult login(LoginRequest request) {
-        User user = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new UsernameNotFoundException(USER_NOT_FOUND));
-        // 组织架构同步用户（有 externalOrgSourceApp），委托给西域 OSS 统一认证
-        if (user.isOssUser()) {
-            return loginOssUser(user, request);
+        Optional<User> userOpt = userRepository.findByUsername(request.getUsername());
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            if (user.isOssUser()) {
+                return loginOssUser(user, request);
+            }
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
+            log.info("User logged in: {}", user.getUsername());
+            return buildSession(user, null);
         }
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
-        log.info("User logged in: {}", user.getUsername());
-        return buildSession(user, null);
+        // 本地无记录 → 尝试 OSS 直接鉴权 + 自动创建本地记录
+        // 根因修复：OSS 实时鉴权是唯一真相源，本地 DB 查不到时不应立即抛 UsernameNotFoundException
+        Optional<User> ossUser = ossDirectLoginService.tryDirectLogin(request);
+        if (ossUser.isEmpty()) {
+            throw new UsernameNotFoundException(USER_NOT_FOUND);
+        }
+        log.info("User logged in via OSS direct login (auto-created): {}", ossUser.get().getUsername());
+        return buildSession(ossUser.get(), null);
     }
+
     /** 构建 AuthSessionResult；logTag 非空时记 info 日志。 */
     private AuthSessionResult buildSession(User user, String logTag) {
         String token = jwtUtil.generateAccessToken(user.getUsername());
@@ -150,27 +158,8 @@ public class AuthService {
     }
     @Transactional
     public AuthSessionResult loginWithoutPassword(User user) {
-        requireOssRole(user);
+        ossDirectLoginService.requireOssRole(user);
         return buildSession(user, "SSO/WeCom");
-    }
-
-    /** OSS 用户登录权限检查：必须有 OSS 缓存角色且为允许的业务角色。
-     *  本地账号（非 OSS 同步，externalOrgSourceApp 为空）直接放行。 */
-    private void requireOssRole(User user) {
-        if (!user.isOssUser()) {
-            return;
-        }
-        Optional<String> cachedRoleCode = ossPermissionCache.getRoleCode(user.getUsername());
-        if (cachedRoleCode.isEmpty() || cachedRoleCode.get().isBlank()) {
-            log.warn("Login denied for user={}: no valid OSS role", user.getUsername());
-            throw new RoleNotAuthorizedException("无有效 OSS 角色，不允许登录");
-        }
-        String roleCode = cachedRoleCode.get();
-        if (!LoginRoleWhitelist.isAllowed(roleCode)) {
-            log.warn("Login denied for user={}: role={} not in login whitelist", user.getUsername(), roleCode);
-            throw new RoleNotAuthorizedException("角色未授权，不允许登录");
-        }
-        log.info("Login allowed for user={}: OSS role={}", user.getUsername(), roleCode);
     }
 
     public AuthResponse getCurrentUser(String username) {
@@ -239,7 +228,7 @@ public class AuthService {
             throw new InsufficientAuthenticationException("Refresh token is no longer valid");
         }
         User user = session.getUser();
-        requireOssRole(user);
+        ossDirectLoginService.requireOssRole(user);
         String accessToken = jwtUtil.generateAccessToken(user.getUsername());
         session.setRevokedAt(now);
         refreshSessionRepository.save(session);

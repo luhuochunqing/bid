@@ -59,6 +59,18 @@ public class OrganizationUserSyncWriter {
     ) {
         validateRequiredContact(snapshot);
         Optional<User> existingUser = userRepository.findByExternalOrgSourceAppAndExternalOrgUserId(sourceApp, snapshot.externalUserId());
+        // Fallback: 若按 externalOrgSourceApp+externalOrgUserId 未查到，但按 username 已存在
+        // 通过登录自动创建的 OSS 用户（externalOrgSourceApp="oss-login"），应复用而非重复创建。
+        // CO-XXX: 修复 OSS 登录自动创建用户与 Kafka 同步事件的合并问题
+        if (existingUser.isEmpty()) {
+            existingUser = userRepository.findByUsername(snapshot.username())
+                    .filter(User::isOssUser);
+            if (existingUser.isPresent()) {
+                log.info("Org sync fallback to username lookup: externalUserId={}, username={}, current sourceApp={}",
+                        snapshot.externalUserId(), snapshot.username(),
+                        existingUser.get().getExternalOrgSourceApp());
+            }
+        }
         User user = existingUser.orElseGet(User::new);
 
         OrganizationUserSnapshot enrichedSnapshot = enrichDepartmentName(sourceApp, snapshot);
