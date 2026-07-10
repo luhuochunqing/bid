@@ -355,6 +355,7 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 
 | 案例 | 反复次数 | 根因 | 参考 |
 |------|---------|------|------|
+| 投标专员保证金页面无数据 | 1 次 | 盲目相信"已修复" + 测试未暴露生产代码缺失 | PR !1971 未修改 MarginQueryRole，用户 10208 部署后仍无数据 |
 | 跨部门协作人员首页 403 | 1 次 | 前端用 OR 语义把 task.review/task.assign 纳入告警可见条件 | Workbench.vue:155，本次修复 |
 | CO-361 角色解析 | 5 次 | 追症状不追根因 + User.getRoleCode() fallback | [[lessons-learned/CO-361-five-rounds-no-fix]] |
 | CO-280 下载 URL | 3 次 | 多根因同时存在 + 误回滚正确修复 | docs/lessons/lessons-learned.md §4 |
