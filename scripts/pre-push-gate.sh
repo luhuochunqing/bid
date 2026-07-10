@@ -64,6 +64,9 @@ _BACKEND_MVN_RAN=""
 backend_mvn_run() {
   if [ -z "$_BACKEND_MVN_RAN" ]; then
     cd "$ROOT_DIR/backend"
+    # || true 是必要的：set -euo pipefail 下 mvn 失败会直接退出脚本，
+    # || true 让脚本继续到 surefire_failed() 检查（无 XML 报告时返回"失败"）。
+    # §0.6 已在前面独立检查 mvn compile，编译失败会给出准确的错误信息。
     mvn test -Dtest='ArchitectureTest,FlywayRollbackScriptCoverageTest,EntityTableMigrationCoverageTest,ResponsibilityArchitectureTest' -q >/dev/null 2>&1 || true
     cd "$ROOT_DIR"
     _BACKEND_MVN_RAN=1
@@ -102,6 +105,41 @@ if bash "$ROOT_DIR/scripts/check-worktree-protection.sh" 2>/dev/null; then
   pass "持久 Worktree 完好"
 else
   fail "持久 Worktree 缺失 — 请先恢复再推送!"
+fi
+
+# ── 0.5 Git 合并冲突标记扫描 ─────────────────────────────
+# 工程背景（2026-07-11 PR !2012 事故）：
+#   commit 92f241ac8 (PR !2010) 直接把 stash apply 产生的冲突标记提交到 main，
+#   导致 main 编译失败，阻断第 77 次部署。pre-push-gate 当时没有编译检查，未拦截。
+# 扫描 commit 范围内所有文件，检测残留的冲突标记。
+echo "── Git 冲突标记扫描 ──"
+if [ "${BACKEND_CHANGED:-0}" -eq 0 ] && ! git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -qE '.'; then
+  skip "冲突标记扫描（无文件变更）"
+else
+  CONFLICT_HITS=$(git diff "$GATE_BASE"..HEAD 2>/dev/null | grep -cE '^\+(<<<<<<< |>>>>>>> |=======$)' || true)
+  if [ "$CONFLICT_HITS" -gt 0 ]; then
+    fail "Git 冲突标记残留 — 检测到 $CONFLICT_HITS 处冲突标记（<<<<<<< / ======= / >>>>>>>）。运行 git status 检查未解决的合并冲突。"
+  else
+    pass "Git 冲突标记扫描"
+  fi
+fi
+
+# ── 0.6 后端编译检查 ─────────────────────────────────────
+# 工程背景（2026-07-11 PR !2012 事故）：
+#   pre-push-gate.sh 原本只有 mvn test（带 || true），编译失败被静默吞掉，
+#   surefire 无 XML 报告时 surefire_failed() 返回 0（视为失败）但 fail 不可靠。
+#   新增独立 mvn compile 检查，编译失败立即阻断，不依赖 surefire 报告。
+echo "── 后端编译 ──"
+if [ ! -d "$ROOT_DIR/backend" ]; then
+  skip "非 Java 项目"
+elif [ "${BACKEND_CHANGED:-0}" -eq 0 ]; then
+  skip "mvn compile（无 backend/ 变更）"
+else
+  if (cd "$ROOT_DIR/backend" && mvn compile -q 2>&1); then
+    pass "mvn compile"
+  else
+    fail "mvn compile — 后端编译失败。检查语法错误、冲突标记、缺失依赖。"
+  fi
 fi
 
 # ── 1. 架构检查 ──────────────────────────────────────────
