@@ -52,32 +52,35 @@ class CrmTokenPerUserSmokeTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private OssUserTokenCache ossUserTokenCache;
+
     @AfterEach
     void cleanupCache() {
-        // 测试间清缓存避免互相污染（不删除 DB 数据）
-        try {
-            crmAuthService.logout();
-        } catch (RuntimeException ignored) {
-            // 清理失败不影响下一个测试
+        // 测试间清用户 CRM JWT 缓存（不删除 DB 数据）
+        for (User u : userRepository.findAll()) {
+            try {
+                crmAuthService.logoutUser(u.getUsername());
+            } catch (RuntimeException ignored) {
+                // ignore
+            }
         }
     }
 
     // ===== 前置条件：CRM 凭据有效 =====
 
     @Test
-    @DisplayName("前置：全局共享 token 可获取（验证 CRM OAuth 凭据已配置且有效）")
-    void sharedToken_acquiredSuccessfully() {
-        String sharedToken = assertDoesNotThrow(
-                () -> crmAuthService.getValidToken(),
-                "获取全局共享 token 失败——请检查 CRM OAuth 凭据（XIYU_CRM_OAUTH_USERNAME/PASSWORD）"
-                        + "和 generateToken 配置（NICK_NAME/SALES_NO）");
-
-        assertThat(sharedToken)
-                .as("全局共享 token 不应为空")
-                .isNotBlank();
-
-        System.out.printf("[SMOKE] 全局共享 token 获取成功：%s（前 20 字符）%n",
-                sharedToken.substring(0, Math.min(20, sharedToken.length())));
+    @DisplayName("前置：配置了 crm_sales_no 的用户在缓存了 OSS token 后可换 CRM JWT")
+    void userToken_requiresUserOssCache() {
+        User user = findFirstUserWithCrmSalesNo();
+        assumeTrue(user != null, "DB 中没有配置 crm_sales_no 的用户");
+        assumeTrue(ossUserTokenCache.get(user.getUsername()).isPresent(),
+                "用户 " + user.getUsername() + " 无 OSS token 缓存——请先用该用户登录系统再跑 smoke");
+        String userToken = assertDoesNotThrow(
+                () -> crmAuthService.getValidTokenForUser(user.getUsername()),
+                "用户 OSS→CRM JWT 失败");
+        assertThat(userToken).isNotBlank();
+        System.out.printf("[SMOKE] 用户 %s CRM JWT 获取成功%n", user.getUsername());
     }
 
     // ===== CO-152 核心：按用户维度 token =====
@@ -85,53 +88,42 @@ class CrmTokenPerUserSmokeTest {
     @Test
     @DisplayName("配置了 crm_sales_no 的用户 → 获取专属 token，与全局共享 token 不同")
     void userWithCrmSalesNo_getsDedicatedToken() {
-        String sharedToken = acquireSharedTokenOrSkip();
-
         User user = findFirstUserWithCrmSalesNo();
         assumeTrue(user != null,
-                "DB 中没有配置 crm_sales_no 的用户，跳过专属 token 测试"
-                        + "（请在组织管理页给某用户配置 CRM 工号后再跑）");
+                "DB 中没有配置 crm_sales_no 的用户，跳过专属 token 测试");
+        assumeUserHasOss(user);
 
         String userToken = crmAuthService.getValidTokenForUser(user.getUsername());
 
         assertThat(userToken)
                 .as("用户 %s 的专属 token 不应为空", user.getUsername())
                 .isNotBlank();
-        assertThat(userToken)
-                .as("用户 %s (crmSalesNo=%s) 的专属 token 应与全局共享 token 不同"
-                        + "（如果相同，可能 CRM 后端未按 salesNo 区分，或 salesNo 配置错误）",
-                        user.getUsername(), user.getCrmSalesNo())
-                .isNotEqualTo(sharedToken);
 
-        System.out.printf("[SMOKE] 用户 %s (crmSalesNo=%s) 专属 token=%s... ≠ 共享 token=%s...%n",
-                user.getUsername(), user.getCrmSalesNo(),
-                truncate(userToken), truncate(sharedToken));
+        System.out.printf("[SMOKE] 用户 %s (crmSalesNo=%s) 专属 token=%s...%n",
+                user.getUsername(), user.getCrmSalesNo(), truncate(userToken));
     }
 
     @Test
-    @DisplayName("没配 crm_sales_no 的用户 → 回退全局共享 token")
-    void userWithoutCrmSalesNo_fallsBackToShared() {
-        String sharedToken = acquireSharedTokenOrSkip();
-
+    @DisplayName("没配 crm_sales_no 的用户 → 仍用本人 OSS 换 JWT（salesNo=username）")
+    void userWithoutCrmSalesNo_usesOwnOss() {
         User user = findFirstUserWithoutCrmSalesNo();
         assumeTrue(user != null,
-                "DB 中所有用户都配了 crm_sales_no，跳过 fallback 测试");
+                "DB 中所有用户都配了 crm_sales_no，跳过测试");
+        assumeUserHasOss(user);
 
         String userToken = crmAuthService.getValidTokenForUser(user.getUsername());
 
         assertThat(userToken)
-                .as("没配 crm_sales_no 的用户 %s 应回退全局共享 token", user.getUsername())
-                .isEqualTo(sharedToken);
+                .as("用户 %s 应能用本人 OSS 换 JWT", user.getUsername())
+                .isNotBlank();
 
-        System.out.printf("[SMOKE] 用户 %s (无 crmSalesNo) 回退共享 token=%s...%n",
+        System.out.printf("[SMOKE] 用户 %s (无 crmSalesNo) 本人 JWT=%s...%n",
                 user.getUsername(), truncate(userToken));
     }
 
     @Test
     @DisplayName("两个不同 crm_sales_no 的用户 → 获取不同的专属 token（用户隔离验证）")
     void twoUsersWithDifferentSalesNo_getDifferentTokens() {
-        acquireSharedTokenOrSkip();
-
         List<User> usersWithSalesNo = userRepository.findAll().stream()
                 .filter(u -> u.getCrmSalesNo() != null && !u.getCrmSalesNo().isBlank())
                 .toList();
@@ -143,7 +135,8 @@ class CrmTokenPerUserSmokeTest {
         assumeTrue(!userA.getCrmSalesNo().equals(userB.getCrmSalesNo()),
                 "两个测试用户的 crm_salesNo 相同，跳过隔离测试");
 
-        // 清缓存确保重新获取
+        assumeUserHasOss(userA);
+        assumeUserHasOss(userB);
         crmAuthService.logoutUser(userA.getUsername());
         crmAuthService.logoutUser(userB.getUsername());
 
@@ -166,11 +159,10 @@ class CrmTokenPerUserSmokeTest {
     @Test
     @DisplayName("用户 token 能成功调用商机接口（端到端联通验证）")
     void userToken_canCallChancePageList() {
-        acquireSharedTokenOrSkip();
-
         User user = findFirstUserWithCrmSalesNo();
         assumeTrue(user != null,
                 "DB 中没有配置 crm_sales_no 的用户，跳过商机接口联通测试");
+        assumeUserHasOss(user);
 
         // 构造最小查询请求（空 body = 查全量第一页 10 条）
         CustomerChancePageRequest request = new CustomerChancePageRequest(
@@ -197,11 +189,10 @@ class CrmTokenPerUserSmokeTest {
     @Test
     @DisplayName("没配 crm_sales_no 的用户也能调用商机接口（fallback token 仍有效）")
     void fallbackToken_canCallChancePageList() {
-        acquireSharedTokenOrSkip();
-
         User user = findFirstUserWithoutCrmSalesNo();
         assumeTrue(user != null,
-                "DB 中所有用户都配了 crm_sales_no，跳过 fallback 联通测试");
+                "DB 中所有用户都配了 crm_sales_no，跳过联通测试");
+        assumeUserHasOss(user);
 
         CustomerChancePageRequest request = new CustomerChancePageRequest(
                 1, 10,
@@ -218,23 +209,15 @@ class CrmTokenPerUserSmokeTest {
 
         assertThat(result).isNotNull();
 
-        System.out.printf("[SMOKE] 用户 %s (无 crmSalesNo) 用 fallback token 调用商机接口成功，返回 %d 条%n",
+        System.out.printf("[SMOKE] 用户 %s (无 crmSalesNo) 用本人 token 调用商机接口成功，返回 %d 条%n",
                 user.getUsername(), result.list().size());
     }
 
     // ===== Helper =====
 
-    /** 获取全局共享 token，失败则跳过整个测试（CRM 凭据未配置）。 */
-    private String acquireSharedTokenOrSkip() {
-        try {
-            String token = crmAuthService.getValidToken();
-            assumeTrue(token != null && !token.isBlank(),
-                    "全局共享 token 为空——CRM OAuth 凭据未配置，跳过测试");
-            return token;
-        } catch (RuntimeException e) {
-            assumeTrue(false, "CRM OAuth 凭据未配置或无效，跳过测试: " + e.getMessage());
-            return null; // unreachable
-        }
+    private void assumeUserHasOss(User user) {
+        assumeTrue(ossUserTokenCache.get(user.getUsername()).isPresent(),
+                "用户 " + user.getUsername() + " 无 OSS token 缓存——请先登录该用户再跑 smoke");
     }
 
     private User findFirstUserWithCrmSalesNo() {

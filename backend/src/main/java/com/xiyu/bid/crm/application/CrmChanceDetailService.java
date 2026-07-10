@@ -37,22 +37,36 @@ public class CrmChanceDetailService {
     /**
      * 按商机主键 id 查询商机详情。
      *
-     * @param id CRM 商机主键 id
+     * @param id       CRM 商机主键 id
+     * @param username 当前操作用户（null/blank → token 不可用，返回 null）
      * @return 商机详情；id 为 null、查询失败或未找到时返回 null
      */
-    public CustomerChanceVO getDetailById(Long id) {
+    public CustomerChanceVO getDetailById(Long id, String username) {
         if (id == null) {
             return null;
         }
-        String token = authService.getValidToken();
+        String token;
+        try {
+            token = authService.getValidTokenForUser(username);
+        } catch (TokenUnavailableException e) {
+            log.warn("CRM chance detail skipped: token unavailable for id={}, username={}: {}",
+                    id, username, e.getMessage());
+            return null;
+        }
         String baseUrl = properties.getEffectiveChanceBaseUrl();
         String path = properties.getChance().getDetailPath() + "?id=" + id;
         log.info("CRM chance detail request: baseUrl={}, path={}, id={}", baseUrl, path, id);
         CrmResponseHandler.CrmApiResponse response = httpClient.post(baseUrl, path, token, null);
 
         if (response.isUnauthorized()) {
-            authService.handleUnauthorized();
-            token = authService.getValidToken();
+            authService.handleUnauthorizedForUser(username);
+            try {
+                token = authService.getValidTokenForUser(username);
+            } catch (TokenUnavailableException e) {
+                log.warn("CRM chance detail skipped after 401: id={}, username={}: {}",
+                        id, username, e.getMessage());
+                return null;
+            }
             response = httpClient.post(baseUrl, path, token, null);
         }
 

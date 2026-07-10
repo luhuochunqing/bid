@@ -49,8 +49,9 @@ public class CrmController {
 
     @GetMapping("/customers")
     public ResponseEntity<ApiResponse<Object>> searchCustomers(@RequestParam String keyword,
-                                             @RequestParam(defaultValue = "20") int pageSize) {
-        var response = customerService.searchCustomers(keyword, pageSize);
+                                             @RequestParam(defaultValue = "20") int pageSize,
+                                             java.security.Principal principal) {
+        var response = customerService.searchCustomers(keyword, pageSize, principal.getName());
         if (response.success()) {
             return ResponseEntity.ok(ApiResponse.success("Customers retrieved", response.data()));
         }
@@ -58,8 +59,9 @@ public class CrmController {
     }
 
     @GetMapping("/customers/{customerId}/contacts")
-    public ResponseEntity<ApiResponse<Object>> getContacts(@PathVariable String customerId) {
-        var response = customerService.getCustomerContacts(List.of(customerId));
+    public ResponseEntity<ApiResponse<Object>> getContacts(@PathVariable String customerId,
+                                                            java.security.Principal principal) {
+        var response = customerService.getCustomerContacts(List.of(customerId), principal.getName());
         if (response.success()) {
             return ResponseEntity.ok(ApiResponse.success("Contacts retrieved", response.data()));
         }
@@ -67,8 +69,9 @@ public class CrmController {
     }
 
     @GetMapping("/menus")
-    public ResponseEntity<ApiResponse<Object>> getMenuTree(@RequestParam String systemType) {
-        var response = menuService.getMenuTree(systemType);
+    public ResponseEntity<ApiResponse<Object>> getMenuTree(@RequestParam String systemType,
+                                                             java.security.Principal principal) {
+        var response = menuService.getMenuTree(systemType, principal.getName());
         if (response.success()) {
             return ResponseEntity.ok(ApiResponse.success("Menu tree retrieved", response.data()));
         }
@@ -119,17 +122,25 @@ public class CrmController {
     @GetMapping("/permissions")
     public ResponseEntity<ApiResponse<CrmUserPermission>> getPermissions(
             @RequestParam(required = false) String systemName,
-            @RequestHeader(value = "X-OSS-Access-Token", required = false) String accessToken) {
-        String token = accessToken != null && !accessToken.isBlank()
-                ? accessToken
-                : authService.getValidOssToken();
+            @RequestHeader(value = "X-OSS-Access-Token", required = false) String accessToken,
+            java.security.Principal principal) {
+        String token;
+        if (accessToken != null && !accessToken.isBlank()) {
+            token = accessToken;
+        } else {
+            try {
+                token = authService.getValidOssTokenForUser(principal.getName());
+            } catch (com.xiyu.bid.crm.application.TokenUnavailableException e) {
+                return ResponseEntity.ok(ApiResponse.error("token unavailable: " + e.getMessage()));
+            }
+        }
         CrmUserPermission permission = permissionService.getUserPermission(token, systemName);
         return ResponseEntity.ok(ApiResponse.success("Permissions retrieved", permission));
     }
 
     @PostMapping("/auth/logout")
-    public ResponseEntity<ApiResponse<Map<String, String>>> logout() {
-        authService.logout();
+    public ResponseEntity<ApiResponse<Map<String, String>>> logout(java.security.Principal principal) {
+        authService.logoutUser(principal.getName());
         return ResponseEntity.ok(ApiResponse.success("Logged out", Map.of("result", "ok")));
     }
 }

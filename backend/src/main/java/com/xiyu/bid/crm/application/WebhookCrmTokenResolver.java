@@ -7,9 +7,8 @@ import org.springframework.stereotype.Component;
 /**
  * Webhook 场景的 CRM token 解析器（CO-152 补齐）。
  * <p>
- * 与 {@link CrmAuthService#getValidTokenForUser(String)} 区别：
- * - getValidTokenForUser 在用户 OSS token 不可用时回退到全局共享 token
- * - 本类在用户 OSS token 不可用时抛 {@link TokenUnavailableException}（webhook 场景要求严格按用户身份）
+ * 与 {@link CrmAuthService#getValidTokenForUser(String)} 均严格按用户身份（全局 03595 已删除）。
+ * 本类专用于 webhook，用户 OSS token 不可用时抛 {@link TokenUnavailableException}。
  * <p>
  * 用户登出 / token 过期 → 抛异常 → WebhookFailureClassifier 映射为 TRANSIENT_DEPENDENCY → 重试 1/5/15min → 死信（用户已确认接受）。
  */

@@ -44,12 +44,12 @@ class CrmChanceDetailServiceTest {
         properties = new CrmProperties();
         properties.setBaseUrl("http://crm.example.com");
         service = new CrmChanceDetailService(httpClient, authService, properties);
-        when(authService.getValidToken()).thenReturn("token");
+        when(authService.getValidTokenForUser(any())).thenReturn("token");
     }
 
     @Test
     void getDetailById_nullId_returnsNullNoCall() {
-        assertThat(service.getDetailById(null)).isNull();
+        assertThat(service.getDetailById(null, "testuser")).isNull();
         verify(httpClient, never()).post(any(), any(), any(), any());
     }
 
@@ -61,7 +61,7 @@ class CrmChanceDetailServiceTest {
         when(httpClient.post(any(), any(), eq("token"), isNull()))
                 .thenReturn(CrmResponseHandler.parse(body));
 
-        CustomerChanceVO vo = service.getDetailById(243L);
+        CustomerChanceVO vo = service.getDetailById(243L, "testuser");
 
         assertThat(vo).isNotNull();
         assertThat(vo.id()).isEqualTo(243L);
@@ -78,6 +78,6 @@ class CrmChanceDetailServiceTest {
         when(httpClient.post(any(), any(), eq("token"), isNull()))
                 .thenReturn(CrmResponseHandler.parse("{\"code\":1,\"msg\":\"商机不存在\"}"));
 
-        assertThat(service.getDetailById(999L)).isNull();
+        assertThat(service.getDetailById(999L, "testuser")).isNull();
     }
 }

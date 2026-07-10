@@ -1,6 +1,6 @@
 package com.xiyu.bid.webhook.infrastructure;
 
-import com.xiyu.bid.crm.application.CrmAuthService;
+import com.xiyu.bid.crm.application.TokenUnavailableException;
 import com.xiyu.bid.crm.application.WebhookCrmTokenResolver;
 import com.xiyu.bid.webhook.application.WebhookSendResult;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,19 +17,19 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
+/**
+ * CRM webhook HTTP 发送（CO-152：仅用户身份，无全局 03595 回退）。
+ */
 @Component
 public class WebhookHttpSender {
     private static final Logger log = LoggerFactory.getLogger(WebhookHttpSender.class);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
 
-    private final CrmAuthService crmAuthService;
     private final WebhookCrmTokenResolver webhookCrmTokenResolver;
     private final HttpClient httpClient;
 
-    public WebhookHttpSender(CrmAuthService crmAuthService,
-                             WebhookCrmTokenResolver webhookCrmTokenResolver,
+    public WebhookHttpSender(WebhookCrmTokenResolver webhookCrmTokenResolver,
                              @Value("${webhook.crm.secret:}") String crmWebhookSecret) {
-        this.crmAuthService = crmAuthService;
         this.webhookCrmTokenResolver = webhookCrmTokenResolver;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(5))
@@ -41,18 +41,9 @@ public class WebhookHttpSender {
     }
 
     /**
-     * CO-152 补齐：按用户身份调 CRM 回调。
-     * <p>
-     * username 非空 → 走 {@link CrmAuthService#getValidTokenForUserStrict}，用操作者的 OSS token 调 generateToken。
-     * username 为空（历史数据/未识别操作者） → 回退到 {@link CrmAuthService#getValidToken}（全局共享 token）。
-     * <p>
-     * 401 时：
-     * - username 非空 → 调 {@link CrmAuthService#handleUnauthorizedForUser} 只清当前用户缓存
-     * - username 为空 → 调 {@link CrmAuthService#handleUnauthorized} 清全局缓存
-     *
-     * @param targetUrl 回调目标 URL
-     * @param payload   回调请求体
-     * @param username  操作者 username（可为 null，回退全局 token）
+     * 按用户身份调 CRM 回调。
+     * <p>username 非空 → 用户 OSS → generateToken → CRM JWT。
+     * username 为空 → {@link TokenUnavailableException}（全局 token 路径已删除）。
      */
     public WebhookSendResult send(String targetUrl, String payload, String username)
             throws IOException, InterruptedException {
@@ -75,32 +66,26 @@ public class WebhookHttpSender {
         return WebhookSendResult.failure(response.statusCode(), truncate(response.body(), 1000), "HTTP_" + response.statusCode(), now);
     }
 
-    /**
-     * CO-152 补齐：按用户身份解析 CRM JWT token。
-     * username 非空 → 严格按用户身份（走 WebhookCrmTokenResolver）；为空 → 回退全局共享 token。
-     */
     private String resolveTokenForUser(String username) {
         if (username == null || username.isBlank()) {
-            log.info("WebhookHttpSender: no operator username, falling back to global CRM token");
-            return crmAuthService.getValidToken();
+            throw new TokenUnavailableException(
+                    "Webhook has no operator username (global 03595 token path removed)");
         }
         return webhookCrmTokenResolver.getValidTokenForUserStrict(username);
     }
 
-    /**
-     * CO-152 补齐：按用户身份处理 401。
-     * username 非空 → 只清当前用户缓存；为空 → 清全局缓存。
-     */
     private void handleUnauthorizedForUser(String username) {
         if (username == null || username.isBlank()) {
-            crmAuthService.handleUnauthorized();
+            log.warn("WebhookHttpSender: 401 but no operator username, cannot clear user token cache");
         } else {
             webhookCrmTokenResolver.handleUnauthorizedForUser(username);
         }
     }
 
     private String truncate(String value, int maxLen) {
-        if (value == null) return null;
+        if (value == null) {
+            return null;
+        }
         return value.length() <= maxLen ? value : value.substring(0, maxLen);
     }
 }

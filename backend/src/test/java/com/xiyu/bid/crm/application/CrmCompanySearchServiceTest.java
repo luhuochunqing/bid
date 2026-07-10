@@ -42,7 +42,7 @@ class CrmCompanySearchServiceTest {
     void setUp() {
         service = new CrmCompanySearchService(httpClient, authService, properties);
         // 用 lenient：null/blank 短路用例不会触达这些 stub
-        lenient().when(authService.getValidToken()).thenReturn("fake-token");
+        lenient().when(authService.getValidTokenForUser(any())).thenReturn("fake-token");
         lenient().when(properties.getEffectiveCacBaseUrl()).thenReturn("https://cac-test.ehsy.com");
         lenient().when(properties.getCustomer()).thenReturn(new CrmProperties.CrmCustomerPaths());
     }
@@ -64,7 +64,7 @@ class CrmCompanySearchServiceTest {
         when(httpClient.post(anyString(), anyString(), anyString(), any()))
                 .thenReturn(CrmResponseHandler.parse(responseJson));
 
-        Optional<CompanySearchResult> result = service.searchByName("上海西域有限公司");
+        Optional<CompanySearchResult> result = service.searchByName("上海西域有限公司", "testuser");
 
         assertThat(result).isPresent();
         assertThat(result.get().id()).isEqualTo(100L);
@@ -89,7 +89,7 @@ class CrmCompanySearchServiceTest {
         when(httpClient.post(anyString(), anyString(), anyString(), any()))
                 .thenReturn(CrmResponseHandler.parse(responseJson));
 
-        Optional<CompanySearchResult> result = service.searchByName("上海西域有限公司");
+        Optional<CompanySearchResult> result = service.searchByName("上海西域有限公司", "testuser");
 
         assertThat(result).isEmpty();
     }
@@ -103,7 +103,7 @@ class CrmCompanySearchServiceTest {
         when(httpClient.post(anyString(), anyString(), anyString(), any()))
                 .thenReturn(CrmResponseHandler.parse(responseJson));
 
-        Optional<CompanySearchResult> result = service.searchByName("不存在的公司");
+        Optional<CompanySearchResult> result = service.searchByName("不存在的公司", "testuser");
 
         assertThat(result).isEmpty();
     }
@@ -111,7 +111,7 @@ class CrmCompanySearchServiceTest {
     @Test
     @DisplayName("name为空_返回empty_不调HTTP")
     void searchByName_BlankName_ShouldReturnEmptyWithoutHttpCall() {
-        Optional<CompanySearchResult> result = service.searchByName("");
+        Optional<CompanySearchResult> result = service.searchByName("", "testuser");
 
         assertThat(result).isEmpty();
     }
@@ -119,7 +119,7 @@ class CrmCompanySearchServiceTest {
     @Test
     @DisplayName("name为null_返回empty")
     void searchByName_NullName_ShouldReturnEmpty() {
-        Optional<CompanySearchResult> result = service.searchByName(null);
+        Optional<CompanySearchResult> result = service.searchByName(null, "testuser");
 
         assertThat(result).isEmpty();
     }
@@ -133,7 +133,7 @@ class CrmCompanySearchServiceTest {
         when(httpClient.post(anyString(), anyString(), anyString(), any()))
                 .thenReturn(CrmResponseHandler.parse(responseJson));
 
-        Optional<CompanySearchResult> result = service.searchByName("某公司");
+        Optional<CompanySearchResult> result = service.searchByName("某公司", "testuser");
 
         assertThat(result).isEmpty();
     }
@@ -144,7 +144,7 @@ class CrmCompanySearchServiceTest {
         when(httpClient.post(anyString(), anyString(), anyString(), any()))
                 .thenReturn(CrmResponseHandler.CrmApiResponse.parseError("connection timeout"));
 
-        Optional<CompanySearchResult> result = service.searchByName("某公司");
+        Optional<CompanySearchResult> result = service.searchByName("某公司", "testuser");
 
         assertThat(result).isEmpty();
     }
@@ -158,7 +158,7 @@ class CrmCompanySearchServiceTest {
         when(httpClient.post(anyString(), anyString(), anyString(), any()))
                 .thenReturn(CrmResponseHandler.parse(responseJson));
 
-        Optional<CompanySearchResult> result = service.searchByName("某公司");
+        Optional<CompanySearchResult> result = service.searchByName("某公司", "testuser");
 
         assertThat(result).isEmpty();
     }

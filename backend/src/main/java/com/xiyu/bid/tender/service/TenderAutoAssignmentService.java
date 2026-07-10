@@ -82,7 +82,7 @@ public class TenderAutoAssignmentService {
             return result;
         }
 
-        AssignmentResult crmResult = tryAutoAssignFromCrm(tender);
+        AssignmentResult crmResult = tryAutoAssignFromCrm(tender, null);
         if (crmResult.isMatched()) {
             log.info("Tender {} assigned to manager {} ({}) from CRM",
                     tender.getId(),
@@ -97,7 +97,7 @@ public class TenderAutoAssignmentService {
     }
 
     @Transactional(readOnly = true)
-    public AssignmentResult tryAutoAssignFromCrm(final Tender tender) {
+    public AssignmentResult tryAutoAssignFromCrm(final Tender tender, String username) {
         if (tender == null || !StringUtils.hasText(tender.getPurchaserName())) {
             log.debug("tryAutoAssignFromCrm skipped: tender or purchaserName is null/blank");
             return AssignmentResult.noMatch();
@@ -108,14 +108,14 @@ public class TenderAutoAssignmentService {
 
         try {
             Optional<CompanySearchResult> company =
-                    companySearchService.searchByName(purchaserName);
+                    companySearchService.searchByName(purchaserName, username);
             if (company.isEmpty()) {
                 log.debug("CRM step1 no exact company match for: {}", purchaserName);
                 return AssignmentResult.noMatch();
             }
 
             Optional<CustomerManagerResult> manager =
-                    customerManagerLookupService.findByCompanyId(company.get().id());
+                    customerManagerLookupService.findByCompanyId(company.get().id(), username);
             if (manager.isEmpty()) {
                 log.debug("CRM step2 no manager for companyId={}", company.get().id());
                 return AssignmentResult.noMatch();

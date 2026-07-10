@@ -42,7 +42,7 @@ public class CrmOpportunityCodeResolver {
         // 纯数字 → 调用 CRM 反查 code
         try {
             CrmProjectLeaderService.ProjectLeaderResult leader =
-                    crmProjectLeaderService.findProjectLeaderByChanceId(chanceId);
+                    crmProjectLeaderService.findProjectLeaderByChanceId(chanceId, null);
             if (leader != null && leader.opportunityCode() != null && !leader.opportunityCode().isBlank()) {
                 log.info("CrmOpportunityCodeResolver: id={} → code={}", chanceId, leader.opportunityCode());
                 return leader.opportunityCode();

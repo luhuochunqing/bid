@@ -26,16 +26,17 @@ public class CrmProjectLeaderService {
     /**
      * 按商机 code 查询项目负责人信息。
      *
-     * @param code CRM 商机编号（对应 crmId）
+     * @param code     CRM 商机编号（对应 crmId）
+     * @param username 当前操作用户（后台无上下文时传 null → 降级 null）
      * @return 项目负责人信息；{@code null} 表示查询失败或未找到
      */
-    public ProjectLeaderResult findProjectLeaderByChanceCode(String code) {
+    public ProjectLeaderResult findProjectLeaderByChanceCode(String code, String username) {
         if (code == null || code.isBlank()) {
             log.warn("findProjectLeaderByChanceCode skipped: code is null/blank");
             return null;
         }
-        // 后台任务无登录用户上下文，传 null 回退全局共享 token（CO-152 兼容行为）
-        CustomerChanceVO first = crmChanceService.findByCode(code, null);
+        // 后台任务无登录用户上下文时 username=null → findByCode 内 token 不可用 → 降级 null
+        CustomerChanceVO first = crmChanceService.findByCode(code, username);
         if (first == null) {
             log.warn("findProjectLeaderByChanceCode: no opportunity found for code={}", code);
             return null;
@@ -61,15 +62,16 @@ public class CrmProjectLeaderService {
      * 通过 CRM detail 接口反查商机详情，取出 code/name/projectLeader。
      * <p>降级策略：查询失败或未找到返回 null，由调用方决定后续行为。
      *
-     * @param id CRM 商机主键 id
+     * @param id       CRM 商机主键 id
+     * @param username 当前操作用户（后台无上下文时传 null → 降级 null）
      * @return 项目负责人信息；{@code null} 表示查询失败或未找到
      */
-    public ProjectLeaderResult findProjectLeaderByChanceId(Long id) {
+    public ProjectLeaderResult findProjectLeaderByChanceId(Long id, String username) {
         if (id == null) {
             log.warn("findProjectLeaderByChanceId skipped: id is null");
             return null;
         }
-        CustomerChanceVO vo = crmChanceDetailService.getDetailById(id);
+        CustomerChanceVO vo = crmChanceDetailService.getDetailById(id, username);
         if (vo == null) {
             log.warn("findProjectLeaderByChanceId: no opportunity found for id={}", id);
             return null;

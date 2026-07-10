@@ -40,7 +40,7 @@ class CrmCustomerManagerLookupServiceTest {
     void setUp() {
         service = new CrmCustomerManagerLookupService(httpClient, authService, properties);
         // 用 lenient：null companyId 短路用例不会触达这些 stub
-        lenient().when(authService.getValidToken()).thenReturn("fake-token");
+        lenient().when(authService.getValidTokenForUser(any())).thenReturn("fake-token");
         lenient().when(properties.getEffectiveCacBaseUrl()).thenReturn("https://cac-test.ehsy.com");
         lenient().when(properties.getCustomer()).thenReturn(new CrmProperties.CrmCustomerPaths());
     }
@@ -61,7 +61,7 @@ class CrmCustomerManagerLookupServiceTest {
         when(httpClient.post(anyString(), anyString(), anyString(), any()))
                 .thenReturn(CrmResponseHandler.parse(responseJson));
 
-        Optional<CustomerManagerResult> result = service.findByCompanyId(81417644L);
+        Optional<CustomerManagerResult> result = service.findByCompanyId(81417644L, "testuser");
 
         assertThat(result).isPresent();
         assertThat(result.get().saleNo()).isEqualTo("01097");
@@ -87,7 +87,7 @@ class CrmCustomerManagerLookupServiceTest {
         when(httpClient.post(anyString(), anyString(), anyString(), any()))
                 .thenReturn(CrmResponseHandler.parse(responseJson));
 
-        Optional<CustomerManagerResult> result = service.findByCompanyId(81417644L);
+        Optional<CustomerManagerResult> result = service.findByCompanyId(81417644L, "testuser");
 
         assertThat(result).isPresent();
         assertThat(result.get().saleNo()).isEqualTo("01989");
@@ -111,7 +111,7 @@ class CrmCustomerManagerLookupServiceTest {
         when(httpClient.post(anyString(), anyString(), anyString(), any()))
                 .thenReturn(CrmResponseHandler.parse(responseJson));
 
-        Optional<CustomerManagerResult> result = service.findByCompanyId(81417644L);
+        Optional<CustomerManagerResult> result = service.findByCompanyId(81417644L, "testuser");
 
         assertThat(result).isEmpty();
     }
@@ -125,7 +125,7 @@ class CrmCustomerManagerLookupServiceTest {
         when(httpClient.post(anyString(), anyString(), anyString(), any()))
                 .thenReturn(CrmResponseHandler.parse(responseJson));
 
-        Optional<CustomerManagerResult> result = service.findByCompanyId(81417644L);
+        Optional<CustomerManagerResult> result = service.findByCompanyId(81417644L, "testuser");
 
         assertThat(result).isEmpty();
     }
@@ -133,7 +133,7 @@ class CrmCustomerManagerLookupServiceTest {
     @Test
     @DisplayName("companyId为null_返回empty_不调HTTP")
     void findByCompanyId_NullCompanyId_ShouldReturnEmptyWithoutHttpCall() {
-        Optional<CustomerManagerResult> result = service.findByCompanyId(null);
+        Optional<CustomerManagerResult> result = service.findByCompanyId(null, "testuser");
 
         assertThat(result).isEmpty();
     }
@@ -147,7 +147,7 @@ class CrmCustomerManagerLookupServiceTest {
         when(httpClient.post(anyString(), anyString(), anyString(), any()))
                 .thenReturn(CrmResponseHandler.parse(responseJson));
 
-        Optional<CustomerManagerResult> result = service.findByCompanyId(81417644L);
+        Optional<CustomerManagerResult> result = service.findByCompanyId(81417644L, "testuser");
 
         assertThat(result).isEmpty();
     }
@@ -158,7 +158,7 @@ class CrmCustomerManagerLookupServiceTest {
         when(httpClient.post(anyString(), anyString(), anyString(), any()))
                 .thenReturn(CrmResponseHandler.CrmApiResponse.parseError("connection timeout"));
 
-        Optional<CustomerManagerResult> result = service.findByCompanyId(81417644L);
+        Optional<CustomerManagerResult> result = service.findByCompanyId(81417644L, "testuser");
 
         assertThat(result).isEmpty();
     }
@@ -180,7 +180,7 @@ class CrmCustomerManagerLookupServiceTest {
         when(httpClient.post(anyString(), anyString(), anyString(), any()))
                 .thenReturn(CrmResponseHandler.parse(responseJson));
 
-        Optional<CustomerManagerResult> result = service.findByCompanyId(81417644L);
+        Optional<CustomerManagerResult> result = service.findByCompanyId(81417644L, "testuser");
 
         assertThat(result).isPresent();
         assertThat(result.get().saleNo()).isEqualTo("01989");

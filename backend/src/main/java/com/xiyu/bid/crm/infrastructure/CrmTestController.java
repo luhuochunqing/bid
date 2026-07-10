@@ -1,6 +1,5 @@
 package com.xiyu.bid.crm.infrastructure;
 
-import com.xiyu.bid.crm.application.CrmAuthService;
 import com.xiyu.bid.crm.application.CrmJobListResponse;
 import com.xiyu.bid.crm.application.CrmPermissionService;
 import com.xiyu.bid.crm.application.CrmRoleService;
@@ -21,8 +20,8 @@ import java.util.List;
 /**
  * CRM 接口测试 Controller。
  * <p>
- * 提供独立的测试端点，无需 JWT 认证，直接使用系统级 OSS token 调用泊冉接口。
- * 适用于接口调试和验证。
+ * 提供独立的测试端点，无需 JWT 认证。CO-152 后不再提供系统级 03595 token；
+ * 权限测试须传入用户 OSS token 查询参数。
  * <p>
  * 注意：此类为测试用途，已配置为 permitAll，生产环境应移除或添加适当的安全控制。
  */
@@ -34,16 +33,13 @@ public class CrmTestController {
     private final OssLoginFlowService loginFlowService;
     private final CrmPermissionService permissionService;
     private final CrmRoleService roleService;
-    private final CrmAuthService authService;
 
     public CrmTestController(OssLoginFlowService loginFlowService,
                              CrmPermissionService permissionService,
-                             CrmRoleService roleService,
-                             CrmAuthService authService) {
+                             CrmRoleService roleService) {
         this.loginFlowService = loginFlowService;
         this.permissionService = permissionService;
         this.roleService = roleService;
-        this.authService = authService;
     }
 
     /**
@@ -63,31 +59,29 @@ public class CrmTestController {
 
     /**
      * 测试获取用户权限（泊冉接口3）。
-     * GET /api/crm/test/permissions?systemName=xxx
+     * GET /api/crm/test/permissions?systemName=xxx&amp;token=用户OSS_token
+     * <p>CO-152：必须显式传用户 OSS token，不再回退全局 03595。
      */
     @GetMapping("/permissions")
     public ResponseEntity<ApiResponse<CrmUserPermission>> testPermissions(
             @RequestParam(required = false) String systemName,
             @RequestParam(required = false) String token) {
-        String accessToken;
-        if (token != null && !token.isBlank()) {
-            accessToken = token;
-        } else {
-            // 使用系统级 OSS token
-            accessToken = authService.getValidOssToken();
+        if (token == null || token.isBlank()) {
+            return ResponseEntity.ok(ApiResponse.error(
+                    "token query param required (global OSS token path removed)"));
         }
-        CrmUserPermission permission = permissionService.getUserPermission(accessToken, systemName);
+        CrmUserPermission permission = permissionService.getUserPermission(token, systemName);
         return ResponseEntity.ok(ApiResponse.success("Permissions retrieved", permission));
     }
 
     /**
-     * 获取系统级 OSS token（无需用户认证）。
+     * 全局 system-token 端点已移除（CO-152）。
      * GET /api/crm/test/system-token
      */
     @GetMapping("/system-token")
     public ResponseEntity<ApiResponse<String>> getSystemToken() {
-        String token = authService.getValidOssToken();
-        return ResponseEntity.ok(ApiResponse.success("System OSS token", token));
+        return ResponseEntity.ok(ApiResponse.error(
+                "system-token endpoint removed: use user login OSS token instead (CO-152)"));
     }
 
     /**
