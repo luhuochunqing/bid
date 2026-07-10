@@ -650,4 +650,5 @@ sync-env.sh .
 - `specs/030-fix-task-review-notify-403/plan.md`（修复任务审核通知接收人广播导致 403 — 按 ProjectAccessScopeService 项目可见性过滤接收人，新增 NotificationRecipientFilter 纯函数）
 - `specs/031-tender-import-async-perf/plan.md`（标讯批量导入异步化与性能优化 + MDC 修复 — @Async + DB 持久化 + Redis 进度缓存 + MdcTaskDecorator 跨线程 MDC 传递，Nginx 60s 超时根因修复）
 - `specs/032-fix-oss-permission-diffusion/plan.md`（修复 OSS 用户权限扩散导致越权看所有菜单 — OSS admin 用户不扩散 authorities/menuPermissions，前端 hasPermission 对 OSS 用户不短路 all，AuthResponse 新增 isOssUser 字段）
+- `specs/033-oss-local-permission-path-separation/spec.md`（OSS 与本地用户权限代码路径分离 — 根因猎手分析定位零号病人为"共用代码路径"架构决策，提出方案 A 代码路径分离/B 强约束门禁/C 消除 all 短路三选一，根治 CO-361→CO-373→spec 032→CO-551 10+ 轮反复踩坑）
 <!-- SPECKIT END -->

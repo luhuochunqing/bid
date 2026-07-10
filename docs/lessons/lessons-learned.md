@@ -3514,6 +3514,7 @@ unzip -p app.jar BOOT-INF/classes/application.yml | grep -A 2 "person-identifier
 - `docs/release/PROD_ENVIRONMENT_PROFILE.md` §1.2 — 网络架构（端口已正确）
 - `backend/src/main/java/com/xiyu/bid/integration/organization/application/OrganizationUserSyncWriter.java` — skipUnmappedUsers 修复
 
+<<<<<<< HEAD
 ## 52. OSS 角色解析忽略 roleCode 字段：roleName 映射不全导致登录被拒（2026-07-10 / 用户 04569 / PR !1977）
 
 ### 问题背景
@@ -3612,3 +3613,101 @@ traceId=`e182d631c4e844e89b63c3749c9073ab`，用户 04569：
 - `backend/src/test/java/com/xiyu/bid/crm/application/OssRoleResolverTest.java` — 8 个根因行为测试
 - PR !1977 — 本修复 PR
 - PR !1972 — 前置修复（OSS 密码登录失败时误抛 RoleNotAuthorizedException，与本 Bug 独立）
+---
+
+## 53. OSS 与本地用户共用权限代码路径是 10+ 轮反复踩坑的根因（2026-07-10 根因猎手分析）
+
+### 问题背景
+
+系统存在两套人员权限体系：
+1. **登录鉴权体系**：登录时调用 OSS 鉴权，获取用户的密码、角色、菜单树，实时加载到 `OssPermissionCache`（Redis + 内存双写，TTL 25h）。
+2. **选人业务体系**：从组织架构事件库同步人员信息到 DB `role_profile` 表，用于选人接口返回候选人及其角色。
+
+设计上两套体系各自独立（见 `DbRoleSnapshotResolver.java` 类注释），但代码实现层共用 `UserDetailsServiceImpl` / `DataScopeConfigService` / `User.getRoleCode()`，导致 OSS 用户走到为本地用户写的代码路径时反复踩坑。跨 CO-361 → CO-373 → spec 032 → CO-551 → bid-Team 菜单泄漏 → 标讯 403 等 10+ 轮修复未根治。
+
+### 历史踩坑时间线
+
+| 时间 | Issue/Spec | 现象 | 修复 | 是否根治 |
+|---|---|---|---|---|
+| 06-27 | CO-361 | 项目负责人 403 / 投标负责人只看自己 / 执行人看不到自己 | #1245 改 `DataScopeConfigService.getRoleCode` | 局部 |
+| 06-28 | CO-373 | 27 处直调 `User.getRoleCode()` 引爆同类问题 | #1259 引入 `EffectiveRoleResolver` + `@Deprecated` + pre-push 拦截 | 系统性但未根治 |
+| 07-04 | bid-Team 菜单泄漏 | bid-Team 看到 ai-center/operation-logs | #1661 删除 `RoleProfileCatalog` 中 bid-Team 的菜单权限 | 局部 |
+| 07-08 | spec 032 / CO-551 | OSS 用户 03063/06234 看到所有菜单 | 4 个扩散点加 `isOssUser` 守卫 + 前端 `hasPermission` 守卫 | 三层防御但根因仍在 |
+| 07-09 | 标讯 403 | OSS 用户 audit-logs 接口 403 | #1921 回退到 `hasAnyRole` | 单点修补 |
+| 07-09 | CO-551 矛盾 | spec 说"OSS 不应持有 system.admin"，代码却允许 | #1916 改 spec 与代码对齐 | 文档对齐，未根治代码 |
+
+**5 个 PR、跨度 13 天、每次"修一次好一阵子"**——典型"补交叉感染点不治根因"模式。
+
+### 零号病人
+
+零号病人不是某一行代码，是一个**架构决策**：
+
+> 决定让 OSS 同步用户与本地用户共用同一套 `UserDetailsService` / `DataScopeConfigService` / `User` 实体代码路径，靠"分支判断 + 字段标识 + 后续修补"来区分两种身份。
+
+### 必然性证明
+
+```
+A. OSS 用户走 loginOssUser() → 写入 OssPermissionCache（隔离的、干净的）
+   ↓
+B. 但 buildAuthResponse() / Service 层权限校验 → 走为本地用户写的 DataScopeConfigService.getRoleCode()
+   ↓
+C. DataScopeConfigService 内部遇到 "OSS 用户 roleCode=admin" 分支 → 触发 admin 扩散逻辑（本应只对本地 admin 生效）
+   ↓
+D. 扩散出 "all" + system.admin + warehouse.manage → OSS 用户看到所有菜单（spec 032 现象）
+
+并行链路 1：
+E. 选人接口直调 user.getRoleCode() → OSS 用户 role_id=NULL → fallback "manager"
+   ↓
+F. "manager" 被当成管理员 → 越权 OR 被错误过滤 → CO-361/CO-373 五轮反复
+
+并行链路 2：
+G. 前端 hasPermission 对含 "all" 的权限短路放行（本为本地 admin 设计）
+   ↓
+H. OSS 用户被扩散出 "all" → 前端短路 → spec 032 第三层扩散
+
+并行链路 3：
+I. RoleProfileCatalog.bid-Team 的 menuPermissions 包含 ai-center/operation-logs（本地内存目录）
+   ↓
+J. UserDetailsServiceImpl 合并 catalog seed → OSS bid-Team 用户拿到本地菜单权限
+   ↓
+K. 但 OSS 端未配置这些菜单 → 前端有权限、后端无对应 OSS 菜单 → 菜单泄漏
+```
+
+**数学上的必然**：每当新增一个"按角色判断"的业务分支，都会同时影响 OSS 用户和本地用户，但二者数据源不同，必然产生新的不一致场景。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 声明分离 vs 代码分离 | `DbRoleSnapshotResolver` 类注释说"统一读 DB role_profile 快照"，但 `UserSearchService` / `AssignmentCandidatePolicy` 直调 `user.getRoleCode()` 绕过它 | 设计声明必须有 ArchUnit 硬约束兜底，不能只靠注释 |
+| 共用代码路径靠分支判断区分身份 | OSS 用户走本地用户的 admin 扩散逻辑 → 越权 | 两套身份体系必须物理隔离代码路径，不能靠 `if (isOssUser)` 守卫 |
+| fallback "manager" 是症状放大器 | OSS 用户 role_id=NULL 时 fallback 返回 "manager" → CO-361 五次反复 | `User.getRoleCode()` 的 fallback 应抛异常（fail-closed），禁止返回任意值 |
+| 补交叉感染点不治根因 | 10+ 轮修复每次"修一次好一阵子，下一个场景又炸" | 根因是架构决策，不是某一行代码；必须走 Spec Kit 流程门禁做根治方案 |
+
+### 操作规范（建议固化到 CLAUDE.md / RULES.md）
+
+1. **新增"按角色判断"业务分支时的检查清单**：
+   - [ ] 该分支是否会同时影响 OSS 用户和本地用户？
+   - [ ] OSS 用户走到该分支时数据源是什么（OSS cache / DB role_profile）？
+   - [ ] 是否需要前置 `isOssUser` 守卫？
+   - [ ] 是否需要新增"权限不扩散"测试用例？
+
+2. **Spec Kit 门禁**：新增角色或权限相关改动必须走 `specs/` 下的 Spec Kit 流程，禁止单点 PR 修补。
+
+3. **ArchUnit 硬约束**：OSS 用户相关类不得依赖 `RoleProfileCatalog` / `DataScopeConfigService` 的本地分支（方案 A），或 `UserDetailsServiceImpl` 中 `roleCode.equals("admin")` 分支必须前置 `!isOssUser` 守卫（方案 B）。
+
+4. **`User.getRoleCode()` fallback 禁止返回任意值**：方案 A 提出删除 `"manager"` fallback 改抛 `IllegalStateException`（fail-closed），强制调用方走 `EffectiveRoleResolver` 或 `DbRoleSnapshotResolver`。
+
+### 修复方向（三选一，详见 specs/033）
+
+- **方案 A**：真正的代码路径分离（推荐根治）— OSS 用户走独立的 `OssUserDetailsService` + ArchUnit 强制隔离
+- **方案 B**：强约束门禁（最小代价）— 扩展 `check-rolecode-direct-calls.mjs` + ArchUnit 守卫 admin 分支
+- **方案 C**：消除 "all" 短路 + admin 扩散（中间态）— 删除扩散逻辑，本地 admin 走显式 seed
+
+### 相关文件
+
+- `docs/lessons/root-cause-analysis-oss-local-permission-dual-track.md` — 完整根因分析
+- `specs/033-oss-local-permission-path-separation/spec.md` — 根治 Spec Kit
+- `specs/032-fix-oss-permission-diffusion/` — 第一层止血 Spec Kit
+- `.wiki/pages/lessons-learned/CO-361-five-rounds-no-fix.md` — CO-361 五次反复修复的完整教训
+- `.wiki/pages/architecture/effective-role-resolution.md` — 角色码解析的工程规范

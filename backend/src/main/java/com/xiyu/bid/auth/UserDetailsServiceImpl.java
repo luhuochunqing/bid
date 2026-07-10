@@ -51,7 +51,6 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     }
 
     private List<SimpleGrantedAuthority> authoritiesFor(User user) {
-        Set<String> authorities = new LinkedHashSet<>();
         boolean isOssUser = user.isOssUser();
 
         // 0. 优先从 OSS 权限缓存读取实时抓取的角色+权限（不读本地 DB RoleProfile.menu_permissions）
@@ -60,23 +59,63 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         List<String> menuPermissions = roleSource.menuPermissions();
         boolean skipLegacyCompat = roleSource.skipLegacyCompat();
 
-        // OSS 同步用户必须有白名单内的有效角色；本地账号保持兼容兜底。
-        if (isOssUser && !LoginRoleWhitelist.isAllowed(roleCode)) {
+        if (isOssUser) {
+            return ossAuthorities(user, roleSource);
+        }
+
+        Set<String> authorities = new LinkedHashSet<>();
+        User.Role legacyRole = user.getRole() == null ? User.Role.MANAGER : user.getRole();
+
+        addLegacyRoleAuthority(authorities, legacyRole, skipLegacyCompat);
+        addRoleCodeAuthorities(authorities, roleCode, skipLegacyCompat);
+        addMenuPermissionAuthorities(authorities, menuPermissions, roleCode, legacyRole, false);
+        addCatalogFallbackAuthorities(authorities, roleCode, menuPermissions, false);
+        addAdminFallbackAuthorities(authorities, roleCode, legacyRole, false);
+
+        // CO-391 诊断日志：输出最终 roleCode 与 authorities 集合，便于排查 403 鉴权失败。
+        // INFO 级别（OSS/登录频次低，不爆量）；覆盖 OSS 缓存命中与 DB 兜底两条路径。
+        log.info("UserDetails authorities built: user={} isOssUser=false roleCode={} skipLegacyCompat={} authorities={}",
+                user.getUsername(), roleCode, skipLegacyCompat, authorities);
+
+        return authorities.stream().map(SimpleGrantedAuthority::new).toList();
+    }
+
+    private List<SimpleGrantedAuthority> ossAuthorities(User user, RoleSource roleSource) {
+        String roleCode = roleSource.roleCode();
+        List<String> menuPermissions = roleSource.menuPermissions();
+        boolean skipLegacyCompat = roleSource.skipLegacyCompat();
+
+        // OSS 同步用户必须有白名单内的有效角色
+        if (!LoginRoleWhitelist.isAllowed(roleCode)) {
             log.warn("UserDetails denied for OSS user={}: roleCode={} not allowed", user.getUsername(), roleCode);
             throw new org.springframework.security.core.AuthenticationException("角色未授权，不允许访问") {};
         }
 
-        User.Role legacyRole = user.getRole() == null ? User.Role.MANAGER : user.getRole();
-        addLegacyRoleAuthority(authorities, legacyRole, skipLegacyCompat);
-        addRoleCodeAuthorities(authorities, roleCode, skipLegacyCompat);
-        addMenuPermissionAuthorities(authorities, menuPermissions, roleCode, legacyRole, isOssUser);
-        addCatalogFallbackAuthorities(authorities, roleCode, menuPermissions, isOssUser);
-        addAdminFallbackAuthorities(authorities, roleCode, legacyRole, isOssUser);
+        Set<String> authorities = new LinkedHashSet<>();
 
-        // CO-391 诊断日志：输出最终 roleCode 与 authorities 集合，便于排查 403 鉴权失败。
-        // INFO 级别（OSS/登录频次低，不爆量）；覆盖 OSS 缓存命中与 DB 兜底两条路径。
-        log.info("UserDetails authorities built: user={} isOssUser={} roleCode={} skipLegacyCompat={} authorities={}",
-                user.getUsername(), isOssUser, roleCode, skipLegacyCompat, authorities);
+        if (!skipLegacyCompat) {
+            User.Role legacyRole = user.getRole() == null ? User.Role.MANAGER : user.getRole();
+            authorities.add("ROLE_" + legacyRole.name());
+        }
+
+        if (roleCode != null && !roleCode.isBlank()) {
+            authorities.add(roleCode);
+            String authorityName = RoleProfileCatalog.toAuthorityName(roleCode);
+            if (authorityName != null) {
+                authorities.add("ROLE_" + authorityName);
+            }
+            User.Role compatLegacy = RoleProfileCatalog.legacyRoleForCode(roleCode);
+            if (compatLegacy != null && !skipLegacyCompat) {
+                authorities.add("ROLE_" + compatLegacy.name());
+            }
+        }
+
+        if (menuPermissions != null) {
+            authorities.addAll(RoleProfileAdminPermissionFilter.filter(menuPermissions));
+        }
+
+        log.info("UserDetails authorities built: user={} isOssUser=true roleCode={} skipLegacyCompat={} authorities={}",
+                user.getUsername(), roleCode, skipLegacyCompat, authorities);
 
         return authorities.stream().map(SimpleGrantedAuthority::new).toList();
     }
