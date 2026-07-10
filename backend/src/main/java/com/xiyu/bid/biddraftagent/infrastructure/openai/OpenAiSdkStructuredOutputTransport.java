@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
 @Slf4j
@@ -26,6 +27,12 @@ class OpenAiSdkStructuredOutputTransport implements OpenAiStructuredOutputTransp
 
     private final ObjectMapper objectMapper;
     private final OpenAiJsonObjectPayloadReader jsonObjectPayloadReader;
+
+    /**
+     * 缓存：当前 AI 网关是否不支持 json_schema 结构化输出。
+     * 第一次 json_schema 调用失败后置为 true，后续请求直接走 json_object，避免双倍调用。
+     */
+    private final AtomicBoolean jsonSchemaUnsupported = new AtomicBoolean(false);
 
     OpenAiSdkStructuredOutputTransport(
             ObjectMapper pObjectMapper,
@@ -62,6 +69,9 @@ class OpenAiSdkStructuredOutputTransport implements OpenAiStructuredOutputTransp
             Class<T> responseType,
             OpenAiBidAgentRequestConfig config
     ) {
+        if (jsonSchemaUnsupported.get()) {
+            return requestWithJsonObject(prompt, responseType, config);
+        }
         try {
             StructuredChatCompletionCreateParams<T> params = ChatCompletionCreateParams.builder()
                     .addUserMessage(prompt)
@@ -74,6 +84,9 @@ class OpenAiSdkStructuredOutputTransport implements OpenAiStructuredOutputTransp
                     .flatMap(choice -> choice.message().content());
         } catch (BadRequestException exception) {
             if (supportsJsonObjectFallback(exception)) {
+                log.warn("AI 网关不支持 json_schema 结构化输出，后续请求将直接使用 json_object 模式。错误: {}",
+                        preview(exception.getMessage()));
+                jsonSchemaUnsupported.set(true);
                 return requestWithJsonObject(prompt, responseType, config);
             }
             throw exception;
