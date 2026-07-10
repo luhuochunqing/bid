@@ -4,7 +4,44 @@
 
 ---
 
-## 1. 后端接口契约变更必须同步前端所有入口
+## 1. OSS 同步用户禁止写入本地默认密码
+
+### 问题背景
+
+2026-07-10 生产环境发现所有 OSS 同步用户可用测试密码 `123456` 登录。根因：commit `4a01054be`（CO-284）为 OSS 同步员工写入 `DEFAULT_PASSWORD_HASH`（`123456` 的 BCrypt 编码），且 `AuthService.loginOssUser()` 在 OSS 认证失败时回退到本地密码验证。生产日志显示当日已有 18 次通过该 fallback 路径成功登录。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 为 SSO/OSS 用户预设本地密码 | SSO/OSS 用户的密码真相源必须是外部认证系统，本地数据库不应存储可用密码 | 禁止为外部身份源用户生成默认本地密码；无本地密码时应写入锁定哈希 |
+| 本地密码回退机制 | 回退路径绕过外部认证，形成后门 | 外部身份源认证失败必须直接返回 401，禁止本地密码回退 |
+| 测试密码流入生产 | `123456` 等测试凭据不得出现在生产代码常量中 | 敏感常量（密码哈希、密钥、token）必须走配置或环境变量，且代码审查时重点检查 |
+
+### 操作规范
+
+1. `OrganizationUserSyncWriter` 等外部用户同步入口：新用户无本地密码时写入 `LOCKED_PASSWORD_HASH`，确保 `passwordEncoder.matches` 永远失败。
+2. `AuthService` 等认证入口：OSS 用户认证仅委托 `OssDelegationService`，失败直接抛 `BadCredentialsException`，不尝试本地密码。
+3. 生产问题排查时，除检查代码外，必须扫描数据库中是否存在统一默认哈希：
+
+```bash
+# 查找可能使用默认测试密码的 OSS 用户（哈希值以修复时为准）
+SELECT username, external_org_source_app, password
+FROM users
+WHERE external_org_source_app IS NOT NULL
+  AND external_org_source_app != ''
+  AND password = '$2a$10$FwCOuxKv3WA8f2uwiUE23umE0ooMOPDOoOs2JTK49zN8i8PYLxK4y';
+```
+
+### 相关文档
+
+- `specs/003-remove-staff-unify-oss-enabled/contracts/login-behavior.md` — OSS 登录契约
+- `docs/lessons/root-cause-analysis-bcrypt-invalid-hash.md` — 历史 BCrypt 无效哈希根因
+- 修复迁移：`backend/src/main/resources/db/migration-mysql/V1164__lock_oss_user_local_passwords.sql`
+
+---
+
+## 2. 后端接口契约变更必须同步前端所有入口
 
 ### 问题背景
 

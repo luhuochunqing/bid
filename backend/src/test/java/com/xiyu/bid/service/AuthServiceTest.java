@@ -262,52 +262,6 @@ class AuthServiceTest {
     }
 
     @Test
-    void login_ossUserWithLocalPassword_shouldFallbackToLocalAuthWhenOssFails() {
-        User user = buildOssUser();
-        String encodedPassword = "$2a$10$localpasshash";
-        user.setPassword(encodedPassword);
-        LoginRequest request = new LoginRequest();
-        request.setUsername("00444");
-        request.setPassword("localpass");
-
-        OssDelegationService ossDelegationService = mock(OssDelegationService.class);
-        authService = new AuthService(
-                userRepository,
-                refreshSessionRepository,
-                projectAccessScopeService,
-                dataScopeConfigService,
-                passwordEncoder,
-                jwtUtil,
-                authenticationManager,
-                roleProfileService,
-                tokenRevocationService,
-                ossDelegationService,
-                crmAuthService,
-                ossLoginFlowService,
-                ossDirectLoginService,
-                mock(OssUserTokenCache.class)
-        );
-        ReflectionTestUtils.setField(authService, "refreshExpiration", 7 * 24 * 60 * 60 * 1000L);
-
-        when(userRepository.findByUsername("00444")).thenReturn(Optional.of(user));
-        when(ossDelegationService.authenticate(user, "localpass")).thenReturn(false);
-        when(passwordEncoder.matches("localpass", encodedPassword)).thenReturn(true);
-        when(jwtUtil.generateAccessToken("00444")).thenReturn("access-token");
-        when(projectAccessScopeService.getAllowedProjectIds(user)).thenReturn(List.of());
-        when(projectAccessScopeService.getAllowedDepartmentCodes(user)).thenReturn(List.of());
-        when(dataScopeConfigService.getRoleMenuPermissions(user)).thenReturn(List.of());
-
-        AuthSessionResult result = authService.login(request);
-
-        verify(ossDelegationService).authenticate(user, "localpass");
-        // 关键：fallback 路径不应调 ossLoginFlowService.authenticateDirect（OSS 已失败）
-        verify(ossLoginFlowService, never()).authenticateDirect(any(), any());
-        // 关键：fallback 路径不应调 requireOssRole（OSS 缓存可能为空）
-        verify(ossDirectLoginService, never()).requireOssRole(any());
-        assertThat(result.getAccessToken()).isEqualTo("access-token");
-    }
-
-    @Test
     void login_ossUserWithLockedPassword_shouldThrowWhenOssFails() {
         User user = buildOssUser();
         user.setPassword(OrganizationUserSyncWriter.LOCKED_PASSWORD_HASH);

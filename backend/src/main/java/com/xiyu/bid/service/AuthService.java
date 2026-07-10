@@ -7,7 +7,6 @@ import com.xiyu.bid.crm.application.OssLoginFlowService;
 import com.xiyu.bid.crm.application.OssUserTokenCache;
 import com.xiyu.bid.admin.service.DataScopeConfigService;
 import com.xiyu.bid.entity.RoleProfileCatalog;
-import com.xiyu.bid.integration.organization.application.OrganizationUserSyncWriter;
 import com.xiyu.bid.dto.AuthResponse;
 import com.xiyu.bid.dto.AuthSessionResult;
 import com.xiyu.bid.dto.LoginRequest;
@@ -122,14 +121,10 @@ public class AuthService {
                 .accessToken(token)
                 .build();
     }
-    /** OSS 用户登录：优先 OSS 认证；OSS 失败但本地密码匹配时走 fallback（跳过 requireOssRole）。 */
+    /** OSS 用户登录：密码必须由西域 OSS 统一认证，本地不存储、不回退。 */
     private AuthSessionResult loginOssUser(User user, LoginRequest request) {
         if (!ossDelegationService.authenticate(user, request.getPassword())) {
-            if (!isLocalPasswordValid(user, request.getPassword())) {
-                throw new BadCredentialsException("Invalid username or password");
-            }
-            log.warn("OSS auth failed but local password valid for user={}, using local login", user.getUsername());
-            return buildSession(user, "local password fallback (OSS auth failed)");
+            throw new BadCredentialsException("Invalid username or password");
         }
         try {
             ossLoginFlowService.authenticateDirect(request.getUsername(), request.getPassword());
@@ -138,21 +133,6 @@ public class AuthService {
                     user.getUsername(), e.getClass().getSimpleName(), e.getMessage());
         }
         return loginWithoutPassword(user);
-    }
-
-    /** OSS 同步用户 OSS 认证失败时的本地密码回退验证。 */
-    private boolean isLocalPasswordValid(User user, String rawPassword) {
-        String password = user.getPassword();
-        if (password == null || password.isBlank()
-                || password.equals(OrganizationUserSyncWriter.LOCKED_PASSWORD_HASH)) {
-            return false;
-        }
-        try {
-            return passwordEncoder.matches(rawPassword, password);
-        } catch (IllegalArgumentException e) {
-            log.warn("Local password validation failed for user: {}", user.getUsername());
-            return false;
-        }
     }
     @Transactional
     public AuthSessionResult loginWithoutPassword(User user) {

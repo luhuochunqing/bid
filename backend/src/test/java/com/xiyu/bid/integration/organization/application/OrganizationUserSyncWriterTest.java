@@ -73,6 +73,24 @@ class OrganizationUserSyncWriterTest {
     }
 
     @Test
+    @DisplayName("upsert new OSS user must use locked password hash")
+    void upsert_newOssUser_usesLockedPasswordHash() {
+        when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "10002")).thenReturn(Optional.empty());
+        when(roleProfileRepository.findByCodeIgnoreCase("bid-Team")).thenReturn(Optional.of(role("bid-Team")));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        writer.upsert("oss", "event-key", new OrganizationUserSnapshot(
+                "10002", "lisi", "李四", "lisi@example.com",
+                "13800000001", "sales", "销售部", "", "bid-Team", true
+        ));
+
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(saved.capture());
+        assertThat(saved.getValue().getPassword())
+                .isEqualTo(OrganizationUserSyncWriter.LOCKED_PASSWORD_HASH);
+    }
+
+    @Test
     @DisplayName("upsert updates mutable email on the same immutable external user id")
     void upsert_updatesMutableEmailByExternalId() {
         User existing = new User();
@@ -375,14 +393,6 @@ class OrganizationUserSyncWriterTest {
         role.setName(code);
         role.setEnabled(true);
         return role;
-    }
-
-    @Test
-    @DisplayName("DEFAULT_PASSWORD_HASH must be a valid BCrypt hash that matches '123456'")
-    void defaultPasswordHash_validBcrypt_matches123456() {
-        BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
-        assertThat(encoder.matches("123456", OrganizationUserSyncWriter.DEFAULT_PASSWORD_HASH))
-                .isTrue();
     }
 
     @Test
