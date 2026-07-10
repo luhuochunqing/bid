@@ -71,7 +71,7 @@ public class CrmTenderLinkService {
                 sourceId, tender.getId());
         try {
             CrmProjectLeaderService.ProjectLeaderResult leader =
-                    crmProjectLeaderService.findProjectLeaderByChanceId(chanceId);
+                    crmProjectLeaderService.findProjectLeaderByChanceId(chanceId, null);
             if (leader == null || leader.opportunityCode() == null || leader.opportunityCode().isBlank()) {
                 log.warn("linkByChanceIdIfPresent: no opportunity found for chanceId={}", chanceId);
                 return false;
@@ -101,9 +101,9 @@ public class CrmTenderLinkService {
             // 导致后续 webhook 回传 payload code=20916，CRM 按编号匹配失败（tender 275 案例）。
             Long chanceId = tryParseChanceId(crmId);
             if (chanceId != null) {
-                leader = crmProjectLeaderService.findProjectLeaderByChanceId(chanceId);
+                leader = crmProjectLeaderService.findProjectLeaderByChanceId(chanceId, null);
             } else {
-                leader = crmProjectLeaderService.findProjectLeaderByChanceCode(crmId);
+                leader = crmProjectLeaderService.findProjectLeaderByChanceCode(crmId, null);
             }
             if (leader == null) {
                 log.warn("CRM link: no project leader found for crmId={}, setting EVALUATED", crmId);

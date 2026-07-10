@@ -56,33 +56,33 @@ class CrmProjectLeaderServiceTest {
 
     @Test
     void findProjectLeaderByChanceCode_blankCode_returnsNullAndSkipsQuery() {
-        assertThat(service.findProjectLeaderByChanceCode("")).isNull();
-        assertThat(service.findProjectLeaderByChanceCode(null)).isNull();
-        assertThat(service.findProjectLeaderByChanceCode("   ")).isNull();
+        assertThat(service.findProjectLeaderByChanceCode("", "testuser")).isNull();
+        assertThat(service.findProjectLeaderByChanceCode(null, "testuser")).isNull();
+        assertThat(service.findProjectLeaderByChanceCode("   ", "testuser")).isNull();
         verify(crmChanceService, never()).findByCode(any(), any());
     }
 
     @Test
     void findProjectLeaderByChanceCode_emptyResult_returnsNull() {
-        when(crmChanceService.findByCode("CC001", null)).thenReturn(null);
+        when(crmChanceService.findByCode("CC001", "testuser")).thenReturn(null);
 
-        assertThat(service.findProjectLeaderByChanceCode("CC001")).isNull();
+        assertThat(service.findProjectLeaderByChanceCode("CC001", "testuser")).isNull();
     }
 
     @Test
     void findProjectLeaderByChanceCode_chanceWithoutLeader_returnsNull() {
-        when(crmChanceService.findByCode("CC001", null))
+        when(crmChanceService.findByCode("CC001", "testuser"))
                 .thenReturn(buildVO("CC001", "商机A", "", ""));
 
-        assertThat(service.findProjectLeaderByChanceCode("CC001")).isNull();
+        assertThat(service.findProjectLeaderByChanceCode("CC001", "testuser")).isNull();
     }
 
     @Test
     void findProjectLeaderByChanceCode_chanceWithLeader_returnsResult() {
-        when(crmChanceService.findByCode("CC001", null))
+        when(crmChanceService.findByCode("CC001", "testuser"))
                 .thenReturn(buildVO("CC001", "商机A", "张三", "EMP001"));
 
-        CrmProjectLeaderService.ProjectLeaderResult result = service.findProjectLeaderByChanceCode("CC001");
+        CrmProjectLeaderService.ProjectLeaderResult result = service.findProjectLeaderByChanceCode("CC001", "testuser");
 
         assertThat(result).isNotNull();
         assertThat(result.projectLeaderName()).isEqualTo("张三");
@@ -95,24 +95,24 @@ class CrmProjectLeaderServiceTest {
 
     @Test
     void findProjectLeaderByChanceId_nullId_returnsNullAndSkipsQuery() {
-        assertThat(service.findProjectLeaderByChanceId(null)).isNull();
-        verify(crmChanceDetailService, never()).getDetailById(any());
+        assertThat(service.findProjectLeaderByChanceId(null, "testuser")).isNull();
+        verify(crmChanceDetailService, never()).getDetailById(any(), any());
     }
 
     @Test
     void findProjectLeaderByChanceId_detailReturnsNull_returnsNull() {
-        when(crmChanceDetailService.getDetailById(999L)).thenReturn(null);
+        when(crmChanceDetailService.getDetailById(999L, "testuser")).thenReturn(null);
 
-        assertThat(service.findProjectLeaderByChanceId(999L)).isNull();
+        assertThat(service.findProjectLeaderByChanceId(999L, "testuser")).isNull();
     }
 
     @Test
     void findProjectLeaderByChanceId_chanceWithoutLeader_returnsResultWithNullLeader() {
         // 即使无负责人，也返回结果，因为调用方需要 opportunityCode 来关联商机
-        when(crmChanceDetailService.getDetailById(243L))
+        when(crmChanceDetailService.getDetailById(243L, "testuser"))
                 .thenReturn(buildVO("CC20260619283", "商机A", "", ""));
 
-        CrmProjectLeaderService.ProjectLeaderResult result = service.findProjectLeaderByChanceId(243L);
+        CrmProjectLeaderService.ProjectLeaderResult result = service.findProjectLeaderByChanceId(243L, "testuser");
 
         assertThat(result).isNotNull();
         assertThat(result.opportunityCode()).isEqualTo("CC20260619283");
@@ -123,10 +123,10 @@ class CrmProjectLeaderServiceTest {
 
     @Test
     void findProjectLeaderByChanceId_chanceWithLeader_returnsResult() {
-        when(crmChanceDetailService.getDetailById(243L))
+        when(crmChanceDetailService.getDetailById(243L, "testuser"))
                 .thenReturn(buildVO("CC20260619283", "商机A", "张三", "EMP001"));
 
-        CrmProjectLeaderService.ProjectLeaderResult result = service.findProjectLeaderByChanceId(243L);
+        CrmProjectLeaderService.ProjectLeaderResult result = service.findProjectLeaderByChanceId(243L, "testuser");
 
         assertThat(result).isNotNull();
         assertThat(result.projectLeaderName()).isEqualTo("张三");

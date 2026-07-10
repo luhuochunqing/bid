@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.type.CollectionType;
 import com.xiyu.bid.crm.config.CrmProperties;
+// TokenUnavailableException same package
 import com.xiyu.bid.crm.infrastructure.CrmHttpClient;
 import com.xiyu.bid.crm.infrastructure.CrmResponseHandler;
 import com.xiyu.bid.crm.infrastructure.dto.BidInfoSyncDTO;
@@ -55,7 +56,7 @@ public class CrmChanceService {
     }
 
     /**
-     * 查询 CRM 商机列表（分页）。username 为 null 时回退全局共享 token（CO-152）。
+     * 查询 CRM 商机列表（分页）。username 为空时 TokenUnavailable → 空结果（无全局 03595）。
      */
     public CrmChancePageResult pageList(CustomerChancePageRequest request, String username) {
         return doPageList(request, username);
@@ -146,7 +147,7 @@ public class CrmChanceService {
         String token;
         try {
             token = authService.getValidTokenForUser(username);
-        } catch (IllegalStateException e) {
+        } catch (IllegalStateException | TokenUnavailableException e) {
             log.warn("CRM page-list skipped because token acquisition failed: {}", e.getMessage());
             return emptyPageResult();
         }
@@ -164,7 +165,7 @@ public class CrmChanceService {
             authService.handleUnauthorizedForUser(username);
             try {
                 token = authService.getValidTokenForUser(username);
-            } catch (IllegalStateException e) {
+            } catch (IllegalStateException | TokenUnavailableException e) {
                 log.warn("CRM chance page-list skipped because token refresh failed after unauthorized: {}",
                         e.getMessage());
                 return emptyPageResult();

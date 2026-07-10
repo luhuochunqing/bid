@@ -103,6 +103,8 @@ app:
     cac-base-url: ${XIYU_CRM_CAC_BASE_URL:}
     client-id: ${XIYU_CRM_CLIENT_ID:}
     client-secret: ${XIYU_CRM_CLIENT_SECRET:}
+    # 遗留配置：代码不再用配置账号登录 OSS 换 CRM token。
+    # CRM 调用仅：用户登录 OSS token → generateToken → CRM JWT（见 CrmAuthService）。
     oauth-username: ${XIYU_CRM_OAUTH_USERNAME:}
     oauth-password: ${XIYU_CRM_OAUTH_PASSWORD:}
     generate-token-path: ${XIYU_CRM_GENERATE_TOKEN_PATH:/common/inner/generateToken}

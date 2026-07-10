@@ -49,11 +49,7 @@ public class WebhookDeliveryJobService {
     @Transactional
     public void processTaskSafely(WebhookDeliveryTask task) {
         WebhookDeliveryTask managedTask = taskRepository.findById(task.getId()).orElse(task);
-        // CO-152 修正：operator_username 为 null 时不再直接死信，而是放行给 WebhookHttpSender 走全局兜底。
-        // 背景：BatchTenderStatusAppService/TenderCommandService.updateStatus/ScoreAnalysisService 等场景
-        // 产生的 Webhook 任务 operatorUsername=null，但 WebhookHttpSender.resolveTokenForUser(null)
-        // 会回退到 CrmAuthService.getValidToken()（全局共享 03595 token），功能不受影响。
-        // 未来删除全局 03595 路径时，需要先为这些无用户上下文的场景引入系统账号方案。
+        // operator_username 非空 → 用户 OSS→generateToken→CRM JWT；为空 → TokenUnavailable（无系统号）。
         managedTask.setStatus(WebhookDeliveryTaskStatus.PROCESSING);
         managedTask.setUpdatedAt(LocalDateTime.now());
 

@@ -17,34 +17,27 @@ import org.mockito.quality.Strictness;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link CrmAuthService} 按用户维度 CRM token 管理测试（CO-152）。
- * <p>覆盖 issue 测试要点：
- * <ol>
- *   <li>用户 A 配了工号、用户 B 没配 → A 用专属 token，B 用共享 token</li>
- *   <li>token 过期后自动重新 generate</li>
- *   <li>修改 crm_sales_no 后旧 token 立即失效（通过 invalidate 实现）</li>
- *   <li>401 只清当前用户缓存，不影响其他用户</li>
- * </ol>
+ * {@link CrmAuthService} 按用户 OSS token 换 CRM JWT（CO-152：无全局 03595）。
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class CrmAuthServiceTest {
 
     @Mock private CrmHttpClient httpClient;
-    @Mock private OssPermissionCache permissionCache;
     @Mock private UserRepository userRepository;
 
     private CrmProperties properties;
     private CrmUserTokenCache userTokenCache;
+    private OssUserTokenCache ossUserTokenCache;
     private CrmAuthService authService;
 
     @BeforeEach
@@ -53,66 +46,50 @@ class CrmAuthServiceTest {
         properties.setBaseUrl("http://crm.example.com");
         properties.setAuthBaseUrl("http://oss.example.com");
         properties.setChanceBaseUrl("http://crm.example.com");
-        properties.setGenerateTokenNickName("global-nick");
-        properties.setGenerateTokenSalesNo("03595");
         properties.getAuth().setGenerateTokenPath("/common/inner/generateToken");
-        properties.getAuth().setOauthLoginPath("/oauth/login");
-        // 内存模式（无 Redis）
         userTokenCache = new CrmUserTokenCache();
+        ossUserTokenCache = new OssUserTokenCache();
         UserProfileCache userProfileCache = new UserProfileCache(userRepository);
-        authService = new CrmAuthService(httpClient, properties, permissionCache,
-                userTokenCache, userRepository, new OssUserTokenCache(), userProfileCache);
+        authService = new CrmAuthService(httpClient, properties, userTokenCache,
+                ossUserTokenCache, userProfileCache);
     }
 
-    // ===== Issue 测试要点 #1: 配了工号用专属 token，没配用共享 token =====
-
     @Test
-    @DisplayName("用户A配了crmSalesNo → 返回专属token，不等于全局共享token")
+    @DisplayName("用户A配了crmSalesNo + 有用户OSS → 用用户OSS换专属CRM JWT")
     void getValidTokenForUser_userWithCrmSalesNo_returnsPerUserToken() {
-        // Arrange: 用户 A 配了工号
         User userA = User.builder()
                 .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
         when(userRepository.findByUsername("userA")).thenReturn(Optional.of(userA));
-        // mock OSS token 获取成功
-        mockOssLoginSuccess("oss-token-xxx");
-        // mock generateToken 返回用户 A 的专属 token
+        putUserOss("userA", "oss-token-userA");
         mockGenerateTokenSuccess("crm-jwt-userA-10001");
 
-        // Act
         String token = authService.getValidTokenForUser("userA");
 
-        // Assert
         assertThat(token).isEqualTo("crm-jwt-userA-10001");
-        // 验证 generateToken 调用时使用的是用户 A 的工号（非全局 03595）
         verify(httpClient).postWithAuth(
-                anyString(), anyString(), eq("oss-token-xxx"),
+                anyString(), anyString(), eq("oss-token-userA"),
                 org.mockito.ArgumentMatchers.contains("10001"));
     }
 
     @Test
-    @DisplayName("用户B没配crmSalesNo → 用username作为salesNo生成专属token（OSS用户用户名即工号）")
+    @DisplayName("用户B没配crmSalesNo → salesNo 用 username，OSS 仍是用户自己的")
     void getValidTokenForUser_userWithoutCrmSalesNo_usesUsernameAsSalesNo() {
-        // Arrange: 用户 B 没配工号，但 username 就是工号
         User userB = User.builder()
                 .id(2L).username("userB").fullName("用户B").crmSalesNo(null).build();
         when(userRepository.findByUsername("userB")).thenReturn(Optional.of(userB));
-        // mock generateToken 返回用户 B 的专属 token
-        mockOssLoginSuccess("oss-token-shared");
+        putUserOss("userB", "oss-token-userB");
         mockGenerateTokenSuccess("crm-jwt-userB");
 
-        // Act
         String token = authService.getValidTokenForUser("userB");
 
-        // Assert
         assertThat(token).isEqualTo("crm-jwt-userB");
-        // 验证 generateToken 调用时使用的是 username（userB）作为 salesNo
         verify(httpClient).postWithAuth(
-                anyString(), anyString(), eq("oss-token-shared"),
+                anyString(), anyString(), eq("oss-token-userB"),
                 org.mockito.ArgumentMatchers.contains("\"salesNo\":\"userB\""));
     }
 
     @Test
-    @DisplayName("用户A配了工号、用户B没配 → A用crmSalesNo，B用username，各自专属token互不影响")
+    @DisplayName("用户A/B 各自 OSS + JWT 隔离")
     void getValidTokenForUser_userAAndUserB_isolated() {
         User userA = User.builder()
                 .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
@@ -120,103 +97,95 @@ class CrmAuthServiceTest {
                 .id(2L).username("userB").fullName("用户B").crmSalesNo(null).build();
         when(userRepository.findByUsername("userA")).thenReturn(Optional.of(userA));
         when(userRepository.findByUsername("userB")).thenReturn(Optional.of(userB));
-        mockOssLoginSuccess("oss-token");
-        // 按调用顺序返回不同 token：第1次 → A 的专属，第2次 → B 的专属
-        mockGenerateTokenSequential("crm-jwt-A-10001", "crm-jwt-B-userB");
+        putUserOss("userA", "oss-a");
+        putUserOss("userB", "oss-b");
+        when(httpClient.postWithAuth(anyString(), anyString(), anyString(), anyString()))
+                .thenAnswer(inv -> {
+                    String body = inv.getArgument(3);
+                    String jwt = body.contains("10001") ? "jwt-a" : "jwt-b";
+                    return CrmResponseHandler.parse(
+                            String.format("{\"code\":0,\"msg\":\"ok\",\"data\":\"%s\"}", jwt));
+                });
 
         String tokenA = authService.getValidTokenForUser("userA");
         String tokenB = authService.getValidTokenForUser("userB");
 
-        assertThat(tokenA).isEqualTo("crm-jwt-A-10001");
-        assertThat(tokenB).isEqualTo("crm-jwt-B-userB");
-        assertThat(tokenA).isNotEqualTo(tokenB);
+        assertThat(tokenA).isEqualTo("jwt-a");
+        assertThat(tokenB).isEqualTo("jwt-b");
     }
 
-    // ===== Issue 测试要点 #2: token 过期后自动重新 generate =====
-
     @Test
-    @DisplayName("同一用户第二次调用 → 复用缓存token，不重新generate")
+    @DisplayName("同一用户复用 CRM JWT 缓存")
     void getValidTokenForUser_sameUserReusesCachedToken() {
-        User user = User.builder()
+        User userA = User.builder()
                 .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
-        when(userRepository.findByUsername("userA")).thenReturn(Optional.of(user));
-        mockOssLoginSuccess("oss-token");
+        when(userRepository.findByUsername("userA")).thenReturn(Optional.of(userA));
+        putUserOss("userA", "oss-token");
         mockGenerateTokenSuccess("crm-jwt-cached");
 
-        // 第一次调用：触发 generateToken
         String token1 = authService.getValidTokenForUser("userA");
-        // 第二次调用：应复用缓存
         String token2 = authService.getValidTokenForUser("userA");
 
-        assertThat(token1).isEqualTo("crm-jwt-cached");
-        assertThat(token2).isEqualTo("crm-jwt-cached");
-        // generateToken 只应被调用 1 次
-        verify(httpClient, times(1)).postWithAuth(
-                anyString(), anyString(), anyString(), anyString());
+        assertThat(token1).isEqualTo(token2).isEqualTo("crm-jwt-cached");
+        verify(httpClient, times(1)).postWithAuth(anyString(), anyString(), anyString(), anyString());
     }
 
     @Test
-    @DisplayName("用户缓存被清除后 → 重新generate新token")
+    @DisplayName("invalidate 后重新 generateToken")
     void getValidTokenForUser_cacheInvalidated_renewsToken() {
-        User user = User.builder()
+        User userA = User.builder()
                 .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
-        when(userRepository.findByUsername("userA")).thenReturn(Optional.of(user));
-        mockOssLoginSuccess("oss-token");
-        // 按调用顺序返回不同 token：第一次 first，第二次 second
-        mockGenerateTokenSequential("crm-jwt-first", "crm-jwt-second");
+        when(userRepository.findByUsername("userA")).thenReturn(Optional.of(userA));
+        putUserOss("userA", "oss-token");
+        mockGenerateTokenSequential("crm-jwt-1", "crm-jwt-2");
 
-        // 第一次获取
         String token1 = authService.getValidTokenForUser("userA");
-        // 清除缓存（模拟 401 或修改工号后失效）
         authService.handleUnauthorizedForUser("userA");
-        // 再次获取应重新 generate
+        putUserOss("userA", "oss-token"); // 401 会清 OSS；重新登录后才有 OSS
         String token2 = authService.getValidTokenForUser("userA");
 
-        assertThat(token1).isEqualTo("crm-jwt-first");
-        assertThat(token2).isEqualTo("crm-jwt-second");
-        verify(httpClient, times(2)).postWithAuth(
-                anyString(), anyString(), anyString(), anyString());
+        assertThat(token1).isEqualTo("crm-jwt-1");
+        assertThat(token2).isEqualTo("crm-jwt-2");
     }
 
-    // ===== Issue 测试要点 #4: 401 只清当前用户缓存 =====
-
     @Test
-    @DisplayName("handleUnauthorizedForUser 只清除当前用户缓存，不影响其他用户")
-    void handleUnauthorizedForUser_clearsOnlyThatUserToken() {
+    @DisplayName("401 只清当前用户缓存，不影响其他用户")
+    void handleUnauthorizedForUser_onlyClearsCurrentUser() {
         User userA = User.builder()
                 .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
         User userB = User.builder()
                 .id(2L).username("userB").fullName("用户B").crmSalesNo("10002").build();
         when(userRepository.findByUsername("userA")).thenReturn(Optional.of(userA));
         when(userRepository.findByUsername("userB")).thenReturn(Optional.of(userB));
-        mockOssLoginSuccess("oss-token");
-        mockGenerateTokenSuccess("crm-jwt-A");
-        mockGenerateTokenSuccess("crm-jwt-B");
+        putUserOss("userA", "oss-a");
+        putUserOss("userB", "oss-b");
+        when(httpClient.postWithAuth(anyString(), anyString(), anyString(), anyString()))
+                .thenAnswer(inv -> {
+                    String body = inv.getArgument(3);
+                    String jwt = body.contains("10001") ? "jwt-a" : "jwt-b";
+                    return CrmResponseHandler.parse(
+                            String.format("{\"code\":0,\"msg\":\"ok\",\"data\":\"%s\"}", jwt));
+                });
 
-        // 两个用户都获取 token
         authService.getValidTokenForUser("userA");
         authService.getValidTokenForUser("userB");
-
-        // 用户 A 遇到 401，清除缓存
         authService.handleUnauthorizedForUser("userA");
 
-        // 用户 B 再次获取应仍命中缓存（不重新 generate）
+        // B 仍缓存命中，不再调 generateToken；A 会再调一次
         authService.getValidTokenForUser("userB");
-
-        // generateToken 应被调用 2 次（A 1次 + B 1次），A 的 401 不影响 B
-        verify(httpClient, times(2)).postWithAuth(
-                anyString(), anyString(), anyString(), anyString());
+        verify(httpClient, times(2)).postWithAuth(anyString(), anyString(), anyString(), anyString());
+        putUserOss("userA", "oss-a"); // 401 清了 A 的 OSS
+        authService.getValidTokenForUser("userA");
+        verify(httpClient, times(3)).postWithAuth(anyString(), anyString(), anyString(), anyString());
     }
 
-    // ===== 登出清除 =====
-
     @Test
-    @DisplayName("logoutUser 清除当前用户缓存")
-    void logoutUser_clearsUserToken() {
-        User user = User.builder()
+    @DisplayName("logoutUser 后重新 generate")
+    void logoutUser_invalidatesCache() {
+        User userA = User.builder()
                 .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
-        when(userRepository.findByUsername("userA")).thenReturn(Optional.of(user));
-        mockOssLoginSuccess("oss-token");
+        when(userRepository.findByUsername("userA")).thenReturn(Optional.of(userA));
+        putUserOss("userA", "oss-token");
         mockGenerateTokenSequential("crm-jwt-before-logout", "crm-jwt-after-logout");
 
         authService.getValidTokenForUser("userA");
@@ -224,72 +193,112 @@ class CrmAuthServiceTest {
         String token = authService.getValidTokenForUser("userA");
 
         assertThat(token).isEqualTo("crm-jwt-after-logout");
-        verify(httpClient, times(2)).postWithAuth(
-                anyString(), anyString(), anyString(), anyString());
+        verify(httpClient, times(2)).postWithAuth(anyString(), anyString(), anyString(), anyString());
     }
 
-    // ===== 用户不存在 =====
-
     @Test
-    @DisplayName("用户不存在 → 回退到全局共享token")
-    void getValidTokenForUser_userNotFound_fallsBackToSharedToken() {
+    @DisplayName("用户不存在 → TokenUnavailableException（无全局回退）")
+    void getValidTokenForUser_userNotFound_throws() {
         when(userRepository.findByUsername("unknown")).thenReturn(Optional.empty());
-        mockOssLoginSuccess("oss-token");
-        mockGenerateTokenSuccess("crm-jwt-shared");
 
-        String token = authService.getValidTokenForUser("unknown");
-
-        assertThat(token).isEqualTo("crm-jwt-shared");
+        assertThatThrownBy(() -> authService.getValidTokenForUser("unknown"))
+                .isInstanceOf(TokenUnavailableException.class)
+                .hasMessageContaining("user not found");
     }
 
-    // ===== CO-152 Review D4-1: profile 缓存 =====
+    @Test
+    @DisplayName("用户存在但无 OSS token → TokenUnavailableException")
+    void getValidTokenForUser_noOssToken_throws() {
+        User userA = User.builder()
+                .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
+        when(userRepository.findByUsername("userA")).thenReturn(Optional.of(userA));
+
+        assertThatThrownBy(() -> authService.getValidTokenForUser("userA"))
+                .isInstanceOf(TokenUnavailableException.class)
+                .hasMessageContaining("OSS token");
+    }
 
     @Test
-    @DisplayName("D4-1: 多次调用 getValidTokenForUser 只查一次 DB（profile 缓存命中）")
+    @DisplayName("username 为空 → TokenUnavailableException")
+    void getValidTokenForUser_blankUsername_throws() {
+        assertThatThrownBy(() -> authService.getValidTokenForUser(null))
+                .isInstanceOf(TokenUnavailableException.class);
+        assertThatThrownBy(() -> authService.getValidTokenForUser("  "))
+                .isInstanceOf(TokenUnavailableException.class);
+    }
+
+    @Test
+    @DisplayName("D4-1: profile 缓存命中只查一次 DB")
     void getValidTokenForUser_cachesUserProfile_avoidsRepeatedDbQuery() {
         User user = User.builder()
                 .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
         when(userRepository.findByUsername("userA")).thenReturn(Optional.of(user));
-        mockOssLoginSuccess("oss-token");
+        putUserOss("userA", "oss-token");
         mockGenerateTokenSuccess("crm-jwt-cached");
 
-        // 第一次调用：DB 查询 + generateToken
         authService.getValidTokenForUser("userA");
-        // 第二次调用：token 已缓存，不应再查 DB
         authService.getValidTokenForUser("userA");
 
-        // 关键断言：userRepository.findByUsername 只被调用 1 次（profile 缓存命中）
         verify(userRepository, times(1)).findByUsername("userA");
-        // generateToken 也只调 1 次（token 缓存命中）
-        verify(httpClient, times(1)).postWithAuth(
-                anyString(), anyString(), anyString(), anyString());
+        verify(httpClient, times(1)).postWithAuth(anyString(), anyString(), anyString(), anyString());
     }
 
     @Test
-    @DisplayName("D4-1: logoutUser 后再次调用会重新查 DB（profile 缓存被清除）")
+    @DisplayName("D4-1: logoutUser 后重新查 DB")
     void getValidTokenForUser_afterLogoutUser_requeriesDb() {
         User user = User.builder()
                 .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
         when(userRepository.findByUsername("userA")).thenReturn(Optional.of(user));
-        mockOssLoginSuccess("oss-token");
+        putUserOss("userA", "oss-token");
         mockGenerateTokenSequential("crm-jwt-before", "crm-jwt-after");
 
         authService.getValidTokenForUser("userA");
-        authService.logoutUser("userA"); // 清除 profile + token 缓存
+        authService.logoutUser("userA");
         authService.getValidTokenForUser("userA");
 
-        // 关键断言：logoutUser 后 profile 缓存被清，应重新查 DB
         verify(userRepository, times(2)).findByUsername("userA");
     }
 
-    // ===== Helper methods =====
+    @Test
+    @DisplayName("getValidOssTokenForUser 返回用户缓存的 OSS token")
+    void getValidOssTokenForUser_returnsCached() {
+        putUserOss("userA", "oss-token-xyz");
+        assertThat(authService.getValidOssTokenForUser("userA")).isEqualTo("oss-token-xyz");
+    }
 
-    private void mockOssLoginSuccess(String accessToken) {
-        String ossResponse = String.format(
-                "{\"code\":0,\"msg\":\"ok\",\"data\":{\"access_token\":\"%s\",\"expires_in\":5998}}",
-                accessToken);
-        when(httpClient.postForm(anyString(), anyString(), any()))
-                .thenReturn(CrmResponseHandler.parse(ossResponse));
+
+    @Test
+    @DisplayName("401 联合清理：用户 JWT + OSS 一并失效")
+    void handleUnauthorizedForUser_clearsOssAndJwt() {
+        User userA = User.builder()
+                .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
+        when(userRepository.findByUsername("userA")).thenReturn(Optional.of(userA));
+        putUserOss("userA", "oss-token");
+        mockGenerateTokenSuccess("crm-jwt-1");
+
+        authService.getValidTokenForUser("userA");
+        assertThat(ossUserTokenCache.get("userA")).isPresent();
+
+        authService.handleUnauthorizedForUser("userA");
+
+        assertThat(ossUserTokenCache.get("userA")).isEmpty();
+        assertThatThrownBy(() -> authService.getValidTokenForUser("userA"))
+                .isInstanceOf(TokenUnavailableException.class)
+                .hasMessageContaining("OSS token");
+    }
+
+    @Test
+    @DisplayName("getValidTokenForUser(blank) 直接失败，无系统账号兜底")
+    void getValidTokenForUser_blank_throws() {
+        assertThatThrownBy(() -> authService.getValidTokenForUser(null))
+                .isInstanceOf(TokenUnavailableException.class)
+                .hasMessageContaining("empty");
+        assertThatThrownBy(() -> authService.getValidTokenForUser("  "))
+                .isInstanceOf(TokenUnavailableException.class);
+    }
+
+    private void putUserOss(String username, String ossToken) {
+        ossUserTokenCache.put(username, ossToken, 3600);
     }
 
     private void mockGenerateTokenSuccess(String crmJwtToken) {
@@ -299,30 +308,6 @@ class CrmAuthServiceTest {
                 .thenReturn(CrmResponseHandler.parse(response));
     }
 
-    /**
-     * 按 body 内容区分返回不同 token：body 包含用户工号 → perUserToken，否则 → sharedToken。
-     * 用于同时测试用户专属 token 和全局 fallback token 的场景。
-     */
-    private void mockGenerateTokenByBody(String perUserToken, String sharedToken) {
-        String perUserResponse = String.format(
-                "{\"code\":0,\"msg\":\"ok\",\"data\":\"%s\"}", perUserToken);
-        String sharedResponse = String.format(
-                "{\"code\":0,\"msg\":\"ok\",\"data\":\"%s\"}", sharedToken);
-        when(httpClient.postWithAuth(anyString(), anyString(), anyString(), anyString()))
-                .thenAnswer(inv -> {
-                    String body = inv.getArgument(3);
-                    // 全局共享路径用 properties 里的 salesNo（03595），用户路径用用户的 crmSalesNo
-                    String globalSalesNo = properties.getGenerateTokenSalesNo();
-                    if (body != null && body.contains(globalSalesNo)) {
-                        return CrmResponseHandler.parse(sharedResponse);
-                    }
-                    return CrmResponseHandler.parse(perUserResponse);
-                });
-    }
-
-    /**
-     * 按调用顺序依次返回不同 token（用于测试缓存失效后重新 generate）。
-     */
     private void mockGenerateTokenSequential(String... tokens) {
         CrmResponseHandler.CrmApiResponse[] responses = new CrmResponseHandler.CrmApiResponse[tokens.length];
         for (int i = 0; i < tokens.length; i++) {

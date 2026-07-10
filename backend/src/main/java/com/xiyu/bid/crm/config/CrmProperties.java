@@ -107,19 +107,22 @@ public class CrmProperties {
     /** Cooldown duration in milliseconds. */
     private long tokenCoolDownMs = COOL_DOWN_MS;
 
-    /** OAuth login username. */
+    /**
+     * 遗留：配置账号 OSS 登录用户名。当前代码<strong>不</strong>用此字段换 CRM token。
+     * CRM 仅使用用户登录时缓存的 OSS token → generateToken。
+     */
     private String oauthUsername = "";
 
-    /** OAuth login password. */
+    /** 遗留：配置账号 OSS 密码（未使用）。 */
     private String oauthPassword = "";
 
     /** GenerateToken path for CRM JWT token exchange. */
     private String generateTokenPath = "/common/inner/generateToken";
 
-    /** CRM JWT token exchange: nickName (用户昵称). */
+    /** 遗留：配置 generateToken nickName（未使用；用户路径用 User 档案）。 */
     private String generateTokenNickName = "";
 
-    /** CRM JWT token exchange: salesNo (用户工号). */
+    /** 遗留：配置 generateToken salesNo（未使用；用户路径用 User.crmSalesNo）。 */
     private String generateTokenSalesNo = "";
 
 

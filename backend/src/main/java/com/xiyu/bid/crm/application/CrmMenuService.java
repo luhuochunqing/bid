@@ -25,8 +25,14 @@ public class CrmMenuService {
         this.properties = properties;
     }
 
-    public CrmResponseHandler.CrmApiResponse getMenuTree(String systemType) {
-        String token = authService.getValidOssToken();
+    public CrmResponseHandler.CrmApiResponse getMenuTree(String systemType, String username) {
+        String token;
+        try {
+            token = authService.getValidOssTokenForUser(username);
+        } catch (TokenUnavailableException e) {
+            LOG.warn("getMenuTree skipped: token unavailable for username={}: {}", username, e.getMessage());
+            return new CrmResponseHandler.CrmApiResponse(401, "token unavailable", null, false);
+        }
         String baseUrl = properties.getEffectiveAuthBaseUrl();
         String path = properties.getAuth().getMenuTreePath();
         return httpClient.post(baseUrl, path, token,

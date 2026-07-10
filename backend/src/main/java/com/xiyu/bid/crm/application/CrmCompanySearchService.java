@@ -48,10 +48,11 @@ public class CrmCompanySearchService {
     /**
      * 按公司名称查询 CRM 公司，精确匹配优先.
      *
-     * @param name 公司名称（对应标讯的 purchaserName）
+     * @param name     公司名称（对应标讯的 purchaserName）
+     * @param username 当前操作用户（后台任务可为 null → empty）
      * @return 公司信息；empty 表示未查到或无精确匹配
      */
-    public Optional<CompanySearchResult> searchByName(String name) {
+    public Optional<CompanySearchResult> searchByName(String name, String username) {
         if (name == null || name.isBlank()) {
             log.debug("searchByName skipped: name is null/blank");
             return Optional.empty();
@@ -62,10 +63,11 @@ public class CrmCompanySearchService {
         Object request = buildRequest(trimmedName);
 
         try {
+            String token = authService.getValidTokenForUser(username);
             CrmResponseHandler.CrmApiResponse response = httpClient.post(
                     properties.getEffectiveCacBaseUrl(),
                     path,
-                    authService.getValidToken(),
+                    token,
                     request
             );
 
@@ -86,6 +88,10 @@ public class CrmCompanySearchService {
 
             log.info("searchByName: exact match found, name={}, id={}", trimmedName, id);
             return Optional.of(new CompanySearchResult(id, companyName, groupName));
+        } catch (TokenUnavailableException e) {
+            log.warn("searchByName skipped: token unavailable for '{}', username={}: {}",
+                    trimmedName, username, e.getMessage());
+            return Optional.empty();
         } catch (RuntimeException e) {
             log.warn("searchByName failed for '{}': {}", trimmedName, e.getMessage());
             return Optional.empty();

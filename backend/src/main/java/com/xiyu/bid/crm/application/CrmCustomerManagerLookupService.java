@@ -55,9 +55,10 @@ public class CrmCustomerManagerLookupService {
      * 按公司 ID 查询客户负责人列表，取"集团项目经理"角色（saleType 由配置决定，默认 19）.
      *
      * @param companyId 公司 ID（来自接口 25338 的返回值）
+     * @param username  当前操作用户（后台任务可为 null → empty）
      * @return 集团项目经理；empty 表示未查到或该公司无集团项目经理角色
      */
-    public Optional<CustomerManagerResult> findByCompanyId(Long companyId) {
+    public Optional<CustomerManagerResult> findByCompanyId(Long companyId, String username) {
         if (companyId == null) {
             log.debug("findByCompanyId skipped: companyId is null");
             return Optional.empty();
@@ -67,10 +68,11 @@ public class CrmCustomerManagerLookupService {
         Object request = buildRequest(companyId);
 
         try {
+            String token = authService.getValidTokenForUser(username);
             CrmResponseHandler.CrmApiResponse response = httpClient.post(
                     properties.getEffectiveCacBaseUrl(),
                     path,
-                    authService.getValidToken(),
+                    token,
                     request
             );
 
@@ -94,6 +96,10 @@ public class CrmCustomerManagerLookupService {
             log.info("findByCompanyId: companyId={}, saleNo={}, saleType={}",
                     companyId, saleNo, saleType);
             return Optional.of(new CustomerManagerResult(saleNo, saleType, saleTypeText));
+        } catch (TokenUnavailableException e) {
+            log.warn("findByCompanyId skipped: token unavailable for companyId={}, username={}: {}",
+                    companyId, username, e.getMessage());
+            return Optional.empty();
         } catch (RuntimeException e) {
             log.warn("findByCompanyId failed for companyId={}: {}", companyId, e.getMessage());
             return Optional.empty();
