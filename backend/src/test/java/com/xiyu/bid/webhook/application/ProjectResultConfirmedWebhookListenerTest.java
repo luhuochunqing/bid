@@ -75,11 +75,12 @@ class ProjectResultConfirmedWebhookListenerTest {
 
     @org.junit.jupiter.api.BeforeEach
     void setUp() {
-        // Default: return input as-is（CC 前缀 code 直接返回），null/blank 返回空字符串
-        lenient().when(crmOpportunityCodeResolver.resolve(any()))
+        // Default: 按 tender.crm_opportunity_id 原样返回；外部推送兜底反查由单独测试覆盖
+        lenient().when(crmOpportunityCodeResolver.resolveFromTender(any(Tender.class), any()))
                 .thenAnswer(inv -> {
-                    String input = inv.getArgument(0);
-                    return (input == null || input.isBlank()) ? "" : input;
+                    Tender t = inv.getArgument(0);
+                    String crmId = t.getCrmOpportunityId();
+                    return (crmId == null || crmId.isBlank()) ? "" : crmId;
                 });
         // CO-152: 默认能反查到操作者 username
         User operator = new User();
@@ -222,12 +223,12 @@ class ProjectResultConfirmedWebhookListenerTest {
     }
 
     @Test
-    @DisplayName("crm_opportunity_id 是纯数字 id → 调用 CRM 反查 code，payload 用 CC 前缀格式")
+    @DisplayName("crm_opportunity_id 是纯数字 id → 使用 operatorUsername 调用 CRM 反查 code，payload 用 CC 前缀格式")
     void crmOpportunityIdIsNumeric_resolvesToCodeViaCrm() throws Exception {
         Tender t = tender();
         t.setCrmOpportunityId("20942"); // 数字 id（CO-277 场景）
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(t));
-        when(crmOpportunityCodeResolver.resolve("20942")).thenReturn(CRM_OPPORTUNITY_CODE);
+        when(crmOpportunityCodeResolver.resolveFromTender(t, OPERATOR_USERNAME)).thenReturn(CRM_OPPORTUNITY_CODE);
         when(projectDocumentRepository.findAllById(List.of(1032L))).thenReturn(List.of());
 
         listener(CRM_URL).onProjectResultConfirmed(event(BidResultType.LOST));
@@ -246,7 +247,7 @@ class ProjectResultConfirmedWebhookListenerTest {
         Tender t = tender();
         t.setCrmOpportunityId("20942");
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(t));
-        when(crmOpportunityCodeResolver.resolve("20942")).thenReturn("20942");
+        when(crmOpportunityCodeResolver.resolveFromTender(t, OPERATOR_USERNAME)).thenReturn("20942");
         when(projectDocumentRepository.findAllById(List.of(1032L))).thenReturn(List.of());
 
         listener(CRM_URL).onProjectResultConfirmed(event(BidResultType.LOST));
@@ -256,6 +257,24 @@ class ProjectResultConfirmedWebhookListenerTest {
         JsonNode inner = root.path("bidInfoList").get(0);
         // 降级：用原数字 id（CRM 会返回 code:1 但有审计线索）
         assertThat(inner.path("code").asText()).isEqualTo("20942");
+    }
+
+    @Test
+    @DisplayName("crm_opportunity_id 为空但 externalId 是 CRM:sourceId 时，使用 operatorUsername 兜底反查 code")
+    void crmOpportunityIdEmpty_withCrmExternalId_resolvesFromExternalId() throws Exception {
+        Tender t = tender();
+        t.setCrmOpportunityId(null);
+        t.setExternalId("CRM:17");
+        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(t));
+        when(crmOpportunityCodeResolver.resolveFromTender(t, OPERATOR_USERNAME)).thenReturn("CC2026070932");
+        when(projectDocumentRepository.findAllById(List.of(1032L))).thenReturn(List.of());
+
+        listener(CRM_URL).onProjectResultConfirmed(event(BidResultType.WON));
+
+        WebhookDeliveryTask saved = captureSaved();
+        JsonNode root = new ObjectMapper().readTree(saved.getPayload());
+        JsonNode inner = root.path("bidInfoList").get(0);
+        assertThat(inner.path("code").asText()).isEqualTo("CC2026070932");
     }
 
 

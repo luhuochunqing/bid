@@ -72,11 +72,12 @@ class WebhookEventListenerTest {
     }
 
     private void configureDefaultCodeResolverAnswer() {
-        // Default: return input as-is（CC 前缀 code 直接返回），null/blank 返回空字符串
-        lenient().when(crmOpportunityCodeResolver.resolve(any()))
+        // Default: 按 tender.crm_opportunity_id 原样返回；外部推送兜底反查由单独测试覆盖
+        lenient().when(crmOpportunityCodeResolver.resolveFromTender(any(Tender.class), any()))
                 .thenAnswer(inv -> {
-                    String input = inv.getArgument(0);
-                    return (input == null || input.isBlank()) ? "" : input;
+                    Tender t = inv.getArgument(0);
+                    String crmId = t.getCrmOpportunityId();
+                    return (crmId == null || crmId.isBlank()) ? "" : crmId;
                 });
     }
 
@@ -183,7 +184,7 @@ class WebhookEventListenerTest {
         tender.setId(TENDER_ID);
         tender.setCrmOpportunityId("321");
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender));
-        when(crmOpportunityCodeResolver.resolve("321")).thenReturn("CC20260621321");
+        when(crmOpportunityCodeResolver.resolveFromTender(tender, null)).thenReturn("CC20260621321");
 
         l.onTenderStatusChanged(event(Tender.Status.ABANDONED, "放弃投标", "张三"));
 
@@ -191,6 +192,25 @@ class WebhookEventListenerTest {
         JsonNode root = objectMapper.readTree(saved.getPayload());
         JsonNode bidInfo = root.path("bidInfoList").get(0);
         assertThat(bidInfo.path("code").asText()).isEqualTo("CC20260621321");
+    }
+
+    @Test
+    @DisplayName("crmOpportunityId 为空但 externalId 是 CRM:sourceId 时，使用 resolveFromTender 兜底反查 code")
+    void emptyCrmOpportunityId_withCrmExternalId_resolvesFromExternalId() throws Exception {
+        WebhookEventListener l = listener();
+        Tender tender = new Tender();
+        tender.setId(TENDER_ID);
+        tender.setExternalId("CRM:17");
+        tender.setCrmOpportunityId(null);
+        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender));
+        when(crmOpportunityCodeResolver.resolveFromTender(tender, null)).thenReturn("CC2026070932");
+
+        l.onTenderStatusChanged(event(Tender.Status.ABANDONED, "放弃投标", "张三"));
+
+        WebhookDeliveryTask saved = captureSingleSaved();
+        JsonNode root = objectMapper.readTree(saved.getPayload());
+        JsonNode bidInfo = root.path("bidInfoList").get(0);
+        assertThat(bidInfo.path("code").asText()).isEqualTo("CC2026070932");
     }
 
     @Test

@@ -5,9 +5,11 @@
 package com.xiyu.bid.webhook.infrastructure;
 
 import com.xiyu.bid.crm.application.CrmProjectLeaderService;
+import com.xiyu.bid.entity.Tender;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 /**
  * CRM 商机编号解析器。
@@ -26,11 +28,23 @@ public class CrmOpportunityCodeResolver {
     private final CrmProjectLeaderService crmProjectLeaderService;
 
     /**
-     * 解析标准化 CRM 商机编号。
+     * 解析标准化 CRM 商机编号（兼容旧调用，username 为空时 CRM 反查可能失败）。
      * @param crmOpportunityId 原始值（可能是纯数字 id 或 CC 前缀 code）
      * @return CC 前缀格式 code；无关联时返回空字符串
      */
     public String resolve(String crmOpportunityId) {
+        return resolve(crmOpportunityId, null);
+    }
+
+    /**
+     * 解析标准化 CRM 商机编号。
+     * <p>CO-152: 传入操作者 username，使用其 OSS token 调用 CRM，避免依赖全局共享账号。
+     *
+     * @param crmOpportunityId 原始值（可能是纯数字 id 或 CC 前缀 code）
+     * @param username 操作者用户名（用于 CRM 鉴权）；为空时 CRM 反查可能失败
+     * @return CC 前缀格式 code；无关联时返回空字符串
+     */
+    public String resolve(String crmOpportunityId, String username) {
         if (crmOpportunityId == null || crmOpportunityId.isBlank()) {
             return "";
         }
@@ -40,20 +54,51 @@ public class CrmOpportunityCodeResolver {
             return crmOpportunityId;
         }
         // 纯数字 → 调用 CRM 反查 code
+        return lookupOpportunityCode(chanceId, username, "crmOpportunityId=" + crmOpportunityId);
+    }
+
+    /**
+     * 从标讯解析 CRM 商机编号。
+     * <p>优先使用 tender.crm_opportunity_id；为空时尝试从 externalId 的 sourceId 反查（外部推送场景）。
+     *
+     * @param tender 标讯实体
+     * @param username 操作者用户名（用于 CRM 鉴权）
+     * @return CC 前缀格式 code；无关联时返回空字符串
+     */
+    public String resolveFromTender(Tender tender, String username) {
+        if (tender == null) {
+            return "";
+        }
+        if (StringUtils.hasText(tender.getCrmOpportunityId())) {
+            return resolve(tender.getCrmOpportunityId(), username);
+        }
+        // crm_opportunity_id 为空时，尝试用 externalId 的 sourceId 兜底反查
+        String externalId = tender.getExternalId();
+        if (externalId != null && externalId.startsWith("CRM:")) {
+            String sourceId = externalId.substring(4);
+            Long chanceId = tryParseChanceId(sourceId);
+            if (chanceId != null) {
+                return lookupOpportunityCode(chanceId, username, "externalId=" + externalId);
+            }
+        }
+        return "";
+    }
+
+    private String lookupOpportunityCode(Long chanceId, String username, String context) {
         try {
             CrmProjectLeaderService.ProjectLeaderResult leader =
-                    crmProjectLeaderService.findProjectLeaderByChanceId(chanceId, null);
-            if (leader != null && leader.opportunityCode() != null && !leader.opportunityCode().isBlank()) {
-                log.info("CrmOpportunityCodeResolver: id={} → code={}", chanceId, leader.opportunityCode());
+                    crmProjectLeaderService.findProjectLeaderByChanceId(chanceId, username);
+            if (leader != null && StringUtils.hasText(leader.opportunityCode())) {
+                log.info("CrmOpportunityCodeResolver: id={} → code={}, context={}", chanceId, leader.opportunityCode(), context);
                 return leader.opportunityCode();
             }
-            log.warn("CrmOpportunityCodeResolver: CRM returned no code for chanceId={}, using raw id as fallback", chanceId);
+            log.warn("CrmOpportunityCodeResolver: CRM returned no code for chanceId={}, context={}", chanceId, context);
         } catch (RuntimeException e) {
-            log.error("CrmOpportunityCodeResolver: CRM lookup failed for chanceId={}, using raw id as fallback: {}",
-                    chanceId, e.getMessage());
+            log.error("CrmOpportunityCodeResolver: CRM lookup failed for chanceId={}, context={}: {}",
+                    chanceId, context, e.getMessage());
         }
         // 降级：返回原值（数字 id），CRM 会返回 code:1 但至少有审计线索
-        return crmOpportunityId;
+        return String.valueOf(chanceId);
     }
 
     private Long tryParseChanceId(String value) {

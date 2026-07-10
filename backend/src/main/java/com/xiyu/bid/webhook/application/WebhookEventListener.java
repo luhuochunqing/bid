@@ -81,11 +81,13 @@ public class WebhookEventListener {
             log.warn("Tender {} not found, skip webhook", event.tenderId());
             return;
         }
-        String crmOpportunityCode = crmOpportunityCodeResolver.resolve(tender.getCrmOpportunityId());
-        String crmOpportunityName = tender.getCrmOpportunityName() != null ? tender.getCrmOpportunityName() : "";
-        String payload = buildPayload(event, crmStatus, crmOpportunityCode, crmOpportunityName);
         // CO-152 补齐：入队时存操作者 username，回调时用它取该用户的 OSS token 调 generateToken
         String operatorUsername = resolveOperatorUsername(event.operatorId());
+        // CO-277 / CO-152: 优先用 tender.crm_opportunity_id；为空时用 externalId 的 sourceId 兜底反查 code。
+        // 使用 operatorUsername 调 CRM，避免依赖全局共享账号。
+        String crmOpportunityCode = crmOpportunityCodeResolver.resolveFromTender(tender, operatorUsername);
+        String crmOpportunityName = tender.getCrmOpportunityName() != null ? tender.getCrmOpportunityName() : "";
+        String payload = buildPayload(event, crmStatus, crmOpportunityCode, crmOpportunityName);
         taskRepository.save(WebhookDeliveryTask.builder()
                 .tenderId(event.tenderId())
                 .externalId(event.externalId())
