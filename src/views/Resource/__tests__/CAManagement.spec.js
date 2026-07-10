@@ -627,3 +627,55 @@ describe('CAManagement — CO-489 操作项优化', () => {
     expect(buttonTexts).not.toContain('借用')
   })
 })
+
+// ── 项目负责人视角：可看到全部 CA，但只能发起借用申请 ──────────────────────────
+
+describe('CAManagement — bid-projectLeader 视角操作项', () => {
+  const co489Stubs = {
+    ...stubs,
+    'el-table-column': {
+      template: '<div class="co489-column"><slot :row="mockRow" /></div>',
+      data() {
+        return { mockRow: mockCertificates[0] }
+      }
+    }
+  }
+
+  const projectLeaderStoreMock = {
+    userRole: 'bid-projectLeader',
+    currentUser: { id: 'user001' },
+    hasPermission: vi.fn(() => true)
+  }
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.mocked(useUserStore).mockImplementation(() => projectLeaderStoreMock)
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('项目负责人视角下 isManagerView 为 false，走简化视图', async () => {
+    const wrapper = mount(CAManagement, {
+      global: { stubs: co489Stubs, plugins: [createPinia()] }
+    })
+    await flushPromises()
+
+    expect(wrapper.vm.isManagerView).toBe(false)
+  })
+
+  it('项目负责人视角操作列只有"申请使用"，无编辑/下架/登记归还/查看', async () => {
+    const wrapper = mount(CAManagement, {
+      global: { stubs: co489Stubs, plugins: [createPinia()] }
+    })
+    await flushPromises()
+
+    const buttonTexts = wrapper.findAll('button').map((b) => b.text())
+    expect(buttonTexts).toContain('申请使用')
+    expect(buttonTexts).not.toContain('编辑')
+    expect(buttonTexts).not.toContain('下架')
+    expect(buttonTexts).not.toContain('登记归还')
+    expect(buttonTexts).not.toContain('查看')
+  })
+})
