@@ -35,12 +35,15 @@
 | 文件 | 说明 |
 |------|------|
 | `deploy-report-2026-07-09-1st-prod.md` | 首次生产部署报告 |
+| `生产验证报告-2026-07-09-首次生产.md` | 首次生产验证报告 |
 | `postmortem-2026-07-09-1st-prod.md` | 首次生产部署复盘 |
-| `interface-integration-record-2026-07-09-1st-prod.md` | 首次生产接口联调记录（9 个集成系统） |
+| `接口联调记录-2026-07-09-首次生产.md` | 首次生产接口联调记录（9 个集成系统） |
 | `customer-go-live-notice.md` | 客户首次上线说明 |
 | `handoff-prod-2026-07-09-spring-config-import.md` | SPRING_CONFIG_IMPORT 交接文档 |
 | `nginx-tender-import-timeout.md` | Nginx 标书导入超时配置说明 |
-| `../testing/SIT_REPORT_2026-07-09-1st-prod.md` | 首次生产 SIT 测试报告 |
+| `../testing/SIT测试报告-2026-07-09-首次生产.md` | 首次生产 SIT 测试报告 |
+| `上线切换执行记录-2026-07-09-首次生产.md` | 首次生产上线切换执行记录 |
+| `试运行保障方案-2026-07-09.md` | 试运行保障方案（2 周试运行期） |
 
 ## 更新规则
 
