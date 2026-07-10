@@ -7,6 +7,8 @@ import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -688,5 +690,36 @@ class UserDetailsServiceImplTest {
                 .extracting("authority")
                 .contains("admin", "ROLE_ADMIN", "ROLE_MANAGER")
                 .doesNotContain("/bidAdmin");
+    }
+
+    @ParameterizedTest(name = "OSS {0} 用户权限不扩散")
+    @ValueSource(strings = {"admin", "/bidAdmin", "bid-TeamLeader", "bid-projectLeader",
+            "bid-Team", "bid-otherDept", "bid-administration"})
+    @DisplayName("OSS 用户权限严格等于 OSS 返回值，不含扩散权限（哨兵测试）")
+    void ossUserAuthoritiesMustNotContainExpansionPermissions(String roleCode) {
+        User user = ossUserWithRoleProfile("oss_sentinel_" + roleCode.replace("/", ""),
+                User.Role.MANAGER, roleCode);
+        when(userRepository.findByUsername(user.getUsername())).thenReturn(Optional.of(user));
+
+        // OSS 只返回 2 个菜单权限
+        List<String> ossMenuPerms = List.of("dashboard", "bidding");
+        when(ossPermissionCache.getEntry(user.getUsername())).thenReturn(Optional.of(
+                new OssPermissionCache.CacheEntry(roleCode, ossMenuPerms, null,
+                        Instant.now().plusSeconds(60))));
+
+        UserDetails details = userDetailsService.loadUserByUsername(user.getUsername());
+
+        // ★ 核心断言：authorities 只包含 OSS 返回的菜单权限 + 角色 authority
+        assertThat(details.getAuthorities())
+                .extracting("authority")
+                .contains("dashboard", "bidding")         // OSS 返回的
+                .doesNotContain(
+                        "all",                             // admin 专属
+                        "task.review",                     // /bidAdmin seed
+                        "retrospective.submit",            // /bidAdmin seed
+                        "certificate.manage",              // bid-administration seed
+                        "task.view.own",                   // bid-Team seed（非 OSS 返回）
+                        "closure.review"                   // /bidAdmin seed
+                );
     }
 }
