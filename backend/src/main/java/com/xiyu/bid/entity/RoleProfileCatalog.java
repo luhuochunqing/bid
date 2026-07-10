@@ -150,6 +150,7 @@ public final class RoleProfileCatalog {
                         WAREHOUSE_MANAGE_PERMISSION)));
         map.put(BID_SPECIALIST_CODE, new SeedDefinition(BID_SPECIALIST_CODE, "投标专员", "投标辅助、标书审核与任务处理", true, "self",
                 List.of("dashboard", "bidding", "project", "resource",
+                        "resource-margin", // CO-515: 投标专员可查看全量保证金台账
                         "resource-ca", // CO-409: CA 信息管理模块访问（新增/批量导入对齐管理员，下架按保管员由 Service 校验）
                         "task.view.own", "task.handle.own", "evaluation.update",
                         "retrospective.submit",
