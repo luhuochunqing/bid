@@ -32,6 +32,7 @@ public class CrmAuthService {
     private final OssPermissionCache permissionCache;
     private final CrmUserTokenCache userTokenCache;
     private final UserRepository userRepository;
+    private final OssUserTokenCache ossUserTokenCache;
 
     /** OSS token 缓存（用于 OSS 组织架构接口） */
     private final CrmTokenCache ossTokenCache = new CrmTokenCache();
@@ -46,12 +47,13 @@ public class CrmAuthService {
     private record CachedUserProfile(String fullName, String crmSalesNo, Instant expiresAt) {}
     private static final long USER_PROFILE_CACHE_TTL_SECONDS = 300; // 5 分钟
 
-    public CrmAuthService(CrmHttpClient httpClient, CrmProperties properties, OssPermissionCache permissionCache, CrmUserTokenCache userTokenCache, UserRepository userRepository) {
+    public CrmAuthService(CrmHttpClient httpClient, CrmProperties properties, OssPermissionCache permissionCache, CrmUserTokenCache userTokenCache, UserRepository userRepository, OssUserTokenCache ossUserTokenCache) {
         this.httpClient = httpClient;
         this.properties = properties;
         this.permissionCache = permissionCache;
         this.userTokenCache = userTokenCache;
         this.userRepository = userRepository;
+        this.ossUserTokenCache = ossUserTokenCache;
     }
 
     /**
@@ -113,12 +115,9 @@ public class CrmAuthService {
         log.info("CRM JWT token cache cleared due to 401, will re-apply on next request");
     }
 
-    // ===== CO-152: 按用户维度 CRM token 管理 =====
+    // ===== CO-152: 按用户维度 CRM token 管理（webhook 严格模式见 WebhookCrmTokenResolver） =====
 
-    /**
-     * 获取当前用户的 CRM JWT token（CO-152）。
-     * crm_sales_no 有值 → 用 crmSalesNo；否则用 username 作为 salesNo（OSS 用户名即工号）。
-     */
+    /** 获取当前用户的 CRM JWT token（OSS token 不可用时回退全局共享 token）。 */
     public String getValidTokenForUser(String username) {
         if (username == null || username.isBlank()) {
             return getValidToken();
@@ -135,6 +134,9 @@ public class CrmAuthService {
         }
         return resolveUserTokenFromCacheOrFetch(p, username);
     }
+
+    // getValidTokenForUserStrict 已拆到 WebhookCrmTokenResolver（webhook 专用，严格按用户身份）
+    // getValidTokenForUser 保留在此（非 webhook 场景，OSS token 不可用时回退全局）
 
     private Optional<CachedUserProfile> getCachedUserProfile(String username) {
         CachedUserProfile cached = userProfileCache.get(username);
@@ -182,6 +184,7 @@ public class CrmAuthService {
 
     /** 用指定用户的 nickName + salesNo 调 generateToken 获取专属 CRM JWT token。 */
     private String applyCrmTokenForUser(String nickName, String salesNo) {
+        // webhook 场景请走 WebhookCrmTokenResolver.getValidTokenForUserStrict(username)
         CrmToken ossToken;
         try {
             ossToken = ossTokenCache.getOrFetch(this::applyOssToken,
@@ -189,6 +192,11 @@ public class CrmAuthService {
         } catch (RuntimeException e) {
             throw new IllegalStateException("Cannot acquire CRM token: OSS token acquisition failed", e);
         }
+        return applyCrmTokenWithOssToken(ossToken.accessToken(), nickName, salesNo);
+    }
+
+    /** 用指定 OSS token 调 generateToken 换 CRM JWT（CO-152：供 WebhookCrmTokenResolver 调用）。 */
+    String applyCrmTokenWithOssToken(String ossAccessToken, String nickName, String salesNo) {
         String baseUrl = properties.getEffectiveChanceBaseUrl();
         String path = properties.getAuth().getGenerateTokenPath();
         log.info("CRM generateToken for user: baseUrl={}, path={}, nickName={}, salesNo={}",
@@ -197,7 +205,7 @@ public class CrmAuthService {
                 "{\"nickName\":\"%s\",\"salesNo\":\"%s\"}",
                 CrmJsonUtils.escapeJson(nickName), CrmJsonUtils.escapeJson(salesNo));
         CrmResponseHandler.CrmApiResponse response = httpClient.postWithAuth(
-                baseUrl, path, ossToken.accessToken(), body);
+                baseUrl, path, ossAccessToken, body);
         if (response.success() && response.data() != null && response.data().isTextual()) {
             log.info("CRM JWT token acquired for salesNo={}", salesNo);
             return response.data().asText();
@@ -287,10 +295,5 @@ public class CrmAuthService {
         }
         throw new IllegalStateException(
                 "CRM generateToken failed: code=" + response.code() + " msg=" + response.msg());
-    }
-
-
-    private static String escapeJson(String value) {
-        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
     }
 }

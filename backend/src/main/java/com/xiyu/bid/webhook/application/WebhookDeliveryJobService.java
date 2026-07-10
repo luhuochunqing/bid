@@ -53,10 +53,12 @@ public class WebhookDeliveryJobService {
         managedTask.setUpdatedAt(LocalDateTime.now());
 
         try {
-            WebhookSendResult result = httpSender.send(managedTask.getTargetUrl(), managedTask.getPayload());
-            log.info("Webhook sent: taskId={}, tenderId={}, targetUrl={}, statusCode={}, responseBody={}, payload={}",
+            // CO-152 补齐：传操作者 username，WebhookHttpSender 会用该用户的 OSS token 调 generateToken
+            WebhookSendResult result = httpSender.send(
+                    managedTask.getTargetUrl(), managedTask.getPayload(), managedTask.getOperatorUsername());
+            log.info("Webhook sent: taskId={}, tenderId={}, targetUrl={}, statusCode={}, responseBody={}, operatorUsername={}, payload={}",
                     managedTask.getId(), managedTask.getTenderId(), managedTask.getTargetUrl(),
-                    result.statusCode(), result.responseBody(), managedTask.getPayload());
+                    result.statusCode(), result.responseBody(), managedTask.getOperatorUsername(), managedTask.getPayload());
             if (result.successful()) {
                 handleSuccess(managedTask, result);
                 return;

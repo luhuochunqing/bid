@@ -4,6 +4,7 @@ import com.xiyu.bid.crm.application.CrmAuthService;
 import com.xiyu.bid.crm.application.OssDelegationService;
 import com.xiyu.bid.crm.application.OssDirectLoginService;
 import com.xiyu.bid.crm.application.OssLoginFlowService;
+import com.xiyu.bid.crm.application.OssUserTokenCache;
 import com.xiyu.bid.admin.service.DataScopeConfigService;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.integration.organization.application.OrganizationUserSyncWriter;
@@ -56,6 +57,7 @@ public class AuthService {
     private final CrmAuthService crmAuthService;
     private final OssLoginFlowService ossLoginFlowService;
     private final OssDirectLoginService ossDirectLoginService;
+    private final OssUserTokenCache ossUserTokenCache;
     @Value("${jwt.refresh-expiration:604800000}")
     private long refreshExpiration;
     @Transactional
@@ -193,7 +195,10 @@ public class AuthService {
                 .ifPresent(session -> {
                     session.setRevokedAt(LocalDateTime.now());
                     refreshSessionRepository.save(session);
-                    log.info("Refresh session revoked for user: {}", session.getUser().getUsername());
+                    String username = session.getUser().getUsername();
+                    // CO-152 补齐：登出清 OSS token 缓存，让异步 webhook 回调感知到用户已登出
+                    ossUserTokenCache.invalidate(username);
+                    log.info("Refresh session revoked for user: {} (OSS token cache invalidated)", username);
                 });
     }
 

@@ -60,7 +60,7 @@ class CrmAuthServiceTest {
         // 内存模式（无 Redis）
         userTokenCache = new CrmUserTokenCache();
         authService = new CrmAuthService(httpClient, properties, permissionCache,
-                userTokenCache, userRepository);
+                userTokenCache, userRepository, new OssUserTokenCache());
     }
 
     // ===== Issue 测试要点 #1: 配了工号用专属 token，没配用共享 token =====
