@@ -15,7 +15,7 @@
     </div>
 
     <el-dialog v-model="showDialog" title="选择关联的CRM商机" width="860px" class="crm-opportunity-dialog"
-      @close="showManualForm = false; manualConfirmed = false; resetSearch()">
+      @close="resetSearch()">
       <div class="search-filters">
         <div class="blueprint-row">
           <div class="blueprint-item"><span class="blueprint-label">招标主体</span><span class="blueprint-value" :title="tenderer">{{ tenderer || '-' }}</span></div>
@@ -38,32 +38,7 @@
       <CrmOpportunityTable :results="results" :total-count="totalCount" :current-page="currentPage"
         :page-size="pageSize" :selected-id="selectedId" @select="onSelect" @page-change="doSearch" />
 
-      <!-- 手动输入表单 -->
-      <div v-if="showManualForm" class="manual-form">
-        <el-divider /><h4 class="manual-title">手动输入商机信息</h4>
-        <el-form :model="manualForm" label-width="90px" size="small">
-          <el-row :gutter="12">
-            <el-col :span="12"><el-form-item label="商机名称"><el-input v-model="manualForm.name" placeholder="请输入" /></el-form-item></el-col>
-            <el-col :span="12"><el-form-item label="商机编号"><el-input v-model="manualForm.code" placeholder="选填" /></el-form-item></el-col>
-          </el-row>
-          <el-row :gutter="12">
-            <el-col :span="12"><el-form-item label="项目负责人"><el-input v-model="manualForm.projectLeaderName" placeholder="选填" /></el-form-item></el-col>
-            <el-col :span="12"><el-form-item label="评标时间"><el-date-picker v-model="manualForm.evaluationTime" type="date" placeholder="选填" class="full-width" /></el-form-item></el-col>
-          </el-row>
-          <el-row :gutter="12">
-            <el-col :span="12"><el-form-item label="项目状态"><el-select v-model="manualForm.projectStatusText" placeholder="选填" class="full-width">
-              <el-option label="跟踪中" value="跟踪中" /><el-option label="已投标" value="已投标" />
-              <el-option label="已中标" value="已中标" /><el-option label="已丢标" value="已丢标" /><el-option label="已流标" value="已流标" />
-            </el-select></el-form-item></el-col>
-            <el-col :span="12"><el-form-item label="项目风险"><el-select v-model="manualForm.projectRiskText" placeholder="选填" class="full-width">
-              <el-option label="低" value="低" /><el-option label="中" value="中" /><el-option label="高" value="高" />
-            </el-select></el-form-item></el-col>
-          </el-row>
-          <el-form-item label="备注"><el-input v-model="manualForm.remark" type="textarea" :rows="2" placeholder="选填" /></el-form-item>
-        </el-form>
-      </div>
-
-      <el-divider v-if="selectedChance || manualConfirmed" />
+      <el-divider v-if="selectedChance" />
 
       <div v-if="selectedChance" class="selected-summary">
         <el-alert type="success" :closable="false">
@@ -71,17 +46,10 @@
           <template #default><p>项目负责人：{{ selectedChance.projectLeaderName || '-' }} | 状态：{{ selectedChance.projectStatusText || '-' }} | 评标时间：{{ selectedChance.evaluationTime || '-' }}</p></template>
         </el-alert>
       </div>
-      <div v-if="manualConfirmed && !selectedChance" class="selected-summary">
-        <el-alert type="warning" :closable="false">
-          <template #title>已手动输入商机：<strong>{{ manualForm.name }}</strong></template>
-          <template #default><p>编号：{{ manualForm.code || '-' }} | 负责人：{{ manualForm.projectLeaderName || '-' }} | 状态：{{ manualForm.projectStatusText || '-' }}</p></template>
-        </el-alert>
-      </div>
 
       <template #footer>
         <el-button @click="showDialog = false">取消</el-button>
-        <el-button v-if="showManualForm && !manualConfirmed" plain @click="confirmManual">确认手动输入</el-button>
-        <el-button type="primary" :disabled="!selectedChance && !manualConfirmed" :loading="loading" @click="confirmLink">确认关联并回填评估表</el-button>
+        <el-button type="primary" :disabled="!selectedChance" :loading="loading" @click="confirmLink">确认关联并回填评估表</el-button>
       </template>
     </el-dialog>
   </div>
@@ -105,10 +73,9 @@ const props = defineProps({
 const emit = defineEmits(['linked'])
 
 const {
-  showDialog, searching, loading, searchPerformed, results, selectedId,
-  selectedChance, totalCount, currentPage, pageSize, showManualForm,
-  manualConfirmed, searchForm, manualForm, linkedOpportunity,
-  openSearch, doSearch, onSelect, confirmManual, confirmLink, resetSearch,
+  showDialog, searching, loading, results, selectedId,
+  selectedChance, totalCount, currentPage, pageSize, searchForm, linkedOpportunity,
+  openSearch, doSearch, onSelect, confirmLink, resetSearch,
 } = useCrmOpportunitySelector(props, emit)
 
 // CO-308: 父组件告知关联失败(后端业务冲突),重置乐观写入的 linkedOpportunity,
@@ -131,11 +98,6 @@ watch(() => props.linkFailed, (val, oldVal) => {
 .blueprint-value { color: var(--text-primary); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .filter-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
 .filter-input { width: 180px; }
-.manual-fallback { text-align: center; padding: 8px 0; }
-.manual-form { margin-top: 4px; }
-.manual-title { font-size: 14px; font-weight: 600; margin: 0 0 8px 0; color: var(--text-badge); }
-.mt-2 { margin-top: 8px; }
-:deep(.full-width) { width: 100%; }
 .selected-summary p { margin: 4px 0; font-size: 13px; color: var(--text-badge-2); }
 :deep(.crm-opportunity-dialog .el-dialog__body) { max-height: 60vh; overflow-y: auto; padding: 16px 20px; }
 :deep(.crm-opportunity-dialog .el-dialog__footer) { padding: 12px 20px; border-top: 1px solid var(--border-light); }
