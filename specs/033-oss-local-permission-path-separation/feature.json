@@ -1,0 +1,46 @@
+{
+  "feature_id": "033",
+  "name": "oss-local-permission-path-separation",
+  "title": "OSS 与本地用户权限代码路径分离",
+  "status": "draft",
+  "created": "2026-07-10",
+  "branch": "agent/claude/oss-local-permission-path-separation",
+  "root_cause_analysis": "docs/lessons/root-cause-analysis-oss-local-permission-dual-track.md",
+  "related_specs": [
+    "032-fix-oss-permission-diffusion",
+    "024-preauthorize-unification",
+    "004-unify-rolecode-resolution"
+  ],
+  "related_issues": [
+    "CO-361",
+    "CO-373",
+    "CO-551"
+  ],
+  "proposed_approaches": [
+    {
+      "id": "A",
+      "name": "代码路径分离（推荐根治）",
+      "priority": "P1",
+      "summary": "OSS 用户走独立的 OssUserDetailsService + OssAuthResponseBuilder，ArchUnit 强制隔离"
+    },
+    {
+      "id": "B",
+      "name": "强约束门禁（最小代价）",
+      "priority": "P2",
+      "summary": "扩展 check-rolecode-direct-calls.mjs + ArchUnit 守卫 admin 分支 + 每个 OSS 角色权限不扩散测试"
+    },
+    {
+      "id": "C",
+      "name": "消除 all 短路 + admin 扩散（中间态）",
+      "priority": "P3",
+      "summary": "删除扩散逻辑，本地 admin 走显式 seed，前端 hasPermission 删除 all 短路"
+    }
+  ],
+  "next_step": "speckit-clarify",
+  "open_questions": [
+    "方案选择 A/B/C 需团队确认",
+    "User.getRoleCode() fallback 删除范围需盘点全仓调用点",
+    "ArchUnit ..oss.. 包定义需明确",
+    "方案 C 的 admin 显式 seed 与 RoleProfileCatalog 现有结构兼容性"
+  ]
+}
