@@ -3,15 +3,12 @@ package com.xiyu.bid.tender.service;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.project.core.BidResultType;
 import com.xiyu.bid.repository.TenderRepository;
-import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Optional;
 
@@ -27,9 +24,6 @@ class TenderStatusSyncServiceTest {
 
     @Mock
     private TenderRepository tenderRepository;
-
-    @Mock
-    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private TenderStatusSyncService service;
@@ -64,10 +58,10 @@ class TenderStatusSyncServiceTest {
                 .isEqualTo(Tender.Status.ABANDONED);
     }
 
-    // === 同步逻辑测试 ===
+    // === 同步逻辑测试（CO-570：项目结果驱动的同步只做状态数据同步，不发布 TenderStatusChangedEvent）===
 
     @Test
-    @DisplayName("BIDDING 状态标讯 + WON 结果 → 同步为 WON 并发事件")
+    @DisplayName("BIDDING 状态标讯 + WON 结果 → 同步为 WON（不发事件）")
     void sync_biddingToWon() {
         Tender tender = Tender.builder().id(1L).status(Tender.Status.BIDDING).title("测试标讯").build();
         when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
@@ -76,14 +70,10 @@ class TenderStatusSyncServiceTest {
 
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.WON);
         verify(tenderRepository).save(tender);
-        ArgumentCaptor<TenderStatusChangedEvent> captor = ArgumentCaptor.forClass(TenderStatusChangedEvent.class);
-        verify(eventPublisher).publishEvent(captor.capture());
-        assertThat(captor.getValue().newStatus()).isEqualTo(Tender.Status.WON);
-        assertThat(captor.getValue().oldStatus()).isEqualTo(Tender.Status.BIDDING);
     }
 
     @Test
-    @DisplayName("BIDDING 状态标讯 + FAILED 结果 → 同步为 LOST")
+    @DisplayName("BIDDING 状态标讯 + FAILED 结果 → 同步为 LOST（不发事件）")
     void sync_biddingFailedToLost() {
         Tender tender = Tender.builder().id(1L).status(Tender.Status.BIDDING).title("测试").build();
         when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
@@ -92,23 +82,26 @@ class TenderStatusSyncServiceTest {
 
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.LOST);
         verify(tenderRepository).save(tender);
-        verify(eventPublisher).publishEvent(any(TenderStatusChangedEvent.class));
     }
 
     @Test
-    @DisplayName("BIDDING 状态标讯 + ABANDONED 结果 → 同步为 ABANDONED")
+    @DisplayName("BIDDING 状态标讯 + ABANDONED 结果 → 同步为 ABANDONED，且不触发标讯级 CRM 回调（CO-570）")
     void sync_biddingToAbandoned() {
         Tender tender = Tender.builder().id(1L).status(Tender.Status.BIDDING).title("测试").build();
         when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
 
         service.syncFromProjectResult(1L, BidResultType.ABANDONED);
 
+        // 状态确实同步到 ABANDONED（数据一致性兜底）
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.ABANDONED);
         verify(tenderRepository).save(tender);
+        // CO-570: 不发布 TenderStatusChangedEvent，CRM 弃标回调由项目级
+        // ProjectResultConfirmedWebhookListener 统一承担，避免 WebhookEventListener 重复推送。
+        // 本服务已移除 ApplicationEventPublisher 依赖，结构上保证不会发布事件。
     }
 
     @Test
-    @DisplayName("已是目标状态 → 幂等跳过，不发事件不写库")
+    @DisplayName("已是目标状态 → 幂等跳过，不写库")
     void sync_alreadyInTargetStatus_skip() {
         Tender tender = Tender.builder().id(1L).status(Tender.Status.WON).title("测试").build();
         when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
@@ -116,7 +109,6 @@ class TenderStatusSyncServiceTest {
         service.syncFromProjectResult(1L, BidResultType.WON);
 
         verify(tenderRepository, never()).save(any());
-        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
@@ -128,7 +120,6 @@ class TenderStatusSyncServiceTest {
         service.syncFromProjectResult(1L, BidResultType.WON);
 
         verify(tenderRepository, never()).save(any());
-        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
@@ -156,7 +147,6 @@ class TenderStatusSyncServiceTest {
         service.syncFromProjectResult(99L, BidResultType.WON);
 
         verify(tenderRepository, never()).save(any());
-        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
@@ -170,6 +160,5 @@ class TenderStatusSyncServiceTest {
         // 系统内部同步：非终态标讯直接 setStatus 到目标终态，不抛异常
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.WON);
         verify(tenderRepository).save(tender);
-        verify(eventPublisher).publishEvent(any(TenderStatusChangedEvent.class));
     }
 }
