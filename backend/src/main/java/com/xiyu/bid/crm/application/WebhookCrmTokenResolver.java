@@ -5,8 +5,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * Webhook CRM token 解析（委托 {@link CrmAuthService}，避免双实现漂移）。
- * <p>有 operator → 用户路径；无 operator → 系统集成账号路径（显式，非暗门）。
+ * Webhook CRM token：委托 {@link CrmAuthService}（文档三步，仅用户 OSS→CRM JWT）。
+ * <p>无 operator_username → {@link TokenUnavailableException}（无系统账号可用）。
  */
 @Component
 public class WebhookCrmTokenResolver {
@@ -20,23 +20,22 @@ public class WebhookCrmTokenResolver {
     }
 
     /**
-     * @param username 操作者；blank 时走系统集成账号
+     * @param username 操作者 username（必填）
      */
     public String resolveToken(String username) {
-        return crmAuthService.getValidTokenForCaller(username);
-    }
-
-    /** @deprecated 使用 {@link #resolveToken(String)}；保留方法名兼容旧调用 */
-    public String getValidTokenForUserStrict(String username) {
         if (username == null || username.isBlank()) {
             throw new TokenUnavailableException(
-                    "Webhook strict user token requires operator username");
+                    "Webhook needs operator username (OSS→CRM JWT requires a real user login; no system account)");
         }
         return crmAuthService.getValidTokenForUser(username);
     }
 
+    public String getValidTokenForUserStrict(String username) {
+        return resolveToken(username);
+    }
+
     public void handleUnauthorizedForUser(String username) {
-        crmAuthService.handleUnauthorizedForCaller(username);
-        log.debug("Webhook unauthorized handled for username={}", username);
+        crmAuthService.handleUnauthorizedForUser(username);
+        log.debug("Webhook unauthorized: cleared user token chain for username={}", username);
     }
 }

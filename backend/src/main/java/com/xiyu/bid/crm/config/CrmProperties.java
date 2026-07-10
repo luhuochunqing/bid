@@ -108,21 +108,21 @@ public class CrmProperties {
     private long tokenCoolDownMs = COOL_DOWN_MS;
 
     /**
-     * 系统集成账号：OSS /oauth/login 用户名（后台无用户上下文专用服务身份）。
-     * <p>环境变量 {@code XIYU_CRM_OAUTH_USERNAME}；禁止再用个人号当暗门。
+     * 遗留：配置账号 OSS 登录用户名。当前代码<strong>不</strong>用此字段换 CRM token。
+     * CRM 仅使用用户登录时缓存的 OSS token → generateToken。
      */
     private String oauthUsername = "";
 
-    /** 系统集成账号：OSS 密码（{@code XIYU_CRM_OAUTH_PASSWORD}）。 */
+    /** 遗留：配置账号 OSS 密码（未使用）。 */
     private String oauthPassword = "";
 
     /** GenerateToken path for CRM JWT token exchange. */
     private String generateTokenPath = "/common/inner/generateToken";
 
-    /** 系统集成账号：generateToken nickName（{@code XIYU_CRM_GENERATE_TOKEN_NICK_NAME}）。 */
+    /** 遗留：配置 generateToken nickName（未使用；用户路径用 User 档案）。 */
     private String generateTokenNickName = "";
 
-    /** 系统集成账号：generateToken salesNo（{@code XIYU_CRM_GENERATE_TOKEN_SALES_NO}）。 */
+    /** 遗留：配置 generateToken salesNo（未使用；用户路径用 User.crmSalesNo）。 */
     private String generateTokenSalesNo = "";
 
 

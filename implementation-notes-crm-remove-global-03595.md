@@ -1,58 +1,56 @@
-# implementation-notes — CRM 鉴权闭环（!2002 修订）
+# implementation-notes — CRM 鉴权（回到文档本质）
 
-## 审核结论（已吸收）
+## 问题本质（接口文档 `CRM (4).md`）
 
-首版「只删 03595 + 后台静默降级」**不能合生产**（休克疗法）：
+文档里 CRM 侧只有：
 
-- 自动分配 / 外部推送 CRM 反查被截肢
-- 无 operator webhook 会死信
-- 401 只清 JWT 不清 OSS → 坏钥匙死循环
+1. **步骤 2**：`POST /common/inner/generateToken`  
+   - Header：`Authorization`（必须是 **OSS 的 access_token**）  
+   - Body：`nickName` + `salesNo`  
+   - 返回：CRM JWT 字符串  
+2. **步骤 3**：商机/客户等接口  
+   - Header：`Authorization: Bearer <CRM JWT>`
 
-## 闭环设计（当前）
+**步骤 1（拿 OSS token）不在这份 CRM 文档里**，来自 OSS 登录（用户密码/SSO 登录时拿到的 `access_token`）。
 
-### 两条显式身份（禁止 silent 混用）
+**没有**「系统服务号」「配置账号登录 OSS」的接口契约。
 
-| 路径 | 入口 | ① OSS | ② generateToken | ③ 业务 |
-|---|---|---|---|---|
-| **用户** | `getValidTokenForUser(username)` | `OssUserTokenCache`（登录缓存） | 用户 nick/salesNo | CRM JWT |
-| **系统集成账号** | `getValidTokenForSystem()` | 配置账号 oauth login | 配置 nick/salesNo | CRM JWT |
+## 致命弯路（已纠正）
 
-路由：`getValidTokenForCaller(username)`  
-- username 非空 → 用户  
-- username 为空 → **显式**系统集成账号（不是 03595 暗门回退）
+| 弯路 | 为何致命 |
+|---|---|
+| 全局 03595 配置账号登录 OSS | 生产登不上；文档未授权此身份 |
+| 虚构「系统集成账号」接管后台 | **运维没有这个账号**；测试/生产都配不齐，等于再造假前提 |
+| 无 operator 时 silent 降级 / 假系统号 | 掩盖「必须有真实用户 OSS」 |
 
-### 配置（须为可生产登录的服务身份）
+## 正确模型（当前代码）
 
 ```
-XIYU_CRM_OAUTH_USERNAME / XIYU_CRM_OAUTH_PASSWORD
-XIYU_CRM_GENERATE_TOKEN_NICK_NAME / XIYU_CRM_GENERATE_TOKEN_SALES_NO
+用户登录本系统
+  → OssLoginFlowService 拿到 OSS access_token
+  → 写入 OssUserTokenCache（按 username）
+
+调用 CRM 时
+  ① 取 OssUserTokenCache
+  ② POST generateToken(Authorization=OSS, body=用户 nickName/salesNo)
+  ③ 业务接口 Authorization=CRM JWT
 ```
 
-文档与 yml 注释标明：**系统集成账号**，禁止个人号。
+- `getValidTokenForUser(username)`：唯一换票入口  
+- username 空 / 无 OSS 缓存 → `TokenUnavailableException`（**诚实失败**）  
+- 401 → 清 CRM JWT + profile + **OSS**（防坏钥匙死循环）
 
-### 401 联合清理
+## 无用户上下文的后台能力
 
-`handleUnauthorizedForUser`：清 CRM JWT + profile + **OSS token**  
-`handleUnauthorizedForSystem`：清系统 OSS + CRM JWT 缓存  
-`handleUnauthorizedForCaller`：按 username 路由
+没有系统账号时，**无法**合法调 CRM。策略：
 
-### Webhook
+| 场景 | 行为 |
+|---|---|
+| 有登录用户的 API / webhook 带 operator | 走用户三步 |
+| 自动分配、外部推送反查、无 operator webhook | 降级 empty / TokenUnavailable→重试死信 |
 
-- 有 operator → 用户路径  
-- 无 operator → 系统集成账号（自动分配/批量/历史任务可同步 CRM）
+若业务将来**必须**后台调 CRM，只能由客户提供**真实可登录的服务身份**再另开需求——不能在代码里假装已有。
 
-### WebhookCrmTokenResolver
+## 配置
 
-缩为委托 `CrmAuthService`，消除双实现漂移。
-
-## 运维前提（合生产前必须）
-
-1. 向客户/CRM 侧 **申请专用系统集成账号**（非 03595 个人号）  
-2. 写入生产 `backend.env` 上述 4 个变量并验证 `oauth/login` + `generateToken`  
-3. 建议同批合 !2001（§4.2 operator_username）以减少结果回调对系统账号的依赖  
-
-## 验证
-
-```bash
-mvn test -Dtest=CrmAuthServiceTest,...ArchitectureTest,FPJavaArchitectureTest
-```
+`XIYU_CRM_OAUTH_*` / `GENERATE_TOKEN_*`：遗留项，**代码不再用于换 CRM token**。

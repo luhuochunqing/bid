@@ -16,8 +16,8 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 
 /**
- * CRM webhook HTTP 发送。
- * <p>有 operator_username → 用户 OSS→CRM JWT；无 operator → <strong>系统集成账号</strong>（显式）。
+ * CRM webhook 发送：Bearer = 用户 CRM JWT（由用户 OSS 换得）。
+ * <p>无 operator_username → TokenUnavailable（无虚构系统号兜底）。
  */
 @Component
 public class WebhookHttpSender {
@@ -40,15 +40,12 @@ public class WebhookHttpSender {
 
     public WebhookSendResult send(String targetUrl, String payload, String username)
             throws IOException, InterruptedException {
-        // blank username → 系统集成账号（CrmAuthService.getValidTokenForCaller）
-        if (username == null || username.isBlank()) {
-            log.info("WebhookHttpSender: no operator username, using system integration account");
-        }
-        String token = webhookCrmTokenResolver.resolveToken(username);
+        // 步骤 1+2 在 resolver 内：用户 OSS → generateToken → CRM JWT
+        String crmJwt = webhookCrmTokenResolver.resolveToken(username);
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(targetUrl))
                 .header("Content-Type", "application/json")
-                .header("Authorization", "Bearer " + token)
+                .header("Authorization", "Bearer " + crmJwt)
                 .timeout(REQUEST_TIMEOUT)
                 .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
                 .build();

@@ -49,7 +49,7 @@ public class WebhookDeliveryJobService {
     @Transactional
     public void processTaskSafely(WebhookDeliveryTask task) {
         WebhookDeliveryTask managedTask = taskRepository.findById(task.getId()).orElse(task);
-        // CO-152 闭环：operator_username 非空 → 用户 OSS→CRM JWT；为空 → 显式系统集成账号（非 silent 03595）。
+        // operator_username 非空 → 用户 OSS→generateToken→CRM JWT；为空 → TokenUnavailable（无系统号）。
         managedTask.setStatus(WebhookDeliveryTaskStatus.PROCESSING);
         managedTask.setUpdatedAt(LocalDateTime.now());
 
