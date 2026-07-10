@@ -3513,3 +3513,102 @@ unzip -p app.jar BOOT-INF/classes/application.yml | grep -A 2 "person-identifier
 - `docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md` §1 — 端口记录（已更新）
 - `docs/release/PROD_ENVIRONMENT_PROFILE.md` §1.2 — 网络架构（端口已正确）
 - `backend/src/main/java/com/xiyu/bid/integration/organization/application/OrganizationUserSyncWriter.java` — skipUnmappedUsers 修复
+
+## 52. OSS 角色解析忽略 roleCode 字段：roleName 映射不全导致登录被拒（2026-07-10 / 用户 04569 / PR !1977）
+
+### 问题背景
+
+用户 **04569 沈樱娇** 在生产环境通过 **用户名+密码** 和 **OSS 单点登录** 两种方式都无法登录系统。生产 Release ID `e88dbd207`（2026-07-09 部署）。
+
+按本文件 §23 全链路日志排查 SOP Layer 2（结构化日志 + TraceId）定位根因。
+
+### 根因（生产日志证据链）
+
+traceId=`e182d631c4e844e89b63c3749c9073ab`，用户 04569：
+
+1. `OssDelegationService` — `OSS login succeeded for user: 04569` ✓ OSS 认证成功
+2. `OssLoginFlowService` — `OSS user info retrieved for user=04569` ✓ getUserInfo 成功
+3. `CrmHttpClient` 打印 getUserInfo body，roleList 包含 `{"roleName":"投标-行政专员","roleCode":"bid-administration","status":"1","del":false}`
+4. `OssRoleResolver` — `cannot resolve internal role from OSS jobList for jobNumber=04569` ✗ **角色解析失败**
+5. `OssLoginFlowService` — `role not allowed for user=04569, roleCode=null, clearing cache` ✗ **缓存被清空**
+6. `AuthService` — `Login denied for user=04569: no valid OSS role` ✗ **登录被拒绝**
+
+### 5 Whys 分析
+
+| 层级 | 问题 | 答案 |
+|---|---|---|
+| 1 | 为什么登录失败？ | OssRoleResolver 无法解析角色，登录被拒 |
+| 2 | 为什么无法解析角色？ | sysRoleList 遍历时只用 `sysRole.getRoleName()` |
+| 3 | 为什么 roleName 匹配不到？ | 04569 的 roleName "投标-行政专员" 不在 `OSS_ROLE_NAME_TO_INTERNAL` 映射表（表中只有"行政人员"） |
+| 4 | 为什么不查 roleCode？ | 代码完全忽略 `sysRole.getRoleCode()` 字段 |
+| 5 | 为什么注释误导后续开发？ | `JobRoleLookupResolver` 注释错误声称「sysRoleList 只包含 roleName，不包含 roleCode」，实际 `CrmJobListResponse.SysRole` 明确定义了 roleCode 字段 |
+
+### 根因
+
+`OssRoleResolver.resolveRoleCodeFromJobList` 遍历 sysRoleList 时**只用 `sysRole.getRoleName()`，完全忽略 `sysRole.getRoleCode()`**。04569 的 roleCode `bid-administration` = `RoleProfileCatalog.ADMIN_STAFF_CODE` 是已注册的白名单角色，但从未被检查。
+
+### 补充发现
+
+- **PR !1972**（commit `a73181b0c`，2026-07-10 合并）修复了 OSS 密码登录失败时误抛 `RoleNotAuthorizedException`，但生产 Release `e88dbd207` 是 2026-07-09 部署的，早于此修复
+- 本 Bug 的根因（OssRoleResolver 忽略 roleCode）覆盖 SSO + 密码两条路径，与 PR !1972 的 fallback 修复**独立**
+- 即便部署 PR !1972 后，04569 通过 SSO 登录仍会失败，根因是 OssRoleResolver 本身的解析逻辑漏洞
+
+### 修复方案（双保险）
+
+#### 1. 主修复：sysRoleList 遍历优先检查 roleCode
+
+`OssRoleResolver.resolveRoleCodeFromJobList`:
+
+- 优先检查 `sysRole.getRoleCode()`（通过 `JobRoleLookupResolver.mapOssRoleCodeToInternal` 判断是否为 bid 系统已知角色码）
+- 再检查 `sysRole.getRoleName()` 作为 fallback（中文角色名通过映射表匹配）
+
+#### 2. Fallback：从 getUserInfo 返回的 employeeInfo.roleList 解析
+
+新增 `OssRoleResolver.resolveRoleCodeFromEmployeeInfo(JsonNode employeeInfo, String username)`:
+
+- jobList 解析失败时自动 fallback
+- 从 getUserInfo 返回的 roleList 解析 bid-* 角色码
+- 同样按 `status=1 && del=false` 过滤
+
+`OssLoginFlowService.cacheOssPermissions` 在 `resolveRoleCodeFromJobList` 返回 null/空时调用此 fallback。
+
+#### 3. 注释修正
+
+`JobRoleLookupResolver` 原注释错误声称「sysRoleList 只包含 roleName，不包含 roleCode」，更新为「sysRoleList 同时包含 roleName 和 roleCode，roleCode 优先解析」。
+
+### 测试证据
+
+`OssRoleResolverTest` 新增 8 个根因行为测试：
+
+1. `resolveRoleCodeFromJobList_usesRoleCodeWhenRoleNameNotInMapping` — **根因复现**：roleCode=bid-administration 但 roleName 不在映射表时通过 roleCode 解析成功
+2. `resolveRoleCodeFromJobList_fallsBackToRoleNameWhenRoleCodeNull` — roleCode 为 null 时 fallback 到 roleName
+3. `resolveRoleCodeFromJobList_ignoresOssSystemRoleCodes` — OSS 系统角色码（SE/PE）不误匹配
+4. `resolveRoleCodeFromEmployeeInfo_resolvesBidRoleCode` — 从 employeeInfo roleList 解析 bid-administration
+5. `resolveRoleCodeFromEmployeeInfo_returnsNullForNonBidRoles` — 只有 OSS 系统角色码时返回 null
+6. `resolveRoleCodeFromEmployeeInfo_skipsInactiveRoles` — 跳过 status=0 和 del=true
+7. `resolveRoleCodeFromEmployeeInfo_returnsNullForNullInput` — null 输入返回 null
+8. `fullScenario_04569_jobListFailsEmployeeInfoFallbackSucceeds` — **04569 完整场景**：jobList 失败 → employeeInfo fallback 成功
+
+### 核心教训
+
+1. **OSS 返回字段中 roleCode 比 roleName 更可靠** — roleCode 是机器可识别的内部角色码（bid-* 前缀），roleName 是中文展示名（会随业务变化）。优先解析 roleCode 可避免中文映射表不全的陷阱。
+2. **过时注释会误导后续开发** — `JobRoleLookupResolver` 注释错误声称「sysRoleList 只包含 roleName」，导致后续开发不会想到检查 roleCode。**注释必须与字段定义同步**。
+3. **SSO + 密码两条路径可能共享同一根因** — 修 PR !1972（密码路径）时没注意到 SSO 路径的同一根因（OssRoleResolver 忽略 roleCode）。**修 bug 时必须审视同一业务动作的所有路径**（参见 §29）。
+4. **生产 Release 落后于 main 是常态** — Release `e88dbd207`（2026-07-09）落后 main `a73181b0c`（2026-07-10）的 PR !1972 修复。**生产 Bug 排查时必须确认当前 Release ID 与 main 的差异**，不能假设最新修复已生效。
+5. **根因行为测试必须独立于被改动的函数** — `OssRoleResolverTest` 不 mock `OssRoleResolver` 本身，只 mock 依赖，确保 Bug 行为被根治而非掩盖。
+
+### 改进措施
+
+- 修复后所有 `bid-*` 前缀的 OSS roleCode 都能直接映射为内部角色码，不再依赖中文 roleName 映射表
+- `resolveRoleCodeFromEmployeeInfo` 提供双保险：jobList 解析失败时从 getUserInfo roleList 解析
+- `JobRoleLookupResolver` 注释已修正，避免误导后续开发
+- 根因行为测试覆盖 04569 完整场景，防止回归
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/crm/application/OssRoleResolver.java` — 主修复
+- `backend/src/main/java/com/xiyu/bid/crm/application/OssLoginFlowService.java` — fallback 集成
+- `backend/src/main/java/com/xiyu/bid/integration/organization/domain/policy/JobRoleLookupResolver.java` — 注释修正
+- `backend/src/test/java/com/xiyu/bid/crm/application/OssRoleResolverTest.java` — 8 个根因行为测试
+- PR !1977 — 本修复 PR
+- PR !1972 — 前置修复（OSS 密码登录失败时误抛 RoleNotAuthorizedException，与本 Bug 独立）

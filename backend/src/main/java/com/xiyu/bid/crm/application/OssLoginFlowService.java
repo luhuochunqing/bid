@@ -193,6 +193,11 @@ public class OssLoginFlowService {
             // 即使 permission 为空，也尝试从 jobList 解析角色并缓存（SSO 场景用户可能未配置系统权限）
             String resolvedRoleCode = ossRoleResolver.resolveRoleCodeFromJobList(
                     loginResult.getJobList(), jobNumber, username);
+            // fallback: jobList 解析失败时，从 getUserInfo 返回的 roleList 解析 bid-* 角色码
+            if (resolvedRoleCode == null || resolvedRoleCode.isBlank()) {
+                resolvedRoleCode = ossRoleResolver.resolveRoleCodeFromEmployeeInfo(
+                        loginResult.getEmployeeInfo(), username);
+            }
             if (!LoginRoleWhitelist.isAllowed(resolvedRoleCode)) {
                 log.warn("OSS login: role not allowed for user={}, roleCode={}, clearing cache",
                         username, resolvedRoleCode);

@@ -24,8 +24,9 @@ public class JobRoleLookupResolver {
     /**
      * OSS sysRoleList 中 roleName（中文角色名称）到内部角色码的映射。
      * <p>
-     * OSS 接口返回的 sysRoleList 只包含 roleName（如"投标项目负责人"），不包含 roleCode（如 bid-projectLeader）。
-     * 此映射用于将中文角色名称直接映射为内部角色码。
+     * OSS sysRoleList 同时包含 roleName 和 roleCode。roleCode 优先通过
+     * {@link #mapOssRoleCodeToInternal(String)} 解析（bid-* 前缀的 roleCode 可直接映射）。
+     * 此映射用于 roleCode 未命中时，用中文角色名称做 fallback 匹配。
      * 角色码引用 {@link RoleProfileCatalog} 常量，避免硬编码。
      */
     private static final Map<String, String> OSS_ROLE_NAME_TO_INTERNAL = Map.of(
@@ -192,8 +193,8 @@ public class JobRoleLookupResolver {
     /**
      * 将 OSS sysRoleList 中的 roleName（中文角色名称）映射为内部角色码。
      * <p>
-     * OSS 接口返回的 sysRoleList 只包含 roleName（如"投标项目负责人"），不包含 roleCode。
-     * 此方法用于在 {@link #mapOssRoleCodeToInternal} 未命中时，尝试用中文角色名称匹配。
+     * OSS sysRoleList 同时包含 roleName 和 roleCode。roleCode 优先通过
+     * {@link #mapOssRoleCodeToInternal} 解析；未命中时，此方法用中文角色名称做 fallback。
      * 未命中的角色名称返回 null。
      */
     public static String mapOssRoleNameToInternal(String ossRoleName) {
