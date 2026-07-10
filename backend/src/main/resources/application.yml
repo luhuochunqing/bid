@@ -87,6 +87,7 @@ app:
     cac-base-url: ${XIYU_CRM_CAC_BASE_URL:}
     client-id: ${XIYU_CRM_CLIENT_ID:}
     client-secret: ${XIYU_CRM_CLIENT_SECRET:}
+    # 系统集成账号（后台无用户上下文专用；须为可生产登录的服务身份，禁止个人号暗门）
     oauth-username: ${XIYU_CRM_OAUTH_USERNAME:}
     oauth-password: ${XIYU_CRM_OAUTH_PASSWORD:}
     generate-token-path: ${XIYU_CRM_GENERATE_TOKEN_PATH:/common/inner/generateToken}

@@ -40,7 +40,7 @@ class CrmCustomerManagerLookupServiceTest {
     void setUp() {
         service = new CrmCustomerManagerLookupService(httpClient, authService, properties);
         // 用 lenient：null companyId 短路用例不会触达这些 stub
-        lenient().when(authService.getValidTokenForUser(any())).thenReturn("fake-token");
+        lenient().when(authService.getValidTokenForCaller(any())).thenReturn("fake-token");
         lenient().when(properties.getEffectiveCacBaseUrl()).thenReturn("https://cac-test.ehsy.com");
         lenient().when(properties.getCustomer()).thenReturn(new CrmProperties.CrmCustomerPaths());
     }

@@ -107,19 +107,22 @@ public class CrmProperties {
     /** Cooldown duration in milliseconds. */
     private long tokenCoolDownMs = COOL_DOWN_MS;
 
-    /** OAuth login username. */
+    /**
+     * 系统集成账号：OSS /oauth/login 用户名（后台无用户上下文专用服务身份）。
+     * <p>环境变量 {@code XIYU_CRM_OAUTH_USERNAME}；禁止再用个人号当暗门。
+     */
     private String oauthUsername = "";
 
-    /** OAuth login password. */
+    /** 系统集成账号：OSS 密码（{@code XIYU_CRM_OAUTH_PASSWORD}）。 */
     private String oauthPassword = "";
 
     /** GenerateToken path for CRM JWT token exchange. */
     private String generateTokenPath = "/common/inner/generateToken";
 
-    /** CRM JWT token exchange: nickName (用户昵称). */
+    /** 系统集成账号：generateToken nickName（{@code XIYU_CRM_GENERATE_TOKEN_NICK_NAME}）。 */
     private String generateTokenNickName = "";
 
-    /** CRM JWT token exchange: salesNo (用户工号). */
+    /** 系统集成账号：generateToken salesNo（{@code XIYU_CRM_GENERATE_TOKEN_SALES_NO}）。 */
     private String generateTokenSalesNo = "";
 
 

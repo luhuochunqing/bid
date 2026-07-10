@@ -46,12 +46,12 @@ class CrmChanceServiceTest {
         properties = new CrmProperties();
         properties.setBaseUrl("http://crm.example.com");
         service = new CrmChanceService(httpClient, authService, properties);
-        when(authService.getValidTokenForUser(anyString())).thenReturn("token");
+        when(authService.getValidTokenForCaller(anyString())).thenReturn("token");
     }
 
     @Test
     void pageList_tokenAcquisitionFailure_returnsEmptyResult() {
-        when(authService.getValidTokenForUser(anyString())).thenThrow(new IllegalStateException("OSS applyToken failed"));
+        when(authService.getValidTokenForCaller(anyString())).thenThrow(new IllegalStateException("OSS applyToken failed"));
         CustomerChancePageRequest request = new CustomerChancePageRequest(1, 10, selectAllBody());
 
         CrmChancePageResult result = service.pageList(request, TEST_USERNAME);
@@ -65,7 +65,7 @@ class CrmChanceServiceTest {
 
     @Test
     void searchByTender_tokenAcquisitionFailure_returnsEmptyResult() {
-        when(authService.getValidTokenForUser(anyString())).thenThrow(new IllegalStateException("CRM generateToken failed"));
+        when(authService.getValidTokenForCaller(anyString())).thenThrow(new IllegalStateException("CRM generateToken failed"));
         CustomerChanceSearchByTenderRequest request = new CustomerChanceSearchByTenderRequest(
                 "山东海化集团有限公司", "2026-06-03 23:59:00", "2026-06-04 23:59:00", 1, 10);
 
@@ -80,7 +80,7 @@ class CrmChanceServiceTest {
 
     @Test
     void pageList_unauthorizedThenTokenRefreshFailure_returnsEmptyResult() {
-        when(authService.getValidTokenForUser(anyString()))
+        when(authService.getValidTokenForCaller(anyString()))
                 .thenReturn("expired-token")
                 .thenThrow(new IllegalStateException("CRM generateToken failed"));
         when(httpClient.post(any(), any(), eq("expired-token"), any(CustomerChancePageRequest.class)))
@@ -93,13 +93,13 @@ class CrmChanceServiceTest {
         assertThat(result.totalCount()).isZero();
         assertThat(result.pageSize()).isZero();
         assertThat(result.pageIndex()).isZero();
-        verify(authService).handleUnauthorizedForUser(TEST_USERNAME);
+        verify(authService).handleUnauthorizedForCaller(TEST_USERNAME);
         verify(httpClient, times(1)).post(any(), any(), eq("expired-token"), any(CustomerChancePageRequest.class));
     }
 
     @Test
     void searchByTender_unauthorizedThenTokenRefreshFailure_returnsEmptyResult() {
-        when(authService.getValidTokenForUser(anyString()))
+        when(authService.getValidTokenForCaller(anyString()))
                 .thenReturn("expired-token")
                 .thenThrow(new IllegalStateException("CRM generateToken failed"));
         when(httpClient.post(any(), any(), eq("expired-token"), any(CustomerChancePageRequest.class)))
@@ -113,7 +113,7 @@ class CrmChanceServiceTest {
         assertThat(result.totalCount()).isZero();
         assertThat(result.pageSize()).isZero();
         assertThat(result.pageIndex()).isZero();
-        verify(authService).handleUnauthorizedForUser(TEST_USERNAME);
+        verify(authService).handleUnauthorizedForCaller(TEST_USERNAME);
         verify(httpClient, times(1)).post(any(), any(), eq("expired-token"), any(CustomerChancePageRequest.class));
     }
 

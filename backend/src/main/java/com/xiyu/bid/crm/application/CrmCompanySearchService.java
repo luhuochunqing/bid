@@ -63,7 +63,7 @@ public class CrmCompanySearchService {
         Object request = buildRequest(trimmedName);
 
         try {
-            String token = authService.getValidTokenForUser(username);
+            String token = authService.getValidTokenForCaller(username);
             CrmResponseHandler.CrmApiResponse response = httpClient.post(
                     properties.getEffectiveCacBaseUrl(),
                     path,

@@ -49,8 +49,7 @@ public class WebhookDeliveryJobService {
     @Transactional
     public void processTaskSafely(WebhookDeliveryTask task) {
         WebhookDeliveryTask managedTask = taskRepository.findById(task.getId()).orElse(task);
-        // CO-152：operator_username 非空走用户 OSS→CRM JWT；为空时 WebhookHttpSender 抛 TokenUnavailableException，
-        // 由 failureClassifier 映射为 TRANSIENT_DEPENDENCY 重试后死信（全局 03595 路径已删除）。
+        // CO-152 闭环：operator_username 非空 → 用户 OSS→CRM JWT；为空 → 显式系统集成账号（非 silent 03595）。
         managedTask.setStatus(WebhookDeliveryTaskStatus.PROCESSING);
         managedTask.setUpdatedAt(LocalDateTime.now());
 

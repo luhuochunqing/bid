@@ -1,33 +1,58 @@
-# implementation-notes — 删除全局 03595 happy path
+# implementation-notes — CRM 鉴权闭环（!2002 修订）
 
-## 目标
+## 审核结论（已吸收）
 
-真人操作的 CRM 三步鉴权全部走用户身份：
+首版「只删 03595 + 后台静默降级」**不能合生产**（休克疗法）：
 
-1. 用户 OSS token（登录缓存 `OssUserTokenCache`）
-2. `generateToken` 换 CRM JWT（`CrmUserTokenCache`）
-3. 业务接口带 CRM JWT
+- 自动分配 / 外部推送 CRM 反查被截肢
+- 无 operator webhook 会死信
+- 401 只清 JWT 不清 OSS → 坏钥匙死循环
 
-全局账号 `applyOssToken` / `getValidToken()` / `getValidOssToken()` **删除**，不再 silent fallback。
+## 闭环设计（当前）
 
-## 决策
+### 两条显式身份（禁止 silent 混用）
 
-| 决策 | 说明 |
-|---|---|
-| 后台任务 username=null | 降级 empty/null/TokenUnavailable，**不**再调 03595 |
-| Webhook 无 operator | 抛 `TokenUnavailableException` → 重试后死信（产品已接受） |
-| 测试端点 system-token | 返回错误文案，强制传用户 OSS token |
-| 与 !2001 关系 | §4.2 operator_username 仍建议合入，否则结果确认 webhook 无用户身份会死信 |
+| 路径 | 入口 | ① OSS | ② generateToken | ③ 业务 |
+|---|---|---|---|---|
+| **用户** | `getValidTokenForUser(username)` | `OssUserTokenCache`（登录缓存） | 用户 nick/salesNo | CRM JWT |
+| **系统集成账号** | `getValidTokenForSystem()` | 配置账号 oauth login | 配置 nick/salesNo | CRM JWT |
 
-## 残留
+路由：`getValidTokenForCaller(username)`  
+- username 非空 → 用户  
+- username 为空 → **显式**系统集成账号（不是 03595 暗门回退）
 
-- 配置项 `oauth-username` 等可能仍在 yml，但代码无调用
-- 无用户上下文的自动分配 / 外部推送 CRM 反查会静默降级（不阻断主流程）
-- 未来若后台必须查 CRM，需单独系统服务账号（可生产登录的专用身份，不是 03595 个人号）
+### 配置（须为可生产登录的服务身份）
+
+```
+XIYU_CRM_OAUTH_USERNAME / XIYU_CRM_OAUTH_PASSWORD
+XIYU_CRM_GENERATE_TOKEN_NICK_NAME / XIYU_CRM_GENERATE_TOKEN_SALES_NO
+```
+
+文档与 yml 注释标明：**系统集成账号**，禁止个人号。
+
+### 401 联合清理
+
+`handleUnauthorizedForUser`：清 CRM JWT + profile + **OSS token**  
+`handleUnauthorizedForSystem`：清系统 OSS + CRM JWT 缓存  
+`handleUnauthorizedForCaller`：按 username 路由
+
+### Webhook
+
+- 有 operator → 用户路径  
+- 无 operator → 系统集成账号（自动分配/批量/历史任务可同步 CRM）
+
+### WebhookCrmTokenResolver
+
+缩为委托 `CrmAuthService`，消除双实现漂移。
+
+## 运维前提（合生产前必须）
+
+1. 向客户/CRM 侧 **申请专用系统集成账号**（非 03595 个人号）  
+2. 写入生产 `backend.env` 上述 4 个变量并验证 `oauth/login` + `generateToken`  
+3. 建议同批合 !2001（§4.2 operator_username）以减少结果回调对系统账号的依赖  
 
 ## 验证
 
 ```bash
-mvn test -Dtest=CrmAuthServiceTest,CrmCompanySearchServiceTest,...ArchitectureTest,...
-# 全绿
+mvn test -Dtest=CrmAuthServiceTest,...ArchitectureTest,FPJavaArchitectureTest
 ```

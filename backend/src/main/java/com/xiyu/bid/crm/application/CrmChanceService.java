@@ -146,7 +146,7 @@ public class CrmChanceService {
     private CrmChancePageResult doPageList(CustomerChancePageRequest request, String username) {
         String token;
         try {
-            token = authService.getValidTokenForUser(username);
+            token = authService.getValidTokenForCaller(username);
         } catch (IllegalStateException | TokenUnavailableException e) {
             log.warn("CRM page-list skipped because token acquisition failed: {}", e.getMessage());
             return emptyPageResult();
@@ -162,9 +162,9 @@ public class CrmChanceService {
         CrmResponseHandler.CrmApiResponse response = httpClient.post(baseUrl, path, token, request);
 
         if (response.isUnauthorized()) {
-            authService.handleUnauthorizedForUser(username);
+            authService.handleUnauthorizedForCaller(username);
             try {
-                token = authService.getValidTokenForUser(username);
+                token = authService.getValidTokenForCaller(username);
             } catch (IllegalStateException | TokenUnavailableException e) {
                 log.warn("CRM chance page-list skipped because token refresh failed after unauthorized: {}",
                         e.getMessage());
@@ -247,14 +247,14 @@ public class CrmChanceService {
      * @return true 回传成功，false 回传失败
      */
     public boolean bidInfoSync(BidInfoSyncDTO bidInfoSync, String username) {
-        String token = authService.getValidTokenForUser(username);
+        String token = authService.getValidTokenForCaller(username);
         String baseUrl = properties.getEffectiveChanceBaseUrl();
         String path = properties.getChance().getBidInfoSyncPath();
         CrmResponseHandler.CrmApiResponse response = httpClient.post(baseUrl, path, token, bidInfoSync);
 
         if (response.isUnauthorized()) {
-            authService.handleUnauthorizedForUser(username);
-            token = authService.getValidTokenForUser(username);
+            authService.handleUnauthorizedForCaller(username);
+            token = authService.getValidTokenForCaller(username);
             response = httpClient.post(baseUrl, path, token, bidInfoSync);
         }
 

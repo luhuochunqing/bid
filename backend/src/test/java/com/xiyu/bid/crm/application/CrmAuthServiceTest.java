@@ -18,6 +18,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
@@ -140,6 +141,7 @@ class CrmAuthServiceTest {
 
         String token1 = authService.getValidTokenForUser("userA");
         authService.handleUnauthorizedForUser("userA");
+        putUserOss("userA", "oss-token"); // 401 会清 OSS；重新登录后才有 OSS
         String token2 = authService.getValidTokenForUser("userA");
 
         assertThat(token1).isEqualTo("crm-jwt-1");
@@ -172,6 +174,7 @@ class CrmAuthServiceTest {
         // B 仍缓存命中，不再调 generateToken；A 会再调一次
         authService.getValidTokenForUser("userB");
         verify(httpClient, times(2)).postWithAuth(anyString(), anyString(), anyString(), anyString());
+        putUserOss("userA", "oss-a"); // 401 清了 A 的 OSS
         authService.getValidTokenForUser("userA");
         verify(httpClient, times(3)).postWithAuth(anyString(), anyString(), anyString(), anyString());
     }
@@ -261,6 +264,75 @@ class CrmAuthServiceTest {
     void getValidOssTokenForUser_returnsCached() {
         putUserOss("userA", "oss-token-xyz");
         assertThat(authService.getValidOssTokenForUser("userA")).isEqualTo("oss-token-xyz");
+    }
+
+
+    @Test
+    @DisplayName("401 联合清理：用户 JWT + OSS 一并失效")
+    void handleUnauthorizedForUser_clearsOssAndJwt() {
+        User userA = User.builder()
+                .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
+        when(userRepository.findByUsername("userA")).thenReturn(Optional.of(userA));
+        putUserOss("userA", "oss-token");
+        mockGenerateTokenSuccess("crm-jwt-1");
+
+        authService.getValidTokenForUser("userA");
+        assertThat(ossUserTokenCache.get("userA")).isPresent();
+
+        authService.handleUnauthorizedForUser("userA");
+
+        assertThat(ossUserTokenCache.get("userA")).isEmpty();
+        assertThatThrownBy(() -> authService.getValidTokenForUser("userA"))
+                .isInstanceOf(TokenUnavailableException.class)
+                .hasMessageContaining("OSS token not found");
+    }
+
+    @Test
+    @DisplayName("系统集成账号：配置齐全时可获取 system CRM JWT")
+    void getValidTokenForSystem_withConfig_returnsJwt() {
+        properties.setOauthUsername("svc_crm_bot");
+        properties.setOauthPassword("secret");
+        properties.setGenerateTokenNickName("系统集成");
+        properties.setGenerateTokenSalesNo("90001");
+        properties.getAuth().setOauthLoginPath("/oauth/login");
+
+        String ossResponse = "{\"code\":0,\"msg\":\"ok\",\"data\":{\"access_token\":\"sys-oss\",\"expires_in\":5998}}";
+        when(httpClient.postForm(anyString(), anyString(), any()))
+                .thenReturn(CrmResponseHandler.parse(ossResponse));
+        mockGenerateTokenSuccess("sys-crm-jwt");
+
+        String token = authService.getValidTokenForSystem();
+        assertThat(token).isEqualTo("sys-crm-jwt");
+        verify(httpClient).postForm(anyString(), anyString(), any());
+        verify(httpClient).postWithAuth(anyString(), anyString(), eq("sys-oss"),
+                org.mockito.ArgumentMatchers.contains("90001"));
+    }
+
+    @Test
+    @DisplayName("getValidTokenForCaller(null) uses system integration account")
+    void getValidTokenForCaller_blank_usesSystem() {
+        properties.setOauthUsername("svc_crm_bot");
+        properties.setOauthPassword("secret");
+        properties.setGenerateTokenNickName("系统集成");
+        properties.setGenerateTokenSalesNo("90001");
+        properties.getAuth().setOauthLoginPath("/oauth/login");
+        String ossResponse = "{\"code\":0,\"msg\":\"ok\",\"data\":{\"access_token\":\"sys-oss\",\"expires_in\":5998}}";
+        when(httpClient.postForm(anyString(), anyString(), any()))
+                .thenReturn(CrmResponseHandler.parse(ossResponse));
+        mockGenerateTokenSuccess("sys-crm-jwt");
+
+        assertThat(authService.getValidTokenForCaller(null)).isEqualTo("sys-crm-jwt");
+        assertThat(authService.getValidTokenForCaller("  ")).isEqualTo("sys-crm-jwt");
+    }
+
+    @Test
+    @DisplayName("系统账号未配置 → TokenUnavailableException")
+    void getValidTokenForSystem_notConfigured_throws() {
+        properties.setOauthUsername("");
+        properties.setOauthPassword("");
+        assertThatThrownBy(() -> authService.getValidTokenForSystem())
+                .isInstanceOf(TokenUnavailableException.class)
+                .hasMessageContaining("not configured");
     }
 
     private void putUserOss(String username, String ossToken) {
