@@ -3,10 +3,9 @@ package com.xiyu.bid.webhook.application;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.integration.external.ExternalSystemPrefix;
 import com.xiyu.bid.repository.TenderRepository;
-import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
-import com.xiyu.bid.webhook.infrastructure.CrmOpportunityCodeResolver;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTask;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTaskRepository;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTaskStatus;
@@ -52,38 +51,40 @@ class WebhookEventListenerTest {
 
     @Mock private WebhookDeliveryTaskRepository taskRepository;
     @Mock private TenderRepository tenderRepository;
-    @Mock private CrmOpportunityCodeResolver crmOpportunityCodeResolver;
-    @Mock private UserRepository userRepository;
+    @Mock private TenderCrmOpportunityCodeResolver tenderCrmOpportunityCodeResolver;
+    @Mock private OperatorUsernameResolver operatorUsernameResolver;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private WebhookEventListener listener() {
-        configureDefaultCodeResolverAnswer();
-        WebhookEventListener l = new WebhookEventListener(taskRepository, tenderRepository, objectMapper, crmOpportunityCodeResolver, userRepository);
+        configureDefaultAnswers();
+        WebhookEventListener l = new WebhookEventListener(taskRepository, tenderRepository, objectMapper, tenderCrmOpportunityCodeResolver, operatorUsernameResolver);
         ReflectionTestUtils.setField(l, "crmWebhookUrl", CRM_URL);
         return l;
     }
 
     private WebhookEventListener listenerWithoutUrl() {
-        configureDefaultCodeResolverAnswer();
-        WebhookEventListener l = new WebhookEventListener(taskRepository, tenderRepository, objectMapper, crmOpportunityCodeResolver, userRepository);
+        configureDefaultAnswers();
+        WebhookEventListener l = new WebhookEventListener(taskRepository, tenderRepository, objectMapper, tenderCrmOpportunityCodeResolver, operatorUsernameResolver);
         ReflectionTestUtils.setField(l, "crmWebhookUrl", "");
         return l;
     }
 
-    private void configureDefaultCodeResolverAnswer() {
+    private void configureDefaultAnswers() {
         // Default: 按 tender.crm_opportunity_id 原样返回；外部推送兜底反查由单独测试覆盖
-        lenient().when(crmOpportunityCodeResolver.resolveFromTender(any(Tender.class), any()))
+        lenient().when(tenderCrmOpportunityCodeResolver.resolveForTender(any(Tender.class), any()))
                 .thenAnswer(inv -> {
                     Tender t = inv.getArgument(0);
                     String crmId = t.getCrmOpportunityId();
                     return (crmId == null || crmId.isBlank()) ? "" : crmId;
                 });
+        // 默认 operatorUsername 为 null，与未配置 resolver 时一致
+        lenient().when(operatorUsernameResolver.resolve(any())).thenReturn(null);
     }
 
     private TenderStatusChangedEvent event(Tender.Status newStatus, String abandonReason, String operatorName) {
         return TenderStatusChangedEvent.of(
-                TENDER_ID, "CRM:254", Tender.Status.TRACKING, newStatus, "西域集团招标",
+                TENDER_ID, ExternalSystemPrefix.CRM.formatExternalId("254"), Tender.Status.TRACKING, newStatus, "西域集团招标",
                 abandonReason, 493L, operatorName, null, null);
     }
 
@@ -184,7 +185,7 @@ class WebhookEventListenerTest {
         tender.setId(TENDER_ID);
         tender.setCrmOpportunityId("321");
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender));
-        when(crmOpportunityCodeResolver.resolveFromTender(tender, null)).thenReturn("CC20260621321");
+        when(tenderCrmOpportunityCodeResolver.resolveForTender(tender, null)).thenReturn("CC20260621321");
 
         l.onTenderStatusChanged(event(Tender.Status.ABANDONED, "放弃投标", "张三"));
 
@@ -200,10 +201,10 @@ class WebhookEventListenerTest {
         WebhookEventListener l = listener();
         Tender tender = new Tender();
         tender.setId(TENDER_ID);
-        tender.setExternalId("CRM:17");
+        tender.setExternalId(ExternalSystemPrefix.CRM.formatExternalId("17"));
         tender.setCrmOpportunityId(null);
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender));
-        when(crmOpportunityCodeResolver.resolveFromTender(tender, null)).thenReturn("CC2026070932");
+        when(tenderCrmOpportunityCodeResolver.resolveForTender(tender, null)).thenReturn("CC2026070932");
 
         l.onTenderStatusChanged(event(Tender.Status.ABANDONED, "放弃投标", "张三"));
 
@@ -211,6 +212,22 @@ class WebhookEventListenerTest {
         JsonNode root = objectMapper.readTree(saved.getPayload());
         JsonNode bidInfo = root.path("bidInfoList").get(0);
         assertThat(bidInfo.path("code").asText()).isEqualTo("CC2026070932");
+    }
+
+    @Test
+    @DisplayName("CO-152: operatorId 命中用户 → resolveForTender 使用真实 username")
+    void operatorResolved_passesUsernameToCodeResolver() {
+        WebhookEventListener l = listener();
+        Tender tender = new Tender();
+        tender.setId(TENDER_ID);
+        tender.setCrmOpportunityId(null);
+        tender.setExternalId(ExternalSystemPrefix.CRM.formatExternalId("17"));
+        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender));
+        when(operatorUsernameResolver.resolve(493L)).thenReturn("zhangsan");
+
+        l.onTenderStatusChanged(event(Tender.Status.ABANDONED, "放弃投标", "张三"));
+
+        verify(tenderCrmOpportunityCodeResolver).resolveForTender(tender, "zhangsan");
     }
 
     @Test
