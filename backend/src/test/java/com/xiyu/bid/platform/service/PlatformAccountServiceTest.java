@@ -293,8 +293,8 @@ class PlatformAccountServiceTest {
     }
 
     @Test
-    @DisplayName("项目负责人（sales/bid-projectLeader）可查看全部账号的脱敏摘要")
-    void getAccountsForViewer_projectLeader_receivesSummaryDtoForAllAccounts() {
+    @DisplayName("项目负责人（sales/bid-projectLeader）可查看全部账号的完整 DTO")
+    void getAccountsForViewer_projectLeader_receivesFullDtoForAllAccounts() {
         PlatformAccount accountA = accountWithId(1L);
         accountA.setContactPerson(99L);
         accountA.setStatus(AccountStatus.AVAILABLE);
@@ -307,8 +307,10 @@ class PlatformAccountServiceTest {
         List<?> result = service.getAccountsForViewer(PROJECT_LEADER_USER);
 
         assertThat(result).hasSize(2);
-        assertThat(result.get(0)).isInstanceOf(PlatformAccountSummaryDTO.class);
-        assertThat(result.get(1)).isInstanceOf(PlatformAccountSummaryDTO.class);
+        assertThat(result.get(0)).isInstanceOf(PlatformAccountDTO.class);
+        assertThat(result.get(1)).isInstanceOf(PlatformAccountDTO.class);
+        PlatformAccountDTO first = (PlatformAccountDTO) result.get(0);
+        assertThat(first.getUsername()).isEqualTo("testuser");
     }
 
     // ── 更新 ──

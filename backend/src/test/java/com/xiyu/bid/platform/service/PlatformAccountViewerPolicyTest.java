@@ -91,6 +91,60 @@ class PlatformAccountViewerPolicyTest {
     }
 
     @Nested
+    @DisplayName("canViewFullAccountList / isProjectLeaderRole — 列表只读授权")
+    class CanViewFullAccountList {
+
+        @Test
+        @DisplayName("admin 可查看完整列表")
+        void adminRole_canViewFull() {
+            assertThat(PlatformAccountViewerPolicy.canViewFullAccountList("admin")).isTrue();
+        }
+
+        @Test
+        @DisplayName("bid-teamleader 可查看完整列表")
+        void teamLeaderRole_canViewFull() {
+            assertThat(PlatformAccountViewerPolicy.canViewFullAccountList("bid-teamleader")).isTrue();
+        }
+
+        @Test
+        @DisplayName("投标项目负责人可查看完整列表")
+        void projectLeaderRole_canViewFull() {
+            assertThat(PlatformAccountViewerPolicy.canViewFullAccountList("bid-projectLeader")).isTrue();
+            assertThat(PlatformAccountViewerPolicy.isProjectLeaderRole("bid-projectLeader")).isTrue();
+        }
+
+        @Test
+        @DisplayName("投标项目负责人大小写不敏感")
+        void projectLeaderRole_caseInsensitive() {
+            assertThat(PlatformAccountViewerPolicy.isProjectLeaderRole("BID-PROJECTLEADER")).isTrue();
+            assertThat(PlatformAccountViewerPolicy.isProjectLeaderRole("bid-projectleader")).isTrue();
+            assertThat(PlatformAccountViewerPolicy.canViewFullAccountList("  bid-projectLeader  ")).isTrue();
+        }
+
+        @Test
+        @DisplayName("投标专员不可查看完整列表")
+        void bidTeamRole_cannotViewFull() {
+            assertThat(PlatformAccountViewerPolicy.canViewFullAccountList("bid-Team")).isFalse();
+            assertThat(PlatformAccountViewerPolicy.isProjectLeaderRole("bid-Team")).isFalse();
+        }
+
+        @Test
+        @DisplayName("其他角色不可查看完整列表")
+        void otherRole_cannotViewFull() {
+            assertThat(PlatformAccountViewerPolicy.canViewFullAccountList("sales")).isFalse();
+            assertThat(PlatformAccountViewerPolicy.canViewFullAccountList("bid-administration")).isFalse();
+        }
+
+        @Test
+        @DisplayName("null 或空角色不可查看完整列表")
+        void nullOrBlankRole_cannotViewFull() {
+            assertThat(PlatformAccountViewerPolicy.canViewFullAccountList(null)).isFalse();
+            assertThat(PlatformAccountViewerPolicy.canViewFullAccountList("  ")).isFalse();
+            assertThat(PlatformAccountViewerPolicy.isProjectLeaderRole(null)).isFalse();
+        }
+    }
+
+    @Nested
     @DisplayName("canViewPassword — 查看密码授权")
     class CanViewPassword {
 

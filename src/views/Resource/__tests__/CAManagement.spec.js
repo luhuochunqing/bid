@@ -281,7 +281,7 @@ describe('CAManagement', () => {
   })
 })
 
-// ── CO-393：bid-projectLeader 视角应进入简化视图，不应因 resource-ca 权限进入管理员视图 ──
+// ── bid-projectLeader 视角应进入完整视图（只读全量），仅可发起借用申请 ──
 
 describe('CAManagement — bid-projectLeader 视角', () => {
   const adminStoreMock = {
@@ -290,6 +290,7 @@ describe('CAManagement — bid-projectLeader 视角', () => {
   }
   const projectLeaderStoreMock = {
     userRole: 'bid-projectLeader',
+    currentUser: { id: 'sales001' },
     hasPermission: vi.fn(() => true)
   }
 
@@ -303,30 +304,30 @@ describe('CAManagement — bid-projectLeader 视角', () => {
     vi.mocked(useUserStore).mockImplementation(() => adminStoreMock)
   })
 
-  it('isManagerView 为 false（不应因有 resource-ca 权限而进入管理员视图）', async () => {
+  it('isManagerView 为 true（项目负责人进入完整管理员视图，只读全量）', async () => {
     const wrapper = createWrapper()
     await flushPromises()
 
-    expect(wrapper.vm.isManagerView).toBe(false)
+    expect(wrapper.vm.isManagerView).toBe(true)
   })
 
-  it('项目负责人视角不渲染统计卡片', async () => {
+  it('项目负责人视角渲染统计卡片', async () => {
     const wrapper = createWrapper()
     await flushPromises()
 
     const html = wrapper.html()
-    expect(html).not.toContain('stat-row')
+    expect(html).toContain('stat-row')
   })
 
-  it('项目负责人视角不渲染高级筛选项（CA类型/印章类型/借用状态/关键词）', async () => {
+  it('项目负责人视角渲染高级筛选项（CA类型/印章类型/借用状态/关键词）', async () => {
     const wrapper = createWrapper()
     await flushPromises()
 
     const searchCardHtml = wrapper.find('.search-card').html()
-    expect(searchCardHtml).not.toContain('CA类型')
-    expect(searchCardHtml).not.toContain('印章类型')
-    expect(searchCardHtml).not.toContain('借用状态')
-    expect(searchCardHtml).not.toContain('关键词')
+    expect(searchCardHtml).toContain('CA类型')
+    expect(searchCardHtml).toContain('印章类型')
+    expect(searchCardHtml).toContain('借用状态')
+    expect(searchCardHtml).toContain('关键词')
   })
 
   it('项目负责人视角保留关联平台搜索框', async () => {
@@ -344,6 +345,28 @@ describe('CAManagement — bid-projectLeader 视角', () => {
     const headerActionsHtml = wrapper.find('.header-actions').html()
     expect(headerActionsHtml).not.toContain('新增')
     expect(headerActionsHtml).not.toContain('批量导入')
+  })
+
+  it('项目负责人视角点击行不打开详情抽屉', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    const ca = mockCertificates[0]
+    wrapper.vm.handleRowClick(ca)
+    await flushPromises()
+
+    expect(wrapper.vm.drawerVisible).toBe(false)
+  })
+
+  it('项目负责人视角操作列只渲染「申请使用」，不渲染编辑/下架/登记归还', async () => {
+    const wrapper = createWrapper()
+    await flushPromises()
+
+    // mockCertificates[0] 是 IN_STOCK + ENTITY_CA + ACTIVE，满足借用条件
+    const ca = mockCertificates[0]
+    expect(wrapper.vm.canBorrow(ca)).toBe(true)
+    expect(wrapper.vm.canManage(ca)).toBe(false)
+    expect(wrapper.vm.canReturn(ca)).toBe(false)
   })
 })
 
@@ -656,14 +679,7 @@ describe('CAManagement — bid-projectLeader 视角操作项', () => {
     vi.clearAllMocks()
   })
 
-  it('项目负责人视角下 isManagerView 为 false，走简化视图', async () => {
-    const wrapper = mount(CAManagement, {
-      global: { stubs: co489Stubs, plugins: [createPinia()] }
-    })
-    await flushPromises()
 
-    expect(wrapper.vm.isManagerView).toBe(false)
-  })
 
   it('项目负责人视角操作列只有"申请使用"，无编辑/下架/登记归还/查看', async () => {
     const wrapper = mount(CAManagement, {
