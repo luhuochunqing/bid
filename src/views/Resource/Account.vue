@@ -229,6 +229,19 @@ const loadAccountDetail = async (row) => {
   return row
 }
 
+// CO-400 修复：列表 N+1 detail 请求集中并发会触发后端 RateLimitFilter 返回 429，
+// 按批次限制并发数（每批 DETAIL_CONCURRENCY 个），在保持吞吐的同时避免撞限流。
+const DETAIL_CONCURRENCY = 5
+const loadDetailsInBatches = async (list) => {
+  const results = []
+  for (let i = 0; i < list.length; i += DETAIL_CONCURRENCY) {
+    const batch = list.slice(i, i + DETAIL_CONCURRENCY)
+    const batchResults = await Promise.all(batch.map(row => loadAccountDetail(row)))
+    results.push(...batchResults)
+  }
+  return results
+}
+
 const loadAccounts = async () => {
   try {
     const res = await resourcesApi.accounts.getList(searchForm.value)
@@ -239,7 +252,7 @@ const loadAccounts = async () => {
     }
     const list = Array.isArray(res.data) ? res.data : []
     // CO-400 三轮：列表 row 是脱敏 SummaryDTO，对每行调 getDetail 拉完整 DTO（用户已确认接受 N+1）。
-    const detailed = await Promise.all(list.map(row => loadAccountDetail(row)))
+    const detailed = await loadDetailsInBatches(list)
     accounts.value = detailed
     resetPage()
   } catch (e) {
