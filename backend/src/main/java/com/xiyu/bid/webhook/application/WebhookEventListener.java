@@ -92,6 +92,19 @@ public class WebhookEventListener {
         String crmOpportunityCode = tenderCrmOpportunityCodeResolver.resolveForTender(tender, operatorUsername);
         String crmOpportunityName = tender.getCrmOpportunityName() != null ? tender.getCrmOpportunityName() : "";
         String payload = buildPayload(event, crmStatus, crmOpportunityCode, crmOpportunityName);
+<<<<<<< Updated upstream
+=======
+        // CO-152 补齐：入队时存操作者 username，回调时用它取该用户的 OSS token 调 generateToken
+        // #1641 修复：API Key 认证时 event.operatorId() 是 API Key 创建者 admin，没有 OSS token
+        // 改为优先用标讯创建人（creator_id，有 OSS token 的真实用户），fallback 到项目负责人，再 fallback 到事件操作者
+        String operatorUsername = resolveOperatorUsername(tender.getCreatorId());
+        if (operatorUsername == null) {
+            operatorUsername = resolveOperatorUsername(tender.getProjectManagerId());
+        }
+        if (operatorUsername == null) {
+            operatorUsername = resolveOperatorUsername(event.operatorId());
+        }
+>>>>>>> Stashed changes
         taskRepository.save(WebhookDeliveryTask.builder()
                 .tenderId(event.tenderId())
                 .externalId(event.externalId())

@@ -320,6 +320,25 @@ class ProjectResultConfirmedWebhookListenerTest {
         assertThat(saved.getStatus()).isEqualTo(WebhookDeliveryTaskStatus.PENDING);
     }
 
+    @Test
+    @DisplayName("#1641: creatorId 非空 → operatorUsername 用 creatorId 反查（跳过 operatorUserId/admin）")
+    void creatorIdPresent_operatorUsernameFromCreatorId() {
+        Tender t = tender();
+        t.setCreatorId(100L);
+        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(t));
+        when(projectDocumentRepository.findAllById(List.of(1032L))).thenReturn(List.of());
+
+        User creator = new User();
+        creator.setId(100L);
+        creator.setUsername("creator_user");
+        when(userRepository.findById(100L)).thenReturn(Optional.of(creator));
+
+        listener(CRM_URL).onProjectResultConfirmed(event(BidResultType.WON));
+
+        WebhookDeliveryTask saved = captureSaved();
+        assertThat(saved.getOperatorUsername()).isEqualTo("creator_user");
+    }
+
     private WebhookDeliveryTask captureSaved() {
         ArgumentCaptor<WebhookDeliveryTask> captor = ArgumentCaptor.forClass(WebhookDeliveryTask.class);
         verify(taskRepository).save(captor.capture());
