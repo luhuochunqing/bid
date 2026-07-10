@@ -31,10 +31,11 @@ import java.util.Set;
 @Service
 @RequiredArgsConstructor
 public class OrganizationUserSyncWriter {
+    /**
+     * 锁定密码的 BCrypt 编码。OSS 同步用户不存储本地密码，使用此哈希确保
+     * 本地密码验证永远失败，强制走 OSS 统一认证。
+     */
     public static final String LOCKED_PASSWORD_HASH = "$2a$10$7EqJtq98hPqEX7fNZaFWoOHIhi4YhML26vP7Hk1UR93E1Vda8yI9W";
-
-    /** 默认测试密码 123456 的 BCrypt 编码，用于 OSS 同步员工本地登录。 */
-    public static final String DEFAULT_PASSWORD_HASH = "$2a$10$FwCOuxKv3WA8f2uwiUE23umE0ooMOPDOoOs2JTK49zN8i8PYLxK4y";
 
     private final UserRepository userRepository;
     private final RoleProfileRepository roleProfileRepository;
@@ -102,7 +103,7 @@ public class OrganizationUserSyncWriter {
         // 历史上只写 username，导致 TenderAutoAssignmentService.resolveManagerNameByEmployeeNumber
         // 按 employee_number 查询时返回 null，CRM 自动分配失败。V1126 迁移脚本回填历史数据。
         user.setEmployeeNumber(plan.username());
-        user.setPassword(user.getPassword() == null ? DEFAULT_PASSWORD_HASH : user.getPassword());
+        user.setPassword(user.getPassword() == null ? LOCKED_PASSWORD_HASH : user.getPassword());
         user.setEmail(plan.email());
         user.setFullName(plan.fullName());
         user.setPhone(plan.phone());
