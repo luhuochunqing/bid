@@ -38,15 +38,6 @@
       <CrmOpportunityTable :results="results" :total-count="totalCount" :current-page="currentPage"
         :page-size="pageSize" :selected-id="selectedId" @select="onSelect" @page-change="doSearch" />
 
-      <!-- CRM不通时兜底：手动输入 -->
-      <div v-if="searchPerformed && results.length === 0 && !showManualForm" class="manual-fallback">
-        <el-divider />
-        <el-alert type="info" :closable="false" show-icon>
-          <template #title>未从CRM查到匹配商机，可手动输入关联</template>
-        </el-alert>
-        <el-button type="primary" plain size="small" class="mt-2" @click="showManualForm = true">手动输入商机信息</el-button>
-      </div>
-
       <!-- 手动输入表单 -->
       <div v-if="showManualForm" class="manual-form">
         <el-divider /><h4 class="manual-title">手动输入商机信息</h4>
