@@ -151,3 +151,20 @@ describe('initSentry / beforeSend 回归测试', () => {
     })
   })
 })
+
+describe('IGNORED_ERRORS 过滤 Vite chunk 404 噪声', () => {
+  // 部署后浏览器缓存旧 chunk → 动态 import 404 → router.onError 自愈 reload
+  // 该错误已自愈，不应上报 Sentry 制造噪声
+  // 参考：Sentry Issue XIYU-1K
+  it('ignoreErrors 包含 "Failed to fetch dynamically imported module"', () => {
+    vi.stubEnv('VITE_SENTRY_DSN', 'https://fake@example.com/1')
+    initSentry({})
+    expect(capturedInitOptions.ignoreErrors).toContain('Failed to fetch dynamically imported module')
+  })
+
+  it('ignoreErrors 包含 "Importing a module script failed"', () => {
+    vi.stubEnv('VITE_SENTRY_DSN', 'https://fake@example.com/1')
+    initSentry({})
+    expect(capturedInitOptions.ignoreErrors).toContain('Importing a module script failed')
+  })
+})
