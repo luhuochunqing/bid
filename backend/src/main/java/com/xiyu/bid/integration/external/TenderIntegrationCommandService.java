@@ -259,6 +259,7 @@ public class TenderIntegrationCommandService {
         if (request.getContentDesc() != null) {
             tender.setDescription(InputSanitizer.sanitizeString(request.getContentDesc(), 5000));
         }
+        mapper.applyProjectManager(tender, request.getProjectManagerName());
         if (request.getEvaluation() != null) {
             tender.setEvaluationSource(Tender.EvaluationSource.CRM_PUSH);
             tender.setStatus(Tender.Status.EVALUATED);

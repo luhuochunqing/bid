@@ -55,12 +55,7 @@ public class TenderIntegrationMapper {
             t.setDescription(InputSanitizer.sanitizeString(r.getContentDesc(), 5000));
         }
         if (r.getTenderInfo() != null) t.setTenderInfo(InputSanitizer.sanitizeString(r.getTenderInfo(), 5000));
-        if (r.getProjectManagerName() != null) {
-            String managerName = InputSanitizer.sanitizeString(r.getProjectManagerName(), 100);
-            t.setProjectManagerName(managerName);
-            // CO-333: 同步解析 user_id，命中可见性锚点；重名/无匹配跳过避免误绑
-            t.setProjectManagerId(managerIdResolver.resolveByFullName(managerName));
-        }
+        applyProjectManager(t, r.getProjectManagerName());
         if (r.getDepartment() != null) t.setDepartment(InputSanitizer.sanitizeString(r.getDepartment(), 100));
         if (r.getCreatorName() != null) t.setCreatorName(InputSanitizer.sanitizeString(r.getCreatorName(), 100));
         if (r.getCreateDate() != null) t.setCreatedAt(parseDateTime("createDate", r.getCreateDate()));
@@ -186,15 +181,22 @@ public class TenderIntegrationMapper {
                 r.getPriority(), r.getProjectType(), r.getSourcePlatform(), r.getSource(), r.getTags());
         applyContactInfo(tender, r.getContactInfo());
         if (r.getContentDesc() != null) tender.setDescription(InputSanitizer.sanitizeString(r.getContentDesc(), 5000));
-        // CO-333: 修改接口同步更新 name + id（原 applyUpdate 完全缺失）
-        if (r.getProjectManagerName() != null) {
-            String managerName = InputSanitizer.sanitizeString(r.getProjectManagerName(), 100);
-            tender.setProjectManagerName(managerName);
-            tender.setProjectManagerId(managerIdResolver.resolveByFullName(managerName));
-        }
+        applyProjectManager(tender, r.getProjectManagerName());
         if (r.getDepartment() != null) tender.setDepartment(InputSanitizer.sanitizeString(r.getDepartment(), 100));
         tender.setEvaluationSource(Tender.EvaluationSource.CRM_PUSH);
         tender.setStatus(Tender.Status.EVALUATED);
+    }
+
+    /**
+     * 应用项目负责人字段（清洗姓名 + 反查 user_id）。
+     * <p>CO-333: 同步解析 user_id，命中可见性锚点；重名/无匹配跳过避免误绑。
+     * 仅当 projectManagerName 非空时更新，避免覆盖已有值。
+     */
+    void applyProjectManager(Tender tender, String projectManagerName) {
+        if (projectManagerName == null) return;
+        String managerName = InputSanitizer.sanitizeString(projectManagerName, 100);
+        tender.setProjectManagerName(managerName);
+        tender.setProjectManagerId(managerIdResolver.resolveByFullName(managerName));
     }
 
     /**

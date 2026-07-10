@@ -281,4 +281,21 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
         assertThat(tender.getEvaluationSource()).isEqualTo(Tender.EvaluationSource.CRM_PUSH);
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
     }
+
+    @Test
+    @DisplayName("修改接口传入 projectManagerName 时同步更新负责人姓名与 user_id")
+    void updateByExternalId_withProjectManagerName_setsManagerNameAndId() {
+        Tender tender = createExistingTender();
+        when(tenderRepository.findByExternalId("crm:test-001")).thenReturn(Optional.of(tender));
+        when(projectManagerIdResolver.resolveByFullName("王五")).thenReturn(42L);
+
+        TenderUpdateRequest request = TenderUpdateRequest.builder()
+                .projectManagerName("王五")
+                .build();
+
+        commandService.updateByExternalId("crm", "test-001", request, null);
+
+        assertThat(tender.getProjectManagerName()).isEqualTo("王五");
+        assertThat(tender.getProjectManagerId()).isEqualTo(42L);
+    }
 }
