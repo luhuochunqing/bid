@@ -4,10 +4,8 @@ import com.xiyu.bid.batch.core.TenderStatusTransitionPolicy;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.project.core.BidResultType;
 import com.xiyu.bid.repository.TenderRepository;
-import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,7 +22,8 @@ import java.util.Optional;
  * <p>这是系统内部同步（非用户直接操作标讯），因此：
  * <ul>
  *   <li>跳过标讯权限校验（项目结果登记已通过项目权限校验）</li>
- *   <li>发布 {@link TenderStatusChangedEvent}（让 CRM webhook 也收到同步）</li>
+ *   <li>不发布标讯状态变更事件：CRM 回调由项目级 {@code ProjectResultConfirmedWebhookListener}
+ *       统一承担（CO-570 修复弃标双触发），本服务只做状态数据同步</li>
  *   <li>幂等：已是目标状态或已是终态则跳过</li>
  *   <li>事务隔离：使用 {@link Propagation#REQUIRES_NEW} 独立子事务，同步失败不回滚外层项目结果登记事务</li>
  *   <li>状态机绕过：对于非终态标讯（如 TRACKING），直接 setStatus 到目标终态——
@@ -37,7 +36,6 @@ import java.util.Optional;
 public class TenderStatusSyncService {
 
     private final TenderRepository tenderRepository;
-    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 项目结果登记后同步标讯状态到与项目结果一致的终态。
@@ -88,9 +86,9 @@ public class TenderStatusSyncService {
         tender.setStatus(targetStatus);
         tenderRepository.save(tender);
 
-        // 发布事件，让 CRM webhook 也收到同步
-        eventPublisher.publishEvent(TenderStatusChangedEvent.of(
-                tender.getId(), tender.getExternalId(), previousStatus, targetStatus, tender.getTitle()));
+        // CO-570: 不发布 TenderStatusChangedEvent——CRM 回调由项目级 ProjectResultConfirmedWebhookListener
+        // 统一承担（弃标时已入队 project.result_confirmed 回调）。此处若再发事件会触发
+        // WebhookEventListener 重复推送（ABANDONED 在其触发集合内），导致 CRM 收到两次弃标通知。
 
         log.info("syncFromProjectResult: tender {} status synced {} -> {} (project result={})",
                 tenderId, previousStatus, targetStatus, bidResult);
