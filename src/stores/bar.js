@@ -66,6 +66,21 @@ function buildAuditLog(verifications = [], certificates = [], attachments = []) 
     .sort((left, right) => String(right.time).localeCompare(String(left.time)))
 }
 
+// CO-400 系统性排查：列表 N+1 detail 请求集中并发会触发后端 RateLimitFilter 返回 429，
+// 按批次限制并发数，在保持吞吐的同时避免撞限流。
+const SITE_DETAIL_BATCH_SIZE = 2
+const BORROW_RECORD_BATCH_SIZE = 5
+
+async function runInBatches(items, batchSize, fn) {
+  const results = []
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize)
+    const batchResults = await Promise.all(batch.map(fn))
+    results.push(...batchResults)
+  }
+  return results
+}
+
 export const useBarStore = defineStore('bar', {
   state: () => ({
     sites: [],
@@ -87,7 +102,7 @@ export const useBarStore = defineStore('bar', {
         }
 
         const sites = Array.isArray(response.data) ? response.data : []
-        const withCertificates = await Promise.all(sites.map(async (site) => {
+        const withCertificates = await runInBatches(sites, SITE_DETAIL_BATCH_SIZE, async (site) => {
           const accountsResponse = await resourcesApi.barSiteAccounts.getList(site.id)
           const certificatesResponse = await resourcesApi.certificates.getList(site.id)
           const verificationResponse = await resourcesApi.barSites.getVerificationRecords(site.id)
@@ -104,7 +119,7 @@ export const useBarStore = defineStore('bar', {
               ? certificatesResponse.data
               : [],
             lastVerifyTime: verifications[0]?.verifiedAt || site.lastVerifyTime }
-        }))
+        })
         this.sites = withCertificates
         return { success: true, data: this.sites }
       } finally {
@@ -136,14 +151,14 @@ export const useBarStore = defineStore('bar', {
         const certificates = certificatesResponse?.success && Array.isArray(certificatesResponse.data)
           ? certificatesResponse.data
           : []
-        const certificatesWithRecords = await Promise.all(certificates.map(async (certificate) => {
+        const certificatesWithRecords = await runInBatches(certificates, BORROW_RECORD_BATCH_SIZE, async (certificate) => {
           const borrowRecordsResponse = await resourcesApi.certificates.getBorrowRecords(id, certificate.id)
           return {
             ...certificate,
             borrowRecords: borrowRecordsResponse?.success && Array.isArray(borrowRecordsResponse.data)
               ? borrowRecordsResponse.data
               : [] }
-        }))
+        })
         const verifications = verificationResponse?.success && Array.isArray(verificationResponse.data)
           ? verificationResponse.data
           : []

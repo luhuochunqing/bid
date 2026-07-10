@@ -49,26 +49,16 @@ public class WebhookDeliveryJobService {
     @Transactional
     public void processTaskSafely(WebhookDeliveryTask task) {
         WebhookDeliveryTask managedTask = taskRepository.findById(task.getId()).orElse(task);
-        // CO-152 补齐：历史任务（operator_username 为 NULL，V1163 迁移前已存在的死信/重试任务）直接死信
-        // 用户已确认"忽略历史死信任务"；生产环境全局 token 不可用，fallback 只会产生无意义错误日志
-        if (managedTask.getOperatorUsername() == null || managedTask.getOperatorUsername().isBlank()) {
-            log.warn("Webhook task {} skipped: no operator_username (legacy task before V1163), marking as DEAD_LETTER",
-                    managedTask.getId());
-            managedTask.setStatus(WebhookDeliveryTaskStatus.DEAD_LETTER);
-            managedTask.setLastErrorCode("LEGACY_NO_OPERATOR");
-            managedTask.setLastErrorMessage("Legacy task without operator_username (pre-V1163), cannot resolve user token");
-            managedTask.setUpdatedAt(LocalDateTime.now());
-            managedTask.setNextRetryAt(null);
-            taskRepository.save(managedTask);
-            observabilityRecorder.recordDeadLetter("webhook", managedTask.getEventType(),
-                    managedTask.getBusinessKey(), "LEGACY_NO_OPERATOR");
-            return;
-        }
+        // CO-152 修正：operator_username 为 null 时不再直接死信，而是放行给 WebhookHttpSender 走全局兜底。
+        // 背景：BatchTenderStatusAppService/TenderCommandService.updateStatus/ScoreAnalysisService 等场景
+        // 产生的 Webhook 任务 operatorUsername=null，但 WebhookHttpSender.resolveTokenForUser(null)
+        // 会回退到 CrmAuthService.getValidToken()（全局共享 03595 token），功能不受影响。
+        // 未来删除全局 03595 路径时，需要先为这些无用户上下文的场景引入系统账号方案。
         managedTask.setStatus(WebhookDeliveryTaskStatus.PROCESSING);
         managedTask.setUpdatedAt(LocalDateTime.now());
 
         try {
-            // CO-152 补齐：传操作者 username，WebhookHttpSender 会用该用户的 OSS token 调 generateToken
+            // operatorUsername 非空 → 走用户专属 token；为空 → WebhookHttpSender 内部回退全局共享 token
             WebhookSendResult result = httpSender.send(
                     managedTask.getTargetUrl(), managedTask.getPayload(), managedTask.getOperatorUsername());
             log.info("Webhook sent: taskId={}, tenderId={}, targetUrl={}, statusCode={}, responseBody={}, operatorUsername={}, payload={}",
