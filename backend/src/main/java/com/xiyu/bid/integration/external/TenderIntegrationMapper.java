@@ -59,7 +59,8 @@ public class TenderIntegrationMapper {
         if (r.getDepartment() != null) t.setDepartment(InputSanitizer.sanitizeString(r.getDepartment(), 100));
         if (r.getCreatorName() != null) t.setCreatorName(InputSanitizer.sanitizeString(r.getCreatorName(), 100));
         if (r.getCreateDate() != null) t.setCreatedAt(parseDateTime("createDate", r.getCreateDate()));
-        boolean isFromCrm = firstNonBlank(r.getCrmOpportunityId(), r.getCrmId()) != null;
+        boolean isFromCrm = (r.getCrmOpportunityId() != null && !r.getCrmOpportunityId().isBlank())
+                || (r.getCrmId() != null && !r.getCrmId().isBlank());
         if (isFromCrm) {
             t.setSourceType(Tender.SourceType.CRM_OPPORTUNITY);
             t.setSource(Tender.SourceType.CRM_OPPORTUNITY.getLabel());

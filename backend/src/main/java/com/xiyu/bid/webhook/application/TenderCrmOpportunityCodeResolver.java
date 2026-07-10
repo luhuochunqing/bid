@@ -14,15 +14,15 @@ import org.springframework.util.StringUtils;
 
 /**
  * 标讯维度的 CRM 商机编号解析器（应用层）。
- * <p>负责业务规则：优先使用 tender.crm_opportunity_id；当该字段为空时，
- * 用 externalId 中 {@code CRM:sourceId} 的 sourceId 兜底反查 code。
+ * <p>优先使用 tender.crm_opportunity_id（新数据始终是 code 格式）；
+ * 为空时用 externalId 中 {@code CRM:sourceId} 的 sourceId 兜底反查 code（仅限旧数据）。
  * <p>纯字符串转换/CRM 调用委托给基础设施层 {@link CrmOpportunityCodeResolver}，
  * 避免 infrastructure 层掌握 Tender 实体与外部推送兜底规则（CO-152 / CO-277 设计修正）。
  *
  * <p><b>验收预期：</b>
  * <ul>
- *   <li>externalId 兜底反查 code 时，CRM HTTP 调用仍需传入有效的操作者 username；
- *       仅有 externalId 而无有效用户 token 时，无法换取 CRM JWT，反查会失败并返回空字符串。</li>
+ *   <li>新数据：tender.crm_opportunity_id 已是 code 格式，直接返回，无需 CRM 调用。</li>
+ *   <li>旧数据兜底：externalId 反查需有效的操作者 username；无 token 时返回空字符串。</li>
  *   <li>反查失败时不降级为原始数字 id，避免 CRM 侧"伪成功"（CO-277）。</li>
  * </ul>
  */
