@@ -152,7 +152,7 @@ const {
 const {
   priorityTodos, pendingCount, completedTodoCount, todosError, loadTodos,
   handleTaskComplete,
-} = useWorkbenchTodos({ assigneeIdRef: currentUserId, canLoadAlertTodosRef: computed(() => hasAnyPermission(userStore.menuPermissions, ['dashboard:alert_todos', 'settings', 'task.review', 'task.assign'])), message: ElMessage })
+} = useWorkbenchTodos({ assigneeIdRef: currentUserId, canLoadAlertTodosRef: computed(() => hasAnyPermission(userStore.menuPermissions, ['settings-alerts'])), message: ElMessage })
 
 const myProjectCount = computed(() => workbenchProjects.value.length)
 
