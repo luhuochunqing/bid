@@ -82,9 +82,9 @@ class AlertRuleControllerSecurityTest {
         PreAuthorize classAnnotation = AlertRuleController.class.getAnnotation(PreAuthorize.class);
         assertThat(classAnnotation).isNotNull();
         String expression = classAnnotation.value();
-        assertThat(expression).contains("hasAnyRole");
-        assertThat(expression).contains("ADMIN");
-        assertThat(expression).contains("BIDADMIN");
-        assertThat(expression).contains("BID_TEAMLEADER");
+        assertThat(expression).contains("hasAnyAuthority");
+        assertThat(expression).contains("ROLE_ADMIN");
+        assertThat(expression).contains("ROLE_BIDADMIN");
+        assertThat(expression).contains("ROLE_BID_TEAMLEADER");
     }
 }

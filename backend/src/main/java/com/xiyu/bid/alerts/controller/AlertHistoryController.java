@@ -32,13 +32,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 告警历史 Controller。权限已收紧：仅 ADMIN、投标管理员(/bidAdmin)、投标组长(bid-TeamLeader) 可访问；
- * 投标专员(bid-Team)、行政人员(bid-administration) 等普通用户不可读取或操作告警历史。
+ * 告警历史 Controller。
+ * <p>鉴权：前端路由 permissionKeys=['settings','settings-alerts']，后端对齐使用 hasAnyAuthority，
+ * 同时保留原角色名兼容，避免 OSS 用户前端菜单可见但后端 403（CO-xxx 审计修复）。
  */
 @RestController
 @RequestMapping("/api/alerts/history")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN', 'BIDADMIN', 'BID_TEAMLEADER')")
+@PreAuthorize("hasAnyAuthority('settings-alerts', 'ROLE_ADMIN', 'ROLE_BIDADMIN', 'ROLE_BID_TEAMLEADER')")
 public class AlertHistoryController {
 
     private final AlertHistoryService alertHistoryService;

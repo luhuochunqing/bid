@@ -42,10 +42,14 @@ class HomeSsoServiceTest {
     @Mock
     private AuthService authService;
 
+    @Mock
+    private OssUserAutoCreator ossUserAutoCreator;
+
     @InjectMocks
     private HomeSsoService homeSsoService;
 
     private User localUser;
+    private User autoCreatedUser;
     private AuthSessionResult sessionResult;
     private OssLoginResult successResult;
     private OssLoginResult failedResult;
@@ -58,6 +62,15 @@ class HomeSsoServiceTest {
                 .email("test@example.com")
                 .fullName("测试用户")
                 .enabled(false) // 本地 enabled=false，但 SSO 不应检查此字段
+                .build();
+
+        autoCreatedUser = User.builder()
+                .id(2L)
+                .username(USERNAME)
+                .email(USERNAME + "@oss-login.local")
+                .fullName(USERNAME)
+                .enabled(true)
+                .externalOrgSourceApp(OssUserAutoCreator.AUTO_CREATE_SOURCE_APP)
                 .build();
 
         sessionResult = AuthSessionResult.builder()
@@ -98,6 +111,7 @@ class HomeSsoServiceTest {
         verify(ossLoginFlowService).authenticateWithExistingToken(VALID_TOKEN);
         verify(userRepository).findByUsername(USERNAME);
         verify(authService).loginWithoutPassword(localUser);
+        verify(ossUserAutoCreator, never()).autoCreateIfAbsent(any());
     }
 
     @Test
@@ -132,18 +146,30 @@ class HomeSsoServiceTest {
         verify(authService, never()).loginWithoutPassword(any(User.class));
     }
 
+    /**
+     * 根因行为测试：OSS 鉴权成功 + 本地无用户记录 → 自动创建本地 User 并允许登录。
+     * <p>
+     * 根因修复前：抛 BadCredentialsException("本地无此用户记录")，违反"OSS 实时鉴权是唯一真相源"设计意图。
+     * 根因修复后：调用 OssUserAutoCreator.autoCreateIfAbsent 创建本地记录，继续登录流程。
+     * <p>
+     * 对应 7 大根因中的根因 1（追症状不追根因）+ 根因 6（对系统设计意图的理解偏差）。
+     */
     @Test
-    @DisplayName("本地无用户记录时抛出异常")
-    void ssoLogin_localUserNotFound_throwsException() {
+    @DisplayName("根因修复：OSS 鉴权成功 + 本地无记录 → 自动创建 User 并登录成功")
+    void ssoLogin_ossAuthSucceededButLocalNotFound_autoCreatesUserAndLogsIn() {
         when(ossLoginFlowService.authenticateWithExistingToken(VALID_TOKEN)).thenReturn(successResult);
         when(userRepository.findByUsername(USERNAME)).thenReturn(Optional.empty());
+        when(ossUserAutoCreator.autoCreateIfAbsent(successResult)).thenReturn(autoCreatedUser);
+        when(authService.loginWithoutPassword(autoCreatedUser)).thenReturn(sessionResult);
 
-        assertThatThrownBy(() -> homeSsoService.ssoLogin(VALID_TOKEN))
-                .isInstanceOf(BadCredentialsException.class)
-                .hasMessageContaining("本地无此用户记录");
+        AuthSessionResult result = homeSsoService.ssoLogin(VALID_TOKEN);
 
+        assertThat(result).isNotNull();
+        assertThat(result.getAccessToken()).isEqualTo("access-token");
+        // 根因行为验证：本地无记录时调用了 autoCreateIfAbsent
+        verify(ossUserAutoCreator).autoCreateIfAbsent(successResult);
+        verify(authService).loginWithoutPassword(autoCreatedUser);
+        // 不应抛"本地无此用户记录"异常（根因修复点）
         verify(ossLoginFlowService).authenticateWithExistingToken(VALID_TOKEN);
-        verify(userRepository).findByUsername(USERNAME);
-        verify(authService, never()).loginWithoutPassword(any(User.class));
     }
 }

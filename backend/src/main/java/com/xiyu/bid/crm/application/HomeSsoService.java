@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
  * 写入内存缓存，不依赖本地 DB 判断用户有效性。
  * <p>
  * 本地 User 仅用于生成 JWT 和 RefreshSession（外键关联），不检查 enabled 字段。
+ * OSS 鉴权成功后若本地无记录，由 {@link OssUserAutoCreator} 自动创建。
  */
 @Slf4j
 @Service
@@ -27,6 +28,7 @@ public class HomeSsoService {
     private final OssLoginFlowService ossLoginFlowService;
     private final UserRepository userRepository;
     private final AuthService authService;
+    private final OssUserAutoCreator ossUserAutoCreator;
 
     @Transactional
     public AuthSessionResult ssoLogin(String token) {
@@ -44,12 +46,9 @@ public class HomeSsoService {
             throw new BadCredentialsException("SSO 登录失败：无法获取用户信息");
         }
 
-        // 本地 User 仅用于生成 JWT 和 RefreshSession，不检查 enabled（用户有效性由 OSS 实时判断）
+        // OSS 鉴权已成功，本地无记录时自动创建（用户有效性由 OSS 实时判断，本地 DB 不应阻塞登录）
         User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> {
-                    log.warn("Home SSO login failed: local user record not found, username={}", username);
-                    return new BadCredentialsException("本地无此用户记录，请联系管理员创建账号");
-                });
+                .orElseGet(() -> ossUserAutoCreator.autoCreateIfAbsent(loginResult));
 
         log.info("Home SSO login success: username={}, nickName={}",
                 username, loginResult.employeeInfo() != null

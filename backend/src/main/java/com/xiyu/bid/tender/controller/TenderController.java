@@ -143,7 +143,7 @@ public class TenderController {
     }
 
     @PostMapping("/{id}/participate")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN')")
+    @PreAuthorize("hasAnyAuthority('bidding.manage', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN')")
     @Operation(summary = "投标决策")
     public ResponseEntity<ApiResponse<TenderBidResponse>> participateBid(@PathVariable Long id, @AuthenticationPrincipal UserDetails user) {
         rejectDemoMutation(id);
@@ -152,7 +152,7 @@ public class TenderController {
     }
 
     @PostMapping("/{id}/abandon")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN')")
+    @PreAuthorize("hasAnyAuthority('bidding.manage', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN')")
     @Operation(summary = "弃标决策")
     public ResponseEntity<ApiResponse<TenderBidResponse>> abandonBid(@PathVariable Long id, @Valid @RequestBody TenderAbandonRequest req, @AuthenticationPrincipal UserDetails user) {
         rejectDemoMutation(id);
@@ -161,7 +161,7 @@ public class TenderController {
     }
 
     @GetMapping("/import-template")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_TEAM')")
+    @PreAuthorize("hasAnyAuthority('bidding', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN', 'ROLE_BID_TEAM')")
     @Operation(summary = "下载标讯批量导入模板")
     public ResponseEntity<org.springframework.core.io.Resource> downloadImportTemplate() {
         byte[] body = tenderImportService.generateTemplate();
@@ -171,7 +171,7 @@ public class TenderController {
     }
 
     @PostMapping(path = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_TEAM')")
+    @PreAuthorize("hasAnyAuthority('bidding', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN', 'ROLE_BID_TEAM')")
     @Idempotent
     @Operation(summary = "批量导入标讯（异步触发，返回任务 ID 供前端轮询进度）")
     public ResponseEntity<ApiResponse<TenderImportTaskDTO>> importTenders(
@@ -186,7 +186,7 @@ public class TenderController {
     }
 
     @GetMapping("/import/{taskId}/progress")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_TEAM')")
+    @PreAuthorize("hasAnyAuthority('bidding', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN', 'ROLE_BID_TEAM')")
     @Operation(summary = "查询标讯批量导入任务进度")
     public ResponseEntity<ApiResponse<TenderImportProgressDTO>> getImportProgress(
             @PathVariable String taskId,

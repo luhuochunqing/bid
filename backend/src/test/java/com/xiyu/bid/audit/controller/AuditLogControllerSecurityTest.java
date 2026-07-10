@@ -40,7 +40,7 @@ class AuditLogControllerSecurityTest {
         PreAuthorize preAuthorize = method.getAnnotation(PreAuthorize.class);
 
         assertThat(preAuthorize).isNotNull();
-        assertThat(preAuthorize.value()).isEqualTo("hasAnyRole('ADMIN', 'AUDITOR')");
+        assertThat(preAuthorize.value()).isEqualTo("hasAnyAuthority('operation-logs', 'ROLE_ADMIN')");
     }
 
     @Test

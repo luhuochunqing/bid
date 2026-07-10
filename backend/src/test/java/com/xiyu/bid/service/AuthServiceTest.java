@@ -5,8 +5,8 @@ import com.xiyu.bid.auth.JwtUtil;
 import com.xiyu.bid.auth.TokenRevocationService;
 import com.xiyu.bid.crm.application.CrmAuthService;
 import com.xiyu.bid.crm.application.OssDelegationService;
+import com.xiyu.bid.crm.application.OssDirectLoginService;
 import com.xiyu.bid.crm.application.OssLoginFlowService;
-import com.xiyu.bid.crm.application.OssPermissionCache;
 import com.xiyu.bid.dto.AuthSessionResult;
 import com.xiyu.bid.dto.LoginRequest;
 import com.xiyu.bid.entity.RefreshSession;
@@ -76,7 +76,7 @@ class AuthServiceTest {
     private OssLoginFlowService ossLoginFlowService;
 
     @Mock
-    private OssPermissionCache ossPermissionCache;
+    private OssDirectLoginService ossDirectLoginService;
 
     private AuthService authService;
 
@@ -95,7 +95,7 @@ class AuthServiceTest {
                 mock(OssDelegationService.class),
                 crmAuthService,
                 ossLoginFlowService,
-                ossPermissionCache
+                ossDirectLoginService
         );
         ReflectionTestUtils.setField(authService, "refreshExpiration", 7 * 24 * 60 * 60 * 1000L);
     }
@@ -225,8 +225,8 @@ class AuthServiceTest {
 
         authService.logout("access-jwt-co361", "raw-refresh-token");
 
-        // 关键断言：logout 不得清 OSS 权限缓存
-        verify(ossPermissionCache, never()).invalidate(any());
+        // 关键断言：logout 不得触发 OSS 登录服务（含权限缓存）
+        verify(ossDirectLoginService, never()).requireOssRole(any());
         // 但仍应撤销 token 和 refresh session
         verify(tokenRevocationService).revoke(eq("jti-co361"), any());
         verify(refreshSessionRepository).save(session);
@@ -282,7 +282,7 @@ class AuthServiceTest {
                 ossDelegationService,
                 crmAuthService,
                 ossLoginFlowService,
-                ossPermissionCache
+                ossDirectLoginService
         );
         ReflectionTestUtils.setField(authService, "refreshExpiration", 7 * 24 * 60 * 60 * 1000L);
 
@@ -300,7 +300,7 @@ class AuthServiceTest {
         // 关键：fallback 路径不应调 ossLoginFlowService.authenticateDirect（OSS 已失败）
         verify(ossLoginFlowService, never()).authenticateDirect(any(), any());
         // 关键：fallback 路径不应调 requireOssRole（OSS 缓存可能为空）
-        verify(ossPermissionCache, never()).getRoleCode(any());
+        verify(ossDirectLoginService, never()).requireOssRole(any());
         assertThat(result.getAccessToken()).isEqualTo("access-token");
     }
 
@@ -326,7 +326,7 @@ class AuthServiceTest {
                 ossDelegationService,
                 crmAuthService,
                 ossLoginFlowService,
-                ossPermissionCache
+                ossDirectLoginService
         );
         ReflectionTestUtils.setField(authService, "refreshExpiration", 7 * 24 * 60 * 60 * 1000L);
 
@@ -358,7 +358,8 @@ class AuthServiceTest {
 
         AuthSessionResult result = authService.refreshToken("raw-local-refresh-token");
 
-        verify(ossPermissionCache, never()).getRoleCode(any());
+        // 本地用户（非 OSS）requireOssRole 被调用但内部短路返回
+        verify(ossDirectLoginService).requireOssRole(localUser);
         assertThat(result.getAccessToken()).isEqualTo("local-access-token");
         assertThat(result.getRefreshToken()).isNotBlank();
     }
@@ -395,7 +396,8 @@ class AuthServiceTest {
     void loginWithoutPassword_ShouldFailWhenOssRoleCacheEmpty() {
         User user = buildOssUser();
 
-        when(ossPermissionCache.getRoleCode("00444")).thenReturn(Optional.empty());
+        doThrow(new com.xiyu.bid.exception.RoleNotAuthorizedException("无有效 OSS 角色，不允许登录"))
+                .when(ossDirectLoginService).requireOssRole(user);
 
         assertThatThrownBy(() -> authService.loginWithoutPassword(user))
                 .isInstanceOf(com.xiyu.bid.exception.RoleNotAuthorizedException.class)
@@ -406,7 +408,8 @@ class AuthServiceTest {
     void loginWithoutPassword_ShouldFailWhenOssRoleBlank() {
         User user = buildOssUser();
 
-        when(ossPermissionCache.getRoleCode("00444")).thenReturn(Optional.of(""));
+        doThrow(new com.xiyu.bid.exception.RoleNotAuthorizedException("无有效 OSS 角色，不允许登录"))
+                .when(ossDirectLoginService).requireOssRole(user);
 
         assertThatThrownBy(() -> authService.loginWithoutPassword(user))
                 .isInstanceOf(com.xiyu.bid.exception.RoleNotAuthorizedException.class)
@@ -417,13 +420,13 @@ class AuthServiceTest {
     void loginWithoutPassword_ShouldSucceedWhenOssRolePresent() {
         User user = buildOssUser();
 
+        doNothing().when(ossDirectLoginService).requireOssRole(user);
         when(jwtUtil.generateAccessToken("00444")).thenReturn("sso-access-token");
         when(projectAccessScopeService.getAllowedProjectIds(user)).thenReturn(List.of());
         when(projectAccessScopeService.getAllowedDepartmentCodes(user)).thenReturn(List.of());
         when(dataScopeConfigService.getRoleMenuPermissions(user)).thenReturn(List.of());
         when(dataScopeConfigService.getRoleCode(user)).thenReturn(RoleProfileCatalog.BID_SPECIALIST_CODE);
         when(dataScopeConfigService.getRoleName(user)).thenReturn("投标专员");
-        when(ossPermissionCache.getRoleCode("00444")).thenReturn(Optional.of(RoleProfileCatalog.BID_SPECIALIST_CODE));
 
         AuthSessionResult result = authService.loginWithoutPassword(user);
 
@@ -442,10 +445,77 @@ class AuthServiceTest {
                 .build();
 
         when(refreshSessionRepository.findByTokenHash(any())).thenReturn(Optional.of(session));
-        when(ossPermissionCache.getRoleCode("00444")).thenReturn(Optional.empty());
+        doThrow(new com.xiyu.bid.exception.RoleNotAuthorizedException("无有效 OSS 角色，不允许登录"))
+                .when(ossDirectLoginService).requireOssRole(user);
 
         assertThatThrownBy(() -> authService.refreshToken("raw-refresh-token"))
                 .isInstanceOf(com.xiyu.bid.exception.RoleNotAuthorizedException.class)
                 .hasMessageContaining("无有效 OSS 角色");
+    }
+
+    /**
+     * 根因行为测试：本地无用户记录 + OSS 实时鉴权成功 → 自动创建本地 User 并登录成功。
+     * <p>
+     * 根因修复前：{@code AuthService.login} 在 {@code userRepository.findByUsername} 返回空时
+     * 立即抛 {@code UsernameNotFoundException}，OSS 鉴权根本没机会执行，
+     * 违反"OSS 实时鉴权是唯一真相源"设计意图（根因 1 + 根因 6）。
+     * <p>
+     * 根因修复后：本地无记录时尝试 OSS 直接鉴权，成功则自动创建本地记录。
+     */
+    @Test
+    void login_localUserNotFoundButOssAuthSucceeded_shouldAutoCreateAndLogin() {
+        String ossUsername = "06669";
+        LoginRequest request = new LoginRequest();
+        request.setUsername(ossUsername);
+        request.setPassword("Ehsy1234@");
+
+        User autoCreatedUser = User.builder()
+                .id(99L)
+                .username(ossUsername)
+                .email(ossUsername + "@oss-login.local")
+                .fullName(ossUsername)
+                .role(User.Role.MANAGER)
+                .enabled(true)
+                .externalOrgSourceApp("oss-login")
+                .build();
+
+        when(userRepository.findByUsername(ossUsername)).thenReturn(Optional.empty());
+        when(ossDirectLoginService.tryDirectLogin(request)).thenReturn(Optional.of(autoCreatedUser));
+        when(jwtUtil.generateAccessToken(ossUsername)).thenReturn("access-token");
+        when(projectAccessScopeService.getAllowedProjectIds(autoCreatedUser)).thenReturn(List.of());
+        when(projectAccessScopeService.getAllowedDepartmentCodes(autoCreatedUser)).thenReturn(List.of());
+        when(dataScopeConfigService.getRoleMenuPermissions(autoCreatedUser)).thenReturn(List.of());
+
+        AuthSessionResult result = authService.login(request);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getAccessToken()).isEqualTo("access-token");
+        // 根因行为验证：本地无记录时调用了 OSS 直接鉴权 + 自动创建
+        verify(ossDirectLoginService).tryDirectLogin(request);
+        // 不应抛 UsernameNotFoundException（根因修复点）
+        verify(authenticationManager, never()).authenticate(any());
+    }
+
+    /**
+     * 根因行为测试：本地无用户记录 + OSS 实时鉴权失败 → 抛 UsernameNotFoundException。
+     * <p>
+     * 验证 fail-closed：OSS 鉴权失败时不会自动创建本地记录。
+     */
+    @Test
+    void login_localUserNotFoundAndOssAuthFailed_shouldThrowUsernameNotFoundException() {
+        String ossUsername = "06669";
+        LoginRequest request = new LoginRequest();
+        request.setUsername(ossUsername);
+        request.setPassword("wrong-password");
+
+        when(userRepository.findByUsername(ossUsername)).thenReturn(Optional.empty());
+        when(ossDirectLoginService.tryDirectLogin(request)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.login(request))
+                .isInstanceOf(org.springframework.security.core.userdetails.UsernameNotFoundException.class);
+
+        // 验证 fail-closed：OSS 鉴权失败时不自动创建
+        verify(ossDirectLoginService).tryDirectLogin(request);
+        verify(authenticationManager, never()).authenticate(any());
     }
 }

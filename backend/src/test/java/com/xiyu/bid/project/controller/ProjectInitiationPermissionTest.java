@@ -44,7 +44,7 @@ class ProjectInitiationPermissionTest {
     @DisplayName("2.2 审核通过 approve：ADMIN/BID_TEAMLEADER/BIDADMIN（文档：管理员/组长，不含项目负责人/专员）")
     void approve_preAuthorize_adminBidLeadBidAdminOnly() {
         String value = findMethod("approve").getAnnotation(PreAuthorize.class).value();
-        assertThat(value).isEqualTo("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN')");
+        assertThat(value).isEqualTo("hasAnyAuthority('task.review', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN')");
         // 用完整 token 检查（避免 BIDADMIN 误含 BID_TEAM 子串）
         assertThat(value).doesNotContain("'BID_PROJECTLEADER'", "'BID_TEAM'", "'SALES'");
     }
@@ -53,7 +53,7 @@ class ProjectInitiationPermissionTest {
     @DisplayName("2.2 审核驳回 reject：ADMIN/BID_TEAMLEADER/BIDADMIN（文档：管理员/组长）")
     void reject_preAuthorize_adminBidLeadBidAdminOnly() {
         String value = findMethod("reject").getAnnotation(PreAuthorize.class).value();
-        assertThat(value).isEqualTo("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN')");
+        assertThat(value).isEqualTo("hasAnyAuthority('task.review', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN')");
         assertThat(value).doesNotContain("'BID_PROJECTLEADER'", "'BID_TEAM'", "'SALES'");
     }
 
