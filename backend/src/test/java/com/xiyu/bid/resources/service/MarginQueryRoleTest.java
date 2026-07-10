@@ -28,9 +28,13 @@ class MarginQueryRoleTest {
         assertThat(fragment).contains("project_team_members");
         assertThat(fragment).contains("ptm.member_id = :muid");
         assertThat(fragment).doesNotContain("owner_user_id");
+    }
 
-        assertThat(MarginQueryRole.from("bid-Team").apply(PA, PI))
-                .isEqualTo(fragment);
+    @Test
+    void bidTeamHasNoFragment() {
+        assertThat(MarginQueryRole.from("bid-Team").apply(PA, PI)).isEmpty();
+        assertThat(MarginQueryRole.from("BID_TEAM").apply(PA, PI)).isEmpty();
+        assertThat(MarginQueryRole.from("bid_team").apply(PA, PI)).isEmpty();
     }
 
     @Test

@@ -75,6 +75,17 @@ class MarginServiceTest {
         verify(query, never()).setParameter(eq("muid"), any());
     }
 
+    @Test
+    void getSummary_bidTeamRole_doesNotBindMuid() {
+        // 投标专员与管理员一样看全量保证金，SQL 不应包含 :muid
+        when(em.createNativeQuery(anyString())).thenReturn(query);
+        when(query.getSingleResult()).thenReturn(new Object[]{0, 0, 0L, 0, 0L});
+
+        marginService.getSummary(42L, "bid-Team");
+
+        verify(query, never()).setParameter(eq("muid"), any());
+    }
+
     // ── getList ─────────────────────────────────────────────────────
 
     @Test
@@ -99,6 +110,17 @@ class MarginServiceTest {
         verify(query, never()).setParameter(eq("muid"), any());
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void getList_bidTeamRole_doesNotBindMuid() {
+        when(em.createNativeQuery(anyString())).thenReturn(query);
+        when(query.getResultList()).thenReturn(List.of());
+
+        marginService.getList(42L, "bid-Team", Map.of(), 1, 20);
+
+        verify(query, never()).setParameter(eq("muid"), any());
+    }
+
     // ── getCount ────────────────────────────────────────────────────
 
     @Test
@@ -117,6 +139,16 @@ class MarginServiceTest {
         when(query.getSingleResult()).thenReturn(0L);
 
         marginService.getCount(42L, "admin", Map.of());
+
+        verify(query, never()).setParameter(eq("muid"), any());
+    }
+
+    @Test
+    void getCount_bidTeamRole_doesNotBindMuid() {
+        when(em.createNativeQuery(anyString())).thenReturn(query);
+        when(query.getSingleResult()).thenReturn(0L);
+
+        marginService.getCount(42L, "bid-Team", Map.of());
 
         verify(query, never()).setParameter(eq("muid"), any());
     }
