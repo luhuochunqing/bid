@@ -233,7 +233,7 @@ public class TenderEvaluationController {
      * V150: 删除评估表附件。
      */
     @DeleteMapping("/{tenderId}/evaluation/documents/{documentId}")
-    @PreAuthorize("hasAuthority('system.admin')")
+    @PreAuthorize("hasAnyAuthority('system.admin', 'ROLE_ADMIN', 'evaluation.manage', 'ROLE_BID_PROJECTLEADER', 'ROLE_BID_TEAMLEADER')")
     public ResponseEntity<ApiResponse<Void>> deleteEvaluationDocument(
             @PathVariable Long tenderId,
             @PathVariable Long documentId) {
