@@ -29,6 +29,24 @@ describe('resolveLoginFailureMessage', () => {
     })).toBe('您没有该系统的访问权限，请联系管理员')
   })
 
+  it('translates ROLE_NOT_AUTHORIZED prefix to user-friendly message', () => {
+    expect(resolveLoginFailureMessage({
+      response: {
+        status: 403,
+        data: { msg: 'ROLE_NOT_AUTHORIZED: 无有效 OSS 角色，不允许登录' },
+      },
+    })).toBe('您没有该系统的访问权限，请联系管理员')
+  })
+
+  it('translates ACCOUNT_DISABLED prefix to user-friendly message', () => {
+    expect(resolveLoginFailureMessage({
+      response: {
+        status: 403,
+        data: { msg: 'ACCOUNT_DISABLED: 账户已停用' },
+      },
+    })).toBe('账户已停用')
+  })
+
   it('preserves non-authentication business messages', () => {
     expect(resolveLoginFailureMessage({ message: '账号已停用' })).toBe('账号已停用')
   })

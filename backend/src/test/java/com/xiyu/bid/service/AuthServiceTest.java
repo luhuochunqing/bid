@@ -293,11 +293,14 @@ class AuthServiceTest {
         when(projectAccessScopeService.getAllowedProjectIds(user)).thenReturn(List.of());
         when(projectAccessScopeService.getAllowedDepartmentCodes(user)).thenReturn(List.of());
         when(dataScopeConfigService.getRoleMenuPermissions(user)).thenReturn(List.of());
-        when(ossPermissionCache.getRoleCode("00444")).thenReturn(Optional.of("bid-Team"));
 
         AuthSessionResult result = authService.login(request);
 
         verify(ossDelegationService).authenticate(user, "localpass");
+        // 关键：fallback 路径不应调 ossLoginFlowService.authenticateDirect（OSS 已失败）
+        verify(ossLoginFlowService, never()).authenticateDirect(any(), any());
+        // 关键：fallback 路径不应调 requireOssRole（OSS 缓存可能为空）
+        verify(ossPermissionCache, never()).getRoleCode(any());
         assertThat(result.getAccessToken()).isEqualTo("access-token");
     }
 

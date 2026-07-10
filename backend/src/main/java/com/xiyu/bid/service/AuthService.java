@@ -96,32 +96,44 @@ public class AuthService {
                 .orElseThrow(() -> new UsernameNotFoundException(USER_NOT_FOUND));
         // 组织架构同步用户（有 externalOrgSourceApp），委托给西域 OSS 统一认证
         if (user.isOssUser()) {
-            if (!ossDelegationService.authenticate(user, request.getPassword())) {
-                if (!isLocalPasswordValid(user, request.getPassword())) {
-                    throw new BadCredentialsException("Invalid username or password");
-                }
-            }
-            // 同步 OSS 权限到本地 RoleProfile
-            try {
-                ossLoginFlowService.authenticateDirect(request.getUsername(), request.getPassword());
-            } catch (RuntimeException e) {
-                log.error("OSS permission sync FAILED for user={}, will use stale cache (if available). "
-                        + "User may see outdated menu permissions until next successful login. "
-                        + "exception={}: {}", user.getUsername(), e.getClass().getSimpleName(), e.getMessage());
-            }
-            return loginWithoutPassword(user);
+            return loginOssUser(user, request);
         }
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
+        log.info("User logged in: {}", user.getUsername());
+        return buildSession(user, null);
+    }
+    /** 构建 AuthSessionResult；logTag 非空时记 info 日志。 */
+    private AuthSessionResult buildSession(User user, String logTag) {
         String token = jwtUtil.generateAccessToken(user.getUsername());
         String refreshToken = createRefreshSession(user);
-        log.info("User logged in: {}", user.getUsername());
+        if (logTag != null) {
+            log.info("User logged in via {}: {}", logTag, user.getUsername());
+        }
         return AuthSessionResult.builder()
                 .authResponse(buildAuthResponse(user))
                 .refreshToken(refreshToken)
                 .accessToken(token)
                 .build();
     }
+    /** OSS 用户登录：优先 OSS 认证；OSS 失败但本地密码匹配时走 fallback（跳过 requireOssRole）。 */
+    private AuthSessionResult loginOssUser(User user, LoginRequest request) {
+        if (!ossDelegationService.authenticate(user, request.getPassword())) {
+            if (!isLocalPasswordValid(user, request.getPassword())) {
+                throw new BadCredentialsException("Invalid username or password");
+            }
+            log.warn("OSS auth failed but local password valid for user={}, using local login", user.getUsername());
+            return buildSession(user, "local password fallback (OSS auth failed)");
+        }
+        try {
+            ossLoginFlowService.authenticateDirect(request.getUsername(), request.getPassword());
+        } catch (RuntimeException e) {
+            log.error("OSS permission sync FAILED for user={}, using stale cache. {}: {}",
+                    user.getUsername(), e.getClass().getSimpleName(), e.getMessage());
+        }
+        return loginWithoutPassword(user);
+    }
+
     /** OSS 同步用户 OSS 认证失败时的本地密码回退验证。 */
     private boolean isLocalPasswordValid(User user, String rawPassword) {
         String password = user.getPassword();
@@ -139,14 +151,7 @@ public class AuthService {
     @Transactional
     public AuthSessionResult loginWithoutPassword(User user) {
         requireOssRole(user);
-        String token = jwtUtil.generateAccessToken(user.getUsername());
-        String refreshToken = createRefreshSession(user);
-        log.info("User logged in via SSO/WeCom: {}", user.getUsername());
-        return AuthSessionResult.builder()
-                .authResponse(buildAuthResponse(user))
-                .refreshToken(refreshToken)
-                .accessToken(token)
-                .build();
+        return buildSession(user, "SSO/WeCom");
     }
 
     /** OSS 用户登录权限检查：必须有 OSS 缓存角色且为允许的业务角色。
@@ -189,14 +194,10 @@ public class AuthService {
 
     @Transactional
     public void logout(String accessToken, String refreshToken) {
-        // 注意：登出不清 OSS 权限缓存。
-        // CO-362 把权限缓存迁到 Redis 持久化（解决后端重启全量 403），登出若再 invalidate
-        // 会把 Redis key 一并删除，导致用户重新登录前用未过期的 JWT 访问时 cache miss →
-        // fail-closed → 看板空。权限缓存是 OSS 实时数据快照，登出不改变用户实际权限，
-        // 下次登录时 OssLoginFlowService 会 put 覆盖刷新。登出的安全由 revokeAccessToken +
-        // 撤销 refresh session 保证（旧 token 即时失效）。
+        // 登出不清 OSS 权限缓存（CO-362: Redis 持久化，清了会导致 cache miss → 403 → 看板空）。
+        // 安全由 revokeAccessToken + 撤销 refresh session 保证。下次登录 OssLoginFlowService 会覆盖刷新。
         revokeAccessToken(accessToken);
-        // CO-152 Review D5-1: 登出不清 CRM token 缓存（对齐 OSS 登出策略 L190），让 TTL 自然过期避免重复 generateToken
+        // CO-152: 登出不清 CRM token 缓存，让 TTL 自然过期避免重复 generateToken
         if (refreshToken == null || refreshToken.isBlank()) return;
         refreshSessionRepository.findByTokenHash(hashToken(refreshToken))
                 .filter(session -> session.getRevokedAt() == null)
