@@ -1,5 +1,5 @@
 // Input: ProjectResultConfirmedEvent
-// Output: 入队 WebhookDeliveryTask（使用 CRM 原生 bidInfoList 格式，与 WebhookEventListener 一致）
+// Output: 入队 WebhookDeliveryTask（bidInfoList 格式 + operator_username，与 WebhookEventListener 对称）
 // Pos: webhook/application/
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.webhook.application;
@@ -10,10 +10,12 @@ import com.xiyu.bid.crm.infrastructure.dto.BidInfoInnerDTO;
 import com.xiyu.bid.crm.infrastructure.dto.BidInfoSyncDTO;
 import com.xiyu.bid.crm.infrastructure.dto.CrmProjectStatus;
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.entity.User;
 import com.xiyu.bid.project.core.BidResultType;
 import com.xiyu.bid.project.domain.ProjectResultConfirmedEvent;
 import com.xiyu.bid.project.service.ProjectResultPayloadAssembler;
 import com.xiyu.bid.repository.TenderRepository;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.webhook.infrastructure.CrmOpportunityCodeResolver;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTask;
 import com.xiyu.bid.webhook.infrastructure.WebhookDeliveryTaskRepository;
@@ -40,6 +42,8 @@ import java.util.List;
  * 接口不认识该格式，返回 {@code code:0 success} 但不处理业务数据（CRM 经验文档第 5 节"code:0 谎言铁律"）。
  * 现改为与 WebhookEventListener（commit b6d1119ca, CO-263）一致的 CRM 原生 bidInfoList 格式，
  * BidResultType 映射到 CRM projectStatus 枚举：WON→2, LOST→3, FAILED→4, ABANDONED→6。
+ * <p><b>CO-152 补齐：</b>入队时写入 {@code operator_username}（由 {@code operatorUserId} 反查），
+ * 供异步投递用操作者 OSS token 调 generateToken，避免走全局 03595。
  */
 @Component
 @RequiredArgsConstructor
@@ -50,6 +54,7 @@ public class ProjectResultConfirmedWebhookListener {
 
     private final WebhookDeliveryTaskRepository taskRepository;
     private final TenderRepository tenderRepository;
+    private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
     private final CrmOpportunityCodeResolver crmOpportunityCodeResolver;
     private final ProjectResultPayloadAssembler payloadAssembler;
@@ -82,22 +87,38 @@ public class ProjectResultConfirmedWebhookListener {
         }
         String crmOpportunityCode = crmOpportunityCodeResolver.resolve(tender.getCrmOpportunityId());
         String crmOpportunityName = tender.getCrmOpportunityName() != null ? tender.getCrmOpportunityName() : "";
+        // CO-152：与 §4.1 WebhookEventListener 对称，入队时存操作者 username
+        String operatorUsername = resolveOperatorUsername(event.operatorUserId());
         taskRepository.save(WebhookDeliveryTask.builder()
                 .tenderId(event.tenderId())
                 .externalId(null)
+                .operatorUsername(operatorUsername)
                 .targetUrl(crmWebhookUrl)
                 .eventType("project.result_confirmed")
                 .businessKey(buildBusinessKey(event))
                 .payload(buildPayload(event, crmStatus, crmOpportunityCode, crmOpportunityName))
                 .status(WebhookDeliveryTaskStatus.PENDING)
                 .build());
-        log.info("Webhook delivery task enqueued for project {}, resultType={}, crmStatus={}, crmOpportunityCode={}, url={}",
+        log.info("Webhook delivery task enqueued for project {}, resultType={}, crmStatus={}, crmOpportunityCode={}, url={}, operatorUsername={}",
                 event.projectId(), event.resultType(), crmStatus,
-                crmOpportunityCode.isEmpty() ? "(none)" : crmOpportunityCode, crmWebhookUrl);
+                crmOpportunityCode.isEmpty() ? "(none)" : crmOpportunityCode, crmWebhookUrl, operatorUsername);
     }
 
     private String buildBusinessKey(ProjectResultConfirmedEvent event) {
         return "%s:%s:%s".formatted(event.projectId(), event.resultType().name(), event.occurredAt());
+    }
+
+    /**
+     * 通过 operatorUserId 反查 username，供 webhook 异步投递取该用户的 OSS token。
+     * <p>查不到时返回 null（投递侧可回退全局 token 或按策略死信，与 §4.1 一致）。
+     */
+    private String resolveOperatorUsername(Long operatorUserId) {
+        if (operatorUserId == null) {
+            return null;
+        }
+        return userRepository.findById(operatorUserId)
+                .map(User::getUsername)
+                .orElse(null);
     }
 
     /**

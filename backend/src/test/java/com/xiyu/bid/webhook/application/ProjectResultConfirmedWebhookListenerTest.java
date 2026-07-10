@@ -3,6 +3,7 @@ package com.xiyu.bid.webhook.application;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.entity.User;
 import com.xiyu.bid.project.core.BidResultType;
 import com.xiyu.bid.project.domain.ProjectResultConfirmedEvent;
 import com.xiyu.bid.project.service.ProjectResultPayloadAssembler;
@@ -38,7 +39,7 @@ import static org.mockito.Mockito.when;
  * ProjectResultConfirmedWebhookListener 单元测试。
  * <p>覆盖：bidInfoList 格式入队、event_type=project.result_confirmed、
  * CRM status 映射正确（WON→2, LOST→3, FAILED→4）、url 未配置跳过、
- * tender 不存在跳过。
+ * tender 不存在跳过、operator_username 从 operatorUserId 反查写入。
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -49,6 +50,7 @@ class ProjectResultConfirmedWebhookListenerTest {
     private static final Long PROJECT_ID = 9001L;
     private static final Long TENDER_ID = 254L;
     private static final Long USER_ID = 493L;
+    private static final String OPERATOR_USERNAME = "06234";
     private static final String OPERATOR_NAME = "张三（06234）";
     private static final Long RESULT_ID = 7700L;
     private static final String CRM_OPPORTUNITY_CODE = "CC20260610180";
@@ -65,7 +67,8 @@ class ProjectResultConfirmedWebhookListenerTest {
         ProjectResultPayloadAssembler assembler = new ProjectResultPayloadAssembler(
                 tenderRepository, userRepository, projectDocumentRepository, objectMapper);
         ProjectResultConfirmedWebhookListener l = new ProjectResultConfirmedWebhookListener(
-                taskRepository, tenderRepository, objectMapper, crmOpportunityCodeResolver, assembler);
+                taskRepository, tenderRepository, userRepository, objectMapper,
+                crmOpportunityCodeResolver, assembler);
         ReflectionTestUtils.setField(l, "crmWebhookUrl", url);
         return l;
     }
@@ -78,6 +81,11 @@ class ProjectResultConfirmedWebhookListenerTest {
                     String input = inv.getArgument(0);
                     return (input == null || input.isBlank()) ? "" : input;
                 });
+        // CO-152: 默认能反查到操作者 username
+        User operator = new User();
+        operator.setId(USER_ID);
+        operator.setUsername(OPERATOR_USERNAME);
+        lenient().when(userRepository.findById(USER_ID)).thenReturn(Optional.of(operator));
     }
 
     private Tender tender() {
@@ -116,6 +124,8 @@ class ProjectResultConfirmedWebhookListenerTest {
         assertThat(saved.getTargetUrl()).isEqualTo(CRM_URL);
         assertThat(saved.getTenderId()).isEqualTo(TENDER_ID);
         assertThat(saved.getBusinessKey()).contains("WON");
+        // CO-152: §4.2 入队必须写入 operator_username，异步投递才能走用户 OSS token
+        assertThat(saved.getOperatorUsername()).isEqualTo(OPERATOR_USERNAME);
 
         JsonNode root = new ObjectMapper().readTree(saved.getPayload());
         assertThat(root.has("bidInfoList")).isTrue();
@@ -246,6 +256,50 @@ class ProjectResultConfirmedWebhookListenerTest {
         JsonNode inner = root.path("bidInfoList").get(0);
         // 降级：用原数字 id（CRM 会返回 code:1 但有审计线索）
         assertThat(inner.path("code").asText()).isEqualTo("20942");
+    }
+
+
+    @Test
+    @DisplayName("CO-152: operatorUserId 可反查 → operator_username 写入任务")
+    void operatorUserIdResolved_setsOperatorUsername() {
+        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender()));
+        when(projectDocumentRepository.findAllById(List.of(1032L))).thenReturn(List.of());
+
+        listener(CRM_URL).onProjectResultConfirmed(event(BidResultType.WON));
+
+        WebhookDeliveryTask saved = captureSaved();
+        assertThat(saved.getOperatorUsername()).isEqualTo(OPERATOR_USERNAME);
+    }
+
+    @Test
+    @DisplayName("CO-152: operatorUserId 查不到用户 → operator_username 为 null，仍入队")
+    void operatorUserNotFound_operatorUsernameNull_stillEnqueues() {
+        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender()));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.empty());
+        when(projectDocumentRepository.findAllById(List.of(1032L))).thenReturn(List.of());
+
+        listener(CRM_URL).onProjectResultConfirmed(event(BidResultType.WON));
+
+        WebhookDeliveryTask saved = captureSaved();
+        assertThat(saved.getOperatorUsername()).isNull();
+        assertThat(saved.getStatus()).isEqualTo(WebhookDeliveryTaskStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("CO-152: operatorUserId 为 null → operator_username 为 null，仍入队")
+    void operatorUserIdNull_operatorUsernameNull_stillEnqueues() {
+        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender()));
+        when(projectDocumentRepository.findAllById(List.of(1032L))).thenReturn(List.of());
+
+        ProjectResultConfirmedEvent noOperator = ProjectResultConfirmedEvent.of(
+                PROJECT_ID, TENDER_ID, BidResultType.WON, "", List.of(1032L),
+                List.of(), null, null, RESULT_ID);
+
+        listener(CRM_URL).onProjectResultConfirmed(noOperator);
+
+        WebhookDeliveryTask saved = captureSaved();
+        assertThat(saved.getOperatorUsername()).isNull();
+        assertThat(saved.getStatus()).isEqualTo(WebhookDeliveryTaskStatus.PENDING);
     }
 
     private WebhookDeliveryTask captureSaved() {
