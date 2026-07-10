@@ -122,6 +122,7 @@ class OpenAiSdkStructuredOutputTransport implements OpenAiStructuredOutputTransp
     private String jsonObjectPrompt(String prompt) {
         return """
                 Return exactly one valid JSON object.
+                The response must be valid json.
                 Do not wrap it in markdown fences.
                 Use the requested field names exactly as provided.
 
