@@ -103,7 +103,14 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         }
 
         if (menuPermissions != null) {
-            authorities.addAll(RoleProfileAdminPermissionFilter.filter(menuPermissions));
+            List<String> filtered = RoleProfileAdminPermissionFilter.filter(menuPermissions);
+            authorities.addAll(filtered);
+            // 兜底：OSS 端对 bid-projectLeader 等角色只下发 resource-* 子菜单（100504/100505），
+            // 不下发 resource 父菜单（1005），导致 @PreAuthorize("hasAuthority('resource')") 403。
+            // 只要用户持有任意 resource-* 子权限，就自动补 resource 父权限。
+            if (filtered.stream().anyMatch(p -> p != null && p.startsWith("resource-"))) {
+                authorities.add("resource");
+            }
         }
 
         log.info("UserDetails authorities built: user={} isOssUser=true roleCode={} skipLegacyCompat={} authorities={}",
@@ -200,6 +207,12 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 }
             }
             authorities.add(RoleProfileCatalog.WAREHOUSE_MANAGE_PERMISSION);
+        }
+
+        // 兜底：如果用户持有任意 resource-* 子权限，自动补 resource 父权限。
+        // 原因见 ossAuthorities 中的同名处理；本地 DB 路径也可能存在 role_profile 只配子菜单的情况。
+        if (authorities.stream().anyMatch(p -> p != null && p.startsWith("resource-"))) {
+            authorities.add("resource");
         }
     }
 
