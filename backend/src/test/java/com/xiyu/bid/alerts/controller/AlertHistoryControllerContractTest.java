@@ -15,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -47,7 +48,10 @@ class AlertHistoryControllerContractTest {
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(
                 new AlertHistoryController(alertHistoryService, alertHistoryQueryService, alertHistoryCommandService)
-        ).build();
+        )
+                // 固定 Accept: application/json，避免 standalone MockMvc 在存在 XML 转换器时回退到 XML
+                .defaultRequest(get("/").accept(MediaType.APPLICATION_JSON))
+                .build();
         new ObjectMapper().findAndRegisterModules();
     }
 

@@ -55,6 +55,8 @@ class ROIAnalysisControllerTest {
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(roiAnalysisController)
                 .setControllerAdvice(new GlobalExceptionHandler())
+                // 固定 Accept: application/json，避免 standalone MockMvc 在存在 XML 转换器时回退到 XML
+                .defaultRequest(get("/").accept(MediaType.APPLICATION_JSON))
                 .build();
         objectMapper = new ObjectMapper();
 

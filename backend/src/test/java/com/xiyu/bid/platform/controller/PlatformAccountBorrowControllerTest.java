@@ -55,6 +55,8 @@ class PlatformAccountBorrowControllerTest {
         mockMvc = MockMvcBuilders.standaloneSetup(
                         new PlatformAccountBorrowController(borrowService, userRepository, notificationService, effectiveRoleResolver))
                 .setControllerAdvice(new GlobalExceptionHandler())
+                // 固定 Accept: application/json，避免 standalone MockMvc 在存在 XML 转换器时回退到 XML
+                .defaultRequest(get("/").accept(MediaType.APPLICATION_JSON))
                 .build();
         when(userRepository.findByUsername("sales")).thenReturn(Optional.of(CURRENT_USER));
         // CO-403: 默认模拟非管理员角色
