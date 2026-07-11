@@ -268,5 +268,13 @@ describe('BulkImportDialog', () => {
       expect(tips.text()).toContain('异步处理')
       expect(tips.text()).toContain('进度不会丢失')
     })
+
+    it('提示中说明总部所在地一级+二级拼接格式（无连字符）', () => {
+      const wrapper = mountDialog()
+      const tips = wrapper.find('.bulk-import-tips')
+      expect(tips.text()).toContain('一级+二级')
+      expect(tips.text()).toContain('北京市北京市')
+      expect(tips.text()).toContain('广东省深圳市')
+    })
   })
 })

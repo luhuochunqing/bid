@@ -9,6 +9,7 @@
     <div class="bulk-import-tips">
       <p>· 仅支持 <strong>.xlsx</strong> 模板，单次最多 <strong>500</strong> 行，文件大小不超过 <strong>5MB</strong>。</p>
       <p>· 请先点击「下载批量导入模板」获取最新模板，按字典参考填写后再上传。</p>
+      <p>· 总部所在地请按字典参考填写一级+二级拼接格式（如 <strong>广东省深圳市</strong>、<strong>北京市北京市</strong>），勿使用连字符分隔。</p>
       <p>· 导入为异步处理：提交后可在下方查看实时进度，处理期间可关闭对话框，进度不会丢失。</p>
     </div>
 
