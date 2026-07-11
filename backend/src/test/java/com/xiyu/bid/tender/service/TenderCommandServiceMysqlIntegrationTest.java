@@ -41,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.when;
 
 /**
@@ -135,7 +136,8 @@ class TenderCommandServiceMysqlIntegrationTest extends AbstractMysqlIntegrationT
         // 清空缓存 stub
         roleCodeCachePort.clear();
         // 默认 mock：自动分配无匹配
-        when(autoAssignmentService.autoAssignIfPossible(any())).thenReturn(AssignmentResult.noMatch());
+        when(autoAssignmentService.autoAssignIfPossible(any(), nullable(String.class)))
+                .thenReturn(AssignmentResult.noMatch());
         // 准备 admin 用户（真实 DB 落库 + 缓存写入，让真实 commandAccessGuard 通过）
         adminUser = setupAdminUser();
     }
@@ -267,7 +269,7 @@ class TenderCommandServiceMysqlIntegrationTest extends AbstractMysqlIntegrationT
         @DisplayName("autoAssignmentService 抛 RuntimeException → Tender 落库为 PENDING_ASSIGNMENT，无 DISPATCH 记录")
         void autoAssignThrowsRuntimeException_tenderStaysPendingNoDispatch() {
             // given: mock 抛异常（模拟外部 CRM 调用失败）
-            when(autoAssignmentService.autoAssignIfPossible(any()))
+            when(autoAssignmentService.autoAssignIfPossible(any(), nullable(String.class)))
                     .thenThrow(new RuntimeException("模拟自动分配失败"));
 
             TenderDTO dto = buildTenderDTO("t010", "test-int-purchaser-t010");
@@ -298,7 +300,7 @@ class TenderCommandServiceMysqlIntegrationTest extends AbstractMysqlIntegrationT
             // given: mock 返回匹配成功
             AssignmentResult match = AssignmentResult.success(
                     "crm-proj-001", "pm-001", "测试PM", "dept-001", "测试部门");
-            when(autoAssignmentService.autoAssignIfPossible(any())).thenReturn(match);
+            when(autoAssignmentService.autoAssignIfPossible(any(), nullable(String.class))).thenReturn(match);
 
             TenderDTO dto = buildTenderDTO("t010b", "test-int-purchaser-t010b");
 

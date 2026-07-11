@@ -120,7 +120,7 @@ class TenderIntegrationCommandSupportTest {
                 "郑蓉蓉",
                 null,
                 null);
-        when(autoAssignmentService.autoAssignIfPossible(tender)).thenReturn(result);
+        when(autoAssignmentService.autoAssignIfPossible(tender, null)).thenReturn(result);
         when(projectManagerIdResolver.resolveByFullName("郑蓉蓉")).thenReturn(2556L);
 
         support.tryAutoAssign(tender);
@@ -146,7 +146,7 @@ class TenderIntegrationCommandSupportTest {
                 "王凯毅",
                 null,
                 null);
-        when(autoAssignmentService.autoAssignIfPossible(tender)).thenReturn(result);
+        when(autoAssignmentService.autoAssignIfPossible(tender, null)).thenReturn(result);
         when(projectManagerIdResolver.resolveByFullName("王凯毅")).thenReturn(5052L);
 
         support.tryAutoAssign(tender);
@@ -166,7 +166,7 @@ class TenderIntegrationCommandSupportTest {
         tender.setStatus(Tender.Status.PENDING_ASSIGNMENT);
         tender.setTitle("未匹配标讯");
 
-        when(autoAssignmentService.autoAssignIfPossible(tender))
+        when(autoAssignmentService.autoAssignIfPossible(tender, null))
                 .thenReturn(AssignmentResult.noMatch());
 
         support.tryAutoAssign(tender);
@@ -193,7 +193,7 @@ class TenderIntegrationCommandSupportTest {
         assertThat(tender.getProjectManagerId()).isEqualTo(5052L);
         assertThat(tender.getProjectManagerName()).isEqualTo("王凯毅");
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
-        verify(autoAssignmentService, never()).autoAssignIfPossible(any());
+        verify(autoAssignmentService, never()).autoAssignIfPossible(any(), any());
         verify(tenderRepository, never()).save(any());
     }
 
@@ -210,7 +210,7 @@ class TenderIntegrationCommandSupportTest {
 
         assertThat(tender.getProjectManagerName()).isEqualTo("王凯毅");
         assertThat(tender.getProjectManagerId()).isNull();
-        verify(autoAssignmentService, never()).autoAssignIfPossible(any());
+        verify(autoAssignmentService, never()).autoAssignIfPossible(any(), any());
     }
 
     // ===== 防"半关联"：applyCrmFallback 在 crmOpportunityId 为空时不应存入 name =====

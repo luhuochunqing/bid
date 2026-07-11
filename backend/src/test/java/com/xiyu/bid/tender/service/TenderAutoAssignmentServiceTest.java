@@ -11,14 +11,13 @@ import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.task.service.UserEnabledStatusService;
+import com.xiyu.bid.tender.crm.CachedCrmLookupService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.Optional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -29,12 +28,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class TenderAutoAssignmentServiceTest {
+
+    private static final String OPERATOR = "06234";
 
     @Mock
     private CrmProjectMappingRepository mappingRepository;
@@ -52,12 +54,15 @@ class TenderAutoAssignmentServiceTest {
     private UserEnabledStatusService userEnabledStatusService;
 
     private TenderAutoAssignmentService autoAssignmentService;
+    private CachedCrmLookupService cachedCrmLookupService;
     private Tender tender;
 
     @BeforeEach
     void setUp() {
+        cachedCrmLookupService = new CachedCrmLookupService(
+                companySearchService, customerManagerLookupService);
         autoAssignmentService = new TenderAutoAssignmentService(
-                mappingRepository, companySearchService, customerManagerLookupService,
+                mappingRepository, cachedCrmLookupService,
                 userRepository, userEnabledStatusService);
         tender = Tender.builder()
                 .id(1L)
@@ -147,7 +152,7 @@ class TenderAutoAssignmentServiceTest {
         assertThat(result.projectManagerName()).isEqualTo("李四");
     }
 
-    // ── CO-302: CRM 反查路径测试（两步链路：25338 → 25259）─────────────────────────────────
+    // ── CO-302: CRM 反查路径（须传 operatorUsername）─────────────────────────────────
 
     @Test
     @DisplayName("autoAssignIfPossible_本地映射匹配成功_不调用CRM两步链路")
@@ -161,7 +166,7 @@ class TenderAutoAssignmentServiceTest {
         when(mappingRepository.findByPurchaserName("上海西域采购中心"))
                 .thenReturn(Optional.of(mapping));
 
-        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
+        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender, OPERATOR);
 
         assertThat(result.isMatched()).isTrue();
         assertThat(result.projectManagerName()).isEqualTo("王五");
@@ -171,13 +176,26 @@ class TenderAutoAssignmentServiceTest {
     }
 
     @Test
+    @DisplayName("D2: operatorUsername 为空时不调 CRM，仅本地映射")
+    void autoAssignIfPossible_NullOperator_SkipsCrm() {
+        when(mappingRepository.findByPurchaserName("上海西域采购中心"))
+                .thenReturn(Optional.empty());
+
+        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender, null);
+
+        assertThat(result.isMatched()).isFalse();
+        verify(companySearchService, never()).searchByName(anyString(), any());
+        verify(customerManagerLookupService, never()).findByCompanyId(anyLong(), any());
+    }
+
+    @Test
     @DisplayName("autoAssignIfPossible_本地匹配失败_25338命中_25259命中_本地User表按工号补齐姓名")
     void autoAssignIfPossible_LocalNoMatch_BothCrmStepsHit_ShouldReturnManager() {
         when(mappingRepository.findByPurchaserName("上海西域采购中心"))
                 .thenReturn(Optional.empty());
-        when(companySearchService.searchByName("上海西域采购中心", null))
+        when(companySearchService.searchByName("上海西域采购中心", OPERATOR))
                 .thenReturn(Optional.of(new CompanySearchResult(100L, "上海西域采购中心", "西域集团")));
-        when(customerManagerLookupService.findByCompanyId(100L, null))
+        when(customerManagerLookupService.findByCompanyId(100L, OPERATOR))
                 .thenReturn(Optional.of(new CustomerManagerResult("01097", 19, "集团项目经理")));
         User manager = User.builder()
                 .id(2001L)
@@ -188,17 +206,14 @@ class TenderAutoAssignmentServiceTest {
                 .thenReturn(Optional.of(manager));
         when(userEnabledStatusService.isEnabled(manager)).thenReturn(true);
 
-        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
+        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender, OPERATOR);
 
         assertThat(result.isMatched()).isTrue();
-        // saleNo 作为 projectManagerId（工号是稳定唯一标识）
         assertThat(result.projectManagerId()).isEqualTo("01097");
-        // 姓名通过本地 User 表按工号反查补齐
         assertThat(result.projectManagerName()).isEqualTo("李四");
-        verify(companySearchService).searchByName("上海西域采购中心", null);
-        verify(customerManagerLookupService).findByCompanyId(100L, null);
+        verify(companySearchService).searchByName("上海西域采购中心", OPERATOR);
+        verify(customerManagerLookupService).findByCompanyId(100L, OPERATOR);
         verify(userRepository).findByEmployeeNumber("01097");
-        // CO-441: 不应 fallback 到 username（employee_number 已命中）
         verify(userRepository, never()).findByUsername(anyString());
     }
 
@@ -207,17 +222,16 @@ class TenderAutoAssignmentServiceTest {
     void autoAssignIfPossible_CompanyHitButNoManager_ShouldReturnNoMatch() {
         when(mappingRepository.findByPurchaserName("上海西域采购中心"))
                 .thenReturn(Optional.empty());
-        when(companySearchService.searchByName("上海西域采购中心", null))
+        when(companySearchService.searchByName("上海西域采购中心", OPERATOR))
                 .thenReturn(Optional.of(new CompanySearchResult(100L, "上海西域采购中心", "西域集团")));
-        when(customerManagerLookupService.findByCompanyId(100L, null))
+        when(customerManagerLookupService.findByCompanyId(100L, OPERATOR))
                 .thenReturn(Optional.empty());
 
-        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
+        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender, OPERATOR);
 
         assertThat(result.isMatched()).isFalse();
-        verify(companySearchService).searchByName("上海西域采购中心", null);
-        verify(customerManagerLookupService).findByCompanyId(100L, null);
-        // 25259 未命中时不应查 User 表
+        verify(companySearchService).searchByName("上海西域采购中心", OPERATOR);
+        verify(customerManagerLookupService).findByCompanyId(100L, OPERATOR);
         verify(userRepository, never()).findByEmployeeNumber(anyString());
     }
 
@@ -226,13 +240,13 @@ class TenderAutoAssignmentServiceTest {
     void autoAssignIfPossible_CompanyNoHit_ShouldReturnNoMatchWithoutCallingSecondStep() {
         when(mappingRepository.findByPurchaserName("上海西域采购中心"))
                 .thenReturn(Optional.empty());
-        when(companySearchService.searchByName("上海西域采购中心", null))
+        when(companySearchService.searchByName("上海西域采购中心", OPERATOR))
                 .thenReturn(Optional.empty());
 
-        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
+        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender, OPERATOR);
 
         assertThat(result.isMatched()).isFalse();
-        verify(companySearchService).searchByName("上海西域采购中心", null);
+        verify(companySearchService).searchByName("上海西域采购中心", OPERATOR);
         verify(customerManagerLookupService, never()).findByCompanyId(anyLong(), any());
     }
 
@@ -241,10 +255,10 @@ class TenderAutoAssignmentServiceTest {
     void autoAssignIfPossible_CompanySearchException_ShouldReturnNoMatch() {
         when(mappingRepository.findByPurchaserName("上海西域采购中心"))
                 .thenReturn(Optional.empty());
-        when(companySearchService.searchByName("上海西域采购中心", null))
+        when(companySearchService.searchByName("上海西域采购中心", OPERATOR))
                 .thenThrow(new RuntimeException("CRM 25338 timeout"));
 
-        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
+        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender, OPERATOR);
 
         assertThat(result.isMatched()).isFalse();
         verify(customerManagerLookupService, never()).findByCompanyId(anyLong(), any());
@@ -255,12 +269,12 @@ class TenderAutoAssignmentServiceTest {
     void autoAssignIfPossible_ManagerLookupException_ShouldReturnNoMatch() {
         when(mappingRepository.findByPurchaserName("上海西域采购中心"))
                 .thenReturn(Optional.empty());
-        when(companySearchService.searchByName("上海西域采购中心", null))
+        when(companySearchService.searchByName("上海西域采购中心", OPERATOR))
                 .thenReturn(Optional.of(new CompanySearchResult(100L, "上海西域采购中心", "西域集团")));
-        when(customerManagerLookupService.findByCompanyId(100L, null))
+        when(customerManagerLookupService.findByCompanyId(100L, OPERATOR))
                 .thenThrow(new RuntimeException("CRM 25259 timeout"));
 
-        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
+        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender, OPERATOR);
 
         assertThat(result.isMatched()).isFalse();
         verify(userRepository, never()).findByEmployeeNumber(anyString());
@@ -271,21 +285,17 @@ class TenderAutoAssignmentServiceTest {
     void autoAssignIfPossible_ManagerNotFoundInLocalUserTable_ShouldReturnNoMatch() {
         when(mappingRepository.findByPurchaserName("上海西域采购中心"))
                 .thenReturn(Optional.empty());
-        when(companySearchService.searchByName("上海西域采购中心", null))
+        when(companySearchService.searchByName("上海西域采购中心", OPERATOR))
                 .thenReturn(Optional.of(new CompanySearchResult(100L, "上海西域采购中心", "西域集团")));
-        when(customerManagerLookupService.findByCompanyId(100L, null))
+        when(customerManagerLookupService.findByCompanyId(100L, OPERATOR))
                 .thenReturn(Optional.of(new CustomerManagerResult("99999", 16, "百大项目负责人")));
-        // CO-441: employee_number 未命中
         when(userRepository.findByEmployeeNumber("99999"))
                 .thenReturn(Optional.empty());
-        // CO-441: fallback 到 username 也未命中
         when(userRepository.findByUsername("99999"))
                 .thenReturn(Optional.empty());
 
-        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
+        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender, OPERATOR);
 
-        // CO-441 回归修复：无法找到用户 → managerName=null → 返回 noMatch
-        // 状态保持 PENDING_ASSIGNMENT，等待人工分配
         assertThat(result.isMatched()).isFalse();
         assertThat(result.projectManagerId()).isNull();
         assertThat(result.projectManagerName()).isNull();
@@ -296,26 +306,24 @@ class TenderAutoAssignmentServiceTest {
     void autoAssignIfPossible_EmployeeNumberMiss_FallbackToUsername_ShouldReturnManager() {
         when(mappingRepository.findByPurchaserName("上海西域采购中心"))
                 .thenReturn(Optional.empty());
-        when(companySearchService.searchByName("上海西域采购中心", null))
+        when(companySearchService.searchByName("上海西域采购中心", OPERATOR))
                 .thenReturn(Optional.of(new CompanySearchResult(100L, "上海西域采购中心", "西域集团")));
-        when(customerManagerLookupService.findByCompanyId(100L, null))
+        when(customerManagerLookupService.findByCompanyId(100L, OPERATOR))
                 .thenReturn(Optional.of(new CustomerManagerResult("08687", 16, "百大项目负责人")));
-        // CO-441 场景：OSS 同步用户 employee_number=NULL，按 employee_number 查不到
         when(userRepository.findByEmployeeNumber("08687"))
                 .thenReturn(Optional.empty());
-        // 但 username 字段存了工号
         User manager = User.builder()
                 .id(5052L)
                 .username("08687")
                 .fullName("王凯毅")
                 .externalOrgSourceApp("oss")
-                .enabled(false)  // OSS 用户 enabled=false，但 UserEnabledStatusService 应返回 true
+                .enabled(false)
                 .build();
         when(userRepository.findByUsername("08687"))
                 .thenReturn(Optional.of(manager));
         when(userEnabledStatusService.isEnabled(manager)).thenReturn(true);
 
-        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
+        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender, OPERATOR);
 
         assertThat(result.isMatched()).isTrue();
         assertThat(result.projectManagerId()).isEqualTo("08687");
@@ -329,24 +337,22 @@ class TenderAutoAssignmentServiceTest {
     void autoAssignIfPossible_DisabledLocalUser_ShouldReturnNoMatch() {
         when(mappingRepository.findByPurchaserName("上海西域采购中心"))
                 .thenReturn(Optional.empty());
-        when(companySearchService.searchByName("上海西域采购中心", null))
+        when(companySearchService.searchByName("上海西域采购中心", OPERATOR))
                 .thenReturn(Optional.of(new CompanySearchResult(100L, "上海西域采购中心", "西域集团")));
-        when(customerManagerLookupService.findByCompanyId(100L, null))
+        when(customerManagerLookupService.findByCompanyId(100L, OPERATOR))
                 .thenReturn(Optional.of(new CustomerManagerResult("01097", 19, "集团项目经理")));
         User manager = User.builder()
                 .id(2001L)
                 .fullName("李四")
                 .employeeNumber("01097")
-                .enabled(false)  // 本地用户已停用
+                .enabled(false)
                 .build();
         when(userRepository.findByEmployeeNumber("01097"))
                 .thenReturn(Optional.of(manager));
         when(userEnabledStatusService.isEnabled(manager)).thenReturn(false);
 
-        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
+        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender, OPERATOR);
 
-        // CO-441 回归修复：用户已停用 → managerName=null → 返回 noMatch
-        // 状态保持 PENDING_ASSIGNMENT，等待人工分配
         assertThat(result.isMatched()).isFalse();
         assertThat(result.projectManagerId()).isNull();
         assertThat(result.projectManagerName()).isNull();
@@ -357,7 +363,7 @@ class TenderAutoAssignmentServiceTest {
     void tryAutoAssignFromCrm_BlankPurchaserName_ShouldReturnNoMatch() {
         tender.setPurchaserName(null);
 
-        AssignmentResult result = autoAssignmentService.tryAutoAssignFromCrm(tender, null);
+        AssignmentResult result = autoAssignmentService.tryAutoAssignFromCrm(tender, OPERATOR);
 
         assertThat(result.isMatched()).isFalse();
         verify(companySearchService, never()).searchByName(anyString(), any());
@@ -366,9 +372,9 @@ class TenderAutoAssignmentServiceTest {
     @Test
     @DisplayName("tryAutoAssignFromCrm_25338和25259都命中_按工号补齐姓名_匹配成功")
     void tryAutoAssignFromCrm_BothStepsHit_ShouldReturnMatched() {
-        when(companySearchService.searchByName("上海西域采购中心", null))
+        when(companySearchService.searchByName("上海西域采购中心", OPERATOR))
                 .thenReturn(Optional.of(new CompanySearchResult(100L, "上海西域采购中心", "西域集团")));
-        when(customerManagerLookupService.findByCompanyId(100L, null))
+        when(customerManagerLookupService.findByCompanyId(100L, OPERATOR))
                 .thenReturn(Optional.of(new CustomerManagerResult("01097", 19, "集团项目经理")));
         User manager = User.builder()
                 .id(2001L)
@@ -379,7 +385,7 @@ class TenderAutoAssignmentServiceTest {
                 .thenReturn(Optional.of(manager));
         when(userEnabledStatusService.isEnabled(manager)).thenReturn(true);
 
-        AssignmentResult result = autoAssignmentService.tryAutoAssignFromCrm(tender, null);
+        AssignmentResult result = autoAssignmentService.tryAutoAssignFromCrm(tender, OPERATOR);
 
         assertThat(result.isMatched()).isTrue();
         assertThat(result.projectManagerId()).isEqualTo("01097");
@@ -389,10 +395,10 @@ class TenderAutoAssignmentServiceTest {
     @Test
     @DisplayName("tryAutoAssignFromCrm_25338返回empty_返回noMatch")
     void tryAutoAssignFromCrm_CompanySearchEmpty_ShouldReturnNoMatch() {
-        when(companySearchService.searchByName("上海西域采购中心", null))
+        when(companySearchService.searchByName("上海西域采购中心", OPERATOR))
                 .thenReturn(Optional.empty());
 
-        AssignmentResult result = autoAssignmentService.tryAutoAssignFromCrm(tender, null);
+        AssignmentResult result = autoAssignmentService.tryAutoAssignFromCrm(tender, OPERATOR);
 
         assertThat(result.isMatched()).isFalse();
         verify(customerManagerLookupService, never()).findByCompanyId(anyLong(), any());
@@ -401,8 +407,73 @@ class TenderAutoAssignmentServiceTest {
     @Test
     @DisplayName("autoAssignIfPossible_tender 为空返回 noMatch")
     void autoAssignIfPossible_NullTender_ShouldReturnNoMatch() {
-        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(null);
+        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(null, OPERATOR);
 
         assertThat(result.isMatched()).isFalse();
+    }
+
+    @Test
+    @DisplayName("批量导入：带 operator username 时 CRM 两步链路透传 username（OSS→CRM 换票）")
+    void autoAssignIfPossible_WithOperatorUsername_PassesToCrmSteps() {
+        when(mappingRepository.findByPurchaserName("上海西域采购中心"))
+                .thenReturn(Optional.empty());
+        when(companySearchService.searchByName("上海西域采购中心", OPERATOR))
+                .thenReturn(Optional.of(new CompanySearchResult(100L, "上海西域采购中心", "西域集团")));
+        when(customerManagerLookupService.findByCompanyId(100L, OPERATOR))
+                .thenReturn(Optional.of(new CustomerManagerResult("01097", 19, "集团项目经理")));
+        User manager = User.builder()
+                .id(2001L)
+                .fullName("李四")
+                .employeeNumber("01097")
+                .build();
+        when(userRepository.findByEmployeeNumber("01097"))
+                .thenReturn(Optional.of(manager));
+        when(userEnabledStatusService.isEnabled(manager)).thenReturn(true);
+
+        AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender, OPERATOR);
+
+        assertThat(result.isMatched()).isTrue();
+        assertThat(result.projectManagerName()).isEqualTo("李四");
+        verify(companySearchService).searchByName("上海西域采购中心", OPERATOR);
+        verify(customerManagerLookupService).findByCompanyId(100L, OPERATOR);
+    }
+
+    @Test
+    @DisplayName("P1 批次缓存：openBatch 后同一招标主体只调一次 CRM")
+    void autoAssignIfPossible_BatchCache_SamePurchaserOnlyHitsCrmOnce() {
+        when(mappingRepository.findByPurchaserName("上海西域采购中心"))
+                .thenReturn(Optional.empty());
+        when(companySearchService.searchByName("上海西域采购中心", OPERATOR))
+                .thenReturn(Optional.of(new CompanySearchResult(100L, "上海西域采购中心", "西域集团")));
+        when(customerManagerLookupService.findByCompanyId(100L, OPERATOR))
+                .thenReturn(Optional.of(new CustomerManagerResult("01097", 19, "集团项目经理")));
+        User manager = User.builder()
+                .id(2001L)
+                .fullName("李四")
+                .employeeNumber("01097")
+                .build();
+        when(userRepository.findByEmployeeNumber("01097"))
+                .thenReturn(Optional.of(manager));
+        when(userEnabledStatusService.isEnabled(manager)).thenReturn(true);
+
+        cachedCrmLookupService.openBatch();
+        try {
+            AssignmentResult first = autoAssignmentService.autoAssignIfPossible(tender, OPERATOR);
+            Tender secondTender = Tender.builder()
+                    .id(2L)
+                    .title("另一标讯")
+                    .purchaserName("上海西域采购中心")
+                    .status(Tender.Status.PENDING_ASSIGNMENT)
+                    .build();
+            AssignmentResult second = autoAssignmentService.autoAssignIfPossible(secondTender, OPERATOR);
+
+            assertThat(first.isMatched()).isTrue();
+            assertThat(second.isMatched()).isTrue();
+            // 同一招标主体：公司查询 + 经理查询各只一次
+            verify(companySearchService, times(1)).searchByName("上海西域采购中心", OPERATOR);
+            verify(customerManagerLookupService, times(1)).findByCompanyId(100L, OPERATOR);
+        } finally {
+            cachedCrmLookupService.closeBatch();
+        }
     }
 }

@@ -89,19 +89,27 @@ public class TenderCommandService {
         Tender savedTender = tenderRepository.save(tender);
         log.info("Created tender with id: {}", savedTender.getId());
         saveAttachments(savedTender.getId(), tenderDTO.getAttachments());
-        tryAutoAssign(savedTender);
+        // 批量导入 / 人工录入：用操作人 username 换 CRM token，按招标主体反查项目经理
+        String operatorUsername = resolveUsername(userId);
+        tryAutoAssign(savedTender, operatorUsername);
 
         // CO-332: 记录创建标讯操作日志
-        String createUsername = userId != null ? userRepository.findById(userId).map(User::getUsername).orElse("system") : "system";
+        String createUsername = operatorUsername != null ? operatorUsername : "system";
         String createUserId = userId != null ? String.valueOf(userId) : "system";
         tenderAuditService.logCreate(savedTender.getId(), createUsername, createUserId, null);
 
         return tenderMapper.toDTO(savedTender);
     }
 
-    private boolean tryAutoAssign(Tender tender) {
+    /**
+     * 创建后自动分配（批量导入与人工录入共用）。
+     *
+     * @param tender           已保存标讯
+     * @param operatorUsername 操作人 username（批量导入异步线程无 SecurityContext，必须显式传入）
+     */
+    private boolean tryAutoAssign(Tender tender, String operatorUsername) {
         try {
-            AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
+            AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender, operatorUsername);
             if (result.isMatched()) {
                 applyAssignmentResult(tender, result);
                 com.xiyu.bid.batch.core.TenderStatusTransitionPolicy.assertTransition(tender.getStatus(), Tender.Status.TRACKING);

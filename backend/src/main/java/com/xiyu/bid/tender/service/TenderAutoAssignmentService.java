@@ -2,8 +2,6 @@ package com.xiyu.bid.tender.service;
 
 import com.xiyu.bid.crm.application.CustomerManagerResult;
 import com.xiyu.bid.crm.application.CompanySearchResult;
-import com.xiyu.bid.crm.application.CrmCustomerManagerLookupService;
-import com.xiyu.bid.crm.application.CrmCompanySearchService;
 import com.xiyu.bid.crm.domain.CrmProjectMappingRepository;
 import com.xiyu.bid.crm.domain.CrmProjectMapping;
 import com.xiyu.bid.crm.domain.AssignmentResult;
@@ -11,6 +9,7 @@ import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.task.service.UserEnabledStatusService;
+import com.xiyu.bid.tender.crm.CachedCrmLookupService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,14 +18,22 @@ import org.springframework.util.StringUtils;
 
 import java.util.Optional;
 
+/**
+ * 标讯自动分配：本地映射优先，再 CRM 两步反查（招标主体 → 公司 → 集团项目经理）。
+ *
+ * <p><b>契约（D1）</b>：调用方必须显式传入 {@code operatorUsername}。
+ * CRM 反查依赖操作人 OSS token 换票；无操作人时仅尝试本地映射，不假装可调 CRM。
+ *
+ * <p><b>批量导入</b>：导入循环外包一层 {@link CachedCrmLookupService#openBatch()}，
+ * 同一招标主体只打一次 CRM（031 R-007）。
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TenderAutoAssignmentService {
 
     private final CrmProjectMappingRepository mappingRepository;
-    private final CrmCompanySearchService companySearchService;
-    private final CrmCustomerManagerLookupService customerManagerLookupService;
+    private final CachedCrmLookupService crmLookupService;
     private final UserRepository userRepository;
     private final UserEnabledStatusService userEnabledStatusService;
 
@@ -65,8 +72,15 @@ public class TenderAutoAssignmentService {
         return AssignmentResult.noMatch();
     }
 
+    /**
+     * 尝试自动分配：先本地映射，再 CRM 反查。
+     *
+     * @param tender           已落库标讯（purchaserName = 招标主体）
+     * @param operatorUsername 操作人 username（OSS 缓存键）。批量导入/人工录入必须传；
+     *                         外部无操作人上下文时显式传 {@code null}（仅本地映射，不调 CRM）
+     */
     @Transactional
-    public AssignmentResult autoAssignIfPossible(final Tender tender) {
+    public AssignmentResult autoAssignIfPossible(final Tender tender, final String operatorUsername) {
         if (tender == null) {
             log.warn("Auto-assignment skipped: tender is null");
             return AssignmentResult.noMatch();
@@ -82,7 +96,15 @@ public class TenderAutoAssignmentService {
             return result;
         }
 
-        AssignmentResult crmResult = tryAutoAssignFromCrm(tender, null);
+        // D2：无操作人则不进 CRM（避免 TokenUnavailable 空跑）
+        if (!StringUtils.hasText(operatorUsername)) {
+            log.warn("Tender {} CRM auto-assign skipped: operator username is empty "
+                    + "(only local mapping tried; pass login user for OSS→CRM token)",
+                    tender.getId());
+            return AssignmentResult.noMatch();
+        }
+
+        AssignmentResult crmResult = tryAutoAssignFromCrm(tender, operatorUsername);
         if (crmResult.isMatched()) {
             log.info("Tender {} assigned to manager {} ({}) from CRM",
                     tender.getId(),
@@ -102,20 +124,24 @@ public class TenderAutoAssignmentService {
             log.debug("tryAutoAssignFromCrm skipped: tender or purchaserName is null/blank");
             return AssignmentResult.noMatch();
         }
+        if (!StringUtils.hasText(username)) {
+            log.debug("tryAutoAssignFromCrm skipped: operator username empty");
+            return AssignmentResult.noMatch();
+        }
 
         String purchaserName = tender.getPurchaserName().trim();
         log.debug("Attempting CRM auto-assignment for: {}", purchaserName);
 
         try {
             Optional<CompanySearchResult> company =
-                    companySearchService.searchByName(purchaserName, username);
+                    crmLookupService.searchByName(purchaserName, username);
             if (company.isEmpty()) {
                 log.debug("CRM step1 no exact company match for: {}", purchaserName);
                 return AssignmentResult.noMatch();
             }
 
             Optional<CustomerManagerResult> manager =
-                    customerManagerLookupService.findByCompanyId(company.get().id(), username);
+                    crmLookupService.findByCompanyId(company.get().id(), username);
             if (manager.isEmpty()) {
                 log.debug("CRM step2 no manager for companyId={}", company.get().id());
                 return AssignmentResult.noMatch();
@@ -130,8 +156,7 @@ public class TenderAutoAssignmentService {
                     tender.getId(), purchaserName, company.get().id(), saleNo);
 
             String managerName = resolveManagerNameBySaleNo(saleNo);
-            // CO-441 回归修复：如果 managerName 为 null（用户已停用/未匹配），不推进状态
-            // 返回 noMatch() 保持 PENDING_ASSIGNMENT，等待人工分配
+            // CO-441：managerName 为空（停用/未匹配）不推进状态
             if (!StringUtils.hasText(managerName)) {
                 log.warn("CRM 返回的工号 {} 在本地 User 表中无匹配或已停用，返回 noMatch 保持 PENDING_ASSIGNMENT", saleNo);
                 return AssignmentResult.noMatch();
@@ -153,18 +178,6 @@ public class TenderAutoAssignmentService {
 
     /**
      * CO-441: 按 CRM 返回的工号（saleNo）反查本地 User 表的负责人姓名。
-     * <p>查询顺序：
-     * <ol>
-     *   <li>先按 {@code employee_number} 字段查询（标准路径，B 修复后新同步的 OSS 用户会填充此字段）</li>
-     *   <li>未命中时 fallback 到 {@code username} 字段查询（止血路径，覆盖历史 OSS 用户
-     *       在 V1126 迁移前的场景，以及 employee_number 字段未填充的边缘情况）</li>
-     * </ol>
-     * <p>查到后通过 {@link UserEnabledStatusService#isEnabled} 判断用户启用状态，
-     * 未启用用户返回 null（不分配给已停用账号）。OSS 用户以认证成功为准视为启用
-     * （参考 PR !1382 统一 enabled 判断逻辑）。
-     *
-     * @param saleNo CRM 返回的工号
-     * @return 启用状态的用户姓名，或 null（未匹配/已停用）
      */
     public String resolveManagerNameBySaleNo(final String saleNo) {
         if (!StringUtils.hasText(saleNo)) {
@@ -172,7 +185,6 @@ public class TenderAutoAssignmentService {
         }
         Optional<User> userOpt = userRepository.findByEmployeeNumber(saleNo);
         if (userOpt.isEmpty()) {
-            // CO-441 止血：fallback 到 username 字段查询（OSS 同步用户工号存在 username）
             userOpt = userRepository.findByUsername(saleNo);
         }
         if (userOpt.isEmpty()) {
@@ -188,7 +200,6 @@ public class TenderAutoAssignmentService {
 
     /**
      * @deprecated 使用 {@link #resolveManagerNameBySaleNo(String)} 替代。
-     * CO-441 前 OSS 同步用户 employee_number 为 NULL，按此方法查询会返回 null。
      */
     @Deprecated
     public String resolveManagerNameByEmployeeNumber(final String employeeNumber) {

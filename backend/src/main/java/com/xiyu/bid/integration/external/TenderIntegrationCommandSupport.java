@@ -46,7 +46,8 @@ class TenderIntegrationCommandSupport {
             return;
         }
         try {
-            AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender);
+            // 外部推送无登录操作人：显式传 null → 仅本地映射，不调 CRM 反查（D1 契约）
+            AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender, null);
             if (result.isMatched()) {
                 applyAssignmentResult(tender, result);
                 try {

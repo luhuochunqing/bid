@@ -2,6 +2,7 @@ package com.xiyu.bid.tender.service;
 
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.exception.TenderDuplicateException;
+import com.xiyu.bid.tender.crm.CachedCrmLookupService;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import com.xiyu.bid.tender.dto.TenderImportProgressDTO;
 import com.xiyu.bid.tender.dto.TenderImportResultDTO;
@@ -60,6 +61,8 @@ class TenderImportAppServiceTest {
     private TenderMapper tenderMapper;
     @Mock
     private TenderExcelParser excelParser;
+    @Mock
+    private CachedCrmLookupService cachedCrmLookupService;
 
     private TenderImportAppService service;
 
@@ -67,7 +70,8 @@ class TenderImportAppServiceTest {
     void setUp() {
         service = new TenderImportAppService(
                 tenderImportService, taskStateService, progressService,
-                taskRepository, tenderCommandService, tenderMapper, excelParser);
+                taskRepository, tenderCommandService, tenderMapper, excelParser,
+                cachedCrmLookupService);
         // 手动注入 self 代理（@Lazy @Autowired 字段）
         // 单元测试中 self 就是 service 本身，但 triggerImport 通过 self 调用 executeImportAsync
         // 这里我们 mock self 为 service 本身（不需要拦截，因为 executeImportAsync 不带 @Async 也能直接调用）
@@ -144,6 +148,9 @@ class TenderImportAppServiceTest {
         service.executeImportAsync(taskId, fileBytes, userId);
 
         verify(taskStateService, times(1)).markProcessing(taskId);
+        // 031 R-007：导入循环外包 openBatch/closeBatch
+        verify(cachedCrmLookupService, times(1)).openBatch();
+        verify(cachedCrmLookupService, times(1)).closeBatch();
         verify(tenderCommandService, times(2)).createTender(any(TenderDTO.class), eq(userId));
         verify(taskStateService, times(1)).markCompleted(taskId, 2);
         verify(taskStateService, never()).markFailed(eq(taskId), anyList());

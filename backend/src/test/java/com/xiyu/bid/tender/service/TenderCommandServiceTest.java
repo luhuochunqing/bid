@@ -35,7 +35,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.*;
+
+import java.util.Optional;
 
 @ExtendWith(MockitoExtension.class)
 class TenderCommandServiceTest {
@@ -131,12 +136,34 @@ class TenderCommandServiceTest {
             saved.setId(1L);
             return saved;
         });
-        when(autoAssignmentService.autoAssignIfPossible(any(Tender.class))).thenReturn(AssignmentResult.noMatch());
+        when(autoAssignmentService.autoAssignIfPossible(any(Tender.class), nullable(String.class)))
+                .thenReturn(AssignmentResult.noMatch());
 
         TenderDTO savedDto = tenderCommandService.createTender(tenderDTO);
 
         assertThat(savedDto.getTitle()).isEqualTo(tenderDTO.getTitle());
         verify(tenderRepository).save(any(Tender.class));
+        // 无 userId 时 operator username 为 null（批量导入正常路径会带 userId）
+        verify(autoAssignmentService).autoAssignIfPossible(any(Tender.class), isNull());
+    }
+
+    @Test
+    @DisplayName("批量导入路径：createTender(userId) 将操作人 username 传给 CRM 自动分配")
+    void createTender_WithUserId_PassesOperatorUsernameToAutoAssign() {
+        User operator = User.builder().id(42L).username("06234").fullName("郑蓉蓉").build();
+        when(userRepository.findById(42L)).thenReturn(Optional.of(operator));
+        when(tenderRepository.save(any(Tender.class))).thenAnswer(invocation -> {
+            Tender saved = invocation.getArgument(0);
+            saved.setId(1L);
+            return saved;
+        });
+        when(autoAssignmentService.autoAssignIfPossible(any(Tender.class), eq("06234")))
+                .thenReturn(AssignmentResult.noMatch());
+
+        tenderCommandService.createTender(tenderDTO, 42L);
+
+        // 批量导入异步线程无 SecurityContext，必须显式把导入人 username 交给 CRM 换票
+        verify(autoAssignmentService).autoAssignIfPossible(any(Tender.class), eq("06234"));
     }
 
     @Test
@@ -183,7 +210,7 @@ class TenderCommandServiceTest {
             saved.setId(1L);
             return saved;
         });
-        when(autoAssignmentService.autoAssignIfPossible(any(Tender.class))).thenReturn(
+        when(autoAssignmentService.autoAssignIfPossible(any(Tender.class), nullable(String.class))).thenReturn(
                 AssignmentResult.success("CRM-001", "1001", "张三", "DEPT-001", "销售部"));
         when(projectManagerIdResolver.resolveByFullName("张三")).thenReturn(100L);
 
@@ -204,7 +231,7 @@ class TenderCommandServiceTest {
             saved.setId(1L);
             return saved;
         });
-        when(autoAssignmentService.autoAssignIfPossible(any(Tender.class))).thenReturn(
+        when(autoAssignmentService.autoAssignIfPossible(any(Tender.class), nullable(String.class))).thenReturn(
                 AssignmentResult.success("CRM-001", "1001", "张三", "DEPT-001", "销售部"));
 
         tenderCommandService.createTender(tenderDTO);
@@ -221,7 +248,8 @@ class TenderCommandServiceTest {
             saved.setId(1L);
             return saved;
         });
-        when(autoAssignmentService.autoAssignIfPossible(any(Tender.class))).thenReturn(AssignmentResult.noMatch());
+        when(autoAssignmentService.autoAssignIfPossible(any(Tender.class), nullable(String.class)))
+                .thenReturn(AssignmentResult.noMatch());
 
         TenderDTO savedDto = tenderCommandService.createTender(tenderDTO);
 
@@ -319,7 +347,8 @@ class TenderCommandServiceTest {
             saved.setId(1L);
             return saved;
         });
-        when(autoAssignmentService.autoAssignIfPossible(any(Tender.class))).thenReturn(AssignmentResult.noMatch());
+        when(autoAssignmentService.autoAssignIfPossible(any(Tender.class), nullable(String.class)))
+                .thenReturn(AssignmentResult.noMatch());
 
         TenderDTO savedDto = tenderCommandService.createTender(dtoWithAttachment);
 

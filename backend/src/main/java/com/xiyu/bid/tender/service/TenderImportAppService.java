@@ -3,6 +3,7 @@ package com.xiyu.bid.tender.service;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.exception.TenderDuplicateException;
 import com.xiyu.bid.tender.core.TenderDeduplicationPolicy;
+import com.xiyu.bid.tender.crm.CachedCrmLookupService;
 import com.xiyu.bid.tender.dto.TenderImportProgressDTO;
 import com.xiyu.bid.tender.dto.TenderImportResultDTO;
 import com.xiyu.bid.tender.dto.TenderImportTaskDTO;
@@ -60,6 +61,8 @@ public class TenderImportAppService {
     private final TenderCommandService tenderCommandService;
     private final TenderMapper tenderMapper;
     private final TenderExcelParser excelParser;
+    /** 031 R-007：导入批次内 CRM 反查缓存（同招标主体只调一次）。 */
+    private final CachedCrmLookupService cachedCrmLookupService;
 
     /**
      * 自身代理（解决 @Async 自调用失效问题）。
@@ -151,34 +154,40 @@ public class TenderImportAppService {
             }
 
             // 逐条入库（独立事务，部分成功）
+            // 031 R-007：批次内 CRM 缓存，同一招标主体只反查一次
             List<TenderImportTaskError> importErrors = new ArrayList<>();
             int successCount = 0;
             List<TenderRequest> rows = parsed.rows();
 
-            for (int i = 0; i < rows.size(); i++) {
-                TenderRequest req = rows.get(i);
-                int displayRow = i + 2;
-                try {
-                    tenderCommandService.createTender(tenderMapper.toDTO(req), userId);
-                    successCount++;
-                } catch (TenderDuplicateException e) {
-                    var existing = (e.getDuplicates() == null || e.getDuplicates().isEmpty())
-                            ? null : e.getDuplicates().get(0);
-                    importErrors.add(new TenderImportTaskError(displayRow, "duplicate",
-                            TenderDeduplicationPolicy.formatImportDuplicateMessage(
-                                    existing, req.getPurchaserName()),
-                            req.getTitle()));
-                } catch (IllegalArgumentException e) {
-                    importErrors.add(new TenderImportTaskError(displayRow, "row",
-                            e.getMessage(), req.getTitle()));
-                } catch (RuntimeException e) {
-                    importErrors.add(new TenderImportTaskError(displayRow, "row",
-                            "导入失败：" + e.getMessage(), req.getTitle()));
-                }
+            cachedCrmLookupService.openBatch();
+            try {
+                for (int i = 0; i < rows.size(); i++) {
+                    TenderRequest req = rows.get(i);
+                    int displayRow = i + 2;
+                    try {
+                        tenderCommandService.createTender(tenderMapper.toDTO(req), userId);
+                        successCount++;
+                    } catch (TenderDuplicateException e) {
+                        var existing = (e.getDuplicates() == null || e.getDuplicates().isEmpty())
+                                ? null : e.getDuplicates().get(0);
+                        importErrors.add(new TenderImportTaskError(displayRow, "duplicate",
+                                TenderDeduplicationPolicy.formatImportDuplicateMessage(
+                                        existing, req.getPurchaserName()),
+                                req.getTitle()));
+                    } catch (IllegalArgumentException e) {
+                        importErrors.add(new TenderImportTaskError(displayRow, "row",
+                                e.getMessage(), req.getTitle()));
+                    } catch (RuntimeException e) {
+                        importErrors.add(new TenderImportTaskError(displayRow, "row",
+                                "导入失败：" + e.getMessage(), req.getTitle()));
+                    }
 
-                int processed = i + 1;
-                updateProgress(taskId, "PROCESSING", totalRows, processed,
-                        successCount, importErrors.size(), null);
+                    int processed = i + 1;
+                    updateProgress(taskId, "PROCESSING", totalRows, processed,
+                            successCount, importErrors.size(), null);
+                }
+            } finally {
+                cachedCrmLookupService.closeBatch();
             }
 
             // 标记终态
