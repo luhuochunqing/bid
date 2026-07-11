@@ -80,10 +80,13 @@
             <el-table-column label="上传时间" width="150">
               <template #default="s"><DateTimeDisplay :value="s.row.uploadedAt" /></template>
             </el-table-column>
-            <el-table-column label="操作" width="100" align="center">
+            <!-- 下载+删除 两按钮：width 100 会换行，加宽并 nowrap 强制单行 -->
+            <el-table-column label="操作" width="140" align="center" class-name="ops-col">
               <template #default="s">
-                <el-button link type="primary" size="small" @click="downloadAttach(s.row)">下载</el-button>
-                <el-button link type="danger" size="small" @click="deleteAttach(s.row)">删除</el-button>
+                <div class="ops-actions">
+                  <el-button link type="primary" size="small" @click="downloadAttach(s.row)">下载</el-button>
+                  <el-button link type="danger" size="small" @click="deleteAttach(s.row)">删除</el-button>
+                </div>
               </template>
             </el-table-column>
           </el-table>
@@ -244,5 +247,23 @@ const formatSize = (bytes) => { if (!bytes) return '—'; if (bytes < 1024) retu
   color: var(--el-text-color-regular);
   margin-left: 8px;
   white-space: nowrap;
+}
+
+/* 附件表操作列：下载/删除 强制单行 */
+.ops-actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  white-space: nowrap;
+  gap: 0;
+}
+
+.ops-actions :deep(.el-button + .el-button) {
+  margin-left: 4px;
+}
+
+:deep(.ops-col > .cell) {
+  white-space: nowrap;
+  overflow: visible;
 }
 </style>

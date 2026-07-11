@@ -20,10 +20,13 @@
       <el-table-column prop="uploader" label="上传者" width="120" />
       <el-table-column prop="time" label="上传时间" width="160" />
       <el-table-column prop="size" label="文件大小" width="100" />
-      <el-table-column label="操作" width="120">
+      <!-- 下载+删除：width 120 边界易折，加宽并 nowrap 强制单行 -->
+      <el-table-column label="操作" width="140" class-name="ops-col">
         <template #default="{ row }">
-          <el-button link type="primary" @click="detail.handleDownload(row)">下载</el-button>
-          <el-button link type="danger" @click="detail.handleDeleteDoc(row)">删除</el-button>
+          <div class="ops-actions">
+            <el-button link type="primary" @click="detail.handleDownload(row)">下载</el-button>
+            <el-button link type="danger" @click="detail.handleDeleteDoc(row)">删除</el-button>
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -39,3 +42,23 @@ import { projectDetailKey } from '@/composables/projectDetail/context.js'
 
 const detail = inject(projectDetailKey)
 </script>
+
+<style scoped>
+/* 操作列：下载/删除 强制单行 */
+.ops-actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  white-space: nowrap;
+  gap: 0;
+}
+
+.ops-actions :deep(.el-button + .el-button) {
+  margin-left: 4px;
+}
+
+:deep(.ops-col > .cell) {
+  white-space: nowrap;
+  overflow: visible;
+}
+</style>
