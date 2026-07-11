@@ -9,18 +9,16 @@
  */
 
 /**
- * 默认排除已关仓（CLOSED）。仅当用户显式选中 CLOSED 时才把 CLOSED 纳入查询。
- * 用户未选任何状态时，默认查 IN_USE/EXPIRING/EXPIRED 三个非关仓状态。
- */
-const DEFAULT_OPEN_STATUSES = ['IN_USE', 'EXPIRING', 'EXPIRED']
-
-/**
  * 根据筛选条件构造后端 list 接口的查询参数对象。
  *
  * @param {object} filters WarehouseFilterBar 输出的筛选条件
  * @param {number} page 0-based 页码
  * @param {number} size 每页条数
  * @returns {object} 可直接传给 axios 的 params 对象
+ *
+ * 状态筛选语义与 UI placeholder「全部」对齐：
+ * - 用户未选状态时不传 statuses，后端不加状态条件 → 含已关仓（CLOSED）
+ * - 用户显式多选时原样传 CSV（含或不含 CLOSED 均尊重用户选择）
  */
 export function buildWarehouseListParams(filters, page, size) {
   const f = filters || {}
@@ -33,12 +31,9 @@ export function buildWarehouseListParams(filters, page, size) {
   if (f.regions?.length) p.regions = f.regions.join(',')
   if (f.provinces?.length) p.provinces = f.provinces.join(',')
 
-  // statuses：用户选了就尊重用户选择（含或不含 CLOSED 都原样传）；
-  // 用户没选时默认排除 CLOSED，传 IN_USE/EXPIRING/EXPIRED。
+  // statuses：仅用户显式选择时传；空 = 全部（含已关仓），与筛选项 placeholder「全部」一致
   if (f.statuses?.length) {
     p.statuses = f.statuses.join(',')
-  } else {
-    p.statuses = DEFAULT_OPEN_STATUSES.join(',')
   }
 
   if (f.endDateFrom) p.endDateFrom = f.endDateFrom
