@@ -90,16 +90,22 @@ public class CrmTenderLinkService {
      * 查询项目负责人并关联商机。
      * <p>crmOpportunityCode（CC... 格式）直接存入 tender.crm_opportunity_id；
      * crmId（数字主键）仅用于调用 CRM detail 接口查询项目负责人。
+     * <p><b>CO-277 字段语义警告</b>：CRM 推送方把商机主键 id（纯数字如 21364）
+     * 放在 crmOpportunityId 字段传输，而非 CC 格式编号。当 crmOpportunityCode
+     * 是纯数字时，不能直接存入 crm_opportunity_id 列，必须用 chanceId 反查
+     * 真正的 CC 编号后再落库，否则与"关联标讯"按钮设置的 CC 编号格式不一致，
+     * 导致去重校验失效（PR !2011 回归根因，tender 1646 案例）。
      *
      * @param tender              标讯实体
      * @param crmId              CRM 商机主键 id（纯数字），可为空
-     * @param crmOpportunityCode CRM 商机编号 code（CC... 格式），可为空
+     * @param crmOpportunityCode CRM 商机编号 code（CC... 格式），可为空；CRM 推送可能传纯数字 id
      */
     public void applyCrmLinkAndAssignment(Tender tender, String crmId, String crmOpportunityCode) {
         log.info("Applying CRM link for tender id={}, crmId={}, crmOpportunityCode={}",
                 tender.getId(), crmId, crmOpportunityCode);
-        // code 非空时直接存入，不依赖 CRM API 调用
-        if (crmOpportunityCode != null && !crmOpportunityCode.isBlank()) {
+        // 仅当 code 是 CC 格式编号（非纯数字）时才直接存入
+        // 纯数字是 CRM 推送误传的主键 id，需通过 findProjectLeaderByChanceId 反查真正的 CC 编号
+        if (isCcFormatCode(crmOpportunityCode)) {
             tender.setCrmOpportunityId(crmOpportunityCode);
         }
         try {
@@ -113,8 +119,18 @@ public class CrmTenderLinkService {
                     log.warn("CRM link: crmId '{}' is not numeric, skipping chanceId lookup", crmId);
                 }
             }
-            // crmId 未命中时，尝试用 code 查
-            if (leader == null && crmOpportunityCode != null && !crmOpportunityCode.isBlank()) {
+            // crmId 未命中时，如果 crmOpportunityCode 是纯数字（CRM 推送误传的 id），用它作为 chanceId 反查
+            if (leader == null && isNumericId(crmOpportunityCode)) {
+                try {
+                    Long chanceId = Long.parseLong(crmOpportunityCode.trim());
+                    leader = crmProjectLeaderService.findProjectLeaderByChanceId(chanceId, null);
+                    log.info("CRM link: crmOpportunityCode '{}' is numeric, resolved via chanceId lookup", crmOpportunityCode);
+                } catch (NumberFormatException e) {
+                    log.warn("CRM link: crmOpportunityCode '{}' is not numeric", crmOpportunityCode);
+                }
+            }
+            // 仍为 null 时，尝试用 code（CC 格式）查
+            if (leader == null && isCcFormatCode(crmOpportunityCode)) {
                 leader = crmProjectLeaderService.findProjectLeaderByChanceCode(crmOpportunityCode, null);
             }
             if (leader == null) {
@@ -169,5 +185,21 @@ public class CrmTenderLinkService {
         // 将标讯状态设置为已评估
         tender.setStatus(Tender.Status.EVALUATED);
         log.info("CRM link: tender status set to EVALUATED for crmId={}", crmId);
+    }
+
+    /**
+     * 判断值是否是 CC 格式编号（非空、非纯数字）。
+     * <p>CRM 推送方把商机主键 id 放在 crmOpportunityId 字段传输（CO-277），
+     * 纯数字值不能直接存入 crm_opportunity_id 列。
+     */
+    private static boolean isCcFormatCode(String value) {
+        return value != null && !value.isBlank() && !value.trim().matches("\\d+");
+    }
+
+    /**
+     * 判断值是否是纯数字主键 id（CRM 推送误传到 crmOpportunityId 字段的情况）。
+     */
+    private static boolean isNumericId(String value) {
+        return value != null && !value.isBlank() && value.trim().matches("\\d+");
     }
 }

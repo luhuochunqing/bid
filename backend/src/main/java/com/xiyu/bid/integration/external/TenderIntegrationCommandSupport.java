@@ -114,8 +114,10 @@ class TenderIntegrationCommandSupport {
 
         tender.setEvaluationSource(Tender.EvaluationSource.CRM_PUSH);
         tender.setStatus(Tender.Status.EVALUATED);
-        // code 非空时直接存入（若 linkIfPresent 尚未设置）
-        if (hasCode && (tender.getCrmOpportunityId() == null || tender.getCrmOpportunityId().isBlank())) {
+        // 仅当 code 是 CC 格式编号（非纯数字）时才直接存入
+        // 纯数字是 CRM 推送误传的主键 id（CO-277），需通过 applyCrmLinkAndAssignment 反查 CC 编号
+        if (hasCode && !crmOpportunityCode.trim().matches("\\d+")
+                && (tender.getCrmOpportunityId() == null || tender.getCrmOpportunityId().isBlank())) {
             tender.setCrmOpportunityId(crmOpportunityCode);
         }
         // 仅当 crmOpportunityId 已设置时才存入 name，避免"半关联"状态（code=null 但 name 有值）导致去重校验失效
