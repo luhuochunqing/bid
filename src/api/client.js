@@ -26,9 +26,6 @@ function createRateLimitToastController(cooldownMs = 3000) {
     record() {
       lastToastTime = Date.now()
     },
-    _reset() {
-      lastToastTime = 0
-    },
   }
 }
 

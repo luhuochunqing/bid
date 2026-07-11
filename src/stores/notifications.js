@@ -22,9 +22,9 @@ export const useNotificationStore = defineStore('notifications', {
         const result = await notificationsApi.getUnreadCount(config)
         this.unreadCount = result.count ?? 0
       } catch (err) {
-        // 429 限流错误不在此处吞掉，让调用方（如 useNotifications）能感知并做退避
+        // 429/403 不在此处吞掉，让调用方（如 useNotifications）能感知并做退避或停止轮询
         const status = err?.response?.status
-        if (status === 429) {
+        if (status === 429 || status === 403) {
           throw err
         }
         this.unreadCount = 0
