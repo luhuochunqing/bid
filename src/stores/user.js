@@ -14,6 +14,7 @@ import {
 import { navigateToLogin } from '@/router/sessionNavigation.js'
 import { resolveLoginFailureMessage } from './loginFailureMessage.js'
 import { formatDisplayName } from '@/utils/formatDisplayName.js'
+import { isBidAdminLevelRole, isGlobalManageRole, ROLE_CODES } from '@/constants/roleCodes.js'
 
 export const useUserStore = defineStore('user', {
   state: () => {
@@ -42,21 +43,23 @@ export const useUserStore = defineStore('user', {
         return perms.includes(permissionKey)
       },
       isBidAdmin: (state) => {
+        // admin（本地）/ /bidAdmin / bid-SystemAdmin（OSS 独立角色，不再映射为 admin）
         const r = state.currentUser?.roleCode || state.currentUser?.role || ''
-        return r === 'admin' || r === '/bidAdmin'
+        return isBidAdminLevelRole(r)
       },
       isBidLead: (state) => {
         const r = state.currentUser?.roleCode || state.currentUser?.role || ''
-        return r === 'bid-TeamLeader'
+        return r === ROLE_CODES.BID_LEAD
       },
       isBidSenior: (state) => {
         // bid_senior 已删除，映射到 bid-TeamLeader
         const r = state.currentUser?.roleCode || state.currentUser?.role || ''
-        return r === 'bid-TeamLeader'
+        return r === ROLE_CODES.BID_LEAD
       },
       isBidManager: (state) => {
+        // 对齐 GLOBAL_MANAGE_ROLES（含 bid-SystemAdmin）
         const r = state.currentUser?.roleCode || state.currentUser?.role || ''
-        return ['admin', '/bidAdmin', 'bid-TeamLeader'].includes(r)
+        return isGlobalManageRole(r)
       }
   },
 

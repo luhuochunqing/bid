@@ -1,6 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { hasAnyPermission, hasAllPermissions, isAdminRole, matchesCurrentUser, isTaskAssignee, isBidReviewer } from './permission'
+import {
+  hasAnyPermission,
+  hasAllPermissions,
+  isAdminRole,
+  isBidManager,
+  isBidAdminOrSenior,
+  isBidManagerExcludeAdmin,
+  matchesCurrentUser,
+  isTaskAssignee,
+  isBidReviewer,
+} from './permission'
 
 let mockedIsOssUser = false
 
@@ -93,16 +103,41 @@ describe('hasAllPermissions', () => {
 })
 
 describe('isAdminRole', () => {
-  it('returns true for admin', () => {
+  it('returns true for local admin only', () => {
     expect(isAdminRole('admin')).toBe(true)
   })
 
-  it('returns false for non-admin roles', () => {
+  it('returns false for non-admin roles including OSS bid-SystemAdmin', () => {
     expect(isAdminRole('manager')).toBe(false)
     expect(isAdminRole('bid-Team')).toBe(false)
     expect(isAdminRole('/bidAdmin')).toBe(false)
+    expect(isAdminRole('bid-SystemAdmin')).toBe(false)
     expect(isAdminRole('')).toBe(false)
     expect(isAdminRole(undefined)).toBe(false)
+  })
+})
+
+describe('isBidManager / isBidAdminOrSenior / isBidManagerExcludeAdmin (bid-SystemAdmin)', () => {
+  it('isBidManager includes bid-SystemAdmin', () => {
+    expect(isBidManager('bid-SystemAdmin')).toBe(true)
+    expect(isBidManager('/bidAdmin')).toBe(true)
+    expect(isBidManager('admin')).toBe(true)
+    expect(isBidManager('bid-TeamLeader')).toBe(true)
+    expect(isBidManager('bid-Team')).toBe(false)
+  })
+
+  it('isBidAdminOrSenior includes bid-SystemAdmin but not local admin', () => {
+    expect(isBidAdminOrSenior('bid-SystemAdmin')).toBe(true)
+    expect(isBidAdminOrSenior('/bidAdmin')).toBe(true)
+    expect(isBidAdminOrSenior('bid-TeamLeader')).toBe(true)
+    expect(isBidAdminOrSenior('admin')).toBe(false)
+  })
+
+  it('isBidManagerExcludeAdmin includes bid-SystemAdmin but not local admin', () => {
+    expect(isBidManagerExcludeAdmin('bid-SystemAdmin')).toBe(true)
+    expect(isBidManagerExcludeAdmin('/bidAdmin')).toBe(true)
+    expect(isBidManagerExcludeAdmin('bid-TeamLeader')).toBe(true)
+    expect(isBidManagerExcludeAdmin('admin')).toBe(false)
   })
 })
 

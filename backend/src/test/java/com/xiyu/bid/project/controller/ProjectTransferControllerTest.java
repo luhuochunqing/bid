@@ -16,6 +16,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -61,9 +62,12 @@ class ProjectTransferControllerTest {
         authService = mock(AuthService.class);
         when(authService.resolveUserIdByUsername("admin")).thenReturn(999L);
         ProjectTransferController controller = new ProjectTransferController(service, authService);
+        // standaloneSetup 默认可能选 XML 转换器，导致 jsonPath 把 body 当成 String 解析失败。
+        // 显式注册 Jackson，与生产 JSON 响应一致。
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .setControllerAdvice(new GlobalExceptionHandler())
+                .setMessageConverters(new MappingJackson2HttpMessageConverter(om))
                 .build();
         UserDetails principal = User.withUsername("admin").password("x").roles("ADMIN").build();
         SecurityContextHolder.getContext().setAuthentication(

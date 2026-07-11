@@ -2,7 +2,6 @@ package com.xiyu.bid.integration.organization.application;
 
 import com.xiyu.bid.integration.organization.domain.policy.JobRoleLookupResolver;
 import com.xiyu.bid.integration.organization.domain.policy.JobRoleLookupResolver.ResolvedRole;
-import com.xiyu.bid.integration.organization.domain.policy.JobRoleLookupResolver.RoleMappingSource;
 import com.xiyu.bid.integration.organization.domain.OrganizationSyncPolicy;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSyncPlan;
@@ -86,7 +85,9 @@ public class OrganizationUserSyncWriter {
             return Optional.empty();
         }
 
-        boolean allowAdminElevation = resolvedRole.source() == RoleMappingSource.PERSON;
+        // allowAdminElevation=false：OSS 同步用户不应该被提升为 admin（admin 是本地超级管理员，和 OSS 无关）。
+        // 历史上只有 person-to-role-mappings 白名单来源允许 admin elevation，白名单已删除。
+        boolean allowAdminElevation = false;
         OrganizationUserSyncPlan plan = OrganizationSyncPolicy.planUserSync(
                 snapshot,
                 // SAFE: OSS 同步场景特有 — 同步时新用户的 DB roleCode 是上一次同步的快照值，

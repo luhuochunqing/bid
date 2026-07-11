@@ -202,13 +202,16 @@ ssh -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" jetty@172.16.38.78 '
 - `XIYU_ORG_EVENT_SERVICE_NAME=BidSystemOrgConsumer`
 - `XIYU_ORG_DIRECTORY_BASE_URL=https://base-oss-test.ehsy.com`
 
-### 6.2 外部配置覆盖检查（2026-07-09 第 65/66 次部署事故，必检）
+### 6.2 外部配置覆盖检查（2026-07-09 第 65/66 次部署事故 + PR !2020 白名单删除，必检）
 
 > **背景**：第 65 次部署后 OSS 用户 06234 无法登录，代码修复（PR !1949）部署后仍然无效。
 > 根因是服务器通过 `SPRING_CONFIG_IMPORT=optional:file:/etc/xiyu-bid/application-org-mappings.yml` 导入了一个外部配置文件，
 > 其中 06234 的 role-code 是 `bid-SystemAdmin`（旧错误值），覆盖了 jar 内 `application.yml` 的 `/bidAdmin`（修复后正确值）。
 > **外部配置文件优先级高于 jar 内配置，是不可见的配置漂移源。**
 > 完整教训见 `docs/lessons/oss-integration-lessons.md` §4。
+>
+> **PR !2020 变更**：代码已删除 `person-to-role-mappings` 读取路径；外部 yml 中的 person 段变为**死配置**。
+> 部署时仍应清理，避免运维误以为仍生效。`bid-SystemAdmin` 已注册为第 8 角色（不再映射为 admin）。
 
 #### 检查 1：确认 SPRING_CONFIG_IMPORT 引入的外部配置文件
 
@@ -223,21 +226,33 @@ SPRING_CONFIG_IMPORT=optional:file:/etc/xiyu-bid/application-org-mappings.yml
 
 如果输出为空，说明没有外部配置覆盖（可跳过后续检查）。如果输出非空，必须执行检查 2 和检查 3。
 
-#### 检查 2：外部配置文件中的 person-to-role-mappings 与 jar 内配置一致性
+#### 检查 2：外部配置中的 person-to-role-mappings 应删除或注释（PR !2020 后）
 
 ```bash
-# 1. 提取外部配置文件中所有 person-identifier + role-code 对
+# 1. 检查外部配置是否仍含 person-to-role-mappings（应为空或已注释）
 ssh jetty@172.16.38.78 '
-  awk "/person-identifier:/{pid=\$0} /role-code:/{print pid\" | \"\$0}" /etc/xiyu-bid/application-org-mappings.yml
+  grep -n "person-to-role-mappings\|person-identifier" /etc/xiyu-bid/application-org-mappings.yml || echo "(no person mappings — OK)"
 '
 
-# 2. 提取 jar 内 application.yml 中所有 person-identifier + role-code 对
+# 2. jar 内 application.yml 也不应再有 person-to-role-mappings 有效配置
 unzip -p .release/${RELEASE_ID}/backend/app.jar BOOT-INF/classes/application.yml \
-  | awk '/person-identifier:/{pid=$0} /role-code:/{print pid" | "$0}'
+  | grep -n "person-to-role-mappings\|person-identifier" || echo "(no person mappings in jar — OK)"
 
-# 3. 逐项对比两者的 role-code 是否一致
-# 如果不一致，必须先修复外部配置文件再部署
+# 3. 若外部文件仍有 person 段：注释或删除整段后重启，避免运维误判
 ```
+
+#### 检查 2b：原白名单人员 OSS 角色审计（上线前必做）
+
+删除人员白名单后，下列标识**完全依赖 OSS sysRoleList**。上线前对每人调用 OSS 岗位/角色接口，确认能解析到 catalog 已注册角色：
+
+| 标识 | 历史白名单角色 | 验收关注点 |
+|---|---|---|
+| 03595 / dean_zhang | `/bidAdmin` | OSS 是否仍给 `/bidAdmin` 或 `bid-SystemAdmin` |
+| 06234 / tina_zheng1 | `/bidAdmin` | 同上；`bid-SystemAdmin` 现已可登录 |
+| 11484 / suki_yuan | `/bidAdmin` + `bid-TeamLeader` | 多角色取 sysRoleList 第一个可映射项 |
+| 04727, 07440, 06708, 03483, 03895, 09118, **03063** | `bid-otherDept` | OSS 若无 bid 角色 → fail-closed 无法登录 |
+
+部署后要求相关用户**重新登录**（刷新 OssPermissionCache）。回滚 U1165 前须先把绑定 `bid-SystemAdmin` 的用户迁到其他已注册角色。
 
 #### 检查 3：role-code 必须在 RoleProfileCatalog 7 个标准角色中
 

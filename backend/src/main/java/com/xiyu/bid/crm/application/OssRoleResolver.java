@@ -47,7 +47,6 @@ public class OssRoleResolver {
      * <p>
      * 解析优先级：
      * <ol>
-     *   <li>人员白名单映射（person-to-role-mappings）</li>
      *   <li>sysRoleList 中 status=1 的 roleCode（bid-* 角色码优先）</li>
      *   <li>sysRoleList 中 status=1 的 roleName（中文角色名称通过映射表匹配）</li>
      *   <li>jobName（岗位名通过映射表或正则匹配）</li>
@@ -68,17 +67,6 @@ public class OssRoleResolver {
         if (jobInfo == null) {
             log.warn("OSS login: jobInfo not found for jobNumber={}, denying role resolution for user={}", jobNumber, fallbackUsername);
             return null;
-        }
-
-        // 0. 从人员白名单映射解析（最高优先级，与后台同步保持一致，防止 06234 等特权账号被拒绝）
-        if (orgProperties != null && orgProperties.getPersonToRoleMappings() != null) {
-            for (OrganizationIntegrationProperties.PersonToRoleMapping mapping : orgProperties.getPersonToRoleMappings()) {
-                if (mapping.matches(jobNumber) || mapping.matches(fallbackUsername)) {
-                    String roleCode = mapping.getRoleCode() == null ? null : mapping.getRoleCode().trim();
-                    log.info("OSS login: role resolved from person-to-role-mappings: {}/{} -> {}", jobNumber, fallbackUsername, roleCode);
-                    return roleCode;
-                }
-            }
         }
 
         // 1. 从 sysRoleList 解析（优先检查 roleCode，再检查 roleName）
@@ -173,19 +161,8 @@ public class OssRoleResolver {
         return null;
     }
 
-    /**
-     * 判断给定用户是否在 application.yml 的 person-to-role-mappings 白名单中。
-     */
-    public boolean isWhitelistedPerson(String jobNumber, String fallbackUsername) {
-        if (orgProperties != null && orgProperties.getPersonToRoleMappings() != null) {
-            for (OrganizationIntegrationProperties.PersonToRoleMapping mapping : orgProperties.getPersonToRoleMappings()) {
-                if (mapping.matches(jobNumber) || mapping.matches(fallbackUsername)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
+    // isWhitelistedPerson 方法已删除——白名单已废弃，不再有"白名单用户"的概念。
+    // 菜单权限完全来自 OSS 端 getUserPermission 返回，不合并角色标准权限。
 
     /**
      * 将 OSS 权限码列表映射为内部菜单权限码列表。

@@ -41,7 +41,7 @@ class OssRoleResolverTest {
     @BeforeEach
     void setUp() {
         resolver = new OssRoleResolver(ossMenuPermissionMapper, positionToRoleMapper, orgProperties);
-        when(orgProperties.getPersonToRoleMappings()).thenReturn(List.of());
+        // 白名单已删除，OssRoleResolver 不再读取 personToRoleMappings
         // PositionToRoleMapper 对"投标-行政专员"和"行政专员"都返回 null（不在岗位映射表）
         when(positionToRoleMapper.map(anyString())).thenReturn(null);
     }

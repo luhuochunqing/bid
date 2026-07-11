@@ -26,8 +26,10 @@ import org.springframework.web.server.ResponseStatusException;
 
 /**
  * 项目转移控制器。
- * <p>处理项目负责人的转移操作。仅投标管理员（/bidAdmin）与系统管理员（admin，对应 OSS
- * bid-SystemAdmin）可操作。对应 FR-001 ~ FR-008。
+ * <p>处理项目负责人的转移操作。仅投标管理级角色可操作：
+ * 本地 admin、/bidAdmin、以及 OSS 独立角色 bid-SystemAdmin
+ * （后端过渡兼容仍发 ROLE_ADMIN；前端 isBidAdmin 含 bid-SystemAdmin）。
+ * 对应 FR-001 ~ FR-008。
  * </p>
  * <p>对齐 TenderTransferController 的协议风格；操作权限比 TenderTransfer 更严格——
  * 投标组长（bid-TeamLeader）不可操作项目转移。

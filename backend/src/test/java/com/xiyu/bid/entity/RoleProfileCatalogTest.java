@@ -69,10 +69,10 @@ class RoleProfileCatalogTest {
     }
 
     @Test
-    @DisplayName("OSS_TO_INTERNAL_ROLE 所有映射目标都是已知角色 code")
+    @DisplayName("OSS 映射目标都是已知角色 code（含第 8 角色 bid-SystemAdmin）")
     void ossMappingTargetsShouldBeKnownRoles() {
         var targets = java.util.Set.of(
-                "/bidAdmin", "bid-TeamLeader", "admin",
+                "/bidAdmin", "bid-TeamLeader", "admin", "bid-SystemAdmin",
                 "bid-Team", "bid-projectLeader", "bid-administration", "bid-otherDept");
         for (String target : targets) {
             boolean known = RoleProfileCatalog.isRegisteredCode(target)
@@ -81,6 +81,31 @@ class RoleProfileCatalogTest {
                     .as("OSS mapping target '%s' must be a known role code", target)
                     .isTrue();
         }
+    }
+
+    @Test
+    @DisplayName("bid-SystemAdmin：已注册、GLOBAL_ACCESS、legacy→ADMIN 过渡兼容、menu 不含 all")
+    void bidSystemAdminShouldBeRegisteredWithoutAllPermission() {
+        assertThat(RoleProfileCatalog.isRegisteredCode(RoleProfileCatalog.BID_SYSTEM_ADMIN_CODE)).isTrue();
+        assertThat(RoleProfileCatalog.GLOBAL_ACCESS_ROLES)
+                .contains(RoleProfileCatalog.BID_SYSTEM_ADMIN_CODE);
+        assertThat(RoleProfileCatalog.legacyRoleForCode(RoleProfileCatalog.BID_SYSTEM_ADMIN_CODE))
+                .isEqualTo(User.Role.ADMIN);
+        assertThat(RoleProfileCatalog.toAuthorityName(RoleProfileCatalog.BID_SYSTEM_ADMIN_CODE))
+                .isEqualTo("BID_SYSTEMADMIN");
+
+        RoleProfileCatalog.SeedDefinition def =
+                RoleProfileCatalog.definitionForCode(RoleProfileCatalog.BID_SYSTEM_ADMIN_CODE);
+        assertThat(def.code()).isEqualTo(RoleProfileCatalog.BID_SYSTEM_ADMIN_CODE);
+        assertThat(def.dataScope()).isEqualTo("all");
+        assertThat(def.menuPermissions())
+                .doesNotContain("all")
+                .contains("dashboard", "settings", "bidding.manage");
+        // seedDefinitions 必须覆盖第 8 角色
+        assertThat(RoleProfileCatalog.seedDefinitions().stream()
+                .map(RoleProfileCatalog.SeedDefinition::code)
+                .toList())
+                .contains(RoleProfileCatalog.BID_SYSTEM_ADMIN_CODE);
     }
 
     // ── CO-409：CA 信息管理模块投标专员操作项权限矩阵对齐 ──

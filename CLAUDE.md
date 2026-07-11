@@ -203,18 +203,20 @@ npm run test:e2e
 
 ### 角色清单（RoleProfileCatalog）
 
-> 当前系统仅存在以下 7 个标准 RoleProfile。`auditor`/`manager`/`bid_senior`/`task_executor`/`staff` 等角色已不存在。
+> 当前系统存在 **8** 个标准 RoleProfile（PR !2020 起含 `bid-SystemAdmin`）。`auditor`/`manager`/`bid_senior`/`task_executor`/`staff` 等角色已不存在。
 > 角色 code 以 `backend/src/main/java/com/xiyu/bid/entity/RoleProfileCatalog.java` 中的常量定义为唯一真相来源。
+> **原则**：本地 `admin` 与 OSS 无关；OSS 用户角色/菜单来自 OSS；`bid-SystemAdmin` **不再映射为 admin**。
 
 | RoleProfile code | 角色名称 | 配置规则 |
 |---|---|---|
-| `admin` | 管理员 | 按人员 |
-| `/bidAdmin` | 投标管理员 | 按人员 |
-| `bid-TeamLeader` | 投标组长 | 按人员 |
-| `bid-projectLeader` | 投标项目负责人 | 按岗位 |
-| `bid-Team` | 投标专员 | 按部门 |
-| `bid-administration` | 行政人员 | 按部门 |
-| `bid-otherDept` | 跨部门协同人员 | 按人员 |
+| `admin` | 管理员（本地超级管理员） | 本地 bootstrap，不走 OSS |
+| `/bidAdmin` | 投标管理员 | OSS 角色码 |
+| `bid-SystemAdmin` | 投标系统管理员 | OSS 角色码（权限基线等同 /bidAdmin，不含 `all`） |
+| `bid-TeamLeader` | 投标组长 | OSS 角色码 / 人员 |
+| `bid-projectLeader` | 投标项目负责人 | OSS 角色码 / 岗位 |
+| `bid-Team` | 投标专员 | OSS 角色码 / 部门 |
+| `bid-administration` | 行政人员 | OSS 角色码 / 部门 |
+| `bid-otherDept` | 跨部门协同人员 | OSS 角色码 |
 
 生产环境通过 `ADMIN_PASSWORD` 环境变量覆盖默认密码。任何 profile 启动后数据库至少有一个可登录账户。
 

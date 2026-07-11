@@ -57,15 +57,23 @@ describe('useProjectDetailTransfer', () => {
     expect(transfer.canTransfer.value).toBe(true)
   })
 
-  it('canTransfer 在系统管理员（admin，对应 OSS bid-SystemAdmin）登录时为 true', () => {
+  it('canTransfer 在本地系统管理员（admin）登录时为 true', () => {
     const transfer = useProjectDetailTransfer(createMockContext({
       userStore: { isBidAdmin: true, currentUser: { id: 1, roleCode: 'admin' } },
     }))
     expect(transfer.canTransfer.value).toBe(true)
   })
 
+  it('canTransfer 在 OSS bid-SystemAdmin 登录时为 true（独立角色，不再映射为 admin）', () => {
+    // 前端 isBidAdmin 必须把 bid-SystemAdmin 视为管理级，否则 UI 按钮消失但后端 ROLE_ADMIN 仍放行
+    const transfer = useProjectDetailTransfer(createMockContext({
+      userStore: { isBidAdmin: true, currentUser: { id: 2, roleCode: 'bid-SystemAdmin', isOssUser: true } },
+    }))
+    expect(transfer.canTransfer.value).toBe(true)
+  })
+
   it('canTransfer 在投标组长（bid-TeamLeader）登录时为 false——组长不可操作项目转移', () => {
-    // 投标组长在 isBidAdmin 中为 false（不在 admin//bidAdmin 白名单），但在 isBidManager 中为 true
+    // 投标组长在 isBidAdmin 中为 false（不在 admin//bidAdmin/bid-SystemAdmin），但在 isBidManager 中为 true
     // 这个测试验证 canTransfer 用的是 isBidAdmin 而非 isBidManager
     const transfer = useProjectDetailTransfer(createMockContext({
       userStore: { isBidAdmin: false, isBidManager: true, currentUser: { id: 888, roleCode: 'bid-TeamLeader' } },

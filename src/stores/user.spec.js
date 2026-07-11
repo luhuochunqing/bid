@@ -51,6 +51,10 @@ describe('useUserStore getters', () => {
     store.currentUser = { roleCode: 'admin' }
     expect(store.isBidAdmin).toBe(true)
 
+    // PR !2020: OSS bid-SystemAdmin 是独立角色，前端 isBidAdmin 必须识别（不再依赖映射为 admin）
+    store.currentUser = { roleCode: 'bid-SystemAdmin' }
+    expect(store.isBidAdmin).toBe(true)
+
     store.currentUser = { role: 'bid-TeamLeader' }
     expect(store.isBidAdmin).toBe(false)
   })
@@ -90,6 +94,9 @@ describe('useUserStore getters', () => {
     expect(store.isBidManager).toBe(true)
 
     store.currentUser = { roleCode: 'admin' }
+    expect(store.isBidManager).toBe(true)
+
+    store.currentUser = { roleCode: 'bid-SystemAdmin' }
     expect(store.isBidManager).toBe(true)
 
     store.currentUser = { role: 'bid-projectLeader' }

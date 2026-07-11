@@ -12,12 +12,11 @@ import java.util.Map;
 /**
  * 按 Constitution V 优先级解析用户内部角色码。
  * <p>
- * 优先级：人员级规则 > 部门级规则 > 岗位级规则 > 系统角色列表（sysRoleList）。
+ * 优先级：部门级规则 > 岗位级规则 > 系统角色列表（sysRoleList）。
  * 所有文本比较大小写不敏感，返回的角色码已经过 OSS 角色码标准化映射。
  * <p>
- * OSS code 与内部 code 已对齐（如 bid-TeamLeader、bid-Team、bid-projectLeader 等），
- * 不再需要 OSS_TO_INTERNAL_ROLE 映射表。唯一例外：bid-SystemAdmin → admin
- * （投标系统管理员对应系统默认 admin）。
+ * OSS code 与内部 code 已对齐（如 bid-TeamLeader、bid-Team、bid-projectLeader 等）。
+ * bid-SystemAdmin 已在 RoleProfileCatalog 中注册为独立角色，不映射为 admin。
  */
 public class JobRoleLookupResolver {
 
@@ -32,7 +31,7 @@ public class JobRoleLookupResolver {
     private static final Map<String, String> OSS_ROLE_NAME_TO_INTERNAL = Map.of(
             "投标管理员", RoleProfileCatalog.BID_ADMIN_CODE,
             "投标组长", RoleProfileCatalog.BID_LEAD_CODE,
-            "投标系统管理员", RoleProfileCatalog.ADMIN_CODE,
+            "投标系统管理员", RoleProfileCatalog.BID_SYSTEM_ADMIN_CODE,
             "投标专员", RoleProfileCatalog.BID_SPECIALIST_CODE,
             "投标项目负责人", RoleProfileCatalog.SALES_CODE,
             "行政人员", RoleProfileCatalog.ADMIN_STAFF_CODE,
@@ -64,47 +63,25 @@ public class JobRoleLookupResolver {
      * @return 解析结果，包含角色码、来源与命中文本
      */
     public ResolvedRole resolve(OrganizationUserSnapshot snapshot, Map<String, OssUserJobAndRoleDto> lookupMap) {
-        // 1. 人员级规则
-        String personRoleCode = mapPersonToRole(snapshot);
-        if (personRoleCode != null && !personRoleCode.isBlank()) {
-            return new ResolvedRole(normalizeRoleCode(personRoleCode), RoleMappingSource.PERSON, snapshot.email());
-        }
-
-        // 2. 部门级规则
+        // 1. 部门级规则
         String departmentRoleCode = mapDepartmentToRole(snapshot);
         if (departmentRoleCode != null && !departmentRoleCode.isBlank()) {
             return new ResolvedRole(normalizeRoleCode(departmentRoleCode), RoleMappingSource.DEPARTMENT, snapshot.departmentName());
         }
 
-        // 3. 岗位级规则
+        // 2. 岗位级规则
         String jobRoleCode = mapJobToRole(snapshot, lookupMap);
         if (jobRoleCode != null && !jobRoleCode.isBlank()) {
             return new ResolvedRole(normalizeRoleCode(jobRoleCode), RoleMappingSource.JOB, resolveJobText(snapshot, lookupMap));
         }
 
-        // 4. 系统角色列表
+        // 3. 系统角色列表
         String sysRoleCode = mapSysRoleListToRole(snapshot, lookupMap);
         if (sysRoleCode != null && !sysRoleCode.isBlank()) {
             return new ResolvedRole(normalizeRoleCode(sysRoleCode), RoleMappingSource.SYS_ROLE_LIST, "sysRoleList");
         }
 
         return new ResolvedRole(null, RoleMappingSource.NONE, null);
-    }
-
-    private String mapPersonToRole(OrganizationUserSnapshot snapshot) {
-        String email = snapshot.email();
-        String externalUserId = snapshot.externalUserId();
-        String username = snapshot.username();
-        String fullName = snapshot.fullName();
-        for (OrganizationIntegrationProperties.PersonToRoleMapping mapping : properties.getPersonToRoleMappings()) {
-            if ((email != null && mapping.matches(email))
-                    || (externalUserId != null && mapping.matches(externalUserId))
-                    || (username != null && mapping.matches(username))
-                    || (fullName != null && mapping.matches(fullName))) {
-                return mapping.getRoleCode();
-            }
-        }
-        return null;
     }
 
     private String mapDepartmentToRole(OrganizationUserSnapshot snapshot) {
@@ -166,7 +143,7 @@ public class JobRoleLookupResolver {
      * 处理 OSS 输入变体：
      * <ul>
      *   <li>大小写不一致（如 {@code /BidAdmin}、{@code /BIDADMIN}）— 归一化为规范码 {@code /bidAdmin}</li>
-     *   <li>特殊映射：{@code bid-SystemAdmin} → {@code admin}（投标系统管理员对应系统默认 admin）</li>
+     *   <li>{@code bid-SystemAdmin} 直接作为规范码返回（不映射为 admin，admin 是本地超级管理员，和 OSS 无关）</li>
      * </ul>
      * 返回的总是 {@link RoleProfileCatalog} 中注册的规范码（如 {@code /bidAdmin}），
      * 而非原始输入，避免大小写不一致导致后续权限匹配失败。
@@ -181,12 +158,9 @@ public class JobRoleLookupResolver {
             return null;
         }
         String trimmed = ossRoleCode.trim();
-        // 特殊映射：bid-SystemAdmin → admin（投标系统管理员对应系统默认 admin）
-        if (trimmed.equalsIgnoreCase("bid-SystemAdmin")) {
-            return RoleProfileCatalog.ADMIN_CODE;
-        }
         // 通过 case-insensitive 查找返回规范码（而非原始输入）
         // 例如输入 "/BidAdmin" 或 "/BIDADMIN" → 返回规范码 "/bidAdmin"
+        // bid-SystemAdmin 已在 RoleProfileCatalog 中注册，直接返回规范码，不映射为 admin
         return RoleProfileCatalog.canonicalCode(trimmed);
     }
 
@@ -232,7 +206,6 @@ public class JobRoleLookupResolver {
     }
 
     public enum RoleMappingSource {
-        PERSON,
         DEPARTMENT,
         JOB,
         SYS_ROLE_LIST,

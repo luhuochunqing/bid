@@ -23,24 +23,26 @@
  * | 提交投标                |  ✅  |  ✅  |  —   |  —   |
  *
  * 角色代码说明（RoleProfile）：
- * - bidAdmin  → 投标管理员（蓝图"投标管理员/组长"）
+ * - /bidAdmin  → 投标管理员（蓝图"投标管理员/组长"）
+ * - bid-SystemAdmin → OSS 投标系统管理员（独立角色，权限组同管理级，不再映射为 admin）
  * - bid-TeamLeader   → 投标组长（蓝图"投标管理员/组长"）
  * - bid-projectLeader      → 投标项目负责人（蓝图"投标负责人/辅助人"）
  * - bid-Team → 投标专员，可作为投标负责人或辅助人员（蓝图"投标负责人/辅助人"）
- * - admin      → 系统管理员（归入"投标管理员/组长"权限组）
- * - 其他（bid-administration, bid-otherDept, bid-Team 等）→ 默认可见页面，但无特殊操作权限
+ * - admin      → 本地系统管理员（归入"投标管理员/组长"权限组）
+ * - 其他（bid-administration, bid-otherDept 等）→ 默认可见页面，但无特殊操作权限
  */
 
 import { computed } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { resolveOpt } from '@/utils/resolveOpt.js'
+import { ROLE_CODES, isBidAdminLevelRole } from '@/constants/roleCodes.js'
 
 /**
  * 角色分组：按权限矩阵列合并
  */
 function resolveDraftingRoleGroup(role) {
-  if (role === 'admin' || role === '/bidAdmin' || role === 'bid-TeamLeader') return 'admin_lead'
-  if (role === 'bid-projectLeader' || role === 'bid-Team') return 'lead_assist'  // 投标负责人 / 辅助人
+  if (isBidAdminLevelRole(role) || role === ROLE_CODES.BID_LEAD) return 'admin_lead'
+  if (role === ROLE_CODES.SALES || role === ROLE_CODES.BID_SPECIALIST) return 'lead_assist'
   return null
 }
 
@@ -48,7 +50,7 @@ function resolveDraftingRoleGroup(role) {
  * CO-383：删除文档权限纯函数（与后端 ProjectDocumentWorkflowPolicy.canDeleteProjectDocument 对齐）。
  *
  * 规则：
- *   1. admin_lead（admin/bidAdmin/bid-TeamLeader）直通 → permit
+ *   1. admin_lead（admin//bidAdmin/bid-SystemAdmin/bid-TeamLeader）直通 → permit
  *   2. 上传者本人（currentUserId == uploaderId）→ permit（不管角色，对齐用户需求
  *      "应该不管什么角色 都可以在没有保存的时候 删除"）
  *   3. 其他 → deny

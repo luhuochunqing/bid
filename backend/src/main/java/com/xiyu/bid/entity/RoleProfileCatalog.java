@@ -35,16 +35,8 @@ public final class RoleProfileCatalog {
     public static final String QUALIFICATION_MANAGE_PERMISSION = "qualification.manage";
     public static final String QUALIFICATION_VIEW_PERMISSION = "qualification.view";
 
-    /**
-     * 系统管理接口鉴权限键（Constitution VI 落地，specs/024-preauthorize-unification）。
-     *
-     * <p>本地 admin 通过 {@code UserDetailsServiceImpl} 的 admin fallback 显式获得；
-     * OSS 用户可由 OSS 端通过菜单授权（1010 设置菜单 → system.admin）持有（CO-551 修订）。
-     * 用法：{@code @PreAuthorize("hasAuthority('" + SYSTEM_ADMIN_PERMISSION + "')")}</p>
-     *
-     * <p>历史：specs/032 曾规定此键仅本地 admin 持有，CO-551 因业务需求（OSS 投标系统管理员
-     * 需访问系统设置）推翻此限制，现仅 {@code all} 被视为本地系统超级管理员专属。</p>
-     */
+    /** 系统管理接口鉴权限键（specs/024-preauthorize-unification）。本地 admin 显式获得；
+     *  OSS 用户可由 OSS 端菜单授权持有（CO-551 修订，仅 {@code all} 为本地超级管理员专属）。 */
     public static final String SYSTEM_ADMIN_PERMISSION = "system.admin";
 
     // PRD §2 角色：销售/业务负责人、投标负责人、投标部门管理员、任务执行人
@@ -56,15 +48,14 @@ public final class RoleProfileCatalog {
     public static final String ADMIN_STAFF_CODE = "bid-administration";
     /** 跨部门协同人员：项目任务处理 */
     public static final String BID_OTHER_DEPT_CODE = "bid-otherDept";
+    /** 投标系统管理员：OSS 端配置的角色，权限与 /bidAdmin 一致，但不映射为 admin（admin 是本地超级管理员，和 OSS 无关） */
+    public static final String BID_SYSTEM_ADMIN_CODE = "bid-SystemAdmin";
 
     /** 拥有全局数据权限与操作权限的角色码集合。 */
-    public static final Set<String> GLOBAL_ACCESS_ROLES = Set.of(ADMIN_CODE, BID_ADMIN_CODE, BID_LEAD_CODE);
+    public static final Set<String> GLOBAL_ACCESS_ROLES = Set.of(ADMIN_CODE, BID_ADMIN_CODE, BID_LEAD_CODE, BID_SYSTEM_ADMIN_CODE);
 
-    /** 不应继承 Legacy User.Role 鉴权兼容（ROLE_ADMIN/MANAGER）的新式受限角色。
-     *  <p>这些角色仅靠自身 {@code ROLE_<CODE>} + 细粒度 menuPermissions 鉴权。若让它们继承
-     *  MANAGER 兼容，会因 {@code hasAnyRole(... 'MANAGER' ...)} 类白名单误入本不应访问的模块。
-     *  <p>其合法 API（如 {@code TaskController}）用 {@code isAuthenticated()}，移除 legacy 兼容不影响任务处理。
-     *  <p>使用 case-insensitive TreeSet 以支持大小写不敏感查找。 */
+    /** 不应继承 Legacy User.Role 鉴权兼容的新式受限角色。仅靠自身 ROLE_<CODE> + 细粒度 menuPermissions 鉴权。
+     *  使用 case-insensitive TreeSet 支持大小写不敏感查找。 */
     public static final Set<String> ROLES_WITHOUT_LEGACY_ROLE_COMPAT;
     static {
         java.util.TreeSet<String> set = new java.util.TreeSet<>(String.CASE_INSENSITIVE_ORDER);
@@ -74,20 +65,13 @@ public final class RoleProfileCatalog {
         ROLES_WITHOUT_LEGACY_ROLE_COMPAT = Collections.unmodifiableSet(set);
     }
 
-    /** 允许提交投标（推进至评标阶段）的业务角色码集合，对齐前端 useProjectDraftingPermissions.canSubmitBid。
-     *  <p>语义划分：
-     *  <ul>
-     *    <li>{@link #SUBMIT_BID_DIRECT_ROLES}（admin/bid_admin/bid_lead）：直接放行</li>
-     *    <li>{@link #SUBMIT_BID_LEAD_REQUIRED_ROLES}（sales/bid_specialist）：需在 ProjectDraftingService 中
-     *        校验是否为该项目分配的负责人（sales→primaryLeadUserId，bid_specialist→secondaryLeadUserId）</li>
-     *  </ul>
-     *  <p>使用时优先用上述两个子集合；本集合由两者 union 派生，保持代数关系不变量。 */
-    public static final Set<String> SUBMIT_BID_DIRECT_ROLES = Set.of(ADMIN_CODE, BID_ADMIN_CODE, BID_LEAD_CODE);
+    /** 允许提交投标的角色码集合。direct=直接放行；lead_required=需项目级负责人分配。对齐前端 canSubmitBid。 */
+    public static final Set<String> SUBMIT_BID_DIRECT_ROLES = Set.of(ADMIN_CODE, BID_ADMIN_CODE, BID_LEAD_CODE, BID_SYSTEM_ADMIN_CODE);
 
     /** 需项目级负责人分配才能提交投标的角色：sales→primaryLeadUserId，bid_specialist→secondaryLeadUserId。 */
     public static final Set<String> SUBMIT_BID_LEAD_REQUIRED_ROLES = Set.of(BID_SPECIALIST_CODE);
 
-    /** 允许提交投标的全部角色 = {@link #SUBMIT_BID_DIRECT_ROLES} ∪ {@link #SUBMIT_BID_LEAD_REQUIRED_ROLES}。 */
+    /** 允许提交投标的全部角色 = direct ∪ lead_required。 */
     public static final Set<String> SUBMIT_BID_ALLOWED_ROLES = Stream.concat(
             SUBMIT_BID_DIRECT_ROLES.stream(),
             SUBMIT_BID_LEAD_REQUIRED_ROLES.stream()
@@ -95,7 +79,26 @@ public final class RoleProfileCatalog {
 
     /** 允许管理/审核项目任务的角色：投标管理员/组长/主管/投标专员(负责人/辅助)。对齐蓝图 §2.3.1。 */
     public static final Set<String> TASK_MUTATION_ALLOWED_ROLES =
-            Set.of(ADMIN_CODE, BID_ADMIN_CODE, BID_LEAD_CODE, BID_SPECIALIST_CODE);
+            Set.of(ADMIN_CODE, BID_ADMIN_CODE, BID_LEAD_CODE, BID_SPECIALIST_CODE, BID_SYSTEM_ADMIN_CODE);
+
+    /** /bidAdmin 和 bid-SystemAdmin 共享的菜单权限（权限等同投标管理员）。 */
+    private static final List<String> BID_ADMIN_PERMISSIONS = List.of(
+            "dashboard", "operation-logs", "bidding", "project", "knowledge", "resource",
+            "analytics", "settings", "settings-alerts",
+            "task.review", "retrospective.submit", "retrospective.review", "closure.review", "lead.assign",
+            BIDDING_MANAGE_PERMISSION, BIDDING_CREATE_PERMISSION,
+            BIDDING_DELETE_PERMISSION, BIDDING_SYNC_PERMISSION,
+            BRAND_AUTH_VIEW_PERMISSION, BRAND_AUTH_CREATE_PERMISSION,
+            BRAND_AUTH_EDIT_PERMISSION, BRAND_AUTH_REVOKE_PERMISSION,
+            "knowledge-brand-auth",
+            TENDER_VIEW_PERMISSION, PERSONNEL_VIEW_PERMISSION, PERSONNEL_MANAGE_PERMISSION,
+            PERFORMANCE_MANAGE_PERMISSION, QUALIFICATION_MANAGE_PERMISSION,
+            QUALIFICATION_VIEW_PERMISSION, "dashboard:view_welcome_banner", "dashboard:view_metric_cards", "dashboard:view_calendar",
+            "dashboard:view_tender_list", "dashboard:view_project_list", "dashboard:view_team_task",
+            "dashboard:view_global_projects", "dashboard:view_active_projects", "dashboard:view_team_performance",
+            "dashboard:view_approval_list", "dashboard:view_process_timeline", "dashboard:view_activity_list",
+            "dashboard:view_priority_todos",
+            WAREHOUSE_MANAGE_PERMISSION);
 
     /** 角色定义表，key 为角色 code。使用 case-insensitive TreeMap 以支持大小写不敏感查找
      *  （OSS 同步与本地 DB 可能传入不同大小写的 code）。 */
@@ -132,22 +135,7 @@ public final class RoleProfileCatalog {
                         "dashboard:view_activity_list", "dashboard:view_priority_todos",
                         WAREHOUSE_MANAGE_PERMISSION)));
         map.put(BID_ADMIN_CODE, new SeedDefinition(BID_ADMIN_CODE, "投标管理员", "复盘审核与结项闸门审批", true, "all",
-                List.of("dashboard", "operation-logs", "bidding", "project", "knowledge", "resource",
-                        "analytics", "settings", "settings-alerts",
-                        "task.review", "retrospective.submit", "retrospective.review", "closure.review", "lead.assign",
-                        BIDDING_MANAGE_PERMISSION, BIDDING_CREATE_PERMISSION,
-                        BIDDING_DELETE_PERMISSION, BIDDING_SYNC_PERMISSION,
-                        BRAND_AUTH_VIEW_PERMISSION, BRAND_AUTH_CREATE_PERMISSION,
-                        BRAND_AUTH_EDIT_PERMISSION, BRAND_AUTH_REVOKE_PERMISSION,
-                        "knowledge-brand-auth",
-                        TENDER_VIEW_PERMISSION, PERSONNEL_VIEW_PERMISSION, PERSONNEL_MANAGE_PERMISSION,
-                        PERFORMANCE_MANAGE_PERMISSION, QUALIFICATION_MANAGE_PERMISSION,
-                        QUALIFICATION_VIEW_PERMISSION, "dashboard:view_welcome_banner", "dashboard:view_metric_cards", "dashboard:view_calendar",
-                        "dashboard:view_tender_list", "dashboard:view_project_list", "dashboard:view_team_task",
-                        "dashboard:view_global_projects", "dashboard:view_active_projects", "dashboard:view_team_performance",
-                        "dashboard:view_approval_list", "dashboard:view_process_timeline", "dashboard:view_activity_list",
-                        "dashboard:view_priority_todos",
-                        WAREHOUSE_MANAGE_PERMISSION)));
+                BID_ADMIN_PERMISSIONS));
         map.put(BID_SPECIALIST_CODE, new SeedDefinition(BID_SPECIALIST_CODE, "投标专员", "投标辅助、标书审核与任务处理", true, "self",
                 List.of("dashboard", "bidding", "project", "resource",
                         "resource-margin", // CO-515: 投标专员可查看全量保证金台账
@@ -172,6 +160,9 @@ public final class RoleProfileCatalog {
                 List.of("task.view.own", "task.handle.own",
                         "dashboard:view_welcome_banner", "dashboard:view_technical_task",
                         "dashboard:view_activity_list", "dashboard:view_priority_todos")));
+        // bid-SystemAdmin：OSS 端投标系统管理员，权限与 /bidAdmin 一致，但不映射为 admin（admin 是本地超级管理员）
+        map.put(BID_SYSTEM_ADMIN_CODE, new SeedDefinition(BID_SYSTEM_ADMIN_CODE, "投标系统管理员", "OSS 端投标系统管理员，权限等同投标管理员", true, "all",
+                BID_ADMIN_PERMISSIONS));
         DEFINITIONS = Collections.unmodifiableSortedMap(map);
     }
 
@@ -187,7 +178,8 @@ public final class RoleProfileCatalog {
                 DEFINITIONS.get(BID_ADMIN_CODE),
                 DEFINITIONS.get(BID_SPECIALIST_CODE),
                 DEFINITIONS.get(BID_OTHER_DEPT_CODE),
-                DEFINITIONS.get(ADMIN_STAFF_CODE)
+                DEFINITIONS.get(ADMIN_STAFF_CODE),
+                DEFINITIONS.get(BID_SYSTEM_ADMIN_CODE)
         );
     }
 
@@ -210,7 +202,9 @@ public final class RoleProfileCatalog {
 
     public static User.Role legacyRoleForCode(String roleCode) {
         String normalizedCode = roleCode == null ? "" : roleCode.trim();
-        if (normalizedCode.equalsIgnoreCase(ADMIN_CODE) || normalizedCode.equalsIgnoreCase(BID_ADMIN_CODE)) {
+        if (normalizedCode.equalsIgnoreCase(ADMIN_CODE)
+                || normalizedCode.equalsIgnoreCase(BID_ADMIN_CODE)
+                || normalizedCode.equalsIgnoreCase(BID_SYSTEM_ADMIN_CODE)) {
             return User.Role.ADMIN;
         }
         return User.Role.MANAGER;

@@ -33,10 +33,8 @@ class JobRoleLookupResolverTest {
         deptMapping.setDepartmentPattern("投标管理部");
         deptMapping.setRoleCode("bid-Team");
         properties.setDepartmentToRoleMappings(List.of(deptMapping));
-        OrganizationIntegrationProperties.PersonToRoleMapping personMapping = new OrganizationIntegrationProperties.PersonToRoleMapping();
-        personMapping.setPersonIdentifier("vip@example.com");
-        personMapping.setRoleCode("admin");
-        properties.setPersonToRoleMappings(List.of(personMapping));
+        // 白名单（person-to-role-mappings）已废弃删除——OSS 端角色码为唯一真相来源
+        properties.setPersonToRoleMappings(List.of());
 
         PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
         SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
@@ -44,14 +42,15 @@ class JobRoleLookupResolverTest {
     }
 
     @Test
-    @DisplayName("person mapping has highest priority")
-    void resolve_personHasHighestPriority() {
+    @DisplayName("department mapping has highest priority after person mapping removal")
+    void resolve_departmentHasHighestPriority() {
+        // 白名单已删除，部门映射现在是最高优先级
         OrganizationUserSnapshot snapshot = snapshot("vip@example.com", "投标管理部", "项目经理");
 
         JobRoleLookupResolver.ResolvedRole result = resolver.resolve(snapshot, Map.of());
 
-        assertThat(result.roleCode()).isEqualTo("admin");
-        assertThat(result.source()).isEqualTo(JobRoleLookupResolver.RoleMappingSource.PERSON);
+        assertThat(result.roleCode()).isEqualTo("bid-Team");
+        assertThat(result.source()).isEqualTo(JobRoleLookupResolver.RoleMappingSource.DEPARTMENT);
     }
 
     @Test
@@ -126,19 +125,20 @@ class JobRoleLookupResolverTest {
     // ——— mapOssRoleCodeToInternal 单元测试 ———
 
     @Test
-    @DisplayName("BUG #1: bid-SystemAdmin 映射到 admin")
-    void mapOssRoleCodeToInternal_bidSystemAdmin_mapsToAdmin() {
+    @DisplayName("bid-SystemAdmin 作为独立角色码直接返回规范码（不再映射到 admin）")
+    void mapOssRoleCodeToInternal_bidSystemAdmin_returnsCanonicalCode() {
+        // 白名单已删除，bid-SystemAdmin 是独立角色码，权限等同 /bidAdmin，但不映射为 admin
         assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("bid-SystemAdmin"))
-                .isEqualTo("admin");
+                .isEqualTo("bid-SystemAdmin");
     }
 
     @Test
-    @DisplayName("BUG #1: bid-SystemAdmin 大小写不敏感")
+    @DisplayName("bid-SystemAdmin 大小写不敏感，返回规范码")
     void mapOssRoleCodeToInternal_bidSystemAdmin_caseInsensitive() {
         assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("bid-systemadmin"))
-                .isEqualTo("admin");
+                .isEqualTo("bid-SystemAdmin");
         assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("BID-SYSTEMADMIN"))
-                .isEqualTo("admin");
+                .isEqualTo("bid-SystemAdmin");
     }
 
     @Test

@@ -11,9 +11,11 @@ import { canDeleteDocumentAs } from './useProjectDraftingPermissions'
  */
 
 // 从 useProjectDraftingPermissions.js 提取 resolveDraftingRoleGroup
-// 避免需要完整 Pinia store
+// 避免需要完整 Pinia store（须与源文件保持同步，含 bid-SystemAdmin）
 function resolveDraftingRoleGroup(role) {
-  if (role === 'admin' || role === '/bidAdmin' || role === 'bid-TeamLeader') return 'admin_lead'
+  if (role === 'admin' || role === '/bidAdmin' || role === 'bid-SystemAdmin' || role === 'bid-TeamLeader') {
+    return 'admin_lead'
+  }
   if (role === 'bid-projectLeader' || role === 'bid-Team') return 'lead_assist'
   return null
 }
@@ -98,6 +100,7 @@ describe('resolveDraftingRoleGroup', () => {
   it.each([
     ['admin', 'admin_lead'],
     ['/bidAdmin', 'admin_lead'],
+    ['bid-SystemAdmin', 'admin_lead'],
     ['bid-TeamLeader', 'admin_lead'],
     ['bid-projectLeader', 'lead_assist'],
     ['bid-Team', 'lead_assist'],
@@ -115,6 +118,7 @@ describe('canSubmitBid — 提交投标权限（基础角色判断）', () => {
   it.each([
     ['admin', true],
     ['/bidAdmin', true],
+    ['bid-SystemAdmin', true],
     ['bid-TeamLeader', true],
     ['bid-administration', false],
     ['bid-otherDept', false],

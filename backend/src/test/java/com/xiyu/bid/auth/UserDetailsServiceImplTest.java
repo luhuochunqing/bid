@@ -759,7 +759,7 @@ class UserDetailsServiceImplTest {
     }
 
     @ParameterizedTest(name = "OSS {0} 用户权限不扩散")
-    @ValueSource(strings = {"admin", "/bidAdmin", "bid-TeamLeader", "bid-projectLeader",
+    @ValueSource(strings = {"admin", "/bidAdmin", "bid-SystemAdmin", "bid-TeamLeader", "bid-projectLeader",
             "bid-Team", "bid-otherDept", "bid-administration"})
     @DisplayName("OSS 用户权限严格等于 OSS 返回值，不含扩散权限（哨兵测试）")
     void ossUserAuthoritiesMustNotContainExpansionPermissions(String roleCode) {
@@ -787,5 +787,38 @@ class UserDetailsServiceImplTest {
                         "task.view.own",                   // bid-Team seed（非 OSS 返回）
                         "closure.review"                   // /bidAdmin seed
                 );
+    }
+
+    @Test
+    @DisplayName("OSS bid-SystemAdmin：独立角色 authority + ROLE_ADMIN 过渡兼容，不含 all / catalog 扩散")
+    void ossBidSystemAdminShouldKeepOwnCodeAndLegacyAdminCompatWithoutAll() {
+        User user = ossUserWithRoleProfile("oss_system_admin", User.Role.MANAGER,
+                RoleProfileCatalog.BID_SYSTEM_ADMIN_CODE);
+        when(userRepository.findByUsername("oss_system_admin")).thenReturn(Optional.of(user));
+        // OSS 只下发 dashboard；不应合并 BID_ADMIN_PERMISSIONS seed
+        when(ossPermissionCache.getEntry("oss_system_admin")).thenReturn(Optional.of(
+                new OssPermissionCache.CacheEntry(
+                        RoleProfileCatalog.BID_SYSTEM_ADMIN_CODE,
+                        List.of("dashboard", "bidding"),
+                        null,
+                        Instant.now().plusSeconds(60))));
+
+        UserDetails details = userDetailsService.loadUserByUsername("oss_system_admin");
+
+        assertThat(details.getAuthorities())
+                .extracting("authority")
+                .contains(
+                        RoleProfileCatalog.BID_SYSTEM_ADMIN_CODE,
+                        "ROLE_BID_SYSTEMADMIN",
+                        // 过渡兼容：legacyRoleForCode(bid-SystemAdmin) → ADMIN，保证 hasAnyRole('ADMIN') 不炸
+                        "ROLE_ADMIN",
+                        "dashboard",
+                        "bidding")
+                .doesNotContain(
+                        "all",
+                        "task.review",
+                        "retrospective.submit",
+                        "closure.review",
+                        RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION);
     }
 }

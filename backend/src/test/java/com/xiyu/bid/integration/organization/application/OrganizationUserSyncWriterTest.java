@@ -238,13 +238,11 @@ class OrganizationUserSyncWriterTest {
     }
 
     @Test
-    @DisplayName("person mapping can grant admin role to new user")
-    void mapPersonToRole_admin_canElevateNewUser() {
+    @DisplayName("OSS 用户不会被提升为 admin（白名单已删除，allowAdminElevation=false）")
+    void ossUser_cannotBeElevatedToAdmin() {
+        // 白名单已删除，OSS 用户永远不会被映射为 admin（admin 是本地超级管理员，和 OSS 无关）
         OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();
-        OrganizationIntegrationProperties.PersonToRoleMapping mapping = new OrganizationIntegrationProperties.PersonToRoleMapping();
-        mapping.setPersonIdentifier("dean_zhang@ehsy.com");
-        mapping.setRoleCode("admin");
-        properties.setPersonToRoleMappings(List.of(mapping));
+        properties.setPersonToRoleMappings(List.of());
         PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
         SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
         JobRoleLookupResolver resolver = new JobRoleLookupResolver(properties, positionToRoleMapper, systemRoleListMapper);
@@ -252,7 +250,7 @@ class OrganizationUserSyncWriterTest {
                 userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver, null);
 
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "03595")).thenReturn(Optional.empty());
-        when(roleProfileRepository.findByCodeIgnoreCase("admin")).thenReturn(Optional.of(role("admin")));
+        when(roleProfileRepository.findByCodeIgnoreCase("/bidAdmin")).thenReturn(Optional.of(role("/bidAdmin")));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         adminWriter.upsert("oss", "event-key", new OrganizationUserSnapshot(
@@ -262,36 +260,35 @@ class OrganizationUserSyncWriterTest {
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(saved.capture());
-        assertThat(saved.getValue().getRoleCode()).isEqualTo("admin");
+        // OSS 传 /bidAdmin 就用 /bidAdmin，不提升为 admin
+        assertThat(saved.getValue().getRoleCode()).isEqualTo("/bidAdmin");
     }
 
     @Test
-    @DisplayName("mapPersonToRole falls back to full name match")
-    void mapPersonToRole_matchesByFullName() {
+    @DisplayName("OSS bid-SystemAdmin 角色码直接使用，不映射为 admin")
+    void ossBidSystemAdmin_usedDirectlyNotMappedToAdmin() {
+        // 白名单已删除，bid-SystemAdmin 是独立角色码，权限等同 /bidAdmin 但不映射为 admin
         OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();
-        OrganizationIntegrationProperties.PersonToRoleMapping mapping = new OrganizationIntegrationProperties.PersonToRoleMapping();
-        mapping.setPersonIdentifier("袁思琪");
-        mapping.setRoleCode("bid-TeamLeader");
-        properties.setPersonToRoleMappings(List.of(mapping));
+        properties.setPersonToRoleMappings(List.of());
         PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
         SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
         JobRoleLookupResolver resolver = new JobRoleLookupResolver(properties, positionToRoleMapper, systemRoleListMapper);
-        OrganizationUserSyncWriter nameMatchingWriter = new OrganizationUserSyncWriter(
+        OrganizationUserSyncWriter systemAdminWriter = new OrganizationUserSyncWriter(
                 userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver, null);
 
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "100")).thenReturn(Optional.empty());
-        when(roleProfileRepository.findByCodeIgnoreCase("bid-TeamLeader")).thenReturn(Optional.of(role("bid-TeamLeader")));
+        when(roleProfileRepository.findByCodeIgnoreCase("bid-SystemAdmin")).thenReturn(Optional.of(role("bid-SystemAdmin")));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        nameMatchingWriter.upsert("oss", "event-key", new OrganizationUserSnapshot(
+        systemAdminWriter.upsert("oss", "event-key", new OrganizationUserSnapshot(
                 "100", "yuan123", "袁思琪", "yuan@example.com",
-                "13800000000", "1001", "投标管理部", "", "bid-Team", true
+                "13800000000", "1001", "非投标部门", "", "bid-SystemAdmin", true
         ));
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(saved.capture());
-        // User.getRoleCode() 保留原始大小写（OSS 角色码大小写敏感）
-        assertThat(saved.getValue().getRoleCode()).isEqualTo("bid-TeamLeader");
+        // bid-SystemAdmin 直接使用，不映射为 admin
+        assertThat(saved.getValue().getRoleCode()).isEqualTo("bid-SystemAdmin");
     }
 
     @Test
@@ -353,17 +350,19 @@ class OrganizationUserSyncWriterTest {
     }
 
     @Test
-    @DisplayName("person mapping takes precedence over sysRoleList")
-    void rolePriority_personOverSysRoleList() {
+    @DisplayName("白名单已删除：部门映射优先于 sysRoleList（不再有 person mapping 优先级）")
+    void rolePriority_departmentOverSysRoleList() {
+        // 白名单已删除，优先级现在是：部门 > 岗位 > sysRoleList
         OrganizationIntegrationProperties properties = new OrganizationIntegrationProperties();
-        OrganizationIntegrationProperties.PersonToRoleMapping personMapping = new OrganizationIntegrationProperties.PersonToRoleMapping();
-        personMapping.setPersonIdentifier("boss@example.com");
-        personMapping.setRoleCode("admin");
-        properties.setPersonToRoleMappings(List.of(personMapping));
+        properties.setPersonToRoleMappings(List.of());
         OrganizationIntegrationProperties.PositionToRoleMapping positionMapping = new OrganizationIntegrationProperties.PositionToRoleMapping();
         positionMapping.setPositionPattern("^投标项目负责人$");
         positionMapping.setRoleCode("bid-projectLeader");
         properties.setPositionToRoleMappings(List.of(positionMapping));
+        OrganizationIntegrationProperties.DepartmentToRoleMapping deptMapping = new OrganizationIntegrationProperties.DepartmentToRoleMapping();
+        deptMapping.setDepartmentPattern("投标管理部");
+        deptMapping.setRoleCode("bid-Team");
+        properties.setDepartmentToRoleMappings(List.of(deptMapping));
         PositionToRoleMapper positionToRoleMapper = new PositionToRoleMapper(properties);
         SystemRoleListMapper systemRoleListMapper = new SystemRoleListMapper(positionToRoleMapper);
         JobRoleLookupResolver resolver = new JobRoleLookupResolver(properties, positionToRoleMapper, systemRoleListMapper);
@@ -371,7 +370,7 @@ class OrganizationUserSyncWriterTest {
                 userRepository, roleProfileRepository, organizationDepartmentRepository, properties, resolver, null);
 
         when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "1003")).thenReturn(Optional.empty());
-        when(roleProfileRepository.findByCodeIgnoreCase("admin")).thenReturn(Optional.of(role("admin")));
+        when(roleProfileRepository.findByCodeIgnoreCase("bid-Team")).thenReturn(Optional.of(role("bid-Team")));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Map<String, OssUserJobAndRoleDto> lookupMap = Map.of(
@@ -380,11 +379,12 @@ class OrganizationUserSyncWriterTest {
 
         priorityWriter.upsert("oss", "event-key", new OrganizationUserSnapshot(
                 "1003", "boss001", "老板", "boss@example.com",
-                "13800000000", "2003", "投标项目部", "", "", true), lookupMap);
+                "13800000000", "2003", "投标管理部", "", "", true), lookupMap);
 
         ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(saved.capture());
-        assertThat(saved.getValue().getRoleCode()).isEqualTo("admin");
+        // 部门映射优先于 sysRoleList
+        assertThat(saved.getValue().getRoleCode()).isEqualTo("bid-Team");
     }
 
     private RoleProfile role(String code) {

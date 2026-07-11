@@ -4,6 +4,11 @@
  */
 
 import { useUserStore } from '@/stores/user.js'
+import {
+  isBidAdminLevelRole,
+  isGlobalManageRole,
+  ROLE_CODES,
+} from '@/constants/roleCodes.js'
 
 /**
  * 当前登录用户是否为 OSS 同步用户。
@@ -53,45 +58,70 @@ export function hasAllPermissions(userPermissions, requiredPermissions) {
 }
 
 /**
- * Check if the given role code represents an admin.
+ * Check if the given role code represents the local super admin only.
+ * OSS bid-SystemAdmin 不是本地 admin（原则：admin 与 OSS 无关）。
  * @param {string} roleCode
  * @returns {boolean}
  */
 export function isAdminRole(roleCode) {
-  return roleCode === 'admin'
+  return roleCode === ROLE_CODES.ADMIN
 }
 
 /**
- * Check if the role code has bid manager authorities (admin, bidAdmin, bid-TeamLeader).
- * Note: bid_senior 已删除，映射到 bid-TeamLeader。
+ * 归一化角色码用于大小写不敏感比较（保留 /bidAdmin 前导斜杠语义）。
+ * @param {string|null|undefined} roleCode
+ * @returns {string}
+ */
+function normalizeRoleCode(roleCode) {
+  return String(roleCode || '').replace(/^role_/i, '').trim()
+}
+
+/**
+ * Check if the role code has bid manager authorities
+ * (admin, /bidAdmin, bid-SystemAdmin, bid-TeamLeader).
  * @param {string} roleCode
  * @returns {boolean}
  */
 export function isBidManager(roleCode) {
-  const r = (roleCode || '').replace(/^role_/, '').toLowerCase()
-  return ['admin', '/bidadmin', 'bid-teamleader'].includes(r)
+  const r = normalizeRoleCode(roleCode)
+  // 大小写不敏感匹配：先精确，再 lower-case 对照已知码
+  if (isGlobalManageRole(r)) return true
+  const lower = r.toLowerCase()
+  return (
+    lower === 'admin' ||
+    lower === '/bidadmin' ||
+    lower === 'bid-systemadmin' ||
+    lower === 'bid-teamleader'
+  )
 }
 
 /**
- * Check if the role code represents a bid admin or senior bid role (bidAdmin, bid-TeamLeader).
- * Note: bid_senior 已删除，映射到 bid-TeamLeader。
+ * Check if the role code represents a bid admin-level or lead role
+ * (/bidAdmin, bid-SystemAdmin, bid-TeamLeader). 不含本地 admin。
  * @param {string} roleCode
  * @returns {boolean}
  */
 export function isBidAdminOrSenior(roleCode) {
-  const r = (roleCode || '').replace(/^role_/, '').toLowerCase()
-  return ['/bidadmin', 'bid-teamleader'].includes(r)
+  const r = normalizeRoleCode(roleCode)
+  if (r === ROLE_CODES.BID_ADMIN || r === ROLE_CODES.BID_SYSTEM_ADMIN || r === ROLE_CODES.BID_LEAD) {
+    return true
+  }
+  const lower = r.toLowerCase()
+  return lower === '/bidadmin' || lower === 'bid-systemadmin' || lower === 'bid-teamleader'
 }
 
 /**
- * Check if the role code is a bid manager but not a super admin.
- * Note: bid_senior 已删除，映射到 bid-TeamLeader。
+ * Check if the role code is a bid manager but not the local super admin.
+ * 含 /bidAdmin、bid-SystemAdmin、bid-TeamLeader。
  * @param {string} roleCode
  * @returns {boolean}
  */
 export function isBidManagerExcludeAdmin(roleCode) {
-  const r = (roleCode || '').replace(/^role_/, '').toLowerCase()
-  return ['/bidadmin', 'bid-teamleader'].includes(r)
+  const r = normalizeRoleCode(roleCode)
+  if (r === ROLE_CODES.ADMIN) return false
+  if (isBidAdminLevelRole(r) || r === ROLE_CODES.BID_LEAD) return true
+  const lower = r.toLowerCase()
+  return lower === '/bidadmin' || lower === 'bid-systemadmin' || lower === 'bid-teamleader'
 }
 
 /**
