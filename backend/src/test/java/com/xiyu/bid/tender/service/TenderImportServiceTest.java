@@ -419,6 +419,24 @@ class TenderImportServiceTest {
     }
 
     @Test
+    @DisplayName("模板示例行总部所在地使用推荐的一级+二级拼接格式，而非旧市-市连字符格式")
+    void templateExampleRowRegionUsesRecommendedConcatFormat() throws Exception {
+        byte[] bytes = service.generateTemplate();
+        try (Workbook workbook = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
+            Sheet main = workbook.getSheet("标讯导入");
+            assertThat(main).isNotNull();
+            Row example = main.getRow(1);
+            assertThat(example).isNotNull();
+            // HEADERS 中「总部所在地*」为第 3 列（index 2）
+            String region = example.getCell(2).getStringCellValue();
+            assertThat(region).isEqualTo("北京市北京市");
+            assertThat(region).doesNotContain("-");
+            // 示例值必须在推荐白名单内（字典 sheet 亦展示此格式）
+            assertThat(TenderImportService.REGIONS).contains(region);
+        }
+    }
+
+    @Test
     @DisplayName("字典 sheet 地区列只列推荐的一级+二级格式，不列兼容的旧格式")
     void dictionarySheetRegionColumnExcludesMunicipalityOnlyName() throws Exception {
         byte[] bytes = service.generateTemplate();
@@ -458,7 +476,7 @@ class TenderImportServiceTest {
         return new String[]{
                 "测试项目名称",
                 "测试招标主体",
-                "北京市-北京市",
+                "北京市北京市",
                 "2026-12-31 17:00",
                 "2026-12-25 09:30",
                 "张三",
