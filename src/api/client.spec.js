@@ -80,7 +80,8 @@ describe('httpClient response errors', () => {
   })
 
   it('skips global error toast when silentError is enabled', async () => {
-    await import('./client.js')
+    const { __resetRateLimitToastController } = await import('./client.js')
+    __resetRateLimitToastController()
 
     const error = {
       config: { silentError: true },
@@ -96,7 +97,8 @@ describe('httpClient response errors', () => {
   })
 
   it('skips global session-expired toast for handled login credential failures', async () => {
-    await import('./client.js')
+    const { __resetRateLimitToastController } = await import('./client.js')
+    __resetRateLimitToastController()
 
     const error = {
       config: { skipGlobalErrorMessage: true, url: '/api/auth/login' },
@@ -112,7 +114,8 @@ describe('httpClient response errors', () => {
   })
 
   it('keeps global error toast for normal business errors', async () => {
-    await import('./client.js')
+    const { __resetRateLimitToastController } = await import('./client.js')
+    __resetRateLimitToastController()
 
     const error = {
       config: {},
@@ -129,7 +132,8 @@ describe('httpClient response errors', () => {
 
   describe('429 rate limit handling', () => {
     it('shows friendly default message when no Retry-After header', async () => {
-      await import('./client.js')
+      const { __resetRateLimitToastController } = await import('./client.js')
+      __resetRateLimitToastController()
 
       const error = {
         config: {},
@@ -146,7 +150,8 @@ describe('httpClient response errors', () => {
     })
 
     it('shows wait seconds from Retry-After header', async () => {
-      await import('./client.js')
+      const { __resetRateLimitToastController } = await import('./client.js')
+      __resetRateLimitToastController()
 
       const error = {
         config: {},
@@ -163,7 +168,8 @@ describe('httpClient response errors', () => {
     })
 
     it('preserves AI parse business message when server provides it', async () => {
-      await import('./client.js')
+      const { __resetRateLimitToastController } = await import('./client.js')
+      __resetRateLimitToastController()
 
       const aiMsg = 'AI 服务请求过于频繁，请稍后再试，当前可手动填写'
       const error = {
@@ -180,7 +186,8 @@ describe('httpClient response errors', () => {
     })
 
     it('shows only one toast for 3 concurrent 429 errors within cooldown', async () => {
-      await import('./client.js')
+      const { __resetRateLimitToastController } = await import('./client.js')
+      __resetRateLimitToastController()
 
       const error = {
         config: {},
@@ -199,7 +206,8 @@ describe('httpClient response errors', () => {
     })
 
     it('skips toast when config.silentRateLimit is true', async () => {
-      await import('./client.js')
+      const { __resetRateLimitToastController } = await import('./client.js')
+      __resetRateLimitToastController()
 
       const error = {
         config: { silentRateLimit: true },

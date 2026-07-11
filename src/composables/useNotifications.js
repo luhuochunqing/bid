@@ -9,7 +9,6 @@
  * 在收到 429 限流响应时自动暂停轮询 60 秒
  */
 import { onMounted, onUnmounted, ref } from 'vue'
-import { notificationsApi } from '@/api/modules/notifications.js'
 import { useNotificationStore } from '@/stores/notifications'
 
 export function useNotifications(options = {}) {
@@ -30,16 +29,16 @@ export function useNotifications(options = {}) {
       return
     }
     try {
-      const result = await notificationsApi.getUnreadCount({ silentRateLimit: true })
-      store.unreadCount = result.count ?? 0
+      await store.fetchUnreadCount({ silentRateLimit: true })
     } catch (err) {
       const status = err?.response?.status
       if (status === 429) {
         backoffUntil.value = Date.now() + 60000
-      } else if (status === 401 || status === 403) {
+      } else if (status === 403) {
         // 无通知权限的角色：永久停止轮询，避免控制台 403 刷屏
         stopPolling()
       }
+      // 401 不永久停止轮询：token 刷新后应自动恢复，由全局 axios 拦截器处理重登
     }
   }
 

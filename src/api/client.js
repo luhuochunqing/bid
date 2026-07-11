@@ -13,9 +13,36 @@ import router from '@/router/index.js'
 
 let refreshPromise = null
 
-// US2: 限流提示 module-level 冷却期，避免短时间内重复弹 toast
-const RATE_LIMIT_TOAST_COOLDOWN_MS = 3000
-let lastRateLimitToastTime = 0
+/**
+ * 限流 toast 控制器：封装冷却期逻辑，避免模块级可变状态导致的测试脆弱性。
+ * 测试可通过 __setRateLimitToastController 替换为可控实例。
+ */
+function createRateLimitToastController(cooldownMs = 3000) {
+  let lastToastTime = 0
+  return {
+    shouldShow() {
+      return Date.now() - lastToastTime >= cooldownMs
+    },
+    record() {
+      lastToastTime = Date.now()
+    },
+    _reset() {
+      lastToastTime = 0
+    },
+  }
+}
+
+let rateLimitToastController = createRateLimitToastController()
+
+/** @internal 测试注入点 */
+export function __setRateLimitToastController(controller) {
+  rateLimitToastController = controller
+}
+
+/** @internal 测试重置点 */
+export function __resetRateLimitToastController() {
+  rateLimitToastController = createRateLimitToastController()
+}
 
 const syncRefreshedSession = async (refreshResult) => {
   if (!refreshResult?.success || !refreshResult?.data?.user) {
@@ -236,6 +263,7 @@ httpClient.interceptors.response.use(
           ElMessage.error(serverMsg || '服务余额不足，请联系管理员充值')
           break
         case 429: {
+          // 轮询类请求标记 silentRateLimit 后跳过 toast，由调用方自行退避
           if (config?.silentRateLimit) {
             break
           }
@@ -246,13 +274,14 @@ httpClient.interceptors.response.use(
             headers: response.headers,
           })
 
-          const now = Date.now()
-          if (now - lastRateLimitToastTime < RATE_LIMIT_TOAST_COOLDOWN_MS) {
-            break
+          // 设计意图：同一页面内短时间内合并所有限流提示为 1 个，
+          // 避免多请求并发失败时"满屏 toast"让用户误以为系统崩溃。
+          // 冷却期不区分消息内容：实际场景中 3 秒内连续 429 几乎必然来自同一波请求，
+          // 用户只需知道"操作太快了"，不需要区分是哪个 API 被限流。
+          if (rateLimitToastController.shouldShow()) {
+            rateLimitToastController.record()
+            ElMessage.warning(message)
           }
-
-          lastRateLimitToastTime = now
-          ElMessage.warning(message)
           break
         }
         case 500:

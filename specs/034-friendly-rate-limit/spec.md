@@ -103,3 +103,4 @@
 - 前端 toast 组件使用 Element Plus `ElMessage`，文案替换为全局常量即可。
 - 后端 `RateLimitFilter` 中 `X-RateLimit-Reset` 已经计算了窗口结束时间戳，可基于它推导 `Retry-After`。
 - 用户提到的"很多页面"主要对应 GET `/api/**` 全局限流，登录/账号类限流为辅。
+- **AI 差异化文案归属**：AI 服务（如标讯解析）的 429 限流文案由 AI 服务层自行返回 `data.msg`，`RateLimitFilter` 不识别 AI 路径也不做差异化处理。前端 `rate-limit-message-resolver` 优先使用 `data.msg`，因此 AI 特定文案能自然透传。`RateLimitResponseFactory` 只负责通用限流文案。

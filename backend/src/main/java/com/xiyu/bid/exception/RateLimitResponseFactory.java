@@ -8,6 +8,11 @@ import com.xiyu.bid.dto.ApiResponse;
  * <p>负责把限流元数据映射为项目统一的 {@link ApiResponse} 格式，
  * 不依赖 Spring、Servlet 或任何 HTTP 框架，便于单元测试和复用。
  *
+ * <p>包位置说明：虽然此类放在 {@code exception} 包中，但它并不表示一个异常类型，
+ * 而是一个生成 {@link ApiResponse} DTO 的纯核心工厂。放在此包是因为它与限流错误场景
+ * 紧密关联，且项目中目前没有独立的 {@code response} 工具包。若后续项目中新增统一响应
+ * 工具包，可考虑迁移。
+ *
  * <p>映射规则：
  * <ul>
  *   <li>HTTP 状态码统一由外层 Filter 设置为 429</li>

@@ -33,6 +33,13 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * CO-478: 验证 {@link RateLimitFilter} 的限流 key 解析逻辑。
+ * 核心断言：GET /api/* 请求优先按 JWT 用户名限流，无法提取时 fallback 到 IP。
+ *
+ * 补充（spec 034）：验证 429 响应使用统一 ApiResponse 格式、中文友好文案、Retry-After 头，
+ * 并在日志中记录 key/path/retryAfter 供运维排查。
+ */
 class RateLimitFilterTest {
 
     private static final String LOGGER_NAME = "com.xiyu.bid.config.RateLimitFilter";

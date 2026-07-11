@@ -167,21 +167,24 @@ public class RateLimitFilter extends OncePerRequestFilter {
         boolean allowed = rateLimiter.allowRequest(key, maxRequests, window);
         long nowSeconds = System.currentTimeMillis() / 1000;
         long resetSeconds = nowSeconds + window.getSeconds();
-        if (addHeaders) {
-            response.setHeader("X-RateLimit-Limit", String.valueOf(maxRequests));
-            response.setHeader("X-RateLimit-Reset", String.valueOf(resetSeconds));
-        }
         if (!allowed) {
-            int retryAfterSeconds = (int) Math.max(1, resetSeconds - System.currentTimeMillis() / 1000);
+            // 问题 1 修复：复用已计算的 nowSeconds，避免重复读取系统时间
+            int retryAfterSeconds = (int) Math.max(1, resetSeconds - nowSeconds);
             log.warn("Rate limit exceeded: key={}, path={}, retryAfter={}s",
                     key, request.getRequestURI(), retryAfterSeconds);
             response.setStatus(429);
             response.setContentType("application/json");
             response.setCharacterEncoding("UTF-8");
+            // 问题 7 修复：429 响应只返回 Retry-After，不再暴露 X-RateLimit-* 策略细节
             response.setHeader("Retry-After", String.valueOf(retryAfterSeconds));
             ApiResponse<Integer> apiResponse = RateLimitResponseFactory.build(retryAfterSeconds);
             objectMapper.writeValue(response.getWriter(), apiResponse);
             return;
+        }
+        // 问题 7 修复：X-RateLimit-* 仅在未被限流的响应上附加
+        if (addHeaders) {
+            response.setHeader("X-RateLimit-Limit", String.valueOf(maxRequests));
+            response.setHeader("X-RateLimit-Reset", String.valueOf(resetSeconds));
         }
         chain.doFilter(request, response);
     }
