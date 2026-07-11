@@ -135,20 +135,24 @@
           <!-- CO-451: 保管员显示为"姓名（工号）"格式 -->
           <template #default="{ row }">{{ formatDisplayName(row.custodianName, row.custodianEmployeeNumber) || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <!-- 操作列：编辑/申请使用/登记归还/下架 最多 3 个同时出现，宽度需容纳单行；
+             用 flex nowrap 避免 el-table cell 默认换行把按钮挤到第二行 -->
+        <el-table-column label="操作" width="260" fixed="right" class-name="ca-ops-col">
           <template #default="{ row }">
-            <el-button v-if="canManage(row)" link type="primary" size="small" @click.stop="handleEdit(row)">编辑</el-button>
-            <el-button
-              v-if="canBorrow(row) && !myPendingApplicationCaIds.has(row.id)"
-              link type="success" size="small"
-              @click.stop="handleOpenBorrow(row)"
-            >申请使用</el-button>
-            <el-button
-              v-if="canReturn(row)"
-              link type="warning" size="small"
-              @click.stop="handleOpenReturn(row)"
-            >登记归还</el-button>
-            <el-button v-if="canManage(row)" link type="danger" size="small" @click.stop="handleDelete(row)">下架</el-button>
+            <div class="ca-ops-actions">
+              <el-button v-if="canManage(row)" link type="primary" size="small" @click.stop="handleEdit(row)">编辑</el-button>
+              <el-button
+                v-if="canBorrow(row) && !myPendingApplicationCaIds.has(row.id)"
+                link type="success" size="small"
+                @click.stop="handleOpenBorrow(row)"
+              >申请使用</el-button>
+              <el-button
+                v-if="canReturn(row)"
+                link type="warning" size="small"
+                @click.stop="handleOpenReturn(row)"
+              >登记归还</el-button>
+              <el-button v-if="canManage(row)" link type="danger" size="small" @click.stop="handleDelete(row)">下架</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -899,6 +903,24 @@ onMounted(() => {
 /* td cell 也允许溢出可见，避免 el-tag/短文本被 .cell 默认 overflow:hidden 截断。
    保留 white-space:normal 允许长文本换行，不撑爆列宽。 */
 .ca-table-wrapper :deep(.el-table td.el-table__cell > .cell) {
+  overflow: visible;
+}
+
+/* 操作列：按钮强制单行，避免「编辑 / 申请使用 / 下架」被挤换行 */
+.ca-ops-actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  white-space: nowrap;
+  gap: 0;
+}
+
+.ca-ops-actions :deep(.el-button + .el-button) {
+  margin-left: 4px;
+}
+
+.ca-table-wrapper :deep(.ca-ops-col > .cell) {
+  white-space: nowrap;
   overflow: visible;
 }
 
