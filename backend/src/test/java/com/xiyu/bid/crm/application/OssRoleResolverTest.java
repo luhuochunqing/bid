@@ -44,6 +44,8 @@ class OssRoleResolverTest {
         // 白名单已删除，OssRoleResolver 不再读取 personToRoleMappings
         // PositionToRoleMapper 对"投标-行政专员"和"行政专员"都返回 null（不在岗位映射表）
         when(positionToRoleMapper.map(anyString())).thenReturn(null);
+        // 06234 回归：非投标 roleName"销售主管"若走 positionToRoleMapper 会命中 bid-projectLeader
+        when(positionToRoleMapper.map("销售主管")).thenReturn("bid-projectLeader");
     }
 
     @Test
@@ -164,6 +166,37 @@ class OssRoleResolverTest {
         String result = resolver.resolveRoleCodeFromEmployeeInfo(employeeInfo, "04569");
 
         assertThat(result).isNull();
+    }
+
+    @Test
+    @DisplayName("06234 回归：sysRoleList 中非投标 roleName 排在 bid 角色前时不应误匹配")
+    void resolveRoleCodeFromJobList_skipsNonBidRoleNameBeforeBidRoleCode() {
+        // 06234 的真实数据：id=27 "销售主管"(roleCode="53") 排在 id=199 "/bidAdmin" 之前
+        CrmJobListResponse.SysRole salesSupervisor = new CrmJobListResponse.SysRole();
+        salesSupervisor.setRoleName("销售主管");
+        salesSupervisor.setRoleCode("53"); // 非 bid 角色码
+        salesSupervisor.setStatus("1");
+        salesSupervisor.setDel(false);
+
+        CrmJobListResponse.SysRole bidAdmin = new CrmJobListResponse.SysRole();
+        bidAdmin.setRoleName("客户开发管理员");
+        bidAdmin.setRoleCode("/bidAdmin");
+        bidAdmin.setStatus("1");
+        bidAdmin.setDel(false);
+
+        CrmJobListResponse.JobInfo jobInfo = new CrmJobListResponse.JobInfo();
+        jobInfo.setJobName("高级投标经理");
+        jobInfo.setJobNumber("06234");
+        jobInfo.setSysRoleList(List.of(salesSupervisor, bidAdmin));
+
+        CrmJobListResponse jobList = new CrmJobListResponse();
+        jobList.setData(java.util.Map.of("06234", jobInfo));
+
+        String result = resolver.resolveRoleCodeFromJobList(jobList, "06234", "06234");
+
+        // 修复前："销售主管" 匹配 positionToRoleMapper 返回 bid-projectLeader
+        // 修复后：跳过非投标 roleCode/roleName，正确解析到 /bidAdmin
+        assertThat(result).isEqualTo("/bidAdmin");
     }
 
     @Test

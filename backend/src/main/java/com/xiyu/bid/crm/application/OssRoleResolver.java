@@ -84,13 +84,12 @@ public class OssRoleResolver {
                             return internalCode;
                         }
                     }
-                    // 1b. 再检查 roleName（中文角色名称通过映射表匹配）
+                    // 1b. 再检查 roleName（中文角色名称通过精确映射表匹配）
+                    // 注意：sysRoleList 中的 roleName 来自 OSS 各系统角色（如"销售主管"），
+                    // positionToRoleMapper 的正则是为 jobName（岗位名）设计的，不能用于 roleName。
                     String roleName = sysRole.getRoleName();
                     if (roleName != null && !roleName.isBlank()) {
                         String roleCode = JobRoleLookupResolver.mapOssRoleTextToInternal(roleName);
-                        if (roleCode == null || roleCode.isBlank()) {
-                            roleCode = positionToRoleMapper.map(roleName);
-                        }
                         if (roleCode != null && !roleCode.isBlank()) {
                             log.info("OSS login: role resolved from sysRoleList roleName: {} -> {}", roleName, roleCode);
                             return roleCode;
