@@ -137,9 +137,11 @@ public class CrmTenderLinkService {
      */
     private void applyLeaderAndStatus(Tender tender, CrmProjectLeaderService.ProjectLeaderResult leader) {
         String crmId = leader.opportunityCode();
-        // 设置商机关联
-        tender.setCrmOpportunityId(leader.opportunityCode());
-        tender.setCrmOpportunityName(leader.opportunityName());
+        // 设置商机关联（仅当 code 非空时才设置 id 和 name，避免"半关联"状态导致去重校验失效）
+        if (crmId != null && !crmId.isBlank()) {
+            tender.setCrmOpportunityId(crmId);
+            tender.setCrmOpportunityName(leader.opportunityName());
+        }
 
         // 解析项目负责人：先按工号匹配本地用户
         if (leader.projectLeaderNo() != null && !leader.projectLeaderNo().isBlank()) {

@@ -260,4 +260,26 @@ class CrmTenderLinkServiceTest {
         assertThat(linked).isFalse();
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.PENDING_ASSIGNMENT);
     }
+
+    // ===== 防"半关联"：leader.code 为空时不应存入 name（生产 bug 修复回归） =====
+
+    @Test
+    void linkIfPresent_crmIdOnly_leaderCodeNull_doesNotSetHalfLinkState() {
+        Tender tender = newTender();
+        // CRM 推送只传 crmId=16，CRM detail 返回 leader 但 code=null（商机未返回 code）
+        CrmProjectLeaderService.ProjectLeaderResult leader =
+                new CrmProjectLeaderService.ProjectLeaderResult(
+                        "张三", "EMP001", "0710商机10", null);
+        when(crmProjectLeaderService.findProjectLeaderByChanceId(16L, null)).thenReturn(leader);
+        when(userRepository.findByEmployeeNumber("EMP001")).thenReturn(Optional.empty());
+
+        service.linkIfPresent(tender, "16", null);
+
+        // 防半关联：code=null 时 id 和 name 都不应被设置
+        assertThat(tender.getCrmOpportunityId()).isNull();
+        assertThat(tender.getCrmOpportunityName()).isNull();
+        // 但状态和负责人分配照常（不影响业务）
+        assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
+        assertThat(tender.getProjectManagerName()).isEqualTo("张三");
+    }
 }

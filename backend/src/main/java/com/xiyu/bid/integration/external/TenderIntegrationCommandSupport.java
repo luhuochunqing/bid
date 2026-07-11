@@ -118,8 +118,10 @@ class TenderIntegrationCommandSupport {
         if (hasCode && (tender.getCrmOpportunityId() == null || tender.getCrmOpportunityId().isBlank())) {
             tender.setCrmOpportunityId(crmOpportunityCode);
         }
+        // 仅当 crmOpportunityId 已设置时才存入 name，避免"半关联"状态（code=null 但 name 有值）导致去重校验失效
         if (crmOpportunityName != null && !crmOpportunityName.isBlank()
-                && (tender.getCrmOpportunityName() == null || tender.getCrmOpportunityName().isBlank())) {
+                && (tender.getCrmOpportunityName() == null || tender.getCrmOpportunityName().isBlank())
+                && (tender.getCrmOpportunityId() != null && !tender.getCrmOpportunityId().isBlank())) {
             tender.setCrmOpportunityName(crmOpportunityName);
         }
     }

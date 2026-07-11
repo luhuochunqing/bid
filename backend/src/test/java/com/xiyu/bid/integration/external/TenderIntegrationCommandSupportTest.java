@@ -212,4 +212,35 @@ class TenderIntegrationCommandSupportTest {
         assertThat(tender.getProjectManagerId()).isNull();
         verify(autoAssignmentService, never()).autoAssignIfPossible(any());
     }
+
+    // ===== 防"半关联"：applyCrmFallback 在 crmOpportunityId 为空时不应存入 name =====
+
+    @Test
+    @DisplayName("applyCrmFallback: hasCrmId 但 hasCode=false 时，不应单独存入 crmOpportunityName（防半关联）")
+    void applyCrmFallback_crmIdOnly_noCode_doesNotSetHalfLinkName() {
+        Tender tender = new Tender();
+        // 场景：CRM 推送更新时传了 crmId=16 和 crmOpportunityName，但没传 crmOpportunityCode
+        // 且 applyCrmLinkAndAssignment 中 CRM API 调用失败，crm_opportunity_id 保持 null
+
+        support.applyCrmFallback(tender, "16", null, "0710商机10");
+
+        // 防半关联：crmOpportunityId 为 null 时，name 也不应被设置
+        assertThat(tender.getCrmOpportunityId()).isNull();
+        assertThat(tender.getCrmOpportunityName()).isNull();
+        // 状态和来源仍正常设置
+        assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
+        assertThat(tender.getEvaluationSource()).isEqualTo(Tender.EvaluationSource.CRM_PUSH);
+    }
+
+    @Test
+    @DisplayName("applyCrmFallback: hasCode=true 时，name 照常存入（正常路径回归）")
+    void applyCrmFallback_codeProvided_nameStoredNormally() {
+        Tender tender = new Tender();
+
+        support.applyCrmFallback(tender, null, "CC2026070930", "0710商机10");
+
+        // 正常路径：code 非空时 id 和 name 都设置
+        assertThat(tender.getCrmOpportunityId()).isEqualTo("CC2026070930");
+        assertThat(tender.getCrmOpportunityName()).isEqualTo("0710商机10");
+    }
 }
