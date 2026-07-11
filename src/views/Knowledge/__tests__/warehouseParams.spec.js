@@ -26,14 +26,13 @@ describe('buildWarehouseListParams', () => {
     })
   })
 
-  describe('statuses 默认值逻辑（不覆盖用户选择）', () => {
-    it('用户未选状态时，默认传 IN_USE/EXPIRING/EXPIRED（排除已关仓）', () => {
+  describe('statuses 与 UI「全部」语义对齐（含已关仓）', () => {
+    it('用户未选状态时，不传 statuses（后端返回含 CLOSED 的全量）', () => {
       const p = buildWarehouseListParams({}, 0, 15)
-      expect(p.statuses).toBe('IN_USE,EXPIRING,EXPIRED')
+      expect(p).not.toHaveProperty('statuses')
     })
 
-    it('用户只选"使用中"时，只传 IN_USE（不传默认三态）', () => {
-      // 这正是 bug 1 根因 B 的回归保护：原实现会强制传 IN_USE,EXPIRING,EXPIRED 覆盖用户选择
+    it('用户只选"使用中"时，只传 IN_USE（不强制附加其他状态）', () => {
       const p = buildWarehouseListParams({ statuses: ['IN_USE'] }, 0, 15)
       expect(p.statuses).toBe('IN_USE')
     })
@@ -48,9 +47,14 @@ describe('buildWarehouseListParams', () => {
       expect(p.statuses).toBe('IN_USE,CLOSED')
     })
 
-    it('用户只选 CLOSED 时，只传 CLOSED（不附加默认三态）', () => {
+    it('用户只选 CLOSED 时，只传 CLOSED', () => {
       const p = buildWarehouseListParams({ statuses: ['CLOSED'] }, 0, 15)
       expect(p.statuses).toBe('CLOSED')
+    })
+
+    it('空数组 statuses 与未选等价：不传 statuses', () => {
+      const p = buildWarehouseListParams({ statuses: [] }, 0, 15)
+      expect(p).not.toHaveProperty('statuses')
     })
   })
 
@@ -86,11 +90,11 @@ describe('buildWarehouseListParams', () => {
       expect(p.size).toBe(30)
     })
 
-    it('filters 为 null 时不抛错', () => {
+    it('filters 为 null 时不抛错，且不传 statuses', () => {
       const p = buildWarehouseListParams(null, 0, 15)
       expect(p.page).toBe(0)
       expect(p.size).toBe(15)
-      expect(p.statuses).toBe('IN_USE,EXPIRING,EXPIRED')
+      expect(p).not.toHaveProperty('statuses')
     })
   })
 })
