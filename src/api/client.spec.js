@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => {
   }
   return {
     error: vi.fn(),
+    warning: vi.fn(),
     httpClient,
     responseHandlers,
   }
@@ -37,6 +38,7 @@ vi.mock('axios', () => ({
 vi.mock('element-plus', () => ({
   ElMessage: {
     error: mocks.error,
+    warning: mocks.warning,
   },
 }))
 
@@ -123,5 +125,93 @@ describe('httpClient response errors', () => {
     await expect(mocks.responseHandlers.rejected(error)).rejects.toBe(error)
 
     expect(mocks.error).toHaveBeenCalledWith('业务错误')
+  })
+
+  describe('429 rate limit handling', () => {
+    it('shows friendly default message when no Retry-After header', async () => {
+      await import('./client.js')
+
+      const error = {
+        config: {},
+        response: {
+          status: 429,
+          data: {},
+        },
+      }
+
+      await expect(mocks.responseHandlers.rejected(error)).rejects.toBe(error)
+
+      expect(mocks.warning).toHaveBeenCalledTimes(1)
+      expect(mocks.warning).toHaveBeenCalledWith('操作太快了，请稍等几秒再试')
+    })
+
+    it('shows wait seconds from Retry-After header', async () => {
+      await import('./client.js')
+
+      const error = {
+        config: {},
+        response: {
+          status: 429,
+          data: {},
+          headers: { 'retry-after': '5' },
+        },
+      }
+
+      await expect(mocks.responseHandlers.rejected(error)).rejects.toBe(error)
+
+      expect(mocks.warning).toHaveBeenCalledWith('操作太快了，请等待 5 秒后再试')
+    })
+
+    it('preserves AI parse business message when server provides it', async () => {
+      await import('./client.js')
+
+      const aiMsg = 'AI 服务请求过于频繁，请稍后再试，当前可手动填写'
+      const error = {
+        config: {},
+        response: {
+          status: 429,
+          data: { msg: aiMsg },
+        },
+      }
+
+      await expect(mocks.responseHandlers.rejected(error)).rejects.toBe(error)
+
+      expect(mocks.warning).toHaveBeenCalledWith(aiMsg)
+    })
+
+    it('shows only one toast for 3 concurrent 429 errors within cooldown', async () => {
+      await import('./client.js')
+
+      const error = {
+        config: {},
+        response: {
+          status: 429,
+          data: {},
+        },
+      }
+
+      await expect(mocks.responseHandlers.rejected(error)).rejects.toBe(error)
+      await expect(mocks.responseHandlers.rejected(error)).rejects.toBe(error)
+      await expect(mocks.responseHandlers.rejected(error)).rejects.toBe(error)
+
+      expect(mocks.warning).toHaveBeenCalledTimes(1)
+      expect(mocks.warning).toHaveBeenCalledWith('操作太快了，请稍等几秒再试')
+    })
+
+    it('skips toast when config.silentRateLimit is true', async () => {
+      await import('./client.js')
+
+      const error = {
+        config: { silentRateLimit: true },
+        response: {
+          status: 429,
+          data: {},
+        },
+      }
+
+      await expect(mocks.responseHandlers.rejected(error)).rejects.toBe(error)
+
+      expect(mocks.warning).not.toHaveBeenCalled()
+    })
   })
 })

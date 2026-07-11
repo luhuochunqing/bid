@@ -8,9 +8,14 @@ import { API_CONFIG } from './config'
 import { clearSessionState } from './session.js'
 import { normalizeAuthSessionResponse } from './authNormalizer.js'
 import { resetAuthStoreSession, syncAuthStoreSession } from './authStoreBridge.js'
+import { resolveRateLimitMessage } from './rate-limit-message-resolver.js'
 import router from '@/router/index.js'
 
 let refreshPromise = null
+
+// US2: 限流提示 module-level 冷却期，避免短时间内重复弹 toast
+const RATE_LIMIT_TOAST_COOLDOWN_MS = 3000
+let lastRateLimitToastTime = 0
 
 const syncRefreshedSession = async (refreshResult) => {
   if (!refreshResult?.success || !refreshResult?.data?.user) {
@@ -230,9 +235,26 @@ httpClient.interceptors.response.use(
         case 402:
           ElMessage.error(serverMsg || '服务余额不足，请联系管理员充值')
           break
-        case 429:
-          ElMessage.warning(serverMsg || '请求过于频繁，请稍后再试')
+        case 429: {
+          if (config?.silentRateLimit) {
+            break
+          }
+
+          const { message } = resolveRateLimitMessage({
+            status: response.status,
+            data: response.data,
+            headers: response.headers,
+          })
+
+          const now = Date.now()
+          if (now - lastRateLimitToastTime < RATE_LIMIT_TOAST_COOLDOWN_MS) {
+            break
+          }
+
+          lastRateLimitToastTime = now
+          ElMessage.warning(message)
           break
+        }
         case 500:
           ElMessage.error(serverMsg || '服务器出现问题，请稍后重试')
           break

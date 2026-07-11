@@ -1,6 +1,9 @@
 package com.xiyu.bid.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.auth.JwtUtil;
+import com.xiyu.bid.dto.ApiResponse;
+import com.xiyu.bid.exception.RateLimitResponseFactory;
 import com.xiyu.bid.util.DigestUtils;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -28,6 +31,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private final RateLimitConfig.RateLimiter rateLimiter;
     private final JwtUtil jwtUtil;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Value("${rate.limit.login.max-attempts:5}")
     private int maxLoginAttempts;
@@ -161,18 +165,22 @@ public class RateLimitFilter extends OncePerRequestFilter {
                                final int maxRequests, final Duration window, final boolean addHeaders)
             throws IOException, ServletException {
         boolean allowed = rateLimiter.allowRequest(key, maxRequests, window);
+        long nowSeconds = System.currentTimeMillis() / 1000;
+        long resetSeconds = nowSeconds + window.getSeconds();
         if (addHeaders) {
             response.setHeader("X-RateLimit-Limit", String.valueOf(maxRequests));
-            response.setHeader("X-RateLimit-Reset",
-                    String.valueOf(System.currentTimeMillis() / 1000 + window.getSeconds()));
+            response.setHeader("X-RateLimit-Reset", String.valueOf(resetSeconds));
         }
         if (!allowed) {
-            log.warn("Rate limit exceeded for key: {}", key);
+            int retryAfterSeconds = (int) Math.max(1, resetSeconds - System.currentTimeMillis() / 1000);
+            log.warn("Rate limit exceeded: key={}, path={}, retryAfter={}s",
+                    key, request.getRequestURI(), retryAfterSeconds);
             response.setStatus(429);
             response.setContentType("application/json");
-            response.getWriter().write(
-                    "{\"error\":{\"code\":\"rate_limit_exceeded\","
-                    + "\"message\":\"Too many requests. Please try again later.\"}}");
+            response.setCharacterEncoding("UTF-8");
+            response.setHeader("Retry-After", String.valueOf(retryAfterSeconds));
+            ApiResponse<Integer> apiResponse = RateLimitResponseFactory.build(retryAfterSeconds);
+            objectMapper.writeValue(response.getWriter(), apiResponse);
             return;
         }
         chain.doFilter(request, response);
