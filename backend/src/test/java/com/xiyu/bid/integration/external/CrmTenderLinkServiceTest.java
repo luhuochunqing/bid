@@ -282,4 +282,54 @@ class CrmTenderLinkServiceTest {
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
         assertThat(tender.getProjectManagerName()).isEqualTo("张三");
     }
+
+    // ===== CO-277 回归：CRM 推送 crmOpportunityId 字段传纯数字主键 id =====
+
+    @Test
+    void linkIfPresent_numericCode_resolvesViaChanceIdLookup() {
+        // PR !2011 回归根因：CRM 推送 crmOpportunityId=21364（纯数字主键 id），
+        // 旧代码直接存入 crm_opportunity_id 列，与"关联标讯"按钮设置的 CC 格式编号不一致，
+        // 导致去重校验失效（tender 1646 案例）
+        Tender tender = newTender();
+        CrmProjectLeaderService.ProjectLeaderResult leader =
+                new CrmProjectLeaderService.ProjectLeaderResult(
+                        "张三", "EMP001", "0711关联商机测试", "CC20260711739");
+        when(crmProjectLeaderService.findProjectLeaderByChanceId(21364L, null)).thenReturn(leader);
+        when(userRepository.findByEmployeeNumber("EMP001")).thenReturn(Optional.empty());
+
+        service.linkIfPresent(tender, null, "21364");
+
+        // 纯数字 id 不直接存入，反查后存入 CC 格式编号
+        assertThat(tender.getCrmOpportunityId()).isEqualTo("CC20260711739");
+        assertThat(tender.getCrmOpportunityName()).isEqualTo("0711关联商机测试");
+        assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
+        verify(crmProjectLeaderService).findProjectLeaderByChanceId(21364L, null);
+        // 不应该用纯数字去调 findProjectLeaderByChanceCode
+        verify(crmProjectLeaderService, never()).findProjectLeaderByChanceCode(any(), any());
+    }
+
+    @Test
+    void linkIfPresent_numericCode_noLeaderFound_doesNotStoreNumericId() {
+        // CRM 反查失败时，纯数字 id 不应存入 crm_opportunity_id 列
+        Tender tender = newTender();
+        when(crmProjectLeaderService.findProjectLeaderByChanceId(21364L, null)).thenReturn(null);
+
+        service.linkIfPresent(tender, null, "21364");
+
+        // 纯数字 id 不存入，避免与 CC 格式编号不一致导致去重校验失效
+        assertThat(tender.getCrmOpportunityId()).isNull();
+        assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
+    }
+
+    @Test
+    void linkIfPresent_numericCode_crmApiThrows_doesNotStoreNumericId() {
+        // CRM API 异常时，纯数字 id 仍不应存入
+        Tender tender = newTender();
+        when(crmProjectLeaderService.findProjectLeaderByChanceId(21364L, null))
+                .thenThrow(new RuntimeException("CRM 服务不可用"));
+
+        service.linkIfPresent(tender, null, "21364");
+
+        assertThat(tender.getCrmOpportunityId()).isNull();
+    }
 }

@@ -558,6 +558,79 @@ CO-276 修了"字段名"让值能进来，CO-277 修了"字段语义"让值被�
 
 ---
 
+## 8. PR !2011 字段分离回归：crmOpportunityId 纯数字 id 被直接存入，去重校验失效（2026-07-11 tender 1646）
+
+> 来源：2026-07-11 生产环境 BD 账号"关联标讯"按钮重复关联同一商机事故
+> PR !2016 修复"半关联"后部署测试环境验证时发现根因其实是 PR !2011 回归
+
+### 事故一句话总结
+
+PR !2011 把 `firstNonBlank(crmOpportunityId, crmId)` 合并取值改为两个字段独立传递，新增了 `tender.setCrmOpportunityId(crmOpportunityCode)`（L102-104）直接存入 code。但 CRM 推送的 `crmOpportunityId` 字段传的是**纯数字主键 id**（如 `21364`），不是 CC 格式编号（如 `CC20260711739`）。这段代码把 `21364` 直接存入 `crm_opportunity_id` 列，与"关联标讯"按钮设置的 CC 格式编号不一致，导致 `TenderCrmOccupancyChecker.findByCrmOpportunityId("CC20260711739")` 查不到这条记录，去重校验失效。
+
+### 根因：PR !2011 字段分离时遗漏了 CO-277 的"id 反查 code"语义
+
+| 阶段 | 代码行为 | 结果 |
+|------|----------|------|
+| CO-277 修复后 | `firstNonBlank(crmOpportunityId, crmId)` 合并取值，`21364` 作为 `crmId` 传入 `applyCrmLinkAndAssignment`，调 `findProjectLeaderByChanceId(21364)` 反查 CC code | ✅ 反查后存入 CC code |
+| PR !2011 "字段分离" | `crmOpportunityCode=21364` 非空 → 直接 `tender.setCrmOpportunityId("21364")` | ❌ 纯数字 id 直接存入 |
+
+PR !2011 的目标是消除 `firstNonBlank` 合并取值根因，把 `crmId` 和 `crmOpportunityId` 分离为两个独立字段。但分离时**假设 `crmOpportunityId` 字段传的一定是 CC 格式 code**，忽略了 CO-277 已确认的"CRM 推送的 `crmOpportunityId` 实传纯数字主键 id"事实。新增的 `tender.setCrmOpportunityId(crmOpportunityCode)`（L102-104）跳过了 CO-277 的 id 反查 code 步骤，直接把纯数字 id 存入 `crm_opportunity_id` 列。
+
+### 决定性证据：测试环境 tender 1646 vs 1648
+
+```
+tender 1646: crm_opportunity_id=21364（纯数字 id），crm_opportunity_name=0711关联商机测试，source_type=CRM_OPPORTUNITY
+tender 1648: crm_opportunity_id=CC20260711739（CC 格式 code），crm_opportunity_name=0711关联商机测试，source_type=MANUAL_SINGLE
+```
+
+两者 `crm_opportunity_name` 相同（同一商机），但 `crm_opportunity_id` 格式不同（id vs code）。tender 1646 由 CRM 推送创建，tender 1648 由 BD 账号"关联标讯"按钮创建。去重校验 `findByCrmOpportunityId("CC20260711739")` 查不到 tender 1646（因为它的 `crm_opportunity_id=21364`），校验通过，重复关联成功。
+
+### 修复内容
+
+1. **`CrmTenderLinkService.applyCrmLinkAndAssignment`**：
+   - 纯数字的 `crmOpportunityCode` 不直接存入，而是当作 `chanceId` 调 `findProjectLeaderByChanceId` 反查 CC code
+   - 新增 `isCcFormatCode` / `isNumericId` 辅助方法
+2. **`TenderIntegrationCommandSupport.applyCrmFallback`**：
+   - 同步加纯数字校验，防止 `hasCode=true` 路径绕过反查
+3. **`TenderCrmOccupancyChecker` 防复发监控**：
+   - 检测到纯数字 `crmOpportunityId` 时记录 `WARN` 日志，便于监控发现回归
+4. **回归测试**：3 个新用例覆盖纯数字 id 反查 / 反查失败 / API 异常场景
+
+### 最大教训：字段分离重构必须还原原有语义的完整链路
+
+| 验证手段 | 结论 | 是否可靠 |
+|---|---|---|
+| PR !2011 单元测试 | "code 非空 → 直接存入" 测试通过 | ❌ 不可靠，测试用的 code 是 CC 格式，没覆盖纯数字 id 场景 |
+| `crm_opportunity_id` 字段值 | 纯数字 → 存了 id（回归）；CC... → 存了 code（正常） | ✅ 可靠 |
+| BD 账号"关联标讯"按钮去重校验 | 重复关联成功 → 去重失效 | ✅ 端到端可靠 |
+
+**铁律**：字段分离重构时，必须逐一还原原有合并取值逻辑的**所有语义分支**，包括 id 反查 code、降级兜底等。不能只分离字段的"传递路径"，而遗忘字段的"语义处理路径"。PR !2011 分离了 `crmId` 和 `crmOpportunityId` 的传递，但遗漏了 CO-277 的"id 反查 code"语义——这个语义原来由 `firstNonBlank` 合并取值 + `applyCrmLinkAndAssignment` 按 `crmId` 反查共同完成，分离后反查链路断裂。
+
+### 防复发工程化措施
+
+1. **`TenderCrmOccupancyChecker` 增加格式校验防御**：检测到纯数字 `crmOpportunityId` 时记录 `WARN` 日志。这是第二道防线——即使上游代码再次回归，监控能及时发现。
+2. **回归测试覆盖纯数字 id 场景**：`CrmTenderLinkServiceTest` 新增 3 个用例，确保 `crmOpportunityCode=纯数字` 时走 id 反查路径，不直接存入。
+3. **类注释补强字段语义警告**：`CrmTenderLinkService.applyCrmLinkAndAssignment` 方法注释明确标注"CRM 推送方把商机主键 id 放在 crmOpportunityId 字段传输"，防止后续开发者再次误判字段语义。
+
+### 与第 6、7 节的关系：同一字段的三道独立断点
+
+| 断点 | 节 | 表现 | 根因 |
+|---|---|---|---|
+| 字段名不匹配 | 第 6 节 | crmOpportunityId 被 Jackson 丢弃，crm_opportunity_id=NULL | 字段名 crmOpportunityId vs crmId |
+| 字段语义不匹配 | 第 7 节 | crmOpportunityId=20916 被当 code 查失败，降级存 id | CRM 推 id，代码假设推 code |
+| **字段分离回归** | **本节** | **crmOpportunityId=21364 被直接存入，跳过 id 反查** | **PR !2011 分离字段时遗漏 CO-277 的 id 反查语义** |
+
+三道断点症状相似（`crm_opportunity_id` 值错误），但根因独立。第 6 节修字段名，第 7 节修字段语义，本节修字段分离回归。**字段分离重构是高风险操作**——它改变了字段的传递路径，容易遗漏原有路径上的语义处理逻辑。
+
+### 相关文档
+
+- [CrmTenderLinkService.java](../../backend/src/main/java/com/xiyu/bid/integration/external/CrmTenderLinkService.java) — `applyCrmLinkAndAssignment` 纯数字 id 反查 + `isCcFormatCode`/`isNumericId`
+- [TenderIntegrationCommandSupport.java](../../backend/src/main/java/com/xiyu/bid/integration/external/TenderIntegrationCommandSupport.java) — `applyCrmFallback` 纯数字校验
+- [TenderCrmOccupancyChecker.java](../../backend/src/main/java/com/xiyu/bid/tender/service/TenderCrmOccupancyChecker.java) — 纯数字 `WARN` 监控防御
+- [CrmTenderLinkServiceTest.java](../../backend/src/test/java/com/xiyu/bid/integration/external/CrmTenderLinkServiceTest.java) — 3 个 CO-277 回归用例
+
+---
+
 ## 7. 附件 URL 回传格式：CRM 可能直接给我们系统的下载代理 URL，后端不能二次包装（CO-283）
 
 > 来源：CO-283 排查，2026-06-20

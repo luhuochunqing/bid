@@ -243,4 +243,41 @@ class TenderIntegrationCommandSupportTest {
         assertThat(tender.getCrmOpportunityId()).isEqualTo("CC2026070930");
         assertThat(tender.getCrmOpportunityName()).isEqualTo("0710商机10");
     }
+
+    // ===== CO-277 防回归：applyCrmFallback 纯数字 code 不应直接存入 =====
+
+    @Test
+    @DisplayName("applyCrmFallback: crmOpportunityCode 是纯数字 id 时不直接存入（PR !2011 回归根因）")
+    void applyCrmFallback_numericCode_doesNotStoreNumericId() {
+        // 场景：CRM 推送 crmOpportunityCode=21364（纯数字主键 id，CO-277 字段语义）
+        // 期望：不直接存入 crm_opportunity_id 列，避免与"关联标讯"按钮设置的 CC 格式编号不一致
+        // 导致去重校验失效（tender 1646 vs 1648 案例根因）
+        Tender tender = new Tender();
+
+        support.applyCrmFallback(tender, null, "21364", "0711关联商机测试");
+
+        // 纯数字 id 不存入 crm_opportunity_id 列
+        assertThat(tender.getCrmOpportunityId()).isNull();
+        // 因 crmOpportunityId 为 null，name 也不应被设置（防"半关联"状态）
+        assertThat(tender.getCrmOpportunityName()).isNull();
+        // 但状态和来源仍正常设置
+        assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
+        assertThat(tender.getEvaluationSource()).isEqualTo(Tender.EvaluationSource.CRM_PUSH);
+    }
+
+    @Test
+    @DisplayName("applyCrmFallback: 已有 CC 格式 crmOpportunityId 时，纯数字 code 不应覆盖")
+    void applyCrmFallback_numericCode_doesNotOverwriteExistingCcCode() {
+        // 场景：标讯已通过"关联标讯"按钮设置了 CC 格式编号，
+        // 后续 CRM 推送 update 时传入纯数字 id，不应覆盖已有的 CC 编号
+        Tender tender = new Tender();
+        tender.setCrmOpportunityId("CC20260711739");
+        tender.setCrmOpportunityName("0711关联商机测试");
+
+        support.applyCrmFallback(tender, null, "21364", "其他商机名");
+
+        // 已有 CC 编号不应被纯数字覆盖
+        assertThat(tender.getCrmOpportunityId()).isEqualTo("CC20260711739");
+        assertThat(tender.getCrmOpportunityName()).isEqualTo("0711关联商机测试");
+    }
 }

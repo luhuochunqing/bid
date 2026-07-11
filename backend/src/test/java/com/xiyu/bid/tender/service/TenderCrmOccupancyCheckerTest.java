@@ -88,4 +88,18 @@ class TenderCrmOccupancyCheckerTest {
                 .doesNotThrowAnyException();
         verify(tenderRepository, never()).findByCrmOpportunityId(anyString());
     }
+
+    // ===== CO-277 防复发：纯数字 crmOpportunityId 警告 =====
+
+    @Test
+    @DisplayName("CO-277 防复发：纯数字 crmOpportunityId 仍执行查询（兼容历史数据），便于监控发现回归")
+    void assertCrmOpportunityNotOccupied_WhenNumericId_ShouldStillQueryForMonitoring() {
+        // 纯数字是 CRM 推送误传的主键 id（PR !2011 回归根因），
+        // 校验本身不拦截（因为可能有历史数据），但应记录警告日志便于监控发现
+        when(tenderRepository.findByCrmOpportunityId("21364")).thenReturn(Optional.empty());
+
+        assertThatCode(() -> checker.assertCrmOpportunityNotOccupied(100L, "21364"))
+                .doesNotThrowAnyException();
+        verify(tenderRepository).findByCrmOpportunityId("21364");
+    }
 }
