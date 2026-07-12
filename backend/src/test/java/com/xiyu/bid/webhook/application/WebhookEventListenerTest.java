@@ -78,8 +78,8 @@ class WebhookEventListenerTest {
                     String crmId = t.getCrmOpportunityId();
                     return (crmId == null || crmId.isBlank()) ? "" : crmId;
                 });
-        // CO-571 Phase B: 默认 resolveDeliveryUsername 返回非空 username，使大多数测试仍能入队
-        lenient().when(operatorUsernameResolver.resolveDeliveryUsername(any(Tender.class), any()))
+        // CO-571 Phase B: 默认 resolveForCrmLookup 返回非空 username，使大多数测试仍能入队
+        lenient().when(operatorUsernameResolver.resolveForCrmLookup(any(Tender.class), any()))
                 .thenReturn("default-operator");
     }
 
@@ -224,7 +224,7 @@ class WebhookEventListenerTest {
         tender.setCrmOpportunityId(null);
         tender.setExternalId(ExternalSystemPrefix.CRM.formatExternalId("17"));
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender));
-        when(operatorUsernameResolver.resolveDeliveryUsername(tender, 493L)).thenReturn("zhangsan");
+        when(operatorUsernameResolver.resolveForCrmLookup(tender, 493L)).thenReturn("zhangsan");
 
         l.onTenderStatusChanged(event(Tender.Status.ABANDONED, "放弃投标", "张三"));
 
@@ -305,7 +305,7 @@ class WebhookEventListenerTest {
         WebhookEventListener l = listener();
         Tender tender = mockTender();
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender));
-        when(operatorUsernameResolver.resolveDeliveryUsername(tender, 493L)).thenReturn(null);
+        when(operatorUsernameResolver.resolveForCrmLookup(tender, 493L)).thenReturn(null);
 
         l.onTenderStatusChanged(event(Tender.Status.EVALUATED, null, "王五"));
 
@@ -313,19 +313,19 @@ class WebhookEventListenerTest {
     }
 
     @Test
-    @DisplayName("CO-571 Phase B: event operator 为 admin 时优先用 creator 的 username")
-    void evaluated_usesCreatorWhenEventIsAdminOrNull() {
+    @DisplayName("CO-571 Phase B: event operator 为 admin 时优先用 projectManager 的 username（避免 admin 无 OSS token）")
+    void evaluated_usesProjectManagerWhenCreatorIsAdmin() {
         WebhookEventListener l = listener();
         Tender tender = mockTender();
-        tender.setCreatorId(100L);
+        tender.setProjectManagerId(100L);
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender));
-        // resolveDeliveryUsername 应被调用，返回 creator 的 username
-        when(operatorUsernameResolver.resolveDeliveryUsername(tender, 493L)).thenReturn("creator-user");
+        // resolveForCrmLookup 应被调用，返回 projectManager 的 username（PM 是 OSS 用户有 token）
+        when(operatorUsernameResolver.resolveForCrmLookup(tender, 493L)).thenReturn("pm-user");
 
         l.onTenderStatusChanged(event(Tender.Status.EVALUATED, null, "admin"));
 
-        verify(operatorUsernameResolver).resolveDeliveryUsername(tender, 493L);
-        verify(tenderCrmOpportunityCodeResolver).resolveForTender(tender, "creator-user");
+        verify(operatorUsernameResolver).resolveForCrmLookup(tender, 493L);
+        verify(tenderCrmOpportunityCodeResolver).resolveForTender(tender, "pm-user");
     }
 
     private WebhookDeliveryTask captureSingleSaved() {

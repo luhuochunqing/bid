@@ -1,6 +1,9 @@
 // Input: 操作者用户主键 / Tender 实体（creatorId + projectManagerId）
 // Output: 操作者用户名（username），用于 webhook 投递时换 OSS token
 // Pos: webhook/application/ - webhook 应用层共享组件
+// Methods: resolve(Long) — 单 userId 反查 username
+//          resolveDeliveryUsername(Tender, Long) — creatorId → projectManagerId → eventOperatorId（仅展示/审计）
+//          resolveForCrmLookup(Tender, Long) — projectManagerId → creatorId → fallback（用于换 CRM token）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.webhook.application;
 
@@ -20,6 +23,18 @@ import org.springframework.stereotype.Component;
  * API Key 场景 event 常是 admin（有 username 无 OSS），故 creator/PM 优先于 event。
  *
  * <p>查不到或 userId 为空时返回 {@code null}，调用方按自身策略处理。
+ *
+ * <p><b>⚠️ 使用指引（防复发）：</b>
+ * <ul>
+ *   <li>{@link #resolveForCrmLookup(Tender, Long)}：用于"后续需要拿这个 username 去换 CRM token"的场景。
+ *       解析顺序 PM → creator → fallback。原因：API Key 路径下 creator 常是 admin（无 OSS token），
+ *       PM 是 CRM 推送的项目负责人（OSS 用户有 token）。</li>
+ *   <li>{@link #resolveDeliveryUsername(Tender, Long)}：仅用于纯展示/审计场景，<b>不</b>进入 CRM token 换取链路。
+ *       解析顺序 creator → PM → eventOperator。</li>
+ * </ul>
+ * <p>凡是 username 会进入 {@code CrmAuthService.getValidTokenForUser(username)} →
+ * {@code WebhookCrmTokenResolver.resolveToken(username)} 链路的调用点，<b>必须</b>用 {@code resolveForCrmLookup}，
+ * 否则在 {@code source_type=CRM_OPPORTUNITY} 且 creator=admin 的标讯上必触发 {@code TokenUnavailableException}。
  */
 @Component
 @RequiredArgsConstructor

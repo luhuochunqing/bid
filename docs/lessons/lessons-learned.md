@@ -3907,3 +3907,34 @@ ORDER BY created_at DESC LIMIT 20;
 - `backend/src/main/java/com/xiyu/bid/scoreanalysis/service/ScoreAnalysisService.java`
 - `backend/src/main/java/com/xiyu/bid/batch/service/BatchTenderStatusAppService.java`
 - `backend/src/main/java/com/xiyu/bid/webhook/domain/TenderStatusChangedEvent.java`
+
+### 案例 56：项目结果确认回调未送达 CRM（2026-07-12）
+
+**现象**：生产环境项目 ID=16（tenderId=43）中标结果 WON 登记后，CRM 商机 `CC2026071255` 状态仍是跟进中。webhook 投递 3 次重试全失败，进入死信队列。
+
+**Layer 2 证据链**：
+- 入队日志：`operatorUsername=admin`（admin 无 OSS token）
+- 投递日志：`Cannot get CRM token: user OSS token missing, username=admin`
+- 数据库：`webhook_delivery_tasks.status=DEAD_LETTER, attempt_count=3`，`webhook_delivery_dlq.reason_code=TRANSIENT_DEPENDENCY_EXHAUSTED`
+- tender 43：`creator_id=1`（admin），`project_manager_id=110`（OSS 用户王占俊），`source_type=CRM_OPPORTUNITY`
+
+**Layer 3 git 追溯**：
+- commit `1f99ed2a0` "fix: 优先用项目负责人 username 获取 CRM token（admin 无 OSS token）" 在 `OperatorUsernameResolver` 新增了 `resolveForCrmLookup` 方法（PM 优先）
+- 但只改了 `TenderIntegrationCommandService` 的 3 处调用（CRM 推送创建关联），**漏改了**两个 webhook listener
+- 直接触发点：`ProjectResultConfirmedWebhookListener.java:93` 仍用 `resolveDeliveryUsername`（creator 优先）
+
+**5 Whys**：
+1. CRM 没收到回调 → webhook 投递 3 次失败进死信
+2. 投递失败 → `CrmAuthService.getValidTokenForUser(admin)` 抛 `TokenUnavailableException`
+3. 用 admin 投递 → 入队时 `operatorUsername=admin`
+4. 入队选 admin → `resolveDeliveryUsername` 优先取 creatorId，tender 43 的 `creator_id=1`
+5. creator 是 admin → tender 43 由 CRM 推送经 API Key 路径创建，创建者默认是 admin
+
+**根因分类**：§1 追症状不追根因（commit `1f99ed2a0` 只修了主路径，未做全仓库调用点排查）+ §7 未在真实环境验证（修复未覆盖 E2E 链路验证）。
+
+**修复**：两个 webhook listener 改用 `resolveForCrmLookup`（PR !2047 / CO-571 Phase B 补齐）。
+
+**防复发**：
+- `OperatorUsernameResolver` javadoc 顶部追加"使用指引"小节，明确两个方法的语义差异和适用场景
+- 凡是 username 进入 `CrmAuthService.getValidTokenForUser(username)` 链路的调用点，必须用 `resolveForCrmLookup`
+- 后续任何"新增 CRM token 换取调用点"的 PR，必须 grep `resolveDeliveryUsername` 确认是否需要改为 `resolveForCrmLookup`
