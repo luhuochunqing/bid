@@ -396,4 +396,21 @@ public class TenderCommandService {
             throw new BusinessException(409, "标讯已进入「" + status.name() + "」状态，无法更换CRM商机");
         }
     }
+
+    /**
+     * 解析标讯的创建者 ID（CO-571 Phase C）。
+     * <p>供 scoreanalysis 等需要 creatorId 兜底但不应直接依赖 tender repository 的模块使用，
+     * 避免跨模块直接访问 repository 层。
+     *
+     * @param tenderId 标讯 ID
+     * @return 创建者 ID；tender 不存在时返回 {@code null}
+     */
+    public Long resolveCreatorId(Long tenderId) {
+        if (tenderId == null) {
+            return null;
+        }
+        return tenderRepository.findById(tenderId)
+                .map(Tender::getCreatorId)
+                .orElse(null);
+    }
 }

@@ -54,9 +54,6 @@ class ScoreAnalysisServiceTest {
     @Mock
     private com.xiyu.bid.security.CurrentUserResolver currentUserResolver;
 
-    @Mock
-    private com.xiyu.bid.repository.TenderRepository tenderRepository;
-
     @InjectMocks
     private ScoreAnalysisService scoreAnalysisService;
 
@@ -147,9 +144,7 @@ class ScoreAnalysisServiceTest {
     void noCurrentUser_usesCreatorAsOperator() {
         createRequest.setTenderId(200L);
         when(currentUserResolver.getCurrentUserId()).thenReturn(null);
-        com.xiyu.bid.entity.Tender tender = new com.xiyu.bid.entity.Tender();
-        tender.setCreatorId(77L);
-        when(tenderRepository.findById(200L)).thenReturn(java.util.Optional.of(tender));
+        when(tenderCommandService.resolveCreatorId(200L)).thenReturn(77L);
         when(scoreAnalysisRepository.save(any(ScoreAnalysis.class))).thenReturn(testAnalysis);
         when(queryService.convertToDTO(any())).thenReturn(ScoreAnalysisDTO.builder()
                 .projectId(100L)
@@ -167,9 +162,7 @@ class ScoreAnalysisServiceTest {
     void noCurrentUserAndNoCreator_skipsEvaluatedUpdate() {
         createRequest.setTenderId(200L);
         when(currentUserResolver.getCurrentUserId()).thenReturn(null);
-        com.xiyu.bid.entity.Tender tender = new com.xiyu.bid.entity.Tender();
-        tender.setCreatorId(null);
-        when(tenderRepository.findById(200L)).thenReturn(java.util.Optional.of(tender));
+        when(tenderCommandService.resolveCreatorId(200L)).thenReturn(null);
         when(scoreAnalysisRepository.save(any(ScoreAnalysis.class))).thenReturn(testAnalysis);
         when(queryService.convertToDTO(any())).thenReturn(ScoreAnalysisDTO.builder()
                 .projectId(100L)
@@ -187,7 +180,7 @@ class ScoreAnalysisServiceTest {
     void noCurrentUserAndTenderMissing_skipsEvaluatedUpdate() {
         createRequest.setTenderId(200L);
         when(currentUserResolver.getCurrentUserId()).thenReturn(null);
-        when(tenderRepository.findById(200L)).thenReturn(java.util.Optional.empty());
+        when(tenderCommandService.resolveCreatorId(200L)).thenReturn(null);
         when(scoreAnalysisRepository.save(any(ScoreAnalysis.class))).thenReturn(testAnalysis);
         when(queryService.convertToDTO(any())).thenReturn(ScoreAnalysisDTO.builder()
                 .projectId(100L)
