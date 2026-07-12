@@ -13,6 +13,7 @@ class TenderIntakeTextProcessor {
 
     private static final int INTAKE_CONTEXT_RADIUS = 3;
     private static final int INTAKE_CONTEXT_MAX_CHARS = 20_000;
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private static final List<String> INTAKE_KEYWORDS = List.of(
             "项目名称", "项目标题", "标讯标题", "招标项目", "采购项目", "公告标题",
             "招标编号", "采购编号", "项目编号", "标段名称", "包号", "品目名称",
@@ -88,30 +89,44 @@ class TenderIntakeTextProcessor {
             String time = dateMatcher.group(4);
             String dateStr = year + "-" + month + "-" + day;
             if (time != null && !time.isBlank()) {
-                dateStr += "T" + time.trim() + ":00";
+                dateStr += "T" + normalizeTime(time.trim());
             }
-            dates.add(dateStr);
+            // 附加日期前 15 个字符作为上下文，帮助 AI 区分是"获取文件时间"还是"投标截止时间"
+            int start = Math.max(0, dateMatcher.start() - 15);
+            String prefix = text.substring(start, dateMatcher.start()).trim();
+            String label = prefix.isEmpty() ? "" : "（上下文：" + prefix + "）";
+            dates.add(dateStr + label);
         }
         if (!dates.isEmpty()) {
             hints.append("- 日期：").append(String.join("、", dates)).append("\n");
         }
 
-        // 2. 金额提取：匹配 "数字+万/亿/元" 格式
+        // 2. 金额提取：匹配 "数字+万/亿/元" 格式，附加归一化提示
         List<String> amounts = new ArrayList<>();
         Matcher amountMatcher = Pattern.compile(
-                "(\\d+(?:\\.\\d+)?)\\s*(?:万|亿)?\\s*元"
+                "(\\d+(?:\\.\\d+)?)\\s*(万|亿)?\\s*元"
         ).matcher(text);
         while (amountMatcher.find()) {
-            amounts.add(amountMatcher.group());
+            String num = amountMatcher.group(1);
+            String unit = amountMatcher.group(2);
+            String normalized;
+            if ("万".equals(unit)) {
+                normalized = num + "万元（归一化：" + new java.math.BigDecimal(num).multiply(new java.math.BigDecimal("10000")).toPlainString() + "元）";
+            } else if ("亿".equals(unit)) {
+                normalized = num + "亿元（归一化：" + new java.math.BigDecimal(num).multiply(new java.math.BigDecimal("100000000")).toPlainString() + "元）";
+            } else {
+                normalized = num + "元";
+            }
+            amounts.add(normalized);
         }
         if (!amounts.isEmpty()) {
             hints.append("- 金额：").append(String.join("、", amounts)).append("\n");
         }
 
-        // 3. 手机号提取
+        // 3. 手机号提取：确保不在更长数字串中间（前后非数字）
         List<String> phones = new ArrayList<>();
         Matcher phoneMatcher = Pattern.compile(
-                "1[3-9]\\d{9}"
+                "(?<!\\d)1[3-9]\\d{9}(?!\\d)"
         ).matcher(text);
         while (phoneMatcher.find()) {
             phones.add(phoneMatcher.group());
@@ -138,6 +153,16 @@ class TenderIntakeTextProcessor {
         return hints.toString();
     }
 
+    /** 归一化时间：HH:mm → HH:mm:00；HH:mm:ss → 保持不变 */
+    static String normalizeTime(String time) {
+        if (time == null || time.isBlank()) return "";
+        long colonCount = time.chars().filter(c -> c == ':').count();
+        if (colonCount == 1) {
+            return time + ":00";
+        }
+        return time;
+    }
+
     /**
      * 从 markitdown sidecar 返回的 structuredMetadata JSON 中提取文档标题结构。
      * 对于粘贴文本（structuredMetadata 为 null），返回空字符串。
@@ -148,7 +173,7 @@ class TenderIntakeTextProcessor {
             return "";
         }
         try {
-            JsonNode root = new ObjectMapper().readTree(structuredMetadata);
+            JsonNode root = OBJECT_MAPPER.readTree(structuredMetadata);
             JsonNode sections = root.path("sections");
             if (!sections.isArray() || sections.isEmpty()) {
                 return "";
