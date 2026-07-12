@@ -152,7 +152,7 @@ export function useCrmOpportunitySelector(props, emit) {
         // CO-277: 对接人查询成功但为空时阻断关联，提示用户到 CRM 系统添加对接人。
         // 生产案例：CRM 推送标讯时项目负责人未在 CRM 系统录入对接人，导致商机关联后
         // 评估表客户信息矩阵为空，后续 CRM token 获取和商机反查全部失败。
-        if (!contacts || contacts.length === 0) {
+        if (contacts.length === 0) {
           ElMessage.error('请到 CRM 系统添加项目对接人')
           return
         }
