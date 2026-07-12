@@ -130,6 +130,7 @@ describe('ClosureStage — 蓝图 §3.3.1.6 deposit-return gate', () => {
         canClose: true,
         reviewStatus: 'DRAFT',
         blockingReasons: [],
+        depositAmount: 200,
       },
     })
     const wrapper = mount(ClosureStage, {
@@ -389,6 +390,114 @@ describe('ClosureStage — 结项编辑/提交/审核权矩阵', () => {
     expect(wrapper.vm.canEditDeposit).toBe(false)
     expect(wrapper.vm.canEditSummary).toBe(false)
     expect(wrapper.vm.canSubmitClosure).toBe(false)
+  })
+})
+
+// CO-573: 保证金退回金额等值校验
+// 规则：
+//   TRANSFERRED_TO_FEE → transferAmount == depositAmount
+//   PARTIAL_RETURN_PARTIAL_TRANSFER → returnedAmount + transferAmount == depositAmount
+describe('ClosureStage — CO-573 保证金退回金额等值校验', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockUserStore.userRole = 'bid-projectLeader'
+    mockUserStore.currentUser = { id: 42 }
+    projectLifecycleApi.getDrafting.mockResolvedValue({ data: { projectId: 1 } })
+  })
+
+  it('T1: TRANSFERRED_TO_FEE 金额相等 → canSubmit=true，validateDepositAmount=null', async () => {
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({
+      data: { projectId: 1, hasDeposit: true, depositAmount: 500, canClose: true, reviewStatus: 'DRAFT', blockingReasons: [] },
+    })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    wrapper.vm.form.depositReturnStatus = 'TRANSFERRED_TO_FEE'
+    wrapper.vm.form.transferAmount = 500
+    wrapper.vm.form.depositReturnEvidenceId = 99
+    await flushPromises()
+    expect(wrapper.vm.canSubmit).toBe(true)
+    expect(wrapper.vm.validateDepositAmount()).toBe(null)
+    expect(wrapper.vm.transferAmountMismatch).toBe(false)
+  })
+
+  it('T2: TRANSFERRED_TO_FEE 金额不等 → canSubmit=false，validateDepositAmount 返回提示', async () => {
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({
+      data: { projectId: 1, hasDeposit: true, depositAmount: 500, canClose: true, reviewStatus: 'DRAFT', blockingReasons: [] },
+    })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    wrapper.vm.form.depositReturnStatus = 'TRANSFERRED_TO_FEE'
+    wrapper.vm.form.transferAmount = 300
+    wrapper.vm.form.depositReturnEvidenceId = 99
+    await flushPromises()
+    expect(wrapper.vm.canSubmit).toBe(false)
+    const msg = wrapper.vm.validateDepositAmount()
+    expect(msg).toBeTruthy()
+    expect(msg).toContain('转服务费金额必须等于保证金金额')
+    expect(wrapper.vm.transferAmountMismatch).toBe(true)
+  })
+
+  it('T3: PARTIAL_RETURN_PARTIAL_TRANSFER 之和相等 → canSubmit=true', async () => {
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({
+      data: { projectId: 1, hasDeposit: true, depositAmount: 1000, canClose: true, reviewStatus: 'DRAFT', blockingReasons: [] },
+    })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    wrapper.vm.form.depositReturnStatus = 'PARTIAL_RETURN_PARTIAL_TRANSFER'
+    wrapper.vm.form.returnedAmount = 600
+    wrapper.vm.form.transferAmount = 400
+    wrapper.vm.form.depositReturnEvidenceId = 88
+    await flushPromises()
+    expect(wrapper.vm.canSubmit).toBe(true)
+    expect(wrapper.vm.validateDepositAmount()).toBe(null)
+    expect(wrapper.vm.partialSumMismatch).toBe(false)
+  })
+
+  it('T4: PARTIAL_RETURN_PARTIAL_TRANSFER 之和不等 → canSubmit=false，validateDepositAmount 返回提示', async () => {
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({
+      data: { projectId: 1, hasDeposit: true, depositAmount: 1000, canClose: true, reviewStatus: 'DRAFT', blockingReasons: [] },
+    })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    wrapper.vm.form.depositReturnStatus = 'PARTIAL_RETURN_PARTIAL_TRANSFER'
+    wrapper.vm.form.returnedAmount = 600
+    wrapper.vm.form.transferAmount = 300
+    wrapper.vm.form.depositReturnEvidenceId = 88
+    await flushPromises()
+    expect(wrapper.vm.canSubmit).toBe(false)
+    const msg = wrapper.vm.validateDepositAmount()
+    expect(msg).toBeTruthy()
+    expect(msg).toContain('退回金额与转服务费金额之和必须等于保证金金额')
+    expect(wrapper.vm.partialSumMismatch).toBe(true)
+  })
+
+  it('T5: depositAmount 为 null（边界）→ 跳过等值校验，canSubmit 仅按 >0 判断', async () => {
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({
+      data: { projectId: 1, hasDeposit: true, depositAmount: null, canClose: true, reviewStatus: 'DRAFT', blockingReasons: [] },
+    })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    wrapper.vm.form.depositReturnStatus = 'TRANSFERRED_TO_FEE'
+    wrapper.vm.form.transferAmount = 300
+    wrapper.vm.form.depositReturnEvidenceId = 99
+    await flushPromises()
+    expect(wrapper.vm.canSubmit).toBe(true)
+    expect(wrapper.vm.validateDepositAmount()).toBe(null)
+    expect(wrapper.vm.transferAmountMismatch).toBe(false)
+  })
+
+  it('T6: depositAmount 为 0（边界）→ 金额必须等于 0 才通过，但 transferAmount>0 时不等', async () => {
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({
+      data: { projectId: 1, hasDeposit: true, depositAmount: 0, canClose: true, reviewStatus: 'DRAFT', blockingReasons: [] },
+    })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    wrapper.vm.form.depositReturnStatus = 'TRANSFERRED_TO_FEE'
+    wrapper.vm.form.transferAmount = 100
+    wrapper.vm.form.depositReturnEvidenceId = 99
+    await flushPromises()
+    expect(wrapper.vm.canSubmit).toBe(false)
+    expect(wrapper.vm.transferAmountMismatch).toBe(true)
   })
 })
 

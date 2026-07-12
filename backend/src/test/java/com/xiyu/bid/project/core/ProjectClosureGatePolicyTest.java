@@ -177,6 +177,64 @@ class ProjectClosureGatePolicyTest {
         assertTrue(deny.reasons().contains("缺少证明文件"));
     }
 
+    // ----- CO-573: 退回金额与保证金金额等值校验 -----
+
+    @Test
+    void co573_transferredToFee_amountEqualsDeposit_allowed() {
+        var snap = new DepositSnapshot(true, DepositReturnStatus.TRANSFERRED_TO_FEE, null, DOC, AMOUNT_100, null);
+        var inputs = new ProjectClosureGatePolicy.ClosureGateInputs(snap, ClosureInput.EMPTY, List.of(), AMOUNT_100);
+        var d = ProjectClosureGatePolicy.decide(inputs);
+        assertTrue(d.allowed());
+    }
+
+    @Test
+    void co573_transferredToFee_amountNotEqualsDeposit_denied() {
+        var snap = new DepositSnapshot(true, DepositReturnStatus.TRANSFERRED_TO_FEE, null, DOC, AMOUNT_50, null);
+        var inputs = new ProjectClosureGatePolicy.ClosureGateInputs(snap, ClosureInput.EMPTY, List.of(), AMOUNT_100);
+        var d = ProjectClosureGatePolicy.decide(inputs);
+        assertFalse(d.allowed());
+        var deny = assertInstanceOf(Decision.Deny.class, d);
+        assertTrue(deny.reasons().contains("转服务费金额必须等于保证金金额"));
+    }
+
+    @Test
+    void co573_partialReturn_sumEqualsDeposit_allowed() {
+        var snap = new DepositSnapshot(true, DepositReturnStatus.PARTIAL_RETURN_PARTIAL_TRANSFER, null, DOC, AMOUNT_50, AMOUNT_50);
+        var inputs = new ProjectClosureGatePolicy.ClosureGateInputs(snap, ClosureInput.EMPTY, List.of(), AMOUNT_100);
+        var d = ProjectClosureGatePolicy.decide(inputs);
+        assertTrue(d.allowed());
+    }
+
+    @Test
+    void co573_partialReturn_sumNotEqualsDeposit_denied() {
+        var snap = new DepositSnapshot(true, DepositReturnStatus.PARTIAL_RETURN_PARTIAL_TRANSFER, null, DOC, AMOUNT_50, AMOUNT_50);
+        var inputs = new ProjectClosureGatePolicy.ClosureGateInputs(snap, ClosureInput.EMPTY, List.of(), new BigDecimal("200.00"));
+        var d = ProjectClosureGatePolicy.decide(inputs);
+        assertFalse(d.allowed());
+        var deny = assertInstanceOf(Decision.Deny.class, d);
+        assertTrue(deny.reasons().contains("退回金额与转服务费金额之和必须等于保证金金额"));
+    }
+
+    @Test
+    void co573_nullDepositAmount_skipsEqualityCheck_backwardCompat() {
+        // depositAmount=null 时等值校验跳过，保持旧行为（仅校验 >0 与凭证）
+        var snap = new DepositSnapshot(true, DepositReturnStatus.TRANSFERRED_TO_FEE, null, DOC, AMOUNT_50, null);
+        var inputs = new ProjectClosureGatePolicy.ClosureGateInputs(snap, ClosureInput.EMPTY, List.of(), null);
+        var d = ProjectClosureGatePolicy.decide(inputs);
+        assertTrue(d.allowed());
+    }
+
+    @Test
+    void co573_transferredToFee_zeroDepositAmount_deniedByPresenceCheck() {
+        // 边界：depositAmount=0，transferAmount>0 但 != 0 → 等值校验拒绝
+        var snap = new DepositSnapshot(true, DepositReturnStatus.TRANSFERRED_TO_FEE, null, DOC, AMOUNT_100, null);
+        var inputs = new ProjectClosureGatePolicy.ClosureGateInputs(snap, ClosureInput.EMPTY, List.of(), BigDecimal.ZERO);
+        var d = ProjectClosureGatePolicy.decide(inputs);
+        assertFalse(d.allowed());
+        var deny = assertInstanceOf(Decision.Deny.class, d);
+        assertTrue(deny.reasons().contains("转服务费金额必须等于保证金金额"));
+    }
+
     // ----- reasonText 与 null 防御 -----
 
     @Test
@@ -233,7 +291,7 @@ class ProjectClosureGatePolicyTest {
                 List.of(
                         AllTasksCompletedPolicy.TaskState.COMPLETED,
                         AllTasksCompletedPolicy.TaskState.COMPLETED
-                ));
+                ), null);
         var d = ProjectClosureGatePolicy.decide(inputs);
         assertTrue(d.allowed());
     }
@@ -243,7 +301,7 @@ class ProjectClosureGatePolicyTest {
         var inputs = new ProjectClosureGatePolicy.ClosureGateInputs(
                 DepositSnapshot.returned(WHEN, DOC),
                 ClosureInput.EMPTY,
-                List.of(AllTasksCompletedPolicy.TaskState.COMPLETED));
+                List.of(AllTasksCompletedPolicy.TaskState.COMPLETED), null);
         var d = ProjectClosureGatePolicy.decide(inputs);
         assertTrue(d.allowed());
     }
@@ -256,7 +314,7 @@ class ProjectClosureGatePolicyTest {
                 List.of(
                         AllTasksCompletedPolicy.TaskState.TODO,
                         AllTasksCompletedPolicy.TaskState.COMPLETED
-                ));
+                ), null);
         var d = ProjectClosureGatePolicy.decide(inputs);
         assertFalse(d.allowed());
         var deny = assertInstanceOf(Decision.Deny.class, d);
@@ -271,7 +329,7 @@ class ProjectClosureGatePolicyTest {
                 List.of(
                         AllTasksCompletedPolicy.TaskState.TODO,
                         AllTasksCompletedPolicy.TaskState.REVIEW
-                ));
+                ), null);
         var d = ProjectClosureGatePolicy.decide(inputs);
         assertFalse(d.allowed());
         var deny = assertInstanceOf(Decision.Deny.class, d);
@@ -285,7 +343,7 @@ class ProjectClosureGatePolicyTest {
         var inputs = new ProjectClosureGatePolicy.ClosureGateInputs(
                 DepositSnapshot.none(),
                 ClosureInput.EMPTY,
-                List.of());
+                List.of(), null);
         var d = ProjectClosureGatePolicy.decide(inputs);
         assertTrue(d.allowed());
     }
@@ -295,7 +353,7 @@ class ProjectClosureGatePolicyTest {
         var inputs = new ProjectClosureGatePolicy.ClosureGateInputs(
                 DepositSnapshot.none(),
                 ClosureInput.EMPTY,
-                null);
+                null, null);
         var d = ProjectClosureGatePolicy.decide(inputs);
         assertFalse(d.allowed());
         var deny = assertInstanceOf(Decision.Deny.class, d);

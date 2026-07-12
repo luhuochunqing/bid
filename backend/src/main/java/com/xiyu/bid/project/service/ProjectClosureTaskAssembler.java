@@ -10,6 +10,7 @@ import com.xiyu.bid.repository.TaskRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Component
@@ -37,10 +38,11 @@ public final class ProjectClosureTaskAssembler {
     public ProjectClosureGatePolicy.ClosureGateInputs buildGateInputs(
             ProjectClosureGatePolicy.DepositSnapshot depositSnapshot,
             ProjectClosureGatePolicy.ClosureInput closureInput,
-            Long projectId) {
+            Long projectId,
+            BigDecimal depositAmount) {
         TaskSummary summary = loadTaskSummary(projectId);
         return new ProjectClosureGatePolicy.ClosureGateInputs(
-                depositSnapshot, closureInput, summary.taskStates());
+                depositSnapshot, closureInput, summary.taskStates(), depositAmount);
     }
 
     private AllTasksCompletedPolicy.TaskState toPolicyState(Task task) {

@@ -70,7 +70,8 @@ public class ProjectClosureService {
         var gateInputs = new ProjectClosureGatePolicy.ClosureGateInputs(
                 gateSnap,
                 ClosureInput.EMPTY,
-                taskSummary.taskStates());
+                taskSummary.taskStates(),
+                snap.depositAmount());
         boolean alreadyClosed = closureRepository.existsByProjectIdAndStageLockedTrue(projectId)
                 || ProjectStage.CLOSED.name().equals(project.getStage());
         var decision = ProjectClosureGatePolicy.decide(gateInputs);
@@ -118,7 +119,8 @@ public class ProjectClosureService {
         var gateInputs = taskAssembler.buildGateInputs(
                 gateSnap,
                 new ClosureInput(req.getArchiveLocation(), req.getNotes()),
-                projectId);
+                projectId,
+                depositSnap.depositAmount());
         var decision = ProjectClosureGatePolicy.decide(gateInputs);
         if (!decision.allowed()) {
             var deny = (ProjectClosureGatePolicy.Decision.Deny) decision;

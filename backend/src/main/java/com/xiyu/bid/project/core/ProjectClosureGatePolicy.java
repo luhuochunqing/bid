@@ -20,6 +20,7 @@ import java.util.Objects;
  *   <li>FULLY_RETURNED 需退回日期 + 退回凭证。</li>
  *   <li>TRANSFERRED_TO_FEE 需转服务费金额 + 证明文件。</li>
  *   <li>PARTIAL_RETURN_PARTIAL_TRANSFER 需退回金额 + 转服务费金额 + 证明文件。</li>
+ *   <li>CO-573：TRANSFERRED_TO_FEE 时转服务费金额必须等于保证金金额；PARTIAL_RETURN_PARTIAL_TRANSFER 时退回金额+转服务费金额必须等于保证金金额（depositAmount 非 null 时生效）。</li>
  *   <li>当无保证金（hasDeposit=false）时，NA 状态跳过所有校验。</li>
  *   <li>所有未完成的任务（非 COMPLETED 状态）阻止结项。</li>
  *   <li>所有错误以 reasons 列表返回，便于前端整体提示。</li>
@@ -36,14 +37,14 @@ public final class ProjectClosureGatePolicy {
      */
     @Deprecated
     public static Decision decide(DepositSnapshot snapshot, ClosureInput input) {
-        return decideDepositOnly(snapshot, input);
+        return decideDepositOnly(snapshot, input, null);
     }
 
     public static Decision decide(ClosureGateInputs inputs) {
         Objects.requireNonNull(inputs, "inputs 不能为空");
         List<String> reasons = new ArrayList<>();
 
-        Decision depositResult = decideDepositOnly(inputs.depositSnapshot(), inputs.closureInput());
+        Decision depositResult = decideDepositOnly(inputs.depositSnapshot(), inputs.closureInput(), inputs.depositAmount());
         if (!depositResult.allowed()) {
             reasons.addAll(((Decision.Deny) depositResult).reasons());
         }
@@ -58,7 +59,7 @@ public final class ProjectClosureGatePolicy {
                 : new Decision.Deny(Collections.unmodifiableList(reasons));
     }
 
-    private static Decision decideDepositOnly(DepositSnapshot snapshot, ClosureInput input) {
+    private static Decision decideDepositOnly(DepositSnapshot snapshot, ClosureInput input, BigDecimal depositAmount) {
         Objects.requireNonNull(snapshot, "snapshot 不能为空");
         Objects.requireNonNull(input, "input 不能为空");
         List<String> reasons = new ArrayList<>();
@@ -82,6 +83,13 @@ public final class ProjectClosureGatePolicy {
                 if (snapshot.evidenceDocId() == null || snapshot.evidenceDocId() <= 0L) {
                     reasons.add("缺少转服务费证明文件");
                 }
+                // CO-573: 转服务费金额必须等于保证金金额（depositAmount 非 null 时校验）
+                if (depositAmount != null
+                        && snapshot.transferAmount() != null
+                        && snapshot.transferAmount().compareTo(BigDecimal.ZERO) > 0
+                        && snapshot.transferAmount().compareTo(depositAmount) != 0) {
+                    reasons.add("转服务费金额必须等于保证金金额");
+                }
             } else if (snapshot.returnStatus() == DepositReturnStatus.PARTIAL_RETURN_PARTIAL_TRANSFER) {
                 if (snapshot.returnedAmount() == null || snapshot.returnedAmount().compareTo(BigDecimal.ZERO) <= 0) {
                     reasons.add("缺少退回金额");
@@ -91,6 +99,15 @@ public final class ProjectClosureGatePolicy {
                 }
                 if (snapshot.evidenceDocId() == null || snapshot.evidenceDocId() <= 0L) {
                     reasons.add("缺少证明文件");
+                }
+                // CO-573: 退回金额 + 转服务费金额必须等于保证金金额（depositAmount 非 null 时校验）
+                if (depositAmount != null
+                        && snapshot.returnedAmount() != null && snapshot.returnedAmount().compareTo(BigDecimal.ZERO) > 0
+                        && snapshot.transferAmount() != null && snapshot.transferAmount().compareTo(BigDecimal.ZERO) > 0) {
+                    BigDecimal sum = snapshot.returnedAmount().add(snapshot.transferAmount());
+                    if (sum.compareTo(depositAmount) != 0) {
+                        reasons.add("退回金额与转服务费金额之和必须等于保证金金额");
+                    }
                 }
             }
         }
@@ -161,11 +178,13 @@ public final class ProjectClosureGatePolicy {
      * @param depositSnapshot  保证金快照
      * @param closureInput     结项提交输入
      * @param taskStates       任务状态列表（来自 AllTasksCompletedPolicy.TaskState）
+     * @param depositAmount    保证金金额（CO-573：用于校验退回/转服务费金额等值，null 时跳过等值校验）
      */
     public record ClosureGateInputs(
             DepositSnapshot depositSnapshot,
             ClosureInput closureInput,
-            List<AllTasksCompletedPolicy.TaskState> taskStates) {
+            List<AllTasksCompletedPolicy.TaskState> taskStates,
+            BigDecimal depositAmount) {
     }
 
     /** Sealed Decision: Allow | Deny{reasons}. */

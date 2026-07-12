@@ -90,6 +90,9 @@
               <div class="field-item">
                 <label>转服务费金额（元） <span class="required-mark">*</span></label>
                 <el-input-number v-model="form.transferAmount" :min="0.01" :precision="2" placeholder="请输入金额" style="width:100%" />
+                <div v-if="transferAmountMismatch" class="amount-mismatch-tip">
+                  转服务费金额必须等于保证金金额（{{ formatAmount(preview?.depositAmount) }} 元）
+                </div>
               </div>
               <div class="field-item">
                 <label>证明文件 <span class="required-mark">*</span></label>
@@ -128,6 +131,9 @@
                 <label>转服务费金额（元） <span class="required-mark">*</span></label>
                 <el-input-number v-model="form.transferAmount" :min="0.01" :precision="2" placeholder="请输入转服务费金额" style="width:100%" />
               </div>
+            </div>
+            <div v-if="partialSumMismatch" class="amount-mismatch-tip">
+              退回金额与转服务费金额之和必须等于保证金金额（{{ formatAmount(preview?.depositAmount) }} 元）
             </div>
             <div class="field-row">
               <div class="field-item full-width">
@@ -408,9 +414,56 @@ const canSubmit = computed(() => {
   if (!s) return false
   if (s === 'NOT_RETURNED') return false
   if (s === 'FULLY_RETURNED') return !!form.depositReturnDate && !!form.depositReturnEvidenceId
-  if (s === 'TRANSFERRED_TO_FEE') return form.transferAmount > 0 && !!form.depositReturnEvidenceId
-  if (s === 'PARTIAL_RETURN_PARTIAL_TRANSFER') return form.returnedAmount > 0 && form.transferAmount > 0 && !!form.depositReturnEvidenceId
+  if (s === 'TRANSFERRED_TO_FEE') {
+    if (!(form.transferAmount > 0) || !form.depositReturnEvidenceId) return false
+    // CO-573: 转服务费金额必须等于保证金金额
+    const dep = preview.value?.depositAmount
+    if (dep != null && Number(form.transferAmount) !== Number(dep)) return false
+    return true
+  }
+  if (s === 'PARTIAL_RETURN_PARTIAL_TRANSFER') {
+    if (!(form.returnedAmount > 0) || !(form.transferAmount > 0) || !form.depositReturnEvidenceId) return false
+    // CO-573: 退回金额 + 转服务费金额必须等于保证金金额
+    const dep = preview.value?.depositAmount
+    if (dep != null && (Number(form.returnedAmount) + Number(form.transferAmount)) !== Number(dep)) return false
+    return true
+  }
   return false
+})
+
+// CO-573: 提交前金额等值校验的中文提示（供 submitClosure 调用）
+function validateDepositAmount() {
+  if (!preview.value?.hasDeposit) return null
+  const dep = preview.value?.depositAmount
+  if (dep == null) return null // 保证金金额未知时跳过前端等值校验，交给后端
+  const s = form.depositReturnStatus
+  if (s === 'TRANSFERRED_TO_FEE') {
+    if (Number(form.transferAmount) !== Number(dep)) {
+      return `转服务费金额必须等于保证金金额（${Number(dep).toFixed(2)} 元）`
+    }
+  } else if (s === 'PARTIAL_RETURN_PARTIAL_TRANSFER') {
+    const sum = Number(form.returnedAmount) + Number(form.transferAmount)
+    if (sum !== Number(dep)) {
+      return `退回金额与转服务费金额之和必须等于保证金金额（${Number(dep).toFixed(2)} 元）`
+    }
+  }
+  return null
+}
+
+// CO-573: 模板实时提示 — 转服务费金额不等于保证金金额
+const transferAmountMismatch = computed(() => {
+  if (form.depositReturnStatus !== 'TRANSFERRED_TO_FEE') return false
+  const dep = preview.value?.depositAmount
+  if (dep == null || form.transferAmount == null) return false
+  return Number(form.transferAmount) !== Number(dep)
+})
+
+// CO-573: 模板实时提示 — 退回金额+转服务费金额不等于保证金金额
+const partialSumMismatch = computed(() => {
+  if (form.depositReturnStatus !== 'PARTIAL_RETURN_PARTIAL_TRANSFER') return false
+  const dep = preview.value?.depositAmount
+  if (dep == null || form.returnedAmount == null || form.transferAmount == null) return false
+  return (Number(form.returnedAmount) + Number(form.transferAmount)) !== Number(dep)
 })
 
 function onDepositStatusChange() {
@@ -479,6 +532,9 @@ async function loadPreview() {
 }
 
 async function submitClosure() {
+  // CO-573: 提交前显式金额等值校验（canSubmit 已拦但提示不够明确）
+  const amountError = validateDepositAmount()
+  if (amountError) { ElMessage.warning(amountError); return }
   submitting.value = true
   try {
     await projectLifecycleApi.submitClosure(props.projectId, {
@@ -517,6 +573,8 @@ defineExpose({
   isProjectLeader, isClosureEditor, canEditDeposit, canEditSummary, canSubmitClosure, canApprove,
   // 暴露上传相关函数供单测验证
   handleEvidenceUploadSuccess, beforeUpload,
+  // CO-573: 暴露金额等值校验供单测验证
+  validateDepositAmount, transferAmountMismatch, partialSumMismatch,
   load: async () => {
     await loadPreview()
     if (props.projectId) checkPrecipitationReadiness()
@@ -689,4 +747,11 @@ async function triggerPrecipitation() {
 .rich-text-content :deep(td) { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
 .rich-text-content :deep(th) { background: #f8f9fa; font-weight: 600; }
 .rich-text-content :deep(img) { max-width: 100%; height: auto; border-radius: 4px; margin: 8px 0; }
+
+/* CO-573: 金额不等值提示 */
+.amount-mismatch-tip {
+  color: var(--el-color-danger);
+  font-size: 12px;
+  margin-top: 4px;
+}
 </style>
