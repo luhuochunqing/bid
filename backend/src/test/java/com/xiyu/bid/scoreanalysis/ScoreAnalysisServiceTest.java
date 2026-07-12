@@ -163,6 +163,44 @@ class ScoreAnalysisServiceTest {
     }
 
     @Test
+    @DisplayName("CO-571 Phase C: 当前用户未登录且 tender 无 creatorId 时跳过标讯状态更新并 warn")
+    void noCurrentUserAndNoCreator_skipsEvaluatedUpdate() {
+        createRequest.setTenderId(200L);
+        when(currentUserResolver.getCurrentUserId()).thenReturn(null);
+        com.xiyu.bid.entity.Tender tender = new com.xiyu.bid.entity.Tender();
+        tender.setCreatorId(null);
+        when(tenderRepository.findById(200L)).thenReturn(java.util.Optional.of(tender));
+        when(scoreAnalysisRepository.save(any(ScoreAnalysis.class))).thenReturn(testAnalysis);
+        when(queryService.convertToDTO(any())).thenReturn(ScoreAnalysisDTO.builder()
+                .projectId(100L)
+                .overallScore(85)
+                .riskLevel(RiskLevel.LOW)
+                .build());
+
+        scoreAnalysisService.createAnalysis(createRequest);
+
+        verify(tenderCommandService, never()).updateStatus(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("CO-571 Phase C: 当前用户未登录且 tender 不存在时跳过标讯状态更新并 warn")
+    void noCurrentUserAndTenderMissing_skipsEvaluatedUpdate() {
+        createRequest.setTenderId(200L);
+        when(currentUserResolver.getCurrentUserId()).thenReturn(null);
+        when(tenderRepository.findById(200L)).thenReturn(java.util.Optional.empty());
+        when(scoreAnalysisRepository.save(any(ScoreAnalysis.class))).thenReturn(testAnalysis);
+        when(queryService.convertToDTO(any())).thenReturn(ScoreAnalysisDTO.builder()
+                .projectId(100L)
+                .overallScore(85)
+                .riskLevel(RiskLevel.LOW)
+                .build());
+
+        scoreAnalysisService.createAnalysis(createRequest);
+
+        verify(tenderCommandService, never()).updateStatus(any(), any(), any());
+    }
+
+    @Test
     @DisplayName("应该获取项目的评分分析")
     void shouldGetAnalysisByProjectSuccessfully() {
         // Given
