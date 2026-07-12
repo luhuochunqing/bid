@@ -105,6 +105,29 @@ class OperatorUsernameResolverTest {
     }
 
     @Test
+    @DisplayName("delivery_creatorUsernameBlank → 过滤 blank 并降级到 PM")
+    void delivery_creatorUsernameBlank_fallsBackToPm() {
+        when(userRepository.findById(100L)).thenReturn(Optional.of(user("  ")));
+        when(userRepository.findById(300L)).thenReturn(Optional.of(user("pm-user")));
+
+        String result = resolver.resolveDeliveryUsername(tender(100L, 300L), 200L);
+
+        assertThat(result).isEqualTo("pm-user");
+    }
+
+    @Test
+    @DisplayName("delivery_allResolvedUsernamesBlank → 返回 null")
+    void delivery_allUsernamesBlank_returnsNull() {
+        when(userRepository.findById(100L)).thenReturn(Optional.of(user("")));
+        when(userRepository.findById(300L)).thenReturn(Optional.of(user("   ")));
+        when(userRepository.findById(200L)).thenReturn(Optional.of(user("\t")));
+
+        String result = resolver.resolveDeliveryUsername(tender(100L, 300L), 200L);
+
+        assertThat(result).isNull();
+    }
+
+    @Test
     @DisplayName("resolve(null) → null（不查 DB）")
     void resolve_nullId_returnsNull() {
         assertThat(resolver.resolve(null)).isNull();
@@ -181,5 +204,28 @@ class OperatorUsernameResolverTest {
         // 必须返回 PM 的 username，不能返回 admin
         assertThat(result).isEqualTo("08152");
         verify(userRepository, never()).findById(1L);
+    }
+
+    @Test
+    @DisplayName("crmLookup_pmUsernameBlank → 过滤 blank 并降级到 creator")
+    void crmLookup_pmUsernameBlank_fallsBackToCreator() {
+        when(userRepository.findById(300L)).thenReturn(Optional.of(user("")));
+        when(userRepository.findById(100L)).thenReturn(Optional.of(user("creator-user")));
+
+        String result = resolver.resolveForCrmLookup(tender(100L, 300L), 200L);
+
+        assertThat(result).isEqualTo("creator-user");
+    }
+
+    @Test
+    @DisplayName("crmLookup_allResolvedUsernamesBlank → 返回 null")
+    void crmLookup_allUsernamesBlank_returnsNull() {
+        when(userRepository.findById(300L)).thenReturn(Optional.of(user("  ")));
+        when(userRepository.findById(100L)).thenReturn(Optional.of(user("\n")));
+        when(userRepository.findById(200L)).thenReturn(Optional.of(user("\t")));
+
+        String result = resolver.resolveForCrmLookup(tender(100L, 300L), 200L);
+
+        assertThat(result).isNull();
     }
 }
