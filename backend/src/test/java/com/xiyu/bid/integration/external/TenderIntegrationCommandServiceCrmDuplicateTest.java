@@ -98,7 +98,7 @@ class TenderIntegrationCommandServiceCrmDuplicateTest {
     @DisplayName("pushTender 创建时 CRM 商机号已被占用应抛 409")
     void pushTender_createWithOccupiedCrmOpportunityId_shouldThrow409() {
         when(tenderRepository.findByExternalId("crm:new-001")).thenReturn(Optional.empty());
-        doThrow(new BusinessException(409, "该 CRM 商机已被标讯 ID=1 关联，请先解除原关联"))
+        doThrow(new BusinessException(409, "该 CRM 商机已被标讯 ID=1 关联"))
                 .when(crmOccupancyChecker).assertCrmOpportunityNotOccupied(eq(null), eq("CC20260626498"));
 
         TenderPushRequest request = TenderPushRequest.builder()
@@ -133,7 +133,7 @@ class TenderIntegrationCommandServiceCrmDuplicateTest {
             return null;
         }).when(crmTenderLinkService).linkIfPresent(any(Tender.class), eq("21246"), any(), any());
 
-        doThrow(new BusinessException(409, "该 CRM 商机已被标讯 ID=926 关联，请先解除原关联"))
+        doThrow(new BusinessException(409, "该 CRM 商机已被标讯 ID=926 关联"))
                 .when(crmOccupancyChecker).assertCrmOpportunityNotOccupied(eq(1630L), eq("CC20260703615"));
 
         TenderUpdateRequest request = TenderUpdateRequest.builder()
