@@ -3885,7 +3885,7 @@ ORDER BY created_at DESC LIMIT 20;
 
 ### 防复发措施
 
-- 建议把 `TenderStatusChangedEvent` 5 参 / 6 参 factory 标 `@Deprecated`，强制使用完整 factory
+- 已将 `TenderStatusChangedEvent` 5 参 / 6 参 factory 标 `@Deprecated`，所有 9 个调用点已确认使用完整 factory
 - 建议补 backfill 迁移：将历史 `operator_username IS NULL` 的 pending 任务标记为 DEAD_LETTER 或补 system 账号
 
 ### 相关文档
