@@ -92,6 +92,10 @@ class KnowledgeResourceAccessSecurityTest {
     private CaCertificateImportAppService caCertificateImportAppService;
     @MockBean
     private CaCommitmentLetterUploadService caCommitmentLetterUploadService;
+    // CO-515 回归：CaCertificateController 新增 IAuditLogService 依赖（CA 详情页操作日志 Tab），
+    // @WebMvcTest 切片不实例化 audit.service.AuditLogService，需手动 mock 以满足构造注入。
+    @MockBean
+    private com.xiyu.bid.audit.service.IAuditLogService auditLogService;
 
     @EnableWebSecurity
     @EnableMethodSecurity(prePostEnabled = true)

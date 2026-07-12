@@ -3,9 +3,9 @@ package com.xiyu.bid.casework.controller;
 import com.xiyu.bid.casework.application.BidCaseSliceDetail;
 import com.xiyu.bid.casework.application.CaseSliceJsonlImporter;
 import com.xiyu.bid.casework.application.service.BatchEmbeddingAppService;
+import com.xiyu.bid.casework.application.service.BidCaseSliceAdminAppService;
 import com.xiyu.bid.casework.application.service.BidCaseSliceRecommendAppService;
 import com.xiyu.bid.casework.domain.model.BidCaseSliceRecommendation;
-import com.xiyu.bid.casework.infrastructure.BidCaseSliceRepository;
 import com.xiyu.bid.security.CurrentUserResolver;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import org.junit.jupiter.api.Test;
@@ -70,7 +70,7 @@ class BidCaseSliceControllerTest {
     private CaseSliceJsonlImporter jsonlImporter;
 
     @MockBean
-    private BidCaseSliceRepository sliceRepository;
+    private BidCaseSliceAdminAppService adminAppService;
 
     // Phase 3 US3 修复：TraceFilter 现依赖 EffectiveRoleResolver（MDC userId/roleCode 填充），
     // @WebMvcTest 切片不实例化该 bean，需手动 mock 以满足 TraceFilter 注入。

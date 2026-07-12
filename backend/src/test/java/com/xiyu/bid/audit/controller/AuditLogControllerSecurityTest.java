@@ -58,7 +58,7 @@ class AuditLogControllerSecurityTest {
     }
 
     @Test
-    @WithMockUser(username = "auditor", roles = {"AUDITOR"})
+    @WithMockUser(username = "auditor", authorities = {"operation-logs"})
     void auditorCanQueryAuditLogs() throws Exception {
         mockMvc.perform(get("/api/audit"))
                 .andExpect(status().isOk());
