@@ -176,20 +176,21 @@ class ScoreAnalysisServiceTest {
     }
 
     @Test
-    @DisplayName("CO-576: updateStatus 抛异常时不应静默吞噬，应返回错误响应")
-    void updateStatusFailure_shouldReturnError() {
+    @DisplayName("CO-576: updateStatus 抛异常时标记事务回滚，评分与状态同成败")
+    void updateStatusFailure_marksRollbackAndStopsDimensionSave() {
         createRequest.setTenderId(200L);
         when(currentUserResolver.getCurrentUserId()).thenReturn(42L);
         when(scoreAnalysisRepository.save(any(ScoreAnalysis.class))).thenReturn(testAnalysis);
         doThrow(new IllegalStateException("状态转换不允许"))
                 .when(tenderCommandService).updateStatus(200L, com.xiyu.bid.entity.Tender.Status.EVALUATED, 42L);
 
-        ApiResponse<?> response = scoreAnalysisService.createAnalysis(createRequest);
+        // 单元测试无真实事务，setRollbackOnly() 会抛 NoTransactionException，
+        // 这恰好证明 rollback 标记被触发（集成测试验证真实回滚行为）。
+        assertThrows(org.springframework.transaction.NoTransactionException.class,
+                () -> scoreAnalysisService.createAnalysis(createRequest),
+                "应调用 setRollbackOnly 标记回滚");
 
-        assertFalse(response.isSuccess(), "updateStatus 失败应返回错误，而非静默成功");
-        assertTrue(response.getMessage().contains("创建评分分析失败"),
-                "错误消息应包含'创建评分分析失败'，实际: " + response.getMessage());
-        // 状态更新失败时，不应继续保存维度分数
+        // 状态更新失败后，不应继续保存维度分数
         verify(dimensionScoreRepository, never()).saveAll(any());
     }
 

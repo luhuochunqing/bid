@@ -18,6 +18,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -99,6 +100,10 @@ public class ScoreAnalysisService {
 
         } catch (RuntimeException e) {
             log.error("创建评分分析失败: {}", e.getMessage(), e);
+            // 标记事务回滚：@Transactional 代理只在异常逃逸时回滚，
+            // catch 内部吞掉异常会导致 COMMIT。setRollbackOnly() 确保即使
+            // 返回 ApiResponse.error，事务也会回滚（评分与状态同成败）。
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
             return ApiResponse.error("创建评分分析失败: " + e.getMessage());
         }
     }
