@@ -90,9 +90,10 @@ public class ProjectResultConfirmedWebhookListener {
             log.warn("Tender {} not found, skip webhook (cannot resolve crm opportunity code)", event.tenderId());
             return;
         }
-        // CO-571 Phase B: 与 §4.1 WebhookEventListener 对称，按 projectManagerId → creatorId → eventOperatorId 顺序解析（PM 优先，与 §4.1 一致，避免 API Key 场景 creator=admin 无 OSS token）
-        // 使用 resolveForCrmLookup 解析（PM 优先于 creator）。
+
+        // CO-576: 使用 resolveForCrmLookup 解析（PM 优先于 creator）。
         String operatorUsername = operatorUsernameResolver.resolveForCrmLookup(tender, event.operatorUserId());
+
         if (operatorUsername == null || operatorUsername.isBlank()) {
             log.error("Webhook 入队失败：无可用 OSS username，跳过入队。projectId={}, tenderId={}, resultType={}, creatorId={}, projectManagerId={}, operatorId={}",
                     event.projectId(), event.tenderId(), event.resultType(),

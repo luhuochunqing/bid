@@ -167,7 +167,7 @@ class TenderIntegrationCommandSupportTest {
     }
 
     @Test
-    @DisplayName("CO-571: tryAutoAssign 状态转 TRACKING 时应将 userId 与 fullName 写入事件")
+    @DisplayName("CO-576: tryAutoAssign 状态转 TRACKING 时应将 userId 与 fullName 写入事件")
     void tryAutoAssign_withUserId_propagatesOperatorToEvent() {
         Tender tender = new Tender();
         tender.setId(100L);

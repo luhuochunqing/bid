@@ -86,9 +86,10 @@ public class WebhookEventListener {
             log.warn("Tender {} not found, skip webhook", event.tenderId());
             return;
         }
-        // CO-571 Phase B: 按 projectManagerId → creatorId → eventOperatorId 顺序解析（PM 优先，PM 是 OSS 用户有 token）
-        // 使用 resolveForCrmLookup 解析（PM 优先于 creator，避免 API Key 场景 creator=admin 无 OSS token）。
+
+        // CO-576: 使用 resolveForCrmLookup 解析（PM 优先于 creator，避免 API Key 场景 creator=admin 无 OSS token）。
         String operatorUsername = operatorUsernameResolver.resolveForCrmLookup(tender, event.operatorId());
+
         if (operatorUsername == null || operatorUsername.isBlank()) {
             log.error("Webhook 入队失败：无可用 OSS username，跳过入队。tenderId={}, newStatus={}, creatorId={}, projectManagerId={}, operatorId={}",
                     event.tenderId(), event.newStatus(),

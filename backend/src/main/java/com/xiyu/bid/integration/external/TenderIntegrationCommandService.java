@@ -213,7 +213,7 @@ public class TenderIntegrationCommandService {
         log.info("Created tender id={} externalId={}", saved.getId(), externalId);
 
         // CO-302: 第三方平台拉取标讯自动分配
-        // CO-571: 传入 userId，让自动分配触发 TRACKING 时事件携带 operator，避免 CRM 回调死信
+        // CO-576: 传入 userId，让自动分配触发 TRACKING 时事件携带 operator，避免 CRM 回调死信
         support.tryAutoAssign(saved, userId);
 
         // CO-332: 记录接口创建标讯操作日志

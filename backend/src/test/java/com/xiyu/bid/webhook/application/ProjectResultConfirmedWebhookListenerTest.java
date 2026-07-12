@@ -82,8 +82,10 @@ class ProjectResultConfirmedWebhookListenerTest {
                     String crmId = t.getCrmOpportunityId();
                     return (crmId == null || crmId.isBlank()) ? "" : crmId;
                 });
-        // CO-571 Phase B: 默认 resolveForCrmLookup 返回非空 username
+
+        // CO-576: 默认 resolveForCrmLookup 返回非空 username
         lenient().when(operatorUsernameResolver.resolveForCrmLookup(any(Tender.class), any()))
+
                 .thenReturn(OPERATOR_USERNAME);
     }
 
@@ -290,7 +292,7 @@ class ProjectResultConfirmedWebhookListenerTest {
     }
 
     @Test
-    @DisplayName("CO-571 Phase B: operatorUserId 查不到用户 → 无可用 username → 不入队")
+    @DisplayName("CO-576 Phase B: operatorUserId 查不到用户 → 无可用 username → 不入队")
     void operatorUserNotFound_noUsername_doesNotEnqueue() {
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender()));
         when(operatorUsernameResolver.resolveForCrmLookup(any(Tender.class), any())).thenReturn(null);
@@ -302,7 +304,7 @@ class ProjectResultConfirmedWebhookListenerTest {
     }
 
     @Test
-    @DisplayName("CO-571 Phase B: operatorUserId 为 null → 无可用 username → 不入队")
+    @DisplayName("CO-576 Phase B: operatorUserId 为 null → 无可用 username → 不入队")
     void operatorUserIdNull_noUsername_doesNotEnqueue() {
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender()));
         when(operatorUsernameResolver.resolveForCrmLookup(any(Tender.class), any())).thenReturn(null);
@@ -318,8 +320,9 @@ class ProjectResultConfirmedWebhookListenerTest {
     }
 
     @Test
-    @DisplayName("CO-571 Phase B: creator 为 admin 时优先用 projectManager 的 username（避免 admin 无 OSS token）")
+    @DisplayName("CO-576: event operator 缺失时优先用 PM 的 username（resolveForCrmLookup）")
     void usesProjectManagerWhenCreatorIsAdmin() {
+
         Tender t = tender();
         t.setProjectManagerId(100L);
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(t));

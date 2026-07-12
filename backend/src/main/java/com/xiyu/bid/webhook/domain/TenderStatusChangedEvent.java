@@ -20,18 +20,8 @@ public record TenderStatusChangedEvent(
     Boolean recommendationShouldBid,
     String recommendationReason
 ) {
-    public static TenderStatusChangedEvent of(Long tenderId, String externalId,
-                                               Tender.Status oldStatus, Tender.Status newStatus,
-                                               String title) {
-        return new TenderStatusChangedEvent(tenderId, externalId, oldStatus, newStatus, title, LocalDateTime.now(), null, null, null, null, null);
-    }
-
-    public static TenderStatusChangedEvent of(Long tenderId, String externalId,
-                                               Tender.Status oldStatus, Tender.Status newStatus,
-                                               String title, String abandonReason) {
-        return new TenderStatusChangedEvent(tenderId, externalId, oldStatus, newStatus, title, LocalDateTime.now(), abandonReason, null, null, null, null);
-    }
-
+    // CO-576 Phase C: 5 参/6 参 factory 已删除，所有调用点必须使用完整 10 参 factory，
+    // 确保 operatorId + operatorName 不会缺失（避免 webhook 空 username 死信）。
     public static TenderStatusChangedEvent of(Long tenderId, String externalId,
                                                Tender.Status oldStatus, Tender.Status newStatus,
                                                String title, String abandonReason,

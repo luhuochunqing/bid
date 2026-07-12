@@ -78,8 +78,10 @@ class WebhookEventListenerTest {
                     String crmId = t.getCrmOpportunityId();
                     return (crmId == null || crmId.isBlank()) ? "" : crmId;
                 });
-        // CO-571 Phase B: 默认 resolveForCrmLookup 返回非空 username，使大多数测试仍能入队
+
+        // CO-576: 默认 resolveForCrmLookup 返回非空 username，使大多数测试仍能入队
         lenient().when(operatorUsernameResolver.resolveForCrmLookup(any(Tender.class), any()))
+
                 .thenReturn("default-operator");
     }
 
@@ -300,7 +302,7 @@ class WebhookEventListenerTest {
     }
 
     @Test
-    @DisplayName("CO-571 Phase B: 无可用 username → 不入队（避免空 username 静默死信）")
+    @DisplayName("CO-576 Phase B: 无可用 username → 不入队（避免空 username 静默死信）")
     void evaluated_noUsername_doesNotEnqueue() {
         WebhookEventListener l = listener();
         Tender tender = mockTender();
@@ -313,8 +315,9 @@ class WebhookEventListenerTest {
     }
 
     @Test
-    @DisplayName("CO-571 Phase B: event operator 为 admin 时优先用 projectManager 的 username（避免 admin 无 OSS token）")
+    @DisplayName("CO-576: event operator 为 admin 时优先用 PM 的 username（resolveForCrmLookup）")
     void evaluated_usesProjectManagerWhenCreatorIsAdmin() {
+
         WebhookEventListener l = listener();
         Tender tender = mockTender();
         tender.setProjectManagerId(100L);

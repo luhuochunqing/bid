@@ -18,11 +18,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * OperatorUsernameResolver 单元测试（CO-571 Phase B）。
+ * OperatorUsernameResolver 单元测试（CO-576 Phase B）。
  * <p>覆盖 resolveDeliveryUsername 的解析顺序：creatorId → projectManagerId → eventOperatorId。
  */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("OperatorUsernameResolver — CO-571 Phase B 投递 username 解析")
+@DisplayName("OperatorUsernameResolver — CO-576 Phase B 投递 username 解析")
 class OperatorUsernameResolverTest {
 
     @Mock private UserRepository userRepository;

@@ -11,6 +11,7 @@ import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
 /**
@@ -18,7 +19,7 @@ import org.springframework.stereotype.Component;
  * <p>通过 userId 反查 username，供 webhook 异步投递时取该用户的 OSS token 调 CRM generateToken，
  * 避免依赖全局共享账号（CO-152）。
  *
- * <p><b>CO-571 Phase B：</b>新增 {@link #resolveDeliveryUsername(Tender, Long)} 方法，
+ * <p><b>CO-576 Phase B：</b>新增 {@link #resolveDeliveryUsername(Tender, Long)} 方法，
  * 按 creatorId → projectManagerId → eventOperatorId 顺序解析。
  * API Key 场景 event 常是 admin（有 username 无 OSS），故 creator/PM 优先于 event。
  *
@@ -58,7 +59,7 @@ public class OperatorUsernameResolver {
     }
 
     /**
-     * 解析 webhook 投递用的 username（CO-571 Phase B）。
+     * 解析 webhook 投递用的 username（CO-576 Phase B）。
      * <p>解析顺序：tender.creatorId → tender.projectManagerId → eventOperatorId。
      * <p>API Key 场景 event 常是 admin（有 username 无 OSS），故 creator/PM 优先于 event。
      * operatorName 仅展示，不参与 token，B/C 验收不写 name。
@@ -70,15 +71,17 @@ public class OperatorUsernameResolver {
     public String resolveDeliveryUsername(Tender tender, Long eventOperatorId) {
         if (tender != null) {
             String username = resolve(tender.getCreatorId());
-            if (isNotBlank(username)) {
+            if (StringUtils.isNotBlank(username)) {
                 return username;
             }
             username = resolve(tender.getProjectManagerId());
-            if (isNotBlank(username)) {
+            if (StringUtils.isNotBlank(username)) {
                 return username;
             }
         }
-        return resolve(eventOperatorId);
+        // 末位 fallback 也过滤 blank，保证返回值要么非 blank 要么 null
+        String fallback = resolve(eventOperatorId);
+        return StringUtils.isNotBlank(fallback) ? fallback : null;
     }
 
     /**
@@ -97,20 +100,17 @@ public class OperatorUsernameResolver {
         if (tender != null) {
             // 优先用项目负责人（OSS 用户，有 OSS token）
             String username = resolve(tender.getProjectManagerId());
-            if (isNotBlank(username)) {
+            if (StringUtils.isNotBlank(username)) {
                 return username;
             }
             // 其次用 creatorId（可能是真实用户）
             username = resolve(tender.getCreatorId());
-            if (isNotBlank(username)) {
+            if (StringUtils.isNotBlank(username)) {
                 return username;
             }
         }
         // 最后降级为 fallbackUserId（可能是 admin，无 OSS token）
-        return resolve(fallbackUserId);
-    }
-
-    private static boolean isNotBlank(String s) {
-        return s != null && !s.isBlank();
+        String fallback = resolve(fallbackUserId);
+        return StringUtils.isNotBlank(fallback) ? fallback : null;
     }
 }
