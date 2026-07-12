@@ -66,23 +66,19 @@ public class ScoreAnalysisService {
             ScoreAnalysis savedAnalysis = scoreAnalysisRepository.save(analysis);
 
             if (request.getTenderId() != null) {
-                try {
-                    Long operatorId = currentUserResolver.getCurrentUserId();
-                    // CO-576 Phase C: 无当前用户时用 tender.creatorId 作为 operatorId 兜底，
-                    // 确保 webhook 事件 operatorId 非空（避免 CRM 回调死信）。
-                    // 注意：此处仅解析 operatorId；投递阶段 username 由 Phase B 的
-                    // OperatorUsernameResolver.resolveDeliveryUsername 独立解析（creatorId → PM → event），
-                    // 两阶段互不依赖。
-                    if (operatorId == null) {
-                        operatorId = tenderCommandService.resolveCreatorId(request.getTenderId());
-                    }
-                    if (operatorId != null) {
-                        tenderCommandService.updateStatus(request.getTenderId(), com.xiyu.bid.entity.Tender.Status.EVALUATED, operatorId);
-                    } else {
-                        log.warn("跳过标讯状态更新：无可用 operatorId，tenderId: {}", request.getTenderId());
-                    }
-                } catch (Exception e) {
-                    log.warn("更新标讯状态失败, tenderId: {}, error: {}", request.getTenderId(), e.getMessage());
+                Long operatorId = currentUserResolver.getCurrentUserId();
+                // CO-576 Phase C: 无当前用户时用 tender.creatorId 作为 operatorId 兜底，
+                // 确保 webhook 事件 operatorId 非空（避免 CRM 回调死信）。
+                // 注意：此处仅解析 operatorId；投递阶段 username 由 Phase B 的
+                // OperatorUsernameResolver.resolveDeliveryUsername 独立解析（creatorId → PM → event），
+                // 两阶段互不依赖。
+                if (operatorId == null) {
+                    operatorId = tenderCommandService.resolveCreatorId(request.getTenderId());
+                }
+                if (operatorId != null) {
+                    tenderCommandService.updateStatus(request.getTenderId(), com.xiyu.bid.entity.Tender.Status.EVALUATED, operatorId);
+                } else {
+                    log.warn("跳过标讯状态更新：无可用 operatorId，tenderId: {}", request.getTenderId());
                 }
             }
 

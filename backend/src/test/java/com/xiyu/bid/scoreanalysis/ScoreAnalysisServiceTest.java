@@ -176,6 +176,24 @@ class ScoreAnalysisServiceTest {
     }
 
     @Test
+    @DisplayName("CO-576: updateStatus 抛异常时不应静默吞噬，应返回错误响应")
+    void updateStatusFailure_shouldReturnError() {
+        createRequest.setTenderId(200L);
+        when(currentUserResolver.getCurrentUserId()).thenReturn(42L);
+        when(scoreAnalysisRepository.save(any(ScoreAnalysis.class))).thenReturn(testAnalysis);
+        doThrow(new IllegalStateException("状态转换不允许"))
+                .when(tenderCommandService).updateStatus(200L, com.xiyu.bid.entity.Tender.Status.EVALUATED, 42L);
+
+        ApiResponse<?> response = scoreAnalysisService.createAnalysis(createRequest);
+
+        assertFalse(response.isSuccess(), "updateStatus 失败应返回错误，而非静默成功");
+        assertTrue(response.getMessage().contains("创建评分分析失败"),
+                "错误消息应包含'创建评分分析失败'，实际: " + response.getMessage());
+        // 状态更新失败时，不应继续保存维度分数
+        verify(dimensionScoreRepository, never()).saveAll(any());
+    }
+
+    @Test
     @DisplayName("应该获取项目的评分分析")
     void shouldGetAnalysisByProjectSuccessfully() {
         // Given
