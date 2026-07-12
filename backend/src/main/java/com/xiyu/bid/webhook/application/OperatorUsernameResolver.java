@@ -19,7 +19,7 @@ import org.springframework.stereotype.Component;
  * <p>通过 userId 反查 username，供 webhook 异步投递时取该用户的 OSS token 调 CRM generateToken，
  * 避免依赖全局共享账号（CO-152）。
  *
- * <p><b>CO-571 Phase B：</b>新增 {@link #resolveDeliveryUsername(Tender, Long)} 方法，
+ * <p><b>CO-576 Phase B：</b>新增 {@link #resolveDeliveryUsername(Tender, Long)} 方法，
  * 按 creatorId → projectManagerId → eventOperatorId 顺序解析。
  * API Key 场景 event 常是 admin（有 username 无 OSS），故 creator/PM 优先于 event。
  *
@@ -59,7 +59,7 @@ public class OperatorUsernameResolver {
     }
 
     /**
-     * 解析 webhook 投递用的 username（CO-571 Phase B）。
+     * 解析 webhook 投递用的 username（CO-576 Phase B）。
      * <p>解析顺序：tender.creatorId → tender.projectManagerId → eventOperatorId。
      * <p>API Key 场景 event 常是 admin（有 username 无 OSS），故 creator/PM 优先于 event。
      * operatorName 仅展示，不参与 token，B/C 验收不写 name。

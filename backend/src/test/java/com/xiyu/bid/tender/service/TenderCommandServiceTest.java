@@ -170,7 +170,7 @@ class TenderCommandServiceTest {
     }
 
     @Test
-    @DisplayName("CO-571: createTender(userId) 自动分配转 TRACKING 时应将 operatorId/operatorName 写入事件")
+    @DisplayName("CO-576: createTender(userId) 自动分配转 TRACKING 时应将 operatorId/operatorName 写入事件")
     void createTender_WithUserId_AutoAssignPublishesEventWithOperator() {
         User operator = User.builder().id(42L).username("06234").fullName("郑蓉蓉").build();
         when(userRepository.findById(42L)).thenReturn(Optional.of(operator));
@@ -516,10 +516,10 @@ class TenderCommandServiceTest {
         assertThat(tender.getProjectManagerId()).isNotEqualTo(10086L);
     }
 
-    // ── CO-571: updateStatus 操作人传播与边界条件 ───────────────────────────────
+    // ── CO-576: updateStatus 操作人传播与边界条件 ───────────────────────────────
 
     @Test
-    @DisplayName("CO-571: updateStatus 应将 operatorId 与 fullName 传播到状态变更事件")
+    @DisplayName("CO-576: updateStatus 应将 operatorId 与 fullName 传播到状态变更事件")
     void updateStatus_WithUserId_ShouldPropagateOperatorIdAndNameToEvent() {
         when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
         when(tenderRepository.save(any(Tender.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -541,7 +541,7 @@ class TenderCommandServiceTest {
     }
 
     @Test
-    @DisplayName("CO-571: updateStatus 无 userId 时 operatorId 与 operatorName 均为 null")
+    @DisplayName("CO-576: updateStatus 无 userId 时 operatorId 与 operatorName 均为 null")
     void updateStatus_WithNullUserId_ShouldPublishEventWithNullOperator() {
         when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
         when(tenderRepository.save(any(Tender.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -557,7 +557,7 @@ class TenderCommandServiceTest {
     }
 
     @Test
-    @DisplayName("CO-571: updateStatus userId 找不到用户时 operatorName 降级为 null")
+    @DisplayName("CO-576: updateStatus userId 找不到用户时 operatorName 降级为 null")
     void updateStatus_WithUnknownUserId_ShouldPublishEventWithNullOperatorName() {
         when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
         when(tenderRepository.save(any(Tender.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -573,7 +573,7 @@ class TenderCommandServiceTest {
     }
 
     @Test
-    @DisplayName("CO-571: updateStatus 标讯不存在时抛 ResourceNotFoundException")
+    @DisplayName("CO-576: updateStatus 标讯不存在时抛 ResourceNotFoundException")
     void updateStatus_TenderNotFound_ShouldThrowResourceNotFoundException() {
         when(tenderRepository.findById(99L)).thenReturn(Optional.empty());
 
@@ -588,7 +588,7 @@ class TenderCommandServiceTest {
     }
 
     @Test
-    @DisplayName("CO-571: updateStatus 非法状态转换时不保存且不发事件")
+    @DisplayName("CO-576: updateStatus 非法状态转换时不保存且不发事件")
     void updateStatus_IllegalTransition_ShouldThrowAndNotSave() {
         when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
         when(projectRepository.findByTenderId(1L)).thenReturn(List.of(mockProject()));
@@ -608,5 +608,45 @@ class TenderCommandServiceTest {
         project.setId(100L);
         project.setTenderId(1L);
         return project;
+    }
+
+    @Test
+    @DisplayName("CO-576: resolveCreatorId 正常返回创建者 ID")
+    void resolveCreatorId_ReturnsCreatorId() {
+        when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
+
+        Long result = tenderCommandService.resolveCreatorId(1L);
+
+        assertThat(result).isEqualTo(tender.getCreatorId());
+    }
+
+    @Test
+    @DisplayName("CO-576: resolveCreatorId tender 不存在时返回 null")
+    void resolveCreatorId_TenderNotFound_ReturnsNull() {
+        when(tenderRepository.findById(999L)).thenReturn(Optional.empty());
+
+        Long result = tenderCommandService.resolveCreatorId(999L);
+
+        assertThat(result).isNull();
+    }
+
+    @Test
+    @DisplayName("CO-576: resolveCreatorId tenderId 为 null 时返回 null")
+    void resolveCreatorId_NullInput_ReturnsNull() {
+        Long result = tenderCommandService.resolveCreatorId(null);
+
+        assertThat(result).isNull();
+        verify(tenderRepository, never()).findById(any());
+    }
+
+    @Test
+    @DisplayName("CO-576: resolveCreatorId tender 存在但 creatorId 为 null 时返回 null")
+    void resolveCreatorId_CreatorIdNull_ReturnsNull() {
+        tender.setCreatorId(null);
+        when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
+
+        Long result = tenderCommandService.resolveCreatorId(1L);
+
+        assertThat(result).isNull();
     }
 }

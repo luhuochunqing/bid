@@ -3836,7 +3836,10 @@ GET /api/ca-certificates?size=500
 
 ---
 
-## 55. Webhook 入队必须解析可用 OSS username，空 username 禁止静默死信（CO-571 / 2026-07-10/12）
+## 55. Webhook 入队必须解析可用 OSS username，空 username 禁止静默死信（CO-576 / 2026-07-10/12）
+
+> **注意**：本条目原始编号 CO-571 为错误关联（CO-571 是「评标中阶段选项顺序调整」纯前端 UI，由 PR !2045 处理）。
+> 2026-07-12 合并前已修正为 CO-576（webhook 空 operator 死信修复）。
 
 ### 问题背景
 
@@ -3893,7 +3896,7 @@ ORDER BY created_at DESC LIMIT 20;
 ### 防复发措施
 
 - **入队阶段**：`OperatorUsernameResolver.resolveDeliveryUsername(tender, eventOperatorId)` 按 creatorId → PM → event 顺序解析；空 username 不入队 + error 日志（含 tenderId/status/三 ID）
-- **Phase C（已完成，2026-07-12）**：删除 `TenderStatusChangedEvent` 5 参/6 参 factory + 删除 `TenderCommandService.updateStatus(Long, Status)` 两参重载，让编译期阻止回归；`ScoreAnalysisService` 无当前用户时跳过状态变更并 warn（不再传 null operatorId）
+- **Phase C（已完成，2026-07-12）**：删除 `TenderStatusChangedEvent` 5 参/6 参 factory + 删除 `TenderCommandService.updateStatus(Long, Status)` 两参重载，让编译期阻止回归；`ScoreAnalysisService` 无当前用户时用 `tender.creatorId` 作为 operatorId 兜底（通过 `TenderCommandService.resolveCreatorId` 应用层方法），仅当 currentUser + creatorId 双空时才跳过状态变更并 warn
 - 建议补 backfill 迁移：将历史 `operator_username IS NULL` 的 pending 任务标记为 DEAD_LETTER 或补 system 账号
 
 ### 相关文档

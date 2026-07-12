@@ -20,7 +20,7 @@ public record TenderStatusChangedEvent(
     Boolean recommendationShouldBid,
     String recommendationReason
 ) {
-    // CO-571 Phase C: 5 参/6 参 factory 已删除，所有调用点必须使用完整 10 参 factory，
+    // CO-576 Phase C: 5 参/6 参 factory 已删除，所有调用点必须使用完整 10 参 factory，
     // 确保 operatorId + operatorName 不会缺失（避免 webhook 空 username 死信）。
     public static TenderStatusChangedEvent of(Long tenderId, String externalId,
                                                Tender.Status oldStatus, Tender.Status newStatus,

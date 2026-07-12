@@ -157,7 +157,7 @@ public class TenderCommandService {
         tender.setDepartment(departmentName);
     }
 
-    // CO-571 Phase C: 两参 updateStatus(Long, Status) 已删除，所有调用点必须传 operatorId，
+    // CO-576 Phase C: 两参 updateStatus(Long, Status) 已删除，所有调用点必须传 operatorId，
     // 避免 webhook 事件 operatorId=null 导致空 username 死信。
     public TenderDTO updateStatus(Long id, Tender.Status targetStatus, Long userId) {
         log.debug("Updating tender status, id: {}, target: {}", id, targetStatus);
@@ -168,7 +168,7 @@ public class TenderCommandService {
         com.xiyu.bid.batch.core.TenderStatusTransitionPolicy.assertTransition(tender.getStatus(), targetStatus);
         Tender.Status previousStatus = tender.getStatus();
 
-        // CO-571: 传播 operatorId + operatorName 到 webhook 事件，避免 CRM 回调因 username=null 失败
+        // CO-576: 传播 operatorId + operatorName 到 webhook 事件，避免 CRM 回调因 username=null 失败
         String operatorName = userId != null
                 ? userRepository.findById(userId).map(User::getFullName).orElse(null)
                 : null;
@@ -398,7 +398,7 @@ public class TenderCommandService {
     }
 
     /**
-     * 解析标讯的创建者 ID（CO-571 Phase C）。
+     * 解析标讯的创建者 ID（CO-576 Phase C）。
      * <p>供 scoreanalysis 等需要 creatorId 兜底但不应直接依赖 tender repository 的模块使用，
      * 避免跨模块直接访问 repository 层。
      *

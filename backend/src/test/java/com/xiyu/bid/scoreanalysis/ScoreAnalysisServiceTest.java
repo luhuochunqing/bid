@@ -123,7 +123,7 @@ class ScoreAnalysisServiceTest {
     }
 
     @Test
-    @DisplayName("CO-571: 创建评分分析时应将当前用户作为 operatorId 传播给标讯状态更新")
+    @DisplayName("CO-576: 创建评分分析时应将当前用户作为 operatorId 传播给标讯状态更新")
     void shouldPropagateCurrentUserIdWhenUpdatingTenderStatus() {
         createRequest.setTenderId(200L);
         when(currentUserResolver.getCurrentUserId()).thenReturn(42L);
@@ -140,7 +140,7 @@ class ScoreAnalysisServiceTest {
     }
 
     @Test
-    @DisplayName("CO-571 Phase C: 当前用户未登录时用 tender.creatorId 兜底，与 Phase B 入队策略一致")
+    @DisplayName("CO-576 Phase C: 当前用户未登录时用 tender.creatorId 兜底，与 Phase B 入队策略一致")
     void noCurrentUser_usesCreatorAsOperator() {
         createRequest.setTenderId(200L);
         when(currentUserResolver.getCurrentUserId()).thenReturn(null);
@@ -158,26 +158,8 @@ class ScoreAnalysisServiceTest {
     }
 
     @Test
-    @DisplayName("CO-571 Phase C: 当前用户未登录且 tender 无 creatorId 时跳过标讯状态更新并 warn")
-    void noCurrentUserAndNoCreator_skipsEvaluatedUpdate() {
-        createRequest.setTenderId(200L);
-        when(currentUserResolver.getCurrentUserId()).thenReturn(null);
-        when(tenderCommandService.resolveCreatorId(200L)).thenReturn(null);
-        when(scoreAnalysisRepository.save(any(ScoreAnalysis.class))).thenReturn(testAnalysis);
-        when(queryService.convertToDTO(any())).thenReturn(ScoreAnalysisDTO.builder()
-                .projectId(100L)
-                .overallScore(85)
-                .riskLevel(RiskLevel.LOW)
-                .build());
-
-        scoreAnalysisService.createAnalysis(createRequest);
-
-        verify(tenderCommandService, never()).updateStatus(any(), any(), any());
-    }
-
-    @Test
-    @DisplayName("CO-571 Phase C: 当前用户未登录且 tender 不存在时跳过标讯状态更新并 warn")
-    void noCurrentUserAndTenderMissing_skipsEvaluatedUpdate() {
+    @DisplayName("CO-576 Phase C: 当前用户未登录且 resolveCreatorId 返回 null 时跳过标讯状态更新并 warn")
+    void noCurrentUser_resolveCreatorIdReturnsNull_skipsEvaluatedUpdate() {
         createRequest.setTenderId(200L);
         when(currentUserResolver.getCurrentUserId()).thenReturn(null);
         when(tenderCommandService.resolveCreatorId(200L)).thenReturn(null);

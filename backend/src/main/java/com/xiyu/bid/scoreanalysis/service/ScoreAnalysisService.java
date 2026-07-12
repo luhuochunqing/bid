@@ -68,7 +68,7 @@ public class ScoreAnalysisService {
             if (request.getTenderId() != null) {
                 try {
                     Long operatorId = currentUserResolver.getCurrentUserId();
-                    // CO-571 Phase C: 无当前用户时用 tender.creatorId 作为 operatorId 兜底，
+                    // CO-576 Phase C: 无当前用户时用 tender.creatorId 作为 operatorId 兜底，
                     // 确保 webhook 事件 operatorId 非空（避免 CRM 回调死信）。
                     // 注意：此处仅解析 operatorId；投递阶段 username 由 Phase B 的
                     // OperatorUsernameResolver.resolveDeliveryUsername 独立解析（creatorId → PM → event），
