@@ -89,8 +89,14 @@ public class ProjectResultConfirmedWebhookListener {
             log.warn("Tender {} not found, skip webhook (cannot resolve crm opportunity code)", event.tenderId());
             return;
         }
-        // CO-152：与 §4.1 WebhookEventListener 对称，入队时存操作者 username
-        String operatorUsername = operatorUsernameResolver.resolve(event.operatorUserId());
+        // CO-571 Phase B: 与 §4.1 WebhookEventListener 对称，按 creatorId → projectManagerId → eventOperatorId 顺序解析
+        String operatorUsername = operatorUsernameResolver.resolveDeliveryUsername(tender, event.operatorUserId());
+        if (operatorUsername == null || operatorUsername.isBlank()) {
+            log.error("Webhook 入队失败：无可用 OSS username，跳过入队。projectId={}, tenderId={}, resultType={}, creatorId={}, projectManagerId={}, operatorId={}",
+                    event.projectId(), event.tenderId(), event.resultType(),
+                    tender.getCreatorId(), tender.getProjectManagerId(), event.operatorUserId());
+            return;
+        }
         // CO-277 / CO-152: 使用 operatorUsername 调 CRM 反查 code；crm_opportunity_id 为空时用 externalId 兜底。
         String crmOpportunityCode = tenderCrmOpportunityCodeResolver.resolveForTender(tender, operatorUsername);
         String crmOpportunityName = tender.getCrmOpportunityName() != null ? tender.getCrmOpportunityName() : "";
