@@ -91,11 +91,8 @@ public class ProjectResultConfirmedWebhookListener {
             return;
         }
 
-        // 使用 resolveForCrmLookup 解析（PM 优先于 creator）。
+        // CO-576: 使用 resolveForCrmLookup 解析（PM 优先于 creator）。
         String operatorUsername = operatorUsernameResolver.resolveForCrmLookup(tender, event.operatorUserId());
-
-        // CO-576 Phase B: 与 §4.1 WebhookEventListener 对称，按 creatorId → projectManagerId → eventOperatorId 顺序解析
-        String operatorUsername = operatorUsernameResolver.resolveDeliveryUsername(tender, event.operatorUserId());
 
         if (operatorUsername == null || operatorUsername.isBlank()) {
             log.error("Webhook 入队失败：无可用 OSS username，跳过入队。projectId={}, tenderId={}, resultType={}, creatorId={}, projectManagerId={}, operatorId={}",

@@ -83,10 +83,8 @@ class ProjectResultConfirmedWebhookListenerTest {
                     return (crmId == null || crmId.isBlank()) ? "" : crmId;
                 });
 
+        // CO-576: 默认 resolveForCrmLookup 返回非空 username
         lenient().when(operatorUsernameResolver.resolveForCrmLookup(any(Tender.class), any()))
-
-        // CO-576 Phase B: 默认 resolveDeliveryUsername 返回非空 username
-        lenient().when(operatorUsernameResolver.resolveDeliveryUsername(any(Tender.class), any()))
 
                 .thenReturn(OPERATOR_USERNAME);
     }
@@ -322,11 +320,8 @@ class ProjectResultConfirmedWebhookListenerTest {
     }
 
     @Test
-
+    @DisplayName("CO-576: event operator 缺失时优先用 PM 的 username（resolveForCrmLookup）")
     void usesProjectManagerWhenCreatorIsAdmin() {
-
-    @DisplayName("CO-576 Phase B: event operator 缺失时优先用 creator 的 username")
-    void usesCreatorWhenEventOperatorMissing() {
 
         Tender t = tender();
         t.setProjectManagerId(100L);

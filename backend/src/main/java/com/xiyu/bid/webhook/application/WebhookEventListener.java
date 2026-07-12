@@ -87,12 +87,8 @@ public class WebhookEventListener {
             return;
         }
 
-        // 使用 resolveForCrmLookup 解析（PM 优先于 creator，避免 API Key 场景 creator=admin 无 OSS token）。
+        // CO-576: 使用 resolveForCrmLookup 解析（PM 优先于 creator，避免 API Key 场景 creator=admin 无 OSS token）。
         String operatorUsername = operatorUsernameResolver.resolveForCrmLookup(tender, event.operatorId());
-
-        // CO-576 Phase B: 按 creatorId → projectManagerId → eventOperatorId 顺序解析可用 OSS username。
-        // API Key 场景 event 常是 admin（有 username 无 OSS），故 creator/PM 优先于 event。
-        String operatorUsername = operatorUsernameResolver.resolveDeliveryUsername(tender, event.operatorId());
 
         if (operatorUsername == null || operatorUsername.isBlank()) {
             log.error("Webhook 入队失败：无可用 OSS username，跳过入队。tenderId={}, newStatus={}, creatorId={}, projectManagerId={}, operatorId={}",
