@@ -90,7 +90,7 @@ class ProjectClosureTaskAssemblerTest {
                 false, ProjectClosureGatePolicy.DepositReturnStatus.NA,
                 null, null, null, null);
         var closureInput = new ProjectClosureGatePolicy.ClosureInput("/archive", "notes");
-        var gateInputs = assembler.buildGateInputs(depositSnap, closureInput, PID);
+        var gateInputs = assembler.buildGateInputs(depositSnap, closureInput, PID, null);
         assertNotNull(gateInputs);
         assertEquals(1, gateInputs.taskStates().size());
         assertEquals(AllTasksCompletedPolicy.TaskState.COMPLETED, gateInputs.taskStates().get(0));
