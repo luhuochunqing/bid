@@ -49,10 +49,11 @@ public final class BidNotificationPolicy {
         if (NotificationDedupPolicy.isDuplicate(now, existingTimestamps)) {
             return Optional.empty();
         }
-        NotificationMessagePolicy.NotificationMessage message = NotificationMessagePolicy.forPendingInitiation(
-                Project.builder().id(projectId).name(projectName).build(),
-                Tender.builder().id(tenderId).title(tenderName).build(),
-                targetUrl);
+        NotificationMessagePolicy.NotificationMessage message =
+                PendingInitiationNotificationMessagePolicy.forPendingInitiation(
+                        Project.builder().id(projectId).name(projectName).build(),
+                        Tender.builder().id(tenderId).title(tenderName).build(),
+                        targetUrl);
         CreateNotificationRequest request = new CreateNotificationRequest(
                 message.type(),
                 message.sourceEntityType(),

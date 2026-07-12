@@ -178,3 +178,5 @@ src/main/java/com/xiyu/bid/tender/service/TenderStatusSyncService.java | 标讯�
 src/main/java/com/xiyu/bid/tender/service/TenderCrmLinkPersistService.java | CO-501 关联商机落库事务服务，由 TenderCommandService.linkCrmOpportunity 在完成权限/CRM/一致性校验后调用，不独立处理用户请求；入口权限由 TenderController @PreAuthorize 守卫承担。
 src/main/java/com/xiyu/bid/project/notification/TaskReviewNotificationService.java | 任务审核通知服务，只负责发送通知，通过 projectId 仅查询项目名称用于通知内容构造，不涉及项目数据访问或权限校验；所有调用方已在 ProjectTaskWorkflowService 层完成权限校验。
 src/main/java/com/xiyu/bid/mention/service/MentionApplicationService.java | @提及通知编排服务，通过 projectId 仅构造通知 payload/targetUrl 与项目名称，不查询项目数据也不做权限决策；接收人由调用方在请求中显式传入，入口由 MentionController 的 @PreAuthorize("isAuthenticated()") 守卫。
+src/main/java/com/xiyu/bid/notification/application/BidNotificationApplicationService.java | 待立项通知编排服务，通过 projectId 仅查询项目负责人与历史通知用于去重，不涉及项目数据访问或权限校验；调用方 TenderEvaluationService 已在 proceedToBid 中完成 canDecide 与 accessGuard 校验。
+src/main/java/com/xiyu/bid/notification/application/ProjectClosureNotificationApplicationService.java | 待结项申请通知编排服务，通过 projectId 仅查询项目负责人与历史通知用于去重，不涉及项目数据访问或权限校验；调用方 ProjectStageService 已在 requestTransition 中完成权限校验。

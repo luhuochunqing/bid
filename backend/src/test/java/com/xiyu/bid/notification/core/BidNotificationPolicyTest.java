@@ -34,7 +34,7 @@ class BidNotificationPolicyTest {
 
         assertThat(result).isPresent();
         CreateNotificationRequest request = result.get();
-        assertThat(request.type()).isEqualTo(NotificationType.SYSTEM.name());
+        assertThat(request.type()).isEqualTo(NotificationType.PENDING_INITIATION.name());
         assertThat(request.sourceEntityType()).isEqualTo("PROJECT");
         assertThat(request.sourceEntityId()).isEqualTo(PROJECT_ID);
         assertThat(request.title()).isEqualTo("待立项 - " + PROJECT_NAME);

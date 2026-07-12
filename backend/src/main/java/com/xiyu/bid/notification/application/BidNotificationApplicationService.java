@@ -1,33 +1,34 @@
-// Input: tenderId, projectId, tenderName, projectName, triggeredByUserId
+// Input: tenderId, projectId, tenderName, projectName, ownerUserId, triggeredByUserId
 // Output: 创建待立项站内通知（失败降级，不阻塞主流程）
 // Pos: notification/application/ - 投标立项通知应用服务编排层
 package com.xiyu.bid.notification.application;
 
 import com.xiyu.bid.notification.core.BidNotificationPolicy;
 import com.xiyu.bid.notification.core.NotificationType;
-import com.xiyu.bid.notification.core.ProjectNotificationRole;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.entity.Notification;
 import com.xiyu.bid.notification.repository.NotificationRepository;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
-import com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * 投标立项通知应用服务。
  *
- * <p>职责仅限于编排：解析项目负责人 → 查询历史通知用于去重 → 调用纯核心策略生成请求 →
+ * <p>职责仅限于编排：查询历史通知用于去重 → 调用纯核心策略生成请求 →
  * 调用 {@link NotificationApplicationService#createNotification}。任何步骤失败都捕获并降级，
  * 不向上抛异常，避免阻塞投标主流程。</p>
+ *
+ * <p>通知创建在独立事务（REQUIRES_NEW）中执行，与主业务事务隔离。</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -39,25 +40,29 @@ public class BidNotificationApplicationService {
     private static final int DEDUP_WINDOW_MINUTES = 5;
 
     private final NotificationApplicationService notificationApplicationService;
-    private final ProjectNotificationRecipientPolicy recipientPolicy;
     private final NotificationRepository notificationRepository;
 
     /**
      * 发送「待立项」站内通知给项目负责人。
      *
+     * <p>Spec acceptance scenario 明确：即使项目负责人与当前操作用户为同一人，也按规则发送通知，
+     * 因此本方法不主动排除 {@code triggeredByUserId}。</p>
+     *
      * @param tenderId          标讯 ID
      * @param projectId         项目 ID
      * @param tenderName        标讯名称（由调用方显式传入，避免本服务查询数据库）
      * @param projectName       项目名称（由调用方显式传入）
+     * @param ownerUserId       项目负责人用户 ID（由调用方 TenderEvaluationService 显式传入；
+     *                          项目刚创建时 ProjectInitiationDetails 尚未生成，不能通过 recipientPolicy 解析）
      * @param triggeredByUserId 触发人用户 ID
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void sendPendingInitiationNotification(
-            Long tenderId, Long projectId, String tenderName, String projectName, Long triggeredByUserId) {
+            Long tenderId, Long projectId, String tenderName, String projectName,
+            Long ownerUserId, Long triggeredByUserId) {
         try {
-            List<Long> recipients = recipientPolicy.resolveRecipients(
-                    projectId, Set.of(ProjectNotificationRole.PROJECT_OWNER), null);
-            if (recipients.isEmpty()) {
-                log.warn("No PROJECT_OWNER recipient found for pending initiation notification, projectId={}", projectId);
+            if (ownerUserId == null) {
+                log.warn("No PROJECT_OWNER provided for pending initiation notification, projectId={}", projectId);
                 return;
             }
 
@@ -70,7 +75,7 @@ public class BidNotificationApplicationService {
                     projectName,
                     targetUrl(projectId),
                     triggeredByUserId,
-                    recipients,
+                    List.of(ownerUserId),
                     Instant.now(),
                     existingTimestamps);
             if (request.isEmpty()) {
@@ -92,7 +97,7 @@ public class BidNotificationApplicationService {
                 .findBySourceEntityTypeAndSourceEntityIdAndTypeAndCreatedAtAfter(
                         SOURCE_ENTITY_TYPE,
                         projectId,
-                        NotificationType.SYSTEM.name(),
+                        NotificationType.PENDING_INITIATION.name(),
                         windowStart);
         return existing.stream()
                 .filter(notification -> notification.getTitle() != null

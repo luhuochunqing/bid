@@ -77,7 +77,8 @@ class ProjectInitiationApprovalServiceTest {
                 .thenReturn(Optional.of(User.builder().id(3L).fullName("张三").build()));
         lenient().when(projectStageService.requestTransition(
                         eq(100L), eq(ProjectStage.DRAFTING),
-                        any(ProjectStageTransitionPolicy.GateInputs.class)))
+                        any(ProjectStageTransitionPolicy.GateInputs.class),
+                        eq(null), eq(5L)))
                 .thenReturn(ProjectStage.DRAFTING);
     }
 

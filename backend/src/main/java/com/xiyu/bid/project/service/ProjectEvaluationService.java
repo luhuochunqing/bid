@@ -80,7 +80,7 @@ public class ProjectEvaluationService {
         entity.setUpdatedBy(userId);
         ProjectEvaluation saved = repository.save(entity);
         if (target == EvaluationSubStage.ANNOUNCED) {
-            advanceProjectStageToResultPending(projectId);
+            advanceProjectStageToResultPending(projectId, userId);
         }
         log.info("Evaluation sub-stage transitioned project={} {}->{} user={}",
                 projectId, current, target, userId);
@@ -179,7 +179,7 @@ public class ProjectEvaluationService {
         entity.setAnnouncedAt(LocalDateTime.now());
         entity.setUpdatedBy(userId);
         ProjectEvaluation saved = repository.save(entity);
-        advanceProjectStageToResultPending(projectId);
+        advanceProjectStageToResultPending(projectId, userId);
         log.info("Bid abandoned for project={} reason={} user={}", projectId, req.getReason(), userId);
 
         // 通知 #12: 弃标 → 团队成员+管理员
@@ -189,21 +189,21 @@ public class ProjectEvaluationService {
     }
 
     // CO-550: 开标一览表已取消必填，推进到结果确认阶段不再校验附件
-    public void advanceToResultPending(Long projectId) {
+    public void advanceToResultPending(Long projectId, Long userId) {
         // 校验评标记录存在
         repository.findByProjectId(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
                         "评标记录不存在"));
-        advanceProjectStageToResultPending(projectId);
+        advanceProjectStageToResultPending(projectId, userId);
     }
 
-    private void advanceProjectStageToResultPending(Long projectId) {
+    private void advanceProjectStageToResultPending(Long projectId, Long userId) {
         ProjectStage current = projectStageService.currentStage(projectId);
         if (current != ProjectStage.EVALUATING) {
             return; // 已被外部推进或当前不在评标阶段，幂等跳过
         }
         projectStageService.requestTransition(projectId, ProjectStage.RESULT_PENDING,
-                ProjectStageTransitionPolicy.GateInputs.EMPTY);
+                ProjectStageTransitionPolicy.GateInputs.EMPTY, null, userId);
     }
 
     private void applyTimestamps(ProjectEvaluation entity, EvaluationSubStage target) {

@@ -57,7 +57,8 @@ public class ProjectEvaluationController {
     public ResponseEntity<ApiResponse<Void>> advance(
             @PathVariable Long projectId,
             @AuthenticationPrincipal UserDetails userDetails) {
-        service.advanceToResultPending(projectId);
+        Long userId = currentUserId(userDetails);
+        service.advanceToResultPending(projectId, userId);
         return ResponseEntity.ok(ApiResponse.success("advanced to RESULT_PENDING", null));
     }
 

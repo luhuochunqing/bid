@@ -119,7 +119,7 @@ public class ProjectInitiationApprovalService {
         ProjectStage stage = projectStageService.currentStage(projectId);
         if (stage == ProjectStage.INITIATED) {
             projectStageService.requestTransition(projectId, ProjectStage.DRAFTING,
-                    ProjectStageTransitionPolicy.GateInputs.EMPTY);
+                    ProjectStageTransitionPolicy.GateInputs.EMPTY, null, currentUserId);
         }
 
         // 3a. 如果需要缴纳保证金，自动创建"缴纳保证金"任务

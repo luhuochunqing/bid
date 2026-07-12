@@ -261,7 +261,9 @@ public class TenderEvaluationService {
 
         // User Story 1: 投标立项成功后通知项目负责人待立项；失败不阻塞主流程
         try {
-            bidNotificationApplicationService.sendPendingInitiationNotification(tenderId, createdProject.getId(), tender.getTitle(), createdProject.getName(), adminId);
+            bidNotificationApplicationService.sendPendingInitiationNotification(
+                    tenderId, createdProject.getId(), tender.getTitle(), createdProject.getName(),
+                    projectManagerId, adminId);
         } catch (RuntimeException ex) {
             log.error("Pending initiation notification failed for tender {}, project {}", tenderId, createdProject.getId(), ex);
         }

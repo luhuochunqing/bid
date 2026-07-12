@@ -61,13 +61,13 @@ class ProjectClosureNotificationApplicationServiceTest {
     }
 
     @Test
-    @DisplayName("有项目负责人时创建 SYSTEM 通知")
+    @DisplayName("有项目负责人时创建 PENDING_CLOSURE_APPLICATION 通知")
     void sendPendingClosureApplicationNotification_withOwner_createsNotification() {
         when(recipientPolicy.resolveRecipients(
                 eq(PROJECT_ID), eq(Set.of(ProjectNotificationRole.PROJECT_OWNER)), eq(null)))
                 .thenReturn(List.of(OWNER_ID));
         when(notificationRepository.findBySourceEntityTypeAndSourceEntityIdAndTypeAndCreatedAtAfter(
-                eq("PROJECT"), eq(PROJECT_ID), eq(NotificationType.SYSTEM.name()), any(LocalDateTime.class)))
+                eq("PROJECT"), eq(PROJECT_ID), eq(NotificationType.PENDING_CLOSURE_APPLICATION.name()), any(LocalDateTime.class)))
                 .thenReturn(List.of());
         when(notificationApplicationService.createNotification(any(CreateNotificationRequest.class), eq(TRIGGERED_BY)))
                 .thenReturn(DispatchResult.validWithId(999L));
@@ -78,12 +78,12 @@ class ProjectClosureNotificationApplicationServiceTest {
                 ArgumentCaptor.forClass(CreateNotificationRequest.class);
         verify(notificationApplicationService).createNotification(captor.capture(), eq(TRIGGERED_BY));
         CreateNotificationRequest request = captor.getValue();
-        assertThat(request.type()).isEqualTo(NotificationType.SYSTEM.name());
+        assertThat(request.type()).isEqualTo(NotificationType.PENDING_CLOSURE_APPLICATION.name());
         assertThat(request.sourceEntityType()).isEqualTo("PROJECT");
         assertThat(request.sourceEntityId()).isEqualTo(PROJECT_ID);
         assertThat(request.title()).isEqualTo("待结项申请 - " + PROJECT_NAME);
         assertThat(request.recipientUserIds()).containsExactly(OWNER_ID);
-        assertThat(request.payload()).containsEntry("targetUrl", "/projects/" + PROJECT_ID + "/closure");
+        assertThat(request.payload()).containsEntry("targetUrl", "/project/" + PROJECT_ID + "/closure");
     }
 
     @Test
@@ -108,7 +108,7 @@ class ProjectClosureNotificationApplicationServiceTest {
                 .thenReturn(List.of(OWNER_ID));
         Notification recent = Notification.builder()
                 .id(1L)
-                .type(NotificationType.SYSTEM.name())
+                .type(NotificationType.PENDING_CLOSURE_APPLICATION.name())
                 .sourceEntityType("PROJECT")
                 .sourceEntityId(PROJECT_ID)
                 .createdAt(LocalDateTime.ofInstant(Instant.now().minusSeconds(180), ZoneOffset.UTC))
@@ -116,7 +116,7 @@ class ProjectClosureNotificationApplicationServiceTest {
                 .title("待结项申请 - " + PROJECT_NAME)
                 .build();
         when(notificationRepository.findBySourceEntityTypeAndSourceEntityIdAndTypeAndCreatedAtAfter(
-                eq("PROJECT"), eq(PROJECT_ID), eq(NotificationType.SYSTEM.name()), any(LocalDateTime.class)))
+                eq("PROJECT"), eq(PROJECT_ID), eq(NotificationType.PENDING_CLOSURE_APPLICATION.name()), any(LocalDateTime.class)))
                 .thenReturn(List.of(recent));
 
         service.sendPendingClosureApplicationNotification(PROJECT_ID, PROJECT_NAME, TRIGGERED_BY);
@@ -131,7 +131,7 @@ class ProjectClosureNotificationApplicationServiceTest {
                 eq(PROJECT_ID), eq(Set.of(ProjectNotificationRole.PROJECT_OWNER)), eq(null)))
                 .thenReturn(List.of(OWNER_ID));
         when(notificationRepository.findBySourceEntityTypeAndSourceEntityIdAndTypeAndCreatedAtAfter(
-                eq("PROJECT"), eq(PROJECT_ID), eq(NotificationType.SYSTEM.name()), any(LocalDateTime.class)))
+                eq("PROJECT"), eq(PROJECT_ID), eq(NotificationType.PENDING_CLOSURE_APPLICATION.name()), any(LocalDateTime.class)))
                 .thenReturn(List.of());
         when(notificationApplicationService.createNotification(any(CreateNotificationRequest.class), eq(TRIGGERED_BY)))
                 .thenThrow(new RuntimeException("通知服务故障"));
@@ -143,14 +143,14 @@ class ProjectClosureNotificationApplicationServiceTest {
     }
 
     @Test
-    @DisplayName("其他类型的 SYSTEM 通知不触发待结项去重")
-    void sendPendingClosureApplicationNotification_otherSystemType_doesNotSkip() {
+    @DisplayName("其他类型的 PENDING_INITIATION 通知不触发待结项去重")
+    void sendPendingClosureApplicationNotification_otherPendingInitiationType_doesNotSkip() {
         when(recipientPolicy.resolveRecipients(
                 eq(PROJECT_ID), eq(Set.of(ProjectNotificationRole.PROJECT_OWNER)), eq(null)))
                 .thenReturn(List.of(OWNER_ID));
         Notification other = Notification.builder()
                 .id(2L)
-                .type(NotificationType.SYSTEM.name())
+                .type(NotificationType.PENDING_INITIATION.name())
                 .sourceEntityType("PROJECT")
                 .sourceEntityId(PROJECT_ID)
                 .createdAt(LocalDateTime.ofInstant(Instant.now().minusSeconds(180), ZoneOffset.UTC))
@@ -158,7 +158,7 @@ class ProjectClosureNotificationApplicationServiceTest {
                 .title("待立项 - " + PROJECT_NAME)
                 .build();
         when(notificationRepository.findBySourceEntityTypeAndSourceEntityIdAndTypeAndCreatedAtAfter(
-                eq("PROJECT"), eq(PROJECT_ID), eq(NotificationType.SYSTEM.name()), any(LocalDateTime.class)))
+                eq("PROJECT"), eq(PROJECT_ID), eq(NotificationType.PENDING_CLOSURE_APPLICATION.name()), any(LocalDateTime.class)))
                 .thenReturn(List.of(other));
         when(notificationApplicationService.createNotification(any(CreateNotificationRequest.class), eq(TRIGGERED_BY)))
                 .thenReturn(DispatchResult.validWithId(1000L));

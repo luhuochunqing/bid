@@ -68,6 +68,24 @@ class WeComMessageFormatterTest {
     }
 
     @Test
+    void format_WithPendingInitiationType_UsesPendingInitiationLabel() {
+        WeComMessageFormatter.FormattedMessage message = WeComMessageFormatter.format(
+            "待立项通知", "PENDING_INITIATION", "PROJECT", 1L, "https://xiyu.example.com"
+        );
+
+        assertThat(message.description()).contains("待立项");
+    }
+
+    @Test
+    void format_WithPendingClosureApplicationType_UsesPendingClosureLabel() {
+        WeComMessageFormatter.FormattedMessage message = WeComMessageFormatter.format(
+            "待结项申请通知", "PENDING_CLOSURE_APPLICATION", "PROJECT", 1L, "https://xiyu.example.com"
+        );
+
+        assertThat(message.description()).contains("待结项");
+    }
+
+    @Test
     void format_WithUppercaseBidding_BuildsBiddingUrl() {
         WeComMessageFormatter.FormattedMessage message = WeComMessageFormatter.format(
             "投标项目更新", "TASK_UPDATE", "BIDDING", 9L, "https://xiyu.example.com"

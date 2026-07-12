@@ -55,7 +55,7 @@ public final class ProjectClosureNotificationPolicy {
         payload.put("projectName", safeProjectName);
         payload.put("targetUrl", targetUrl);
         NotificationMessage message = new NotificationMessage(
-                NotificationType.SYSTEM.name(),
+                NotificationType.PENDING_CLOSURE_APPLICATION.name(),
                 "PROJECT",
                 projectId,
                 "待结项申请 - " + safeProjectName,

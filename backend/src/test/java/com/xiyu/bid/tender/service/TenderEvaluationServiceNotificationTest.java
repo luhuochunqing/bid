@@ -135,7 +135,7 @@ class TenderEvaluationServiceNotificationTest {
 
         assertThat(result.projectId()).isEqualTo(projectId);
         verify(bidNotificationApplicationService)
-                .sendPendingInitiationNotification(tenderId, projectId, tender.getTitle(), "测试标讯", adminId);
+                .sendPendingInitiationNotification(tenderId, projectId, tender.getTitle(), "测试标讯", 18L, adminId);
     }
 
     @Test
@@ -167,13 +167,13 @@ class TenderEvaluationServiceNotificationTest {
                 com.xiyu.bid.entity.User.builder().id(adminId).username("admin").build()));
         org.mockito.Mockito.doThrow(new RuntimeException("notification down"))
                 .when(bidNotificationApplicationService)
-                .sendPendingInitiationNotification(tenderId, projectId, tender.getTitle(), "测试标讯", adminId);
+                .sendPendingInitiationNotification(tenderId, projectId, tender.getTitle(), "测试标讯", adminId, adminId);
 
         TenderBidResult result = service.proceedToBid(tenderId, adminId);
 
         assertThat(result.projectId()).isEqualTo(projectId);
         verify(bidNotificationApplicationService)
-                .sendPendingInitiationNotification(tenderId, projectId, tender.getTitle(), "测试标讯", adminId);
+                .sendPendingInitiationNotification(tenderId, projectId, tender.getTitle(), "测试标讯", adminId, adminId);
     }
 
     @Test
@@ -192,6 +192,6 @@ class TenderEvaluationServiceNotificationTest {
         org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
                 () -> service.proceedToBid(tenderId, 99L));
 
-        verify(bidNotificationApplicationService, never()).sendPendingInitiationNotification(any(), any(), any(), any(), any());
+        verify(bidNotificationApplicationService, never()).sendPendingInitiationNotification(any(), any(), any(), any(), any(), any());
     }
 }

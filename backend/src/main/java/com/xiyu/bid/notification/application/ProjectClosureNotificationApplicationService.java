@@ -14,6 +14,8 @@ import com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -27,6 +29,8 @@ import java.util.Set;
  *
  * <p>职责：解析项目负责人、查询去重时间戳、调用纯核心策略、创建站内通知。
  * 失败时降级记录日志，不阻塞主流程。</p>
+ *
+ * <p>通知创建在独立事务（REQUIRES_NEW）中执行，与主业务事务隔离。</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -44,10 +48,14 @@ public class ProjectClosureNotificationApplicationService {
     /**
      * 发送待结项申请通知给项目负责人。
      *
+     * <p>Spec acceptance scenario 要求：项目负责人与当前操作用户为同一人时仍按规则发送，
+     * 因此本方法不主动排除自己。</p>
+     *
      * @param projectId     项目 ID
      * @param projectName   项目名称（由调用方显式传入，避免本服务查询数据库）
      * @param triggeredByUserId 触发人用户 ID
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void sendPendingClosureApplicationNotification(Long projectId, String projectName, Long triggeredByUserId) {
         try {
             List<Long> recipients = recipientPolicy.resolveRecipients(
@@ -61,7 +69,7 @@ public class ProjectClosureNotificationApplicationService {
 
             List<Instant> existingTimestamps = loadExistingTimestamps(projectId, TITLE_PREFIX);
             Instant now = Instant.now();
-            String targetUrl = "/projects/" + projectId + "/closure";
+            String targetUrl = "/project/" + projectId + "/closure";
 
             Optional<CreateNotificationRequest> requestOpt = ProjectClosureNotificationPolicy.createRequest(
                     projectId,
@@ -87,7 +95,7 @@ public class ProjectClosureNotificationApplicationService {
                 .findBySourceEntityTypeAndSourceEntityIdAndTypeAndCreatedAtAfter(
                         SOURCE_ENTITY_TYPE,
                         projectId,
-                        NotificationType.SYSTEM.name(),
+                        NotificationType.PENDING_CLOSURE_APPLICATION.name(),
                         windowStart);
         return existing.stream()
                 .filter(notification -> notification.getTitle() != null

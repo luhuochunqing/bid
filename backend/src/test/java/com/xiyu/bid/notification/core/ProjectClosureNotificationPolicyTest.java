@@ -18,20 +18,20 @@ class ProjectClosureNotificationPolicyTest {
 
     private static final Long PROJECT_ID = 42L;
     private static final String PROJECT_NAME = "西域智能投标项目";
-    private static final String TARGET_URL = "/projects/42/closure";
+    private static final String TARGET_URL = "/project/42/closure";
     private static final Long TRIGGERED_BY = 7L;
     private static final List<Long> RECIPIENTS = List.of(100L, 101L);
     private static final Instant NOW = Instant.parse("2026-07-12T10:00:00Z");
 
     @Test
-    @DisplayName("无历史通知时生成 SYSTEM 类型待结项申请请求")
+    @DisplayName("无历史通知时生成 PENDING_CLOSURE_APPLICATION 类型待结项申请请求")
     void createRequest_withoutHistory_shouldGenerateRequest() {
         Optional<CreateNotificationRequest> result = ProjectClosureNotificationPolicy.createRequest(
                 PROJECT_ID, PROJECT_NAME, TARGET_URL, TRIGGERED_BY, NOW, List.of(), RECIPIENTS);
 
         assertThat(result).isPresent();
         CreateNotificationRequest request = result.get();
-        assertThat(request.type()).isEqualTo(NotificationType.SYSTEM.name());
+        assertThat(request.type()).isEqualTo(NotificationType.PENDING_CLOSURE_APPLICATION.name());
         assertThat(request.sourceEntityType()).isEqualTo("PROJECT");
         assertThat(request.sourceEntityId()).isEqualTo(PROJECT_ID);
         assertThat(request.title()).isEqualTo("待结项申请 - " + PROJECT_NAME);

@@ -116,7 +116,7 @@ class ProjectResultRegistrationServiceTest {
         service.register(1L, req, 7L);
         verify(stageService, times(1)).requestTransition(eq(1L),
                 eq(ProjectStage.RETROSPECTIVE), any(ProjectStageTransitionPolicy.GateInputs.class),
-                eq("WON"));
+                eq("WON"), eq(7L));
     }
 
     @Test
@@ -137,7 +137,7 @@ class ProjectResultRegistrationServiceTest {
         service.register(1L, req, 7L);
         verify(stageService, times(1)).requestTransition(eq(1L),
                 eq(ProjectStage.RETROSPECTIVE), any(ProjectStageTransitionPolicy.GateInputs.class),
-                eq("FAILED"));
+                eq("FAILED"), eq(7L));
     }
 
     @Test
@@ -156,8 +156,7 @@ class ProjectResultRegistrationServiceTest {
                 .evidenceFileIds(List.of(1L))
                 .build();
         service.register(1L, req, 7L);
-        verify(stageService, never()).requestTransition(any(), any(), any());
-        verify(stageService, never()).requestTransition(any(), any(), any(), any());
+        verify(stageService, never()).requestTransition(any(), any(), any(), any(), any());
     }
 
     @Test

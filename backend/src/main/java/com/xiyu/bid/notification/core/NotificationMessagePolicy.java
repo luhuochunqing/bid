@@ -5,7 +5,6 @@ package com.xiyu.bid.notification.core;
 
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Task;
-import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.project.core.ProjectStage;
 
 import java.util.LinkedHashMap;
@@ -226,24 +225,6 @@ public final class NotificationMessagePolicy {
                 + "\n\n您的任务已审核" + action + "，请查看。";
         Map<String, Object> payload = taskPayload(projectId, projectName, taskId, safeTitle, targetUrl);
         return new NotificationMessage(TYPE_TASK_UPDATE, ENTITY_PROJECT, projectId, title, body, payload);
-    }
-
-    /**
-     * 投标立项后待立项通知。
-     * <p>文案：{@code 待立项 - {projectName}} / {@code 【{tenderName}】已投标，项目「{projectName}」待立项，请尽快处理。}
-     */
-    public static NotificationMessage forPendingInitiation(
-            final Project project, final Tender tender, final String targetUrl) {
-        Long projectId = project == null ? null : project.getId();
-        String projectName = project == null ? "" : nullToEmpty(project.getName());
-        Long tenderId = tender == null ? null : tender.getId();
-        String tenderName = tender == null ? "" : nullToEmpty(tender.getTitle());
-        Map<String, Object> payload = basePayload(projectId, projectName, targetUrl);
-        payload.put("tenderId", tenderId);
-        payload.put("tenderName", tenderName);
-        return new NotificationMessage(TYPE_SYSTEM, ENTITY_PROJECT, projectId,
-                "待立项 - " + projectName,
-                "【" + tenderName + "】已投标，项目「" + projectName + "」待立项，请尽快处理。", payload);
     }
 
     private static Map<String, Object> basePayload(
