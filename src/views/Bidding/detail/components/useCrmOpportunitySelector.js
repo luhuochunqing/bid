@@ -149,6 +149,13 @@ export function useCrmOpportunitySelector(props, emit) {
       try {
         const contactRes = await crmApi.getContactPersons(chance.id)
         const contacts = Array.isArray(contactRes) ? contactRes : (contactRes?.data || [])
+        // CO-277: 对接人查询成功但为空时阻断关联，提示用户到 CRM 系统添加对接人。
+        // 生产案例：CRM 推送标讯时项目负责人未在 CRM 系统录入对接人，导致商机关联后
+        // 评估表客户信息矩阵为空，后续 CRM token 获取和商机反查全部失败。
+        if (contacts.length === 0) {
+          ElMessage.error('请到 CRM 系统添加项目对接人')
+          return
+        }
         // CO-431: CRM 对接人 position 是数字字符串（生产日志实锤，见 CO-329 PR #1124 评论
         // 与 docs/references/crm-integration-lessons.md §13），必须按 position 字段映射到对应角色行，
         // 不能按数组下标 idx % 14 强行分配（否则 position=8 招标文件制作人会被错配到第 1 行项目最高决策人）。
@@ -194,7 +201,8 @@ export function useCrmOpportunitySelector(props, emit) {
         }
         })
       } catch {
-        ElMessage.warning('CRM对接人查询失败，已继续关联商机，客户信息未自动带入')
+        ElMessage.error('请到 CRM 系统添加项目对接人')
+        return
       }
     }
     linkedOpportunity.value = { name: chance.name, code: chance.code, id: chance.id }
