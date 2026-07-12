@@ -157,6 +157,7 @@ const canReviewCurrentTask = computed(() => {
 })
 // CO-481: 保证金缴纳任务 + TODO + 管理角色/项目负责人 → 可编辑执行人
 // 权限范围：系统管理员、投标管理员、投标组长、该项目分配的投标负责人、投标辅助人员
+// CO-574: 新增放权给项目负责人（project.projectLeaderId = 立项发起人），与 TaskForm.vue canEditAssignee 同口径
 const canEditDepositTaskAssignee = computed(() => {
   if (drawerMode.value !== 'view') return false
   const task = editingTask.value
@@ -169,6 +170,7 @@ const canEditDepositTaskAssignee = computed(() => {
   if (!project || uid == null) return false
   return (project.primaryLeadUserId != null && String(uid) === String(project.primaryLeadUserId))
     || (project.secondaryLeadUserId != null && String(uid) === String(project.secondaryLeadUserId))
+    || (project.projectLeaderId != null && String(uid) === String(project.projectLeaderId))
 })
 
 const drawerTitle = computed(() => {
