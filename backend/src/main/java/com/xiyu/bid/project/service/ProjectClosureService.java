@@ -106,10 +106,16 @@ public class ProjectClosureService {
     @Auditable(action = "PROJECT_CLOSURE_SUBMITTED", entityType = "ProjectClosure", description = "提交项目结项申请")
     public ClosureDTO submitClosure(Long projectId, ClosureSubmitRequest req, Long userId) {
         mustGetProject(projectId);
-        if (closureRepository.existsByProjectIdAndStageLockedTrue(projectId)) {
-            throw new ResponseStatusException(HttpStatus.LOCKED, "项目已结项，不可重复操作");
-        }
         Optional<ProjectClosure> existingClosure = closureRepository.findByProjectId(projectId);
+        existingClosure.ifPresent(closure -> {
+            if (Boolean.TRUE.equals(closure.getStageLocked())) {
+                throw new ResponseStatusException(HttpStatus.LOCKED, "项目已结项，不可重复操作");
+            }
+            // CO-572: 已提交待审核的结项申请不可重复提交（防止 PATCH 绕过前端状态门）
+            if ("PENDING".equals(closure.getReviewStatus())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "结项申请已提交待审核，不可修改");
+            }
+        });
         ProjectDepositSnapshot depositSnap = depositAssembler.buildSnapshot(projectId, existingClosure);
         DepositStatusInfo statusInfo = depositAssembler.resolveStatus(req, depositSnap);
         var gateSnap = new ProjectClosureGatePolicy.DepositSnapshot(
