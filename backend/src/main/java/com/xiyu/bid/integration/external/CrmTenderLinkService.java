@@ -38,10 +38,12 @@ public class CrmTenderLinkService {
      * @param tender              标讯实体（已保存或即将保存）
      * @param crmId              CRM 商机主键 id（纯数字），用于查询项目负责人；可为空
      * @param crmOpportunityCode CRM 商机编号 code（CC... 格式），直接存入 tender；可为空
+     * @param username           当前操作用户 username（用于获取 CRM token）；API Key 认证路径下
+     *                           由调用方通过 userId 反查得到，null 时降级为旧行为（无 token 反查失败）
      */
-    public void linkIfPresent(Tender tender, String crmId, String crmOpportunityCode) {
+    public void linkIfPresent(Tender tender, String crmId, String crmOpportunityCode, String username) {
         if ((crmId == null || crmId.isBlank()) && (crmOpportunityCode == null || crmOpportunityCode.isBlank())) return;
-        applyCrmLinkAndAssignment(tender, crmId, crmOpportunityCode);
+        applyCrmLinkAndAssignment(tender, crmId, crmOpportunityCode, username);
     }
 
     /**
@@ -58,7 +60,7 @@ public class CrmTenderLinkService {
      * @param sourceId     来源系统数据 id（尝试解析为商机主键 id）
      * @return true 表示已成功通过兜底关联商机；false 表示未触发或反查失败
      */
-    public boolean linkByChanceIdIfPresent(Tender tender, String sourceSystem, String sourceId) {
+    public boolean linkByChanceIdIfPresent(Tender tender, String sourceSystem, String sourceId, String username) {
         if (sourceSystem == null || !"CRM".equals(sourceSystem)) return false;
         if (sourceId == null || sourceId.isBlank()) return false;
         Long chanceId;
@@ -68,11 +70,11 @@ public class CrmTenderLinkService {
             // sourceId 不是纯数字，不是商机主键 id，跳过
             return false;
         }
-        log.info("linkByChanceIdIfPresent: sourceId={} parsed as chanceId, tender id={}",
-                sourceId, tender.getId());
+        log.info("linkByChanceIdIfPresent: sourceId={} parsed as chanceId, tender id={}, username={}",
+                sourceId, tender.getId(), username);
         try {
             CrmProjectLeaderService.ProjectLeaderResult leader =
-                    crmProjectLeaderService.findProjectLeaderByChanceId(chanceId, null);
+                    crmProjectLeaderService.findProjectLeaderByChanceId(chanceId, username);
             if (leader == null || leader.opportunityCode() == null || leader.opportunityCode().isBlank()) {
                 log.warn("linkByChanceIdIfPresent: no opportunity found for chanceId={}", chanceId);
                 return false;
@@ -99,10 +101,11 @@ public class CrmTenderLinkService {
      * @param tender              标讯实体
      * @param crmId              CRM 商机主键 id（纯数字），可为空
      * @param crmOpportunityCode CRM 商机编号 code（CC... 格式），可为空；CRM 推送可能传纯数字 id
+     * @param username           当前操作用户 username（用于获取 CRM token）；可为 null（降级为无 token 反查）
      */
-    public void applyCrmLinkAndAssignment(Tender tender, String crmId, String crmOpportunityCode) {
-        log.info("Applying CRM link for tender id={}, crmId={}, crmOpportunityCode={}",
-                tender.getId(), crmId, crmOpportunityCode);
+    public void applyCrmLinkAndAssignment(Tender tender, String crmId, String crmOpportunityCode, String username) {
+        log.info("Applying CRM link for tender id={}, crmId={}, crmOpportunityCode={}, username={}",
+                tender.getId(), crmId, crmOpportunityCode, username);
         // 仅当 code 是 CC 格式编号（非纯数字）时才直接存入
         // 纯数字是 CRM 推送误传的主键 id，需通过 findProjectLeaderByChanceId 反查真正的 CC 编号
         if (isCcFormatCode(crmOpportunityCode)) {
@@ -114,7 +117,7 @@ public class CrmTenderLinkService {
             if (crmId != null && !crmId.isBlank()) {
                 try {
                     Long chanceId = Long.parseLong(crmId.trim());
-                    leader = crmProjectLeaderService.findProjectLeaderByChanceId(chanceId, null);
+                    leader = crmProjectLeaderService.findProjectLeaderByChanceId(chanceId, username);
                 } catch (NumberFormatException e) {
                     log.warn("CRM link: crmId '{}' is not numeric, skipping chanceId lookup", crmId);
                 }
@@ -123,7 +126,7 @@ public class CrmTenderLinkService {
             if (leader == null && isNumericId(crmOpportunityCode)) {
                 try {
                     Long chanceId = Long.parseLong(crmOpportunityCode.trim());
-                    leader = crmProjectLeaderService.findProjectLeaderByChanceId(chanceId, null);
+                    leader = crmProjectLeaderService.findProjectLeaderByChanceId(chanceId, username);
                     log.info("CRM link: crmOpportunityCode '{}' is numeric, resolved via chanceId lookup", crmOpportunityCode);
                 } catch (NumberFormatException e) {
                     log.warn("CRM link: crmOpportunityCode '{}' is not numeric", crmOpportunityCode);
@@ -131,7 +134,7 @@ public class CrmTenderLinkService {
             }
             // 仍为 null 时，尝试用 code（CC 格式）查
             if (leader == null && isCcFormatCode(crmOpportunityCode)) {
-                leader = crmProjectLeaderService.findProjectLeaderByChanceCode(crmOpportunityCode, null);
+                leader = crmProjectLeaderService.findProjectLeaderByChanceCode(crmOpportunityCode, username);
             }
             if (leader == null) {
                 log.warn("CRM link: no project leader found, setting EVALUATED");

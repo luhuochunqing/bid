@@ -1,6 +1,7 @@
 package com.xiyu.bid.integration.external;
 
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.tender.dto.TenderDTO;
@@ -77,7 +78,8 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
                 userRepository);
         commandService = new TenderIntegrationCommandService(
                 tenderRepository, attachmentRepository, crmTenderLinkService, mapper, evaluationService, helper, support, eventPublisher,
-                tenderAuditService, userRepository, crmOccupancyChecker);
+                tenderAuditService, userRepository, crmOccupancyChecker,
+                new com.xiyu.bid.webhook.application.OperatorUsernameResolver(userRepository));
         when(tenderRepository.save(any(Tender.class))).thenAnswer(inv -> inv.getArgument(0));
         TenderDTO stubDto = TenderDTO.builder().build();
         when(tenderMapper.toDTO(any(Tender.class))).thenReturn(stubDto);
@@ -106,7 +108,7 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
             t.setStatus(Tender.Status.EVALUATED);
             return null;
         }).when(crmTenderLinkService).linkIfPresent(any(Tender.class),
-                org.mockito.ArgumentMatchers.eq("20916"), org.mockito.ArgumentMatchers.eq("CHANCE_001"));
+                org.mockito.ArgumentMatchers.eq("20916"), org.mockito.ArgumentMatchers.eq("CHANCE_001"), any());
 
         TenderUpdateRequest request = TenderUpdateRequest.builder()
                 .crmId("20916")
@@ -128,7 +130,7 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
         when(tenderRepository.findByExternalId("crm:test-001")).thenReturn(Optional.of(tender));
 
         org.mockito.Mockito.doNothing().when(crmTenderLinkService)
-                .linkIfPresent(any(Tender.class), any(), any());
+                .linkIfPresent(any(Tender.class), any(), any(), any());
 
         TenderUpdateRequest request = TenderUpdateRequest.builder()
                 .crmOpportunityId("CC20260619285")
@@ -172,7 +174,7 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
             return null;
         }).when(crmTenderLinkService).linkIfPresent(any(Tender.class),
                 org.mockito.ArgumentMatchers.isNull(),
-                org.mockito.ArgumentMatchers.eq("CC20260619283"));
+                org.mockito.ArgumentMatchers.eq("CC20260619283"), any());
 
         TenderUpdateRequest request = TenderUpdateRequest.builder()
                 .crmOpportunityId("CC20260619283")
@@ -184,7 +186,7 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
         org.mockito.Mockito.verify(crmTenderLinkService)
                 .linkIfPresent(any(Tender.class),
                         org.mockito.ArgumentMatchers.isNull(),
-                        org.mockito.ArgumentMatchers.eq("CC20260619283"));
+                        org.mockito.ArgumentMatchers.eq("CC20260619283"), any());
         assertThat(tender.getCrmOpportunityId()).isEqualTo("CC20260619283");
         assertThat(tender.getEvaluationSource()).isEqualTo(Tender.EvaluationSource.CRM_PUSH);
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
@@ -203,7 +205,7 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
             return null;
         }).when(crmTenderLinkService).linkIfPresent(any(Tender.class),
                 org.mockito.ArgumentMatchers.eq("20916"),
-                org.mockito.ArgumentMatchers.eq("CC-PUBLIC"));
+                org.mockito.ArgumentMatchers.eq("CC-PUBLIC"), any());
 
         TenderUpdateRequest request = TenderUpdateRequest.builder()
                 .crmId("20916")
@@ -215,7 +217,7 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
         org.mockito.Mockito.verify(crmTenderLinkService)
                 .linkIfPresent(any(Tender.class),
                         org.mockito.ArgumentMatchers.eq("20916"),
-                        org.mockito.ArgumentMatchers.eq("CC-PUBLIC"));
+                        org.mockito.ArgumentMatchers.eq("CC-PUBLIC"), any());
     }
 
     @Test
@@ -225,7 +227,7 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
         when(tenderRepository.findByExternalId("crm:test-001")).thenReturn(Optional.of(tender));
 
         org.mockito.Mockito.doNothing().when(crmTenderLinkService)
-                .linkIfPresent(any(Tender.class), any(), any());
+                .linkIfPresent(any(Tender.class), any(), any(), any());
 
         TenderUpdateRequest request = TenderUpdateRequest.builder()
                 .crmOpportunityId("CC20260619283")
@@ -253,7 +255,7 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
         org.mockito.Mockito.doNothing().when(crmTenderLinkService)
                 .linkIfPresent(any(Tender.class),
                         org.mockito.ArgumentMatchers.eq("20942"),
-                        org.mockito.ArgumentMatchers.isNull());
+                        org.mockito.ArgumentMatchers.isNull(), any());
 
         TenderUpdateRequest request = TenderUpdateRequest.builder()
                 .crmId("20942")
@@ -281,7 +283,7 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
         when(tenderRepository.findByExternalId("crm:test-001")).thenReturn(Optional.of(tender));
 
         org.mockito.Mockito.doNothing().when(crmTenderLinkService)
-                .linkIfPresent(any(Tender.class), any(), any());
+                .linkIfPresent(any(Tender.class), any(), any(), any());
 
         TenderUpdateRequest request = TenderUpdateRequest.builder()
                 .crmOpportunityId("CC20260621323")
@@ -311,5 +313,38 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
 
         assertThat(tender.getProjectManagerName()).isEqualTo("王五");
         assertThat(tender.getProjectManagerId()).isEqualTo(42L);
+    }
+
+    // ===== 根因行为集成测试：API Key 路径下 userId → resolveUsername → linkIfPresent(username) =====
+
+    @Test
+    @DisplayName("根因修复: userId 非 null 时 resolveUsername 返回 username 并透传到 linkIfPresent")
+    void updateByExternalId_withUserId_passesResolvedUsernameToLinkIfPresent() {
+        // 生产 bug 场景：CRM 推送走 API Key 认证，userId 是 API Key 创建者（如 admin）
+        // 修复前：linkIfPresent 收到 username=null，CRM 反查失败，商机未关联
+        // 修复后：resolveUsername(userId) 返回 "admin"，透传到 linkIfPresent
+        Tender tender = createExistingTender();
+        when(tenderRepository.findByExternalId("crm:test-001")).thenReturn(Optional.of(tender));
+
+        // mock userRepository.findById(userId) 返回带 username 的 User
+        User user = new User();
+        user.setId(1L);
+        user.setUsername("admin");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        org.mockito.Mockito.doNothing().when(crmTenderLinkService)
+                .linkIfPresent(any(Tender.class), any(), any(), any());
+
+        TenderUpdateRequest request = TenderUpdateRequest.builder()
+                .crmOpportunityId("CC2026071244")
+                .build();
+
+        commandService.updateByExternalId("crm", "test-001", request, 1L);
+
+        // 验证 linkIfPresent 收到的第 4 参数是 "admin"（而非 null）
+        org.mockito.ArgumentCaptor<String> usernameCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.Mockito.verify(crmTenderLinkService)
+                .linkIfPresent(any(Tender.class), any(), any(), usernameCaptor.capture());
+        assertThat(usernameCaptor.getValue()).isEqualTo("admin");
     }
 }

@@ -86,7 +86,8 @@ class TenderIntegrationCommandServiceCrmDuplicateTest {
                 userRepository);
         commandService = new TenderIntegrationCommandService(
                 tenderRepository, attachmentRepository, crmTenderLinkService, mapper, evaluationService, helper, support,
-                eventPublisher, tenderAuditService, userRepository, crmOccupancyChecker);
+                eventPublisher, tenderAuditService, userRepository, crmOccupancyChecker,
+                new com.xiyu.bid.webhook.application.OperatorUsernameResolver(userRepository));
         when(tenderRepository.save(any(Tender.class))).thenAnswer(inv -> inv.getArgument(0));
         TenderDTO stubDto = TenderDTO.builder().build();
         when(tenderMapper.toDTO(any(Tender.class))).thenReturn(stubDto);
@@ -130,7 +131,7 @@ class TenderIntegrationCommandServiceCrmDuplicateTest {
             t.setCrmOpportunityId("CC20260703615");
             t.setStatus(Tender.Status.EVALUATED);
             return null;
-        }).when(crmTenderLinkService).linkIfPresent(any(Tender.class), eq("21246"), any());
+        }).when(crmTenderLinkService).linkIfPresent(any(Tender.class), eq("21246"), any(), any());
 
         doThrow(new BusinessException(409, "该 CRM 商机已被标讯 ID=926 关联，请先解除原关联"))
                 .when(crmOccupancyChecker).assertCrmOpportunityNotOccupied(eq(1630L), eq("CC20260703615"));
@@ -162,7 +163,7 @@ class TenderIntegrationCommandServiceCrmDuplicateTest {
             t.setCrmOpportunityId("CC20260703615");
             t.setStatus(Tender.Status.EVALUATED);
             return null;
-        }).when(crmTenderLinkService).linkIfPresent(any(Tender.class), eq("21246"), any());
+        }).when(crmTenderLinkService).linkIfPresent(any(Tender.class), eq("21246"), any(), any());
 
         DataIntegrityViolationException dbEx = new DataIntegrityViolationException(
                 "could not execute statement [Duplicate entry 'CC20260703615' for key 'tenders.idx_tender_crm_opportunity_id']",

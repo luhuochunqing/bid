@@ -102,8 +102,10 @@ class TenderIntegrationCommandSupport {
 
     /**
      * CRM 推送兜底：当 crmId 和 crmOpportunityCode 均为空时，用 externalId 反查 chanceId。
+     *
+     * @param username 当前操作用户 username（用于 CRM token 鉴权）；可为 null
      */
-    void applyCrmFallback(Tender tender, String crmId, String crmOpportunityCode, String crmOpportunityName) {
+    void applyCrmFallback(Tender tender, String crmId, String crmOpportunityCode, String crmOpportunityName, String username) {
         boolean hasCrmId = crmId != null && !crmId.isBlank();
         boolean hasCode = crmOpportunityCode != null && !crmOpportunityCode.isBlank();
         if (!hasCrmId && !hasCode) {
@@ -112,7 +114,8 @@ class TenderIntegrationCommandSupport {
                         tender,
                         tender.getExternalId() != null ? tender.getExternalId().split(":")[0] : null,
                         tender.getExternalId() != null && tender.getExternalId().contains(":")
-                                ? tender.getExternalId().split(":")[1] : null);
+                                ? tender.getExternalId().split(":")[1] : null,
+                        username);
                 if (linked) {
                     tender.setSourceType(Tender.SourceType.CRM_OPPORTUNITY);
                     tender.setSource(Tender.SourceType.CRM_OPPORTUNITY.getLabel());

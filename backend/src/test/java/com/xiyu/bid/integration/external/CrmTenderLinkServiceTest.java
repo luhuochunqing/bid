@@ -56,7 +56,7 @@ class CrmTenderLinkServiceTest {
         Tender tender = newTender();
         when(crmProjectLeaderService.findProjectLeaderByChanceCode("CC001", null)).thenReturn(null);
 
-        service.linkIfPresent(tender, null, "CC001");
+        service.linkIfPresent(tender, null, "CC001", null);
 
         // code 直接存入，即使 API 没找到负责人
         assertThat(tender.getCrmOpportunityId()).isEqualTo("CC001");
@@ -72,7 +72,7 @@ class CrmTenderLinkServiceTest {
         when(crmProjectLeaderService.findProjectLeaderByChanceId(20916L, null)).thenReturn(leader);
         when(userRepository.findByEmployeeNumber("EMP001")).thenReturn(Optional.empty());
 
-        service.linkIfPresent(tender, "20916", "CC001");
+        service.linkIfPresent(tender, "20916", "CC001", null);
 
         assertThat(tender.getCrmOpportunityId()).isEqualTo("CC001");
         assertThat(tender.getCrmOpportunityName()).isEqualTo("商机A");
@@ -88,7 +88,7 @@ class CrmTenderLinkServiceTest {
     void linkIfPresent_bothNull_noOp() {
         Tender tender = newTender();
 
-        service.linkIfPresent(tender, null, null);
+        service.linkIfPresent(tender, null, null, null);
 
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.PENDING_ASSIGNMENT);
         assertThat(tender.getCrmOpportunityId()).isNull();
@@ -100,7 +100,7 @@ class CrmTenderLinkServiceTest {
     void linkIfPresent_bothBlank_noOp() {
         Tender tender = newTender();
 
-        service.linkIfPresent(tender, "  ", "  ");
+        service.linkIfPresent(tender, "  ", "  ", null);
 
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.PENDING_ASSIGNMENT);
         verify(crmProjectLeaderService, never()).findProjectLeaderByChanceCode(any(), any());
@@ -113,7 +113,7 @@ class CrmTenderLinkServiceTest {
         Tender tender = newTender();
         when(crmProjectLeaderService.findProjectLeaderByChanceCode("CC002", null)).thenReturn(null);
 
-        service.linkIfPresent(tender, null, "CC002");
+        service.linkIfPresent(tender, null, "CC002", null);
 
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
         assertThat(tender.getCrmOpportunityId()).isEqualTo("CC002");
@@ -125,7 +125,7 @@ class CrmTenderLinkServiceTest {
         Tender tender = newTender();
         when(crmProjectLeaderService.findProjectLeaderByChanceId(20916L, null)).thenReturn(null);
 
-        service.linkIfPresent(tender, "20916", null);
+        service.linkIfPresent(tender, "20916", null, null);
 
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
         // 无 code 时不存入
@@ -140,7 +140,7 @@ class CrmTenderLinkServiceTest {
         when(crmProjectLeaderService.findProjectLeaderByChanceCode("CC003", null))
                 .thenThrow(new RuntimeException("CRM 服务不可用"));
 
-        service.linkIfPresent(tender, null, "CC003");
+        service.linkIfPresent(tender, null, "CC003", null);
 
         // code 在 API 调用前就已存入
         assertThat(tender.getCrmOpportunityId()).isEqualTo("CC003");
@@ -160,7 +160,7 @@ class CrmTenderLinkServiceTest {
         user.setFullName("张三");
         when(userRepository.findByEmployeeNumber("EMP001")).thenReturn(Optional.of(user));
 
-        service.linkIfPresent(tender, "20916", "CC004");
+        service.linkIfPresent(tender, "20916", "CC004", null);
 
         assertThat(tender.getProjectManagerId()).isEqualTo(50L);
         assertThat(tender.getProjectManagerName()).isEqualTo("张三");
@@ -176,7 +176,7 @@ class CrmTenderLinkServiceTest {
         when(crmProjectLeaderService.findProjectLeaderByChanceCode("CC005", null)).thenReturn(leader);
         when(userRepository.findByEmployeeNumber("EMP999")).thenReturn(Optional.empty());
 
-        service.linkIfPresent(tender, null, "CC005");
+        service.linkIfPresent(tender, null, "CC005", null);
 
         assertThat(tender.getProjectManagerName()).isEqualTo("李四");
         assertThat(tender.getProjectManagerId()).isNull();
@@ -190,7 +190,7 @@ class CrmTenderLinkServiceTest {
                         "王五", null, "商机C", "CC006");
         when(crmProjectLeaderService.findProjectLeaderByChanceCode("CC006", null)).thenReturn(leader);
 
-        service.linkIfPresent(tender, null, "CC006");
+        service.linkIfPresent(tender, null, "CC006", null);
 
         assertThat(tender.getProjectManagerName()).isEqualTo("王五");
         verify(userRepository, never()).findByEmployeeNumber(any());
@@ -206,7 +206,7 @@ class CrmTenderLinkServiceTest {
                         "张三", "EMP001", "商机A", "CC007");
         when(crmProjectLeaderService.findProjectLeaderByChanceCode("CC007", null)).thenReturn(leader);
 
-        service.linkIfPresent(tender, "not-a-number", "CC007");
+        service.linkIfPresent(tender, "not-a-number", "CC007", null);
 
         verify(crmProjectLeaderService, never()).findProjectLeaderByChanceId(any(), any());
         verify(crmProjectLeaderService).findProjectLeaderByChanceCode("CC007", null);
@@ -223,7 +223,7 @@ class CrmTenderLinkServiceTest {
         when(crmProjectLeaderService.findProjectLeaderByChanceId(243L, null)).thenReturn(leader);
         when(userRepository.findByEmployeeNumber("EMP001")).thenReturn(Optional.empty());
 
-        boolean linked = service.linkByChanceIdIfPresent(tender, "CRM", "243");
+        boolean linked = service.linkByChanceIdIfPresent(tender, "CRM", "243", null);
 
         assertThat(linked).isTrue();
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
@@ -234,7 +234,7 @@ class CrmTenderLinkServiceTest {
     void linkByChanceIdIfPresent_nonCrmSource_returnsFalse() {
         Tender tender = newTender();
 
-        boolean linked = service.linkByChanceIdIfPresent(tender, "EXTERNAL", "243");
+        boolean linked = service.linkByChanceIdIfPresent(tender, "EXTERNAL", "243", null);
 
         assertThat(linked).isFalse();
         verify(crmProjectLeaderService, never()).findProjectLeaderByChanceId(any(), any());
@@ -244,7 +244,7 @@ class CrmTenderLinkServiceTest {
     void linkByChanceIdIfPresent_nonNumericSourceId_returnsFalse() {
         Tender tender = newTender();
 
-        boolean linked = service.linkByChanceIdIfPresent(tender, "CRM", "ABC-243");
+        boolean linked = service.linkByChanceIdIfPresent(tender, "CRM", "ABC-243", null);
 
         assertThat(linked).isFalse();
         verify(crmProjectLeaderService, never()).findProjectLeaderByChanceId(any(), any());
@@ -255,7 +255,7 @@ class CrmTenderLinkServiceTest {
         Tender tender = newTender();
         when(crmProjectLeaderService.findProjectLeaderByChanceId(999L, null)).thenReturn(null);
 
-        boolean linked = service.linkByChanceIdIfPresent(tender, "CRM", "999");
+        boolean linked = service.linkByChanceIdIfPresent(tender, "CRM", "999", null);
 
         assertThat(linked).isFalse();
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.PENDING_ASSIGNMENT);
@@ -273,7 +273,7 @@ class CrmTenderLinkServiceTest {
         when(crmProjectLeaderService.findProjectLeaderByChanceId(16L, null)).thenReturn(leader);
         when(userRepository.findByEmployeeNumber("EMP001")).thenReturn(Optional.empty());
 
-        service.linkIfPresent(tender, "16", null);
+        service.linkIfPresent(tender, "16", null, null);
 
         // 防半关联：code=null 时 id 和 name 都不应被设置
         assertThat(tender.getCrmOpportunityId()).isNull();
@@ -297,7 +297,7 @@ class CrmTenderLinkServiceTest {
         when(crmProjectLeaderService.findProjectLeaderByChanceId(21364L, null)).thenReturn(leader);
         when(userRepository.findByEmployeeNumber("EMP001")).thenReturn(Optional.empty());
 
-        service.linkIfPresent(tender, null, "21364");
+        service.linkIfPresent(tender, null, "21364", null);
 
         // 纯数字 id 不直接存入，反查后存入 CC 格式编号
         assertThat(tender.getCrmOpportunityId()).isEqualTo("CC20260711739");
@@ -314,7 +314,7 @@ class CrmTenderLinkServiceTest {
         Tender tender = newTender();
         when(crmProjectLeaderService.findProjectLeaderByChanceId(21364L, null)).thenReturn(null);
 
-        service.linkIfPresent(tender, null, "21364");
+        service.linkIfPresent(tender, null, "21364", null);
 
         // 纯数字 id 不存入，避免与 CC 格式编号不一致导致去重校验失效
         assertThat(tender.getCrmOpportunityId()).isNull();
@@ -328,8 +328,70 @@ class CrmTenderLinkServiceTest {
         when(crmProjectLeaderService.findProjectLeaderByChanceId(21364L, null))
                 .thenThrow(new RuntimeException("CRM 服务不可用"));
 
-        service.linkIfPresent(tender, null, "21364");
+        service.linkIfPresent(tender, null, "21364", null);
 
         assertThat(tender.getCrmOpportunityId()).isNull();
+    }
+
+    // ===== 根因行为测试：API Key 路径下传 username，反查能拿到 CRM token =====
+    // 生产 bug：tender id=34, crmOpportunityId=34（纯数字），username=null →
+    //          CrmAuthService.getValidTokenForUser(null) 抛异常 → 反查失败 → 商机未关联
+    // 修复：linkIfPresent 新增 username 参数，透传到 findProjectLeaderByChanceId
+
+    @Test
+    void linkIfPresent_numericCode_withUsername_passesUsernameToChanceIdLookup() {
+        // 根因行为：API Key 认证路径下，调用方传入 username（通过 userId 反查得到），
+        // findProjectLeaderByChanceId 应收到非 null 的 username，使 CrmAuthService 能拿到 CRM token
+        Tender tender = newTender();
+        CrmProjectLeaderService.ProjectLeaderResult leader =
+                new CrmProjectLeaderService.ProjectLeaderResult(
+                        "张三", "EMP001", "0712创建标讯", "CC2026071244");
+        when(crmProjectLeaderService.findProjectLeaderByChanceId(34L, "admin")).thenReturn(leader);
+        when(userRepository.findByEmployeeNumber("EMP001")).thenReturn(Optional.empty());
+
+        service.linkIfPresent(tender, null, "34", "admin");
+
+        // 验证 username 被透传到底层反查
+        verify(crmProjectLeaderService).findProjectLeaderByChanceId(34L, "admin");
+        assertThat(tender.getCrmOpportunityId()).isEqualTo("CC2026071244");
+        assertThat(tender.getCrmOpportunityName()).isEqualTo("0712创建标讯");
+    }
+
+    @Test
+    void linkIfPresent_crmIdOnly_withUsername_passesUsernameToChanceIdLookup() {
+        // 根因行为：crmId 路径同样需要透传 username
+        Tender tender = newTender();
+        CrmProjectLeaderService.ProjectLeaderResult leader =
+                new CrmProjectLeaderService.ProjectLeaderResult(
+                        "张三", "EMP001", "商机A", "CC001");
+        when(crmProjectLeaderService.findProjectLeaderByChanceId(20916L, "admin")).thenReturn(leader);
+        when(userRepository.findByEmployeeNumber("EMP001")).thenReturn(Optional.empty());
+
+        service.linkIfPresent(tender, "20916", null, "admin");
+
+        verify(crmProjectLeaderService).findProjectLeaderByChanceId(20916L, "admin");
+    }
+
+    @Test
+    void linkIfPresent_codeOnly_withUsername_passesUsernameToChanceCodeLookup() {
+        // 根因行为：CC 格式 code 路径也透传 username
+        Tender tender = newTender();
+        when(crmProjectLeaderService.findProjectLeaderByChanceCode("CC001", "admin")).thenReturn(null);
+
+        service.linkIfPresent(tender, null, "CC001", "admin");
+
+        verify(crmProjectLeaderService).findProjectLeaderByChanceCode("CC001", "admin");
+        assertThat(tender.getCrmOpportunityId()).isEqualTo("CC001");
+    }
+
+    @Test
+    void linkIfPresent_usernameNull_fallsBackToNullUsername() {
+        // 兼容性：userId=null（无创建者）时降级为 null，保持旧行为
+        Tender tender = newTender();
+        when(crmProjectLeaderService.findProjectLeaderByChanceId(34L, null)).thenReturn(null);
+
+        service.linkIfPresent(tender, null, "34", null);
+
+        verify(crmProjectLeaderService).findProjectLeaderByChanceId(34L, null);
     }
 }
