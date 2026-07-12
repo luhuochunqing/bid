@@ -140,8 +140,8 @@ class ScoreAnalysisServiceTest {
     }
 
     @Test
-    @DisplayName("CO-571: 当前用户未登录时仍应调用标讯状态更新，operatorId 为 null")
-    void shouldTolerateMissingCurrentUserWhenUpdatingTenderStatus() {
+    @DisplayName("CO-571 Phase C: 当前用户未登录时跳过标讯状态更新，避免 operatorId=null 导致 webhook 死信")
+    void noCurrentUser_skipsEvaluatedUpdate() {
         createRequest.setTenderId(200L);
         when(currentUserResolver.getCurrentUserId()).thenReturn(null);
         when(scoreAnalysisRepository.save(any(ScoreAnalysis.class))).thenReturn(testAnalysis);
@@ -153,7 +153,7 @@ class ScoreAnalysisServiceTest {
 
         scoreAnalysisService.createAnalysis(createRequest);
 
-        verify(tenderCommandService).updateStatus(200L, com.xiyu.bid.entity.Tender.Status.EVALUATED, null);
+        verify(tenderCommandService, never()).updateStatus(any(), any(), any());
     }
 
     @Test

@@ -3893,7 +3893,7 @@ ORDER BY created_at DESC LIMIT 20;
 ### 防复发措施
 
 - **入队阶段**：`OperatorUsernameResolver.resolveDeliveryUsername(tender, eventOperatorId)` 按 creatorId → PM → event 顺序解析；空 username 不入队 + error 日志（含 tenderId/status/三 ID）
-- **Phase C（待办）**：删除 `TenderStatusChangedEvent` 5 参/6 参 factory + 删除 `TenderCommandService.updateStatus(Long, Status)` 两参重载，让编译期阻止回归
+- **Phase C（已完成，2026-07-12）**：删除 `TenderStatusChangedEvent` 5 参/6 参 factory + 删除 `TenderCommandService.updateStatus(Long, Status)` 两参重载，让编译期阻止回归；`ScoreAnalysisService` 无当前用户时跳过状态变更并 warn（不再传 null operatorId）
 - 建议补 backfill 迁移：将历史 `operator_username IS NULL` 的 pending 任务标记为 DEAD_LETTER 或补 system 账号
 
 ### 相关文档

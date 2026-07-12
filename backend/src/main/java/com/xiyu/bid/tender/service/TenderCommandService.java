@@ -157,10 +157,8 @@ public class TenderCommandService {
         tender.setDepartment(departmentName);
     }
 
-    public TenderDTO updateStatus(Long id, Tender.Status targetStatus) {
-        return updateStatus(id, targetStatus, null);
-    }
-
+    // CO-571 Phase C: 两参 updateStatus(Long, Status) 已删除，所有调用点必须传 operatorId，
+    // 避免 webhook 事件 operatorId=null 导致空 username 死信。
     public TenderDTO updateStatus(Long id, Tender.Status targetStatus, Long userId) {
         log.debug("Updating tender status, id: {}, target: {}", id, targetStatus);
         Tender tender = tenderRepository.findById(id)

@@ -68,7 +68,12 @@ public class ScoreAnalysisService {
             if (request.getTenderId() != null) {
                 try {
                     Long operatorId = currentUserResolver.getCurrentUserId();
-                    tenderCommandService.updateStatus(request.getTenderId(), com.xiyu.bid.entity.Tender.Status.EVALUATED, operatorId);
+                    // CO-571 Phase C: 无当前用户时跳过状态变更，避免 operatorId=null 导致 webhook 空 username 死信。
+                    if (operatorId == null) {
+                        log.warn("跳过标讯状态更新：无当前用户上下文，tenderId: {}", request.getTenderId());
+                    } else {
+                        tenderCommandService.updateStatus(request.getTenderId(), com.xiyu.bid.entity.Tender.Status.EVALUATED, operatorId);
+                    }
                 } catch (Exception e) {
                     log.warn("更新标讯状态失败, tenderId: {}, error: {}", request.getTenderId(), e.getMessage());
                 }
