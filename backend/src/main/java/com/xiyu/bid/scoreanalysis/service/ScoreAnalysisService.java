@@ -13,6 +13,7 @@ import com.xiyu.bid.scoreanalysis.entity.ScoreAnalysis;
 import com.xiyu.bid.scoreanalysis.repository.DimensionScoreRepository;
 import com.xiyu.bid.scoreanalysis.repository.ScoreAnalysisRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
+import com.xiyu.bid.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -37,6 +38,7 @@ public class ScoreAnalysisService {
     private final ProjectAccessScopeService projectAccessScopeService;
     private final com.xiyu.bid.tender.service.TenderCommandService tenderCommandService;
     private final ScoreAnalysisQueryService queryService;
+    private final CurrentUserResolver currentUserResolver;
 
     @Auditable(action = "CREATE", entityType = "ScoreAnalysis", description = "创建评分分析")
     @Transactional
@@ -65,7 +67,8 @@ public class ScoreAnalysisService {
 
             if (request.getTenderId() != null) {
                 try {
-                    tenderCommandService.updateStatus(request.getTenderId(), com.xiyu.bid.entity.Tender.Status.EVALUATED);
+                    Long operatorId = currentUserResolver.getCurrentUserId();
+                    tenderCommandService.updateStatus(request.getTenderId(), com.xiyu.bid.entity.Tender.Status.EVALUATED, operatorId);
                 } catch (Exception e) {
                     log.warn("更新标讯状态失败, tenderId: {}, error: {}", request.getTenderId(), e.getMessage());
                 }

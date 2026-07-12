@@ -6,7 +6,9 @@ import com.xiyu.bid.batch.core.TenderStatusTransitionPolicy;
 import com.xiyu.bid.crm.domain.AssignmentResult;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.exception.BusinessException;
+import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.exception.TenderDuplicateException;
+import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
 import com.xiyu.bid.repository.TenderRepository;
@@ -23,6 +25,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -164,6 +167,32 @@ class TenderCommandServiceTest {
 
         // 批量导入异步线程无 SecurityContext，必须显式把导入人 username 交给 CRM 换票
         verify(autoAssignmentService).autoAssignIfPossible(any(Tender.class), eq("06234"));
+    }
+
+    @Test
+    @DisplayName("CO-571: createTender(userId) 自动分配转 TRACKING 时应将 operatorId/operatorName 写入事件")
+    void createTender_WithUserId_AutoAssignPublishesEventWithOperator() {
+        User operator = User.builder().id(42L).username("06234").fullName("郑蓉蓉").build();
+        when(userRepository.findById(42L)).thenReturn(Optional.of(operator));
+        when(tenderRepository.save(any(Tender.class))).thenAnswer(invocation -> {
+            Tender saved = invocation.getArgument(0);
+            saved.setId(1L);
+            return saved;
+        });
+        when(autoAssignmentService.autoAssignIfPossible(any(Tender.class), eq("06234")))
+                .thenReturn(AssignmentResult.success("CRM-001", "1001", "张三", "DEPT-001", "销售部"));
+        when(projectManagerIdResolver.resolveByFullName("张三")).thenReturn(100L);
+
+        tenderCommandService.createTender(tenderDTO, 42L);
+
+        ArgumentCaptor<TenderStatusChangedEvent> eventCaptor = ArgumentCaptor.forClass(TenderStatusChangedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        TenderStatusChangedEvent event = eventCaptor.getValue();
+        assertThat(event.tenderId()).isEqualTo(1L);
+        assertThat(event.oldStatus()).isEqualTo(Tender.Status.PENDING_ASSIGNMENT);
+        assertThat(event.newStatus()).isEqualTo(Tender.Status.TRACKING);
+        assertThat(event.operatorId()).isEqualTo(42L);
+        assertThat(event.operatorName()).isEqualTo("郑蓉蓉");
     }
 
     @Test
@@ -485,5 +514,99 @@ class TenderCommandServiceTest {
         // 验证用的是 resolver 返回的 10L，而不是工号 10086
         assertThat(tender.getProjectManagerId()).isEqualTo(10L);
         assertThat(tender.getProjectManagerId()).isNotEqualTo(10086L);
+    }
+
+    // ── CO-571: updateStatus 操作人传播与边界条件 ───────────────────────────────
+
+    @Test
+    @DisplayName("CO-571: updateStatus 应将 operatorId 与 fullName 传播到状态变更事件")
+    void updateStatus_WithUserId_ShouldPropagateOperatorIdAndNameToEvent() {
+        when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
+        when(tenderRepository.save(any(Tender.class))).thenAnswer(inv -> inv.getArgument(0));
+        User operator = User.builder().id(42L).username("06234").fullName("郑蓉蓉").build();
+        when(userRepository.findById(42L)).thenReturn(Optional.of(operator));
+        when(projectRepository.findByTenderId(1L)).thenReturn(List.of(mockProject()));
+
+        tenderCommandService.updateStatus(1L, Tender.Status.TRACKING, 42L);
+
+        ArgumentCaptor<TenderStatusChangedEvent> eventCaptor = ArgumentCaptor.forClass(TenderStatusChangedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        TenderStatusChangedEvent event = eventCaptor.getValue();
+        assertThat(event.tenderId()).isEqualTo(1L);
+        assertThat(event.oldStatus()).isEqualTo(Tender.Status.PENDING_ASSIGNMENT);
+        assertThat(event.newStatus()).isEqualTo(Tender.Status.TRACKING);
+        assertThat(event.operatorId()).isEqualTo(42L);
+        assertThat(event.operatorName()).isEqualTo("郑蓉蓉");
+        verify(tenderRepository).save(any(Tender.class));
+    }
+
+    @Test
+    @DisplayName("CO-571: updateStatus 无 userId 时 operatorId 与 operatorName 均为 null")
+    void updateStatus_WithNullUserId_ShouldPublishEventWithNullOperator() {
+        when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
+        when(tenderRepository.save(any(Tender.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(projectRepository.findByTenderId(1L)).thenReturn(List.of(mockProject()));
+
+        tenderCommandService.updateStatus(1L, Tender.Status.TRACKING, null);
+
+        ArgumentCaptor<TenderStatusChangedEvent> eventCaptor = ArgumentCaptor.forClass(TenderStatusChangedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().operatorId()).isNull();
+        assertThat(eventCaptor.getValue().operatorName()).isNull();
+        verify(userRepository, never()).findById(any());
+    }
+
+    @Test
+    @DisplayName("CO-571: updateStatus userId 找不到用户时 operatorName 降级为 null")
+    void updateStatus_WithUnknownUserId_ShouldPublishEventWithNullOperatorName() {
+        when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
+        when(tenderRepository.save(any(Tender.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+        when(projectRepository.findByTenderId(1L)).thenReturn(List.of(mockProject()));
+
+        tenderCommandService.updateStatus(1L, Tender.Status.TRACKING, 99L);
+
+        ArgumentCaptor<TenderStatusChangedEvent> eventCaptor = ArgumentCaptor.forClass(TenderStatusChangedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().operatorId()).isEqualTo(99L);
+        assertThat(eventCaptor.getValue().operatorName()).isNull();
+    }
+
+    @Test
+    @DisplayName("CO-571: updateStatus 标讯不存在时抛 ResourceNotFoundException")
+    void updateStatus_TenderNotFound_ShouldThrowResourceNotFoundException() {
+        when(tenderRepository.findById(99L)).thenReturn(Optional.empty());
+
+        ResourceNotFoundException ex = assertThrows(
+                ResourceNotFoundException.class,
+                () -> tenderCommandService.updateStatus(99L, Tender.Status.TRACKING, 42L)
+        );
+
+        assertThat(ex.getMessage()).contains("Tender");
+        verify(tenderRepository, never()).save(any(Tender.class));
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    @DisplayName("CO-571: updateStatus 非法状态转换时不保存且不发事件")
+    void updateStatus_IllegalTransition_ShouldThrowAndNotSave() {
+        when(tenderRepository.findById(1L)).thenReturn(Optional.of(tender));
+        when(projectRepository.findByTenderId(1L)).thenReturn(List.of(mockProject()));
+
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> tenderCommandService.updateStatus(1L, Tender.Status.WON, 42L)
+        );
+
+        assertThat(ex.getMessage()).contains("cannot transition");
+        verify(tenderRepository, never()).save(any(Tender.class));
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    private com.xiyu.bid.entity.Project mockProject() {
+        com.xiyu.bid.entity.Project project = new com.xiyu.bid.entity.Project();
+        project.setId(100L);
+        project.setTenderId(1L);
+        return project;
     }
 }
