@@ -43,7 +43,7 @@ public class TenderCrmOccupancyChecker {
                 .filter(occupied -> !occupied.getId().equals(currentTenderId))
                 .ifPresent(occupied -> {
                     throw new BusinessException(409,
-                            "该 CRM 商机已被标讯 ID=" + occupied.getId() + " 关联，请先解除原关联");
+                            "该 CRM 商机已被标讯 ID=" + occupied.getId() + " 关联");
                 });
     }
 

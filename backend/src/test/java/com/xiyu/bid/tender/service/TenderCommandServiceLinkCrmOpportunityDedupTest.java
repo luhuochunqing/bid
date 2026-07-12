@@ -121,7 +121,7 @@ class TenderCommandServiceLinkCrmOpportunityDedupTest {
     @DisplayName("CO-297 冲突：占位校验抛 409 → service 透传，crmOpportunityId 不被覆盖，不调 CRM subject 校验")
     void linkCrmOpportunity_WhenOccupancyCheckerThrows409_ShouldPropagateAndSkipSubjectCheck() {
         when(tenderRepository.findById(100L)).thenReturn(Optional.of(tenderA));
-        doThrow(new BusinessException(409, "该 CRM 商机已被标讯 ID=200 关联，请先解除原关联"))
+        doThrow(new BusinessException(409, "该 CRM 商机已被标讯 ID=200 关联"))
                 .when(crmOccupancyChecker).assertCrmOpportunityNotOccupied(anyLong(), anyString());
 
         assertThatThrownBy(() -> tenderCommandService.linkCrmOpportunity(100L, CRM_OPP_X, "商机 X", 1L))
