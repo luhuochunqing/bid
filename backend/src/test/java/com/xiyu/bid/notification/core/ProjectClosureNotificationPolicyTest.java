@@ -89,4 +89,13 @@ class ProjectClosureNotificationPolicyTest {
         assertThat(result).isPresent();
         assertThat(result.get().recipientUserIds()).isEmpty();
     }
+
+    @Test
+    @DisplayName("now 为 null 时返回 empty（避免空指针）")
+    void createRequest_nullNow_shouldReturnEmpty() {
+        Optional<CreateNotificationRequest> result = ProjectClosureNotificationPolicy.createRequest(
+                PROJECT_ID, PROJECT_NAME, TARGET_URL, TRIGGERED_BY, null, List.of(), RECIPIENTS);
+
+        assertThat(result).isEmpty();
+    }
 }

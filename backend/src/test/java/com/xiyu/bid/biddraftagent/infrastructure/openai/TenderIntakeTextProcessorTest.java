@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.DisplayName;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DisplayName("TenderIntakeTextProcessor")
@@ -117,6 +119,125 @@ class TenderIntakeTextProcessorTest {
             String hints = TenderIntakeTextProcessor.buildRegexHints(text);
 
             assertThat(hints).contains("test@example.com");
+        }
+    }
+
+    // ── buildTenderIntakeCandidateText ─────────────────────────────
+
+    @Nested
+    @DisplayName("buildTenderIntakeCandidateText")
+    class BuildTenderIntakeCandidateText {
+
+        @Test
+        @DisplayName("null / 空字符串 → 空字符串")
+        void shouldReturnEmptyForNullOrEmpty() {
+            assertThat(TenderIntakeTextProcessor.buildTenderIntakeCandidateText(null)).isEmpty();
+            assertThat(TenderIntakeTextProcessor.buildTenderIntakeCandidateText("")).isEmpty();
+        }
+
+        @Test
+        @DisplayName("纯空白无关键词 → 回退到原空白前 8000 字符")
+        void shouldFallbackToWhitespaceWhenNoKeyword() {
+            String whitespace = "   \n\t  ";
+            String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(whitespace);
+            assertThat(result).isEqualTo(whitespace);
+        }
+
+        @Test
+        @DisplayName("无关键词时回退到前 8000 字符")
+        void shouldFallbackToFirst8000CharsWhenNoKeyword() {
+            String repeated = "这是一段没有任何招标关键词的填充文本。".repeat(300);
+
+            String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(repeated);
+
+            assertThat(result).isEqualTo(repeated.substring(0, Math.min(repeated.length(), 8_000)));
+        }
+
+        @Test
+        @DisplayName("匹配关键词时保留上下文半径（前后各 3 行）")
+        void shouldIncludeContextRadiusAroundKeywordLines() {
+            String text = String.join("\n", List.of(
+                    "第1行",
+                    "第2行",
+                    "第3行",
+                    "第4行",
+                    "项目预算：100万元",
+                    "第6行",
+                    "第7行",
+                    "第8行",
+                    "第9行"));
+
+            String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(text);
+
+            assertThat(result).contains("项目预算");
+            assertThat(result).contains("第2行");
+            assertThat(result).contains("第8行");
+            assertThat(result).doesNotContain("第1行");
+            assertThat(result).doesNotContain("第9行");
+        }
+
+        @Test
+        @DisplayName("多关键词不导致行重复")
+        void shouldNotDuplicateLinesForMultipleKeywords() {
+            String text = String.join("\n", List.of(
+                    "招标编号：XY-2026-001",
+                    "项目名称：西域智能投标平台",
+                    "预算金额：500万元"));
+
+            String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(text);
+
+            // 验证每一行只出现一次：通过换行拆分后行数应等于原行数
+            assertThat(result.split("\n")).hasSize(3);
+            assertThat(result).contains("招标编号");
+            assertThat(result).contains("项目名称");
+            assertThat(result).contains("预算金额");
+        }
+
+        @Test
+        @DisplayName("候选文本超过 20000 字符时截断")
+        void shouldTruncateToMaxChars() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("项目预算：100万元\n");
+            // 构造大量带关键词的行，使候选文本超过 20000
+            for (int i = 0; i < 500; i++) {
+                sb.append("第").append(i).append("行采购内容：填充文本\n");
+            }
+
+            String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(sb.toString());
+
+            assertThat(result).hasSizeLessThanOrEqualTo(20_000);
+            assertThat(result).startsWith("项目预算");
+        }
+    }
+
+    // ── sanitizeUntrusted ──────────────────────────────────────────
+
+    @Nested
+    @DisplayName("sanitizeUntrusted")
+    class SanitizeUntrusted {
+
+        @Test
+        @DisplayName("null → 空字符串")
+        void shouldReturnEmptyForNull() {
+            assertThat(TenderIntakeTextProcessor.sanitizeUntrusted(null)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("替换 document 标签为 HTML 实体")
+        void shouldEscapeDocumentTags() {
+            String raw = "<document>招标公告</document>";
+
+            String result = TenderIntakeTextProcessor.sanitizeUntrusted(raw);
+
+            assertThat(result).isEqualTo("&lt;document&gt;招标公告&lt;/document&gt;");
+        }
+
+        @Test
+        @DisplayName("普通文本原样保留")
+        void shouldPreserveNormalText() {
+            String raw = "项目编号 XY-2026-001，预算 100 万元。";
+
+            assertThat(TenderIntakeTextProcessor.sanitizeUntrusted(raw)).isEqualTo(raw);
         }
     }
 

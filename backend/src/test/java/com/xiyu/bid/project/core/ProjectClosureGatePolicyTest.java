@@ -366,4 +366,10 @@ class ProjectClosureGatePolicyTest {
                 DepositSnapshot.returned(WHEN, DOC), ClosureInput.EMPTY);
         assertTrue(d.allowed());
     }
+
+    @Test
+    void decide_closureGateInputsNull_throws() {
+        assertThrows(NullPointerException.class,
+                () -> ProjectClosureGatePolicy.decide(null));
+    }
 }

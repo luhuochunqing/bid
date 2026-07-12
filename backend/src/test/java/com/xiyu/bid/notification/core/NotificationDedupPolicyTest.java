@@ -78,4 +78,41 @@ class NotificationDedupPolicyTest {
         );
         assertThat(NotificationDedupPolicy.isDuplicate(now, existing)).isTrue();
     }
+
+    @Test
+    void returnsFalseWhenNowIsNull() {
+        List<Instant> existing = List.of(Instant.parse("2026-07-12T09:58:00Z"));
+        assertThat(NotificationDedupPolicy.isDuplicate(null, existing)).isFalse();
+    }
+
+    @Test
+    void returnsFalseWhenExistingTimestampsIsNull() {
+        Instant now = Instant.parse("2026-07-12T10:00:00Z");
+        assertThat(NotificationDedupPolicy.isDuplicate(now, null)).isFalse();
+    }
+
+    @Test
+    void usesDefaultWindowWhenCustomWindowIsNull() {
+        Instant now = Instant.parse("2026-07-12T10:00:00Z");
+        List<Instant> existing = List.of(
+            Instant.parse("2026-07-12T09:55:00Z")
+        );
+        assertThat(NotificationDedupPolicy.isDuplicate(now, existing, null)).isTrue();
+    }
+
+    @Test
+    void returnsTrueWhenTimestampExactlyEqualsNow() {
+        Instant now = Instant.parse("2026-07-12T10:00:00Z");
+        List<Instant> existing = List.of(now);
+        assertThat(NotificationDedupPolicy.isDuplicate(now, existing)).isTrue();
+    }
+
+    @Test
+    void returnsFalseWhenTimestampIsInTheFuture() {
+        Instant now = Instant.parse("2026-07-12T10:00:00Z");
+        List<Instant> existing = List.of(
+            Instant.parse("2026-07-12T10:00:01Z")
+        );
+        assertThat(NotificationDedupPolicy.isDuplicate(now, existing)).isFalse();
+    }
 }
