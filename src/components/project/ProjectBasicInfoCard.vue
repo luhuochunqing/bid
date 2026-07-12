@@ -37,6 +37,8 @@
       <el-descriptions-item label="标讯" :span="2">
         <span class="tender-info-text">{{ tf('title') || tf('tenderInfo') }}</span>
       </el-descriptions-item>
+      <el-descriptions-item label="投标负责人">{{ project?.biddingLeaderName }}</el-descriptions-item>
+      <el-descriptions-item label="投标辅助人员">{{ project?.secondaryBiddingLeaderName }}</el-descriptions-item>
     </el-descriptions>
   </el-card>
 </template>

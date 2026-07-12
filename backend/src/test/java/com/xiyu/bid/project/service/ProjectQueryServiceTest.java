@@ -187,4 +187,78 @@ class ProjectQueryServiceTest {
         assertThat(result).hasSize(1);
         assertThat(result.get(0).getLeaderDepartment()).isNull();
     }
+
+    @Test
+    @DisplayName("CO-578: enrichSingle 应为详情接口补充投标负责人和辅助人员姓名")
+    void enrichSingle_shouldPopulateBiddingLeaderAndAssistantName() {
+        ProjectDTO dto = ProjectDTO.builder().id(1L).managerId(99L).build();
+
+        ProjectInitiationDetails details = new ProjectInitiationDetails();
+        details.setProjectId(1L);
+        details.setBiddingLeaderName("李四");
+        details.setProjectLeaderName("张三");
+        details.setLeaderDepartment("华东区");
+        when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(1L)))
+                .thenReturn(List.of(details));
+
+        com.xiyu.bid.project.entity.ProjectLeadAssignment assignment =
+                com.xiyu.bid.project.entity.ProjectLeadAssignment.builder()
+                        .projectId(1L)
+                        .primaryLeadUserId(10L)
+                        .secondaryLeadUserId(20L)
+                        .build();
+        when(projectLeadAssignmentRepository.findByProjectIdIn(List.of(1L)))
+                .thenReturn(List.of(assignment));
+        when(projectResultRepository.findByProjectIdIn(any())).thenReturn(List.of());
+
+        User secondaryUser = new User();
+        secondaryUser.setId(20L);
+        secondaryUser.setFullName("王五");
+        when(userRepository.findByIdIn(Set.of(10L, 20L, 99L)))
+                .thenReturn(List.of(secondaryUser));
+        when(managerDepartmentEnricher.buildManagerDepartmentMap(eq(Set.of(99L)), any()))
+                .thenReturn(Map.of());
+
+        ProjectQueryService service = createService();
+        service.enrichSingle(dto);
+
+        assertThat(dto.getBiddingLeaderName()).isEqualTo("李四");
+        assertThat(dto.getSecondaryBiddingLeaderName()).isEqualTo("王五");
+        assertThat(dto.getProjectLeaderName()).isEqualTo("张三");
+        assertThat(dto.getLeaderDepartment()).isEqualTo("华东区");
+    }
+
+    @Test
+    @DisplayName("CO-578: enrichSingle 无 assignment 时辅助人员姓名为 null")
+    void enrichSingle_shouldReturnNullAssistantName_whenNoAssignment() {
+        ProjectDTO dto = ProjectDTO.builder().id(2L).managerId(99L).build();
+
+        ProjectInitiationDetails details = new ProjectInitiationDetails();
+        details.setProjectId(2L);
+        details.setBiddingLeaderName("赵六");
+        when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(2L)))
+                .thenReturn(List.of(details));
+        when(projectLeadAssignmentRepository.findByProjectIdIn(List.of(2L)))
+                .thenReturn(List.of());
+        when(projectResultRepository.findByProjectIdIn(any())).thenReturn(List.of());
+        when(userRepository.findByIdIn(Set.of(99L)))
+                .thenReturn(List.of());
+        when(managerDepartmentEnricher.buildManagerDepartmentMap(eq(Set.of(99L)), any()))
+                .thenReturn(Map.of());
+
+        ProjectQueryService service = createService();
+        service.enrichSingle(dto);
+
+        assertThat(dto.getBiddingLeaderName()).isEqualTo("赵六");
+        assertThat(dto.getSecondaryBiddingLeaderName()).isNull();
+    }
+
+    @Test
+    @DisplayName("CO-578: enrichSingle 传入 null 或无 id 时安全返回")
+    void enrichSingle_shouldDoNothing_whenDtoIsNullOrNullId() {
+        ProjectQueryService service = createService();
+        // 不抛异常即可
+        service.enrichSingle(null);
+        service.enrichSingle(ProjectDTO.builder().id(null).build());
+    }
 }
