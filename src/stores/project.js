@@ -1,7 +1,8 @@
-// Input: projectsApi, resourcesApi, httpClient (from @/api), ProjectLoadError (from @/utils/projectErrors)
+// Input: projectsApi, resourcesApi, httpClient (from @/api), ProjectLoadError (from @/utils/projectErrors), taskBackendToCard (from @/views/Project/project-utils)
 // Output: useProjectStore - project detail, workflow, task deletion, expense aggregation state, and project load error propagation
 // Pos: src/stores/ - State management layer
 // CO-468: getProjectById 新增 forceRefresh 选项，用于阶段切换后强制刷新项目数据（含 tasks）。
+// CO-574: updateTask 用 taskBackendToCard 映射后端 DTO 为卡片字段并 Object.assign 到现有数组元素（保持引用稳定），修复保证金任务改执行人后看板不刷新。
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 import { defineStore } from 'pinia'
@@ -11,6 +12,7 @@ import { taskExtendedFieldApi } from '@/api/modules/taskExtendedField.js'
 import { createTaskDeliverable, deleteTaskDeliverable } from '@/api/modules/taskDeliverables.js'
 import { tasksApi } from '@/api/modules/tasks.js'
 import { ProjectLoadError, PROJECT_LOAD_ERROR_TYPE } from '@/utils/projectErrors.js'
+import { taskBackendToCard } from '@/views/Project/project-utils.js'
 
 function normalizeExpenseDate(value) {
   if (!value) return ''
@@ -287,7 +289,12 @@ export const useProjectStore = defineStore('project', {
       if (project && String(project.id) === String(projectId) && Array.isArray(project.tasks)) {
         const idx = project.tasks.findIndex(t => t.id === taskId)
         if (idx >= 0) {
-          project.tasks[idx] = { ...project.tasks[idx], ...result.data }
+          // CO-574: 用 taskBackendToCard 把后端 DTO（assigneeName 等）映射成看板卡片字段（owner 等），
+          // 并 Object.assign 到现有数组元素保持引用稳定。
+          // 旧实现用 spread 创建新对象替换数组元素，导致 useProjectDetailTaskActions.handleSaveTask
+          // 里的 target 引用失效（变成孤儿），看板执行人改了不刷新；且 spread 后端 DTO 字段名与卡片不一致，
+          // owner 字段仍为旧值。两问题叠加 → 必须刷新浏览器才看到新执行人。
+          Object.assign(project.tasks[idx], taskBackendToCard(result.data))
         }
       }
       return result.data
