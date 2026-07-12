@@ -43,6 +43,7 @@ import java.util.Set;
  * <ul>
  *   <li>本监听器在事务提交后（AFTER_COMMIT）入队，实际的 CRM HTTP 调用由异步投递任务触发，不在本方法内执行。</li>
  *   <li>入队时会解析操作者 username，用于异步投递阶段按用户维度换取 CRM JWT；
+ *       使用 {@code resolveForCrmLookup} 解析（PM 优先于 creator，避免 API Key 场景 creator=admin 无 OSS token）；
  *       若操作者未登录过 OSS 或 OSS token 已过期，CRM 反查仍会失败。</li>
  * </ul>
  */
@@ -85,9 +86,9 @@ public class WebhookEventListener {
             log.warn("Tender {} not found, skip webhook", event.tenderId());
             return;
         }
-        // CO-571 Phase B: 按 creatorId → projectManagerId → eventOperatorId 顺序解析可用 OSS username。
-        // API Key 场景 event 常是 admin（有 username 无 OSS），故 creator/PM 优先于 event。
-        String operatorUsername = operatorUsernameResolver.resolveDeliveryUsername(tender, event.operatorId());
+        // CO-571 Phase B: 按 projectManagerId → creatorId → eventOperatorId 顺序解析（PM 优先，PM 是 OSS 用户有 token）
+        // 使用 resolveForCrmLookup 解析（PM 优先于 creator，避免 API Key 场景 creator=admin 无 OSS token）。
+        String operatorUsername = operatorUsernameResolver.resolveForCrmLookup(tender, event.operatorId());
         if (operatorUsername == null || operatorUsername.isBlank()) {
             log.error("Webhook 入队失败：无可用 OSS username，跳过入队。tenderId={}, newStatus={}, creatorId={}, projectManagerId={}, operatorId={}",
                     event.tenderId(), event.newStatus(),
