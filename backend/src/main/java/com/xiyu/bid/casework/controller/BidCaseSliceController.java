@@ -1,12 +1,14 @@
 package com.xiyu.bid.casework.controller;
 
+import com.xiyu.bid.casework.application.BidCaseSliceImportCommand;
 import com.xiyu.bid.casework.application.BidCaseSliceDetail;
 import com.xiyu.bid.casework.application.CaseSliceJsonlImporter;
 import com.xiyu.bid.casework.application.service.BatchEmbeddingAppService;
+import com.xiyu.bid.casework.application.service.BidCaseSliceAdminAppService;
 import com.xiyu.bid.casework.application.service.BidCaseSliceRecommendAppService;
+import com.xiyu.bid.casework.domain.model.BidCaseSliceAdminStat;
+import com.xiyu.bid.casework.domain.model.BidCaseSliceAdminView;
 import com.xiyu.bid.casework.domain.model.BidCaseSliceRecommendation;
-import com.xiyu.bid.casework.infrastructure.BidCaseSlice;
-import com.xiyu.bid.casework.infrastructure.BidCaseSliceRepository;
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.service.ProjectAccessScopeService;
@@ -23,7 +25,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * 案例切片语义检索 API。
@@ -36,9 +37,9 @@ public class BidCaseSliceController {
 
     private final BidCaseSliceRecommendAppService recommendAppService;
     private final BatchEmbeddingAppService batchEmbeddingAppService;
+    private final BidCaseSliceAdminAppService adminAppService;
     private final ProjectAccessScopeService projectAccessScopeService;
     private final CaseSliceJsonlImporter jsonlImporter;
-    private final BidCaseSliceRepository sliceRepository;
 
     @GetMapping("/recommend")
     public ResponseEntity<ApiResponse<List<BidCaseSliceRecommendation>>> recommendByScoringItem(
@@ -95,57 +96,22 @@ public class BidCaseSliceController {
 
     @PostMapping("/admin/import/slice")
     @PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
-    public ResponseEntity<ApiResponse<BidCaseSlice>> importSingleSlice(@RequestBody Map<String, Object> payload) {
-        String project = (String) payload.get("project");
-        String docxFile = (String) payload.get("docx_file");
-        String docxLabel = (String) payload.get("docx_label");
-        String title = (String) payload.get("title");
-        String textPreview = (String) payload.get("text_preview");
-        
-        if (project == null || project.isBlank()) {
-            throw new IllegalArgumentException("project 不能为空");
-        }
-        if (title == null || title.isBlank()) {
-            throw new IllegalArgumentException("title 不能为空");
-        }
-        
-        BidCaseSlice slice = new BidCaseSlice();
-        slice.setProjectDir(project);
-        slice.setProjectIdx((Integer) payload.getOrDefault("project_idx", 0));
-        slice.setDocxFile(docxFile != null ? docxFile : "");
-        slice.setDocxLabel(docxLabel != null ? docxLabel : "其他");
-        slice.setSectionIdx((Integer) payload.getOrDefault("section_idx", 0));
-        slice.setLevel((Integer) payload.getOrDefault("level", 1));
-        slice.setTitle(title);
-        slice.setTextPreview(textPreview != null ? textPreview : "");
-        slice.setTextLength((Integer) payload.getOrDefault("text_length", 0));
-        slice.setParaCount((Integer) payload.getOrDefault("para_count", 0));
-        
-        BidCaseSlice saved = sliceRepository.save(slice);
-        return ResponseEntity.ok(ApiResponse.success(saved));
+    public ResponseEntity<ApiResponse<BidCaseSliceAdminView>> importSingleSlice(@RequestBody BidCaseSliceImportCommand payload) {
+        BidCaseSliceAdminView view = adminAppService.importSingleSlice(payload);
+        return ResponseEntity.ok(ApiResponse.success(view));
     }
 
     @GetMapping("/admin/stats")
     @PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getStats() {
-        long total = sliceRepository.count();
-        long withEmbedding = sliceRepository.countByEmbeddingIsNotNull();
-        long withoutEmbedding = total - withEmbedding;
-        
-        return ResponseEntity.ok(ApiResponse.success(Map.of(
-                "total", total,
-                "withEmbedding", withEmbedding,
-                "withoutEmbedding", withoutEmbedding
-        )));
+    public ResponseEntity<ApiResponse<BidCaseSliceAdminStat>> getStats() {
+        BidCaseSliceAdminStat stat = adminAppService.getStats();
+        return ResponseEntity.ok(ApiResponse.success(stat));
     }
 
     @DeleteMapping("/admin/{id}")
     @PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
     public ResponseEntity<ApiResponse<Void>> deleteSlice(@PathVariable Long id) {
-        if (!sliceRepository.existsById(id)) {
-            throw new IllegalArgumentException("切片不存在: " + id);
-        }
-        sliceRepository.deleteById(id);
+        adminAppService.deleteSlice(id);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 

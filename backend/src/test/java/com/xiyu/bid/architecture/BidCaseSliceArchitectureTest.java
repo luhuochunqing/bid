@@ -162,6 +162,7 @@ public class BidCaseSliceArchitectureTest {
         // 本功能早期已实现的应用服务（直接依赖 JPA 实体/仓库/缓存，按本代码库既有模式）
         "com.xiyu.bid.casework.application.service.BatchEmbeddingAppService",
         "com.xiyu.bid.casework.application.service.BidCaseSliceRecommendAppService",
+        "com.xiyu.bid.casework.application.service.BidCaseSliceAdminAppService",
         "com.xiyu.bid.casework.application.CaseSliceJsonlImporter",
         "com.xiyu.bid.casework.application.BidCaseSliceRecommendationAssembler",
         // 历史遗留归档/知识库相关应用服务（非本功能引入，维持现状）

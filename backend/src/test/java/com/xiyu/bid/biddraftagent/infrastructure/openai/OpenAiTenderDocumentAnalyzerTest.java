@@ -285,8 +285,8 @@ class OpenAiTenderDocumentAnalyzerTest {
         verify(structuredOutputService).request(promptCaptor.capture(), any(), any(), anyString());
         String prompt = promptCaptor.getValue();
 
-        assertThat(prompt).contains("人工录入标讯表单");
-        assertThat(prompt).contains("只抽取这些字段");
+        assertThat(prompt).contains("标讯表单字段");
+        assertThat(prompt).contains("服务于销售人工核对");
         assertThat(prompt).contains("标讯标题").contains("预算金额").contains("招标机构")
                 .contains("业主单位").contains("客户类型").contains("优先级");
         assertThat(result.extractedData()).containsEntry("tenderAgency", "上海招标代理有限公司")
