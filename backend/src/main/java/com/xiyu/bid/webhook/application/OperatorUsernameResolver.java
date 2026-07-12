@@ -20,6 +20,18 @@ import org.springframework.stereotype.Component;
  * API Key 场景 event 常是 admin（有 username 无 OSS），故 creator/PM 优先于 event。
  *
  * <p>查不到或 userId 为空时返回 {@code null}，调用方按自身策略处理。
+ *
+ * <p><b>⚠️ 使用指引（防复发）：</b>
+ * <ul>
+ *   <li>{@link #resolveForCrmLookup(Tender, Long)}：用于"后续需要拿这个 username 去换 CRM token"的场景。
+ *       解析顺序 PM → creator → fallback。原因：API Key 路径下 creator 常是 admin（无 OSS token），
+ *       PM 是 CRM 推送的项目负责人（OSS 用户有 token）。</li>
+ *   <li>{@link #resolveDeliveryUsername(Tender, Long)}：仅用于纯展示/审计场景，<b>不</b>进入 CRM token 换取链路。
+ *       解析顺序 creator → PM → eventOperator。</li>
+ * </ul>
+ * <p>凡是 username 会进入 {@code CrmAuthService.getValidTokenForUser(username)} →
+ * {@code WebhookCrmTokenResolver.resolveToken(username)} 链路的调用点，<b>必须</b>用 {@code resolveForCrmLookup}，
+ * 否则在 {@code source_type=CRM_OPPORTUNITY} 且 creator=admin 的标讯上必触发 {@code TokenUnavailableException}。
  */
 @Component
 @RequiredArgsConstructor
