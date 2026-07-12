@@ -8,9 +8,38 @@ import { API_CONFIG } from './config'
 import { clearSessionState } from './session.js'
 import { normalizeAuthSessionResponse } from './authNormalizer.js'
 import { resetAuthStoreSession, syncAuthStoreSession } from './authStoreBridge.js'
+import { resolveRateLimitMessage } from './rate-limit-message-resolver.js'
 import router from '@/router/index.js'
 
 let refreshPromise = null
+
+/**
+ * 限流 toast 控制器：封装冷却期逻辑，避免模块级可变状态导致的测试脆弱性。
+ * 测试可通过 __setRateLimitToastController 替换为可控实例。
+ */
+function createRateLimitToastController(cooldownMs = 3000) {
+  let lastToastTime = 0
+  return {
+    shouldShow() {
+      return Date.now() - lastToastTime >= cooldownMs
+    },
+    record() {
+      lastToastTime = Date.now()
+    },
+  }
+}
+
+let rateLimitToastController = createRateLimitToastController()
+
+/** @internal 测试注入点 */
+export function __setRateLimitToastController(controller) {
+  rateLimitToastController = controller
+}
+
+/** @internal 测试重置点 */
+export function __resetRateLimitToastController() {
+  rateLimitToastController = createRateLimitToastController()
+}
 
 const syncRefreshedSession = async (refreshResult) => {
   if (!refreshResult?.success || !refreshResult?.data?.user) {
@@ -230,9 +259,28 @@ httpClient.interceptors.response.use(
         case 402:
           ElMessage.error(serverMsg || '服务余额不足，请联系管理员充值')
           break
-        case 429:
-          ElMessage.warning(serverMsg || '请求过于频繁，请稍后再试')
+        case 429: {
+          // 轮询类请求标记 silentRateLimit 后跳过 toast，由调用方自行退避
+          if (config?.silentRateLimit) {
+            break
+          }
+
+          const { message } = resolveRateLimitMessage({
+            status: response.status,
+            data: response.data,
+            headers: response.headers,
+          })
+
+          // 设计意图：同一页面内短时间内合并所有限流提示为 1 个，
+          // 避免多请求并发失败时"满屏 toast"让用户误以为系统崩溃。
+          // 冷却期不区分消息内容：实际场景中 3 秒内连续 429 几乎必然来自同一波请求，
+          // 用户只需知道"操作太快了"，不需要区分是哪个 API 被限流。
+          if (rateLimitToastController.shouldShow()) {
+            rateLimitToastController.record()
+            ElMessage.warning(message)
+          }
           break
+        }
         case 500:
           ElMessage.error(serverMsg || '服务器出现问题，请稍后重试')
           break

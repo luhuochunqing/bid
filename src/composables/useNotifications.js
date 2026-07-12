@@ -9,7 +9,6 @@
  * 在收到 429 限流响应时自动暂停轮询 60 秒
  */
 import { onMounted, onUnmounted, ref } from 'vue'
-import { notificationsApi } from '@/api/modules/notifications.js'
 import { useNotificationStore } from '@/stores/notifications'
 
 export function useNotifications(options = {}) {
@@ -25,26 +24,28 @@ export function useNotifications(options = {}) {
     }
   }
 
+  const tick = async () => {
+    if (backoffUntil.value > Date.now()) {
+      return
+    }
+    try {
+      await store.fetchUnreadCount({ silentRateLimit: true })
+    } catch (err) {
+      const status = err?.response?.status
+      if (status === 429) {
+        backoffUntil.value = Date.now() + 60000
+      } else if (status === 403) {
+        // 无通知权限的角色：永久停止轮询，避免控制台 403 刷屏
+        stopPolling()
+      }
+      // 401 不永久停止轮询：token 刷新后应自动恢复，由全局 axios 拦截器处理重登
+    }
+  }
+
   const startPolling = () => {
     stopPolling()
-    store.fetchUnreadCount()
-    pollingTimer.value = setInterval(async () => {
-      if (backoffUntil.value > Date.now()) {
-        return
-      }
-      try {
-        const result = await notificationsApi.getUnreadCount()
-        store.unreadCount = result.count ?? 0
-      } catch (err) {
-        const status = err?.response?.status
-        if (status === 429) {
-          backoffUntil.value = Date.now() + 60000
-        } else if (status === 401 || status === 403) {
-          // 无通知权限的角色：永久停止轮询，避免控制台 403 刷屏
-          stopPolling()
-        }
-      }
-    }, pollingInterval)
+    tick()
+    pollingTimer.value = setInterval(tick, pollingInterval)
   }
 
   if (autoStart) {

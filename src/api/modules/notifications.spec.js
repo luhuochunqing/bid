@@ -38,8 +38,17 @@ describe('notificationsApi', () => {
 
       const result = await notificationsApi.getUnreadCount()
 
-      expect(client.get).toHaveBeenCalledWith('/api/notifications/unread-count')
+      expect(client.get).toHaveBeenCalledWith('/api/notifications/unread-count', {})
       expect(result).toEqual({ count: 5 })
+    })
+
+    it('forwards config to the underlying client', async () => {
+      client.get.mockResolvedValue({ data: { count: 3 } })
+
+      const result = await notificationsApi.getUnreadCount({ silentRateLimit: true })
+
+      expect(client.get).toHaveBeenCalledWith('/api/notifications/unread-count', { silentRateLimit: true })
+      expect(result).toEqual({ count: 3 })
     })
   })
 

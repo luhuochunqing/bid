@@ -73,17 +73,55 @@ describe('useNotifications', () => {
     const { startPolling, stopPolling } = useNotifications({ pollingInterval: 30000, autoStart: false })
     startPolling()
 
-    // Tick 0: 429 triggers backoff
+    // Initial fetch at start uses silentRateLimit config
     await vi.advanceTimersByTimeAsync(0)
     expect(notificationsApi.getUnreadCount).toHaveBeenCalledTimes(1)
+    expect(notificationsApi.getUnreadCount).toHaveBeenLastCalledWith({ silentRateLimit: true })
 
-    // During backoff (60s), next 30s tick should be skipped
-    await vi.advanceTimersByTimeAsync(60000)
-    // By now one interval has passed (30s tick skipped due backoff), another 30s passed
-    expect(notificationsApi.getUnreadCount).toHaveBeenCalledTimes(3)
+    // During 60s backoff, the 30s interval tick is skipped
+    await vi.advanceTimersByTimeAsync(30000)
+    expect(notificationsApi.getUnreadCount).toHaveBeenCalledTimes(1)
+
+    // After backoff expires, polling resumes
+    await vi.advanceTimersByTimeAsync(30000)
+    expect(notificationsApi.getUnreadCount).toHaveBeenCalledTimes(2)
 
     const store = useNotificationStore()
     expect(store.unreadCount).toBe(3)
+
+    stopPolling()
+    vi.useRealTimers()
+  })
+
+  it('passes silentRateLimit config to suppress global toast while polling', async () => {
+    vi.useFakeTimers()
+    notificationsApi.getUnreadCount.mockResolvedValue({ count: 0 })
+
+    const { startPolling, stopPolling } = useNotifications({ pollingInterval: 30000, autoStart: false })
+    startPolling()
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(notificationsApi.getUnreadCount).toHaveBeenCalledWith({ silentRateLimit: true })
+
+    stopPolling()
+    vi.useRealTimers()
+  })
+
+  it('permanently stops polling on 403', async () => {
+    vi.useFakeTimers()
+    const err403 = { response: { status: 403 } }
+    notificationsApi.getUnreadCount.mockRejectedValueOnce(err403)
+
+    const { startPolling, stopPolling } = useNotifications({ pollingInterval: 30000, autoStart: false })
+    startPolling()
+
+    // Initial fetch triggers 403
+    await vi.advanceTimersByTimeAsync(0)
+    expect(notificationsApi.getUnreadCount).toHaveBeenCalledTimes(1)
+
+    // Polling should be stopped — advancing time should not trigger more fetches
+    await vi.advanceTimersByTimeAsync(60000)
+    expect(notificationsApi.getUnreadCount).toHaveBeenCalledTimes(1)
 
     stopPolling()
     vi.useRealTimers()
