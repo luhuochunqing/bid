@@ -11,6 +11,7 @@ import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
 /**
@@ -70,15 +71,17 @@ public class OperatorUsernameResolver {
     public String resolveDeliveryUsername(Tender tender, Long eventOperatorId) {
         if (tender != null) {
             String username = resolve(tender.getCreatorId());
-            if (isNotBlank(username)) {
+            if (StringUtils.isNotBlank(username)) {
                 return username;
             }
             username = resolve(tender.getProjectManagerId());
-            if (isNotBlank(username)) {
+            if (StringUtils.isNotBlank(username)) {
                 return username;
             }
         }
-        return resolve(eventOperatorId);
+        // 末位 fallback 也过滤 blank，保证返回值要么非 blank 要么 null
+        String fallback = resolve(eventOperatorId);
+        return StringUtils.isNotBlank(fallback) ? fallback : null;
     }
 
     /**
@@ -97,20 +100,17 @@ public class OperatorUsernameResolver {
         if (tender != null) {
             // 优先用项目负责人（OSS 用户，有 OSS token）
             String username = resolve(tender.getProjectManagerId());
-            if (isNotBlank(username)) {
+            if (StringUtils.isNotBlank(username)) {
                 return username;
             }
             // 其次用 creatorId（可能是真实用户）
             username = resolve(tender.getCreatorId());
-            if (isNotBlank(username)) {
+            if (StringUtils.isNotBlank(username)) {
                 return username;
             }
         }
         // 最后降级为 fallbackUserId（可能是 admin，无 OSS token）
-        return resolve(fallbackUserId);
-    }
-
-    private static boolean isNotBlank(String s) {
-        return s != null && !s.isBlank();
+        String fallback = resolve(fallbackUserId);
+        return StringUtils.isNotBlank(fallback) ? fallback : null;
     }
 }

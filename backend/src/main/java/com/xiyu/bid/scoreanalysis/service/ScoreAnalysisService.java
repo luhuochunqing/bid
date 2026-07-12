@@ -5,6 +5,7 @@ package com.xiyu.bid.scoreanalysis.service;
 
 import com.xiyu.bid.annotation.Auditable;
 import com.xiyu.bid.dto.ApiResponse;
+import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.scoreanalysis.core.ScoreAnalysisCalculationPolicy;
 import com.xiyu.bid.scoreanalysis.dto.ScoreAnalysisCreateRequest;
 import com.xiyu.bid.scoreanalysis.dto.ScoreAnalysisDTO;
@@ -12,6 +13,7 @@ import com.xiyu.bid.scoreanalysis.entity.DimensionScore;
 import com.xiyu.bid.scoreanalysis.entity.ScoreAnalysis;
 import com.xiyu.bid.scoreanalysis.repository.DimensionScoreRepository;
 import com.xiyu.bid.scoreanalysis.repository.ScoreAnalysisRepository;
+import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import com.xiyu.bid.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +41,7 @@ public class ScoreAnalysisService {
     private final com.xiyu.bid.tender.service.TenderCommandService tenderCommandService;
     private final ScoreAnalysisQueryService queryService;
     private final CurrentUserResolver currentUserResolver;
+    private final TenderRepository tenderRepository;
 
     @Auditable(action = "CREATE", entityType = "ScoreAnalysis", description = "创建评分分析")
     @Transactional
@@ -68,11 +71,16 @@ public class ScoreAnalysisService {
             if (request.getTenderId() != null) {
                 try {
                     Long operatorId = currentUserResolver.getCurrentUserId();
-                    // CO-571 Phase C: 无当前用户时跳过状态变更，避免 operatorId=null 导致 webhook 空 username 死信。
+                    // CO-571 Phase C: 无当前用户时用 tender.creatorId 兜底，与 Phase B 入队策略一致
+                    //（Phase B 入队按 creatorId → PM → event 顺序解析 username）
                     if (operatorId == null) {
-                        log.warn("跳过标讯状态更新：无当前用户上下文，tenderId: {}", request.getTenderId());
-                    } else {
+                        operatorId = tenderRepository.findById(request.getTenderId())
+                                .map(Tender::getCreatorId).orElse(null);
+                    }
+                    if (operatorId != null) {
                         tenderCommandService.updateStatus(request.getTenderId(), com.xiyu.bid.entity.Tender.Status.EVALUATED, operatorId);
+                    } else {
+                        log.warn("跳过标讯状态更新：无可用 operatorId，tenderId: {}", request.getTenderId());
                     }
                 } catch (Exception e) {
                     log.warn("更新标讯状态失败, tenderId: {}, error: {}", request.getTenderId(), e.getMessage());

@@ -54,6 +54,9 @@ class ScoreAnalysisServiceTest {
     @Mock
     private com.xiyu.bid.security.CurrentUserResolver currentUserResolver;
 
+    @Mock
+    private com.xiyu.bid.repository.TenderRepository tenderRepository;
+
     @InjectMocks
     private ScoreAnalysisService scoreAnalysisService;
 
@@ -140,10 +143,13 @@ class ScoreAnalysisServiceTest {
     }
 
     @Test
-    @DisplayName("CO-571 Phase C: 当前用户未登录时跳过标讯状态更新，避免 operatorId=null 导致 webhook 死信")
-    void noCurrentUser_skipsEvaluatedUpdate() {
+    @DisplayName("CO-571 Phase C: 当前用户未登录时用 tender.creatorId 兜底，与 Phase B 入队策略一致")
+    void noCurrentUser_usesCreatorAsOperator() {
         createRequest.setTenderId(200L);
         when(currentUserResolver.getCurrentUserId()).thenReturn(null);
+        com.xiyu.bid.entity.Tender tender = new com.xiyu.bid.entity.Tender();
+        tender.setCreatorId(77L);
+        when(tenderRepository.findById(200L)).thenReturn(java.util.Optional.of(tender));
         when(scoreAnalysisRepository.save(any(ScoreAnalysis.class))).thenReturn(testAnalysis);
         when(queryService.convertToDTO(any())).thenReturn(ScoreAnalysisDTO.builder()
                 .projectId(100L)
@@ -153,7 +159,7 @@ class ScoreAnalysisServiceTest {
 
         scoreAnalysisService.createAnalysis(createRequest);
 
-        verify(tenderCommandService, never()).updateStatus(any(), any(), any());
+        verify(tenderCommandService).updateStatus(200L, com.xiyu.bid.entity.Tender.Status.EVALUATED, 77L);
     }
 
     @Test
