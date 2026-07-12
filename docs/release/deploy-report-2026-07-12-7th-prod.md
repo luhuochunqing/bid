@@ -1,4 +1,4 @@
-# 西域数智化投标管理平台 — 第 82 次部署报告（生产环境）
+# 西域数智化投标管理平台 — 第 7 次部署报告（生产环境）
 
 ## 1. 部署概览
 
@@ -16,7 +16,7 @@
 
 ## 2. 基线信息
 
-- **本地分支**：`agent/trae/deploy-report-82nd-prod`
+- **本地分支**：`agent/trae/deploy-report-82nd-prod`（历史命名，本次报告为第 7 次生产部署）
 - **HEAD = origin/main**：`c6294a4dc !2033 docs(release): 第 82 次测试环境部署报告`
 - **GitHub 镜像**：已同步，Gitee main 与 GitHub main 完全一致
 - **Git 工作区**：干净（`git status --short` 无输出）
