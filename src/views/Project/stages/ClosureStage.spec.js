@@ -391,6 +391,25 @@ describe('ClosureStage — 结项编辑/提交/审核权矩阵', () => {
     expect(wrapper.vm.canEditSummary).toBe(false)
     expect(wrapper.vm.canSubmitClosure).toBe(false)
   })
+
+  it('C7: CO-572 投标项目负责人提交后(PENDING) → 4 字段只读 + 不可提交；驳回(REJECTED)后恢复可编辑+可提交', async () => {
+    mockUserStore.userRole = 'bid-projectLeader'
+    // PENDING：已提交待审核 → 保证金/总结只读，提交按钮隐藏
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({ data: pendingPreview })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    expect(wrapper.vm.isClosureEditor).toBe(true)
+    expect(wrapper.vm.canEditDeposit).toBe(false)
+    expect(wrapper.vm.canEditSummary).toBe(false)
+    expect(wrapper.vm.canSubmitClosure).toBe(false)
+    // REJECTED：被驳回后应可改可重提
+    const rejectedPreview = { ...basePreview, reviewStatus: 'REJECTED' }
+    wrapper.vm.preview = rejectedPreview
+    await flushPromises()
+    expect(wrapper.vm.canEditDeposit).toBe(true)
+    expect(wrapper.vm.canEditSummary).toBe(true)
+    expect(wrapper.vm.canSubmitClosure).toBe(true)
+  })
 })
 
 // CO-573: 保证金退回金额等值校验
