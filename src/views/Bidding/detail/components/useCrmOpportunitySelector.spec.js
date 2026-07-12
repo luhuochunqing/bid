@@ -148,7 +148,7 @@ describe('useCrmOpportunitySelector', () => {
   })
 
   it('CRM 选择模式字段映射：风险预判←riskPrediction，支持备注←remark，GAP 附件←gapFile，投标建议理由留空', async () => {
-    getContactPersons.mockResolvedValue({ data: [] })
+    getContactPersons.mockResolvedValue({ data: [{ position: '1', name: '测试', phone: '13000000000' }] })
     const chance = {
       id: 100,
       name: 'CRM商机',
@@ -193,7 +193,7 @@ describe('useCrmOpportunitySelector', () => {
   })
 
   it('GAP 附件：CRM gapFile 为 JSON 数组字符串时正确解析为多文件', async () => {
-    getContactPersons.mockResolvedValue({ data: [] })
+    getContactPersons.mockResolvedValue({ data: [{ position: '1', name: '测试', phone: '13000000000' }] })
     const chance = {
       id: 101,
       name: 'CRM商机2',
@@ -222,7 +222,7 @@ describe('useCrmOpportunitySelector', () => {
   // CO-312: 是否投标/弃标原因由项目负责人手动填写，关联 CRM 商机时 evaluationData
   // 不应包含 recommendation 段（无论 CRM 商机的 backupPlan 取何值）。
   it('CO-312 CRM 选择模式：evaluationData 不含 recommendation 段（是否投标/弃标原因手动填）', async () => {
-    getContactPersons.mockResolvedValue({ data: [] })
+    getContactPersons.mockResolvedValue({ data: [{ position: '1', name: '测试', phone: '13000000000' }] })
     for (const backupPlan of [undefined, false, true]) {
       const chance = { id: 100, name: 'CRM商机', code: 'C001', backupPlan }
       searchOpportunities.mockResolvedValue({ data: { list: [chance], totalCount: 1 } })
@@ -453,7 +453,10 @@ describe('useCrmOpportunitySelector', () => {
   })
 
 
-  it('CRM 对接人查询失败时仍应继续关联商机并提交空客户信息', async () => {
+  // CO-277: 对接人查询失败或为空时，阻断关联并提示用户到 CRM 系统添加对接人。
+  // 生产案例：CRM 推送标讯时项目负责人未在 CRM 系统录入对接人，导致商机关联后
+  // 评估表客户信息矩阵为空，后续 CRM token 获取和商机反查全部失败。
+  it('CRM 对接人查询失败时阻断关联并提示', async () => {
     const chance = { id: 285001, name: '最新标讯商机', code: 'CC20260619001' }
     searchOpportunities.mockResolvedValue({ data: { list: [chance], totalCount: 1 } })
     getContactPersons.mockRejectedValue(new Error('contact-persons failed'))
@@ -472,13 +475,31 @@ describe('useCrmOpportunitySelector', () => {
     await flushPromises()
 
     expect(getContactPersons).toHaveBeenCalledWith(285001)
-    expect(emitFn).toHaveBeenCalledWith('linked', expect.objectContaining({
-      opportunityId: 'CC20260619001',
-      opportunityName: '最新标讯商机',
-      evaluationData: expect.objectContaining({ customerInfos: [] }),
+    expect(emitFn).not.toHaveBeenCalled()
+    expect(elMessage.error).toHaveBeenCalledWith('请到 CRM 系统添加项目对接人')
+  })
+
+  it('CRM 对接人列表为空时阻断关联并提示', async () => {
+    const chance = { id: 285001, name: '最新标讯商机', code: 'CC20260619001' }
+    searchOpportunities.mockResolvedValue({ data: { list: [chance], totalCount: 1 } })
+    getContactPersons.mockResolvedValue({ data: [] })
+
+    const props = { tenderer: '', registrationDeadline: '', bidOpeningTime: '', alreadyLinkedName: '' }
+    const emitFn = vi.fn()
+    const wrapper = mount(defineComponent({
+      template: '<div />',
+      setup() { return useCrmOpportunitySelector(props, emitFn) },
     }))
-    expect(elMessage.warning).toHaveBeenCalledWith('CRM对接人查询失败，已继续关联商机，客户信息未自动带入')
-    expect(elMessage.error).not.toHaveBeenCalledWith('CRM对接人查询失败，无法带入客户信息')
+    await wrapper.vm.openSearch()
+    await flushPromises()
+
+    wrapper.vm.onSelect(chance)
+    await wrapper.vm.confirmLink()
+    await flushPromises()
+
+    expect(getContactPersons).toHaveBeenCalledWith(285001)
+    expect(emitFn).not.toHaveBeenCalled()
+    expect(elMessage.error).toHaveBeenCalledWith('请到 CRM 系统添加项目对接人')
   })
 
 })
