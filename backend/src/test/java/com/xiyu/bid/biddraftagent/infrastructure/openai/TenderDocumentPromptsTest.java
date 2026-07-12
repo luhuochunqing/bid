@@ -97,4 +97,85 @@ class TenderDocumentPromptsTest {
         assertThat(prompt).contains("tenderScope");
         assertThat(prompt).contains("120 字");
     }
+
+    @Test
+    void buildTenderIntakePrompt_shouldContainFewShotAndCoT() {
+        DocumentAnalysisInput input = new DocumentAnalysisInput(
+                "doc-insight://intake",
+                "tender-notice.docx",
+                "招标公告正文示例",
+                "",
+                List.of(new DocumentChunk("招标公告正文示例", List.of())),
+                DocInsightProfiles.TENDER_INTAKE,
+                Map.of()
+        );
+        DocumentChunk chunk = new DocumentChunk("招标公告正文示例", List.of());
+
+        String prompt = TenderDocumentPrompts.buildTenderIntakePrompt(input, chunk);
+
+        // Few-Shot 示例存在
+        assertThat(prompt).contains("Few-Shot 示例");
+        assertThat(prompt).contains("泸州机场（集团）有限责任公司");
+        assertThat(prompt).contains("深圳市财政局");
+
+        // CoT 思考步骤存在
+        assertThat(prompt).contains("思考步骤");
+        assertThat(prompt).contains("第一步");
+        assertThat(prompt).contains("第四步");
+
+        // 正则预提取提示存在
+        assertThat(prompt).contains("正则预提取提示");
+
+        // sanitize 仍生效
+        assertThat(prompt).doesNotContain("tenderInfo：");
+        assertThat(prompt).doesNotContain("完整原文");
+    }
+
+    @Test
+    void buildTenderIntakePrompt_shouldContainSectionsBlockWhenMetadataPresent() {
+        String sectionsJson = """
+                {
+                  "sections": [
+                    {"heading": "项目概况", "level": 1},
+                    {"heading": "时间", "level": 1}
+                  ]
+                }
+                """;
+        DocumentAnalysisInput input = new DocumentAnalysisInput(
+                "doc-insight://intake",
+                "tender-notice.docx",
+                "招标公告正文示例",
+                sectionsJson,  // structuredMetadata
+                List.of(new DocumentChunk("招标公告正文示例", List.of())),
+                DocInsightProfiles.TENDER_INTAKE,
+                Map.of()
+        );
+        DocumentChunk chunk = new DocumentChunk("招标公告正文示例", List.of());
+
+        String prompt = TenderDocumentPrompts.buildTenderIntakePrompt(input, chunk);
+
+        // sections 元数据有值时，prompt 应包含文档结构
+        assertThat(prompt).contains("文档结构");
+        assertThat(prompt).contains("- 项目概况");
+        assertThat(prompt).contains("- 时间");
+    }
+
+    @Test
+    void buildTenderIntakePrompt_shouldNotContainSectionsBlockWhenMetadataNull() {
+        DocumentAnalysisInput input = new DocumentAnalysisInput(
+                "doc-insight://intake",
+                "tender-notice.docx",
+                "招标公告正文示例",
+                null,  // structuredMetadata 为 null（粘贴文本场景）
+                List.of(new DocumentChunk("招标公告正文示例", List.of())),
+                DocInsightProfiles.TENDER_INTAKE,
+                Map.of()
+        );
+        DocumentChunk chunk = new DocumentChunk("招标公告正文示例", List.of());
+
+        String prompt = TenderDocumentPrompts.buildTenderIntakePrompt(input, chunk);
+
+        // sections 元数据为 null 时，prompt 不应包含文档结构
+        assertThat(prompt).doesNotContain("文档结构");
+    }
 }
