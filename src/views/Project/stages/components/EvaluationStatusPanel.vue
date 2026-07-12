@@ -88,10 +88,11 @@ const localTargetSubStage = computed({
 })
 
 // CO-495: 删除「评标中」可选选项——进入评标阶段即为评标中，无需作为可选状态
+// CO-571: 调整顺序——业务上先公示再确认结果已出，故「评标结果公示」排在「评标结果已出」前面
 const statusOptions = [
   { label: '评标结果已出，待上会', value: 'AWAITING_BOARD' },
-  { label: '评标结果已出', value: 'RESULT_OUT' },
-  { label: '评标结果公示', value: 'ANNOUNCED' }
+  { label: '评标结果公示', value: 'ANNOUNCED' },
+  { label: '评标结果已出', value: 'RESULT_OUT' }
 ]
 
 // 历史数据仍可能为 IN_PROGRESS（后端默认初始值），展示时需要翻译回中文标签

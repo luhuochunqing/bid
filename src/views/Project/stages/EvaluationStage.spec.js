@@ -204,10 +204,11 @@ describe('EvaluationStage 评标状态选项 - CO-495', () => {
     const wrapper = await mountEvaluationStage()
     const chips = wrapper.findAll('.status-chip')
     const labels = chips.map(c => c.text())
+    // CO-571: 顺序调整为 评标结果已出，待上会 → 评标结果公示 → 评标结果已出
     expect(labels).toEqual([
       '评标结果已出，待上会',
-      '评标结果已出',
       '评标结果公示',
+      '评标结果已出',
     ])
   })
 })
