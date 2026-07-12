@@ -263,7 +263,7 @@ class TenderIntegrationCommandSupportTest {
         // 场景：CRM 推送更新时传了 crmId=16 和 crmOpportunityName，但没传 crmOpportunityCode
         // 且 applyCrmLinkAndAssignment 中 CRM API 调用失败，crm_opportunity_id 保持 null
 
-        support.applyCrmFallback(tender, "16", null, "0710商机10");
+        support.applyCrmFallback(tender, "16", null, "0710商机10", null);
 
         // 防半关联：crmOpportunityId 为 null 时，name 也不应被设置
         assertThat(tender.getCrmOpportunityId()).isNull();
@@ -278,7 +278,7 @@ class TenderIntegrationCommandSupportTest {
     void applyCrmFallback_codeProvided_nameStoredNormally() {
         Tender tender = new Tender();
 
-        support.applyCrmFallback(tender, null, "CC2026070930", "0710商机10");
+        support.applyCrmFallback(tender, null, "CC2026070930", "0710商机10", null);
 
         // 正常路径：code 非空时 id 和 name 都设置
         assertThat(tender.getCrmOpportunityId()).isEqualTo("CC2026070930");
@@ -295,7 +295,7 @@ class TenderIntegrationCommandSupportTest {
         // 导致去重校验失效（tender 1646 vs 1648 案例根因）
         Tender tender = new Tender();
 
-        support.applyCrmFallback(tender, null, "21364", "0711关联商机测试");
+        support.applyCrmFallback(tender, null, "21364", "0711关联商机测试", null);
 
         // 纯数字 id 不存入 crm_opportunity_id 列
         assertThat(tender.getCrmOpportunityId()).isNull();
@@ -315,7 +315,7 @@ class TenderIntegrationCommandSupportTest {
         tender.setCrmOpportunityId("CC20260711739");
         tender.setCrmOpportunityName("0711关联商机测试");
 
-        support.applyCrmFallback(tender, null, "21364", "其他商机名");
+        support.applyCrmFallback(tender, null, "21364", "其他商机名", null);
 
         // 已有 CC 编号不应被纯数字覆盖
         assertThat(tender.getCrmOpportunityId()).isEqualTo("CC20260711739");

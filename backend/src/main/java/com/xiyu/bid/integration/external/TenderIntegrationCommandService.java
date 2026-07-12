@@ -1,13 +1,13 @@
 package com.xiyu.bid.integration.external;
 
 import com.xiyu.bid.entity.Tender;
-import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import com.xiyu.bid.tender.entity.TenderAttachment;
 import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
 import com.xiyu.bid.util.InputSanitizer;
+import com.xiyu.bid.webhook.application.OperatorUsernameResolver;
 import com.xiyu.bid.webhook.domain.OperatorDisplayName;
 import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
 import com.xiyu.bid.tender.service.TenderCrmOccupancyChecker;
@@ -41,6 +41,7 @@ public class TenderIntegrationCommandService {
     private final com.xiyu.bid.tender.service.TenderAuditService tenderAuditService;
     private final UserRepository userRepository;
     private final TenderCrmOccupancyChecker crmOccupancyChecker;
+    private final OperatorUsernameResolver operatorUsernameResolver;
 
     /**
      * 幂等推送标讯。
@@ -72,8 +73,9 @@ public class TenderIntegrationCommandService {
         Tender.Status previousStatus = tender.getStatus();
         applyUpdateFields(tender, request);
 
-        crmTenderLinkService.linkIfPresent(tender, request.getCrmId(), request.getCrmOpportunityId());
-        support.applyCrmFallback(tender, request.getCrmId(), request.getCrmOpportunityId(), request.getCrmOpportunityName());
+        String usernameForLink = operatorUsernameResolver.resolveForCrmLookup(tender, userId);
+        crmTenderLinkService.linkIfPresent(tender, request.getCrmId(), request.getCrmOpportunityId(), usernameForLink);
+        support.applyCrmFallback(tender, request.getCrmId(), request.getCrmOpportunityId(), request.getCrmOpportunityName(), usernameForLink);
 
         // CO-297: 更新前校验 CRM 商机号是否已被其他标讯占用，避免直接触发数据库唯一索引 500
         crmOccupancyChecker.assertCrmOpportunityNotOccupied(tender.getId(), tender.getCrmOpportunityId());
@@ -132,12 +134,15 @@ public class TenderIntegrationCommandService {
             // API Key 认证路径下 userId 是 API Key 创建者（如 admin），不是实际业务操作人。
             // 保留原始 creatorId，webhook 反查 CRM 需要实际创建者的 OSS token。
             Long originalCreatorId = existing.getCreatorId();
+            // CO-XXX: 在 applyUpdate 之前解析 username，让 resolver 能读到原始 creatorId
+            // CO-277: 优先用项目负责人（OSS 用户有 OSS token），降级用 creatorId → userId
+            String usernameForLink = operatorUsernameResolver.resolveForCrmLookup(existing, userId);
             mapper.applyUpdate(existing, request);
             if (userId != null) {
                 existing.setCreatorId(userId);
             }
-            crmTenderLinkService.linkIfPresent(existing, request.getCrmId(), request.getCrmOpportunityId());
-            support.applyCrmFallback(existing, request.getCrmId(), request.getCrmOpportunityId(), null);
+            crmTenderLinkService.linkIfPresent(existing, request.getCrmId(), request.getCrmOpportunityId(), usernameForLink);
+            support.applyCrmFallback(existing, request.getCrmId(), request.getCrmOpportunityId(), null, usernameForLink);
 
             // CO-297: 强制更新前校验 CRM 商机号是否已被其他标讯占用，避免直接触发数据库唯一索引 500
             crmOccupancyChecker.assertCrmOpportunityNotOccupied(existing.getId(), existing.getCrmOpportunityId());
@@ -180,8 +185,12 @@ public class TenderIntegrationCommandService {
         }
         // CO-305: 记录创建时的初始状态，用于判断是否需要发布 Event
         Tender.Status initialStatus = tender.getStatus();
-        crmTenderLinkService.linkIfPresent(tender, request.getCrmId(), request.getCrmOpportunityId());
-        support.applyCrmFallback(tender, request.getCrmId(), request.getCrmOpportunityId(), null);
+        // CO-277: 优先用项目负责人（OSS 用户有 OSS token），降级用 userId（admin 无 OSS token）
+        // 根因：API Key 路径下 userId=admin（系统账号无 OSS token），CRM 反查需要 OSS token → generateToken → CRM JWT
+        // mapper.toEntity 已通过 applyProjectManager 设置了 projectManagerId，此处可用
+        String usernameForLink = operatorUsernameResolver.resolveForCrmLookup(tender, userId);
+        crmTenderLinkService.linkIfPresent(tender, request.getCrmId(), request.getCrmOpportunityId(), usernameForLink);
+        support.applyCrmFallback(tender, request.getCrmId(), request.getCrmOpportunityId(), null, usernameForLink);
 
         // CO-297: 创建前校验 CRM 商机号是否已被其他标讯占用，避免直接触发数据库唯一索引 500
         crmOccupancyChecker.assertCrmOpportunityNotOccupied(null, tender.getCrmOpportunityId());
@@ -271,23 +280,16 @@ public class TenderIntegrationCommandService {
         return mapper.toDTO(saved, attachments);
     }
 
-    private String resolveOperatorName(Long userId) {
-        if (userId == null) {
-            return "";
-        }
-        return userRepository.findById(userId)
-                .map(OperatorDisplayName::format)
-                .orElse("");
-    }
-
     /** 状态变为 EVALUATED 时发布 TenderStatusChangedEvent */
     private void publishEvaluatedEvent(Tender saved, Tender.Status previousStatus, Long operatorId) {
         if (saved.getStatus() != Tender.Status.EVALUATED || previousStatus == Tender.Status.EVALUATED) {
             return;
         }
+        String operatorName = operatorId == null ? "" : userRepository.findById(operatorId)
+                .map(OperatorDisplayName::format).orElse("");
         eventPublisher.publishEvent(TenderStatusChangedEvent.of(
                 saved.getId(), saved.getExternalId(),
                 previousStatus, Tender.Status.EVALUATED, saved.getTitle(),
-                null, operatorId, resolveOperatorName(operatorId), null, null));
+                null, operatorId, operatorName, null, null));
     }
 }

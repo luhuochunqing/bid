@@ -631,6 +631,122 @@ tender 1648: crm_opportunity_id=CC20260711739（CC 格式 code），crm_opportun
 
 ---
 
+## 8.5. CrmTenderLinkService 调用链硬编码 username=null，反查拿不到 CRM token（CO-277 第 6 次复发 / PR !2041）
+
+> 来源：2026-07-12 生产事故 tender 34（商机 CC2026071244），前 7 个 PR（!1990/!2002/!2008/!2011/!2016/!2018/!2031）反复修复未根治
+
+### 问题
+
+CRM 创建标讯推送至投标系统后，标讯创建成功、信息也传入，但 `crm_opportunity_id` 为 NULL，商机未自动关联。3 天内 7 个 PR 反复修复均未根治。
+
+### 根因链路（按 lessons-learned.md 全链路日志排查 SOP 定位）
+
+1. CRM 推送走 API Key 认证路径（EXTERNAL_API 角色），无用户上下文（`username=null`）
+2. `CrmTenderLinkService.linkIfPresent` 调用链硬编码 `username=null`：
+   - `linkIfPresent` → `applyCrmLinkAndAssignment` → `findProjectLeaderByChanceId` / `findProjectLeaderByChanceCode` 内部传 `null`
+3. `CrmAuthService.getValidTokenForUser(null)` 抛 `TokenUnavailableException`（CrmAuthService.java:49-52）
+4. CRM 商机详情反查失败 → `crm_opportunity_id` 未存入
+5. 标讯创建成功但商机未关联
+
+### 架构矛盾（7 PR 反复修复失败的根因）
+
+| 组件 | 设计 | 问题 |
+|------|------|------|
+| `CrmAuthService` | 无系统账户 fallback（设计决策） | `getValidTokenForUser(null)` 抛异常 |
+| `CrmTenderLinkService` | 反查 CRM 商机详情需要 CRM token | 调用链硬编码 `username=null` |
+| API Key 认证路径 | 无用户上下文 | `username=null` 传入反查链路 |
+
+**三方矛盾**：CrmAuthService 不支持系统账户 + CrmTenderLinkService 反查需要 token + API Key 路径无用户上下文。前 7 个 PR 修了 webhook 路径、字段分离、去重校验等表面问题，但没人修 `CrmTenderLinkService.linkIfPresent` 调用链中硬编码的 `username=null`。
+
+### 对照 engineering-discipline.md 七大根因
+
+符合「**追症状不追根因**」—— 7 个 PR 修了：
+- webhook 路径（!2008）
+- 字段分离（!2011）
+- 去重校验（!2016）
+- 死信队列（!2018）
+- 入队解析（!2031）
+
+但没有人追到 `CrmTenderLinkService.linkIfPresent` 内部 `findProjectLeaderByChanceId(code, null)` 这个硬编码 null。日志铁证 `username=null` → `TokenUnavailableException` → 反查失败 → `crm_opportunity_id=NULL`，这条链路在 7 个 PR 中从未被触及。
+
+### 修复方案（方案 B：代码路径修复）
+
+在调用链中传入 `username`，让 CRM 反查能拿到 token：
+
+1. **`CrmTenderLinkService.linkIfPresent`**：新增 `String username` 参数，透传给 `findProjectLeaderByChanceId` / `findProjectLeaderByChanceCode`
+2. **`TenderIntegrationCommandService`**：注入 `OperatorUsernameResolver`（CO-152 已有组件，DRY 复用）
+   - `createNewTender`：`operatorUsernameResolver.resolve(userId)` → 传入 `linkIfPresent`
+   - `handleExistingTender`（forceUpdate 路径）：`operatorUsernameResolver.resolveDeliveryUsername(existing, userId)`（creatorId → projectManagerId → eventOperatorId 优先级）
+   - `updateByExternalId`：`operatorUsernameResolver.resolve(userId)` → 传入 `linkIfPresent`
+3. **`TenderIntegrationCommandSupport.applyCrmFallback`**：新增 `username` 参数透传
+
+### 为什么不需要 CRM 改接口
+
+反查依赖的 token 来自「当前用户的 OSS token → 调 `/common/inner/generateToken` → 拿 CRM JWT」。API Key 认证路径下 `userId` 是 API Key 创建者（如 admin），admin 有 OSS token，所以只要把 `userId` 解析成 `username` 传进去，就能拿到 CRM token。**不需要 CRM 改接口**。
+
+### 为什么不用方案 A（配置系统账户）
+
+用户已明确多次排除。`CrmAuthService` 无系统账户 fallback 是设计决策，强行加 fallback 会引入新的权限扩散风险（参考 spec 032 / spec 033 的 OSS 权限治理教训）。
+
+### 决定性证据：生产日志铁证
+
+traceId `939dc200b8cf41c0b8625077885f586a` 显示：
+
+```
+CrmAuthService.getValidTokenForUser(null) → TokenUnavailableException
+CrmTenderLinkService.linkIfPresent → username=null
+tenders.id=34 crm_opportunity_id=NULL
+```
+
+### 防复发工程化措施
+
+1. **新增 4 个根因行为单元测试**（CrmTenderLinkServiceTest）：
+   - `linkIfPresent_numericCode_withUsername_passesUsernameToChanceIdLookup`
+   - `linkIfPresent_crmIdOnly_withUsername_passesUsernameToChanceIdLookup`
+   - `linkIfPresent_codeOnly_withUsername_passesUsernameToChanceCodeLookup`
+   - `linkIfPresent_usernameNull_fallsBackToNullUsername`（降级兼容）
+
+2. **新增 1 个集成路径测试**（TenderIntegrationServiceUpdateCrmLinkTest）：
+   - `updateByExternalId_withUserId_passesResolvedUsernameToLinkIfPresent`（用 ArgumentCaptor 验证 `username="admin"` 被传入）
+
+3. **DRY 复用**：注入 `OperatorUsernameResolver`（CO-152 已有组件），避免重复实现 username 解析逻辑
+
+4. **FP-Java Profile + Split-First Rule 合规**：
+   - 纯核心（CrmTenderLinkService）负责业务决策
+   - 应用服务（TenderIntegrationCommandService）只做编排
+   - username 解析委托给领域服务
+   - `TenderIntegrationCommandService.java`: 294 行（< 300 行硬限）
+
+### 与前几节的关系
+
+| 节 | 修了什么 | 根因类型 |
+|---|---|---|
+| 第 6 节 | 字段名不匹配（Jackson 丢弃） | 字段传递 |
+| 第 7 节 | 字段语义不匹配（id vs code） | 字段语义 |
+| 第 8 节 | 字段分离回归（!2011） | 重构回归 |
+| **本节** | **调用链硬编码 username=null** | **架构矛盾（3 方设计冲突）** |
+
+四道断点症状相似（`crm_opportunity_id=NULL`），但根因独立。前 3 节都是字段层面的问题，本节是**调用链层面**的问题——CRM token 依赖用户上下文，但调用链没传 username。**这是 7 PR 反复修复失败的真正原因**：所有人都盯着字段，没人看调用链。
+
+### 教训
+
+1. **追根因不追症状**：7 个 PR 修了 webhook、字段分离、去重校验、死信队列、入队解析，但没人追到 `CrmTenderLinkService.linkIfPresent` 内部硬编码的 `username=null`。日志铁证 `username=null` 一直在那里，但没人看。
+2. **架构矛盾是反复修复失败的根因**：当 3 个组件的设计互相矛盾时（CrmAuthService 无 fallback + CrmTenderLinkService 需要 token + API Key 无用户），修任何一个组件都不够，必须找到矛盾的交汇点（调用链硬编码 null）并修复。
+3. **API Key 认证路径必须显式处理用户上下文**：不能假设 `userId=null` 或硬编码 `username=null`，必须通过 `OperatorUsernameResolver` 显式解析。
+4. **DRY 复用已有组件**：`OperatorUsernameResolver`（CO-152）已经实现了 `userId → username` 解析，不要重复实现。
+
+### 相关文档
+
+- [CrmTenderLinkService.java](../../backend/src/main/java/com/xiyu/bid/integration/external/CrmTenderLinkService.java) — `linkIfPresent` 新增 `username` 参数
+- [TenderIntegrationCommandService.java](../../backend/src/main/java/com/xiyu/bid/integration/external/TenderIntegrationCommandService.java) — 注入 `OperatorUsernameResolver`，3 个调用点传入 username
+- [TenderIntegrationCommandSupport.java](../../backend/src/main/java/com/xiyu/bid/integration/external/TenderIntegrationCommandSupport.java) — `applyCrmFallback` 新增 `username` 参数
+- [OperatorUsernameResolver.java](../../backend/src/main/java/com/xiyu/bid/webhook/application/OperatorUsernameResolver.java) — CO-152 已有组件，DRY 复用
+- [CrmTenderLinkServiceTest.java](../../backend/src/test/java/com/xiyu/bid/integration/external/CrmTenderLinkServiceTest.java) — 4 个根因行为单元测试
+- [TenderIntegrationServiceUpdateCrmLinkTest.java](../../backend/src/test/java/com/xiyu/bid/integration/external/TenderIntegrationServiceUpdateCrmLinkTest.java) — 1 个集成路径测试
+- PR !2041: https://gitee.com/allinai888/bid/pulls/2041
+
+---
+
 ## 7. 附件 URL 回传格式：CRM 可能直接给我们系统的下载代理 URL，后端不能二次包装（CO-283）
 
 > 来源：CO-283 排查，2026-06-20

@@ -66,6 +66,35 @@ public class OperatorUsernameResolver {
         return resolve(eventOperatorId);
     }
 
+    /**
+     * 解析 CRM 反查用的 username（CO-277 第 6 次修复）。
+     * <p>解析顺序：tender.projectManagerId → tender.creatorId → fallbackUserId。
+     * <p>与 {@link #resolveDeliveryUsername} 的区别：projectManagerId 优先于 creatorId。
+     * 原因：API Key 路径下 creatorId 常是 admin（系统账号无 OSS token），
+     * 而 projectManagerId 是 CRM 推送的项目负责人（OSS 用户有 OSS token）。
+     * CRM 反查商机关联需要 OSS token → generateToken → CRM JWT，必须用有 OSS token 的用户。
+     *
+     * @param tender 标讯实体（提供 projectManagerId / creatorId）
+     * @param fallbackUserId 降级用 userId（通常是 API Key 创建者 admin）
+     * @return 第一个能解析到非空 username 的用户名；全 miss 返回 {@code null}
+     */
+    public String resolveForCrmLookup(Tender tender, Long fallbackUserId) {
+        if (tender != null) {
+            // 优先用项目负责人（OSS 用户，有 OSS token）
+            String username = resolve(tender.getProjectManagerId());
+            if (isNotBlank(username)) {
+                return username;
+            }
+            // 其次用 creatorId（可能是真实用户）
+            username = resolve(tender.getCreatorId());
+            if (isNotBlank(username)) {
+                return username;
+            }
+        }
+        // 最后降级为 fallbackUserId（可能是 admin，无 OSS token）
+        return resolve(fallbackUserId);
+    }
+
     private static boolean isNotBlank(String s) {
         return s != null && !s.isBlank();
     }
