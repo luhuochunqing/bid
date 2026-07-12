@@ -416,20 +416,49 @@ const canSubmit = computed(() => {
   if (s === 'FULLY_RETURNED') return !!form.depositReturnDate && !!form.depositReturnEvidenceId
   if (s === 'TRANSFERRED_TO_FEE') {
     if (!(form.transferAmount > 0) || !form.depositReturnEvidenceId) return false
-    // CO-573: 转服务费金额必须等于保证金金额
+    // CO-573: 转服务费金额必须等于保证金金额（按「分」比较，避免浮点误差）
     const dep = preview.value?.depositAmount
-    if (dep != null && Number(form.transferAmount) !== Number(dep)) return false
+    if (dep != null && !moneyEquals(form.transferAmount, dep)) return false
     return true
   }
   if (s === 'PARTIAL_RETURN_PARTIAL_TRANSFER') {
     if (!(form.returnedAmount > 0) || !(form.transferAmount > 0) || !form.depositReturnEvidenceId) return false
-    // CO-573: 退回金额 + 转服务费金额必须等于保证金金额
+    // CO-573: 退回金额 + 转服务费金额必须等于保证金金额（按「分」求和再比）
     const dep = preview.value?.depositAmount
-    if (dep != null && (Number(form.returnedAmount) + Number(form.transferAmount)) !== Number(dep)) return false
+    if (dep != null && !moneySumEquals([form.returnedAmount, form.transferAmount], dep)) return false
     return true
   }
   return false
 })
+
+/**
+ * CO-573: 金额换算为「分」（整数），四舍五入到分。
+ * 避免 Number 直接相加/比较时的 IEEE754 误差（如 0.1+0.2）。
+ */
+function toCents(v) {
+  if (v == null || v === '') return null
+  const n = Number(v)
+  if (!Number.isFinite(n)) return null
+  return Math.round(n * 100)
+}
+
+/** 两个金额是否相等（按分） */
+function moneyEquals(a, b) {
+  const ca = toCents(a)
+  const cb = toCents(b)
+  if (ca == null || cb == null) return false
+  return ca === cb
+}
+
+/** 若干金额之和是否等于总额（按分累加，避免浮点中间态） */
+function moneySumEquals(parts, total) {
+  const cents = parts.map(toCents)
+  if (cents.some((c) => c == null)) return false
+  const sum = cents.reduce((acc, c) => acc + c, 0)
+  const t = toCents(total)
+  if (t == null) return false
+  return sum === t
+}
 
 // CO-573: 提交前金额等值校验的中文提示（供 submitClosure 调用）
 function validateDepositAmount() {
@@ -438,12 +467,11 @@ function validateDepositAmount() {
   if (dep == null) return null // 保证金金额未知时跳过前端等值校验，交给后端
   const s = form.depositReturnStatus
   if (s === 'TRANSFERRED_TO_FEE') {
-    if (Number(form.transferAmount) !== Number(dep)) {
+    if (!moneyEquals(form.transferAmount, dep)) {
       return `转服务费金额必须等于保证金金额（${Number(dep).toFixed(2)} 元）`
     }
   } else if (s === 'PARTIAL_RETURN_PARTIAL_TRANSFER') {
-    const sum = Number(form.returnedAmount) + Number(form.transferAmount)
-    if (sum !== Number(dep)) {
+    if (!moneySumEquals([form.returnedAmount, form.transferAmount], dep)) {
       return `退回金额与转服务费金额之和必须等于保证金金额（${Number(dep).toFixed(2)} 元）`
     }
   }
@@ -455,7 +483,7 @@ const transferAmountMismatch = computed(() => {
   if (form.depositReturnStatus !== 'TRANSFERRED_TO_FEE') return false
   const dep = preview.value?.depositAmount
   if (dep == null || form.transferAmount == null) return false
-  return Number(form.transferAmount) !== Number(dep)
+  return !moneyEquals(form.transferAmount, dep)
 })
 
 // CO-573: 模板实时提示 — 退回金额+转服务费金额不等于保证金金额
@@ -463,7 +491,7 @@ const partialSumMismatch = computed(() => {
   if (form.depositReturnStatus !== 'PARTIAL_RETURN_PARTIAL_TRANSFER') return false
   const dep = preview.value?.depositAmount
   if (dep == null || form.returnedAmount == null || form.transferAmount == null) return false
-  return (Number(form.returnedAmount) + Number(form.transferAmount)) !== Number(dep)
+  return !moneySumEquals([form.returnedAmount, form.transferAmount], dep)
 })
 
 function onDepositStatusChange() {

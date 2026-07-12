@@ -499,5 +499,23 @@ describe('ClosureStage — CO-573 保证金退回金额等值校验', () => {
     expect(wrapper.vm.canSubmit).toBe(false)
     expect(wrapper.vm.transferAmountMismatch).toBe(true)
   })
+
+  it('T7: 浮点安全 — 10.1+20.2=30.3 按分比较应通过（避免 Number 直接相加误伤）', async () => {
+    // IEEE754: 10.1 + 20.2 === 30.299999999999997，直接 Number 比较会失败
+    projectLifecycleApi.getClosurePreview.mockResolvedValue({
+      data: { projectId: 1, hasDeposit: true, depositAmount: 30.3, canClose: true, reviewStatus: 'DRAFT', blockingReasons: [] },
+    })
+    const wrapper = mount(ClosureStage, { props: { projectId: 1 }, global: { stubs: elStubs } })
+    await flushPromises()
+    wrapper.vm.form.depositReturnStatus = 'PARTIAL_RETURN_PARTIAL_TRANSFER'
+    wrapper.vm.form.returnedAmount = 10.1
+    wrapper.vm.form.transferAmount = 20.2
+    wrapper.vm.form.depositReturnEvidenceId = 77
+    await flushPromises()
+    expect(Number(10.1) + Number(20.2) === Number(30.3)).toBe(false) // 证明裸 Number 会误伤
+    expect(wrapper.vm.canSubmit).toBe(true)
+    expect(wrapper.vm.validateDepositAmount()).toBe(null)
+    expect(wrapper.vm.partialSumMismatch).toBe(false)
+  })
 })
 
