@@ -3833,3 +3833,67 @@ GET /api/ca-certificates?size=500
 - `backend/src/main/java/com/xiyu/bid/entity/RoleProfileCatalog.java`
 - `backend/src/test/java/com/xiyu/bid/auth/UserDetailsServiceImplTest.java`
 - `scripts/check-parent-permission-fallback.mjs`
+
+---
+
+## 55. 删除鉴权兜底前必须先确保所有发布路径都携带操作者上下文（CO-571 / 2026-07-10）
+
+### 问题背景
+
+2026-07-09/10 的连续 CRM 鉴权收紧提交（`5ed8d7dba` 删除全局 03595 happy path、`8b356d766` 删除虚构系统账号、`af8f3a32a` 合并 user/system 入口）把 CRM webhook 的 token 获取路径改成"必须由真人操作者触发"。
+
+`WebhookCrmTokenResolver.resolveToken(username)` 在 `operatorUsername` 为空时直接抛 `TokenUnavailableException`。
+
+但 `TenderCommandService.updateStatus(...)` 在 origin/main 的初始修复中只传了 `operatorId`，**未传 `operatorName`**；`ScoreAnalysisService.createAnalysis(...)` 间接触发 `updateStatus` 时连 `operatorId` 都没传。
+
+### 触发链路
+
+1. 用户/AI 评分分析将标讯置为 `EVALUATED`，或用户弃标 `ABANDONED`（webhook 触发态）
+2. `TenderStatusChangedEvent` 的 `operatorName` 为 null
+3. `WebhookEventListener` 写入 `webhook_delivery_tasks.operator_username = null`
+4. `WebhookDeliveryJobService` 调度时，`WebhookCrmTokenResolver.resolveToken(null)` 抛 `TokenUnavailableException`
+5. 重试 3 次失败 → 任务进入 **DEAD_LETTER**
+6. **CRM 永远收不到 bidInfoSync 回调**
+
+### 修复要点
+
+- [TenderCommandService.updateStatus](file:///Users/user/xiyu/worktrees/gemini/backend/src/main/java/com/xiyu/bid/tender/service/TenderCommandService.java) 通过 `userId` 反查 `fullName` 并写入事件
+- [ScoreAnalysisService.createAnalysis](file:///Users/user/xiyu/worktrees/gemini/backend/src/main/java/com/xiyu/bid/scoreanalysis/service/ScoreAnalysisService.java) 注入 `CurrentUserResolver`，把当前用户 ID 传给 `updateStatus`
+- [BatchTenderStatusAppService.collectStatusUpdate](file:///Users/user/xiyu/worktrees/gemini/backend/src/main/java/com/xiyu/bid/batch/service/BatchTenderStatusAppService.java) 已由先前提交修复，传 `operatorId + operatorName`
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| 收紧鉴权前未盘点"无用户上下文"的所有事件源 | 设计意图与代码现状不一致 | 删除兜底路径前必须 grep 全部 `TenderStatusChangedEvent.of(` / `publishEvent` 调用点 |
+| 提交 43dc6d2b0 明确警告"未来删除 03595 路径前需引入系统账号方案"，但后续提交未遵守 | 历史 commit 中的 TODO 警告是上游保护信号 | 删除/收紧前置依赖时，必须在同次或紧随 PR 中兑现前置条件 |
+| 事件契约跨 Service 传播不透明 | 下游 webhook 需要 operatorName，但上游只传 operatorId | webhook 事件类应把 operatorId + operatorName 列为必填，让编译期阻止回归 |
+
+### 验证命令
+
+```bash
+# 检查所有 TenderStatusChangedEvent 发布点是否传 operatorId + operatorName
+git grep -B1 -A4 "TenderStatusChangedEvent.of(" origin/main \
+  -- "backend/src/main/java/**/*.java" | grep -B1 "operatorId"
+
+# 查询历史 pending 任务
+SELECT id, tender_id, operator_username, status, last_error
+FROM webhook_delivery_tasks
+WHERE operator_username IS NULL AND created_at > NOW() - INTERVAL 7 DAY
+ORDER BY created_at DESC LIMIT 20;
+```
+
+### 防复发措施
+
+- 已将 `TenderStatusChangedEvent` 5 参 / 6 参 factory 标 `@Deprecated`，所有 9 个调用点已确认使用完整 factory
+- 建议补 backfill 迁移：将历史 `operator_username IS NULL` 的 pending 任务标记为 DEAD_LETTER 或补 system 账号
+
+### 相关文档
+
+- `backend/src/main/java/com/xiyu/bid/crm/application/WebhookCrmTokenResolver.java`
+- `backend/src/main/java/com/xiyu/bid/webhook/application/WebhookEventListener.java`
+- `backend/src/main/java/com/xiyu/bid/webhook/application/WebhookDeliveryJobService.java`
+- `backend/src/main/java/com/xiyu/bid/tender/service/TenderCommandService.java`
+- `backend/src/main/java/com/xiyu/bid/scoreanalysis/service/ScoreAnalysisService.java`
+- `backend/src/main/java/com/xiyu/bid/batch/service/BatchTenderStatusAppService.java`
+- `backend/src/main/java/com/xiyu/bid/webhook/domain/TenderStatusChangedEvent.java`

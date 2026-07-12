@@ -15,8 +15,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -109,6 +111,56 @@ class CachedCrmLookupServiceTest {
         service.closeBatch();
         service.searchByName("甲公司", "u1");
 
+        verify(companySearchService, times(2)).searchByName("甲公司", "u1");
+    }
+
+    @Test
+    @DisplayName("空名称直接返回 empty，不打 CRM")
+    void blankName_returnsEmptyWithoutCallingCrm() {
+        assertThat(service.searchByName("", "u1")).isEmpty();
+        assertThat(service.searchByName("   ", "u1")).isEmpty();
+        assertThat(service.searchByName(null, "u1")).isEmpty();
+        verifyNoInteractions(companySearchService);
+    }
+
+    @Test
+    @DisplayName("null companyId 直接返回 empty，不打 CRM")
+    void nullCompanyId_returnsEmptyWithoutCallingCrm() {
+        assertThat(service.findByCompanyId(null, "u1")).isEmpty();
+        verifyNoInteractions(customerManagerLookupService);
+    }
+
+    @Test
+    @DisplayName("重复 openBatch 不抛异常且替换缓存")
+    void doubleOpenBatch_replacesCacheWithoutError() {
+        when(companySearchService.searchByName("甲公司", "u1"))
+                .thenReturn(Optional.of(new CompanySearchResult(1L, "甲公司", "G")));
+
+        service.openBatch();
+        service.openBatch();
+        service.searchByName("甲公司", "u1");
+
+        assertThat(service.isBatchOpen()).isTrue();
+        verify(companySearchService, times(1)).searchByName("甲公司", "u1");
+    }
+
+    @Test
+    @DisplayName("批次内底层查询异常仍可由调用方 finally 关闭缓存")
+    void batchSearchThrows_closeBatchStillCleansThreadLocal() {
+        RuntimeException expected = new RuntimeException("CRM timeout");
+        when(companySearchService.searchByName("甲公司", "u1")).thenThrow(expected);
+
+        service.openBatch();
+        assertThatThrownBy(() -> service.searchByName("甲公司", "u1"))
+                .isSameAs(expected);
+        assertThat(service.isBatchOpen()).isTrue();
+
+        service.closeBatch();
+
+        assertThat(service.isBatchOpen()).isFalse();
+        // 关闭后恢复透传，第二次调用会再次访问底层
+        assertThatThrownBy(() -> service.searchByName("甲公司", "u1"))
+                .isSameAs(expected);
         verify(companySearchService, times(2)).searchByName("甲公司", "u1");
     }
 }

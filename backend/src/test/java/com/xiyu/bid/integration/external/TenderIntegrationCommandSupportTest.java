@@ -2,19 +2,25 @@ package com.xiyu.bid.integration.external;
 
 import com.xiyu.bid.crm.domain.AssignmentResult;
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.entity.User;
 import com.xiyu.bid.project.service.ProjectManagerDepartmentEnricher;
 import com.xiyu.bid.repository.TenderRepository;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.tender.service.TenderAutoAssignmentService;
 import com.xiyu.bid.tender.service.TenderAssignmentNotifier;
+import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
+
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -33,6 +39,7 @@ class TenderIntegrationCommandSupportTest {
     @Mock private TenderRepository tenderRepository;
     @Mock private ProjectManagerIdResolver projectManagerIdResolver;
     @Mock private ProjectManagerDepartmentEnricher departmentEnricher;
+    @Mock private UserRepository userRepository;
 
     private TenderIntegrationCommandSupport support;
 
@@ -45,7 +52,8 @@ class TenderIntegrationCommandSupportTest {
                 eventPublisher,
                 tenderRepository,
                 projectManagerIdResolver,
-                departmentEnricher);
+                departmentEnricher,
+                userRepository);
         when(tenderRepository.save(any(Tender.class))).thenAnswer(inv -> inv.getArgument(0));
     }
 
@@ -123,7 +131,7 @@ class TenderIntegrationCommandSupportTest {
         when(autoAssignmentService.autoAssignIfPossible(tender, null)).thenReturn(result);
         when(projectManagerIdResolver.resolveByFullName("郑蓉蓉")).thenReturn(2556L);
 
-        support.tryAutoAssign(tender);
+        support.tryAutoAssign(tender, null);
 
         assertThat(tender.getProjectManagerId()).isEqualTo(2556L);
         assertThat(tender.getProjectManagerName()).isEqualTo("郑蓉蓉");
@@ -149,13 +157,46 @@ class TenderIntegrationCommandSupportTest {
         when(autoAssignmentService.autoAssignIfPossible(tender, null)).thenReturn(result);
         when(projectManagerIdResolver.resolveByFullName("王凯毅")).thenReturn(5052L);
 
-        support.tryAutoAssign(tender);
+        support.tryAutoAssign(tender, null);
 
         assertThat(tender.getProjectManagerId()).isEqualTo(5052L);
         assertThat(tender.getProjectManagerName()).isEqualTo("王凯毅");
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.TRACKING);
         verify(tenderRepository).save(tender);
         verify(assignmentNotifier).notifyAutoAssigned(tender);
+    }
+
+    @Test
+    @DisplayName("CO-571: tryAutoAssign 状态转 TRACKING 时应将 userId 与 fullName 写入事件")
+    void tryAutoAssign_withUserId_propagatesOperatorToEvent() {
+        Tender tender = new Tender();
+        tender.setId(100L);
+        tender.setStatus(Tender.Status.PENDING_ASSIGNMENT);
+        tender.setTitle("测试标讯");
+
+        AssignmentResult result = AssignmentResult.success(
+                null,
+                "08687",
+                "王凯毅",
+                null,
+                null);
+        when(autoAssignmentService.autoAssignIfPossible(tender, null)).thenReturn(result);
+        when(projectManagerIdResolver.resolveByFullName("王凯毅")).thenReturn(5052L);
+        User operator = new User();
+        operator.setId(42L);
+        operator.setFullName("郑蓉蓉");
+        when(userRepository.findById(42L)).thenReturn(Optional.of(operator));
+
+        support.tryAutoAssign(tender, 42L);
+
+        ArgumentCaptor<TenderStatusChangedEvent> eventCaptor = ArgumentCaptor.forClass(TenderStatusChangedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        TenderStatusChangedEvent event = eventCaptor.getValue();
+        assertThat(event.tenderId()).isEqualTo(100L);
+        assertThat(event.oldStatus()).isEqualTo(Tender.Status.PENDING_ASSIGNMENT);
+        assertThat(event.newStatus()).isEqualTo(Tender.Status.TRACKING);
+        assertThat(event.operatorId()).isEqualTo(42L);
+        assertThat(event.operatorName()).isEqualTo("郑蓉蓉");
     }
 
     @Test
@@ -169,7 +210,7 @@ class TenderIntegrationCommandSupportTest {
         when(autoAssignmentService.autoAssignIfPossible(tender, null))
                 .thenReturn(AssignmentResult.noMatch());
 
-        support.tryAutoAssign(tender);
+        support.tryAutoAssign(tender, null);
 
         assertThat(tender.getProjectManagerId()).isNull();
         assertThat(tender.getProjectManagerName()).isNull();
@@ -188,7 +229,7 @@ class TenderIntegrationCommandSupportTest {
         tender.setProjectManagerName("王凯毅");
 
         // 即使自动分配能匹配到另一个负责人，也不应该覆盖
-        support.tryAutoAssign(tender);
+        support.tryAutoAssign(tender, null);
 
         assertThat(tender.getProjectManagerId()).isEqualTo(5052L);
         assertThat(tender.getProjectManagerName()).isEqualTo("王凯毅");
@@ -206,7 +247,7 @@ class TenderIntegrationCommandSupportTest {
         tender.setTitle("测试商机2");
         tender.setProjectManagerName("王凯毅");
 
-        support.tryAutoAssign(tender);
+        support.tryAutoAssign(tender, null);
 
         assertThat(tender.getProjectManagerName()).isEqualTo("王凯毅");
         assertThat(tender.getProjectManagerId()).isNull();

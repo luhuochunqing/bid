@@ -51,6 +51,9 @@ class ScoreAnalysisServiceTest {
     @Mock
     private com.xiyu.bid.scoreanalysis.service.ScoreAnalysisQueryService queryService;
 
+    @Mock
+    private com.xiyu.bid.security.CurrentUserResolver currentUserResolver;
+
     @InjectMocks
     private ScoreAnalysisService scoreAnalysisService;
 
@@ -117,6 +120,40 @@ class ScoreAnalysisServiceTest {
         assertEquals(RiskLevel.HIGH, response.getData().getRiskLevel());
         verify(projectAccessScopeService).assertCurrentUserCanAccessProject(100L);
         verify(scoreAnalysisRepository, times(1)).save(any(ScoreAnalysis.class));
+    }
+
+    @Test
+    @DisplayName("CO-571: 创建评分分析时应将当前用户作为 operatorId 传播给标讯状态更新")
+    void shouldPropagateCurrentUserIdWhenUpdatingTenderStatus() {
+        createRequest.setTenderId(200L);
+        when(currentUserResolver.getCurrentUserId()).thenReturn(42L);
+        when(scoreAnalysisRepository.save(any(ScoreAnalysis.class))).thenReturn(testAnalysis);
+        when(queryService.convertToDTO(any())).thenReturn(ScoreAnalysisDTO.builder()
+                .projectId(100L)
+                .overallScore(85)
+                .riskLevel(RiskLevel.LOW)
+                .build());
+
+        scoreAnalysisService.createAnalysis(createRequest);
+
+        verify(tenderCommandService).updateStatus(200L, com.xiyu.bid.entity.Tender.Status.EVALUATED, 42L);
+    }
+
+    @Test
+    @DisplayName("CO-571: 当前用户未登录时仍应调用标讯状态更新，operatorId 为 null")
+    void shouldTolerateMissingCurrentUserWhenUpdatingTenderStatus() {
+        createRequest.setTenderId(200L);
+        when(currentUserResolver.getCurrentUserId()).thenReturn(null);
+        when(scoreAnalysisRepository.save(any(ScoreAnalysis.class))).thenReturn(testAnalysis);
+        when(queryService.convertToDTO(any())).thenReturn(ScoreAnalysisDTO.builder()
+                .projectId(100L)
+                .overallScore(85)
+                .riskLevel(RiskLevel.LOW)
+                .build());
+
+        scoreAnalysisService.createAnalysis(createRequest);
+
+        verify(tenderCommandService).updateStatus(200L, com.xiyu.bid.entity.Tender.Status.EVALUATED, null);
     }
 
     @Test

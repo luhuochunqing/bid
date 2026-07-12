@@ -1,8 +1,10 @@
 package com.xiyu.bid.integration.external;
 
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.entity.User;
 import com.xiyu.bid.project.service.ProjectManagerDepartmentEnricher;
 import com.xiyu.bid.repository.TenderRepository;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.tender.service.TenderAssignmentNotifier;
 import com.xiyu.bid.tender.service.TenderAutoAssignmentService;
 import com.xiyu.bid.crm.domain.AssignmentResult;
@@ -31,6 +33,7 @@ class TenderIntegrationCommandSupport {
     private final ProjectManagerIdResolver projectManagerIdResolver;
     /** 部门名反查：复用 ProjectManagerDepartmentEnricher（与 TenderCommandService 保持一致）。 */
     private final ProjectManagerDepartmentEnricher departmentEnricher;
+    private final UserRepository userRepository;
 
     /**
      * CO-302: 尝试自动分配标讯负责人.
@@ -38,8 +41,10 @@ class TenderIntegrationCommandSupport {
      * <p>降级策略：匹配失败保持 PENDING_ASSIGNMENT 状态，不影响标讯入库。
      * <p>优先级：如果标讯已有 CRM 商机负责人（projectManagerId 或 projectManagerName），
      * 不再自动分配，避免覆盖商机负责人。
+     *
+     * @param userId 外部推送的 API Key 创建者或标讯创建者；用于写入 webhook 事件
      */
-    void tryAutoAssign(Tender tender) {
+    void tryAutoAssign(Tender tender, Long userId) {
         if (tender.getProjectManagerId() != null || hasText(tender.getProjectManagerName())) {
             log.info("Tender {} already has project manager (id={}, name={}), skip auto-assignment",
                     tender.getId(), tender.getProjectManagerId(), tender.getProjectManagerName());
@@ -53,10 +58,13 @@ class TenderIntegrationCommandSupport {
                 try {
                     TenderStatusTransitionPolicy.assertTransition(tender.getStatus(), Tender.Status.TRACKING);
                     tender.setStatus(Tender.Status.TRACKING);
+                    String operatorName = userId != null
+                            ? userRepository.findById(userId).map(User::getFullName).orElse(null)
+                            : null;
                     eventPublisher.publishEvent(TenderStatusChangedEvent.of(
                             tender.getId(), tender.getExternalId(),
                             Tender.Status.PENDING_ASSIGNMENT, Tender.Status.TRACKING,
-                            tender.getTitle()));
+                            tender.getTitle(), null, userId, operatorName, null, null));
                     log.info("Tender {} auto-assigned from external platform, status changed to TRACKING", tender.getId());
                     assignmentNotifier.notifyAutoAssigned(tender);
                 } catch (RuntimeException e) {

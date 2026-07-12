@@ -91,7 +91,7 @@ public class TenderCommandService {
         saveAttachments(savedTender.getId(), tenderDTO.getAttachments());
         // 批量导入 / 人工录入：用操作人 username 换 CRM token，按招标主体反查项目经理
         String operatorUsername = resolveUsername(userId);
-        tryAutoAssign(savedTender, operatorUsername);
+        tryAutoAssign(savedTender, userId, operatorUsername);
 
         // CO-332: 记录创建标讯操作日志
         String createUsername = operatorUsername != null ? operatorUsername : "system";
@@ -105,16 +105,23 @@ public class TenderCommandService {
      * 创建后自动分配（批量导入与人工录入共用）。
      *
      * @param tender           已保存标讯
+     * @param userId           操作人 ID（用于写入 webhook 事件，避免 CRM 回调因无 operator 死信）
      * @param operatorUsername 操作人 username（批量导入异步线程无 SecurityContext，必须显式传入）
      */
-    private boolean tryAutoAssign(Tender tender, String operatorUsername) {
+    private boolean tryAutoAssign(Tender tender, Long userId, String operatorUsername) {
         try {
             AssignmentResult result = autoAssignmentService.autoAssignIfPossible(tender, operatorUsername);
             if (result.isMatched()) {
                 applyAssignmentResult(tender, result);
                 com.xiyu.bid.batch.core.TenderStatusTransitionPolicy.assertTransition(tender.getStatus(), Tender.Status.TRACKING);
                 tender.setStatus(Tender.Status.TRACKING);
-                eventPublisher.publishEvent(TenderStatusChangedEvent.of(tender.getId(), tender.getExternalId(), Tender.Status.PENDING_ASSIGNMENT, Tender.Status.TRACKING, tender.getTitle()));
+                String operatorName = userId != null
+                        ? userRepository.findById(userId).map(User::getFullName).orElse(null)
+                        : null;
+                eventPublisher.publishEvent(TenderStatusChangedEvent.of(
+                        tender.getId(), tender.getExternalId(),
+                        Tender.Status.PENDING_ASSIGNMENT, Tender.Status.TRACKING, tender.getTitle(),
+                        null, userId, operatorName, null, null));
                 tenderRepository.save(tender);
                 log.info("Tender {} auto-assigned, status changed to TRACKING", tender.getId());
                 // CO-332: 记录自动分配审计日志（oldManager=null，系统按采购方/部门规则自动匹配）
@@ -163,10 +170,14 @@ public class TenderCommandService {
         com.xiyu.bid.batch.core.TenderStatusTransitionPolicy.assertTransition(tender.getStatus(), targetStatus);
         Tender.Status previousStatus = tender.getStatus();
 
+        // CO-571: 传播 operatorId + operatorName 到 webhook 事件，避免 CRM 回调因 username=null 失败
+        String operatorName = userId != null
+                ? userRepository.findById(userId).map(User::getFullName).orElse(null)
+                : null;
         tender.setStatus(targetStatus);
         eventPublisher.publishEvent(TenderStatusChangedEvent.of(
                 tender.getId(), tender.getExternalId(), previousStatus, targetStatus, tender.getTitle(),
-                null, userId, null, null, null));
+                null, userId, operatorName, null, null));
         Tender updatedTender = tenderRepository.save(tender);
         log.info("Updated tender status, id: {}, status: {}", id, targetStatus);
         return tenderMapper.toDTO(updatedTender);

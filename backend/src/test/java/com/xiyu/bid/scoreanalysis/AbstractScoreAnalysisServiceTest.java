@@ -40,6 +40,9 @@ abstract class AbstractScoreAnalysisServiceTest {
     @Mock
     protected ScoreAnalysisQueryService queryService;
 
+    @Mock
+    protected com.xiyu.bid.security.CurrentUserResolver currentUserResolver;
+
     protected ScoreAnalysisService scoreAnalysisService;
     protected ScoreAnalysis testAnalysis;
     protected DimensionScore testDimension;
@@ -52,7 +55,8 @@ abstract class AbstractScoreAnalysisServiceTest {
                 dimensionScoreRepository,
                 projectAccessScopeService,
                 tenderCommandService,
-                queryService
+                queryService,
+                currentUserResolver
         );
 
         testDimension = DimensionScore.builder()
