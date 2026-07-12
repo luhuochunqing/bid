@@ -373,13 +373,17 @@ const isClosureEditor = computed(() => userRole.value === 'bid-projectLeader')
 const canEditDeposit = computed(() => {
   if (!isClosureEditor.value) return false
   if (preview.value?.alreadyClosed) return false
-  return preview.value?.reviewStatus !== 'APPROVED'
+  // CO-572: 提交结项申请后(PENDING)表单字段应为只读，仅 DRAFT(未提交)/REJECTED(被驳回可改可重提) 可编辑
+  const rs = preview.value?.reviewStatus
+  return rs === 'DRAFT' || rs === 'REJECTED'
 })
 
 const canEditSummary = computed(() => {
   if (!isClosureEditor.value) return false
   if (preview.value?.alreadyClosed) return false
-  return preview.value?.reviewStatus !== 'APPROVED'
+  // CO-572: 同 canEditDeposit，PENDING(已提交待审核)/APPROVED(已结项) 均只读
+  const rs = preview.value?.reviewStatus
+  return rs === 'DRAFT' || rs === 'REJECTED'
 })
 
 // 仅投标项目负责人(bid-projectLeader)可提交结项申请；管理员/组长/投标辅助只审核不提交。
