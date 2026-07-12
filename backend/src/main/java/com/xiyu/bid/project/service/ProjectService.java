@@ -56,6 +56,9 @@ public class ProjectService {
             dto.setPrimaryLeadUserId(lead.getPrimaryLeadUserId());
             dto.setSecondaryLeadUserId(lead.getSecondaryLeadUserId());
         });
+        // CO-578: 补充列表投影字段（biddingLeaderName / secondaryBiddingLeaderName /
+        // projectLeaderName / leaderDepartment），让详情页公共模块显示投标负责人和辅助人员
+        projectQueryService.enrichSingle(dto);
         return dto;
     }
 

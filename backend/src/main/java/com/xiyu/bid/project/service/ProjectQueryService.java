@@ -283,6 +283,10 @@ public class ProjectQueryService {
         }
     }
 
+    public void enrichSingle(final ProjectDTO dto) {
+        if (dto != null && dto.getId() != null) enrichWithTenderAndDetails(List.of(dto));
+    }
+
     private List<ProjectDTO> mergeDemoProjectsIfNeeded(
             final List<ProjectDTO> projects) {
         if (!demoModeService.isEnabled()) {
