@@ -52,6 +52,7 @@ class ProjectResultControllerTest {
         when(authService.resolveUserIdByUsername("manager")).thenReturn(42L);
         ProjectResultController controller = new ProjectResultController(service, authService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
+                .defaultRequest(get("/").accept(MediaType.APPLICATION_JSON))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
         UserDetails principal = User.withUsername("manager").password("x").roles("MANAGER").build();

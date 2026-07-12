@@ -66,6 +66,7 @@ class TenderImportControllerTest {
                         null, null, null, null, authService));
 
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
+                .defaultRequest(get("/").accept(MediaType.APPLICATION_JSON))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .setControllerAdvice(new com.xiyu.bid.exception.GlobalExceptionHandler())
                 .build();

@@ -55,6 +55,7 @@ class ProjectDraftingControllerTest {
         when(authService.resolveUserIdByUsername("admin")).thenReturn(42L);
         ProjectDraftingController controller = new ProjectDraftingController(service, authService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
+                .defaultRequest(get("/").accept(MediaType.APPLICATION_JSON))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
         UserDetails principal = User.withUsername("admin").password("x").roles("ADMIN").build();
