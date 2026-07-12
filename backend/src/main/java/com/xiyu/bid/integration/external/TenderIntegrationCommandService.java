@@ -73,7 +73,7 @@ public class TenderIntegrationCommandService {
         Tender.Status previousStatus = tender.getStatus();
         applyUpdateFields(tender, request);
 
-        String usernameForLink = operatorUsernameResolver.resolve(userId);
+        String usernameForLink = operatorUsernameResolver.resolveForCrmLookup(tender, userId);
         crmTenderLinkService.linkIfPresent(tender, request.getCrmId(), request.getCrmOpportunityId(), usernameForLink);
         support.applyCrmFallback(tender, request.getCrmId(), request.getCrmOpportunityId(), request.getCrmOpportunityName(), usernameForLink);
 
@@ -135,8 +135,8 @@ public class TenderIntegrationCommandService {
             // 保留原始 creatorId，webhook 反查 CRM 需要实际创建者的 OSS token。
             Long originalCreatorId = existing.getCreatorId();
             // CO-XXX: 在 applyUpdate 之前解析 username，让 resolver 能读到原始 creatorId
-            // 复用 OperatorUsernameResolver.resolveDeliveryUsername：creatorId → projectManagerId → eventOperatorId
-            String usernameForLink = operatorUsernameResolver.resolveDeliveryUsername(existing, userId);
+            // CO-277: 优先用项目负责人（OSS 用户有 OSS token），降级用 creatorId → userId
+            String usernameForLink = operatorUsernameResolver.resolveForCrmLookup(existing, userId);
             mapper.applyUpdate(existing, request);
             if (userId != null) {
                 existing.setCreatorId(userId);
@@ -185,9 +185,10 @@ public class TenderIntegrationCommandService {
         }
         // CO-305: 记录创建时的初始状态，用于判断是否需要发布 Event
         Tender.Status initialStatus = tender.getStatus();
-        // CO-XXX: 传入 username，让 CRM 反查能拿到 token（API Key 路径下用 userId 反查）
-        // 根因修复：之前传 null，导致 CrmAuthService.getValidTokenForUser(null) 抛异常，商机无法关联
-        String usernameForLink = operatorUsernameResolver.resolve(userId);
+        // CO-277: 优先用项目负责人（OSS 用户有 OSS token），降级用 userId（admin 无 OSS token）
+        // 根因：API Key 路径下 userId=admin（系统账号无 OSS token），CRM 反查需要 OSS token → generateToken → CRM JWT
+        // mapper.toEntity 已通过 applyProjectManager 设置了 projectManagerId，此处可用
+        String usernameForLink = operatorUsernameResolver.resolveForCrmLookup(tender, userId);
         crmTenderLinkService.linkIfPresent(tender, request.getCrmId(), request.getCrmOpportunityId(), usernameForLink);
         support.applyCrmFallback(tender, request.getCrmId(), request.getCrmOpportunityId(), null, usernameForLink);
 

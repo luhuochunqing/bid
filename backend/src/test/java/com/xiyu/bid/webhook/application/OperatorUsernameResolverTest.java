@@ -117,4 +117,69 @@ class OperatorUsernameResolverTest {
 
         assertThat(resolver.resolve(999L)).isNull();
     }
+
+    // ── resolveForCrmLookup（CO-277 第 6 次修复）── projectManagerId → creatorId → fallbackUserId ──
+
+    @Test
+    @DisplayName("crmLookup_prefersPmOverCreator：PM 和 creator 都有 username → 用 PM（不查 creator）")
+    void crmLookup_prefersPmOverCreator() {
+        when(userRepository.findById(300L)).thenReturn(Optional.of(user("pm-user")));
+
+        String result = resolver.resolveForCrmLookup(tender(100L, 300L), 200L);
+
+        assertThat(result).isEqualTo("pm-user");
+        // PM 命中后不应再查 creator（避免 N+1）
+        verify(userRepository, never()).findById(100L);
+    }
+
+    @Test
+    @DisplayName("crmLookup_fallsBackToCreator：PM 为空/查不到 → fallback 到 creator")
+    void crmLookup_fallsBackToCreator() {
+        when(userRepository.findById(100L)).thenReturn(Optional.of(user("creator-user")));
+
+        String result = resolver.resolveForCrmLookup(tender(100L, null), 200L);
+
+        assertThat(result).isEqualTo("creator-user");
+    }
+
+    @Test
+    @DisplayName("crmLookup_fallsBackToUserId：PM 和 creator 都 miss → fallback 到 userId（admin）")
+    void crmLookup_fallsBackToUserId() {
+        when(userRepository.findById(200L)).thenReturn(Optional.of(user("admin")));
+
+        String result = resolver.resolveForCrmLookup(tender(null, null), 200L);
+
+        assertThat(result).isEqualTo("admin");
+    }
+
+    @Test
+    @DisplayName("crmLookup_pmNull_creatorNull_userIdNull → 返回 null（不做 DB 查询）")
+    void crmLookup_allNull_returnsNullWithoutDbQuery() {
+        String result = resolver.resolveForCrmLookup(tender(null, null), null);
+
+        assertThat(result).isNull();
+    }
+
+    @Test
+    @DisplayName("crmLookup_tenderNull → 仅用 fallbackUserId")
+    void crmLookup_tenderNull_usesFallbackOnly() {
+        when(userRepository.findById(200L)).thenReturn(Optional.of(user("admin")));
+
+        String result = resolver.resolveForCrmLookup(null, 200L);
+
+        assertThat(result).isEqualTo("admin");
+    }
+
+    @Test
+    @DisplayName("crmLookup_adminCreator_pmOssUser → 用 PM（核心场景：admin 无 OSS token，PM 有）")
+    void crmLookup_adminCreator_pmOssUser_prefersPm() {
+        // 生产场景：creatorId=1(admin, 无OSS token), projectManagerId=5181(08152, OSS用户有OSS token)
+        when(userRepository.findById(5181L)).thenReturn(Optional.of(user("08152")));
+
+        String result = resolver.resolveForCrmLookup(tender(1L, 5181L), 1L);
+
+        // 必须返回 PM 的 username，不能返回 admin
+        assertThat(result).isEqualTo("08152");
+        verify(userRepository, never()).findById(1L);
+    }
 }

@@ -347,4 +347,40 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
                 .linkIfPresent(any(Tender.class), any(), any(), usernameCaptor.capture());
         assertThat(usernameCaptor.getValue()).isEqualTo("admin");
     }
+
+    @Test
+    @DisplayName("CO-277: tender 有 projectManagerId 时优先用 PM 的 username（admin 无 OSS token）")
+    void updateByExternalId_withProjectManagerId_prefersPmUsernameOverAdmin() {
+        // 生产 bug 核心场景：
+        //   tender.creatorId = 1 (admin, 系统账号无 OSS token)
+        //   tender.projectManagerId = 5181 (08152, OSS 用户有 OSS token)
+        //   userId = 1 (API Key 创建者是 admin)
+        // 修复前：resolve(userId=1) → "admin" → CRM token 获取失败 → 商机未关联
+        // 修复后：resolveForCrmLookup(tender, userId) → 优先 PM → "08152" → CRM token 获取成功
+        Tender tender = createExistingTender();
+        tender.setCreatorId(1L);
+        tender.setProjectManagerId(5181L);
+        when(tenderRepository.findByExternalId("crm:test-001")).thenReturn(Optional.of(tender));
+
+        // mock: PM 用户 (5181) → "08152"
+        User pmUser = new User();
+        pmUser.setId(5181L);
+        pmUser.setUsername("08152");
+        when(userRepository.findById(5181L)).thenReturn(Optional.of(pmUser));
+
+        org.mockito.Mockito.doNothing().when(crmTenderLinkService)
+                .linkIfPresent(any(Tender.class), any(), any(), any());
+
+        TenderUpdateRequest request = TenderUpdateRequest.builder()
+                .crmOpportunityId("34")
+                .build();
+
+        commandService.updateByExternalId("crm", "test-001", request, 1L);
+
+        // 验证 linkIfPresent 收到的 username 是 PM 的 "08152"，而非 admin
+        org.mockito.ArgumentCaptor<String> usernameCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.Mockito.verify(crmTenderLinkService)
+                .linkIfPresent(any(Tender.class), any(), any(), usernameCaptor.capture());
+        assertThat(usernameCaptor.getValue()).isEqualTo("08152");
+    }
 }
