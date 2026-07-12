@@ -72,7 +72,7 @@ class TenderIntegrationServicePushEvaluationTest {
                 tenderRepository,
                 mock(ProjectManagerIdResolver.class),
                 mock(ProjectManagerDepartmentEnricher.class),
-                mock(com.xiyu.bid.repository.UserRepository.class));
+                mock(UserRepository.class));
         TenderCrmOccupancyChecker crmOccupancyChecker = new TenderCrmOccupancyChecker(tenderRepository);
         commandService = new TenderIntegrationCommandService(
                 tenderRepository,

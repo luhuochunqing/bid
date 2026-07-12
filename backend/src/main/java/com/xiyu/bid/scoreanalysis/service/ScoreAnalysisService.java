@@ -71,8 +71,8 @@ public class ScoreAnalysisService {
             if (request.getTenderId() != null) {
                 try {
                     Long operatorId = currentUserResolver.getCurrentUserId();
-                    // CO-571 Phase C: 无当前用户时用 tender.creatorId 兜底，与 Phase B 入队策略一致
-                    //（Phase B 入队按 creatorId → PM → event 顺序解析 username）
+                    // CO-571 Phase C: 无当前用户时用 tender.creatorId 兜底
+                    //（Phase B 入队阶段 resolveDeliveryUsername 会再按 creatorId → PM → event 顺序解析 username）
                     if (operatorId == null) {
                         operatorId = tenderRepository.findById(request.getTenderId())
                                 .map(Tender::getCreatorId).orElse(null);
