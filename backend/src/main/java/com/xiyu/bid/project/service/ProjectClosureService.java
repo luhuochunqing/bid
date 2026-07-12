@@ -175,7 +175,7 @@ public class ProjectClosureService {
         ProjectStage current = projectStageService.currentStage(projectId);
         if (current != ProjectStage.CLOSED) {
             projectStageService.requestTransition(projectId, ProjectStage.CLOSED,
-                    ProjectStageTransitionPolicy.GateInputs.EMPTY);
+                    ProjectStageTransitionPolicy.GateInputs.EMPTY, null, userId);
         }
         log.info("Closure approved: projectId={} userId={}", projectId, userId);
 

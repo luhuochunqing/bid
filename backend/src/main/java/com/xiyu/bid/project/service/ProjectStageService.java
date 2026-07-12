@@ -7,6 +7,7 @@ package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.casework.application.ProjectClosedEvent;
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.notification.application.ProjectClosureNotificationApplicationService;
 import com.xiyu.bid.project.core.ProjectStatusPolicy;
 import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.project.core.ProjectStage;
@@ -53,6 +54,7 @@ public class ProjectStageService {
     private final ProjectResultRepository projectResultRepository;
     private final ProjectClosureRepository closureRepository;
     private final ProjectRetrospectiveRepository retrospectiveRepository;
+    private final ProjectClosureNotificationApplicationService closureNotificationService;
 
     @Transactional(readOnly = true)
     public ProjectStage currentStage(Long projectId) {
@@ -121,6 +123,16 @@ public class ProjectStageService {
      */
     public ProjectStage requestTransition(Long projectId, ProjectStage target, GateInputs gateInputs,
                                           String bidResult) {
+        return requestTransition(projectId, target, gateInputs, bidResult, null);
+    }
+
+    /**
+     * 推进阶段（带触发人）：结项等需要通知触发人的场景使用。
+     *
+     * @param triggeredByUserId 触发当前阶段推进的用户 ID（可为 null，表示系统/旧调用方）
+     */
+    public ProjectStage requestTransition(Long projectId, ProjectStage target, GateInputs gateInputs,
+                                          String bidResult, Long triggeredByUserId) {
         Project p = mustGet(projectId);
         ProjectStage current = parse(p.getStage());
         var decision = ProjectStageTransitionPolicy.decide(current, target,
@@ -152,7 +164,21 @@ public class ProjectStageService {
         if (target == ProjectStage.CLOSED && current != ProjectStage.CLOSED) {
             eventPublisher.publishEvent(new ProjectClosedEvent(this, projectId, p.getName()));
         }
+
+        // US2: 复盘 → 结项时通知项目负责人提交结项申请。失败不阻塞主流程。
+        if (target == ProjectStage.CLOSED && current == ProjectStage.RETROSPECTIVE) {
+            sendPendingClosureNotification(projectId, p.getName(), triggeredByUserId);
+        }
         return target;
+    }
+
+    private void sendPendingClosureNotification(Long projectId, String projectName, Long triggeredByUserId) {
+        try {
+            closureNotificationService.sendPendingClosureApplicationNotification(
+                    projectId, projectName, triggeredByUserId);
+        } catch (RuntimeException e) {
+            log.warn("Pending closure notification failed for project={}: {}", projectId, e.getMessage(), e);
+        }
     }
 
     private Project mustGet(Long projectId) {

@@ -10,6 +10,7 @@ import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.core.ProjectStageTransitionPolicy;
 import com.xiyu.bid.project.domain.ProjectStageTransitionedEvent;
 import com.xiyu.bid.project.entity.ProjectResult;
+import com.xiyu.bid.notification.application.ProjectClosureNotificationApplicationService;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.project.repository.ProjectClosureRepository;
 import com.xiyu.bid.project.repository.ProjectResultRepository;
@@ -42,6 +43,7 @@ class ProjectStageServiceTest {
     private ProjectResultRepository projectResultRepository;
     private ProjectClosureRepository closureRepository;
     private ProjectRetrospectiveRepository retrospectiveRepository;
+    private ProjectClosureNotificationApplicationService closureNotificationService;
     private ProjectStageService service;
 
     private static final Long PID = 1L;
@@ -56,7 +58,8 @@ class ProjectStageServiceTest {
         projectResultRepository = mock(ProjectResultRepository.class);
         closureRepository = mock(ProjectClosureRepository.class);
         retrospectiveRepository = mock(ProjectRetrospectiveRepository.class);
-        service = new ProjectStageService(projectRepo, eventPublisher, notificationService, projectResultRepository, closureRepository, retrospectiveRepository);
+        closureNotificationService = mock(ProjectClosureNotificationApplicationService.class);
+        service = new ProjectStageService(projectRepo, eventPublisher, notificationService, projectResultRepository, closureRepository, retrospectiveRepository, closureNotificationService);
         when(projectRepo.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
         // 默认返回空 Optional，表示无已登记结果；个别测试按需覆写
         when(projectResultRepository.findByProjectId(PID)).thenReturn(Optional.empty());
