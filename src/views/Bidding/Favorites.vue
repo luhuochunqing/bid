@@ -113,6 +113,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { StarFilled, Star, Coin, Location, User, Timer } from '@element-plus/icons-vue'
 import { tenderFavoritesApi } from '@/api'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { getTenderStatusTagType, getTenderStatusText } from '@/views/Bidding/bidding-utils-status.js'
 import { formatBudgetWan } from '@/views/Bidding/bidding-utils.js'
 
@@ -139,7 +140,8 @@ async function loadFavorites() {
     favorites.value = pageData?.content || []
     total.value = pageData?.totalElements || 0
   } catch (e) {
-    ElMessage.error(e?.response?.data?.message || '获取收藏列表失败')
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, e?.response?.data?.message || '获取收藏列表失败')
   } finally {
     loading.value = false
   }
@@ -162,7 +164,8 @@ async function handleUnfavorite(item) {
     favorites.value = favorites.value.filter(f => f.favoriteId !== item.favoriteId)
     total.value = Math.max(0, total.value - 1)
   } catch (e) {
-    ElMessage.error(e?.response?.data?.message || '取消收藏失败')
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '取消收藏失败')
   }
 }
 

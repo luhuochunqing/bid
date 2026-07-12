@@ -13,7 +13,7 @@ describe('ContractBorrow.vue', () => {
   })
 
   it('shows local errors and uses current user context for lifecycle actions', () => {
-    expect(source).toContain('ElMessage.error')
+    expect(source).toContain('notifyErrorUnlessRateLimit')
     expect(source).toContain('useUserStore')
     expect(source).toContain('userStore.userName')
   })

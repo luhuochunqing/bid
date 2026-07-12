@@ -63,6 +63,7 @@ import { ElMessage } from 'element-plus'
 import { Download, UploadFilled } from '@element-plus/icons-vue'
 import { resourcesApi } from '@/api'
 import http from '@/api/client'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 
 const props = defineProps({
   modelValue: Boolean
@@ -141,7 +142,8 @@ const downloadTemplate = async () => {
     window.URL.revokeObjectURL(url)
   } catch (e) {
     console.error('下载模板失败', e)
-    ElMessage.error('下载模板失败')
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '下载模板失败')
   }
 }
 
@@ -153,7 +155,8 @@ const startImport = async () => {
     status.value = 'PENDING'
     startPolling()
   } catch (e) {
-    ElMessage.error('导入请求失败')
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '导入请求失败')
   }
 }
 

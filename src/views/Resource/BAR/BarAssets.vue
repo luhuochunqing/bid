@@ -61,6 +61,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { barAssetsApi } from '@/api/modules/bar.js'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 
 const loading = ref(false)
 const assets = ref([])
@@ -77,7 +78,8 @@ async function loadAssets() {
     const res = await barAssetsApi.getAssets()
     assets.value = res.data || []
   } catch (e) {
-    ElMessage.error('加载资产失败')
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '加载资产失败')
   } finally {
     loading.value = false
   }
@@ -107,7 +109,8 @@ async function saveAsset() {
     dialogVisible.value = false
     loadAssets()
   } catch (e) {
-    ElMessage.error('保存失败')
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '保存失败')
   }
 }
 
@@ -118,7 +121,7 @@ async function deleteAsset(row) {
     ElMessage.success('删除成功')
     loadAssets()
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error('删除失败')
+    if (e !== 'cancel') notifyErrorUnlessRateLimit(e, '删除失败')
   }
 }
 

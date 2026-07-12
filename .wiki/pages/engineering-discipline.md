@@ -295,6 +295,7 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 | 迁移脚本必须用 `new-migration.sh` 创建 | 手动取版本号会撞号 | [[flyway-migration-pitfalls]] §2 |
 | 类文件不超过 300 行 | 遵守单一职责原则 | AGENTS.md |
 | 外部服务异常必须保留原始 HTTP 状态码 | 502/503 比 500 更准确 | [[spring-pitfalls]] §9 |
+| 前端业务层 catch 块禁止直接 `ElMessage.error` 覆盖全局 429 提示 | 全局 interceptor 已负责友好提示，重复弹窗会暴露 `AxiosError` | [[frontend-pitfalls]] §12 |
 
 ### 5.2 测试规范
 
@@ -366,6 +367,7 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 | 通知 targetUrl 跳转失效 | 1 次 | 大小写不一致 | [[notification-system-pitfalls]] §1 |
 | AI Provider 硬编码 | 1 次 | 未读取 activeProvider 配置 | [[ai-provider-configuration]] §1 |
 | AI fallback 双倍调用 | 1 次 | 修 A 破 B：PR !1979 修 fallback 条件但引入每次双倍 AI 调用 | PR !1979 → !1982，OpenAiSdkStructuredOutputTransport |
+| 全局 429 提示被业务层覆盖 | 2 次 | 追症状不追根因：第一次只改全局文案，未收敛业务层 catch 块；第二次未在真实环境验证 | Account.vue `loadAccounts`，`scripts/check-429-error-override.mjs` |
 
 ### 6.4 pre-push 拦截脚本索引
 
@@ -375,6 +377,7 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 | `scripts/pre-push-gate.sh` | 17 道门禁 | 多个案例 |
 | `scripts/check-git-wrapper.sh` | `--no-verify` 绕过 | 工程纪律 |
 | `scripts/next-migration-version.sh --reserve` | 迁移版本号冲突 | Flyway 撞号 |
+| `scripts/check-429-error-override.mjs` | 新增 API catch 块中直接 `ElMessage.error` 覆盖全局 429 提示 | 全局 429 提示被业务层覆盖 |
 
 ---
 
@@ -444,3 +447,4 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 |------|---------|
 | 2026-07-10 | 首次创建，从 CO-361、CO-280、SPRING_CONFIG_IMPORT 等案例提炼 7 大根因、SOP、规范 |
 | 2026-07-10 | 新增"AI fallback 双倍调用"案例到根因 5 + 案例库索引（PR !1979 → !1982） |
+| 2026-07-12 | 新增"全局 429 提示被业务层覆盖"案例到案例库索引，更新编码规范与 pre-push 拦截脚本索引 |

@@ -90,6 +90,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { roiApi } from '@/api/modules/roi.js'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 
 const loading = ref(false)
 const analyses = ref([])
@@ -105,7 +106,8 @@ async function loadAnalyses() {
     const res = await roiApi.getAnalyses()
     analyses.value = res.data || []
   } catch (e) {
-    ElMessage.error('加载历史分析失败')
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '加载历史分析失败')
   } finally {
     loading.value = false
   }

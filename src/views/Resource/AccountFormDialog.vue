@@ -72,6 +72,7 @@ import { resourcesApi } from '@/api'
 import { useUserStore } from '@/stores/user'
 import { canRevealPassword, isCurrentUserContactPerson } from './accountActions.js'
 import UserPicker from '@/components/common/UserPicker.vue'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -185,8 +186,8 @@ const submit = async () => {
     visible.value = false
     emit('saved')
   } catch (error) {
-    const msg = error?.response?.data?.msg || error?.message || (isEdit.value ? '编辑失败' : '新增失败')
-    ElMessage.error(msg)
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(error, isEdit.value ? '编辑失败' : '新增失败')
   }
 }
 </script>

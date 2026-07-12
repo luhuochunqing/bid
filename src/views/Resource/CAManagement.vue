@@ -369,6 +369,7 @@ import { useUserStore } from '@/stores/user'
 import { useCaStore } from '@/stores/ca'
 import { caApi } from '@/api/modules/ca'
 import { projectsApi } from '@/api'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import DateTimeDisplay from '@/components/common/DateTimeDisplay.vue'
 import httpClient from '@/api/client'
 import { isBidManager } from '@/utils/permission'
@@ -537,8 +538,9 @@ async function loadData() {
     await loadOverview()
     // CO-476: 加载当前用户的借用申请，用于在 CA 列表上隐藏重复申请的按钮
     await loadMyApplications()
-  } catch {
-    ElMessage.error('加载 CA 证书数据失败')
+  } catch (e) {
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '加载 CA 证书数据失败')
   } finally {
     loading.value = false
   }
@@ -625,8 +627,9 @@ async function handleFormSubmit(formData) {
     }
     formVisible.value = false
     await loadData()
-  } catch {
-    ElMessage.error(formData.id ? '更新失败' : '创建失败')
+  } catch (e) {
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, formData.id ? '更新失败' : '创建失败')
   } finally {
     formSubmitting.value = false
   }
@@ -647,8 +650,9 @@ async function handleDelete(ca) {
     await caStore.deactivateCertificate(ca.id)
     ElMessage.success('已下架')
     await loadData()
-  } catch {
-    ElMessage.error('下架失败')
+  } catch (e) {
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '下架失败')
   }
 }
 
@@ -665,8 +669,9 @@ async function handleBorrowSubmit(borrowData) {
     ElMessage.success('借用申请已提交')
     borrowVisible.value = false
     await loadData()
-  } catch {
-    ElMessage.error('借用申请提交失败')
+  } catch (e) {
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '借用申请提交失败')
   } finally {
     borrowSubmitting.value = false
   }
@@ -693,8 +698,9 @@ async function handleReturnSubmit(returnData) {
     returnVisible.value = false
     await loadData()
     drawerVisible.value = false
-  } catch {
-    ElMessage.error('归还失败')
+  } catch (e) {
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '归还失败')
   } finally {
     returnSubmitting.value = false
   }
@@ -722,8 +728,9 @@ async function loadMyApplications() {
   try {
     const res = await caApi.getMyBorrowApplications()
     myApplications.value = res?.data || []
-  } catch {
-    ElMessage.error('加载我的借用申请失败')
+  } catch (e) {
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '加载我的借用申请失败')
     myApplications.value = []
   } finally {
     myApplicationsLoading.value = false
@@ -735,8 +742,9 @@ async function loadMyApprovals() {
   try {
     const res = await caApi.getMyApprovals()
     myApprovals.value = res?.data || []
-  } catch {
-    ElMessage.error('加载我的审批列表失败')
+  } catch (e) {
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '加载我的审批列表失败')
     myApprovals.value = []
   } finally {
     myApprovalsLoading.value = false
@@ -766,8 +774,9 @@ async function handleCancelApplication(row) {
     await caStore.cancelBorrow(row.id)
     ElMessage.success('已撤销')
     await loadMyApplications()
-  } catch {
-    ElMessage.error('撤销失败')
+  } catch (e) {
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '撤销失败')
   }
 }
 
@@ -782,8 +791,9 @@ async function handleApproveApplication(row) {
     await caStore.approveApplication(row.id, { comment: '同意' })
     ElMessage.success('审批通过')
     await loadMyApprovals()
-  } catch {
-    ElMessage.error('审批失败')
+  } catch (e) {
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '审批失败')
   }
 }
 
@@ -800,7 +810,8 @@ async function handleRejectApplication(row) {
     await loadMyApprovals()
   } catch (e) {
     if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error('拒绝操作失败')
+      // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+      notifyErrorUnlessRateLimit(e, '拒绝操作失败')
     }
   }
 }
@@ -849,10 +860,8 @@ async function handleExport() {
       ? `已导出选中的 ${selectedRows.value.length} 条`
       : '导出成功')
   } catch (e) {
-    // httpClient 拦截器已处理错误提示，这里兜底
-    if (!e?.response) {
-      ElMessage.error('导出失败，请稍后重试')
-    }
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '导出失败，请稍后重试')
   } finally {
     exporting.value = false
   }

@@ -507,8 +507,8 @@ describe('CAManagement — CO-441 handleDelete 取消确认容错', () => {
     // 关键断言：不应抛出未捕获错误（否则会触发 ErrorBoundary）
     await expect(wrapper.vm.handleDelete(ca)).resolves.toBeUndefined()
 
-    // 应显示错误提示
-    expect(errorSpy).toHaveBeenCalledWith('下架失败')
+    // 应显示错误提示（优先显示原始错误信息，429 则跳过）
+    expect(errorSpy).toHaveBeenCalledWith('server error')
   })
 })
 

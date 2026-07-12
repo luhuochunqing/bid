@@ -167,6 +167,7 @@ import { useAccountRowActions } from './composables/useAccountRowActions.js'
 import { usePasswordReveal } from './composables/usePasswordReveal.js'
 import { useAccountExport } from './composables/useAccountExport.js'
 import { useAccountBorrowApplications } from './composables/useAccountBorrowApplications.js'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import AccountFormDialog from './AccountFormDialog.vue'
 import AccountDetailDialog from './AccountDetailDialog.vue'
 import AccountBorrowDialog from './AccountBorrowDialog.vue'
@@ -259,7 +260,8 @@ const loadAccounts = async () => {
   } catch (e) {
     console.error('Failed to load accounts:', e)
     accounts.value = []
-    ElMessage.error('账户数据加载失败')
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '账户数据加载失败')
   }
 }
 
@@ -305,7 +307,8 @@ const handleTakeDown = async (row) => {
     loadAccounts()
   } catch (e) {
     console.error('Failed to take down account:', e)
-    ElMessage.error('下架失败')
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '下架失败')
   }
 }
 const onAccountReturned = () => {

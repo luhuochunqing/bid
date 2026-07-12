@@ -61,6 +61,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { competitionIntelApi } from '@/api/modules/competitionIntel.js'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 
 const loading = ref(false)
 const competitors = ref([])
@@ -77,7 +78,8 @@ async function loadCompetitors() {
     const res = await competitionIntelApi.getCompetitors()
     competitors.value = res.data || []
   } catch (e) {
-    ElMessage.error('加载竞争情报失败')
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '加载竞争情报失败')
   } finally {
     loading.value = false
   }
@@ -105,7 +107,8 @@ async function saveCompetitor() {
     dialogVisible.value = false
     loadCompetitors()
   } catch (e) {
-    ElMessage.error('保存失败')
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '保存失败')
   }
 }
 
@@ -116,7 +119,7 @@ async function deleteCompetitor(row) {
     ElMessage.success('删除成功')
     loadCompetitors()
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error('删除失败')
+    if (e !== 'cancel') notifyErrorUnlessRateLimit(e, '删除失败')
   }
 }
 </script>

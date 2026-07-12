@@ -436,17 +436,92 @@ echo "VITE_API_BASE_URL=https://api.example.com" >> .env.production
 
 ---
 
-## 12. 相关文档
+## 12. 业务层 catch 块调用 ElMessage.error 覆盖全局 429 友好提示
+
+### 12.1 事故
+
+全局 axios interceptor 已在收到 429 时展示友好提示「请求过于频繁，请稍后再试」。但业务层 catch 块又直接调用 `ElMessage.error`，把原始 `AxiosError: Request failed with status code 429` 暴露给用户，导致用户以为系统报错。
+
+```vue
+<script setup>
+import { ElMessage } from 'element-plus'
+import { resourcesApi } from '@/api'
+
+async function loadAccounts() {
+  try {
+    accounts.value = await resourcesApi.accounts.getList()
+  } catch (e) {
+    console.error('Failed to load accounts:', e)
+    // ❌ 错误：覆盖全局 429 提示
+    ElMessage.error(e.message || '账户数据加载失败')
+  }
+}
+</script>
+```
+
+### 12.2 根因
+
+- 全局 interceptor 负责 429 的友好提示和静默退避
+- 业务层 catch 块拿到同样的 error，再次 `ElMessage.error` 会把 interceptor 的提示覆盖或叠加
+- 生产环境用户看到的是 `AxiosError: Request failed with status code 429`，体验极差
+
+### 12.3 修复
+
+统一使用 `notifyErrorUnlessRateLimit`，对 429 错误静默，其他错误再弹窗：
+
+```javascript
+// src/api/error-utils.js
+import { ElMessage } from 'element-plus'
+
+export function isRateLimitError(error) {
+  return error?.response?.status === 429
+}
+
+export function notifyErrorUnlessRateLimit(error, fallbackMessage) {
+  if (isRateLimitError(error)) return
+  const serverMsg = error?.response?.data?.msg || error?.response?.data?.message
+  ElMessage.error(serverMsg || error?.message || fallbackMessage)
+}
+```
+
+```vue
+<script setup>
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
+
+async function loadAccounts() {
+  try {
+    accounts.value = await resourcesApi.accounts.getList()
+  } catch (e) {
+    console.error('Failed to load accounts:', e)
+    // ✅ 正确：429 交给全局 interceptor，其他错误才弹窗
+    notifyErrorUnlessRateLimit(e, '账户数据加载失败')
+  }
+}
+</script>
+```
+
+### 12.4 教训
+
+- **全局 interceptor 已处理的 429，业务层不要再弹 ElMessage.error**
+- **新增 API catch 块时优先使用 `notifyErrorUnlessRateLimit`**
+- **pre-push gate 已拦截新增的业务层 ElMessage.error 覆盖 429**：`scripts/check-429-error-override.mjs`
+- 扫描脚本：`scripts/scan-429-catch.mjs`、`scripts/scan-load-on-mount-429.mjs`
+
+---
+
+## 13. 相关文档
 
 - [[lessons-learned]] §三 §四 §七 — 前端相关踩坑案例
 - [[design-system]] — 设计系统基线
+- [[engineering-discipline]] — 反复修复的根因、根治与预防
 - FRONTEND.md — 前端规范入口
 - `src/components/` — 前端组件源码
 
 ---
 
-## 13. 变更记录
+## 14. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
 | 2026-07-10 | 首次创建，从 8 个工作区历史对话中提取前端陷阱 |
+| 2026-07-12 | 新增 §12：业务层 catch 覆盖全局 429 友好提示 |

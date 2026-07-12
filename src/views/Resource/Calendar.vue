@@ -72,6 +72,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { calendarApi } from '@/api/modules/collaboration.js'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 
 const currentDate = ref(new Date())
 const events = ref([])
@@ -94,7 +95,8 @@ async function loadEvents() {
     const res = await calendarApi.getEventsByMonth(year, month)
     events.value = res.data || []
   } catch (e) {
-    ElMessage.error('加载日历事件失败')
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '加载日历事件失败')
   } finally {
     loading.value = false
   }
@@ -130,7 +132,8 @@ async function saveEvent() {
     dialogVisible.value = false
     loadEvents()
   } catch (e) {
-    ElMessage.error('保存失败')
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '保存失败')
   }
 }
 </script>

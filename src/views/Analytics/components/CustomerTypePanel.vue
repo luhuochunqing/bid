@@ -106,6 +106,7 @@ import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { dashboardApi } from '@/api'
 import { customerTypeLabel } from '@/views/Project/utils/projectListFormatters.js'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import './customerTypePanel.css'
 
 const props = defineProps({
@@ -157,7 +158,8 @@ const loadCustomerTypes = async () => {
     responseData.value = response.data || { dimensions: [] }
   } catch (error) {
     responseData.value = { dimensions: [] }
-    ElMessage.error(error?.message || '客户类型数据加载失败')
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(error, '客户类型数据加载失败')
   } finally {
     loading.value = false
   }
@@ -178,7 +180,8 @@ const openDrillDown = async (customerType) => {
     drillDownRows.value = Array.isArray(response.data) ? response.data : []
   } catch (error) {
     drillDownRows.value = []
-    ElMessage.error(error?.message || '客户类型明细加载失败')
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(error, '客户类型明细加载失败')
   } finally {
     drillDownLoading.value = false
   }

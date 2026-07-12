@@ -162,6 +162,7 @@ import { useProjectSearch } from './composables/useProjectSearch.js'
 import { useProjectFilter } from './composables/useProjectFilter.js'
 import { useUserStore } from '@/stores/user'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { navigateToProject } from '@/utils/projectNavigation.js'
 
 const router = useRouter()
@@ -238,7 +239,8 @@ const handleExport = async () => {
     if (e?.name === 'AbortError') {
       ElMessage.warning('导出超时，请减小筛选范围后重试')
     } else {
-      ElMessage.error('导出失败：' + (e?.message || '未知错误'))
+      // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+      notifyErrorUnlessRateLimit(e, '导出失败：' + (e?.message || '未知错误'))
     }
   } finally {
     exporting.value = false
@@ -307,7 +309,11 @@ async function loadProjects() {
   loading.value = true
   error.value = null
   try { await projectStore.getProjects() }
-  catch (e) { error.value = e.message || '加载项目列表失败'; ElMessage.error('加载项目列表失败：' + (e.message || '未知错误')) }
+  catch (e) {
+    error.value = e.message || '加载项目列表失败'
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '加载项目列表失败：' + (e.message || '未知错误'))
+  }
   finally { loading.value = false }
 }
 function retryLoad() { loadProjects() }

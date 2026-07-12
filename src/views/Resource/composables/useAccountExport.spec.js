@@ -78,7 +78,7 @@ describe('useAccountExport', () => {
     const { handleExport } = useAccountExport()
     await handleExport([])
 
-    expect(ElMessage.error).toHaveBeenCalledWith('导出失败，请稍后重试')
+    expect(ElMessage.error).toHaveBeenCalledWith('network error')
     expect(ElMessage.success).not.toHaveBeenCalled()
   })
 

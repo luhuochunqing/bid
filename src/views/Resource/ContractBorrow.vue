@@ -113,6 +113,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { contractBorrowApi } from '@/api/modules/contractBorrow.js'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { useUserStore } from '@/stores/user.js'
 import './contractBorrow.css'
 
@@ -170,7 +171,8 @@ async function loadOverview() {
     const response = await contractBorrowApi.getOverview()
     overview.value = response?.data || {}
   } catch (error) {
-    ElMessage.error(resolveErrorMessage(error, '合同借阅概览加载失败'))
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(error, '合同借阅概览加载失败')
   }
 }
 
@@ -188,7 +190,8 @@ async function loadList() {
   } catch (error) {
     records.value = []
     pagination.total = 0
-    ElMessage.error(resolveErrorMessage(error, '合同借阅列表加载失败'))
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(error, '合同借阅列表加载失败')
   } finally {
     loading.value = false
   }
@@ -214,7 +217,8 @@ async function submitCreate() {
     createDialogVisible.value = false
     await refresh()
   } catch (error) {
-    ElMessage.error(resolveErrorMessage(error, '合同借阅申请提交失败'))
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(error, '合同借阅申请提交失败')
   } finally {
     submitting.value = false
   }
@@ -228,7 +232,8 @@ async function openDetail(row) {
     events.value = response?.data || []
   } catch (error) {
     events.value = []
-    ElMessage.error(resolveErrorMessage(error, '合同借阅历史加载失败'))
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(error, '合同借阅历史加载失败')
   }
 }
 
@@ -251,7 +256,8 @@ async function runAction(row, action) {
     ElMessage.success('状态已更新')
     await refresh()
   } catch (error) {
-    ElMessage.error(resolveErrorMessage(error, '合同借阅状态更新失败'))
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(error, '合同借阅状态更新失败')
   }
 }
 

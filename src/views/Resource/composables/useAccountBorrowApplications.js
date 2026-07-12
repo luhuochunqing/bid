@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { resourcesApi } from '@/api'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 
 /**
  * CO-516: 账户借用申请/审批的顶层 tab 状态与操作逻辑。
@@ -101,8 +102,9 @@ export function useAccountBorrowApplications({ accounts }) {
       if (!res?.success) { ElMessage.error(res?.msg || '撤销失败'); return }
       ElMessage.success('已撤销')
       await loadMyApplications()
-    } catch {
-      ElMessage.error('撤销失败')
+    } catch (e) {
+      // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+      notifyErrorUnlessRateLimit(e, '撤销失败')
     }
   }
 
@@ -112,8 +114,9 @@ export function useAccountBorrowApplications({ accounts }) {
       if (!res?.success) { ElMessage.error(res?.msg || '审批失败'); return }
       ElMessage.success('已审批通过')
       await loadMyApprovals()
-    } catch {
-      ElMessage.error('审批失败')
+    } catch (e) {
+      // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+      notifyErrorUnlessRateLimit(e, '审批失败')
     }
   }
 

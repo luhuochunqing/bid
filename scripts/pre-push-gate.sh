@@ -316,6 +316,22 @@ if [ -f "$ROOT_DIR/package.json" ]; then
   fi
 fi
 
+# ── 5.5. 429 友好提示覆盖拦截（spec-034 防复发） ─────────
+# 工程背景（2026-07-11 部署后反馈）：
+#   全局 axios interceptor 已将 HTTP 429 包装为友好提示“请求过于频繁，请稍后再试”，
+#   但业务层 catch 块中直接 ElMessage.error 会覆盖该提示，用户仍看到原始 AxiosError。
+#   Account.vue / CAManagement.vue 等页面因此继续暴露 raw 429。
+# 本门禁在 pre-push 阶段拦截新增的业务层 API catch 块中直接调用 ElMessage.error。
+# 已存在的 71 处历史债务不在本次拦截范围，仅阻止新增。
+echo "── 429 提示覆盖拦截 ──"
+if [ -f "$ROOT_DIR/package.json" ]; then
+  if node "$ROOT_DIR/scripts/check-429-error-override.mjs" "$GATE_BASE" 2>&1; then
+    pass "429 提示覆盖拦截"
+  else
+    fail "429 提示覆盖拦截 — 新增 API catch 块中直接 ElMessage.error。替换为 notifyErrorUnlessRateLimit(error, 'fallback')。详见 src/api/error-utils.js"
+  fi
+fi
+
 # ── 6. 泄露检查 ────────────────────────────────────────
 echo "── 文件泄露检查 ──"
 UNTRACKED=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | wc -l | tr -d ' ')
