@@ -27,7 +27,9 @@ export const useNotificationStore = defineStore('notifications', {
         if (status === 429 || status === 403) {
           throw err
         }
-        this.unreadCount = 0
+        // 非 429/403 错误（500/网络断开/超时）保持上次 unreadCount 不变，
+        // 避免静默清零导致用户错过关键通知。仅记录错误供调用方（useNotifications）展示。
+        this.error = err.message || '通知轮询失败'
       }
     },
 
