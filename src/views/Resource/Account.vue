@@ -219,35 +219,16 @@ const {
   rejectBorrowApplication, openBorrowAppReturn, onBorrowAppReturned
 } = useAccountBorrowApplications({ accounts })
 
-// CO-400 二轮：列表 row 对非特权角色是脱敏 SummaryDTO，详情/编辑前都需调详情接口拉完整 DTO。
+// 详情接口仅用于「点击单行查看详情 / 编辑」时拉取单条，进入页面时不批量调用（消除 N+1）
 const loadAccountDetail = async (row) => {
   try {
     const res = await resourcesApi.accounts.getDetail(row.id)
     if (res?.data) return res.data
   } catch (e) {
     console.error('Failed to load account detail:', e)
-    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
     notifyErrorUnlessRateLimit(e, '账户详情加载失败')
   }
   return row
-}
-
-// CO-400 修复：列表 N+1 detail 请求集中并发会触发后端 RateLimitFilter 返回 429。
-// 生产环境账号数多时，即使每批 2 个并发仍会在短时间内产生 40+ 请求，叠加其他页面请求后极易撞限流。
-// 因此需要同时做三件事：
-//   1. 降低并发批次大小到 1（串行），把请求在时间上分散开
-//   2. 每个详情请求内部/外部都 catch 429，降级为 SummaryDTO
-//   3. 不再让单个 detail 失败阻塞整页加载
-const DETAIL_CONCURRENCY = 1
-const loadDetailsInBatches = async (list) => {
-  const results = []
-  for (let i = 0; i < list.length; i += DETAIL_CONCURRENCY) {
-    const batch = list.slice(i, i + DETAIL_CONCURRENCY)
-    // 当某个账号详情请求触发 429 时，降级为 SummaryDTO 返回，避免整页卡死或报错。
-    const batchResults = await Promise.all(batch.map(row => loadAccountDetail(row).catch(() => row)))
-    results.push(...batchResults)
-  }
-  return results
 }
 
 const loadAccounts = async () => {
@@ -258,15 +239,12 @@ const loadAccounts = async () => {
       accounts.value = []
       return
     }
-    const list = Array.isArray(res.data) ? res.data : []
-    // CO-400 三轮：列表 row 是脱敏 SummaryDTO，对每行调 getDetail 拉完整 DTO（用户已确认接受 N+1）。
-    const detailed = await loadDetailsInBatches(list)
-    accounts.value = detailed
+    // 列表端点已按角色返回完整 DTO（含 contactPersonLabel 批量填充），直接使用，不再 N+1 调详情接口
+    accounts.value = Array.isArray(res.data) ? res.data : []
     resetPage()
   } catch (e) {
     console.error('Failed to load accounts:', e)
     accounts.value = []
-    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
     notifyErrorUnlessRateLimit(e, '账户数据加载失败')
   }
 }

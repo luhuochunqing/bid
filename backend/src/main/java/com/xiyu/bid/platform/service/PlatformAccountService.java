@@ -132,11 +132,22 @@ public class PlatformAccountService {
         String code = viewer == null ? null : effectiveRoleResolver.resolveRoleCode(viewer);
         boolean fullView = PlatformAccountViewerPolicy.canViewFullAccountList(code);
         boolean bidTeam = PlatformAccountViewerPolicy.isBidTeamRole(code);
-        return repository.findAll(Sort.by(Sort.Direction.DESC, "createdAt")).stream()
-            .map(account -> (fullView || (bidTeam && PlatformAccountContactMatcher.isContactPerson(account, viewer)))
-                ? PlatformAccountMapper.toDTO(account)
-                : PlatformAccountMapper.toSummaryDTO(account))
-            .collect(Collectors.toList());
+
+        List<PlatformAccountDTO> fullDtos = new java.util.ArrayList<>();
+        List<Object> result = new java.util.ArrayList<>();
+        for (PlatformAccount account : repository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"))) {
+            boolean showFull = fullView || (bidTeam && PlatformAccountContactMatcher.isContactPerson(account, viewer));
+            if (showFull) {
+                PlatformAccountDTO dto = PlatformAccountMapper.toDTO(account);
+                fullDtos.add(dto);
+                result.add(dto);
+            } else {
+                result.add(PlatformAccountMapper.toSummaryDTO(account));
+            }
+        }
+        // 批量填充 contactPersonLabel（单次查询），消除前端 N+1 getDetail 调用根因
+        contactLabelEnricher.enrich(fullDtos);
+        return result;
     }
 
     /** Update an existing account. */
