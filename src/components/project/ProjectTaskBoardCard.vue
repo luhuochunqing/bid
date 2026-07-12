@@ -44,6 +44,16 @@
       @submit-review="$emit('submit-review', $event)"
     />
 
+    <!-- CO-575: 任务看板底部审核提示 -->
+    <el-alert
+      class="board-review-tip"
+      data-test="board-review-tip"
+      type="info"
+      :closable="false"
+      show-icon
+      title="提示：待审核任务由投标负责人审核，无需项目负责人审核。"
+    />
+
     <el-drawer
       v-model="drawerVisible"
       :title="drawerTitle"
@@ -268,6 +278,11 @@ defineExpose({
 <style scoped>
 .task-card {
   margin-bottom: 20px;
+}
+
+/* CO-575: 任务看板底部审核提示 */
+.board-review-tip {
+  margin-top: 12px;
 }
 
 .card-title {

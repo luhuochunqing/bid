@@ -60,6 +60,11 @@ const baseStubs = {
       },
     },
   },
+  ElAlert: {
+    name: 'ElAlert',
+    props: ['type', 'title', 'closable', 'showIcon'],
+    template: '<div class="el-alert-stub" :data-type="type">{{ title }}</div>',
+  },
 }
 
 describe('ProjectTaskBoardCard', () => {
@@ -513,5 +518,36 @@ describe('CO-397: task drawer review buttons', () => {
     expect(wrapper.find('[data-test="task-drawer-submit-review"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="task-drawer-reject"]').exists()).toBe(false)
     expect(wrapper.find('[data-test="task-drawer-approve"]').exists()).toBe(false)
+  })
+})
+
+// CO-575: 任务看板底部审核提示信息
+describe('CO-575: 任务看板底部审核提示', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 1, role: 'admin' }
+  })
+
+  it('看板底部渲染审核提示且文案正确', () => {
+    const wrapper = mount(ProjectTaskBoardCard, {
+      props: { canManageProjectTasks: true, tasks: [], projectId: 12 },
+      global: { stubs: baseStubs },
+    })
+    const tip = wrapper.find('[data-test="board-review-tip"]')
+    expect(tip.exists()).toBe(true)
+    expect(tip.attributes('data-type')).toBe('info')
+    expect(tip.text()).toContain('待审核任务由投标负责人审核，无需项目负责人审核')
+  })
+
+  it('提示不影响看板操作（添加任务仍可用）', async () => {
+    const wrapper = mount(ProjectTaskBoardCard, {
+      props: { canManageProjectTasks: true, tasks: [], projectId: 12 },
+      global: { stubs: baseStubs },
+    })
+    expect(wrapper.find('[data-test="board-review-tip"]').exists()).toBe(true)
+    await wrapper.find('[data-test="add-task-button"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.vm.drawerVisible).toBe(true)
   })
 })
