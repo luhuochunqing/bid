@@ -1,6 +1,9 @@
 // Input: 操作者用户主键 / Tender 实体（creatorId + projectManagerId）
 // Output: 操作者用户名（username），用于 webhook 投递时换 OSS token
 // Pos: webhook/application/ - webhook 应用层共享组件
+// Methods: resolve(Long) — 单 userId 反查 username
+//          resolveDeliveryUsername(Tender, Long) — creatorId → projectManagerId → eventOperatorId（仅展示/审计）
+//          resolveForCrmLookup(Tender, Long) — projectManagerId → creatorId → fallback（用于换 CRM token）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.webhook.application;
 

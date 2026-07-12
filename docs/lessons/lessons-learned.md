@@ -3932,7 +3932,7 @@ ORDER BY created_at DESC LIMIT 20;
 
 **根因分类**：§1 追症状不追根因（commit `1f99ed2a0` 只修了主路径，未做全仓库调用点排查）+ §7 未在真实环境验证（修复未覆盖 E2E 链路验证）。
 
-**修复**：两个 webhook listener 改用 `resolveForCrmLookup`（PR !2044）。
+**修复**：两个 webhook listener 改用 `resolveForCrmLookup`（PR !2047 / CO-571 Phase B 补齐）。
 
 **防复发**：
 - `OperatorUsernameResolver` javadoc 顶部追加"使用指引"小节，明确两个方法的语义差异和适用场景
