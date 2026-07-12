@@ -85,8 +85,15 @@ public class WebhookEventListener {
             log.warn("Tender {} not found, skip webhook", event.tenderId());
             return;
         }
-        // CO-152 补齐：入队时存操作者 username，回调时用它取该用户的 OSS token 调 generateToken
-        String operatorUsername = operatorUsernameResolver.resolve(event.operatorId());
+        // CO-571 Phase B: 按 creatorId → projectManagerId → eventOperatorId 顺序解析可用 OSS username。
+        // API Key 场景 event 常是 admin（有 username 无 OSS），故 creator/PM 优先于 event。
+        String operatorUsername = operatorUsernameResolver.resolveDeliveryUsername(tender, event.operatorId());
+        if (operatorUsername == null || operatorUsername.isBlank()) {
+            log.error("Webhook 入队失败：无可用 OSS username，跳过入队。tenderId={}, newStatus={}, creatorId={}, projectManagerId={}, operatorId={}",
+                    event.tenderId(), event.newStatus(),
+                    tender.getCreatorId(), tender.getProjectManagerId(), event.operatorId());
+            return;
+        }
         // CO-277 / CO-152: 优先用 tender.crm_opportunity_id；为空时用 externalId 的 sourceId 兜底反查 code。
         // 使用 operatorUsername 调 CRM，避免依赖全局共享账号。
         String crmOpportunityCode = tenderCrmOpportunityCodeResolver.resolveForTender(tender, operatorUsername);

@@ -78,8 +78,9 @@ class WebhookEventListenerTest {
                     String crmId = t.getCrmOpportunityId();
                     return (crmId == null || crmId.isBlank()) ? "" : crmId;
                 });
-        // 默认 operatorUsername 为 null，与未配置 resolver 时一致
-        lenient().when(operatorUsernameResolver.resolve(any())).thenReturn(null);
+        // CO-571 Phase B: 默认 resolveDeliveryUsername 返回非空 username，使大多数测试仍能入队
+        lenient().when(operatorUsernameResolver.resolveDeliveryUsername(any(Tender.class), any()))
+                .thenReturn("default-operator");
     }
 
     private TenderStatusChangedEvent event(Tender.Status newStatus, String abandonReason, String operatorName) {
@@ -185,7 +186,7 @@ class WebhookEventListenerTest {
         tender.setId(TENDER_ID);
         tender.setCrmOpportunityId("321");
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender));
-        when(tenderCrmOpportunityCodeResolver.resolveForTender(tender, null)).thenReturn("CC20260621321");
+        when(tenderCrmOpportunityCodeResolver.resolveForTender(tender, "default-operator")).thenReturn("CC20260621321");
 
         l.onTenderStatusChanged(event(Tender.Status.ABANDONED, "放弃投标", "张三"));
 
@@ -204,7 +205,7 @@ class WebhookEventListenerTest {
         tender.setExternalId(ExternalSystemPrefix.CRM.formatExternalId("17"));
         tender.setCrmOpportunityId(null);
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender));
-        when(tenderCrmOpportunityCodeResolver.resolveForTender(tender, null)).thenReturn("CC2026070932");
+        when(tenderCrmOpportunityCodeResolver.resolveForTender(tender, "default-operator")).thenReturn("CC2026070932");
 
         l.onTenderStatusChanged(event(Tender.Status.ABANDONED, "放弃投标", "张三"));
 
@@ -223,7 +224,7 @@ class WebhookEventListenerTest {
         tender.setCrmOpportunityId(null);
         tender.setExternalId(ExternalSystemPrefix.CRM.formatExternalId("17"));
         when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender));
-        when(operatorUsernameResolver.resolve(493L)).thenReturn("zhangsan");
+        when(operatorUsernameResolver.resolveDeliveryUsername(tender, 493L)).thenReturn("zhangsan");
 
         l.onTenderStatusChanged(event(Tender.Status.ABANDONED, "放弃投标", "张三"));
 
@@ -296,6 +297,35 @@ class WebhookEventListenerTest {
         l.onTenderStatusChanged(event(Tender.Status.ABANDONED, "放弃投标", "张三"));
 
         verify(taskRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("CO-571 Phase B: 无可用 username → 不入队（避免空 username 静默死信）")
+    void evaluated_noUsername_doesNotEnqueue() {
+        WebhookEventListener l = listener();
+        Tender tender = mockTender();
+        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender));
+        when(operatorUsernameResolver.resolveDeliveryUsername(tender, 493L)).thenReturn(null);
+
+        l.onTenderStatusChanged(event(Tender.Status.EVALUATED, null, "王五"));
+
+        verify(taskRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("CO-571 Phase B: event operator 为 admin 时优先用 creator 的 username")
+    void evaluated_usesCreatorWhenEventIsAdminOrNull() {
+        WebhookEventListener l = listener();
+        Tender tender = mockTender();
+        tender.setCreatorId(100L);
+        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender));
+        // resolveDeliveryUsername 应被调用，返回 creator 的 username
+        when(operatorUsernameResolver.resolveDeliveryUsername(tender, 493L)).thenReturn("creator-user");
+
+        l.onTenderStatusChanged(event(Tender.Status.EVALUATED, null, "admin"));
+
+        verify(operatorUsernameResolver).resolveDeliveryUsername(tender, 493L);
+        verify(tenderCrmOpportunityCodeResolver).resolveForTender(tender, "creator-user");
     }
 
     private WebhookDeliveryTask captureSingleSaved() {

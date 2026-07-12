@@ -1,9 +1,10 @@
-// Input: 操作者用户主键
-// Output: 操作者用户名（username）
+// Input: 操作者用户主键 / Tender 实体（creatorId + projectManagerId）
+// Output: 操作者用户名（username），用于 webhook 投递时换 OSS token
 // Pos: webhook/application/ - webhook 应用层共享组件
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.webhook.application;
 
+import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -14,14 +15,9 @@ import org.springframework.stereotype.Component;
  * <p>通过 userId 反查 username，供 webhook 异步投递时取该用户的 OSS token 调 CRM generateToken，
  * 避免依赖全局共享账号（CO-152）。
  *
- * <p><b>验收预期：</b>
- * <ul>
- *   <li>CRM HTTP 调用实际发生在 AFTER_COMMIT 监听器入队后，由异步投递任务触发，不在入队阶段同步执行。</li>
- *   <li>返回的 username 必须对应一名已登录过 OSS 的用户；若 username 为空、或 OSS token 已过期、
- *       或用户从未在系统内完成 OSS 授权，则 CRM 反查仍会失败，不能仅靠 externalId 在无 token 时换取 CRM JWT。</li>
- *   <li>因此，弃标/项目结果确认等会触发 CRM 回调的操作，必须由已完成 OSS 登录的操作者执行，
- *       否则 webhook 投递侧按自身策略处理（如失败重试或死信）。</li>
- * </ul>
+ * <p><b>CO-571 Phase B：</b>新增 {@link #resolveDeliveryUsername(Tender, Long)} 方法，
+ * 按 creatorId → projectManagerId → eventOperatorId 顺序解析。
+ * API Key 场景 event 常是 admin（有 username 无 OSS），故 creator/PM 优先于 event。
  *
  * <p>查不到或 userId 为空时返回 {@code null}，调用方按自身策略处理。
  */
@@ -44,5 +40,33 @@ public class OperatorUsernameResolver {
         return userRepository.findById(operatorId)
                 .map(User::getUsername)
                 .orElse(null);
+    }
+
+    /**
+     * 解析 webhook 投递用的 username（CO-571 Phase B）。
+     * <p>解析顺序：tender.creatorId → tender.projectManagerId → eventOperatorId。
+     * <p>API Key 场景 event 常是 admin（有 username 无 OSS），故 creator/PM 优先于 event。
+     * operatorName 仅展示，不参与 token，B/C 验收不写 name。
+     *
+     * @param tender 标讯实体（提供 creatorId / projectManagerId）
+     * @param eventOperatorId 事件中的操作者 ID
+     * @return 第一个能解析到非空 username 的用户名；全 miss 返回 {@code null}
+     */
+    public String resolveDeliveryUsername(Tender tender, Long eventOperatorId) {
+        if (tender != null) {
+            String username = resolve(tender.getCreatorId());
+            if (isNotBlank(username)) {
+                return username;
+            }
+            username = resolve(tender.getProjectManagerId());
+            if (isNotBlank(username)) {
+                return username;
+            }
+        }
+        return resolve(eventOperatorId);
+    }
+
+    private static boolean isNotBlank(String s) {
+        return s != null && !s.isBlank();
     }
 }

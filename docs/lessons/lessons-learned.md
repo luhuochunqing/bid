@@ -3836,7 +3836,7 @@ GET /api/ca-certificates?size=500
 
 ---
 
-## 55. 删除鉴权兜底前必须先确保所有发布路径都携带操作者上下文（CO-571 / 2026-07-10）
+## 55. Webhook 入队必须解析可用 OSS username，空 username 禁止静默死信（CO-571 / 2026-07-10/12）
 
 ### 问题背景
 
@@ -3844,22 +3844,25 @@ GET /api/ca-certificates?size=500
 
 `WebhookCrmTokenResolver.resolveToken(username)` 在 `operatorUsername` 为空时直接抛 `TokenUnavailableException`。
 
-但 `TenderCommandService.updateStatus(...)` 在 origin/main 的初始修复中只传了 `operatorId`，**未传 `operatorName`**；`ScoreAnalysisService.createAnalysis(...)` 间接触发 `updateStatus` 时连 `operatorId` 都没传。
+但原始入队逻辑只用 `event.operatorId` 反查 username：API Key 场景下 event operator 常是 admin（有 username 无 OSS token），导致 `webhook_delivery_tasks.operator_username` 虽非空但换不到 OSS token；更糟的是 `operatorId` 为 null 时直接写入 `operator_username = null`，异步投递时 `resolveToken(null)` 抛异常 → 重试 3 次 → **DEAD_LETTER**，CRM 永远收不到回调。
 
-### 触发链路
+### 触发链路（修复前）
 
 1. 用户/AI 评分分析将标讯置为 `EVALUATED`，或用户弃标 `ABANDONED`（webhook 触发态）
-2. `TenderStatusChangedEvent` 的 `operatorName` 为 null
-3. `WebhookEventListener` 写入 `webhook_delivery_tasks.operator_username = null`
-4. `WebhookDeliveryJobService` 调度时，`WebhookCrmTokenResolver.resolveToken(null)` 抛 `TokenUnavailableException`
+2. `WebhookEventListener` 用 `OperatorUsernameResolver.resolve(event.operatorId())` 反查 username
+3. API Key 场景 operator 是 admin（无 OSS）或 operatorId 为 null → `operator_username` 为空/null
+4. `WebhookDeliveryJobService` 调度时，`WebhookCrmTokenResolver.resolveToken(null/空)` 抛 `TokenUnavailableException`
 5. 重试 3 次失败 → 任务进入 **DEAD_LETTER**
 6. **CRM 永远收不到 bidInfoSync 回调**
 
-### 修复要点
+### 修复要点（Phase B，2026-07-12）
 
-- [TenderCommandService.updateStatus](file:///Users/user/xiyu/worktrees/gemini/backend/src/main/java/com/xiyu/bid/tender/service/TenderCommandService.java) 通过 `userId` 反查 `fullName` 并写入事件
-- [ScoreAnalysisService.createAnalysis](file:///Users/user/xiyu/worktrees/gemini/backend/src/main/java/com/xiyu/bid/scoreanalysis/service/ScoreAnalysisService.java) 注入 `CurrentUserResolver`，把当前用户 ID 传给 `updateStatus`
-- [BatchTenderStatusAppService.collectStatusUpdate](file:///Users/user/xiyu/worktrees/gemini/backend/src/main/java/com/xiyu/bid/batch/service/BatchTenderStatusAppService.java) 已由先前提交修复，传 `operatorId + operatorName`
+**策略**：入队用「能换 OSS token 的人」（对齐 #1641），解析顺序为 `tender.creatorId → tender.projectManagerId → event.operatorId`。说明：API Key 场景 event 常是 admin（有 username 无 OSS），故 creator/PM 优先于 event。operatorName 仅展示，不参与 token。
+
+- [OperatorUsernameResolver.resolveDeliveryUsername](file:///Users/user/xiyu/worktrees/gemini/backend/src/main/java/com/xiyu/bid/webhook/application/OperatorUsernameResolver.java) 新增方法：按 `creatorId → projectManagerId → eventOperatorId` 顺序解析可用 OSS username，内部仍复用 `resolve(id)`
+- [WebhookEventListener](file:///Users/user/xiyu/worktrees/gemini/backend/src/main/java/com/xiyu/bid/webhook/application/WebhookEventListener.java) 改用 `resolveDeliveryUsername`；username 空 → 不 save PENDING，写 error 日志（tenderId/status/三 ID）
+- [ProjectResultConfirmedWebhookListener](file:///Users/user/xiyu/worktrees/gemini/backend/src/main/java/com/xiyu/bid/webhook/application/ProjectResultConfirmedWebhookListener.java) 对称改造
+- Phase A 止血（PR !2031，已合）：`TenderCommandService.updateStatus` 传 operatorId、`ScoreAnalysisService` 注入 `CurrentUserResolver`、9 个 `TenderStatusChangedEvent.of` 调用点全用完整 factory
 
 ### 经验教训
 
@@ -3867,11 +3870,15 @@ GET /api/ca-certificates?size=500
 |---|---|---|
 | 收紧鉴权前未盘点"无用户上下文"的所有事件源 | 设计意图与代码现状不一致 | 删除兜底路径前必须 grep 全部 `TenderStatusChangedEvent.of(` / `publishEvent` 调用点 |
 | 提交 43dc6d2b0 明确警告"未来删除 03595 路径前需引入系统账号方案"，但后续提交未遵守 | 历史 commit 中的 TODO 警告是上游保护信号 | 删除/收紧前置依赖时，必须在同次或紧随 PR 中兑现前置条件 |
-| 事件契约跨 Service 传播不透明 | 下游 webhook 需要 operatorName，但上游只传 operatorId | webhook 事件类应把 operatorId + operatorName 列为必填，让编译期阻止回归 |
+| 入队只看 event.operatorId，API Key 场景 operator 是 admin 无 OSS token | event operator 不等于"能换 token 的人" | 入队阶段应按业务字段（creator/PM）优先解析，event 作为末位 fallback |
+| 空 username 仍入队 PENDING → 异步投递必然失败 → 死信 | 静默死信比不入队更糟 | 入队前校验 username 非空，空则不入队 + error 日志（含 tenderId/status/三 ID） |
 
 ### 验证命令
 
 ```bash
+# Phase B 验收
+mvn test -Dtest=OperatorUsernameResolverTest,WebhookEventListenerTest,ProjectResultConfirmedWebhookListenerTest,ArchitectureTest -DfailIfNoTests=false
+
 # 检查所有 TenderStatusChangedEvent 发布点是否传 operatorId + operatorName
 git grep -B1 -A4 "TenderStatusChangedEvent.of(" origin/main \
   -- "backend/src/main/java/**/*.java" | grep -B1 "operatorId"
@@ -3885,14 +3892,17 @@ ORDER BY created_at DESC LIMIT 20;
 
 ### 防复发措施
 
-- 已将 `TenderStatusChangedEvent` 5 参 / 6 参 factory 标 `@Deprecated`，所有 9 个调用点已确认使用完整 factory
+- **入队阶段**：`OperatorUsernameResolver.resolveDeliveryUsername(tender, eventOperatorId)` 按 creatorId → PM → event 顺序解析；空 username 不入队 + error 日志（含 tenderId/status/三 ID）
+- **Phase C（待办）**：删除 `TenderStatusChangedEvent` 5 参/6 参 factory + 删除 `TenderCommandService.updateStatus(Long, Status)` 两参重载，让编译期阻止回归
 - 建议补 backfill 迁移：将历史 `operator_username IS NULL` 的 pending 任务标记为 DEAD_LETTER 或补 system 账号
 
 ### 相关文档
 
-- `backend/src/main/java/com/xiyu/bid/crm/application/WebhookCrmTokenResolver.java`
+- `backend/src/main/java/com/xiyu/bid/webhook/application/OperatorUsernameResolver.java`
 - `backend/src/main/java/com/xiyu/bid/webhook/application/WebhookEventListener.java`
+- `backend/src/main/java/com/xiyu/bid/webhook/application/ProjectResultConfirmedWebhookListener.java`
 - `backend/src/main/java/com/xiyu/bid/webhook/application/WebhookDeliveryJobService.java`
+- `backend/src/main/java/com/xiyu/bid/crm/application/WebhookCrmTokenResolver.java`
 - `backend/src/main/java/com/xiyu/bid/tender/service/TenderCommandService.java`
 - `backend/src/main/java/com/xiyu/bid/scoreanalysis/service/ScoreAnalysisService.java`
 - `backend/src/main/java/com/xiyu/bid/batch/service/BatchTenderStatusAppService.java`
