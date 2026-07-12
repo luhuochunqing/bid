@@ -93,7 +93,8 @@ class TenderIntegrationCommandServiceEventTest {
                 eventPublisher,
                 tenderRepository,
                 projectManagerIdResolver,
-                departmentEnricher);
+                departmentEnricher,
+                userRepository);
         commandService = new TenderIntegrationCommandService(
                 tenderRepository, attachmentRepository, crmTenderLinkService, mapper, evaluationService, helper, support, eventPublisher,
                 tenderAuditService, userRepository, crmOccupancyChecker);

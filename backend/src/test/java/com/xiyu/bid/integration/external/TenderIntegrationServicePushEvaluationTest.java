@@ -71,7 +71,8 @@ class TenderIntegrationServicePushEvaluationTest {
                 mock(ApplicationEventPublisher.class),
                 tenderRepository,
                 mock(ProjectManagerIdResolver.class),
-                mock(ProjectManagerDepartmentEnricher.class));
+                mock(ProjectManagerDepartmentEnricher.class),
+                mock(UserRepository.class));
         TenderCrmOccupancyChecker crmOccupancyChecker = new TenderCrmOccupancyChecker(tenderRepository);
         commandService = new TenderIntegrationCommandService(
                 tenderRepository,

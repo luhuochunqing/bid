@@ -73,7 +73,8 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
                 eventPublisher,
                 tenderRepository,
                 projectManagerIdResolver,
-                departmentEnricher);
+                departmentEnricher,
+                userRepository);
         commandService = new TenderIntegrationCommandService(
                 tenderRepository, attachmentRepository, crmTenderLinkService, mapper, evaluationService, helper, support, eventPublisher,
                 tenderAuditService, userRepository, crmOccupancyChecker);
@@ -244,7 +245,7 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
     void updateByExternalId_numericCrmId_only_doesNotSetOpportunityId() {
         // 场景：CRM 推送 crmId=20942（纯数字主键 id），不传 crmOpportunityId（code）
         // 新逻辑：crmId 只用于 findProjectLeaderByChanceId 查项目负责人，不会存入 crm_opportunity_id
-        // 期望：crm_opportunity_id 保持 null，但 name 和状态仍应被设置
+        // 同时无 code 时不存入 crmOpportunityName，避免"半关联"状态导致去重校验失效
         Tender tender = createExistingTender();
         when(tenderRepository.findByExternalId("crm:test-001")).thenReturn(Optional.of(tender));
 
@@ -265,8 +266,8 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
         assertThat(tender.getCrmOpportunityId())
                 .as("crmId（数字主键）不应被存入 crm_opportunity_id（字段分离设计）")
                 .isNull();
-        // 但 crmOpportunityName 仍应被设置
-        assertThat(tender.getCrmOpportunityName()).isEqualTo("cye测试21对接人");
+        // 无 code 时不应写入 name，避免半关联
+        assertThat(tender.getCrmOpportunityName()).isNull();
         assertThat(tender.getEvaluationSource()).isEqualTo(Tender.EvaluationSource.CRM_PUSH);
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
     }
