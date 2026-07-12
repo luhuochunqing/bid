@@ -9,6 +9,7 @@ import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
+import com.xiyu.bid.notification.application.BidNotificationApplicationService;
 import com.xiyu.bid.project.dto.ProjectDTO;
 import com.xiyu.bid.project.service.ProjectService;
 import com.xiyu.bid.repository.TaskRepository;
@@ -63,6 +64,7 @@ public class TenderEvaluationService {
     private final TenderEvaluationDocumentService documentService;
     private final InitiationPrefillService initiationPrefillService;
     private final TenderAuditService tenderAuditService;
+    private final BidNotificationApplicationService bidNotificationApplicationService;
     private final TenderEvaluationSubmissionMapper mapper = new TenderEvaluationSubmissionMapper();
 
     public TenderEvaluationService(
@@ -78,7 +80,8 @@ public class TenderEvaluationService {
             ApplicationEventPublisher eventPublisher,
             TenderEvaluationDocumentService documentService,
             InitiationPrefillService initiationPrefillService,
-            TenderAuditService tenderAuditService) {
+            TenderAuditService tenderAuditService,
+            BidNotificationApplicationService bidNotificationApplicationService) {
         this.tenderEvaluationRepository = tenderEvaluationRepository;
         this.tenderRepository = tenderRepository;
         this.projectService = projectService;
@@ -92,6 +95,7 @@ public class TenderEvaluationService {
         this.documentService = documentService;
         this.initiationPrefillService = initiationPrefillService;
         this.tenderAuditService = tenderAuditService;
+        this.bidNotificationApplicationService = bidNotificationApplicationService;
     }
 
     // ---------- V119: 项目评估表草稿/提交 facade（委托给 TenderEvaluationSubmissionService） ----------
@@ -220,20 +224,16 @@ public class TenderEvaluationService {
      */
     public TenderBidResult proceedToBid(Long tenderId, Long adminId) {
         log.info("Proceeding to bid for tender {} by user {}", tenderId, adminId);
-
         Tender tender = tenderRepository.findById(tenderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Tender", tenderId.toString()));
         accessGuard.assertCanAccessTender(tender);
-
         if (!permissions.canDecide(tenderId, adminId)) {
             throw new AccessDeniedException(
                     "user " + adminId + " is not the assigner of tender " + tenderId);
         }
-
         if (tender.getStatus() != Tender.Status.BIDDING) {
             throw new IllegalStateException("标讯状态不是已投标，无法立项");
         }
-
         var evaluationOpt = tenderEvaluationRepository.findByTenderId(tenderId);
         // CO-333: 优先用标讯项目负责人作为 project.managerId（项目查看/立项提交权限锚点）
         // 标讯无项目负责人时回退到评估人，再回退到操作人
@@ -246,24 +246,27 @@ public class TenderEvaluationService {
         }
 
         ProjectDTO projectDTO = ProjectDTO.builder()
-                .name(tender.getTitle())
-                .tenderId(tenderId)
-                .status(Project.Status.PENDING_INITIATION)
-                .managerId(projectManagerId)
-                .customer(tender.getPurchaserName())
-                .budget(tender.getBudget())
-                .region(tender.getRegion())
-                .industry(tender.getIndustry())
+                .name(tender.getTitle()).tenderId(tenderId)
+                .status(Project.Status.PENDING_INITIATION).managerId(projectManagerId)
+                .customer(tender.getPurchaserName()).budget(tender.getBudget())
+                .region(tender.getRegion()).industry(tender.getIndustry())
                 .customerType(tender.getCustomerType())
                 .deadline(tender.getDeadline() != null ? tender.getDeadline().toLocalDate() : null)
-                .description(tender.getDescription())
-                .tagsJson(tender.getTags())
+                .description(tender.getDescription()).tagsJson(tender.getTags())
                 .platform(tender.getSourcePlatform() != null ? tender.getSourcePlatform() : tender.getSource())
                 .build();
         ProjectDTO createdProject = projectService.createProject(projectDTO);
         tender.setProjectId(createdProject.getId());
         tenderRepository.save(tender);
 
+        // User Story 1: 投标立项成功后通知项目负责人待立项；失败不阻塞主流程
+        try {
+            bidNotificationApplicationService.sendPendingInitiationNotification(
+                    tenderId, createdProject.getId(), tender.getTitle(), createdProject.getName(),
+                    projectManagerId, adminId);
+        } catch (RuntimeException ex) {
+            log.error("Pending initiation notification failed for tender {}, project {}", tenderId, createdProject.getId(), ex);
+        }
         // CO-323: 评估数据带入立项（幂等，无评估数据则跳过；预填失败不阻塞投标流程 FR-005）
         try {
             initiationPrefillService.prefillFromEvaluation(createdProject.getId(), tenderId, evaluationOpt.orElse(null), tender);

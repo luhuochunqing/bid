@@ -98,6 +98,8 @@ public final class WeComMessageFormatter {
             case "TASK_UPDATE" -> "任务";
             case "DOCUMENT_CHANGE" -> "文档变更";
             case "SYSTEM" -> "系统";
+            case "PENDING_INITIATION" -> "待立项";
+            case "PENDING_CLOSURE_APPLICATION" -> "待结项";
             default -> "通知";
         };
     }

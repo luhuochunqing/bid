@@ -378,7 +378,7 @@ class ProjectDraftingServiceTest {
         var view = service.submitBid(1L, 1L);
 
         assertThat(view).isNotNull();
-        verify(projectStageService, never()).requestTransition(eq(1L), eq(ProjectStage.EVALUATING), any());
+        verify(projectStageService, never()).requestTransition(eq(1L), eq(ProjectStage.EVALUATING), any(), eq(null), eq(1L));
     }
 
     @Test
@@ -396,7 +396,9 @@ class ProjectDraftingServiceTest {
         verify(projectStageService).requestTransition(
                 eq(1L),
                 eq(ProjectStage.EVALUATING),
-                any());
+                any(),
+                eq(null),
+                eq(1L));
         verify(notificationService).notifyStageTransition(
                 eq(1L),
                 eq(ProjectStage.DRAFTING),

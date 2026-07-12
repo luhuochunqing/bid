@@ -90,8 +90,8 @@ class ProjectRetrospectiveServiceTest {
         var dto = service.submit(1L, req, 99L);
         assertEquals("APPROVED", dto.getReviewStatus());
         // 只推进一次：RESULT_PENDING→RETROSPECTIVE，不再推进到 CLOSED
-        verify(stageService).requestTransition(eq(1L), eq(ProjectStage.RETROSPECTIVE), any());
-        verify(stageService, never()).requestTransition(eq(1L), eq(ProjectStage.CLOSED), any());
+        verify(stageService).requestTransition(eq(1L), eq(ProjectStage.RETROSPECTIVE), any(), eq(null), eq(99L));
+        verify(stageService, never()).requestTransition(eq(1L), eq(ProjectStage.CLOSED), any(), eq(null), eq(99L));
     }
 
     @Test

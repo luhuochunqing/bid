@@ -4,6 +4,7 @@ import com.xiyu.bid.batch.core.TenderStatusTransitionPolicy;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.notification.application.BidNotificationApplicationService;
 import com.xiyu.bid.project.dto.ProjectDTO;
 import com.xiyu.bid.project.service.ProjectService;
 import com.xiyu.bid.repository.TaskRepository;
@@ -69,6 +70,9 @@ class TenderEvaluationServiceTest {
     @Mock
     private InitiationPrefillService initiationPrefillService;
 
+    @Mock
+    private BidNotificationApplicationService bidNotificationApplicationService;
+
     private TenderEvaluationService service;
 
     @BeforeEach
@@ -86,7 +90,8 @@ class TenderEvaluationServiceTest {
                 eventPublisher,
                 tenderEvaluationDocumentService,
                 initiationPrefillService,
-                mock(TenderAuditService.class)
+                mock(TenderAuditService.class),
+                bidNotificationApplicationService
         );
         // 决策类端点默认放行；individual 测试覆写为 false 检验 403 路径。
         org.mockito.Mockito.lenient()

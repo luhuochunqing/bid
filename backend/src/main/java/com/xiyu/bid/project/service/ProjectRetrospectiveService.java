@@ -95,7 +95,7 @@ public class ProjectRetrospectiveService {
         ProjectStage afterSaveStage = projectStageService.currentStage(projectId);
         if (afterSaveStage == ProjectStage.RESULT_PENDING) {
             projectStageService.requestTransition(projectId, ProjectStage.RETROSPECTIVE,
-                    ProjectStageTransitionPolicy.GateInputs.EMPTY);
+                    ProjectStageTransitionPolicy.GateInputs.EMPTY, null, currentUserId);
         }
         // 复盘提交后阶段停在 RETROSPECTIVE，不直达 CLOSED。
         // CLOSED 由结项审核流程驱动：用户在 ClosureStage 提交结项申请 → ClosureService.submitClosure(PENDING)

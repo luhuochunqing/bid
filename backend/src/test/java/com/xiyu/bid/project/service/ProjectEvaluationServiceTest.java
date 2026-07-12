@@ -78,7 +78,7 @@ class ProjectEvaluationServiceTest {
         var dto = service.transitionSubStage(1L, req, 7L);
         assertEquals("AWAITING_BOARD", dto.getSubStage());
         // AWAITING_BOARD 不是 ANNOUNCED，advanceProjectStageToResultPending 不会被调用
-        verify(stageService, never()).requestTransition(any(), any(), any());
+        verify(stageService, never()).requestTransition(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -115,7 +115,8 @@ class ProjectEvaluationServiceTest {
         var dto = service.transitionSubStage(1L, req, 7L);
         assertEquals("ANNOUNCED", dto.getSubStage());
         verify(stageService, times(1)).requestTransition(eq(1L),
-                eq(ProjectStage.RESULT_PENDING), any(ProjectStageTransitionPolicy.GateInputs.class));
+                eq(ProjectStage.RESULT_PENDING), any(ProjectStageTransitionPolicy.GateInputs.class),
+                eq(null), eq(7L));
     }
 
     @Test
@@ -129,7 +130,7 @@ class ProjectEvaluationServiceTest {
                 .targetSubStage(EvaluationSubStage.ANNOUNCED).notes("评标情况说明").build();
         var dto = service.transitionSubStage(1L, req, 7L);
         assertEquals("ANNOUNCED", dto.getSubStage());
-        verify(stageService, never()).requestTransition(any(), any(), any());
+        verify(stageService, never()).requestTransition(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -243,7 +244,8 @@ class ProjectEvaluationServiceTest {
         assertEquals("ANNOUNCED", dto.getSubStage());
         assertEquals("竞争对手报价更低", dto.getNotes());
         verify(stageService, times(1)).requestTransition(eq(1L),
-                eq(ProjectStage.RESULT_PENDING), any(ProjectStageTransitionPolicy.GateInputs.class));
+                eq(ProjectStage.RESULT_PENDING), any(ProjectStageTransitionPolicy.GateInputs.class),
+                eq(null), eq(7L));
     }
 
     @Test
@@ -266,7 +268,7 @@ class ProjectEvaluationServiceTest {
         var req = ProjectAbandonBidRequest.builder().reason("原因").build();
         var dto = service.abandonBid(1L, req, 7L);
         assertEquals("ANNOUNCED", dto.getSubStage());
-        verify(stageService, never()).requestTransition(any(), any(), any());
+        verify(stageService, never()).requestTransition(any(), any(), any(), any(), any());
     }
 
     // CO-550: 开标一览表已取消必填，推进不再校验附件
@@ -277,9 +279,10 @@ class ProjectEvaluationServiceTest {
                 .id(10L).projectId(1L).subStage("ANNOUNCED").build();
         when(repo.findByProjectId(1L)).thenReturn(Optional.of(existing));
 
-        service.advanceToResultPending(1L);
+        service.advanceToResultPending(1L, 7L);
         // 应推进阶段
         verify(stageService, times(1)).requestTransition(eq(1L),
-                eq(ProjectStage.RESULT_PENDING), any());
+                eq(ProjectStage.RESULT_PENDING), any(ProjectStageTransitionPolicy.GateInputs.class),
+                eq(null), eq(7L));
     }
 }

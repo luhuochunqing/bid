@@ -13,6 +13,10 @@ public enum NotificationType {
     DOCUMENT_CHANGE,
     TENDER_MATCH,
     BID_REVIEW,
+    /** 待立项通知 */
+    PENDING_INITIATION,
+    /** 待结项申请通知 */
+    PENDING_CLOSURE_APPLICATION,
     /** CA certificate will expire within 30 days. */
     CA_EXPIRING,
     /** CA certificate has already expired. */

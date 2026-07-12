@@ -28,12 +28,10 @@ import java.util.Map;
  * </ul>
  */
 public final class NotificationMessagePolicy {
-
     private static final String TYPE_SYSTEM = NotificationType.SYSTEM.name();
     private static final String TYPE_TASK_UPDATE = NotificationType.TASK_UPDATE.name();
     private static final String TYPE_MENTION = NotificationType.MENTION.name();
     private static final String TYPE_DOCUMENT_CHANGE = NotificationType.DOCUMENT_CHANGE.name();
-
     private static final String ENTITY_PROJECT = "PROJECT";
     private static final String ENTITY_TASK = "TASK";
     private static final String ENTITY_DOCUMENT = "DOCUMENT";

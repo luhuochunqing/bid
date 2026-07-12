@@ -127,7 +127,7 @@ public class ProjectResultRegistrationService {
         if (current == ProjectStage.RESULT_PENDING) {
             ProjectStage nextStage = ProjectStageTransitionPolicy.decideResultNext(req.getResultType());
             projectStageService.requestTransition(projectId, nextStage,
-                    ProjectStageTransitionPolicy.GateInputs.EMPTY, req.getResultType().name());
+                    ProjectStageTransitionPolicy.GateInputs.EMPTY, req.getResultType().name(), currentUserId);
         }
         log.info("ProjectResult registered project={} type={} nextStage={} user={}",
                 projectId, req.getResultType(),

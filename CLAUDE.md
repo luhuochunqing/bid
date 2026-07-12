@@ -643,6 +643,7 @@ sync-env.sh .
 
 <!-- SPECKIT START -->
 当前活跃 feature：
+- `specs/036-wecom-bid-notifications/plan.md`（投标关键节点企微通知：已评估标讯立即投标发送待立项通知、项目复盘推进至结项发送待结项申请通知）
 - `specs/024-preauthorize-unification/plan.md`（消除 @PreAuthorize hasAnyRole 双轨制技术债）
 - `specs/025-fix-margin-filter/plan.md`（保证金看板状态筛选修复）
 - `specs/026-fix-project-detail-403-frontend/plan.md`（项目详情页 403 错误修复 + 前端权限入口校验）

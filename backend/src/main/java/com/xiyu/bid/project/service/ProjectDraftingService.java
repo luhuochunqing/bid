@@ -177,7 +177,7 @@ public class ProjectDraftingService {
         assertBidSubmissionReady(projectId, "无法提交投标");
 
         projectStageService.requestTransition(projectId, ProjectStage.EVALUATING,
-                ProjectStageTransitionPolicy.GateInputs.EMPTY);
+                ProjectStageTransitionPolicy.GateInputs.EMPTY, null, currentUserId);
         ensureEvaluationInitialized(projectId, currentUserId);
 
         // 通知 #10: 提交投标→进入评标 → 团队成员
