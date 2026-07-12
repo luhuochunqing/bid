@@ -506,6 +506,50 @@ async function loadAccounts() {
 - **新增 API catch 块时优先使用 `notifyErrorUnlessRateLimit`**
 - **pre-push gate 已拦截新增的业务层 ElMessage.error 覆盖 429**：`scripts/check-429-error-override.mjs`
 - 扫描脚本：`scripts/scan-429-catch.mjs`、`scripts/scan-load-on-mount-429.mjs`
+- 存量审计（spec 035）：`scripts/audit-existing-429-exposure.mjs`
+- N+1 反模式拦截（spec 035）：`scripts/check-list-endpoint-n1.mjs`
+
+---
+
+### 12.5 根治 vs 防御（spec 035 — Account 详情 429 反复修 6 次教训）
+
+**核心论点**：429 防御是治标；N+1 根治才是治本。
+
+| 维度 | 防御（治标） | 根治（治本） |
+|---|---|---|
+| 改了什么 | 加更友好的文案、加更长的冷却期、降并发 | 让 429 不发生（消除 N+1） |
+| 真实案例 | spec 034 / !2032/!2035/!2036 三次补丁 | spec 035：list 端点返回完整 DTO |
+| 反复修风险 | 高（每次重新调参数） | 低（根因消除后不需要再调） |
+| 用户体感 | 提示友好但仍卡顿 | 不卡顿、不报错 |
+| 测试方式 | 文本匹配（无效） | 行为测试（DevTools Network 录制） |
+
+**关键证据链**（spec 035 §0）：
+
+```
+!1997 (afc11b64e)  DETAIL_CONCURRENCY = 5     ← 局部防御
+!2005 (f3f4ca6f4)  DETAIL_CONCURRENCY = 2     ← 局部防御
+!2036 (8a32fe8b3)  DETAIL_CONCURRENCY = 1     ← 局部防御（完全串行）
++ !2032 / !2035    症状层防护
+```
+
+每次都"提高防御等级"，但 list 端点不返回完整 DTO 这个根因始终没动。
+
+**根治三件事**：
+
+1. **后端契约**：`GET /api/*/list` 返回完整业务 DTO（password 等敏感字段走单独端点）
+2. **前端消费**：删除 `loadDetailsInBatches` 等 N+1 加载函数，复用 list 数据
+3. **防复发**：`scripts/check-list-endpoint-n1.mjs` 在 pre-push gate 拦截新出现的 N+1
+
+**教训提炼**：
+
+- **遇到 bug 先问"5 个为什么"**（工程纪律 §3.1）— 反复修的 bug 多半根因没找到
+- **不要把限流当 bug 修** — 限流是兜底，根因在调用方（架构问题）
+- **测试要测根因行为**（工程纪律 §5.2）— 文本匹配断言是无效的（spec 035 §0 根因 4）
+- **存量 207 处业务层 ElMessage.error** 也要治理（用 `audit-existing-429-exposure.mjs` 评级）
+- **pre-push gate 同时拦截新增 + 审计存量** — `check-429-error-override.mjs --audit-existing`
+
+参考：specs/035-root-account-429/spec.md §FR-A-01 / §FR-B-01 / §FR-C-01~03
+参考：.wiki/pages/engineering-discipline.md §6.3 案例库 "Account 详情 429（N+1 list-detail）"
 
 ---
 

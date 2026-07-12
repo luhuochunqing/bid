@@ -2,7 +2,10 @@
 // Input: git commit range (defaults to merge-base origin/main..HEAD)
 // Output: fail if the diff adds new ElMessage.error calls inside API catch blocks
 // Pos: scripts/ - prevent recurrence of 429 toast override (engineering-discipline)
-// Usage: node scripts/check-429-error-override.mjs [base-ref]
+// Usage:
+//   node scripts/check-429-error-override.mjs [base-ref]              # default: block new 429-override in diff
+//   node scripts/check-429-error-override.mjs --audit-existing [src/] # spec 035: audit existing debt (warning only)
+//   node scripts/check-429-error-override.mjs --audit-existing --json # JSON output for CI
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 //
 // Background:
@@ -10,14 +13,36 @@
 //   catch blocks that call ElMessage.error override it, exposing raw AxiosError
 //   to users. This check blocks newly-introduced occurrences in the commit range.
 //
-// Existing debt is intentionally NOT counted; the scan only looks at ADDED lines.
+// Existing debt is intentionally NOT counted by default; the scan only looks at ADDED lines.
+// `--audit-existing` flag (spec 035) flips this to scan all existing code as a non-blocking
+// warning report, so governance can drive HIGH→MEDIUM→LOW migration in order.
+//
+// History:
+//   2026-07-12 spec 035: add --audit-existing mode (delegates to audit-existing-429-exposure.mjs)
+//   2026-07-11 spec 034: original implementation (block new violations in diff)
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { execSync } from 'node:child_process'
+import { execSync, spawnSync } from 'node:child_process'
 
 const ROOT = process.cwd()
-const BASE = process.argv[2] || getDefaultBase()
+const args = process.argv.slice(2)
+const AUDIT_EXISTING = args.includes('--audit-existing')
+const JSON_MODE = args.includes('--json')
+
+if (AUDIT_EXISTING) {
+  // Delegate to the dedicated audit script. This keeps a single source of truth for
+  // the existing-debt scan and avoids logic duplication. Always exit 0 so CI does not
+  // block on existing debt — it is a report, not a gate.
+  const delegateArgs = [path.join(ROOT, 'scripts/audit-existing-429-exposure.mjs')]
+  const srcArg = args.find(a => !a.startsWith('--'))
+  if (srcArg) delegateArgs.push(srcArg)
+  if (JSON_MODE) delegateArgs.push('--json')
+  spawnSync('node', delegateArgs, { cwd: ROOT, encoding: 'utf8', stdio: 'inherit' })
+  process.exit(0)
+}
+
+const BASE = args.find(a => !a.startsWith('--')) || getDefaultBase()
 
 function getDefaultBase() {
   try {
