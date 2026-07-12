@@ -41,13 +41,27 @@ describe('useNotificationStore', () => {
       expect(store.unreadCount).toBe(7)
     })
 
-    it('sets unreadCount to 0 on API error', async () => {
+    it('preserves unreadCount on non-429/403 API error', async () => {
       notificationsApi.getUnreadCount.mockRejectedValue(new Error('Network'))
       const store = useNotificationStore()
+      store.unreadCount = 5
 
       await store.fetchUnreadCount()
 
-      expect(store.unreadCount).toBe(0)
+      // 非 429/403 错误时保持上次 unreadCount 不变，避免静默清零导致用户错过通知
+      expect(store.unreadCount).toBe(5)
+      expect(store.error).toBe('Network')
+    })
+
+    it('re-throws on 429 error for caller-level backoff', async () => {
+      const err429 = new Error('Rate limit')
+      err429.response = { status: 429 }
+      notificationsApi.getUnreadCount.mockRejectedValue(err429)
+      const store = useNotificationStore()
+      store.unreadCount = 3
+
+      await expect(store.fetchUnreadCount()).rejects.toThrow('Rate limit')
+      expect(store.unreadCount).toBe(3)
     })
   })
 

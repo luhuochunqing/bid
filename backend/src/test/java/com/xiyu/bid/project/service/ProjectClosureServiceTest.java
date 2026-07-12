@@ -22,6 +22,7 @@ import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -199,11 +200,27 @@ class ProjectClosureServiceTest {
 
     @Test
     void submit_alreadyClosed_throws423() {
-        when(closureRepo.existsByProjectIdAndStageLockedTrue(PID)).thenReturn(true);
+        var closedClosure = new ProjectClosure();
+        closedClosure.setStageLocked(true);
+        when(closureRepo.findByProjectId(PID)).thenReturn(Optional.of(closedClosure));
         var req = ClosureSubmitRequest.builder().build();
         var ex = assertThrows(ResponseStatusException.class,
                 () -> service.submitClosure(PID, req, UID));
         assertEquals(423, ex.getStatusCode().value());
+        verify(closureRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("CO-572: PENDING 状态下重复提交应返回 409")
+    void submit_whenPending_throws409() {
+        var pendingClosure = new ProjectClosure();
+        pendingClosure.setReviewStatus("PENDING");
+        when(closureRepo.findByProjectId(PID)).thenReturn(Optional.of(pendingClosure));
+        var req = ClosureSubmitRequest.builder().build();
+        var ex = assertThrows(ResponseStatusException.class,
+                () -> service.submitClosure(PID, req, UID));
+        assertEquals(409, ex.getStatusCode().value());
+        assertTrue(ex.getReason() != null && ex.getReason().contains("待审核"));
         verify(closureRepo, never()).save(any());
     }
 

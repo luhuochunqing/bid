@@ -195,6 +195,6 @@ class TenderIntakeTextProcessor {
 
     static String sanitizeUntrusted(String raw) {
         if (raw == null) return "";
-        return raw.replace("<document>", "&lt;document&gt;").replace("</document>", "&lt;/document&gt;");
+        return raw.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 }
