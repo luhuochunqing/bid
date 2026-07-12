@@ -69,6 +69,7 @@ class CustomerOpportunityControllerTest {
 
         mockMvc.perform(put("/api/customer-opportunities/predictions/{id}/convert", 9L)
                         .contentType(MediaType.APPLICATION_JSON)
+                        .accept(MediaType.APPLICATION_JSON)
                         .content("{\"projectId\":801}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.convertedProjectId").value(801));

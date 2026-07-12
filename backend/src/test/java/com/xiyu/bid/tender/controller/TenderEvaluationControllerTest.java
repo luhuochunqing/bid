@@ -82,6 +82,7 @@ class TenderEvaluationControllerTest {
         TenderEvaluationController controller =
                 new TenderEvaluationController(tenderEvaluationService, tenderEvaluationDocumentService, tenderEvaluationReviewService, taskService, authService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
+                .defaultRequest(get("/").accept(MediaType.APPLICATION_JSON))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
@@ -284,6 +285,7 @@ class TenderEvaluationControllerTest {
         TenderEvaluationController controller =
                 new TenderEvaluationController(tenderEvaluationService, tenderEvaluationDocumentService, tenderEvaluationReviewService, taskService, authService);
         MockMvc mvcWithAdvice = MockMvcBuilders.standaloneSetup(controller)
+                .defaultRequest(get("/").accept(MediaType.APPLICATION_JSON))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();

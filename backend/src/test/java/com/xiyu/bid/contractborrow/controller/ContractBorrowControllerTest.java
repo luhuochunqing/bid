@@ -42,6 +42,7 @@ class ContractBorrowControllerTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(new ContractBorrowController(queryService, commandService))
+                .defaultRequest(get("/").accept(MediaType.APPLICATION_JSON))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }

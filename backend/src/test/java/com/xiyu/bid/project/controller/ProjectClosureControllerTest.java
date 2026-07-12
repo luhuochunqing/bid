@@ -54,6 +54,7 @@ class ProjectClosureControllerTest {
         when(authService.resolveUserIdByUsername("admin")).thenReturn(1L);
         ProjectClosureController controller = new ProjectClosureController(service, authService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
+                .defaultRequest(get("/").accept(MediaType.APPLICATION_JSON))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
         UserDetails principal = User.withUsername("admin").password("x").roles("ADMIN").build();

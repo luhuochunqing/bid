@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -26,7 +27,9 @@ class WorkbenchDeadlineControllerTest {
 
     @BeforeEach
     void setUp() {
-        mvc = MockMvcBuilders.standaloneSetup(new WorkbenchDeadlineController(service)).build();
+        mvc = MockMvcBuilders.standaloneSetup(new WorkbenchDeadlineController(service))
+                .defaultRequest(get("/").accept(MediaType.APPLICATION_JSON))
+                .build();
     }
 
     @Test
