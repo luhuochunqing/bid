@@ -226,19 +226,25 @@ const loadAccountDetail = async (row) => {
     if (res?.data) return res.data
   } catch (e) {
     console.error('Failed to load account detail:', e)
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '账户详情加载失败')
   }
   return row
 }
 
-// CO-400 修复：列表 N+1 detail 请求集中并发会触发后端 RateLimitFilter 返回 429，
-// 按批次限制并发数（每批 DETAIL_CONCURRENCY 个），在保持吞吐的同时避免撞限流。
-// 与 BAR 站点列表保持一致（PR !2000 SITE_DETAIL_BATCH_SIZE=2），避免生产环境仍触发 429。
-const DETAIL_CONCURRENCY = 2
+// CO-400 修复：列表 N+1 detail 请求集中并发会触发后端 RateLimitFilter 返回 429。
+// 生产环境账号数多时，即使每批 2 个并发仍会在短时间内产生 40+ 请求，叠加其他页面请求后极易撞限流。
+// 因此需要同时做三件事：
+//   1. 降低并发批次大小到 1（串行），把请求在时间上分散开
+//   2. 每个详情请求内部/外部都 catch 429，降级为 SummaryDTO
+//   3. 不再让单个 detail 失败阻塞整页加载
+const DETAIL_CONCURRENCY = 1
 const loadDetailsInBatches = async (list) => {
   const results = []
   for (let i = 0; i < list.length; i += DETAIL_CONCURRENCY) {
     const batch = list.slice(i, i + DETAIL_CONCURRENCY)
-    const batchResults = await Promise.all(batch.map(row => loadAccountDetail(row)))
+    // 当某个账号详情请求触发 429 时，降级为 SummaryDTO 返回，避免整页卡死或报错。
+    const batchResults = await Promise.all(batch.map(row => loadAccountDetail(row).catch(() => row)))
     results.push(...batchResults)
   }
   return results
