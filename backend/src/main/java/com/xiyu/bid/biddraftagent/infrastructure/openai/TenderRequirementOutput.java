@@ -28,6 +28,7 @@ public class TenderRequirementOutput {
     public String contactEmail2;
     public String customerType;
     public String priority;
+    public String projectType;
     public String publishDate;
     public String deadline;
     public List<String> qualificationRequirements;
