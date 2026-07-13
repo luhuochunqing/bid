@@ -96,8 +96,8 @@ public class TenderPushRequest {
     /** 项目评估数据 */
     private EvaluationUpdate evaluation;
 
-    /** 标讯信息（最长 5000 字符） */
-    @Size(max = 5000)
+    /** 标讯信息（最长 20000 字符，与 TenderRequest 保持一致） */
+    @Size(max = 20000)
     private String tenderInfo;
 
     /** 项目负责人姓名 */
