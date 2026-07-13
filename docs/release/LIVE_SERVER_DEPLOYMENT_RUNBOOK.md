@@ -65,6 +65,17 @@ gh run list --repo ericforai/bidding --branch main --limit 8 \
 
 ## 4. 本地打包
 
+> **推荐方式（自 2026-07-13 起强制）**：使用 `deploy-test.sh` 一键部署脚本，已固化 `VITE_OBS_ENABLED=true`、`VITE_API_BASE_URL=`（同源）、`COPYFILE_DISABLE=1` 等测试环境变量，**禁止手工拼凑 `package-release.sh` 命令**（第 84 次部署漏传 `VITE_OBS_ENABLED=true` 事故的教训）。
+>
+> ```bash
+> cd /Users/user/xiyu/worktrees/<deploy-worktree>
+> ENV=test bash scripts/release/deploy-test.sh
+> ```
+>
+> 该脚本会自动完成：早操三连 → 基线确认 → 服务器现状检查 → 本地打包（含 OBS 硬门禁）→ 上传 → 远程部署 → 部署后验证（含 OBS 复核）。
+
+如需手工打包（仅调试用），必须显式传入全部环境变量：
+
 ```bash
 cd /Users/user/xiyu/worktrees/<deploy-worktree>
 
@@ -72,6 +83,10 @@ export RELEASE_SHA="$(git rev-parse --short=8 HEAD)"
 export RELEASE_ID="${RELEASE_SHA}-api8080"
 export PRODUCTION_API_BASE_URL="http://172.16.38.78:8080"
 export VITE_API_BASE_URL="http://172.16.38.78:8080"
+# ⚠️ 必传：OBS 直传启用（漏传会导致前端大文件直传失效，第 84 次部署事故）
+export VITE_OBS_ENABLED="true"
+# 防止 macOS tar 残留 ._ 文件
+export COPYFILE_DISABLE="1"
 
 npm ci
 bash scripts/release/package-release.sh
@@ -467,6 +482,7 @@ Go / No-Go：
 - 登录可拿到 token
 - CRM page-list smoke 通过；客户测试服务器应使用 `CRM_SMOKE_MODE=required`，空商机或 409 都是 NO-GO
 - `nginx` 和 `xiyu-bid-backend` 都是 `active`
+- **OBS 直传启用校验**：服务器 `Detail-*.js` 中 `.upload(` 调用数 ≥ 2（见下方 §10.1）
 
 > **smoke "检测位置局限"（2026-06-26 踩坑）**：`run-prod-smoke.mjs` 的"生产前端首页可访问"检查项从**执行机本地**发起 HTTP 请求到 `PRODUCTION_WEB_BASE_URL`。若执行机（如开发机）到客户网段只有 `:8080` 端口可达、`:80` 端口被路由/防火墙拦截，该项会报 `fetch failed`（P0 失败），但这**不代表服务器前端有问题**。处置：在服务器侧 `curl -sSI http://127.0.0.1/` 验证 nginx 200 + 检查 `index-*.js` 是否与 release 包一致。若服务器侧正常，该项可判为"检测位置局限"豁免，其余 14 项全绿即可 Go。
 >
@@ -479,6 +495,35 @@ Go / No-Go：
 > '
 > ```
 > 部署前记录一次、部署后触发一次状态变更再记录一次，对比 payload 字段差异即可确认改动是否生效。注意终端可能中文乱码（MySQL client charset），看字段**结构**而非值。
+
+### 10.1 OBS 直传启用校验（必检，防回归）
+
+> **背景**：第 82 次部署（2026-07-12）修复了 OBS 直传未启用问题，但第 84 次部署（2026-07-13）漏传 `VITE_OBS_ENABLED=true`，导致修复被无声回退。自此 OBS 启用状态列为必检项。
+
+**打包时硬门禁**（`package-release.sh` 自动执行）：当 `VITE_OBS_ENABLED=true` 时，校验 release 包内 `Detail-*.js` 中 `.upload(` 调用数 ≥ 2，否则打包失败。
+
+**部署后服务器侧复核**：
+
+```bash
+ssh -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" jetty@172.16.38.78 '
+  count=0
+  for f in /srv/www/xiyu-bid/assets/Detail-*.js; do
+    [ -f "$f" ] || continue
+    n=$(grep -o "\.upload(" "$f" 2>/dev/null | wc -l | tr -d " ")
+    count=$((count + n))
+  done
+  echo "Detail chunk .upload( 调用数: $count"
+  if [ "$count" -ge 2 ]; then
+    echo "✅ OBS 直传已启用"
+  else
+    echo "❌ OBS 直传未启用（期望 >=2，实际 $count）"
+    echo "   修复：使用 ENV=test bash scripts/release/deploy-test.sh 重新部署"
+    exit 1
+  fi
+'
+```
+
+**判定标准**：`.upload(` 调用数 ≥ 2 → GO；否则 NO-GO，必须用 `deploy-test.sh` 重新部署。
 
 ## 11. 清理
 

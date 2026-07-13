@@ -165,6 +165,27 @@ printf '  部署记录：'
 DEPLOYED=$(ssh -o StrictHostKeyChecking=no "$PROD_HOST" 'cat '"$PROD_APP_ROOT"'/deployed-release.json 2>/dev/null | grep releaseId' 2>/dev/null || echo "（无）")
 printf '%s\n' "$DEPLOYED"
 
+# OBS 直传启用校验（第 8 次生产部署漏传 VITE_OBS_ENABLED=true 事故的回归门禁）
+# 作用：即使打包命令漏传，部署后也能立即发现并报警
+printf '  OBS 直传启用校验：'
+OBS_CHECK=$(ssh -o StrictHostKeyChecking=no "$PROD_HOST" '
+  count=0
+  for f in '"$PROD_FRONTEND_DIR"'/assets/Detail-*.js; do
+    [ -f "$f" ] || continue
+    n=$(grep -o "\.upload(" "$f" 2>/dev/null | wc -l | tr -d " ")
+    count=$((count + n))
+  done
+  echo "$count"
+' 2>/dev/null || echo "0")
+if [[ "$OBS_CHECK" -ge 2 ]]; then
+  printf '✅ 已启用（Detail chunk .upload( 调用数=%s）\n' "$OBS_CHECK"
+else
+  printf '❌ 未启用（.upload( 调用数=%s，期望 >=2）\n' "$OBS_CHECK" >&2
+  printf '     根因：VITE_OBS_ENABLED=true 未传入打包，或 OBS 直传逻辑被 tree-shake\n' >&2
+  printf '     修复：必须使用 ENV=prod bash scripts/release/deploy-prod.sh 部署，禁止手工拼凑 package-release.sh 命令\n' >&2
+  printf '     历史：第 8 次生产部署（df9adabad, 2026-07-12）漏传导致 OBS 直传失效\n' >&2
+fi
+
 printf '\n═══════════════════════════════════════════════════════════\n'
 printf '  ✅ 生产环境部署完成\n'
 printf '  Release ID: %s\n' "$RELEASE_ID"

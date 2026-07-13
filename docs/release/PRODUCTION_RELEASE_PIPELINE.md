@@ -31,6 +31,28 @@
    - 调用 `node scripts/release/run-prod-smoke.mjs`
    - 执行线上只读验活并上传报告
 
+## 本地一键部署脚本（强制使用）
+
+> **自 2026-07-13 起强制**：生产环境部署必须使用 `scripts/release/deploy-prod.sh`，**禁止手工拼凑 `package-release.sh` 命令**。
+>
+> **历史教训**：第 8 次生产部署（`df9adabad`，2026-07-12 13:54 CST）绕过 `deploy-prod.sh` 手工执行 `package-release.sh`，漏传 `VITE_OBS_ENABLED=true`，导致第 7 次生产部署（`527a0c940`）刚修复的 OBS 大文件直传功能被无声回退。
+>
+> `deploy-prod.sh` 已固化以下环境变量，无需人工记忆：
+> - `VITE_OBS_ENABLED="true"` ← 关键，漏传会导致 OBS 直传被 tree-shake
+> - `VITE_API_BASE_URL=""`（同源构建）
+> - `VITE_SENTRY_DSN`（前端错误追踪）
+> - 打包后自动校验 `Detail-*.js` 中 `.upload(` 调用数 ≥ 2（`package-release.sh` 内置硬门禁）
+> - 部署后远程复核服务器产物 OBS 启用状态（Step 6）
+>
+> 用法：
+> ```bash
+> cd /Users/user/xiyu/worktrees/<deploy-worktree>
+> ENV=prod bash scripts/release/deploy-prod.sh                # 使用当前 HEAD 作为 RELEASE_ID
+> ENV=prod bash scripts/release/deploy-prod.sh <release-id>   # 指定 RELEASE_ID
+> ```
+>
+> 环境门禁：必须显式声明 `ENV=prod`，否则脚本拒绝执行。
+
 ## GitHub 环境变量与 Secrets
 
 建议都配置在 GitHub `production` environment。
