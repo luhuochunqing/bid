@@ -113,7 +113,7 @@ describe('tendersApi', () => {
       expect.any(FormData),
       {
         headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 45000
+        timeout: 120000
       }
     )
     const formData = httpClient.post.mock.calls[0][1]
