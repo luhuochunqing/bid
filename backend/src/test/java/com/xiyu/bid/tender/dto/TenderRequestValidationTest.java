@@ -91,6 +91,28 @@ class TenderRequestValidationTest {
                 .noneMatch(violation -> "region".equals(violation.getPropertyPath().toString())));
     }
 
+    @Test
+    void shouldAcceptTenderInfoAtMaxLength20000() {
+        TenderRequest request = validRequest();
+        request.setTenderInfo("a".repeat(20_000));
+
+        boolean hasTenderInfoViolation = validator.validate(request).stream()
+                .anyMatch(violation -> "tenderInfo".equals(violation.getPropertyPath().toString()));
+
+        assertFalse(hasTenderInfoViolation);
+    }
+
+    @Test
+    void shouldRejectTenderInfoExceedingMaxLength20000() {
+        TenderRequest request = validRequest();
+        request.setTenderInfo("a".repeat(20_001));
+
+        boolean hasTenderInfoViolation = validator.validate(request).stream()
+                .anyMatch(violation -> "tenderInfo".equals(violation.getPropertyPath().toString()));
+
+        assertTrue(hasTenderInfoViolation);
+    }
+
     private TenderRequest validRequest() {
         TenderRequest request = new TenderRequest();
         request.setTitle("框架协议供应商引入项目");
