@@ -29,10 +29,12 @@ printf '==> Building frontend release assets\n'
 cd "$ROOT_DIR"
 # Sentry 前端错误追踪：通过环境变量注入 DSN（未配置时前端自动禁用）
 # 部署时传入：VITE_SENTRY_DSN=https://xxx@sentry.io/xxx bash scripts/release/package-release.sh
-# OBS 大文件直传：VITE_OBS_ENABLED=true 启用浏览器直传 OBS（后端须同时配好 XIYU_OBS_*）
+# OBS 大文件直传：默认 true 启用浏览器直传 OBS（后端须同时配好 XIYU_OBS_*）
+# 第 8 次生产部署漏传 VITE_OBS_ENABLED=true 导致 OBS 直传失效事故的根治修复：
+# 默认值从 false 改为 true，不传也启用；如需关闭须显式传 VITE_OBS_ENABLED=false
 VITE_API_MODE=api \
 VITE_API_BASE_URL="$API_BASE_URL" \
-VITE_OBS_ENABLED="${VITE_OBS_ENABLED:-false}" \
+VITE_OBS_ENABLED="${VITE_OBS_ENABLED:-true}" \
 VITE_SENTRY_DSN="${VITE_SENTRY_DSN:-}" \
 VITE_SENTRY_ENVIRONMENT="${VITE_SENTRY_ENVIRONMENT:-production}" \
 VITE_SENTRY_TRACES_SAMPLE_RATE="${VITE_SENTRY_TRACES_SAMPLE_RATE:-0.1}" \
@@ -77,7 +79,8 @@ cp "$JAR_PATH" "$OUTPUT_DIR/backend/app.jar"
 # OBS 直传启用校验（第 84 次部署漏传 VITE_OBS_ENABLED=true 事故的硬门禁）
 # 当 VITE_OBS_ENABLED=true 时，Detail chunk 中 .upload( 调用数应 >=2；
 # 若为 0 说明 OBS 直传逻辑被 tree-shake，打包参数与产物不一致，立即中止。
-if [[ "${VITE_OBS_ENABLED:-false}" == "true" ]]; then
+# 第 8 次生产部署事故根治：默认值已改为 true，此处默认值同步改为 true。
+if [[ "${VITE_OBS_ENABLED:-true}" == "true" ]]; then
   printf '\n==> 验证 OBS 直传已启用（Detail chunk .upload( 调用数）\n'
   DETAIL_FILES=( "$OUTPUT_DIR/frontend/assets/Detail-"*.js )
   if [[ ! -e "${DETAIL_FILES[0]}" ]]; then
@@ -97,6 +100,9 @@ if [[ "${VITE_OBS_ENABLED:-false}" == "true" ]]; then
     exit 1
   fi
   printf '✅ OBS 直传已启用（Detail chunk .upload( 调用数=%d）\n' "$UPLOAD_COUNT"
+else
+  printf '\n⚠️  VITE_OBS_ENABLED=false（OBS 直传已显式关闭）\n' >&2
+  printf '   生产环境不应关闭 OBS 直传，请确认这是有意为之\n' >&2
 fi
 
 cat > "$OUTPUT_DIR/release-metadata.json" <<EOF
@@ -106,7 +112,7 @@ cat > "$OUTPUT_DIR/release-metadata.json" <<EOF
   "jarName": "$(basename "$JAR_PATH")",
   "builtAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
   "sentryEnabled": $([ -n "${VITE_SENTRY_DSN:-}" ] && echo 'true' || echo 'false'),
-  "obsEnabled": $([ "${VITE_OBS_ENABLED:-false}" == "true" ] && echo 'true' || echo 'false')
+  "obsEnabled": $([ "${VITE_OBS_ENABLED:-true}" == "true" ] && echo 'true' || echo 'false')
 }
 EOF
 

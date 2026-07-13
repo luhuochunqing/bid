@@ -170,10 +170,12 @@ printf '%s\n' "$DEPLOYED"
 
 # OBS 直传启用校验（第 8 次生产部署漏传 VITE_OBS_ENABLED=true 事故的回归门禁）
 # 作用：即使打包命令漏传，部署后也能立即发现并报警
+# 校验范围：当前 release 目录（$APP_ROOT/releases/$RELEASE_ID/frontend/assets/），
+#           不是 FRONTEND_PUBLIC_DIR（那里可能因 cp -rn 保留旧 assets 导致误判）
 printf '  OBS 直传启用校验：'
 OBS_CHECK=$(ssh -o StrictHostKeyChecking=no "$PROD_HOST" '
   count=0
-  for f in '"$PROD_FRONTEND_DIR"'/assets/Detail-*.js; do
+  for f in '"$PROD_APP_ROOT"'/releases/'"$RELEASE_ID"'/frontend/assets/Detail-*.js; do
     [ -f "$f" ] || continue
     n=$(grep -o "\.upload(" "$f" 2>/dev/null | wc -l | tr -d " ")
     count=$((count + n))

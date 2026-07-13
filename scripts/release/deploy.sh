@@ -36,7 +36,7 @@ else
 fi
 
 printf '\n==> Packaging release archive\n'
-bash "$ROOT_DIR/scripts/release/package-release.sh"
+VITE_OBS_ENABLED="${VITE_OBS_ENABLED:-true}" bash "$ROOT_DIR/scripts/release/package-release.sh"
 
 printf '\n==> Release pre-deploy bundle completed\n'
 printf 'Next steps:\n'
