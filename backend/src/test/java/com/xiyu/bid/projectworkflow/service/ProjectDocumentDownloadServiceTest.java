@@ -177,6 +177,29 @@ class ProjectDocumentDownloadServiceTest {
     }
 
     @Test
+    void missingDocumentNameWithMimeTypeShouldInferExtensionFromSubtype() {
+        // fileType 存储为 MIME 类型时，应从 subtype 推断扩展名，而非主类型（避免 "项目文档.application"）
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(3004L)
+                .projectId(1001L)
+                .name(null)
+                .fileType("application/pdf")
+                .fileUrl("bid-agent://tender-documents/1001/file.pdf")
+                .documentCategory("TASK_ATTACHMENT")
+                .build();
+        when(projectDocumentRepository.findById(3004L)).thenReturn(Optional.of(doc));
+        when(fileStorage.load("bid-agent://tender-documents/1001/file.pdf"))
+                .thenReturn(Optional.of(new LoadedProjectDocumentFile(
+                        "bid-agent://tender-documents/1001/file.pdf",
+                        null, "application/octet-stream",
+                        "内容".getBytes(StandardCharsets.UTF_8))));
+
+        ProjectDocumentDownloadFile result = downloadService.getProjectDocumentFile(1001L, 3004L);
+
+        assertThat(result.fileName()).isEqualTo("项目文档.pdf");
+    }
+
+    @Test
     void invalidMimeTypeShouldFallbackToOctetStream() {
         ProjectDocument doc = ProjectDocument.builder()
                 .id(3005L)

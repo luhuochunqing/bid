@@ -120,10 +120,10 @@ class ProjectDocumentDownloadService {
         if (normalized == null) {
             return "";
         }
-        // 去掉可能的 MIME 类型中的参数，取主类型之后的扩展名不直观，
-        // 这里把 fileType 当成扩展名处理（如 "pdf" / "docx"）。
-        String ext = normalized.replaceAll("/.*", "").trim();
-        if (ext.isEmpty() || ext.contains(" ")) {
+        // fileType 可能是纯扩展名（"pdf" / "docx"），也可能是 MIME 类型（"application/pdf"）。
+        // 统一取 slash 后的 subtype 并去掉参数，保证 MIME 场景也能得到正确扩展名。
+        String ext = normalized.replaceFirst("^[^/]+/", "").replaceFirst(";.*", "").trim();
+        if (ext.isEmpty() || ext.contains(" ") || ext.contains("/")) {
             return "";
         }
         return "." + ext;

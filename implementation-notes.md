@@ -283,3 +283,31 @@ PR !2072 创建后启动思维链 Review，识别出 5 处设计弯路，按用�
 - `ProjectDocumentWorkflowServiceTest`: 28/28 passed
 - **合计 43/43 全绿**
 - checkstyle / compile 通过
+
+---
+
+# OBS 直传招标文件下载 404 修复 — 接手收尾追加
+
+## 重新审查后发现的问题
+
+### 1. 分支落后于 origin/main（阻塞项）
+
+PR 分支创建后 `origin/main` 前进到 `56285042f`（!2071 将 `TenderPushRequest.tenderInfo` 扩容到 `@Size(max=20000)`）。
+当前分支的 `TenderPushRequest` 仍停留在 `@Size(max=5000)`，导致 `git diff origin/main..HEAD` 显示非本 PR 的「回退」改动。
+
+**处理**：执行 `git rebase origin/main`，保留 origin/main 的 20000 改动。
+
+### 2. `extensionOf` 对 MIME 类型推断错误
+
+**位置**：`backend/src/main/java/com/xiyu/bid/projectworkflow/service/ProjectDocumentDownloadService.java:118`
+**原实现**：`normalized.replaceAll("/.*", "")` 会去掉 slash 后的内容，导致 `fileType="application/pdf"` 被推断为扩展名 `"application"`，默认文件名变成 `"项目文档.application"`。
+**修复**：改为 `replaceFirst("^[^/]+/", "").replaceFirst(";.*", "")`，从 MIME subtype 推断扩展名，并补充单元测试。
+**验证**：`ProjectDocumentDownloadServiceTest` 新增 `missingDocumentNameWithMimeTypeShouldInferExtensionFromSubtype`，44/44 全绿。
+
+## 重新验证
+
+- `mvn -f backend/pom.xml test -Dtest=ArchitectureTest -q` ✅
+- `mvn -f backend/pom.xml test -Dtest=ProjectDocumentStorageTypeTest,ProjectDocumentDownloadServiceTest,ProjectDocumentControllerTest,ProjectDocumentWorkflowServiceTest` → **44/44 全绿**
+- `npm run check:line-budgets` ✅
+- `npm run check:front-data-boundaries` ✅
+- `npm run check:doc-governance` ✅
