@@ -190,7 +190,7 @@ run_e2e_gate() {
 run_release_gates() {
   run_root bash scripts/release/rehearse-release.sh
   run_root node scripts/release/build-signoff-packet.mjs
-  run_root bash scripts/release/package-release.sh
+  run_root env VITE_OBS_ENABLED=true bash scripts/release/package-release.sh
 }
 
 run_common_setup() {

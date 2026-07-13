@@ -23,7 +23,7 @@ printf '════════════════════════
 printf '  ⚠️  生产环境部署脚本\n'
 printf '  目标服务器：172.16.10.149（winbid-01.prod）\n'
 printf '  域名：https://winbid.ehsy.com/\n'
-printf '  数据库：winbid-01.prod.rds.ehsy.com（空库，Flyway 自动建表）\n'
+printf '  数据库：winbid-01.prod.rds.ehsy.com（生产库，Flyway 增量迁移）\n'
 printf '═══════════════════════════════════════════════════════════\n\n'
 
 if [[ "${ENV:-}" != "prod" ]]; then
@@ -137,9 +137,12 @@ DEPLOY_CMD="$DEPLOY_CMD SYSTEMCTL_SUDO=true"
 DEPLOY_CMD="$DEPLOY_CMD SKIP_FLYWAY_VALIDATE=$SKIP_FLYWAY_VALIDATE"
 DEPLOY_CMD="$DEPLOY_CMD bash $PROD_APP_ROOT/incoming/remote-deploy.sh"
 
-ssh -o StrictHostKeyChecking=no "$PROD_HOST" "$DEPLOY_CMD"
-
-DEPLOY_EXIT=$?
+# set -euo pipefail 下 ssh 失败会立即退出脚本，导致 Step 6 / L3 OBS 校验无法执行。
+# 用 `|| DEPLOY_EXIT=$?` 捕获退出码（既不让脚本立即退出，也不丢失状态）。
+# 对比 deploy-test.sh L148 的 `|| true`：那里 DEPLOY_EXIT 永远为 0（丢失状态），
+# 但 deploy-test.sh 无 if 判断所以不影响；deploy-prod.sh 有失败诊断分支，必须保留真实退出码。
+DEPLOY_EXIT=0
+ssh -o StrictHostKeyChecking=no "$PROD_HOST" "$DEPLOY_CMD" || DEPLOY_EXIT=$?
 printf '\n  结束时间：%s\n' "$(date '+%Y-%m-%d %H:%M:%S')"
 
 if [[ $DEPLOY_EXIT -ne 0 ]]; then
@@ -148,7 +151,7 @@ if [[ $DEPLOY_EXIT -ne 0 ]]; then
   printf '   1. Flyway validate 失败 → 用 SKIP_FLYWAY_VALIDATE=1 重试（不推荐）\n' >&2
   printf '   2. 健康检查超时 → 检查服务状态：ssh %s "sudo systemctl status %s"\n' "$PROD_HOST" "$PROD_SERVICE_NAME" >&2
   printf '   3. Kafka SDK 启动延迟 → 等待 4 分钟后手动检查健康状态\n' >&2
-  exit $DEPLOY_EXIT
+  printf '\n   ⚠️  部署失败，继续执行 Step 6 校验以收集 OBS 诊断信息\n' >&2
 fi
 
 # ── Step 6: 验证 ──
@@ -167,10 +170,12 @@ printf '%s\n' "$DEPLOYED"
 
 # OBS 直传启用校验（第 8 次生产部署漏传 VITE_OBS_ENABLED=true 事故的回归门禁）
 # 作用：即使打包命令漏传，部署后也能立即发现并报警
+# 校验范围：当前 release 目录（$APP_ROOT/releases/$RELEASE_ID/frontend/assets/），
+#           不是 FRONTEND_PUBLIC_DIR（那里可能因 cp -rn 保留旧 assets 导致误判）
 printf '  OBS 直传启用校验：'
 OBS_CHECK=$(ssh -o StrictHostKeyChecking=no "$PROD_HOST" '
   count=0
-  for f in '"$PROD_FRONTEND_DIR"'/assets/Detail-*.js; do
+  for f in '"$PROD_APP_ROOT"'/releases/'"$RELEASE_ID"'/frontend/assets/Detail-*.js; do
     [ -f "$f" ] || continue
     n=$(grep -o "\.upload(" "$f" 2>/dev/null | wc -l | tr -d " ")
     count=$((count + n))
@@ -184,6 +189,11 @@ else
   printf '     根因：VITE_OBS_ENABLED=true 未传入打包，或 OBS 直传逻辑被 tree-shake\n' >&2
   printf '     修复：必须使用 ENV=prod bash scripts/release/deploy-prod.sh 部署，禁止手工拼凑 package-release.sh 命令\n' >&2
   printf '     历史：第 8 次生产部署（df9adabad, 2026-07-12）漏传导致 OBS 直传失效\n' >&2
+fi
+
+# 部署失败时退出（放在 L3 OBS 校验之后，确保诊断信息已收集后再退出）
+if [[ $DEPLOY_EXIT -ne 0 ]]; then
+  exit $DEPLOY_EXIT
 fi
 
 printf '\n═══════════════════════════════════════════════════════════\n'

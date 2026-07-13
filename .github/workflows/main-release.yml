@@ -50,6 +50,8 @@ jobs:
         run: npm ci
 
       - name: Package release archive
+        env:
+          VITE_OBS_ENABLED: 'true'
         run: bash scripts/release/package-release.sh
 
       - name: Upload release archive
