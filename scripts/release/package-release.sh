@@ -89,7 +89,7 @@ if [[ "${VITE_OBS_ENABLED:-true}" == "true" ]]; then
   fi
   UPLOAD_COUNT=0
   for _f in "${DETAIL_FILES[@]}"; do
-    _n=$(grep -o "\.upload(" "$_f" 2>/dev/null | wc -l | tr -d ' ')
+    _n=$(grep -o "\.upload(" "$_f" 2>/dev/null | wc -l | tr -d ' ' || true)
     UPLOAD_COUNT=$((UPLOAD_COUNT + _n))
   done
   if [[ "$UPLOAD_COUNT" -lt 2 ]]; then
