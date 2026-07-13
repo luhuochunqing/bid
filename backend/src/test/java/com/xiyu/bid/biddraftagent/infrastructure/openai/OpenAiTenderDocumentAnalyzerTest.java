@@ -276,6 +276,7 @@ class OpenAiTenderDocumentAnalyzerTest {
         output.contactLandline = "010-87654321";
         output.customerType = "KA 客户";
         output.priority = "A";
+        output.projectType = "工业品";
         when(structuredOutputService.request(anyString(), eq(TenderRequirementOutput.class), any(), anyString()))
                 .thenReturn(output);
 
@@ -294,7 +295,8 @@ class OpenAiTenderDocumentAnalyzerTest {
                 .containsEntry("contactPhone", "13800138000")
                 .containsEntry("contactLandline", "010-87654321")
                 .containsEntry("customerType", "KA 客户")
-                .containsEntry("priority", "A");
+                .containsEntry("priority", "A")
+                .containsEntry("projectType", "工业品");
         // tenderInfo 由代码直接从 fullText 截断填充，不依赖 AI 输出
         // fullText 不超过 20000 字，应完整返回
         assertThat(result.extractedData()).containsEntry("tenderInfo", text);
