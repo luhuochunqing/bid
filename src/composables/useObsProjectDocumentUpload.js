@@ -4,7 +4,6 @@
 // 修复 APISIX 网关 413：大文件直传 OBS 绕过网关，小文件仍走 multipart
 
 import { watch } from 'vue'
-import { ElMessage } from 'element-plus'
 import { useObsUpload } from '@/composables/useObsUpload.js'
 import { tryObsDirectUpload, isObsEnabled } from '@/composables/useObsUploadFallback.js'
 import { uploadDocument } from '@/api/modules/projectDocuments.js'
@@ -52,17 +51,23 @@ export function useObsProjectDocumentUpload(projectIdRef, ctx = {}) {
     const file = options.file
     const extraData = options.data || {}
 
-    // OBS 直传时把 obsUpload.progress 同步给 el-upload，UI 显示百分比进度
+    // OBS 直传时把 obsUpload.progressPercent 同步给 el-upload，UI 显示百分比进度
+    // 使用 useObsUpload 已暴露的 progressPercent（0-100 computed），避免重复转换
     let stopProgressWatch = null
     if (isObsEnabled && typeof options.onProgress === 'function') {
-      stopProgressWatch = watch(obsUpload.progress, (val) => {
-        options.onProgress({ percent: Math.round(val * 100) })
+      stopProgressWatch = watch(obsUpload.progressPercent, (percent) => {
+        options.onProgress({ percent })
       })
     }
 
     try {
       // OBS 直传：成功返回 obs-direct:{uploadId}，失败/未启用返回 null
       const obsFileUrl = isObsEnabled ? await tryObsDirectUpload(obsUpload, file) : null
+
+      // OBS 失败回退 multipart 时，重置进度避免进度条停在中间值（如 50%）后突然跳到 100%
+      if (isObsEnabled && !obsFileUrl && obsUpload.progress) {
+        obsUpload.progress.value = 0
+      }
 
       const formData = new FormData()
       formData.set('name', file.name)
@@ -86,9 +91,8 @@ export function useObsProjectDocumentUpload(projectIdRef, ctx = {}) {
       // uploadDocument 内部根据 formData 是否有 'file' key 自动选择 multipart/JSON
       // httpClient response 拦截器已 unwrap response.data → 返回后端 body { success, data, msg }
       // ⚠️ return response 让 el-upload Promise 链自动调用 onSuccess，禁止手动调用
-      const result = await uploadDocument(projectId, formData)
-      ElMessage.success(`${file.name} 上传成功`)
-      return result
+      // ⚠️ UI 提示（ElMessage.success）由调用方负责，composable 只负责业务逻辑
+      return await uploadDocument(projectId, formData)
     } finally {
       if (stopProgressWatch) stopProgressWatch()
     }

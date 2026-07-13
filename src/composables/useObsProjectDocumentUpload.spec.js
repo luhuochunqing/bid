@@ -155,8 +155,9 @@ describe('useObsProjectDocumentUpload', () => {
         upload: vi.fn().mockResolvedValue({ uploadId: 'obs-123' }),
         cancel: vi.fn(),
         reset: vi.fn(),
-        // customUpload 会 watch(obsUpload.progress) 同步给 el-upload 进度条，mock 需提供真正的 ref
+        // customUpload 会 watch(obsUpload.progressPercent) 同步给 el-upload 进度条，mock 需提供真正的 ref
         progress: ref(0),
+        progressPercent: ref(0),
       }
       mockedUseObsUpload.mockReturnValue(obsUploadInstance)
 
@@ -187,8 +188,9 @@ describe('useObsProjectDocumentUpload', () => {
         upload: vi.fn().mockRejectedValue(new Error('OBS CORS 403 Forbidden')),
         cancel: vi.fn(),
         reset: vi.fn(),
-        // customUpload 会 watch(obsUpload.progress) 同步给 el-upload 进度条，mock 需提供真正的 ref
+        // customUpload 会 watch(obsUpload.progressPercent) 同步给 el-upload 进度条，mock 需提供真正的 ref
         progress: ref(0),
+        progressPercent: ref(0),
       }
       mockedUseObsUpload.mockReturnValue(obsUploadInstance)
 
@@ -222,8 +224,9 @@ describe('useObsProjectDocumentUpload', () => {
         upload: vi.fn().mockRejectedValue(new Error('OBS CORS 403')),
         cancel: vi.fn(),
         reset: vi.fn(),
-        // customUpload 会 watch(obsUpload.progress) 同步给 el-upload 进度条，mock 需提供真正的 ref
+        // customUpload 会 watch(obsUpload.progressPercent) 同步给 el-upload 进度条，mock 需提供真正的 ref
         progress: ref(0),
+        progressPercent: ref(0),
       }
       mockedUseObsUpload.mockReturnValue(obsUploadInstance)
 

@@ -277,9 +277,11 @@ const { customUpload: originalCustomUpload } = useObsProjectDocumentUpload(
   () => props.projectId,
   { uploaderId: () => userStore.currentUser?.id, uploaderName: () => userStore.userName }
 )
-// 上传成功后刷新投标文件列表（customUpload 内部已 ElMessage.success 提示）
+// 上传成功后刷新投标文件列表 + ElMessage.success 提示
+// composable 只负责业务逻辑，UI 提示由调用方负责（关注点分离）
 async function customUpload(options) {
   const result = await originalCustomUpload(options)
+  ElMessage.success(`${options.file.name} 上传成功`)
   await loadBidFiles()
   return result
 }
