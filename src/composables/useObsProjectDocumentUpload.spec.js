@@ -3,6 +3,7 @@
 // Pos: src/composables/ - useObsProjectDocumentUpload 单元测试
 // 防复发：验证 customUpload 不手动调用 onSuccess/onError（根因：双重调用导致 [ElUpload] file to be removed not found）
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { ref } from 'vue'
 
 // Mock uploadDocument API（vi.mock 会被提升到顶部，不需要配对 import）
 vi.mock('@/api/modules/projectDocuments.js', () => ({
@@ -154,6 +155,8 @@ describe('useObsProjectDocumentUpload', () => {
         upload: vi.fn().mockResolvedValue({ uploadId: 'obs-123' }),
         cancel: vi.fn(),
         reset: vi.fn(),
+        // customUpload 会 watch(obsUpload.progress) 同步给 el-upload 进度条，mock 需提供真正的 ref
+        progress: ref(0),
       }
       mockedUseObsUpload.mockReturnValue(obsUploadInstance)
 
@@ -184,6 +187,8 @@ describe('useObsProjectDocumentUpload', () => {
         upload: vi.fn().mockRejectedValue(new Error('OBS CORS 403 Forbidden')),
         cancel: vi.fn(),
         reset: vi.fn(),
+        // customUpload 会 watch(obsUpload.progress) 同步给 el-upload 进度条，mock 需提供真正的 ref
+        progress: ref(0),
       }
       mockedUseObsUpload.mockReturnValue(obsUploadInstance)
 
@@ -217,6 +222,8 @@ describe('useObsProjectDocumentUpload', () => {
         upload: vi.fn().mockRejectedValue(new Error('OBS CORS 403')),
         cancel: vi.fn(),
         reset: vi.fn(),
+        // customUpload 会 watch(obsUpload.progress) 同步给 el-upload 进度条，mock 需提供真正的 ref
+        progress: ref(0),
       }
       mockedUseObsUpload.mockReturnValue(obsUploadInstance)
 

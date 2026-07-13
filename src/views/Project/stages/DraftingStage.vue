@@ -4,10 +4,12 @@
        不用 isProjectLeadMatch：它对 bid-projectLeader(=primaryLeadId) 返回 true，会误放行项目负责人；
        isAssignedBidSpecialist 显式限定 role==='bid-Team'，彻底排除 bid-projectLeader。 -->
   <ProjectDocumentTable
+    ref="projectDocTableRef"
     :project-id="projectId"
     :can-download="perm.isAdminLead || perm.isAssignedBidSpecialist"
     :can-delete="perm.isAdminLead"
     @export="exportDocumentsAsZip"
+    @change="loadBidFiles"
   />
 
   <el-card class="stage-view" shadow="never">
@@ -271,10 +273,16 @@ const currentReviewerDecision = computed(() => {
 })
 const uploadHeaders = computed(() => { const t = userStore?.token; return t ? { Authorization: 'Bearer ' + t } : {} })
 // OBS 直传：大文件绕过 APISIX 网关直传 OBS，失败回退到 multipart（修复 413）
-const { customUpload } = useObsProjectDocumentUpload(
+const { customUpload: originalCustomUpload } = useObsProjectDocumentUpload(
   () => props.projectId,
   { uploaderId: () => userStore.currentUser?.id, uploaderName: () => userStore.userName }
 )
+// 上传成功后刷新投标文件列表（customUpload 内部已 ElMessage.success 提示）
+async function customUpload(options) {
+  const result = await originalCustomUpload(options)
+  await loadBidFiles()
+  return result
+}
 // 防重复点击守卫：DELETE 请求期间禁用同一 documentId 的二次点击
 const { isDeleting: isBidFileDeleting, safeDelete: safeDeleteBidFile } = useDeleteGuard()
 // CO-381: 投标文件下载守卫——仅当项目仍处于 DRAFTING 阶段（含 submit-review 的 REVIEWING 子状态）
@@ -301,6 +309,7 @@ function handleDownloadBidFile(file) {
   const id = file.response?.data?.id; if (!id) return ElMessage.warning('文件信息缺失，无法下载'); downloadWithFilename(`/api/projects/${props.projectId}/documents/${id}/download`, file.name || '投标文件')
 }
 const qualityCheckRef = ref(null)
+const projectDocTableRef = ref(null)
 
 watch(() => ctx.bidDocQualityResult?.value, (val) => {
   if (val?.issues?.length) qualityCheckRef.value?.open(val)
@@ -325,6 +334,8 @@ async function handleRemoveBidFile(file) {
     }
     bidFiles.value = bidFiles.value.filter((item) => item !== file)
     ElMessage.success('投标文件已删除')
+    // 同步刷新项目文档列表（兄弟组件状态同步）
+    await projectDocTableRef.value?.loadDocuments?.()
   })
   if (!ok && documentId == null) {
     // documentId 缺失：兜底处理（从列表移除，不发 DELETE）

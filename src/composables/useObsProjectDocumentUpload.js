@@ -3,6 +3,8 @@
 // Pos: src/composables/ - 项目文档 OBS 直传 + multipart 回退公共 composable
 // 修复 APISIX 网关 413：大文件直传 OBS 绕过网关，小文件仍走 multipart
 
+import { watch } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useObsUpload } from '@/composables/useObsUpload.js'
 import { tryObsDirectUpload, isObsEnabled } from '@/composables/useObsUploadFallback.js'
 import { uploadDocument } from '@/api/modules/projectDocuments.js'
@@ -42,6 +44,7 @@ export function useObsProjectDocumentUpload(projectIdRef, ctx = {}) {
    * @param {Object} options - el-upload http-request options
    * @param {File} options.file - 待上传文件
    * @param {Object} options.data - el-upload :data 额外字段（documentCategory 等）
+   * @param {Function} [options.onProgress] - el-upload 进度回调，接收 { percent: number }
    * @returns {Promise<any>} 成功 resolve(response)，失败 reject(err)
    */
   async function customUpload(options) {
@@ -49,32 +52,46 @@ export function useObsProjectDocumentUpload(projectIdRef, ctx = {}) {
     const file = options.file
     const extraData = options.data || {}
 
-    // OBS 直传：成功返回 obs-direct:{uploadId}，失败/未启用返回 null
-    const obsFileUrl = isObsEnabled ? await tryObsDirectUpload(obsUpload, file) : null
-
-    const formData = new FormData()
-    formData.set('name', file.name)
-    formData.set('size', `${Math.max(1, Math.round((file.size || 1024 * 1024) / 1024 / 1024))}MB`)
-    formData.set('fileType', file.type || 'application/octet-stream')
-    if (extraData.documentCategory) formData.set('documentCategory', extraData.documentCategory)
-    if (extraData.linkedEntityType) formData.set('linkedEntityType', extraData.linkedEntityType)
-    if (extraData.linkedEntityId) formData.set('linkedEntityId', extraData.linkedEntityId)
-    const uploaderId = ctx.uploaderId?.()
-    const uploaderName = ctx.uploaderName?.()
-    if (uploaderId != null) formData.set('uploaderId', String(uploaderId))
-    if (uploaderName) formData.set('uploaderName', uploaderName)
-
-    // OBS 模式：带 fileUrl（走 JSON 变体）；传统模式：带 file（走 multipart）
-    if (obsFileUrl) {
-      formData.set('fileUrl', obsFileUrl)
-    } else {
-      formData.set('file', file, file.name)
+    // OBS 直传时把 obsUpload.progress 同步给 el-upload，UI 显示百分比进度
+    let stopProgressWatch = null
+    if (isObsEnabled && typeof options.onProgress === 'function') {
+      stopProgressWatch = watch(obsUpload.progress, (val) => {
+        options.onProgress({ percent: Math.round(val * 100) })
+      })
     }
 
-    // uploadDocument 内部根据 formData 是否有 'file' key 自动选择 multipart/JSON
-    // httpClient response 拦截器已 unwrap response.data → 返回后端 body { success, data, msg }
-    // ⚠️ return response 让 el-upload Promise 链自动调用 onSuccess，禁止手动调用
-    return await uploadDocument(projectId, formData)
+    try {
+      // OBS 直传：成功返回 obs-direct:{uploadId}，失败/未启用返回 null
+      const obsFileUrl = isObsEnabled ? await tryObsDirectUpload(obsUpload, file) : null
+
+      const formData = new FormData()
+      formData.set('name', file.name)
+      formData.set('size', `${Math.max(1, Math.round((file.size || 1024 * 1024) / 1024 / 1024))}MB`)
+      formData.set('fileType', file.type || 'application/octet-stream')
+      if (extraData.documentCategory) formData.set('documentCategory', extraData.documentCategory)
+      if (extraData.linkedEntityType) formData.set('linkedEntityType', extraData.linkedEntityType)
+      if (extraData.linkedEntityId) formData.set('linkedEntityId', extraData.linkedEntityId)
+      const uploaderId = ctx.uploaderId?.()
+      const uploaderName = ctx.uploaderName?.()
+      if (uploaderId != null) formData.set('uploaderId', String(uploaderId))
+      if (uploaderName) formData.set('uploaderName', uploaderName)
+
+      // OBS 模式：带 fileUrl（走 JSON 变体）；传统模式：带 file（走 multipart）
+      if (obsFileUrl) {
+        formData.set('fileUrl', obsFileUrl)
+      } else {
+        formData.set('file', file, file.name)
+      }
+
+      // uploadDocument 内部根据 formData 是否有 'file' key 自动选择 multipart/JSON
+      // httpClient response 拦截器已 unwrap response.data → 返回后端 body { success, data, msg }
+      // ⚠️ return response 让 el-upload Promise 链自动调用 onSuccess，禁止手动调用
+      const result = await uploadDocument(projectId, formData)
+      ElMessage.success(`${file.name} 上传成功`)
+      return result
+    } finally {
+      if (stopProgressWatch) stopProgressWatch()
+    }
   }
 
   return { obsUpload, customUpload }
