@@ -45,6 +45,8 @@
         <template #file="{ file }">
           <div class="bid-file-row">
             <a href="javascript:void(0)" class="upload-file-link" :class="{ 'is-readonly': !canDownloadBidFile }" @click.prevent="handleDownloadBidFile(file)">{{ file.name }}</a>
+            <span v-if="file.status === 'uploading'" class="upload-progress-text">{{ Math.round(file.percentage || 0) }}%</span>
+            <el-icon v-if="file.status === 'uploading'" class="is-loading"><Loading /></el-icon>
             <el-button
               v-if="!bidDone && canDeleteThisFile(file) && canDeleteBidFile"
               link
@@ -150,7 +152,7 @@
 </template>
 
 <script setup>
-import { DocumentChecked, MagicStick, Search, UploadFilled } from '@element-plus/icons-vue'
+import { DocumentChecked, Loading, MagicStick, Search, UploadFilled } from '@element-plus/icons-vue'
 import { ref, computed, reactive, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getApiUrl } from '@/api/config.js'
@@ -496,6 +498,7 @@ defineExpose({ load })
 .required-mark { color: #e65100; margin-left: 2px; font-weight: normal; font-size: 13px; }
 .upload-tip { margin-top: 8px; font-size: 12px; color: #909399; text-align: center; }
 .bid-file-row { display: flex; align-items: center; gap: 8px; }
+.upload-progress-text { font-size: 12px; color: #409eff; min-width: 36px; }
 .bid-reviewer-row { display: flex; align-items: center; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
 .bid-reviewer-tip { font-size: 12px; color: #909399; }
 .bid-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
