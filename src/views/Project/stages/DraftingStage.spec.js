@@ -33,9 +33,11 @@ vi.mock('@/api/modules/projectLifecycle.js', () => ({
 }))
 
 const deleteDocumentMock = vi.fn(() => Promise.resolve({ success: true }))
+const uploadDocumentMock = vi.fn(() => Promise.resolve({ success: true, data: { id: 1 } }))
 vi.mock('@/api/modules/projectDocuments.js', () => ({
   getDocuments: (...args) => getDocumentsMock(...args),
   deleteDocument: (...args) => deleteDocumentMock(...args),
+  uploadDocument: (...args) => uploadDocumentMock(...args),
   getDocumentDownloadUrl: (projectId, documentId) => `/api/projects/${projectId}/documents/${documentId}/download`,
 }))
 
@@ -53,6 +55,7 @@ vi.mock('@/api/config.js', async (importOriginal) => {
 })
 vi.mock('@/constants/projectStages.js', () => ({ STAGE_TRANSITION_MAP: { DRAFTING: 'EVALUATING' } }))
 vi.mock('element-plus', () => ({ ElMessage: { info: vi.fn(), warning: vi.fn(), error: vi.fn(), success: vi.fn() } }))
+import { ElMessage } from 'element-plus'
 vi.mock('@element-plus/icons-vue', () => ({
   DocumentChecked: {}, MagicStick: {}, Search: {}, Trophy: {}, UploadFilled: {},
 }))
@@ -700,5 +703,57 @@ describe('DraftingStage handleRemoveBidFile 防重复点击 - 服务器 404 根�
 
     // 完成后恢复可点击
     expect(deleteBtn.attributes('disabled')).toBeFalsy()
+  })
+})
+
+// UX 修复：上传成功后刷新投标文件列表 + ElMessage.success 提示
+describe('DraftingStage customUpload 上传成功后刷新列表 + 成功提示', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getDraftingMock.mockReset()
+    getDocumentsMock.mockReset()
+    deleteDocumentMock.mockReset()
+    uploadDocumentMock.mockReset()
+    getDraftingMock.mockImplementation(() => Promise.resolve({ data: { reviewStatus: null } }))
+    getDocumentsMock.mockImplementation(() => Promise.resolve({ data: [] }))
+    uploadDocumentMock.mockImplementation(() => Promise.resolve({ success: true, data: { id: 1 } }))
+    mockCurrentUser.role = '/bidAdmin'
+  })
+
+  it('上传成功后显示 ElMessage.success 提示', async () => {
+    const wrapper = await mountDraftingStage({ currentStage: 'DRAFTING' })
+    await flushPromises()
+
+    // 通过 setupState 访问 customUpload（<script setup> 内部函数）
+    const customUpload = wrapper.vm.$.setupState.customUpload
+    expect(typeof customUpload).toBe('function')
+
+    await customUpload({
+      file: new File(['x'], 'test.pdf'),
+      data: { documentCategory: 'BID' },
+      onProgress: vi.fn(),
+    })
+    await flushPromises()
+
+    expect(ElMessage.success).toHaveBeenCalledWith('test.pdf 上传成功')
+  })
+
+  it('上传成功后调用 loadBidFiles 刷新投标文件列表', async () => {
+    const wrapper = await mountDraftingStage({ currentStage: 'DRAFTING' })
+    await flushPromises()
+
+    // mount 时 loadBidFiles 已被调用一次（onMounted → load → loadBidFiles）
+    getDocumentsMock.mockClear()
+
+    const customUpload = wrapper.vm.$.setupState.customUpload
+    await customUpload({
+      file: new File(['x'], 'test.pdf'),
+      data: { documentCategory: 'BID' },
+      onProgress: vi.fn(),
+    })
+    await flushPromises()
+
+    // loadBidFiles 应再次调用 getDocuments
+    expect(getDocumentsMock).toHaveBeenCalled()
   })
 })

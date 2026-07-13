@@ -248,6 +248,86 @@ describe('useObsProjectDocumentUpload', () => {
     })
   })
 
+  describe('进度同步：OBS 直传时 progressPercent 同步给 el-upload', () => {
+    it('OBS 直传时 progressPercent 变化同步给 el-upload onProgress', async () => {
+      const { useObsProjectDocumentUpload, mockedUseObsUpload, mockedUpload } = await loadModule(true)
+      const progress = ref(0)
+      const progressPercent = ref(0)
+      const obsUploadInstance = {
+        upload: vi.fn().mockImplementation(async () => {
+          // 模拟 OBS 上传过程中进度变化
+          progressPercent.value = 50
+          await new Promise(resolve => setTimeout(resolve, 0))
+          progressPercent.value = 100
+          return { uploadId: 'obs-123' }
+        }),
+        cancel: vi.fn(),
+        reset: vi.fn(),
+        progress,
+        progressPercent,
+      }
+      mockedUseObsUpload.mockReturnValue(obsUploadInstance)
+
+      const { customUpload } = useObsProjectDocumentUpload(() => 100)
+      const file = makeFile('big.pdf', 100 * 1024 * 1024)
+      const options = makeOptions(file)
+      mockedUpload.mockResolvedValue({ success: true })
+
+      await customUpload(options)
+
+      // onProgress 应被调用，且 percent 值与 progressPercent 同步
+      expect(options.onProgress).toHaveBeenCalled()
+      const calls = options.onProgress.mock.calls.map(call => call[0].percent)
+      expect(calls).toContain(50)
+      expect(calls).toContain(100)
+    })
+
+    it('OBS 未启用时不设置 progress watch（不调 onProgress）', async () => {
+      const { useObsProjectDocumentUpload, mockedUpload } = await loadModule(false)
+      const { customUpload } = useObsProjectDocumentUpload(() => 100)
+      const file = makeFile()
+      const options = makeOptions(file)
+      mockedUpload.mockResolvedValue({ success: true })
+
+      await customUpload(options)
+
+      expect(options.onProgress).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('OBS 回退进度重置', () => {
+    it('OBS 失败回退 multipart 时重置 progress 为 0（避免进度条停在中间值）', async () => {
+      const { useObsProjectDocumentUpload, mockedUseObsUpload, mockedUpload } = await loadModule(true)
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const progress = ref(0)
+      const progressPercent = ref(0)
+      const obsUploadInstance = {
+        upload: vi.fn().mockImplementation(async () => {
+          // 模拟 OBS 上传到 50% 后失败
+          progress.value = 0.5
+          progressPercent.value = 50
+          throw new Error('OBS CORS 403')
+        }),
+        cancel: vi.fn(),
+        reset: vi.fn(),
+        progress,
+        progressPercent,
+      }
+      mockedUseObsUpload.mockReturnValue(obsUploadInstance)
+
+      const { customUpload } = useObsProjectDocumentUpload(() => 100)
+      const file = makeFile()
+      const options = makeOptions(file)
+      mockedUpload.mockResolvedValue({ success: true, data: { id: 1 } })
+
+      await customUpload(options)
+
+      // OBS 失败后 progress 应被重置为 0
+      expect(progress.value).toBe(0)
+      warnSpy.mockRestore()
+    })
+  })
+
   describe('customUpload 返回 Promise（el-upload 兼容性）', () => {
     it('customUpload 返回值是 Promise', async () => {
       const { useObsProjectDocumentUpload, mockedUpload } = await loadModule(false)
