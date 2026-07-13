@@ -74,13 +74,39 @@ mkdir -p "$OUTPUT_DIR/frontend" "$OUTPUT_DIR/backend"
 cp -R "$ROOT_DIR/dist/." "$OUTPUT_DIR/frontend/"
 cp "$JAR_PATH" "$OUTPUT_DIR/backend/app.jar"
 
+# OBS 直传启用校验（第 84 次部署漏传 VITE_OBS_ENABLED=true 事故的硬门禁）
+# 当 VITE_OBS_ENABLED=true 时，Detail chunk 中 .upload( 调用数应 >=2；
+# 若为 0 说明 OBS 直传逻辑被 tree-shake，打包参数与产物不一致，立即中止。
+if [[ "${VITE_OBS_ENABLED:-false}" == "true" ]]; then
+  printf '\n==> 验证 OBS 直传已启用（Detail chunk .upload( 调用数）\n'
+  DETAIL_FILES=( "$OUTPUT_DIR/frontend/assets/Detail-"*.js )
+  if [[ ! -e "${DETAIL_FILES[0]}" ]]; then
+    printf '❌ 未找到 Detail-*.js chunk，无法校验 OBS 启用状态\n' >&2
+    exit 1
+  fi
+  UPLOAD_COUNT=0
+  for _f in "${DETAIL_FILES[@]}"; do
+    _n=$(grep -o "\.upload(" "$_f" 2>/dev/null | wc -l | tr -d ' ')
+    UPLOAD_COUNT=$((UPLOAD_COUNT + _n))
+  done
+  if [[ "$UPLOAD_COUNT" -lt 2 ]]; then
+    printf '❌ OBS 直传未启用：Detail chunk .upload( 调用数=%d（期望 >=2）\n' "$UPLOAD_COUNT" >&2
+    printf '   根因：VITE_OBS_ENABLED=true 已传入，但构建产物中 OBS 逻辑被 tree-shake\n' >&2
+    printf '   排查：检查 src/composables/useObsUploadFallback.js 是否被正确引用\n' >&2
+    printf '   修复：确认 useObsProjectDocumentUpload / useObsUploadFallback 未被误删\n' >&2
+    exit 1
+  fi
+  printf '✅ OBS 直传已启用（Detail chunk .upload( 调用数=%d）\n' "$UPLOAD_COUNT"
+fi
+
 cat > "$OUTPUT_DIR/release-metadata.json" <<EOF
 {
   "releaseId": "$RELEASE_ID",
   "apiBaseUrl": "$API_BASE_URL",
   "jarName": "$(basename "$JAR_PATH")",
   "builtAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-  "sentryEnabled": $([ -n "${VITE_SENTRY_DSN:-}" ] && echo 'true' || echo 'false')
+  "sentryEnabled": $([ -n "${VITE_SENTRY_DSN:-}" ] && echo 'true' || echo 'false'),
+  "obsEnabled": $([ "${VITE_OBS_ENABLED:-false}" == "true" ] && echo 'true' || echo 'false')
 }
 EOF
 
