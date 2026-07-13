@@ -1,12 +1,14 @@
 <template>
   <!-- CO-558: 项目文档下载/删除按钮按角色矩阵控制。
-       下载/导出仅 投标管理员/组长 + 该项目分配的投标负责人/辅助（bid-Team 且匹配 lead 分配）可见。
+       下载/导出 投标管理员/组长 + 该项目分配的投标负责人/辅助（bid-Team 且匹配 lead 分配）+ 指派审核人 可见。
+       bugfix：审核人需下载项目文档/招标文件才能审核，原先排除审核人与后端 ProjectAccessScopeService（CO-315）
+       审核人放行口径矛盾，增补 || perm.canReviewBid（当前用户是否指派审核人）。
        不用 isProjectLeadMatch：它对 bid-projectLeader(=primaryLeadId) 返回 true，会误放行项目负责人；
        isAssignedBidSpecialist 显式限定 role==='bid-Team'，彻底排除 bid-projectLeader。 -->
   <ProjectDocumentTable
     ref="projectDocTableRef"
     :project-id="projectId"
-    :can-download="perm.isAdminLead || perm.isAssignedBidSpecialist"
+    :can-download="perm.isAdminLead || perm.isAssignedBidSpecialist || perm.canReviewBid"
     :can-delete="perm.isAdminLead"
     @export="exportDocumentsAsZip"
     @change="loadBidFiles"

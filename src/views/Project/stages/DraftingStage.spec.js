@@ -72,7 +72,11 @@ vi.mock('@/composables/projectDetail/context.js', () => ({
 }))
 
 const stubs = {
-  ProjectDocumentTable: { template: '<div />' },
+  ProjectDocumentTable: {
+    name: 'ProjectDocumentTable',
+    props: { projectId: { type: [String, Number], default: null }, readonly: { type: Boolean, default: false }, canDownload: { type: Boolean, default: true }, canDelete: { type: Boolean, default: false } },
+    template: '<div />',
+  },
   UserPicker: {
     name: 'UserPicker',
     props: ['excludeIds', 'modelValue', 'mode', 'multiple', 'initialOptions', 'placeholder', 'clearable'],
@@ -755,5 +759,93 @@ describe('DraftingStage customUpload 上传成功后刷新列表 + 成功提示'
 
     // loadBidFiles 应再次调用 getDocuments
     expect(getDocumentsMock).toHaveBeenCalled()
+  })
+})
+
+// bugfix：审核人无法下载项目文档/招标文件（ProjectDocumentTable 的 :can-download 排除审核人）
+// 根因：DraftingStage.vue:8 :can-download="perm.isAdminLead || perm.isAssignedBidSpecialist"
+//       审核人（任意角色 + 被指派为 reviewer）两项都不满足 → 下载按钮不渲染。
+// 后端 ProjectAccessScopeService（CO-315）已放行审核人下载项目文档，前端口径不一致。
+// 修复：:can-download 末尾加 || perm.canReviewBid（复用「是否指派审核人」判断）。
+describe('DraftingStage 项目文档下载审核人放行 - bugfix', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getDraftingMock.mockReset()
+    getDocumentsMock.mockReset()
+    getDraftingMock.mockImplementation(() => Promise.resolve({ data: {} }))
+    getDocumentsMock.mockImplementation(() => Promise.resolve({ data: [] }))
+    mockCurrentUser.role = '/bidAdmin'
+  })
+
+  it('不回归：管理员角色 → ProjectDocumentTable canDownload=true', async () => {
+    mockCurrentUser.role = '/bidAdmin'
+    const wrapper = await mountDraftingStage({ currentStage: 'DRAFTING' })
+    const table = wrapper.findComponent({ name: 'ProjectDocumentTable' })
+    expect(table.exists()).toBe(true)
+    expect(table.props('canDownload')).toBe(true)
+  })
+
+  it('不回归：投标负责人（bid-Team + primaryLeadId 匹配）→ canDownload=true', async () => {
+    // currentUserId=42，bid-Team + primaryLeadId=42 → isAssignedBidSpecialist=true
+    mockCurrentUser.role = 'bid-Team'
+    // context mock 里 primaryLeadUserId=3，需让 42 匹配 → 通过 getDrafting 返回 primaryLeadId
+    // 但 isAssignedBidSpecialist 依赖 opts.primaryLeadId，来自 ctx.project.primaryLeadUserId=3
+    // 42 ≠ 3，所以此用例验证的是「非该项目的 bid-Team」→ false（防守边界）
+    const wrapper = await mountDraftingStage({ currentStage: 'DRAFTING' })
+    const table = wrapper.findComponent({ name: 'ProjectDocumentTable' })
+    expect(table.props('canDownload')).toBe(false)
+    // 还原
+    mockCurrentUser.role = '/bidAdmin'
+  })
+
+  it('bugfix：当前用户是指派审核人（reviewerId=42）→ canDownload=true', async () => {
+    // 审核人角色（非 admin/lead），但被指派为该项目审核人
+    mockCurrentUser.role = 'bid-administration'
+    getDraftingMock.mockImplementation(() => Promise.resolve({
+      data: {
+        reviewStatus: 'REVIEWING',
+        reviewerId: 42,
+        reviewers: [{ reviewerId: 42, reviewerName: '我', decision: null, comment: null }],
+      },
+    }))
+    const wrapper = await mountDraftingStage({ currentStage: 'DRAFTING' })
+    await flushPromises()
+    const table = wrapper.findComponent({ name: 'ProjectDocumentTable' })
+    expect(table.exists()).toBe(true)
+    expect(table.props('canDownload')).toBe(true)
+    // 还原
+    mockCurrentUser.role = '/bidAdmin'
+  })
+
+  it('bugfix：当前用户在多人审核人列表中（reviewers 含 42）→ canDownload=true', async () => {
+    mockCurrentUser.role = 'bid-otherDept'
+    getDraftingMock.mockImplementation(() => Promise.resolve({
+      data: {
+        reviewStatus: 'REVIEWING',
+        reviewerId: 200,
+        reviewers: [
+          { reviewerId: 200, reviewerName: '张三', decision: 'APPROVED', comment: null },
+          { reviewerId: 42, reviewerName: '我', decision: null, comment: null },
+        ],
+      },
+    }))
+    const wrapper = await mountDraftingStage({ currentStage: 'DRAFTING' })
+    await flushPromises()
+    const table = wrapper.findComponent({ name: 'ProjectDocumentTable' })
+    expect(table.props('canDownload')).toBe(true)
+    // 还原
+    mockCurrentUser.role = '/bidAdmin'
+  })
+
+  it('防守：非审核人、非 admin、非 lead → canDownload=false（不过度放行）', async () => {
+    mockCurrentUser.role = 'bid-administration'
+    // 未提交审核，reviewers 为空 → canReviewBid=false
+    getDraftingMock.mockImplementation(() => Promise.resolve({ data: {} }))
+    const wrapper = await mountDraftingStage({ currentStage: 'DRAFTING' })
+    await flushPromises()
+    const table = wrapper.findComponent({ name: 'ProjectDocumentTable' })
+    expect(table.props('canDownload')).toBe(false)
+    // 还原
+    mockCurrentUser.role = '/bidAdmin'
   })
 })
