@@ -3,6 +3,7 @@ package com.xiyu.bid.biddraftagent.infrastructure.tenderdocument;
 import com.xiyu.bid.biddraftagent.application.LoadedTenderDocument;
 import com.xiyu.bid.biddraftagent.application.StoredTenderDocument;
 import com.xiyu.bid.biddraftagent.application.TenderDocumentStorage;
+import com.xiyu.bid.file.domain.FileUrlPrefixes;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -27,8 +28,8 @@ import java.util.Optional;
 @ConditionalOnMissingBean(TenderDocumentStorage.class)
 public class LocalTenderDocumentStorage implements TenderDocumentStorage {
 
-    private static final String FILE_URL_PREFIX = "bid-agent://tender-documents/";
-    private static final String DOC_INSIGHT_FILE_URL_PREFIX = "doc-insight://";
+    private static final String FILE_URL_PREFIX = FileUrlPrefixes.LOCAL_BID_AGENT;
+    private static final String DOC_INSIGHT_FILE_URL_PREFIX = FileUrlPrefixes.DOC_INSIGHT;
 
     private final Path uploadRoot;
     private final Path docInsightUploadRoot;
@@ -62,7 +63,7 @@ public class LocalTenderDocumentStorage implements TenderDocumentStorage {
             throw new IllegalStateException("保存招标文件失败", ex);
         }
         return new StoredTenderDocument(
-                "bid-agent://tender-documents/" + projectId + "/" + targetPath.getFileName(),
+                FileUrlPrefixes.LOCAL_BID_AGENT + projectId + "/" + targetPath.getFileName(),
                 targetPath.toAbsolutePath().toString(),
                 hash
         );

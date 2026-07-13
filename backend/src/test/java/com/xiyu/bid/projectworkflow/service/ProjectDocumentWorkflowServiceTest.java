@@ -84,7 +84,8 @@ class ProjectDocumentWorkflowServiceTest {
                 documentChangeNotificationService,
                 bidDocumentReviewRepository
         );
-        downloadService = new ProjectDocumentDownloadService(guardService, fileStorage, projectStageService);
+        downloadService = new ProjectDocumentDownloadService(guardService, fileStorage, projectStageService,
+                mock(com.xiyu.bid.file.application.ObsShareUrlSigner.class));
 
         when(projectRepository.findById(1001L)).thenReturn(Optional.of(Project.builder().id(1001L).status(Project.Status.BIDDING).build()));
         when(projectRepository.findById(1002L)).thenReturn(Optional.of(Project.builder().id(1002L).status(Project.Status.WON).build()));
@@ -174,10 +175,11 @@ class ProjectDocumentWorkflowServiceTest {
                         "附件内容".getBytes(StandardCharsets.UTF_8)
                 )));
 
-        ProjectDocumentDownloadFile file = downloadService.getProjectDocumentFile(1001L, 3003L);
+        ProjectDocumentDownloadFile result = downloadService.getProjectDocumentFile(1001L, 3003L);
 
+        assertThat(result.redirectUrl()).isNull();
+        ProjectDocumentDownloadFile file = result;
         assertThat(file.fileName()).isEqualTo("任务附件.docx");
-        assertThat(file.fileUrl()).isEqualTo("doc-insight://task/file.docx");
         assertThat(file.resource().getContentAsByteArray()).isEqualTo("附件内容".getBytes(StandardCharsets.UTF_8));
         assertThat(file.contentType()).isEqualTo("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
         assertThat(file.contentLength()).isEqualTo("附件内容".getBytes(StandardCharsets.UTF_8).length);
@@ -201,7 +203,8 @@ class ProjectDocumentWorkflowServiceTest {
                         new ByteArrayResource("报价".getBytes(StandardCharsets.UTF_8))
                 )));
 
-        ProjectDocumentDownloadFile file = downloadService.getProjectDocumentFile(1001L, 3004L);
+        ProjectDocumentDownloadFile result = downloadService.getProjectDocumentFile(1001L, 3004L);
+        ProjectDocumentDownloadFile file = result;
 
         assertThat(file.fileName()).isEqualTo("投标报价.xlsx");
         assertThat(file.resource().getContentAsByteArray()).isEqualTo("报价".getBytes(StandardCharsets.UTF_8));
@@ -417,7 +420,8 @@ class ProjectDocumentWorkflowServiceTest {
                         "投标内容".getBytes(StandardCharsets.UTF_8)
                 )));
 
-        ProjectDocumentDownloadFile file = downloadService.getProjectDocumentFile(1001L, 3101L);
+        ProjectDocumentDownloadFile result = downloadService.getProjectDocumentFile(1001L, 3101L);
+        ProjectDocumentDownloadFile file = result;
 
         assertThat(file.fileName()).isEqualTo("投标文件.pdf");
         assertThat(file.resource().getContentAsByteArray()).isEqualTo("投标内容".getBytes(StandardCharsets.UTF_8));
@@ -467,7 +471,8 @@ class ProjectDocumentWorkflowServiceTest {
                         "投标内容".getBytes(StandardCharsets.UTF_8)
                 )));
 
-        ProjectDocumentDownloadFile file = downloadService.getProjectDocumentFile(1001L, 3103L);
+        ProjectDocumentDownloadFile resultR1 = downloadService.getProjectDocumentFile(1001L, 3103L);
+        ProjectDocumentDownloadFile file = resultR1;
 
         assertThat(file.fileName()).isEqualTo("投标文件.pdf");
         assertThat(file.resource().getContentAsByteArray()).isEqualTo("投标内容".getBytes(StandardCharsets.UTF_8));
@@ -494,7 +499,8 @@ class ProjectDocumentWorkflowServiceTest {
                         "中标".getBytes(StandardCharsets.UTF_8)
                 )));
 
-        ProjectDocumentDownloadFile file = downloadService.getProjectDocumentFile(1001L, 3104L);
+        ProjectDocumentDownloadFile resultR4 = downloadService.getProjectDocumentFile(1001L, 3104L);
+        ProjectDocumentDownloadFile file = resultR4;
 
         assertThat(file.fileName()).isEqualTo("中标通知书.pdf");
         verify(projectStageService, org.mockito.Mockito.never()).currentStage(any());
@@ -522,7 +528,8 @@ class ProjectDocumentWorkflowServiceTest {
                         "投标内容".getBytes(StandardCharsets.UTF_8)
                 )));
 
-        ProjectDocumentDownloadFile file = downloadService.getProjectDocumentFile(1001L, 3105L);
+        ProjectDocumentDownloadFile resultR5 = downloadService.getProjectDocumentFile(1001L, 3105L);
+        ProjectDocumentDownloadFile file = resultR5;
 
         assertThat(file.fileName()).isEqualTo("投标文件.pdf");
     }
@@ -583,7 +590,8 @@ class ProjectDocumentWorkflowServiceTest {
                         "附件内容".getBytes(StandardCharsets.UTF_8)
                 )));
 
-        ProjectDocumentDownloadFile file = downloadService.getProjectDocumentFile(1001L, 3003L);
+        ProjectDocumentDownloadFile resultR3 = downloadService.getProjectDocumentFile(1001L, 3003L);
+        ProjectDocumentDownloadFile file = resultR3;
 
         assertThat(file.fileName()).isEqualTo("任务附件.docx");
         assertThat(file.resource().getContentAsByteArray()).isEqualTo("附件内容".getBytes(StandardCharsets.UTF_8));
@@ -647,7 +655,8 @@ class ProjectDocumentWorkflowServiceTest {
                         "审核内容".getBytes(StandardCharsets.UTF_8)
                 )));
 
-        ProjectDocumentDownloadFile file = downloadService.getProjectDocumentFile(1001L, 3003L);
+        ProjectDocumentDownloadFile resultR6 = downloadService.getProjectDocumentFile(1001L, 3003L);
+        ProjectDocumentDownloadFile file = resultR6;
 
         assertThat(file.fileName()).isEqualTo("标书审核材料.docx");
         assertThat(file.resource().getContentAsByteArray()).isEqualTo("审核内容".getBytes(StandardCharsets.UTF_8));
