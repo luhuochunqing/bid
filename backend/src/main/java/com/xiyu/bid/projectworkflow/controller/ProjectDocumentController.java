@@ -53,19 +53,34 @@ public class ProjectDocumentController {
 
     @GetMapping("/{documentId}/download")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<org.springframework.core.io.Resource> downloadProjectDocument(
+    public ResponseEntity<?> downloadProjectDocument(
             @PathVariable Long projectId,
             @PathVariable Long documentId
     ) {
         ProjectDocumentDownloadFile file = projectWorkflowService.getProjectDocumentFile(projectId, documentId);
-        ContentDisposition disposition = ContentDisposition.attachment()
-                .filename(file.fileName(), StandardCharsets.UTF_8)
+        // 模式匹配分派：OBS 直传文件返回 302 重定向（省后端带宽），本地存储文件流式返回 200。
+        return switch (file) {
+            case ProjectDocumentDownloadFile redirect when redirect.redirectUrl() != null -> ResponseEntity
+                    .status(HttpStatus.FOUND)
+                    .header(HttpHeaders.LOCATION, redirect.redirectUrl())
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            contentDisposition(redirect.fileName()).toString())
+                    .build();
+            case ProjectDocumentDownloadFile inline -> {
+                ContentDisposition disposition = contentDisposition(inline.fileName());
+                yield ResponseEntity.ok()
+                        .contentType(MediaType.parseMediaType(inline.contentType()))
+                        .contentLength(inline.contentLength())
+                        .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                        .body(inline.resource());
+            }
+        };
+    }
+
+    private ContentDisposition contentDisposition(String fileName) {
+        return ContentDisposition.attachment()
+                .filename(fileName, StandardCharsets.UTF_8)
                 .build();
-        return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(file.contentType()))
-                .contentLength(file.contentLength())
-                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
-                .body(file.resource());
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)

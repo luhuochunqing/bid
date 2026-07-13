@@ -23,7 +23,8 @@
 | `service/ProjectDocumentDownloadService.java` | Service | 项目文档真实文件下载装配；通过文件存储端口读取 Resource |
 | `service/ProjectDocumentFacade.java` | Component | 文档查询、元数据创建、真实上传、下载和删除的内部组合门面，保持 ProjectWorkflowService 依赖数稳定 |
 | `service/ProjectDocumentFileStorage.java` | Port | 项目文档文件落盘/读取端口，由 bid-agent 文件存储适配器实现，避免 projectworkflow 反向依赖解析模块 |
-| `dto/ProjectDocumentDownloadFile.java` | DTO | 下载响应边界对象，携带文件名、MIME、长度和 Resource，避免 Controller 重复查文档列表 |
+| `dto/ProjectDocumentDownloadFile.java` | DTO | 下载响应 DTO；`redirectUrl` 非空时返回 302 重定向 OBS 预签名 URL，否则流式返回 200 |
+| `core/ProjectDocumentStorageType.java` | Pure Core | fileUrl → StorageType 枚举判定（纯函数），决定下载分派路径（obs-direct 重定向 / 本地流式）|
 | `service/ProjectDocumentViewAssembler.java` | Assembler | 项目文档实体到 DTO 的装配 |
 | `service/ProjectDocumentBindingGateway.java` | Port | 项目文档与外部附件业务的可替换集成边界 |
 | `service/ScoreDraftParserService.java` | Service | 评分草稿解析，支持 Word、Excel 和文本型 PDF 上传 |

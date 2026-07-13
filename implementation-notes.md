@@ -200,3 +200,114 @@ PR !2048 审核指出：`ClosureStage.vue` 用 `Number(a) + Number(b) !== Number
 - 新增 T7 回归：`10.1+20.2=30.3` 在裸 Number 下不相等，但 `canSubmit` 应通过。
 - 既有 T1–T6 行为保持不变。
 - `npm run test:unit -- src/views/Project/stages/ClosureStage.spec.js` → 26 passed。
+
+---
+
+# OBS 直传招标文件下载 404 修复 — 实施笔记
+
+> 任务：正式环境投标管理员在立项页面下载招标文件（OBS 直传，fileUrl=`obs-direct:` 前缀）报 404。
+> 分支：`agent/zcode/fix-obs-doc-download-404`
+
+## 根因（代码+数据+生产日志三方闭环）
+- 代码：`LocalTenderDocumentStorage.loadByFileUrl:79` 只认 `bid-agent://` 和 `doc-insight://` 前缀，OBS 直传的 `obs-direct:` 前缀返回 empty → `ProjectDocumentDownloadService:38` 抛 `ResourceNotFoundException`（404）。
+- 数据：测试环境能下的记录是 `doc-insight://` 前缀；正式环境业务方下载失败的 id=86 是 `obs-direct:28387f97-...`。
+- 生产日志（2026-07-13 13:30:29）：`URI=/api/projects/19/documents/86/download → 404`，userId=144（/bidAdmin）。
+
+## 历史教训
+前两次 PR（#2064、#2066）都改错了对象，已 revert（PR #2067）。根因：未先确认「在哪个页面、点哪个按钮、看到什么报错」就动手。本次先连服务器查数据库 + 生产日志闭环证据链，再用 plan mode 设计架构，经用户审批后执行。
+
+## 决策记录
+
+### 1. 为何选 302 重定向而非后端代理流式
+OBS 直传设计初衷是「大文件直连 OBS」。302 让浏览器直连 OBS 预签名 URL，与既有 `TenderAttachmentUrlResolver`（CRM 集成）范式一致，省后端带宽。
+
+### 2. 为何用 sealed interface 而非 nullable 字段
+DTO 需表达两种互斥形态：inline（Resource 流）/ redirect（URL）。sealed interface + record（FP-Java 第 6 条）让类型系统强制互斥，Controller 模式匹配，编译器保证穷尽。项目已有 10 个 sealed interface 先例。
+
+### 3. 为何不抽 BidDocumentDownloadPolicy 纯核心
+Service 当前 3 类职责（阶段校验 + 数据访问 + DTO 组装）刚好在 FP-Java 上限。新增 OBS 分派是「编排」，不算新职责类别。不顺手重构既有逻辑（避免扩大改动面）。
+
+### 4. 包依赖合规
+projectworkflow → file.application.ObsShareUrlSigner（@Service 注入，与 ProjectStageService 跨包同性质，合规）。
+
+## FP-Java 完成声明
+- **纯核心**：`ProjectDocumentStorageClassifier` + `ProjectDocumentStorageType` 枚举
+- **副作用**：ObsShareUrlSigner（OBS 网络）、fileStorage.load（IO）、Controller（HTTP）
+- **验证**：Classifier 7/7 + Service 4/4 + Controller 2/2 + 既有 WorkflowServiceTest 28/28 = **41/41 全绿**
+
+## 改动文件（10 个）
+新 5：StorageType、StorageClassifier、DownloadResult sealed、InlineDocumentFile、RedirectDocumentFile
+改 4：DownloadService、Facade、WorkflowService、Controller
+删 1：旧 ProjectDocumentDownloadFile（被 sealed interface 取代）
+
+## 不改动
+前端（302 自动跟随）、DownloadPolicy、LocalTenderDocumentStorage 既有逻辑、BID 下载链路、数据库
+
+---
+
+# 思维链 Review 后优化（同分支追加）
+
+## 触发
+PR !2072 创建后启动思维链 Review，识别出 5 处设计弯路，按用户要求全部优化。
+
+## 优化项
+
+### 1. 合并 sealed interface DTO 为单个 DTO
+**原设计**：`ProjectDocumentDownloadResult` sealed interface + `InlineDocumentFile` / `RedirectDocumentFile` 两个 record（3 个文件）。  
+**问题**：单一 Consumer 场景下类型安全收益与维护成本不成正比。  
+**新设计**：恢复单个 `ProjectDocumentDownloadFile` record，`redirectUrl` 非空即 302，否则流式 200。
+
+### 2. Classifier 合并到枚举
+**原设计**：`ProjectDocumentStorageClassifier` 独立纯核心类 + `ProjectDocumentStorageType` 枚举。  
+**问题**：`classify()` 仅是前缀匹配，单独成类过度拆分。  
+**新设计**：`ProjectDocumentStorageType.fromFileUrl(String)` 静态方法完成分类，删除 `ProjectDocumentStorageClassifier`。
+
+### 3. 提取公共前缀常量 FileUrlPrefixes
+**原设计**：`ObsShareUrlSigner`、`ProjectDocumentStorageClassifier`、`LocalTenderDocumentStorage` 各自硬编码前缀。  
+**问题**：重复定义，变更时需要改多处。  
+**新设计**：新增 `com.xiyu.bid.file.domain.FileUrlPrefixes` 常量类，三处统一引用。
+
+### 4. Controller switch 模式匹配
+**原设计**：`if (instanceof)` + 强制类型转换。  
+**新设计**：Java 17 switch 表达式模式匹配，消除强制转换。
+
+### 5. 防御性 fallback
+- `resolveContentType`：非法 MIME 类型不再抛 500，回退 `application/octet-stream`。
+- 默认文件名：从 `document.fileType` 推断扩展名（如 `"项目文档.pdf"`）。
+- 302 响应：附加 `Content-Disposition`，作为 OBS 响应文件名的补充提示。
+
+## 验证
+- `ProjectDocumentStorageTypeTest`: 7/7 passed
+- `ProjectDocumentDownloadServiceTest`: 6/6 passed
+- `ProjectDocumentControllerTest`: 2/2 passed
+- `ProjectDocumentWorkflowServiceTest`: 28/28 passed
+- **合计 43/43 全绿**
+- checkstyle / compile 通过
+
+---
+
+# OBS 直传招标文件下载 404 修复 — 接手收尾追加
+
+## 重新审查后发现的问题
+
+### 1. 分支落后于 origin/main（阻塞项）
+
+PR 分支创建后 `origin/main` 前进到 `56285042f`（!2071 将 `TenderPushRequest.tenderInfo` 扩容到 `@Size(max=20000)`）。
+当前分支的 `TenderPushRequest` 仍停留在 `@Size(max=5000)`，导致 `git diff origin/main..HEAD` 显示非本 PR 的「回退」改动。
+
+**处理**：执行 `git rebase origin/main`，保留 origin/main 的 20000 改动。
+
+### 2. `extensionOf` 对 MIME 类型推断错误
+
+**位置**：`backend/src/main/java/com/xiyu/bid/projectworkflow/service/ProjectDocumentDownloadService.java:118`
+**原实现**：`normalized.replaceAll("/.*", "")` 会去掉 slash 后的内容，导致 `fileType="application/pdf"` 被推断为扩展名 `"application"`，默认文件名变成 `"项目文档.application"`。
+**修复**：改为 `replaceFirst("^[^/]+/", "").replaceFirst(";.*", "")`，从 MIME subtype 推断扩展名，并补充单元测试。
+**验证**：`ProjectDocumentDownloadServiceTest` 新增 `missingDocumentNameWithMimeTypeShouldInferExtensionFromSubtype`，44/44 全绿。
+
+## 重新验证
+
+- `mvn -f backend/pom.xml test -Dtest=ArchitectureTest -q` ✅
+- `mvn -f backend/pom.xml test -Dtest=ProjectDocumentStorageTypeTest,ProjectDocumentDownloadServiceTest,ProjectDocumentControllerTest,ProjectDocumentWorkflowServiceTest` → **44/44 全绿**
+- `npm run check:line-budgets` ✅
+- `npm run check:front-data-boundaries` ✅
+- `npm run check:doc-governance` ✅

@@ -37,16 +37,15 @@ class ProjectDocumentControllerTest {
     }
 
     @Test
-    void downloadProjectDocument_ShouldReturnServiceFileWithoutListingProjectDocuments() throws Exception {
-        byte[] content = "附件内容".getBytes(StandardCharsets.UTF_8);
+    void downloadProjectDocument_ShouldReturnInlineStreamForLocalFile() throws Exception {
+        byte[] bytes = "附件内容".getBytes(StandardCharsets.UTF_8);
         when(projectWorkflowService.getProjectDocumentFile(1001L, 3003L))
                 .thenReturn(new ProjectDocumentDownloadFile(
                         "task.docx",
-                        "doc-insight://task/file.docx",
-                        null,
                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        content.length,
-                        new ByteArrayResource(content)
+                        (long) bytes.length,
+                        new ByteArrayResource(bytes),
+                        null
                 ));
 
         mockMvc.perform(get("/api/projects/1001/documents/3003/download"))
@@ -54,9 +53,23 @@ class ProjectDocumentControllerTest {
                 .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString("attachment")))
                 .andExpect(header().string("Content-Disposition", org.hamcrest.Matchers.containsString("filename*=UTF-8''task.docx")))
                 .andExpect(header().string("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
-                .andExpect(content().bytes(content));
+                .andExpect(content().bytes(bytes));
 
         verify(projectWorkflowService).getProjectDocumentFile(1001L, 3003L);
         verify(projectWorkflowService, never()).getProjectDocuments(1001L);
+    }
+
+    @Test
+    void downloadProjectDocument_ShouldReturn302RedirectForObsDirectFile() throws Exception {
+        // 正式环境 id=86 场景：OBS 直传文件返回 302 + Location 重定向到预签名 URL
+        String signedUrl = "https://obs.example.com/bids/2026/07/招标文件.pdf?signature=xxx&expires=3600";
+        when(projectWorkflowService.getProjectDocumentFile(1001L, 86L))
+                .thenReturn(new ProjectDocumentDownloadFile("招标文件.pdf", null, null, null, signedUrl));
+
+        mockMvc.perform(get("/api/projects/1001/documents/86/download"))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", signedUrl))
+                .andExpect(header().string("Content-Disposition",
+                        org.hamcrest.Matchers.containsString("filename*=UTF-8''%E6%8B%9B%E6%A0%87%E6%96%87%E4%BB%B6.pdf")));
     }
 }

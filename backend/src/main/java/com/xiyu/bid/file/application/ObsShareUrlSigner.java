@@ -2,6 +2,7 @@ package com.xiyu.bid.file.application;
 
 import com.xiyu.bid.file.domain.BidFileRepository;
 import com.xiyu.bid.file.domain.DownloadPolicy;
+import com.xiyu.bid.file.domain.FileUrlPrefixes;
 import com.xiyu.bid.file.domain.gateway.ObsDownloadUrlGateway;
 import com.xiyu.bid.file.domain.model.SignedDownloadUrl;
 import com.xiyu.bid.file.entity.BidFile;
@@ -36,7 +37,7 @@ import java.util.Optional;
 public class ObsShareUrlSigner {
 
     /** obs-direct: 伪协议前缀，与前端 useObsUploadFallback.js 的 OBS_DIRECT_PREFIX 保持一致。 */
-    public static final String OBS_DIRECT_PREFIX = "obs-direct:";
+    public static final String OBS_DIRECT_PREFIX = FileUrlPrefixes.OBS_DIRECT;
 
     /** CRM 回调场景的预签名 URL 有效期（秒），取 DownloadPolicy 允许的最大值。 */
     private static final int SHARE_URL_EXPIRE_SECONDS = DownloadPolicy.MAX_EXPIRE_SECONDS;
