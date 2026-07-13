@@ -189,3 +189,58 @@ describe('ProjectDocumentTable — CO-558 download/delete permission props', () 
     expect(actions.text()).toContain('上传')
   })
 })
+
+// UX 修复：上传/删除成功后 emit('change') 通知父组件刷新兄弟列表
+describe('ProjectDocumentTable — emit change event after upload/delete', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getDocumentsMock.mockReset()
+    uploadDocumentMock.mockReset()
+    deleteDocumentMock.mockReset()
+    getDocumentsMock.mockResolvedValue({ success: true, data: generateDocs(1) })
+  })
+
+  it('上传成功后 emit change 事件', async () => {
+    const wrapper = mountTable()
+    await flushPromises()
+
+    // 模拟文件选择触发上传
+    uploadDocumentMock.mockResolvedValue({ success: true, data: { id: 99 } })
+    getDocumentsMock.mockResolvedValue({ success: true, data: generateDocs(2) })
+
+    // 模拟 input change 事件
+    const input = wrapper.find('input[type="file"]')
+    Object.defineProperty(input.element, 'files', {
+      value: [new File(['x'], 'new.pdf', { type: 'application/pdf' })],
+      configurable: true,
+    })
+    await input.trigger('change')
+    await flushPromises()
+
+    // 应 emit change 事件
+    expect(wrapper.emitted('change')).toBeTruthy()
+    expect(wrapper.emitted('change').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('删除成功后 emit change 事件', async () => {
+    const { ElMessageBox } = await import('element-plus')
+    ElMessageBox.confirm.mockResolvedValue('confirm')
+    deleteDocumentMock.mockResolvedValue({ success: true })
+    // 先有 1 条数据，删除后返回空数组
+    getDocumentsMock.mockResolvedValue({ success: true, data: generateDocs(1) })
+
+    const wrapper = mountTable({ canDelete: true })
+    await flushPromises()
+
+    const deleteButton = wrapper.findAll('.el-button').find((btn) => btn.text().includes('删除'))
+    expect(deleteButton).toBeDefined()
+
+    // 删除后重新拉取返回空
+    getDocumentsMock.mockResolvedValue({ success: true, data: [] })
+    await deleteButton.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.emitted('change')).toBeTruthy()
+    expect(wrapper.emitted('change').length).toBeGreaterThanOrEqual(1)
+  })
+})

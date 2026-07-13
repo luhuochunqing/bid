@@ -57,7 +57,7 @@ const props = defineProps({
   // CO-558: 删除权限——仅 admin/投标管理员/投标组长（admin_lead 组）
   canDelete: { type: Boolean, default: false }
 })
-const emit = defineEmits(['export'])
+const emit = defineEmits(['export', 'change'])
 const documents = ref([])
 const loading = ref(false)
 // XIYU-1E: 删除按钮 loading 保护，防止用户快速重复点击触发 ObjectOptimisticLockingFailureException
@@ -102,6 +102,7 @@ async function onFileSelected(e) {
   if (fileInputRef.value) fileInputRef.value.value = ''
   currentPage.value = 1
   await loadDocuments()
+  emit('change')
 }
 
 async function handleDownload(row) {
@@ -132,6 +133,7 @@ async function handleDelete(row) {
     await projectsApi.deleteDocument(props.projectId, row.id)
     ElMessage.success('已删除')
     await loadDocuments()
+    emit('change')
     const maxPage = Math.max(1, Math.ceil(documents.value.length / pageSize))
     if (currentPage.value > maxPage) {
       currentPage.value = maxPage
@@ -147,6 +149,8 @@ async function handleDelete(row) {
 }
 
 function handleExport() { emit('export') }
+
+defineExpose({ loadDocuments })
 
 onMounted(loadDocuments)
 </script>
