@@ -86,7 +86,8 @@ class TenderIntegrationServicePushEvaluationTest {
                 mock(TenderAuditService.class),
                 mock(UserRepository.class),
                 crmOccupancyChecker,
-                new com.xiyu.bid.webhook.application.OperatorUsernameResolver(mock(UserRepository.class)));
+                new com.xiyu.bid.webhook.application.OperatorUsernameResolver(mock(UserRepository.class)),
+                new com.xiyu.bid.tender.service.TenderDeduplicationService(tenderRepository));
     }
 
     private TenderPushRequest.EvaluationUpdate buildEval(String roleKey, String infoKey, String value) {
