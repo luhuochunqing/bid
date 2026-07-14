@@ -1142,3 +1142,108 @@ PR #1179 修了 `tenders` 表的 projectManagerId/Name，但 `tender_evaluation_
 - [XiyuContactOverrideTest.java](../../backend/src/test/java/com/xiyu/bid/integration/external/XiyuContactOverrideTest.java) — 9 个回归测试用例
 - [TenderIntegrationCommandService.java](../../backend/src/main/java/com/xiyu/bid/integration/external/TenderIntegrationCommandService.java) — 三处调用点
 - [customerInfoMatrixConfig.js](../../src/views/Bidding/detail/components/customerInfoMatrixConfig.js) — 前端矩阵配置（XIYU_CONTACT 列定义）
+
+---
+
+## 13. CRM token 三步认证流程 + 401 联合缓存失效（CO-152 / PR !1457 + !1990 + !2002）
+
+> 来源：2026-07-10 生产环境 CRM 回调失败 + 全局 03595 账号路径清理
+> PR !1457 实现 per-user token，PR !1990 重构 token 缓存，PR !2002 清理全局账号
+
+### 事故背景
+
+生产环境 CRM 回调（webhook）失败，根因是系统使用固定全局账号 `03595` 进行 OSS 登录获取 token，而该账号在生产环境密码错误。CO-152 已实现 per-user token 管理但未在生产生效，仍走全局账号路径。
+
+### CRM token 三步认证流程（唯一正确路径）
+
+```
+步骤 1：获取用户 OSS token
+  用户登录 → OssLoginFlowService.authenticateDirect() → OSS access_token
+  → 缓存到 OssUserTokenCache（key: oss:token:{username}, TTL: 1 周）
+
+步骤 2：用 OSS token 换取 CRM JWT
+  WebhookCrmTokenResolver.fetchAndCacheUserToken()
+  → 取用户 OSS token → CrmAuthService.applyCrmTokenWithOssToken()
+  → POST /common/inner/generateToken (Bearer: OSS token)
+  → CRM JWT → 缓存到 userTokenCache
+
+步骤 3：用 CRM JWT 调用 CRM 接口
+  CrmChanceService / WebhookHttpSender
+  → 用 CRM JWT 作为 Authorization 头调用 CRM API
+```
+
+### 核心设计原则
+
+1. **无全局系统账号**：禁止使用固定账号（如 03595）获取全局 token。每个用户的 CRM 调用必须使用自己的 OSS token
+2. **用户 OSS token 缓存**：登录时缓存到 Redis（`oss:token:{username}`），TTL 为 1 周（从 OSS 响应 `expires_in` 解析实际值），登出时清除
+3. **401 联合缓存失效**：CRM 调用返回 401 时，必须联合清除三组缓存：
+   - 用户 OSS token 缓存（`OssUserTokenCache`）
+   - 用户 Profile 缓存（`UserProfileCache`）
+   - CRM JWT 缓存（`userTokenCache`）
+4. **TokenUnavailableException 用于可重试失败**：用户 OSS token 不可用时抛 `TokenUnavailableException`，webhook 投递可重试。不能抛 `IllegalStateException`（会导致立即死信）
+5. **SSO 用户无 OSS token**：SSO 登录用户无法获取 OSS token，webhook 回调会失败。这是已知限制，不回退到全局账号
+
+### 关键代码路径
+
+| 组件 | 职责 | 关键方法 |
+|---|---|---|
+| `OssLoginFlowService` | 用户登录时获取 OSS token | `authenticateDirect()` |
+| `OssUserTokenCache` | 缓存用户 OSS token | `get(username)` / `put(username, token)` / `evict(username)` |
+| `WebhookCrmTokenResolver` | 用 OSS token 换 CRM JWT | `resolveToken(username)` / `fetchAndCacheUserToken()` |
+| `CrmAuthService` | CRM token 管理 | `applyCrmTokenWithOssToken(ossToken)` / `getValidTokenForUser(username)` |
+| `AuthService` | 登出时清除 token | `logout()` 清除 OSS token + CRM JWT |
+
+### 401 联合缓存失效逻辑
+
+```java
+// CRM 调用返回 401 时，必须联合清除三组缓存
+public void onCrmAuthFailure(String username) {
+    ossUserTokenCache.evict(username);      // 1. 清 OSS token
+    userProfileCache.evict(username);       // 2. 清 Profile（含 employeeNumber 等）
+    userTokenCache.evict(username);         // 3. 清 CRM JWT
+    log.warn("CRM auth failed for user {}, cleared all token caches", username);
+}
+```
+
+### 全局 03595 账号路径清理（PR !2002）
+
+PR !2002 彻底删除了 `CrmAuthService` 中的全局 03595 相关代码：
+- 删除 `ossTokenCache` / `crmTokenCache` 全局缓存
+- 删除 `getValidToken()` / `getValidOssToken()` 等全局方法
+- 保留 `getValidTokenForUser(username)` per-user 方法
+- 用户 OSS token 不可用时直接抛 `TokenUnavailableException`，无 fallback
+
+### 最大教训：全局账号是权限扩散的根源
+
+| 验证手段 | 结论 | 是否可靠 |
+|---|---|---|
+| 全局账号能获取 token | "成功" | ❌ 不可靠，生产环境密码可能不同 |
+| CRM 接口返回 200 | "成功" | ❌ 不可靠，token 可能来自错误账号 |
+| **per-user token 调用** | **200 → 正确；401 → token 失效** | **✅ 唯一可靠** |
+
+**铁律**：CRM 调用必须使用当前用户的 OSS token → generateToken → CRM JWT 三步流程。禁止使用全局固定账号获取 token。401 时必须联合清除三组缓存（OSS token + Profile + CRM JWT）。`TokenUnavailableException` 用于可重试失败，不立即死信。
+
+### 通用规则
+
+1. **三步认证流程不可省略**：用户 OSS token → generateToken → CRM JWT，每一步都必须使用前一步的真实 token
+2. **禁止全局账号 fallback**：用户 token 不可用时抛异常，不回退到全局账号
+3. **401 联合缓存失效**：CRM 401 必须清三组缓存，只清一组会导致下次请求仍用失效 token
+4. **Token TTL 从响应解析**：不要硬编码 TTL（如 1 周），从 OSS 响应 `expires_in` 字段解析实际值
+5. **登出清除 token**：用户登出时必须清除 OSS token 缓存，不能等 TTL 自然过期
+6. **API Key 路径无用户上下文**：API Key 认证路径下需通过 `OperatorUsernameResolver` 解析可用 username（creator → PM → event operator 优先级）
+
+### 与 §8.5 的关系
+
+§8.5 记录了 `CrmTenderLinkService.linkIfPresent` 调用链硬编码 `username=null` 导致反查失败的问题。本节补充了 CRM token 三步认证流程的完整设计原则，§8.5 是本节流程在调用链层面的执行缺陷。
+
+### 相关文档
+
+- [CrmAuthService.java](../../backend/src/main/java/com/xiyu/bid/crm/application/CrmAuthService.java) — per-user token 管理
+- [OssUserTokenCache.java](../../backend/src/main/java/com/xiyu/bid/auth/application/OssUserTokenCache.java) — OSS token 缓存
+- [WebhookCrmTokenResolver.java](../../backend/src/main/java/com/xiyu/bid/webhook/application/WebhookCrmTokenResolver.java) — CRM token 解析
+- [OperatorUsernameResolver.java](../../backend/src/main/java/com/xiyu/bid/webhook/application/OperatorUsernameResolver.java) — username 解析（creator → PM → event operator）
+- [lessons-learned.md §55](./lessons-learned.md) — Webhook 入队必须解析可用 OSS username
+- [lessons-learned.md §8.5](#85-crmtenedeinkservice-调用链硬编码-usernamenull反查拿不到-crm-tokenco-277-第-6-次复发--pr-2041) — 调用链硬编码 username=null 根因
+- PR !1457: per-user token 实现
+- PR !1990: token 缓存重构 + 401 联合失效
+- PR !2002: 全局 03595 账号路径清理
