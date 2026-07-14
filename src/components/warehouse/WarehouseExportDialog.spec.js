@@ -54,6 +54,14 @@ describe('WarehouseExportDialog', () => {
     expect(wrapper.vm.form.attachmentTypes).toEqual([])
   })
 
+  it('defaults attachmentForms to [WORD_COMBINED] (CO-582 §3.1)', () => {
+    const wrapper = mount(WarehouseExportDialog, {
+      props: { modelValue: true },
+      global: { stubs: globalStubs }
+    })
+    expect(wrapper.vm.form.attachmentForms).toEqual(['WORD_COMBINED'])
+  })
+
   it('defaults scope to filter when no defaultScope provided', () => {
     const wrapper = mount(WarehouseExportDialog, {
       props: { modelValue: true },
@@ -85,6 +93,17 @@ describe('WarehouseExportDialog', () => {
     expect(wrapper.vm.form.scope).toBe('filter')
   })
 
+  it('resets attachmentForms to default [WORD_COMBINED] when dialog reopens (CO-582)', async () => {
+    const wrapper = mount(WarehouseExportDialog, {
+      props: { modelValue: true },
+      global: { stubs: globalStubs }
+    })
+    wrapper.vm.form.attachmentForms = ['ATTACHMENTS_FOLDER', 'WORD_COMBINED']
+    await wrapper.setProps({ modelValue: false })
+    await wrapper.setProps({ modelValue: true })
+    expect(wrapper.vm.form.attachmentForms).toEqual(['WORD_COMBINED'])
+  })
+
   it('sends attachmentScope and attachmentTypes in ids mode', async () => {
     http.post.mockResolvedValueOnce({ data: { taskId: 42 } })
     const wrapper = mount(WarehouseExportDialog, {
@@ -102,6 +121,25 @@ describe('WarehouseExportDialog', () => {
         ids: [1, 2],
         attachmentScope: 'PARTIAL',
         attachmentTypes: ['PROPERTY_CERTIFICATE', 'PHOTOS']
+      })
+    )
+  })
+
+  it('sends attachmentForms in payload when handleStart (CO-582 §3.1)', async () => {
+    http.post.mockResolvedValueOnce({ data: { taskId: 50 } })
+    const wrapper = mount(WarehouseExportDialog, {
+      props: { modelValue: true, defaultScope: 'ids', selectedIds: [1, 2] },
+      global: { stubs: globalStubs }
+    })
+    wrapper.vm.form.attachmentForms = ['ATTACHMENTS_FOLDER', 'WORD_COMBINED']
+    wrapper.vm.handleStart()
+    await flushPromises()
+
+    expect(http.post).toHaveBeenCalledWith(
+      '/api/knowledge/warehouses/export',
+      expect.objectContaining({
+        ids: [1, 2],
+        attachmentForms: ['ATTACHMENTS_FOLDER', 'WORD_COMBINED']
       })
     )
   })
@@ -135,6 +173,21 @@ describe('WarehouseExportDialog', () => {
     expect(wrapper.vm.validation.valid).toBe(false)
     expect(wrapper.vm.validation.message).toBe('请至少选择一种附件类型')
     wrapper.vm.form.attachmentTypes = ['INVOICE']
+    expect(wrapper.vm.validation.valid).toBe(true)
+    expect(wrapper.vm.validation.message).toBe('')
+  })
+
+  it('disables start export when no attachmentForms selected (CO-582 §3.1)', async () => {
+    const wrapper = mount(WarehouseExportDialog, {
+      props: { modelValue: true },
+      global: { stubs: globalStubs }
+    })
+    expect(wrapper.vm.validation.valid).toBe(true)
+    wrapper.vm.form.attachmentForms = []
+    await flushPromises()
+    expect(wrapper.vm.validation.valid).toBe(false)
+    expect(wrapper.vm.validation.message).toBe('请至少选择一种附件组织形式')
+    wrapper.vm.form.attachmentForms = ['WORD_COMBINED']
     expect(wrapper.vm.validation.valid).toBe(true)
     expect(wrapper.vm.validation.message).toBe('')
   })

@@ -7,6 +7,7 @@ import com.xiyu.bid.warehouse.domain.WarehouseLedgerExportPolicy;
 import com.xiyu.bid.warehouse.domain.WarehouseLedgerExportPolicy.Section;
 import com.xiyu.bid.warehouse.domain.WarehouseStatus;
 import com.xiyu.bid.warehouse.dto.WarehouseFilterDTO;
+import com.xiyu.bid.warehouse.domain.WarehouseAttachmentOrganizationForm;
 import com.xiyu.bid.warehouse.domain.WarehouseAttachmentType;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseAttachmentEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseAttachmentRepository;
@@ -89,7 +90,9 @@ public class WarehouseLedgerExportAppService {
             String[] headers = WarehouseLedgerExportPolicy.getHeaders(req.sections());
             List<String[]> rows = WarehouseLedgerExportPolicy.buildRows(entities, req.sections(), usernameById, attachmentsByWhId);
             byte[] xlsx = excelWriter.write(headers, rows);
-            WarehouseExportZipBuilder.ZipBuildResult zip = zipBuilder.buildZip(xlsx, entities, attachmentsByWhId);
+            // 台账导出无 Word 合订本需求（CO-582 仅作用于仓库信息模块导出），传 null + 保留附件目录
+            WarehouseExportZipBuilder.ZipBuildResult zip = zipBuilder.buildZip(xlsx, entities, attachmentsByWhId,
+                    null, Set.of(WarehouseAttachmentOrganizationForm.ATTACHMENTS_FOLDER));
             String filePath = saveZip(taskId, zip);
             complete(taskId, operatorId, operatorUsername, entities, req, filePath, zip, startMs);
         } catch (RuntimeException e) {
