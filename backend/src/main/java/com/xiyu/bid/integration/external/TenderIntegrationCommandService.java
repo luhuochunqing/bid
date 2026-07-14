@@ -11,6 +11,7 @@ import com.xiyu.bid.webhook.application.OperatorUsernameResolver;
 import com.xiyu.bid.webhook.domain.OperatorDisplayName;
 import com.xiyu.bid.webhook.domain.TenderStatusChangedEvent;
 import com.xiyu.bid.tender.service.TenderCrmOccupancyChecker;
+import com.xiyu.bid.tender.service.TenderDeduplicationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -42,6 +43,7 @@ public class TenderIntegrationCommandService {
     private final UserRepository userRepository;
     private final TenderCrmOccupancyChecker crmOccupancyChecker;
     private final OperatorUsernameResolver operatorUsernameResolver;
+    private final TenderDeduplicationService tenderDeduplicationService;
 
     /**
      * 幂等推送标讯。
@@ -114,17 +116,11 @@ public class TenderIntegrationCommandService {
                 || request.getBidOpeningTime() == null || request.getBidOpeningTime().isBlank()) {
             return;
         }
-
-        String purchaserName = InputSanitizer.sanitizeString(request.getCustomerName(), 500);
-        LocalDateTime registrationDeadline = TenderIntegrationMapper.parseDateTime("registrationDeadline", request.getRegistrationDeadline());
-        LocalDateTime bidOpeningTime = TenderIntegrationMapper.parseDateTime("bidOpeningTime", request.getBidOpeningTime());
-        tenderRepository.findFirstByPurchaserNameAndRegistrationDeadlineAndBidOpeningTime(
-                purchaserName, registrationDeadline, bidOpeningTime)
-                .ifPresent(existing -> {
-                    log.warn("Duplicate tender business key rejected: existingId={}, purchaserName={}, registrationDeadline={}, bidOpeningTime={}",
-                            existing.getId(), purchaserName, registrationDeadline, bidOpeningTime);
-                    throw new IllegalArgumentException("投标管理系统该标讯已存在");
-                });
+        tenderDeduplicationService.rejectIfDuplicate(
+                InputSanitizer.sanitizeString(request.getCustomerName(), 500),
+                request.getProjectType() != null ? InputSanitizer.sanitizeString(request.getProjectType(), 20) : null,
+                TenderIntegrationMapper.parseDateTime("registrationDeadline", request.getRegistrationDeadline()),
+                TenderIntegrationMapper.parseDateTime("bidOpeningTime", request.getBidOpeningTime()));
     }
 
     private TenderPushResponse handleExistingTender(Tender existing, TenderPushRequest request, Long userId, String externalId) {

@@ -86,7 +86,8 @@ class TenderIntegrationServicePushEvaluationTest {
                 mock(TenderAuditService.class),
                 mock(UserRepository.class),
                 crmOccupancyChecker,
-                new com.xiyu.bid.webhook.application.OperatorUsernameResolver(mock(UserRepository.class)));
+                new com.xiyu.bid.webhook.application.OperatorUsernameResolver(mock(UserRepository.class)),
+                new com.xiyu.bid.tender.service.TenderDeduplicationService(tenderRepository));
     }
 
     private TenderPushRequest.EvaluationUpdate buildEval(String roleKey, String infoKey, String value) {
@@ -269,7 +270,7 @@ class TenderIntegrationServicePushEvaluationTest {
         request.setBidOpeningTime("2026-07-01T09:30:00");
 
         assertThatThrownBy(() -> commandService.pushTender(request, null))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(com.xiyu.bid.exception.TenderDuplicateException.class)
                 .hasMessage("投标管理系统该标讯已存在");
         assertThat(tenderRepository.count()).isEqualTo(countBefore);
         assertThat(tenderRepository.findByExternalId("CRM:NEW-001")).isEmpty();
