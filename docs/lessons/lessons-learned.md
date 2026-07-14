@@ -3941,3 +3941,277 @@ ORDER BY created_at DESC LIMIT 20;
 - `OperatorUsernameResolver` javadoc 顶部追加"使用指引"小节，明确两个方法的语义差异和适用场景
 - 凡是 username 进入 `CrmAuthService.getValidTokenForUser(username)` 链路的调用点，必须用 `resolveForCrmLookup`
 - 后续任何"新增 CRM token 换取调用点"的 PR，必须 grep `resolveDeliveryUsername` 确认是否需要改为 `resolveForCrmLookup`
+
+---
+
+## 56. OBS 直传三层保护：构建变量缺失导致 isObsEnabled=false（2026-07-12/13 / PR !2059）
+
+> 来源：2026-07-12 测试环境第 82 次部署 + 2026-07-13 测试环境第 84 次部署事故
+> PR !2059 修复并引入三层防护机制
+
+### 问题背景
+
+前端 OBS 直传功能依赖构建时环境变量 `VITE_OBS_ENABLED=true`。但部署脚本未固化该变量，导致：
+
+1. **首次遗漏**：测试环境第 82 次部署时前端构建未传入 `VITE_OBS_ENABLED=true`，产物中 `isObsEnabled=false`（`dist/assets/Detail-*.js` 中值为 `!1`）
+2. **覆盖事故**：测试环境用正确版本（Release `66c245218`）部署后，后续一次不完整部署（Release `f0366414b`）覆盖了正确前端产物，`isObsEnabled` 回退为 `false`
+3. **生产同步问题**：生产环境因手动命令绕过脚本同样存在该问题
+
+### 根因：构建变量未固化 + 部署覆盖无校验
+
+| 断点 | 表现 | 根因 |
+|---|---|---|
+| 构建脚本未固化变量 | `npm run build` 不传 `VITE_OBS_ENABLED` | 脚本未将业务关键构建变量硬编码 |
+| 产物无验证 | `isObsEnabled=false` 的产物被部署 | 缺少构建后校验步骤 |
+| 部署覆盖无感知 | 后续部署覆盖正确产物 | 无部署后 OBS 状态检查 |
+
+### 修复：三层防护机制（PR !2059）
+
+1. **脚本固化层**：部署脚本中硬编码 `VITE_OBS_ENABLED=true`
+   - 推荐命令：`VITE_OBS_ENABLED=true bash scripts/release/package-release.sh`
+   - 手动构建：`VITE_OBS_ENABLED=true npm run build`
+
+2. **构建期校验层**：构建后校验 `dist/assets/Detail-*.js` 中 `isObsEnabled` 值
+   - 正确值：`!0` 或 `true`
+   - 错误值：`!1` 或 `false`
+   - 校验 `.upload()` 调用数：启用时 2 处，禁用时 0 处
+
+3. **部署后验证层**：部署后检查前端产物
+   - 验证 `/srv/www/xiyu-bid/assets/Detail-*.js` 含 `.upload()` 调用
+   - 验证 `obs-direct:` 前缀存在
+   - 验证 `obsEnabled=true`
+
+### 最大教训：业务关键构建变量不能依赖人工记忆
+
+| 验证手段 | 结论 | 是否可靠 |
+|---|---|---|
+| 前端构建无报错 | "成功" | ❌ 不可靠，变量未传也不报错 |
+| 后端健康检查 UP | "正常" | ❌ 不可靠，与前端 OBS 无关 |
+| **产物中 isObsEnabled 值** | **false → 未启用；true → 已启用** | **✅ 唯一可靠** |
+| **.upload() 调用数** | **0 → 禁用；2 → 启用** | **✅ 端到端可靠** |
+
+**铁律**：业务关键构建变量（如 `VITE_OBS_ENABLED`）必须固化在部署脚本中，不能依赖人工传入。构建产物必须有机验步骤，部署后必须有功能验证。后续不完整部署可能覆盖正确产物，部署后验证是最后一道防线。
+
+### 通用规则
+
+1. **VITE_ 前缀变量在构建时注入**：Vite 构建变量是编译期常量，运行时无法修改。漏传 = 产物中值为 `false`/`undefined`
+2. **部署脚本必须固化业务关键变量**：不能依赖运维人员记忆或手动传入
+3. **构建产物校验**：对关键功能（OBS 直传、AI 分析等）的产物做 grep 校验，确认功能开关已启用
+4. **部署后功能验证**：部署后验证前端产物的功能开关状态，防止后续部署覆盖
+
+### 相关文档
+
+- `scripts/release/package-release.sh` — 构建脚本（已固化 `VITE_OBS_ENABLED=true`）
+- `scripts/release/deploy-prod.sh` — 生产部署脚本（含 OBS 校验）
+- `docs/release/deploy-report-2026-07-12-82nd-test.md` — 第 82 次测试部署报告（首次修复）
+- `docs/release/deploy-report-2026-07-13-85th-test.md` — 第 85 次测试部署报告（三层防护验证）
+
+---
+
+## 57. 前端 N+1 GET 请求触发 429 限流：列表页并发详情加载（2026-07-10 / Account.vue + bar.js / PR !1997 + !2000）
+
+> 来源：2026-07-10 生产环境 Account-jlC7xUrD.js 大量 429 错误
+> PR !1997 修复 Account.vue，PR !2000 修复 bar.js
+
+### 问题背景
+
+前端列表页加载时对每行数据并发调用 GET /api/platform/accounts/{id} 获取详情，形成 N+1 请求模式。当列表行数较多时（如 20+ 行），瞬时并发请求超过后端 100 次/60 秒的限流阈值，导致大量 429 错误。
+
+两处独立但同类型的 bug：
+
+| 页面 | 文件 | 请求模式 | 限流接口 |
+|---|---|---|---|
+| 平台账号管理 | `src/views/Resource/Account.vue` | 列表每行并发 GET /api/platform/accounts/{id} | 100 次/60 秒 |
+| BAR 站点台账 | `src/stores/bar.js` | getSites + getSiteById 并发 N+1 | 同限流阈值 |
+
+### 根因：列表 N+1 GET 请求无限流控制
+
+```javascript
+// 错误模式：Promise.all + map 并发请求所有详情
+const details = await Promise.all(
+  list.map(item => api.getDetail(item.id))  // N 行 = N 个并发请求
+)
+```
+
+当 N > 限流阈值时，瞬时并发触发 429。后端限流配置为 100 次/60 秒，前端 20 行列表 × 多个接口 = 轻松超限。
+
+### 修复：分批并发加载
+
+```javascript
+// 正确模式：分批并发，控制并发数
+const DETAIL_CONCURRENCY = 5;  // Account.vue
+const SITE_DETAIL_BATCH_SIZE = 2;  // bar.js
+const BORROW_RECORD_BATCH_SIZE = 5;  // bar.js
+
+async function loadDetailsInBatches(items, concurrency) {
+  const results = [];
+  for (let i = 0; i < items.length; i += concurrency) {
+    const batch = items.slice(i, i + concurrency);
+    const batchResults = await Promise.all(
+      batch.map(item => api.getDetail(item.id))
+    );
+    results.push(...batchResults);
+  }
+  return results;
+}
+```
+
+### 最大教训：列表页 N+1 GET 请求必须控制并发
+
+| 验证手段 | 结论 | 是否可靠 |
+|---|---|---|
+| 列表正常加载 | "成功" | ❌ 不可靠，少量数据时不触发限流 |
+| 单个详情请求 | "正常" | ❌ 不可靠，单请求不触发限流 |
+| **大量数据列表加载** | **429 错误 → 超限流阈值** | **✅ 唯一可靠** |
+
+**铁律**：前端列表页禁止用 `Promise.all + map` 对每行并发 GET 请求详情。必须使用分批并发加载（`DETAIL_CONCURRENCY=5` 或更低），控制瞬时并发数在限流阈值内。
+
+### 通用规则
+
+1. **后端 GET 接口有限流阈值**：当前系统 GET 接口限流为 100 次/60 秒，前端并发请求必须控制在此阈值内
+2. **列表 N+1 是高风险模式**：列表页每行调 GET 详情接口时，必须用分批并发，不能用 `Promise.all + map`
+3. **分批并发数建议**：`DETAIL_CONCURRENCY=5`（保守）或 `BATCH_SIZE=2-5`（根据接口耗时调整）
+4. **系统性排查**：修复一处后必须扫描 `src/` 下所有 `Promise.all` + `map` 组合的 N+1 请求模式，防止其他页面存在同类 bug
+5. **POST 请求不受此限流影响**：POST 请求通常不触发 GET 限流，但仍建议控制并发
+
+### 排查方法
+
+```bash
+# 扫描前端所有 Promise.all + map 组合的 N+1 请求模式
+grep -rn "Promise\.all.*\.map" src/ --include="*.vue" --include="*.js"
+# 重点关注 .map 内含 api.get / api.fetch / getDetail 等 GET 请求的调用
+```
+
+### 相关文档
+
+- `src/views/Resource/Account.vue` — `loadDetailsInBatches` 函数（DETAIL_CONCURRENCY=5）
+- `src/stores/bar.js` — `runInBatches` 函数（SITE_DETAIL_BATCH_SIZE=2, BORROW_RECORD_BATCH_SIZE=5）
+- `src/stores/bar.spec.js` — 分批并发单元测试
+- PR !1997: Account.vue N+1 修复
+- PR !2000: bar.js N+1 修复
+
+---
+
+## 58. 业绩模块部署陷阱：tar 解包路径 + MySQL 字符集 + 数据库备份（2026-07-11 / 测试 + 生产环境）
+
+> 来源：2026-07-11 业绩模块初始化数据导入测试和生产环境
+> 涉及环境：测试 172.16.38.78 + 生产 172.16.10.149
+
+### 问题背景
+
+业绩模块初始化数据导入脚本存在三个独立陷阱，导致首次部署时附件 404 + 中文乱码：
+
+| 陷阱 | 表现 | 根因 |
+|---|---|---|
+| tar 解包路径多一层 | 附件 404 错误 | tar 包解压后多出 `performance/` 目录，附件实际路径与 ATTACHMENT_ROOT 不匹配 |
+| MySQL 字符集 latin1 | 中文乱码 | MySQL 客户端默认 latin1 字符集，导入中文数据时乱码 |
+| 无数据备份 | 回滚困难 | 部署脚本未包含数据库备份步骤 |
+
+### 根因分析
+
+1. **tar 解包路径**：`tar -xf performance.tar -C $ATTACHMENT_ROOT` 解压后实际路径为 `$ATTACHMENT_ROOT/performance/xxx`，而系统期望路径为 `$ATTACHMENT_ROOT/xxx`。应解压到 ATTACHMENT_ROOT 的父目录或使用 `--strip-components=1`
+
+2. **MySQL 字符集**：MySQL 客户端默认 `character_set=latin1`，导入 UTF-8 编码的 SQL 文件时中文全部乱码。必须显式指定 `--default-character-set=utf8mb4`
+
+3. **数据备份缺失**：业绩模块导入涉及大量数据（766 条业绩记录 + 3870 个附件），无备份时回滚需手动清理
+
+### 修复方案
+
+```bash
+# 1. tar 解包到 ATTACHMENT_ROOT 父目录（或用 --strip-components=1）
+tar -xf performance.tar -C $(dirname $ATTACHMENT_ROOT)
+
+# 2. MySQL 导入显式指定 utf8mb4 字符集
+mysql --default-character-set=utf8mb4 -u $DB_USER -p$DB_PASSWORD $DB_NAME < performance.sql
+
+# 3. 导入前自动备份
+mysqldump --default-character-set=utf8mb4 -u $DB_USER -p$DB_PASSWORD $DB_NAME \
+  > backup-before-performance-$(date +%Y%m%d%H%M%S).sql.gz
+
+# 4. 生产环境防护：要求 YES 确认
+read -p "确认导入生产环境业绩数据？(YES to continue): " confirm
+if [ "$confirm" != "YES" ]; then
+  echo "取消导入"
+  exit 1
+fi
+```
+
+### 最大教训：数据导入脚本必须处理路径、字符集、备份三件事
+
+| 验证手段 | 结论 | 是否可靠 |
+|---|---|---|
+| 导入脚本无报错 | "成功" | ❌ 不可靠，路径错也不报错 |
+| MySQL 导入完成 | "成功" | ❌ 不可靠，乱码也不报错 |
+| **附件可访问** | **404 → 路径错；200 → 正确** | **✅ 唯一可靠** |
+| **中文显示正常** | **乱码 → 字符集错；正常 → 正确** | **✅ 端到端可靠** |
+
+**铁律**：数据导入脚本必须显式处理 tar 解包路径（`--strip-components` 或解到父目录）、MySQL 字符集（`--default-character-set=utf8mb4`）、数据备份（导入前自动 dump）三件事。生产环境导入必须有 YES 确认防护。
+
+### 通用规则
+
+1. **tar 解包路径**：解压前先检查 tar 包内部结构，确认是否有额外目录层级。使用 `tar -tf` 预览内容
+2. **MySQL 字符集**：所有 MySQL 命令显式指定 `--default-character-set=utf8mb4`，不依赖客户端默认值
+3. **数据备份**：导入前自动 `mysqldump` 备份，命名含时间戳
+4. **生产环境防护**：数据导入脚本必须要求 `YES`（全大写）确认，防止误操作
+5. **导入后验证**：验证附件可访问（HTTP 200）+ 中文显示正常 + 记录数符合预期
+
+### 相关部署结果
+
+- 测试环境（172.16.38.78）：首次导入中文乱码，用 utf8mb4 重新导入后修复
+- 生产环境（172.16.10.149）：766 条业绩记录 + 3870 个附件，健康检查和附件访问均正常
+
+---
+
+## 59. 生产环境测试数据清理：99 表清理 + 知识库数据保留（2026-07-13 / 上线前数据准备）
+
+> 来源：2026-07-13 生产环境正式上线前测试数据清理
+> 涉及环境：生产 172.16.10.149（winbid.ehsy.com）
+
+### 问题背景
+
+生产环境正式上线前，需清理测试期间产生的测试数据（标讯、项目、通知、审计日志等），同时保留知识库正式数据（案例库、资质证书、人员证书、仓库信息、业绩管理、品牌授权）和系统配置。
+
+### 清理范围
+
+| 类别 | 表数量 | 说明 |
+|---|---|---|
+| 标讯相关 | 20 表 | 51 条 tenders + 评估表 + 附件等 |
+| 项目相关 | 64 表 | 20 个 projects + 项目档案 + 文档等 |
+| 通知相关 | 7 表 | 367 条业务通知 |
+| 其他 | 7 表 | 419 条审计日志 + 文件队列等 |
+| **合计删除** | **98 表** | — |
+| 仅更新不删除 | 2 表 | bar_certificates、business_qualifications（清测试数据保留正式数据） |
+
+### 保留范围
+
+| 类别 | 说明 |
+|---|---|
+| 知识库数据 | 案例库、资质证书、人员证书、仓库信息、业绩管理、品牌授权 |
+| 系统配置 | tender_source_configs（标讯源配置） |
+| OSS 用户 | 全部保留，不删除 |
+| 系统表 | Flyway 迁移记录、角色配置等 |
+
+### 最大教训：生产数据清理必须区分测试数据与正式数据
+
+| 验证手段 | 结论 | 是否可靠 |
+|---|---|---|
+| 表名包含 "test" | "测试数据" | ❌ 不可靠，测试数据可能在正式表中 |
+| 数据创建时间 | "早期数据" | ❌ 不可靠，正式数据也可能早期创建 |
+| **业务确认** | **用户明确指定哪些是测试数据** | **✅ 唯一可靠** |
+| **保留清单核对** | **逐表核对保留清单** | **✅ 端到端可靠** |
+
+**铁律**：生产环境数据清理必须由用户明确指定清理范围和保留范围，不能靠表名或时间猜测。清理前必须生成完整的删除表清单和保留表清单，供用户逐项核对。清理脚本必须有 dry-run 模式预览影响范围。
+
+### 通用规则
+
+1. **用户确认优先**：哪些数据是测试数据、哪些是正式数据，必须由用户明确指定
+2. **清理清单文档化**：生成 `cleanup-table-list-YYYY-MM-DD.md` 文档，列出所有删除/更新/保留的表
+3. **保留清单同样重要**：必须列出所有保留的表，方便逐项核对
+4. **仅更新不删除的表**：部分表（如 bar_certificates）需清测试数据但保留正式数据，不能整表删除
+5. **SQL 脚本由运维执行**：清理 SQL 脚本交给运维执行，开发人员不直接操作生产数据库
+6. **清理后验证**：清理后验证知识库数据完整、系统功能正常
+
+### 相关文档
+
+- `docs/release/cleanup-table-list-2026-07-13.md` — 清理表清单（98 表删除 + 2 表更新 + 保留清单）
+- 清理 SQL 脚本（由运维执行）
