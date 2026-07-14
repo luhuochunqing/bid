@@ -116,20 +116,11 @@ public class TenderIntegrationCommandService {
                 || request.getBidOpeningTime() == null || request.getBidOpeningTime().isBlank()) {
             return;
         }
-        Tender probe = new Tender();
-        probe.setPurchaserName(InputSanitizer.sanitizeString(request.getCustomerName(), 500));
-        if (request.getProjectType() != null) {
-            probe.setProjectType(InputSanitizer.sanitizeString(request.getProjectType(), 20));
-        }
-        probe.setRegistrationDeadline(TenderIntegrationMapper.parseDateTime("registrationDeadline", request.getRegistrationDeadline()));
-        probe.setBidOpeningTime(TenderIntegrationMapper.parseDateTime("bidOpeningTime", request.getBidOpeningTime()));
-        var duplicates = tenderDeduplicationService.findDuplicates(probe);
-        if (!duplicates.isEmpty()) {
-            log.warn("Duplicate tender rejected: existingId={}, purchaserName={}, projectType={}, regDeadline={}, bidOpen={}",
-                    duplicates.get(0).getId(), probe.getPurchaserName(), probe.getProjectType(),
-                    probe.getRegistrationDeadline(), probe.getBidOpeningTime());
-            throw new IllegalArgumentException("投标管理系统该标讯已存在");
-        }
+        tenderDeduplicationService.rejectIfDuplicate(
+                InputSanitizer.sanitizeString(request.getCustomerName(), 500),
+                request.getProjectType() != null ? InputSanitizer.sanitizeString(request.getProjectType(), 20) : null,
+                TenderIntegrationMapper.parseDateTime("registrationDeadline", request.getRegistrationDeadline()),
+                TenderIntegrationMapper.parseDateTime("bidOpeningTime", request.getBidOpeningTime()));
     }
 
     private TenderPushResponse handleExistingTender(Tender existing, TenderPushRequest request, Long userId, String externalId) {

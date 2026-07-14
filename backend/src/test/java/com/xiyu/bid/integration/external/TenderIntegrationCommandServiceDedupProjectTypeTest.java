@@ -13,6 +13,7 @@ import com.xiyu.bid.tender.service.TenderCrmOccupancyChecker;
 import com.xiyu.bid.tender.service.TenderDeduplicationService;
 import com.xiyu.bid.tender.service.TenderEvaluationSubmissionMapper;
 import com.xiyu.bid.tender.service.TenderMapper;
+import com.xiyu.bid.exception.TenderDuplicateException;
 import com.xiyu.bid.project.service.ProjectManagerDepartmentEnricher;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -139,7 +140,7 @@ class TenderIntegrationCommandServiceDedupProjectTypeTest {
         TenderPushRequest req = buildPushRequest("综合");
 
         assertThatThrownBy(() -> commandService.pushTender(req, 1L))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(TenderDuplicateException.class)
                 .hasMessageContaining("投标管理系统该标讯已存在");
     }
 
@@ -165,7 +166,7 @@ class TenderIntegrationCommandServiceDedupProjectTypeTest {
         TenderPushRequest req = buildPushRequest(null);
 
         assertThatThrownBy(() -> commandService.pushTender(req, 1L))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(TenderDuplicateException.class)
                 .hasMessageContaining("投标管理系统该标讯已存在");
     }
 
