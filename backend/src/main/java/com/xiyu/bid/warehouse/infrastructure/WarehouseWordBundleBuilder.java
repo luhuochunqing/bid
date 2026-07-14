@@ -47,7 +47,7 @@ public class WarehouseWordBundleBuilder {
     private static final Set<String> IMAGE_EXTENSIONS = Set.of("jpg", "jpeg", "png");
 
     @Value("${warehouse.attachment.root:/data/attachments/warehouse}")
-    String attachmentRoot;
+    private String attachmentRoot;
 
     /** 生成 Word 合订本字节流；单个附件失败不影响整体。 */
     public byte[] buildBundle(List<? extends WarehouseReadModel> entities,
@@ -60,6 +60,9 @@ public class WarehouseWordBundleBuilder {
 
         try (XWPFDocument doc = new XWPFDocument();
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+
+            // §3.9：页面尺寸与页边距
+            WarehouseWordBundlePageSetup.applyTo(doc);
 
             // 文档标题（§3.9：居中，黑体 18pt，加粗）
             writeDocumentTitle(doc);
@@ -211,10 +214,8 @@ public class WarehouseWordBundleBuilder {
                     writeBodyText(doc, LABEL_IMAGE_READ_FAILED);
                     continue;
                 }
-                boolean inserted = insertImage(doc, img, null);
-                if (inserted) {
-                    addPageBreak(doc);  // §3.7.2：单张照片跨页时自动分页
-                }
+                insertImage(doc, img, null);
+                // §3.7.2：照片按自然流式排版跨页，不再强制分页
                 img.flush();
             } catch (IOException e) {
                 log.warn("图片读取失败: file={}", file, e);
@@ -266,7 +267,7 @@ public class WarehouseWordBundleBuilder {
             p.setAlignment(ParagraphAlignment.CENTER);
             XWPFRun run = p.createRun();
             ByteArrayOutputStream imgOut = new ByteArrayOutputStream();
-            javax.imageio.ImageIO.write(img, "png", imgOut);
+            ImageIO.write(img, "png", imgOut);
             run.addPicture(new ByteArrayInputStream(imgOut.toByteArray()),
                     XWPFDocument.PICTURE_TYPE_PNG,
                     "image.png",

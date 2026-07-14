@@ -128,4 +128,15 @@ class WarehouseExportControllerTest {
         verify(exportAppService).export(any(), eq(1L), any(), any(),
                 eq(Set.of(WarehouseAttachmentOrganizationForm.WORD_COMBINED)));
     }
+
+    @Test
+    @DisplayName("body.attachmentForms 类型非法 → 400 Bad Request")
+    void triggerExport_nonListAttachmentForms_returns400() throws Exception {
+        String body = "{\"attachmentForms\":\"WORD_COMBINED\"}";
+
+        mockMvc.perform(post("/api/knowledge/warehouses/export")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+    }
 }

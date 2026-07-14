@@ -143,7 +143,8 @@ public class WarehouseExportController {
     private Set<WarehouseAttachmentOrganizationForm> parseAttachmentForms(Map<String, Object> body) {
         if (body == null) return Set.of(WarehouseAttachmentOrganizationForm.WORD_COMBINED);
         Object v = body.get("attachmentForms");
-        if (!(v instanceof List<?> rawList)) return Set.of(WarehouseAttachmentOrganizationForm.WORD_COMBINED);
+        if (v == null) return Set.of(WarehouseAttachmentOrganizationForm.WORD_COMBINED);
+        if (!(v instanceof List<?> rawList)) throw new IllegalArgumentException("attachmentForms 必须是字符串数组");
         Set<String> names = rawList.stream()
                 .filter(o -> o instanceof String)
                 .map(String.class::cast)
@@ -238,10 +239,6 @@ public class WarehouseExportController {
         String ts = task.getCompletedAt() != null
                 ? task.getCompletedAt().format(FILENAME_DT_FMT)
                 : LocalDateTime.now().format(FILENAME_DT_FMT);
-        String storedPath = task.getStoredFilePath();
-        if (storedPath != null && storedPath.toLowerCase().endsWith(".zip")) {
-            return "仓库信息导出包_" + ts + ".zip";
-        }
         return "仓库信息导出包_" + ts + ".zip";
     }
 

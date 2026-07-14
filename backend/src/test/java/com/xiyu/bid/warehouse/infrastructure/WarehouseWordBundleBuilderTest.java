@@ -8,10 +8,12 @@ import com.xiyu.bid.warehouse.domain.WarehouseAttachmentReadModel;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
@@ -35,7 +37,7 @@ class WarehouseWordBundleBuilderTest {
     @Test
     void buildBundle_emptyWarehouseList_returnsValidDocx() throws IOException {
         WarehouseWordBundleBuilder builder = new WarehouseWordBundleBuilder();
-        builder.attachmentRoot = tempDir.toString();
+        ReflectionTestUtils.setField(builder, "attachmentRoot", tempDir.toString());
 
         byte[] result = builder.buildBundle(List.of(), Map.of());
 
@@ -46,9 +48,30 @@ class WarehouseWordBundleBuilderTest {
     }
 
     @Test
+    void buildBundle_appliesA4PageSettings() throws IOException {
+        WarehouseWordBundleBuilder builder = new WarehouseWordBundleBuilder();
+        ReflectionTestUtils.setField(builder, "attachmentRoot", tempDir.toString());
+
+        byte[] result = builder.buildBundle(List.of(), Map.of());
+
+        try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(result))) {
+            var sectPr = doc.getDocument().getBody().getSectPr();
+            assertThat(sectPr).isNotNull();
+            assertThat(((BigInteger) sectPr.getPgSz().getW()).intValue())
+                    .isEqualTo(WarehouseWordStyleConfig.PAGE_WIDTH_TWIPS);
+            assertThat(((BigInteger) sectPr.getPgSz().getH()).intValue())
+                    .isEqualTo(WarehouseWordStyleConfig.PAGE_HEIGHT_TWIPS);
+            assertThat(((BigInteger) sectPr.getPgMar().getTop()).intValue())
+                    .isEqualTo(WarehouseWordStyleConfig.MARGIN_TOP_TWIPS);
+            assertThat(((BigInteger) sectPr.getPgMar().getLeft()).intValue())
+                    .isEqualTo(WarehouseWordStyleConfig.MARGIN_LEFT_TWIPS);
+        }
+    }
+
+    @Test
     void buildBundle_warehouseWithNoAttachments_producesNonEmptyDoc() throws IOException {
         WarehouseWordBundleBuilder builder = new WarehouseWordBundleBuilder();
-        builder.attachmentRoot = tempDir.toString();
+        ReflectionTestUtils.setField(builder, "attachmentRoot", tempDir.toString());
 
         TestWarehouse wh = new TestWarehouse("杭州仓", "浙江",
                 LocalDate.of(2021, 1, 15), LocalDate.of(2029, 1, 14));
@@ -64,7 +87,7 @@ class WarehouseWordBundleBuilderTest {
     @Test
     void buildBundle_nullEntities_throwsNpe() {
         WarehouseWordBundleBuilder builder = new WarehouseWordBundleBuilder();
-        builder.attachmentRoot = tempDir.toString();
+        ReflectionTestUtils.setField(builder, "attachmentRoot", tempDir.toString());
 
         org.junit.jupiter.api.Assertions.assertThrows(NullPointerException.class,
                 () -> builder.buildBundle(null, Map.of()));
@@ -73,7 +96,7 @@ class WarehouseWordBundleBuilderTest {
     @Test
     void buildBundle_sameProvinceMultipleWarehouses_provinceHeadingAppearsOnce() throws IOException {
         WarehouseWordBundleBuilder builder = new WarehouseWordBundleBuilder();
-        builder.attachmentRoot = tempDir.toString();
+        ReflectionTestUtils.setField(builder, "attachmentRoot", tempDir.toString());
 
         TestWarehouse wh1 = new TestWarehouse(1L, "杭州仓", "浙江",
                 LocalDate.of(2021, 1, 15), LocalDate.of(2029, 1, 14));
@@ -96,7 +119,7 @@ class WarehouseWordBundleBuilderTest {
     @Test
     void buildBundle_differentProvinces_eachProvinceHeadingAppearsOnce() throws IOException {
         WarehouseWordBundleBuilder builder = new WarehouseWordBundleBuilder();
-        builder.attachmentRoot = tempDir.toString();
+        ReflectionTestUtils.setField(builder, "attachmentRoot", tempDir.toString());
 
         TestWarehouse wh1 = new TestWarehouse(1L, "杭州仓", "浙江",
                 LocalDate.of(2021, 1, 15), LocalDate.of(2029, 1, 14));
