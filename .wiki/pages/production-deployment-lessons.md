@@ -7,7 +7,6 @@ sources:
   - docs/release/deploy-report-2026-07-09-1st-prod.md
   - docs/release/postmortem-2026-07-09-1st-prod.md
   - docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md
-  - docs/release/PROD_ENVIRONMENT_PROFILE.md
   - docs/lessons/lessons-learned.md
 backlinks:
   - _index

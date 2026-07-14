@@ -9,7 +9,7 @@ backlinks:
   - _index
 created: 2026-06-27
 updated: 2026-06-27
-health_checked: 2026-07-06
+health_checked: 2026-07-14
 ---
 # 日志系统查 Bug 手册
 
