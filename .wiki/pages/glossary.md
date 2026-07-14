@@ -12,7 +12,7 @@ backlinks:
   - data-model
 created: 2026-04-15
 updated: 2026-06-21
-health_checked: 2026-07-06
+health_checked: 2026-07-14
 ---
 # 术语表
 

@@ -13,7 +13,7 @@ backlinks:
   - data-permission-hardening
 created: 2026-06-28
 updated: 2026-06-28
-health_checked: 2026-07-06
+health_checked: 2026-07-14
 ---
 
 # 有效角色解析（Effective Role Resolution）规范

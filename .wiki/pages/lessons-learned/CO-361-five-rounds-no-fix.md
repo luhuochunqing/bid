@@ -12,7 +12,7 @@ backlinks:
   - architecture
 created: 2026-06-28
 updated: 2026-06-28
-health_checked: 2026-07-06
+health_checked: 2026-07-14
 ---
 
 # CO-361 五次修复不彻底的教训
