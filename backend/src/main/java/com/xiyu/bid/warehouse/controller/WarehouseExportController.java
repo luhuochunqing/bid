@@ -5,6 +5,7 @@ import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.warehouse.application.WarehouseExportAppService;
 import com.xiyu.bid.warehouse.application.WarehouseLedgerExportAppService;
 import com.xiyu.bid.warehouse.domain.WarehouseAttachmentExportScope;
+import com.xiyu.bid.warehouse.domain.WarehouseAttachmentOrganizationForm;
 import com.xiyu.bid.warehouse.domain.WarehouseLedgerExportPolicy.Section;
 import com.xiyu.bid.warehouse.dto.WarehouseFilterDTO;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskEntity;
@@ -32,6 +33,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -68,6 +70,12 @@ public class WarehouseExportController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
+        final Set<WarehouseAttachmentOrganizationForm> attachmentForms;
+        try {
+            attachmentForms = parseAttachmentForms(body);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
         WarehouseExportAppService.ExportTaskResult result;
         if (body != null && body.get("ids") instanceof List<?> rawIds) {
             List<Long> ids = rawIds.stream()
@@ -77,11 +85,11 @@ public class WarehouseExportController {
             if (ids.isEmpty()) {
                 return ResponseEntity.badRequest().body(ApiResponse.error("未选择任何仓库"));
             }
-            result = exportAppService.exportByIds(ids, operatorId, operatorLabel, attachmentScope);
+            result = exportAppService.exportByIds(ids, operatorId, operatorLabel, attachmentScope, attachmentForms);
         } else {
             WarehouseFilterDTO filterDTO = body == null ? null
                     : objectMapper.convertValue(body, WarehouseFilterDTO.class);
-            result = exportAppService.export(filterDTO, operatorId, operatorLabel, attachmentScope);
+            result = exportAppService.export(filterDTO, operatorId, operatorLabel, attachmentScope, attachmentForms);
         }
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(ApiResponse.success("导出任务已创建", Map.of("taskId", result.taskId())));
@@ -128,6 +136,22 @@ public class WarehouseExportController {
         return WarehouseAttachmentExportScope.from(scope, typeNames);
     }
 
+    /**
+     * 解析 attachmentForms 字段，控制 ZIP 内附件组织形式（CO-582）。
+     * 默认值：[WORD_COMBINED]（按需求 §3.1 默认勾选 Word 合订本）。
+     */
+    private Set<WarehouseAttachmentOrganizationForm> parseAttachmentForms(Map<String, Object> body) {
+        if (body == null) return Set.of(WarehouseAttachmentOrganizationForm.WORD_COMBINED);
+        Object v = body.get("attachmentForms");
+        if (v == null) return Set.of(WarehouseAttachmentOrganizationForm.WORD_COMBINED);
+        if (!(v instanceof List<?> rawList)) throw new IllegalArgumentException("attachmentForms 必须是字符串数组");
+        Set<String> names = rawList.stream()
+                .filter(o -> o instanceof String)
+                .map(String.class::cast)
+                .collect(Collectors.toSet());
+        return WarehouseAttachmentOrganizationForm.from(names);
+    }
+
     @SuppressWarnings("unchecked")
     private Set<String> parseAttachmentTypeNames(Map<String, Object> body) {
         if (body == null) return Set.of();
@@ -136,7 +160,7 @@ public class WarehouseExportController {
         return rawList.stream()
                 .filter(o -> o instanceof String)
                 .map(String.class::cast)
-                .collect(java.util.stream.Collectors.toSet());
+                .collect(Collectors.toSet());
     }
 
     @SuppressWarnings("unchecked")
@@ -215,10 +239,6 @@ public class WarehouseExportController {
         String ts = task.getCompletedAt() != null
                 ? task.getCompletedAt().format(FILENAME_DT_FMT)
                 : LocalDateTime.now().format(FILENAME_DT_FMT);
-        String storedPath = task.getStoredFilePath();
-        if (storedPath != null && storedPath.toLowerCase().endsWith(".zip")) {
-            return "仓库台账导出包_" + ts + ".zip";
-        }
         return "仓库信息导出包_" + ts + ".zip";
     }
 

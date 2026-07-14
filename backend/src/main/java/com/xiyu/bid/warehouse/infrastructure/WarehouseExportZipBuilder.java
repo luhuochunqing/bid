@@ -1,5 +1,6 @@
 package com.xiyu.bid.warehouse.infrastructure;
 
+import com.xiyu.bid.warehouse.domain.WarehouseAttachmentOrganizationForm;
 import com.xiyu.bid.warehouse.domain.WarehouseAttachmentType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,15 +12,20 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 /**
- * 仓库导出 ZIP 打包器：将 xlsx + 已过滤的附件目录打包为 ZIP 文件。
+ * 仓库导出 ZIP 打包器：将 xlsx + 已过滤的附件目录 + Word 合订本打包为 ZIP 文件。
  *  - 顶层：仓库信息台账.xlsx
- *  - 附件：attachments/WH_{仓库名称}_{附件类型}[_{序号}].{扩展名}
+ *  - 附件：attachments/WH_{仓库名称}_{附件类型}[_{序号}].{扩展名}（仅当 forms 含 ATTACHMENTS_FOLDER）
+ *  - Word 合订本：仓库附件合订本_yyyyMMddHHmmss.docx（仅当 forms 含 WORD_COMBINED 且 wordBytes 非空）
  * <p>attachmentsByWhId 已由调用方按导出范围过滤，本类不再做过滤。</p>
  */
 @Component
@@ -28,13 +34,19 @@ public class WarehouseExportZipBuilder {
 
     private static final String XLSX_NAME = "仓库信息台账.xlsx";
     private static final String ATTACH_DIR = "attachments/";
+    private static final String WORD_FILENAME_PREFIX = "仓库附件合订本_";
+    private static final String WORD_FILENAME_SUFFIX = ".docx";
+    private static final DateTimeFormatter WORD_TS_FMT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     @Value("${warehouse.attachment.root:/data/attachments/warehouse}")
     private String attachmentRoot;
 
     public ZipBuildResult buildZip(byte[] xlsxBytes,
                                    List<WarehouseEntity> entities,
-                                   Map<Long, List<WarehouseAttachmentEntity>> attachmentsByWhId) throws IOException {
+                                   Map<Long, List<WarehouseAttachmentEntity>> attachmentsByWhId,
+                                   byte[] wordBytes,
+                                   Set<WarehouseAttachmentOrganizationForm> forms) throws IOException {
+        Objects.requireNonNull(forms, "forms");
         Path tempDir = Files.createTempDirectory("warehouse-export-zip-");
         Path zipFile = tempDir.resolve("export.zip");
         ZipStats stats = new ZipStats();
@@ -42,37 +54,50 @@ public class WarehouseExportZipBuilder {
         try (OutputStream fos = Files.newOutputStream(zipFile);
              ZipOutputStream zos = new ZipOutputStream(fos)) {
 
-            // 1) 写入 xlsx
+            // 1) 写入 xlsx（始终包含）
             ZipEntry xlsxEntry = new ZipEntry(XLSX_NAME);
             zos.putNextEntry(xlsxEntry);
             zos.write(xlsxBytes);
             zos.closeEntry();
             stats.xlsxBytes = xlsxBytes.length;
 
-            // 2) 写入所有附件
-            for (WarehouseEntity e : entities) {
-                List<WarehouseAttachmentEntity> attachments = attachmentsByWhId.getOrDefault(e.getId(), List.of());
-                for (WarehouseAttachmentEntity att : attachments) {
-                    String zipPath = zipEntryPath(e, att, stats);
-                    if (zipPath == null) continue;
-                    try {
-                        Path source = Paths.get(attachmentRoot, String.valueOf(att.getWarehouse().getId()), att.getStoredFilename());
-                        if (!Files.exists(source)) {
-                            log.warn("仓库导出附件源文件缺失: warehouseId={}, storedFilename={}",
-                                    att.getWarehouse().getId(), att.getStoredFilename());
-                            continue;
+            // 2) 写入附件文件夹（仅当 forms 含 ATTACHMENTS_FOLDER）
+            if (forms.contains(WarehouseAttachmentOrganizationForm.ATTACHMENTS_FOLDER)) {
+                for (WarehouseEntity e : entities) {
+                    List<WarehouseAttachmentEntity> attachments = attachmentsByWhId.getOrDefault(e.getId(), List.of());
+                    for (WarehouseAttachmentEntity att : attachments) {
+                        String zipPath = zipEntryPath(e, att, stats);
+                        if (zipPath == null) continue;
+                        try {
+                            Path source = Paths.get(attachmentRoot, String.valueOf(att.getWarehouse().getId()), att.getStoredFilename());
+                            if (!Files.exists(source)) {
+                                log.warn("仓库导出附件源文件缺失: warehouseId={}, storedFilename={}",
+                                        att.getWarehouse().getId(), att.getStoredFilename());
+                                continue;
+                            }
+                            ZipEntry entry = new ZipEntry(zipPath);
+                            zos.putNextEntry(entry);
+                            try (InputStream in = Files.newInputStream(source)) {
+                                in.transferTo(zos);
+                            }
+                            zos.closeEntry();
+                            countByType(stats, att.getType());
+                        } catch (IOException ex) {
+                            log.warn("仓库导出附件归档失败: zipPath={}, error={}", zipPath, ex.getMessage());
                         }
-                        ZipEntry entry = new ZipEntry(zipPath);
-                        zos.putNextEntry(entry);
-                        try (InputStream in = Files.newInputStream(source)) {
-                            in.transferTo(zos);
-                        }
-                        zos.closeEntry();
-                        countByType(stats, att.getType());
-                    } catch (IOException ex) {
-                        log.warn("仓库导出附件归档失败: zipPath={}, error={}", zipPath, ex.getMessage());
                     }
                 }
+            }
+
+            // 3) 写入 Word 合订本（仅当 forms 含 WORD_COMBINED 且 wordBytes 非空）
+            if (forms.contains(WarehouseAttachmentOrganizationForm.WORD_COMBINED) && wordBytes != null && wordBytes.length > 0) {
+                String wordFilename = WORD_FILENAME_PREFIX + LocalDateTime.now().format(WORD_TS_FMT) + WORD_FILENAME_SUFFIX;
+                ZipEntry wordEntry = new ZipEntry(wordFilename);
+                zos.putNextEntry(wordEntry);
+                zos.write(wordBytes);
+                zos.closeEntry();
+                stats.wordBytes = wordBytes.length;
+                stats.wordIncluded = true;
             }
         }
 
@@ -123,6 +148,8 @@ public class WarehouseExportZipBuilder {
         public int invoiceCount;
         public int photosCount;
         public int leaseContractCount;
+        public long wordBytes;
+        public boolean wordIncluded;
         private final Map<Long, Map<WarehouseAttachmentType, Integer>> sequences = new java.util.HashMap<>();
 
         public synchronized int nextSequence(Long warehouseId, WarehouseAttachmentType type) {

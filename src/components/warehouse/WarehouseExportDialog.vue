@@ -39,6 +39,13 @@
           {{ validation.message }}
         </div>
       </div>
+      <div class="attachment-forms-section" data-testid="attachment-forms-section">
+        <div class="section-label">附件组织形式</div>
+        <el-checkbox-group v-model="form.attachmentForms" class="forms-checkbox-group">
+          <el-checkbox value="ATTACHMENTS_FOLDER">附件文件夹</el-checkbox>
+          <el-checkbox value="WORD_COMBINED">Word 合订本</el-checkbox>
+        </el-checkbox-group>
+      </div>
     </div>
     <div v-else class="export-task">
       <div v-if="isRunning" class="export-progress">
@@ -55,11 +62,12 @@
           <div class="detail-title">📦 ZIP 包内容</div>
           <ul class="detail-list">
             <li>仓库信息台账.xlsx（{{ totalCount }} 条，24 列含系统字段）</li>
-            <li v-if="hasAttachments">attachments/</li>
-            <li v-if="summary.propertyCertCount" class="indent">产权证 {{ summary.propertyCertCount }} 份</li>
-            <li v-if="summary.invoiceCount" class="indent">发票 {{ summary.invoiceCount }} 份</li>
-            <li v-if="summary.photosCount" class="indent">照片 {{ summary.photosCount }} 张</li>
-            <li v-if="summary.leaseContractCount" class="indent">租赁合同 {{ summary.leaseContractCount }} 份</li>
+            <li v-if="hasAttachments && form.attachmentForms.includes('ATTACHMENTS_FOLDER')">attachments/</li>
+            <li v-if="form.attachmentForms.includes('ATTACHMENTS_FOLDER') && summary.propertyCertCount" class="indent">产权证 {{ summary.propertyCertCount }} 份</li>
+            <li v-if="form.attachmentForms.includes('ATTACHMENTS_FOLDER') && summary.invoiceCount" class="indent">发票 {{ summary.invoiceCount }} 份</li>
+            <li v-if="form.attachmentForms.includes('ATTACHMENTS_FOLDER') && summary.photosCount" class="indent">照片 {{ summary.photosCount }} 张</li>
+            <li v-if="form.attachmentForms.includes('ATTACHMENTS_FOLDER') && summary.leaseContractCount" class="indent">租赁合同 {{ summary.leaseContractCount }} 份</li>
+            <li v-if="form.attachmentForms.includes('WORD_COMBINED')">仓库附件合订本.docx</li>
           </ul>
           <div class="meta-row"><span class="meta-label">导出范围：</span><span>{{ summary.filterSummary || '—' }}</span></div>
           <div class="meta-row"><span class="meta-label">附件范围：</span><span>{{ summary.attachmentScope || '—' }}</span></div>
@@ -106,7 +114,8 @@ const emit = defineEmits(['update:modelValue'])
 const form = reactive({
   scope: props.defaultScope,
   attachmentScope: 'ALL',
-  attachmentTypes: []
+  attachmentTypes: [],
+  attachmentForms: ['WORD_COMBINED']
 })
 
 const {
@@ -122,6 +131,7 @@ const {
     if (form.attachmentScope === 'PARTIAL') {
       payload.attachmentTypes = [...form.attachmentTypes]
     }
+    payload.attachmentForms = [...form.attachmentForms]
     const { data } = await http.post('/api/knowledge/warehouses/export', payload)
     return data
   },
@@ -136,6 +146,9 @@ const hasAttachments = computed(() => {
 })
 
 const validation = computed(() => {
+  if (form.attachmentForms.length === 0) {
+    return { valid: false, message: '请至少选择一种附件组织形式' }
+  }
   if (form.attachmentScope === 'PARTIAL' && form.attachmentTypes.length === 0) {
     return { valid: false, message: '请至少选择一种附件类型' }
   }
@@ -150,6 +163,7 @@ const resetForm = () => {
   form.scope = props.defaultScope
   form.attachmentScope = 'ALL'
   form.attachmentTypes = []
+  form.attachmentForms = ['WORD_COMBINED']
 }
 
 const handleStart = async () => {
@@ -215,8 +229,10 @@ watch(() => props.modelValue, (v) => { if (v) resetForm() })
 .dialog-footer { display: flex; justify-content: space-between; align-items: center; }
 .footer-hint { font-size: 12px; color: var(--el-text-color-placeholder); }
 .attachment-scope-section { margin-top: 20px; padding: 14px; background: var(--gray-50); border-radius: 6px; }
+.attachment-forms-section { margin-top: 14px; padding: 14px; background: var(--gray-50); border-radius: 6px; }
 .section-label { font-size: 13px; font-weight: 600; color: var(--text-primary-ui); margin-bottom: 10px; }
 .scope-radio-group { display: flex; flex-direction: column; gap: 8px; }
 .type-checkbox-group { margin-top: 10px; padding-left: 8px; display: flex; flex-direction: column; gap: 6px; }
+.forms-checkbox-group { display: flex; flex-direction: column; gap: 6px; }
 .scope-hint { margin-top: 8px; font-size: 12px; color: var(--el-color-danger); }
 </style>

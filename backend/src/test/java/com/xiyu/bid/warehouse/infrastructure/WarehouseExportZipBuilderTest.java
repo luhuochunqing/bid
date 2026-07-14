@@ -1,5 +1,6 @@
 package com.xiyu.bid.warehouse.infrastructure;
 
+import com.xiyu.bid.warehouse.domain.WarehouseAttachmentOrganizationForm;
 import com.xiyu.bid.warehouse.domain.WarehouseAttachmentType;
 import com.xiyu.bid.warehouse.domain.WarehouseStatus;
 import com.xiyu.bid.warehouse.domain.WarehouseType;
@@ -14,6 +15,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -112,7 +114,8 @@ class WarehouseExportZipBuilderTest {
 
         byte[] xlsxBytes = new byte[]{0x01, 0x02, 0x03};
         WarehouseExportZipBuilder.ZipBuildResult result = builder.buildZip(
-                xlsxBytes, List.of(warehouse), Map.of(1L, List.of(leaseAttachment)));
+                xlsxBytes, List.of(warehouse), Map.of(1L, List.of(leaseAttachment)),
+                null, Set.of(WarehouseAttachmentOrganizationForm.ATTACHMENTS_FOLDER));
 
         assertThat(result.zipFile()).exists();
         assertThat(result.totalBytes()).isGreaterThan(0);
@@ -131,6 +134,195 @@ class WarehouseExportZipBuilderTest {
                     .forEach(p -> {
                         try { Files.deleteIfExists(p); } catch (Exception ignored) { }
                     });
+            Files.deleteIfExists(result.zipFile());
+            Files.deleteIfExists(result.zipFile().getParent());
+        }
+    }
+
+    @Test
+    @DisplayName("forms={WORD_COMBINED} + wordBytes非空 → ZIP 内只有 xlsx + docx，无 attachments/")
+    void buildZip_WordOnly_NoAttachmentsDir() throws Exception {
+        Path attachmentRoot = Files.createTempDirectory("wh-zip-word-only-");
+        WarehouseEntity warehouse = WarehouseEntity.builder()
+                .id(1L)
+                .name("测试仓")
+                .type(WarehouseType.SELF_OPERATED)
+                .region("华东")
+                .province("上海")
+                .address("测试地址")
+                .area(new java.math.BigDecimal("100"))
+                .contactPerson("张三")
+                .lessor("甲方")
+                .lessee("乙方")
+                .startDate(LocalDate.of(2026, 1, 1))
+                .endDate(LocalDate.of(2027, 1, 1))
+                .hasPropertyCert(false)
+                .hasInvoice(false)
+                .hasPhotos(false)
+                .hasLeaseContract(false)
+                .status(WarehouseStatus.IN_USE)
+                .createdBy(1L)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        WarehouseExportZipBuilder builder = new WarehouseExportZipBuilder();
+        Field attachmentRootField = WarehouseExportZipBuilder.class.getDeclaredField("attachmentRoot");
+        attachmentRootField.setAccessible(true);
+        attachmentRootField.set(builder, attachmentRoot.toString());
+
+        byte[] xlsxBytes = new byte[]{0x01, 0x02, 0x03};
+        byte[] wordBytes = new byte[]{0x50, 0x4B, 0x03, 0x04};  // fake docx bytes
+
+        WarehouseExportZipBuilder.ZipBuildResult result = builder.buildZip(
+                xlsxBytes, List.of(warehouse), Map.of(),
+                wordBytes, Set.of(WarehouseAttachmentOrganizationForm.WORD_COMBINED));
+
+        try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(result.zipFile()))) {
+            List<String> entryNames = new java.util.ArrayList<>();
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                entryNames.add(entry.getName());
+            }
+            assertThat(entryNames).hasSize(2);
+            assertThat(entryNames.get(0)).isEqualTo("仓库信息台账.xlsx");
+            assertThat(entryNames.get(1)).startsWith("仓库附件合订本_").endsWith(".docx");
+            assertThat(result.stats().wordIncluded).isTrue();
+            assertThat(result.stats().wordBytes).isEqualTo(wordBytes.length);
+        } finally {
+            Files.walk(attachmentRoot)
+                    .sorted(java.util.Comparator.reverseOrder())
+                    .forEach(p -> { try { Files.deleteIfExists(p); } catch (Exception ignored) { } });
+            Files.deleteIfExists(result.zipFile());
+            Files.deleteIfExists(result.zipFile().getParent());
+        }
+    }
+
+    @Test
+    @DisplayName("forms={WORD_COMBINED} + wordBytes=null → ZIP 内只有 xlsx（Word 生成失败场景）")
+    void buildZip_WordFailed_OnlyXlsx() throws Exception {
+        Path attachmentRoot = Files.createTempDirectory("wh-zip-word-failed-");
+        WarehouseEntity warehouse = WarehouseEntity.builder()
+                .id(1L)
+                .name("测试仓")
+                .type(WarehouseType.SELF_OPERATED)
+                .region("华东")
+                .province("上海")
+                .address("测试地址")
+                .area(new java.math.BigDecimal("100"))
+                .contactPerson("张三")
+                .lessor("甲方")
+                .lessee("乙方")
+                .startDate(LocalDate.of(2026, 1, 1))
+                .endDate(LocalDate.of(2027, 1, 1))
+                .hasPropertyCert(false)
+                .hasInvoice(false)
+                .hasPhotos(false)
+                .hasLeaseContract(false)
+                .status(WarehouseStatus.IN_USE)
+                .createdBy(1L)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        WarehouseExportZipBuilder builder = new WarehouseExportZipBuilder();
+        Field attachmentRootField = WarehouseExportZipBuilder.class.getDeclaredField("attachmentRoot");
+        attachmentRootField.setAccessible(true);
+        attachmentRootField.set(builder, attachmentRoot.toString());
+
+        byte[] xlsxBytes = new byte[]{0x01, 0x02, 0x03};
+
+        WarehouseExportZipBuilder.ZipBuildResult result = builder.buildZip(
+                xlsxBytes, List.of(warehouse), Map.of(),
+                null, Set.of(WarehouseAttachmentOrganizationForm.WORD_COMBINED));
+
+        try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(result.zipFile()))) {
+            List<String> entryNames = new java.util.ArrayList<>();
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                entryNames.add(entry.getName());
+            }
+            assertThat(entryNames).hasSize(1);
+            assertThat(entryNames.get(0)).isEqualTo("仓库信息台账.xlsx");
+            assertThat(result.stats().wordIncluded).isFalse();
+        } finally {
+            Files.walk(attachmentRoot)
+                    .sorted(java.util.Comparator.reverseOrder())
+                    .forEach(p -> { try { Files.deleteIfExists(p); } catch (Exception ignored) { } });
+            Files.deleteIfExists(result.zipFile());
+            Files.deleteIfExists(result.zipFile().getParent());
+        }
+    }
+
+    @Test
+    @DisplayName("forms={两者} + wordBytes非空 → ZIP 内三者都有")
+    void buildZip_BothForms_AllIncluded() throws Exception {
+        Path attachmentRoot = Files.createTempDirectory("wh-zip-both-");
+        Path warehouseDir = attachmentRoot.resolve("1");
+        Files.createDirectories(warehouseDir);
+        Path sourceFile = warehouseDir.resolve("stored_lease.pdf");
+        Files.writeString(sourceFile, "lease content");
+
+        WarehouseEntity warehouse = WarehouseEntity.builder()
+                .id(1L)
+                .name("测试仓")
+                .type(WarehouseType.SELF_OPERATED)
+                .region("华东")
+                .province("上海")
+                .address("测试地址")
+                .area(new java.math.BigDecimal("100"))
+                .contactPerson("张三")
+                .lessor("甲方")
+                .lessee("乙方")
+                .startDate(LocalDate.of(2026, 1, 1))
+                .endDate(LocalDate.of(2027, 1, 1))
+                .hasPropertyCert(false)
+                .hasInvoice(false)
+                .hasPhotos(false)
+                .hasLeaseContract(true)
+                .status(WarehouseStatus.IN_USE)
+                .createdBy(1L)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        WarehouseAttachmentEntity leaseAttachment = WarehouseAttachmentEntity.builder()
+                .id(1L)
+                .warehouse(warehouse)
+                .type(WarehouseAttachmentType.LEASE_CONTRACT)
+                .originalFilename("租赁合同.pdf")
+                .storedFilename("stored_lease.pdf")
+                .fileSize(13L)
+                .contentType("application/pdf")
+                .uploadedBy(1L)
+                .uploadedAt(LocalDateTime.now())
+                .build();
+
+        WarehouseExportZipBuilder builder = new WarehouseExportZipBuilder();
+        Field attachmentRootField = WarehouseExportZipBuilder.class.getDeclaredField("attachmentRoot");
+        attachmentRootField.setAccessible(true);
+        attachmentRootField.set(builder, attachmentRoot.toString());
+
+        byte[] xlsxBytes = new byte[]{0x01, 0x02, 0x03};
+        byte[] wordBytes = new byte[]{0x50, 0x4B, 0x03, 0x04};
+
+        WarehouseExportZipBuilder.ZipBuildResult result = builder.buildZip(
+                xlsxBytes, List.of(warehouse), Map.of(1L, List.of(leaseAttachment)),
+                wordBytes, Set.of(WarehouseAttachmentOrganizationForm.ATTACHMENTS_FOLDER,
+                        WarehouseAttachmentOrganizationForm.WORD_COMBINED));
+
+        try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(result.zipFile()))) {
+            List<String> entryNames = new java.util.ArrayList<>();
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                entryNames.add(entry.getName());
+            }
+            assertThat(entryNames).hasSize(3);
+            assertThat(entryNames).contains("仓库信息台账.xlsx", "attachments/WH_测试仓_租赁合同.pdf");
+            assertThat(entryNames.stream().anyMatch(n -> n.startsWith("仓库附件合订本_") && n.endsWith(".docx"))).isTrue();
+            assertThat(result.stats().wordIncluded).isTrue();
+            assertThat(result.stats().leaseContractCount).isEqualTo(1);
+        } finally {
+            Files.walk(attachmentRoot)
+                    .sorted(java.util.Comparator.reverseOrder())
+                    .forEach(p -> { try { Files.deleteIfExists(p); } catch (Exception ignored) { } });
             Files.deleteIfExists(result.zipFile());
             Files.deleteIfExists(result.zipFile().getParent());
         }
