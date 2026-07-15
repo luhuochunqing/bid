@@ -24,11 +24,6 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-import static com.xiyu.bid.performance.application.service.PerformanceEnumLabels.customerLevel;
-import static com.xiyu.bid.performance.application.service.PerformanceEnumLabels.customerType;
-import static com.xiyu.bid.performance.application.service.PerformanceEnumLabels.dockingMethod;
-import static com.xiyu.bid.performance.application.service.PerformanceEnumLabels.projectType;
-
 /**
  * 业绩 Excel 导出服务
  */
@@ -183,18 +178,24 @@ public class PerformanceExcelExporter {
         row.createCell(0).setCellValue(nvl(r.contractName()));
         row.createCell(1).setCellValue(nvl(r.signingEntity()));
         row.createCell(COL_GROUP_COMPANY).setCellValue(nvl(r.groupCompany()));
-        row.createCell(3).setCellValue(customerType(r.customerType() != null ? r.customerType().name() : null));
+        row.createCell(3).setCellValue(r.customerType() != null ? r.customerType().displayName() : "");
         row.createCell(4).setCellValue(nvl(r.industry()));
-        row.createCell(5).setCellValue(projectType(r.projectType() != null ? r.projectType().name() : null));
-        row.createCell(6).setCellValue(dockingMethod(r.dockingMethod() != null ? r.dockingMethod().name() : null));
-        row.createCell(7).setCellValue(customerLevel(r.customerLevel() != null ? r.customerLevel().name() : null));
+        row.createCell(5).setCellValue(r.projectType() != null ? r.projectType().displayName() : "");
+        row.createCell(6).setCellValue(r.dockingMethod() != null ? r.dockingMethod().displayName() : "");
+        row.createCell(7).setCellValue(r.customerLevel() != null ? r.customerLevel().displayName() : "");
         row.createCell(8).setCellValue("");
         row.createCell(9).setCellValue(r.signingDate() != null ? r.signingDate().toString() : "");
         row.createCell(10).setCellValue(r.expiryDate() != null ? r.expiryDate().toString() : "");
         // CO-583: 明细行总截止日期列留空（聚合值由汇总行展示）
         row.createCell(COL_TOTAL_EXPIRY_DATE).setCellValue("");
-        row.createCell(12).setCellValue(r.daysRemaining());
-        row.createCell(13).setCellValue("");
+        // CO-583 修复: expiryDate 为 null 时 daysRemaining 为 null，导出显示空字符串（而非 Long.MAX_VALUE）
+        Long days = r.daysRemaining();
+        if (days != null) {
+            row.createCell(12).setCellValue(days);
+        } else {
+            row.createCell(12).setCellValue("");
+        }
+        row.createCell(13).setCellValue(nvl(r.expiryReminder()));
         row.createCell(14).setCellValue(nvl(r.contactPerson()));
         row.createCell(15).setCellValue(nvl(r.contactInfo()));
         row.createCell(16).setCellValue(nvl(r.territory()));
@@ -209,7 +210,7 @@ public class PerformanceExcelExporter {
         row.createCell(25).setCellValue(r.hasBidNotice() ? "是" : "否");
         row.createCell(26).setCellValue("");
         row.createCell(27).setCellValue(nvl(r.remarks()));
-        row.createCell(28).setCellValue(r.status() != null ? r.status().name() : "");
+        row.createCell(28).setCellValue(r.status() != null ? r.status().displayName() : "");
         row.createCell(29).setCellValue("");
         row.createCell(30).setCellValue(r.createdAt() != null ? r.createdAt().toString() : "");
         row.createCell(31).setCellValue("");

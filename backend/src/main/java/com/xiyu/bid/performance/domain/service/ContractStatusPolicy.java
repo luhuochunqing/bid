@@ -45,11 +45,11 @@ public final class ContractStatusPolicy {
      * 计算到期天数（截止日期 - 今天）
      * @param expiryDate 截止日期
      * @param today 当天日期
-     * @return 到期天数（负数表示已过期）
+     * @return 到期天数（负数表示已过期）；expiryDate 为 null 时返回 null（无截止日期概念）
      */
-    public static long calculateDaysRemaining(LocalDate expiryDate, LocalDate today) {
+    public static Long calculateDaysRemaining(LocalDate expiryDate, LocalDate today) {
         if (expiryDate == null || today == null) {
-            return Long.MAX_VALUE;
+            return null;
         }
         return ChronoUnit.DAYS.between(today, expiryDate);
     }

@@ -183,7 +183,7 @@ class PerformanceExcelGroupExportTest {
                 null, r.industry(), null, null, null,
                 r.signingDate(), r.expiryDate(), r.totalExpiryDate(),
                 null, // groupTotalExpiryDate 由 exporter 注入
-                0, "", null,
+                0L, "", null,
                 r.contactPerson(), r.contactInfo(), r.territory(),
                 r.customerAddress(), r.xiyuProjectManager(),
                 r.mallWebsiteUrl(), r.hasBidNotice(), r.remarks(),

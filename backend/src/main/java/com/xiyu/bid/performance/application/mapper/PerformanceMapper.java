@@ -46,7 +46,7 @@ public class PerformanceMapper {
         if (r == null) return null;
         LocalDate today = LocalDate.now();
 
-        long daysRemaining = ContractStatusPolicy.calculateDaysRemaining(r.expiryDate(), today);
+        Long daysRemaining = ContractStatusPolicy.calculateDaysRemaining(r.expiryDate(), today);
         String expiryReminder = ContractStatusPolicy.calculateExpiryReminder(
                 r.customerType(), r.expiryDate(), today);
         ContractStatus status = ContractStatusPolicy.calculateStatus(

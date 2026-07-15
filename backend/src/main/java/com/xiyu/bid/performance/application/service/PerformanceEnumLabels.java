@@ -7,57 +7,15 @@ import com.xiyu.bid.performance.domain.valueobject.ProjectType;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 业绩枚举中文映射（导入导出共用）
+ * 业绩枚举反向解析（Excel 导入用：中文 → 枚举）
+ *
+ * <p>正向映射（枚举 → 中文）已统一使用各枚举的 {@code displayName()} 方法，
+ * 不再需要外部映射函数。
  */
 @Slf4j
 public final class PerformanceEnumLabels {
 
     private PerformanceEnumLabels() {}
-
-    public static String customerType(String code) {
-        if (code == null) return "";
-        return switch (code) {
-            case "GOVERNMENT_INSTITUTION" -> "政府机关/事业单位";
-            case "CENTRAL_SOE" -> "央企";
-            case "LOCAL_SOE" -> "地方国企";
-            case "PRIVATE_ENTERPRISE" -> "民企";
-            case "FOREIGN_HK_MACAO_TW" -> "港澳台及外企";
-            default -> code;
-        };
-    }
-
-    public static String projectType(String code) {
-        if (code == null) return "";
-        return switch (code) {
-            case "OFFICE" -> "办公";
-            case "COMPREHENSIVE" -> "综合";
-            case "COLLECTIVE" -> "集采";
-            // Sentry XIYU-Y 修复后续：保留 CENTRALIZED 旧值别名，兼容 V1151 迁移前/回滚
-            // 期间的极少数遗漏记录，避免其导出时显示英文枚举名。
-            case "CENTRALIZED" -> "集采";
-            case "INDUSTRIAL" -> "工业品";
-            case "OTHER" -> "其他";
-            default -> code;
-        };
-    }
-
-    public static String dockingMethod(String code) {
-        if (code == null) return "";
-        return switch (code) {
-            case "EMALL" -> "Emall";
-            case "PUNCH_OUT" -> "Punch-out";
-            default -> code;
-        };
-    }
-
-    public static String customerLevel(String code) {
-        if (code == null) return "";
-        return switch (code) {
-            case "GROUP" -> "集团";
-            case "SUBSIDIARY" -> "二级单位";
-            default -> code;
-        };
-    }
 
     // ── 反向解析（中文 → 枚举）──
 
@@ -75,6 +33,8 @@ public final class PerformanceEnumLabels {
             }
         };
     }
+
+    // 反向解析仍保留 "政府机关/事业单位/高校" 兼容旧 Excel 模板，但枚举 displayName 统一为 "政府机关/事业单位"
 
     public static ProjectType parseProjectType(String s) {
         if (s == null || s.isBlank()) return null;

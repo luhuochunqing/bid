@@ -7,6 +7,7 @@ import com.xiyu.bid.performance.domain.model.PerformanceAlertConfig;
 import com.xiyu.bid.performance.domain.model.PerformanceRecord;
 import com.xiyu.bid.performance.domain.port.PerformanceAlertConfigRepository;
 import com.xiyu.bid.performance.domain.port.PerformanceRepository;
+import com.xiyu.bid.performance.domain.valueobject.ContractStatus;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -69,7 +70,7 @@ class PerformanceExcelExporterTest {
                 null, "行业A", null, null, null,
                 LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31), LocalDate.of(2027, 12, 31),
                 null, // CO-583: groupTotalExpiryDate
-                0, "", null,
+                0L, "", null,
                 "联系人A", "13800000000", "属地A", "地址A", "项目负责人A",
                 "http://mall.com", true, "备注A",
                 List.of(), null, null
@@ -106,7 +107,7 @@ class PerformanceExcelExporterTest {
                 null, "行业A", null, null, null,
                 LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31), LocalDate.of(2027, 12, 31),
                 null, // CO-583: groupTotalExpiryDate
-                0, "", null,
+                0L, "", null,
                 "联系人A", "13800000000", "属地A", "地址A", "项目负责人A",
                 "http://mall.com", true, "备注A",
                 List.of(), null, null
@@ -137,7 +138,7 @@ class PerformanceExcelExporterTest {
                 null, "行业A", null, null, null,
                 LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31), LocalDate.of(2027, 12, 31),
                 null, // CO-583: groupTotalExpiryDate
-                0, "", null,
+                0L, "", null,
                 "联系人A", "13800000000", "属地A", "地址A", "项目负责人A",
                 "http://mall.com", true, "备注A",
                 List.of(), null, null
@@ -162,6 +163,53 @@ class PerformanceExcelExporterTest {
             var sheet = wb.getSheet("业绩管理台账");
             assertThat(sheet).isNotNull();
             assertThat(sheet.getPhysicalNumberOfRows()).isEqualTo(1);
+        }
+    }
+
+    /**
+     * CO-583 回归：expiryDate 为 null 时 daysRemaining 为 null，
+     * 导出第12列（到期天数）应为空字符串，防止 Long.MAX_VALUE 回归。
+     * 状态列（第28列）应为"履约中"（displayName 中文），防止英文枚举名回归。
+     */
+    @Test
+    void export_recordWithNullExpiryDate_writesEmptyDaysRemainingAndChineseStatus() throws Exception {
+        // 构造 expiryDate=null 的合同记录
+        PerformanceRecord record = new PerformanceRecord(
+                1L, "无截止日期合同", "签约单位A", "集团A",
+                null, "行业A", null, null, null,
+                LocalDate.of(2026, 1, 1), null, null,
+                "联系人A", "13800000000", "属地A", "地址A", "项目负责人A",
+                "http://mall.com", false, "备注A",
+                List.of(), LocalDateTime.now(), LocalDateTime.now()
+        );
+        var config = new PerformanceAlertConfig(null, 180, 90, true);
+        when(alertConfigRepository.findActive()).thenReturn(Optional.of(config));
+        when(repository.findAll(eq(PerformanceSearchCriteria.empty()), any())).thenReturn(List.of(record));
+        when(repository.findGroupTotalExpiryDates()).thenReturn(Map.of());
+        // daysRemaining=null, status=IN_PERFORMANCE("履约中"), expiryReminder=null
+        when(mapper.toDTO(eq(record), any(Map.class))).thenReturn(new PerformanceDTO(
+                1L, "无截止日期合同", "签约单位A", "集团A",
+                null, "行业A", null, null, null,
+                LocalDate.of(2026, 1, 1), null, null,
+                null,
+                null, null, ContractStatus.IN_PERFORMANCE,
+                "联系人A", "13800000000", "属地A", "地址A", "项目负责人A",
+                "http://mall.com", false, "备注A",
+                List.of(), null, null
+        ));
+
+        byte[] data = exporter.export(null, null);
+
+        try (var wb = new XSSFWorkbook(new ByteArrayInputStream(data))) {
+            var sheet = wb.getSheet("业绩管理台账");
+            assertThat(sheet).isNotNull();
+            // 表头 + 汇总行 + 1 明细行 = 3 行
+            assertThat(sheet.getPhysicalNumberOfRows()).isEqualTo(3);
+            var detailRow = sheet.getRow(2);
+            // 第12列：到期天数 → 空字符串（不是 "9223372036854775807"）
+            assertThat(detailRow.getCell(12).getStringCellValue()).isEmpty();
+            // 第28列：状态 → 中文"履约中"（不是英文 "IN_PERFORMANCE"）
+            assertThat(detailRow.getCell(28).getStringCellValue()).isEqualTo("履约中");
         }
     }
 }
