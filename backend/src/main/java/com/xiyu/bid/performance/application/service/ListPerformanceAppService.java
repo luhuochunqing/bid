@@ -11,7 +11,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -24,14 +27,21 @@ public class ListPerformanceAppService {
     @Transactional(readOnly = true)
     public List<PerformanceDTO> list(PerformanceSearchCriteria criteria) {
         var config = configService.getConfig();
-        return repository.findAll(criteria, config).stream().map(mapper::toDTO).toList();
+        // CO-583: 聚合值基于全量数据，不受筛选影响
+        Map<String, LocalDate> groupTotalMap = repository.findGroupTotalExpiryDates();
+        return repository.findAll(criteria, config).stream()
+                .map(r -> mapper.toDTO(r, groupTotalMap))
+                .toList();
     }
 
     @Transactional(readOnly = true)
     public PagedResult<PerformanceDTO> listPageable(PerformanceSearchCriteria criteria, int pageNumber, int pageSize) {
         var config = configService.getConfig();
+        Map<String, LocalDate> groupTotalMap = repository.findGroupTotalExpiryDates();
         var page = repository.findAllPageable(criteria, config, pageNumber, pageSize);
-        List<PerformanceDTO> dtos = page.content().stream().map(mapper::toDTO).toList();
+        List<PerformanceDTO> dtos = page.content().stream()
+                .map(r -> mapper.toDTO(r, groupTotalMap))
+                .toList();
         return new PagedResult<>(dtos, page.totalElements(), page.totalPages(), page.pageNumber(), page.pageSize(), page.hasNext(), page.hasPrevious());
     }
 
@@ -39,6 +49,10 @@ public class ListPerformanceAppService {
     public PerformanceDTO get(Long id) {
         PerformanceRecord r = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("PerformanceRecord", String.valueOf(id)));
-        return mapper.toDTO(r);
+        // CO-583: 详情页用单值查询避免全表聚合，直接传 LocalDate 给 mapper
+        LocalDate groupTotal = r.groupCompany() != null
+                ? repository.findGroupTotalExpiryDate(r.groupCompany()).orElse(null)
+                : null;
+        return mapper.toDTO(r, groupTotal);
     }
 }

@@ -78,15 +78,16 @@ class PerformanceValidatorTest {
     }
 
     @Test
-    void testInvalidTotalExpiryDate() {
+    void testTotalExpiryDateNotValidatedAnymore() {
+        // CO-583: totalExpiryDate 字段已废弃用户输入，校验规则已移除
+        // 即便 totalExpiryDate 早于 expiryDate，也不再触发校验错误
         PerformanceRecord record = new PerformanceRecord(
                 1L, "合同", "签约公司", "集团公司", CustomerType.PRIVATE_ENTERPRISE, "行业", ProjectType.OFFICE, DockingMethod.API, CustomerLevel.GROUP,
                 LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31), LocalDate.of(2026, 6, 1), "联系人", "13800000000", "属地", "地址", "负责人", "", false, "",
                 List.of(new PerformanceRecord.AttachmentEntry(1L, "合同协议", "http://oss.com/c.pdf", "CONTRACT_AGREEMENT")), LocalDateTime.now(), LocalDateTime.now()
         );
         Optional<String> result = PerformanceValidator.validate(record);
-        assertTrue(result.isPresent());
-        assertEquals("总截止日期需晚于截止日期", result.get());
+        assertTrue(result.isEmpty(), "totalExpiryDate 已不再校验，应通过");
     }
 
     @Test

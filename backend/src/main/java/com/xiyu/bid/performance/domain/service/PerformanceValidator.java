@@ -61,11 +61,8 @@ public final class PerformanceValidator {
             return Optional.of("截止日期必须晚于签约日期");
         }
 
-        // 6. 总截止日期需晚于截止日期
-        LocalDate totalExpiryDate = record.totalExpiryDate();
-        if (totalExpiryDate != null && totalExpiryDate.isBefore(expiryDate)) {
-            return Optional.of("总截止日期需晚于截止日期");
-        }
+        // CO-583: totalExpiryDate 字段已废弃用户输入，聚合值由 groupTotalExpiryDate 承载
+        // 原第 6 条 totalExpiryDate 业务校验已移除
 
         // 7. 联系人与地址必填
         if (record.contactPerson() == null || record.contactPerson().trim().isEmpty()

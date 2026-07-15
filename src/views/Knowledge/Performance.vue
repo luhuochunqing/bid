@@ -109,6 +109,11 @@
             <span :class="getDaysRemainingClass(row)" style="font-weight: 600">{{ formatDaysRemaining(row.daysRemaining) }}</span>
           </template>
         </el-table-column>
+        <el-table-column prop="groupTotalExpiryDate" label="总截止日期" width="130" align="center">
+          <template #default="{ row }">
+            <span :class="getGroupTotalExpiryDateClass(row.groupTotalExpiryDate)">{{ row.groupTotalExpiryDate || '-' }}</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="status" label="状态" width="95" align="center">
           <template #default="{ row }"><el-tag :type="getStatusTagType(row.status)" effect="dark">{{ row.statusLabel }}</el-tag></template>
         </el-table-column>
@@ -154,10 +159,10 @@ import { ref, reactive, onMounted } from 'vue'
 import { performanceApi } from '@/api/modules/performance.js'
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import { Plus, Upload, Download, Bell } from '@element-plus/icons-vue'
-import { usePerformanceImport } from '@/composables/usePerformanceImport.js'
 import { useKnowledgePermission } from '@/composables/useKnowledgePermission'
 import { useListPagination } from '@/composables/useListPagination'
 import { PROJECT_TYPE_OPTIONS } from '@/constants/projectTypes.js'
+import { sortPerformanceByGroupPinyin } from './performanceSort.js'
 import PerformanceDetailDrawer from './components/PerformanceDetailDrawer.vue'
 import PerformanceFormDialog from './components/PerformanceFormDialog.vue'
 import PerformanceAlertConfigDialog from './components/performance/PerformanceAlertConfigDialog.vue'
@@ -185,7 +190,7 @@ const loadData = async () => {
   loading.value = true
   try {
     const { data } = await performanceApi.getList(searchForm)
-    records.value = data || []
+    records.value = sortPerformanceByGroupPinyin(data || [])
     resetPage()
   } catch {
     ElMessage.error('台账加载失败，请检查服务状态')
@@ -202,6 +207,12 @@ const exportZipDialogVisible = ref(false)
 const getCustomerTypeTagType = (t) => t === 'CENTRAL_SOE' ? 'danger' : t === 'LOCAL_SOE' ? 'warning' : t === 'GOVERNMENT_INSTITUTION' ? 'success' : 'primary'
 const getStatusTagType = (s) => s === 'EXPIRED' ? 'danger' : s === 'EXPIRING' ? 'warning' : 'success'
 const getExpiryDateClass = (row) => row.status === 'EXPIRED' ? 'text-danger' : row.status === 'EXPIRING' ? 'text-warning' : 'text-normal'
+// CO-583: 总截止日期样式基于聚合值自身判断，不受单条合同 status 影响
+const getGroupTotalExpiryDateClass = (groupTotalExpiryDate) => {
+  if (!groupTotalExpiryDate) return 'text-normal'
+  const today = new Date().toISOString().slice(0, 10)
+  return groupTotalExpiryDate < today ? 'text-danger' : 'text-normal'
+}
 const getDaysRemainingClass = (row) => (row.daysRemaining != null && row.daysRemaining < 0) ? 'text-danger' : row.status === 'EXPIRING' ? 'text-warning' : 'text-success'
 const formatDaysRemaining = (days) => (days == null || days > 999999999 || days === 2147483647) ? '-' : days < 0 ? `已逾期 ${Math.abs(days)} 天` : `${days} 天`
 

@@ -34,7 +34,11 @@ public class UpdatePerformanceAppService {
                 command.customerLevel(),
                 command.signingDate(),
                 command.expiryDate(),
-                command.totalExpiryDate(),
+                // CO-583: totalExpiryDate 已下线用户输入，这里传 null 表示"不更新此字段"。
+                // 隐式契约：PerformanceRepositoryAdapter.updateEntityFields 见到 null 跳过 setTotalExpiryDate，
+                // 从而保留实体原值（历史数据）。改动 Adapter.updateEntityFields 或本方法时需同步检查此契约。
+                // 防御性提示：若未来 Adapter 改为 "null 也写入"，此处历史值会丢失，需改为 existing.totalExpiryDate()。
+                null,
                 command.contactPerson(),
                 command.contactInfo(),
                 command.territory(),

@@ -18,7 +18,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Component
@@ -93,6 +95,29 @@ public class PerformanceRepositoryAdapter implements PerformanceRepository {
                 .stream().map(this::toDomain).toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, LocalDate> findGroupTotalExpiryDates() {
+        var rows = jpaRepository.findGroupTotalExpiryDates();
+        Map<String, LocalDate> result = new LinkedHashMap<>(rows.size());
+        for (Object[] row : rows) {
+            String groupCompany = (String) row[0];
+            LocalDate maxExpiry = (LocalDate) row[1];
+            // CO-583: JPQL 已过滤空 groupCompany 和 null expiryDate，Java 层无需重复过滤
+            result.put(groupCompany, maxExpiry);
+        }
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<LocalDate> findGroupTotalExpiryDate(String groupCompany) {
+        if (groupCompany == null || groupCompany.trim().isEmpty()) {
+            return Optional.empty();
+        }
+        return jpaRepository.findGroupTotalExpiryDate(groupCompany);
+    }
+
     private void updateEntityFields(PerformanceRecordEntity e, PerformanceRecord r) {
         e.setContractName(r.contractName());
         e.setSigningEntity(r.signingEntity());
@@ -104,7 +129,7 @@ public class PerformanceRepositoryAdapter implements PerformanceRepository {
         e.setCustomerLevel(r.customerLevel());
         e.setSigningDate(r.signingDate());
         e.setExpiryDate(r.expiryDate());
-        e.setTotalExpiryDate(r.totalExpiryDate());
+        // CO-583: totalExpiryDate 不再由用户写入；保留实体字段以存历史值，仅新建时为 null
         e.setContactPerson(r.contactPerson());
         e.setContactInfo(r.contactInfo());
         e.setTerritory(r.territory());

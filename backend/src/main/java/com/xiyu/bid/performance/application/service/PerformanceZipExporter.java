@@ -75,8 +75,7 @@ public final class PerformanceZipExporter {
         List<PerformanceDTO> records;
         if (ids != null && !ids.isEmpty()) {
             records = ids.stream()
-                    .map(id -> mapper.toDTO(
-                            repository.findById(id).orElse(null)))
+                    .map(id -> mapper.toDTO(repository.findById(id).orElse(null)))
                     .filter(r -> r != null)
                     .toList();
         } else {
@@ -85,8 +84,7 @@ public final class PerformanceZipExporter {
             var effectiveCriteria = criteria != null
                     ? criteria
                     : PerformanceSearchCriteria.empty();
-            records = repository.findAll(
-                            effectiveCriteria, config)
+            records = repository.findAll(effectiveCriteria, config)
                     .stream()
                     .map(mapper::toDTO)
                     .toList();

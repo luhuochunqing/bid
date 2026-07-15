@@ -29,6 +29,8 @@ public record PerformanceDTO(
         LocalDate signingDate,
         LocalDate expiryDate,
         LocalDate totalExpiryDate,
+        // CO-583: 集团聚合总截止日期（= 集团全量数据 MAX(expiryDate)，不受筛选影响）
+        LocalDate groupTotalExpiryDate,
         // 系统计算字段
         long daysRemaining,
         String expiryReminder,
