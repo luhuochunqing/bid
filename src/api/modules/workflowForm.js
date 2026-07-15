@@ -82,7 +82,9 @@ async function uploadWorkflowFormAttachment(templateCode, fieldKey, file, option
 // ================================================================
 
 async function getActiveFormDefinition(scope) {
-  return httpClient.get(`/api/form-definitions/${scope}/active`)
+  return httpClient.get(`/api/form-definitions/${scope}/active`, {
+    params: { _t: Date.now() }
+  })
 }
 
 async function submitFormDefinition(scope, payload = {}) {

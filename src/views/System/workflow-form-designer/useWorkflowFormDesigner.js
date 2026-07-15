@@ -258,7 +258,8 @@ export function useWorkflowFormDesigner() {
         // 保存 schema（从 draft 读取：用户在编辑区修改的是 draft，而非 formEngineDraft）
         await formDefinitionApi.updateFormDefinition(def.id, {
           scopeLabel: draft.name,
-          schema: { fields: draft.schema.fields }
+          schema: { fields: draft.schema.fields },
+          enabled: draft.enabled
         })
         // 保存可见性规则（转换为后端 DTO 格式）
         const visibilityDtoList = visibilityRules.value.map(r => ({
