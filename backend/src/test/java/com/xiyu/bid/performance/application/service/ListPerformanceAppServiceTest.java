@@ -218,7 +218,7 @@ class ListPerformanceAppServiceTest {
                 null, r.industry(), null, null, null,
                 r.signingDate(), r.expiryDate(), r.totalExpiryDate(),
                 groupTotal,
-                0, "", null,
+                0L, "", null,
                 r.contactPerson(), r.contactInfo(), r.territory(),
                 r.customerAddress(), r.xiyuProjectManager(),
                 r.mallWebsiteUrl(), r.hasBidNotice(), r.remarks(),

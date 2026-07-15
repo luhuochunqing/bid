@@ -214,7 +214,7 @@ const getGroupTotalExpiryDateClass = (groupTotalExpiryDate) => {
   return groupTotalExpiryDate < today ? 'text-danger' : 'text-normal'
 }
 const getDaysRemainingClass = (row) => (row.daysRemaining != null && row.daysRemaining < 0) ? 'text-danger' : row.status === 'EXPIRING' ? 'text-warning' : 'text-success'
-const formatDaysRemaining = (days) => (days == null || days > 999999999 || days === 2147483647) ? '-' : days < 0 ? `已逾期 ${Math.abs(days)} 天` : `${days} 天`
+const formatDaysRemaining = (days) => (days == null) ? '-' : days < 0 ? `已逾期 ${Math.abs(days)} 天` : `${days} 天`
 
 const resetFilters = () => {
   Object.assign(searchForm, {
