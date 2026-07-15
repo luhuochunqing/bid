@@ -60,7 +60,8 @@ function normalizePerformance(p) {
     customerLevelLabel: CUSTOMER_LEVEL_MAP[p.customerLevel] || p.customerLevel || '-',
     signingDate: formatDate(p.signingDate),
     expiryDate: formatDate(p.expiryDate),
-    totalExpiryDate: formatDate(p.totalExpiryDate),
+    // CO-583: totalExpiryDate 字段已废弃用户输入，前端不再透传
+    groupTotalExpiryDate: formatDate(p.groupTotalExpiryDate),
     daysRemaining: p.daysRemaining,
     expiryReminder: p.expiryReminder || '',
     status: p.status || 'IN_PERFORMANCE',
@@ -91,7 +92,6 @@ function buildPayload(data) {
     customerLevel: data.customerLevel || null,
     signingDate: data.signingDate || null,
     expiryDate: data.expiryDate || null,
-    totalExpiryDate: data.totalExpiryDate || null,
     contactPerson: data.contactPerson || '',
     contactInfo: data.contactInfo || '',
     territory: data.territory || '',

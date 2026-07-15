@@ -20,5 +20,22 @@ public interface PerformanceRecordJpaRepository
     @Query("SELECT p FROM PerformanceRecordEntity p WHERE p.expiryDate IS NOT NULL AND p.expiryDate >= :today")
     List<PerformanceRecordEntity> findAllWithExpiryDate(@Param("today") LocalDate today);
 
+    /**
+     * CO-583: 集团 → MAX(expiryDate) 聚合查询（基于全量数据，不受筛选条件影响）。
+     * 返回 [groupCompany, maxExpiryDate] 二元组列表。
+     */
+    @Query("SELECT p.groupCompany, MAX(p.expiryDate) FROM PerformanceRecordEntity p "
+            + "WHERE p.groupCompany IS NOT NULL AND TRIM(p.groupCompany) <> '' "
+            + "AND p.expiryDate IS NOT NULL "
+            + "GROUP BY p.groupCompany")
+    List<Object[]> findGroupTotalExpiryDates();
+
+    /**
+     * CO-583: 单集团 MAX(expiryDate) 查询（详情页用，避免全表聚合）。
+     */
+    @Query("SELECT MAX(p.expiryDate) FROM PerformanceRecordEntity p "
+            + "WHERE p.groupCompany = :groupCompany AND p.expiryDate IS NOT NULL")
+    Optional<LocalDate> findGroupTotalExpiryDate(@Param("groupCompany") String groupCompany);
+
     Optional<PerformanceRecordEntity> findByContractName(String contractName);
 }

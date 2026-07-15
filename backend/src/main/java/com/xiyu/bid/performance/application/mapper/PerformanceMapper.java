@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 业绩 Mapper（蓝图 4.5）
@@ -18,6 +19,30 @@ import java.util.List;
 public class PerformanceMapper {
 
     public PerformanceDTO toDTO(PerformanceRecord r) {
+        if (r == null) return null;
+        return toDTO(r, (LocalDate) null);
+    }
+
+    /**
+     * CO-583: 重载方法，注入集团聚合总截止日期。
+     *
+     * @param groupTotalExpiryMap 集团 → MAX(expiryDate) 映射（基于全量数据，不受筛选影响）；
+     *                            为 null 或不含当前集团时，groupTotalExpiryDate 返回 null
+     */
+    public PerformanceDTO toDTO(PerformanceRecord r, Map<String, LocalDate> groupTotalExpiryMap) {
+        if (r == null) return null;
+        LocalDate groupTotal = groupTotalExpiryMap != null && r.groupCompany() != null
+                ? groupTotalExpiryMap.get(r.groupCompany())
+                : null;
+        return toDTO(r, groupTotal);
+    }
+
+    /**
+     * CO-583: 单值重载，详情页等单记录场景直接传入聚合值，避免构造 Map。
+     *
+     * @param groupTotalExpiryDate 集团聚合总截止日期；null 表示无聚合值
+     */
+    public PerformanceDTO toDTO(PerformanceRecord r, LocalDate groupTotalExpiryDate) {
         if (r == null) return null;
         LocalDate today = LocalDate.now();
 
@@ -37,6 +62,7 @@ public class PerformanceMapper {
                 r.customerType(), r.industry(),
                 r.projectType(), r.dockingMethod(), r.customerLevel(),
                 r.signingDate(), r.expiryDate(), r.totalExpiryDate(),
+                groupTotalExpiryDate,
                 daysRemaining, expiryReminder, status,
                 r.contactPerson(), r.contactInfo(), r.territory(),
                 r.customerAddress(), r.xiyuProjectManager(),

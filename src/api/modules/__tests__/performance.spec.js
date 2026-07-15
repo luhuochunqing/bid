@@ -1,8 +1,9 @@
-// Input: src/api/modules/performance.js — downloadTemplate/batchExport/batchExportZip
-// Output: CO-444 模板下载 Blob 处理修复的回归测试
+// Input: src/api/modules/performance.js — downloadTemplate/batchExport/batchExportZip + buildPayload/normalizePerformance
+// Output: CO-444 Blob 处理回归测试 + CO-583 buildPayload/normalizePerformance 字段测试
 // Pos: src/api/modules/__tests__/ — API 层单元测试
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
-// 维护声明: downloadTemplate/batchExport/batchExportZip 函数改动时，同步更新对应的 Blob 处理测试用例。
+// 维护声明: downloadTemplate/batchExport/batchExportZip 函数改动时，同步更新对应的 Blob 处理测试用例；
+//           buildPayload/normalizePerformance 字段改动时，同步更新 CO-583 测试用例。
 
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { performanceApi } from '../performance.js'
@@ -11,7 +12,9 @@ import { performanceApi } from '../performance.js'
 vi.mock('../../client.js', () => ({
   default: {
     get: vi.fn(),
-    post: vi.fn()
+    post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn()
   }
 }))
 
@@ -159,5 +162,71 @@ describe('CO-444 performance.js Blob 处理修复', () => {
     expect(attachments).toHaveLength(2)
     expect(attachments[0]).toBe(attach1)
     expect(attachments[1]).toBe(attach2)
+  })
+})
+
+describe('CO-583 buildPayload / normalizePerformance 字段调整', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('create 提交的 payload 不含 totalExpiryDate 字段', async () => {
+    httpClient.post.mockResolvedValueOnce({ data: { id: 1 } })
+    await performanceApi.create({
+      contractName: '合同A',
+      signingDate: '2024-01-01',
+      expiryDate: '2025-01-01',
+      // 即便前端误传 totalExpiryDate，buildPayload 也不应送出
+      totalExpiryDate: '2025-12-01',
+      attachmentMap: {}
+    })
+    const payload = httpClient.post.mock.calls[0][1]
+    expect(payload).not.toHaveProperty('totalExpiryDate')
+  })
+
+  it('update 提交的 payload 不含 totalExpiryDate 字段', async () => {
+    httpClient.put.mockResolvedValueOnce({ data: { id: 1 } })
+    await performanceApi.update(1, {
+      contractName: '合同A',
+      signingDate: '2024-01-01',
+      expiryDate: '2025-01-01',
+      totalExpiryDate: '2025-12-01',
+      attachmentMap: {}
+    })
+    const payload = httpClient.put.mock.calls[0][1]
+    expect(payload).not.toHaveProperty('totalExpiryDate')
+  })
+
+  it('normalizePerformance 把后端 groupTotalExpiryDate 透传到前端', async () => {
+    httpClient.get.mockResolvedValueOnce({
+      data: [{
+        id: 1,
+        contractName: '合同A',
+        groupCompany: '中核集团',
+        signingDate: '2024-01-01',
+        expiryDate: '2025-01-01',
+        groupTotalExpiryDate: '2025-12-31',
+        daysRemaining: 180,
+        status: 'IN_PERFORMANCE'
+      }]
+    })
+    const { data } = await performanceApi.getList({})
+    expect(data[0].groupTotalExpiryDate).toBe('2025-12-31')
+  })
+
+  it('normalizePerformance 后端未返回 groupTotalExpiryDate 时为 null', async () => {
+    httpClient.get.mockResolvedValueOnce({
+      data: [{
+        id: 1,
+        contractName: '合同A',
+        groupCompany: '',
+        signingDate: '2024-01-01',
+        expiryDate: '2025-01-01',
+        daysRemaining: 180,
+        status: 'IN_PERFORMANCE'
+      }]
+    })
+    const { data } = await performanceApi.getList({})
+    expect(data[0].groupTotalExpiryDate).toBeNull()
   })
 })

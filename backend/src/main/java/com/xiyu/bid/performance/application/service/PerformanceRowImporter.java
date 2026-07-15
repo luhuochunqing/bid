@@ -109,10 +109,7 @@ public class PerformanceRowImporter {
         if (signingDate != null && expiryDate != null && !expiryDate.isAfter(signingDate)) {
             throw new IllegalArgumentException(colLabel(COL_EXPIRY_DATE) + "须晚于" + colLabel(COL_SIGNING_DATE));
         }
-        LocalDate totalExpiryDate = parseDate(getCellStr(row, COL_TOTAL_EXPIRY_DATE), COL_TOTAL_EXPIRY_DATE);
-        if (expiryDate != null && totalExpiryDate != null && totalExpiryDate.isBefore(expiryDate)) {
-            throw new IllegalArgumentException(colLabel(COL_TOTAL_EXPIRY_DATE) + "须晚于或等于" + colLabel(COL_EXPIRY_DATE));
-        }
+        // CO-583: totalExpiryDate 字段已废弃用户输入，导入时静默忽略该列（模板列保留兼容）
 
         var customerType = parseWithColLabel(() -> parseCustomerType(getCellStr(row, COL_CUSTOMER_TYPE)), COL_CUSTOMER_TYPE);
         var projectType = parseWithColLabel(() -> parseProjectType(getCellStr(row, COL_PROJECT_TYPE)), COL_PROJECT_TYPE);
@@ -124,7 +121,7 @@ public class PerformanceRowImporter {
                 contractName, getCellStr(row, COL_SIGNING_ENTITY), getCellStr(row, COL_GROUP_COMPANY),
                 customerType, getCellStr(row, COL_INDUSTRY),
                 projectType, dockingMethod, customerLevel,
-                signingDate, expiryDate, totalExpiryDate,
+                signingDate, expiryDate, null,
                 getCellStr(row, COL_CONTACT_PERSON), getCellStr(row, COL_CONTACT_INFO), getCellStr(row, COL_TERRITORY),
                 getCellStr(row, COL_CUSTOMER_ADDRESS), getCellStr(row, COL_XIYU_PROJECT_MANAGER), getCellStr(row, COL_MALL_WEBSITE_URL),
                 parseYesNo(getCellStr(row, COL_HAS_BID_NOTICE), COL_HAS_BID_NOTICE), getCellStr(row, COL_REMARKS),

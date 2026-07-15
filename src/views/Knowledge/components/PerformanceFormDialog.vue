@@ -148,14 +148,6 @@ const validateForm = async () => {
     }
   }
 
-  if (form.value.totalExpiryDate && form.value.expiryDate) {
-    if (new Date(form.value.totalExpiryDate) < new Date(form.value.expiryDate)) {
-      ElMessage.warning('总截止日期需晚于截止日期')
-      activeFormTab.value = 'dates'
-      return false
-    }
-  }
-
   try {
     await formRefContact.value?.validate()
     contactValid = true

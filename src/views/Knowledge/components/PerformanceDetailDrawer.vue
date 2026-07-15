@@ -39,7 +39,6 @@
           <el-descriptions-item label="截止日期">
             <span :class="getExpiryDateClass(data)">{{ data.expiryDate }}</span>
           </el-descriptions-item>
-          <el-descriptions-item label="总截止日期（含可续约期）">{{ data.totalExpiryDate || '-' }}</el-descriptions-item>
           <el-descriptions-item label="到期余天">
             <span :class="getDaysRemainingClass(data)" style="font-weight: 600">
               {{ formatDaysRemaining(data.daysRemaining) }}

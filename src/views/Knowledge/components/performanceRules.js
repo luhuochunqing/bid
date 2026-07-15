@@ -42,7 +42,6 @@ export const createDefaultForm = () => ({
   customerLevel: 'GROUP',
   signingDate: '',
   expiryDate: '',
-  totalExpiryDate: '',
   contactPerson: '',
   contactInfo: '',
   territory: '',

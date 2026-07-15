@@ -15,6 +15,7 @@ import java.io.ByteArrayInputStream;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,6 +30,7 @@ import static org.mockito.Mockito.when;
 /**
  * 业绩 Excel 导出器单元测试（CO-445）
  * 覆盖三种导出路径：按 ids、按 criteria、全量
+ * CO-583 分组导出测试见 {@link PerformanceExcelGroupExportTest}
  */
 class PerformanceExcelExporterTest {
 
@@ -61,10 +63,12 @@ class PerformanceExcelExporterTest {
     void export_byIds_returnsExcelWithRecords() throws Exception {
         PerformanceRecord record = sampleRecord();
         when(repository.findById(1L)).thenReturn(Optional.of(record));
-        when(mapper.toDTO(record)).thenReturn(new PerformanceDTO(
+        when(repository.findGroupTotalExpiryDates()).thenReturn(Map.of());
+        when(mapper.toDTO(eq(record), any(Map.class))).thenReturn(new PerformanceDTO(
                 1L, "合同A", "签约单位A", "集团A",
                 null, "行业A", null, null, null,
                 LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31), LocalDate.of(2027, 12, 31),
+                null, // CO-583: groupTotalExpiryDate
                 0, "", null,
                 "联系人A", "13800000000", "属地A", "地址A", "项目负责人A",
                 "http://mall.com", true, "备注A",
@@ -77,10 +81,11 @@ class PerformanceExcelExporterTest {
         try (var wb = new XSSFWorkbook(new ByteArrayInputStream(data))) {
             var sheet = wb.getSheet("业绩管理台账");
             assertThat(sheet).isNotNull();
-            // 表头 + 1 数据行
-            assertThat(sheet.getPhysicalNumberOfRows()).isEqualTo(2);
+            // CO-583: 表头 + 集团A汇总行 + 1 明细行 = 3 行
+            assertThat(sheet.getPhysicalNumberOfRows()).isEqualTo(3);
             assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("合同名称");
-            assertThat(sheet.getRow(1).getCell(0).getStringCellValue()).isEqualTo("合同A");
+            // 汇总行后第一个明细行的合同名
+            assertThat(sheet.getRow(2).getCell(0).getStringCellValue()).isEqualTo("合同A");
         }
         verify(repository, times(1)).findById(1L);
         verify(repository, never()).findAll(any(), any());
@@ -95,10 +100,12 @@ class PerformanceExcelExporterTest {
         var config = new PerformanceAlertConfig(null, 180, 90, true);
         when(alertConfigRepository.findActive()).thenReturn(Optional.of(config));
         when(repository.findAll(eq(criteria), any())).thenReturn(List.of(record));
-        when(mapper.toDTO(record)).thenReturn(new PerformanceDTO(
+        when(repository.findGroupTotalExpiryDates()).thenReturn(Map.of());
+        when(mapper.toDTO(eq(record), any(Map.class))).thenReturn(new PerformanceDTO(
                 1L, "合同A", "签约单位A", "集团A",
                 null, "行业A", null, null, null,
                 LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31), LocalDate.of(2027, 12, 31),
+                null, // CO-583: groupTotalExpiryDate
                 0, "", null,
                 "联系人A", "13800000000", "属地A", "地址A", "项目负责人A",
                 "http://mall.com", true, "备注A",
@@ -111,7 +118,8 @@ class PerformanceExcelExporterTest {
         try (var wb = new XSSFWorkbook(new ByteArrayInputStream(data))) {
             var sheet = wb.getSheet("业绩管理台账");
             assertThat(sheet).isNotNull();
-            assertThat(sheet.getPhysicalNumberOfRows()).isEqualTo(2);
+            // CO-583: 表头 + 汇总行 + 明细行 = 3 行
+            assertThat(sheet.getPhysicalNumberOfRows()).isEqualTo(3);
         }
         verify(repository, times(1)).findAll(eq(criteria), any());
         verify(repository, never()).findById(any());
@@ -123,10 +131,12 @@ class PerformanceExcelExporterTest {
         var config = new PerformanceAlertConfig(null, 180, 90, true);
         when(alertConfigRepository.findActive()).thenReturn(Optional.of(config));
         when(repository.findAll(eq(PerformanceSearchCriteria.empty()), any())).thenReturn(List.of(record));
-        when(mapper.toDTO(record)).thenReturn(new PerformanceDTO(
+        when(repository.findGroupTotalExpiryDates()).thenReturn(Map.of());
+        when(mapper.toDTO(eq(record), any(Map.class))).thenReturn(new PerformanceDTO(
                 1L, "合同A", "签约单位A", "集团A",
                 null, "行业A", null, null, null,
                 LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31), LocalDate.of(2027, 12, 31),
+                null, // CO-583: groupTotalExpiryDate
                 0, "", null,
                 "联系人A", "13800000000", "属地A", "地址A", "项目负责人A",
                 "http://mall.com", true, "备注A",
@@ -144,6 +154,7 @@ class PerformanceExcelExporterTest {
         var config = new PerformanceAlertConfig(null, 180, 90, true);
         when(alertConfigRepository.findActive()).thenReturn(Optional.of(config));
         when(repository.findAll(eq(PerformanceSearchCriteria.empty()), any())).thenReturn(List.of());
+        when(repository.findGroupTotalExpiryDates()).thenReturn(Map.of());
 
         byte[] data = exporter.export(null, null);
 

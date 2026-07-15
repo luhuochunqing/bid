@@ -85,6 +85,7 @@ class PerformanceZipExporterTest {
                 r.customerType(), r.industry(),
                 r.projectType(), r.dockingMethod(), r.customerLevel(),
                 r.signingDate(), r.expiryDate(), r.totalExpiryDate(),
+                null, // CO-583: groupTotalExpiryDate
                 0, "", null,
                 r.contactPerson(), r.contactInfo(), r.territory(),
                 r.customerAddress(), r.xiyuProjectManager(),
@@ -133,7 +134,7 @@ class PerformanceZipExporterTest {
     void exportZip_byIds_containsExcelEntryAndUsesIds() throws Exception {
         PerformanceRecord record = sampleRecord(false);
         when(repository.findById(1L)).thenReturn(Optional.of(record));
-        when(mapper.toDTO(record)).thenReturn(toDto(record));
+        when(mapper.toDTO(eq(record))).thenReturn(toDto(record));
         when(excelExporter.export(anyList(), any())).thenReturn(new byte[]{1, 2, 3});
 
         byte[] data = zipExporter.exportZip(List.of(1L), null, PerformanceExportCriteria.allTypes());
@@ -154,7 +155,7 @@ class PerformanceZipExporterTest {
         var config = new PerformanceAlertConfig(null, 180, 90, true);
         when(alertConfigRepository.findActive()).thenReturn(Optional.of(config));
         when(repository.findAll(eq(criteria), any())).thenReturn(List.of(record));
-        when(mapper.toDTO(record)).thenReturn(toDto(record));
+        when(mapper.toDTO(eq(record))).thenReturn(toDto(record));
         when(excelExporter.export(any(), any())).thenReturn(new byte[]{1, 2, 3});
 
         byte[] data = zipExporter.exportZip(null, criteria, PerformanceExportCriteria.allTypes());
@@ -174,7 +175,7 @@ class PerformanceZipExporterTest {
         var config = new PerformanceAlertConfig(null, 180, 90, true);
         when(alertConfigRepository.findActive()).thenReturn(Optional.of(config));
         when(repository.findAll(eq(PerformanceSearchCriteria.empty()), any())).thenReturn(List.of(record));
-        when(mapper.toDTO(record)).thenReturn(toDto(record));
+        when(mapper.toDTO(eq(record))).thenReturn(toDto(record));
         when(excelExporter.export(any(), any())).thenReturn(new byte[]{1, 2, 3});
 
         byte[] data = zipExporter.exportZip(null, null, PerformanceExportCriteria.allTypes());
@@ -215,7 +216,7 @@ class PerformanceZipExporterTest {
         var config = new PerformanceAlertConfig(null, 180, 90, true);
         when(alertConfigRepository.findActive()).thenReturn(Optional.of(config));
         when(repository.findAll(eq(PerformanceSearchCriteria.empty()), any())).thenReturn(List.of(record));
-        when(mapper.toDTO(record)).thenReturn(toDto(record));
+        when(mapper.toDTO(eq(record))).thenReturn(toDto(record));
         when(excelExporter.export(any(), any())).thenReturn(new byte[]{1, 2, 3});
 
         byte[] data = zipExporter.exportZip(null, null, PerformanceExportCriteria.allTypes());
@@ -228,7 +229,7 @@ class PerformanceZipExporterTest {
     void exportZip_recordWithLocalAttachment_readsFromStorageService() throws Exception {
         PerformanceRecord record = sampleRecord(true);
         when(repository.findById(1L)).thenReturn(Optional.of(record));
-        when(mapper.toDTO(record)).thenReturn(toDto(record));
+        when(mapper.toDTO(eq(record))).thenReturn(toDto(record));
         when(excelExporter.export(anyList(), any())).thenReturn(new byte[]{1, 2, 3});
         when(attachmentStorageService.readAttachmentFile("/1/PF_1_CONTRACT_AGREEMENT_20260101.pdf"))
                 .thenReturn(new byte[]{4, 5, 6});
@@ -243,7 +244,7 @@ class PerformanceZipExporterTest {
     void exportZip_attachmentReadFailure_writesErrorMessageInZip() throws Exception {
         PerformanceRecord record = sampleRecord(true);
         when(repository.findById(1L)).thenReturn(Optional.of(record));
-        when(mapper.toDTO(record)).thenReturn(toDto(record));
+        when(mapper.toDTO(eq(record))).thenReturn(toDto(record));
         when(excelExporter.export(anyList(), any())).thenReturn(new byte[]{1, 2, 3});
         when(attachmentStorageService.readAttachmentFile("/1/PF_1_CONTRACT_AGREEMENT_20260101.pdf"))
                 .thenThrow(new IOException("附件文件不存在"));
@@ -263,7 +264,7 @@ class PerformanceZipExporterTest {
                 new PerformanceRecord.AttachmentEntry(1L, "合同协议.pdf", "/1/contract.pdf", "CONTRACT_AGREEMENT"),
                 new PerformanceRecord.AttachmentEntry(2L, "其他.pdf", "/1/other.pdf", "OTHER")));
         when(repository.findById(1L)).thenReturn(Optional.of(record));
-        when(mapper.toDTO(record)).thenReturn(toDto(record));
+        when(mapper.toDTO(eq(record))).thenReturn(toDto(record));
         when(excelExporter.export(anyList(), any())).thenReturn(new byte[]{1, 2, 3});
         when(attachmentStorageService.readAttachmentFile("/1/contract.pdf"))
                 .thenReturn(new byte[]{4, 5, 6});
@@ -285,7 +286,7 @@ class PerformanceZipExporterTest {
                 new PerformanceRecord.AttachmentEntry(1L, "合同协议.pdf", "/1/contract.pdf", "CONTRACT_AGREEMENT"),
                 new PerformanceRecord.AttachmentEntry(2L, "中标通知书.pdf", "/1/bid.pdf", "BID_NOTICE")));
         when(repository.findById(1L)).thenReturn(Optional.of(record));
-        when(mapper.toDTO(record)).thenReturn(toDto(record));
+        when(mapper.toDTO(eq(record))).thenReturn(toDto(record));
         when(excelExporter.export(anyList(), any())).thenReturn(new byte[]{1, 2, 3});
         when(attachmentStorageService.readAttachmentFile("/1/contract.pdf")).thenReturn(new byte[]{4});
         when(attachmentStorageService.readAttachmentFile("/1/bid.pdf")).thenReturn(new byte[]{5});
@@ -308,7 +309,7 @@ class PerformanceZipExporterTest {
         }
         PerformanceRecord record = recordWithAttachments(atts);
         when(repository.findById(1L)).thenReturn(Optional.of(record));
-        when(mapper.toDTO(record)).thenReturn(toDto(record));
+        when(mapper.toDTO(eq(record))).thenReturn(toDto(record));
         when(excelExporter.export(anyList(), any())).thenReturn(new byte[]{1, 2, 3});
 
         assertThatThrownBy(() -> zipExporter.exportZip(List.of(1L), null,
@@ -325,7 +326,7 @@ class PerformanceZipExporterTest {
     void exportZip_attachmentReadFailure_includedInReport() throws Exception {
         PerformanceRecord record = sampleRecord(true);
         when(repository.findById(1L)).thenReturn(Optional.of(record));
-        when(mapper.toDTO(record)).thenReturn(toDto(record));
+        when(mapper.toDTO(eq(record))).thenReturn(toDto(record));
         when(excelExporter.export(anyList(), any())).thenReturn(new byte[]{1, 2, 3});
         when(attachmentStorageService.readAttachmentFile("/1/PF_1_CONTRACT_AGREEMENT_20260101.pdf"))
                 .thenThrow(new IOException("文件不存在"));
@@ -345,7 +346,7 @@ class PerformanceZipExporterTest {
     void exportZip_generatesReportEntry() throws Exception {
         PerformanceRecord record = sampleRecord(true);
         when(repository.findById(1L)).thenReturn(Optional.of(record));
-        when(mapper.toDTO(record)).thenReturn(toDto(record));
+        when(mapper.toDTO(eq(record))).thenReturn(toDto(record));
         when(excelExporter.export(anyList(), any())).thenReturn(new byte[]{1, 2, 3});
         when(attachmentStorageService.readAttachmentFile("/1/PF_1_CONTRACT_AGREEMENT_20260101.pdf"))
                 .thenReturn(new byte[]{4, 5, 6});
