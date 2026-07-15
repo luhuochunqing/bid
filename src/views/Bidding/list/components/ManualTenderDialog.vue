@@ -110,54 +110,55 @@
                 <el-input v-model="form.description" type="textarea" :rows="3" placeholder="请输入项目详细描述" />
               </el-form-item>
             </el-col>
-            <!-- Paste recognition and file upload are ALWAYS present (tender.entry specific features) -->
-            <el-col :span="24">
-              <el-form-item label="粘贴识别">
-                <div class="paste-recognition-hint">[粘贴识别]或文字输入，系统将智能拆分回填标讯信息</div>
-                <el-input
-                  v-model="form.pastedText"
-                  type="textarea"
-                  :rows="4"
-                  maxlength="500000"
-                  show-word-limit
-                  placeholder="直接粘贴招标公告正文，系统将自动识别并回填字段"
-                  :disabled="parsingDocument"
-                />
-                <div class="paste-actions">
-                  <el-button
-                    type="primary"
-                    :icon="DocumentCopy"
-                    :loading="parsingDocument"
-                    @click="$emit('parse-pasted-text')"
-                  >
-                    识别粘贴文字
-                  </el-button>
-                </div>
-              </el-form-item>
-            </el-col>
-            <el-col :span="24">
-              <el-form-item label="标讯文件">
-                <div class="upload-hint">支持 PDF/Word 文件上传（≤50MB），上传即保存，自动 AI 解析回填表单字段</div>
-                <el-upload
-                  class="manual-tender-upload"
-                  :auto-upload="false"
-                  :on-change="onFileChange"
-                  :on-remove="onFileRemove"
-                  :file-list="form.attachments"
-                  :limit="5"
-                  :accept="acceptFileTypes"
-                  :on-exceed="onFileExceed"
-                  multiple
-                  drag
-                >
-                  <el-icon class="el-icon--upload"><Upload /></el-icon>
-                  <div class="el-upload__text">
-                    {{ parsingDocument ? 'DeepSeek/AI 解析中...' : '将文件拖到此处，或点击选择附件（PDF/Word ≤50MB）' }}
-                  </div>
-                </el-upload>
-              </el-form-item>
-            </el-col>
           </el-row>
+        </el-form>
+      </template>
+
+      <!-- #extension-fields: tender.entry 特有交互字段，动态/fallback 模式都渲染 -->
+      <template #extension-fields>
+        <el-form label-width="100px" class="extension-fields-form">
+          <el-form-item label="粘贴识别">
+            <div class="paste-recognition-hint">[粘贴识别]或文字输入，系统将智能拆分回填标讯信息</div>
+            <el-input
+              v-model="form.pastedText"
+              type="textarea"
+              :rows="4"
+              maxlength="500000"
+              show-word-limit
+              placeholder="直接粘贴招标公告正文，系统将自动识别并回填字段"
+              :disabled="parsingDocument"
+            />
+            <div class="paste-actions">
+              <el-button
+                type="primary"
+                :icon="DocumentCopy"
+                :loading="parsingDocument"
+                @click="$emit('parse-pasted-text')"
+              >
+                识别粘贴文字
+              </el-button>
+            </div>
+          </el-form-item>
+          <el-form-item label="标讯文件">
+            <div class="upload-hint">支持 PDF/Word 文件上传（≤50MB），上传即保存，自动 AI 解析回填表单字段</div>
+            <el-upload
+              class="manual-tender-upload"
+              :auto-upload="false"
+              :on-change="onFileChange"
+              :on-remove="onFileRemove"
+              :file-list="form.attachments"
+              :limit="5"
+              :accept="acceptFileTypes"
+              :on-exceed="onFileExceed"
+              multiple
+              drag
+            >
+              <el-icon class="el-icon--upload"><Upload /></el-icon>
+              <div class="el-upload__text">
+                {{ parsingDocument ? 'DeepSeek/AI 解析中...' : '将文件拖到此处，或点击选择附件（PDF/Word ≤50MB）' }}
+              </div>
+            </el-upload>
+          </el-form-item>
         </el-form>
       </template>
     </AdaptiveFormPage>

@@ -17,7 +17,7 @@ const ElUploadStub = {
 const AdaptiveFormPageStub = {
   name: 'AdaptiveFormPage',
   props: ['scope', 'modelValue', 'disabled'],
-  template: '<div class="adaptive-form-page-stub"><slot name="fallback-form" /></div>',
+  template: '<div class="adaptive-form-page-stub"><slot name="fallback-form" /><slot name="extension-fields" /></div>',
 }
 
 function createForm(overrides = {}) {

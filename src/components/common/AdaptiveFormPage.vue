@@ -27,16 +27,21 @@
         @update:model-value="handleUpdate"
         @submit="handleSubmit"
       />
+      <!-- Extension slot: business-specific fields beyond schema (e.g. paste recognition, file upload) -->
+      <slot name="extension-fields" :model-value="modelValue" :disabled="disabled" />
     </template>
 
     <!-- No dynamic schema: render inline fallback form -->
-    <slot
-      v-else-if="!forceFallback"
-      name="fallback-form"
-      :model-value="modelValue"
-      :update:model-value="handleUpdate"
-      :fields="fields"
-    />
+    <template v-else-if="!forceFallback">
+      <slot
+        name="fallback-form"
+        :model-value="modelValue"
+        :update:model-value="handleUpdate"
+        :fields="fields"
+      />
+      <!-- Extension slot also available in fallback mode -->
+      <slot name="extension-fields" :model-value="modelValue" :disabled="disabled" />
+    </template>
   </div>
 </template>
 
