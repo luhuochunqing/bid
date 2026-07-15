@@ -66,10 +66,17 @@ export function useWorkflowFormDesigner() {
     } catch {
       schema = {}
     }
+    const normalizedSchema = schema.fields ? schema : { fields: [] }
     formEngineDraft.scope = def.scope || ''
     formEngineDraft.scopeLabel = def.scopeLabel || ''
     formEngineDraft.enabled = def.enabled ?? false
-    formEngineDraft.schema = schema.fields ? schema : { fields: [] }
+    formEngineDraft.schema = normalizedSchema
+
+    // 同步到 draft：编辑区（表单字段、字段配置器、预览）绑定 draft，必须同步才能显示选中表单内容
+    draft.templateCode = def.scope || ''
+    draft.name = def.scopeLabel || ''
+    draft.enabled = def.enabled ?? false
+    draft.schema = normalizedSchema
 
     // 加载可见性和条件规则
     loadFormDefinitionRules(def.id)
@@ -248,10 +255,10 @@ export function useWorkflowFormDesigner() {
       formEngineLoading.save = true
       formEngineError.value = ''
       try {
-        // 保存 schema
+        // 保存 schema（从 draft 读取：用户在编辑区修改的是 draft，而非 formEngineDraft）
         await formDefinitionApi.updateFormDefinition(def.id, {
-          scopeLabel: formEngineDraft.scopeLabel,
-          schema: { fields: formEngineDraft.schema.fields }
+          scopeLabel: draft.name,
+          schema: { fields: draft.schema.fields }
         })
         // 保存可见性规则（转换为后端 DTO 格式）
         const visibilityDtoList = visibilityRules.value.map(r => ({
