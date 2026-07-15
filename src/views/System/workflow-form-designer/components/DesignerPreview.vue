@@ -9,14 +9,14 @@
           <el-option label="投标专员" value="bid-Team" />
         </el-select>
         <el-button size="small" @click="$emit('open-full-preview')">全屏预览</el-button>
-        <el-button size="small" :loading="trialLoading" @click="$emit('trial-submit')">试提交</el-button>
+        <el-button size="small" :loading="trialLoading" @click="$emit('trial-submit')">预览提交数据</el-button>
       </div>
     </div>
     <div class="preview-body">
       <DynamicWorkflowForm :schema="schema" v-model="model" />
     </div>
     <div v-if="trialPayload" class="preview-payload">
-      <div class="payload-label">提交数据：</div>
+      <div class="payload-label">预览提交数据（本地生成，未发送到后端）：</div>
       <pre>{{ trialPayload }}</pre>
     </div>
   </div>

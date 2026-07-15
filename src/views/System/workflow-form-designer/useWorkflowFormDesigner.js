@@ -1,6 +1,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { workflowFormApi, formDefinitionApi } from '@/api/modules/workflowForm.js'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import {
   FIELD_TYPES,
   buildDefaultTemplate,
@@ -245,135 +246,108 @@ export function useWorkflowFormDesigner() {
   }
 
   async function saveAll() {
-    if (activeSource.value === 'formengine') {
-      // FormEngine 独立表单保存分支
-      const def = formDefinitions.value.find(d => d.scope === formEngineDraft.scope)
-      if (!def) {
-        ElMessage.error('未选中独立表单')
-        throw new Error('No form selected')
+    // FormEngine 独立表单保存分支（OA 表单已下线，仅保留此分支）
+    const def = formDefinitions.value.find(d => d.scope === formEngineDraft.scope)
+    if (!def) {
+      ElMessage.error('未选中独立表单')
+      throw new Error('No form selected')
+    }
+    formEngineLoading.save = true
+    formEngineError.value = ''
+    try {
+      // 保存 schema（从 draft 读取：用户在编辑区修改的是 draft，而非 formEngineDraft）
+      await formDefinitionApi.updateFormDefinition(def.id, {
+        scopeLabel: draft.name,
+        schema: { fields: draft.schema.fields },
+        enabled: draft.enabled
+      })
+      // 保存可见性规则（转换为后端 DTO 格式）
+      const visibilityDtoList = visibilityRules.value.map(r => ({
+        fieldKey: r.targetField || r.fieldKey || '',
+        rolePattern: r.rolePattern || null,
+        orgId: null,
+        visible: r.visible ?? true,
+        readonly: r.readonly ?? false,
+        hidden: r.hidden ?? false
+      }))
+      await formDefinitionApi.saveVisibilityRules(def.id, visibilityDtoList)
+      // 保存条件规则（转换为后端 DTO 格式）
+      const conditionDtoList = crossFieldRules.value.filter(r => r.operator && ['eq', 'neq', 'in', 'contains', 'gt', 'lt'].includes(r.operator)).map(r => ({
+        sourceField: r.fieldA || '',
+        operator: r.operator || 'equals',
+        targetValue: r.targetValue || '',
+        action: r.action || 'show',
+        targetField: r.fieldB || '',
+        displayOrder: r.priority || 0
+      }))
+      await formDefinitionApi.saveConditionRules(def.id, conditionDtoList)
+      // 保存跨字段验证规则
+      const crossFieldDtoList = crossFieldRules.value.filter(r => r.operator && ['less_than', 'greater_than', 'equals', 'not_equals', 'sum_equals', 'one_filled', 'both_filled', 'not_after'].includes(r.operator)).map(r => ({
+        fieldA: r.fieldA || '',
+        operator: r.operator || 'equals',
+        fieldB: r.fieldB || '',
+        targetValue: r.targetValue || '',
+        errorMessage: r.errorMessage || '',
+        priority: r.priority || 0
+      }))
+      if (crossFieldDtoList.length > 0) {
+        await formDefinitionApi.saveCrossFieldRules(def.id, crossFieldDtoList)
       }
-      formEngineLoading.save = true
-      formEngineError.value = ''
-      try {
-        // 保存 schema（从 draft 读取：用户在编辑区修改的是 draft，而非 formEngineDraft）
-        await formDefinitionApi.updateFormDefinition(def.id, {
-          scopeLabel: draft.name,
-          schema: { fields: draft.schema.fields },
-          enabled: draft.enabled
-        })
-        // 保存可见性规则（转换为后端 DTO 格式）
-        const visibilityDtoList = visibilityRules.value.map(r => ({
-          fieldKey: r.targetField || r.fieldKey || '',
-          rolePattern: r.rolePattern || null,
-          orgId: null,
-          visible: r.visible ?? true,
-          readonly: r.readonly ?? false,
-          hidden: r.hidden ?? false
-        }))
-        await formDefinitionApi.saveVisibilityRules(def.id, visibilityDtoList)
-        // 保存条件规则（转换为后端 DTO 格式）
-        const conditionDtoList = crossFieldRules.value.filter(r => r.operator && ['eq', 'neq', 'in', 'contains', 'gt', 'lt'].includes(r.operator)).map(r => ({
-          sourceField: r.fieldA || '',
-          operator: r.operator || 'equals',
-          targetValue: r.targetValue || '',
-          action: r.action || 'show',
-          targetField: r.fieldB || '',
-          displayOrder: r.priority || 0
-        }))
-        await formDefinitionApi.saveConditionRules(def.id, conditionDtoList)
-        // 保存跨字段验证规则
-        const crossFieldDtoList = crossFieldRules.value.filter(r => r.operator && ['less_than', 'greater_than', 'equals', 'not_equals', 'sum_equals', 'one_filled', 'both_filled', 'not_after'].includes(r.operator)).map(r => ({
-          fieldA: r.fieldA || '',
-          operator: r.operator || 'equals',
-          fieldB: r.fieldB || '',
-          targetValue: r.targetValue || '',
-          errorMessage: r.errorMessage || '',
-          priority: r.priority || 0
-        }))
-        if (crossFieldDtoList.length > 0) {
-          await formDefinitionApi.saveCrossFieldRules(def.id, crossFieldDtoList)
-        }
-        // 保存租户覆盖规则
-        const tenantOverrideDtoList = tenantOverrides.value.map(o => ({
-          fieldKey: o.fieldKey || '',
-          overrideType: o.overrideType || 'label',
-          overrideValue: o.overrideValue || ''
-        }))
-        if (tenantOverrideDtoList.length > 0) {
-          await formDefinitionApi.saveTenantOverrides(def.id, tenantOverrideDtoList)
-        }
-        ElMessage.success('独立表单已保存')
-        await loadFormDefinitions()
-      } catch (error) {
-        formEngineError.value = '独立表单保存失败'
-        ElMessage.error(formEngineError.value)
-        throw error
-      } finally {
-        formEngineLoading.save = false
+      // 保存租户覆盖规则
+      const tenantOverrideDtoList = tenantOverrides.value.map(o => ({
+        fieldKey: o.fieldKey || '',
+        overrideType: o.overrideType || 'label',
+        overrideValue: o.overrideValue || ''
+      }))
+      if (tenantOverrideDtoList.length > 0) {
+        await formDefinitionApi.saveTenantOverrides(def.id, tenantOverrideDtoList)
       }
-    } else {
-      // Workflow 表单保存分支（原有逻辑）
-      loading.save = true
-      operationError.value = ''
-      try {
-        const payload = { ...draft, schema: normalizedSchema.value }
-        await workflowFormApi.createTemplateDraft(payload)
-        await workflowFormApi.saveOaBinding(draft.templateCode, {
-          provider: oa.provider,
-          workflowCode: oa.workflowCode,
-          fieldMapping: oa.fieldMapping,
-          enabled: true
-        })
-        ElMessage.success('流程表单草稿已保存')
-        await loadTemplates()
-      } catch (error) {
-        operationError.value = extractWorkflowFormError(error, '流程表单草稿保存失败')
-        ElMessage.error(operationError.value)
-        throw error
-      } finally {
-        loading.save = false
+      ElMessage.success('独立表单已保存')
+      // 重新加载列表并同步当前选中表单状态，确保 UI 显示最新值
+      await loadFormDefinitions()
+      const refreshedDef = formDefinitions.value.find(d => d.id === def.id)
+      if (refreshedDef) {
+        selectFormDefinition(refreshedDef)
       }
+    } catch (error) {
+      formEngineError.value = '独立表单保存失败'
+      notifyErrorUnlessRateLimit(error, formEngineError.value)
+      throw error
+    } finally {
+      formEngineLoading.save = false
     }
   }
 
   async function publish() {
-    if (activeSource.value === 'formengine') {
-      // FormEngine 独立表单发布分支
-      const def = formDefinitions.value.find(d => d.scope === formEngineDraft.scope)
-      if (!def) {
-        ElMessage.error('未选中独立表单')
-        return
+    // FormEngine 独立表单发布分支（OA 表单已下线，仅保留此分支）
+    const def = formDefinitions.value.find(d => d.scope === formEngineDraft.scope)
+    if (!def) {
+      ElMessage.error('未选中独立表单')
+      return
+    }
+    formEngineLoading.publish = true
+    formEngineError.value = ''
+    try {
+      // 先保存（复用 saveAll 逻辑）
+      await saveAll()
+      // 调用发布 API（注意：saveAll 已重新加载列表并刷新 def 引用，需取最新 id）
+      const latestDef = formDefinitions.value.find(d => d.scope === formEngineDraft.scope)
+      if (!latestDef) {
+        throw new Error('保存后未找到表单定义')
       }
-      formEngineLoading.publish = true
-      formEngineError.value = ''
-      try {
-        // 先保存（复用 saveAll 逻辑）
-        await saveAll()
-        // 调用发布 API
-        await formDefinitionApi.publishFormDefinition(def.id)
-        ElMessage.success('独立表单已发布')
-        await loadFormDefinitions()
-      } catch (error) {
-        formEngineError.value = '独立表单发布失败'
-        ElMessage.error(formEngineError.value)
-      } finally {
-        formEngineLoading.publish = false
+      await formDefinitionApi.publishFormDefinition(latestDef.id)
+      ElMessage.success('独立表单已发布')
+      // 重新加载并同步当前选中表单状态
+      await loadFormDefinitions()
+      const refreshedDef = formDefinitions.value.find(d => d.id === latestDef.id)
+      if (refreshedDef) {
+        selectFormDefinition(refreshedDef)
       }
-    } else {
-      // Workflow 表单发布分支（原有逻辑）
-      loading.publish = true
-      operationError.value = ''
-      try {
-        await saveAll()
-        await workflowFormApi.publishTemplate(draft.templateCode)
-        ElMessage.success('流程表单已发布')
-        await loadTemplates()
-      } catch (error) {
-        operationError.value = extractWorkflowFormError(error, '流程表单发布失败')
-        ElMessage.error(operationError.value)
-      } finally {
-        loading.publish = false
-      }
+    } catch (error) {
+      formEngineError.value = '独立表单发布失败'
+      notifyErrorUnlessRateLimit(error, formEngineError.value)
+    } finally {
+      formEngineLoading.publish = false
     }
   }
 
@@ -394,28 +368,33 @@ export function useWorkflowFormDesigner() {
   }
 
   async function trialSubmit() {
+    // 本地预览提交数据（OA 集成已下线，不再调用后端 test-submit 接口）
     loading.trial = true
     operationError.value = ''
     try {
-      const response = await workflowFormApi.testSubmitTemplate(draft.templateCode, {
+      const formData = Object.fromEntries(
+        normalizedSchema.value.fields
+          .filter(field => !['section', 'divider', 'info'].includes(field.type))
+          .map((field) => [field.key, previewModel.value[field.key] ?? `测试${field.label}`])
+      )
+      const previewResult = {
+        templateCode: draft.templateCode,
         applicantName: '测试管理员',
-        formData: Object.fromEntries(
-          normalizedSchema.value.fields.map((field) => [field.key, previewModel.value[field.key] || `测试${field.label}`])
-        )
-      })
-      trialPayload.value = JSON.stringify(response.data, null, 2)
-      if (response.data?.oaStarted) {
-        ElMessage.success('OA 测试流程已发起')
+        formData,
+        submittedAt: new Date().toISOString(),
+        mode: 'preview'
       }
+      trialPayload.value = JSON.stringify(previewResult, null, 2)
+      ElMessage.success('已生成预览提交数据')
     } catch (error) {
-      operationError.value = extractWorkflowFormError(error, '流程表单试提交失败')
-      ElMessage.error(operationError.value)
+      operationError.value = '生成预览数据失败'
+      notifyErrorUnlessRateLimit(error, operationError.value)
     } finally {
       loading.trial = false
     }
   }
 
-  onMounted(loadTemplates)
+  onMounted(loadFormDefinitions)
 
   return {
     templates,
