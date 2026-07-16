@@ -4263,3 +4263,113 @@ fi
 - `specs/037-crm-link-compensation/tasks.md` — 24 个任务清单
 - tender 56 治标修复：SQL UPDATE 设置 `crm_opportunity_id` = 'CC2026071568'（上一会话已完成）
 
+---
+
+## 61. 自定义表单 schema 迁移必须 merge 不能覆盖，否则用户自定义丢失（2026-07-16 / form_definition_registry）
+
+> 来源：2026-07-16 用户反馈"系统升级后自定义表单会不会被还原成默认表单"
+> 涉及模块：动态表单引擎（form_definition_registry 表 + WorkflowFormTemplateQueryService）
+> 关联 PR：!2089（标讯录入自定义表单）、!2095（revert + 守护测试）
+
+### 问题背景
+
+用户在 `/settings/workflow-forms` 配置页自定义了表单字段（显隐/必填/排序/标签）。系统升级后用户自定义可能丢失，还原成默认表单。
+
+### 根因：schema 迁移脚本采用"覆盖式"而非"合并式"
+
+动态表单 schema 存储在 `form_definition_registry.schema_json` 字段。现有 4 个 Flyway 迁移脚本直接 UPDATE 全表，**无条件覆盖**用户自定义：
+
+| 迁移脚本 | 作用 | 覆盖方式 | 是否检查用户自定义 |
+|---|---|---|---|
+| `V1007` | 全量替换 schema（version 1→2） | `UPDATE ... SET schema_json='...'` | ❌ 不检查 |
+| `V1120` | 改 tenderInfo.maxLength（5000→20000） | `UPDATE ... SET schema_json='...'` | ❌ 不检查 |
+| `V1166` | 全量替换 schema（version 2→3，字段 key 改名） | `UPDATE ... SET schema_json='...'` | ❌ 不检查 |
+| `V1167` | 全量替换 schema（version 3→4，加 enabled/pastedText/attachments） | `UPDATE ... SET schema_json='...'` | ❌ 不检查 |
+
+**关键问题**：所有迁移都是 `UPDATE form_definition_registry SET schema_json='...' WHERE scope='tender.entry' AND org_id IS NULL` —— 无条件覆盖，不检查用户是否自定义过。
+
+### 影响范围
+
+| 场景 | 是否覆盖 | 影响 |
+|---|---|---|
+| 后端 Java 代码升级（不改 schema） | ❌ 不覆盖 | 无影响 |
+| 前端 Vue 代码升级（不改 schema） | ❌ 不覆盖 | 无影响 |
+| 新增 Flyway 迁移改 schema | ✅ **覆盖** | 用户自定义的显隐/必填/排序丢失 |
+| 部署时重建 DB（生产不会做） | ✅ **覆盖** | 全部丢 |
+
+### 现有保护机制（部分有效）
+
+1. **前端 DEFAULT_FIELDS fallback**（`TenderBasicInfoTab.vue:151`）— 只在 schema 加载失败时用，不解决覆盖问题
+2. **version 字段** — 但现有迁移不检查 version，直接覆盖
+3. **回滚脚本**（U1166/U1167）— 但回滚也是覆盖，且只回滚到上一个系统版本，不回滚到用户自定义
+
+### 教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| schema 迁移用 UPDATE 全表覆盖 | 用户自定义 schema 是业务数据，不是系统配置；覆盖式迁移会丢业务数据 | schema 迁移必须 merge，不能覆盖 |
+| 迁移脚本不检查用户自定义状态 | 无法区分"系统基线"和"用户自定义" | 迁移前必须检查 `custom_version > system_version` 判断是否有用户自定义 |
+| 缺少 schema 双版本机制 | 单一 version 字段无法区分系统基线版本和用户自定义版本 | 应引入 `system_version` + `custom_version` 双版本机制 |
+
+### 操作规范
+
+1. **schema 迁移脚本必须做 merge**：
+   - 读取当前 schema_json
+   - 检查是否已有用户自定义（version > 系统基线 version）
+   - 如果有用户自定义，只追加系统新增字段，不动现有字段的 enabled/required/label
+   - 如果没有用户自定义，直接写入系统基线
+
+2. **双版本机制（建议长期改造）**：
+   ```sql
+   ALTER TABLE form_definition_registry
+     ADD COLUMN system_version INT NOT NULL DEFAULT 1 COMMENT '系统基线版本',
+     ADD COLUMN custom_version INT NOT NULL DEFAULT 0 COMMENT '用户自定义版本（0=未自定义）';
+   ```
+
+3. **迁移脚本规范**（加入 `create-migration` skill 门禁）：
+   - 凡是 `UPDATE form_definition_registry SET schema_json` 的迁移，必须先读当前 version
+   - 必须在 PR 描述中说明"是否会影响用户自定义 schema"
+   - 必须提供回滚脚本（回滚到用户自定义，而非回滚到上一个系统基线）
+
+4. **配置页保存时打标记**：
+   - `WorkflowFormAdminService.saveDraft()` 时设置 `custom_version = custom_version + 1`
+   - 迁移脚本检查 `custom_version > 0` 决定是否 merge
+
+### 验证命令
+
+```bash
+# 检查是否有覆盖式 schema 迁移
+grep -rn "UPDATE form_definition_registry" backend/src/main/resources/db/migration-mysql/
+# 期望：所有迁移都应该检查 custom_version 或做 merge
+
+# 检查 schema 加载逻辑是否从 DB 读取（而非硬编码）
+grep -rn "templateStore.findActiveByCode\|getActiveSchema" backend/src/main/java/
+# 期望：从 DB 读取，不经 Flyway 重新初始化
+```
+
+### 短期改进（本 PR 不做，登记技术债）
+
+1. 在 `scripts/check-migration-safety.sh`（如不存在则新建）加检查：凡 `UPDATE form_definition_registry SET schema_json` 的迁移必须人工 review
+2. 在 `create-migration` skill 的模板里加警告："自定义表单 schema 迁移必须 merge 不能覆盖"
+
+### 长期改进（建议独立 spec）
+
+引入 schema 双版本机制：
+- `system_version`：系统基线版本（迁移时 +1）
+- `custom_version`：用户自定义版本（用户改时 +1，0=未自定义）
+- 升级时比较两个版本，做 merge 而非覆盖
+- merge 策略：
+  - 系统新增字段 → 追加
+  - 系统删除字段 → 标记 deprecated，不直接删（保留用户自定义）
+  - 系统修改字段类型 → 提示用户冲突，需手动确认
+  - 用户自定义的 enabled/required/label/sort → 保留
+
+### 相关文档
+
+- `backend/src/main/resources/db/migration-mysql/V1007__update_tender_entry_schema_blueprint.sql` — 覆盖式迁移先例 1
+- `backend/src/main/resources/db/migration-mysql/V1166__align_tender_entry_schema_with_fallback.sql` — 覆盖式迁移先例 2
+- `backend/src/main/resources/db/migration-mysql/V1167__add_enabled_field_to_tender_entry_schema.sql` — 覆盖式迁移先例 3
+- `backend/src/main/java/com/xiyu/bid/workflowform/application/service/WorkflowFormTemplateQueryService.java` — schema 加载入口（从 DB 读取）
+- `src/views/Bidding/list/components/TenderBasicInfoTab.vue:151` — 前端 DEFAULT_FIELDS fallback
+- PR !2089 — 标讯录入自定义表单改造
+- PR !2095 — locked 语义 revert + 守护测试（同 session 关联）
