@@ -71,21 +71,44 @@ class TenderReminderPolicyTest {
         }
 
         @Test
-        @DisplayName("已发送过应返回false")
-        void shouldReturnFalseWhenAlreadyNotified() {
+        @DisplayName("上次通知在24小时内应返回false（去重窗口）")
+        void shouldReturnFalseWhenLastNotifiedWithin24Hours() {
+            // 进入提醒窗口后每日重复，但 24 小时内不重复发送
+            LocalDateTime now = LocalDateTime.now();
             TenderReminderSetting setting = TenderReminderSetting.builder()
                     .enabled(true)
-                    .remindBeforeHours(24)
-                    .lastNotifiedAt(LocalDateTime.now().minusHours(1))
+                    .remindBeforeHours(72)
+                    .lastNotifiedAt(now.minusHours(1))
                     .build();
 
             boolean result = TenderReminderPolicy.shouldSendReminder(
                     setting,
-                    LocalDateTime.now(),
-                    LocalDateTime.now().plusHours(12),
-                    LocalDateTime.now().minusHours(1));
+                    now,
+                    now.plusHours(12),
+                    now.minusHours(1));
 
             assertFalse(result);
+        }
+
+        @Test
+        @DisplayName("上次通知距今超过24小时应返回true（每日重复）")
+        void shouldReturnTrueWhenLastNotifiedAtLeast24HoursAgo() {
+            // 进入提醒窗口后每日重复：距上次通知 >= 24h 应再次发送
+            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime deadline = now.plusHours(12); // 已进入提醒窗口
+            TenderReminderSetting setting = TenderReminderSetting.builder()
+                    .enabled(true)
+                    .remindBeforeHours(72)
+                    .lastNotifiedAt(now.minusHours(24).minusMinutes(1))
+                    .build();
+
+            boolean result = TenderReminderPolicy.shouldSendReminder(
+                    setting,
+                    now,
+                    deadline,
+                    now.minusHours(24).minusMinutes(1));
+
+            assertTrue(result);
         }
 
         @Test
@@ -210,11 +233,11 @@ class TenderReminderPolicyTest {
         }
 
         @Test
-        @DisplayName("无效值应返回默认值24")
+        @DisplayName("无效值应返回默认值72")
         void shouldReturnDefaultForInvalidInput() {
-            assertEquals(24, TenderReminderPolicy.getEffectiveRemindBeforeHours(null));
-            assertEquals(24, TenderReminderPolicy.getEffectiveRemindBeforeHours(0));
-            assertEquals(24, TenderReminderPolicy.getEffectiveRemindBeforeHours(200));
+            assertEquals(72, TenderReminderPolicy.getEffectiveRemindBeforeHours(null));
+            assertEquals(72, TenderReminderPolicy.getEffectiveRemindBeforeHours(0));
+            assertEquals(72, TenderReminderPolicy.getEffectiveRemindBeforeHours(200));
         }
     }
 }

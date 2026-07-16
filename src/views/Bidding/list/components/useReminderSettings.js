@@ -11,7 +11,7 @@ export function useReminderSettings(tenderId) {
 
   const form = reactive({
     reminderType: 'REGISTRATION_DEADLINE',
-    remindBeforeHours: 24,
+    remindBeforeHours: 72,
     reminderTargets: [],
     enabled: true
   })
@@ -59,7 +59,7 @@ export function useReminderSettings(tenderId) {
   function openCreateDialog() {
     editingReminder.value = null
     form.reminderType = 'REGISTRATION_DEADLINE'
-    form.remindBeforeHours = 24
+    form.remindBeforeHours = 72
     form.reminderTargets = []
     form.enabled = true
     dialogVisible.value = true

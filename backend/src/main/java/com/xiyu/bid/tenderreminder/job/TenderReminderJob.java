@@ -20,6 +20,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -153,12 +154,13 @@ public class TenderReminderJob {
     }
 
     private boolean shouldSendReminder(TenderReminderSetting setting, LocalDateTime currentTime, LocalDateTime deadline) {
-        // 已发送过，不再发送
-        if (setting.getLastNotifiedAt() != null) {
+        // 24 小时去重：距上次通知 < 24h 则跳过（每日重复提醒）
+        LocalDateTime lastNotifiedAt = setting.getLastNotifiedAt();
+        if (lastNotifiedAt != null && Duration.between(lastNotifiedAt, currentTime).toHours() < 24) {
             return false;
         }
 
-        int hoursBefore = setting.getRemindBeforeHours() != null ? setting.getRemindBeforeHours() : 24;
+        int hoursBefore = setting.getRemindBeforeHours() != null ? setting.getRemindBeforeHours() : 72;
         LocalDateTime remindAt = deadline.minusHours(hoursBefore);
 
         // 当前时间已达到提醒时间点
@@ -232,7 +234,7 @@ public class TenderReminderJob {
         };
 
         String deadlineStr = deadline != null ? deadline.toString() : "未设置";
-        int hours = hoursBefore != null ? hoursBefore : 24;
+        int hours = hoursBefore != null ? hoursBefore : 72;
 
         return String.format("""
                 %s提醒：标讯「%s」即将%s

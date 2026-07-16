@@ -27,7 +27,7 @@ public class CreateReminderRequest {
     @Min(value = 1, message = "提前提醒小时数至少为1")
     @Max(value = 168, message = "提前提醒小时数最多为168(7天)")
     @Builder.Default
-    private Integer remindBeforeHours = 24;
+    private Integer remindBeforeHours = 72;
 
     @NotNull(message = "通知对象不能为空")
     @Size(min = 1, message = "至少需要选择一个通知对象")

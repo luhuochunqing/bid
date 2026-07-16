@@ -46,7 +46,7 @@ public class TenderReminderSetting {
 
     @Column(name = "remind_before_hours")
     @Builder.Default
-    private Integer remindBeforeHours = 24;
+    private Integer remindBeforeHours = 72;
 
     @Column(name = "reminder_targets", columnDefinition = "JSON")
     private String reminderTargets;
