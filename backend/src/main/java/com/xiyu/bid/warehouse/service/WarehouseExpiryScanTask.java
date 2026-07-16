@@ -47,13 +47,14 @@ public class WarehouseExpiryScanTask {
         List<WarehouseEntity> warehouses = warehouseRepo.findAll();
         int alertCount = 0;
 
-        // 获取所有投标管理员与投标组长（含 admin 超管，与 ProjectNotificationService 等保持一致）
+        // 获取所有投标管理员、投标组长与投标专员（含 admin 超管，与 ProjectNotificationService 等保持一致）
         List<User> recipients = userRepo.findEnabledByRoleProfileCodes(List.of(
                 RoleProfileCatalog.ADMIN_CODE,
                 RoleProfileCatalog.BID_ADMIN_CODE,
-                RoleProfileCatalog.BID_LEAD_CODE));
+                RoleProfileCatalog.BID_LEAD_CODE,
+                RoleProfileCatalog.BID_SPECIALIST_CODE));
         if (recipients.isEmpty()) {
-            log.warn("[WarehouseExpiryScanTask] No active users with admin/bid_admin/bid_lead roles. Skipping notifications.");
+            log.warn("[WarehouseExpiryScanTask] No active users with admin/bid_admin/bid_lead/bid_specialist roles. Skipping notifications.");
             return 0;
         }
         List<Long> recipientIds = recipients.stream().map(User::getId).toList();
