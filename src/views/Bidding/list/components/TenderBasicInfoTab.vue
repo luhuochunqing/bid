@@ -129,7 +129,7 @@ defineExpose({
 
 // ===== Schema 字段读取（复用 AdaptiveFormPage）=====
 const schemaFields = computed(() => adaptiveFormRef.value?.getFields() || [])
-const hasSchema = computed(() => adaptiveFormRef.value?.hasSchema?.value || false)
+const hasSchema = computed(() => schemaFields.value.length > 0)
 
 // 固定分组字段 key 复用自 workflowFormDesignerCore.js（单一真相源）
 

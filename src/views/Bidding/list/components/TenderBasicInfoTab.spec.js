@@ -180,4 +180,35 @@ describe('TenderBasicInfoTab', () => {
     const wrapper = mountTab()
     expect(typeof wrapper.vm.validate).toBe('function')
   })
+
+  it('renders simple fields in schema order (drag-and-drop reordering)', async () => {
+    // Schema 顺序：purchaser 在 title 之前（模拟拖拽排序后）
+    const fields = [
+      { key: 'purchaser', label: '招标主体', enabled: true, required: true, type: 'text' },
+      { key: 'title', label: '项目名称', enabled: true, required: true, type: 'text' },
+    ]
+    const wrapper = mountTab({}, fields, true)
+    await nextTick()
+    await nextTick()
+
+    // 直接检查 HTML 中 purchaser 的 data-prop 出现在 title 的 data-prop 之前
+    const html = wrapper.html()
+    const purchaserIdx = html.indexOf('data-prop="purchaser"')
+    const titleIdx = html.indexOf('data-prop="title"')
+
+    expect(purchaserIdx).toBeGreaterThan(-1)
+    expect(titleIdx).toBeGreaterThan(-1)
+    expect(purchaserIdx).toBeLessThan(titleIdx)
+  })
+
+  it('reads field label from schema (config page label change reflects in business page)', async () => {
+    const fields = [
+      { key: 'title', label: '自定义项目名称', enabled: true, required: true, type: 'text' },
+    ]
+    const wrapper = mountTab({}, fields, true)
+    await nextTick()
+
+    // 业务页应显示 schema 中的 label，而非硬编码的"项目名称"
+    expect(wrapper.text()).toContain('自定义项目名称')
+  })
 })
