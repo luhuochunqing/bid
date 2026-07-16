@@ -1,0 +1,229 @@
+/* Input: 工作台改造日历组件样式（对齐 workbench-preview.html 第 4 部分）
+   Output: cal-rebuild 日历网格 + 事件列表样式
+   Pos: src/views/Dashboard/styles/ - 工作台改造样式（日历）
+   一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。 */
+
+/* ========== 第 4 部分：投标日历（改造） ========== */
+.cal-rebuild {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.cal-rebuild-main {
+  background: var(--bg-white);
+  border-radius: var(--radius-md);
+  padding: 1.2rem 1.4rem;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--gray-50);
+}
+.cal-rebuild-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  gap: 1rem;
+}
+.cal-rebuild-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary-ui);
+}
+.cal-rebuild-nav {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+.cal-nav-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--gray-200);
+  background: var(--bg-white);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-secondary-ui);
+  font-size: 0.9rem;
+  transition: all 0.15s;
+}
+.cal-nav-btn:hover {
+  background: var(--brand-xiyu-logo-light);
+  color: var(--brand-xiyu-logo);
+  border-color: var(--brand-xiyu-logo);
+}
+.cal-nav-month {
+  font-size: 0.88rem;
+  font-weight: 600;
+  min-width: 110px;
+  text-align: center;
+  color: var(--text-primary-ui);
+}
+.cal-rebuild-legend {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary-ui);
+}
+.cal-rebuild-legend .legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.cal-rebuild-legend .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.cal-rebuild-legend .dot-red { background: var(--color-danger); }
+.cal-rebuild-legend .dot-green { background: var(--color-success); }
+
+.cal-rebuild-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.cal-rebuild-hdr {
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 0.4rem 0;
+}
+.cal-rebuild-day {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.85rem;
+  background: var(--gray-50);
+  color: var(--text-secondary-ui);
+  position: relative;
+  transition: all 0.15s;
+}
+.cal-rebuild-day:hover {
+  background: var(--brand-xiyu-logo-soft);
+}
+.cal-rebuild-day.muted {
+  opacity: 0.35;
+}
+.cal-rebuild-day.today {
+  background: var(--brand-xiyu-logo);
+  color: var(--bg-white);
+  font-weight: 700;
+}
+.cal-rebuild-day.selected {
+  background: var(--brand-xiyu-logo-light);
+  border: 2px solid var(--brand-xiyu-logo);
+  font-weight: 700;
+  color: var(--brand-xiyu-logo);
+}
+.cal-rebuild-day .day-dots {
+  display: flex;
+  gap: 2px;
+  margin-top: 3px;
+  min-height: 6px;
+}
+.cal-rebuild-day .day-dots .dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+.cal-rebuild-day .day-dots .dot-red { background: var(--color-danger); }
+.cal-rebuild-day .day-dots .dot-green { background: var(--color-success); }
+
+/* 右侧事件列表 */
+.cal-rebuild-list {
+  background: var(--bg-white);
+  border-radius: var(--radius-md);
+  padding: 1.2rem 1.4rem;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--gray-50);
+  display: flex;
+  flex-direction: column;
+}
+.cal-list-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid var(--gray-150);
+  margin-bottom: 0.8rem;
+  color: var(--text-primary-ui);
+}
+.cal-list-body {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 360px;
+}
+.cal-list-body::-webkit-scrollbar { width: 4px; }
+.cal-list-body::-webkit-scrollbar-thumb { background: var(--gray-200); border-radius: 2px; }
+.cal-list-body::-webkit-scrollbar-thumb:hover { background: var(--brand-xiyu-logo); }
+.cal-list-empty {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.cal-event {
+  display: flex;
+  gap: 0.8rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px dashed var(--gray-150);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.cal-event:last-child { border-bottom: none; }
+.cal-event:hover .cal-event-name { color: var(--brand-xiyu-logo); }
+.cal-event-date {
+  width: 44px;
+  flex-shrink: 0;
+  text-align: center;
+  background: var(--gray-50);
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0;
+}
+.cal-event.signup .cal-event-date { background: var(--color-danger-bg); color: var(--color-danger); }
+.cal-event.opening .cal-event-date { background: var(--color-success-bg); color: var(--color-success); }
+.cal-event-date .d {
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.cal-event-date .m {
+  font-size: 0.65rem;
+  margin-top: 2px;
+}
+.cal-event-info {
+  flex: 1;
+  min-width: 0;
+}
+.cal-event-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.15s;
+  color: var(--text-primary-ui);
+}
+.cal-event-meta {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.cal-event-tag {
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 6px;
+  align-self: flex-start;
+  flex-shrink: 0;
+}
+.cal-event.signup .cal-event-tag { background: var(--color-danger-bg); color: var(--color-danger); }
+.cal-event.opening .cal-event-tag { background: var(--color-success-bg); color: var(--color-success); }
+
+@media (max-width: 1280px) {
+  .cal-rebuild { grid-template-columns: 1fr; }
+  .cal-rebuild-list { max-height: 320px; }
+}
