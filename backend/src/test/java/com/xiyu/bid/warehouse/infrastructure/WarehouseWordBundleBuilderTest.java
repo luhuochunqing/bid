@@ -5,11 +5,18 @@ import com.xiyu.bid.warehouse.domain.WarehouseReadModel;
 import com.xiyu.bid.warehouse.domain.WarehouseStatus;
 import com.xiyu.bid.warehouse.domain.WarehouseType;
 import com.xiyu.bid.warehouse.domain.WarehouseAttachmentReadModel;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -138,6 +145,77 @@ class WarehouseWordBundleBuilderTest {
         }
     }
 
+    @Test
+    void buildBundle_photoAttachment_noFilenameHeadingInDocument() throws IOException {
+        // 准备：临时目录模拟 attachmentRoot/{whId}/
+        WarehouseWordBundleBuilder builder = new WarehouseWordBundleBuilder();
+        ReflectionTestUtils.setField(builder, "attachmentRoot", tempDir.toString());
+
+        // 准备一张 PNG 图片文件，存到 {whId}/stored.png
+        Path whDir = tempDir.resolve("1");
+        Files.createDirectories(whDir);
+        Path imgPath = whDir.resolve("stored.png");
+        BufferedImage img = new BufferedImage(10, 10, BufferedImage.TYPE_INT_RGB);
+        ImageIO.write(img, "png", imgPath.toFile());
+
+        TestWarehouse wh = new TestWarehouse(1L, "杭州仓", "浙江",
+                LocalDate.of(2021, 1, 15), LocalDate.of(2029, 1, 14));
+        TestAttachment att = new TestAttachment(100L, WarehouseAttachmentType.PHOTOS,
+                "原文件名_仓库外景_001.png", "stored.png");
+
+        byte[] result = builder.buildBundle(List.of(wh), Map.of(1L, List.of(att)));
+
+        try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(result))) {
+            // §3.6：照片直接嵌入，图片顶部不需要添加小标题
+            boolean hasFilenameHeading = doc.getParagraphs().stream()
+                    .map(XWPFParagraph::getText)
+                    .anyMatch(t -> t.contains("原文件名_仓库外景_001"));
+            assertThat(hasFilenameHeading)
+                    .as("§3.6：照片附件不应输出原文件名小标题")
+                    .isFalse();
+        }
+    }
+
+    @Test
+    void buildBundle_pdfAttachment_noPageCaptionInDocument() throws IOException {
+        WarehouseWordBundleBuilder builder = new WarehouseWordBundleBuilder();
+        ReflectionTestUtils.setField(builder, "attachmentRoot", tempDir.toString());
+
+        // 准备一个最小 PDF 文件（1 页）到 {whId}/lease.pdf
+        Path whDir = tempDir.resolve("1");
+        Files.createDirectories(whDir);
+        Path pdfPath = whDir.resolve("lease.pdf");
+        try (PDDocument pdf = new PDDocument()) {
+            PDPage page = new PDPage();
+            pdf.addPage(page);
+            try (PDPageContentStream cs = new PDPageContentStream(pdf, page)) {
+                cs.beginText();
+                cs.setFont(PDType1Font.HELVETICA, 12);
+                cs.newLineAtOffset(100, 700);
+                cs.showText("Lease Contract Content");
+                cs.endText();
+            }
+            pdf.save(pdfPath.toFile());
+        }
+
+        TestWarehouse wh = new TestWarehouse(1L, "杭州仓", "浙江",
+                LocalDate.of(2021, 1, 15), LocalDate.of(2029, 1, 14));
+        TestAttachment att = new TestAttachment(100L, WarehouseAttachmentType.LEASE_CONTRACT,
+                "WH_杭州仓_租赁合同.pdf", "lease.pdf");
+
+        byte[] result = builder.buildBundle(List.of(wh), Map.of(1L, List.of(att)));
+
+        try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(result))) {
+            // §3.6：PDF 每页转为图片，嵌入时图片顶部不需要再添加文字说明
+            boolean hasPageCaption = doc.getParagraphs().stream()
+                    .map(XWPFParagraph::getText)
+                    .anyMatch(t -> t.contains("第1页") || t.contains("WH_杭州仓_租赁合同"));
+            assertThat(hasPageCaption)
+                    .as("§3.6：PDF 附件不应在图片顶部输出文字说明（如 '第1页'、原文件名）")
+                    .isFalse();
+        }
+    }
+
     // ========== 测试辅助 ==========
 
     private static class TestWarehouse implements WarehouseReadModel {
@@ -187,5 +265,28 @@ class WarehouseWordBundleBuilderTest {
         @Override public LocalDateTime getCreatedAt() { return LocalDateTime.now(); }
         @Override public Long getUpdatedBy() { return null; }
         @Override public LocalDateTime getUpdatedAt() { return null; }
+    }
+
+    private static class TestAttachment implements WarehouseAttachmentReadModel {
+        private final Long id;
+        private final WarehouseAttachmentType type;
+        private final String originalFilename;
+        private final String storedFilename;
+
+        TestAttachment(Long id, WarehouseAttachmentType type, String originalFilename, String storedFilename) {
+            this.id = id;
+            this.type = type;
+            this.originalFilename = originalFilename;
+            this.storedFilename = storedFilename;
+        }
+
+        @Override public Long getId() { return id; }
+        @Override public WarehouseAttachmentType getType() { return type; }
+        @Override public String getOriginalFilename() { return originalFilename; }
+        @Override public String getStoredFilename() { return storedFilename; }
+        @Override public Long getFileSize() { return 1024L; }
+        @Override public String getContentType() { return "application/octet-stream"; }
+        @Override public Long getUploadedBy() { return 1L; }
+        @Override public LocalDateTime getUploadedAt() { return LocalDateTime.now(); }
     }
 }
