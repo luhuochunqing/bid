@@ -47,43 +47,62 @@ public class CrmTenderLinkService {
     }
 
     /**
-     * 当 sourceSystem=CRM 但未传 crmId（商机编号）时，用 sourceId（商机主键 id）
+     * 当 sourceSystem=CRM 但未传 crmId（商机编号）时，用 sourceId（标讯 ID）
      * 兜底反查商机编号，再走关联流程。
-     * <p>背景：CRM 创建标讯时天然知道商机，但推送时可能只传商机主键 id（作为 sourceId）
-     * 而未传商机编号 code。此时标讯的 crmOpportunityId 为空，后续放弃/中标状态回传
-     * 会因 code 为空而无法匹配 CRM 商机（tender 273 案例）。
+     * <p>spec 037 修正：sourceId 是 CRM 标讯 ID（bidId），不是商机主键 id（chanceId）。
+     * 生产 bug tender 56 案例：external_id=CRM:7，7 是 bidId，旧代码把 7 当 chanceId
+     * 调 detail 接口 → 查不到商机（实际商机 id=6, bidId=7, code=CC2026071568）。
+     * 修复后改用 page-list 按 bidId 反查。
      * <p>降级策略：sourceId 不是合法数字、或 CRM 反查失败时，保持原逻辑（不关联商机），
      * 不影响现有行为。
      *
      * @param tender       标讯实体
      * @param sourceSystem 来源系统（仅 "CRM" 触发兜底）
-     * @param sourceId     来源系统数据 id（尝试解析为商机主键 id）
+     * @param sourceId     来源系统数据 id（CRM 标讯 ID，即 bidId）
+     * @param username     当前操作用户 username（用于获取 CRM token）
+     * @return true 表示已成功通过兜底关联商机；false 表示未触发或反查失败
+     * @deprecated spec 037：方法名保留 chanceId 语义不准确，改用 {@link #linkByBidIdIfPresent}
+     */
+    @Deprecated
+    public boolean linkByChanceIdIfPresent(Tender tender, String sourceSystem, String sourceId, String username) {
+        return linkByBidIdIfPresent(tender, sourceSystem, sourceId, username);
+    }
+
+    /**
+     * 当 sourceSystem=CRM 但未传 crmId（商机编号）时，用 sourceId（标讯 ID，bidId）
+     * 兜底反查商机编号，再走关联流程。
+     * <p>spec 037 新方法名，语义清晰：sourceId 是 bidId（标讯 ID），不是 chanceId（商机主键）。
+     *
+     * @param tender       标讯实体
+     * @param sourceSystem 来源系统（仅 "CRM" 触发兜底）
+     * @param sourceId     来源系统数据 id（CRM 标讯 ID，即 bidId）
+     * @param username     当前操作用户 username（用于获取 CRM token）
      * @return true 表示已成功通过兜底关联商机；false 表示未触发或反查失败
      */
-    public boolean linkByChanceIdIfPresent(Tender tender, String sourceSystem, String sourceId, String username) {
+    public boolean linkByBidIdIfPresent(Tender tender, String sourceSystem, String sourceId, String username) {
         if (sourceSystem == null || !"CRM".equals(sourceSystem)) return false;
         if (sourceId == null || sourceId.isBlank()) return false;
-        Long chanceId;
+        Long bidId;
         try {
-            chanceId = Long.parseLong(sourceId.trim());
+            bidId = Long.parseLong(sourceId.trim());
         } catch (NumberFormatException e) {
-            // sourceId 不是纯数字，不是商机主键 id，跳过
+            // sourceId 不是纯数字，不是 bidId，跳过
             return false;
         }
-        log.info("linkByChanceIdIfPresent: sourceId={} parsed as chanceId, tender id={}, username={}",
+        log.info("linkByBidIdIfPresent: sourceId={} parsed as bidId, tender id={}, username={}",
                 sourceId, tender.getId(), username);
         try {
             CrmProjectLeaderService.ProjectLeaderResult leader =
-                    crmProjectLeaderService.findProjectLeaderByChanceId(chanceId, username);
+                    crmProjectLeaderService.findProjectLeaderByBidId(bidId, username);
             if (leader == null || leader.opportunityCode() == null || leader.opportunityCode().isBlank()) {
-                log.warn("linkByChanceIdIfPresent: no opportunity found for chanceId={}", chanceId);
+                log.warn("linkByBidIdIfPresent: no opportunity found for bidId={}", bidId);
                 return false;
             }
             // 反查到商机，直接复用 leader 信息（避免再用 code 二次查询 page-list）
             applyLeaderAndStatus(tender, leader);
             return true;
         } catch (RuntimeException e) {
-            log.error("linkByChanceIdIfPresent failed for chanceId={}: {}", chanceId, e.getMessage());
+            log.error("linkByBidIdIfPresent failed for bidId={}: {}", bidId, e.getMessage());
             return false;
         }
     }

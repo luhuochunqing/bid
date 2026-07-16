@@ -7,11 +7,13 @@ import java.util.List;
  * CRM 商机列表查询筛选条件。
  * <p>对应客户接口 POST /customer-chance/page-list 的 body 内层。
  * <p>注意：客户接口文档 body 中没有 tenderSubject 参数，但实际 CRM 按招标主体模糊匹配商机名称。
+ * <p>spec 037: 新增 bidId 字段，用于按 CRM 标讯 ID 反查商机（external_id=CRM:{bidId} 场景）。
  */
 public record CustomerChanceDTO(
     @JsonProperty("groupName") List<String> groupName,
     @JsonProperty("name") String name,
     @JsonProperty("code") String code,
+    @JsonProperty("bidId") Long bidId,
     @JsonProperty("projectStatus") List<Integer> projectStatus,
     @JsonProperty("projectRisk") List<Integer> projectRisk,
     @JsonProperty("cooperationStatus") Integer cooperationStatus,

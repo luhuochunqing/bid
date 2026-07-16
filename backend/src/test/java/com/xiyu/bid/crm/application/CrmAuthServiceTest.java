@@ -20,13 +20,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
  * {@link CrmAuthService} 按用户 OSS token 换 CRM JWT（CO-152：无全局 03595）。
+ * <p>spec 037：去掉 OSS token 依赖，generateToken 改用 {@link CrmHttpClient#postJson}（无 Authorization）。
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -55,41 +56,37 @@ class CrmAuthServiceTest {
     }
 
     @Test
-    @DisplayName("用户A配了crmSalesNo + 有用户OSS → 用用户OSS换专属CRM JWT")
+    @DisplayName("用户A配了crmSalesNo → 用 nickName+salesNo 换专属 CRM JWT（spec 037: postJson）")
     void getValidTokenForUser_userWithCrmSalesNo_returnsPerUserToken() {
         User userA = User.builder()
                 .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
         when(userRepository.findByUsername("userA")).thenReturn(Optional.of(userA));
-        putUserOss("userA", "oss-token-userA");
         mockGenerateTokenSuccess("crm-jwt-userA-10001");
 
         String token = authService.getValidTokenForUser("userA");
 
         assertThat(token).isEqualTo("crm-jwt-userA-10001");
-        verify(httpClient).postWithAuth(
-                anyString(), anyString(), eq("oss-token-userA"),
-                org.mockito.ArgumentMatchers.contains("10001"));
+        // spec 037: 不再传 OSS token，改用 postJson
+        verify(httpClient).postJson(anyString(), anyString(), contains("10001"));
+        verify(httpClient, times(0)).postWithAuth(anyString(), anyString(), anyString(), anyString());
     }
 
     @Test
-    @DisplayName("用户B没配crmSalesNo → salesNo 用 username，OSS 仍是用户自己的")
+    @DisplayName("用户B没配crmSalesNo → salesNo 用 username（spec 037: postJson）")
     void getValidTokenForUser_userWithoutCrmSalesNo_usesUsernameAsSalesNo() {
         User userB = User.builder()
                 .id(2L).username("userB").fullName("用户B").crmSalesNo(null).build();
         when(userRepository.findByUsername("userB")).thenReturn(Optional.of(userB));
-        putUserOss("userB", "oss-token-userB");
         mockGenerateTokenSuccess("crm-jwt-userB");
 
         String token = authService.getValidTokenForUser("userB");
 
         assertThat(token).isEqualTo("crm-jwt-userB");
-        verify(httpClient).postWithAuth(
-                anyString(), anyString(), eq("oss-token-userB"),
-                org.mockito.ArgumentMatchers.contains("\"salesNo\":\"userB\""));
+        verify(httpClient).postJson(anyString(), anyString(), contains("\"salesNo\":\"userB\""));
     }
 
     @Test
-    @DisplayName("用户A/B 各自 OSS + JWT 隔离")
+    @DisplayName("用户A/B 各自 JWT 隔离（spec 037: postJson）")
     void getValidTokenForUser_userAAndUserB_isolated() {
         User userA = User.builder()
                 .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
@@ -97,11 +94,9 @@ class CrmAuthServiceTest {
                 .id(2L).username("userB").fullName("用户B").crmSalesNo(null).build();
         when(userRepository.findByUsername("userA")).thenReturn(Optional.of(userA));
         when(userRepository.findByUsername("userB")).thenReturn(Optional.of(userB));
-        putUserOss("userA", "oss-a");
-        putUserOss("userB", "oss-b");
-        when(httpClient.postWithAuth(anyString(), anyString(), anyString(), anyString()))
+        when(httpClient.postJson(anyString(), anyString(), anyString()))
                 .thenAnswer(inv -> {
-                    String body = inv.getArgument(3);
+                    String body = inv.getArgument(2);
                     String jwt = body.contains("10001") ? "jwt-a" : "jwt-b";
                     return CrmResponseHandler.parse(
                             String.format("{\"code\":0,\"msg\":\"ok\",\"data\":\"%s\"}", jwt));
@@ -120,28 +115,26 @@ class CrmAuthServiceTest {
         User userA = User.builder()
                 .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
         when(userRepository.findByUsername("userA")).thenReturn(Optional.of(userA));
-        putUserOss("userA", "oss-token");
         mockGenerateTokenSuccess("crm-jwt-cached");
 
         String token1 = authService.getValidTokenForUser("userA");
         String token2 = authService.getValidTokenForUser("userA");
 
         assertThat(token1).isEqualTo(token2).isEqualTo("crm-jwt-cached");
-        verify(httpClient, times(1)).postWithAuth(anyString(), anyString(), anyString(), anyString());
+        verify(httpClient, times(1)).postJson(anyString(), anyString(), any());
     }
 
     @Test
-    @DisplayName("invalidate 后重新 generateToken")
+    @DisplayName("invalidate 后重新 generateToken（spec 037: 无需重新 putUserOss）")
     void getValidTokenForUser_cacheInvalidated_renewsToken() {
         User userA = User.builder()
                 .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
         when(userRepository.findByUsername("userA")).thenReturn(Optional.of(userA));
-        putUserOss("userA", "oss-token");
         mockGenerateTokenSequential("crm-jwt-1", "crm-jwt-2");
 
         String token1 = authService.getValidTokenForUser("userA");
+        // spec 037: 401 清理后无需重新登录拿 OSS token，可直接重新 generateToken
         authService.handleUnauthorizedForUser("userA");
-        putUserOss("userA", "oss-token"); // 401 会清 OSS；重新登录后才有 OSS
         String token2 = authService.getValidTokenForUser("userA");
 
         assertThat(token1).isEqualTo("crm-jwt-1");
@@ -157,11 +150,9 @@ class CrmAuthServiceTest {
                 .id(2L).username("userB").fullName("用户B").crmSalesNo("10002").build();
         when(userRepository.findByUsername("userA")).thenReturn(Optional.of(userA));
         when(userRepository.findByUsername("userB")).thenReturn(Optional.of(userB));
-        putUserOss("userA", "oss-a");
-        putUserOss("userB", "oss-b");
-        when(httpClient.postWithAuth(anyString(), anyString(), anyString(), anyString()))
+        when(httpClient.postJson(anyString(), anyString(), anyString()))
                 .thenAnswer(inv -> {
-                    String body = inv.getArgument(3);
+                    String body = inv.getArgument(2);
                     String jwt = body.contains("10001") ? "jwt-a" : "jwt-b";
                     return CrmResponseHandler.parse(
                             String.format("{\"code\":0,\"msg\":\"ok\",\"data\":\"%s\"}", jwt));
@@ -171,12 +162,11 @@ class CrmAuthServiceTest {
         authService.getValidTokenForUser("userB");
         authService.handleUnauthorizedForUser("userA");
 
-        // B 仍缓存命中，不再调 generateToken；A 会再调一次
+        // B 仍缓存命中，不再调 generateToken；A 会再调一次（spec 037: 无需 OSS token）
         authService.getValidTokenForUser("userB");
-        verify(httpClient, times(2)).postWithAuth(anyString(), anyString(), anyString(), anyString());
-        putUserOss("userA", "oss-a"); // 401 清了 A 的 OSS
+        verify(httpClient, times(2)).postJson(anyString(), anyString(), any());
         authService.getValidTokenForUser("userA");
-        verify(httpClient, times(3)).postWithAuth(anyString(), anyString(), anyString(), anyString());
+        verify(httpClient, times(3)).postJson(anyString(), anyString(), any());
     }
 
     @Test
@@ -185,7 +175,6 @@ class CrmAuthServiceTest {
         User userA = User.builder()
                 .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
         when(userRepository.findByUsername("userA")).thenReturn(Optional.of(userA));
-        putUserOss("userA", "oss-token");
         mockGenerateTokenSequential("crm-jwt-before-logout", "crm-jwt-after-logout");
 
         authService.getValidTokenForUser("userA");
@@ -193,7 +182,7 @@ class CrmAuthServiceTest {
         String token = authService.getValidTokenForUser("userA");
 
         assertThat(token).isEqualTo("crm-jwt-after-logout");
-        verify(httpClient, times(2)).postWithAuth(anyString(), anyString(), anyString(), anyString());
+        verify(httpClient, times(2)).postJson(anyString(), anyString(), any());
     }
 
     @Test
@@ -207,15 +196,19 @@ class CrmAuthServiceTest {
     }
 
     @Test
-    @DisplayName("用户存在但无 OSS token → TokenUnavailableException")
-    void getValidTokenForUser_noOssToken_throws() {
+    @DisplayName("spec 037: 用户存在但无 OSS token → 仍能换 CRM JWT（postJson 不依赖 OSS）")
+    void getValidTokenForUser_noOssToken_stillWorksViaPostJson() {
         User userA = User.builder()
                 .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
         when(userRepository.findByUsername("userA")).thenReturn(Optional.of(userA));
+        // 不 putUserOss —— OSS token 缺失
+        mockGenerateTokenSuccess("crm-jwt-without-oss");
 
-        assertThatThrownBy(() -> authService.getValidTokenForUser("userA"))
-                .isInstanceOf(TokenUnavailableException.class)
-                .hasMessageContaining("OSS token");
+        String token = authService.getValidTokenForUser("userA");
+
+        assertThat(token).isEqualTo("crm-jwt-without-oss");
+        verify(httpClient).postJson(anyString(), anyString(), anyString());
+        verify(httpClient, times(0)).postWithAuth(anyString(), anyString(), anyString(), anyString());
     }
 
     @Test
@@ -233,14 +226,13 @@ class CrmAuthServiceTest {
         User user = User.builder()
                 .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
         when(userRepository.findByUsername("userA")).thenReturn(Optional.of(user));
-        putUserOss("userA", "oss-token");
         mockGenerateTokenSuccess("crm-jwt-cached");
 
         authService.getValidTokenForUser("userA");
         authService.getValidTokenForUser("userA");
 
         verify(userRepository, times(1)).findByUsername("userA");
-        verify(httpClient, times(1)).postWithAuth(anyString(), anyString(), anyString(), anyString());
+        verify(httpClient, times(1)).postJson(anyString(), anyString(), any());
     }
 
     @Test
@@ -249,7 +241,6 @@ class CrmAuthServiceTest {
         User user = User.builder()
                 .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
         when(userRepository.findByUsername("userA")).thenReturn(Optional.of(user));
-        putUserOss("userA", "oss-token");
         mockGenerateTokenSequential("crm-jwt-before", "crm-jwt-after");
 
         authService.getValidTokenForUser("userA");
@@ -266,9 +257,8 @@ class CrmAuthServiceTest {
         assertThat(authService.getValidOssTokenForUser("userA")).isEqualTo("oss-token-xyz");
     }
 
-
     @Test
-    @DisplayName("401 联合清理：用户 JWT + OSS 一并失效")
+    @DisplayName("spec 037: 401 联合清理 JWT + profile + OSS；OSS 缺失也能用 postJson 重新换 JWT")
     void handleUnauthorizedForUser_clearsOssAndJwt() {
         User userA = User.builder()
                 .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
@@ -281,10 +271,14 @@ class CrmAuthServiceTest {
 
         authService.handleUnauthorizedForUser("userA");
 
+        // OSS 已被清理
         assertThat(ossUserTokenCache.get("userA")).isEmpty();
-        assertThatThrownBy(() -> authService.getValidTokenForUser("userA"))
-                .isInstanceOf(TokenUnavailableException.class)
-                .hasMessageContaining("OSS token");
+        // spec 037: OSS 缺失也能用 postJson 重新换 JWT（不再抛 TokenUnavailableException）
+        mockGenerateTokenSuccess("crm-jwt-after-401");
+        String token = authService.getValidTokenForUser("userA");
+        assertThat(token).isEqualTo("crm-jwt-after-401");
+        // 总共调 2 次 postJson：L269 首次换 JWT + L278 401 后重新换 JWT
+        verify(httpClient, times(2)).postJson(anyString(), eq("/common/inner/generateToken"), anyString());
     }
 
     @Test
@@ -304,7 +298,7 @@ class CrmAuthServiceTest {
     private void mockGenerateTokenSuccess(String crmJwtToken) {
         String response = String.format(
                 "{\"code\":0,\"msg\":\"ok\",\"data\":\"%s\"}", crmJwtToken);
-        when(httpClient.postWithAuth(anyString(), anyString(), anyString(), anyString()))
+        when(httpClient.postJson(anyString(), anyString(), any()))
                 .thenReturn(CrmResponseHandler.parse(response));
     }
 
@@ -314,8 +308,12 @@ class CrmAuthServiceTest {
             responses[i] = CrmResponseHandler.parse(String.format(
                     "{\"code\":0,\"msg\":\"ok\",\"data\":\"%s\"}", tokens[i]));
         }
-        when(httpClient.postWithAuth(anyString(), anyString(), anyString(), anyString()))
+        when(httpClient.postJson(anyString(), anyString(), any()))
                 .thenReturn(responses[0],
                         java.util.Arrays.copyOfRange(responses, 1, responses.length));
+    }
+
+    private static String eq(String value) {
+        return org.mockito.ArgumentMatchers.eq(value);
     }
 }

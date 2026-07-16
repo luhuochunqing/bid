@@ -27,18 +27,14 @@ public class StartupConfigurationSummaryLogger implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         log.info("Startup configuration summary: profiles={}, serverPort={}", activeProfiles(), serverPort());
         log.info("CRM configuration summary: authBaseUrlConfigured={}, chanceBaseUrlConfigured={}, "
-                        + "contactPersonBaseUrlConfigured={}, oauthUsernameConfigured={}, oauthPasswordConfigured={}, "
-                        + "clientIdConfigured={}, clientSecretConfigured={}, generateTokenNickNameConfigured={}, "
-                        + "generateTokenSalesNoConfigured={}, matchingStrategy={}",
+                        + "contactPersonBaseUrlConfigured={}, "
+                        + "clientIdConfigured={}, clientSecretConfigured={}, "
+                        + "matchingStrategy={}",
                 configured(crmProperties.getEffectiveAuthBaseUrl()),
                 configured(crmProperties.getEffectiveChanceBaseUrl()),
                 configured(crmProperties.getEffectiveContactPersonBaseUrl()),
-                configured(crmProperties.getOauthUsername()),
-                configured(crmProperties.getOauthPassword()),
                 configured(crmProperties.getClientId()),
                 configured(crmProperties.getClientSecret()),
-                configured(crmProperties.getGenerateTokenNickName()),
-                configured(crmProperties.getGenerateTokenSalesNo()),
                 crmProperties.getMatchingStrategy());
         log.info("Organization integration summary: enabled={}, eventSdkEnabled={}, directoryBaseUrlConfigured={}, "
                         + "sourceAppConfigured={}, autoSyncMenuPermissions={}, retryEnabled={}, reconciliationEnabled={}",

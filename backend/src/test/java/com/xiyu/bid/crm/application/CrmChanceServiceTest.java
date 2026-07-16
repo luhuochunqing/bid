@@ -45,7 +45,7 @@ class CrmChanceServiceTest {
     void setUp() {
         properties = new CrmProperties();
         properties.setBaseUrl("http://crm.example.com");
-        service = new CrmChanceService(httpClient, authService, properties);
+        service = new CrmChanceService(httpClient, authService, properties, new CrmChanceTenderMatcher());
         when(authService.getValidTokenForUser(anyString())).thenReturn("token");
     }
 
@@ -274,7 +274,7 @@ class CrmChanceServiceTest {
 
     private CustomerChanceDTO selectAllBody() {
         return new CustomerChanceDTO(
-                null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null, true, null, null, null);
     }
 }

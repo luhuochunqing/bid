@@ -324,7 +324,8 @@ class TenderEvaluationCrmSyncServiceTest {
         return new CustomerChanceVO(
                 CHANCE_ID,                          // 1 id
                 CC_CODE,                            // 2 code
-                "测试商机",                          // 3 name
+                null,                               // 3 bidId (spec 037 新增)
+                "测试商机",                          // 4 name
                 null, null, null, null,             // 4-7 groupName, groupId, tenderSubject, tenderSubjectId
                 null, null, null, null,              // 8-11 projectLeaderName, projectLeaderNo, secondDeptLeader*
                 null, null, null, null, null,        // 12-16 projectStatus, projectStatusText, cooperationStatus, winningVendor, bidFailureReason

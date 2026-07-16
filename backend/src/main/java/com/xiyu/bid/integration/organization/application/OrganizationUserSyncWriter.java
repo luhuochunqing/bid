@@ -104,6 +104,9 @@ public class OrganizationUserSyncWriter {
         // 历史上只写 username，导致 TenderAutoAssignmentService.resolveManagerNameByEmployeeNumber
         // 按 employee_number 查询时返回 null，CRM 自动分配失败。V1126 迁移脚本回填历史数据。
         user.setEmployeeNumber(plan.username());
+        // spec 037: OSS 工号即 CRM salesNo（已生产验证），填充后 generateToken 不再依赖 OSS token。
+        // 历史上 users.crm_sales_no 全表 NULL，导致 PM 未登录时无法换 CRM JWT → 标讯无法关联商机。
+        user.setCrmSalesNo(plan.username());
         user.setPassword(user.getPassword() == null ? LOCKED_PASSWORD_HASH : user.getPassword());
         user.setEmail(plan.email());
         user.setFullName(plan.fullName());

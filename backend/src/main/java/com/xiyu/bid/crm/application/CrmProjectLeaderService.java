@@ -92,6 +92,46 @@ public class CrmProjectLeaderService {
     }
 
     /**
+     * 按 CRM 标讯 ID（bidId）查询项目负责人信息。
+     * <p>spec 037：CRM 推送标讯时 external_id=CRM:{bidId}，bidId 是 CRM 标讯 ID
+     * （非商机主键 id）。通过 page-list 接口按 bidId 反查商机，取出 code/name/projectLeader。
+     * <p>与 {@link #findProjectLeaderByChanceId} 的区别：
+     * <ul>
+     *   <li>findProjectLeaderByChanceId 用 chanceId 调 detail 接口（商机主键）</li>
+     *   <li>findProjectLeaderByBidId 用 bidId 调 page-list 接口（标讯 ID）</li>
+     * </ul>
+     * <p>降级策略：查询失败或未找到返回 null，由调用方决定后续行为。
+     *
+     * @param bidId    CRM 标讯 ID
+     * @param username 当前操作用户（后台无上下文时传 null → 降级 null）
+     * @return 项目负责人信息；{@code null} 表示查询失败或未找到
+     */
+    public ProjectLeaderResult findProjectLeaderByBidId(Long bidId, String username) {
+        if (bidId == null) {
+            log.warn("findProjectLeaderByBidId skipped: bidId is null");
+            return null;
+        }
+        CustomerChanceVO vo = crmChanceService.findByBidId(bidId, username);
+        if (vo == null) {
+            log.warn("findProjectLeaderByBidId: no opportunity found for bidId={}", bidId);
+            return null;
+        }
+        if (vo.projectLeaderName() == null || vo.projectLeaderName().isBlank()) {
+            log.info("findProjectLeaderByBidId: bidId={} has no projectLeaderName", bidId);
+            // 仍返回，因为调用方需要 vo.code() 来关联商机
+            return new ProjectLeaderResult(null, null, vo.name(), vo.code());
+        }
+        log.info("findProjectLeaderByBidId: bidId={}, code={}, leader={}, leaderNo={}",
+                bidId, vo.code(), vo.projectLeaderName(), vo.projectLeaderNo());
+        return new ProjectLeaderResult(
+                vo.projectLeaderName(),
+                vo.projectLeaderNo(),
+                vo.name(),
+                vo.code()
+        );
+    }
+
+    /**
      * CRM 项目负责人查询结果。
      */
     public record ProjectLeaderResult(

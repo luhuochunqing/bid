@@ -18,10 +18,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -47,12 +43,14 @@ public class CrmChanceService {
     private final CrmHttpClient httpClient;
     private final CrmAuthService authService;
     private final CrmProperties properties;
+    private final CrmChanceTenderMatcher tenderMatcher;
 
     public CrmChanceService(CrmHttpClient httpClient, CrmAuthService authService,
-                            CrmProperties properties) {
+                            CrmProperties properties, CrmChanceTenderMatcher tenderMatcher) {
         this.httpClient = httpClient;
         this.authService = authService;
         this.properties = properties;
+        this.tenderMatcher = tenderMatcher;
     }
 
     /**
@@ -71,11 +69,54 @@ public class CrmChanceService {
             return null;
         }
         CustomerChanceDTO body = new CustomerChanceDTO(
-                null, null, code, null, null, null, null, null, null, null,
+                null, null, code, null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null);
         CustomerChancePageRequest request = new CustomerChancePageRequest(1, 1, body);
         CrmChancePageResult result = doPageList(request, username);
         return result.list().isEmpty() ? null : result.list().get(0);
+    }
+
+    /**
+     * 按 CRM 标讯 ID（bidId）反查商机。
+     * <p>spec 037：CRM 推送标讯时 external_id=CRM:{bidId}，bidId 是 CRM 标讯 ID
+     * （非商机主键 id）。通过 page-list 接口按 bidId 查询，返回关联的商机。
+     * <p>降级策略：bidId null / username null / 接口异常 → 返回 null。
+     * 若返回多条商机，取第一条并 log.warn（理论上 bidId 唯一对应一条商机）。
+     *
+     * @param bidId    CRM 标讯 ID
+     * @param username 当前操作用户 username（用于获取 CRM token）
+     * @return 商机 VO；null 表示查询失败或未找到
+     */
+    public CustomerChanceVO findByBidId(Long bidId, String username) {
+        if (bidId == null) {
+            return null;
+        }
+        CustomerChanceDTO body = new CustomerChanceDTO(
+                null, null, null, bidId, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null);
+        CustomerChancePageRequest request = new CustomerChancePageRequest(1, 10, body);
+        try {
+            CrmChancePageResult result = doPageList(request, username);
+            if (result.list().isEmpty()) {
+                log.warn("findByBidId: no opportunity found for bidId={}", bidId);
+                return null;
+            }
+            if (result.list().size() > 1) {
+                log.warn("findByBidId: bidId={} returned {} opportunities, taking first",
+                        bidId, result.list().size());
+            }
+            CustomerChanceVO first = result.list().get(0);
+            // 本地校验：若返回的商机 bidId 与查询的 bidId 不匹配，可能是 CRM 不支持 bidId 查询
+            if (first.bidId() != null && !bidId.equals(first.bidId())) {
+                log.warn("findByBidId: bidId mismatch, queried={} but returned={}, CRM may not support bidId query",
+                        bidId, first.bidId());
+                return null;
+            }
+            return first;
+        } catch (RuntimeException e) {
+            log.warn("findByBidId: failed for bidId={}: {}", bidId, e.getMessage());
+            return null;
+        }
     }
 
     /**
@@ -99,26 +140,26 @@ public class CrmChanceService {
         log.info("CRM searchByTender: tenderer={}, strategy={}", tenderer, strategy);
 
         if (strategy == CrmProperties.MatchingStrategy.ALL || tenderer == null || tenderer.isBlank()) {
-            return doPageList(buildSelectAllRequest(request.pageIndex(), pageSize), username);
+            return doPageList(tenderMatcher.buildSelectAllRequest(request.pageIndex(), pageSize), username);
         }
 
         if (strategy == CrmProperties.MatchingStrategy.GROUP) {
             CrmChancePageResult groupResult = doPageList(
-                    buildGroupRequest(tenderer, request.pageIndex(), pageSize), username);
+                    tenderMatcher.buildGroupRequest(tenderer, request.pageIndex(), pageSize), username);
             if (!groupResult.list().isEmpty()) {
                 return groupResult;
             }
             log.info("GROUP strategy returned empty for tenderer={}, fallback to ALL", tenderer);
-            return doPageList(buildSelectAllRequest(request.pageIndex(), pageSize), username);
+            return doPageList(tenderMatcher.buildSelectAllRequest(request.pageIndex(), pageSize), username);
         }
 
         // EXACT：先按日期精确匹配，再兜底 GROUP，最后 ALL
-        List<LocalDate> targetDates = parseTargetDates(request.registrationDeadline(), request.bidOpeningTime());
+        List<LocalDate> targetDates = tenderMatcher.parseTargetDates(request.registrationDeadline(), request.bidOpeningTime());
         if (!targetDates.isEmpty()) {
             Map<Long, CustomerChanceVO> merged = new LinkedHashMap<>();
             for (LocalDate targetDate : targetDates) {
                 CrmChancePageResult result = doPageList(
-                        buildExactDateRequest(tenderer, targetDate, request.pageIndex(), pageSize), username);
+                        tenderMatcher.buildExactDateRequest(tenderer, targetDate, request.pageIndex(), pageSize), username);
                 for (CustomerChanceVO vo : result.list()) {
                     merged.putIfAbsent(vo.id(), vo);
                 }
@@ -135,12 +176,12 @@ public class CrmChanceService {
         }
 
         CrmChancePageResult groupResult = doPageList(
-                buildGroupRequest(tenderer, request.pageIndex(), pageSize), username);
+                tenderMatcher.buildGroupRequest(tenderer, request.pageIndex(), pageSize), username);
         if (!groupResult.list().isEmpty()) {
             return groupResult;
         }
         log.info("GROUP fallback returned empty for tenderer={}, fallback to ALL", tenderer);
-        return doPageList(buildSelectAllRequest(request.pageIndex(), pageSize), username);
+        return doPageList(tenderMatcher.buildSelectAllRequest(request.pageIndex(), pageSize), username);
     }
 
     private CrmChancePageResult doPageList(CustomerChancePageRequest request, String username) {
@@ -178,65 +219,6 @@ public class CrmChanceService {
             return emptyPageResult();
         }
         return parsePageResponse(response.data());
-    }
-
-    private List<LocalDate> parseTargetDates(String registrationDeadline, String bidOpeningTime) {
-        List<LocalDate> dates = new ArrayList<>();
-        parseDate(registrationDeadline).ifPresent(dates::add);
-        parseDate(bidOpeningTime).ifPresent(dates::add);
-        return dates.stream().distinct().collect(Collectors.toList());
-    }
-
-    private java.util.Optional<LocalDate> parseDate(String value) {
-        if (value == null || value.isBlank()) {
-            return java.util.Optional.empty();
-        }
-        String trimmed = value.trim();
-        List<DateTimeFormatter> formatters = List.of(
-                DateTimeFormatter.ISO_OFFSET_DATE_TIME,
-                DateTimeFormatter.ISO_DATE_TIME,
-                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
-                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"),
-                DateTimeFormatter.ISO_LOCAL_DATE_TIME,
-                DateTimeFormatter.ISO_LOCAL_DATE
-        );
-        for (DateTimeFormatter formatter : formatters) {
-            try {
-                if (formatter == DateTimeFormatter.ISO_LOCAL_DATE ||
-                        (trimmed.length() <= 10 && !trimmed.contains("T"))) {
-                    return java.util.Optional.of(LocalDate.parse(trimmed, formatter));
-                }
-                return java.util.Optional.of(LocalDateTime.parse(trimmed, formatter).toLocalDate());
-            } catch (DateTimeParseException ignored) {
-                // try next formatter
-            }
-        }
-        log.warn("Unable to parse date value: {}", value);
-        return java.util.Optional.empty();
-    }
-
-    private CustomerChancePageRequest buildExactDateRequest(String tenderer, LocalDate targetDate,
-                                                            int pageIndex, int pageSize) {
-        String start = targetDate.atStartOfDay().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        String end = targetDate.atTime(23, 59, 59).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        CustomerChanceDTO body = new CustomerChanceDTO(
-                List.of(tenderer), null, null, null, null, null, null,
-                start, end, null, null, null, null, null, null, null, null);
-        return new CustomerChancePageRequest(pageIndex, pageSize, body);
-    }
-
-    private CustomerChancePageRequest buildGroupRequest(String tenderer, int pageIndex, int pageSize) {
-        CustomerChanceDTO body = new CustomerChanceDTO(
-                List.of(tenderer), null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
-        return new CustomerChancePageRequest(pageIndex, pageSize, body);
-    }
-
-    private CustomerChancePageRequest buildSelectAllRequest(int pageIndex, int pageSize) {
-        CustomerChanceDTO body = new CustomerChanceDTO(
-                null, null, null, null, null, null, null,
-                null, null, null, null, null, null, true, null, null, null);
-        return new CustomerChancePageRequest(pageIndex, pageSize, body);
     }
 
     /**

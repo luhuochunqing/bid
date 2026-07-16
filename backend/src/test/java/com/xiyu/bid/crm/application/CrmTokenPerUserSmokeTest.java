@@ -168,7 +168,7 @@ class CrmTokenPerUserSmokeTest {
         CustomerChancePageRequest request = new CustomerChancePageRequest(
                 1, 10,
                 new CustomerChanceDTO(
-                        null, null, null, null, null, null,
+                        null, null, null, null, null, null, null,
                         null, null, null, null, null, null,
                         null, null, null, null, null
                 )
@@ -197,7 +197,7 @@ class CrmTokenPerUserSmokeTest {
         CustomerChancePageRequest request = new CustomerChancePageRequest(
                 1, 10,
                 new CustomerChanceDTO(
-                        null, null, null, null, null, null,
+                        null, null, null, null, null, null, null,
                         null, null, null, null, null, null,
                         null, null, null, null, null
                 )

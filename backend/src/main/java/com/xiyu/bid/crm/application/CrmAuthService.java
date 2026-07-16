@@ -9,16 +9,25 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * CRM 鉴权：严格对齐接口文档三步（见 CRM generateToken 契约）。
+ * CRM 鉴权：spec 037 简化为两步（去掉 OSS token 依赖）。
+ * <p>2026-07-16 实测：生产环境 generateToken 接口不校验 Authorization header，
+ * 仅传 {@code nickName + salesNo} 即可换 CRM JWT。因此去掉步骤 1（OSS token），
+ * 直接用 nickName + salesNo 调 generateToken。
+ * <p>原三步流程（保留注释供回退参考）：
  * <ol>
- *   <li><b>OSS token</b>：用户登录 OSS 时拿到的 access_token，缓存在 {@link OssUserTokenCache}</li>
+ *   <li><b>OSS token</b>（已弃用）：用户登录 OSS 时拿到的 access_token</li>
  *   <li><b>CRM JWT</b>：{@code POST /common/inner/generateToken}，
- *       Header {@code Authorization: Bearer <OSS token>}，Body {@code nickName + salesNo}</li>
+ *       spec 037 前 Header {@code Authorization: Bearer <OSS token>}，
+ *       spec 037 后改用 {@link CrmHttpClient#postJson}（无 Authorization）</li>
  *   <li><b>业务接口</b>：Header {@code Authorization: Bearer <CRM JWT>}</li>
  * </ol>
  * <p>
- * <b>没有</b>全局/系统服务号路径。无用户、无用户 OSS 缓存时抛 {@link TokenUnavailableException}，
- * 由调用方降级或失败——不假装有配置账号可登录。
+ * <b>回退路径</b>：若客户方修复 generateToken 不校验 Authorization 的"漏洞"，
+ * 把 {@link #applyCrmToken} 方法体改回 {@code httpClient.postWithAuth(baseUrl, path, ossToken, body)}
+ * 即可恢复三步认证（{@link OssUserTokenCache} 仍保留注入）。
+ * <p>
+ * <b>客户禁令</b>：禁止使用"系统服务号/全局账号"换取 CRM JWT（客户明确要求必须基于真实用户）。
+ * 无用户、无用户 profile 时抛 {@link TokenUnavailableException}。
  */
 @Service
 public class CrmAuthService {
@@ -42,13 +51,15 @@ public class CrmAuthService {
     }
 
     /**
-     * 获取用户 CRM JWT（步骤 1+2）。
-     * <p>username 为空、用户不存在、或用户未登录/OSS 已过期 → {@link TokenUnavailableException}。
+     * 获取用户 CRM JWT。
+     * <p>spec 037：不再要求用户已登录（OSS token 不再必需），
+     * 仅需用户 profile（fullName + crmSalesNo）即可换 JWT。
+     * <p>username 为空、用户不存在 → {@link TokenUnavailableException}。
      */
     public String getValidTokenForUser(String username) {
         if (username == null || username.isBlank()) {
             throw new TokenUnavailableException(
-                    "Cannot get CRM token: username is empty (need a logged-in user OSS token)");
+                    "Cannot get CRM token: username is empty");
         }
         UserProfileCache.CachedUserProfile profile = userProfileCache.get(username)
                 .orElseThrow(() -> new TokenUnavailableException(
@@ -91,31 +102,27 @@ public class CrmAuthService {
     }
 
     private String fetchAndCacheUserToken(UserProfileCache.CachedUserProfile profile, String username) {
-        // 步骤 1：用户登录时缓存的 OSS token
-        String ossToken = ossUserTokenCache.get(username)
-                .orElseThrow(() -> new TokenUnavailableException(
-                        "Cannot get CRM token: user OSS token missing, username=" + username
-                                + " (login first; no system account fallback)"));
-        // 步骤 2：OSS → CRM JWT（文档 generateToken）
+        // spec 037：去掉 OSS token 依赖，直接用 nickName + salesNo 换 CRM JWT
         String salesNo = StringUtils.hasText(profile.crmSalesNo()) ? profile.crmSalesNo() : username;
         String nickName = StringUtils.hasText(profile.fullName()) ? profile.fullName() : username;
-        String crmJwt = applyCrmTokenWithOssToken(ossToken, nickName, salesNo);
+        String crmJwt = applyCrmToken(nickName, salesNo);
         userTokenCache.put(username, crmJwt, JwtTtlResolver.resolveTtlSeconds(crmJwt));
         return crmJwt;
     }
 
     /**
-     * 步骤 2：用 OSS token 调 {@code /common/inner/generateToken} 换 CRM JWT。
+     * 用 nickName + salesNo 调 {@code /common/inner/generateToken} 换 CRM JWT。
+     * <p>spec 037：改用 {@link CrmHttpClient#postJson}（无 Authorization），
+     * 因为生产环境实测 generateToken 不校验 Authorization。
      * <p>package-private 供 webhook 复用。
      */
-    String applyCrmTokenWithOssToken(String ossAccessToken, String nickName, String salesNo) {
+    String applyCrmToken(String nickName, String salesNo) {
         String baseUrl = properties.getEffectiveChanceBaseUrl();
         String path = properties.getAuth().getGenerateTokenPath();
         log.debug("CRM generateToken: nickName={}, salesNo={}", nickName, salesNo);
         String body = String.format("{\"nickName\":\"%s\",\"salesNo\":\"%s\"}",
                 CrmJsonUtils.escapeJson(nickName), CrmJsonUtils.escapeJson(salesNo));
-        CrmResponseHandler.CrmApiResponse response = httpClient.postWithAuth(
-                baseUrl, path, ossAccessToken, body);
+        CrmResponseHandler.CrmApiResponse response = httpClient.postJson(baseUrl, path, body);
         if (response.success() && response.data() != null && response.data().isTextual()) {
             return response.data().asText();
         }

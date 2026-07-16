@@ -7,11 +7,13 @@ import java.math.BigDecimal;
 /**
  * CRM 商机单条记录 VO。
  * <p>对应客户接口 POST /customer-chance/page-list 返回的 dataList 元素。
+ * <p>spec 037: 新增 bidId 字段，用于按 CRM 标讯 ID 反查时本地校验匹配。
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record CustomerChanceVO(
     @JsonProperty("id") Long id,
     @JsonProperty("code") String code,
+    @JsonProperty("bidId") Long bidId,
     @JsonProperty("name") String name,
     @JsonProperty("groupName") String groupName,
     @JsonProperty("groupId") Integer groupId,

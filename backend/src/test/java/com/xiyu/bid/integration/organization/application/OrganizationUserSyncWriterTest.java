@@ -405,4 +405,26 @@ class OrganizationUserSyncWriterTest {
                 .startsWith("$2a$")
                 .hasSize(60);
     }
+
+    @Test
+    @DisplayName("spec 037: OSS 同步时用 username 填充 crm_sales_no（generateToken 不再依赖 OSS token）")
+    void upsert_shouldFillCrmSalesNoFromUsername() {
+        // 生产 bug：users.crm_sales_no 全表 NULL，导致 CrmAuthService 无法用 salesNo 换 CRM JWT
+        // 修复：OSS 同步时把 username（即 OSS 工号）写入 crm_sales_no
+        when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "10003")).thenReturn(Optional.empty());
+        when(roleProfileRepository.findByCodeIgnoreCase("bid-Team")).thenReturn(Optional.of(role("bid-Team")));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        writer.upsert("oss", "event-key", new OrganizationUserSnapshot(
+                "10003", "04503", "王旭州", "wang@example.com",
+                "13800000000", "sales", "销售部", "", "bid-Team", true
+        ));
+
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(saved.capture());
+        // spec 037: OSS 工号即 CRM salesNo，填充后 generateToken 不再依赖 OSS token
+        assertThat(saved.getValue().getCrmSalesNo()).isEqualTo("04503");
+        assertThat(saved.getValue().getEmployeeNumber()).isEqualTo("04503");
+        assertThat(saved.getValue().getUsername()).isEqualTo("04503");
+    }
 }
