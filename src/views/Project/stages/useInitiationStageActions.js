@@ -392,6 +392,9 @@ export function useInitiationStageActions({
       await projectLifecycleApi.approveInitiation(props.projectId, {
         primaryLeadUserId: approvalForm.biddingLeaderId,
         secondaryLeadUserId: approvalForm.biddingAssistantId || null,
+        // 审批模式下可编辑字段：计划入围供应商数量、招标文件不利项（随审批一起保存）
+        expectedBidders: form.expectedBidders,
+        tenderAdverseItems: form.tenderAdverseItems,
       })
       ElMessage.success('已通过，项目进入标书制作阶段')
       emit('updated')

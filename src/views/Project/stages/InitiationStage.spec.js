@@ -36,15 +36,16 @@ import { usersApi } from '@/api/modules/users.js'
 import { tendersApi } from '@/api/modules/tenders.js'
 import { projectsApi } from '@/api/modules/projects.js'
 import InitiationStage from './InitiationStage.vue'
+import { useUserStore } from '@/stores/user.js'
 
 const stubs = {
   'el-card': { template: '<div><slot name="header" /><slot /></div>' },
   'el-form': { template: '<form><slot /></form>' },
-  'el-form-item': { props: ['label'], template: '<div><slot /><span>{{ label }}</span></div>' },
+  'el-form-item': { props: ['label'], template: '<div :data-label="label"><slot /><span>{{ label }}</span></div>' },
   'el-select': { template: '<div><slot /></div>' },
   'el-option': { template: '<div><slot /></div>' },
-  'el-input': { template: '<input />' },
-  'el-input-number': { template: '<input type="number" />' },
+  'el-input': { props: ['disabled'], template: '<input :disabled="disabled" />' },
+  'el-input-number': { props: ['disabled', 'min', 'precision'], template: '<input type="number" :disabled="disabled" />' },
   'el-date-picker': { template: '<input type="datetime-local" />' },
   'el-upload': { template: '<div><slot name="tip" /><slot /></div>' },
   'el-table-column': { template: '<div />' },
@@ -293,5 +294,47 @@ describe('InitiationStage — PRD §4.3 4-section layout', () => {
       const result = wrapper.vm.handleBeforeRemove()
       expect(result).toBe(false)
     })
+  })
+
+  // 审批模式（投标管理员/组长 + PENDING_REVIEW）下，expectedBidders / tenderAdverseItems 可编辑
+  it('allows editing expectedBidders and tenderAdverseItems in approval mode', async () => {
+    projectLifecycleApi.getInitiation.mockResolvedValue({
+      data: { reviewStatus: 'PENDING_REVIEW', expectedBidders: 3, tenderAdverseItems: '不利项' },
+    })
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 9, roleCode: 'bid-teamleader' }
+    const wrapper = mount(InitiationStage, {
+      props: { projectId: 1 },
+      global: { stubs, plugins: [pinia] },
+    })
+    await flushPromises()
+
+    const biddersInput = wrapper.find('[data-label="计划入围供应商数量"] input')
+    const adverseInput = wrapper.find('[data-label="招标文件不利项"] input')
+    expect(biddersInput.exists()).toBe(true)
+    expect(adverseInput.exists()).toBe(true)
+    expect(biddersInput.attributes('disabled')).toBeUndefined()
+    expect(adverseInput.attributes('disabled')).toBeUndefined()
+  })
+
+  // 非投标管理员在 PENDING_REVIEW 下，expectedBidders 仍不可编辑
+  it('keeps expectedBidders disabled for non-bid-manager in pending review', async () => {
+    projectLifecycleApi.getInitiation.mockResolvedValue({
+      data: { reviewStatus: 'PENDING_REVIEW', expectedBidders: 3, tenderAdverseItems: '不利项' },
+    })
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const userStore = useUserStore()
+    userStore.currentUser = { id: 9, roleCode: 'bid-projectLeader' }
+    const wrapper = mount(InitiationStage, {
+      props: { projectId: 1 },
+      global: { stubs, plugins: [pinia] },
+    })
+    await flushPromises()
+
+    const biddersInput = wrapper.find('[data-label="计划入围供应商数量"] input')
+    expect(biddersInput.attributes('disabled')).toBeDefined()
   })
 })
