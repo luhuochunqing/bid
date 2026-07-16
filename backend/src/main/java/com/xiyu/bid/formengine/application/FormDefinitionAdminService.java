@@ -58,8 +58,13 @@ public class FormDefinitionAdminService {
         FormDefinitionRegistryEntity entity = findById(id);
         entity.setScopeLabel(request.scopeLabel());
         entity.setSchemaJson(toJson(request.schema()));
+        if (request.enabled() != null) {
+            entity.setEnabled(request.enabled());
+        }
         entity.setUpdatedAt(LocalDateTime.now());
-        return definitionRepository.save(entity);
+        FormDefinitionRegistryEntity saved = definitionRepository.save(entity);
+        adaptiveFormService.invalidateCache(entity.getScope(), entity.getOrgId());
+        return saved;
     }
 
     @Transactional
@@ -98,7 +103,7 @@ public class FormDefinitionAdminService {
     }
 
     public record CreateFormDefinitionRequest(String scope, String scopeLabel, Long orgId, Map<String, Object> schema) {}
-    public record UpdateFormDefinitionRequest(String scopeLabel, Map<String, Object> schema) {}
+    public record UpdateFormDefinitionRequest(String scopeLabel, Map<String, Object> schema, Boolean enabled) {}
     public record VisibilityRuleDto(String fieldKey, String rolePattern, Long orgId, boolean visible, boolean readonly, boolean hidden) {}
     public record ConditionRuleDto(String sourceField, String operator, String targetValue, String action, String targetField, int displayOrder) {}
     public record CrossFieldRuleDto(String fieldA, String operator, String fieldB, String targetValue, String errorMessage, int priority) {}

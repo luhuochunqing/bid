@@ -25,7 +25,9 @@ export const FIELD_TYPES = [
   { label: '标讯来源', value: 'tender_source' },
   { label: '项目状态', value: 'project_status' },
   { label: '资质类型', value: 'qualification_type' },
-  { label: '表格编辑', value: 'table' }
+  { label: '表格编辑', value: 'table' },
+  { label: '省市区级联', value: 'cascader' },
+  { label: '日期时间', value: 'datetime' }
 ]
 
 export const FIELD_TYPE_HELP_TEXT = {
@@ -49,8 +51,28 @@ export const FIELD_TYPE_HELP_TEXT = {
   tender_source: '标讯来源枚举（招标/比选/竞争性谈判等）',
   project_status: '项目状态枚举（进行中/已暂停/已结项等）',
   qualification_type: '资质类型枚举（营业执照/资质证书等）',
-  table: '多行数据表格编辑，支持columns定义列'
+  table: '多行数据表格编辑，支持columns定义列',
+  cascader: '省市区级联选择（如总部所在地）',
+  datetime: '日期时间选择器（如报名截止时间）'
 }
+
+// tender.entry 业务页有特殊渲染分支的字段（8 个）
+// 锁定字段：key + type 不可修改，不可删除（改 type 会导致业务页渲染异常）
+export const LOCKED_FIELD_KEYS = [
+  'region', 'priority', 'deadline', 'bidOpeningTime',
+  'customerType', 'projectType', 'pastedText', 'attachments'
+]
+
+// tender.entry 联系人1/联系人2 固定分组字段 key 列表（8 个）
+// 固定分组字段：不可拖拽排序 + key 不可修改（业务页硬编码依赖 key），type 可改，不可删除
+export const FIXED_GROUP_KEYS = [
+  'contact', 'phone', 'landline', 'mail',
+  'contact2', 'phone2', 'landline2', 'mail2'
+]
+
+// 所有可能需要锁定 key 的字段（LOCKED + FIXED_GROUP）
+// 用于判断 key 输入框是否 disabled 和删除按钮是否隐藏
+export const KEY_LOCKED_FIELD_KEYS = [...LOCKED_FIELD_KEYS, ...FIXED_GROUP_KEYS]
 
 export function createField(key = 'field1', label = '字段', type = 'text') {
   const field = { key, label, type, required: type !== 'info' && type !== 'section' && type !== 'divider' && type !== 'info' }

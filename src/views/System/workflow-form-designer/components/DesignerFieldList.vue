@@ -14,25 +14,32 @@
       v-for="(field, index) in fields"
       :key="field.key"
       class="field-row"
-      draggable="true"
+      :draggable="!isFixedGroup(field)"
       @dragstart="onDragStart(index)"
       @dragover.prevent="onDragOver(index)"
       @drop="onDrop(index)"
       @dragend="dragIndex = null"
-      :class="{ 'drag-over': dragOverIndex === index }"
+      :class="{ 'drag-over': dragOverIndex === index, 'field-locked': isLocked(field), 'drag-disabled': isFixedGroup(field) }"
     >
-      <span class="drag-handle" :title="'拖拽排序'">⠿</span>
-      <el-input v-model="field.key" placeholder="字段 key" class="field-key-input" />
+      <el-tooltip v-if="isFixedGroup(field)" content="固定分组字段，不可拖拽排序，key 不可修改" placement="top">
+        <span class="lock-icon">🔒</span>
+      </el-tooltip>
+      <el-tooltip v-else-if="isLocked(field)" content="核心字段，key 和类型不可修改" placement="top">
+        <span class="lock-icon">🔒</span>
+      </el-tooltip>
+      <span v-else class="drag-handle" :title="'拖拽排序'">⠿</span>
+      <el-input v-model="field.key" placeholder="字段 key" class="field-key-input" :disabled="isKeyLocked(field)" />
       <el-input v-model="field.label" placeholder="字段名称" class="field-label-input" />
-      <el-select v-model="field.type" @change="(v) => { $emit('normalize-field', field); if (['tender_source','project_status','qualification_type'].includes(v) && !field.optionsText) field.optionsText = $emit('get-enum-options', v) }" class="field-type-select">
+      <el-select v-model="field.type" :disabled="isLocked(field)" @change="(v) => { $emit('normalize-field', field); if (['tender_source','project_status','qualification_type'].includes(v) && !field.optionsText) field.optionsText = $emit('get-enum-options', v) }" class="field-type-select">
         <el-option v-for="type in fieldTypes" :key="type.value" :label="type.label" :value="type.value" />
       </el-select>
       <el-checkbox v-model="field.required" :disabled="['info','section','divider'].includes(field.type)">必填</el-checkbox>
+      <el-checkbox v-model="field.enabled">启用</el-checkbox>
       <el-tooltip :content="getFieldHelp(field.type)" placement="top" :show-after="300">
         <span class="field-help-badge">?</span>
       </el-tooltip>
       <el-button type="info" size="small" text @click="$emit('copy-field', index)" title="复制字段">复制</el-button>
-      <el-button type="danger" size="small" text @click="$emit('delete-field', field.key)">删</el-button>
+      <el-button v-if="!isKeyLocked(field)" type="danger" size="small" text @click="$emit('delete-field', field.key)">删</el-button>
 
       <!-- select 类型选项 -->
       <el-input v-if="field.type === 'select'" v-model="field.optionsText" class="field-wide" placeholder="选项，格式：显示名=值，每行一个" type="textarea" :rows="2" />
@@ -83,7 +90,7 @@
 
 <script setup>
 import { ref } from 'vue'
-import { FIELD_TYPE_HELP_TEXT } from '../workflowFormDesignerCore.js'
+import { FIELD_TYPE_HELP_TEXT, LOCKED_FIELD_KEYS, FIXED_GROUP_KEYS, KEY_LOCKED_FIELD_KEYS } from '../workflowFormDesignerCore.js'
 
 const props = defineProps({
   fields: { type: Array, required: true },
@@ -96,6 +103,9 @@ const dragIndex = ref(null)
 const dragOverIndex = ref(null)
 
 function getFieldHelp(type) { return FIELD_TYPE_HELP_TEXT[type] || '' }
+function isLocked(field) { return LOCKED_FIELD_KEYS.includes(field.key) }
+function isFixedGroup(field) { return FIXED_GROUP_KEYS.includes(field.key) }
+function isKeyLocked(field) { return KEY_LOCKED_FIELD_KEYS.includes(field.key) }
 
 function onDragStart(index) { dragIndex.value = index }
 function onDragOver(index) { dragOverIndex.value = index }
@@ -116,6 +126,9 @@ function onDrop(index) {
 .field-row.drag-over { border-color: var(--el-color-primary); background: var(--el-color-primary-light-9); }
 .drag-handle { cursor: grab; color: var(--el-text-color-placeholder); font-size: 16px; user-select: none; padding: 0 2px; }
 .drag-handle:active { cursor: grabbing; }
+.field-row.field-locked { background: var(--el-fill-color-light); }
+.field-row.drag-disabled { opacity: 0.85; }
+.lock-icon { cursor: help; color: var(--el-text-color-secondary); font-size: 14px; padding: 0 2px; }
 .field-key-input { width: 100px; }
 .field-label-input { width: 140px; }
 .field-type-select { width: 140px; }
