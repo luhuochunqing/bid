@@ -41,16 +41,13 @@ public class CrmChanceService {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final CrmHttpClient httpClient;
-    private final CrmAuthService authService;
     private final CrmProperties properties;
     private final CrmChanceTenderMatcher tenderMatcher;
     private final CrmApiTemplate apiTemplate;
 
-    public CrmChanceService(CrmHttpClient httpClient, CrmAuthService authService,
-                            CrmProperties properties, CrmChanceTenderMatcher tenderMatcher,
-                            CrmApiTemplate apiTemplate) {
+    public CrmChanceService(CrmHttpClient httpClient, CrmProperties properties,
+                            CrmChanceTenderMatcher tenderMatcher, CrmApiTemplate apiTemplate) {
         this.httpClient = httpClient;
-        this.authService = authService;
         this.properties = properties;
         this.tenderMatcher = tenderMatcher;
         this.apiTemplate = apiTemplate;
