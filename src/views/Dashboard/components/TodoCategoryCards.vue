@@ -24,8 +24,8 @@ Pos: src/views/Dashboard/components/ - 工作台改造组件
           @click="emit('item-click', { cardKey: card.key, item })"
           @keydown.enter.prevent="emit('item-click', { cardKey: card.key, item })"
         >
-          <span class="left">{{ item.name }}</span>
-          <span class="right">{{ item.rightText }}</span>
+          <span class="left" :title="item.name">{{ item.name }}</span>
+          <span class="right" :title="item.rightText">{{ item.rightText }}</span>
         </div>
       </div>
       <div class="todo-category-empty" v-else>暂无待办</div>
