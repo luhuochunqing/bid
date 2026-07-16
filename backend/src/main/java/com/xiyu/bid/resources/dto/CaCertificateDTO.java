@@ -25,6 +25,12 @@ public class CaCertificateDTO {
     /** CO-451: 保管员工号，用于前端显示"姓名（工号）"格式 */
     private String custodianEmployeeNumber;
     private String borrowStatus;
+    /** CO-579: 当前借用人工号（取最近一条 APPROVED 且未归还的借用申请），无则 null */
+    private String borrowerEmployeeNumber;
+    /** CO-579: 当前借用人姓名，无则 null */
+    private String borrowerName;
+    /** CO-579: 当前借用时间（借用申请 approved_at），无则 null */
+    private LocalDateTime borrowTime;
     private String status;
     private String remarks;
     private LocalDateTime createdAt;
@@ -68,6 +74,34 @@ public class CaCertificateDTO {
 
     public static CaCertificateDTO from(CaCertificateEntity entity) {
         return from(entity, false, null, null);
+    }
+
+    /**
+     * CO-579: 带当前借用人信息的构造。
+     * <p>借用人信息来自最近一条 APPROVED 且未归还（RETURNED）的借用申请；
+     * borrowInfo 为 null 或字段为 null 时，三个借用人字段留 null。
+     *
+     * @param borrowInfo 当前在借申请的借用人快照，可为 null
+     */
+    public static CaCertificateDTO from(CaCertificateEntity entity,
+                                        boolean revealPassword, String decryptedPassword,
+                                        String custodianEmployeeNumber,
+                                        CurrentBorrowInfo borrowInfo) {
+        CaCertificateDTO dto = from(entity, revealPassword, decryptedPassword, custodianEmployeeNumber);
+        if (borrowInfo != null) {
+            dto.borrowerName = borrowInfo.borrowerName();
+            dto.borrowerEmployeeNumber = borrowInfo.borrowerEmployeeNumber();
+            dto.borrowTime = borrowInfo.borrowTime();
+        }
+        return dto;
+    }
+
+    /**
+     * CO-579: 当前借用人快照（值对象）。由 Service 层从借用申请表聚合后传入。
+     */
+    public record CurrentBorrowInfo(String borrowerName,
+                                    String borrowerEmployeeNumber,
+                                    LocalDateTime borrowTime) {
     }
 
     private static String maskPassword(String stored) {

@@ -5,6 +5,8 @@ import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
 import com.xiyu.bid.resources.dto.CaCertificateDTO;
 import com.xiyu.bid.resources.dto.CaCertificateRequest;
 import com.xiyu.bid.resources.entity.CaCertificateEntity;
+import com.xiyu.bid.resources.entity.CaBorrowApplicationEntity;
+import com.xiyu.bid.resources.repository.CaBorrowApplicationRepository;
 import com.xiyu.bid.resources.repository.CaCertificateRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.security.EffectiveRoleResolver;
@@ -20,6 +22,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +57,8 @@ class CaCertificateServiceTest {
     private UserRepository userRepository;
     @Mock
     private CustodianEmployeeNumberResolver custodianEmployeeNumberResolver;
+    @Mock
+    private CaBorrowApplicationRepository caBorrowApplicationRepository;
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
@@ -309,6 +314,113 @@ class CaCertificateServiceTest {
         assertThat(result.getContent().get(0).getRelatedPlatforms()).isEqualTo("新疆政采网");
     }
 
+    // ── CO-579: 返回值填充借用人快照（borrowerName / borrowerEmployeeNumber / borrowTime） ──
+
+    @Test
+    void getById_borrowedCa_fillsBorrowerInfo() {
+        CaCertificateService service = newService();
+        CaCertificateEntity ca = CaCertificateEntity.builder()
+                .id(1L)
+                .caType("ENTITY_CA")
+                .sealType("OFFICIAL_SEAL")
+                .expiryDate(LocalDate.now().plusDays(30))
+                .custodianId(20L)
+                .status("ACTIVE")
+                .borrowStatus("BORROWED")
+                .build();
+        when(certificateRepository.findById(1L)).thenReturn(Optional.of(ca));
+        when(custodianEmployeeNumberResolver.fetchEmployeeNumber(20L)).thenReturn("EMP001");
+        // 模拟一笔 APPROVED 在借申请
+        LocalDateTime borrowedAt = LocalDateTime.of(2026, 7, 10, 14, 30);
+        CaBorrowApplicationEntity app = CaBorrowApplicationEntity.builder()
+                .id(100L)
+                .caCertificateId(1L)
+                .applicantId(30L)
+                .applicantName("李投标")
+                .applicantEmployeeNumber("EMP2026")
+                .purpose("投标资格审查")
+                .borrowDurationType("SHORT_TERM")
+                .status("APPROVED")
+                .approvedAt(borrowedAt)
+                .build();
+        when(caBorrowApplicationRepository.findByCaCertificateIdAndStatus(
+                1L, CaBorrowApplicationEntity.BorrowStatus.APPROVED.name()))
+                .thenReturn(List.of(app));
+
+        CaCertificateDTO dto = service.getById(1L);
+
+        assertThat(dto.getBorrowerName()).isEqualTo("李投标");
+        assertThat(dto.getBorrowerEmployeeNumber()).isEqualTo("EMP2026");
+        assertThat(dto.getBorrowTime()).isEqualTo(borrowedAt);
+    }
+
+    @Test
+    void getById_inStockCa_borrowerInfoAllNull() {
+        CaCertificateService service = newService();
+        CaCertificateEntity ca = CaCertificateEntity.builder()
+                .id(1L)
+                .caType("ENTITY_CA")
+                .sealType("OFFICIAL_SEAL")
+                .expiryDate(LocalDate.now().plusDays(30))
+                .custodianId(20L)
+                .status("ACTIVE")
+                .borrowStatus("IN_STOCK")
+                .build();
+        when(certificateRepository.findById(1L)).thenReturn(Optional.of(ca));
+        when(custodianEmployeeNumberResolver.fetchEmployeeNumber(20L)).thenReturn("EMP001");
+        when(caBorrowApplicationRepository.findByCaCertificateIdAndStatus(
+                1L, CaBorrowApplicationEntity.BorrowStatus.APPROVED.name()))
+                .thenReturn(Collections.emptyList());
+
+        CaCertificateDTO dto = service.getById(1L);
+
+        assertThat(dto.getBorrowerName()).isNull();
+        assertThat(dto.getBorrowerEmployeeNumber()).isNull();
+        assertThat(dto.getBorrowTime()).isNull();
+    }
+
+    @Test
+    void list_borrowedCa_fillsBorrowerInfo() {
+        CaCertificateService service = newService();
+        CaCertificateEntity ca = CaCertificateEntity.builder()
+                .id(1L)
+                .caType("ENTITY_CA")
+                .sealType("OFFICIAL_SEAL")
+                .expiryDate(LocalDate.now().plusDays(30))
+                .custodianId(20L)
+                .status("ACTIVE")
+                .borrowStatus("BORROWED")
+                .build();
+        Page<CaCertificateEntity> page = new PageImpl<>(List.of(ca));
+        when(certificateRepository.findAll(any(org.springframework.data.jpa.domain.Specification.class), any(PageRequest.class)))
+                .thenReturn(page);
+        when(custodianEmployeeNumberResolver.batchFetchEmployeeNumbers(any())).thenReturn(Collections.emptyMap());
+        LocalDateTime borrowedAt = LocalDateTime.of(2026, 7, 10, 14, 30);
+        CaBorrowApplicationEntity app = CaBorrowApplicationEntity.builder()
+                .id(100L)
+                .caCertificateId(1L)
+                .applicantId(30L)
+                .applicantName("李投标")
+                .applicantEmployeeNumber("EMP2026")
+                .purpose("投标资格审查")
+                .borrowDurationType("SHORT_TERM")
+                .status("APPROVED")
+                .approvedAt(borrowedAt)
+                .build();
+        when(caBorrowApplicationRepository.findByCaCertificateIdAndStatus(
+                1L, CaBorrowApplicationEntity.BorrowStatus.APPROVED.name()))
+                .thenReturn(List.of(app));
+
+        Page<CaCertificateDTO> result = service.list(null, null, null, null, null, PageRequest.of(0, 10));
+
+        assertThat(result.getContent()).hasSize(1);
+        CaCertificateDTO dto = result.getContent().get(0);
+        assertThat(dto.getBorrowerName()).isEqualTo("李投标");
+        assertThat(dto.getBorrowerEmployeeNumber()).isEqualTo("EMP2026");
+        assertThat(dto.getBorrowTime()).isEqualTo(borrowedAt);
+    }
+
+
     // ── CO-477: 读时刷新 status（避免持久化字段陈旧） ──
 
     @Test
@@ -394,6 +506,7 @@ class CaCertificateServiceTest {
                 effectiveRoleResolver,
                 userRepository,
                 custodianEmployeeNumberResolver,
+                caBorrowApplicationRepository,
                 eventPublisher
         );
     }
