@@ -92,6 +92,13 @@ public class ProjectInitiationApprovalService {
         entity.setReviewedAt(LocalDateTime.now());
         entity.setLocked(Boolean.TRUE); // 锁定字段
         entity.setUpdatedBy(currentUserId);
+        // 审批模式下可编辑字段：计划入围供应商数量、招标文件不利项（随审批一起保存，null 不覆盖）
+        if (req.getExpectedBidders() != null) {
+            entity.setExpectedBidders(req.getExpectedBidders());
+        }
+        if (req.getTenderAdverseItems() != null) {
+            entity.setTenderAdverseItems(req.getTenderAdverseItems());
+        }
         initiationRepo.save(entity);
 
         // 2. 分配团队

@@ -30,4 +30,17 @@ public class InitiationApprovalRequest {
     /** 审批意见（可选，通过操作允许不填）。 */
     @Size(max = 500, message = "审批意见不能超过500字")
     private String comment;
+
+    /**
+     * 审批模式下可编辑字段：计划入围供应商数量。
+     * 产品要求：投标管理员/组长在分配投标负责人时，此字段仍可调整，随审批一起保存。
+     * 可空：为 null 时不覆盖已有值。
+     */
+    private Integer expectedBidders;
+
+    /**
+     * 审批模式下可编辑字段：招标文件不利项。
+     * 可空：为 null 时不覆盖已有值。
+     */
+    private String tenderAdverseItems;
 }

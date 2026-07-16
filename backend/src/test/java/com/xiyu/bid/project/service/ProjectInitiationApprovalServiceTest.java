@@ -400,4 +400,78 @@ class ProjectInitiationApprovalServiceTest {
                 Long.valueOf(15L).equals(assignment.getPrimaryLeadUserId()) &&
                 Long.valueOf(20L).equals(assignment.getSecondaryLeadUserId())));
     }
+
+    /**
+     * 审批模式下可编辑字段：expectedBidders / tenderAdverseItems 随审批一起保存。
+     */
+    @Test
+    void approve_persistsEditableFieldsFromRequest() {
+        ProjectInitiationDetails details = ProjectInitiationDetails.builder()
+                .id(1L)
+                .projectId(100L)
+                .reviewStatus(InitiationReviewStatus.PENDING_REVIEW.name())
+                .locked(Boolean.FALSE)
+                .expectedBidders(3)
+                .tenderAdverseItems("旧不利项")
+                .build();
+        when(initiationRepo.findByProjectId(100L)).thenReturn(Optional.of(details));
+        when(projectStageService.currentStage(100L)).thenReturn(ProjectStage.INITIATED);
+        when(initiationRepo.save(any(ProjectInitiationDetails.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(projectRepository.findById(100L))
+                .thenReturn(Optional.of(Project.builder().id(100L).name("测试项目").build()));
+        when(leadRepo.save(any(ProjectLeadAssignment.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        InitiationApprovalRequest req = InitiationApprovalRequest.builder()
+                .primaryLeadUserId(3L)
+                .expectedBidders(5)
+                .tenderAdverseItems("新不利项")
+                .build();
+
+        service.approve(100L, req, 5L);
+
+        ArgumentCaptor<ProjectInitiationDetails> captor = ArgumentCaptor.forClass(ProjectInitiationDetails.class);
+        verify(initiationRepo, times(2)).save(captor.capture());
+        ProjectInitiationDetails saved = captor.getValue();
+        assertThat(saved.getExpectedBidders()).isEqualTo(5);
+        assertThat(saved.getTenderAdverseItems()).isEqualTo("新不利项");
+    }
+
+    /**
+     * 请求中 expectedBidders / tenderAdverseItems 为 null 时不应覆盖已有值。
+     */
+    @Test
+    void approve_keepsExistingEditableFieldsWhenRequestNull() {
+        ProjectInitiationDetails details = ProjectInitiationDetails.builder()
+                .id(1L)
+                .projectId(100L)
+                .reviewStatus(InitiationReviewStatus.PENDING_REVIEW.name())
+                .locked(Boolean.FALSE)
+                .expectedBidders(7)
+                .tenderAdverseItems("保留值")
+                .build();
+        when(initiationRepo.findByProjectId(100L)).thenReturn(Optional.of(details));
+        when(projectStageService.currentStage(100L)).thenReturn(ProjectStage.INITIATED);
+        when(initiationRepo.save(any(ProjectInitiationDetails.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(projectRepository.findById(100L))
+                .thenReturn(Optional.of(Project.builder().id(100L).name("测试项目").build()));
+        when(leadRepo.save(any(ProjectLeadAssignment.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        InitiationApprovalRequest req = InitiationApprovalRequest.builder()
+                .primaryLeadUserId(3L)
+                .expectedBidders(null)
+                .tenderAdverseItems(null)
+                .build();
+
+        service.approve(100L, req, 5L);
+
+        ArgumentCaptor<ProjectInitiationDetails> captor = ArgumentCaptor.forClass(ProjectInitiationDetails.class);
+        verify(initiationRepo, times(2)).save(captor.capture());
+        ProjectInitiationDetails saved = captor.getValue();
+        assertThat(saved.getExpectedBidders()).isEqualTo(7);
+        assertThat(saved.getTenderAdverseItems()).isEqualTo("保留值");
+    }
 }
