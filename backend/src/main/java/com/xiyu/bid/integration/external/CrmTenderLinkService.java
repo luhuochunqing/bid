@@ -125,8 +125,9 @@ public class CrmTenderLinkService {
     public void applyCrmLinkAndAssignment(Tender tender, String crmId, String crmOpportunityCode, String username) {
         log.info("Applying CRM link for tender id={}, crmId={}, crmOpportunityCode={}, username={}",
                 tender.getId(), crmId, crmOpportunityCode, username);
-        // 仅当 code 是 CC 格式编号（非纯数字）时才直接存入
-        // 纯数字是 CRM 推送误传的主键 id，需通过 findProjectLeaderByChanceId 反查真正的 CC 编号
+        // spec 037 Review 5.2：仅当 code 是 CC 格式时才提前存入 —— webhook 回传需要 code 已落库，
+        // 即使后续 leader 反查失败也不影响 code 存储。applyLeaderAndStatus 仅在 tender.crmOpportunityId
+        // 未设置时才填充，避免与 leader.opportunityCode() 不一致时静默覆盖（最终落库值难追踪）。
         if (isCcFormatCode(crmOpportunityCode)) {
             tender.setCrmOpportunityId(crmOpportunityCode);
         }
@@ -211,10 +212,24 @@ public class CrmTenderLinkService {
      */
     private void applyLeaderAndStatus(Tender tender, CrmProjectLeaderService.ProjectLeaderResult leader) {
         String crmId = leader.opportunityCode();
-        // 设置商机关联（仅当 code 非空时才设置 id 和 name，避免"半关联"状态导致去重校验失效）
-        if (crmId != null && !crmId.isBlank()) {
-            tender.setCrmOpportunityId(crmId);
-            tender.setCrmOpportunityName(leader.opportunityName());
+        // spec 037 Review 5.2 + 5.4：code 与 name 都仅在 leader.code 是 CC 格式时才设置。
+        // - 5.2：避免覆盖 applyCrmLinkAndAssignment 入口已设置的 code（防止静默覆盖导致最终值难追踪）
+        // - 5.4：防止 CRM 返回 null/纯数字时静默写入触发 CO-277 半关联（去重校验失效）
+        //   name 也跟随 code —— 防"半关联"：code=null 时 id 和 name 都不应被设置（生产 bug 回归测试）
+        if (isCcFormatCode(crmId)) {
+            // code 校验通过：若 tender 已有 code 且与 leader.code 不一致，warn 但不覆盖 id
+            if (tender.getCrmOpportunityId() == null || tender.getCrmOpportunityId().isBlank()) {
+                tender.setCrmOpportunityId(crmId);
+            } else if (!crmId.equals(tender.getCrmOpportunityId())) {
+                log.warn("CRM link: tender.crmOpportunityId='{}' already set, leader.opportunityCode='{}' differs, keep existing id",
+                        tender.getCrmOpportunityId(), crmId);
+            }
+            // name 总是更新（入口只设置 id 不设置 name）
+            if (leader.opportunityName() != null && !leader.opportunityName().isBlank()) {
+                tender.setCrmOpportunityName(leader.opportunityName());
+            }
+        } else if (crmId != null && !crmId.isBlank()) {
+            log.warn("CRM link: leader.opportunityCode='{}' is not CC format, skip setting crmOpportunityId/Name to avoid half-link", crmId);
         }
 
         // 解析项目负责人：先按工号匹配本地用户

@@ -42,14 +42,12 @@ public class CrmChanceService {
 
     private final CrmHttpClient httpClient;
     private final CrmProperties properties;
-    private final CrmChanceTenderMatcher tenderMatcher;
     private final CrmApiTemplate apiTemplate;
 
     public CrmChanceService(CrmHttpClient httpClient, CrmProperties properties,
-                            CrmChanceTenderMatcher tenderMatcher, CrmApiTemplate apiTemplate) {
+                            CrmApiTemplate apiTemplate) {
         this.httpClient = httpClient;
         this.properties = properties;
-        this.tenderMatcher = tenderMatcher;
         this.apiTemplate = apiTemplate;
     }
 
@@ -144,26 +142,26 @@ public class CrmChanceService {
         log.info("CRM searchByTender: tenderer={}, strategy={}", tenderer, strategy);
 
         if (strategy == CrmProperties.MatchingStrategy.ALL || tenderer == null || tenderer.isBlank()) {
-            return doPageList(tenderMatcher.buildSelectAllRequest(request.pageIndex(), pageSize), username);
+            return doPageList(CrmChanceTenderMatcher.buildSelectAllRequest(request.pageIndex(), pageSize), username);
         }
 
         if (strategy == CrmProperties.MatchingStrategy.GROUP) {
             CrmChancePageResult groupResult = doPageList(
-                    tenderMatcher.buildGroupRequest(tenderer, request.pageIndex(), pageSize), username);
+                    CrmChanceTenderMatcher.buildGroupRequest(tenderer, request.pageIndex(), pageSize), username);
             if (!groupResult.list().isEmpty()) {
                 return groupResult;
             }
             log.info("GROUP strategy returned empty for tenderer={}, fallback to ALL", tenderer);
-            return doPageList(tenderMatcher.buildSelectAllRequest(request.pageIndex(), pageSize), username);
+            return doPageList(CrmChanceTenderMatcher.buildSelectAllRequest(request.pageIndex(), pageSize), username);
         }
 
         // EXACT：先按日期精确匹配，再兜底 GROUP，最后 ALL
-        List<LocalDate> targetDates = tenderMatcher.parseTargetDates(request.registrationDeadline(), request.bidOpeningTime());
+        List<LocalDate> targetDates = CrmChanceTenderMatcher.parseTargetDates(request.registrationDeadline(), request.bidOpeningTime());
         if (!targetDates.isEmpty()) {
             Map<Long, CustomerChanceVO> merged = new LinkedHashMap<>();
             for (LocalDate targetDate : targetDates) {
                 CrmChancePageResult result = doPageList(
-                        tenderMatcher.buildExactDateRequest(tenderer, targetDate, request.pageIndex(), pageSize), username);
+                        CrmChanceTenderMatcher.buildExactDateRequest(tenderer, targetDate, request.pageIndex(), pageSize), username);
                 for (CustomerChanceVO vo : result.list()) {
                     merged.putIfAbsent(vo.id(), vo);
                 }
@@ -180,12 +178,12 @@ public class CrmChanceService {
         }
 
         CrmChancePageResult groupResult = doPageList(
-                tenderMatcher.buildGroupRequest(tenderer, request.pageIndex(), pageSize), username);
+                CrmChanceTenderMatcher.buildGroupRequest(tenderer, request.pageIndex(), pageSize), username);
         if (!groupResult.list().isEmpty()) {
             return groupResult;
         }
         log.info("GROUP fallback returned empty for tenderer={}, fallback to ALL", tenderer);
-        return doPageList(tenderMatcher.buildSelectAllRequest(request.pageIndex(), pageSize), username);
+        return doPageList(CrmChanceTenderMatcher.buildSelectAllRequest(request.pageIndex(), pageSize), username);
     }
 
     private CrmChancePageResult doPageList(CustomerChancePageRequest request, String username) {

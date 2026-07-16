@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * CRM 鉴权：spec 037 fallback 版。
@@ -122,49 +123,34 @@ public class CrmAuthService {
     private String fetchAndCacheUserToken(UserProfileCache.CachedUserProfile profile, String username) {
         String salesNo = StringUtils.hasText(profile.crmSalesNo()) ? profile.crmSalesNo() : username;
         String nickName = StringUtils.hasText(profile.fullName()) ? profile.fullName() : username;
-        String crmJwt = ossUserTokenCache.get(username)
-                .map(ossToken -> applyCrmTokenWithOssToken(ossToken, nickName, salesNo))
-                .orElseGet(() -> {
-                    log.info("OSS token missing for username={}, fallback to postJson (no Authorization)", username);
-                    return applyCrmToken(nickName, salesNo);
-                });
+        var ossToken = ossUserTokenCache.get(username);
+        if (ossToken.isEmpty()) {
+            log.info("OSS token missing for username={}, fallback to postJson (no Authorization)", username);
+        }
+        String crmJwt = fetchCrmToken(nickName, salesNo, ossToken);
         userTokenCache.put(username, crmJwt, JwtTtlResolver.resolveTtlSeconds(crmJwt));
         return crmJwt;
     }
 
     /**
-     * 用 OSS token 调 {@code /common/inner/generateToken} 换 CRM JWT（原路径，带 Authorization）。
-     * <p>OSS token 存在时的首选路径，测试环境 + 已登录用户走这里。
-     * <p>package-private 供 webhook 复用。
-     */
-    String applyCrmTokenWithOssToken(String ossAccessToken, String nickName, String salesNo) {
-        String baseUrl = properties.getEffectiveChanceBaseUrl();
-        String path = properties.getAuth().getGenerateTokenPath();
-        log.debug("CRM generateToken (with auth): nickName={}, salesNo={}", nickName, salesNo);
-        String body = buildGenerateTokenBody(nickName, salesNo);
-        CrmResponseHandler.CrmApiResponse response = httpClient.postWithAuth(
-                baseUrl, path, ossAccessToken, body);
-        if (response.success() && response.data() != null && response.data().isTextual()) {
-            return response.data().asText();
-        }
-        throw new TokenUnavailableException(
-                "CRM generateToken failed: code=" + response.code() + " msg=" + response.msg());
-    }
-
-    /**
-     * 用 nickName + salesNo 调 {@code /common/inner/generateToken} 换 CRM JWT（fallback，无 Authorization）。
-     * <p>OSS token 缺失时的 fallback 路径，生产环境 + 未登录用户走这里（治本）。
+     * 调 {@code /common/inner/generateToken} 换 CRM JWT。
+     * <p>spec 037 Review 3.1：合并原 {@code applyCrmTokenWithOssToken}（postWithAuth）
+     * 与 {@code applyCrmToken}（postJson）两个方法 —— 它们仅 HTTP 调用方式不同，
+     * body 构造、响应解析、异常抛出完全一致，合并后消除 12 行重复代码。
+     * <p>OSS token 存在时走 {@code postWithAuth}（带 Authorization，测试环境 + 已登录用户）；
+     * OSS token 缺失时 fallback 到 {@code postJson}（无 Authorization，生产环境 + 未登录用户）。
      * <p>2026-07-16 实测：生产环境 generateToken 接口不校验 Authorization header，
      * 仅传 {@code nickName + salesNo} 即可换 CRM JWT。测试环境要求 Authorization，
      * 因此测试环境 + 未登录用户仍会失败（CRM 配置问题，非代码问题）。
-     * <p>package-private 供 webhook 复用。
      */
-    String applyCrmToken(String nickName, String salesNo) {
+    private String fetchCrmToken(String nickName, String salesNo, Optional<String> ossToken) {
         String baseUrl = properties.getEffectiveChanceBaseUrl();
         String path = properties.getAuth().getGenerateTokenPath();
-        log.debug("CRM generateToken (fallback, no auth): nickName={}, salesNo={}", nickName, salesNo);
+        log.debug("CRM generateToken: nickName={}, salesNo={}, withAuth={}", nickName, salesNo, ossToken.isPresent());
         String body = buildGenerateTokenBody(nickName, salesNo);
-        CrmResponseHandler.CrmApiResponse response = httpClient.postJson(baseUrl, path, body);
+        CrmResponseHandler.CrmApiResponse response = ossToken
+                .map(t -> httpClient.postWithAuth(baseUrl, path, t, body))
+                .orElseGet(() -> httpClient.postJson(baseUrl, path, body));
         if (response.success() && response.data() != null && response.data().isTextual()) {
             return response.data().asText();
         }
