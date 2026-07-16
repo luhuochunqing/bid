@@ -235,7 +235,8 @@ function beforePlanGapUpload(file) { const max = 10 * 1024 * 1024; if (file.size
 function onPlanGapUploadSuccess(res) { if (res?.data) { form.projectPlanGapFiles.push(res.data); ElMessage.success('附件上传成功') } }
 function onPlanGapFileRemove(file) { const idx = (form.projectPlanGapFiles || []).findIndex(f => f.id === file.id || f.uid === file.uid); if (idx !== -1) { form.projectPlanGapFiles.splice(idx, 1) } } const fieldLocked = ref(false); const submitting = ref(false); const saving = ref(false); const approving = ref(false); const rejecting = ref(false); const aiAssessing = ref(false); const uploadingDoc = ref(false); const errorMsg = ref(''); const reviewStatus = ref('')
 // locked = reviewStatus 推导，不依赖 API 响应（后端 submit 可能未设 locked=true）
-const locked = computed(() => reviewStatus.value === 'PENDING_REVIEW' || reviewStatus.value === 'APPROVED')
+// PENDING_REVIEW 状态下允许编辑字段（审批人可在审批时调整），仅 APPROVED 状态锁定只读
+const locked = computed(() => reviewStatus.value === 'APPROVED')
 const evalPrefilled = ref(false)
 // CO-323: 带入字段（评估/客户信息）只读，保证金/招标文件除外
 const fieldDisabled = computed(() => locked.value || evalPrefilled.value)
