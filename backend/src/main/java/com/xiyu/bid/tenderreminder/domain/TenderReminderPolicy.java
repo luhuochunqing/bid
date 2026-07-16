@@ -4,6 +4,7 @@ import com.xiyu.bid.tenderreminder.dto.CreateReminderRequest;
 import com.xiyu.bid.tenderreminder.entity.ReminderType;
 import com.xiyu.bid.tenderreminder.entity.TenderReminderSetting;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -25,7 +26,8 @@ public record TenderReminderPolicy() {
 
     /**
      * 检查是否需要发送提醒
-     * 条件：启用 + 未超过截止时间 + 未超过提前时间 + 未发送过
+     * 条件：启用 + 未超过截止时间 + 已到达提醒时间点 + 距上次通知>=24h
+     * 语义：进入提醒窗口后每日重复发送，24 小时内去重
      */
     public static boolean shouldSendReminder(
             TenderReminderSetting setting,
@@ -41,7 +43,7 @@ public record TenderReminderPolicy() {
             return false;
         }
 
-        int hoursBefore = setting.getRemindBeforeHours() != null ? setting.getRemindBeforeHours() : 24;
+        int hoursBefore = setting.getRemindBeforeHours() != null ? setting.getRemindBeforeHours() : getDefaultRemindBeforeHours();
         LocalDateTime remindAt = calculateRemindAt(deadline, hoursBefore);
 
         if (remindAt == null) {
@@ -53,8 +55,8 @@ public record TenderReminderPolicy() {
             return false;
         }
 
-        // 检查是否已发送过（避免重复发送）
-        if (lastNotifiedAt != null) {
+        // 24 小时去重：距上次通知 < 24h 则跳过（每日重复提醒）
+        if (lastNotifiedAt != null && Duration.between(lastNotifiedAt, currentTime).toHours() < 24) {
             return false;
         }
 
@@ -77,10 +79,10 @@ public record TenderReminderPolicy() {
     }
 
     /**
-     * 获取默认提前提醒小时数
+     * 获取默认提前提醒小时数（3天）
      */
     public static int getDefaultRemindBeforeHours() {
-        return 24;
+        return 72;
     }
 
     /**

@@ -643,6 +643,7 @@ sync-env.sh .
 
 <!-- SPECKIT START -->
 当前活跃 feature：
+- `specs/038-tender-reminder-daily/plan.md`（投标关键节点提醒改造：报名截止/开标提前3天每日重复提醒，去重逻辑从"只发一次"改为"每24小时发一次"，默认值24→72）
 - `specs/036-wecom-bid-notifications/plan.md`（投标关键节点企微通知：已评估标讯立即投标发送待立项通知、项目复盘推进至结项发送待结项申请通知）
 - `specs/024-preauthorize-unification/plan.md`（消除 @PreAuthorize hasAnyRole 双轨制技术债）
 - `specs/025-fix-margin-filter/plan.md`（保证金看板状态筛选修复）
