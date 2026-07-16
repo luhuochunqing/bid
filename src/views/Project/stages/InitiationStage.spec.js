@@ -229,4 +229,69 @@ describe('InitiationStage — PRD §4.3 4-section layout', () => {
     expect(dm.name).toBe('张总')
     expect(dm.preference).toBe('1')
   })
+
+  // 回归测试：PENDING_REVIEW 状态下字段和操作都必须保持锁定
+  // 历史教训：PR !2091 曾改 locked 定义导致 PENDING_REVIEW 下连带解锁删除/上传/AI 评估等操作
+  // 根因：locked 被字段编辑和操作权限 7 处共用，改一处会连锁影响
+  // 这 5 个测试守护 locked 的原始语义，防止未来再走弯路
+  describe('PENDING_REVIEW state — fields and operations all locked (locked 语义守护)', () => {
+    async function mountPendingReview() {
+      projectLifecycleApi.getInitiation.mockResolvedValue({
+        data: {
+          ownerUnit: '中国石油',
+          bidOpenTime: '2026-07-01T10:00:00',
+          reviewStatus: 'PENDING_REVIEW',
+          evalPrefilled: false,
+        },
+      })
+      const wrapper = createWrapper()
+      await flushPromises()
+      return wrapper
+    }
+
+    it('locks fields in PENDING_REVIEW (locked=true)', async () => {
+      const wrapper = await mountPendingReview()
+      // locked 控制字段编辑（:9 AdaptiveFormPage, :17 el-form, :249 fieldDisabled）
+      expect(wrapper.vm.locked).toBe(true)
+    })
+
+    it('locks AI assessment button in PENDING_REVIEW (locked=true)', async () => {
+      const wrapper = await mountPendingReview()
+      // AI 评估按钮 :disabled="locked || uploadingDoc"
+      expect(wrapper.vm.locked).toBe(true)
+    })
+
+    it('locks document upload in PENDING_REVIEW (locked=true, isApprovalMode=false)', async () => {
+      const wrapper = await mountPendingReview()
+      // upload :disabled="locked && !isApprovalMode"
+      expect(wrapper.vm.locked).toBe(true)
+      expect(wrapper.vm.isApprovalMode).toBe(false)
+    })
+
+    it('blocks document deletion in PENDING_REVIEW (handleBeforeRemove returns false)', async () => {
+      const wrapper = await mountPendingReview()
+      // handleBeforeRemove: if (locked.value && !isApprovalMode.value) return false
+      expect(wrapper.vm.locked).toBe(true)
+      expect(wrapper.vm.isApprovalMode).toBe(false)
+      const result = wrapper.vm.handleBeforeRemove()
+      expect(result).toBe(false)
+    })
+
+    it('locks all operations in APPROVED state (locked=true)', async () => {
+      projectLifecycleApi.getInitiation.mockResolvedValue({
+        data: {
+          ownerUnit: '中国石油',
+          bidOpenTime: '2026-07-01T10:00:00',
+          reviewStatus: 'APPROVED',
+          evalPrefilled: false,
+        },
+      })
+      const wrapper = createWrapper()
+      await flushPromises()
+      // APPROVED 状态下：字段锁定 + 操作锁定
+      expect(wrapper.vm.locked).toBe(true)
+      const result = wrapper.vm.handleBeforeRemove()
+      expect(result).toBe(false)
+    })
+  })
 })
