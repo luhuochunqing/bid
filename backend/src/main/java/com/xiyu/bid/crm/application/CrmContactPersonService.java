@@ -28,13 +28,13 @@ public class CrmContactPersonService {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final CrmHttpClient httpClient;
-    private final CrmAuthService authService;
+    private final CrmApiTemplate apiTemplate;
     private final CrmProperties properties;
 
-    public CrmContactPersonService(CrmHttpClient httpClient, CrmAuthService authService,
+    public CrmContactPersonService(CrmHttpClient httpClient, CrmApiTemplate apiTemplate,
                                    CrmProperties properties) {
         this.httpClient = httpClient;
-        this.authService = authService;
+        this.apiTemplate = apiTemplate;
         this.properties = properties;
     }
 
@@ -46,20 +46,19 @@ public class CrmContactPersonService {
      * @return 对接人列表；查询失败返回空列表
      */
     public List<ContactPersonInfoVO> pageList(Long ccId, String username) {
-        String token = authService.getValidTokenForUser(username);
         String baseUrl = properties.getEffectiveContactPersonBaseUrl();
         String path = properties.getContactPerson().getPageListPath();
         ContactPersonListDTO body = new ContactPersonListDTO(ccId);
-        CrmResponseHandler.CrmApiResponse response = httpClient.post(baseUrl, path, token, body);
+        // spec 037 Review L1：用 CrmApiTemplate 统一 401 重试样板
+        CrmResponseHandler.CrmApiResponse response = apiTemplate.executeWithTokenRetry(
+                username,
+                token -> httpClient.post(baseUrl, path, token, body),
+                "contact-person page-list");
 
-        if (response.isUnauthorized()) {
-            authService.handleUnauthorizedForUser(username);
-            token = authService.getValidTokenForUser(username);
-            response = httpClient.post(baseUrl, path, token, body);
-        }
-
-        if (response.data() == null) {
-            log.warn("CRM contact-person page-list returned no data: code={}, msg={}", response.code(), response.msg());
+        if (response == null || response.data() == null) {
+            log.warn("CRM contact-person page-list returned no data: code={}, msg={}",
+                    response != null ? response.code() : -1,
+                    response != null ? response.msg() : "token unavailable");
             return Collections.emptyList();
         }
         // 放宽 success 判断：部分 CRM 环境（含客户现场）对接人接口成功返回时 code 不为 0，

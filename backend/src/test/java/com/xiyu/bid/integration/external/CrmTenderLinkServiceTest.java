@@ -215,12 +215,13 @@ class CrmTenderLinkServiceTest {
     // ===== linkByChanceIdIfPresent 兜底反查（不变） =====
 
     @Test
-    void linkByChanceIdIfPresent_crmSourceWithNumericSourceId_looksUpByChanceId() {
+    void linkByChanceIdIfPresent_crmSourceWithNumericSourceId_looksUpByBidId() {
+        // spec 037: sourceId 是 bidId（标讯 ID），改用 findProjectLeaderByBidId 走 page-list
         Tender tender = newTender();
         CrmProjectLeaderService.ProjectLeaderResult leader =
                 new CrmProjectLeaderService.ProjectLeaderResult(
                         "张三", "EMP001", "商机A", "CC20260619283");
-        when(crmProjectLeaderService.findProjectLeaderByChanceId(243L, null)).thenReturn(leader);
+        when(crmProjectLeaderService.findProjectLeaderByBidId(243L, null)).thenReturn(leader);
         when(userRepository.findByEmployeeNumber("EMP001")).thenReturn(Optional.empty());
 
         boolean linked = service.linkByChanceIdIfPresent(tender, "CRM", "243", null);
@@ -228,6 +229,8 @@ class CrmTenderLinkServiceTest {
         assertThat(linked).isTrue();
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
         assertThat(tender.getCrmOpportunityId()).isEqualTo("CC20260619283");
+        verify(crmProjectLeaderService).findProjectLeaderByBidId(243L, null);
+        verify(crmProjectLeaderService, never()).findProjectLeaderByChanceId(any(), any());
     }
 
     @Test
@@ -237,6 +240,7 @@ class CrmTenderLinkServiceTest {
         boolean linked = service.linkByChanceIdIfPresent(tender, "EXTERNAL", "243", null);
 
         assertThat(linked).isFalse();
+        verify(crmProjectLeaderService, never()).findProjectLeaderByBidId(any(), any());
         verify(crmProjectLeaderService, never()).findProjectLeaderByChanceId(any(), any());
     }
 
@@ -247,18 +251,65 @@ class CrmTenderLinkServiceTest {
         boolean linked = service.linkByChanceIdIfPresent(tender, "CRM", "ABC-243", null);
 
         assertThat(linked).isFalse();
+        verify(crmProjectLeaderService, never()).findProjectLeaderByBidId(any(), any());
         verify(crmProjectLeaderService, never()).findProjectLeaderByChanceId(any(), any());
     }
 
     @Test
     void linkByChanceIdIfPresent_detailReturnsNull_returnsFalse() {
         Tender tender = newTender();
-        when(crmProjectLeaderService.findProjectLeaderByChanceId(999L, null)).thenReturn(null);
+        when(crmProjectLeaderService.findProjectLeaderByBidId(999L, null)).thenReturn(null);
 
         boolean linked = service.linkByChanceIdIfPresent(tender, "CRM", "999", null);
 
         assertThat(linked).isFalse();
         assertThat(tender.getStatus()).isEqualTo(Tender.Status.PENDING_ASSIGNMENT);
+    }
+
+    // ===== spec 037: sourceId 是 bidId（标讯 ID），不是 chanceId（商机主键）=====
+    // 生产 bug：tender 56 的 external_id=CRM:7，7 是 CRM 标讯 ID（bidId），
+    // 旧代码把 7 当 chanceId 调 detail 接口 → 查不到商机（实际商机 id=6, bidId=7）
+    // 修复：改用 page-list 按 bidId 反查（findProjectLeaderByBidId）
+
+    @Test
+    void linkByBidIdIfPresent_shouldResolveByBidIdNotChanceId() {
+        // Given: sourceId="7" 是 bidId（标讯 ID），mock findProjectLeaderByBidId 返回 leader
+        Tender tender = newTender();
+        CrmProjectLeaderService.ProjectLeaderResult leader =
+                new CrmProjectLeaderService.ProjectLeaderResult(
+                        "王旭州", "04503", "中国旅游集团 2026年-2029年电子超市（内地）集中采购", "CC2026071568");
+        when(crmProjectLeaderService.findProjectLeaderByBidId(7L, "04503")).thenReturn(leader);
+        when(userRepository.findByEmployeeNumber("04503")).thenReturn(Optional.empty());
+
+        // When: 调 linkByBidIdIfPresent（新方法名，语义清晰）
+        boolean linked = service.linkByBidIdIfPresent(tender, "CRM", "7", "04503");
+
+        // Then: 关联成功，crmOpportunityId 是 CC 编号
+        assertThat(linked).isTrue();
+        assertThat(tender.getCrmOpportunityId()).isEqualTo("CC2026071568");
+        assertThat(tender.getCrmOpportunityName()).isEqualTo("中国旅游集团 2026年-2029年电子超市（内地）集中采购");
+        assertThat(tender.getStatus()).isEqualTo(Tender.Status.EVALUATED);
+        // Verify: 从未调 findProjectLeaderByChanceId（证明不再用 detail 接口）
+        verify(crmProjectLeaderService, never()).findProjectLeaderByChanceId(any(), any());
+    }
+
+    @Test
+    void linkByChanceIdIfPresent_legacyMethodName_alsoUsesBidIdLookup() {
+        // 兼容性验证：旧方法名 linkByChanceIdIfPresent 也改用 findProjectLeaderByBidId
+        Tender tender = newTender();
+        CrmProjectLeaderService.ProjectLeaderResult leader =
+                new CrmProjectLeaderService.ProjectLeaderResult(
+                        "王旭州", "04503", "商机A", "CC2026071568");
+        when(crmProjectLeaderService.findProjectLeaderByBidId(7L, null)).thenReturn(leader);
+        when(userRepository.findByEmployeeNumber("04503")).thenReturn(Optional.empty());
+
+        boolean linked = service.linkByChanceIdIfPresent(tender, "CRM", "7", null);
+
+        assertThat(linked).isTrue();
+        assertThat(tender.getCrmOpportunityId()).isEqualTo("CC2026071568");
+        // 验证走 findProjectLeaderByBidId（page-list），而非 findProjectLeaderByChanceId（detail）
+        verify(crmProjectLeaderService).findProjectLeaderByBidId(7L, null);
+        verify(crmProjectLeaderService, never()).findProjectLeaderByChanceId(any(), any());
     }
 
     // ===== 防"半关联"：leader.code 为空时不应存入 name（生产 bug 修复回归） =====

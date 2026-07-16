@@ -655,4 +655,5 @@ sync-env.sh .
 - `specs/032-fix-oss-permission-diffusion/plan.md`（修复 OSS 用户权限扩散导致越权看所有菜单 — OSS admin 用户不扩散 authorities/menuPermissions，前端 hasPermission 对 OSS 用户不短路 all，AuthResponse 新增 isOssUser 字段）
 - `specs/033-oss-local-permission-path-separation/spec.md`（OSS 与本地用户权限代码路径分离 — 根因猎手分析定位零号病人为"共用代码路径"架构决策，提出方案 A 代码路径分离/B 强约束门禁/C 消除 all 短路三选一，根治 CO-361→CO-373→spec 032→CO-551 10+ 轮反复踩坑）
 - `specs/034-friendly-rate-limit/plan.md`（限流提示友好化优化 — 文案/交互/协议三层改造，429 返回统一 ApiResponse + Retry-After，前端合并重复提示并支持轮询静默退避）
+- `specs/037-crm-link-compensation/plan.md`（CRM 商机关联补偿与认证解耦 — 修 linkByChanceIdIfPresent 误把 bidId 当 chanceId 的语义错误、OSS 同步填充 crm_sales_no、generateToken 去掉 OSS token 依赖）
 <!-- SPECKIT END -->

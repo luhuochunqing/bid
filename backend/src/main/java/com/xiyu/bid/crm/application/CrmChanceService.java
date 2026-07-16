@@ -18,10 +18,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -45,14 +41,14 @@ public class CrmChanceService {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final CrmHttpClient httpClient;
-    private final CrmAuthService authService;
     private final CrmProperties properties;
+    private final CrmApiTemplate apiTemplate;
 
-    public CrmChanceService(CrmHttpClient httpClient, CrmAuthService authService,
-                            CrmProperties properties) {
+    public CrmChanceService(CrmHttpClient httpClient, CrmProperties properties,
+                            CrmApiTemplate apiTemplate) {
         this.httpClient = httpClient;
-        this.authService = authService;
         this.properties = properties;
+        this.apiTemplate = apiTemplate;
     }
 
     /**
@@ -70,12 +66,59 @@ public class CrmChanceService {
         if (code == null || code.isBlank()) {
             return null;
         }
-        CustomerChanceDTO body = new CustomerChanceDTO(
-                null, null, code, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null);
-        CustomerChancePageRequest request = new CustomerChancePageRequest(1, 1, body);
-        CrmChancePageResult result = doPageList(request, username);
-        return result.list().isEmpty() ? null : result.list().get(0);
+        return findFirstByCondition(CustomerChanceDTO.byCode(code), username, "code=" + code);
+    }
+
+    /**
+     * 按 CRM 标讯 ID（bidId）反查商机。
+     * <p>spec 037：CRM 推送标讯时 external_id=CRM:{bidId}，bidId 是 CRM 标讯 ID
+     * （非商机主键 id）。通过 page-list 接口按 bidId 查询，返回关联的商机。
+     * <p>降级策略：bidId null / username null / 接口异常 → 返回 null。
+     * 若返回多条商机，取第一条并 log.warn（理论上 bidId 唯一对应一条商机）。
+     *
+     * @param bidId    CRM 标讯 ID
+     * @param username 当前操作用户 username（用于获取 CRM token）
+     * @return 商机 VO；null 表示查询失败或未找到
+     */
+    public CustomerChanceVO findByBidId(Long bidId, String username) {
+        if (bidId == null) {
+            return null;
+        }
+        CustomerChanceVO first = findFirstByCondition(CustomerChanceDTO.byBidId(bidId), username, "bidId=" + bidId);
+        if (first == null) {
+            return null;
+        }
+        // 本地校验：若返回的商机 bidId 与查询的 bidId 不匹配，可能是 CRM 不支持 bidId 查询
+        if (first.bidId() != null && !bidId.equals(first.bidId())) {
+            log.warn("findByBidId: bidId mismatch, queried={} but returned={}, CRM may not support bidId query",
+                    bidId, first.bidId());
+            return null;
+        }
+        return first;
+    }
+
+    /**
+     * spec 037 Review L2：收敛"按条件查第一条商机"的样板代码。
+     * <p>负责构造 page request → doPageList → 取 first 或 null → 异常降级。
+     * pageSize 取 10（而非 1）以保留多条时的告警能力，由调用方做业务校验。
+     */
+    private CustomerChanceVO findFirstByCondition(CustomerChanceDTO body, String username, String context) {
+        CustomerChancePageRequest request = new CustomerChancePageRequest(1, 10, body);
+        try {
+            CrmChancePageResult result = doPageList(request, username);
+            if (result.list().isEmpty()) {
+                log.warn("findFirstByCondition: no opportunity found for {}", context);
+                return null;
+            }
+            if (result.list().size() > 1) {
+                log.warn("findFirstByCondition: {} returned {} opportunities, taking first",
+                        context, result.list().size());
+            }
+            return result.list().get(0);
+        } catch (RuntimeException e) {
+            log.warn("findFirstByCondition: failed for {}: {}", context, e.getMessage());
+            return null;
+        }
     }
 
     /**
@@ -99,26 +142,26 @@ public class CrmChanceService {
         log.info("CRM searchByTender: tenderer={}, strategy={}", tenderer, strategy);
 
         if (strategy == CrmProperties.MatchingStrategy.ALL || tenderer == null || tenderer.isBlank()) {
-            return doPageList(buildSelectAllRequest(request.pageIndex(), pageSize), username);
+            return doPageList(CrmChanceTenderMatcher.buildSelectAllRequest(request.pageIndex(), pageSize), username);
         }
 
         if (strategy == CrmProperties.MatchingStrategy.GROUP) {
             CrmChancePageResult groupResult = doPageList(
-                    buildGroupRequest(tenderer, request.pageIndex(), pageSize), username);
+                    CrmChanceTenderMatcher.buildGroupRequest(tenderer, request.pageIndex(), pageSize), username);
             if (!groupResult.list().isEmpty()) {
                 return groupResult;
             }
             log.info("GROUP strategy returned empty for tenderer={}, fallback to ALL", tenderer);
-            return doPageList(buildSelectAllRequest(request.pageIndex(), pageSize), username);
+            return doPageList(CrmChanceTenderMatcher.buildSelectAllRequest(request.pageIndex(), pageSize), username);
         }
 
         // EXACT：先按日期精确匹配，再兜底 GROUP，最后 ALL
-        List<LocalDate> targetDates = parseTargetDates(request.registrationDeadline(), request.bidOpeningTime());
+        List<LocalDate> targetDates = CrmChanceTenderMatcher.parseTargetDates(request.registrationDeadline(), request.bidOpeningTime());
         if (!targetDates.isEmpty()) {
             Map<Long, CustomerChanceVO> merged = new LinkedHashMap<>();
             for (LocalDate targetDate : targetDates) {
                 CrmChancePageResult result = doPageList(
-                        buildExactDateRequest(tenderer, targetDate, request.pageIndex(), pageSize), username);
+                        CrmChanceTenderMatcher.buildExactDateRequest(tenderer, targetDate, request.pageIndex(), pageSize), username);
                 for (CustomerChanceVO vo : result.list()) {
                     merged.putIfAbsent(vo.id(), vo);
                 }
@@ -135,108 +178,32 @@ public class CrmChanceService {
         }
 
         CrmChancePageResult groupResult = doPageList(
-                buildGroupRequest(tenderer, request.pageIndex(), pageSize), username);
+                CrmChanceTenderMatcher.buildGroupRequest(tenderer, request.pageIndex(), pageSize), username);
         if (!groupResult.list().isEmpty()) {
             return groupResult;
         }
         log.info("GROUP fallback returned empty for tenderer={}, fallback to ALL", tenderer);
-        return doPageList(buildSelectAllRequest(request.pageIndex(), pageSize), username);
+        return doPageList(CrmChanceTenderMatcher.buildSelectAllRequest(request.pageIndex(), pageSize), username);
     }
 
     private CrmChancePageResult doPageList(CustomerChancePageRequest request, String username) {
-        String token;
-        try {
-            token = authService.getValidTokenForUser(username);
-        } catch (IllegalStateException | TokenUnavailableException e) {
-            log.warn("CRM page-list skipped because token acquisition failed: {}", e.getMessage());
-            return emptyPageResult();
-        }
         String baseUrl = properties.getEffectiveChanceBaseUrl();
         String path = properties.getChance().getPageListPath();
-        return doPageList(token, baseUrl, path, request, username);
-    }
-
-    private CrmChancePageResult doPageList(String token, String baseUrl, String path,
-                                           CustomerChancePageRequest request, String username) {
         log.info("CRM page-list request: baseUrl={}, path={}, body={}", baseUrl, path, request);
-        CrmResponseHandler.CrmApiResponse response = httpClient.post(baseUrl, path, token, request);
+        // spec 037 Review L1：用 CrmApiTemplate 统一 401 重试样板
+        CrmResponseHandler.CrmApiResponse response = apiTemplate.executeWithTokenRetry(
+                username,
+                token -> httpClient.post(baseUrl, path, token, request),
+                emptyApiResponse(),
+                "chance page-list");
 
-        if (response.isUnauthorized()) {
-            authService.handleUnauthorizedForUser(username);
-            try {
-                token = authService.getValidTokenForUser(username);
-            } catch (IllegalStateException | TokenUnavailableException e) {
-                log.warn("CRM chance page-list skipped because token refresh failed after unauthorized: {}",
-                        e.getMessage());
-                return emptyPageResult();
-            }
-            response = httpClient.post(baseUrl, path, token, request);
-        }
-
-        if (!response.success() || response.data() == null) {
-            log.warn("CRM chance page-list failed: code={}, msg={}", response.code(), response.msg());
+        if (response == null || !response.success() || response.data() == null) {
+            log.warn("CRM chance page-list failed: code={}, msg={}",
+                    response != null ? response.code() : -1,
+                    response != null ? response.msg() : "token unavailable");
             return emptyPageResult();
         }
         return parsePageResponse(response.data());
-    }
-
-    private List<LocalDate> parseTargetDates(String registrationDeadline, String bidOpeningTime) {
-        List<LocalDate> dates = new ArrayList<>();
-        parseDate(registrationDeadline).ifPresent(dates::add);
-        parseDate(bidOpeningTime).ifPresent(dates::add);
-        return dates.stream().distinct().collect(Collectors.toList());
-    }
-
-    private java.util.Optional<LocalDate> parseDate(String value) {
-        if (value == null || value.isBlank()) {
-            return java.util.Optional.empty();
-        }
-        String trimmed = value.trim();
-        List<DateTimeFormatter> formatters = List.of(
-                DateTimeFormatter.ISO_OFFSET_DATE_TIME,
-                DateTimeFormatter.ISO_DATE_TIME,
-                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
-                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"),
-                DateTimeFormatter.ISO_LOCAL_DATE_TIME,
-                DateTimeFormatter.ISO_LOCAL_DATE
-        );
-        for (DateTimeFormatter formatter : formatters) {
-            try {
-                if (formatter == DateTimeFormatter.ISO_LOCAL_DATE ||
-                        (trimmed.length() <= 10 && !trimmed.contains("T"))) {
-                    return java.util.Optional.of(LocalDate.parse(trimmed, formatter));
-                }
-                return java.util.Optional.of(LocalDateTime.parse(trimmed, formatter).toLocalDate());
-            } catch (DateTimeParseException ignored) {
-                // try next formatter
-            }
-        }
-        log.warn("Unable to parse date value: {}", value);
-        return java.util.Optional.empty();
-    }
-
-    private CustomerChancePageRequest buildExactDateRequest(String tenderer, LocalDate targetDate,
-                                                            int pageIndex, int pageSize) {
-        String start = targetDate.atStartOfDay().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        String end = targetDate.atTime(23, 59, 59).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        CustomerChanceDTO body = new CustomerChanceDTO(
-                List.of(tenderer), null, null, null, null, null, null,
-                start, end, null, null, null, null, null, null, null, null);
-        return new CustomerChancePageRequest(pageIndex, pageSize, body);
-    }
-
-    private CustomerChancePageRequest buildGroupRequest(String tenderer, int pageIndex, int pageSize) {
-        CustomerChanceDTO body = new CustomerChanceDTO(
-                List.of(tenderer), null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
-        return new CustomerChancePageRequest(pageIndex, pageSize, body);
-    }
-
-    private CustomerChancePageRequest buildSelectAllRequest(int pageIndex, int pageSize) {
-        CustomerChanceDTO body = new CustomerChanceDTO(
-                null, null, null, null, null, null, null,
-                null, null, null, null, null, null, true, null, null, null);
-        return new CustomerChancePageRequest(pageIndex, pageSize, body);
     }
 
     /**
@@ -247,22 +214,24 @@ public class CrmChanceService {
      * @return true 回传成功，false 回传失败
      */
     public boolean bidInfoSync(BidInfoSyncDTO bidInfoSync, String username) {
-        String token = authService.getValidTokenForUser(username);
         String baseUrl = properties.getEffectiveChanceBaseUrl();
         String path = properties.getChance().getBidInfoSyncPath();
-        CrmResponseHandler.CrmApiResponse response = httpClient.post(baseUrl, path, token, bidInfoSync);
+        CrmResponseHandler.CrmApiResponse response = apiTemplate.executeWithTokenRetry(
+                username,
+                token -> httpClient.post(baseUrl, path, token, bidInfoSync),
+                "bidInfoSync");
 
-        if (response.isUnauthorized()) {
-            authService.handleUnauthorizedForUser(username);
-            token = authService.getValidTokenForUser(username);
-            response = httpClient.post(baseUrl, path, token, bidInfoSync);
-        }
-
-        if (!response.success()) {
-            log.warn("CRM bidInfoSync failed: code={}, msg={}", response.code(), response.msg());
+        if (response == null || !response.success()) {
+            log.warn("CRM bidInfoSync failed: code={}, msg={}",
+                    response != null ? response.code() : -1,
+                    response != null ? response.msg() : "token unavailable");
             return false;
         }
         return true;
+    }
+
+    private static CrmResponseHandler.CrmApiResponse emptyApiResponse() {
+        return new CrmResponseHandler.CrmApiResponse(401, "token unavailable", null, false);
     }
 
     @SuppressWarnings("unchecked")

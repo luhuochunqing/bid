@@ -4215,3 +4215,51 @@ fi
 
 - `docs/release/cleanup-table-list-2026-07-13.md` — 清理表清单（98 表删除 + 2 表更新 + 保留清单）
 - 清理 SQL 脚本（由运维执行）
+
+---
+
+## 60. CRM 商机关联失败三层根因：sourceId 语义错误 + crm_sales_no 全表 NULL + generateToken 不校验 Authorization（spec 037 / 2026-07-16 / tender 56 案例）
+
+### 现象
+
+生产环境 tender 56（external_id=`CRM:7`）推送后未关联 CRM 商机，`crm_opportunity_id` 字段为 NULL。PM 王旭州（username=04503）从未登录过本系统。
+
+### 三层根因
+
+| 层 | 根因 | 影响 |
+|---|---|---|
+| **L1 代码语义错误** | `CrmTenderLinkService.linkByChanceIdIfPresent` 把 `sourceId`（标讯 ID / bidId）当作 `chanceId`（商机主键）调 detail 接口 | CRM 标讯 ID=7 对应商机 id=6, code=CC2026071568，但代码用 7 调 detail 接口查不到商机 |
+| **L2 字段未填充** | `users.crm_sales_no` 全表 NULL（OSS 同步时未填充） | CrmAuthService 无法用 salesNo 换 CRM JWT，退化为抛 TokenUnavailableException |
+| **L3 认证强依赖** | `generateToken` 实测不校验 Authorization header，但代码仍要求 OSS token | PM 从未登录 → 无 OSS token → 无法换 CRM JWT → 即使 L1/L2 修复也无法关联 |
+
+### 修复方案（spec 037）
+
+1. **L1 修复**：`CrmTenderLinkService` 新增 `linkByBidIdIfPresent`，用 `findProjectLeaderByBidId`（page-list 按 bidId 查）替代 `findProjectLeaderByChanceId`（detail 按 chanceId 查）。旧方法名 `linkByChanceIdIfPresent` 标 `@Deprecated` 委托新方法，保持 caller 兼容。
+2. **L2 修复**：`OrganizationUserSyncWriter.upsert` 新增 `user.setCrmSalesNo(plan.username())`，OSS 同步时把工号写入 `crm_sales_no`。
+3. **L3 修复**：`CrmAuthService.applyCrmToken` 改用 `httpClient.postJson`（无 Authorization），去掉 OSS token 依赖。`fetchAndCacheUserToken` 直接用 `nickName + salesNo` 换 CRM JWT。
+
+### 关键教训
+
+1. **external_id 语义必须明确**：`{sourceSystem}:{sourceId}` 中的 sourceId 是什么 ID（标讯 ID / 商机 ID / 其他），必须在代码注释和文档中明确。本次 bug 根因是代码假设 sourceId 是 chanceId，实际是 bidId。
+2. **CRM 三种 token 体系必须分清**：
+   - OSS access_token（用户登录 OSS 获得）
+   - CRM JWT（用 OSS token + nickName + salesNo 换取，**实测 generateToken 不校验 Authorization**）
+   - 本系统 JWT
+3. **接口实测优于代码分析**：本次通过生产环境 curl 实测确认 generateToken 不校验 Authorization，这是代码分析无法发现的。但生产环境实测需谨慎，避免重复测试。
+4. **字段填充责任必须在数据入口**：`crm_sales_no` 应在 OSS 同步时填充，而不是等用户登录时再填充（用户可能从不登录）。
+5. **@Deprecated 委托模式保持兼容**：修改方法语义时，保留旧方法名委托新方法，避免破坏 caller。
+
+### 回退路径
+
+若客户方修复 generateToken 不校验 Authorization 的"漏洞"：
+- `CrmAuthService.applyCrmToken` 方法体改回 `httpClient.postWithAuth(baseUrl, path, ossToken, body)` 即可恢复三步认证
+- `OssUserTokenCache` 仍保留注入，回退无需改动构造函数
+
+### 相关文档
+
+- `specs/037-crm-link-compensation/spec.md` — 需求规格
+- `specs/037-crm-link-compensation/plan.md` — 实现计划
+- `specs/037-crm-link-compensation/research.md` — T004 实测结果 + 方案决策
+- `specs/037-crm-link-compensation/tasks.md` — 24 个任务清单
+- tender 56 治标修复：SQL UPDATE 设置 `crm_opportunity_id` = 'CC2026071568'（上一会话已完成）
+

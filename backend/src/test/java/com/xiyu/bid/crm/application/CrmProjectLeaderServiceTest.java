@@ -70,11 +70,19 @@ class CrmProjectLeaderServiceTest {
     }
 
     @Test
-    void findProjectLeaderByChanceCode_chanceWithoutLeader_returnsNull() {
+    void findProjectLeaderByChanceCode_chanceWithoutLeader_returnsHalfFilledResult() {
+        // spec 037 Review M2：行为统一 —— 即使无负责人，也返回半填充结果（code+name），
+        // 因为调用方需要 opportunityCode 来关联商机（与 findProjectLeaderByChanceId 行为一致）
         when(crmChanceService.findByCode("CC001", "testuser"))
                 .thenReturn(buildVO("CC001", "商机A", "", ""));
 
-        assertThat(service.findProjectLeaderByChanceCode("CC001", "testuser")).isNull();
+        CrmProjectLeaderService.ProjectLeaderResult result = service.findProjectLeaderByChanceCode("CC001", "testuser");
+
+        assertThat(result).isNotNull();
+        assertThat(result.opportunityCode()).isEqualTo("CC001");
+        assertThat(result.opportunityName()).isEqualTo("商机A");
+        assertThat(result.projectLeaderName()).isNull();
+        assertThat(result.projectLeaderNo()).isNull();
     }
 
     @Test
