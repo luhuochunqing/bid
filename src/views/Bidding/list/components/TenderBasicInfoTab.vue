@@ -19,8 +19,9 @@
                 <el-col v-for="field in segment.fields" :key="field.key"
                         v-show="fieldEnabled(field.key)" :span="colSpanOf(field.key)">
                   <!-- 特殊字段：region（保留 useRegionCascaderValue + 自动关闭） -->
+                  <!-- 函数 ref：v-for 内字符串 ref 会变成数组，改用函数 ref 保证 regionCascaderRef.value 始终是单个实例 -->
                   <el-form-item v-if="field.key === 'region'" :label="fieldLabel('region')" prop="region" :required="fieldRequired('region')">
-                    <el-cascader ref="regionCascaderRef" v-model="regionCascaderValue"
+                    <el-cascader :ref="setRegionCascaderRef" v-model="regionCascaderValue"
                       :options="chinaRegionOptions" :props="REGION_CASCADER_PROPS"
                       placeholder="选择总部所在地" clearable filterable class="full-width"
                       @change="onRegionCascaderChange" />
@@ -244,6 +245,9 @@ const regionCascaderValue = useRegionCascaderValue(
   { emptyValue: '' },
 )
 const regionCascaderRef = ref(null)
+// 函数 ref：v-for 内字符串 ref 会变成数组，改用函数 ref 通过闭包访问 ref 对象
+// 注意：内联函数 ref 中 regionCascaderRef 会被模板编译器 unwrap 成 null，必须定义在 script setup 中
+const setRegionCascaderRef = (el) => { if (el) regionCascaderRef.value = el }
 const onRegionCascaderChange = createRegionCascaderAutoClose(regionCascaderRef)
 </script>
 
