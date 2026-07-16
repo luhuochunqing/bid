@@ -278,6 +278,31 @@ else
     pass "Flyway 迁移目录守卫（commit 范围无 V/B 文件放在 db/migration/）"
   fi
 fi
+# ── 3.9. 自定义表单 schema 覆盖式迁移拦截（教训 #61 防复发） ──
+# 工程背景（2026-07-16 用户反馈）：
+#   V1007/V1120/V1166/V1167 都是无条件 UPDATE form_definition_registry SET schema_json，
+#   覆盖用户在 /settings/workflow-forms 配置的显隐/必填/排序/标签。
+#   教训 #61：schema 迁移必须 merge，不能覆盖。
+# 本门禁拦截新增的覆盖式 schema 迁移，要求加 -- SAFE-SCHEMA-MERGE: <理由> 注释豁免。
+# 与 check-flyway-immutable.sh 互补：
+#   - 修改已发布迁移 → check-flyway-immutable.sh 拦截（Flyway checksum 不可变）
+#   - 新增迁移用覆盖式 UPDATE → 本门禁拦截
+# 逃生阀：FORM_SCHEMA_MIGRATION_SKIP=1（仅限已记录豁免场景，需在 PR 描述说明理由）
+echo "── 自定义表单 schema 覆盖拦截 ──"
+if [ ! -d "$ROOT_DIR/backend/src/main/resources/db/migration-mysql" ]; then
+  skip "自定义表单 schema 覆盖拦截（无迁移目录）"
+elif [ "${BACKEND_CHANGED:-0}" -eq 0 ]; then
+  skip "自定义表单 schema 覆盖拦截（无 backend/ 变更）"
+elif [ "${FORM_SCHEMA_MIGRATION_SKIP:-0}" = "1" ]; then
+  skip "自定义表单 schema 覆盖拦截（FORM_SCHEMA_MIGRATION_SKIP=1 逃生阀）"
+else
+  if bash "$ROOT_DIR/scripts/check-form-schema-migration.sh" --range "$GATE_BASE" 2>&1; then
+    pass "自定义表单 schema 覆盖拦截"
+  else
+    fail "自定义表单 schema 覆盖拦截 — 新增迁移中 UPDATE form_definition_registry SET schema_json 无 SAFE 豁免。改为 merge 模式或加 -- SAFE-SCHEMA-MERGE: <理由>。详见 docs/lessons/lessons-learned.md #61。逃生阀：FORM_SCHEMA_MIGRATION_SKIP=1"
+  fi
+fi
+
 # ── 3.8. hasAnyRole 双轨制拦截 (spec-024/033) ───────────────
 echo "── hasAnyRole 双轨制拦截 ──"
 if [ "${BACKEND_CHANGED:-0}" -eq 1 ]; then
