@@ -31,8 +31,8 @@
       <slot name="extension-fields" :model-value="modelValue" :disabled="disabled" />
     </template>
 
-    <!-- No dynamic schema: render inline fallback form -->
-    <template v-else-if="!forceFallback">
+    <!-- No dynamic schema or forceFallback: render inline fallback form -->
+    <template v-else>
       <slot
         name="fallback-form"
         :model-value="modelValue"

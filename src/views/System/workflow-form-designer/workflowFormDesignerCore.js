@@ -25,7 +25,9 @@ export const FIELD_TYPES = [
   { label: '标讯来源', value: 'tender_source' },
   { label: '项目状态', value: 'project_status' },
   { label: '资质类型', value: 'qualification_type' },
-  { label: '表格编辑', value: 'table' }
+  { label: '表格编辑', value: 'table' },
+  { label: '省市区级联', value: 'cascader' },
+  { label: '日期时间', value: 'datetime' }
 ]
 
 export const FIELD_TYPE_HELP_TEXT = {
@@ -49,8 +51,27 @@ export const FIELD_TYPE_HELP_TEXT = {
   tender_source: '标讯来源枚举（招标/比选/竞争性谈判等）',
   project_status: '项目状态枚举（进行中/已暂停/已结项等）',
   qualification_type: '资质类型枚举（营业执照/资质证书等）',
-  table: '多行数据表格编辑，支持columns定义列'
+  table: '多行数据表格编辑，支持columns定义列',
+  cascader: '省市区级联选择（如总部所在地）',
+  datetime: '日期时间选择器（如报名截止时间）'
 }
+
+// tender.entry schema 的核心字段 key 列表（V1167 起 20 个）
+// 锁定字段：key 和 type 不可修改，不可删除（配置页只能改 label/required/enabled 等）
+export const LOCKED_FIELD_KEYS = [
+  'title', 'purchaser', 'region', 'deadline', 'bidOpeningTime',
+  'customerType', 'priority', 'projectType',
+  'contact', 'phone', 'landline', 'mail',
+  'contact2', 'phone2', 'landline2', 'mail2',
+  'description', 'tenderInfo', 'pastedText', 'attachments'
+]
+
+// tender.entry 联系人1/联系人2 固定分组字段 key 列表（8 个）
+// 固定分组字段：不可拖拽排序（保持分组内的字段顺序稳定）
+export const FIXED_GROUP_KEYS = [
+  'contact', 'phone', 'landline', 'mail',
+  'contact2', 'phone2', 'landline2', 'mail2'
+]
 
 export function createField(key = 'field1', label = '字段', type = 'text') {
   const field = { key, label, type, required: type !== 'info' && type !== 'section' && type !== 'divider' && type !== 'info' }
