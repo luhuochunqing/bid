@@ -44,9 +44,9 @@ function mountWithFields(fields) {
 }
 
 describe('DesignerFieldList', () => {
-  it('锁定字段的 key 和 type 输入框是 disabled', () => {
+  it('特殊渲染字段（如 region）的 key 和 type 都是 disabled', () => {
     const wrapper = mountWithFields([
-      { key: 'title', label: '项目名称', type: 'text', required: true, enabled: true }
+      { key: 'region', label: '总部所在地', type: 'cascader', required: true, enabled: true }
     ])
 
     const keyInput = wrapper.find('.field-key-input')
@@ -56,7 +56,31 @@ describe('DesignerFieldList', () => {
     expect(typeSelect.attributes('disabled')).toBeDefined()
   })
 
-  it('非锁定字段的 key 和 type 输入框可编辑', () => {
+  it('固定分组字段（如 contact）的 key disabled，type 可编辑', () => {
+    const wrapper = mountWithFields([
+      { key: 'contact', label: '联系人1', type: 'text', required: false, enabled: true }
+    ])
+
+    const keyInput = wrapper.find('.field-key-input')
+    const typeSelect = wrapper.find('.field-type-select')
+
+    expect(keyInput.attributes('disabled')).toBeDefined()
+    expect(typeSelect.attributes('disabled')).toBeUndefined()
+  })
+
+  it('普通字段（如 title）的 key 和 type 都可编辑', () => {
+    const wrapper = mountWithFields([
+      { key: 'title', label: '项目名称', type: 'text', required: true, enabled: true }
+    ])
+
+    const keyInput = wrapper.find('.field-key-input')
+    const typeSelect = wrapper.find('.field-type-select')
+
+    expect(keyInput.attributes('disabled')).toBeUndefined()
+    expect(typeSelect.attributes('disabled')).toBeUndefined()
+  })
+
+  it('自定义字段的 key 和 type 都可编辑', () => {
     const wrapper = mountWithFields([
       { key: 'customField', label: '自定义', type: 'text', required: false, enabled: true }
     ])
