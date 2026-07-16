@@ -6,6 +6,7 @@ import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.integration.external.ExternalSystemPrefix;
 import com.xiyu.bid.project.core.BidResultType;
 import com.xiyu.bid.project.domain.ProjectResultConfirmedEvent;
+import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.project.service.ProjectResultPayloadAssembler;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
@@ -60,12 +61,14 @@ class ProjectResultConfirmedWebhookListenerTest {
     @Mock private TenderCrmOpportunityCodeResolver tenderCrmOpportunityCodeResolver;
     @Mock private ProjectDocumentRepository projectDocumentRepository;
     @Mock private UserRepository userRepository;
+    @Mock private ProjectInitiationDetailsRepository projectInitiationDetailsRepository;
     @Mock private OperatorUsernameResolver operatorUsernameResolver;
 
     private ProjectResultConfirmedWebhookListener listener(String url) {
         ObjectMapper objectMapper = new ObjectMapper();
         ProjectResultPayloadAssembler assembler = new ProjectResultPayloadAssembler(
-                tenderRepository, userRepository, projectDocumentRepository, objectMapper);
+                tenderRepository, userRepository, projectDocumentRepository,
+                projectInitiationDetailsRepository, objectMapper);
         ProjectResultConfirmedWebhookListener l = new ProjectResultConfirmedWebhookListener(
                 taskRepository, tenderRepository, objectMapper,
                 tenderCrmOpportunityCodeResolver, assembler, operatorUsernameResolver);
@@ -87,6 +90,10 @@ class ProjectResultConfirmedWebhookListenerTest {
         lenient().when(operatorUsernameResolver.resolveForCrmLookup(any(Tender.class), any()))
 
                 .thenReturn(OPERATOR_USERNAME);
+
+        // 默认无立项详情（feedback 中 planSupplierCount=null, bidDocumentDisadvantage=""）
+        lenient().when(projectInitiationDetailsRepository.findByProjectId(PROJECT_ID))
+                .thenReturn(Optional.empty());
     }
 
     private Tender tender() {

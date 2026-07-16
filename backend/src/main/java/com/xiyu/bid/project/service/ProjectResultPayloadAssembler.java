@@ -1,4 +1,4 @@
-// Input: ProjectResultConfirmedEvent + 查询 Project/Tender/User/ProjectDocument
+// Input: ProjectResultConfirmedEvent + 查询 Project/Tender/User/ProjectDocument/ProjectInitiationDetails
 // Output: 组装好的 §4.2 ProjectResultCallbackPayload（不含 HTTP/重试逻辑）
 // Pos: project/service/ - 编排层（只做查询+组装，不做 HTTP）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -16,6 +16,8 @@ import com.xiyu.bid.integration.external.ExternalIdParser;
 import com.xiyu.bid.integration.external.TenderAttachmentUrlResolver;
 import com.xiyu.bid.project.core.BidResultType;
 import com.xiyu.bid.project.domain.ProjectResultConfirmedEvent;
+import com.xiyu.bid.project.entity.ProjectInitiationDetails;
+import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.repository.TenderRepository;
@@ -54,6 +56,7 @@ public class ProjectResultPayloadAssembler {
     private final TenderRepository tenderRepository;
     private final UserRepository userRepository;
     private final ProjectDocumentRepository projectDocumentRepository;
+    private final ProjectInitiationDetailsRepository projectInitiationDetailsRepository;
     private final ObjectMapper objectMapper;
 
     /**
@@ -94,6 +97,9 @@ public class ProjectResultPayloadAssembler {
      * lossReason / bidFailureReason / abandonmentReason（CO-300，按结果类型取值）。
      * <p>CO-300: evidenceFiles 使用 TenderAttachmentUrlResolver.resolve() 标准化
      * doc-insight:// / 内部端点 URL → CRM 集成下载端点，确保外部系统可通过 API Key 访问。
+     * <p>另含项目立项阶段两个字段：planSupplierCount（计划入围供应商数量，Integer，可为 null）
+     * / bidDocumentDisadvantage（招标文件不利项，String，查不到为空串）。
+     * 字段名与 CRM 商机 VO 保持一致，便于 CRM 侧解析 feedback 后直接映射。
      */
     public String buildFeedbackString(ProjectResultConfirmedEvent event, String operator) {
         Map<String, Object> fb = new LinkedHashMap<>();
@@ -119,6 +125,13 @@ public class ProjectResultPayloadAssembler {
         fb.put("evidenceFiles", buildEvidenceFileMaps(event.evidenceFileIds()));
         fb.put("competitors", buildCompetitorMaps(event.competitors()));
         fb.put("systemName", SYSTEM_NAME);
+        // 项目立项阶段两个字段：计划入围供应商数量 / 招标文件不利项。查不到立项详情时填空值。
+        ProjectInitiationDetails initiation = projectInitiationDetailsRepository
+                .findByProjectId(event.projectId()).orElse(null);
+        Integer planSupplierCount = initiation != null ? initiation.getExpectedBidders() : null;
+        String bidDocumentDisadvantage = initiation != null ? safe(initiation.getTenderAdverseItems()) : "";
+        fb.put("planSupplierCount", planSupplierCount);
+        fb.put("bidDocumentDisadvantage", bidDocumentDisadvantage);
         try {
             return objectMapper.writeValueAsString(fb);
         } catch (JsonProcessingException ex) {
