@@ -9,6 +9,8 @@ import com.xiyu.bid.resources.core.CaFieldDiffCalculator;
 import com.xiyu.bid.resources.dto.CaCertificateDTO;
 import com.xiyu.bid.resources.dto.CaCertificateRequest;
 import com.xiyu.bid.resources.entity.CaCertificateEntity;
+import com.xiyu.bid.resources.entity.CaBorrowApplicationEntity;
+import com.xiyu.bid.resources.repository.CaBorrowApplicationRepository;
 import com.xiyu.bid.resources.repository.CaCertificateRepository;
 import com.xiyu.bid.security.EffectiveRoleResolver;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class CaCertificateService {
@@ -36,6 +40,8 @@ public class CaCertificateService {
     private final EffectiveRoleResolver effectiveRoleResolver;
     private final UserRepository userRepository;
     private final CustodianEmployeeNumberResolver custodianEmployeeNumberResolver;
+    /** CO-579: 用于查询 CA 当前在借申请，填充借用人快照 */
+    private final CaBorrowApplicationRepository caBorrowApplicationRepository;
     /** CO-515: 事件发布器，用于发布 CA 编辑事件（audit 模块监听写日志，避免 Service 直接注入 IAuditLogService） */
     private final ApplicationEventPublisher eventPublisher;
 
@@ -189,7 +195,9 @@ public class CaCertificateService {
         refreshStatusInMemory(entity);
         // CO-451: 从 User 表获取保管员工号
         String custodianEmployeeNumber = custodianEmployeeNumberResolver.fetchEmployeeNumber(entity.getCustodianId());
-        return CaCertificateDTO.from(entity, false, null, custodianEmployeeNumber);
+        // CO-579: 填充当前借用人快照
+        CaCertificateDTO.CurrentBorrowInfo borrowInfo = resolveCurrentBorrowInfo(id);
+        return CaCertificateDTO.from(entity, false, null, custodianEmployeeNumber, borrowInfo);
     }
 
     /**
@@ -211,7 +219,9 @@ public class CaCertificateService {
         String decrypted = passwordEncryptionUtil.decrypt(entity.getCaPassword());
         // CO-451: 从 User 表获取保管员工号
         String custodianEmployeeNumber = custodianEmployeeNumberResolver.fetchEmployeeNumber(entity.getCustodianId());
-        return CaCertificateDTO.from(entity, true, decrypted, custodianEmployeeNumber);
+        // CO-579: 填充当前借用人快照
+        CaCertificateDTO.CurrentBorrowInfo borrowInfo = resolveCurrentBorrowInfo(id);
+        return CaCertificateDTO.from(entity, true, decrypted, custodianEmployeeNumber, borrowInfo);
     }
 
     public Page<CaCertificateDTO> list(String status, String borrowStatus, String keyword,
@@ -248,10 +258,54 @@ public class CaCertificateService {
         Map<Long, String> employeeNumberMap = custodianEmployeeNumberResolver.batchFetchEmployeeNumbers(
                 entityPage.stream().map(CaCertificateEntity::getCustodianId).toList()
         );
+        // CO-579: 批量查询当前在借申请，按 caCertificateId 聚合
+        Map<Long, CaCertificateDTO.CurrentBorrowInfo> borrowInfoMap = resolveCurrentBorrowInfoMap(
+                entityPage.stream().map(CaCertificateEntity::getId).toList()
+        );
         return entityPage.map(entity -> CaCertificateDTO.from(
                 entity, false, null,
-                employeeNumberMap.get(entity.getCustodianId())
+                employeeNumberMap.get(entity.getCustodianId()),
+                borrowInfoMap.get(entity.getId())
         ));
+    }
+
+    // ========== CO-579: 当前借用人快照辅助 ==========
+
+    /**
+     * CO-579: 查询单个 CA 的当前在借申请快照。
+     * <p>"当前在借" = 状态为 APPROVED（已审批未归还）；一笔 CA 同时最多一条在借申请。
+     * 取最近一条（approvedAt 倒序）以防数据异常。
+     */
+    private CaCertificateDTO.CurrentBorrowInfo resolveCurrentBorrowInfo(Long caCertificateId) {
+        if (caCertificateId == null) return null;
+        List<CaBorrowApplicationEntity> approved = caBorrowApplicationRepository
+                .findByCaCertificateIdAndStatus(caCertificateId,
+                        CaBorrowApplicationEntity.BorrowStatus.APPROVED.name());
+        if (approved == null || approved.isEmpty()) return null;
+        // 取 approvedAt 最近的一条
+        CaBorrowApplicationEntity latest = approved.stream()
+                .filter(a -> a.getApprovedAt() != null)
+                .max(java.util.Comparator.comparing(CaBorrowApplicationEntity::getApprovedAt))
+                .orElse(approved.get(0));
+        return new CaCertificateDTO.CurrentBorrowInfo(
+                latest.getApplicantName(),
+                latest.getApplicantEmployeeNumber(),
+                latest.getApprovedAt()
+        );
+    }
+
+    /**
+     * CO-579: 批量查询多个 CA 的当前在借申请快照，按 caCertificateId 聚合。
+     * <p>用于列表接口，避免 N+1 查询。
+     */
+    private Map<Long, CaCertificateDTO.CurrentBorrowInfo> resolveCurrentBorrowInfoMap(List<Long> caCertificateIds) {
+        if (caCertificateIds == null || caCertificateIds.isEmpty()) return Map.of();
+        Map<Long, CaCertificateDTO.CurrentBorrowInfo> result = new java.util.HashMap<>();
+        for (Long caId : caCertificateIds) {
+            CaCertificateDTO.CurrentBorrowInfo info = resolveCurrentBorrowInfo(caId);
+            if (info != null) result.put(caId, info);
+        }
+        return result;
     }
 
     public Map<String, Long> getOverview() {
