@@ -211,4 +211,32 @@ describe('TenderBasicInfoTab', () => {
     // 业务页应显示 schema 中的 label，而非硬编码的"项目名称"
     expect(wrapper.text()).toContain('自定义项目名称')
   })
+
+  it('renders contact group in schema position (not pushed to bottom)', async () => {
+    // schema 顺序：title → projectType → [联系人1分组] → description
+    // 验证联系人分组在 schema 中的位置渲染，而不是被推到最后
+    const fields = [
+      { key: 'title', label: '项目名称', enabled: true, required: true, type: 'text' },
+      { key: 'projectType', label: '项目类型', enabled: true, required: true, type: 'select' },
+      { key: 'contact', label: '联系人1', enabled: true, required: false, type: 'text' },
+      { key: 'phone', label: '手机号', enabled: true, required: false, type: 'text' },
+      { key: 'description', label: '标讯描述', enabled: true, required: false, type: 'textarea' },
+    ]
+    const wrapper = mountTab({}, fields, true)
+    await nextTick()
+    await nextTick()
+
+    const html = wrapper.html()
+    const projectTypeIdx = html.indexOf('data-prop="projectType"')
+    const contactGroupIdx = html.indexOf('联系人1')
+    const descriptionIdx = html.indexOf('data-prop="description"')
+
+    expect(projectTypeIdx).toBeGreaterThan(-1)
+    expect(contactGroupIdx).toBeGreaterThan(-1)
+    expect(descriptionIdx).toBeGreaterThan(-1)
+    // 联系人分组应该在 projectType 之后
+    expect(contactGroupIdx).toBeGreaterThan(projectTypeIdx)
+    // 联系人分组应该在 description 之前（不被推到最后）
+    expect(contactGroupIdx).toBeLessThan(descriptionIdx)
+  })
 })
