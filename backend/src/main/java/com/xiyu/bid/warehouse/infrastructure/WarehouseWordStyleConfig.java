@@ -13,7 +13,6 @@ package com.xiyu.bid.warehouse.infrastructure;
  * | 一级标题（省份）       | 左对齐, 黑体 16pt, 加粗 |
  * | 二级标题（仓库名）     | 左对齐, 黑体 14pt, 加粗 |
  * | 三级标题（附件分类）    | 左对齐, 宋体 12pt, 加粗 |
- * | 四级小标题（照片文件名） | 左对齐, 宋体 10.5pt    |
  * | 正文（图片）           | 居中显示               |
  * | 页面尺寸              | A4 (210mm × 297mm)    |
  * | 页边距                | 上下 2.54cm, 左右 2cm  |
@@ -43,11 +42,6 @@ public final class WarehouseWordStyleConfig {
     public static final int SIZE_H2_PT = 14;
     /** 三级标题（附件分类）字号 */
     public static final int SIZE_H3_PT = 12;
-    /**
-     * 四级小标题（照片文件名）字号。
-     * CO-582 §3.9 要求 10.5pt，POI 中字号以半磅为单位，10.5pt = 21 半磅。
-     */
-    public static final int SIZE_H4_HALF_PT = 21;
 
     // ========== 页面尺寸（单位：twips，1 inch = 1440 twips） ==========
 

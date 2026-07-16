@@ -155,22 +155,26 @@ public class WarehouseWordBundleBuilder {
                 writeBodyText(doc, LABEL_FILE_MISSING);
                 continue;
             }
-            renderPdfToWord(doc, file, att.getOriginalFilename());
+            renderPdfToWord(doc, file);
         }
     }
 
-    private void renderPdfToWord(XWPFDocument doc, Path pdfFile, String displayName) {
+    private void renderPdfToWord(XWPFDocument doc, Path pdfFile) {
         try (PDDocument pdf = PDDocument.load(pdfFile.toFile())) {
             PDFRenderer renderer = new PDFRenderer(pdf);
             int pageCount = pdf.getNumberOfPages();
             for (int i = 0; i < pageCount; i++) {
                 try {
                     BufferedImage img = renderer.renderImageWithDPI(i, WarehouseWordStyleConfig.PDF_RENDER_DPI);
-                    boolean inserted = insertImage(doc, img, displayName + " (第" + (i + 1) + "页)");
-                    if (inserted && i < pageCount - 1) {
-                        addPageBreak(doc);
+                    try {
+                        // §3.6：PDF 嵌入时不添加文字说明（如 "第N页"、原文件名）
+                        boolean inserted = insertImage(doc, img);
+                        if (inserted && i < pageCount - 1) {
+                            addPageBreak(doc);
+                        }
+                    } finally {
+                        img.flush();  // 释放内存，防止大批量导出 OOM
                     }
-                    img.flush();  // 释放内存
                 } catch (IOException e) {
                     log.warn("PDF 第{}页转换失败: file={}", i + 1, pdfFile, e);
                     // §4：跳过该页，继续后续页
@@ -198,10 +202,7 @@ public class WarehouseWordBundleBuilder {
                 continue;
             }
 
-            // §3.7.2：每张照片前以原文件名为小标题
-            writeHeading(doc, att.getOriginalFilename(),
-                    WarehouseWordStyleConfig.FONT_SONGTI,
-                    WarehouseWordStyleConfig.SIZE_H4_HALF_PT, false);
+            // §3.6：照片直接嵌入，图片顶部不需要添加小标题（不再输出原文件名）
 
             Path file = resolveAttachmentPath(wh, att);
             if (!Files.exists(file)) {
@@ -214,9 +215,12 @@ public class WarehouseWordBundleBuilder {
                     writeBodyText(doc, LABEL_IMAGE_READ_FAILED);
                     continue;
                 }
-                insertImage(doc, img, null);
-                // §3.7.2：照片按自然流式排版跨页，不再强制分页
-                img.flush();
+                try {
+                    insertImage(doc, img);
+                    // §3.7.2：照片按自然流式排版跨页，不再强制分页
+                } finally {
+                    img.flush();  // 释放内存，防止大批量导出 OOM
+                }
             } catch (IOException e) {
                 log.warn("图片读取失败: file={}", file, e);
                 writeBodyText(doc, LABEL_IMAGE_READ_FAILED);
@@ -246,7 +250,7 @@ public class WarehouseWordBundleBuilder {
         run.setText(text);
     }
 
-    private boolean insertImage(XWPFDocument doc, BufferedImage img, String caption) {
+    private boolean insertImage(XWPFDocument doc, BufferedImage img) {
         try {
             // 图片宽度自适应正文宽度
             int targetWidthPx = WarehouseWordStyleConfig.CONTENT_WIDTH_TWIPS
@@ -255,13 +259,6 @@ public class WarehouseWordBundleBuilder {
             int imgHeight = img.getHeight();
             int width = Math.min(imgWidth, targetWidthPx);
             int height = imgWidth > 0 ? (int) ((double) imgHeight * width / imgWidth) : imgHeight;
-
-            if (caption != null) {
-                XWPFParagraph capP = doc.createParagraph();
-                capP.setAlignment(ParagraphAlignment.CENTER);
-                XWPFRun capRun = capP.createRun();
-                capRun.setText(caption);
-            }
 
             XWPFParagraph p = doc.createParagraph();
             p.setAlignment(ParagraphAlignment.CENTER);
