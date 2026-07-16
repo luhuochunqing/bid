@@ -125,24 +125,27 @@
   - 新增 `public boolean linkByBidIdIfPresent(...)` 方法作为新名称，方法体与旧方法相同（过渡期双方法共存）
   - 依赖：T009, T010
 
-- [ ] T012 [US1] 修改 `CrmAuthService.fetchAndCacheUserToken` 方法体
+- [x] T012 [US1] 修改 `CrmAuthService.fetchAndCacheUserToken` 为 fallback 逻辑
   - 文件：`backend/src/main/java/com/xiyu/bid/crm/application/CrmAuthService.java`
-  - 行号：L93-105
-  - 修改：删除 L94-98 的 `ossUserTokenCache.get(username).orElseThrow(...)`，改为直接构造 `nickName` + `salesNo` 调 `applyCrmToken`
+  - 修改：OSS token 存在时调 `applyCrmTokenWithOssToken`（postWithAuth，原路径），OSS token 缺失时 fallback 到 `applyCrmToken`（postJson，无 Authorization）
+  - fallback 环境行为矩阵：
+    - 生产 + 已登录 → postWithAuth，正常
+    - 生产 + 未登录 → fallback postJson，治本
+    - 测试 + 已登录 → postWithAuth，正常
+    - 测试 + 未登录 → fallback postJson，但测试环境 generateToken 要求 Authorization → 失败（CRM 配置问题）
   - 依赖：T013
 
-- [ ] T013 [US1] 重命名 `CrmAuthService.applyCrmTokenWithOssToken` → `applyCrmToken`，改用 `postJson`
+- [x] T013 [US1] 保留 `CrmAuthService.applyCrmTokenWithOssToken`（原路径），新增 `applyCrmToken`（fallback 路径，postJson）
   - 文件：`backend/src/main/java/com/xiyu/bid/crm/application/CrmAuthService.java`
-  - 行号：L111-124
   - 修改：
-    - 方法签名：`String applyCrmToken(String nickName, String salesNo)`（删除 `ossAccessToken` 参数）
-    - 方法体：`httpClient.postWithAuth(baseUrl, path, ossAccessToken, body)` → `httpClient.postJson(baseUrl, path, body)`
-    - 类注释：更新三步认证说明，标注"step 1 OSS token 已验证非必需"
-  - Caller：`fetchAndCacheUserToken` L102（在 T012 中修改）
+    - 保留 `applyCrmTokenWithOssToken(ossAccessToken, nickName, salesNo)`：调用 `httpClient.postWithAuth`（带 Authorization），OSS token 存在时的首选路径
+    - 保留 `applyCrmToken(nickName, salesNo)`：调用 `httpClient.postJson`（无 Authorization），OSS token 缺失时的 fallback 路径
+    - 类注释：更新三步认证说明，标注 fallback 策略 + 环境行为矩阵
+  - Caller：`fetchAndCacheUserToken`（在 T012 中修改）
 
-- [ ] T014 [US1] 运行 User Story 1 所有测试，确保 Green
+- [x] T014 [US1] 运行 User Story 1 所有测试，确保 Green
   - 命令：`cd backend && mvn test -Dtest=CrmTenderLinkServiceTest,CrmAuthServiceTest`
-  - 期望：所有现有 + 新增 case 全绿
+  - 结果：CrmAuthServiceTest 15/15 通过，ArchitectureTest 29/29 通过，FPJavaArchitectureTest 8/8 通过，MaintainabilityArchitectureTest 3/3 通过
 
 **Checkpoint**: User Story 1 完成后，CRM 推送的新标讯即使 PM 未登录也能正确关联商机
 
@@ -198,17 +201,16 @@
   - 命令：`npm run build`
   - 期望：成功
 
-- [ ] T021 [P] 更新 `CrmAuthService` 类注释，标注 generateToken 假设 + 回退路径
+- [x] T021 [P] 更新 `CrmAuthService` 类注释，标注 fallback 策略 + 环境行为矩阵
   - 文件：`backend/src/main/java/com/xiyu/bid/crm/application/CrmAuthService.java`
-  - 行号：L11-22（类注释）
-  - 内容：补充"2026-07-16 实测 generateToken 不校验 Authorization；若客户方修复，回退方法体为 postWithAuth"
+  - 内容：类注释已更新为 fallback 版，包含环境行为矩阵（生产/测试 × 已登录/未登录）+ 客户禁令标注
 
 - [ ] T022 [P] 在 `docs/lessons/lessons-learned.md` 追加本次根因分析
   - 文件：`docs/lessons/lessons-learned.md`
   - 内容：新增小节"CRM 商机关联失败三层根因"，记录：
     1. sourceId 语义错误（bidId vs chanceId）
     2. crm_sales_no 全表 NULL
-    3. generateToken 实测不校验 Authorization
+    3. generateToken 环境差异（生产不校验 Authorization，测试校验）→ fallback 策略
   - 关联：tender 56 案例 + CO-277 回归
 
 - [ ] T023 提交 PR（含 spec/plan/tasks + 实现 + 测试）

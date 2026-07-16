@@ -9,11 +9,17 @@
 修复 CRM 推送标讯时 PM 未登录导致关联永久失败的 Bug，根因有三层：
 (1) `CrmTenderLinkService.linkByChanceIdIfPresent` 误把 `external_id` 中的标讯 ID（bidId）当成商机 ID（chanceId）去调 detail 接口；
 (2) `OrganizationUserSyncWriter` OSS 同步时不填充 `crm_sales_no`，全表为 NULL；
-(3) `CrmAuthService.fetchAndCacheUserToken` 强制要求 OSS access_token，但 `generateToken` 接口实测不校验 Authorization。
+(3) `CrmAuthService.fetchAndCacheUserToken` 强制要求 OSS access_token，但 `generateToken` 接口在生产环境实测不校验 Authorization（测试环境仍校验）。
 
-治本方案：修正 `linkByChanceIdIfPresent` 改用 page-list 按 bidId 反查商机；OSS 同步时用 OSS 工号填充 `crm_sales_no`；`generateToken` 去掉 OSS token 依赖，改用 `CrmHttpClient.postJson`（无 Authorization）。
+治本方案：修正 `linkByChanceIdIfPresent` 改用 page-list 按 bidId 反查商机；OSS 同步时用 OSS 工号填充 `crm_sales_no`；`generateToken` 改为 fallback 策略——OSS token 存在时走 `postWithAuth`（原路径），OSS token 缺失时 fallback 到 `postJson`（无 Authorization）。
 
-技术路径：复用已有 `CrmChanceService.findByCode` 的 page-list 调用模式，新增 `findByBidId` 方法；`OrganizationUserSyncWriter.upsert` 加一行 `setCrmSalesNo`；`CrmAuthService.applyCrmTokenWithOssToken` 改名为 `applyCrmToken` 并改用 `postJson`。
+技术路径：复用已有 `CrmChanceService.findByCode` 的 page-list 调用模式，新增 `findByBidId` 方法；`OrganizationUserSyncWriter.upsert` 加一行 `setCrmSalesNo`；`CrmAuthService.fetchAndCacheUserToken` 改为 fallback 逻辑（OSS token 存在 → `applyCrmTokenWithOssToken`，缺失 → `applyCrmToken`）。
+
+**fallback 环境行为矩阵**：
+- 生产 + 已登录（有 OSS token）→ postWithAuth，正常
+- 生产 + 未登录（无 OSS token）→ fallback postJson，治本（PM 未登录也能换 JWT）
+- 测试 + 已登录（有 OSS token）→ postWithAuth，正常
+- 测试 + 未登录（无 OSS token）→ fallback postJson，但测试环境 generateToken 要求 Authorization → 失败（CRM 配置问题，非代码问题）
 
 ## Technical Context
 
@@ -42,8 +48,8 @@
 | Principle | Status | Evidence |
 |---|---|---|
 | **I. FP-Java Architecture** | ✅ PASS | 修改均在 Service 层（`CrmTenderLinkService` / `CrmAuthService` / `OrganizationUserSyncWriter`），不涉及 Pure Core → Shell 边界；`ProjectLeaderResult` 已是 `record`；无新增可变状态 |
-| **II. Real-API Only** | ✅ PASS | 调研基于生产环境实测（generateToken 不校验 Authorization 已在测试 + 生产双环境验证）；不引入 Mock |
-| **III. Test-Driven Development** | ✅ PASS | 现有 `CrmTenderLinkServiceTest`（18 个 case）+ `CrmAuthServiceTest`（11 个 case）作为回归基线；新增 bidId 反查 + 无 OSS token 换 JWT 两个场景的 Red 测试，再改实现 |
+| **II. Real-API Only** | ✅ PASS | 调研基于生产环境实测（生产 generateToken 不校验 Authorization，测试环境校验）；fallback 策略在两种环境都验证过；不引入 Mock |
+| **III. Test-Driven Development** | ✅ PASS | 现有 `CrmTenderLinkServiceTest`（18 个 case）+ `CrmAuthServiceTest`（15 个 case，覆盖 OSS token 存在/缺失/401 后 fallback 三种场景）作为回归基线 |
 | **IV. Split-First & Simplicity** | ✅ PASS | 三个文件均 <220 行（CrmTenderLinkService 208 行、CrmAuthService 125 行、OrganizationUserSyncWriter 216 行），修改后不超 300 行硬上限；不新增类，YAGNI |
 | **V. OSS Integration** | ✅ PASS | OSS 同步路径保持真实 API；`crm_sales_no` 填充用 OSS 工号（已验证 salesNo = OSS 工号）；不修改 OSS 接口调用，仅补充下游字段填充 |
 | **VI. Authorization Unification** | ✅ PASS | 不涉及 Controller `@PreAuthorize`，不新增端点；修改均在 Service 层 |
@@ -77,7 +83,7 @@ backend/
 ├── src/main/java/com/xiyu/bid/
 │   ├── crm/
 │   │   ├── application/
-│   │   │   ├── CrmAuthService.java          # 修改：applyCrmToken 去掉 OSS token 依赖
+│   │   │   ├── CrmAuthService.java          # 修改：fetchAndCacheUserToken 改为 fallback（OSS token 存在→postWithAuth，缺失→postJson）
 │   │   │   ├── CrmChanceService.java        # 新增 findByBidId 方法（page-list 按_bidId 查）
 │   │   │   ├── CrmProjectLeaderService.java # 新增 findProjectLeaderByBidId 方法
 │   │   │   ├── CrmChanceDetailService.java  # 不修改（保留 detail 接口供其他场景用）
@@ -101,7 +107,7 @@ backend/
 │       └── User.java                        # 不修改（已有 crm_sales_no 列）
 └── src/test/java/com/xiyu/bid/
     ├── crm/application/
-    │   ├── CrmAuthServiceTest.java          # 修改：新增"无 OSS token 也能换 JWT" case
+    │   ├── CrmAuthServiceTest.java          # 修改：反映 fallback 行为（OSS token 存在→postWithAuth，缺失→postJson）
     │   └── CrmChanceServiceTest.java        # 新增：findByBidId 场景（如不存在则创建）
     └── integration/external/
         ├── CrmTenderLinkServiceTest.java    # 修改：新增"sourceId 是 bidId 不是 chanceId" case

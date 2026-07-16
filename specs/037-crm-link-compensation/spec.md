@@ -94,7 +94,7 @@ OSS 同步用户信息时，应同时填充 `crm_sales_no` 字段，使所有 OS
 
 - **FR-001**: 系统 MUST 在 CRM 推送标讯时，使用 `external_id` 中的 sourceId 作为**标讯 ID**（而非商机 ID）进行 CRM 反查
 - **FR-002**: 系统 MUST 通过 CRM `page-list` 接口按标讯 ID（`bidId`）反查关联的商机详情（含商机编号 code、商机名称、项目负责人）
-- **FR-003**: 系统 MUST 在调 `generateToken` 时仅传 `nickName + salesNo`，不依赖 OSS access_token
+- **FR-003**: 系统 MUST 在调 `generateToken` 时采用 fallback 策略：OSS token 存在时走 `postWithAuth`（带 Authorization，原路径），OSS token 缺失时 fallback 到 `postJson`（无 Authorization）。这确保测试环境已登录用户不受影响，生产环境未登录 PM 也能换 JWT
 - **FR-004**: 系统 MUST 在 OSS 用户同步时，用 OSS 工号（`username`）填充 `crm_sales_no` 字段
 - **FR-005**: 系统 MUST 提供定时补偿任务，扫描 `source_type=CRM_OPPORTUNITY AND crm_opportunity_id IS NULL` 的标讯，自动重跑关联
 - **FR-006**: 补偿任务 MUST 是幂等的：已关联成功的标讯（`crm_opportunity_id IS NOT NULL`）不被重复处理
@@ -123,7 +123,7 @@ OSS 同步用户信息时，应同时填充 `crm_sales_no` 字段，使所有 OS
 ## Assumptions
 
 - **OSS 工号即 CRM salesNo**：已通过生产环境验证（王旭州 OSS 工号 04503 = CRM salesNo 04503）
-- **`generateToken` 接口长期不校验 Authorization**：已通过测试环境和生产环境验证；若客户方后续修复此"漏洞"，需切换回三步认证流程
+- **`generateToken` 接口环境差异**：生产环境不校验 Authorization（2026-07-16 实测确认），测试环境要求 Authorization（401 "Full authentication is required"）。fallback 策略确保两种环境已登录用户都不受影响，只有测试环境 + 未登录用户会失败（CRM 配置问题，非代码问题）
 - **CRM `page-list` 接口支持按 `bidId` 查询**：需在实现阶段确认接口是否支持此查询条件；若不支持，需改用其他反查路径（如按 `projectLeaderNo` 查全部再本地匹配）
 - **OSS 同步事件携带工号**：已确认 `OrganizationUserSnapshot` 有 `username` 字段（OSS 工号）
 - **补偿任务运行频率**：默认每 5 分钟一次，可配置

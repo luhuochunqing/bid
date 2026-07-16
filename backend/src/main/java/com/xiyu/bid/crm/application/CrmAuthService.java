@@ -9,24 +9,25 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
- * CRM 鉴权：spec 037 简化为两步（去掉 OSS token 依赖）。
- * <p>2026-07-16 实测：生产环境 generateToken 接口不校验 Authorization header，
- * 仅传 {@code nickName + salesNo} 即可换 CRM JWT。因此去掉步骤 1（OSS token），
- * 直接用 nickName + salesNo 调 generateToken。
- * <p>原三步流程（保留注释供回退参考）：
+ * CRM 鉴权：spec 037 fallback 版。
+ * <p>OSS token 存在时走 {@code postWithAuth}（原路径，测试环境 + 已登录用户）；
+ * OSS token 缺失时 fallback 到 {@code postJson}（无 Authorization，生产环境 + 未登录用户）。
+ * <p><b>环境行为矩阵</b>：
+ * <ul>
+ *   <li>生产 + 已登录（有 OSS token） → postWithAuth，正常</li>
+ *   <li>生产 + 未登录（无 OSS token） → fallback postJson，治本（PM 未登录也能换 JWT）</li>
+ *   <li>测试 + 已登录（有 OSS token） → postWithAuth，正常</li>
+ *   <li>测试 + 未登录（无 OSS token） → fallback postJson，但测试环境 generateToken 要求 Authorization → 失败（CRM 配置问题，非代码问题）</li>
+ * </ul>
+ * <p>三步认证流程：
  * <ol>
- *   <li><b>OSS token</b>（已弃用）：用户登录 OSS 时拿到的 access_token</li>
+ *   <li><b>OSS token</b>：用户登录 OSS 时拿到的 access_token（可选，缺失时 fallback）</li>
  *   <li><b>CRM JWT</b>：{@code POST /common/inner/generateToken}，
- *       spec 037 前 Header {@code Authorization: Bearer <OSS token>}，
- *       spec 037 后改用 {@link CrmHttpClient#postJson}（无 Authorization）</li>
+ *       OSS token 存在时 {@code postWithAuth}（带 Authorization），
+ *       OSS token 缺失时 {@code postJson}（无 Authorization）</li>
  *   <li><b>业务接口</b>：Header {@code Authorization: Bearer <CRM JWT>}</li>
  * </ol>
- * <p>
- * <b>回退路径</b>：若客户方修复 generateToken 不校验 Authorization 的"漏洞"，
- * 把 {@link #applyCrmToken} 方法体改回 {@code httpClient.postWithAuth(baseUrl, path, ossToken, body)}
- * 即可恢复三步认证（{@link OssUserTokenCache} 仍保留注入）。
- * <p>
- * <b>客户禁令</b>：禁止使用"系统服务号/全局账号"换取 CRM JWT（客户明确要求必须基于真实用户）。
+ * <p><b>客户禁令</b>：禁止使用"系统服务号/全局账号"换取 CRM JWT（客户明确要求必须基于真实用户 OSS token）。
  * 无用户、无用户 profile 时抛 {@link TokenUnavailableException}。
  */
 @Service
@@ -52,8 +53,8 @@ public class CrmAuthService {
 
     /**
      * 获取用户 CRM JWT。
-     * <p>spec 037：不再要求用户已登录（OSS token 不再必需），
-     * 仅需用户 profile（fullName + crmSalesNo）即可换 JWT。
+     * <p>spec 037 fallback：OSS token 存在时走 postWithAuth（原路径），
+     * OSS token 缺失时 fallback 到 postJson（无 Authorization）。
      * <p>username 为空、用户不存在 → {@link TokenUnavailableException}。
      */
     public String getValidTokenForUser(String username) {
@@ -101,25 +102,55 @@ public class CrmAuthService {
         }
     }
 
+    /**
+     * spec 037 fallback：OSS token 存在时走 postWithAuth（原路径），
+     * OSS token 缺失时 fallback 到 postJson（无 Authorization）。
+     */
     private String fetchAndCacheUserToken(UserProfileCache.CachedUserProfile profile, String username) {
-        // spec 037：去掉 OSS token 依赖，直接用 nickName + salesNo 换 CRM JWT
         String salesNo = StringUtils.hasText(profile.crmSalesNo()) ? profile.crmSalesNo() : username;
         String nickName = StringUtils.hasText(profile.fullName()) ? profile.fullName() : username;
-        String crmJwt = applyCrmToken(nickName, salesNo);
+        String crmJwt = ossUserTokenCache.get(username)
+                .map(ossToken -> applyCrmTokenWithOssToken(ossToken, nickName, salesNo))
+                .orElseGet(() -> {
+                    log.info("OSS token missing for username={}, fallback to postJson (no Authorization)", username);
+                    return applyCrmToken(nickName, salesNo);
+                });
         userTokenCache.put(username, crmJwt, JwtTtlResolver.resolveTtlSeconds(crmJwt));
         return crmJwt;
     }
 
     /**
-     * 用 nickName + salesNo 调 {@code /common/inner/generateToken} 换 CRM JWT。
-     * <p>spec 037：改用 {@link CrmHttpClient#postJson}（无 Authorization），
-     * 因为生产环境实测 generateToken 不校验 Authorization。
+     * 用 OSS token 调 {@code /common/inner/generateToken} 换 CRM JWT（原路径，带 Authorization）。
+     * <p>OSS token 存在时的首选路径，测试环境 + 已登录用户走这里。
+     * <p>package-private 供 webhook 复用。
+     */
+    String applyCrmTokenWithOssToken(String ossAccessToken, String nickName, String salesNo) {
+        String baseUrl = properties.getEffectiveChanceBaseUrl();
+        String path = properties.getAuth().getGenerateTokenPath();
+        log.debug("CRM generateToken (with auth): nickName={}, salesNo={}", nickName, salesNo);
+        String body = String.format("{\"nickName\":\"%s\",\"salesNo\":\"%s\"}",
+                CrmJsonUtils.escapeJson(nickName), CrmJsonUtils.escapeJson(salesNo));
+        CrmResponseHandler.CrmApiResponse response = httpClient.postWithAuth(
+                baseUrl, path, ossAccessToken, body);
+        if (response.success() && response.data() != null && response.data().isTextual()) {
+            return response.data().asText();
+        }
+        throw new TokenUnavailableException(
+                "CRM generateToken failed: code=" + response.code() + " msg=" + response.msg());
+    }
+
+    /**
+     * 用 nickName + salesNo 调 {@code /common/inner/generateToken} 换 CRM JWT（fallback，无 Authorization）。
+     * <p>OSS token 缺失时的 fallback 路径，生产环境 + 未登录用户走这里（治本）。
+     * <p>2026-07-16 实测：生产环境 generateToken 接口不校验 Authorization header，
+     * 仅传 {@code nickName + salesNo} 即可换 CRM JWT。测试环境要求 Authorization，
+     * 因此测试环境 + 未登录用户仍会失败（CRM 配置问题，非代码问题）。
      * <p>package-private 供 webhook 复用。
      */
     String applyCrmToken(String nickName, String salesNo) {
         String baseUrl = properties.getEffectiveChanceBaseUrl();
         String path = properties.getAuth().getGenerateTokenPath();
-        log.debug("CRM generateToken: nickName={}, salesNo={}", nickName, salesNo);
+        log.debug("CRM generateToken (fallback, no auth): nickName={}, salesNo={}", nickName, salesNo);
         String body = String.format("{\"nickName\":\"%s\",\"salesNo\":\"%s\"}",
                 CrmJsonUtils.escapeJson(nickName), CrmJsonUtils.escapeJson(salesNo));
         CrmResponseHandler.CrmApiResponse response = httpClient.postJson(baseUrl, path, body);
