@@ -7,6 +7,8 @@ import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.project.core.BidResultType;
 import com.xiyu.bid.project.domain.ProjectResultConfirmedEvent;
+import com.xiyu.bid.project.entity.ProjectInitiationDetails;
+import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.repository.TenderRepository;
@@ -40,10 +42,12 @@ class ProjectResultPayloadAssemblerTest {
     @Mock private TenderRepository tenderRepository;
     @Mock private UserRepository userRepository;
     @Mock private ProjectDocumentRepository projectDocumentRepository;
+    @Mock private ProjectInitiationDetailsRepository projectInitiationDetailsRepository;
 
     private ProjectResultPayloadAssembler assembler() {
         return new ProjectResultPayloadAssembler(
-                tenderRepository, userRepository, projectDocumentRepository, new ObjectMapper());
+                tenderRepository, userRepository, projectDocumentRepository,
+                projectInitiationDetailsRepository, new ObjectMapper());
     }
 
     @Test
@@ -225,6 +229,7 @@ class ProjectResultPayloadAssemblerTest {
                 .fileUrl("doc-insight://attachments/1032.pdf")
                 .uploaderName("张三").build();
         when(projectDocumentRepository.findAllById(List.of(1032L))).thenReturn(List.of(doc));
+        when(projectInitiationDetailsRepository.findByProjectId(PROJECT_ID)).thenReturn(Optional.empty());
 
         String feedback = assembler().buildFeedbackString(buildEvent(
                 BidResultType.WON, List.of(1032L), List.of()), "张三");
@@ -242,6 +247,7 @@ class ProjectResultPayloadAssemblerTest {
     @DisplayName("CO-300: LOST/FAILED/ABANDONED feedback 含对应原因字段，WON 不含")
     void feedback_containsReasonFieldByResultType() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
+        when(projectInitiationDetailsRepository.findByProjectId(PROJECT_ID)).thenReturn(Optional.empty());
         // LOST -> lossReason
         JsonNode lost = mapper.readTree(assembler().buildFeedbackString(
                 buildEvent(BidResultType.LOST, List.of(), List.of(), "价格过高"), "张三"));
@@ -266,6 +272,38 @@ class ProjectResultPayloadAssemblerTest {
         assertThat(won.has("lossReason")).isFalse();
         assertThat(won.has("bidFailureReason")).isFalse();
         assertThat(won.has("abandonmentReason")).isFalse();
+    }
+
+    @Test
+    @DisplayName("feedback 含项目立项阶段 planSupplierCount/bidDocumentDisadvantage 字段")
+    void feedback_containsInitiationFields() throws Exception {
+        ProjectInitiationDetails initiation = ProjectInitiationDetails.builder()
+                .projectId(PROJECT_ID)
+                .expectedBidders(5)
+                .tenderAdverseItems("付款周期较长")
+                .build();
+        when(projectInitiationDetailsRepository.findByProjectId(PROJECT_ID)).thenReturn(Optional.of(initiation));
+
+        String feedback = assembler().buildFeedbackString(buildEvent(
+                BidResultType.WON, List.of(), List.of()), "张三");
+
+        JsonNode root = new ObjectMapper().readTree(feedback);
+        assertThat(root.get("planSupplierCount").asInt()).isEqualTo(5);
+        assertThat(root.get("bidDocumentDisadvantage").asText()).isEqualTo("付款周期较长");
+    }
+
+    @Test
+    @DisplayName("立项详情查不到时 planSupplierCount 为 null、bidDocumentDisadvantage 为空串")
+    void feedback_initiationAbsent_emptyValues() throws Exception {
+        when(projectInitiationDetailsRepository.findByProjectId(PROJECT_ID)).thenReturn(Optional.empty());
+
+        String feedback = assembler().buildFeedbackString(buildEvent(
+                BidResultType.WON, List.of(), List.of()), "张三");
+
+        JsonNode root = new ObjectMapper().readTree(feedback);
+        assertThat(root.has("planSupplierCount")).isTrue();
+        assertThat(root.get("planSupplierCount").isNull()).isTrue();
+        assertThat(root.get("bidDocumentDisadvantage").asText()).isEmpty();
     }
 
     private void mockTenderAndUser() {
