@@ -23,10 +23,8 @@ import org.springframework.stereotype.Service;
  *   </li>
  * </ul>
  *
- * <p>副作用层：取 token、调 HTTP、401 刷新重试一次、解析响应。业务失败作为 {@link CheckResult}
- * 返回，仅 CRM 不可用（网络异常/token 失败）抛 {@link BusinessException}。
- *
- * <p>参考 {@link CrmChanceService#doPageList} 的 token + 401 重试模板。
+ * <p>副作用层：通过 {@link CrmApiTemplate} 取 token + 401 重试，调 HTTP，解析响应。
+ * 业务失败作为 {@link CheckResult} 返回，仅 CRM 不可用（网络异常/token 失败）抛 {@link BusinessException}。
  */
 @Service
 public class CrmTenderSubjectChecker {
@@ -43,16 +41,16 @@ public class CrmTenderSubjectChecker {
     private static final String MSG_DATA_MISSING = "CRM 校验通过但未返回招标主体ID，请联系 CRM 管理员";
 
     private final CrmHttpClient httpClient;
-    private final CrmAuthService authService;
     private final CrmProperties properties;
     private final CrmChanceService crmChanceService;
+    private final CrmApiTemplate apiTemplate;
 
-    public CrmTenderSubjectChecker(CrmHttpClient httpClient, CrmAuthService authService,
-                                   CrmProperties properties, CrmChanceService crmChanceService) {
+    public CrmTenderSubjectChecker(CrmHttpClient httpClient, CrmProperties properties,
+                                   CrmChanceService crmChanceService, CrmApiTemplate apiTemplate) {
         this.httpClient = httpClient;
-        this.authService = authService;
         this.properties = properties;
         this.crmChanceService = crmChanceService;
+        this.apiTemplate = apiTemplate;
     }
 
     /**
@@ -65,36 +63,30 @@ public class CrmTenderSubjectChecker {
      * @throws BusinessException 仅在 CRM 不可用时抛
      */
     public CheckResult check(String tenderSubject, String ccCode, String username) {
-        String token = acquireTokenOrThrow(username);
         String baseUrl = properties.getEffectiveChanceBaseUrl();
         String fullPath = buildPath(tenderSubject, ccCode);
         log.info("CO-501 调试: 准备调用 CRM check-tender-subject, baseUrl={}, path={}, tenderSubject={}, ccCode={}",
                 baseUrl, fullPath, tenderSubject, ccCode);
 
-        CrmResponseHandler.CrmApiResponse response = httpClient.get(baseUrl, fullPath, token);
+        // spec 037 Review L1：用 CrmApiTemplate 统一 401 重试样板（原 acquireTokenOrThrow + 手写 401 重试合并）
+        CrmResponseHandler.CrmApiResponse response = apiTemplate.executeWithTokenRetry(
+                username,
+                token -> httpClient.get(baseUrl, fullPath, token),
+                null,
+                "check-tender-subject");
+
+        if (response == null) {
+            log.warn("CO-501: CRM token unavailable for username={}", username);
+            throw new BusinessException(503, MSG_CRM_UNAVAILABLE);
+        }
+
         // 调试日志：打印 CRM 完整原始响应，用于联调时确认招标主体 ID 的真实字段名
         log.info("CO-501 调试: CRM check-tender-subject 原始响应 code={}, msg={}, data={}, dataClass={}",
                 response.code(), response.msg(),
                 response.data(),
                 response.data() != null ? response.data().getNodeType() : "null");
 
-        // 401 → 刷 token 重试一次（参考 CrmChanceService.doPageList 行 151-161）
-        if (response.isUnauthorized()) {
-            authService.handleUnauthorizedForUser(username);
-            token = acquireTokenOrThrow(username);
-            response = httpClient.get(baseUrl, fullPath, token);
-        }
-
         return interpret(response, tenderSubject, ccCode, username);
-    }
-
-    private String acquireTokenOrThrow(String username) {
-        try {
-            return authService.getValidTokenForUser(username);
-        } catch (IllegalStateException e) {
-            log.warn("CO-501: CRM token acquisition failed: {}", e.getMessage());
-            throw new BusinessException(503, MSG_CRM_UNAVAILABLE);
-        }
     }
 
     /**

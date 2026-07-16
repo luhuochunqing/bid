@@ -28,4 +28,23 @@ public record CustomerChanceDTO(
     @JsonProperty("selectList") List<Integer> selectList,
     @JsonProperty("notSelectList") List<Integer> notSelectList,
     @JsonProperty("timeSort") Integer timeSort
-) {}
+) {
+    /**
+     * spec 037 Review M1：按 code 查询的静态工厂方法，替代 18 参数位置构造。
+     * <p>调用方无需数清 code 在第几位，避免维护风险。
+     */
+    public static CustomerChanceDTO byCode(String code) {
+        return new CustomerChanceDTO(
+                null, null, code, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null);
+    }
+
+    /**
+     * spec 037 Review M1：按 bidId 查询的静态工厂方法，替代 18 参数位置构造。
+     */
+    public static CustomerChanceDTO byBidId(Long bidId) {
+        return new CustomerChanceDTO(
+                null, null, null, bidId, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null);
+    }
+}

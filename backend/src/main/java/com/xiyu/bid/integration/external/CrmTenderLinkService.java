@@ -131,30 +131,7 @@ public class CrmTenderLinkService {
             tender.setCrmOpportunityId(crmOpportunityCode);
         }
         try {
-            CrmProjectLeaderService.ProjectLeaderResult leader = null;
-            // 优先用 crmId（数字主键）查项目负责人
-            if (crmId != null && !crmId.isBlank()) {
-                try {
-                    Long chanceId = Long.parseLong(crmId.trim());
-                    leader = crmProjectLeaderService.findProjectLeaderByChanceId(chanceId, username);
-                } catch (NumberFormatException e) {
-                    log.warn("CRM link: crmId '{}' is not numeric, skipping chanceId lookup", crmId);
-                }
-            }
-            // crmId 未命中时，如果 crmOpportunityCode 是纯数字（CRM 推送误传的 id），用它作为 chanceId 反查
-            if (leader == null && isNumericId(crmOpportunityCode)) {
-                try {
-                    Long chanceId = Long.parseLong(crmOpportunityCode.trim());
-                    leader = crmProjectLeaderService.findProjectLeaderByChanceId(chanceId, username);
-                    log.info("CRM link: crmOpportunityCode '{}' is numeric, resolved via chanceId lookup", crmOpportunityCode);
-                } catch (NumberFormatException e) {
-                    log.warn("CRM link: crmOpportunityCode '{}' is not numeric", crmOpportunityCode);
-                }
-            }
-            // 仍为 null 时，尝试用 code（CC 格式）查
-            if (leader == null && isCcFormatCode(crmOpportunityCode)) {
-                leader = crmProjectLeaderService.findProjectLeaderByChanceCode(crmOpportunityCode, username);
-            }
+            CrmProjectLeaderService.ProjectLeaderResult leader = tryResolveLeader(crmId, crmOpportunityCode, username);
             if (leader == null) {
                 log.warn("CRM link: no project leader found, setting EVALUATED");
                 tender.setStatus(Tender.Status.EVALUATED);
@@ -165,7 +142,66 @@ public class CrmTenderLinkService {
             log.error("CRM link failed for crmId={}, crmOpportunityCode={}: {}",
                     crmId, crmOpportunityCode, e.getMessage());
             // 降级：CRM 接口异常时不中断主流程，code 已存入，不影响 webhook 回传
+            // spec 037 Review M3：统一降级路径 —— 异常时也设置 EVALUATED，避免副作用不一致
+            tender.setStatus(Tender.Status.EVALUATED);
         }
+    }
+
+    /**
+     * spec 037 Review M3：按优先级策略链查找项目负责人。
+     * <p>三策略按优先级依次尝试，首个非 null 结果即返回（责任链模式）：
+     * <ol>
+     *   <li>crmId 是数字主键 → {@code findProjectLeaderByChanceId(chanceId)}</li>
+     *   <li>crmOpportunityCode 是纯数字（CRM 推送误传的 id）→ 同上，作为 chanceId 反查</li>
+     *   <li>crmOpportunityCode 是 CC 格式编号 → {@code findProjectLeaderByChanceCode(code)}</li>
+     * </ol>
+     * <p>原实现用 3 个 if-else 级联 + 2 个内层 try/catch NumberFormatException，圈复杂度 8-9；
+     * 重构后用策略链 + 局部变量 {@code codeIsCcFormat} 避免重复判断，圈复杂度降至 4-5。
+     *
+     * @param crmId              CRM 商机主键 id（纯数字字符串），可为空
+     * @param crmOpportunityCode CRM 商机编号 code（CC... 格式）或纯数字 id，可为空
+     * @param username           当前操作用户 username
+     * @return 项目负责人信息；null 表示所有策略都未命中
+     */
+    private CrmProjectLeaderService.ProjectLeaderResult tryResolveLeader(
+            String crmId, String crmOpportunityCode, String username) {
+        // 预计算格式判断，避免重复调用（原实现 isCcFormatCode 调用 3 次）
+        boolean codeIsCcFormat = isCcFormatCode(crmOpportunityCode);
+        boolean codeIsNumericId = isNumericId(crmOpportunityCode);
+
+        // 策略 1：crmId 是数字主键 → chanceId 查 detail
+        if (crmId != null && !crmId.isBlank()) {
+            try {
+                Long chanceId = Long.parseLong(crmId.trim());
+                CrmProjectLeaderService.ProjectLeaderResult leader =
+                        crmProjectLeaderService.findProjectLeaderByChanceId(chanceId, username);
+                if (leader != null) return leader;
+            } catch (NumberFormatException e) {
+                log.warn("CRM link: crmId '{}' is not numeric, skipping chanceId lookup", crmId);
+            }
+        }
+
+        // 策略 2：crmOpportunityCode 是纯数字（CRM 推送误传的 id）→ 作为 chanceId 反查
+        if (codeIsNumericId) {
+            try {
+                Long chanceId = Long.parseLong(crmOpportunityCode.trim());
+                CrmProjectLeaderService.ProjectLeaderResult leader =
+                        crmProjectLeaderService.findProjectLeaderByChanceId(chanceId, username);
+                if (leader != null) {
+                    log.info("CRM link: crmOpportunityCode '{}' is numeric, resolved via chanceId lookup", crmOpportunityCode);
+                    return leader;
+                }
+            } catch (NumberFormatException e) {
+                log.warn("CRM link: crmOpportunityCode '{}' is not numeric", crmOpportunityCode);
+            }
+        }
+
+        // 策略 3：crmOpportunityCode 是 CC 格式编号 → code 查 page-list
+        if (codeIsCcFormat) {
+            return crmProjectLeaderService.findProjectLeaderByChanceCode(crmOpportunityCode, username);
+        }
+
+        return null;
     }
 
     /**

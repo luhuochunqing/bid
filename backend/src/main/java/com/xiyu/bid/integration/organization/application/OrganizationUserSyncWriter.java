@@ -100,13 +100,22 @@ public class OrganizationUserSyncWriter {
                 allowAdminElevation
         );
         user.setUsername(plan.username());
-        // CO-441: OSS 同步用户的工号同时写入 employee_number，保持与 username 一致。
-        // 历史上只写 username，导致 TenderAutoAssignmentService.resolveManagerNameByEmployeeNumber
-        // 按 employee_number 查询时返回 null，CRM 自动分配失败。V1126 迁移脚本回填历史数据。
-        user.setEmployeeNumber(plan.username());
-        // spec 037: OSS 工号即 CRM salesNo（已生产验证），填充后 generateToken 不再依赖 OSS token。
-        // 历史上 users.crm_sales_no 全表 NULL，导致 PM 未登录时无法换 CRM JWT → 标讯无法关联商机。
-        user.setCrmSalesNo(plan.username());
+        // spec 037 Review H1：username 三用（登录账号/工号/CRM salesNo）的防御性校验。
+        // OSS 同步事件约定 username 字段为工号（如 "04503"），但若上游改推邮箱前缀或 AD 账号，
+        // 三字段会被同一非工号值污染 → TenderAutoAssignmentService 按 employee_number 查询失败（CO-441 再现）
+        // + generateToken 缺 salesNo → 标讯无法关联商机。不匹配时只 setUsername，跳过工号字段填充。
+        if (looksLikeEmployeeNumber(plan.username())) {
+            // CO-441: OSS 同步用户的工号同时写入 employee_number，保持与 username 一致。
+            // 历史上只写 username，导致 TenderAutoAssignmentService.resolveManagerNameByEmployeeNumber
+            // 按 employee_number 查询时返回 null，CRM 自动分配失败。V1126 迁移脚本回填历史数据。
+            user.setEmployeeNumber(plan.username());
+            // spec 037: OSS 工号即 CRM salesNo（已生产验证），填充后 generateToken 不再依赖 OSS token。
+            // 历史上 users.crm_sales_no 全表 NULL，导致 PM 未登录时无法换 CRM JWT → 标讯无法关联商机。
+            user.setCrmSalesNo(plan.username());
+        } else {
+            log.warn("OSS 同步事件 username 不像工号，跳过 employee_number/crm_sales_no 填充：username={}, externalUserId={}",
+                    plan.username(), snapshot.externalUserId());
+        }
         user.setPassword(user.getPassword() == null ? LOCKED_PASSWORD_HASH : user.getPassword());
         user.setEmail(plan.email());
         user.setFullName(plan.fullName());
@@ -190,6 +199,27 @@ public class OrganizationUserSyncWriter {
         RoleProfile roleProfile = roleProfileRepository.findByCodeIgnoreCase(roleCode).orElse(null);
         user.setRoleProfile(roleProfile);
         user.setRole(RoleProfileCatalog.legacyRoleForCode(roleProfile == null ? roleCode : roleProfile.getCode()));
+    }
+
+    /**
+     * spec 037 Review H1：判断 username 是否像工号（OSS 同步约定为纯数字或数字为主的字符串）。
+     * <p>规则：
+     * <ul>
+     *   <li>非空且长度 ≤ 20（工号一般不会超过 20 字符）</li>
+     *   <li>至少包含一个数字</li>
+     *   <li>不包含 {@code @}（排除邮箱）和 {@code .}（排除邮箱前缀如 john.doe）</li>
+     * </ul>
+     * <p>宽松设计：只要不含明显非工号特征就通过，避免误拒合法工号（如 E00123、04503）。
+     */
+    private static boolean looksLikeEmployeeNumber(String username) {
+        if (username == null || username.isBlank() || username.length() > 20) {
+            return false;
+        }
+        if (username.contains("@") || username.contains(".")) {
+            return false;
+        }
+        // 至少包含一个数字（纯字母的 AD 账号如 wangx 不算工号）
+        return username.chars().anyMatch(c -> c >= '0' && c <= '9');
     }
 
     private Set<String> normalizeSet(java.util.List<String> values) {

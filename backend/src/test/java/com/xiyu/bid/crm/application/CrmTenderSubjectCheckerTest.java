@@ -51,7 +51,7 @@ class CrmTenderSubjectCheckerTest {
 
     @BeforeEach
     void setUp() {
-        checker = new CrmTenderSubjectChecker(httpClient, authService, properties, crmChanceService);
+        checker = new CrmTenderSubjectChecker(httpClient, properties, crmChanceService, new CrmApiTemplate(authService));
         // lenient：code=-1 等用例不会触达这些 stub
         lenient().when(authService.getValidTokenForUser(anyString())).thenReturn("fake-token");
         lenient().when(properties.getEffectiveChanceBaseUrl()).thenReturn("https://chance-test.ehsy.com");

@@ -44,13 +44,16 @@ public class CrmChanceService {
     private final CrmAuthService authService;
     private final CrmProperties properties;
     private final CrmChanceTenderMatcher tenderMatcher;
+    private final CrmApiTemplate apiTemplate;
 
     public CrmChanceService(CrmHttpClient httpClient, CrmAuthService authService,
-                            CrmProperties properties, CrmChanceTenderMatcher tenderMatcher) {
+                            CrmProperties properties, CrmChanceTenderMatcher tenderMatcher,
+                            CrmApiTemplate apiTemplate) {
         this.httpClient = httpClient;
         this.authService = authService;
         this.properties = properties;
         this.tenderMatcher = tenderMatcher;
+        this.apiTemplate = apiTemplate;
     }
 
     /**
@@ -68,12 +71,7 @@ public class CrmChanceService {
         if (code == null || code.isBlank()) {
             return null;
         }
-        CustomerChanceDTO body = new CustomerChanceDTO(
-                null, null, code, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null);
-        CustomerChancePageRequest request = new CustomerChancePageRequest(1, 1, body);
-        CrmChancePageResult result = doPageList(request, username);
-        return result.list().isEmpty() ? null : result.list().get(0);
+        return findFirstByCondition(CustomerChanceDTO.byCode(code), username, "code=" + code);
     }
 
     /**
@@ -91,30 +89,39 @@ public class CrmChanceService {
         if (bidId == null) {
             return null;
         }
-        CustomerChanceDTO body = new CustomerChanceDTO(
-                null, null, null, bidId, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null);
+        CustomerChanceVO first = findFirstByCondition(CustomerChanceDTO.byBidId(bidId), username, "bidId=" + bidId);
+        if (first == null) {
+            return null;
+        }
+        // 本地校验：若返回的商机 bidId 与查询的 bidId 不匹配，可能是 CRM 不支持 bidId 查询
+        if (first.bidId() != null && !bidId.equals(first.bidId())) {
+            log.warn("findByBidId: bidId mismatch, queried={} but returned={}, CRM may not support bidId query",
+                    bidId, first.bidId());
+            return null;
+        }
+        return first;
+    }
+
+    /**
+     * spec 037 Review L2：收敛"按条件查第一条商机"的样板代码。
+     * <p>负责构造 page request → doPageList → 取 first 或 null → 异常降级。
+     * pageSize 取 10（而非 1）以保留多条时的告警能力，由调用方做业务校验。
+     */
+    private CustomerChanceVO findFirstByCondition(CustomerChanceDTO body, String username, String context) {
         CustomerChancePageRequest request = new CustomerChancePageRequest(1, 10, body);
         try {
             CrmChancePageResult result = doPageList(request, username);
             if (result.list().isEmpty()) {
-                log.warn("findByBidId: no opportunity found for bidId={}", bidId);
+                log.warn("findFirstByCondition: no opportunity found for {}", context);
                 return null;
             }
             if (result.list().size() > 1) {
-                log.warn("findByBidId: bidId={} returned {} opportunities, taking first",
-                        bidId, result.list().size());
+                log.warn("findFirstByCondition: {} returned {} opportunities, taking first",
+                        context, result.list().size());
             }
-            CustomerChanceVO first = result.list().get(0);
-            // 本地校验：若返回的商机 bidId 与查询的 bidId 不匹配，可能是 CRM 不支持 bidId 查询
-            if (first.bidId() != null && !bidId.equals(first.bidId())) {
-                log.warn("findByBidId: bidId mismatch, queried={} but returned={}, CRM may not support bidId query",
-                        bidId, first.bidId());
-                return null;
-            }
-            return first;
+            return result.list().get(0);
         } catch (RuntimeException e) {
-            log.warn("findByBidId: failed for bidId={}: {}", bidId, e.getMessage());
+            log.warn("findFirstByCondition: failed for {}: {}", context, e.getMessage());
             return null;
         }
     }
@@ -185,37 +192,20 @@ public class CrmChanceService {
     }
 
     private CrmChancePageResult doPageList(CustomerChancePageRequest request, String username) {
-        String token;
-        try {
-            token = authService.getValidTokenForUser(username);
-        } catch (IllegalStateException | TokenUnavailableException e) {
-            log.warn("CRM page-list skipped because token acquisition failed: {}", e.getMessage());
-            return emptyPageResult();
-        }
         String baseUrl = properties.getEffectiveChanceBaseUrl();
         String path = properties.getChance().getPageListPath();
-        return doPageList(token, baseUrl, path, request, username);
-    }
-
-    private CrmChancePageResult doPageList(String token, String baseUrl, String path,
-                                           CustomerChancePageRequest request, String username) {
         log.info("CRM page-list request: baseUrl={}, path={}, body={}", baseUrl, path, request);
-        CrmResponseHandler.CrmApiResponse response = httpClient.post(baseUrl, path, token, request);
+        // spec 037 Review L1：用 CrmApiTemplate 统一 401 重试样板
+        CrmResponseHandler.CrmApiResponse response = apiTemplate.executeWithTokenRetry(
+                username,
+                token -> httpClient.post(baseUrl, path, token, request),
+                emptyApiResponse(),
+                "chance page-list");
 
-        if (response.isUnauthorized()) {
-            authService.handleUnauthorizedForUser(username);
-            try {
-                token = authService.getValidTokenForUser(username);
-            } catch (IllegalStateException | TokenUnavailableException e) {
-                log.warn("CRM chance page-list skipped because token refresh failed after unauthorized: {}",
-                        e.getMessage());
-                return emptyPageResult();
-            }
-            response = httpClient.post(baseUrl, path, token, request);
-        }
-
-        if (!response.success() || response.data() == null) {
-            log.warn("CRM chance page-list failed: code={}, msg={}", response.code(), response.msg());
+        if (response == null || !response.success() || response.data() == null) {
+            log.warn("CRM chance page-list failed: code={}, msg={}",
+                    response != null ? response.code() : -1,
+                    response != null ? response.msg() : "token unavailable");
             return emptyPageResult();
         }
         return parsePageResponse(response.data());
@@ -229,22 +219,24 @@ public class CrmChanceService {
      * @return true 回传成功，false 回传失败
      */
     public boolean bidInfoSync(BidInfoSyncDTO bidInfoSync, String username) {
-        String token = authService.getValidTokenForUser(username);
         String baseUrl = properties.getEffectiveChanceBaseUrl();
         String path = properties.getChance().getBidInfoSyncPath();
-        CrmResponseHandler.CrmApiResponse response = httpClient.post(baseUrl, path, token, bidInfoSync);
+        CrmResponseHandler.CrmApiResponse response = apiTemplate.executeWithTokenRetry(
+                username,
+                token -> httpClient.post(baseUrl, path, token, bidInfoSync),
+                "bidInfoSync");
 
-        if (response.isUnauthorized()) {
-            authService.handleUnauthorizedForUser(username);
-            token = authService.getValidTokenForUser(username);
-            response = httpClient.post(baseUrl, path, token, bidInfoSync);
-        }
-
-        if (!response.success()) {
-            log.warn("CRM bidInfoSync failed: code={}, msg={}", response.code(), response.msg());
+        if (response == null || !response.success()) {
+            log.warn("CRM bidInfoSync failed: code={}, msg={}",
+                    response != null ? response.code() : -1,
+                    response != null ? response.msg() : "token unavailable");
             return false;
         }
         return true;
+    }
+
+    private static CrmResponseHandler.CrmApiResponse emptyApiResponse() {
+        return new CrmResponseHandler.CrmApiResponse(401, "token unavailable", null, false);
     }
 
     @SuppressWarnings("unchecked")

@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
  * <p>用于外部系统推送标讯时只携带商机主键 id（未携带 code 商机编号）的场景：
  * 通过 id 反查 code，以便后续标讯状态回传（bidInfoSync）能正确匹配商机。
  * <p>降级策略：查询失败或未找到返回 null，不中断主流程。
+ * <p>spec 037 Review L1：401 重试样板抽取到 {@link CrmApiTemplate}。
  */
 @Service
 public class CrmChanceDetailService {
@@ -24,13 +25,13 @@ public class CrmChanceDetailService {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final CrmHttpClient httpClient;
-    private final CrmAuthService authService;
+    private final CrmApiTemplate apiTemplate;
     private final CrmProperties properties;
 
-    public CrmChanceDetailService(CrmHttpClient httpClient, CrmAuthService authService,
+    public CrmChanceDetailService(CrmHttpClient httpClient, CrmApiTemplate apiTemplate,
                                   CrmProperties properties) {
         this.httpClient = httpClient;
-        this.authService = authService;
+        this.apiTemplate = apiTemplate;
         this.properties = properties;
     }
 
@@ -45,33 +46,20 @@ public class CrmChanceDetailService {
         if (id == null) {
             return null;
         }
-        String token;
-        try {
-            token = authService.getValidTokenForUser(username);
-        } catch (TokenUnavailableException e) {
-            log.warn("CRM chance detail skipped: token unavailable for id={}, username={}: {}",
-                    id, username, e.getMessage());
-            return null;
-        }
         String baseUrl = properties.getEffectiveChanceBaseUrl();
         String path = properties.getChance().getDetailPath() + "?id=" + id;
         log.info("CRM chance detail request: baseUrl={}, path={}, id={}", baseUrl, path, id);
-        CrmResponseHandler.CrmApiResponse response = httpClient.post(baseUrl, path, token, null);
 
-        if (response.isUnauthorized()) {
-            authService.handleUnauthorizedForUser(username);
-            try {
-                token = authService.getValidTokenForUser(username);
-            } catch (TokenUnavailableException e) {
-                log.warn("CRM chance detail skipped after 401: id={}, username={}: {}",
-                        id, username, e.getMessage());
-                return null;
-            }
-            response = httpClient.post(baseUrl, path, token, null);
-        }
+        CrmResponseHandler.CrmApiResponse response = apiTemplate.executeWithTokenRetry(
+                username,
+                token -> httpClient.post(baseUrl, path, token, null),
+                "chance detail");
 
-        if (!response.success() || response.data() == null) {
-            log.warn("CRM chance detail failed: code={}, msg={}, id={}", response.code(), response.msg(), id);
+        if (response == null || !response.success() || response.data() == null) {
+            log.warn("CRM chance detail failed: code={}, msg={}, id={}",
+                    response != null ? response.code() : -1,
+                    response != null ? response.msg() : "token unavailable",
+                    id);
             return null;
         }
         try {

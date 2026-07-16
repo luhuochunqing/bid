@@ -16,52 +16,39 @@ public class CrmCustomerService {
     private static final Logger log = LoggerFactory.getLogger(CrmCustomerService.class);
 
     private final CrmHttpClient httpClient;
-    private final CrmAuthService authService;
     private final CrmProperties properties;
+    private final CrmApiTemplate apiTemplate;
 
-    public CrmCustomerService(CrmHttpClient httpClient, CrmAuthService authService,
-                              CrmProperties properties) {
+    public CrmCustomerService(CrmHttpClient httpClient, CrmProperties properties, CrmApiTemplate apiTemplate) {
         this.httpClient = httpClient;
-        this.authService = authService;
         this.properties = properties;
+        this.apiTemplate = apiTemplate;
     }
 
     public CrmResponseHandler.CrmApiResponse searchCustomers(String keyword, int pageSize, String username) {
-        String token;
-        try {
-            token = authService.getValidTokenForUser(username);
-        } catch (TokenUnavailableException e) {
-            log.warn("searchCustomers skipped: token unavailable for username={}: {}", username, e.getMessage());
-            return new CrmResponseHandler.CrmApiResponse(401, "token unavailable", null, false);
-        }
         Map<String, Object> body = Map.of("keyword", keyword, "pageSize", Math.min(pageSize, 20));
         String baseUrl = properties.getEffectiveCustomerBaseUrl();
         String path = properties.getCustomer().getSearchPath();
-        CrmResponseHandler.CrmApiResponse response = httpClient.post(baseUrl, path, token, body);
-
-        if (response.isUnauthorized()) {
-            authService.handleUnauthorizedForUser(username);
-            try {
-                token = authService.getValidTokenForUser(username);
-            } catch (TokenUnavailableException e) {
-                log.warn("searchCustomers skipped after 401: username={}: {}", username, e.getMessage());
-                return new CrmResponseHandler.CrmApiResponse(401, "token unavailable", null, false);
-            }
-            response = httpClient.post(baseUrl, path, token, body);
-        }
-        return response;
+        // spec 037 Review L1：用 CrmApiTemplate 统一 401 重试样板
+        return apiTemplate.executeWithTokenRetry(
+                username,
+                token -> httpClient.post(baseUrl, path, token, body),
+                tokenUnavailableResponse(),
+                "customer search");
     }
 
     public CrmResponseHandler.CrmApiResponse getCustomerContacts(List<String> customerIds, String username) {
-        String token;
-        try {
-            token = authService.getValidTokenForUser(username);
-        } catch (TokenUnavailableException e) {
-            log.warn("getCustomerContacts skipped: token unavailable for username={}: {}", username, e.getMessage());
-            return new CrmResponseHandler.CrmApiResponse(401, "token unavailable", null, false);
-        }
         String baseUrl = properties.getEffectiveCustomerBaseUrl();
         String path = properties.getCustomer().getContactsPath();
-        return httpClient.post(baseUrl, path, token, Map.of("customerIds", customerIds));
+        // spec 037 Review L1：补齐 401 重试（原实现只取一次 token，无重试，与其他 Service 不一致）
+        return apiTemplate.executeWithTokenRetry(
+                username,
+                token -> httpClient.post(baseUrl, path, token, Map.of("customerIds", customerIds)),
+                tokenUnavailableResponse(),
+                "customer contacts");
+    }
+
+    private static CrmResponseHandler.CrmApiResponse tokenUnavailableResponse() {
+        return new CrmResponseHandler.CrmApiResponse(401, "token unavailable", null, false);
     }
 }

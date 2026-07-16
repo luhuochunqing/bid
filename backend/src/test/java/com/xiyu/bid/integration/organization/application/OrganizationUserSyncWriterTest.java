@@ -427,4 +427,45 @@ class OrganizationUserSyncWriterTest {
         assertThat(saved.getValue().getEmployeeNumber()).isEqualTo("04503");
         assertThat(saved.getValue().getUsername()).isEqualTo("04503");
     }
+
+    @Test
+    @DisplayName("spec 037 Review H1: username 不像工号（邮箱前缀）时跳过 employee_number/crm_sales_no 填充")
+    void upsert_usernameNotLikeEmployeeNumber_skipsEmployeeFields() {
+        // 防御场景：OSS 上游改推邮箱前缀（如 john.doe），不应污染 employee_number/crm_sales_no
+        when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "10004")).thenReturn(Optional.empty());
+        when(roleProfileRepository.findByCodeIgnoreCase("bid-Team")).thenReturn(Optional.of(role("bid-Team")));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        writer.upsert("oss", "event-key", new OrganizationUserSnapshot(
+                "10004", "john.doe", "约翰", "john@example.com",
+                "13800000000", "sales", "销售部", "", "bid-Team", true
+        ));
+
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(saved.capture());
+        // username 仍写入（登录账号不因格式跳过）
+        assertThat(saved.getValue().getUsername()).isEqualTo("john.doe");
+        // 但 employee_number 和 crm_sales_no 不应被非工号污染
+        assertThat(saved.getValue().getEmployeeNumber()).isNull();
+        assertThat(saved.getValue().getCrmSalesNo()).isNull();
+    }
+
+    @Test
+    @DisplayName("spec 037 Review H1: 纯数字工号（如 04503）正常填充 employeeNumber/crmSalesNo")
+    void upsert_alphanumericEmployeeNumber_fillsNormally() {
+        when(userRepository.findByExternalOrgSourceAppAndExternalOrgUserId("oss", "10005")).thenReturn(Optional.empty());
+        when(roleProfileRepository.findByCodeIgnoreCase("bid-Team")).thenReturn(Optional.of(role("bid-Team")));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        writer.upsert("oss", "event-key", new OrganizationUserSnapshot(
+                "10005", "04503", "王旭州", "wangxz@example.com",
+                "13800000000", "sales", "销售部", "", "bid-Team", true
+        ));
+
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(saved.capture());
+        assertThat(saved.getValue().getUsername()).isEqualTo("04503");
+        assertThat(saved.getValue().getEmployeeNumber()).isEqualTo("04503");
+        assertThat(saved.getValue().getCrmSalesNo()).isEqualTo("04503");
+    }
 }

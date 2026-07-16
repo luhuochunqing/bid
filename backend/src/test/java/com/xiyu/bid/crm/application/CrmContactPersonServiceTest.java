@@ -66,7 +66,7 @@ class CrmContactPersonServiceTest {
         when(contactPersonPaths.getPageListPath()).thenReturn("/contact-person-info/page-list");
         CrmApiResponse response = CrmResponseHandler.parse(crmBody);
         when(httpClient.post(anyString(), anyString(), anyString(), any())).thenReturn(response);
-        return new CrmContactPersonService(httpClient, authService, properties);
+        return new CrmContactPersonService(httpClient, new CrmApiTemplate(authService), properties);
     }
 
     @Test

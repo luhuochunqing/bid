@@ -1,5 +1,7 @@
 package com.xiyu.bid.crm.application;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.crm.config.CrmProperties;
 import com.xiyu.bid.crm.infrastructure.CrmHttpClient;
 import com.xiyu.bid.crm.infrastructure.CrmResponseHandler;
@@ -7,6 +9,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+
+import java.util.Map;
 
 /**
  * CRM 鉴权：spec 037 fallback 版。
@@ -29,11 +33,19 @@ import org.springframework.util.StringUtils;
  * </ol>
  * <p><b>客户禁令</b>：禁止使用"系统服务号/全局账号"换取 CRM JWT（客户明确要求必须基于真实用户 OSS token）。
  * 无用户、无用户 profile 时抛 {@link TokenUnavailableException}。
+ * <p><b>spec 037 设计 Review 修正</b>：
+ * <ul>
+ *   <li>H2：JSON body 改用 {@link ObjectMapper} 序列化，替代手工 {@code String.format} 拼装，
+ *       覆盖 JSON 规范要求的全部控制字符转义（原 CrmJsonUtils.escapeJson 漏处理 \b \f 等）</li>
+ *   <li>M4：{@link #handleUnauthorizedForUser} 不再清 OSS cache —— CRM JWT 401 与 OSS token 独立，
+ *       误清 OSS 会让"菜单直连 OSS 接口"在 CRM 401 后需要重新登录。OSS token 失效应由 OSS 接口自身 401 触发</li>
+ * </ul>
  */
 @Service
 public class CrmAuthService {
 
     private static final Logger log = LoggerFactory.getLogger(CrmAuthService.class);
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final CrmHttpClient httpClient;
     private final CrmProperties properties;
@@ -81,8 +93,10 @@ public class CrmAuthService {
     }
 
     /**
-     * 用户 CRM 接口 401：联合清理 JWT + profile + <strong>OSS</strong>，
-     * 避免「只清 JWT、仍用坏 OSS 反复 generateToken」。
+     * 用户 CRM 接口 401：清理 CRM JWT + profile，触发下次取 token 时重新 generateToken。
+     * <p>spec 037 Review M4：不再清 OSS cache —— generateToken fallback 路径不依赖 OSS token，
+     * 且 CRM JWT 401 与 OSS token 独立。误清 OSS 会让"菜单直连 OSS 接口"在 CRM 401 后需要重新登录。
+     * OSS token 失效应由 OSS 接口自身 401 触发，或由 {@code AuthService.logout} 主动清。
      */
     public void handleUnauthorizedForUser(String username) {
         if (username == null || username.isBlank()) {
@@ -90,8 +104,7 @@ public class CrmAuthService {
         }
         userTokenCache.invalidate(username);
         userProfileCache.invalidate(username);
-        ossUserTokenCache.invalidate(username);
-        log.info("User CRM JWT + profile + OSS cleared for user={} due to 401", username);
+        log.info("User CRM JWT + profile cleared for user={} due to 401 (OSS cache preserved)", username);
     }
 
     public void logoutUser(String username) {
@@ -128,8 +141,7 @@ public class CrmAuthService {
         String baseUrl = properties.getEffectiveChanceBaseUrl();
         String path = properties.getAuth().getGenerateTokenPath();
         log.debug("CRM generateToken (with auth): nickName={}, salesNo={}", nickName, salesNo);
-        String body = String.format("{\"nickName\":\"%s\",\"salesNo\":\"%s\"}",
-                CrmJsonUtils.escapeJson(nickName), CrmJsonUtils.escapeJson(salesNo));
+        String body = buildGenerateTokenBody(nickName, salesNo);
         CrmResponseHandler.CrmApiResponse response = httpClient.postWithAuth(
                 baseUrl, path, ossAccessToken, body);
         if (response.success() && response.data() != null && response.data().isTextual()) {
@@ -151,13 +163,26 @@ public class CrmAuthService {
         String baseUrl = properties.getEffectiveChanceBaseUrl();
         String path = properties.getAuth().getGenerateTokenPath();
         log.debug("CRM generateToken (fallback, no auth): nickName={}, salesNo={}", nickName, salesNo);
-        String body = String.format("{\"nickName\":\"%s\",\"salesNo\":\"%s\"}",
-                CrmJsonUtils.escapeJson(nickName), CrmJsonUtils.escapeJson(salesNo));
+        String body = buildGenerateTokenBody(nickName, salesNo);
         CrmResponseHandler.CrmApiResponse response = httpClient.postJson(baseUrl, path, body);
         if (response.success() && response.data() != null && response.data().isTextual()) {
             return response.data().asText();
         }
         throw new TokenUnavailableException(
                 "CRM generateToken failed: code=" + response.code() + " msg=" + response.msg());
+    }
+
+    /**
+     * 构造 generateToken 请求 body（spec 037 Review H2：用 ObjectMapper 替代手工拼装）。
+     * <p>原 {@code String.format + CrmJsonUtils.escapeJson} 漏处理 {@code \b \f} 等 JSON 规范控制字符，
+     * 改用 ObjectMapper 保证完整覆盖 JSON 规范要求的转义。
+     */
+    private static String buildGenerateTokenBody(String nickName, String salesNo) {
+        try {
+            return MAPPER.writeValueAsString(Map.of("nickName", nickName, "salesNo", salesNo));
+        } catch (JsonProcessingException e) {
+            // nickName/salesNo 都是普通字符串，理论上不会序列化失败
+            throw new IllegalStateException("Failed to serialize generateToken body", e);
+        }
     }
 }

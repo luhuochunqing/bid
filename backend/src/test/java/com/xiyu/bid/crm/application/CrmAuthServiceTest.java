@@ -201,36 +201,37 @@ class CrmAuthServiceTest {
     // ========== 场景 3：401 联合清理 + fallback 路径切换 ==========
 
     @Test
-    @DisplayName("401 清理 OSS 后，第二次换 JWT fallback 到 postJson（OSS 已被清理）")
-    void handleUnauthorizedForUser_clearsOss_thenFallbackToPostJson() {
+    @DisplayName("spec 037 M4：401 不清 OSS cache，第二次仍走 postWithAuth（OSS 仍在）")
+    void handleUnauthorizedForUser_preservesOssCache_usesPostWithAuthAgain() {
         User userA = User.builder()
                 .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
         when(userRepository.findByUsername("userA")).thenReturn(Optional.of(userA));
         putUserOss("userA", "oss-token");
         // 第一次：OSS token 存在 → postWithAuth
-        mockGenerateTokenWithAuthSuccess("crm-jwt-1");
+        mockGenerateTokenWithAuthSequential("crm-jwt-1", "crm-jwt-after-401");
 
         authService.getValidTokenForUser("userA");
         assertThat(ossUserTokenCache.get("userA")).isPresent();
         verify(httpClient, times(1)).postWithAuth(anyString(), anyString(), anyString(), anyString());
         verify(httpClient, times(0)).postJson(anyString(), anyString(), any());
 
-        // 401 联合清理：JWT + profile + OSS 全部清掉
+        // spec 037 Review M4：401 只清 JWT + profile，不清 OSS cache
+        // 原因：CRM JWT 401 与 OSS token 独立，误清 OSS 会让"菜单直连 OSS 接口"
+        // 在 CRM 401 后需要重新登录。OSS token 失效应由 OSS 接口自身 401 触发
         authService.handleUnauthorizedForUser("userA");
-        assertThat(ossUserTokenCache.get("userA")).isEmpty();
+        assertThat(ossUserTokenCache.get("userA")).isPresent();
 
-        // 第二次：OSS token 已被清理 → fallback 到 postJson
-        mockGenerateTokenPostJsonSuccess("crm-jwt-after-401");
+        // 第二次：OSS token 仍在 → 仍走 postWithAuth（不再 fallback 到 postJson）
         String token = authService.getValidTokenForUser("userA");
 
         assertThat(token).isEqualTo("crm-jwt-after-401");
-        verify(httpClient, times(1)).postWithAuth(anyString(), anyString(), anyString(), anyString());
-        verify(httpClient, times(1)).postJson(anyString(), anyString(), anyString());
+        verify(httpClient, times(2)).postWithAuth(anyString(), anyString(), anyString(), anyString());
+        verify(httpClient, times(0)).postJson(anyString(), anyString(), any());
     }
 
     @Test
-    @DisplayName("401 只清当前用户缓存，不影响其他用户（其他用户仍走 postWithAuth）")
-    void handleUnauthorizedForUser_onlyClearsCurrentUser() {
+    @DisplayName("spec 037 M4：401 只清当前用户 JWT/profile，不影响其他用户；OSS cache 全部保留")
+    void handleUnauthorizedForUser_onlyClearsCurrentUser_jwtCacheIsolated_ossPreserved() {
         User userA = User.builder()
                 .id(1L).username("userA").fullName("用户A").crmSalesNo("10001").build();
         User userB = User.builder()
@@ -251,14 +252,18 @@ class CrmAuthServiceTest {
         authService.getValidTokenForUser("userB");
         authService.handleUnauthorizedForUser("userA");
 
+        // spec 037 M4：OSS cache 不被清理（A 和 B 都仍在）
+        assertThat(ossUserTokenCache.get("userA")).isPresent();
+        assertThat(ossUserTokenCache.get("userB")).isPresent();
+
         // B 仍缓存命中，不再调 generateToken
         authService.getValidTokenForUser("userB");
         verify(httpClient, times(2)).postWithAuth(anyString(), anyString(), anyString(), anyString());
 
-        // A 的 OSS 已被清理 → fallback 到 postJson
-        mockGenerateTokenPostJsonSuccess("crm-jwt-a-after-401");
+        // A 的 JWT 已清 → 重新调 postWithAuth（OSS 仍在，不走 postJson fallback）
         authService.getValidTokenForUser("userA");
-        verify(httpClient, times(1)).postJson(anyString(), anyString(), anyString());
+        verify(httpClient, times(3)).postWithAuth(anyString(), anyString(), anyString(), anyString());
+        verify(httpClient, times(0)).postJson(anyString(), anyString(), any());
     }
 
     // ========== 场景 4：logoutUser ==========
