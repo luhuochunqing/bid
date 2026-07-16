@@ -18,7 +18,7 @@ Pos: src/views/Dashboard/components/ - 工作台改造组件
         @click="emit('row-click', item)"
         @keydown.enter.prevent="emit('row-click', item)"
       >
-        <span class="name">{{ item.name }}</span>
+        <span class="name" :title="item.name">{{ item.name }}</span>
         <span class="date">{{ item.date }}</span>
         <span class="countdown" :class="item.countdownCls">{{ item.countdown }}</span>
       </div>
