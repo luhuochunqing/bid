@@ -1,82 +1,45 @@
 <template>
   <div class="workbench">
-    <div class="page-identity">
-      <span class="page-kicker">工作台</span>
-    </div>
-    <WelcomeBanner
+    <!-- 第 1 部分：欢迎横幅（改造版） -->
+    <WelcomeBannerRebuild
       v-if="permissions.WelcomeBanner"
-      :role="currentUserRole"
-      :title="bannerTitle"
+      :greeting="greeting"
+      :user-name="currentUserName"
       :subtitle="bannerSubtitle"
-      :actions="bannerActions"
-      @action-click="handleBannerAction"
+      :stats="[]"
+      @stat-click="handleWelcomeStatClick"
     />
-    <MetricCards
-      v-if="permissions.MetricCards"
-      :metrics="metrics" :loading="metricsLoading" :error="metricsError"
-      @metric-click="handleMetricClick" @retry="reloadMetrics"
-    />
-    <WorkbenchAdditions :can-create-project="permissions.canCreateProject" :can-view-tenders="permissions.TenderList"
-      :deadline-metrics="deadlineMetrics" :deadline-metrics-loading="deadlineMetricsLoading"
-      :deadline-metrics-error="deadlineMetricsError" @handle-todos="router.push('/project?tab=todo')"
-      @retry-deadline="loadDeadlineStats" />
 
-    <WorkbenchStaticLayout
-      v-if="!dynamicLayout"
-      v-model:calendar-date="calendarDate"
-      v-model:active-calendar-filter="activeCalendarFilter"
-      :calendar-filters="calendarFilters"
+    <!-- 第 2 部分：待办模块（4 分类卡片） -->
+    <TodoCategoryCards
+      :cards="todoCategoryCards"
+      @item-click="handleTodoCardClick"
+    />
+
+    <!-- 第 3 部分：截止时间（Tab + 3 列 + 倒计时） -->
+    <DeadlinePanels
+      v-model:active-period="deadlinePeriod"
+      :panels="deadlinePanels"
+      :loading="deadlineMetricsLoading"
+      @row-click="handleDeadlineRowClick"
+    />
+
+    <!-- 第 4 部分：投标日历（改造版） -->
+    <WorkbenchCalendarRebuild
+      :calendar-date="calendarDate"
       :visible-calendar-events="visibleCalendarEvents"
+      :selected-date-key="selectedDateKey"
       :selected-date-events="selectedDateEvents"
       :selected-date-label="selectedDateLabel"
-      :month-calendar-summary="monthCalendarSummary"
-      :upcoming-calendar-events="upcomingCalendarEvents"
-      :get-events-for-date="getEventsForDate"
-      :calendar-cell-class="calendarCellClass"
-      :get-event-type-tag="getEventTypeTag"
-      :calendar-error="calendarError"
-      :permissions="permissions"
-      :hot-tenders="hotTenders"
-      :my-technical-tasks="myTechnicalTasks"
-      :pending-reviews="pendingReviews"
-      :follow-up-customers="followUpCustomers"
-      :active-projects="activeProjects"
-      :get-progress-color="getProgressColor"
-      :get-project-status-type="getProjectStatusType"
-      :team-members="teamMembers"
-      :current-user-role="currentUserRole"
-      :team-performance="teamPerformance"
-      :pending-approvals="pendingApprovals"
-      :approvals-error="approvalsError"
-      :my-processes="myProcesses"
-      :format-relative-time="formatRelativeTime"
-      :processes-error="processesError"
-      :activities="activities"
-      :priority-todos="priorityTodos"
-      :todos-error="todosError"
-      :get-priority-type="getPriorityType"
-      :get-priority-label="getPriorityLabel"
-      @date-click="handleDateClick"
-      @event-date-select="selectCalendarEventDate"
-      @event-action="handleCalendarAction"
-      @retry-schedule="reloadSchedule"
-      @approval-success="handleApprovalSuccess"
-      @view-bidding="router.push('/bidding')"
-      @tender-click="handleTenderClick"
-      @task-change="handleTaskComplete"
-      @review="handleReview"
-      @view-project="router.push('/project')"
-      @project-click="handleProjectClick"
-      @share-click="handleShareClick"
-      @approve="handleApprove"
-      @reject="handleReject"
-      @retry-approvals="loadPendingApprovals"
-      @retry-processes="loadMyProcesses"
-      @retry-todos="loadTodos"
+      @prev-month="goPrevMonth"
+      @next-month="goNextMonth"
+      @date-click="handleCalendarDateClick"
+      @event-click="handleCalendarAction"
     />
 
+    <!-- 动态扩展区（后端配置才显示） -->
     <DynamicLayoutRenderer
-      v-else
+      v-if="dynamicLayout"
       :layout="dynamicLayout"
       :registry="widgetRegistry"
       :widget-props="widgetProps"
@@ -84,16 +47,27 @@
       :permissions="permissions"
     />
 
+    <!-- 第 5 部分：AI 商机预测 + 消息通知 -->
+    <div class="rebuild-ai-notif">
+      <div class="rebuild-ai-card">
+        <div class="rebuild-card-header">
+          <div class="rebuild-card-title"><span class="icon"></span>AI 商机预测</div>
+          <span class="rebuild-ai-tag">敬请期待</span>
+        </div>
+        <div class="rebuild-ai-placeholder">
+          <div class="rebuild-ai-icon">🤖</div>
+          <div class="rebuild-ai-title">AI 商机预测模块 · 规划中</div>
+          <div class="rebuild-ai-sub">基于历史中标数据 + 公开标讯<br>预测潜在高胜率商机 · 后续版本上线</div>
+        </div>
+      </div>
+      <WorkbenchNotifications />
+    </div>
+
     <ApprovalDialog
       v-model:visible="approvalDialogVisible"
       :mode="approvalMode"
       :approval-info="currentApprovalItem"
       @success="handleApprovalSuccess"
-    />
-    <ProjectCollaboratorsDialog
-      v-model="collabDialogVisible"
-      :project="selectedProjectForCollab"
-      @changed="handleProjectMemberChanged"
     />
   </div>
 </template>
@@ -111,18 +85,21 @@ import { useWorkbenchTodos } from '@/views/Dashboard/useWorkbenchTodos.js'
 import { useWorkbenchApprovals } from '@/views/Dashboard/useWorkbenchApprovals.js'
 import { useWorkbenchDeadline } from '@/views/Dashboard/useWorkbenchDeadline.js'; import { useWorkbenchDerivedLists } from '@/views/Dashboard/useWorkbenchDerivedLists.js'
 import { useWorkbenchDynamicWidgets } from '@/views/Dashboard/useWorkbenchDynamicWidgets.js'
+import { useWorkbenchRebuild } from '@/views/Dashboard/useWorkbenchRebuild.js'
 import { hasAnyPermission } from '@/utils/permission'; import { navigateToProject } from '@/utils/projectNavigation.js'
 import {
-  formatCurrentDate, formatRelativeTime, getBannerActionConfig,
-  getBannerSubtitle, getBannerTitle, getPriorityLabel, getPriorityType, getProgressColor,
-  getProjectStatusType, hasQuickStartPermission,
+  formatCurrentDate, formatRelativeTime, getBannerSubtitle,
+  getPriorityLabel, getPriorityType, getProgressColor,
+  getProjectStatusType,
 } from '@/views/Dashboard/workbench-core.js'
 import { normalizeProjectForWorkbench } from '@/views/Dashboard/workbench-utils.js'
 import ApprovalDialog from '@/components/common/ApprovalDialog.vue'
-import MetricCards from '@/views/Dashboard/components/MetricCards.vue'
-import ProjectCollaboratorsDialog from '@/views/Dashboard/components/ProjectCollaboratorsDialog.vue'
-import WorkbenchAdditions from '@/views/Dashboard/components/WorkbenchAdditions.vue'; import WelcomeBanner from '@/views/Dashboard/components/WelcomeBanner.vue'
-import WorkbenchStaticLayout from '@/views/Dashboard/components/WorkbenchStaticLayout.vue'; import DynamicLayoutRenderer from '@/views/Dashboard/components/DynamicLayoutRenderer.vue'
+import DynamicLayoutRenderer from '@/views/Dashboard/components/DynamicLayoutRenderer.vue'
+import WelcomeBannerRebuild from '@/views/Dashboard/components/WelcomeBannerRebuild.vue'
+import TodoCategoryCards from '@/views/Dashboard/components/TodoCategoryCards.vue'
+import DeadlinePanels from '@/views/Dashboard/components/DeadlinePanels.vue'
+import WorkbenchCalendarRebuild from '@/views/Dashboard/components/WorkbenchCalendarRebuild.vue'
+import WorkbenchNotifications from '@/views/Dashboard/components/WorkbenchNotifications.vue'
 import {
   Briefcase, Calendar, Check, DataAnalysis, Document, Flag, TrendCharts, User,
 } from '@element-plus/icons-vue'
@@ -139,8 +116,6 @@ const currentDate = computed(() => formatCurrentDate())
 const workbenchProjects = ref([])
 const hotTenders = ref([])
 const dynamicLayout = ref(null)
-const collabDialogVisible = ref(false)
-const selectedProjectForCollab = ref(null)
 
 const {
   pendingApprovals, pendingApprovalsTotalCount, approvalDialogVisible, approvalMode,
@@ -165,39 +140,8 @@ const {
   icons: Icons, menuPermissionsRef: computed(() => userStore.menuPermissions),
 })
 
-const { deadlineMetrics, deadlineMetricsLoading, deadlineMetricsError, loadDeadlineStats } = useWorkbenchDeadline({ menuPermissionsRef: computed(() => userStore.menuPermissions) })
-const bannerTitle = computed(() => getBannerTitle(currentUserName.value))
-const bannerSubtitle = computed(() => getBannerSubtitle(currentUserRole.value, {
-  currentDate: currentDate.value,
-  summaryStats: summaryStats.value,
-  pendingApprovalsTotalCount: pendingApprovalsTotalCount.value,
-  myProjectCount: myProjectCount.value,
-  pendingCount: pendingCount.value,
-}))
-const bannerActions = computed(() => getBannerActionConfig(currentUserRole.value).map(iconizeAction))
-const permissions = computed(() => {
-  const perms = userStore.menuPermissions
-  return {
-    WelcomeBanner: hasAnyPermission(perms, ['dashboard:view_welcome_banner']),
-    MetricCards: hasAnyPermission(perms, ['dashboard:view_metric_cards']),
-    WorkCalendar: hasAnyPermission(perms, ['dashboard:view_calendar']),
-    TenderList: hasAnyPermission(perms, ['dashboard:view_tender_list']),
-    TechnicalTaskList: hasAnyPermission(perms, ['dashboard:view_technical_task']),
-    ReviewList: hasAnyPermission(perms, ['dashboard:view_review_list']),
-    CustomerFollowUpList: hasAnyPermission(perms, ['dashboard:view_customer_followup']),
-    ProjectList: hasAnyPermission(perms, ['dashboard:view_active_projects']),
-    TeamTaskList: hasAnyPermission(perms, ['dashboard:view_team_task']),
-    TeamPerformance: hasAnyPermission(perms, ['dashboard:view_team_performance']),
-    ApprovalList: hasAnyPermission(perms, ['dashboard:view_approval_list']),
-    ProcessTimeline: hasAnyPermission(perms, ['dashboard:view_process_timeline']),
-    ActivityList: hasAnyPermission(perms, ['dashboard:view_activity_list']),
-    PriorityTodos: hasAnyPermission(perms, ['dashboard:view_priority_todos']),
-    WorkbenchQuickStart: hasQuickStartPermission(userStore.currentUser),
-    canViewProjectList: hasAnyPermission(perms, ['dashboard:view_project_list']),
-    canViewGlobalProjects: hasAnyPermission(perms, ['dashboard:view_global_projects']),
-    canCreateProject: hasAnyPermission(perms, ['project.create', 'project'])
-  }
-})
+const { deadlineStats, deadlineMetrics, deadlineMetricsLoading, deadlineMetricsError, loadDeadlineStats } = useWorkbenchDeadline({ menuPermissionsRef: computed(() => userStore.menuPermissions) })
+const bannerSubtitle = computed(() => `今天是${currentDate.value}，欢迎回到工作台`)
 
 const {
   activeProjects, followUpCustomers, teamMembers, myTechnicalTasks,
@@ -211,15 +155,32 @@ const {
 })
 
 const {
-  calendarDate, activeCalendarFilter, calendarFilters, visibleCalendarEvents,
-  selectedDateEvents, selectedDateLabel, monthCalendarSummary, upcomingCalendarEvents,
-  getEventsForDate, calendarCellClass, handleDateClick, getEventTypeTag,
-  selectCalendarEventDate, handleCalendarAction, loadScheduleOverview, syncSelectedDate,
-  calendarMonthKey, calendarError,
+  calendarDate, visibleCalendarEvents, selectedDateKey, selectedDateEvents,
+  selectedDateLabel, handleCalendarAction, loadScheduleOverview, syncSelectedDate,
+  calendarMonthKey,
 } = useWorkbenchSchedule({
   router,
   assigneeIdRef: currentUserId,
   onEventsLoaded: (events) => biddingStore.setCalendar(events),
+})
+
+const {
+  greeting, deadlinePeriod, permissions, welcomeStats, todoCategoryCards,
+  deadlinePanels,
+  handleWelcomeStatClick, handleTodoCardClick, handleDeadlineRowClick,
+} = useWorkbenchRebuild({
+  priorityTodosRef: priorityTodos,
+  hotTendersRef: hotTenders,
+  activeProjectsRef: activeProjects,
+  pendingApprovalsRef: pendingApprovals,
+  deadlineStatsRef: deadlineStats,
+  visibleCalendarEventsRef: visibleCalendarEvents,
+  menuPermissionsRef: computed(() => userStore.menuPermissions),
+  currentUserRef: computed(() => userStore.currentUser),
+  router,
+  handleTenderClick,
+  handleProjectClick,
+  handleApprove,
 })
 
 const activities = computed(() => {
@@ -258,22 +219,14 @@ const { widgetRegistry, widgetProps, widgetListeners } = useWorkbenchDynamicWidg
     priorityTodos,
     todosError,
     calendarDate,
-    activeCalendarFilter,
-    calendarFilters,
     visibleCalendarEvents,
     selectedDateEvents,
     selectedDateLabel,
-    monthCalendarSummary,
-    upcomingCalendarEvents,
-    calendarError,
   },
   actions: {
     getProgressColor,
     getProjectStatusType,
     formatRelativeTime,
-    getEventsForDate,
-    calendarCellClass,
-    getEventTypeTag,
     getPriorityType,
     getPriorityLabel,
     viewBidding: () => router.push('/bidding'),
@@ -289,21 +242,25 @@ const { widgetRegistry, widgetProps, widgetListeners } = useWorkbenchDynamicWidg
     loadMyProcesses,
     loadTodos,
     handleApprovalSuccess,
-    updateCalendarDate: (value) => { calendarDate.value = value },
-    updateActiveCalendarFilter: (value) => { activeCalendarFilter.value = value },
-    handleDateClick,
-    selectCalendarEventDate,
     handleCalendarAction,
-    reloadSchedule,
   },
 })
 
-function iconizeAction(action) {
-  return { ...action, icon: Icons[action.icon] || action.icon }
+function goPrevMonth() {
+  const d = new Date(calendarDate.value)
+  d.setMonth(d.getMonth() - 1)
+  calendarDate.value = d
 }
-function handleBannerAction(action) {
-  if (action?.target) router.push(action.target)
+function goNextMonth() {
+  const d = new Date(calendarDate.value)
+  d.setMonth(d.getMonth() + 1)
+  calendarDate.value = d
 }
+function handleCalendarDateClick(dateKey) {
+  selectedDateKey.value = dateKey
+  calendarDate.value = new Date(`${dateKey}T00:00:00`)
+}
+
 function handleTenderClick(tender) {
   if (String(tender.id || '').startsWith('-')) {
     router.push('/bidding')
@@ -321,19 +278,11 @@ function handleProjectClick(project) {
   router.push({ path: '/project', query: { demoProjectId: projectId } })
 }
 
-function handleShareClick(project) {
-  selectedProjectForCollab.value = project
-  collabDialogVisible.value = true
+function handleShareClick() {
+  ElMessage.info('协作功能开发中')
 }
 
-function handleProjectMemberChanged() { loadWorkbenchProjects() }
 function handleReview(review) { ElMessage.info(`打开评审: ${review.title}`) }
-
-async function reloadMetrics() {
-  metricsLoading.value = true
-  await loadWorkbenchSummary()
-  metricsLoading.value = false
-}
 
 async function loadWorkbenchProjects() {
   try {
@@ -397,12 +346,3 @@ watch(calendarMonthKey, async (current, previous) => {
 <script>
 export default { name: 'DashboardWorkbench' }
 </script>
-
-<style scoped>
-.side-summary-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  margin-bottom: 20px;
-}
-</style>

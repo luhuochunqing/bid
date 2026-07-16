@@ -1,0 +1,207 @@
+/* Input: 工作台改造区块样式（对齐 workbench-preview.html）
+   Output: welcome-rebuild / todo-category-cards 样式
+   Pos: src/views/Dashboard/styles/ - 工作台改造样式（欢迎横幅 + 待办卡片）
+   一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。 */
+
+/* ========== 改造版整体布局微调 ========== */
+.workbench {
+  padding-top: 12px;
+}
+
+/* ========== 第 1 部分：欢迎横幅（改造） ========== */
+.welcome-rebuild {
+  background: linear-gradient(135deg, var(--brand-xiyu-logo-active) 0%, var(--brand-xiyu-logo) 50%, var(--el-color-primary-light-3) 100%);
+  color: var(--bg-white);
+  border-radius: var(--radius-md);
+  padding: 1.8rem 2.2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 2rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 4px 20px var(--brand-xiyu-logo-shadow);
+  position: relative;
+  overflow: hidden;
+}
+.welcome-rebuild::before {
+  content: '';
+  position: absolute;
+  left: -60px;
+  bottom: -60px;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(var(--bg-white-rgb), 0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+.welcome-rebuild::after {
+  content: '';
+  position: absolute;
+  right: -50px;
+  top: -50px;
+  width: 260px;
+  height: 260px;
+  background: radial-gradient(circle, rgba(var(--bg-white-rgb), 0.1) 0%, transparent 70%);
+  pointer-events: none;
+}
+.welcome-rebuild-text {
+  position: relative;
+  z-index: 1;
+}
+.welcome-rebuild-text .welcome-rebuild-greeting {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+  letter-spacing: 0.5px;
+}
+.welcome-rebuild-text .welcome-rebuild-sub {
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+.welcome-rebuild-stats {
+  display: flex;
+  gap: 0.8rem;
+  position: relative;
+  z-index: 1;
+}
+.welcome-rebuild-stat {
+  background: rgba(var(--bg-white-rgb), 0.12);
+  border: 1px solid rgba(var(--bg-white-rgb), 0.2);
+  padding: 0.7rem 1.2rem;
+  border-radius: var(--radius-sm);
+  text-align: center;
+  min-width: 92px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
+}
+.welcome-rebuild-stat:hover {
+  background: rgba(var(--bg-white-rgb), 0.22);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(var(--shadow-dark-rgb), 0.15);
+}
+.welcome-rebuild-stat .num {
+  font-size: 1.7rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 0.3rem;
+  font-variant-numeric: tabular-nums;
+}
+.welcome-rebuild-stat .label {
+  font-size: 0.72rem;
+  opacity: 0.85;
+  letter-spacing: 0.3px;
+}
+@media (max-width: 768px) {
+  .welcome-rebuild {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  .welcome-rebuild-stats {
+    width: 100%;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .welcome-rebuild-stat {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+/* ========== 第 2 部分：待办模块（4 卡片） ========== */
+.todo-category-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.todo-category-card {
+  background: var(--bg-white);
+  border-radius: var(--radius-md);
+  padding: 1.3rem 1.4rem;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--gray-50);
+  border-left: 3px solid var(--brand-xiyu-logo);
+  display: flex;
+  flex-direction: column;
+  transition: all 0.2s ease;
+}
+.todo-category-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px var(--brand-xiyu-logo-soft);
+}
+.todo-category-card.accent-warning { border-left-color: var(--color-warning); }
+.todo-category-card.accent-success { border-left-color: var(--color-success); }
+.todo-category-card.accent-info { border-left-color: var(--text-muted); }
+.todo-category-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.8rem;
+}
+.todo-category-card-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary-ui);
+}
+.todo-category-card-num {
+  background: linear-gradient(135deg, #F87171 0%, #EF4444 100%);
+  color: var(--bg-white);
+  min-width: 32px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.todo-category-card-list {
+  border-top: 1px dashed var(--gray-150);
+  padding-top: 0.6rem;
+  margin-top: 0.6rem;
+  max-height: 168px;
+  overflow-y: auto;
+  padding-right: 4px;
+  flex: 1;
+}
+.todo-category-card-list::-webkit-scrollbar { width: 4px; }
+.todo-category-card-list::-webkit-scrollbar-thumb { background: var(--gray-200); border-radius: 2px; }
+.todo-category-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.35rem 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary-ui);
+  cursor: pointer;
+}
+.todo-category-item:hover .left { color: var(--brand-xiyu-logo); }
+.todo-category-item .left {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-right: 0.5rem;
+}
+.todo-category-item .right {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.todo-category-empty {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 1rem 0;
+}
+@media (max-width: 1280px) {
+  .todo-category-cards { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 768px) {
+  .todo-category-cards { grid-template-columns: 1fr; }
+}

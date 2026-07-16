@@ -1,0 +1,232 @@
+// Input: 纯核心函数入参（events / todos / projects / approvals / deadlineStats）
+// Output: workbench-rebuild-core 纯核心函数单元测试
+// Pos: src/views/Dashboard/__tests__ - Dashboard 纯核心测试
+import { describe, it, expect } from 'vitest'
+import {
+  classifyDeadlineEvent,
+  buildDeadlinePanels,
+  buildTodoCategoryCards,
+  buildWelcomeStats,
+  formatCountdown,
+} from '@/views/Dashboard/workbench-rebuild-core.js'
+
+describe('classifyDeadlineEvent', () => {
+  it('标题含"报名"归为 signup', () => {
+    expect(classifyDeadlineEvent({ title: '智慧城市项目 - 报名截止' })).toBe('signup')
+  })
+
+  it('标题含"开标"归为 opening', () => {
+    expect(classifyDeadlineEvent({ title: '市政桥梁 - 开标时间' })).toBe('opening')
+  })
+
+  it('标题含"保证金"归为 deposit', () => {
+    expect(classifyDeadlineEvent({ title: '保证金截止提醒' })).toBe('deposit')
+  })
+
+  it('无法识别返回 null', () => {
+    expect(classifyDeadlineEvent({ title: '普通提醒' })).toBeNull()
+  })
+
+  it('空值返回 null', () => {
+    expect(classifyDeadlineEvent(null)).toBeNull()
+    expect(classifyDeadlineEvent({})).toBeNull()
+  })
+})
+
+describe('formatCountdown', () => {
+  const today = new Date('2026-07-15')
+
+  it('0 天显示"今天"', () => {
+    expect(formatCountdown('2026-07-15', today)).toEqual({ text: '今天', cls: 'urgent' })
+  })
+
+  it('1 天显示"明天"', () => {
+    expect(formatCountdown('2026-07-16', today)).toEqual({ text: '明天', cls: 'urgent' })
+  })
+
+  it('2 天显示"后天"', () => {
+    expect(formatCountdown('2026-07-17', today)).toEqual({ text: '后天', cls: 'urgent' })
+  })
+
+  it('3-7 天显示"N 天后"且 cls=warn', () => {
+    expect(formatCountdown('2026-07-18', today)).toEqual({ text: '3 天后', cls: 'warn' })
+    expect(formatCountdown('2026-07-22', today)).toEqual({ text: '7 天后', cls: 'warn' })
+  })
+
+  it('超过 7 天显示"N 天后"且 cls=ok', () => {
+    expect(formatCountdown('2026-07-23', today)).toEqual({ text: '8 天后', cls: 'ok' })
+  })
+
+  it('过期显示"已过期"', () => {
+    expect(formatCountdown('2026-07-14', today)).toEqual({ text: '已过期', cls: 'ok' })
+  })
+
+  it('无效日期返回安全默认', () => {
+    expect(formatCountdown('', today)).toEqual({ text: '--', cls: 'ok' })
+    expect(formatCountdown('invalid', today)).toEqual({ text: '--', cls: 'ok' })
+  })
+})
+
+describe('buildDeadlinePanels', () => {
+  const today = new Date('2026-07-15')
+  const events = [
+    { projectId: 1, title: '智慧城市项目 - 报名截止', date: '2026-07-15' },
+    { projectId: 2, title: '市政桥梁 - 开标', date: '2026-07-16' },
+    { projectId: 3, title: '保证金截止', date: '2026-07-18' },
+    { projectId: 4, title: '普通提醒', date: '2026-07-20' },
+    { projectId: 5, title: '医院项目 - 报名截止', date: '2026-07-20' },
+  ]
+
+  it('按 period=today 过滤今天的事件', () => {
+    const panels = buildDeadlinePanels(events, 'today', today)
+    expect(panels.signup).toHaveLength(1)
+    expect(panels.signup[0].name).toBe('智慧城市项目 - 报名截止')
+    expect(panels.signup[0].projectId).toBe(1)
+    expect(panels.opening).toHaveLength(0)
+  })
+
+  it('按 period=week 过滤本周（今天起 7 天内）', () => {
+    const panels = buildDeadlinePanels(events, 'week', today)
+    expect(panels.signup.length).toBeGreaterThanOrEqual(1)
+    expect(panels.opening).toHaveLength(1)
+    expect(panels.deposit).toHaveLength(1)
+  })
+
+  it('按 period=month 过滤本月（今天起 30 天内）', () => {
+    const panels = buildDeadlinePanels(events, 'month', today)
+    expect(panels.signup).toHaveLength(2)
+    expect(panels.opening).toHaveLength(1)
+  })
+
+  it('每项包含 name/date/countdown/countdownCls/projectId', () => {
+    const panels = buildDeadlinePanels(events, 'today', today)
+    const item = panels.signup[0]
+    expect(item).toHaveProperty('name')
+    expect(item).toHaveProperty('date')
+    expect(item).toHaveProperty('countdown')
+    expect(item).toHaveProperty('countdownCls')
+    expect(item).toHaveProperty('projectId')
+  })
+
+  it('无法分类的事件不进入任何列', () => {
+    const panels = buildDeadlinePanels(events, 'month', today)
+    expect(panels.signup.find((i) => i.projectId === 4)).toBeUndefined()
+    expect(panels.opening.find((i) => i.projectId === 4)).toBeUndefined()
+    expect(panels.deposit.find((i) => i.projectId === 4)).toBeUndefined()
+  })
+
+  it('空 events 返回三列空数组', () => {
+    const panels = buildDeadlinePanels([], 'month', today)
+    expect(panels.signup).toEqual([])
+    expect(panels.opening).toEqual([])
+    expect(panels.deposit).toEqual([])
+  })
+})
+
+describe('buildTodoCategoryCards', () => {
+  it('从四类数据源构建 4 张卡片', () => {
+    const cards = buildTodoCategoryCards({
+      priorityTodos: [
+        { id: 1, title: '商务标编制', done: false, deadline: '2026-07-15' },
+      ],
+      hotTenders: [
+        { id: 10, title: '智慧城市标讯', registrationDeadline: '2026-07-17' },
+      ],
+      activeProjects: [
+        { id: 20, name: '智慧水务项目', status: '待立项' },
+      ],
+      pendingApprovals: [
+        { id: 30, title: 'CA 申请 - 王五', type: 'ca' },
+      ],
+    })
+
+    expect(cards).toHaveLength(4)
+    expect(cards[0].key).toBe('task')
+    expect(cards[0].count).toBe(1)
+    expect(cards[0].items[0].name).toBe('商务标编制')
+
+    expect(cards[1].key).toBe('tender')
+    expect(cards[1].count).toBe(1)
+    expect(cards[1].items[0].name).toBe('智慧城市标讯')
+
+    expect(cards[2].key).toBe('project')
+    expect(cards[2].count).toBe(1)
+
+    expect(cards[3].key).toBe('resource')
+    expect(cards[3].count).toBe(1)
+  })
+
+  it('每张卡片含 title/count/accent/items', () => {
+    const cards = buildTodoCategoryCards({})
+    expect(cards).toHaveLength(4)
+    cards.forEach((card) => {
+      expect(card).toHaveProperty('key')
+      expect(card).toHaveProperty('title')
+      expect(card).toHaveProperty('count')
+      expect(card).toHaveProperty('accent')
+      expect(card).toHaveProperty('items')
+      expect(Array.isArray(card.items)).toBe(true)
+    })
+  })
+
+  it('空数据源返回 count=0 且 items 为空数组', () => {
+    const cards = buildTodoCategoryCards({})
+    cards.forEach((card) => {
+      expect(card.count).toBe(0)
+      expect(card.items).toEqual([])
+    })
+  })
+
+  it('items 最多 4 条', () => {
+    const cards = buildTodoCategoryCards({
+      priorityTodos: Array.from({ length: 10 }, (_, i) => ({ id: i, title: `t${i}`, done: false })),
+    })
+    expect(cards[0].items).toHaveLength(4)
+    // count 仍是全量
+    expect(cards[0].count).toBe(10)
+  })
+
+  it('每条 item 含 name/rightText/id', () => {
+    const cards = buildTodoCategoryCards({
+      priorityTodos: [{ id: 1, title: '任务1', done: false, deadline: '2026-07-15' }],
+    })
+    const item = cards[0].items[0]
+    expect(item).toHaveProperty('name')
+    expect(item).toHaveProperty('rightText')
+    expect(item).toHaveProperty('id')
+  })
+})
+
+describe('buildWelcomeStats', () => {
+  it('构建 4 个统计数字', () => {
+    const stats = buildWelcomeStats({
+      pendingCount: 8,
+      myProjectCount: 12,
+      deadlineStats: {
+        registrationDeadline: { todayCount: 3 },
+        bidOpening: { todayCount: 37 },
+      },
+    })
+    expect(stats).toHaveLength(4)
+    expect(stats[0]).toEqual({ label: '待办任务', value: 8 })
+    expect(stats[1]).toEqual({ label: '待办项目', value: 12 })
+    expect(stats[2]).toEqual({ label: '报名截止', value: 3 })
+    expect(stats[3]).toEqual({ label: '今日开标', value: 37 })
+  })
+
+  it('deadlineStats 为空时报名截止/今日开标为 0', () => {
+    const stats = buildWelcomeStats({
+      pendingCount: 5,
+      myProjectCount: 2,
+      deadlineStats: null,
+    })
+    expect(stats[2].value).toBe(0)
+    expect(stats[3].value).toBe(0)
+  })
+
+  it('缺失字段安全降级为 0', () => {
+    const stats = buildWelcomeStats({})
+    expect(stats).toHaveLength(4)
+    stats.forEach((s) => expect(s.value).toBe(0))
+  })
+})
