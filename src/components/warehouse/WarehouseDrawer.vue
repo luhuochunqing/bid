@@ -4,7 +4,7 @@
       <div class="drawer-header">
         <div class="drawer-header-left">
           <h4 :id="titleId" :class="titleClass">{{ detail?.name || '仓库详情' }}</h4>
-          <el-tag v-if="detail" size="small" :type="detail.type === 'SELF_OPERATED' ? '' : 'warning'" class="header-tag">
+          <el-tag v-if="detail" size="small" :type="detail.type === 'SELF_OPERATED' ? 'info' : 'warning'" class="header-tag">
             {{ detail.type === 'SELF_OPERATED' ? '自营' : '云仓' }}
           </el-tag>
           <el-tag v-if="detail?.region" size="small" class="header-tag">{{ detail.region }}</el-tag>
@@ -125,6 +125,7 @@ import { Upload, Edit, Lock, RefreshRight } from '@element-plus/icons-vue'
 import http from '@/api/client'
 import DateTimeDisplay from '@/components/common/DateTimeDisplay.vue'
 import { filterAttachmentsByType } from './warehouseAttachmentFilter.js'
+import { downloadWithFilename } from '@/utils/download.js'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -183,7 +184,12 @@ const handleFileChange = async (e) => {
   } catch (err) { ElMessage.error(err.response?.data?.message || '上传失败') }
 }
 
-const downloadAttach = (row) => { window.open(`/api/knowledge/warehouses/${props.warehouseId}/attachments/${row.id}/download`, '_blank') }
+const downloadAttach = (row) => {
+  downloadWithFilename(
+    `/api/knowledge/warehouses/${props.warehouseId}/attachments/${row.id}/download`,
+    row.originalFilename || 'attachment'
+  )
+}
 
 const deleteAttach = async (row) => {
   try {

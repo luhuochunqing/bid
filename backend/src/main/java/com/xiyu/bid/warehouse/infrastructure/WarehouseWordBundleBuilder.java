@@ -197,20 +197,22 @@ public class WarehouseWordBundleBuilder {
                 WarehouseWordBundleOrganizationPolicy.sortAttachmentsByFilename(attachments);
 
         for (WarehouseAttachmentReadModel att : sorted) {
-            // §3.7.2：仅支持 JPG/PNG
             String ext = extractExtension(att.getOriginalFilename());
-            if (!IMAGE_EXTENSIONS.contains(ext)) {
-                log.warn("不支持的照片格式: filename={}", att.getOriginalFilename());
-                continue;
-            }
-
-            // §3.6：照片直接嵌入，图片顶部不需要添加小标题（不再输出原文件名）
-
             Path file = resolveAttachmentPath(wh, att);
             if (!Files.exists(file)) {
                 log.warn("附件文件不存在（照片）: warehouseId={}, attachmentId={}, storedFilename={}, resolvedPath={}, attachmentRoot={}",
                         wh.getId(), att.getId(), att.getStoredFilename(), file.toAbsolutePath(), attachmentRoot);
                 writeBodyText(doc, LABEL_FILE_MISSING);
+                continue;
+            }
+            // PDF 走 PDF 渲染逻辑（每页转图片嵌入），支持扫描件 PDF 形式的内外照片
+            if ("pdf".equalsIgnoreCase(ext)) {
+                renderPdfToWord(doc, file);
+                continue;
+            }
+            if (!IMAGE_EXTENSIONS.contains(ext)) {
+                log.warn("不支持的照片格式: filename={}", att.getOriginalFilename());
+                writeBodyText(doc, LABEL_IMAGE_READ_FAILED);
                 continue;
             }
             try {
