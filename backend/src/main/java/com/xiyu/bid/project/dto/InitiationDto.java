@@ -6,6 +6,9 @@ package com.xiyu.bid.project.dto;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.xiyu.bid.project.core.InitiationFieldPolicy;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,6 +24,8 @@ import java.util.List;
 @AllArgsConstructor
 public class InitiationDto {
     private String ownerUnit;
+    @Min(value = 1, message = "计划入围供应商数量不能小于1")
+    @Max(value = 255, message = "计划入围供应商数量不能超过255")
     private Integer expectedBidders;
     private Integer contractPeriodMonths;
     private InitiationFieldPolicy.ProjectType projectType;
@@ -43,6 +48,7 @@ public class InitiationDto {
     private String needDeposit;
     private String competitors;
     /** 招标文件不利项。蓝图 §3.3.1.1 新增。 */
+    @Size(max = 500, message = "招标文件不利项不能超过500字")
     private String tenderAdverseItems;
     /** 风险预判（举例说明）。蓝图 §3.3.1.1 新增。 */
     private String riskAssessment;

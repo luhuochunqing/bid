@@ -40,6 +40,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *   <li>approve 缺 primaryLeadUserId → 400（@NotNull）</li>
  *   <li>approve 完整（primaryLeadUserId + comment）→ 200</li>
  *   <li>approve 仅 primaryLeadUserId 无 comment → 200（comment 可选）</li>
+ *   <li>approve expectedBidders=0 → 400（@Min(1)）</li>
+ *   <li>approve expectedBidders=256 → 400（@Max(255)）</li>
+ *   <li>approve expectedBidders=255 → 200（边界值）</li>
+ *   <li>approve tenderAdverseItems 超 500 字 → 400（@Size(max=500)）</li>
  *   <li>reject 空 body → 400</li>
  *   <li>reject {@code {"comment":""}} → 400（@NotBlank）</li>
  *   <li>reject {@code {"comment":"不行"}} → 200</li>
@@ -153,5 +157,50 @@ class ProjectInitiationControllerWebMvcTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"comment\":\"不行\"}"))
                 .andExpect(status().isOk());
+    }
+
+    // —— expectedBidders / tenderAdverseItems 校验契约（审批模式可编辑字段边界） ——
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("approve expectedBidders=0 返回 400（@Min(1)）")
+    void approve_expectedBiddersZero_returns400() throws Exception {
+        mockMvc.perform(post("/api/projects/1/initiation/approve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"primaryLeadUserId\":100,\"expectedBidders\":0}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("approve expectedBidders=256 返回 400（@Max(255)）")
+    void approve_expectedBiddersOverMax_returns400() throws Exception {
+        mockMvc.perform(post("/api/projects/1/initiation/approve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"primaryLeadUserId\":100,\"expectedBidders\":256}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("approve expectedBidders=255 返回 200（边界值）")
+    void approve_expectedBiddersAtMax_returns200() throws Exception {
+        when(projectCurrentUserLookupService.requireUserId(any())).thenReturn(1L);
+        doNothing().when(approvalService).approve(eq(1L), any(), eq(1L));
+        mockMvc.perform(post("/api/projects/1/initiation/approve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"primaryLeadUserId\":100,\"expectedBidders\":255}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    @DisplayName("approve tenderAdverseItems 超 500 字 返回 400（@Size(max=500)）")
+    void approve_tenderAdverseItemsTooLong_returns400() throws Exception {
+        String tooLong = "a".repeat(501);
+        mockMvc.perform(post("/api/projects/1/initiation/approve")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"primaryLeadUserId\":100,\"tenderAdverseItems\":\"" + tooLong + "\"}"))
+                .andExpect(status().isBadRequest());
     }
 }
