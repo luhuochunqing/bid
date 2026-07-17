@@ -152,6 +152,8 @@ public class WarehouseWordBundleBuilder {
         for (WarehouseAttachmentReadModel att : attachments) {
             Path file = resolveAttachmentPath(wh, att);
             if (!Files.exists(file)) {
+                log.warn("附件文件不存在（PDF）: warehouseId={}, attachmentId={}, storedFilename={}, resolvedPath={}, attachmentRoot={}",
+                        wh.getId(), att.getId(), att.getStoredFilename(), file.toAbsolutePath(), attachmentRoot);
                 writeBodyText(doc, LABEL_FILE_MISSING);
                 continue;
             }
@@ -206,6 +208,8 @@ public class WarehouseWordBundleBuilder {
 
             Path file = resolveAttachmentPath(wh, att);
             if (!Files.exists(file)) {
+                log.warn("附件文件不存在（照片）: warehouseId={}, attachmentId={}, storedFilename={}, resolvedPath={}, attachmentRoot={}",
+                        wh.getId(), att.getId(), att.getStoredFilename(), file.toAbsolutePath(), attachmentRoot);
                 writeBodyText(doc, LABEL_FILE_MISSING);
                 continue;
             }
