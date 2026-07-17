@@ -111,7 +111,7 @@
 /* ========== 第 2 部分：待办模块（4 卡片） ========== */
 .todo-category-cards {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1rem;
   margin-bottom: 1.5rem;
 }
@@ -124,6 +124,7 @@
   border-left: 3px solid var(--brand-xiyu-logo);
   display: flex;
   flex-direction: column;
+  min-width: 0;
   transition: all 0.2s ease;
 }
 .todo-category-card:hover {
@@ -183,6 +184,7 @@
 .todo-category-item:hover .left { color: var(--brand-xiyu-logo); }
 .todo-category-item .left {
   flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -1,5 +1,7 @@
 package com.xiyu.bid.project.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -36,11 +38,14 @@ public class InitiationApprovalRequest {
      * 产品要求：投标管理员/组长在分配投标负责人时，此字段仍可调整，随审批一起保存。
      * 可空：为 null 时不覆盖已有值。
      */
+    @Min(value = 1, message = "计划入围供应商数量不能小于1")
+    @Max(value = 255, message = "计划入围供应商数量不能超过255")
     private Integer expectedBidders;
 
     /**
      * 审批模式下可编辑字段：招标文件不利项。
      * 可空：为 null 时不覆盖已有值。
      */
+    @Size(max = 500, message = "招标文件不利项不能超过500字")
     private String tenderAdverseItems;
 }
