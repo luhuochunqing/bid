@@ -20,6 +20,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -48,7 +49,7 @@ class WarehouseWordBundleBuilderTest {
         WarehouseWordBundleBuilder builder = new WarehouseWordBundleBuilder();
         ReflectionTestUtils.setField(builder, "attachmentRoot", tempDir.toString());
 
-        byte[] result = builder.buildBundle(List.of(), Map.of());
+        byte[] result = buildBundleToBytes(builder, List.of(), Map.of());
 
         assertThat(result).isNotEmpty();
         try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(result))) {
@@ -61,7 +62,7 @@ class WarehouseWordBundleBuilderTest {
         WarehouseWordBundleBuilder builder = new WarehouseWordBundleBuilder();
         ReflectionTestUtils.setField(builder, "attachmentRoot", tempDir.toString());
 
-        byte[] result = builder.buildBundle(List.of(), Map.of());
+        byte[] result = buildBundleToBytes(builder, List.of(), Map.of());
 
         try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(result))) {
             var sectPr = doc.getDocument().getBody().getSectPr();
@@ -85,7 +86,7 @@ class WarehouseWordBundleBuilderTest {
         TestWarehouse wh = new TestWarehouse("杭州仓", "浙江",
                 LocalDate.of(2021, 1, 15), LocalDate.of(2029, 1, 14));
 
-        byte[] result = builder.buildBundle(List.of(wh), Map.of());
+        byte[] result = buildBundleToBytes(builder, List.of(wh), Map.of());
 
         assertThat(result).isNotEmpty();
         try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(result))) {
@@ -99,7 +100,7 @@ class WarehouseWordBundleBuilderTest {
         ReflectionTestUtils.setField(builder, "attachmentRoot", tempDir.toString());
 
         org.junit.jupiter.api.Assertions.assertThrows(NullPointerException.class,
-                () -> builder.buildBundle(null, Map.of()));
+                () -> builder.buildBundle(null, Map.of(), new ByteArrayOutputStream()));
     }
 
     @Test
@@ -112,7 +113,7 @@ class WarehouseWordBundleBuilderTest {
         TestWarehouse wh2 = new TestWarehouse(2L, "宁波仓", "浙江",
                 LocalDate.of(2022, 3, 1), LocalDate.of(2030, 2, 28));
 
-        byte[] result = builder.buildBundle(List.of(wh1, wh2), Map.of());
+        byte[] result = buildBundleToBytes(builder, List.of(wh1, wh2), Map.of());
 
         assertThat(result).isNotEmpty();
         try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(result))) {
@@ -135,7 +136,7 @@ class WarehouseWordBundleBuilderTest {
         TestWarehouse wh2 = new TestWarehouse(2L, "广州仓", "广东",
                 LocalDate.of(2022, 3, 1), LocalDate.of(2030, 2, 28));
 
-        byte[] result = builder.buildBundle(List.of(wh1, wh2), Map.of());
+        byte[] result = buildBundleToBytes(builder, List.of(wh1, wh2), Map.of());
 
         try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(result))) {
             long zhejiangCount = doc.getParagraphs().stream()
@@ -165,7 +166,7 @@ class WarehouseWordBundleBuilderTest {
         TestAttachment att = new TestAttachment(100L, WarehouseAttachmentType.PHOTOS,
                 "原文件名_仓库外景_001.png", "stored.png");
 
-        byte[] result = builder.buildBundle(List.of(wh), Map.of(1L, List.of(att)));
+        byte[] result = buildBundleToBytes(builder, List.of(wh), Map.of(1L, List.of(att)));
 
         try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(result))) {
             // §3.6：照片直接嵌入，图片顶部不需要添加小标题
@@ -205,7 +206,7 @@ class WarehouseWordBundleBuilderTest {
         TestAttachment att = new TestAttachment(100L, WarehouseAttachmentType.LEASE_CONTRACT,
                 "WH_杭州仓_租赁合同.pdf", "lease.pdf");
 
-        byte[] result = builder.buildBundle(List.of(wh), Map.of(1L, List.of(att)));
+        byte[] result = buildBundleToBytes(builder, List.of(wh), Map.of(1L, List.of(att)));
 
         try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(result))) {
             // §3.6：PDF 每页转为图片，嵌入时图片顶部不需要再添加文字说明
@@ -283,7 +284,7 @@ class WarehouseWordBundleBuilderTest {
         TestAttachment att = new TestAttachment(100L, WarehouseAttachmentType.LEASE_CONTRACT,
                 "WH_杭州仓_租赁合同.pdf", "lease.pdf");
 
-        byte[] result = builder.buildBundle(List.of(wh), Map.of(1L, List.of(att)));
+        byte[] result = buildBundleToBytes(builder, List.of(wh), Map.of(1L, List.of(att)));
 
         try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(result))) {
             // 根因行为验证：文件存在时，Word 中必须不包含"（文件缺失）"标注
@@ -320,7 +321,7 @@ class WarehouseWordBundleBuilderTest {
         TestAttachment att = new TestAttachment(100L, WarehouseAttachmentType.LEASE_CONTRACT,
                 "WH_杭州仓_租赁合同.pdf", "lease.pdf");
 
-        byte[] result = builder.buildBundle(List.of(wh), Map.of(1L, List.of(att)));
+        byte[] result = buildBundleToBytes(builder, List.of(wh), Map.of(1L, List.of(att)));
 
         try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(result))) {
             boolean hasMissingLabel = doc.getParagraphs().stream()
@@ -330,6 +331,17 @@ class WarehouseWordBundleBuilderTest {
                     .as("降级语义：附件文件丢失时，Word 应显示'（文件缺失）'标注")
                     .isTrue();
         }
+    }
+
+    /**
+     * 辅助：调用 buildBundle 并返回 byte[]（测试便捷方法）。
+     */
+    private byte[] buildBundleToBytes(WarehouseWordBundleBuilder builder,
+                                       List<? extends WarehouseReadModel> entities,
+                                       Map<Long, ? extends List<? extends WarehouseAttachmentReadModel>> attachments) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        builder.buildBundle(entities, attachments, out);
+        return out.toByteArray();
     }
 
     /**

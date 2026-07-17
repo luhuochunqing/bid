@@ -25,7 +25,7 @@ import java.util.zip.ZipOutputStream;
  * 仓库导出 ZIP 打包器：将 xlsx + 已过滤的附件目录 + Word 合订本打包为 ZIP 文件。
  *  - 顶层：仓库信息台账.xlsx
  *  - 附件：attachments/WH_{仓库名称}_{附件类型}[_{序号}].{扩展名}（仅当 forms 含 ATTACHMENTS_FOLDER）
- *  - Word 合订本：仓库附件合订本_yyyyMMddHHmmss.docx（仅当 forms 含 WORD_COMBINED 且 wordBytes 非空）
+ *  - Word 合订本：仓库附件合订本_yyyyMMddHHmmss.docx（仅当 forms 含 WORD_COMBINED 且 wordFile 非空）
  * <p>attachmentsByWhId 已由调用方按导出范围过滤，本类不再做过滤。</p>
  */
 @Component
@@ -44,7 +44,7 @@ public class WarehouseExportZipBuilder {
     public ZipBuildResult buildZip(byte[] xlsxBytes,
                                    List<WarehouseEntity> entities,
                                    Map<Long, List<WarehouseAttachmentEntity>> attachmentsByWhId,
-                                   byte[] wordBytes,
+                                   Path wordFile,
                                    Set<WarehouseAttachmentOrganizationForm> forms) throws IOException {
         Objects.requireNonNull(forms, "forms");
         Path tempDir = Files.createTempDirectory("warehouse-export-zip-");
@@ -89,14 +89,17 @@ public class WarehouseExportZipBuilder {
                 }
             }
 
-            // 3) 写入 Word 合订本（仅当 forms 含 WORD_COMBINED 且 wordBytes 非空）
-            if (forms.contains(WarehouseAttachmentOrganizationForm.WORD_COMBINED) && wordBytes != null && wordBytes.length > 0) {
+            // 3) 写入 Word 合订本（仅当 forms 含 WORD_COMBINED 且 wordFile 存在）
+            if (forms.contains(WarehouseAttachmentOrganizationForm.WORD_COMBINED)
+                    && wordFile != null && Files.exists(wordFile) && Files.size(wordFile) > 0) {
                 String wordFilename = WORD_FILENAME_PREFIX + LocalDateTime.now().format(WORD_TS_FMT) + WORD_FILENAME_SUFFIX;
                 ZipEntry wordEntry = new ZipEntry(wordFilename);
                 zos.putNextEntry(wordEntry);
-                zos.write(wordBytes);
+                try (InputStream in = Files.newInputStream(wordFile)) {
+                    in.transferTo(zos);
+                }
                 zos.closeEntry();
-                stats.wordBytes = wordBytes.length;
+                stats.wordBytes = Files.size(wordFile);
                 stats.wordIncluded = true;
             }
         }

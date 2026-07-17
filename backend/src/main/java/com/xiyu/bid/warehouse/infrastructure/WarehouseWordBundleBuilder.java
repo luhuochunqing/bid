@@ -21,6 +21,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -49,17 +50,18 @@ public class WarehouseWordBundleBuilder {
     @Value("${warehouse.attachment.root:data/warehouse-attachments}")
     private String attachmentRoot;
 
-    /** 生成 Word 合订本字节流；单个附件失败不影响整体。 */
-    public byte[] buildBundle(List<? extends WarehouseReadModel> entities,
-                              Map<Long, ? extends List<? extends WarehouseAttachmentReadModel>> attachmentsByWhId) {
+    /** 生成 Word 合订本并写入输出流；单个附件失败不影响整体。 */
+    public void buildBundle(List<? extends WarehouseReadModel> entities,
+                              Map<Long, ? extends List<? extends WarehouseAttachmentReadModel>> attachmentsByWhId,
+                              OutputStream out) {
         Objects.requireNonNull(entities, "entities");
         Objects.requireNonNull(attachmentsByWhId, "attachmentsByWhId");
+        Objects.requireNonNull(out, "out");
 
         // 排序：省份 → 仓库名（拼音字典序）
         List<? extends WarehouseReadModel> sorted = WarehouseWordBundleOrganizationPolicy.sortByProvinceThenName(entities);
 
-        try (XWPFDocument doc = new XWPFDocument();
-             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+        try (XWPFDocument doc = new XWPFDocument()) {
 
             // §3.9：页面尺寸与页边距
             WarehouseWordBundlePageSetup.applyTo(doc);
@@ -83,7 +85,6 @@ public class WarehouseWordBundleBuilder {
             }
 
             doc.write(out);
-            return out.toByteArray();
         } catch (IOException e) {
             throw new RuntimeException("Word 合订本生成失败: " + e.getMessage(), e);
         }
