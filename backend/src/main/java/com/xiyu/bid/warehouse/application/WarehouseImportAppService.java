@@ -2,35 +2,35 @@ package com.xiyu.bid.warehouse.application;
 
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.warehouse.domain.ImportTaskStatus;
-import com.xiyu.bid.warehouse.domain.WarehouseImportPolicy;
-import com.xiyu.bid.warehouse.domain.WarehouseImportRow;
-import com.xiyu.bid.warehouse.infrastructure.WarehouseEntity;
-import com.xiyu.bid.warehouse.infrastructure.WarehouseImportExcelReader;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseImportTaskEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseImportTaskRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 /**
- * 仓库批量导入应用服务 — 编排 Excel 解析、校验、写入和附件归档。
+ * 仓库批量导入应用服务 — 只做编排，不含业务规则。
  * 业务校验在 WarehouseImportPolicy 纯核心；
  * 行持久化在 WarehouseImportRowPersister；
  * 附件归档在 WarehouseImportAttachmentProcessor；
  * 状态机在 WarehouseImportTaskStateService；
  * 修正文件生成在 WarehouseImportCorrectionFileGenerator。
+ *
+ * <p><b>self-invocation 修复</b>：@Async 方法已提取到
+ * {@link WarehouseImportAsyncExecutor}，通过依赖注入调用使 @Async 代理生效。
+ * 原因：Spring AOP 代理不拦截同类内部方法调用（self-invocation），
+ * 在本类内部调用 @Async 方法会导致注解失效。
+ *
+ * <p><b>事务边界设计</b>：triggerImport 标注 @Transactional 创建 PENDING 任务并提交，
+ * 异步线程通过独立事务（WarehouseImportTaskStateService 的 REQUIRES_NEW）更新状态，
+ * 避免 @Async + @Transactional 竞态。
  */
 @Service
 @RequiredArgsConstructor
@@ -38,15 +38,13 @@ import java.util.Set;
 public class WarehouseImportAppService {
 
     private final WarehouseImportTaskRepository importTaskRepo;
-    private final WarehouseImportExcelReader excelReader;
-    private final WarehouseImportRowPersister rowPersister;
-    private final WarehouseImportAttachmentProcessor attachmentProcessor;
-    private final WarehouseImportCorrectionFileGenerator correctionFileGenerator;
+    private final WarehouseImportAsyncExecutor asyncExecutor;
     private final WarehouseImportTaskStateService taskState;
-    private final WarehouseNameValidator warehouseNameValidator;
 
     @Transactional
-    public ImportTaskResult triggerImport(byte[] fileBytes, List<WarehouseImportAttachmentProcessor.AttachmentInput> attachments, User operator) {
+    public ImportTaskResult triggerImport(byte[] fileBytes,
+                                          List<WarehouseImportAttachmentProcessor.AttachmentInput> attachments,
+                                          User operator) {
         WarehouseImportTaskEntity task = WarehouseImportTaskEntity.builder()
                 .status(ImportTaskStatus.PENDING)
                 .sourceFilename(null)
@@ -56,83 +54,10 @@ public class WarehouseImportAppService {
                 .build();
         importTaskRepo.save(task);
 
-        executeImportAsync(task.getId(), fileBytes, attachments, operator);
+        // 委托独立 Bean 调用，确保 @Async 代理生效（避免 self-invocation）
+        asyncExecutor.executeImport(task.getId(), fileBytes, attachments, operator);
 
         return new ImportTaskResult(task.getId());
-    }
-
-    @Async("warehouseExportExecutor")
-    public void executeImportAsync(Long taskId, byte[] fileBytes, List<WarehouseImportAttachmentProcessor.AttachmentInput> attachments, User operator) {
-        try {
-            taskState.setStatus(taskId, ImportTaskStatus.VALIDATING);
-
-            WarehouseImportExcelReader.SheetData sheet = excelReader.read(fileBytes);
-            String[] header = sheet.header();
-            List<String> headerErrors = WarehouseImportPolicy.validateHeader(header);
-            if (!headerErrors.isEmpty()) {
-                taskState.fail(taskId, "表头校验失败: " + String.join("; ", headerErrors));
-                return;
-            }
-
-            List<WarehouseImportRow> rows = new ArrayList<>();
-            List<RowError> errors = new ArrayList<>();
-            List<String[]> raw = sheet.dataRows();
-            for (int i = 0; i < raw.size(); i++) {
-                WarehouseImportRow parsed = WarehouseImportPolicy.parseRow(i + 2, raw.get(i));
-                if (parsed.valid()) {
-                    rows.add(parsed);
-                } else {
-                    errors.add(new RowError(parsed.rowIndex, String.join("; ", parsed.errors)));
-                }
-            }
-
-            Set<String> existingNames = warehouseNameValidator.loadExistingNames();
-            List<WarehouseImportRow> uniqueRows = new ArrayList<>();
-            for (WarehouseImportRow row : rows) {
-                if (existingNames.contains(row.sanitizedName)) {
-                    errors.add(new RowError(row.rowIndex, "仓库「" + row.sanitizedName + "」已存在，无法重复导入"));
-                } else {
-                    uniqueRows.add(row);
-                }
-            }
-            rows = uniqueRows;
-
-            taskState.updateCounts(taskId, raw.size(), rows.size(), errors.size());
-
-            if (rows.isEmpty()) {
-                taskState.completeWithErrors(taskId, errors);
-                return;
-            }
-
-            taskState.setStatus(taskId, ImportTaskStatus.IMPORTING);
-
-            Map<String, WarehouseEntity> createdBySanitizedName = new HashMap<>();
-            int imported = 0;
-            for (WarehouseImportRow row : rows) {
-                try {
-                    WarehouseEntity saved = rowPersister.persist(row, operator);
-                    createdBySanitizedName.put(row.sanitizedName, saved);
-                    imported++;
-                } catch (RuntimeException ex) {
-                    errors.add(new RowError(row.rowIndex, "保存失败: " + ex.getMessage()));
-                }
-            }
-
-            WarehouseImportAttachmentProcessor.AttachmentResult attachResult = attachmentProcessor
-                    .attachFiles(createdBySanitizedName, rows, attachments, operator.getId());
-
-            String correctionPath = null;
-            if (!errors.isEmpty()) {
-                correctionPath = correctionFileGenerator.generate(taskId, errors, sheet);
-            }
-            taskState.complete(taskId, imported, errors, attachResult, correctionPath);
-        } catch (IOException e) {
-            log.error("仓库导入读取失败: taskId={}", taskId, e);
-            taskState.fail(taskId, "文件读取失败: " + e.getMessage());
-        } catch (RuntimeException e) {
-            log.error("仓库导入执行失败: taskId={}", taskId, e);
-            taskState.fail(taskId, truncate(e.getMessage(), 500));
-        }
     }
 
     public Page<WarehouseImportTaskEntity> listTasks(Long userId, Pageable pageable) {
@@ -145,11 +70,6 @@ public class WarehouseImportAppService {
 
     public byte[] getCorrectionFile(Long taskId, Long userId) throws IOException {
         return taskState.getCorrectionFile(taskId, userId);
-    }
-
-    private static String truncate(String s, int maxLen) {
-        if (s == null) return "";
-        return s.length() > maxLen ? s.substring(0, maxLen) : s;
     }
 
     public record RowError(int rowIndex, String message) {}

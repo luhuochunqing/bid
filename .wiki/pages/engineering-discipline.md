@@ -370,6 +370,7 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 | AI fallback 双倍调用 | 1 次 | 修 A 破 B：PR !1979 修 fallback 条件但引入每次双倍 AI 调用 | PR !1979 → !1982，OpenAiSdkStructuredOutputTransport |
 | 全局 429 提示被业务层覆盖 | 2 次 | 追症状不追根因：第一次只改全局文案，未收敛业务层 catch 块；第二次未在真实环境验证 | Account.vue `loadAccounts`，`scripts/check-429-error-override.mjs` |
 | Account 详情 429（N+1 list-detail） | 6 次 | 追症状不追根因 + 修 A 破 B：!1997/!2005/!2036 三次降并发补丁未触及 list 端点不返回完整 DTO 的根因；测试用文本匹配而非行为验证；最后盲目相信「已修复」 | `Account.vue#loadDetailsInBatches`，`src/api/modules/resources/accounts.js#getList`，spec 035 |
+| 仓库全量导出超时（@Async 自调用） | 1 次 | 框架理解偏差：CO-582 新增 Word 合订本后全量导出耗时 > 30s，根因是 `WarehouseExportAppService.export()` 直接调用 `executeExportAsync()`（自调用），Spring AOP 代理被绕过，@Async 注解不生效。修复：提取 @Async 方法到独立 Bean（`WarehouseExportAsyncExecutor`），通过依赖注入调用使代理生效；同时修复 `WarehouseLedgerExportAppService` 和 `WarehouseImportAppService` 同源问题；提取 `WarehouseExportTaskStateService` 消除状态机重复代码 | `WarehouseExportAppService.java#L78`、`WarehouseLedgerExportAppService.java#L79`、`WarehouseImportAppService.java#L59`，spec 039，PR !2110 |
 
 ### 6.4 pre-push 拦截脚本索引
 
@@ -453,3 +454,4 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 | 2026-07-10 | 新增"AI fallback 双倍调用"案例到根因 5 + 案例库索引（PR !1979 → !1982） |
 | 2026-07-12 | 新增"全局 429 提示被业务层覆盖"案例到案例库索引，更新编码规范与 pre-push 拦截脚本索引 |
 | 2026-07-12 | 新增 "Account 详情 429（N+1）" 6 次反复修案例到 §6.3；§5.1 新增"list 端点必须返回完整 DTO"规范；§6.4 新增 2 个 pre-push 脚本（check-list-endpoint-n1 / audit-existing-429-exposure）| spec 035 沉淀 |
+| 2026-07-17 | 新增 "仓库全量导出超时（@Async 自调用）" 案例到 §6.3；根因 6（框架理解偏差）；修复方式：提取 @Async 方法到独立 Bean，参考 `WarehouseExportAsyncExecutor`；同时覆盖 Export/Ledger/Import 三处同源问题 | spec 039 沉淀，PR !2110 |
