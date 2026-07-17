@@ -46,7 +46,7 @@ public class WarehouseWordBundleBuilder {
     /** 图片格式白名单（§3.7.2） */
     private static final Set<String> IMAGE_EXTENSIONS = Set.of("jpg", "jpeg", "png");
 
-    @Value("${warehouse.attachment.root:/data/attachments/warehouse}")
+    @Value("${warehouse.attachment.root:data/warehouse-attachments}")
     private String attachmentRoot;
 
     /** 生成 Word 合订本字节流；单个附件失败不影响整体。 */

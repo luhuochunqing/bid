@@ -41,7 +41,7 @@ public class PerformanceAttachmentStorageAppService {
     private String uploadDir;
 
     /** 批量导入附件的存储根目录（与 PerformanceImportAttachmentProcessor 共用同一配置） */
-    @Value("${performance.attachment.root:/data/attachments/performance}")
+    @Value("${performance.attachment.root:data/performance-attachments}")
     private String attachmentRoot;
 
     public PerformanceAttachmentUploadDTO upload(String fileType, MultipartFile file) throws IOException {

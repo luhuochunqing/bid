@@ -491,6 +491,27 @@ else
   fi
 fi
 
+# ── 9.9. 文件路径默认值拦截（macOS SSV 只读 + 绝对路径防复发） ──
+# 工程背景（2026-07-17 仓库 Word 合订本附件内容丢失）：
+#   @Value("${warehouse.attachment.root:/data/attachments/warehouse}") 默认值是绝对路径，
+#   macOS Catalina+ SSV 保护使根目录 / 只读，mkdir /data 失败（Read-only file system）。
+#   上传时 Files.createDirectories 抛 IOException → HTTP 400，用户用历史数据未感知；
+#   Word 生成时 Files.exists 返回 false → 所有三级标题下显示"（文件缺失）"。
+#   全局收敛发现 6 处同类（warehouse 4 + performance 2）。
+# 本门禁拦截新增的 @Value 文件路径默认值以 "/" 开头（排除 http://, https:// 等 URL）。
+echo "── 文件路径默认值拦截 ──"
+if [ ! -d "$ROOT_DIR/backend/src/main" ]; then
+  skip "无 Java 源码"
+elif [ "${BACKEND_CHANGED:-0}" -eq 0 ]; then
+  skip "文件路径默认值拦截（无 backend/ 变更）"
+else
+  if node "$ROOT_DIR/scripts/check-attachment-root-path.mjs" "$GATE_BASE" 2>&1; then
+    pass "文件路径默认值拦截"
+  else
+    fail "文件路径默认值拦截 — 新增 @Value 默认值以 '/' 开头（macOS SSV 只读）。改为相对路径如 'data/warehouse-attachments'。详见 scripts/check-attachment-root-path.mjs"
+  fi
+fi
+
 # ── 10. 路由-E2E 兼容性检查 ────────────────────────────
 echo "── 路由-E2E 兼容 ──"
 STAGED_ROUTES=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -cE '^src/(router|views)/' || true)
