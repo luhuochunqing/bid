@@ -28,8 +28,8 @@ public class WarehouseLedgerExportNotificationPublisher {
     public void publish(WarehouseExportTaskEntity task, int totalCount,
                         WarehouseLedgerExportAppService.ExportRequest req, long elapsedMs) {
         try {
-            String title = "📤 仓库台账导出 — 完成";
-            String body = String.format("仓库台账导出包-%s.zip（%d 条；%d 秒；范围：%s）",
+            // NotificationCreatedEvent 只有 title 字段承载文案（无 body），与 WarehouseExportNotificationPublisher 对齐
+            String title = String.format("📤 仓库台账导出 — 完成：仓库台账导出包-%s.zip（%d 条；%d 秒；范围：%s）",
                     task.getCompletedAt() != null ? task.getCompletedAt().format(TS_FMT) : "",
                     totalCount, elapsedMs / 1000, scopeLabel(req));
             eventPublisher.publishEvent(new NotificationCreatedEvent(
