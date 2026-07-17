@@ -117,6 +117,11 @@ public class PerformanceRowImporter {
         var customerLevel = parseWithColLabel(() -> parseCustomerLevel(getCellStr(row, COL_CUSTOMER_LEVEL)), COL_CUSTOMER_LEVEL);
 
         var attachments = collectAttachmentEntries(row);
+        // CO-586: 合同协议附件为必填项（与前端表单校验一致）
+        String contractAgreementFileName = getCellStr(row, IDX_CONTRACT_AGREEMENT);
+        if (contractAgreementFileName == null || contractAgreementFileName.isBlank()) {
+            throw new IllegalArgumentException(colLabel(IDX_CONTRACT_AGREEMENT) + "不能为空");
+        }
         var cmd = new PerformanceUpsertCommand(
                 contractName, getCellStr(row, COL_SIGNING_ENTITY), getCellStr(row, COL_GROUP_COMPANY),
                 customerType, getCellStr(row, COL_INDUSTRY),
