@@ -30,4 +30,10 @@ public interface AccountBorrowApplicationRepository
 
     /** CO-403: 我的审批 Tab —— 绑定联系人查看自己负责的全部申请，按创建时间倒序。 */
     List<AccountBorrowApplication> findByCustodianIdOrderByCreatedAtDesc(Long custodianId);
+
+    /** 工作台角色化改造：按状态查询并按创建时间倒序（管理员视角）。 */
+    List<AccountBorrowApplication> findByStatusOrderByCreatedAtDesc(BorrowStatus status);
+
+    /** 工作台角色化改造：按保管人 + 状态查询并按创建时间倒序（保管员视角）。 */
+    List<AccountBorrowApplication> findByCustodianIdAndStatusOrderByCreatedAtDesc(Long custodianId, BorrowStatus status);
 }

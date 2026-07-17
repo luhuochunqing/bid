@@ -26,6 +26,9 @@ public interface CaBorrowApplicationRepository extends JpaRepository<CaBorrowApp
     // CO-459: 按状态查询（数据库层面过滤，避免内存过滤）
     List<CaBorrowApplicationEntity> findByStatusOrderByCreatedAtDesc(String status);
 
+    /** 工作台角色化改造：按审批人 + 状态查询并按创建时间倒序（保管员视角）。 */
+    List<CaBorrowApplicationEntity> findByApproverIdAndStatusOrderByCreatedAtDesc(Long approverId, String status);
+
     // CO-476: 按 CA + 申请人 + 状态查询，用于重复申请校验
     boolean existsByCaCertificateIdAndApplicantIdAndStatus(
             Long caCertificateId, Long applicantId, String status);

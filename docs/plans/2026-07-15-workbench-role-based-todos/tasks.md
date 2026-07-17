@@ -27,12 +27,14 @@
 - [x] ProjectRepository 新增 `findByStageIn` 查询方法
 - [x] 单元测试：ProjectServiceWorkbenchTodosTest 覆盖 3 种角色分支 + fail-closed + 其他角色（5 用例）
 
-### BE-4: Resource 待审批聚合接口（模块4）
-- [ ] 新增 `GET /api/dashboard/resource-pending-approvals` 接口
-- [ ] AccountBorrowApplicationRepository 新增 `findByStatusAndApproverId` 或 `findByStatus` 方法
-- [ ] CaBorrowApplicationRepository 新增 `findByStatus` 方法
-- [ ] Service 层合并两类申请，按时间排序，取前 4 条
-- [ ] 单元测试：聚合接口返回合并结果
+### BE-4: Resource 待审批聚合接口（模块4）✅
+- [x] 新增 `GET /api/dashboard/resource-pending-approvals` 接口
+- [x] AccountBorrowApplicationRepository 新增 `findByStatusOrderByCreatedAtDesc` + `findByCustodianIdAndStatusOrderByCreatedAtDesc`
+- [x] CaBorrowApplicationRepository 新增 `findByApproverIdAndStatusOrderByCreatedAtDesc`（带排序）
+- [x] 新建 ResourcePendingApprovalDTO（统一账户+CA 展示格式）
+- [x] 新建 DashboardResourcePendingService（合并两类申请，按 createdAt 倒序，取前 4 条）
+- [x] 新建 DashboardResourceController（/api/dashboard 前缀）
+- [x] 单元测试：DashboardResourcePendingServiceTest（4 用例：管理员合并+排序、保管员、fail-closed、limit 4）
 
 ## 前端任务
 
