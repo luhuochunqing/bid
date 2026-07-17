@@ -53,7 +53,7 @@
       <el-tag
         v-for="tag in commonTags"
         :key="tag"
-        :type="selectedTags.includes(tag) ? '' : 'info'"
+        :type="selectedTags.includes(tag) ? 'primary' : 'info'"
         :effect="selectedTags.includes(tag) ? 'dark' : 'plain'"
         class="tag-item"
         @click="$emit('toggle-tag', tag)"

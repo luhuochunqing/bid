@@ -136,3 +136,8 @@ xiyu:
         source-app: bid-system
 
 # Note: app.crm merged into the app: block above (line 34)
+
+# 仓库附件存储根目录（本地开发：相对 user.dir，即 backend/）
+warehouse:
+  attachment:
+    root: ${WAREHOUSE_ATTACHMENT_ROOT:.runtime/warehouse-attachments}

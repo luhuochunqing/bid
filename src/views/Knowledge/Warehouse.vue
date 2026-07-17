@@ -260,7 +260,7 @@ const computeDays = (r) => {
   return d < 0 ? `已过期${-d}天` : `${d}天`
 }
 const getDaysTag = (r) => {
-  if (!r.endDate) return ''
+  if (!r.endDate) return 'info'
   const d = Math.ceil((new Date(r.endDate) - Date.now()) / 86400000)
   return d < 0 ? 'danger' : d <= 30 ? 'warning' : 'success'
 }
