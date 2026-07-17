@@ -1,221 +1,50 @@
 package com.xiyu.bid.warehouse.application;
 
-import com.xiyu.bid.entity.User;
-import com.xiyu.bid.notification.outbound.event.NotificationCreatedEvent;
-import com.xiyu.bid.repository.UserRepository;
-import com.xiyu.bid.warehouse.domain.WarehouseLedgerExportPolicy;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.warehouse.domain.WarehouseLedgerExportPolicy.Section;
-import com.xiyu.bid.warehouse.domain.WarehouseStatus;
 import com.xiyu.bid.warehouse.dto.WarehouseFilterDTO;
-import com.xiyu.bid.warehouse.domain.WarehouseAttachmentOrganizationForm;
-import com.xiyu.bid.warehouse.domain.WarehouseAttachmentType;
-import com.xiyu.bid.warehouse.infrastructure.WarehouseAttachmentEntity;
-import com.xiyu.bid.warehouse.infrastructure.WarehouseAttachmentRepository;
-import com.xiyu.bid.warehouse.infrastructure.WarehouseEntity;
-import com.xiyu.bid.warehouse.infrastructure.WarehouseExcelWriter;
-import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskEntity;
-import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskEntity.ExportStatus;
-import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskRepository;
-import com.xiyu.bid.warehouse.infrastructure.WarehouseExportZipBuilder;
-import com.xiyu.bid.warehouse.service.WarehouseFilterService;
-import com.xiyu.bid.warehouse.service.WarehouseLogService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
- * 台账导出应用服务 — 19 列精简版（无附件、无系统字段）。
+ * 仓库台账导出应用服务 — 19 列精简版（无附件、无系统字段）。
  * 复用 warehouse_export_task 表与异步/通知/下载链路。
+ *
+ * <p><b>事务边界设计（P1-1 修复）</b>：本类不再标注 {@code @Transactional}。
+ * createTask 由 {@link WarehouseExportTaskStateService} 以独立事务执行并提交，
+ * 避免原 {@code @Async} + {@code @Transactional} 竞态。
+ *
+ * <p><b>self-invocation 修复</b>：@Async 方法已提取到
+ * {@link WarehouseLedgerExportAsyncExecutor}，通过依赖注入调用使 @Async 代理生效。
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class WarehouseLedgerExportAppService {
 
-    private static final DateTimeFormatter TS_FMT = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
-    private static final Duration FILE_TTL = Duration.ofDays(7);
-
-    private final WarehouseExportTaskRepository exportTaskRepo;
-    private final WarehouseFilterService filterService;
-    private final WarehouseExcelWriter excelWriter;
-    private final WarehouseAttachmentRepository attachmentRepo;
-    private final WarehouseExportZipBuilder zipBuilder;
-    private final WarehouseLogService warehouseLogService;
-    private final ApplicationEventPublisher eventPublisher;
-    private final UserRepository userRepository;
-
-    @Value("${warehouse.export.root:/tmp/warehouse-exports}")
-    private String exportRoot;
+    private final WarehouseLedgerExportAsyncExecutor asyncExecutor;
+    private final WarehouseExportTaskStateService stateService;
+    private final ObjectMapper objectMapper;
 
     public record ExportRequest(String scope, List<Long> ids, WarehouseFilterDTO filter, Set<Section> sections) {}
 
-    @Transactional
+    /**
+     * 创建台账导出任务，触发异步执行。
+     * <p>无 @Transactional：stateService.createTask 以独立事务提交后立即返回 taskId，
+     * 异步线程可立即查询到，避免 @Async + @Transactional 竞态。
+     */
     public WarehouseExportAppService.ExportTaskResult trigger(ExportRequest req, Long operatorId, String operatorUsername) {
-        WarehouseExportTaskEntity task = WarehouseExportTaskEntity.builder()
-                .status(ExportStatus.PENDING)
-                .filterSnapshot(serialize(req))
-                .createdBy(operatorId)
-                .createdAt(LocalDateTime.now())
-                .build();
-        exportTaskRepo.save(task);
-        executeLedgerAsync(task.getId(), req, operatorId, operatorUsername, System.currentTimeMillis());
-        return new WarehouseExportAppService.ExportTaskResult(task.getId());
-    }
-
-    @Async("warehouseExportExecutor")
-    public void executeLedgerAsync(Long taskId, ExportRequest req, Long operatorId, String operatorUsername, long startMs) {
-        try {
-            markProcessing(taskId);
-            List<WarehouseEntity> entities = loadEntities(req);
-            Map<Long, List<WarehouseAttachmentEntity>> attachmentsByWhId = loadLeaseContractAttachments(entities);
-            Map<Long, String> usernameById = loadUsernames(entities);
-            String[] headers = WarehouseLedgerExportPolicy.getHeaders(req.sections());
-            List<String[]> rows = WarehouseLedgerExportPolicy.buildRows(entities, req.sections(), usernameById, attachmentsByWhId);
-            byte[] xlsx = excelWriter.write(headers, rows);
-            // 台账导出无 Word 合订本需求（CO-582 仅作用于仓库信息模块导出），传 null + 保留附件目录
-            WarehouseExportZipBuilder.ZipBuildResult zip = zipBuilder.buildZip(xlsx, entities, attachmentsByWhId,
-                    null, Set.of(WarehouseAttachmentOrganizationForm.ATTACHMENTS_FOLDER));
-            String filePath = saveZip(taskId, zip);
-            complete(taskId, operatorId, operatorUsername, entities, req, filePath, zip, startMs);
-        } catch (RuntimeException e) {
-            log.error("台账导出失败: taskId={}", taskId, e);
-            fail(taskId, truncate(e.getMessage(), 500));
-        } catch (IOException e) {
-            log.error("台账导出文件IO异常: taskId={}", taskId, e);
-            fail(taskId, "文件写入失败: " + e.getMessage());
-        }
-    }
-
-    private List<WarehouseEntity> loadEntities(ExportRequest req) {
-        if ("ids".equals(req.scope())) {
-            if (req.ids() == null || req.ids().isEmpty()) return List.of();
-            return filterService.findAllByIds(req.ids());
-        }
-        if ("all_in_use".equals(req.scope())) {
-            WarehouseFilterDTO f = new WarehouseFilterDTO(
-                    null, null, List.of(WarehouseStatus.IN_USE), null, null, null, null,
-                    null, null, null, null, null);
-            return filterService.filterAll(f);
-        }
-        // 默认: current filter
-        return filterService.filterAll(req.filter() != null ? req.filter() : null);
-    }
-
-    private Map<Long, String> loadUsernames(List<WarehouseEntity> entities) {
-        if (entities.isEmpty()) return Map.of();
-        java.util.Set<Long> userIds = entities.stream()
-                .map(WarehouseEntity::getCreatedBy).filter(id -> id != null)
-                .collect(java.util.stream.Collectors.toSet());
-        if (userIds.isEmpty()) return Map.of();
-        return userRepository.findByIdIn(userIds).stream()
-                .collect(Collectors.toMap(User::getId, u -> u.getFullName() != null ? u.getFullName() : "",
-                        (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
-    }
-
-    private String saveZip(Long taskId, WarehouseExportZipBuilder.ZipBuildResult zip) throws IOException {
-        Path dir = Paths.get(exportRoot);
-        Files.createDirectories(dir);
-        String ts = LocalDateTime.now().format(TS_FMT);
-        String filename = "warehouse_ledger_" + taskId + "_" + ts + ".zip";
-        Path target = dir.resolve(filename);
-        Files.copy(zip.zipFile(), target);
-        return target.toString();
-    }
-
-    private void complete(Long taskId, Long operatorId, String operatorUsername,
-                          List<WarehouseEntity> entities, ExportRequest req,
-                          String filePath, WarehouseExportZipBuilder.ZipBuildResult zip, long startMs) {
-        long elapsedMs = System.currentTimeMillis() - startMs;
-        int totalCount = entities.size();
-        LocalDateTime now = LocalDateTime.now();
-        WarehouseExportTaskEntity task = exportTaskRepo.findById(taskId).orElseThrow();
-        task.setStatus(ExportStatus.COMPLETED);
-        task.setTotalCount(totalCount);
-        task.setStoredFilePath(filePath);
-        task.setDownloadUrl("/api/knowledge/warehouses/export/tasks/" + taskId + "/download");
-        task.setExpiresAt(now.plus(FILE_TTL));
-        task.setCompletedAt(now);
-        task.setResultSummary(buildSummary(totalCount, req, elapsedMs, zip));
-        exportTaskRepo.save(task);
-        publish(task, totalCount, req, elapsedMs);
-        // TODO: warehouseLogService.logExportAction not yet implemented
-        // if (operatorUsername != null) {
-        //     warehouseLogService.logExportAction(entities, scopeLabel(req), totalCount, operatorUsername, operatorId);
-        // }
-    }
-
-    private String buildSummary(int totalCount, ExportRequest req, long elapsedMs,
-                                WarehouseExportZipBuilder.ZipBuildResult zip) {
-        Map<String, Object> map = new LinkedHashMap<>();
-        map.put("format", "ledger");
-        map.put("totalCount", totalCount);
-        map.put("scope", req.scope());
-        map.put("sections", req.sections());
-        map.put("elapsedMs", elapsedMs);
-        map.put("xlsxBytes", zip.stats().xlsxBytes);
-        map.put("zipBytes", zip.totalBytes());
-        map.put("leaseContractCount", zip.stats().leaseContractCount);
-        try {
-            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(map);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException | RuntimeException e) {
-            return null;
-        }
-    }
-
-    private void publish(WarehouseExportTaskEntity task, int totalCount, ExportRequest req, long elapsedMs) {
-        try {
-            String title = "📤 仓库台账导出 — 完成";
-            String body = String.format("仓库台账导出包-%s.zip（%d 条；%d 秒；范围：%s）",
-                    task.getCompletedAt().format(TS_FMT), totalCount, elapsedMs / 1000, scopeLabel(req));
-            eventPublisher.publishEvent(new NotificationCreatedEvent(
-                    null, List.of(task.getCreatedBy()),
-                    "WAREHOUSE_LEDGER_EXPORT", title,
-                    "WAREHOUSE_LEDGER_EXPORT_TASK", task.getId()));
-        } catch (RuntimeException e) {
-            log.warn("台账导出通知发布失败: taskId={}, error={}", task.getId(), e.getMessage());
-        }
-    }
-
-    private String scopeLabel(ExportRequest req) {
-        return switch (req.scope() == null ? "filter" : req.scope()) {
-            case "ids" -> "当前勾选";
-            case "all_in_use" -> "全部使用中";
-            default -> "当前筛选";
-        };
-    }
-
-    private void markProcessing(Long taskId) {
-        exportTaskRepo.findById(taskId).ifPresent(t -> {
-            t.setStatus(ExportStatus.PROCESSING);
-            exportTaskRepo.save(t);
-        });
-    }
-
-    private void fail(Long taskId, String reason) {
-        exportTaskRepo.findById(taskId).ifPresent(t -> {
-            t.setStatus(ExportStatus.FAILED);
-            t.setFailureReason(reason);
-            t.setCompletedAt(LocalDateTime.now());
-            exportTaskRepo.save(t);
-        });
+        String filterSnapshot = serialize(req);
+        Long taskId = stateService.createTask(filterSnapshot, operatorId);
+        asyncExecutor.executeLedger(taskId, req, operatorId, operatorUsername, System.currentTimeMillis());
+        return new WarehouseExportAppService.ExportTaskResult(taskId);
     }
 
     private String serialize(ExportRequest req) {
@@ -226,22 +55,9 @@ public class WarehouseLedgerExportAppService {
         map.put("sections", req.sections());
         map.put("filter", req.filter());
         try {
-            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            return mapper.writeValueAsString(map);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            return objectMapper.writeValueAsString(map);
+        } catch (JsonProcessingException e) {
             return "{}";
         }
-    }
-
-    private static String truncate(String s, int maxLen) {
-        if (s == null) return "";
-        return s.length() > maxLen ? s.substring(0, maxLen) : s;
-    }
-
-    private Map<Long, List<WarehouseAttachmentEntity>> loadLeaseContractAttachments(List<WarehouseEntity> entities) {
-        if (entities.isEmpty()) return Map.of();
-        List<Long> ids = entities.stream().map(WarehouseEntity::getId).toList();
-        return attachmentRepo.findByWarehouseIdInAndType(ids, WarehouseAttachmentType.LEASE_CONTRACT).stream()
-                .collect(Collectors.groupingBy(a -> a.getWarehouse().getId()));
     }
 }
