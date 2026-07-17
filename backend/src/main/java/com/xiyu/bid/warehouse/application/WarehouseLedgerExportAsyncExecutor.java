@@ -1,5 +1,7 @@
 package com.xiyu.bid.warehouse.application;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.warehouse.domain.WarehouseLedgerExportPolicy;
@@ -61,6 +63,7 @@ public class WarehouseLedgerExportAsyncExecutor {
     private final WarehouseExportZipBuilder zipBuilder;
     private final WarehouseLedgerExportNotificationPublisher ledgerPublisher;
     private final UserRepository userRepository;
+    private final ObjectMapper objectMapper;
 
     @Value("${warehouse.export.root:/tmp/warehouse-exports}")
     private String exportRoot;
@@ -151,8 +154,8 @@ public class WarehouseLedgerExportAsyncExecutor {
         map.put("zipBytes", zip.totalBytes());
         map.put("leaseContractCount", zip.stats().leaseContractCount);
         try {
-            return new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(map);
-        } catch (com.fasterxml.jackson.core.JsonProcessingException | RuntimeException e) {
+            return objectMapper.writeValueAsString(map);
+        } catch (JsonProcessingException | RuntimeException e) {
             return null;
         }
     }
