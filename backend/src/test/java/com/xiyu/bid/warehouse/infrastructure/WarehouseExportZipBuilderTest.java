@@ -140,7 +140,7 @@ class WarehouseExportZipBuilderTest {
     }
 
     @Test
-    @DisplayName("forms={WORD_COMBINED} + wordBytes非空 → ZIP 内只有 xlsx + docx，无 attachments/")
+    @DisplayName("forms={WORD_COMBINED} + wordFile非空 → ZIP 内只有 xlsx + docx，无 attachments/")
     void buildZip_WordOnly_NoAttachmentsDir() throws Exception {
         Path attachmentRoot = Files.createTempDirectory("wh-zip-word-only-");
         WarehouseEntity warehouse = WarehouseEntity.builder()
@@ -171,11 +171,12 @@ class WarehouseExportZipBuilderTest {
         attachmentRootField.set(builder, attachmentRoot.toString());
 
         byte[] xlsxBytes = new byte[]{0x01, 0x02, 0x03};
-        byte[] wordBytes = new byte[]{0x50, 0x4B, 0x03, 0x04};  // fake docx bytes
+        Path wordFile = Files.createTempFile("test-word-bundle-", ".docx");
+        Files.write(wordFile, new byte[]{0x50, 0x4B, 0x03, 0x04});  // fake docx bytes
 
         WarehouseExportZipBuilder.ZipBuildResult result = builder.buildZip(
                 xlsxBytes, List.of(warehouse), Map.of(),
-                wordBytes, Set.of(WarehouseAttachmentOrganizationForm.WORD_COMBINED));
+                wordFile, Set.of(WarehouseAttachmentOrganizationForm.WORD_COMBINED));
 
         try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(result.zipFile()))) {
             List<String> entryNames = new java.util.ArrayList<>();
@@ -187,7 +188,7 @@ class WarehouseExportZipBuilderTest {
             assertThat(entryNames.get(0)).isEqualTo("仓库信息台账.xlsx");
             assertThat(entryNames.get(1)).startsWith("仓库附件合订本_").endsWith(".docx");
             assertThat(result.stats().wordIncluded).isTrue();
-            assertThat(result.stats().wordBytes).isEqualTo(wordBytes.length);
+            assertThat(result.stats().wordBytes).isEqualTo(Files.size(wordFile));
         } finally {
             Files.walk(attachmentRoot)
                     .sorted(java.util.Comparator.reverseOrder())
@@ -198,7 +199,7 @@ class WarehouseExportZipBuilderTest {
     }
 
     @Test
-    @DisplayName("forms={WORD_COMBINED} + wordBytes=null → ZIP 内只有 xlsx（Word 生成失败场景）")
+    @DisplayName("forms={WORD_COMBINED} + wordFile=null → ZIP 内只有 xlsx（Word 生成失败场景）")
     void buildZip_WordFailed_OnlyXlsx() throws Exception {
         Path attachmentRoot = Files.createTempDirectory("wh-zip-word-failed-");
         WarehouseEntity warehouse = WarehouseEntity.builder()
@@ -253,7 +254,7 @@ class WarehouseExportZipBuilderTest {
     }
 
     @Test
-    @DisplayName("forms={两者} + wordBytes非空 → ZIP 内三者都有")
+    @DisplayName("forms={两者} + wordFile非空 → ZIP 内三者都有")
     void buildZip_BothForms_AllIncluded() throws Exception {
         Path attachmentRoot = Files.createTempDirectory("wh-zip-both-");
         Path warehouseDir = attachmentRoot.resolve("1");
@@ -301,11 +302,12 @@ class WarehouseExportZipBuilderTest {
         attachmentRootField.set(builder, attachmentRoot.toString());
 
         byte[] xlsxBytes = new byte[]{0x01, 0x02, 0x03};
-        byte[] wordBytes = new byte[]{0x50, 0x4B, 0x03, 0x04};
+        Path wordFile = Files.createTempFile("test-word-bundle-", ".docx");
+        Files.write(wordFile, new byte[]{0x50, 0x4B, 0x03, 0x04});
 
         WarehouseExportZipBuilder.ZipBuildResult result = builder.buildZip(
                 xlsxBytes, List.of(warehouse), Map.of(1L, List.of(leaseAttachment)),
-                wordBytes, Set.of(WarehouseAttachmentOrganizationForm.ATTACHMENTS_FOLDER,
+                wordFile, Set.of(WarehouseAttachmentOrganizationForm.ATTACHMENTS_FOLDER,
                         WarehouseAttachmentOrganizationForm.WORD_COMBINED));
 
         try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(result.zipFile()))) {

@@ -33,6 +33,8 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -102,7 +104,7 @@ class WarehouseExportAsyncExecutorTest {
         when(attachmentRepo.findByWarehouseIdIn(anyList())).thenReturn(List.of());
         when(userRepository.findByIdIn(any())).thenReturn(List.of());
         when(excelWriter.write(any(), anyList())).thenReturn(new byte[]{1, 2, 3});
-        when(wordBundleBuilder.buildBundle(anyList(), any())).thenReturn(new byte[]{4, 5, 6});
+        doNothing().when(wordBundleBuilder).buildBundle(anyList(), any(), any());
 
         // 创建真实的临时 zip 文件，避免 saveZip 的 Files.move 失败
         Path zipFile = Files.createFile(tempDir.resolve("test.zip"));
@@ -144,8 +146,8 @@ class WarehouseExportAsyncExecutorTest {
         when(userRepository.findByIdIn(any())).thenReturn(List.of());
         when(excelWriter.write(any(), anyList())).thenReturn(new byte[]{1, 2, 3});
         // Word 合订本生成失败
-        when(wordBundleBuilder.buildBundle(anyList(), any()))
-                .thenThrow(new RuntimeException("PDF 渲染失败"));
+        doThrow(new RuntimeException("PDF 渲染失败"))
+                .when(wordBundleBuilder).buildBundle(anyList(), any(), any());
 
         Path zipFile = Files.createFile(tempDir.resolve("test_degraded.zip"));
         WarehouseExportZipBuilder.ZipBuildResult zipResult = new WarehouseExportZipBuilder.ZipBuildResult(
@@ -226,7 +228,7 @@ class WarehouseExportAsyncExecutorTest {
         when(attachmentRepo.findByWarehouseIdIn(anyList())).thenReturn(List.of());
         when(userRepository.findByIdIn(any())).thenReturn(List.of());
         when(excelWriter.write(any(), anyList())).thenReturn(new byte[]{1, 2, 3});
-        when(wordBundleBuilder.buildBundle(anyList(), any())).thenReturn(new byte[]{4, 5, 6});
+        doNothing().when(wordBundleBuilder).buildBundle(anyList(), any(), any());
 
         Path zipFile = Files.createFile(tempDir.resolve("test_ids.zip"));
         WarehouseExportZipBuilder.ZipBuildResult zipResult = new WarehouseExportZipBuilder.ZipBuildResult(

@@ -22,6 +22,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -132,13 +133,23 @@ public class WarehouseExportAsyncExecutor {
         List<String[]> rows = WarehouseExportPolicy.buildRows(entities, filteredAttachments, usernameById);
         byte[] xlsxBytes = excelWriter.write(WarehouseExportPolicy.HEADERS, rows);
         // 需求 §4：Word 合订本生成失败不影响附件目录导出，独立 try-catch 降级为 null
-        byte[] wordBytes = null;
+        Path wordFile = null;
         if (attachmentForms != null && attachmentForms.contains(WarehouseAttachmentOrganizationForm.WORD_COMBINED)) {
-            try { wordBytes = wordBundleBuilder.buildBundle(entities, filteredAttachments); }
-            catch (RuntimeException e) { log.warn("Word 合订本生成失败，降级为仅附件目录+台账: taskId={}", taskId, e); }
+            try {
+                wordFile = Files.createTempFile("warehouse-word-bundle-", ".docx");
+                try (OutputStream out = Files.newOutputStream(wordFile)) {
+                    wordBundleBuilder.buildBundle(entities, filteredAttachments, out);
+                }
+            } catch (RuntimeException e) {
+                log.warn("Word 合订本生成失败，降级为仅附件目录+台账: taskId={}", taskId, e);
+                if (wordFile != null) {
+                    try { Files.deleteIfExists(wordFile); } catch (IOException ignored) {}
+                }
+                wordFile = null;
+            }
         }
         WarehouseExportZipBuilder.ZipBuildResult zip = zipBuilder.buildZip(
-                xlsxBytes, entities, filteredAttachments, wordBytes, attachmentForms);
+                xlsxBytes, entities, filteredAttachments, wordFile, attachmentForms);
         try {
             String filePath = saveZip(taskId, zip);
             long elapsedMs = System.currentTimeMillis() - startMs;
@@ -150,6 +161,9 @@ public class WarehouseExportAsyncExecutor {
             exportPublisher.publish(task, entities.size(), zip, filterDTO, elapsedMs, TS_FMT, attachmentScope);
         } finally {
             try { Files.deleteIfExists(zip.zipFile()); } catch (IOException ignored) { log.debug("Failed to delete zip file", ignored); }
+            if (wordFile != null) {
+                try { Files.deleteIfExists(wordFile); } catch (IOException ignored) { log.debug("Failed to delete word file", ignored); }
+            }
         }
     }
 
