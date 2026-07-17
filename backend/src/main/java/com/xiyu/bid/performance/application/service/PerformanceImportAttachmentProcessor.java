@@ -33,7 +33,7 @@ public class PerformanceImportAttachmentProcessor {
 
     private final PerformanceAttachmentJpaRepository attachmentRepo;
 
-    @Value("${performance.attachment.root:/data/attachments/performance}")
+    @Value("${performance.attachment.root:data/performance-attachments}")
     private String attachmentRoot;
 
     @Transactional

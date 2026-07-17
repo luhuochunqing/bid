@@ -38,7 +38,7 @@ public class WarehouseExportZipBuilder {
     private static final String WORD_FILENAME_SUFFIX = ".docx";
     private static final DateTimeFormatter WORD_TS_FMT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
-    @Value("${warehouse.attachment.root:/data/attachments/warehouse}")
+    @Value("${warehouse.attachment.root:data/warehouse-attachments}")
     private String attachmentRoot;
 
     public ZipBuildResult buildZip(byte[] xlsxBytes,

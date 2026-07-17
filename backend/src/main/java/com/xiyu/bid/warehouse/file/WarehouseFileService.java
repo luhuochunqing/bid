@@ -35,7 +35,7 @@ public class WarehouseFileService {
     private final WarehouseAttachmentRepository attachmentRepository;
     private final WarehouseRepository warehouseRepository;
 
-    @Value("${warehouse.attachment.root:/data/attachments/warehouse}")
+    @Value("${warehouse.attachment.root:data/warehouse-attachments}")
     private String rootPath;
 
     @Transactional

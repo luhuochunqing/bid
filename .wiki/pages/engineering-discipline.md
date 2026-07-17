@@ -371,6 +371,7 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 | 全局 429 提示被业务层覆盖 | 2 次 | 追症状不追根因：第一次只改全局文案，未收敛业务层 catch 块；第二次未在真实环境验证 | Account.vue `loadAccounts`，`scripts/check-429-error-override.mjs` |
 | Account 详情 429（N+1 list-detail） | 6 次 | 追症状不追根因 + 修 A 破 B：!1997/!2005/!2036 三次降并发补丁未触及 list 端点不返回完整 DTO 的根因；测试用文本匹配而非行为验证；最后盲目相信「已修复」 | `Account.vue#loadDetailsInBatches`，`src/api/modules/resources/accounts.js#getList`，spec 035 |
 | 仓库全量导出超时（@Async 自调用） | 1 次 | 框架理解偏差：CO-582 新增 Word 合订本后全量导出耗时 > 30s，根因是 `WarehouseExportAppService.export()` 直接调用 `executeExportAsync()`（自调用），Spring AOP 代理被绕过，@Async 注解不生效。修复：提取 @Async 方法到独立 Bean（`WarehouseExportAsyncExecutor`），通过依赖注入调用使代理生效；同时修复 `WarehouseLedgerExportAppService` 和 `WarehouseImportAppService` 同源问题；提取 `WarehouseExportTaskStateService` 消除状态机重复代码 | `WarehouseExportAppService.java#L78`、`WarehouseLedgerExportAppService.java#L79`、`WarehouseImportAppService.java#L59`，spec 039，PR !2110 |
+| 仓库 Word 合订本附件内容丢失（macOS SSV + 绝对路径默认值） | 1 次 | 环境差异掩盖 + 框架理解偏差：`@Value("${warehouse.attachment.root:/data/attachments/warehouse}")` 默认值是绝对路径，macOS Catalina+ SSV 保护使根目录 `/` 只读，`mkdir /data` 失败（`Read-only file system`）。上传时 `Files.createDirectories` 抛 IOException → HTTP 400，但用户用历史同步数据未感知；Word 生成时 `Files.exists` 返回 false → 所有三级标题下显示"（文件缺失）"。@Async 超时（PR !2110 修复前）掩盖了 Word 生成失败，超时修复后才暴露此 bug。全局收敛发现 6 处同类（warehouse 4 + performance 2）。修复：默认值改为相对路径 `data/warehouse-attachments` / `data/performance-attachments`（对齐 personnel/qualification 模块约定），新增 `scripts/check-attachment-root-path.mjs` pre-push 拦截 | `WarehouseWordBundleBuilder.java#L49`、`WarehouseFileService.java#L38`、`WarehouseExportZipBuilder.java#L41`、`WarehouseImportAttachmentProcessor.java#L47`、`PerformanceAttachmentStorageAppService.java#L44`、`PerformanceImportAttachmentProcessor.java#L36`，PR !2112 |
 
 ### 6.4 pre-push 拦截脚本索引
 
@@ -383,6 +384,7 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 | `scripts/check-429-error-override.mjs` | 新增 API catch 块中直接 `ElMessage.error` 覆盖全局 429 提示 | 全局 429 提示被业务层覆盖 |
 | `scripts/check-list-endpoint-n1.mjs` | 新增 `Promise.all(map(... => *.getDetail(...)))` 或 `loadDetailsInBatches` 函数 | spec 035 / Account 详情 6 次反复修 |
 | `scripts/audit-existing-429-exposure.mjs` | 存量业务层 ElMessage.error 风险评级（HIGH/MEDIUM/LOW），驱动治理 PR 排序 | spec 035 / 全仓 207 处存量 |
+| `scripts/check-attachment-root-path.mjs` | 新增 `@Value("${*.attachment.root:/...}")` 等文件路径默认值以 `/` 开头（macOS SSV 只读） | 仓库 Word 合订本附件内容丢失 |
 
 ---
 

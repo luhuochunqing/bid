@@ -8,11 +8,13 @@ import com.xiyu.bid.warehouse.domain.WarehouseAttachmentReadModel;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.poi.xwpf.usermodel.XWPFRun;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import javax.imageio.ImageIO;
@@ -214,6 +216,141 @@ class WarehouseWordBundleBuilderTest {
                     .as("§3.6：PDF 附件不应在图片顶部输出文字说明（如 '第1页'、原文件名）")
                     .isFalse();
         }
+    }
+
+    // ========== 根因行为测试（CO-582 bug：macOS SSV 只读 + 绝对路径默认值） ==========
+
+    /**
+     * 根因行为测试 1：验证 attachmentRoot 的 @Value 默认值是相对路径，不能以 "/" 开头。
+     * <p>
+     * 根因：原默认值 "/data/attachments/warehouse" 是绝对路径，在 macOS 上根目录 "/" 是只读文件系统
+     * （SSV 保护），mkdir /data 失败，导致上传文件无法写入，Word 生成时 Files.exists 返回 false，
+     * 所有三级标题下显示"（文件缺失）"。
+     * <p>
+     * 修复：默认值改为 "data/warehouse-attachments"（相对路径，对齐 personnel/qualification 模块约定）。
+     * <p>
+     * 防回归：本测试扫描 warehouse 模块所有 @Value("${*.attachment.root:...}") 注解，
+     * 确保默认值不以 "/" 开头，避免再次踩坑。
+     */
+    @Test
+    void attachmentRootDefault_mustBeRelativePath_notAbsolute() throws Exception {
+        // WarehouseWordBundleBuilder
+        assertRelativePathDefault(WarehouseWordBundleBuilder.class, "attachmentRoot");
+        // WarehouseExportZipBuilder
+        assertRelativePathDefault(WarehouseExportZipBuilder.class, "attachmentRoot");
+        // WarehouseFileService
+        assertRelativePathDefault(com.xiyu.bid.warehouse.file.WarehouseFileService.class, "rootPath");
+        // WarehouseImportAttachmentProcessor
+        assertRelativePathDefault(com.xiyu.bid.warehouse.application.WarehouseImportAttachmentProcessor.class, "attachmentRoot");
+        // PerformanceAttachmentStorageAppService
+        assertRelativePathDefault(com.xiyu.bid.performance.application.service.PerformanceAttachmentStorageAppService.class, "attachmentRoot");
+        // PerformanceImportAttachmentProcessor
+        assertRelativePathDefault(com.xiyu.bid.performance.application.service.PerformanceImportAttachmentProcessor.class, "attachmentRoot");
+    }
+
+    /**
+     * 根因行为测试 2：端到端验证"上传→生成 Word→内容完整"链路。
+     * <p>
+     * 验证：当附件文件真实存在于 attachmentRoot/{whId}/{storedFilename} 时，
+     * 生成的 Word 中必须包含图片内容（不是"（文件缺失）"标注）。
+     * <p>
+     * 这覆盖了原 bug 的根因行为：Files.exists 必须在文件存在时返回 true。
+     */
+    @Test
+    void buildBundle_pdfAttachmentFileExists_wordContainsImageNotMissingLabel() throws IOException {
+        WarehouseWordBundleBuilder builder = new WarehouseWordBundleBuilder();
+        ReflectionTestUtils.setField(builder, "attachmentRoot", tempDir.toString());
+
+        // 准备一个最小 PDF 文件（1 页）到 {whId}/lease.pdf
+        Path whDir = tempDir.resolve("1");
+        Files.createDirectories(whDir);
+        Path pdfPath = whDir.resolve("lease.pdf");
+        try (PDDocument pdf = new PDDocument()) {
+            PDPage page = new PDPage();
+            pdf.addPage(page);
+            try (PDPageContentStream cs = new PDPageContentStream(pdf, page)) {
+                cs.beginText();
+                cs.setFont(PDType1Font.HELVETICA, 12);
+                cs.newLineAtOffset(100, 700);
+                cs.showText("Lease Contract Content");
+                cs.endText();
+            }
+            pdf.save(pdfPath.toFile());
+        }
+
+        TestWarehouse wh = new TestWarehouse(1L, "杭州仓", "浙江",
+                LocalDate.of(2021, 1, 15), LocalDate.of(2029, 1, 14));
+        TestAttachment att = new TestAttachment(100L, WarehouseAttachmentType.LEASE_CONTRACT,
+                "WH_杭州仓_租赁合同.pdf", "lease.pdf");
+
+        byte[] result = builder.buildBundle(List.of(wh), Map.of(1L, List.of(att)));
+
+        try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(result))) {
+            // 根因行为验证：文件存在时，Word 中必须不包含"（文件缺失）"标注
+            boolean hasMissingLabel = doc.getParagraphs().stream()
+                    .map(XWPFParagraph::getText)
+                    .anyMatch("（文件缺失）"::equals);
+            assertThat(hasMissingLabel)
+                    .as("根因行为：附件文件存在时，Word 中不应出现'（文件缺失）'标注")
+                    .isFalse();
+
+            // 根因行为验证：Word 中必须包含至少一个图片（PDF 转图片嵌入成功）
+            boolean hasImage = doc.getParagraphs().stream()
+                    .flatMap(p -> p.getRuns().stream())
+                    .map(XWPFRun::getEmbeddedPictures)
+                    .anyMatch(pics -> pics != null && !pics.isEmpty());
+            assertThat(hasImage)
+                    .as("根因行为：PDF 附件存在时，Word 中应包含嵌入的图片")
+                    .isTrue();
+        }
+    }
+
+    /**
+     * 根因行为测试 3：验证文件不存在时仍然降级显示"（文件缺失）"（保护降级语义）。
+     */
+    @Test
+    void buildBundle_pdfAttachmentFileMissing_wordShowsMissingLabel() throws IOException {
+        WarehouseWordBundleBuilder builder = new WarehouseWordBundleBuilder();
+        // 故意指向空目录，文件不存在
+        ReflectionTestUtils.setField(builder, "attachmentRoot", tempDir.toString());
+
+        TestWarehouse wh = new TestWarehouse(1L, "杭州仓", "浙江",
+                LocalDate.of(2021, 1, 15), LocalDate.of(2029, 1, 14));
+        // 不在磁盘上创建 lease.pdf，模拟文件丢失
+        TestAttachment att = new TestAttachment(100L, WarehouseAttachmentType.LEASE_CONTRACT,
+                "WH_杭州仓_租赁合同.pdf", "lease.pdf");
+
+        byte[] result = builder.buildBundle(List.of(wh), Map.of(1L, List.of(att)));
+
+        try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(result))) {
+            boolean hasMissingLabel = doc.getParagraphs().stream()
+                    .map(XWPFParagraph::getText)
+                    .anyMatch("（文件缺失）"::equals);
+            assertThat(hasMissingLabel)
+                    .as("降级语义：附件文件丢失时，Word 应显示'（文件缺失）'标注")
+                    .isTrue();
+        }
+    }
+
+    /**
+     * 辅助：断言指定类的指定字段上的 @Value 注解默认值是相对路径（不以 "/" 开头）。
+     */
+    private static void assertRelativePathDefault(Class<?> clazz, String fieldName) throws Exception {
+        java.lang.reflect.Field field = clazz.getDeclaredField(fieldName);
+        Value annotation = field.getAnnotation(Value.class);
+        assertThat(annotation)
+                .as("@Value 注解必须存在: %s.%s", clazz.getSimpleName(), fieldName)
+                .isNotNull();
+        String valueExpr = annotation.value();
+        assertThat(valueExpr)
+                .as("@Value 表达式必须包含默认值: %s.%s", clazz.getSimpleName(), fieldName)
+                .contains(":");
+        int colonIdx = valueExpr.indexOf(':');
+        String defaultValue = valueExpr.substring(colonIdx + 1, valueExpr.length() - 1);
+        assertThat(defaultValue)
+                .as("根因防护：默认值不能是绝对路径（macOS SSV 只读），%s.%s = %s",
+                        clazz.getSimpleName(), fieldName, defaultValue)
+                .doesNotStartWith("/");
     }
 
     // ========== 测试辅助 ==========

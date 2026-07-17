@@ -44,7 +44,7 @@ public class WarehouseImportAttachmentProcessor {
 
     private final WarehouseAttachmentRepository attachmentRepo;
 
-    @Value("${warehouse.attachment.root:/data/attachments/warehouse}")
+    @Value("${warehouse.attachment.root:data/warehouse-attachments}")
     private String attachmentRoot;
 
     @Transactional
