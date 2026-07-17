@@ -65,6 +65,7 @@
 | 追踪质量 | `QUALITY_SCORE.md` | 模块质量评分、技术债追踪 |
 | 查数据库结构 | `docs/generated/db-schema.md` | 自动生成（`npm run db:generate-schema`） |
 | 修 bug 前 | `docs/lessons/lessons-learned.md` | 先搜索同类问题，避免重复踩坑 |
+| 开新 AI Coding 项目/复盘经验 | `docs/ai-coding-playbook/` | 从 2059 个 PR 提炼的经验手册：bug 根因模式、多Agent协作、透传范式、门禁、回退纪律、行动清单 |
 
 ## 协作暗号
 
