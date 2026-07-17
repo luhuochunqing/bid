@@ -26,6 +26,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -197,6 +199,20 @@ public class ProjectController {
         log.info("GET /api/projects/active - Fetching active projects");
         List<ProjectDTO> projects = projectService.getActiveProjects();
         return ResponseEntity.ok(ApiResponse.success("Successfully retrieved active projects", projects));
+    }
+
+    /**
+     * 工作台角色化改造：按当前用户角色返回项目待办列表（spec.md §3 模块3）。
+     * 角色分支逻辑下沉到 Service 层，Controller 仅做协议适配。
+     */
+    @GetMapping("/workbench-todos")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<ProjectDTO>>> getWorkbenchTodos(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        log.info("GET /api/projects/workbench-todos - Fetching project todos by role for {}",
+                userDetails != null ? userDetails.getUsername() : "anonymous");
+        List<ProjectDTO> projects = projectService.getWorkbenchTodos(userDetails);
+        return ResponseEntity.ok(ApiResponse.success("Successfully retrieved workbench project todos", projects));
     }
 
     @GetMapping("/search")

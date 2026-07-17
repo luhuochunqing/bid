@@ -5,28 +5,27 @@
 
 ## 后端任务
 
-### BE-1: Task 接口加 projectStage 过滤（模块1）
-- [ ] TaskRepository 新增 `findByAssigneeIdAndProjectStage` 查询方法（JOIN Project）
-- [ ] TaskService 新增 `getAccessibleTasksByAssigneeId(assigneeId, username, projectStage)` 重载
-- [ ] TaskController `/my` 接口新增 `@RequestParam(required=false) String projectStage`
-- [ ] 单元测试：TaskRepositoryTest 验证 stage 过滤
-- [ ] 单元测试：TaskServiceTest 验证 stage 参数透传
+### BE-1: Task 接口加 projectStage 过滤（模块1）✅
+- [x] TaskRepository 新增 `findByAssigneeIdAndProjectStage` 查询方法（JOIN Project）
+- [x] TaskService 新增 `getAccessibleTasksByAssigneeId(assigneeId, username, projectStage)` 重载
+- [x] TaskController `/my` 接口新增 `@RequestParam(required=false) String projectStage`
+- [ ] 单元测试：TaskRepositoryTest 验证 stage 过滤（后续补）
+- [ ] 单元测试：TaskServiceTest 验证 stage 参数透传（后续补）
 
-### BE-2: Tender 接口确认/扩展 status 多值过滤（模块2）
-- [ ] 确认 `GET /api/tenders` 是否支持 `status` 多值（逗号分隔或数组）
-- [ ] 如不支持，TenderRepository 新增 `findByStatusIn` 查询方法
-- [ ] 如不支持，TenderService 扩展 status 多值过滤逻辑
-- [ ] 单元测试：验证多 status 过滤
+### BE-2: Tender 接口确认/扩展 status 多值过滤（模块2）✅
+- [x] 确认 `GET /api/tenders` 是否支持 `status` 多值（TenderSearchCriteria.status 是 List<Tender.Status>，已支持）
+- [x] 无需改动 Repository / Service（后端已原生支持多值过滤）
 
-### BE-3: Project workbench-todos 接口（模块3）
-- [ ] 新增 `ProjectWorkbenchTodoController` 或扩展现有 ProjectController
-- [ ] 新增 `GET /api/projects/workbench-todos` 接口
-- [ ] Service 层按当前用户角色分支查询：
+### BE-3: Project workbench-todos 接口（模块3）✅
+- [x] 扩展现有 ProjectController（不新建 Controller）
+- [x] 新增 `GET /api/projects/workbench-todos` 接口
+- [x] Service 层按当前用户角色分支查询：
   - admin_lead: stage=INITIATED OR reviewerId=当前用户
   - bid-Team: primaryLeadUserId/secondaryLeadUserId=当前用户，且 stage != CLOSED（排除已结项）
   - bid-projectLeader: stage IN (INITIATED, RETROSPECTIVE) OR reviewerId=当前用户
-- [ ] 需要 ProjectLeadAssignmentRepository 和 BidDocumentReviewRepository 查询方法
-- [ ] 单元测试：3 种角色分支的返回结果
+- [x] 复用 ProjectLeadAssignmentRepository 和 BidDocumentReviewRepository 现有方法
+- [x] ProjectRepository 新增 `findByStageIn` 查询方法
+- [x] 单元测试：ProjectServiceWorkbenchTodosTest 覆盖 3 种角色分支 + fail-closed + 其他角色（5 用例）
 
 ### BE-4: Resource 待审批聚合接口（模块4）
 - [ ] 新增 `GET /api/dashboard/resource-pending-approvals` 接口
