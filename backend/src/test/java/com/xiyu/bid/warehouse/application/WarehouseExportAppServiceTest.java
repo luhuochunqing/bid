@@ -3,13 +3,9 @@ package com.xiyu.bid.warehouse.application;
 import com.xiyu.bid.warehouse.domain.WarehouseAttachmentExportScope;
 import com.xiyu.bid.warehouse.domain.WarehouseAttachmentOrganizationForm;
 import com.xiyu.bid.warehouse.dto.WarehouseFilterDTO;
-import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskEntity;
-import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskEntity.ExportStatus;
-import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -24,26 +20,32 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
 /**
  * WarehouseExportAppService 单元测试。
  *
- * 验证修复 @Async self-invocation 后的行为：
- * 1. export() 在 @Transactional 事务中创建 PENDING 任务
- * 2. export() 委托调用 WarehouseExportAsyncExecutor（而非 this.executeExportAsync）
- * 3. exportByIds() 同理委托调用 asyncExecutor
+ * <p>验证修复 @Async self-invocation + @Transactional 竞态后的行为：
+ * <ol>
+ *   <li>export() 委托 stateService.createTask 创建 PENDING 任务（独立事务，避免竞态）</li>
+ *   <li>export() 委托调用 WarehouseExportAsyncExecutor（而非 this.executeExportAsync）</li>
+ *   <li>exportByIds() 同理</li>
+ * </ol>
  *
- * 根因：原代码 export() 内部直接调用 this.executeExportAsync()，
+ * <p>根因：原代码 export() 内部直接调用 this.executeExportAsync()，
  * Spring AOP 代理不拦截 self-invocation，@Async 注解静默失效，
  * 导致 Word 合订本生成在 HTTP 线程同步执行超过 30 秒超时。
+ *
+ * <p>P1-1 修复：createTask 由 StateService 以独立事务执行并提交，
+ * 异步线程可立即查询到，避免 @Async + @Transactional 竞态。
  */
 @ExtendWith(MockitoExtension.class)
 class WarehouseExportAppServiceTest {
 
     @Mock
-    private WarehouseExportTaskRepository exportTaskRepo;
+    private WarehouseExportAsyncExecutor asyncExecutor;
 
     @Mock
-    private WarehouseExportAsyncExecutor asyncExecutor;
+    private WarehouseExportTaskStateService stateService;
 
     @Mock
     private ObjectMapper objectMapper;
@@ -52,7 +54,7 @@ class WarehouseExportAppServiceTest {
     private WarehouseExportAppService appService;
 
     @Test
-    void export_shouldCreatePendingTaskAndDelegateToAsyncExecutor() {
+    void export_shouldDelegateCreateTaskAndTriggerAsyncExecutor() {
         // Given
         WarehouseFilterDTO filterDTO = new WarehouseFilterDTO(null, null, null, null, null, null, null, null, null, null, null, null);
         Long operatorId = 100L;
@@ -60,12 +62,7 @@ class WarehouseExportAppServiceTest {
         WarehouseAttachmentExportScope scope = new WarehouseAttachmentExportScope.All();
         Set<WarehouseAttachmentOrganizationForm> forms = Set.of(WarehouseAttachmentOrganizationForm.WORD_COMBINED);
 
-        WarehouseExportTaskEntity savedTask = WarehouseExportTaskEntity.builder()
-                .id(1L)
-                .status(ExportStatus.PENDING)
-                .createdBy(operatorId)
-                .build();
-        when(exportTaskRepo.save(any(WarehouseExportTaskEntity.class))).thenReturn(savedTask);
+        when(stateService.createTask(any(), eq(operatorId))).thenReturn(1L);
 
         // When
         WarehouseExportAppService.ExportTaskResult result = appService.export(
@@ -74,12 +71,8 @@ class WarehouseExportAppServiceTest {
         // Then: 返回 taskId
         assertThat(result.taskId()).isEqualTo(1L);
 
-        // Then: 创建了 PENDING 任务
-        ArgumentCaptor<WarehouseExportTaskEntity> taskCaptor = ArgumentCaptor.forClass(WarehouseExportTaskEntity.class);
-        verify(exportTaskRepo).save(taskCaptor.capture());
-        WarehouseExportTaskEntity createdTask = taskCaptor.getValue();
-        assertThat(createdTask.getStatus()).isEqualTo(ExportStatus.PENDING);
-        assertThat(createdTask.getCreatedBy()).isEqualTo(operatorId);
+        // Then: 委托 stateService.createTask（独立事务，避免 @Async + @Transactional 竞态）
+        verify(stateService, times(1)).createTask(any(), eq(operatorId));
 
         // Then: 委托调用 asyncExecutor.executeExport（而非 self-invocation）
         verify(asyncExecutor, times(1)).executeExport(
@@ -88,7 +81,7 @@ class WarehouseExportAppServiceTest {
     }
 
     @Test
-    void exportByIds_shouldCreatePendingTaskAndDelegateToAsyncExecutor() {
+    void exportByIds_shouldDelegateCreateTaskAndTriggerAsyncExecutor() {
         // Given
         List<Long> ids = List.of(10L, 20L, 30L);
         Long operatorId = 100L;
@@ -96,12 +89,7 @@ class WarehouseExportAppServiceTest {
         WarehouseAttachmentExportScope scope = new WarehouseAttachmentExportScope.All();
         Set<WarehouseAttachmentOrganizationForm> forms = Set.of(WarehouseAttachmentOrganizationForm.WORD_COMBINED);
 
-        WarehouseExportTaskEntity savedTask = WarehouseExportTaskEntity.builder()
-                .id(2L)
-                .status(ExportStatus.PENDING)
-                .createdBy(operatorId)
-                .build();
-        when(exportTaskRepo.save(any(WarehouseExportTaskEntity.class))).thenReturn(savedTask);
+        when(stateService.createTask(any(), eq(operatorId))).thenReturn(2L);
 
         // When
         WarehouseExportAppService.ExportTaskResult result = appService.exportByIds(
@@ -109,6 +97,9 @@ class WarehouseExportAppServiceTest {
 
         // Then: 返回 taskId
         assertThat(result.taskId()).isEqualTo(2L);
+
+        // Then: 委托 stateService.createTask
+        verify(stateService, times(1)).createTask(any(), eq(operatorId));
 
         // Then: 委托调用 asyncExecutor.executeExportByIds（而非 self-invocation）
         verify(asyncExecutor, times(1)).executeExportByIds(

@@ -75,3 +75,22 @@ npm run dev:all
 1. **预期**: 任务状态 COMPLETED
 2. **预期**: ZIP 包含 仓库信息台账.xlsx + 附件目录，但 Word 合订本可能缺失或部分内容
 3. **预期**: 后端日志有 `log.warn` Word 合订本生成失败，但任务未 FAILED
+
+## 已知技术债
+
+### P3-3 `getExportFile` 全量读入内存
+
+**位置**: `WarehouseExportAppService.getExportFile`
+
+**问题**: 当前使用 `Files.readAllBytes(path)` 把整个 ZIP 加载到内存。Constitution `Export Limit: 单次导出最多 500 条记录`，但 500 条 + 附件 + Word 合订本的 ZIP 可能达数十 MB，高并发下载会撑爆堆。
+
+**建议**: Controller 层改用 `StreamingResponseBody` 或 `Resource` 流式输出。需要修改 Controller + Service 两层。
+
+**优先级**: 中（当前单用户场景可接受，多用户高并发下载时需修复）
+
+### P3-2 `WarehouseExportZipBuilder.buildZip` 输出到临时目录
+
+**问题**: `buildZip` 在临时目录生成 zip，AsyncExecutor 再 `Files.move` 到 export 目录。虽然已用 `Files.move`（原子操作）替代 `copy + delete`，但理想方案是 `buildZip` 直接生成到 export 目录。
+
+**建议**: 修改 `WarehouseExportZipBuilder.buildZip` 签名，接收输出路径参数。影响范围略大，留待后续优化。
+
