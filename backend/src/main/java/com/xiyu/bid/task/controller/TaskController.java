@@ -114,8 +114,9 @@ public class TaskController {
     @Auditable(action = "READ", entityType = "Task", description = "获取我的任务")
     public ResponseEntity<ApiResponse<List<TaskDTO>>> getMyTasks(
             @RequestParam(required = false) Long assigneeId,
+            @RequestParam(required = false) String projectStage,
             @AuthenticationPrincipal UserDetails userDetails) {
-        List<TaskDTO> tasks = taskService.getAccessibleTasksByAssigneeId(assigneeId, userDetails.getUsername());
+        List<TaskDTO> tasks = taskService.getAccessibleTasksByAssigneeId(assigneeId, userDetails.getUsername(), projectStage);
         return ResponseEntity.ok(ApiResponse.success("Tasks retrieved successfully", tasks));
     }
 
