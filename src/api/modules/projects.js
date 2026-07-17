@@ -372,6 +372,23 @@ export const projectsApi = {
     }
 
     return httpClient.post(`/api/projects/${projectId}/transfer`, payload)
+  },
+
+  /**
+   * 工作台项目待办：按当前用户角色返回差异化项目列表。
+   * 后端按角色分支查询（admin_lead / bid-Team / bid-projectLeader），其他角色返回空。
+   * @returns {Promise<{success: boolean, data: Array}>}
+   */
+  async getWorkbenchTodos() {
+    try {
+      const response = await httpClient.get('/api/projects/workbench-todos')
+      return {
+        success: response?.success !== false,
+        data: Array.isArray(response?.data) ? response.data : [],
+      }
+    } catch (error) {
+      return { success: false, data: [], error }
+    }
   }
 }
 

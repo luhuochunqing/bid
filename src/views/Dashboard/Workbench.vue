@@ -79,6 +79,7 @@ import { ElMessage } from 'element-plus'
 import { dashboardApi, projectsApi, tendersApi } from '@/api'
 import { useUserStore } from '@/stores/user'
 import { useBiddingStore } from '@/stores/bidding'
+import { useWorkbenchRoleTodos } from '@/views/Dashboard/useWorkbenchRoleTodos.js'
 import { useWorkbenchSchedule } from '@/views/Dashboard/useWorkbenchSchedule.js'
 import { useWorkbenchMetrics } from '@/views/Dashboard/useWorkbenchMetrics.js'
 import { useWorkbenchTodos } from '@/views/Dashboard/useWorkbenchTodos.js'
@@ -109,13 +110,16 @@ const Icons = markRaw({ Briefcase, Calendar, Check, DataAnalysis, Document, Flag
 const router = useRouter()
 const userStore = useUserStore()
 const biddingStore = useBiddingStore()
-const currentUserRole = computed(() => userStore.currentUser?.role || 'bid-Team')
+const currentUserRole = computed(() => userStore.currentUser?.roleCode || userStore.currentUser?.role || 'bid-Team')
 const currentUserName = computed(() => userStore.currentUser?.name || '用户')
 const currentUserId = computed(() => userStore.currentUser?.id || null)
 const currentDate = computed(() => formatCurrentDate())
 const workbenchProjects = ref([])
 const hotTenders = ref([])
 const dynamicLayout = ref(null)
+
+// 工作台角色化待办：4 个独立数据源（专供待办卡片，按角色差异化加载）
+const { taskTodos: workbenchTaskTodos, tenderTodos: workbenchTenderTodos, projectTodos: workbenchProjectTodos, resourceTodos: workbenchResourceTodos, loadAll: loadWorkbenchRoleTodos } = useWorkbenchRoleTodos({ roleRef: currentUserRole, userIdRef: currentUserId })
 
 const {
   pendingApprovals, pendingApprovalsTotalCount, approvalDialogVisible, approvalMode,
@@ -168,13 +172,15 @@ const {
   greeting, deadlinePeriod, permissions, welcomeStats, todoCategoryCards,
   handleWelcomeStatClick, handleTodoCardClick, handleDeadlineRowClick,
 } = useWorkbenchRebuild({
-  priorityTodosRef: priorityTodos,
-  hotTendersRef: hotTenders,
-  activeProjectsRef: activeProjects,
-  pendingApprovalsRef: pendingApprovals,
+  taskTodosRef: workbenchTaskTodos,
+  tenderTodosRef: workbenchTenderTodos,
+  projectTodosRef: workbenchProjectTodos,
+  resourceTodosRef: workbenchResourceTodos,
   deadlineStatsRef: deadlineStats,
   menuPermissionsRef: computed(() => userStore.menuPermissions),
   currentUserRef: computed(() => userStore.currentUser),
+  roleRef: currentUserRole,
+  userIdRef: currentUserId,
   router,
   handleTenderClick,
   handleProjectClick,
@@ -260,25 +266,17 @@ function handleCalendarDateClick(dateKey) {
 }
 
 function handleTenderClick(tender) {
-  if (String(tender.id || '').startsWith('-')) {
-    router.push('/bidding')
-    return
-  }
+  if (String(tender.id || '').startsWith('-')) { router.push('/bidding'); return }
   router.push(`/bidding/${tender.id}`)
 }
 
 function handleProjectClick(project) {
   const projectId = String(project?.id || '')
-  if (/^\d+$/.test(projectId)) {
-    navigateToProject(router, projectId)
-    return
-  }
+  if (/^\d+$/.test(projectId)) { navigateToProject(router, projectId); return }
   router.push({ path: '/project', query: { demoProjectId: projectId } })
 }
 
-function handleShareClick() {
-  ElMessage.info('协作功能开发中')
-}
+function handleShareClick() { ElMessage.info('协作功能开发中') }
 
 function handleReview(review) { ElMessage.info(`打开评审: ${review.title}`) }
 
@@ -311,8 +309,7 @@ async function loadWorkbenchTenders() {
 }
 
 async function reloadSchedule() {
-  await loadScheduleOverview()
-  syncSelectedDate()
+  await loadScheduleOverview(); syncSelectedDate()
 }
 
 async function loadDynamicLayout() {
@@ -329,6 +326,7 @@ onMounted(async () => {
     loadWorkbenchTenders(),
     loadScheduleOverview(), loadTodos(), loadPendingApprovals(), loadMyProcesses(),
     loadWorkbenchSummary(), loadDeadlineStats(),
+    loadWorkbenchRoleTodos(), // 工作台角色化待办（4 个独立数据源）
   ])
   metricsLoading.value = false
   syncSelectedDate()

@@ -20,15 +20,17 @@ export const PROJECT_NOT_LINKED_MESSAGE = '该标讯未关联项目'
  *
  * @param {object} router vue-router 实例（useRouter() 返回值）
  * @param {string|number|null|undefined} projectId 项目 ID
- * @param {object} [options] 预留扩展位（当前未使用）
+ * @param {object} [options] 跳转选项
+ * @param {string} [options.stage] 项目阶段（透传为 query.stage，用于定位任务看板 Tab）
  * @returns {void}
  */
-export function navigateToProject(router, projectId, _options = {}) {
+export function navigateToProject(router, projectId, options = {}) {
   if (!projectId) {
     ElMessage.warning(PROJECT_NOT_LINKED_MESSAGE)
     return
   }
-  router.push({ name: 'ProjectDetail', params: { id: String(projectId) } })
+  const query = options?.stage ? { stage: options.stage } : undefined
+  router.push({ name: 'ProjectDetail', params: { id: String(projectId) }, query })
 }
 
 /**
