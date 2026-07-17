@@ -1,4 +1,4 @@
-package com.xiyu.bid.dashboard.dto;
+package com.xiyu.bid.workbench.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

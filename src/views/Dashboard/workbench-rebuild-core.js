@@ -110,15 +110,20 @@ const MAX_CARD_ITEMS = 4
 
 /**
  * 构建任务待办卡片条目（保留 projectId 用于跳转项目详情标书制作阶段）。
+ * P0-5.1：过滤 projectId==null 的任务，避免卡片点击跳转到无效路径。
+ * 后端 tasksApi.getMine 可能返回无 projectId 的全局任务，这类任务不展示在卡片中。
  */
 function buildTodoItems(todos) {
   const safe = Array.isArray(todos) ? todos.filter((t) => !t?.done) : []
-  return safe.slice(0, MAX_CARD_ITEMS).map((todo) => ({
-    id: todo.id,
-    name: todo.title || todo.name || '',
-    rightText: formatDateShort(todo.deadline) || '',
-    projectId: todo.projectId ?? null,
-  }))
+  return safe
+    .filter((todo) => todo.projectId != null)
+    .slice(0, MAX_CARD_ITEMS)
+    .map((todo) => ({
+      id: todo.id,
+      name: todo.title || todo.name || '',
+      rightText: formatDateShort(todo.deadline) || '',
+      projectId: todo.projectId,
+    }))
 }
 
 /**

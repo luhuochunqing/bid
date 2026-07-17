@@ -124,19 +124,20 @@ describe('buildDeadlinePanels', () => {
 })
 
 describe('buildTodoCategoryCards', () => {
-  it('从四类数据源构建 4 张卡片', () => {
+  it('admin 角色从四类数据源构建 4 张卡片', () => {
     const cards = buildTodoCategoryCards({
-      priorityTodos: [
-        { id: 1, title: '商务标编制', done: false, deadline: '2026-07-15' },
+      role: 'admin',
+      taskTodos: [
+        { id: 1, title: '商务标编制', done: false, deadline: '2026-07-15', projectId: 100 },
       ],
-      hotTenders: [
+      tenderTodos: [
         { id: 10, title: '智慧城市标讯', registrationDeadline: '2026-07-17' },
       ],
-      activeProjects: [
+      projectTodos: [
         { id: 20, name: '智慧水务项目', status: '待立项' },
       ],
-      pendingApprovals: [
-        { id: 30, title: 'CA 申请 - 王五', type: 'ca' },
+      resourceTodos: [
+        { applicationId: 30, resourceLabel: 'CA 申请 - 王五', applicantName: '王五', applicationType: 'CA' },
       ],
     })
 
@@ -156,8 +157,8 @@ describe('buildTodoCategoryCards', () => {
     expect(cards[3].count).toBe(1)
   })
 
-  it('每张卡片含 title/count/accent/items', () => {
-    const cards = buildTodoCategoryCards({})
+  it('admin 角色每张卡片含 title/count/accent/items', () => {
+    const cards = buildTodoCategoryCards({ role: 'admin' })
     expect(cards).toHaveLength(4)
     cards.forEach((card) => {
       expect(card).toHaveProperty('key')
@@ -170,7 +171,7 @@ describe('buildTodoCategoryCards', () => {
   })
 
   it('空数据源返回 count=0 且 items 为空数组', () => {
-    const cards = buildTodoCategoryCards({})
+    const cards = buildTodoCategoryCards({ role: 'admin' })
     cards.forEach((card) => {
       expect(card.count).toBe(0)
       expect(card.items).toEqual([])
@@ -179,7 +180,10 @@ describe('buildTodoCategoryCards', () => {
 
   it('items 最多 4 条', () => {
     const cards = buildTodoCategoryCards({
-      priorityTodos: Array.from({ length: 10 }, (_, i) => ({ id: i, title: `t${i}`, done: false })),
+      role: 'admin',
+      taskTodos: Array.from({ length: 10 }, (_, i) => ({
+        id: i, title: `t${i}`, done: false, projectId: i + 1,
+      })),
     })
     expect(cards[0].items).toHaveLength(4)
     // count 仍是全量
@@ -188,12 +192,51 @@ describe('buildTodoCategoryCards', () => {
 
   it('每条 item 含 name/rightText/id', () => {
     const cards = buildTodoCategoryCards({
-      priorityTodos: [{ id: 1, title: '任务1', done: false, deadline: '2026-07-15' }],
+      role: 'admin',
+      taskTodos: [{ id: 1, title: '任务1', done: false, deadline: '2026-07-15', projectId: 100 }],
     })
     const item = cards[0].items[0]
     expect(item).toHaveProperty('name')
     expect(item).toHaveProperty('rightText')
     expect(item).toHaveProperty('id')
+  })
+
+  it('P0-5.1: taskTodos 中 projectId=null 的条目不进入 items', () => {
+    const cards = buildTodoCategoryCards({
+      role: 'admin',
+      taskTodos: [
+        { id: 1, title: '有项目任务', done: false, projectId: 100 },
+        { id: 2, title: '无项目任务', done: false, projectId: null },
+      ],
+    })
+    expect(cards[0].items).toHaveLength(1)
+    expect(cards[0].items[0].id).toBe(1)
+    // count 仍是全量（2 条）
+    expect(cards[0].count).toBe(2)
+  })
+
+  it('bid-Team 角色不显示 tender 卡片但显示 project 卡片', () => {
+    const cards = buildTodoCategoryCards({
+      role: 'bid-Team',
+      taskTodos: [{ id: 1, title: 't1', done: false, projectId: 1 }],
+      tenderTodos: [{ id: 10, title: '不应显示' }],
+      projectTodos: [{ id: 20, name: '应显示' }],
+      resourceTodos: [{ applicationId: 30, resourceLabel: 'r1' }],
+    })
+    expect(cards).toHaveLength(3)
+    expect(cards.map((c) => c.key)).toEqual(['task', 'project', 'resource'])
+  })
+
+  it('bid-otherDept 角色只显示 task + resource 卡片', () => {
+    const cards = buildTodoCategoryCards({
+      role: 'bid-otherDept',
+      taskTodos: [{ id: 1, title: 't1', done: false, projectId: 1 }],
+      tenderTodos: [{ id: 10, title: '不应显示' }],
+      projectTodos: [{ id: 20, name: '不应显示' }],
+      resourceTodos: [{ applicationId: 30, resourceLabel: 'r1' }],
+    })
+    expect(cards).toHaveLength(2)
+    expect(cards.map((c) => c.key)).toEqual(['task', 'resource'])
   })
 })
 

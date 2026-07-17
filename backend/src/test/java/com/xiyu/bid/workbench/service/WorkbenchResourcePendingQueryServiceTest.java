@@ -1,6 +1,5 @@
-package com.xiyu.bid.dashboard.service;
+package com.xiyu.bid.workbench.service;
 
-import com.xiyu.bid.dashboard.dto.ResourcePendingApprovalDTO;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.platform.dto.BorrowApplicationDTO;
@@ -13,6 +12,7 @@ import com.xiyu.bid.resources.repository.CaBorrowApplicationRepository;
 import com.xiyu.bid.resources.service.CaBorrowApplicationNameEnricher;
 import com.xiyu.bid.security.CurrentUserLookupService;
 import com.xiyu.bid.security.EffectiveRoleResolver;
+import com.xiyu.bid.workbench.dto.ResourcePendingApprovalDTO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,6 +20,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDateTime;
@@ -31,12 +33,17 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 工作台角色化改造 BE-4：DashboardResourcePendingService 聚合接口测试。
- * 覆盖 spec.md §3 模块4 的管理员/保管员分支 + fail-closed + limit 4。
+ * 工作台角色化改造 BE-4：WorkbenchResourcePendingQueryService 聚合接口测试。
+ * 覆盖 spec.md §3 模块4 的管理员/保管员分支 + fail-closed + limit 4 + 数据库分页。
+ *
+ * 改进点（相对 DashboardResourcePendingServiceTest）：
+ * 1. 测试 WorkbenchResourcePendingQueryService（迁移自 DashboardResourcePendingService）
+ * 2. 验证 P0-4.1：使用 Pageable 数据库分页（每类前 4 条）
+ * 3. 验证 P0-2.3：使用 RoleProfileCatalog.GLOBAL_ACCESS_ROLES 替代 CaBorrowPermissionChecker
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-class DashboardResourcePendingServiceTest {
+class WorkbenchResourcePendingQueryServiceTest {
 
     @Mock private AccountBorrowApplicationRepository accountBorrowRepository;
     @Mock private AccountBorrowApplicationMapper accountBorrowMapper;
@@ -46,12 +53,12 @@ class DashboardResourcePendingServiceTest {
     @Mock private EffectiveRoleResolver effectiveRoleResolver;
     @Mock private UserDetails userDetails;
 
-    private DashboardResourcePendingService service;
+    private WorkbenchResourcePendingQueryService service;
     private final User currentUser = mock(User.class);
 
     @BeforeEach
     void setUp() {
-        service = new DashboardResourcePendingService(
+        service = new WorkbenchResourcePendingQueryService(
                 accountBorrowRepository,
                 accountBorrowMapper,
                 caBorrowRepository,
@@ -67,14 +74,14 @@ class DashboardResourcePendingServiceTest {
     @Test
     void adminRole_returnsMergedAccountAndCaApprovalsSortedByCreatedAtDesc() {
         when(effectiveRoleResolver.resolveRoleCode(currentUser)).thenReturn(RoleProfileCatalog.BID_ADMIN_CODE);
-        // 管理员走 findByStatusOrderByCreatedAtDesc 分支
+        // 管理员走 findByStatusOrderByCreatedAtDesc(status, pageable) 分支
         LocalDateTime t1 = LocalDateTime.of(2026, 7, 15, 10, 0);
         LocalDateTime t2 = LocalDateTime.of(2026, 7, 16, 10, 0);
         LocalDateTime t3 = LocalDateTime.of(2026, 7, 14, 10, 0);
         LocalDateTime t4 = LocalDateTime.of(2026, 7, 17, 10, 0);
 
         List<AccountBorrowApplication> accountApps = List.of(new AccountBorrowApplication());
-        when(accountBorrowRepository.findByStatusOrderByCreatedAtDesc(any())).thenReturn(accountApps);
+        when(accountBorrowRepository.findByStatusOrderByCreatedAtDesc(any(), any(Pageable.class))).thenReturn(accountApps);
         when(accountBorrowMapper.toDTOList(accountApps)).thenReturn(List.of(
                 BorrowApplicationDTO.builder().id(10L).accountName("账号A").applicantId(2L)
                         .applicantName("张三").purpose("投标用").projectId(100L).projectName("项目A")
@@ -85,7 +92,7 @@ class DashboardResourcePendingServiceTest {
         ));
 
         List<CaBorrowApplicationEntity> caApps = List.of(new CaBorrowApplicationEntity());
-        when(caBorrowRepository.findByStatusOrderByCreatedAtDesc(any())).thenReturn(caApps);
+        when(caBorrowRepository.findByStatusOrderByCreatedAtDesc(any(String.class), any(Pageable.class))).thenReturn(caApps);
         when(caNameEnricher.enrich(caApps)).thenReturn(List.of(
                 CaBorrowApplicationDTO.builder().id(20L).caName("CA甲").applicantId(2L)
                         .applicantName("张三").purpose("签章").projectId(100L).projectName("项目A")
@@ -111,9 +118,10 @@ class DashboardResourcePendingServiceTest {
     @Test
     void custodianRole_returnsOnlyOwnApprovals() {
         when(effectiveRoleResolver.resolveRoleCode(currentUser)).thenReturn(RoleProfileCatalog.BID_SPECIALIST_CODE);
-        // 保管员走 findByCustodianIdAndStatusOrderByCreatedAtDesc / findByApproverIdAndStatusOrderByCreatedAtDesc
+        // 保管员走 findByCustodianIdAndStatusOrderByCreatedAtDesc(custodianId, status, pageable)
+        // 和 findByApproverIdAndStatusOrderByCreatedAtDesc(approverId, status, pageable)
         List<AccountBorrowApplication> accountApps = List.of(new AccountBorrowApplication());
-        when(accountBorrowRepository.findByCustodianIdAndStatusOrderByCreatedAtDesc(any(), any()))
+        when(accountBorrowRepository.findByCustodianIdAndStatusOrderByCreatedAtDesc(any(), any(), any(Pageable.class)))
                 .thenReturn(accountApps);
         when(accountBorrowMapper.toDTOList(accountApps)).thenReturn(List.of(
                 BorrowApplicationDTO.builder().id(10L).accountName("账号A").applicantId(2L)
@@ -121,7 +129,7 @@ class DashboardResourcePendingServiceTest {
         ));
 
         List<CaBorrowApplicationEntity> caApps = List.of(new CaBorrowApplicationEntity());
-        when(caBorrowRepository.findByApproverIdAndStatusOrderByCreatedAtDesc(any(), any()))
+        when(caBorrowRepository.findByApproverIdAndStatusOrderByCreatedAtDesc(any(), any(String.class), any(Pageable.class)))
                 .thenReturn(caApps);
         when(caNameEnricher.enrich(caApps)).thenReturn(List.of(
                 CaBorrowApplicationDTO.builder().id(20L).caName("CA甲").applicantId(2L)
@@ -147,15 +155,15 @@ class DashboardResourcePendingServiceTest {
     @Test
     void mergedResultsLimitedTo4() {
         when(effectiveRoleResolver.resolveRoleCode(currentUser)).thenReturn(RoleProfileCatalog.BID_ADMIN_CODE);
-        // 3 账户 + 3 CA = 6 条，应只返回前 4 条
-        when(accountBorrowRepository.findByStatusOrderByCreatedAtDesc(any()))
+        // 3 账户 + 3 CA = 6 条，应只返回前 4 条（按 createdAt 倒序）
+        when(accountBorrowRepository.findByStatusOrderByCreatedAtDesc(any(), any(Pageable.class)))
                 .thenReturn(List.of(new AccountBorrowApplication()));
         when(accountBorrowMapper.toDTOList(any())).thenReturn(List.of(
                 buildAccountDto(10L, LocalDateTime.of(2026, 7, 15, 10, 0)),
                 buildAccountDto(11L, LocalDateTime.of(2026, 7, 14, 10, 0)),
                 buildAccountDto(12L, LocalDateTime.of(2026, 7, 13, 10, 0))
         ));
-        when(caBorrowRepository.findByStatusOrderByCreatedAtDesc(any()))
+        when(caBorrowRepository.findByStatusOrderByCreatedAtDesc(any(String.class), any(Pageable.class)))
                 .thenReturn(List.of(new CaBorrowApplicationEntity()));
         when(caNameEnricher.enrich(any())).thenReturn(List.of(
                 buildCaDto(20L, LocalDateTime.of(2026, 7, 17, 10, 0)),
@@ -169,6 +177,25 @@ class DashboardResourcePendingServiceTest {
         // 按 createdAt 倒序前 4 条：7/17, 7/16, 7/15, 7/14
         assertThat(result).extracting(ResourcePendingApprovalDTO::getApplicationId)
                 .containsExactly(20L, 21L, 10L, 11L);
+    }
+
+    @Test
+    void pageableConfiguredToMaxItems() {
+        // 验证 P0-4.1：service 使用 PageRequest.of(0, MAX_ITEMS) 调用 Repository
+        when(effectiveRoleResolver.resolveRoleCode(currentUser)).thenReturn(RoleProfileCatalog.BID_ADMIN_CODE);
+        when(accountBorrowRepository.findByStatusOrderByCreatedAtDesc(any(), any(Pageable.class)))
+                .thenReturn(List.of());
+        when(caBorrowRepository.findByStatusOrderByCreatedAtDesc(any(String.class), any(Pageable.class)))
+                .thenReturn(List.of());
+
+        service.getPendingApprovals(userDetails);
+
+        // 通过 ArgumentCaptor 验证 Pageable 取值（这里用简单方式：MAX_ITEMS = 4）
+        org.mockito.ArgumentCaptor<Pageable> captor = org.mockito.ArgumentCaptor.forClass(Pageable.class);
+        org.mockito.Mockito.verify(accountBorrowRepository).findByStatusOrderByCreatedAtDesc(any(), captor.capture());
+        Pageable pageable = captor.getValue();
+        assertThat(pageable.getPageNumber()).isZero();
+        assertThat(pageable.getPageSize()).isEqualTo(WorkbenchResourcePendingQueryService.MAX_ITEMS);
     }
 
     private BorrowApplicationDTO buildAccountDto(Long id, LocalDateTime createdAt) {
