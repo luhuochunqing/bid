@@ -70,8 +70,8 @@ class WorkbenchProjectTodoQueryServiceTest {
         // /bidAdmin 属于 GLOBAL_ACCESS_ROLES，走 admin_lead 分支
         when(effectiveRoleResolver.resolveRoleCode(currentUser)).thenReturn(RoleProfileCatalog.BID_ADMIN_CODE);
         Project initiated = newProject(10L, "已立项项目", ProjectStage.INITIATED.name());
-        // 验证 P1-2.4：service 传 List.of(ProjectStage.INITIATED.name()) = List.of("INITIATED")
-        when(projectRepository.findByStageIn(List.of(ProjectStage.INITIATED.name()))).thenReturn(List.of(initiated));
+        // P1-2.4：service 传 ProjectStage 枚举集合（findByStageIn 枚举 default 方法收口）
+        when(projectRepository.findByStageIn(List.of(ProjectStage.INITIATED))).thenReturn(List.of(initiated));
         BidDocumentReviewEntity review = BidDocumentReviewEntity.builder().projectId(20L).build();
         when(bidDocumentReviewRepository.findByReviewerId(1L)).thenReturn(List.of(review));
         Project reviewerProject = newProject(20L, "审核项目", ProjectStage.DRAFTING.name());
@@ -92,10 +92,9 @@ class WorkbenchProjectTodoQueryServiceTest {
         when(projectLeadAssignmentRepository.findBySecondaryLeadUserId(1L)).thenReturn(List.of(secondary));
         Project active = newProject(10L, "进行中项目", ProjectStage.DRAFTING.name());
         Project closed = newProject(20L, "已结项项目", ProjectStage.CLOSED.name());
-        // bid-Team 分支会调用两次 findAllById：第一次用于过滤 CLOSED 后 projectIds={10}
+        // bid-Team 分支单次 findAllById：内存过滤 CLOSED 后直接转 DTO（P0 优化，消除重复 DB 往返）
         when(projectRepository.findAllById(any()))
-                .thenReturn(List.of(active, closed))  // 第一次：过滤 CLOSED 后 projectIds={10}
-                .thenReturn(List.of(active));          // 第二次：最终返回
+                .thenReturn(List.of(active, closed));
 
         List<ProjectDTO> result = service.getWorkbenchTodos(userDetails);
 
@@ -109,9 +108,9 @@ class WorkbenchProjectTodoQueryServiceTest {
         when(effectiveRoleResolver.resolveRoleCode(currentUser)).thenReturn(RoleProfileCatalog.SALES_CODE);
         Project initiated = newProject(10L, "待立项", ProjectStage.INITIATED.name());
         Project retrospective = newProject(20L, "待结项", ProjectStage.RETROSPECTIVE.name());
-        // 验证 P1-2.4：service 传 List.of(ProjectStage.INITIATED.name(), ProjectStage.RETROSPECTIVE.name())
+        // P1-2.4：service 传 ProjectStage 枚举集合（findByStageIn 枚举 default 方法收口）
         when(projectRepository.findByStageIn(List.of(
-                ProjectStage.INITIATED.name(), ProjectStage.RETROSPECTIVE.name())))
+                ProjectStage.INITIATED, ProjectStage.RETROSPECTIVE)))
                 .thenReturn(List.of(initiated, retrospective));
         BidDocumentReviewEntity review = BidDocumentReviewEntity.builder().projectId(30L).build();
         when(bidDocumentReviewRepository.findByReviewerId(1L)).thenReturn(List.of(review));
