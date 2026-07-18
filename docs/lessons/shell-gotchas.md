@@ -78,3 +78,92 @@ mysql -h ... -e "SELECT LENGTH(password), password FROM winbid.users WHERE sourc
 mysql -h ... -e "SELECT COUNT(*) FROM winbid.users WHERE source = 'OSS' AND LENGTH(password) != 60"
 # 期望输出：0
 ```
+
+---
+
+## 2. `set -euo pipefail` 下 `grep` 无匹配返回非零导致脚本意外退出（PR !2059 / 2026-07-13）
+
+### 问题
+
+`scripts/release/package-release.sh` 在头部启用了 `set -euo pipefail`：
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+```
+
+在 OBS 直传三层保护机制中，新增了一段「构建后验证 `dist/assets/Detail-*.js` 中 `.upload()` 调用次数」的逻辑：
+
+```bash
+# ❌ 错误：grep 无匹配时退出码非零，pipefail 让管道整体失败，set -e 直接终止脚本
+_n=$(grep -o "\.upload(" "$_f" 2>/dev/null | wc -l | tr -d ' ')
+```
+
+当某个 `Detail-*.js` 文件中**不包含 `.upload(` 字符串**（例如 OBS 直传被关闭时），`grep` 返回 1，`pipefail` 让整个管道返回 1，`set -e` 让脚本立即退出，**导致打包流程在验证步骤中断**。
+
+### 根因
+
+- **`grep` 的退出码语义**：
+  - `0`：找到匹配
+  - `1`：未找到匹配（不是错误，是正常结果）
+  - `>=2`：真正的错误（文件不存在、权限问题等）
+- **`set -e`**：任何命令返回非零都会终止脚本，但 `grep` 返回 1 是「未匹配」而非「错误」。
+- **`pipefail`**：管道的退出码取最后一个非零的命令，让 `grep` 的 1 传到管道整体。
+
+### 危害
+
+1. **打包中断**：构建产物验证步骤意外失败，`package-release.sh` 退出码非零。
+2. **假阳性错误报告**：开发者误以为 OBS 直传配置错误，实际只是 `grep` 在某个文件里没匹配到。
+3. **CI 假红**：CI 流水线运行 `package-release.sh` 时无故失败。
+
+### 正确做法
+
+**方式 1：管道末尾加 `|| true`（推荐，当前 `package-release.sh:92` 采用）**
+
+```bash
+# ✅ 正确：grep 无匹配时返回 1，|| true 让整体退出码为 0
+_n=$(grep -o "\.upload(" "$_f" 2>/dev/null | wc -l | tr -d ' ' || true)
+```
+
+**方式 2：用 `if` 包裹 grep，区分"无匹配"和"错误"**
+
+```bash
+# ✅ 正确：显式区分 grep 的退出码语义
+if _n=$(grep -o "\.upload(" "$_f" 2>/dev/null | wc -l | tr -d ' '); then
+  : # 正常处理
+else
+  _n=0  # grep 未匹配，设为 0
+fi
+```
+
+**方式 3：用 `grep -c` 直接输出匹配数（无匹配时输出 0，退出码仍为 1，但更容易处理）**
+
+```bash
+# ⚠️ 退出码仍为 1，需配合 || true
+_n=$(grep -c "\.upload(" "$_f" 2>/dev/null || echo 0)
+```
+
+### 通用规则
+
+1. **在 `set -euo pipefail` 下使用 `grep` 必须加 `|| true`**：`grep` 返回 1 是"未匹配"的正常结果，不是错误。
+2. **不要用 `grep` 的退出码判断"找到/未找到"**：在 `set -e` 下会意外终止脚本；改用 `grep -c` 或 `if` 包裹。
+3. **CI 脚本中的 `grep` 要特别小心**：CI 环境（如 GitLab CI、GitHub Actions）通常默认 `set -e`，`grep` 无匹配会导致整个 job 失败。
+4. **审计现有 `set -euo pipefail` 脚本中的 `grep`**：
+   ```bash
+   # 查找 set -euo pipefail 脚本中未加 || true 的 grep
+   grep -rn "set -euo pipefail" scripts/ | cut -d: -f1 | xargs -I{} sh -c 'grep -n "grep " {} | grep -v "|| true"'
+   ```
+
+### 验证命令
+
+```bash
+# 验证 package-release.sh 中的 grep 是否已加 || true
+grep -n "grep" scripts/release/package-release.sh
+# 期望输出：所有 grep 命令后都应跟 || true 或用 if 包裹
+```
+
+### 相关文档
+
+- [package-release.sh](../../scripts/release/package-release.sh) — 修复落地（第 92 行）
+- [lessons-learned.md §56](./lessons-learned.md) — OBS 直传三层保护（本次 gotcha 发现于该保护的构建后验证步骤）
+- PR !2059 — OBS 直传三层保护 + 5 个绕过路径修复
