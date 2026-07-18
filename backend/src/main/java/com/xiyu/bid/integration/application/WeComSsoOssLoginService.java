@@ -81,6 +81,9 @@ public class WeComSsoOssLoginService {
         // CrmHttpClient.getQywxLogin 永不返回 null（异常时返回 parseError），无需 null 判断
         CrmResponseHandler.CrmApiResponse response =
                 crmHttpClient.getQywxLogin(baseUrl, qywxLoginPath, code, agentId);
+        // [TEMP-DEBUG] 联调期间临时打印 base-oss 完整响应，验证返回结构假设。联调完成后删除。
+        log.info("WeCom SSO [TEMP-DEBUG]: base-oss response code={} success={} data={}",
+                response.code(), response.success(), response.data());
         if (!response.success() || response.data() == null) {
             log.warn("WeCom SSO: base-oss loginQywx failed, code={} msg={}",
                     response.code(), response.msg());
@@ -89,7 +92,7 @@ public class WeComSsoOssLoginService {
 
         String ossToken = response.data().path("access_token").asText(null);
         if (ossToken == null || ossToken.isBlank()) {
-            log.warn("WeCom SSO: base-oss returned empty access_token");
+            log.warn("WeCom SSO: base-oss returned empty access_token, data={}", response.data());
             return Optional.empty();
         }
 
