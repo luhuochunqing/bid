@@ -25,8 +25,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.EnumSet;
@@ -214,18 +218,24 @@ public class WarehouseExportController {
 
     @GetMapping("/tasks/{taskId}/download")
     @PreAuthorize("hasAuthority('" + PERM + "')")
-    public ResponseEntity<byte[]> downloadExportFile(@PathVariable Long taskId) {
+    public ResponseEntity<StreamingResponseBody> downloadExportFile(@PathVariable Long taskId) {
         Long userId = userResolver.resolveCurrentUserId();
         if (userId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         try {
-            byte[] bytes = exportAppService.getExportFile(taskId, userId);
+            Path filePath = exportAppService.getExportFile(taskId, userId);
             WarehouseExportTaskEntity task = exportAppService.getTaskStatus(taskId, userId);
             String filename = buildDownloadFilename(task);
+            long fileSize = Files.size(filePath);
+            StreamingResponseBody body = out -> {
+                try (InputStream in = Files.newInputStream(filePath)) {
+                    in.transferTo(out);
+                }
+            };
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
                     .contentType(MediaType.parseMediaType(resolveContentType(filename)))
-                    .contentLength(bytes.length)
-                    .body(bytes);
+                    .contentLength(fileSize)
+                    .body(body);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.notFound().build();
         } catch (IllegalStateException e) {

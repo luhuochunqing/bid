@@ -106,7 +106,7 @@ public class WarehouseExportAppService {
                 .orElseThrow(() -> new IllegalArgumentException("导出任务不存在或无权限"));
     }
 
-    public byte[] getExportFile(Long taskId, Long createdBy) throws IOException {
+    public Path getExportFile(Long taskId, Long createdBy) throws IOException {
         WarehouseExportTaskEntity task = exportTaskRepo.findByIdAndCreatedBy(taskId, createdBy)
                 .orElseThrow(() -> new IllegalArgumentException("导出任务不存在或无权限"));
 
@@ -124,9 +124,7 @@ public class WarehouseExportAppService {
         if (!Files.exists(path)) {
             throw new IllegalStateException("导出文件已被清理");
         }
-        // 已知技术债（spec 039 P3-3）：单次导出最多 500 条记录 + 附件 + Word 合订本，
-        // ZIP 可达数十 MB，高并发下载会撑爆堆。后续应改用 StreamingResponseBody 流式输出。
-        return Files.readAllBytes(path);
+        return path;
     }
 
     public record ExportTaskResult(Long taskId) {}
