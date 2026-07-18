@@ -190,7 +190,9 @@ const resolveDownloadErrorMessage = (error) => {
 }
 
 const handleDownload = () => {
-  downloadFile(summary.value?.fileName, () => {
+  // downloadFile 第一参数是 task id（用于拼下载 URL），不是 fileName。
+  // 传 null 会用 useAsyncTask 内部的 taskId.value 兜底，避免误把 fileName 当 id 拼出 404 URL。
+  downloadFile(null, () => {
     return `仓库信息导出包_${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}.zip`
   }).catch((error) => {
     ElMessage.error(resolveDownloadErrorMessage(error))

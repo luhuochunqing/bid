@@ -191,4 +191,34 @@ describe('WarehouseExportDialog', () => {
     expect(wrapper.vm.validation.valid).toBe(true)
     expect(wrapper.vm.validation.message).toBe('')
   })
+
+  it('handleDownload 调用 downloadFile 时传 null 而非 summary.fileName（防止把 fileName 当 task id 拼出 404 URL）', async () => {
+    // 通过 mock fetch 返回 HTTP 错误，让 downloadFile 在拼完 URL 后立即抛出，
+    // 跳过 Blob 部分，避免污染 document.body。
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 500,
+      headers: { get: () => null },
+      body: null
+    })
+
+    const wrapper = mount(WarehouseExportDialog, {
+      props: { modelValue: true },
+      global: { stubs: globalStubs }
+    })
+    // 模拟 useAsyncTask 已有 taskId 和 summary（含 fileName 字段，模拟后端未来可能加该字段）
+    wrapper.vm.taskId = 'task-789'
+    wrapper.vm.summary = { fileName: 'warehouse_export_20260718.zip', totalCount: 5 }
+
+    // handleDownload 内部 catch 了 DownloadError 并调 ElMessage.error，不会抛出
+    await wrapper.vm.handleDownload()
+
+    // 下载 URL 必须基于 taskId，不能基于 fileName
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    const calledUrl = fetchSpy.mock.calls[0][0]
+    expect(calledUrl).toContain('/task-789/download')
+    expect(calledUrl).not.toContain('warehouse_export_20260718.zip')
+
+    fetchSpy.mockRestore()
+  })
 })
