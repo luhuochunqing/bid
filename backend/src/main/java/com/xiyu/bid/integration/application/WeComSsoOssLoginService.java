@@ -8,8 +8,6 @@ import com.xiyu.bid.crm.infrastructure.CrmHttpClient;
 import com.xiyu.bid.crm.infrastructure.CrmResponseHandler;
 import com.xiyu.bid.dto.AuthSessionResult;
 import com.xiyu.bid.entity.User;
-import com.xiyu.bid.integration.infrastructure.persistence.entity.WeComIntegrationEntity;
-import com.xiyu.bid.integration.infrastructure.persistence.repository.WeComIntegrationJpaRepository;
 import com.xiyu.bid.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +21,7 @@ import java.util.Optional;
  * <p>
  * 流程：
  * <ol>
- *   <li>从 WeComIntegrationEntity 取 agentId（ssoEnabled=true 才放行）</li>
+ *   <li>从 {@link WeComIntegrationAppService#getSsoConfig()} 取 SSO 配置（ssoEnabled=true 才放行）</li>
  *   <li>GET base-oss /qyWeixin/loginQywx?code=xxx&agentId=xxx → 拿到 OSS access_token</li>
  *   <li>用 OSS token 走 {@link OssLoginFlowService#authenticateWithExistingToken} 完整流程</li>
  *   <li>本地无 User 时由 {@link OssUserAutoCreator#autoCreateIfAbsent} 自动创建</li>
@@ -43,7 +41,7 @@ public class WeComSsoOssLoginService {
     private final OssLoginFlowService ossLoginFlowService;
     private final OssUserAutoCreator ossUserAutoCreator;
     private final AuthService authService;
-    private final WeComIntegrationJpaRepository integrationRepository;
+    private final WeComIntegrationAppService integrationAppService;
 
     /**
      * 通过企微 OAuth code 走 base-oss 完成 SSO 登录。
@@ -58,20 +56,13 @@ public class WeComSsoOssLoginService {
             return Optional.empty();
         }
 
-        // 1. 取 WeCom 集成配置（ID=1 单行配置表，与 WeComAuthAppService 对称）
-        // 同时校验 ssoEnabled，避免前端拿到 appid/agentid 跳转后回调被拒
-        Optional<WeComIntegrationEntity> integrationOpt = integrationRepository.findById(1L)
-                .filter(WeComIntegrationEntity::isSsoEnabled);
-        if (integrationOpt.isEmpty()) {
+        // 1. 取 SSO 配置（统一从 WeComIntegrationAppService 入口，避免直接注入 JPA Repository）
+        Optional<WeComSsoConfig> ssoConfigOpt = integrationAppService.getSsoConfig();
+        if (ssoConfigOpt.isEmpty()) {
             log.warn("WeCom SSO login failed: integration not configured (ID=1) or SSO disabled");
             return Optional.empty();
         }
-        WeComIntegrationEntity integration = integrationOpt.get();
-        String agentId = integration.getAgentId();
-        if (agentId == null || agentId.isBlank()) {
-            log.warn("WeCom SSO login failed: agentId is empty in integration config");
-            return Optional.empty();
-        }
+        String agentId = ssoConfigOpt.get().agentId();
 
         // 2. 调用 base-oss /qyWeixin/loginQywx 换 OSS token
         String baseUrl = crmProperties.getEffectiveAuthBaseUrl();
@@ -81,9 +72,6 @@ public class WeComSsoOssLoginService {
         // CrmHttpClient.getQywxLogin 永不返回 null（异常时返回 parseError），无需 null 判断
         CrmResponseHandler.CrmApiResponse response =
                 crmHttpClient.getQywxLogin(baseUrl, qywxLoginPath, code, agentId);
-        // [TEMP-DEBUG] 联调期间临时打印 base-oss 完整响应，验证返回结构假设。联调完成后删除。
-        log.info("WeCom SSO [TEMP-DEBUG]: base-oss response code={} success={} data={}",
-                response.code(), response.success(), response.data());
         if (!response.success() || response.data() == null) {
             log.warn("WeCom SSO: base-oss loginQywx failed, code={} msg={}",
                     response.code(), response.msg());

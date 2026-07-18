@@ -47,6 +47,21 @@ public class WeComIntegrationAppService {
                 e.getCorpId(), e.getAgentId(), e.isSsoEnabled(), e.isMessageEnabled(), e.getNotifyUserIds());
     }
 
+    /**
+     * 获取 SSO 配置（供消息推送、SSO 登录等场景消费）。
+     * <p>统一入口，避免多个 Service 直接注入 {@code WeComIntegrationJpaRepository} 重复查询。
+     * <p>仅当 {@code ssoEnabled=true} 且 corpId/agentId 均非空时返回有效配置。
+     *
+     * @return SSO 配置；未配置 / 未启用 / 配置不全 时返回 {@link Optional#empty()}
+     */
+    @Transactional(readOnly = true)
+    public Optional<WeComSsoConfig> getSsoConfig() {
+        return repository.findById(SINGLETON_ID)
+                .filter(WeComIntegrationEntity::isSsoEnabled)
+                .map(entity -> new WeComSsoConfig(entity.getCorpId(), entity.getAgentId()))
+                .filter(WeComSsoConfig::isValid);
+    }
+
     @Transactional
     public WeComIntegrationResponse saveConfig(WeComIntegrationRequest request, String operator) {
         WeComCredential credential = new WeComCredential(

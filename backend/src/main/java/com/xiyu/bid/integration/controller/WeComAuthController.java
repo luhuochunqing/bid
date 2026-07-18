@@ -5,7 +5,6 @@ import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.dto.AuthSessionResult;
 import com.xiyu.bid.integration.application.WeComAuthAppService;
 import com.xiyu.bid.integration.application.WeComSsoOssLoginService;
-import com.xiyu.bid.notification.outbound.core.WeComMessageFormatter;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -112,11 +111,9 @@ public class WeComAuthController {
                 code, state);
 
         // 1. Validate state (CSRF protection)
-        // 消息推送场景使用固定 state（WeComMessageFormatter.OAUTH_STATE_FROM_MESSAGE），
-        // 因为用户点击消息是异步行为（可能几小时/几天后），Redis 10 分钟 TTL 不适用。
-        // 安全评估：code 是企微一次性凭证，攻击者无法通过构造 state 获取受害者身份。
-        if (!WeComMessageFormatter.OAUTH_STATE_FROM_MESSAGE.equals(state)
-                && !oAuthStateService.validateAndRemoveState(state)) {
+        // OAuthStateService 内部识别 msg: 前缀的消息推送 state（7 天 TTL，只验证不删除），
+        // 与普通一次性 state（10 分钟 TTL，验证后删除）走同一入口。
+        if (!oAuthStateService.validateAndRemoveState(state)) {
             log.warn("OAuth2 callback state validation failed: {}", state);
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ApiResponse.error(HttpStatus.FORBIDDEN.value(),

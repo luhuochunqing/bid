@@ -124,10 +124,15 @@ class WeComAuthControllerTest {
     }
 
     @Test
-    @DisplayName("callback with state=msg → 跳过 Redis 校验（消息推送场景）")
-    void callback_stateFromMessage_skipsRedisValidation() {
-        // 消息推送场景：state="msg" 是固定值，不应调 Redis 校验
+    @DisplayName("callback with state=msg:<uuid> → 走统一 state 校验入口（消息推送场景）")
+    void callback_stateFromMessage_goesThroughUnifiedValidation() {
+        // 消息推送场景：state="msg:<uuid>" 由 OAuthStateService.storeStateForMessage() 生成
+        // OAuthStateService 内部识别 msg: 前缀，只验证不删除（7 天 TTL，允许同一消息多次点击）
+        // Controller 不再特殊处理，统一调 validateAndRemoveState(state)
         // Arrange
+        String msgState = "msg:abc123def456";
+        when(oAuthStateService.validateAndRemoveState(msgState)).thenReturn(true);
+
         AuthResponse authResponse = new AuthResponse();
         authResponse.setUsername("user");
 
@@ -139,12 +144,30 @@ class WeComAuthControllerTest {
         when(weComSsoOssLoginService.loginByWeComCode("code")).thenReturn(Optional.of(authSessionResult));
 
         // Act
-        ResponseEntity<ApiResponse<?>> result = controller.callback("code", "msg", response);
+        ResponseEntity<ApiResponse<?>> result = controller.callback("code", msgState, response);
 
         // Assert
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(result.getBody().getData()).isEqualTo(authResponse);
-        // 关键断言：未调 oAuthStateService（跳过 Redis 校验）
-        verify(oAuthStateService, never()).validateAndRemoveState(anyString());
+        // 关键断言：调了 oAuthStateService.validateAndRemoveState（统一入口，不再跳过）
+        // OAuthStateService 内部识别 msg: 前缀做差异化处理（只验证不删除）
+        verify(oAuthStateService).validateAndRemoveState(msgState);
+    }
+
+    @Test
+    @DisplayName("callback with state=msg:<uuid> 但 state 已过期/无效 → 返回 403")
+    void callback_stateFromMessage_invalid_returns403() {
+        // 消息推送 state 过期或不存在时，validateAndRemoveState 返回 false
+        String msgState = "msg:expired-or-invalid";
+        when(oAuthStateService.validateAndRemoveState(msgState)).thenReturn(false);
+
+        // Act
+        ResponseEntity<ApiResponse<?>> result = controller.callback("code", msgState, response);
+
+        // Assert
+        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(result.getBody().getMessage()).isEqualTo("INVALID_STATE");
+        // 失败时不应继续走登录流程
+        verify(weComSsoOssLoginService, never()).loginByWeComCode(anyString());
     }
 }

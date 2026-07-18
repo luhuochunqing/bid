@@ -10,8 +10,6 @@ import com.xiyu.bid.crm.infrastructure.CrmHttpClient;
 import com.xiyu.bid.crm.infrastructure.CrmResponseHandler;
 import com.xiyu.bid.dto.AuthSessionResult;
 import com.xiyu.bid.entity.User;
-import com.xiyu.bid.integration.infrastructure.persistence.entity.WeComIntegrationEntity;
-import com.xiyu.bid.integration.infrastructure.persistence.repository.WeComIntegrationJpaRepository;
 import com.xiyu.bid.service.AuthService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -20,12 +18,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -60,7 +56,7 @@ class WeComSsoOssLoginServiceTest {
     @Mock
     private AuthService authService;
     @Mock
-    private WeComIntegrationJpaRepository integrationRepository;
+    private WeComIntegrationAppService integrationAppService;
 
     private WeComSsoOssLoginService service;
 
@@ -68,11 +64,11 @@ class WeComSsoOssLoginServiceTest {
     void setUp() {
         service = new WeComSsoOssLoginService(
                 crmHttpClient, crmProperties, ossLoginFlowService,
-                ossUserAutoCreator, authService, integrationRepository);
+                ossUserAutoCreator, authService, integrationAppService);
     }
 
     @Test
-    @DisplayName("loginByWeComCode: code 为 null 或 blank → 返回 empty，不查 DB 不调 HTTP")
+    @DisplayName("loginByWeComCode: code 为 null 或 blank → 返回 empty，不查 SSO 配置不调 HTTP")
     void loginByWeComCode_emptyCode() {
         // null
         assertThat(service.loginByWeComCode(null)).isEmpty();
@@ -82,7 +78,7 @@ class WeComSsoOssLoginServiceTest {
         assertThat(service.loginByWeComCode("   ")).isEmpty();
 
         // 守卫最早返回，不应触发任何下游调用
-        verify(integrationRepository, never()).findById(anyLong());
+        verify(integrationAppService, never()).getSsoConfig();
         verify(crmHttpClient, never()).getQywxLogin(anyString(), anyString(), anyString(), anyString());
         verify(ossLoginFlowService, never()).authenticateWithExistingToken(anyString());
     }
@@ -92,7 +88,7 @@ class WeComSsoOssLoginServiceTest {
     void loginByWeComCode_success() {
         // Arrange
         setupCrmProperties();
-        setupIntegrationEntity(true, AGENT_ID);
+        setupSsoConfig(true, AGENT_ID);
         setupQywxLoginResponse(OSS_TOKEN, 7200);
 
         OssLoginResult ossResult = OssLoginResult.builder()
@@ -124,9 +120,9 @@ class WeComSsoOssLoginServiceTest {
     }
 
     @Test
-    @DisplayName("loginByWeComCode: WeCom 集成未配置 → 返回 empty")
+    @DisplayName("loginByWeComCode: WeCom 集成未配置 / SSO 未启用 → 返回 empty")
     void loginByWeComCode_integrationNotConfigured() {
-        when(integrationRepository.findById(1L)).thenReturn(Optional.empty());
+        when(integrationAppService.getSsoConfig()).thenReturn(Optional.empty());
 
         Optional<AuthSessionResult> result = service.loginByWeComCode(WECOM_CODE);
 
@@ -136,21 +132,10 @@ class WeComSsoOssLoginServiceTest {
     }
 
     @Test
-    @DisplayName("loginByWeComCode: SSO 未启用 → 返回 empty")
-    void loginByWeComCode_ssoDisabled() {
-        setupIntegrationEntity(false, AGENT_ID);
-
-        Optional<AuthSessionResult> result = service.loginByWeComCode(WECOM_CODE);
-
-        assertThat(result).isEmpty();
-        verify(crmHttpClient, never()).getQywxLogin(anyString(), anyString(), anyString(), anyString());
-    }
-
-    @Test
     @DisplayName("loginByWeComCode: base-oss 返回失败 → 返回 empty")
     void loginByWeComCode_ossExchangeFailed() {
         setupCrmProperties();
-        setupIntegrationEntity(true, AGENT_ID);
+        setupSsoConfig(true, AGENT_ID);
         // base-oss 返回失败响应
         CrmResponseHandler.CrmApiResponse failed =
                 new CrmResponseHandler.CrmApiResponse(500, "internal error", null, false);
@@ -167,7 +152,7 @@ class WeComSsoOssLoginServiceTest {
     @DisplayName("loginByWeComCode: OSS token 为空字符串 → 返回 empty")
     void loginByWeComCode_emptyToken() {
         setupCrmProperties();
-        setupIntegrationEntity(true, AGENT_ID);
+        setupSsoConfig(true, AGENT_ID);
         setupQywxLoginResponse("", 0);
 
         Optional<AuthSessionResult> result = service.loginByWeComCode(WECOM_CODE);
@@ -180,7 +165,7 @@ class WeComSsoOssLoginServiceTest {
     @DisplayName("loginByWeComCode: authenticateWithExistingToken 返回 authenticated=false → 返回 empty")
     void loginByWeComCode_ossAuthFailed() {
         setupCrmProperties();
-        setupIntegrationEntity(true, AGENT_ID);
+        setupSsoConfig(true, AGENT_ID);
         setupQywxLoginResponse(OSS_TOKEN, 7200);
 
         OssLoginResult failedResult = OssLoginResult.builder()
@@ -196,17 +181,6 @@ class WeComSsoOssLoginServiceTest {
         verify(authService, never()).loginWithoutPassword(any());
     }
 
-    @Test
-    @DisplayName("loginByWeComCode: agentId 为空 → 返回 empty")
-    void loginByWeComCode_emptyAgentId() {
-        setupIntegrationEntity(true, "");
-
-        Optional<AuthSessionResult> result = service.loginByWeComCode(WECOM_CODE);
-
-        assertThat(result).isEmpty();
-        verify(crmHttpClient, never()).getQywxLogin(anyString(), anyString(), anyString(), anyString());
-    }
-
     /**
      * Helper: 模拟 CrmProperties 返回 base-url 和 qywxLoginPath.
      */
@@ -218,14 +192,21 @@ class WeComSsoOssLoginServiceTest {
     }
 
     /**
-     * Helper: 模拟 WeComIntegrationEntity 返回.
+     * Helper: 模拟 WeComIntegrationAppService.getSsoConfig() 返回值。
+     * <p>注意：与旧测试不同，这里不再 mock JPA Repository，而是 mock AppService 入口。
+     * <p>当 ssoEnabled=false 或 agentId 为空时，AppService 内部会过滤返回 empty，
+     * 所以测试中直接用 empty 模拟这两种场景。
+     *
+     * @param ssoEnabled true=返回有效 SsoConfig；false=返回 empty
+     * @param agentId    AgentID（仅 ssoEnabled=true 时使用）
      */
-    private void setupIntegrationEntity(boolean ssoEnabled, String agentId) {
-        WeComIntegrationEntity entity = new WeComIntegrationEntity();
-        entity.setCorpId("ww_test_corp_id");
-        entity.setAgentId(agentId);
-        entity.setSsoEnabled(ssoEnabled);
-        when(integrationRepository.findById(1L)).thenReturn(Optional.of(entity));
+    private void setupSsoConfig(boolean ssoEnabled, String agentId) {
+        if (ssoEnabled) {
+            when(integrationAppService.getSsoConfig())
+                    .thenReturn(Optional.of(new WeComSsoConfig("ww_test_corp_id", agentId)));
+        } else {
+            when(integrationAppService.getSsoConfig()).thenReturn(Optional.empty());
+        }
     }
 
     /**
