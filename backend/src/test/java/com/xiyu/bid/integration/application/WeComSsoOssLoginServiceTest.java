@@ -25,6 +25,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -68,6 +69,22 @@ class WeComSsoOssLoginServiceTest {
         service = new WeComSsoOssLoginService(
                 crmHttpClient, crmProperties, ossLoginFlowService,
                 ossUserAutoCreator, authService, integrationRepository);
+    }
+
+    @Test
+    @DisplayName("loginByWeComCode: code 为 null 或 blank → 返回 empty，不查 DB 不调 HTTP")
+    void loginByWeComCode_emptyCode() {
+        // null
+        assertThat(service.loginByWeComCode(null)).isEmpty();
+        // 空字符串
+        assertThat(service.loginByWeComCode("")).isEmpty();
+        // 纯空白
+        assertThat(service.loginByWeComCode("   ")).isEmpty();
+
+        // 守卫最早返回，不应触发任何下游调用
+        verify(integrationRepository, never()).findById(anyLong());
+        verify(crmHttpClient, never()).getQywxLogin(anyString(), anyString(), anyString(), anyString());
+        verify(ossLoginFlowService, never()).authenticateWithExistingToken(anyString());
     }
 
     @Test
