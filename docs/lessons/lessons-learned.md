@@ -4373,3 +4373,89 @@ grep -rn "templateStore.findActiveByCode\|getActiveSchema" backend/src/main/java
 - `src/views/Bidding/list/components/TenderBasicInfoTab.vue:151` — 前端 DEFAULT_FIELDS fallback
 - PR !2089 — 标讯录入自定义表单改造
 - PR !2095 — locked 语义 revert + 守护测试（同 session 关联）
+
+---
+
+## 62. 错误消息不应包含不存在的功能引导；前端透传后端 msg 时文案修改只需后端做（2026-07-12 / PR !2043）
+
+> 来源：2026-07-12 用户反馈 CRM 商机占用提示中包含不存在的"解除原关联"功能引导
+> 涉及模块：TenderCrmOccupancyChecker（CRM 商机占用校验）
+> 关联 PR：!2043（commit `9f0ecf598` + merge `c3f2fe8ca`）
+
+### 问题背景
+
+用户在标讯详情页尝试关联一个已被他标占用的 CRM 商机时，系统返回 409 并显示：
+
+> 该 CRM 商机已被标讯 ID=xxx 关联，**请先解除原关联**
+
+但系统当前**并不存在**"解除关联"功能。该文案引导用户去执行一个无法完成的操作，造成误导和用户 frustration。
+
+### 根因：错误消息编写时假设了未实现的功能
+
+`TenderCrmOccupancyChecker.java:46` 的原始文案：
+
+```java
+throw new BusinessException(409,
+        "该 CRM 商机已被标讯 ID=" + occupied.getId() + " 关联，请先解除原关联");
+```
+
+文案编写者**预设了未来会实现"解除关联"功能**，但该功能从未落地。错误消息成为了一张"空头支票"，长期误导用户。
+
+### 修复内容（PR !2043）
+
+1. **后端文案修改**（`TenderCrmOccupancyChecker.java:46`）：
+   ```java
+   // 修改前
+   "该 CRM 商机已被标讯 ID=" + occupied.getId() + " 关联，请先解除原关联"
+   // 修改后
+   "该 CRM 商机已被标讯 ID=" + occupied.getId() + " 关联"
+   ```
+   仅陈述占用事实，不引导用户执行不存在的操作。
+
+2. **测试文案同步更新**：3 处测试代码（`TenderIntegrationCommandServiceCrmDuplicateTest`、`TenderCommandServiceLinkCrmOpportunityDedupTest`）中的预期文案同步修改。`hasMessageContaining` 子串断言依然成立。
+
+3. **前端无需改动**：前端 catch 块透传后端 `msg` 字段，文案修改在后端完成即可，前端自动展示新文案。
+
+4. **并发冲突场景"请刷新后重试"文案保留**：该文案对应的"刷新"操作是浏览器原生能力，确实存在，不属于虚假引导。
+
+### 教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| 错误消息引导用户执行不存在的功能 | 错误消息是用户与系统交互的"最后一公里"，引导必须可执行 | 错误消息中提到的任何操作必须对应实际存在的功能；未实现的功能不得出现在文案中 |
+| 文案编写者预设未来功能 | "先写文案，后补功能"是反向耦合，文案成了未实现功能的广告 | 文案只能描述当前能力；功能上线后再补对应引导文案，而非相反 |
+| 前端透传后端 msg 时改文案需前后端同步 | 实际上只需后端改 | 前端透传后端 `msg` 时，文案修改只需后端做，前端无需改动（降低同步成本） |
+
+### 操作规范
+
+1. **错误消息审计**：编写错误消息时，必须验证其中提到的功能/操作是否实际存在。可执行命令：
+   ```bash
+   # 在后端抛 BusinessException 的地方搜索"请先"、"请前往"、"请使用"等引导词
+   grep -rn "BusinessException.*请先\|BusinessException.*请前往\|BusinessException.*请使用" backend/src/main/java/
+   # 逐条验证对应功能是否存在
+   ```
+
+2. **文案与功能上线顺序**：功能先上线，文案后补。禁止"文案先行，功能后补"——一旦功能延期或废弃，文案就成了虚假引导。
+
+3. **前端透传后端 msg 的场景识别**：当前端 catch 块直接 `ElMessage.error(err.response.data.msg)` 透传后端消息时，文案修改只需后端做。识别命令：
+   ```bash
+   # 查找前端透传后端 msg 的 catch 块
+   grep -rn "err\.response\.data\.msg\|error\.response\.data\.msg" src/
+   ```
+
+4. **保留并发冲突等真实引导**：并发冲突的"请刷新后重试"对应浏览器原生刷新能力，属于真实引导，不应一刀切删除。
+
+### 防复发措施
+
+- **错误消息编写规范**：在 `engineering-discipline.md` 中追加"错误消息引导必须可执行"原则（由 wiki:ingest 同步到 `.wiki/pages/engineering-discipline.md`）
+- **代码审查检查项**：PR review 时检查新增/修改的 `BusinessException` 消息是否包含不可执行的引导
+- **测试文案同步**：修改 `BusinessException` 消息时，必须同步修改测试中的预期文案，避免 `hasMessageContaining` 断言失效
+
+### 相关文档
+
+- [TenderCrmOccupancyChecker.java](../../backend/src/main/java/com/xiyu/bid/tender/service/TenderCrmOccupancyChecker.java) — CRM 商机占用校验（纯函数）
+- [TenderIntegrationCommandServiceCrmDuplicateTest.java](../../backend/src/test/java/com/xiyu/bid/integration/external/TenderIntegrationCommandServiceCrmDuplicateTest.java) — 测试文案同步
+- [TenderCommandServiceLinkCrmOpportunityDedupTest.java](../../backend/src/test/java/com/xiyu/bid/tender/service/TenderCommandServiceLinkCrmOpportunityDedupTest.java) — 测试文案同步
+- [crm-integration-lessons.md §8](./crm-integration-lessons.md) — TenderCrmOccupancyChecker 已作为纯数字 id 防复发监控防御
+- [deploy-report-2026-07-12-83rd-test.md](../release/deploy-report-2026-07-12-83rd-test.md) — PR !2043 部署记录
+- PR !2043 — 本决策落地（commit `9f0ecf598` + merge `c3f2fe8ca`）
