@@ -95,12 +95,13 @@ class WeComAuthAppServiceTest {
     }
 
     @Test
-    @DisplayName("getAuthorizeParams: success → returns params")
+    @DisplayName("getAuthorizeParams: SSO 启用 → 返回 appid/agentid/state")
     void getAuthorizeParams_success() {
         // Arrange
         WeComIntegrationEntity entity = new WeComIntegrationEntity();
         entity.setCorpId("CORP123");
         entity.setAgentId("AGENT123");
+        entity.setSsoEnabled(true);
         when(integrationRepository.findById(1L)).thenReturn(Optional.of(entity));
 
         // Act
@@ -109,6 +110,24 @@ class WeComAuthAppServiceTest {
         // Assert
         assertThat(params).containsEntry("appid", "CORP123");
         assertThat(params).containsEntry("agentid", "AGENT123");
+        assertThat(params).containsEntry("state", "MYSTATE");
+    }
+
+    @Test
+    @DisplayName("getAuthorizeParams: SSO 未启用 → 只返回 state（避免前端跳转后回调被拒）")
+    void getAuthorizeParams_ssoDisabled() {
+        // Arrange
+        WeComIntegrationEntity entity = new WeComIntegrationEntity();
+        entity.setCorpId("CORP123");
+        entity.setAgentId("AGENT123");
+        entity.setSsoEnabled(false);
+        when(integrationRepository.findById(1L)).thenReturn(Optional.of(entity));
+
+        // Act
+        Map<String, String> params = authAppService.getAuthorizeParams("MYSTATE");
+
+        // Assert
+        assertThat(params).containsOnlyKeys("state");
         assertThat(params).containsEntry("state", "MYSTATE");
     }
 }

@@ -58,12 +58,12 @@ public class WeComSsoOssLoginService {
             return Optional.empty();
         }
 
-        // 1. 取 WeCom 集成配置（agentId）
-        Optional<WeComIntegrationEntity> integrationOpt = integrationRepository.findAll().stream()
-                .filter(WeComIntegrationEntity::isSsoEnabled)
-                .findFirst();
+        // 1. 取 WeCom 集成配置（ID=1 单行配置表，与 WeComAuthAppService 对称）
+        // 同时校验 ssoEnabled，避免前端拿到 appid/agentid 跳转后回调被拒
+        Optional<WeComIntegrationEntity> integrationOpt = integrationRepository.findById(1L)
+                .filter(WeComIntegrationEntity::isSsoEnabled);
         if (integrationOpt.isEmpty()) {
-            log.warn("WeCom SSO login failed: no active SSO-enabled WeCom integration config");
+            log.warn("WeCom SSO login failed: integration not configured (ID=1) or SSO disabled");
             return Optional.empty();
         }
         WeComIntegrationEntity integration = integrationOpt.get();
@@ -78,12 +78,12 @@ public class WeComSsoOssLoginService {
         String qywxLoginPath = crmProperties.getAuth().getQywxLoginPath();
         log.info("WeCom SSO: exchanging code for OSS token via {}/{}", baseUrl, qywxLoginPath);
 
+        // CrmHttpClient.getQywxLogin 永不返回 null（异常时返回 parseError），无需 null 判断
         CrmResponseHandler.CrmApiResponse response =
                 crmHttpClient.getQywxLogin(baseUrl, qywxLoginPath, code, agentId);
-        if (response == null || !response.success() || response.data() == null) {
+        if (!response.success() || response.data() == null) {
             log.warn("WeCom SSO: base-oss loginQywx failed, code={} msg={}",
-                    response != null ? response.code() : "null",
-                    response != null ? response.msg() : "null");
+                    response.code(), response.msg());
             return Optional.empty();
         }
 

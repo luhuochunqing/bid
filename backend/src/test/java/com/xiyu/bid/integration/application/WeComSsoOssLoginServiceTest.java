@@ -20,7 +20,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -110,7 +109,7 @@ class WeComSsoOssLoginServiceTest {
     @Test
     @DisplayName("loginByWeComCode: WeCom 集成未配置 → 返回 empty")
     void loginByWeComCode_integrationNotConfigured() {
-        when(integrationRepository.findAll()).thenReturn(Collections.emptyList());
+        when(integrationRepository.findById(1L)).thenReturn(Optional.empty());
 
         Optional<AuthSessionResult> result = service.loginByWeComCode(WECOM_CODE);
 
@@ -209,7 +208,7 @@ class WeComSsoOssLoginServiceTest {
         entity.setCorpId("ww_test_corp_id");
         entity.setAgentId(agentId);
         entity.setSsoEnabled(ssoEnabled);
-        when(integrationRepository.findAll()).thenReturn(List.of(entity));
+        when(integrationRepository.findById(1L)).thenReturn(Optional.of(entity));
     }
 
     /**
