@@ -21,7 +21,9 @@ export const PROJECT_NOT_LINKED_MESSAGE = '该标讯未关联项目'
  * @param {object} router vue-router 实例（useRouter() 返回值）
  * @param {string|number|null|undefined} projectId 项目 ID
  * @param {object} [options] 跳转选项
- * @param {string} [options.stage] 项目阶段（透传为 query.stage，用于定位任务看板 Tab）
+ * @param {string} [options.stage] 项目阶段路由段（initiation/drafting/evaluation/result/retrospective/closure，
+ *   见 constants/projectStages.js PROJECT_STAGES.route），走 ProjectDetailStage 路径参数 /project/:id/:stage，
+ *   由 ProjectDetailMainColumn 读取 route.params.stage 切换 activeStageTab
  * @returns {void}
  */
 export function navigateToProject(router, projectId, options = {}) {
@@ -29,8 +31,11 @@ export function navigateToProject(router, projectId, options = {}) {
     ElMessage.warning(PROJECT_NOT_LINKED_MESSAGE)
     return
   }
-  const query = options?.stage ? { stage: options.stage } : undefined
-  router.push({ name: 'ProjectDetail', params: { id: String(projectId) }, query })
+  if (options?.stage) {
+    router.push({ name: 'ProjectDetailStage', params: { id: String(projectId), stage: options.stage } })
+    return
+  }
+  router.push({ name: 'ProjectDetail', params: { id: String(projectId) } })
 }
 
 /**
