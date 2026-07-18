@@ -4416,7 +4416,7 @@ throw new BusinessException(409,
 
 3. **前端无需改动**：前端 catch 块透传后端 `msg` 字段，文案修改在后端完成即可，前端自动展示新文案。
 
-4. **并发冲突场景"请刷新后重试"文案保留**：该文案对应的"刷新"操作是浏览器原生能力，确实存在，不属于虚假引导。
+4. **保留并发冲突等真实引导**：并发冲突的"请刷新后重试"对应浏览器原生能力，属于真实引导，不应一刀切删除。
 
 ### 教训
 
@@ -4459,3 +4459,202 @@ throw new BusinessException(409,
 - [crm-integration-lessons.md §8](./crm-integration-lessons.md) — TenderCrmOccupancyChecker 已作为纯数字 id 防复发监控防御
 - [deploy-report-2026-07-12-83rd-test.md](../release/deploy-report-2026-07-12-83rd-test.md) — PR !2043 部署记录
 - PR !2043 — 本决策落地（commit `9f0ecf598` + merge `c3f2fe8ca`）
+
+---
+
+## 63. Bug 回归反思：违反 SOP 3 条纪律 + 新增 2 条 SOP（2026-07-18 / Files.readAllBytes OOM 5 轮修复）
+
+> 来源：2026-07-18 用户反思仓库导出下载 OOM bug 5 轮修复（!2112~!2124）均为补丁式修复
+> 涉及模块：仓库导出下载链路（生成阶段 + 下载阶段）
+> 关联 PR：!2112 / !2113 / !2116 / !2120 / !2124 / !2126
+> 关联根因分析：[root-cause-analysis-warehouse-export-download-oom.md](./root-cause-analysis-warehouse-export-download-oom.md)
+
+### 问题背景
+
+仓库导出下载 bug 经历 5 次 PR 修复（!2112 至 !2124），均为补丁式修复而非一次性根治，最终通过 `journalctl` 服务器日志定位到 `Files.readAllBytes()` 导致的 OOM。
+
+### 违反 SOP 的 3 条关键纪律
+
+| # | SOP 条款 | 违反点 | 应有动作 |
+|---|---|---|---|
+| 1 | 真实环境验证（查看服务器日志） | 5 轮 PR 都未查看 `journalctl` 服务器日志，仅靠本地推测 | 第 1 轮修复后必须 SSH 到服务器查日志验证 |
+| 2 | 第 2 次修同一个 bug 必须停下来做根因分析 | 第 2 次 PR !2113 仅添加 WARN 诊断日志，未做根因分析 | 第 2 次修复时必须停下来，按 §23 全链路日志排查 SOP 定位零号病人 |
+| 3 | 一次性根治（处理周边技术债） | 生成阶段已流式（PR !2120）但下载阶段未流式，已知技术债未在同一 PR 收口 | 同一资源链路上的已知技术债必须在同一 PR 中收口 |
+
+### 回归原因：PR !2116 未评估数据量变化
+
+PR !2116 修复 PDF 照片被静默跳过时，引入了 PDF→图片→Word 嵌入逻辑。这个改动导致 Word 文档体积从 KB 级膨胀到百 MB 级。但 PR !2116 描述中**未提及这个数据量变化**对上下游下载链路的影响，导致下游 `Files.readAllBytes()` 在百 MB 数据量下触发 OOM。
+
+### 新增 2 条 SOP
+
+#### SOP-1：PR 审查必须评估数据量变化
+
+PR 引入新的资源消费（如 PDF→图片→Word 嵌入、批量导入、流式→全量加载）时，必须在 PR 描述中评估：
+- 数据量从 X 级变化到 Y 级（如 KB → MB、MB → GB）
+- 对上下游链路的影响（如内存占用、超时时间、网络流量）
+- 是否触发已知的资源消费瓶颈（如 `Files.readAllBytes`、`byte[]` 全量加载）
+
+PR 模板新增检查项：「本 PR 是否引入数据量变化？如是，评估对上下游链路的影响」。
+
+#### SOP-2：新增重资源操作时检查周边技术债
+
+修改文件读写、流式输出、批量处理等链路时，必须检查同一资源链路上的其他环节是否存在已知技术债：
+- 生成阶段已流式 → 检查下载阶段是否流式
+- 上游已用 `StreamingResponseBody` → 检查下游是否用 `byte[]` 加载
+- 同一文件路径有多个读写点 → 检查所有读写点是否一致
+
+技术债检查清单登记到 `docs/exec-plans/tech-debt-tracker.md`，新增资源操作时必须核对清单。
+
+### 教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| 5 轮补丁式修复 | 第 2 次修同一个 bug 必须停下来做根因分析，禁止继续打补丁 | 补丁式修复累计 2 次后强制停下来 |
+| 未查看服务器日志 | 真实环境验证必须查看 `journalctl` 服务器日志，不能仅靠本地推测 | 第 1 轮修复后必须 SSH 验证 |
+| 未评估数据量变化 | PR 引入新的资源消费时必须评估对上下游链路的影响 | PR 模板新增「数据量变化」检查项 |
+| 未处理周边技术债 | 同一资源链路上的已知技术债必须在同一 PR 中收口 | 新增资源操作时核对技术债清单 |
+
+### 相关文档
+
+- [root-cause-analysis-warehouse-export-download-oom.md](./root-cause-analysis-warehouse-export-download-oom.md) — 完整根因分析
+- `docs/lessons/lessons-learned.md` §23 — 全链路日志排查 SOP
+- `docs/lessons/lessons-learned.md` §19 — 简单 bug 多轮修不对：先定位"空值从哪来"
+
+---
+
+## 64. 设计评审 10 个通用问题：事务边界/状态机/Error/参数列表/public 暴露/setter 污染/Stream/文件复制/内存/纯函数错位（2026-07-17 / PR !2110 设计评审）
+
+> 来源：2026-07-17 用户对 PR !2110（仓库导出 @Async 自调用修复）做系统性设计评审，识别 10 个通用问题
+> 涉及模块：仓库导出（WarehouseExportAppService / WarehouseLedgerExportAppService）
+> 关联 PR：!2110 / !2111
+
+### 10 个通用问题清单
+
+| # | 问题 | 根因 | 修复方案 |
+|---|---|---|---|
+| 1 | @Async 与 @Transactional 事务边界竞态条件 | @Async 方法在事务提交前执行，查询不到数据 | 提取 StateService 独立事务，@TransactionalEvent 监听事务提交后执行 |
+| 2 | 状态机方法（markProcessing/fail/complete）跨类复制粘贴 | 多个 Executor 类各自实现状态变更 | 提取到 WarehouseExportTaskStateService 统一管理 |
+| 3 | 异步任务执行未捕获 Error | 只 catch Exception，Error（如 OOM）导致任务永久卡死 | catch (Error e) 并标记任务失败 |
+| 4 | 长参数列表（5+ 个参数） | 方法签名参数过多，可读性差 | 包装成 ExportCompletion record |
+| 5 | 过度暴露 public 方法 | 内部辅助方法设为 public，被外部误用 | 改为 private 或移到 StateService |
+| 6 | 测试专用 setter 污染生产代码 | 为测试方便给生产类加 setter | 用 ReflectionTestUtils 替代 |
+| 7 | 低效 Stream 使用（多次遍历） | 同一集合多次 stream() | 一次遍历收集到 Map |
+| 8 | 不必要的文件复制 | Files.copy 临时文件再删除 | 用 Files.move 原子移动 |
+| 9 | 内存密集型文件读取 | Files.readAllBytes 加载整个文件到 byte[] | 用 InputStream + buffer 流式读取 |
+| 10 | 纯函数错位（应用服务中包含业务决策） | 纯核心逻辑写在应用服务层 | 迁移到 core/policy 包 |
+
+### 教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| @Async 与 @Transactional 事务边界 | @Async 方法不在原事务上下文中，必须用 @TransactionalEvent 或独立事务 | 异步方法必须提取到独立 Bean + 独立事务 |
+| 状态机方法复制粘贴 | 状态变更逻辑必须集中到 StateService，禁止跨类复制 | 任务状态机方法必须提取到独立 StateService |
+| 未捕获 Error | 异步任务必须 catch (Error e)，避免 OOM 等导致任务卡死 | 异步方法 catch 块必须包含 Error |
+| 长参数列表 | 5+ 个参数必须包装成 record/DTO | 方法参数超过 4 个必须包装 |
+| 测试 setter 污染 | 测试不得修改生产代码可见性 | 用 ReflectionTestUtils 替代测试 setter |
+| 静默跳过/continue | 所有跳过逻辑必须打 WARN 日志 | continue/return 跳过必须有日志 |
+
+### 操作规范
+
+1. **@Async 方法必须提取到独立 Spring Bean**：禁止同类内部直接调用（self-invocation），否则代理失效
+2. **任务状态机方法必须提取到独立 StateService**：markProcessing/fail/complete 等状态变更集中管理
+3. **异步任务必须 catch (Error e)**：避免 OOM/StackOverflow 导致任务永久卡死
+4. **方法参数超过 4 个必须包装成 record**：长参数列表降低可读性
+5. **public 方法必须审视必要性**：内部辅助方法设为 private，测试用 ReflectionTestUtils
+6. **新增文件读写链路必须检查周边技术债**：同一资源链路上的其他环节是否存在已知技术债
+
+### 相关文档
+
+- `backend/src/main/java/com/xiyu/bid/.../WarehouseExportTaskStateService.java` — 状态机方法集中管理
+- `backend/src/main/java/com/xiyu/bid/.../ExportCompletion.java` — 参数包装 record
+- [docs/lessons/root-cause-analysis-warehouse-export-download-oom.md](./root-cause-analysis-warehouse-export-download-oom.md) — 静默跳过/内存问题详细根因
+- `docs/lessons/lessons-learned.md` §63 — Bug 回归反思 SOP
+
+---
+
+## 65. PR #2115 设计评审 4 个问题：workbench 端点分散/ProjectService 超 300 行/内存分页/projectId=null（2026-07-17）
+
+> 来源：2026-07-17 用户对 PR #2115 做系统性设计评审
+> 涉及模块：workbench（待办工作台）/ project（项目）
+> 关联 PR：!2115（commit 22fa764e4）
+
+### 4 个问题清单
+
+| # | 问题 | 根因 | 修复方案 |
+|---|---|---|---|
+| 1 | workbench 端点分散在 dashboard 和 project 包 | 历史演进中 workbench 端点散落多处 | 端点迁移到 WorkbenchTodoController |
+| 2 | ProjectService 超过 300 行限制 | 单一 Service 承担过多职责 | 拆分 ProjectService |
+| 3 | DashboardResourcePendingService 内存分页 | 一次性加载所有数据到内存再分页 | 改为数据库分页（Pageable） |
+| 4 | projectId=null 显示问题 | 数据库中存在 projectId=NULL 的记录 | 过滤 null projectId |
+
+### 教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| 端点分散 | 同一业务域的端点必须集中在同一 Controller，避免散落多个包 | 新增端点前审视现有 Controller 归属 |
+| Service 超限 | 任何类不得超过 300 行，超限前必须拆分 | 拆分时按职责分（查询/命令/状态机/外部集成） |
+| 内存分页 | 任何分页查询必须走数据库 Pageable，禁止内存分页 | 内存分页在数据量大时性能灾难 |
+| null 显示 | 数据库 NULL 字段必须在 UI 层显式处理 | 前端用 v-if 或 ?? '' 处理 null |
+
+### 操作规范
+
+1. **同一业务域端点必须集中**：workbench 端点统一在 WorkbenchTodoController，禁止散落
+2. **Service 类不得超过 300 行**：超限前必须按职责拆分（FP-Java 11 条）
+3. **分页查询必须走数据库 Pageable**：禁止 `findAll()` + 内存 `subList()`
+4. **数据库 NULL 字段必须 UI 层处理**：前端用 `v-if`/`?? ''`/`?? '-'` 显式处理
+
+### 相关文档
+
+- `backend/src/main/java/com/xiyu/bid/.../WorkbenchTodoController.java` — workbench 端点集中
+- `backend/src/main/java/com/xiyu/bid/.../DashboardResourcePendingService.java` — 数据库分页改造
+- [docs/lessons/lessons-learned.md](./lessons-learned.md) §64 — 设计评审 10 个通用问题
+
+---
+
+## 66. 删除 bootstrap 锚点分支会导致 worktree 跟踪失败（agent/*-init 不可删）（2026-07-17）
+
+> 来源：2026-07-17 用户清理远端 stale 分支时删除了 `agent/trae-init`，导致 trae worktree 跟踪失败
+> 涉及模块：多 Agent worktree 协作
+
+### 问题背景
+
+用户清理远端 stale 分支时，删除了 `agent/trae-init`（bootstrap 锚点分支）。这导致：
+- 本地 trae worktree 的 tracking 分支失效
+- 下次 `sync-env.sh` 的 ff-only 同步失败
+- trae worktree 无法正常 `git fetch` / `git rebase`
+
+### 根因：bootstrap 锚点分支的语义
+
+`agent/*-init` 分支是各 worktree 的 bootstrap 锚点分支：
+- 通过 `agent-worktree-guard.sh` 做身份识别（`worktree_name` 匹配）
+- 安装全局钩子、初始环境配置
+- `sync-env.sh` 对 init 分支自动执行 ff-only 同步（保持与 main 一致）
+
+删除 `agent/*-init` 分支会让 worktree 失去锚点，所有自动化脚本失效。
+
+### 教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| 误删 bootstrap 锚点分支 | `agent/*-init` 是 worktree 的身份标识和同步锚点 | 禁止删除 `agent/*-init` 远端分支 |
+| stale 分支清理未区分类型 | 清理脚本未区分任务分支（可删）和 bootstrap 分支（不可删） | 清理前必须区分分支类型 |
+
+### 操作规范
+
+1. **`agent/*-init` 分支禁止删除**：这是 bootstrap 锚点分支，删除会导致 worktree 失效
+2. **stale 分支清理前必须区分类型**：
+   - 任务分支（`agent/<agent>/<task>`）：PR 合入后可删
+   - bootstrap 分支（`agent/<agent>-init`）：禁止删除
+   - 长期任务分支：检查是否有未合 PR，无则可删
+3. **删除前用 `git branch -vv` 确认分支跟踪关系**：避免误删有 worktree 跟踪的分支
+4. **worktree 失效后恢复**：
+   - 重建锚点分支：`git branch agent/<agent>-init origin/main`
+   - 推送远端：`git push origin agent/<agent>-init`
+   - 在 worktree 内 `git checkout agent/<agent>-init` 重新跟踪
+5. **未来建议**：清理脚本加入 `agent/*-init` 保护名单，禁止自动删除
+
+### 相关文档
+
+- `scripts/agent-finish-task.sh` — 任务分支收尾（不删 init 分支）
+- `scripts/sync-env.sh` — init 分支 ff-only 同步逻辑
+- `scripts/agent-worktree-guard.sh` — worktree 身份识别

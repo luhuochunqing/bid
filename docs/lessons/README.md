@@ -38,6 +38,11 @@
 | `root-cause-analysis-stage-notification-created-by.md` | Bug 根因分析 | 阶段变更通知 created_by 为空导致提交投标 500 | 2026-06-21 |
 | `shell-gotchas.md` | 技术陷阱 | Shell 转义导致 SQL 中 `$` 特殊字符截断，密码值被破坏 | 2026-06-20 |
 | `build-gotchas.md` | 技术陷阱 | git-commit-id-plugin 在 worktree 读取主仓库 HEAD，git.properties 失真；Maven `-DskipTests` 只跳过测试运行不跳过编译；Maven target 目录残留旧 Flyway 迁移文件导致打包后版本冲突 | 2026-06-25 |
+| `root-cause-analysis-tender-intake-ai-prompt.md` | Bug 根因分析 | 标讯 AI 识别准确率低（零样本 prompt → Few-Shot + CoT + 正则预提取 + markitdown sections 元数据；金额归一化；手机号边界匹配） | 2026-07-15 |
+| `root-cause-analysis-bid-file-upload-issues.md` | Bug 根因分析 | 投标文件上传 4 个问题（进度条不显示 / 列表不刷新 / 上传中允许提交 / 删除状态不同步；emit('change') + ref.loadDocuments() 双向同步） | 2026-07-16 |
+| `root-cause-analysis-warehouse-attachment-root-path.md` | Bug 根因分析 | 仓库附件根路径绝对/相对不一致 + PDF 照片静默跳过 + application-prod.yml 配置缺失（静默跳过必须打 WARN 日志） | 2026-07-17 |
+| `root-cause-analysis-warehouse-export-download-oom.md` | Bug 根因分析 + 工程规范 | Files.readAllBytes() 加载几百 MB ZIP 导致 OOM，5 轮 PR 修复均为补丁式（!2112~!2124）；byte[] → StreamingResponseBody + 8KB buffer 流式下载；PR 审查必须评估数据量变化 | 2026-07-18 |
+| `root-cause-analysis-warehouse-download-frontend.md` | Bug 根因分析 | 前端 axios blob 下载大文件超时（30秒超时 + 几百MB内存加载）；改用 fetch + ReadableStream + AbortController 5分钟超时 + indeterminate 模式 + response.body null 检查 | 2026-07-18 |
 
 ## 如何使用
 

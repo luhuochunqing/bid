@@ -125,3 +125,92 @@ OSS 接口需要全局共享的 OSS token，CRM 接口需要按用户隔离的 C
 - `backend/src/main/java/com/xiyu/bid/crm/application/CrmAuthService.java`
 - `backend/src/main/java/com/xiyu/bid/crm/application/CrmUserTokenCache.java`
 - `backend/src/main/java/com/xiyu/bid/crm/application/JwtTtlResolver.java`
+
+---
+
+## 4. OSS 密码登录返回 501 被误报为"密码错误"
+
+### 背景
+
+OSS 用户走密码登录流程时，前端收到"用户名或密码错误"提示，但用户实际密码正确——后端日志显示 OSS 接口返回 HTTP 501（Not Implemented），但响应体中包含具体业务错误信息（如"system 参数不支持"），被 `CrmHttpClient` 丢弃后只把 501 状态码翻译成"密码错误"。
+
+### 根因
+
+两层问题叠加：
+
+#### 层 1：`CrmHttpClient` 丢弃非 2xx 响应体
+
+```java
+// ❌ 错误：非 2xx 直接抛"密码错误"，丢弃响应体
+if (!response.getStatusCode().is2xxSuccessful()) {
+    throw new BadCredentialsException("用户名或密码错误");
+}
+```
+
+OSS 密码登录接口在异常情况下返回 501 + JSON 响应体，其中 `message` 字段说明真正失败原因（如 `system` 参数不匹配、用户被禁用、组织未关联等）。`CrmHttpClient` 只看状态码就抛"密码错误"，丢失了真实错误信息。
+
+#### 层 2：OSS 密码登录必须传 `system=bid-platform`
+
+OSS 密码登录接口要求请求体包含 `system` 字段，标识业务方。本项目必须传 `system=bid-platform`：
+
+```java
+// ✅ 正确：OSS 密码登录必须带 system 参数
+LoginRequest request = LoginRequest.builder()
+    .username(username)
+    .password(password)
+    .system("bid-platform")  // ← 必填，缺失会被 OSS 拒绝并返回 501
+    .build();
+```
+
+如果漏传 `system` 或传错值（如 `xiyu-bid`、`bid`），OSS 接口返回 501 + `{"message": "system 参数不支持"}`，但 `CrmHttpClient` 把它翻译成"密码错误"，让用户误以为密码错了。
+
+### 修复
+
+1. **`CrmHttpClient` 保留响应体**：非 2xx 时解析响应体中的 `message` 字段，作为异常信息向上抛：
+
+```java
+// ✅ 正确：解析响应体，保留真实错误信息
+if (!response.getStatusCode().is2xxSuccessful()) {
+    String serverMessage = extractMessageFromResponse(response);
+    String hint = String.format("OSS 接口返回 %d: %s",
+        response.getStatusCode().value(),
+        serverMessage != null ? serverMessage : "(无响应体)");
+    log.warn("OSS 接口调用失败: {}", hint);
+    throw new BadCredentialsException(hint);
+}
+
+private String extractMessageFromResponse(ResponseEntity<String> response) {
+    try {
+        JsonNode root = objectMapper.readTree(response.getBody());
+        JsonNode messageNode = root.get("message");
+        return messageNode != null ? messageNode.asText() : null;
+    } catch (Exception e) {
+        return null;
+    }
+}
+```
+
+2. **OSS 密码登录请求强制带 `system=bid-platform`**：在 `CrmAuthService.loginWithPassword` 中显式构造请求体，禁止省略 `system` 字段。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| `CrmHttpClient` 丢弃响应体 | 非 2xx 响应必须解析响应体，保留真实错误信息 | 调用外部接口抛异常时必须携带服务端返回的 `message` |
+| OSS 密码登录 501 被翻译为"密码错误" | 状态码与业务语义不能 1:1 映射 | 501 ≠ 密码错误，必须看响应体 `message` |
+| 漏传 `system` 参数 | 强制必填参数必须显式构造 | 对接外部系统的必填参数统一在请求构造层显式声明，不依赖调用方传入 |
+| 用户被误导修改密码 | 错误信息必须可定位根因 | 前端展示的错误必须包含服务端真实原因，避免"密码错误"等模糊提示 |
+
+### 涉及文件
+
+- `backend/src/main/java/com/xiyu/bid/crm/infrastructure/CrmHttpClient.java` — HTTP 客户端，非 2xx 响应体解析
+- `backend/src/main/java/com/xiyu/bid/crm/application/CrmAuthService.java` — 密码登录请求构造，强制带 `system=bid-platform`
+- `backend/src/main/java/com/xiyu/bid/crm/dto/LoginRequest.java` — 请求 DTO，`system` 字段必填
+
+### 规范建议
+
+1. **外部接口非 2xx 响应必须解析响应体**：禁止只看状态码就抛通用异常，必须把服务端返回的 `message` 透传给上层。
+2. **错误提示必须可定位根因**：前端展示给用户的错误信息应包含服务端真实原因，避免"密码错误"等模糊提示误导用户。
+3. **对接外部系统的必填参数必须显式声明**：在请求构造层统一硬编码（如 `system=bid-platform`），不依赖调用方传入，避免漏传。
+4. **501 状态码不等于密码错误**：状态码与业务语义的映射必须基于响应体内容，不能基于 HTTP 状态码粗略翻译。
+5. **HTTP 客户端日志必须包含响应体**：非 2xx 响应必须打 WARN 日志记录状态码 + 响应体，便于排查。

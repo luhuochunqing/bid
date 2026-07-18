@@ -174,3 +174,75 @@ get: () => {
 1. 打开 Vue DevTools
 2. 找到包含 cascader 的组件
 3. 检查 computed 属性的返回值类型（应该是 Array，不是 String）
+
+---
+
+## 3. el-upload 自定义 #file slot 必须显式渲染 file.percentage，否则进度条不可见
+
+### 问题
+
+投标文件上传组件 `ProjectDocumentTable.vue` 使用 `el-upload` 并自定义 `#file` slot 渲染文件列表（含 OBS 直传场景），用户反馈上传进度条不可见：
+
+```vue
+<!-- ❌ 错误：#file slot 内未渲染 file.percentage -->
+<template #file="{ file }">
+  <div class="file-item">
+    <span>{{ file.name }}</span>
+    <el-button @click="handleRemove(file)">删除</el-button>
+  </div>
+</template>
+```
+
+文件能上传成功，但用户看不到任何进度反馈，体验上像"卡住了"。
+
+### 根因
+
+`el-upload` 组件**默认的进度条渲染**只在默认 slot 下生效。一旦自定义 `#file` slot，组件就完全接管文件项的渲染责任，Element Plus 不再自动渲染进度条。
+
+此时必须**显式读取 `file.percentage`**（0-100 的数字）并自行渲染进度展示。
+
+### 修复
+
+```vue
+<!-- ✅ 正确：#file slot 内显式渲染 file.percentage -->
+<template #file="{ file }">
+  <div class="file-item">
+    <div class="file-info">
+      <span>{{ file.name }}</span>
+      <span class="progress-text">{{ Math.round(file.percentage || 0) }}%</span>
+    </div>
+    <el-progress
+      :percentage="Math.round(file.percentage || 0)"
+      :status="file.status === 'success' ? 'success' : file.status === 'fail' ? 'exception' : ''"
+    />
+    <el-button @click="handleRemove(file)">删除</el-button>
+  </div>
+</template>
+```
+
+### OBS 直传场景的进度同步
+
+当使用 OBS 直传 + 415 回退逻辑（`useObsUploadFallback.js` 的 `callApiWithObsFallback`）时，需要注意：
+
+1. **OBS 直传进度**：通过 `useObsUpload` 暴露的 `progressPercent`（0-100 的 computed 值）获取，**不要重复 `Math.round(val * 100)` 转换**——内部已经处理。
+2. **回退到 multipart 时**：需在回退前 `progress.value = 0` 重置进度，避免进度条停留在中间值（如 50%）后又被新请求覆盖。
+3. **composable 层不写 UI 提示**：`ElMessage.success` 等 UI 提示必须由组件层负责，composable 只暴露状态（ref/computed）。
+
+### 涉及文件
+
+- `src/components/project/ProjectDocumentTable.vue` — 投标文件上传组件（自定义 #file slot）
+- `src/composables/useObsUpload.js` — OBS 直传 composable，集中导出 `OBS_DIRECT_PREFIX`、`isObsEnabled`、`progressPercent`
+- `src/composables/useObsUploadFallback.js` — `callApiWithObsFallback` 公共回退函数
+
+### 规范建议
+
+1. **使用 `#file` slot 时必须显式渲染 `file.percentage`**：Element Plus 默认进度条不会在自定义 slot 下生效。
+2. **进度展示推荐用 `el-progress` 组件**：配合 `:status` 显示成功/失败状态，比纯文本更直观。
+3. **进度值统一为 0-100**：composable 暴露 `progressPercent`（computed），避免在模板中重复转换。
+4. **回退场景必须重置进度**：OBS 直传失败回退 multipart 前，`progress.value = 0` 防止状态污染。
+5. **UI 提示分层**：composable 层只暴露状态，UI 提示（ElMessage 等）由组件层负责。
+
+### 相关 PR
+
+- PR !2063 / !2065 — 投标文件上传 4 个问题修复（进度条不显示 / 列表不刷新 / 上传中允许提交 / 删除状态不同步）
+- 详见 `docs/lessons/root-cause-analysis-bid-file-upload-issues.md`
