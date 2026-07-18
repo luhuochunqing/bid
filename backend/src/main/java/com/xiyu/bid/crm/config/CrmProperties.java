@@ -199,6 +199,8 @@ public class CrmProperties {
         private String userLoginSystem = "bid-platform";
         /** getUserJobListPath - POST /oss/admin-web/v1/output/data/getUserJobListByJobNumberList. */
         private String getUserJobListPath = "/oss/admin-web/v1/output/data/getUserJobListByJobNumberList";
+        /** 企微 OAuth code 换 OSS token 路径 - GET /qyWeixin/loginQywx?code=xxx&agentId=xxx. */
+        private String qywxLoginPath = "/qyWeixin/loginQywx";
     }
 
     @Data

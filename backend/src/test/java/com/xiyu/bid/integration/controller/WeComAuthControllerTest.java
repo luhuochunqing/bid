@@ -5,6 +5,7 @@ import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.dto.AuthResponse;
 import com.xiyu.bid.dto.AuthSessionResult;
 import com.xiyu.bid.integration.application.WeComAuthAppService;
+import com.xiyu.bid.integration.application.WeComSsoOssLoginService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -30,6 +31,8 @@ class WeComAuthControllerTest {
     @Mock
     private WeComAuthAppService weComAuthAppService;
     @Mock
+    private WeComSsoOssLoginService weComSsoOssLoginService;
+    @Mock
     private OAuthStateService oAuthStateService;
     @Mock
     private HttpServletResponse response;
@@ -38,7 +41,7 @@ class WeComAuthControllerTest {
 
     @BeforeEach
     void setUp() {
-        controller = new WeComAuthController(weComAuthAppService, oAuthStateService);
+        controller = new WeComAuthController(weComAuthAppService, weComSsoOssLoginService, oAuthStateService);
         ReflectionTestUtils.setField(controller, "refreshCookieName", "refresh_token");
         ReflectionTestUtils.setField(controller, "refreshCookieSecure", false);
         ReflectionTestUtils.setField(controller, "refreshCookieSameSite", "Lax");
@@ -94,7 +97,7 @@ class WeComAuthControllerTest {
         when(authSessionResult.getRefreshToken()).thenReturn("refresh");
         when(authSessionResult.getAccessToken()).thenReturn("access");
         
-        when(weComAuthAppService.loginByWeCom("code")).thenReturn(Optional.of(authSessionResult));
+        when(weComSsoOssLoginService.loginByWeComCode("code")).thenReturn(Optional.of(authSessionResult));
 
         // Act
         ResponseEntity<ApiResponse<?>> result = controller.callback("code", "valid", response);
@@ -110,7 +113,7 @@ class WeComAuthControllerTest {
     void callback_notBound() {
         // Arrange
         when(oAuthStateService.validateAndRemoveState("valid")).thenReturn(true);
-        when(weComAuthAppService.loginByWeCom("code")).thenReturn(Optional.empty());
+        when(weComSsoOssLoginService.loginByWeComCode("code")).thenReturn(Optional.empty());
 
         // Act
         ResponseEntity<ApiResponse<?>> result = controller.callback("code", "valid", response);

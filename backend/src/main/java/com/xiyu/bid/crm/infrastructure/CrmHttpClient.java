@@ -106,6 +106,31 @@ public class CrmHttpClient {
     }
 
     /**
+     * GET 企微 OAuth code 换 OSS token (无需 Bearer，路径参数携带 code + agentId).
+     * <p>
+     * 调用 base-oss /qyWeixin/loginQywx?code=xxx&agentId=xxx 接口，
+     * 返回结构：{ code:0, msg:"ok", data:{ access_token:"xxx", expires_in:7200 } }
+     */
+    public CrmResponseHandler.CrmApiResponse getQywxLogin(
+            String baseUrl, String path, String code, String agentId) {
+        String url = UriComponentsBuilder.fromHttpUrl(baseUrl + path)
+                .queryParam("code", code)
+                .queryParam("agentId", agentId)
+                .toUriString();
+        HttpHeaders headers = new HttpHeaders();
+        TraceHeaderInjector.inject(headers);
+        HttpEntity<Void> request = new HttpEntity<>(headers);
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, request, String.class);
+            log.info("CRM GET qywxLogin {} -> {}", url, response.getStatusCode());
+            return CrmResponseHandler.parse(response.getBody());
+        } catch (RuntimeException e) {
+            log.error("CRM GET qywxLogin failed: {}", e.getMessage());
+            return CrmResponseHandler.CrmApiResponse.parseError(e.getMessage());
+        }
+    }
+
+    /**
      * GET with Bearer token (for /oauth/getUserInfo etc.).
      */
     public CrmResponseHandler.CrmApiResponse get(String baseUrl, String path, String accessToken) {

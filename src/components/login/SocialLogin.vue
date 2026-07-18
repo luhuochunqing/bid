@@ -30,8 +30,9 @@ const handleWeComLogin = async () => {
     }
 
     const redirectUri = encodeURIComponent(window.location.origin + '/login')
-    const wecomUrl = `https://open.work.weixin.qq.com/wwopen/sso/qrConnect?appid=${appid}&agentid=${agentid}&redirect_uri=${redirectUri}&state=${state}`
-    
+    // 企微工作台跳转 + 浏览器扫码兼容的 OAuth2 授权链接（snsapi_base 静默授权）
+    const wecomUrl = `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${appid}&redirect_uri=${redirectUri}&response_type=code&scope=snsapi_base&agentid=${agentid}&state=${state}#wechat_redirect`
+
     window.location.href = wecomUrl
   } catch (error) {
     ElMessage.error('无法启动企业微信登录，请联系管理员')
