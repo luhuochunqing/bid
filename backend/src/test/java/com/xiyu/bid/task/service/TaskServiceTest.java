@@ -3,6 +3,7 @@ package com.xiyu.bid.task.service;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.task.dto.TaskAssignmentRequest;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import java.util.List;
 import java.util.Optional;
 import com.xiyu.bid.admin.service.DataScopeConfigService;
 import com.xiyu.bid.project.repository.BidDocumentReviewRepository;
@@ -21,6 +23,7 @@ import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -210,5 +213,76 @@ class TaskServiceTest {
                 eq("待处理"), eq("审核中"),
                 eq(assigneeId), eq(actorUserId)
         );
+    }
+
+    // ---------- BE-1: getAccessibleTasksByAssigneeId(assigneeId, username, projectStage) ----------
+
+    private User stubCurrentUser(Long id, String username) {
+        User current = User.builder().id(id).username(username).build();
+        when(assignmentSupport.resolveEnabledUserByUsername(username)).thenReturn(current);
+        return current;
+    }
+
+    private void stubNameResolution() {
+        when(projectAccessScopeService.getAllowedProjectIdsForCurrentUser()).thenReturn(java.util.Collections.emptyList());
+        when(userRepository.findAllById(any())).thenReturn(List.of());
+        when(userRepository.findAllByUsernameIn(any())).thenReturn(List.of());
+    }
+
+    @Test
+    void getAccessibleTasksWithStageDelegatesToStageQuery() {
+        stubCurrentUser(1L, "zhangsan");
+        Task task = Task.builder().id(10L).projectId(100L).assigneeId(1L)
+                .title("标书任务").status(Task.Status.TODO).build();
+        when(taskRepository.findByAssigneeIdAndProjectStage(1L, ProjectStage.DRAFTING))
+                .thenReturn(List.of(task));
+        stubNameResolution();
+        when(taskDtoMapper.toDTOs(any(), any(), any()))
+                .thenReturn(List.of(TaskDTO.builder().id(10L).build()));
+
+        List<TaskDTO> result = taskService.getAccessibleTasksByAssigneeId(1L, "zhangsan", "DRAFTING");
+
+        assertThat(result).hasSize(1);
+        verify(taskRepository).findByAssigneeIdAndProjectStage(1L, ProjectStage.DRAFTING);
+        verify(taskRepository, never()).findByAssigneeId(any());
+    }
+
+    @Test
+    void getAccessibleTasksWithNullStageFallsBackToAssigneeQuery() {
+        stubCurrentUser(1L, "zhangsan");
+        when(taskRepository.findByAssigneeId(1L)).thenReturn(List.of());
+        stubNameResolution();
+        when(taskDtoMapper.toDTOs(any(), any(), any())).thenReturn(List.of());
+
+        List<TaskDTO> result = taskService.getAccessibleTasksByAssigneeId(1L, "zhangsan", null);
+
+        assertThat(result).isEmpty();
+        verify(taskRepository).findByAssigneeId(1L);
+        verify(taskRepository, never()).findByAssigneeIdAndProjectStage(any(), any());
+    }
+
+    @Test
+    void getAccessibleTasksWithBlankStageFallsBackToAssigneeQuery() {
+        stubCurrentUser(1L, "zhangsan");
+        when(taskRepository.findByAssigneeId(1L)).thenReturn(List.of());
+        stubNameResolution();
+        when(taskDtoMapper.toDTOs(any(), any(), any())).thenReturn(List.of());
+
+        List<TaskDTO> result = taskService.getAccessibleTasksByAssigneeId(1L, "zhangsan", "  ");
+
+        assertThat(result).isEmpty();
+        verify(taskRepository).findByAssigneeId(1L);
+        verify(taskRepository, never()).findByAssigneeIdAndProjectStage(any(), any());
+    }
+
+    @Test
+    void getAccessibleTasksWithInvalidStageThrowsIllegalArgument() {
+        stubCurrentUser(1L, "zhangsan");
+
+        assertThatThrownBy(() -> taskService.getAccessibleTasksByAssigneeId(1L, "zhangsan", "NOT_A_STAGE"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("无效的项目阶段参数");
+        verify(taskRepository, never()).findByAssigneeIdAndProjectStage(any(), any());
+        verify(taskRepository, never()).findByAssigneeId(any());
     }
 }

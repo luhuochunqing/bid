@@ -7,6 +7,7 @@ import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
+import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.repository.BidDocumentReviewRepository;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
@@ -200,7 +201,8 @@ public class TaskService {
 
     /**
      * 工作台角色化改造：支持按项目阶段过滤"我的任务"。
-     * @param projectStage 项目阶段（ProjectStage 枚举名，如 DRAFTING）；null 时不过滤（向后兼容）
+     * @param projectStage 项目阶段（ProjectStage 枚举名，如 DRAFTING）；null/空白时不过滤（向后兼容）；
+     *                     非法值抛出 IllegalArgumentException（GlobalExceptionHandler 映射 400）
      */
     @Transactional(readOnly = true)
     public List<TaskDTO> getAccessibleTasksByAssigneeId(Long assigneeId, String username, String projectStage) {
@@ -216,8 +218,18 @@ public class TaskService {
         if (projectStage == null || projectStage.isBlank()) {
             return getTasksByAssigneeId(targetAssigneeId);
         }
-        log.debug("Fetching tasks for assignee {} with projectStage {}", targetAssigneeId, projectStage);
-        return nameResolver.toDTOsWithNames(visibleTasks(taskRepository.findByAssigneeIdAndProjectStage(targetAssigneeId, projectStage)));
+        ProjectStage stage = parseProjectStage(projectStage);
+        log.debug("Fetching tasks for assignee {} with projectStage {}", targetAssigneeId, stage);
+        return nameResolver.toDTOsWithNames(visibleTasks(taskRepository.findByAssigneeIdAndProjectStage(targetAssigneeId, stage)));
+    }
+
+    /** 解析项目阶段查询参数，非法值转为带明确提示的 400。 */
+    private static ProjectStage parseProjectStage(String projectStage) {
+        try {
+            return ProjectStage.valueOf(projectStage.trim());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("无效的项目阶段参数: " + projectStage);
+        }
     }
     @Transactional(readOnly = true)
     public List<TaskDTO> getTasksByStatus(Task.Status status) {
