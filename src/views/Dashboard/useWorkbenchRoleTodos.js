@@ -1,13 +1,12 @@
-// Input: tasksApi/tendersApi/projectsApi/dashboardApi + 角色码判断 + 当前用户角色/ID ref
+// Input: tasksApi/tendersApi/workbenchApi + 角色码判断 + 当前用户角色/ID ref
 // Output: 工作台角色化待办 4 个独立数据源 ref + 加载函数（spec §4.4 API 调用表）
 // Pos: src/views/Dashboard/ - Dashboard feature composables
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 import { ref } from 'vue'
 import { tasksApi } from '@/api/modules/dashboard.js'
-import { projectsApi, tendersApi } from '@/api'
-import { dashboardApi } from '@/api'
-import { isBidAdminOrLeadRole, isBidTeamRole, isSalesRole } from '@/constants/roleCodes.js'
+import { tendersApi, workbenchApi } from '@/api'
+import { isGlobalManageRole, isBidTeamRole, isSalesRole } from '@/constants/roleCodes.js'
 
 /**
  * 工作台角色化待办 composable（spec §4.4）：
@@ -42,7 +41,7 @@ export function useWorkbenchRoleTodos({ roleRef, userIdRef }) {
   async function loadTenderTodos() {
     const role = roleRef?.value
     let statusParam = null
-    if (isBidAdminOrLeadRole(role)) {
+    if (isGlobalManageRole(role)) {
       statusParam = 'PENDING_ASSIGNMENT,EVALUATED'
     } else if (isSalesRole(role)) {
       statusParam = 'TRACKING'
@@ -68,12 +67,12 @@ export function useWorkbenchRoleTodos({ roleRef, userIdRef }) {
     // 与后端 WorkbenchProjectTodoQueryService 角色分支保持一致：
     // admin_lead / bid-Team / bid-projectLeader 才有项目待办，其他角色（bid-otherDept 等）不发请求
     const role = roleRef?.value
-    if (!isBidAdminOrLeadRole(role) && !isBidTeamRole(role) && !isSalesRole(role)) {
+    if (!isGlobalManageRole(role) && !isBidTeamRole(role) && !isSalesRole(role)) {
       projectTodos.value = []
       return
     }
     try {
-      const response = await projectsApi.getWorkbenchTodos()
+      const response = await workbenchApi.getProjectTodos()
       projectTodos.value = Array.isArray(response?.data) ? response.data : []
     } catch {
       projectTodos.value = []
@@ -82,7 +81,7 @@ export function useWorkbenchRoleTodos({ roleRef, userIdRef }) {
 
   async function loadResourceTodos() {
     try {
-      const response = await dashboardApi.getResourcePendingApprovals()
+      const response = await workbenchApi.getResourcePendingApprovals()
       resourceTodos.value = Array.isArray(response?.data) ? response.data : []
     } catch {
       resourceTodos.value = []

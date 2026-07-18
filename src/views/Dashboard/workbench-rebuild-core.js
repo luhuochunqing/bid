@@ -4,7 +4,7 @@
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 import {
-  isBidAdminOrLeadRole, isBidTeamRole, isSalesRole,
+  isGlobalManageRole, isBidTeamRole, isSalesRole,
 } from '@/constants/roleCodes.js'
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
@@ -193,8 +193,8 @@ export function buildTodoCategoryCards({
   projectTodos = [],
   resourceTodos = [],
 } = {}) {
-  const showTender = isBidAdminOrLeadRole(role) || isSalesRole(role)
-  const showProject = isBidAdminOrLeadRole(role) || isBidTeamRole(role) || isSalesRole(role)
+  const showTender = isGlobalManageRole(role) || isSalesRole(role)
+  const showProject = isGlobalManageRole(role) || isBidTeamRole(role) || isSalesRole(role)
 
   const cards = []
 

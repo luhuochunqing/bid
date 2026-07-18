@@ -50,12 +50,11 @@ export const PROJECT_TRANSFER_TARGET_ROLES = [
 
 /**
  * 工作台角色化改造分组（与 spec.md §2 对齐）。
- * - ADMIN_LEAD_ROLES 即 GLOBAL_MANAGE_ROLES（投标管理员/系统管理员/组长）
+ * - admin_lead 分组直接复用 GLOBAL_MANAGE_ROLES / isGlobalManageRole（投标管理员/系统管理员/组长）
  * - SALES_ROLES 仅投标项目负责人（跨部门协同人员单独分组，不显示标讯待办）
  * - BID_TEAM_ROLES 投标专员
  * - CROSS_DEPT_ROLES 跨部门协同人员（任务待办跳独立看板）
  */
-export const ADMIN_LEAD_ROLES = GLOBAL_MANAGE_ROLES
 export const SALES_ROLES = [ROLE_CODES.SALES]
 export const BID_TEAM_ROLES = [ROLE_CODES.BID_SPECIALIST]
 export const CROSS_DEPT_ROLES = [ROLE_CODES.BID_OTHER_DEPT]
@@ -111,15 +110,6 @@ export function isBidAdminLevelRole(roleCode) {
 export function isGlobalManageRole(roleCode) {
   if (roleCode == null || roleCode === '') return false
   return GLOBAL_MANAGE_ROLES.includes(roleCode)
-}
-
-/**
- * 是否为投标管理员/组长角色（admin_lead 分组，复用 GLOBAL_MANAGE_ROLES）。
- * @param {string|null|undefined} roleCode
- * @returns {boolean}
- */
-export function isBidAdminOrLeadRole(roleCode) {
-  return isGlobalManageRole(roleCode)
 }
 
 /**

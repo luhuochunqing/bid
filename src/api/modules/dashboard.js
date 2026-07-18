@@ -191,24 +191,6 @@ export const dashboardApi = {
       return { success: false, data: null, error }
     }
   },
-
-  /**
-   * 工作台资源待办：聚合待审批的账户借用申请 + CA 借用申请。
-   * 后端按当前用户角色返回（管理员查全部，保管员查自己负责的）。
-   * URL 已迁移到 workbench 命名空间（与 WorkbenchDeadlineController 等对齐）。
-   * @returns {Promise<{success: boolean, data: Array}>}
-   */
-  async getResourcePendingApprovals() {
-    try {
-      const response = await httpClient.get('/api/workbench/resource-pending-approvals')
-      return {
-        success: response?.success !== false,
-        data: Array.isArray(response?.data) ? response.data : [],
-      }
-    } catch (error) {
-      return { success: false, data: [], error }
-    }
-  },
 }
 
 export const tasksApi = {
