@@ -16,7 +16,7 @@
 | `root-cause-analysis-co-266-co-267.md` | Bug 根因分析 | CRM推送客户信息字段名不一致导致前端不显示 | 2026-06-18 |
 | `root-cause-analysis-co-274.md` | Bug 根因分析 | 标讯快速投标未创建项目导致列表不显示 | 2026-06-19 |
 | `root-cause-analysis-h13-e2e-fix.md` | Bug 根因分析 | H13改造后E2E测试全面修复（token提取、mock断言、速率限制） | 2026-06-19 |
-| `lessons-learned.md` | 通用工程教训 | 后端接口契约变更必须同步前端所有入口、字段必填性变更、前端热更新部署、PR 回滚前必须确认根因、部署期间并发部署导致 502、部署后验证四层模型、stash 丢失找回、同一接口错误形态变化先看日志、PR 已合入后追加修复先确认 merge-base、业务异常消息应包含系统上下文、服务器部署 jar 验证四原则、Bug 修复前必须先验证实际行为、部署前必须验证 jar 中 Flyway 迁移脚本无重复版本、分阶段修复存量数据策略、agent-finish-task.sh 锚点分支占用处理、Policy canUpload/canDelete 权限矩阵必须对称设计、前端禁止 catch silent 吞掉 API 错误、联动回填链路 4 层全链路验证 SOP、权限 Bug 必须审视同一业务动作的所有 UI 入口 + 前后端对称修复（CO-400 五轮 + CO-415 归纳）、止血补丁与技术债清偿必须分 PR、Webhook 入队必须解析可用 OSS username（CO-576）、OBS 直传三层保护、前端 N+1 GET 触发 429 限流、业绩模块部署陷阱、生产环境测试数据清理、CRM 商机关联失败三层根因（spec 037）、自定义表单 schema 迁移必须 merge 不能覆盖、错误消息不应包含不存在的功能引导（PR !2043） | 2026-07-18 |
+| `lessons-learned.md` | 通用工程教训 | 后端接口契约变更必须同步前端所有入口、字段必填性变更、前端热更新部署、PR 回滚前必须确认根因、部署期间并发部署导致 502、部署后验证四层模型、stash 丢失找回、同一接口错误形态变化先看日志、PR 已合入后追加修复先确认 merge-base、业务异常消息应包含系统上下文、服务器部署 jar 验证四原则、Bug 修复前必须先验证实际行为、部署前必须验证 jar 中 Flyway 迁移脚本无重复版本、分阶段修复存量数据策略、agent-finish-task.sh 锚点分支占用处理、Policy canUpload/canDelete 权限矩阵必须对称设计、前端禁止 catch silent 吞掉 API 错误、联动回填链路 4 层全链路验证 SOP、权限 Bug 必须审视同一业务动作的所有 UI 入口 + 前后端对称修复（CO-400 五轮 + CO-415 归纳）、止血补丁与技术债清偿必须分 PR、Webhook 入队必须解析可用 OSS username（CO-576）、OBS 直传三层保护、前端 N+1 GET 触发 429 限流、业绩模块部署陷阱、生产环境测试数据清理、CRM 商机关联失败三层根因（spec 037）、自定义表单 schema 迁移必须 merge 不能覆盖、错误消息不应包含不存在的功能引导（PR !2043）、Excel 导出 sentinel 反模式 + 枚举 displayName 陷阱（§67）、PR revert 必须保留正确修复 + 守护测试防重蹈覆辙（§68）、MySQL JDBC URL 必须显式配置 zeroDateTimeBehavior=convertToNull（§69） | 2026-07-18 |
 | `crm-integration-lessons.md` | 外部集成经验 | CRM 接口字段映射、405 事故、code 字段错填、status 枚举映射错位、CO-277 id 反查 code、CO-283 附件 URL 双重嵌套、CO-280 跨域 URL 完整地址、CO-262 GAP 附件持久化、projectManagerId 存 User.id 不存工号、调用链覆盖风险 | 2026-06-26 |
 | `oss-integration-lessons.md` | 外部集成经验 | OSS 菜单码 1:N 映射、YAML 列表配置、Mapper Bean 化、架构测试强制覆盖、OSS 用户权限隔离、token 缓存隔离 | 2026-07-08 |
 | `root-cause-analysis-frontend-404.md` | Bug 根因分析 | 前端热更新部署时动态 import chunk 被误删导致 404 | 2026-06-19 |
@@ -30,7 +30,7 @@
 | `root-cause-analysis-bcrypt-invalid-hash.md` | Bug 根因分析 | OSS 同步员工默认密码 BCrypt 哈希无效导致登录失败 | 2026-06-20 |
 | `root-cause-analysis-co-282.md` | Bug 根因分析 | 客户信息 14 行残留与游客兜底（固定矩阵展示策略 + 身份 fallback + SPA 缓存） | 2026-06-20 |
 | `root-cause-analysis-co262-crm-eval-gap-files.md` | Bug 根因分析 | CRM 商机关联回填 GAP 附件未持久化导致详情页附件列表为空 | 2026-06-20 |
-| `decisions.md` | 架构决策记录 | GAP 附件加载统一通过 DocumentService.getDocuments() 入口、阶段变更通知必须携带明确 actor、CRM 商机负责人优先于本地采购人映射、Controller @PreAuthorize 放宽为 isAuthenticated() 真权限交给 Service 层 Policy、admin 专属权限过滤统一通过 RoleProfileAdminPermissionFilter | 2026-07-08 |
+| `decisions.md` | 架构决策记录 | GAP 附件加载统一通过 DocumentService.getDocuments() 入口、阶段变更通知必须携带明确 actor、CRM 商机负责人优先于本地采购人映射、Controller @PreAuthorize 放宽为 isAuthenticated() 真权限交给 Service 层 Policy、admin 专属权限过滤统一通过 RoleProfileAdminPermissionFilter、评分项功能梳理 ScoreDraftDialog 作为评分项生命周期唯一入口（条目 5） | 2026-07-16 |
 | `root-cause-analysis-co-375-uploader-delete-permission.md` | Bug 根因分析 | 项目文档删除权限链路不一致导致上传者本人 403（Controller 早过滤 + Policy upload/delete 不对称 + 缺少 uploaderId 维度） | 2026-06-29 |
 | `root-cause-analysis-co-390-unified-picker.md` | Bug 根因分析 | 绑定联系人未用统一 UserPicker + /api/admin/users 权限 403 被吞导致投标组长/专员无法搜索 | 2026-06-29 |
 | `root-cause-analysis-bidding-leader-filter-or-semantics.md` | Bug 根因分析 + 工程规范 | 投标负责人筛选「主 OR 副」语义 + 展示列只显示主负责人姓名导致用户误以为筛错（PR1574 修复后暴露的隐藏 bug + null 永真 fallback 是隐形放大器 + 筛选语义必须与展示列对齐） | 2026-07-03 |

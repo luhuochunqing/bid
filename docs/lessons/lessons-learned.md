@@ -3128,6 +3128,25 @@ npm run test:e2e -- --grep "tender-import-async"
 - spec: `specs/031-tender-import-async-perf/`
 - §23 — 全链路日志排查 SOP（本次排查使用 Layer 1-4）
 
+### 关联案例：spec 039 仓库导出 @Async 自调用同陷阱不同解法（2026-07-17 / PR !2110, !2111）
+
+spec 039 仓库模块实现"全量合订本导出"时再次踩中本节（§46）的 @Async 自调用陷阱——**同类内方法互调不触发 Spring AOP 代理，@Async 失效**。两次踩坑的解法不同：
+
+| 维度 | spec 031（本节 §46） | spec 039（关联案例） |
+|---|---|---|
+| 解法 | `@Lazy @Autowired` 注入自身代理（`self.executeImportAsync()`） | 提取 `@Async` 方法到独立 Bean |
+| 优点 | 改动小，不增加类 | 职责分离，避免 self-injection 反模式 |
+| 缺点 | self-injection 是反模式，初学者难理解 | 新增一个类 |
+| 适用 | 已有 service 不便拆分 | 新功能或可拆分的场景 |
+
+**结论**：spec 039 优先选择"提取独立 Bean"避免 self-injection 反模式，与本节 §46 的解法形成对比。后续 ArchUnit 规则建议禁止 `@Async` 方法被同类调用（参见 §64 设计评审第 1 条）。
+
+- 关联 PR：!2110、!2111（spec 039 仓库导出 @Async 修复）
+- 关联本节：§46 spec 031 标讯批量导入 @Async 自调用失效
+- 关联 §64 设计评审 10 个通用问题第 1 条（@Async 与 @Transactional 事务边界）
+
+---
+
 ## 47. OSS 用户权限扩散：双轨制下的"内部映射"是权限越权的根源（spec 032 / 2026-07-08）
 
 ### 问题背景
@@ -4658,3 +4677,334 @@ PR 模板新增检查项：「本 PR 是否引入数据量变化？如是，评�
 - `scripts/agent-finish-task.sh` — 任务分支收尾（不删 init 分支）
 - `scripts/sync-env.sh` — init 分支 ff-only 同步逻辑
 - `scripts/agent-worktree-guard.sh` — worktree 身份识别
+
+---
+
+## 67. Excel 导出 sentinel 反模式 + 枚举 `displayName()` 陷阱（PR !2084 / 2026-07-15 / CO-583 关联）
+
+> 来源：2026-07-15 业绩管理 Excel 导出两个 bug 修复 + P0/P2 架构治理
+> 涉及模块：`PerformanceExcelExporter` / `ContractStatusPolicy` / 5 个枚举（`ContractStatus` / `CustomerType` / `PerformanceStatus` / `PerformanceTypeEnum` / `SettlementMethod`）
+> 关联 PR：!2082（CO-583 分组聚合）、!2084（bug 修复 + 架构治理）
+
+### 问题背景
+
+业绩管理 Excel 导出存在两个用户可见 bug：
+
+| Bug | 表现 | 根因 |
+|---|---|---|
+| 状态列显示英文 | `ONGOING` / `EXPIRED` 而非"履约中"/"已到期" | `ContractStatus.name()` 返回枚举名（英文），应使用 `displayName()`（中文） |
+| 到期天数列显示 9223372036854780000 | 19 位整数，Excel 显示为 `9.22337E+18` | `ContractStatusPolicy` 用 `Long.MAX_VALUE` 作为"无到期日"的 sentinel 值 |
+
+### 根因分析
+
+**Bug 1: `name()` vs `displayName()` 语义混淆**
+
+5 个枚举类各自维护 `displayName` 字段，但 `PerformanceExcelExporter` 直接调用 `ContractStatus.name()`（Java 枚举内置方法，返回枚举常量名）。这种调用混淆了"枚举常量名"和"业务展示名"两个语义层。
+
+**Bug 2: `Long.MAX_VALUE` sentinel 反模式**
+
+`ContractStatusPolicy.calculateStatus` 在 `expiryDate == null` 时返回 `Long.MAX_VALUE` 作为"无到期日"的标记。这是典型的 sentinel 反模式：
+
+1. **类型语义污染**：`Long` 类型本应表示"天数"，但 `Long.MAX_VALUE` 是一个魔法值，语义为"无穷大"
+2. **下游处理陷阱**：Excel 导出直接写入 `Long.MAX_VALUE`，Excel 把它显示为科学计数法 `9.22337E+18`
+3. **计算溢出风险**：任何对 sentinel 值的算术运算（如 `sentinel - today`）都可能导致溢出
+4. **可读性差**：调试时看到 `9223372036854780000` 难以理解其含义
+
+### 修复方案
+
+**Bug 1 修复**：5 个枚举统一改造为构造注入 `displayName` 字段：
+
+```java
+// 修复前
+public enum ContractStatus {
+    ONGOING,
+    EXPIRED;
+
+    public String displayName() {
+        return this == ONGOING ? "履约中" : "已到期";
+    }
+}
+
+// 修复后（构造注入）
+public enum ContractStatus {
+    ONGOING("履约中"),
+    EXPIRED("已到期");
+
+    private final String displayName;
+
+    ContractStatus(String displayName) {
+        this.displayName = displayName;
+    }
+
+    public String displayName() {
+        return displayName;
+    }
+}
+```
+
+同时删除 `PerformanceEnumLabels` 的 forward mapping 函数（`getContractStatusLabel(ContractStatus)` 等），统一通过 `enum.displayName()` 获取。
+
+**Bug 2 修复**：sentinel 值改为 `null`，Excel 导出处理 null：
+
+```java
+// ContractStatusPolicy
+public Long calculateExpiryDays(LocalDate today, LocalDate expiryDate) {
+    if (expiryDate == null) {
+        return null;  // 无到期日，返回 null 而非 Long.MAX_VALUE
+    }
+    return ChronoUnit.DAYS.between(today, expiryDate);
+}
+
+// PerformanceExcelExporter
+Long expiryDays = policy.calculateExpiryDays(today, contract.getExpiryDate());
+String cellValue = expiryDays == null ? "" : String.valueOf(expiryDays);
+```
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| `name()` vs `displayName()` 混淆 | Java 枚举的 `name()` 是技术标识，不应直接用于业务展示 | 枚举展示一律走 `displayName()`，禁止在导出/UI 层调用 `name()` |
+| `Long.MAX_VALUE` sentinel | sentinel 值是隐式契约，下游容易误用 | 用 `Optional<Long>` 或 `null` 表达"无值"，禁止用 `Long.MAX_VALUE` / `Long.MIN_VALUE` / `-1` 等 sentinel |
+| 枚举 if-else 分支多 | 每加一个枚举常量就要改 if-else | 枚举字段统一用构造注入，禁止在方法内用 switch/if-else 返回常量值 |
+| forward mapping 散落 | `EnumLabels.getXxxLabel()` 类方法重复枚举内部的 displayName 逻辑 | 删除 forward mapping，统一通过 `enum.displayName()` |
+
+### 操作规范
+
+1. **新增枚举**：必须用构造注入 `displayName` 字段，禁止 if-else / switch 返回常量值
+2. **Excel 导出枚举值**：一律调用 `displayName()`，禁止 `name()` 或 `toString()`
+3. **sentinel 值禁令**：禁止用 `Long.MAX_VALUE` / `Long.MIN_VALUE` / `-1` / `Integer.MAX_VALUE` 等魔法值表达"无值"语义，改用 `null` 或 `Optional`
+4. **Excel 单元格 null 处理**：导出层必须显式处理 `null`，写入空字符串或留空，禁止依赖 POI 默认行为
+5. **回归测试**：null 场景必须覆盖（`ContractStatusPolicyTest` 13 tests + `PerformanceExcelExporterTest` 1 test）
+
+### 验证命令
+
+```bash
+# 检查枚举是否用 name() 直接导出
+grep -rn "\.name()" backend/src/main/java/com/xiyu/bid/**/PerformanceExcelExporter.java
+# 期望：无 .name() 调用
+
+# 检查 Long.MAX_VALUE sentinel
+grep -rn "Long.MAX_VALUE\|Long.MIN_VALUE" backend/src/main/java/com/xiyu/bid/performance/
+# 期望：无 sentinel 用法
+
+# 跑回归测试
+cd backend && mvn test -Dtest='ContractStatusPolicyTest,PerformanceExcelExporterTest'
+# 期望：14 tests, 0 failures
+```
+
+### 相关文档
+
+- `backend/src/main/java/com/xiyu/bid/performance/domain/ContractStatusPolicy.java` — sentinel 修复
+- `backend/src/main/java/com/xiyu/bid/performance/infrastructure/PerformanceExcelExporter.java` — Excel 导出修复
+- `backend/src/main/java/com/xiyu/bid/performance/domain/PerformanceEnumLabels.java` — forward mapping 删除
+- PR !2082 — CO-583 业绩管理列表分组与总截止日期聚合
+- PR !2084 — bug 修复 + P0/P2 架构治理
+
+---
+
+## 68. PR revert 必须保留正确修复 + 守护测试防重蹈覆辙（PR !2091 → !2095 / 2026-07-16）
+
+> 来源：2026-07-16 PR !2091 引入 locked 字段可编辑回归，PR !2095 revert 后补 5 个守护测试
+> 涉及模块：`project` 立项表单 PENDING_REVIEW 状态
+> 关联 PR：!2091（引入回归）、!2095（revert + 守护测试）、!2089（同 session 关联的标讯录入自定义表单）
+
+### 问题背景
+
+PR !2091 试图让 PENDING_REVIEW 状态下立项表单字段可编辑，但修改 `locked` 语义时引入回归：region cascader 自动关闭逻辑被破坏。同时该 PR 还包含 region cascader 修复（独立正确改动）。
+
+PR !2095 进行 revert，但只 revert locked 修改部分，**保留 region cascader 修复**，并补 5 个 locked 语义守护测试。
+
+### 时间线
+
+| 时间 | 操作 | 判断 |
+|---|---|---|
+| PR !2089 | 标讯录入自定义表单改造（同 session） | ✅ 独立正确 |
+| PR !2091 | feat(project): PENDING_REVIEW 状态下立项表单字段可编辑 | ⚠️ 混合两个改动 |
+| 回归发现 | region cascader 自动关闭失效 | ❌ locked 改动破坏 cascader |
+| PR !2095 | revert !2091 的 locked 修改，保留 region cascader 修复 | ✅ 选择性 revert |
+| 守护测试 | 补 5 个 locked 语义守护测试 | ✅ 防重蹈覆辙 |
+
+### 根因分析
+
+**根因 1: PR 混合多个不相关改动**
+
+PR !2091 同时包含：
+- locked 语义修改（业务变更）
+- region cascader 修复（独立 bug fix）
+
+两个改动没有业务关联，应分两个 PR。混合后 revert 时被迫做选择性 revert，增加复杂度。
+
+**根因 2: locked 语义修改未审视所有依赖**
+
+`locked` 字段在立项表单、cascader、审批模式等多处使用，修改时只考虑了 PENDING_REVIEW 状态，未审视对 cascader 自动关闭行为的副作用。
+
+**根因 3: 缺少 locked 语义守护测试**
+
+修改 `locked` 语义时，没有对应的守护测试来捕获回归。`locked` 是表单状态机的核心字段，缺少测试意味着任何改动都可能引入隐性回归。
+
+### 修复方案
+
+**步骤 1: 选择性 revert**
+
+PR !2095 只 revert locked 修改部分，保留 region cascader 修复：
+
+```bash
+git revert <commit-hash>  # 整体 revert
+git checkout <previous-commit> -- path/to/cascader/fix  # 恢复 cascader 修复
+git commit -m "revert(project): 撤销 PR !2091 的 locked 修改，保留 region cascader 修复"
+```
+
+**步骤 2: 补 5 个 locked 语义守护测试**
+
+```java
+@Test
+void locked_should_be_true_when_in_approval_mode() { ... }
+
+@Test
+void locked_should_be_false_when_in_edit_mode() { ... }
+
+@Test
+void locked_should_not_affect_region_cascader_auto_close() { ... }
+
+@Test
+void locked_should_not_block_form_submission_when_pending_review() { ... }
+
+@Test
+void locked_semantics_should_be_independent_of_region_cascader() { ... }
+```
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| PR 混合多个不相关改动 | revert 时被迫做选择性操作，增加复杂度 | 一个 PR 只做一件事，禁止混合业务变更 + 独立 bug fix |
+| 修改 `locked` 等核心状态字段未审视所有依赖 | 隐性回归（cascader 自动关闭失效） | 修改状态机字段前必须 Grep 所有调用点，逐一审视副作用 |
+| 缺少守护测试 | 回归无法在 CI 阶段捕获 | 状态机核心字段必须有守护测试，每次改动都跑 |
+| 选择性 revert 操作复杂 | 容易漏 revert 或多 revert | 选择性 revert 后必须 diff 确认保留的改动仍在 |
+
+### 操作规范
+
+1. **PR 原子性**：一个 PR 只做一件事，禁止混合业务变更 + 独立 bug fix + 重构
+2. **修改核心状态字段前**：`Grep` 所有调用点（如 `locked` / `reviewStatus` / `projectStatus`），逐一审视副作用
+3. **守护测试**：状态机核心字段必须有守护测试，覆盖所有状态组合
+4. **选择性 revert**：revert 后必须 `git diff` 确认保留的改动仍在，跑测试验证
+5. **revert commit message**：必须写明"撤销了什么"+"保留了什么"+"为什么"
+
+### 验证命令
+
+```bash
+# 检查 locked 字段调用点
+grep -rn "\.locked\b\|getLocked\b\|isLocked\b" backend/src/main/java/com/xiyu/bid/project/ src/views/Project/
+# 期望：所有调用点都已审视
+
+# 跑守护测试
+cd backend && mvn test -Dtest='ProjectLockedSemanticsTest'
+# 期望：5 tests, 0 failures
+
+# 验证 cascader 修复仍在
+git diff origin/main HEAD -- src/views/**/RegionCascader.vue
+# 期望：cascader 修复改动仍在
+```
+
+### 相关文档
+
+- `backend/src/test/java/com/xiyu/bid/project/ProjectLockedSemanticsTest.java` — 5 个守护测试
+- PR !2091 — 引入回归（已 revert）
+- PR !2095 — 选择性 revert + 守护测试
+- §4 — 回滚 PR 前必须确认根因（revert 相关教训）
+
+---
+
+## 69. MySQL JDBC URL 必须显式配置 `zeroDateTimeBehavior=convertToNull`（PR !2087 / !2088 / 2026-07-15）
+
+> 来源：2026-07-15 生产环境表单加载失败，JDBC URL 缺少 `zeroDateTimeBehavior=convertToNull`
+> 涉及模块：`application-prod.yml` / `application.yml`
+> 关联 PR：!2087（生产修复）、!2088（同步 application-prod.yml）
+
+### 问题背景
+
+生产环境部署后，用户访问某些表单页时加载失败，后端日志报错：
+
+```
+SQLException: Cannot convert value '0000-00-00 00:00:00' from column N to TIMESTAMP
+```
+
+根因是数据库中存在 `0000-00-00 00:00:00` 这样的 zero date 值，MySQL JDBC 驱动默认拒绝转换。
+
+### 根因分析
+
+**MySQL zero date 历史**：
+
+- MySQL 5.x 允许 `0000-00-00 00:00:00` 作为合法日期值（用于表示"无日期"）
+- MySQL 8.0 默认 `sql_mode` 包含 `NO_ZERO_DATE`，禁止插入 zero date
+- 但历史数据中可能仍存在 zero date（来自 MySQL 5.x 时代）
+- MySQL JDBC 驱动（`mysql-connector-j`）默认 `zeroDateTimeBehavior=EXCEPTION`，遇到 zero date 抛异常
+
+**项目配置缺口**：
+
+- `application.yml`（dev）未显式配置 `zeroDateTimeBehavior`
+- `application-prod.yml`（prod）也未显式配置
+- 项目 V1077 迁移虽然清理了 zero date 记录，但无法保证所有表都清理干净
+- 生产环境 `docker-compose.yml` 中 MySQL `sql_mode` 已去掉 `NO_ZERO_DATE,NO_ZERO_IN_DATE`，但 JDBC 驱动仍按 `EXCEPTION` 处理
+
+### 修复方案
+
+在 JDBC URL 中显式加 `zeroDateTimeBehavior=convertToNull`：
+
+```yaml
+# application.yml
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/xiyu_bid_main?useUnicode=true&characterEncoding=utf8mb4&useSSL=false&serverTimezone=Asia/Shanghai&zeroDateTimeBehavior=convertToNull&allowPublicKeyRetrieval=true
+
+# application-prod.yml
+spring:
+  datasource:
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?useUnicode=true&characterEncoding=utf8mb4&useSSL=false&serverTimezone=Asia/Shanghai&zeroDateTimeBehavior=convertToNull&allowPublicKeyRetrieval=true
+```
+
+**`convertToNull` 的语义**：遇到 zero date 时，JDBC 驱动不抛异常，而是转换为 `null`，由应用层处理。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| JDBC URL 未显式配置 `zeroDateTimeBehavior` | 依赖驱动默认值（EXCEPTION），遇到 zero date 直接抛异常 | 所有环境（dev/test/prod）的 JDBC URL 必须显式加 `zeroDateTimeBehavior=convertToNull` |
+| V1077 清理 zero date 不彻底 | 历史数据可能仍有 zero date | 迁移脚本清理 + JDBC 配置兜底，两者都要 |
+| dev/test 与 prod 配置不一致 | dev 通过，prod 失败 | 所有环境配置必须同步，禁止 dev/prod 配置漂移 |
+
+### 操作规范
+
+1. **JDBC URL 必备参数**：
+   - `zeroDateTimeBehavior=convertToNull` — zero date 转 null
+   - `useUnicode=true&characterEncoding=utf8mb4` — 字符集
+   - `serverTimezone=Asia/Shanghai` — 时区
+   - `allowPublicKeyRetrieval=true` — MySQL 8.0 公钥检索
+2. **dev/prod 配置同步**：修改 JDBC URL 时必须同步所有环境（dev/test/prod）
+3. **应用层处理 null 日期**：实体类字段用 `LocalDate` / `LocalDateTime`（可为 null），DTO 显式处理 null
+4. **V1077 类型的清理迁移**：清理 zero date 后仍需保留 JDBC 配置兜底，防止新数据再次产生 zero date
+
+### 验证命令
+
+```bash
+# 检查所有环境的 JDBC URL
+grep -rn "zeroDateTimeBehavior" backend/src/main/resources/
+# 期望：application.yml + application-prod.yml + application-test.yml 都有
+
+# 检查是否还有 zero date 数据
+mysql -e "SELECT COUNT(*) FROM information_schema.columns WHERE table_schema='xiyu_bid_main' AND data_type IN ('date','datetime','timestamp')"
+# 然后逐表检查 zero date
+
+# 跑表单加载相关测试
+cd backend && mvn test -Dtest='*FormLoad*,*WorkflowForm*'
+```
+
+### 相关文档
+
+- `backend/src/main/resources/application.yml` — dev 配置
+- `backend/src/main/resources/application-prod.yml` — prod 配置
+- `backend/src/main/resources/db/migration-mysql/V1077__cleanup_zero_dates.sql` — zero date 清理迁移
+- `docker-compose.yml` — MySQL `sql_mode` 配置（去掉 `NO_ZERO_DATE,NO_ZERO_IN_DATE`）
+- PR !2087 — 生产 JDBC URL 修复
+- PR !2088 — application-prod.yml 同步

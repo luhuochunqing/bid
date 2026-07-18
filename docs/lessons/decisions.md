@@ -330,3 +330,116 @@ public final class RoleProfileAdminPermissionFilter {
 - `backend/src/main/java/com/xiyu/bid/admin/service/DataScopeConfigService.java`
 - `backend/src/main/java/com/xiyu/bid/auth/UserDetailsServiceImpl.java`
 - PR !1892 — 本决策落地
+
+---
+
+## 5. 评分项功能梳理：ScoreDraftDialog 作为评分项生命周期的唯一入口
+
+**日期**: 2026-07-16
+**决策者**: cursor
+**相关 Issue**: 评分项功能闭环改造（内部梳理，无 Linear issue）
+**状态**: 已采纳（设计阶段，落地待排期）
+
+### 背景
+
+2026-07-16 用户反馈"系统中没有放置评分项的地方"。排查发现系统存在三个与"评分"相关但职责混乱的功能：
+
+| 功能 | 入口 | 实际行为 | 问题 |
+|---|---|---|---|
+| `ProjectTaskBoardCard` "AI 评分标准解析"按钮 | 任务看板卡片 | 触发 `tender-breakdown`（招标文件拆解） | 命名误导，实际不是评分项解析 |
+| `TaskKanban` "AI 评分标准解析"按钮 | 任务看板顶部 | 仅作为查看器，无写入能力 | 与上面同名但行为不同 |
+| `ScoreDraftDialog` 评分项解析对话框 | **无 UI 入口** | 真正的评分项解析（写入 `project_score_drafts` 表） | 真入口被隐藏 |
+
+### 问题诊断
+
+**问题 1: 入口错位** — 用户想解析评分项时，看到的按钮（`ProjectTaskBoardCard`）实际触发的是招标文件拆解，不是评分项解析。
+
+**问题 2: 真入口隐藏** — 真正能解析评分项的 `ScoreDraftDialog` 没有 UI 入口，用户无法触达。
+
+**问题 3: 命名冲突** — 两个不同行为按钮都叫"AI 评分标准解析"，用户无法区分。
+
+**问题 4: 功能割裂** — `tender-breakdown` 解析出的"评分标准"不写入 `project_score_drafts` 表，导致评分项数据无法被任务拆解、案例推荐、案例沉淀共用。
+
+### 核心概念：评分项是共同锚点
+
+**评分项**（score draft）= 客户招标文件中的评分标准条目，存储于 `project_score_drafts` 表。
+
+评分项是三个功能的共同锚点：
+- **任务拆解**：根据评分项拆解投标任务
+- **案例推荐**：根据评分项匹配历史案例
+- **案例沉淀**：根据评分项归档中标案例
+
+如果评分项数据缺失或不一致，三个功能都会失效。
+
+### 决策
+
+**闭环设计方案**：
+
+1. **任务看板"AI 评分标准解析"按钮改为触发 `ScoreDraftDialog`**
+   - 用户在任务看板点击按钮 → 打开 `ScoreDraftDialog` → 解析评分项写入 `project_score_drafts`
+   - 删除原 `tender-breakdown` 触发逻辑
+
+2. **案例推荐抽屉评分项为空时直接打开 `ScoreDraftDialog`**
+   - 用户打开案例推荐抽屉 → 检查 `project_score_drafts` 是否有数据
+   - 为空 → 自动打开 `ScoreDraftDialog` 引导用户先解析评分项
+   - 不为空 → 正常展示案例推荐
+
+3. **`tender-breakdown` 改名为"AI 招标文件解析"并移至项目立项阶段**
+   - 改名消除"评分"命名冲突
+   - 移至立项阶段：项目立项时解析招标文件，提取基本信息（项目名称、客户、预算等）
+   - 不再触发任务看板按钮
+
+4. **实现"一次上传，自动贯通"的评分项生命周期闭环**
+   - 项目立项阶段上传招标文件 → 自动解析评分项 → 写入 `project_score_drafts`
+   - 任务拆解、案例推荐、案例沉淀都从 `project_score_drafts` 读取
+   - 评分项变更时同步通知三个功能模块
+
+### 备选方案（及否决理由）
+
+| 方案 | 优点 | 缺点 | 是否采纳 |
+|---|---|---|---|
+| `ScoreDraftDialog` 作为唯一入口 + `tender-breakdown` 移至立项 | 入口清晰；评分项数据统一；命名无冲突 | 改动较大，需要重构任务看板和案例推荐 | ✅ 采纳 |
+| 保留 `tender-breakdown` 在任务看板，加"评分项同步"逻辑 | 改动小 | 命名冲突仍存在；两套解析路径维护成本高 | ❌ 治标不治本 |
+| 删除 `ScoreDraftDialog`，统一用 `tender-breakdown` | 减少功能 | 丢失评分项写入能力；任务拆解/案例推荐失去锚点 | ❌ 业务降级 |
+| 重命名按钮但不改逻辑 | 改动最小 | 入口仍错位；评分项数据仍割裂 | ❌ 不解决问题 |
+
+### 权衡与约束
+
+1. **`project_score_drafts` 是单一数据源**：所有评分项相关功能必须从该表读取，禁止从 `tender-breakdown` 临时结果获取
+2. **`ScoreDraftDialog` 是唯一写入入口**：保证评分项数据的完整性和一致性
+3. **`tender-breakdown` 职责收窄**：只做招标文件基本信息解析，不再承担评分项解析
+4. **生命周期闭环**：评分项一次解析，三处使用（任务拆解/案例推荐/案例沉淀）
+
+### 实施路径（三阶段）
+
+**Phase 1: 入口对齐**（短期）
+- 任务看板按钮改触发 `ScoreDraftDialog`
+- 案例推荐抽屉评分项为空时打开 `ScoreDraftDialog`
+- `tender-breakdown` 按钮临时改名为"AI 招标文件解析"
+
+**Phase 2: 数据贯通**（中期）
+- `tender-breakdown` 解析结果写入 `project_score_drafts`（或迁移解析逻辑到 `ScoreDraftDialog`）
+- 任务拆解从 `project_score_drafts` 读取评分项
+- 案例推荐匹配逻辑基于 `project_score_drafts`
+
+**Phase 3: 立项阶段整合**（长期）
+- `tender-breakdown` 完全移至项目立项阶段
+- 项目立项时自动解析评分项，无需用户手动触发
+- 实现"一次上传，自动贯通"
+
+### 验证
+
+- `ScoreDraftDialog` 有 UI 入口，用户可触达
+- 任务看板"AI 评分标准解析"按钮触发 `ScoreDraftDialog`，不再触发 `tender-breakdown`
+- 案例推荐抽屉评分项为空时自动打开 `ScoreDraftDialog`
+- `project_score_drafts` 表数据被任务拆解、案例推荐、案例沉淀共用
+- `tender-breakdown` 按钮改名为"AI 招标文件解析"
+
+### 相关文档
+
+- `backend/src/main/java/com/xiyu/bid/scoredraft/` — 评分项模块
+- `backend/src/main/java/com/xiyu/bid/tenderbreakdown/` — 招标文件拆解模块
+- `src/views/Project/components/ScoreDraftDialog.vue` — 评分项解析对话框
+- `src/views/ProjectTaskBoard/components/ProjectTaskBoardCard.vue` — 任务看板卡片
+- 飞书文档（内部技术版）：https://my.feishu.cn/docx/ANFTdx5MboHtHGxkGqrcBkJwnDd
+- 飞书文档（客户友好版）：https://my.feishu.cn/docx/T143dQfRuoPn4RxqivPcrRI3nmh
