@@ -1,6 +1,7 @@
 package com.xiyu.bid.repository;
 
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.project.core.ProjectStage;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -110,8 +111,13 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
 
     /**
      * 工作台角色化改造：按项目阶段（stage）集合查询项目。
-     * stage 为 ProjectStage 枚举名字符串（INITIATED/DRAFTING/EVALUATING/RESULT_PENDING/RETROSPECTIVE/CLOSED）。
+     * 枚举类型入参保证类型安全；name() 转换收口在 default 方法，调用方无需手工映射。
      */
+    default List<Project> findByStageIn(Collection<ProjectStage> stages) {
+        return findByStageNameIn(stages.stream().map(ProjectStage::name).toList());
+    }
+
+    /** 底层查询：stage 在 Project 实体中以 String 存储。 */
     @Query("SELECT p FROM Project p WHERE p.stage IN :stages")
-    List<Project> findByStageIn(@Param("stages") Collection<String> stages);
+    List<Project> findByStageNameIn(@Param("stages") Collection<String> stages);
 }

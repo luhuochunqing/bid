@@ -1,5 +1,6 @@
 package com.xiyu.bid.workbench.controller;
 
+import com.xiyu.bid.annotation.Auditable;
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.project.dto.ProjectDTO;
 import com.xiyu.bid.workbench.dto.ResourcePendingApprovalDTO;
@@ -45,6 +46,7 @@ public class WorkbenchTodoController {
      * 后端按角色分支返回（admin_lead / bid-Team / bid-projectLeader / 其他）。
      */
     @GetMapping("/project-todos")
+    @Auditable(action = "READ", entityType = "Project", description = "工作台项目待办按角色查询")
     public ResponseEntity<ApiResponse<List<ProjectDTO>>> getProjectTodos(
             @AuthenticationPrincipal UserDetails userDetails) {
         log.info("GET /api/workbench/project-todos - Fetching project todos by role for {}",
@@ -59,6 +61,7 @@ public class WorkbenchTodoController {
      * 合并后按 createdAt 倒序，取前 4 条（数据库层面分页）。
      */
     @GetMapping("/resource-pending-approvals")
+    @Auditable(action = "READ", entityType = "BorrowApplication", description = "工作台资源待审批按角色查询")
     public ResponseEntity<ApiResponse<List<ResourcePendingApprovalDTO>>> getResourcePendingApprovals(
             @AuthenticationPrincipal UserDetails userDetails) {
         log.info("GET /api/workbench/resource-pending-approvals - Fetching pending approvals for {}",
