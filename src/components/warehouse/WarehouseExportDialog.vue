@@ -55,26 +55,27 @@
       <div v-else-if="isCompleted" class="export-done">
         <el-result icon="success" title="📤 仓库信息导出包 — 完成" :sub-title="`共 ${totalCount} 条记录`">
           <template #extra>
-            <el-button type="primary" @click="handleDownload"><el-icon><Download /></el-icon> 下载文件包</el-button>
+            <div v-if="isDownloading" class="download-progress" data-testid="download-progress">
+              <el-progress
+                :percentage="downloadProgress"
+                :stroke-width="12"
+                striped
+                :striped-flow="true"
+                :indeterminate="isDownloadIndeterminate"
+                :status="isDownloadIndeterminate ? 'warning' : undefined"
+              />
+              <p class="status-text">
+                {{ isDownloadIndeterminate ? '正在下载文件包...' : `正在下载文件包 ${downloadProgress}%` }}
+              </p>
+            </div>
+            <el-button v-else type="primary" :disabled="isDownloading" @click="handleDownload"><el-icon><Download /></el-icon> 下载文件包</el-button>
           </template>
         </el-result>
-        <div class="package-detail">
-          <div class="detail-title">📦 ZIP 包内容</div>
-          <ul class="detail-list">
-            <li>仓库信息台账.xlsx（{{ totalCount }} 条，24 列含系统字段）</li>
-            <li v-if="hasAttachments && form.attachmentForms.includes('ATTACHMENTS_FOLDER')">attachments/</li>
-            <li v-if="form.attachmentForms.includes('ATTACHMENTS_FOLDER') && summary.propertyCertCount" class="indent">产权证 {{ summary.propertyCertCount }} 份</li>
-            <li v-if="form.attachmentForms.includes('ATTACHMENTS_FOLDER') && summary.invoiceCount" class="indent">发票 {{ summary.invoiceCount }} 份</li>
-            <li v-if="form.attachmentForms.includes('ATTACHMENTS_FOLDER') && summary.photosCount" class="indent">照片 {{ summary.photosCount }} 张</li>
-            <li v-if="form.attachmentForms.includes('ATTACHMENTS_FOLDER') && summary.leaseContractCount" class="indent">租赁合同 {{ summary.leaseContractCount }} 份</li>
-            <li v-if="form.attachmentForms.includes('WORD_COMBINED')">仓库附件合订本.docx</li>
-          </ul>
-          <div class="meta-row"><span class="meta-label">导出范围：</span><span>{{ summary.filterSummary || '—' }}</span></div>
-          <div class="meta-row"><span class="meta-label">附件范围：</span><span>{{ summary.attachmentScope || '—' }}</span></div>
-          <div class="meta-row"><span class="meta-label">处理耗时：</span><span>{{ formatElapsed(summary.elapsedMs) }}</span></div>
-          <div class="meta-row"><span class="meta-label">包大小：</span><span>{{ formatBytes(summary.zipBytes) }}</span></div>
-          <div class="meta-row"><span class="meta-label">链接有效期：</span><span>7 天</span></div>
-        </div>
+        <WarehouseExportPackageDetail
+          :total-count="totalCount"
+          :summary="summary"
+          :attachment-forms="form.attachmentForms"
+        />
       </div>
       <div v-else-if="isFailed" class="export-failed">
         <el-result icon="error" title="导出失败" :sub-title="failureReason || '未知原因'">
@@ -100,7 +101,8 @@ import { watch, computed, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Download } from '@element-plus/icons-vue'
 import http from '@/api/client'
-import { useAsyncTask } from '@/composables/useAsyncTask'
+import { useAsyncTask, DownloadError } from '@/composables/useAsyncTask'
+import WarehouseExportPackageDetail from './WarehouseExportPackageDetail.vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -121,6 +123,7 @@ const form = reactive({
 const {
   taskId, status, totalCount, failureReason, summary,
   isRunning, isCompleted, isFailed,
+  isDownloading, downloadProgress, isDownloadIndeterminate,
   startTask, reset: resetTask, retry, downloadFile, stopPolling
 } = useAsyncTask({
   submitFn: async () => {
@@ -138,11 +141,6 @@ const {
   statusUrl: '/api/knowledge/warehouses/export/tasks/:id/status',
   downloadUrl: '/api/knowledge/warehouses/export/tasks/:id/download',
   httpGet: http.get
-})
-
-const hasAttachments = computed(() => {
-  const s = summary.value || {}
-  return (s.propertyCertCount || 0) + (s.invoiceCount || 0) + (s.photosCount || 0) + (s.leaseContractCount || 0) > 0
 })
 
 const validation = computed(() => {
@@ -174,11 +172,30 @@ const handleStart = async () => {
   }
 }
 
+/**
+ * 根据 DownloadError.code 映射用户友好的错误提示
+ */
+const resolveDownloadErrorMessage = (error) => {
+  if (error instanceof DownloadError) {
+    switch (error.code) {
+      case 'TIMEOUT': return '下载超时，请重试'
+      case 'NETWORK': return '网络错误，请检查网络连接后重试'
+      case 'HTTP': return error.message
+      case 'EMPTY_BODY': return '下载失败：服务端响应体为空'
+      case 'STREAM': return '下载中断：与服务端的连接异常'
+      default: return error.message
+    }
+  }
+  return '下载失败'
+}
+
 const handleDownload = () => {
-  downloadFile(summary.value?.fileName, () => {
+  // downloadFile 第一参数是 task id（用于拼下载 URL），不是 fileName。
+  // 传 null 会用 useAsyncTask 内部的 taskId.value 兜底，避免误把 fileName 当 id 拼出 404 URL。
+  downloadFile(null, () => {
     return `仓库信息导出包_${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}.zip`
-  }).catch(() => {
-    ElMessage.error('下载失败')
+  }).catch((error) => {
+    ElMessage.error(resolveDownloadErrorMessage(error))
   })
 }
 
@@ -188,24 +205,6 @@ const handleClose = () => {
   stopPolling()
   resetForm()
   emit('update:modelValue', false)
-}
-
-const formatElapsed = (ms) => {
-  if (!ms || ms <= 0) return '—'
-  if (ms < 1000) return `${ms} 毫秒`
-  const s = Math.floor(ms / 1000)
-  if (s < 60) return `${s} 秒`
-  const m = Math.floor(s / 60)
-  return `${m} 分 ${s % 60} 秒`
-}
-
-const formatBytes = (bytes) => {
-  if (!bytes || bytes <= 0) return '—'
-  const units = ['B', 'KB', 'MB', 'GB']
-  let v = bytes
-  let i = 0
-  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++ }
-  return `${v.toFixed(i > 0 ? 2 : 0)} ${units[i]}`
 }
 
 watch(() => props.modelValue, (v) => { if (v) resetForm() })
@@ -218,14 +217,9 @@ watch(() => props.modelValue, (v) => { if (v) resetForm() })
 .scope-radio :deep(.el-radio__label) { display:flex; align-items:center; gap:8px; padding-left:0; }
 .scope-count { font-weight:500; }
 .export-progress { padding: 24px 0; text-align: center; }
+.download-progress { padding: 12px 0; min-width: 280px; text-align: center; }
 .status-text { margin-top: 12px; color: var(--el-text-color-secondary); font-size: 14px; }
 .export-done, .export-failed { padding: 8px 0; }
-.package-detail { margin-top: 12px; padding: 14px; background: var(--gray-50); border-radius: 6px; font-size: 13px; }
-.detail-title { font-weight: 600; color: var(--text-primary-ui); margin-bottom: 8px; }
-.detail-list { margin: 0 0 12px; padding-left: 18px; line-height: 1.9; }
-.detail-list .indent { list-style: none; margin-left: -12px; color: var(--el-text-color-secondary); }
-.meta-row { line-height: 1.9; color: var(--el-text-color-regular); }
-.meta-label { display: inline-block; min-width: 88px; color: var(--el-text-color-secondary); }
 .dialog-footer { display: flex; justify-content: space-between; align-items: center; }
 .footer-hint { font-size: 12px; color: var(--el-text-color-placeholder); }
 .attachment-scope-section { margin-top: 20px; padding: 14px; background: var(--gray-50); border-radius: 6px; }
