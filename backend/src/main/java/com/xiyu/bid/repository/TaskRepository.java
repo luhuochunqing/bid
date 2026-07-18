@@ -1,6 +1,7 @@
 package com.xiyu.bid.repository;
 
 import com.xiyu.bid.entity.Task;
+import com.xiyu.bid.project.core.ProjectStage;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -101,11 +102,18 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     /**
      * 工作台角色化改造：根据受托人ID和项目阶段查找任务（JOIN Project）。
      * 用于工作台任务待办只显示标书制作阶段（DRAFTING）任务的场景。
+     * <p>使用 JOIN 而非 IN 子查询：MySQL 对 IN (subquery) 不一定优化为 semi-join，
+     * Project 表数据量大时会退化为逐行相关子查询。</p>
      * @param assigneeId 受托人ID
-     * @param projectStage 项目阶段（ProjectStage 枚举名，如 DRAFTING）
+     * @param projectStage 项目阶段枚举（类型安全，杜绝字符串拼写错误）
      */
-    @Query("SELECT t FROM Task t WHERE t.assigneeId = :assigneeId " +
-           "AND t.projectId IN (SELECT p.id FROM Project p WHERE p.stage = :projectStage)")
-    List<Task> findByAssigneeIdAndProjectStage(@Param("assigneeId") Long assigneeId,
-                                                @Param("projectStage") String projectStage);
+    default List<Task> findByAssigneeIdAndProjectStage(Long assigneeId, ProjectStage projectStage) {
+        return findByAssigneeIdAndProjectStageName(assigneeId, projectStage.name());
+    }
+
+    /** 底层查询：stage 在 Project 实体中以 String 存储，枚举 name() 转换收口在 default 方法。 */
+    @Query("SELECT t FROM Task t JOIN Project p ON t.projectId = p.id " +
+           "WHERE t.assigneeId = :assigneeId AND p.stage = :projectStage")
+    List<Task> findByAssigneeIdAndProjectStageName(@Param("assigneeId") Long assigneeId,
+                                                   @Param("projectStage") String projectStage);
 }
