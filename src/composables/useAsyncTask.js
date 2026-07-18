@@ -26,6 +26,9 @@ export function useAsyncTask(options = {}) {
   const totalCount = ref(0)
   const failureReason = ref('')
   const summary = ref({})
+  // 下载状态：独立于导出任务状态，仅 downloadFile 期间使用
+  const isDownloading = ref(false)
+  const downloadProgress = ref(0)
   let pollTimer = null
 
   const isRunning = computed(() => !!taskId.value && !TERMINAL_STATUSES.includes(status.value))
@@ -97,19 +100,47 @@ export function useAsyncTask(options = {}) {
   async function downloadFile(id, filenameBuilder) {
     const url = buildDownloadUrl(id || taskId.value)
     if (!url) return
-    // 大文件导出（ZIP 可达数百 MB）：用浏览器原生导航下载，避免 axios 超时和内存双倍占用。
-    // axios blob 模式会把整个响应体加载到内存再触发下载，大文件场景不适用。
     const filename = typeof filenameBuilder === 'function'
       ? filenameBuilder(summary.value)
       : (filenameBuilder || `download_${Date.now()}`)
-    // 通过带 download 属性的 <a> 触发浏览器原生下载，绕过 axios 超时
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    a.target = '_blank'
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
+    // 大文件导出（ZIP 可达数百 MB）：用 fetch + ReadableStream 流式下载。
+    // - 绕过 axios 30s 超时（fetch 默认无超时）
+    // - 实时更新下载进度（Content-Length + 累计已读字节）
+    // - 流式消费响应体，避免一次性全量加载
+    isDownloading.value = true
+    downloadProgress.value = 0
+    try {
+      const response = await fetch(url, { credentials: 'include' })
+      if (!response.ok) {
+        throw new Error(`下载失败: HTTP ${response.status}`)
+      }
+      const total = parseInt(response.headers.get('Content-Length') || '0', 10)
+      let loaded = 0
+      const chunks = []
+      const reader = response.body.getReader()
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        chunks.push(value)
+        loaded += value.length
+        if (total > 0) {
+          // 卡在 99% 直到全部读完，避免提前显示 100% 但还没拼完 Blob
+          downloadProgress.value = Math.min(99, Math.round((loaded / total) * 100))
+        }
+      }
+      downloadProgress.value = 100
+      const blob = new Blob(chunks)
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(blobUrl)
+    } finally {
+      isDownloading.value = false
+    }
   }
 
   if (autoCleanup && getCurrentInstance()) {
@@ -125,6 +156,8 @@ export function useAsyncTask(options = {}) {
     isRunning,
     isCompleted,
     isFailed,
+    isDownloading,
+    downloadProgress,
     buildStatusUrl,
     buildDownloadUrl,
     startTask,

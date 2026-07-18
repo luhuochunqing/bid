@@ -55,7 +55,11 @@
       <div v-else-if="isCompleted" class="export-done">
         <el-result icon="success" title="📤 仓库信息导出包 — 完成" :sub-title="`共 ${totalCount} 条记录`">
           <template #extra>
-            <el-button type="primary" @click="handleDownload"><el-icon><Download /></el-icon> 下载文件包</el-button>
+            <div v-if="isDownloading" class="download-progress">
+              <el-progress :percentage="downloadProgress" :stroke-width="12" striped :striped-flow="true" />
+              <p class="status-text">正在下载文件包 {{ downloadProgress }}%</p>
+            </div>
+            <el-button v-else type="primary" :disabled="isDownloading" @click="handleDownload"><el-icon><Download /></el-icon> 下载文件包</el-button>
           </template>
         </el-result>
         <div class="package-detail">
@@ -121,6 +125,7 @@ const form = reactive({
 const {
   taskId, status, totalCount, failureReason, summary,
   isRunning, isCompleted, isFailed,
+  isDownloading, downloadProgress,
   startTask, reset: resetTask, retry, downloadFile, stopPolling
 } = useAsyncTask({
   submitFn: async () => {
@@ -218,6 +223,7 @@ watch(() => props.modelValue, (v) => { if (v) resetForm() })
 .scope-radio :deep(.el-radio__label) { display:flex; align-items:center; gap:8px; padding-left:0; }
 .scope-count { font-weight:500; }
 .export-progress { padding: 24px 0; text-align: center; }
+.download-progress { padding: 12px 0; min-width: 280px; text-align: center; }
 .status-text { margin-top: 12px; color: var(--el-text-color-secondary); font-size: 14px; }
 .export-done, .export-failed { padding: 8px 0; }
 .package-detail { margin-top: 12px; padding: 14px; background: var(--gray-50); border-radius: 6px; font-size: 13px; }

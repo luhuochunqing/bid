@@ -171,8 +171,42 @@ describe('useAsyncTask', () => {
     expect(isFailed.value).toBe(true)
   })
 
-  it('downloadFile 通过 <a> 原生导航触发下载（大文件不走 axios）', async () => {
+  it('downloadFile 通过 fetch 流式下载并更新进度（绕过 axios 超时）', async () => {
     const mockHttpGet = vi.fn()
+    const chunks = [
+      new Uint8Array([1, 2, 3]),
+      new Uint8Array([4, 5, 6, 7, 8, 9, 10])
+    ]
+    const total = chunks.reduce((s, c) => s + c.length, 0)
+    let chunkIndex = 0
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: {
+        get: (name) => name === 'Content-Length' ? String(total) : null
+      },
+      body: {
+        getReader: () => ({
+          read: async () => {
+            if (chunkIndex < chunks.length) {
+              const value = chunks[chunkIndex++]
+              return { done: false, value }
+            }
+            return { done: true, value: undefined }
+          }
+        })
+      }
+    })
+    global.fetch = mockFetch
+
+    const createdUrls = []
+    const origCreateObjectURL = URL.createObjectURL
+    URL.createObjectURL = (blob) => {
+      const u = 'blob:mock-' + createdUrls.length
+      createdUrls.push(u)
+      return u
+    }
+    const origRevokeObjectURL = URL.revokeObjectURL
+    URL.revokeObjectURL = vi.fn()
 
     let clickedAnchor = null
     const origCreateElement = document.createElement.bind(document)
@@ -183,49 +217,63 @@ describe('useAsyncTask', () => {
       }
       return el
     }
-    const origAppendChild = document.body.appendChild.bind(document.body)
-    document.body.appendChild = (el) => origAppendChild(el)
-    const origRemoveChild = document.body.removeChild.bind(document.body)
-    document.body.removeChild = (el) => origRemoveChild(el)
 
-    const { downloadFile } = useAsyncTask({
+    const { downloadFile, isDownloading, downloadProgress } = useAsyncTask({
       statusUrl: '/t/:id/s',
       downloadUrl: '/t/:id/d',
       httpGet: mockHttpGet,
       autoCleanup: false
     })
 
-    await downloadFile('id-1', () => 'file.zip')
+    const promise = downloadFile('id-1', () => 'file.zip')
+    // 进入下载状态时 isDownloading=true, progress=0
+    expect(isDownloading.value).toBe(true)
+    await promise
 
-    // 不应调用 axios（避免大文件超时和内存双倍占用）
+    // 不应调用 axios（避免大文件超时）
     expect(mockHttpGet).not.toHaveBeenCalled()
-    // 应通过 <a> 原生导航触发下载
+    // 应通过 fetch 流式下载
+    expect(mockFetch).toHaveBeenCalledWith('/t/id-1/d', { credentials: 'include' })
+    // 下载完成后 isDownloading=false, progress=100
+    expect(isDownloading.value).toBe(false)
+    expect(downloadProgress.value).toBe(100)
+    // 应创建 Blob URL 并触发 <a> 下载
+    expect(createdUrls).toHaveLength(1)
     expect(clickedAnchor).not.toBeNull()
-    expect(clickedAnchor.href).toContain('/t/id-1/d')
+    expect(clickedAnchor.href).toBe(createdUrls[0])
     expect(clickedAnchor.download).toBe('file.zip')
-    expect(clickedAnchor.target).toBe('_blank')
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith(createdUrls[0])
 
+    global.fetch = undefined
+    URL.createObjectURL = origCreateObjectURL
+    URL.revokeObjectURL = origRevokeObjectURL
     document.createElement = origCreateElement
-    document.body.appendChild = origAppendChild
-    document.body.removeChild = origRemoveChild
   })
 
   it('downloadFile 使用当前 taskId 作为默认 id', async () => {
     const mockHttpGet = vi.fn()
-
-    let clickedAnchor = null
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: { get: () => '0' },
+      body: {
+        getReader: () => ({
+          read: async () => ({ done: true, value: undefined })
+        })
+      }
+    })
+    global.fetch = mockFetch
+    const origCreateObjectURL = URL.createObjectURL
+    URL.createObjectURL = () => 'blob:mock'
+    const origRevokeObjectURL = URL.revokeObjectURL
+    URL.revokeObjectURL = vi.fn()
     const origCreateElement = document.createElement.bind(document)
     document.createElement = (tag) => {
       const el = origCreateElement(tag)
       if (tag === 'a') {
-        Object.defineProperty(el, 'click', { value: () => { clickedAnchor = el } })
+        Object.defineProperty(el, 'click', { value: () => {} })
       }
       return el
     }
-    const origAppendChild = document.body.appendChild.bind(document.body)
-    document.body.appendChild = (el) => origAppendChild(el)
-    const origRemoveChild = document.body.removeChild.bind(document.body)
-    document.body.removeChild = (el) => origRemoveChild(el)
 
     const { downloadFile, taskId } = useAsyncTask({
       statusUrl: '/t/:id/s',
@@ -237,13 +285,39 @@ describe('useAsyncTask', () => {
     taskId.value = 'current-id'
     await downloadFile(null, () => 'f.xlsx')
 
-    expect(mockHttpGet).not.toHaveBeenCalled()
-    expect(clickedAnchor).not.toBeNull()
-    expect(clickedAnchor.href).toContain('/t/current-id/d')
-    expect(clickedAnchor.download).toBe('f.xlsx')
+    expect(mockFetch).toHaveBeenCalledWith('/t/current-id/d', { credentials: 'include' })
 
+    global.fetch = undefined
+    URL.createObjectURL = origCreateObjectURL
+    URL.revokeObjectURL = origRevokeObjectURL
     document.createElement = origCreateElement
-    document.body.appendChild = origAppendChild
-    document.body.removeChild = origRemoveChild
+  })
+
+  it('downloadFile HTTP 错误时抛出异常并重置下载状态', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      headers: { get: () => null }
+    })
+    global.fetch = mockFetch
+    const origCreateObjectURL = URL.createObjectURL
+    URL.createObjectURL = vi.fn()
+    const origRevokeObjectURL = URL.revokeObjectURL
+    URL.revokeObjectURL = vi.fn()
+
+    const { downloadFile, isDownloading, downloadProgress } = useAsyncTask({
+      statusUrl: '/t/:id/s',
+      downloadUrl: '/t/:id/d',
+      autoCleanup: false
+    })
+
+    await expect(downloadFile('id-1', () => 'f.zip')).rejects.toThrow('下载失败: HTTP 404')
+    expect(isDownloading.value).toBe(false)
+    expect(downloadProgress.value).toBe(0)
+    expect(URL.createObjectURL).not.toHaveBeenCalled()
+
+    global.fetch = undefined
+    URL.createObjectURL = origCreateObjectURL
+    URL.revokeObjectURL = origRevokeObjectURL
   })
 })
