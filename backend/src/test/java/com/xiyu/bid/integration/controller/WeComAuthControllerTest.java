@@ -122,4 +122,29 @@ class WeComAuthControllerTest {
         assertThat(result.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(result.getBody().getCode()).isEqualTo(40101);
     }
+
+    @Test
+    @DisplayName("callback with state=msg → 跳过 Redis 校验（消息推送场景）")
+    void callback_stateFromMessage_skipsRedisValidation() {
+        // 消息推送场景：state="msg" 是固定值，不应调 Redis 校验
+        // Arrange
+        AuthResponse authResponse = new AuthResponse();
+        authResponse.setUsername("user");
+
+        AuthSessionResult authSessionResult = mock(AuthSessionResult.class);
+        when(authSessionResult.getAuthResponse()).thenReturn(authResponse);
+        when(authSessionResult.getRefreshToken()).thenReturn("refresh");
+        when(authSessionResult.getAccessToken()).thenReturn("access");
+
+        when(weComSsoOssLoginService.loginByWeComCode("code")).thenReturn(Optional.of(authSessionResult));
+
+        // Act
+        ResponseEntity<ApiResponse<?>> result = controller.callback("code", "msg", response);
+
+        // Assert
+        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(result.getBody().getData()).isEqualTo(authResponse);
+        // 关键断言：未调 oAuthStateService（跳过 Redis 校验）
+        verify(oAuthStateService, never()).validateAndRemoveState(anyString());
+    }
 }

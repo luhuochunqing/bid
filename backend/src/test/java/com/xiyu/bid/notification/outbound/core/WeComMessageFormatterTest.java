@@ -173,4 +173,93 @@ class WeComMessageFormatterTest {
 
         assertThat(message.url()).isEqualTo("https://xiyu.example.com/project/1");
     }
+
+    // ============ SSO 启用场景：URL 构造为 OAuth 授权链接 ============
+
+    @Test
+    void format_WithSsoParams_BuildsOAuthAuthorizeUrl() {
+        WeComMessageFormatter.WeComSsoParams ssoParams =
+            new WeComMessageFormatter.WeComSsoParams("wx045d055c4e7bab5e", "1000322");
+
+        WeComMessageFormatter.FormattedMessage message = WeComMessageFormatter.format(
+            "标书评审通过", "APPROVAL", "PROJECT", 42L,
+            "https://winbid-test.ehsy.com", null, ssoParams
+        );
+
+        String url = message.url();
+        // 关键断言：URL 是 OAuth 授权链接
+        assertThat(url).startsWith("https://open.weixin.qq.com/connect/oauth2/authorize?");
+        assertThat(url).contains("appid=wx045d055c4e7bab5e");
+        assertThat(url).contains("agentid=1000322");
+        assertThat(url).contains("response_type=code");
+        assertThat(url).contains("scope=snsapi_base");
+        assertThat(url).contains("state=msg");
+        assertThat(url).endsWith("#wechat_redirect");
+        // redirect_uri 应编码 login?redirect=/project/42
+        assertThat(url).contains("redirect_uri=");
+        // 不应包含直接业务 URL
+        assertThat(url).doesNotContain("winbid-test.ehsy.com/project/42");
+    }
+
+    @Test
+    void format_WithSsoParamsAndPayloadTargetUrl_BuildsOAuthUrlWithCustomRedirect() {
+        WeComMessageFormatter.WeComSsoParams ssoParams =
+            new WeComMessageFormatter.WeComSsoParams("wx045d055c4e7bab5e", "1000322");
+
+        WeComMessageFormatter.FormattedMessage message = WeComMessageFormatter.format(
+            "文档变更", "DOCUMENT_CHANGE", "DOCUMENT", 7L,
+            "https://winbid-test.ehsy.com", "/project/100/drafting", ssoParams
+        );
+
+        String url = message.url();
+        assertThat(url).startsWith("https://open.weixin.qq.com/connect/oauth2/authorize?");
+        // redirect_uri 应编码 login?redirect=/project/100/drafting（而非 /document/editor/7）
+        assertThat(url).doesNotContain("document%2Feditor%2F7");
+    }
+
+    @Test
+    void format_WithNullSsoParams_FallsBackToDirectBusinessUrl() {
+        // 向后兼容：ssoParams=null 时返回直接业务 URL
+        WeComMessageFormatter.FormattedMessage message = WeComMessageFormatter.format(
+            "通知", "INFO", "PROJECT", 1L, "https://xiyu.example.com", null, null
+        );
+
+        assertThat(message.url()).isEqualTo("https://xiyu.example.com/project/1");
+    }
+
+    @Test
+    void format_WithInvalidSsoParams_FallsBackToDirectBusinessUrl() {
+        // corpId 为空 → 无效 → 返回直接业务 URL
+        WeComMessageFormatter.WeComSsoParams invalid =
+            new WeComMessageFormatter.WeComSsoParams("", "1000322");
+
+        WeComMessageFormatter.FormattedMessage message = WeComMessageFormatter.format(
+            "通知", "INFO", "PROJECT", 1L, "https://xiyu.example.com", null, invalid
+        );
+
+        assertThat(message.url()).isEqualTo("https://xiyu.example.com/project/1");
+    }
+
+    @Test
+    void format_WithSsoParams_InboxFallback_BuildsOAuthUrlWithInboxRedirect() {
+        // sourceEntityType=null → 回退到 /inbox，但 SSO 仍应构造 OAuth URL
+        WeComMessageFormatter.WeComSsoParams ssoParams =
+            new WeComMessageFormatter.WeComSsoParams("wx045d055c4e7bab5e", "1000322");
+
+        WeComMessageFormatter.FormattedMessage message = WeComMessageFormatter.format(
+            "系统通知", "SYSTEM", null, null,
+            "https://winbid-test.ehsy.com", null, ssoParams
+        );
+
+        String url = message.url();
+        assertThat(url).startsWith("https://open.weixin.qq.com/connect/oauth2/authorize?");
+        // redirect_uri 应编码 login?redirect=/inbox
+        assertThat(url).doesNotContain("winbid-test.ehsy.com/inbox");
+    }
+
+    @Test
+    void oauthStateFromMessageConstant_IsPublicAccessible() {
+        // 验证常量值（WeComAuthController 依赖此常量识别消息推送来源的 state）
+        assertThat(WeComMessageFormatter.OAUTH_STATE_FROM_MESSAGE).isEqualTo("msg");
+    }
 }

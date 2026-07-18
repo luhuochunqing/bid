@@ -1,6 +1,8 @@
 package com.xiyu.bid.notification.outbound.service;
 
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.integration.infrastructure.persistence.entity.WeComIntegrationEntity;
+import com.xiyu.bid.integration.infrastructure.persistence.repository.WeComIntegrationJpaRepository;
 import com.xiyu.bid.notification.outbound.application.NotificationDeliveryCommand;
 import com.xiyu.bid.notification.outbound.event.NotificationCreatedEvent;
 import com.xiyu.bid.repository.UserRepository;
@@ -31,6 +33,7 @@ class WeComPushServiceTest {
 
     @Mock private UserRepository userRepository;
     @Mock private WecomMessageSender wecomMessageSender;
+    @Mock private WeComIntegrationJpaRepository integrationRepository;
 
     private WeComPushService service;
 
@@ -43,9 +46,18 @@ class WeComPushServiceTest {
             .fullName("User").role(User.Role.MANAGER).employeeNumber(employeeNumber).build();
     }
 
+    private static WeComIntegrationEntity ssoEnabledIntegration() {
+        WeComIntegrationEntity entity = new WeComIntegrationEntity();
+        entity.setId(1L);
+        entity.setCorpId("wx045d055c4e7bab5e");
+        entity.setAgentId("1000322");
+        entity.setSsoEnabled(true);
+        return entity;
+    }
+
     @BeforeEach
     void setUp() {
-        service = new WeComPushService(userRepository, wecomMessageSender, "https://xiyu.example.com");
+        service = new WeComPushService(userRepository, wecomMessageSender, integrationRepository, "https://xiyu.example.com");
     }
 
     @Test
@@ -129,5 +141,69 @@ class WeComPushServiceTest {
         assertThatThrownBy(() -> service.pushForRecipient(event(), 7L))
             .isInstanceOf(RuntimeException.class)
             .hasMessageContaining("timeout");
+    }
+
+    // ============ SSO 启用场景：消息 URL 构造为 OAuth 授权链接 ============
+
+    @Test
+    @DisplayName("SSO 启用时 -> 消息 URL 为 OAuth 授权链接，含 appid/agentid/redirect_uri")
+    void ssoEnabled_messageUrlIsOAuthAuthorizeUrl() {
+        when(userRepository.findById(7L)).thenReturn(Optional.of(userWithEmployee("E007")));
+        when(integrationRepository.findById(1L)).thenReturn(Optional.of(ssoEnabledIntegration()));
+        when(wecomMessageSender.send(anyString(), anyString()))
+            .thenReturn(WecomSendResult.success(0, "ok"));
+
+        service.pushForRecipient(event(), 7L);
+
+        ArgumentCaptor<String> content = ArgumentCaptor.forClass(String.class);
+        verify(wecomMessageSender).send(eq("E007"), content.capture());
+        String body = content.getValue();
+        // 关键断言：URL 是 OAuth 授权链接，而非直接业务 URL
+        assertThat(body).contains("https://open.weixin.qq.com/connect/oauth2/authorize");
+        assertThat(body).contains("appid=wx045d055c4e7bab5e");
+        assertThat(body).contains("agentid=1000322");
+        assertThat(body).contains("scope=snsapi_base");
+        assertThat(body).contains("state=msg");
+        // redirect_uri 应编码原目标 path（/project/42 被双重编码为 %252Fproject%252F42）
+        assertThat(body).contains("redirect_uri=");
+        assertThat(body).contains("redirect%3D");
+        assertThat(body).doesNotContain("<a href=\"https://xiyu.example.com/project/42\">");
+    }
+
+    @Test
+    @DisplayName("SSO 未启用时 -> 消息 URL 为直接业务 URL（向后兼容）")
+    void ssoDisabled_messageUrlIsDirectBusinessUrl() {
+        when(userRepository.findById(7L)).thenReturn(Optional.of(userWithEmployee("E007")));
+        WeComIntegrationEntity disabled = ssoEnabledIntegration();
+        disabled.setSsoEnabled(false);
+        when(integrationRepository.findById(1L)).thenReturn(Optional.of(disabled));
+        when(wecomMessageSender.send(anyString(), anyString()))
+            .thenReturn(WecomSendResult.success(0, "ok"));
+
+        service.pushForRecipient(event(), 7L);
+
+        ArgumentCaptor<String> content = ArgumentCaptor.forClass(String.class);
+        verify(wecomMessageSender).send(eq("E007"), content.capture());
+        String body = content.getValue();
+        // 关键断言：URL 是直接业务 URL，不含 OAuth
+        assertThat(body).contains("<a href=\"https://xiyu.example.com/project/42\">");
+        assertThat(body).doesNotContain("open.weixin.qq.com");
+    }
+
+    @Test
+    @DisplayName("wecom_integration 表无记录 -> 消息 URL 为直接业务 URL（向后兼容）")
+    void integrationNotConfigured_messageUrlIsDirectBusinessUrl() {
+        when(userRepository.findById(7L)).thenReturn(Optional.of(userWithEmployee("E007")));
+        when(integrationRepository.findById(1L)).thenReturn(Optional.empty());
+        when(wecomMessageSender.send(anyString(), anyString()))
+            .thenReturn(WecomSendResult.success(0, "ok"));
+
+        service.pushForRecipient(event(), 7L);
+
+        ArgumentCaptor<String> content = ArgumentCaptor.forClass(String.class);
+        verify(wecomMessageSender).send(eq("E007"), content.capture());
+        String body = content.getValue();
+        assertThat(body).contains("<a href=\"https://xiyu.example.com/project/42\">");
+        assertThat(body).doesNotContain("open.weixin.qq.com");
     }
 }
