@@ -22,8 +22,12 @@
 
 **角色分组**（用于业务逻辑）：
 - `admin_lead` = 投标管理员 + 投标系统管理员 + 投标组长
-- `sales` = 投标项目负责人 + 跨部门协同人员
+- `sales` = 投标项目负责人
 - `bid_team` = 投标专员
+- `cross_dept` = 跨部门协同人员（单独分组：不显示标讯待办，任务待办跳独立看板）
+
+> 说明：初版 §2 曾把跨部门协同人员并入 `sales`，与模块 2"跨部门不显示标讯"矛盾。
+> 待办模块语境下 `sales` 仅指 `bid-projectLeader`，跨部门协同人员单列分组。
 
 ## 3. 模块需求
 
@@ -50,7 +54,7 @@
 | 角色组 | 显示内容 | 后端过滤条件 |
 |---|---|---|
 | `admin_lead`（投标管理员/系统管理员/组长） | 待分配 + 已评估的标讯 | `status IN (PENDING_ASSIGNMENT, EVALUATED)` |
-| `sales` 中的项目负责人 `bid-projectLeader` | 跟踪中的标讯 | `status = TRACKING` |
+| `sales`（投标项目负责人 `bid-projectLeader`） | 跟踪中的标讯 | `status = TRACKING` |
 | 其他角色（投标专员、跨部门协同人员） | 不显示此模块 | — |
 
 **后端改动**：
@@ -66,7 +70,8 @@
 | 项目负责人 `bid-projectLeader` | 待立项（`stage = INITIATED`）+ 标书审核人 + 待结项（`stage = RETROSPECTIVE`） | 多条件 OR |
 
 **后端改动**：
-- 新增 `GET /api/projects/workbench-todos` 接口，按当前用户角色返回差异化项目列表
+- 新增 `GET /api/workbench/project-todos` 接口，按当前用户角色返回差异化项目列表
+  （统一收编到 `WorkbenchTodoController`，与 `/api/workbench/schedule-overview` 等同命名空间）
 - Service 层按角色分支查询
 
 ### 模块 4：资源·待办
@@ -77,7 +82,8 @@
 - 合并展示，只显示前 4 条
 
 **后端改动**：
-- 新增 `GET /api/dashboard/resource-pending-approvals` 聚合接口
+- 新增 `GET /api/workbench/resource-pending-approvals` 聚合接口
+  （统一收编到 `WorkbenchTodoController`）
 - 返回合并后的待审批列表
 
 **注意**：所有角色都显示此模块（只要有待审批数据）。
@@ -124,8 +130,8 @@ function handleTodoCardClick({ cardKey, item }) {
 |---|---|---|
 | 任务待办 | `GET /api/tasks/my?projectStage=DRAFTING` | assigneeId + projectStage |
 | 标讯待办 | `GET /api/tenders?status=PENDING_ASSIGNMENT,EVALUATED` | 按 role 决定 status |
-| 项目待办 | `GET /api/projects/workbench-todos` | 后端按当前用户角色返回 |
-| 资源待办 | `GET /api/dashboard/resource-pending-approvals` | 无参数 |
+| 项目待办 | `GET /api/workbench/project-todos` | 后端按当前用户角色返回 |
+| 资源待办 | `GET /api/workbench/resource-pending-approvals` | 无参数 |
 
 ## 5. 数据库
 
