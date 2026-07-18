@@ -97,23 +97,19 @@ export function useAsyncTask(options = {}) {
   async function downloadFile(id, filenameBuilder) {
     const url = buildDownloadUrl(id || taskId.value)
     if (!url) return
-    try {
-      const response = await httpGet(url, { responseType: 'blob' })
-      const blob = response.data
-      const blobUrl = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = blobUrl
-      const filename = typeof filenameBuilder === 'function'
-        ? filenameBuilder(summary.value)
-        : (filenameBuilder || `download_${Date.now()}`)
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      window.URL.revokeObjectURL(blobUrl)
-    } catch {
-      // error handled by caller or interceptor
-    }
+    // 大文件导出（ZIP 可达数百 MB）：用浏览器原生导航下载，避免 axios 超时和内存双倍占用。
+    // axios blob 模式会把整个响应体加载到内存再触发下载，大文件场景不适用。
+    const filename = typeof filenameBuilder === 'function'
+      ? filenameBuilder(summary.value)
+      : (filenameBuilder || `download_${Date.now()}`)
+    // 通过带 download 属性的 <a> 触发浏览器原生下载，绕过 axios 超时
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.target = '_blank'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
   }
 
   if (autoCleanup && getCurrentInstance()) {

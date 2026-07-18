@@ -171,21 +171,15 @@ describe('useAsyncTask', () => {
     expect(isFailed.value).toBe(true)
   })
 
-  it('downloadFile 通过 blob 触发下载', async () => {
-    const mockBlob = new Blob(['test'], { type: 'text/plain' })
-    const mockHttpGet = vi.fn().mockResolvedValue({ data: mockBlob })
+  it('downloadFile 通过 <a> 原生导航触发下载（大文件不走 axios）', async () => {
+    const mockHttpGet = vi.fn()
 
-    const origCreateObjectURL = window.URL.createObjectURL
-    const origRevokeObjectURL = window.URL.revokeObjectURL
-    window.URL.createObjectURL = vi.fn().mockReturnValue('blob:test')
-    window.URL.revokeObjectURL = vi.fn()
-
-    let clickCalled = false
+    let clickedAnchor = null
     const origCreateElement = document.createElement.bind(document)
     document.createElement = (tag) => {
       const el = origCreateElement(tag)
       if (tag === 'a') {
-        Object.defineProperty(el, 'click', { value: () => { clickCalled = true } })
+        Object.defineProperty(el, 'click', { value: () => { clickedAnchor = el } })
       }
       return el
     }
@@ -203,31 +197,29 @@ describe('useAsyncTask', () => {
 
     await downloadFile('id-1', () => 'file.zip')
 
-    expect(mockHttpGet).toHaveBeenCalledWith('/t/id-1/d', { responseType: 'blob' })
-    expect(window.URL.createObjectURL).toHaveBeenCalled()
-    expect(clickCalled).toBe(true)
-    expect(window.URL.revokeObjectURL).toHaveBeenCalled()
+    // 不应调用 axios（避免大文件超时和内存双倍占用）
+    expect(mockHttpGet).not.toHaveBeenCalled()
+    // 应通过 <a> 原生导航触发下载
+    expect(clickedAnchor).not.toBeNull()
+    expect(clickedAnchor.href).toContain('/t/id-1/d')
+    expect(clickedAnchor.download).toBe('file.zip')
+    expect(clickedAnchor.target).toBe('_blank')
 
-    window.URL.createObjectURL = origCreateObjectURL
-    window.URL.revokeObjectURL = origRevokeObjectURL
     document.createElement = origCreateElement
     document.body.appendChild = origAppendChild
     document.body.removeChild = origRemoveChild
   })
 
   it('downloadFile 使用当前 taskId 作为默认 id', async () => {
-    const mockBlob = new Blob(['test'], { type: 'text/plain' })
-    const mockHttpGet = vi.fn().mockResolvedValue({ data: mockBlob })
+    const mockHttpGet = vi.fn()
 
-    const origCreateObjectURL = window.URL.createObjectURL
-    const origRevokeObjectURL = window.URL.revokeObjectURL
-    window.URL.createObjectURL = vi.fn().mockReturnValue('blob:test')
-    window.URL.revokeObjectURL = vi.fn()
-
+    let clickedAnchor = null
     const origCreateElement = document.createElement.bind(document)
     document.createElement = (tag) => {
       const el = origCreateElement(tag)
-      if (tag === 'a') Object.defineProperty(el, 'click', { value: () => {} })
+      if (tag === 'a') {
+        Object.defineProperty(el, 'click', { value: () => { clickedAnchor = el } })
+      }
       return el
     }
     const origAppendChild = document.body.appendChild.bind(document.body)
@@ -245,10 +237,11 @@ describe('useAsyncTask', () => {
     taskId.value = 'current-id'
     await downloadFile(null, () => 'f.xlsx')
 
-    expect(mockHttpGet).toHaveBeenCalledWith('/t/current-id/d', { responseType: 'blob' })
+    expect(mockHttpGet).not.toHaveBeenCalled()
+    expect(clickedAnchor).not.toBeNull()
+    expect(clickedAnchor.href).toContain('/t/current-id/d')
+    expect(clickedAnchor.download).toBe('f.xlsx')
 
-    window.URL.createObjectURL = origCreateObjectURL
-    window.URL.revokeObjectURL = origRevokeObjectURL
     document.createElement = origCreateElement
     document.body.appendChild = origAppendChild
     document.body.removeChild = origRemoveChild
