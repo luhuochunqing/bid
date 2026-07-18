@@ -5008,3 +5008,176 @@ cd backend && mvn test -Dtest='*FormLoad*,*WorkflowForm*'
 - `docker-compose.yml` — MySQL `sql_mode` 配置（去掉 `NO_ZERO_DATE,NO_ZERO_IN_DATE`）
 - PR !2087 — 生产 JDBC URL 修复
 - PR !2088 — application-prod.yml 同步
+
+---
+
+## 70. `remote-deploy.sh` 覆盖 `deployed-release.json` 前未备份上一版本 ID，导致前端旧 assets 保留逻辑断链（2026-07-17 / 第 93 次测试部署）
+
+> 来源：2026-07-17 第 93 次测试部署时识别的风险
+> 涉及模块：`scripts/release/remote-deploy.sh`（`write_deployed_release_record()` + 前端资源激活逻辑）
+> 关联文件：`docs/release/deploy-report-2026-07-17-93rd-test.md`
+
+### 问题背景
+
+第 93 次测试部署中，前端资源激活后，`/srv/www/xiyu-bid/assets/` 目录下**没有保留上一版本的 assets 文件**。旧版本（`0a79f0d68-api8080`）的 index.html 引用的 Vite hash 命名 assets（如 `Detail-abc123.js`）在新版本部署后丢失，若有用户浏览器仍缓存旧 index.html，访问会 404。
+
+部署报告记录的临时处置：
+> 前端资源保留 | ✅ 从 0a79f0d68-api8080 手动 cp -rn assets（脚本自动取 PREV 失败，已手动指定）
+
+### 根因：`write_deployed_release_record()` 直接覆盖，未先备份旧记录
+
+`remote-deploy.sh` 的 `write_deployed_release_record()` 函数直接 `cat > "$DEPLOYED_RELEASE_RECORD"` 覆盖文件：
+
+```bash
+# ❌ 当前实现：直接覆盖，不保留旧记录
+cat > "$DEPLOYED_RELEASE_RECORD" <<EOF
+{
+  "releaseId": "$RELEASE_ID",       # ← 新版本 ID 直接覆盖旧版本 ID
+  "activatedAt": "$activated_at",
+  "releaseDir": "$RELEASE_DIR",
+  ...
+}
+EOF
+```
+
+同时，前端资源激活逻辑直接 `rm -rf` 整个公共目录：
+
+```bash
+# ❌ 当前实现：删除整个目录，旧 assets 全部丢失
+rm -rf "$PENDING_FRONTEND_DIR"
+mkdir -p "$PENDING_FRONTEND_DIR"
+cp -R "$RELEASE_DIR/frontend/." "$PENDING_FRONTEND_DIR/"   # 只复制新版本 assets
+rm -rf "$FRONTEND_PUBLIC_DIR"                                # ← 删除整个公共目录（含旧 assets）
+mv "$PENDING_FRONTEND_DIR" "$FRONTEND_PUBLIC_DIR"
+```
+
+**PREV 变量失效链路**：
+1. 部署前，`deployed-release.json` 中 `releaseId` = 旧版本（如 `0a79f0d68-api8080`）
+2. 部署中，`write_deployed_release_record()` 把 `releaseId` 覆盖为新版本（如 `a33c1339d-api8080`）
+3. 后续保留旧 assets 逻辑若尝试从 `deployed-release.json` 读取 `PREV` 版本 ID，取到的是**新版本 ID**，不是上一版本
+4. `cp -rn "$APP_ROOT/releases/$PREV/frontend/assets/." "$PENDING_FRONTEND_DIR/assets/"` 实际是从新版本复制到新版本，等于 no-op
+5. 旧版本 assets 全部丢失
+
+### 危害
+
+1. **用户访问 404**：浏览器缓存旧 index.html 时，引用的旧 assets 文件已被删除，访问报 404。
+2. **SPA 回滚困难**：若需要回滚到上一版本前端，assets 文件已丢失，必须从 release 归档目录重新 cp。
+3. **依赖人工补救**：每次部署都需要人工 `cp -rn` 保留旧 assets，容易遗漏。
+
+### 修复方案（建议，未实施）
+
+**方案 A：在覆盖前先备份上一版本 ID（推荐）**
+
+```bash
+# ✅ 修复：覆盖前先备份上一版本 ID
+PREV_RELEASE_ID=""
+if [[ -f "$DEPLOYED_RELEASE_RECORD" ]]; then
+  PREV_RELEASE_ID=$(grep -oP '"releaseId":\s*"\K[^"]+' "$DEPLOYED_RELEASE_RECORD" 2>/dev/null || true)
+fi
+
+if [[ -n "$PREV_RELEASE_ID" ]]; then
+  printf '==> Preserving previous assets from %s\n' "$PREV_RELEASE_ID"
+  cp -rn "$APP_ROOT/releases/$PREV_RELEASE_ID/frontend/assets/." "$PENDING_FRONTEND_DIR/assets/" 2>/dev/null || true
+fi
+
+write_deployed_release_record
+```
+
+**方案 B：`deployed-release.json` 增加 `previousReleaseId` 字段**
+
+```json
+{
+  "releaseId": "a33c1339d-api8080",
+  "previousReleaseId": "0a79f0d68-api8080",
+  "activatedAt": "...",
+  ...
+}
+```
+
+### 教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| `cat >` 直接覆盖部署记录 | 部署记录是「上一版本 ID」的唯一来源，覆盖前必须先备份 | 覆盖 `deployed-release.json` 前必须先读取旧 `releaseId` 并保存为 `PREV_RELEASE_ID` |
+| `rm -rf "$FRONTEND_PUBLIC_DIR"` 删除整个目录 | Vite hash 命名的 assets 在版本切换后仍需保留（供旧 index.html 引用） | 前端资源激活必须用 `cp -rn`（no-clobber）保留旧 assets，而非 `rm -rf` 后 `mv` |
+| PREV 变量取值失效无告警 | 脚本静默取到当前版本而非上一版本，保留逻辑变成 no-op | 保留 assets 后必须验证数量应大于当前版本 assets 数量 |
+| 依赖人工补救 | 每次部署都需要手动 `cp -rn`，容易遗漏 | 自动化脚本必须内置旧 assets 保留逻辑，禁止依赖人工 |
+
+### 相关文档
+
+- [remote-deploy.sh](../../scripts/release/remote-deploy.sh) — `write_deployed_release_record()` + 前端激活逻辑
+- [deploy-test.sh](../../scripts/release/deploy-test.sh) — 注释提到 `cp -rn` 保留旧 assets 逻辑本应存在
+- [deploy-report-2026-07-17-93rd-test.md](../release/deploy-report-2026-07-17-93rd-test.md) — 手动补救过程记录
+
+---
+
+## 71. Kafka SDK readiness 延迟导致 `remote-deploy.sh` 健康检查 120 次重试假失败（2026-07-17 / 第 93 次测试部署）
+
+> 来源：2026-07-17 第 93 次测试部署观察到的现象
+> 涉及模块：`OrganizationEventSdkKafkaStarter` + `scripts/release/remote-deploy.sh` 健康检查逻辑
+> 关联文件：`docs/release/deploy-report-2026-07-17-93rd-test.md`
+
+### 问题背景
+
+第 93 次测试部署中，`remote-deploy.sh` 执行健康检查时连续失败 120 次重试（约 4 分钟），脚本退出码非零。但**服务实际已正常运行**，约 4 分钟后 `/actuator/health` 返回 200，后端 readiness 状态从 `OUT_OF_SERVICE` 自动恢复为 `UP`。
+
+历史出现次数：第 8/9/10/13/15/93 次部署时出现，**累计 6 次以上**，是反复出现的已知行为。
+
+### 根因：`OrganizationEventSdkKafkaStarter.onApplicationEvent()` 阻塞主线程
+
+`OrganizationEventSdkKafkaStarter` 监听 `ApplicationReadyEvent`，在主线程同步执行：
+1. `register()` — 向配置中心注册消费者
+2. `initCacheBean()` — 初始化 SDK 缓存 Bean
+3. `KafkaProcessor.start()` — 启动 Kafka 消费者
+
+任一步骤阻塞（如 Kafka broker 不可达、配置中心超时）都会导致主线程被占用，`AvailabilityChangeEvent` 发布延迟，`ReadinessState` 切换延迟，readiness 持续返回 503。
+
+### `remote-deploy.sh` 健康检查时序
+
+- 默认 120 次重试 × 2 秒间隔 = **240 秒 = 4 分钟**
+- Kafka readiness 延迟实际约 4-5 分钟
+- 120 次重试刚好处于临界值，部分场景下会假失败
+
+### 危害
+
+1. **假阳性部署失败**：服务实际已启动，但脚本判定为失败，退出码非零
+2. **误导运维**：运维人员可能误判为部署失败，执行不必要的回滚
+3. **CI 假红**：CI 流水线执行 `remote-deploy.sh` 时无故失败
+4. **重复排查**：每次出现都需要人工 ssh 确认 `/actuator/health` 状态
+
+### 修复方案（建议，未实施）
+
+**方案 A：延长健康检查重试次数（短期缓解）**
+
+```bash
+# ✅ 修复：延长到 180 次（6 分钟）
+HEALTH_CHECK_MAX_ATTEMPTS="${HEALTH_CHECK_MAX_ATTEMPTS:-180}"
+```
+
+**方案 B：`OrganizationEventSdkKafkaStarter.onApplicationEvent()` 改为异步（根治）**
+
+```java
+@EventListener(ApplicationReadyEvent.class)
+@Async  // ← 新增：异步执行，不阻塞主线程
+public void onApplicationEvent(ApplicationReadyEvent event) {
+    register();
+    initCacheBean();
+    KafkaProcessor.start();
+}
+```
+
+**方案 C：健康检查 URL 区分 liveness 与 readiness** — 部署脚本只检查 liveness，readiness 失败不阻断部署
+
+### 教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| `@EventListener(ApplicationReadyEvent)` 阻塞主线程 | 同步事件监听器会延迟 `ReadinessState` 切换 | 耗时操作必须 `@Async` 异步执行 |
+| 健康检查重试次数临界值设计 | 120 次 × 2 秒 = 4 分钟，刚好等于 Kafka 延迟，临界值不稳定 | 重试次数应**大于**已知最大延迟时间的 1.5 倍 |
+| 已知行为重复 6 次未根治 | 每次都靠「约 4 分钟自恢复」缓解 | 已知行为重复 3 次以上必须进入技术债台账 |
+
+### 相关文档
+
+- [remote-deploy.sh](../../scripts/release/remote-deploy.sh) — `HEALTH_CHECK_MAX_ATTEMPTS` 默认值
+- [deploy-report-2026-07-17-93rd-test.md](../release/deploy-report-2026-07-17-93rd-test.md) — Kafka 延迟现象记录
+- `OrganizationEventSdkKafkaStarter.java` — 根治方案目标类
