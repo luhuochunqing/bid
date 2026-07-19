@@ -48,6 +48,20 @@ export function stageText(stage) {
   return map[stage] || stage || '-'
 }
 
+// CO-591: 评标结果 evaluationSubStage → 中文（与 EvaluationStatusPanel.vue SUB_STAGE_LABELS 同源）。
+// 未知值 fallback 显示原值，避免丢失数据。
+const EVALUATION_SUB_STAGE_LABELS = {
+  IN_PROGRESS: '评标中',
+  AWAITING_BOARD: '评标结果已出，待上会',
+  RESULT_OUT: '评标结果已出',
+  ANNOUNCED: '评标结果公示',
+}
+
+export function evaluationSubStageText(subStage) {
+  if (!subStage) return '-'
+  return EVALUATION_SUB_STAGE_LABELS[subStage] || subStage
+}
+
 // 客户类型枚举名 → 中文 label 映射。
 // 与 useProjectSearch.js 的 customerTypeOptions 保持同源（PR !1571 后端归一化为枚举名）。
 // 未知值（如历史中文数据）fallback 显示原值，避免丢失数据。

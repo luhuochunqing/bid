@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,6 +25,9 @@ public interface BidReviewAssignmentRepository extends JpaRepository<BidReviewAs
 
     /** 查询某条审核记录中某审核人的分配记录。 */
     Optional<BidReviewAssignmentEntity> findByReviewIdAndReviewerId(Long reviewId, Long reviewerId);
+
+    /** CO-591: 批量查询多条审核记录的审核人分配（按创建时间升序，保证列表展示顺序稳定）。 */
+    List<BidReviewAssignmentEntity> findByReviewIdInOrderByCreatedAtAsc(Collection<Long> reviewIds);
 
     /**
      * 删除某条审核记录的所有审核人分配（驳回重提场景清空旧决策）。

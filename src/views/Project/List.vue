@@ -91,6 +91,13 @@
           <el-table-column prop="bidMonth" label="投标月份" width="110" v-if="columnVisible.bidMonth">
             <template #default="{ row }">{{ row.bidMonth || '-' }}</template>
           </el-table-column>
+          <el-table-column prop="servicePeriodYears" width="110" align="center" v-if="columnVisible.servicePeriodYears" class-name="multi-line-header">
+            <template #header><span class="header-two-line">项目服务<br>周期（年）</span></template>
+            <template #default="{ row }">{{ row.servicePeriodYears != null ? row.servicePeriodYears : '-' }}</template>
+          </el-table-column>
+          <el-table-column label="服务周期截止时间" prop="servicePeriodEndDate" width="130" v-if="columnVisible.servicePeriodEndDate">
+            <template #default="{ row }">{{ formatDate(row.servicePeriodEndDate) }}</template>
+          </el-table-column>
           <el-table-column label="项目类型" width="110" v-if="columnVisible.projectType">
             <template #default="{ row }"><el-tag size="small">{{ projectTypeLabel(row.projectType) }}</el-tag></template>
           </el-table-column>
@@ -121,8 +128,14 @@
           <el-table-column prop="secondaryBiddingLeaderName" label="投标辅助人员" width="110" v-if="columnVisible.secondaryBiddingLeaderName">
             <template #default="{ row }">{{ row.secondaryBiddingLeaderName || '-' }}</template>
           </el-table-column>
+          <el-table-column prop="bidReviewers" label="标书审核人" width="110" v-if="columnVisible.bidReviewers">
+            <template #default="{ row }">{{ row.bidReviewers || '-' }}</template>
+          </el-table-column>
           <el-table-column label="项目阶段" width="95" v-if="columnVisible.stage">
             <template #default="{ row }">{{ stageText(row.stage) }}</template>
+          </el-table-column>
+          <el-table-column label="评标结果" prop="evaluationSubStage" width="95" v-if="columnVisible.evaluationSubStage">
+            <template #default="{ row }">{{ evaluationSubStageText(row.evaluationSubStage) }}</template>
           </el-table-column>
           <el-table-column prop="biddingPlatform" label="投标平台" min-width="130" v-if="columnVisible.biddingPlatform">
             <template #default="{ row }">{{ row.biddingPlatform || '-' }}</template>
@@ -151,7 +164,7 @@ import { Download, ArrowDown, Check } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import ProjectSearchCard from './components/ProjectSearchCard.vue'
 import { getProjectStatusText, getProjectStatusType } from './project-utils.js'
-import { formatDate, priorityTag, priorityLabel, stageText, sourceText, projectTypeLabel, customerTypeLabel } from './utils/projectListFormatters.js'
+import { formatDate, priorityTag, priorityLabel, stageText, sourceText, projectTypeLabel, customerTypeLabel, evaluationSubStageText } from './utils/projectListFormatters.js'
 import {
   CRM_SOURCE_LABEL,
   EXTERNAL_PLATFORM_SOURCE_LABEL,
@@ -255,16 +268,20 @@ const columnOptions = [
   { key: 'shortlistedCount', label: '计划入围供应商数量' },
   { key: 'createTime', label: '创建时间' },
   { key: 'bidMonth', label: '投标月份' },
+  { key: 'servicePeriodYears', label: '项目服务周期（年）' },
+  { key: 'servicePeriodEndDate', label: '服务周期截止时间' },
   { key: 'projectType', label: '项目类型' },
   { key: 'customerType', label: '客户类型' },
   { key: 'priority', label: '优先级' },
   { key: 'sourceModule', label: '来源平台' },
   { key: 'stage', label: '项目阶段' },
+  { key: 'evaluationSubStage', label: '评标结果' },
   { key: 'revenue', label: '客户营收（亿）' },
   { key: 'region', label: '总部所在地' },
   { key: 'leaderDepartment', label: '项目负责人部门' },
   { key: 'biddingLeaderName', label: '投标负责人' },
   { key: 'secondaryBiddingLeaderName', label: '投标辅助人员' },
+  { key: 'bidReviewers', label: '标书审核人' },
 ]
 
 const ALL_COLUMNS_VISIBLE = Object.fromEntries(columnOptions.map(c => [c.key, true]))
