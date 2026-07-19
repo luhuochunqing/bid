@@ -57,10 +57,6 @@ const CATEGORY_MAP = {
   OPEN_LIST: { key: 'open', label: '开标一览表', color: 'var(--el-color-warning)' },
   WIN_NOTICE: { key: 'award', label: '中标通知书', color: 'var(--el-color-warning)' },
   DEPOSIT_RECEIPT: { key: 'deposit', label: '保证金银行回单', color: 'var(--el-color-info)' },
-  // legacy compat for existing data
-  CONTRACT: { key: 'contract', label: '合同文件', color: 'var(--el-color-info)' },
-  PROCESS: { key: 'process', label: '过程文件', color: 'var(--el-color-info)' },
-  RETROSPECTIVE: { key: 'retrospective', label: '复盘文件', color: 'var(--el-color-danger)' },
   OTHER: { key: 'other', label: '其他', color: 'var(--el-color-info)' }
 }
 
@@ -135,9 +131,6 @@ const totalCount = computed(() => {
 .border-tender { border-left-color: var(--el-color-primary); }
 .border-bid { border-left-color: var(--el-color-success); }
 .border-award { border-left-color: var(--el-color-warning); }
-.border-contract { border-left-color: var(--el-color-info); }
-.border-process { border-left-color: var(--el-color-info); }
-.border-retrospective { border-left-color: var(--el-color-danger); }
 .border-other { border-left-color: var(--el-color-info); }
 
 .category-label {
@@ -156,9 +149,6 @@ const totalCount = computed(() => {
 .bg-tender { background-color: var(--el-color-primary); }
 .bg-bid { background-color: var(--el-color-success); }
 .bg-award { background-color: var(--el-color-warning); }
-.bg-contract { background-color: var(--el-color-info); }
-.bg-process { background-color: var(--el-color-info); }
-.bg-retrospective { background-color: var(--el-color-danger); }
 .bg-other { background-color: var(--el-color-info); }
 
 .category-count {

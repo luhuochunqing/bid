@@ -54,8 +54,22 @@ export const DOCUMENT_CATEGORY_TAG_TYPES = {
   OTHER: 'info'
 }
 
-export const getDocumentCategoryLabel = (category) => DOCUMENT_CATEGORY_LABELS[category] || category || '其他'
-export const getDocumentCategoryTagType = (category) => DOCUMENT_CATEGORY_TAG_TYPES[category] || 'info'
+// CO-592: 历史废弃分类归一化兜底
+// V1170 迁移已将 CONTRACT/PROCESS/RETROSPECTIVE 数据归一化为 OTHER，
+// 此处兜底防止迁移执行前或边缘情况下后端返回历史值导致前端显示英文
+const LEGACY_DOCUMENT_CATEGORY_ALIAS = {
+  CONTRACT: 'OTHER',
+  PROCESS: 'OTHER',
+  RETROSPECTIVE: 'OTHER'
+}
+
+const normalizeDocumentCategory = (category) => {
+  if (!category) return 'OTHER'
+  return LEGACY_DOCUMENT_CATEGORY_ALIAS[category] || category
+}
+
+export const getDocumentCategoryLabel = (category) => DOCUMENT_CATEGORY_LABELS[normalizeDocumentCategory(category)] || '其他'
+export const getDocumentCategoryTagType = (category) => DOCUMENT_CATEGORY_TAG_TYPES[normalizeDocumentCategory(category)] || 'info'
 
 export const formatFileSize = (bytes) => {
   if (bytes === null || bytes === undefined || bytes === '') return '-'
