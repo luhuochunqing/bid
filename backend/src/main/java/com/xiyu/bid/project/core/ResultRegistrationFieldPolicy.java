@@ -15,6 +15,7 @@ import java.util.List;
  *
  * <p>必填映射：
  * <ul>
+ *   <li>所有结果类型: evidenceFileIds, servicePeriodYears(服务周期), servicePeriodEndDate(服务周期截止时间) — CO-590 合同信息模块</li>
  *   <li>WON: evidenceFileIds(中标通知书)</li>
  *   <li>LOST: evidenceFileIds(中标公告), summary(丢标原因)</li>
  *   <li>FAILED: evidenceFileIds(流标公告/说明), summary(流标原因)</li>
@@ -42,6 +43,13 @@ public final class ResultRegistrationFieldPolicy {
         }
         if (!hasEvidence(input.evidenceFileIds())) {
             missing.add("evidenceFileIds");
+        }
+        // CO-590: 合同信息模块两字段对所有结果类型必填
+        if (input.servicePeriodYears() == null) {
+            missing.add("servicePeriodYears");
+        }
+        if (input.servicePeriodEndDate() == null) {
+            missing.add("servicePeriodEndDate");
         }
         switch (rt) {
             case WON -> {
@@ -73,6 +81,8 @@ public final class ResultRegistrationFieldPolicy {
             BigDecimal awardAmount,
             LocalDate contractStartDate,
             LocalDate contractEndDate,
+            BigDecimal servicePeriodYears,
+            LocalDate servicePeriodEndDate,
             List<Long> evidenceFileIds,
             String summary) {
 
@@ -85,6 +95,8 @@ public final class ResultRegistrationFieldPolicy {
             private BigDecimal awardAmount;
             private LocalDate contractStartDate;
             private LocalDate contractEndDate;
+            private BigDecimal servicePeriodYears;
+            private LocalDate servicePeriodEndDate;
             private List<Long> evidenceFileIds;
             private String summary;
 
@@ -92,12 +104,15 @@ public final class ResultRegistrationFieldPolicy {
             public Builder awardAmount(BigDecimal v) { this.awardAmount = v; return this; }
             public Builder contractStartDate(LocalDate v) { this.contractStartDate = v; return this; }
             public Builder contractEndDate(LocalDate v) { this.contractEndDate = v; return this; }
+            public Builder servicePeriodYears(BigDecimal v) { this.servicePeriodYears = v; return this; }
+            public Builder servicePeriodEndDate(LocalDate v) { this.servicePeriodEndDate = v; return this; }
             public Builder evidenceFileIds(List<Long> v) { this.evidenceFileIds = v; return this; }
             public Builder summary(String v) { this.summary = v; return this; }
 
             public ResultInput build() {
                 return new ResultInput(resultType, awardAmount, contractStartDate,
-                        contractEndDate, evidenceFileIds, summary);
+                        contractEndDate, servicePeriodYears, servicePeriodEndDate,
+                        evidenceFileIds, summary);
             }
         }
     }
