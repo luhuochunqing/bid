@@ -128,13 +128,13 @@
           <el-table-column prop="secondaryBiddingLeaderName" label="投标辅助人员" width="110" v-if="columnVisible.secondaryBiddingLeaderName">
             <template #default="{ row }">{{ row.secondaryBiddingLeaderName || '-' }}</template>
           </el-table-column>
-          <el-table-column prop="bidReviewers" label="标书审核人" width="110" v-if="columnVisible.bidReviewers">
+          <el-table-column prop="bidReviewers" label="标书审核人" width="165" v-if="columnVisible.bidReviewers">
             <template #default="{ row }">{{ row.bidReviewers || '-' }}</template>
           </el-table-column>
           <el-table-column label="项目阶段" width="95" v-if="columnVisible.stage">
             <template #default="{ row }">{{ stageText(row.stage) }}</template>
           </el-table-column>
-          <el-table-column label="评标结果" prop="evaluationSubStage" width="95" v-if="columnVisible.evaluationSubStage">
+          <el-table-column label="评标结果" prop="evaluationSubStage" width="190" v-if="columnVisible.evaluationSubStage">
             <template #default="{ row }">{{ evaluationSubStageText(row.evaluationSubStage) }}</template>
           </el-table-column>
           <el-table-column prop="biddingPlatform" label="投标平台" min-width="130" v-if="columnVisible.biddingPlatform">
