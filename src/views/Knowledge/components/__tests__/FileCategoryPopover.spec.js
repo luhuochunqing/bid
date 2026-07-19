@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import FileCategoryPopover from '../FileCategoryPopover.vue'
 
 describe('FileCategoryPopover', () => {
@@ -9,12 +9,12 @@ describe('FileCategoryPopover', () => {
         categoryDetails: {
           TENDER: 2,
           BID: 3,
-          CONTRACT: 1,
-          PROCESS: 5,
-          RETROSPECTIVE: 0,
+          OPEN_LIST: 0,
+          WIN_NOTICE: 0,
+          DEPOSIT_RECEIPT: 0,
           OTHER: 1
         },
-        fileCount: 12
+        fileCount: 6
       },
       global: {
         stubs: {
@@ -40,7 +40,9 @@ describe('FileCategoryPopover', () => {
         categoryDetails: {
           TENDER: 3,
           BID: 2,
-          CONTRACT: 1,
+          OPEN_LIST: 1,
+          WIN_NOTICE: 0,
+          DEPOSIT_RECEIPT: 0,
           OTHER: 0
         },
         fileCount: 10
@@ -57,11 +59,12 @@ describe('FileCategoryPopover', () => {
       }
     })
 
-    // Verify categoryItems computed property (9 categories: TENDER/BID/OPEN_LIST/WIN_NOTICE/DEPOSIT_RECEIPT/CONTRACT/PROCESS/RETROSPECTIVE/OTHER)
-    expect(wrapper.vm.categoryItems).toHaveLength(9)
+    // CO-592: Verify categoryItems computed property (6 standard categories:
+    // TENDER/BID/OPEN_LIST/WIN_NOTICE/DEPOSIT_RECEIPT/OTHER)
+    expect(wrapper.vm.categoryItems).toHaveLength(6)
     expect(wrapper.vm.categoryItems[0]).toMatchObject({ key: 'tender', label: '招标文件', count: 3 })
     expect(wrapper.vm.categoryItems[1]).toMatchObject({ key: 'bid', label: '标书文件', count: 2 })
-    expect(wrapper.vm.categoryItems[2]).toMatchObject({ key: 'open', label: '开标一览表', count: 0 })
+    expect(wrapper.vm.categoryItems[2]).toMatchObject({ key: 'open', label: '开标一览表', count: 1 })
     expect(wrapper.vm.categoryItems[3]).toMatchObject({ key: 'award', label: '中标通知书', count: 0 })
 
     // Verify totalCount sums up categoryDetails values
@@ -96,11 +99,10 @@ describe('FileCategoryPopover', () => {
         categoryDetails: {
           TENDER: 5,
           BID: 10,
-          AWARD_NOTICE: 2,
-          CONTRACT: 3,
-          PROCESS: 8,
-          RETROSPECTIVE: 1,
-          OTHER: 0
+          OPEN_LIST: 2,
+          WIN_NOTICE: 3,
+          DEPOSIT_RECEIPT: 8,
+          OTHER: 1
         },
         fileCount: 29
       },
@@ -140,7 +142,7 @@ describe('FileCategoryPopover', () => {
 
     // Verify empty data handling
     expect(wrapper.vm.totalCount).toBe(0)
-    // All 9 category items should be rendered (with 0 counts)
-    expect(wrapper.vm.categoryItems).toHaveLength(9)
+    // CO-592: All 6 standard category items should be rendered (with 0 counts)
+    expect(wrapper.vm.categoryItems).toHaveLength(6)
   })
 })
