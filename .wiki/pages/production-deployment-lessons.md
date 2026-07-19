@@ -14,7 +14,7 @@ backlinks:
   - lessons-learned
 created: 2026-07-09
 updated: 2026-07-09
-health_checked: 2026-07-09
+health_checked: 2026-07-19
 ---
 # 生产环境首次部署实战教训
 
