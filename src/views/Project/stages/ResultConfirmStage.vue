@@ -22,6 +22,38 @@
       </div>
     </el-card>
 
+    <!-- CO-590: 合同信息（所有结果类型都显示，两字段必填） -->
+    <el-card shadow="never" class="stage-section">
+      <template #header><span class="section-title">合同信息<span class="required-mark">*</span></span></template>
+      <div class="contract-row">
+        <div class="contract-field">
+          <label class="field-label">项目服务周期（年）<span class="required-mark">*</span></label>
+          <el-input-number
+            v-model="form.servicePeriodYears"
+            :precision="1"
+            :step="0.1"
+            :min="0"
+            :disabled="!canOperate"
+            placeholder="如：3.5"
+            controls-position="right"
+            class="contract-input"
+          />
+        </div>
+        <div class="contract-field">
+          <label class="field-label">服务周期截止时间<span class="required-mark">*</span></label>
+          <el-date-picker
+            v-model="form.servicePeriodEndDate"
+            type="date"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            :disabled="!canOperate"
+            placeholder="选择日期"
+            class="contract-input"
+          />
+        </div>
+      </div>
+    </el-card>
+
     <!-- 凭证文件 -->
     <el-card shadow="never" class="stage-section">
       <template #header><span class="section-title">凭证文件<span class="required-mark">*</span></span></template>
@@ -136,6 +168,9 @@ const DEFAULT_COMPETITORS = () => [DEFAULT_COMPETITOR(), DEFAULT_COMPETITOR(), D
 const form = reactive({
   resultType: 'WON',
   notes: '', summary: '', evidenceFileIds: [], competitors: DEFAULT_COMPETITORS(),
+  // CO-590: 合同信息模块两字段（所有结果类型必填）
+  servicePeriodYears: null,
+  servicePeriodEndDate: null,
 })
 
 function selectResult(value) {
@@ -233,6 +268,9 @@ async function load() {
         await backfillEvidenceFiles(data.evidenceFileIds)
       }
       if (data.competitors?.length) form.competitors = data.competitors.map(c => ({ ...c }))
+      // CO-590: 回填合同信息两字段
+      if (data.servicePeriodYears != null) form.servicePeriodYears = Number(data.servicePeriodYears)
+      if (data.servicePeriodEndDate) form.servicePeriodEndDate = data.servicePeriodEndDate
       // 已登记的结果不可再编辑
       if (data.registeredAt) resultDone.value = true
     }
@@ -261,6 +299,9 @@ async function backfillEvidenceFiles(ids) {
 async function submit() {
   if (!form.resultType) return ElMessage.warning('请选择结果类型')
   if (NON_WON_TYPES.includes(form.resultType) && !form.summary?.trim()) return ElMessage.warning('请填写原因')
+  // CO-590: 合同信息两字段必填校验
+  if (form.servicePeriodYears == null || form.servicePeriodYears === '') return ElMessage.warning('请填写项目服务周期（年）')
+  if (!form.servicePeriodEndDate) return ElMessage.warning('请选择服务周期截止时间')
   if (!form.evidenceFileIds.length) return ElMessage.warning('请上传凭证文件')
   submitting.value = true
   try {
@@ -268,6 +309,9 @@ async function submit() {
       resultType: form.resultType,
       notes: form.notes, summary: form.summary,
       evidenceFileIds: form.evidenceFileIds, competitors: form.competitors,
+      // CO-590: 合同信息两字段
+      servicePeriodYears: form.servicePeriodYears,
+      servicePeriodEndDate: form.servicePeriodEndDate,
     }
     await projectLifecycleApi.registerResult(props.projectId, payload)
     resultDone.value = true
@@ -309,6 +353,7 @@ defineExpose({ load })
 /* 中标合同信息 */
 .contract-row { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 16px; }
 .contract-field { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 160px; }
+.contract-input { width: 100%; }
 .field-label { font-size: 13px; font-weight: 500; color: #555; }
 
 /* 流标/弃标摘要 */

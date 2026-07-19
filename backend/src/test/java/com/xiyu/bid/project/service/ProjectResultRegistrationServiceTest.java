@@ -1,5 +1,5 @@
 // Input: Mockito 桩仓库
-// Output: 注册结果服务行为断言（happy/422/409）
+// Output: 注册结果服务行为断言（happy/422/409，含 CO-590 合同信息两字段）
 // Pos: backend test source
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.project.service;
@@ -26,6 +26,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Collections;
 import java.util.Optional;
@@ -44,6 +45,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ProjectResultRegistrationServiceTest {
+
+    private static final BigDecimal SAMPLE_PERIOD_YEARS = new BigDecimal("3.5");
+    private static final LocalDate SAMPLE_PERIOD_END = LocalDate.of(2027, 6, 1);
 
     private ProjectResultRepository repo;
     private ProjectResultCompetitorRepository competitorRepo;
@@ -87,6 +91,8 @@ class ProjectResultRegistrationServiceTest {
         var req = ResultRegistrationRequest.builder()
                 .resultType(BidResultType.WON)
                 .awardAmount(new BigDecimal("88888"))
+                .servicePeriodYears(SAMPLE_PERIOD_YEARS)
+                .servicePeriodEndDate(SAMPLE_PERIOD_END)
                 .evidenceFileIds(List.of(11L, 12L))
                 .summary("中标通知书已上传")
                 .build();
@@ -94,6 +100,8 @@ class ProjectResultRegistrationServiceTest {
         assertEquals("WON", dto.getResultType());
         assertEquals(0, new BigDecimal("88888").compareTo(dto.getAwardAmount()));
         assertEquals(List.of(11L, 12L), dto.getEvidenceFileIds());
+        assertEquals(0, SAMPLE_PERIOD_YEARS.compareTo(dto.getServicePeriodYears()));
+        assertEquals(SAMPLE_PERIOD_END, dto.getServicePeriodEndDate());
         assertNotNull(dto.getRegisteredAt());
         assertEquals(7L, dto.getRegisteredBy());
         verify(repo).save(any(ProjectResult.class));
@@ -111,6 +119,8 @@ class ProjectResultRegistrationServiceTest {
         var req = ResultRegistrationRequest.builder()
                 .resultType(BidResultType.WON)
                 .awardAmount(new BigDecimal("100"))
+                .servicePeriodYears(SAMPLE_PERIOD_YEARS)
+                .servicePeriodEndDate(SAMPLE_PERIOD_END)
                 .evidenceFileIds(List.of(1L))
                 .build();
         service.register(1L, req, 7L);
@@ -131,6 +141,8 @@ class ProjectResultRegistrationServiceTest {
         when(stageService.currentStage(1L)).thenReturn(ProjectStage.RESULT_PENDING);
         var req = ResultRegistrationRequest.builder()
                 .resultType(BidResultType.FAILED)
+                .servicePeriodYears(SAMPLE_PERIOD_YEARS)
+                .servicePeriodEndDate(SAMPLE_PERIOD_END)
                 .evidenceFileIds(List.of(1L))
                 .summary("流标原因：不足三家")
                 .build();
@@ -153,6 +165,8 @@ class ProjectResultRegistrationServiceTest {
         var req = ResultRegistrationRequest.builder()
                 .resultType(BidResultType.WON)
                 .awardAmount(new BigDecimal("100"))
+                .servicePeriodYears(SAMPLE_PERIOD_YEARS)
+                .servicePeriodEndDate(SAMPLE_PERIOD_END)
                 .evidenceFileIds(List.of(1L))
                 .build();
         service.register(1L, req, 7L);
@@ -165,6 +179,8 @@ class ProjectResultRegistrationServiceTest {
         var req = ResultRegistrationRequest.builder()
                 .resultType(BidResultType.WON)
                 .awardAmount(new BigDecimal("100"))
+                .servicePeriodYears(SAMPLE_PERIOD_YEARS)
+                .servicePeriodEndDate(SAMPLE_PERIOD_END)
                 .evidenceFileIds(List.of(1L))
                 .build();
         var ex = assertThrows(ResponseStatusException.class,
@@ -178,6 +194,8 @@ class ProjectResultRegistrationServiceTest {
         when(repo.findByProjectId(1L)).thenReturn(Optional.empty());
         var req = ResultRegistrationRequest.builder()
                 .resultType(BidResultType.LOST)
+                .servicePeriodYears(SAMPLE_PERIOD_YEARS)
+                .servicePeriodEndDate(SAMPLE_PERIOD_END)
                 .summary("竞争对手中标")
                 .build();
         var ex = assertThrows(ResponseStatusException.class,
@@ -192,6 +210,8 @@ class ProjectResultRegistrationServiceTest {
         when(repo.findByProjectId(1L)).thenReturn(Optional.empty());
         var req = ResultRegistrationRequest.builder()
                 .resultType(BidResultType.FAILED)
+                .servicePeriodYears(SAMPLE_PERIOD_YEARS)
+                .servicePeriodEndDate(SAMPLE_PERIOD_END)
                 .evidenceFileIds(List.of(1L))
                 .build();
         var ex = assertThrows(ResponseStatusException.class,
@@ -208,6 +228,8 @@ class ProjectResultRegistrationServiceTest {
         var req = ResultRegistrationRequest.builder()
                 .resultType(BidResultType.WON)
                 .awardAmount(new BigDecimal("100"))
+                .servicePeriodYears(SAMPLE_PERIOD_YEARS)
+                .servicePeriodEndDate(SAMPLE_PERIOD_END)
                 .evidenceFileIds(List.of(1L))
                 .build();
         var ex = assertThrows(ResponseStatusException.class,
@@ -231,6 +253,8 @@ class ProjectResultRegistrationServiceTest {
         var req = ResultRegistrationRequest.builder()
                 .resultType(BidResultType.WON)
                 .awardAmount(new BigDecimal("88888"))
+                .servicePeriodYears(SAMPLE_PERIOD_YEARS)
+                .servicePeriodEndDate(SAMPLE_PERIOD_END)
                 .evidenceFileIds(List.of(11L))
                 .summary("中标通知书已上传")
                 .build();
@@ -257,6 +281,8 @@ class ProjectResultRegistrationServiceTest {
         var req = ResultRegistrationRequest.builder()
                 .resultType(BidResultType.WON)
                 .awardAmount(new BigDecimal("88888"))
+                .servicePeriodYears(SAMPLE_PERIOD_YEARS)
+                .servicePeriodEndDate(SAMPLE_PERIOD_END)
                 .evidenceFileIds(List.of(11L))
                 .summary("中标通知书已上传")
                 .build();

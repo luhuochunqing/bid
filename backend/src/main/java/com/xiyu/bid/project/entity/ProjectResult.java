@@ -49,6 +49,14 @@ public class ProjectResult {
     @Column(name = "contract_end_date")
     private LocalDate contractEndDate;
 
+    /** CO-590: 项目服务周期（年），保留 1 位小数，合同信息模块。 */
+    @Column(name = "service_period_years", precision = 5, scale = 1)
+    private BigDecimal servicePeriodYears;
+
+    /** CO-590: 服务周期截止时间，合同信息模块。 */
+    @Column(name = "service_period_end_date")
+    private LocalDate servicePeriodEndDate;
+
     /** 单附件 id 兼容 V99 schema 的 evidence_attachment_id 列；多附件以逗号分隔扩展存放（不破坏列）。 */
     @Column(name = "evidence_attachment_id")
     private Long evidenceAttachmentId;
