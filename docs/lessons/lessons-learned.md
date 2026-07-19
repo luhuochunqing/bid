@@ -5181,3 +5181,44 @@ public void onApplicationEvent(ApplicationReadyEvent event) {
 - [remote-deploy.sh](../../scripts/release/remote-deploy.sh) — `HEALTH_CHECK_MAX_ATTEMPTS` 默认值
 - [deploy-report-2026-07-17-93rd-test.md](../release/deploy-report-2026-07-17-93rd-test.md) — Kafka 延迟现象记录
 - `OrganizationEventSdkKafkaStarter.java` — 根治方案目标类
+
+## 72. 分支基线过期导致 PR diff 静默回退/删除他人文件（PR !2138 / !2141 / 2026-07-19）
+
+> 来源：2026-07-19 审查 PR !2138（CO-590）与 !2141（CO-591）时连续发现同类问题
+> 涉及模块：多 Agent 分支协作 / Gitee PR 合并
+
+### 问题背景
+
+同一 agent（trae2）连续两个 PR 的 diff 中混入与本任务无关的变更：
+
+- **PR !2138（CO-590 合同信息模块）**：9 个 `.wiki/pages/*.md` 的 `health_checked: 2026-07-19` 被改回 `2026-07-10`，静默回退了其他 agent 的 wiki 元数据更新，并随合并落入 main。
+- **PR !2141（CO-591 列表四列）**：diff 显示整文件删除 `docs/release/deploy-report-2026-07-19-12th-prod.md`（275 行，由 `fc6518c66` 在该分支切出后合入 main）。分支上并无显式删除提交——纯粹是基线过期导致的 diff 假象，一旦被 squash/rebase 式合入就会真删。
+
+### 根因
+
+1. **分支从旧 main 切出后未 rebase**：`git merge-base` 落后于 `origin/main` 多个提交，Gitee PR 展示的是 `base...head` 双边 diff，基线之后 main 上新增/修改的文件在 diff 中表现为"删除/回退"。
+2. **Agent 提交了 stale 工作区文件**：!2138 的 wiki 文件在分支上有真实提交（工作区残留旧版本被一并 commit），三方合并也救不回来。
+3. **合并前无人核对完整文件清单**：`git diff origin/main --stat` 一眼可见异常文件，但两次都未检查。
+
+### 危害
+
+- 静默回退他人已合入的文档/元数据变更，无冲突提示、无 CI 拦截，事后靠 review 肉眼发现。
+- squash 合入模式下，基线之后新增的文件会被真实删除。
+
+### 防御规范
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| 分支基线过期 | 双边 diff 会把 main 的新增文件显示成"被删除" | **推送/合并前必做** `git fetch origin && git rebase origin/main`，并核对 `git diff origin/main --stat` 只含本任务文件 |
+| stale 工作区文件被提交 | 旧版本文件 commit 进分支后，merge 也会回退 main | commit 前 `git status` + 抽查 diff，发现与本任务无关的文件改动一律不 stage |
+| Review 漏看 | 两个 PR 都是人工审查才发现 | PR 审查第一步必看完整 `--stat`，出现无关文件直接打回 |
+
+### 处置记录
+
+- !2138：已合并后发现，wiki 元数据回退随合入落入 main（影响仅为 `health_checked` 日期，危害低）。
+- !2141：合并前由 kimi 执行 rebase + 补单测后 `--force-with-lease` 推送（`1c9ab2799`），diff 收敛到本任务 11 个文件后正常合并。
+
+### 相关文档
+
+- [AGENTS.md](../../AGENTS.md) — "早操SOP"（`git fetch origin && git rebase origin/main`）
+- 第 66 节 — 删除 bootstrap 锚点分支的同类多 Agent 协作事故
