@@ -44,7 +44,7 @@
           <el-date-picker
             v-model="form.servicePeriodEndDate"
             type="date"
-            format="YYYY年MM月DD日"
+            format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
             :disabled="!canOperate"
             placeholder="选择日期"
