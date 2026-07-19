@@ -3,7 +3,6 @@ package com.xiyu.bid.projectworkflow.service;
 import com.xiyu.bid.projectworkflow.core.UploadValidationPolicy;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentCreateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
-import com.xiyu.bid.casework.application.ProjectArchiveWorkflowService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -18,7 +17,6 @@ class ProjectDocumentUploadWorkflowService {
     private final ProjectWorkflowGuardService accessGuard;
     private final ProjectDocumentWorkflowService projectDocumentWorkflowService;
     private final ProjectDocumentFileStorage fileStorage;
-    private final ProjectArchiveWorkflowService projectArchiveWorkflowService;
 
     ProjectDocumentDTO createUploadedProjectDocument(
             Long projectId,
@@ -30,7 +28,10 @@ class ProjectDocumentUploadWorkflowService {
         String fileName = defaultString(request.getName(), originalFileName(file));
         byte[] content = fileBytes(file);
         StoredProjectDocumentFile storedFile = fileStorage.store(projectId, fileName, file.getContentType(), content);
-        ProjectDocumentDTO created = projectDocumentWorkflowService.createProjectDocument(projectId, ProjectDocumentCreateRequest.builder()
+        // spec 039: 归档逻辑已上提到 ProjectDocumentWorkflowService.createProjectDocument 末尾统一触发，
+        // 此处仅负责文件存储和创建文档记录，不再直接调用 attachFileToArchive（避免双写）。
+        // OBS 直传 JSON 路径和 multipart 路径都会在 createProjectDocument 末尾归档。
+        return projectDocumentWorkflowService.createProjectDocument(projectId, ProjectDocumentCreateRequest.builder()
                 .name(fileName.trim())
                 .size(defaultString(request.getSize(), formatSize(file.getSize())))
                 .fileType(resolveFileType(request.getFileType(), fileName, file.getContentType()))
@@ -41,20 +42,6 @@ class ProjectDocumentUploadWorkflowService {
                 .uploaderId(request.getUploaderId())
                 .uploaderName(request.getUploaderName())
                 .build());
-        // 即时归档到项目档案（蓝图 §4.1.1.1 要求：上传时即时按分类归档）
-        // CO-488: 用 createProjectDocument 解析后的 uploaderName（含姓名），避免原始 request 为空时写入"系统"
-        if (projectArchiveWorkflowService != null && storedFile.physicalPath() != null) {
-            projectArchiveWorkflowService.attachFileToArchive(
-                    projectId,
-                    fileName.trim(),
-                    request.getDocumentCategory(),
-                    storedFile.physicalPath(),
-                    file.getSize(),
-                    created.getUploaderId(),
-                    created.getUploader()
-            );
-        }
-        return created;
     }
 
     private void validateUpload(MultipartFile file) {

@@ -19,11 +19,11 @@ class ProjectDocumentUploadWorkflowServiceTest {
         ProjectWorkflowGuardService accessGuard = mock(ProjectWorkflowGuardService.class);
         ProjectDocumentWorkflowService documentWorkflowService = mock(ProjectDocumentWorkflowService.class);
         ProjectDocumentFileStorage fileStorage = mock(ProjectDocumentFileStorage.class);
+        // spec 039: 归档逻辑已上提到 createProjectDocument 内部，本服务不再持有 ProjectArchiveWorkflowService
         ProjectDocumentUploadWorkflowService service = new ProjectDocumentUploadWorkflowService(
                 accessGuard,
                 documentWorkflowService,
-                fileStorage,
-                null // ProjectArchiveWorkflowService (archive attach tested via integration)
+                fileStorage
         );
         MockMultipartFile file = new MockMultipartFile(
                 "file",
@@ -52,5 +52,10 @@ class ProjectDocumentUploadWorkflowServiceTest {
         assertThat(dto.getFileUrl()).isEqualTo("bid-agent://tender-documents/1001/stored.docx");
         assertThat(dto.getFileType()).isEqualTo("docx");
         verify(accessGuard).requireProject(1001L);
+        // spec 039: multipart 路径不再直接调用 attachFileToArchive（由下游 createProjectDocument 统一处理）
+        verify(documentWorkflowService).createProjectDocument(
+                org.mockito.ArgumentMatchers.eq(1001L),
+                org.mockito.ArgumentMatchers.any(ProjectDocumentCreateRequest.class)
+        );
     }
 }
