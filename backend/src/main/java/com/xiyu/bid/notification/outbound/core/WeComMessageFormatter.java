@@ -7,6 +7,10 @@ package com.xiyu.bid.notification.outbound.core;
  * Pure formatter that assembles a WeCom textcard payload.
  *
  * <p>No Spring, no IO, no logging. Takes explicit inputs, returns a value.
+ *
+ * <p>本类只负责构造消息 textcard 的业务 URL（platformBaseUrl + sourcePath）。
+ * SSO OAuth 授权链接的构造由 {@code WeComPushService} 在推送时根据 SSO 配置决定是否包装，
+ * 不在本类的职责范围内（保持 Pure Core 单一职责）。
  */
 public final class WeComMessageFormatter {
 

@@ -4,6 +4,7 @@ import com.xiyu.bid.auth.OAuthStateService;
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.dto.AuthSessionResult;
 import com.xiyu.bid.integration.application.WeComAuthAppService;
+import com.xiyu.bid.integration.application.WeComSsoOssLoginService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,8 +36,11 @@ public class WeComAuthController {
     /** Error code for unbound WeCom account. */
     private static final int ERR_NOT_BOUND = 40101;
 
-    /** Internal business logic for WeCom auth. */
+    /** Internal business logic for WeCom auth (legacy: direct WeCom API). */
     private final WeComAuthAppService weComAuthAppService;
+
+    /** WeCom SSO via base-oss /qyWeixin/loginQywx (new path). */
+    private final WeComSsoOssLoginService weComSsoOssLoginService;
 
     /** State management for CSRF protection. */
     private final OAuthStateService oAuthStateService;
@@ -107,6 +111,8 @@ public class WeComAuthController {
                 code, state);
 
         // 1. Validate state (CSRF protection)
+        // OAuthStateService 内部识别 msg: 前缀的消息推送 state（7 天 TTL，只验证不删除），
+        // 与普通一次性 state（10 分钟 TTL，验证后删除）走同一入口。
         if (!oAuthStateService.validateAndRemoveState(state)) {
             log.warn("OAuth2 callback state validation failed: {}", state);
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -114,9 +120,9 @@ public class WeComAuthController {
                             "INVALID_STATE"));
         }
 
-        // 2. Perform login
+        // 2. Perform login via base-oss /qyWeixin/loginQywx (new SSO path)
         var loginResultOpt =
-                weComAuthAppService.loginByWeCom(code);
+                weComSsoOssLoginService.loginByWeComCode(code);
 
         if (loginResultOpt.isPresent()) {
             AuthSessionResult result = loginResultOpt.get();

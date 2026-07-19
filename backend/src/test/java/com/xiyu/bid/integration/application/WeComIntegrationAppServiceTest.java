@@ -152,6 +152,70 @@ class WeComIntegrationAppServiceTest {
                 .isInstanceOf(IllegalStateException.class);
     }
 
+    // ---- GET SSO CONFIG（供消息推送、SSO 登录等场景消费的统一入口）----
+
+    @Test
+    @DisplayName("getSsoConfig: SSO 启用且 corpId/agentId 均非空 → 返回有效 SsoConfig")
+    void getSsoConfig_ssoEnabled_returnsConfig() {
+        WeComIntegrationEntity entity = buildEntity("wwcorp", "1000001", "ENC:abc==");
+        entity.setSsoEnabled(true);
+        when(repository.findById(1L)).thenReturn(Optional.of(entity));
+
+        Optional<WeComSsoConfig> result = service.getSsoConfig();
+
+        assertThat(result).isPresent();
+        assertThat(result.get().corpId()).isEqualTo("wwcorp");
+        assertThat(result.get().agentId()).isEqualTo("1000001");
+        assertThat(result.get().isValid()).isTrue();
+    }
+
+    @Test
+    @DisplayName("getSsoConfig: SSO 未启用 → 返回 empty")
+    void getSsoConfig_ssoDisabled_returnsEmpty() {
+        WeComIntegrationEntity entity = buildEntity("wwcorp", "1000001", "ENC:abc==");
+        entity.setSsoEnabled(false);
+        when(repository.findById(1L)).thenReturn(Optional.of(entity));
+
+        Optional<WeComSsoConfig> result = service.getSsoConfig();
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("getSsoConfig: 无配置记录 → 返回 empty")
+    void getSsoConfig_noRecord_returnsEmpty() {
+        when(repository.findById(1L)).thenReturn(Optional.empty());
+
+        Optional<WeComSsoConfig> result = service.getSsoConfig();
+
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("getSsoConfig: SSO 启用但 agentId 为空 → 返回 empty（isValid 过滤）")
+    void getSsoConfig_emptyAgentId_returnsEmpty() {
+        WeComIntegrationEntity entity = buildEntity("wwcorp", "", "ENC:abc==");
+        entity.setSsoEnabled(true);
+        when(repository.findById(1L)).thenReturn(Optional.of(entity));
+
+        Optional<WeComSsoConfig> result = service.getSsoConfig();
+
+        // isValid() 过滤掉配置不全的记录
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("getSsoConfig: SSO 启用但 corpId 为空 → 返回 empty（isValid 过滤）")
+    void getSsoConfig_emptyCorpId_returnsEmpty() {
+        WeComIntegrationEntity entity = buildEntity("", "1000001", "ENC:abc==");
+        entity.setSsoEnabled(true);
+        when(repository.findById(1L)).thenReturn(Optional.of(entity));
+
+        Optional<WeComSsoConfig> result = service.getSsoConfig();
+
+        assertThat(result).isEmpty();
+    }
+
     private WeComIntegrationEntity buildEntity(String corpId, String agentId, String encryptedSecret) {
         WeComIntegrationEntity e = new WeComIntegrationEntity();
         e.setId(1L);

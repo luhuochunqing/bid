@@ -2,6 +2,7 @@ package com.xiyu.bid.integration.application;
 
 import com.xiyu.bid.dto.AuthSessionResult;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.integration.infrastructure.persistence.entity.WeComIntegrationEntity;
 import com.xiyu.bid.integration.infrastructure.persistence.repository.WeComIntegrationJpaRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.AuthService;
@@ -35,10 +36,16 @@ public class WeComAuthAppService {
 
     /**
      * Attempts to login a user via WeCom OAuth2 code.
+     * <p>
+     * <b>已废弃</b>：此方法直接调用企业微信 API（需本地持有 secret），
+     * 已被 {@link WeComSsoOssLoginService#loginByWeComCode} 取代（通过 base-oss 换 token，secret 由 OSS 持有）。
+     * 保留仅作为对比路径与历史测试覆盖，新代码不应调用此方法。
      *
      * @param code WeCom OAuth2 code
      * @return AuthSessionResult if successful, empty if user needs binding
+     * @deprecated 改用 {@link WeComSsoOssLoginService#loginByWeComCode(String)}
      */
+    @Deprecated(forRemoval = true)
     @Transactional
     public Optional<AuthSessionResult> loginByWeCom(final String code) {
         // 1. Get user info from WeCom
@@ -80,14 +87,18 @@ public class WeComAuthAppService {
 
     /**
      * Gets the authorization parameters for the frontend to construct the URL.
+     * <p>
+     * 同时校验 ssoEnabled，未启用时只返回 state（前端拿到空 appid/agentid 会显示
+     * "企业微信集成配置不完整"），避免用户跳转企微授权完成后回调被拒的割裂体验。
      *
      * @param state CSRF state token
-     * @return Map containing appid, agentid and state
+     * @return Map containing appid, agentid and state; 若 SSO 未启用则只含 state
      */
     public Map<String, String> getAuthorizeParams(final String state) {
-        var entityOpt = integrationRepository.findById(1L);
+        var entityOpt = integrationRepository.findById(1L)
+                .filter(WeComIntegrationEntity::isSsoEnabled);
         if (entityOpt.isEmpty()) {
-            log.error("WeCom integration settings not found (ID=1)");
+            log.warn("WeCom authorize-params: integration not configured (ID=1) or SSO disabled");
             return Map.of("state", state);
         }
         var entity = entityOpt.get();
