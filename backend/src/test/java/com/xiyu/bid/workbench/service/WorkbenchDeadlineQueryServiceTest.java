@@ -1,9 +1,15 @@
 package com.xiyu.bid.workbench.service;
 
+import com.xiyu.bid.fees.entity.Fee;
 import com.xiyu.bid.fees.repository.FeeRepository;
+import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
+import com.xiyu.bid.workbench.domain.DeadlinePeriod;
+import com.xiyu.bid.workbench.dto.DeadlineItemDTO;
+import com.xiyu.bid.workbench.dto.WorkbenchDeadlineItemsDTO;
 import com.xiyu.bid.workbench.dto.WorkbenchDeadlineStatsDTO;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -178,6 +185,254 @@ class WorkbenchDeadlineQueryServiceTest {
         ArgumentCaptor<List<Long>> captor = ArgumentCaptor.forClass(List.class);
         verify(tenderRepository).findRegistrationDeadlinesByTenderIds(captor.capture(), any(), any());
         verify(tenderRepository).findBidOpeningTimesByTenderIds(captor.capture(), any(), any());
+
+        for (List<Long> captured : captor.getAllValues()) {
+            assertThat(captured.size())
+                    .as("tender IDs passed to repo must not exceed 500")
+                    .isLessThanOrEqualTo(500);
+            assertThat(captured.get(0)).isEqualTo(1L);
+            assertThat(captured.get(captured.size() - 1)).isEqualTo(500L);
+        }
+    }
+
+    // ==================== CO-593: getDeadlineItems tests ====================
+
+    /**
+     * 全局管理角色（admin/bidAdmin/bid-TeamLeader/bid-SystemAdmin）应看到全量数据。
+     * 验证三类条目的 name/targetType/date/targetId 正确映射。
+     */
+    @Test
+    void globalAccessUserShouldSeeAllDeadlineItems() {
+        var today = LocalDate.of(2026, 5, 17); // Sunday
+        when(projectAccessScopeService.currentUserHasGlobalAccess()).thenReturn(true);
+        when(projectAccessScopeService.getAllowedProjectIdsForCurrentUser()).thenReturn(List.of());
+
+        Tender regTender = Tender.builder()
+                .id(10L).title("标讯A")
+                .registrationDeadline(LocalDateTime.of(2026, 5, 17, 10, 0))
+                .build();
+        Tender openingTender = Tender.builder()
+                .id(20L).title("标讯B")
+                .bidOpeningTime(LocalDateTime.of(2026, 5, 18, 14, 0))
+                .projectId(100L)
+                .build();
+        Fee depositFee = Fee.builder()
+                .id(30L).projectId(100L)
+                .feeDate(LocalDateTime.of(2026, 5, 19, 9, 0))
+                .build();
+        Project project = Project.builder().id(100L).name("项目X").build();
+
+        when(tenderRepository.findTendersByRegistrationDeadlineBetween(any(), any())).thenReturn(List.of(regTender));
+        when(tenderRepository.findTendersByBidOpeningTimeBetween(any(), any())).thenReturn(List.of(openingTender));
+        when(feeRepository.findFeesByDepositDeadlineBetween(any(), any())).thenReturn(List.of(depositFee));
+        when(projectRepository.findAllById(any(Collection.class))).thenReturn(List.of(project));
+
+        WorkbenchDeadlineItemsDTO result = service.getDeadlineItems(today, DeadlinePeriod.WEEK);
+
+        // 报名截止 → 标讯名称 + targetType=tender
+        assertThat(result.registrationDeadline()).hasSize(1);
+        DeadlineItemDTO regItem = result.registrationDeadline().get(0);
+        assertThat(regItem.id()).isEqualTo(10L);
+        assertThat(regItem.name()).isEqualTo("标讯A");
+        assertThat(regItem.date()).isEqualTo("2026-05-17");
+        assertThat(regItem.targetId()).isEqualTo(10L);
+        assertThat(regItem.targetType()).isEqualTo("tender");
+
+        // 开标 → 项目名称 + targetType=project
+        assertThat(result.bidOpening()).hasSize(1);
+        DeadlineItemDTO openingItem = result.bidOpening().get(0);
+        assertThat(openingItem.id()).isEqualTo(20L);
+        assertThat(openingItem.name()).isEqualTo("项目X");
+        assertThat(openingItem.date()).isEqualTo("2026-05-18");
+        assertThat(openingItem.targetId()).isEqualTo(100L);
+        assertThat(openingItem.targetType()).isEqualTo("project");
+
+        // 保证金截止 → 项目名称 + targetType=project
+        assertThat(result.depositDeadline()).hasSize(1);
+        DeadlineItemDTO depositItem = result.depositDeadline().get(0);
+        assertThat(depositItem.id()).isEqualTo(30L);
+        assertThat(depositItem.name()).isEqualTo("项目X");
+        assertThat(depositItem.date()).isEqualTo("2026-05-19");
+        assertThat(depositItem.targetId()).isEqualTo(100L);
+        assertThat(depositItem.targetType()).isEqualTo("project");
+    }
+
+    /**
+     * 非全局角色只能看到自己参与项目（allowedProjectIds）范围内的数据。
+     * 必须走 ByTenderIds / ByProjectIds 查询路径，禁止全量查询（防越权）。
+     */
+    @Test
+    void nonGlobalUserShouldSeeOnlyOwnProjectDeadlineItems() {
+        var today = LocalDate.of(2026, 5, 17);
+        when(projectAccessScopeService.currentUserHasGlobalAccess()).thenReturn(false);
+        when(projectAccessScopeService.getAllowedProjectIdsForCurrentUser()).thenReturn(List.of(100L, 200L));
+        when(projectRepository.findTenderIdsByProjectIds(List.of(100L, 200L))).thenReturn(List.of(10L, 20L));
+
+        Tender regTender = Tender.builder()
+                .id(10L).title("自有标讯")
+                .registrationDeadline(LocalDateTime.of(2026, 5, 17, 10, 0))
+                .build();
+
+        when(tenderRepository.findTendersByRegistrationDeadlineAndTenderIds(eq(List.of(10L, 20L)), any(), any()))
+                .thenReturn(List.of(regTender));
+        when(tenderRepository.findTendersByBidOpeningTimeAndTenderIds(eq(List.of(10L, 20L)), any(), any()))
+                .thenReturn(List.of());
+        when(feeRepository.findFeesByDepositDeadlineAndProjectIds(eq(List.of(100L, 200L)), any(), any()))
+                .thenReturn(List.of());
+
+        WorkbenchDeadlineItemsDTO result = service.getDeadlineItems(today, DeadlinePeriod.WEEK);
+
+        assertThat(result.registrationDeadline()).hasSize(1);
+        assertThat(result.registrationDeadline().get(0).name()).isEqualTo("自有标讯");
+        assertThat(result.bidOpening()).isEmpty();
+        assertThat(result.depositDeadline()).isEmpty();
+
+        // 关键：未调用全量查询方法（防止越权读取其他用户的数据）
+        verify(tenderRepository, org.mockito.Mockito.never())
+                .findTendersByRegistrationDeadlineBetween(any(), any());
+        verify(tenderRepository, org.mockito.Mockito.never())
+                .findTendersByBidOpeningTimeBetween(any(), any());
+        verify(feeRepository, org.mockito.Mockito.never())
+                .findFeesByDepositDeadlineBetween(any(), any());
+    }
+
+    /**
+     * P0 防越权回归：非全局角色 + 无项目权限 → 必须返回空且不访问任何 repository。
+     */
+    @Test
+    void nonGlobalUserWithEmptyProjectScopeMustGetEmptyItemsWithoutDataAccess() {
+        var today = LocalDate.of(2026, 5, 17);
+        when(projectAccessScopeService.currentUserHasGlobalAccess()).thenReturn(false);
+        when(projectAccessScopeService.getAllowedProjectIdsForCurrentUser()).thenReturn(List.of());
+
+        WorkbenchDeadlineItemsDTO result = service.getDeadlineItems(today, DeadlinePeriod.WEEK);
+
+        assertThat(result.registrationDeadline()).isEmpty();
+        assertThat(result.bidOpening()).isEmpty();
+        assertThat(result.depositDeadline()).isEmpty();
+        // 关键：repositories 必须不被调用
+        verifyNoInteractions(tenderRepository, feeRepository, projectRepository);
+    }
+
+    /**
+     * 开标条目若 Tender.projectId 为 null（未关联项目），必须被过滤掉（前端无法跳转）。
+     */
+    @Test
+    void openingTenderWithNullProjectIdMustBeFilteredOut() {
+        var today = LocalDate.of(2026, 5, 17);
+        when(projectAccessScopeService.currentUserHasGlobalAccess()).thenReturn(true);
+        when(projectAccessScopeService.getAllowedProjectIdsForCurrentUser()).thenReturn(List.of());
+
+        Tender openingWithProject = Tender.builder()
+                .id(20L).bidOpeningTime(LocalDateTime.of(2026, 5, 18, 14, 0)).projectId(100L).build();
+        Tender openingWithoutProject = Tender.builder()
+                .id(21L).bidOpeningTime(LocalDateTime.of(2026, 5, 19, 14, 0)).projectId(null).build();
+        Project project = Project.builder().id(100L).name("项目X").build();
+
+        when(tenderRepository.findTendersByRegistrationDeadlineBetween(any(), any())).thenReturn(List.of());
+        when(tenderRepository.findTendersByBidOpeningTimeBetween(any(), any()))
+                .thenReturn(List.of(openingWithProject, openingWithoutProject));
+        when(feeRepository.findFeesByDepositDeadlineBetween(any(), any())).thenReturn(List.of());
+        when(projectRepository.findAllById(any(Collection.class))).thenReturn(List.of(project));
+
+        WorkbenchDeadlineItemsDTO result = service.getDeadlineItems(today, DeadlinePeriod.WEEK);
+
+        assertThat(result.bidOpening()).hasSize(1);
+        assertThat(result.bidOpening().get(0).targetId()).isEqualTo(100L);
+        assertThat(result.bidOpening().get(0).name()).isEqualTo("项目X");
+    }
+
+    /**
+     * 列表必须按日期升序排列（前端不做排序，依赖后端顺序）。
+     */
+    @Test
+    void deadlineItemsMustBeSortedByDateAscending() {
+        var today = LocalDate.of(2026, 5, 17);
+        when(projectAccessScopeService.currentUserHasGlobalAccess()).thenReturn(true);
+        when(projectAccessScopeService.getAllowedProjectIdsForCurrentUser()).thenReturn(List.of());
+
+        Tender t1 = Tender.builder().id(1L).title("晚")
+                .registrationDeadline(LocalDateTime.of(2026, 5, 20, 10, 0)).build();
+        Tender t2 = Tender.builder().id(2L).title("早")
+                .registrationDeadline(LocalDateTime.of(2026, 5, 12, 10, 0)).build();
+        Tender t3 = Tender.builder().id(3L).title("中")
+                .registrationDeadline(LocalDateTime.of(2026, 5, 15, 10, 0)).build();
+
+        when(tenderRepository.findTendersByRegistrationDeadlineBetween(any(), any()))
+                .thenReturn(List.of(t1, t2, t3)); // 故意乱序
+        when(tenderRepository.findTendersByBidOpeningTimeBetween(any(), any())).thenReturn(List.of());
+        when(feeRepository.findFeesByDepositDeadlineBetween(any(), any())).thenReturn(List.of());
+
+        WorkbenchDeadlineItemsDTO result = service.getDeadlineItems(today, DeadlinePeriod.MONTH);
+
+        assertThat(result.registrationDeadline()).hasSize(3);
+        assertThat(result.registrationDeadline().get(0).name()).isEqualTo("早");
+        assertThat(result.registrationDeadline().get(1).name()).isEqualTo("中");
+        assertThat(result.registrationDeadline().get(2).name()).isEqualTo("晚");
+    }
+
+    /**
+     * period=TODAY 时，查询窗口必须收敛到当天 0:00 - 23:59:59.999999999。
+     */
+    @Test
+    void resolveWindowTodayPeriodProducesCorrectBounds() {
+        var today = LocalDate.of(2026, 5, 17);
+        when(projectAccessScopeService.currentUserHasGlobalAccess()).thenReturn(true);
+        when(projectAccessScopeService.getAllowedProjectIdsForCurrentUser()).thenReturn(List.of());
+        when(tenderRepository.findTendersByRegistrationDeadlineBetween(any(), any())).thenReturn(List.of());
+        when(tenderRepository.findTendersByBidOpeningTimeBetween(any(), any())).thenReturn(List.of());
+        when(feeRepository.findFeesByDepositDeadlineBetween(any(), any())).thenReturn(List.of());
+
+        service.getDeadlineItems(today, DeadlinePeriod.TODAY);
+
+        ArgumentCaptor<LocalDateTime> startCap = ArgumentCaptor.forClass(LocalDateTime.class);
+        ArgumentCaptor<LocalDateTime> endCap = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(tenderRepository).findTendersByRegistrationDeadlineBetween(startCap.capture(), endCap.capture());
+        assertThat(startCap.getValue()).isEqualTo(LocalDateTime.of(2026, 5, 17, 0, 0));
+        assertThat(endCap.getValue()).isEqualTo(LocalDate.of(2026, 5, 17).atTime(java.time.LocalTime.MAX));
+    }
+
+    /**
+     * period=MONTH 时，查询窗口必须覆盖整月。
+     */
+    @Test
+    void resolveWindowMonthPeriodProducesCorrectBounds() {
+        var today = LocalDate.of(2026, 5, 17);
+        when(projectAccessScopeService.currentUserHasGlobalAccess()).thenReturn(true);
+        when(projectAccessScopeService.getAllowedProjectIdsForCurrentUser()).thenReturn(List.of());
+        when(tenderRepository.findTendersByRegistrationDeadlineBetween(any(), any())).thenReturn(List.of());
+        when(tenderRepository.findTendersByBidOpeningTimeBetween(any(), any())).thenReturn(List.of());
+        when(feeRepository.findFeesByDepositDeadlineBetween(any(), any())).thenReturn(List.of());
+
+        service.getDeadlineItems(today, DeadlinePeriod.MONTH);
+
+        ArgumentCaptor<LocalDateTime> startCap = ArgumentCaptor.forClass(LocalDateTime.class);
+        ArgumentCaptor<LocalDateTime> endCap = ArgumentCaptor.forClass(LocalDateTime.class);
+        verify(tenderRepository).findTendersByRegistrationDeadlineBetween(startCap.capture(), endCap.capture());
+        assertThat(startCap.getValue()).isEqualTo(LocalDateTime.of(2026, 5, 1, 0, 0));
+        assertThat(endCap.getValue()).isEqualTo(LocalDate.of(2026, 5, 31).atTime(java.time.LocalTime.MAX));
+    }
+
+    /**
+     * FMEA guard: 非全局角色 allowedTenderIds 超 500 时必须截断后传给 IN 查询。
+     */
+    @Test
+    void deadlineItemsTenderIdsExceedingInClauseLimitMustBeTruncated() {
+        var today = LocalDate.of(2026, 5, 17);
+        when(projectAccessScopeService.currentUserHasGlobalAccess()).thenReturn(false);
+        when(projectAccessScopeService.getAllowedProjectIdsForCurrentUser()).thenReturn(List.of(1L));
+
+        List<Long> hugeTenderIds = java.util.stream.LongStream.rangeClosed(1, 600).boxed().toList();
+        when(projectRepository.findTenderIdsByProjectIds(List.of(1L))).thenReturn(hugeTenderIds);
+        when(tenderRepository.findTendersByRegistrationDeadlineAndTenderIds(any(), any(), any())).thenReturn(List.of());
+        when(tenderRepository.findTendersByBidOpeningTimeAndTenderIds(any(), any(), any())).thenReturn(List.of());
+        when(feeRepository.findFeesByDepositDeadlineAndProjectIds(eq(List.of(1L)), any(), any())).thenReturn(List.of());
+
+        service.getDeadlineItems(today, DeadlinePeriod.WEEK);
+
+        ArgumentCaptor<List<Long>> captor = ArgumentCaptor.forClass(List.class);
+        verify(tenderRepository).findTendersByRegistrationDeadlineAndTenderIds(captor.capture(), any(), any());
+        verify(tenderRepository).findTendersByBidOpeningTimeAndTenderIds(captor.capture(), any(), any());
 
         for (List<Long> captured : captor.getAllValues()) {
             assertThat(captured.size())

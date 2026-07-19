@@ -157,4 +157,52 @@ class WorkbenchDeadlinePolicyTest {
                 .isEqualTo(2);
         assertThat(counts.monthCount()).isEqualTo(2);
     }
+
+    // ==================== CO-593: resolveWindow tests ====================
+
+    @Test
+    @DisplayName("CO-593: resolveWindow(TODAY) 返回当天 0:00 - 23:59:59.999999999")
+    void resolveWindowTodayShouldReturnTodayBounds() {
+        LocalDate today = LocalDate.of(2026, 5, 17);
+
+        WorkbenchDeadlinePolicy.Window window = WorkbenchDeadlinePolicy.resolveWindow(today, DeadlinePeriod.TODAY);
+
+        assertThat(window.start()).isEqualTo(LocalDate.of(2026, 5, 17).atStartOfDay());
+        assertThat(window.end()).isEqualTo(LocalDate.of(2026, 5, 17).atTime(java.time.LocalTime.MAX));
+    }
+
+    @Test
+    @DisplayName("CO-593: resolveWindow(WEEK) 返回本周周一 0:00 - 周日 23:59:59.999999999")
+    void resolveWindowWeekShouldReturnWeekBounds() {
+        // 2026-05-17 是周日 → 周一为 2026-05-11，周日为 2026-05-17
+        LocalDate today = LocalDate.of(2026, 5, 17);
+
+        WorkbenchDeadlinePolicy.Window window = WorkbenchDeadlinePolicy.resolveWindow(today, DeadlinePeriod.WEEK);
+
+        assertThat(window.start()).isEqualTo(LocalDate.of(2026, 5, 11).atStartOfDay());
+        assertThat(window.end()).isEqualTo(LocalDate.of(2026, 5, 17).atTime(java.time.LocalTime.MAX));
+    }
+
+    @Test
+    @DisplayName("CO-593: resolveWindow(MONTH) 返回月初 0:00 - 月末 23:59:59.999999999")
+    void resolveWindowMonthShouldReturnMonthBounds() {
+        LocalDate today = LocalDate.of(2026, 5, 17);
+
+        WorkbenchDeadlinePolicy.Window window = WorkbenchDeadlinePolicy.resolveWindow(today, DeadlinePeriod.MONTH);
+
+        assertThat(window.start()).isEqualTo(LocalDate.of(2026, 5, 1).atStartOfDay());
+        assertThat(window.end()).isEqualTo(LocalDate.of(2026, 5, 31).atTime(java.time.LocalTime.MAX));
+    }
+
+    @Test
+    @DisplayName("CO-593: resolveWindow(WEEK) 跨月边界 — 月初周六 weekStart 落在上月")
+    void resolveWindowWeekShouldSpanMonthBoundaryAtStartOfMonth() {
+        // 2026-08-01 周六 → 周一为 2026-07-27，周日为 2026-08-02
+        LocalDate today = LocalDate.of(2026, 8, 1);
+
+        WorkbenchDeadlinePolicy.Window window = WorkbenchDeadlinePolicy.resolveWindow(today, DeadlinePeriod.WEEK);
+
+        assertThat(window.start()).isEqualTo(LocalDate.of(2026, 7, 27).atStartOfDay());
+        assertThat(window.end()).isEqualTo(LocalDate.of(2026, 8, 2).atTime(java.time.LocalTime.MAX));
+    }
 }
