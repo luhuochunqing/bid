@@ -22,7 +22,6 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Locale;
 
 @Service
 @Slf4j
@@ -106,17 +105,15 @@ class ProjectDocumentWorkflowService {
         // spec 039: 即时归档到项目档案（蓝图 §4.1.1.1 要求：上传时即时按分类归档）。
         // 上提到 createProjectDocument 末尾统一触发，覆盖 multipart 和 OBS 直传 JSON 两条路径。
         // 归档失败 try-catch 不抛出，主流程降级处理（FR-010）。
-        // category 显式兜底为 "OTHER"，避免 null 传入 attachFileToArchive（虽其内部也会兜底，但日志/审计需要非空值）
-        String archiveCategory = savedDocument.getDocumentCategory() != null
-                ? savedDocument.getDocumentCategory()
-                : "OTHER";
+        // file_size 传 0L：project_documents.size 是 VARCHAR（如 "1.5MB"），无法可靠解析回字节，
+        // 与 V1171 历史数据回填行为保持一致（archive_file.file_size 仅展示用，非关键字段）
         try {
             projectArchiveWorkflowService.attachFileToArchive(
                     projectId,
                     savedDocument.getName(),
-                    archiveCategory,
+                    savedDocument.getDocumentCategory(),
                     savedDocument.getFileUrl(),
-                    parseFileSize(savedDocument.getSize()),
+                    0L,
                     savedDocument.getUploaderId(),
                     savedDocument.getUploaderName()
             );
@@ -125,35 +122,6 @@ class ProjectDocumentWorkflowService {
                     projectId, savedDocument.getId(), e.getMessage());
         }
         return projectDocumentViewAssembler.toDto(savedDocument);
-    }
-
-    /**
-     * 解析 project_documents.size 字符串（如 "1.5MB"）为字节数。
-     * spec 039: 归档时需要 file_size 字段，project_documents.size 是 VARCHAR，需解析。
-     * 解析失败返回 0L，避免归档失败。
-     */
-    private long parseFileSize(String size) {
-        if (size == null || size.isBlank()) {
-            return 0L;
-        }
-        String trimmed = size.trim().toUpperCase(Locale.ROOT);
-        try {
-            if (trimmed.endsWith("KB")) {
-                return Long.parseLong(trimmed.substring(0, trimmed.length() - 2).trim()) * 1024L;
-            }
-            if (trimmed.endsWith("MB")) {
-                return Long.parseLong(trimmed.substring(0, trimmed.length() - 2).trim()) * 1024L * 1024L;
-            }
-            if (trimmed.endsWith("GB")) {
-                return Long.parseLong(trimmed.substring(0, trimmed.length() - 2).trim()) * 1024L * 1024L * 1024L;
-            }
-            if (trimmed.endsWith("B")) {
-                return Long.parseLong(trimmed.substring(0, trimmed.length() - 1).trim());
-            }
-            return Long.parseLong(trimmed);
-        } catch (NumberFormatException e) {
-            return 0L;
-        }
     }
 
     void deleteProjectDocument(Long projectId, Long documentId) {

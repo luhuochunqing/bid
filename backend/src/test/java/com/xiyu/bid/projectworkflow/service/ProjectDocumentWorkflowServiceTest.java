@@ -902,7 +902,7 @@ class ProjectDocumentWorkflowServiceTest {
                 eq("投标文件.pdf"),
                 eq("BID"),
                 eq("obs-direct:abc123"),
-                eq(2L * 1024L * 1024L),
+                eq(0L),
                 eq(500L),
                 eq("王工")
         );
@@ -932,7 +932,9 @@ class ProjectDocumentWorkflowServiceTest {
 
     @Test
     void createProjectDocument_ShouldFallbackToOtherWhenCategoryNull() {
-        // documentCategory=null 归一化为 OTHER 后传给 attachFileToArchive
+        // documentCategory=null 时，createProjectDocument 把 null 传给 attachFileToArchive
+        // attachFileToArchive 内部会兜底为 OTHER（DocumentCategoryNormalizer.normalize(null) 返回 null，
+        // 再由 ProjectArchiveWorkflowService 显式兜底为 "OTHER"），无需外层重复兜底
         when(projectDocumentRepository.save(any(ProjectDocument.class))).thenAnswer(invocation -> {
             ProjectDocument document = invocation.getArgument(0);
             document.setId(3503L);
@@ -946,7 +948,7 @@ class ProjectDocumentWorkflowServiceTest {
                 .build());
 
         verify(projectArchiveWorkflowService).attachFileToArchive(
-                eq(1001L), eq("其他文档.pdf"), eq("OTHER"), eq("obs-direct:ghi789"),
+                eq(1001L), eq("其他文档.pdf"), eq(null), eq("obs-direct:ghi789"),
                 any(), any(), any()
         );
     }
