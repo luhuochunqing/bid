@@ -12,7 +12,7 @@ backlinks:
   - design-system
 created: 2026-07-10
 updated: 2026-07-10
-health_checked: 2026-07-10
+health_checked: 2026-07-19
 ---
 # 前端 Vue3 / Element Plus 陷阱集
 

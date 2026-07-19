@@ -13,7 +13,7 @@ backlinks:
   - docinsight-engine
 created: 2026-07-10
 updated: 2026-07-10
-health_checked: 2026-07-10
+health_checked: 2026-07-19
 ---
 # AI Provider 配置与陷阱指南
 

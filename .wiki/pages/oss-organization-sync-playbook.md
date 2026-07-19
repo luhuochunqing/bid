@@ -18,7 +18,7 @@ backlinks:
   - production-deployment-lessons
 created: 2026-07-09
 updated: 2026-07-09
-health_checked: 2026-07-09
+health_checked: 2026-07-19
 ---
 # OSS 组织架构同步实战手册
 
