@@ -82,4 +82,14 @@ public interface FeeRepository extends JpaRepository<Fee, Long> {
     /** 按项目ID过滤保证金缴纳截止日期（非 Admin 用） */
     @Query("SELECT f.feeDate FROM Fee f WHERE f.feeType = 'BID_BOND' AND f.status = 'PENDING' AND f.projectId IN :projectIds AND f.feeDate BETWEEN :start AND :end")
     List<LocalDateTime> findDepositDeadlinesByProjectIds(@Param("projectIds") Collection<Long> projectIds, @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    // === CO-593: Workbench deadline items (return entities, not just timestamps) ===
+
+    /** 全量保证金截止 Fee 实体（全局管理角色用，CO-593） */
+    @Query("SELECT f FROM Fee f WHERE f.feeType = 'BID_BOND' AND f.status = 'PENDING' AND f.feeDate BETWEEN :start AND :end")
+    List<Fee> findFeesByDepositDeadlineBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    /** 按项目ID过滤保证金截止 Fee 实体（非全局角色用，CO-593） */
+    @Query("SELECT f FROM Fee f WHERE f.feeType = 'BID_BOND' AND f.status = 'PENDING' AND f.projectId IN :projectIds AND f.feeDate BETWEEN :start AND :end")
+    List<Fee> findFeesByDepositDeadlineAndProjectIds(@Param("projectIds") Collection<Long> projectIds, @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 }

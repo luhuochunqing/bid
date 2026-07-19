@@ -18,6 +18,9 @@ public class WorkbenchDeadlinePolicy {
             LocalDateTime monthStart, LocalDateTime monthEnd
     ) {}
 
+    /** 单窗口起止边界（CO-593：按 period 返回单个时间窗） */
+    public record Window(LocalDateTime start, LocalDateTime end) {}
+
     public record WindowCounts(long todayCount, long weekCount, long monthCount) {
         public static final WindowCounts ZERO = new WindowCounts(0, 0, 0);
     }
@@ -29,6 +32,20 @@ public class WorkbenchDeadlinePolicy {
             DeadlineTypeStats bidOpening,
             DeadlineTypeStats depositDeadline
     ) {}
+
+    /**
+     * 按 period 解析单个时间窗（CO-593）。
+     *
+     * <p>复用 {@link #computeTimeWindows} 内部逻辑，仅返回所选周期的起止边界。</p>
+     */
+    public static Window resolveWindow(LocalDate today, DeadlinePeriod period) {
+        TimeWindowBounds bounds = computeTimeWindows(today);
+        return switch (period) {
+            case TODAY -> new Window(bounds.todayStart(), bounds.todayEnd());
+            case WEEK -> new Window(bounds.weekStart(), bounds.weekEnd());
+            case MONTH -> new Window(bounds.monthStart(), bounds.monthEnd());
+        };
+    }
 
     public static TimeWindowBounds computeTimeWindows(LocalDate today) {
         LocalDateTime todayStart = today.atStartOfDay();
