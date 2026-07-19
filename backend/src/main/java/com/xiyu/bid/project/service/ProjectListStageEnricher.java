@@ -1,6 +1,7 @@
 // Input: projectIds / ProjectDTO / stage / submitted / userMap
 // Output: 批量加载并回填列表 4 列（标书审核人 / 评标结果 / 服务周期 / bidStatus）
 // Pos: project/service/ - 列表 enrichment 辅助组件
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.entity.User;
