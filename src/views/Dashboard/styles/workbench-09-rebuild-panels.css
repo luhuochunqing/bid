@@ -95,7 +95,8 @@
 }
 .deadline-panel-body {
   padding: 0.5rem 0;
-  max-height: 240px;
+  /* CO-593: 每模块显示 4 条数据，超出滚动（对齐第一部分待办卡片 max-height） */
+  max-height: 168px;
   overflow-y: auto;
 }
 .deadline-panel-body::-webkit-scrollbar { width: 4px; }
@@ -123,6 +124,7 @@
   font-size: 0.75rem;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 .deadline-row .countdown {
   font-size: 0.72rem;

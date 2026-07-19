@@ -1,5 +1,5 @@
 <!-- Input: panels (signup/opening/deposit) / loading / activePeriod
-Output: 截止时间卡片（Tab 切换 + 3 列列表 + 倒计时），点行进项目详情
+Output: 截止时间卡片（Tab 切换 + 3 列列表），点行进标讯/项目详情
 Pos: src/views/Dashboard/components/ - 工作台改造组件
 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。 -->
 <template>

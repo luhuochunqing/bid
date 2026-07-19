@@ -104,3 +104,50 @@ function buildMetrics(defs, deadlineStats) {
     }
   })
 }
+
+// ==================== CO-593: Deadline items (list data) ====================
+
+/**
+ * Normalize raw API deadline items response into clean object.
+ *
+ * 后端 DTO: WorkbenchDeadlineItemsDTO { registrationDeadline, bidOpening, depositDeadline }
+ * 每个条目: { id, name, date(yyyy-MM-dd), targetId, targetType('tender'|'project') }
+ */
+export function normalizeDeadlineItems(raw = {}) {
+  return {
+    registrationDeadline: normalizeItemList(raw.registrationDeadline),
+    bidOpening: normalizeItemList(raw.bidOpening),
+    depositDeadline: normalizeItemList(raw.depositDeadline),
+  }
+}
+
+function normalizeItemList(list) {
+  if (!Array.isArray(list)) return []
+  return list.map((item) => ({
+    id: item?.id ?? null,
+    name: String(item?.name ?? ''),
+    date: String(item?.date ?? ''),
+    targetId: item?.targetId ?? null,
+    targetType: item?.targetType === 'tender' ? 'tender' : 'project',
+  }))
+}
+
+/**
+ * Build deadline panels object for DeadlinePanels.vue from normalized API items.
+ *
+ * 后端字段 → UI 列 key 映射：
+ * - registrationDeadline → signup（报名截止，红色 dot）
+ * - bidOpening → opening（开标时间，绿色 dot）
+ * - depositDeadline → deposit（保证金截止，黄色 dot）
+ *
+ * @param {object} items normalizeDeadlineItems 返回值
+ * @returns {{signup: Array, opening: Array, deposit: Array}}
+ */
+export function buildDeadlinePanelsFromItems(items = {}) {
+  const safe = items || {}
+  return {
+    signup: Array.isArray(safe.registrationDeadline) ? safe.registrationDeadline : [],
+    opening: Array.isArray(safe.bidOpening) ? safe.bidOpening : [],
+    deposit: Array.isArray(safe.depositDeadline) ? safe.depositDeadline : [],
+  }
+}

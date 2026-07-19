@@ -1,5 +1,5 @@
 <!-- Input: title / panelClass / items
-Output: 截止时间单列（报名截止/开标/保证金），含计数与列表行
+Output: 截止时间单列（报名截止/开标/保证金），固定列宽 + 名称省略 + YYYY-MM-DD 日期，4 条可见 + 滚动
 Pos: src/views/Dashboard/components/ - 工作台改造组件
 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。 -->
 <template>
@@ -11,7 +11,7 @@ Pos: src/views/Dashboard/components/ - 工作台改造组件
     <div class="deadline-panel-body">
       <div
         v-for="item in items"
-        :key="`${item.projectId}-${item.name}`"
+        :key="`${item.targetType}-${item.id}`"
         class="deadline-row"
         role="button"
         tabindex="0"
@@ -20,7 +20,6 @@ Pos: src/views/Dashboard/components/ - 工作台改造组件
       >
         <span class="name" :title="item.name">{{ item.name }}</span>
         <span class="date">{{ item.date }}</span>
-        <span class="countdown" :class="item.countdownCls">{{ item.countdown }}</span>
       </div>
       <div class="deadline-panel-empty" v-if="items.length === 0">暂无相关截止时间</div>
     </div>

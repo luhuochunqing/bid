@@ -45,6 +45,21 @@ export const workbenchApi = {
       data: response?.data || {},
     }
   },
+
+  /**
+   * CO-593: 工作台截止时间模块列表数据。
+   * @param {string} period 时间筛选：today / week / month（默认 week）
+   * @returns {Promise<{success: boolean, data: object}>}
+   */
+  async getDeadlineItems(period = 'week') {
+    const response = await httpClient.get('/api/workbench/deadline-items', {
+      params: { period },
+    })
+    return {
+      success: response?.success === true,
+      data: response?.data || {},
+    }
+  },
 }
 
 export default workbenchApi

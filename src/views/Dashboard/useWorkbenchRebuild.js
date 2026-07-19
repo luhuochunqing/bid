@@ -1,10 +1,10 @@
 // Input: priorityTodos/hotTenders/activeProjects/pendingApprovals/deadlineStats/visibleCalendarEvents/menuPermissions/currentUser
-// Output: 工作台改造区块的状态与派生数据（greeting/permissions/welcomeStats/todoCategoryCards/deadlinePanels/calendarPermissions/handlers）
+// Output: 工作台改造区块的状态与派生数据（greeting/permissions/welcomeStats/todoCategoryCards/calendarPermissions/handlers）
 // Pos: src/views/Dashboard/ - Dashboard feature composables
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 import { computed, ref } from 'vue'
-import { buildTodoCategoryCards, buildDeadlinePanels, buildWelcomeStats } from '@/views/Dashboard/workbench-rebuild-core.js'
+import { buildTodoCategoryCards, buildWelcomeStats } from '@/views/Dashboard/workbench-rebuild-core.js'
 import { getTimeGreeting } from '@/views/Dashboard/workbench-utils.js'
 import { navigateToProject } from '@/utils/projectNavigation.js'
 import { hasAnyPermission } from '@/utils/permission'
@@ -16,7 +16,6 @@ export function useWorkbenchRebuild({
   activeProjectsRef,
   pendingApprovalsRef,
   deadlineStatsRef,
-  visibleCalendarEventsRef,
   menuPermissionsRef,
   currentUserRef,
   router,
@@ -64,11 +63,6 @@ export function useWorkbenchRebuild({
     pendingApprovals: pendingApprovalsRef?.value || [],
   }))
 
-  const deadlinePanels = computed(() => buildDeadlinePanels(
-    visibleCalendarEventsRef?.value || [],
-    deadlinePeriod.value,
-  ))
-
   function handleWelcomeStatClick(stat) {
     if (stat.label === '待办任务') router.push('/project?tab=todo')
     else if (stat.label === '待办项目') router.push('/project')
@@ -83,6 +77,19 @@ export function useWorkbenchRebuild({
   }
 
   function handleDeadlineRowClick(row) {
+    // CO-593: targetType 决定跳转目标
+    // - tender → 标讯详情 /bidding/:id
+    // - project → 项目详情（navigateToProject 统一入口）
+    if (!row) return
+    if (row.targetType === 'tender' && row.targetId) {
+      router.push(`/bidding/${row.targetId}`)
+      return
+    }
+    if (row.targetType === 'project' && row.targetId) {
+      navigateToProject(router, String(row.targetId))
+      return
+    }
+    // 兼容旧版字段（projectId），无 targetType 时按项目跳转
     if (row.projectId) {
       navigateToProject(router, String(row.projectId))
     }
@@ -94,7 +101,6 @@ export function useWorkbenchRebuild({
     permissions,
     welcomeStats,
     todoCategoryCards,
-    deadlinePanels,
     handleWelcomeStatClick,
     handleTodoCardClick,
     handleDeadlineRowClick,

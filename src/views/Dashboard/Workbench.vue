@@ -16,11 +16,11 @@
       @item-click="handleTodoCardClick"
     />
 
-    <!-- 第 3 部分：截止时间（Tab + 3 列 + 倒计时） -->
+    <!-- 第 3 部分：截止时间（Tab + 3 列列表，按 period 拉真实数据） -->
     <DeadlinePanels
       v-model:active-period="deadlinePeriod"
       :panels="deadlinePanels"
-      :loading="deadlineMetricsLoading"
+      :loading="deadlineItemsLoading"
       @row-click="handleDeadlineRowClick"
     />
 
@@ -140,7 +140,7 @@ const {
   icons: Icons, menuPermissionsRef: computed(() => userStore.menuPermissions),
 })
 
-const { deadlineStats, deadlineMetrics, deadlineMetricsLoading, deadlineMetricsError, loadDeadlineStats } = useWorkbenchDeadline({ menuPermissionsRef: computed(() => userStore.menuPermissions) })
+const { deadlineStats, deadlineMetrics, deadlineMetricsError, loadDeadlineStats, deadlineItemsLoading, deadlinePanels, loadDeadlineItems } = useWorkbenchDeadline({ menuPermissionsRef: computed(() => userStore.menuPermissions) })
 const bannerSubtitle = computed(() => `今天是${currentDate.value}，欢迎回到工作台`)
 
 const {
@@ -166,7 +166,6 @@ const {
 
 const {
   greeting, deadlinePeriod, permissions, welcomeStats, todoCategoryCards,
-  deadlinePanels,
   handleWelcomeStatClick, handleTodoCardClick, handleDeadlineRowClick,
 } = useWorkbenchRebuild({
   priorityTodosRef: priorityTodos,
@@ -174,7 +173,6 @@ const {
   activeProjectsRef: activeProjects,
   pendingApprovalsRef: pendingApprovals,
   deadlineStatsRef: deadlineStats,
-  visibleCalendarEventsRef: visibleCalendarEvents,
   menuPermissionsRef: computed(() => userStore.menuPermissions),
   currentUserRef: computed(() => userStore.currentUser),
   router,
@@ -341,6 +339,8 @@ watch(calendarMonthKey, async (current, previous) => {
   await loadScheduleOverview()
   syncSelectedDate()
 })
+
+watch(deadlinePeriod, (p) => loadDeadlineItems(p || 'week'), { immediate: true }) // CO-593: 截止时间 Tab 切换 + 初始加载
 </script>
 
 <script>
