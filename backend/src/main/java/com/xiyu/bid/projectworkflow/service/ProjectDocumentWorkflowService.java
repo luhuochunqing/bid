@@ -28,6 +28,10 @@ import java.util.List;
 @RequiredArgsConstructor
 class ProjectDocumentWorkflowService {
 
+    // spec 039: project_documents.size 是 VARCHAR（如 "1.5MB"），无法可靠解析回字节，
+    // 归档时 file_size 传此常量，与 V1171 历史回填行为一致。archive_file.file_size 仅展示用。
+    private static final long ARCHIVE_FILE_SIZE_UNKNOWN = 0L;
+
     private final ProjectWorkflowGuardService guardService;
     private final ProjectDocumentRepository projectDocumentRepository;
     private final UserRepository userRepository;
@@ -105,15 +109,13 @@ class ProjectDocumentWorkflowService {
         // spec 039: 即时归档到项目档案（蓝图 §4.1.1.1 要求：上传时即时按分类归档）。
         // 上提到 createProjectDocument 末尾统一触发，覆盖 multipart 和 OBS 直传 JSON 两条路径。
         // 归档失败 try-catch 不抛出，主流程降级处理（FR-010）。
-        // file_size 传 0L：project_documents.size 是 VARCHAR（如 "1.5MB"），无法可靠解析回字节，
-        // 与 V1171 历史数据回填行为保持一致（archive_file.file_size 仅展示用，非关键字段）
         try {
             projectArchiveWorkflowService.attachFileToArchive(
                     projectId,
                     savedDocument.getName(),
                     savedDocument.getDocumentCategory(),
                     savedDocument.getFileUrl(),
-                    0L,
+                    ARCHIVE_FILE_SIZE_UNKNOWN,
                     savedDocument.getUploaderId(),
                     savedDocument.getUploaderName()
             );

@@ -902,7 +902,7 @@ class ProjectDocumentWorkflowServiceTest {
                 eq("投标文件.pdf"),
                 eq("BID"),
                 eq("obs-direct:abc123"),
-                eq(0L),
+                eq(0L),  // ARCHIVE_FILE_SIZE_UNKNOWN
                 eq(500L),
                 eq("王工")
         );
