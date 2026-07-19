@@ -9,11 +9,8 @@ import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.dto.ProjectDTO;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.project.entity.ProjectLeadAssignment;
-import com.xiyu.bid.project.entity.ProjectResult;
-import com.xiyu.bid.project.repository.ProjectEvaluationRepository;
 import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
-import com.xiyu.bid.project.repository.ProjectResultRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
@@ -62,12 +59,8 @@ public class ProjectQueryService {
     /** User repo for resolving lead user ids to names. */
     private final UserRepository userRepository;
 
-    /** Evaluation repo for sub-stage in EVALUATING stage. */
-    private final ProjectEvaluationRepository
-            projectEvaluationRepository;
-
-    /** Project result repo for bidStatus computation. */
-    private final ProjectResultRepository projectResultRepository;
+    /** CO-591: stage 相关 4 列 enrichment（标书审核人 / 评标结果 / 服务周期 / bidStatus）。 */
+    private final ProjectListStageEnricher stageEnricher;
 
     /** Demo mode toggles and data for e2e tests. */
     private final DemoModeService demoModeService;
@@ -143,6 +136,9 @@ public class ProjectQueryService {
                                 Function.identity(),
                                 (a, b) -> a));
 
+        // CO-591: stage 相关 4 列上下文（标书审核 / 评标 / 服务周期 / bidStatus 用的 resultType）一次性批量加载
+        ProjectListStageEnricher.Context stageCtx = stageEnricher.loadContext(ids);
+
         // CO-551: Batch-fetch user names for secondary lead resolution
         Set<Long> leadUserIds = leadAssignmentMap.values().stream()
                 .flatMap(a -> Stream.of(
@@ -155,9 +151,15 @@ public class ProjectQueryService {
                 .map(ProjectDTO::getManagerId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
+        // CO-591: 标书审核人姓名解析所需的 reviewer 用户 ID（合并到统一 userMap 减 DB round-trip）
+        Set<Long> reviewerIds = stageEnricher.collectReviewerIds(stageCtx);
 
-        // 合并 secondary lead 姓名查询与 manager 部门查询，减少一次 DB round-trip。
-        Set<Long> allUserIds = Stream.concat(leadUserIds.stream(), managerIds.stream())
+        // 合并 secondary lead 姓名查询、manager 部门查询与 reviewer 姓名查询，减少 DB round-trip。
+        Set<Long> allUserIds = Stream.of(
+                        leadUserIds.stream(),
+                        managerIds.stream(),
+                        reviewerIds.stream())
+                .flatMap(s -> s)
                 .collect(Collectors.toSet());
         Map<Long, User> userMap = allUserIds.isEmpty()
                 ? java.util.Collections.emptyMap()
@@ -187,13 +189,6 @@ public class ProjectQueryService {
                 : tenderEvaluationRepository.findByTenderIdIn(tenderIds).stream()
                         .collect(Collectors.toMap(TenderEvaluation::getTenderId, Function.identity(),
                                 (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
-
-        // Batch-fetch project results for bidStatus computation
-        Map<Long, String> projectResultMap = projectResultRepository
-                .findByProjectIdIn(projects.stream().map(ProjectDTO::getId).collect(Collectors.toList()))
-                .stream()
-                .collect(Collectors.toMap(ProjectResult::getProjectId, ProjectResult::getResultType,
-                        (a, b) -> a)); // CO-027: merge function 防止 Duplicate key 异常
 
         for (ProjectDTO dto : projects) {
             ProjectInitiationDetails det =
@@ -257,21 +252,8 @@ public class ProjectQueryService {
 
             ProjectStage stage = ProjectListEnrichmentSupport.resolveStage(dto.getStage());
             boolean submitted = ProjectListEnrichmentSupport.isInitiationSubmitted(det);
-            // Populate bidResultStatus from the actual project result (project_result table),
-            // not from ProjectInitiationDetails.bid_result_status (which may be NULL).
-            // This ensures bidStatus reflects the real result type after result registration.
-            String bidResult = projectResultMap.getOrDefault(dto.getId(), dto.getBidResultStatus());
-            dto.setBidStatus(ProjectListEnrichmentSupport.computeBidStatus(
-                    stage,
-                    bidResult,
-                    submitted));
-
-            if (stage == ProjectStage.EVALUATING) {
-                projectEvaluationRepository
-                        .findByProjectId(dto.getId())
-                        .ifPresent(ev -> dto.setEvaluationSubStage(
-                                ev.getSubStage()));
-            }
+            // CO-591: 标书审核人 / 评标结果 / 服务周期 / bidStatus 一并由 stageEnricher 回填
+            stageEnricher.populate(dto, stageCtx, stage, submitted, userMap);
 
             // 项目负责人部门为空时，从项目 managerId 反查用户部门兜底回填
             if (StringUtils.isBlank(dto.getLeaderDepartment()) && dto.getManagerId() != null) {

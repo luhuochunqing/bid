@@ -94,6 +94,13 @@ public class ProjectExportService {
             "B", "B级",
             "C", "C级");
 
+    /** CO-591: 评标结果 evaluationSubStage → 中文（同前端 EvaluationStatusPanel.vue SUB_STAGE_LABELS）。 */
+    private static final Map<String, String> EVALUATION_SUB_STAGE_LABELS = Map.of(
+            "IN_PROGRESS", "评标中",
+            "AWAITING_BOARD", "评标结果已出，待上会",
+            "RESULT_OUT", "评标结果已出",
+            "ANNOUNCED", "评标结果公示");
+
     public ExportResult exportProjectsAsExcel(
             List<Long> ids, String status, String name, String ownerUnit, String projectType,
             String customerType, String priority, String sourceModule, String bidStatus,
@@ -169,12 +176,16 @@ public class ProjectExportService {
             all = all.subList(0, MAX_EXPORT_ROWS);
         }
 
-        // ── 列定义：与前端 List.vue 表格列完全对齐（19 列，不含序号/选择列）──
+        // ── 列定义：与前端 List.vue 表格列完全对齐（23 列，不含序号/选择列）──
+        // CO-591: 新增 4 列（项目服务周期（年）、服务周期截止时间、标书审核人、评标结果）
         String[] cols = {
                 "项目名称", "项目状态", "来源平台", "招标主体", "计划入围供应商数量",
-                "创建时间", "开标时间", "投标月份", "项目类型", "客户营收（亿）",
+                "创建时间", "开标时间", "投标月份",
+                "项目服务周期（年）", "服务周期截止时间",
+                "项目类型", "客户营收（亿）",
                 "客户类型", "优先级", "总部所在地", "项目负责人", "项目负责人部门",
-                "投标负责人", "投标辅助人员", "项目阶段", "投标平台"
+                "投标负责人", "投标辅助人员", "标书审核人",
+                "项目阶段", "评标结果", "投标平台"
         };
 
         var wb = new XSSFWorkbook();
@@ -195,6 +206,8 @@ public class ProjectExportService {
             row.createCell(c++).setCellValue(p.getCreatedAt() != null ? p.getCreatedAt().format(df) : "");
             row.createCell(c++).setCellValue(p.getBidOpenTime() != null ? p.getBidOpenTime().format(df) : "");
             row.createCell(c++).setCellValue(coalesce(p.getBidMonth()));
+            row.createCell(c++).setCellValue(p.getServicePeriodYears() != null ? p.getServicePeriodYears().toPlainString() : "");
+            row.createCell(c++).setCellValue(p.getServicePeriodEndDate() != null ? p.getServicePeriodEndDate().toString() : "");
             row.createCell(c++).setCellValue(mapOrOriginal(PROJECT_TYPE_LABELS, p.getProjectType()));
             row.createCell(c++).setCellValue(formatRevenue(p.getRevenue()));
             row.createCell(c++).setCellValue(mapOrOriginal(CUSTOMER_TYPE_LABELS, p.getCustomerType()));
@@ -204,7 +217,9 @@ public class ProjectExportService {
             row.createCell(c++).setCellValue(coalesce(p.getLeaderDepartment()));
             row.createCell(c++).setCellValue(coalesce(p.getBiddingLeaderName()));
             row.createCell(c++).setCellValue(coalesce(p.getSecondaryBiddingLeaderName()));
+            row.createCell(c++).setCellValue(coalesce(p.getBidReviewers()));
             row.createCell(c++).setCellValue(mapOrOriginal(STAGE_LABELS, p.getStage()));
+            row.createCell(c++).setCellValue(mapOrOriginal(EVALUATION_SUB_STAGE_LABELS, p.getEvaluationSubStage()));
             row.createCell(c).setCellValue(coalesce(p.getBiddingPlatform()));
         }
 

@@ -97,4 +97,12 @@ public class ProjectDTO {
     private String biddingPlatform;
     /** 评标子状态（仅当 stage=EVALUATING 时有值） */
     private String evaluationSubStage;
+
+    /* ===== CO-591 列表新增 4 列 ===== */
+    /** CO-591: 项目服务周期（年），取值来自结果确认阶段 ProjectResult.servicePeriodYears */
+    private BigDecimal servicePeriodYears;
+    /** CO-591: 服务周期截止时间，取值来自结果确认阶段 ProjectResult.servicePeriodEndDate */
+    private LocalDate servicePeriodEndDate;
+    /** CO-591: 标书审核人姓名（多人用 / 分隔），取值来自标书制作阶段 bid_review_assignment */
+    private String bidReviewers;
 }

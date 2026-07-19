@@ -8,9 +8,14 @@ import com.xiyu.bid.project.entity.ProjectEvaluation;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface ProjectEvaluationRepository extends JpaRepository<ProjectEvaluation, Long> {
     Optional<ProjectEvaluation> findByProjectId(Long projectId);
+
+    /** CO-591: 批量查询项目评标记录，用于列表展示评标结果（subStage）。 */
+    List<ProjectEvaluation> findByProjectIdIn(Collection<Long> projectIds);
 }

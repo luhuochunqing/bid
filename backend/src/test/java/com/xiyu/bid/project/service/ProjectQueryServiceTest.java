@@ -4,10 +4,8 @@ import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.project.dto.ProjectDTO;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
-import com.xiyu.bid.project.repository.ProjectEvaluationRepository;
 import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
-import com.xiyu.bid.project.repository.ProjectResultRepository;
 import com.xiyu.bid.demo.service.DemoDataProvider;
 import com.xiyu.bid.demo.service.DemoFusionService;
 import com.xiyu.bid.demo.service.DemoModeService;
@@ -16,6 +14,7 @@ import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,6 +29,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -50,9 +50,7 @@ class ProjectQueryServiceTest {
     @Mock
     private UserRepository userRepository;
     @Mock
-    private ProjectEvaluationRepository projectEvaluationRepository;
-    @Mock
-    private ProjectResultRepository projectResultRepository;
+    private ProjectListStageEnricher stageEnricher;
     @Mock
     private DemoModeService demoModeService;
     @Mock
@@ -61,6 +59,17 @@ class ProjectQueryServiceTest {
     private DemoFusionService demoFusionService;
     @Mock
     private ProjectManagerDepartmentEnricher managerDepartmentEnricher;
+
+    @BeforeEach
+    void stubStageEnricherDefaults() {
+        // CO-591: stageEnricher 已抽出 4 列 enrichment，这里 stub 成空上下文，
+        // 让 ProjectQueryService 的循环不会因为 enricher 返回 null 而 NPE。
+        // 用 lenient 是因为 enrichSingle_shouldDoNothing_whenDtoIsNullOrNullId 不会真正进入 enrich 流程。
+        lenient().when(stageEnricher.loadContext(any()))
+                .thenReturn(ProjectListStageEnricher.Context.empty());
+        lenient().when(stageEnricher.collectReviewerIds(any()))
+                .thenReturn(Set.of());
+    }
 
     private ProjectQueryService createService() {
         return new ProjectQueryService(
@@ -71,8 +80,7 @@ class ProjectQueryServiceTest {
                 projectInitiationDetailsRepository,
                 projectLeadAssignmentRepository,
                 userRepository,
-                projectEvaluationRepository,
-                projectResultRepository,
+                stageEnricher,
                 demoModeService,
                 demoDataProvider,
                 demoFusionService,
@@ -105,7 +113,6 @@ class ProjectQueryServiceTest {
                 .thenReturn(List.of(details));
         when(projectLeadAssignmentRepository.findByProjectIdIn(List.of(1L)))
                 .thenReturn(List.of());
-        when(projectResultRepository.findByProjectIdIn(any())).thenReturn(List.of());
 
         User manager = new User();
         manager.setId(99L);
@@ -139,7 +146,6 @@ class ProjectQueryServiceTest {
                 .thenReturn(List.of(details));
         when(projectLeadAssignmentRepository.findByProjectIdIn(List.of(1L)))
                 .thenReturn(List.of());
-        when(projectResultRepository.findByProjectIdIn(any())).thenReturn(List.of());
 
         User manager = new User();
         manager.setId(99L);
@@ -171,7 +177,6 @@ class ProjectQueryServiceTest {
                 .thenReturn(List.of(details));
         when(projectLeadAssignmentRepository.findByProjectIdIn(List.of(1L)))
                 .thenReturn(List.of());
-        when(projectResultRepository.findByProjectIdIn(any())).thenReturn(List.of());
 
         User manager = new User();
         manager.setId(99L);
@@ -209,7 +214,6 @@ class ProjectQueryServiceTest {
                         .build();
         when(projectLeadAssignmentRepository.findByProjectIdIn(List.of(1L)))
                 .thenReturn(List.of(assignment));
-        when(projectResultRepository.findByProjectIdIn(any())).thenReturn(List.of());
 
         User secondaryUser = new User();
         secondaryUser.setId(20L);
@@ -240,7 +244,6 @@ class ProjectQueryServiceTest {
                 .thenReturn(List.of(details));
         when(projectLeadAssignmentRepository.findByProjectIdIn(List.of(2L)))
                 .thenReturn(List.of());
-        when(projectResultRepository.findByProjectIdIn(any())).thenReturn(List.of());
         when(userRepository.findByIdIn(Set.of(99L)))
                 .thenReturn(List.of());
         when(managerDepartmentEnricher.buildManagerDepartmentMap(eq(Set.of(99L)), any()))

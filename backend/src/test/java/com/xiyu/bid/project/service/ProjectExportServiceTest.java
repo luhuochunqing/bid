@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -24,8 +25,9 @@ import static org.mockito.Mockito.when;
  * CO-553: 项目列表导出表格与系统显示一致性单测。
  *
  * 验证点：
- * 1. 列定义与前端 List.vue 表格 19 列完全对齐（表头完整）。
- * 2. 枚举字段（项目状态/项目类型/客户类型/优先级/项目阶段/来源平台）输出中文，不输出英文枚举名。
+ * 1. 列定义与前端 List.vue 表格 23 列完全对齐（表头完整）。
+ *    CO-591 在原 19 列基础上新增：项目服务周期（年）/服务周期截止时间/标书审核人/评标结果。
+ * 2. 枚举字段（项目状态/项目类型/客户类型/优先级/项目阶段/来源平台/评标结果）输出中文，不输出英文枚举名。
  * 3. 已移除前端无对应列的"客户等级"和"中标状态"。
  * 4. revenue 格式化为 2 位小数（与前端 toFixed(2) 一致）。
  * 5. 数据源复用 ProjectQueryService（与列表接口同源）。
@@ -44,7 +46,7 @@ class ProjectExportServiceTest {
     }
 
     @Test
-    void exportProjectsAsExcel_shouldHave19ColumnsMatchingFrontendTable() throws Exception {
+    void exportProjectsAsExcel_shouldHave23ColumnsMatchingFrontendTable() throws Exception {
         when(projectQueryService.getAllProjects()).thenReturn(List.of(buildSampleDTO()));
 
         var result = exportService.exportProjectsAsExcel(
@@ -55,15 +57,18 @@ class ProjectExportServiceTest {
             XSSFSheet sheet = wb.getSheetAt(0);
             XSSFRow header = sheet.getRow(0);
 
-            // CO-553: 19 列，与前端 List.vue 表格列完全对齐（不含序号/选择列）
-            assertThat(header.getLastCellNum()).isEqualTo((short) 19);
+            // CO-591: 23 列，与前端 List.vue 表格列完全对齐（不含序号/选择列）
+            assertThat(header.getLastCellNum()).isEqualTo((short) 23);
 
-            List<String> headers = readRow(header, 19);
+            List<String> headers = readRow(header, 23);
             assertThat(headers).containsExactly(
                     "项目名称", "项目状态", "来源平台", "招标主体", "计划入围供应商数量",
-                    "创建时间", "开标时间", "投标月份", "项目类型", "客户营收（亿）",
+                    "创建时间", "开标时间", "投标月份",
+                    "项目服务周期（年）", "服务周期截止时间",
+                    "项目类型", "客户营收（亿）",
                     "客户类型", "优先级", "总部所在地", "项目负责人", "项目负责人部门",
-                    "投标负责人", "投标辅助人员", "项目阶段", "投标平台");
+                    "投标负责人", "投标辅助人员", "标书审核人",
+                    "项目阶段", "评标结果", "投标平台");
 
             // 已移除前端无对应列的"客户等级"和"中标状态"
             assertThat(headers).doesNotContain("客户等级", "中标状态", "业主单位", "入围家数", "投标状态");
@@ -81,24 +86,30 @@ class ProjectExportServiceTest {
         try (var wb = readWorkbook(result)) {
             XSSFSheet sheet = wb.getSheetAt(0);
             XSSFRow dataRow = sheet.getRow(1);
-            List<String> cells = readRow(dataRow, 19);
+            List<String> cells = readRow(dataRow, 23);
 
             // 枚举字段必须输出中文，不能是英文枚举名
             assertThat(cells.get(1)).isEqualTo("已立项");          // bidStatus=INITIATED
             assertThat(cells.get(2)).isEqualTo("CRM创建");         // sourceModule=CRM_OPPORTUNITY
-            assertThat(cells.get(8)).isEqualTo("办公");             // projectType=OFFICE
-            assertThat(cells.get(10)).isEqualTo("央企");            // customerType=CENTRAL_SOE
-            assertThat(cells.get(11)).isEqualTo("S级");             // priority=S
-            assertThat(cells.get(17)).isEqualTo("项目立项");         // stage=INITIATED
+            assertThat(cells.get(10)).isEqualTo("办公");            // projectType=OFFICE
+            assertThat(cells.get(12)).isEqualTo("央企");            // customerType=CENTRAL_SOE
+            assertThat(cells.get(13)).isEqualTo("S级");             // priority=S
+            assertThat(cells.get(20)).isEqualTo("项目立项");         // stage=INITIATED
+            assertThat(cells.get(21)).isEqualTo("评标结果已出");     // evaluationSubStage=RESULT_OUT (CO-591)
 
             // 非枚举字段保持原值
             assertThat(cells.get(0)).isEqualTo("测试项目");
             assertThat(cells.get(3)).isEqualTo("某招标主体");
-            assertThat(cells.get(13)).isEqualTo("张三");   // 项目负责人
-            assertThat(cells.get(15)).isEqualTo("李四");   // 投标负责人
+            assertThat(cells.get(15)).isEqualTo("张三");   // 项目负责人
+            assertThat(cells.get(17)).isEqualTo("李四");   // 投标负责人
 
             // revenue 格式化为 2 位小数
-            assertThat(cells.get(9)).isEqualTo("12.50");
+            assertThat(cells.get(11)).isEqualTo("12.50");
+
+            // CO-591 新增 4 列
+            assertThat(cells.get(8)).isEqualTo("3");              // servicePeriodYears
+            assertThat(cells.get(9)).isEqualTo("2028-07-31");    // servicePeriodEndDate
+            assertThat(cells.get(19)).isEqualTo("赵六/钱七");      // bidReviewers（多人 / 分隔）
         }
     }
 
@@ -113,10 +124,10 @@ class ProjectExportServiceTest {
         try (var wb = readWorkbook(result)) {
             XSSFSheet sheet = wb.getSheetAt(0);
             XSSFRow dataRow = sheet.getRow(1);
-            List<String> cells = readRow(dataRow, 19);
+            List<String> cells = readRow(dataRow, 23);
 
-            // CO-551 新增的"投标辅助人员"列必须存在且有值
-            assertThat(cells.get(16)).isEqualTo("王五");
+            // CO-551 "投标辅助人员"列必须存在且有值
+            assertThat(cells.get(18)).isEqualTo("王五");
         }
     }
 
@@ -134,11 +145,11 @@ class ProjectExportServiceTest {
         try (var wb = readWorkbook(result)) {
             XSSFSheet sheet = wb.getSheetAt(0);
             XSSFRow dataRow = sheet.getRow(1);
-            List<String> cells = readRow(dataRow, 19);
+            List<String> cells = readRow(dataRow, 23);
 
             // 未知枚举值 fallback 显示原值（与前端 map[v] || v 一致），避免丢失数据
-            assertThat(cells.get(8)).isEqualTo("UNKNOWN_TYPE");
-            assertThat(cells.get(1)).isEqualTo("CUSTOM_STATUS");
+            assertThat(cells.get(10)).isEqualTo("UNKNOWN_TYPE");   // projectType（CO-591 后移到 index 10）
+            assertThat(cells.get(1)).isEqualTo("CUSTOM_STATUS");   // bidStatus 位置不变
         }
     }
 
@@ -195,7 +206,7 @@ class ProjectExportServiceTest {
             XSSFSheet sheet = wb.getSheetAt(0);
             // 只有表头行，无数据行
             assertThat(sheet.getLastRowNum()).isEqualTo(0);
-            assertThat(sheet.getRow(0).getLastCellNum()).isEqualTo((short) 19);
+            assertThat(sheet.getRow(0).getLastCellNum()).isEqualTo((short) 23);
         }
     }
 
@@ -223,6 +234,11 @@ class ProjectExportServiceTest {
                 .stage("INITIATED")
                 .bidStatus("INITIATED")
                 .biddingPlatform("某平台")
+                // CO-591 新增 4 列字段
+                .servicePeriodYears(new BigDecimal("3"))
+                .servicePeriodEndDate(LocalDate.of(2028, 7, 31))
+                .bidReviewers("赵六/钱七")
+                .evaluationSubStage("RESULT_OUT")
                 .build();
     }
 
