@@ -130,6 +130,13 @@
   source: PR !1372 后续确认（2026-06-30，通过 SSH jetty@172.16.38.78 直连 RDS 查询）
   note: 生产 RDS（`winbid-01.test.rds.ehsy.com`，MySQL 8.0.43-251200）`@@sql_mode = ''`（空字符串，所有 strict mode 关闭）。测试侧 `AbstractMysqlIntegrationTest.TEST_SQL_MODE` 保留 `ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION`，比生产严格。已知影响：V1077 的 `'0000-00-00 00:00:00'` 字面量在生产合法（sql_mode 空不阻止零日期），在 MySQL 8.0 默认 strict mode 下会触发 Error 1292（测试侧已通过去掉 `NO_ZERO_DATE`/`NO_ZERO_IN_DATE` 对齐）。潜在风险：生产能跑过的某些"不严格"SQL（如截断字符串、零日期、非完全 GROUP BY）在测试会被拒绝，存在漏测可能。完整对齐需要先审计生产数据中是否存在零日期/截断字符串等问题，再决定是在生产开启严格模式还是在测试进一步放宽 sql_mode。属于运维侧独立任务，不在本 PR 范围内。确认结果与决策已记录在 `backend/src/test/java/com/xiyu/bid/support/FlywayMysqlContainerTest.java:47-62`。
 
+- area: workbench-characterization.spec.js 本地环境失败
+  type: flaky-test
+  severity: low
+  status: open
+  source: CO-592 提交时发现（2026-07-19，agent/trae2），PR !2142 审查确认
+  note: `workbench-characterization.spec.js` 在本地环境因 vue-router mock 加载失败而无法运行（CI 环境通过），导致 CO-592 提交时使用 `SKIP_TESTING_GATE=1` 逃生阀绕过 testing-gate。逃生阀使用应在 PR 描述中显式声明。根治方向：排查该 spec 的 vue-router mock 在本地与 CI 的环境差异（node 版本 / 依赖解析顺序），消除"本地必失败"状态；在根治前，任何因此跳过门禁的提交都应在 PR 描述中注明。
+
 ### 待登记
 
 > 后续发现的技术债请追加到对应分类下，不要新建文件。
