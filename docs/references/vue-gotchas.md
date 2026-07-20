@@ -218,3 +218,63 @@ const source = searching ? options.value : mergedOptions.value
 5. 写测试用未修复组件复现"固定人员混入" → 闭环
 
 每一步都有**可观测证据**，不是"我觉得是这里"。
+
+## 8. el-form :disabled 传播导致 textarea 滚动条锁死（PR !2162）
+
+### 问题
+
+任务详情（`el-drawer` title="任务详情"）里所有 textarea 在 view 模式下被 `el-form` 的 `:disabled="readonly"` 传播导致 `disabled=true`，HTML 原生 `<textarea disabled>` **锁死滚动条**，无法查看超出可视高度的内容。
+
+### 根因
+
+- `<el-form :disabled="readonly">` 让所有子字段继承 disabled
+- HTML 标准：`<textarea disabled>` 锁死滚动条且不可选择；`<textarea readonly>` 允许滚动+选择+复制，禁止编辑
+- Element Plus `useFormDisabled` 用 `??`（nullish coalescing）合并 disabled：`disabled.value ?? unref(fallback) ?? form?.disabled ?? false`
+- 显式 `:disabled="false"` 会通过 `??` 覆盖 form 级传播
+
+### 修复模式
+
+对 textarea **显式覆盖 `:disabled="false"`**，并把控制逻辑迁移到 `:readonly`：
+
+```vue
+<!-- ❌ 错误：disabled 锁死滚动条 -->
+<el-input
+  type="textarea"
+  :disabled="readonly && !canDeliver"
+/>
+
+<!-- ✅ 正确：readonly 允许滚动+选择+复制，disabled=false 覆盖 form 级传播 -->
+<el-input
+  type="textarea"
+  :readonly="readonly && !canDeliver"
+  :disabled="false"
+/>
+```
+
+### 关键正确性点
+
+1. **条件必须等价迁移**：原 `:disabled="expr"` → `:readonly="expr"`，不能丢条件
+2. **disabled=false 必须显式**：不显式覆盖会继承 form 级 disabled=true
+3. **业务行为一致**：readonly 仍不可编辑，差异仅在于允许滚动+选择+复制（正向变化）
+
+### 不适用场景
+
+- 单行 `<el-input>` 不需要此修复（无滚动条锁死问题）
+- `<el-select>` / `<el-upload>` / `<el-date-picker>` 保持 form 级 disabled 即可
+
+### 验证方法
+
+单元测试中 ElInput stub 需透传 `disabled` / `readonly` prop：
+
+```js
+ElInput: {
+  name: 'ElInput',
+  props: ['modelValue', 'type', 'rows', 'placeholder', 'disabled', 'readonly'],
+  template: '<input :data-disabled="disabled" :data-readonly="readonly" />',
+}
+
+// 测试断言
+expect(textarea.props('readonly')).toBe(true)
+expect(textarea.props('disabled')).toBe(false)
+```
+
