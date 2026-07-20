@@ -55,7 +55,7 @@ class WorkbenchProjectTodoQueryServiceTest {
      * CO-596：stage 与 status 是独立字段——
      * - initiatedReal：stage=INITIATED + status=INITIATED（真正的已立项项目）
      * - pendingInitiation：stage=INITIATED + status=PENDING_INITIATION（待立项项目，stage 相同但 status 不同）
-     * - closed：stage=CLOSED + status=CLOSED（终态）
+     * - closed：stage=CLOSED + status=WON（终态示例，Project.Status 无 CLOSED 值，终态为 WON/LOST/FAILED/ABANDONED）
      * - drafting：stage=DRAFTING + status=BIDDING（投标中）
      * - retrospective：stage=RETROSPECTIVE + status=BIDDING（待结项）
      */
