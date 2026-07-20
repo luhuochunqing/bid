@@ -5394,3 +5394,84 @@ No 'Access-Control-Allow-Origin' header is present on the requested resource.
 - [docs/plans/2026-07-07-huawei-obs-large-file-upload-design.md §9.3](../plans/2026-07-07-huawei-obs-large-file-upload-design.md) — 华为云侧准备清单
 - 第 56 节 — OBS 直传三层保护：构建变量缺失导致 isObsEnabled=false
 - CO-285 第 32 节 — 附件下载文件名 + CORS 教训（`<a>` 标签 vs fetch+blob）
+
+---
+
+## 75. CO-333 重名跳过 id 绑定 + 显示层缺工号：v3.10 + PR !2154 双层根因治理（2026-07-20 / CC2026072071）
+
+### 事故背景
+
+**CC2026072071**：用户王亮（user_id=75, 工号 05972, role=bid-projectLeader）在 CRM 侧维护的标讯（tender_id:59）推送后，在项目详情页/列表/保证金看板中"项目负责人"字段只显示"王亮"（纯姓名），不带工号。用户偏好："系统中选人/显示人的地方都要带工号"。
+
+### 5 Whys 根因分析
+
+```
+Why 1: 为什么显示纯姓名？→ 前端直接渲染 project.projectLeaderName
+Why 2: projectLeaderName 哪来的？→ 后端 ProjectListEnrichmentSupport 用 tender.project_manager_name 兜底填充
+Why 3: 为什么 tender.project_manager_name 是纯姓名？→ CRM 推送过来就是纯姓名（无工号字段）
+Why 4: 为什么后端不通过 project_manager_id 反查 users.employee_number 拼接？→ DTO 没有工号字段，enrichment 没有反查逻辑
+Why 5: 为什么 project_manager_id 能正确绑定？→ 之前 CO-333 重名跳过绑定，v3.10 工号优先策略后才正确绑定
+```
+
+### 双层根因
+
+**数据层根因（CO-333）**：CRM 推送纯姓名，`ProjectManagerIdResolver.resolveByFullName` 发现重名（user 75 + user 1816 都叫"王亮"）→ 按规则跳过 id 绑定 → `tender.project_manager_id=NULL`
+
+**显示层根因（本 PR !2154 修复）**：后端 DTO `projectLeaderName` 直接透传 CRM 纯姓名，未通过 `projectLeaderId` 反查 `users.employee_number` 拼接工号
+
+### 双层治理方案
+
+**数据层治理（v3.10 / PR !2153）**：
+- `TenderPushRequest` / `TenderUpdateRequest` 新增 `projectManagerEmployeeId` 字段
+- `ProjectManagerIdResolver` 新增 `resolveByEmployeeNumber` 方法 + `applyTo` 公共入口
+- 四级解析策略：工号优先 → 姓名作校验 → username 回落 → fullName 兜底
+- 工号命中后姓名不符仅 warn 不阻断（与产品方案一致）
+- 停用用户跳过 id 绑定（避免绑定离职员工）
+
+**显示层治理（本 PR !2154）**：
+- `ProjectDTO` / `MarginDTO` 新增 `projectLeaderEmployeeNumber` 字段
+- `ProjectQueryService` 批量预加载 userMap 覆盖三条 projectLeaderId 来源（pid.ownerUserId / tender.projectManagerId / project.managerId 兜底）
+- `ProjectListEnrichmentSupport` 新增纯核心 `populateLeaderEmployeeNumber(dto, userMap)` 方法
+- `MarginQuerySupport` / `MarginDerivedTableColumns` 补 `project_leader_emp_no` 列（C_PROJ_LEAD_EMP_NO=16）
+- 前端新增 `src/utils/userDisplay.js` 纯函数 `formatUserWithNameAndNumber`
+- `ProjectBasicInfoCard.vue` / `List.vue` / `MarginManagement.vue` 三处接入"姓名 (工号)"显示
+
+### 协同关系
+
+| 维度 | v3.10 (!2153) | 显示层修复 (!2154) |
+|------|---------------|---------------------|
+| 层级 | 数据接入层 | 显示层 |
+| 解决根因 | CRM 推送时正确绑定 `project_manager_id` | 后端 DTO 补工号字段 + 前端展示"姓名 (工号)" |
+| 互补性 | 数据层根因 | 显示层根因 |
+| 冲突 | 无 | 无 |
+
+**完整解决路径**：v3.10 确保 `project_manager_id` 正确绑定 → 本 PR 通过该 id 反查 `users.employee_number` → 前端拼接显示"姓名 (工号)"
+
+### 受影响字段（grep 全局收敛）
+
+后端 5 处类似兜底逻辑同步治理：
+- `ProjectListEnrichmentSupport.java:79`（projectLeaderName ← tender.projectManagerName）
+- `ProjectTenderPopulator.java:38`（同上）
+- `ProjectQueryService.java:197`（projectLeaderName ← pid.projectLeaderName）
+- `MarginQuerySupport.java:167`（margin 表 project_leader_name）
+- `ProjectTransferService.java:135`（转移时设置 projectLeaderName）
+
+### 已知技术债
+
+1. **历史数据订正**：v3.10 之前推送的 `project_manager_id=NULL` 数据需要订正脚本（spec 037 Phase 5 T025 追加任务）
+2. **投标负责人/辅助人员工号显示**：后端 ProjectDTO 暂未支持 `biddingLeaderEmployeeNumber` / `secondaryBiddingLeaderEmployeeNumber` 字段，已在 `ProjectBasicInfoCard.vue L40` 加 TODO 注释标记
+
+### 教训
+
+1. **追症状不追根因**：排查 1 小时未找到"王亮看不到项目"根因（自愈后无法复现），但发现"项目负责人字段不带工号"是独立的显示层根因，最终通过双层治理完整解决
+2. **跨 PR 协同**：v3.10（数据层）+ 本 PR（显示层）是互补关系，必须在 PR 描述中明确标注协同关系，避免 reviewer 误判为"重复修复"
+3. **批量预加载避免 N+1**：enrichment 阶段一次性 `userRepository.findAllById(userIds)` 查 5 类 user ID（lead/manager/reviewer/tender/pid），避免 N+1 查询
+4. **派生表列对齐**：`MarginDerivedTableColumns` 的 `DERIVED_SELECT_FEES` / `DERIVED_SELECT_INIT` 两分支必须同步新增列，否则 UNION ALL 列数不匹配
+5. **向后兼容设计**：新增 DTO 字段（可选，无默认值约束）对旧前端/旧后端/Excel 导出均透明，前后端无顺序依赖
+
+### 相关文档
+
+- [specs/037-crm-link-compensation/](../../specs/037-crm-link-compensation/) — CRM 商机关联补偿规范（Phase 5 T025 历史数据订正任务）
+- PR !2153 — v3.10 标讯接口新增项目负责人工号字段（数据层根因治理）
+- PR !2154 — CC2026072071 项目负责人显示补工号 (姓名 (工号)) 格式（显示层根因治理）
+- 第 65 节 — PR #1162 webhook 回调缺工号（类似的"姓名 (工号)"格式问题）

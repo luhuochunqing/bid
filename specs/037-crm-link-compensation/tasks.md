@@ -221,6 +221,40 @@
   - 命令：`curl -X PUT http://172.16.10.149:18080/api/integration/tenders/CRM/{id} -H "X-API-Key: ..." -d '{"forceUpdate":true}'`
   - 验证：`SELECT id, crm_opportunity_id FROM tenders WHERE id IN (52, 53, 56);`
 
+- [ ] T025 [P] 历史数据订正脚本：扫描 `tenders.project_manager_id IS NULL AND project_manager_name IS NOT NULL` 的记录，尝试通过姓名 + 部门等组合反查补绑
+  - 背景：v3.10 之前（PR !2153 合入前）CRM 推送纯姓名时，`ProjectManagerIdResolver.resolveByFullName` 在重名场景下跳过 id 绑定，导致 `tender.project_manager_id=NULL`。v3.10 工号优先策略后新数据已正确绑定，但历史数据需要订正。
+  - 关联事故：CC2026072071（tender 59 王亮重名案例，已手工 UPDATE 修复，但其他 tender 可能有同样问题）
+  - 关联 PR：!2153（v3.10 数据层根治）+ !2154（显示层补工号）
+  - 文件：`scripts/fix-historical-project-manager-id.sh`（新建）
+  - 实现策略（按优先级）：
+    1. **第一优先级**：扫描 `tenders` 表中 `project_manager_id IS NULL AND project_manager_name IS NOT NULL` 的记录
+    2. **唯一姓名反查**：对每条记录的 `project_manager_name` 在 `users` 表中按 `full_name` 反查
+       - 唯一匹配 → UPDATE `tenders.project_manager_id = <user_id>`
+       - 多个匹配（重名）→ 跳过并记录到日志（需人工确认）
+       - 0 个匹配 → 跳过并记录到日志（可能离职/外协）
+    3. **联动更新 projects 表**：同步更新 `projects.manager_id`（如果项目已立项）
+    4. **联动更新 project_initiation_details 表**：同步更新 `owner_user_id`
+  - 幂等性：脚本可重复执行，已绑定的记录会被跳过
+  - 安全措施：
+    - 默认 dry-run 模式，打印将更新的记录列表 + SQL 预览
+    - 显式传 `--apply` 才执行 UPDATE
+    - 每条 UPDATE 都记录 BEFORE/AFTER 到日志文件
+    - 输出统计：总数 / 唯一匹配补绑 / 重名跳过 / 无匹配跳过
+  - 验证命令：
+    ```sql
+    -- 执行前：扫描 NULL 数据
+    SELECT id, project_manager_name, project_manager_id FROM tenders
+    WHERE project_manager_id IS NULL AND project_manager_name IS NOT NULL;
+    -- 执行后：确认 NULL 数量下降
+    SELECT COUNT(*) FROM tenders
+    WHERE project_manager_id IS NULL AND project_manager_name IS NOT NULL;
+    ```
+  - 验收标准：
+    - 所有唯一姓名的历史记录都被正确补绑 `project_manager_id`
+    - 重名记录生成人工确认清单
+    - 无匹配记录生成排查清单（可能需 OSS 同步离职用户）
+    - 前端验证：项目列表/详情页/保证金看板的"项目负责人"字段显示"姓名 (工号)"
+
 ---
 
 ## Dependencies & Execution Order
