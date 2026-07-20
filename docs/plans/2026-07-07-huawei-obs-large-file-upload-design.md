@@ -636,22 +636,45 @@ ADD CONSTRAINT fk_tender_document_bid_file
 
 ### 8.3 CORS 配置
 
-OBS Bucket 需要配置 CORS，允许前端域名发起 PUT/POST/GET 请求：
+OBS Bucket 需要配置 CORS，允许前端域名发起 PUT/POST/GET 请求。
+
+> **关键**：CORS 是 **Bucket 级别**配置，与是否使用自定义域名（`XIYU_OBS_DOWNLOAD_CUSTOM_DOMAIN`）无关。
+> 只要前端发起的请求会跨域到 OBS（无论是标准 endpoint 还是 CNAME 自定义域名），都必须在 OBS 控制台为桶配置 CORS 规则。
+> 后端 302 重定向到 OBS 预签名 URL 的场景下，浏览器会自动跟随重定向并对 OBS 域名发起 preflight，OBS 必须返回 `Access-Control-Allow-Origin` 才能成功。
+>
+> **配置入口**：华为云 OBS 控制台 → 桶 → 跨域访问规则（或 `obs://bucket/?cors`）
+
+`AllowedOrigin` 必须包含**所有**会发起 OBS 请求的前端域名（生产 + 测试 + 本地开发）：
 
 ```xml
 <CORSConfiguration>
   <CORSRule>
+    <!-- 生产环境前端域名 -->
     <AllowedOrigin>https://bid.xiyu.com</AllowedOrigin>
+    <AllowedOrigin>https://winbid.ehsy.com</AllowedOrigin>
+    <!-- 测试环境前端域名 -->
+    <AllowedOrigin>https://winbid-test.ehsy.com</AllowedOrigin>
+    <!-- 本地开发（可选，按团队需要） -->
+    <AllowedOrigin>http://localhost:1323</AllowedOrigin>
+    <AllowedOrigin>http://127.0.0.1:1323</AllowedOrigin>
+
     <AllowedMethod>GET</AllowedMethod>
     <AllowedMethod>PUT</AllowedMethod>
     <AllowedMethod>POST</AllowedMethod>
     <AllowedMethod>HEAD</AllowedMethod>
+
     <AllowedHeader>*</AllowedHeader>
+
+    <!-- ExposeHeader 必须包含 Content-Disposition / Content-Length，否则前端无法读取文件名和进度（CO-285 教训） -->
     <ExposeHeader>ETag</ExposeHeader>
     <ExposeHeader>x-obs-request-id</ExposeHeader>
+    <ExposeHeader>Content-Disposition</ExposeHeader>
+    <ExposeHeader>Content-Length</ExposeHeader>
   </CORSRule>
 </CORSConfiguration>
 ```
+
+> **新增前端域名时必须同步更新此 CORS 配置**，否则会出现下载接口 302 到 OBS 后 preflight 失败（详见 lessons-learned.md §74）。
 
 ### 8.4 下载鉴权
 
@@ -704,7 +727,17 @@ XIYU_OBS_TOKEN_DURATION=3600
      ]
    }
    ```
-3. 配置 Bucket CORS。
+3. **配置 Bucket CORS**（关键步骤，缺失会导致前端下载 302 重定向到 OBS 后 preflight 失败）：
+   - 配置入口：华为云 OBS 控制台 → 桶 → 跨域访问规则
+   - `AllowedOrigin` 必须包含**所有**会发起 OBS 请求的前端域名（参见 §8.3 完整示例）：
+     - 生产：`https://bid.xiyu.com`、`https://winbid.ehsy.com`
+     - 测试：`https://winbid-test.ehsy.com`
+     - 本地：`http://localhost:1323`、`http://127.0.0.1:1323`（按需）
+   - `AllowedMethod`：GET / PUT / POST / HEAD
+   - `AllowedHeader`：`*`（或至少 `Content-Type`、`Authorization`、`x-amz-*`、`x-obs-*`）
+   - `ExposeHeader`：`ETag`、`x-obs-request-id`、`Content-Disposition`、`Content-Length`
+   - **绑定自定义域名（`XIYU_OBS_DOWNLOAD_CUSTOM_DOMAIN`）后也必须配置 CORS**，CORS 是 Bucket 级别配置，与域名映射无关
+   - **新增前端域名时必须同步更新此配置**（参见 lessons-learned.md §74）
 4. 为后端服务账号创建 AK/SK，并授权 `sts:assumeAgency` 权限。
 
 ---

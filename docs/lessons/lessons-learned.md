@@ -5321,3 +5321,76 @@ git push --force-with-lease origin <branch>
 - [AGENTS.md](../../AGENTS.md) — "早操SOP"（`git fetch origin && git rebase origin/main`）
 - 第 72 节 — 分支基线过期导致 PR diff 静默回退/删除他人文件（作者方视角）
 - 第 66 节 — 删除 bootstrap 锚点分支的同类多 Agent 协作事故
+
+## 74. OBS Bucket CORS 白名单漏配测试环境前端域名，302 重定向到 OBS 后 preflight 失败（2026-07-20 / winbid-test 下载 .docx 失败）
+
+> 来源：2026-07-20 测试环境 `https://winbid-test.ehsy.com` 下载项目文档报 CORS 错误
+> 涉及模块：OBS 直传下载 / 302 重定向跨域 / 华为云 OBS 控制台 CORS 配置
+> 根因层级：第 5 层（部署清单缺失约束，导致 OBS 控制台配置漂移）
+
+### 问题背景
+
+测试环境用户在 `https://winbid-test.ehsy.com` 项目文档页点击下载，浏览器控制台报：
+
+```
+Access to XMLHttpRequest at 'https://widbid-obs.ehsy.com/bids/2026/07/.../xxx.docx?AWSAccessKeyId=...&Expires=...&Signature=...'
+(redirected from 'https://winbid-test.ehsy.com/api/projects/216/documents/960/download')
+from origin 'https://winbid-test.ehsy.com' has been blocked by CORS policy:
+Response to preflight request doesn't pass access control check:
+No 'Access-Control-Allow-Origin' header is present on the requested resource.
+```
+
+### 5 Whys 根因分析
+
+| 层级 | 问题 | 答案 |
+|---|---|---|
+| 1 | 为什么 CORS 失败？ | 浏览器从 `winbid-test.ehsy.com` 调后端 `/download` → 后端返回 302 重定向到 `widbid-obs.ehsy.com` → 浏览器对 OBS 域名的 preflight 请求未返回 `Access-Control-Allow-Origin` |
+| 2 | 为什么 OBS 没返回 CORS 头？ | OBS 桶 CORS 白名单未包含 `https://winbid-test.ehsy.com`。设计文档 §8.3 示例只列了 `https://bid.xiyu.com` |
+| 3 | 为什么测试环境前端域名没加？ | 部署测试环境时只配了 `XIYU_OBS_DOWNLOAD_CUSTOM_DOMAIN=widbid-obs.ehsy.com`（OBS 自定义域名），但漏了在华为云 OBS 控制台同步更新桶 CORS |
+| 4 | 为什么会漏？ | OBS CORS 配置在华为云控制台（不在代码仓库），无部署清单约束，且设计文档示例只给了一个生产域名 |
+| 5 | **根因** | **OBS 桶 CORS 配置缺失测试环境前端域名 + 缺少"环境新增前端域名 → 同步更新 OBS CORS"的部署约束** |
+
+### 关键证据
+
+- 后端 302 重定向逻辑：[ProjectDocumentController.java:54-78](../../backend/src/main/java/com/xiyu/bid/projectworkflow/controller/ProjectDocumentController.java#L54-L78)（OBS 直传文件返回 302 + `Location` 头）
+- OBS 自定义域名（CNAME 模式）：[HuaweiObsDownloadUrlGateway.java:43-67](../../backend/src/main/java/com/xiyu/bid/file/infrastructure/obs/HuaweiObsDownloadUrlGateway.java#L43-L67)
+- 前端用 axios 下载（触发 preflight）：[src/utils/download.js:44-77](../../src/utils/download.js#L44-L77)
+- 后端 Spring CORS 已包含 `winbid-test.ehsy.com`：[SecurityConfig.java:80](../../backend/src/main/java/com/xiyu/bid/config/SecurityConfig.java#L80)（但对 OBS 域名无效，OBS CORS 是独立配置）
+- 设计文档原 CORS 示例只含 `bid.xiyu.com`：[docs/plans/2026-07-07-huawei-obs-large-file-upload-design.md §8.3](../plans/2026-07-07-huawei-obs-large-file-upload-design.md#L637)
+
+### 危害
+
+- 测试环境用户无法下载 OBS 直传上传的文件（投标文档、附件等），影响日常使用
+- 同样的根因可能在生产环境复现：若未来新增前端域名（如 `winbid.ehsy.com` 已加入但未来再增加其他域名），仍会踩同样的坑
+- 错误表象是"前端 axios 报 CORS"，容易让人误以为是后端 SecurityConfig 漏配，浪费时间在错误方向排查
+
+### 防御规范
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| OBS 桶 CORS 漏配前端域名 | OBS CORS 是 Bucket 级别配置，与后端 SecurityConfig CORS 无关 | **新增前端域名时必须同步更新 OBS 桶 CORS**，参见设计文档 §8.3 完整清单 |
+| 设计文档示例只给一个域名 | 容易让人误以为只需配生产域名 | 设计文档示例已更新为包含生产 + 测试 + 本地所有域名（PR !2156） |
+| OBS CORS 配置在控制台不在仓库 | 容易遗漏且无 review | 部署清单已加入"OBS CORS 配置"检查项（设计文档 §9.3 第 3 条），新增环境部署时必须逐项核对 |
+| 误判为后端 CORS 问题 | 后端 SecurityConfig 已配 `winbid-test.ehsy.com`，但 OBS 域名是独立 CORS | 排查 CORS 错误时先看请求实际重定向到哪个域名，再查该域名的 CORS 配置（OBS 控制台 vs 后端 SecurityConfig） |
+| ExposeHeader 漏配 Content-Disposition | 即使 CORS 通过，前端也无法读取文件名（CO-285 教训重演） | OBS CORS `ExposeHeader` 必须包含 `Content-Disposition`、`Content-Length`、`ETag`、`x-obs-request-id` |
+
+### 修复方案（双管齐下）
+
+1. **运维操作（华为云 OBS 控制台）**：给 widbid-obs 桶添加 CORS 规则，`AllowedOrigin` 包含 `https://winbid-test.ehsy.com`、`https://winbid.ehsy.com`、`https://bid.xiyu.com` 等所有环境前端域名
+2. **代码/文档侧（本 PR）**：
+   - 补全设计文档 §8.3 CORS 示例（加入所有环境前端域名 + `Content-Disposition`/`Content-Length` expose header）
+   - 设计文档 §9.3 第 3 条改为详细部署清单，明确"绑定自定义域名后也必须配 CORS"
+   - 在本节追加踩坑案例
+
+### 处置记录
+
+- 设计文档 §8.3、§9.3 已更新（PR !2156）
+- OBS 控制台 CORS 配置：待运维同步添加 `winbid-test.ehsy.com` 到 widbid-obs 桶
+- 验证方法：配置完成后，在 `https://winbid-test.ehsy.com` 项目文档页下载 `.docx` 文件，浏览器 Network 面板观察 `widbid-obs.ehsy.com` 请求的 Response Headers 应包含 `Access-Control-Allow-Origin: https://winbid-test.ehsy.com`
+
+### 相关文档
+
+- [docs/plans/2026-07-07-huawei-obs-large-file-upload-design.md §8.3](../plans/2026-07-07-huawei-obs-large-file-upload-design.md) — OBS CORS 完整配置示例
+- [docs/plans/2026-07-07-huawei-obs-large-file-upload-design.md §9.3](../plans/2026-07-07-huawei-obs-large-file-upload-design.md) — 华为云侧准备清单
+- 第 56 节 — OBS 直传三层保护：构建变量缺失导致 isObsEnabled=false
+- CO-285 第 32 节 — 附件下载文件名 + CORS 教训（`<a>` 标签 vs fetch+blob）
