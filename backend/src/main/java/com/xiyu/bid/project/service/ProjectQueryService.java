@@ -95,6 +95,7 @@ public class ProjectQueryService {
         return mergeDemoProjectsIfNeeded(projects);
     }
 
+    @SuppressWarnings("deprecation") // det.getAnnualRevenue() 是 @Deprecated，立项表客户营收存储列（lessons §76）
     private void enrichWithTenderAndDetails(
             final List<ProjectDTO> projects) {
         List<Long> ids = projects.stream()
@@ -219,8 +220,8 @@ public class ProjectQueryService {
                     dto.setShortlistedCount(det.getExpectedBidders());
                 }
                 if (dto.getRevenue() == null
-                        && det.getAnnualEcommerceAmount() != null) {
-                    dto.setRevenue(det.getAnnualEcommerceAmount());
+                        && det.getAnnualRevenue() != null) {
+                    dto.setRevenue(det.getAnnualRevenue());
                 }
                 if (dto.getProjectLeaderId() == null
                         && det.getOwnerUserId() != null) {

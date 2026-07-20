@@ -38,7 +38,7 @@ public record EvaluationBasicDTO(
     /** 项目计划 GAP。 */
     String projectPlanGap,
 
-    /** 客户营收（万）。 */
+    /** 客户营收（亿）—— 与前端评估表 BasicFieldsSection.vue 客户营收（亿）对齐 */
     BigDecimal customerRevenue,
 
     /** 项目计划 GAP 附件引用列表（CO-262 新增，可为 null 或空列表）。 */

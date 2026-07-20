@@ -5475,3 +5475,80 @@ Why 5: 为什么 project_manager_id 能正确绑定？→ 之前 CO-333 重名�
 - PR !2153 — v3.10 标讯接口新增项目负责人工号字段（数据层根因治理）
 - PR !2154 — CC2026072071 项目负责人显示补工号 (姓名 (工号)) 格式（显示层根因治理）
 - 第 65 节 — PR #1162 webhook 回调缺工号（类似的"姓名 (工号)"格式问题）
+
+---
+
+## 76. 清除 @Deprecated 编译警告时禁止改字段名，只能加 @SuppressWarnings（PR !564 回归 / 2026-07-20）
+
+> 来源：2026-07-20 测试环境 https://winbid-test.ehsy.com/ 项目 ID=218 "客户营收"字段值丢失
+> 涉及模块：ProjectQueryService / InitiationStage / 字段映射 / 单位语义
+
+### 问题背景
+
+测试环境反馈两个症状：
+
+1. 项目详情页"客户营收（亿）"输入框值丢失（显示 0）
+2. 项目列表"客户营收（亿）"列实际展示的是"电商MRO+办公流水金额（万）"字段值
+
+### 根因
+
+PR !564（commit `d1994a3fa`，2026-06-14，标题"fix: 清除 2401 源文件编译警告"）在清除 `@Deprecated` 警告时**把字段名也一起换掉了**：
+
+```diff
+-                if (dto.getRevenue() == null
+-                        && det.getAnnualRevenue() != null) {
+-                    dto.setRevenue(det.getAnnualRevenue());
++                if (dto.getRevenue() == null
++                        && det.getAnnualEcommerceAmount() != null) {
++                    dto.setRevenue(det.getAnnualEcommerceAmount());
+```
+
+commit message 写的是"ProjectQueryService 的 getAnnualRevenue() 调用点同样标注"——本意是加 `@SuppressWarnings("deprecation")`，但实际把 `getAnnualRevenue()`（客户营收，@Deprecated）替换成了 `getAnnualEcommerceAmount()`（电商MRO+办公流水金额，完全不同的字段）。
+
+后果：
+- 立项表 `annual_ecommerce_amount` 通常有值（MRO 流水是必填）
+- `dto.revenue != null`，导致 247-250 行的 fallback `eval.basic.customerRevenue` **永远不会执行**
+- 列表 [List.vue:104](../../src/views/Project/List.vue#L104) 渲染 `row.revenue` → 显示 MRO 值
+
+详情页丢失问题（症状 1）是 pre-existing 的前后端字段名不一致：
+- 后端 [InitiationViewDto](../../backend/src/main/java/com/xiyu/bid/project/dto/InitiationViewDto.java) 只有 `annualRevenue`（@Deprecated），无 `customerRevenue`
+- 前端 [InitiationStage.vue:46](../../src/views/Project/stages/InitiationStage.vue#L46) 表单绑定 `form.customerRevenue`
+- [useInitiationStageActions.js](../../src/views/Project/stages/useInitiationStageActions.js) `load()` 直接 `Object.assign(form, data)`，无字段映射
+
+### 危害
+
+- 测试环境项目列表客户营收列数据失真（显示 MRO 流水金额）
+- 详情页客户营收输入框永远显示 0，用户编辑后保存路径正常（保存侧有映射），但加载侧丢失
+- 持续时间：2026-06-14 上线至 2026-07-20 修复，约 36 天
+
+### 防御规范
+
+**清除 @Deprecated 警告时禁止改字段名，只能加 @SuppressWarnings("deprecation")。**
+
+具体规则：
+1. `@Deprecated` 字段调用点的警告清除，**唯一允许的操作**是在方法/语句上加 `@SuppressWarnings("deprecation")` 注解
+2. **禁止**把 `getXxx()` 调用替换成同实体的其他 getter（即使新 getter 类型相同）
+3. **禁止**借"清除警告"之名重命名字段或调整调用点语义
+4. PR 标题/commit message 必须明确区分"加注解"与"改字段名"——前者是机械操作，后者是语义变更
+5. `@Deprecated` 字段是否真正废弃需要看 migration 路径，不能只看注解就动手替换
+6. 修改字段映射（尤其涉及 BigDecimal 金额字段）时，必须同时补回归测试覆盖三条路径：
+   - 旧字段有值 → dto 正确填充
+   - 新字段有值（fallback 路径）→ dto 正确填充
+   - 语义相近但不同的字段有值 → dto 不被污染
+
+### 处置记录
+
+- 定位罪魁 PR：`git log --all --oneline -S 'det.getAnnualEcommerceAmount()' -- backend/.../ProjectQueryService.java` → `d1994a3fa` → 反查 PR 号 `!564`
+- 修复 commit（待提交）：
+  - 后端：[ProjectQueryService.java](../../backend/src/main/java/com/xiyu/bid/project/service/ProjectQueryService.java) 改回 `getAnnualRevenue()` + `@SuppressWarnings("deprecation")`
+  - 后端：[ProjectQueryServiceTest.java](../../backend/src/test/java/com/xiyu/bid/project/service/ProjectQueryServiceTest.java) 新增 3 条回归测试（9/9 通过）
+  - 前端：[useInitiationStageActions.js](../../src/views/Project/stages/useInitiationStageActions.js) `load()` 补 `annualRevenue → customerRevenue` 映射
+  - 前端：[useInitiationStageActions.spec.js](../../src/views/Project/stages/useInitiationStageActions.spec.js) 新增 3 条加载测试（8/8 通过）
+  - 文档：[ProjectDTO.java](../../backend/src/main/java/com/xiyu/bid/project/dto/ProjectDTO.java)、[TenderEvaluationBasic.java](../../backend/src/main/java/com/xiyu/bid/tender/entity/TenderEvaluationBasic.java)、[EvaluationBasicDTO.java](../../backend/src/main/java/com/xiyu/bid/tender/dto/EvaluationBasicDTO.java) 注释单位统一为"亿"
+  - 迁移：V1172 修改 `customer_revenue` 列 COMMENT 为"客户营收（亿）"，消除代码-数据库-前端三层不一致
+
+### 相关文档
+
+- [ARCHITECTURE.md](../../ARCHITECTURE.md) — FP-Java 字段映射规范
+- [RELIABILITY.md](../../RELIABILITY.md) — 14 道门禁（本 PR 因 ProjectQueryServiceTest 未覆盖 revenue 字段赋值，CI 未拦住）
+- 第 73 节 — Review PR 必须看 commit vs parent 的实际 diff（本次定位 d1994a3fa 时也用了 `git log -S` 字符串追踪）

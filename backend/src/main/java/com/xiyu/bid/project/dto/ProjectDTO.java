@@ -65,7 +65,7 @@ public class ProjectDTO {
     private String ownerUnit;
     /** 入围家数 */
     private Integer shortlistedCount;
-    /** 客户营收（万） */
+    /** 客户营收（亿）—— 与前端 List.vue 列标签、评估表 BasicFieldsSection.vue 客户营收（亿）对齐 */
     private BigDecimal revenue;
     /** 开标时间 */
     private LocalDateTime bidOpenTime;
