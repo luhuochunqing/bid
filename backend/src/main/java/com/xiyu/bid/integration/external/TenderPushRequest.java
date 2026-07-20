@@ -104,6 +104,15 @@ public class TenderPushRequest {
     @Size(max = 100)
     private String projectManagerName;
 
+    /**
+     * 项目负责人工号（v3.10 新增）。
+     * <p>与 {@link #projectManagerName} 配套，工号全局唯一用于精确反查本地 user_id；
+     * 同时传入时工号优先，姓名仅作校验。工号未命中或为空时回落姓名匹配。
+     * 长度上限与 {@code User.employeeNumber} 对齐（32 字符）。
+     */
+    @Size(max = 32)
+    private String projectManagerEmployeeId;
+
     /** 项目部门 */
     @Size(max = 100)
     private String department;

@@ -96,7 +96,8 @@ class TenderIntegrationCommandServiceDedupProjectTypeTest {
                 tenderRepository, attachmentRepository, crmTenderLinkService, mapper, evaluationService, helper, support,
                 eventPublisher, tenderAuditService, userRepository, crmOccupancyChecker,
                 new com.xiyu.bid.webhook.application.OperatorUsernameResolver(userRepository),
-                new TenderDeduplicationService(tenderRepository));
+                new TenderDeduplicationService(tenderRepository),
+                projectManagerIdResolver);
 
         // 默认：externalId 不存在（走创建新标讯路径）
         when(tenderRepository.findByExternalId(anyString())).thenReturn(Optional.empty());

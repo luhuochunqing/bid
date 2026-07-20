@@ -99,7 +99,8 @@ class TenderIntegrationCommandServiceEventTest {
                 tenderRepository, attachmentRepository, crmTenderLinkService, mapper, evaluationService, helper, support, eventPublisher,
                 tenderAuditService, userRepository, crmOccupancyChecker,
                 new com.xiyu.bid.webhook.application.OperatorUsernameResolver(userRepository),
-                new com.xiyu.bid.tender.service.TenderDeduplicationService(tenderRepository));
+                new com.xiyu.bid.tender.service.TenderDeduplicationService(tenderRepository),
+                projectManagerIdResolver);
         when(tenderRepository.save(any(Tender.class))).thenAnswer(inv -> inv.getArgument(0));
         TenderDTO stubDto = TenderDTO.builder().build();
         when(tenderMapper.toDTO(any(Tender.class))).thenReturn(stubDto);
