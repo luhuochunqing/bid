@@ -37,11 +37,11 @@
 | 项 | 值 |
 |---|---|
 | 数据源 | `Tender.bidOpeningTime`（非 null） |
-| 显示名称 | 关联**项目名称**（通过 `Tender.projectId` 关联 `Project.name`） |
+| 显示名称 | **标讯名称** `Tender.title` |
 | 显示日期 | `Tender.bidOpeningTime` 格式化为 `YYYY-MM-DD` |
-| 点击跳转 | 项目详情 `navigateToProject(projectId)` |
+| 点击跳转 | 标讯详情 `/bidding/:tenderId` |
 | 排序 | 按 `bidOpeningTime` 升序 |
-| 边界 | 若 `Tender.projectId` 为 null，则该条目不展示（无法跳项目详情） |
+| 边界 | 无（projectId 为 null 仍展示，跳标讯详情不依赖 project） |
 
 ### 模块 C：保证金截止时间
 
@@ -96,7 +96,7 @@ GET /api/workbench/deadline-items?period=today|week|month
     { "id": 101, "name": "XX标讯", "date": "2026-07-20", "targetId": 101, "targetType": "tender" }
   ],
   "bidOpening": [
-    { "id": 202, "name": "XX项目", "date": "2026-07-21", "targetId": 55, "targetType": "project" }
+    { "id": 202, "name": "XX标讯", "date": "2026-07-21", "targetId": 202, "targetType": "tender" }
   ],
   "depositDeadline": [
     { "id": 303, "name": "XX项目", "date": "2026-07-22", "targetId": 66, "targetType": "project" }
@@ -146,10 +146,9 @@ WorkbenchDeadlineItemsDTO getDeadlineItems(LocalDate today, DeadlinePeriod perio
 4. 其他角色：按 `allowedProjectIds` 过滤
    - 报名截止/开标：先 `findTenderIdsByProjectIds(allowedProjectIds)`，再按 tenderIds 过滤
    - 保证金：按 `allowedProjectIds` 过滤 Fee
-5. 开标/保证金需关联 Project.name（批量查 Project，建 Map<projectId, name>）
-6. 过滤掉 `projectId == null` 的开标条目（无法跳项目详情）
-7. 各类按日期升序排序
-8. 日期格式化为 `YYYY-MM-DD`
+5. 保证金需关联 Project.name（批量查 Project，建 Map<projectId, name>）；报名截止/开标直接用 `Tender.title`
+6. 各类按日期升序排序
+7. 日期格式化为 `YYYY-MM-DD`
 
 ### 5.5 Controller 改造
 
@@ -223,7 +222,7 @@ getDeadlineItems(period) // GET /api/workbench/deadline-items?period=xxx
   - 非管理角色 → 按 allowedProjectIds 过滤
   - 非管理角色 + 无项目权限 → 返回空
   - period = today/week/month 各自窗口正确
-  - 开标条目 projectId 为 null 被过滤
+  - 开标条目 projectId 为 null 仍展示（跳标讯详情不依赖 project）
   - 日期升序排序
   - 日期格式化为 YYYY-MM-DD
 - `WorkbenchDeadlineControllerTest`：接口返回结构 + 默认 period=week
@@ -240,7 +239,7 @@ getDeadlineItems(period) // GET /api/workbench/deadline-items?period=xxx
 ## 9. 验收标准
 
 1. 报名截止模块显示标讯名称 + 日期，点击跳转 `/bidding/:tenderId`
-2. 开标时间模块显示项目名称 + 日期，点击跳转 `/project/:projectId`
+2. 开标时间模块显示标讯名称 + 日期，点击跳转 `/bidding/:tenderId`
 3. 保证金截止模块显示项目名称 + 日期，点击跳转 `/project/:projectId`
 4. 每模块最多可见 4 条，超出滚动
 5. 名称过长省略号，悬停显示全称
