@@ -21,6 +21,7 @@ const CALENDAR_EVENT_TYPES = {
   MEETING: 'review',
   MILESTONE: 'milestone',
   REMINDER: 'reminder',
+  OPENING: 'opening',
 }
 
 const ALERT_PRIORITY_MAP = {

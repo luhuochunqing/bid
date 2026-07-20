@@ -83,21 +83,22 @@ public interface TenderRepository extends JpaRepository<Tender, Long>, JpaSpecif
     @Query("SELECT t.bidOpeningTime FROM Tender t WHERE t.id IN :tenderIds AND t.bidOpeningTime BETWEEN :start AND :end AND t.status NOT IN ('WON', 'LOST', 'ABANDONED')")
     List<LocalDateTime> findBidOpeningTimesByTenderIds(@Param("tenderIds") Collection<Long> tenderIds, @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
-    // === CO-593: Workbench deadline items (return entities, not just timestamps) ===
+    // === CO-593 / CO-594: Workbench deadline items & calendar events (return entities) ===
+    // SQL 语义说明：NULL BETWEEN x AND y 返回 NULL（非 true），WHERE 子句自动过滤，故无需显式 IS NOT NULL。
 
-    /** 全量报名截止标讯实体（全局管理角色用，CO-593） */
+    /** 全量报名截止标讯实体（全局管理角色用，CO-593/CO-594） */
     @Query("SELECT t FROM Tender t WHERE t.registrationDeadline BETWEEN :start AND :end AND t.status NOT IN ('WON', 'LOST', 'ABANDONED')")
     List<Tender> findTendersByRegistrationDeadlineBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
-    /** 按标讯ID过滤报名截止标讯实体（非全局角色用，CO-593） */
+    /** 按标讯ID过滤报名截止标讯实体（非全局角色用，CO-593/CO-594） */
     @Query("SELECT t FROM Tender t WHERE t.id IN :tenderIds AND t.registrationDeadline BETWEEN :start AND :end AND t.status NOT IN ('WON', 'LOST', 'ABANDONED')")
     List<Tender> findTendersByRegistrationDeadlineAndTenderIds(@Param("tenderIds") Collection<Long> tenderIds, @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
-    /** 全量开标标讯实体（全局管理角色用，CO-593） */
+    /** 全量开标标讯实体（全局管理角色用，CO-593/CO-594） */
     @Query("SELECT t FROM Tender t WHERE t.bidOpeningTime BETWEEN :start AND :end AND t.status NOT IN ('WON', 'LOST', 'ABANDONED')")
     List<Tender> findTendersByBidOpeningTimeBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
-    /** 按标讯ID过滤开标标讯实体（非全局角色用，CO-593） */
+    /** 按标讯ID过滤开标标讯实体（非全局角色用，CO-593/CO-594） */
     @Query("SELECT t FROM Tender t WHERE t.id IN :tenderIds AND t.bidOpeningTime BETWEEN :start AND :end AND t.status NOT IN ('WON', 'LOST', 'ABANDONED')")
     List<Tender> findTendersByBidOpeningTimeAndTenderIds(@Param("tenderIds") Collection<Long> tenderIds, @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 

@@ -162,6 +162,12 @@ describe('normalizeCalendarEvent', () => {
     expect(normalizeCalendarEvent({ ...baseEvent, eventType: 'REMINDER' }).type).toBe('reminder')
   })
 
+  it('maps OPENING → "opening" (CO-594 绿点)', () => {
+    const r = normalizeCalendarEvent({ ...baseEvent, eventType: 'OPENING' })
+    expect(r.type).toBe('opening')
+    expect(r.eventType).toBe('OPENING')
+  })
+
   it('sets urgent to false when isUrgent is missing', () => {
     const r = normalizeCalendarEvent({ ...baseEvent, isUrgent: undefined })
     expect(r.urgent).toBe(false)
