@@ -43,6 +43,18 @@ public class OAuthStateService {
     /** 消息推送 state 的 TTL（7 天，覆盖用户休假场景）。 */
     private static final Duration MESSAGE_TTL = Duration.ofDays(7);
 
+    /**
+     * 企微工作台应用主页入口 state 前缀。
+     * <p>用于企微工作台点击应用图标直接登录的场景。应用主页配置为 OAuth 授权链接
+     * （按企微开发文档公式构造），state 使用固定值（如 {@code entry:workbench}），
+     * 避免每次访问都需要先调后端获取动态 state。
+     * <p>识别此前缀的 state 时直接返回 true（不删除，因为是固定值，可重复使用）。
+     * <p>CSRF 风险评估：攻击者构造钓鱼链接只能让受害者走完企微 OAuth 后登录到我们系统，
+     * 不会泄露敏感信息或登录到攻击者账号；且 code 必须是企微生成的一次性有效值，
+     * 攻击者无法伪造，风险可接受。
+     */
+    public static final String WORKBENCH_ENTRY_PREFIX = "entry:";
+
     /** Delay for local map cleanup task. */
     private static final long CLEAN_DELAY = 60000;
 
@@ -119,6 +131,12 @@ public class OAuthStateService {
         // 消息推送 state：只验证不删除（允许同一条消息多次点击）
         if (state.startsWith(MESSAGE_STATE_PREFIX)) {
             return validateMessageState(state);
+        }
+
+        // 工作台入口 state：固定值直接通过（不删除，可重复使用）
+        if (state.startsWith(WORKBENCH_ENTRY_PREFIX)) {
+            log.info("Workbench entry state accepted: {}", state);
+            return true;
         }
 
         if (redisTemplate != null) {
