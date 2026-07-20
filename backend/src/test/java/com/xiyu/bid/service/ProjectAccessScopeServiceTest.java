@@ -23,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
@@ -375,5 +376,82 @@ class ProjectAccessScopeServiceTest {
         assertThat(projectAccessScopeService.canAccessProject(701L, 999L)).isFalse();
         assertThatThrownBy(() -> projectAccessScopeService.assertCurrentUserCanAccessProject(999L))
                 .isInstanceOf(AccessDeniedException.class);
+    }
+
+    // ==================== CO-593: currentUserHasGlobalAccess tests ====================
+    // 覆盖 GLOBAL_ACCESS_ROLES（admin / /bidAdmin / bid-TeamLeader / bid-SystemAdmin）
+    // + ROLE_ADMIN / ROLE_EXTERNAL_API 短路 + OSS cache miss fail-closed
+
+    @Test
+    void currentUserHasGlobalAccess_shouldReturnTrue_whenRoleAdmin() {
+        setupAuthenticatedUser("admin-user", "admin");
+        assertThat(projectAccessScopeService.currentUserHasGlobalAccess()).isTrue();
+    }
+
+    @Test
+    void currentUserHasGlobalAccess_shouldReturnTrue_whenRoleBidAdmin() {
+        setupAuthenticatedUser("bid-admin", "/bidAdmin");
+        assertThat(projectAccessScopeService.currentUserHasGlobalAccess()).isTrue();
+    }
+
+    @Test
+    void currentUserHasGlobalAccess_shouldReturnTrue_whenRoleBidTeamLeader() {
+        setupAuthenticatedUser("bid-lead", "bid-TeamLeader");
+        assertThat(projectAccessScopeService.currentUserHasGlobalAccess()).isTrue();
+    }
+
+    @Test
+    void currentUserHasGlobalAccess_shouldReturnTrue_whenRoleBidSystemAdmin() {
+        setupAuthenticatedUser("bid-sysadmin", "bid-SystemAdmin");
+        assertThat(projectAccessScopeService.currentUserHasGlobalAccess()).isTrue();
+    }
+
+    @Test
+    void currentUserHasGlobalAccess_shouldReturnFalse_whenRoleBidSpecialist() {
+        setupAuthenticatedUser("bid-staff", "bid-Team");
+        assertThat(projectAccessScopeService.currentUserHasGlobalAccess()).isFalse();
+    }
+
+    @Test
+    void currentUserHasGlobalAccess_shouldReturnFalse_whenRoleCodeIsNull_failClosed() {
+        // CO-373: OSS cache miss → effectiveRoleResolver 返回 null → fail-closed
+        User user = userWithRoleCode(901L, "oss-user", null);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("oss-user", "N/A", List.of())
+        );
+        when(userRepository.findByUsername("oss-user")).thenReturn(Optional.of(user));
+        when(effectiveRoleResolver.resolveRoleCode(user)).thenReturn(null);
+
+        assertThat(projectAccessScopeService.currentUserHasGlobalAccess()).isFalse();
+    }
+
+    @Test
+    void currentUserHasGlobalAccess_shouldShortCircuit_whenRoleAdminAuthority() {
+        // Spring Security ROLE_ADMIN authority 短路（不查 User/roleCode）
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("sys-admin", "N/A",
+                        List.of(new SimpleGrantedAuthority("ROLE_ADMIN")))
+        );
+        // 故意不 stub userRepository —— 短路应跳过 User 查询
+        assertThat(projectAccessScopeService.currentUserHasGlobalAccess()).isTrue();
+    }
+
+    @Test
+    void currentUserHasGlobalAccess_shouldShortCircuit_whenRoleExternalApiAuthority() {
+        // ROLE_EXTERNAL_API 短路（外部 API 集成无 User 实体）
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("ext-api", "N/A",
+                        List.of(new SimpleGrantedAuthority("ROLE_EXTERNAL_API")))
+        );
+        assertThat(projectAccessScopeService.currentUserHasGlobalAccess()).isTrue();
+    }
+
+    private void setupAuthenticatedUser(String username, String roleCode) {
+        User user = userWithRoleCode(900L, username, roleCode);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(username, "N/A", List.of())
+        );
+        when(userRepository.findByUsername(username)).thenReturn(Optional.of(user));
+        when(effectiveRoleResolver.resolveRoleCode(user)).thenReturn(roleCode);
     }
 }

@@ -83,6 +83,24 @@ public interface TenderRepository extends JpaRepository<Tender, Long>, JpaSpecif
     @Query("SELECT t.bidOpeningTime FROM Tender t WHERE t.id IN :tenderIds AND t.bidOpeningTime BETWEEN :start AND :end AND t.status NOT IN ('WON', 'LOST', 'ABANDONED')")
     List<LocalDateTime> findBidOpeningTimesByTenderIds(@Param("tenderIds") Collection<Long> tenderIds, @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
+    // === CO-593: Workbench deadline items (return entities, not just timestamps) ===
+
+    /** 全量报名截止标讯实体（全局管理角色用，CO-593） */
+    @Query("SELECT t FROM Tender t WHERE t.registrationDeadline BETWEEN :start AND :end AND t.status NOT IN ('WON', 'LOST', 'ABANDONED')")
+    List<Tender> findTendersByRegistrationDeadlineBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    /** 按标讯ID过滤报名截止标讯实体（非全局角色用，CO-593） */
+    @Query("SELECT t FROM Tender t WHERE t.id IN :tenderIds AND t.registrationDeadline BETWEEN :start AND :end AND t.status NOT IN ('WON', 'LOST', 'ABANDONED')")
+    List<Tender> findTendersByRegistrationDeadlineAndTenderIds(@Param("tenderIds") Collection<Long> tenderIds, @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    /** 全量开标标讯实体（全局管理角色用，CO-593） */
+    @Query("SELECT t FROM Tender t WHERE t.bidOpeningTime BETWEEN :start AND :end AND t.status NOT IN ('WON', 'LOST', 'ABANDONED')")
+    List<Tender> findTendersByBidOpeningTimeBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    /** 按标讯ID过滤开标标讯实体（非全局角色用，CO-593） */
+    @Query("SELECT t FROM Tender t WHERE t.id IN :tenderIds AND t.bidOpeningTime BETWEEN :start AND :end AND t.status NOT IN ('WON', 'LOST', 'ABANDONED')")
+    List<Tender> findTendersByBidOpeningTimeAndTenderIds(@Param("tenderIds") Collection<Long> tenderIds, @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
     /**
      * 根据业主哈希查询标讯(按发布时间降序)
      * 用于商机时间预测

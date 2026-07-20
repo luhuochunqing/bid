@@ -144,6 +144,28 @@ public class ProjectAccessScopeService {
         return hasAdminAccess(SecurityContextHolder.getContext().getAuthentication());
     }
 
+    /**
+     * 当前用户是否拥有全局数据访问权限（CO-593 工作台截止时间模块用）。
+     *
+     * <p>覆盖 {@link RoleProfileCatalog#GLOBAL_ACCESS_ROLES}（admin / /bidAdmin / bid-TeamLeader / bid-SystemAdmin）
+     * 以及 {@code ROLE_EXTERNAL_API}（外部 API 集成无 User 实体，按管理员语义放行）。</p>
+     *
+     * <p>区别于 {@link #currentUserHasAdminAccess()}：后者只认 {@code ROLE_ADMIN}，不含投标管理员/组长。</p>
+     *
+     * <p>角色码解析统一走 {@link EffectiveRoleResolver#resolveRoleCode}（CO-373 规范）。
+     * OSS 用户缓存未命中时返回 null —— {@link RoleProfileCatalog#GLOBAL_ACCESS_ROLES} 是不可变 {@code Set.of}
+     * 不能接受 null（会抛 NPE），这里显式短路为 false，符合 fail-closed 语义。</p>
+     */
+    public boolean currentUserHasGlobalAccess() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (hasAdminAccess(authentication)) {
+            return true;
+        }
+        User user = resolveCurrentUser(authentication);
+        String roleCode = effectiveRoleResolver.resolveRoleCode(user);
+        return roleCode != null && RoleProfileCatalog.GLOBAL_ACCESS_ROLES.contains(roleCode);
+    }
+
     public List<Project> filterAccessibleProjects(List<Project> projects) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (hasAdminAccess(authentication)) {

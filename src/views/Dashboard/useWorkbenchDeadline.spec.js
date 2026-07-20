@@ -85,4 +85,71 @@ describe('useWorkbenchDeadline', () => {
     expect(composable.deadlineStats.value.bidOpening.todayCount).toBe(0)
     expect(composable.deadlineStats.value.depositDeadline.monthCount).toBe(0)
   })
+
+  // ==================== CO-593: deadline items + race condition guard ====================
+
+  it('loadDeadlineItems fetches items and exposes them via deadlinePanels', async () => {
+    const workbenchApi = {
+      getDeadlineItems: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          registrationDeadline: [{ id: 10, name: '标讯A', date: '2026-05-17', targetId: 10, targetType: 'tender' }],
+          bidOpening: [],
+          depositDeadline: [],
+        },
+      }),
+    }
+    const composable = useWorkbenchDeadline({ workbenchApi })
+
+    await composable.loadDeadlineItems('week')
+
+    expect(composable.deadlineItems.value.registrationDeadline).toHaveLength(1)
+    expect(composable.deadlineItems.value.registrationDeadline[0]).toMatchObject({
+      name: '标讯A', date: '2026-05-17', targetType: 'tender',
+    })
+    expect(composable.deadlinePanels.value.signup).toHaveLength(1)
+    expect(composable.deadlinePanels.value.opening).toEqual([])
+    expect(composable.deadlinePanels.value.deposit).toEqual([])
+    expect(composable.deadlineItemsLoading.value).toBe(false)
+  })
+
+  it('loadDeadlineItems discards stale response when a newer request supersedes it', async () => {
+    // 模拟用户快速切换 Tab：today 请求先发出但后完成，week 请求后发出但先完成
+    // 期望：最终 deadlineItems 显示 week 的数据，today 的结果被丢弃
+    const todayData = { registrationDeadline: [{ id: 1, name: '今天条目', date: '2026-05-17', targetId: 1, targetType: 'tender' }] }
+    const weekData = { registrationDeadline: [{ id: 2, name: '本周条目', date: '2026-05-18', targetId: 2, targetType: 'tender' }] }
+
+    let resolveToday
+    let resolveWeek
+    const workbenchApi = {
+      getDeadlineItems: vi.fn().mockImplementation((period) => {
+        if (period === 'today') {
+          return new Promise((resolve) => { resolveToday = () => resolve({ success: true, data: todayData }) })
+        }
+        return new Promise((resolve) => { resolveWeek = () => resolve({ success: true, data: weekData }) })
+      }),
+    }
+    const composable = useWorkbenchDeadline({ workbenchApi })
+
+    // 1. 发起 today 请求（pending）
+    const todayPromise = composable.loadDeadlineItems('today')
+    // 2. 立即发起 week 请求（today 还没完成 → today 的 requestId 已过时）
+    const weekPromise = composable.loadDeadlineItems('week')
+
+    // 3. week 请求先完成
+    resolveWeek()
+    await weekPromise
+
+    // 此时 UI 应显示 week 数据
+    expect(composable.deadlineItems.value.registrationDeadline[0].name).toBe('本周条目')
+    expect(composable.deadlineItemsLoading.value).toBe(false)
+
+    // 4. today 请求后完成（应被丢弃，不覆盖 week 的数据）
+    resolveToday()
+    await todayPromise
+
+    // 关键断言：UI 仍显示 week 数据，未被 today 覆盖
+    expect(composable.deadlineItems.value.registrationDeadline[0].name).toBe('本周条目')
+    expect(composable.deadlineItemsLoading.value).toBe(false)
+  })
 })
