@@ -66,6 +66,15 @@ export function useWorkbenchSchedule({ router, assigneeIdRef, onEventsLoaded } =
   }
 
   const handleCalendarAction = (event) => {
+    // Tender 派生事件（开标/报名截止）跳转标讯详情
+    const tenderEventTypes = ['opening', 'deadline', 'bid']
+    const eventType = event?.eventType || event?.type
+    const tenderId = event?.id
+    if (tenderEventTypes.includes(eventType) && tenderId && !String(tenderId).startsWith('-')) {
+      router.push(`/bidding/${tenderId}`)
+      return
+    }
+
     if (event?.projectId) {
       navigateToProject(router, event.projectId)
       return
@@ -105,7 +114,32 @@ export function useWorkbenchSchedule({ router, assigneeIdRef, onEventsLoaded } =
     }
   }
 
-  const syncSelectedDate = () => {
+  const syncSelectedDate = (options = {}) => {
+    const { keepCalendarDate = false } = options
+
+    // 翻月场景：保持 calendarDate，selectedDateKey 优先指向当前月份的事件
+    if (keepCalendarDate) {
+      const currentMonthKey = getCalendarMonthKey(calendarDate.value)
+      const monthEvents = normalizedCalendarEvents.value
+        .filter((event) => getCalendarMonthKey(parseDate(event.date)) === currentMonthKey)
+        .sort((a, b) => a.diffDays - b.diffDays)
+
+      if (monthEvents[0]) {
+        selectedDateKey.value = monthEvents[0].date
+        return
+      }
+
+      // 当前月份无事件：今天在当前月则选今天，否则选当前月第一天
+      const today = new Date()
+      if (getCalendarMonthKey(today) === currentMonthKey) {
+        selectedDateKey.value = formatDateKey(today)
+      } else {
+        selectedDateKey.value = formatDateKey(calendarDate.value)
+      }
+      return
+    }
+
+    // 初始加载场景：跳转到最近未来事件所在月份
     selectedDateKey.value = formatDateKey(new Date())
     const firstUpcomingEvent = normalizedCalendarEvents.value
       .filter((event) => event.diffDays >= 0)

@@ -335,7 +335,7 @@ onMounted(async () => {
 watch(calendarMonthKey, async (current, previous) => {
   if (!previous || current === previous) return
   await loadScheduleOverview()
-  syncSelectedDate()
+  syncSelectedDate({ keepCalendarDate: true })
 })
 
 watch(deadlinePeriod, (p) => loadDeadlineItems(p || 'week'), { immediate: true }) // CO-593: 截止时间 Tab 切换 + 初始加载
