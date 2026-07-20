@@ -7,13 +7,16 @@ import com.xiyu.bid.casework.application.StreamingZipPackager;
 import com.xiyu.bid.casework.infrastructure.ArchiveFile;
 import com.xiyu.bid.casework.infrastructure.ArchiveFileRepository;
 import com.xiyu.bid.casework.infrastructure.ProjectArchive;
+import com.xiyu.bid.file.application.ObsShareUrlSigner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.annotation.DirtiesContext;
@@ -22,8 +25,10 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -53,6 +58,9 @@ class ProjectArchiveControllerDownloadPathTest {
 
     @Value("${app.doc-insight.upload-dir:}")
     private String configuredUploadDir;
+
+    @MockBean
+    private ObsShareUrlSigner obsShareUrlSigner;
 
     private String getUploadRoot() {
         return (configuredUploadDir == null || configuredUploadDir.isBlank())
@@ -135,6 +143,41 @@ class ProjectArchiveControllerDownloadPathTest {
         // 清理
         Files.deleteIfExists(tempFile);
         Files.deleteIfExists(tempDir);
+        fileRepository.deleteById(file.getId());
+        archiveRepository.deleteById(archive.getId());
+    }
+
+    @Test
+    @DisplayName("spec 039: filePath 为 obs-direct 伪协议时，签发预签名 URL 并返回 302")
+    @WithMockUser(username = "admin", authorities = {"ROLE_ADMIN", "project"})
+    void downloadFile_obsDirectPath_shouldReturn302WithSignedUrl() throws Exception {
+        com.xiyu.bid.casework.infrastructure.ProjectArchive archive = new com.xiyu.bid.casework.infrastructure.ProjectArchive();
+        archive.setProjectId(1L);
+        archive.setProjectName("测试项目");
+        archive.setArchiveStatus("ACTIVE");
+        archive = archiveRepository.save(archive);
+
+        // spec 039 后 OBS 直传归档（含 V1171 回填）的 file_path 是 obs-direct:{uploadId} 伪协议
+        ArchiveFile file = new ArchiveFile();
+        file.setArchiveId(archive.getId());
+        file.setFileName("投标文件.pdf");
+        file.setDocumentCategory("BID");
+        file.setFilePath("obs-direct:upload-abc123");
+        file.setFileSize(0L);
+        file.setUploadUserId(1L);
+        file.setUploadUserName("王工");
+        file = fileRepository.save(file);
+
+        Mockito.when(obsShareUrlSigner.trySign("obs-direct:upload-abc123"))
+                .thenReturn(Optional.of("https://obs.example.com/signed/abc?signature=x"));
+
+        // 修复前：resolveAbsoluteWithin 对伪协议路径抛"文件路径越界"（400/500）；
+        // 修复后：302 重定向到 OBS 预签名 URL，与项目文档下载行为对齐
+        mockMvc.perform(get("/api/archive/files/{fileId}/download", file.getId()))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "https://obs.example.com/signed/abc?signature=x"));
+
+        // 清理
         fileRepository.deleteById(file.getId());
         archiveRepository.deleteById(archive.getId());
     }

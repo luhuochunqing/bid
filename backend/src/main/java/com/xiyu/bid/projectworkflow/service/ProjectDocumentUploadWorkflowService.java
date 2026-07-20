@@ -28,9 +28,10 @@ class ProjectDocumentUploadWorkflowService {
         String fileName = defaultString(request.getName(), originalFileName(file));
         byte[] content = fileBytes(file);
         StoredProjectDocumentFile storedFile = fileStorage.store(projectId, fileName, file.getContentType(), content);
-        // spec 039: 归档逻辑已上提到 ProjectDocumentWorkflowService.createProjectDocument 末尾统一触发，
-        // 此处仅负责文件存储和创建文档记录，不再直接调用 attachFileToArchive（避免双写）。
-        // OBS 直传 JSON 路径和 multipart 路径都会在 createProjectDocument 末尾归档。
+        // spec 039: 归档逻辑已上提到 ProjectDocumentWorkflowService.createProjectDocument 末尾统一触发。
+        // multipart 路径透传 DocumentArchiveSource（物理路径 + 真实字节数），
+        // 保证 archive_file.file_path 可下载（CO-430 链路）、file_size 为真实大小；
+        // OBS 直传 JSON 路径由 createProjectDocument 降级为 fileUrl + 0L。
         return projectDocumentWorkflowService.createProjectDocument(projectId, ProjectDocumentCreateRequest.builder()
                 .name(fileName.trim())
                 .size(defaultString(request.getSize(), formatSize(file.getSize())))
@@ -41,7 +42,8 @@ class ProjectDocumentUploadWorkflowService {
                 .fileUrl(storedFile.fileUrl())
                 .uploaderId(request.getUploaderId())
                 .uploaderName(request.getUploaderName())
-                .build());
+                .build(),
+                new DocumentArchiveSource(storedFile.physicalPath(), file.getSize()));
     }
 
     private void validateUpload(MultipartFile file) {

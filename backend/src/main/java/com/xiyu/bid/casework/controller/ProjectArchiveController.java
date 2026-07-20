@@ -1,6 +1,7 @@
 package com.xiyu.bid.casework.controller;
 
 import com.xiyu.bid.casework.application.ArchiveFileListService;
+import com.xiyu.bid.casework.application.ArchiveFileResponseFactory;
 import com.xiyu.bid.casework.application.ProjectArchiveDetailService;
 import com.xiyu.bid.casework.application.ProjectArchiveExportService;
 import com.xiyu.bid.casework.application.ProjectArchiveWorkflowService;
@@ -14,8 +15,6 @@ import com.xiyu.bid.casework.infrastructure.ArchiveFile;
 import com.xiyu.bid.casework.infrastructure.ArchiveFileRepository;
 import com.xiyu.bid.casework.infrastructure.ProjectArchive;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -55,6 +54,8 @@ public class ProjectArchiveController {
     private final StreamingZipPackager streamingZipPackager;
     private final ArchiveFileRepository archiveFileRepository;
     private final ArchiveFileListService archiveFileListService;
+    // spec 039: 档案文件响应构建（obs-direct 302 / 本地流式），避免 Controller 继续膨胀
+    private final ArchiveFileResponseFactory archiveFileResponseFactory;
     @GetMapping
     @PreAuthorize("hasAuthority('project')")
     public ResponseEntity<Page<ProjectArchiveResponse>> queryProjectArchives(
@@ -106,23 +107,8 @@ public class ProjectArchiveController {
         String opName = getCurrentOperatorName();
         workflowService.recordLog(archive.getId(), 0L, opName, "预览", "预览人" + opName + "、预览时间" + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) + "、预览文件名" + file.getFileName());
 
-        Path filePath = resolveAndValidateFilePath(file.getFilePath());
-
-        String fileName = file.getFileName();
-        String contentType = inferContentType(fileName);
-
-        long fileSize;
-        try { fileSize = Files.size(filePath); }
-        catch (java.io.IOException e) { throw new IllegalStateException("无法读取文件大小: " + file.getFilePath(), e); }
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.add(HttpHeaders.CONTENT_DISPOSITION,
-            "inline; filename=\"" + sanitizeFilename(fileName) + "\"");
-        headers.setContentType(MediaType.parseMediaType(contentType));
-        headers.setContentLength(fileSize);
-
-        Resource resource = new FileSystemResource(filePath);
-        return new ResponseEntity<>(resource, headers, HttpStatus.OK);
+        // spec 039: 响应构建下沉到 ArchiveFileResponseFactory（obs-direct 伪协议 302 / 本地路径流式 200）
+        return archiveFileResponseFactory.build(file, true);
     }
 
     /**
@@ -139,29 +125,9 @@ public class ProjectArchiveController {
         String opName = getCurrentOperatorName();
         workflowService.recordLog(archive.getId(), 0L, opName, "下载", "下载人" + opName + "、下载时间" + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) + "、下载文件名" + file.getFileName());
 
-        Path filePath = resolveAndValidateFilePath(file.getFilePath());
-
-        String fileName = file.getFileName();
-
-        long fileSize;
-        try { fileSize = Files.size(filePath); }
-        catch (java.io.IOException e) { throw new IllegalStateException("无法读取文件大小: " + file.getFilePath(), e); }
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.add(HttpHeaders.CONTENT_DISPOSITION,
-            "attachment; filename=\"" + sanitizeFilename(fileName) + "\"");
-        headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
-        headers.setContentLength(fileSize);
-
-        Resource resource = new FileSystemResource(filePath);
-        return new ResponseEntity<>(resource, headers, HttpStatus.OK);
+        return archiveFileResponseFactory.build(file, false);
     }
-    @Value("${app.doc-insight.upload-dir:}")
-    private String configuredUploadDir;
-    /** CO-430: 获取 upload 根目录绝对路径。 */
-    private String getArchiveFileBaseDir() { return Path.of((configuredUploadDir == null || configuredUploadDir.isBlank()) ? System.getProperty("java.io.tmpdir") + "/xiyu-doc-insight-uploads" : configuredUploadDir).toAbsolutePath().normalize().toString(); }
-    /** 解析并验证文件路径，防止路径遍历攻击。 */
-    private Path resolveAndValidateFilePath(String rawPath) { return com.xiyu.bid.shared.security.FilePathGuard.ensureExists(com.xiyu.bid.shared.security.FilePathGuard.resolveAbsoluteWithin(rawPath, getArchiveFileBaseDir()), rawPath); }
+
     @PostMapping("/export-excel")
     @PreAuthorize("hasAuthority('project')")
     public ResponseEntity<byte[]> exportExcel(
@@ -278,19 +244,5 @@ public class ProjectArchiveController {
         headers.setContentLength(zipBytes.length);
         return new ResponseEntity<>(zipBytes, headers, HttpStatus.OK);
     }
-    private String inferContentType(String filename) {
-        if (filename == null) return "application/octet-stream";
-        String l = filename.toLowerCase();
-        if (l.endsWith(".pdf")) return "application/pdf";
-        if (l.endsWith(".doc")) return "application/msword";
-        if (l.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-        if (l.endsWith(".xls")) return "application/vnd.ms-excel";
-        if (l.endsWith(".xlsx")) return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-        if (l.endsWith(".png")) return "image/png";
-        if (l.endsWith(".jpg") || l.endsWith(".jpeg")) return "image/jpeg";
-        if (l.endsWith(".gif")) return "image/gif";
-        return l.endsWith(".txt") ? "text/plain" : "application/octet-stream";
-    }
-    private String sanitizeFilename(String f) { return f == null ? "unnamed" : f.replaceAll("[^\\w\\u4e00-\\u9fa5.\\-]", "_"); }
     private String getCurrentOperatorName() { try { var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication(); if (auth != null && auth.getName() != null) return auth.getName(); } catch (IllegalStateException | NullPointerException ignored) {} return "系统"; }
 }

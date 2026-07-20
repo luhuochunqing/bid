@@ -1,4 +1,5 @@
--- spec 039: 回填 OBS 直传历史文档到 archive_file 表
+-- spec 039: V1171 回填 OBS 直传历史文档到 archive_file 表
+-- 蓝图 §4.1.1.1：项目文档上传时即时按分类归档到项目档案（本迁移修复历史缺失数据）。
 -- 根因：旧版 ProjectDocumentWorkflowService.createProjectDocument（JSON API 路径）未调用 attachFileToArchive，
 --       导致通过 OBS 直传上传的投标文件等文档只写入 project_documents 表，未写入 archive_file 表，
 --       前端项目档案视图缺失这些文档。

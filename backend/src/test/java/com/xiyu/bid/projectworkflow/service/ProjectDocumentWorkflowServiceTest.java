@@ -22,6 +22,8 @@ import com.xiyu.bid.security.CurrentUserResolver;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import org.springframework.core.io.ByteArrayResource;
 
@@ -954,11 +956,37 @@ class ProjectDocumentWorkflowServiceTest {
     }
 
     @Test
-    void createProjectDocument_ShouldUseFileUrlAsPhysicalPath() {
-        // OBS 直传场景 fileUrl 即为物理路径标识（obs-direct:{uploadId}）
+    void createProjectDocument_WithArchiveSource_ShouldArchivePhysicalPathAndRealSize() {
+        // multipart 路径：透传 DocumentArchiveSource 时，归档 file_path 用本地物理路径
+        // （保证 CO-430 档案下载链路可用），file_size 用真实字节数而非 ARCHIVE_FILE_SIZE_UNKNOWN
         when(projectDocumentRepository.save(any(ProjectDocument.class))).thenAnswer(invocation -> {
             ProjectDocument document = invocation.getArgument(0);
             document.setId(3504L);
+            return document;
+        });
+
+        service.createProjectDocument(1001L, ProjectDocumentCreateRequest.builder()
+                .name("招标文件.pdf")
+                .fileType("pdf")
+                .documentCategory("TENDER")
+                .fileUrl("doc-insight://tender-file/1001/abc.pdf")
+                .build(),
+                new DocumentArchiveSource("/tmp/xiyu-doc-insight-uploads/tender-file/1001/abc.pdf", 204800L));
+
+        verify(projectArchiveWorkflowService).attachFileToArchive(
+                eq(1001L), eq("招标文件.pdf"), eq("TENDER"),
+                eq("/tmp/xiyu-doc-insight-uploads/tender-file/1001/abc.pdf"),
+                eq(204800L), any(), any()
+        );
+    }
+
+    @Test
+    void createProjectDocument_WithoutArchiveSource_ShouldFallbackToFileUrlAndUnknownSize() {
+        // OBS 直传 JSON 路径（archiveSource=null）：归档降级为 fileUrl（obs-direct: 伪协议，
+        // 下载由 ArchiveFileResponseFactory 302 签发预签名 URL）+ ARCHIVE_FILE_SIZE_UNKNOWN
+        when(projectDocumentRepository.save(any(ProjectDocument.class))).thenAnswer(invocation -> {
+            ProjectDocument document = invocation.getArgument(0);
+            document.setId(3506L);
             return document;
         });
 
@@ -971,7 +999,7 @@ class ProjectDocumentWorkflowServiceTest {
 
         verify(projectArchiveWorkflowService).attachFileToArchive(
                 eq(1001L), eq("file.pdf"), eq("BID"), eq("obs-direct:xyz999"),
-                any(), any(), any()
+                eq(0L), any(), any()
         );
     }
 
@@ -997,8 +1025,15 @@ class ProjectDocumentWorkflowServiceTest {
         assertThat(dto.getName()).isEqualTo("容错测试.pdf");
     }
 
-    @Test
-    void createProjectDocument_ShouldArchiveByCategory_BID() {
+    @ParameterizedTest
+    @CsvSource({
+            "BID, 投标文件.pdf",
+            "TENDER, 招标文件.pdf",
+            "OPEN_LIST, 开标一览表.pdf",
+            "WIN_NOTICE, 中标通知书.pdf",
+            "DEPOSIT_RECEIPT, 保证金银行回单.pdf"
+    })
+    void createProjectDocument_ShouldArchiveByCategory(String category, String fileName) {
         when(projectDocumentRepository.save(any(ProjectDocument.class))).thenAnswer(invocation -> {
             ProjectDocument document = invocation.getArgument(0);
             document.setId(3510L);
@@ -1006,93 +1041,13 @@ class ProjectDocumentWorkflowServiceTest {
         });
 
         service.createProjectDocument(1001L, ProjectDocumentCreateRequest.builder()
-                .name("投标文件.pdf")
-                .documentCategory("BID")
-                .fileUrl("obs-direct:bid001")
+                .name(fileName)
+                .documentCategory(category)
+                .fileUrl("obs-direct:cat001")
                 .build());
 
         verify(projectArchiveWorkflowService).attachFileToArchive(
-                eq(1001L), eq("投标文件.pdf"), eq("BID"), eq("obs-direct:bid001"),
-                any(), any(), any()
-        );
-    }
-
-    @Test
-    void createProjectDocument_ShouldArchiveByCategory_TENDER() {
-        when(projectDocumentRepository.save(any(ProjectDocument.class))).thenAnswer(invocation -> {
-            ProjectDocument document = invocation.getArgument(0);
-            document.setId(3511L);
-            return document;
-        });
-
-        service.createProjectDocument(1001L, ProjectDocumentCreateRequest.builder()
-                .name("招标文件.pdf")
-                .documentCategory("TENDER")
-                .fileUrl("obs-direct:tender001")
-                .build());
-
-        verify(projectArchiveWorkflowService).attachFileToArchive(
-                eq(1001L), eq("招标文件.pdf"), eq("TENDER"), eq("obs-direct:tender001"),
-                any(), any(), any()
-        );
-    }
-
-    @Test
-    void createProjectDocument_ShouldArchiveByCategory_OPEN_LIST() {
-        when(projectDocumentRepository.save(any(ProjectDocument.class))).thenAnswer(invocation -> {
-            ProjectDocument document = invocation.getArgument(0);
-            document.setId(3512L);
-            return document;
-        });
-
-        service.createProjectDocument(1001L, ProjectDocumentCreateRequest.builder()
-                .name("开标一览表.pdf")
-                .documentCategory("OPEN_LIST")
-                .fileUrl("obs-direct:open001")
-                .build());
-
-        verify(projectArchiveWorkflowService).attachFileToArchive(
-                eq(1001L), eq("开标一览表.pdf"), eq("OPEN_LIST"), eq("obs-direct:open001"),
-                any(), any(), any()
-        );
-    }
-
-    @Test
-    void createProjectDocument_ShouldArchiveByCategory_WIN_NOTICE() {
-        when(projectDocumentRepository.save(any(ProjectDocument.class))).thenAnswer(invocation -> {
-            ProjectDocument document = invocation.getArgument(0);
-            document.setId(3513L);
-            return document;
-        });
-
-        service.createProjectDocument(1001L, ProjectDocumentCreateRequest.builder()
-                .name("中标通知书.pdf")
-                .documentCategory("WIN_NOTICE")
-                .fileUrl("obs-direct:win001")
-                .build());
-
-        verify(projectArchiveWorkflowService).attachFileToArchive(
-                eq(1001L), eq("中标通知书.pdf"), eq("WIN_NOTICE"), eq("obs-direct:win001"),
-                any(), any(), any()
-        );
-    }
-
-    @Test
-    void createProjectDocument_ShouldArchiveByCategory_DEPOSIT_RECEIPT() {
-        when(projectDocumentRepository.save(any(ProjectDocument.class))).thenAnswer(invocation -> {
-            ProjectDocument document = invocation.getArgument(0);
-            document.setId(3514L);
-            return document;
-        });
-
-        service.createProjectDocument(1001L, ProjectDocumentCreateRequest.builder()
-                .name("保证金银行回单.pdf")
-                .documentCategory("DEPOSIT_RECEIPT")
-                .fileUrl("obs-direct:dep001")
-                .build());
-
-        verify(projectArchiveWorkflowService).attachFileToArchive(
-                eq(1001L), eq("保证金银行回单.pdf"), eq("DEPOSIT_RECEIPT"), eq("obs-direct:dep001"),
+                eq(1001L), eq(fileName), eq(category), eq("obs-direct:cat001"),
                 any(), any(), any()
         );
     }

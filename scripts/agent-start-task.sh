@@ -260,10 +260,8 @@ cleanup_on_error() {
     done
   fi
 
-  if [[ "$CREATE_WORKTREE" == "1" && "$WORKTREE_CREATED" == "1" ]]; then
-    git worktree remove "$WORKTREE_PATH" --force >/dev/null 2>&1 || true
-  fi
-
+  # 注意：不可在此删除 worktree。自 2026-06-22 起强制 --in-place 模式，
+  # WORKTREE_PATH 是各 agent 的持久 worktree，失败清理只回收分支。
   if [[ "$BRANCH_CREATED" == "1" ]]; then
     if git show-ref --verify --quiet "refs/heads/$BRANCH_NAME"; then
       git branch -D "$BRANCH_NAME" >/dev/null 2>&1 || true
