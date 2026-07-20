@@ -34,6 +34,9 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class ProjectArchiveDetailService {
 
+    /** operatorName 为空/null 时的兜底显示（系统自动操作） */
+    private static final String SYSTEM_OPERATOR = "系统";
+
     private final ProjectArchiveRepository archiveRepository;
     private final ArchiveFileRepository fileRepository;
     private final ArchiveLogRepository logRepository;
@@ -158,7 +161,7 @@ public class ProjectArchiveDetailService {
      * </ul>
      */
     private String resolveOperatorDisplay(String operatorName, Map<String, User> userByUsername) {
-        if (operatorName == null || operatorName.isBlank()) return "系统";
+        if (operatorName == null || operatorName.isBlank()) return SYSTEM_OPERATOR;
         User user = userByUsername.get(operatorName);
         if (user == null) return operatorName;
         String display = OperatorDisplayName.formatStrict(user);

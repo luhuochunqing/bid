@@ -25,6 +25,8 @@ export async function uploadDocument(projectId, formData) {
     return httpClient.post(`/api/projects/${projectId}/documents`, formData, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 })
   }
 
+  const fileSizeBytesRaw = formData.get('fileSizeBytes')
+  const fileSizeBytes = fileSizeBytesRaw != null ? Number(fileSizeBytesRaw) : NaN
   return httpClient.post(`/api/projects/${projectId}/documents`, {
     name: formData.get('name') || formData.get('file')?.name || '项目文档',
     size: formData.get('size') || '1MB',
@@ -35,7 +37,8 @@ export async function uploadDocument(projectId, formData) {
     linkedEntityId: formData.get('linkedEntityId') ? Number(formData.get('linkedEntityId')) : null,
     uploaderId: formData.get('uploaderId') ? Number(formData.get('uploaderId')) : null,
     uploaderName: formData.get('uploaderName') || '',
-    fileSizeBytes: formData.get('fileSizeBytes') ? Number(formData.get('fileSizeBytes')) : null })
+    // 防御性：Number('abc') 返回 NaN，NaN 是 truthy 会误透传，用 isFinite 兜底
+    fileSizeBytes: Number.isFinite(fileSizeBytes) ? fileSizeBytes : null })
 }
 
 export async function deleteDocument(projectId, documentId) {

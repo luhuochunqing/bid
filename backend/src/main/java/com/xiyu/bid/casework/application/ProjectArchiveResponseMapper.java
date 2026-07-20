@@ -21,8 +21,10 @@ import static java.util.stream.Collectors.*;
 @Component
 class ProjectArchiveResponseMapper {
 
-    private static final List<String> CATEGORY_KEYS = List.of(
-            "TENDER", "BID", "OPEN_LIST", "WIN_NOTICE", "DEPOSIT_RECEIPT", "OTHER");
+    // 用 LinkedHashSet：保顺序（前端 FileCategoryPopover 按 CATEGORY_KEYS 顺序渲染）+ O(1) contains 查询。
+    // 之前用 List.of 的 contains 是 O(n) 线性扫描，6 个元素差别虽小，但 Set 语义更准确。
+    private static final Set<String> CATEGORY_KEYS = new LinkedHashSet<>(List.of(
+            "TENDER", "BID", "OPEN_LIST", "WIN_NOTICE", "DEPOSIT_RECEIPT", "OTHER"));
 
     private final ProjectRepository projectRepository;
     private final TenderRepository tenderRepository;
