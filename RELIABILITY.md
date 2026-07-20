@@ -16,7 +16,7 @@
 | 层次 | 机制 | 触发时机 | 能否绕过 |
 |------|------|---------|---------|
 | 1 | `scripts/git` 包装器（需 `source dev-env.sh` 激活） | 每次 `git` 命令 | 系统级拦截 `--no-verify` |
-| 2 | `.githooks/pre-push` + `pre-push-gate.sh`（14 道门禁） | `git push` | hook 自动触发，别名拦截 `--no-verify` |
+| 2 | `.githooks/pre-push` + `pre-push-gate.sh`（15 道门禁） | `git push` | hook 自动触发，别名拦截 `--no-verify` |
 | 3 | `.githooks/pre-commit`（15+ 项检查） | `git commit` | hook 自动触发，别名拦截 `--no-verify` |
 | 4 | **git alias**（`.githooks/git-push-wrapper.sh`） | `git push` | 过滤 `--no-verify`，门禁强制跑 |
 | 5 | **git alias**（`.githooks/git-commit-wrapper.sh`） | `git commit` | 过滤 `--no-verify`，hook 强制跑 |
@@ -27,7 +27,7 @@
 完整本地门禁（手动触发）：
 - `npm run ci:local:quick` — 快速预检（编译 + 架构门禁）
 - `npm run ci:local` — 完整本地 CI 模拟（需本地 Docker）
-- `npm run agent:pre-push-dry-run` — 模拟推送前 14 道门禁
+- `npm run agent:pre-push-dry-run` — 模拟推送前 15 道门禁
 - `npm run ci:pre-pr` / `bash scripts/ci-pre-pr.sh` — 提交 PR 前一站式门禁
 
 ### Gitee CI（远端门禁）
@@ -91,7 +91,7 @@ npm run gitee:auto-merge                   # 自动合并已批准 PR
 
 ## 紧急修复通道（P0 Hotfix）
 
-> 背景：2026-07-03 标讯中心宕机事故（lessons-learned §36），完整 14 道门禁 + Spec Kit 流程在 P0 场景下耗时过长。本章节定义 P0 事故的快速止血通道，**不替代正常流程**，只在 P0 判定通过时启用。
+> 背景：2026-07-03 标讯中心宕机事故（lessons-learned §36），完整 15 道门禁 + Spec Kit 流程在 P0 场景下耗时过长。本章节定义 P0 事故的快速止血通道，**不替代正常流程**，只在 P0 判定通过时启用。
 
 ### P0 判定标准
 
@@ -101,7 +101,7 @@ npm run gitee:auto-merge                   # 自动合并已批准 PR
 | P1 | 单一功能不可用 / 性能严重退化 | 某个审批按钮报错、列表查询慢 |
 | P2 | 体验问题 / 非核心功能 | UI 错位、文案错误 |
 
-只有 **P0** 才走本通道。P1/P2 必须走正常 14 道门禁流程。
+只有 **P0** 才走本通道。P1/P2 必须走正常 15 道门禁流程。
 
 ### 30 分钟 SLA 流程
 

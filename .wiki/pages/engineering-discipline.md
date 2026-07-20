@@ -385,6 +385,7 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 | `scripts/check-list-endpoint-n1.mjs` | 新增 `Promise.all(map(... => *.getDetail(...)))` 或 `loadDetailsInBatches` 函数 | spec 035 / Account 详情 6 次反复修 |
 | `scripts/audit-existing-429-exposure.mjs` | 存量业务层 ElMessage.error 风险评级（HIGH/MEDIUM/LOW），驱动治理 PR 排序 | spec 035 / 全仓 207 处存量 |
 | `scripts/check-attachment-root-path.mjs` | 新增 `@Value("${*.attachment.root:/...}")` 等文件路径默认值以 `/` 开头（macOS SSV 只读） | 仓库 Word 合订本附件内容丢失 |
+| `scripts/check-lessons-section-conflict.mjs` | 新增 `## N.` 章节编号与 origin/main 冲突（撞号或回退） | PR !2130 vs !2131/!2132 并行归档撞号 |
 
 ---
 
