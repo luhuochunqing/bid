@@ -106,7 +106,13 @@ export function buildDeadlinePanels(events, period = 'week', today = new Date())
   return buckets
 }
 
-const MAX_CARD_ITEMS = 4
+/**
+ * 工作台待办卡片每类最多显示条数（API 层与视图层共享，避免双源硬编码）。
+ * useWorkbenchRoleTodos.js 的 slice(0, N) 与 buildTodoCategoryCards 的 slice(0, N) 都用此常量。
+ */
+export const MAX_TODO_CARD_ITEMS = 4
+
+const MAX_CARD_ITEMS = MAX_TODO_CARD_ITEMS
 
 /**
  * 标讯状态码 → 中文标签映射（工作台待办右侧显示）。

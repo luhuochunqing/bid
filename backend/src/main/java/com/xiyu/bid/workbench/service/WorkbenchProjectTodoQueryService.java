@@ -76,7 +76,7 @@ public class WorkbenchProjectTodoQueryService {
             collectProjectIdsByStages(List.of(ProjectStage.INITIATED))
                     .forEach(id -> projectIdToLabel.putIfAbsent(id, "已立项"));
             pendingReviewProjectIds.forEach(id -> projectIdToLabel.put(id, "投标中"));
-        } else if (RoleProfileCatalog.BID_SPECIALIST_CODE.equalsIgnoreCase(roleCode)) {
+        } else if (RoleProfileCatalog.BID_SPECIALIST_CODE.equals(canonicalRole)) {
             // 投标专员: 主/副负责人项目（排除 CLOSED）+ 待审核标书项目（投标中）
             Set<Long> leadProjectIds = new LinkedHashSet<>();
             leadProjectIds.addAll(projectLeadAssignmentRepository
@@ -91,7 +91,7 @@ public class WorkbenchProjectTodoQueryService {
                         .forEach(p -> projectIdToLabel.putIfAbsent(p.getId(), resolveStageLabel(p.getStage())));
             }
             pendingReviewProjectIds.forEach(id -> projectIdToLabel.put(id, "投标中"));
-        } else if (RoleProfileCatalog.SALES_CODE.equalsIgnoreCase(roleCode)) {
+        } else if (RoleProfileCatalog.SALES_CODE.equals(canonicalRole)) {
             // 项目负责人: 待立项（INITIATED）+ 待结项（RETROSPECTIVE）+ 投标中（DRAFTING 限待审核标书）
             collectProjectIdsByStages(List.of(ProjectStage.INITIATED))
                     .forEach(id -> projectIdToLabel.putIfAbsent(id, "待立项"));
@@ -143,17 +143,22 @@ public class WorkbenchProjectTodoQueryService {
                 .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
-    /** 投标专员：按项目实际阶段映射中文标签。 */
+    /** 投标专员：按项目实际阶段映射中文标签（使用枚举，避免字符串重复映射）。 */
     private String resolveStageLabel(String stage) {
         if (stage == null) return "";
-        return switch (stage) {
-            case "INITIATED" -> "已立项";
-            case "DRAFTING" -> "投标中";
-            case "EVALUATING" -> "评标中";
-            case "RESULT_PENDING" -> "待结果";
-            case "RETROSPECTIVE" -> "待结项";
-            case "CLOSED" -> "已结项";
-            default -> stage;
-        };
+        try {
+            ProjectStage ps = ProjectStage.valueOf(stage);
+            return switch (ps) {
+                case INITIATED -> "已立项";
+                case DRAFTING -> "投标中";
+                case EVALUATING -> "评标中";
+                case RESULT_PENDING -> "待结果";
+                case RETROSPECTIVE -> "待结项";
+                case CLOSED -> "已结项";
+            };
+        } catch (IllegalArgumentException e) {
+            // 未注册的 stage 码原样返回（防御）
+            return stage;
+        }
     }
 }
