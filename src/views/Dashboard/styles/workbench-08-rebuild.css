@@ -170,8 +170,11 @@
   /* 滚动条贴右侧边框：右侧不加 padding，让滚动条紧贴边框 */
   padding-right: 0;
   flex: 1;
+  /* Firefox 滚动条 */
+  scrollbar-width: thin;
+  scrollbar-color: var(--gray-200) transparent;
 }
-/* 滚动条样式：贴右侧边框，细条 + hover 加深 */
+/* WebKit 滚动条样式：贴右侧边框，细条 + hover 加深 */
 .todo-category-card-list::-webkit-scrollbar { width: 4px; }
 .todo-category-card-list::-webkit-scrollbar-track { background: transparent; }
 .todo-category-card-list::-webkit-scrollbar-thumb {
@@ -180,11 +183,6 @@
 }
 .todo-category-card-list::-webkit-scrollbar-thumb:hover {
   background: var(--gray-300);
-}
-/* Firefox */
-.todo-category-card-list {
-  scrollbar-width: thin;
-  scrollbar-color: var(--gray-200) transparent;
 }
 .todo-category-item {
   display: flex;

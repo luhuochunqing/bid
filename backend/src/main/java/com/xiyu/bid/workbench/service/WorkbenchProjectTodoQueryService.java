@@ -78,7 +78,8 @@ public class WorkbenchProjectTodoQueryService {
 
         String canonicalRole = RoleProfileCatalog.canonicalCode(roleCode);
         Long userId = currentUser.getId();
-        log.info("Workbench project todos: user={}, roleCode={}, canonicalRole={}",
+        // debug 级别与 EffectiveRoleResolver.logDecision 保持一致；fail-closed 路径已用 warn
+        log.debug("Workbench project todos: user={}, roleCode={}, canonicalRole={}",
                 currentUser.getUsername(), roleCode, canonicalRole);
 
         // 待审核标书的项目 ID（DRAFTING 阶段 + REVIEWING 状态）
