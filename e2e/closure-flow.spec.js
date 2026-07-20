@@ -33,7 +33,8 @@ test.describe('项目结页 §3.3.1.6', () => {
   let depositEvidenceId
 
   test('1. 项目负责人创建项目并推进到结项审核状态', async ({ page }) => {
-    const session = await ensureApiSession({ username: 'sales_e2e_closure', role: 'bid-projectLeader', fullName: '销售经理' })
+    // 用 Date.now() 后缀避免和数据库残留用户冲突（旧用户可能 role=manager 已废弃，登录后鉴权失败）
+    const session = await ensureApiSession({ username: `sales_e2e_closure_${Date.now()}`, role: 'bid-projectLeader', fullName: '销售经理' })
     await injectSession(page, session)
 
     // 创建标讯
@@ -93,12 +94,13 @@ test.describe('项目结页 §3.3.1.6', () => {
     // 验证页面渲染出关键区块
     await expect(page.getByText('保证金管理')).toBeVisible({ timeout: 10000 })
     await expect(page.getByText('是否有保证金')).toBeVisible()
-    await expect(page.getByText('项目总结')).toBeVisible()
+    // exact:true 避免匹配到 "E2E 测试项目总结" 这种内容文本
+    await expect(page.getByText('项目总结', { exact: true })).toBeVisible()
   })
 
   test('2. 投标管理员可查看并审核结项', async ({ page }) => {
-    // 投标管理员登录
-    const session = await ensureApiSession({ username: 'bid_admin_e2e_closure', role: '/bidAdmin', fullName: '投标管理员' })
+    // 投标管理员登录（用 Date.now() 后缀避免残留用户冲突）
+    const session = await ensureApiSession({ username: `bid_admin_e2e_closure_${Date.now()}`, role: '/bidAdmin', fullName: '投标管理员' })
     await injectSession(page, session)
 
     await page.goto(`/project/${projectId}`)
@@ -113,7 +115,7 @@ test.describe('项目结页 §3.3.1.6', () => {
 
     // 验证可见基本字段
     await expect(page.getByText('保证金管理')).toBeVisible({ timeout: 10000 })
-    await expect(page.getByText('项目总结')).toBeVisible()
+    await expect(page.getByText('项目总结', { exact: true })).toBeVisible()
 
     // 投标管理员可以看到"通过"和"驳回"按钮
     const approveBtn = page.locator('button', { hasText: '通过' })
@@ -126,7 +128,8 @@ test.describe('项目结页 §3.3.1.6', () => {
   })
 
   test('3. 保证金退回情况动态子字段', async ({ page }) => {
-    const session = await ensureApiSession({ username: 'sales_e2e_deposit', role: 'bid-projectLeader', fullName: '销售经理' })
+    // 用 Date.now() 后缀避免和数据库残留用户冲突（旧用户可能 role=manager 已废弃，登录后鉴权失败）
+    const session = await ensureApiSession({ username: `sales_e2e_deposit_${Date.now()}`, role: 'bid-projectLeader', fullName: '销售经理' })
     await injectSession(page, session)
 
     // 创建带保证金的项目并推进到结项

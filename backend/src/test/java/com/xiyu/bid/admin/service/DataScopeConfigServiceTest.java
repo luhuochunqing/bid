@@ -574,6 +574,53 @@ class DataScopeConfigServiceTest {
     }
 
     @Test
+    @DisplayName("本地 /bidAdmin 用户 cache miss 时 getRoleMenuPermissions fallback 到 DB 权限（修复 settings-permission-effect 回归）")
+    void getRoleMenuPermissions_ShouldFallbackToDbForLocalBidAdminCacheMiss() {
+        // 历史 bug: isLocalSystemAccount 仅判 ADMIN_CODE，导致本地注册的 /bidAdmin 用户
+        // cache miss 后 menuPermissions 为空，前端路由守卫拒绝访问 /settings
+        RoleProfile bidAdminProfile = RoleProfile.builder()
+                .code(RoleProfileCatalog.BID_ADMIN_CODE)
+                .name("投标管理员")
+                .build();
+        bidAdminProfile.setMenuPermissions(List.of("dashboard", "settings", "bidding", "project"));
+        User bidAdminUser = User.builder()
+                .id(19L)
+                .username("local-bid-admin")
+                .fullName("本地投标管理员")
+                .role(User.Role.MANAGER)
+                .roleProfile(bidAdminProfile)
+                .externalOrgSourceApp(null)
+                .enabled(true)
+                .build();
+        when(roleProfileRepository.findByCodeIgnoreCase(RoleProfileCatalog.BID_ADMIN_CODE))
+                .thenReturn(Optional.of(bidAdminProfile));
+
+        List<String> perms = dataScopeConfigService.getRoleMenuPermissions(bidAdminUser);
+
+        assertThat(perms).containsExactlyInAnyOrder("dashboard", "settings", "bidding", "project");
+    }
+
+    @Test
+    @DisplayName("本地 /bidAdmin 用户 cache miss 时 getRoleCode fallback 到 DB roleCode")
+    void getRoleCode_ShouldFallbackToDbForLocalBidAdminCacheMiss() {
+        RoleProfile bidAdminProfile = RoleProfile.builder()
+                .code(RoleProfileCatalog.BID_ADMIN_CODE).name("投标管理员").build();
+        User bidAdminUser = User.builder()
+                .id(20L)
+                .username("local-bid-admin-code")
+                .fullName("本地投标管理员")
+                .role(User.Role.MANAGER)
+                .roleProfile(bidAdminProfile)
+                .externalOrgSourceApp(null)
+                .enabled(true)
+                .build();
+
+        String roleCode = dataScopeConfigService.getRoleCode(bidAdminUser);
+
+        assertThat(roleCode).isEqualTo(RoleProfileCatalog.BID_ADMIN_CODE);
+    }
+
+    @Test
     @DisplayName("OSS admin 用户 getRoleMenuPermissions 不含 all（specs/032 权限扩散修复）")
     void getRoleMenuPermissions_OssAdminUserShouldNotContainAll() {
         // specs/032: OSS admin 用户合并 catalog seed 时应过滤 "all"，

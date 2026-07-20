@@ -145,11 +145,11 @@ public class DataScopeConfigService {
             // specs/032: "all" 是内部 admin 专属权限键，OSS 用户不应持有（防御性兜底，OSS 实际返回菜单 codes 如 1001/1002）
             return RoleProfileAdminPermissionFilter.filter(ossPermissions);
         }
-        // admin 系统内置账户不走 OSS，fallback 到本地 DB RoleProfile
+        // 本地非 OSS 账户（admin + /bidAdmin + bid-TeamLeader 等）不走 OSS，fallback 到本地 DB RoleProfile
         if (source.localSystemAccount()) {
             List<String> localPermissions = roleProfileResolver.resolve(user).getMenuPermissions();
             if (localPermissions != null && !localPermissions.isEmpty()) {
-                log.info("Local system account user={} using DB RoleProfile menu_permissions", user.getUsername());
+                log.info("Local non-OSS account user={} using DB RoleProfile menu_permissions", user.getUsername());
                 return RoleProfileAdminPermissionFilter.normalize(localPermissions);
             }
         }
@@ -161,7 +161,7 @@ public class DataScopeConfigService {
         if (user == null) return null;
         ResolvedRoleSource source = resolveRoleSource(user);
         if (source.cachedRoleCode().isPresent()) return source.cachedRoleCode().get();
-        // admin 系统内置账户（不走 OSS 认证）：cache miss 时 fallback 到本地 DB RoleProfile
+        // 本地非 OSS 账户（不走 OSS 认证）：cache miss 时 fallback 到本地 DB RoleProfile
         if (source.localSystemAccount()) {
             String dbRoleCode = user.getRoleCode();
             if (dbRoleCode != null && !dbRoleCode.isBlank()) return dbRoleCode;
@@ -182,7 +182,7 @@ public class DataScopeConfigService {
             if (def != null && def.name() != null && !def.name().isBlank()) return def.name();
             return roleCode;
         }
-        // admin 系统内置账户（不走 OSS 认证）：cache miss 时 fallback 到本地 DB RoleProfile
+        // 本地非 OSS 账户（不走 OSS 认证）：cache miss 时 fallback 到本地 DB RoleProfile
         if (source.localSystemAccount()) {
             RoleProfile roleProfile = roleProfileResolver.resolve(user);
             if (roleProfile.getName() != null && !roleProfile.getName().isBlank()) return roleProfile.getName();
@@ -194,15 +194,20 @@ public class DataScopeConfigService {
         return null;
     }
 
-    /** admin 系统内置账户（不走 OSS 认证）：externalOrgSourceApp 为空且角色码为 admin。 */
+    /**
+     * 判定是否为非 OSS 本地账户（包括 admin 系统内置账户与本地注册的 /bidAdmin、bid-TeamLeader 等）。
+     * <p>语义对齐 {@code UserDetailsServiceImpl.resolveRoleSource}：所有非 OSS 用户在 OSS 缓存未命中时
+     * 都允许从本地 DB RoleProfile fallback 取 menuPermissions / roleCode / roleName。
+     * <p>历史 bug：原实现额外要求 {@code ADMIN_CODE}，导致本地注册的 /bidAdmin 等用户 cache miss 后
+     * menuPermissions 为空、被前端路由守卫拦截（settings-permission-effect E2E 回归）。
+     * <p>SAFE: 仅用 user.isOssUser() 做隔离，不读取 user.getRoleCode()，不会触发 CO-373 OSS fallback。
+     */
     private boolean isLocalSystemAccount(User user) {
-        // SAFE: 仅用于区分本地 admin 系统账号与 OSS 同步用户；已用 user.isOssUser() 做第一道隔离，
-        // 再走 user.getRoleCode() 读取本地 DB roleProfile 的 admin 判定，不会触发 CO-373 OSS fallback。
-        return !user.isOssUser() && RoleProfileCatalog.ADMIN_CODE.equals(user.getRoleCode());
+        return !user.isOssUser();
     }
 
     /**
-     * 解析用户的角色/权限来源：优先 OSS 缓存，本地 admin 系统账户允许 DB 兜底，
+     * 解析用户的角色/权限来源：优先 OSS 缓存，本地非 OSS 账户允许 DB 兜底，
      * OSS 用户 cache miss 时由调用方 fail-closed。
      * <p>统一封装 getRoleCode / getRoleName / getRoleMenuPermissions 重复的缓存+兜底判断。
      */

@@ -70,6 +70,7 @@ test('api settings page supports custom roles and still blocks managers from adm
       password,
       fullName: 'Custom Role User',
       email: `${customUsername}@example.com`,
+      employeeNumber: `emp_${suffix}`,
       roleId: createdRole.data.id,
       enabled: true
     })
