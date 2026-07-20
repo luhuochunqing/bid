@@ -112,8 +112,6 @@ export function buildDeadlinePanels(events, period = 'week', today = new Date())
  */
 export const MAX_TODO_CARD_ITEMS = 4
 
-const MAX_CARD_ITEMS = MAX_TODO_CARD_ITEMS
-
 /**
  * 标讯状态码 → 中文标签映射（工作台待办右侧显示）。
  */
@@ -137,7 +135,7 @@ function buildTodoItems(todos) {
   const safe = Array.isArray(todos) ? todos.filter((t) => !t?.done) : []
   return safe
     .filter((todo) => todo.projectId != null)
-    .slice(0, MAX_CARD_ITEMS)
+    .slice(0, MAX_TODO_CARD_ITEMS)
     .map((todo) => ({
       id: todo.id,
       name: todo.title || todo.name || '',
@@ -151,7 +149,7 @@ function buildTodoItems(todos) {
  */
 function buildTenderItems(tenders) {
   const safe = Array.isArray(tenders) ? tenders : []
-  return safe.slice(0, MAX_CARD_ITEMS).map((tender) => ({
+  return safe.slice(0, MAX_TODO_CARD_ITEMS).map((tender) => ({
     id: tender.id,
     name: tender.title || tender.name || '',
     rightText: mapTenderStatusLabel(tender.status),
@@ -164,7 +162,7 @@ function buildTenderItems(tenders) {
  */
 function buildProjectItems(projects) {
   const safe = Array.isArray(projects) ? projects : []
-  return safe.slice(0, MAX_CARD_ITEMS).map((project) => ({
+  return safe.slice(0, MAX_TODO_CARD_ITEMS).map((project) => ({
     id: project.id,
     name: project.name || '',
     rightText: project.todoLabel || project.stage || '',
@@ -180,7 +178,7 @@ function buildProjectItems(projects) {
  */
 function buildApprovalItems(approvals) {
   const safe = Array.isArray(approvals) ? approvals : []
-  return safe.slice(0, MAX_CARD_ITEMS).map((approval) => ({
+  return safe.slice(0, MAX_TODO_CARD_ITEMS).map((approval) => ({
     id: approval.applicationId ?? approval.id,
     name: approval.resourceLabel || approval.purpose || approval.projectName || '',
     rightText: approval.applicantName || approval.applicationType || '',

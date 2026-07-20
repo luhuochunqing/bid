@@ -173,25 +173,33 @@ class WorkbenchProjectTodoQueryServiceTest {
 
     /**
      * P1-1 回归：角色变体（大小写/连字符）必须通过 canonicalCode 归一化后匹配分支。
-     * 验证 "bid-team"（小写变体）能正确命中 BID_SPECIALIST_CODE 分支。
+     * 验证 "bid-team"（小写变体）能正确命中 BID_SPECIALIST_CODE 分支，
+     * 且同一测试同时覆盖主负责人项目 + 待审核标书场景（todoLabel 分别正确）。
      */
     @Test
     void bidTeamRole_roleVariant_canonicalMatched() {
         // OSS 返回小写变体 "bid-team"，canonicalCode 应归一化为 "bid-Team"
         when(effectiveRoleResolver.resolveRoleCode(currentUser)).thenReturn("bid-team");
+        // 主负责人项目 10L（INITIATED）
         when(projectLeadAssignmentRepository.findByPrimaryLeadUserId(1L))
                 .thenReturn(List.of(ProjectLeadAssignment.builder().projectId(10L).build()));
         when(projectLeadAssignmentRepository.findBySecondaryLeadUserId(1L))
                 .thenReturn(List.of());
+        // 待审核标书项目 30L（DRAFTING）
+        BidDocumentReviewEntity review = BidDocumentReviewEntity.builder().projectId(30L).build();
         when(bidDocumentReviewRepository.findByReviewerIdAndStatus(1L, "REVIEWING"))
-                .thenReturn(List.of());
+                .thenReturn(List.of(review));
 
         List<ProjectDTO> result = service.getWorkbenchTodos(userDetails);
 
-        // 10L（INITIATED，主负责人）应返回，todoLabel 为"已立项"
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).getId()).isEqualTo(10L);
-        assertThat(result.get(0).getTodoLabel()).isEqualTo("已立项");
+        // 10L→"已立项"（主负责人项目，按实际阶段映射）
+        // 30L→"投标中"（待审核标书，优先级最高）
+        assertThat(result).hasSize(2);
+        assertThat(result).extracting(ProjectDTO::getId).containsExactlyInAnyOrder(10L, 30L);
+        assertThat(result.stream().filter(d -> d.getId() == 10L).findFirst().orElseThrow().getTodoLabel())
+                .isEqualTo("已立项");
+        assertThat(result.stream().filter(d -> d.getId() == 30L).findFirst().orElseThrow().getTodoLabel())
+                .isEqualTo("投标中");
     }
 
     /**
