@@ -81,7 +81,8 @@
           type="textarea"
           :rows="field.rows || 3"
           :placeholder="field.placeholder || `请输入${field.label}`"
-          :disabled="isFieldReadonly(field)"
+          :readonly="isFieldReadonly(field)"
+          :disabled="false"
           :maxlength="field.maxLength"
           show-word-limit
         />
