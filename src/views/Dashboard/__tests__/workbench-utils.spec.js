@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  isRealTenderId,
   normalizeProjectForWorkbench,
   normalizeCalendarEvent,
   normalizeAlertForTodo,
@@ -345,5 +346,32 @@ describe('extractCustomersFromProjects', () => {
     const r = extractCustomersFromProjects(projects)
     expect(r).toHaveLength(1)
     expect(r[0].id).toBe(101)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 5. isRealTenderId
+// ---------------------------------------------------------------------------
+describe('isRealTenderId', () => {
+  it('returns true for numeric id', () => {
+    expect(isRealTenderId(123)).toBe(true)
+    expect(isRealTenderId('123')).toBe(true)
+  })
+
+  it('returns false for demo id starting with dash', () => {
+    expect(isRealTenderId('-demo-1')).toBe(false)
+    expect(isRealTenderId('-mock-abc')).toBe(false)
+  })
+
+  it('returns false for null/undefined/empty', () => {
+    expect(isRealTenderId(null)).toBe(false)
+    expect(isRealTenderId(undefined)).toBe(false)
+    expect(isRealTenderId('')).toBe(false)
+    expect(isRealTenderId(0)).toBe(false)
+  })
+
+  it('returns true for non-numeric real id', () => {
+    expect(isRealTenderId('abc-123')).toBe(true)
+    expect(isRealTenderId('tender_456')).toBe(true)
   })
 })

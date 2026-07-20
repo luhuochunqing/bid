@@ -5,7 +5,7 @@
 
 import { computed, ref } from 'vue'
 import { workbenchApi } from '@/api/modules/workbench.js'
-import { normalizeCalendarEvent } from '@/views/Dashboard/workbench-utils.js'
+import { isRealTenderId, normalizeCalendarEvent } from '@/views/Dashboard/workbench-utils.js'
 import { navigateToProject } from '@/utils/projectNavigation.js'
 import {
   calendarFilters,
@@ -23,6 +23,9 @@ import {
 } from '@/views/Dashboard/workbench-calendar-core.js'
 
 export { formatDateKey }
+
+// Tender 派生事件类型（小写，对应 normalizeCalendarEvent 返回的 event.type）
+const TENDER_EVENT_TYPES = ['opening', 'deadline', 'bid']
 
 export function useWorkbenchSchedule({ router, assigneeIdRef, onEventsLoaded } = {}) {
   const calendarDate = ref(new Date())
@@ -66,6 +69,20 @@ export function useWorkbenchSchedule({ router, assigneeIdRef, onEventsLoaded } =
   }
 
   const handleCalendarAction = (event) => {
+    // Tender 派生事件（开标/报名截止）跳转标讯详情，与 handleTenderClick 行为对齐
+    // 注意：用 event.type（小写）匹配 TENDER_EVENT_TYPES，event.eventType 是大写枚举
+    const eventType = event?.type || event?.eventType
+    const tenderId = event?.id
+    if (TENDER_EVENT_TYPES.includes(eventType) && tenderId) {
+      // 真实标讯 → 标讯详情；demo 标讯 → 标讯列表页
+      if (isRealTenderId(tenderId)) {
+        router.push(`/bidding/${tenderId}`)
+      } else {
+        router.push('/bidding')
+      }
+      return
+    }
+
     if (event?.projectId) {
       navigateToProject(router, event.projectId)
       return
@@ -75,7 +92,7 @@ export function useWorkbenchSchedule({ router, assigneeIdRef, onEventsLoaded } =
       path: '/project',
       query: {
         calendarDate: event?.date || '',
-        calendarType: event?.eventType || event?.type || '',
+        calendarType: eventType || '',
       },
     })
   }
@@ -105,7 +122,27 @@ export function useWorkbenchSchedule({ router, assigneeIdRef, onEventsLoaded } =
     }
   }
 
-  const syncSelectedDate = () => {
+  const syncSelectedDate = (options = {}) => {
+    const { keepCalendarDate = false } = options
+
+    // 翻月场景：保持 calendarDate，selectedDateKey 优先指向当前月份的事件
+    if (keepCalendarDate) {
+      const currentMonthKey = getCalendarMonthKey(calendarDate.value)
+      const monthEvents = normalizedCalendarEvents.value
+        .filter((event) => getCalendarMonthKey(parseDate(event.date)) === currentMonthKey)
+        .sort((a, b) => a.diffDays - b.diffDays)
+
+      if (monthEvents[0]) {
+        selectedDateKey.value = monthEvents[0].date
+        return
+      }
+
+      // 当前月份无事件：selectedDateKey 保持当前 calendarDate，仅影响日历格子高亮
+      selectedDateKey.value = formatDateKey(calendarDate.value)
+      return
+    }
+
+    // 初始加载场景：跳转到最近未来事件所在月份
     selectedDateKey.value = formatDateKey(new Date())
     const firstUpcomingEvent = normalizedCalendarEvents.value
       .filter((event) => event.diffDays >= 0)

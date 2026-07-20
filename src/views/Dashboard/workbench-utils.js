@@ -35,6 +35,11 @@ function toDateOnly(value) {
   return typeof value === 'string' ? value.slice(0, 10) : undefined
 }
 
+// Demo tender id 以 '-' 开头，非真实标讯。判断集中在此，避免多处重复
+export function isRealTenderId(id) {
+  return Boolean(id) && !String(id).startsWith('-')
+}
+
 function resolveProjectPriority(endDate) {
   if (!endDate) return 'low'
   const target = new Date(endDate)
