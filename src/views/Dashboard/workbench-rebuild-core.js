@@ -107,12 +107,6 @@ export function buildDeadlinePanels(events, period = 'week', today = new Date())
 }
 
 /**
- * 工作台待办卡片每类最多显示条数（API 层与视图层共享，避免双源硬编码）。
- * useWorkbenchRoleTodos.js 的 slice(0, N) 与 buildTodoCategoryCards 的 slice(0, N) 都用此常量。
- */
-export const MAX_TODO_CARD_ITEMS = 4
-
-/**
  * 标讯状态码 → 中文标签映射（工作台待办右侧显示）。
  */
 const TENDER_STATUS_LABELS = {
@@ -135,7 +129,6 @@ function buildTodoItems(todos) {
   const safe = Array.isArray(todos) ? todos.filter((t) => !t?.done) : []
   return safe
     .filter((todo) => todo.projectId != null)
-    .slice(0, MAX_TODO_CARD_ITEMS)
     .map((todo) => ({
       id: todo.id,
       name: todo.title || todo.name || '',
@@ -149,7 +142,7 @@ function buildTodoItems(todos) {
  */
 function buildTenderItems(tenders) {
   const safe = Array.isArray(tenders) ? tenders : []
-  return safe.slice(0, MAX_TODO_CARD_ITEMS).map((tender) => ({
+  return safe.map((tender) => ({
     id: tender.id,
     name: tender.title || tender.name || '',
     rightText: mapTenderStatusLabel(tender.status),
@@ -162,7 +155,7 @@ function buildTenderItems(tenders) {
  */
 function buildProjectItems(projects) {
   const safe = Array.isArray(projects) ? projects : []
-  return safe.slice(0, MAX_TODO_CARD_ITEMS).map((project) => ({
+  return safe.map((project) => ({
     id: project.id,
     name: project.name || '',
     rightText: project.todoLabel || project.stage || '',
@@ -178,7 +171,7 @@ function buildProjectItems(projects) {
  */
 function buildApprovalItems(approvals) {
   const safe = Array.isArray(approvals) ? approvals : []
-  return safe.slice(0, MAX_TODO_CARD_ITEMS).map((approval) => ({
+  return safe.map((approval) => ({
     id: approval.applicationId ?? approval.id,
     name: approval.resourceLabel || approval.purpose || approval.projectName || '',
     rightText: approval.applicantName || approval.applicationType || '',
