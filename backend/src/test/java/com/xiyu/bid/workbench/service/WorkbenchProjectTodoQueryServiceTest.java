@@ -50,12 +50,21 @@ class WorkbenchProjectTodoQueryServiceTest {
     private WorkbenchProjectTodoQueryService service;
     private final User currentUser = mock(User.class);
 
-    /** 全量项目池，按 ID 查询时过滤返回 */
-    private final Project initiated = newProject(10L, "已立项项目", ProjectStage.INITIATED.name());
-    private final Project closed = newProject(20L, "已结项项目", ProjectStage.CLOSED.name());
-    private final Project drafting = newProject(30L, "投标中项目", ProjectStage.DRAFTING.name());
-    private final Project retrospective = newProject(40L, "待结项项目", ProjectStage.RETROSPECTIVE.name());
-    private final List<Project> allProjects = List.of(initiated, closed, drafting, retrospective);
+    /**
+     * 全量项目池（按 ID 查询时过滤返回）。
+     * CO-596：stage 与 status 是独立字段——
+     * - initiatedReal：stage=INITIATED + status=INITIATED（真正的已立项项目）
+     * - pendingInitiation：stage=INITIATED + status=PENDING_INITIATION（待立项项目，stage 相同但 status 不同）
+     * - closed：stage=CLOSED + status=WON（终态示例，Project.Status 无 CLOSED 值，终态为 WON/LOST/FAILED/ABANDONED）
+     * - drafting：stage=DRAFTING + status=BIDDING（投标中）
+     * - retrospective：stage=RETROSPECTIVE + status=BIDDING（待结项）
+     */
+    private final Project initiatedReal = newProject(10L, "真正已立项", ProjectStage.INITIATED.name(), Project.Status.INITIATED);
+    private final Project pendingInitiation = newProject(15L, "待立项项目", ProjectStage.INITIATED.name(), Project.Status.PENDING_INITIATION);
+    private final Project closed = newProject(20L, "已结项项目", ProjectStage.CLOSED.name(), Project.Status.WON);
+    private final Project drafting = newProject(30L, "投标中项目", ProjectStage.DRAFTING.name(), Project.Status.BIDDING);
+    private final Project retrospective = newProject(40L, "待结项项目", ProjectStage.RETROSPECTIVE.name(), Project.Status.BIDDING);
+    private final List<Project> allProjects = List.of(initiatedReal, pendingInitiation, closed, drafting, retrospective);
 
     @BeforeEach
     void setUp() {
@@ -79,9 +88,10 @@ class WorkbenchProjectTodoQueryServiceTest {
     }
 
     @Test
-    void adminLeadRole_returnsInitiatedPlusPendingReview_withTodoLabels() {
+    void adminLeadRole_returnsStatusInitiatedPlusPendingReview_withTodoLabels() {
         when(effectiveRoleResolver.resolveRoleCode(currentUser)).thenReturn(RoleProfileCatalog.BID_ADMIN_CODE);
-        when(projectRepository.findByStageIn(List.of(ProjectStage.INITIATED))).thenReturn(List.of(initiated));
+        // CO-596: admin_lead 按 status=INITIATED 查询，只返回真正已立项的项目（10L），不含待立项项目（15L）
+        when(projectRepository.findByStatus(Project.Status.INITIATED)).thenReturn(List.of(initiatedReal));
         // 待审核标书（REVIEWING 状态），项目 30L 处于 DRAFTING 阶段
         BidDocumentReviewEntity review = BidDocumentReviewEntity.builder().projectId(30L).build();
         when(bidDocumentReviewRepository.findByReviewerIdAndStatus(1L, "REVIEWING")).thenReturn(List.of(review));
@@ -95,6 +105,25 @@ class WorkbenchProjectTodoQueryServiceTest {
         assertThat(initiatedDto.getTodoLabel()).isEqualTo("已立项");
         ProjectDTO draftingDto = result.stream().filter(d -> d.getId() == 30L).findFirst().orElseThrow();
         assertThat(draftingDto.getTodoLabel()).isEqualTo("投标中");
+    }
+
+    /**
+     * CO-596 回归：stage=INITIATED 但 status=PENDING_INITIATION 的项目
+     * 不应出现在 admin_lead 的"已立项"列表中。
+     */
+    @Test
+    void adminLeadRole_excludesPendingInitiationProjects_evenIfStageIsInitiated() {
+        when(effectiveRoleResolver.resolveRoleCode(currentUser)).thenReturn(RoleProfileCatalog.BID_ADMIN_CODE);
+        // 只返回 status=INITIATED 的项目（不含 pendingInitiation）
+        when(projectRepository.findByStatus(Project.Status.INITIATED)).thenReturn(List.of(initiatedReal));
+        when(bidDocumentReviewRepository.findByReviewerIdAndStatus(1L, "REVIEWING")).thenReturn(List.of());
+
+        List<ProjectDTO> result = service.getWorkbenchTodos(userDetails);
+
+        // 不应包含 15L（pendingInitiation）
+        assertThat(result).hasSize(1);
+        assertThat(result).extracting(ProjectDTO::getId).containsExactly(10L);
+        assertThat(result.get(0).getTodoLabel()).isEqualTo("已立项");
     }
 
     @Test
@@ -119,9 +148,11 @@ class WorkbenchProjectTodoQueryServiceTest {
     }
 
     @Test
-    void projectLeaderRole_returnsInitiatedRetrospectivePlusPendingReview_withTodoLabels() {
+    void projectLeaderRole_returnsPendingInitiationRetrospectivePlusPendingReview_withTodoLabels() {
         when(effectiveRoleResolver.resolveRoleCode(currentUser)).thenReturn(RoleProfileCatalog.SALES_CODE);
-        when(projectRepository.findByStageIn(List.of(ProjectStage.INITIATED))).thenReturn(List.of(initiated));
+        // CO-596: sales 按 status=PENDING_INITIATION 查询"待立项"项目，不含已立项项目
+        when(projectRepository.findByStatus(Project.Status.PENDING_INITIATION)).thenReturn(List.of(pendingInitiation));
+        // "待结项"按 stage=RETROSPECTIVE 查询（Project.Status 无对应值）
         when(projectRepository.findByStageIn(List.of(ProjectStage.RETROSPECTIVE))).thenReturn(List.of(retrospective));
         // 待审核标书项目 30L（DRAFTING）
         BidDocumentReviewEntity review = BidDocumentReviewEntity.builder().projectId(30L).build();
@@ -129,19 +160,40 @@ class WorkbenchProjectTodoQueryServiceTest {
 
         List<ProjectDTO> result = service.getWorkbenchTodos(userDetails);
 
+        // 15L（待立项）+ 30L（投标中）+ 40L（待结项）
         assertThat(result).hasSize(3);
-        assertThat(result).extracting(ProjectDTO::getId).containsExactlyInAnyOrder(10L, 30L, 40L);
-        // 验证 todoLabel：10L→"待立项", 30L→"投标中", 40L→"待结项"
-        assertThat(result.stream().filter(d -> d.getId() == 10L).findFirst().orElseThrow().getTodoLabel()).isEqualTo("待立项");
+        assertThat(result).extracting(ProjectDTO::getId).containsExactlyInAnyOrder(15L, 30L, 40L);
+        // 验证 todoLabel：15L→"待立项", 30L→"投标中", 40L→"待结项"
+        assertThat(result.stream().filter(d -> d.getId() == 15L).findFirst().orElseThrow().getTodoLabel()).isEqualTo("待立项");
         assertThat(result.stream().filter(d -> d.getId() == 30L).findFirst().orElseThrow().getTodoLabel()).isEqualTo("投标中");
         assertThat(result.stream().filter(d -> d.getId() == 40L).findFirst().orElseThrow().getTodoLabel()).isEqualTo("待结项");
+    }
+
+    /**
+     * CO-596 回归：sales 分支查询 status=PENDING_INITIATION 的项目，
+     * 不应包含 status=INITIATED 的项目（即使 stage 都是 INITIATED）。
+     */
+    @Test
+    void projectLeaderRole_excludesInitiatedProjects_fromPendingInitiationList() {
+        when(effectiveRoleResolver.resolveRoleCode(currentUser)).thenReturn(RoleProfileCatalog.SALES_CODE);
+        // 只返回 PENDING_INITIATION 项目（不含 initiatedReal）
+        when(projectRepository.findByStatus(Project.Status.PENDING_INITIATION)).thenReturn(List.of(pendingInitiation));
+        when(projectRepository.findByStageIn(List.of(ProjectStage.RETROSPECTIVE))).thenReturn(List.of());
+        when(bidDocumentReviewRepository.findByReviewerIdAndStatus(1L, "REVIEWING")).thenReturn(List.of());
+
+        List<ProjectDTO> result = service.getWorkbenchTodos(userDetails);
+
+        // 不应包含 10L（initiatedReal，已立项）
+        assertThat(result).hasSize(1);
+        assertThat(result).extracting(ProjectDTO::getId).containsExactly(15L);
+        assertThat(result.get(0).getTodoLabel()).isEqualTo("待立项");
     }
 
     @Test
     void pendingReview_filteredByDRAFTINGStage_only() {
         // 审核记录关联的项目不是 DRAFTING 阶段时，不应出现在结果中
         when(effectiveRoleResolver.resolveRoleCode(currentUser)).thenReturn(RoleProfileCatalog.BID_ADMIN_CODE);
-        when(projectRepository.findByStageIn(List.of(ProjectStage.INITIATED))).thenReturn(List.of());
+        when(projectRepository.findByStatus(Project.Status.INITIATED)).thenReturn(List.of());
         // 审核记录关联项目 10L（INITIATED，非 DRAFTING）→ 应被过滤
         BidDocumentReviewEntity review = BidDocumentReviewEntity.builder().projectId(10L).build();
         when(bidDocumentReviewRepository.findByReviewerIdAndStatus(1L, "REVIEWING")).thenReturn(List.of(review));
@@ -233,7 +285,7 @@ class WorkbenchProjectTodoQueryServiceTest {
         assertThat(reviewDto.getTodoLabel()).isEqualTo("投标中");
     }
 
-    private Project newProject(Long id, String name, String stage) {
-        return Project.builder().id(id).name(name).stage(stage).build();
+    private Project newProject(Long id, String name, String stage, Project.Status status) {
+        return Project.builder().id(id).name(name).stage(stage).status(status).build();
     }
 }

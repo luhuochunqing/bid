@@ -29,16 +29,30 @@ import java.util.stream.Collectors;
 /**
  * 工作台角色化改造：项目待办查询 Service（spec.md §3 模块3）。
  *
- * 角色分支（2026-07-20 调整：标书审核人项目仅限 DRAFTING 阶段 + REVIEWING 状态）：
- * - admin_lead：已立项（INITIATED）+ 投标中（DRAFTING 限待审核标书）
- * - bid-team（投标专员）：主/副负责人项目（排除 CLOSED）+ 待审核标书项目（投标中）
- * - bid-projectLeader（项目负责人）：待立项（INITIATED）+ 待结项（RETROSPECTIVE）+ 投标中（DRAFTING 限待审核标书）
- * - 其他角色：返回空列表
+ * <p><b>字段语义（2026-07-20 修订）</b>：Project 实体并存两个字段：
+ * <ul>
+ *   <li>{@code status}（{@link Project.Status}，8 值）：业务状态机，包含
+ *       PENDING_INITIATION（待立项）/ INITIATED（已立项）/ BIDDING / EVALUATING / 终态。</li>
+ *   <li>{@code stage}（{@link ProjectStage}，6 值）：6 阶段 FSM，INITIATED 阶段同时覆盖
+ *       待立项和已立项两种 status（由 ProjectStatusPolicy 按 initiationSubmitted 推导）。</li>
+ * </ul>
+ * <p>因此按"已立项/待立项"过滤必须用 {@code status}，不能用 {@code stage}，否则会把
+ * 待立项项目误标为"已立项"（CO-596）。
  *
- * todoLabel 中文标签按角色+阶段计算：
- * - admin_lead: INITIATED→"已立项", DRAFTING→"投标中"
- * - sales: INITIATED→"待立项", RETROSPECTIVE→"待结项", DRAFTING→"投标中"
- * - bid_team: 按项目实际阶段映射中文（INITIATED→"已立项", DRAFTING→"投标中" 等）
+ * <p>角色分支：
+ * <ul>
+ *   <li>admin_lead：已立项（status=INITIATED）+ 投标中（DRAFTING 限待审核标书）</li>
+ *   <li>bid-team（投标专员）：主/副负责人项目（排除 CLOSED）+ 待审核标书项目（投标中）</li>
+ *   <li>bid-projectLeader（项目负责人）：待立项（status=PENDING_INITIATION）+ 待结项（stage=RETROSPECTIVE）+ 投标中</li>
+ *   <li>其他角色：返回空列表</li>
+ * </ul>
+ *
+ * <p>todoLabel 中文标签按角色+状态/阶段计算：
+ * <ul>
+ *   <li>admin_lead: status=INITIATED→"已立项", DRAFTING→"投标中"</li>
+ *   <li>sales: status=PENDING_INITIATION→"待立项", stage=RETROSPECTIVE→"待结项", DRAFTING→"投标中"</li>
+ *   <li>bid_team: 按项目实际阶段映射中文（INITIATED→"已立项", DRAFTING→"投标中" 等）</li>
+ * </ul>
  */
 @Service
 @RequiredArgsConstructor
@@ -64,6 +78,9 @@ public class WorkbenchProjectTodoQueryService {
 
         String canonicalRole = RoleProfileCatalog.canonicalCode(roleCode);
         Long userId = currentUser.getId();
+        // debug 级别与 EffectiveRoleResolver.logDecision 保持一致；fail-closed 路径已用 warn
+        log.debug("Workbench project todos: user={}, roleCode={}, canonicalRole={}",
+                currentUser.getUsername(), roleCode, canonicalRole);
 
         // 待审核标书的项目 ID（DRAFTING 阶段 + REVIEWING 状态）
         Set<Long> pendingReviewProjectIds = collectPendingReviewProjectIds(userId);
@@ -72,9 +89,10 @@ public class WorkbenchProjectTodoQueryService {
         Map<Long, String> projectIdToLabel = new LinkedHashMap<>();
 
         if (RoleProfileCatalog.GLOBAL_ACCESS_ROLES.contains(canonicalRole)) {
-            // admin_lead: 已立项（INITIATED）+ 投标中（DRAFTING 限待审核标书）
-            collectProjectIdsByStages(List.of(ProjectStage.INITIATED))
-                    .forEach(id -> projectIdToLabel.putIfAbsent(id, "已立项"));
+            // admin_lead: 已立项（status=INITIATED）+ 投标中（DRAFTING 限待审核标书）
+            // CO-596: 必须用 status 而非 stage 过滤——stage=INITIATED 同时包含 PENDING_INITIATION 和 INITIATED 两种 status
+            projectRepository.findByStatus(Project.Status.INITIATED)
+                    .forEach(p -> projectIdToLabel.putIfAbsent(p.getId(), "已立项"));
             pendingReviewProjectIds.forEach(id -> projectIdToLabel.put(id, "投标中"));
         } else if (RoleProfileCatalog.BID_SPECIALIST_CODE.equals(canonicalRole)) {
             // 投标专员: 主/副负责人项目（排除 CLOSED）+ 待审核标书项目（投标中）
@@ -92,9 +110,11 @@ public class WorkbenchProjectTodoQueryService {
             }
             pendingReviewProjectIds.forEach(id -> projectIdToLabel.put(id, "投标中"));
         } else if (RoleProfileCatalog.SALES_CODE.equals(canonicalRole)) {
-            // 项目负责人: 待立项（INITIATED）+ 待结项（RETROSPECTIVE）+ 投标中（DRAFTING 限待审核标书）
-            collectProjectIdsByStages(List.of(ProjectStage.INITIATED))
-                    .forEach(id -> projectIdToLabel.putIfAbsent(id, "待立项"));
+            // 项目负责人: 待立项（status=PENDING_INITIATION）+ 待结项（stage=RETROSPECTIVE）+ 投标中（DRAFTING 限待审核标书）
+            // CO-596: "待立项"必须用 status=PENDING_INITIATION 过滤，不能用 stage=INITIATED（后者包含已立项项目）
+            projectRepository.findByStatus(Project.Status.PENDING_INITIATION)
+                    .forEach(p -> projectIdToLabel.putIfAbsent(p.getId(), "待立项"));
+            // "待结项"对应 stage=RETROSPECTIVE（Project.Status 无对应值，ProjectStatusPolicy 推导为 BIDDING 或终态）
             collectProjectIdsByStages(List.of(ProjectStage.RETROSPECTIVE))
                     .forEach(id -> projectIdToLabel.putIfAbsent(id, "待结项"));
             pendingReviewProjectIds.forEach(id -> projectIdToLabel.put(id, "投标中"));

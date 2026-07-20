@@ -178,16 +178,17 @@ describe('buildTodoCategoryCards', () => {
     })
   })
 
-  it('items 最多 4 条', () => {
+  it('items 显示全部（卡片内部滚动，不再截断）', () => {
+    // CO-596: 移除 slice(0, MAX_TODO_CARD_ITEMS) 截断，4 个卡片改为固定高度+内部滚动
     const cards = buildTodoCategoryCards({
       role: 'admin',
       taskTodos: Array.from({ length: 10 }, (_, i) => ({
         id: i, title: `t${i}`, done: false, projectId: i + 1,
       })),
     })
-    expect(cards[0].items).toHaveLength(4)
+    expect(cards[0].items).toHaveLength(10)
     // count 与 items.length 一致（修复 Bug 1：右上角数字与显示条数不符）
-    expect(cards[0].count).toBe(4)
+    expect(cards[0].count).toBe(10)
   })
 
   it('每条 item 含 name/rightText/id', () => {
