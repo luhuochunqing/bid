@@ -1052,4 +1052,44 @@ class ProjectDocumentWorkflowServiceTest {
         );
     }
 
+    // ============ Google Code Review: resolveDisplayName OSS 用户场景回归 ============
+
+    @Test
+    void createProjectDocument_ShouldResolveOssUserDisplay_WhenEmployeeNumberNullButUsernameIsEmpNo() {
+        // OSS 同步用户 username=工号、employeeNumber=null
+        // 行为修正（refactor commit 5fd2bd6a1）: 工号取 getDisplayEmployeeNumber()（回退到 username），
+        // 之前用 getEmployeeNumber() 会导致 OSS 用户只显示姓名不显示工号
+        when(projectDocumentRepository.save(any(ProjectDocument.class))).thenAnswer(invocation -> {
+            ProjectDocument document = invocation.getArgument(0);
+            document.setId(3600L);
+            return document;
+        });
+        com.xiyu.bid.entity.User ossUser = com.xiyu.bid.entity.User.builder()
+                .id(500L)
+                .username("06234")           // OSS 同步用户 username=工号
+                .fullName("郑蓉蓉")
+                .employeeNumber(null)         // employee_number 空（OSS 同步未补全）
+                .build();
+        when(userRepository.findById(500L)).thenReturn(Optional.of(ossUser));
+
+        service.createProjectDocument(1001L, ProjectDocumentCreateRequest.builder()
+                .name("OBS直传文档.pdf")
+                .fileType("pdf")
+                .uploaderId(500L)             // 传 uploaderId 触发 resolveDisplayName
+                .uploaderName("06234")        // fallback（应被覆盖）
+                .documentCategory("BID")
+                .fileUrl("obs-direct:oss001")
+                .build());
+
+        // 关键断言：attachFileToArchive 收到的 uploaderName 应为"姓名（工号）"，工号从 username 回退
+        verify(projectArchiveWorkflowService).attachFileToArchive(
+                eq(1001L),
+                eq("OBS直传文档.pdf"),
+                eq("BID"),
+                eq("obs-direct:oss001"),
+                any(),
+                eq(500L),
+                eq("郑蓉蓉（06234）"));
+    }
+
 }

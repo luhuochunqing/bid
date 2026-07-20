@@ -21,8 +21,10 @@ import static java.util.stream.Collectors.*;
 @Component
 class ProjectArchiveResponseMapper {
 
-    private static final List<String> CATEGORY_KEYS = List.of(
-            "TENDER", "BID", "OPEN_LIST", "WIN_NOTICE", "DEPOSIT_RECEIPT", "OTHER");
+    // 用 LinkedHashSet：保顺序（前端 FileCategoryPopover 按 CATEGORY_KEYS 顺序渲染）+ O(1) contains 查询。
+    // 之前用 List.of 的 contains 是 O(n) 线性扫描，6 个元素差别虽小，但 Set 语义更准确。
+    private static final Set<String> CATEGORY_KEYS = new LinkedHashSet<>(List.of(
+            "TENDER", "BID", "OPEN_LIST", "WIN_NOTICE", "DEPOSIT_RECEIPT", "OTHER"));
 
     private final ProjectRepository projectRepository;
     private final TenderRepository tenderRepository;
@@ -98,7 +100,15 @@ class ProjectArchiveResponseMapper {
         List<ArchiveFile> files = filesByArchive.getOrDefault(archive.getId(), List.of());
         Map<String, Long> categoryDetails = new HashMap<>();
         for (String cat : CATEGORY_KEYS) categoryDetails.put(cat, 0L);
-        files.forEach(f -> categoryDetails.merge(f.getDocumentCategory(), 1L, Long::sum));
+        // 档案修复：把任何不在 6 个标准枚举内的值（BID_RESULT_NOTICE/TASK_ATTACHMENT/PROJECT_DELIVERABLE
+        // 等业务分类，或历史遗留的废弃值）归到 OTHER 计数，保证 6 个分类 sum == fileCount。
+        // 之前用 HashMap.merge 会为非标准枚举插入新 key，前端 FileCategoryPopover 只渲染 6 个固定 key，
+        // 业务分类文件既不计入 OTHER 也不展示，导致 tooltip"分类和 ≠ 总计"且 OTHER 偏小。
+        files.forEach(f -> {
+            String cat = f.getDocumentCategory();
+            String bucket = CATEGORY_KEYS.contains(cat) ? cat : "OTHER";
+            categoryDetails.merge(bucket, 1L, Long::sum);
+        });
 
         LocalDateTime lastUploadedAt = files.stream()
                 .map(ArchiveFile::getCreatedAt)

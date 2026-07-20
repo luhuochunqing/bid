@@ -4,6 +4,7 @@
 package com.xiyu.bid.casework.application;
 
 import com.xiyu.bid.casework.dto.ProjectArchiveResponse;
+import com.xiyu.bid.casework.infrastructure.ArchiveFile;
 import com.xiyu.bid.casework.infrastructure.ArchiveFileRepository;
 import com.xiyu.bid.casework.infrastructure.ProjectArchive;
 import com.xiyu.bid.entity.Project;
@@ -19,7 +20,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -213,5 +216,100 @@ class ProjectArchiveResponseMapperTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).closedAt()).isNull();
+    }
+
+    // ============ 档案修复：归档文件数 tooltip 分类统计归一化 ============
+
+    @Test
+    void toResponseList_normalizesNonStandardCategoriesToOther_andSumEqualsFileCount() {
+        // 1 个标准 + 3 个非标准（业务分类/历史废弃值）→ OTHER 应累计 3，6 个分类 sum == fileCount
+        ProjectArchive archive = new ProjectArchive();
+        archive.setId(1L);
+        archive.setProjectId(100L);
+        archive.setProjectName("测试项目");
+        archive.setArchiveStatus("ACTIVE");
+
+        LocalDateTime ts = LocalDateTime.of(2026, 7, 20, 10, 0, 0);
+        // [documentCategory, fileName] 对：标准 + 业务分类 + 未知值
+        String[][] cats = {
+                {"TENDER", "招标文件"},
+                {"BID_RESULT_NOTICE", "中标结果公告"},
+                {"TASK_ATTACHMENT", "任务附件"},
+                {"FOO_BAR", "历史废弃值"},
+        };
+        List<ArchiveFile> files = Arrays.stream(cats).map(pair -> {
+            ArchiveFile f = new ArchiveFile();
+            f.setId((long) (101 + Arrays.asList(cats).indexOf(pair)));
+            f.setArchiveId(1L);
+            f.setFileName(pair[1]);
+            f.setDocumentCategory(pair[0]);
+            f.setFileSize(1024L);
+            f.setUploadUserId(500L);
+            f.setUploadUserName("郑蓉蓉");
+            f.setCreatedAt(ts);
+            return f;
+        }).toList();
+
+        when(projectRepository.findAllById(List.of(100L))).thenReturn(List.of());
+        when(fileRepository.findByArchiveIdInOrderByCreatedAtDesc(List.of(1L)))
+                .thenReturn(files);
+
+        List<ProjectArchiveResponse> result = mapper.toResponseList(List.of(archive));
+
+        assertThat(result).hasSize(1);
+        ProjectArchiveResponse resp = result.get(0);
+        assertThat(resp.fileCount()).isEqualTo(4);
+        Map<String, Long> details = resp.fileCategoryDetails();
+        // 关键断言：只有 6 个固定 key（前端 FileCategoryPopover 只渲染这 6 个）
+        assertThat(details).containsOnlyKeys("TENDER", "BID", "OPEN_LIST", "WIN_NOTICE", "DEPOSIT_RECEIPT", "OTHER");
+        assertThat(details.get("TENDER")).isEqualTo(1L);
+        assertThat(details.get("BID")).isEqualTo(0L);
+        assertThat(details.get("OPEN_LIST")).isEqualTo(0L);
+        assertThat(details.get("WIN_NOTICE")).isEqualTo(0L);
+        assertThat(details.get("DEPOSIT_RECEIPT")).isEqualTo(0L);
+        assertThat(details.get("OTHER")).isEqualTo(3L); // BID_RESULT_NOTICE + TASK_ATTACHMENT + FOO_BAR
+        // 关键断言：6 个分类求和必须等于 fileCount，避免 tooltip"分类和 ≠ 总计"
+        long sum = details.values().stream().mapToLong(Long::longValue).sum();
+        assertThat(sum).isEqualTo(resp.fileCount().longValue());
+    }
+
+    @Test
+    void toResponseList_standardCategoriesCountNormally_noFalseOtherBucket() {
+        // 6 个标准枚举各 1 个 → 每个分类 = 1，OTHER 只算它自己（不应把标准枚举误归到 OTHER）
+        ProjectArchive archive = new ProjectArchive();
+        archive.setId(2L);
+        archive.setProjectId(100L);
+        archive.setProjectName("测试项目");
+        archive.setArchiveStatus("ACTIVE");
+
+        LocalDateTime ts = LocalDateTime.of(2026, 7, 20, 10, 0, 0);
+        String[] cats = {"TENDER", "BID", "OPEN_LIST", "WIN_NOTICE", "DEPOSIT_RECEIPT", "OTHER"};
+        List<ArchiveFile> files = Arrays.stream(cats).map(cat -> {
+            ArchiveFile f = new ArchiveFile();
+            f.setId(200L + Arrays.asList(cats).indexOf(cat));
+            f.setArchiveId(2L);
+            f.setFileName(cat);
+            f.setDocumentCategory(cat);
+            f.setFileSize(1024L);
+            f.setUploadUserId(500L);
+            f.setUploadUserName("郑蓉蓉");
+            f.setCreatedAt(ts);
+            return f;
+        }).toList();
+
+        when(projectRepository.findAllById(List.of(100L))).thenReturn(List.of());
+        when(fileRepository.findByArchiveIdInOrderByCreatedAtDesc(List.of(2L)))
+                .thenReturn(files);
+
+        List<ProjectArchiveResponse> result = mapper.toResponseList(List.of(archive));
+
+        ProjectArchiveResponse resp = result.get(0);
+        assertThat(resp.fileCount()).isEqualTo(6);
+        Map<String, Long> details = resp.fileCategoryDetails();
+        for (String cat : cats) {
+            assertThat(details.get(cat)).isEqualTo(1L);
+        }
+        long sum = details.values().stream().mapToLong(Long::longValue).sum();
+        assertThat(sum).isEqualTo(resp.fileCount().longValue());
     }
 }

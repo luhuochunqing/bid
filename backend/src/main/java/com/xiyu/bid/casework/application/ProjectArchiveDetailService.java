@@ -9,22 +9,33 @@ import com.xiyu.bid.casework.infrastructure.ProjectArchive;
 import com.xiyu.bid.casework.infrastructure.ProjectArchiveRepository;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.entity.User;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
+import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.webhook.domain.OperatorDisplayName;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class ProjectArchiveDetailService {
+
+    /** operatorName 为空/null 时的兜底显示（系统自动操作） */
+    private static final String SYSTEM_OPERATOR = "系统";
 
     private final ProjectArchiveRepository archiveRepository;
     private final ArchiveFileRepository fileRepository;
@@ -32,6 +43,8 @@ public class ProjectArchiveDetailService {
     private final ProjectRepository projectRepository;
     private final TenderRepository tenderRepository;
     private final ProjectInitiationDetailsRepository initiationDetailsRepository;
+    // 档案修复：操作日志 operator 字段拼"姓名（工号）"，需要反查 User 表
+    private final UserRepository userRepository;
 
     public ProjectArchiveDetailResponse getArchiveDetail(Long archiveId) {
         ProjectArchive archive = archiveRepository.findById(archiveId)
@@ -95,11 +108,23 @@ public class ProjectArchiveDetailService {
                 .toList();
 
         List<ArchiveLog> logs = logRepository.findByArchiveIdOrderByCreatedAtDesc(archiveId);
+        // 档案修复：操作日志 operator 当前存的是 User.username（OSS 用户 username=工号），
+        // 读取时批量反查 User 表，拼成"姓名（工号）"格式（如"郑蓉蓉（06234）"），与项目文档上传人展示一致。
+        // ArchiveLog.operatorName 存的就是 username，按 username 批量查即可。
+        Set<String> operatorUsernames = logs.stream()
+                .map(ArchiveLog::getOperatorName)
+                .filter(Objects::nonNull)
+                .filter(n -> !n.isBlank())
+                .collect(Collectors.toSet());
+        Map<String, User> userByUsername = operatorUsernames.isEmpty()
+                ? Map.of()
+                : userRepository.findAllByUsernameIn(operatorUsernames).stream()
+                .collect(Collectors.toMap(User::getUsername, Function.identity(), (a, b) -> a));
         List<ProjectArchiveDetailResponse.ArchiveLogDTO> logDTOs = logs.stream()
                 .map(l -> new ProjectArchiveDetailResponse.ArchiveLogDTO(
                         l.getId(),
                         l.getCreatedAt(),
-                        l.getOperatorName(),
+                        resolveOperatorDisplay(l.getOperatorName(), userByUsername),
                         l.getActionType(),
                         l.getActionContent()
                 ))
@@ -122,5 +147,24 @@ public class ProjectArchiveDetailService {
                 fileDTOs,
                 logDTOs
         );
+    }
+
+    /**
+     * 档案修复：把 ArchiveLog.operatorName（= User.username）解析为"姓名（工号）"格式。
+     * <p>复用 {@link OperatorDisplayName#formatStrict(User)}（CO-346 统一格式化器，严格模式），
+     * 避免逻辑重复。严格模式在 fullName 空时返回空，让本方法走 username fallback。
+     * <ul>
+     *   <li>operatorName 空 → "系统"</li>
+     *   <li>反查不到 User（历史数据/系统账号）→ 原始 operatorName，避免历史日志变空白</li>
+     *   <li>能反查到 User 但 fullName 空 → 原始 operatorName（OSS 用户 username=工号，避免"06234（06234）"）</li>
+     *   <li>能反查到 User 且 fullName 非空 → "姓名（工号）"</li>
+     * </ul>
+     */
+    private String resolveOperatorDisplay(String operatorName, Map<String, User> userByUsername) {
+        if (operatorName == null || operatorName.isBlank()) return SYSTEM_OPERATOR;
+        User user = userByUsername.get(operatorName);
+        if (user == null) return operatorName;
+        String display = OperatorDisplayName.formatStrict(user);
+        return display.isBlank() ? operatorName : display;
     }
 }
