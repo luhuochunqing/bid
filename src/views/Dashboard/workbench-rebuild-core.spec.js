@@ -128,7 +128,7 @@ describe('buildTodoCategoryCards', () => {
     const cards = buildTodoCategoryCards({
       role: 'admin',
       taskTodos: [
-        { id: 1, title: '商务标编制', done: false, deadline: '2026-07-15', projectId: 100 },
+        { id: 1, title: '商务标编制', done: false, dueDate: '2026-07-15', projectId: 100 },
       ],
       tenderTodos: [
         { id: 10, title: '智慧城市标讯', registrationDeadline: '2026-07-17' },
@@ -194,12 +194,32 @@ describe('buildTodoCategoryCards', () => {
   it('每条 item 含 name/rightText/id', () => {
     const cards = buildTodoCategoryCards({
       role: 'admin',
-      taskTodos: [{ id: 1, title: '任务1', done: false, deadline: '2026-07-15', projectId: 100 }],
+      taskTodos: [{ id: 1, title: '任务1', done: false, dueDate: '2026-07-15', projectId: 100 }],
     })
     const item = cards[0].items[0]
     expect(item).toHaveProperty('name')
     expect(item).toHaveProperty('rightText')
     expect(item).toHaveProperty('id')
+  })
+
+  /**
+   * CO-598 回归：任务待办右侧应显示 YYYY-MM-DD 格式的截止日期。
+   * 根因：前端原用 todo.deadline 取值，但后端 TaskDTO 字段为 dueDate，导致始终取不到值显示 '--'。
+   */
+  it('CO-598: 任务待办右侧显示 YYYY-MM-DD 格式截止日期', () => {
+    const cards = buildTodoCategoryCards({
+      role: 'admin',
+      taskTodos: [{ id: 1, title: '任务1', done: false, dueDate: '2026-07-15', projectId: 100 }],
+    })
+    expect(cards[0].items[0].rightText).toBe('2026-07-15')
+  })
+
+  it('CO-598: 任务无 dueDate 时 rightText 为空字符串（不显示 --）', () => {
+    const cards = buildTodoCategoryCards({
+      role: 'admin',
+      taskTodos: [{ id: 1, title: '无截止日期任务', done: false, dueDate: null, projectId: 100 }],
+    })
+    expect(cards[0].items[0].rightText).toBe('')
   })
 
   it('P0-5.1: taskTodos 中 projectId=null 的条目不进入 items', () => {
