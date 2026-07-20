@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { flushPromises } from '@vue/test-utils'
 
 // Mock httpClient 避免组件 watch tenderId 时发起真实请求
 const httpClientGet = vi.fn()
@@ -114,5 +115,65 @@ describe('ProjectBasicInfoCard projectTypeLabel 渲染', () => {
     })
     const item = wrapper.find('.desc-item[data-label="项目类型"]')
     expect(item.text()).toBe('集采')
+  })
+})
+
+// 项目负责人显示需统一为 "姓名 (工号)" 格式，工号缺失时仅显示姓名
+describe('ProjectBasicInfoCard 项目负责人工号显示', () => {
+  beforeEach(() => {
+    httpClientGet.mockReset()
+    messageWarning.mockReset()
+  })
+
+  it('renders "姓名 (工号)" when projectLeaderName and projectLeaderEmployeeNumber both exist', () => {
+    const wrapper = mount(ProjectBasicInfoCard, {
+      props: { project: { projectLeaderName: '王亮', projectLeaderEmployeeNumber: '05972' } },
+      global: { stubs },
+    })
+    const item = wrapper.find('.desc-item[data-label="项目负责人"]')
+    expect(item.exists()).toBe(true)
+    expect(item.text()).toBe('王亮 (05972)')
+  })
+
+  it('renders only name when projectLeaderEmployeeNumber is empty', () => {
+    const wrapper = mount(ProjectBasicInfoCard, {
+      props: { project: { projectLeaderName: '王亮', projectLeaderEmployeeNumber: '' } },
+      global: { stubs },
+    })
+    const item = wrapper.find('.desc-item[data-label="项目负责人"]')
+    expect(item.text()).toBe('王亮')
+  })
+
+  it('renders only name when projectLeaderEmployeeNumber is null', () => {
+    const wrapper = mount(ProjectBasicInfoCard, {
+      props: { project: { projectLeaderName: '王亮', projectLeaderEmployeeNumber: null } },
+      global: { stubs },
+    })
+    const item = wrapper.find('.desc-item[data-label="项目负责人"]')
+    expect(item.text()).toBe('王亮')
+  })
+
+  it('renders only name when projectLeaderEmployeeNumber is undefined (后端未传字段)', () => {
+    const wrapper = mount(ProjectBasicInfoCard, {
+      props: { project: { projectLeaderName: '王亮' } },
+      global: { stubs },
+    })
+    const item = wrapper.find('.desc-item[data-label="项目负责人"]')
+    expect(item.text()).toBe('王亮')
+  })
+
+  // 回归测试：projectLeaderName 缺失时回退到标讯联系人 projectManagerName（通过 fetchTender 拉取）
+  it('falls back to tf(projectManagerName) when projectLeaderName is missing', async () => {
+    httpClientGet.mockResolvedValueOnce({ data: { projectManagerName: '李四' } })
+    const wrapper = mount(ProjectBasicInfoCard, {
+      props: {
+        project: { projectLeaderName: null, tenderId: 999 },
+      },
+      global: { stubs },
+    })
+    // 等待 watch immediate 触发的 fetchTender + httpClient.get Promise 完成
+    await flushPromises()
+    const item = wrapper.find('.desc-item[data-label="项目负责人"]')
+    expect(item.text()).toBe('李四')
   })
 })

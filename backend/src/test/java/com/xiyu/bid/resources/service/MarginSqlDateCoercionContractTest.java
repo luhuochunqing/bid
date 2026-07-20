@@ -384,8 +384,9 @@ class MarginSqlDateCoercionContractTest {
     // 本测试覆盖 3 种 JDBC 返回类型：String / null / Timestamp，确保都不抛 CCE。
 
     /**
-     * 构造一个 16 列的 Object[]，仅 C_EXP_RETURN (idx=11) 由调用方传入。
+     * 构造一个 17 列的 Object[]，仅 C_EXP_RETURN (idx=11) 由调用方传入。
      * 其他列填合法值（金额 1000，退回 0，服务费 0 → 不命中规则3，走规则1/2）。
+     * 末列 C_PROJ_LEAD_EMP_NO (idx=16) 填 null（本测试不关心工号字段）。
      */
     private static Object[] rowWithExpReturn(final Object expReturn) {
         return new Object[]{
@@ -404,7 +405,8 @@ class MarginSqlDateCoercionContractTest {
                 BigDecimal.ZERO,                             // C_RET_AMT
                 BigDecimal.ZERO,                             // C_SVC_FEE
                 null,                                        // C_ACT_RETURN
-                "PENDING"                                    // C_STATUS
+                "PENDING",                                   // C_STATUS
+                null                                         // C_PROJ_LEAD_EMP_NO (idx=16)
         };
     }
 
@@ -451,7 +453,8 @@ class MarginSqlDateCoercionContractTest {
                 "2025-12-31 00:00:00",                              // String 类型 exp_return_date
                 new BigDecimal("600"),                              // returned_amount
                 new BigDecimal("400"),                              // service_fee_amount
-                null, "PENDING"
+                null, "PENDING",
+                null                                                // C_PROJ_LEAD_EMP_NO
         };
         MarginDTO dto = MarginQuerySupport.mapRow(row);
         assertThat(dto.getStatusLabel())

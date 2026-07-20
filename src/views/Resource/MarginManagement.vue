@@ -109,7 +109,9 @@
           </template>
         </el-table-column>
         <el-table-column prop="ownerUnit" label="业主单位" min-width="160" />
-        <el-table-column prop="projectLeaderName" label="项目负责人" width="120" />
+        <el-table-column prop="projectLeaderName" label="项目负责人" width="140">
+          <template #default="{ row }">{{ formatUserWithNameAndNumber(row.projectLeaderName, row.projectLeaderEmployeeNumber) }}</template>
+        </el-table-column>
         <el-table-column prop="biddingLeaderName" label="投标负责人" width="120">
           <template #default="{ row }">{{ row.biddingLeaderName || '-' }}</template>
         </el-table-column>
@@ -162,6 +164,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import httpClient from '@/api/client'; import { navigateToProject } from '@/utils/projectNavigation.js'
+import { formatUserWithNameAndNumber } from '@/utils/userDisplay.js'
 
 const router = useRouter()
 

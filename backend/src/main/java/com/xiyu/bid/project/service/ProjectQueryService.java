@@ -154,11 +154,25 @@ public class ProjectQueryService {
         // CO-591: 标书审核人姓名解析所需的 reviewer 用户 ID（合并到统一 userMap 减 DB round-trip）
         Set<Long> reviewerIds = stageEnricher.collectReviewerIds(stageCtx);
 
-        // 合并 secondary lead 姓名查询、manager 部门查询与 reviewer 姓名查询，减少 DB round-trip。
+        // CC2026072071: projectLeaderId 来源有三（pid.ownerUserId /
+        // tender.projectManagerId / project.managerId 兜底），需把前两条路径
+        // 的 user ID 也加入预加载，让 userMap 覆盖工号反查（managerIds 已含第三条）。
+        Set<Long> tenderManagerIds = tenderMap.values().stream()
+                .map(Tender::getProjectManagerId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Set<Long> pidOwnerIds = detailsMap.values().stream()
+                .map(ProjectInitiationDetails::getOwnerUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        // 合并 lead/manager/reviewer/tender/pid 五类 user ID 一次性加载，减少 DB round-trip。
         Set<Long> allUserIds = Stream.of(
                         leadUserIds.stream(),
                         managerIds.stream(),
-                        reviewerIds.stream())
+                        reviewerIds.stream(),
+                        tenderManagerIds.stream(),
+                        pidOwnerIds.stream())
                 .flatMap(s -> s)
                 .collect(Collectors.toSet());
         Map<Long, User> userMap = allUserIds.isEmpty()
@@ -236,6 +250,9 @@ public class ProjectQueryService {
             }
 
             ProjectListEnrichmentSupport.populateFromTender(dto, tenderMap);
+
+            // CC2026072071: projectLeaderId 已由 populateFromTender 解析，从 userMap 反查工号填充。
+            ProjectListEnrichmentSupport.populateLeaderEmployeeNumber(dto, userMap);
 
             // Evaluation-derived fields: shortlistedCount & customerRevenue
             TenderEvaluation eval = evalMap.get(dto.getTenderId());

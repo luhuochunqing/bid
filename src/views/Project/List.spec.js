@@ -127,6 +127,18 @@ describe('Project/List.vue layout', () => {
     expect(projectListSource).toContain('isFiltered')
   })
 
+  // 项目负责人列显示格式统一为 "姓名 (工号)"，工号缺失时仅显示姓名
+  it('项目负责人列显示"姓名 (工号)"格式', () => {
+    // 应引入 formatUserWithNameAndNumber 通用工具
+    expect(projectListSource).toContain('formatUserWithNameAndNumber')
+    expect(projectListSource).toContain('@/utils/userDisplay')
+    // 项目负责人列应使用 row.projectLeaderEmployeeNumber
+    const leaderColMatch = projectListSource.match(/label="项目负责人"[^]*?<\/el-table-column>/)
+    expect(leaderColMatch).not.toBeNull()
+    expect(leaderColMatch[0]).toContain('row.projectLeaderEmployeeNumber')
+    expect(leaderColMatch[0]).toContain('row.projectLeaderName')
+  })
+
 })
 
 // US4 — date picker labels fully visible (no truncation), extracted to ProjectSearchCard

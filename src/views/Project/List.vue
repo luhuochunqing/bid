@@ -115,8 +115,8 @@
           <el-table-column label="总部所在地" width="110" v-if="columnVisible.region">
             <template #default="{ row }">{{ row.region || '-' }}</template>
           </el-table-column>
-          <el-table-column prop="projectLeaderName" label="项目负责人" width="110">
-            <template #default="{ row }">{{ row.projectLeaderName || '-' }}</template>
+          <el-table-column prop="projectLeaderName" label="项目负责人" width="140">
+            <template #default="{ row }">{{ formatUserWithNameAndNumber(row.projectLeaderName, row.projectLeaderEmployeeNumber) }}</template>
           </el-table-column>
           <el-table-column prop="leaderDepartment" width="120" align="center" v-if="columnVisible.leaderDepartment" class-name="multi-line-header">
             <template #header><span class="header-two-line">项目负责人<br>部门</span></template>
@@ -171,6 +171,7 @@ import {
   LEGACY_CRM_SOURCE_LABEL,
   MANUAL_SOURCE_LABEL,
 } from '@/utils/sourceLabels.js'
+import { formatUserWithNameAndNumber } from '@/utils/userDisplay.js'
 import { useProjectSearch } from './composables/useProjectSearch.js'
 import { useProjectFilter } from './composables/useProjectFilter.js'
 import { useUserStore } from '@/stores/user'

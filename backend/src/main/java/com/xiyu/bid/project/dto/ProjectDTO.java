@@ -81,6 +81,8 @@ public class ProjectDTO {
     private String projectLeaderName;
     /** 项目负责人用户 ID，用于列表精确筛选 */
     private Long projectLeaderId;
+    /** 项目负责人工号（来自 users.employee_number，用于详情页/列表显示"姓名 (工号)"格式） */
+    private String projectLeaderEmployeeNumber;
     /** 负责人部门 */
     private String leaderDepartment;
     /** 投标负责人姓名 */
