@@ -10,6 +10,9 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -93,7 +96,13 @@ class TenderIntegrationServiceMapToEntityTest {
     void toEntity_withProjectManagerName_resolvesUserId() {
         TenderPushRequest r = baseRequest();
         r.setProjectManagerName("韩超");
-        when(managerIdResolver.resolveByFullName("韩超")).thenReturn(25L);
+        // mock applyTo 副作用：写入姓名 + user_id（模拟 resolver 命中）
+        doAnswer(inv -> {
+            Tender t = inv.getArgument(0);
+            t.setProjectManagerName("韩超");
+            t.setProjectManagerId(25L);
+            return null;
+        }).when(managerIdResolver).applyTo(any(Tender.class), eq(null), eq("韩超"));
 
         Tender t = mapper.toEntity(r);
 
@@ -106,7 +115,12 @@ class TenderIntegrationServiceMapToEntityTest {
     void toEntity_withProjectManagerName_noMatch_keepsNullId() {
         TenderPushRequest r = baseRequest();
         r.setProjectManagerName("不存在的人");
-        when(managerIdResolver.resolveByFullName("不存在的人")).thenReturn(null);
+        // mock applyTo 副作用：写入姓名但 user_id 保持 null（模拟 resolver 无匹配）
+        doAnswer(inv -> {
+            Tender t = inv.getArgument(0);
+            t.setProjectManagerName("不存在的人");
+            return null;
+        }).when(managerIdResolver).applyTo(any(Tender.class), eq(null), eq("不存在的人"));
 
         Tender t = mapper.toEntity(r);
 
@@ -119,7 +133,11 @@ class TenderIntegrationServiceMapToEntityTest {
     void toEntity_withProjectManagerName_duplicateName_skipsIdBinding() {
         TenderPushRequest r = baseRequest();
         r.setProjectManagerName("张伟");
-        when(managerIdResolver.resolveByFullName("张伟")).thenReturn(null);
+        doAnswer(inv -> {
+            Tender t = inv.getArgument(0);
+            t.setProjectManagerName("张伟");
+            return null;
+        }).when(managerIdResolver).applyTo(any(Tender.class), eq(null), eq("张伟"));
 
         Tender t = mapper.toEntity(r);
 
@@ -132,7 +150,12 @@ class TenderIntegrationServiceMapToEntityTest {
     void applyUpdate_withProjectManagerName_resolvesUserId() {
         TenderPushRequest r = baseRequest();
         r.setProjectManagerName("李四");
-        when(managerIdResolver.resolveByFullName("李四")).thenReturn(30L);
+        doAnswer(inv -> {
+            Tender t = inv.getArgument(0);
+            t.setProjectManagerName("李四");
+            t.setProjectManagerId(30L);
+            return null;
+        }).when(managerIdResolver).applyTo(any(Tender.class), eq(null), eq("李四"));
         Tender existing = new Tender();
 
         mapper.applyUpdate(existing, r);

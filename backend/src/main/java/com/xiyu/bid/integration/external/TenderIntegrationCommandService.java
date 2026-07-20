@@ -44,6 +44,7 @@ public class TenderIntegrationCommandService {
     private final TenderCrmOccupancyChecker crmOccupancyChecker;
     private final OperatorUsernameResolver operatorUsernameResolver;
     private final TenderDeduplicationService tenderDeduplicationService;
+    private final ProjectManagerIdResolver managerIdResolver;
 
     /**
      * 幂等推送标讯。
@@ -247,7 +248,7 @@ public class TenderIntegrationCommandService {
         if (request.getContentDesc() != null) {
             tender.setDescription(InputSanitizer.sanitizeString(request.getContentDesc(), 5000));
         }
-        mapper.applyProjectManager(tender, request.getProjectManagerName());
+        managerIdResolver.applyTo(tender, request.getProjectManagerEmployeeId(), request.getProjectManagerName());
         if (request.getEvaluation() != null) {
             tender.setEvaluationSource(Tender.EvaluationSource.CRM_PUSH);
             tender.setStatus(Tender.Status.EVALUATED);

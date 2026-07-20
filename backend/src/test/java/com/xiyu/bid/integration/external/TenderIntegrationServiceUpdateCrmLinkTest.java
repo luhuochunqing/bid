@@ -30,6 +30,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -80,7 +82,8 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
                 tenderRepository, attachmentRepository, crmTenderLinkService, mapper, evaluationService, helper, support, eventPublisher,
                 tenderAuditService, userRepository, crmOccupancyChecker,
                 new com.xiyu.bid.webhook.application.OperatorUsernameResolver(userRepository),
-                new com.xiyu.bid.tender.service.TenderDeduplicationService(tenderRepository));
+                new com.xiyu.bid.tender.service.TenderDeduplicationService(tenderRepository),
+                projectManagerIdResolver);
         when(tenderRepository.save(any(Tender.class))).thenAnswer(inv -> inv.getArgument(0));
         TenderDTO stubDto = TenderDTO.builder().build();
         when(tenderMapper.toDTO(any(Tender.class))).thenReturn(stubDto);
@@ -304,7 +307,13 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
     void updateByExternalId_withProjectManagerName_setsManagerNameAndId() {
         Tender tender = createExistingTender();
         when(tenderRepository.findByExternalId("crm:test-001")).thenReturn(Optional.of(tender));
-        when(projectManagerIdResolver.resolveByFullName("王五")).thenReturn(42L);
+        // mock applyTo 副作用：写入姓名 + user_id（模拟 resolver 命中）
+        doAnswer(inv -> {
+            Tender t = inv.getArgument(0);
+            t.setProjectManagerName("王五");
+            t.setProjectManagerId(42L);
+            return null;
+        }).when(projectManagerIdResolver).applyTo(any(Tender.class), eq(null), eq("王五"));
 
         TenderUpdateRequest request = TenderUpdateRequest.builder()
                 .projectManagerName("王五")
