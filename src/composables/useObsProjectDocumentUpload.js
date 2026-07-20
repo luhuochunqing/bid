@@ -80,6 +80,8 @@ export function useObsProjectDocumentUpload(projectIdRef, ctx = {}) {
       const uploaderName = ctx.uploaderName?.()
       if (uploaderId != null) formData.set('uploaderId', String(uploaderId))
       if (uploaderName) formData.set('uploaderName', uploaderName)
+      // 透传浏览器 File API 的字节数，供后端 archive_file.file_size 使用（修复档案详情"大小 0B"问题）
+      if (typeof file.size === 'number') formData.set('fileSizeBytes', String(file.size))
 
       // OBS 模式：带 fileUrl（走 JSON 变体）；传统模式：带 file（走 multipart）
       if (obsFileUrl) {

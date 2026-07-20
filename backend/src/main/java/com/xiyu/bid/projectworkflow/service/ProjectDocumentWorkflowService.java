@@ -31,6 +31,8 @@ class ProjectDocumentWorkflowService {
     // spec 039: project_documents.size 是 VARCHAR（如 "1.5MB"），无法可靠解析回字节，
     // OBS 直传 JSON 路径归档时 file_size 传此常量，与 V1171 历史回填行为一致。
     // multipart 路径通过 DocumentArchiveSource 透传真实字节数，不使用本常量。
+    // 档案修复：OBS 直传 JSON 路径新增 request.fileSizeBytes 字段（前端 file.size），
+    // 若前端未传仍降级为 ARCHIVE_FILE_SIZE_UNKNOWN（保持向后兼容）。
     private static final long ARCHIVE_FILE_SIZE_UNKNOWN = 0L;
 
     private final ProjectWorkflowGuardService guardService;
@@ -69,7 +71,12 @@ class ProjectDocumentWorkflowService {
     }
 
     ProjectDocumentDTO createProjectDocument(Long projectId, ProjectDocumentCreateRequest request) {
-        return createProjectDocument(projectId, request, null);
+        // 档案修复：OBS 直传 JSON 路径透传字节数（physicalPath=null 保持 obs-direct: 伪协议归档路径）
+        // 若前端未传 fileSizeBytes（旧客户端兼容），archiveSource=null 降级为 ARCHIVE_FILE_SIZE_UNKNOWN
+        DocumentArchiveSource archiveSource = request.getFileSizeBytes() != null
+                ? new DocumentArchiveSource(null, request.getFileSizeBytes())
+                : null;
+        return createProjectDocument(projectId, request, archiveSource);
     }
 
     /**

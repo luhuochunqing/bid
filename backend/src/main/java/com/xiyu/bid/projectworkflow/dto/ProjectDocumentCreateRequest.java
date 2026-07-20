@@ -30,4 +30,8 @@ public class ProjectDocumentCreateRequest {
     private Long uploaderId;
 
     private String uploaderName;
+
+    // OBS 直传 JSON 路径透传浏览器 File API 的字节数，供 archive_file.file_size 使用（修复档案详情"大小 0B"问题）
+    // multipart 路径不使用此字段，直接用 MultipartFile.getSize() 真实字节数
+    private Long fileSizeBytes;
 }

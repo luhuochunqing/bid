@@ -34,7 +34,8 @@ export async function uploadDocument(projectId, formData) {
     linkedEntityType: formData.get('linkedEntityType') || null,
     linkedEntityId: formData.get('linkedEntityId') ? Number(formData.get('linkedEntityId')) : null,
     uploaderId: formData.get('uploaderId') ? Number(formData.get('uploaderId')) : null,
-    uploaderName: formData.get('uploaderName') || '' })
+    uploaderName: formData.get('uploaderName') || '',
+    fileSizeBytes: formData.get('fileSizeBytes') ? Number(formData.get('fileSizeBytes')) : null })
 }
 
 export async function deleteDocument(projectId, documentId) {
