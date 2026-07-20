@@ -68,7 +68,7 @@ fi
 
 # ── 3. pre-push hook 是否会调用 pre-push-gate.sh ──
 if grep -q 'pre-push-gate.sh' "$ROOT_DIR/.githooks/pre-push" 2>/dev/null; then
-  pass "pre-push hook 会触发 pre-push-gate.sh（14 道门禁）"
+  pass "pre-push hook 会触发 pre-push-gate.sh（15 道门禁）"
 else
   fail "pre-push hook 未调用 pre-push-gate.sh — 门禁不会自动执行"
 fi
@@ -83,7 +83,7 @@ fi
 
 # ── 5. pre-push-gate.sh 脚本存在 ──
 if [ -f "$ROOT_DIR/scripts/pre-push-gate.sh" ] && [ -x "$ROOT_DIR/scripts/pre-push-gate.sh" ]; then
-  pass "pre-push-gate.sh 存在（14 道门禁入口）"
+  pass "pre-push-gate.sh 存在（15 道门禁入口）"
 else
   fail "scripts/pre-push-gate.sh 不存在或不可执行"
 fi

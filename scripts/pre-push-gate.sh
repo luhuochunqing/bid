@@ -512,6 +512,24 @@ else
   fi
 fi
 
+# ── 9.10. lessons-learned.md 章节编号冲突拦截（并行归档防撞号） ──
+# 背景：多 agent 并行做"每周知识归档"时，各自从旧 base 拉分支取编号，
+# 先合入的占号，后开的 PR 撞号或内容重复（PR !2130 vs !2131/!2132 真实事故）。
+# 逃生阀：LESSONS_SECTION_CONFLICT_SKIP=1（仅限已记录豁免场景，需在 PR 描述说明理由）
+echo "── lessons-learned 章节冲突 ──"
+LESSONS_CHANGED=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -c '^docs/lessons/lessons-learned\.md$' || true)
+if [ "$LESSONS_CHANGED" -eq 0 ]; then
+  skip "lessons-learned 章节冲突（无 docs/lessons/lessons-learned.md 变更）"
+elif [ "${LESSONS_SECTION_CONFLICT_SKIP:-0}" = "1" ]; then
+  skip "lessons-learned 章节冲突（LESSONS_SECTION_CONFLICT_SKIP=1 逃生阀）"
+else
+  if node "$ROOT_DIR/scripts/check-lessons-section-conflict.mjs" "$GATE_BASE" 2>&1; then
+    pass "lessons-learned 章节冲突"
+  else
+    fail "lessons-learned 章节冲突 — 新增 ## N. 编号与 origin/main 冲突（撞号或回退）。先 git fetch origin main && git rebase origin/main，再重新取下一个可用编号。逃生阀：LESSONS_SECTION_CONFLICT_SKIP=1"
+  fi
+fi
+
 # ── 10. 路由-E2E 兼容性检查 ────────────────────────────
 echo "── 路由-E2E 兼容 ──"
 STAGED_ROUTES=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -cE '^src/(router|views)/' || true)
