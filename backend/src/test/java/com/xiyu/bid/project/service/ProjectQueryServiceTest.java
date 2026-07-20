@@ -14,6 +14,8 @@ import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
+import com.xiyu.bid.tender.entity.TenderEvaluation;
+import com.xiyu.bid.tender.entity.TenderEvaluationBasic;
 import com.xiyu.bid.tender.repository.TenderEvaluationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -22,6 +24,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -363,5 +366,113 @@ class ProjectQueryServiceTest {
         assertThat(dto.getProjectLeaderId()).isEqualTo(75L);
         assertThat(dto.getProjectLeaderName()).isEqualTo("王亮");
         assertThat(dto.getProjectLeaderEmployeeNumber()).isEqualTo("05972");
+    }
+
+    // ===== revenue 回归 !564：客户营收字段映射错乱（详情页值丢失 + 列表显示 MRO 流水金额） =====
+
+    @Test
+    @DisplayName("revenue 回归 !564：立项表 annualRevenue 有值时应正确填充 dto.revenue（客户营收）")
+    @SuppressWarnings("deprecation")
+    void shouldPopulateRevenueFromInitiationAnnualRevenue() {
+        Project project = project(1L, 99L);
+        project.setTenderId(7L);
+        when(projectRepository.findAll()).thenReturn(List.of(project));
+        when(projectAccessScopeService.filterAccessibleProjects(any()))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(demoModeService.isEnabled()).thenReturn(false);
+
+        ProjectInitiationDetails details = new ProjectInitiationDetails();
+        details.setProjectId(1L);
+        details.setAnnualRevenue(new BigDecimal("12.5"));
+        details.setAnnualEcommerceAmount(new BigDecimal("888.8"));
+        when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(1L)))
+                .thenReturn(List.of(details));
+        when(projectLeadAssignmentRepository.findByProjectIdIn(List.of(1L)))
+                .thenReturn(List.of());
+        when(tenderEvaluationRepository.findByTenderIdIn(List.of(7L)))
+                .thenReturn(List.of());
+        when(userRepository.findByIdIn(Set.of(99L))).thenReturn(List.of());
+        when(managerDepartmentEnricher.buildManagerDepartmentMap(eq(Set.of(99L)), any()))
+                .thenReturn(Map.of());
+
+        ProjectQueryService service = createService();
+        List<ProjectDTO> result = service.getAllProjects();
+
+        assertThat(result).hasSize(1);
+        // 关键断言：revenue 必须来自 det.annualRevenue（客户营收），不能来自 det.annualEcommerceAmount（MRO 流水）
+        assertThat(result.get(0).getRevenue()).isEqualByComparingTo(new BigDecimal("12.5"));
+    }
+
+    @Test
+    @DisplayName("revenue 回归 !564：det.annualRevenue 为空时 fallback 到 eval.basic.customerRevenue")
+    void shouldFallbackRevenueToEvaluationCustomerRevenueWhenInitiationHasNoAnnualRevenue() {
+        Project project = project(2L, 99L);
+        project.setTenderId(7L);
+        when(projectRepository.findAll()).thenReturn(List.of(project));
+        when(projectAccessScopeService.filterAccessibleProjects(any()))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(demoModeService.isEnabled()).thenReturn(false);
+
+        ProjectInitiationDetails details = new ProjectInitiationDetails();
+        details.setProjectId(2L);
+        // annualRevenue 为空；annualEcommerceAmount 有值（!564 bug 会错误取这个）
+        details.setAnnualEcommerceAmount(new BigDecimal("999.9"));
+        when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(2L)))
+                .thenReturn(List.of(details));
+        when(projectLeadAssignmentRepository.findByProjectIdIn(List.of(2L)))
+                .thenReturn(List.of());
+
+        TenderEvaluationBasic basic = TenderEvaluationBasic.builder()
+                .customerRevenue(new BigDecimal("45.6"))
+                .build();
+        TenderEvaluation eval = TenderEvaluation.builder()
+                .tenderId(7L)
+                .basic(basic)
+                .build();
+        when(tenderEvaluationRepository.findByTenderIdIn(List.of(7L)))
+                .thenReturn(List.of(eval));
+        when(userRepository.findByIdIn(Set.of(99L))).thenReturn(List.of());
+        when(managerDepartmentEnricher.buildManagerDepartmentMap(eq(Set.of(99L)), any()))
+                .thenReturn(Map.of());
+
+        ProjectQueryService service = createService();
+        List<ProjectDTO> result = service.getAllProjects();
+
+        assertThat(result).hasSize(1);
+        // 关键断言：fallback 应取 eval.basic.customerRevenue，不能取 det.annualEcommerceAmount
+        assertThat(result.get(0).getRevenue()).isEqualByComparingTo(new BigDecimal("45.6"));
+    }
+
+    @Test
+    @DisplayName("revenue 回归 !564：det.annualEcommerceAmount（MRO 流水）绝不能污染 dto.revenue（客户营收）")
+    @SuppressWarnings("deprecation")
+    void shouldNotPolluteRevenueWithAnnualEcommerceAmount() {
+        Project project = project(3L, 99L);
+        project.setTenderId(7L);
+        when(projectRepository.findAll()).thenReturn(List.of(project));
+        when(projectAccessScopeService.filterAccessibleProjects(any()))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(demoModeService.isEnabled()).thenReturn(false);
+
+        ProjectInitiationDetails details = new ProjectInitiationDetails();
+        details.setProjectId(3L);
+        // 只有 MRO 流水金额，annualRevenue 和 eval.basic.customerRevenue 都为空
+        details.setAnnualEcommerceAmount(new BigDecimal("777.7"));
+        when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(3L)))
+                .thenReturn(List.of(details));
+        when(projectLeadAssignmentRepository.findByProjectIdIn(List.of(3L)))
+                .thenReturn(List.of());
+        when(tenderEvaluationRepository.findByTenderIdIn(List.of(7L)))
+                .thenReturn(List.of());
+        when(userRepository.findByIdIn(Set.of(99L))).thenReturn(List.of());
+        when(managerDepartmentEnricher.buildManagerDepartmentMap(eq(Set.of(99L)), any()))
+                .thenReturn(Map.of());
+
+        ProjectQueryService service = createService();
+        List<ProjectDTO> result = service.getAllProjects();
+
+        assertThat(result).hasSize(1);
+        // 关键回归断言：MRO 流水不能进入 revenue 字段（!564 bug 会让 revenue=777.7）
+        assertThat(result.get(0).getRevenue()).isNull();
     }
 }
