@@ -19,18 +19,18 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column prop="category" label="文档分类" width="90" align="center">
+      <el-table-column prop="category" label="文档分类" width="135" align="center">
         <template #default="{ row }">
           <el-tag size="small" :type="getDocumentCategoryTagType(row.category)">{{ getDocumentCategoryLabel(row.category) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="uploadUser" label="上传人" width="90" align="center" show-overflow-tooltip>
+      <el-table-column prop="uploadUser" label="上传人" width="135" align="center" show-overflow-tooltip>
         <template #default="{ row }">{{ row.uploadUser || '-' }}</template>
       </el-table-column>
       <el-table-column prop="uploadedAt" label="上传时间" width="150" align="center">
         <template #default="{ row }">{{ formatDateTime(row.uploadedAt) }}</template>
       </el-table-column>
-      <el-table-column prop="fileSize" label="大小" width="80" align="center">
+      <el-table-column prop="fileSize" label="大小" width="100" align="center">
         <template #default="{ row }">{{ formatFileSize(row.fileSize) }}</template>
       </el-table-column>
       <el-table-column label="操作" width="120" align="center" fixed="right">

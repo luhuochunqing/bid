@@ -1,5 +1,5 @@
 <template>
-  <el-drawer v-model="localVisible" title="档案详情" size="900px" destroy-on-close>
+  <el-drawer v-model="localVisible" title="档案详情" size="1080px" destroy-on-close>
     <div v-if="archive" class="drawer-container" v-loading="drawerLoading">
       <div class="section-title">基础信息</div>
       <el-descriptions :column="2" border class="project-desc">
