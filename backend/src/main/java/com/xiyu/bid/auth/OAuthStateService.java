@@ -49,11 +49,20 @@ public class OAuthStateService {
      * （按企微开发文档公式构造），state 使用固定值（如 {@code entry:workbench}），
      * 避免每次访问都需要先调后端获取动态 state。
      * <p>识别此前缀的 state 时直接返回 true（不删除，因为是固定值，可重复使用）。
-     * <p>CSRF 风险评估：攻击者构造钓鱼链接只能让受害者走完企微 OAuth 后登录到我们系统，
-     * 不会泄露敏感信息或登录到攻击者账号；且 code 必须是企微生成的一次性有效值，
-     * 攻击者无法伪造，风险可接受。
+     * <p>CSRF 风险评估：state 是公开固定值，但 OAuth code 必须是企微服务器为当前用户
+     * 生成的一次性有效值，攻击者无法窃取或替换。固定 state 的唯一风险是攻击者可构造
+     * 钓鱼链接让受害者走完 OAuth 流程，但这与正常用户点击应用图标行为一致，无额外风险。
+     * <p>安全约束：只允许 {@link #ALLOWED_WORKBENCH_ENTRIES} 白名单中的完整 state 通过，
+     * 避免未来如果按 state 子值做路由分发时被构造任意 {@code entry:xxx} 绕过。
      */
     public static final String WORKBENCH_ENTRY_PREFIX = "entry:";
+
+    /**
+     * 工作台入口允许的完整 state 白名单。
+     * <p>新增入口（如 {@code entry:settings}）时必须显式加入此集合，否则会被拒绝。
+     */
+    private static final java.util.Set<String> ALLOWED_WORKBENCH_ENTRIES =
+            java.util.Set.of("entry:workbench");
 
     /** Delay for local map cleanup task. */
     private static final long CLEAN_DELAY = 60000;
@@ -133,9 +142,13 @@ public class OAuthStateService {
             return validateMessageState(state);
         }
 
-        // 工作台入口 state：固定值直接通过（不删除，可重复使用）
+        // 工作台入口 state：白名单匹配后直接通过（不删除，可重复使用）
         if (state.startsWith(WORKBENCH_ENTRY_PREFIX)) {
-            log.info("Workbench entry state accepted: {}", state);
+            if (!ALLOWED_WORKBENCH_ENTRIES.contains(state)) {
+                log.warn("Rejected workbench entry state not in whitelist: {}", state);
+                return false;
+            }
+            log.debug("Workbench entry state accepted: {}", state);
             return true;
         }
 

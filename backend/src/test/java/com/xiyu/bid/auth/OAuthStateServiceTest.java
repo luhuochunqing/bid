@@ -189,11 +189,26 @@ class OAuthStateServiceTest {
         }
 
         @Test
-        @DisplayName("validateAndRemoveState → 支持不同的 entry: 子值（如 entry:dashboard）")
-        void validateAndRemoveState_shouldSupportDifferentWorkbenchEntries() {
+        @DisplayName("validateAndRemoveState → entry:workbench 白名单内 state 通过")
+        void validateAndRemoveState_shouldAcceptWhitelistedWorkbenchEntry() {
             assertThat(service.validateAndRemoveState("entry:workbench")).isTrue();
-            assertThat(service.validateAndRemoveState("entry:dashboard")).isTrue();
-            assertThat(service.validateAndRemoveState("entry:project-list")).isTrue();
+        }
+
+        @Test
+        @DisplayName("validateAndRemoveState → entry: 纯前缀（空子值）应拒绝")
+        void validateAndRemoveState_shouldRejectEmptyWorkbenchEntry() {
+            assertThat(service.validateAndRemoveState("entry:")).isFalse();
+            assertThat(service.validateAndRemoveState("entry: ")).isFalse();
+            assertThat(service.validateAndRemoveState("entry:\t")).isFalse();
+        }
+
+        @Test
+        @DisplayName("validateAndRemoveState → entry:unknown 白名单外应拒绝")
+        void validateAndRemoveState_shouldRejectUnknownWorkbenchEntry() {
+            assertThat(service.validateAndRemoveState("entry:evil")).isFalse();
+            assertThat(service.validateAndRemoveState("entry:admin")).isFalse();
+            assertThat(service.validateAndRemoveState("entry:dashboard")).isFalse();
+            assertThat(service.validateAndRemoveState("entry:project-list")).isFalse();
         }
     }
 
