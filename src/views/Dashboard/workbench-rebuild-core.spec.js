@@ -186,8 +186,8 @@ describe('buildTodoCategoryCards', () => {
       })),
     })
     expect(cards[0].items).toHaveLength(4)
-    // count 仍是全量
-    expect(cards[0].count).toBe(10)
+    // count 与 items.length 一致（修复 Bug 1：右上角数字与显示条数不符）
+    expect(cards[0].count).toBe(4)
   })
 
   it('每条 item 含 name/rightText/id', () => {
@@ -211,8 +211,8 @@ describe('buildTodoCategoryCards', () => {
     })
     expect(cards[0].items).toHaveLength(1)
     expect(cards[0].items[0].id).toBe(1)
-    // count 仍是全量（2 条）
-    expect(cards[0].count).toBe(2)
+    // count 与 items.length 一致（修复 Bug 1：右上角数字与显示条数不符）
+    expect(cards[0].count).toBe(1)
   })
 
   it('bid-Team 角色不显示 tender 卡片但显示 project 卡片', () => {

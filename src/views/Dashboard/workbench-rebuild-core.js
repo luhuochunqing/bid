@@ -106,7 +106,25 @@ export function buildDeadlinePanels(events, period = 'week', today = new Date())
   return buckets
 }
 
-const MAX_CARD_ITEMS = 4
+/**
+ * 工作台待办卡片每类最多显示条数（API 层与视图层共享，避免双源硬编码）。
+ * useWorkbenchRoleTodos.js 的 slice(0, N) 与 buildTodoCategoryCards 的 slice(0, N) 都用此常量。
+ */
+export const MAX_TODO_CARD_ITEMS = 4
+
+/**
+ * 标讯状态码 → 中文标签映射（工作台待办右侧显示）。
+ */
+const TENDER_STATUS_LABELS = {
+  PENDING_ASSIGNMENT: '待分配',
+  EVALUATED: '已评估',
+  TRACKING: '跟踪中',
+}
+
+function mapTenderStatusLabel(status) {
+  if (!status) return ''
+  return TENDER_STATUS_LABELS[status] || status
+}
 
 /**
  * 构建任务待办卡片条目（保留 projectId 用于跳转项目详情标书制作阶段）。
@@ -117,7 +135,7 @@ function buildTodoItems(todos) {
   const safe = Array.isArray(todos) ? todos.filter((t) => !t?.done) : []
   return safe
     .filter((todo) => todo.projectId != null)
-    .slice(0, MAX_CARD_ITEMS)
+    .slice(0, MAX_TODO_CARD_ITEMS)
     .map((todo) => ({
       id: todo.id,
       name: todo.title || todo.name || '',
@@ -127,27 +145,27 @@ function buildTodoItems(todos) {
 }
 
 /**
- * 构建标讯待办卡片条目（保留 projectId 用于关联项目跳转）。
+ * 构建标讯待办卡片条目（右侧显示标讯状态中文，保留 projectId 用于关联项目跳转）。
  */
 function buildTenderItems(tenders) {
   const safe = Array.isArray(tenders) ? tenders : []
-  return safe.slice(0, MAX_CARD_ITEMS).map((tender) => ({
+  return safe.slice(0, MAX_TODO_CARD_ITEMS).map((tender) => ({
     id: tender.id,
     name: tender.title || tender.name || '',
-    rightText: formatDateShort(tender.registrationDeadline) || '报名',
+    rightText: mapTenderStatusLabel(tender.status),
     projectId: tender.projectId ?? null,
   }))
 }
 
 /**
- * 构建项目待办卡片条目（保留 stage 用于阶段定位）。
+ * 构建项目待办卡片条目（右侧显示 todoLabel 中文状态，保留 stage 用于阶段定位）。
  */
 function buildProjectItems(projects) {
   const safe = Array.isArray(projects) ? projects : []
-  return safe.slice(0, MAX_CARD_ITEMS).map((project) => ({
+  return safe.slice(0, MAX_TODO_CARD_ITEMS).map((project) => ({
     id: project.id,
     name: project.name || '',
-    rightText: project.status || project.stage || '',
+    rightText: project.todoLabel || project.stage || '',
     projectId: project.id,
     stage: project.stage || null,
   }))
@@ -160,7 +178,7 @@ function buildProjectItems(projects) {
  */
 function buildApprovalItems(approvals) {
   const safe = Array.isArray(approvals) ? approvals : []
-  return safe.slice(0, MAX_CARD_ITEMS).map((approval) => ({
+  return safe.slice(0, MAX_TODO_CARD_ITEMS).map((approval) => ({
     id: approval.applicationId ?? approval.id,
     name: approval.resourceLabel || approval.purpose || approval.projectName || '',
     rightText: approval.applicantName || approval.applicationType || '',
@@ -198,40 +216,44 @@ export function buildTodoCategoryCards({
 
   const cards = []
 
+  const taskItems = buildTodoItems(taskTodos)
   cards.push({
     key: 'task',
     title: '任务·待办',
     accent: 'primary',
-    count: (Array.isArray(taskTodos) ? taskTodos.filter((t) => !t?.done) : []).length,
-    items: buildTodoItems(taskTodos),
+    count: taskItems.length,
+    items: taskItems,
   })
 
   if (showTender) {
+    const tenderItems = buildTenderItems(tenderTodos)
     cards.push({
       key: 'tender',
       title: '标讯·待办',
       accent: 'warning',
-      count: Array.isArray(tenderTodos) ? tenderTodos.length : 0,
-      items: buildTenderItems(tenderTodos),
+      count: tenderItems.length,
+      items: tenderItems,
     })
   }
 
   if (showProject) {
+    const projectItems = buildProjectItems(projectTodos)
     cards.push({
       key: 'project',
       title: '项目·待办',
       accent: 'success',
-      count: Array.isArray(projectTodos) ? projectTodos.length : 0,
-      items: buildProjectItems(projectTodos),
+      count: projectItems.length,
+      items: projectItems,
     })
   }
 
+  const approvalItems = buildApprovalItems(resourceTodos)
   cards.push({
     key: 'resource',
     title: '资源·待办',
     accent: 'info',
-    count: Array.isArray(resourceTodos) ? resourceTodos.length : 0,
-    items: buildApprovalItems(resourceTodos),
+    count: approvalItems.length,
+    items: approvalItems,
   })
 
   return cards

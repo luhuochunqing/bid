@@ -59,6 +59,8 @@ public class ProjectDTO {
     /* ===== 列表投影字段（PRD §4.3 16 列）。V133 新增 ===== */
     /** 项目阶段：INITIATED/DRAFTING/EVALUATING/RESULT_PENDING/RETROSPECTIVE/CLOSED */
     private String stage;
+    /** 工作台待办标签（中文，按角色+阶段计算，仅工作台待办接口返回） */
+    private String todoLabel;
     /** 优先级 S/A/B/C */
     private String priority;
     /** 业主单位 */

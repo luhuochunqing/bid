@@ -7,6 +7,7 @@ import { ref } from 'vue'
 import { tasksApi } from '@/api/modules/dashboard.js'
 import { tendersApi, workbenchApi } from '@/api'
 import { isGlobalManageRole, isBidTeamRole, isSalesRole } from '@/constants/roleCodes.js'
+import { MAX_TODO_CARD_ITEMS } from './workbench-rebuild-core.js'
 
 /**
  * 工作台角色化待办 composable（spec §4.4）：
@@ -52,10 +53,10 @@ export function useWorkbenchRoleTodos({ roleRef, userIdRef }) {
     try {
       const response = await tendersApi.getList({ status: statusParam })
       const tenders = Array.isArray(response?.data) ? response.data : []
-      tenderTodos.value = tenders.slice(0, 8).map((item) => ({
+      tenderTodos.value = tenders.slice(0, MAX_TODO_CARD_ITEMS).map((item) => ({
         id: item.id,
         title: item.title || '未命名标讯',
-        registrationDeadline: item.registrationDeadline,
+        status: item.status,
         projectId: item.projectId ?? null,
       }))
     } catch {

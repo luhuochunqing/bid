@@ -21,7 +21,9 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -29,13 +31,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * 工作台角色化改造 BE-3：WorkbenchProjectTodoQueryService 按角色分支返回测试。
- * 覆盖 spec.md §3 模块3 的 3 种角色分支 + fail-closed + 其他角色。
+ * 工作台角色化改造：WorkbenchProjectTodoQueryService 按角色分支返回测试。
  *
- * 改进点（相对 ProjectServiceWorkbenchTodosTest）：
- * 1. 测试 WorkbenchProjectTodoQueryService（迁移自 ProjectService.getWorkbenchTodos）
- * 2. 验证 P1-2.4：使用 ProjectStage 枚举替代字符串字面量
- * 3. 依赖 security.CurrentUserLookupService 替代 project.service.ProjectCurrentUserLookupService（解耦）
+ * 2026-07-20 调整：标书审核人项目仅限 DRAFTING 阶段 + REVIEWING 状态，
+ * 并返回 todoLabel 中文标签（已立项/待立项/投标中/待结项）。
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -51,6 +50,13 @@ class WorkbenchProjectTodoQueryServiceTest {
     private WorkbenchProjectTodoQueryService service;
     private final User currentUser = mock(User.class);
 
+    /** 全量项目池，按 ID 查询时过滤返回 */
+    private final Project initiated = newProject(10L, "已立项项目", ProjectStage.INITIATED.name());
+    private final Project closed = newProject(20L, "已结项项目", ProjectStage.CLOSED.name());
+    private final Project drafting = newProject(30L, "投标中项目", ProjectStage.DRAFTING.name());
+    private final Project retrospective = newProject(40L, "待结项项目", ProjectStage.RETROSPECTIVE.name());
+    private final List<Project> allProjects = List.of(initiated, closed, drafting, retrospective);
+
     @BeforeEach
     void setUp() {
         service = new WorkbenchProjectTodoQueryService(
@@ -63,70 +69,91 @@ class WorkbenchProjectTodoQueryServiceTest {
         when(currentUserLookupService.requireUser(userDetails)).thenReturn(currentUser);
         when(currentUser.getId()).thenReturn(1L);
         when(currentUser.getUsername()).thenReturn("testuser");
+        // findAllById 按输入 ID 集合过滤返回（service 多次调用，每次参数不同）
+        when(projectRepository.findAllById(any())).thenAnswer(invocation -> {
+            Iterable<Long> ids = invocation.getArgument(0);
+            Set<Long> idSet = new HashSet<>();
+            ids.forEach(idSet::add);
+            return allProjects.stream().filter(p -> idSet.contains(p.getId())).toList();
+        });
     }
 
     @Test
-    void adminLeadRole_returnsInitiatedProjectsPlusReviewerProjects() {
-        // /bidAdmin 属于 GLOBAL_ACCESS_ROLES，走 admin_lead 分支
+    void adminLeadRole_returnsInitiatedPlusPendingReview_withTodoLabels() {
         when(effectiveRoleResolver.resolveRoleCode(currentUser)).thenReturn(RoleProfileCatalog.BID_ADMIN_CODE);
-        Project initiated = newProject(10L, "已立项项目", ProjectStage.INITIATED.name());
-        // P1-2.4：service 传 ProjectStage 枚举集合（findByStageIn 枚举 default 方法收口）
         when(projectRepository.findByStageIn(List.of(ProjectStage.INITIATED))).thenReturn(List.of(initiated));
-        BidDocumentReviewEntity review = BidDocumentReviewEntity.builder().projectId(20L).build();
-        when(bidDocumentReviewRepository.findByReviewerId(1L)).thenReturn(List.of(review));
-        Project reviewerProject = newProject(20L, "审核项目", ProjectStage.DRAFTING.name());
-        when(projectRepository.findAllById(any())).thenReturn(List.of(initiated, reviewerProject));
+        // 待审核标书（REVIEWING 状态），项目 30L 处于 DRAFTING 阶段
+        BidDocumentReviewEntity review = BidDocumentReviewEntity.builder().projectId(30L).build();
+        when(bidDocumentReviewRepository.findByReviewerIdAndStatus(1L, "REVIEWING")).thenReturn(List.of(review));
 
         List<ProjectDTO> result = service.getWorkbenchTodos(userDetails);
 
         assertThat(result).hasSize(2);
-        assertThat(result).extracting(ProjectDTO::getId).containsExactlyInAnyOrder(10L, 20L);
+        assertThat(result).extracting(ProjectDTO::getId).containsExactlyInAnyOrder(10L, 30L);
+        // 验证 todoLabel 中文标签
+        ProjectDTO initiatedDto = result.stream().filter(d -> d.getId() == 10L).findFirst().orElseThrow();
+        assertThat(initiatedDto.getTodoLabel()).isEqualTo("已立项");
+        ProjectDTO draftingDto = result.stream().filter(d -> d.getId() == 30L).findFirst().orElseThrow();
+        assertThat(draftingDto.getTodoLabel()).isEqualTo("投标中");
     }
 
     @Test
-    void bidTeamRole_returnsLeadProjectsExcludingClosed() {
+    void bidTeamRole_returnsLeadProjectsExcludingClosed_plusPendingReview() {
         when(effectiveRoleResolver.resolveRoleCode(currentUser)).thenReturn(RoleProfileCatalog.BID_SPECIALIST_CODE);
-        ProjectLeadAssignment primary = ProjectLeadAssignment.builder().projectId(10L).build();
-        ProjectLeadAssignment secondary = ProjectLeadAssignment.builder().projectId(20L).build();
-        when(projectLeadAssignmentRepository.findByPrimaryLeadUserId(1L)).thenReturn(List.of(primary));
-        when(projectLeadAssignmentRepository.findBySecondaryLeadUserId(1L)).thenReturn(List.of(secondary));
-        Project active = newProject(10L, "进行中项目", ProjectStage.DRAFTING.name());
-        Project closed = newProject(20L, "已结项项目", ProjectStage.CLOSED.name());
-        // bid-Team 分支单次 findAllById：内存过滤 CLOSED 后直接转 DTO（P0 优化，消除重复 DB 往返）
-        when(projectRepository.findAllById(any()))
-                .thenReturn(List.of(active, closed));
+        // 主负责人项目 10L（INITIATED），副负责人项目 20L（CLOSED，应被过滤）
+        when(projectLeadAssignmentRepository.findByPrimaryLeadUserId(1L))
+                .thenReturn(List.of(ProjectLeadAssignment.builder().projectId(10L).build()));
+        when(projectLeadAssignmentRepository.findBySecondaryLeadUserId(1L))
+                .thenReturn(List.of(ProjectLeadAssignment.builder().projectId(20L).build()));
+        // 待审核标书项目 30L（DRAFTING）
+        BidDocumentReviewEntity review = BidDocumentReviewEntity.builder().projectId(30L).build();
+        when(bidDocumentReviewRepository.findByReviewerIdAndStatus(1L, "REVIEWING")).thenReturn(List.of(review));
 
         List<ProjectDTO> result = service.getWorkbenchTodos(userDetails);
 
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).getId()).isEqualTo(10L);
-        assertThat(result.get(0).getStage()).isEqualTo(ProjectStage.DRAFTING.name());
+        // 10L（INITIATED，主负责人）+ 30L（DRAFTING，待审核标书）；20L（CLOSED）被过滤
+        assertThat(result).hasSize(2);
+        assertThat(result).extracting(ProjectDTO::getId).containsExactlyInAnyOrder(10L, 30L);
+        ProjectDTO draftingDto = result.stream().filter(d -> d.getId() == 30L).findFirst().orElseThrow();
+        assertThat(draftingDto.getTodoLabel()).isEqualTo("投标中");
     }
 
     @Test
-    void projectLeaderRole_returnsInitiatedAndRetrospectiveAndReviewerProjects() {
+    void projectLeaderRole_returnsInitiatedRetrospectivePlusPendingReview_withTodoLabels() {
         when(effectiveRoleResolver.resolveRoleCode(currentUser)).thenReturn(RoleProfileCatalog.SALES_CODE);
-        Project initiated = newProject(10L, "待立项", ProjectStage.INITIATED.name());
-        Project retrospective = newProject(20L, "待结项", ProjectStage.RETROSPECTIVE.name());
-        // P1-2.4：service 传 ProjectStage 枚举集合（findByStageIn 枚举 default 方法收口）
-        when(projectRepository.findByStageIn(List.of(
-                ProjectStage.INITIATED, ProjectStage.RETROSPECTIVE)))
-                .thenReturn(List.of(initiated, retrospective));
+        when(projectRepository.findByStageIn(List.of(ProjectStage.INITIATED))).thenReturn(List.of(initiated));
+        when(projectRepository.findByStageIn(List.of(ProjectStage.RETROSPECTIVE))).thenReturn(List.of(retrospective));
+        // 待审核标书项目 30L（DRAFTING）
         BidDocumentReviewEntity review = BidDocumentReviewEntity.builder().projectId(30L).build();
-        when(bidDocumentReviewRepository.findByReviewerId(1L)).thenReturn(List.of(review));
-        Project reviewerProject = newProject(30L, "审核项目", ProjectStage.DRAFTING.name());
-        when(projectRepository.findAllById(any()))
-                .thenReturn(List.of(initiated, retrospective, reviewerProject));
+        when(bidDocumentReviewRepository.findByReviewerIdAndStatus(1L, "REVIEWING")).thenReturn(List.of(review));
 
         List<ProjectDTO> result = service.getWorkbenchTodos(userDetails);
 
         assertThat(result).hasSize(3);
-        assertThat(result).extracting(ProjectDTO::getId).containsExactlyInAnyOrder(10L, 20L, 30L);
+        assertThat(result).extracting(ProjectDTO::getId).containsExactlyInAnyOrder(10L, 30L, 40L);
+        // 验证 todoLabel：10L→"待立项", 30L→"投标中", 40L→"待结项"
+        assertThat(result.stream().filter(d -> d.getId() == 10L).findFirst().orElseThrow().getTodoLabel()).isEqualTo("待立项");
+        assertThat(result.stream().filter(d -> d.getId() == 30L).findFirst().orElseThrow().getTodoLabel()).isEqualTo("投标中");
+        assertThat(result.stream().filter(d -> d.getId() == 40L).findFirst().orElseThrow().getTodoLabel()).isEqualTo("待结项");
+    }
+
+    @Test
+    void pendingReview_filteredByDRAFTINGStage_only() {
+        // 审核记录关联的项目不是 DRAFTING 阶段时，不应出现在结果中
+        when(effectiveRoleResolver.resolveRoleCode(currentUser)).thenReturn(RoleProfileCatalog.BID_ADMIN_CODE);
+        when(projectRepository.findByStageIn(List.of(ProjectStage.INITIATED))).thenReturn(List.of());
+        // 审核记录关联项目 10L（INITIATED，非 DRAFTING）→ 应被过滤
+        BidDocumentReviewEntity review = BidDocumentReviewEntity.builder().projectId(10L).build();
+        when(bidDocumentReviewRepository.findByReviewerIdAndStatus(1L, "REVIEWING")).thenReturn(List.of(review));
+
+        List<ProjectDTO> result = service.getWorkbenchTodos(userDetails);
+
+        // 10L 是 INITIATED 不是 DRAFTING，待审核标书过滤后为空，admin_lead 的 INITIATED 查询也为空
+        assertThat(result).isEmpty();
     }
 
     @Test
     void nullRoleCode_returnsEmptyList_failClosed() {
-        // OSS 缓存未命中时 roleCode=null，fail-closed 返回空列表
         when(effectiveRoleResolver.resolveRoleCode(currentUser)).thenReturn(null);
 
         List<ProjectDTO> result = service.getWorkbenchTodos(userDetails);
@@ -136,13 +163,74 @@ class WorkbenchProjectTodoQueryServiceTest {
 
     @Test
     void otherRole_returnsEmptyList() {
-        // bid-otherDept 等其他角色不展示项目待办
         when(effectiveRoleResolver.resolveRoleCode(currentUser))
                 .thenReturn(RoleProfileCatalog.BID_OTHER_DEPT_CODE);
 
         List<ProjectDTO> result = service.getWorkbenchTodos(userDetails);
 
         assertThat(result).isEmpty();
+    }
+
+    /**
+     * P1-1 回归：角色变体（大小写/连字符）必须通过 canonicalCode 归一化后匹配分支。
+     * 验证 "bid-team"（小写变体）能正确命中 BID_SPECIALIST_CODE 分支，
+     * 且同一测试同时覆盖主负责人项目 + 待审核标书场景（todoLabel 分别正确）。
+     */
+    @Test
+    void bidTeamRole_roleVariant_canonicalMatched() {
+        // OSS 返回小写变体 "bid-team"，canonicalCode 应归一化为 "bid-Team"
+        when(effectiveRoleResolver.resolveRoleCode(currentUser)).thenReturn("bid-team");
+        // 主负责人项目 10L（INITIATED）
+        when(projectLeadAssignmentRepository.findByPrimaryLeadUserId(1L))
+                .thenReturn(List.of(ProjectLeadAssignment.builder().projectId(10L).build()));
+        when(projectLeadAssignmentRepository.findBySecondaryLeadUserId(1L))
+                .thenReturn(List.of());
+        // 待审核标书项目 30L（DRAFTING）
+        BidDocumentReviewEntity review = BidDocumentReviewEntity.builder().projectId(30L).build();
+        when(bidDocumentReviewRepository.findByReviewerIdAndStatus(1L, "REVIEWING"))
+                .thenReturn(List.of(review));
+
+        List<ProjectDTO> result = service.getWorkbenchTodos(userDetails);
+
+        // 10L→"已立项"（主负责人项目，按实际阶段映射）
+        // 30L→"投标中"（待审核标书，优先级最高）
+        assertThat(result).hasSize(2);
+        assertThat(result).extracting(ProjectDTO::getId).containsExactlyInAnyOrder(10L, 30L);
+        assertThat(result.stream().filter(d -> d.getId() == 10L).findFirst().orElseThrow().getTodoLabel())
+                .isEqualTo("已立项");
+        assertThat(result.stream().filter(d -> d.getId() == 30L).findFirst().orElseThrow().getTodoLabel())
+                .isEqualTo("投标中");
+    }
+
+    /**
+     * P3-6 边界用例：投标专员同时有主负责人项目（INITIATED）+ 待审核标书项目（DRAFTING），
+     * 验证 todoLabel 分别正确（主负责人→"已立项"，待审核标书→"投标中"）。
+     * 注：同一 projectId 不可能同时是 INITIATED 和 DRAFTING，所以不会发生标签冲突。
+     */
+    @Test
+    void bidTeamRole_leadProjectPlusPendingReview_todoLabelsDistinct() {
+        when(effectiveRoleResolver.resolveRoleCode(currentUser))
+                .thenReturn(RoleProfileCatalog.BID_SPECIALIST_CODE);
+        // 主负责人项目 10L（INITIATED）
+        when(projectLeadAssignmentRepository.findByPrimaryLeadUserId(1L))
+                .thenReturn(List.of(ProjectLeadAssignment.builder().projectId(10L).build()));
+        when(projectLeadAssignmentRepository.findBySecondaryLeadUserId(1L))
+                .thenReturn(List.of());
+        // 待审核标书项目 30L（DRAFTING）
+        BidDocumentReviewEntity review = BidDocumentReviewEntity.builder().projectId(30L).build();
+        when(bidDocumentReviewRepository.findByReviewerIdAndStatus(1L, "REVIEWING"))
+                .thenReturn(List.of(review));
+
+        List<ProjectDTO> result = service.getWorkbenchTodos(userDetails);
+
+        assertThat(result).hasSize(2);
+        assertThat(result).extracting(ProjectDTO::getId).containsExactlyInAnyOrder(10L, 30L);
+        // 10L→"已立项"（主负责人项目，按实际阶段映射）
+        ProjectDTO leadDto = result.stream().filter(d -> d.getId() == 10L).findFirst().orElseThrow();
+        assertThat(leadDto.getTodoLabel()).isEqualTo("已立项");
+        // 30L→"投标中"（待审核标书，优先级最高）
+        ProjectDTO reviewDto = result.stream().filter(d -> d.getId() == 30L).findFirst().orElseThrow();
+        assertThat(reviewDto.getTodoLabel()).isEqualTo("投标中");
     }
 
     private Project newProject(Long id, String name, String stage) {
