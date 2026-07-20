@@ -5552,3 +5552,70 @@ commit message 写的是"ProjectQueryService 的 getAnnualRevenue() 调用点同
 - [ARCHITECTURE.md](../../ARCHITECTURE.md) — FP-Java 字段映射规范
 - [RELIABILITY.md](../../RELIABILITY.md) — 14 道门禁（本 PR 因 ProjectQueryServiceTest 未覆盖 revenue 字段赋值，CI 未拦住）
 - 第 73 节 — Review PR 必须看 commit vs parent 的实际 diff（本次定位 d1994a3fa 时也用了 `git log -S` 字符串追踪）
+
+## 77. 写迁移 SQL 前必须 DESC 确认列名，MySQL 保留字 `size` 不能作为列引用（V1173 / 2026-07-20 / 第 103 次测试部署阻断）
+
+> 来源：2026-07-20 第 103 次测试环境部署首次尝试失败，V1173 迁移 SQL 报 `Unknown column 'pd.size'`
+> 涉及模块：Flyway 迁移 / `project_documents` 表 / `archive_file.file_size` 回填
+> 影响等级：高（backend crash-loop，测试环境服务不可用约 30 分钟）
+
+### 事故背景
+
+第 102 次测试环境部署成功后，合入后续 PR 时 V1173 迁移失败导致 backend 反复重启：
+
+```
+ERROR 1054 (42S22): Unknown column 'pd.size' in 'where clause'
+```
+
+V1173 SQL 试图从 `project_documents` 表的 `size` 列读取文件大小（VARCHAR 如 "1.5MB"），解析为字节数后回填到 `archive_file.file_size`。但 `project_documents` 表实际列名是 `file_size`，`size` 是 MySQL 保留字且表中无此列。
+
+### 根因
+
+V1173 SQL 撰写时**没有先 DESC 表结构确认列名**，凭直觉用了 `size`：
+
+```sql
+-- 错误写法（V1173 原版）
+UPDATE archive_file af
+INNER JOIN project_documents pd ON pd.file_url = af.file_path
+SET af.file_size = ... CASE WHEN pd.size REGEXP ...
+WHERE af.file_size = 0 AND pd.size IS NOT NULL;
+```
+
+两个问题叠加：
+1. **列名猜错**：实际列名是 `file_size`（VARCHAR），不是 `size`
+2. **MySQL 保留字陷阱**：`size` 是 MySQL 8.0 保留字（https://dev.mysql.com/doc/refman/8.0/en/keywords.html），即使表里有此列也需要反引号 `` `size` ``，否则 SQL 解析器会把它当成关键字
+
+### 危害
+
+- 第 103 次测试部署首次尝试失败，release `1052e4fdb` 已上传但 Flyway 应用 V1173 时报错
+- backend 服务 crash-loop（Flyway 启动校验失败 → systemd Restart=on-failure → 反复重启）
+- 测试环境服务不可用约 30 分钟（从首次失败到修复后重新部署完成）
+- 需要人工介入：手动 stop 服务、删除 flyway_schema_history 失败记录、重新打包部署
+
+### 防御规范
+
+**写迁移 SQL 引用任何列名前，必须先 `DESC <table>` 或 `SHOW COLUMNS FROM <table>` 确认列名存在且拼写正确。**
+
+具体规则：
+1. **禁止凭直觉猜列名**：尤其是不常见的列名（如 `file_size` 而非 `size`、`file_url` 而非 `url`）
+2. **MySQL 保留字清单**：写 SQL 前对照 https://dev.mysql.com/doc/refman/8.0/en/keywords.html，常见陷阱字：`size`、`desc`、`asc`、`order`、`group`、`key`、`index`、`type`、`status`、`name`、`level`、`range`、`row`、`column`、`condition`、`database`、`table`、`user`、`password`、`access`、`account`、`order`
+3. **VARCHAR 字段解析必须 SELECT 验证**：对 VARCHAR 字段存放带单位字符串（如 "1.5MB"）的场景，使用 CASE WHEN + REGEXP 解析时**必须先在测试环境 SELECT 验证**逻辑正确，再写迁移 SQL
+4. **迁移 SQL 评审要点**：reviewer 必须检查 SQL 中引用的所有列名是否真实存在（可让提交者在 PR 描述中贴 `DESC` 输出）
+5. **不可变迁移门禁逃生舱**：已推送到 origin/main 的迁移文件如需修复，使用 `FLYWAY_ALLOW_IMMUTABLE_EDIT=1` 紧急例外通道（`scripts/check-flyway-immutable.sh` 文档化）
+
+### 处置记录
+
+- 定位根因：`ssh jetty@172.16.38.78 'source backend.env && mysql ... -e "DESC project_documents;"'` → 确认列名是 `file_size` 不是 `size`
+- 验证修复逻辑：在服务器上跑 SELECT 测试 CASE WHEN 解析（`1MB` → 1048576, `340MB` → 356515840）
+- 修复 commit：`c8fb291b5` on `agent/trae/fix-v1173-migration`（所有 `pd.size` → `pd.file_size`）
+- PR !2165：squash merge → `07b34a932`
+- 服务器清理：`DELETE FROM flyway_schema_history WHERE version='1173' AND success=0;`
+- 重新打包部署：release `07b34a932`，V1173 success=1, 20:19:05 应用成功
+- 完整恢复时间：约 30 分钟（从首次失败到重新部署完成）
+
+### 相关文档
+
+- [CLAUDE.md](../../CLAUDE.md) §数据库迁移规范 — 版本号、回滚脚本、不可变门禁
+- [RELIABILITY.md](../../RELIABILITY.md) — Flyway 不可变迁移门禁（`scripts/check-flyway-immutable.sh`）
+- [第 103 次测试环境部署报告](../release/deploy-report-2026-07-20-103rd-test.md) — 完整恢复时间线
+- MySQL 8.0 关键字清单：https://dev.mysql.com/doc/refman/8.0/en/keywords.html
