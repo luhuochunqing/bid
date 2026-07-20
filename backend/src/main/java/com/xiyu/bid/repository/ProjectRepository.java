@@ -107,4 +107,11 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     /** 按更新时间增量查询（用于 CRM 增量同步），按 updatedAt 降序。 */
     @Query("SELECT p FROM Project p WHERE p.updatedAt >= :since ORDER BY p.updatedAt DESC")
     List<Project> findByUpdatedAtAfter(@Param("since") java.time.LocalDateTime since);
+
+    /**
+     * 工作台角色化改造：按项目阶段（stage）集合查询项目。
+     * stage 为 ProjectStage 枚举名字符串（INITIATED/DRAFTING/EVALUATING/RESULT_PENDING/RETROSPECTIVE/CLOSED）。
+     */
+    @Query("SELECT p FROM Project p WHERE p.stage IN :stages")
+    List<Project> findByStageIn(@Param("stages") Collection<String> stages);
 }

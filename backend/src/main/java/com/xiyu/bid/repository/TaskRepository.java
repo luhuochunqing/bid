@@ -97,4 +97,15 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     long countByProjectIdAndStatus(Long projectId, Task.Status status);
 
     List<Task> findByProjectIdAndStatusIn(Long projectId, Collection<Task.Status> statuses);
+
+    /**
+     * 工作台角色化改造：根据受托人ID和项目阶段查找任务（JOIN Project）。
+     * 用于工作台任务待办只显示标书制作阶段（DRAFTING）任务的场景。
+     * @param assigneeId 受托人ID
+     * @param projectStage 项目阶段（ProjectStage 枚举名，如 DRAFTING）
+     */
+    @Query("SELECT t FROM Task t WHERE t.assigneeId = :assigneeId " +
+           "AND t.projectId IN (SELECT p.id FROM Project p WHERE p.stage = :projectStage)")
+    List<Task> findByAssigneeIdAndProjectStage(@Param("assigneeId") Long assigneeId,
+                                                @Param("projectStage") String projectStage);
 }

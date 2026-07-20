@@ -1,5 +1,5 @@
-// Input: priorityTodos/hotTenders/activeProjects/pendingApprovals/deadlineStats/visibleCalendarEvents/menuPermissions/currentUser
-// Output: 工作台改造区块的状态与派生数据（greeting/permissions/welcomeStats/todoCategoryCards/calendarPermissions/handlers）
+// Input: taskTodos/tenderTodos/projectTodos/resourceTodos/role/userId/deadlineStats/menuPermissions/currentUser
+// Output: 工作台改造区块的状态与派生数据（greeting/permissions/welcomeStats/todoCategoryCards/handlers）
 // Pos: src/views/Dashboard/ - Dashboard feature composables
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -9,15 +9,18 @@ import { getTimeGreeting } from '@/views/Dashboard/workbench-utils.js'
 import { navigateToProject } from '@/utils/projectNavigation.js'
 import { hasAnyPermission } from '@/utils/permission'
 import { hasQuickStartPermission } from '@/views/Dashboard/workbench-core.js'
+import { isCrossDeptRole } from '@/constants/roleCodes.js'
 
 export function useWorkbenchRebuild({
-  priorityTodosRef,
-  hotTendersRef,
-  activeProjectsRef,
-  pendingApprovalsRef,
+  taskTodosRef,
+  tenderTodosRef,
+  projectTodosRef,
+  resourceTodosRef,
   deadlineStatsRef,
   menuPermissionsRef,
   currentUserRef,
+  roleRef,
+  userIdRef,
   router,
   handleTenderClick,
   handleProjectClick,
@@ -25,6 +28,8 @@ export function useWorkbenchRebuild({
 }) {
   const greeting = computed(() => getTimeGreeting())
   const deadlinePeriod = ref('week')
+
+  const currentRole = computed(() => roleRef?.value || currentUserRef?.value?.roleCode || currentUserRef?.value?.role || '')
 
   const permissions = computed(() => {
     const perms = menuPermissionsRef?.value
@@ -51,29 +56,52 @@ export function useWorkbenchRebuild({
   })
 
   const welcomeStats = computed(() => buildWelcomeStats({
-    pendingCount: priorityTodosRef?.value?.filter((t) => !t?.done).length || 0,
-    myProjectCount: activeProjectsRef?.value?.length || 0,
+    pendingCount: taskTodosRef?.value?.filter((t) => !t?.done).length || 0,
+    myProjectCount: projectTodosRef?.value?.length || 0,
     deadlineStats: deadlineStatsRef?.value,
   }))
 
   const todoCategoryCards = computed(() => buildTodoCategoryCards({
-    priorityTodos: priorityTodosRef?.value || [],
-    hotTenders: hotTendersRef?.value || [],
-    activeProjects: activeProjectsRef?.value || [],
-    pendingApprovals: pendingApprovalsRef?.value || [],
+    role: currentRole.value,
+    userId: userIdRef?.value,
+    taskTodos: taskTodosRef?.value || [],
+    tenderTodos: tenderTodosRef?.value || [],
+    projectTodos: projectTodosRef?.value || [],
+    resourceTodos: resourceTodosRef?.value || [],
   }))
 
   function handleWelcomeStatClick(stat) {
-    if (stat.label === '待办任务') router.push('/project?tab=todo')
-    else if (stat.label === '待办项目') router.push('/project')
+    if (stat.label === '待办任务') {
+      if (isCrossDeptRole(currentRole.value)) {
+        router.push('/task-board')
+      } else {
+        router.push('/project?tab=todo')
+      }
+    } else if (stat.label === '待办项目') router.push('/project')
     else if (stat.label === '报名截止' || stat.label === '今日开标') deadlinePeriod.value = 'today'
   }
 
+  /**
+   * 待办卡片点击跳转（角色差异化）：
+   * - task 模块：跨部门协同人员跳 /task-board；其他角色跳项目详情标书制作阶段
+   * - tender 模块：跳标讯详情
+   * - project 模块：跳项目详情
+   * - resource 模块：打开审批弹窗
+   */
   function handleTodoCardClick({ cardKey, item }) {
-    if (cardKey === 'task') router.push('/project?tab=todo')
-    else if (cardKey === 'tender') handleTenderClick?.({ id: item.id })
-    else if (cardKey === 'project') handleProjectClick?.({ id: item.id })
-    else if (cardKey === 'resource') handleApprove?.({ id: item.id, title: item.name })
+    if (cardKey === 'task') {
+      if (isCrossDeptRole(currentRole.value)) {
+        router.push('/task-board')
+      } else {
+        navigateToProject(router, item.projectId, { stage: 'drafting' })
+      }
+    } else if (cardKey === 'tender') {
+      handleTenderClick?.({ id: item.id })
+    } else if (cardKey === 'project') {
+      handleProjectClick?.({ id: item.id })
+    } else if (cardKey === 'resource') {
+      handleApprove?.({ id: item.id, title: item.name, applicationType: item.applicationType, projectId: item.projectId })
+    }
   }
 
   function handleDeadlineRowClick(row) {

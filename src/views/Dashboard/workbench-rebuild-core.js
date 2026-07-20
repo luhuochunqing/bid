@@ -1,7 +1,11 @@
-// Input: schedule events / priorityTodos / hotTenders / activeProjects / pendingApprovals / deadlineStats
+// Input: schedule events / taskTodos / tenderTodos / projectTodos / resourceTodos / role / userId / deadlineStats
 // Output: 纯核心派生函数（工作台改造）—— 截止时间分类、倒计时、待办分类卡片、欢迎横幅统计
 // Pos: src/views/Dashboard/ - Dashboard 纯核心 helpers（可单测、不依赖框架）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+
+import {
+  isBidAdminOrLeadRole, isBidTeamRole, isSalesRole,
+} from '@/constants/roleCodes.js'
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 
@@ -104,87 +108,133 @@ export function buildDeadlinePanels(events, period = 'week', today = new Date())
 
 const MAX_CARD_ITEMS = 4
 
+/**
+ * 构建任务待办卡片条目（保留 projectId 用于跳转项目详情标书制作阶段）。
+ * P0-5.1：过滤 projectId==null 的任务，避免卡片点击跳转到无效路径。
+ * 后端 tasksApi.getMine 可能返回无 projectId 的全局任务，这类任务不展示在卡片中。
+ */
 function buildTodoItems(todos) {
   const safe = Array.isArray(todos) ? todos.filter((t) => !t?.done) : []
-  return safe.slice(0, MAX_CARD_ITEMS).map((todo) => ({
-    id: todo.id,
-    name: todo.title || todo.name || '',
-    rightText: formatDateShort(todo.deadline) || '',
-  }))
+  return safe
+    .filter((todo) => todo.projectId != null)
+    .slice(0, MAX_CARD_ITEMS)
+    .map((todo) => ({
+      id: todo.id,
+      name: todo.title || todo.name || '',
+      rightText: formatDateShort(todo.deadline) || '',
+      projectId: todo.projectId,
+    }))
 }
 
+/**
+ * 构建标讯待办卡片条目（保留 projectId 用于关联项目跳转）。
+ */
 function buildTenderItems(tenders) {
   const safe = Array.isArray(tenders) ? tenders : []
   return safe.slice(0, MAX_CARD_ITEMS).map((tender) => ({
     id: tender.id,
     name: tender.title || tender.name || '',
     rightText: formatDateShort(tender.registrationDeadline) || '报名',
+    projectId: tender.projectId ?? null,
   }))
 }
 
+/**
+ * 构建项目待办卡片条目（保留 stage 用于阶段定位）。
+ */
 function buildProjectItems(projects) {
   const safe = Array.isArray(projects) ? projects : []
   return safe.slice(0, MAX_CARD_ITEMS).map((project) => ({
     id: project.id,
     name: project.name || '',
-    rightText: project.status || '',
-  }))
-}
-
-function buildApprovalItems(approvals) {
-  const safe = Array.isArray(approvals) ? approvals : []
-  return safe.slice(0, MAX_CARD_ITEMS).map((approval) => ({
-    id: approval.id,
-    name: approval.title || approval.applicant || '',
-    rightText: approval.type || '',
+    rightText: project.status || project.stage || '',
+    projectId: project.id,
+    stage: project.stage || null,
   }))
 }
 
 /**
- * 从四类数据源构建待办模块的 4 张卡片。
+ * 构建资源待办卡片条目（适配 ResourcePendingApprovalDTO）。
+ * DTO 字段：applicationType("ACCOUNT"/"CA")、applicationId、resourceLabel、
+ *           applicantName、purpose、projectId、projectName、createdAt。
+ */
+function buildApprovalItems(approvals) {
+  const safe = Array.isArray(approvals) ? approvals : []
+  return safe.slice(0, MAX_CARD_ITEMS).map((approval) => ({
+    id: approval.applicationId ?? approval.id,
+    name: approval.resourceLabel || approval.purpose || approval.projectName || '',
+    rightText: approval.applicantName || approval.applicationType || '',
+    applicationType: approval.applicationType || null,
+    projectId: approval.projectId ?? null,
+  }))
+}
+
+/**
+ * 从四类数据源按角色构建待办模块卡片。
+ * - task 卡片：所有角色都显示
+ * - tender 卡片：admin_lead（投标管理员/组长）+ sales（项目负责人）显示
+ * - project 卡片：admin_lead + bid_team（投标专员）+ sales 显示
+ * - resource 卡片：所有角色都显示
+ *
+ * @param {object} opts
+ * @param {string} opts.role 当前用户角色码
+ * @param {*} opts.userId 当前用户 ID（预留）
+ * @param {Array} opts.taskTodos 标书制作阶段任务
+ * @param {Array} opts.tenderTodos 按角色过滤的标讯
+ * @param {Array} opts.projectTodos 按角色过滤的项目
+ * @param {Array} opts.resourceTodos 待审批申请
  * @returns {Array<{key, title, count, accent, items}>}
  */
 export function buildTodoCategoryCards({
-  priorityTodos = [],
-  hotTenders = [],
-  activeProjects = [],
-  pendingApprovals = [],
+  role = '',
+  userId,
+  taskTodos = [],
+  tenderTodos = [],
+  projectTodos = [],
+  resourceTodos = [],
 } = {}) {
-  const todoItems = buildTodoItems(priorityTodos)
-  const tenderItems = buildTenderItems(hotTenders)
-  const projectItems = buildProjectItems(activeProjects)
-  const approvalItems = buildApprovalItems(pendingApprovals)
+  const showTender = isBidAdminOrLeadRole(role) || isSalesRole(role)
+  const showProject = isBidAdminOrLeadRole(role) || isBidTeamRole(role) || isSalesRole(role)
 
-  return [
-    {
-      key: 'task',
-      title: '任务·待办',
-      accent: 'primary',
-      count: (Array.isArray(priorityTodos) ? priorityTodos.filter((t) => !t?.done) : []).length,
-      items: todoItems,
-    },
-    {
+  const cards = []
+
+  cards.push({
+    key: 'task',
+    title: '任务·待办',
+    accent: 'primary',
+    count: (Array.isArray(taskTodos) ? taskTodos.filter((t) => !t?.done) : []).length,
+    items: buildTodoItems(taskTodos),
+  })
+
+  if (showTender) {
+    cards.push({
       key: 'tender',
       title: '标讯·待办',
       accent: 'warning',
-      count: Array.isArray(hotTenders) ? hotTenders.length : 0,
-      items: tenderItems,
-    },
-    {
+      count: Array.isArray(tenderTodos) ? tenderTodos.length : 0,
+      items: buildTenderItems(tenderTodos),
+    })
+  }
+
+  if (showProject) {
+    cards.push({
       key: 'project',
       title: '项目·待办',
       accent: 'success',
-      count: Array.isArray(activeProjects) ? activeProjects.length : 0,
-      items: projectItems,
-    },
-    {
-      key: 'resource',
-      title: '资源·待办',
-      accent: 'info',
-      count: Array.isArray(pendingApprovals) ? pendingApprovals.length : 0,
-      items: approvalItems,
-    },
-  ]
+      count: Array.isArray(projectTodos) ? projectTodos.length : 0,
+      items: buildProjectItems(projectTodos),
+    })
+  }
+
+  cards.push({
+    key: 'resource',
+    title: '资源·待办',
+    accent: 'info',
+    count: Array.isArray(resourceTodos) ? resourceTodos.length : 0,
+    items: buildApprovalItems(resourceTodos),
+  })
+
+  return cards
 }
 
 /**

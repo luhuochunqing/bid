@@ -195,13 +195,29 @@ public class TaskService {
     }
     @Transactional(readOnly = true)
     public List<TaskDTO> getAccessibleTasksByAssigneeId(Long assigneeId, String username) {
+        return getAccessibleTasksByAssigneeId(assigneeId, username, null);
+    }
+
+    /**
+     * 工作台角色化改造：支持按项目阶段过滤"我的任务"。
+     * @param projectStage 项目阶段（ProjectStage 枚举名，如 DRAFTING）；null 时不过滤（向后兼容）
+     */
+    @Transactional(readOnly = true)
+    public List<TaskDTO> getAccessibleTasksByAssigneeId(Long assigneeId, String username, String projectStage) {
         User currentUser = assignmentSupport.resolveEnabledUserByUsername(username);
+        Long targetAssigneeId;
         if (assigneeId == null || Objects.equals(currentUser.getId(), assigneeId)) {
-            return getTasksByAssigneeId(currentUser.getId());
+            targetAssigneeId = currentUser.getId();
+        } else {
+            User targetUser = assignmentSupport.resolveEnabledUserById(assigneeId);
+            assignmentSupport.assertCanAccessTargetUser(currentUser, targetUser, false);
+            targetAssigneeId = assigneeId;
         }
-        User targetUser = assignmentSupport.resolveEnabledUserById(assigneeId);
-        assignmentSupport.assertCanAccessTargetUser(currentUser, targetUser, false);
-        return getTasksByAssigneeId(assigneeId);
+        if (projectStage == null || projectStage.isBlank()) {
+            return getTasksByAssigneeId(targetAssigneeId);
+        }
+        log.debug("Fetching tasks for assignee {} with projectStage {}", targetAssigneeId, projectStage);
+        return nameResolver.toDTOsWithNames(visibleTasks(taskRepository.findByAssigneeIdAndProjectStage(targetAssigneeId, projectStage)));
     }
     @Transactional(readOnly = true)
     public List<TaskDTO> getTasksByStatus(Task.Status status) {
