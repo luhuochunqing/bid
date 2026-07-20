@@ -3,8 +3,7 @@
 // Pos: Service/工作台聚合查询层
 // 维护声明: 工作台日程不另建项目权限体系，项目可见性继承 CalendarService 的真实 API 单一路径过滤。
 //           CO-594: 聚合 Tender.bidOpeningTime（开标时间，绿点）和 Tender.registrationDeadline（报名截止，红点）为日历事件。
-//           Review 修复: 权限口径统一用 currentUserHasGlobalAccess()（对齐 CO-593）；复用 CO-593 已有 Repository 方法；
-//           透传 Tender.projectId 供前端跳转；加 @Transactional(readOnly=true) 和 IN-clause 上限保护。
+//           权限口径与 CO-593 WorkbenchDeadlineQueryService 一致，使用 currentUserHasGlobalAccess() 覆盖投标管理员/组长。
 package com.xiyu.bid.workbench.service;
 
 import com.xiyu.bid.calendar.dto.CalendarEventDTO;
@@ -102,12 +101,12 @@ public class WorkbenchScheduleQueryService {
         List<CalendarEventDTO> result = new ArrayList<>(openingTenders.size() + deadlineTenders.size());
         for (Tender t : openingTenders) {
             if (t.getBidOpeningTime() != null) {
-                result.add(toTenderEventDto(t, t.getBidOpeningTime(), EventType.OPENING, "开标时间"));
+                result.add(toTenderEventDto(t, t.getBidOpeningTime(), EventType.OPENING));
             }
         }
         for (Tender t : deadlineTenders) {
             if (t.getRegistrationDeadline() != null) {
-                result.add(toTenderEventDto(t, t.getRegistrationDeadline(), EventType.DEADLINE, "报名截止"));
+                result.add(toTenderEventDto(t, t.getRegistrationDeadline(), EventType.DEADLINE));
             }
         }
         log.debug("Aggregated {} opening and {} deadline tender events for range {} to {}",
@@ -115,13 +114,13 @@ public class WorkbenchScheduleQueryService {
         return result;
     }
 
-    private CalendarEventDTO toTenderEventDto(Tender tender, LocalDateTime dateTime, EventType type, String label) {
+    private CalendarEventDTO toTenderEventDto(Tender tender, LocalDateTime dateTime, EventType type) {
+        // description 不设置：前端按 eventType 渲染"开标时间"/"报名截止"，无需后端重复传死数据。
         return CalendarEventDTO.builder()
                 .id(tender.getId())
                 .eventDate(dateTime.toLocalDate())
                 .eventType(type)
                 .title(tender.getTitle())
-                .description(label)
                 .projectId(tender.getProjectId())
                 .isUrgent(false)
                 .build();

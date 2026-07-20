@@ -186,6 +186,38 @@ class WorkbenchScheduleQueryServiceAccessTest {
                 .containsExactly("开标事件", "事件1");
     }
 
+    @Test
+    void shouldTruncateTenderIdsWhenExceedingInClauseLimit() {
+        LocalDate start = LocalDate.of(2026, 7, 1);
+        LocalDate end = LocalDate.of(2026, 7, 31);
+        when(calendarService.getEventsByDateRange(start, end)).thenReturn(List.of());
+        when(projectAccessScopeService.currentUserHasGlobalAccess()).thenReturn(false);
+        when(projectAccessScopeService.getAllowedProjectIdsForCurrentUser()).thenReturn(List.of(100L));
+
+        // 构造 600 个 tenderId，触发 MAX_TENDER_IDS_FOR_IN_CLAUSE=500 截断
+        List<Long> overLimitTenderIds = new java.util.ArrayList<>();
+        for (long i = 1L; i <= 600L; i++) {
+            overLimitTenderIds.add(i);
+        }
+        when(projectRepository.findTenderIdsByProjectIds(anyList())).thenReturn(overLimitTenderIds);
+
+        Tender openingTender = tender(1L, "截断后仍可见", 200L, LocalDateTime.of(2026, 7, 10, 9, 30), null);
+        when(tenderRepository.findTendersByBidOpeningTimeAndTenderIds(anyList(), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(openingTender));
+        when(tenderRepository.findTendersByRegistrationDeadlineAndTenderIds(anyList(), any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of());
+
+        var response = service.getScheduleOverview(start, end, null);
+
+        // 验证传给 Repository 的 tenderIds 被截断为 500
+        org.mockito.ArgumentCaptor<java.util.List<Long>> captor =
+                org.mockito.ArgumentCaptor.forClass(java.util.List.class);
+        verify(tenderRepository).findTendersByBidOpeningTimeAndTenderIds(captor.capture(), any(), any());
+        assertThat(captor.getValue()).hasSize(500);
+        assertThat(response.getEvents()).hasSize(1);
+        assertThat(response.getEvents().get(0).getTitle()).isEqualTo("截断后仍可见");
+    }
+
     private CalendarEventDTO event(Long id, Long projectId, LocalDate eventDate) {
         return CalendarEventDTO.builder()
                 .id(id)

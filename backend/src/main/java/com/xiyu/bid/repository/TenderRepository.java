@@ -84,8 +84,7 @@ public interface TenderRepository extends JpaRepository<Tender, Long>, JpaSpecif
     List<LocalDateTime> findBidOpeningTimesByTenderIds(@Param("tenderIds") Collection<Long> tenderIds, @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
     // === CO-593 / CO-594: Workbench deadline items & calendar events (return entities) ===
-    // 说明：CO-594 原本新增了 4 个重复方法，已在 review 阶段删除并复用 CO-593 的同名方法。
-    // NULL BETWEEN x AND y 返回 NULL（非 true），WHERE 子句自动过滤，故无需显式 IS NOT NULL。
+    // SQL 语义说明：NULL BETWEEN x AND y 返回 NULL（非 true），WHERE 子句自动过滤，故无需显式 IS NOT NULL。
 
     /** 全量报名截止标讯实体（全局管理角色用，CO-593/CO-594） */
     @Query("SELECT t FROM Tender t WHERE t.registrationDeadline BETWEEN :start AND :end AND t.status NOT IN ('WON', 'LOST', 'ABANDONED')")
