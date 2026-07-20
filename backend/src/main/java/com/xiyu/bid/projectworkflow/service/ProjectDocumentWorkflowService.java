@@ -16,6 +16,7 @@ import com.xiyu.bid.project.notification.DocumentChangeNotificationService;
 import com.xiyu.bid.project.notification.DocumentOperationType;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.security.CurrentUserResolver;
+import com.xiyu.bid.webhook.domain.OperatorDisplayName;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -234,13 +235,13 @@ class ProjectDocumentWorkflowService {
     private String resolveDisplayName(Long userId, String fallback) {
         if (userId != null) {
             var user = userRepository.findById(userId).orElse(null);
-            if (user != null && user.getFullName() != null && !user.getFullName().isBlank()) {
-                // CO-488: 返回"姓名（工号）"格式，工号取 employeeNumber
-                String empNo = user.getEmployeeNumber();
-                if (empNo != null && !empNo.isBlank()) {
-                    return user.getFullName() + "（" + empNo.trim() + "）";
-                }
-                return user.getFullName();
+            // CO-488: 复用 OperatorDisplayName.formatStrict（CO-346 统一格式化器，严格模式），避免逻辑重复。
+            // 严格模式在 fullName 空时返回空，让本方法走 fallback；
+            // 工号取 getDisplayEmployeeNumber()（employeeNumber 空时回退 username），
+            // 对齐 User.java "single source of truth for display-oriented employee-number" 契约。
+            if (user != null) {
+                String display = OperatorDisplayName.formatStrict(user);
+                if (!display.isBlank()) return display;
             }
         }
         if (fallback != null && !fallback.isBlank()) {

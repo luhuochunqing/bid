@@ -15,6 +15,7 @@ import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.webhook.domain.OperatorDisplayName;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -147,22 +148,20 @@ public class ProjectArchiveDetailService {
 
     /**
      * 档案修复：把 ArchiveLog.operatorName（= User.username）解析为"姓名（工号）"格式。
-     * <p>逻辑：
+     * <p>复用 {@link OperatorDisplayName#formatStrict(User)}（CO-346 统一格式化器，严格模式），
+     * 避免逻辑重复。严格模式在 fullName 空时返回空，让本方法走 username fallback。
      * <ul>
-     *   <li>能反查到 User 且 fullName 非空：返回"姓名（工号）"，工号取自 getDisplayEmployeeNumber()（自带兜底回退到 username）</li>
-     *   <li>能反查到 User 但 fullName 为空：返回 username（保持原值）</li>
-     *   <li>反查不到（历史数据/系统账号/"系统"字符串）：返回原始 operatorName，避免历史日志变空白</li>
+     *   <li>operatorName 空 → "系统"</li>
+     *   <li>反查不到 User（历史数据/系统账号）→ 原始 operatorName，避免历史日志变空白</li>
+     *   <li>能反查到 User 但 fullName 空 → 原始 operatorName（OSS 用户 username=工号，避免"06234（06234）"）</li>
+     *   <li>能反查到 User 且 fullName 非空 → "姓名（工号）"</li>
      * </ul>
      */
     private String resolveOperatorDisplay(String operatorName, Map<String, User> userByUsername) {
         if (operatorName == null || operatorName.isBlank()) return "系统";
         User user = userByUsername.get(operatorName);
         if (user == null) return operatorName;
-        String fullName = user.getFullName();
-        if (fullName == null || fullName.isBlank()) return operatorName;
-        String empNo = user.getDisplayEmployeeNumber();
-        return (empNo != null && !empNo.isBlank())
-                ? fullName + "（" + empNo + "）"
-                : fullName;
+        String display = OperatorDisplayName.formatStrict(user);
+        return display.isBlank() ? operatorName : display;
     }
 }
