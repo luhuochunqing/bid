@@ -24,6 +24,9 @@ import {
 
 export { formatDateKey }
 
+// Tender 派生事件类型（小写，对应 normalizeCalendarEvent 返回的 event.type）
+const TENDER_EVENT_TYPES = ['opening', 'deadline', 'bid']
+
 export function useWorkbenchSchedule({ router, assigneeIdRef, onEventsLoaded } = {}) {
   const calendarDate = ref(new Date())
   const activeCalendarFilter = ref('all')
@@ -67,10 +70,10 @@ export function useWorkbenchSchedule({ router, assigneeIdRef, onEventsLoaded } =
 
   const handleCalendarAction = (event) => {
     // Tender 派生事件（开标/报名截止）跳转标讯详情，与 handleTenderClick 行为对齐
-    const tenderEventTypes = ['opening', 'deadline', 'bid']
-    const eventType = event?.eventType || event?.type
+    // 注意：用 event.type（小写）匹配 TENDER_EVENT_TYPES，event.eventType 是大写枚举
+    const eventType = event?.type || event?.eventType
     const tenderId = event?.id
-    if (tenderEventTypes.includes(eventType) && tenderId) {
+    if (TENDER_EVENT_TYPES.includes(eventType) && tenderId) {
       // 真实标讯 → 标讯详情；demo 标讯 → 标讯列表页
       if (isRealTenderId(tenderId)) {
         router.push(`/bidding/${tenderId}`)
@@ -89,7 +92,7 @@ export function useWorkbenchSchedule({ router, assigneeIdRef, onEventsLoaded } =
       path: '/project',
       query: {
         calendarDate: event?.date || '',
-        calendarType: event?.eventType || event?.type || '',
+        calendarType: eventType || '',
       },
     })
   }
@@ -134,7 +137,7 @@ export function useWorkbenchSchedule({ router, assigneeIdRef, onEventsLoaded } =
         return
       }
 
-      // 当前月份无事件：选当前月第一天，仅影响日历格子高亮
+      // 当前月份无事件：selectedDateKey 保持当前 calendarDate，仅影响日历格子高亮
       selectedDateKey.value = formatDateKey(calendarDate.value)
       return
     }
