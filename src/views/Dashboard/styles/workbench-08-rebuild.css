@@ -118,7 +118,8 @@
 .todo-category-card {
   background: var(--bg-white);
   border-radius: var(--radius-md);
-  padding: 1.3rem 1.4rem;
+  /* 右 padding 为 0，让 .todo-category-card-list 滚动条贴卡片右边框 */
+  padding: 1.3rem 0 1.3rem 1.4rem;
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--gray-50);
   border-left: 3px solid var(--brand-xiyu-logo);
@@ -139,6 +140,8 @@
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 0.8rem;
+  /* 标题区域保持右 padding，与卡片左边距对称 */
+  padding-right: 1.4rem;
 }
 .todo-category-card-title {
   font-size: 0.95rem;
@@ -167,8 +170,8 @@
   margin-top: 0.6rem;
   max-height: 168px;
   overflow-y: auto;
-  /* 滚动条贴右侧边框：右侧不加 padding，让滚动条紧贴边框 */
-  padding-right: 0;
+  /* 内容右 padding 保持视觉间距，滚动条在元素 border-edge 内侧（即卡片右边框） */
+  padding-right: 1.4rem;
   flex: 1;
   /* Firefox 滚动条 */
   scrollbar-width: thin;

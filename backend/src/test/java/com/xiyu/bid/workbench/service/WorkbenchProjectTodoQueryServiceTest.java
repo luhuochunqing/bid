@@ -148,12 +148,11 @@ class WorkbenchProjectTodoQueryServiceTest {
     }
 
     @Test
-    void projectLeaderRole_returnsPendingInitiationRetrospectivePlusPendingReview_withTodoLabels() {
+    void projectLeaderRole_returnsMyPendingInitiationRetrospectivePlusPendingReview_withTodoLabels() {
         when(effectiveRoleResolver.resolveRoleCode(currentUser)).thenReturn(RoleProfileCatalog.SALES_CODE);
-        // CO-596: sales 按 status=PENDING_INITIATION 查询"待立项"项目，不含已立项项目
-        when(projectRepository.findByStatus(Project.Status.PENDING_INITIATION)).thenReturn(List.of(pendingInitiation));
-        // "待结项"按 stage=RETROSPECTIVE 查询（Project.Status 无对应值）
-        when(projectRepository.findByStageIn(List.of(ProjectStage.RETROSPECTIVE))).thenReturn(List.of(retrospective));
+        // CO-597: sales 只查自己的项目（findByManagerId），不查别人的
+        // 返回当前用户的 2 个项目：pendingInitiation（待立项）+ retrospective（待结项）
+        when(projectRepository.findByManagerId(1L)).thenReturn(List.of(pendingInitiation, retrospective));
         // 待审核标书项目 30L（DRAFTING）
         BidDocumentReviewEntity review = BidDocumentReviewEntity.builder().projectId(30L).build();
         when(bidDocumentReviewRepository.findByReviewerIdAndStatus(1L, "REVIEWING")).thenReturn(List.of(review));
@@ -170,20 +169,20 @@ class WorkbenchProjectTodoQueryServiceTest {
     }
 
     /**
-     * CO-596 回归：sales 分支查询 status=PENDING_INITIATION 的项目，
-     * 不应包含 status=INITIATED 的项目（即使 stage 都是 INITIATED）。
+     * CO-597 回归：sales 分支只查 managerId=userId 的项目，
+     * 不应包含其他项目经理的项目（即使 status/stage 符合条件）。
      */
     @Test
-    void projectLeaderRole_excludesInitiatedProjects_fromPendingInitiationList() {
+    void projectLeaderRole_excludesOtherManagersProjects_onlyReturnsMyProjects() {
         when(effectiveRoleResolver.resolveRoleCode(currentUser)).thenReturn(RoleProfileCatalog.SALES_CODE);
-        // 只返回 PENDING_INITIATION 项目（不含 initiatedReal）
-        when(projectRepository.findByStatus(Project.Status.PENDING_INITIATION)).thenReturn(List.of(pendingInitiation));
-        when(projectRepository.findByStageIn(List.of(ProjectStage.RETROSPECTIVE))).thenReturn(List.of());
+        // 只返回当前用户的 1 个项目（pendingInitiation）
+        // 其他项目经理的 pendingInitiation/retrospective 不会出现在 findByManagerId(1L) 结果中
+        when(projectRepository.findByManagerId(1L)).thenReturn(List.of(pendingInitiation));
         when(bidDocumentReviewRepository.findByReviewerIdAndStatus(1L, "REVIEWING")).thenReturn(List.of());
 
         List<ProjectDTO> result = service.getWorkbenchTodos(userDetails);
 
-        // 不应包含 10L（initiatedReal，已立项）
+        // 只包含 15L（自己的待立项项目），不含 10L（别人的已立项）或 40L（别人的待结项）
         assertThat(result).hasSize(1);
         assertThat(result).extracting(ProjectDTO::getId).containsExactly(15L);
         assertThat(result.get(0).getTodoLabel()).isEqualTo("待立项");
