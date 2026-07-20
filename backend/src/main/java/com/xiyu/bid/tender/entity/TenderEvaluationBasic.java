@@ -78,7 +78,7 @@ public class TenderEvaluationBasic {
     @Column(name = "project_plan_gap", length = 5000)
     private String projectPlanGap;
 
-    /** 客户营收（万）。 */
+    /** 客户营收（亿）—— 与前端评估表 BasicFieldsSection.vue 客户营收（亿）对齐 */
     @Column(name = "customer_revenue", precision = 15, scale = 2)
     private BigDecimal customerRevenue;
 }
