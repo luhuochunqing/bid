@@ -98,7 +98,7 @@ test.describe('项目结页 §3.3.1.6', () => {
 
   test('2. 投标管理员可查看并审核结项', async ({ page }) => {
     // 投标管理员登录
-    const session = await ensureApiSession({ username: 'bid_admin_e2e_closure', role: 'MANAGER', fullName: '投标管理员' })
+    const session = await ensureApiSession({ username: 'bid_admin_e2e_closure', role: '/bidAdmin', fullName: '投标管理员' })
     await injectSession(page, session)
 
     await page.goto(`/project/${projectId}`)
@@ -126,7 +126,7 @@ test.describe('项目结页 §3.3.1.6', () => {
   })
 
   test('3. 保证金退回情况动态子字段', async ({ page }) => {
-    const session = await ensureApiSession({ username: 'sales_e2e_deposit', role: 'MANAGER', fullName: '销售经理' })
+    const session = await ensureApiSession({ username: 'sales_e2e_deposit', role: 'bid-projectLeader', fullName: '销售经理' })
     await injectSession(page, session)
 
     // 创建带保证金的项目并推进到结项

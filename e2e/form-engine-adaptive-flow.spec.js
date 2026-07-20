@@ -32,8 +32,8 @@ async function loginAsAdmin(page) {
 async function loginAsStaff(page) {
   const session = await ensureApiSession({
     username: `form_e2e_staff_${Date.now()}`,
-    role: 'STAFF',
-    fullName: '动态表单测试员工',
+    role: 'bid-Team',
+      fullName: '动态表单测试员工',
   })
   await injectSession(page, session)
   return session
@@ -204,7 +204,7 @@ test.describe('M5: 角色过滤与租户覆盖', () => {
       await designerBtn.click()
       // 验证角色预览选项卡
       await expect(
-        page.locator('text=角色预览, text=角色').first()
+        page.getByText('角色预览').or(page.getByText('角色')).first()
       ).toBeVisible({ timeout: 5_000 })
     }
   })
@@ -256,7 +256,7 @@ test.describe('M6: 管理端 CRUD', () => {
         await actionBtn.click()
         // 验证发布或编辑相关元素
         await expect(
-          page.locator('text=发布, text=编辑').first()
+          page.getByText('发布').or(page.getByText('编辑')).first()
         ).toBeVisible({ timeout: 5_000 })
       }
     }
@@ -283,14 +283,14 @@ test.describe('M6: 管理端 CRUD', () => {
     await page.goto('/admin/form-definitions')
 
     // 查找验证规则 tab
-    const rulesTab = page.locator('text=验证规则').first()
+    const rulesTab = page.getByText('验证规则').first()
     const tabExists = await rulesTab.isVisible({ timeout: 3_000 }).catch(() => false)
 
     if (tabExists) {
       await rulesTab.click()
       // 验证规则配置区域
       await expect(
-        page.locator('text=跨字段验证, .el-form').first()
+        page.getByText('跨字段验证').first()
       ).toBeVisible({ timeout: 5_000 })
     }
   })

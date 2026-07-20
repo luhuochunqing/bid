@@ -94,7 +94,7 @@ test.describe('4.1.1.2.1 AI 案例沉淀 — 6 步异步任务模型', () => {
 
     const staffSession = await ensureApiSession({
       username: `e2e_precip_staff_${Date.now()}`,
-      role: 'STAFF',
+      role: 'bid-otherDept',
       fullName: '沉淀权限测试 STAFF'
     })
 

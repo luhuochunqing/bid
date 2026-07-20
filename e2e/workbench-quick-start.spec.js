@@ -8,7 +8,7 @@ test.describe('workbench quick start', () => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_wb_${suffix}`,
-      role: 'MANAGER',
+      role: '/bidAdmin',
       fullName: 'E2E Workbench Manager'
     })
 

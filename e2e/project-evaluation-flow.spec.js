@@ -107,7 +107,7 @@ test.describe('project evaluation flow §3.3.1.3', () => {
     // Login as bid_specialist (STAFF with limited permissions)
     const staffSession = await ensureApiSession({
       username: `e2e_ev_spec_${suffix}`,
-      role: 'STAFF',
+      role: 'bid-Team',
       fullName: 'E2E 评标专员'
     })
 
@@ -123,7 +123,7 @@ test.describe('project evaluation flow §3.3.1.3', () => {
             id: staffSession.user.id,
             username: staffSession.user.username,
             fullName: staffSession.user.name,
-            role: 'staff',
+            role: 'bid-Team',
             token: staffSession.token,
             permissions: ['project:evaluate']
           }

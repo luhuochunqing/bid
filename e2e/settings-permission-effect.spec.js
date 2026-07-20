@@ -91,7 +91,7 @@ test('api settings page supports custom roles and still blocks managers from adm
   })
   const managerSession = await ensureSession({
     username: `settings_manager_${suffix}`,
-    role: 'MANAGER',
+    role: '/bidAdmin',
     fullName: 'Settings Manager'
   })
 
@@ -133,7 +133,7 @@ test('api settings page supports custom roles and still blocks managers from adm
 
   const customSession = await ensureSession({
     username: customUsername,
-    role: 'staff',
+    role: 'bid-otherDept',
     fullName: 'Custom Role User'
   })
   const customPage = await context.newPage()

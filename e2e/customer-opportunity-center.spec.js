@@ -5,7 +5,7 @@ import { ensureApiSession, injectSession } from './auth-helpers.js'
 async function loginAsApiUser(page) {
   const session = await ensureApiSession({
     username: `customer_center_${Date.now()}`,
-    role: 'MANAGER',
+    role: '/bidAdmin',
     fullName: 'Customer Opportunity Manager'
   })
   await injectSession(page, session)

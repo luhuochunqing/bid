@@ -14,14 +14,14 @@ test.describe('§3.3.1.4 结果确认 - 竞争对手情况表', () => {
     await injectSession(page, session)
     // 直接导航到 RESULT_PENDING 项目详情页
     await page.goto('/project/13')
-  await page.waitForLoadState('networkidle')
+  await page.waitForLoadState('domcontentloaded')
     await expect(page.locator('.competitor-table')).toBeVisible({ timeout: 10000 }).catch(() => {})
 
     // 点击结果确认阶段标签
     const resultStep = page.locator('.el-step__title', { hasText: '结果确认' })
     if (await resultStep.isVisible()) {
       await resultStep.click()
-      await page.waitForLoadState('networkidle')
+      await page.waitForLoadState('domcontentloaded')
       await expect(page.locator('.competitor-table')).toBeVisible({ timeout: 10000 }).catch(() => {})
     }
 
@@ -72,7 +72,7 @@ test.describe('§3.3.1.4 结果确认 - 竞争对手情况表', () => {
     const suffix = Date.now() + 1
     const session = await ensureApiSession({
       username: `e2e_staff_${suffix}`,
-      role: 'STAFF',
+      role: 'bid-otherDept',
       fullName: 'E2E 辅助人员测试'
     })
     const staffHeaders = { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` }
