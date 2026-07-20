@@ -1,5 +1,6 @@
 package com.xiyu.bid.projectworkflow.service;
 
+import com.xiyu.bid.casework.application.ProjectArchiveWorkflowService;
 import com.xiyu.bid.common.domain.AuthorizationDecision;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.exception.BusinessException;
@@ -16,14 +17,21 @@ import com.xiyu.bid.project.notification.DocumentOperationType;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.security.CurrentUserResolver;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 class ProjectDocumentWorkflowService {
+
+    // spec 039: project_documents.size 是 VARCHAR（如 "1.5MB"），无法可靠解析回字节，
+    // OBS 直传 JSON 路径归档时 file_size 传此常量，与 V1171 历史回填行为一致。
+    // multipart 路径通过 DocumentArchiveSource 透传真实字节数，不使用本常量。
+    private static final long ARCHIVE_FILE_SIZE_UNKNOWN = 0L;
 
     private final ProjectWorkflowGuardService guardService;
     private final ProjectDocumentRepository projectDocumentRepository;
@@ -34,6 +42,8 @@ class ProjectDocumentWorkflowService {
     private final DocumentChangeNotificationService documentChangeNotificationService;
     // CO-558: 读取标书审核状态，用于 BID 类文档删除前的"审核中/已通过不可删除"守卫
     private final BidDocumentReviewRepository bidDocumentReviewRepository;
+    // spec 039: 归档逻辑上提到 createProjectDocument 末尾统一触发，覆盖 OBS 直传 JSON 路径
+    private final ProjectArchiveWorkflowService projectArchiveWorkflowService;
 
     List<ProjectDocumentDTO> getProjectDocuments(Long projectId) {
         return getProjectDocuments(projectId, null, null, null);
@@ -59,6 +69,15 @@ class ProjectDocumentWorkflowService {
     }
 
     ProjectDocumentDTO createProjectDocument(Long projectId, ProjectDocumentCreateRequest request) {
+        return createProjectDocument(projectId, request, null);
+    }
+
+    /**
+     * @param archiveSource multipart 路径透传的归档来源（物理路径 + 真实字节数）；
+     *                      OBS 直传 JSON 路径传 null，归档降级为 fileUrl + ARCHIVE_FILE_SIZE_UNKNOWN
+     */
+    ProjectDocumentDTO createProjectDocument(Long projectId, ProjectDocumentCreateRequest request,
+                                             DocumentArchiveSource archiveSource) {
         guardService.requireProject(projectId);
         assertCanUploadProjectDocument();
         Long uploaderId = request.getUploaderId();
@@ -97,6 +116,31 @@ class ProjectDocumentWorkflowService {
                 DocumentOperationType.UPLOAD,
                 uploaderId
         );
+        // spec 039: 即时归档到项目档案（蓝图 §4.1.1.1 要求：上传时即时按分类归档）。
+        // 上提到 createProjectDocument 末尾统一触发，覆盖 multipart 和 OBS 直传 JSON 两条路径。
+        // 归档失败 try-catch 不抛出，主流程降级处理（FR-010）。
+        // file_path 优先取 multipart 透传的本地物理路径（保证档案预览/下载可用，CO-430 链路）；
+        // OBS 直传无本地文件，落 obs-direct: 伪协议，由 ArchiveFileResponseFactory 302 签发下载。
+        String archivePath = archiveSource != null && archiveSource.physicalPath() != null
+                ? archiveSource.physicalPath()
+                : savedDocument.getFileUrl();
+        long archiveSize = archiveSource != null && archiveSource.sizeBytes() != null
+                ? archiveSource.sizeBytes()
+                : ARCHIVE_FILE_SIZE_UNKNOWN;
+        try {
+            projectArchiveWorkflowService.attachFileToArchive(
+                    projectId,
+                    savedDocument.getName(),
+                    savedDocument.getDocumentCategory(),
+                    archivePath,
+                    archiveSize,
+                    savedDocument.getUploaderId(),
+                    savedDocument.getUploaderName()
+            );
+        } catch (RuntimeException e) {
+            log.warn("归档失败但不影响文档上传：projectId={}, documentId={}, error={}",
+                    projectId, savedDocument.getId(), e.getMessage());
+        }
         return projectDocumentViewAssembler.toDto(savedDocument);
     }
 

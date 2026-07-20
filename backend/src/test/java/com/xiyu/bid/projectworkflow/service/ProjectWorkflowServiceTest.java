@@ -81,7 +81,8 @@ class ProjectWorkflowServiceTest {
                 mock(ProjectDocumentBindingGateway.class),
                 mock(CurrentUserResolver.class),
                 mock(DocumentChangeNotificationService.class),
-                mock(com.xiyu.bid.project.repository.BidDocumentReviewRepository.class)
+                mock(com.xiyu.bid.project.repository.BidDocumentReviewRepository.class),
+                mock(com.xiyu.bid.casework.application.ProjectArchiveWorkflowService.class)
         );
         ProjectDocumentUploadWorkflowService projectDocumentUploadWorkflowService =
                 mock(ProjectDocumentUploadWorkflowService.class);

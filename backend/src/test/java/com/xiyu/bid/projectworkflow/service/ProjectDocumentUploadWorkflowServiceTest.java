@@ -19,11 +19,11 @@ class ProjectDocumentUploadWorkflowServiceTest {
         ProjectWorkflowGuardService accessGuard = mock(ProjectWorkflowGuardService.class);
         ProjectDocumentWorkflowService documentWorkflowService = mock(ProjectDocumentWorkflowService.class);
         ProjectDocumentFileStorage fileStorage = mock(ProjectDocumentFileStorage.class);
+        // spec 039: 归档逻辑已上提到 createProjectDocument 内部，本服务不再持有 ProjectArchiveWorkflowService
         ProjectDocumentUploadWorkflowService service = new ProjectDocumentUploadWorkflowService(
                 accessGuard,
                 documentWorkflowService,
-                fileStorage,
-                null // ProjectArchiveWorkflowService (archive attach tested via integration)
+                fileStorage
         );
         MockMultipartFile file = new MockMultipartFile(
                 "file",
@@ -32,10 +32,13 @@ class ProjectDocumentUploadWorkflowServiceTest {
                 "招标正文".getBytes(StandardCharsets.UTF_8)
         );
         when(fileStorage.store(1001L, "招标文件.docx", file.getContentType(), file.getBytes()))
-                .thenReturn(new StoredProjectDocumentFile("bid-agent://tender-documents/1001/stored.docx"));
+                .thenReturn(new StoredProjectDocumentFile(
+                        "bid-agent://tender-documents/1001/stored.docx",
+                        "/tmp/xiyu-uploads/1001/stored.docx"));
         when(documentWorkflowService.createProjectDocument(
                 org.mockito.ArgumentMatchers.eq(1001L),
-                org.mockito.ArgumentMatchers.any(ProjectDocumentCreateRequest.class)
+                org.mockito.ArgumentMatchers.any(ProjectDocumentCreateRequest.class),
+                org.mockito.ArgumentMatchers.any(DocumentArchiveSource.class)
         )).thenReturn(ProjectDocumentDTO.builder()
                 .id(3003L)
                 .name("招标文件.docx")
@@ -52,5 +55,14 @@ class ProjectDocumentUploadWorkflowServiceTest {
         assertThat(dto.getFileUrl()).isEqualTo("bid-agent://tender-documents/1001/stored.docx");
         assertThat(dto.getFileType()).isEqualTo("docx");
         verify(accessGuard).requireProject(1001L);
+        // spec 039: multipart 路径不再直接调用 attachFileToArchive（由下游 createProjectDocument 统一处理），
+        // 但须透传归档来源：物理路径（保证档案可下载，CO-430 链路）+ 真实字节数
+        verify(documentWorkflowService).createProjectDocument(
+                org.mockito.ArgumentMatchers.eq(1001L),
+                org.mockito.ArgumentMatchers.any(ProjectDocumentCreateRequest.class),
+                org.mockito.ArgumentMatchers.argThat(source ->
+                        "/tmp/xiyu-uploads/1001/stored.docx".equals(source.physicalPath())
+                                && file.getSize() == source.sizeBytes())
+        );
     }
 }
