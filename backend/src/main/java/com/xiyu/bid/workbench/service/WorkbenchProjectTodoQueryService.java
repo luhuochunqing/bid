@@ -78,12 +78,14 @@ public class WorkbenchProjectTodoQueryService {
             leadProjectIds.addAll(projectLeadAssignmentRepository
                     .findBySecondaryLeadUserId(currentUser.getId()).stream()
                     .map(ProjectLeadAssignment::getProjectId).toList());
-            if (!leadProjectIds.isEmpty()) {
-                projectRepository.findAllById(leadProjectIds).stream()
-                        .filter(p -> !ProjectStage.CLOSED.name().equals(p.getStage()))
-                        .map(Project::getId)
-                        .forEach(projectIds::add);
+            if (leadProjectIds.isEmpty()) {
+                return List.of();
             }
+            // 一次查询直接过滤并转 DTO，避免"先查实体取 ID、再按 ID 重查"的重复 DB 往返
+            return projectRepository.findAllById(leadProjectIds).stream()
+                    .filter(p -> !ProjectStage.CLOSED.name().equals(p.getStage()))
+                    .map(ProjectMapper::toDTO)
+                    .toList();
         } else if (RoleProfileCatalog.SALES_CODE.equalsIgnoreCase(roleCode)) {
             // 项目负责人：待立项（INITIATED）+ 待结项（RETROSPECTIVE）+ 标书审核人项目
             projectIds.addAll(collectProjectIdsByStages(List.of(ProjectStage.INITIATED, ProjectStage.RETROSPECTIVE)));
@@ -104,9 +106,7 @@ public class WorkbenchProjectTodoQueryService {
 
     /** 按 stage 集合查询项目 ID（保持插入顺序，便于稳定排序）。 */
     private Set<Long> collectProjectIdsByStages(List<ProjectStage> stages) {
-        // Repository 签名接受 Collection<String>，此处把枚举转 name()，避免修改 Repository 接口
-        List<String> stageNames = stages.stream().map(ProjectStage::name).toList();
-        return projectRepository.findByStageIn(stageNames).stream()
+        return projectRepository.findByStageIn(stages).stream()
                 .map(Project::getId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
     }

@@ -68,6 +68,23 @@ describe('navigateToProject', () => {
     expect(mockRouter.push).not.toHaveBeenCalled()
     expect(mockWarning).toHaveBeenCalledWith(PROJECT_NOT_LINKED_MESSAGE)
   })
+
+  it('传 stage 时走 ProjectDetailStage 路径参数路由（/project/:id/:stage）', () => {
+    navigateToProject(mockRouter, 138, { stage: 'drafting' })
+    expect(mockRouter.push).toHaveBeenCalledWith({
+      name: 'ProjectDetailStage',
+      params: { id: '138', stage: 'drafting' }
+    })
+    expect(mockWarning).not.toHaveBeenCalled()
+  })
+
+  it('不传 stage 时走 ProjectDetail 基础路由（无 query 残留）', () => {
+    navigateToProject(mockRouter, 138)
+    expect(mockRouter.push).toHaveBeenCalledWith({
+      name: 'ProjectDetail',
+      params: { id: '138' }
+    })
+  })
 })
 
 describe('navigateToProjectList', () => {
