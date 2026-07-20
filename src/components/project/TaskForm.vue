@@ -24,6 +24,8 @@
               type="textarea"
               :rows="6"
               placeholder="保证金金额和保证金缴纳方式"
+              :readonly="readonly"
+              :disabled="false"
             />
           </el-form-item>
 
@@ -128,7 +130,8 @@
               type="textarea"
               :rows="4"
               placeholder="请填写完成情况说明"
-              :disabled="readonly && !canDeliver"
+              :readonly="readonly && !canDeliver"
+              :disabled="false"
             />
           </el-form-item>
 

@@ -93,9 +93,10 @@ const globalStubs = {
     template: '<div class="form-item" :class="{ \'is-required\': required }"><label>{{ label }}</label><slot /><div v-if="error" class="form-item-error">{{ error }}</div></div>',
   },
   ElInput: {
-    props: ['modelValue', 'type', 'rows', 'placeholder'],
+    name: 'ElInput',
+    props: ['modelValue', 'type', 'rows', 'placeholder', 'disabled', 'readonly'],
     emits: ['update:modelValue'],
-    template: '<input class="el-input-stub" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+    template: '<input class="el-input-stub" :value="modelValue" :data-disabled="disabled" :data-readonly="readonly" @input="$emit(\'update:modelValue\', $event.target.value)" />',
   },
   ElDatePicker: {
     props: ['modelValue', 'type', 'valueFormat'],
@@ -561,6 +562,87 @@ describe('TaskForm', () => {
     await flushPromises()
     const form = wrapper.findComponent({ name: 'ElForm' })
     expect(form.props('disabled')).toBe(true)
+  })
+
+  // Bugfix: 任务详情里 textarea 的滚动条被 disabled 锁死，改为 readonly 后可滚动可复制但不可编辑
+  // HTML 原生 <textarea disabled> 锁死滚动条；<textarea readonly> 允许滚动+选择+复制，禁止编辑。
+  // 利用 Element Plus useFormDisabled 用 ?? 合并的特性，对 textarea 显式覆盖 disabled=false。
+  describe('textarea scroll-lock fix (readonly instead of disabled)', () => {
+    function findTextareaByPlaceholder(wrapper, placeholder) {
+      return wrapper.findAllComponents({ name: 'ElInput' }).find((c) => (
+        c.props('type') === 'textarea' && c.props('placeholder') === placeholder
+      ))
+    }
+
+    it('详细描述 textarea: view 模式下 readonly=true, disabled=false（允许滚动）', async () => {
+      const wrapper = mount(TaskForm, {
+        props: { mode: 'view', modelValue: { name: 'X', content: '描述'.repeat(500) } },
+        global: { stubs: globalStubs },
+      })
+      await flushPromises()
+      const textarea = findTextareaByPlaceholder(wrapper, '保证金金额和保证金缴纳方式')
+      expect(textarea).toBeTruthy()
+      expect(textarea.props('readonly')).toBe(true)
+      expect(textarea.props('disabled')).toBe(false)
+    })
+
+    it('详细描述 textarea: edit 模式下 readonly=false, disabled=false（可编辑）', async () => {
+      const wrapper = mount(TaskForm, {
+        props: { mode: 'edit', modelValue: { name: 'X', content: '描述' } },
+        global: { stubs: globalStubs },
+      })
+      await flushPromises()
+      const textarea = findTextareaByPlaceholder(wrapper, '保证金金额和保证金缴纳方式')
+      expect(textarea).toBeTruthy()
+      expect(textarea.props('readonly')).toBe(false)
+      expect(textarea.props('disabled')).toBe(false)
+    })
+
+    it('完成情况说明 textarea: 非执行人查看时 readonly=true, disabled=false', async () => {
+      // assigneeId=999 不是当前用户(id=9)，canDeliver=false → 完成情况说明应只读
+      const wrapper = mount(TaskForm, {
+        props: {
+          mode: 'view',
+          modelValue: {
+            id: 100,
+            name: 'X',
+            content: '描述',
+            assigneeId: 999,
+            deadline: '2026-12-31',
+            status: 'TODO',
+          },
+        },
+        global: { stubs: globalStubs },
+      })
+      await flushPromises()
+      const textarea = findTextareaByPlaceholder(wrapper, '请填写完成情况说明')
+      expect(textarea).toBeTruthy()
+      expect(textarea.props('readonly')).toBe(true)
+      expect(textarea.props('disabled')).toBe(false)
+    })
+
+    it('完成情况说明 textarea: 执行人提交场景下 readonly=false, disabled=false（可编辑）', async () => {
+      // assigneeId=9 是当前用户，status=TODO，canDeliver=true → 完成情况说明可编辑
+      const wrapper = mount(TaskForm, {
+        props: {
+          mode: 'view',
+          modelValue: {
+            id: 100,
+            name: '执行任务',
+            content: '描述',
+            assigneeId: 9,
+            deadline: '2026-12-31',
+            status: 'TODO',
+          },
+        },
+        global: { stubs: globalStubs },
+      })
+      await flushPromises()
+      const textarea = findTextareaByPlaceholder(wrapper, '请填写完成情况说明')
+      expect(textarea).toBeTruthy()
+      expect(textarea.props('readonly')).toBe(false)
+      expect(textarea.props('disabled')).toBe(false)
+    })
   })
 
   it('view mode renders saved deliverables as downloadable links, not as disabled upload items', async () => {

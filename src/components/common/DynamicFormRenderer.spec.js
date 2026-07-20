@@ -14,7 +14,10 @@ const elementStubs = {
     props: ['label', 'required'],
     template: '<label class="el-form-item"><span>{{ label }}</span><slot /></label>'
   },
-  'el-input': { template: '<input />' },
+  'el-input': {
+    props: ['modelValue', 'type', 'rows', 'placeholder', 'disabled', 'readonly'],
+    template: '<input :data-type="type" :data-disabled="disabled" :data-readonly="readonly" />',
+  },
   'el-input-number': { template: '<input />' },
   'el-date-picker': { template: '<input />' },
   'el-select': { template: '<select><slot /></select>' },
@@ -154,5 +157,46 @@ describe('DynamicFormRenderer', () => {
     } finally {
       warnSpy.mockRestore()
     }
+  })
+
+  // Bugfix: textarea 字段在只读状态下用 readonly 代替 disabled，避免锁死滚动条
+  // HTML 原生 <textarea disabled> 锁死滚动条；<textarea readonly> 允许滚动+选择+复制，禁止编辑。
+  describe('textarea scroll-lock fix (readonly instead of disabled)', () => {
+    it('textarea 字段 readonly=true 时: readonly=true, disabled=false（允许滚动）', () => {
+      const fields = [{ key: 'note', label: '说明', type: 'textarea', readonly: true }]
+      const wrapper = mount(DynamicFormRenderer, {
+        props: { fields, modelValue: {} },
+        global: { stubs: elementStubs }
+      })
+      const textarea = wrapper.find('input[data-type="textarea"]')
+      expect(textarea.exists()).toBe(true)
+      expect(textarea.attributes('data-readonly')).toBe('true')
+      expect(textarea.attributes('data-disabled')).toBe('false')
+    })
+
+    it('textarea 字段可编辑时: readonly=false, disabled=false', () => {
+      const fields = [{ key: 'note', label: '说明', type: 'textarea' }]
+      const wrapper = mount(DynamicFormRenderer, {
+        props: { fields, modelValue: {} },
+        global: { stubs: elementStubs }
+      })
+      const textarea = wrapper.find('input[data-type="textarea"]')
+      expect(textarea.exists()).toBe(true)
+      expect(textarea.attributes('data-readonly')).toBe('false')
+      expect(textarea.attributes('data-disabled')).toBe('false')
+    })
+
+    it('组件级 disabled=true 时 textarea 仍用 readonly 控制，不锁死滚动条', () => {
+      // 组件级 disabled 透传到 isFieldReadonly()，应转化为 readonly 而非 disabled
+      const fields = [{ key: 'note', label: '说明', type: 'textarea' }]
+      const wrapper = mount(DynamicFormRenderer, {
+        props: { fields, modelValue: {}, disabled: true },
+        global: { stubs: elementStubs }
+      })
+      const textarea = wrapper.find('input[data-type="textarea"]')
+      expect(textarea.exists()).toBe(true)
+      expect(textarea.attributes('data-readonly')).toBe('true')
+      expect(textarea.attributes('data-disabled')).toBe('false')
+    })
   })
 })
