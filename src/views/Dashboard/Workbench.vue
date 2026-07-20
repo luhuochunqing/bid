@@ -93,7 +93,7 @@ import {
   getPriorityLabel, getPriorityType, getProgressColor,
   getProjectStatusType,
 } from '@/views/Dashboard/workbench-core.js'
-import { normalizeProjectForWorkbench } from '@/views/Dashboard/workbench-utils.js'
+import { isRealTenderId, normalizeProjectForWorkbench } from '@/views/Dashboard/workbench-utils.js'
 import ApprovalDialog from '@/components/common/ApprovalDialog.vue'
 import DynamicLayoutRenderer from '@/views/Dashboard/components/DynamicLayoutRenderer.vue'
 import WelcomeBannerRebuild from '@/views/Dashboard/components/WelcomeBannerRebuild.vue'
@@ -266,7 +266,7 @@ function handleCalendarDateClick(dateKey) {
 }
 
 function handleTenderClick(tender) {
-  if (String(tender.id || '').startsWith('-')) { router.push('/bidding'); return }
+  if (!isRealTenderId(tender?.id)) { router.push('/bidding'); return }
   router.push(`/bidding/${tender.id}`)
 }
 

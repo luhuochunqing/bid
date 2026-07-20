@@ -5,7 +5,7 @@
 
 import { computed, ref } from 'vue'
 import { workbenchApi } from '@/api/modules/workbench.js'
-import { normalizeCalendarEvent } from '@/views/Dashboard/workbench-utils.js'
+import { isRealTenderId, normalizeCalendarEvent } from '@/views/Dashboard/workbench-utils.js'
 import { navigateToProject } from '@/utils/projectNavigation.js'
 import {
   calendarFilters,
@@ -66,12 +66,17 @@ export function useWorkbenchSchedule({ router, assigneeIdRef, onEventsLoaded } =
   }
 
   const handleCalendarAction = (event) => {
-    // Tender 派生事件（开标/报名截止）跳转标讯详情
+    // Tender 派生事件（开标/报名截止）跳转标讯详情，与 handleTenderClick 行为对齐
     const tenderEventTypes = ['opening', 'deadline', 'bid']
     const eventType = event?.eventType || event?.type
     const tenderId = event?.id
-    if (tenderEventTypes.includes(eventType) && tenderId && !String(tenderId).startsWith('-')) {
-      router.push(`/bidding/${tenderId}`)
+    if (tenderEventTypes.includes(eventType) && tenderId) {
+      // 真实标讯 → 标讯详情；demo 标讯 → 标讯列表页
+      if (isRealTenderId(tenderId)) {
+        router.push(`/bidding/${tenderId}`)
+      } else {
+        router.push('/bidding')
+      }
       return
     }
 
@@ -129,13 +134,8 @@ export function useWorkbenchSchedule({ router, assigneeIdRef, onEventsLoaded } =
         return
       }
 
-      // 当前月份无事件：今天在当前月则选今天，否则选当前月第一天
-      const today = new Date()
-      if (getCalendarMonthKey(today) === currentMonthKey) {
-        selectedDateKey.value = formatDateKey(today)
-      } else {
-        selectedDateKey.value = formatDateKey(calendarDate.value)
-      }
+      // 当前月份无事件：选当前月第一天，仅影响日历格子高亮
+      selectedDateKey.value = formatDateKey(calendarDate.value)
       return
     }
 
