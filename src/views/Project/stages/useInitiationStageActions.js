@@ -169,6 +169,12 @@ export function useInitiationStageActions({
       const data = response?.data || response
       if (!data) return
       Object.assign(form, data)
+      // 后端 InitiationViewDto 只有 annualRevenue（@Deprecated），无 customerRevenue 字段；
+      // 前端 form.customerRevenue 必须从 data.annualRevenue 回填，否则详情页"客户营收"输入框显示 0。
+      // 参见 !564 回归教训：禁止改字段名，前端只能在 load 处做兼容映射。
+      if (data.annualRevenue != null && form.customerRevenue == null) {
+        form.customerRevenue = data.annualRevenue
+      }
       if (data.tenderDocumentId) {
         try {
           const docResp = await projectsApi.getDocuments(props.projectId, {

@@ -133,3 +133,73 @@ describe('useInitiationStageActions.submit — CO-540 保证金缴纳截止日�
     expect(projectLifecycleApi.submitInitiation).toHaveBeenCalledWith(1, expect.any(Object))
   })
 })
+
+describe('useInitiationStageActions.load — 客户营收字段回填（回归 !564）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  // 后端 InitiationViewDto 只有 annualRevenue（@Deprecated），无 customerRevenue；
+  // 前端 form.customerRevenue 必须从 data.annualRevenue 回填，否则详情页"客户营收"输入框显示 0。
+  it('data.annualRevenue 有值时应回填到 form.customerRevenue', async () => {
+    const { actions, form, projectLifecycleApi } = setup({
+      ownerUnit: '测试单位',
+      customerType: 'CENTRAL_SOE',
+    })
+    projectLifecycleApi.getInitiation.mockResolvedValue({
+      data: {
+        projectId: 1,
+        ownerUnit: '测试单位',
+        customerType: 'CENTRAL_SOE',
+        annualRevenue: 12.5,
+        // 后端不返回 customerRevenue（InitiationViewDto 无此字段）
+      },
+    })
+
+    await actions.load()
+
+    expect(form.customerRevenue).toBe(12.5)
+    expect(form.annualRevenue).toBe(12.5)
+  })
+
+  it('data.annualRevenue 为空时不应覆盖 form.customerRevenue 已有值', async () => {
+    const { actions, form, projectLifecycleApi } = setup({
+      ownerUnit: '测试单位',
+      customerType: 'CENTRAL_SOE',
+      customerRevenue: 99.9,
+    })
+    projectLifecycleApi.getInitiation.mockResolvedValue({
+      data: {
+        projectId: 1,
+        ownerUnit: '测试单位',
+        customerType: 'CENTRAL_SOE',
+        annualRevenue: null,
+      },
+    })
+
+    await actions.load()
+
+    // 已有值不应被 null 覆盖
+    expect(form.customerRevenue).toBe(99.9)
+  })
+
+  it('data.annualRevenue 与 form.customerRevenue 同时为 null 时保持 null', async () => {
+    const { actions, form, projectLifecycleApi } = setup({
+      ownerUnit: '测试单位',
+      customerType: 'CENTRAL_SOE',
+      customerRevenue: null,
+    })
+    projectLifecycleApi.getInitiation.mockResolvedValue({
+      data: {
+        projectId: 1,
+        ownerUnit: '测试单位',
+        customerType: 'CENTRAL_SOE',
+        annualRevenue: null,
+      },
+    })
+
+    await actions.load()
+
+    expect(form.customerRevenue).toBeNull()
+  })
+})
