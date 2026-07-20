@@ -113,13 +113,14 @@ public class WorkbenchProjectTodoQueryService {
             // 项目负责人: 只看自己的项目（managerId = userId），不看别人的
             // CO-596: "待立项"按 status=PENDING_INITIATION 过滤，"待结项"按 stage=RETROSPECTIVE 过滤
             // CO-597: 修复 sales 能看到别人项目的 bug——改用 findByManagerId 而非 findByStatus/findByStageIn
-            List<Project> myProjects = projectRepository.findByManagerId(userId);
-            myProjects.stream()
-                    .filter(p -> Project.Status.PENDING_INITIATION.equals(p.getStatus()))
-                    .forEach(p -> projectIdToLabel.putIfAbsent(p.getId(), "待立项"));
-            myProjects.stream()
-                    .filter(p -> ProjectStage.RETROSPECTIVE.name().equals(p.getStage()))
-                    .forEach(p -> projectIdToLabel.putIfAbsent(p.getId(), "待结项"));
+            // CO-599: 单次遍历同时分类两个标签，避免两次 stream 迭代同一列表
+            projectRepository.findByManagerId(userId).forEach(p -> {
+                if (Project.Status.PENDING_INITIATION.equals(p.getStatus())) {
+                    projectIdToLabel.putIfAbsent(p.getId(), "待立项");
+                } else if (ProjectStage.RETROSPECTIVE.name().equals(p.getStage())) {
+                    projectIdToLabel.putIfAbsent(p.getId(), "待结项");
+                }
+            });
             pendingReviewProjectIds.forEach(id -> projectIdToLabel.put(id, "投标中"));
         } else {
             // 其他角色（bid-otherDept 等）：项目待办不展示
