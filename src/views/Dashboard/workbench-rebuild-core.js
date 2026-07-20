@@ -59,10 +59,11 @@ export function formatCountdown(targetDate, today = new Date()) {
 
 function formatDateShort(value) {
   const date = parseDate(value)
-  if (!date) return '--'
+  if (!date) return ''
+  const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')
   const d = String(date.getDate()).padStart(2, '0')
-  return `${m}-${d}`
+  return `${y}-${m}-${d}`
 }
 
 function withinPeriod(eventDate, period, today) {
@@ -132,7 +133,8 @@ function buildTodoItems(todos) {
     .map((todo) => ({
       id: todo.id,
       name: todo.title || todo.name || '',
-      rightText: formatDateShort(todo.deadline) || '',
+      // 后端 TaskDTO 字段为 dueDate（LocalDateTime），非 deadline
+      rightText: formatDateShort(todo.dueDate),
       projectId: todo.projectId,
     }))
 }

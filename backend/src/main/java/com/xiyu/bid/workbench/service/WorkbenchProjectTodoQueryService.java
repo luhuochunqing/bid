@@ -41,9 +41,9 @@ import java.util.stream.Collectors;
  *
  * <p>角色分支：
  * <ul>
- *   <li>admin_lead：已立项（status=INITIATED）+ 投标中（DRAFTING 限待审核标书）</li>
+ *   <li>admin_lead：已立项（status=INITIATED，全部项目）+ 投标中（DRAFTING 限待审核标书）</li>
  *   <li>bid-team（投标专员）：主/副负责人项目（排除 CLOSED）+ 待审核标书项目（投标中）</li>
- *   <li>bid-projectLeader（项目负责人）：待立项（status=PENDING_INITIATION）+ 待结项（stage=RETROSPECTIVE）+ 投标中</li>
+ *   <li>bid-projectLeader（项目负责人）：只看自己的项目（managerId=userId），待立项（status=PENDING_INITIATION）+ 待结项（stage=RETROSPECTIVE）+ 投标中</li>
  *   <li>其他角色：返回空列表</li>
  * </ul>
  *
@@ -110,13 +110,17 @@ public class WorkbenchProjectTodoQueryService {
             }
             pendingReviewProjectIds.forEach(id -> projectIdToLabel.put(id, "投标中"));
         } else if (RoleProfileCatalog.SALES_CODE.equals(canonicalRole)) {
-            // 项目负责人: 待立项（status=PENDING_INITIATION）+ 待结项（stage=RETROSPECTIVE）+ 投标中（DRAFTING 限待审核标书）
-            // CO-596: "待立项"必须用 status=PENDING_INITIATION 过滤，不能用 stage=INITIATED（后者包含已立项项目）
-            projectRepository.findByStatus(Project.Status.PENDING_INITIATION)
-                    .forEach(p -> projectIdToLabel.putIfAbsent(p.getId(), "待立项"));
-            // "待结项"对应 stage=RETROSPECTIVE（Project.Status 无对应值，ProjectStatusPolicy 推导为 BIDDING 或终态）
-            collectProjectIdsByStages(List.of(ProjectStage.RETROSPECTIVE))
-                    .forEach(id -> projectIdToLabel.putIfAbsent(id, "待结项"));
+            // 项目负责人: 只看自己的项目（managerId = userId），不看别人的
+            // CO-596: "待立项"按 status=PENDING_INITIATION 过滤，"待结项"按 stage=RETROSPECTIVE 过滤
+            // CO-597: 修复 sales 能看到别人项目的 bug——改用 findByManagerId 而非 findByStatus/findByStageIn
+            // CO-599: 单次遍历同时分类两个标签，避免两次 stream 迭代同一列表
+            projectRepository.findByManagerId(userId).forEach(p -> {
+                if (Project.Status.PENDING_INITIATION.equals(p.getStatus())) {
+                    projectIdToLabel.putIfAbsent(p.getId(), "待立项");
+                } else if (ProjectStage.RETROSPECTIVE.name().equals(p.getStage())) {
+                    projectIdToLabel.putIfAbsent(p.getId(), "待结项");
+                }
+            });
             pendingReviewProjectIds.forEach(id -> projectIdToLabel.put(id, "投标中"));
         } else {
             // 其他角色（bid-otherDept 等）：项目待办不展示
