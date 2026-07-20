@@ -3,6 +3,8 @@
 // Pos: Service/工作台聚合查询层
 // 维护声明: 工作台日程不另建项目权限体系，项目可见性继承 CalendarService 的真实 API 单一路径过滤。
 //           CO-594: 聚合 Tender.bidOpeningTime（开标时间，绿点）和 Tender.registrationDeadline（报名截止，红点）为日历事件。
+//           Review 修复: 权限口径统一用 currentUserHasGlobalAccess()（对齐 CO-593）；复用 CO-593 已有 Repository 方法；
+//           透传 Tender.projectId 供前端跳转；加 @Transactional(readOnly=true) 和 IN-clause 上限保护。
 package com.xiyu.bid.workbench.service;
 
 import com.xiyu.bid.calendar.dto.CalendarEventDTO;
@@ -16,6 +18,7 @@ import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -29,11 +32,15 @@ import java.util.List;
 @Slf4j
 public class WorkbenchScheduleQueryService {
 
+    /** IN-clause 安全上限，与 WorkbenchDeadlineQueryService 对齐（MySQL 性能防护）。 */
+    private static final int MAX_TENDER_IDS_FOR_IN_CLAUSE = 500;
+
     private final CalendarService calendarService;
     private final TenderRepository tenderRepository;
     private final ProjectRepository projectRepository;
     private final ProjectAccessScopeService projectAccessScopeService;
 
+    @Transactional(readOnly = true)
     public ScheduleOverviewDTO getScheduleOverview(LocalDate start, LocalDate end, Long assigneeId) {
         List<CalendarEventDTO> events = new ArrayList<>(calendarService.getEventsByDateRange(start, end));
         events.addAll(buildTenderDerivedEvents(start, end));
@@ -52,26 +59,26 @@ public class WorkbenchScheduleQueryService {
     /**
      * CO-594: 聚合 Tender 表的开标时间和报名截止时间为日历事件。
      * <p>
-     * 权限分支：
+     * 权限分支（与 CO-593 WorkbenchDeadlineQueryService 对齐）：
      * <ul>
-     *   <li>admin（含 admin/\/bidAdmin/bid-SystemAdmin，持有 ROLE_ADMIN）→ 全量查询</li>
-     *   <li>非 admin（含 bid-TeamLeader，dataScope=all 会返回全部 projectId）→ 按 allowedProjectIds 反查 tenderIds 过滤</li>
-     *   <li>无可见项目的非 admin → 返回空列表</li>
+     *   <li>全局访问角色（admin / bidAdmin / bid-TeamLeader / bid-SystemAdmin / ROLE_EXTERNAL_API）→ 全量查询</li>
+     *   <li>非全局角色 → 按 allowedProjectIds 反查 tenderIds 过滤</li>
+     *   <li>无可见项目的非全局角色 → 返回空列表</li>
      * </ul>
-     * 无关联 Project 的 Tender 对非 admin 用户不展示（符合"只能看到和自己相关项目的数据"）。
+     * 无关联 Project 的 Tender 对非全局角色不展示（符合"只能看到和自己相关项目的数据"）。
      */
     private List<CalendarEventDTO> buildTenderDerivedEvents(LocalDate start, LocalDate end) {
         LocalDateTime startDateTime = start.atStartOfDay();
         LocalDateTime endDateTime = end.atTime(LocalTime.MAX);
 
-        boolean admin = projectAccessScopeService.currentUserHasAdminAccess();
+        boolean hasGlobalAccess = projectAccessScopeService.currentUserHasGlobalAccess();
 
         List<Tender> openingTenders;
         List<Tender> deadlineTenders;
 
-        if (admin) {
-            openingTenders = tenderRepository.findWithBidOpeningTimeBetween(startDateTime, endDateTime);
-            deadlineTenders = tenderRepository.findWithRegistrationDeadlineBetween(startDateTime, endDateTime);
+        if (hasGlobalAccess) {
+            openingTenders = tenderRepository.findTendersByBidOpeningTimeBetween(startDateTime, endDateTime);
+            deadlineTenders = tenderRepository.findTendersByRegistrationDeadlineBetween(startDateTime, endDateTime);
         } else {
             List<Long> allowedProjectIds = projectAccessScopeService.getAllowedProjectIdsForCurrentUser();
             if (allowedProjectIds == null || allowedProjectIds.isEmpty()) {
@@ -81,8 +88,15 @@ public class WorkbenchScheduleQueryService {
             if (tenderIds == null || tenderIds.isEmpty()) {
                 return List.of();
             }
-            openingTenders = tenderRepository.findWithBidOpeningTimeByTenderIds(tenderIds, startDateTime, endDateTime);
-            deadlineTenders = tenderRepository.findWithRegistrationDeadlineByTenderIds(tenderIds, startDateTime, endDateTime);
+            List<Long> safeTenderIds = tenderIds.size() > MAX_TENDER_IDS_FOR_IN_CLAUSE
+                    ? tenderIds.subList(0, MAX_TENDER_IDS_FOR_IN_CLAUSE)
+                    : tenderIds;
+            if (tenderIds.size() > MAX_TENDER_IDS_FOR_IN_CLAUSE) {
+                log.warn("Tender ID count {} exceeds safe IN-clause limit {}, truncating to {}",
+                        tenderIds.size(), MAX_TENDER_IDS_FOR_IN_CLAUSE, safeTenderIds.size());
+            }
+            openingTenders = tenderRepository.findTendersByBidOpeningTimeAndTenderIds(safeTenderIds, startDateTime, endDateTime);
+            deadlineTenders = tenderRepository.findTendersByRegistrationDeadlineAndTenderIds(safeTenderIds, startDateTime, endDateTime);
         }
 
         List<CalendarEventDTO> result = new ArrayList<>(openingTenders.size() + deadlineTenders.size());
@@ -103,12 +117,12 @@ public class WorkbenchScheduleQueryService {
 
     private CalendarEventDTO toTenderEventDto(Tender tender, LocalDateTime dateTime, EventType type, String label) {
         return CalendarEventDTO.builder()
-                .id(null)
+                .id(tender.getId())
                 .eventDate(dateTime.toLocalDate())
                 .eventType(type)
                 .title(tender.getTitle())
                 .description(label)
-                .projectId(null)
+                .projectId(tender.getProjectId())
                 .isUrgent(false)
                 .build();
     }
