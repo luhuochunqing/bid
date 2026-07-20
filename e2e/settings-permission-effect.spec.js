@@ -38,7 +38,8 @@ async function ensureSession({ username, role, fullName }) {
         password,
         email,
         fullName,
-        roleCode: String(role || '').toLowerCase()
+        // RoleProfile code 大小写敏感（/bidAdmin、bid-Team 等），不能 toLowerCase
+        roleCode: role || 'admin'
       })
     })
   } catch (error) {
@@ -47,25 +48,50 @@ async function ensureSession({ username, role, fullName }) {
     }
   }
 
-  const payload = await requestJson(`${apiBaseUrl}/api/auth/login`, {
+  // H13 根治：access token 走 Set-Cookie，body 不再含 token
+  const response = await fetch(`${apiBaseUrl}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password })
   })
+  const payload = await response.json().catch(() => null)
 
-  if (!payload?.success || !payload?.data?.token || !payload?.data?.id) {
-    throw new Error('Backend login response missing token or user identity')
+  if (!response.ok || !payload?.success || !payload?.data?.id) {
+    throw new Error(`Backend login failed: ${response.status} ${JSON.stringify(payload)}`)
+  }
+
+  // H13: 从 Set-Cookie 提取 access_token
+  const cookies = response.headers.getSetCookie?.() || []
+  let token = null
+  for (const cookie of cookies) {
+    const match = cookie.match(/access_token=([^;]+)/)
+    if (match) {
+      token = match[1]
+      break
+    }
+  }
+  if (!token) {
+    // 降级：从 set-cookie header 解析（逗号分隔）
+    const setCookie = response.headers.get('set-cookie') || ''
+    const match = setCookie.match(/access_token=([^;]+)/)
+    if (match) {
+      token = match[1]
+    }
+  }
+  if (!token) {
+    throw new Error('Login response missing access_token cookie (H13)')
   }
 
   return {
-    token: payload.data.token,
+    token,
     refreshToken: payload.data.refreshToken || null,
     user: {
       id: payload.data.id,
       name: payload.data.fullName || payload.data.username,
       username: payload.data.username,
       email: payload.data.email,
-      role: String(payload.data.roleCode || payload.data.role || '').toLowerCase(),
+      // RoleProfile code 大小写敏感，保持原值
+      role: payload.data.roleCode || payload.data.role || role || '',
       roleName: payload.data.roleName || '',
       menuPermissions: Array.isArray(payload.data.menuPermissions) ? payload.data.menuPermissions : []
     }

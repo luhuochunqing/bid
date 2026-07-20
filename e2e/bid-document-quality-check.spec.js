@@ -7,7 +7,7 @@ test.describe('AI标书质量核查', () => {
   test.beforeEach(async ({ page }) => {
     session = await ensureApiSession({
       username: `quality_check_${Date.now()}`,
-      role: 'BIDADMIN',
+      role: '/bidAdmin',
       fullName: '质量核查测试'
     })
     await injectSession(page, session)
