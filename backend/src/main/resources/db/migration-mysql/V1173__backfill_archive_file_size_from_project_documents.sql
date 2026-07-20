@@ -11,7 +11,7 @@
 --   若因历史脏数据出现一对多，INNER JOIN 会产生多行，MySQL UPDATE 取最后一行（不确定）。
 --   当前业务流程下 file_url 由后端生成且唯一，本假设成立；如未来放宽约束需改用子查询去重。
 
--- project_documents.size 字段格式可能为：
+-- project_documents.file_size 字段格式可能为：
 --   "1024"        → 纯数字（视为字节）
 --   "1.5MB"       → MB 单位
 --   "1024KB"      → KB 单位
@@ -19,26 +19,28 @@
 --   其他无法解析的格式 → 保持 0（避免误改）
 -- 解析使用多层 CASE WHEN + CAST + ROUND，覆盖常见格式。
 -- MySQL 8.0 REGEXP_REPLACE 用于去除单位后缀，CAST DECIMAL(20,2) 保证精度。
+-- 注意：列名是 file_size（VARCHAR，存放带单位字符串），不是 size。
+--       size 是 MySQL 保留字，且表里无此列，使用 pd.size 会报 Unknown column 错误。
 
 UPDATE archive_file af
 INNER JOIN project_documents pd ON pd.file_url = af.file_path
 SET af.file_size = GREATEST(0, CASE
     -- 纯数字（无单位后缀，视为字节）
-    WHEN pd.size REGEXP '^[0-9]+$' THEN CAST(pd.size AS UNSIGNED)
+    WHEN pd.file_size REGEXP '^[0-9]+$' THEN CAST(pd.file_size AS UNSIGNED)
     -- 带 B 后缀（如 "1024B"）
-    WHEN UPPER(pd.size) REGEXP '^[0-9]+B$' THEN CAST(REGEXP_REPLACE(pd.size, '[Bb]', '') AS UNSIGNED)
+    WHEN UPPER(pd.file_size) REGEXP '^[0-9]+B$' THEN CAST(REGEXP_REPLACE(pd.file_size, '[Bb]', '') AS UNSIGNED)
     -- 带 KB 后缀（如 "1.5KB" 或 "1024KB"）
-    WHEN UPPER(pd.size) REGEXP '^[0-9.]+KB$'
-        THEN ROUND(CAST(REGEXP_REPLACE(UPPER(pd.size), 'KB', '') AS DECIMAL(20,4)) * 1024)
+    WHEN UPPER(pd.file_size) REGEXP '^[0-9.]+KB$'
+        THEN ROUND(CAST(REGEXP_REPLACE(UPPER(pd.file_size), 'KB', '') AS DECIMAL(20,4)) * 1024)
     -- 带 MB 后缀（如 "1.5MB"）
-    WHEN UPPER(pd.size) REGEXP '^[0-9.]+MB$'
-        THEN ROUND(CAST(REGEXP_REPLACE(UPPER(pd.size), 'MB', '') AS DECIMAL(20,4)) * 1024 * 1024)
+    WHEN UPPER(pd.file_size) REGEXP '^[0-9.]+MB$'
+        THEN ROUND(CAST(REGEXP_REPLACE(UPPER(pd.file_size), 'MB', '') AS DECIMAL(20,4)) * 1024 * 1024)
     -- 带 GB 后缀（如 "1.5GB"）
-    WHEN UPPER(pd.size) REGEXP '^[0-9.]+GB$'
-        THEN ROUND(CAST(REGEXP_REPLACE(UPPER(pd.size), 'GB', '') AS DECIMAL(20,4)) * 1024 * 1024 * 1024)
+    WHEN UPPER(pd.file_size) REGEXP '^[0-9.]+GB$'
+        THEN ROUND(CAST(REGEXP_REPLACE(UPPER(pd.file_size), 'GB', '') AS DECIMAL(20,4)) * 1024 * 1024 * 1024)
     -- 其他无法解析的格式保持 0
     ELSE 0
 END)
 WHERE af.file_size = 0
-  AND pd.size IS NOT NULL
-  AND pd.size != '';
+  AND pd.file_size IS NOT NULL
+  AND pd.file_size != '';
