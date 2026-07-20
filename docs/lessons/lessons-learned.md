@@ -5369,7 +5369,7 @@ No 'Access-Control-Allow-Origin' header is present on the requested resource.
 | 问题 | 教训 | 规范 |
 |---|---|---|
 | OBS 桶 CORS 漏配前端域名 | OBS CORS 是 Bucket 级别配置，与后端 SecurityConfig CORS 无关 | **新增前端域名时必须同步更新 OBS 桶 CORS**，参见设计文档 §8.3 完整清单 |
-| 设计文档示例只给一个域名 | 容易让人误以为只需配生产域名 | 设计文档示例已更新为包含生产 + 测试 + 本地所有域名（PR !2156） |
+| 设计文档示例只给一个域名 | 容易让人误以为只需配生产域名 | 设计文档示例已更新为包含生产 + 测试 + 本地所有域名（PR !2152） |
 | OBS CORS 配置在控制台不在仓库 | 容易遗漏且无 review | 部署清单已加入"OBS CORS 配置"检查项（设计文档 §9.3 第 3 条），新增环境部署时必须逐项核对 |
 | 误判为后端 CORS 问题 | 后端 SecurityConfig 已配 `winbid-test.ehsy.com`，但 OBS 域名是独立 CORS | 排查 CORS 错误时先看请求实际重定向到哪个域名，再查该域名的 CORS 配置（OBS 控制台 vs 后端 SecurityConfig） |
 | ExposeHeader 漏配 Content-Disposition | 即使 CORS 通过，前端也无法读取文件名（CO-285 教训重演） | OBS CORS `ExposeHeader` 必须包含 `Content-Disposition`、`Content-Length`、`ETag`、`x-obs-request-id` |
@@ -5384,7 +5384,7 @@ No 'Access-Control-Allow-Origin' header is present on the requested resource.
 
 ### 处置记录
 
-- 设计文档 §8.3、§9.3 已更新（PR !2156）
+- 设计文档 §8.3、§9.3 已更新（PR !2152）
 - OBS 控制台 CORS 配置：待运维同步添加 `winbid-test.ehsy.com` 到 widbid-obs 桶
 - 验证方法：配置完成后，在 `https://winbid-test.ehsy.com` 项目文档页下载 `.docx` 文件，浏览器 Network 面板观察 `widbid-obs.ehsy.com` 请求的 Response Headers 应包含 `Access-Control-Allow-Origin: https://winbid-test.ehsy.com`
 
