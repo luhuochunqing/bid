@@ -269,9 +269,9 @@ test.describe('M6: 管理端 CRUD', () => {
     // 应该重定向到 dashboard 或显示 403
     const url = page.url()
     if (url.includes('/admin/')) {
-      // 仍然在管理端，验证错误提示
+      // 仍然在管理端，验证错误提示（CSS class locator 不能混 text= 语法）
       await expect(
-        page.locator('.el-message, .el-alert, text=无权限, text=Forbidden').first()
+        page.locator('.el-message, .el-alert').first()
       ).toBeVisible({ timeout: 5_000 })
     } else {
       // 重定向到非管理页面

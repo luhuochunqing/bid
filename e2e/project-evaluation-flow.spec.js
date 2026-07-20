@@ -3,6 +3,40 @@ import { apiBaseUrl, ensureApiSession, injectSession } from './auth-helpers.js'
 
 const E2E_PASSWORD = 'XiyuDemo!2026'
 
+// 抽取项目创建逻辑：后端 ProjectRequest 强制要求 tenderId/managerId/teamMembers/startDate/endDate
+async function createEvaluationProject(session, suffix, namePrefix) {
+  // 1. 先创建标讯（ProjectRequest.tenderId @NotNull @Positive）
+  const tenderRes = await fetch(`${apiBaseUrl}/api/tenders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
+    body: JSON.stringify({
+      title: `${namePrefix} 标讯 ${suffix}`,
+      source: 'E2E',
+      budget: 100000,
+      deadline: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 19),
+      status: 'TRACKING'
+    })
+  })
+  const tenderData = await tenderRes.json().catch(() => null)
+  const tenderId = tenderData?.data?.id
+
+  // 2. 创建项目（补齐所有 @NotNull/@NotEmpty 字段）
+  const projRes = await fetch(`${apiBaseUrl}/api/projects`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
+    body: JSON.stringify({
+      name: `${namePrefix} ${suffix}`,
+      tenderId,
+      status: 'BIDDING',
+      managerId: session.user.id,
+      teamMembers: [session.user.id],
+      startDate: new Date().toISOString().slice(0, 19),
+      endDate: new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 19)
+    })
+  })
+  return projRes.json()
+}
+
 test.describe('project evaluation flow §3.3.1.3', () => {
   test('bid_admin can transition evaluation sub-stage and save form', async ({ page }) => {
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
@@ -13,15 +47,7 @@ test.describe('project evaluation flow §3.3.1.3', () => {
     })
 
     // Create a project via API
-    const projRes = await fetch(`${apiBaseUrl}/api/projects`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
-      body: JSON.stringify({
-        name: `E2E 评标测试项目 ${suffix}`,
-        description: '用于 E2E 测试评标流程'
-      })
-    })
-    const projData = await projRes.json()
+    const projData = await createEvaluationProject(session, suffix, 'E2E 评标测试项目')
     expect(projData?.data?.id).toBeTruthy()
     const projectId = projData.data.id
 
@@ -95,12 +121,7 @@ test.describe('project evaluation flow §3.3.1.3', () => {
     })
 
     // Create project as admin
-    const projRes = await fetch(`${apiBaseUrl}/api/projects`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminSession.token}` },
-      body: JSON.stringify({ name: `E2E 评标权限测试 ${suffix}` })
-    })
-    const projData = await projRes.json()
+    const projData = await createEvaluationProject(adminSession, suffix, 'E2E 评标权限测试')
     expect(projData?.data?.id).toBeTruthy()
     const projectId = projData.data.id
 
@@ -152,15 +173,7 @@ test.describe('project evaluation flow §3.3.1.3', () => {
     })
 
     // Create a project via API
-    const projRes = await fetch(`${apiBaseUrl}/api/projects`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
-      body: JSON.stringify({
-        name: `E2E 评标文件必填测试 ${suffix}`,
-        description: '用于 E2E 测试评标文件必填校验'
-      })
-    })
-    const projData = await projRes.json()
+    const projData = await createEvaluationProject(session, suffix, 'E2E 评标文件必填测试')
     expect(projData?.data?.id).toBeTruthy()
     const projectId = projData.data.id
 

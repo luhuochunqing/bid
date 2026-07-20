@@ -147,6 +147,7 @@ test.describe('项目结页 §3.3.1.6', () => {
         tenderId: tender?.data?.id,
         status: 'BIDDING',
         managerId: session.user.id,
+        teamMembers: [session.user.id],
         startDate: toLocalDateTimeString(new Date()),
         endDate: toLocalDateTimeString(new Date(Date.now() + 90 * 24 * 60 * 60 * 1000))
       })

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
+import { ensureApiSession, injectSession, apiBaseUrl, defaultPassword } from './auth-helpers.js'
 
-const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18080'
-const password = process.env.COMMERCIAL_E2E_PASSWORD || 'XiyuDemo!2026'
+const password = defaultPassword
 
 async function requestJson(url, options = {}) {
   const response = await fetch(url, options)
@@ -26,102 +26,20 @@ async function adminRequest(path, token, options = {}) {
   })
 }
 
-async function ensureSession({ username, role, fullName }) {
-  const email = `${username}@example.com`
-
-  try {
-    await requestJson(`${apiBaseUrl}/api/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username,
-        password,
-        email,
-        fullName,
-        // RoleProfile code 大小写敏感（/bidAdmin、bid-Team 等），不能 toLowerCase
-        roleCode: role || 'admin'
-      })
-    })
-  } catch (error) {
-    if (!String(error.message).includes('409') && !String(error.message).includes('already exists')) {
-      throw error
-    }
-  }
-
-  // H13 根治：access token 走 Set-Cookie，body 不再含 token
-  const response = await fetch(`${apiBaseUrl}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password })
-  })
-  const payload = await response.json().catch(() => null)
-
-  if (!response.ok || !payload?.success || !payload?.data?.id) {
-    throw new Error(`Backend login failed: ${response.status} ${JSON.stringify(payload)}`)
-  }
-
-  // H13: 从 Set-Cookie 提取 access_token
-  const cookies = response.headers.getSetCookie?.() || []
-  let token = null
-  for (const cookie of cookies) {
-    const match = cookie.match(/access_token=([^;]+)/)
-    if (match) {
-      token = match[1]
-      break
-    }
-  }
-  if (!token) {
-    // 降级：从 set-cookie header 解析（逗号分隔）
-    const setCookie = response.headers.get('set-cookie') || ''
-    const match = setCookie.match(/access_token=([^;]+)/)
-    if (match) {
-      token = match[1]
-    }
-  }
-  if (!token) {
-    throw new Error('Login response missing access_token cookie (H13)')
-  }
-
-  return {
-    token,
-    refreshToken: payload.data.refreshToken || null,
-    user: {
-      id: payload.data.id,
-      name: payload.data.fullName || payload.data.username,
-      username: payload.data.username,
-      email: payload.data.email,
-      // RoleProfile code 大小写敏感，保持原值
-      role: payload.data.roleCode || payload.data.role || role || '',
-      roleName: payload.data.roleName || '',
-      menuPermissions: Array.isArray(payload.data.menuPermissions) ? payload.data.menuPermissions : []
-    }
-  }
-}
-
-async function setSession(page, session) {
-  await page.addInitScript(({ currentSession }) => {
-    sessionStorage.setItem('token', currentSession.token)
-    if (currentSession.refreshToken) {
-      sessionStorage.setItem('refreshToken', currentSession.refreshToken)
-    }
-    sessionStorage.setItem('user', JSON.stringify(currentSession.user))
-  }, { currentSession: session })
-}
-
 test('api settings page supports custom roles and still blocks managers from admin routes', async ({ page, context }) => {
   const suffix = Date.now()
-  const adminSession = await ensureSession({
+  const adminSession = await ensureApiSession({
     username: `settings_admin_${suffix}`,
     role: '/bidAdmin',
     fullName: 'Settings Admin'
   })
-  const managerSession = await ensureSession({
+  const managerSession = await ensureApiSession({
     username: `settings_manager_${suffix}`,
     role: '/bidAdmin',
     fullName: 'Settings Manager'
   })
 
-  await setSession(page, adminSession)
+  await injectSession(page, adminSession)
   await page.goto('/settings')
 
   await expect(page).toHaveURL(/\/settings$/)
@@ -157,20 +75,20 @@ test('api settings page supports custom roles and still blocks managers from adm
     })
   })
 
-  const customSession = await ensureSession({
+  const customSession = await ensureApiSession({
     username: customUsername,
     role: 'bid-otherDept',
     fullName: 'Custom Role User'
   })
   const customPage = await context.newPage()
-  await setSession(customPage, customSession)
+  await injectSession(customPage, customSession)
   await customPage.goto('/dashboard')
   await expect(customPage.getByText('工作台').first()).toBeVisible()
   await expect(customPage.getByText('投标项目').first()).toBeHidden()
   await expect(customPage.getByText('知识库').first()).toBeHidden()
 
   const managerPage = await context.newPage()
-  await setSession(managerPage, managerSession)
+  await injectSession(managerPage, managerSession)
   await managerPage.goto('/settings')
 
   // Manager stays on /settings (backend permission allows this) or redirects  // @ui-cover:settings

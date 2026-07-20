@@ -25,6 +25,8 @@ export default [
       'coverage/**',
       'playwright-report/**',
       'test-results/**',
+      // Playwright 测试 artifact（trace 报告等压缩 JS 不应被 lint）
+      'e2e/.rehearsal/**',
       'src/**/*.ts',
       'k6-tests/**',
       'wechat-miniprogram/**',
