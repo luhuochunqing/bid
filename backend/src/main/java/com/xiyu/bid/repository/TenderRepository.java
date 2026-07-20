@@ -83,6 +83,24 @@ public interface TenderRepository extends JpaRepository<Tender, Long>, JpaSpecif
     @Query("SELECT t.bidOpeningTime FROM Tender t WHERE t.id IN :tenderIds AND t.bidOpeningTime BETWEEN :start AND :end AND t.status NOT IN ('WON', 'LOST', 'ABANDONED')")
     List<LocalDateTime> findBidOpeningTimesByTenderIds(@Param("tenderIds") Collection<Long> tenderIds, @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
 
+    // === CO-594: 投标日历改造 - 返回 Tender 实体（带 title）用于日历事件展示 ===
+
+    /** 全量开标时间查询（Admin 用），返回 Tender 实体 */
+    @Query("SELECT t FROM Tender t WHERE t.bidOpeningTime IS NOT NULL AND t.bidOpeningTime BETWEEN :start AND :end AND t.status NOT IN ('WON', 'LOST', 'ABANDONED')")
+    List<Tender> findWithBidOpeningTimeBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    /** 全量报名截止时间查询（Admin 用），返回 Tender 实体 */
+    @Query("SELECT t FROM Tender t WHERE t.registrationDeadline IS NOT NULL AND t.registrationDeadline BETWEEN :start AND :end AND t.status NOT IN ('WON', 'LOST', 'ABANDONED')")
+    List<Tender> findWithRegistrationDeadlineBetween(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    /** 按标讯ID过滤开标时间（非 Admin 用），返回 Tender 实体 */
+    @Query("SELECT t FROM Tender t WHERE t.id IN :tenderIds AND t.bidOpeningTime IS NOT NULL AND t.bidOpeningTime BETWEEN :start AND :end AND t.status NOT IN ('WON', 'LOST', 'ABANDONED')")
+    List<Tender> findWithBidOpeningTimeByTenderIds(@Param("tenderIds") Collection<Long> tenderIds, @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    /** 按标讯ID过滤报名截止时间（非 Admin 用），返回 Tender 实体 */
+    @Query("SELECT t FROM Tender t WHERE t.id IN :tenderIds AND t.registrationDeadline IS NOT NULL AND t.registrationDeadline BETWEEN :start AND :end AND t.status NOT IN ('WON', 'LOST', 'ABANDONED')")
+    List<Tender> findWithRegistrationDeadlineByTenderIds(@Param("tenderIds") Collection<Long> tenderIds, @Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
     // === CO-593: Workbench deadline items (return entities, not just timestamps) ===
 
     /** 全量报名截止标讯实体（全局管理角色用，CO-593） */

@@ -37,5 +37,10 @@ public enum EventType {
     /**
      * 审核
      */
-    REVIEW
+    REVIEW,
+
+    /**
+     * 开标时间（绿点）
+     */
+    OPENING
 }
