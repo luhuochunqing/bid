@@ -24,5 +24,8 @@ public interface BidDocumentReviewRepository extends JpaRepository<BidDocumentRe
     /** CO-591: 批量查询项目标书审核记录，用于列表展示标书审核人。 */
     List<BidDocumentReviewEntity> findByProjectIdIn(Collection<Long> projectIds);
 
+    /** 工作台待办：查询当前用户待审核（REVIEWING 状态）的标书审核记录。 */
+    List<BidDocumentReviewEntity> findByReviewerIdAndStatus(Long reviewerId, String status);
+
     void deleteByProjectId(Long projectId);
 }
