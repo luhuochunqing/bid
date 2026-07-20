@@ -3,17 +3,26 @@ package com.xiyu.bid.warehouse.application;
 import com.xiyu.bid.warehouse.domain.WarehouseAttachmentExportScope;
 import com.xiyu.bid.warehouse.domain.WarehouseAttachmentOrganizationForm;
 import com.xiyu.bid.warehouse.dto.WarehouseFilterDTO;
+import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskEntity;
+import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -42,6 +51,9 @@ import static org.mockito.Mockito.when;
 class WarehouseExportAppServiceTest {
 
     @Mock
+    private WarehouseExportTaskRepository exportTaskRepo;
+
+    @Mock
     private WarehouseExportAsyncExecutor asyncExecutor;
 
     @Mock
@@ -52,6 +64,9 @@ class WarehouseExportAppServiceTest {
 
     @InjectMocks
     private WarehouseExportAppService appService;
+
+    @TempDir
+    Path tempDir;
 
     @Test
     void export_shouldDelegateCreateTaskAndTriggerAsyncExecutor() {
@@ -105,5 +120,125 @@ class WarehouseExportAppServiceTest {
         verify(asyncExecutor, times(1)).executeExportByIds(
                 eq(2L), eq(ids), eq(operatorId), eq(operatorUsername),
                 eq(scope), eq(forms), anyLong());
+    }
+
+    // ========== getExportFile 边界测试（流式下载 OOM 修复配套验证） ==========
+
+    @Test
+    void getExportFile_taskNotFound_throwsIllegalArgumentException() {
+        Long taskId = 999L;
+        Long userId = 1L;
+        when(exportTaskRepo.findByIdAndCreatedBy(taskId, userId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> appService.getExportFile(taskId, userId))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("导出任务不存在或无权限");
+    }
+
+    @Test
+    void getExportFile_statusNotCompleted_throwsIllegalStateException() {
+        Long taskId = 1L;
+        Long userId = 1L;
+        WarehouseExportTaskEntity task = WarehouseExportTaskEntity.builder()
+                .id(taskId)
+                .status(WarehouseExportTaskEntity.ExportStatus.PROCESSING)
+                .build();
+        when(exportTaskRepo.findByIdAndCreatedBy(taskId, userId)).thenReturn(Optional.of(task));
+
+        assertThatThrownBy(() -> appService.getExportFile(taskId, userId))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("导出任务尚未完成");
+    }
+
+    @Test
+    void getExportFile_fileExpired_throwsIllegalStateException() {
+        Long taskId = 1L;
+        Long userId = 1L;
+        WarehouseExportTaskEntity task = WarehouseExportTaskEntity.builder()
+                .id(taskId)
+                .status(WarehouseExportTaskEntity.ExportStatus.COMPLETED)
+                .expiresAt(LocalDateTime.now().minusDays(1))
+                .storedFilePath("/tmp/test.zip")
+                .build();
+        when(exportTaskRepo.findByIdAndCreatedBy(taskId, userId)).thenReturn(Optional.of(task));
+
+        assertThatThrownBy(() -> appService.getExportFile(taskId, userId))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("导出文件已过期");
+    }
+
+    @Test
+    void getExportFile_storedFilePathNull_throwsIllegalStateException() {
+        Long taskId = 1L;
+        Long userId = 1L;
+        WarehouseExportTaskEntity task = WarehouseExportTaskEntity.builder()
+                .id(taskId)
+                .status(WarehouseExportTaskEntity.ExportStatus.COMPLETED)
+                .expiresAt(LocalDateTime.now().plusDays(1))
+                .storedFilePath(null)
+                .build();
+        when(exportTaskRepo.findByIdAndCreatedBy(taskId, userId)).thenReturn(Optional.of(task));
+
+        assertThatThrownBy(() -> appService.getExportFile(taskId, userId))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("导出文件路径为空");
+    }
+
+    @Test
+    void getExportFile_fileNotExistsOnDisk_throwsIllegalStateException() throws IOException {
+        Long taskId = 1L;
+        Long userId = 1L;
+        Path nonExistent = tempDir.resolve("nonexistent.zip");
+        WarehouseExportTaskEntity task = WarehouseExportTaskEntity.builder()
+                .id(taskId)
+                .status(WarehouseExportTaskEntity.ExportStatus.COMPLETED)
+                .expiresAt(LocalDateTime.now().plusDays(1))
+                .storedFilePath(nonExistent.toString())
+                .build();
+        when(exportTaskRepo.findByIdAndCreatedBy(taskId, userId)).thenReturn(Optional.of(task));
+
+        assertThatThrownBy(() -> appService.getExportFile(taskId, userId))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("导出文件已被清理");
+    }
+
+    @Test
+    void getExportFile_validCompletedTask_returnsPath() throws IOException {
+        Long taskId = 1L;
+        Long userId = 1L;
+        Path realFile = tempDir.resolve("export.zip");
+        Files.write(realFile, new byte[]{1, 2, 3, 4});
+
+        WarehouseExportTaskEntity task = WarehouseExportTaskEntity.builder()
+                .id(taskId)
+                .status(WarehouseExportTaskEntity.ExportStatus.COMPLETED)
+                .expiresAt(LocalDateTime.now().plusDays(1))
+                .storedFilePath(realFile.toString())
+                .build();
+        when(exportTaskRepo.findByIdAndCreatedBy(taskId, userId)).thenReturn(Optional.of(task));
+
+        Path result = appService.getExportFile(taskId, userId);
+
+        assertThat(result).isEqualTo(realFile);
+        assertThat(Files.exists(result)).isTrue();
+    }
+
+    @Test
+    void getExportFile_expiresAtNull_doesNotThrowExpired() throws IOException {
+        Long taskId = 1L;
+        Long userId = 1L;
+        Path realFile = tempDir.resolve("export.zip");
+        Files.write(realFile, new byte[]{1, 2, 3});
+
+        WarehouseExportTaskEntity task = WarehouseExportTaskEntity.builder()
+                .id(taskId)
+                .status(WarehouseExportTaskEntity.ExportStatus.COMPLETED)
+                .expiresAt(null)
+                .storedFilePath(realFile.toString())
+                .build();
+        when(exportTaskRepo.findByIdAndCreatedBy(taskId, userId)).thenReturn(Optional.of(task));
+
+        Path result = appService.getExportFile(taskId, userId);
+        assertThat(result).isEqualTo(realFile);
     }
 }

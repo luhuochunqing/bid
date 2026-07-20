@@ -6,13 +6,21 @@ import com.xiyu.bid.warehouse.application.WarehouseExportAppService;
 import com.xiyu.bid.warehouse.application.WarehouseLedgerExportAppService;
 import com.xiyu.bid.warehouse.domain.WarehouseAttachmentExportScope;
 import com.xiyu.bid.warehouse.domain.WarehouseAttachmentOrganizationForm;
+import com.xiyu.bid.warehouse.controller.UserResolver;
+import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskEntity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
@@ -21,7 +29,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -37,6 +47,9 @@ class WarehouseExportControllerTest {
     private WarehouseExportAppService exportAppService;
     private WarehouseLedgerExportAppService ledgerExportAppService;
     private UserResolver userResolver;
+
+    @TempDir
+    Path tempDir;
 
     @BeforeEach
     void setUp() {
@@ -138,5 +151,89 @@ class WarehouseExportControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest());
+    }
+
+    // ========== downloadExportFile 流式下载端点测试 ==========
+
+    @Test
+    @DisplayName("下载端点：任务不存在 → 404 Not Found")
+    void downloadExportFile_taskNotFound_returns404() throws Exception {
+        when(exportAppService.getExportFile(eq(999L), eq(1L)))
+                .thenThrow(new IllegalArgumentException("导出任务不存在或无权限"));
+
+        mockMvc.perform(get("/api/knowledge/warehouses/export/tasks/999/download"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("下载端点：任务未完成 → 400 Bad Request")
+    void downloadExportFile_notCompleted_returns400() throws Exception {
+        when(exportAppService.getExportFile(eq(1L), eq(1L)))
+                .thenThrow(new IllegalStateException("导出任务尚未完成"));
+
+        mockMvc.perform(get("/api/knowledge/warehouses/export/tasks/1/download"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("下载端点：文件已过期 → 400 Bad Request")
+    void downloadExportFile_expired_returns400() throws Exception {
+        when(exportAppService.getExportFile(eq(1L), eq(1L)))
+                .thenThrow(new IllegalStateException("导出文件已过期"));
+
+        mockMvc.perform(get("/api/knowledge/warehouses/export/tasks/1/download"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("下载端点：文件已被清理 → 400 Bad Request")
+    void downloadExportFile_fileCleaned_returns400() throws Exception {
+        when(exportAppService.getExportFile(eq(1L), eq(1L)))
+                .thenThrow(new IllegalStateException("导出文件已被清理"));
+
+        mockMvc.perform(get("/api/knowledge/warehouses/export/tasks/1/download"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("下载端点：IO 异常 → 500 Internal Server Error")
+    void downloadExportFile_ioError_returns500() throws Exception {
+        when(exportAppService.getExportFile(eq(1L), eq(1L)))
+                .thenThrow(new IOException("磁盘读取失败"));
+
+        mockMvc.perform(get("/api/knowledge/warehouses/export/tasks/1/download"))
+                .andExpect(status().isInternalServerError());
+    }
+
+    @Test
+    @DisplayName("下载端点：正常下载 → 200 OK + 正确响应头")
+    void downloadExportFile_success_returnsOkWithHeaders() throws Exception {
+        Path zipFile = tempDir.resolve("test-export.zip");
+        byte[] content = new byte[]{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+        Files.write(zipFile, content);
+
+        WarehouseExportTaskEntity task = WarehouseExportTaskEntity.builder()
+                .id(1L)
+                .status(WarehouseExportTaskEntity.ExportStatus.COMPLETED)
+                .completedAt(LocalDateTime.of(2026, 7, 18, 10, 30, 0))
+                .build();
+
+        when(exportAppService.getExportFile(eq(1L), eq(1L))).thenReturn(zipFile);
+        when(exportAppService.getTaskStatus(eq(1L), eq(1L))).thenReturn(task);
+
+        mockMvc.perform(get("/api/knowledge/warehouses/export/tasks/1/download"))
+                .andExpect(status().isOk())
+                .andExpect(header().exists(HttpHeaders.CONTENT_DISPOSITION))
+                .andExpect(header().string(HttpHeaders.CONTENT_LENGTH, String.valueOf(content.length)))
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "application/zip"));
+    }
+
+    @Test
+    @DisplayName("下载端点：未登录 → 401 Unauthorized")
+    void downloadExportFile_notLoggedIn_returns401() throws Exception {
+        when(userResolver.resolveCurrentUserId()).thenReturn(null);
+
+        mockMvc.perform(get("/api/knowledge/warehouses/export/tasks/1/download"))
+                .andExpect(status().isUnauthorized());
     }
 }
