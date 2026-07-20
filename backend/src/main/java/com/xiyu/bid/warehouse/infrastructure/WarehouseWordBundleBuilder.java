@@ -33,18 +33,15 @@ import java.util.Set;
 /**
  * 仓库 Word 合订本生成器（CO-582 §3.4-§3.9）。
  * 业务规则由 {@link WarehouseWordBundleOrganizationPolicy} 提供，样式由 {@link WarehouseWordStyleConfig} 提供。
- * 异常处理（§4）：无附件/文件缺失/图片读取失败/PDF 转换失败/Word 整体失败各有对应降级。
+ * 标题段落应用 Word pStyle（Title/Heading1-3），让 Word 导航窗格识别层级。
  */
 @Component
 @Slf4j
 public class WarehouseWordBundleBuilder {
 
-    /** §4 异常标注 */
     private static final String LABEL_NO_ATTACHMENT = "（无附件）";
     private static final String LABEL_FILE_MISSING = "（文件缺失）";
     private static final String LABEL_IMAGE_READ_FAILED = "（图片读取失败）";
-
-    /** 图片格式白名单（§3.7.2） */
     private static final Set<String> IMAGE_EXTENSIONS = Set.of("jpg", "jpeg", "png");
 
     @Value("${warehouse.attachment.root:data/warehouse-attachments}")
@@ -90,11 +87,12 @@ public class WarehouseWordBundleBuilder {
         }
     }
 
-    // ========== 文档标题 ==========
+    // ========== 文档标题（Title 样式） ==========
 
     private void writeDocumentTitle(XWPFDocument doc) {
         XWPFParagraph p = doc.createParagraph();
         p.setAlignment(ParagraphAlignment.CENTER);
+        p.setStyle("Title");
         XWPFRun run = p.createRun();
         run.setText("仓库附件合订本");
         run.setFontFamily(WarehouseWordStyleConfig.FONT_HEITI);
@@ -102,20 +100,19 @@ public class WarehouseWordBundleBuilder {
         run.setBold(true);
     }
 
-    // ========== 省份一级标题（§3.4：同省仓库合并到同一个省标题下） ==========
+    // ========== 省份一级标题（Heading1 样式，§3.4 同省仓库合并到同一个省标题下） ==========
 
     private void writeProvinceHeading(XWPFDocument doc, String province) {
         writeHeading(doc, province,
-                WarehouseWordStyleConfig.FONT_HEITI, WarehouseWordStyleConfig.SIZE_H1_PT, true);
+                WarehouseWordStyleConfig.FONT_HEITI, WarehouseWordStyleConfig.SIZE_H1_PT, true, "Heading1");
     }
 
-    // ========== 仓库段落（二级标题：仓库名） ==========
+    // ========== 仓库段落（二级标题 Heading2） ==========
 
     private void writeWarehouseSection(XWPFDocument doc, WarehouseReadModel wh,
                                         List<? extends WarehouseAttachmentReadModel> attachments) {
-        // 二级标题：仓库名（§3.9：左对齐，黑体 14pt，加粗）
         writeHeading(doc, wh.getName(),
-                WarehouseWordStyleConfig.FONT_HEITI, WarehouseWordStyleConfig.SIZE_H2_PT, true);
+                WarehouseWordStyleConfig.FONT_HEITI, WarehouseWordStyleConfig.SIZE_H2_PT, true, "Heading2");
 
         if (attachments.isEmpty()) {
             // §4：仓库无附件 → 标注"（无附件）"
@@ -132,10 +129,10 @@ public class WarehouseWordBundleBuilder {
                 continue;  // §3.6：无某类附件则不输出标题
             }
 
-            // 三级标题：附件分类
+            // 三级标题：附件分类（应用 Heading3 样式）
             String sectionTitle = WarehouseWordBundleOrganizationPolicy.wordSectionTitle(type, wh);
             writeHeading(doc, sectionTitle,
-                    WarehouseWordStyleConfig.FONT_SONGTI, WarehouseWordStyleConfig.SIZE_H3_PT, true);
+                    WarehouseWordStyleConfig.FONT_SONGTI, WarehouseWordStyleConfig.SIZE_H3_PT, true, "Heading3");
 
             // 附件内容
             if (type == WarehouseAttachmentType.PHOTOS) {
@@ -241,9 +238,12 @@ public class WarehouseWordBundleBuilder {
         return Paths.get(attachmentRoot, String.valueOf(wh.getId()), att.getStoredFilename());
     }
 
-    private void writeHeading(XWPFDocument doc, String text, String font, int sizePt, boolean bold) {
+    private void writeHeading(XWPFDocument doc, String text, String font, int sizePt, boolean bold, String styleName) {
         XWPFParagraph p = doc.createParagraph();
         p.setAlignment(ParagraphAlignment.LEFT);
+        if (styleName != null && !styleName.isEmpty()) {
+            p.setStyle(styleName);
+        }
         XWPFRun run = p.createRun();
         run.setText(text);
         run.setFontFamily(font);

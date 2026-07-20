@@ -219,6 +219,85 @@ class WarehouseWordBundleBuilderTest {
         }
     }
 
+    // ========== pStyle 标题样式测试（CO-582 §3.4：Word 导航窗格识别层级） ==========
+
+    /**
+     * 标题段落必须应用 Word pStyle，让 Word 导航窗格识别层级（CO-582 §3.4）。
+     * <p>
+     * 根因：原 writeHeading 创建普通段落，仅靠 run 的 bold/fontSize 渲染样式，
+     * Word 软件不识别为标题，导航窗格为空，所有标题被当作正文。
+     * <p>
+     * 修复：writeDocumentTitle 应用 "Title"，省份用 "Heading1"，仓库名用 "Heading2"，
+     * 附件分类用 "Heading3"。
+     */
+    @Test
+    void buildBundle_appliesWordHeadingStyles_titleHeading1Heading2Heading3() throws IOException {
+        WarehouseWordBundleBuilder builder = new WarehouseWordBundleBuilder();
+        ReflectionTestUtils.setField(builder, "attachmentRoot", tempDir.toString());
+
+        // 准备一个最小 PDF 文件，让三级标题"租赁合同(...)"能被生成
+        Path whDir = tempDir.resolve("1");
+        Files.createDirectories(whDir);
+        Path pdfPath = whDir.resolve("lease.pdf");
+        try (PDDocument pdf = new PDDocument()) {
+            PDPage page = new PDPage();
+            pdf.addPage(page);
+            try (PDPageContentStream cs = new PDPageContentStream(pdf, page)) {
+                cs.beginText();
+                cs.setFont(PDType1Font.HELVETICA, 12);
+                cs.newLineAtOffset(100, 700);
+                cs.showText("Lease");
+                cs.endText();
+            }
+            pdf.save(pdfPath.toFile());
+        }
+
+        TestWarehouse wh = new TestWarehouse(1L, "杭州仓", "浙江",
+                LocalDate.of(2021, 1, 15), LocalDate.of(2029, 1, 14));
+        TestAttachment att = new TestAttachment(100L, WarehouseAttachmentType.LEASE_CONTRACT,
+                "WH_杭州仓_租赁合同.pdf", "lease.pdf");
+
+        byte[] result = buildBundleToBytes(builder, List.of(wh), Map.of(1L, List.of(att)));
+
+        try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(result))) {
+            // 文档标题 "仓库附件合订本" → Title 样式
+            String titleStyle = doc.getParagraphs().stream()
+                    .filter(p -> "仓库附件合订本".equals(p.getText()))
+                    .map(XWPFParagraph::getStyle)
+                    .findFirst().orElse(null);
+            assertThat(titleStyle)
+                    .as("§3.4：文档标题必须应用 Title 样式（让 Word 识别为标题而非正文）")
+                    .isEqualTo("Title");
+
+            // 省份一级标题 "浙江" → Heading1
+            String provinceStyle = doc.getParagraphs().stream()
+                    .filter(p -> "浙江".equals(p.getText()))
+                    .map(XWPFParagraph::getStyle)
+                    .findFirst().orElse(null);
+            assertThat(provinceStyle)
+                    .as("§3.4：省份一级标题必须应用 Heading1 样式")
+                    .isEqualTo("Heading1");
+
+            // 仓库名二级标题 "杭州仓" → Heading2
+            String warehouseStyle = doc.getParagraphs().stream()
+                    .filter(p -> "杭州仓".equals(p.getText()))
+                    .map(XWPFParagraph::getStyle)
+                    .findFirst().orElse(null);
+            assertThat(warehouseStyle)
+                    .as("§3.4：仓库名二级标题必须应用 Heading2 样式")
+                    .isEqualTo("Heading2");
+
+            // 附件分类三级标题 "租赁合同(...)" → Heading3
+            String sectionStyle = doc.getParagraphs().stream()
+                    .filter(p -> p.getText() != null && p.getText().startsWith("租赁合同"))
+                    .map(XWPFParagraph::getStyle)
+                    .findFirst().orElse(null);
+            assertThat(sectionStyle)
+                    .as("§3.4：附件分类三级标题必须应用 Heading3 样式")
+                    .isEqualTo("Heading3");
+        }
+    }
+
     // ========== 根因行为测试（CO-582 bug：macOS SSV 只读 + 绝对路径默认值） ==========
 
     /**
