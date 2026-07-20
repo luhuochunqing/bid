@@ -24,6 +24,8 @@ public class MarginDTO {
     private String ownerUnit;
     /** Project leader name. */
     private String projectLeaderName;
+    /** 项目负责人工号（来自 users.employee_number）。 */
+    private String projectLeaderEmployeeNumber;
     /** Bidding leader name. */
     private String biddingLeaderName;
     /** Deposit amount. */

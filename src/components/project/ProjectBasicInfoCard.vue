@@ -24,7 +24,7 @@
       <el-descriptions-item label="报名截止时间">{{ formatDate(tf('registrationDeadline')) }}</el-descriptions-item>
       <el-descriptions-item label="开标时间">{{ formatDate(tf('bidOpeningTime')) }}</el-descriptions-item>
       <el-descriptions-item label="投标月份" :span="2">{{ project?.bidMonth }}</el-descriptions-item>
-      <el-descriptions-item label="项目负责人">{{ project?.projectLeaderName || tf('projectManagerName') }}</el-descriptions-item>
+      <el-descriptions-item label="项目负责人">{{ formatUserWithNameAndNumber(project?.projectLeaderName || tf('projectManagerName'), project?.projectLeaderEmployeeNumber) }}</el-descriptions-item>
       <el-descriptions-item label="项目负责人部门">{{ project?.leaderDepartment || tf('department') }}</el-descriptions-item>
       <el-descriptions-item label="联系人1">{{ tf('contactName') }}</el-descriptions-item>
       <el-descriptions-item label="联系人1手机号">{{ tf('contactPhone') }}</el-descriptions-item>
@@ -37,6 +37,7 @@
       <el-descriptions-item label="标讯" :span="2">
         <span class="tender-info-text">{{ tf('title') || tf('tenderInfo') }}</span>
       </el-descriptions-item>
+      <!-- TODO: 投标负责人/辅助人员目前仅显示姓名，待后端 ProjectDTO 补充 biddingLeaderEmployeeNumber / secondaryBiddingLeaderEmployeeNumber 后切换为 formatUserWithNameAndNumber -->
       <el-descriptions-item label="投标负责人">{{ project?.biddingLeaderName }}</el-descriptions-item>
       <el-descriptions-item label="投标辅助人员">{{ project?.secondaryBiddingLeaderName }}</el-descriptions-item>
     </el-descriptions>
@@ -49,6 +50,7 @@ import { ElMessage } from 'element-plus'
 import { InfoFilled } from '@element-plus/icons-vue'
 import { httpClient } from '@/api'
 import { priorityLabel, customerTypeLabel, projectTypeLabel } from '@/views/Project/utils/projectListFormatters.js'
+import { formatUserWithNameAndNumber } from '@/utils/userDisplay.js'
 
 const props = defineProps({
   project: {

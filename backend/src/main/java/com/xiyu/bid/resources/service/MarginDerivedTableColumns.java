@@ -137,7 +137,8 @@ final class MarginDerivedTableColumns {
           + "     " + returnedAmountExpr("f.amount") + " as returned_amount,"
           + "     " + serviceFeeAmountExpr() + " as service_fee_amount,"
           + "     CAST(NULLIF(pc.deposit_return_date, '0000-00-00 00:00:00') AS DATETIME) as actual_return_date,"
-          + "     f.status, f.created_at";
+          + "     f.status, f.created_at,"
+          + "     u.employee_number as project_leader_emp_no";
 
     /** 派生表 pid 分支 SELECT 列（listBase + countBase 共用）。
      *  <p>CO-490 修复：INIT 分支也 JOIN tasks dt + project_closure pc，
@@ -168,5 +169,6 @@ final class MarginDerivedTableColumns {
           + "     " + serviceFeeAmountExpr() + " as service_fee_amount,"
           + "     CAST(NULLIF(pc.deposit_return_date, '0000-00-00 00:00:00') AS DATETIME) as actual_return_date,"
           + "     'PENDING' as status,"
-          + "     COALESCE(pid.created_at, p.created_at) as created_at";
+          + "     COALESCE(pid.created_at, p.created_at) as created_at,"
+          + "     u.employee_number as project_leader_emp_no";
 }

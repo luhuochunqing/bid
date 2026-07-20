@@ -28,6 +28,7 @@ final class MarginQuerySupport {
     private static final int C_SVC_FEE = 13;
     private static final int C_ACT_RETURN = 14;
     private static final int C_STATUS = 15;
+    private static final int C_PROJ_LEAD_EMP_NO = 16;
 
     private static final String INIT_ONLY_WHERE =
             "pid.need_deposit = 'YES'"
@@ -120,7 +121,8 @@ final class MarginQuerySupport {
               + " m.amount, m.payment_date, m.deposit_payment_method,"
               + " m.payee_name, m.payee_account,"
               + " m.exp_return_date, m.returned_amount,"
-              + " m.service_fee_amount, m.actual_return_date, m.status"
+              + " m.service_fee_amount, m.actual_return_date, m.status,"
+              + " m.project_leader_emp_no"
               + " FROM ("
               + MarginDerivedTableColumns.DERIVED_SELECT_FEES
               + FEES_JOIN + rf
@@ -166,6 +168,7 @@ final class MarginQuerySupport {
                 .ownerUnit((String) r[C_OWNER])
                 .projectLeaderName((String) r[C_PROJ_LEAD])
                 .biddingLeaderName((String) r[C_BID_LEAD])
+                .projectLeaderEmployeeNumber((String) r[C_PROJ_LEAD_EMP_NO])
                 .depositAmount((BigDecimal) r[C_AMT])
                 .paymentDate(toLdt(r[C_PAY_DATE]))
                 .depositPaymentMethod((String) r[C_PAY_METHOD])

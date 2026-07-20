@@ -1,6 +1,7 @@
 package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.project.dto.ProjectDTO;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
@@ -263,5 +264,104 @@ class ProjectQueryServiceTest {
         // 不抛异常即可
         service.enrichSingle(null);
         service.enrichSingle(ProjectDTO.builder().id(null).build());
+    }
+
+    // ===== CC2026072071 根因回归：项目负责人工号填充（端到端） =====
+    // 生产事故：项目详情页"项目负责人"只显示"王亮"（CRM 推送纯姓名），不带工号。
+    // 根因：ProjectListEnrichmentSupport.populateFromTender L77-80 用
+    // tender.projectManagerName 兜底填充 projectLeaderName，但未通过
+    // projectLeaderId 反查 users.employee_number。
+    // 修复方案 B：enrichWithTenderAndDetails 阶段扩展 userMap 预加载范围
+    // （含 tender.projectManagerId 和 pid.ownerUserId），调用纯核心方法
+    // populateLeaderEmployeeNumber 填充 projectLeaderEmployeeNumber 字段。
+
+    @Test
+    @DisplayName("CC2026072071: tender.projectManagerId=75 + users 表有 75 号员工 → DTO.projectLeaderEmployeeNumber='05972'")
+    void enrichWithTenderAndDetails_FillsProjectLeaderEmployeeNumber_FromUsersTable() {
+        // 场景：tenders.project_manager_name="王亮"（纯姓名），tenders.project_manager_id=75，
+        // users 表 id=75 full_name="王亮" employee_number="05972"。
+        // 期望：dto.projectLeaderId=75（populateFromTender 填充），
+        //       dto.projectLeaderEmployeeNumber="05972"（新逻辑填充）。
+        // 通过 enrichSingle 入口触发 enrichWithTenderAndDetails，不需要 projectRepository 等 stub。
+
+        // tender 是 projectLeaderId 的来源
+        Tender tender = Tender.builder()
+                .id(100L)
+                .projectManagerId(75L)
+                .projectManagerName("王亮")
+                .build();
+        when(tenderRepository.findAllById(List.of(100L))).thenReturn(List.of(tender));
+
+        ProjectInitiationDetails details = new ProjectInitiationDetails();
+        details.setProjectId(1L);
+        // ownerUserId=null，让 projectLeaderId 来源走 tender.projectManagerId
+        details.setOwnerUserId(null);
+        when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(1L)))
+                .thenReturn(List.of(details));
+        when(projectLeadAssignmentRepository.findByProjectIdIn(List.of(1L)))
+                .thenReturn(List.of());
+
+        // users 表有 id=75 employeeNumber="05972"
+        User leader = new User();
+        leader.setId(75L);
+        leader.setFullName("王亮");
+        leader.setEmployeeNumber("05972");
+        // allUserIds = leadUserIds(empty) ∪ managerIds(empty, managerId=null)
+        //              ∪ reviewerIds(empty) ∪ tender.projectManagerId(75) ∪ pid.ownerUserId(empty)
+        //            = {75}
+        when(userRepository.findByIdIn(Set.of(75L))).thenReturn(List.of(leader));
+        when(managerDepartmentEnricher.buildManagerDepartmentMap(eq(Set.of()), any()))
+                .thenReturn(Map.of());
+
+        ProjectQueryService service = createService();
+        // 调用 enrichSingle 触发 enrichWithTenderAndDetails
+        ProjectDTO dto = ProjectDTO.builder().id(1L).tenderId(100L).managerId(null).build();
+        service.enrichSingle(dto);
+
+        assertThat(dto.getProjectLeaderId()).isEqualTo(75L);
+        assertThat(dto.getProjectLeaderName()).isEqualTo("王亮");
+        assertThat(dto.getProjectLeaderEmployeeNumber()).isEqualTo("05972");
+    }
+
+    @Test
+    @DisplayName("CC2026072071: pid.ownerUserId=null 但 tender.projectManagerId=75 → 仍能填充工号")
+    void enrichWithTenderAndDetails_FillsEmployeeNumber_FromTenderProjectManagerId_WhenPidOwnerUserIdMissing() {
+        // 场景：pid.ownerUserId=null（立项详情未填负责人），但 tender.projectManagerId=75。
+        // 期望：projectLeaderId 由 populateFromTender 从 tender.projectManagerId 兜底填充，
+        //       projectLeaderEmployeeNumber 由 userMap 反查填充。
+        // 通过 enrichSingle 入口触发 enrichWithTenderAndDetails，不需要 projectRepository 等 stub。
+
+        Tender tender = Tender.builder()
+                .id(100L)
+                .projectManagerId(75L)
+                .projectManagerName("王亮")
+                .build();
+        when(tenderRepository.findAllById(List.of(100L))).thenReturn(List.of(tender));
+
+        ProjectInitiationDetails details = new ProjectInitiationDetails();
+        details.setProjectId(1L);
+        details.setOwnerUserId(null); // 关键：pid 无 ownerUserId
+        details.setProjectLeaderName(null); // 关键：pid 无 projectLeaderName，由 tender 兜底
+        when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(1L)))
+                .thenReturn(List.of(details));
+        when(projectLeadAssignmentRepository.findByProjectIdIn(List.of(1L)))
+                .thenReturn(List.of());
+
+        User leader = new User();
+        leader.setId(75L);
+        leader.setFullName("王亮");
+        leader.setEmployeeNumber("05972");
+        when(userRepository.findByIdIn(Set.of(75L))).thenReturn(List.of(leader));
+        when(managerDepartmentEnricher.buildManagerDepartmentMap(eq(Set.of()), any()))
+                .thenReturn(Map.of());
+
+        ProjectQueryService service = createService();
+        ProjectDTO dto = ProjectDTO.builder().id(1L).tenderId(100L).managerId(null).build();
+        service.enrichSingle(dto);
+
+        // 验证根因行为：姓名能关联到工号
+        assertThat(dto.getProjectLeaderId()).isEqualTo(75L);
+        assertThat(dto.getProjectLeaderName()).isEqualTo("王亮");
+        assertThat(dto.getProjectLeaderEmployeeNumber()).isEqualTo("05972");
     }
 }
