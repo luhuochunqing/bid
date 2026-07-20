@@ -173,13 +173,8 @@ public class WorkbenchDeadlineQueryService {
         log.debug("Workbench deadline items: reg={}, opening={}, deposit={}",
                 regTenders.size(), openingTenders.size(), depositFees.size());
 
-        // 批量解析项目名称（开标 + 保证金都显示项目名称）
+        // 批量解析 Project.name（保证金显示项目名；开标/报名截止显示标讯名）
         Set<Long> projectIdsToResolve = new LinkedHashSet<>();
-        for (Tender t : openingTenders) {
-            if (t.getProjectId() != null) {
-                projectIdsToResolve.add(t.getProjectId());
-            }
-        }
         for (Fee f : depositFees) {
             if (f.getProjectId() != null) {
                 projectIdsToResolve.add(f.getProjectId());
@@ -197,14 +192,14 @@ public class WorkbenchDeadlineQueryService {
                         t.getId(), "tender"))
                 .toList();
 
-        // 开标 → 项目名称 → 项目详情（projectId 为 null 的过滤掉）
+        // 开标 → 标讯名称 → 标讯详情
         List<DeadlineItemDTO> openingItems = openingTenders.stream()
-                .filter(t -> t.getBidOpeningTime() != null && t.getProjectId() != null)
+                .filter(t -> t.getBidOpeningTime() != null)
                 .sorted(Comparator.comparing(Tender::getBidOpeningTime))
                 .map(t -> new DeadlineItemDTO(
-                        t.getId(), projectNameById.getOrDefault(t.getProjectId(), "未知项目"),
+                        t.getId(), t.getTitle(),
                         DATE_FORMATTER.format(t.getBidOpeningTime()),
-                        t.getProjectId(), "project"))
+                        t.getId(), "tender"))
                 .toList();
 
         // 保证金截止 → 项目名称 → 项目详情

@@ -76,7 +76,8 @@ class WorkbenchDeadlineControllerTest {
         when(service.getDeadlineItems(any(LocalDate.class), eq(DeadlinePeriod.WEEK)))
                 .thenReturn(new WorkbenchDeadlineItemsDTO(
                         List.of(new DeadlineItemDTO(10L, "标讯A", "2026-05-17", 10L, "tender")),
-                        List.of(new DeadlineItemDTO(20L, "项目X", "2026-05-18", 100L, "project")),
+                        // CO-593 follow-up: 开标条目 targetType=tender，targetId=tenderId，name=标讯名称
+                        List.of(new DeadlineItemDTO(20L, "标讯B", "2026-05-18", 20L, "tender")),
                         List.of()
                 ));
 
@@ -87,8 +88,9 @@ class WorkbenchDeadlineControllerTest {
                 .andExpect(jsonPath("$.data.registrationDeadline[0].date").value("2026-05-17"))
                 .andExpect(jsonPath("$.data.registrationDeadline[0].targetId").value(10))
                 .andExpect(jsonPath("$.data.registrationDeadline[0].targetType").value("tender"))
-                .andExpect(jsonPath("$.data.bidOpening[0].name").value("项目X"))
-                .andExpect(jsonPath("$.data.bidOpening[0].targetType").value("project"))
+                .andExpect(jsonPath("$.data.bidOpening[0].name").value("标讯B"))
+                .andExpect(jsonPath("$.data.bidOpening[0].targetId").value(20))
+                .andExpect(jsonPath("$.data.bidOpening[0].targetType").value("tender"))
                 .andExpect(jsonPath("$.data.depositDeadline").isArray())
                 .andExpect(jsonPath("$.data.depositDeadline").isEmpty());
 

@@ -238,14 +238,14 @@ class WorkbenchDeadlineQueryServiceTest {
         assertThat(regItem.targetId()).isEqualTo(10L);
         assertThat(regItem.targetType()).isEqualTo("tender");
 
-        // 开标 → 项目名称 + targetType=project
+        // 开标 → 标讯名称 + targetType=tender（CO-593: 开标跳标讯详情，不跳项目详情）
         assertThat(result.bidOpening()).hasSize(1);
         DeadlineItemDTO openingItem = result.bidOpening().get(0);
         assertThat(openingItem.id()).isEqualTo(20L);
-        assertThat(openingItem.name()).isEqualTo("项目X");
+        assertThat(openingItem.name()).isEqualTo("标讯B");
         assertThat(openingItem.date()).isEqualTo("2026-05-18");
-        assertThat(openingItem.targetId()).isEqualTo(100L);
-        assertThat(openingItem.targetType()).isEqualTo("project");
+        assertThat(openingItem.targetId()).isEqualTo(20L);
+        assertThat(openingItem.targetType()).isEqualTo("tender");
 
         // 保证金截止 → 项目名称 + targetType=project
         assertThat(result.depositDeadline()).hasSize(1);
@@ -315,31 +315,38 @@ class WorkbenchDeadlineQueryServiceTest {
     }
 
     /**
-     * 开标条目若 Tender.projectId 为 null（未关联项目），必须被过滤掉（前端无法跳转）。
+     * CO-593: 开标条目即使 Tender.projectId 为 null（未关联项目）也必须展示，
+     * 因为开标跳标讯详情（targetType=tender），不依赖 project。
      */
     @Test
-    void openingTenderWithNullProjectIdMustBeFilteredOut() {
+    void openingTenderWithNullProjectIdShouldStillShow() {
         var today = LocalDate.of(2026, 5, 17);
         when(projectAccessScopeService.currentUserHasGlobalAccess()).thenReturn(true);
         when(projectAccessScopeService.getAllowedProjectIdsForCurrentUser()).thenReturn(List.of());
 
         Tender openingWithProject = Tender.builder()
-                .id(20L).bidOpeningTime(LocalDateTime.of(2026, 5, 18, 14, 0)).projectId(100L).build();
+                .id(20L).title("标讯B").bidOpeningTime(LocalDateTime.of(2026, 5, 18, 14, 0)).projectId(100L).build();
         Tender openingWithoutProject = Tender.builder()
-                .id(21L).bidOpeningTime(LocalDateTime.of(2026, 5, 19, 14, 0)).projectId(null).build();
-        Project project = Project.builder().id(100L).name("项目X").build();
+                .id(21L).title("标讯C").bidOpeningTime(LocalDateTime.of(2026, 5, 19, 14, 0)).projectId(null).build();
 
         when(tenderRepository.findTendersByRegistrationDeadlineBetween(any(), any())).thenReturn(List.of());
         when(tenderRepository.findTendersByBidOpeningTimeBetween(any(), any()))
                 .thenReturn(List.of(openingWithProject, openingWithoutProject));
         when(feeRepository.findFeesByDepositDeadlineBetween(any(), any())).thenReturn(List.of());
-        when(projectRepository.findAllById(any(Collection.class))).thenReturn(List.of(project));
 
         WorkbenchDeadlineItemsDTO result = service.getDeadlineItems(today, DeadlinePeriod.WEEK);
 
-        assertThat(result.bidOpening()).hasSize(1);
-        assertThat(result.bidOpening().get(0).targetId()).isEqualTo(100L);
-        assertThat(result.bidOpening().get(0).name()).isEqualTo("项目X");
+        // 两条开标条目都应展示（projectId=null 不再过滤）
+        assertThat(result.bidOpening()).hasSize(2);
+        // 都用标讯名称 + 标讯 ID + targetType=tender
+        assertThat(result.bidOpening().get(0).name()).isEqualTo("标讯B");
+        assertThat(result.bidOpening().get(0).targetId()).isEqualTo(20L);
+        assertThat(result.bidOpening().get(0).targetType()).isEqualTo("tender");
+        assertThat(result.bidOpening().get(1).name()).isEqualTo("标讯C");
+        assertThat(result.bidOpening().get(1).targetId()).isEqualTo(21L);
+        assertThat(result.bidOpening().get(1).targetType()).isEqualTo("tender");
+        // 开标不再需要解析 Project.name
+        verifyNoInteractions(projectRepository);
     }
 
     /**
