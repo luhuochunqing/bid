@@ -175,14 +175,15 @@ class WorkbenchProjectTodoQueryServiceTest {
     @Test
     void projectLeaderRole_excludesOtherManagersProjects_onlyReturnsMyProjects() {
         when(effectiveRoleResolver.resolveRoleCode(currentUser)).thenReturn(RoleProfileCatalog.SALES_CODE);
-        // 只返回当前用户的 1 个项目（pendingInitiation）
-        // 其他项目经理的 pendingInitiation/retrospective 不会出现在 findByManagerId(1L) 结果中
+        // findByManagerId(1L) 契约：只返回 managerId=1 的项目。
+        // 业务上"看不到别人的项目"由 SQL WHERE manager_id=? 保证，单测验证 service 层契约：
+        // 传入 userId=1L 时，只处理 mock 返回的项目，不访问其他 manager 的数据。
         when(projectRepository.findByManagerId(1L)).thenReturn(List.of(pendingInitiation));
         when(bidDocumentReviewRepository.findByReviewerIdAndStatus(1L, "REVIEWING")).thenReturn(List.of());
 
         List<ProjectDTO> result = service.getWorkbenchTodos(userDetails);
 
-        // 只包含 15L（自己的待立项项目），不含 10L（别人的已立项）或 40L（别人的待结项）
+        // 只包含 15L（mock 返回的待立项项目）
         assertThat(result).hasSize(1);
         assertThat(result).extracting(ProjectDTO::getId).containsExactly(15L);
         assertThat(result.get(0).getTodoLabel()).isEqualTo("待立项");
