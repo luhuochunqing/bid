@@ -371,7 +371,7 @@ class ProjectQueryServiceTest {
     // ===== revenue 回归 !564：客户营收字段映射错乱（详情页值丢失 + 列表显示 MRO 流水金额） =====
 
     @Test
-    @DisplayName("revenue 回归 !564：立项表 annualRevenue 有值时应正确填充 dto.revenue（客户营收）")
+    @DisplayName("revenue 回归 d1994a3fa：立项表 annualRevenue 有值时应正确填充 dto.revenue（客户营收）")
     @SuppressWarnings("deprecation")
     void shouldPopulateRevenueFromInitiationAnnualRevenue() {
         Project project = project(1L, 99L);
@@ -404,7 +404,7 @@ class ProjectQueryServiceTest {
     }
 
     @Test
-    @DisplayName("revenue 回归 !564：det.annualRevenue 为空时 fallback 到 eval.basic.customerRevenue")
+    @DisplayName("revenue 回归 d1994a3fa：det.annualRevenue 为空时 fallback 到 eval.basic.customerRevenue")
     void shouldFallbackRevenueToEvaluationCustomerRevenueWhenInitiationHasNoAnnualRevenue() {
         Project project = project(2L, 99L);
         project.setTenderId(7L);
@@ -415,7 +415,7 @@ class ProjectQueryServiceTest {
 
         ProjectInitiationDetails details = new ProjectInitiationDetails();
         details.setProjectId(2L);
-        // annualRevenue 为空；annualEcommerceAmount 有值（!564 bug 会错误取这个）
+        // annualRevenue 为空；annualEcommerceAmount 有值（d1994a3fa bug 会错误取这个）
         details.setAnnualEcommerceAmount(new BigDecimal("999.9"));
         when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(2L)))
                 .thenReturn(List.of(details));
@@ -444,7 +444,7 @@ class ProjectQueryServiceTest {
     }
 
     @Test
-    @DisplayName("revenue 回归 !564：det.annualEcommerceAmount（MRO 流水）绝不能污染 dto.revenue（客户营收）")
+    @DisplayName("revenue 回归 d1994a3fa：det.annualEcommerceAmount（MRO 流水）绝不能污染 dto.revenue（客户营收）")
     @SuppressWarnings("deprecation")
     void shouldNotPolluteRevenueWithAnnualEcommerceAmount() {
         Project project = project(3L, 99L);
@@ -472,7 +472,73 @@ class ProjectQueryServiceTest {
         List<ProjectDTO> result = service.getAllProjects();
 
         assertThat(result).hasSize(1);
-        // 关键回归断言：MRO 流水不能进入 revenue 字段（!564 bug 会让 revenue=777.7）
+        // 关键回归断言：MRO 流水不能进入 revenue 字段（d1994a3fa bug 会让 revenue=777.7）
         assertThat(result.get(0).getRevenue()).isNull();
+    }
+
+    @Test
+    @DisplayName("revenue 优先级：det.annualRevenue 和 eval.customerRevenue 同时有值时，det.annualRevenue 优先")
+    @SuppressWarnings("deprecation")
+    void shouldPreferInitiationAnnualRevenueOverEvaluationCustomerRevenueWhenBothPresent() {
+        Project project = project(4L, 99L);
+        project.setTenderId(7L);
+        when(projectRepository.findAll()).thenReturn(List.of(project));
+        when(projectAccessScopeService.filterAccessibleProjects(any()))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(demoModeService.isEnabled()).thenReturn(false);
+
+        ProjectInitiationDetails details = new ProjectInitiationDetails();
+        details.setProjectId(4L);
+        details.setAnnualRevenue(new BigDecimal("12.5")); // det 优先
+        when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(4L)))
+                .thenReturn(List.of(details));
+        when(projectLeadAssignmentRepository.findByProjectIdIn(List.of(4L)))
+                .thenReturn(List.of());
+
+        TenderEvaluationBasic basic = TenderEvaluationBasic.builder()
+                .customerRevenue(new BigDecimal("99.9")) // fallback 不应触发
+                .build();
+        TenderEvaluation eval = TenderEvaluation.builder()
+                .tenderId(7L)
+                .basic(basic)
+                .build();
+        when(tenderEvaluationRepository.findByTenderIdIn(List.of(7L)))
+                .thenReturn(List.of(eval));
+        when(userRepository.findByIdIn(Set.of(99L))).thenReturn(List.of());
+        when(managerDepartmentEnricher.buildManagerDepartmentMap(eq(Set.of(99L)), any()))
+                .thenReturn(Map.of());
+
+        ProjectQueryService service = createService();
+        List<ProjectDTO> result = service.getAllProjects();
+
+        assertThat(result).hasSize(1);
+        // 优先级断言：det.annualRevenue 胜出，eval.customerRevenue 不覆盖
+        assertThat(result.get(0).getRevenue()).isEqualByComparingTo(new BigDecimal("12.5"));
+    }
+
+    @Test
+    @DisplayName("revenue 已有值保护：dto.revenue 非 null 时，det.annualRevenue 不应覆盖")
+    @SuppressWarnings("deprecation")
+    void shouldNotOverrideRevenueWhenDtoAlreadyHasValue() {
+        ProjectInitiationDetails details = new ProjectInitiationDetails();
+        details.setProjectId(5L);
+        details.setAnnualRevenue(new BigDecimal("12.5")); // 不应被采用
+        when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(5L)))
+                .thenReturn(List.of(details));
+        when(projectLeadAssignmentRepository.findByProjectIdIn(List.of(5L)))
+                .thenReturn(List.of());
+
+        // 直接构造已带 revenue 的 DTO（模拟其他来源已填充的场景）
+        ProjectDTO preFilledDto = ProjectDTO.builder()
+                .id(5L)
+                .managerId(99L)
+                .revenue(new BigDecimal("888.8"))
+                .build();
+
+        ProjectQueryService service = createService();
+        service.enrichSingle(preFilledDto);
+
+        // 已有值保护断言：revenue 保持原值，不被 det.annualRevenue 覆盖
+        assertThat(preFilledDto.getRevenue()).isEqualByComparingTo(new BigDecimal("888.8"));
     }
 }

@@ -174,7 +174,12 @@ public class ProjectInitiationMapper {
                 .ownerUnit(e.getOwnerUnit()).expectedBidders(e.getExpectedBidders())
                 .contractPeriodMonths(e.getContractPeriodMonths())
                 .projectType(e.getProjectType()).customerType(e.getCustomerType())
-                .annualRevenue(e.getAnnualRevenue()).annualEcommerceAmount(e.getAnnualEcommerceAmount())
+                .annualRevenue(e.getAnnualRevenue())
+                // customerRevenue 与 annualRevenue 共用同一存储列 annual_revenue，
+                // 前端 form.customerRevenue 直接消费本字段，不再需要前端 hack 映射。
+                // 参见 d1994a3fa 回归教训（lessons §74）。
+                .customerRevenue(e.getAnnualRevenue())
+                .annualEcommerceAmount(e.getAnnualEcommerceAmount())
                 .bidOpenTime(e.getBidOpenTime()).bidMonth(e.getBidMonth())
                 .ownerUserId(e.getOwnerUserId()).departmentSnapshot(e.getDepartmentSnapshot())
                 .depositAmount(e.getDepositAmount()).depositPaymentMethod(e.getDepositPaymentMethod())

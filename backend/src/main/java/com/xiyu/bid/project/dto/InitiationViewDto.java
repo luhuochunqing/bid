@@ -29,6 +29,13 @@ public class InitiationViewDto {
     /** @deprecated superseded by customerRevenue (评估表客户营收字段) */
     @Deprecated
     private BigDecimal annualRevenue;
+    /**
+     * 客户营收（亿）—— 与评估表 BasicFieldsSection.vue 客户营收（亿）对齐。
+     * 值来自 {@link com.xiyu.bid.project.entity.ProjectInitiationDetails#getAnnualRevenue()}
+     * （@Deprecated 字段，但仍是立项表客户营收的唯一存储列）。
+     * 保留 annualRevenue 仅供旧客户端向后兼容，新代码应使用本字段。
+     */
+    private BigDecimal customerRevenue;
     /** 年度电商采购额(万)。蓝图 §3.3.1.1 新增。 */
     private BigDecimal annualEcommerceAmount;
     private LocalDateTime bidOpenTime;

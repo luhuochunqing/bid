@@ -5551,4 +5551,4 @@ commit message 写的是"ProjectQueryService 的 getAnnualRevenue() 调用点同
 
 - [ARCHITECTURE.md](../../ARCHITECTURE.md) — FP-Java 字段映射规范
 - [RELIABILITY.md](../../RELIABILITY.md) — 14 道门禁（本 PR 因 ProjectQueryServiceTest 未覆盖 revenue 字段赋值，CI 未拦住）
-- 第 73 节 — Review PR 必须看 commit vs parent 的实际 diff（本次定位 !564 时也用了 `git log -S` 字符串追踪）
+- 第 73 节 — Review PR 必须看 commit vs parent 的实际 diff（本次定位 d1994a3fa 时也用了 `git log -S` 字符串追踪）

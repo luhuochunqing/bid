@@ -95,9 +95,7 @@ public class ProjectQueryService {
         return mergeDemoProjectsIfNeeded(projects);
     }
 
-    @SuppressWarnings("deprecation")
-    // det.getAnnualRevenue() 是 @Deprecated 字段（由 evaluation.customerRevenue 取代），
-    // 但列表填充仍需读取它作为 fallback；禁止改字段名（参见 !564 回归教训）。
+    @SuppressWarnings("deprecation") // det.getAnnualRevenue() 是 @Deprecated，立项表客户营收存储列（lessons §76）
     private void enrichWithTenderAndDetails(
             final List<ProjectDTO> projects) {
         List<Long> ids = projects.stream()

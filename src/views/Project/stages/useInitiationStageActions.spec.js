@@ -134,17 +134,21 @@ describe('useInitiationStageActions.submit — CO-540 保证金缴纳截止日�
   })
 })
 
-describe('useInitiationStageActions.load — 客户营收字段回填（回归 !564）', () => {
+describe('useInitiationStageActions.load — 客户营收字段回填（回归 d1994a3fa）', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  // 后端 InitiationViewDto 只有 annualRevenue（@Deprecated），无 customerRevenue；
-  // 前端 form.customerRevenue 必须从 data.annualRevenue 回填，否则详情页"客户营收"输入框显示 0。
-  it('data.annualRevenue 有值时应回填到 form.customerRevenue', async () => {
+  // 后端 InitiationViewDto 同时返回 annualRevenue（@Deprecated，向后兼容）
+  // 和 customerRevenue（新字段，值同 annualRevenue）。
+  // 前端 form.customerRevenue 直接消费 data.customerRevenue，无需 hack 映射。
+  // 详情见 d1994a3fa 回归教训（lessons §74）。
+
+  it('data.customerRevenue 有值时应直接回填到 form.customerRevenue（覆盖初始 0）', async () => {
     const { actions, form, projectLifecycleApi } = setup({
       ownerUnit: '测试单位',
       customerType: 'CENTRAL_SOE',
+      // form 初始值 customerRevenue: 0（与 InitiationStage.vue:225 一致）
     })
     projectLifecycleApi.getInitiation.mockResolvedValue({
       data: {
@@ -152,21 +156,21 @@ describe('useInitiationStageActions.load — 客户营收字段回填（回归 !
         ownerUnit: '测试单位',
         customerType: 'CENTRAL_SOE',
         annualRevenue: 12.5,
-        // 后端不返回 customerRevenue（InitiationViewDto 无此字段）
+        customerRevenue: 12.5,
       },
     })
 
     await actions.load()
 
+    // 关键回归断言：form.customerRevenue 必须被后端值覆盖，不能停留在初始 0
     expect(form.customerRevenue).toBe(12.5)
     expect(form.annualRevenue).toBe(12.5)
   })
 
-  it('data.annualRevenue 为空时不应覆盖 form.customerRevenue 已有值', async () => {
+  it('data.customerRevenue 为 null 时 form.customerRevenue 回退为 null（覆盖初始 0）', async () => {
     const { actions, form, projectLifecycleApi } = setup({
       ownerUnit: '测试单位',
       customerType: 'CENTRAL_SOE',
-      customerRevenue: 99.9,
     })
     projectLifecycleApi.getInitiation.mockResolvedValue({
       data: {
@@ -174,32 +178,13 @@ describe('useInitiationStageActions.load — 客户营收字段回填（回归 !
         ownerUnit: '测试单位',
         customerType: 'CENTRAL_SOE',
         annualRevenue: null,
+        customerRevenue: null,
       },
     })
 
     await actions.load()
 
-    // 已有值不应被 null 覆盖
-    expect(form.customerRevenue).toBe(99.9)
-  })
-
-  it('data.annualRevenue 与 form.customerRevenue 同时为 null 时保持 null', async () => {
-    const { actions, form, projectLifecycleApi } = setup({
-      ownerUnit: '测试单位',
-      customerType: 'CENTRAL_SOE',
-      customerRevenue: null,
-    })
-    projectLifecycleApi.getInitiation.mockResolvedValue({
-      data: {
-        projectId: 1,
-        ownerUnit: '测试单位',
-        customerType: 'CENTRAL_SOE',
-        annualRevenue: null,
-      },
-    })
-
-    await actions.load()
-
+    // Object.assign 会用 null 覆盖初始 0，符合"无值即空"语义
     expect(form.customerRevenue).toBeNull()
   })
 })
