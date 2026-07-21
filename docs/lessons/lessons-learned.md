@@ -5803,3 +5803,75 @@ PR !2178 假设的根因：
 - PR !2178 — 错误根因分析的修复方案（已驳回）
 - PR !2179 — 真正根因修复方案（进行中）
 - CO-373 — 角色码统一解析入口治理（5 次反复修复的根因）
+
+## 79. E2E 测试修复 5 大踩坑模式——端口 fallback、strict mode violation、权限重定向、selector 过期、路由路径漂移（2026-07-21 / 5 个 spec 修复 / PR !2181）
+
+### 事故背景
+
+延续 PR !2176（E2E stale roles 修复），剩余 5 个 spec 持续失败：`workbench-quick-start`、`project-evaluation-flow`、`form-engine-adaptive-flow`、`knowledge-case-precipitation-flow`、`project-result-confirm-competitor-flow`。初次分析归因为"H13 token missing"被用户指正，实际只有 1.6% 与 H13 相关。本次 PR !2181 完成全部 5 个 spec 修复（22 passed, 10 skipped）。
+
+### 5 大踩坑模式
+
+#### 模式 1：端口 fallback 与 CLAUDE.md 约定不一致（影响全部 spec）
+
+- `e2e/auth-helpers.js` 中 `apiBaseUrl` fallback 为 `18080`，但 CLAUDE.md 约定后端端口为 `18089`
+- `playwright.config.js` 中 `baseURL` fallback 为 `1314`，但 CLAUDE.md 约定前端端口为 `1323`
+- **根因**：历史多 Agent worktree 时期分配的独立端口（claude=1315/18081, codex=1316/18082, ...）已在 2026-06-21 统一到主工作区后失效，但 fallback 值未同步更新
+- **修复**：fallback 值对齐 CLAUDE.md §端口约定（18089 / 1323）
+- **防御规范**：端口 fallback 变更必须同步更新 `e2e/auth-helpers.js` + `playwright.config.js`，且与 CLAUDE.md §端口约定保持一致
+
+#### 模式 2：Playwright strict mode violation——子串匹配陷阱
+
+- `project-evaluation-flow.spec.js` 中 `page.locator('.status-chip').filter({ hasText: '评标结果已出' })` 匹配了 2 个元素：
+  1. `评标结果已出，待上会`（包含子串"评标结果已出"）
+  2. `评标结果已出`（完全匹配）
+- Playwright strict mode 下，locator 匹配多个元素时直接抛错，不会自动选择第一个
+- **修复**：改用 `page.getByText('评标结果已出', { exact: true })` 精确匹配
+- **通用规则**：当选项文本存在包含关系时（如"评标结果已出"是"评标结果已出，待上会"的子串），**禁止**用 `filter({ hasText })`，必须用 `getByText(text, { exact: true })`
+
+#### 模式 3：跨角色 E2E 测试未把用户加入 teamMembers 导致权限重定向
+
+- `project-evaluation-flow.spec.js` test #2 用 bid-Team 角色访问 admin 创建的项目，被重定向到 `/notifications`
+- **根因**：后端 ProjectAccessScopeService 检查项目访问权限，bid-Team 用户不在 teamMembers 列表中时无权访问，前端路由守卫检测到 403 后重定向到通知中心
+- **修复**：`createEvaluationProject` 新增 `extraTeamMembers` 参数，把 staff 用户 ID 加入项目 teamMembers
+- **通用规则**：跨角色权限测试必须确保被测试用户在项目的 teamMembers/managerId 中，否则会被权限守卫拦截重定向
+
+#### 模式 4：CO-XXX 重构后 selector 过期未同步
+
+- `.page-kicker` → `.workbench`（Workbench.vue 重构后根 class 变更）
+- `.el-select` → `.status-chip`（CO-495 EvaluationStage 重构后状态选项从下拉改为 chip）
+- `.el-radio` → `.result-chip`（ResultConfirmStage 投标结果按钮）
+- `.stage-view` → `.result-stage`（ResultConfirmStage 根 class）
+- `.competitor-table .add-row-btn` → `page.locator('.add-row-btn')`（按钮是 table 的兄弟元素，不是子元素）
+- **根因**：CO-XXX 重构前端组件时，未同步更新 E2E 测试的 selector
+- **防御规范**：前端组件重构（特别是根 class、DOM 结构变更）必须同步检查 E2E 测试 selector，并在 PR 描述中标注"E2E 影响"
+
+#### 模式 5：前端路由路径漂移——E2E 测试硬编码路径与实际路由不一致
+
+- `project-evaluation-flow.spec.js`: `/project/:id/stages/evaluation` → `/project/:id/evaluation`（router 实际路径）
+- `form-engine-adaptive-flow.spec.js`: `/bidding/tender/create` → `/bidding/create`、`/bidding/list` → `/bidding`
+- `form-engine-adaptive-flow.spec.js`: 页面字段「标讯标题」→「项目名称」（TenderCreatePage.vue 实际字段）
+- **根因**：前端路由重构或页面字段调整后，E2E 测试硬编码的路径/字段未同步
+- **防御规范**：E2E 测试路径必须从 `src/router/index.js` 验证，字段名必须从实际 Vue 组件验证，禁止凭文档/记忆硬编码
+
+### 防御规范（汇总）
+
+1. **端口 fallback 对齐**：`e2e/auth-helpers.js` + `playwright.config.js` 的 fallback 值必须与 CLAUDE.md §端口约定一致
+2. **selector 子串陷阱**：选项文本存在包含关系时，禁止 `filter({ hasText })`，必须用 `getByText(text, { exact: true })`
+3. **跨角色权限测试**：被测试用户必须在项目的 teamMembers/managerId 中，否则会被权限守卫重定向
+4. **CO-XXX 重构同步**：前端组件根 class/DOM 结构变更必须同步检查 E2E selector
+5. **路由路径验证**：E2E 路径必须从 `src/router/index.js` 验证，字段名必须从实际 Vue 组件验证
+
+### 处置记录
+
+- 修复 commit: `7c0be5e2b`
+- PR !2181: https://gitee.com/allinai888/bid/pulls/2181（squash 合并，sha=`bec8511b43`）
+- 验证结果：22 passed, 10 skipped（5 个 spec 全部通过）
+
+### 相关文档
+
+- PR !2176 — 前序 E2E stale roles 修复（已合并）
+- PR !2181 — 本次 5 个剩余失败 spec 修复
+- [CLAUDE.md](../../CLAUDE.md) §端口约定 — 后端 18089 / 前端 1323
+- EvaluationStage.vue — CO-495/CO-550/CO-571 重构后的实际 DOM 结构
+- ResultConfirmStage.vue — 投标结果 chip + 竞争对手表结构
