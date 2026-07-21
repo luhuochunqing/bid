@@ -10,7 +10,7 @@ import java.util.Optional;
  *
  * @param cachedRoleCode      OSS 缓存中的角色码（cache miss 时为 empty）
  * @param cachedMenuPermissions OSS 缓存中的菜单权限列表（cache miss 时为 empty）
- * @param localSystemAccount  是否为本地 admin 系统内置账户（允许 DB fallback）
+ * @param localSystemAccount  是否为本地非 OSS 账户（admin + /bidAdmin + bid-TeamLeader 等，允许 DB fallback）
  */
 record ResolvedRoleSource(
         Optional<String> cachedRoleCode,

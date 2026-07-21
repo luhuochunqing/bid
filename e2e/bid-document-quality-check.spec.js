@@ -7,7 +7,7 @@ test.describe('AI标书质量核查', () => {
   test.beforeEach(async ({ page }) => {
     session = await ensureApiSession({
       username: `quality_check_${Date.now()}`,
-      role: 'BIDADMIN',
+      role: '/bidAdmin',
       fullName: '质量核查测试'
     })
     await injectSession(page, session)
@@ -92,7 +92,7 @@ test.describe('AI标书质量核查', () => {
     // 使用无权限用户登录（STAFF 角色）
     const staffSession = await ensureApiSession({
       username: `quality_check_staff_${Date.now()}`,
-      role: 'STAFF',
+      role: 'bid-otherDept',
       fullName: '无权限用户'
     })
     await injectSession(page, staffSession)

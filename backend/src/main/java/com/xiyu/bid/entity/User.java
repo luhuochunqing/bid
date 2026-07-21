@@ -172,8 +172,8 @@ public class User {
      *   <li>登录响应装配（{@code AuthResponse}）— 仅作为 SSO/登录契约字段</li>
      *   <li>MDC 日志上下文（{@code TraceFilter}）— 仅用于链路追踪</li>
      *   <li>{@code DataScopeConfigService.isLocalSystemAccount} 内部判定 —
-     *       通过 {@code externalOrgSourceApp} + {@code ADMIN_CODE} 双重条件确认本地账户</li>
-     *   <li>{@code DataScopeConfigService.getRoleCode} 自身实现 — admin 本地账户 cache miss 时回退</li>
+     *       通过 {@code externalOrgSourceApp} 是否为空确认本地非 OSS 账户</li>
+     *   <li>{@code DataScopeConfigService.getRoleCode} 自身实现 — 本地非 OSS 账户 cache miss 时回退</li>
      *   <li>{@code EffectiveRoleResolver} 内部读取 entityRoleCode 用于缓存对比决策</li>
      * </ol>
      *

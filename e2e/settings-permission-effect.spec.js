@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
+import { ensureApiSession, injectSession, apiBaseUrl, defaultPassword } from './auth-helpers.js'
 
-const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18080'
-const password = process.env.COMMERCIAL_E2E_PASSWORD || 'XiyuDemo!2026'
+const password = defaultPassword
 
 async function requestJson(url, options = {}) {
   const response = await fetch(url, options)
@@ -26,76 +26,20 @@ async function adminRequest(path, token, options = {}) {
   })
 }
 
-async function ensureSession({ username, role, fullName }) {
-  const email = `${username}@example.com`
-
-  try {
-    await requestJson(`${apiBaseUrl}/api/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username,
-        password,
-        email,
-        fullName,
-        roleCode: String(role || '').toLowerCase()
-      })
-    })
-  } catch (error) {
-    if (!String(error.message).includes('409') && !String(error.message).includes('already exists')) {
-      throw error
-    }
-  }
-
-  const payload = await requestJson(`${apiBaseUrl}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password })
-  })
-
-  if (!payload?.success || !payload?.data?.token || !payload?.data?.id) {
-    throw new Error('Backend login response missing token or user identity')
-  }
-
-  return {
-    token: payload.data.token,
-    refreshToken: payload.data.refreshToken || null,
-    user: {
-      id: payload.data.id,
-      name: payload.data.fullName || payload.data.username,
-      username: payload.data.username,
-      email: payload.data.email,
-      role: String(payload.data.roleCode || payload.data.role || '').toLowerCase(),
-      roleName: payload.data.roleName || '',
-      menuPermissions: Array.isArray(payload.data.menuPermissions) ? payload.data.menuPermissions : []
-    }
-  }
-}
-
-async function setSession(page, session) {
-  await page.addInitScript(({ currentSession }) => {
-    sessionStorage.setItem('token', currentSession.token)
-    if (currentSession.refreshToken) {
-      sessionStorage.setItem('refreshToken', currentSession.refreshToken)
-    }
-    sessionStorage.setItem('user', JSON.stringify(currentSession.user))
-  }, { currentSession: session })
-}
-
 test('api settings page supports custom roles and still blocks managers from admin routes', async ({ page, context }) => {
   const suffix = Date.now()
-  const adminSession = await ensureSession({
+  const adminSession = await ensureApiSession({
     username: `settings_admin_${suffix}`,
     role: '/bidAdmin',
     fullName: 'Settings Admin'
   })
-  const managerSession = await ensureSession({
+  const managerSession = await ensureApiSession({
     username: `settings_manager_${suffix}`,
-    role: 'MANAGER',
+    role: '/bidAdmin',
     fullName: 'Settings Manager'
   })
 
-  await setSession(page, adminSession)
+  await injectSession(page, adminSession)
   await page.goto('/settings')
 
   await expect(page).toHaveURL(/\/settings$/)
@@ -126,25 +70,26 @@ test('api settings page supports custom roles and still blocks managers from adm
       password,
       fullName: 'Custom Role User',
       email: `${customUsername}@example.com`,
+      employeeNumber: `emp_${suffix}`,
       roleId: createdRole.data.id,
       enabled: true
     })
   })
 
-  const customSession = await ensureSession({
+  const customSession = await ensureApiSession({
     username: customUsername,
-    role: 'staff',
+    role: 'bid-otherDept',
     fullName: 'Custom Role User'
   })
   const customPage = await context.newPage()
-  await setSession(customPage, customSession)
+  await injectSession(customPage, customSession)
   await customPage.goto('/dashboard')
   await expect(customPage.getByText('工作台').first()).toBeVisible()
   await expect(customPage.getByText('投标项目').first()).toBeHidden()
   await expect(customPage.getByText('知识库').first()).toBeHidden()
 
   const managerPage = await context.newPage()
-  await setSession(managerPage, managerSession)
+  await injectSession(managerPage, managerSession)
   await managerPage.goto('/settings')
 
   // Manager stays on /settings (backend permission allows this) or redirects  // @ui-cover:settings

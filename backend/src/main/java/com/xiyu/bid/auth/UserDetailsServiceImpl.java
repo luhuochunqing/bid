@@ -164,9 +164,9 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                     RoleProfileCatalog.shouldSkipLegacyRoleCompat(resolvedRoleCode));
         }
 
-        // SAFE: 本地系统账号（admin 等）在 OSS 缓存未命中时登录。此场景下 OSS 缓存没有，
-        // 必须使用本地 DB roleCode 才能让管理员登录。上方分支已显式拒绝 OSS 用户的 DB 兜底，
-        // 此分支只对 admin 本地账号生效（与 DataScopeConfigService.isLocalSystemAccount 一致）。
+        // SAFE: 本地非 OSS 账户（admin + /bidAdmin + bid-TeamLeader 等）在 OSS 缓存未命中时登录。
+        // 此场景下 OSS 缓存没有，必须使用本地 DB roleCode 才能让用户登录。上方分支已显式拒绝 OSS 用户的 DB 兜底，
+        // 此分支对所有非 OSS 本地账户生效（与 DataScopeConfigService.isLocalSystemAccount 一致）。
         // 本地账号由用户表 unique key + 密码哈希独立验证，不会触发 CO-373 的 OSS fallback 问题。
         // EffectiveRoleResolver.resolve 对本地用户返回 LOCAL_USER + entityRoleCode（user.getRoleCode()）；
         // 极少数情况 roleCode 为 null（roleProfile 为 null 且 entity 回退 manager）→ 这里继续兜底。

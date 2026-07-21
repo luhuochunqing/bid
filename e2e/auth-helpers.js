@@ -8,7 +8,8 @@
 // 浏览器内注入 access_token cookie + user hint (前端走 cookie 认证, 读 storage user).
 
 const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18080'
-const frontendBaseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:1314'
+// 默认值与 CLAUDE.md 端口约定对齐：前端 1323 / 后端 18089（仅作 fallback，正常应通过 PLAYWRIGHT_BASE_URL 传入）
+const frontendBaseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:1323'
 const defaultPassword = process.env.COMMERCIAL_E2E_PASSWORD || 'XiyuDemo!2026'
 
 async function requestJson(url, options = {}) {
@@ -52,7 +53,8 @@ function extractUser(data) {
     name: data.fullName || data.username,
     username: data.username,
     email: data.email,
-    role: String(data.role || '').toLowerCase()
+    // RoleProfile code 大小写敏感（如 /bidAdmin、bid-Team），不能 toLowerCase
+    role: String(data.role || '')
   }
 }
 
