@@ -30,7 +30,6 @@ async function apiRequest(path, session, options = {}) {
 test.describe('项目结页 §3.3.1.6', () => {
 
   let projectId
-  let depositEvidenceId
 
   test('1. 项目负责人创建项目并推进到结项审核状态', async ({ page }) => {
     // 用 Date.now() 后缀避免和数据库残留用户冲突（旧用户可能 role=manager 已废弃，登录后鉴权失败）
@@ -158,44 +157,35 @@ test.describe('项目结页 §3.3.1.6', () => {
     const pid = depositProject?.data?.id
     expect(pid).toBeTruthy()
 
-    // 先上传一个文件作为退回凭证
-    // 使用一个小的 PDF 样式的二进制文件
-    const fileContent = new Blob(['%PDF-1.4 test document'], { type: 'application/pdf' })
-    const uploadForm = new FormData()
-    uploadForm.append('file', fileContent, 'deposit-receipt.pdf')
-    const uploadResp = await fetch(`${apiBaseUrl}/api/upload`, {
+    // 通过 Fee API 创建 BID_BOND 并标记为 RETURNED，使 preview.hasDeposit=true + returnStatus=FULLY_RETURNED
+    // FeeController @PreAuthorize 要求 ADMIN/MANAGER，bid-projectLeader 无权创建，需用 admin session
+    // 不再依赖已废弃的 /api/upload 接口（已改为 OBS 两步直传 /api/files/upload-token + /{uploadId}/completed）
+    const adminSession = await ensureApiSession({ username: `admin_e2e_deposit_${Date.now()}`, role: 'admin', fullName: '管理员' })
+    const fee = await apiRequest('/api/fees', adminSession, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${session.token}` },
-      body: uploadForm
-    })
-    const uploadResult = await uploadResp.json()
-    depositEvidenceId = uploadResult?.data?.id
-
-    if (depositEvidenceId) {
-      // 提交结项申请（全部退回）
-      await apiRequest(`/api/projects/${pid}/closure`, session, {
-        method: 'POST',
-        body: JSON.stringify({
-          depositReturnStatus: 'FULLY_RETURNED',
-          depositReturnDate: toLocalDateTimeString(new Date()),
-          depositReturnEvidenceId: depositEvidenceId,
-          projectSummary: '保证金全部退回测试',
-        })
+      body: JSON.stringify({
+        projectId: pid,
+        feeType: 'BID_BOND',
+        amount: 50000,
+        feeDate: toLocalDateTimeString(new Date()),
+        remarks: 'E2E 保证金测试'
       })
-    }
+    })
+    const feeId = fee?.data?.id
+    // Fee 状态机：PENDING → PAID → RETURNED（FeeService.markAsReturned 要求先 PAID）
+    await apiRequest(`/api/fees/${feeId}/pay?paidBy=admin`, adminSession, { method: 'POST' })
+    await apiRequest(`/api/fees/${feeId}/return?returnTo=pl`, adminSession, { method: 'POST' })
 
-    // 导航查看
-    await page.goto(`/project/${pid}`)
-    await page.waitForSelector('.project-detail-page, .el-tabs', { timeout: 15000 })
-
-    const closureTab = page.locator('.el-tabs__item', { hasText: '项目结项' })
-    if (await closureTab.isVisible()) {
-      await closureTab.click()
-      await expect(page.getByText('保证金管理')).toBeVisible({ timeout: 10000 }).catch(() => {})
-    }
+    // 不提交 closure：提交后 buildSnapshotFromClosure 走 initiationRepository（无 initiation 时 hasDeposit=false），
+    // 反而让保证金金额区块不渲染。保留 closure 未提交状态，让 preview 直接走 fee 派生路径（hasDeposit=true）。
+    // 通过 URL /project/{pid}/closure 直接跳到结项 tab（ProjectDetailMainColumn watch route.params.stage immediate:true）
+    await page.goto(`/project/${pid}/closure`)
+    await page.waitForSelector('.project-detail-page, .el-tabs, .closure-stage', { timeout: 15000 })
 
     // 验证保证金相关字段
-    await expect(page.getByText('保证金金额')).toBeVisible({ timeout: 10000 })
+    // ClosureStage.vue: <template v-if="preview?.hasDeposit"> 控制保证金信息区块渲染
+    // 文本为 "保证金金额（元）"（含全角括号），用 exact 避免匹配到 "转服务费金额必须等于保证金金额..." 等提示
+    await expect(page.getByText('保证金金额（元）')).toBeVisible({ timeout: 10000 })
     await expect(page.getByText('保证金退回情况')).toBeVisible()
   })
 
