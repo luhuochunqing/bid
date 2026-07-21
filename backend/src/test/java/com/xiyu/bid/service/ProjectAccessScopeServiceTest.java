@@ -427,13 +427,52 @@ class ProjectAccessScopeServiceTest {
 
     @Test
     void currentUserHasGlobalAccess_shouldShortCircuit_whenRoleAdminAuthority() {
-        // Spring Security ROLE_ADMIN authority 短路（不查 User/roleCode）
+        // §78 修复 4：ROLE_ADMIN authority 不再无条件短路，需校验不是 OSS 用户
+        // 本地 admin 用户（externalOrgSourceApp 为空）→ 通过
+        User localAdmin = User.builder()
+                .id(800L)
+                .username("sys-admin")
+                .role(User.Role.ADMIN)
+                .enabled(true)
+                .build();
+        when(userRepository.findByUsername("sys-admin")).thenReturn(Optional.of(localAdmin));
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken("sys-admin", "N/A",
                         List.of(new SimpleGrantedAuthority("ROLE_ADMIN")))
         );
-        // 故意不 stub userRepository —— 短路应跳过 User 查询
         assertThat(projectAccessScopeService.currentUserHasGlobalAccess()).isTrue();
+    }
+
+    @Test
+    void currentUserHasGlobalAccess_shouldReturnFalse_whenOssUserHasRoleAdminAuthority() {
+        // §78 修复 4 深度防御：OSS 用户即使 authorities 含 ROLE_ADMIN 也不能获得 admin 绕过
+        // 场景：修复 1+2 已从源头阻断 OSS 用户拿到 ROLE_ADMIN，但万一通过其他路径拿到，此处独立兜底
+        User ossUser = User.builder()
+                .id(801L)
+                .username("oss-user-admin")
+                .role(User.Role.MANAGER)
+                .enabled(true)
+                .externalOrgSourceApp("OSS")
+                .build();
+        when(userRepository.findByUsername("oss-user-admin")).thenReturn(Optional.of(ossUser));
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("oss-user-admin", "N/A",
+                        List.of(new SimpleGrantedAuthority("ROLE_ADMIN")))
+        );
+        assertThat(projectAccessScopeService.currentUserHasGlobalAccess()).isFalse();
+    }
+
+    @Test
+    void currentUserHasGlobalAccess_shouldReject_whenUserRoleNotFound() {
+        // §78 修复 4：User 表查不到（用户已被删除等）→ hasAdminAccess 返回 false，
+        // 然后走 resolveCurrentUser，再查不到 → 抛 AccessDeniedException
+        when(userRepository.findByUsername("ghost-user")).thenReturn(Optional.empty());
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken("ghost-user", "N/A",
+                        List.of(new SimpleGrantedAuthority("ROLE_ADMIN")))
+        );
+        assertThatThrownBy(() -> projectAccessScopeService.currentUserHasGlobalAccess())
+                .isInstanceOf(AccessDeniedException.class);
     }
 
     @Test

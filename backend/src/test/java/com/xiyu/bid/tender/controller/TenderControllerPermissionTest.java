@@ -18,13 +18,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TenderControllerPermissionTest {
 
     @Test
-    @DisplayName("2.2 手动录入 createTender：5 个业务角色 + 管理员（文档：含项目负责人）")
+    @DisplayName("2.2 手动录入 createTender：5 个业务角色 + 管理员 + 投标系统管理员（文档：含项目负责人）")
     void createTender_allowsSalesStaffToSubmitTenderInformation() throws NoSuchMethodException {
         PreAuthorize annotation = TenderController.class
                 .getMethod("createTender", TenderRequest.class, UserDetails.class)
                 .getAnnotation(PreAuthorize.class);
 
-        assertThat(annotation.value()).isEqualTo("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM', 'SALES')");
+        // §78 修复 3：BID_SYSTEMADMIN 加入 @PreAuthorize 列表，与 RoleProfileCatalog.GLOBAL_ACCESS_ROLES 对齐
+        assertThat(annotation.value()).isEqualTo("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM', 'SALES', 'BID_SYSTEMADMIN')");
     }
 
     @Test
@@ -35,7 +36,8 @@ class TenderControllerPermissionTest {
                 .getAnnotation(PreAuthorize.class);
 
         String value = annotation.value();
-        assertThat(value).isEqualTo("hasAnyAuthority('bidding', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN', 'ROLE_BID_TEAM')");
+        // §78 修复 3：ROLE_BID_SYSTEMADMIN 加入列表（投标系统管理员可批量导入）
+        assertThat(value).isEqualTo("hasAnyAuthority('bidding', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN', 'ROLE_BID_TEAM', 'ROLE_BID_SYSTEMADMIN')");
         // 显式断言不含项目负责人（BID_PROJECTLEADER 和 SALES）
         assertThat(value).doesNotContain("BID_PROJECTLEADER", "SALES");
     }
@@ -48,7 +50,8 @@ class TenderControllerPermissionTest {
                 .getAnnotation(PreAuthorize.class);
 
         String value = annotation.value();
-        assertThat(value).isEqualTo("hasAnyAuthority('bidding', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN', 'ROLE_BID_TEAM')");
+        // §78 修复 3：ROLE_BID_SYSTEMADMIN 加入列表（投标系统管理员可下载导入模板）
+        assertThat(value).isEqualTo("hasAnyAuthority('bidding', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN', 'ROLE_BID_TEAM', 'ROLE_BID_SYSTEMADMIN')");
         assertThat(value).doesNotContain("BID_PROJECTLEADER", "SALES");
     }
 
@@ -58,7 +61,8 @@ class TenderControllerPermissionTest {
                 .getMethod("updateTender", Long.class, TenderRequest.class, UserDetails.class)
                 .getAnnotation(PreAuthorize.class);
 
-        assertThat(annotation.value()).isEqualTo("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'SALES')");
+        // §78 修复 3：BID_SYSTEMADMIN 加入 @PreAuthorize 列表
+        assertThat(annotation.value()).isEqualTo("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'SALES', 'BID_SYSTEMADMIN')");
     }
 
     @Test
@@ -67,7 +71,8 @@ class TenderControllerPermissionTest {
                 .getMethod("deleteTender", Long.class, UserDetails.class)
                 .getAnnotation(PreAuthorize.class);
 
-        assertThat(annotation.value()).isEqualTo("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'SALES')");
+        // §78 修复 3：BID_SYSTEMADMIN 加入 @PreAuthorize 列表
+        assertThat(annotation.value()).isEqualTo("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'SALES', 'BID_SYSTEMADMIN')");
     }
 
     @Test

@@ -4,8 +4,6 @@ import com.xiyu.bid.entity.RoleProfileCatalog;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.Set;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -15,8 +13,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * OSS 返回的多系统 sysRoleList 中包含其他系统（Home/CRM/SCM 等）的 admin 角色码，
  * 不应被识别为我们系统的 admin 写入 Redis 缓存。
  * <p>
- * 修复方案：OSS 解析路径仅识别 7 个 bid-* 角色码（{@link OssRoleEligibility#OSS_ELIGIBLE_CODES}），
- * 对 admin 返回 null（fail-closed），与本地路径 {@link RoleProfileCatalog#canonicalCode(String)} 形成对比。
+ * 修复方案：OSS 解析路径对 admin 返回 null（fail-closed），
+ * 与本地路径 {@link RoleProfileCatalog#canonicalCode(String)} 形成对比。
  */
 class OssRoleEligibilityTest {
 
@@ -69,26 +67,5 @@ class OssRoleEligibilityTest {
         assertThat(OssRoleEligibility.canonicalOssCode("HomeReadonly")).isNull();
         assertThat(OssRoleEligibility.canonicalOssCode("manager")).isNull();
         assertThat(OssRoleEligibility.canonicalOssCode("unknown_role")).isNull();
-    }
-
-    @Test
-    @DisplayName("§78: OSS_ELIGIBLE_CODES 包含 7 个 bid-* 角色码且不含 admin")
-    void ossEligibleCodes_containsSevenBidRoles_excludesAdmin() {
-        Set<String> codes = OssRoleEligibility.OSS_ELIGIBLE_CODES;
-
-        // 必须包含 7 个 bid-* 角色码
-        assertThat(codes).containsExactlyInAnyOrder(
-                "/bidAdmin",
-                "bid-TeamLeader",
-                "bid-SystemAdmin",
-                "bid-Team",
-                "bid-projectLeader",
-                "bid-administration",
-                "bid-otherDept"
-        );
-        // 必须不含 admin（本地独有的超级管理员，与 OSS 无关）
-        assertThat(codes).doesNotContain("admin");
-        assertThat(codes).doesNotContain("ADMIN");
-        assertThat(codes).doesNotContain("Admin");
     }
 }

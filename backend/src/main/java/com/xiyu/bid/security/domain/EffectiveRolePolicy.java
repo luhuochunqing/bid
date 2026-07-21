@@ -43,7 +43,14 @@ public final class EffectiveRolePolicy {
         if (cachedRoleCode != null && cachedRoleCode.isPresent()) {
             String cached = cachedRoleCode.get();
             if (cached != null && !cached.isBlank()) {
-                return new EffectiveRoleResult(cached.trim(), EffectiveRoleResult.Source.CACHE_HIT);
+                String trimmed = cached.trim();
+                // §78 fail-closed：OSS 用户缓存为 admin 时拒绝（admin 是本地独有的超级管理员）
+                // OSS 是多系统共用平台，返回的 sysRoleList 中 admin 是其他系统（Home/CRM/SCM）的，
+                // 不属于本系统。详见 lessons-learned.md §78（覃超颖 bidding/60 403 案例根因）。
+                if (isOssUser && "admin".equalsIgnoreCase(trimmed)) {
+                    return new EffectiveRoleResult(null, EffectiveRoleResult.Source.OSS_ADMIN_REJECTED);
+                }
+                return new EffectiveRoleResult(trimmed, EffectiveRoleResult.Source.CACHE_HIT);
             }
         }
         if (!isOssUser) {
