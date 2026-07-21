@@ -47,8 +47,9 @@ public class DataScopeConfigService {
     private final RoleProfileRepository roleProfileRepository;
     private final RoleProfileBootstrap roleProfileBootstrap;
     private final OssPermissionCache ossPermissionCache;
+    private final DataScopeRoleProfileResolver roleProfileResolver;
 
-    // Manual constructor: encapsulates Store/Assembler as implementation details
+    // Manual constructor: encapsulates Store/Assembler/RoleProfileResolver as implementation details
     // so Spring only sees the thin application-service surface.
     @Autowired
     public DataScopeConfigService(
@@ -57,14 +58,16 @@ public class DataScopeConfigService {
             RoleProfileRepository pRoleProfileRepository,
             RoleProfileBootstrap pRoleProfileBootstrap,
             ObjectMapper objectMapper,
-            OssPermissionCache pOssPermissionCache
+            OssPermissionCache pOssPermissionCache,
+            com.xiyu.bid.security.EffectiveRoleResolver pEffectiveRoleResolver
     ) {
         this(new DataScopeConfigStore(pSystemSettingRepository, objectMapper),
                 new DataScopeConfigAssembler(),
                 pUserRepository,
                 pRoleProfileRepository,
                 pRoleProfileBootstrap,
-                pOssPermissionCache);
+                pOssPermissionCache,
+                new DataScopeRoleProfileResolver(pRoleProfileRepository, pEffectiveRoleResolver));
     }
 
     DataScopeConfigService(
@@ -73,7 +76,8 @@ public class DataScopeConfigService {
             UserRepository pUserRepository,
             RoleProfileRepository pRoleProfileRepository,
             RoleProfileBootstrap pRoleProfileBootstrap,
-            OssPermissionCache pOssPermissionCache
+            OssPermissionCache pOssPermissionCache,
+            DataScopeRoleProfileResolver pRoleProfileResolver
     ) {
         this.configStore = pConfigStore;
         this.assembler = pAssembler;
@@ -81,6 +85,7 @@ public class DataScopeConfigService {
         this.roleProfileRepository = pRoleProfileRepository;
         this.roleProfileBootstrap = pRoleProfileBootstrap;
         this.ossPermissionCache = pOssPermissionCache;
+        this.roleProfileResolver = pRoleProfileResolver;
     }
 
     @Transactional
@@ -122,7 +127,7 @@ public class DataScopeConfigService {
                 new UserAccessSubject(user.getId(), user.getDepartmentCode()),
                 toCoreUserRules(payload.getUserRules()),
                 toCoreDepartmentRules(payload.getDepartmentRules()),
-                toRoleAccessRule(resolveRoleProfile(user)),
+                toRoleAccessRule(roleProfileResolver.resolve(user)),
                 graph
         );
         return DataScopeAccessProfile.builder()
@@ -142,7 +147,7 @@ public class DataScopeConfigService {
         }
         // admin 系统内置账户不走 OSS，fallback 到本地 DB RoleProfile
         if (source.localSystemAccount()) {
-            List<String> localPermissions = resolveRoleProfile(user).getMenuPermissions();
+            List<String> localPermissions = roleProfileResolver.resolve(user).getMenuPermissions();
             if (localPermissions != null && !localPermissions.isEmpty()) {
                 log.info("Local system account user={} using DB RoleProfile menu_permissions", user.getUsername());
                 return RoleProfileAdminPermissionFilter.normalize(localPermissions);
@@ -179,7 +184,7 @@ public class DataScopeConfigService {
         }
         // admin 系统内置账户（不走 OSS 认证）：cache miss 时 fallback 到本地 DB RoleProfile
         if (source.localSystemAccount()) {
-            RoleProfile roleProfile = resolveRoleProfile(user);
+            RoleProfile roleProfile = roleProfileResolver.resolve(user);
             if (roleProfile.getName() != null && !roleProfile.getName().isBlank()) return roleProfile.getName();
         }
         // OSS 用户 cache miss：fail-closed，不 fallback 到 DB roleName
@@ -245,44 +250,6 @@ public class DataScopeConfigService {
 
     private RoleAccessRule toRoleAccessRule(RoleProfile roleProfile) {
         return new RoleAccessRule(roleProfile.getDataScope(), roleProfile.getAllowedProjects(), roleProfile.getAllowedDepts());
-    }
-
-    private RoleProfile resolveRoleProfile(User user) {
-        String roleCode = user == null ? null : user.getRoleCode();
-        Optional<RoleProfile> roleProfile = roleProfileRepository.findByCodeIgnoreCase(roleCode);
-        if (roleProfile.isPresent()) {
-            return roleProfile.get();
-        }
-        // DB 无记录时：已注册角色（含 roleCode=null 的纯 Legacy 用户）走 catalog fallback；
-        // 未注册 roleCode 不 fallback 到 staff——避免前端 AuthResponse.menuPermissions 越权可见
-        // 标讯/项目/知识库菜单。后端 API 已由 UserDetailsServiceImpl 的 shouldSkipLegacyRoleCompat
-        // 挡住（403），此处收紧前端可见性，消除"看到菜单却点不进"的不一致。
-        if (roleCode != null && !roleCode.isBlank() && !RoleProfileCatalog.isRegisteredCode(roleCode)) {
-            return unregisteredPlaceholder(roleCode);
-        }
-        RoleProfileCatalog.SeedDefinition definition = RoleProfileCatalog.definitionForCode(roleCode);
-        RoleProfile fallbackRole = RoleProfile.builder()
-                .code(definition.code())
-                .name(definition.name())
-                .description(definition.description())
-                .isSystem(definition.system())
-                .enabled(true)
-                .dataScope(definition.dataScope())
-                .build();
-        fallbackRole.setMenuPermissions(definition.menuPermissions());
-        return fallbackRole;
-    }
-
-    private RoleProfile unregisteredPlaceholder(String roleCode) {
-        RoleProfile placeholder = RoleProfile.builder()
-                .code(roleCode)
-                .name(roleCode)
-                .isSystem(false)
-                .enabled(true)
-                .dataScope("self")
-                .build();
-        placeholder.setMenuPermissions(List.of());
-        return placeholder;
     }
 
     private void validate(OrganizationValidationResult result) {
