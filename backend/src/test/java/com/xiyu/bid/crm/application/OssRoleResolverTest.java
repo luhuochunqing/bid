@@ -228,4 +228,64 @@ class OssRoleResolverTest {
         String fromEmployeeInfo = resolver.resolveRoleCodeFromEmployeeInfo(employeeInfo, "04569");
         assertThat(fromEmployeeInfo).isEqualTo("bid-administration");
     }
+
+    // ── lessons-learned.md §78：覃超颖（bid-SystemAdmin）403 案例回归 ──
+
+    @Test
+    @DisplayName("§78 覃超颖回归：sysRoleList 中其他系统 admin 排在 bid-SystemAdmin 前，应跳过 admin 解析到 bid-SystemAdmin")
+    void resolveRoleCodeFromJobList_skipsOtherSystemAdmin_resolvesBidSystemAdmin_qinchaoYing() {
+        // 覃超颖（OSS username=09118，投标系统管理员）真实场景：
+        // OSS 返回的 sysRoleList 中可能包含其他系统（Home/CRM/SCM 等）的 admin 角色码
+        // 修复前：admin 被错误识别为我们系统的 admin，写入 Redis 缓存（oss:perm:09118）
+        //        → 颁发 ROLE_ADMIN → @PreAuthorize 列表不含 BID_SYSTEMADMIN 时 403
+        // 修复后：canonicalOssCode 对 admin 返回 null，跳过 admin，继续找到 bid-SystemAdmin
+        CrmJobListResponse.SysRole otherSystemAdmin = new CrmJobListResponse.SysRole();
+        otherSystemAdmin.setRoleName("Home 系统管理员"); // 其他系统的角色名
+        otherSystemAdmin.setRoleCode("admin"); // 其他系统的 admin 角色码
+        otherSystemAdmin.setStatus("1");
+        otherSystemAdmin.setDel(false);
+
+        CrmJobListResponse.SysRole bidSystemAdmin = new CrmJobListResponse.SysRole();
+        bidSystemAdmin.setRoleName("投标系统管理员");
+        bidSystemAdmin.setRoleCode("bid-SystemAdmin");
+        bidSystemAdmin.setStatus("1");
+        bidSystemAdmin.setDel(false);
+
+        CrmJobListResponse.JobInfo jobInfo = new CrmJobListResponse.JobInfo();
+        jobInfo.setJobNumber("09118");
+        jobInfo.setSysRoleList(List.of(otherSystemAdmin, bidSystemAdmin));
+
+        CrmJobListResponse jobList = new CrmJobListResponse();
+        jobList.setData(java.util.Map.of("09118", jobInfo));
+
+        String result = resolver.resolveRoleCodeFromJobList(jobList, "09118", "09118");
+
+        // 修复后：跳过其他系统的 admin，正确解析到 bid-SystemAdmin
+        assertThat(result).isEqualTo("bid-SystemAdmin");
+    }
+
+    @Test
+    @DisplayName("§78: sysRoleList 只含其他系统 admin（无 bid-* 角色）时返回 null（fail-closed）")
+    void resolveRoleCodeFromJobList_onlyOtherSystemAdmin_returnsNull() {
+        // OSS sysRoleList 只含其他系统的 admin，没有 bid-* 角色码
+        // 修复前：错误识别为 admin，写入缓存
+        // 修复后：admin 返回 null，无其他 bid-* 角色，整体返回 null（fail-closed）
+        CrmJobListResponse.SysRole otherSystemAdmin = new CrmJobListResponse.SysRole();
+        otherSystemAdmin.setRoleName("CRM 系统管理员");
+        otherSystemAdmin.setRoleCode("admin");
+        otherSystemAdmin.setStatus("1");
+        otherSystemAdmin.setDel(false);
+
+        CrmJobListResponse.JobInfo jobInfo = new CrmJobListResponse.JobInfo();
+        jobInfo.setJobNumber("99999");
+        jobInfo.setSysRoleList(List.of(otherSystemAdmin));
+
+        CrmJobListResponse jobList = new CrmJobListResponse();
+        jobList.setData(java.util.Map.of("99999", jobInfo));
+
+        String result = resolver.resolveRoleCodeFromJobList(jobList, "99999", "99999");
+
+        // 修复后：fail-closed，不识别其他系统的 admin，返回 null
+        assertThat(result).isNull();
+    }
 }

@@ -174,4 +174,47 @@ class JobRoleLookupResolverTest {
         assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("")).isNull();
         assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal(null)).isNull();
     }
+
+    // ——— lessons-learned.md §78 修复：OSS 返回的 admin 是其他系统的，不应被识别 ———
+
+    @Test
+    @DisplayName("§78: OSS 返回的 admin 是其他系统的（Home/CRM/SCM），返回 null 不识别")
+    void mapOssRoleCodeToInternal_admin_returnsNull() {
+        // admin 是本地独有的超级管理员，与 OSS 无关
+        // OSS 返回的 admin 是其他系统的 admin，不应被识别为我们系统的 admin 写入缓存
+        // 详见 lessons-learned.md §78（覃超颖 bidding/60 403 案例根因）
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("admin")).isNull();
+    }
+
+    @Test
+    @DisplayName("§78: admin 大小写不敏感，全部返回 null")
+    void mapOssRoleCodeToInternal_admin_caseInsensitive_returnsNull() {
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("ADMIN")).isNull();
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("Admin")).isNull();
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("AdMiN")).isNull();
+    }
+
+    @Test
+    @DisplayName("§78: OSS 其他系统角色码（SE/PE/HomeReadonly 等）返回 null")
+    void mapOssRoleCodeToInternal_otherSystemRoles_returnNull() {
+        // OSS 是多系统共用平台，sysRoleList 中可能包含 Home/CRM/SCM 等系统的角色码
+        // 这些角色码不属于本系统，应返回 null
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("SE")).isNull();
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("PE")).isNull();
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("HomeReadonly")).isNull();
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("CRM_ADMIN")).isNull();
+    }
+
+    @Test
+    @DisplayName("§78: 7 个 bid-* 角色码全部可识别（回归测试）")
+    void mapOssRoleCodeToInternal_allSevenBidRoles_returnCanonicalCode() {
+        // 属于投标系统的 7 个角色码应全部可识别，确保排除 admin 时不影响 bid-* 角色码
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("/bidAdmin")).isEqualTo("/bidAdmin");
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("bid-TeamLeader")).isEqualTo("bid-TeamLeader");
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("bid-SystemAdmin")).isEqualTo("bid-SystemAdmin");
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("bid-Team")).isEqualTo("bid-Team");
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("bid-projectLeader")).isEqualTo("bid-projectLeader");
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("bid-administration")).isEqualTo("bid-administration");
+        assertThat(JobRoleLookupResolver.mapOssRoleCodeToInternal("bid-otherDept")).isEqualTo("bid-otherDept");
+    }
 }
