@@ -1,5 +1,4 @@
 package com.xiyu.bid.integration.organization.domain.policy;
-
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.integration.organization.application.OrganizationIntegrationProperties;
 import com.xiyu.bid.integration.organization.domain.OrganizationUserSnapshot;
@@ -144,6 +143,7 @@ public class JobRoleLookupResolver {
      * <ul>
      *   <li>大小写不一致（如 {@code /BidAdmin}、{@code /BIDADMIN}）— 归一化为规范码 {@code /bidAdmin}</li>
      *   <li>{@code bid-SystemAdmin} 直接作为规范码返回（不映射为 admin，admin 是本地超级管理员，和 OSS 无关）</li>
+     *   <li>{@code admin} 返回 null（OSS 返回的 admin 是其他系统的，不属于本系统）</li>
      * </ul>
      * 返回的总是 {@link RoleProfileCatalog} 中注册的规范码（如 {@code /bidAdmin}），
      * 而非原始输入，避免大小写不一致导致后续权限匹配失败。
@@ -151,17 +151,22 @@ public class JobRoleLookupResolver {
      * 注意：OSS 投标管理员角色码本身带前导斜杠（{@code /bidAdmin}），这是 OSS 规范，
      * 不要去除斜杠。其他角色码（如 {@code bid-TeamLeader}）不带斜杠。
      * <p>
-     * 未命中（null/空白/未注册）返回 null，以便调用方继续尝试 positionToRoleMapper 等后续映射。
+     * <b>重要（lessons-learned.md §78）</b>：OSS 是多系统共用的角色管理平台（Home/CRM/SCM/投标等），
+     * 返回的 sysRoleList 混合多系统角色。{@code admin} 是本地独有的超级管理员，与 OSS 无关——
+     * OSS 返回的 admin 是其他系统的 admin，不应被识别为我们系统的 admin 写入缓存。
+     * 因此本方法委托给 {@link OssRoleEligibility#canonicalOssCode(String)}，对 admin 返回 null。
+     * <p>
+     * 未命中（null/空白/未注册/admin）返回 null，以便调用方继续尝试 positionToRoleMapper 等后续映射。
      */
     public static String mapOssRoleCodeToInternal(String ossRoleCode) {
         if (ossRoleCode == null || ossRoleCode.isBlank()) {
             return null;
         }
-        String trimmed = ossRoleCode.trim();
-        // 通过 case-insensitive 查找返回规范码（而非原始输入）
-        // 例如输入 "/BidAdmin" 或 "/BIDADMIN" → 返回规范码 "/bidAdmin"
-        // bid-SystemAdmin 已在 RoleProfileCatalog 中注册，直接返回规范码，不映射为 admin
-        return RoleProfileCatalog.canonicalCode(trimmed);
+        // 委托给 OssRoleEligibility.canonicalOssCode，排除 admin（本地超级管理员）。
+        // OSS 是多系统共用平台，sysRoleList 中可能包含其他系统（Home/CRM/SCM 等）的 admin
+        // 角色码，这些 admin 不属于本系统，不应被识别为我们系统的 admin 写入缓存。
+        // 详见 lessons-learned.md §78（覃超颖 403 案例根因）。
+        return OssRoleEligibility.canonicalOssCode(ossRoleCode.trim());
     }
 
     /**

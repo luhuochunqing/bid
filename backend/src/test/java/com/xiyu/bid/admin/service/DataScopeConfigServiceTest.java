@@ -9,6 +9,8 @@ import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.RoleProfileRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.roleprofile.RoleProfileBootstrap;
+import com.xiyu.bid.security.EffectiveRoleResolver;
+import com.xiyu.bid.security.domain.EffectiveRoleResult;
 import com.xiyu.bid.settings.entity.SystemSetting;
 import com.xiyu.bid.settings.repository.SystemSettingRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -45,14 +48,23 @@ class DataScopeConfigServiceTest {
     @Mock
     private RoleProfileBootstrap roleProfileBootstrap;
 
+    @Mock
+    private EffectiveRoleResolver effectiveRoleResolver;
+
     private DataScopeConfigService dataScopeConfigService;
 
     @BeforeEach
     void setUp() {
         OssPermissionCache ossPermissionCache = new OssPermissionCache();
-        dataScopeConfigService = new DataScopeConfigService(systemSettingRepository, userRepository, roleProfileRepository, roleProfileBootstrap, new ObjectMapper(), ossPermissionCache);
-        org.mockito.Mockito.lenient().when(roleProfileRepository.findByCodeIgnoreCase(org.mockito.ArgumentMatchers.anyString())).thenReturn(Optional.empty());
-        org.mockito.Mockito.lenient().when(roleProfileRepository.findAll()).thenReturn(List.of());
+        dataScopeConfigService = new DataScopeConfigService(systemSettingRepository, userRepository, roleProfileRepository, roleProfileBootstrap, new ObjectMapper(), ossPermissionCache, effectiveRoleResolver);
+        lenient().when(roleProfileRepository.findByCodeIgnoreCase(org.mockito.ArgumentMatchers.anyString())).thenReturn(Optional.empty());
+        lenient().when(roleProfileRepository.findAll()).thenReturn(List.of());
+        // §78 修复 5：默认 mock EffectiveRoleResolver 走 LOCAL_USER 路径（返回 entity roleCode）
+        // 与原直调 user.getRoleCode() 行为等价，保持现有测试通过
+        lenient().when(effectiveRoleResolver.resolve(any(User.class))).thenAnswer(inv -> {
+            User u = inv.getArgument(0);
+            return new EffectiveRoleResult(u.getRoleCode(), EffectiveRoleResult.Source.LOCAL_USER);
+        });
     }
 
     @Test
@@ -308,7 +320,7 @@ class DataScopeConfigServiceTest {
         ossPermissionCache.put(user.getUsername(), RoleProfileCatalog.BID_ADMIN_CODE,
                 List.of("project", "project-detail"), null);
         dataScopeConfigService = new DataScopeConfigService(systemSettingRepository, userRepository, roleProfileRepository,
-                roleProfileBootstrap, new ObjectMapper(), ossPermissionCache);
+                roleProfileBootstrap, new ObjectMapper(), ossPermissionCache, effectiveRoleResolver);
 
         List<String> perms = dataScopeConfigService.getRoleMenuPermissions(user);
 
@@ -421,7 +433,7 @@ class DataScopeConfigServiceTest {
         OssPermissionCache ossPermissionCache = new OssPermissionCache();
         ossPermissionCache.put(ossUser.getUsername(), RoleProfileCatalog.BID_ADMIN_CODE, List.of(), null);
         dataScopeConfigService = new DataScopeConfigService(systemSettingRepository, userRepository, roleProfileRepository,
-                roleProfileBootstrap, new ObjectMapper(), ossPermissionCache);
+                roleProfileBootstrap, new ObjectMapper(), ossPermissionCache, effectiveRoleResolver);
 
         String roleCode = dataScopeConfigService.getRoleCode(ossUser);
 
@@ -462,7 +474,7 @@ class DataScopeConfigServiceTest {
         ossPermissionCache.put("cached-user", RoleProfileCatalog.BID_SPECIALIST_CODE, List.of("dashboard", "project-list"), null);
         DataScopeConfigService serviceWithCache = new DataScopeConfigService(
                 systemSettingRepository, userRepository, roleProfileRepository,
-                roleProfileBootstrap, new ObjectMapper(), ossPermissionCache);
+                roleProfileBootstrap, new ObjectMapper(), ossPermissionCache, effectiveRoleResolver);
 
         List<String> perms = serviceWithCache.getRoleMenuPermissions(user);
 
@@ -486,7 +498,7 @@ class DataScopeConfigServiceTest {
         ossPermissionCache.put("cached-role-name", RoleProfileCatalog.BID_ADMIN_CODE, List.of(), null);
         DataScopeConfigService serviceWithCache = new DataScopeConfigService(
                 systemSettingRepository, userRepository, roleProfileRepository,
-                roleProfileBootstrap, new ObjectMapper(), ossPermissionCache);
+                roleProfileBootstrap, new ObjectMapper(), ossPermissionCache, effectiveRoleResolver);
 
         String roleName = serviceWithCache.getRoleName(user);
 
@@ -578,7 +590,7 @@ class DataScopeConfigServiceTest {
                 List.of("dashboard", "all"), null);
         DataScopeConfigService serviceWithCache = new DataScopeConfigService(
                 systemSettingRepository, userRepository, roleProfileRepository,
-                roleProfileBootstrap, new ObjectMapper(), ossPermissionCache);
+                roleProfileBootstrap, new ObjectMapper(), ossPermissionCache, effectiveRoleResolver);
 
         List<String> perms = serviceWithCache.getRoleMenuPermissions(user);
 
@@ -611,5 +623,111 @@ class DataScopeConfigServiceTest {
         List<String> perms = dataScopeConfigService.getRoleMenuPermissions(adminUser);
 
         assertThat(perms).contains("all");
+    }
+
+    // ——— §78 修复 5 测试：双数据源根治（覃超颖案例）———
+
+    @Test
+    @DisplayName("§78: OSS 用户 DB roleProfile=bid-otherDept 但缓存=/bidAdmin 时，getAccessProfile 应按缓存 /bidAdmin 计算 dataScope=all")
+    void getAccessProfile_OssUserCacheBidAdminButDbBidOtherDept_ShouldUseCacheRoleCode() {
+        // 覃超颖案例：OSS 用户 DB role_id=20 (bid-otherDept)，但 OSS 实际配置 /bidAdmin
+        // 修复 5 前：resolveRoleProfile 直调 user.getRoleCode() 读 DB → bid-otherDept → dataScope=self → 403
+        // 修复 5 后：resolveRoleProfile 走 EffectiveRoleResolver → 缓存 /bidAdmin → dataScope=all
+        RoleProfile bidAdminProfile = RoleProfile.builder()
+                .code(RoleProfileCatalog.BID_ADMIN_CODE)
+                .name("投标管理员")
+                .dataScope("all")
+                .build();
+        User ossUser = User.builder()
+                .id(5472L)
+                .username("09118")
+                .fullName("覃超颖")
+                .role(User.Role.MANAGER)
+                .roleProfile(RoleProfile.builder().code("bid-otherDept").name("跨部门协同人员").build())
+                .externalOrgSourceApp("oss")
+                .enabled(true)
+                .build();
+        // EffectiveRoleResolver 返回 CACHE_HIT + /bidAdmin（模拟 Redis 缓存命中）
+        when(effectiveRoleResolver.resolve(ossUser)).thenReturn(
+                new EffectiveRoleResult(RoleProfileCatalog.BID_ADMIN_CODE, EffectiveRoleResult.Source.CACHE_HIT));
+        when(roleProfileRepository.findByCodeIgnoreCase(RoleProfileCatalog.BID_ADMIN_CODE))
+                .thenReturn(Optional.of(bidAdminProfile));
+        when(userRepository.findAll()).thenReturn(List.of(ossUser));
+
+        DataScopeAccessProfile profile = dataScopeConfigService.getAccessProfile(ossUser);
+
+        assertThat(profile.getDataScope()).isEqualTo("all");
+    }
+
+    @Test
+    @DisplayName("§78: OSS 用户缓存 admin（被污染）应 fail-closed 走 unregistered，dataScope=self")
+    void getAccessProfile_OssUserCacheAdminPolluted_ShouldFailClosed() {
+        // 覃超颖案例：缓存被污染为 admin（其他系统的），应 fail-closed
+        User ossUser = User.builder()
+                .id(5472L)
+                .username("09118")
+                .fullName("覃超颖")
+                .role(User.Role.MANAGER)
+                .externalOrgSourceApp("oss")
+                .enabled(true)
+                .build();
+        when(effectiveRoleResolver.resolve(ossUser)).thenReturn(
+                new EffectiveRoleResult(null, EffectiveRoleResult.Source.OSS_ADMIN_REJECTED));
+        when(userRepository.findAll()).thenReturn(List.of(ossUser));
+
+        DataScopeAccessProfile profile = dataScopeConfigService.getAccessProfile(ossUser);
+
+        // fail-closed: roleCode=null → unregisteredPlaceholder → dataScope=self
+        assertThat(profile.getDataScope()).isEqualTo("self");
+    }
+
+    @Test
+    @DisplayName("§78: OSS 用户 cache miss 应 fail-closed 走 unregistered，dataScope=self")
+    void getAccessProfile_OssUserCacheMiss_ShouldFailClosed() {
+        User ossUser = User.builder()
+                .id(5472L)
+                .username("09118")
+                .fullName("覃超颖")
+                .role(User.Role.MANAGER)
+                .externalOrgSourceApp("oss")
+                .enabled(true)
+                .build();
+        when(effectiveRoleResolver.resolve(ossUser)).thenReturn(
+                new EffectiveRoleResult(null, EffectiveRoleResult.Source.CACHE_MISS_FAIL_CLOSED));
+        when(userRepository.findAll()).thenReturn(List.of(ossUser));
+
+        DataScopeAccessProfile profile = dataScopeConfigService.getAccessProfile(ossUser);
+
+        assertThat(profile.getDataScope()).isEqualTo("self");
+    }
+
+    @Test
+    @DisplayName("§78: 本地 admin 用户 resolveRoleProfile 走 LOCAL_USER 路径，行为不变")
+    void getAccessProfile_LocalAdminUser_ShouldUseLocalUserRoleCode() {
+        // 本地 admin 用户（不走 OSS）：EffectiveRoleResolver 返回 LOCAL_USER + entity roleCode=admin
+        RoleProfile adminProfile = RoleProfile.builder()
+                .code(RoleProfileCatalog.ADMIN_CODE)
+                .name("管理员")
+                .dataScope("all")
+                .build();
+        User adminUser = User.builder()
+                .id(1L)
+                .username("admin")
+                .fullName("管理员")
+                .role(User.Role.ADMIN)
+                .roleProfile(adminProfile)
+                .externalOrgSourceApp(null)
+                .enabled(true)
+                .build();
+        // EffectiveRoleResolver 返回 LOCAL_USER（默认 setUp mock 已处理，但这里显式 stub）
+        when(effectiveRoleResolver.resolve(adminUser)).thenReturn(
+                new EffectiveRoleResult(RoleProfileCatalog.ADMIN_CODE, EffectiveRoleResult.Source.LOCAL_USER));
+        when(roleProfileRepository.findByCodeIgnoreCase(RoleProfileCatalog.ADMIN_CODE))
+                .thenReturn(Optional.of(adminProfile));
+        when(userRepository.findAll()).thenReturn(List.of(adminUser));
+
+        DataScopeAccessProfile profile = dataScopeConfigService.getAccessProfile(adminUser);
+
+        assertThat(profile.getDataScope()).isEqualTo("all");
     }
 }

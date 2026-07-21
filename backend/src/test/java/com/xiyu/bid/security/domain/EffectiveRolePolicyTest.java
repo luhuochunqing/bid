@@ -170,4 +170,72 @@ class EffectiveRolePolicyTest {
             assertThat(result.source()).isEqualTo(EffectiveRoleResult.Source.LOCAL_USER);
         }
     }
+
+    /**
+     * §78 覃超颖 bidding/60 403 案例根因：
+     * OSS 是多系统共用角色管理平台，sysRoleList 中 admin 是其他系统（Home/CRM/SCM）的，
+     * 不属于本系统。admin 是本地独有的超级管理员，与 OSS 无关。
+     * OSS 用户缓存为 admin 时必须 fail-closed 拒绝。
+     */
+    @Nested
+    @DisplayName("§78: OSS 用户缓存 admin → OSS_ADMIN_REJECTED fail-closed")
+    class OssAdminRejected {
+
+        @Test
+        @DisplayName("OSS 用户缓存 admin 时返回 null + OSS_ADMIN_REJECTED")
+        void returnsNullAndOssAdminRejectedWhenOssUserCachedAdmin() {
+            EffectiveRoleResult result = EffectiveRolePolicy.decide(
+                Optional.of("admin"),
+                "manager",
+                true
+            );
+            assertThat(result.roleCode()).isNull();
+            assertThat(result.source()).isEqualTo(EffectiveRoleResult.Source.OSS_ADMIN_REJECTED);
+        }
+
+        @Test
+        @DisplayName("OSS 用户缓存 ADMIN/Admin/AdMiN 大小写不敏感均 fail-closed")
+        void adminCaseInsensitiveAllRejectedForOssUser() {
+            for (String variant : new String[]{"ADMIN", "Admin", "AdMiN", "  admin  "}) {
+                EffectiveRoleResult result = EffectiveRolePolicy.decide(
+                    Optional.of(variant),
+                    "manager",
+                    true
+                );
+                assertThat(result.roleCode())
+                    .as("variant=%s should be rejected for OSS user", variant)
+                    .isNull();
+                assertThat(result.source())
+                    .as("variant=%s source", variant)
+                    .isEqualTo(EffectiveRoleResult.Source.OSS_ADMIN_REJECTED);
+            }
+        }
+
+        @Test
+        @DisplayName("非 OSS 用户缓存 admin 时正常返回 admin + CACHE_HIT（本地用户合法）")
+        void localUserCachedAdminNotRejected() {
+            // 本地用户缓存 admin 是合法的（admin 是本地超级管理员）
+            EffectiveRoleResult result = EffectiveRolePolicy.decide(
+                Optional.of("admin"),
+                "manager",
+                false
+            );
+            assertThat(result.roleCode()).isEqualTo("admin");
+            assertThat(result.source()).isEqualTo(EffectiveRoleResult.Source.CACHE_HIT);
+        }
+
+        @Test
+        @DisplayName("OSS 用户缓存其他系统角色（非 admin）时正常 CACHE_HIT（如 SE/PE）")
+        void ossUserOtherSystemRoleNotRejected() {
+            // OSS 返回的其他系统角色码（非 admin）由上层 OssRoleEligibility.canonicalOssCode 过滤
+            // EffectiveRolePolicy.decide 只关心 admin 拒绝，其他角色码原样返回
+            EffectiveRoleResult result = EffectiveRolePolicy.decide(
+                Optional.of("SE"),
+                "manager",
+                true
+            );
+            assertThat(result.roleCode()).isEqualTo("SE");
+            assertThat(result.source()).isEqualTo(EffectiveRoleResult.Source.CACHE_HIT);
+        }
+    }
 }

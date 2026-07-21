@@ -24,6 +24,12 @@ public record EffectiveRoleResult(
         /** 非 OSS 用户，返回实体角色码（role_id 非空，回退合法） */
         LOCAL_USER,
         /** OSS 用户但缓存未命中，fail-closed 返回 null（不回退 manager） */
-        CACHE_MISS_FAIL_CLOSED
+        CACHE_MISS_FAIL_CLOSED,
+        /**
+         * OSS 用户缓存为 admin，fail-closed 返回 null（lessons-learned.md §78）。
+         * <p>OSS 是多系统共用平台，返回的 sysRoleList 中 admin 是其他系统（Home/CRM/SCM）的，
+         * 不属于本系统。admin 是本地独有的超级管理员，与 OSS 无关。
+         */
+        OSS_ADMIN_REJECTED
     }
 }

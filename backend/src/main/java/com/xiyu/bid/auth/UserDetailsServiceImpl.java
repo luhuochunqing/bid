@@ -4,6 +4,8 @@
 // 维护声明: 仅维护用户加载逻辑；权限字段映射变更请同步认证链路.
 package com.xiyu.bid.auth;
 
+import com.xiyu.bid.security.EffectiveRoleResolver;
+import com.xiyu.bid.security.domain.EffectiveRoleResult;
 import com.xiyu.bid.security.domain.LoginRoleWhitelist;
 import com.xiyu.bid.crm.application.OssPermissionCache;
 import com.xiyu.bid.entity.RoleProfileCatalog;
@@ -33,6 +35,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     private final UserRepository userRepository;
     private final OssPermissionCache ossPermissionCache;
+    private final EffectiveRoleResolver effectiveRoleResolver;
 
 
 
@@ -120,32 +123,54 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     }
 
     private RoleSource resolveRoleSource(User user) {
-        Optional<OssPermissionCache.CacheEntry> ossEntry = ossPermissionCache.getEntry(user.getUsername());
         boolean isOssUser = user.isOssUser();
 
-        if (ossEntry.isPresent() && ossEntry.get().roleCode() != null) {
-            String roleCode = ossEntry.get().roleCode();
-            return new RoleSource(roleCode, ossEntry.get().menuPermissions(),
-                    RoleProfileCatalog.shouldSkipLegacyRoleCompat(roleCode));
+        // CO-373 + lessons-learned §78：roleCode 决策统一走 EffectiveRoleResolver
+        // 不能直接读 ossPermissionCache.getEntry().roleCode()——OSS 是多系统共用平台，
+        // sysRoleList 中的 admin 是其他系统（Home/CRM/SCM）的，不属于本系统；
+        // EffectiveRolePolicy.decide 会在 isOssUser && cachedRoleCode=admin 时 fail-closed 返回 null。
+        EffectiveRoleResult result = effectiveRoleResolver.resolve(user);
+        EffectiveRoleResult.Source source = result.source();
+        String resolvedRoleCode = result.roleCode();
+
+        // OSS 用户缓存为其他系统 admin（OSS_ADMIN_REJECTED）：fail-closed 拒绝
+        if (source == EffectiveRoleResult.Source.OSS_ADMIN_REJECTED) {
+            log.warn("UserDetails denied for OSS user={}: cached roleCode=admin rejected "
+                    + "(admin is local-only superadmin, OSS admin belongs to other systems)",
+                    user.getUsername());
+            throw new BadCredentialsException(
+                    "OSS 用户缓存角色为其他系统的 admin，已被拒绝: " + user.getUsername());
         }
 
-        if (isOssUser) {
-            // OSS 用户 cache miss：fail-closed，禁止 DB fallback
-            // 原因：OSS 用户的角色+权限必须由 OSS 实时抓取决定，DB 中的 roleProfile 可能过期或被篡改。
-            // 若允许 DB fallback，OSS 用户可能拿到 DB 中的 /bidAdmin 等高权限，违反权限最小化原则。
-            // 使用 BadCredentialsException（而非 UsernameNotFoundException）：用户存在但认证凭证/权限状态
-            // 无效，语义准确；避免 Sentry 将合法 OSS 用户误判为"用户不存在"噪声。
+        // OSS 用户 cache miss：fail-closed，禁止 DB fallback
+        // 原因：OSS 用户的角色+权限必须由 OSS 实时抓取决定，DB 中的 roleProfile 可能过期或被篡改。
+        // 若允许 DB fallback，OSS 用户可能拿到 DB 中的 /bidAdmin 等高权限，违反权限最小化原则。
+        // 使用 BadCredentialsException（而非 UsernameNotFoundException）：用户存在但认证凭证/权限状态
+        // 无效，语义准确；避免 Sentry 将合法 OSS 用户误判为"用户不存在"噪声。
+        if (isOssUser && resolvedRoleCode == null) {
             log.warn("UserDetails denied for OSS user={} (cache miss): fail-closed, no DB fallback",
                     user.getUsername());
             throw new BadCredentialsException(
                     "OSS 用户缓存未命中，禁止 DB 兜底: " + user.getUsername());
         }
 
+        // menuPermissions 来源保持不变：OSS 用户走 OssPermissionCache.CacheEntry，
+        // 本地用户走 DB RoleProfile.menu_permissions。EffectiveRoleResult 只含 roleCode，
+        // 不含 menuPermissions（security 包的端口只暴露角色码，不暴露缓存内部结构）。
+        if (isOssUser) {
+            Optional<OssPermissionCache.CacheEntry> ossEntry = ossPermissionCache.getEntry(user.getUsername());
+            List<String> menuPermissions = ossEntry.map(OssPermissionCache.CacheEntry::menuPermissions).orElse(null);
+            return new RoleSource(resolvedRoleCode, menuPermissions,
+                    RoleProfileCatalog.shouldSkipLegacyRoleCompat(resolvedRoleCode));
+        }
+
         // SAFE: 本地系统账号（admin 等）在 OSS 缓存未命中时登录。此场景下 OSS 缓存没有，
         // 必须使用本地 DB roleCode 才能让管理员登录。上方分支已显式拒绝 OSS 用户的 DB 兜底，
         // 此分支只对 admin 本地账号生效（与 DataScopeConfigService.isLocalSystemAccount 一致）。
         // 本地账号由用户表 unique key + 密码哈希独立验证，不会触发 CO-373 的 OSS fallback 问题。
-        String roleCode = user.getRoleCode();
+        // EffectiveRoleResolver.resolve 对本地用户返回 LOCAL_USER + entityRoleCode（user.getRoleCode()）；
+        // 极少数情况 roleCode 为 null（roleProfile 为 null 且 entity 回退 manager）→ 这里继续兜底。
+        String roleCode = resolvedRoleCode != null ? resolvedRoleCode : user.getRoleCode();
         List<String> menuPermissions = user.getRoleProfile() != null ? user.getRoleProfile().getMenuPermissions() : null;
         return new RoleSource(roleCode, menuPermissions, RoleProfileCatalog.shouldSkipLegacyRoleCompat(roleCode));
     }

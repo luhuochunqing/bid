@@ -1,5 +1,6 @@
 package com.xiyu.bid.entity;
 
+import com.xiyu.bid.integration.organization.domain.policy.OssRoleEligibility;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -247,5 +248,17 @@ class RoleProfileCatalogTest {
         assertThat(def.menuPermissions())
                 .as("行政人员需持有前端导航权限才能进入资质证书页面")
                 .contains("knowledge", "knowledge-qualification");
+    }
+
+    // ── lessons-learned.md §78：canonicalOssCode 排除 admin（OSS 多系统角色识别） ──
+    // canonicalOssCode 和 OSS_ELIGIBLE_CODES 已拆分到 OssRoleEligibility 类，测试见 OssRoleEligibilityTest。
+
+    @Test
+    @DisplayName("§78: canonicalCode 仍识别 admin（本地路径），与 OssRoleEligibility.canonicalOssCode 形成对比")
+    void canonicalCode_admin_returnsAdmin_ossEligibilityExcludesAdmin() {
+        // 对比测试：canonicalCode（本地路径）识别 admin，OssRoleEligibility.canonicalOssCode（OSS 路径）排除 admin
+        // 这是关键的区别：本地路径允许 admin（本地超级管理员登录），OSS 路径不允许（OSS 返回的 admin 是其他系统的）
+        assertThat(RoleProfileCatalog.canonicalCode("admin")).isEqualTo("admin");
+        assertThat(OssRoleEligibility.canonicalOssCode("admin")).isNull();
     }
 }

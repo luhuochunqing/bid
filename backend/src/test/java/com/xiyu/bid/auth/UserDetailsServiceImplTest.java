@@ -5,6 +5,9 @@ import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.security.EffectiveRoleResolver;
+import com.xiyu.bid.security.domain.EffectiveRoleResult;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -23,6 +26,8 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -34,8 +39,40 @@ class UserDetailsServiceImplTest {
     @Mock
     private OssPermissionCache ossPermissionCache;
 
+    @Mock
+    private EffectiveRoleResolver effectiveRoleResolver;
+
     @InjectMocks
     private UserDetailsServiceImpl userDetailsService;
+
+    @BeforeEach
+    void setUp() {
+        // CO-373 + §78：模拟 EffectiveRoleResolver 的真实决策逻辑（与 EffectiveRolePolicy.decide 一致）
+        // - OSS 用户缓存 admin：返回 null + OSS_ADMIN_REJECTED（修复 1+2 核心）
+        // - OSS 用户缓存命中（非 admin）：返回缓存 roleCode + CACHE_HIT
+        // - OSS 用户 cache miss：返回 null + CACHE_MISS_FAIL_CLOSED
+        // - 本地用户缓存命中：返回缓存 roleCode + CACHE_HIT（缓存优先于 entity roleCode）
+        // - 本地用户缓存空：返回 entity roleCode + LOCAL_USER
+        lenient().when(effectiveRoleResolver.resolve(any(User.class))).thenAnswer(inv -> {
+            User u = inv.getArgument(0);
+            Optional<OssPermissionCache.CacheEntry> entry = ossPermissionCache.getEntry(u.getUsername());
+            boolean cacheHit = entry.isPresent() && entry.get().roleCode() != null
+                    && !entry.get().roleCode().isBlank();
+            boolean isOssUser = u.isOssUser();
+            if (cacheHit) {
+                String cachedRoleCode = entry.get().roleCode();
+                // §78：OSS 用户缓存 admin → fail-closed（本地用户缓存 admin 仍合法）
+                if (isOssUser && "admin".equalsIgnoreCase(cachedRoleCode.trim())) {
+                    return new EffectiveRoleResult(null, EffectiveRoleResult.Source.OSS_ADMIN_REJECTED);
+                }
+                return new EffectiveRoleResult(cachedRoleCode, EffectiveRoleResult.Source.CACHE_HIT);
+            }
+            if (isOssUser) {
+                return new EffectiveRoleResult(null, EffectiveRoleResult.Source.CACHE_MISS_FAIL_CLOSED);
+            }
+            return new EffectiveRoleResult(u.getRoleCode(), EffectiveRoleResult.Source.LOCAL_USER);
+        });
+    }
 
     @Test
     void unregisteredCustomRoleShouldNotInheritLegacyStaffAuthority() {
@@ -476,9 +513,10 @@ class UserDetailsServiceImplTest {
     }
 
     @Test
-    @DisplayName("OSS 缓存 admin 角色含 all 权限时不应展开 seed 权限（specs/032 权限扩散修复）")
-    void ossCachedAdminRoleShouldNotExpandAllSeedPermissions() {
-        // specs/032: OSS 用户严格按 OSS 返回的菜单权限鉴权，不因 roleCode=admin 触发扩散
+    @DisplayName("§78: OSS 缓存 admin 角色（含 all 权限）应 fail-closed 拒绝，不进入权限扩散逻辑")
+    void ossCachedAdminRoleShouldBeRejected() {
+        // §78 修复 1+2：OSS 用户缓存 admin 时，EffectiveRolePolicy.decide 返回 OSS_ADMIN_REJECTED，
+        // UserDetailsServiceImpl.resolveRoleSource 抛 BadCredentialsException，根本不进入权限构建逻辑。
         RoleProfile roleProfile = RoleProfile.builder()
                 .code(RoleProfileCatalog.BID_SPECIALIST_CODE)
                 .name("投标专员")
@@ -498,19 +536,16 @@ class UserDetailsServiceImplTest {
                 RoleProfileCatalog.ADMIN_CODE, List.of("all"), null, Instant.now().plusSeconds(60));
         when(ossPermissionCache.getEntry("oss_admin_all")).thenReturn(Optional.of(entry));
 
-        UserDetails details = userDetailsService.loadUserByUsername("oss_admin_all");
-
-        // OSS admin 用户不扩散：不含其他角色的细粒度权限
-        assertThat(details.getAuthorities())
-                .extracting("authority")
-                .contains("admin", "ROLE_ADMIN")
-                .doesNotContain("bidding.manage", "task.review", "retrospective.submit",
-                        "brand-auth.edit", "certificate.manage", "qualification.view");
+        assertThatThrownBy(() -> userDetailsService.loadUserByUsername("oss_admin_all"))
+                .isInstanceOf(BadCredentialsException.class)
+                .hasMessageContaining("OSS 用户缓存角色为其他系统的 admin")
+                .hasMessageContaining("oss_admin_all");
     }
 
     @Test
-    @DisplayName("OSS admin 用户 authorities 不含 all，但可持有 system.admin/warehouse.manage（specs/032 修订）")
-    void ossAdminUserShouldNotHaveAllButCanHoldSystemAdminPermission() {
+    @DisplayName("§78: OSS admin 用户（含 system.admin/warehouse.manage）也应 fail-closed 拒绝")
+    void ossAdminUserShouldBeRejectedEvenWithSystemAdminPermission() {
+        // 即使 OSS 端下发了 system.admin/warehouse.manage 等业务权限，只要 roleCode=admin 就拒绝
         RoleProfile roleProfile = RoleProfile.builder()
                 .code(RoleProfileCatalog.BID_SPECIALIST_CODE)
                 .name("投标专员")
@@ -526,7 +561,6 @@ class UserDetailsServiceImplTest {
                 .enabled(true)
                 .build();
         when(userRepository.findByUsername("oss_admin_sys")).thenReturn(Optional.of(user));
-        // OSS 返回的菜单权限包含 system.admin/warehouse.manage（经菜单映射后的权限键）
         OssPermissionCache.CacheEntry entry = new OssPermissionCache.CacheEntry(
                 RoleProfileCatalog.ADMIN_CODE,
                 List.of("bidding", RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION,
@@ -534,15 +568,9 @@ class UserDetailsServiceImplTest {
                 null, Instant.now().plusSeconds(60));
         when(ossPermissionCache.getEntry("oss_admin_sys")).thenReturn(Optional.of(entry));
 
-        UserDetails details = userDetailsService.loadUserByUsername("oss_admin_sys");
-
-        assertThat(details.getAuthorities())
-                .extracting("authority")
-                // all 仍然被过滤（admin 专属，OSS 不应持有）
-                .doesNotContain("all")
-                // system.admin/warehouse.manage 不再被过滤，OSS 用户可持有（业务需求：访问系统设置与仓库）
-                .contains(RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION,
-                        RoleProfileCatalog.WAREHOUSE_MANAGE_PERMISSION);
+        assertThatThrownBy(() -> userDetailsService.loadUserByUsername("oss_admin_sys"))
+                .isInstanceOf(BadCredentialsException.class)
+                .hasMessageContaining("OSS 用户缓存角色为其他系统的 admin");
     }
 
     @Test
@@ -607,10 +635,13 @@ class UserDetailsServiceImplTest {
     }
 
     @Test
-    @DisplayName("本地账号 OSS 缓存命中时应优先使用缓存权限且不合并 catalog")
-    void localUserWithOssCacheHitShouldUseCacheWithoutMergingCatalog() {
-        // 本地账号（externalOrgSourceApp 为空）但 OSS 缓存中有记录
-        // → 走 OSS 缓存分支；缓存菜单权限非空时不合并 catalog，避免权限扩散
+    @DisplayName("§78: 本地账号 OSS 缓存命中时 roleCode 用缓存值，menuPermissions 仍来自 DB（端口边界）")
+    void localUserWithOssCacheHitShouldUseCacheRoleCodeButDbMenuPermissions() {
+        // §78 修复 2 后的新行为：
+        //   - roleCode 决策走 EffectiveRoleResolver（缓存命中 → CACHE_HIT + /bidAdmin）
+        //   - menuPermissions 仍来自 DB RoleProfile.menu_permissions（security 端口只暴露 roleCode，
+        //     不暴露缓存内部结构，避免 security ↔ crm 循环依赖）
+        //   - DB menuPermissions 非空时不合并 catalog（保持原"权限不扩散"语义）
         RoleProfile roleProfile = RoleProfile.builder()
                 .code(RoleProfileCatalog.BID_SPECIALIST_CODE)
                 .name("投标专员")
@@ -633,31 +664,27 @@ class UserDetailsServiceImplTest {
 
         UserDetails details = userDetailsService.loadUserByUsername("local_with_cache");
 
-        // 缓存命中 → 用缓存角色 /bidAdmin + 缓存菜单权限；不合并 catalog 细粒度权限
+        // roleCode 来自缓存（/bidAdmin），menuPermissions 来自 DB（task.view.own）；
+        // 不合并 catalog 细粒度权限（DB menuPermissions 非空时跳过 fallback）
         assertThat(details.getAuthorities())
                 .extracting("authority")
                 .contains("/bidAdmin", "ROLE_BIDADMIN", "ROLE_ADMIN", "ROLE_MANAGER")
-                .contains("dashboard", "bidding")
-                .doesNotContain("task.view.own", "bidding.manage", "task.review",
+                .contains("task.view.own")
+                .doesNotContain("dashboard", "bidding", "bidding.manage", "task.review",
                         "retrospective.submit", "warehouse.manage");
     }
 
     @Test
-    @DisplayName("OSS 用户缓存 roleCode 漂移为 admin（非 DB 规范 /bidAdmin）时 authorities 含 admin 但缺失 /bidAdmin（CO-391 真实根因）")
-    void ossUserCacheHitWithDriftedAdminRoleCodeShouldLogAuthoritiesForDiagnosis() {
+    @DisplayName("§78: OSS 用户缓存 roleCode 漂移为 admin（CO-391 真实根因）应 fail-closed 拒绝")
+    void ossUserCacheHitWithDriftedAdminRoleCodeShouldBeRejected() {
         // CO-391 真实根因（production 数据已确认）：
         // 06234 郑蓉蓉为 OSS 用户（external_org_source_app=oss），DB roleProfile.code=/bidAdmin，
         // 但 OSS 缓存中 roleCode="admin"（来自 OSS 系统映射，与 DB 不一致）。
-        // 走 OSS 缓存命中分支（行 62-67）：
-        //   - "admin" 在 LoginRoleWhitelist 白名单内 → 不被拒绝
-        //   - shouldSkipLegacyRoleCompat("admin")=false（admin 在 DEFINITIONS case-insensitive map）
-        //   - authorities.add("ROLE_MANAGER")（DB user.role=MANAGER）
-        //   - authorities.add("admin")（原值）
-        //   - authorities.add("ROLE_ADMIN")（toAuthorityName("admin")="ADMIN"，行 106 总是执行）
-        //   - authorities.add("ROLE_ADMIN")（legacyRoleForCode("admin")=ADMIN，行 110-111）
-        //   - authorities 不含 "/bidAdmin"（规范形式）
-        // 结果：旧 Controller 注解 hasAnyAuthority('/bidAdmin', 'bid-TeamLeader') 不匹配 → 403。
-        // 修复：Controller 注解加 'admin' 字面字符串兜底覆盖此真实场景。
+        //
+        // §78 修复 1+2 后的新行为：
+        //   - EffectiveRolePolicy.decide 检测到 OSS 用户缓存 admin → 返回 null + OSS_ADMIN_REJECTED
+        //   - UserDetailsServiceImpl.resolveRoleSource 检测到 OSS_ADMIN_REJECTED → 抛 BadCredentialsException
+        //   - 不再走"controller 注解加 admin 字面字符串兜底"的 specs/032 旧策略
         RoleProfile roleProfile = RoleProfile.builder()
                 .code(RoleProfileCatalog.BID_ADMIN_CODE)
                 .name("投标管理员")
@@ -678,18 +705,44 @@ class UserDetailsServiceImplTest {
                 "admin", List.of("bidding"), null, Instant.now().plusSeconds(60));
         when(ossPermissionCache.getEntry("06234")).thenReturn(Optional.of(entry));
 
-        UserDetails details = userDetailsService.loadUserByUsername("06234");
+        assertThatThrownBy(() -> userDetailsService.loadUserByUsername("06234"))
+                .isInstanceOf(BadCredentialsException.class)
+                .hasMessageContaining("OSS 用户缓存角色为其他系统的 admin")
+                .hasMessageContaining("06234");
+    }
 
-        // 验证漂移场景下的 authorities 集合形态：
-        //   - 含 "admin" 字面字符串（命中 Controller 注解 'admin' 兜底）
-        //   - 含 ROLE_ADMIN（toAuthorityName + legacyRoleForCode 双路径生成）
-        //   - 含 ROLE_MANAGER（DB user.role=MANAGER，!skipLegacyCompat）
-        //   - 不含规范形式 "/bidAdmin"（根因）
-        // Controller 注解加 'admin' 兜底后，此场景可访问 /import/template 等端点。
-        assertThat(details.getAuthorities())
-                .extracting("authority")
-                .contains("admin", "ROLE_ADMIN", "ROLE_MANAGER")
-                .doesNotContain("/bidAdmin");
+    @Test
+    @DisplayName("§78: 覃超颖案例（OSS 用户缓存 admin）应 fail-closed 拒绝（修复 1+2 核心回归测试）")
+    void ossUserCachedAdminShouldBeRejected_QinChaoyingCase() {
+        // 覃超颖案例：bidding/60 报 403，根因是 OSS 端把 admin 角色误传给本系统。
+        // 修复 1（EffectiveRolePolicy.decide OSS admin fail-closed）+
+        // 修复 2（UserDetailsServiceImpl 改走 EffectiveRoleResolver）+
+        // 修复 3（TenderController @PreAuthorize 加 BID_SYSTEMADMIN）+
+        // 修复 4（hasAdminAccess 排除 OSS 用户）四条故障链联合修复后，
+        // 覃超颖应直接在登录阶段被拒绝（而不是登录成功后访问 Tender 403）。
+        RoleProfile roleProfile = RoleProfile.builder()
+                .code(RoleProfileCatalog.BID_ADMIN_CODE)
+                .name("投标管理员")
+                .build();
+        User user = User.builder()
+                .username("qinchaoying")
+                .password("{noop}password")
+                .email("qinchaoying@example.com")
+                .fullName("覃超颖")
+                .role(User.Role.MANAGER)
+                .roleProfile(roleProfile)
+                .externalOrgSourceApp("OSS")
+                .enabled(true)
+                .build();
+        when(userRepository.findByUsername("qinchaoying")).thenReturn(Optional.of(user));
+        OssPermissionCache.CacheEntry entry = new OssPermissionCache.CacheEntry(
+                "admin", List.of("bidding"), null, Instant.now().plusSeconds(60));
+        when(ossPermissionCache.getEntry("qinchaoying")).thenReturn(Optional.of(entry));
+
+        assertThatThrownBy(() -> userDetailsService.loadUserByUsername("qinchaoying"))
+                .isInstanceOf(BadCredentialsException.class)
+                .hasMessageContaining("OSS 用户缓存角色为其他系统的 admin")
+                .hasMessageContaining("qinchaoying");
     }
 
     @Test
@@ -759,9 +812,9 @@ class UserDetailsServiceImplTest {
     }
 
     @ParameterizedTest(name = "OSS {0} 用户权限不扩散")
-    @ValueSource(strings = {"admin", "/bidAdmin", "bid-SystemAdmin", "bid-TeamLeader", "bid-projectLeader",
+    @ValueSource(strings = {"/bidAdmin", "bid-SystemAdmin", "bid-TeamLeader", "bid-projectLeader",
             "bid-Team", "bid-otherDept", "bid-administration"})
-    @DisplayName("OSS 用户权限严格等于 OSS 返回值，不含扩散权限（哨兵测试）")
+    @DisplayName("OSS 用户权限严格等于 OSS 返回值，不含扩散权限（哨兵测试，不含 admin：admin 走 §78 拒绝路径）")
     void ossUserAuthoritiesMustNotContainExpansionPermissions(String roleCode) {
         User user = ossUserWithRoleProfile("oss_sentinel_" + roleCode.replace("/", ""),
                 User.Role.MANAGER, roleCode);

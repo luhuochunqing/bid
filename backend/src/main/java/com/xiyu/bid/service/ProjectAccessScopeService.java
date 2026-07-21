@@ -207,13 +207,27 @@ public class ProjectAccessScopeService {
     }
 
     private boolean hasAdminAccess(Authentication authentication) {
-        return authentication != null
-                && authentication.isAuthenticated()
-                && authentication.getAuthorities().stream()
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return false;
+        }
+        boolean hasAdminAuthority = authentication.getAuthorities().stream()
                 .anyMatch(authority -> {
                     String a = authority.getAuthority();
                     return ADMIN_AUTHORITY.equals(a) || EXTERNAL_API_AUTHORITY.equals(a);
                 });
+        if (!hasAdminAuthority) {
+            return false;
+        }
+        // ROLE_EXTERNAL_API 是外部 API 集成（无 User 实体），直接放行
+        boolean isExternalApi = authentication.getAuthorities().stream()
+                .anyMatch(a -> EXTERNAL_API_AUTHORITY.equals(a.getAuthority()));
+        if (isExternalApi) {
+            return true;
+        }
+        // §78 深度防御：OSS 用户即使 authorities 含 ROLE_ADMIN 也不能获得 admin 绕过
+        // （OSS admin 是其他系统 Home/CRM/SCM 的，不属于本系统；详见 lessons-learned.md §78）
+        User user = userRepository.findByUsername(authentication.getName()).orElse(null);
+        return user != null && !user.isOssUser();
     }
 
     private User resolveCurrentUser(Authentication authentication) {

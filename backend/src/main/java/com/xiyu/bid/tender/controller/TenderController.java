@@ -51,7 +51,7 @@ import java.util.*;
 @RequestMapping("/api/tenders")
 @RequiredArgsConstructor
 @Slf4j
-@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM')")
+@PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM', 'BID_SYSTEMADMIN')")
 public class TenderController {
 
     private final TenderQueryService tenderQueryService;
@@ -83,7 +83,7 @@ public class TenderController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM', 'BID_SYSTEMADMIN')")
     @Operation(summary = "标讯详情查询")
     public ResponseEntity<ApiResponse<TenderDTO>> getTenderById(@PathVariable Long id) {
         log.info("GET /api/tenders/{}", id);
@@ -95,7 +95,7 @@ public class TenderController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM', 'SALES')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM', 'SALES', 'BID_SYSTEMADMIN')")
     @Idempotent
     @Operation(summary = "创建标讯")
     public ResponseEntity<ApiResponse<TenderDTO>> createTender(@Valid @RequestBody TenderRequest req, @AuthenticationPrincipal UserDetails user) {
@@ -105,7 +105,7 @@ public class TenderController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'SALES')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'SALES', 'BID_SYSTEMADMIN')")
     @Operation(summary = "修改标讯")
     public ResponseEntity<ApiResponse<TenderDTO>> updateTender(@PathVariable Long id, @Valid @RequestBody TenderRequest req, @AuthenticationPrincipal UserDetails user) {
         log.info("PUT /api/tenders/{}", id);
@@ -115,7 +115,7 @@ public class TenderController {
     }
 
     @PatchMapping("/{id}/crm-opportunity")
-    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM', 'SALES')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM', 'SALES', 'BID_SYSTEMADMIN')")
     @Operation(summary = "标讯关联CRM商机")
     public ResponseEntity<ApiResponse<TenderDTO>> linkCrmOpportunity(@PathVariable Long id, @Valid @RequestBody TenderCrmLinkRequest req, @AuthenticationPrincipal UserDetails user) {
         rejectDemoMutation(id);
@@ -123,7 +123,7 @@ public class TenderController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'SALES')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'SALES', 'BID_SYSTEMADMIN')")
     @Operation(summary = "删除标讯")
     public ResponseEntity<ApiResponse<Void>> deleteTender(@PathVariable Long id, @AuthenticationPrincipal UserDetails user) {
         rejectDemoMutation(id);
@@ -136,14 +136,14 @@ public class TenderController {
     // hasAuthority 鉴权对 OSS 用户失效（OSS 菜单权限不含 tender.view 权限点），
     // 导致所有 OSS 用户（含 admin）进标讯详情页 audit-logs 接口 403。
     // 详见 lessons-learned.md §23 全链路日志排查。后续走 Spec Kit 治本。
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM', 'BID_SYSTEMADMIN')")
     @Operation(summary = "标讯审计日志")
     public ResponseEntity<ApiResponse<List<com.xiyu.bid.audit.dto.AuditLogItemDTO>>> getAuditLogs(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("查询成功", tenderAuditService.getAuditLogs(id)));
     }
 
     @PostMapping("/{id}/participate")
-    @PreAuthorize("hasAnyAuthority('bidding.manage', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN')")
+    @PreAuthorize("hasAnyAuthority('bidding.manage', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN', 'ROLE_BID_SYSTEMADMIN')")
     @Operation(summary = "投标决策")
     public ResponseEntity<ApiResponse<TenderBidResponse>> participateBid(@PathVariable Long id, @AuthenticationPrincipal UserDetails user) {
         rejectDemoMutation(id);
@@ -152,7 +152,7 @@ public class TenderController {
     }
 
     @PostMapping("/{id}/abandon")
-    @PreAuthorize("hasAnyAuthority('bidding.manage', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN')")
+    @PreAuthorize("hasAnyAuthority('bidding.manage', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN', 'ROLE_BID_SYSTEMADMIN')")
     @Operation(summary = "弃标决策")
     public ResponseEntity<ApiResponse<TenderBidResponse>> abandonBid(@PathVariable Long id, @Valid @RequestBody TenderAbandonRequest req, @AuthenticationPrincipal UserDetails user) {
         rejectDemoMutation(id);
@@ -161,7 +161,7 @@ public class TenderController {
     }
 
     @GetMapping("/import-template")
-    @PreAuthorize("hasAnyAuthority('bidding', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN', 'ROLE_BID_TEAM')")
+    @PreAuthorize("hasAnyAuthority('bidding', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN', 'ROLE_BID_TEAM', 'ROLE_BID_SYSTEMADMIN')")
     @Operation(summary = "下载标讯批量导入模板")
     public ResponseEntity<org.springframework.core.io.Resource> downloadImportTemplate() {
         byte[] body = tenderImportService.generateTemplate();
@@ -171,7 +171,7 @@ public class TenderController {
     }
 
     @PostMapping(path = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyAuthority('bidding', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN', 'ROLE_BID_TEAM')")
+    @PreAuthorize("hasAnyAuthority('bidding', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN', 'ROLE_BID_TEAM', 'ROLE_BID_SYSTEMADMIN')")
     @Idempotent
     @Operation(summary = "批量导入标讯（异步触发，返回任务 ID 供前端轮询进度）")
     public ResponseEntity<ApiResponse<TenderImportTaskDTO>> importTenders(
@@ -186,7 +186,7 @@ public class TenderController {
     }
 
     @GetMapping("/import/{taskId}/progress")
-    @PreAuthorize("hasAnyAuthority('bidding', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN', 'ROLE_BID_TEAM')")
+    @PreAuthorize("hasAnyAuthority('bidding', 'ROLE_ADMIN', 'ROLE_BID_TEAMLEADER', 'ROLE_BIDADMIN', 'ROLE_BID_TEAM', 'ROLE_BID_SYSTEMADMIN')")
     @Operation(summary = "查询标讯批量导入任务进度")
     public ResponseEntity<ApiResponse<TenderImportProgressDTO>> getImportProgress(
             @PathVariable String taskId,
@@ -196,21 +196,21 @@ public class TenderController {
     }
 
     @GetMapping("/status/{status}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_SYSTEMADMIN')")
     @Operation(summary = "按状态筛选标讯")
     public ResponseEntity<ApiResponse<List<TenderDTO>>> getTendersByStatus(@PathVariable com.xiyu.bid.entity.Tender.Status status) {
         return ResponseEntity.ok(ApiResponse.success("查询成功", tenderQueryService.getTendersByStatus(status)));
     }
 
     @GetMapping("/source/{source}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_SYSTEMADMIN')")
     @Operation(summary = "按来源筛选标讯")
     public ResponseEntity<ApiResponse<List<TenderDTO>>> getTendersBySource(@PathVariable String source) {
         return ResponseEntity.ok(ApiResponse.success("查询成功", tenderQueryService.getTendersBySource(InputSanitizer.sanitizeString(source, 100))));
     }
 
     @GetMapping("/statistics")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_SYSTEMADMIN')")
     @Operation(summary = "标讯统计")
     public ResponseEntity<ApiResponse<Map<com.xiyu.bid.entity.Tender.Status, Long>>> getStatistics() {
         return ResponseEntity.ok(ApiResponse.success("查询成功", tenderQueryService.getTenderStatistics()));
