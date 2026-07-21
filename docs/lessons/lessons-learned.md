@@ -5619,3 +5619,187 @@ WHERE af.file_size = 0 AND pd.size IS NOT NULL;
 - [RELIABILITY.md](../../RELIABILITY.md) — Flyway 不可变迁移门禁（`scripts/check-flyway-immutable.sh`）
 - [第 103 次测试环境部署报告](../release/deploy-report-2026-07-20-103rd-test.md) — 完整恢复时间线
 - MySQL 8.0 关键字清单：https://dev.mysql.com/doc/refman/8.0/en/keywords.html
+
+## 78. PR !2178 基于错误根因分析的修复方案必败——投标系统管理员 403 bug 的真正 3 条故障链（2026-07-21 / 覃超颖 bidding/60 报 403 / PR !2178 被驳回）
+
+> 来源：2026-07-21 用户覃超颖（OSS username=09118，userId=112，角色=投标系统管理员 bid-SystemAdmin）访问 https://winbid.ehsy.com/bidding/60 报 "权限不足 无法访问该资源！还有 403"
+> 涉及模块：OSS 权限缓存 / UserDetailsServiceImpl / TenderController @PreAuthorize / EffectiveRoleResolver / DataScopeConfigService / TenderProjectAccessGuard / ProjectAccessScopeService
+> 影响等级：高（用户无法访问标讯详情页，影响投标推进）
+> PR !2178（agent/codex/fix-datascope-oss-role-inconsistency）：**已驳回**（基于错误根因分析，修复方案无效）
+> 后续修复 PR：!2179（agent/codex/fix-bid-systemadmin-403-real-root-cause）
+> 完整审计报告：[docs/reviews/pr-2178-production-risk-review-2026-07-21.md](../reviews/pr-2178-production-risk-review-2026-07-21.md)
+
+### 事故背景
+
+覃超颖（OSS 同步用户，OSS 端配置角色 `bid-SystemAdmin`）访问标讯详情页报 403。
+
+### 关键认知修正（用户指正）
+
+**OSS 端没有属于我们投标系统的 admin 角色**——admin 是我们系统独有的本地超级管理员账户，与 OSS 无关。
+
+OSS 是多系统共用的角色管理平台（承载 Home/CRM/SCM/投标等多个子系统），返回的 `sysRoleList` 中混合了多系统角色。其中属于我们投标系统的只有 7 个角色码（`/bidAdmin`、`bid-TeamLeader`、`bid-SystemAdmin`、`bid-Team`、`bid-projectLeader`、`bid-administration`、`bid-otherDept`）。
+
+如果 OSS 返回的 `sysRoleList` 中包含 `admin`，那是**其他系统**（如 OSS 平台本身、Home 系统、CRM 系统）的 admin，**不是我们投标系统的 admin**，不应该被识别为我们系统的 admin 写入缓存。
+
+### 真正的根因（第二次修正）
+
+**代码缺陷**：`RoleProfileCatalog.DEFINITIONS` 中注册了 `admin`（`ADMIN_CODE = "admin"`，line 19, 108），导致 `canonicalCode("admin")` 返回 "admin"（line 232-240）。当 OSS 返回的多系统 `sysRoleList` 中包含其他系统的 admin 角色时，`OssRoleResolver.resolveRoleCodeFromJobList`（line 75-100）会错误地把其他系统的 admin 识别为我们系统的 admin，写入 Redis 缓存。
+
+**调用链**：
+```
+OSS 返回 sysRoleList（含其他系统的 admin + 我们系统的 bid-SystemAdmin）
+  → OssRoleResolver.resolveRoleCodeFromJobList 遍历 sysRoleList（按顺序）
+  → JobRoleLookupResolver.mapOssRoleCodeToInternal("admin")
+  → RoleProfileCatalog.canonicalCode("admin") = "admin"（错误！admin 不应在 OSS 识别路径中）
+  → 返回 "admin"（如果 admin 排在 bid-SystemAdmin 前面）
+  → OssLoginFlowService.cacheOssPermissions 写入 Redis 缓存 oss:perm:09118 = "admin"
+  → UserDetailsServiceImpl 读缓存得到 admin，颁发 ROLE_ADMIN
+  → 后续访问绕过 @PreAuthorize + hasAdminAccess 短路 → 越权
+```
+
+**正确行为应该是**：OSS 角色解析路径中，`admin` 应该被识别为"其他系统的角色"被跳过，继续找下一个 bid-* 角色码（如 bid-SystemAdmin）。
+
+### PR !2178 的错误根因分析（已被审计推翻）
+
+PR !2178 假设的根因：
+- `UserDetailsServiceImpl` 用 OSS 缓存 `admin` 颁发 `ROLE_ADMIN`，通过 `@PreAuthorize`
+- `TenderProjectAccessGuard.checkAccess` 抛出 "权限不足，无法访问该标讯"（`DataScopeConfigService.getAccessProfile` 读 DB roleProfile 返回 bid-otherDept/self）
+- 两套数据源不一致 → "通过 @PreAuthorize 但被拦截"
+
+**错误点**：
+1. `TenderProjectAccessGuard` 没有 `checkAccess` 方法，正确方法是 `assertCanAccessTender`
+2. 如果 tender 关联了 project，会走 `assertCurrentUserCanAccessProject` → `hasAdminAccess` 短路，**不会调用 `getAccessProfile`**
+3. 只有 tender **未关联 project** 时才走 `resolveDataScope` → `getAccessProfile`
+4. 修复前后 `dataScope` 都是 `self`，行为完全一致，403 未消灭
+
+### 真正的 3 条故障链（审计推演）
+
+#### 故障链 1（最致命）：覃超颖 OSS 配置正确为 bid-SystemAdmin 时
+
+```
+覃超颖重新登录 → OSS 端正确下发 roleCode=bid-SystemAdmin（清缓存后预期场景）
+  → UserDetailsServiceImpl.ossAuthorities 颁发 authority
+    → LoginRoleWhitelist.isAllowed("bid-SystemAdmin") = true
+    → applyRoleCodeAuthorities(authorities, "bid-SystemAdmin", skipLegacyCompat=true)
+    → authorities = {"bid-SystemAdmin", "ROLE_BID_SYSTEMADMIN"}
+  → @PreAuthorize hasAnyRole('ADMIN','MANAGER','BID_TEAMLEADER','BIDADMIN','BID_PROJECTLEADER','BID_TEAM')
+    → ROLE_BID_SYSTEMADMIN 不在列表
+    → 拒绝 → 403
+```
+
+**证据**：`TenderController.java:86` `@PreAuthorize` 列表不含 `BID_SYSTEMADMIN`
+
+**结论**：即使 OSS 端配置正确，覃超颖登录后仍会被 `@PreAuthorize` 在 Controller 入口直接拒绝。这是真正的根因之一。
+
+#### 故障链 2：覃超颖 OSS 缓存 admin + tender 60 已关联 project
+
+```
+覃超颖登录 → OSS 缓存 admin → 颁发 ROLE_ADMIN
+  → @PreAuthorize 通过（ADMIN 在列表）
+  → TenderProjectAccessGuard.assertCanAccessTender
+    → linkedProjects(tender) nonEmpty
+    → assertCurrentUserCanAccessProject(projectId)
+      → hasAdminAccess(authentication) = true（因为 ROLE_ADMIN）
+      → return; (短路)
+  → 通过 → 覃超颖能访问（绕过 dataScope 检查）
+```
+
+**证据**：`ProjectAccessScopeService.java:184-186` `if (hasAdminAccess(authentication)) { return; }`，hasAdminAccess 不检查 user.isOssUser()
+
+**结论**：PR !2178 完全不触及此路径。OSS admin 用户绕过 dataScope 越权访问。
+
+#### 故障链 3：覃超颖 OSS 缓存 admin + tender 60 未关联 project
+
+```
+覃超颖登录 → OSS 缓存 admin → 颁发 ROLE_ADMIN
+  → @PreAuthorize 通过
+  → TenderProjectAccessGuard.assertCanAccessTender
+    → linkedProjects(tender) empty
+    → resolveDataScope(user)
+      → dataScopeConfigService.getAccessProfile(user)
+        → 修复前：读 DB roleProfile (bid-otherDept) → dataScope=self
+        → 修复后：走 EffectiveRoleResolver → OSS admin → fail-closed null → roleRule=self → dataScope=self
+      → 两者返回 dataScope=self（一致）
+    → "all" != "self" → isSelfVisibleTender → false → throw AccessDeniedException
+  → 403
+```
+
+**证据**：`TenderProjectAccessGuard.java:47-55` 未关联项目走 dataScope 分支；`RoleProfileAccessRuleResolver.java:51-55` roleCode=null 返回 self 兜底
+
+**结论**：PR !2178 完全不能消灭此 403。修复前后 `dataScope` 都是 `self`，`isSelfVisibleTender` 检查结果一致，都抛 403。
+
+### 真正的根因（P0，第二次修正）
+
+1. **`RoleProfileCatalog` 未区分本地角色与 OSS 角色**（核心根因）
+   - `DEFINITIONS` 中注册了 `admin`（`ADMIN_CODE = "admin"`，line 19, 108），`canonicalCode("admin")` 返回 "admin"（line 232-240）
+   - OSS 返回的多系统 `sysRoleList` 中包含其他系统的 admin 时，被错误地识别为我们系统的 admin
+   - **admin 是本地独有的超级管理员，与 OSS 无关；OSS 角色解析路径不应识别 admin**
+2. **TenderController @PreAuthorize 列表缺 BID_SYSTEMADMIN**（故障链 1）
+   - 所有 `@PreAuthorize hasAnyRole` 列表不含 `BID_SYSTEMADMIN`，导致 bid-SystemAdmin 角色用户被 Spring Security 在 Controller 入口直接拒绝
+3. **UserDetailsServiceImpl 不走 EffectiveRoleResolver**（故障链 2/3）
+   - 直接读 OSS 缓存颁发 `ROLE_ADMIN`，绕过 EffectiveRolePolicy 的 fail-closed 拦截
+4. **hasAdminAccess 不检查 user.isOssUser()**（故障链 2）
+   - OSS 缓存 admin 的用户绕过 dataScope 检查越权访问
+
+### 真正的修复方案（按优先级，第二次修正）
+
+1. **P0 代码（核心）**：`RoleProfileCatalog` 区分"本地角色"与"OSS 角色"——新增 `OSS_ELIGIBLE_CODES` 集合（7 个 bid-* 角色码，不含 admin），`canonicalCode` 在 OSS 解析路径中只识别这 7 个角色码。或新增 `canonicalOssCode(String)` 方法，对 admin 返回 null。
+2. **P0 代码**：`TenderController` 所有 `@PreAuthorize hasAnyRole` 列表加入 `BID_SYSTEMADMIN`（与 `RoleProfileCatalog.GLOBAL_ACCESS_ROLES` 对齐）
+3. **P0 代码**：改造 `UserDetailsServiceImpl` 走 `EffectiveRoleResolver`，或在颁发 `ROLE_ADMIN` 前调用 `EffectiveRolePolicy.decide` 校验，统一数据源
+4. **P1 代码**：改造 `ProjectAccessScopeService.hasAdminAccess` 增加 `!user.isOssUser()` 条件，防止 OSS admin 越权
+
+**无需运营操作**：覃超颖在 OSS 端的配置本来就是正确的 `bid-SystemAdmin`，不需要修改 OSS 端配置。问题是我们的代码错误地把其他系统的 admin 识别为我们系统的 admin。
+
+### PR !2178 的有益部分（可保留）
+
+虽然 PR !2178 不能消灭 403 bug，但以下改动本身是合理的防御性加固，可在新 PR 中保留：
+- `EffectiveRolePolicy` 添加 OSS admin 拦截（纯核心层 fail-closed）—— 防御性兜底
+- `EffectiveRoleResolver` 添加 `OSS_ADMIN_REJECTED` warn 日志 —— 可观测性
+- `DataScopeConfigService.getAccessProfile` 改走 `EffectiveRoleResolver` —— 统一数据源（但不足以消灭 bug）
+- 拆分 `RoleProfileAccessRuleResolver` —— 解决 300 行预算
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 基于错误根因分析的修复方案必败 | PR !2178 假设根因是 "DataScopeConfigService 读 DB roleProfile"，实际根因是 "RoleProfileCatalog 未区分本地角色与 OSS 角色，导致 OSS 返回的其他系统 admin 被错误识别" + "TenderController @PreAuthorize 列表缺 BID_SYSTEMADMIN" | 修复前必须画完整调用链，定位真正的拦截点；不能凭日志猜测 |
+| OSS 角色识别未排除本地独有角色 | `RoleProfileCatalog.DEFINITIONS` 注册了 admin，`canonicalCode("admin")` 返回 "admin"，导致 OSS sysRoleList 中其他系统的 admin 被错误识别为我们系统的 admin | OSS 角色解析路径必须排除本地独有角色（admin）；`RoleProfileCatalog` 应区分"本地角色"与"OSS 角色"两个集合 |
+| OSS 是多系统共用平台被忽视 | OSS 返回的 sysRoleList 混合了多系统角色（OSS/Home/CRM/投标），不是所有角色都属于我们系统 | OSS 角色解析必须通过系统标识或映射表过滤出属于本系统的 7 个 bid-* 角色码，其他角色（包括其他系统的 admin）一律跳过 |
+| 修复方案未覆盖所有故障链 | PR !2178 只覆盖故障链 3（且无效），未覆盖故障链 1 和 2 | 修复前必须推演所有可能的故障链，每条给出代码证据；修复后必须验证所有故障链都被消灭 |
+| 测试覆盖不足以证明 bug 消灭 | EffectiveRolePolicyTest +4 case 只覆盖纯核心决策，未覆盖端到端业务路径 | 关键 bug 修复必须补端到端测试（覃超颖登录 → 访问 /bidding/60 → 200） |
+| 未审计 PR 是否真的消灭 bug 就合入 | PR !2178 CI 全绿就提交，未做 Production Risk Review | 上线后 PR 必须过 Production Risk Review v2.0（9 阶段审计），证明"不存在足以导致线上回归的风险" |
+| `@PreAuthorize` 列表与 `RoleProfileCatalog` 不同步 | `TenderController` 的 `hasAnyRole` 列表不含 `BID_SYSTEMADMIN`，与 `RoleProfileCatalog.GLOBAL_ACCESS_ROLES` 不一致 | 新增 RoleProfile 时必须同步检查所有 `@PreAuthorize hasAnyRole` 列表；建议用 `RoleProfileCatalog.GLOBAL_ACCESS_ROLES` 常量替代硬编码列表 |
+| `hasAdminAccess` 短路不检查 isOssUser | OSS 缓存 admin 的用户绕过 dataScope 越权 | `hasAdminAccess` 必须增加 `!user.isOssUser()` 条件，OSS 用户永远不走 admin 短路 |
+
+### 操作规范
+
+1. **PR 修复 bug 前必须先画完整调用链**：从 HTTP 入口 → Filter → Controller → Service → Guard → Repository，每一步标注可能的拦截点
+2. **必须推演所有故障链**：覆盖 OSS 配置正确/错误、tender 关联/未关联 project、admin/非 admin 角色等多场景
+3. **必须补端到端测试**：覆盖覃超颖登录 → 访问 /bidding/60 → 200/403 的完整路径，不能只测纯核心
+4. **上线后 PR 必须过 Production Risk Review v2.0**：[docs/reviews/pr-2178-production-risk-review-2026-07-21.md](../reviews/pr-2178-production-risk-review-2026-07-21.md)
+5. **`@PreAuthorize` 列表必须与 `RoleProfileCatalog` 同步**：新增 RoleProfile 时同步检查所有 `@PreAuthorize hasAnyRole` 列表
+6. **`hasAdminAccess` 必须检查 isOssUser**：OSS 用户永远不走 admin 短路
+7. **OSS 角色解析必须排除本地独有角色**：`admin` 是本地独有的超级管理员，OSS 角色解析路径不应识别 admin；OSS 返回的 sysRoleList 中如果包含 admin，那是其他系统的 admin，应该跳过
+8. **OSS 是多系统共用平台**：OSS 返回的 sysRoleList 混合了多系统角色，必须通过系统标识或映射表过滤出属于本系统的 7 个 bid-* 角色码
+
+### 处置记录
+
+- 立即修复（已执行）：生产 Redis `DEL oss:perm:09118` 清缓存（返回 1）—— 临时解决，重新登录后如果 OSS sysRoleList 仍含其他系统 admin 会复发
+- PR !2178 审计（已执行）：Production Risk Review v2.0 9 阶段审计，裁决 FAIL，禁止上线
+- PR !2178 驳回（已执行）：保留分支作为参考，但不合入 main
+- 根因第一次修正（已执行）：审计报告认为根因是 "TenderController @PreAuthorize 缺 BID_SYSTEMADMIN" + "UserDetailsServiceImpl 不走 EffectiveRoleResolver"
+- **根因第二次修正（本次，用户指正）**：真正的核心根因是 `RoleProfileCatalog` 未区分本地角色与 OSS 角色——OSS 返回的多系统 sysRoleList 中包含其他系统的 admin，被 `canonicalCode("admin")` 错误识别为我们系统的 admin。覃超颖在 OSS 端的配置本来就是正确的 bid-SystemAdmin，无需运营操作修改 OSS 端配置。
+- 后续修复 PR !2179（进行中）：分支 `agent/codex/fix-bid-systemadmin-403-real-root-cause`，按第二次修正的根因实施
+- 知识沉淀（本次）：修正 §78 根因分析（第二次修正），追加完整审计报告到 `docs/reviews/`
+
+### 相关文档
+
+- [docs/reviews/pr-2178-production-risk-review-2026-07-21.md](../reviews/pr-2178-production-risk-review-2026-07-21.md) — PR !2178 完整审计报告（9 阶段 + 3 故障链 + 证据）
+- [CLAUDE.md](../../CLAUDE.md) §角色清单 — OSS 用户永远不映射为 admin 硬约束
+- [CLAUDE.md](../../CLAUDE.md) §角色码解析强约束（CO-373 治理）— 统一走 EffectiveRoleResolver
+- [ARCHITECTURE.md](../../ARCHITECTURE.md) §Agent Contract — FP-Java 纯核心可单测、不依赖框架
+- [SECURITY.md](../../SECURITY.md) — Mock 政策、权限守卫、安全审计
+- spec 033 `specs/033-oss-local-permission-path-separation/spec.md` — OSS 与本地用户权限代码路径分离根治方案
+- PR !2178 — 错误根因分析的修复方案（已驳回）
+- PR !2179 — 真正根因修复方案（进行中）
+- CO-373 — 角色码统一解析入口治理（5 次反复修复的根因）
