@@ -63,6 +63,11 @@ public class WarehouseWordBundleBuilder {
             // §3.9：页面尺寸与页边距
             WarehouseWordBundlePageSetup.applyTo(doc);
 
+            // §3.4：注册 Title/Heading1-3 样式到 word/styles.xml
+            // 根因修复：POI 默认不生成 styles.xml，p.setStyle("Heading1") 失效，
+            // Word 导航窗格为空。必须在创建任何段落前先注册样式定义。
+            WarehouseWordStyleRegistrar.registerHeadingStyles(doc);
+
             // 文档标题（§3.9：居中，黑体 18pt，加粗）
             writeDocumentTitle(doc);
 
@@ -93,26 +98,20 @@ public class WarehouseWordBundleBuilder {
         XWPFParagraph p = doc.createParagraph();
         p.setAlignment(ParagraphAlignment.CENTER);
         p.setStyle("Title");
-        XWPFRun run = p.createRun();
-        run.setText("仓库附件合订本");
-        run.setFontFamily(WarehouseWordStyleConfig.FONT_HEITI);
-        run.setFontSize(WarehouseWordStyleConfig.SIZE_TITLE_PT);
-        run.setBold(true);
+        p.createRun().setText("仓库附件合订本");
     }
 
     // ========== 省份一级标题（Heading1 样式，§3.4 同省仓库合并到同一个省标题下） ==========
 
     private void writeProvinceHeading(XWPFDocument doc, String province) {
-        writeHeading(doc, province,
-                WarehouseWordStyleConfig.FONT_HEITI, WarehouseWordStyleConfig.SIZE_H1_PT, true, "Heading1");
+        writeHeading(doc, province, "Heading1");
     }
 
     // ========== 仓库段落（二级标题 Heading2） ==========
 
     private void writeWarehouseSection(XWPFDocument doc, WarehouseReadModel wh,
                                         List<? extends WarehouseAttachmentReadModel> attachments) {
-        writeHeading(doc, wh.getName(),
-                WarehouseWordStyleConfig.FONT_HEITI, WarehouseWordStyleConfig.SIZE_H2_PT, true, "Heading2");
+        writeHeading(doc, wh.getName(), "Heading2");
 
         if (attachments.isEmpty()) {
             // §4：仓库无附件 → 标注"（无附件）"
@@ -131,8 +130,7 @@ public class WarehouseWordBundleBuilder {
 
             // 三级标题：附件分类（应用 Heading3 样式）
             String sectionTitle = WarehouseWordBundleOrganizationPolicy.wordSectionTitle(type, wh);
-            writeHeading(doc, sectionTitle,
-                    WarehouseWordStyleConfig.FONT_SONGTI, WarehouseWordStyleConfig.SIZE_H3_PT, true, "Heading3");
+            writeHeading(doc, sectionTitle, "Heading3");
 
             // 附件内容
             if (type == WarehouseAttachmentType.PHOTOS) {
@@ -238,17 +236,17 @@ public class WarehouseWordBundleBuilder {
         return Paths.get(attachmentRoot, String.valueOf(wh.getId()), att.getStoredFilename());
     }
 
-    private void writeHeading(XWPFDocument doc, String text, String font, int sizePt, boolean bold, String styleName) {
+    /**
+     * 写入标题段落，应用指定 pStyle（字体/字号/加粗/大纲级别由 styles.xml 中的样式定义接管）。
+     * <p>
+     * 样式定义见 {@link WarehouseWordStyleRegistrar#registerHeadingStyles}。
+     * 这里不再手动 setFontFamily/setFontSize/setBold，避免与样式定义重复。
+     */
+    private void writeHeading(XWPFDocument doc, String text, String styleName) {
         XWPFParagraph p = doc.createParagraph();
         p.setAlignment(ParagraphAlignment.LEFT);
-        if (styleName != null && !styleName.isEmpty()) {
-            p.setStyle(styleName);
-        }
-        XWPFRun run = p.createRun();
-        run.setText(text);
-        run.setFontFamily(font);
-        run.setFontSize(sizePt);
-        run.setBold(bold);
+        p.setStyle(styleName);
+        p.createRun().setText(text);
     }
 
     private void writeBodyText(XWPFDocument doc, String text) {

@@ -1,5 +1,6 @@
 import { ref, computed, onUnmounted, getCurrentInstance } from 'vue'
 import http from '@/api/client'
+import { API_BASE_URL } from '@/api/config'
 
 const TERMINAL_STATUSES = ['COMPLETED', 'FAILED']
 
@@ -132,6 +133,10 @@ export function useAsyncTask(options = {}) {
     // - AbortController 5 分钟超时，防止服务器挂起
     // - 实时更新下载进度（Content-Length + 累计已读字节）
     // - 流式消费响应体，避免一次性全量加载
+    // - 必须拼接 API_BASE_URL：dev 模式下 baseURL 是 http://127.0.0.1:18089，
+    //   若用相对路径 fetch，请求会打到 vite dev server（无 proxy）→ 返回 index.html
+    //   → 用户下载到 405 字节 HTML 但文件名是 .zip → 解压报"格式不正确"
+    const fullUrl = `${API_BASE_URL}${url}`
     isDownloading.value = true
     downloadProgress.value = 0
     isDownloadIndeterminate.value = false
@@ -140,7 +145,7 @@ export function useAsyncTask(options = {}) {
     try {
       let response
       try {
-        response = await fetch(url, {
+        response = await fetch(fullUrl, {
           credentials: 'include',
           signal: controller.signal
         })
