@@ -298,6 +298,97 @@ class WarehouseWordBundleBuilderTest {
         }
     }
 
+    /**
+     * 强断言：styles.xml 必须真正定义 Title/Heading1/Heading2/Heading3 样式 + outlineLvl。
+     * <p>
+     * 根因（CO-582 §3.4 彻底修复）：
+     * 上一版修复只调用 {@code p.setStyle("Heading1")}，但 POI 的 {@code new XWPFDocument()}
+     * 默认不生成 word/styles.xml，Word 打开后找不到样式定义，导航窗格仍为空。
+     * 上一版的 {@code buildBundle_appliesWordHeadingStyles_*} 测试只断言 {@code p.getStyle()}
+     * 返回的字符串，无法捕获此 bug——getStyle 只读段落上的 pStyle ID，不校验 styles.xml。
+     * <p>
+     * 本测试补强：
+     * <ol>
+     *   <li>{@code doc.getStyles()} 不为 null</li>
+     *   <li>四个样式 ID 在 styles.xml 中都有定义</li>
+     *   <li>每个样式的 {@code outlineLvl} 值正确（Title=0, H1=0, H2=1, H3=2）</li>
+     *   <li>每个样式有 {@code qFormat} 标记</li>
+     * </ol>
+     * 防止以后任何人删掉 {@link WarehouseWordStyleRegistrar#registerHeadingStyles} 调用
+     * 而其他弱断言测试继续"假绿"放行。
+     */
+    @Test
+    void buildBundle_stylesXmlDefinesHeadingStylesWithOutlineLevel() throws IOException {
+        WarehouseWordBundleBuilder builder = new WarehouseWordBundleBuilder();
+        ReflectionTestUtils.setField(builder, "attachmentRoot", tempDir.toString());
+
+        // 准备一个最小 PDF，让三级标题"租赁合同(...)"能被生成
+        Path whDir = tempDir.resolve("1");
+        Files.createDirectories(whDir);
+        Path pdfPath = whDir.resolve("lease.pdf");
+        try (PDDocument pdf = new PDDocument()) {
+            PDPage page = new PDPage();
+            pdf.addPage(page);
+            try (PDPageContentStream cs = new PDPageContentStream(pdf, page)) {
+                cs.beginText();
+                cs.setFont(PDType1Font.HELVETICA, 12);
+                cs.newLineAtOffset(100, 700);
+                cs.showText("Lease");
+                cs.endText();
+            }
+            pdf.save(pdfPath.toFile());
+        }
+
+        TestWarehouse wh = new TestWarehouse(1L, "杭州仓", "浙江",
+                LocalDate.of(2021, 1, 15), LocalDate.of(2029, 1, 14));
+        TestAttachment att = new TestAttachment(100L, WarehouseAttachmentType.LEASE_CONTRACT,
+                "WH_杭州仓_租赁合同.pdf", "lease.pdf");
+
+        byte[] result = buildBundleToBytes(builder, List.of(wh), Map.of(1L, List.of(att)));
+
+        try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(result))) {
+            // 1. styles 部分必须存在（POI new XWPFDocument() 默认不带）
+            org.apache.poi.xwpf.usermodel.XWPFStyles styles = doc.getStyles();
+            assertThat(styles)
+                    .as("§3.4 根因修复：styles.xml 必须存在（POI 默认不生成）")
+                    .isNotNull();
+
+            // 2. 四个标题样式必须都被定义
+            assertStyleDefinedWithOutlineLvl(styles, "Title", 0);
+            assertStyleDefinedWithOutlineLvl(styles, "Heading1", 0);
+            assertStyleDefinedWithOutlineLvl(styles, "Heading2", 1);
+            assertStyleDefinedWithOutlineLvl(styles, "Heading3", 2);
+        }
+    }
+
+    /**
+     * 断言指定 styleId 的样式在 styles.xml 中存在，且 outlineLvl/qFormat 正确。
+     */
+    private static void assertStyleDefinedWithOutlineLvl(
+            org.apache.poi.xwpf.usermodel.XWPFStyles styles,
+            String styleId, int expectedOutlineLvl) {
+        org.apache.poi.xwpf.usermodel.XWPFStyle style = styles.getStyle(styleId);
+        assertThat(style)
+                .as("§3.4 根因修复：样式 %s 必须在 styles.xml 中定义（不能只靠段落 pStyle ID）", styleId)
+                .isNotNull();
+
+        org.openxmlformats.schemas.wordprocessingml.x2006.main.CTStyle ctStyle = style.getCTStyle();
+        assertThat(ctStyle.isSetQFormat())
+                .as("§3.4 根因修复：样式 %s 必须有 qFormat 标记（让 Word 识别为快速样式）", styleId)
+                .isTrue();
+
+        assertThat(ctStyle.isSetPPr())
+                .as("§3.4 根因修复：样式 %s 必须有 pPr 段落属性", styleId)
+                .isTrue();
+        assertThat(ctStyle.getPPr().isSetOutlineLvl())
+                .as("§3.4 根因修复：样式 %s 必须有 outlineLvl（Word 导航窗格识别层级的唯一依据）", styleId)
+                .isTrue();
+        BigInteger actualLvl = ctStyle.getPPr().getOutlineLvl().getVal();
+        assertThat(actualLvl.intValue())
+                .as("§3.4 根因修复：样式 %s 的 outlineLvl 必须为 %d", styleId, expectedOutlineLvl)
+                .isEqualTo(expectedOutlineLvl);
+    }
+
     // ========== 根因行为测试（CO-582 bug：macOS SSV 只读 + 绝对路径默认值） ==========
 
     /**

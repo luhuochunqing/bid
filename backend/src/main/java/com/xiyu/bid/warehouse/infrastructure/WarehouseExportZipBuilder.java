@@ -38,6 +38,20 @@ public class WarehouseExportZipBuilder {
     private static final String WORD_FILENAME_SUFFIX = ".docx";
     private static final DateTimeFormatter WORD_TS_FMT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
+    /**
+     * ZIP 文件名编码：UTF-8 + EFS（General Purpose Bit Flag bit 11）。
+     * <p>跨平台兼容性最佳方案（ZIP 2.6+ 规范）：
+     * <ul>
+     *   <li>JDK {@link ZipOutputStream} 默认构造函数使用 UTF-8 编码文件名，
+     *       并自动设置 EFS bit，告知解压器"文件名按 UTF-8 解码"</li>
+     *   <li>macOS Archive Utility / Linux unzip / Windows 10+ Explorer /
+     *       WinRAR / 7-Zip 均支持 EFS bit → 正确显示中文文件名</li>
+     * </ul>
+     * <p>历史教训：曾尝试改用 GBK 编码以"兼容 Windows"，结果 EFS bit 未设置，
+     * macOS unzip 按 UTF-8 解码 GBK 字节 → "Illegal byte sequence" 解压失败。
+     * 实际上原"格式不正确"问题的根因是前端下载到 HTML 而非 ZIP（已在
+     * useAsyncTask.js 中修复 baseURL），与 ZIP 编码无关。
+     */
     @Value("${warehouse.attachment.root:data/warehouse-attachments}")
     private String attachmentRoot;
 
