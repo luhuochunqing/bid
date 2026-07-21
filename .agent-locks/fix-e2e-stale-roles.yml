@@ -1,9 +1,0 @@
-version: 1
-task: "fix-e2e-stale-roles"
-locks:
-  - path: "backend/src/main/java/com/xiyu/bid/entity/User.java"
-    scope: "file"
-    owner: "agent"
-    branch: "agent/trae/fix-e2e-stale-roles"
-    expiresAt: "2026-07-22T13:57:39.934Z"
-    reason: "PR !2176: isLocalSystemAccount 语义放宽 — User.java javadoc 更新本地非 OSS 账户判定口径"

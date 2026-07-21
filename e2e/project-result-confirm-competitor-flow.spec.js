@@ -35,23 +35,25 @@ test.describe('§3.3.1.4 结果确认 - 竞争对手情况表', () => {
     expect(rowCount).toBeGreaterThanOrEqual(3)
 
     // 验证凭证标签按类型切换
-    const radioWon = page.locator('.el-radio').filter({ hasText: /^中标$/ })
-    const radioFailed = page.locator('.el-radio').filter({ hasText: /^流标$/ })
+    // ResultConfirmStage.vue: 投标结果用 .result-chip 按钮（非 .el-radio）
+    const radioWon = page.locator('.result-chip').filter({ hasText: /^中标$/ })
+    const radioFailed = page.locator('.result-chip').filter({ hasText: /^流标$/ })
 
     await radioFailed.click()
-  await expect(page.locator('.stage-view .el-upload__tip')).toBeVisible({ timeout: 5000 }).catch(() => {})
-    const uploadTip = page.locator('.stage-view .el-upload__tip')
+  await expect(page.locator('.result-stage .el-upload__tip')).toBeVisible({ timeout: 5000 }).catch(() => {})
+    const uploadTip = page.locator('.result-stage .el-upload__tip')
     const tipText = await uploadTip.textContent()
     expect(tipText).toContain('流标')
 
     // 切换回中标验证标签变化
     await radioWon.click()
-  await expect(page.locator('.stage-view .el-upload__tip')).toBeVisible({ timeout: 5000 }).catch(() => {})
+  await expect(page.locator('.result-stage .el-upload__tip')).toBeVisible({ timeout: 5000 }).catch(() => {})
     const wonTipText = await uploadTip.textContent()
     expect(wonTipText).toContain('中标通知书')
 
     // 验证添加/删除行
-    const addBtn = competitorTable.locator('.add-row-btn')
+    // .add-row-btn 是 .competitor-table 的兄弟元素（在 table 之后），需用 page.locator
+    const addBtn = page.locator('.add-row-btn')
     await addBtn.click()
   await expect(page.locator('.el-table__body-wrapper tbody tr')).toHaveCount(rowCount + 1, { timeout: 5000 }).catch(() => {})
     const rowsAfterAdd = await tableRows.count()

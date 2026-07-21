@@ -14,6 +14,7 @@ test.describe('workbench quick start', () => {
 
     await injectSession(page, session)
     await page.goto('/dashboard')
-    await expect(page.locator('.page-kicker').filter({ hasText: '工作台' })).toBeVisible()
+    // Workbench.vue 根 class 为 .workbench（.page-kicker 已废弃，CO-重构后移除）
+    await expect(page.locator('.workbench')).toBeVisible({ timeout: 15_000 })
   })
 })
