@@ -7,7 +7,7 @@
 // E2E 从 login 响应的 Set-Cookie 提取 access_token (供浏览器外 Bearer header),
 // 浏览器内注入 access_token cookie + user hint (前端走 cookie 认证, 读 storage user).
 
-const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18080'
+const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18089'
 // 默认值与 CLAUDE.md 端口约定对齐：前端 1323 / 后端 18089（仅作 fallback，正常应通过 PLAYWRIGHT_BASE_URL 传入）
 const frontendBaseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:1323'
 const defaultPassword = process.env.COMMERCIAL_E2E_PASSWORD || 'XiyuDemo!2026'
