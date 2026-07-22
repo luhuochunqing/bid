@@ -121,9 +121,24 @@ public class RoleProfile {
         }
         return Arrays.stream(rawValue.split(","))
                 .map(String::trim)
+                // 防御性去引号：历史 Flyway 迁移 V1118/V1121/V1122/V1123 错误地用
+                // CONCAT(menu_permissions, ',"tender.view"') 把字面双引号写入了字段值，
+                // 导致权限字符串变为 "tender.view"（带引号），无法匹配 hasAuthority('tender.view')。
+                // 这里在解析时去掉首尾字面双引号，兼容历史脏数据。
+                .map(RoleProfile::stripSurroundingQuotes)
                 .filter(value -> !value.isBlank())
                 .distinct()
                 .toList();
+    }
+
+    private static String stripSurroundingQuotes(String value) {
+        if (value == null || value.length() < 2) {
+            return value;
+        }
+        if (value.startsWith("\"") && value.endsWith("\"")) {
+            return value.substring(1, value.length() - 1);
+        }
+        return value;
     }
 
     private static String joinStrings(List<String> values) {

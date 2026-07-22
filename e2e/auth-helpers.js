@@ -54,7 +54,13 @@ function extractUser(data) {
     username: data.username,
     email: data.email,
     // RoleProfile code 大小写敏感（如 /bidAdmin、bid-Team），不能 toLowerCase
-    role: String(data.role || '')
+    role: String(data.role || ''),
+    roleCode: String(data.roleCode || data.role || ''),
+    roleName: String(data.roleName || ''),
+    isOssUser: Boolean(data.isOssUser ?? data.ossUser),
+    // 关键：前端路由守卫 (hasRouteAccess) 依赖 menuPermissions 判断页面访问权限。
+    // 若缺失，所有需要 permissionKeys 的路由都会被重定向到工作台/无权限页。
+    menuPermissions: Array.isArray(data.menuPermissions) ? data.menuPermissions : []
   }
 }
 
