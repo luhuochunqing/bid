@@ -6,7 +6,7 @@
 //   BUI-4 — 完成投标区域权限正确（IJSZSG）
 //   BUI-5 — 标书审核权限：提交人不见审核按钮，审核人可见（IJSTZG）
 // Pos: e2e/ - Playwright E2E regression coverage for Issues batch fix
-// 运行: PLAYWRIGHT_API_BASE_URL=http://127.0.0.1:18080 PLAYWRIGHT_BASE_URL=http://127.0.0.1:1314 npx playwright test e2e/regression-bid-ui-optimization.spec.js
+// 运行: PLAYWRIGHT_API_BASE_URL=http://127.0.0.1:18089 PLAYWRIGHT_BASE_URL=http://127.0.0.1:1323 npx playwright test e2e/regression-bid-ui-optimization.spec.js
 
 import { test, expect } from '@playwright/test'
 import { apiBaseUrl, ensureApiSession, injectSession } from './auth-helpers.js'

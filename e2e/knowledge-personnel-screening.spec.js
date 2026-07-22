@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { ensureApiSession, injectSession } from './auth-helpers.js'
 
-const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18080'
+const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18089'
 
 /**
  * 工具：通过真实 API 快速创建测试人员（支持教育 + 证书）

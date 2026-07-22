@@ -1,7 +1,7 @@
 // @ui-cover:knowledge
 import { test, expect } from '@playwright/test'
 
-const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18080'
+const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18089'
 const username = process.env.COMMERCIAL_E2E_USERNAME || `eri97_${Date.now()}`
 const password = process.env.COMMERCIAL_E2E_PASSWORD || 'XiyuDemo!2026'
 const email = `${username}@example.com`
@@ -99,7 +99,7 @@ test('template advanced actions use real API contracts', async ({ page }) => {
   const templateId = templatePayload?.data?.id
   expect(templateId).toBeTruthy()
 
-  await page.context().addCookies([{ name: "access_token", value: session.token, url: "http://127.0.0.1:18080", httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: "http://127.0.0.1:1314", httpOnly: true, sameSite: "Lax" }])
+  await page.context().addCookies([{ name: "access_token", value: session.token, url: "http://127.0.0.1:18089", httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: "http://127.0.0.1:1323", httpOnly: true, sameSite: "Lax" }])
   await page.addInitScript(({ token, user }) => {
     sessionStorage.setItem('token', token)
     sessionStorage.setItem('user', JSON.stringify(user))

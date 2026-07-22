@@ -7,7 +7,7 @@
  * - scope 路由：submit 到正确的后端 handler
  * - 验证错误提示：后端 errorMessage 返回到前端显示
  *
- * 依赖：后端 http://127.0.0.1:18080，前端 http://127.0.0.1:1314
+ * 依赖：后端 http://127.0.0.1:18089，前端 http://127.0.0.1:1323
  * 依赖：e2e/auth-helpers.js（ensureApiSession / injectSession）
  */
 

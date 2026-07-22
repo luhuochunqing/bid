@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { ensureApiSession, injectSession } from './auth-helpers.js'
 
-const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18080'
+const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18089'
 
 /**
  * 工具函数：通过 UI 新增一个人（带教育经历），返回创建后的工号

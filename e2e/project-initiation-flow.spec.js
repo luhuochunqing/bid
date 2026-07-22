@@ -3,7 +3,7 @@
 import { test, expect } from '@playwright/test'
 import { ensureApiSession, injectSession, apiBaseUrl, defaultPassword } from './auth-helpers.js'
 
-const frontendUrl = process.env.PLAYWRIGHT_FRONTEND_URL || 'http://127.0.0.1:1314'
+const frontendUrl = process.env.PLAYWRIGHT_FRONTEND_URL || 'http://127.0.0.1:1323'
 
 async function loginAsRole(page, role) {
   const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`

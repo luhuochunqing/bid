@@ -29,7 +29,7 @@ async function reloadToTaskBoard(page) {
 async function bootstrapProject(page, label) {
   const session = await createAuthenticatedSession()
   const project = await createProjectFixture(session, label)
-  await page.context().addCookies([{ name: "access_token", value: session.token, url: "http://127.0.0.1:18080", httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: "http://127.0.0.1:1314", httpOnly: true, sameSite: "Lax" }])
+  await page.context().addCookies([{ name: "access_token", value: session.token, url: "http://127.0.0.1:18089", httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: "http://127.0.0.1:1323", httpOnly: true, sameSite: "Lax" }])
   await page.addInitScript(({ token, user }) => {
     sessionStorage.setItem('token', token)
     sessionStorage.setItem('user', JSON.stringify(user))
@@ -217,7 +217,7 @@ test.describe('Task board customization core flow', () => {
     // The fixture creates an ADMIN-role user (role: 'bid_admin' in register
     // fallback), so the task-status-dict tab will be visible.
     const session = await createAuthenticatedSession()
-    await page.context().addCookies([{ name: "access_token", value: session.token, url: "http://127.0.0.1:18080", httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: "http://127.0.0.1:1314", httpOnly: true, sameSite: "Lax" }])
+    await page.context().addCookies([{ name: "access_token", value: session.token, url: "http://127.0.0.1:18089", httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: "http://127.0.0.1:1323", httpOnly: true, sameSite: "Lax" }])
     await page.addInitScript(({ token, user }) => {
       sessionStorage.setItem('token', token)
       sessionStorage.setItem('user', JSON.stringify(user))
@@ -326,7 +326,7 @@ test.describe('Task board customization core flow', () => {
 
     // --- 1. Admin creates the extended field via /settings panel ---
     const session = await createAuthenticatedSession()
-    await page.context().addCookies([{ name: "access_token", value: session.token, url: "http://127.0.0.1:18080", httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: "http://127.0.0.1:1314", httpOnly: true, sameSite: "Lax" }])
+    await page.context().addCookies([{ name: "access_token", value: session.token, url: "http://127.0.0.1:18089", httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: "http://127.0.0.1:1323", httpOnly: true, sameSite: "Lax" }])
     await page.addInitScript(({ token, user }) => {
       sessionStorage.setItem('token', token)
       sessionStorage.setItem('user', JSON.stringify(user))

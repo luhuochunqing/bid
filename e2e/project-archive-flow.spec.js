@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test'
 import { apiBaseUrl, ensureApiSession, injectSession } from './auth-helpers.js'
 
-const backendUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18080'
+const backendUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18089'
 
 async function apiRequest(path, session, options = {}) {
   const response = await fetch(`${backendUrl}${path}`, {
