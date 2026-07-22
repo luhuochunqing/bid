@@ -57,7 +57,7 @@ test.describe('知识库 - 人员新增（教育经历支持）- E2E 验证', ()
 
     await injectSession(page, session)
     await page.goto('/knowledge/personnel')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     const employeeNumber = `E2E${suffix}`
 
@@ -119,7 +119,7 @@ test.describe('知识库 - 人员新增（教育经历支持）- E2E 验证', ()
 
       await injectSession(page, session)
       await page.goto('/knowledge/personnel')
-      await page.waitForLoadState('networkidle')
+      await page.waitForLoadState('load')
 
       await page.getByRole('button', { name: '新增人员' }).click()
       await expect(page.getByRole('dialog')).toBeVisible()
@@ -215,7 +215,7 @@ test.describe('知识库 - 人员编辑（编辑证书子节）', () => {
 
     await injectSession(page, session)
     await page.goto('/knowledge/personnel')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     // 简化：直接通过详情或列表触发编辑（此处用 API 辅助找到记录后，实际项目建议更强的定位）
     // 为了演示 E2E 能力，这里我们主要验证权限 + 后端返回的警示
@@ -343,7 +343,7 @@ test.describe('知识库 - 人员编辑（编辑证书子节）', () => {
 
     await injectSession(page, session)
     await page.goto('/knowledge/personnel')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     // 尝试通过过滤找到记录并点击编辑（简化定位）
     // 实际项目建议给表格行或按钮加 data-testid
@@ -425,7 +425,7 @@ test.describe('查看证书 - 列表 11 列 + 4 Tab 抽屉', () => {
     const session = await ensureApiSession()
     await injectSession(page, session)
     await page.goto('/knowledge/personnel')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     // 通过 API 快速准备一条带教育+证书的数据（避免纯 UI 慢速创建）
     const suffix = Date.now().toString(36).slice(-6)
@@ -459,7 +459,7 @@ test.describe('查看证书 - 列表 11 列 + 4 Tab 抽屉', () => {
 
     // 验证关键列存在（工号加粗、性别、入职年限、证书数量、即将到期等）
     await expect(row.getByText(`VIEW${suffix}`)).toBeVisible()
-    await expect(row.locator('text=男').or(row.getByText('男'))).toBeVisible()
+    await expect(row.getByText('男')).toBeVisible()
     await expect(row.getByText(/年/)).toBeVisible() // 入职年限
     await expect(row.locator('.cert-count-clickable, [class*="cert"]')).toBeVisible()
 
@@ -476,7 +476,7 @@ test.describe('查看证书 - 列表 11 列 + 4 Tab 抽屉', () => {
 
     // 切换到证书 Tab 并验证证书数量点击逻辑（从列表直接点数量）
     await page.getByRole('tab', { name: '证书与职称' }).click()
-    await expect(page.locator('.el-drawer').getByText('建造师').or(page.locator('text=建造师'))).toBeVisible({ timeout: 3000 })
+    await expect(page.locator('.el-drawer').getByText('建造师')).toBeVisible({ timeout: 3000 })
 
     // 关闭抽屉
     await page.locator('.el-drawer__close-btn').click()
@@ -516,7 +516,7 @@ test.describe('删除人员 - 边界与恢复流程', () => {
     expect(personId).toBeTruthy()
 
     await page.goto('/knowledge/personnel')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     // 筛选到在职，找到该人并删除
     await page.getByPlaceholder('搜索姓名或工号').fill(`DEL${suffix}`)

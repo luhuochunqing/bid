@@ -43,7 +43,7 @@ test.describe('§3.3.1.5 项目复盘', () => {
 
     // 2. 导航到该项目的复盘页面
     await page.goto(`${frontendUrl}/project/${projectId}`)
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
     
     // 3. 点击 "项目复盘" tab
     const retroTab = page.locator('.custom-stage-tabs .el-tabs__item').filter({ hasText: '项目复盘' })

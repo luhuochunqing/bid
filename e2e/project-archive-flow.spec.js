@@ -33,7 +33,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
 
   test('4.4.2 统计卡片展示 - 页面加载显示统计区域', async ({ page }) => {
     await page.goto('/knowledge/archive')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     const container = page.locator('.project-archive-container')
     await expect(container).toBeVisible({ timeout: 15000 })
@@ -41,7 +41,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
 
   test('4.4.2 档案列表加载 - 表格列正确渲染', async ({ page }) => {
     await page.goto('/knowledge/archive')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     await expect(page.getByText('项目档案台账')).toBeVisible()
 
@@ -51,7 +51,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
 
   test('4.4.2 档案列表分页 - 分页器正常显示', async ({ page }) => {
     await page.goto('/knowledge/archive')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     const pagination = page.locator('.pagination-container')
     await expect(pagination).toBeVisible({ timeout: 5000 })
@@ -60,7 +60,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
 
   test('4.4.2 状态标签筛选 - 点击不同状态标签列表响应变化', async ({ page }) => {
     await page.goto('/knowledge/archive')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     const statusTabs = page.locator('.archive-status-tabs')
     if (await statusTabs.isVisible()) {
@@ -87,7 +87,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
 
   test('4.4.2 筛选表单 - 项目名称搜索框可用', async ({ page }) => {
     await page.goto('/knowledge/archive')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     const searchInput = page.locator('input[placeholder="请输入项目名称"]')
     if (await searchInput.isVisible()) {
@@ -104,7 +104,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
 
   test('4.4.2 重置按钮 - 点击后恢复默认筛选状态', async ({ page }) => {
     await page.goto('/knowledge/archive')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     const searchInput = page.locator('input[placeholder="请输入项目名称"]')
     if (await searchInput.isVisible()) {
@@ -125,7 +125,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
 
   test('4.4.2 详情抽屉 - 点击列表行打开抽屉', async ({ page }) => {
     await page.goto('/knowledge/archive')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
 
     const firstRow = page.locator('.el-table__body-wrapper .el-table__row').first()
@@ -152,7 +152,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
 
   test('4.4.2 详情抽屉 - 查看按钮打开抽屉显示完整信息', async ({ page }) => {
     await page.goto('/knowledge/archive')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     const viewBtn = page.getByRole('button', { name: '查看' }).first()
     const hasViewBtn = await viewBtn.isVisible().catch(() => false)
@@ -182,7 +182,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
 
   test('4.4.2 导出台账 - 点击按钮触发 Excel 下载', async ({ page }) => {
     await page.goto('/knowledge/archive')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     const exportBtn = page.getByRole('button', { name: /导出台账/ })
     const hasExportBtn = await exportBtn.isVisible().catch(() => false)
@@ -201,7 +201,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
 
   test('4.4.2 导出文件包 - 点击按钮触发 ZIP 下载', async ({ page }) => {
     await page.goto('/knowledge/archive')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     const exportBtn = page.getByRole('button', { name: /导出文件包/ })
     const hasExportBtn = await exportBtn.isVisible().catch(() => false)
@@ -257,7 +257,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
 
   test('4.4.2 筛选表单 - 项目负责人筛选框可用', async ({ page }) => {
     await page.goto('/knowledge/archive')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     const pmInput = page.locator('input[placeholder="项目负责人"]')
     if (await pmInput.isVisible()) {
@@ -272,7 +272,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
 
   test('4.4.2 筛选表单 - 投标负责人筛选框可用', async ({ page }) => {
     await page.goto('/knowledge/archive')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     const bmInput = page.locator('input[placeholder="投标负责人"]')
     if (await bmInput.isVisible()) {
@@ -287,7 +287,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
 
   test('4.4.2 详情抽屉 - 文件预览按钮触发窗口打开', async ({ page }) => {
     await page.goto('/knowledge/archive')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     const viewBtn = page.getByRole('button', { name: '查看' }).first()
     const hasViewBtn = await viewBtn.isVisible().catch(() => false)
@@ -312,7 +312,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
 
   test('4.4.2 详情抽屉 - 文件下载按钮存在', async ({ page }) => {
     await page.goto('/knowledge/archive')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     const viewBtn = page.getByRole('button', { name: '查看' }).first()
     const hasViewBtn = await viewBtn.isVisible().catch(() => false)
@@ -406,7 +406,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
 
   test('4.4.2 导出台账 - 文件名包含时间戳格式', async ({ page }) => {
     await page.goto('/knowledge/archive')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     const exportBtn = page.getByRole('button', { name: /导出台账/ })
     const hasExportBtn = await exportBtn.isVisible().catch(() => false)
@@ -425,7 +425,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
 
   test('4.4.2 导出文件包 - 文件名包含时间戳格式', async ({ page }) => {
     await page.goto('/knowledge/archive')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     const exportBtn = page.getByRole('button', { name: /导出文件包/ })
     const hasExportBtn = await exportBtn.isVisible().catch(() => false)

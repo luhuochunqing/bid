@@ -10,7 +10,7 @@ test.describe('仓库信息 §4.4 — smoke', () => {
     })
     await injectSession(page, session)
     await page.goto('/knowledge/warehouse')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
     await expect(page.locator('.warehouse-container')).toBeVisible()
   })
 })

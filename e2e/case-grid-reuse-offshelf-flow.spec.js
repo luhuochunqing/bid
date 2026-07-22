@@ -12,7 +12,7 @@ test.describe('§44.1.1.2 案例库 — 复用与下架流程', () => {
 
     await injectSession(page, session)
     await page.goto('/knowledge/case')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     // 状态筛选可见
     const statusSelect = page.locator('.el-select').filter({ hasText: '项目状态' }).first()
@@ -35,7 +35,7 @@ test.describe('§44.1.1.2 案例库 — 复用与下架流程', () => {
 
     await injectSession(page, session)
     await page.goto('/knowledge/case')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     // 查找复用按钮
     const reuseBtn = page.getByRole('button', { name: '📋 复用' }).first()
@@ -56,7 +56,7 @@ test.describe('§44.1.1.2 案例库 — 复用与下架流程', () => {
 
     await injectSession(page, session)
     await page.goto('/knowledge/case')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     // 管理员应看到下架按钮
     const offShelfBtn = page.getByRole('button', { name: '下架' }).first()
@@ -79,7 +79,7 @@ test.describe('§44.1.1.2 案例库 — 复用与下架流程', () => {
 
     await injectSession(page, session)
     await page.goto('/knowledge/case')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     // 点击第一个详情按钮打开抽屉
     const detailBtn = page.getByRole('button', { name: '详情' }).first()

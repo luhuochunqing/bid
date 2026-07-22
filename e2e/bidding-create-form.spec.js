@@ -18,7 +18,7 @@ test.describe('标讯创建表单', () => {
 
   test('表单字段与蓝图对齐', async ({ page }) => {
     await page.goto('/bidding/create')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     // 标题应为"项目名称"而非"标讯标题"
     const label = page.locator('.el-form-item__label:has-text("项目名称")')
