@@ -17,6 +17,7 @@
 // History:
 //   2026-07-20: original implementation. Blocks new PRs whose added "## N." section
 //   numbers conflict with (≤) the max section number already on origin/main.
+// 维护声明: 若 lessons-learned.md 章节编号规则或 section 冲突判定逻辑变化，请同步更新此脚本和 RULES.md。
 
 import fs from 'node:fs'
 import path from 'node:path'
