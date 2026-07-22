@@ -5789,8 +5789,9 @@ PR !2178 假设的根因：
 - PR !2178 驳回（已执行）：保留分支作为参考，但不合入 main
 - 根因第一次修正（已执行）：审计报告认为根因是 "TenderController @PreAuthorize 缺 BID_SYSTEMADMIN" + "UserDetailsServiceImpl 不走 EffectiveRoleResolver"
 - **根因第二次修正（本次，用户指正）**：真正的核心根因是 `RoleProfileCatalog` 未区分本地角色与 OSS 角色——OSS 返回的多系统 sysRoleList 中包含其他系统的 admin，被 `canonicalCode("admin")` 错误识别为我们系统的 admin。覃超颖在 OSS 端的配置本来就是正确的 bid-SystemAdmin，无需运营操作修改 OSS 端配置。
-- 后续修复 PR !2179（进行中）：分支 `agent/codex/fix-bid-systemadmin-403-real-root-cause`，按第二次修正的根因实施
-- 知识沉淀（本次）：修正 §78 根因分析（第二次修正），追加完整审计报告到 `docs/reviews/`
+- 后续修复 PR !2179（已合并 2026-07-21）：分支 `agent/codex/fix-bid-systemadmin-403-real-root-cause`，按第二次修正的根因实施
+- 知识沉淀（2026-07-21）：修正 §78 根因分析（第二次修正），追加完整审计报告到 `docs/reviews/`
+- 后续 PR 治理（2026-07-21）：PR !2178 标记 superseded 关闭（被 !2179 覆盖），PR !2176 rebase 后合入 main（详见 §79）
 
 ### 相关文档
 
@@ -5801,7 +5802,7 @@ PR !2178 假设的根因：
 - [SECURITY.md](../../SECURITY.md) — Mock 政策、权限守卫、安全审计
 - spec 033 `specs/033-oss-local-permission-path-separation/spec.md` — OSS 与本地用户权限代码路径分离根治方案
 - PR !2178 — 错误根因分析的修复方案（已驳回）
-- PR !2179 — 真正根因修复方案（进行中）
+- PR !2179 — 真正根因修复方案（已合并 2026-07-21）
 - CO-373 — 角色码统一解析入口治理（5 次反复修复的根因）
 
 ## 79. E2E 测试修复 5 大踩坑模式——端口 fallback、strict mode violation、权限重定向、selector 过期、路由路径漂移（2026-07-21 / 5 个 spec 修复 / PR !2181）
@@ -5875,3 +5876,86 @@ PR !2178 假设的根因：
 - [CLAUDE.md](../../CLAUDE.md) §端口约定 — 后端 18089 / 前端 1323
 - EvaluationStage.vue — CO-495/CO-550/CO-571 重构后的实际 DOM 结构
 - ResultConfirmStage.vue — 投标结果 chip + 竞争对手表结构
+
+---
+
+## 80. PR 收尾治理与多 Agent worktree 协作陷阱（2026-07-21 / PR !2176/!2178/!2179 治理 session）
+
+> 来源：2026-07-21 处理 PR !2179 合并后 !2178 和 !2176 的冲突，发现 superseded PR 处置、跨 worktree 编辑限制、agent-finish-task 调用时机、Gitee MCP 工具 bug 等一系列多 Agent 协作陷阱
+> 涉及工具：agent-finish-task.sh / Gitee MCP / SearchReplace / git worktree / agent-lock
+> 影响等级：中（流程不顺畅 + 收尾遗漏会产生噪音）
+
+### 事故背景
+
+PR !2179 合并后，!2178 和 !2176 出现冲突。决策：!2178 被 !2179 覆盖（superseded）关闭，!2176 有独立价值（isLocalSystemAccount 语义放宽 + e2e 修复）rebase 后保留。整个治理过程中踩到多个多 Agent worktree 协作陷阱。
+
+### 关键陷阱与教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| `agent-finish-task.sh` 在 init 分支执行被拒绝 | 脚本要求必须在任务分支上运行，切到 init 分支后执行会被拒 | 必须先切回任务分支再调用 `agent-finish-task.sh`；若任务分支已被本地删除但远端未删，需手动 `git push origin --delete` |
+| Gitee PR merge 后远端任务分支被自动删除 | Gitee 在 PR 合并时自动删除 head 分支（保留 base 分支），manual `git push origin --delete` 报 "remote ref does not exist" | `agent-finish-task.sh --include-remote` 应先 `git ls-remote` 验证远端分支存在再 delete；或者捕获 "does not exist" 错误视为成功 |
+| SearchReplace/DeleteFile 不能跨 worktree 操作 | 工具报 "Edit operations are restricted to the working directory"，只能在 cwd 所属 worktree 内编辑 | 跨 worktree 编辑必须用 `RunCommand` + `python3`/`sed` 在目标 worktree 内执行；或者 `cd` 到目标 worktree 后再用编辑工具 |
+| 两个 PR 改同一区域，如何识别 superseded | 比对 diff：若一个 PR 的所有改动都被另一个 PR 覆盖（功能等价），即可标记 superseded 关闭 | 识别信号：① 同一文件同一区域的语义等价改动；② 拆分类名不同但功能一致；③ 一个 PR 已合并后另一个 PR 的所有 diff 都已被覆盖。处置：update_pull state=closed + title 加 `[Superseded by !XXXX]` 前缀 |
+| 锁文件随 PR 合入 main 后的清理 | 任务结束后，main 上的 `.agent-locks/<task>.yml` 是过期锁；删除要走新分支 PR 太重 | **推荐保留**，不影响后续——agent-lock-acquire 同路径会提示已有锁但可 lock-release 释放；agent-start-task 创建新任务会写新锁文件覆盖 |
+| Gitee MCP `create_comment` 工具 bug | 调用报 `CLIENT_HTTP_NOT_IMPLEMENTED` 错误（缺 resource_type），无法发评论 | 用 `update_pull` 替代——改 title 加前缀（如 `[Superseded by !2179]`）+ 改 state 即可，无需评论 |
+| `get_pull_detail` 参数名易错 | 参数名是 `number`（非 `pull_number`），缺参报 "Invalid parameter" | 查 MCP 描述符 `.json` 文件确认参数名，不要凭直觉传参 |
+| 多 Agent 共享 worktree 的分支切换污染 | trae worktree 中分支被其他 agent 任务切换（fix-e2e-remaining-specs → fix-e2e-remaining-specs-v2 → deploy-report-106th-test），WIP 改动 stash 后又被另一个任务 pop | 共享 worktree 中的 stash 必须带清晰的任务标识（"deploy-report-106th-test WIP (本次收尾不动)"）；切换分支前 `git status` 确认工作区干净；不要清理别的 agent 的 stash |
+| `GIT_EDITOR` 未设置导致 rebase --continue 失败 | 报 "Terminal is dumb, but EDITOR unset" | 跨 worktree rebase 用 `GIT_EDITOR=true git rebase --continue` 跳过 commit message 编辑；或者 `git config core.editor true` |
+
+### 操作规范
+
+1. **执行 `agent-finish-task.sh` 前**：
+   - 确认当前分支是任务分支（非 init 分支）
+   - 若 init 分支执行被拒，先 `git checkout <任务分支>` 再执行
+   - 若任务分支已本地删除但远端未删，先 `git ls-remote origin <分支名>` 验证再 `git push origin --delete`
+
+2. **跨 worktree 编辑文件**：
+   - 优先 `cd /path/to/worktree` 后再用编辑工具
+   - 或者用 `RunCommand` 在目标 worktree 内执行 `python3`/`sed` 脚本
+   - 不要试图用 SearchReplace 跨 worktree（会被拒）
+
+3. **识别 superseded PR**：
+   - `git diff main..branch-A` vs `git diff main..branch-B` 比对同一文件的改动
+   - 若 branch-B 的所有改动都被 branch-A 覆盖（功能等价），branch-B 标记 superseded
+   - 处置：MCP `update_pull state=closed` + `title` 加 `[Superseded by !A]` 前缀
+
+4. **Gitee MCP 工具避坑**：
+   - `create_comment` 有 bug，用 `update_pull` 改 title/state 替代
+   - `get_pull_detail` 参数名是 `number`（非 `pull_number`），查描述符 `.json` 确认
+   - PR merge 后远端分支自动删除，manual delete 前 `git ls-remote` 验证
+
+5. **锁文件清理策略**：
+   - 任务结束 PR 合入后，main 上的 `.agent-locks/<task>.yml` 是过期锁
+   - **推荐保留**，下次 `agent-lock-acquire` 同路径会提示已有锁但可 `lock-release` 释放
+   - 删除走新分支 PR 太重，不值得
+
+6. **共享 worktree 的 stash 管理**：
+   - stash 必须带清晰任务标识：`git stash push -m "<任务名> WIP (本次收尾不动)"`
+   - 切换分支前 `git status` 确认工作区干净
+   - 不要清理别的 agent 的 stash（即使看起来像残留）
+
+7. **rebase 跨 worktree**：
+   - 分支被某个 worktree 占用时，必须在该 worktree 内执行 rebase
+   - `GIT_EDITOR=true git rebase --continue` 跳过 commit message 编辑
+   - 冲突解决用 `python3` heredoc 脚本（SearchReplace 跨 worktree 不行）
+
+### 处置记录
+
+- PR !2178 处置（已执行）：MCP `update_pull state=closed` + title 加 `[Superseded by !2179]` 前缀
+- PR !2176 rebase（已执行）：trae worktree 内 `git rebase origin/main`，python3 脚本解决 UserDetailsServiceImpl.java 冲突
+- 锁文件补加（已执行）：`agent-lock-acquire --path backend/src/main/java/com/xiyu/bid/entity/User.java`，commit 进 PR
+- PR !2176 force-push（已执行）：`--force-with-lease`，pre-push 门禁 23/23 通过
+- PR !2176 合并（已执行）：2026-07-21 22:05:11 自动合并，Gitee 自动删除远端分支
+- 收尾执行（部分成功）：`agent-finish-task.sh` 在 init 分支被拒后，手动完成清理（本地分支删除 + stash 保护 deploy-report WIP + 切回 init 锚点）
+- 知识沉淀（本次）：§79 追加到 lessons-learned.md
+
+### 相关文档
+
+- [CLAUDE.md](../../CLAUDE.md) §多 Agent 执行手册 — worktree 协作规范
+- [RELIABILITY.md](../../RELIABILITY.md) §agent-finish-task.sh — 收尾脚本使用
+- [scripts/agent-finish-task.sh](../../scripts/agent-finish-task.sh) — 收尾脚本源码
+- [scripts/sync-env.sh](../../scripts/sync-env.sh) — 早操 SOP
+- PR !2176 — isLocalSystemAccount 语义放宽（已合并）
+- PR !2178 — 被 !2179 覆盖的 PR（已关闭，superseded）
+- PR !2179 — OSS 权限根因修复（已合并）
