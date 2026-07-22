@@ -1,4 +1,4 @@
-export const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18080'
+export const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18089'
 
 export async function requestJson(url, options = {}) {
   const response = await fetch(url, options)
@@ -82,7 +82,7 @@ export async function authedJson(path, token, options = {}) {
 // H13 根治 (2026-06-14): 浏览器内 page 认证靠 access_token cookie (前端走 cookie, 不读 storage token).
 // spec 调此 helper 注入 cookie + user hint, 替代旧的 sessionStorage.setItem('token').
 export async function attachSessionToPage(page, session) {
-  const frontendBaseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:1314'
+  const frontendBaseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:1323'
   await page.context().addCookies([
     { name: 'access_token', value: session.token, url: apiBaseUrl, httpOnly: true, sameSite: 'Lax' },
     { name: 'access_token', value: session.token, url: frontendBaseUrl, httpOnly: true, sameSite: 'Lax' },

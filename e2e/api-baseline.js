@@ -7,8 +7,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const DEFAULT_API_BASE_URL = 'http://127.0.0.1:18080'
-const DEFAULT_WEB_BASE_URL = 'http://127.0.0.1:1314'
+const DEFAULT_API_BASE_URL = 'http://127.0.0.1:18089'
+const DEFAULT_WEB_BASE_URL = 'http://127.0.0.1:1323'
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const stateDir = path.resolve(process.env.STATE_DIR || path.join(rootDir, '.rehearsal'))
 const stackMarkerPath = path.join(stateDir, 'playwright-api-stack.started')

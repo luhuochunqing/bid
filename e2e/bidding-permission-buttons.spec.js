@@ -8,7 +8,7 @@ function toLocalDateTimeString(date) {
 }
 
 async function apiRequest(path, session, options = {}) {
-  const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18080'
+  const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18089'
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...options,
     headers: {

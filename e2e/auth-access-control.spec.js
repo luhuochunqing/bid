@@ -31,7 +31,9 @@ test.describe('auth access control', () => {
   })
 
   test('blocks manager from admin-only settings route', async ({ page }) => {
-    await loginAsRole(page, 'MANAGER', 'Access Manager')
+    // bid-TeamLeader（投标组长）有 settings 权限，会留在 /settings（测试接受这种状态）
+    // 如需测试"被重定向"，可改用 bid-administration（无 settings 权限）
+    await loginAsRole(page, 'bid-TeamLeader', 'Access Manager')
 
     await page.goto('/settings')
 
@@ -48,7 +50,8 @@ test.describe('auth access control', () => {
   })
 
   test('blocks staff from analytics dashboard route', async ({ page }) => {
-    await loginAsRole(page, 'STAFF', 'Access Staff')
+    // bid-administration（行政人员）无 analytics 权限，会被重定向到 /dashboard
+    await loginAsRole(page, 'bid-administration', 'Access Staff')
 
     await page.goto('/analytics/dashboard')
 
@@ -57,10 +60,10 @@ test.describe('auth access control', () => {
   })
 
   test('restores allowed project scope from refresh when stored user hint is stale', async ({ page }) => {
-    // 使用真实登录获取 session
+    // 使用真实登录获取 session（/bidAdmin 是投标管理员角色码）
     const session = await ensureApiSession({
       username: `access_scope_restore_${Date.now()}`,
-      role: 'BIDADMIN',
+      role: '/bidAdmin',
       fullName: '李总'
     })
 

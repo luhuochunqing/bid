@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { ensureApiSession, injectSession } from './auth-helpers.js'
 
-const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18080'
+const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18089'
 
 /**
  * 工具：通过真实 API 快速创建测试人员（支持教育 + 证书）
@@ -175,7 +175,7 @@ test.describe('知识库 - 人员筛选与搜索（h5）E2E 验证', () => {
   test('多维度筛选卡片 - 性别 + 学历多选 + 持有证书名称 组合生效', async ({ page }) => {
     await injectSession(page, adminSession)
     await page.goto('/knowledge/personnel')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
   await expect(page.locator('.el-table__body tr').first()).toBeAttached({ timeout: 10000 }).catch(() => {})
 
     // 应用筛选：女 + 硕士 + 持有 "PMP"
@@ -202,7 +202,7 @@ test.describe('知识库 - 人员筛选与搜索（h5）E2E 验证', () => {
   test('证书状态筛选（即将到期）+ 复杂组合', async ({ page }) => {
     await injectSession(page, adminSession)
     await page.goto('/knowledge/personnel')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     // 证书状态：即将到期
     await page.getByLabel('证书状态').click()
@@ -234,7 +234,7 @@ test.describe('知识库 - 人员筛选与搜索（h5）E2E 验证', () => {
   test('重置按钮清空所有条件并恢复完整列表', async ({ page }) => {
     await injectSession(page, adminSession)
     await page.goto('/knowledge/personnel')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     // 先应用一个筛选
     await page.getByLabel('持有证书').fill('建造师')

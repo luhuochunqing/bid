@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { ensureApiSession, injectSession, apiBaseUrl, defaultPassword } from './auth-helpers.js'
 import { createProjectFixture } from './support/project-fixtures.js'
 
-const frontendUrl = process.env.PLAYWRIGHT_BASE_URL || process.env.PLAYWRIGHT_FRONTEND_URL || 'http://127.0.0.1:1314'
+const frontendUrl = process.env.PLAYWRIGHT_BASE_URL || process.env.PLAYWRIGHT_FRONTEND_URL || 'http://127.0.0.1:1323'
 
 async function loginAsRole(page, role) {
   const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
@@ -43,7 +43,7 @@ test.describe('§3.3.1.5 项目复盘', () => {
 
     // 2. 导航到该项目的复盘页面
     await page.goto(`${frontendUrl}/project/${projectId}`)
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
     
     // 3. 点击 "项目复盘" tab
     const retroTab = page.locator('.custom-stage-tabs .el-tabs__item').filter({ hasText: '项目复盘' })

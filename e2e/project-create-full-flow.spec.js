@@ -48,14 +48,14 @@ test.describe('project create full flow', () => {
     })
 
     await page.goto('/project')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     // Wait for the page to fully render
     await expect(page.locator('.title').filter({ hasText: '投标项目列表' })).toBeVisible({ timeout: 20000 })
 
     // Navigate to bidding page
     await page.goto('/bidding')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
     await expect(page.locator('.card-title').filter({ hasText: '标讯列表' })).toBeVisible({ timeout: 20000 })
   })
 })

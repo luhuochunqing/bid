@@ -35,8 +35,8 @@ async function bootstrapProject(page, label) {
   const session = await createAuthenticatedSession()
   const project = await createProjectFixture(session, label)
   await page.context().addCookies([
-    { name: 'access_token', value: session.token, url: 'http://127.0.0.1:18080', httpOnly: true, sameSite: 'Lax' },
-    { name: 'access_token', value: session.token, url: 'http://127.0.0.1:1314', httpOnly: true, sameSite: 'Lax' },
+    { name: 'access_token', value: session.token, url: 'http://127.0.0.1:18089', httpOnly: true, sameSite: 'Lax' },
+    { name: 'access_token', value: session.token, url: 'http://127.0.0.1:1323', httpOnly: true, sameSite: 'Lax' },
   ])
   await page.addInitScript(({ token, user }) => {
     sessionStorage.setItem('token', token)
@@ -88,7 +88,7 @@ async function createTaskForUser(session, projectId, targetUserId, name) {
 async function loginAsDemoUser(page, username, password = '123456') {
   // CO-361: 用 E2eDemoDataInitializer 提供的 demo 用户登录。
   // demo 账号密码统一 123456（见 CLAUDE.md §默认登录凭据）。
-  const response = await page.request.post('http://127.0.0.1:18080/api/auth/login', {
+  const response = await page.request.post('http://127.0.0.1:18089/api/auth/login', {
     data: { username, password },
   })
   const payload = await response.json()
@@ -97,8 +97,8 @@ async function loginAsDemoUser(page, username, password = '123456') {
   const token = payload.data.token
   const user = payload.data
   await page.context().addCookies([
-    { name: 'access_token', value: token, url: 'http://127.0.0.1:18080', httpOnly: true, sameSite: 'Lax' },
-    { name: 'access_token', value: token, url: 'http://127.0.0.1:1314', httpOnly: true, sameSite: 'Lax' },
+    { name: 'access_token', value: token, url: 'http://127.0.0.1:18089', httpOnly: true, sameSite: 'Lax' },
+    { name: 'access_token', value: token, url: 'http://127.0.0.1:1323', httpOnly: true, sameSite: 'Lax' },
   ])
   await page.addInitScript(({ token, user }) => {
     sessionStorage.setItem('token', token)

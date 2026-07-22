@@ -15,7 +15,7 @@ async function loginAsRole(page, role) {
 test.describe('§4.1.1.1 项目档案 (蓝图一图一验证)', () => {
   test('bid_admin 加载项目档案台账，筛选与导出按钮符合蓝图', async ({ page }) => {
     await loginAsRole(page, '/bidAdmin')
-    await page.goto('http://127.0.0.1:1314/knowledge/archive')
+    await page.goto('http://127.0.0.1:1323/knowledge/archive')
     await page.waitForSelector('.el-table, .filter-card, .project-archive-container', { timeout: 15000 })
 
     // 入口与台账标题（蓝图：方案管理 -> 项目档案 Tab）
@@ -49,7 +49,7 @@ test.describe('§4.1.1.1 项目档案 (蓝图一图一验证)', () => {
 
   test('项目档案详情抽屉布局与操作日志（只读 + 预览下载）', async ({ page }) => {
     await loginAsRole(page, '/bidAdmin')
-    await page.goto('http://127.0.0.1:1314/knowledge/archive')
+    await page.goto('http://127.0.0.1:1323/knowledge/archive')
     await page.waitForSelector('.el-table', { timeout: 10000 })
 
     // 如果有行，点击打开抽屉验证布局
@@ -71,9 +71,9 @@ test.describe('§4.1.1.1 项目档案 (蓝图一图一验证)', () => {
 
   test('bid_specialist 等角色数据范围受 ProjectAccessGuard 约束', async ({ page }) => {
     await loginAsRole(page, 'bid-Team')
-    await page.goto('http://127.0.0.1:1314/knowledge/archive')
+    await page.goto('http://127.0.0.1:1323/knowledge/archive')
     await page.waitForSelector('.project-archive-container, .el-table, .el-card', { timeout: 10000 })
     // 页面可访问（guard 返回允许范围），内容可能为空或受限，不应 403
-    await expect(page.locator('text=403|无权限').first()).toHaveCount(0)
+    await expect(page.getByText(/403|无权限/)).toHaveCount(0)
   })
 })

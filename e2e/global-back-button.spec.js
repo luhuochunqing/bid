@@ -19,7 +19,7 @@ test.describe('全局返回按钮', () => {
 
   test('顶级页面不显示返回按钮', async ({ page }) => {
     await page.goto('/bidding')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     const backBtn = page.locator('.back-btn')
     await expect(backBtn).toHaveCount(0)
@@ -27,7 +27,7 @@ test.describe('全局返回按钮', () => {
 
   test('子页面显示返回按钮并可点击返回', async ({ page }) => {
     await page.goto('/bidding/favorites')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     const backBtn = page.locator('.back-btn')
     await expect(backBtn).toBeVisible()
@@ -42,7 +42,7 @@ test.describe('全局返回按钮', () => {
   test('直接访问子页面时返回按钮仍可用', async ({ page }) => {
     // 模拟直接 URL 输入（无浏览器历史记录）
     await page.goto('/bidding/favorites')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     const backBtn = page.locator('.back-btn')
     await expect(backBtn).toBeVisible()
@@ -56,7 +56,7 @@ test.describe('全局返回按钮', () => {
     // /bidding/favorites 是 showBack: true 的单层路由
     // 返回按钮在 Header 中（不再占用内容区），面包屑仅在多层路由时显示
     await page.goto('/bidding')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     // 顶级页面：无返回按钮，无面包屑
     await expect(page.locator('.back-btn')).toHaveCount(0)
@@ -64,7 +64,7 @@ test.describe('全局返回按钮', () => {
 
     // 进入子页面：有返回按钮
     await page.goto('/bidding/favorites')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
     await expect(page.locator('.back-btn')).toBeVisible()
 
     // 返回按钮点击 → 回到顶部页面

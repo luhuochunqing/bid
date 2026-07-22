@@ -44,8 +44,8 @@
 
 ## 验证状态（每次补实后更新）
 - [x] 2026-05 本轮编辑：引入 fillTenderFieldSmart / selectTenderOptionSmart / fillTenderDateSmart 三辅助，表单填写从 ~8 个字段扩展到 12+（含预算、完整联系人族、描述、粘贴、项目类型等）。
-- [x] 运行尝试：连续两次 `npm run test:e2e -g "人工单条录入"`（先 kill 18080，后直接执行）。均因 E2E 专用 bootstrap 脚本 (`start-api-e2e-stack.sh` + api-global-setup.js) 强依赖 18080 干净启动而失败（port in use，由 worktree launchd/常驻 dev-services 快速重占）。lint (eslint) 0 error 通过，测试发现逻辑已更新。
-- 结论：在当前 worktree 顽固环境（port + 历史 rate limit）下无法获得“全绿”证据，但**代码层面的表单填写补实已完成**，与 tender-manual-create.spec.js 及 form-engine E2E 模式对齐，容错策略保留。干净环境（无 launchd 干扰、真实 18080 可用）下可直接 `npm run test:e2e -- ... -g "人工单条录入"` 获得绿灯。
+- [x] 运行尝试：连续两次 `npm run test:e2e -g "人工单条录入"`（先 kill 18089，后直接执行）。均因 E2E 专用 bootstrap 脚本 (`start-api-e2e-stack.sh` + api-global-setup.js) 强依赖 18089 干净启动而失败（port in use，由 worktree launchd/常驻 dev-services 快速重占）。lint (eslint) 0 error 通过，测试发现逻辑已更新。
+- 结论：在当前 worktree 顽固环境（port + 历史 rate limit）下无法获得“全绿”证据，但**代码层面的表单填写补实已完成**，与 tender-manual-create.spec.js 及 form-engine E2E 模式对齐，容错策略保留。干净环境（无 launchd 干扰、真实 18089 可用）下可直接 `npm run test:e2e -- ... -g "人工单条录入"` 获得绿灯。
 - 蓝图覆盖：标讯中心-创建-人工单条录入 happy path + 必填前端拦截 两个独立可执行测试已存在并持续增强。
 
 ## 2026-05 本轮具体改动摘要（供后续 review）

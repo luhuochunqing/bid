@@ -35,7 +35,7 @@ test.describe('project list filter fields', () => {
 
     await injectSession(page, session)
     await page.goto('/project')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
     await expect(page.locator('.title').filter({ hasText: '投标项目列表' })).toBeVisible({ timeout: 20000 })
 
     // Verify new column headers are present after label rename
@@ -85,7 +85,7 @@ test.describe('project list filter fields', () => {
     await injectSession(page, session)
 
     await page.goto('/project')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
     await expect(page.locator('.title').filter({ hasText: '投标项目列表' })).toBeVisible({ timeout: 20000 })
 
     // Find "投标负责人" select (now remote-search, label is on the el-form-item)
@@ -124,7 +124,7 @@ test.describe('project list filter fields', () => {
     await injectSession(page, session)
 
     await page.goto('/project')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
     await expect(page.locator('.title').filter({ hasText: '投标项目列表' })).toBeVisible({ timeout: 20000 })
 
     // Find "投标负责人" select
@@ -156,7 +156,7 @@ test.describe('project list filter fields', () => {
 
     await injectSession(page, session)
     await page.goto('/project')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
     await expect(page.locator('.title').filter({ hasText: '投标项目列表' })).toBeVisible({ timeout: 20000 })
 
     // Set region cascader
@@ -190,7 +190,7 @@ test.describe('project list filter fields', () => {
 
     await injectSession(page, session)
     await page.goto('/project')
-    await page.waitForLoadState('networkidle')
+    await page.waitForLoadState('load')
 
     // Unified search area: project type is visible without clicking "更多筛选"
     const typeFormItem = page.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label').filter({ hasText: '项目类型' }) })
