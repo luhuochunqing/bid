@@ -23,9 +23,15 @@ import static org.mockito.Mockito.when;
 /**
  * {@link OssRoleResolver} 根因行为测试。
  * <p>
- * 覆盖 04569 登录失败 bug 的根因：OssRoleResolver 遍历 sysRoleList 时
- * 只用 roleName 不用 roleCode，导致 OSS 端已分配 bid-administration 角色
- * 但 roleName "投标-行政专员" 不在映射表的用户被误拒。
+ * 覆盖三个历史根因（详见 docs/lessons/lessons-learned.md）：
+ * <ul>
+ *   <li>04569：遍历 sysRoleList 只用 roleName 不用 roleCode，
+ *       roleName "投标-行政专员" 不在映射表的用户被误拒</li>
+ *   <li>06234：非投标 roleName（如"销售主管"）排在 bid 角色前时
+ *       被 positionToRoleMapper 误匹配为 bid-projectLeader</li>
+ *   <li>§78：多 bid-* 角色"先到先得"，覃超颖 bid-otherDept + bid-SystemAdmin
+ *       被错解析为低权限角色导致 403</li>
+ * </ul>
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
