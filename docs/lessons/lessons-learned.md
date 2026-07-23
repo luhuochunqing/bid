@@ -5959,3 +5959,44 @@ PR !2179 合并后，!2178 和 !2176 出现冲突。决策：!2178 被 !2179 覆
 - PR !2176 — isLocalSystemAccount 语义放宽（已合并）
 - PR !2178 — 被 !2179 覆盖的 PR（已关闭，superseded）
 - PR !2179 — OSS 权限根因修复（已合并）
+
+## 81. Agent Wiki 维护纪律建立：从"有了不维护"到"4 触发器门禁"（2026-07-23 / PR !2190 + !2191）
+
+> 来源：2026-07-23 发现 .wiki/ 体系已有 60+ 页面但维护停在 2026-06-20，CO-361 反复修复 5 次、OSS 角色 10+ 轮、覃超颖 403 全过程——Wiki 一条都没记
+> 涉及工具：agent-finish-task.sh / pre-push-gate.sh / pr-create.sh / .githooks/pre-commit / wiki-check.mjs
+> 影响等级：高（工程纪律 + 知识资产）
+
+### 事故背景
+
+.wiki/ 体系架构完整（三层模型 + ingest/build/check 脚本），但实际维护停在 2026-06-20。CO-361 反复修复 5 轮、OSS 角色问题 10+ 轮、覃超颖 403 全过程——Wiki 一条都没记。根因不是"没有架构"而是"纪律未建立"——触发器没钉进门禁，靠 Agent 自律等于没纪律。
+
+### 关键教训与规范
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| Wiki 有了但不维护 | 根因不是架构问题，是纪律问题——触发器没钉进门禁 | 建立 4 个硬触发点：任务收尾 / PR 创建 / 复杂查询回填 / pre-push |
+| pre-push 拦截但无过渡期 | 直接 hard fail 会让存量违规阻塞所有 PR | 2 周过渡期 warning 模式（`WIKI_CHECK_MODE=warning`），2026-08-06 转 error |
+| 历史档案 updated >30 天误报 | SOW/合同/里程碑内容不会变，updated 过期是正常的 | wiki-check.mjs 加 `archive: true` 字段豁免，仍需 health_checked |
+| health_checked 近期但 updated 过期 | 已 review 过的文档不需要强制改内容 | `health_checked` 7 天内时豁免 `updated >30 天` 检查 |
+| 机械批量改日期 ≠ 维护 | 应付门禁等于没维护 | 诚实声明未深度 review 的文件，列出高优先级待深度 review 清单 |
+| `.agent-locks/*.yml` 在 .gitignore | per-task 锁文件不进仓库历史 | 锁文件是本地协调用途，commit 时不 stage；不影响 lock-check 逻辑 |
+| parseFrontmatter 不做类型转换 | `archive: true` 被解析为字符串 `"true"` 而非布尔 `true` | 比较时用 `archive === 'true' || archive === true` 双重判断 |
+| Gitee API 不支持 DELETE 删分支 | 返回 405 Not Allowed | 用 `git push origin --delete <branch>` 或在 Gitee Web UI 删除 |
+| squash merge 后 `git branch -d` 失败 | git 看不到合并关系 | 用 `git branch -D` 强删（已确认 PR 合入即可） |
+| pre-push-gate 拦截 `git push --delete` | 删远端分支也会触发完整 hook | 单独跑门禁通过后，用 Gitee API 或 Web UI 删分支 |
+
+### 核心纪律
+
+1. **4 触发器必须钉进门禁**：agent-finish-task.sh Wiki Checkpoint / pr-create.sh body 勾选项 / CLAUDE.md 执行原则 / pre-push-gate.sh §16
+2. **2 周过渡期**：warning 模式让存量违规有时间清理，2026-08-06 转 error
+3. **历史档案豁免**：`archive: true` 字段标记，仍需 health_checked
+4. **诚实声明**：批量回填时必须诚实声明未深度 review 的文件，列出高优先级清单
+
+### 相关文档
+
+- [.wiki/WIKI.md](../../.wiki/WIKI.md) — Agent Wiki 行为宪法（Schema 层）
+- [scripts/agent-finish-task.sh](../../scripts/agent-finish-task.sh) — Wiki Checkpoint 章节
+- [scripts/pre-push-gate.sh](../../scripts/pre-push-gate.sh) — §16 Wiki 健康检查
+- [scripts/wiki-check.mjs](../../scripts/wiki-check.mjs) — wiki 健康检查脚本
+- PR !2190 — Agent Wiki 运行规范（Schema 层 + 4 触发器门禁）
+- PR !2191 — 存量违规批量回填 + wiki-check 规则优化
