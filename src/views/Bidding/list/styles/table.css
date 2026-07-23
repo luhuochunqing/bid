@@ -176,7 +176,7 @@
 
 /* ================================================
    CO-598: 报名截止日期/开标时间列排序图标显示
-   样式参考 CO-597 投标项目列表（PR #2196）
+   样式参考 CO-597 投标项目列表（PR !2196）
    根因同 CO-597：accessibility.css 全局 button min-height:44px 压制 .caret-wrapper
    ================================================ */
 .tender-table th.el-table__cell .caret-wrapper {
