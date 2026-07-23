@@ -127,6 +127,16 @@ describe('Project/List.vue layout', () => {
     expect(projectListSource).toContain('isFiltered')
   })
 
+  // CO-597: 创建时间/开标时间等可排序列的排序图标必须可见，让用户感知可点击排序
+  it('shows sort caret icons on sortable columns (CO-597)', () => {
+    // 可排序列：创建时间 / 开标时间 / 客户营收
+    expect(projectListSource).toContain('label="创建时间"')
+    expect(projectListSource).toContain('label="开标时间"')
+    expect(projectListSource).toContain('sortable="custom"')
+    // 排序箭头不可被 opacity:0 隐藏，否则用户无法感知可点击排序
+    expect(projectListSource).not.toMatch(/\.caret-wrapper[^}]*opacity:\s*0/)
+  })
+
   // 项目负责人列显示格式统一为 "姓名 (工号)"，工号缺失时仅显示姓名
   it('项目负责人列显示"姓名 (工号)"格式', () => {
     // 应引入 formatUserWithNameAndNumber 通用工具
