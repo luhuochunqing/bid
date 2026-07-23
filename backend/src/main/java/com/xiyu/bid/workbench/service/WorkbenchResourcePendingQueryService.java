@@ -67,9 +67,8 @@ public class WorkbenchResourcePendingQueryService {
             return List.of();
         }
 
-        // P0-2.3：使用 RoleProfileCatalog.GLOBAL_ACCESS_ROLES 替代 CaBorrowPermissionChecker
-        String canonicalRole = RoleProfileCatalog.canonicalCode(roleCode);
-        boolean isPrivileged = RoleProfileCatalog.GLOBAL_ACCESS_ROLES.contains(canonicalRole);
+        // P0-2.3：使用 RoleProfileCatalog.hasGlobalAccess 替代 CaBorrowPermissionChecker
+        boolean isPrivileged = RoleProfileCatalog.hasGlobalAccess(roleCode);
 
         // P0-4.1：数据库层面分页，每类各取前 MAX_ITEMS 条避免全量加载
         // 跨表无法合并分页，但单表分页足以避免加载全量数据

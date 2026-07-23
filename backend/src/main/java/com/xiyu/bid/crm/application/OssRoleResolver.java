@@ -175,6 +175,10 @@ public class OssRoleResolver {
         return null;
     }
 
+    /** 未列在优先级表中的角色码的优先级：低于所有已知角色（下标 0~size-1），
+     *  但高于初始值 {@code MAX_VALUE} 以确保第一个未列表角色能被选中（而非跳过）。 */
+    private static final int UNREGISTERED_ROLE_PRIORITY = Integer.MAX_VALUE - 1;
+
     /**
      * 在候选 bid-* 角色码列表中按 {@link RoleProfileCatalog#BID_ROLE_PRIORITY} 选优先级最高者。
      * <p>
@@ -197,7 +201,7 @@ public class OssRoleResolver {
             int priority = RoleProfileCatalog.BID_ROLE_PRIORITY.indexOf(code);
             if (priority < 0) {
                 // 未在优先级表中：保持向后兼容，按出现顺序回退
-                priority = Integer.MAX_VALUE - 1;
+                priority = UNREGISTERED_ROLE_PRIORITY;
             }
             if (best == null || priority < bestPriority) {
                 best = code;

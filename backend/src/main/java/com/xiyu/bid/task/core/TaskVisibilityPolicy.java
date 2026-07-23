@@ -66,7 +66,7 @@ public final class TaskVisibilityPolicy {
             return false;
         }
         // 投标管理角色（admin/ bidAdmin/ bid-TeamLeader）→ 看所有任务
-        if (RoleProfileCatalog.GLOBAL_ACCESS_ROLES.contains(roleCode)) {
+        if (RoleProfileCatalog.hasGlobalAccess(roleCode)) {
             return true;
         }
         // 投标项目负责人（bid-projectLeader）→ 匹配主负责人或为项目立项负责人
@@ -101,7 +101,7 @@ public final class TaskVisibilityPolicy {
             return false;
         }
         // 投标管理角色 + 投标项目负责人 + 投标专员都按项目维度查
-        return RoleProfileCatalog.GLOBAL_ACCESS_ROLES.contains(roleCode)
+        return RoleProfileCatalog.hasGlobalAccess(roleCode)
                 || RoleProfileCatalog.SALES_CODE.equalsIgnoreCase(roleCode)
                 || RoleProfileCatalog.BID_SPECIALIST_CODE.equalsIgnoreCase(roleCode);
     }

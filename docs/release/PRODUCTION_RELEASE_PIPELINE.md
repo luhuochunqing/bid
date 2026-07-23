@@ -201,3 +201,26 @@ DB_ENGINE=mysql bash scripts/release/rehearse-release.sh
 - 配置 Nginx、systemd、MySQL、Redis
 
 这些属于一次性环境建设，应在上线前完成。
+
+## 待执行部署注意事项
+
+> 本节记录当前 main 分支上合并但尚未部署的 PR 中，需要在部署时执行的特殊操作。
+> 部署完成后删除对应条目。
+
+### PR !2189 — §78 OssRoleResolver 多角色优先级排序（2026-07-23 合并）
+
+**部署后必须执行**：flush Redis OSS 权限缓存
+
+```bash
+# 用 SCAN 替代 KEYS 避免阻塞 Redis（keyspace 较大时 KEYS 会卡住）
+# 若 Redis 有密码，附加 -a <prod-redis-password>
+redis-cli -h <prod-redis-host> [-a <prod-redis-password>] --scan --pattern 'oss:perm:*' \
+    | xargs -r redis-cli -h <prod-redis-host> [-a <prod-redis-password>] DEL
+```
+
+**原因**：修复前 `OssRoleResolver` 用"先到先得"策略解析多角色用户，缓存了错误的低权限角色码。
+修复后 `BID_ROLE_PRIORITY` 优先级表正确选最高权限角色，但旧缓存的 TTL=25h（90000s），
+不 flush 最长 25h 后才自然过期。期间多角色用户（如覃超颖 bid-otherDept + bid-SystemAdmin）
+仍会使用旧的低权限角色码，导致 403。
+
+**验证**：flush 后让受影响用户重新登录，确认角色解析为最高优先级角色（如 bid-SystemAdmin）。

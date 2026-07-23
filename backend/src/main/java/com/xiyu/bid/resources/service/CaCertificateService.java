@@ -168,7 +168,7 @@ public class CaCertificateService {
      * 对称于 {@code PlatformAccountViewerPolicy.canReturnAccount} 的授权语义。
      */
     private static boolean canDeactivate(String roleCode, CaCertificateEntity entity, User currentUser) {
-        if (RoleProfileCatalog.GLOBAL_ACCESS_ROLES.contains(roleCode)) {
+        if (RoleProfileCatalog.hasGlobalAccess(roleCode)) {
             return true;
         }
         if (RoleProfileCatalog.BID_SPECIALIST_CODE.equalsIgnoreCase(roleCode)) {
@@ -210,7 +210,7 @@ public class CaCertificateService {
                 .orElseThrow(() -> new CaBusinessException("CA证书不存在: " + id));
         User user = resolveUser(currentUser);
         String roleCode = effectiveRoleResolver.resolveRoleCode(user);
-        boolean isManager = RoleProfileCatalog.GLOBAL_ACCESS_ROLES.contains(roleCode);
+        boolean isManager = RoleProfileCatalog.hasGlobalAccess(roleCode);
         boolean isCustodian = entity.getCustodianId() != null
                 && entity.getCustodianId().equals(user.getId());
         if (!isManager && !isCustodian) {

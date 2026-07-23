@@ -173,8 +173,7 @@ public class RoleProfileService {
         if (user == null) return false;
         // CO-373：统一走 EffectiveRoleResolver，OSS 用户以缓存角色码为准
         String code = effectiveRoleResolver.resolveRoleCode(user);
-        return code != null && RoleProfileCatalog.GLOBAL_ACCESS_ROLES.stream()
-                .anyMatch(code::equalsIgnoreCase);
+        return RoleProfileCatalog.hasGlobalAccess(code);
     }
 
     private RoleProfile findRole(Long roleId) {

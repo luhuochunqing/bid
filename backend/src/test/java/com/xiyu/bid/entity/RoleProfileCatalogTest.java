@@ -261,4 +261,39 @@ class RoleProfileCatalogTest {
         assertThat(RoleProfileCatalog.canonicalCode("admin")).isEqualTo("admin");
         assertThat(OssRoleEligibility.canonicalOssCode("admin")).isNull();
     }
+
+    // ── §78 nit-cleanup: hasGlobalAccess 统一入口（canonicalCode 归一化 + null 短路 + fail-closed） ──
+
+    @Test
+    @DisplayName("hasGlobalAccess: null/空白/未注册返回 false（fail-closed）")
+    void hasGlobalAccess_shouldReturnFalseForNullOrUnregistered() {
+        assertThat(RoleProfileCatalog.hasGlobalAccess(null)).isFalse();
+        assertThat(RoleProfileCatalog.hasGlobalAccess("")).isFalse();
+        assertThat(RoleProfileCatalog.hasGlobalAccess("  ")).isFalse();
+        assertThat(RoleProfileCatalog.hasGlobalAccess("unknown-role")).isFalse();
+    }
+
+    @Test
+    @DisplayName("hasGlobalAccess: 标准码与大小写变体均返回 true（修复 TaskVisibilityPolicy 大小写敏感误拒）")
+    void hasGlobalAccess_shouldReturnTrueForStandardAndCaseVariants() {
+        // 标准码
+        assertThat(RoleProfileCatalog.hasGlobalAccess("admin")).isTrue();
+        assertThat(RoleProfileCatalog.hasGlobalAccess("/bidAdmin")).isTrue();
+        assertThat(RoleProfileCatalog.hasGlobalAccess("bid-TeamLeader")).isTrue();
+        assertThat(RoleProfileCatalog.hasGlobalAccess("bid-SystemAdmin")).isTrue();
+        // 大小写变体（修复点：原 Set.of.contains 大小写敏感会误拒）
+        assertThat(RoleProfileCatalog.hasGlobalAccess("ADMIN")).isTrue();
+        assertThat(RoleProfileCatalog.hasGlobalAccess("BID-SystemAdmin")).isTrue();
+        // 带空白
+        assertThat(RoleProfileCatalog.hasGlobalAccess("  /bidAdmin  ")).isTrue();
+    }
+
+    @Test
+    @DisplayName("hasGlobalAccess: 全局非特权角色返回 false")
+    void hasGlobalAccess_shouldReturnFalseForNonGlobalRoles() {
+        assertThat(RoleProfileCatalog.hasGlobalAccess("bid-Team")).isFalse();
+        assertThat(RoleProfileCatalog.hasGlobalAccess("bid-projectLeader")).isFalse();
+        assertThat(RoleProfileCatalog.hasGlobalAccess("bid-administration")).isFalse();
+        assertThat(RoleProfileCatalog.hasGlobalAccess("bid-otherDept")).isFalse();
+    }
 }

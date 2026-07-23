@@ -40,7 +40,7 @@ public final class CaBorrowPermissionChecker {
      * 判断用户是否为管理员角色（可查看全部申请）。
      */
     public static boolean isPrivilegedRole(String roleCode) {
-        return RoleProfileCatalog.GLOBAL_ACCESS_ROLES.contains(roleCode);
+        return RoleProfileCatalog.hasGlobalAccess(roleCode);
     }
 
     /**

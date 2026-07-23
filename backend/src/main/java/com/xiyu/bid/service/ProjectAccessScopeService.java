@@ -163,9 +163,8 @@ public class ProjectAccessScopeService {
         }
         User user = resolveCurrentUser(authentication);
         String roleCode = effectiveRoleResolver.resolveRoleCode(user);
-        // P1-1: canonicalCode 归一化 OSS 大小写/连字符变体；null 时 canonicalCode 返回 null，contains 返回 false（fail-closed）
-        String canonical = roleCode == null ? null : RoleProfileCatalog.canonicalCode(roleCode);
-        return canonical != null && RoleProfileCatalog.GLOBAL_ACCESS_ROLES.contains(canonical);
+        // hasGlobalAccess 内部做 canonicalCode 归一化 + null 安全短路（fail-closed）
+        return RoleProfileCatalog.hasGlobalAccess(roleCode);
     }
 
     public List<Project> filterAccessibleProjects(List<Project> projects) {

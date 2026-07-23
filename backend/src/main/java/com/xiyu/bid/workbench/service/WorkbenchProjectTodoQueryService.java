@@ -88,7 +88,9 @@ public class WorkbenchProjectTodoQueryService {
         // projectId → todoLabel 映射（保持插入顺序，待审核标书的"投标中"优先级最高）
         Map<Long, String> projectIdToLabel = new LinkedHashMap<>();
 
-        if (RoleProfileCatalog.GLOBAL_ACCESS_ROLES.contains(canonicalRole)) {
+        // 注意变量用法：hasGlobalAccess(roleCode) 内部做 canonicalCode 归一化，可直接传原始 roleCode；
+        // 后续 BID_SPECIALIST_CODE.equals(canonicalRole) 需要 canonicalRole 预归一化才能精确匹配。
+        if (RoleProfileCatalog.hasGlobalAccess(roleCode)) {
             // admin_lead: 已立项（status=INITIATED）+ 投标中（DRAFTING 限待审核标书）
             // CO-596: 必须用 status 而非 stage 过滤——stage=INITIATED 同时包含 PENDING_INITIATION 和 INITIATED 两种 status
             projectRepository.findByStatus(Project.Status.INITIATED)

@@ -171,7 +171,6 @@ public final class RoleProfileCatalog {
         DEFINITIONS = Collections.unmodifiableSortedMap(map);
     }
 
-
     private RoleProfileCatalog() {
     }
 
@@ -223,17 +222,8 @@ public final class RoleProfileCatalog {
         return DEFINITIONS.containsKey(roleCode.trim());
     }
 
-    /**
-     * 返回 roleCode 的规范形式（来自 DEFINITIONS 的原始 key）。
-     * <p>
-     * 用于将大小写不一致的输入（如 {@code BidAdmin}、{@code BIDADMIN}）
-     * 归一化为规范码（如 {@code bidAdmin}），避免下游权限匹配失败。
-     * <p>
-     * 未注册的 roleCode 返回 null。
-     *
-     * @param roleCode 待归一化的角色码
-     * @return 规范角色码，未注册返回 null
-     */
+    /** 返回 roleCode 的规范形式（来自 DEFINITIONS 的原始 key），用于大小写归一化。
+     *  @return 规范角色码，未注册或 null/空白返回 null */
     public static String canonicalCode(String roleCode) {
         if (roleCode == null || roleCode.isBlank()) {
             return null;
@@ -242,6 +232,12 @@ public final class RoleProfileCatalog {
         // case-insensitive TreeMap 查找
         SeedDefinition def = DEFINITIONS.get(trimmed);
         return def == null ? null : def.code();
+    }
+
+    /** 全局数据权限判断（{@link #GLOBAL_ACCESS_ROLES}）；canonicalCode 归一化+null 短路，fail-closed。 */
+    public static boolean hasGlobalAccess(String roleCode) {
+        String canonical = canonicalCode(roleCode);
+        return canonical != null && GLOBAL_ACCESS_ROLES.contains(canonical);
     }
 
     /** 该 roleCode 是否应在颁发 Spring Security authority 时跳过 Legacy User.Role 兼容
