@@ -5792,6 +5792,14 @@ PR !2178 假设的根因：
 - 后续修复 PR !2179（已合并 2026-07-21）：分支 `agent/codex/fix-bid-systemadmin-403-real-root-cause`，按第二次修正的根因实施
 - 知识沉淀（2026-07-21）：修正 §78 根因分析（第二次修正），追加完整审计报告到 `docs/reviews/`
 - 后续 PR 治理（2026-07-21）：PR !2178 标记 superseded 关闭（被 !2179 覆盖），PR !2176 rebase 后合入 main（详见 §79）
+- **PR !2189 修复（2026-07-23 合并）**：`agent/gemini/oss-role-priority-fix`，解决 §78 遗留的多 bid-* 角色"先到先得"问题。PR !2179 修了"OSS admin 被误识别为本地 admin"，但 `OssRoleResolver.resolveRoleCodeFromJobList` 遍历 sysRoleList 时仍用"先到先得"——覃超颖同时绑定 bid-otherDept + bid-SystemAdmin 时，bid-otherDept 排在前面就被选为最终角色，导致 403。本次修复方案：
+  - `RoleProfileCatalog.BID_ROLE_PRIORITY`：`List.of` 常量定义 7 个 bid-* 角色优先级（下标越小越高），`bid-SystemAdmin > /bidAdmin > bid-TeamLeader > bid-projectLeader > bid-Team > bid-administration > bid-otherDept`
+  - `OssRoleResolver.pickHighestPriorityBidRole(List<String> candidates)`：包私有 static 纯函数，从候选角色中选最高优先级；未列表角色赋 `Integer.MAX_VALUE - 1`（低于所有已知角色）
+  - 两处调用点（resolveRoleCodeFromJobList + resolveRoleCodeFromEmployeeInfo）均改为"收集 candidates → 选最高优先级"
+  - P1-1 延伸修复：`ProjectAccessScopeService.currentUserHasGlobalAccess` 新增 `canonicalCode` 归一化，兼容 OSS 角色码大小写/连字符变体
+  - 测试：OssRoleResolverTest +9 case（§78 场景）、DataScopeRoleProfileResolverTest 新建 220 行 8 case、ProjectAccessScopeServiceTest +4 case（P1-1）
+  - 部署注意点：Redis OSS 权限缓存 TTL=25h（90000s），部署后需 flush `oss:perm:*` 清除修复前缓存的错误角色码，否则最长 25h 后才自然过期
+  - 经 Google Code Review 二审（LGTM with Comments），顺手修复 OssRoleResolverTest javadoc 过时 Nit（覆盖 04569/06234/§78 三个根因索引）
 
 ### 相关文档
 
@@ -6000,3 +6008,35 @@ PR !2179 合并后，!2178 和 !2176 出现冲突。决策：!2178 被 !2179 覆
 - [scripts/wiki-check.mjs](../../scripts/wiki-check.mjs) — wiki 健康检查脚本
 - PR !2190 — Agent Wiki 运行规范（Schema 层 + 4 触发器门禁）
 - PR !2191 — 存量违规批量回填 + wiki-check 规则优化
+
+## 82. agent-locks 门禁检查分支全量 diff 而非 push 增量——每次 push 前锁必须在位（2026-07-23 / PR !2189 push 阻断）
+
+### 事故背景
+
+PR !2189（`agent/gemini/oss-role-priority-fix`）第三个 commit（javadoc 修复）push 时，pre-push gate 的 agent-locks 检查挂了，报"high-risk path changed without active lock"，指向 `RoleProfileCatalog.java`（entity hot-path）和 `.githooks/pre-commit`（hook hot-path）。但这两个文件是分支上前两个 commit 改的，第三个 commit 只改了测试文件的 javadoc。
+
+### 根因
+
+`scripts/check-agent-locks.mjs --base origin/main` 检查的是**当前分支相对 origin/main 的全部累积差异**，不是本次 push 的增量。这意味着：
+
+- 分支上前序 commit 碰过的 hot-path 文件，每次 push 前都需要 active lock 在位
+- 锁文件 `.agent-locks/<task-slug>.yml` 是本地工作区状态（被 `.gitignore` 排除，不随 git 走），session 切换或工作区清理后可能丢失
+- 丢失后 push 会被门禁拦住，即使本次 push 的增量改动不碰 hot-path
+
+### 处置
+
+1. `npm run agent:lock-check` 查看缺哪些锁
+2. `npm run agent:lock-acquire -- --path <path> --scope file --reason "<reason>"` 重新 acquire
+3. 锁文件是 gitignored，不需要 commit，直接重试 push 即可
+
+### 教训
+
+1. **agent-locks 检查的是分支全量 diff**：不是本次 push 增量。分支前序 commit 碰过的 hot-path，每次 push 都要锁在位
+2. **锁文件是本地状态，会丢**：`.agent-locks/*.yml` 被 gitignore，session 切换/工作区清理后可能丢失，push 前如果门禁挂了先查锁
+3. **不要用 `--no-verify` 绕过**：agent-locks 是协调机制，绕过会让其他 agent 撞同一 hot-path
+
+### 相关文档
+
+- [AGENTS.md](../../AGENTS.md) §5.2 文件锁（hot-paths 前置预订）
+- [scripts/check-agent-locks.mjs](../../scripts/check-agent-locks.mjs) — 锁检查脚本（`--base origin/main`）
+- PR !2189 — 本次 push 阻断的 PR
