@@ -20,6 +20,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * CA 证书到期及借用逾期扫描服务。
@@ -79,8 +81,10 @@ public class CaExpiryScanService {
                 // 已过期
                 AlertHistoryCreateRequest req = buildCreateRequest(rule, "HIGH",
                         String.format("CaCertificate:%s", cert.getId()),
-                        String.format("【CA已过期】%s（%s）已于 %s 过期，请立即处理",
-                                cert.getHolderName(), cert.getCaType(), expiryDate));
+                        String.format("【CA已过期】%s（关联平台：%s，CA类型：%s）已于 %s 过期，请立即处理",
+                                cert.getHolderName(),
+                                cert.getRelatedPlatformsOrNone(),
+                                cert.getCaTypeLabel(), expiryDate));
                 // P1-3: 使用 createAndNotifyIfNew 模板方法
                 alertNotificationOrchestrator.createAndNotifyIfNew(
                         req, rule, buildCertificatePayload(cert, "EXPIRED"));
@@ -89,8 +93,10 @@ public class CaExpiryScanService {
                 // 即将到期
                 AlertHistoryCreateRequest req = buildCreateRequest(rule, "MEDIUM",
                         String.format("CaCertificate:%s", cert.getId()),
-                        String.format("【CA即将到期】%s（%s）还有 %d 天到期，有效期至 %s",
-                                cert.getHolderName(), cert.getCaType(), daysUntil, expiryDate));
+                        String.format("【CA即将到期】%s（关联平台：%s，CA类型：%s）还有 %d 天到期，有效期至 %s",
+                                cert.getHolderName(),
+                                cert.getRelatedPlatformsOrNone(),
+                                cert.getCaTypeLabel(), daysUntil, expiryDate));
                 // P1-3: 使用 createAndNotifyIfNew 模板方法
                 alertNotificationOrchestrator.createAndNotifyIfNew(
                         req, rule, buildCertificatePayload(cert, "EXPIRING"));
@@ -127,8 +133,22 @@ public class CaExpiryScanService {
                 .findByStatusOrderByCreatedAtDesc("APPROVED");
 
         int created = 0;
+        // 批量查询关联 CA 证书，避免循环内 N+1 查询
+        Set<Long> certIds = approvedBorrows.stream()
+                .map(CaBorrowApplicationEntity::getCaCertificateId)
+                .collect(Collectors.toSet());
+        Map<Long, CaCertificateEntity> certMap = certificateRepository.findAllById(certIds).stream()
+                .collect(Collectors.toMap(CaCertificateEntity::getId, c -> c, (a, b) -> a));
+
         for (CaBorrowApplicationEntity borrow : approvedBorrows) {
             if (borrow.getExpectedReturnDate() == null) continue;
+
+            CaCertificateEntity cert = certMap.get(borrow.getCaCertificateId());
+            if (cert == null) {
+                log.warn("CA certificate {} not found for borrow application {}, skip",
+                        borrow.getCaCertificateId(), borrow.getId());
+                continue;
+            }
 
             long daysUntilReturn = ChronoUnit.DAYS.between(LocalDate.now(), borrow.getExpectedReturnDate());
 
@@ -136,7 +156,10 @@ public class CaExpiryScanService {
                 // 已逾期
                 AlertHistoryCreateRequest req = buildCreateRequest(rule, "HIGH",
                         String.format("CaBorrowApplication:%s", borrow.getId()),
-                        String.format("【CA借用已逾期】借用人 %s 的 CA 借用已于 %s 到期，已逾期 %d 天，请催促归还",
+                        String.format("【CA借用已逾期】%s（关联平台：%s，CA类型：%s）借用人 %s 已于 %s 到期，已逾期 %d 天，请催促归还",
+                                cert.getHolderName(),
+                                cert.getRelatedPlatformsOrNone(),
+                                cert.getCaTypeLabel(),
                                 borrow.getApplicantName(), borrow.getExpectedReturnDate(), Math.abs(daysUntilReturn)));
                 // P1-3: 使用 createAndNotifyIfNew 模板方法
                 alertNotificationOrchestrator.createAndNotifyIfNew(
@@ -146,7 +169,10 @@ public class CaExpiryScanService {
                 // 即将到期
                 AlertHistoryCreateRequest req = buildCreateRequest(rule, "MEDIUM",
                         String.format("CaBorrowApplication:%s", borrow.getId()),
-                        String.format("【CA借用即将到期】借用人 %s 的 CA 借用将于 %s 到期，还有 %d 天",
+                        String.format("【CA借用即将到期】%s（关联平台：%s，CA类型：%s）借用人 %s 将于 %s 到期，还有 %d 天",
+                                cert.getHolderName(),
+                                cert.getRelatedPlatformsOrNone(),
+                                cert.getCaTypeLabel(),
                                 borrow.getApplicantName(), borrow.getExpectedReturnDate(), daysUntilReturn));
                 // P1-3: 使用 createAndNotifyIfNew 模板方法
                 alertNotificationOrchestrator.createAndNotifyIfNew(

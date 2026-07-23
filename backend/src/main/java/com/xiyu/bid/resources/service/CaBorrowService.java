@@ -126,7 +126,7 @@ public class CaBorrowService {
                 .statusAfter(BorrowStatus.APPROVED.name())
                 .build());
 
-        caNotificationDispatcher.onBorrowApproved(app);
+        caNotificationDispatcher.onBorrowApproved(app, cert);
         log.info("CA借用申请 {} 由用户 {} 审批通过", applicationId, user.getId());
         return CaBorrowApplicationDTO.from(app);
     }
