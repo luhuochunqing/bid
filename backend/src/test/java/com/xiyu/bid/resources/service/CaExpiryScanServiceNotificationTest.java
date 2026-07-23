@@ -57,6 +57,9 @@ class CaExpiryScanServiceNotificationTest {
 
     /**
      * 场景1：证书已过期，createAndNotifyIfNew 返回 created=true → 调用模板方法，返回 1。
+     *
+     * <p>验证通知文案中包含"关联平台"和"CA类型"字段，便于操作人识别具体 CA。
+     * relatedPlatforms 为空时文案应显示"无"。
      */
     @Test
     void scanCertificateExpiry_newAlert_callsCreateAndNotifyIfNew() {
@@ -64,7 +67,8 @@ class CaExpiryScanServiceNotificationTest {
         CaCertificateEntity cert = CaCertificateEntity.builder()
                 .id(1L)
                 .holderName("张三")
-                .caType("CA")
+                .caType("ENTITY_CA")
+                .relatedPlatforms("招标网,公共资源")
                 .expiryDate(LocalDate.now().minusDays(1))
                 .status("ACTIVE")
                 .build();
@@ -78,8 +82,13 @@ class CaExpiryScanServiceNotificationTest {
         int created = service.scanCertificateExpiry();
 
         assertThat(created).isEqualTo(1);
+        ArgumentCaptor<AlertHistoryCreateRequest> reqCaptor = ArgumentCaptor.forClass(AlertHistoryCreateRequest.class);
         verify(alertNotificationOrchestrator)
-                .createAndNotifyIfNew(any(AlertHistoryCreateRequest.class), eq(rule), any());
+                .createAndNotifyIfNew(reqCaptor.capture(), eq(rule), any());
+        String message = reqCaptor.getValue().getMessage();
+        assertThat(message).contains("关联平台：招标网,公共资源");
+        assertThat(message).contains("CA类型：实体CA");
+        assertThat(message).contains("张三");
     }
 
     /**
@@ -111,12 +120,21 @@ class CaExpiryScanServiceNotificationTest {
 
     /**
      * 场景3：借用已逾期，createAndNotifyIfNew 返回 created=true → 调用模板方法。
+     *
+     * <p>验证通知文案中包含"关联平台"和"CA类型"字段，便于操作人识别具体 CA。
      */
     @Test
     void scanBorrowOverdue_newAlert_callsCreateAndNotifyIfNew() {
         CaExpiryScanService service = newService();
+        CaCertificateEntity cert = CaCertificateEntity.builder()
+                .id(10L)
+                .holderName("张三公司")
+                .caType("ENTITY_CA")
+                .relatedPlatforms("A平台,B平台")
+                .build();
         CaBorrowApplicationEntity borrow = CaBorrowApplicationEntity.builder()
                 .id(1L)
+                .caCertificateId(10L)
                 .applicantName("李四")
                 .expectedReturnDate(LocalDate.now().minusDays(1))
                 .status("APPROVED")
@@ -124,6 +142,8 @@ class CaExpiryScanServiceNotificationTest {
         AlertRule rule = caBorrowOverdueRule();
         // P1-7: findByStatusOrderByCreatedAtDesc("APPROVED") 替代 findAll() + 内存过滤
         when(borrowRepository.findByStatusOrderByCreatedAtDesc("APPROVED")).thenReturn(List.of(borrow));
+        // 批量查询 stub（替代循环内 findById）
+        when(certificateRepository.findAllById(any(java.util.Collection.class))).thenReturn(List.of(cert));
         when(alertRuleProvisioningService.ensureRule(
                 eq(AlertRule.AlertType.CA_BORROW_OVERDUE), anyString(), anyInt())).thenReturn(rule);
         stubCreateAsNew();
@@ -131,8 +151,14 @@ class CaExpiryScanServiceNotificationTest {
         int created = service.scanBorrowOverdue();
 
         assertThat(created).isEqualTo(1);
+        ArgumentCaptor<AlertHistoryCreateRequest> reqCaptor = ArgumentCaptor.forClass(AlertHistoryCreateRequest.class);
         verify(alertNotificationOrchestrator)
-                .createAndNotifyIfNew(any(AlertHistoryCreateRequest.class), eq(rule), any());
+                .createAndNotifyIfNew(reqCaptor.capture(), eq(rule), any());
+        String message = reqCaptor.getValue().getMessage();
+        assertThat(message).contains("关联平台：A平台,B平台");
+        assertThat(message).contains("CA类型：实体CA");
+        assertThat(message).contains("张三公司");
+        assertThat(message).contains("李四");
     }
 
     /**

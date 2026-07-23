@@ -55,8 +55,11 @@ public class CaNotificationDispatcher {
             if (cert == null || cert.getCustodianId() == null) return;
             dispatch(NotificationType.CA_BORROW_PENDING, List.of(cert.getCustodianId()),
                     "CA 借用申请待审批",
-                    String.format("「%s」收到借用申请，申请人：%s，请尽快审批。",
-                            cert.getHolderName(), app.getApplicantName()),
+                    String.format("「%s」（关联平台：%s，CA类型：%s）收到借用申请，申请人：%s，请尽快审批。",
+                            cert.getHolderName(),
+                            cert.getRelatedPlatformsOrNone(),
+                            cert.getCaTypeLabel(),
+                            app.getApplicantName()),
                     "CA_CERTIFICATE", cert.getId(), Map.of(
                             "caCertificateId", cert.getId(),
                             "applicationId", app.getId(),
@@ -80,8 +83,11 @@ public class CaNotificationDispatcher {
             if (recipients.isEmpty()) return;
             dispatch(NotificationType.CA_EXPIRING, recipients,
                     "CA 即将到期",
-                    String.format("「%s」将在 %d 天后到期（%s），请及时办理续期。",
-                            cert.getHolderName(), daysLeft, cert.getExpiryDate()),
+                    String.format("「%s」（关联平台：%s，CA类型：%s）将在 %d 天后到期（%s），请及时办理续期。",
+                            cert.getHolderName(),
+                            cert.getRelatedPlatformsOrNone(),
+                            cert.getCaTypeLabel(),
+                            daysLeft, cert.getExpiryDate()),
                     "CA_CERTIFICATE", cert.getId(), Map.of(
                             "caCertificateId", cert.getId(),
                             "expiryDate", String.valueOf(cert.getExpiryDate()),
@@ -104,8 +110,11 @@ public class CaNotificationDispatcher {
             if (recipients.isEmpty()) return;
             dispatch(NotificationType.CA_EXPIRED, recipients,
                     "CA 已过期",
-                    String.format("「%s」已于 %s 过期，请尽快处理。",
-                            cert.getHolderName(), cert.getExpiryDate()),
+                    String.format("「%s」（关联平台：%s，CA类型：%s）已于 %s 过期，请尽快处理。",
+                            cert.getHolderName(),
+                            cert.getRelatedPlatformsOrNone(),
+                            cert.getCaTypeLabel(),
+                            cert.getExpiryDate()),
                     "CA_CERTIFICATE", cert.getId(), Map.of(
                             "caCertificateId", cert.getId(),
                             "expiryDate", String.valueOf(cert.getExpiryDate())));
@@ -118,15 +127,20 @@ public class CaNotificationDispatcher {
     /**
      * 借用申请审批通过 → 通知申请人。
      * <p>使用 REQUIRES_NEW 独立事务，确保通知失败不影响主业务事务。
+     *
+     * @param app  借用申请实体
+     * @param cert 关联的 CA 证书实体（用于在文案中展示 CA 标识信息，可为 null）
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void onBorrowApproved(CaBorrowApplicationEntity app) {
+    public void onBorrowApproved(CaBorrowApplicationEntity app, CaCertificateEntity cert) {
         try {
             if (app == null || app.getApplicantId() == null) return;
+            String relatedPlatforms = cert != null ? cert.getRelatedPlatformsOrNone() : "无";
+            String caTypeLabel = cert != null ? cert.getCaTypeLabel() : "未知";
             dispatch(NotificationType.CA_BORROW_APPROVED, List.of(app.getApplicantId()),
                     "CA 借用申请已通过",
-                    String.format("您的借用申请已通过审批，请及时领取「%s」。",
-                            app.getProjectName()),
+                    String.format("您的借用申请已通过审批，请及时领取「%s」（关联平台：%s，CA类型：%s）。",
+                            app.getProjectName(), relatedPlatforms, caTypeLabel),
                     "CA_CERTIFICATE", app.getCaCertificateId(), Map.of(
                             "caCertificateId", app.getCaCertificateId(),
                             "applicationId", app.getId()));

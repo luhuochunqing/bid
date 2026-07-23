@@ -1,5 +1,6 @@
 package com.xiyu.bid.resources.entity;
 
+import com.xiyu.bid.resources.domain.valueobject.CaType;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDate;
@@ -83,5 +84,23 @@ public class CaCertificateEntity {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    /**
+     * 关联平台为空时返回"无"，保证通知文案结构稳定。
+     *
+     * @return 原值或"无"
+     */
+    public String getRelatedPlatformsOrNone() {
+        return (relatedPlatforms == null || relatedPlatforms.isBlank()) ? "无" : relatedPlatforms;
+    }
+
+    /**
+     * 获取 CA 类型的中文标签（如"实体CA"、"电子CA"），用于通知文案等展示场景。
+     *
+     * @return 中文标签，code 为空时返回"未知"
+     */
+    public String getCaTypeLabel() {
+        return CaType.labelOf(caType);
     }
 }
