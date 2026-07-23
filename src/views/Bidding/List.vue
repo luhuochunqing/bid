@@ -65,6 +65,7 @@
         @delete="batchActions.handleDeleteTender"
         @set-reminder="handleSetReminder"
         @transfer="handleTransfer"
+        @sort-change="handleSortChange"
       />
       <TenderMobileCards
         v-else
@@ -210,6 +211,7 @@ const {
   handleViewDetail, handleParticipate, handleViewAllRecommend,
   handleOpenCustomerOpportunityCenter, openManualAdd, openSourceConfig,
   handleAIAnalysis, isAdmin, handleEvaluate,
+  handleSortChange,
 } = useTenderListPage()
 
 // ---- 收藏状态 ----

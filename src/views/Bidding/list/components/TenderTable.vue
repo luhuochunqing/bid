@@ -9,6 +9,7 @@
       max-height="calc(100vh - 280px)"
       scrollbar-always-on
       @selection-change="$emit('selection-change', $event)"
+      @sort-change="$emit('sort-change', $event)"
     >
       <el-table-column type="selection" width="55" fixed="left" />
       <el-table-column type="index" label="序号" width="90" align="center" fixed="left" />
@@ -72,7 +73,7 @@
       </el-table-column>
 
       <!-- 报名截止日期 -->
-      <el-table-column prop="registrationDeadline" label="报名截止日期" width="160" align="center">
+      <el-table-column prop="registrationDeadline" label="报名截止日期" width="160" align="center" sortable="custom">
         <template #default="{ row = {} } = {}">
           <span
             class="date-cell"
@@ -87,7 +88,7 @@
       </el-table-column>
 
       <!-- 开标时间 -->
-      <el-table-column prop="bidOpeningTime" label="开标时间" width="150" align="center">
+      <el-table-column prop="bidOpeningTime" label="开标时间" width="150" align="center" sortable="custom">
         <template #default="{ row = {} } = {}">
           <span class="date-cell">{{ row.bidOpeningTime ? formatDate(row.bidOpeningTime) : '-' }}</span>
         </template>
@@ -146,7 +147,7 @@ const props = defineProps({
 const emit = defineEmits([
   'selection-change', 'view-detail', 'ai-analysis', 'participate',
   'distribute', 'edit', 'review', 'status-change', 'delete', 'set-reminder',
-  'transfer', 'claim', 'assign',
+  'transfer', 'claim', 'assign', 'sort-change',
 ])
 
 const innerTableRef = ref(null)

@@ -16,6 +16,7 @@ import {
   safeTenderUrl,
   sanitizeSourceConfigForStorage,
   summarizeExternalSyncResult,
+  sortTendersByDateField,
 } from './helpers.js'
 
 describe('bidding list helpers', () => {
@@ -350,5 +351,49 @@ describe('isAdminRole', () => {
     expect(getSourceText('manual')).toBe('人工录入')
     expect(getSourceText('legacy')).toBe('legacy')
     expect(getSourceText(null)).toBe('未知')
+  })
+
+  describe('sortTendersByDateField (CO-598)', () => {
+    const tenders = [
+      { id: 1, registrationDeadline: '2026-03-01 10:00' },
+      { id: 2, registrationDeadline: '2026-01-15 09:00' },
+      { id: 3, registrationDeadline: null },
+      { id: 4, registrationDeadline: '2026-02-20 14:00' },
+    ]
+
+    it('sorts ascending by date field, empties first', () => {
+      const result = sortTendersByDateField(tenders, 'registrationDeadline', 'ascending')
+      expect(result.map((t) => t.id)).toEqual([3, 2, 4, 1])
+    })
+
+    it('sorts descending by date field, empties last', () => {
+      const result = sortTendersByDateField(tenders, 'registrationDeadline', 'descending')
+      expect(result.map((t) => t.id)).toEqual([1, 4, 2, 3])
+    })
+
+    it('returns a copy in original order when order is null', () => {
+      const result = sortTendersByDateField(tenders, 'registrationDeadline', null)
+      expect(result.map((t) => t.id)).toEqual([1, 2, 3, 4])
+    })
+
+    it('does not mutate the input array', () => {
+      const snapshot = tenders.map((t) => t.id)
+      sortTendersByDateField(tenders, 'registrationDeadline', 'ascending')
+      expect(tenders.map((t) => t.id)).toEqual(snapshot)
+    })
+
+    it('supports bidOpeningTime field', () => {
+      const list = [
+        { id: 'a', bidOpeningTime: '2026-03-01' },
+        { id: 'b', bidOpeningTime: '2026-01-01' },
+      ]
+      const result = sortTendersByDateField(list, 'bidOpeningTime', 'ascending')
+      expect(result.map((t) => t.id)).toEqual(['b', 'a'])
+    })
+
+    it('returns empty array for non-array input', () => {
+      expect(sortTendersByDateField(null, 'x', 'ascending')).toEqual([])
+      expect(sortTendersByDateField(undefined, 'x', 'descending')).toEqual([])
+    })
   })
 })

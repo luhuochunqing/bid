@@ -9,11 +9,13 @@ const oversizedIsOk = new Set([
   // Excluded from CI line-budget (line-budget.config.json) because they are
   // template-heavy by design (20+ field types / complex dialog integration).
   'src/views/Bidding/list/components/ManualTenderDialog.vue',
-  // useTenderListPage.js: ~301 lines — contains TenderListPage state + computed
-  // + methods + AI analysis handlers; split into useTenderListPage.js (core
-  // composable) and useTenderListFilter.js (filter-only) per §4.2.1, but the
-  // composable surface (options object) stays above 300 due to tender CRUD +
-  // bidding scope + batch import + AI integration responsibilities.
+  // useTenderListPage.js: ~307 lines — contains TenderListPage state + computed
+  // + methods + AI analysis handlers + CO-598 sort state; split into
+  // useTenderListPage.js (core composable) and useTenderListFilter.js
+  // (filter-only) per §4.2.1, but the composable surface (options object)
+  // stays above 300 due to tender CRUD + bidding scope + batch import + AI
+  // integration responsibilities. Also exempt in line-budget.config.json
+  // (global ratcheting gate) to keep the two gates consistent.
   'src/views/Bidding/list/useTenderListPage.js',
   // useManualTenderCreate.js: ~301-302 lines — pre-existing line budget
   // exceedance unrelated to current change; handles manual tender creation
