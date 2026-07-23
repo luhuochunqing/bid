@@ -1,6 +1,7 @@
 package com.xiyu.bid.crm.application;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.integration.organization.application.OrganizationIntegrationProperties;
 import com.xiyu.bid.integration.organization.domain.policy.JobRoleLookupResolver;
 import com.xiyu.bid.integration.organization.domain.policy.OssMenuPermissionMapper;
@@ -72,7 +73,12 @@ public class OssRoleResolver {
         // 1. 从 sysRoleList 解析（优先检查 roleCode，再检查 roleName）
         //    roleCode 更准确：bid-* 前缀的角色码可直接映射为内部角色码（如 bid-administration）
         //    roleName 是中文角色名称（如"投标-行政专员"），需通过映射表匹配
+        // §78 修复-优先：sysRoleList 顺序由 OSS 决定，不依赖其稳定排序。
+        // 多角色用户（典型如覃超颖 bid-otherDept + bid-SystemAdmin）必须按
+        // {@link RoleProfileCatalog#BID_ROLE_PRIORITY} 选优先级最高者，
+        // 否则低权限角色（bid-otherDept）会先匹配并写入缓存，导致 403。
         if (jobInfo.getSysRoleList() != null) {
+            List<String> candidates = new ArrayList<>();
             for (CrmJobListResponse.SysRole sysRole : jobInfo.getSysRoleList()) {
                 if ("1".equals(sysRole.getStatus()) && !Boolean.TRUE.equals(sysRole.getDel())) {
                     // 1a. 优先检查 roleCode（bid-* 角色码可直接映射）
@@ -80,8 +86,8 @@ public class OssRoleResolver {
                     if (ossRoleCode != null && !ossRoleCode.isBlank()) {
                         String internalCode = JobRoleLookupResolver.mapOssRoleCodeToInternal(ossRoleCode);
                         if (internalCode != null && !internalCode.isBlank()) {
-                            log.info("OSS login: role resolved from sysRoleList roleCode: {} -> {}", ossRoleCode, internalCode);
-                            return internalCode;
+                            candidates.add(internalCode);
+                            continue;
                         }
                     }
                     // 1b. 再检查 roleName（中文角色名称通过精确映射表匹配）
@@ -91,11 +97,15 @@ public class OssRoleResolver {
                     if (roleName != null && !roleName.isBlank()) {
                         String roleCode = JobRoleLookupResolver.mapOssRoleTextToInternal(roleName);
                         if (roleCode != null && !roleCode.isBlank()) {
-                            log.info("OSS login: role resolved from sysRoleList roleName: {} -> {}", roleName, roleCode);
-                            return roleCode;
+                            candidates.add(roleCode);
                         }
                     }
                 }
+            }
+            String best = pickHighestPriorityBidRole(candidates);
+            if (best != null) {
+                log.info("OSS login: role resolved from sysRoleList (priority-ranked): {} from candidates={}", best, candidates);
+                return best;
             }
         }
 
@@ -141,6 +151,7 @@ public class OssRoleResolver {
             log.info("OSS login: no roleList in employeeInfo for user={}", username);
             return null;
         }
+        List<String> candidates = new ArrayList<>();
         for (JsonNode role : roleList) {
             String status = role.path("status").asText(null);
             boolean del = role.path("del").asBoolean(false);
@@ -151,13 +162,49 @@ public class OssRoleResolver {
             if (ossRoleCode != null && !ossRoleCode.isBlank()) {
                 String internalCode = JobRoleLookupResolver.mapOssRoleCodeToInternal(ossRoleCode);
                 if (internalCode != null && !internalCode.isBlank()) {
-                    log.info("OSS login: role resolved from employeeInfo roleList roleCode: {} -> {}", ossRoleCode, internalCode);
-                    return internalCode;
+                    candidates.add(internalCode);
                 }
             }
         }
+        String best = pickHighestPriorityBidRole(candidates);
+        if (best != null) {
+            log.info("OSS login: role resolved from employeeInfo roleList (priority-ranked): {} from candidates={}", best, candidates);
+            return best;
+        }
         log.warn("OSS login: cannot resolve internal role from employeeInfo roleList for user={}", username);
         return null;
+    }
+
+    /**
+     * 在候选 bid-* 角色码列表中按 {@link RoleProfileCatalog#BID_ROLE_PRIORITY} 选优先级最高者。
+     * <p>
+     * 未列在优先级表中的角色码视为最低优先级（保持向后兼容），不抛异常。
+     * 空列表或 null 输入返回 null。
+     * <p>
+     * §78 修复-优先：解决 OssRoleResolver 遍历 sysRoleList 时遇到第一个可映射的
+     * bid-* 角色就 return 导致的多角色用户权限解析错误（典型如覃超颖 09118 案例）。
+     */
+    static String pickHighestPriorityBidRole(List<String> candidates) {
+        if (candidates == null || candidates.isEmpty()) {
+            return null;
+        }
+        String best = null;
+        int bestPriority = Integer.MAX_VALUE;
+        for (String code : candidates) {
+            if (code == null || code.isBlank()) {
+                continue;
+            }
+            int priority = RoleProfileCatalog.BID_ROLE_PRIORITY.indexOf(code);
+            if (priority < 0) {
+                // 未在优先级表中：保持向后兼容，按出现顺序回退
+                priority = Integer.MAX_VALUE - 1;
+            }
+            if (best == null || priority < bestPriority) {
+                best = code;
+                bestPriority = priority;
+            }
+        }
+        return best;
     }
 
     // isWhitelistedPerson 方法已删除——白名单已废弃，不再有"白名单用户"的概念。
