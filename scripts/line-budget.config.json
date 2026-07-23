@@ -58,6 +58,8 @@
         "src/components/common/chinaRegionData.js",
         "src/components/project/detail/ProjectDetailBidAgentDrawer.vue",
         "src/views/Bidding/TenderCreatePage.vue",
+        "src/views/Bidding/bidding-utils.js",
+        "src/views/Bidding/list/useTenderListPage.js",
         "src/views/Bidding/detail/DetailPage.vue",
         "src/views/Bidding/detail/DetailPage.vue",
         "src/views/Bidding/list/components/ManualTenderDialog.vue",

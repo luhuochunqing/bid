@@ -1,5 +1,5 @@
-// Input: backend response objects, frontend form data
-// Output: pure normalizer and display formatter functions for bidding data transformations and detail display
+// Input: backend response objects, frontend form data, tender list records
+// Output: pure normalizer, display formatter, and list sorting functions for bidding data transformations
 // Pos: src/views/Bidding/ - Bidding module utilities
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -288,4 +288,25 @@ export function getSourceTypeText(sourceType) {
     EXTERNAL: '外部获取',
   }
   return map[sourceType] || sourceType || '未知'
+}
+
+/**
+ * 按日期字段对标讯列表排序（CO-598：报名截止日期/开标时间列排序）。
+ * 纯函数：返回新数组，不修改入参。空/非法日期按 0（最早）参与排序。
+ *
+ * @param {Array} tenders - 标讯记录数组
+ * @param {string} prop - 日期字段名（如 registrationDeadline / bidOpeningTime）
+ * @param {'ascending'|'descending'|null} order - 排序方向，null 表示不排序
+ * @returns {Array} 排序后的新数组
+ */
+export function sortTendersByDateField(tenders, prop, order) {
+  if (!Array.isArray(tenders) || !prop || (order !== 'ascending' && order !== 'descending')) {
+    return Array.isArray(tenders) ? [...tenders] : []
+  }
+  const dir = order === 'ascending' ? 1 : -1
+  return [...tenders].sort((a, b) => {
+    const ta = a?.[prop] ? new Date(a[prop]).getTime() : 0
+    const tb = b?.[prop] ? new Date(b[prop]).getTime() : 0
+    return ((Number.isNaN(ta) ? 0 : ta) - (Number.isNaN(tb) ? 0 : tb)) * dir
+  })
 }

@@ -237,7 +237,7 @@ export function getSourceTypeTagType(sourceType) {
   }
   return map[sourceType] || 'info'
 }
-export { getSourceTypeText } from '../bidding-utils.js'
+export { getSourceTypeText, sortTendersByDateField } from '../bidding-utils.js'
 
 export function normalizeAssignmentCandidate(candidate = {}) {
   return {

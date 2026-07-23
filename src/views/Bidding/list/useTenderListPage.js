@@ -11,7 +11,7 @@ import { tendersApi } from '@/api/modules/tenders'
 import { batchTendersApi } from '@/api/modules/tenders/batch.js'
 import { ExportType, exportApi, notifyExportSuccess } from '@/api/modules/export'
 import { DEFAULT_SEARCH_FORM } from './constants.js'
-import { buildPermissionFlags, isAdminRole, normalizeTenderForExport, resolveUserRole } from './helpers.js'
+import { buildPermissionFlags, isAdminRole, normalizeTenderForExport, resolveUserRole, sortTendersByDateField } from './helpers.js'
 import {
   matchesTenderStatus,
   TENDER_STATUSES,
@@ -66,9 +66,16 @@ export function useTenderListPage() {
     return tenders.value.filter((tender) => matchesTenderStatus(tender.status, viewMode.value))
   })
   const filteredRecommendTenders = computed(() => filteredTenders.value.filter((tender) => Number(tender.aiScore || 0) >= 85).slice(0, 3))
+  // CO-598: 报名截止日期/开标时间列排序（数据全量加载于 store，前端排序即可）
+  const sortConfig = ref({ prop: null, order: null })
+  const handleSortChange = ({ prop, order } = {}) => {
+    sortConfig.value = { prop: prop || null, order: order || null }
+    currentPage.value = 1
+  }
   const displayTenders = computed(() => {
+    const sorted = sortTendersByDateField(filteredTenders.value, sortConfig.value.prop, sortConfig.value.order)
     const start = (currentPage.value - 1) * pageSize.value
-    return filteredTenders.value.slice(start, start + pageSize.value)
+    return sorted.slice(start, start + pageSize.value)
   })
 
   const statusCounts = computed(() => ({
@@ -295,5 +302,6 @@ export function useTenderListPage() {
     openManualAdd,
     openSourceConfig,
     handleAIAnalysis,
+    handleSortChange,
   }
 }

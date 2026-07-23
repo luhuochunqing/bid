@@ -90,3 +90,25 @@ describe('TenderTable 项目名称列自动换行 - CO-412', () => {
     expect(lastBlock).not.toContain('text-overflow: ellipsis')
   })
 })
+
+// CO-598: 报名截止日期/开标时间列支持排序并显示排序图标，样式参考 CO-597 投标项目列表
+describe('TenderTable 排序图标 - CO-598', () => {
+  it('报名截止日期/开标时间两列声明 sortable="custom"', () => {
+    expect(source).toContain('label="报名截止日期"')
+    expect(source).toContain('label="开标时间"')
+    expect(source).toContain('sortable="custom"')
+  })
+
+  it('el-table 绑定 @sort-change 并声明 sort-change 事件', () => {
+    expect(source).toContain('@sort-change')
+    expect(source).toContain("'sort-change'")
+  })
+
+  it('table.css 排序图标解除 44px min-height 压制且未被 opacity 隐藏', () => {
+    // 根因同 CO-597：accessibility.css 全局 button min-height:44px 压制 .caret-wrapper
+    expect(tableStyles).toContain('min-height: 0 !important')
+    expect(tableStyles).toContain('height: 25px !important')
+    // 排序箭头不可被 opacity:0 隐藏
+    expect(tableStyles).not.toMatch(/\.caret-wrapper[^}]*opacity:\s*0/)
+  })
+})
