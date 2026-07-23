@@ -425,6 +425,39 @@ class ProjectAccessScopeServiceTest {
         assertThat(projectAccessScopeService.currentUserHasGlobalAccess()).isFalse();
     }
 
+    // ===== P1-1 回归：OSS 同步用户大小写/连字符变体也应识别为全局角色 =====
+    // 之前 currentUserHasGlobalAccess 直接 Set.contains(roleCode) 漏归一化，
+    // 会让 "Admin" / "Bid-Admin" 等缓存值误判为受限角色 → 工作台截止/日历降级为过滤路径。
+
+    @Test
+    void currentUserHasGlobalAccess_shouldNormalizeCaseVariant_admin() {
+        // OSS 历史同步可能返回 "Admin"（大写 A），必须归一化为 "admin" 后命中 GLOBAL_ACCESS_ROLES
+        setupAuthenticatedUser("oss-admin-upper", "Admin");
+        assertThat(projectAccessScopeService.currentUserHasGlobalAccess()).isTrue();
+    }
+
+    @Test
+    void currentUserHasGlobalAccess_shouldNormalizeCaseVariant_bidAdmin() {
+        // "/bidAdmin" 无大小写变体问题，但 bidirectional 验证 canonicalCode 对 OSS 同步数据稳健
+        setupAuthenticatedUser("oss-bidadmin", "  /bidAdmin  ");
+        // canonicalCode 内部 trim 后命中 catalog → 返回 "/bidAdmin" → GLOBAL_ACCESS_ROLES.contains 命中
+        assertThat(projectAccessScopeService.currentUserHasGlobalAccess()).isTrue();
+    }
+
+    @Test
+    void currentUserHasGlobalAccess_shouldNormalizeCaseVariant_bidTeamLeader() {
+        // "BID-TEAMLEADER"（全大写 + 去连字符）→ canonicalCode 归一化后命中
+        setupAuthenticatedUser("oss-lead-upper", "BID-TEAMLEADER");
+        assertThat(projectAccessScopeService.currentUserHasGlobalAccess()).isTrue();
+    }
+
+    @Test
+    void currentUserHasGlobalAccess_shouldReturnFalse_whenRoleCodeIsUnknown() {
+        // canonicalCode 对未注册角色返回 null → 不可命中 GLOBAL_ACCESS_ROLES
+        setupAuthenticatedUser("oss-unknown", "bid-UnknownRole");
+        assertThat(projectAccessScopeService.currentUserHasGlobalAccess()).isFalse();
+    }
+
     @Test
     void currentUserHasGlobalAccess_shouldShortCircuit_whenRoleAdminAuthority() {
         // §78 修复 4：ROLE_ADMIN authority 不再无条件短路，需校验不是 OSS 用户

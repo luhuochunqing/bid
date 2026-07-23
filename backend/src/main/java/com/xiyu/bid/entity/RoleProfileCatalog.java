@@ -81,6 +81,11 @@ public final class RoleProfileCatalog {
     public static final Set<String> TASK_MUTATION_ALLOWED_ROLES =
             Set.of(ADMIN_CODE, BID_ADMIN_CODE, BID_LEAD_CODE, BID_SPECIALIST_CODE, BID_SYSTEM_ADMIN_CODE);
 
+    /** bid-* 角色优先级排序（多角色用户取最高者）。下标越小优先级越高。解决 §78：OssRoleResolver 遇第一个 bid-* 就 return 导致覃超颖 bid-otherDept+bid-SystemAdmin 错误解析为低权限角色。 */
+    public static final List<String> BID_ROLE_PRIORITY = List.of(
+            BID_SYSTEM_ADMIN_CODE, BID_ADMIN_CODE, BID_LEAD_CODE, SALES_CODE,
+            BID_SPECIALIST_CODE, ADMIN_STAFF_CODE, BID_OTHER_DEPT_CODE);
+
     /** /bidAdmin 和 bid-SystemAdmin 共享的菜单权限（权限等同投标管理员）。 */
     private static final List<String> BID_ADMIN_PERMISSIONS = List.of(
             "dashboard", "operation-logs", "bidding", "project", "knowledge", "resource",
