@@ -176,8 +176,9 @@
 
 /* ================================================
    CO-598: 报名截止日期/开标时间列排序图标显示
-   样式参考 CO-597 投标项目列表（PR !2196）
-   根因同 CO-597：accessibility.css 全局 button min-height:44px 压制 .caret-wrapper
+   根因同 CO-597（PR !2196）：accessibility.css 全局 button min-height:44px 压制 .caret-wrapper
+   视觉方案与 CO-597 不同：本处保留 Element Plus 原生双三角（▲▼）并 resize 解除压制；
+   CO-597 则隐藏原生双三角 + ::after 自定义单三角。两者仅根因相同。
    ================================================ */
 .tender-table th.el-table__cell .caret-wrapper {
   min-height: 0 !important;
