@@ -3,6 +3,35 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-07-23] backfill | 存量 wiki 违规批量回填（92 → 0）
+
+- 背景：PR !2190 合入后 wiki:check 报 92 个违规（56 个文件），全部为日期过期类
+  - 35 个 stale health_checked（>7 天）
+  - 36 个 stale updated（>30 天）
+  - 无结构性问题（链接失效/源文件缺失等）
+- 处理策略：分级处理
+  - **A 类历史档案**（21 个）：SOW/合同/里程碑/附件追溯/lessons-learned 等
+    - 批量更新 `health_checked: 2026-07-23`
+    - 新增 `archive: true` frontmatter 字段
+    - 保留 `updated` 不变（内容没变就不应该改）
+  - **B 类活跃文档**（35 个）：架构/权限/部署/集成/测试模块等
+    - 批量更新 `health_checked: 2026-07-23`
+    - 保留 `updated` 不变
+    - 本次为快速批量回填，未深度 review 每个文件内容
+- wiki-check.mjs 规则优化（2 处）：
+  1. `archive: true` 豁免 `updated >30 天` 检查（历史档案内容不会变）
+  2. `health_checked` 7 天内时豁免 `updated >30 天` 检查（已 review 过即不需再提醒）
+- 结果：`wiki:check passed. pages=65`（违规归零）
+- 一次性脚本：
+  - `scripts/wiki-backfill-stale.mjs`（A 类 21 个）
+  - `scripts/wiki-backfill-active.mjs`（B 类 35 个）
+- **诚实声明**：本次为批量快速回填，未逐页深度 review 内容。以下高优先级文档的深度 review 作为后续任务：
+  - `architecture/effective-role-resolution.md`（CO-361/CO-373 涉及）
+  - `roles-and-permissions.md`（CO-361/CO-373 涉及）
+  - `data-permission-hardening.md`（CO-361/CO-373 涉及）
+  - `integration-organization-event-sdk.md`（OSS 同步涉及）
+  - `integration-wecom.md`（企微 OAuth 涉及）
+
 ## [2026-07-23] schema | Agent Wiki 运行规范（Schema 层）建立
 
 - 新增页面：`.wiki/WIKI.md`（Schema 配置层，Agent Wiki 行为宪法）

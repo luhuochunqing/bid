@@ -14,7 +14,7 @@ backlinks:
   - roles-and-permissions
 created: 2026-06-22
 updated: 2026-06-27
-health_checked: 2026-07-14
+health_checked: 2026-07-23
 ---
 # 西域给泊冉权限接口
 

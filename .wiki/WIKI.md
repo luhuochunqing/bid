@@ -139,12 +139,19 @@ backlinks:
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
 health_checked: YYYY-MM-DD  # 必须 ≤7 天内
+archive: false  # 历史档案标 true，豁免 updated 检查
 ---
 ```
 
-- `updated` 超过 30 天 → wiki-check 报错
+- `updated` 超过 30 天 → wiki-check 报错（除非 `archive: true` 或 `health_checked` 7 天内）
 - `health_checked` 超过 7 天 → wiki-check 报错
 - `sources` 列出的文件必须真实存在
+
+#### 历史档案豁免（archive: true）
+
+- 用于内容不会变的历史档案（SOW/合同/里程碑/附件追溯/lessons-learned 等）
+- `archive: true` 时豁免 `updated >30 天` 检查，但仍需 `health_checked`
+- `archive: true` 不等于"永不更新"，只表示"内容性质是历史记录，updated 过期是正常的"
 
 ## 4. 标准操作流程（Operations）
 

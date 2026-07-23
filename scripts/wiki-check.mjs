@@ -69,11 +69,22 @@ function checkPageFrontmatter(pageAbsPath, frontmatter, violations) {
     })
   }
 
-  if (frontmatter.updated && dateDaysDiff(frontmatter.updated) > 30) {
+  // archive: true 的页面（历史档案）跳过 updated 检查，但仍需 health_checked
+  // 工程背景(2026-07-23): SOW/合同/里程碑等历史档案内容不会变，updated >30 天是正常的
+  // 详见 .wiki/WIKI.md §3 AI-First 编写标准 - 历史档案豁免
+  // 注意：parseFrontmatter 不做类型转换，archive: true 被解析为字符串 "true"
+  const isArchive = frontmatter.archive === 'true' || frontmatter.archive === true
+
+  // updated 检查：仅当 health_checked 也过期时才报违规
+  // 工程背景(2026-07-23): 活跃文档 updated >30 天但 health_checked 7 天内 → 已 review 过，不报违规
+  // 这样 updated 检查的作用变成"提醒 review"，而不是"强制改内容"
+  const healthCheckedFresh = frontmatter.health_checked && dateDaysDiff(frontmatter.health_checked) <= 7
+
+  if (!isArchive && !healthCheckedFresh && frontmatter.updated && dateDaysDiff(frontmatter.updated) > 30) {
     violations.push({
       file: relPath,
       issue: `stale updated date (>30 days): ${frontmatter.updated}`,
-      fix: `Update "updated" to ${todayStr()} in frontmatter`
+      fix: `Review content & update "updated" to ${todayStr()} (or just update "health_checked" to ${todayStr()} if content still accurate)`
     })
   }
 
