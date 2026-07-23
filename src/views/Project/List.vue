@@ -377,27 +377,27 @@ onMounted(() => { loadProjects() })
 .table-wrapper :deep(.el-table) { --el-table-border-color: transparent; }
 .table-wrapper :deep(.el-table th.el-table__cell) { background: #fafafa; color: var(--el-text-color-secondary); font-weight: 500; }
 .table-wrapper :deep(.el-table th.el-table__cell > .cell) { white-space: nowrap; overflow: visible; text-overflow: clip; padding-right: 20px; position: relative; }
-/* 排序箭头完全透明但保留可点击区域和状态切换 */
-.table-wrapper :deep(.caret-wrapper) { opacity: 0; width: 20px; height: 24px; flex-shrink: 0; }
-/* 已排序列：文字品牌色 + 单三角指示器 */
-.table-wrapper :deep(th.ascending) { color: var(--brand-xiyu-logo); }
-.table-wrapper :deep(th.descending) { color: var(--brand-xiyu-logo); }
-.table-wrapper :deep(th.ascending > .cell)::after,
-.table-wrapper :deep(th.descending > .cell)::after {
-  content: '';
-  position: absolute;
-  right: 4px;
-  top: 50%;
-  border: 4px solid transparent;
+/* CO-597: 显示 Element Plus 默认上下双箭头（▲▼），让用户感知创建时间/开标时间等列可点击排序 */
+/* 根因：accessibility.css 给所有 button 设了 min-height:44px（触控目标），
+   而 Element Plus 的 .caret-wrapper 是 <button>，导致 height 被 min-height 压制。
+   修复：min-height/min-width 归零解除压制，height:25px 容纳两个三角并留 5px 视觉间距。 */
+.table-wrapper :deep(.el-table th.el-table__cell .caret-wrapper) {
+  min-height: 0 !important;
+  min-width: 0 !important;
+  width: 20px !important;
+  height: 25px !important;
 }
-.table-wrapper :deep(th.ascending > .cell)::after {
-  border-bottom-color: var(--brand-xiyu-logo);
-  margin-top: -6px;
+.table-wrapper :deep(.el-table th.el-table__cell .sort-caret.ascending) {
+  top: 0 !important;
 }
-.table-wrapper :deep(th.descending > .cell)::after {
-  border-top-color: var(--brand-xiyu-logo);
-  margin-top: 2px;
+.table-wrapper :deep(.el-table th.el-table__cell .sort-caret.descending) {
+  bottom: 0 !important;
 }
+/* 已排序列：表头文字品牌色 + 激活方向箭头品牌色，强化当前排序方向反馈 */
+.table-wrapper :deep(.el-table th.ascending) { color: var(--brand-xiyu-logo); }
+.table-wrapper :deep(.el-table th.descending) { color: var(--brand-xiyu-logo); }
+.table-wrapper :deep(.el-table .sort-caret.ascending.active) { border-bottom-color: var(--brand-xiyu-logo); }
+.table-wrapper :deep(.el-table .sort-caret.descending.active) { border-top-color: var(--brand-xiyu-logo); }
 .table-wrapper :deep(.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell) { background: #fafbfc; }
 .table-wrapper :deep(.el-table__body tr:hover > td.el-table__cell) { background: var(--brand-xiyu-logo-light) !important; }
 .header-actions :deep(.el-dropdown-menu__item) { display: flex; align-items: center; gap: 6px; }
