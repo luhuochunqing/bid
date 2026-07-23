@@ -192,6 +192,53 @@ else
   exit 1
 fi
 
+# ─── Wiki Checkpoint: 知识回填检查 ─────────────────────────────────────────────
+# 工程背景（2026-07-23）:
+#   项目已有 .wiki/ 体系（60+ 页面 + wiki-check.mjs + wiki-fix.mjs），但维护停在
+#   2026-06-20。CO-361 反复修复 5 次、OSS 角色问题反复 10+ 轮、覃超颖 403 bug
+#   全过程——Wiki 一条都没记。根因：架构搭好但纪律未建立，触发器没钉进门禁。
+#   详见 .wiki/WIKI.md §2 触发点 1。
+hdr "Wiki Checkpoint: 知识回填检查"
+
+WIKI_RULES=".wiki/WIKI.md"
+if [[ ! -f "$WIKI_RULES" ]]; then
+  warn ".wiki/WIKI.md 不存在，跳过 wiki checkpoint"
+else
+  echo "  本次任务是否产生了需要回填到 Wiki 的新知识？"
+  echo "  判断标准（任一满足即'是'）："
+  echo "    • 修了 ≥1 个 bug，且根因不是简单笔误"
+  echo "    • 涉及跨模块逻辑变更（≥3 个文件）"
+  echo "    • 产生了新的业务规则或约束"
+  echo "    • 发现了之前 wiki 没记录的陷阱/边界条件"
+  echo "    • PR 描述含'架构调整'或'根因修复'"
+  echo ""
+  echo "  如果'是'，请确保已完成："
+  echo "    1. 写入 .wiki/pages/<topic>.md（含 frontmatter + backlinks）"
+  echo "    2. 更新 .wiki/pages/_index.md 索引"
+  echo "    3. 追加 .wiki/log.md 一条记录"
+  echo ""
+  echo "  详见 .wiki/WIKI.md §2 触发点 1"
+  echo ""
+
+  if [[ "$DRY_RUN" == "1" ]]; then
+    echo "  [DRY RUN] 跳过交互提示（Agent 应在调用前已自行回填 wiki）"
+  elif [[ "$AUTO_CONFIRM" == "1" ]]; then
+    warn "自动模式已启用，Agent 应在调用前已自行回填 wiki"
+  else
+    read -p "是否已完成 Wiki 回填（或确认本次无新知识需回填）？(y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+      warn "建议先完成 Wiki 回填再收尾任务"
+      warn "参考 .wiki/WIKI.md §2 触发点 1 的回填流程"
+      warn "或确认本次任务确实无新知识需回填（在 .wiki/log.md 写一行 no-op 记录）"
+      # 不强制 exit 1，只是提醒，避免阻塞紧急收尾
+    else
+      info "Wiki 回填检查已确认"
+    fi
+  fi
+fi
+echo ""
+
 # ─── Step 3: 列出待清理资源 ────────────────────────────────────────────────────
 hdr "Step 3: 列出待清理资源"
 

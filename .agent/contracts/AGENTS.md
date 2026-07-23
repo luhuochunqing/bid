@@ -11,6 +11,10 @@
 4. **FP-Java：纯核心可单测、不依赖框架** → 详见 `ARCHITECTURE.md §Agent Contract`
 5. **原子提交 + 测试证据，每变必测** → 详见 `RELIABILITY.md §关键硬约束`
 6. **恢复被回退的代码默认走 cherry-pick，禁止手工重写** → 详见 `RELIABILITY.md §回退恢复纪律`（git blame 可追溯性是团队资产）
+7. **Agent Wiki 维护纪律** → 详见 `.wiki/WIKI.md`
+   - 任务收尾必须过 wiki checkpoint（`agent-finish-task.sh` 已内置）
+   - 复杂问题答完必须回填 `.wiki/pages/`（复合查询回填）
+   - pre-push 必须过 `wiki-health-check`（2 周过渡期至 2026-08-06 后转 hard fail）
 
 ## "执行 co-数字" 标准开场三步（强制，不依赖任何 skill）
 
@@ -65,6 +69,7 @@
 | 追踪质量 | `QUALITY_SCORE.md` | 模块质量评分、技术债追踪 |
 | 查数据库结构 | `docs/generated/db-schema.md` | 自动生成（`npm run db:generate-schema`） |
 | 修 bug 前 | `docs/lessons/lessons-learned.md` | 先搜索同类问题，避免重复踩坑 |
+| 维护 Wiki | `.wiki/WIKI.md` | Agent Wiki 运行规范（摄入/Lint/回填触发器、AI-First 编写标准） |
 | 开新 AI Coding 项目/复盘经验 | `docs/ai-coding-playbook/` | 从 2059 个 PR 提炼的经验手册：bug 根因模式、多Agent协作、透传范式、门禁、回退纪律、行动清单 |
 
 ## 协作暗号

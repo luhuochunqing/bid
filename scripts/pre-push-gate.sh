@@ -9,6 +9,8 @@
 # 环境变量:
 #   PRE_PUSH_GATE=0   完全跳过门禁（不运行任何检查）
 #   CI_MODE=true       自动化模式（不依赖交互式前端构建）
+#   WIKI_CHECK_MODE=warning|error  Wiki 健康检查模式（默认：2 周过渡期 warning，之后 error）
+#   WIKI_CHECK_SKIP=1  完全跳过 Wiki 健康检查（仅限紧急修复）
 # 退出码: 0 = 通过, 1 = 拦截
 
 set -euo pipefail
@@ -611,6 +613,81 @@ if [[ "$branch" == agent/* ]]; then
   fi
 else
   skip "非 agent 分支"
+fi
+
+# ── 16. Wiki 健康检查（Agent Wiki 运行规范） ─────────────
+# 工程背景（2026-07-23）:
+#   .wiki/ 体系已存在 60+ 页面，但维护停在 2026-06-20。CO-361 反复修复 5 次、
+#   OSS 角色问题反复 10+ 轮——Wiki 一条都没记。根因：架构搭好但纪律未建立。
+#   本门禁确保 Agent 在 push 时检查是否同步更新了相关 wiki 页面。
+#   详见 .wiki/WIKI.md §2 触发点 4。
+# 模式切换:
+#   WIKI_CHECK_MODE=warning  仅警告不阻塞（默认，2 周过渡期至 2026-08-06）
+#   WIKI_CHECK_MODE=error    阻塞 push（2026-08-06 后默认）
+#   WIKI_CHECK_SKIP=1        完全跳过（仅限紧急修复）
+# 过渡期：2026-07-23 ~ 2026-08-06（2 周），仅 warning
+echo "── Wiki 健康检查 ──"
+if [ "${WIKI_CHECK_SKIP:-0}" = "1" ]; then
+  skip "Wiki 健康检查（WIKI_CHECK_SKIP=1 逃生阀）"
+elif [ ! -d "$ROOT_DIR/.wiki/pages" ]; then
+  skip "Wiki 健康检查（无 .wiki/pages 目录）"
+else
+  WIKI_CHANGED=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -c '^\.wiki/' || true)
+  CODE_CHANGED=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -cE '^(src/|backend/src/)' || true)
+
+  # 默认模式：2 周过渡期内 warning，之后 error
+  TODAY_NUM=$(date +%Y%m%d)
+  HARD_DATE_NUM=20260806
+  if [ "$TODAY_NUM" -ge "$HARD_DATE_NUM" ]; then
+    WIKI_DEFAULT_MODE="error"
+  else
+    WIKI_DEFAULT_MODE="warning"
+  fi
+  WIKI_CHECK_MODE="${WIKI_CHECK_MODE:-$WIKI_DEFAULT_MODE}"
+
+  if [ "$WIKI_CHANGED" -eq 0 ] && [ "$CODE_CHANGED" -gt 0 ]; then
+    # 代码变更但无 wiki 变更 → 提醒回填
+    WIKI_MSG="Wiki 健康检查 — 检测到代码变更（$CODE_CHANGED 个文件）但无 .wiki/ 变更。请确认是否需要回填新知识到 .wiki/pages/。详见 .wiki/WIKI.md §2 触发点 1/3"
+    if [ "$WIKI_CHECK_MODE" = "error" ]; then
+      fail "$WIKI_MSG"
+    else
+      echo -e "${YELLOW}⚠${NC} $WIKI_MSG"
+      echo "         (warning 模式，过渡期至 2026-08-06 后转 error)"
+      SKIPD=$((SKIPD + 1))
+    fi
+  elif [ "$WIKI_CHANGED" -gt 0 ]; then
+    # 有 wiki 变更，检查 frontmatter 合规性
+    WIKI_PAGES_CHANGED=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep '^\.wiki/pages/.*\.md$' || true)
+    WIKI_VIOLATIONS=0
+    if [ -n "$WIKI_PAGES_CHANGED" ]; then
+      while IFS= read -r wiki_file; do
+        if [ -f "$ROOT_DIR/$wiki_file" ]; then
+          if ! head -20 "$ROOT_DIR/$wiki_file" | grep -q 'health_checked:'; then
+            echo "    ⚠ $wiki_file 缺少 health_checked 字段"
+            WIKI_VIOLATIONS=$((WIKI_VIOLATIONS + 1))
+          fi
+          if ! head -20 "$ROOT_DIR/$wiki_file" | grep -q 'updated:'; then
+            echo "    ⚠ $wiki_file 缺少 updated 字段"
+            WIKI_VIOLATIONS=$((WIKI_VIOLATIONS + 1))
+          fi
+        fi
+      done <<< "$WIKI_PAGES_CHANGED"
+    fi
+    if [ "$WIKI_VIOLATIONS" -gt 0 ]; then
+      WIKI_MSG="Wiki 健康检查 — $WIKI_VIOLATIONS 个页面缺 frontmatter 字段（health_checked/updated）"
+      if [ "$WIKI_CHECK_MODE" = "error" ]; then
+        fail "$WIKI_MSG"
+      else
+        echo -e "${YELLOW}⚠${NC} $WIKI_MSG"
+        echo "         (warning 模式，过渡期至 2026-08-06 后转 error)"
+        SKIPD=$((SKIPD + 1))
+      fi
+    else
+      pass "Wiki 健康检查（已同步更新 $WIKI_CHANGED 个 wiki 文件）"
+    fi
+  else
+    pass "Wiki 健康检查（无代码/wiki 变更）"
+  fi
 fi
 
 # ── 汇总 ────────────────────────────────────────────────

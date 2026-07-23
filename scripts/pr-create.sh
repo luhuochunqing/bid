@@ -109,6 +109,18 @@ if [[ "$body" != *"X-Created-By: pr-create-script"* ]]; then
 <!-- X-Created-By: pr-create-script -->"
 fi
 
+# 注入 Wiki 回填检查清单（Agent Wiki 运行规范 §2 触发点 2）
+# 不强制阻塞，靠 Agent 自律勾选。PR 审查者应重点检查"无需更新"的合理性。
+if [[ "$body" != *"## Wiki 更新"* ]]; then
+  body="${body}
+
+## Wiki 更新
+- [ ] 已更新相关 .wiki/pages/ 页面 + _index.md + log.md
+- [ ] 本次无需更新（纯文档/配置/重构无新逻辑）
+
+> 详见 .wiki/WIKI.md §2 触发点 2"
+fi
+
 # ── 创建 PR ───────────────────────────────────────────────────────────────
 case "$remote_url" in
   *github.com*)

@@ -3,6 +3,22 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-07-23] schema | Agent Wiki 运行规范（Schema 层）建立
+
+- 新增页面：`.wiki/WIKI.md`（Schema 配置层，Agent Wiki 行为宪法）
+  - 核心理念：从"查询时检索"→"摄入时编译"
+  - 三层模型映射：L1 sources/extracts → L2 pages → L3 WIKI.md + AGENTS.md
+  - 4 个硬触发点：任务收尾 / PR 创建 / 复杂问题答完 / pre-push
+  - AI-First 编写标准：列表/表格/代码块，不写散文
+  - 复合查询回填流程：答完复杂问题→判断→回填新页面
+- 修改 `scripts/agent-finish-task.sh`：Step 2 后插入 Wiki Checkpoint
+- 修改 `scripts/pre-push-gate.sh`：新增 §16 Wiki 健康检查（2 周过渡期 warning，之后 error）
+- 修改 `scripts/pr-create.sh`：PR body 模板追加 Wiki 更新勾选项
+- 修改 `.githooks/pre-commit`：检测代码变更时提醒同步 wiki
+- 修改 `AGENTS.md`：第 7 条底线 + 索引行
+- 修改 `CLAUDE.md`：执行原则加 Wiki 维护纪律
+- 根因分析：.wiki/ 体系已有 60+ 页面但维护停在 2026-06-20，CO-361 反复修复 5 次/OSS 角色 10+ 轮/覃超颖 403 全过程——Wiki 一条都没记。根因不是"没有架构"而是"纪律未建立"——触发器没钉进门禁。本次建立 4 个硬触发点解决此问题。
+
 ## [2026-06-20] update | 生产测试服务器 172.16.38.78 部署实录与 health check 超时修复
 
 - 更新页面：`.wiki/pages/deployment.md`
