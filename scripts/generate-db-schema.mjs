@@ -295,7 +295,60 @@ function parseAlterTable(stmt, version, fileName, tables, alterLog) {
     return true
   }
 
-  // Other ALTER (drop column, modify column, etc.) — log for reference
+  // ALTER TABLE COMMENT (update table-level comment)
+  const tableCommentMatch = rest.match(/COMMENT\s*=\s*'([^']+)'/i)
+  if (tableCommentMatch) {
+    const table = getOrCreateTable(tables, tableName, version)
+    table.comment = tableCommentMatch[1]
+  }
+
+  // MODIFY COLUMN (update column properties, including COMMENT)
+  // Support both single and multiple MODIFY COLUMN in one ALTER TABLE
+  const modifyColPattern = /MODIFY\s+(?:COLUMN\s+)?`?(\w+)`?\s+((?:tiny|small|medium|big)?int(?:\s*\(\d+\))?(?:\s+unsigned)?|(?:var)?char\s*\(\d+\)|text(?:\(\d+\))?|datetime(?:\(\d+\))?|date|time|timestamp(?:\(\d+\))?(?:\s+ON\s+UPDATE\s+CURRENT_TIMESTAMP)?|decimal\s*\(\d+,\s*\d+\)|float|double|enum\s*\([^)]+\)|bit|boolean|blob|json|longtext|mediumtext|char\s*\(\d+\))/gi
+  let modifyMatch
+  let hasModifyColumn = false
+  while ((modifyMatch = modifyColPattern.exec(rest)) !== null) {
+    hasModifyColumn = true
+    const table = getOrCreateTable(tables, tableName, version)
+    const colName = modifyMatch[1]
+    const fullType = modifyMatch[2].trim()
+    const matchEnd = modifyMatch.index + modifyMatch[0].length
+    const colRest = rest.slice(matchEnd)
+
+    const nextComma = colRest.indexOf(',')
+    const nextSemicolon = colRest.indexOf(';')
+    const endOfColumn = Math.min(
+      nextComma === -1 ? colRest.length : nextComma,
+      nextSemicolon === -1 ? colRest.length : nextSemicolon
+    )
+    const columnDef = rest.slice(modifyMatch.index, matchEnd + endOfColumn)
+
+    const nullable = /\bNOT\s+NULL\b/i.test(columnDef) ? false : true
+    const defaultMatch = columnDef.match(/\bDEFAULT\s+('(?:[^'\\]|\\.)*'|NULL|\d+\.?\d*|\w+\(\))/i)
+    const commentMatch = columnDef.match(/\bCOMMENT\s+'((?:[^'\\]|\\.)*)'/i)
+
+    const existing = table.columns.get(colName)
+    if (existing) {
+      existing.type = fullType
+      existing.nullable = nullable
+      if (defaultMatch) existing.defaultValue = defaultMatch[1]
+      if (commentMatch) existing.comment = commentMatch[1]
+    } else {
+      table.columns.set(colName, {
+        name: colName,
+        type: fullType,
+        nullable,
+        defaultValue: defaultMatch ? defaultMatch[1] : null,
+        comment: commentMatch ? commentMatch[1] : '',
+        since: version,
+      })
+    }
+  }
+  if (hasModifyColumn) {
+    return true
+  }
+
+  // Other ALTER (drop column, etc.) — log for reference
   alterLog.push({ table: tableName, version, file: fileName, snippet: rest.trim().slice(0, 120) })
   return true
 }
