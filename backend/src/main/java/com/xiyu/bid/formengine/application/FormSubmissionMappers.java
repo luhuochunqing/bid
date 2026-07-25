@@ -153,6 +153,11 @@ public final class FormSubmissionMappers {
     public static QualificationDTO toQualificationDTO(Map<String, Object> formData) {
         QualificationDTO dto = new QualificationDTO();
         putStr(formData, "name", dto::setName);
+        putStr(formData, "level", dto::setLevel);
+        putStr(formData, "agency", dto::setAgency);
+        putStr(formData, "agencyContact", dto::setAgencyContact);
+        putStr(formData, "certScope", dto::setCertScope);
+        putStr(formData, "certificateNo", dto::setCertificateNo);
         putDate(formData, "issueDate", dto::setIssueDate);
         putDate(formData, "expiryDate", dto::setExpiryDate);
         return dto;

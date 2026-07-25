@@ -5,6 +5,7 @@
     width="600px"
     :close-on-click-modal="false"
     :append-to-body="false"
+    data-testid="qual-import-combined-dialog"
     @closed="handleClosed"
   >
     <template v-if="!result">
@@ -20,12 +21,13 @@
           :on-remove="handleExcelRemove"
           :file-list="excelFiles"
           accept=".xlsx,.xls"
+          data-testid="qual-import-upload"
         >
           <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
           <div class="el-upload__text">拖拽文件到此处，或<em>点击选择</em></div>
         </el-upload>
         <p v-if="!excelFiles.length" class="upload-hint">
-          <el-button link type="primary" size="small" @click.stop="downloadTemplate">下载导入模板</el-button>
+          <el-button link type="primary" size="small" data-testid="qual-download-template-btn" @click.stop="downloadTemplate">下载导入模板</el-button>
           了解 Excel 格式
         </p>
       </div>
@@ -41,6 +43,7 @@
           :on-change="handleAttachChange"
           :file-list="attachFiles"
           accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip"
+          data-testid="qual-import-attach-upload"
         >
           <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
           <div class="el-upload__text">拖拽文件到此处，或<em>点击选择</em></div>
@@ -56,7 +59,7 @@
 
     <template v-else>
       <!-- Import result -->
-      <div class="result-section">
+      <div class="result-section" data-testid="qual-import-result">
         <h4 class="result-heading">台账导入</h4>
         <div class="result-summary">
           <div class="result-stat">
@@ -73,7 +76,7 @@
           </div>
         </div>
         <div v-if="result.import.errors && result.import.errors.length" class="error-table-wrapper">
-          <el-table :data="result.import.errors" size="small" max-height="200">
+          <el-table :data="result.import.errors" size="small" max-height="200" data-testid="qual-import-failed-table">
             <el-table-column prop="row" label="行号" width="60" />
             <el-table-column prop="certificateNo" label="证书编号" width="140" />
             <el-table-column prop="reason" label="失败原因" />
@@ -116,12 +119,12 @@
     <template #footer>
       <template v-if="!result">
         <el-button @click="visible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" :disabled="!excelFiles.length" @click="handleSubmit">
+        <el-button type="primary" :loading="submitting" :disabled="!excelFiles.length" data-testid="qual-import-submit" @click="handleSubmit">
           开始导入
         </el-button>
       </template>
       <template v-else>
-        <el-button @click="handleDone">完成</el-button>
+        <el-button data-testid="qual-import-result-close" @click="handleDone">完成</el-button>
       </template>
     </template>
   </el-dialog>
@@ -145,7 +148,18 @@ const attachFiles = ref([])
 const submitting = ref(false)
 const result = ref(null)
 
-const handleExcelChange = (file) => { excelFiles.value = [file] }
+const handleExcelChange = (file) => {
+  // 文件类型校验：accept=".xlsx,.xls" 仅在浏览器文件选择器生效，setInputFiles 会绕过
+  // 此处兜底校验，拒绝非 Excel 文件，避免后续 import-combined 接口 400
+  // 兼容 Element Plus 上传组件两种文件对象结构：{name, raw} 或 {raw: File}
+  const name = file?.name || file?.raw?.name || ''
+  if (!/\.(xlsx|xls)$/i.test(name)) {
+    ElMessage.warning('仅支持 .xlsx 或 .xls 格式文件')
+    excelFiles.value = []
+    return
+  }
+  excelFiles.value = [file]
+}
 const handleExcelRemove = () => { excelFiles.value = [] }
 
 const handleAttachChange = (_file, files) => { attachFiles.value = files.map(f => f) }

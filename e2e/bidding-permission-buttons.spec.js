@@ -93,10 +93,10 @@ test.describe('§4.2.4 — tender detail page assign/transfer button visibility'
     expect(tenderId).toBeTruthy()
 
     await page.goto(`/bidding/${tenderId}`)
-    await page.waitForSelector('.el-descriptions', { timeout: 10000 })
+    await page.waitForSelector('.detail-meta-grid', { timeout: 10000 })
 
-    await expect(page.getByRole('button', { name: '分配' })).toBeVisible()
-    await expect(page.getByRole('button', { name: '转派' })).not.toBeVisible()
+    await expect(page.getByRole('button', { name: '分配销售' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '转派销售' })).not.toBeVisible()
   })
 
   test('bid_admin sees 转派 button on TRACKING tender detail', async ({ page }) => {
@@ -105,10 +105,10 @@ test.describe('§4.2.4 — tender detail page assign/transfer button visibility'
     expect(tenderId).toBeTruthy()
 
     await page.goto(`/bidding/${tenderId}`)
-    await page.waitForSelector('.el-descriptions', { timeout: 10000 })
+    await page.waitForSelector('.detail-meta-grid', { timeout: 10000 })
 
-    await expect(page.getByRole('button', { name: '分配' })).not.toBeVisible()
-    await expect(page.getByRole('button', { name: '转派' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '分配销售' })).not.toBeVisible()
+    await expect(page.getByRole('button', { name: '转派销售' })).toBeVisible()
   })
 
   test('sales does NOT see 分配 or 转派 buttons on detail page', async ({ page }) => {
@@ -117,10 +117,10 @@ test.describe('§4.2.4 — tender detail page assign/transfer button visibility'
     expect(tenderId).toBeTruthy()
 
     await page.goto(`/bidding/${tenderId}`)
-    await page.waitForSelector('.el-descriptions', { timeout: 10000 })
+    await page.waitForSelector('.detail-meta-grid', { timeout: 10000 })
 
-    await expect(page.getByRole('button', { name: '分配' })).not.toBeVisible()
-    await expect(page.getByRole('button', { name: '转派' })).not.toBeVisible()
+    await expect(page.getByRole('button', { name: '分配销售' })).not.toBeVisible()
+    await expect(page.getByRole('button', { name: '转派销售' })).not.toBeVisible()
   })
 
   test('bid_admin sees 删除 button on detail page, but sales and bid_lead do not', async ({ page }) => {
@@ -130,19 +130,19 @@ test.describe('§4.2.4 — tender detail page assign/transfer button visibility'
 
     // 1. bid_admin sees it
     await page.goto(`/bidding/${tenderId}`)
-    await page.waitForSelector('.el-descriptions', { timeout: 10000 })
+    await page.waitForSelector('.detail-meta-grid', { timeout: 10000 })
     await expect(page.getByRole('button', { name: '删除' })).toBeVisible()
 
     // 2. sales does not see it
     await loginAsRole(page, 'bid-projectLeader')
     await page.goto(`/bidding/${tenderId}`)
-    await page.waitForSelector('.el-descriptions', { timeout: 10000 })
+    await page.waitForSelector('.detail-meta-grid', { timeout: 10000 })
     await expect(page.getByRole('button', { name: '删除' })).not.toBeVisible()
 
     // 3. bid_lead does not see it
     await loginAsRole(page, 'bid-TeamLeader')
     await page.goto(`/bidding/${tenderId}`)
-    await page.waitForSelector('.el-descriptions', { timeout: 10000 })
+    await page.waitForSelector('.detail-meta-grid', { timeout: 10000 })
     await expect(page.getByRole('button', { name: '删除' })).not.toBeVisible()
   })
 })
@@ -164,7 +164,7 @@ test.describe('§V1026 — TRACKING sales evaluation flow buttons', () => {
     })
 
     await page.goto(`/bidding/${tenderId}`)
-    await page.waitForSelector('.el-descriptions', { timeout: 10000 })
+    await page.waitForSelector('.detail-meta-grid', { timeout: 10000 })
 
     // V1026: sales in TRACKING sees 下一步 (replaces old editEvaluation/save/cancel)
     await expect(page.getByRole('button', { name: '下一步' })).toBeVisible()

@@ -17,15 +17,22 @@ test.describe('resource certificate expiry', () => {
       body: JSON.stringify({
         name: `E2E 到期证书 ${suffix}`,
         certificateNo: `EXP-${suffix}`,
+        level: 'AAA',
         issuer: '测试机构',
+        agency: '测试代理机构',
+        agencyContact: '13800000000',
+        certScope: '测试认证范围',
+        subjectType: 'COMPANY',
+        subjectName: '测试主体',
         holderName: '测试人',
         expiryDate: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
+        issueDate: '2024-01-01',
         status: 'expiring'
       })
     })
 
     await injectSession(page, session)
     await page.goto('/resource/ca-management')
-    await expect(page.getByText('CA 证书列表')).toBeVisible()
+    await expect(page.getByText('CA证书列表')).toBeVisible()
   })
 })

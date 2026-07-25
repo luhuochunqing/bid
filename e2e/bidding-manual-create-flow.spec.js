@@ -39,7 +39,7 @@ async function setFormDates(page, deadlineDate, bidOpeningDate) {
 }
 
 async function fillAndSave(page, namePrefix) {
-  const bar = page.locator('.bottom-action-bar-inner')
+  const bar = page.locator('.form-action-bar-inner')
   const suffix = Date.now()
   await page.fill('input[placeholder="请输入项目名称"]', `${namePrefix} ${suffix}`)
   await page.fill('input[placeholder="请输入招标主体"]', 'E2E 招标代理有限公司')
@@ -64,8 +64,8 @@ async function fillAndSave(page, namePrefix) {
 }
 
 async function assignTender(page, bar) {
-  await expect(bar.getByRole('button', { name: '分配' })).toBeVisible({ timeout: 10000 })
-  await bar.getByRole('button', { name: '分配' }).click()
+  await expect(bar.getByRole('button', { name: '分配销售' })).toBeVisible({ timeout: 10000 })
+  await bar.getByRole('button', { name: '分配销售' }).click()
   await page.waitForSelector('.el-dialog:has-text("指派标讯")', { timeout: 8000 })
   const dialog = page.locator('.el-dialog:has-text("指派标讯")')
   const assignSelect = dialog.locator('.el-select').first()
@@ -96,10 +96,10 @@ test.describe('人工录入标讯全流程 — 按钮状态机', () => {
   test('未保存时仅展示取消和保存按钮', async ({ page }) => {
     await page.goto('/bidding/create')
     await page.waitForSelector('.el-form', { timeout: 10000 })
-    const bar = page.locator('.bottom-action-bar-inner')
+    const bar = page.locator('.form-action-bar-inner')
     await expect(bar.getByRole('button', { name: '取消' })).toBeVisible()
     await expect(bar.getByRole('button', { name: '保存' })).toBeVisible()
-    await expect(bar.getByRole('button', { name: '分配' })).not.toBeVisible()
+    await expect(bar.getByRole('button', { name: '分配销售' })).not.toBeVisible()
     await expect(bar.getByRole('button', { name: '下一步' })).not.toBeVisible()
     await expect(bar.getByRole('button', { name: '提交' })).not.toBeVisible()
     await expect(bar.getByRole('button', { name: '返回列表' })).not.toBeVisible()
@@ -110,7 +110,7 @@ test.describe('人工录入标讯全流程 — 按钮状态机', () => {
     await page.waitForSelector('.el-form', { timeout: 10000 })
     const bar = await fillAndSave(page, 'E2E 保存流程')
     await expect(bar.getByRole('button', { name: '返回列表' })).toBeVisible({ timeout: 10000 })
-    await expect(bar.getByRole('button', { name: '分配' })).toBeVisible({ timeout: 5000 })
+    await expect(bar.getByRole('button', { name: '分配销售' })).toBeVisible({ timeout: 5000 })
     await expect(bar.getByRole('button', { name: '保存' })).not.toBeVisible()
   })
 
@@ -121,7 +121,7 @@ test.describe('人工录入标讯全流程 — 按钮状态机', () => {
     await assignTender(page, bar)
     await expect(bar.getByRole('button', { name: '返回列表' })).toBeVisible({ timeout: 10000 })
     await expect(bar.getByRole('button', { name: '下一步' })).toBeVisible({ timeout: 5000 })
-    await expect(bar.getByRole('button', { name: '分配' })).not.toBeVisible()
+    await expect(bar.getByRole('button', { name: '分配销售' })).not.toBeVisible()
     await expect(bar.getByRole('button', { name: '提交' })).not.toBeVisible()
   })
 
@@ -137,7 +137,7 @@ test.describe('人工录入标讯全流程 — 按钮状态机', () => {
     await expect(bar.getByRole('button', { name: '返回列表' })).toBeVisible()
     await expect(bar.getByRole('button', { name: '提交' })).toBeVisible()
     await expect(bar.getByRole('button', { name: '下一步' })).not.toBeVisible()
-    await expect(bar.getByRole('button', { name: '分配' })).not.toBeVisible()
+    await expect(bar.getByRole('button', { name: '分配销售' })).not.toBeVisible()
   })
 
   test('返回列表跳转到标讯列表页', async ({ page }) => {

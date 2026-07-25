@@ -44,6 +44,13 @@ export function useDetailActions(tenderRef, roleRef, loadDetailFn, handlers = {}
       : evaluationSubmitted
   )
 
+  // 解包 Ref：currentUserId / creatorId 可能是 Ref 对象（来自父组件 computed）或原始值
+  // 必须解包成原始值再传给纯核心 actionMatrix，否则 === 比较的是 Ref 对象引用（永不相等）
+  const resolveIdValue = (v) => {
+    if (v && typeof v === 'object' && 'value' in v) return v.value
+    return v
+  }
+
   // ---------------------------------------------------------------------------
   // Computed: 操作按钮列表
   // ---------------------------------------------------------------------------
@@ -54,8 +61,8 @@ export function useDetailActions(tenderRef, roleRef, loadDetailFn, handlers = {}
       tenderRef.value.status,
       roleRef.value,
       Boolean(tenderRef.value.originalUrl),
-      currentUserId,
-      creatorId,
+      resolveIdValue(currentUserId),
+      resolveIdValue(creatorId),
       tenderRef.value.projectManagerId,
     )
     // 当评估表 tab 激活且正在编辑（非管理员）时，隐藏删除按钮
@@ -73,8 +80,8 @@ export function useDetailActions(tenderRef, roleRef, loadDetailFn, handlers = {}
       !!tenderRef.value.requiresReview,
       evaluationTabActiveRef.value,
       evaluationSubmittedRef.value,
-      currentUserId,
-      creatorId,
+      resolveIdValue(currentUserId),
+      resolveIdValue(creatorId),
     )
   })
 

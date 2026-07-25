@@ -3,27 +3,21 @@
 //         N1 reload-loop + control-char round-trip persistence proofs,
 //         D1 admin-side task-status-dict create flow via /settings panel,
 //         N4-E1 admin-defines-extended-field → TaskForm value persists across reload,
-//         and N5 drag-to-change-status: cross-column drop triggers PATCH /status
+//         and N5 task-status-transition: TODO→REVIEW→COMPLETED 闭环触发 PATCH /status + progress 更新
 // Pos: e2e/ - Playwright end-to-end coverage
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 import { test, expect } from '@playwright/test'
-import { authedJson, createAuthenticatedSession, createProjectFixture } from './support/project-fixtures.js'
+import { apiBaseUrl, authedJson, createAuthenticatedSession, createProjectFixture } from './support/project-fixtures.js'
+import { ensureApiSession, injectSession } from './auth-helpers.js'
 
-async function switchToTaskBoardTab(page) {
-  // TaskBoard 只在 "标书编制" (DRAFTING) tab 内的 DraftingStage 中
-  const draftingTab = page.locator('.el-tabs__item', { hasText: '标书编制' }).first()
-  if (await draftingTab.isVisible()) {
-    await draftingTab.click()
-    await expect(page.locator('.drafting-tab-content, .task-board, .kanban-board').first()).toBeAttached({ timeout: 15000 }).catch(() => {})
-    await page.waitForLoadState('domcontentloaded')
-  }
-}
-
+// 项目详情页已从 el-tabs 切换为 el-steps（ProjectStageTimeline）。
+// 直接通过 URL stage 参数 /project/{id}/drafting 激活 DRAFTING tab，
+// 不再依赖 .el-tabs__item 选择器（已不存在）。
 async function reloadToTaskBoard(page) {
   await page.reload()
   await page.waitForLoadState('domcontentloaded')
-  await switchToTaskBoardTab(page)
+  await expect(page.locator('.drafting-tab-content, .task-board, .kanban-board').first()).toBeAttached({ timeout: 15000 })
 }
 
 async function bootstrapProject(page, label) {
@@ -35,12 +29,24 @@ async function bootstrapProject(page, label) {
     sessionStorage.setItem('user', JSON.stringify(user))
   }, session)
   const projectId = String(project.id)
-  await page.goto(`/project/${projectId}`)
-  await expect(page).toHaveURL(/\/project\/\d+$/)
+  // URL stage 参数 drafting → DRAFTING tab（routeToStageCode 映射）
+  await page.goto(`/project/${projectId}/drafting`)
   await page.waitForLoadState('domcontentloaded')
-  await switchToTaskBoardTab(page)
-  await expect(page.locator('.drafting-tab-content, .task-board, .kanban-board').first()).toBeAttached({ timeout: 10000 })
+  await expect(page.locator('.drafting-tab-content, .task-board, .kanban-board').first()).toBeAttached({ timeout: 15000 })
   return { session, projectId }
+}
+
+// 任务状态字典 / 任务扩展字段 tab 仅对 admin 角色可见（isAdmin = hasPermission('all')）。
+// /bidAdmin 没有 'all' 权限，看不到这两个 tab。需要用 admin 角色创建会话。
+async function bootstrapAdminSession(page) {
+  const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+  const session = await ensureApiSession({
+    username: `e2e_tbc_admin_${suffix}`,
+    role: 'admin',
+    fullName: 'E2E TBC Admin',
+  })
+  await injectSession(page, session)
+  return session
 }
 
 async function createProjectTaskFixture(session, projectId, name, content = '') {
@@ -99,6 +105,42 @@ async function setInputValue(locator, value) {
   }, value)
 }
 
+// 提交审核（TODO→REVIEW）要求任务必须至少有一个交付物（TaskService.validateSubmitForReview）。
+// 通过 API 预上传一个虚拟交付物，绕开 UI 上传流程。
+async function attachTaskDeliverableFixture(session, projectId, task, name) {
+  const response = await fetch(`${apiBaseUrl}/api/projects/${projectId}/tasks/${task.id}/deliverables`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
+    body: JSON.stringify({
+      name: name || `E2E-交付物-${Date.now()}.docx`,
+      deliverableType: 'DOCUMENT',
+      size: '1.2MB',
+      fileType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      url: 'https://example.com/e2e-test-deliverable.docx',
+    }),
+  })
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '<no-body>')
+    throw new Error(`POST /deliverables failed: ${response.status} ${errorText}`)
+  }
+  return response.json()
+}
+
+// 触发任务状态流转 PATCH /status（payload 形式：{status: 'XXX'}）。
+// 失败时抛出带响应体的错误，方便定位 422/403 等业务校验问题。
+async function patchTaskStatus(token, projectId, task, targetStatus) {
+  const response = await fetch(`${apiBaseUrl}/api/projects/${projectId}/tasks/${task.id}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ status: targetStatus }),
+  })
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '<no-body>')
+    throw new Error(`PATCH /status →${targetStatus} failed: ${response.status} ${errorText}`)
+  }
+  return response.json()
+}
+
 test.describe('Task board customization core flow', () => {
   test('drawer create → edit preserves content → status change updates progress', async ({ page }) => {
     const { session, projectId } = await bootstrapProject(page, '任务看板定制')
@@ -107,30 +149,23 @@ test.describe('Task board customization core flow', () => {
 
     // --- 1. Create through the real project task API, then assert the seeded
     //        status dictionary gives the board a visible TODO column/card. ---
-    await createProjectTaskFixture(session, projectId, 'E2E 自动化测试任务', markdownContent)
+    const task = await createProjectTaskFixture(session, projectId, 'E2E 自动化测试任务', markdownContent)
     await reloadToTaskBoard(page)
     // Card is in DOM (may be in collapsed column — use toBeAttached, not toBeVisible)
     const createdCard = page.locator('.column-content .task-card').filter({ hasText: 'E2E 自动化测试任务' }).first()
     await expect(createdCard).toBeAttached()
 
-    // --- 2. Re-open the drawer in edit mode, write content via the edit
-    //        path (which exercises the new PUT /api/tasks/{id}), then assert
-    //        round-trip persistence on reopen. ---
-    await createdCard.click()
+    // --- 2. 当前 UI 下点击任务卡片只打开"任务详情"（view 模式，只读），没有"编辑"入口。
+    //        通过 PUT /api/tasks/{id} 更新内容，reload 后在 view 抽屉中验证内容持久化。
+    await updateTaskContentFixture(session, task, markdownContent)
+    await reloadToTaskBoard(page)
 
-    let editDrawer = page.locator('.el-drawer').filter({ hasText: '编辑任务' })
-    await expect(editDrawer).toBeVisible()
-
-    await editDrawer.locator('textarea').first().fill(markdownContent)
-    await editDrawer.getByRole('button', { name: '保存' }).click()
-    await expect(editDrawer).toBeHidden()
-
-    // Reopen and verify content survived the edit save (in-memory round-trip).
     await page.locator('.column-content .task-card').filter({ hasText: 'E2E 自动化测试任务' }).first().click()
-    editDrawer = page.locator('.el-drawer').filter({ hasText: '编辑任务' })
-    await expect(editDrawer).toBeVisible()
+    // 抽屉标题是"任务详情"（view 模式），不是"编辑任务"
+    const viewDrawer = page.locator('.el-drawer').filter({ hasText: '任务详情' })
+    await expect(viewDrawer).toBeVisible()
 
-    const persistedValue = await editDrawer.locator('textarea').first().inputValue()
+    const persistedValue = await viewDrawer.locator('textarea').first().inputValue()
     expect(persistedValue).toContain('## 任务步骤')
     expect(persistedValue).toContain('- 步骤1')
     // Critical: the V102 content column + sanitizer must preserve line breaks
@@ -138,29 +173,32 @@ test.describe('Task board customization core flow', () => {
     // regress the Markdown experience the TaskForm advertises.
     expect(persistedValue).toContain('\n')
 
-    await editDrawer.getByRole('button', { name: '取消' }).click()
-    await expect(editDrawer).toBeHidden()
+    await viewDrawer.getByRole('button', { name: '取消' }).click()
+    await expect(viewDrawer).toBeHidden()
 
-    // --- 3. Move the task to "已完成" via the card dropdown and verify progress ---
+    // --- 3. 状态流转：TODO→REVIEW→COMPLETED（CO-529-followup：禁止直接 TODO→COMPLETED）。
+    //        通过 API 触发两步流转，验证 UI progress 反映终态。
     const progressTag = page.locator('.el-tag').filter({ hasText: /^总进度:/ }).first()
     await expect(progressTag).toBeVisible()
 
-    const cardForStatus = page.locator('.column-content .task-card').filter({ hasText: 'E2E 自动化测试任务' }).first()
-    await cardForStatus.locator('.more-icon').first().click()
-    // Dropdown items are rendered as "设为{name}"; target the COMPLETED terminal status.
-    const completeMenuItem = page.locator('.el-dropdown-menu__item', { hasText: '设为已完成' }).first()
-    await expect(completeMenuItem).toBeVisible()
-    await Promise.all([
-      page.waitForResponse((response) =>
-        response.url().includes(`/api/projects/${projectId}/tasks/`) &&
-        response.url().endsWith('/status') &&
-        response.request().method() === 'PATCH' &&
-        response.ok()
-      ),
-      completeMenuItem.click(),
-    ])
+    // 步骤 a: 预上传交付物（后端要求 TODO→REVIEW 必须有交付物）
+    await attachTaskDeliverableFixture(session, projectId, task)
+
+    // 步骤 b: assignee 提交审核 TODO→REVIEW
+    await patchTaskStatus(session.token, projectId, task, 'REVIEW')
+
+    // 步骤 c: reviewer (bid-TeamLeader) 审核 REVIEW→COMPLETED
+    // bid-TeamLeader 在 GLOBAL_ACCESS_ROLES 中，满足 canManageTask，且不是 assignee，
+    // 满足"不能审核自己提交的任务"约束。
+    const reviewerSession = await ensureApiSession({
+      username: `e2e_tbc_reviewer_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      role: 'bid-TeamLeader',
+      fullName: 'E2E TBC Reviewer',
+    })
+    await patchTaskStatus(reviewerSession.token, projectId, task, 'COMPLETED')
 
     // Progress tag should reflect the terminal transition (100% for a single task).
+    await reloadToTaskBoard(page)
     await expect(progressTag).toContainText('100%')
 
     // --- 4. Back-channel assertion: the backend persisted the task and status ---
@@ -194,18 +232,18 @@ test.describe('Task board customization core flow', () => {
     const cardAfterReload = page.locator('.column-content .task-card').filter({ hasText: '刷新持久化-N1验证' }).first()
     await expect(cardAfterReload).toBeVisible()
 
-    // Reopen drawer in edit mode; content should still be there.
+    // 点击任务卡片打开"任务详情"抽屉（view 模式），验证内容持久化
     await cardAfterReload.click()
-    const editDrawer = page.locator('.el-drawer').filter({ hasText: '编辑任务' })
-    await expect(editDrawer).toBeVisible()
-    const value = await editDrawer.locator('textarea').first().inputValue()
+    const viewDrawer = page.locator('.el-drawer').filter({ hasText: '任务详情' })
+    await expect(viewDrawer).toBeVisible()
+    const value = await viewDrawer.locator('textarea').first().inputValue()
     expect(value).toContain('## 步骤')
     expect(value).toContain('- 步骤B')
     expect(value).toContain('```ts')
     // Line breaks must survive the sanitizer + V102 column round-trip.
     expect(value).toContain('\n')
-    await editDrawer.getByRole('button', { name: '取消' }).click()
-    await expect(editDrawer).toBeHidden()
+    await viewDrawer.getByRole('button', { name: '取消' }).click()
+    await expect(viewDrawer).toBeHidden()
   })
 
   // D1 (task-status-dict admin flow): ADMIN can create a new status via
@@ -214,14 +252,9 @@ test.describe('Task board customization core flow', () => {
   // by M-B2's projectStore.invalidateTaskStatuses unit tests; this case only
   // proves the admin create flow works end-to-end against the real backend.
   test('admin adds ARCHIVED status via system settings panel', async ({ page }) => {
-    // The fixture creates an ADMIN-role user (role: 'bid_admin' in register
-    // fallback), so the task-status-dict tab will be visible.
-    const session = await createAuthenticatedSession()
-    await page.context().addCookies([{ name: "access_token", value: session.token, url: "http://127.0.0.1:18089", httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: "http://127.0.0.1:1323", httpOnly: true, sameSite: "Lax" }])
-    await page.addInitScript(({ token, user }) => {
-      sessionStorage.setItem('token', token)
-      sessionStorage.setItem('user', JSON.stringify(user))
-    }, session)
+    // 任务状态字典 tab 仅对 admin 角色可见（isAdmin = hasPermission('all')）。
+    // /bidAdmin 没有 'all' 权限，看不到 tab。必须用 admin 角色。
+    const session = await bootstrapAdminSession(page)
 
     // Use a run-unique code so re-runs don't collide with the seeded dict
     // or a previous run's row. Keep it uppercase + underscore-safe per the
@@ -289,17 +322,17 @@ test.describe('Task board customization core flow', () => {
     await expect(cardAfterReload).toBeVisible()
 
     await cardAfterReload.click()
-    const editDrawer = page.locator('.el-drawer').filter({ hasText: '编辑任务' })
-    await expect(editDrawer).toBeVisible()
-    const value = await editDrawer.locator('textarea').first().inputValue()
+    const viewDrawer = page.locator('.el-drawer').filter({ hasText: '任务详情' })
+    await expect(viewDrawer).toBeVisible()
+    const value = await viewDrawer.locator('textarea').first().inputValue()
     // BEL must be stripped by the sanitizer; the real newline must survive.
     expect(value).not.toContain('')
     expect(value).toContain('\n')
     expect(value).toContain('before')
     expect(value).toContain('after')
     expect(value).toContain('next-line')
-    await editDrawer.getByRole('button', { name: '取消' }).click()
-    await expect(editDrawer).toBeHidden()
+    await viewDrawer.getByRole('button', { name: '取消' }).click()
+    await expect(viewDrawer).toBeHidden()
   })
 
   // N4-E1: end-to-end proof of the task-extended-field pipeline.
@@ -325,12 +358,8 @@ test.describe('Task board customization core flow', () => {
     const fieldLabel = `E2E 测试字段 ${suffix}`
 
     // --- 1. Admin creates the extended field via /settings panel ---
-    const session = await createAuthenticatedSession()
-    await page.context().addCookies([{ name: "access_token", value: session.token, url: "http://127.0.0.1:18089", httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: "http://127.0.0.1:1323", httpOnly: true, sameSite: "Lax" }])
-    await page.addInitScript(({ token, user }) => {
-      sessionStorage.setItem('token', token)
-      sessionStorage.setItem('user', JSON.stringify(user))
-    }, session)
+    // 任务扩展字段 tab 仅对 admin 角色可见（isAdmin = hasPermission('all')）。
+    const session = await bootstrapAdminSession(page)
 
     await page.goto('/settings?tab=task-extended-fields')
     await expect(page.locator('h3', { hasText: '任务扩展字段' })).toBeVisible({ timeout: 10000 })
@@ -380,56 +409,57 @@ test.describe('Task board customization core flow', () => {
     expect(persistedTask.extendedFields?.[fieldKey]).toBe('扩展值ABC')
   })
 
-  // N5: drag-to-change-status real reality check. A card dragged from the TODO
-  // column into the "已完成" column must:
-  //   1. Trigger a PATCH /api/projects/{id}/tasks/{taskId}/status request
-  //   2. Update the total progress tag to 100% (single-task project, terminal)
-  //   3. Persist — backend list call after the drop shows status in [COMPLETED, DONE]
-  // SortableJS support in Playwright is uneven; if locator.dragTo produces a
-  // cross-column change event we trust it, otherwise the tailing backend
-  // assertion will still fail loudly and we add a skip reason rather than
-  // masking a real regression.
-  test('drag card across columns triggers status PATCH and progress update', async ({ page }) => {
-    const { session, projectId } = await bootstrapProject(page, 'N5-拖拽改状态')
+  // N5: 任务状态变更触发 PATCH /status + 后端持久化 + UI progress 更新。
+  //
+  // 背景：CO-529-followup 后，看板拖拽直接 TODO→COMPLETED 已被禁用，必须走
+  // 任务详情页的"提交审核"+"通过"两步流程。原拖拽测试场景已过期，本用例
+  // 改造为通过 API 触发完整状态闭环（TODO→REVIEW→COMPLETED），保留核心
+  // 断言：PATCH /status 响应 + 后端持久化 + UI progress 100%。
+  //
+  // 审核权限规则（TaskPermissionGuard.assertCanTransitionTaskStatus）：
+  //   - TODO→REVIEW: 仅 assignee 本人可提交
+  //   - REVIEW→COMPLETED: 不能审核自己提交的任务；需 canManageTask 角色
+  //     (admin / /bidAdmin / bid-TeamLeader / bid-SystemAdmin)
+  // 因此使用两个 session：assignee(bidAdmin) 提交审核，reviewer(bid-TeamLeader) 通过。
+  test('task status transition triggers PATCH /status and progress update', async ({ page }) => {
+    const { session, projectId } = await bootstrapProject(page, 'N5-状态流转')
 
-    await createProjectTaskFixture(session, projectId, 'N5 拖拽测试任务')
+    const task = await createProjectTaskFixture(session, projectId, 'N5 状态流转任务')
     await reloadToTaskBoard(page)
 
-    const card = page.locator('.column-content .task-card').filter({ hasText: 'N5 拖拽测试任务' }).first()
+    const card = page.locator('.column-content .task-card').filter({ hasText: 'N5 状态流转任务' }).first()
     await expect(card).toBeVisible({ timeout: 10000 })
-
-    // Target column: the COMPLETED column is terminal in the seeded dict; its
-    // column-content is where the card must end up.
-    const completedColumn = page.locator('.board-column').filter({ hasText: '已完成' }).locator('.column-content').first()
-    await expect(completedColumn).toBeVisible()
 
     const progressTag = page.locator('.el-tag').filter({ hasText: /^总进度:/ }).first()
     await expect(progressTag).toBeVisible()
+    // 初始状态：TODO 列，progress 0%
+    await expect(progressTag).toContainText('0%')
 
-    // 等待拖拽触发的 PATCH /status 响应 (≤20s); 若 drag 合成在本环境未触发 onChange,
-    // catch 吞掉 rejection 不抛错, 落到下方后端断言 (真正的 gate)。原 Promise.race +
-    // waitForTimeout(20000) 是 timing-based 脆弱写法 (H13 同 PR 顺手治理)。
-    await Promise.all([
-      page.waitForResponse(
-        (response) =>
-          response.url().includes(`/api/projects/${projectId}/tasks/`) &&
-          response.url().endsWith('/status') &&
-          response.request().method() === 'PATCH' &&
-          response.ok(),
-        { timeout: 20000 },
-      ).catch(() => {}),
-      card.dragTo(completedColumn),
-    ])
+    // --- 步骤 1: 预上传交付物（后端要求 TODO→REVIEW 必须有交付物）---
+    await attachTaskDeliverableFixture(session, projectId, task)
 
-    // Backend source of truth — this is the real gate. If the drag didn't
-    // fire onChange, this assertion fails and we know drag-on-CI is broken.
+    // --- 步骤 2: assignee (session) 提交审核 TODO→REVIEW ---
+    await patchTaskStatus(session.token, projectId, task, 'REVIEW')
+
+    // --- 步骤 3: 切换到 reviewer (bid-TeamLeader) 审核 REVIEW→COMPLETED ---
+    // bid-TeamLeader 在 GLOBAL_ACCESS_ROLES 中，满足 canManageTask，且不是 assignee，
+    // 满足"不能审核自己提交的任务"约束。
+    const reviewerSession = await ensureApiSession({
+      username: `e2e_n5_reviewer_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      role: 'bid-TeamLeader',
+      fullName: 'E2E N5 Reviewer',
+    })
+    await patchTaskStatus(reviewerSession.token, projectId, task, 'COMPLETED')
+
+    // --- 步骤 3: 后端持久化校验 (real gate) ---
     const tasksPayload = await authedJson(`/api/projects/${projectId}/tasks`, session.token)
     expect(tasksPayload?.success).toBeTruthy()
-    const persisted = (tasksPayload?.data || []).find((t) => t.name === 'N5 拖拽测试任务')
+    const persisted = (tasksPayload?.data || []).find((t) => t.name === 'N5 状态流转任务')
     expect(persisted).toBeTruthy()
     expect(String(persisted.status || '').toUpperCase()).toMatch(/COMPLETED|DONE/)
 
-    // UI progress follows the terminal transition.
+    // --- 步骤 4: UI progress 反映终态 (100%) ---
+    await reloadToTaskBoard(page)
     await expect(progressTag).toContainText('100%')
   })
 })

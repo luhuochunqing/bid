@@ -17,16 +17,28 @@
     </div>
 
     <!-- 日志表格 -->
-    <el-table v-if="filteredLogs.length" :data="filteredLogs" size="small" border class="op-log-table">
-      <el-table-column prop="time" label="时间" width="160" />
+    <el-table
+      v-if="filteredLogs.length"
+      :data="filteredLogs"
+      size="small"
+      border
+      class="op-log-table"
+      data-testid="qd-op-log-table"
+      :row-class-name="() => 'qd-op-log-item'"
+    >
+      <el-table-column prop="time" label="时间" width="160">
+        <template #default="scope">
+          <span data-testid="qd-op-log-time">{{ scope.row.time }}</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="operator" label="操作人" width="120">
         <template #default="scope">
-          {{ formatOperator(scope.row) }}
+          <span data-testid="qd-op-log-operator">{{ formatOperator(scope.row) }}</span>
         </template>
       </el-table-column>
       <el-table-column label="操作类型" width="100">
         <template #default="scope">
-          <el-tag :type="tagType(scope.row.actionType)" size="small">
+          <el-tag :type="tagType(scope.row.actionType)" size="small" class="op-log-tab__action">
             {{ actionLabel(scope.row.actionType) }}
           </el-tag>
         </template>

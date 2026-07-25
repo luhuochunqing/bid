@@ -65,7 +65,7 @@ test.describe('4.1.1.2.1 AI 案例沉淀 — 6 步异步任务模型', () => {
   test('前置条件：项目未达 CLOSED + 无标书文件 + 无评分项时 readiness 报缺失', async () => {
     const session = await ensureApiSession({
       username: `e2e_precip_readiness_${Date.now()}`,
-      role: 'ADMIN',
+      role: 'admin',
       fullName: '沉淀前置条件测试员'
     })
     const { projectId } = await createTenderAndProject(session, '沉淀前置条件')
@@ -87,7 +87,7 @@ test.describe('4.1.1.2.1 AI 案例沉淀 — 6 步异步任务模型', () => {
   test('权限：STAFF 角色无法访问手动触发沉淀端点', async () => {
     const adminSession = await ensureApiSession({
       username: `e2e_precip_seed_${Date.now()}`,
-      role: 'ADMIN',
+      role: 'admin',
       fullName: '沉淀权限测试 Admin'
     })
     const { projectId } = await createTenderAndProject(adminSession, '沉淀权限测试')
@@ -112,7 +112,7 @@ test.describe('4.1.1.2.1 AI 案例沉淀 — 6 步异步任务模型', () => {
   test('前置条件不满足时手动触发被拒（4xx）', async () => {
     const session = await ensureApiSession({
       username: `e2e_precip_reject_${Date.now()}`,
-      role: 'ADMIN',
+      role: 'admin',
       fullName: '沉淀拒绝测试员'
     })
     const { projectId } = await createTenderAndProject(session, '沉淀拒绝')
@@ -133,7 +133,7 @@ test.describe('4.1.1.2.1 AI 案例沉淀 — 6 步异步任务模型', () => {
   test('页面访问：/knowledge/case 在 ADMIN 登录后可访问', async ({ page }) => {
     const session = await ensureApiSession({
       username: `e2e_precip_page_${Date.now()}`,
-      role: 'ADMIN',
+      role: 'admin',
       fullName: '沉淀页面测试员'
     })
     await injectSession(page, session)
@@ -143,7 +143,7 @@ test.describe('4.1.1.2.1 AI 案例沉淀 — 6 步异步任务模型', () => {
     ).catch(() => null)
     await page.goto('/knowledge/case')
     await casesResponse
-    await expect(page.getByText('AI 案例库网格').first()).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText('案例库').first()).toBeVisible({ timeout: 10000 })
   })
 
   test('完整闭环：手动触发沉淀被拒时 readiness 报缺失项', async () => {
@@ -153,7 +153,7 @@ test.describe('4.1.1.2.1 AI 案例沉淀 — 6 步异步任务模型', () => {
     // 避免在 E2E 栈做昂贵的事务边界处理。
     const session = await ensureApiSession({
       username: `e2e_precip_gating_${Date.now()}`,
-      role: 'ADMIN',
+      role: 'admin',
       fullName: '沉淀门禁测试员'
     })
     const { projectId } = await createTenderAndProject(session, '沉淀门禁')
@@ -181,7 +181,7 @@ test.describe('4.1.1.2.1 AI 案例沉淀 — 6 步异步任务模型', () => {
     // 确保 disabled 状态下 el-tooltip 能渲染出场景化中文提示。
     const session = await ensureApiSession({
       username: `e2e_precip_abnormal_${Date.now()}`,
-      role: 'ADMIN',
+      role: 'admin',
       fullName: '沉淀异常处理测试员'
     })
     const { projectId } = await createTenderAndProject(session, '沉淀异常处理')

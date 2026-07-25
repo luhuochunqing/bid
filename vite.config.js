@@ -66,7 +66,15 @@ export default defineConfig({
   preview: {
     host: '0.0.0.0',
     port: 1314,
-    strictPort: true
+    strictPort: true,
+    proxy: {
+      // E2E preview 代理：build:api 是生产构建（API_BASE_URL='' 同源），
+      // preview server 需要代理 /api 到后端，否则 /api/auth/me 返回前端 HTML
+      '/api': {
+        target: process.env.VITE_PREVIEW_API_TARGET || 'http://127.0.0.1:18089',
+        changeOrigin: true
+      }
+    }
   },
   test: {
     globals: true,

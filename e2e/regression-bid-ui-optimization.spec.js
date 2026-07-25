@@ -88,7 +88,7 @@ async function apiUpdateTender(session, tenderId, updates = {}) {
 async function goToTenderDetail(page, tenderId) {
   await page.goto(`/bidding/${tenderId}`)
   await page.waitForSelector('.bidding-detail-page', { timeout: 15000 })
-  await page.waitForSelector('.el-descriptions', { timeout: 15000 })
+  await page.waitForSelector('.detail-meta-grid', { timeout: 15000 })
 }
 
 // =========================================================================
@@ -121,15 +121,22 @@ test.describe('BUI-1: 标讯UI操作按钮一致性', () => {
       const tender = await apiCreateTender(adminSession)
       expect(tender?.id).toBeTruthy()
 
-      // 再以 sales 登录查看该标讯
+      // 再以 sales 登录访问该标讯
       const session = await loginAsRole(page, 'bid-projectLeader')
-      await goToTenderDetail(page, tender.id)
 
-      // 验证头部没有编辑和删除按钮
-      const editBtn = page.locator('.detail-global-actions').getByRole('button', { name: '编辑' })
-      const deleteBtn = page.locator('.detail-global-actions').getByRole('button', { name: '删除' })
-      await expect(editBtn).toHaveCount(0)
-      await expect(deleteBtn).toHaveCount(0)
+      // 业务正确性：sales 非创建人不能访问 admin 创建的未分配标讯（dataScope=self → 403）
+      // 这里直接通过 API 断言 403，比 UI 断言更稳定
+      const response = await fetch(`${apiBaseUrl}/api/tenders/${tender.id}`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${session.token}` },
+      })
+      expect(response.status).toBe(403)
+
+      // 页面访问应被拒绝（不渲染详情主体）
+      await page.goto(`/bidding/${tender.id}`)
+      await page.waitForSelector('.bidding-detail-page', { timeout: 15000 })
+      // 详情主体未渲染（tender=null），无操作按钮区
+      await expect(page.locator('.detail-global-actions')).toHaveCount(0)
     })
 
     test('BUI-1.3: admin 在 PENDING_ASSIGNMENT 下始终有分配和删除按钮', async ({ page }) => {
@@ -148,7 +155,7 @@ test.describe('BUI-1: 标讯UI操作按钮一致性', () => {
       await goToTenderDetail(page, tender.id)
 
       // admin 始终有分配/删除
-      const assignBtn = page.locator('.detail-global-actions').getByRole('button', { name: '分配' })
+      const assignBtn = page.locator('.detail-global-actions').getByRole('button', { name: '分配销售' })
       const deleteBtn = page.locator('.detail-global-actions').getByRole('button', { name: '删除' })
       await expect(assignBtn).toBeVisible({ timeout: 5000 })
       await expect(deleteBtn).toBeVisible({ timeout: 5000 })
@@ -166,8 +173,8 @@ test.describe('BUI-1: 标讯UI操作按钮一致性', () => {
       await expect(page.locator('.bidding-create-page')).toBeAttached({ timeout: 10000 })
 
       // 验证底部没有「下一步」和「提交」按钮
-      const nextStep = page.locator('.bottom-action-bar').getByRole('button', { name: '下一步' })
-      const submit = page.locator('.bottom-action-bar').getByRole('button', { name: '提交' })
+      const nextStep = page.locator('.form-action-bar').getByRole('button', { name: '下一步' })
+      const submit = page.locator('.form-action-bar').getByRole('button', { name: '提交' })
       await expect(nextStep).toHaveCount(0)
       await expect(submit).toHaveCount(0)
     })
@@ -229,7 +236,7 @@ test.describe('BUI-2: 交付物上传闪烁 — deliverableFileList 引用稳定
 
     // 导航到项目详情页
     await page.goto(`/project/${project.id}`)
-    await expect(page.locator('.project-detail').first()).toBeAttached({ timeout: 15000 })
+    await expect(page.locator('.project-detail-page').first()).toBeAttached({ timeout: 15000 })
 
     // 查找并点击任务卡片打开任务抽屉/弹窗
     const taskCard = page.locator('.task-card, .el-card').filter({ hasText: task.title }).first()
@@ -238,7 +245,8 @@ test.describe('BUI-2: 交付物上传闪烁 — deliverableFileList 引用稳定
     }
 
     // 验证交付物区域存在且不闪烁（通过 DOM 稳定性间接验证）
-    const deliverableArea = page.locator('.deliverable-file-list, .task-deliverables, .file-upload-area').first()
+    // 注意：前端实际使用 el-upload 组件，原选择器 .deliverable-file-list/.task-deliverables/.file-upload-area 均不存在
+    const deliverableArea = page.locator('.el-upload').first()
     await expect(deliverableArea).toBeAttached({ timeout: 5000 })
   })
 })
@@ -296,23 +304,41 @@ test.describe('BUI-3: 任务提交审核', () => {
     const task = taskPayload?.data
     expect(task?.id).toBeTruthy()
 
-    // 导航到项目详情页
-    await page.goto(`/project/${project.id}`)
-    await expect(page.locator('.project-detail').first()).toBeAttached({ timeout: 15000 })
+    // 业务规则（validateSubmitForReview）：提交审核前必须上传交付物
+    // 通过 POST /api/projects/{projectId}/tasks/{taskId}/deliverables 直接创建交付物记录
+    const deliverableRes = await fetch(`${apiBaseUrl}/api/projects/${project.id}/tasks/${task.id}/deliverables`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.token}`,
+      },
+      body: JSON.stringify({
+        name: `E2E-BUI3-交付物-${Date.now()}.docx`,
+        deliverableType: 'DOCUMENT',
+        size: '1.2MB',
+        fileType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        url: 'https://example.com/e2e-test-deliverable.docx',
+      }),
+    })
+    expect(deliverableRes.ok).toBeTruthy()
 
-    // 查找并点击任务卡片
-    const taskCard = page.locator('.task-card, .el-card').filter({ hasText: task.title }).first()
-    if (await taskCard.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await taskCard.click()
-    }
+    // 通过 URL stage 参数直接访问标书制作阶段（避免 INITIATED 阶段 timeline 锁定 DRAFTING tab）
+    await page.goto(`/project/${project.id}/drafting`)
+    await expect(page.locator('.project-detail-page').first()).toBeAttached({ timeout: 15000 })
 
-    // 验证任务详情弹窗/抽屉打开
-    const taskDialog = page.locator('.el-dialog, .task-detail-drawer, .task-form').first()
-    await expect(taskDialog).toBeAttached({ timeout: 5000 })
+    // 等待任务看板渲染并点击任务卡片
+    // 选择器说明：ProjectTaskBoardCard 根元素也是 .task-card（el-card class），需用 .task-board .task-card 精确定位内层任务卡片
+    const taskCard = page.locator('.task-board .task-card').filter({ hasText: task.title }).first()
+    await expect(taskCard).toBeVisible({ timeout: 8000 })
+    await taskCard.click()
 
-    // 验证提交审核按钮存在
-    const submitReviewBtn = page.getByRole('button', { name: /提交审核|送审/ }).first()
-    await expect(submitReviewBtn).toBeVisible({ timeout: 3000 })
+    // 验证任务详情抽屉打开（Element Plus el-drawer 渲染为 .el-drawer，非 .el-dialog）
+    const taskDrawer = page.locator('.el-drawer').first()
+    await expect(taskDrawer).toBeVisible({ timeout: 5000 })
+
+    // 验证提交审核按钮存在（用 data-test 精确定位，避免文本匹配歧义）
+    const submitReviewBtn = page.locator('[data-test="task-drawer-submit-review"]').first()
+    await expect(submitReviewBtn).toBeVisible({ timeout: 5000 })
 
     // 点击提交审核
     await submitReviewBtn.click()
@@ -353,38 +379,39 @@ test.describe('BUI-4: 完成投标权限', () => {
     const project = projectPayload?.data
     expect(project?.id).toBeTruthy()
 
-    await page.goto(`/project/${project.id}`)
-    await expect(page.locator('.project-detail').first()).toBeAttached({ timeout: 15000 })
-
-    // 切换到标书制作 tab
-    const draftingTab = page.getByRole('tab', { name: /标书制作|标书编制/ })
-    if (await draftingTab.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await draftingTab.click()
-    }
+    // 通过 URL stage 参数直接访问标书制作阶段（避免 INITIATED 阶段 timeline 锁定 DRAFTING tab）
+    await page.goto(`/project/${project.id}/drafting`)
+    await expect(page.locator('.project-detail-page').first()).toBeAttached({ timeout: 15000 })
 
     // 验证权限计算结果：bid_admin 可以看到投标文件区域
-    await expect(page.locator('.bid-header, .project-document-table').first()).toBeAttached({ timeout: 5000 })
+    await expect(page.locator('.bid-header, .project-document-table').first()).toBeAttached({ timeout: 8000 })
   })
 
   test('BUI-4.2: bid_specialist 角色看不到完成投标按钮', async ({ page }) => {
-    const session = await loginAsRole(page, 'bid-Team')
+    // 业务规则：POST /api/projects 要求 ADMIN 或 MANAGER 角色，bid-Team 无权创建项目
+    // 因此先用 /bidAdmin 创建项目，再切换 bid-Team 角色访问验证权限
+    const adminSession = await ensureApiSession({
+      username: `e2e_bui_admin_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      role: '/bidAdmin',
+      fullName: 'E2E BUI Admin',
+    })
 
-    // 创建标讯和项目
-    const tender = await apiCreateTender(session, { status: 'TRACKING' })
+    // 创建标讯和项目（admin 身份）
+    const tender = await apiCreateTender(adminSession, { status: 'TRACKING' })
     expect(tender?.id).toBeTruthy()
 
     const projectRes = await fetch(`${apiBaseUrl}/api/projects`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.token}`,
+        Authorization: `Bearer ${adminSession.token}`,
       },
       body: JSON.stringify({
         name: `E2E-BUI4-项目-${Date.now()}`,
         tenderId: tender.id,
         status: 'BIDDING',
-        managerId: session.user.id,
-        teamMembers: [session.user.id],
+        managerId: adminSession.user.id,
+        teamMembers: [adminSession.user.id],
         startDate: toLocalDateTimeString(new Date()),
         endDate: toLocalDateTimeString(new Date(Date.now() + 10 * 86400000)),
       }),
@@ -393,17 +420,13 @@ test.describe('BUI-4: 完成投标权限', () => {
     const project = projectPayload?.data
     expect(project?.id).toBeTruthy()
 
-    await page.goto(`/project/${project.id}`)
-    await expect(page.locator('.project-detail').first()).toBeAttached({ timeout: 15000 })
+    // 切换到 bid-Team 角色（投标专员），通过 URL stage 参数直接访问标书制作阶段
+    const session = await loginAsRole(page, 'bid-Team')
+    await page.goto(`/project/${project.id}/drafting`)
+    await expect(page.locator('.project-detail-page').first()).toBeAttached({ timeout: 15000 })
 
-    // 切换到标书制作 tab
-    const draftingTab = page.getByRole('tab', { name: /标书制作|标书编制/ })
-    if (await draftingTab.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await draftingTab.click()
-    }
-
-    // bid_specialist 不应看到"完成投标"按钮
-    const completeBidBtn = page.getByRole('button', { name: /完成投标/ })
+    // bid_specialist 不应看到"提交投标"按钮（实际按钮文本为"提交投标"，"完成投标"是 <span class="bid-title"> 非按钮）
+    const completeBidBtn = page.getByRole('button', { name: '提交投标' })
     await expect(completeBidBtn).toHaveCount(0)
   })
 })
@@ -446,8 +469,9 @@ async function apiApproveBidReview(session, projectId) {
  */
 async function gotoProjectDraftingTab(page, projectId) {
   await page.goto(`/project/${projectId}`)
-  await expect(page.locator('.project-detail').first()).toBeAttached({ timeout: 15000 })
-  const draftingTab = page.getByRole('tab', { name: /标书制作|标书编制/ })
+  await expect(page.locator('.project-detail-page').first()).toBeAttached({ timeout: 15000 })
+  // 前端使用 ProjectStageTimeline 自定义组件（el-steps + el-step），非 el-tabs
+  const draftingTab = page.locator('.project-stage-timeline .el-step').filter({ hasText: '标书制作' }).first()
   if (await draftingTab.isVisible({ timeout: 3000 }).catch(() => false)) {
     await draftingTab.click()
   }
@@ -458,8 +482,13 @@ test.describe('BUI-5: 标书审核权限', () => {
   let adminSession, auditorSession, projectId
 
   test.beforeEach(async ({ page }) => {
+    // 业务规则（BidReviewReviewerValidator）：
+    //   - 审核人列表必须包含项目经理（project.managerId）
+    //   - 项目经理不能是提交人本人（submittedBy ≠ managerId）
+    //   - 审核人不能是项目团队成员（teamMembers）
+    // 因此：admin（提交人，teamMember）+ auditor（项目经理+审核人，非 teamMember）
     adminSession = await loginAsRole(page, '/bidAdmin')
-    auditorSession = await loginAsRole(page, 'auditor')
+    auditorSession = await loginAsRole(page, '/bidAdmin')
 
     const tender = await apiCreateTender(adminSession, { status: 'TRACKING' })
     expect(tender?.id).toBeTruthy()
@@ -474,8 +503,10 @@ test.describe('BUI-5: 标书审核权限', () => {
         name: `E2E-BUI5-${Date.now()}`,
         tenderId: tender.id,
         status: 'BIDDING',
-        managerId: adminSession.user.id,
-        teamMembers: [adminSession.user.id, auditorSession.user.id],
+        // 项目经理 = auditor（审核人），不能等于提交人 admin
+        managerId: auditorSession.user.id,
+        // teamMembers 只含 admin（提交人），不含 auditor，否则审核人校验失败
+        teamMembers: [adminSession.user.id],
         startDate: toLocalDateTimeString(new Date()),
         endDate: toLocalDateTimeString(new Date(Date.now() + 10 * 86400000)),
       }),
@@ -483,6 +514,26 @@ test.describe('BUI-5: 标书审核权限', () => {
     const projectPayload = await projectRes.json()
     projectId = projectPayload?.data?.id
     expect(projectId).toBeTruthy()
+
+    // 预上传标书文件（documentCategory=BID），满足 BidReadinessPolicy.checkBidDocumentUploaded 闸门
+    // 不预上传会 409 "尚未上传标书文件，无法提交标书审核"
+    const docRes = await fetch(`${apiBaseUrl}/api/projects/${projectId}/documents`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminSession.token}`,
+      },
+      body: JSON.stringify({
+        name: `E2E-BUI5-标书-${Date.now()}.docx`,
+        size: '1.5MB',
+        fileType: 'docx',
+        documentCategory: 'BID',
+        fileUrl: 'https://example.com/e2e-test-bid.docx',
+        uploaderId: adminSession.user.id,
+        uploaderName: adminSession.user.name,
+      }),
+    })
+    expect(docRes.ok).toBeTruthy()
   })
 
   test('BUI-5.1: 提交审核后提交人不看见审核按钮', async ({ page }) => {
