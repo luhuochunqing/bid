@@ -53,7 +53,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
     await page.goto('/knowledge/archive')
     await page.waitForLoadState('load')
 
-    const pagination = page.locator('.pagination-container')
+    const pagination = page.locator('.kb-pagination-wrap')
     await expect(pagination).toBeVisible({ timeout: 5000 })
     await expect(pagination.locator('.el-pagination')).toBeVisible()
   })
@@ -259,7 +259,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
     await page.goto('/knowledge/archive')
     await page.waitForLoadState('load')
 
-    const pmInput = page.locator('input[placeholder="项目负责人"]')
+    const pmInput = page.locator('input[placeholder="选择负责人"]')
     if (await pmInput.isVisible()) {
       await pmInput.fill('admin')
       await page.waitForResponse(
@@ -274,7 +274,7 @@ test.describe('项目档案台账 (Project Archive)', () => {
     await page.goto('/knowledge/archive')
     await page.waitForLoadState('load')
 
-    const bmInput = page.locator('input[placeholder="投标负责人"]')
+    const bmInput = page.locator('input[placeholder="选择负责人"]')
     if (await bmInput.isVisible()) {
       await bmInput.fill('admin')
       await page.waitForResponse(

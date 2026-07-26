@@ -299,7 +299,7 @@ test('dashboard quick entry routes navigate correctly', async ({ page }) => {
   await page.goto('/dashboard')
 
   // Verify the page loaded with metric cards visible
-  await expect(page.locator('.metric-cards-container, .stat-cards, .quick-entry-section').first()).toBeVisible({ timeout: 10000 })
+  await expect(page.locator('.workbench').first()).toBeVisible({ timeout: 10000 })
   await expect(page.getByText(/进行中项目|投标数量|中标率/).first()).toBeVisible({ timeout: 5000 })
 })
 
@@ -324,12 +324,12 @@ test('knowledge kb-layout tabs navigate correctly', async ({ page }) => {
   await page.goto('/knowledge')
 
   // Verify KbLayout tabs are visible
-  await expect(page.getByText('档案台账')).toBeVisible({ timeout: 10000 })
-  await expect(page.getByText('资质库')).toBeVisible()
+  await expect(page.getByText('项目档案')).toBeVisible({ timeout: 10000 })
+  await expect(page.getByText('资质证书')).toBeVisible()
   await expect(page.getByText('案例库')).toBeVisible()
   await expect(page.getByText('模板库')).toBeVisible()
 
   // Click a tab and verify URL changes
-  await page.getByText('资质库').click()
+  await page.getByText('资质证书').click()
   await expect(page).toHaveURL(/\/knowledge\/qualification/)
 })

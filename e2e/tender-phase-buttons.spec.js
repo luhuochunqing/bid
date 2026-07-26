@@ -112,14 +112,14 @@ async function goToDetail(page, tenderId) {
   await page.goto(`/bidding/${tenderId}`)
   await page.waitForSelector('.bidding-detail-page', { timeout: 15000 })
   // 等待详情数据加载
-  await page.waitForSelector('.el-descriptions', { timeout: 15000 })
+  await page.waitForSelector('.detail-meta-grid', { timeout: 15000 })
 }
 
 // ---------------------------------------------------------------------------
 // Helpers: 获取底部操作栏的按钮列表
 // ---------------------------------------------------------------------------
 async function getBottomButtons(page) {
-  return page.locator('.bottom-action-bar button, [class*="bottom-action"] button').all()
+  return page.locator('.form-action-bar button, [class*="form-action"] button').all()
 }
 
 async function getHeaderButtons(page) {
@@ -198,7 +198,7 @@ test.describe('§4.2.x — 阶段化按钮可见性：assigned 阶段', () => {
     // 头部应有 分配 按钮（PENDING_ASSIGNMENT + admin_lead）
     const headerBtns = await getHeaderButtons(page)
     const headerNames = (await buttonNames(headerBtns)).map((n) => n.trim())
-    expect(headerNames).toContain('分配')
+    expect(headerNames).toContain('分配销售')
   })
 
   test('sales 在 assigned 阶段底部为空，头部无 分配 按钮', async ({ page }) => {
@@ -337,7 +337,7 @@ test.describe('§4.2.x — 完整生命周期按钮切换验证', () => {
 
     const headerBtns = await getHeaderButtons(page)
     const headerNames = (await buttonNames(headerBtns)).map((n) => n.trim())
-    expect(headerNames).toContain('分配')
+    expect(headerNames).toContain('分配销售')
   })
 
   // TC5.2: 验证 TRACKING 状态 + evaluation tab 切换

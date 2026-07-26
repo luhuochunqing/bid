@@ -200,6 +200,7 @@ public class ArchitectureTest {
         "Qualification",
         "RefreshSession",
         "RoleProfile",
+        "RoleProfileAdminPermissions",
         "RoleProfileCatalog",
         "Task",
         "Template",

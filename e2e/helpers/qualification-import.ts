@@ -59,7 +59,7 @@ export function buildValidQualificationRow(override = {}) {
     agency: 'E2E 代理认证公司',
     agencyContact: '13800138000',
     certScope: 'E2E 测试覆盖范围：产品设计/生产/销售',
-    certReviewNote: '每年 3 月年审',
+    certReviewNote: '2027-03-01',
     attachmentFileName: `QUAL_${certNo}_01_示例证书.pdf`,
     ...override
   }

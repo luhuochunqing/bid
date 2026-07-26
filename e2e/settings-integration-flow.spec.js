@@ -14,6 +14,6 @@ test.describe('settings integration flow', () => {
     await injectSession(page, session)
     await page.goto('/settings?tab=integration')
     await expect(page.getByText('企业微信')).toBeVisible()
-    await expect(page.locator('.integration-section').getByText('CRM').first()).toBeVisible()
+    await expect(page.locator('.integration-stack').getByText('CRM').first()).toBeVisible()
   })
 })

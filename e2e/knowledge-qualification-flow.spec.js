@@ -20,7 +20,15 @@ test.describe('knowledge qualification flow', () => {
         issuer: '测试发证机关',
         holderName: '测试持有人',
         expiryDate: '2027-12-31',
-        status: 'valid'
+        issueDate: '2024-01-15',
+        level: 'A',
+        agency: '测试代理机构',
+        agencyContact: '13800138000',
+        certScope: '测试认证范围',
+        subjectType: 'COMPANY',
+        subjectName: '西域',
+        category: 'LICENSE',
+        status: 'in_stock'
       })
     })
     expect(qualRes.ok).toBeTruthy()
@@ -32,6 +40,6 @@ test.describe('knowledge qualification flow', () => {
     // Wait for the table or empty state to appear — the seeded qualification may take a moment to appear
     await page.waitForSelector('.el-table, .el-empty', { timeout: 20000 })
     // Use .first() to avoid breadcrumb text collision
-    await expect(page.getByText('资质库').first()).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText('资质证书').first()).toBeVisible({ timeout: 10000 })
   })
 })

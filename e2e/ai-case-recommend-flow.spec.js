@@ -93,8 +93,8 @@ test.describe('AI智能案例推荐', () => {
     await page.goto('/knowledge/case')
     await page.waitForSelector('.case-card, .el-empty', { timeout: 10000 })
 
-    // 验证页面标题
-    await expect(page.getByText('AI 案例库网格').first()).toBeVisible()
+    // 验证页面标题（h2 实际为 "案例库"）
+    await expect(page.getByText('案例库').first()).toBeVisible()
 
     // 如果有案例卡片，验证基本结构
     const firstCard = page.locator('.case-card').first()

@@ -85,11 +85,11 @@ test.describe('§2.4.1.2 标讯手动分配 — 详情页【分配】按钮（PE
     expect(tenderId).toBeTruthy()
 
     await page.goto(`/bidding/detail/${tenderId}`)
-    await page.waitForSelector('.el-descriptions', { timeout: 15000 })
+    await page.waitForSelector('.detail-meta-grid', { timeout: 15000 })
 
     // 核心断言：修复后 admin 必须看到分配按钮
-    await expect(page.getByRole('button', { name: '分配' })).toBeVisible()
-    await expect(page.getByRole('button', { name: '转派' })).not.toBeVisible()
+    await expect(page.getByRole('button', { name: '分配销售' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '转派销售' })).not.toBeVisible()
   })
 
   test('bid_admin 角色在未匹配 PENDING_ASSIGNMENT 标讯详情页可见【分配】按钮', async ({ page }) => {
@@ -98,9 +98,9 @@ test.describe('§2.4.1.2 标讯手动分配 — 详情页【分配】按钮（PE
     expect(tenderId).toBeTruthy()
 
     await page.goto(`/bidding/detail/${tenderId}`)
-    await page.waitForSelector('.el-descriptions', { timeout: 15000 })
+    await page.waitForSelector('.detail-meta-grid', { timeout: 15000 })
 
-    await expect(page.getByRole('button', { name: '分配' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '分配销售' })).toBeVisible()
   })
 
   test('bid_lead 角色在未匹配 PENDING_ASSIGNMENT 标讯详情页可见【分配】按钮', async ({ page }) => {
@@ -109,9 +109,9 @@ test.describe('§2.4.1.2 标讯手动分配 — 详情页【分配】按钮（PE
     expect(tenderId).toBeTruthy()
 
     await page.goto(`/bidding/detail/${tenderId}`)
-    await page.waitForSelector('.el-descriptions', { timeout: 15000 })
+    await page.waitForSelector('.detail-meta-grid', { timeout: 15000 })
 
-    await expect(page.getByRole('button', { name: '分配' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '分配销售' })).toBeVisible()
   })
 
   test('sales 角色在未匹配 PENDING_ASSIGNMENT 标讯详情页不可见【分配】按钮', async ({ page }) => {
@@ -120,9 +120,9 @@ test.describe('§2.4.1.2 标讯手动分配 — 详情页【分配】按钮（PE
     expect(tenderId).toBeTruthy()
 
     await page.goto(`/bidding/detail/${tenderId}`)
-    await page.waitForSelector('.el-descriptions', { timeout: 15000 })
+    await page.waitForSelector('.detail-meta-grid', { timeout: 15000 })
 
-    await expect(page.getByRole('button', { name: '分配' })).not.toBeVisible()
+    await expect(page.getByRole('button', { name: '分配销售' })).not.toBeVisible()
   })
 
   test('点击【分配】按钮可打开弹窗并完成分配（状态推进 TRACKING）', async ({ page }) => {
@@ -131,10 +131,10 @@ test.describe('§2.4.1.2 标讯手动分配 — 详情页【分配】按钮（PE
     expect(tenderId).toBeTruthy()
 
     await page.goto(`/bidding/detail/${tenderId}`)
-    await page.waitForSelector('.el-descriptions', { timeout: 15000 })
+    await page.waitForSelector('.detail-meta-grid', { timeout: 15000 })
 
     // 点击分配
-    const assignBtn = page.getByRole('button', { name: '分配' })
+    const assignBtn = page.getByRole('button', { name: '分配销售' })
     await expect(assignBtn).toBeVisible()
     await assignBtn.click()
 
@@ -152,9 +152,9 @@ test.describe('§2.4.1.2 标讯手动分配 — 详情页【分配】按钮（PE
     await submitBtn.click()
 
     // 成功后详情页刷新，状态应变为“跟踪中”，分配按钮消失，转派按钮出现
-  await expect(page.getByRole('button', { name: '分配' })).not.toBeVisible({ timeout: 10000 }).catch(() => {})
-    await expect(page.getByRole('button', { name: '分配' })).not.toBeVisible()
-    await expect(page.getByRole('button', { name: '转派' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '分配销售' })).not.toBeVisible({ timeout: 10000 }).catch(() => {})
+    await expect(page.getByRole('button', { name: '分配销售' })).not.toBeVisible()
+    await expect(page.getByRole('button', { name: '转派销售' })).toBeVisible()
 
     // 可选：验证状态标签
     const statusTag = page.locator('.el-tag:has-text("跟踪中")').or(page.locator('.el-tag:has-text("TRACKING")'))

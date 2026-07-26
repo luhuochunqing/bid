@@ -14,7 +14,7 @@ test.describe('case grid', () => {
     await page.goto('/knowledge/case')
 
     // Page title visible (tab header)  // @ui-cover:knowledge
-    await expect(page.getByText('AI 案例库网格').first()).toBeVisible({ timeout: 10000 })
+    await expect(page.getByText('案例库').first()).toBeVisible({ timeout: 10000 })
 
     // Filter form present
     await expect(page.getByPlaceholder('搜索打分点/需求/应答...')).toBeVisible()
@@ -81,7 +81,8 @@ test.describe('case grid', () => {
     await page.goto('/knowledge/case')
     await page.waitForSelector('.el-select, .case-card, .el-empty', { timeout: 10000 })
 
-    const picker = page.getByRole('combobox', { name: '上传时间' })
+    // el-date-picker 不暴露 combobox role，通过 .el-form-item 定位 .el-date-editor
+    const picker = page.locator('.el-form-item').filter({ hasText: '上传时间' }).locator('.el-date-editor')
     await expect(picker).toBeVisible()
   })
 })

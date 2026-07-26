@@ -3,17 +3,17 @@
     <div class="page-header kb-page-header">
       <h2>资质证书</h2>
       <div class="kb-header-actions">
-        <el-button v-if="canManageQualification" type="primary" @click="formVisible=true; editData=null">
+        <el-button v-if="canManageQualification" type="primary" data-testid="qual-create-btn" @click="formVisible=true; editData=null">
           <el-icon><Plus /></el-icon> 新增资质
         </el-button>
-        <el-button v-if="canManageQualification" @click="importCombinedVisible = true">
+        <el-button v-if="canManageQualification" data-testid="qual-import-btn" @click="importCombinedVisible = true">
           <el-icon><Upload /></el-icon> 导入台账
         </el-button>
-        <el-button v-if="canManageQualification" @click="batchUploadVisible = true">
+        <el-button v-if="canManageQualification" data-testid="qual-batch-upload-btn" @click="batchUploadVisible = true">
           <el-icon><Document /></el-icon> 批量上传附件
         </el-button>
-        <el-button v-if="canAdminQualificationAlert" @click="alertConfigVisible = true">告警配置</el-button>
-        <el-button v-if="canAdminQualificationAlert" :loading="scanningExpiring" @click="handleScanExpiring">扫描到期</el-button>
+        <el-button v-if="canAdminQualificationAlert" data-testid="qual-alert-config-btn" @click="alertConfigVisible = true">告警配置</el-button>
+        <el-button v-if="canAdminQualificationAlert" :loading="scanningExpiring" data-testid="qual-scan-expiring-btn" @click="handleScanExpiring">扫描到期</el-button>
       </div>
     </div>
 
@@ -43,16 +43,16 @@
     </el-card>
 
     <el-card class="data-card kb-table-card" shadow="never">
-      <div v-if="hasSelection" class="batch-toolbar">
-        <el-button type="success" size="small" @click="handleBatchExport">
+      <div v-if="hasSelection" class="batch-toolbar" data-testid="qual-batch-toolbar">
+        <el-button type="success" size="small" data-testid="qual-batch-export-btn" @click="handleBatchExport">
           <el-icon><Download /></el-icon> 导出台账
         </el-button>
-        <el-button type="success" size="small" @click="handleBatchDownload">
+        <el-button type="success" size="small" data-testid="qual-batch-download-btn" @click="handleBatchDownload">
           <el-icon><Download /></el-icon> 批量下载附件
         </el-button>
-        <span class="batch-info">已选 {{ selectedCount }} 项</span>
+        <span class="batch-info" data-testid="qual-batch-info">已选 {{ selectedCount }} 项</span>
       </div>
-      <el-table ref="tableRef" :data="qualifications" v-loading="loading" style="width:100%" max-height="calc(100vh - 300px)" scrollbar-always-on @row-click="handleRowClick" @selection-change="handleSelectionChange">
+      <el-table ref="tableRef" :data="qualifications" v-loading="loading" style="width:100%" max-height="calc(100vh - 300px)" scrollbar-always-on data-testid="qual-table" @row-click="handleRowClick" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" fixed="left" />
         <el-table-column type="index" label="序号" width="110" align="center" fixed="left" />
         <el-table-column prop="name" label="证书名称" min-width="180" fixed="left">
@@ -74,14 +74,14 @@
           <template #default="scope">
             <span class="kb-op-cell">
               <span class="kb-op-slot">
-                <el-button v-if="hasDownloadableAttachment(scope.row)" link type="primary" size="small" @click.stop="handleDownloadFile(scope.row)">下载</el-button>
+                <el-button v-if="hasDownloadableAttachment(scope.row)" link type="primary" size="small" data-testid="qual-row-download" @click.stop="handleDownloadFile(scope.row)">下载</el-button>
               </span>
               <span class="kb-op-slot">
-                <el-button v-if="canManageQualification && (scope.row.status || '').toLowerCase() !== 'retired'" link type="primary" size="small" @click.stop="openEdit(scope.row)">编辑</el-button>
+                <el-button v-if="canManageQualification && (scope.row.status || '').toLowerCase() !== 'retired'" link type="primary" size="small" data-testid="qual-row-edit" @click.stop="openEdit(scope.row)">编辑</el-button>
               </span>
               <span class="kb-op-slot">
-                <el-button v-if="canManageQualification && (scope.row.status || '').toLowerCase() !== 'retired'" link type="danger" size="small" @click.stop="handleRetire(scope.row)">下架</el-button>
-                <el-button v-if="canManageQualification && (scope.row.status || '').toLowerCase() === 'retired'" link type="success" size="small" @click.stop="handleRestore(scope.row)">恢复</el-button>
+                <el-button v-if="canManageQualification && (scope.row.status || '').toLowerCase() !== 'retired'" link type="danger" size="small" data-testid="qual-row-retire" @click.stop="handleRetire(scope.row)">下架</el-button>
+                <el-button v-if="canManageQualification && (scope.row.status || '').toLowerCase() === 'retired'" link type="success" size="small" data-testid="qual-row-restore" @click.stop="handleRestore(scope.row)">恢复</el-button>
               </span>
             </span>
           </template>

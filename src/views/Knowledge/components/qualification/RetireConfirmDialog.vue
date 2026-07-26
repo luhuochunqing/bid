@@ -4,14 +4,15 @@
     title="下架资质证书"
     width="520px"
     :close-on-click-modal="false"
+    data-testid="qual-retire-dialog"
     @closed="handleClosed"
   >
     <div v-if="data" class="retire-dialog-body">
-      <div class="confirm-info">
+      <div class="confirm-info" data-testid="qual-retire-meta">
         <p class="confirm-title">确认下架以下证书？</p>
         <ul class="cert-info-list">
-          <li><span class="label">证书名称：</span>{{ data.name || '—' }}</li>
-          <li><span class="label">证书号：</span>{{ data.certificateNo || '—' }}</li>
+          <li data-testid="qual-retire-meta-name"><span class="label">证书名称：</span>{{ data.name || '—' }}</li>
+          <li data-testid="qual-retire-meta-no"><span class="label">证书号：</span>{{ data.certificateNo || '—' }}</li>
         </ul>
       </div>
 
@@ -27,11 +28,13 @@
             placeholder="请说明下架原因"
             maxlength="200"
             show-word-limit
+            data-testid="qual-retire-reason"
           />
+          <div class="retire-hint" data-testid="qual-retire-hint">请输入 4-200 字符的下架原因</div>
         </el-form-item>
 
         <el-form-item>
-          <el-checkbox v-model="form.confirmed">
+          <el-checkbox v-model="form.confirmed" data-testid="qual-retire-confirm">
             我已确认该证书可以下架
           </el-checkbox>
         </el-form-item>
@@ -39,11 +42,12 @@
     </div>
 
     <template #footer>
-      <el-button @click="visible = false">取消</el-button>
+      <el-button data-testid="qual-retire-cancel" @click="visible = false">取消</el-button>
       <el-button
         type="danger"
         :disabled="!canSubmit"
         :loading="submitting"
+        data-testid="qual-retire-submit"
         @click="handleSubmit"
       >
         确认下架

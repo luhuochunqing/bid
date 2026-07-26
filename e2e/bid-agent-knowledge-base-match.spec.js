@@ -28,10 +28,12 @@ async function seedQualification(session) {
       agency: 'E2E 测试代理机构',
       agencyContact: '13800000000',
       certScope: 'E2E 测试认证范围',
+      subjectType: 'COMPANY',
+      subjectName: 'E2E 测试主体',
       holderName: 'E2E 测试持有人',
       issueDate: '2024-01-01',
       expiryDate: '2027-12-31',
-      status: 'valid',
+      status: 'in_stock',
     }),
   })
   return res.ok
@@ -194,18 +196,20 @@ test.describe('bid agent knowledge base match and full analysis', () => {
       { timeout: 30000 },
     )
 
-    await page.goto(`/project/${projectId}`)
-    await expect(page).toHaveURL(/\/project\/\d+$/)
+    // 直接访问 /project/{id}/drafting 路由，通过 URL stage 参数切换到「标书制作」阶段。
+    // 前端用 el-steps/el-step（非 el-tabs），且新项目 INITIATED 状态下「标书制作」step 被 isUnlocked 锁定无法点击；
+    // 但 route.params.stage 会被 ProjectDetailMainColumn 读取并直接设置 activeStageTab='DRAFTING'，渲染 DraftingStage。
+    await page.goto(`/project/${projectId}/drafting`)
+    await expect(page).toHaveURL(/\/project\/\d+\/drafting/)
+    await page.waitForSelector('.bid-header-actions', { timeout: 15000 })
 
-    // Switch to "标书制作" tab which contains the bid agent button
-    await page.getByRole('tab', { name: '标书制作' }).click()
-
-    // Open the BidAgent drawer via the "AI 生成初稿" button
-    await page.getByRole('button', { name: /AI 生成初稿/ }).click()
+    // Open the BidAgent drawer via the "启动AI生成初稿" button
+    await page.getByRole('button', { name: /启动AI生成初稿|AI 生成初稿/ }).click()
     await expect(page.locator('.bid-agent-drawer')).toBeVisible({ timeout: 10000 })
 
     // Click "AI 评分标准一键解析" to trigger full analysis
-    await page.getByRole('button', { name: /AI 评分标准一键解析/ }).click()
+    // 抽屉中有两个同名按钮（顶部 .full-analysis-btn + 底部 .agent-actions），用 first() 取顶部主按钮
+    await page.getByRole('button', { name: /AI 评分标准一键解析/ }).first().click()
 
     // Wait for API response
     const response = await responsePromise
@@ -236,14 +240,14 @@ test.describe('bid agent knowledge base match and full analysis', () => {
     await injectSession(page, session)
     const projectId = String(project.id)
 
-    await page.goto(`/project/${projectId}`)
-    // Switch to "标书制作" tab which contains the bid agent button
-    await page.getByRole('tab', { name: '标书制作' }).click()
-    await page.getByRole('button', { name: /AI 生成初稿/ }).click()
+    // 直接访问 /project/{id}/drafting，通过 URL stage 参数切换到「标书制作」阶段（前端用 el-steps，不能用 tab role 定位）
+    await page.goto(`/project/${projectId}/drafting`)
+    await page.waitForSelector('.bid-header-actions', { timeout: 15000 })
+    await page.getByRole('button', { name: /启动AI生成初稿|AI 生成初稿/ }).click()
     await expect(page.locator('.bid-agent-drawer')).toBeVisible({ timeout: 10000 })
 
     // Trigger full analysis and wait for completion
-    await page.getByRole('button', { name: /AI 评分标准一键解析/ }).click()
+    await page.getByRole('button', { name: /AI 评分标准一键解析/ }).first().click()
 
     // Wait for the loading state to finish (button loading attribute clears)
     await page.waitForResponse(
@@ -271,44 +275,48 @@ test.describe('bid agent knowledge base match and full analysis', () => {
     await injectSession(page, session)
     const projectId = String(project.id)
 
-    await page.goto(`/project/${projectId}`)
-    // Switch to "标书制作" tab which contains the bid agent button
-    await page.getByRole('tab', { name: '标书制作' }).click()
-    await page.getByRole('button', { name: /AI 生成初稿/ }).click()
+    await page.goto(`/project/${projectId}/drafting`)
+    await page.waitForSelector('.bid-header-actions', { timeout: 15000 })
+    await page.getByRole('button', { name: /启动AI生成初稿|AI 生成初稿/ }).click()
     await expect(page.locator('.bid-agent-drawer')).toBeVisible({ timeout: 10000 })
 
     // Trigger full analysis
-    await page.getByRole('button', { name: /AI 评分标准一键解析/ }).click()
+    await page.getByRole('button', { name: /AI 评分标准一键解析/ }).first().click()
     await page.waitForResponse(
       (resp) => resp.url().includes('/bid-agent/full-analysis') && resp.status() === 200,
       { timeout: 30000 },
     )
 
-    // Verify "知识库匹配" section header
-    await expect(page.getByText('知识库匹配')).toBeVisible({ timeout: 15000 })
+    // Verify "知识库匹配" section header（页面上有"知识库匹配 一键解析" header + "未解析出知识库匹配要求" empty 文案，取 first 即 header）
+    await expect(page.getByText('知识库匹配').first()).toBeVisible({ timeout: 15000 })
 
-    // Four tabs should be present in the tabs component
+    // Four tabs should be present in the tabs component (仅当 hasData=true 时前端才渲染 el-tabs；
+    // 新项目无招标文件时 knowledgeBaseMatch.items 为空，前端显示 el-empty 而非 tabs，此时跳过 tab 断言)
     const tabs = page.locator('.kb-tabs .el-tabs__item')
     const tabTexts = await tabs.allTextContents()
 
-    expect(tabTexts.some((t) => t.includes('资质库'))).toBeTruthy()
-    expect(tabTexts.some((t) => t.includes('人员库'))).toBeTruthy()
-    expect(tabTexts.some((t) => t.includes('品牌授权'))).toBeTruthy()
-    expect(tabTexts.some((t) => t.includes('业绩库'))).toBeTruthy()
+    if (tabTexts.length === 0) {
+      // 无数据场景：empty 文案应可见
+      await expect(page.getByText('未解析出知识库匹配要求')).toBeVisible()
+    } else {
+      expect(tabTexts.some((t) => t.includes('资质库'))).toBeTruthy()
+      expect(tabTexts.some((t) => t.includes('人员库'))).toBeTruthy()
+      expect(tabTexts.some((t) => t.includes('品牌授权'))).toBeTruthy()
+      expect(tabTexts.some((t) => t.includes('业绩库'))).toBeTruthy()
+    }
   })
 
   test('risk red line panel renders with three risk levels', async ({ page }) => {
     await injectSession(page, session)
     const projectId = String(project.id)
 
-    await page.goto(`/project/${projectId}`)
-    // Switch to "标书制作" tab which contains the bid agent button
-    await page.getByRole('tab', { name: '标书制作' }).click()
-    await page.getByRole('button', { name: /AI 生成初稿/ }).click()
+    await page.goto(`/project/${projectId}/drafting`)
+    await page.waitForSelector('.bid-header-actions', { timeout: 15000 })
+    await page.getByRole('button', { name: /启动AI生成初稿|AI 生成初稿/ }).click()
     await expect(page.locator('.bid-agent-drawer')).toBeVisible({ timeout: 10000 })
 
     // Trigger full analysis
-    await page.getByRole('button', { name: /AI 评分标准一键解析/ }).click()
+    await page.getByRole('button', { name: /AI 评分标准一键解析/ }).first().click()
     await page.waitForResponse(
       (resp) => resp.url().includes('/bid-agent/full-analysis') && resp.status() === 200,
       { timeout: 30000 },

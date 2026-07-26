@@ -5,10 +5,11 @@
     width="500px"
     :close-on-click-modal="false"
     @open="loadConfig"
+    data-testid="qac-dialog"
   >
     <el-form v-if="config" label-position="top">
       <el-form-item label="提前提醒天数">
-        <div class="config-slider-row">
+        <div class="config-slider-row" data-testid="qac-days-slider">
           <el-slider
             v-model="config.alertDays"
             :min="1"
@@ -17,7 +18,7 @@
             show-input
             input-size="small"
           />
-          <span class="config-days-label">{{ config.alertDays }} 天</span>
+          <span class="config-days-label" data-testid="qac-days-label">{{ config.alertDays }} 天</span>
         </div>
         <div class="config-description">
           当资质证书剩余有效期小于或等于此天数时，系统将自动发出到期提醒。
@@ -29,6 +30,7 @@
           v-model="config.enabled"
           active-text="启用"
           inactive-text="停用"
+          data-testid="qac-enabled-switch"
         />
         <div class="config-description" style="margin-top: 4px">
           关闭后系统将不再自动检测并提醒资质到期。
@@ -38,7 +40,7 @@
 
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
-      <el-button type="primary" :loading="saving" @click="handleSave">
+      <el-button type="primary" :loading="saving" data-testid="qac-save-btn" @click="handleSave">
         保存
       </el-button>
     </template>

@@ -73,7 +73,7 @@ async function createQualificationExpiringSoon(token, suffix, daysToExpire) {
       agency: 'E2E 代理认证公司',
       agencyContact: '13800138000',
       certScope: 'E2E 告警扫描测试',
-      certReviewNote: '每年 3 月年审',
+      certReviewNote: '2027-03-01',
       holderName: 'E2E 告警测试',
       reminderEnabled: true,
       reminderDays: 30
@@ -133,13 +133,13 @@ test.describe('§4.1.3.8 消息提醒 - 告警配置 + 扫描 + 站内信', () =
 
     // 打开真实页面 + 弹窗
     await page.goto('/knowledge/qualification')
-    await page.waitForSelector('[data-testid="qd-alert-config-btn"]', { timeout: 10000 })
+    await page.waitForSelector('[data-testid="qual-alert-config-btn"]', { timeout: 10000 })
     // 弹窗 GET 请求已经在按钮点击时触发
     const dialogResp = page.waitForResponse(
       r => r.url().endsWith('/api/qualifications/alert-config') && r.request().method() === 'GET',
       { timeout: 10000 }
     )
-    await page.locator('[data-testid="qd-alert-config-btn"]').click()
+    await page.locator('[data-testid="qual-alert-config-btn"]').click()
     await page.waitForSelector('[data-testid="qac-dialog"]', { state: 'visible' })
     await dialogResp
     // 弹窗加载后，slider/switch 应可见
@@ -180,8 +180,9 @@ test.describe('§4.1.3.8 消息提醒 - 告警配置 + 扫描 + 站内信', () =
     expect(deadline.body).toContain('⑨ 跳转详情：')
   })
 
-  test('权限：bid_specialist 触发手动扫描应被拒绝（403 / 业务 500）', async ({ page }) => {
-    // 用 bid_admin 创建证书，再用 bid_specialist 触发扫描
+  test('权限：bid_specialist 持有 qualification.manage 可触发手动扫描（与 /bidAdmin 一致）', async ({ page }) => {
+    // bid-Team 角色持有 qualification.manage 权限（RoleProfileCatalog 第 160 行），
+    // 与 /bidAdmin 一致可触发扫描。本测试验证扫描接口对 bid_specialist 不应返回 403/500。
     const adminSession = await loginAsRoleNoPage('/bidAdmin', 'E2E alert admin')
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
     await createQualificationExpiringSoon(adminSession.token, suffix, 25)
@@ -191,8 +192,10 @@ test.describe('§4.1.3.8 消息提醒 - 告警配置 + 扫描 + 站内信', () =
       method: 'POST',
       headers: { 'Authorization': `Bearer ${specSession.token}` }
     })
-    // 期望 403（权限不足）
-    expect([403, 500]).toContain(res.status)
+    // 期望 200（bid_specialist 持有 qualification.manage 权限可扫描）
+    expect(res.status, `bid_specialist 应能触发扫描，实际: ${res.status}`).toBe(200)
+    const body = await res.json()
+    expect(body?.success).toBe(true)
   })
 
   test('边界：续期后剩余天数 > 阈值，下次扫描不提醒', async ({ page }) => {

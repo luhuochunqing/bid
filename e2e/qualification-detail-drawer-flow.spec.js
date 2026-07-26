@@ -37,19 +37,25 @@ test.describe('§4.1.3.6 资质详情抽屉', () => {
       data: {
         name: `E2E资质详情测试-${Date.now()}`,
         certificateNo: certNo,
+        level: 'A',
         issueDate: '2024-01-15',
         expiryDate: '2027-12-31',
         issuer: '中国计量认证中心',
         agency: '代理认证机构X',
         agencyContact: '13800138000',
         certScope: 'ISO9001 质量管理体系认证',
-        certReviewNote: '每年 3 月年审',
+        certReviewNote: '2027-03-01',
         remark: 'E2E test fixture'
       }
     })
     expect(createRes.status(), `API create status was ${createRes.status()}`).toBeLessThan(300)
 
     await page.goto('/knowledge/qualification')
+    // 等待列表 API 响应（确保数据已加载）
+    await page.waitForResponse(
+      r => r.url().includes('/api/knowledge/qualifications') && r.url().includes('page=0'),
+      { timeout: 15000 }
+    ).catch(() => { /* may have already fired */ })
     await page.waitForSelector('.el-table__row, .el-empty', { timeout: 15000 })
 
     // 找到刚创建的证书行（按 certificateNo 定位）
@@ -57,7 +63,9 @@ test.describe('§4.1.3.6 资质详情抽屉', () => {
     await expect(targetRow, `找不到含证书号 ${certNo} 的行`).toBeVisible({ timeout: 10000 })
 
     // 点击行（不点操作按钮）→ 抽屉打开
-    await targetRow.locator('td').first().click()
+    // 注意：td.first() 是 selection checkbox 列，点击不触发 row-click；
+    // 改点击证书名称列（第 3 列，index 2，跳过 selection 和 index 列）
+    await targetRow.locator('td').nth(2).click()
     const drawer = page.locator('.el-drawer').filter({ hasText: '资质详情' }).last()
     await expect(drawer, '点击行后 800px 抽屉应打开').toBeVisible({ timeout: 5000 })
 
@@ -77,7 +85,8 @@ test.describe('§4.1.3.6 资质详情抽屉', () => {
     expect(descText, '基本信息区应显示代理机构').toContain('代理认证机构X')
     expect(descText, '基本信息区应显示代理机构联系人').toContain('13800138000')
     expect(descText, '基本信息区应显示认证范围').toContain('ISO9001')
-    expect(descText, '基本信息区应显示证书审核提醒').toContain('每年 3 月年审')
+    // certReviewNote 是日期字段（CO-530 改造），formatDate 渲染为 YYYY-MM-DD
+    expect(descText, '基本信息区应显示证书审核提醒日期').toContain('2027-03-01')
     expect(descText, '基本信息区应显示证书名称').toContain('E2E资质详情测试')
     expect(descText, '基本信息区应显示认证机构').toContain('中国计量认证中心')
 
@@ -101,9 +110,14 @@ test.describe('§4.1.3.6 资质详情抽屉', () => {
     const opLogRoot = drawer.locator('[data-testid="qd-op-log-tab"]')
     await expect(opLogRoot, '操作日志容器应可见').toBeVisible({ timeout: 10000 })
     // 至少 1 条日志（创建资质时 @Auditable 自动产生）或空状态
-    const itemCount = await drawer.locator('[data-testid="qd-op-log-item"]').count()
-    const hasEmpty = await drawer.locator('[data-testid="qd-op-log-empty"]').count()
-    expect(itemCount + hasEmpty, '操作日志区应展示时间线或空状态').toBeGreaterThanOrEqual(1)
+    // 注意：qd-op-log-item 是 row-class-name（class），不是 data-testid 属性；
+    // 表格行用 .qd-op-log-item class 定位，空状态用 [data-testid="qd-op-log-empty"]
+    // 等 loading 结束后再检查（避免 v-loading 遮挡导致 count=0）
+    await expect(async () => {
+      const tableRows = await drawer.locator('.qd-op-log-item').count()
+      const emptyState = await drawer.locator('[data-testid="qd-op-log-empty"]').count()
+      expect(tableRows + emptyState, '操作日志区应展示时间线或空状态').toBeGreaterThanOrEqual(1)
+    }).toPass({ timeout: 10000 })
 
     // 关闭抽屉
     await drawer.locator('[data-testid="qd-close-btn"]').click()
@@ -113,12 +127,18 @@ test.describe('§4.1.3.6 资质详情抽屉', () => {
   test('关闭按钮可关闭抽屉', async ({ page }) => {
     await loginAsBidAdmin(page)
     await page.goto('/knowledge/qualification')
+    // 等待列表 API 响应（确保数据已加载）
+    await page.waitForResponse(
+      r => r.url().includes('/api/knowledge/qualifications') && r.url().includes('page=0'),
+      { timeout: 15000 }
+    ).catch(() => { /* may have already fired */ })
     await page.waitForSelector('.el-table__row, .el-empty', { timeout: 15000 })
 
     const rows = await page.locator('.el-table__row').count()
     test.skip(rows === 0, '演示环境无资质数据，跳过关闭测试')
 
-    await page.locator('.el-table__row').first().locator('td').first().click()
+    // 点击证书名称列（第 3 列，index 2）触发 row-click → 打开抽屉
+    await page.locator('.el-table__row').first().locator('td').nth(2).click()
     const drawer = page.locator('.el-drawer').filter({ hasText: '资质详情' }).last()
     await expect(drawer).toBeVisible({ timeout: 5000 })
 
@@ -131,21 +151,38 @@ test.describe('§4.1.3.6 资质详情抽屉', () => {
     const session = await loginAsBidAdmin(page)
     // 创建一条数据确保有可点击行
     const certNo = `BUTTON-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
-    await request.post('/api/knowledge/qualifications', {
+    // 后端 QualificationCreationPolicy.validateCore 要求以下字段必填：
+    // level, agency, agencyContact, certScope, certificateNo, validityPeriod
+    // + QualificationSubject.validate 要求 subjectType + subjectName 必填
+    const createRes = await request.post('/api/knowledge/qualifications', {
       headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' },
       data: {
         name: `E2E按钮测试-${Date.now()}`,
         certificateNo: certNo,
+        level: 'A',
         issueDate: '2024-01-01',
         expiryDate: '2027-12-31',
-        issuer: 'CMA'
+        issuer: 'CMA',
+        agency: '测试代理机构',
+        agencyContact: '13800138000',
+        certScope: 'ISO9001 测试范围',
+        subjectType: 'COMPANY',
+        subjectName: '西域',
+        status: 'in_stock',
+        category: 'LICENSE'
       }
     })
+    expect(createRes.status(), `API create should succeed, got ${createRes.status()}`).toBeLessThan(300)
 
     await page.goto('/knowledge/qualification')
+    // 等待列表 API 响应（确保数据已加载，而非仅表格骨架渲染）
+    await page.waitForResponse(
+      r => r.url().includes('/api/knowledge/qualifications') && r.url().includes('page=0'),
+      { timeout: 15000 }
+    ).catch(() => { /* may have already fired */ })
     await page.waitForSelector('.el-table__row, .el-empty', { timeout: 15000 })
     const targetRow = page.locator('.el-table__row').filter({ hasText: certNo }).first()
-    await expect(targetRow).toBeVisible({ timeout: 10000 })
+    await expect(targetRow, `找不到含证书号 ${certNo} 的行`).toBeVisible({ timeout: 10000 })
 
     // 点击操作列的"编辑"按钮（行点击不应触发）
     const editBtn = targetRow.getByRole('button', { name: '编辑' })

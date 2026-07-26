@@ -58,8 +58,15 @@ BACKEND_PROFILES="${SPRING_PROFILES_ACTIVE:-dev,mysql}"
 DB_HOST_DISPLAY="${DB_HOST:-localhost}"
 DB_PORT_DISPLAY="${DB_PORT:-3306}"
 
+# JVM 内存配置：避免 OOM Killer（exit code 137）导致后端在 E2E 测试中崩溃
+# -Xmx2g：最大堆内存 2GB（足够支撑 E2E 测试并发请求）
+# -Xms512m：初始堆内存 512MB（减少启动时频繁扩展堆）
+JVM_MEMORY="${JVM_MEMORY:--Xmx2g -Xms512m}"
+
 # 使用 MySQL 8.0 开发配置启动（自动种子化默认管理员 admin / XiyuAdmin2026!）
 echo "Using ${BACKEND_PROFILES} profile(s) (MySQL 8.0 on ${DB_HOST_DISPLAY}:${DB_PORT_DISPLAY}, auto-seeds default admin)"
 echo "Server port: ${SERVER_PORT}"
+echo "JVM memory: ${JVM_MEMORY}"
 SPRING_PROFILES_ACTIVE="${BACKEND_PROFILES}" mvn spring-boot:run \
+    -Dspring-boot.run.jvmArguments="${JVM_MEMORY}" \
     -Dspring-boot.run.arguments="--server.port=${SERVER_PORT}"

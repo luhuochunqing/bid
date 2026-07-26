@@ -95,7 +95,16 @@ public class SettingsService {
         SystemSetting record = systemSettingRepository.findByConfigKey(DEFAULT_CONFIG_KEY)
                 .orElseGet(() -> SystemSetting.builder().configKey(DEFAULT_CONFIG_KEY).build());
         record.setPayloadJson(serialize(settings));
-        systemSettingRepository.save(record);
+        try {
+            systemSettingRepository.saveAndFlush(record);
+        } catch (org.springframework.dao.DataIntegrityViolationException ex) {
+            // 并发场景：health check 线程与 ApplicationRunner 同时首次写入 default 配置，
+            // 其中一方 INSERT 成功，另一方触发唯一约束冲突。回退为 UPDATE 已存在的记录。
+            SystemSetting existing = systemSettingRepository.findByConfigKey(DEFAULT_CONFIG_KEY)
+                    .orElseThrow(() -> ex);
+            existing.setPayloadJson(serialize(settings));
+            systemSettingRepository.save(existing);
+        }
     }
     private SettingsResponse deserialize(String json) { try { return settingsReader.readValue(json); } catch (JsonProcessingException e) { throw new IllegalStateException("Failed to deserialize settings", e); } }
     private String serialize(SettingsResponse s) { try { return settingsWriter.writeValueAsString(s); } catch (JsonProcessingException e) { throw new IllegalStateException("Failed to serialize settings", e); } }
