@@ -118,3 +118,16 @@
 - 更新页面：`implementation/sow-2026-v1-4.md`、`implementation/milestones.md`、`team-and-timeline.md`、`overview.md`、`requirements.md`、`contract-constraints.md`、`implementation/document-delivery-ledger.md`、`implementation/attachment4-requirement-task-book.md`
 - 执行口径：当前以 2026-04-27 启动准备、2026-05-07 项目启动会、2026-05-09 首场正式客户访谈、2026-07-10 正式上线为项目里程碑基线
 - 来源同步说明：`.wiki/sources/`、`.wiki/extracts/` 与 `.wiki/pages/` 中涉及正式上线时间的口径已统一为 2026-07-10
+
+## [2026-07-26] update | E2E 系统性失败根因回填（PR !2201）
+- 触发：PR !2201 修复 E2E 多模块系统性失败（regression-bid-ui-optimization + task-board-customization + form-engine-scope-router 等），涉及权限矩阵、前端组件、业务规则、表单数据 4 类根因
+- 新增内容：
+  - `frontend-pitfalls.md §7.4`：路由守卫 every 改造后的权限矩阵同步（CO-580 教训）
+  - `lessons-learned.md §九`：E2E 系统性失败根因分析（4 类根因 + 修复方案 + 防复发检查清单）
+- 关键教训：
+  - 路由守卫 some→every 后必须同步审计 RoleProfileCatalog 权限矩阵
+  - 业务规则变更必须同步审计 E2E 测试（CO-529-followup 状态流转）
+  - E2E 环境禁用 Flyway 时必须用 @Profile("e2e") Seeder 补种数据
+  - E2E 选择器优先级：URL 参数 > data-testid > CSS class > 文本
+- 关联文件：`backend/src/main/java/com/xiyu/bid/entity/RoleProfileCatalog.java`、`backend/src/main/java/com/xiyu/bid/bootstrap/FormDefinitionE2eSeeder.java`、`e2e/task-board-customization.spec.js`
+

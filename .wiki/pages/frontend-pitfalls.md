@@ -11,7 +11,7 @@ backlinks:
   - lessons-learned
   - design-system
 created: 2026-07-10
-updated: 2026-07-10
+updated: 2026-07-26
 health_checked: 2026-07-19
 ---
 # 前端 Vue3 / Element Plus 陷阱集
@@ -298,6 +298,36 @@ export function usePermission() {
 - **权限检查统一封装到 composables**，不要散落在各组件
 - **every vs some 要明确语义**：AND 用 every，OR 用 some
 - **权限点用常量定义**，不要硬编码字符串
+- **路由守卫从 some 改 every 后，必须同步 RoleProfileCatalog**（CO-580 教训，2026-07-26）
+  - 详见下方 §7.4。
+
+### 7.4 路由守卫 every 改造后的权限矩阵同步（CO-580, 2026-07-26）
+
+#### 事故
+
+commit `f21dce017` 把前端路由守卫从 `some` 改为 `every` 后，`/knowledge/*` 子菜单路由的 `permissionKeys=['knowledge','knowledge-qualification']` 要求用户**同时持有** `knowledge` 父权限和 `knowledge-qualification` 子权限才能通过。
+
+但 `RoleProfileCatalog` 中 `/bidAdmin`、`bid-TeamLeader`、`bid-Team`、`bid-SystemAdmin` 虽持有 `qualification.manage` 操作权限，却未配置 `knowledge-qualification` **菜单权限**，导致这些角色登录后被路由守卫拦截重定向到工作台，无法访问资质证书页面。E2E 测试 `regression-bid-ui-optimization`、`task-board-customization`、`qualification-form-11-fields-flow` 等多模块系统性失败。
+
+#### 根因
+
+1. **菜单权限与操作权限解耦**：`qualification.manage` 是操作权限（控制按钮显隐），`knowledge-qualification` 是菜单权限（控制路由守卫通过）。两者独立配置，缺一不可。
+2. **路由守卫 every 语义要求所有 permissionKeys 都满足**：`some` 改 `every` 是正确修复（防止越权），但配套的权限矩阵没有同步补全。
+3. **RoleProfileCatalog 是角色权限的单一真相来源**：新增菜单路由后，必须同步在 `RoleProfileCatalog` 给相关角色注入对应的子菜单权限常量。
+
+#### 修复
+
+1. `RoleProfileCatalog.java` 新增 7 个 `KNOWLEDGE_*_PERMISSION` 常量（qualification/personnel/archive/case/template/warehouse/performance）。
+2. 给 5 个角色（`/bidAdmin`、`bid-TeamLeader`、`bid-Team`、`bid-SystemAdmin`、`bid-administration`）的 `SeedDefinition` 注入对应子菜单权限。
+3. V1178/V1179/V1180 迁移脚本给现有角色补全 `menu_permissions` 字段。
+4. U1178/U1179/U1180 回滚脚本使用 `REGEXP_REPLACE` 安全移除追加项。
+
+#### 教训
+
+- **路由守卫改造必须同步审计 RoleProfileCatalog**：把 `some` 改 `every` 是防御性增强，但必须列出所有受影响路由的 `permissionKeys`，逐个确认相关角色已持有全部所需权限。
+- **新增子菜单路由时，必须同时更新两处**：(1) `RoleProfileCatalog.SeedDefinition.menuPermissions`；(2) Flyway 迁移脚本给 `roles.menu_permissions` 字段追加。
+- **菜单权限 ≠ 操作权限**：`knowledge-qualification`（菜单权限，控制路由守卫）和 `qualification.manage`（操作权限，控制按钮显隐）是两个独立维度，必须分别配置。
+- **E2E 全量测试是权限矩阵回归的兜底**：本次 E2E 多模块系统性失败，正是因为权限矩阵与路由守卫不同步。E2E 失败时应优先排查权限矩阵是否完整。
 
 ---
 

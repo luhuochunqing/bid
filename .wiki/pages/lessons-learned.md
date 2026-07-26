@@ -587,3 +587,103 @@ diff <(unzip -p local.jar BOOT-INF/classes/.../Foo.class | xxd) \
 - [ ] 服务器验证用 `xxd` 字节比较，不依赖 SSH 中文显示
 - [ ] 如需快速更新，用 `jar uf` 局部替换 class 文件
 - [ ] 部署后通过 API 实测验证功能（而非仅检查 actuator 状态）
+
+## 九、E2E 系统性失败根因分析（2026-07-26, PR !2201）
+
+### 9.1 事故
+
+E2E 全量测试暴露多模块系统性失败（regression-bid-ui-optimization 11 用例 + task-board-customization 6 用例 + form-engine-scope-router 12 用例等），根因集中在 4 类：
+
+1. **权限矩阵缺失**（详见 `frontend-pitfalls.md §7.4`）
+2. **前端组件变更未同步测试**：项目详情页从 `el-tabs` 切换为 `el-steps`、抽屉从"编辑模式"改为"详情模式"等 UI 优化后，E2E 选择器失效。
+3. **业务规则变更未同步测试**：CO-529-followup 禁止直接拖拽 TODO→COMPLETED，必须走"提交审核 + 审核通过"两步流程；提交审核还需预上传交付物。
+4. **表单定义数据缺失**：E2E 测试栈禁用 Flyway，导致 `form_definition_registry` 种子数据未加载。
+
+### 9.2 根因 1：E2E 状态流转规则变更（CO-529-followup）
+
+#### 现象
+
+`task-board-customization` 测试用例 5（拖拽卡片状态流转）失败：原测试通过拖拽直接 TODO→COMPLETED，但 CO-529-followup 业务规则禁止该路径，必须走"提交审核 + 审核通过"两步流程。
+
+#### 根因
+
+1. **业务规则收紧**：CO-529-followup 要求任务状态流转必须走"提交审核（TODO→REVIEW）→ 审核通过（REVIEW→COMPLETED）"两步流程，禁止直接 TODO→COMPLETED。
+2. **提交审核前置条件**：`validateSubmitForReview` 校验要求任务必须有交付物才能提交审核。
+3. **审核人约束**：审核人必须是 `GLOBAL_ACCESS_ROLES` 中的角色（`/bidAdmin`、`bid-TeamLeader`、`bid-SystemAdmin`、`admin`），且不能是任务 assignee 自己（"不能审核自己提交的任务"）。
+4. **PATCH /status 请求体格式**：后端期望 `{status: 'XXX'}` 对象，不是裸字符串。
+
+#### 修复
+
+新增 `attachTaskDeliverableFixture` 和 `patchTaskStatus` helper：
+
+```javascript
+// 预上传交付物（后端要求 TODO→REVIEW 必须有交付物）
+await attachTaskDeliverableFixture(session, projectId, task)
+
+// assignee 提交审核 TODO→REVIEW
+await patchTaskStatus(session.token, projectId, task, 'REVIEW')
+
+// 切换到 reviewer (bid-TeamLeader) 审核 REVIEW→COMPLETED
+const reviewerSession = await ensureApiSession({
+  username: `e2e_n5_reviewer_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+  role: 'bid-TeamLeader',
+  fullName: 'E2E N5 Reviewer',
+})
+await patchTaskStatus(reviewerSession.token, projectId, task, 'COMPLETED')
+```
+
+#### 教训
+
+- **业务规则变更必须同步审计 E2E 测试**：CO-529-followup 收紧了状态流转规则，但 E2E 测试没有同步更新。业务规则变更的 PR 必须列出受影响的 E2E 测试用例。
+- **状态流转测试用 API 触发比 UI 拖拽更稳定**：UI 拖拽容易受前端组件变更影响（如 el-tabs→el-steps），API 触发直接验证后端业务规则，更稳定。
+- **双角色场景是审核流程的常态**：审核流程天然需要"提交人 + 审核人"两个角色，E2E 测试必须用双 session 模拟。
+
+### 9.3 根因 2：E2E 环境表单定义种子数据缺失
+
+#### 现象
+
+`form-engine-scope-router` 12 个用例全部失败，`/api/form-definitions/{scope}/active` 接口返回 404。
+
+#### 根因
+
+E2E 测试栈（`application-e2e.yml` + H2 内存数据库）启动时通过 `--spring.flyway.enabled=false` 禁用了 Flyway，因此 V140 迁移脚本里预置的 `form_definition_registry` 种子数据不会被加载。
+
+#### 修复
+
+新增 `FormDefinitionE2eSeeder.java`（`@Profile("e2e")` + `@Order(20)`），在 E2E 环境下幂等地预置核心 scope 的表单定义数据，与 V140 迁移脚本保持一致。
+
+#### 教训
+
+- **E2E 环境禁用 Flyway 时，必须用 ApplicationRunner 补种数据**：禁用 Flyway 会导致迁移脚本里的种子数据丢失，必须用 `@Profile` 隔离的 seeder 补回来。
+- **Seeder 必须幂等**：用 `existsByScope` 检查，避免重复启动时插入重复数据。
+- **Seeder 与迁移脚本必须保持一致**：seeder 的种子数据必须与 V140 迁移脚本完全一致，否则 E2E 与 dev/prod 行为不一致。
+
+### 9.4 根因 3：前端组件变更未同步 E2E 选择器
+
+#### 现象
+
+`task-board-customization` 4 个用例失败：原 `switchToTaskBoardTab` 函数通过 `.el-tabs__item` 定位"标书编制"tab，但项目详情页已从 `el-tabs` 切换为 `el-steps`，选择器失效。
+
+#### 根因
+
+前端 UI 优化（el-tabs→el-steps、抽屉编辑模式→详情模式）后，E2E 选择器没有同步更新。这是"前端代码已改、测试未改"的典型场景。
+
+#### 修复
+
+1. 移除 `switchToTaskBoardTab`，直接通过 URL 参数 `/project/{id}/drafting` 访问 DRAFTING 阶段。
+2. 修改测试逻辑，通过 API 更新任务内容，在"任务详情"抽屉中验证内容持久化（而非"编辑任务"抽屉）。
+
+#### 教训
+
+- **E2E 选择器优先用 URL 参数 > data-testid > CSS class > 文本**：URL 参数最稳定，不受组件库变更影响。
+- **前端 UI 优化的 PR 必须列出受影响的 E2E 测试**：UI 优化是 E2E 失败的高频原因，PR 描述必须列明。
+- **抽屉模式变更时，测试应优先用 API 准备数据 + UI 验证展示**：避免依赖 UI 编辑流程，降低脆弱性。
+
+### 9.5 防复发检查清单
+
+- [ ] 路由守卫改造时，同步审计 `RoleProfileCatalog` 权限矩阵
+- [ ] 业务规则变更的 PR 必须列出受影响的 E2E 测试用例
+- [ ] E2E 环境禁用 Flyway 时，必须用 `@Profile("e2e")` 的 Seeder 补种数据
+- [ ] 前端 UI 优化的 PR 必须列出受影响的 E2E 测试用例
+- [ ] E2E 选择器优先级：URL 参数 > data-testid > CSS class > 文本
+- [ ] 状态流转测试用 API 触发（双 session 模拟审核流程），不依赖 UI 拖拽
