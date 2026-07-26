@@ -395,5 +395,21 @@ describe('isAdminRole', () => {
       expect(sortTendersByDateField(null, 'x', 'ascending')).toEqual([])
       expect(sortTendersByDateField(undefined, 'x', 'descending')).toEqual([])
     })
+
+    it('treats invalid date strings as empty to avoid NaN comparison', () => {
+      const list = [
+        { id: 1, registrationDeadline: '2026-03-01' },
+        { id: 2, registrationDeadline: 'invalid-date' },
+        { id: 3, registrationDeadline: '' },
+      ]
+      const result = sortTendersByDateField(list, 'registrationDeadline', 'ascending')
+      // 非法/空日期按 0 处理，排在合法日期之前；同 0 值之间保持原相对顺序
+      expect(result.map((t) => t.id)).toEqual([2, 3, 1])
+    })
+
+    it('returns a copy when prop is empty or order is invalid', () => {
+      expect(sortTendersByDateField(tenders, '', 'ascending').map((t) => t.id)).toEqual([1, 2, 3, 4])
+      expect(sortTendersByDateField(tenders, 'registrationDeadline', 'foo').map((t) => t.id)).toEqual([1, 2, 3, 4])
+    })
   })
 })
