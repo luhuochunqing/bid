@@ -1,3 +1,8 @@
+-- Input: migration-mysql/V1178__add_knowledge_qualification_permission.sql
+-- Output: rollback script for mysql environments; review data-loss comments before production use.
+-- Pos: Flyway historical down migration coverage for 西域数智化投标管理平台.
+
+-- U1178: 回滚 add_knowledge_qualification_permission
 -- 回滚 V1178: 移除 V1178 通过 UPDATE roles.menu_permissions 追加的 'knowledge-qualification' 项
 -- 注意：V1178 仅在 menu_permissions 末尾追加 ',knowledge-qualification'，
 --      不影响原有的 qualification.manage 等权限。
