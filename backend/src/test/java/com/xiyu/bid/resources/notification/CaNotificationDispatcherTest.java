@@ -109,21 +109,65 @@ class CaNotificationDispatcherTest {
     }
 
     @Test
-    @DisplayName("onBorrowSubmitted: cert 存在但 custodianId 为空时直接跳过")
-    void onBorrowSubmitted_custodianNull_skips() {
+    @DisplayName("onBorrowSubmitted: cert 存在且 custodianId 有效时发送带新字段的待审批通知")
+    void onBorrowSubmitted_validCert_dispatchesWithNewFields() {
         CaNotificationDispatcher dispatcher = newDispatcher();
         CaCertificateEntity cert = CaCertificateEntity.builder()
                 .id(10L)
-                .custodianId(null)
+                .holderName("张三公司")
+                .caType("ENTITY_CA")
+                .relatedPlatforms("招标网")
+                .custodianId(200L)
                 .build();
         CaBorrowApplicationEntity app = CaBorrowApplicationEntity.builder()
                 .id(1L)
                 .applicantId(100L)
+                .applicantName("李四")
+                .borrowDurationType("SHORT")
                 .build();
+        when(notificationService.createNotification(any(CreateNotificationRequest.class), eq(null)))
+                .thenReturn(DispatchResult.validWithId(1L));
 
         dispatcher.onBorrowSubmitted(cert, app);
 
-        verify(notificationService, never()).createNotification(any(), any());
+        ArgumentCaptor<CreateNotificationRequest> captor = ArgumentCaptor.forClass(CreateNotificationRequest.class);
+        verify(notificationService).createNotification(captor.capture(), eq(null));
+        CreateNotificationRequest req = captor.getValue();
+        assertThat(req.recipientUserIds()).containsExactly(200L);
+        assertThat(req.body())
+                .contains("关联平台：招标网")
+                .contains("CA类型：实体CA")
+                .contains("申请人：李四");
+    }
+
+    @Test
+    @DisplayName("onExpiring: 包含剩余天数、关联平台和 CA 类型字段，并通知保管员与投标管理员")
+    void onExpiring_certValid_dispatchesWithDaysLeftAndNewFields() {
+        CaNotificationDispatcher dispatcher = newDispatcher();
+        CaCertificateEntity cert = CaCertificateEntity.builder()
+                .id(10L)
+                .holderName("李四")
+                .caType("ELECTRONIC_CA")
+                .relatedPlatforms("A平台")
+                .custodianId(200L)
+                .expiryDate(java.time.LocalDate.now().plusDays(7))
+                .build();
+        User admin1 = User.builder().id(300L).build();
+        when(userRepository.findEnabledByRoleProfileCodes(any(Set.class)))
+                .thenReturn(List.of(admin1));
+        when(notificationService.createNotification(any(CreateNotificationRequest.class), eq(null)))
+                .thenReturn(DispatchResult.validWithId(1L));
+
+        dispatcher.onExpiring(cert, 7L);
+
+        ArgumentCaptor<CreateNotificationRequest> captor = ArgumentCaptor.forClass(CreateNotificationRequest.class);
+        verify(notificationService).createNotification(captor.capture(), eq(null));
+        CreateNotificationRequest req = captor.getValue();
+        assertThat(req.recipientUserIds()).containsExactly(200L, 300L);
+        assertThat(req.body())
+                .contains("将在 7 天后到期")
+                .contains("关联平台：A平台")
+                .contains("CA类型：电子CA");
     }
 
     @Test
