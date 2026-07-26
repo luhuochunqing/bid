@@ -34,34 +34,16 @@ public final class RoleProfileCatalog {
     public static final String PERFORMANCE_MANAGE_PERMISSION = "performance.manage";
     public static final String QUALIFICATION_MANAGE_PERMISSION = "qualification.manage";
     public static final String QUALIFICATION_VIEW_PERMISSION = "qualification.view";
-    /** 知识库-资质证书菜单访问权限（前端路由 /knowledge/qualification 要求与 knowledge 同时持有）。
+    /** 知识库子菜单访问权限（前端路由 /knowledge/* 要求与 knowledge 父权限同时持有）。
      *  commit f21dce017 把路由守卫从 some 改为 every 后，必须显式持有此权限才能通过。
-     *  适用于：所有持有 qualification.manage 的角色（/bidAdmin、bid-TeamLeader、bid-Team、bid-SystemAdmin、bid-administration）。 */
+     *  适用角色：投标部门核心角色（/bidAdmin、bid-TeamLeader、bid-Team、bid-SystemAdmin），
+     *  其中 qualification/personnel 子权限也授予 bid-administration。 */
     public static final String KNOWLEDGE_QUALIFICATION_PERMISSION = "knowledge-qualification";
-
-    /** 知识库-人员证书菜单访问权限（前端路由 /knowledge/personnel 要求与 knowledge 同时持有）。
-     *  路由守卫采用 every 校验，必须显式持有此权限才能通过。
-     *  适用于：所有持有 personnel.view/manage 的角色（/bidAdmin、bid-TeamLeader、bid-Team、bid-SystemAdmin）。 */
     public static final String KNOWLEDGE_PERSONNEL_PERMISSION = "knowledge-personnel";
-
-    /** 知识库-项目档案菜单访问权限（前端路由 /knowledge/archive 要求与 knowledge 同时持有）。
-     *  适用于：投标部门核心角色（/bidAdmin、bid-TeamLeader、bid-Team、bid-SystemAdmin）。 */
     public static final String KNOWLEDGE_ARCHIVE_PERMISSION = "knowledge-archive";
-
-    /** 知识库-案例库菜单访问权限（前端路由 /knowledge/case 要求与 knowledge 同时持有）。
-     *  适用于：投标部门核心角色（/bidAdmin、bid-TeamLeader、bid-Team、bid-SystemAdmin）。 */
     public static final String KNOWLEDGE_CASE_PERMISSION = "knowledge-case";
-
-    /** 知识库-模板库菜单访问权限（前端路由 /knowledge/template 要求与 knowledge 同时持有）。
-     *  适用于：投标部门核心角色（/bidAdmin、bid-TeamLeader、bid-Team、bid-SystemAdmin）。 */
     public static final String KNOWLEDGE_TEMPLATE_PERMISSION = "knowledge-template";
-
-    /** 知识库-仓库信息菜单访问权限（前端路由 /knowledge/warehouse 要求与 knowledge 同时持有）。
-     *  适用于：投标部门核心角色（/bidAdmin、bid-TeamLeader、bid-Team、bid-SystemAdmin）。 */
     public static final String KNOWLEDGE_WAREHOUSE_PERMISSION = "knowledge-warehouse";
-
-    /** 知识库-业绩管理菜单访问权限（前端路由 /knowledge/performance 要求与 knowledge 同时持有）。
-     *  适用于：投标部门核心角色（/bidAdmin、bid-TeamLeader、bid-Team、bid-SystemAdmin）。 */
     public static final String KNOWLEDGE_PERFORMANCE_PERMISSION = "knowledge-performance";
 
     /** 系统管理接口鉴权限键（specs/024-preauthorize-unification）。本地 admin 显式获得；
@@ -115,28 +97,7 @@ public final class RoleProfileCatalog {
             BID_SYSTEM_ADMIN_CODE, BID_ADMIN_CODE, BID_LEAD_CODE, SALES_CODE,
             BID_SPECIALIST_CODE, ADMIN_STAFF_CODE, BID_OTHER_DEPT_CODE);
 
-    /** /bidAdmin 和 bid-SystemAdmin 共享的菜单权限（权限等同投标管理员）。 */
-    private static final List<String> BID_ADMIN_PERMISSIONS = List.of(
-            "dashboard", "operation-logs", "bidding", "project", "knowledge", "resource",
-            "analytics", "settings", "settings-alerts",
-            "task.review", "retrospective.submit", "retrospective.review", "closure.review", "lead.assign",
-            BIDDING_MANAGE_PERMISSION, BIDDING_CREATE_PERMISSION,
-            BIDDING_DELETE_PERMISSION, BIDDING_SYNC_PERMISSION,
-            BRAND_AUTH_VIEW_PERMISSION, BRAND_AUTH_CREATE_PERMISSION,
-            BRAND_AUTH_EDIT_PERMISSION, BRAND_AUTH_REVOKE_PERMISSION,
-            "knowledge-brand-auth",
-            TENDER_VIEW_PERMISSION, PERSONNEL_VIEW_PERMISSION, PERSONNEL_MANAGE_PERMISSION,
-            PERFORMANCE_MANAGE_PERMISSION, QUALIFICATION_MANAGE_PERMISSION,
-            QUALIFICATION_VIEW_PERMISSION, KNOWLEDGE_QUALIFICATION_PERMISSION,
-            KNOWLEDGE_PERSONNEL_PERMISSION,
-            KNOWLEDGE_ARCHIVE_PERMISSION, KNOWLEDGE_CASE_PERMISSION, KNOWLEDGE_TEMPLATE_PERMISSION,
-            KNOWLEDGE_WAREHOUSE_PERMISSION, KNOWLEDGE_PERFORMANCE_PERMISSION,
-            "dashboard:view_welcome_banner", "dashboard:view_metric_cards", "dashboard:view_calendar",
-            "dashboard:view_tender_list", "dashboard:view_project_list", "dashboard:view_team_task",
-            "dashboard:view_global_projects", "dashboard:view_active_projects", "dashboard:view_team_performance",
-            "dashboard:view_approval_list", "dashboard:view_process_timeline", "dashboard:view_activity_list",
-            "dashboard:view_priority_todos",
-            WAREHOUSE_MANAGE_PERMISSION);
+    /** /bidAdmin 和 bid-SystemAdmin 共享的菜单权限（权限等同投标管理员），抽出至 {@link RoleProfileAdminPermissions} 以控制主类行数。 */
 
     /** 角色定义表，key 为角色 code。使用 case-insensitive TreeMap 以支持大小写不敏感查找
      *  （OSS 同步与本地 DB 可能传入不同大小写的 code）。 */
@@ -177,7 +138,7 @@ public final class RoleProfileCatalog {
                         "dashboard:view_activity_list", "dashboard:view_priority_todos",
                         WAREHOUSE_MANAGE_PERMISSION)));
         map.put(BID_ADMIN_CODE, new SeedDefinition(BID_ADMIN_CODE, "投标管理员", "复盘审核与结项闸门审批", true, "all",
-                BID_ADMIN_PERMISSIONS));
+                RoleProfileAdminPermissions.LIST));
         map.put(BID_SPECIALIST_CODE, new SeedDefinition(BID_SPECIALIST_CODE, "投标专员", "投标辅助、标书审核与任务处理", true, "self",
                 List.of("dashboard", "bidding", "project", "resource",
                         "resource-margin", // CO-515: 投标专员可查看全量保证金台账
@@ -207,7 +168,7 @@ public final class RoleProfileCatalog {
                         "dashboard:view_activity_list", "dashboard:view_priority_todos")));
         // bid-SystemAdmin：OSS 端投标系统管理员，权限与 /bidAdmin 一致，但不映射为 admin（admin 是本地超级管理员）
         map.put(BID_SYSTEM_ADMIN_CODE, new SeedDefinition(BID_SYSTEM_ADMIN_CODE, "投标系统管理员", "OSS 端投标系统管理员，权限等同投标管理员", true, "all",
-                BID_ADMIN_PERMISSIONS));
+                RoleProfileAdminPermissions.LIST));
         DEFINITIONS = Collections.unmodifiableSortedMap(map);
     }
 
