@@ -3,7 +3,7 @@
 // Pos: task/reminder - 应用服务编排层，依赖 shell 但不持有业务规则
 // 维护声明:
 //   - 业务规则委托给 TaskDueReminderPolicy（纯核心）；
-//   - 接收人解析：任务执行人 + 项目负责人 + 投标负责人(bid-TeamLeader) + 投标辅助人员(bid-Team)，逾期>7天追加 /bidAdmin；
+//   - 接收人解析委托给 TaskReminderRecipientResolver（避免本类超 300 行预算）；
 //   - 通知类型复用 NotificationType.DEADLINE，不新增枚举；
 //   - 24h 去重通过 Task.lastRemindedAt/lastOverdueRemindedAt 字段控制；
 //   - 消息模板渲染下沉到 TaskReminderMessageBuilder（避免本类超 300 行预算）；
@@ -13,7 +13,6 @@ package com.xiyu.bid.task.reminder;
 
 import com.xiyu.bid.alerts.service.SystemActorResolver;
 import com.xiyu.bid.entity.Project;
-import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.Task;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.notification.core.NotificationType;
@@ -25,6 +24,7 @@ import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.task.core.TaskDueReminderPolicy;
 import com.xiyu.bid.task.core.TaskDueReminderPolicy.SkipReason;
 import com.xiyu.bid.task.core.TaskDueReminderPolicy.TaskReminderState;
+import com.xiyu.bid.task.reminder.TaskReminderRecipientResolver.GlobalBroadcastIds;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,9 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,7 +43,7 @@ import java.util.stream.Collectors;
  * CO-533 投标项目任务到期/逾期提醒编排服务。
  *
  * <p>业务规则委托给 {@link TaskDueReminderPolicy}（纯核心），本类只做编排：
- * 查数据 → 调策略 → 解析接收人 → 发通知 → 更新去重字段。
+ * 查数据 → 调策略 → 解析接收人 → 发通知 → 更新去重字段。</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -61,6 +59,7 @@ public class TaskDueReminderService {
     private final NotificationApplicationService notificationApplicationService;
     private final SystemActorResolver systemActorResolver;
     private final TaskDueReminderPolicy policy;
+    private final TaskReminderRecipientResolver recipientResolver;
 
     /**
      * 运行即将到期扫描。
@@ -117,7 +116,7 @@ public class TaskDueReminderService {
         // 批量预查 Project（避免循环内 N+1 查询）
         Map<Long, Project> projectCache = batchLoadProjects(tasks);
         // 收集 assignee + manager 用户 ID 并批量查询
-        Set<Long> userIdsToLoad = new LinkedHashSet<>();
+        Set<Long> userIdsToLoad = new java.util.LinkedHashSet<>();
         for (Task t : tasks) {
             if (t.getAssigneeId() != null) {
                 userIdsToLoad.add(t.getAssigneeId());
@@ -128,6 +127,9 @@ public class TaskDueReminderService {
             }
         }
         Map<Long, User> userCache = batchLoadUsers(userIdsToLoad);
+
+        // 批量预查全局广播角色用户（避免循环内 N 次重复查询同一角色用户列表）
+        GlobalBroadcastIds globalIds = recipientResolver.preloadGlobalBroadcastIds(overdueMode);
 
         int notified = 0;
         int skipped = 0;
@@ -143,7 +145,9 @@ public class TaskDueReminderService {
             }
             boolean escalate = overdueMode && policy.shouldEscalate(task.getDueDate(), today);
             Project project = projectCache.get(task.getProjectId());
-            List<Long> recipients = resolveRecipients(task, project, escalate);
+            List<Long> recipients = recipientResolver.resolve(
+                    task, project, escalate, userCache,
+                    globalIds.teamLeaderIds(), globalIds.bidAdminIds());
             if (recipients.isEmpty()) {
                 log.warn("[CO-533] 任务 id={} 无接收人，跳过", task.getId());
                 skipped++;
@@ -170,29 +174,6 @@ public class TaskDueReminderService {
         log.info("[CO-533] 扫描完成: scanned={} notified={} skipped={} overdue={}",
                 tasks.size(), notified, skipped, overdueMode);
         return new ScanOutcome(tasks.size(), notified, skipped);
-    }
-
-    /**
-     * 解析接收人：任务执行人 + 项目负责人 + 投标负责人 + 投标辅助人员。
-     * 升级模式（逾期>7天）追加 /bidAdmin。
-     */
-    private List<Long> resolveRecipients(final Task task, final Project project, final boolean escalate) {
-        Set<Long> ids = new LinkedHashSet<>();
-        if (task.getAssigneeId() != null) {
-            ids.add(task.getAssigneeId());
-        }
-        if (project != null && project.getManagerId() != null) {
-            ids.add(project.getManagerId());
-        }
-        List<String> roleCodes = new ArrayList<>();
-        roleCodes.add(RoleProfileCatalog.BID_LEAD_CODE);
-        roleCodes.add(RoleProfileCatalog.BID_SPECIALIST_CODE);
-        if (escalate) {
-            roleCodes.add(RoleProfileCatalog.BID_ADMIN_CODE);
-        }
-        ids.addAll(userRepository.findEnabledByRoleProfileCodes(roleCodes)
-                .stream().map(User::getId).collect(Collectors.toList()));
-        return new ArrayList<>(ids);
     }
 
     private boolean sendNotification(final Task task, final List<Long> recipients,

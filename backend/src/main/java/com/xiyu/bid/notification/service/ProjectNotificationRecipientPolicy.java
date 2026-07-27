@@ -78,10 +78,7 @@ public class ProjectNotificationRecipientPolicy {
                 case BID_ADMIN -> collectUserIdsByRoleCode(role.roleCode(), result);
                 case BID_TEAM_LEADER -> collectUserIdsByRoleCode(role.roleCode(), result);
                 case BID_LEAD -> collectPrimaryLead(projectId, result);
-                case BID_ASSISTANT -> {
-                    collectUserIdsByRoleCode(role.roleCode(), result);
-                    collectSecondaryLead(projectId, result);
-                }
+                case BID_ASSISTANT -> collectSecondaryLead(projectId, result);
                 case PROJECT_OWNER -> collectProjectOwner(projectId, result);
                 case TASK_EXECUTOR -> addIfNotNull(taskExecutorId, result);
                 case BID_REVIEWER -> collectBidReviewer(projectId, result);

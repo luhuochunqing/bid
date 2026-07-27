@@ -13,6 +13,7 @@ import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TaskRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.task.core.TaskDueReminderPolicy;
+import com.xiyu.bid.task.reminder.TaskReminderRecipientResolver.GlobalBroadcastIds;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,9 +24,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -37,36 +40,27 @@ import static org.mockito.Mockito.when;
 /**
  * CO-533 任务到期/逾期提醒编排服务测试。
  *
- * <p>覆盖：
- * <ul>
- *   <li>即将到期扫描：命中有效任务 → 发送 DEADLINE 通知 + 更新 lastRemindedAt</li>
- *   <li>即将到期扫描：24h 内重复 → 跳过</li>
- *   <li>即将到期扫描：已完成任务 → 跳过（Repository 查询已排除，但策略二次防御）</li>
- *   <li>即将到期扫描：无接收人 → 中止</li>
- *   <li>即将到期扫描：非法 alertDays → 返回 empty</li>
- *   <li>逾期扫描：命中有效逾期任务 → 发送通知 + 更新 lastOverdueRemindedAt</li>
- *   <li>逾期扫描：逾期>7天 → 追加 /bidAdmin 接收人</li>
- *   <li>逾期扫描：24h 内重复 → 跳过</li>
- *   <li>R1 回归：任务执行人显示 fullName（id）格式</li>
- *   <li>R2 回归：任务审核人显示项目负责人姓名 + 语义标注</li>
- * </ul>
+ * <p>覆盖编排逻辑：扫描 → 去重 → 调用解析器 → 发通知 → 更新字段。
+ * 接收人解析细节由 {@link TaskReminderRecipientResolverTest} 覆盖。</p>
  */
 @ExtendWith(MockitoExtension.class)
 class TaskDueReminderServiceTest {
 
     private static final Long SYSTEM_ACTOR_ID = 1L;
+    private static final GlobalBroadcastIds DUE_SOON_IDS = new GlobalBroadcastIds(Set.of(103L), Set.of());
+    private static final GlobalBroadcastIds OVERDUE_IDS = new GlobalBroadcastIds(Set.of(103L), Set.of(104L));
 
     @Mock private TaskRepository taskRepository;
     @Mock private ProjectRepository projectRepository;
     @Mock private UserRepository userRepository;
     @Mock private NotificationApplicationService notificationApplicationService;
-    @Mock private SystemActorResolver systemActorResolver;
+    @Mock private TaskReminderRecipientResolver recipientResolver;
 
     private TaskDueReminderService service;
 
     @BeforeEach
     void setUp() {
-        systemActorResolver = mock(SystemActorResolver.class);
+        SystemActorResolver systemActorResolver = mock(SystemActorResolver.class);
         lenient().when(systemActorResolver.resolveCached()).thenReturn(SYSTEM_ACTOR_ID);
         service = new TaskDueReminderService(
                 taskRepository,
@@ -74,7 +68,8 @@ class TaskDueReminderServiceTest {
                 userRepository,
                 notificationApplicationService,
                 systemActorResolver,
-                new TaskDueReminderPolicy()
+                new TaskDueReminderPolicy(),
+                recipientResolver
         );
     }
 
@@ -87,8 +82,9 @@ class TaskDueReminderServiceTest {
         when(projectRepository.findAllById(anyCollection())).thenReturn(List.of(sampleProject()));
         when(userRepository.findByIdIn(anyCollection()))
                 .thenReturn(List.of(userWithFullName(50L, "张三"), userWithFullName(200L, "李四")));
-        when(userRepository.findEnabledByRoleProfileCodes(any()))
-                .thenReturn(List.of(user(101L), user(102L)));
+        when(recipientResolver.preloadGlobalBroadcastIds(eq(false))).thenReturn(DUE_SOON_IDS);
+        when(recipientResolver.resolve(any(), any(), anyBoolean(), any(), eq(Set.of(103L)), eq(Set.of())))
+                .thenReturn(List.of(101L, 102L, 103L, task.getAssigneeId(), 200L));
         when(notificationApplicationService.createNotification(any(), any()))
                 .thenReturn(mock(com.xiyu.bid.notification.core.DispatchResult.class));
 
@@ -106,7 +102,7 @@ class TaskDueReminderServiceTest {
         assertThat(req.sourceEntityType()).isEqualTo("Task");
         assertThat(req.sourceEntityId()).isEqualTo(task.getId());
         assertThat(req.title()).contains("【任务到期提醒】").contains("2 天到期");
-        assertThat(req.recipientUserIds()).containsExactlyInAnyOrder(101L, 102L, task.getAssigneeId(), 200L);
+        assertThat(req.recipientUserIds()).containsExactlyInAnyOrder(101L, 102L, 103L, task.getAssigneeId(), 200L);
         assertThat(req.body()).contains("任务执行人：张三（50）");
         assertThat(req.body()).contains("任务审核人：李四（项目负责人）");
 
@@ -150,15 +146,14 @@ class TaskDueReminderServiceTest {
     @DisplayName("runDueSoonScan - 无接收人：中止派发")
     void runDueSoonScan_NoRecipients_ShouldAbort() {
         Task task = sampleTask(LocalDateTime.now().plusDays(2), Task.Status.TODO, null);
-        task.setAssigneeId(null);
-        Project projectNoManager = new Project();
-        projectNoManager.setId(20L);
-        projectNoManager.setName("无项目经理项目");
-        projectNoManager.setManagerId(null);
         when(taskRepository.findByDueDateBetweenAndStatusNot(any(), any(), eq(Task.Status.COMPLETED)))
                 .thenReturn(List.of(task));
-        when(projectRepository.findAllById(anyCollection())).thenReturn(List.of(projectNoManager));
-        when(userRepository.findEnabledByRoleProfileCodes(any())).thenReturn(List.of());
+        when(projectRepository.findAllById(anyCollection())).thenReturn(List.of(sampleProject()));
+        when(userRepository.findByIdIn(anyCollection())).thenReturn(List.of());
+        when(recipientResolver.preloadGlobalBroadcastIds(eq(false)))
+                .thenReturn(new GlobalBroadcastIds(Set.of(), Set.of()));
+        when(recipientResolver.resolve(any(), any(), anyBoolean(), any(), eq(Set.of()), eq(Set.of())))
+                .thenReturn(List.of());
 
         TaskDueReminderService.ScanOutcome outcome = service.runDueSoonScan(3, null);
 
@@ -187,8 +182,9 @@ class TaskDueReminderServiceTest {
         when(projectRepository.findAllById(anyCollection())).thenReturn(List.of(sampleProject()));
         when(userRepository.findByIdIn(anyCollection()))
                 .thenReturn(List.of(userWithFullName(50L, "张三"), userWithFullName(200L, "李四")));
-        when(userRepository.findEnabledByRoleProfileCodes(any()))
-                .thenReturn(List.of(user(101L), user(102L)));
+        when(recipientResolver.preloadGlobalBroadcastIds(eq(true))).thenReturn(OVERDUE_IDS);
+        when(recipientResolver.resolve(any(), any(), anyBoolean(), any(), eq(Set.of(103L)), eq(Set.of(104L))))
+                .thenReturn(List.of(101L, 102L, 103L, 104L, task.getAssigneeId(), 200L));
         when(notificationApplicationService.createNotification(any(), any()))
                 .thenReturn(mock(com.xiyu.bid.notification.core.DispatchResult.class));
 
@@ -204,13 +200,14 @@ class TaskDueReminderServiceTest {
         CreateNotificationRequest req = reqCaptor.getValue();
         assertThat(req.title()).contains("【任务逾期提醒】").contains("已逾期 3 天");
         assertThat(req.body()).contains("任务执行人：张三（50）");
+        assertThat(req.recipientUserIds()).containsExactlyInAnyOrder(101L, 102L, 103L, 104L, task.getAssigneeId(), 200L);
 
         verify(taskRepository).save(task);
         assertThat(task.getLastOverdueRemindedAt()).isNotNull();
     }
 
     @Test
-    @DisplayName("runOverdueScan - 逾期超过 7 天：追加 /bidAdmin 接收人")
+    @DisplayName("runOverdueScan - 逾期超过 7 天：preloadGlobalBroadcastIds(true) 预查 /bidAdmin")
     void runOverdueScan_Overdue8Days_ShouldEscalateRecipients() {
         Task task = sampleTask(LocalDateTime.now().minusDays(8), Task.Status.TODO, null, null);
         when(taskRepository.findByDueDateBeforeAndStatusNot(any(), eq(Task.Status.COMPLETED)))
@@ -218,20 +215,16 @@ class TaskDueReminderServiceTest {
         when(projectRepository.findAllById(anyCollection())).thenReturn(List.of(sampleProject()));
         when(userRepository.findByIdIn(anyCollection()))
                 .thenReturn(List.of(userWithFullName(50L, "张三"), userWithFullName(200L, "李四")));
-        when(userRepository.findEnabledByRoleProfileCodes(any()))
-                .thenReturn(List.of(user(101L), user(102L), user(103L)));
+        when(recipientResolver.preloadGlobalBroadcastIds(eq(true))).thenReturn(OVERDUE_IDS);
+        when(recipientResolver.resolve(any(), any(), eq(true), any(), eq(Set.of(103L)), eq(Set.of(104L))))
+                .thenReturn(List.of(101L, 102L, 103L, 104L, task.getAssigneeId(), 200L));
         when(notificationApplicationService.createNotification(any(), any()))
                 .thenReturn(mock(com.xiyu.bid.notification.core.DispatchResult.class));
 
-        TaskDueReminderService.ScanOutcome outcome = service.runOverdueScan(null);
+        service.runOverdueScan(null);
 
-        assertThat(outcome.notified()).isEqualTo(1);
-        ArgumentCaptor<CreateNotificationRequest> reqCaptor =
-                ArgumentCaptor.forClass(CreateNotificationRequest.class);
-        verify(notificationApplicationService).createNotification(reqCaptor.capture(), eq(SYSTEM_ACTOR_ID));
-        CreateNotificationRequest req = reqCaptor.getValue();
-        assertThat(req.recipientUserIds())
-                .containsExactlyInAnyOrder(101L, 102L, 103L, task.getAssigneeId(), 200L);
+        // 验证逾期模式预查了 /bidAdmin（true 触发）
+        verify(recipientResolver).preloadGlobalBroadcastIds(eq(true));
     }
 
     @Test
@@ -277,13 +270,6 @@ class TaskDueReminderServiceTest {
         return project;
     }
 
-    private User user(Long id) {
-        User u = new User();
-        u.setId(id);
-        return u;
-    }
-
-    /** 构造带 fullName 的 User，用于测试 R1（任务执行人姓名显示）。 */
     private User userWithFullName(Long id, String fullName) {
         User u = new User();
         u.setId(id);

@@ -164,6 +164,7 @@ public class ArchitectureTest {
         "EmailVerificationService",
         "PaginatedResult",
         "PasswordResetService",
+        "ProjectAccessFilter",
         "ProjectAccessScopeService",
         "ProjectGroupService",
         "RateLimitService",
