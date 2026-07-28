@@ -19,6 +19,16 @@ export const NOTIFICATION_ICON_BY_TYPE = {
   DEADLINE: Warning,
   TASK_UPDATE: Bell,
   DOCUMENT_CHANGE: Document,
+  TENDER_MATCH: ChatDotRound,
+  BID_REVIEW: Document,
+  PENDING_INITIATION: Document,
+  PENDING_CLOSURE_APPLICATION: Document,
+  CA_EXPIRING: Warning,
+  CA_EXPIRED: Warning,
+  CA_BORROW_PENDING: Document,
+  CA_BORROW_DUE_SOON: Warning,
+  CA_BORROW_OVERDUE: Warning,
+  CA_BORROW_APPROVED: Document,
   DEFAULT: Bell
 }
 
@@ -36,7 +46,17 @@ export const NOTIFICATION_TYPE_LABELS = {
   APPROVAL: '审批',
   DEADLINE: '截止',
   TASK_UPDATE: '任务',
-  DOCUMENT_CHANGE: '文档'
+  DOCUMENT_CHANGE: '文档',
+  TENDER_MATCH: '标讯匹配',
+  BID_REVIEW: '标书审核',
+  PENDING_INITIATION: '待立项',
+  PENDING_CLOSURE_APPLICATION: '待结项',
+  CA_EXPIRING: 'CA即将到期',
+  CA_EXPIRED: 'CA已过期',
+  CA_BORROW_PENDING: 'CA借用待审批',
+  CA_BORROW_DUE_SOON: 'CA借用即将到期',
+  CA_BORROW_OVERDUE: 'CA借用逾期',
+  CA_BORROW_APPROVED: 'CA借用已通过'
 }
 
 export const getNotificationIcon = (type) =>
