@@ -60,7 +60,7 @@ final class TenderDocumentPrompts {
 
                 ## 字段口径
                 - tenderTitle/projectName：标讯标题或采购项目名称。常见格式包括"XX公司 XX项目"、"XX项目招标公告"、"XX采购项目"。注意从包含公司名+时间的紧凑句中提取项目部分。
-                - purchaserName：业主单位/招标人/采购人名称。常见位置：文本开头的公司全称、"采购人：XXX"、"招标人：XXX"、"业主单位：XXX"、"采购单位：XXX"后的名称。注意"XX（集团）有限责任公司"是完整公司名。
+                - purchaserName：招标主体名称。可能以下列任一标签出现：%s。常见位置：文本开头的公司全称、"招标人：XXX"、"招标单位：XXX"、"采购人：XXX"、"采购单位：XXX"、"项目单位：XXX"、"实施单位：XXX"、"需求单位：XXX"、"业主单位：XXX"后的名称；任一标签命中即填入 purchaserName，不得因"该标签未在口径中列出"而丢弃。注意"XX（集团）有限责任公司"是完整公司名。
                 - tenderAgency：招标代理机构名称。常见位置："招标机构：XXX"、"代理机构：XXX"、"采购代理机构：XXX"后的名称。
                 - budget：预算金额，统一为人民币元数字字符串（如 6800000 或 6800000.50）。遇到"约、预计、左右"等不确定金额则留空，不要推断。
                 - region：项目实施地点或总部所在地，格式"省+市"（如"四川省泸州市"）。若文本中只有市名，请补全对应省份。无法确认留空。
@@ -121,6 +121,26 @@ final class TenderDocumentPrompts {
                 projectType: "办公"
                 priority: "B"
 
+                【示例3 — 别名"需求单位"识别】
+                输入文本：
+                项目名称：智慧城市运营平台采购项目
+                需求单位：北京市朝阳区信息化管理中心
+                预算金额：350万元
+                投标截止时间：2026年9月10日 15:00
+                联系人：王主任 13900139000
+
+                输出：
+                projectName: "智慧城市运营平台采购项目"
+                purchaserName: "北京市朝阳区信息化管理中心"
+                budget: "3500000"
+                region: "北京市朝阳区"
+                deadline: "2026-09-10T15:00:00"
+                contactName: "王主任"
+                contactPhone: "13900139000"
+                customerType: "事业单位、高校"
+                projectType: "综合"
+                priority: "B"
+
                 %s## 正则预提取提示（仅供参考，以正文为准）
                 %s
 
@@ -128,6 +148,8 @@ final class TenderDocumentPrompts {
                 <candidate_text>
                 %s
                 </candidate_text>
-                """.formatted(sectionsBlock, regexHints, safeFileName, safeChunk);
+                """.formatted(
+                        PurchaserAliases.DISPLAY,
+                        sectionsBlock, regexHints, safeFileName, safeChunk);
     }
 }

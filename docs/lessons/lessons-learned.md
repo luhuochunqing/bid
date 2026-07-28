@@ -6040,3 +6040,41 @@ PR !2189（`agent/gemini/oss-role-priority-fix`）第三个 commit（javadoc 修
 - [AGENTS.md](../../AGENTS.md) §5.2 文件锁（hot-paths 前置预订）
 - [scripts/check-agent-locks.mjs](../../scripts/check-agent-locks.mjs) — 锁检查脚本（`--base origin/main`）
 - PR !2189 — 本次 push 阻断的 PR
+
+## 83. 招标主体识别"两处列表不同步"陷阱——AI 识别 prompt 字段口径与候选文本关键词必须共享唯一真相来源（2026-07-28 / AI 识别招标主体不准问题）
+
+### 事故背景
+
+用户反馈："AI 识别招标文件过程中，招标主体识别不准，本月已优化多次但始终达不到效果"。
+
+业务约定招标文件中可识别为"招标主体"的字段共 7 种：招标人、招标单位、采购人、采购单位、项目单位、实施单位、需求单位。
+
+### 根因（5 Whys）
+
+1. **Why AI 识别不准？** AI 看到含"招标单位/项目单位/实施单位/需求单位"等标签的文本，却没把它们填到 `purchaserName`。
+2. **Why AI 没填？** Prompt 的 `purchaserName` 字段口径只列了 4 种标签（业主单位/招标人/采购人/采购单位），缺失 3 种业务约定的标签。
+3. **Why 候选文本可能也没保留这些行？** `TenderIntakeTextProcessor.INTAKE_KEYWORDS` 列了 5 种别名（多了"需求单位"），但和 Prompt 的 4 种不同步——AI 收到了"需求单位：XXX"附近的预提取文本，但 Prompt 没告诉它这是 `purchaserName`，造成识别丢失。
+4. **Why 本月 3 个优化 commit 都没解决？** `754934767`（Few-Shot+正则预提取）、`6a809958e`（P0 日期格式）、`32519dc83`（prompt 注入防御）都未触及 `purchaserName` 别名列表——优化方向都对，但都绕过了根因。
+5. **Why 这个根因没被发现？** 测试 `OpenAiTenderDocumentAnalyzerTest:292` 只断言 prompt 包含"业主单位"，没覆盖其他 6 种标签，**就算之前有人想加，测试也发现不了**。
+
+### 关键教训
+
+1. **同一业务概念的两处列表必须共享唯一真相来源**：当 Prompt 字段口径和候选文本关键词都涉及"招标主体别名"时，必须抽共享常量类，禁止两处独立维护。本次抽 `PurchaserAliases` 常量类，Prompt 用 `DISPLAY`，Keywords 用 `labels()`。
+2. **测试断言必须覆盖全量别名，不只抽查一个**：旧测试只断言"业主单位"是误导性绿——必须遍历 `PurchaserAliases.ALL` 全量验证 Prompt 和 `buildTenderIntakeCandidateText` 都识别每个别名。
+3. **"已优化多次但效果不佳"必查根因**：先看 commit history 是否触及受影响字段，再判断是否绕过了根因。本次 3 个 commit 都没碰 `purchaserName` 字段口径，是典型的"优化方向对但未触及病灶"。
+4. **常量类应自带同步性测试**：`PurchaserAliasesTest` 锁定 8 种别名（7 业务 + 1 兼容），数量变了必须显式更新测试，避免静默漂移。
+
+### 处置记录
+
+- 新建 `PurchaserAliases.java` 作为唯一真相来源（7 业务别名 + 业主单位兼容 = 8 种）
+- `TenderDocumentPrompts.java` purchaserName 字段口径引用 `PurchaserAliases.DISPLAY`，并新增 Few-Shot 示例 3（含"需求单位"别名）
+- `TenderIntakeTextProcessor.java` 引入 `PURCHASER_ALIAS_LABELS` + `ALL_INTAKE_KEYWORDS` 合并机制，补齐缺失的 3 个标签（招标单位/项目单位/实施单位），并新增业主单位到 INTAKE_KEYWORDS（原仅 Prompt 有）
+- 新增 `PurchaserAliasesTest`（6 用例）+ `TenderIntakeTextProcessorTest` 新增"7 种别名均能命中候选文本"测试
+- 加强 `OpenAiTenderDocumentAnalyzerTest` 断言：遍历验证 Prompt 包含全部 8 种别名
+
+### 相关文档
+
+- [TenderDocumentPrompts.java](../../backend/src/main/java/com/xiyu/bid/biddraftagent/infrastructure/openai/TenderDocumentPrompts.java)
+- [TenderIntakeTextProcessor.java](../../backend/src/main/java/com/xiyu/bid/biddraftagent/infrastructure/openai/TenderIntakeTextProcessor.java)
+- [PurchaserAliases.java](../../backend/src/main/java/com/xiyu/bid/biddraftagent/infrastructure/openai/PurchaserAliases.java) — 唯一真相来源
+

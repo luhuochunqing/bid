@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,6 +15,10 @@ class TenderIntakeTextProcessor {
     private static final int INTAKE_CONTEXT_RADIUS = 3;
     private static final int INTAKE_CONTEXT_MAX_CHARS = 20_000;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    /** 招标主体别名，引用 {@link PurchaserAliases#ALL} 作为唯一真相来源。 */
+    private static final List<String> PURCHASER_ALIAS_LABELS = PurchaserAliases.ALL;
+
     private static final List<String> INTAKE_KEYWORDS = List.of(
             "项目名称", "项目标题", "标讯标题", "招标项目", "采购项目", "公告标题",
             "招标编号", "采购编号", "项目编号", "标段名称", "包号", "品目名称",
@@ -21,14 +26,23 @@ class TenderIntakeTextProcessor {
             "限价", "总价", "单价", "报价", "投标保证金", "总部", "所在地", "地区",
             "地点", "地址", "省", "市", "实施地点", "交货地点", "服务地点", "项目地点",
             "行政区划", "截止", "递交", "投标截止", "开标时间", "报名", "报名开始",
-            "报名结束", "响应截止", "提交截止", "资格预审截止", "开标日期", "采购人",
-            "采购单位", "招标人", "招标机构", "代理机构", "采购代理机构", "组织单位",
-            "主办单位", "采购部门", "需求单位", "联系人", "联系方式", "经办人",
+            "报名结束", "响应截止", "提交截止", "资格预审截止", "开标日期",
+            "招标机构", "代理机构", "采购代理机构", "组织单位",
+            "主办单位", "采购部门", "联系人", "联系方式", "经办人",
             "项目负责人", "负责人", "联系电话", "电话", "传真", "电子邮箱", "通讯地址",
             "客户类型", "优先级", "采购方式", "招标方式", "组织形式", "项目概况",
             "项目描述", "采购内容", "招标范围", "标签", "项目背景", "建设内容",
             "服务范围", "技术要求", "资格条件", "商务要求"
     );
+
+    /**
+     * 合并 INTAKE_KEYWORDS 与 PURCHASER_ALIAS_LABELS，避免重复维护两份招标主体别名。
+     * 包级可见以便同包测试做同步性断言。
+     */
+    static final List<String> ALL_INTAKE_KEYWORDS =
+            Stream.concat(INTAKE_KEYWORDS.stream(), PURCHASER_ALIAS_LABELS.stream())
+                    .distinct()
+                    .toList();
 
     static String buildTenderIntakeCandidateText(String text) {
         String normalized = text == null ? "" : text;
@@ -63,7 +77,7 @@ class TenderIntakeTextProcessor {
         if (line == null || line.isBlank()) {
             return false;
         }
-        return INTAKE_KEYWORDS.stream().anyMatch(line::contains);
+        return ALL_INTAKE_KEYWORDS.stream().anyMatch(line::contains);
     }
 
     /**

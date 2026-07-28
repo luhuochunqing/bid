@@ -289,7 +289,10 @@ class OpenAiTenderDocumentAnalyzerTest {
         assertThat(prompt).contains("标讯表单字段");
         assertThat(prompt).contains("服务于销售人工核对");
         assertThat(prompt).contains("标讯标题").contains("预算金额").contains("招标机构")
-                .contains("业主单位").contains("客户类型").contains("优先级");
+                .contains("客户类型").contains("优先级");
+        // 招标主体别名（业务约定 7 种 + 兼容历史口径"业主单位"1 种）必须全部出现在 prompt 字段口径中
+        // 用 toArray 让测试与 PurchaserAliases 常量自动同步，避免新增别名时漏改此断言
+        assertThat(prompt).contains(PurchaserAliases.ALL.toArray(String[]::new));
         assertThat(result.extractedData()).containsEntry("tenderAgency", "上海招标代理有限公司")
                 .containsEntry("bidOpeningTime", "2026-06-03T10:00:00")
                 .containsEntry("contactPhone", "13800138000")
