@@ -191,6 +191,25 @@ describe('getNotificationTypeLabel', () => {
     expect(getNotificationTypeLabel('SYSTEM')).toBe('系统')
   })
 
+  // 回归测试：覆盖后端 NotificationType 枚举的所有值，
+  // 防止后端新增类型时前端漏映射导致用户看到英文枚举。
+  // 维护提示：后端 NotificationType.java 新增枚举时，
+  // 必须同步更新此数组 + NOTIFICATION_TYPE_LABELS + NOTIFICATION_ICON_BY_TYPE
+  it('maps all backend NotificationType enum values to Chinese labels', () => {
+    const backendEnumValues = [
+      'INFO', 'SYSTEM', 'MENTION', 'APPROVAL', 'DEADLINE',
+      'TASK_UPDATE', 'DOCUMENT_CHANGE', 'TENDER_MATCH', 'BID_REVIEW',
+      'PENDING_INITIATION', 'PENDING_CLOSURE_APPLICATION',
+      'CA_EXPIRING', 'CA_EXPIRED', 'CA_BORROW_PENDING',
+      'CA_BORROW_DUE_SOON', 'CA_BORROW_OVERDUE', 'CA_BORROW_APPROVED'
+    ]
+    for (const type of backendEnumValues) {
+      const label = getNotificationTypeLabel(type)
+      expect(label, `notificationType "${type}" should map to Chinese label`).not.toBe(type)
+      expect(label, `notificationType "${type}" should not be empty`).toBeTruthy()
+    }
+  })
+
   it('returns type when unknown', () => {
     expect(getNotificationTypeLabel('FOO')).toBe('FOO')
   })
