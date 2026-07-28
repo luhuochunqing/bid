@@ -47,7 +47,9 @@ const ACTION_DEFS = {
 // 内部 group 标识符统一使用下划线风格（与角色码的连字符风格区分）。
 // ---------------------------------------------------------------------------
 function resolveRoleGroup(role) {
-  if (role === 'admin' || role === '/bidAdmin' || role === 'bid-TeamLeader') return 'admin_lead'
+  // bid-SystemAdmin：OSS 独立角色，权限基线等同 /bidAdmin（PR !2021），
+  // 与 /bidAdmin 同列 admin_lead 分组，避免标讯详情页按钮全部不显示（CO-599 回归修复）
+  if (role === 'admin' || role === '/bidAdmin' || role === 'bid-SystemAdmin' || role === 'bid-TeamLeader') return 'admin_lead'
   if (role === 'bid-projectLeader' || role === 'bid-otherDept' || role === 'bid-administration') return 'sales'
   if (role === 'manager') return 'admin_lead'
   if (role === 'bid-Team') return 'bid_team'
