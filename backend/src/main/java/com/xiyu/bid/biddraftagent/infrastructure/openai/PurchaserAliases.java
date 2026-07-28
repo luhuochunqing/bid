@@ -42,12 +42,4 @@ final class PurchaserAliases {
      * 用于注入 Prompt 的展示文案："招标人/招标单位/采购人/采购单位/项目单位/实施单位/需求单位/业主单位"。
      */
     static final String DISPLAY = String.join("/", ALL);
-
-    /**
-     * 用于 INTAKE_KEYWORDS 的查找关键词：每个别名后加全角冒号或半角冒号前缀，
-     * 由调用方按需匹配。当前仅返回别名本体，调用方保留行级 contains 匹配语义。
-     */
-    static List<String> labels() {
-        return ALL;
-    }
 }

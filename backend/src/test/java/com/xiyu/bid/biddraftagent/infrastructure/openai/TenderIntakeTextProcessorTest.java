@@ -225,6 +225,18 @@ class TenderIntakeTextProcessorTest {
                         .contains(alias + "：测试单位" + alias);
             }
         }
+
+        @Test
+        @DisplayName("ALL_INTAKE_KEYWORDS 必须包含全部招标主体别名（同步性保护）")
+        void shouldIncludeAllPurchaserAliasesInAllIntakeKeywords() {
+            // 直接断言 ALL_INTAKE_KEYWORDS 包含 PurchaserAliases.ALL 全部别名，
+            // 防止未来误改 mergeIntakeKeywords 去重逻辑导致别名漏入。
+            // 与 shouldIncludeAllPurchaserAliasesAsKeywords 互补：
+            // - 行为测试验证"AI 看得到该行"
+            // - 同步性测试验证"常量类与关键词列表确实绑定了"
+            assertThat(TenderIntakeTextProcessor.ALL_INTAKE_KEYWORDS)
+                    .containsAll(PurchaserAliases.ALL);
+        }
     }
 
     // ── sanitizeUntrusted ──────────────────────────────────────────

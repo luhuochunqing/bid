@@ -6067,8 +6067,8 @@ PR !2189（`agent/gemini/oss-role-priority-fix`）第三个 commit（javadoc 修
 ### 处置记录
 
 - 新建 `PurchaserAliases.java` 作为唯一真相来源（7 业务别名 + 业主单位兼容 = 8 种）
-- `TenderDocumentPrompts.java` purchaserName 字段口径引用 `PurchaserAliases.DISPLAY`，并新增 Few-Shot 示例 3（含"需求单位"+"实施单位"）
-- `TenderIntakeTextProcessor.java` 引入 `PURCHASER_ALIAS_LABELS` + `ALL_INTAKE_KEYWORDS` 合并机制，补齐缺失的 4 个标签（招标单位/项目单位/实施单位/业主单位）
+- `TenderDocumentPrompts.java` purchaserName 字段口径引用 `PurchaserAliases.DISPLAY`，并新增 Few-Shot 示例 3（含"需求单位"别名）
+- `TenderIntakeTextProcessor.java` 引入 `PURCHASER_ALIAS_LABELS` + `ALL_INTAKE_KEYWORDS` 合并机制，补齐缺失的 3 个标签（招标单位/项目单位/实施单位），并新增业主单位到 INTAKE_KEYWORDS（原仅 Prompt 有）
 - 新增 `PurchaserAliasesTest`（6 用例）+ `TenderIntakeTextProcessorTest` 新增"7 种别名均能命中候选文本"测试
 - 加强 `OpenAiTenderDocumentAnalyzerTest` 断言：遍历验证 Prompt 包含全部 8 种别名
 

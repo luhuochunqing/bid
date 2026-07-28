@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,13 +16,8 @@ class TenderIntakeTextProcessor {
     private static final int INTAKE_CONTEXT_MAX_CHARS = 20_000;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    /**
-     * 招标主体别名标签，引用 {@link PurchaserAliases#labels()} 作为唯一真相来源。
-     * 避免 Prompt 字段口径与候选文本关键词预提取两处列表各自维护导致不同步
-     * （历史病灶：Prompt 列 4 种、Keywords 列 5 种，导致 AI 看到了"需求单位"附近的
-     * 候选文本但 prompt 没告诉它这是 purchaserName，造成识别丢失）。
-     */
-    private static final List<String> PURCHASER_ALIAS_LABELS = PurchaserAliases.labels();
+    /** 招标主体别名，引用 {@link PurchaserAliases#ALL} 作为唯一真相来源。 */
+    private static final List<String> PURCHASER_ALIAS_LABELS = PurchaserAliases.ALL;
 
     private static final List<String> INTAKE_KEYWORDS = List.of(
             "项目名称", "项目标题", "标讯标题", "招标项目", "采购项目", "公告标题",
@@ -41,19 +37,12 @@ class TenderIntakeTextProcessor {
 
     /**
      * 合并 INTAKE_KEYWORDS 与 PURCHASER_ALIAS_LABELS，避免重复维护两份招标主体别名。
+     * 包级可见以便同包测试做同步性断言。
      */
-    private static final List<String> ALL_INTAKE_KEYWORDS = mergeIntakeKeywords();
-
-    private static List<String> mergeIntakeKeywords() {
-        List<String> merged = new ArrayList<>(INTAKE_KEYWORDS.size() + PURCHASER_ALIAS_LABELS.size());
-        merged.addAll(INTAKE_KEYWORDS);
-        for (String alias : PURCHASER_ALIAS_LABELS) {
-            if (!merged.contains(alias)) {
-                merged.add(alias);
-            }
-        }
-        return List.copyOf(merged);
-    }
+    static final List<String> ALL_INTAKE_KEYWORDS =
+            Stream.concat(INTAKE_KEYWORDS.stream(), PURCHASER_ALIAS_LABELS.stream())
+                    .distinct()
+                    .toList();
 
     static String buildTenderIntakeCandidateText(String text) {
         String normalized = text == null ? "" : text;

@@ -62,11 +62,6 @@ class PurchaserAliasesTest {
     }
 
     @Test
-    void labelsShouldReturnSameContentAsAll() {
-        assertThat(PurchaserAliases.labels()).containsExactlyElementsOf(PurchaserAliases.ALL);
-    }
-
-    @Test
     void allAliasesShouldBeNonBlankAndUnique() {
         for (String alias : PurchaserAliases.ALL) {
             assertThat(alias).as("别名不得为空白").isNotBlank();
