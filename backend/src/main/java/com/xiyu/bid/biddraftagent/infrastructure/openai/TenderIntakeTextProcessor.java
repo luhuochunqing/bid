@@ -14,6 +14,15 @@ class TenderIntakeTextProcessor {
     private static final int INTAKE_CONTEXT_RADIUS = 3;
     private static final int INTAKE_CONTEXT_MAX_CHARS = 20_000;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    /**
+     * 招标主体别名标签，引用 {@link PurchaserAliases#labels()} 作为唯一真相来源。
+     * 避免 Prompt 字段口径与候选文本关键词预提取两处列表各自维护导致不同步
+     * （历史病灶：Prompt 列 4 种、Keywords 列 5 种，导致 AI 看到了"需求单位"附近的
+     * 候选文本但 prompt 没告诉它这是 purchaserName，造成识别丢失）。
+     */
+    private static final List<String> PURCHASER_ALIAS_LABELS = PurchaserAliases.labels();
+
     private static final List<String> INTAKE_KEYWORDS = List.of(
             "项目名称", "项目标题", "标讯标题", "招标项目", "采购项目", "公告标题",
             "招标编号", "采购编号", "项目编号", "标段名称", "包号", "品目名称",
@@ -21,14 +30,30 @@ class TenderIntakeTextProcessor {
             "限价", "总价", "单价", "报价", "投标保证金", "总部", "所在地", "地区",
             "地点", "地址", "省", "市", "实施地点", "交货地点", "服务地点", "项目地点",
             "行政区划", "截止", "递交", "投标截止", "开标时间", "报名", "报名开始",
-            "报名结束", "响应截止", "提交截止", "资格预审截止", "开标日期", "采购人",
-            "采购单位", "招标人", "招标机构", "代理机构", "采购代理机构", "组织单位",
-            "主办单位", "采购部门", "需求单位", "联系人", "联系方式", "经办人",
+            "报名结束", "响应截止", "提交截止", "资格预审截止", "开标日期",
+            "招标机构", "代理机构", "采购代理机构", "组织单位",
+            "主办单位", "采购部门", "联系人", "联系方式", "经办人",
             "项目负责人", "负责人", "联系电话", "电话", "传真", "电子邮箱", "通讯地址",
             "客户类型", "优先级", "采购方式", "招标方式", "组织形式", "项目概况",
             "项目描述", "采购内容", "招标范围", "标签", "项目背景", "建设内容",
             "服务范围", "技术要求", "资格条件", "商务要求"
     );
+
+    /**
+     * 合并 INTAKE_KEYWORDS 与 PURCHASER_ALIAS_LABELS，避免重复维护两份招标主体别名。
+     */
+    private static final List<String> ALL_INTAKE_KEYWORDS = mergeIntakeKeywords();
+
+    private static List<String> mergeIntakeKeywords() {
+        List<String> merged = new ArrayList<>(INTAKE_KEYWORDS.size() + PURCHASER_ALIAS_LABELS.size());
+        merged.addAll(INTAKE_KEYWORDS);
+        for (String alias : PURCHASER_ALIAS_LABELS) {
+            if (!merged.contains(alias)) {
+                merged.add(alias);
+            }
+        }
+        return List.copyOf(merged);
+    }
 
     static String buildTenderIntakeCandidateText(String text) {
         String normalized = text == null ? "" : text;
@@ -63,7 +88,7 @@ class TenderIntakeTextProcessor {
         if (line == null || line.isBlank()) {
             return false;
         }
-        return INTAKE_KEYWORDS.stream().anyMatch(line::contains);
+        return ALL_INTAKE_KEYWORDS.stream().anyMatch(line::contains);
     }
 
     /**

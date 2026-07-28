@@ -208,6 +208,23 @@ class TenderIntakeTextProcessorTest {
             assertThat(result).hasSizeLessThanOrEqualTo(20_000);
             assertThat(result).startsWith("项目预算");
         }
+
+        @Test
+        @DisplayName("招标主体 7 种别名（业务约定）+ 业主单位（兼容）均能命中候选文本")
+        void shouldIncludeAllPurchaserAliasesAsKeywords() {
+            // 验证 PurchaserAliases.ALL 中每个标签都能触发 buildTenderIntakeCandidateText 保留该行
+            // 历史病灶：Prompt 列 4 种、Keywords 列 5 种，导致"招标单位/项目单位/实施单位/需求单位"等
+            // 别名命中的行被丢出候选文本，AI 根本看不到，无法识别为 purchaserName
+            for (String alias : PurchaserAliases.ALL) {
+                String text = "前置无关行\n" + alias + "：测试单位" + alias + "\n后置无关行";
+
+                String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(text);
+
+                assertThat(result)
+                        .as("招标主体别名 %s 必须命中候选文本（否则 AI 看不到该行）", alias)
+                        .contains(alias + "：测试单位" + alias);
+            }
+        }
     }
 
     // ── sanitizeUntrusted ──────────────────────────────────────────
