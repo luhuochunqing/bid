@@ -269,9 +269,10 @@ public class ProjectAccessScopeService {
     /**
      * Spec 030 H2: 共享判定核心 — 基于 User 对象判定项目可访问性。
      *
-     * <p>被 {@link #canAccessProject(Long, Long)}（按 userId 查）和
-     * {@link #assertCurrentUserCanAccessProject(Long)}（按 SecurityContext 查）共用，
-     * 确保两个入口的判定口径完全一致。</p>
+     * <p>被 {@link #canAccessProject(Long, Long)}（按 userId 查）、
+     * {@link #assertCurrentUserCanAccessProject(Long)}（按 SecurityContext 查）、
+     * 以及同包 {@link ProjectAccessFilter#filterUsersByProjectAccess}（批量过滤）共用，
+     * 确保三个入口的判定口径完全一致。</p>
      *
      * <p>判定顺序：</p>
      * <ol>
@@ -281,7 +282,7 @@ public class ProjectAccessScopeService {
      *   <li>getAllowedProjectIds(user).contains(projectId) → 该表达式</li>
      * </ol>
      */
-    private boolean canAccessProjectInternal(User user, Long projectId) {
+    boolean canAccessProjectInternal(User user, Long projectId) {
         if (user == null || projectId == null) {
             return false;
         }

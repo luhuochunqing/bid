@@ -7,7 +7,7 @@ import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
 import com.xiyu.bid.notification.core.NotificationRecipientFilter;
 import com.xiyu.bid.notification.core.ProjectNotificationRole;
 import com.xiyu.bid.repository.UserRepository;
-import com.xiyu.bid.service.ProjectAccessScopeService;
+import com.xiyu.bid.service.ProjectAccessFilter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -45,7 +45,7 @@ public class NotificationRecipientResolver {
 
     private final UserRepository userRepository;
     private final ProjectMemberRepository projectMemberRepository;
-    private final ProjectAccessScopeService projectAccessScopeService;
+    private final ProjectAccessFilter projectAccessFilter;
     private final ProjectNotificationRecipientPolicy projectRecipientPolicy;
 
     /**
@@ -167,7 +167,11 @@ public class NotificationRecipientResolver {
      * <p>对应原 D 组重复：DocumentChangeNotificationService.filterRecipientsSafe 和
      * TaskReviewNotificationService.filterRecipientsSafe 完全复制粘贴的逻辑。</p>
      *
-     * <p><b>降级策略</b>：当 {@link ProjectAccessScopeService#canAccessProject(Long, Long)} 抛异常时
+     * <p><b>批量优化</b>：委托给 {@link ProjectAccessScopeService#filterUsersByProjectAccess}
+     * 一次性批量加载候选用户并判定，避免对每个候选 uid 单独查 {@code userRepository.findById}
+     * 形成 N+1 查询。原 {@code NotificationRecipientFilter.filterRecipients} 调用已下沉到 service 层。</p>
+     *
+     * <p><b>降级策略</b>：当 {@link ProjectAccessScopeService#filterUsersByProjectAccess} 抛异常时
      * （DB 故障、OSS 同步异常等），返回原候选集合——优先保证通知送达而非精准。
      * 符合 Constitution VII §2 "装饰性操作失败必须降级"精神。</p>
      *
@@ -180,9 +184,7 @@ public class NotificationRecipientResolver {
             return List.of();
         }
         try {
-            return NotificationRecipientFilter.filterRecipients(
-                    candidateIds,
-                    uid -> projectAccessScopeService.canAccessProject(uid, projectId));
+            return List.copyOf(projectAccessFilter.filterUsersByProjectAccess(candidateIds, projectId));
         } catch (RuntimeException e) {
             log.warn("Recipient filter failed for project {}, falling back to unfiltered broadcast: {}",
                     projectId, e.getMessage());

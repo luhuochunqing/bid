@@ -9,7 +9,7 @@ import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
 import com.xiyu.bid.notification.core.ProjectNotificationRole;
 import com.xiyu.bid.notification.service.ProjectNotificationRecipientPolicy;
 import com.xiyu.bid.repository.UserRepository;
-import com.xiyu.bid.service.ProjectAccessScopeService;
+import com.xiyu.bid.service.ProjectAccessFilter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,7 +34,7 @@ class NotificationRecipientResolverTest {
     @Mock
     private ProjectMemberRepository projectMemberRepository;
     @Mock
-    private ProjectAccessScopeService projectAccessScopeService;
+    private ProjectAccessFilter projectAccessFilter;
     @Mock
     private ProjectNotificationRecipientPolicy projectRecipientPolicy;
 
@@ -42,7 +42,7 @@ class NotificationRecipientResolverTest {
 
     @BeforeEach
     void setUp() {
-        resolver = new NotificationRecipientResolver(userRepository, projectMemberRepository, projectAccessScopeService, projectRecipientPolicy);
+        resolver = new NotificationRecipientResolver(userRepository, projectMemberRepository, projectAccessFilter, projectRecipientPolicy);
     }
 
     @Test
@@ -137,11 +137,10 @@ class NotificationRecipientResolverTest {
     }
 
     @Test
-    @DisplayName("filterByProjectAccess：按 canAccessProject 过滤候选接收人")
+    @DisplayName("filterByProjectAccess：委托 filterUsersByProjectAccess 批量过滤候选接收人")
     void filterByProjectAccess_FiltersByAccessibility() {
-        when(projectAccessScopeService.canAccessProject(1L, 100L)).thenReturn(true);
-        when(projectAccessScopeService.canAccessProject(2L, 100L)).thenReturn(false);
-        when(projectAccessScopeService.canAccessProject(3L, 100L)).thenReturn(true);
+        when(projectAccessFilter.filterUsersByProjectAccess(List.of(1L, 2L, 3L), 100L))
+                .thenReturn(new java.util.LinkedHashSet<>(List.of(1L, 3L)));
 
         List<Long> result = resolver.filterByProjectAccess(List.of(1L, 2L, 3L), 100L);
 
@@ -158,7 +157,7 @@ class NotificationRecipientResolverTest {
     @Test
     @DisplayName("filterByProjectAccess：DB 异常时降级返回原候选集合（通知送达优先）")
     void filterByProjectAccess_DegradesToUnfilteredOnException() {
-        when(projectAccessScopeService.canAccessProject(any(), eq(100L)))
+        when(projectAccessFilter.filterUsersByProjectAccess(any(), eq(100L)))
                 .thenThrow(new RuntimeException("db down"));
 
         List<Long> result = resolver.filterByProjectAccess(List.of(1L, 2L), 100L);

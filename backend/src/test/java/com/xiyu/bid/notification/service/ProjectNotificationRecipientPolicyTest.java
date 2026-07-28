@@ -86,15 +86,13 @@ class ProjectNotificationRecipientPolicyTest {
     }
 
     @Test
-    @DisplayName("BID_ASSISTANT：合并 bid-Team 角色用户与 secondaryLeadUserId 并去重")
-    void bidAssistant_mergesSpecialistRoleAndSecondaryLead() {
-        when(userRepository.findEnabledByRoleProfileCodes(List.of(RoleProfileCatalog.BID_SPECIALIST_CODE)))
-                .thenReturn(List.of(user(5L), user(6L)));
+    @DisplayName("BID_ASSISTANT：仅取 ProjectLeadAssignment.secondaryLeadUserId（不广播 bid-Team 全局角色）")
+    void bidAssistant_resolvesSecondaryLeadOnly() {
         when(projectLeadAssignmentRepository.findByProjectId(100L))
                 .thenReturn(Optional.of(assignment(null, 6L)));
 
         assertThat(policy.resolveRecipients(100L, Set.of(BID_ASSISTANT), null))
-                .containsExactly(5L, 6L);
+                .containsExactly(6L);
     }
 
     @Test

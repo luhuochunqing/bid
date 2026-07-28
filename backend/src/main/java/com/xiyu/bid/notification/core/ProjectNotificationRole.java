@@ -18,8 +18,11 @@ public enum ProjectNotificationRole {
     BID_TEAM_LEADER(RoleProfileCatalog.BID_LEAD_CODE),
     /** 主投标负责人：依赖项目投标负责人分配记录。 */
     BID_LEAD,
-    /** 投标辅助人员：角色码 {@link RoleProfileCatalog#BID_SPECIALIST_CODE} + 副投标负责人。 */
-    BID_ASSISTANT(RoleProfileCatalog.BID_SPECIALIST_CODE),
+    /** 投标辅助人员（投标副负责人）：仅依赖项目投标副负责人分配记录，不广播全局 bid-Team 角色。
+     *  <p>业务口径（多模块统一）：投标专员仅接收自己被分配为副负责人的项目通知，避免收到无关项目通知。
+     *  影响场景：任务预警 / 项目状态变更 / 文档变更 / 立项-中标-废标等通知。
+     *  与 BID_TEAM_LEADER/BID_ADMIN 全局广播口径区分：投标组长和管理员始终全局可见。</p> */
+    BID_ASSISTANT,
     /** 立项人/项目业主方负责人：依赖项目立项详情。 */
     PROJECT_OWNER,
     /** 任务执行人：由调用方显式传入 assigneeId。 */
