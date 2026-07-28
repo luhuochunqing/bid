@@ -95,6 +95,16 @@ describe('getHeaderActions', () => {
       ])
     })
 
+    // CO-599 回归守卫：bid-SystemAdmin 权限基线等同 /bidAdmin，必须看到 assign + delete
+    // 历史教训：PR !2021 声称"前端闭环"但漏改 actionMatrix.resolveRoleGroup，
+    // 导致 bid-SystemAdmin 返回 null，所有按钮不显示。
+    it('bid-SystemAdmin sees assign + delete (CO-599 regression guard)', () => {
+      expectActions(getHeaderActions(PENDING, 'bid-SystemAdmin'), [
+        ACTIONS.ASSIGN,
+        ACTIONS.DELETE,
+      ])
+    })
+
     it('sales sees nothing', () => {
       expect(getHeaderActions(PENDING, 'bid-projectLeader')).toEqual([])
     })
@@ -135,6 +145,21 @@ describe('getHeaderActions', () => {
       ])
     })
 
+    // CO-599 回归守卫：bid-SystemAdmin 在 TRACKING 状态下的分配/转派按钮
+    it('bid-SystemAdmin with projectManagerId sees transfer + delete (CO-599)', () => {
+      expectActions(getHeaderActions(TRACKING, 'bid-SystemAdmin', false, null, null, 1), [
+        ACTIONS.TRANSFER,
+        ACTIONS.DELETE,
+      ])
+    })
+
+    it('bid-SystemAdmin without projectManagerId sees assign + delete (CO-599)', () => {
+      expectActions(getHeaderActions(TRACKING, 'bid-SystemAdmin', false, null, null, null), [
+        ACTIONS.ASSIGN,
+        ACTIONS.DELETE,
+      ])
+    })
+
     it('sales sees nothing', () => {
       expect(getHeaderActions(TRACKING, 'bid-projectLeader')).toEqual([])
     })
@@ -163,6 +188,17 @@ describe('getHeaderActions', () => {
 
     it('bid_lead without projectManagerId sees nothing', () => {
       expect(getHeaderActions(EVALUATED, 'bid-TeamLeader', false, null, null, null)).toEqual([])
+    })
+
+    // CO-599 回归守卫：bid-SystemAdmin 在 EVALUATED 状态看到转派按钮
+    it('bid-SystemAdmin with projectManagerId sees transfer only (CO-599)', () => {
+      expectActions(getHeaderActions(EVALUATED, 'bid-SystemAdmin', false, null, null, 1), [
+        ACTIONS.TRANSFER,
+      ])
+    })
+
+    it('bid-SystemAdmin without projectManagerId sees nothing (CO-599)', () => {
+      expect(getHeaderActions(EVALUATED, 'bid-SystemAdmin', false, null, null, null)).toEqual([])
     })
 
     it('sales sees nothing (delete not allowed per §4.2.8)', () => {
@@ -445,6 +481,15 @@ describe('getBottomActions', () => {
 
     it('bid_lead sees bid + abandon', () => {
       expectActions(getBottomActions(EVALUATED, 'bid-TeamLeader'), [
+        ACTIONS.BID,
+        ACTIONS.ABANDON,
+      ])
+    })
+
+    // CO-599 回归守卫：bid-SystemAdmin 必须看到「立即投标」+「放弃投标」
+    // 这是用户报告的核心症状之一：投标系统管理员不能点击立即投标
+    it('bid-SystemAdmin sees bid + abandon (CO-599 regression guard)', () => {
+      expectActions(getBottomActions(EVALUATED, 'bid-SystemAdmin'), [
         ACTIONS.BID,
         ACTIONS.ABANDON,
       ])
