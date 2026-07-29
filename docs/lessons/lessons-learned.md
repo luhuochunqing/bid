@@ -6078,3 +6078,73 @@ PR !2189（`agent/gemini/oss-role-priority-fix`）第三个 commit（javadoc 修
 - [TenderIntakeTextProcessor.java](../../backend/src/main/java/com/xiyu/bid/biddraftagent/infrastructure/openai/TenderIntakeTextProcessor.java)
 - [PurchaserAliases.java](../../backend/src/main/java/com/xiyu/bid/biddraftagent/infrastructure/openai/PurchaserAliases.java) — 唯一真相来源
 
+## 84. `tenderAgency` 字段语义混淆陷阱——同一字段在 4 处有不同业务含义，删除前必须全量搜索（2026-07-29 / PR !2214 Review 修正）
+
+### 事故背景
+
+在 PR !2214 Review 过程中，我（Agent）基于推测判断 `TenderRequirementOutput.tenderAgency` 字段为"技术债"——认为 AI 不再输出 tenderAgency 后该字段永远为 null，建议"保留是合理保守策略，后续 PR 清理"。
+
+用户追问"TenderRequirementOutput.tenderAgency 字段确定是技术债吗 没有地方用到这个字段吗"，触发全量搜索验证。
+
+### 根因（5 Whys）
+
+1. **Why 我误判为技术债？** 我只检查了 `TenderRequirementOutput.tenderAgency`（AI 输出 DTO）的下游消费，没有全仓搜索 `tenderAgency` 这个字段名。
+2. **Why 没全仓搜索？** 我把 `TenderRequirementOutput.tenderAgency` 和 `Tender.tenderAgency` 当成了"同一个字段的上下游"，没意识到它们是不同类中的**同名字段**，各有独立的生命周期。
+3. **Why 这两个字段会有歧义？** 历史演进：
+   - `Tender.tenderAgency`（实体字段，DB 列 `tender_agency`）是**历史字段**，最初语义是"招标代理机构"
+   - 后续新增了 `Tender.purchaserName`（DB 列 `purchaser_name`），明确是"招标主体"
+   - 但归档详情模块（`ProjectArchiveDetailResponse`、`ProjectArchiveExportService`）在显示"招标主体"时，赋值用的是 `tender.getPurchaserName()`，**字段名却叫 `tenderAgency`**——这是导致歧义的核心
+   - 前端 `manualTenderParseHelpers.js` 把 `data.tenderAgency` 当 `purchaserName` 的 fallback，又加深了歧义
+4. **Why 外部接口文档和实际代码语义还不一致？** [标讯集成接口文档-v3.8.md](../integration/标讯集成接口文档-v3.8.md) 中 `tenderAgency` 注释是"招标代理机构"，但代码实际用作"招标主体"——文档与代码背离。
+5. **Why 这个问题没被早发现？** 缺少"字段语义一致性测试"——没有任何测试断言"`Tender.tenderAgency` 的值必须来自代理机构"或"必须来自招标主体"。字段语义只靠注释和文档维护，没有自动化保护。
+
+### 实际使用清单（搜索证据）
+
+`Tender.tenderAgency` 字段在 **12+ 处** 被实际使用，分布如下：
+
+| 层 | 文件 | 语义 |
+|---|---|---|
+| Entity | [Tender.java](../../backend/src/main/java/com/xiyu/bid/entity/Tender.java) | DB 列 `tender_agency`，字段注释"招标代理机构" |
+| DTO | [TenderDTO.java](../../backend/src/main/java/com/xiyu/bid/tender/dto/TenderDTO.java) | 透传 |
+| Request | [TenderRequest.java](../../backend/src/main/java/com/xiyu/bid/tender/dto/TenderRequest.java) | 接收外部输入 |
+| 外部接口 | [TenderPushRequest.java](../../backend/src/main/java/com/xiyu/bid/integration/external/TenderPushRequest.java)、[TenderUpdateRequest.java](../../backend/src/main/java/com/xiyu/bid/integration/external/TenderUpdateRequest.java) | 接收外部推送/更新 |
+| Mapper | [TenderMapper.java](../../backend/src/main/java/com/xiyu/bid/tender/service/TenderMapper.java) | Entity↔DTO 转换 |
+| AI 分析 | [TenderAiAnalysisService.java](../../backend/src/main/java/com/xiyu/bid/tender/service/TenderAiAnalysisService.java) | AI 分析上下文 |
+| 表单引擎 | [FormSubmissionMappers.java](../../backend/src/main/java/com/xiyu/bid/formengine/application/FormSubmissionMappers.java) | 表单字段映射 |
+| 外部集成 | [TenderIntegrationMapper.java](../../backend/src/main/java/com/xiyu/bid/integration/external/TenderIntegrationMapper.java) | 接收外部输入 |
+| **归档详情** | [ProjectArchiveDetailResponse.java](../../backend/src/main/java/com/xiyu/bid/casework/dto/ProjectArchiveDetailResponse.java)、[ProjectArchiveDetailService.java](../../backend/src/main/java/com/xiyu/bid/casework/application/ProjectArchiveDetailService.java) | **注释是"招标主体"，赋值用 `getPurchaserName()`** |
+| **归档导出** | [ProjectArchiveExportService.java](../../backend/src/main/java/com/xiyu/bid/casework/application/ProjectArchiveExportService.java) | **赋值用 `getPurchaserName()`** |
+| AI 输出 | [OpenAiTenderDocumentAnalyzer.java](../../backend/src/main/java/com/xiyu/bid/biddraftagent/infrastructure/openai/OpenAiTenderDocumentAnalyzer.java) | `putIfBlank` 透传 |
+| 前端 fallback | [manualTenderParseHelpers.js](../../src/views/Bidding/list/manualTenderParseHelpers.js) | `purchaser: firstText(data.purchaserName, data.tenderAgency, ...)` |
+| 前端映射 | [useTenderAiParse.js](../../src/views/Bidding/list/composables/useTenderAiParse.js) | `tenderAgency: 'purchaser'` |
+| 小程序 | [tender-detail.wxml](../../integration/wechat-miniprogram/pages/tender-detail/tender-detail.wxml) | 直接显示 |
+| Vue 归档抽屉 | [ArchiveDetailDrawer.vue](../../src/views/Knowledge/views/components/ArchiveDetailDrawer.vue) | 直接显示 |
+| 外部文档 | [标讯集成接口文档-v3.8.md](../integration/标讯集成接口文档-v3.8.md) | 注释"招标代理机构" |
+
+### 关键教训
+
+1. **"技术债"判断必须基于全量搜索，不能基于推测**：判断"某字段是否可清理"前，必须全仓 grep 字段名，确认所有引用点。本次我只检查了 `TenderRequirementOutput.tenderAgency` 的下游，漏掉了 `Tender.tenderAgency` 这个独立字段。
+2. **同名字段不等于同一字段**：`TenderRequirementOutput.tenderAgency`（AI 输出 DTO）和 `Tender.tenderAgency`（实体字段）是不同类中的同名字段，各有独立生命周期。不能因为前者没人用就推断后者也是死代码。
+3. **字段语义不一致是隐性的技术债**：同一字段名在不同模块有不同业务含义（代理机构 vs 招标主体），这是更危险的技术债——表面看代码在运行，但实际语义混乱，任何修改都可能踩坑。
+4. **字段语义测试可以防止歧义**：建议未来对关键字段加"语义一致性测试"——例如断言"`ProjectArchiveDetailResponse.tenderAgency` 的值必须等于 `Tender.purchaserName`"，让语义混淆自动暴露。
+5. **外部接口文档与代码背离是高危信号**：文档写"招标代理机构"，代码用作"招标主体"——这种背离会在外部集成时造成严重问题，必须作为 review 的重点检查项。
+
+### 处置记录
+
+- 本次 PR !2214 **不清理** `tenderAgency` 字段——清理范围超出 PR scope
+- 在本 lessons-learned.md 中记录字段语义混淆问题作为后续治理任务的依据
+- 后续治理建议（独立 PR 处理）：
+  1. 确认 `Tender.tenderAgency` 的最终业务语义（招标主体 vs 代理机构）
+  2. 如果决定废弃，清理 12+ 处引用，并迁移历史数据
+  3. 如果决定保留为"招标主体"，更新 [标讯集成接口文档-v3.8.md](../integration/标讯集成接口文档-v3.8.md) 的"招标代理机构"注释为"招标主体"
+  4. 在 `Tender.tenderAgency` 字段加 `@Deprecated` 或重命名为 `purchaserNameLegacy`，消除歧义
+  5. 归档详情响应改用 `purchaserName` 字段名，与 Entity 字段对齐
+
+### 相关文档
+
+- [Tender.java](../../backend/src/main/java/com/xiyu/bid/entity/Tender.java) — Entity 字段定义
+- [ProjectArchiveDetailResponse.java](../../backend/src/main/java/com/xiyu/bid/casework/dto/ProjectArchiveDetailResponse.java) — 注释"招标主体"
+- [标讯集成接口文档-v3.8.md](../integration/标讯集成接口文档-v3.8.md) — 注释"招标代理机构"
+- [PurchaserAliases.java](../../backend/src/main/java/com/xiyu/bid/biddraftagent/infrastructure/openai/PurchaserAliases.java) — 唯一真相来源
+- 第 83 条：招标主体识别"两处列表不同步"陷阱（相关前序问题）
+
