@@ -271,6 +271,136 @@ class AuditableAspectProjectScopedTest {
                 .isEqualTo(77L);
     }
 
+    /**
+     * PR #2212 回归：BidReviewAppService.submitForReview 改为返回 BidDocumentReviewViewDto
+     * → projectId 从返回值正确提取，不再为 null。
+     *
+     * <p>场景：BidReviewAppService.submitForReview(Long projectId, List<Long> reviewerIds, Long submittedBy)
+     * 原为 void 方法，导致 project_id=NULL，项目动态丢失"提交标书审核"记录。
+     */
+    @Test
+    void projectScopedSubmitBidReviewExtractsFromReturnedDTO() throws Throwable {
+        when(signature.getMethod()).thenReturn(method("submitBidReview"));
+        when(joinPoint.proceed()).thenReturn(new BidReviewLikeRecord(301L, 501L));
+        when(joinPoint.getArgs()).thenReturn(new Object[]{501L, java.util.List.of(1L), 10L});
+
+        aspect.auditMethod(joinPoint);
+
+        ArgumentCaptor<AuditLogService.AuditLogEntry> entryCaptor =
+                ArgumentCaptor.forClass(AuditLogService.AuditLogEntry.class);
+        verify(auditLogService).log(entryCaptor.capture());
+        assertThat(entryCaptor.getValue().getProjectId())
+                .as("submitForReview 返回 BidDocumentReviewViewDto 后从 getProjectId() 正确提取")
+                .isEqualTo(501L);
+        assertThat(entryCaptor.getValue().getEntityId())
+                .as("entityId 仍然正确记录为审核记录 ID（review.id）")
+                .isEqualTo("301");
+    }
+
+    /**
+     * PR #2212 回归：BidReviewAppService.approveBid 改为返回 BidDocumentReviewViewDto
+     * → projectId 从返回值正确提取，不再为 null。
+     *
+     * <p>场景：BidReviewAppService.approveBid(Long projectId, Long currentUserId, String comment)
+     * 原为 void 方法，导致 project_id=NULL，项目动态丢失"标书审核通过"记录。
+     */
+    @Test
+    void projectScopedApproveBidExtractsFromReturnedDTO() throws Throwable {
+        when(signature.getMethod()).thenReturn(method("approveBid"));
+        when(joinPoint.proceed()).thenReturn(new BidReviewLikeRecord(302L, 502L));
+        when(joinPoint.getArgs()).thenReturn(new Object[]{502L, 10L, "同意"});
+
+        aspect.auditMethod(joinPoint);
+
+        ArgumentCaptor<AuditLogService.AuditLogEntry> entryCaptor =
+                ArgumentCaptor.forClass(AuditLogService.AuditLogEntry.class);
+        verify(auditLogService).log(entryCaptor.capture());
+        assertThat(entryCaptor.getValue().getProjectId())
+                .as("approveBid 返回 BidDocumentReviewViewDto 后从 getProjectId() 正确提取")
+                .isEqualTo(502L);
+        assertThat(entryCaptor.getValue().getEntityId())
+                .as("entityId 仍然正确记录为审核记录 ID（review.id）")
+                .isEqualTo("302");
+    }
+
+    /**
+     * PR #2212 回归：BidReviewAppService.rejectBid 改为返回 BidDocumentReviewViewDto
+     * → projectId 从返回值正确提取，不再为 null。
+     *
+     * <p>场景：BidReviewAppService.rejectBid(Long projectId, Long currentUserId, String reason)
+     * 原为 void 方法，导致 project_id=NULL，项目动态丢失"标书审核驳回"记录。
+     */
+    @Test
+    void projectScopedRejectBidExtractsFromReturnedDTO() throws Throwable {
+        when(signature.getMethod()).thenReturn(method("rejectBid"));
+        when(joinPoint.proceed()).thenReturn(new BidReviewLikeRecord(303L, 503L));
+        when(joinPoint.getArgs()).thenReturn(new Object[]{503L, 10L, "不通过"});
+
+        aspect.auditMethod(joinPoint);
+
+        ArgumentCaptor<AuditLogService.AuditLogEntry> entryCaptor =
+                ArgumentCaptor.forClass(AuditLogService.AuditLogEntry.class);
+        verify(auditLogService).log(entryCaptor.capture());
+        assertThat(entryCaptor.getValue().getProjectId())
+                .as("rejectBid 返回 BidDocumentReviewViewDto 后从 getProjectId() 正确提取")
+                .isEqualTo(503L);
+        assertThat(entryCaptor.getValue().getEntityId())
+                .as("entityId 仍然正确记录为审核记录 ID（review.id）")
+                .isEqualTo("303");
+    }
+
+    /**
+     * PR #2212 回归：ProjectInitiationApprovalService.approve 改为返回 InitiationViewDto
+     * → projectId 从返回值正确提取，不再为 null。
+     *
+     * <p>场景：ProjectInitiationApprovalService.approve(Long projectId, InitiationApprovalRequest req, Long currentUserId)
+     * 原为 void 方法，导致 project_id=NULL，项目动态丢失"审核通过项目立项"记录。
+     */
+    @Test
+    void projectScopedApproveInitiationExtractsFromReturnedDTO() throws Throwable {
+        when(signature.getMethod()).thenReturn(method("approveInitiation"));
+        when(joinPoint.proceed()).thenReturn(new InitiationViewLikeRecord(401L, 601L));
+        when(joinPoint.getArgs()).thenReturn(new Object[]{601L, new InitiationApprovalRequestLike(), 5L});
+
+        aspect.auditMethod(joinPoint);
+
+        ArgumentCaptor<AuditLogService.AuditLogEntry> entryCaptor =
+                ArgumentCaptor.forClass(AuditLogService.AuditLogEntry.class);
+        verify(auditLogService).log(entryCaptor.capture());
+        assertThat(entryCaptor.getValue().getProjectId())
+                .as("approve 返回 InitiationViewDto 后从 getProjectId() 正确提取")
+                .isEqualTo(601L);
+        assertThat(entryCaptor.getValue().getEntityId())
+                .as("entityId 仍然正确记录为立项详情 ID（initiation.id）")
+                .isEqualTo("401");
+    }
+
+    /**
+     * PR #2212 回归：ProjectInitiationApprovalService.reject 改为返回 InitiationViewDto
+     * → projectId 从返回值正确提取，不再为 null。
+     *
+     * <p>场景：ProjectInitiationApprovalService.reject(Long projectId, InitiationRejectionRequest req, Long currentUserId)
+     * 原为 void 方法，导致 project_id=NULL，项目动态丢失"驳回项目立项"记录。
+     */
+    @Test
+    void projectScopedRejectInitiationExtractsFromReturnedDTO() throws Throwable {
+        when(signature.getMethod()).thenReturn(method("rejectInitiation"));
+        when(joinPoint.proceed()).thenReturn(new InitiationViewLikeRecord(402L, 602L));
+        when(joinPoint.getArgs()).thenReturn(new Object[]{602L, new InitiationRejectionRequestLike(), 5L});
+
+        aspect.auditMethod(joinPoint);
+
+        ArgumentCaptor<AuditLogService.AuditLogEntry> entryCaptor =
+                ArgumentCaptor.forClass(AuditLogService.AuditLogEntry.class);
+        verify(auditLogService).log(entryCaptor.capture());
+        assertThat(entryCaptor.getValue().getProjectId())
+                .as("reject 返回 InitiationViewDto 后从 getProjectId() 正确提取")
+                .isEqualTo(602L);
+        assertThat(entryCaptor.getValue().getEntityId())
+                .as("entityId 仍然正确记录为立项详情 ID（initiation.id）")
+                .isEqualTo("402");
+    }
+
     private static Method method(String name) {
         try {
             return TargetActions.class.getMethod(name);
@@ -326,6 +456,41 @@ class AuditableAspectProjectScopedTest {
         @Auditable(action = "DELETE", entityType = "CalendarEvent", description = "Deleted calendar event", projectScoped = true)
         public CalendarEventLikeRecord deleteCalendarEvent() {
             return new CalendarEventLikeRecord(203L, 77L);
+        }
+
+        /** 模拟 BidReviewAppService.submitForReview(Long, List, Long) —— projectScoped=true，返回 BidDocumentReviewViewDto */
+        @Auditable(action = "SUBMIT_BID_REVIEW", entityType = "BidDocumentReview",
+                description = "提交标书审核", projectScoped = true)
+        public BidReviewLikeRecord submitBidReview() {
+            return new BidReviewLikeRecord(301L, 501L);
+        }
+
+        /** 模拟 BidReviewAppService.approveBid(Long, Long, String) —— projectScoped=true，返回 BidDocumentReviewViewDto */
+        @Auditable(action = "APPROVE_BID", entityType = "BidDocumentReview",
+                description = "标书审核通过", projectScoped = true)
+        public BidReviewLikeRecord approveBid() {
+            return new BidReviewLikeRecord(302L, 502L);
+        }
+
+        /** 模拟 BidReviewAppService.rejectBid(Long, Long, String) —— projectScoped=true，返回 BidDocumentReviewViewDto */
+        @Auditable(action = "REJECT_BID", entityType = "BidDocumentReview",
+                description = "标书审核驳回", projectScoped = true)
+        public BidReviewLikeRecord rejectBid() {
+            return new BidReviewLikeRecord(303L, 503L);
+        }
+
+        /** 模拟 ProjectInitiationApprovalService.approve(Long, req, Long) —— projectScoped=true，返回 InitiationViewDto */
+        @Auditable(action = "APPROVE_INITIATION", entityType = "ProjectInitiationDetails",
+                description = "审核通过项目立项", projectScoped = true)
+        public InitiationViewLikeRecord approveInitiation() {
+            return new InitiationViewLikeRecord(401L, 601L);
+        }
+
+        /** 模拟 ProjectInitiationApprovalService.reject(Long, req, Long) —— projectScoped=true，返回 InitiationViewDto */
+        @Auditable(action = "REJECT_INITIATION", entityType = "ProjectInitiationDetails",
+                description = "驳回项目立项", projectScoped = true)
+        public InitiationViewLikeRecord rejectInitiation() {
+            return new InitiationViewLikeRecord(402L, 602L);
         }
     }
 
@@ -398,5 +563,35 @@ class AuditableAspectProjectScopedTest {
 
     /** 模拟 CalendarEventUpdateRequest：无 projectId（与真实 DTO 一致）。 */
     static final class CalendarEventUpdateRequestLike {
+    }
+
+    /** 模拟 BidDocumentReviewViewDto：含 id（审核记录 ID）和 projectId。 */
+    record BidReviewLikeRecord(Long id, Long projectId) {
+        public Long getId() {
+            return id;
+        }
+
+        public Long getProjectId() {
+            return projectId;
+        }
+    }
+
+    /** 模拟 InitiationViewDto：含 id（立项详情 ID）和 projectId。 */
+    record InitiationViewLikeRecord(Long id, Long projectId) {
+        public Long getId() {
+            return id;
+        }
+
+        public Long getProjectId() {
+            return projectId;
+        }
+    }
+
+    /** 模拟 InitiationApprovalRequest：无 projectId（与真实 DTO 一致）。 */
+    static final class InitiationApprovalRequestLike {
+    }
+
+    /** 模拟 InitiationRejectionRequest：无 projectId（与真实 DTO 一致）。 */
+    static final class InitiationRejectionRequestLike {
     }
 }

@@ -14,6 +14,7 @@ import com.xiyu.bid.project.entity.ProjectLeadAssignment;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
 import com.xiyu.bid.project.repository.ProjectEvaluationRepository;
 import com.xiyu.bid.project.repository.ProjectLeadAssignmentRepository;
+import com.xiyu.bid.project.dto.BidDocumentReviewViewDto;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.repository.UserRepository;
@@ -505,9 +506,9 @@ class ProjectDraftingServiceTest {
         when(userRepository.findById(1L)).thenReturn(Optional.of(mockUser(1L, "admin")));
         lenient().when(taskRepository.findByProjectId(1L)).thenReturn(List.of());
         prepareBidDocument();
-        org.mockito.Mockito.lenient().doNothing().when(bidReviewAppService)
+        org.mockito.Mockito.lenient().doReturn(BidDocumentReviewViewDto.builder().projectId(1L).build())
+                .when(bidReviewAppService)
                 .submitForReview(any(Long.class), any(List.class), any(Long.class));
-
         service.submitForReview(1L, List.of(99L), 1L);
 
         verify(bidReviewAppService).submitForReview(1L, List.of(99L), 1L);
@@ -522,9 +523,9 @@ class ProjectDraftingServiceTest {
                 Task.builder().id(1L).projectId(1L).title("a").status(Task.Status.TODO).build(),
                 Task.builder().id(2L).projectId(1L).title("b").status(Task.Status.REVIEW).build()));
         prepareBidDocument();
-        org.mockito.Mockito.lenient().doNothing().when(bidReviewAppService)
+        org.mockito.Mockito.lenient().doReturn(BidDocumentReviewViewDto.builder().projectId(1L).build())
+                .when(bidReviewAppService)
                 .submitForReview(any(Long.class), any(List.class), any(Long.class));
-
         service.submitForReview(1L, List.of(99L), 1L);
 
         verify(bidReviewAppService).submitForReview(1L, List.of(99L), 1L);

@@ -12,6 +12,7 @@ import com.xiyu.bid.matrixcollaboration.entity.ProjectMember;
 import com.xiyu.bid.matrixcollaboration.repository.ProjectMemberRepository;
 import com.xiyu.bid.project.core.BidReviewPolicy;
 import com.xiyu.bid.project.core.BidReviewStatus;
+import com.xiyu.bid.project.dto.BidDocumentReviewViewDto;
 import com.xiyu.bid.project.dto.ReviewerDecisionDto;
 import com.xiyu.bid.project.entity.BidDocumentReviewEntity;
 import com.xiyu.bid.project.entity.BidReviewAssignmentEntity;
@@ -64,7 +65,7 @@ public class BidReviewAppService {
      */
     @Auditable(action = "SUBMIT_BID_REVIEW", entityType = "BidDocumentReview",
             description = "提交标书审核", projectScoped = true)
-    public void submitForReview(Long projectId, List<Long> reviewerIds, Long submittedBy) {
+    public BidDocumentReviewViewDto submitForReview(Long projectId, List<Long> reviewerIds, Long submittedBy) {
         // 入参校验
         BidReviewReviewerValidator.validateReviewerIds(reviewerIds, submittedBy);
 
@@ -113,6 +114,7 @@ public class BidReviewAppService {
             sendBidReviewNotification(projectId, rid, submittedBy);
         }
         log.info("Bid submitted for review project={} reviewers={} by={}", projectId, reviewerIds, submittedBy);
+        return toView(review, projectId);
     }
 
     /**
@@ -121,7 +123,7 @@ public class BidReviewAppService {
      */
     @Auditable(action = "APPROVE_BID", entityType = "BidDocumentReview",
             description = "标书审核通过", projectScoped = true)
-    public void approveBid(Long projectId, Long currentUserId, String comment) {
+    public BidDocumentReviewViewDto approveBid(Long projectId, Long currentUserId, String comment) {
         BidDocumentReviewEntity review = reviewRepository.findByProjectId(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "未找到标书审核记录"));
         List<BidReviewAssignmentEntity> assignments = assignmentRepository
@@ -158,6 +160,7 @@ public class BidReviewAppService {
             projectNotificationService.notifyBidReviewResult(projectId, review.getSubmittedBy(), true, currentUserId);
         }
         log.info("Bid approved project={} by={} aggregate={} comment={}", projectId, currentUserId, aggregate, comment);
+        return toView(review, projectId);
     }
 
     /**
@@ -166,7 +169,7 @@ public class BidReviewAppService {
      */
     @Auditable(action = "REJECT_BID", entityType = "BidDocumentReview",
             description = "标书审核驳回", projectScoped = true)
-    public void rejectBid(Long projectId, Long currentUserId, String reason) {
+    public BidDocumentReviewViewDto rejectBid(Long projectId, Long currentUserId, String reason) {
         BidDocumentReviewEntity review = reviewRepository.findByProjectId(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "未找到标书审核记录"));
         List<BidReviewAssignmentEntity> assignments = assignmentRepository
@@ -204,6 +207,7 @@ public class BidReviewAppService {
 
         projectNotificationService.notifyBidReviewResult(projectId, review.getSubmittedBy(), false, currentUserId);
         log.info("Bid rejected project={} by={} reason={}", projectId, currentUserId, reason);
+        return toView(review, projectId);
     }
 
     /** 读取审核状态（CO-484 多人审核，只读事务）。 */
@@ -235,6 +239,13 @@ public class BidReviewAppService {
 
     // -- 辅助方法 ----------------------------------------------------------
 
+    /** 构造 BidDocumentReviewViewDto，projectId 供 AuditableAspect 反射提取（@JsonIgnore 不序列化）。 */
+    private BidDocumentReviewViewDto toView(BidDocumentReviewEntity e, Long projectId) {
+        return BidDocumentReviewViewDto.builder().id(e.getId()).projectId(projectId).status(e.getStatus())
+                .reviewerId(e.getReviewerId()).submittedBy(e.getSubmittedBy())
+                .rejectReason(e.getRejectReason()).reviewedAt(e.getReviewedAt()).build();
+    }
+
     private String buildRejectReasonText(List<BidReviewAssignmentEntity> assignments) {
         List<String> parts = new ArrayList<>();
         for (BidReviewAssignmentEntity a : assignments) {
@@ -257,14 +268,11 @@ public class BidReviewAppService {
         Project project = projectRepository.findById(projectId).orElse(null);
         if (project == null) return;
         Tender tender = tenderRepository.findById(project.getTenderId()).orElse(null);
-
         String tenderTitle = tender != null ? tender.getTitle() : null;
         String bidOpeningTime = tender != null && tender.getBidOpeningTime() != null
                 ? tender.getBidOpeningTime().toString() : null;
         String purchaserName = tender != null ? tender.getPurchaserName() : null;
-        String submitterName = userRepository.findById(submittedBy)
-                .map(User::getFullName).orElse(null);
-
+        String submitterName = userRepository.findById(submittedBy).map(User::getFullName).orElse(null);
         projectNotificationService.notifyBidReviewSubmitted(
                 projectId, reviewerId, submittedBy,
                 tenderTitle, bidOpeningTime, purchaserName, submitterName);
@@ -281,18 +289,11 @@ public class BidReviewAppService {
 
     private String resolveUserName(Long userId) {
         if (userId == null) return null;
-        return userRepository.findById(userId)
-                .map(User::getFullName)
-                .orElse(null);
+        return userRepository.findById(userId).map(User::getFullName).orElse(null);
     }
 
     /** 审核状态快照（CO-484 多人审核）。 */
-    public record ReviewState(
-            String status,
-            Long reviewerId,
-            String rejectReason,
-            String reviewerName,
-            List<ReviewerDecisionDto> reviewers
-    ) {
+    public record ReviewState(String status, Long reviewerId, String rejectReason,
+                              String reviewerName, List<ReviewerDecisionDto> reviewers) {
     }
 }

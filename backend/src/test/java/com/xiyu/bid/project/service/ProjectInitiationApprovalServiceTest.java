@@ -28,6 +28,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.server.ResponseStatusException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -56,9 +57,12 @@ class ProjectInitiationApprovalServiceTest {
     @Mock private TaskService taskService;
 
     private ProjectInitiationApprovalService service;
+    private ProjectInitiationMapper initiationMapper;
 
     @BeforeEach
     void setUp() {
+        // 使用真实 ProjectInitiationMapper + ObjectMapper，让 toView() 真实执行
+        initiationMapper = new ProjectInitiationMapper(new ObjectMapper());
         service = new ProjectInitiationApprovalService(
                 initiationRepo,
                 leadRepo,
@@ -68,7 +72,8 @@ class ProjectInitiationApprovalServiceTest {
                 projectRepository,
                 projectArchiveWorkflowService,
                 notificationService,
-                taskService);
+                taskService,
+                initiationMapper);
 
         lenient().doNothing().when(projectAccessScopeService).assertCurrentUserCanAccessProject(100L);
         lenient().when(leadRepo.findByProjectId(100L))

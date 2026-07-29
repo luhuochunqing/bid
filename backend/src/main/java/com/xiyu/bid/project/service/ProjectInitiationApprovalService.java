@@ -16,6 +16,7 @@ import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.core.ProjectStageTransitionPolicy;
 import com.xiyu.bid.project.dto.InitiationApprovalRequest;
 import com.xiyu.bid.project.dto.InitiationRejectionRequest;
+import com.xiyu.bid.project.dto.InitiationViewDto;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.project.entity.ProjectLeadAssignment;
 import com.xiyu.bid.project.notification.ProjectNotificationService;
@@ -64,6 +65,7 @@ public class ProjectInitiationApprovalService {
     private final ProjectArchiveWorkflowService projectArchiveWorkflowService;
     private final ProjectNotificationService notificationService;
     private final TaskService taskService;
+    private final ProjectInitiationMapper initiationMapper;
 
     /**
      * 审核通过立项申请，原子完成：状态变更 + 团队分配 + 阶段推进 + 字段锁定。
@@ -76,7 +78,7 @@ public class ProjectInitiationApprovalService {
      */
     @Auditable(action = "APPROVE_INITIATION", entityType = "ProjectInitiationDetails",
             description = "审核通过项目立项: 分配团队 + 推进阶段 + 锁定字段", projectScoped = true)
-    public void approve(Long projectId, InitiationApprovalRequest req, Long currentUserId) {
+    public InitiationViewDto approve(Long projectId, InitiationApprovalRequest req, Long currentUserId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         ProjectInitiationDetails entity = mustGet(projectId);
         InitiationReviewStatus current = parseStatus(entity.getReviewStatus());
@@ -149,6 +151,7 @@ public class ProjectInitiationApprovalService {
 
         log.info("Initiation approved project={} primaryLead={} reviewer={}",
                 projectId, req.getPrimaryLeadUserId(), currentUserId);
+        return initiationMapper.toView(entity);
     }
 
     /**
@@ -162,7 +165,7 @@ public class ProjectInitiationApprovalService {
      */
     @Auditable(action = "REJECT_INITIATION", entityType = "ProjectInitiationDetails",
             description = "驳回项目立项: 记录原因等待重新提交", projectScoped = true)
-    public void reject(Long projectId, InitiationRejectionRequest req, Long currentUserId) {
+    public InitiationViewDto reject(Long projectId, InitiationRejectionRequest req, Long currentUserId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         ProjectInitiationDetails entity = mustGet(projectId);
         InitiationReviewStatus current = parseStatus(entity.getReviewStatus());
@@ -184,6 +187,7 @@ public class ProjectInitiationApprovalService {
 
         log.info("Initiation rejected project={} reviewer={} reason={}",
                 projectId, currentUserId, req.getComment());
+        return initiationMapper.toView(entity);
     }
 
     /**
