@@ -6283,4 +6283,40 @@ PR !2212 修复了 `audit_logs.project_id` 污染问题（移除 Long args-first
 - 第 83 条：招标主体识别"两处列表不同步"陷阱（前置背景）
 - 第 84 条：`tenderAgency` 字段语义混淆陷阱（关联治理）
 
+## 87. 结构化标签字段死磕 Prompt 不如正则兜底——招标主体识别的最终根治（2026-07-29 / PR !2222）
+
+### 事故背景
+
+张家口银行招标文件（`张家口银行股份有限公司...电商平台采购项目`）上传后，**招标主体（purchaserName）仍然识别不出来**——尽管第 86 条（PR !2218）刚刚系统性扩展了归一化字符集 + Prompt 引导来处理"招 标 人：XXX"这类空格打断标签行。
+
+### 根因（决定性证据链）
+
+用真实链路完整调查（sidecar 提取 + 候选文本模拟 + 服务器日志），逐环节排除：
+
+1. **sidecar 提取正常**：markdownLength=35184，招标主体标签行清晰存在（`招 标 人：张家口银行股份有限公司` 出现在 L8/L138/L170，另有 `1.2 招标单位：张家口银行股份有限公司`）
+2. **候选文本提取正常**：PR !2218 的 `normalizeForMatching` 有效，`招 标 人：张家口银行` 归一化后命中关键词，进入候选文本且位置极靠前（字符偏移 66，远未触及 20000 截断）
+3. **AI 环节漏抽**：候选文本前 1500 字符里招标主体信息极清晰，但 AI 仍返回空 purchaserName（日志 elapsed=51189ms status=200 无报错）
+
+**零号病人**：`purchaserName` 是**纯 AI 抽取、零兜底**（Java 侧无正则提取、无默认值、无覆盖写入）。该文档"招标人/代理机构"共现 20+ 次，开头就是 `代理机构：祥安招标代理有限公司` 紧邻 `招 标 人：张家口银行`，干扰极强，AI 一旦抽空就彻底丢失。
+
+### 核心教训
+
+1. **结构化标签行不该交给 LLM 语义判断**：`招标人：XXX` 是"标签+冒号+机构名"的结构化格式，正则可 100% 稳定命中，却因交给 AI 而在强干扰文档中漏抽。这正是 `regex-vs-llm-structured-text` 原则的典型场景——结构化走正则，语义模糊才走 LLM。
+2. **死磕 Prompt 是方向性错误**：第 83→84→86 条连续多轮都在"改 Prompt 让 AI 更聪明地识别标签行"，治标不治本——LLM 输出天然不稳定，同一份文档不同次调用结果都可能不同。**正确姿势是把可正则化的部分从 AI 手里拿回来**。
+3. **兜底而非替换**：只在 AI 留空时用正则兜底（`isBlankValue(purchaserName)` 才触发），AI 有值不覆盖——既根治漏抽，又不影响 AI 正常工作的 case。
+4. **排除规则要精准**：正则兜底必须排除代理机构（含"代理"的行）、排除叙事性行（要求标签紧跟冒号，"招标人不予受理"因无冒号自然不匹配）、机构名 ≥4 字过滤噪声、多标签取多数投票。
+
+### 操作规范
+
+1. AI 抽取的结构化字段（有明确标签行格式的），一律配正则兜底，不要指望纯 Prompt 解决稳定性问题
+2. 兜底逻辑走"AI 空值才触发、AI 有值不覆盖"，避免正则误判覆盖正确的 AI 结果
+3. 兜底提取器应拆为独立单一职责类（如 `PurchaserNameExtractor`），不塞进已接近 300 行门禁的工具类
+4. 调查 AI 漏抽问题必须走真实链路（sidecar 实提取 + 候选文本模拟 + 服务器日志逐环节排除），精确定位是"候选文本没进"还是"AI 没抽"，不要停留在改 Prompt
+
+### 相关文档
+
+- [PurchaserNameExtractor.java](../../backend/src/main/java/com/xiyu/bid/biddraftagent/infrastructure/openai/PurchaserNameExtractor.java) — 招标主体正则兜底提取器（单一职责）
+- [OpenAiTenderDocumentAnalyzer.java](../../backend/src/main/java/com/xiyu/bid/biddraftagent/infrastructure/openai/OpenAiTenderDocumentAnalyzer.java) — `mergeAndMap` 兜底接线（AI 空值才触发）
+- 第 86 条：招标文件 PDF 关键词识别陷阱（Prompt 路线，本条为其最终根治升华）
+
 
