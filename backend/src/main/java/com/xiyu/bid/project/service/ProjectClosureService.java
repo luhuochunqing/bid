@@ -103,7 +103,7 @@ public class ProjectClosureService {
                 .build();
     }
 
-    @Auditable(action = "PROJECT_CLOSURE_SUBMITTED", entityType = "ProjectClosure", description = "提交项目结项申请")
+    @Auditable(action = "PROJECT_CLOSURE_SUBMITTED", entityType = "ProjectClosure", description = "提交项目结项申请", projectScoped = true)
     public ClosureDTO submitClosure(Long projectId, ClosureSubmitRequest req, Long userId) {
         mustGetProject(projectId);
         Optional<ProjectClosure> existingClosure = closureRepository.findByProjectId(projectId);
@@ -154,7 +154,7 @@ public class ProjectClosureService {
         return toDto(saved);
     }
 
-    @Auditable(action = "PROJECT_CLOSURE_APPROVED", entityType = "ProjectClosure", description = "审核通过项目结项")
+    @Auditable(action = "PROJECT_CLOSURE_APPROVED", entityType = "ProjectClosure", description = "审核通过项目结项", projectScoped = true)
     public ClosureDTO approveClosure(Long projectId, Long userId) {
         mustGetProject(projectId);
         // CO-403 纠偏：审核权细粒度校验（职责分离 + 项目级投标辅助匹配）
@@ -197,7 +197,7 @@ public class ProjectClosureService {
         return toDto(saved);
     }
 
-    @Auditable(action = "PROJECT_CLOSURE_REJECTED", entityType = "ProjectClosure", description = "驳回项目结项申请")
+    @Auditable(action = "PROJECT_CLOSURE_REJECTED", entityType = "ProjectClosure", description = "驳回项目结项申请", projectScoped = true)
     public ClosureDTO rejectClosure(Long projectId, String reason, Long userId) {
         mustGetProject(projectId);
         // CO-403 纠偏：审核权细粒度校验（职责分离 + 项目级投标辅助匹配）
@@ -225,7 +225,7 @@ public class ProjectClosureService {
      * 一键导出项目文档
      * 依赖 DocumentExportService 将在线文档内容按结构全量导出。
      */
-    @Auditable(action = "PROJECT_CLOSURE_EXPORT_DOCS", entityType = "ProjectClosure", description = "一键导出项目文档")
+    @Auditable(action = "PROJECT_CLOSURE_EXPORT_DOCS", entityType = "ProjectClosure", description = "一键导出项目文档", projectScoped = true)
     public DocumentExportDTO exportDocuments(Long projectId, Long userId) {
         mustGetProject(projectId);
         ProjectClosure closure = closureRepository.findByProjectId(projectId)

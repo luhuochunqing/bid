@@ -65,7 +65,7 @@ public class ProjectDraftingService {
     private final EffectiveRoleResolver effectiveRoleResolver;
 
     @Auditable(action = "ASSIGN_PROJECT_LEADS", entityType = "ProjectLeadAssignment",
-            description = "分配主/副投标负责人")
+            description = "分配主/副投标负责人", projectScoped = true)
     public ProjectDraftingViewDto assignLeads(
             Long projectId, ProjectLeadAssignmentRequest req, Long currentUserId) {
         mustGetProject(projectId);
@@ -102,7 +102,7 @@ public class ProjectDraftingService {
      * §3.2.3 闸门检查。
      */
     @Auditable(action = "GATE_ADVANCE_TO_EVALUATION", entityType = "Project",
-            description = "DRAFTING → EVALUATING 闸门检查")
+            description = "DRAFTING → EVALUATING 闸门检查", projectScoped = true)
     public ProjectDraftingViewDto gateAdvanceToEvaluation(Long projectId, Long currentUserId) {
         mustGetProject(projectId);
         assertBidSubmissionReady(projectId, "无法推进到评标");
@@ -149,7 +149,7 @@ public class ProjectDraftingService {
      * 提交投标：投标文件审核通过后推进到 EVALUATING 阶段。
      */
     @Auditable(action = "SUBMIT_BID", entityType = "Project",
-            description = "提交投标并推进到评标阶段")
+            description = "提交投标并推进到评标阶段", projectScoped = true)
     public ProjectDraftingViewDto submitBid(Long projectId, Long currentUserId) {
 
         // 业务角色校验：仅投标系统管理员/投标管理员/投标组长/投标项目负责人/投标专员可以提交投标

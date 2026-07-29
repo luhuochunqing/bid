@@ -73,13 +73,18 @@ public class AuditableAspect {
 
             // 记录关键操作
             if (auditable != null && auditActionPolicy.shouldRecord(auditable.action())) {
+                // CO-XXX 修复：仅 projectScoped=true 时才提取 projectId，避免非项目操作
+                // （Performance/Template/Collaboration 等）的实体 id 被错当作 projectId。
+                Long projectId = auditable.projectScoped()
+                        ? extractProjectId(joinPoint.getArgs(), result)
+                        : null;
                 AuditLogService.AuditLogEntry entry = AuditLogService.AuditLogEntry.builder()
                     .userId(userId)
                     .username(username)
                     .action(auditable.action())
                     .entityType(auditable.entityType())
                     .entityId(extractEntityId(joinPoint.getArgs(), result))
-                    .projectId(extractProjectId(joinPoint.getArgs(), result))
+                    .projectId(projectId)
                     .description(auditable.description().isEmpty() ?
                         method.getName() : auditable.description())
                     .success(success)
@@ -124,12 +129,20 @@ public class AuditableAspect {
 
     /**
      * CO-324: 从方法参数/返回值提取项目 ID（项目动态按项目查询）。
-     * 顺序：返回值 getProjectId() -> 入参 Long（约定第一参为 projectId）-> 入参 getProjectId()。
-     * 非项目操作返回 null。
+     * 顺序：入参 getProjectId() -> 返回值 getProjectId()。
+     * 非项目操作（projectScoped=false）直接返回 null。
+     *
+     * <p>CO-XXX 修复：移除了两条 bug 路径——
+     * <ul>
+     *   <li>移除 Long args-first：原实现把任意 Long 入参当 projectId，导致 performanceId/feeId/templateId
+     *       被错写为 project_id（用户报告的 /project/31 污染根因）</li>
+     *   <li>移除 getId() fallback：原实现 fallback 到 getId()，对 FeeDTO.getId() 返回 feeId 也会被错当 projectId</li>
+     * </ul>
+     * 现在只通过显式的 getProjectId() 方法提取，确保只有真正携带 projectId 的对象才能被提取。
+     * 对 ProjectDTO（id 即 projectId），通过 ProjectDTO.getProjectId() 显式返回 id。
      */
     private Long extractProjectId(Object[] args, Object result) {
-        // CO-324: args-first —— 项目 service 第一参约定为 Long projectId（避免 rebidProject 等
-        // 返回新实体 id 的方法把日志归到错误项目）。args 扫不到再回退返回值 getProjectId()。
+        // args-first：扫描入参对象的 getProjectId()
         if (args != null) {
             for (Object arg : args) {
                 String pid = extractProjectIdFromObject(arg, 0);
@@ -138,6 +151,7 @@ public class AuditableAspect {
                 }
             }
         }
+        // 回退：返回值对象的 getProjectId()
         return parseLongId(extractProjectIdFromObject(result, 0));
     }
 
@@ -162,17 +176,10 @@ public class AuditableAspect {
         if (value instanceof ApiResponse<?> apiResponse) {
             return extractProjectIdFromObject(apiResponse.getData(), depth + 1);
         }
-        if (value instanceof Long longVal) {
-            return longVal.toString();
-        }
-        String pid = invokeNoArgIdMethod(value, "getProjectId");
-        if (pid != null) {
-            return pid;
-        }
-        // CO-324: 对 Project 实体/DTO 等自身 id 即 projectId 的对象，fallback 到 getId()。
-        // createProject 等方法入参/返回值为 ProjectDTO（仅含 id，无 projectId 字段），
-        // 原 extractProjectIdFromObject 只认 getProjectId() 会导致 project_id 写 null。
-        return invokeNoArgIdMethod(value, "getId");
+        // CO-XXX 修复：移除 Long args-first 路径（原 L170-172）——
+        // 任意 Long 入参（performanceId/feeId/templateId）被错当 projectId 是污染根因。
+        // 只通过显式的 getProjectId() 方法提取，确保只有真正携带 projectId 的对象才能被提取。
+        return invokeNoArgIdMethod(value, "getProjectId");
     }
 
     private String extractIdFromObject(Object value, int depth) {

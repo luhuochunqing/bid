@@ -138,6 +138,8 @@ public class FeeController {
     @PreAuthorize("hasAuthority('" + RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION + "')")
     public ResponseEntity<ApiResponse<Void>> deleteFee(@PathVariable Long id) {
         log.info("DELETE /api/fees/{} - Deleting fee", id);
+        // CO-XXX: service 返回 FeeDTO 供 @Auditable 切面提取 projectId（项目动态关联），
+        // controller 仍返回 Void 以保持 API 契约不变。
         feeService.deleteFee(id);
         return ResponseEntity.ok(ApiResponse.success("Fee deleted successfully", null));
     }

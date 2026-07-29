@@ -68,7 +68,7 @@ public class ProjectResultRegistrationService {
     private final ApplicationEventPublisher eventPublisher;
     private final TenderStatusSyncService tenderStatusSyncService;
 
-    @Auditable(action = "REGISTER_PROJECT_RESULT", entityType = "ProjectResult", description = "登记项目结果")
+    @Auditable(action = "REGISTER_PROJECT_RESULT", entityType = "ProjectResult", description = "登记项目结果", projectScoped = true)
     public ResultDTO register(Long projectId, ResultRegistrationRequest req, Long currentUserId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         Project project = mustGetProject(projectId);

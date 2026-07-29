@@ -43,7 +43,7 @@ public class FeeService {
     private final IAuditLogService auditLogService;
     private final ProjectAccessScopeService projectAccessScopeService;
 
-    @Auditable(action = "CREATE", entityType = "Fee", description = "Create new fee")
+    @Auditable(action = "CREATE", entityType = "Fee", description = "Create new fee", projectScoped = true)
     @Transactional
     public FeeDTO createFee(FeeCreateRequest request) {
         log.info("Creating fee for project: {}", request.getProjectId());
@@ -118,7 +118,7 @@ public class FeeService {
     /**
      * 更新费用
      */
-    @Auditable(action = "UPDATE", entityType = "Fee", description = "Update fee")
+    @Auditable(action = "UPDATE", entityType = "Fee", description = "Update fee", projectScoped = true)
     @Transactional
     public FeeDTO updateFee(Long id, FeeUpdateRequest request) {
         log.info("Updating fee with id: {}", id);
@@ -156,9 +156,9 @@ public class FeeService {
     /**
      * 删除费用
      */
-    @Auditable(action = "DELETE", entityType = "Fee", description = "Delete fee")
+    @Auditable(action = "DELETE", entityType = "Fee", description = "Delete fee", projectScoped = true)
     @Transactional
-    public void deleteFee(Long id) {
+    public FeeDTO deleteFee(Long id) {
         log.info("Deleting fee with id: {}", id);
 
         Fee fee = feeRepository.findById(id)
@@ -170,14 +170,16 @@ public class FeeService {
             throw new IllegalStateException("Cannot delete fee with status: " + fee.getStatus());
         }
 
+        FeeDTO deletedFeeDTO = FeeMapper.toDTO(fee);
         feeRepository.deleteById(id);
         log.info("Deleted fee with id: {}", id);
+        return deletedFeeDTO;
     }
 
     /**
      * 标记费用为已支付
      */
-    @Auditable(action = "PAY", entityType = "Fee", description = "Mark fee as paid")
+    @Auditable(action = "PAY", entityType = "Fee", description = "Mark fee as paid", projectScoped = true)
     @Transactional
     public FeeDTO markAsPaid(Long id, String paidBy) {
         log.info("Marking fee {} as paid by: {}", id, paidBy);
@@ -203,7 +205,7 @@ public class FeeService {
     /**
      * 标记费用为已退还
      */
-    @Auditable(action = "RETURN", entityType = "Fee", description = "Mark fee as returned")
+    @Auditable(action = "RETURN", entityType = "Fee", description = "Mark fee as returned", projectScoped = true)
     @Transactional
     public FeeDTO markAsReturned(Long id, String returnTo) {
         log.info("Marking fee {} as returned to: {}", id, returnTo);
@@ -229,7 +231,7 @@ public class FeeService {
     /**
      * 取消费用
      */
-    @Auditable(action = "CANCEL", entityType = "Fee", description = "Cancel fee")
+    @Auditable(action = "CANCEL", entityType = "Fee", description = "Cancel fee", projectScoped = true)
     @Transactional
     public FeeDTO cancelFee(Long id) {
         log.info("Cancelling fee with id: {}", id);
