@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.DisplayName;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -241,23 +242,21 @@ class TenderIntakeTextProcessorTest {
         @Test
         @DisplayName("代理机构关键词不应命中招标主体候选文本")
         void shouldNotIncludeAgencyKeywordsAsPurchaserCandidates() {
-            // 语义区分：招标主体 ≠ 代理机构
-            // - 招标主体（purchaserName）：项目实际需求方/业主方
-            // - 代理机构：受招标主体委托、组织招标流程的第三方机构
-            // 历史病灶：INTAKE_KEYWORDS 曾含"招标机构/代理机构/采购代理机构"，
-            // 导致代理公司被识别为招标主体，造成 purchaserName 识别错误
-            //
-            // 注意：buildTenderIntakeCandidateText 在无任何关键词命中时会回退到前 8000 字符，
-            // 所以测试文本必须包含一个远离代理机构行的正常关键词行（项目名称），
-            // 否则回退逻辑会把代理机构行也包含进候选文本，掩盖关键词列表的真实行为。
-            // 代理机构行距离项目名称行 5 行（> INTAKE_CONTEXT_RADIUS=3），不会被包含进候选文本。
+            // 代理机构关键词不应命中候选文本，否则 AI 会误识别为招标主体
+            // 注意：测试文本必须包含正常关键词行（项目名称），否则会触发回退逻辑
+            // （候选为空时回退到前 8000 字符），掩盖关键词列表的真实行为
+            // 填充行数 = INTAKE_CONTEXT_RADIUS + 2，保证代理机构行超出关键词命中半径
             List<String> agencyKeywords = List.of("招标机构", "代理机构", "采购代理机构");
+            int fillerCount = TenderIntakeTextProcessor.INTAKE_CONTEXT_RADIUS + 2;
 
             for (String keyword : agencyKeywords) {
-                String text = String.join("\n", List.of(
-                        "项目名称：测试项目",
-                        "填充行1", "填充行2", "填充行3", "填充行4",
-                        keyword + "：测试代理公司"));
+                List<String> lines = new ArrayList<>();
+                lines.add("项目名称：测试项目");
+                for (int i = 1; i <= fillerCount; i++) {
+                    lines.add("填充行" + i);
+                }
+                lines.add(keyword + "：测试代理公司");
+                String text = String.join("\n", lines);
 
                 String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(text);
 

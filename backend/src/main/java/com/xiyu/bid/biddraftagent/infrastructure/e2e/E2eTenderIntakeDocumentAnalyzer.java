@@ -20,8 +20,9 @@ import java.util.Map;
 public class E2eTenderIntakeDocumentAnalyzer implements DocumentAnalyzer {
 
     private static final Map<String, List<String>> FIELD_KEYS = Map.ofEntries(
+            // 已移除：Map.entry("tenderAgency", List.of("招标机构", "代理机构"))
+            // 标讯表单不记录代理机构（招标机构/代理机构/采购代理机构），不是招标主体
             Map.entry("title", List.of("标题", "标讯标题", "项目名称")),
-            // 标讯表单不记录代理机构（招标机构/代理机构/采购代理机构），已移除 tenderAgency 映射
             Map.entry("purchaserName", List.of("业主单位", "招标人", "采购人", "采购单位")),
             Map.entry("region", List.of("总部所在地", "地区")),
             Map.entry("deadline", List.of("报名截止时间", "截止时间", "投标截止时间", "响应截止时间")),

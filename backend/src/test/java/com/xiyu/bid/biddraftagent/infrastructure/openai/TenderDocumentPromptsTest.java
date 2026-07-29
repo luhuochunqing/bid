@@ -178,4 +178,55 @@ class TenderDocumentPromptsTest {
         // sections 元数据为 null 时，prompt 不应包含文档结构
         assertThat(prompt).doesNotContain("文档结构");
     }
+
+    @Test
+    void buildTenderIntakePrompt_shouldNotContainTenderAgencyField() {
+        // 标讯表单不记录代理机构，Prompt 不应包含 tenderAgency 字段口径
+        DocumentAnalysisInput input = sampleIntakeInput();
+        DocumentChunk chunk = new DocumentChunk("招标公告正文示例", List.of());
+
+        String prompt = TenderDocumentPrompts.buildTenderIntakePrompt(input, chunk);
+
+        // 字段口径不应出现 tenderAgency
+        assertThat(prompt).doesNotContain("tenderAgency：");
+        // Few-Shot 示例输出也不应出现 tenderAgency
+        assertThat(prompt).doesNotContain("tenderAgency:");
+    }
+
+    @Test
+    void buildTenderIntakePrompt_shouldContainPossibleDisplayInPrompt() {
+        // Prompt 必须包含"可能标签"展示文案，让 AI 知道这些标签可能是招标主体
+        DocumentAnalysisInput input = sampleIntakeInput();
+        DocumentChunk chunk = new DocumentChunk("招标公告正文示例", List.of());
+
+        String prompt = TenderDocumentPrompts.buildTenderIntakePrompt(input, chunk);
+
+        assertThat(prompt).contains(PurchaserAliases.POSSIBLE_DISPLAY);
+        assertThat(prompt).contains("可能标签");
+    }
+
+    @Test
+    void buildTenderIntakePrompt_shouldContainAgencyExclusionNote() {
+        // Prompt 必须包含代理机构反例说明，告诉 AI 代理机构不是招标主体
+        DocumentAnalysisInput input = sampleIntakeInput();
+        DocumentChunk chunk = new DocumentChunk("招标公告正文示例", List.of());
+
+        String prompt = TenderDocumentPrompts.buildTenderIntakePrompt(input, chunk);
+
+        assertThat(prompt).contains("代理机构");
+        assertThat(prompt).contains("不是招标主体");
+        assertThat(prompt).contains("标讯表单不记录代理机构");
+    }
+
+    private static DocumentAnalysisInput sampleIntakeInput() {
+        return new DocumentAnalysisInput(
+                "doc-insight://intake",
+                "tender-notice.docx",
+                "招标公告正文示例",
+                "",
+                List.of(new DocumentChunk("招标公告正文示例", List.of())),
+                DocInsightProfiles.TENDER_INTAKE,
+                Map.of()
+        );
+    }
 }

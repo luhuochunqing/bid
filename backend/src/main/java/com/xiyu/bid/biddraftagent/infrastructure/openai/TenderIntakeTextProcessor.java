@@ -12,7 +12,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 
 class TenderIntakeTextProcessor {
 
-    private static final int INTAKE_CONTEXT_RADIUS = 3;
+    /** 候选文本上下文半径（行数）。包级可见以便测试引用，避免魔法数字。 */
+    static final int INTAKE_CONTEXT_RADIUS = 3;
     private static final int INTAKE_CONTEXT_MAX_CHARS = 20_000;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
