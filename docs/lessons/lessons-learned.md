@@ -6148,3 +6148,53 @@ PR !2189（`agent/gemini/oss-role-priority-fix`）第三个 commit（javadoc 修
 - [PurchaserAliases.java](../../backend/src/main/java/com/xiyu/bid/biddraftagent/infrastructure/openai/PurchaserAliases.java) — 唯一真相来源
 - 第 83 条：招标主体识别"两处列表不同步"陷阱（相关前序问题）
 
+## 85. `@Auditable(projectScoped=true)` 方法禁止 void 返回值——AuditableAspect 无法提取 projectId 导致项目动态丢失记录（2026-07-29 / PR !2212 引入 + PR !2216 修复）
+
+### 事故背景
+
+PR !2212 修复了 `audit_logs.project_id` 污染问题（移除 Long args-first 和 getId() fallback 两条 bug 路径，只保留 `getProjectId()` 反射提取），但遗漏了一类边界场景：**5 个 `@Auditable(projectScoped=true)` 方法是 void 返回值**，既无返回值可反射，入参也无 `getProjectId()` 方法，导致 `project_id=NULL`，项目动态丢失 5 类操作记录：
+
+| 方法 | action | 影响 |
+|---|---|---|
+| `BidReviewAppService.submitForReview` | SUBMIT_BID_REVIEW | 提交标书审核记录丢失 |
+| `BidReviewAppService.approveBid` | APPROVE_BID | 标书审核通过记录丢失 |
+| `BidReviewAppService.rejectBid` | REJECT_BID | 标书审核驳回记录丢失 |
+| `ProjectInitiationApprovalService.approve` | APPROVE_INITIATION | 审核通过项目立项记录丢失 |
+| `ProjectInitiationApprovalService.reject` | REJECT_INITIATION | 驳回项目立项记录丢失 |
+
+### 根因分析
+
+1. **修复 bug 时未全量审视所有同类方法**：PR !2212 修复了 Long 入参误识别问题，但没有审视"void 返回值方法"这一类边界场景
+2. **`projectScoped=true` 的语义未被强制约束**：标注 `projectScoped=true` 意味着"这个方法的项目 ID 应该被记录到 audit_logs"，但方法本身是 void，没有返回值可供提取 projectId
+3. **测试覆盖遗漏**：`AuditableAspectProjectScopedTest` 只覆盖了"有返回值"的场景，没覆盖"void 返回值"的场景
+
+### 修复方案
+
+改为返回 View DTO，让切面从返回值反射提取 projectId：
+- `BidReviewAppService` 3 个方法返回新建的 `BidDocumentReviewViewDto`（`projectId` 字段 `@JsonIgnore` 不参与 API 序列化）
+- `ProjectInitiationApprovalService` 2 个方法返回已有的 `InitiationViewDto`（注入 `ProjectInitiationMapper` 复用 `toView(entity)`）
+
+### 经验教训
+
+1. **`@Auditable(projectScoped=true)` 方法禁止 void 返回值**：必须返回包含 `getProjectId()` 方法的 DTO，否则 AuditableAspect 无法提取 projectId
+2. **修复 bug 时必须全量审视同类方法**：不能只修复当前发现的 bug 路径，要搜索所有使用相同注解/模式的方法，确认是否都满足新规则
+3. **测试覆盖必须包含边界场景**：void 返回值、null 返回值、无 projectId 字段的返回值等边界场景都必须有测试覆盖
+4. **`@JsonIgnore` 字段用于切面反射提取**：当 DTO 需要携带仅供切面使用的字段（如 projectId）时，用 `@JsonIgnore` 标注字段不参与 API 序列化，但 Lombok `@Data` 自动生成的 getter 仍可被反射调用
+
+### 操作规范
+
+1. 新增或修改 `@Auditable(projectScoped=true)` 方法时，必须确保返回类型包含 `getProjectId()` 方法
+2. 如果方法原本是 void，必须改为返回包含 projectId 的 View DTO
+3. DTO 中仅供切面使用的字段用 `@JsonIgnore` 标注，避免污染 API 响应
+4. 修复 AuditableAspect 相关 bug 时，必须搜索所有 `@Auditable(projectScoped=true)` 方法，全量审视是否都满足新规则
+5. 新增切面测试时，必须覆盖 void 返回值、null 返回值等边界场景
+
+### 相关文档
+
+- [AuditableAspect.java](../../backend/src/main/java/com/xiyu/bid/aspect/AuditableAspect.java) — 审计切面，通过 `getProjectId()` 反射提取
+- [Auditable.java](../../backend/src/main/java/com/xiyu/bid/annotation/Auditable.java) — `projectScoped` 字段定义
+- [BidDocumentReviewViewDto.java](../../backend/src/main/java/com/xiyu/bid/project/dto/BidDocumentReviewViewDto.java) — `projectId` 字段 `@JsonIgnore` 示例
+- [AuditableAspectProjectScopedTest.java](../../backend/src/test/java/com/xiyu/bid/audit/aspect/AuditableAspectProjectScopedTest.java) — 12 个回归测试覆盖各种场景
+- 第 76 条：清除 @Deprecated 编译警告时禁止改字段名（相关 Lombok @Data 教训）
+
+
