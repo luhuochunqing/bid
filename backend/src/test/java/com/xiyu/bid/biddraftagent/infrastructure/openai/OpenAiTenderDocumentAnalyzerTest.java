@@ -313,6 +313,65 @@ class OpenAiTenderDocumentAnalyzerTest {
     }
 
     @Test
+    void analyzeTenderIntake_shouldFallbackToRegexWhenAiReturnsBlankPurchaser() {
+        // 张家口银行真实 case：招标人标签被空格打断，AI 漏抽 purchaserName，正则兜底应补上
+        String text = """
+                招 标 文 件
+                【招标编号：XAZB[2026]019】
+                招 标 人：张家口银行股份有限公司
+                代理机构：祥安招标代理有限公司
+                项目名称：宣传品电商平台采购项目
+                """;
+        DocumentAnalysisInput input = new DocumentAnalysisInput(
+                "doc-insight://zjk",
+                "zjk.pdf",
+                text,
+                "",
+                List.of(new DocumentChunk(text, List.of())),
+                DocInsightProfiles.TENDER_INTAKE,
+                java.util.Map.of()
+        );
+        TenderRequirementOutput output = new TenderRequirementOutput();
+        output.projectName = "宣传品电商平台采购项目";
+        output.purchaserName = ""; // AI 漏抽招标主体
+        when(structuredOutputService.request(anyString(), eq(TenderRequirementOutput.class), any(), anyString()))
+                .thenReturn(output);
+
+        var result = analyzer.analyze(input);
+
+        // 正则兜底应从"招 标 人：张家口银行股份有限公司"提取，且不取代理机构
+        assertThat(result.extractedData())
+                .containsEntry("purchaserName", "张家口银行股份有限公司");
+    }
+
+    @Test
+    void analyzeTenderIntake_shouldNotOverrideAiPurchaserWhenPresent() {
+        // AI 已正确抽取 purchaserName 时，正则兜底不得覆盖
+        String text = """
+                招标人：某科技有限公司
+                项目名称：测试项目
+                """;
+        DocumentAnalysisInput input = new DocumentAnalysisInput(
+                "doc-insight://keep",
+                "keep.pdf",
+                text,
+                "",
+                List.of(new DocumentChunk(text, List.of())),
+                DocInsightProfiles.TENDER_INTAKE,
+                java.util.Map.of()
+        );
+        TenderRequirementOutput output = new TenderRequirementOutput();
+        output.purchaserName = "AI抽取的正确公司名";
+        when(structuredOutputService.request(anyString(), eq(TenderRequirementOutput.class), any(), anyString()))
+                .thenReturn(output);
+
+        var result = analyzer.analyze(input);
+
+        assertThat(result.extractedData())
+                .containsEntry("purchaserName", "AI抽取的正确公司名");
+    }
+
+    @Test
     void analyzeTenderIntake_shouldTruncateTenderInfoWhenFullTextExceedsMaxLength() {
         // 构造超过 20000 字的 fullText
         StringBuilder hugeText = new StringBuilder();
