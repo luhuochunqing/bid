@@ -172,7 +172,8 @@ public class CalendarController {
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<ApiResponse<Void>> deleteEvent(@PathVariable Long id) {
         log.info("DELETE /api/calendar/{} - Deleting event", id);
-
+        // CO-XXX: service 返回 CalendarEventDTO 供 @Auditable 切面提取 projectId（项目动态关联），
+        // controller 仍返回 Void 以保持 API 契约不变。
         calendarService.deleteEvent(id);
 
         return ResponseEntity.ok(

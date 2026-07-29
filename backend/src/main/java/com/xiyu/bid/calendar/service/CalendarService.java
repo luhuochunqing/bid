@@ -39,7 +39,7 @@ public class CalendarService {
      * @param request 创建请求
      * @return 创建的事件DTO
      */
-    @Auditable(action = "CREATE", entityType = "CalendarEvent", description = "Created calendar event")
+    @Auditable(action = "CREATE", entityType = "CalendarEvent", description = "Created calendar event", projectScoped = true)
     @Transactional
     public CalendarEventDTO createEvent(CalendarEventCreateRequest request) {
         validateCreateRequest(request);
@@ -66,7 +66,7 @@ public class CalendarService {
      * @param request 更新请求
      * @return 更新后的事件DTO
      */
-    @Auditable(action = "UPDATE", entityType = "CalendarEvent", description = "Updated calendar event")
+    @Auditable(action = "UPDATE", entityType = "CalendarEvent", description = "Updated calendar event", projectScoped = true)
     @Transactional
     public CalendarEventDTO updateEvent(Long id, CalendarEventUpdateRequest request) {
         if (request == null) {
@@ -111,16 +111,19 @@ public class CalendarService {
     /**
      * 删除日历事件
      * @param id 事件ID
+     * @return 被删除的事件DTO（供 @Auditable 切面提取 projectId）
      */
-    @Auditable(action = "DELETE", entityType = "CalendarEvent", description = "Deleted calendar event")
+    @Auditable(action = "DELETE", entityType = "CalendarEvent", description = "Deleted calendar event", projectScoped = true)
     @Transactional
-    public void deleteEvent(Long id) {
+    public CalendarEventDTO deleteEvent(Long id) {
         CalendarEvent event = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("CalendarEvent not found with id: " + id));
         assertProjectAccessIfLinked(event.getProjectId());
 
+        CalendarEventDTO deletedDTO = convertToDTO(event);
         repository.deleteById(id);
         log.info("Deleted calendar event: {}", id);
+        return deletedDTO;
     }
 
     /**

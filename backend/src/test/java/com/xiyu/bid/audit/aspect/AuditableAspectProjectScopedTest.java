@@ -202,6 +202,75 @@ class AuditableAspectProjectScopedTest {
                 .isNull();
     }
 
+    /**
+     * 项目操作（projectScoped=true）+ 对象入参 CalendarEventCreateRequest.getProjectId()
+     * → projectId 正确写入。
+     *
+     * <p>场景：CalendarService.createEvent(CalendarEventCreateRequest) —— 项目关联事件
+     */
+    @Test
+    void projectScopedCreateCalendarEventExtractsFromArgObject() throws Throwable {
+        when(signature.getMethod()).thenReturn(method("createCalendarEvent"));
+        when(joinPoint.proceed()).thenReturn(new CalendarEventLikeRecord(201L, 88L));
+        when(joinPoint.getArgs()).thenReturn(new Object[]{new CalendarEventCreateRequestLike(88L)});
+
+        aspect.auditMethod(joinPoint);
+
+        ArgumentCaptor<AuditLogService.AuditLogEntry> entryCaptor =
+                ArgumentCaptor.forClass(AuditLogService.AuditLogEntry.class);
+        verify(auditLogService).log(entryCaptor.capture());
+        assertThat(entryCaptor.getValue().getProjectId())
+                .as("projectScoped=true 时从入参 CalendarEventCreateRequest.getProjectId() 提取")
+                .isEqualTo(88L);
+    }
+
+    /**
+     * 项目操作（projectScoped=true）+ Long 入参（eventId）+ 返回值 CalendarEventDTO.getProjectId()
+     * → projectId 从返回值正确提取，不会错写为 eventId。
+     *
+     * <p>场景：CalendarService.updateEvent(Long id, CalendarEventUpdateRequest) 返回 CalendarEventDTO
+     */
+    @Test
+    void projectScopedUpdateCalendarEventExtractsFromReturnValueNotLongArg() throws Throwable {
+        when(signature.getMethod()).thenReturn(method("updateCalendarEvent"));
+        when(joinPoint.proceed()).thenReturn(new CalendarEventLikeRecord(202L, 99L));
+        when(joinPoint.getArgs()).thenReturn(new Object[]{202L, new CalendarEventUpdateRequestLike()});
+
+        aspect.auditMethod(joinPoint);
+
+        ArgumentCaptor<AuditLogService.AuditLogEntry> entryCaptor =
+                ArgumentCaptor.forClass(AuditLogService.AuditLogEntry.class);
+        verify(auditLogService).log(entryCaptor.capture());
+        assertThat(entryCaptor.getValue().getProjectId())
+                .as("projectScoped=true 时从返回值 CalendarEventDTO.getProjectId() 提取，不是 Long 入参 eventId")
+                .isEqualTo(99L);
+        assertThat(entryCaptor.getValue().getEntityId())
+                .as("entityId 仍然正确记录为 eventId")
+                .isEqualTo("202");
+    }
+
+    /**
+     * 项目操作（projectScoped=true）+ Long 入参（eventId）+ 返回 CalendarEventDTO
+     * → deleteEvent 改为返回 CalendarEventDTO 后，projectId 从返回值正确提取。
+     *
+     * <p>场景：CalendarService.deleteEvent(Long id) 返回 CalendarEventDTO（修复 void 返回值无法提取的问题）
+     */
+    @Test
+    void projectScopedDeleteCalendarEventExtractsFromReturnedDTO() throws Throwable {
+        when(signature.getMethod()).thenReturn(method("deleteCalendarEvent"));
+        when(joinPoint.proceed()).thenReturn(new CalendarEventLikeRecord(203L, 77L));
+        when(joinPoint.getArgs()).thenReturn(new Object[]{203L});
+
+        aspect.auditMethod(joinPoint);
+
+        ArgumentCaptor<AuditLogService.AuditLogEntry> entryCaptor =
+                ArgumentCaptor.forClass(AuditLogService.AuditLogEntry.class);
+        verify(auditLogService).log(entryCaptor.capture());
+        assertThat(entryCaptor.getValue().getProjectId())
+                .as("deleteEvent 返回 CalendarEventDTO 后从 getProjectId() 正确提取")
+                .isEqualTo(77L);
+    }
+
     private static Method method(String name) {
         try {
             return TargetActions.class.getMethod(name);
@@ -239,6 +308,24 @@ class AuditableAspectProjectScopedTest {
         @Auditable(action = "DELETE", entityType = "Fee", description = "Delete fee", projectScoped = true)
         public FeeLikeRecord deleteFee() {
             return new FeeLikeRecord(88L, 66L);
+        }
+
+        /** 模拟 CalendarService.createEvent(CalendarEventCreateRequest) —— projectScoped=true */
+        @Auditable(action = "CREATE", entityType = "CalendarEvent", description = "Created calendar event", projectScoped = true)
+        public CalendarEventLikeRecord createCalendarEvent() {
+            return new CalendarEventLikeRecord(201L, 88L);
+        }
+
+        /** 模拟 CalendarService.updateEvent(Long id, CalendarEventUpdateRequest) —— projectScoped=true */
+        @Auditable(action = "UPDATE", entityType = "CalendarEvent", description = "Updated calendar event", projectScoped = true)
+        public CalendarEventLikeRecord updateCalendarEvent() {
+            return new CalendarEventLikeRecord(202L, 99L);
+        }
+
+        /** 模拟 CalendarService.deleteEvent(Long id) —— projectScoped=true，返回 CalendarEventDTO */
+        @Auditable(action = "DELETE", entityType = "CalendarEvent", description = "Deleted calendar event", projectScoped = true)
+        public CalendarEventLikeRecord deleteCalendarEvent() {
+            return new CalendarEventLikeRecord(203L, 77L);
         }
     }
 
@@ -283,5 +370,33 @@ class AuditableAspectProjectScopedTest {
 
     /** 模拟 PerformanceRequest：无 projectId。 */
     static final class PerformanceRequestLike {
+    }
+
+    /** 模拟 CalendarEventDTO：含 id（eventId）和 projectId。 */
+    record CalendarEventLikeRecord(Long id, Long projectId) {
+        public Long getId() {
+            return id;
+        }
+
+        public Long getProjectId() {
+            return projectId;
+        }
+    }
+
+    /** 模拟 CalendarEventCreateRequest：含 projectId。 */
+    static final class CalendarEventCreateRequestLike {
+        private final Long projectId;
+
+        CalendarEventCreateRequestLike(Long projectId) {
+            this.projectId = projectId;
+        }
+
+        public Long getProjectId() {
+            return projectId;
+        }
+    }
+
+    /** 模拟 CalendarEventUpdateRequest：无 projectId（与真实 DTO 一致）。 */
+    static final class CalendarEventUpdateRequestLike {
     }
 }
