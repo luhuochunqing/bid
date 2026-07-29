@@ -60,7 +60,10 @@ final class TenderDocumentPrompts {
 
                 ## 字段口径
                 - tenderTitle/projectName：标讯标题或采购项目名称。常见格式包括"XX公司 XX项目"、"XX项目招标公告"、"XX采购项目"。注意从包含公司名+时间的紧凑句中提取项目部分。
-                - purchaserName：招标主体名称。可能以下列任一标签出现：%s。常见位置：文本开头的公司全称、"招标人：XXX"、"招标单位：XXX"、"采购人：XXX"、"采购单位：XXX"、"项目单位：XXX"、"实施单位：XXX"、"需求单位：XXX"、"业主单位：XXX"后的名称；任一标签命中即填入 purchaserName，不得因"该标签未在口径中列出"而丢弃。注意"XX（集团）有限责任公司"是完整公司名。代理机构（招标机构/代理机构/采购代理机构）不是招标主体，不要填入 purchaserName；标讯表单不记录代理机构，遇到此类字段直接忽略。
+                - purchaserName：招标主体名称。
+                  明确标签（任一命中即填入）：%s。
+                  可能标签（如出现且无其他更明确的招标主体标签，也填入 purchaserName）：%s。
+                  常见位置：文本开头的公司全称、"招标人：XXX"、"招标单位：XXX"、"采购人：XXX"、"采购单位：XXX"、"项目单位：XXX"、"实施单位：XXX"、"需求单位：XXX"、"业主单位：XXX"后的名称；任一标签命中即填入 purchaserName，不得因"该标签未在口径中列出"而丢弃。注意"XX（集团）有限责任公司"是完整公司名。代理机构（招标机构/代理机构/采购代理机构）不是招标主体，不要填入 purchaserName；标讯表单不记录代理机构，遇到此类字段直接忽略。
                 - budget：预算金额，统一为人民币元数字字符串（如 6800000 或 6800000.50）。遇到"约、预计、左右"等不确定金额则留空，不要推断。
                 - region：项目实施地点或总部所在地，格式"省+市"（如"四川省泸州市"）。若文本中只有市名，请补全对应省份。无法确认留空。
                 - deadline：投标截止/响应截止/报名截止日期时间，格式 yyyy-MM-dd'T'HH:mm:ss；只有日期时输出 yyyy-MM-dd。注意区分"获取文件时间"和"投标截止时间"——deadline 取后者。
@@ -148,6 +151,7 @@ final class TenderDocumentPrompts {
                 </candidate_text>
                 """.formatted(
                         PurchaserAliases.DISPLAY,
+                        PurchaserAliases.POSSIBLE_DISPLAY,
                         sectionsBlock, regexHints, safeFileName, safeChunk);
     }
 }

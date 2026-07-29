@@ -250,15 +250,14 @@ class TenderIntakeTextProcessorTest {
             // 注意：buildTenderIntakeCandidateText 在无任何关键词命中时会回退到前 8000 字符，
             // 所以测试文本必须包含一个远离代理机构行的正常关键词行（项目名称），
             // 否则回退逻辑会把代理机构行也包含进候选文本，掩盖关键词列表的真实行为。
+            // 代理机构行距离项目名称行 5 行（> INTAKE_CONTEXT_RADIUS=3），不会被包含进候选文本。
             List<String> agencyKeywords = List.of("招标机构", "代理机构", "采购代理机构");
 
             for (String keyword : agencyKeywords) {
                 String text = String.join("\n", List.of(
-                        "填充行1", "填充行2", "填充行3", "填充行4",
                         "项目名称：测试项目",
-                        "填充行6", "填充行7", "填充行8",
-                        keyword + "：测试代理公司",
-                        "填充行10", "填充行11", "填充行12"));
+                        "填充行1", "填充行2", "填充行3", "填充行4",
+                        keyword + "：测试代理公司"));
 
                 String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(text);
 
@@ -278,6 +277,16 @@ class TenderIntakeTextProcessorTest {
             // - 同步性测试验证"常量列表确实不含代理机构关键词"，防止未来误加回
             assertThat(TenderIntakeTextProcessor.ALL_INTAKE_KEYWORDS)
                     .doesNotContain("招标机构", "代理机构", "采购代理机构");
+        }
+
+        @Test
+        @DisplayName("ALL_INTAKE_KEYWORDS 必须包含全部招标主体可能标签（POSSIBLE 同步性保护）")
+        void shouldIncludeAllPurchaserPossibleAliasesInAllIntakeKeywords() {
+            // PurchaserAliases.POSSIBLE（组织单位/主办单位/采购部门）必须出现在
+            // ALL_INTAKE_KEYWORDS 中，否则候选文本会丢失这些标签所在行，AI 看不到。
+            // 已显式列入 INTAKE_KEYWORDS，此断言防止未来误删。
+            assertThat(TenderIntakeTextProcessor.ALL_INTAKE_KEYWORDS)
+                    .containsAll(PurchaserAliases.POSSIBLE);
         }
 
         @Test

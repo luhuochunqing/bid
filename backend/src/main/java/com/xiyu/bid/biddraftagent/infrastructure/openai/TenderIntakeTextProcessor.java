@@ -16,9 +16,6 @@ class TenderIntakeTextProcessor {
     private static final int INTAKE_CONTEXT_MAX_CHARS = 20_000;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    /** 招标主体别名，引用 {@link PurchaserAliases#ALL} 作为唯一真相来源。 */
-    private static final List<String> PURCHASER_ALIAS_LABELS = PurchaserAliases.ALL;
-
     private static final List<String> INTAKE_KEYWORDS = List.of(
             "项目名称", "项目标题", "标讯标题", "招标项目", "采购项目", "公告标题",
             "招标编号", "采购编号", "项目编号", "标段名称", "包号", "品目名称",
@@ -37,11 +34,13 @@ class TenderIntakeTextProcessor {
     );
 
     /**
-     * 合并 INTAKE_KEYWORDS 与 PURCHASER_ALIAS_LABELS，避免重复维护两份招标主体别名。
-     * 包级可见以便同包测试做同步性断言。
+     * 合并 INTAKE_KEYWORDS 与 {@link PurchaserAliases#ALL}（招标主体明确标签），
+     * 避免重复维护两份招标主体别名。包级可见以便同包测试做同步性断言。
+     * 注意：{@link PurchaserAliases#POSSIBLE}（组织单位/主办单位/采购部门）
+     * 已显式列入 INTAKE_KEYWORDS，此处不重复合并。
      */
     static final List<String> ALL_INTAKE_KEYWORDS =
-            Stream.concat(INTAKE_KEYWORDS.stream(), PURCHASER_ALIAS_LABELS.stream())
+            Stream.concat(INTAKE_KEYWORDS.stream(), PurchaserAliases.ALL.stream())
                     .distinct()
                     .toList();
 
