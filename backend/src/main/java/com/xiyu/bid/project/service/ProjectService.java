@@ -62,7 +62,7 @@ public class ProjectService {
         return dto;
     }
 
-    @Auditable(action = "CREATE_PROJECT", entityType = "Project", description = "创建项目")
+    @Auditable(action = "CREATE_PROJECT", entityType = "Project", description = "创建项目", projectScoped = true)
     public ProjectDTO createProject(ProjectDTO projectDTO) {
         ProjectDTO normalized = ProjectPayloadValidator.validateAndNormalize(projectDTO, true);
         Project existingProject = ExistingTenderProjectSelector.selectAccessible(
@@ -106,7 +106,7 @@ public class ProjectService {
         projectRepository.delete(project);
     }
 
-    @Auditable(action = "UPDATE_STATUS", entityType = "Project", description = "更新项目状态")
+    @Auditable(action = "UPDATE_STATUS", entityType = "Project", description = "更新项目状态", projectScoped = true)
     public ProjectDTO updateProjectStatus(Long id, Project.Status status) {
         rejectDemoEntityMutation(id);
         projectAccessScopeService.assertCurrentUserCanAccessProject(id);
@@ -124,7 +124,7 @@ public class ProjectService {
         return ProjectMapper.toDTO(updatedProject);
     }
 
-    @Auditable(action = "UPDATE_TEAM", entityType = "Project", description = "更新项目团队成员")
+    @Auditable(action = "UPDATE_TEAM", entityType = "Project", description = "更新项目团队成员", projectScoped = true)
     public ProjectDTO updateProjectTeam(Long id, List<Long> teamMembers) {
         rejectDemoEntityMutation(id);
         projectAccessScopeService.assertCurrentUserCanAccessProject(id);

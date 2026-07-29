@@ -47,7 +47,7 @@ public class ProjectRetrospectiveService {
     private final NotificationApplicationService notificationService;
     private final com.xiyu.bid.notification.service.NotificationRecipientResolver recipientResolver;
 
-    @Auditable(action = "SUBMIT_RETROSPECTIVE", entityType = "ProjectRetrospective", description = "提交项目复盘")
+    @Auditable(action = "SUBMIT_RETROSPECTIVE", entityType = "ProjectRetrospective", description = "提交项目复盘", projectScoped = true)
     public RetrospectiveDTO submit(Long projectId, RetrospectiveSubmitRequest req, Long currentUserId) {
         mustGetProject(projectId);
         // §3.6 全字段锁定 — CLOSED 阶段拒绝写入。

@@ -1,0 +1,15 @@
+version: 1
+task: "fix-audit-project-id-pollution"
+locks:
+  - path: "backend/src/main/resources/db/migration-mysql/V1181__cleanup_audit_logs_project_id.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/trae/fix-audit-project-id-pollution"
+    expiresAt: "2026-07-30T05:59:52.399Z"
+    reason: "V1181 cleanup audit_logs project_id pollution"
+  - path: "backend/src/main/resources/db/rollback/migration-mysql/U1181__cleanup_audit_logs_project_id.sql"
+    scope: "file"
+    owner: "agent"
+    branch: "agent/trae/fix-audit-project-id-pollution"
+    expiresAt: "2026-07-30T05:59:52.817Z"
+    reason: "U1181 rollback placeholder for V1181"

@@ -97,8 +97,11 @@ class AuditableAspectQueryActionTest {
     }
 
     /**
-     * CO-324: createProject 返回 ProjectDTO（仅含 getId()，无 getProjectId()），
-     * extractProjectIdFromObject 需 fallback 到 getId() 才能正确写入 project_id。
+     * CO-324/CO-XXX: createProject 返回 ProjectDTO，ProjectDTO.getProjectId() 显式返回 id。
+     * extractProjectIdFromObject 通过 getProjectId() 提取 projectId。
+     *
+     * <p>注：原 CO-324 实现 fallback 到 getId()，CO-XXX 修复移除了 getId() fallback
+     *（FeeDTO.getId() 返回 feeId 会被错当 projectId），改为 ProjectDTO 显式提供 getProjectId()。
      */
     @Test
     void projectIdFallsBackToGetIdWhenGetProjectIdAbsent() throws Throwable {
@@ -163,7 +166,7 @@ class AuditableAspectQueryActionTest {
             return "created";
         }
 
-        @Auditable(action = "CREATE_PROJECT", entityType = "Project")
+        @Auditable(action = "CREATE_PROJECT", entityType = "Project", projectScoped = true)
         public ProjectLikeRecord createProjectLike() {
             return new ProjectLikeRecord(77L);
         }
@@ -172,7 +175,7 @@ class AuditableAspectQueryActionTest {
     record CreatedRecord(Long id) {
     }
 
-    /** 模拟 ProjectDTO：仅含 getId()，无 getProjectId()。 */
+    /** 模拟 ProjectDTO：id 即 projectId，通过 getProjectId() 显式返回（CO-XXX 修复）。 */
     static final class ProjectLikeRecord {
         private final Long id;
 
@@ -181,6 +184,11 @@ class AuditableAspectQueryActionTest {
         }
 
         public Long getId() {
+            return id;
+        }
+
+        /** CO-XXX: 显式暴露 projectId 给 AuditableAspect 反射提取。 */
+        public Long getProjectId() {
             return id;
         }
     }

@@ -63,7 +63,7 @@ public class BidReviewAppService {
      * 校验：人数 1-3、去重、不含 submittedBy；必须含项目经理；不得选 primaryLead / 团队成员；辅助人员解禁。
      */
     @Auditable(action = "SUBMIT_BID_REVIEW", entityType = "BidDocumentReview",
-            description = "提交标书审核")
+            description = "提交标书审核", projectScoped = true)
     public void submitForReview(Long projectId, List<Long> reviewerIds, Long submittedBy) {
         // 入参校验
         BidReviewReviewerValidator.validateReviewerIds(reviewerIds, submittedBy);
@@ -120,7 +120,7 @@ public class BidReviewAppService {
      * <p>记录当前审核人的 APPROVED 决策 → 聚合判断 → 全通过才整体 APPROVED。</p>
      */
     @Auditable(action = "APPROVE_BID", entityType = "BidDocumentReview",
-            description = "标书审核通过")
+            description = "标书审核通过", projectScoped = true)
     public void approveBid(Long projectId, Long currentUserId, String comment) {
         BidDocumentReviewEntity review = reviewRepository.findByProjectId(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "未找到标书审核记录"));
@@ -165,7 +165,7 @@ public class BidReviewAppService {
      * <p>记录当前审核人的 REJECTED 决策 + reason → 任一驳回即整体 REJECTED。</p>
      */
     @Auditable(action = "REJECT_BID", entityType = "BidDocumentReview",
-            description = "标书审核驳回")
+            description = "标书审核驳回", projectScoped = true)
     public void rejectBid(Long projectId, Long currentUserId, String reason) {
         BidDocumentReviewEntity review = reviewRepository.findByProjectId(projectId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "未找到标书审核记录"));

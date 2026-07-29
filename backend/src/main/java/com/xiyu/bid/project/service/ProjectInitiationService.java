@@ -50,7 +50,7 @@ public class ProjectInitiationService {
     private final ProjectNotificationService notificationService;
     private final ProjectDocumentRepository projectDocumentRepository;
 
-    @Auditable(action = "SUBMIT_INITIATION", entityType = "ProjectInitiationDetails", description = "提交项目立项审核")
+    @Auditable(action = "SUBMIT_INITIATION", entityType = "ProjectInitiationDetails", description = "提交项目立项审核", projectScoped = true)
     public InitiationViewDto submit(Long projectId, InitiationDto req, Long currentUserId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         var project = mustGetProject(projectId);
@@ -112,7 +112,7 @@ public class ProjectInitiationService {
         return mapper.toView(saved);
     }
 
-    @Auditable(action = "UPDATE_INITIATION", entityType = "ProjectInitiationDetails", description = "更新项目立项")
+    @Auditable(action = "UPDATE_INITIATION", entityType = "ProjectInitiationDetails", description = "更新项目立项", projectScoped = true)
     public InitiationViewDto update(Long projectId, InitiationDto req, Long currentUserId) {
         return doUpdate(projectId, req, currentUserId);
     }
@@ -187,7 +187,7 @@ public class ProjectInitiationService {
      * <p>规则见 {@link InitiationRiskAssessmentPolicy}，结果写入 aiRiskLevel + aiRiskAssessmentNotes。
      * <p>不依赖招标文件，仅依据客户信息表中最高决策人和其他关键决策人的倾向性。
      */
-    @Auditable(action = "ASSESS_INITIATION_RISK", entityType = "ProjectInitiationDetails", description = "立项 AI 风险评估")
+    @Auditable(action = "ASSESS_INITIATION_RISK", entityType = "ProjectInitiationDetails", description = "立项 AI 风险评估", projectScoped = true)
     public InitiationViewDto assessRisk(Long projectId, Long currentUserId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         ProjectInitiationDetails entity = repository.findByProjectId(projectId)

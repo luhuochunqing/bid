@@ -75,7 +75,7 @@ public class ProjectInitiationApprovalService {
      * @throws org.springframework.security.access.AccessDeniedException 数据权限不足
      */
     @Auditable(action = "APPROVE_INITIATION", entityType = "ProjectInitiationDetails",
-            description = "审核通过项目立项: 分配团队 + 推进阶段 + 锁定字段")
+            description = "审核通过项目立项: 分配团队 + 推进阶段 + 锁定字段", projectScoped = true)
     public void approve(Long projectId, InitiationApprovalRequest req, Long currentUserId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         ProjectInitiationDetails entity = mustGet(projectId);
@@ -161,7 +161,7 @@ public class ProjectInitiationApprovalService {
      * @throws org.springframework.security.access.AccessDeniedException 数据权限不足
      */
     @Auditable(action = "REJECT_INITIATION", entityType = "ProjectInitiationDetails",
-            description = "驳回项目立项: 记录原因等待重新提交")
+            description = "驳回项目立项: 记录原因等待重新提交", projectScoped = true)
     public void reject(Long projectId, InitiationRejectionRequest req, Long currentUserId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         ProjectInitiationDetails entity = mustGet(projectId);

@@ -109,4 +109,13 @@ public class ProjectDTO {
     private LocalDate servicePeriodEndDate;
     /** CO-591: 标书审核人姓名（多人用 / 分隔），取值来自标书制作阶段 bid_review_assignment */
     private String bidReviewers;
+
+    /**
+     * CO-XXX: 显式暴露 project id 给 AuditableAspect 反射提取。
+     * ProjectDTO.id 即 project id，AuditableAspect 通过此方法提取项目动态关联。
+     * 不直接复用 getId() 是为了避免 FeeDTO.getId() 等返回非 project id 的实体 id 被错当 project id。
+     */
+    public Long getProjectId() {
+        return id;
+    }
 }

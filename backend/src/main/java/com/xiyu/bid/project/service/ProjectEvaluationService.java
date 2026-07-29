@@ -51,7 +51,7 @@ public class ProjectEvaluationService {
     private final ProjectNotificationService notificationService;
 
     @Auditable(action = "TRANSITION_EVALUATION_SUB_STAGE", entityType = "ProjectEvaluation",
-            description = "切换评标子状态")
+            description = "切换评标子状态", projectScoped = true)
     public EvaluationDTO transitionSubStage(Long projectId, EvaluationSubStageUpdateRequest req, Long userId) {
         mustGetProject(projectId);
         // §3.6 全字段锁定 — CLOSED 阶段拒绝写入。
@@ -92,7 +92,7 @@ public class ProjectEvaluationService {
     }
 
     @Auditable(action = "ATTACH_EVALUATION_EVIDENCE", entityType = "ProjectEvaluation",
-            description = "附加评标证据文档")
+            description = "附加评标证据文档", projectScoped = true)
     public EvaluationDTO attachEvidence(Long projectId, EvaluationEvidenceAttachRequest req, Long userId) {
         mustGetProject(projectId);
         // §3.6 全字段锁定 — CLOSED 阶段拒绝写入。
@@ -138,7 +138,7 @@ public class ProjectEvaluationService {
     }
 
     @Auditable(action = "UPDATE_EVALUATION_FORM", entityType = "ProjectEvaluation",
-            description = "填写项目评估表单")
+            description = "填写项目评估表单", projectScoped = true)
     public EvaluationDTO updateEvaluationForm(Long projectId, EvaluationFormUpdateRequest req, Long userId) {
         mustGetProject(projectId);
         ProjectStage projectStage = projectStageService.currentStage(projectId);
@@ -163,7 +163,7 @@ public class ProjectEvaluationService {
     }
 
     @Auditable(action = "ABANDON_BID", entityType = "ProjectEvaluation",
-            description = "提交弃标申请")
+            description = "提交弃标申请", projectScoped = true)
     public EvaluationDTO abandonBid(Long projectId, ProjectAbandonBidRequest req, Long userId) {
         mustGetProject(projectId);
         ProjectStage projectStage = projectStageService.currentStage(projectId);
