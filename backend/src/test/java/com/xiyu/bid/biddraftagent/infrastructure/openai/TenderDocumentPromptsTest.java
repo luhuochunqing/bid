@@ -218,6 +218,135 @@ class TenderDocumentPromptsTest {
         assertThat(prompt).contains("标讯表单不记录代理机构");
     }
 
+    @Test
+    void buildTenderIntakePrompt_shouldContainLabelLineFormatDefinition() {
+        // Prompt 必须明确定义"标签行格式"——标签+冒号+机构名称的整行
+        // 防止 AI 把描述性文字中的"招标人"误识别为标签行
+        // 真实案例：张家口银行招标文件候选 973 行，70+ 处"招标人..."是描述性文字
+        // 只有 4 处是真正的标签行"招 标 人：张家口银行股份有限公司"
+        DocumentAnalysisInput input = sampleIntakeInput();
+        DocumentChunk chunk = new DocumentChunk("招标公告正文示例", List.of());
+
+        String prompt = TenderDocumentPrompts.buildTenderIntakePrompt(input, chunk);
+
+        assertThat(prompt).contains("标签行格式");
+        assertThat(prompt).contains("标签+冒号");
+        assertThat(prompt).contains("机构名称");
+    }
+
+    @Test
+    void buildTenderIntakePrompt_shouldContainDescriptiveTextCounterExample() {
+        // Prompt 必须给出"非标签行反例"，明确告诉 AI 描述性文字中的"招标人"不是标签行
+        // 防止 AI 从"招标人不予受理"、"招标人指定地点"等描述性文字提取 purchaserName
+        DocumentAnalysisInput input = sampleIntakeInput();
+        DocumentChunk chunk = new DocumentChunk("招标公告正文示例", List.of());
+
+        String prompt = TenderDocumentPrompts.buildTenderIntakePrompt(input, chunk);
+
+        assertThat(prompt).contains("非标签行反例");
+        assertThat(prompt).contains("招标人不予受理");
+        assertThat(prompt).contains("招标人指定地点");
+    }
+
+    @Test
+    void buildTenderIntakePrompt_shouldContainMultiLabelMajorityRule() {
+        // Prompt 必须明确"多标签取多数"规则
+        // 真实案例：张家口银行招标文件中"招 标 人：张家口银行股份有限公司"出现 4 次（封面/第一章/附表）
+        // AI 应取出现次数最多的值，而不是只取首次出现的值
+        DocumentAnalysisInput input = sampleIntakeInput();
+        DocumentChunk chunk = new DocumentChunk("招标公告正文示例", List.of());
+
+        String prompt = TenderDocumentPrompts.buildTenderIntakePrompt(input, chunk);
+
+        assertThat(prompt).contains("多标签取多数");
+        assertThat(prompt).contains("出现次数最多");
+    }
+
+    @Test
+    void buildTenderIntakePrompt_shouldContainProjectNameDescriptiveTextCounterExample() {
+        // Prompt 必须给出 projectName 的非标签行反例
+        // 真实案例：张家口银行招标文件中"在转账或电汇时备注所投项目名称"、
+        // "招标项目名称、金额、有效期"是描述性文字，不应从中提取 projectName
+        DocumentAnalysisInput input = sampleIntakeInput();
+        DocumentChunk chunk = new DocumentChunk("招标公告正文示例", List.of());
+
+        String prompt = TenderDocumentPrompts.buildTenderIntakePrompt(input, chunk);
+
+        assertThat(prompt).contains("备注所投项目名称");
+        assertThat(prompt).contains("招标项目名称、金额、有效期");
+    }
+
+    @Test
+    void buildTenderIntakePrompt_shouldContainDeadlineMergedLabelRule() {
+        // Prompt 必须明确 deadline 的合并标签行处理规则
+        // 真实案例：张家口银行招标文件 L92 "投标截止时间及开标时间：2026年6月22日9时00分"
+        // 一行内同时含 deadline 和 bidOpeningTime，应都填这个值
+        DocumentAnalysisInput input = sampleIntakeInput();
+        DocumentChunk chunk = new DocumentChunk("招标公告正文示例", List.of());
+
+        String prompt = TenderDocumentPrompts.buildTenderIntakePrompt(input, chunk);
+
+        assertThat(prompt).contains("合并行处理");
+        assertThat(prompt).contains("投标截止时间及开标时间");
+    }
+
+    @Test
+    void buildTenderIntakePrompt_shouldContainDeadlineDescriptiveTextCounterExample() {
+        // Prompt 必须给出 deadline 的非标签行反例
+        // 真实案例：张家口银行招标文件 L435/L437/L447 等"距投标截止时间不足15天"、
+        // "投标截止时间。"是描述性文字，不是标签行
+        DocumentAnalysisInput input = sampleIntakeInput();
+        DocumentChunk chunk = new DocumentChunk("招标公告正文示例", List.of());
+
+        String prompt = TenderDocumentPrompts.buildTenderIntakePrompt(input, chunk);
+
+        assertThat(prompt).contains("距投标截止时间不足15天");
+    }
+
+    @Test
+    void buildTenderIntakePrompt_shouldContainBidOpeningTimeDescriptiveTextCounterExample() {
+        // Prompt 必须给出 bidOpeningTime 的非标签行反例
+        // 真实案例：张家口银行招标文件 L90 "投标文件的递交、开标时间及地点"是标题
+        // L564 "5.1 开标时间和地点"也是标题，都没有引出具体时间
+        DocumentAnalysisInput input = sampleIntakeInput();
+        DocumentChunk chunk = new DocumentChunk("招标公告正文示例", List.of());
+
+        String prompt = TenderDocumentPrompts.buildTenderIntakePrompt(input, chunk);
+
+        assertThat(prompt).contains("投标文件的递交、开标时间及地点");
+        assertThat(prompt).contains("5.1 开标时间和地点");
+    }
+
+    @Test
+    void buildTenderIntakePrompt_shouldContainContactNamePurchaserPriorityRule() {
+        // Prompt 必须明确"招标人优先于代理机构"的联系人规则
+        // 真实案例：张家口银行招标文件同时出现
+        //   招标人：张家口银行 / 联系人：高仲国 / 电话：0313-2135962
+        //   代理机构：祥安招标 / 联系人：郑全伟 / 电话：13522580961
+        // 标讯表单只记录招标人联系人，不记录代理机构联系人
+        DocumentAnalysisInput input = sampleIntakeInput();
+        DocumentChunk chunk = new DocumentChunk("招标公告正文示例", List.of());
+
+        String prompt = TenderDocumentPrompts.buildTenderIntakePrompt(input, chunk);
+
+        assertThat(prompt).contains("招标人优先");
+        assertThat(prompt).contains("不记录代理机构联系人");
+    }
+
+    @Test
+    void buildTenderIntakePrompt_shouldContainContactPhoneDepositCounterExample() {
+        // Prompt 必须给出 contactPhone 的保证金联系电话反例
+        // 真实案例：张家口银行招标文件 L203 "保证金联系电话：13522580961"
+        // "保证金联系电话"属于保证金业务联系方式，不是招标人联系方式
+        DocumentAnalysisInput input = sampleIntakeInput();
+        DocumentChunk chunk = new DocumentChunk("招标公告正文示例", List.of());
+
+        String prompt = TenderDocumentPrompts.buildTenderIntakePrompt(input, chunk);
+
+        assertThat(prompt).contains("保证金联系电话");
+        assertThat(prompt).contains("不是招标人联系方式");
+    }
+
     private static DocumentAnalysisInput sampleIntakeInput() {
         return new DocumentAnalysisInput(
                 "doc-insight://intake",
