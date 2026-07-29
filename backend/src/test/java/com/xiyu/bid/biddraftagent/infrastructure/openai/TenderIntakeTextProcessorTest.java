@@ -237,6 +237,63 @@ class TenderIntakeTextProcessorTest {
             assertThat(TenderIntakeTextProcessor.ALL_INTAKE_KEYWORDS)
                     .containsAll(PurchaserAliases.ALL);
         }
+
+        @Test
+        @DisplayName("代理机构关键词不应命中招标主体候选文本")
+        void shouldNotIncludeAgencyKeywordsAsPurchaserCandidates() {
+            // 语义区分：招标主体 ≠ 代理机构
+            // - 招标主体（purchaserName）：项目实际需求方/业主方
+            // - 代理机构：受招标主体委托、组织招标流程的第三方机构
+            // 历史病灶：INTAKE_KEYWORDS 曾含"招标机构/代理机构/采购代理机构"，
+            // 导致代理公司被识别为招标主体，造成 purchaserName 识别错误
+            //
+            // 注意：buildTenderIntakeCandidateText 在无任何关键词命中时会回退到前 8000 字符，
+            // 所以测试文本必须包含一个远离代理机构行的正常关键词行（项目名称），
+            // 否则回退逻辑会把代理机构行也包含进候选文本，掩盖关键词列表的真实行为。
+            List<String> agencyKeywords = List.of("招标机构", "代理机构", "采购代理机构");
+
+            for (String keyword : agencyKeywords) {
+                String text = String.join("\n", List.of(
+                        "填充行1", "填充行2", "填充行3", "填充行4",
+                        "项目名称：测试项目",
+                        "填充行6", "填充行7", "填充行8",
+                        keyword + "：测试代理公司",
+                        "填充行10", "填充行11", "填充行12"));
+
+                String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(text);
+
+                assertThat(result)
+                        .as("代理机构关键词 %s 不应命中候选文本（否则 AI 会误识别为招标主体）", keyword)
+                        .doesNotContain(keyword + "：测试代理公司");
+                // 正常关键词行仍应命中，验证回退逻辑未被触发
+                assertThat(result).contains("项目名称：测试项目");
+            }
+        }
+
+        @Test
+        @DisplayName("ALL_INTAKE_KEYWORDS 不包含代理机构关键词（同步性保护）")
+        void shouldNotIncludeAgencyKeywordsInAllIntakeKeywords() {
+            // 与 shouldNotIncludeAgencyKeywordsAsPurchaserCandidates 互补：
+            // - 行为测试验证"代理机构行不出现在候选文本中"
+            // - 同步性测试验证"常量列表确实不含代理机构关键词"，防止未来误加回
+            assertThat(TenderIntakeTextProcessor.ALL_INTAKE_KEYWORDS)
+                    .doesNotContain("招标机构", "代理机构", "采购代理机构");
+        }
+
+        @Test
+        @DisplayName("组织单位/主办单位/采购部门保留为候选关键词（招标主体可能）")
+        void shouldIncludeOrganizerKeywordsAsPurchaserCandidates() {
+            // 业务确认：组织单位/主办单位/采购部门 可能作为招标主体出现，保留
+            for (String keyword : List.of("组织单位", "主办单位", "采购部门")) {
+                String text = "前置无关行\n" + keyword + "：测试单位\n后置无关行";
+
+                String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(text);
+
+                assertThat(result)
+                        .as("组织方关键词 %s 应命中候选文本（可能为招标主体）", keyword)
+                        .contains(keyword + "：测试单位");
+            }
+        }
     }
 
     // ── sanitizeUntrusted ──────────────────────────────────────────
