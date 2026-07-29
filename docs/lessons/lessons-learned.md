@@ -6197,4 +6197,90 @@ PR !2212 修复了 `audit_logs.project_id` 污染问题（移除 Long args-first
 - [AuditableAspectProjectScopedTest.java](../../backend/src/test/java/com/xiyu/bid/audit/aspect/AuditableAspectProjectScopedTest.java) — 12 个回归测试覆盖各种场景
 - 第 76 条：清除 @Deprecated 编译警告时禁止改字段名（相关 Lombok @Data 教训）
 
+## 86. 招标文件 PDF 关键词识别陷阱——空格变体 + 描述性文字混淆 + 多位置标签行（2026-07-29 / PR !2214 + !2218 系统性修复）
+
+### 事故背景
+
+用户反馈"AI 识别招标文件中招标主体不准"。具体案例：张家口银行招标文件中封面"招 标 人：张家口银行股份有限公司"被半角空格打断，导致关键词精确匹配失败，候选文本丢失关键标签行，AI 无法识别 purchaserName。
+
+进一步分析发现：
+1. 空格只是关键词变体的一种情况，还有零宽字符、BOM、软连字符、Unicode 空格等其他变体
+2. 招标文件中"招标人"/"招标单位"标签行在多处出现（封面、第一章、附表），不能只取首页
+3. 除了招标主体，其他字段（projectName/deadline/bidOpeningTime/contact）也存在标签行 vs 描述性文字混淆问题
+
+### 根因分析（5 Whys）
+
+1. **Why AI 识别不准？** 候选文本中混入 70+ 处"招标人..."描述性文字（如"招标人不予受理"、"招标人指定地点"），只有 4 处是真正的标签行；AI 可能从描述性文字中误提取 purchaserName。
+2. **Why 候选文本混入描述性文字？** `containsIntakeKeyword` 用 `String.contains` 匹配关键词，只要行内含"招标人"三个字就纳入候选，不论是不是标签行。
+3. **Why 关键词被漏识别？** PDF 提取的文本中"招 标 人"被半角空格打断，`String.contains("招标人")` 匹配不到"招 标 人"。
+4. **Why 没有处理其他变体？** 初版修复只处理半角/全角空格，未覆盖零宽字符（ZWSP/ZWNJ/ZWJ）、BOM、软连字符（SHY）、Unicode 空格（U+2000-U+200A）等。
+5. **Why 没有处理多位置标签行？** `buildTenderIntakeCandidateText` 按行 split 后逐行匹配，理论上能收集所有标签行；但 Prompt 没有指引 AI "多标签取多数"，AI 可能取首次出现的值或描述性文字的误判值。
+
+### 系统性修复方案（三层）
+
+#### 第一层：归一化字符集扩展（TenderIntakeTextProcessor.normalizeForMatching）
+
+从 `[\\s\\u3000\\u00A0]+` 扩展为 `[\\s\\u00A0\\u00AD\\u2000-\\u200D\\u2028-\\u202F\\u205F\\u2060\\u3000\\uFEFF]+`，覆盖 11 类 Unicode 空白/不可见字符：
+- `\s`（ASCII 空白：空格、\t、\n、\r、\f、\v）
+- `\u00A0`（NBSP）、`\u00AD`（软连字符 SHY）
+- `\u2000-\u200A`（11 种 Unicode 空格：En/Em/Thin/Hair 等）
+- `\u200B-\u200D`（ZWSP/ZWNJ/ZWJ）
+- `\u2028-\u2029`（LS/PS）
+- `\u202F`（NNBSP）、`\u205F`（MMSP）、`\u2060`（WJ）
+- `\u3000`（全角空格）、`\uFEFF`（BOM/ZWNBSP）
+
+**关键设计**：归一化只用于"是否命中关键词"的判定，`selected.add(lines[i])` 仍加原文，AI 看到的是原始文本，保留所有排版和语义信息。
+
+#### 第二层：Prompt 引导（TenderDocumentPrompts.buildTenderIntakePrompt）
+
+在 5 个字段口径下追加引导：
+
+| 字段 | 补充规则 | 实测反例 |
+|---|---|---|
+| **purchaserName** | 标签行格式定义 + 非标签行反例 + 多标签取多数 | "招标人不予受理"、"招标人指定地点" |
+| **projectName** | 标签行优先 + 非标签行反例 | "在转账或电汇时备注所投项目名称" |
+| **deadline** | 标签行优先 + 合并行处理 + 非标签行反例 | L92 "投标截止时间及开标时间：XXX"（合并行）；"距投标截止时间不足15天" |
+| **bidOpeningTime** | 标签行优先 + 非标签行反例 | "投标文件的递交、开标时间及地点"（标题）；"5.1 开标时间和地点"（小节标题） |
+| **contactName/contactPhone** | 招标人优先 + 非标签行反例 | "保证金联系电话：XXX"（不是招标人联系方式）；代理机构联系人不记录 |
+
+**核心思路**：
+- **标签行格式**：必须是"标签+冒号（半角:或全角：）+值"的整行
+- **非标签行反例**：描述性文字中的"招标人"不是标签行，没有冒号引出具体值
+- **多标签取多数**：多处标签行时取出现次数最多的值
+- **合并行处理**：如"投标截止时间及开标时间：XXX"应同时填入 deadline 和 bidOpeningTime
+- **招标人优先**：标讯表单只记录招标人联系人，不记录代理机构联系人
+
+#### 第三层：测试覆盖（10 个新增测试）
+
+- **TenderIntakeTextProcessorTest +7**：零宽/BOM/软连字符/Unicode空格/NNBSP/混合变体/多位置标签
+- **TenderDocumentPromptsTest +3（第一批）**：标签行格式定义/反例/多标签取多数规则同步性
+- **TenderDocumentPromptsTest +6（第二批）**：projectName/deadline/bidOpeningTime/contact 各字段反例与规则同步性
+
+### 经验教训
+
+1. **PDF 文本提取的变体远不止空格**：实际文件中可能出现的不可见字符包括零宽字符、BOM、软连字符、Unicode 空格等 11 类；归一化必须覆盖所有变体，不能只处理常见的半角/全角空格
+2. **标签行 vs 描述性文字是核心混淆点**：招标文件中"招标人"可能出现在 70+ 处描述性文字中（如"招标人不予受理"），只有 4 处是真正的标签行（"招标人：XXX"）；Prompt 必须明确标签行格式定义 + 反例
+3. **多位置标签行必须全部收集**：招标主体标签行可能出现在封面、第一章、附表等多个位置；候选文本构建逻辑应收集所有标签行，Prompt 应指引 AI "多标签取多数"
+4. **其他字段也存在同类问题**：projectName/deadline/bidOpeningTime/contact 都有标签行 vs 描述性文字混淆问题；修复时不能只针对招标主体，要全字段审视
+5. **归一化只用于匹配，不修改原文本**：AI 看到的应是原始文本（保留排版和语义信息），归一化只用于"是否命中关键词"的判定
+6. **实测真实文件是发现问题的唯一可靠方式**：用 pdftotext 提取实际招标文件，编写 Java 程序模拟当前代码运行，能精准定位"哪些行被漏识别""哪些反例被误识别"
+
+### 操作规范
+
+1. 修改 `normalizeForMatching` 时，必须覆盖所有 Unicode 空白/不可见字符，不能只处理常见的半角/全角空格
+2. 修改 Prompt 字段口径时，必须同时补充：标签行格式定义 + 非标签行反例 + 多标签取多数（如适用）
+3. 修复一个字段的识别问题时，必须审视其他字段是否存在同类问题（标签行 vs 描述性文字混淆）
+4. 新增字段口径测试时，必须包含同步性测试（断言 Prompt 中包含新增的关键词/规则），防止未来误改 Prompt 时漏掉新规则
+5. 分析 PDF 识别问题时，必须用真实文件实测（pdftotext 提取 + Java 程序模拟当前代码），不能只看代码逻辑推测
+
+### 相关文档
+
+- [TenderIntakeTextProcessor.java](../../backend/src/main/java/com/xiyu/bid/biddraftagent/infrastructure/openai/TenderIntakeTextProcessor.java) — `normalizeForMatching` 归一化方法（L88-L116）
+- [TenderDocumentPrompts.java](../../backend/src/main/java/com/xiyu/bid/biddraftagent/infrastructure/openai/TenderDocumentPrompts.java) — 5 个字段口径引导（L62-L83）
+- [PurchaserAliases.java](../../backend/src/main/java/com/xiyu/bid/biddraftagent/infrastructure/openai/PurchaserAliases.java) — 招标主体别名共享常量类
+- [TenderIntakeTextProcessorTest.java](../../backend/src/test/java/com/xiyu/bid/biddraftagent/infrastructure/openai/TenderIntakeTextProcessorTest.java) — 7 个变体测试 + 多位置标签测试
+- [TenderDocumentPromptsTest.java](../../backend/src/test/java/com/xiyu/bid/biddraftagent/infrastructure/openai/TenderDocumentPromptsTest.java) — 9 个 Prompt 同步性测试
+- 第 83 条：招标主体识别"两处列表不同步"陷阱（前置背景）
+- 第 84 条：`tenderAgency` 字段语义混淆陷阱（关联治理）
+
 
