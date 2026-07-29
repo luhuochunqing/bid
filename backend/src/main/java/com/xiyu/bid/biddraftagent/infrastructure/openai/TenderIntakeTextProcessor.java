@@ -78,7 +78,22 @@ class TenderIntakeTextProcessor {
         if (line == null || line.isBlank()) {
             return false;
         }
-        return ALL_INTAKE_KEYWORDS.stream().anyMatch(line::contains);
+        // 归一化匹配：PDF 提取的文本经常有"半角空格/全角空格/换行/制表符"打断关键词，
+        // 例如"招 标 人：XXX"（封面美化排版）、"招标\n人"（换行打断）。
+        // 这里对原文做归一化后匹配，但 selected.add(lines[i]) 仍加原文，AI 看到的是原始文本。
+        String normalized = normalizeForMatching(line);
+        return ALL_INTAKE_KEYWORDS.stream().anyMatch(normalized::contains);
+    }
+
+    /**
+     * 归一化文本用于关键词匹配：移除所有空白字符（半角空格/全角空格/换行/制表符）。
+     * 仅用于 containsIntakeKeyword 的匹配，不修改原文本——AI 仍看原文，保留语义信息。
+     * 例："招 标 人：XXX" → "招标人：XXX"（命中关键词"招标人"）
+     */
+    private static String normalizeForMatching(String text) {
+        if (text == null) return "";
+        // 移除所有空白字符（半角空格、全角空格、换行、回车、制表符等）
+        return text.replaceAll("[\\s\\u3000\\u00A0]+", "");
     }
 
     /**

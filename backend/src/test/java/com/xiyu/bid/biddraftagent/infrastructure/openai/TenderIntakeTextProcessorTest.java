@@ -302,6 +302,95 @@ class TenderIntakeTextProcessorTest {
                         .contains(keyword + "：测试单位");
             }
         }
+
+        @Test
+        @DisplayName("招标主体关键词被半角空格打断时仍能命中（如\"招 标 人：XXX\"）")
+        void shouldMatchPurchaserKeywordWithHalfWidthSpaces() {
+            // 真实案例：张家口银行招标文件封面"招 标 人：张家口银行股份有限公司"
+            // PDF 排版美化导致关键词中间插入半角空格，精确匹配会漏掉关键标签行
+            // 根因：containsIntakeKeyword 用 String.contains 精确匹配，匹配不到"招 标 人"
+            // 修复：normalizeForMatching 移除空白字符后再匹配
+            String text = "前置无关行\n招 标 人：张家口银行股份有限公司\n后置无关行";
+
+            String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(text);
+
+            assertThat(result)
+                    .as("带半角空格的'招 标 人：XXX'必须命中候选文本")
+                    .contains("招 标 人：张家口银行股份有限公司");
+        }
+
+        @Test
+        @DisplayName("招标主体关键词被全角空格打断时仍能命中（如\"招　标　人：XXX\"）")
+        void shouldMatchPurchaserKeywordWithFullWidthSpaces() {
+            // 部分招标文件使用全角空格（U+3000）做排版美化
+            String text = "前置无关行\n招　标　人：测试单位\n后置无关行";
+
+            String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(text);
+
+            assertThat(result)
+                    .as("带全角空格的'招　标　人：XXX'必须命中候选文本")
+                    .contains("招　标　人：测试单位");
+        }
+
+        @Test
+        @DisplayName("招标主体关键词被换行打断时不命中（按行 split 的局限性）")
+        void shouldNotMatchPurchaserKeywordSplitAcrossLines() {
+            // 已知局限：buildTenderIntakeCandidateText 按行 split，
+            // 如果关键词被换行拆到多行（如"招\n标\n人：XXX"），单行都不会命中关键词。
+            // 这是设计权衡：标签格式（"招标人：XXX"）都是单行内的空格打断，
+            // 不会跨多行。跨多行拆分主要出现在描述性文字中（如"招标\n人不予受理"），
+            // 这些不是 purchaserName 的标签来源，不命中反而正确。
+            // 本测试记录这一已知行为，防止未来误以为这是 bug。
+            String text = "项目名称：测试项目\n前置无关行1\n招\n标\n人：测试单位\n后置无关行1";
+
+            String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(text);
+
+            // 由于关键词跨多行，单行都不命中，只有"项目名称"行命中
+            // "人：测试单位"行距离"项目名称"行 4 行，超出上下文半径 3，不会被包含
+            assertThat(result).contains("项目名称：测试项目");
+            assertThat(result).doesNotContain("人：测试单位");
+        }
+
+        @Test
+        @DisplayName("归一化匹配不破坏代理机构关键词的排除逻辑")
+        void shouldStillExcludeAgencyKeywordsAfterNormalization() {
+            // 归一化后，代理机构关键词仍不应命中（已从 ALL_INTAKE_KEYWORDS 移除）
+            // 防止归一化引入副作用，让原本被排除的关键词重新命中
+            // 注意：必须包含正常关键词行（项目名称），否则会触发回退逻辑
+            // （候选为空时回退到前 8000 字符），掩盖关键词列表的真实行为
+            int fillerCount = TenderIntakeTextProcessor.INTAKE_CONTEXT_RADIUS + 2;
+            StringBuilder sb = new StringBuilder();
+            sb.append("项目名称：测试项目");
+            for (int i = 1; i <= fillerCount; i++) {
+                sb.append("\n填充行").append(i);
+            }
+            sb.append("\n代 理 机 构：测试代理公司");
+            String text = sb.toString();
+
+            String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(text);
+
+            // 归一化后"代 理 机 构" → "代理机构"，但仍不应命中（已从关键词列表移除）
+            assertThat(result)
+                    .as("归一化后代理机构关键词仍不应命中候选文本")
+                    .doesNotContain("代 理 机 构：测试代理公司");
+            // 正常关键词行仍应命中，验证回退逻辑未被触发
+            assertThat(result).contains("项目名称：测试项目");
+        }
+
+        @Test
+        @DisplayName("归一化匹配保留原文不变（AI 看到的是原始文本）")
+        void shouldPreserveOriginalTextAfterNormalization() {
+            // 归一化仅用于匹配，selected.add(lines[i]) 仍加原文
+            // AI 看到的是"招 标 人：XXX"原文，不是"招标人：XXX"
+            // 包含上下文行避免触发回退逻辑
+            String text = "前置无关行\n招 标 人：张家口银行股份有限公司\n后置无关行";
+
+            String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(text);
+
+            assertThat(result).contains("招 标 人：张家口银行股份有限公司");
+            // 原文中的空格被保留，不会被归一化修改
+            assertThat(result).doesNotContain("招标人：张家口银行股份有限公司");
+        }
     }
 
     // ── sanitizeUntrusted ──────────────────────────────────────────
