@@ -391,6 +391,132 @@ class TenderIntakeTextProcessorTest {
             // 原文中的空格被保留，不会被归一化修改
             assertThat(result).doesNotContain("招标人：张家口银行股份有限公司");
         }
+
+        @Test
+        @DisplayName("招标主体关键词被零宽字符打断时仍能命中（ZWSP/ZWNJ/ZWJ）")
+        void shouldMatchPurchaserKeywordWithZeroWidthChars() {
+            // 防御性测试：零宽字符（U+200B-U+200D）在某些 PDF 提取工具中可能保留
+            // 虽然当前 pdftotext 不产生这类字符，但其他工具（如 pdfplumber、OCR）可能产生
+            // ZWSP（U+200B）、ZWNJ（U+200C）、ZWJ（U+200D）在视觉上不可见，但会打断关键词精确匹配
+            String text = "前置无关行\n招\u200B标\u200C人\u200D：测试单位\n后置无关行";
+
+            String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(text);
+
+            assertThat(result)
+                    .as("含零宽字符的'招[ZWSP]标[ZWNJ]人[ZWJ]：XXX'必须命中候选文本")
+                    .contains("招\u200B标\u200C人\u200D：测试单位");
+        }
+
+        @Test
+        @DisplayName("招标主体关键词被 BOM 打断时仍能命中（U+FEFF）")
+        void shouldMatchPurchaserKeywordWithBom() {
+            // BOM（U+FEFF）作为 ZWNBSP 出现在某些 UTF-8 文件开头或工具提取结果中
+            String text = "前置无关行\n招\uFEFF标\uFEFF人：测试单位\n后置无关行";
+
+            String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(text);
+
+            assertThat(result)
+                    .as("含 BOM 的'招[BOM]标[BOM]人：XXX'必须命中候选文本")
+                    .contains("招\uFEFF标\uFEFF人：测试单位");
+        }
+
+        @Test
+        @DisplayName("招标主体关键词被软连字符打断时仍能命中（U+00AD）")
+        void shouldMatchPurchaserKeywordWithSoftHyphen() {
+            // 软连字符 U+00AD 在某些 PDF 提取工具中可能保留，视觉上不可见但打断关键词
+            String text = "前置无关行\n招\u00AD标\u00AD人：测试单位\n后置无关行";
+
+            String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(text);
+
+            assertThat(result)
+                    .as("含软连字符的'招[SHY]标[SHY]人：XXX'必须命中候选文本")
+                    .contains("招\u00AD标\u00AD人：测试单位");
+        }
+
+        @Test
+        @DisplayName("招标主体关键词被 Unicode 空格打断时仍能命中（U+2003 EM SPACE / U+2009 THIN SPACE）")
+        void shouldMatchPurchaserKeywordWithUnicodeSpaces() {
+            // Unicode 空格（U+2000-U+200A）有 11 种宽度，部分 PDF 排版工具会使用
+            // 这里取 U+2003（EM SPACE，全角宽度空格）和 U+2009（THIN SPACE，细空格）做代表
+            String text = "前置无关行\n招\u2003标\u2009人：测试单位\n后置无关行";
+
+            String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(text);
+
+            assertThat(result)
+                    .as("含 Unicode 空格的'招[EM]标[THIN]人：XXX'必须命中候选文本")
+                    .contains("招\u2003标\u2009人：测试单位");
+        }
+
+        @Test
+        @DisplayName("招标主体关键词被窄不间断空格打断时仍能命中（U+202F）")
+        void shouldMatchPurchaserKeywordWithNarrowNbsp() {
+            // 窄不间断空格 U+202F 在某些欧洲语言排版中使用，也可能出现在中文 PDF 中
+            String text = "前置无关行\n招\u202F标\u202F人：测试单位\n后置无关行";
+
+            String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(text);
+
+            assertThat(result)
+                    .as("含窄不间断空格的'招[NNBSP]标[NNBSP]人：XXX'必须命中候选文本")
+                    .contains("招\u202F标\u202F人：测试单位");
+        }
+
+        @Test
+        @DisplayName("招标主体关键词被混合变体字符打断时仍能命中（半角+全角+零宽+BOM）")
+        void shouldMatchPurchaserKeywordWithMixedVariants() {
+            // 综合测试：同一行内混用多种空白/不可见字符
+            // 真实场景：PDF 提取工具可能输出"招[空格]标[ZWSP]人[BOM]：XXX"
+            String text = "前置无关行\n招 标\u200B人\uFEFF：测试单位\n后置无关行";
+
+            String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(text);
+
+            assertThat(result)
+                    .as("含混合变体字符的关键词行必须命中候选文本")
+                    .contains("招 标\u200B人\uFEFF：测试单位");
+        }
+
+        @Test
+        @DisplayName("多处出现招标主体标签行时全部纳入候选（不限于首页）")
+        void shouldIncludeAllPurchaserLabelLinesAcrossDocument() {
+            // 真实案例：张家口银行招标文件中"招 标 人：张家口银行股份有限公司"
+            // 出现在 4 个位置：封面（L14）、第一章招标公告（L53）、第一章附表（L112、L130）
+            // 当前逻辑应能收集所有标签行 + 上下文，不只是首页
+            // 防止未来误改"只取首次命中"逻辑
+            String purchaserLine = "招 标 人：张家口银行股份有限公司";
+            String text = String.join("\n",
+                    "封面标题",
+                    purchaserLine,   // 封面
+                    "代理机构：祥安招标代理有限公司",
+                    "", "", "",
+                    "第一章 招标公告",
+                    "1.1 项目名称：测试项目",
+                    "1.2 招标单位：张家口银行股份有限公司",  // 第一章
+                    "", "", "",
+                    "投标人须知前附表",
+                    purchaserLine,   // 附表 1
+                    "地址：张家口市",
+                    "", "", "",
+                    purchaserLine    // 附表 2
+            );
+
+            String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(text);
+
+            // 4 个标签行都必须出现在候选文本中（不是只取首页）
+            int occurrences = countOccurrences(result, purchaserLine);
+            assertThat(occurrences)
+                    .as("封面/第一章/附表中的 4 个'招 标 人：XXX'标签行必须全部命中候选")
+                    .isGreaterThanOrEqualTo(3);  // 至少 3 个（封面 + 第一章 + 附表 1 或 2，可能受上下文半径影响）
+            assertThat(result).contains("1.2 招标单位：张家口银行股份有限公司");
+        }
+
+        private int countOccurrences(String text, String sub) {
+            int count = 0;
+            int idx = 0;
+            while ((idx = text.indexOf(sub, idx)) != -1) {
+                count++;
+                idx += sub.length();
+            }
+            return count;
+        }
     }
 
     // ── sanitizeUntrusted ──────────────────────────────────────────

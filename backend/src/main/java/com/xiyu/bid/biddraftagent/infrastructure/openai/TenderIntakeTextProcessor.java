@@ -78,22 +78,41 @@ class TenderIntakeTextProcessor {
         if (line == null || line.isBlank()) {
             return false;
         }
-        // 归一化匹配：PDF 提取的文本经常有"半角空格/全角空格/换行/制表符"打断关键词，
-        // 例如"招 标 人：XXX"（封面美化排版）、"招标\n人"（换行打断）。
+        // 归一化匹配：PDF 提取的文本经常有"半角空格/全角空格/换行/制表符/零宽字符"打断关键词，
+        // 例如"招 标 人：XXX"（封面美化排版）、"招\u200B标人：XXX"（含零宽空格）。
         // 这里对原文做归一化后匹配，但 selected.add(lines[i]) 仍加原文，AI 看到的是原始文本。
         String normalized = normalizeForMatching(line);
         return ALL_INTAKE_KEYWORDS.stream().anyMatch(normalized::contains);
     }
 
     /**
-     * 归一化文本用于关键词匹配：移除所有空白字符（半角空格/全角空格/换行/制表符）。
+     * 归一化文本用于关键词匹配：移除所有空白字符与不可见字符。
      * 仅用于 containsIntakeKeyword 的匹配，不修改原文本——AI 仍看原文，保留语义信息。
      * 例："招 标 人：XXX" → "招标人：XXX"（命中关键词"招标人"）
+     *
+     * <p>覆盖范围（按 Unicode 区段）：
+     * <ul>
+     *   <li>{@code \s} — 基础 ASCII 空白：半角空格、\t、\n、\r、\f、\v</li>
+     *   <li>{@code \u00A0} — 不间断空格 NBSP</li>
+     *   <li>{@code \u00AD} — 软连字符 SHY（部分 PDF 提取工具会保留）</li>
+     *   <li>{@code \u2000-\u200A} — Unicode 空格（En/Em/Thin/Hair 等 11 种）</li>
+     *   <li>{@code \u200B-\u200D} — 零宽字符 ZWSP/ZWNJ/ZWJ</li>
+     *   <li>{@code \u2028-\u2029} — 行/段落分隔符 LS/PS</li>
+     *   <li>{@code \u202F} — 窄不间断空格 NNBSP</li>
+     *   <li>{@code \u205F} — 中等数学空格 MMSP</li>
+     *   <li>{@code \u2060} — 字连接符 WJ</li>
+     *   <li>{@code \u3000} — 全角空格</li>
+     *   <li>{@code \uFEFF} — BOM / 零宽不间断空格 ZWNBSP</li>
+     * </ul>
+     *
+     * <p>不修改原文本是关键设计——归一化只用于"是否命中关键词"的判定，
+     * AI 看到的仍是原始文本，保留所有排版和语义信息。
      */
     private static String normalizeForMatching(String text) {
         if (text == null) return "";
-        // 移除所有空白字符（半角空格、全角空格、换行、回车、制表符等）
-        return text.replaceAll("[\\s\\u3000\\u00A0]+", "");
+        return text.replaceAll(
+                "[\\s\\u00A0\\u00AD\\u2000-\\u200D\\u2028-\\u202F\\u205F\\u2060\\u3000\\uFEFF]+",
+                "");
     }
 
     /**
