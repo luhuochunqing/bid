@@ -39,7 +39,23 @@ final class PurchaserAliases {
     );
 
     /**
+     * 可能作为招标主体出现的"可能标签"（业务确认需保留但非明确）。
+     * 出现时且无更明确的招标主体标签，仍应填入 purchaserName。
+     * 与 {@link #ALL} 区分：ALL 是"明确是招标主体"，POSSIBLE 是"可能是招标主体"。
+     */
+    static final List<String> POSSIBLE = List.of(
+            "组织单位",
+            "主办单位",
+            "采购部门"
+    );
+
+    /**
      * 用于注入 Prompt 的展示文案："招标人/招标单位/采购人/采购单位/项目单位/实施单位/需求单位/业主单位"。
      */
     static final String DISPLAY = String.join("/", ALL);
+
+    /**
+     * "可能标签"展示文案："组织单位/主办单位/采购部门"。
+     */
+    static final String POSSIBLE_DISPLAY = String.join("/", POSSIBLE);
 }

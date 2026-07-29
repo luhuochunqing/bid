@@ -41,7 +41,6 @@ class E2eTenderIntakeDocumentAnalyzerTest {
         assertThat(analyzer.supports("TENDER_INTAKE")).isTrue();
         assertThat(result.extractedData())
                 .containsEntry("title", "南方电网供应链数字化项目")
-                .containsEntry("tenderAgency", "西域招标代理有限公司")
                 .containsEntry("purchaserName", "南方电网供应链集团")
                 .containsEntry("region", "广州")
                 .containsEntry("deadline", "2026-06-10 10:00")

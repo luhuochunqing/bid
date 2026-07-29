@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.DisplayName;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -236,6 +237,70 @@ class TenderIntakeTextProcessorTest {
             // - 同步性测试验证"常量类与关键词列表确实绑定了"
             assertThat(TenderIntakeTextProcessor.ALL_INTAKE_KEYWORDS)
                     .containsAll(PurchaserAliases.ALL);
+        }
+
+        @Test
+        @DisplayName("代理机构关键词不应命中招标主体候选文本")
+        void shouldNotIncludeAgencyKeywordsAsPurchaserCandidates() {
+            // 代理机构关键词不应命中候选文本，否则 AI 会误识别为招标主体
+            // 注意：测试文本必须包含正常关键词行（项目名称），否则会触发回退逻辑
+            // （候选为空时回退到前 8000 字符），掩盖关键词列表的真实行为
+            // 填充行数 = INTAKE_CONTEXT_RADIUS + 2，保证代理机构行超出关键词命中半径
+            List<String> agencyKeywords = List.of("招标机构", "代理机构", "采购代理机构");
+            int fillerCount = TenderIntakeTextProcessor.INTAKE_CONTEXT_RADIUS + 2;
+
+            for (String keyword : agencyKeywords) {
+                List<String> lines = new ArrayList<>();
+                lines.add("项目名称：测试项目");
+                for (int i = 1; i <= fillerCount; i++) {
+                    lines.add("填充行" + i);
+                }
+                lines.add(keyword + "：测试代理公司");
+                String text = String.join("\n", lines);
+
+                String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(text);
+
+                assertThat(result)
+                        .as("代理机构关键词 %s 不应命中候选文本（否则 AI 会误识别为招标主体）", keyword)
+                        .doesNotContain(keyword + "：测试代理公司");
+                // 正常关键词行仍应命中，验证回退逻辑未被触发
+                assertThat(result).contains("项目名称：测试项目");
+            }
+        }
+
+        @Test
+        @DisplayName("ALL_INTAKE_KEYWORDS 不包含代理机构关键词（同步性保护）")
+        void shouldNotIncludeAgencyKeywordsInAllIntakeKeywords() {
+            // 与 shouldNotIncludeAgencyKeywordsAsPurchaserCandidates 互补：
+            // - 行为测试验证"代理机构行不出现在候选文本中"
+            // - 同步性测试验证"常量列表确实不含代理机构关键词"，防止未来误加回
+            assertThat(TenderIntakeTextProcessor.ALL_INTAKE_KEYWORDS)
+                    .doesNotContain("招标机构", "代理机构", "采购代理机构");
+        }
+
+        @Test
+        @DisplayName("ALL_INTAKE_KEYWORDS 必须包含全部招标主体可能标签（POSSIBLE 同步性保护）")
+        void shouldIncludeAllPurchaserPossibleAliasesInAllIntakeKeywords() {
+            // PurchaserAliases.POSSIBLE（组织单位/主办单位/采购部门）必须出现在
+            // ALL_INTAKE_KEYWORDS 中，否则候选文本会丢失这些标签所在行，AI 看不到。
+            // 已显式列入 INTAKE_KEYWORDS，此断言防止未来误删。
+            assertThat(TenderIntakeTextProcessor.ALL_INTAKE_KEYWORDS)
+                    .containsAll(PurchaserAliases.POSSIBLE);
+        }
+
+        @Test
+        @DisplayName("组织单位/主办单位/采购部门保留为候选关键词（招标主体可能）")
+        void shouldIncludeOrganizerKeywordsAsPurchaserCandidates() {
+            // 业务确认：组织单位/主办单位/采购部门 可能作为招标主体出现，保留
+            for (String keyword : List.of("组织单位", "主办单位", "采购部门")) {
+                String text = "前置无关行\n" + keyword + "：测试单位\n后置无关行";
+
+                String result = TenderIntakeTextProcessor.buildTenderIntakeCandidateText(text);
+
+                assertThat(result)
+                        .as("组织方关键词 %s 应命中候选文本（可能为招标主体）", keyword)
+                        .contains(keyword + "：测试单位");
+            }
         }
     }
 
