@@ -45,7 +45,7 @@
           <div class="editor-col">
             <el-tabs v-model="activeTab" class="field-editor-tabs">
               <el-tab-pane label="字段配置" name="fields">
-                <DesignerFieldList :fields="draft.schema.fields" :field-types="fieldTypes" :scope="formEngineDraft.scope" @add-field="addField" @delete-field="deleteField" @copy-field="copyField" @new-template="newTemplate" @normalize-field="normalizeField" @get-enum-options="getEnumOptions" />
+                <DesignerFieldList :fields="draft.schema.fields" :field-types="fieldTypes" :disable-add-field="isUnsupportedProjectScope" @add-field="addField" @delete-field="deleteField" @copy-field="copyField" @new-template="newTemplate" @normalize-field="normalizeField" @get-enum-options="getEnumOptions" />
               </el-tab-pane>
               <el-tab-pane label="规则配置" name="rules">
                 <DesignerRulePanel :visibility-rules="visibilityRules" :cross-field-rules="crossFieldRules" :tenant-overrides="tenantOverrides" :available-fields="availableFields" @add-visibility="addVisibilityRule" @remove-visibility="removeVisibilityRule" @add-cross-field="addCrossFieldRule" @remove-cross-field="removeCrossFieldRule" @add-tenant-override="addTenantOverride" @remove-tenant-override="removeTenantOverride" />

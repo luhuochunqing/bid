@@ -74,21 +74,6 @@ export const FIXED_GROUP_KEYS = [
 // 用于判断 key 输入框是否 disabled 和删除按钮是否隐藏
 export const KEY_LOCKED_FIELD_KEYS = [...LOCKED_FIELD_KEYS, ...FIXED_GROUP_KEYS]
 
-// project.basic 系统字段 key 列表（V140 种子 schema，8 个）
-// 业务页 BasicInfoStep.vue 硬编码依赖这些 key，锁定 key+type 防止渲染异常
-// 方案 B：label/required/options 仍可编辑（仅锁 key+type，与 tender.entry 一致机制）
-export const PROJECT_BASIC_LOCKED_FIELD_KEYS = [
-  'name', 'managerId', 'teamMembers', 'startDate',
-  'endDate', 'budget', 'industry', 'description'
-]
-
-// 判断字段是否为 project.basic 系统字段（需锁定 key+type）
-// scope 非 project.basic 一律返回 false，避免影响 tender.entry 等其他表单
-export function isProjectBasicLockedField(scope, fieldKey) {
-  if (scope !== 'project.basic') return false
-  return PROJECT_BASIC_LOCKED_FIELD_KEYS.includes(fieldKey)
-}
-
 export function createField(key = 'field1', label = '字段', type = 'text') {
   const field = { key, label, type, required: type !== 'info' && type !== 'section' && type !== 'divider' && type !== 'info' }
   switch (type) {

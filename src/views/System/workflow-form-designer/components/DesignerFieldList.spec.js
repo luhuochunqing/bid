@@ -38,7 +38,7 @@ function mountWithFields(fields, options = {}) {
         { label: '多行文本', value: 'textarea' },
         { label: '附件', value: 'attachment' }
       ],
-      scope: options.scope || 'tender.entry'
+      disableAddField: options.disableAddField || false
     },
     global: { stubs: elementStubs }
   })
@@ -135,74 +135,45 @@ describe('DesignerFieldList', () => {
     expect(enableCheckbox.props('modelValue')).toBe(false)
   })
 
-  describe('project.basic scope 系统字段锁定', () => {
-    it('project.basic 系统字段（name）的 key 和 type 都 disabled', () => {
+  describe('disableAddField prop', () => {
+    it('disableAddField=false 时添加字段按钮可点击', () => {
       const wrapper = mountWithFields([
-        { key: 'name', label: '项目名称', type: 'text', required: true, enabled: true }
-      ], { scope: 'project.basic' })
+        { key: 'name', label: '名称', type: 'text', required: false, enabled: true }
+      ], { disableAddField: false })
 
-      const keyInput = wrapper.find('.field-key-input')
-      const typeSelect = wrapper.find('.field-type-select')
-
-      expect(keyInput.attributes('disabled')).toBeDefined()
-      expect(typeSelect.attributes('disabled')).toBeDefined()
+      const addBtn = wrapper.findAll('button').find((b) => b.text().includes('添加字段'))
+      expect(addBtn.attributes('disabled')).toBeUndefined()
     })
 
-    it('project.basic 自定义字段（customField）的 key 和 type 都可编辑', () => {
+    it('disableAddField=true 时添加字段按钮 disabled', () => {
       const wrapper = mountWithFields([
-        { key: 'customField', label: '自定义', type: 'text', required: false, enabled: true }
-      ], { scope: 'project.basic' })
+        { key: 'name', label: '名称', type: 'text', required: false, enabled: true }
+      ], { disableAddField: true })
+
+      const addBtn = wrapper.findAll('button').find((b) => b.text().includes('添加字段'))
+      expect(addBtn.attributes('disabled')).toBeDefined()
+    })
+
+    it('disableAddField=true 时新建模板按钮也 disabled', () => {
+      const wrapper = mountWithFields([
+        { key: 'name', label: '名称', type: 'text', required: false, enabled: true }
+      ], { disableAddField: true })
+
+      const buttons = wrapper.findAll('button')
+      const newTemplateBtns = buttons.filter((b) => b.text().includes('新建'))
+      expect(newTemplateBtns.length).toBeGreaterThan(0)
+      newTemplateBtns.forEach((btn) => {
+        expect(btn.attributes('disabled')).toBeDefined()
+      })
+    })
+
+    it('disableAddField=true 时已有字段的 key 仍可编辑（不锁字段，只禁添加）', () => {
+      const wrapper = mountWithFields([
+        { key: 'name', label: '名称', type: 'text', required: false, enabled: true }
+      ], { disableAddField: true })
 
       const keyInput = wrapper.find('.field-key-input')
-      const typeSelect = wrapper.find('.field-type-select')
-
       expect(keyInput.attributes('disabled')).toBeUndefined()
-      expect(typeSelect.attributes('disabled')).toBeUndefined()
-    })
-
-    it('project.basic 系统字段的 draggable 是 false', () => {
-      const wrapper = mountWithFields([
-        { key: 'name', label: '项目名称', type: 'text', required: true, enabled: true }
-      ], { scope: 'project.basic' })
-
-      const fieldRow = wrapper.find('.field-row')
-      expect(fieldRow.attributes('draggable')).toBe('false')
-    })
-
-    it('project.basic 自定义字段的 draggable 是 true', () => {
-      const wrapper = mountWithFields([
-        { key: 'customField', label: '自定义', type: 'text', required: false, enabled: true }
-      ], { scope: 'project.basic' })
-
-      const fieldRow = wrapper.find('.field-row')
-      expect(fieldRow.attributes('draggable')).toBe('true')
-    })
-
-    it('project.basic 系统字段的 label/required/options 仍可编辑（方案 B：只锁 key+type）', () => {
-      const wrapper = mountWithFields([
-        { key: 'name', label: '项目名称', type: 'text', required: true, enabled: true }
-      ], { scope: 'project.basic' })
-
-      const labelInput = wrapper.find('.field-label-input')
-      const checkboxes = wrapper.findAllComponents({ name: 'ElCheckbox' })
-      const requiredCheckbox = checkboxes.find((c) => c.text().includes('必填'))
-
-      // label 输入框不应被禁用
-      expect(labelInput.attributes('disabled')).toBeUndefined()
-      // 必填 checkbox 不应被禁用（type='text' 不在 ['info','section','divider'] 中）
-      expect(requiredCheckbox.props('disabled')).toBeFalsy()
-    })
-
-    it('tender.entry scope 下同名 key=name 的字段不受影响（保持原行为）', () => {
-      const wrapper = mountWithFields([
-        { key: 'name', label: '标讯名称', type: 'text', required: true, enabled: true }
-      ], { scope: 'tender.entry' })
-
-      const keyInput = wrapper.find('.field-key-input')
-      const typeSelect = wrapper.find('.field-type-select')
-
-      expect(keyInput.attributes('disabled')).toBeUndefined()
-      expect(typeSelect.attributes('disabled')).toBeUndefined()
     })
   })
 })
