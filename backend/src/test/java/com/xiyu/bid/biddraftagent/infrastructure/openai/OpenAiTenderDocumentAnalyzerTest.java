@@ -345,15 +345,19 @@ class OpenAiTenderDocumentAnalyzerTest {
     }
 
     @Test
-    void analyzeTenderIntake_shouldNotOverrideAiPurchaserWhenPresent() {
-        // AI 已正确抽取 purchaserName 时，正则兜底不得覆盖
+    void analyzeTenderIntake_shouldOverrideAiWhenRegexMatchesLabel() {
+        // 张家口银行真实 case：AI 把代理机构误识别为招标主体（错误非空值），
+        // 正则应从"招 标 人：XXX"标签行命中并覆盖 AI 的错误结果
         String text = """
-                招标人：某科技有限公司
-                项目名称：测试项目
+                招 标 文 件
+                【招标编号：XAZB[2026]019】
+                招 标 人：张家口银行股份有限公司
+                代理机构：祥安招标代理有限公司
+                项目名称：宣传品电商平台采购项目
                 """;
         DocumentAnalysisInput input = new DocumentAnalysisInput(
-                "doc-insight://keep",
-                "keep.pdf",
+                "doc-insight://zjk-override",
+                "zjk.pdf",
                 text,
                 "",
                 List.of(new DocumentChunk(text, List.of())),
@@ -361,14 +365,46 @@ class OpenAiTenderDocumentAnalyzerTest {
                 java.util.Map.of()
         );
         TenderRequirementOutput output = new TenderRequirementOutput();
-        output.purchaserName = "AI抽取的正确公司名";
+        output.projectName = "宣传品电商平台采购项目";
+        // AI 错误地把代理机构识别为招标主体
+        output.purchaserName = "祥安招标代理有限公司";
         when(structuredOutputService.request(anyString(), eq(TenderRequirementOutput.class), any(), anyString()))
                 .thenReturn(output);
 
         var result = analyzer.analyze(input);
 
+        // 正则命中标签行，覆盖 AI 的错误值
         assertThat(result.extractedData())
-                .containsEntry("purchaserName", "AI抽取的正确公司名");
+                .containsEntry("purchaserName", "张家口银行股份有限公司");
+    }
+
+    @Test
+    void analyzeTenderIntake_shouldKeepAiValueWhenRegexCannotMatchLabel() {
+        // 文本无"标签+冒号"结构化标签行（仅描述性文字）时，正则未命中，保留 AI 结果
+        // 防止误伤 AI 已正确抽取但文本无标签行的场景
+        String text = """
+                本次采购由某科技有限公司发起，欢迎合格供应商参与投标。
+                项目概述：办公耗材年度采购
+                """;
+        DocumentAnalysisInput input = new DocumentAnalysisInput(
+                "doc-insight://no-label",
+                "no-label.docx",
+                text,
+                "",
+                List.of(new DocumentChunk(text, List.of())),
+                DocInsightProfiles.TENDER_INTAKE,
+                java.util.Map.of()
+        );
+        TenderRequirementOutput output = new TenderRequirementOutput();
+        output.purchaserName = "AI抽取的某科技有限公司";
+        when(structuredOutputService.request(anyString(), eq(TenderRequirementOutput.class), any(), anyString()))
+                .thenReturn(output);
+
+        var result = analyzer.analyze(input);
+
+        // 正则未命中标签行，保留 AI 结果
+        assertThat(result.extractedData())
+                .containsEntry("purchaserName", "AI抽取的某科技有限公司");
     }
 
     @Test
