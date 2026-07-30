@@ -216,13 +216,15 @@ public class OpenAiTenderDocumentAnalyzer
         data.put("tags", merged.tags());
         if (DocInsightProfiles.isTenderIntake(input.profileCode())) {
             putTenderIntakeFields(data, results);
-            // purchaserName 正则兜底：AI 对"招 标 人：XXX"这类标签行偶有漏抽（尤其招标人/代理机构
-            // 共现多次的文档），标签行是可正则稳定命中的结构化格式，AI 留空时用正则从候选文本兜底。
-            if (isBlankValue(data.get("purchaserName")) && !input.chunks().isEmpty()) {
-                String fallback = PurchaserNameExtractor.extractPurchaserName(
+            // purchaserName 正则兜底（正则优先）：AI 对"招 标 人：XXX"这类标签行偶有漏抽或误抽为
+            // 代理机构（尤其招标人/代理机构共现、且招标人标签被排版空格打断的文档）。标签行是可正则
+            // 稳定命中的结构化格式，正则命中即覆盖 AI 结果（无论 AI 空值还是错误值）；正则未命中时
+            // 保留 AI 结果，避免误伤 AI 已正确抽取但文本无标签行的场景。
+            if (!input.chunks().isEmpty()) {
+                String regexName = PurchaserNameExtractor.extractPurchaserName(
                         input.chunks().get(0).text());
-                if (!fallback.isBlank()) {
-                    data.put("purchaserName", fallback);
+                if (!regexName.isBlank()) {
+                    data.put("purchaserName", regexName);
                 }
             }
             // tenderInfo 是"完整招标公告原文"，AI 只能看到关键词片段，无法输出完整原文。
@@ -267,10 +269,6 @@ public class OpenAiTenderDocumentAnalyzer
         if ((data.get(key) == null || String.valueOf(data.get(key)).isBlank()) && value != null && !value.isBlank()) {
             data.put(key, value);
         }
-    }
-
-    private static boolean isBlankValue(Object value) {
-        return value == null || String.valueOf(value).isBlank();
     }
 
     @Override
