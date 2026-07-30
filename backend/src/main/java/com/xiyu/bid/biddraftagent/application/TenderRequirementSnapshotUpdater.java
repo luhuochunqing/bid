@@ -15,7 +15,11 @@ class TenderRequirementSnapshotUpdater {
         if (isBlank(tender.getTitle()) && !isBlank(profile.tenderTitle())) {
             tender.setTitle(profile.tenderTitle().trim());
         }
-        if (isBlank(tender.getPurchaserName()) && !isBlank(profile.purchaserName())) {
+        // purchaserName 采用"新值非空时总是覆盖"策略（不同于其他字段的"只在空值时更新"）。
+        // 根因：AI 首次分析可能误识别（如把代理机构识别为招标主体），重新分析时新正确值必须能覆盖旧错误值；
+        // 否则错误值会永久滞留（CO- purchaserName 三次修复失效的零号病人，详见 lessons-learned 第 88 条）。
+        // tenderInfo 字段已在 OpenAiTenderDocumentAnalyzer 采用强制覆盖策略，purchaserName 对齐此策略。
+        if (!isBlank(profile.purchaserName())) {
             tender.setPurchaserName(profile.purchaserName().trim());
         }
         applyStructuredProjectFields(tender, profile);

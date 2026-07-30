@@ -147,7 +147,9 @@ class BidTenderDocumentImportAppServiceTest {
     }
 
     @Test
-    void parseTenderDocument_shouldNotOverwriteExistingTenderStructuredFields() {
+    void parseTenderDocument_shouldOverwriteExistingPurchaserNameButKeepOtherStructuredFields() {
+        // purchaserName 采用"新值非空时总是覆盖"策略（CO- purchaserName 三次修复失效的根因修复），
+        // 其他结构化字段（title/budget/region 等）仍保持"只在空值时更新"策略。
         allowTransactionCallbacks();
         MockMultipartFile file = sampleFile();
         Project project = Project.builder().id(11L).tenderId(22L).name("华东智慧园区改造项目").managerId(1L).build();
@@ -186,8 +188,10 @@ class BidTenderDocumentImportAppServiceTest {
 
         appService.parseTenderDocument(11L, file);
 
+        // purchaserName 应被新值覆盖（根因修复：原 bug 是旧错误值永远无法被新正确值覆盖）
+        assertThat(tender.getPurchaserName()).isEqualTo("上海采购集团");
+        // 其他结构化字段仍保持"只在空值时更新"策略
         assertThat(tender.getTitle()).isEqualTo("旧标题");
-        assertThat(tender.getPurchaserName()).isEqualTo("旧采购单位");
         assertThat(tender.getDescription()).isEqualTo("旧描述");
         assertThat(tender.getTags()).isEqualTo("旧标签");
         assertThat(tender.getBudget()).isEqualByComparingTo("9900000.00");
