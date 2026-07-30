@@ -178,4 +178,65 @@ describe('useTenderAiParse', () => {
 
     expect(form.value.attachments).toEqual([])
   })
+
+  // purchaserName 映射回归测试（曾因 useTenderAiParse.applyParsedFields mapping 缺少
+  // purchaserName: 'purchaser'，导致后端正则兜底修复 purchaserName 后前端表单仍显示空）。
+  it('maps purchaserName to form.purchaser when tenderAgency is absent', async () => {
+    const form = ref({ attachments: [], pastedText: '', purchaser: '' })
+    const { handleFileChange } = useTenderAiParse(form)
+    const file = makeUploadFile('tender.pdf', 'application/pdf', 1)
+
+    tendersApi.parseTenderIntakeDocument.mockResolvedValue(
+      mockParseResponse('doc-insight://TENDER_INTAKE/create-tender/hash-tender.pdf', {
+        extractedData: {
+          tenderTitle: '张家口银行办公用品采购项目',
+          purchaserName: '张家口银行股份有限公司',
+          region: '河北省张家口市',
+        },
+      })
+    )
+
+    await handleFileChange(file, [file])
+
+    expect(form.value.purchaser).toBe('张家口银行股份有限公司')
+    expect(form.value.title).toBe('张家口银行办公用品采购项目')
+    expect(form.value.region).toBe('河北省张家口市')
+  })
+
+  it('purchaserName overrides tenderAgency when both are present (招标主体优先于代理机构)', async () => {
+    const form = ref({ attachments: [], pastedText: '', purchaser: '' })
+    const { handleFileChange } = useTenderAiParse(form)
+    const file = makeUploadFile('tender.pdf', 'application/pdf', 1)
+
+    tendersApi.parseTenderIntakeDocument.mockResolvedValue(
+      mockParseResponse('doc-insight://TENDER_INTAKE/create-tender/hash-tender.pdf', {
+        extractedData: {
+          purchaserName: '张家口银行股份有限公司',
+          tenderAgency: '祥安招标代理有限公司',
+        },
+      })
+    )
+
+    await handleFileChange(file, [file])
+
+    expect(form.value.purchaser).toBe('张家口银行股份有限公司')
+  })
+
+  it('falls back to tenderAgency when purchaserName is absent (兼容历史 AI 输出)', async () => {
+    const form = ref({ attachments: [], pastedText: '', purchaser: '' })
+    const { handleFileChange } = useTenderAiParse(form)
+    const file = makeUploadFile('tender.pdf', 'application/pdf', 1)
+
+    tendersApi.parseTenderIntakeDocument.mockResolvedValue(
+      mockParseResponse('doc-insight://TENDER_INTAKE/create-tender/hash-tender.pdf', {
+        extractedData: {
+          tenderAgency: '上海招标代理有限公司',
+        },
+      })
+    )
+
+    await handleFileChange(file, [file])
+
+    expect(form.value.purchaser).toBe('上海招标代理有限公司')
+  })
 })

@@ -6427,4 +6427,116 @@ if (!isBlank(profile.purchaserName())) {
 - engineering-discipline.md 第一章根因 1/4/7、第四章 Bug 修复 SOP、§7.4 反复修复时 checklist
 - 第 87 条：结构化标签字段死磕 Prompt 不如正则兜底（本条为其持久化层根因续作）
 
+## 89. 前端字段映射缺 purchaserName 导致正则兜底修复后表单仍显示空——purchaserName 五次修复的真正零号病人（2026-07-30 / PR pending）
+
+### 事故背景
+
+第 88 条（持久化层覆盖策略修复）部署到测试环境后，用户反馈"招标主体没有识别出来，其他字段都识别出来了"——第五次修复仍失效，且这次是**完全空值**（不是错误值）。
+
+### 根因（决定性证据链）
+
+启动根因猎手技能，按"全链路日志排查 SOP"逐层逆向：
+
+1. **服务器日志定位 traceId**：用户 12:00:25 调用 `/api/doc-insight/parse-existing`（traceId=`53f667731044485582508da8095f80e8`），返回 200，耗时 51 秒。后端无异常日志。
+2. **后端调用链正确**：`DocInsightController.parseExisting` → `DocumentIntelligenceServiceImpl.processExisting` → `OpenAiTenderDocumentAnalyzer.analyze` → `mergeAndMap` 中 `data.put("purchaserName", merged.purchaserName())` 和正则兜底 `data.put("purchaserName", regexName)` 都执行了，后端返回的 `extractedData.purchaserName` 有值。
+3. **前端 mapping 缺字段**（零号病人）：`useTenderAiParse.js:163` 的 `applyParsedFields` mapping 中只有 `tenderAgency: 'purchaser'`，**缺少 `purchaserName: 'purchaser'`**。前端从 `extractedData` 中读取 `tenderAgency` 字段填入表单 `purchaser`，但后端 Prompt 让 AI 输出 `purchaserName`（不输出 `tenderAgency`），所以前端取不到值。
+
+### 必然性证明
+
+```
+1. 后端 Prompt（TenderDocumentPrompts.buildTenderIntakePrompt）让 AI 输出 purchaserName 字段
+2. AI 按要求输出 purchaserName = "张家口银行股份有限公司"，tenderAgency 字段为空（未要求输出）
+3. 后端 mergeAndMap：data.put("purchaserName", "张家口银行股份有限公司") ✓
+4. 前端 useTenderAiParse.applyParsedFields 遍历 mapping：
+   - mappings[0]: tenderAgency: 'purchaser' → src.tenderAgency = undefined → skip
+   - mappings[1]: tenderAgency: 'purchaser' → src.tenderAgency = undefined → skip
+   - purchaserName 字段从未出现在 mapping 中 → 永远不被读取
+5. form.value.purchaser 保持初始空值
+
+必然结果：无论后端 purchaserName 多么正确，前端表单中招标主体始终为空。bug 必然发生。
+```
+
+### 为什么之前能"识别"但识别成代理机构
+
+| 时间 | 后端 purchaserName | 后端 tenderAgency | 前端 form.purchaser | 现象 |
+|------|-------------------|-------------------|---------------------|------|
+| 第 1-3 次修复前 | "祥安招标代理有限公司"（AI 误识别） | "祥安招标代理有限公司"（AI 同时填了） | "祥安招标代理有限公司" | 错误值，但能显示 |
+| 第 4 次修复后（PR !2226） | "张家口银行股份有限公司"（正则兜底覆盖） | ""（AI 不再误填） | "" | 正确值，但前端取不到 |
+
+第 4 次修复让后端 `purchaserName` 正确了，但同时也让 `tenderAgency` 变空了（因为正则兜底只更新 purchaserName，不更新 tenderAgency）。前端 mapping 缺 `purchaserName`，所以表单从"错误值"变成了"空值"——用户感知"反而更差了"。
+
+### 七大根因对照（engineering-discipline.md 第一章）
+
+本次事故同时命中**三大根因**：
+
+| 根因 | 体现 |
+|------|------|
+| **根因 1：追症状不追根因** | 5 次修复都在后端（Prompt → 候选文本 → 正则兜底 → 持久化层），零号病人在前端（mapping 缺字段），从未被触及 |
+| **根因 4：测试只测修过的函数，不测根因行为** | 5 次修复都只测后端 purchaserName 输出，没人测前端 `applyParsedFields` 是否正确读取 purchaserName；`useTenderAiParse.spec.js` 只测了 fileUrl 回填，没测字段映射 |
+| **根因 7：盲目相信"已修复"** | 4 次部署后都未在真实环境验证"前端表单是否真的显示了 purchaserName"，只验证"后端日志中 purchaserName 是否有值" |
+
+### 修复方案
+
+在 `useTenderAiParse.js` 的两个 mapping 中加入 `purchaserName: 'purchaser'`，并放在 `tenderAgency: 'purchaser'` **之后**（这样 purchaserName 有值时会覆盖 tenderAgency 的误值）：
+
+```js
+// 修复前（L162-185）：mapping 缺 purchaserName
+const mappings = [
+  { title: 'title', region: 'region', tenderAgency: 'purchaser', ... },
+  { tenderTitle: 'title', projectName: 'title', tenderAgency: 'purchaser', ... },
+]
+
+// 修复后：加入 purchaserName，放在 tenderAgency 之后
+const mappings = [
+  { title: 'title', region: 'region',
+    tenderAgency: 'purchaser', purchaserName: 'purchaser', // ← 后处理覆盖 tenderAgency
+    ... },
+  { tenderTitle: 'title', projectName: 'title',
+    tenderAgency: 'purchaser', purchaserName: 'purchaser', // ← 后处理覆盖 tenderAgency
+    ... },
+]
+```
+
+**为什么 purchaserName 放在 tenderAgency 之后**：
+- mapping 按字段在对象中的顺序遍历，后处理的覆盖先处理的
+- 如果只有 purchaserName 有值 → form.purchaser = purchaserName ✓
+- 如果只有 tenderAgency 有值（历史兼容） → form.purchaser = tenderAgency ✓
+- 如果两者都有值 → form.purchaser = purchaserName（招标主体优先于代理机构）✓
+
+**为什么 useManualTenderCreate 没问题**：它走 `manualTenderParseHelpers.js:91` 的 `firstText(data.purchaserName, data.tenderAgency, data.agencyName)`，已经正确地优先取 purchaserName。本 bug 只影响 `TenderCreatePage.vue` 用的 `useTenderAiParse.js`。
+
+### 防复发测试
+
+新增 3 个回归测试用例到 `useTenderAiParse.spec.js`：
+1. **purchaserName 映射测试**：tenderAgency 缺失时，purchaserName 能映射到 form.purchaser（直接复现零号病人场景）
+2. **purchaserName 覆盖测试**：两者同时存在时，purchaserName 覆盖 tenderAgency（招标主体优先于代理机构）
+3. **tenderAgency fallback 测试**：purchaserName 缺失时，tenderAgency 仍能 fallback 到 form.purchaser（兼容历史 AI 输出）
+
+### 核心教训
+
+1. **修 bug 必须验证"端到端"**：从用户操作 → 前端表单 → API 请求 → 后端处理 → 数据库 → API 响应 → 前端表单回填，必须验证完整链路。本次 5 次修复都在后端，前端 mapping 缺字段从未被触及。**只验证后端日志中有值，不验证前端表单是否显示，是反复修复的根因**。
+2. **前后端字段映射必须对齐**：后端 Prompt 让 AI 输出 `purchaserName`，前端 mapping 必须包含 `purchaserName: 'purchaser'`。字段命名不一致（后端 `purchaserName` vs 前端表单 `purchaser`）+ mapping 缺字段 = 必然 bug。
+3. **测试要覆盖"用户感知"的场景**：5 次修复都只测后端 purchaserName 输出，没人测"前端表单是否真的显示了 purchaserName"。**单元测试要覆盖前端字段映射逻辑，不能只测 fileUrl 回填**。
+4. **第 2 次修同一个 bug 时必须停下来做根因分析**（engineering-discipline.md §7.4）：本次第 5 次修复才启动根因猎手，前 4 次都在打补丁。如果第 2 次就做根因分析，可以节省 4 次部署 + 4 次用户验证的成本。
+5. **"用户反馈变差了"是关键信号**：第 4 次修复后用户从"错误值"变成"空值"，这是关键信号——说明修复影响了前端读取的字段，应该立即查前端 mapping 而不是继续修后端。
+
+### 操作规范
+
+1. 修 bug 时必须验证完整链路：前端表单 → API → 后端 → 数据库 → API 响应 → 前端表单回填
+2. 前后端字段映射必须对齐：后端输出 `purchaserName`，前端 mapping 必须有 `purchaserName: '表单字段'`
+3. 单元测试要覆盖前端字段映射逻辑，不能只测 fileUrl 回填等非业务字段
+4. 用户反馈"变差了"时，应立即查前端是否漏读了某个字段，而不是继续修后端
+5. 第 2 次修同一个 bug 时必须启动根因猎手，禁止继续打补丁
+
+### 相关文档
+
+- [useTenderAiParse.js](../../src/views/Bidding/list/composables/useTenderAiParse.js) — 零号病人所在地（L169-193 mapping 已修复）
+- [useTenderAiParse.spec.js](../../src/views/Bidding/list/composables/useTenderAiParse.spec.js) — 根因行为测试（3 个新增用例）
+- [manualTenderParseHelpers.js](../../src/views/Bidding/list/manualTenderParseHelpers.js) — 对照组（已正确优先 purchaserName）
+- [TenderDocumentPrompts.java](../../backend/src/main/java/com/xiyu/bid/biddraftagent/infrastructure/openai/TenderDocumentPrompts.java) — Prompt 让 AI 输出 purchaserName 的源头
+- [OpenAiTenderDocumentAnalyzer.java](../../backend/src/main/java/com/xiyu/bid/biddraftagent/infrastructure/openai/OpenAiTenderDocumentAnalyzer.java) — 后端 mergeAndMap 写入 purchaserName 的位置
+- engineering-discipline.md 第一章根因 1/4/7、第四章 Bug 修复 SOP、§7.4 反复修复时 checklist
+- 第 87 条：结构化标签字段死磕 Prompt 不如正则兜底
+- 第 88 条：持久化层"只在空值时更新"策略让上游修复全部失效（本条为其前端 mapping 根因续作）
+
 

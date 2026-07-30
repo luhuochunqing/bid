@@ -159,9 +159,17 @@ export function useTenderAiParse(form) {
     }
 
     const extracted = data?.extractedData && typeof data.extractedData === 'object' ? data.extractedData : null
+    // 字段映射口径（与 manualTenderParseHelpers.js 保持一致）：
+    //   purchaser <- purchaserName（招标主体，AI 主要输出字段）
+    //             <- tenderAgency（兼容历史 AI 偶发输出，purchaserName 优先覆盖）
+    // 后端 Prompt（TenderDocumentPrompts.buildTenderIntakePrompt）让 AI 输出 purchaserName，
+    // tenderAgency 在 tender-intake 场景下未要求 AI 输出；保留 tenderAgency 映射仅作 fallback。
+    // 关键：purchaserName 必须放在 tenderAgency 之后，使其有值时覆盖 tenderAgency 的误值
+    // （曾因缺失 purchaserName 映射导致正则兜底修复后表单仍显示空，CO-XXX 反复修复）。
     const mappings = [
       {
-        title: 'title', region: 'region', tenderAgency: 'purchaser',
+        title: 'title', region: 'region',
+        tenderAgency: 'purchaser', purchaserName: 'purchaser',
         deadline: 'deadline', bidOpeningTime: 'bidOpeningTime',
         customerType: 'customerType', priority: 'priority',
         contact: 'contact', phone: 'phone', landline: 'landline',
@@ -172,7 +180,7 @@ export function useTenderAiParse(form) {
       },
       {
         tenderTitle: 'title', projectName: 'title',
-        tenderAgency: 'purchaser',
+        tenderAgency: 'purchaser', purchaserName: 'purchaser',
         deadline: 'deadline', bidOpeningTime: 'bidOpeningTime',
         region: 'region', customerType: 'customerType', priority: 'priority',
         contactName: 'contact', contactPhone: 'phone',
