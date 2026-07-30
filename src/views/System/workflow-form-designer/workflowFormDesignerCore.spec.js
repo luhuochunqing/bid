@@ -5,6 +5,7 @@ import {
   buildSelectedTemplateState,
   createField,
   extractWorkflowFormError,
+  isProjectBasicLockedField,
   moveField,
   removeField
 } from './workflowFormDesignerCore.js'
@@ -59,5 +60,27 @@ describe('workflowFormDesignerCore', () => {
   it('extracts clear workflow form operation errors', () => {
     expect(extractWorkflowFormError({ response: { data: { msg: '映射错误' } } })).toBe('映射错误')
     expect(extractWorkflowFormError(null, '默认错误')).toBe('默认错误')
+  })
+
+  describe('isProjectBasicLockedField', () => {
+    it('project.basic 系统字段（如 name）返回 true', () => {
+      expect(isProjectBasicLockedField('project.basic', 'name')).toBe(true)
+      expect(isProjectBasicLockedField('project.basic', 'managerId')).toBe(true)
+      expect(isProjectBasicLockedField('project.basic', 'description')).toBe(true)
+    })
+
+    it('project.basic 自定义字段返回 false', () => {
+      expect(isProjectBasicLockedField('project.basic', 'customField1')).toBe(false)
+      expect(isProjectBasicLockedField('project.basic', 'myField')).toBe(false)
+    })
+
+    it('非 project.basic scope 一律返回 false（不影响 tender.entry 等）', () => {
+      expect(isProjectBasicLockedField('tender.entry', 'name')).toBe(false)
+      expect(isProjectBasicLockedField('project.initiation', 'name')).toBe(false)
+      expect(isProjectBasicLockedField('project.detail', 'name')).toBe(false)
+      expect(isProjectBasicLockedField('knowledge.case', 'title')).toBe(false)
+      expect(isProjectBasicLockedField('', 'name')).toBe(false)
+      expect(isProjectBasicLockedField(null, 'name')).toBe(false)
+    })
   })
 })

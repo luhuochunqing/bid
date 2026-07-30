@@ -23,6 +23,15 @@
 
       <!-- 主编辑区 -->
       <section class="designer-main">
+        <el-alert
+          v-if="isUnsupportedProjectScope"
+          type="warning"
+          :closable="false"
+          show-icon
+          title="该表单暂未开放自定义"
+          description="此表单含保证金、客户矩阵、AI 评估、审批流、OBS 直传等复杂交互，自定义字段会导致业务流程异常。后续版本将支持混合渲染模式。"
+          style="margin-bottom: 16px"
+        />
         <div class="form-grid">
           <el-form label-width="96px" class="template-form">
             <el-form-item label="模板编码"><el-input v-model="draft.templateCode" placeholder="例如 tender.entry" disabled /></el-form-item>
@@ -36,7 +45,7 @@
           <div class="editor-col">
             <el-tabs v-model="activeTab" class="field-editor-tabs">
               <el-tab-pane label="字段配置" name="fields">
-                <DesignerFieldList :fields="draft.schema.fields" :field-types="fieldTypes" @add-field="addField" @delete-field="deleteField" @copy-field="copyField" @new-template="newTemplate" @normalize-field="normalizeField" @get-enum-options="getEnumOptions" />
+                <DesignerFieldList :fields="draft.schema.fields" :field-types="fieldTypes" :scope="formEngineDraft.scope" @add-field="addField" @delete-field="deleteField" @copy-field="copyField" @new-template="newTemplate" @normalize-field="normalizeField" @get-enum-options="getEnumOptions" />
               </el-tab-pane>
               <el-tab-pane label="规则配置" name="rules">
                 <DesignerRulePanel :visibility-rules="visibilityRules" :cross-field-rules="crossFieldRules" :tenant-overrides="tenantOverrides" :available-fields="availableFields" @add-visibility="addVisibilityRule" @remove-visibility="removeVisibilityRule" @add-cross-field="addCrossFieldRule" @remove-cross-field="removeCrossFieldRule" @add-tenant-override="addTenantOverride" @remove-tenant-override="removeTenantOverride" />
@@ -93,6 +102,10 @@ const availableFields = computed(() => (draft.schema?.fields || [])
   .filter(f => f.key && !['section', 'divider', 'info'].includes(f.type))
   .map(f => ({ key: f.key, label: f.label || f.key }))
 )
+
+// 暂未开放自定义的表单 scope（含复杂交互，开放会导致业务流程断裂）
+const UNSUPPORTED_PROJECT_SCOPES = ['project.initiation', 'project.detail']
+const isUnsupportedProjectScope = computed(() => UNSUPPORTED_PROJECT_SCOPES.includes(formEngineDraft.scope))
 
 function getEnumOptions(type) {
   if (type === 'tender_source') return '招标公告=bidding\n比选公告=selection\n竞争性谈判=negotiation\n单一来源=single_source'
