@@ -6319,4 +6319,112 @@ PR !2212 修复了 `audit_logs.project_id` 污染问题（移除 Long args-first
 - [OpenAiTenderDocumentAnalyzer.java](../../backend/src/main/java/com/xiyu/bid/biddraftagent/infrastructure/openai/OpenAiTenderDocumentAnalyzer.java) — `mergeAndMap` 兜底接线（AI 空值才触发）
 - 第 86 条：招标文件 PDF 关键词识别陷阱（Prompt 路线，本条为其最终根治升华）
 
+## 88. 持久化层"只在空值时更新"策略让上游修复全部失效——purchaserName 四次修复的零号病人（2026-07-30 / PR pending）
+
+### 事故背景
+
+第 87 条（PR !2222）将 purchaserName 正则兜底从"AI 空值才触发"改为"正则命中即覆盖 AI"后，服务器实测 `PurchaserNameExtractor` 能正确提取"张家口银行股份有限公司"。但用户反馈"招标主体识别还是祥安招标代理有限公司"——第四次修复仍失效。
+
+### 根因（决定性证据链）
+
+启动根因猎手技能，按"现场还原 → 剥洋葱 → 零号病人定位"方法论逐层逆向：
+
+1. **前端展示无字段混淆**：`TenderTable.vue:60` 用 `row.purchaserName` 展示招标主体，无 `tenderAgency` 字段错配
+2. **上游提取逻辑正确**：`OpenAiTenderDocumentAnalyzer.mergeAndMap` L223-229 正则命中即覆盖 AI，`profile.purchaserName()` 返回正确值"张家口银行股份有限公司"
+3. **下游持久化丢弃新值**（零号病人）：`TenderRequirementSnapshotUpdater.apply` L18 原条件 `isBlank(tender.getPurchaserName()) && !isBlank(profile.purchaserName())` —— **只在 tender 已有值为空时才写入新值**
+
+### 必然性证明
+
+```
+1. 用户首次上传 PDF → AI 误识别 purchaserName = "祥安招标代理有限公司" → 写入 tender.purchaser_name
+2. 第 87 条修复让 profile.purchaserName() 正确返回 "张家口银行股份有限公司"（在内存中）
+3. 用户重新上传/复用招标文件 → BidUploadedTenderDocumentReuseAppService.parseLoadedDocument
+   → snapshotUpdater.apply(tender, profile)
+   → L18 判断 isBlank("祥安招标代理有限公司") = false → 整个 if 块不执行
+   → tender.setPurchaserName() 永远不会被调用
+4. tenderRepository.save(tender) 保存的是旧错误值
+5. 前端查询 row.purchaserName → 显示 "祥安招标代理有限公司"
+
+必然结果：无论 PurchaserNameExtractor 逻辑多么正确，只要 tender.purchaser_name 已有非空旧值，
+重新分析的新值永远无法写入数据库。bug 必然发生。
+```
+
+### 七大根因对照（engineering-discipline.md 第一章）
+
+本次事故同时命中**三大根因**：
+
+| 根因 | 体现 |
+|------|------|
+| **根因 1：追症状不追根因** | 4 次修复都在上游（提取逻辑：Prompt → 候选文本 → 正则兜底条件 → 正则优先级），零号病人在下游（持久化条件），从未被触及 |
+| **根因 4：测试只测修过的函数，不测根因行为** | `TenderRequirementSnapshotUpdater` 无任何单元测试；`BidTenderDocumentImportAppServiceTest.parseTenderDocument_shouldNotOverwriteExistingTenderStructuredFields` 断言"已有值不应被覆盖"——保护 bug 的错误测试 |
+| **根因 7：盲目相信"已修复"** | 3 次部署后都未在真实环境验证"重新上传同一文档"的场景，仅验证"首次上传新文档"的场景 |
+
+### 为什么前 3 次修复都没用
+
+| 修复次数 | 改了什么 | 为什么没用 |
+|---------|---------|-----------|
+| 第 1 次（PR !2214） | 加 PurchaserNameExtractor，仅 AI 空值时触发 | AI 返回非空错误值，兜底未触发；且即使触发，新值也被 SnapshotUpdater L18 丢弃 |
+| 第 2 次（PR !2222） | 改条件为正则优先覆盖 AI | profile.purchaserName() 正确了，但 SnapshotUpdater L18 丢弃新值 |
+| 第 3 次（PR !2224） | 优化候选文本构建 | 候选文本正确了，正则也命中了，但 SnapshotUpdater L18 仍然丢弃新值 |
+
+**根因**：3 次修复都在上游（提取逻辑），但零号病人在下游（持久化逻辑）。
+
+### 修复方案
+
+将 `TenderRequirementSnapshotUpdater` 中 `purchaserName` 的更新策略从"只在空值时更新"改为"新值非空时总是覆盖"：
+
+```java
+// 修复前（L18）：只在空值时更新 → 旧错误值永远无法被新正确值覆盖
+if (isBlank(tender.getPurchaserName()) && !isBlank(profile.purchaserName())) {
+    tender.setPurchaserName(profile.purchaserName().trim());
+}
+
+// 修复后：新值非空时总是覆盖
+if (!isBlank(profile.purchaserName())) {
+    tender.setPurchaserName(profile.purchaserName().trim());
+}
+```
+
+**为什么 purchaserName 用不同策略**：
+1. `purchaserName` 是 AI 分析的核心字段，AI 首次误识别后必须能被重新分析的 correct 值覆盖
+2. `tenderInfo` 字段已在 `OpenAiTenderDocumentAnalyzer` L232-235 采用强制覆盖策略，purchaserName 对齐此策略
+3. 其他字段（title/budget/region 等）保持原策略，避免影响范围过大
+
+### 防复发测试
+
+新增 `TenderRequirementSnapshotUpdaterTest`（4 个用例）：
+1. **根因修复测试**：tender 已有旧错误值时，新正确值能覆盖（直接复现零号病人场景）
+2. **空值保留测试**：新 profile 的 purchaserName 为空时，保留 tender 旧值（避免误伤）
+3. **首次写入测试**：tender 的 purchaserName 为空时，新值能写入（基本功能）
+4. **trim 测试**：新值应 trim 后写入（边界场景）
+
+更新 `BidTenderDocumentImportAppServiceTest`：
+- 原 `shouldNotOverwriteExistingTenderStructuredFields` 断言保护 bug，重命名为 `shouldOverwriteExistingPurchaserNameButKeepOtherStructuredFields`
+- purchaserName 断言改为期望新值，其他字段保持原断言
+
+### 核心教训
+
+1. **修 bug 要走完整调用链**：从入口（Controller）→ 应用服务（AppService）→ 领域服务（SnapshotUpdater）→ 持久化（Repository）逐层验证，不能只改当前报错的那一层。本次 4 次修复都在上游（提取层），零号病人在下游（持久化层），从未被触及。
+2. **持久化层的更新策略要匹配字段的业务语义**：AI 抽取字段（purchaserName/tenderInfo 等）首次可能误识别，必须支持"重新分析覆盖旧值"；用户手工录入字段（title/budget 等）应保持"只在空值时更新"以尊重用户输入。**不能一刀切**。
+3. **测试断言不能保护 bug**：原测试 `shouldNotOverwriteExistingTenderStructuredFields` 断言"已有值不应被覆盖"——这是保护 bug 的错误测试。修复 bug 时必须同步审查现有测试是否断言了错误行为。
+4. **"第 2 次修同一个 bug 时必须停下来做根因分析"**（engineering-discipline.md §7.4）：本次第 4 次修复才启动根因猎手，前 3 次都在打补丁。如果第 2 次就做根因分析，可以节省 2 次部署 + 2 次用户验证的成本。
+5. **根因猎手方法论有效**：本次通过"现场还原 → 剥洋葱（前端 → 上游提取 → 下游持久化）→ 零号病人定位 → 必然性证明"的方法论，30 分钟内定位到前 3 次修复都漏掉的零号病人。
+
+### 操作规范
+
+1. 修 bug 时必须 grep 完整调用链，不能只改当前报错层
+2. 持久化层的更新策略要按字段业务语义分类：AI 抽取字段支持覆盖，用户录入字段保持"只在空值时更新"
+3. 修复 bug 时必须审查现有测试是否断言了错误行为（保护 bug 的测试比没有测试更危险）
+4. 第 2 次修同一个 bug 时必须启动根因猎手，禁止继续打补丁
+5. 部署后必须在真实环境验证"重新触发"场景（重新上传同一文档），不能只验证"首次触发"场景
+
+### 相关文档
+
+- [TenderRequirementSnapshotUpdater.java](../../backend/src/main/java/com/xiyu/bid/biddraftagent/application/TenderRequirementSnapshotUpdater.java) — 零号病人所在地（L18 已修复）
+- [TenderRequirementSnapshotUpdaterTest.java](../../backend/src/test/java/com/xiyu/bid/biddraftagent/application/TenderRequirementSnapshotUpdaterTest.java) — 根因行为测试（4 个用例）
+- [BidUploadedTenderDocumentReuseAppService.java](../../backend/src/main/java/com/xiyu/bid/biddraftagent/application/BidUploadedTenderDocumentReuseAppService.java) — 调用方之一（L131 调用 snapshotUpdater.apply）
+- [BidTenderDocumentImportAppService.java](../../backend/src/main/java/com/xiyu/bid/biddraftagent/application/BidTenderDocumentImportAppService.java) — 调用方之二（L159 调用 snapshotUpdater.apply）
+- engineering-discipline.md 第一章根因 1/4/7、第四章 Bug 修复 SOP、§7.4 反复修复时 checklist
+- 第 87 条：结构化标签字段死磕 Prompt 不如正则兜底（本条为其持久化层根因续作）
+
 
