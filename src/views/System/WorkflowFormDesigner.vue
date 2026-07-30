@@ -28,15 +28,15 @@
           type="warning"
           :closable="false"
           show-icon
-          title="该表单暂未开放自定义"
-          description="此表单含保证金、客户矩阵、AI 评估、审批流、OBS 直传等复杂交互，自定义字段会导致业务流程异常。后续版本将支持混合渲染模式。"
+          title="该表单为系统内置，仅支持查看"
+          description="此表单含保证金、客户矩阵、AI 评估、审批流、OBS 直传等复杂交互，暂不支持增删改字段。后续版本将支持混合渲染模式。"
           style="margin-bottom: 16px"
         />
         <div class="form-grid">
           <el-form label-width="96px" class="template-form">
             <el-form-item label="模板编码"><el-input v-model="draft.templateCode" placeholder="例如 tender.entry" disabled /></el-form-item>
-            <el-form-item label="表单名称"><el-input v-model="draft.name" placeholder="例如 标讯手工录入" /></el-form-item>
-            <el-form-item label="启用"><el-switch v-model="draft.enabled" /></el-form-item>
+            <el-form-item label="表单名称"><el-input v-model="draft.name" placeholder="例如 标讯手工录入" :disabled="isUnsupportedProjectScope" /></el-form-item>
+            <el-form-item label="启用"><el-switch v-model="draft.enabled" :disabled="isUnsupportedProjectScope" /></el-form-item>
           </el-form>
         </div>
 
@@ -45,7 +45,7 @@
           <div class="editor-col">
             <el-tabs v-model="activeTab" class="field-editor-tabs">
               <el-tab-pane label="字段配置" name="fields">
-                <DesignerFieldList :fields="draft.schema.fields" :field-types="fieldTypes" :disable-add-field="isUnsupportedProjectScope" @add-field="addField" @delete-field="deleteField" @copy-field="copyField" @new-template="newTemplate" @normalize-field="normalizeField" @get-enum-options="getEnumOptions" />
+                <DesignerFieldList :fields="draft.schema.fields" :field-types="fieldTypes" :readonly="isUnsupportedProjectScope" @add-field="addField" @delete-field="deleteField" @copy-field="copyField" @new-template="newTemplate" @normalize-field="normalizeField" @get-enum-options="getEnumOptions" />
               </el-tab-pane>
               <el-tab-pane label="规则配置" name="rules">
                 <DesignerRulePanel :visibility-rules="visibilityRules" :cross-field-rules="crossFieldRules" :tenant-overrides="tenantOverrides" :available-fields="availableFields" @add-visibility="addVisibilityRule" @remove-visibility="removeVisibilityRule" @add-cross-field="addCrossFieldRule" @remove-cross-field="removeCrossFieldRule" @add-tenant-override="addTenantOverride" @remove-tenant-override="removeTenantOverride" />
@@ -60,8 +60,8 @@
         <!-- 操作按钮 -->
         <div class="action-bar">
           <el-alert v-if="operationError" :title="operationError" type="error" show-icon :closable="false" style="margin-bottom: 12px" />
-          <el-button :loading="formEngineLoading.save" type="primary" @click="saveAll">保存草稿</el-button>
-          <el-button :loading="formEngineLoading.publish" type="success" @click="publish">发布</el-button>
+          <el-button :loading="formEngineLoading.save" type="primary" :disabled="isUnsupportedProjectScope" @click="saveAll">保存草稿</el-button>
+          <el-button :loading="formEngineLoading.publish" type="success" :disabled="isUnsupportedProjectScope" @click="publish">发布</el-button>
         </div>
       </section>
     </main>
@@ -103,7 +103,8 @@ const availableFields = computed(() => (draft.schema?.fields || [])
   .map(f => ({ key: f.key, label: f.label || f.key }))
 )
 
-// 暂未开放自定义的表单 scope（含复杂交互，开放会导致业务流程断裂）
+// 系统内置、仅支持查看的表单 scope（含复杂交互，增删改字段会导致业务流程断裂）
+// isUnsupportedProjectScope=true 时整个设计器进入纯查看态：字段不可增删改/拖拽，保存/发布/表单名/启用均禁用
 const UNSUPPORTED_PROJECT_SCOPES = ['project.initiation', 'project.detail']
 const isUnsupportedProjectScope = computed(() => UNSUPPORTED_PROJECT_SCOPES.includes(formEngineDraft.scope))
 

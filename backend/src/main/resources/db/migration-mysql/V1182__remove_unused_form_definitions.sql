@@ -17,7 +17,12 @@
 -- 影响范围：
 --   - form_definition_registry：删除 scope='knowledge.case' 的记录
 --   - 关联表（form_field_visibility / form_field_condition / cross_field_validation_rule /
---     tenant_form_field_override）：通过 definition_id 外键级联清理
+--     tenant_form_field_override）：外键带 ON DELETE CASCADE，会随 definition 删除自动清理
+--   - form_submission_audit：外键 fk_fsa_def 无 ON DELETE CASCADE（V143 定义），
+--     若存在残留 audit 记录，直接删 definition 会被外键约束卡住导致迁移中断。
+--     因此本脚本显式先清理它作为防御性兜底。
+--     实测基线库 knowledge.case audit_count=0（handleCase 永远返回 failure，
+--     且前端无提交入口，正常路径不会产生 audit），此 DELETE 通常是无害 no-op。
 --
 -- 幂等性：使用 DELETE 语句天然幂等（不存在则不删除）
 -- ============================================================
@@ -41,6 +46,13 @@ WHERE definition_id IN (
 );
 
 DELETE FROM tenant_form_field_override
+WHERE definition_id IN (
+    SELECT id FROM form_definition_registry
+    WHERE scope = 'knowledge.case'
+);
+
+-- form_submission_audit 外键无 CASCADE，必须显式先删（防御性兜底，防止迁移被外键卡住）
+DELETE FROM form_submission_audit
 WHERE definition_id IN (
     SELECT id FROM form_definition_registry
     WHERE scope = 'knowledge.case'

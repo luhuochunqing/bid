@@ -12,6 +12,10 @@
 --   - 回滚不会恢复关联表（form_field_visibility 等）的数据，
 --     因为 V140 种子数据并未预置关联表记录，生产环境若管理员曾配置过
 --     knowledge.case 的规则，回滚后需要手动重新配置。
+--   - 回滚也不会恢复 form_submission_audit 记录：审计日志是历史事实快照，
+--     V140 种子未预置、正常路径也不产生（handleCase 永远返回 failure），
+--     故无恢复对象；即使 V1182 曾删过残留 audit，那也是废弃 scope 的无效记录，
+--     不应通过回滚重建。
 --   - 这种设计是合理的：knowledge.case 后端 FormSubmissionRouter.handleCase()
 --     返回 failure "尚未实现"（无真实业务逻辑），前端 src/views/ 无引用，
 --     管理员不应该有为它配置过规则，即使有也是误操作。

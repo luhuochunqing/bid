@@ -3,10 +3,10 @@
     <div class="section-title">
       <h2>字段配置器</h2>
       <div class="section-actions">
-        <el-button @click="$emit('add-field')" :disabled="disableAddField">添加字段</el-button>
-        <el-button @click="$emit('new-template', 'GENERAL')" type="info" plain :disabled="disableAddField">新建通用</el-button>
-        <el-button @click="$emit('new-template', 'TENDER')" type="info" plain :disabled="disableAddField">新建标讯</el-button>
-        <el-button @click="$emit('new-template', 'PROJECT')" type="info" plain :disabled="disableAddField">新建项目</el-button>
+        <el-button @click="$emit('add-field')" :disabled="readonly">添加字段</el-button>
+        <el-button @click="$emit('new-template', 'GENERAL')" type="info" plain :disabled="readonly">新建通用</el-button>
+        <el-button @click="$emit('new-template', 'TENDER')" type="info" plain :disabled="readonly">新建标讯</el-button>
+        <el-button @click="$emit('new-template', 'PROJECT')" type="info" plain :disabled="readonly">新建项目</el-button>
       </div>
     </div>
 
@@ -14,12 +14,12 @@
       v-for="(field, index) in fields"
       :key="field.key"
       class="field-row"
-      :draggable="!isFixedGroup(field)"
+      :draggable="!readonly && !isFixedGroup(field)"
       @dragstart="onDragStart(index)"
       @dragover.prevent="onDragOver(index)"
       @drop="onDrop(index)"
       @dragend="dragIndex = null"
-      :class="{ 'drag-over': dragOverIndex === index, 'field-locked': isLocked(field), 'drag-disabled': isFixedGroup(field) }"
+      :class="{ 'drag-over': dragOverIndex === index, 'field-locked': isLocked(field), 'drag-disabled': readonly || isFixedGroup(field) }"
     >
       <el-tooltip v-if="isFixedGroup(field)" content="固定分组字段，不可拖拽排序，key 不可修改" placement="top">
         <span class="lock-icon">🔒</span>
@@ -28,18 +28,18 @@
         <span class="lock-icon">🔒</span>
       </el-tooltip>
       <span v-else class="drag-handle" :title="'拖拽排序'">⠿</span>
-      <el-input v-model="field.key" placeholder="字段 key" class="field-key-input" :disabled="isKeyLocked(field)" />
-      <el-input v-model="field.label" placeholder="字段名称" class="field-label-input" />
-      <el-select v-model="field.type" :disabled="isLocked(field)" @change="(v) => { $emit('normalize-field', field); if (['tender_source','project_status','qualification_type'].includes(v) && !field.optionsText) field.optionsText = $emit('get-enum-options', v) }" class="field-type-select">
+      <el-input v-model="field.key" placeholder="字段 key" class="field-key-input" :disabled="readonly || isKeyLocked(field)" />
+      <el-input v-model="field.label" placeholder="字段名称" class="field-label-input" :disabled="readonly" />
+      <el-select v-model="field.type" :disabled="readonly || isLocked(field)" @change="(v) => { $emit('normalize-field', field); if (['tender_source','project_status','qualification_type'].includes(v) && !field.optionsText) field.optionsText = $emit('get-enum-options', v) }" class="field-type-select">
         <el-option v-for="type in fieldTypes" :key="type.value" :label="type.label" :value="type.value" />
       </el-select>
-      <el-checkbox v-model="field.required" :disabled="['info','section','divider'].includes(field.type)">必填</el-checkbox>
-      <el-checkbox v-model="field.enabled">启用</el-checkbox>
+      <el-checkbox v-model="field.required" :disabled="readonly || ['info','section','divider'].includes(field.type)">必填</el-checkbox>
+      <el-checkbox v-model="field.enabled" :disabled="readonly">启用</el-checkbox>
       <el-tooltip :content="getFieldHelp(field.type)" placement="top" :show-after="300">
         <span class="field-help-badge">?</span>
       </el-tooltip>
-      <el-button type="info" size="small" text @click="$emit('copy-field', index)" title="复制字段">复制</el-button>
-      <el-button v-if="!isKeyLocked(field)" type="danger" size="small" text @click="$emit('delete-field', field.key)">删</el-button>
+      <el-button v-if="!readonly" type="info" size="small" text @click="$emit('copy-field', index)" title="复制字段">复制</el-button>
+      <el-button v-if="!readonly && !isKeyLocked(field)" type="danger" size="small" text @click="$emit('delete-field', field.key)">删</el-button>
 
       <!-- select 类型选项 -->
       <el-input v-if="field.type === 'select'" v-model="field.optionsText" class="field-wide" placeholder="选项，格式：显示名=值，每行一个" type="textarea" :rows="2" />
@@ -95,7 +95,7 @@ import { FIELD_TYPE_HELP_TEXT, LOCKED_FIELD_KEYS, FIXED_GROUP_KEYS, KEY_LOCKED_F
 const props = defineProps({
   fields: { type: Array, required: true },
   fieldTypes: { type: Array, required: true },
-  disableAddField: { type: Boolean, default: false },
+  readonly: { type: Boolean, default: false },
 })
 
 defineEmits(['add-field', 'delete-field', 'copy-field', 'new-template', 'normalize-field', 'get-enum-options'])
