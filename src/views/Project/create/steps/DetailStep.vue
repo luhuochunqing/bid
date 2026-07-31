@@ -1,12 +1,16 @@
 <template>
   <!-- Adaptive Dynamic Form (M4.1: Dynamic Form Engine — project.detail scope) -->
+  <!-- CO-601: hybrid 模式 — fallback 硬编码表单始终渲染，schema 中 fields − presetKeys 追加渲染（仅自定义字段） -->
   <AdaptiveFormPage
     ref="adaptiveForm"
     scope="project.detail"
     :model-value="detailForm"
     :disabled="false"
+    hybrid
+    :preset-keys="PROJECT_DETAIL_PRESET_KEYS"
     @update:model-value="handleDynamicUpdate"
     @submit="$emit('submit')"
+    @schema-loaded="(fields) => $emit('schema-loaded', fields)"
   >
     <!-- #fallback-form: original hardcoded detail form -->
     <template #fallback-form>
@@ -74,8 +78,13 @@
 <script setup>
 import { ref, shallowRef } from 'vue'
 import AdaptiveFormPage from '@/components/common/AdaptiveFormPage.vue'
+import { PROJECT_LOCKED_FIELD_KEYS } from '@/views/System/workflow-form-designer/workflowFormDesignerCore.js'
 
 const detailFormRef = defineModel('detailForm', { type: Object, required: true })
+// CO-601: schema-loaded 事件透传给 Create.vue，登记 schema 供自定义字段收集
+defineEmits(['submit', 'schema-loaded'])
+// CO-601: 预置字段清单（hybrid 模式下从 schema 渲染集中排除，避免与 fallback 硬编码表单重复渲染）
+const PROJECT_DETAIL_PRESET_KEYS = PROJECT_LOCKED_FIELD_KEYS['project.detail']
 // Proxy: template uses `detailForm` (Vue auto-unwraps), script uses `detailFormRef.value`
 const detailForm = detailFormRef
 

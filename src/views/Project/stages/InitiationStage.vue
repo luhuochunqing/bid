@@ -2,13 +2,17 @@
 <!-- M4.2: Dynamic Form Engine — project.initiation scope -->
 <div class="initiation-stage">
   <!-- AdaptiveFormPage wraps the stage, enabling dynamic schema overrides -->
+  <!-- CO-601: hybrid 模式 — fallback 硬编码表单始终渲染（保留保证金/客户矩阵/审批/OBS 上传等复杂交互），schema 中 fields − presetKeys 追加渲染（仅自定义字段） -->
   <AdaptiveFormPage
     ref="adaptiveForm"
     scope="project.initiation"
     :model-value="form"
     :disabled="locked || submitting || saving"
+    hybrid
+    :preset-keys="PROJECT_INITIATION_PRESET_KEYS"
     @update:model-value="handleDynamicUpdate"
     @submit="handleDynamicSubmit"
+    @schema-loaded="onInitiationSchemaLoaded"
   >
     <!-- #fallback-form: entire existing InitiationStage form -->
     <template #fallback-form>
@@ -216,12 +220,18 @@ import { useObsUpload } from '@/composables/useObsUpload.js'
 import { useObsProjectDocumentUpload } from '@/composables/useObsProjectDocumentUpload.js'
 import { useDeleteGuard } from '@/composables/useDeleteGuard.js'
 import { useInitiationStageActions } from './useInitiationStageActions.js'
+import { PROJECT_LOCKED_FIELD_KEYS } from '@/views/System/workflow-form-designer/workflowFormDesignerCore.js'
 import { POSITION_OPTIONS, CONTACT_METHOD_OPTIONS, TENDENCY_OPTIONS, IMPACT_OPTIONS } from '@/views/Bidding/detail/components/customerInfoMatrixConfig.js'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
 const emit = defineEmits(['updated'])
 const userStore = useUserStore()
 const adaptiveForm = shallowRef(null)
+// CO-601: 预置字段清单（hybrid 模式下从 schema 渲染集中排除，避免与 fallback 硬编码表单重复渲染）
+const PROJECT_INITIATION_PRESET_KEYS = PROJECT_LOCKED_FIELD_KEYS['project.initiation']
+// CO-601: AdaptiveFormPage 加载的 schema 字段登记，供自定义字段收集（buildPayload）
+const customFieldsSchema = ref([])
+function onInitiationSchemaLoaded(fields) { customFieldsSchema.value = Array.isArray(fields) ? fields : [] }
 const form = reactive({ projectName: '', ownerUnit: '', createTime: new Date().toISOString().slice(0, 16).replace('T', ' '), projectType: '', customerType: '', priorityLevel: 'B', headquartersLocation: '', projectLeaderName: '', projectLeaderUserId: null, leaderDepartment: '', contactName: '', contactPhone: '', contactTel: '', contactMail: '', contactName2: '', contactPhone2: '', contactTel2: '', contactMail2: '', tenderId: null, expectedBidders: 0, annualEcommerceAmount: 0, annualRevenue: 0, customerRevenue: 0, bidOpenTime: '', bidMonth: '', biddingPlatform: '', needDeposit: 'NO', depositAmount: 0, depositPaymentMethod: '', depositDueDate: null, tenderAdverseItems: '', riskAssessment: '', riskMitigationPlan: '', pmUnderstandsProcess: '', supportNeeded: '', projectPlanGap: '', projectPlanGapFiles: [], tenderDocumentId: null, aiRiskLevel: null, aiRiskAssessmentNotes: '', biddingLeaderName: '', biddingAssistantName: '' })
 // CO-323: 客户信息矩阵由标讯评估表带入，初始 0 行（有数据才显示）
 // 值域 OPTIONS 复用评估表 customerInfoMatrixConfig.js，保证映射一致
@@ -322,6 +332,7 @@ const { handleDocBeforeUpload, handleDownloadBidDoc, onDepositChange, handleAppr
     evalPrefilled,
   },
   obsUpload,
+  customFieldsSchema,
 })
 
 async function runAIAssessment() {

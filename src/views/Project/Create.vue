@@ -24,12 +24,12 @@
             :competitor-options="competitorOptions"
             @platform-change="handlePlatformChange"
             @competitors-change="handleCompetitorsChange"
-            @sync-crm-data="applyCrmData"
+            @sync-crm-data="applyCrmData" @schema-loaded="(fields) => model.setCustomFieldsSchema('project.basic', fields)"
           />
         </div>
 
         <div v-show="currentStep === 1" class="step-panel">
-          <DetailStep ref="detailStepRef" v-model:detail-form="detailForm" />
+          <DetailStep ref="detailStepRef" v-model:detail-form="detailForm" @schema-loaded="(fields) => model.setCustomFieldsSchema('project.detail', fields)" />
         </div>
 
         <div v-show="currentStep === 2" class="step-panel">

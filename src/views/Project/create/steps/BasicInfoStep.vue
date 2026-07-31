@@ -7,6 +7,7 @@
     :disabled="false"
     @update:model-value="handleDynamicUpdate"
     @submit="$emit('submit')"
+    @schema-loaded="(fields) => emit('schema-loaded', fields)"
   >
     <!-- #fallback-form: original hardcoded basic-info form -->
     <template #fallback-form>
@@ -189,7 +190,8 @@ defineProps({
   competitorOptions: { type: Array, default: () => [] }
 })
 
-const emit = defineEmits(['platform-change', 'competitors-change', 'sync-crm-data'])
+// CO-601: schema-loaded 事件透传给 Create.vue，登记 schema 供自定义字段收集
+const emit = defineEmits(['platform-change', 'competitors-change', 'sync-crm-data', 'submit', 'schema-loaded'])
 
 const formRef = ref(null)
 const adaptiveForm = shallowRef(null)
