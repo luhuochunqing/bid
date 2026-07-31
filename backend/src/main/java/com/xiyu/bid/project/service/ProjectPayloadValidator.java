@@ -44,6 +44,8 @@ final class ProjectPayloadValidator {
                 .remark(trimToNull(dto.getRemark())).tagsJson(trimToNull(dto.getTagsJson()))
                 .customerManager(trimToNull(dto.getCustomerManager()))
                 .customerManagerId(trimToNull(dto.getCustomerManagerId()))
+                // CO-601: Map 结构透传（无需 trim），scope 过滤在 Service 层 CustomFieldsCodec
+                .customFields(dto.getCustomFields())
                 .build();
     }
 

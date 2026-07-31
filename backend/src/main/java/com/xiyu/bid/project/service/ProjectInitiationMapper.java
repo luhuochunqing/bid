@@ -26,6 +26,7 @@ public class ProjectInitiationMapper {
 
     private static final DateTimeFormatter MONTH_FMT = DateTimeFormatter.ofPattern("yyyy-MM");
     private final ObjectMapper objectMapper;
+    private final CustomFieldsCodec customFieldsCodec;
 
     @SuppressWarnings("deprecation")
     public InitiationFieldPolicy.InitiationInput toInput(InitiationDto d) {
@@ -160,6 +161,14 @@ public class ProjectInitiationMapper {
             try { e.setCustomerInfoJson(objectMapper.writeValueAsString(d.getCustomerInfoRows())); }
             catch (JsonProcessingException ex) { throw new RuntimeException("Failed to serialize customerInfoRows", ex); }
         }
+        // CO-601: 自定义字段按 scope 键整体替换（契约 §2）；请求未携带（null）→ 不动已存值
+        if (d.getCustomFields() != null) {
+            java.util.Map<String, Object> updated = customFieldsCodec.replaceScope(
+                    customFieldsCodec.fromJson(e.getCustomFields()),
+                    CustomFieldsCodec.SCOPE_INITIATION,
+                    d.getCustomFields().get(CustomFieldsCodec.SCOPE_INITIATION));
+            e.setCustomFields(customFieldsCodec.toJson(updated));
+        }
     }
 
     @SuppressWarnings("deprecation")
@@ -198,6 +207,8 @@ public class ProjectInitiationMapper {
                 .bidResultStatus(e.getBidResultStatus()).projectLeaderName(e.getProjectLeaderName())
                 .leaderDepartment(e.getLeaderDepartment()).headquartersLocation(e.getHeadquartersLocation())
                 .customerInfoRows(rows).evalPrefilled(e.getEvalPrefilled())
+                // CO-601: 自定义字段（列 NULL / 脏 JSON 降级空 Map，契约 §4）
+                .customFields(customFieldsCodec.fromJson(e.getCustomFields()))
                 .createdAt(e.getCreatedAt()).updatedAt(e.getUpdatedAt())
                 .build();
     }

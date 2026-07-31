@@ -96,6 +96,8 @@ public class InitiationViewDto {
     private List<EvaluationBasicDTO.GapFileRef> projectPlanGapFiles;
     /** CO-323: 评估表带入标记（true=带入字段前端只读）。 */
     private Boolean evalPrefilled;
+    /** CO-601 自定义字段（按 scope 分组：project.initiation）；列 NULL 时返回空 Map。 */
+    private java.util.Map<String, Object> customFields;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

@@ -82,4 +82,6 @@ public class InitiationDto {
     private Long tenderDocumentId;
     /** AI风险评估说明。蓝图 §3.3.1.1 新增。 */
     private String aiRiskAssessmentNotes;
+    /** CO-601 自定义字段（按 scope 分组：project.initiation）。可选，缺省不动存量。 */
+    private java.util.Map<String, Object> customFields;
 }

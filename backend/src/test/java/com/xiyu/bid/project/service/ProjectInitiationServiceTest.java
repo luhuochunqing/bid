@@ -57,7 +57,8 @@ class ProjectInitiationServiceTest {
 
     @BeforeEach
     void setUp() {
-        realMapper = new ProjectInitiationMapper(new ObjectMapper());
+        ObjectMapper om = new ObjectMapper();
+        realMapper = new ProjectInitiationMapper(om, new CustomFieldsCodec(om));
         service = new ProjectInitiationService(repo, projectRepository, projectStageService, projectAccessScopeService, userRepository, realMapper, leadAssignmentRepository, notificationService, projectDocumentRepository);
         lenient().doNothing().when(projectAccessScopeService).assertCurrentUserCanAccessProject(1L);
         lenient().doNothing().when(projectAccessScopeService).assertCurrentUserCanAccessProject(2L);

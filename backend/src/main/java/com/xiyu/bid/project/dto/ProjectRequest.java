@@ -114,6 +114,9 @@ public class ProjectRequest {
     @Size(max = 100, message = "客户负责人ID长度不能超过100个字符")
     private String customerManagerId;
 
+    /** CO-601 自定义字段（按 scope 分组：project.basic / project.detail）。可选，缺省存 NULL。 */
+    private java.util.Map<String, Object> customFields;
+
     @AssertTrue(message = "结束日期必须晚于开始日期")
     private boolean isDateRangeValid() {
         if (startDate == null || endDate == null) {

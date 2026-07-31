@@ -1,5 +1,5 @@
 // Input: Map<String, Object> 自定义字段值（scope 命名空间两级结构）/ 列存 JSON String
-// Output: toJson / fromJson — 失败降级（log.warn + NULL/空 Map，Constitution VII）
+// Output: toJson / fromJson / filterScopes / replaceScope — 失败降级（log.warn + NULL/空 Map，Constitution VII）
 // Pos: project/service/ - 自定义字段 JSON 编解码（ObjectMapper 构造注入，禁止 new）
 package com.xiyu.bid.project.service;
 
@@ -11,12 +11,23 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class CustomFieldsCodec {
+
+    /** CO-601 项目主表 scope 键。 */
+    public static final String SCOPE_BASIC = "project.basic";
+    /** CO-601 项目详情 scope 键。 */
+    public static final String SCOPE_DETAIL = "project.detail";
+    /** CO-601 立项表单 scope 键。 */
+    public static final String SCOPE_INITIATION = "project.initiation";
+    /** projects.custom_fields 列允许的一级 scope 键（创建链路过滤依据，契约 §1）。 */
+    public static final Set<String> PROJECT_TABLE_SCOPES = Set.of(SCOPE_BASIC, SCOPE_DETAIL);
 
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
 
@@ -45,5 +56,46 @@ public class CustomFieldsCodec {
             log.warn("Custom fields JSON parse failed, fallback to empty map: {}", ex.getMessage());
             return Collections.emptyMap();
         }
+    }
+
+    /**
+     * 过滤非法 scope 一级键（契约 §1：未知 scope 丢弃 + log.warn，不阻断主流程）。
+     * null / 空 Map 原样透传。
+     */
+    public Map<String, Object> filterScopes(Map<String, Object> customFields, Set<String> allowedScopes) {
+        if (customFields == null || customFields.isEmpty()) {
+            return customFields;
+        }
+        Map<String, Object> filtered = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : customFields.entrySet()) {
+            if (allowedScopes.contains(entry.getKey())) {
+                filtered.put(entry.getKey(), entry.getValue());
+            } else {
+                log.warn("Dropping unknown scope key '{}' from custom fields", entry.getKey());
+            }
+        }
+        return filtered;
+    }
+
+    /**
+     * 按 scope 键整体替换（契约 §2：不触碰其他 scope 键）。
+     * newValues 为 null / 空 Map → 移除该 scope 键；非 Map 脏值 → 保留原值不动（防御）。
+     */
+    public Map<String, Object> replaceScope(
+            Map<String, Object> existingFields, String scope, Object newValues) {
+        Map<String, Object> updated = new LinkedHashMap<>();
+        if (existingFields != null) {
+            updated.putAll(existingFields);
+        }
+        if (newValues instanceof Map<?, ?> newMap) {
+            if (newMap.isEmpty()) {
+                updated.remove(scope);
+            } else {
+                updated.put(scope, newMap);
+            }
+        } else if (newValues == null) {
+            updated.remove(scope);
+        }
+        return updated;
     }
 }
