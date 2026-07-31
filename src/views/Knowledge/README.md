@@ -11,13 +11,15 @@
 
 | 文件 | 地位 | 功能 |
 |------|------|------|
-| `Case.vue` | View | 案例列表页 |
-| `CaseDetail.vue` | View | 案例详情页 |
+| `views/CaseWrapper.vue` | View | 案例库路由入口，渲染 `CaseGrid.vue` |
+| `views/CaseGrid.vue` | View | AI 案例网格列表页（案例库唯一前端入口） |
 | `Qualification.vue` | View | 资质文件页编排层，复用 `components/qualification/` 下的列表、借阅记录与对话框组件 |
 | `Template.vue` | View | 模板库页 |
-| `components/case/` | 子目录 | 案例列表、详情头部、表单与页面状态 composable |
+
+> 注：`Case.vue`、`CaseDetail.vue` 及 `components/case/` 子目录已于 2026-07-31 清理（V999 双 Tab 时期的遗留孤儿组件，路由实际指向 `views/CaseWrapper.vue`）。
 
 ## 最近更新
 
+- 2026-07-31: 清理 V999 双 Tab 时期遗留的孤儿组件（`Case.vue`、`CaseDetail.vue`、`components/case/` 全部 8 个文件）及 `casesApi` 中无调用方的死方法（create/update/delete/getShareRecords/createShareRecord/createReferenceRecord + buildCasePayload）。
 - 2026-04-19: 资质页拆分为页面编排层 + `components/qualification/` 子组件，并移除页面内硬编码借阅记录。
 - 2026-04-19: 案例页拆分为列表/搜索/表单/详情头部组件与 composable，案例列表改为参数驱动查询并移除本地 mock 主路径。

@@ -108,28 +108,6 @@ function normalizeCase(item) {
     archivedInfo }
 }
 
-function buildCasePayload(data = {}) {
-  const projectDate = Array.isArray(data.period) && data.period.length
-    ? data.period[data.period.length - 1]
-    : data.projectDate || new Date().toISOString().slice(0, 10)
-
-  return {
-    title: data.title,
-    industry: caseIndustryMap[data.industry] || 'OTHER',
-    outcome: data.outcome || 'WON',
-    amount: data.amount ?? 0,
-    projectDate,
-    description: data.description || data.summary || '',
-    customerName: data.customerName || data.customer || '',
-    locationName: data.locationName || data.location || '',
-    projectPeriod: data.projectPeriod || data.period || '',
-    tags: Array.isArray(data.tags) ? data.tags : [],
-    highlights: Array.isArray(data.highlights) ? data.highlights : [],
-    technologies: Array.isArray(data.technologies) ? data.technologies : [],
-    viewCount: Number(data.viewCount || 0),
-    useCount: Number(data.useCount || 0) }
-}
-
 function normalizeTemplate(item) {
   const category = templateCategoryMap[item?.category] || 'implementation'
   const updateTime = formatDate(item?.updatedAt || item?.createdAt || item?.updateTime)
@@ -368,51 +346,10 @@ export const casesApi = {
     return response?.data || response
   },
 
-  async create(data) {
-
-    const response = await httpClient.post('/api/knowledge/cases', buildCasePayload(data))
-    return { ...response, data: normalizeCase({ ...response?.data, ...data, viewCount: 0, useCount: 0 }) }
-  },
-
-  async update(id, data) {
-    if (!isNumericId(id)) return Promise.resolve(invalidIdMessage('case'))
-
-    const response = await httpClient.put(`/api/knowledge/cases/${id}`, buildCasePayload(data))
-    return { ...response, data: normalizeCase({ ...response?.data, ...data, id }) }
-  },
-
-  async delete(id) {
-    if (!isNumericId(id)) return Promise.resolve(invalidIdMessage('case'))
-    return httpClient.delete(`/api/knowledge/cases/${id}`)
-  },
-
-  async getShareRecords(id) {
-    if (!isNumericId(id)) return Promise.resolve(invalidIdMessage('case'))
-    return httpClient.get(`/api/knowledge/cases/${id}/share-records`)
-  },
-
-  async createShareRecord(id, data = {}) {
-    if (!isNumericId(id)) return Promise.resolve(invalidIdMessage('case'))
-    return httpClient.post(`/api/knowledge/cases/${id}/share-records`, {
-      createdBy: data.createdBy ?? null,
-      createdByName: data.createdByName || '',
-      baseUrl: data.baseUrl || window.location.origin,
-      expiresAt: data.expiresAt ?? null })
-  },
-
   async getReferenceRecords(id) {
     if (!isNumericId(id)) return Promise.resolve(invalidIdMessage('case'))
     const response = await httpClient.get(`/api/cases/${id}/references`)
     return response?.data || response
-  },
-
-  async createReferenceRecord(id, data = {}) {
-    if (!isNumericId(id)) return Promise.resolve(invalidIdMessage('case'))
-    return httpClient.post(`/api/knowledge/cases/${id}/references`, {
-      referencedBy: data.referencedBy ?? null,
-      referencedByName: data.referencedByName || '',
-      referenceTarget: data.referenceTarget || '',
-      referenceContext: data.referenceContext || '' })
   },
 
   async recommendCases(projectId, scoringItem, keyword) {
