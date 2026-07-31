@@ -104,9 +104,6 @@ describe('Dashboard Workbench characterization', () => {
     await quickStart.openBorrowDialog()
     expect(quickStart.borrowDialogVisible.value).toBe(true)
     expect(mocks.qualificationsGetList).toHaveBeenCalled()
-
-    await quickStart.openExpenseDialog()
-    expect(quickStart.expenseDialogVisible.value).toBe(true)
   })
 
   it('validates support requests and submits the current payload shape', async () => {

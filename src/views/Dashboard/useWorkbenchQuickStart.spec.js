@@ -18,7 +18,6 @@ function createApi() {
       createBorrow: vi.fn().mockResolvedValue({ success: true, data: { id: 88 } }),
     },
     contractBorrowApi: { create: vi.fn().mockResolvedValue({ success: true, data: { id: 77 } }) },
-    resourcesApi: { expenses: { create: vi.fn().mockResolvedValue({ success: true, data: { id: 66 } }) } },
     approvalApi: { submitApproval: vi.fn().mockResolvedValue({ success: true, data: { id: 'A1' } }) },
   }
 }
@@ -76,7 +75,7 @@ describe('useWorkbenchQuickStart', () => {
     })
   })
 
-  it('submits contract borrow and bidding expense requests', async () => {
+  it('submits contract borrow requests', async () => {
     const api = createApi()
     const quickStart = useWorkbenchQuickStart({
       currentUserRef: ref({ name: '小王', dept: '销售部' }),
@@ -99,24 +98,6 @@ describe('useWorkbenchQuickStart', () => {
       contractName: '年度框架合同',
       borrowerName: '小王',
       expectedReturnDate: '2026-05-01',
-    }))
-
-    await quickStart.openExpenseDialog()
-    quickStart.expenseForm.value = {
-      ...quickStart.expenseForm.value,
-      type: '标书购买费',
-      amount: 300,
-      remark: '购买招标文件',
-    }
-    await expect(quickStart.submitExpense()).resolves.toBe(true)
-    expect(api.resourcesApi.expenses.create).toHaveBeenCalledWith(expect.objectContaining({
-      projectId: 9,
-      category: 'OTHER',
-      amount: 300,
-      expenseType: '标书购买费',
-      expectedReturnDate: null,
-      description: '购买招标文件',
-      createdBy: '小王',
     }))
   })
 })

@@ -3,11 +3,9 @@ import {
   approvalStatusToProcessStatus,
   buildContractBorrowPayload,
   buildQualificationBorrowPayload,
-  buildQuickExpensePayload,
   buildSupportRequestPayload,
   cleanDisplayText,
   createDefaultSupportRequestForm,
-  createDefaultQuickExpenseForm,
   filterProjectsByRole,
   formatCount,
   formatCurrency,
@@ -29,7 +27,6 @@ import {
   normalizeProcess,
   normalizeSupportProjects,
   validateBorrowRequest,
-  validateQuickExpense,
   validateSupportRequest,
 } from '@/views/Dashboard/workbench-core.js'
 
@@ -209,7 +206,7 @@ describe('workbench approval and support core', () => {
     expect(hasQuickStartPermission({ menuPermissions: ['dashboard'] })).toBe(false)
   })
 
-  it('builds borrow and quick expense payloads for real API submission', () => {
+  it('builds borrow payloads for real API submission', () => {
     const qualificationForm = {
       mode: 'qualification',
       projectId: 9,
@@ -246,19 +243,6 @@ describe('workbench approval and support core', () => {
       contractNo: 'HT-01',
       contractName: '框架合同',
       expectedReturnDate: '2026-05-02',
-    })
-
-    const expenseForm = { ...createDefaultQuickExpenseForm([{ id: 9 }]), amount: 1000, type: '标书购买费' }
-    expect(validateQuickExpense(expenseForm)).toEqual({ valid: true, message: '' })
-    expect(buildQuickExpensePayload(expenseForm, { today: '2026-04-25', createdBy: '小王' })).toEqual({
-      projectId: 9,
-      category: 'OTHER',
-      amount: 1000,
-      date: '2026-04-25',
-      expenseType: '标书购买费',
-      expectedReturnDate: null,
-      description: '',
-      createdBy: '小王',
     })
   })
 })

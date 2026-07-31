@@ -5,8 +5,6 @@
 
 export const QUICK_START_PERMISSION = 'dashboard.quickStart'
 
-export const QUICK_START_EXPENSE_TYPES = ['保证金', '标书购买费']
-
 export function hasQuickStartPermission(user = {}) {
   const permissions = Array.isArray(user?.menuPermissions) ? user.menuPermissions : []
   return permissions.includes('all') || permissions.includes(QUICK_START_PERMISSION)
@@ -69,35 +67,5 @@ export function buildContractBorrowPayload(form = {}) {
     purpose: String(form.purpose || '').trim(),
     borrowType: String(form.borrowType || '原件借阅').trim(),
     expectedReturnDate: form.expectedReturnDate || '',
-  }
-}
-
-export function createDefaultQuickExpenseForm(projects = []) {
-  return {
-    type: '保证金',
-    projectId: projects[0]?.id || null,
-    amount: 0,
-    expectedReturnDate: '',
-    remark: '',
-  }
-}
-
-export function validateQuickExpense(form = {}) {
-  if (!QUICK_START_EXPENSE_TYPES.includes(form.type)) return { valid: false, message: '请选择费用类型' }
-  if (!form.projectId) return { valid: false, message: '请选择关联项目' }
-  if (!(Number(form.amount) > 0)) return { valid: false, message: '请输入大于 0 的费用金额' }
-  return { valid: true, message: '' }
-}
-
-export function buildQuickExpensePayload(form = {}, { today, createdBy } = {}) {
-  return {
-    projectId: Number(form.projectId),
-    category: 'OTHER',
-    amount: form.amount,
-    date: today,
-    expenseType: form.type,
-    expectedReturnDate: form.type === '保证金' ? (form.expectedReturnDate || null) : null,
-    description: String(form.remark || '').trim(),
-    createdBy,
   }
 }
