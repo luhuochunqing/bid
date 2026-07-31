@@ -205,7 +205,7 @@ export const casesApi = {
     return { ...response, data: rawItems.map(normalizeCase), total: response?.total ?? rawItems.length }
   },
 
-    async getGridList(params) {
+  async getGridList(params) {
     const response = await httpClient.get('/api/cases', {
       params: {
         keyword: params.keyword || undefined,

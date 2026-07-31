@@ -237,7 +237,7 @@ const loadRelated = async (current) => {
     const res = await casesApi.getGridList(params)
     const items = Array.isArray(res.data) ? res.data : []
     relatedCases.value = items.filter(i => (i.caseId || i.id) !== current.id).slice(0, 5)
-  } catch {}
+  } catch (e) { console.warn('loadRelated failed:', e?.message || e) }
 }
 
 const loadReuseHistory = async (caseId) => {
