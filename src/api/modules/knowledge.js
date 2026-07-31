@@ -352,6 +352,15 @@ export const casesApi = {
     return response?.data || response
   },
 
+  async createReferenceRecord(id, data = {}) {
+    if (!isNumericId(id)) return Promise.resolve(invalidIdMessage('case'))
+    return httpClient.post(`/api/knowledge/cases/${id}/references`, {
+      referencedBy: data.referencedBy ?? null,
+      referencedByName: data.referencedByName || '',
+      referenceTarget: data.referenceTarget || '',
+      referenceContext: data.referenceContext || '' })
+  },
+
   async recommendCases(projectId, scoringItem, keyword) {
     const response = await httpClient.get('/api/cases/recommend', {
       params: {
