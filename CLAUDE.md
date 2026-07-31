@@ -644,6 +644,7 @@ sync-env.sh .
 
 <!-- SPECKIT START -->
 当前活跃 feature：
+- `specs/040-project-form-custom-fields/plan.md`（项目三表单已有字段锁定 + 自定义字段扩展：projects/project_initiation_details 加 custom_fields JSON 列、设计器按 scope 锁定预置字段、useCustomFields composable 统一收集/回显）
 - `specs/038-tender-reminder-daily/plan.md`（投标关键节点提醒改造：报名截止/开标提前3天每日重复提醒，去重逻辑从"只发一次"改为"每24小时发一次"，默认值24→72）
 - `specs/036-wecom-bid-notifications/plan.md`（投标关键节点企微通知：已评估标讯立即投标发送待立项通知、项目复盘推进至结项发送待结项申请通知）
 - `specs/024-preauthorize-unification/plan.md`（消除 @PreAuthorize hasAnyRole 双轨制技术债）
