@@ -29,7 +29,7 @@ const elementStubs = {
   'el-input-number': { template: '<input />' }
 }
 
-function mountWithFields(fields) {
+function mountWithFields(fields, options = {}) {
   return mount(DesignerFieldList, {
     props: {
       fields,
@@ -37,7 +37,8 @@ function mountWithFields(fields) {
         { label: '文本', value: 'text' },
         { label: '多行文本', value: 'textarea' },
         { label: '附件', value: 'attachment' }
-      ]
+      ],
+      readonly: options.readonly || false
     },
     global: { stubs: elementStubs }
   })
@@ -132,5 +133,77 @@ describe('DesignerFieldList', () => {
 
     expect(enableCheckbox).toBeTruthy()
     expect(enableCheckbox.props('modelValue')).toBe(false)
+  })
+
+  describe('readonly prop（纯查看态）', () => {
+    it('readonly=false 时添加字段按钮可点击', () => {
+      const wrapper = mountWithFields([
+        { key: 'name', label: '名称', type: 'text', required: false, enabled: true }
+      ], { readonly: false })
+
+      const addBtn = wrapper.findAll('button').find((b) => b.text().includes('添加字段'))
+      expect(addBtn.attributes('disabled')).toBeUndefined()
+    })
+
+    it('readonly=true 时添加字段按钮 disabled', () => {
+      const wrapper = mountWithFields([
+        { key: 'name', label: '名称', type: 'text', required: false, enabled: true }
+      ], { readonly: true })
+
+      const addBtn = wrapper.findAll('button').find((b) => b.text().includes('添加字段'))
+      expect(addBtn.attributes('disabled')).toBeDefined()
+    })
+
+    it('readonly=true 时新建模板按钮也 disabled', () => {
+      const wrapper = mountWithFields([
+        { key: 'name', label: '名称', type: 'text', required: false, enabled: true }
+      ], { readonly: true })
+
+      const buttons = wrapper.findAll('button')
+      const newTemplateBtns = buttons.filter((b) => b.text().includes('新建'))
+      expect(newTemplateBtns.length).toBeGreaterThan(0)
+      newTemplateBtns.forEach((btn) => {
+        expect(btn.attributes('disabled')).toBeDefined()
+      })
+    })
+
+    it('readonly=true 时已有字段的 key/label/type 全部 disabled', () => {
+      const wrapper = mountWithFields([
+        { key: 'name', label: '名称', type: 'text', required: false, enabled: true }
+      ], { readonly: true })
+
+      expect(wrapper.find('.field-key-input').attributes('disabled')).toBeDefined()
+      expect(wrapper.find('.field-label-input').attributes('disabled')).toBeDefined()
+      expect(wrapper.find('.field-type-select').attributes('disabled')).toBeDefined()
+    })
+
+    it('readonly=true 时 required/启用 checkbox 全部 disabled', () => {
+      const wrapper = mountWithFields([
+        { key: 'name', label: '名称', type: 'text', required: false, enabled: true }
+      ], { readonly: true })
+
+      const checkboxes = wrapper.findAllComponents({ name: 'ElCheckbox' })
+      checkboxes.forEach((c) => {
+        expect(c.props('disabled')).toBe(true)
+      })
+    })
+
+    it('readonly=true 时删除按钮不渲染', () => {
+      const wrapper = mountWithFields([
+        { key: 'name', label: '名称', type: 'text', required: false, enabled: true }
+      ], { readonly: true })
+
+      const delBtn = wrapper.findAll('button').find((b) => b.text() === '删')
+      expect(delBtn).toBeUndefined()
+    })
+
+    it('readonly=true 时字段行不可拖拽', () => {
+      const wrapper = mountWithFields([
+        { key: 'name', label: '名称', type: 'text', required: false, enabled: true }
+      ], { readonly: true })
+
+      const fieldRow = wrapper.find('.field-row')
+      expect(fieldRow.attributes('draggable')).toBe('false')
+    })
   })
 })

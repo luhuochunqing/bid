@@ -28,7 +28,11 @@ import java.util.List;
  * form-engine-scope-router / form-engine-adaptive-flow 测试全部失败。</p>
  *
  * <p>本 seeder 在 e2e profile 下运行，幂等地预置核心 scope 的表单定义数据，
- * 与 V140 迁移脚本保持一致（额外补充测试需要的 {@code knowledge.qual} scope）。</p>
+ * 与 Flyway 迁移保持一致（额外补充测试需要的 {@code knowledge.qual} scope）。
+ * 注：{@code knowledge.case} 和 {@code resource.expense} 已随 V1182 作为废弃定义清理
+ *（前者后端 handleCase 永远返回 failure、无前端提交入口；后者前端侧边栏菜单无入口、
+ * 工作台快捷入口被 dynamicLayout=null 门控永远不渲染、费用页面走独立 REST），
+ * 故本 seeder 不再预置这两个 scope。</p>
  *
  * <p>注：dev/prod 环境走 Flyway V140 迁移脚本，不需要本 seeder。</p>
  */
@@ -81,14 +85,6 @@ public class FormDefinitionE2eSeeder implements ApplicationRunner {
                     "project.basic",
                     "项目基本信息",
                     "{\"fields\":[{\"key\":\"name\",\"label\":\"项目名称\",\"type\":\"TEXT\",\"required\":true},{\"key\":\"managerId\",\"label\":\"项目经理\",\"type\":\"PERSON\",\"required\":true},{\"key\":\"teamMembers\",\"label\":\"团队成员\",\"type\":\"PERSON\",\"required\":false},{\"key\":\"startDate\",\"label\":\"开始日期\",\"type\":\"DATE\",\"required\":false},{\"key\":\"endDate\",\"label\":\"结束日期\",\"type\":\"DATE\",\"required\":false},{\"key\":\"budget\",\"label\":\"项目预算\",\"type\":\"CURRENCY\",\"required\":false},{\"key\":\"industry\",\"label\":\"所属行业\",\"type\":\"SELECT\",\"required\":false,\"options\":[{\"label\":\"政府\",\"value\":\"government\"},{\"label\":\"央企\",\"value\":\"soe\"},{\"label\":\"民营\",\"value\":\"private\"}]},{\"key\":\"description\",\"label\":\"项目描述\",\"type\":\"TEXTAREA\",\"required\":false,\"rows\":4}]}"),
-            new FormDefinitionSeed(
-                    "resource.expense",
-                    "费用申请",
-                    "{\"fields\":[{\"key\":\"projectId\",\"label\":\"关联项目\",\"type\":\"PROJECT\",\"required\":true},{\"key\":\"category\",\"label\":\"费用类别\",\"type\":\"SELECT\",\"required\":true,\"options\":[{\"label\":\"差旅费\",\"value\":\"TRANSPORTATION\"},{\"label\":\"材料费\",\"value\":\"MATERIAL\"},{\"label\":\"人工费\",\"value\":\"LABOR\"},{\"label\":\"设备费\",\"value\":\"EQUIPMENT\"},{\"label\":\"分包费\",\"value\":\"SUBCONTRACTING\"},{\"label\":\"管理费\",\"value\":\"OVERHEAD\"},{\"label\":\"其他\",\"value\":\"OTHER\"}]},{\"key\":\"amount\",\"label\":\"金额\",\"type\":\"CURRENCY\",\"required\":true,\"validation\":{\"min\":0.01}},{\"key\":\"date\",\"label\":\"费用日期\",\"type\":\"DATE\",\"required\":true},{\"key\":\"expenseType\",\"label\":\"费用类型\",\"type\":\"TEXT\",\"required\":false},{\"key\":\"description\",\"label\":\"费用说明\",\"type\":\"TEXTAREA\",\"required\":false,\"rows\":3}]}"),
-            new FormDefinitionSeed(
-                    "knowledge.case",
-                    "案例建档",
-                    "{\"fields\":[{\"key\":\"title\",\"label\":\"案例标题\",\"type\":\"TEXT\",\"required\":true},{\"key\":\"industry\",\"label\":\"所属行业\",\"type\":\"SELECT\",\"required\":false,\"options\":[{\"label\":\"政府\",\"value\":\"government\"},{\"label\":\"央企\",\"value\":\"soe\"},{\"label\":\"民营\",\"value\":\"private\"}]},{\"key\":\"amount\",\"label\":\"合同金额\",\"type\":\"CURRENCY\",\"required\":false},{\"key\":\"projectDate\",\"label\":\"完成日期\",\"type\":\"DATE\",\"required\":false},{\"key\":\"description\",\"label\":\"案例描述\",\"type\":\"TEXTAREA\",\"required\":false,\"rows\":4},{\"key\":\"tags\",\"label\":\"标签\",\"type\":\"TEXT\",\"required\":false,\"placeholder\":\"多个标签用逗号分隔\"}]}"),
             new FormDefinitionSeed(
                     "knowledge.qual",
                     "资质建档",

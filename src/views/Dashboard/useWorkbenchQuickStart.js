@@ -4,19 +4,15 @@
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 import { computed, ref } from 'vue'
-import { approvalApi, projectsApi, qualificationsApi, resourcesApi } from '@/api'
+import { approvalApi, projectsApi, qualificationsApi } from '@/api'
 import { contractBorrowApi } from '@/api/modules/contractBorrow.js'
-import { today } from '@/composables/expensePageShared.js'
 import { useSupportRequest } from '@/views/Dashboard/useSupportRequest.js'
 import {
   buildContractBorrowPayload,
   buildQualificationBorrowPayload,
-  buildQuickExpensePayload,
   createDefaultBorrowRequestForm,
-  createDefaultQuickExpenseForm,
   normalizeSupportProjects,
   validateBorrowRequest,
-  validateQuickExpense,
 } from '@/views/Dashboard/workbench-core.js'
 
 const noopMessage = {
@@ -40,7 +36,6 @@ export function useWorkbenchQuickStart({
   const projectApi = api.projectsApi || projectsApi
   const qualificationApi = api.qualificationsApi || qualificationsApi
   const borrowApi = api.contractBorrowApi || contractBorrowApi
-  const expenseApi = api.resourcesApi || resourcesApi
 
   const support = useSupportRequest({
     approvalApi: api.approvalApi || approvalApi,
@@ -55,9 +50,6 @@ export function useWorkbenchQuickStart({
   const borrowDialogVisible = ref(false)
   const borrowSubmitting = ref(false)
   const borrowForm = ref(createDefaultBorrowRequestForm())
-  const expenseDialogVisible = ref(false)
-  const expenseSubmitting = ref(false)
-  const expenseForm = ref(createDefaultQuickExpenseForm())
   const loadingOptions = ref(false)
   const currentUser = computed(() => currentUserRef?.value || {})
 
@@ -103,12 +95,6 @@ export function useWorkbenchQuickStart({
     borrowDialogVisible.value = true
   }
 
-  const openExpenseDialog = async () => {
-    await loadOptions()
-    expenseForm.value = createDefaultQuickExpenseForm(projects.value)
-    expenseDialogVisible.value = true
-  }
-
   const submitBorrow = async () => {
     const validation = validateBorrowRequest(borrowForm.value)
     if (!validation.valid) {
@@ -139,37 +125,9 @@ export function useWorkbenchQuickStart({
     }
   }
 
-  const submitExpense = async () => {
-    const validation = validateQuickExpense(expenseForm.value)
-    if (!validation.valid) {
-      message.warning?.(validation.message)
-      return false
-    }
-
-    expenseSubmitting.value = true
-    try {
-      const result = await expenseApi.expenses.create(buildQuickExpensePayload(expenseForm.value, {
-        today: today(),
-        createdBy: currentUser.value?.name || '当前用户',
-      }))
-      if (!result?.success) throw new Error(result?.msg || '费用申请提交失败')
-
-      message.success?.('投标费用申请已提交，等待审批')
-      expenseDialogVisible.value = false
-      await onSubmitted?.()
-      return true
-    } catch (error) {
-      message.error?.(error?.message || '费用申请提交失败')
-      return false
-    } finally {
-      expenseSubmitting.value = false
-    }
-  }
-
   const handleQuickAction = (action) => {
     if (action.key === 'support') return openSupportDialog()
     if (action.key === 'borrow') return openBorrowDialog()
-    if (action.key === 'expense') return openExpenseDialog()
     return undefined
   }
 
@@ -182,15 +140,10 @@ export function useWorkbenchQuickStart({
     borrowDialogVisible,
     borrowSubmitting,
     borrowForm,
-    expenseDialogVisible,
-    expenseSubmitting,
-    expenseForm,
     loadOptions,
     openSupportDialog,
     openBorrowDialog,
-    openExpenseDialog,
     handleQuickAction,
     submitBorrow,
-    submitExpense,
   }
 }

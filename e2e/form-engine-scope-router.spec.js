@@ -50,36 +50,11 @@ test.describe('Scope 路由验证（API 层）', () => {
     expect(body.success).toBe(true)
   })
 
-  test('resource.expense scope 提交成功', async ({ request }) => {
-    const session = await ensureApiSession({
-      username: `scope_expense_${Date.now()}`,
-      role: '/bidAdmin',
-      fullName: 'Expense 路由测试',
-    })
-
-    // 先创建一个项目（作为前置条件）
-    const projResponse = await request.post(`${apiBaseUrl}/api/form-definitions/project.basic/submit`, {
-      headers: { Authorization: `Bearer ${session.token}` },
-      data: { name: `E2E 测试项目 ${Date.now()}` },
-    })
-    const projBody = await projResponse.json()
-    const projectId = projBody?.data?.id || 1
-
-    const response = await request.post(`${apiBaseUrl}/api/form-definitions/resource.expense/submit`, {
-      headers: { Authorization: `Bearer ${session.token}` },
-      data: {
-        projectId,
-        amount: 1000,
-        category: 'TRANSPORTATION',
-        expenseType: '差旅费',
-        date: '2026-05-20',
-        description: 'E2E 测试费用',
-      },
-    })
-
-    expect(response.ok() || response.status() === 200).toBeTruthy()
-    const body = await response.json()
-    expect(body.success).toBe(true)
+  test('resource.expense scope 提交成功（已废弃，跳过）', async ({ request }) => {
+    // V1182 已删除 resource.expense 表单定义（前端无可达入口：侧边栏菜单无「费用管理」、
+    // 工作台快捷入口受 dynamicLayout=null 门控永远不渲染、费用页面走独立 REST）。
+    // 此测试保留为 skip，作为废弃记录；如未来恢复 resource.expense 表单定义，可重新启用。
+    test.skip(true, 'resource.expense 表单定义已被 V1182 删除，详见 PR !2229')
   })
 
   test('knowledge.qual scope 提交成功', async ({ request }) => {
