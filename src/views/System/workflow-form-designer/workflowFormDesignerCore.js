@@ -74,6 +74,46 @@ export const FIXED_GROUP_KEYS = [
 // 用于判断 key 输入框是否 disabled 和删除按钮是否隐藏
 export const KEY_LOCKED_FIELD_KEYS = [...LOCKED_FIELD_KEYS, ...FIXED_GROUP_KEYS]
 
+// 项目三表单（project.basic / project.initiation / project.detail）预置字段锁定清单（CO-601）
+// 锁定字段：key + type 不可修改，不可删除（与 tender.entry LOCKED_FIELD_KEYS 同语义）
+// 清单来源 = 业务页 form model 真实绑定 key（不是 DTO 字段名）：
+// - project.basic：useProjectCreateModel.js basicForm（9 个）
+// - project.detail：useProjectCreateModel.js detailForm（7 个）
+// - project.initiation：InitiationStage.vue form reactive（42 个）+ custFixedRows 客户信息矩阵
+//   核对结论（2026-07-31）：form 内 annualRevenue/customerRevenue 双 key 并存（buildPayload 映射
+//   annualRevenue: form.customerRevenue || form.annualRevenue），两 key 均锁定；
+//   customerInfoRows 为 DTO 侧 key（对应客户端 custFixedRows），一并保留防碰撞。
+// ⚠️ 互指注释：后端 CustomFieldsSchemaPolicy（formengine/domain）内嵌同一清单，改动必须双向同步
+export const PROJECT_LOCKED_FIELD_KEYS = {
+  'project.basic': [
+    'name', 'customer', 'budget', 'industry', 'region', 'platform',
+    'deadline', 'manager', 'competitors'
+  ],
+  'project.detail': [
+    'description', 'tags', 'startDate', 'endDate', 'remark',
+    'projectLeaderName', 'leaderDepartment'
+  ],
+  'project.initiation': [
+    'projectName', 'ownerUnit', 'createTime', 'projectType', 'customerType',
+    'priorityLevel', 'headquartersLocation', 'projectLeaderName', 'projectLeaderUserId',
+    'leaderDepartment', 'contactName', 'contactPhone', 'contactTel', 'contactMail',
+    'contactName2', 'contactPhone2', 'contactTel2', 'contactMail2',
+    'tenderId', 'expectedBidders', 'annualEcommerceAmount', 'annualRevenue', 'customerRevenue',
+    'bidOpenTime', 'bidMonth', 'biddingPlatform',
+    'needDeposit', 'depositAmount', 'depositPaymentMethod', 'depositDueDate',
+    'tenderAdverseItems', 'riskAssessment', 'riskMitigationPlan', 'pmUnderstandsProcess',
+    'supportNeeded', 'projectPlanGap', 'projectPlanGapFiles',
+    'tenderDocumentId', 'aiRiskLevel', 'aiRiskAssessmentNotes',
+    'biddingLeaderName', 'biddingAssistantName',
+    'custFixedRows', 'customerInfoRows'
+  ]
+}
+
+// 项目 scope 判定（tender.entry 等其他 scope 走原 LOCKED_FIELD_KEYS/FIXED_GROUP_KEYS）
+export function isProjectScope(scope) {
+  return Object.prototype.hasOwnProperty.call(PROJECT_LOCKED_FIELD_KEYS, scope)
+}
+
 export function createField(key = 'field1', label = '字段', type = 'text') {
   const field = { key, label, type, required: type !== 'info' && type !== 'section' && type !== 'divider' && type !== 'info' }
   switch (type) {
