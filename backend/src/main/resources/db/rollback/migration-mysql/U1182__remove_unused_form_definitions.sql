@@ -21,8 +21,18 @@
 --     resource.expense 前端侧边栏菜单无入口、工作台快捷入口被 dynamicLayout=null 门控
 --     永远不渲染、费用页面走独立 REST，管理员不应为它配置过表单规则，即使有也是误操作。
 -- ============================================================
--- Data rollback required: INSERT IGNORE 恢复 V140 种子数据
+-- Data rollback required: 幂等恢复 V140 种子数据
 -- ============================================================
+-- 幂等性说明：
+--   form_definition_registry 有 uk_scope_org (scope, org_id) 复合唯一键，
+--   但本脚本插入的 org_id=NULL，而 MySQL InnoDB 对 NULL 不去重（NULL != NULL），
+--   导致 INSERT IGNORE 的唯一键冲突检测失效，重复执行会插入重复记录。
+--   因此先显式 DELETE 清理可能存在的残留（WHERE org_id IS NULL），
+--   再 INSERT，确保重复回滚也幂等。
+-- ============================================================
+
+DELETE FROM form_definition_registry
+WHERE scope IN ('knowledge.case', 'resource.expense') AND org_id IS NULL;
 
 INSERT IGNORE INTO form_definition_registry(scope, scope_label, version, schema_json, enabled, org_id, created_by)
 VALUES
