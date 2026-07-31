@@ -9,31 +9,19 @@
  */
 import httpClient from '../client.js'
 import { qualificationsApi } from './qualification.js'
+import { isNumericId, invalidIdMessage } from './resources/shared.js'
 
-const caseIndustryMap = {
-  government: 'INFRASTRUCTURE',
-  finance: 'OTHER',
-  energy: 'ENERGY',
-  transport: 'TRANSPORTATION',
-  healthcare: 'OTHER',
-  education: 'OTHER',
-  manufacturing: 'MANUFACTURING',
-  internet: 'OTHER',
-  政府: 'government',
-  能源: 'energy',
-  交通: 'transport',
-  制造业: 'manufacturing',
-  教育: 'education',
-  医疗: 'healthcare',
-  互联网: 'internet',
-  园区: 'government',
-  INFRASTRUCTURE: 'government',
-  MANUFACTURING: 'manufacturing',
-  ENERGY: 'energy',
-  TRANSPORTATION: 'transport',
-  ENVIRONMENTAL: 'government',
-  REAL_ESTATE: 'government',
-  OTHER: 'government' }
+// 后端 CaseDTO.Industry enum → 前端展示名（单向，不可逆）
+// 后端 enum 定义见 backend/src/main/java/com/xiyu/bid/casework/dto/CaseDTO.java
+const caseIndustryDisplayMap = {
+  INFRASTRUCTURE: '基础设施',
+  MANUFACTURING: '制造业',
+  ENERGY: '能源',
+  TRANSPORTATION: '交通',
+  ENVIRONMENTAL: '环保',
+  REAL_ESTATE: '房地产',
+  OTHER: '其他'
+}
 
 const templateCategoryMap = {
   technical: 'TECHNICAL',
@@ -55,10 +43,6 @@ const templateCategoryMap = {
   CONTRACT: 'contract',
   OTHER: 'implementation' }
 
-function isNumericId(id) {
-  return /^\d+$/.test(String(id))
-}
-
 function formatDate(date) {
   if (!date) return ''
   return String(date).slice(0, 10)
@@ -71,7 +55,7 @@ function formatCasePeriod(projectDate) {
 
 function normalizeCase(item) {
   const projectDate = formatDate(item?.projectDate)
-  const normalizedIndustry = caseIndustryMap[item?.industry] || ''
+  const normalizedIndustry = caseIndustryDisplayMap[item?.industry] || item?.industry || ''
   const description = item?.description || item?.summary || ''
   const customer = item?.customer || item?.customerName || ''
   const location = item?.location || item?.locationName || ''
@@ -171,102 +155,6 @@ function normalizeCaseQuery(params = {}) {
   }
 }
 
-function filterCaseByQuery(item, params = {}) {
-  if (params.industry && item.industry !== params.industry) {
-    return false
-  }
-
-  if (params.productLine && String(item.productLine || '') !== String(params.productLine)) {
-    return false
-  }
-
-  if (params.outcome && String(item.outcome || '') !== String(params.outcome)) {
-    return false
-  }
-
-  if (params.year && Number(item.year) !== Number(params.year)) {
-    return false
-  }
-
-  if (params.amountMin != null && Number(item.amount) < Number(params.amountMin)) {
-    return false
-  }
-
-  if (params.amountMax != null && Number(item.amount) >= Number(params.amountMax)) {
-    return false
-  }
-
-  if (params.keyword) {
-    const keyword = String(params.keyword).toLowerCase()
-    const matchesKeyword =
-      String(item.title || '').toLowerCase().includes(keyword) ||
-      String(item.customer || '').toLowerCase().includes(keyword) ||
-      String(item.location || '').toLowerCase().includes(keyword) ||
-      String(item.summary || '').toLowerCase().includes(keyword) ||
-      item.highlights.some((highlight) => String(highlight).toLowerCase().includes(keyword))
-
-    if (!matchesKeyword) {
-      return false
-    }
-  }
-
-  if (Array.isArray(params.tags) && params.tags.length > 0) {
-    const hasAnyTag = params.tags.some((tag) => item.tags.includes(tag))
-    if (!hasAnyTag) {
-      return false
-    }
-  }
-
-  return true
-}
-
-function applyCasePagination(items, params = {}) {
-  const pageSize = Number(params.pageSize || 0)
-  const page = Number(params.page || 1)
-  if (!pageSize || pageSize <= 0) {
-    return items
-  }
-
-  const start = Math.max(page - 1, 0) * pageSize
-  return items.slice(start, start + pageSize)
-}
-
-function buildCaseListResponse(response, params = {}) {
-  if (response?.data && !Array.isArray(response.data) && Array.isArray(response.data.items)) {
-    return {
-      ...response,
-      data: response.data.items.map(normalizeCase),
-      total: Number(response.data.total ?? response.data.items.length ?? 0),
-      page: Number(response.data.page ?? params.page ?? 1),
-      pageSize: Number(response.data.pageSize ?? params.pageSize ?? response.data.items.length ?? 0),
-      totalPages: Number(response.data.totalPages ?? 1),
-      sort: response.data.sort || params.sort
-    }
-  }
-
-  const rawItems = Array.isArray(response?.data)
-    ? response.data
-    : Array.isArray(response?.data?.records)
-      ? response.data.records
-      : Array.isArray(response?.data?.items)
-        ? response.data.items
-        : []
-
-  const normalized = rawItems.map(normalizeCase)
-  const filtered = normalized.filter((item) => filterCaseByQuery(item, params))
-  const paged = applyCasePagination(filtered, params)
-  const total = Number.isFinite(Number(response?.total))
-    ? Number(response.total)
-    : Number.isFinite(Number(response?.data?.total))
-      ? Number(response.data.total)
-      : filtered.length
-
-  return {
-    ...response,
-    data: paged,
-    total
-  }
-}
 function filterTemplates(items, params = {}) {
   return items.filter((item) => {
     if (params.category && params.category !== 'all' && item.category !== params.category) {
@@ -300,19 +188,21 @@ function filterTemplates(items, params = {}) {
   })
 }
 
-function invalidIdMessage(entityName) {
-  return {
-    success: false,
-    message: `Current backend only supports numeric ${entityName} IDs in API mode` }
-}
-
 export const casesApi = {
   async getList(params) {
     const query = normalizeCaseQuery(params)
     const response = await httpClient.get('/api/knowledge/cases', {
       params: query
     })
-    return buildCaseListResponse(response, query)
+    // 后端已支持服务端分页和过滤，前端不再做二次本地过滤/分页
+    if (response?.data && !Array.isArray(response.data) && Array.isArray(response.data.items)) {
+      return {
+        ...response,
+        data: response.data.items.map(normalizeCase),
+        total: Number(response.data.total ?? response.data.items.length ?? 0) }
+    }
+    const rawItems = Array.isArray(response?.data) ? response.data : []
+    return { ...response, data: rawItems.map(normalizeCase), total: response?.total ?? rawItems.length }
   },
 
     async getGridList(params) {

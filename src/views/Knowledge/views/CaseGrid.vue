@@ -230,10 +230,11 @@ const openBidDocument = async (d) => {
 const loadRelated = async (current) => {
   if (!current?.id) return
   try {
-    const params = { projectType: current.projectType, page: 1, pageSize: 6 }
+    const params = { page: 1, pageSize: 6 }
+    if (current.projectType) params.projectTypes = [current.projectType]
     if (current.customerType) params.customerType = current.customerType
     if (current.scoringCategory) params.scoringCategory = current.scoringCategory
-    const res = await casesApi.getList(params)
+    const res = await casesApi.getGridList(params)
     const items = Array.isArray(res.data) ? res.data : []
     relatedCases.value = items.filter(i => (i.caseId || i.id) !== current.id).slice(0, 5)
   } catch {}
