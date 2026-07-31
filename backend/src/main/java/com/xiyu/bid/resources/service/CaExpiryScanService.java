@@ -163,7 +163,7 @@ public class CaExpiryScanService {
                                 borrow.getApplicantName(), borrow.getExpectedReturnDate(), Math.abs(daysUntilReturn)));
                 // P1-3: 使用 createAndNotifyIfNew 模板方法
                 alertNotificationOrchestrator.createAndNotifyIfNew(
-                        req, rule, buildBorrowPayload(borrow));
+                        req, rule, buildBorrowPayload(borrow, cert));
                 created++;
             } else if (daysUntilReturn <= BORROW_RETURN_THRESHOLD_DAYS) {
                 // 即将到期
@@ -176,7 +176,7 @@ public class CaExpiryScanService {
                                 borrow.getApplicantName(), borrow.getExpectedReturnDate(), daysUntilReturn));
                 // P1-3: 使用 createAndNotifyIfNew 模板方法
                 alertNotificationOrchestrator.createAndNotifyIfNew(
-                        req, rule, buildBorrowPayload(borrow));
+                        req, rule, buildBorrowPayload(borrow, cert));
                 created++;
             }
         }
@@ -211,7 +211,8 @@ public class CaExpiryScanService {
         payload.put("caType", cert.getCaType());
         payload.put("expiryDate", cert.getExpiryDate());
         payload.put(AlertMessagePolicy.PAYLOAD_KEY_ALERT_SUB_TYPE, subType);
-        payload.put("targetUrl", "/resources/ca-certificates");
+        // 跳转到 CA 管理页并携带 caId，前端 onMounted 自动打开对应 CA 的详情弹窗
+        payload.put("targetUrl", "/resource/ca-management?caId=" + cert.getId());
         // CO-546: 携带 custodianId 供 AlertNotificationOrchestrator 将 CA 保管员加入接收人，
         // 与 returnBorrow 路径的 CaNotificationDispatcher 接收人范围对齐。
         payload.put(AlertMessagePolicy.PAYLOAD_KEY_CUSTODIAN_ID, cert.getCustodianId());
@@ -222,14 +223,16 @@ public class CaExpiryScanService {
      * 构造 CA 借用告警通知附加 payload。
      *
      * @param borrow CA 借用申请实体
+     * @param cert   关联的 CA 证书实体（用于定位详情页）
      * @return payload Map
      */
-    private Map<String, Object> buildBorrowPayload(CaBorrowApplicationEntity borrow) {
+    private Map<String, Object> buildBorrowPayload(CaBorrowApplicationEntity borrow, CaCertificateEntity cert) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("borrowId", borrow.getId());
         payload.put("applicantName", borrow.getApplicantName());
         payload.put("expectedReturnDate", borrow.getExpectedReturnDate());
-        payload.put("targetUrl", "/resources/ca-borrow-applications");
+        // 跳转到 CA 管理页并携带 caId，前端 onMounted 自动打开对应 CA 的详情弹窗
+        payload.put("targetUrl", "/resource/ca-management?caId=" + cert.getId());
         return payload;
     }
 }

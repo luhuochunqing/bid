@@ -67,15 +67,16 @@ public class WeComPushService {
 
         String employeeNumber = userOpt.get().getEmployeeNumber();
         FormattedMessage message = WeComMessageFormatter.format(
-            command.title(), command.type(), command.sourceEntityType(), command.sourceEntityId(),
+            command.title(), command.body(), command.type(),
+            command.sourceEntityType(), command.sourceEntityId(),
             platformBaseUrl, command.targetUrl());
         // SSO 启用时，将业务 URL 包装为 OAuth 授权链接（每条消息独立 state，防 Session Fixation）
         String finalUrl = wrapWithSsoIfNeeded(message.url());
-        String body = message.title() + "\n" + message.description()
+        String wecomMessage = message.title() + "\n" + message.description()
             + "\n<a href=\"" + finalUrl + "\">" + message.btnText() + "</a>";
 
         try {
-            WecomSendResult result = wecomMessageSender.send(employeeNumber, body);
+            WecomSendResult result = wecomMessageSender.send(employeeNumber, wecomMessage);
             return result.success()
                 ? NotificationDeliveryResult.success(result.code(), result.message())
                 : NotificationDeliveryResult.failure(result.code(), result.message());

@@ -1,4 +1,4 @@
-// Input: notification type / source entity / platform base URL
+// Input: notification type / source entity / platform base URL / body
 // Output: FormattedMessage record used to build 企微 textcard payload
 // Pos: Pure Core/企微推送消息格式化器
 package com.xiyu.bid.notification.outbound.core;
@@ -11,6 +11,12 @@ package com.xiyu.bid.notification.outbound.core;
  * <p>本类只负责构造消息 textcard 的业务 URL（platformBaseUrl + sourcePath）。
  * SSO OAuth 授权链接的构造由 {@code WeComPushService} 在推送时根据 SSO 配置决定是否包装，
  * 不在本类的职责范围内（保持 Pure Core 单一职责）。
+ *
+ * <p>description 优先级（企微文案丢失修复）：
+ * <ol>
+ *   <li>{@code body} 非空 → 直接作为 description（展示完整通知正文）</li>
+ *   <li>body 为空 → 回退到 {@code typeLabel + " · " + title}（老版本兼容）</li>
+ * </ol>
  */
 public final class WeComMessageFormatter {
 
@@ -26,6 +32,33 @@ public final class WeComMessageFormatter {
     }
 
     /**
+     * 格式化企微 textcard payload（向后兼容：不传 body 和 targetUrl）。
+     */
+    public static FormattedMessage format(
+        String notificationTitle,
+        String notificationType,
+        String sourceEntityType,
+        Long sourceEntityId,
+        String platformBaseUrl
+    ) {
+        return format(notificationTitle, null, notificationType, sourceEntityType, sourceEntityId, platformBaseUrl, null);
+    }
+
+    /**
+     * 格式化企微 textcard payload（向后兼容：不传 body）。
+     */
+    public static FormattedMessage format(
+        String notificationTitle,
+        String notificationType,
+        String sourceEntityType,
+        Long sourceEntityId,
+        String platformBaseUrl,
+        String payloadTargetUrl
+    ) {
+        return format(notificationTitle, null, notificationType, sourceEntityType, sourceEntityId, platformBaseUrl, payloadTargetUrl);
+    }
+
+    /**
      * 格式化企微 textcard payload。
      *
      * <p>URL 解析优先级（P0-1 修复）：
@@ -35,22 +68,19 @@ public final class WeComMessageFormatter {
      *   <li>映射失败 → 回退到 /inbox</li>
      * </ol>
      *
+     * <p>description 优先级（企微文案丢失修复）：
+     * <ol>
+     *   <li>{@code body} 非空 → 直接作为 description（展示完整通知正文，如 CA 预警的"关联平台/CA类型"信息）</li>
+     *   <li>body 为空 → 回退到 {@code typeLabel + " · " + title}（老版本兼容）</li>
+     * </ol>
+     *
      * <p>引入 payloadTargetUrl 的根因：某些通知（如文档变更 DOCUMENT_CHANGE）的合理跳转目标
      * 不是 sourceEntityType 对应的实体页（如 /document/editor/），而是关联项目的子页面
      * （/project/{id}/drafting）。payload.targetUrl 由业务侧精确指定，应优先于默认映射。
      */
     public static FormattedMessage format(
         String notificationTitle,
-        String notificationType,
-        String sourceEntityType,
-        Long sourceEntityId,
-        String platformBaseUrl
-    ) {
-        return format(notificationTitle, notificationType, sourceEntityType, sourceEntityId, platformBaseUrl, null);
-    }
-
-    public static FormattedMessage format(
-        String notificationTitle,
+        String notificationBody,
         String notificationType,
         String sourceEntityType,
         Long sourceEntityId,
@@ -58,8 +88,10 @@ public final class WeComMessageFormatter {
         String payloadTargetUrl
     ) {
         String safeTitle = truncate(defaultIfBlank(notificationTitle, "新通知"), MAX_TITLE_LENGTH);
-        String typeLabel = humanType(notificationType);
-        String description = truncate(typeLabel + " · " + safeTitle, MAX_DESCRIPTION_LENGTH);
+        // body 非空时优先使用 body 作为 description，展示完整通知正文；否则回退到 typeLabel + title
+        String description = (notificationBody != null && !notificationBody.isBlank())
+            ? truncate(notificationBody, MAX_DESCRIPTION_LENGTH)
+            : truncate(humanType(notificationType) + " · " + safeTitle, MAX_DESCRIPTION_LENGTH);
         String url = buildUrl(platformBaseUrl, sourceEntityType, sourceEntityId, payloadTargetUrl);
         return new FormattedMessage(safeTitle, description, url, DEFAULT_BTN_TEXT);
     }
@@ -86,6 +118,7 @@ public final class WeComMessageFormatter {
             case "PROJECT" -> "/project/" + entityId;
             case "BIDDING", "TENDER" -> "/bidding/" + entityId;
             case "DOCUMENT" -> "/document/editor/" + entityId;
+            case "CA_CERTIFICATE" -> "/resource/ca-management?caId=" + entityId;
             case "WAREHOUSE_EXPIRY_WARNING", "WAREHOUSE_EXPIRED_WARNING", "WAREHOUSE" -> "/knowledge/warehouse?id=" + entityId;
             default -> null;
         };
@@ -104,6 +137,12 @@ public final class WeComMessageFormatter {
             case "SYSTEM" -> "系统";
             case "PENDING_INITIATION" -> "待立项";
             case "PENDING_CLOSURE_APPLICATION" -> "待结项";
+            case "CA_EXPIRING" -> "CA即将到期";
+            case "CA_EXPIRED" -> "CA已过期";
+            case "CA_BORROW_PENDING" -> "CA借用待审批";
+            case "CA_BORROW_DUE_SOON" -> "CA借用即将到期";
+            case "CA_BORROW_OVERDUE" -> "CA借用逾期";
+            case "CA_BORROW_APPROVED" -> "CA借用已通过";
             default -> "通知";
         };
     }

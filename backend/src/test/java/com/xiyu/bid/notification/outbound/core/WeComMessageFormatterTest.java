@@ -173,4 +173,70 @@ class WeComMessageFormatterTest {
 
         assertThat(message.url()).isEqualTo("https://xiyu.example.com/project/1");
     }
+
+    // ============ 企微文案丢失修复：body 字段优先级 ============
+
+    @Test
+    void format_WithNonBlankBody_UsesBodyAsDescription() {
+        // body 非空时，description 直接使用 body（展示完整通知正文，如 CA 预警的关联平台/CA类型）
+        String body = "【CA已过期】某公司（关联平台：xx平台，CA类型：实体CA）已于 2026-07-22 过期，请立即处理";
+        WeComMessageFormatter.FormattedMessage message = WeComMessageFormatter.format(
+            "CA证书到期提醒", body, "CA_EXPIRED", "CA_CERTIFICATE", 100L,
+            "https://xiyu.example.com", "/resource/ca-management"
+        );
+
+        assertThat(message.description()).isEqualTo(body);
+        // 不应包含 type label 拼接（"通知 · ..."）
+        assertThat(message.description()).doesNotContain("·");
+    }
+
+    @Test
+    void format_WithNullBody_FallsBackToTypeAndTitleDescription() {
+        // body 为 null 时，回退到老版本行为：typeLabel + " · " + title
+        WeComMessageFormatter.FormattedMessage message = WeComMessageFormatter.format(
+            "标书评审通过", null, "APPROVAL", "PROJECT", 42L,
+            "https://xiyu.example.com", null
+        );
+
+        assertThat(message.description()).contains("审批");
+        assertThat(message.description()).contains("标书评审通过");
+        assertThat(message.description()).contains("·");
+    }
+
+    @Test
+    void format_WithBlankBody_FallsBackToTypeAndTitleDescription() {
+        // body 为空白字符串时也应回退，避免企微消息出现空白 description
+        WeComMessageFormatter.FormattedMessage message = WeComMessageFormatter.format(
+            "标书评审通过", "   ", "APPROVAL", "PROJECT", 42L,
+            "https://xiyu.example.com", null
+        );
+
+        assertThat(message.description()).contains("审批");
+        assertThat(message.description()).contains("标书评审通过");
+    }
+
+    @Test
+    void format_WithOversizedBody_TruncatesTo512() {
+        // body 超长时截断，避免企微 textcard description 字段超限
+        String longBody = "X".repeat(600);
+        WeComMessageFormatter.FormattedMessage message = WeComMessageFormatter.format(
+            "通知", longBody, "INFO", null, null, "https://xiyu.example.com", null
+        );
+
+        assertThat(message.description()).hasSize(512);
+    }
+
+    @Test
+    void format_WithBody_PreservesUrlAndTitle() {
+        // 有 body 时，title 和 url 仍按原规则解析，body 只影响 description
+        String body = "CA 即将到期提醒正文";
+        WeComMessageFormatter.FormattedMessage message = WeComMessageFormatter.format(
+            "CA证书到期提醒", body, "CA_EXPIRING", "CA_CERTIFICATE", 100L,
+            "https://xiyu.example.com", "/resource/ca-management"
+        );
+
+        assertThat(message.title()).isEqualTo("CA证书到期提醒");
+        assertThat(message.url()).isEqualTo("https://xiyu.example.com/resource/ca-management");
+        assertThat(message.description()).isEqualTo(body);
+    }
 }
