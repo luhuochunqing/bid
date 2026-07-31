@@ -114,6 +114,33 @@ export function isProjectScope(scope) {
   return Object.prototype.hasOwnProperty.call(PROJECT_LOCKED_FIELD_KEYS, scope)
 }
 
+// hybrid scope：预置字段由业务页 fallback 硬编码渲染，schema 不应含预置 key（命中即冲突）
+// project.basic 为纯 schema 渲染（V140 种子含预置字段），预置 key 合法存在，仅校验 key 重复
+// ⚠️ 互指注释：后端 CustomFieldsSchemaPolicy（formengine/domain）同一语义，改动必须双向同步
+const HYBRID_PROJECT_SCOPES = ['project.initiation', 'project.detail']
+
+// CO-601 US2：设计器保存/发布前 key 冲突校验（FR-006，契约 §5）
+// 返回错误信息数组（空数组 = 通过）；非项目 scope / 空 fields 直接放行
+export function validateCustomFieldKeyConflicts(scope, fields) {
+  if (!isProjectScope(scope) || !Array.isArray(fields) || fields.length === 0) return []
+  const presetKeys = PROJECT_LOCKED_FIELD_KEYS[scope]
+  const errors = []
+  const seen = new Set()
+  for (const field of fields) {
+    const key = field?.key
+    if (typeof key !== 'string' || !key.trim()) continue
+    if (seen.has(key)) {
+      errors.push(`字段 key 重复: ${key}`)
+      continue
+    }
+    seen.add(key)
+    if (HYBRID_PROJECT_SCOPES.includes(scope) && presetKeys.includes(key)) {
+      errors.push(`自定义字段 key 命中预置清单: ${key}`)
+    }
+  }
+  return errors
+}
+
 export function createField(key = 'field1', label = '字段', type = 'text') {
   const field = { key, label, type, required: type !== 'info' && type !== 'section' && type !== 'divider' && type !== 'info' }
   switch (type) {

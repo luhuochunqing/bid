@@ -90,12 +90,15 @@
 
 <script setup>
 import { ref } from 'vue'
-import { FIELD_TYPE_HELP_TEXT, LOCKED_FIELD_KEYS, FIXED_GROUP_KEYS, KEY_LOCKED_FIELD_KEYS } from '../workflowFormDesignerCore.js'
+import { FIELD_TYPE_HELP_TEXT, LOCKED_FIELD_KEYS, FIXED_GROUP_KEYS, KEY_LOCKED_FIELD_KEYS, PROJECT_LOCKED_FIELD_KEYS, isProjectScope } from '../workflowFormDesignerCore.js'
 
 const props = defineProps({
   fields: { type: Array, required: true },
   fieldTypes: { type: Array, required: true },
   readonly: { type: Boolean, default: false },
+  // CO-601 US2: 项目三 scope（project.basic/initiation/detail）查 PROJECT_LOCKED_FIELD_KEYS；
+  // 不传或其他 scope（tender.entry 等）走原 LOCKED_FIELD_KEYS/FIXED_GROUP_KEYS（行为零变化）
+  scope: { type: String, default: '' },
 })
 
 defineEmits(['add-field', 'delete-field', 'copy-field', 'new-template', 'normalize-field', 'get-enum-options'])
@@ -104,9 +107,19 @@ const dragIndex = ref(null)
 const dragOverIndex = ref(null)
 
 function getFieldHelp(type) { return FIELD_TYPE_HELP_TEXT[type] || '' }
-function isLocked(field) { return LOCKED_FIELD_KEYS.includes(field.key) }
-function isFixedGroup(field) { return FIXED_GROUP_KEYS.includes(field.key) }
-function isKeyLocked(field) { return KEY_LOCKED_FIELD_KEYS.includes(field.key) }
+// 项目 scope：预置字段 key+type 双锁、禁删（与 tender.entry LOCKED 同语义）；无固定分组概念
+function isLocked(field) {
+  if (isProjectScope(props.scope)) return PROJECT_LOCKED_FIELD_KEYS[props.scope].includes(field.key)
+  return LOCKED_FIELD_KEYS.includes(field.key)
+}
+function isFixedGroup(field) {
+  if (isProjectScope(props.scope)) return false
+  return FIXED_GROUP_KEYS.includes(field.key)
+}
+function isKeyLocked(field) {
+  if (isProjectScope(props.scope)) return PROJECT_LOCKED_FIELD_KEYS[props.scope].includes(field.key)
+  return KEY_LOCKED_FIELD_KEYS.includes(field.key)
+}
 
 function onDragStart(index) { dragIndex.value = index }
 function onDragOver(index) { dragOverIndex.value = index }
