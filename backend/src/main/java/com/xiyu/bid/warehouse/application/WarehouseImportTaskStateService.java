@@ -1,12 +1,12 @@
 package com.xiyu.bid.warehouse.application;
 
 import com.xiyu.bid.notification.outbound.event.NotificationCreatedEvent;
+import com.xiyu.bid.notification.outbound.service.WeComPushService;
 import com.xiyu.bid.warehouse.domain.ImportTaskStatus;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseImportTaskEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseImportTaskRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -27,7 +27,7 @@ import java.util.List;
 public class WarehouseImportTaskStateService {
 
     private final WarehouseImportTaskRepository importTaskRepo;
-    private final ApplicationEventPublisher eventPublisher;
+    private final WeComPushService weComPushService;
 
     @Transactional
     public void setStatus(Long taskId, ImportTaskStatus status) {
@@ -94,14 +94,18 @@ public class WarehouseImportTaskStateService {
             String body = String.format(
                     "成功 %d 条 | 失败 %d 条 | 关联附件 %d 个 | 未匹配附件 %d 个",
                     imported, failed, attached, unmatched);
-            eventPublisher.publishEvent(new NotificationCreatedEvent(
+            // 与 TenderReminderJob 同构：直推企微。publishEvent(notificationId=null) 无人消费（见 Export 对应注释）
+            NotificationCreatedEvent event = new NotificationCreatedEvent(
                     null,
                     List.of(task.getCreatedBy()),
                     "WAREHOUSE_IMPORT",
                     title,
+                    body,
                     "WAREHOUSE_IMPORT_TASK",
-                    task.getId()
-            ));
+                    task.getId(),
+                    null
+            );
+            weComPushService.pushForRecipient(event, task.getCreatedBy());
             log.info("仓库导入完成通知已发布: taskId={}, imported={}, failed={}, attached={}, unmatched={}",
                     task.getId(), imported, failed, attached, unmatched);
         } catch (RuntimeException e) {
