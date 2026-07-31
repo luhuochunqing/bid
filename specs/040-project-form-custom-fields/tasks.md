@@ -67,7 +67,9 @@ description: "CO-601 项目三表单自定义字段 — 任务拆解"
 - [ ] T015 [US1] 创建/详情链路编排（依赖 T004/T011/T012/T013）：`ProjectService` 创建时 `customFieldsCodec.toJson` 过滤非法 scope 键后落列；详情装配时 `fromJson` 进 DTO
 - [ ] T016 [US1] 立项链路编排（依赖 T004/T011/T012/T014）：`ProjectInitiationMapper.applyInput`/`mergeForUpdate` 按 scope 键整体替换写列；`InitiationViewDto` 装配 `fromJson`
 - [ ] T017 [US1] 创建向导接入（依赖 T005/T006）：`src/views/Project/create/composables/useProjectCreateModel.js` — `buildApiProjectPayload()` 末尾加 `customFields`（basic/detail 两 scope 分别 collect）；`loadProjectData()` 加 merge
-- [ ] T018 [US1] 立项页接入（依赖 T005/T006）：`src/views/Project/stages/useInitiationStageActions.js` — `buildPayload()` 加 `customFields` collect；`load()` 在 `Object.assign(form, data)` 后 merge
+- [ ] T017b [US1] AdaptiveFormPage 混合渲染模式（依赖 T006）：`src/components/common/AdaptiveFormPage.vue` 新增 `hybrid` + `preset-keys` props — hybrid=true 时 fallback-form 始终渲染（保留复杂交互），DynamicFormRenderer 追加渲染 `fields − presetKeys`；hybrid=false（默认）行为零变化（tender.entry 不受影响）
+  - **背景**：实施期实测确认 project.initiation/project.detail 当前 schema 为空（`{"fields":[]}`，V1078/V1082），业务页走 fallback 硬编码表单；若发布非空 schema，DynamicFormRenderer 会整体替换 fallback，保证金/客户矩阵/审批/OBS 上传等复杂交互全灭。project.basic 当前 schema 已有 8 字段（V140 种子），已走纯 schema 渲染，无需 hybrid
+- [ ] T018 [US1] 立项页接入（依赖 T005/T006/T017b）：`src/views/Project/stages/useInitiationStageActions.js` — `buildPayload()` 加 `customFields` collect；`load()` 在 `Object.assign(form, data)` 后 merge；`InitiationStage.vue` / `DetailStep.vue` 的 AdaptiveFormPage 传 `hybrid` + 对应 scope preset-keys（BasicInfoStep 维持纯 schema 渲染，不传）
 - [ ] T019 [US1] 后端门禁验证：`cd backend && mvn test -Dtest='*CustomFields*'` + `mvn test -Dtest=ArchitectureTest,FlywayRollbackScriptCoverageTest` 全绿
 
 **Checkpoint**: US1 独立可用 — quickstart.md §2 步骤 1-5 手动走通（basic 当前设计器可发布，可先绕开 US2 验证主链路）
