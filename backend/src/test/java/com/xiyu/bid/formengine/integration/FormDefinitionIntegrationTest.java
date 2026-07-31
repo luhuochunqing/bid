@@ -371,8 +371,150 @@ class FormDefinitionIntegrationTest {
                     .andExpect(jsonPath("$.success").value(true));
         }
 
+        // ---------- CO-601 US2：项目三 scope key 冲突兜底校验 ----------
+
         @Test
-        @DisplayName("Non-admin accessing admin endpoint → 403")
+        @DisplayName("PUT /api/admin/form-definitions/{id} → 400 自定义 key 撞预置清单（hybrid scope）")
+        @WithMockUser(username = "form-admin", authorities = {"ROLE_ADMIN", "system.admin"})
+        void updateDefinition_hybridPresetKeyCollision_returns400() throws Exception {
+            Long id = createDefinition("project.initiation", "{\"fields\":[{\"key\":\"internalNote\",\"label\":\"内审备注\",\"type\":\"TEXTAREA\"}]}");
+
+            mockMvc.perform(put("/api/admin/form-definitions/{id}", id)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                {
+                                  "scopeLabel": "项目立项",
+                                  "schema": {"fields":[
+                                    {"key":"projectName","label":"项目名称","type":"TEXT"},
+                                    {"key":"internalNote","label":"内审备注","type":"TEXTAREA"}
+                                  ]},
+                                  "enabled": true
+                                }
+                                """))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.msg", containsString("projectName")));
+        }
+
+        @Test
+        @DisplayName("PUT /api/admin/form-definitions/{id} → 400 自定义 key 重复")
+        @WithMockUser(username = "form-admin", authorities = {"ROLE_ADMIN", "system.admin"})
+        void updateDefinition_duplicateCustomKey_returns400() throws Exception {
+            Long id = createDefinition("project.detail", "{\"fields\":[]}");
+
+            mockMvc.perform(put("/api/admin/form-definitions/{id}", id)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                {
+                                  "scopeLabel": "项目详情",
+                                  "schema": {"fields":[
+                                    {"key":"siteNote","label":"备注A","type":"TEXT"},
+                                    {"key":"siteNote","label":"备注B","type":"TEXTAREA"}
+                                  ]},
+                                  "enabled": true
+                                }
+                                """))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.msg", containsString("siteNote")));
+        }
+
+        @Test
+        @DisplayName("PUT /api/admin/form-definitions/{id} → 200 合法自定义字段放行")
+        @WithMockUser(username = "form-admin", authorities = {"ROLE_ADMIN", "system.admin"})
+        void updateDefinition_validCustomFields_ok() throws Exception {
+            Long id = createDefinition("project.initiation", "{\"fields\":[]}");
+
+            mockMvc.perform(put("/api/admin/form-definitions/{id}", id)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                {
+                                  "scopeLabel": "项目立项",
+                                  "schema": {"fields":[
+                                    {"key":"internalReviewNote","label":"内审备注","type":"TEXTAREA"},
+                                    {"key":"legalSignOff","label":"法会签","type":"SELECT"}
+                                  ]},
+                                  "enabled": true
+                                }
+                                """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data.scope").value("project.initiation"));
+        }
+
+        @Test
+        @DisplayName("PUT project.basic 含预置字段的老 schema 重保存 → 200 不误杀（纯 schema 渲染形态）")
+        @WithMockUser(username = "form-admin", authorities = {"ROLE_ADMIN", "system.admin"})
+        void updateDefinition_basicPresetFieldsPresent_ok() throws Exception {
+            FormDefinitionRegistryEntity basic = formDefinitionRepository.findAll().stream()
+                    .filter(d -> "project.basic".equals(d.getScope()))
+                    .findFirst().orElseThrow();
+
+            mockMvc.perform(put("/api/admin/form-definitions/{id}", basic.getId())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                {
+                                  "scopeLabel": "项目基本信息",
+                                  "schema": {"fields":[
+                                    {"key":"name","label":"项目名称","type":"TEXT","required":true},
+                                    {"key":"customer","label":"客户","type":"TEXT"},
+                                    {"key":"budget","label":"预算","type":"NUMBER"},
+                                    {"key":"industry","label":"行业","type":"TEXT"},
+                                    {"key":"region","label":"地区","type":"TEXT"},
+                                    {"key":"platform","label":"平台","type":"TEXT"},
+                                    {"key":"deadline","label":"截止时间","type":"DATE"},
+                                    {"key":"manager","label":"经理","type":"TEXT"},
+                                    {"key":"competitors","label":"竞争对手","type":"TEXT"},
+                                    {"key":"budgetLevel","label":"客户预算等级","type":"TEXT"}
+                                  ]},
+                                  "enabled": true
+                                }
+                                """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true));
+        }
+
+        @Test
+        @DisplayName("POST /api/admin/form-definitions/{id}/publish → 400 存量 schema 撞预置清单")
+        @WithMockUser(username = "form-admin", authorities = {"ROLE_ADMIN", "system.admin"})
+        void publishDefinition_existingSchemaCollision_returns400() throws Exception {
+            // 直接写库模拟"策略上线前已存在的脏 schema"（绕过 update 校验）
+            FormDefinitionRegistryEntity dirty = new FormDefinitionRegistryEntity();
+            dirty.setScope("project.detail");
+            dirty.setScopeLabel("项目详情");
+            dirty.setVersion(1);
+            dirty.setSchemaJson("{\"fields\":[{\"key\":\"description\",\"label\":\"项目描述\",\"type\":\"TEXTAREA\"}]}");
+            dirty.setEnabled(true);
+            dirty.setOrgId(null);
+            dirty.setCreatedBy("system");
+            dirty.setCreatedAt(java.time.LocalDateTime.now());
+            dirty.setUpdatedAt(java.time.LocalDateTime.now());
+            formDefinitionRepository.save(dirty);
+
+            mockMvc.perform(post("/api/admin/form-definitions/{id}/publish", dirty.getId()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.success").value(false))
+                    .andExpect(jsonPath("$.msg", containsString("description")));
+        }
+
+        private Long createDefinition(String scope, String schemaJson) throws Exception {
+            MvcResult result = mockMvc.perform(post("/api/admin/form-definitions")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                {
+                                  "scope": "%s",
+                                  "scopeLabel": "CO-601 测试",
+                                  "schema": %s,
+                                  "enabled": true
+                                }
+                                """.formatted(scope, schemaJson)))
+                    .andExpect(status().isCreated())
+                    .andReturn();
+            return objectMapper.readTree(result.getResponse().getContentAsString()).at("/data/id").asLong();
+        }
+
+        @Test
+        @DisplayName("非管理员访问管理端点 → 403")
         @WithMockUser(username = "regular-user", roles = {"MANAGER"})
         void nonAdmin_forbidden() throws Exception {
             mockMvc.perform(get("/api/admin/form-definitions"))
