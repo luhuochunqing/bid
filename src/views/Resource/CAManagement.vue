@@ -363,6 +363,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { Search, Refresh, Plus, Upload, Download } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
@@ -384,6 +385,7 @@ import CAImportDialog from './components/CAImportDialog.vue'
 
 const userStore = useUserStore()
 const caStore = useCaStore()
+const route = useRoute()
 
 const { canBorrow, canManage, canReturn } = useCaBorrowEligibility()
 
@@ -884,9 +886,17 @@ function formatDateForFilename() {
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}${pad(d.getHours())}${pad(d.getMinutes())}`
 }
 
-onMounted(() => {
-  loadData()
+onMounted(async () => {
+  await loadData()
   loadProjects()
+  // 企微通知点击跳转：URL 携带 caId 时自动打开对应 CA 的详情弹窗
+  const caId = Number(route.query.caId)
+  if (Number.isFinite(caId) && caId > 0) {
+    const target = caStore.certificates.find(c => c.id === caId)
+    if (target && isManagerView.value && userStore.userRole !== 'bid-projectLeader') {
+      handleView(target)
+    }
+  }
 })
 </script>
 

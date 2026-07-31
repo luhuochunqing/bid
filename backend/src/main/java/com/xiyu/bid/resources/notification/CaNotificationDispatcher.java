@@ -64,7 +64,8 @@ public class CaNotificationDispatcher {
                             "caCertificateId", cert.getId(),
                             "applicationId", app.getId(),
                             "applicantId", app.getApplicantId(),
-                            "borrowDurationType", app.getBorrowDurationType()));
+                            "borrowDurationType", app.getBorrowDurationType(),
+                            "targetUrl", "/resource/ca-management?caId=" + cert.getId()));
         } catch (RuntimeException ex) {
             log.warn("CA notification onBorrowSubmitted failed: {}", ex.getMessage());
             TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
@@ -91,7 +92,8 @@ public class CaNotificationDispatcher {
                     "CA_CERTIFICATE", cert.getId(), Map.of(
                             "caCertificateId", cert.getId(),
                             "expiryDate", String.valueOf(cert.getExpiryDate()),
-                            "daysLeft", daysLeft));
+                            "daysLeft", daysLeft,
+                            "targetUrl", "/resource/ca-management?caId=" + cert.getId()));
         } catch (RuntimeException ex) {
             log.warn("CA notification onExpiring failed: {}", ex.getMessage());
             TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
@@ -117,7 +119,8 @@ public class CaNotificationDispatcher {
                             cert.getExpiryDate()),
                     "CA_CERTIFICATE", cert.getId(), Map.of(
                             "caCertificateId", cert.getId(),
-                            "expiryDate", String.valueOf(cert.getExpiryDate())));
+                            "expiryDate", String.valueOf(cert.getExpiryDate()),
+                            "targetUrl", "/resource/ca-management?caId=" + cert.getId()));
         } catch (RuntimeException ex) {
             log.warn("CA notification onExpired failed: {}", ex.getMessage());
             TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
@@ -143,7 +146,8 @@ public class CaNotificationDispatcher {
                             app.getProjectName(), relatedPlatforms, caTypeLabel),
                     "CA_CERTIFICATE", app.getCaCertificateId(), Map.of(
                             "caCertificateId", app.getCaCertificateId(),
-                            "applicationId", app.getId()));
+                            "applicationId", app.getId(),
+                            "targetUrl", "/resource/ca-management?caId=" + app.getCaCertificateId()));
         } catch (RuntimeException ex) {
             log.warn("CA notification onBorrowApproved failed: {}", ex.getMessage());
             TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();

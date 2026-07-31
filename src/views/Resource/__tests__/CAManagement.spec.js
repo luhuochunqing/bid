@@ -7,6 +7,15 @@ import { describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useUserStore } from '@/stores/user'
 
+// Partial mock vue-router：只替换 useRoute，保留 createRouter/createWebHistory 等供 api/client.js 使用
+vi.mock('vue-router', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    useRoute: () => ({ query: {} })
+  }
+})
+
 // Use vi.hoisted() so mock factories can reference the data at hoist time
 const { mockCertificates, mockOverview } = vi.hoisted(() => ({
   mockCertificates: [

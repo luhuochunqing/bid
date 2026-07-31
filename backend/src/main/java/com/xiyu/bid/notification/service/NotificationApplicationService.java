@@ -143,6 +143,7 @@ public class NotificationApplicationService {
             List.copyOf(request.recipientUserIds()),
             saved.getType(),
             saved.getTitle(),
+            saved.getBody(),
             saved.getSourceEntityType(),
             saved.getSourceEntityId(),
             extractTargetUrl(request.payload())
