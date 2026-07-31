@@ -6695,4 +6695,139 @@ curl -s http://${TARGET_HOST}:8080/ | grep -oE 'assets/index-[A-Za-z0-9_-]+\.js'
 - engineering-discipline.md 第一章根因 1/2/3/4/7（本次同时命中五大根因）
 - xiyu-server-deploy skill：部署 SOP 需补充"部署版本验证"步骤
 
+---
+
+## 91. 表单引擎 hybrid 渲染模式：fallback 硬编码表单与动态 schema 共存（CO-601）
+
+### 问题背景
+
+CO-601 为 `project.initiation` / `project.detail` 引入自定义字段时，实测发现这两个 scope 的 schema 当前为空（`{"fields":[]}`，V1078/V1082），业务页走 fallback 硬编码表单（含保证金、客户矩阵、审批、OBS 上传等复杂交互）。若直接发布非空 schema，`DynamicFormRenderer` 会整体替换 fallback，导致所有复杂交互全灭。同时 `project.basic` 当前 schema 已有 8 字段（V140 种子），已走纯 schema 渲染，不需要 fallback。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 业务页 fallback 表单含复杂交互，动态 schema 整体替换会灭功能 | 引入 hybrid 渲染模式：hybrid=true 时 fallback 始终渲染 + 动态 schema 追加渲染 `fields − presetKeys`；hybrid=false（默认）行为零变化 | 业务页改造表单引擎时，先核查现有 schema 是否为空、业务页是否走 fallback；只要走 fallback 就用 hybrid，避免动态 schema 整体替换灭掉复杂交互 |
+| scope 维度锁定预置字段 vs 整表只读 | 预置字段按 scope 锁定（key/type 禁用、删除按钮隐藏），自定义字段全可用；从"整表只读"解禁为"预置锁定 + 自定义可增" | 不要用整表只读保护预置字段，应按 scope 维度精细化锁定，允许自定义字段扩展 |
+| 前后端校验分散 | 前端纯函数 + 后端 Policy 兜底，语义一致；注释双向互指（前端清单注明"后端 Policy 内嵌同一清单，改动必须双向同步"） | 涉及预置字段清单的改动必须前后端双向同步，注释互指；前端纯函数负责 UX 阻断，后端 Policy 兜底防护 |
+
+### 操作规范
+
+1. 引入新 scope 到表单引擎时，必须核查现有 schema 是否为空、业务页是否走 fallback；走 fallback 的 scope 必须用 `hybrid=true` + `preset-keys` props，禁止让动态 schema 整体替换 fallback
+2. `AdaptiveFormPage.vue` 的 `hybrid` 默认为 false（行为零变化），仅在需要 fallback + 动态 schema 共存的 scope 显式传 true（当前仅 `project.initiation` / `project.detail`，`project.basic` 走纯 schema 不需要）
+3. 预置字段清单（如 `PROJECT_LOCKED_FIELD_KEYS`）前后端各内嵌一份，注释互指，禁止单边改动
+
+### 相关文档
+
+- `specs/040-project-form-custom-fields/plan.md` §hybrid 渲染模式
+- `src/components/common/AdaptiveFormPage.vue` hybrid + preset-keys props
+- `src/views/System/workflow-form-designer/workflowFormDesignerCore.js` PROJECT_LOCKED_FIELD_KEYS
+- `backend/src/main/java/com/xiyu/bid/formengine/domain/CustomFieldsSchemaPolicy.java` 后端兜底校验
+
+---
+
+## 92. H2 JSON 列双重编码：测试环境 readTree textual 二次解析兜底（CO-601）
+
+### 问题背景
+
+CO-601 后端 `FormDefinitionAdminService.parseSchema` 在 H2 测试环境读取 JSON 列时返回字符串包裹的 JSON（`"\"{\\\"fields\\\":[]}"`），直接 `objectMapper.readTree(schemaJson)` 解析失败降级跳过校验。生产 MySQL 不存在此问题（直接返回 JSON 对象）。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| H2 JSON 列读取返回字符串包裹 JSON | H2 测试环境与生产 MySQL 的 JSON 列读取行为不一致，H2 可能返回 textual 节点 | 解析 DB JSON 列时必须用 `readTree` 检测 `isTextual()`，对 textual 节点二次 `readTree(node.asText())` 解析 |
+| 校验降级跳过导致防线失效 | parseSchema 失败时直接返回 null 跳过校验，后端兜底防线失效 | 解析失败必须 `log.warn` 记录，不得静默吞异常；同时保证主流程不阻断 |
+
+### 操作规范
+
+1. 解析 DB JSON 列的代码必须参考 `FormSchemaParser` / `FormDefinitionAdminService.parseSchema` 的二次解析兜底模式：
+
+```java
+JsonNode node = objectMapper.readTree(schemaJson);
+if (node.isTextual()) {
+    // H2 JSON 列读取可能返回字符串包裹的 JSON（与 FormSchemaParser 同一兜底）
+    node = objectMapper.readTree(node.asText());
+}
+```
+
+2. 校验逻辑失败时必须 `log.warn` 记录原始 JSON 片段与异常 message，不得静默返回 null 跳过
+
+### 相关文档
+
+- `backend/src/main/java/com/xiyu/bid/formengine/application/FormDefinitionAdminService.java` parseSchema 方法
+- `backend/src/main/java/com/xiyu/bid/formengine/parser/FormSchemaParser.java` 同一兜底模式参考
+
+---
+
+## 93. 自定义字段 scope 键整体替换语义：保留非当前 scope 键（CO-601）
+
+### 问题背景
+
+CO-601 设计自定义字段持久化时，需要支持"删除字段后历史值保留"（US3）。如果 merge 逻辑整列覆盖，删 schema 字段会误删其他 scope 的历史值。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 多 scope 共享一列 JSON | `projects.custom_fields` 单列存储所有 scope 的自定义字段，merge 时必须按 scope 键整体替换，保留非当前 scope 键 | `CustomFieldsCodec.replaceScope` 实现"保留非当前 scope 键 + 当前 scope 键整体替换"语义 |
+| 删 schema 字段误删 DB 历史值 | 删 schema 字段仅 UPDATE `form_definition_registry`，不触碰 `projects.custom_fields`；merge 时按 scope 整体替换，不动其他 scope 键 | 删字段后历史值保留在 DB，新表单不渲染；类型变更后历史值按文本兜底展示（el-select 原生支持） |
+
+### 操作规范
+
+1. 多 scope 共享一列 JSON 时，merge 逻辑必须按 scope 键整体替换，禁止整列覆盖
+2. 删 schema 字段操作不得触碰业务数据列（`projects.custom_fields` / `project_initiation_details.custom_fields`），仅更新 `form_definition_registry`
+3. 类型变更（如文本改下拉）后，前端 DynamicFormRenderer 必须支持失配存量值的文本兜底渲染（el-select 原生支持，无需额外代码）
+
+### 相关文档
+
+- `backend/src/main/java/com/xiyu/bid/project/service/CustomFieldsCodec.java` replaceScope 方法
+- `specs/040-project-form-custom-fields/contracts/project-custom-fields-api.md` §scope 键整体替换语义
+
+---
+
+## 94. 任务分支 rebase 到 origin/main 避免 base 漂移导致 PR 反向 diff（CO-601）
+
+### 问题背景
+
+CO-601 spec 阶段推送 3 个 spec commit 到远端任务分支后，本地继续开发 10 个实现 commit。spec commit 基于旧 main（不含 PR !2231）。直接 push 11 个 commit 后发现 PR diff 显示"删除 PR !2231 的 CAManagement.vue 等改动"——base 漂移导致 PR 显示反向 diff，合入会回退 PR !2231 的修复。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 任务分支 base 是旧 main，PR diff 包含反向 diff | 任务分支长期开发期间，main 可能合入其他 PR，base 漂移导致 PR 显示"删除已合入 main 的改动" | 推送前必须 rebase 到 origin/main，确保 base 包含最新 main；用 `git diff origin/main..HEAD -- <已合入文件>` 验证是否出现反向 diff |
+| rebase 后与远端任务分支分叉，普通 push 被拒绝 | rebase 改写 commit hash，远端任务分支基于旧 base，需要 `--force-with-lease` 更新 | agent WIP 任务分支的 rebase 是常规操作，用 `--force-with-lease` 推送（安全：仅在远端 HEAD 与本地预期一致时才推送） |
+
+### 操作规范
+
+1. 推送任务分支前，先核查 base 是否包含最新 main：
+
+```bash
+# 检查 base 与 origin/main 的关系
+git merge-base HEAD origin/main
+git rev-list --count $(git merge-base HEAD origin/main)..origin/main
+# 若 origin/main 领先 base，必须 rebase
+git rebase origin/main
+```
+
+2. 验证 PR diff 不含反向 diff（已合入 main 的文件不应出现）：
+
+```bash
+# 检查已知合入 main 的关键文件是否在 diff 中
+git diff origin/main..HEAD -- <已知合入 main 的文件路径>
+# 期望：无输出（已合入 main 的文件不在 diff 中）
+```
+
+3. rebase 后远端任务分支分叉，用 `--force-with-lease` 推送：
+
+```bash
+git push --force-with-lease origin HEAD:<任务分支>
+```
+
+### 相关文档
+
+- `CLAUDE.md` §Git Safety Protocol（force push 需用户显式同意）
+- 本次 CO-601 推送实例：base 漂移 → rebase origin/main → force-with-lease 推送
+
 
