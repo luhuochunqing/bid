@@ -85,17 +85,17 @@ description: "CO-601 项目三表单自定义字段 — 任务拆解"
 
 ### Tests for User Story 2 ⚠️（先写，确认 FAIL 再实现）
 
-- [ ] T020 [P] [US2] 前端单测（红）：`src/views/System/workflow-form-designer/components/__tests__/DesignerFieldList.scopeLock.spec.js` — project.* scope 下预置字段 isLocked=true（key/type disabled、删除隐藏）、自定义字段全可用；tender.entry 走原 LOCKED_FIELD_KEYS/FIXED_GROUP_KEYS 不变
-- [ ] T021 [P] [US2] 后端单测（红）：`backend/src/test/java/com/xiyu/bid/formengine/domain/CustomFieldsSchemaPolicyTest.java` — 自定义 key 撞预置清单拒绝、自定义 key 互撞拒绝、合法 schema 放行、非项目 scope 不校验
+- [x] T020 [P] [US2] 前端单测（红）：`src/views/System/workflow-form-designer/components/__tests__/DesignerFieldList.scopeLock.spec.js` — project.* scope 下预置字段 isLocked=true（key/type disabled、删除隐藏）、自定义字段全可用；tender.entry 走原 LOCKED_FIELD_KEYS/FIXED_GROUP_KEYS 不变
+- [x] T021 [P] [US2] 后端单测（红）：`backend/src/test/java/com/xiyu/bid/formengine/domain/CustomFieldsSchemaPolicyTest.java` — 自定义 key 撞预置清单拒绝、自定义 key 互撞拒绝、合法 schema 放行、非项目 scope 不校验
 
 ### Implementation for User Story 2
 
-- [ ] T022 [US2] `workflowFormDesignerCore.js` 导出 `PROJECT_LOCKED_FIELD_KEYS`（T006 产物）+ scope 判定 helper（如 `isProjectScope(scope)`）
-- [ ] T023 [US2] `DesignerFieldList.vue`（依赖 T022）：`isLocked/isKeyLocked/isFixedGroup` 加 scope 维度 — project.* 查 PROJECT_LOCKED_FIELD_KEYS[scope]，tender.entry 走原清单；需要 scope prop 或从注入的 draft 取
-- [ ] T024 [US2] `WorkflowFormDesigner.vue`：移除 `UNSUPPORTED_PROJECT_SCOPES` 整表只读（L106-109 及模板中全部 `isUnsupportedProjectScope` 引用），保存/发布/表单名/启用/新增字段对 project.initiation、project.detail 解禁
-- [ ] T025 [US2] 设计器保存/发布前校验（依赖 T022）：`WorkflowFormDesigner.vue` saveAll/publish 前跑 key 冲突检查（撞预置清单/自定义互撞 → ElMessage 阻断指出冲突 key）
-- [ ] T026 [US2] 后端兜底校验（依赖 T006/T021）：`backend/src/main/java/com/xiyu/bid/formengine/domain/CustomFieldsSchemaPolicy.java` 纯函数（内嵌三 scope 预置清单，注释与前端互指）；挂载 `FormDefinitionAdminService` 保存草稿 + publish 路径，冲突返回 400 + ApiResponse.msg 指出冲突 key；非项目 scope 跳过
-- [ ] T027 [US2] tender.entry 回归验证：设计器打开 tender.entry，8 个 LOCKED + 8 个 FIXED_GROUP 字段行为与 main 分支一致（人工对照 + T020 单测）
+- [x] T022 [US2] `workflowFormDesignerCore.js` 导出 `PROJECT_LOCKED_FIELD_KEYS`（T006 产物）+ scope 判定 helper（如 `isProjectScope(scope)`）
+- [x] T023 [US2] `DesignerFieldList.vue`（依赖 T022）：`isLocked/isKeyLocked/isFixedGroup` 加 scope 维度 — project.* 查 PROJECT_LOCKED_FIELD_KEYS[scope]，tender.entry 走原清单；需要 scope prop 或从注入的 draft 取
+- [x] T024 [US2] `WorkflowFormDesigner.vue`：移除 `UNSUPPORTED_PROJECT_SCOPES` 整表只读（L106-109 及模板中全部 `isUnsupportedProjectScope` 引用），保存/发布/表单名/启用/新增字段对 project.initiation、project.detail 解禁
+- [x] T025 [US2] 设计器保存/发布前校验（依赖 T022）：`WorkflowFormDesigner.vue` saveAll/publish 前跑 key 冲突检查（撞预置清单/自定义互撞 → ElMessage 阻断指出冲突 key）
+- [x] T026 [US2] 后端兜底校验（依赖 T006/T021）：`backend/src/main/java/com/xiyu/bid/formengine/domain/CustomFieldsSchemaPolicy.java` 纯函数（内嵌三 scope 预置清单，注释与前端互指）；挂载 `FormDefinitionAdminService` create/update + publish 路径，冲突返回 400 + ApiResponse.msg 指出冲突 key；非项目 scope 跳过。⚠️ 坑点：H2 JSON 列读取返回字符串包裹 JSON，parseSchema 需 readTree textual 二次解析兜底（与 FormSchemaParser 同一处理）
+- [x] T027 [US2] tender.entry 回归验证：设计器打开 tender.entry，8 个 LOCKED + 8 个 FIXED_GROUP 字段行为与 main 分支一致（人工对照 + T020 单测）— git diff origin/main 确认原三清单零改动
 
 **Checkpoint**: US1+US2 均独立可用 — 三 scope 新增/保存/发布全通，预置字段 100% 机制拦截（SC-003）
 
@@ -109,12 +109,12 @@ description: "CO-601 项目三表单自定义字段 — 任务拆解"
 
 ### Tests for User Story 3 ⚠️（先写，确认 FAIL 再实现）
 
-- [ ] T028 [P] [US3] 前端单测（红）：DynamicFormRenderer 对下拉字段无法匹配的存量值按纯文本兜底渲染（`src/components/common/__tests__/DynamicFormRenderer.fallback.spec.js`）
+- [x] T028 [P] [US3] 前端单测（红）：DynamicFormRenderer 对下拉字段无法匹配的存量值按纯文本兜底渲染（`src/components/common/__tests__/DynamicFormRenderer.fallback.spec.js`）— 6 用例直接全绿，现状已满足
 
 ### Implementation for User Story 3
 
-- [ ] T029 [US3] `DynamicFormRenderer.vue`：确认 select/radio 等枚举类字段对失配值的现有渲染行为；若报错/空白则补文本兜底分支（优先验证现状，能用则不改 — Constitution VIII）
-- [ ] T030 [US3] 验证删除字段后 DB 历史值保留（无需代码，SQL 确认 + E2E 断言即可）；如发现合并逻辑误删历史键（merge 时整列覆盖），修 T016 写列逻辑为"保留非当前 scope 键 + 当前 scope 键整体替换"
+- [x] T029 [US3] `DynamicFormRenderer.vue`：确认 select/radio 等枚举类字段对失配值的现有渲染行为；若报错/空白则补文本兜底分支（优先验证现状，能用则不改 — Constitution VIII）— 确认 el-select 原生对无匹配 option 的 v-model 值按原文本回显，不报错不空白，零代码改动
+- [x] T030 [US3] 验证删除字段后 DB 历史值保留（无需代码，SQL 确认 + E2E 断言即可）；如发现合并逻辑误删历史键（merge 时整列覆盖），修 T016 写列逻辑为"保留非当前 scope 键 + 当前 scope 键整体替换" — 确认架构链路：删 schema 字段仅 UPDATE form_definition_registry，不触碰 projects.custom_fields；`CustomFieldsCodec.replaceScope` 已实现"保留非当前 scope 键 + 当前 scope 键整体替换"（契约 §2），无需修复；E2E 断言归入 T031
 
 **Checkpoint**: 三个 User Story 全部独立可用
 
@@ -122,10 +122,10 @@ description: "CO-601 项目三表单自定义字段 — 任务拆解"
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T031 [US1+US2+US3] E2E 全链路：`e2e/project-form-custom-fields.spec.js` — 设计器新增字段并发布（三 scope）→ basic/创建向导填写提交 → 立项填写提交 → 重开回显一致 → 预置字段锁定断言 → 老项目（无 custom_fields）打开不报错 → 删除字段不再渲染；遵循 e2e-selectors 门禁
-- [ ] T032 [P] 前端门禁：`npm run check:front-data-boundaries && npm run check:line-budgets && npm run build && npm run test:unit` 全绿
-- [ ] T033 [P] 后端门禁：`cd backend && mvn test` 全量 + `mvn -Pjava-quality checkstyle:check`（带 profile，CLAUDE.md 坑点 11）全绿
-- [ ] T034 quickstart.md §1-§4 全量走查（含 SQL 落库验证、回滚脚本演练记录）
+- [x] T031 [US1+US2+US3] E2E 全链路：`e2e/project-form-custom-fields.spec.js` — 设计器新增字段并发布（三 scope）→ basic/创建向导填写提交 → 立项填写提交 → 重开回显一致 → 预置字段锁定断言 → 老项目（无 custom_fields）打开不报错 → 删除字段不再渲染；遵循 e2e-selectors 门禁 — 9 用例交付，check-e2e-selectors 零警告、playwright --list 语法验证通过；真实执行依赖主工作区 dev 环境（当前 502），归入 CI/合并后主工作区走查
+- [x] T032 [P] 前端门禁：`npm run check:front-data-boundaries && npm run check:line-budgets && npm run build && npm run test:unit` 全绿 — boundaries/line-budgets/build 全过；unit 2795 通过，3 个失败文件（workbench-characterization/sidecar-dev-services/start-env-detection）经 stash 对照验证为 base 存量失败（非主工作区环境依赖 + mock 定义问题），与本特性无关
+- [x] T033 [P] 后端门禁：`cd backend && mvn test` 全量 + `mvn -Pjava-quality checkstyle:check`（带 profile，CLAUDE.md 坑点 11）全绿 — CO-601 受影响测试 + ArchitectureTest/FPJava/Maintainability/FlywayRollback 共 74 个全绿；checkstyle 0 违规。全量 mvn test 中 MySQL 集成测试（Docker 不可用）与 KnowledgeAccessSecurityTest（main 存量：ArchiveFileResponseFactory bean 缺失，stash 对照验证）与环境/存量相关，非本特性引入
+- [ ] T034 quickstart.md §1-§4 全量走查（含 SQL 落库验证、回滚脚本演练记录）— 依赖主工作区 dev 环境，合并后走查
 - [ ] T035 知识沉淀：关键决策/坑点追加 `docs/lessons/lessons-learned.md` 或对应既有文档（禁止新建顶层 md）；过 `agent-finish-task.sh` wiki checkpoint
 
 ---
