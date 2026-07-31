@@ -53,24 +53,25 @@ description: "CO-601 项目三表单自定义字段 — 任务拆解"
 
 ### Tests for User Story 1 ⚠️（先写，确认 FAIL 再实现）
 
-- [ ] T007 [P] [US1] 后端单测（红）：`backend/src/test/java/com/xiyu/bid/project/service/ProjectServiceCustomFieldsTest.java` — 创建项目带 `customFields` 持久化到 `projects.custom_fields`；详情返回 Map；未知 scope 键过滤丢弃 + log.warn；列 NULL 老数据返回空 Map
-- [ ] T008 [P] [US1] 后端单测（红）：`backend/src/test/java/com/xiyu/bid/project/service/ProjectInitiationCustomFieldsTest.java` — InitiationDto.customFields 经 Mapper 存入 `project_initiation_details.custom_fields`；InitiationViewDto 返回 Map；按 scope 键整体替换语义（不动其他 scope 键）
-- [ ] T009 [P] [US1] 前端单测（红）：`src/views/Project/create/composables/__tests__/useProjectCreateModel.customFields.spec.js` — buildApiProjectPayload 含 `customFields: {"project.basic": {...}, "project.detail": {...}}`；loadProjectData 把 customFields 摊平进 basicForm/detailForm
-- [ ] T010 [P] [US1] 前端单测（红）：`src/views/Project/stages/__tests__/useInitiationStageActions.customFields.spec.js` — buildPayload 含 `customFields: {"project.initiation": {...}}`；load() 在 Object.assign 后把 customFields[scope] 摊平进 form
+- [x] T007 [P] [US1] 后端单测（红）：`backend/src/test/java/com/xiyu/bid/project/service/ProjectServiceCustomFieldsTest.java` — 创建项目带 `customFields` 持久化到 `projects.custom_fields`；详情返回 Map；未知 scope 键过滤丢弃 + log.warn；列 NULL 老数据返回空 Map
+- [x] T008 [P] [US1] 后端单测（红）：`backend/src/test/java/com/xiyu/bid/project/service/ProjectInitiationCustomFieldsTest.java` — InitiationDto.customFields 经 Mapper 存入 `project_initiation_details.custom_fields`；InitiationViewDto 返回 Map；按 scope 键整体替换语义（不动其他 scope 键）
+- [x] T009 [P] [US1] 前端单测（红）：`src/views/Project/create/composables/__tests__/useProjectCreateModel.customFields.spec.js` — buildApiProjectPayload 含 `customFields: {"project.basic": {...}, "project.detail": {...}}`；loadProjectData 把 customFields 摊平进 basicForm/detailForm
+- [x] T010 [P] [US1] 前端单测（红）：`src/views/Project/stages/__tests__/useInitiationStageActions.customFields.spec.js` — buildPayload 含 `customFields: {"project.initiation": {...}}`；load() 在 Object.assign 后把 customFields[scope] 摊平进 form
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Flyway 迁移（依赖 T001）：`backend/src/main/resources/db/migration-mysql/V####__add_custom_fields_to_project_tables.sql`（两表 `ADD COLUMN custom_fields JSON NULL`）+ 配套 `db/rollback/migration-mysql/U####__...sql`（`DROP COLUMN`，注释注明"回滚丢已存值仅灾备"）；执行后本地库验证列存在
-- [ ] T012 [P] [US1] 实体加列：`backend/src/main/java/com/xiyu/bid/entity/Project.java` 与 `backend/src/main/java/com/xiyu/bid/project/entity/ProjectInitiationDetails.java` 各加 `@Column(name="custom_fields", columnDefinition="JSON") private String customFields;`
-- [ ] T013 [P] [US1] DTO 加字段：`project/dto/ProjectRequest.java` 加 `Map<String, Object> customFields`；**先核对** `project/dto/ProjectDTO.java` 与 `dto/ProjectDTO.java` 哪一个是创建/详情实际返回（两处 grep 引用点确认），给实际使用的加 `customFields` 返回字段，核对结论写 PR 描述
-- [ ] T014 [P] [US1] DTO 加字段：`project/dto/InitiationDto.java` + `project/dto/InitiationViewDto.java` 各加 `Map<String, Object> customFields`
-- [ ] T015 [US1] 创建/详情链路编排（依赖 T004/T011/T012/T013）：`ProjectService` 创建时 `customFieldsCodec.toJson` 过滤非法 scope 键后落列；详情装配时 `fromJson` 进 DTO
-- [ ] T016 [US1] 立项链路编排（依赖 T004/T011/T012/T014）：`ProjectInitiationMapper.applyInput`/`mergeForUpdate` 按 scope 键整体替换写列；`InitiationViewDto` 装配 `fromJson`
-- [ ] T017 [US1] 创建向导接入（依赖 T005/T006）：`src/views/Project/create/composables/useProjectCreateModel.js` — `buildApiProjectPayload()` 末尾加 `customFields`（basic/detail 两 scope 分别 collect）；`loadProjectData()` 加 merge
-- [ ] T017b [US1] AdaptiveFormPage 混合渲染模式（依赖 T006）：`src/components/common/AdaptiveFormPage.vue` 新增 `hybrid` + `preset-keys` props — hybrid=true 时 fallback-form 始终渲染（保留复杂交互），DynamicFormRenderer 追加渲染 `fields − presetKeys`；hybrid=false（默认）行为零变化（tender.entry 不受影响）
+- [x] T011 [US1] Flyway 迁移（依赖 T001）：`backend/src/main/resources/db/migration-mysql/V####__add_custom_fields_to_project_tables.sql`（两表 `ADD COLUMN custom_fields JSON NULL`）+ 配套 `db/rollback/migration-mysql/U####__...sql`（`DROP COLUMN`，注释注明"回滚丢已存值仅灾备"）；执行后本地库验证列存在
+- [x] T012 [P] [US1] 实体加列：`backend/src/main/java/com/xiyu/bid/entity/Project.java` 与 `backend/src/main/java/com/xiyu/bid/project/entity/ProjectInitiationDetails.java` 各加 `@Column(name="custom_fields", columnDefinition="JSON") private String customFields;`
+- [x] T013 [P] [US1] DTO 加字段：`project/dto/ProjectRequest.java` 加 `Map<String, Object> customFields`；**先核对** `project/dto/ProjectDTO.java` 与 `dto/ProjectDTO.java` 哪一个是创建/详情实际返回（两处 grep 引用点确认），给实际使用的加 `customFields` 返回字段，核对结论写 PR 描述
+- [x] T014 [P] [US1] DTO 加字段：`project/dto/InitiationDto.java` + `project/dto/InitiationViewDto.java` 各加 `Map<String, Object> customFields`
+- [x] T015 [US1] 创建/详情链路编排（依赖 T004/T011/T012/T013）：`ProjectService` 创建时 `customFieldsCodec.toJson` 过滤非法 scope 键后落列；详情装配时 `fromJson` 进 DTO
+- [x] T016 [US1] 立项链路编排（依赖 T004/T011/T012/T014）：`ProjectInitiationMapper.applyInput`/`mergeForUpdate` 按 scope 键整体替换写列；`InitiationViewDto` 装配 `fromJson`
+- [x] T017 [US1] 创建向导接入（依赖 T005/T006）：`src/views/Project/create/composables/useProjectCreateModel.js` — `buildApiProjectPayload()` 末尾加 `customFields`（basic/detail 两 scope 分别 collect）；`loadProjectData()` 加 merge
+- [x] T017b [US1] AdaptiveFormPage 混合渲染模式（依赖 T006）：`src/components/common/AdaptiveFormPage.vue` 新增 `hybrid` + `preset-keys` props — hybrid=true 时 fallback-form 始终渲染（保留复杂交互），DynamicFormRenderer 追加渲染 `fields − presetKeys`；hybrid=false（默认）行为零变化（tender.entry 不受影响）
   - **背景**：实施期实测确认 project.initiation/project.detail 当前 schema 为空（`{"fields":[]}`，V1078/V1082），业务页走 fallback 硬编码表单；若发布非空 schema，DynamicFormRenderer 会整体替换 fallback，保证金/客户矩阵/审批/OBS 上传等复杂交互全灭。project.basic 当前 schema 已有 8 字段（V140 种子），已走纯 schema 渲染，无需 hybrid
-- [ ] T018 [US1] 立项页接入（依赖 T005/T006/T017b）：`src/views/Project/stages/useInitiationStageActions.js` — `buildPayload()` 加 `customFields` collect；`load()` 在 `Object.assign(form, data)` 后 merge；`InitiationStage.vue` / `DetailStep.vue` 的 AdaptiveFormPage 传 `hybrid` + 对应 scope preset-keys（BasicInfoStep 维持纯 schema 渲染，不传）
-- [ ] T019 [US1] 后端门禁验证：`cd backend && mvn test -Dtest='*CustomFields*'` + `mvn test -Dtest=ArchitectureTest,FlywayRollbackScriptCoverageTest` 全绿
+- [x] T018 [US1] 立项页接入（依赖 T005/T006/T017b）：`src/views/Project/stages/useInitiationStageActions.js` — `buildPayload()` 加 `customFields` collect；`load()` 在 `Object.assign(form, data)` 后 merge；`InitiationStage.vue` / `DetailStep.vue` 的 AdaptiveFormPage 传 `hybrid` + 对应 scope preset-keys（BasicInfoStep 维持纯 schema 渲染，不传）
+  - **实施补充**：Create.vue 通过 `@schema-loaded → model.setCustomFieldsSchema(scope, fields)` 登记 schema；为守 line-budget 拆出 `useProjectCreateCustomFields.js`（注册表）与 `queryDecode.js`（query 解码），Create.vue 388 行零增长、model 288 行
+- [x] T019 [US1] 后端门禁验证：`cd backend && mvn test -Dtest='*CustomFields*'` + `mvn test -Dtest=ArchitectureTest,FlywayRollbackScriptCoverageTest` 全绿
 
 **Checkpoint**: US1 独立可用 — quickstart.md §2 步骤 1-5 手动走通（basic 当前设计器可发布，可先绕开 US2 验证主链路）
 
