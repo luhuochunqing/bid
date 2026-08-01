@@ -57,6 +57,7 @@ src/main/java/com/xiyu/bid/projectworkflow/controller/ProjectWorkflowController.
 src/main/java/com/xiyu/bid/projectworkflow/service/ProjectDocumentWorkflowService.java | Project workflow subservice is invoked through project workflow facade; guard evidence is not local to this helper.
 src/main/java/com/xiyu/bid/projectworkflow/service/ProjectReminderWorkflowService.java | Project workflow subservice is invoked through project workflow facade; guard evidence is not local to this helper.
 src/main/java/com/xiyu/bid/projectworkflow/service/ProjectScoreDraftWorkflowService.java | Project workflow subservice is invoked through project workflow facade; guard evidence is not local to this helper.
+src/main/java/com/xiyu/bid/projectworkflow/service/ScoreDraftImportWorkflowService.java | Project workflow subservice invoked through project workflow facade; guard evidence is not local to this helper.
 src/main/java/com/xiyu/bid/projectworkflow/service/ProjectShareLinkWorkflowService.java | Project workflow subservice is invoked through project workflow facade; guard evidence is not local to this helper.
 src/main/java/com/xiyu/bid/projectworkflow/service/ProjectTaskWorkflowService.java | Project workflow subservice is invoked through project workflow facade; guard evidence is not local to this helper.
 src/main/java/com/xiyu/bid/projectworkflow/service/ProjectWorkflowService.java | Workflow facade remains baseline until direct ProjectAccessScopeService evidence is made visible to the scanner.

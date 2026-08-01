@@ -56,6 +56,16 @@ public class ScoringCriteriaClassificationAppService {
     }
 
     /**
+     * 获取项目最新招标文件快照的文件名，用于导入评分草稿时标注来源。
+     */
+    public String getSnapshotFileName(Long projectId) {
+        return snapshotRepository
+                .findTopByProjectIdOrderByCreatedAtDescIdDesc(projectId)
+                .map(snapshot -> snapshot.getFileName())
+                .orElse("AI分析结果");
+    }
+
+    /**
      * 评分标准分类结果。
      * structuredItems 和 textItems 互斥：前端根据哪个非空决定展示方式。
      */

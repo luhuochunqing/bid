@@ -142,6 +142,15 @@ public class ProjectWorkflowController {
                         projectWorkflowService.parseProjectScoreDrafts(projectId, file)));
     }
 
+    @PostMapping("/score-drafts/import-from-analysis")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<ProjectScoreDraftParseResponse>> importScoreDraftsFromAnalysis(
+            @PathVariable Long projectId) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Score drafts imported from AI analysis",
+                        projectWorkflowService.importScoreDraftsFromAnalysis(projectId)));
+    }
+
     @GetMapping("/score-drafts")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<List<ProjectScoreDraftDTO>>> getProjectScoreDrafts(@PathVariable Long projectId) {

@@ -276,6 +276,22 @@ export const projectsApi = {
     }))
   },
 
+  async importScoreDraftsFromAnalysis(projectId) {
+    if (!isNumericId(projectId)) {
+      return apiModeFailure('project')
+    }
+
+    return httpClient.post(`/api/projects/${projectId}/score-drafts/import-from-analysis`).then((response) => ({
+      ...response,
+      data: response?.data
+        ? {
+            ...response.data,
+            drafts: normalizeScoreDraftList(response.data.drafts)
+          }
+        : response?.data
+    }))
+  },
+
   async getScoreDrafts(projectId) {
     if (!isNumericId(projectId)) {
       return apiModeFailure('project')

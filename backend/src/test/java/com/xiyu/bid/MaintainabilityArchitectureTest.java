@@ -73,7 +73,8 @@ class MaintainabilityArchitectureTest {
         "com.xiyu.bid.export.service.ExcelExportService",
         "com.xiyu.bid.scoreanalysis.service.ScoreAnalysisService",
         "com.xiyu.bid.projectworkflow.service.ProjectTaskWorkflowService",
-        "com.xiyu.bid.projectworkflow.service.ProjectDocumentWorkflowService"
+        "com.xiyu.bid.projectworkflow.service.ProjectDocumentWorkflowService",
+        "com.xiyu.bid.projectworkflow.service.ProjectWorkflowService"
     );
 
     private static final Set<String> SERVICE_PUBLIC_METHOD_BUDGET_EXEMPTIONS = Set.of(
