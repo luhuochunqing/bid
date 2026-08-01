@@ -90,7 +90,26 @@
 > **主路径**：直接 `scripts/agent-finish-task.sh`（三重合入检查 + 锁清理 + 切回锚点 + 可选删除远端分支，支持 `--dry-run` 预览）。本节五步流程仅在需要手动逐步处理或排查脚本失败时使用。
 > **主仓库为 Gitee（`origin`）**，禁止使用 `gh pr` / GitHub auto-merge 工作流（自 2026-06 迁移到 Gitee 后已过期，详见 `CLAUDE.md §自动合并`）。
 
-#### 第 1 步：合并 PR
+#### 第 1 步：知识沉淀 + Wiki 更新（在合并 PR 之前）
+
+> **必须在合并 PR 之前完成**，这样知识沉淀和 wiki 改动可以随 PR 一起合入 main，不需要事后单独再开 PR。
+
+- 调用 `knowledge-capture` 技能，回顾本次 session 中产生的有价值知识（bug 根因、决策、踩坑、需求确认等），按类型沉淀到 `docs/` 对应目录：
+  - bug 根因 / 修复案例 -> `docs/lessons/lessons-learned.md`（追加到现有文档，**禁止**新建独立页面）
+  - 工程纪律 / 流程约束 -> `docs/references/engineering-discipline.md`
+  - 前端踩坑 -> `docs/references/frontend-pitfalls.md`
+  - 架构决策 -> `docs/architecture/`
+- **严禁**新建 `*.md` 顶层文档，优先追加到已有文件
+- 检查 `.wiki/pages/` 是否需要回填（复合查询回填触发器详见 `.wiki/WIKI.md §2 触发点 3`）
+- 将知识沉淀和 wiki 改动 commit 到当前任务分支并 push：
+  ```bash
+  git add docs/ .wiki/
+  git commit -m "docs: 知识沉淀 + wiki 回填"
+  git push origin HEAD:$(git rev-parse --abbrev-ref HEAD)
+  ```
+- 确认 PR 中包含这些改动
+
+#### 第 2 步：合并 PR
 
 - 检查当前任务分支是否有打开的 PR（Gitee）：
   - 优先：通过 Gitee MCP（`mcp_gitee` 的 `list_repo_pulls`）查询
@@ -101,7 +120,7 @@
 - 若 PR 有冲突，先告知用户解决冲突再合并（**禁止** `git push --force` 绕过门禁）
 - 若无 PR，检查是否需要推送当前分支：`git status` + `git log origin/<当前分支>..HEAD`
 
-#### 第 2 步：回到锚定分支
+#### 第 3 步：回到锚定分支
 
 - 锚定分支约定（与 `scripts/agent-finish-task.sh` 一致）：
   - 任务分支（`agent/<name>/<task>`）的锚点是 `main`（唯一基线分支）
@@ -113,7 +132,7 @@
   ```
 - 若刚合入 PR，确认 `git log main` 能看到合入 commit
 
-#### 第 3 步：清理任务分支
+#### 第 4 步：清理任务分支
 
 - 列出本地已合并的任务分支：`git branch --merged main | grep -E "^agent/" | grep -v -- "-init$"`
 - 列出本地未合并的任务分支：`git branch --no-merged main | grep -E "^agent/"`
@@ -121,21 +140,12 @@
 - 对用户确认删除的分支执行：`git branch -d <分支名>`
 - 如需同时清理远端分支：`scripts/agent-finish-task.sh --include-remote`（**禁止**手删 `agent/<name>-init` 远端，那是持久锚点）
 
-#### 第 4 步：检查未提交代码和 stash
+#### 第 5 步：检查未提交代码和 stash
 
 - 检查工作区状态：`git status`
 - 检查 stash 列表：`git stash list`
 - 若有未提交改动或未清理的 stash，展示给用户并询问处理方式（提交 / stash pop / 丢弃）
 - 提醒：每个 worktree 的工作区应保持干净，避免下一次早操 `sync-env.sh` rebase 时撞 conflict
-
-#### 第 5 步：知识沉淀
-
-- 调用 `knowledge-capture` 技能，回顾本次 session 中产生的有价值知识（bug 根因、决策、踩坑、需求确认等），按类型沉淀到 `docs/` 对应目录：
-  - bug 根因 / 修复案例 → `docs/lessons/lessons-learned.md`（追加到现有文档，**禁止**新建独立页面）
-  - 工程纪律 / 流程约束 → `docs/references/engineering-discipline.md`
-  - 前端踩坑 → `docs/references/frontend-pitfalls.md`
-  - 架构决策 → `docs/architecture/`
-- **严禁**新建 `*.md` 顶层文档，优先追加到已有文件
 
 ## 文件树概览
 

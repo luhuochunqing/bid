@@ -6831,3 +6831,45 @@ git push --force-with-lease origin HEAD:<任务分支>
 - 本次 CO-601 推送实例：base 漂移 → rebase origin/main → force-with-lease 推送
 
 
+## 95. 统计接口已有 countByStatus 但用 findAll+内存计数--同项目内实践不统一是最大性能障碍（PR !2238 / 2026-08-01）
+
+### 问题背景
+
+性能扫描发现 `ProjectService.getProjectStatistics()` 每次调用都 `projectRepository.findAll()` 全表加载到内存，再 `stream().filter().count()` 逐个状态遍历 8 次。标讯/项目表数据量增长到数千条后，仪表盘首页每次打开都卡顿。
+
+根因：`ProjectRepository` 已声明 `countByStatus(Status)` 方法，但 Service 层完全没用。同项目内 `ApprovalQueryService` 已经用 `@Query GROUP BY` 做 DB 聚合，但没推广到其他统计接口。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| Repository 已有 `countByStatus` 但 Service 用 `findAll` + 内存 filter | 同项目内正确实践不统一，新增代码跟随错误模式 | 统计接口必须用 DB 聚合（`GROUP BY`），禁止 `findAll` + 内存 `stream().filter().count()` |
+| 权限过滤在内存中做，导致不能简单下推到 SQL | 非 Admin 用户需要先拿 `allowedProjectIds`，再用 `WHERE id IN` 下推 | Admin 用全表 `GROUP BY`，普通用户用 `id IN` + `GROUP BY`，两种路径都避免全表加载 |
+| `countByStatus` 私有方法在 3 个 Service 中重复实现 | 重复造轮子，同项目内已有 `@Query GROUP BY` 范例 | 新增统计接口前先搜索同项目内已有的 DB 聚合范例 |
+
+### 操作规范
+
+1. 统计接口禁止 `findAll()` + 内存计数，必须用 DB `GROUP BY` 聚合：
+
+```java
+// 禁止：全表加载 + 内存 filter
+List<Project> all = projectRepository.findAll();
+long count = all.stream().filter(p -> p.getStatus() == status).count();
+
+// 正确：DB 聚合
+@Query("SELECT p.status, COUNT(p) FROM Project p GROUP BY p.status")
+List<Object[]> countGroupByStatus();
+```
+
+2. 权限下推：非 Admin 用户用 `allowedProjectIds` + `WHERE id IN` 下推：
+
+```java
+if (admin) {
+    rows = repository.countGroupByStatus();  // 全表 GROUP BY
+} else {
+    List<Long> ids = accessScopeService.getAllowedProjectIdsForCurrentUser();
+    rows = ids.isEmpty() ? List.of() : repository.countGroupByStatusByIdIn(ids);
+}
+```
+
+3. 新增统计接口前，先搜索同项目已有的 `@Query.*GROUP BY` 范例。
