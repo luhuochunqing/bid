@@ -50,6 +50,6 @@ npm run test:e2e -- project-form-custom-fields
 
 ```bash
 # U 脚本可回退加列（注意：会丢已存自定义字段值，仅灾备用）
-mysql ... xiyu_bid_main < backend/src/main/resources/db/rollback/migration-mysql/U####__add_custom_fields_to_project_tables.sql
+mysql ... xiyu_bid_main < backend/src/main/resources/db/rollback/migration-mysql/U1183__add_custom_fields_to_project_tables.sql
 # 回滚后实体/DTO 需同步回退（git revert），不可只回滚 DB
 ```

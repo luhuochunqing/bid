@@ -3,6 +3,23 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-07-31] backfill | dynamic-form-engine 新增 §9 CO-601 hybrid 渲染模式与自定义字段扩展
+
+- 背景：CO-601 PR !2235 合入 main，涉及 45 文件改动（表单引擎 hybrid 渲染模式 + 自定义字段扩展 + 预置字段锁定 + 前后端双重校验）
+  - 触发点 3 复合查询回填（涉及 ≥3 个文件，下次还会被问到"hybrid 渲染模式怎么工作的"）
+- 新增内容：
+  - `dynamic-form-engine.md §9`：CO-601 hybrid 渲染模式与自定义字段扩展
+    - §9.1 问题背景：fallback 与动态 schema 的冲突
+    - §9.2 hybrid 渲染模式（hybrid + preset-keys props，渲染逻辑，当前使用情况）
+    - §9.3 自定义字段持久化（V1183 迁移 + CustomFieldsCodec + scope 键整体替换语义）
+    - §9.4 预置字段锁定（PROJECT_LOCKED_FIELD_KEYS + CustomFieldsSchemaPolicy + 前后端双向校验）
+    - §9.5 生命周期管理（改 label/删除字段/类型变更）
+    - §9.6 关键坑点（H2 JSON 列双重编码、base 漂移、hybrid 默认 false）
+    - §9.7 相关文档
+  - frontmatter `updated` / `health_checked` 更新为 2026-07-31
+  - sources 新增 7 个 CO-601 相关源文件引用
+- 关联：PR !2235（commit d9873fff0）、`docs/lessons/lessons-learned.md` §91-§94、`specs/040-project-form-custom-fields/`
+
 ## [2026-07-31] update | flyway-migration-pitfalls 新增 §11 INSERT IGNORE NULL 不幂等
 
 - 背景：PR !2229 google-code-review 独立核查发现 U1182 回滚脚本幂等性缺陷
