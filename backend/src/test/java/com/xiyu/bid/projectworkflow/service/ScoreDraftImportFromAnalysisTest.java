@@ -21,7 +21,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
 class ScoreDraftImportFromAnalysisTest {
 
     private ProjectScoreDraftRepository repository;
@@ -61,7 +60,7 @@ class ScoreDraftImportFromAnalysisTest {
 
         assertThat(response.getDrafts()).hasSize(2);
         assertThat(response.getTotalCount()).isEqualTo(2);
-        verify(repository).deleteByProjectIdAndStatusIn(eq(1001L), any());
+        verify(repository).clearNonGeneratedDrafts(eq(1001L));
         verify(repository).saveAll(any());
     }
 

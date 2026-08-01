@@ -21,7 +21,7 @@
         <span>📄 来源招标文件 · 解析时间 {{ parseTime }}</span>
         <div style="display:flex;gap:6px;">
           <button style="padding:4px 10px;background:var(--bg-white);border:1px solid var(--gray-200);border-radius:4px;font-size:11px;cursor:pointer;color:var(--border-focus);" @click="reparse">🔄 重新解析</button>
-          <button :disabled="importing || scoreItems.length === 0" style="padding:4px 10px;border:1px solid var(--gray-200);border-radius:4px;font-size:11px;cursor:pointer;background:var(--brand-xiyu-logo);color:#fff;border-color:var(--brand-xiyu-logo);opacity:var(--disabled-opacity,1);" @click="importToDrafts">📥 导入到评分草稿</button>
+          <button :disabled="importing || scoreItems.length === 0" :style="{ padding: '4px 10px', border: '1px solid var(--gray-200)', borderRadius: '4px', fontSize: '11px', cursor: (importing || scoreItems.length === 0) ? 'not-allowed' : 'pointer', background: 'var(--brand-xiyu-logo)', color: '#fff', borderColor: 'var(--brand-xiyu-logo)', opacity: (importing || scoreItems.length === 0) ? 0.6 : 1 }" @click="importToDrafts">📥 导入到评分草稿</button>
           <button style="padding:4px 10px;background:var(--bg-white);border:1px solid var(--gray-200);border-radius:4px;font-size:11px;cursor:pointer;color:var(--border-focus);" @click="exportReport">📤 导出报告</button>
         </div>
       </div>

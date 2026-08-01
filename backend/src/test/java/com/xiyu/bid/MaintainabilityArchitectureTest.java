@@ -68,7 +68,9 @@ class MaintainabilityArchitectureTest {
     );
 
     // TODO: ProjectWorkflowService 作为门面服务，每新增子工作流即超 collaborator 限制。
-    // 长期方案：拆分为按领域分组的门面（如 ProjectScoreDraftFacade）。追踪 issue 后移除豁免。
+    // 当前豁免 6 个依赖。长期方案：按领域拆分为独立门面（ProjectScoreDraftFacade、
+    // ProjectDocumentFacade 等），使每个门面 ≤5 个 collaborator。
+    // 触发条件：豁免列表中 ProjectWorkflowService 的依赖数达到 8 时必须启动拆分。
     private static final Set<String> SERVICE_DEPENDENCY_BUDGET_EXEMPTIONS = Set.of(
         "com.xiyu.bid.batch.service.BatchOperationService",
         "com.xiyu.bid.batch.service.BatchTenderAssignAppService",

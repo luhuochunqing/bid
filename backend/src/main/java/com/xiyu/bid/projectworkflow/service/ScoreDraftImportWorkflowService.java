@@ -9,7 +9,6 @@ import com.xiyu.bid.biddraftagent.domain.ScoringCriterion;
 import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.projectworkflow.dto.ProjectScoreDraftDTO;
 import com.xiyu.bid.projectworkflow.dto.ProjectScoreDraftParseResponse;
-import com.xiyu.bid.projectworkflow.entity.ProjectScoreDraft;
 import com.xiyu.bid.projectworkflow.parser.ProjectScoreDraftMapper;
 import com.xiyu.bid.projectworkflow.parser.ScoreDraftFromProfileAssembler;
 import com.xiyu.bid.projectworkflow.repository.ProjectScoreDraftRepository;
@@ -40,19 +39,12 @@ class ScoreDraftImportWorkflowService {
         }
         List<ScoringCriterion> criteria = result.structuredItems();
         String sourceFileName = result.sourceFileName();
-        clearNonGeneratedDrafts(projectId);
+        projectScoreDraftRepository.clearNonGeneratedDrafts(projectId);
         List<ProjectScoreDraftDTO> draftDTOs = projectScoreDraftRepository
                 .saveAll(scoreDraftFromProfileAssembler.assemble(projectId, sourceFileName, criteria))
                 .stream()
                 .map(draftMapper::toDTO)
                 .toList();
         return draftMapper.toParseResponse(draftDTOs);
-    }
-
-    private void clearNonGeneratedDrafts(Long projectId) {
-        projectScoreDraftRepository.deleteByProjectIdAndStatusIn(
-                projectId,
-                List.of(ProjectScoreDraft.Status.DRAFT, ProjectScoreDraft.Status.READY, ProjectScoreDraft.Status.SKIPPED)
-        );
     }
 }
