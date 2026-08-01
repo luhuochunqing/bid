@@ -123,7 +123,7 @@ public class OpenAiTenderDocumentAnalyzer
                     input.tenderId());
         }
         TenderRequirementProfile merged = TenderRequirementProfileMerger.merge(profiles);
-        return ScoringCriteriaEnhancer.enhance(merged, input.extractedText());
+        return ProfileEnhancer.enhance(merged, input.extractedText());
     }
 
     @Override
