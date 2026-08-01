@@ -14,8 +14,8 @@ backlinks:
   - production-deployment-lessons
   - deployment
 created: 2026-07-10
-updated: 2026-07-10
-health_checked: 2026-07-19
+updated: 2026-07-31
+health_checked: 2026-07-31
 ---
 # Flyway 迁移陷阱集
 
@@ -321,15 +321,40 @@ WHERE config != '' AND JSON_VALID(config);
 
 ---
 
-## 11. 迁移脚本命名规范
+## 11. INSERT IGNORE + NULL 唯一键不幂等（回滚脚本陷阱）
 
-### 11.1 规范
+### 11.1 事故
+
+U1182 回滚脚本使用 `INSERT IGNORE` 恢复种子数据，依赖 `uk_scope_org(scope, org_id)` 复合唯一键去重。但插入的 `org_id=NULL`，而 **MySQL InnoDB 对 NULL 不去重（NULL != NULL）**，唯一键冲突检测失效，重复执行回滚每次都会插入重复记录。
+
+### 11.2 解决
+
+```sql
+-- ✅ 正确：INSERT 前显式 DELETE 清理 org_id IS NULL 的残留，再 INSERT
+DELETE FROM form_definition_registry
+WHERE scope IN ('knowledge.case', 'resource.expense') AND org_id IS NULL;
+
+INSERT IGNORE INTO form_definition_registry(scope, scope_label, ...) VALUES (...);
+```
+
+### 11.3 教训
+
+- **MySQL 复合唯一键中任一列为 NULL 时，该行不参与唯一性校验**（NULL != NULL），`INSERT IGNORE` / `ON DUPLICATE KEY UPDATE` 的冲突检测都会失效
+- **回滚脚本依赖唯一键保证幂等时，必须检查插入值是否含 NULL**；含 NULL 就先显式 DELETE 同范围记录再 INSERT
+- **验证方法**：本地库连续执行回滚脚本 2 次，确认目标行数不增长
+- 来源：PR !2229 google-code-review 独立核查发现（2026-07-31）
+
+---
+
+## 12. 迁移脚本命名规范
+
+### 12.1 规范
 
 - **基线版本**：`B{version}_*.sql`（如 `B73__full_schema_baseline.sql`）
 - **增量版本**：`V{version}___{desc}.sql`（如 `V1081__remove_task_executor_role.sql`）
 - **回滚版本**：`U{version}__{desc}.sql`（如 `U1081__remove_task_executor_role.sql`）
 
-### 11.2 版本号
+### 12.2 版本号
 
 - 必须大于已有最大版本号
 - **严禁手动猜测或 `ls | tail` 决定版本号**
@@ -337,7 +362,7 @@ WHERE config != '' AND JSON_VALID(config);
 
 ---
 
-## 12. 相关文档
+## 13. 相关文档
 
 - [[lessons-learned]] §一 §二 — 数据库迁移目录清理、CI 配置对齐
 - [[production-deployment-lessons]] §1 — collation 冲突案例
@@ -347,8 +372,9 @@ WHERE config != '' AND JSON_VALID(config);
 
 ---
 
-## 13. 变更记录
+## 14. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
 | 2026-07-10 | 首次创建，从 8 个工作区历史对话中提取 Flyway 迁移陷阱 |
+| 2026-07-31 | 新增 §11 INSERT IGNORE + NULL 唯一键不幂等（U1182 回滚脚本事故，PR !2229）；原 §11~§13 顺延为 §12~§14 |

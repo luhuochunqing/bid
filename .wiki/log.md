@@ -3,6 +3,16 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-07-31] update | flyway-migration-pitfalls 新增 §11 INSERT IGNORE NULL 不幂等
+
+- 背景：PR !2229 google-code-review 独立核查发现 U1182 回滚脚本幂等性缺陷
+  - `INSERT IGNORE` 依赖 `uk_scope_org(scope, org_id)` 唯一键去重，但 `org_id=NULL` 时 MySQL InnoDB 对 NULL 不去重（NULL != NULL）
+  - 重复执行回滚每次插入重复记录；本地库连续执行 2 次验证复现
+- 处理：[[flyway-migration-pitfalls]] 新增 §11（事故/解决/教训），原 §11~§13 顺延为 §12~§14
+  - frontmatter `updated` / `health_checked` 更新为 2026-07-31
+  - engineering-discipline.md 引用均为 §2/§3，不受顺延影响
+- 关联：PR !2229 修复 commit `c7230e0f6`（INSERT 前显式 DELETE org_id IS NULL 残留）
+
 ## [2026-07-23] backfill | 存量 wiki 违规批量回填（92 → 0）
 
 - 背景：PR !2190 合入后 wiki:check 报 92 个违规（56 个文件），全部为日期过期类
