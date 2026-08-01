@@ -188,4 +188,107 @@ class ScoringCriteriaEnhancerTest {
         assertFalse(result.scoringCriteria().isEmpty());
         assertTrue(result.scoringCriteria().stream().anyMatch(s -> s.contains("价格")));
     }
+
+    // === 权重总和校验 ===
+
+    @Test
+    void enhance_shouldKeepWeights_whenSumIsExactly100() {
+        TenderRequirementProfile profile = baseProfile(List.of());
+        String fullText = """
+                评标办法
+
+                1  价格  30分
+                2  技术  50分
+                3  商务  20分
+                """;
+
+        TenderRequirementProfile result = ScoringCriteriaEnhancer.enhance(profile, fullText);
+
+        assertEquals(3, result.scoringCriteriaItems().size());
+        assertEquals(new BigDecimal("30"), result.scoringCriteriaItems().get(0).weight());
+        assertEquals(new BigDecimal("50"), result.scoringCriteriaItems().get(1).weight());
+        assertEquals(new BigDecimal("20"), result.scoringCriteriaItems().get(2).weight());
+    }
+
+    @Test
+    void enhance_shouldNormalizeWeights_whenSumNot100() {
+        // 权重总和 150，应归一化到 100
+        TenderRequirementProfile profile = baseProfile(List.of());
+        String fullText = """
+                评标办法
+
+                1  价格  45分
+                2  技术  75分
+                3  商务  30分
+                """;
+
+        TenderRequirementProfile result = ScoringCriteriaEnhancer.enhance(profile, fullText);
+
+        assertEquals(3, result.scoringCriteriaItems().size());
+        BigDecimal total = ScoringCriterion.calculateTotalScore(result.scoringCriteriaItems());
+        assertEquals(0, total.compareTo(new BigDecimal("100")),
+                "weights should be normalized to sum=100, got " + total);
+    }
+
+    @Test
+    void enhance_shouldHandleNullWeights_withoutNormalization() {
+        // 部分权重为 null，不应归一化
+        TenderRequirementProfile profile = baseProfile(List.of());
+        String fullText = """
+                评标办法
+
+                1  价格评分
+                2  技术方案
+                """;
+
+        TenderRequirementProfile result = ScoringCriteriaEnhancer.enhance(profile, fullText);
+
+        assertEquals(2, result.scoringCriteriaItems().size());
+        assertNull(result.scoringCriteriaItems().get(0).weight());
+        assertNull(result.scoringCriteriaItems().get(1).weight());
+    }
+
+    @Test
+    void enhance_shouldNotNormalize_whenAllWeightsAreNull() {
+        TenderRequirementProfile profile = baseProfile(List.of());
+        String fullText = """
+                评标办法
+
+                A1 价格评分
+                A2 技术方案
+                A3 商务方案
+                """;
+
+        TenderRequirementProfile result = ScoringCriteriaEnhancer.enhance(profile, fullText);
+
+        assertEquals(3, result.scoringCriteriaItems().size());
+        assertNull(result.scoringCriteriaItems().get(0).weight());
+        assertNull(result.scoringCriteriaItems().get(1).weight());
+        assertNull(result.scoringCriteriaItems().get(2).weight());
+    }
+
+    @Test
+    void enhance_shouldNormalizePartialNullWeights() {
+        // 部分有权重，部分没有。有权重的归一化到 100
+        TenderRequirementProfile profile = baseProfile(List.of());
+        String fullText = """
+                评标办法
+
+                1  价格  60分
+                2  技术  40分
+                3  商务方案
+                """;
+
+        TenderRequirementProfile result = ScoringCriteriaEnhancer.enhance(profile, fullText);
+
+        assertEquals(3, result.scoringCriteriaItems().size());
+        // 有权重的两项总和应为 100
+        BigDecimal weightedTotal = result.scoringCriteriaItems().stream()
+                .map(ScoringCriterion::weight)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertEquals(0, weightedTotal.compareTo(new BigDecimal("100")));
+        // 第三项权重仍为 null
+        assertNull(result.scoringCriteriaItems().get(2).weight());
+    }
 }

@@ -6,6 +6,8 @@ package com.xiyu.bid.biddraftagent.infrastructure.openai;
 import com.xiyu.bid.biddraftagent.domain.ScoringCriterion;
 import com.xiyu.bid.biddraftagent.domain.TenderRequirementProfile;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -59,7 +61,51 @@ final class ScoringCriteriaEnhancer {
             return profile;
         }
 
-        return replaceScoringCriteria(profile, regexItems);
+        List<ScoringCriterion> normalized = normalizeWeights(regexItems);
+        return replaceScoringCriteria(profile, normalized);
+    }
+
+    /**
+     * 校验并归一化权重：有权重项的总和应等于 100。
+     *
+     * <p>策略：
+     * <ul>
+     *   <li>有权重项总和 = 100 -> 不变</li>
+     *   <li>有权重项总和 != 100 且 > 0 -> 按比例归一化到 100</li>
+     *   <li>有权重项总和 = 0 或全部为 null -> 不变</li>
+     * </ul>
+     *
+     * @param items 正则提取的评分项列表
+     * @return 归一化后的列表（可能原样返回）
+     */
+    private static List<ScoringCriterion> normalizeWeights(List<ScoringCriterion> items) {
+        List<ScoringCriterion> weighted = items.stream()
+                .filter(item -> item.weight() != null && item.weight().compareTo(BigDecimal.ZERO) > 0)
+                .toList();
+        if (weighted.isEmpty()) {
+            return items;
+        }
+
+        BigDecimal total = weighted.stream()
+                .map(ScoringCriterion::weight)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        if (total.compareTo(new BigDecimal("100")) == 0) {
+            return items;
+        }
+
+        // 归一化：weight = weight * 100 / total
+        BigDecimal factor = new BigDecimal("100").divide(total, 10, RoundingMode.HALF_UP);
+        return items.stream()
+                .map(item -> item.weight() != null && item.weight().compareTo(BigDecimal.ZERO) > 0
+                        ? new ScoringCriterion(
+                                item.itemNumber(),
+                                item.dimension(),
+                                item.indicator(),
+                                item.weight().multiply(factor).setScale(2, RoundingMode.HALF_UP),
+                                item.subType())
+                        : item)
+                .toList();
     }
 
     /**
