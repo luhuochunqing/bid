@@ -4,8 +4,6 @@
 
 package com.xiyu.bid.projectworkflow.parser;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.biddraftagent.domain.ScoringCriterion;
 import com.xiyu.bid.biddraftagent.domain.ScoringCriteriaSubType;
 import com.xiyu.bid.projectworkflow.entity.ProjectScoreDraft;
@@ -16,15 +14,16 @@ import java.util.List;
 
 /**
  * 将 AI 分析产出的 ScoringCriterion 列表转换为 ProjectScoreDraft 实体。
- * 复用 ScoreDraftSeedFactory 推断 taskAction / generatedTaskTitle 等字段。
+ * 复用 ScoreDraftSeedFactory 推断 taskAction / generatedTaskTitle 等字段，
+ * 复用 ProjectScoreDraftMapper 构建 Draft 实体。
  */
 @Component
 public class ScoreDraftFromProfileAssembler {
 
-    private final ObjectMapper objectMapper;
+    private final ProjectScoreDraftMapper draftMapper;
 
-    public ScoreDraftFromProfileAssembler(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
+    public ScoreDraftFromProfileAssembler(ProjectScoreDraftMapper draftMapper) {
+        this.draftMapper = draftMapper;
     }
 
     public List<ProjectScoreDraft> assemble(Long projectId, String sourceFileName, List<ScoringCriterion> criteria) {
@@ -36,7 +35,8 @@ public class ScoreDraftFromProfileAssembler {
         int index = 0;
         for (ScoringCriterion criterion : criteria) {
             DraftSeed seed = toSeed(criterion);
-            drafts.add(buildDraft(projectId, sourceFileName, criterion, seed, index));
+            String category = mapCategory(criterion);
+            drafts.add(draftMapper.buildDraft(projectId, sourceFileName, category, seed, index, index));
             index++;
         }
         return drafts;
@@ -70,33 +70,5 @@ public class ScoreDraftFromProfileAssembler {
             case TECHNICAL_EVALUATION -> "technical";
             default -> "business";
         };
-    }
-
-    private ProjectScoreDraft buildDraft(Long projectId, String sourceFileName,
-                                          ScoringCriterion criterion, DraftSeed seed, int index) {
-        return ProjectScoreDraft.builder()
-                .projectId(projectId)
-                .sourceFileName(sourceFileName)
-                .category(mapCategory(criterion))
-                .scoreItemTitle(seed.scoreItemTitle())
-                .scoreRuleText(seed.scoreRuleText())
-                .scoreValueText(seed.scoreValueText())
-                .taskAction(seed.taskAction())
-                .generatedTaskTitle(seed.generatedTaskTitle())
-                .generatedTaskDescription(seed.generatedTaskDescription())
-                .suggestedDeliverables(serializeDeliverables(seed.deliverables()))
-                .status(ProjectScoreDraft.Status.DRAFT)
-                .sourcePage(null)
-                .sourceTableIndex(index)
-                .sourceRowIndex(index)
-                .build();
-    }
-
-    private String serializeDeliverables(List<String> deliverables) {
-        try {
-            return objectMapper.writeValueAsString(deliverables);
-        } catch (JsonProcessingException ex) {
-            throw new IllegalStateException("评分草稿交付物序列化失败", ex);
-        }
     }
 }

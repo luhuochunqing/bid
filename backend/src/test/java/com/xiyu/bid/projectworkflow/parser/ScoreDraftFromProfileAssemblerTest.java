@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ScoreDraftFromProfileAssemblerTest {
 
-    private final ScoreDraftFromProfileAssembler assembler = new ScoreDraftFromProfileAssembler(new ObjectMapper());
+    private final ScoreDraftFromProfileAssembler assembler = new ScoreDraftFromProfileAssembler(new ProjectScoreDraftMapper(new ObjectMapper()));
 
     @Test
     void assemble_ShouldConvertScoringCriteriaToDrafts() {

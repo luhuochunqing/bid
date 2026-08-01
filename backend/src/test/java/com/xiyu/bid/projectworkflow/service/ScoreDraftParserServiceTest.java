@@ -27,7 +27,7 @@ class ScoreDraftParserServiceTest {
             new ScoreDraftFileTypePolicy(),
             new ScoreDraftDocumentTextExtractor(new WordTextExtractor()),
             new ScoreDraftTextParser(),
-            new ScoreDraftDraftAssembler(new ObjectMapper())
+            new ScoreDraftDraftAssembler(new com.xiyu.bid.projectworkflow.parser.ProjectScoreDraftMapper(new ObjectMapper()))
     );
 
     @Test

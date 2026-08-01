@@ -253,7 +253,7 @@ async function importToDrafts() {
   if (!scoreItems.value.length) return
   try {
     await ElMessageBox.confirm(
-      `将导入 ${scoreItems.value.length} 项评分标准到评分草稿，会覆盖现有未生成的草稿。确认导入？`,
+      `将导入 AI 分析的评分标准到评分草稿，会覆盖现有未生成的草稿。确认导入？`,
       '导入到评分草稿',
       { confirmButtonText: '确认导入', cancelButtonText: '取消', type: 'warning' }
     )

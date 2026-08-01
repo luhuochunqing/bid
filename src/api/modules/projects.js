@@ -74,6 +74,15 @@ function normalizeScoreDraftList(drafts = []) {
   return Array.isArray(drafts) ? drafts.map((draft) => normalizeScoreDraft(draft)) : []
 }
 
+function normalizeScoreDraftResponse(response) {
+  return {
+    ...response,
+    data: response?.data
+      ? { ...response.data, drafts: normalizeScoreDraftList(response.data.drafts) }
+      : response?.data
+  }
+}
+
 export const projectsApi = {
   /**
    * 获取项目列表
@@ -265,15 +274,7 @@ export const projectsApi = {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
-    }).then((response) => ({
-      ...response,
-      data: response?.data
-        ? {
-            ...response.data,
-            drafts: normalizeScoreDraftList(response.data.drafts)
-          }
-        : response?.data
-    }))
+    }).then(normalizeScoreDraftResponse)
   },
 
   async importScoreDraftsFromAnalysis(projectId) {
@@ -281,15 +282,7 @@ export const projectsApi = {
       return apiModeFailure('project')
     }
 
-    return httpClient.post(`/api/projects/${projectId}/score-drafts/import-from-analysis`).then((response) => ({
-      ...response,
-      data: response?.data
-        ? {
-            ...response.data,
-            drafts: normalizeScoreDraftList(response.data.drafts)
-          }
-        : response?.data
-    }))
+    return httpClient.post(`/api/projects/${projectId}/score-drafts/import-from-analysis`).then(normalizeScoreDraftResponse)
   },
 
   async getScoreDrafts(projectId) {

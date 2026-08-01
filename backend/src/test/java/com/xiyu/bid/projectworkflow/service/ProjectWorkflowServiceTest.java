@@ -114,7 +114,10 @@ class ProjectWorkflowServiceTest {
                 guardService,
                 projectScoreDraftRepository,
                 mock(com.xiyu.bid.biddraftagent.application.ScoringCriteriaClassificationAppService.class),
-                new com.xiyu.bid.projectworkflow.parser.ScoreDraftFromProfileAssembler(objectMapper)
+                new com.xiyu.bid.projectworkflow.parser.ScoreDraftFromProfileAssembler(
+                        new com.xiyu.bid.projectworkflow.parser.ProjectScoreDraftMapper(objectMapper)
+                ),
+                new com.xiyu.bid.projectworkflow.parser.ProjectScoreDraftMapper(objectMapper)
         );
         service = new ProjectWorkflowService(
                 projectTaskWorkflowService,

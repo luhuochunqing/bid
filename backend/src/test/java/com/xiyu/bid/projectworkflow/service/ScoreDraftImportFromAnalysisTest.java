@@ -6,6 +6,7 @@ import com.xiyu.bid.biddraftagent.application.ScoringCriteriaClassificationAppSe
 import com.xiyu.bid.biddraftagent.domain.ScoringCriterion;
 import com.xiyu.bid.biddraftagent.domain.ScoringCriteriaSubType;
 import com.xiyu.bid.projectworkflow.dto.ProjectScoreDraftParseResponse;
+import com.xiyu.bid.projectworkflow.parser.ProjectScoreDraftMapper;
 import com.xiyu.bid.projectworkflow.parser.ScoreDraftFromProfileAssembler;
 import com.xiyu.bid.projectworkflow.repository.ProjectScoreDraftRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,16 +35,16 @@ class ScoreDraftImportFromAnalysisTest {
         classificationService = mock(ScoringCriteriaClassificationAppService.class);
 
         ProjectWorkflowGuardService guardService = mock(ProjectWorkflowGuardService.class);
-        ScoreDraftFromProfileAssembler assembler = new ScoreDraftFromProfileAssembler(objectMapper);
+        ProjectScoreDraftMapper draftMapper = new ProjectScoreDraftMapper(objectMapper);
+        ScoreDraftFromProfileAssembler assembler = new ScoreDraftFromProfileAssembler(draftMapper);
 
         service = new ScoreDraftImportWorkflowService(
                 guardService,
                 repository,
                 classificationService,
-                assembler
+                assembler,
+                draftMapper
         );
-
-        when(classificationService.getSnapshotFileName(1001L)).thenReturn("招标文件.pdf");
     }
 
     @Test
@@ -53,7 +54,7 @@ class ScoreDraftImportFromAnalysisTest {
                 new ScoringCriterion("2", "价格评分", "投标报价", new BigDecimal("40"), ScoringCriteriaSubType.PRICE_WEIGHT)
         );
         when(classificationService.classifyForProject(1001L))
-                .thenReturn(new ScoringCriteriaClassificationResult(criteria, null, new BigDecimal("70"), BigDecimal.ZERO));
+                .thenReturn(new ScoringCriteriaClassificationResult(criteria, null, new BigDecimal("70"), BigDecimal.ZERO, "招标文件.pdf"));
         when(repository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
 
         ProjectScoreDraftParseResponse response = service.importFromAiAnalysis(1001L);
@@ -77,7 +78,7 @@ class ScoreDraftImportFromAnalysisTest {
     @Test
     void importFromAiAnalysis_ShouldThrowWhenNoStructuredItems() {
         when(classificationService.classifyForProject(1001L))
-                .thenReturn(new ScoringCriteriaClassificationResult(null, List.of(), null, BigDecimal.ZERO));
+                .thenReturn(new ScoringCriteriaClassificationResult(null, List.of(), null, BigDecimal.ZERO, "招标文件.pdf"));
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.importFromAiAnalysis(1001L))
                 .isInstanceOf(com.xiyu.bid.exception.BusinessException.class);

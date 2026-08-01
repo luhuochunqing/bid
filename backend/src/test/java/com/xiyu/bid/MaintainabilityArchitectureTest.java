@@ -67,6 +67,8 @@ class MaintainabilityArchitectureTest {
         "com.xiyu.bid.projectworkflow.service.ProjectTaskWorkflowService"
     );
 
+    // TODO: ProjectWorkflowService 作为门面服务，每新增子工作流即超 collaborator 限制。
+    // 长期方案：拆分为按领域分组的门面（如 ProjectScoreDraftFacade）。追踪 issue 后移除豁免。
     private static final Set<String> SERVICE_DEPENDENCY_BUDGET_EXEMPTIONS = Set.of(
         "com.xiyu.bid.batch.service.BatchOperationService",
         "com.xiyu.bid.batch.service.BatchTenderAssignAppService",

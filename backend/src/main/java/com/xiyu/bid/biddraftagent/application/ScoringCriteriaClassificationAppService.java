@@ -1,6 +1,6 @@
-// Input: projectId → BidTenderDocumentSnapshot（profile_json）→ ScoringCriteriaClassificationPolicy
-// Output: 结构化评分标准列表（含编号、维度、指标、权重、子类型）+ 总分
-// Pos: biddraftagent/application — 评分标准分类应用服务
+// Input: projectId -> BidTenderDocumentSnapshot（profile_json）-> ScoringCriteriaClassificationPolicy
+// Output: 结构化评分标准列表（含编号、维度、指标、权重、子类型）+ 总分 + 来源文件名
+// Pos: biddraftagent/application - 评分标准分类应用服务
 
 package com.xiyu.bid.biddraftagent.application;
 
@@ -18,11 +18,13 @@ import java.util.List;
 /**
  * 评分标准分类应用服务。
  * 优先使用 AI 提取的结构化评分标准数据（scoringCriteriaItems），
- * 若无结构化数据则回退到文本分类（scoringCriteria → ScoringCriteriaItem）。
+ * 若无结构化数据则回退到文本分类（scoringCriteria -> ScoringCriteriaItem）。
  */
 @Service
 @RequiredArgsConstructor
 public class ScoringCriteriaClassificationAppService {
+
+    private static final String DEFAULT_SOURCE_NAME = "AI分析结果";
 
     private final BidTenderDocumentSnapshotRepository snapshotRepository;
     private final BidDraftAgentJsonCodec jsonCodec;
@@ -41,28 +43,20 @@ public class ScoringCriteriaClassificationAppService {
             return ScoringCriteriaClassificationResult.empty();
         }
 
+        String sourceFileName = snapshot.getFileName() != null ? snapshot.getFileName() : DEFAULT_SOURCE_NAME;
+
         if (profile.scoringCriteriaItems() != null && !profile.scoringCriteriaItems().isEmpty()) {
             List<ScoringCriterion> criteria = profile.scoringCriteriaItems();
             BigDecimal totalScore = ScoringCriterion.calculateTotalScore(criteria);
-            return new ScoringCriteriaClassificationResult(criteria, null, totalScore, BigDecimal.ZERO);
+            return new ScoringCriteriaClassificationResult(criteria, null, totalScore, BigDecimal.ZERO, sourceFileName);
         }
 
         if (profile.scoringCriteria() != null && !profile.scoringCriteria().isEmpty()) {
             List<ScoringCriteriaItem> items = classificationPolicy.classifyAll(profile.scoringCriteria());
-            return new ScoringCriteriaClassificationResult(null, items, null, BigDecimal.ZERO);
+            return new ScoringCriteriaClassificationResult(null, items, null, BigDecimal.ZERO, sourceFileName);
         }
 
         return ScoringCriteriaClassificationResult.empty();
-    }
-
-    /**
-     * 获取项目最新招标文件快照的文件名，用于导入评分草稿时标注来源。
-     */
-    public String getSnapshotFileName(Long projectId) {
-        return snapshotRepository
-                .findTopByProjectIdOrderByCreatedAtDescIdDesc(projectId)
-                .map(snapshot -> snapshot.getFileName())
-                .orElse("AI分析结果");
     }
 
     /**
@@ -73,10 +67,11 @@ public class ScoringCriteriaClassificationAppService {
             List<ScoringCriterion> structuredItems,
             List<ScoringCriteriaItem> textItems,
             BigDecimal totalScore,
-            BigDecimal ignored
+            BigDecimal ignored,
+            String sourceFileName
     ) {
         public static ScoringCriteriaClassificationResult empty() {
-            return new ScoringCriteriaClassificationResult(null, null, null, BigDecimal.ZERO);
+            return new ScoringCriteriaClassificationResult(null, null, null, BigDecimal.ZERO, DEFAULT_SOURCE_NAME);
         }
 
         public boolean isStructured() {

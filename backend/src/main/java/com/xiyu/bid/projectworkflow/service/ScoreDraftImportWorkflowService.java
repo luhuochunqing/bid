@@ -10,6 +10,7 @@ import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.projectworkflow.dto.ProjectScoreDraftDTO;
 import com.xiyu.bid.projectworkflow.dto.ProjectScoreDraftParseResponse;
 import com.xiyu.bid.projectworkflow.entity.ProjectScoreDraft;
+import com.xiyu.bid.projectworkflow.parser.ProjectScoreDraftMapper;
 import com.xiyu.bid.projectworkflow.parser.ScoreDraftFromProfileAssembler;
 import com.xiyu.bid.projectworkflow.repository.ProjectScoreDraftRepository;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ class ScoreDraftImportWorkflowService {
     private final ProjectScoreDraftRepository projectScoreDraftRepository;
     private final ScoringCriteriaClassificationAppService scoringCriteriaClassificationService;
     private final ScoreDraftFromProfileAssembler scoreDraftFromProfileAssembler;
+    private final ProjectScoreDraftMapper draftMapper;
 
     ProjectScoreDraftParseResponse importFromAiAnalysis(Long projectId) {
         guardService.requireWorkflowMutationProject(projectId);
@@ -37,14 +39,14 @@ class ScoreDraftImportWorkflowService {
             throw new BusinessException("该项目暂无可导入的 AI 评分标准分析结果，请先进行 AI 评分标准解析");
         }
         List<ScoringCriterion> criteria = result.structuredItems();
-        String sourceFileName = scoringCriteriaClassificationService.getSnapshotFileName(projectId);
+        String sourceFileName = result.sourceFileName();
         clearNonGeneratedDrafts(projectId);
         List<ProjectScoreDraftDTO> draftDTOs = projectScoreDraftRepository
                 .saveAll(scoreDraftFromProfileAssembler.assemble(projectId, sourceFileName, criteria))
                 .stream()
-                .map(this::toScoreDraftDTO)
+                .map(draftMapper::toDTO)
                 .toList();
-        return buildParseResponse(draftDTOs);
+        return draftMapper.toParseResponse(draftDTOs);
     }
 
     private void clearNonGeneratedDrafts(Long projectId) {
@@ -52,46 +54,5 @@ class ScoreDraftImportWorkflowService {
                 projectId,
                 List.of(ProjectScoreDraft.Status.DRAFT, ProjectScoreDraft.Status.READY, ProjectScoreDraft.Status.SKIPPED)
         );
-    }
-
-    private ProjectScoreDraftDTO toScoreDraftDTO(ProjectScoreDraft draft) {
-        return ProjectScoreDraftDTO.builder()
-                .id(draft.getId())
-                .projectId(draft.getProjectId())
-                .sourceFileName(draft.getSourceFileName())
-                .category(draft.getCategory())
-                .scoreItemTitle(draft.getScoreItemTitle())
-                .scoreRuleText(draft.getScoreRuleText())
-                .scoreValueText(draft.getScoreValueText())
-                .taskAction(draft.getTaskAction())
-                .generatedTaskTitle(draft.getGeneratedTaskTitle())
-                .generatedTaskDescription(draft.getGeneratedTaskDescription())
-                .suggestedDeliverables(List.of())
-                .assigneeId(draft.getAssigneeId())
-                .assigneeName(draft.getAssigneeName())
-                .dueDate(draft.getDueDate())
-                .status(ProjectScoreDraftDTO.Status.valueOf(draft.getStatus().name()))
-                .skipReason(draft.getSkipReason())
-                .sourcePage(draft.getSourcePage())
-                .sourceTableIndex(draft.getSourceTableIndex())
-                .sourceRowIndex(draft.getSourceRowIndex())
-                .generatedTaskId(draft.getGeneratedTaskId())
-                .createdAt(draft.getCreatedAt())
-                .updatedAt(draft.getUpdatedAt())
-                .build();
-    }
-
-    private ProjectScoreDraftParseResponse buildParseResponse(List<ProjectScoreDraftDTO> draftDTOs) {
-        return ProjectScoreDraftParseResponse.builder()
-                .drafts(draftDTOs)
-                .totalCount(draftDTOs.size())
-                .draftCount(countByStatus(draftDTOs, ProjectScoreDraftDTO.Status.DRAFT))
-                .readyCount(countByStatus(draftDTOs, ProjectScoreDraftDTO.Status.READY))
-                .skippedCount(countByStatus(draftDTOs, ProjectScoreDraftDTO.Status.SKIPPED))
-                .build();
-    }
-
-    private long countByStatus(List<ProjectScoreDraftDTO> drafts, ProjectScoreDraftDTO.Status status) {
-        return drafts.stream().filter(d -> d.getStatus() == status).count();
     }
 }
