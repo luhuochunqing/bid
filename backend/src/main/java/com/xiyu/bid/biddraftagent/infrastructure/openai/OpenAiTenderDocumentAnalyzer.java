@@ -122,7 +122,8 @@ public class OpenAiTenderDocumentAnalyzer
             log.warn("All AI chunk analyses failed for tenderId={}, returning empty profile",
                     input.tenderId());
         }
-        return TenderRequirementProfileMerger.merge(profiles);
+        TenderRequirementProfile merged = TenderRequirementProfileMerger.merge(profiles);
+        return ProfileEnhancer.enhance(merged, input.extractedText());
     }
 
     @Override

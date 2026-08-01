@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ScoreDraftDraftAssemblerTest {
 
-    private final ScoreDraftDraftAssembler assembler = new ScoreDraftDraftAssembler(new ObjectMapper());
+    private final ScoreDraftDraftAssembler assembler = new ScoreDraftDraftAssembler(new ProjectScoreDraftMapper(new ObjectMapper()));
 
     @Test
     void assemble_ShouldMapSeedsToProjectScoreDrafts() {

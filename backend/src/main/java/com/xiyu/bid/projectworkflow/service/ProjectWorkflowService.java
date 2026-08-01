@@ -35,6 +35,7 @@ public class ProjectWorkflowService {
     private final ProjectReminderWorkflowService projectReminderWorkflowService;
     private final ProjectShareLinkWorkflowService projectShareLinkWorkflowService;
     private final ProjectScoreDraftWorkflowService projectScoreDraftWorkflowService;
+    private final ScoreDraftImportWorkflowService scoreDraftImportWorkflowService;
 
     @Transactional(readOnly = true)
     public List<ProjectTaskViewDTO> getProjectTasks(Long projectId) {
@@ -148,6 +149,10 @@ public class ProjectWorkflowService {
             MultipartFile file
     ) {
         return projectScoreDraftWorkflowService.parseProjectScoreDrafts(projectId, file);
+    }
+
+    public ProjectScoreDraftParseResponse importScoreDraftsFromAnalysis(Long projectId) {
+        return scoreDraftImportWorkflowService.importFromAiAnalysis(projectId);
     }
 
     public ProjectScoreDraftDTO updateProjectScoreDraft(

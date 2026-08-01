@@ -21,6 +21,7 @@
         <span>📄 来源招标文件 · 解析时间 {{ parseTime }}</span>
         <div style="display:flex;gap:6px;">
           <button style="padding:4px 10px;background:var(--bg-white);border:1px solid var(--gray-200);border-radius:4px;font-size:11px;cursor:pointer;color:var(--border-focus);" @click="reparse">🔄 重新解析</button>
+          <button :disabled="importing || scoreItems.length === 0" :style="{ padding: '4px 10px', border: '1px solid var(--gray-200)', borderRadius: '4px', fontSize: '11px', cursor: (importing || scoreItems.length === 0) ? 'not-allowed' : 'pointer', background: 'var(--brand-xiyu-logo)', color: 'var(--bg-white)', borderColor: 'var(--brand-xiyu-logo)', opacity: (importing || scoreItems.length === 0) ? 0.6 : 1 }" @click="importToDrafts">📥 导入到评分草稿</button>
           <button style="padding:4px 10px;background:var(--bg-white);border:1px solid var(--gray-200);border-radius:4px;font-size:11px;cursor:pointer;color:var(--border-focus);" @click="exportReport">📤 导出报告</button>
         </div>
       </div>
@@ -79,9 +80,11 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { bidAgentApi } from '@/api/modules/bidAgent.js'
+import { projectsApi } from '@/api/modules/projects.js'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
-const emit = defineEmits(['parsed'])
+const emit = defineEmits(['parsed', 'imported'])
 const visible = ref(false)
 const loading = ref(false)
 const error = ref('')
@@ -94,6 +97,7 @@ const techItems = ref([])
 const bizItems = ref([])
 const redItems = ref([])
 const rawAnalysis = ref(null)
+const importing = ref(false)
 
 const totalWeight = computed(() => scoreItems.value.reduce((a, b) => a + (b.weight || 0), 0))
 
@@ -244,6 +248,32 @@ function jumpToSource(source) {
 function jumpToSection(section) { window.alert('定位至招标文件 §' + section + '（演示）') }
 async function reparse() { await open() }
 function exportReport() { window.alert('已导出 AI 评分解析报告 PDF（演示）') }
+
+async function importToDrafts() {
+  if (!scoreItems.value.length) return
+  try {
+    await ElMessageBox.confirm(
+      `将导入 AI 分析的评分标准到评分草稿，会覆盖现有未生成的草稿。确认导入？`,
+      '导入到评分草稿',
+      { confirmButtonText: '确认导入', cancelButtonText: '取消', type: 'warning' }
+    )
+  } catch { return }
+
+  importing.value = true
+  try {
+    const res = await projectsApi.importScoreDraftsFromAnalysis(props.projectId)
+    if (res?.data) {
+      ElMessage.success(`成功导入 ${res.data.totalCount ?? scoreItems.value.length} 项评分草稿`)
+      emit('imported', res.data)
+    } else {
+      ElMessage.error(res?.msg || '导入失败')
+    }
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.msg || e?.message || '导入失败')
+  } finally {
+    importing.value = false
+  }
+}
 
 defineExpose({ open })
 </script>

@@ -110,12 +110,22 @@ class ProjectWorkflowServiceTest {
                 projectTaskWorkflowService,
                 objectMapper
         );
+        ScoreDraftImportWorkflowService scoreDraftImportWorkflowService = new ScoreDraftImportWorkflowService(
+                guardService,
+                projectScoreDraftRepository,
+                mock(com.xiyu.bid.biddraftagent.application.ScoringCriteriaClassificationAppService.class),
+                new com.xiyu.bid.projectworkflow.parser.ScoreDraftFromProfileAssembler(
+                        new com.xiyu.bid.projectworkflow.parser.ProjectScoreDraftMapper(objectMapper)
+                ),
+                new com.xiyu.bid.projectworkflow.parser.ProjectScoreDraftMapper(objectMapper)
+        );
         service = new ProjectWorkflowService(
                 projectTaskWorkflowService,
                 projectDocumentFacade,
                 projectReminderWorkflowService,
                 projectShareLinkWorkflowService,
-                projectScoreDraftWorkflowService
+                projectScoreDraftWorkflowService,
+                scoreDraftImportWorkflowService
         );
 
         when(projectRepository.findById(1001L)).thenReturn(Optional.of(Project.builder()

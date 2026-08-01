@@ -87,10 +87,7 @@ class ProjectScoreDraftWorkflowService {
 
     void clearNonGeneratedDrafts(Long projectId) {
         guardService.requireWorkflowMutationProject(projectId);
-        projectScoreDraftRepository.deleteByProjectIdAndStatusIn(
-                projectId,
-                List.of(ProjectScoreDraft.Status.DRAFT, ProjectScoreDraft.Status.READY, ProjectScoreDraft.Status.SKIPPED)
-        );
+        projectScoreDraftRepository.clearNonGeneratedDrafts(projectId);
     }
 
     private ProjectTaskViewDTO createTaskFromDraft(ProjectScoreDraft draft) {
