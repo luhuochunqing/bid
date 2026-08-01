@@ -14,6 +14,7 @@ import com.xiyu.bid.projectworkflow.parser.ScoreDraftFromProfileAssembler;
 import com.xiyu.bid.projectworkflow.repository.ProjectScoreDraftRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -31,6 +32,7 @@ class ScoreDraftImportWorkflowService {
     private final ScoreDraftFromProfileAssembler scoreDraftFromProfileAssembler;
     private final ProjectScoreDraftMapper draftMapper;
 
+    @Transactional
     ProjectScoreDraftParseResponse importFromAiAnalysis(Long projectId) {
         guardService.requireWorkflowMutationProject(projectId);
         var result = scoringCriteriaClassificationService.classifyForProject(projectId);
