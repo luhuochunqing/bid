@@ -106,7 +106,10 @@ final class ScoringItemExtractor {
             if (isHeaderOrNoise(normalized)) {
                 continue;
             }
-            if (NEXT_CHAPTER_PATTERN.matcher(normalized).find()) {
+            // 章节标题行（如"第二章 评标办法"）同时匹配 NEXT_CHAPTER_PATTERN 和评分别名，
+            // 必须先排除评分别名，否则提取器在标题行就 break 了
+            if (NEXT_CHAPTER_PATTERN.matcher(normalized).find()
+                    && !containsScoringAlias(normalized)) {
                 break;
             }
 
@@ -170,6 +173,16 @@ final class ScoringItemExtractor {
         }
         for (String keyword : HEADER_KEYWORDS) {
             if (normalized.contains(keyword) && normalized.length() <= 20) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 检查行是否包含评分标准章节别名（用于排除章节标题行的 NEXT_CHAPTER 判定）。 */
+    private static boolean containsScoringAlias(String normalized) {
+        for (String alias : ScoringSectionAliases.ALL) {
+            if (normalized.contains(alias)) {
                 return true;
             }
         }
