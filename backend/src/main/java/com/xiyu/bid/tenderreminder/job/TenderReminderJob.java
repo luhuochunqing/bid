@@ -185,7 +185,8 @@ public class TenderReminderJob {
             ReminderType reminderType,
             ReminderTargetInfo target) {
 
-        // 构建消息内容
+        // 构建消息内容（title 承载提醒类型+标讯标题，body 承载截止时间等详情，
+        // 避免合并塞入 title 导致企微 title 超 128 字符截断丢正文）
         String title = buildReminderTitle(tender, reminderType);
         String content = buildReminderContent(tender, reminderType, setting.getRemindBeforeHours());
 
@@ -194,9 +195,11 @@ public class TenderReminderJob {
                 null,
                 List.of(target.userId()),
                 "TENDER_REMINDER",
-                title + "\n" + content,
+                title,
+                content,
                 "TENDER",
-                tender.getId()
+                tender.getId(),
+                null
         );
         weComPushService.pushForRecipient(event, target.userId());
 

@@ -3,6 +3,7 @@ package com.xiyu.bid.warehouse.application;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.notification.outbound.event.NotificationCreatedEvent;
+import com.xiyu.bid.notification.outbound.service.WeComPushService;
 import com.xiyu.bid.warehouse.domain.WarehouseAttachmentExportScope;
 import com.xiyu.bid.warehouse.domain.WarehouseAttachmentType;
 import com.xiyu.bid.warehouse.dto.WarehouseFilterDTO;
@@ -10,7 +11,6 @@ import com.xiyu.bid.warehouse.infrastructure.WarehouseExportTaskEntity;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseExportZipBuilder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import java.time.format.DateTimeFormatter;
@@ -21,8 +21,13 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * 仓库 ZIP 导出包完成通知发布器：构建结果摘要 JSON、格式化筛选摘要、发布 NotificationCreatedEvent。
+ * 仓库 ZIP 导出包完成通知发布器：构建结果摘要 JSON、格式化筛选摘要、直推企微完成通知。
  * 拆出来以保持 WarehouseExportAppService 行数预算。
+ *
+ * <p>投递方式：与 TenderReminderJob 同构，构造 {@link NotificationCreatedEvent} 直接调用
+ * {@link WeComPushService#pushForRecipient}。此前使用 publishEvent(notificationId=null)，
+ * 但唯一监听器 NotificationDeliveryTaskListener 对 null notificationId 直接 return，
+ * 事件无人消费（通知从未发出），故改为直推。
  */
 @Component
 @RequiredArgsConstructor
@@ -30,7 +35,7 @@ import java.util.stream.Collectors;
 public class WarehouseExportNotificationPublisher {
 
     private final ObjectMapper objectMapper;
-    private final ApplicationEventPublisher eventPublisher;
+    private final WeComPushService weComPushService;
 
     public String buildResultSummaryJson(int totalCount, WarehouseExportZipBuilder.ZipBuildResult zip,
                                           WarehouseFilterDTO filterDTO, long elapsedMs,
@@ -100,14 +105,17 @@ public class WarehouseExportNotificationPublisher {
                     elapsedMs / 1000,
                     buildFilterSummary(filterDTO),
                     formatAttachmentScope(attachmentScope));
-            eventPublisher.publishEvent(new NotificationCreatedEvent(
+            NotificationCreatedEvent event = new NotificationCreatedEvent(
                     null,
                     List.of(task.getCreatedBy()),
                     "WAREHOUSE_EXPORT",
                     title,
+                    body,
                     "WAREHOUSE_EXPORT_TASK",
-                    task.getId()
-            ));
+                    task.getId(),
+                    null
+            );
+            weComPushService.pushForRecipient(event, task.getCreatedBy());
             log.info("仓库导出完成通知已发布: taskId={}, totalCount={}, elapsedMs={}",
                     task.getId(), totalCount, elapsedMs);
         } catch (RuntimeException e) {
