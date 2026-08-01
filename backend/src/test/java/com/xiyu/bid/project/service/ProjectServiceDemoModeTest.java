@@ -45,7 +45,8 @@ class ProjectServiceDemoModeTest {
                 new DemoFusionService(),
                 null,
                 null,
-                null
+                null,
+                new CustomFieldsCodec(new com.fasterxml.jackson.databind.ObjectMapper())
         );
     }
 

@@ -35,6 +35,7 @@ public class ProjectService {
     private final ProjectImportService projectImportService;
     private final ProjectQueryService projectQueryService;
     private final ProjectLeadAssignmentRepository projectLeadAssignmentRepository;
+    private final CustomFieldsCodec customFieldsCodec;
 
     @Transactional(readOnly = true)
     public List<ProjectDTO> getAllProjects() {
@@ -50,7 +51,7 @@ public class ProjectService {
         projectAccessScopeService.assertCurrentUserCanAccessProject(id);
         Project project = projectRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Project", id.toString()));
-        ProjectDTO dto = ProjectMapper.toDTO(project);
+        ProjectDTO dto = toDtoWithCustomFields(project);
         // CO-387 fix: 详情接口 enrich 主/副投标负责人 ID，供前端权限判断（canDeleteTask/canChangeStatus）
         projectLeadAssignmentRepository.findByProjectId(id).ifPresent(lead -> {
             dto.setPrimaryLeadUserId(lead.getPrimaryLeadUserId());
@@ -67,10 +68,13 @@ public class ProjectService {
         ProjectDTO normalized = ProjectPayloadValidator.validateAndNormalize(projectDTO, true);
         Project existingProject = ExistingTenderProjectSelector.selectAccessible(
                 projectRepository, projectAccessScopeService, normalized.getTenderId());
-        if (existingProject != null) return ProjectMapper.toDTO(existingProject);
+        if (existingProject != null) return toDtoWithCustomFields(existingProject);
         Project project = ProjectMapper.toEntity(normalized);
+        // CO-601: 自定义字段过滤非法 scope 键后落 custom_fields 列（契约 §1）
+        project.setCustomFields(customFieldsCodec.toJson(customFieldsCodec.filterScopes(
+                normalized.getCustomFields(), CustomFieldsCodec.PROJECT_TABLE_SCOPES)));
         Project savedProject = projectRepository.save(project);
-        return ProjectMapper.toDTO(savedProject);
+        return toDtoWithCustomFields(savedProject);
     }
 
     public ProjectDTO importProject(ProjectImportRequest request) {
@@ -224,6 +228,13 @@ public class ProjectService {
 
     private boolean isDemoEntityId(Long id) {
         return demoModeService.isEnabled() && id != null && id < 0;
+    }
+
+    /** CO-601: DTO 装配时把 custom_fields 列 JSON 解为 Map（列 NULL / 脏 JSON 降级空 Map，契约 §3）。 */
+    private ProjectDTO toDtoWithCustomFields(Project project) {
+        ProjectDTO dto = ProjectMapper.toDTO(project);
+        dto.setCustomFields(customFieldsCodec.fromJson(project.getCustomFields()));
+        return dto;
     }
 
     private void rejectDemoEntityMutation(Long id) {

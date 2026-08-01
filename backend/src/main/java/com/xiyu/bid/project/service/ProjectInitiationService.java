@@ -155,7 +155,10 @@ public class ProjectInitiationService {
             var deny = (InitiationFieldPolicy.Decision.Deny) fullDecision;
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, deny.reasonText());
         }
-        mapper.applyInput(existing, mapper.toDto(requestedInput));
+        InitiationDto mergedDto = mapper.toDto(requestedInput);
+        // CO-601: customFields 不进 InitiationInput 纯核心（非校验字段），直接透传给 applyInput 按 scope 整体替换
+        mergedDto.setCustomFields(req.getCustomFields());
+        mapper.applyInput(existing, mergedDto);
         existing.setUpdatedBy(currentUserId);
         ProjectInitiationDetails saved = repository.save(existing);
         log.info("Initiation updated: projectId={}, userId={}, reviewStatus={}",

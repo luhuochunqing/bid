@@ -179,6 +179,10 @@ public class Project {
     @Column(name = "customer_manager_id", length = 100)
     private String customerManagerId;
 
+    /** CO-601 自定义字段（JSON，按 scope 分组：project.basic / project.detail）。V1183 新增。 */
+    @Column(name = "custom_fields", columnDefinition = "JSON")
+    private String customFields;
+
     /**
      * 创建时间
      */

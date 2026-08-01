@@ -151,6 +151,10 @@ public class ProjectInitiationDetails {
     @Column(name = "customer_info_json", columnDefinition = "JSON")
     private String customerInfoJson;
 
+    /** CO-601 自定义字段（JSON，按 scope 分组：project.initiation）。V1183 新增。 */
+    @Column(name = "custom_fields", columnDefinition = "JSON")
+    private String customFields;
+
     /** CO-323: 评估表带入标记（proceedToBid 由标讯评估表带入则 true，前端据此设带入字段只读）。 */
     @Column(name = "eval_prefilled", nullable = false)
     @Builder.Default

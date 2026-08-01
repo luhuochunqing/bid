@@ -7,30 +7,13 @@ import {
   hasGlobalHttpErrorMessage
 } from '../../createTenderPrefill.js'
 import { buildTaskCreatePayloadsFromRows } from './projectCreateTaskPayloads.js'
+import { useProjectCreateCustomFields } from './useProjectCreateCustomFields.js'
+import { decodeQueryValue, decodeNumericQuery, splitTags } from './queryDecode.js'
 
 const formatDateTime = (value, fallbackTime = '00:00:00') => {
   if (!value) return ''
   if (String(value).includes('T')) return String(value)
   return `${value}T${fallbackTime}`
-}
-
-const decodeQueryValue = (value) => {
-  if (Array.isArray(value)) return decodeQueryValue(value[0])
-  if (value === undefined || value === null) return ''
-  return String(value)
-}
-
-const decodeNumericQuery = (value) => {
-  const normalized = decodeQueryValue(value)
-  if (!normalized) return null
-  const numericValue = Number(normalized)
-  return Number.isFinite(numericValue) ? numericValue : null
-}
-
-const splitTags = (value) => {
-  const normalized = decodeQueryValue(value)
-  if (!normalized) return []
-  return normalized.split(',').map((item) => item.trim()).filter(Boolean)
 }
 
 export function useProjectCreateModel({ route, userStore, projectStore, router }) {
@@ -75,6 +58,9 @@ export function useProjectCreateModel({ route, userStore, projectStore, router }
   const selectedTenderId = ref(null)
   const isEditMode = ref(false)
   const editProjectId = ref(null)
+
+  // CO-601: 自定义字段注册表（schema 登记 → payload 收集 → 编辑回显），实现见 useProjectCreateCustomFields.js
+  const { setCustomFieldsSchema, collectAll: collectCustomFieldsAll, mergeAll: mergeCustomFieldsAll } = useProjectCreateCustomFields()
 
   function addTask() {
     taskForm.tasks.push({
@@ -200,6 +186,9 @@ export function useProjectCreateModel({ route, userStore, projectStore, router }
         detailForm.endDate = project.endDate || ''
         detailForm.remark = project.remark || ''
 
+        // CO-601: 自定义字段按 scope 摊平回显（预置 key 以 DTO 权威值为准，撞 key 脏数据忽略）
+        mergeCustomFieldsAll(basicForm, detailForm, project.customFields)
+
         if (project.tasks && project.tasks.length > 0) {
           taskForm.tasks = project.tasks
         }
@@ -238,6 +227,9 @@ export function useProjectCreateModel({ route, userStore, projectStore, router }
       throw new Error('请填写投标截止日期或预计完工日期')
     }
 
+    // CO-601: 按 scope 收集自定义字段（schema 减预置清单）；无自定义值时省略该键
+    const customFields = collectCustomFieldsAll(basicForm, detailForm)
+
     return {
       name: basicForm.name,
       tenderId,
@@ -261,7 +253,8 @@ export function useProjectCreateModel({ route, userStore, projectStore, router }
       sourceCustomerId: sourceInfo.customerId || '',
       sourceCustomer: sourceInfo.customerName || '',
       sourceOpportunityId: sourceInfo.opportunityId || '',
-      sourceReasoningSummary: sourceInfo.reasoningSummary || ''
+      sourceReasoningSummary: sourceInfo.reasoningSummary || '',
+      ...(Object.keys(customFields).length > 0 ? { customFields } : {})
     }
   }
 
@@ -279,6 +272,7 @@ export function useProjectCreateModel({ route, userStore, projectStore, router }
     selectedTenderId,
     isEditMode,
     editProjectId,
+    setCustomFieldsSchema,
     addTask,
     removeTask,
     handleCompetitorsChange,

@@ -126,4 +126,68 @@ describe('useWorkflowFormDesigner', () => {
       { fieldKey: 'amount', overrideType: 'required', overrideValue: 'true' }
     ])
   })
+
+  // CO-601 US2：保存/发布前 key 冲突校验（FR-006）
+  it('project.initiation schema 含预置 key 时 saveAll 被阻断，不发任何保存请求', async () => {
+    formDefinitionApi.listFormDefinitions.mockResolvedValue({
+      data: {
+        content: [
+          {
+            id: 9,
+            scope: 'project.initiation',
+            scopeLabel: '项目立项',
+            enabled: true,
+            schemaJson: JSON.stringify({
+              fields: [
+                { key: 'projectName', label: '项目名称', type: 'text' },
+                { key: 'internalNote', label: '内部备注', type: 'textarea' }
+              ]
+            })
+          }
+        ]
+      }
+    })
+    const designer = mountDesigner()
+    await flushPromises()
+    designer.selectFormDefinition(designer.formDefinitions.value[0])
+    await flushPromises()
+
+    await expect(designer.saveAll()).rejects.toThrow('projectName')
+
+    expect(formDefinitionApi.updateFormDefinition).not.toHaveBeenCalled()
+    expect(formDefinitionApi.saveVisibilityRules).not.toHaveBeenCalled()
+    const { ElMessage } = await import('element-plus')
+    expect(ElMessage.error).toHaveBeenCalledWith(expect.stringContaining('projectName'))
+  })
+
+  it('project.initiation 合法自定义字段 schema 时 saveAll 正常保存', async () => {
+    formDefinitionApi.listFormDefinitions.mockResolvedValue({
+      data: {
+        content: [
+          {
+            id: 10,
+            scope: 'project.initiation',
+            scopeLabel: '项目立项',
+            enabled: true,
+            schemaJson: JSON.stringify({
+              fields: [{ key: 'internalNote', label: '内部备注', type: 'textarea' }]
+            })
+          }
+        ]
+      }
+    })
+    const designer = mountDesigner()
+    await flushPromises()
+    designer.selectFormDefinition(designer.formDefinitions.value[0])
+    await flushPromises()
+    formDefinitionApi.updateFormDefinition.mockResolvedValue({ data: {} })
+    formDefinitionApi.saveVisibilityRules.mockResolvedValue({ data: {} })
+    formDefinitionApi.saveConditionRules.mockResolvedValue({ data: {} })
+
+    await designer.saveAll()
+
+    expect(formDefinitionApi.updateFormDefinition).toHaveBeenCalledWith(10, expect.objectContaining({
+      schema: { fields: [{ key: 'internalNote', label: '内部备注', type: 'textarea' }] }
+    }))
+  })
 })

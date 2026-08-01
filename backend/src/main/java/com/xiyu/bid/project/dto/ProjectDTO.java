@@ -54,6 +54,8 @@ public class ProjectDTO {
     private String tagsJson;
     private String customerManager;
     private String customerManagerId;
+    /** CO-601 自定义字段（按 scope 分组：project.basic / project.detail）；列 NULL 时返回空 Map。 */
+    private java.util.Map<String, Object> customFields;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 

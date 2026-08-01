@@ -1,5 +1,8 @@
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { unref } from 'vue'
 import { getDownloadUrl as getObsDownloadUrl } from '@/api/files.js'
+import { collectCustomFields, mergeCustomFieldsIntoModel } from '@/composables/useCustomFields.js'
+import { PROJECT_LOCKED_FIELD_KEYS } from '@/views/System/workflow-form-designer/workflowFormDesignerCore.js'
 
 const OBS_DIRECT_PREFIX = 'obs-direct:'
 const isObsEnabled = import.meta.env.VITE_OBS_ENABLED === 'true'
@@ -49,6 +52,7 @@ export function useInitiationStageActions({
   leaderOptions,
   assistantOptions,
   obsUpload,
+  customFieldsSchema,
 }) {
   const {
     existing,
@@ -154,12 +158,20 @@ export function useInitiationStageActions({
   function buildPayload() {
     const pType = PROJECT_TYPE_SUBMIT_MAP[form.projectType] || form.projectType
     const cType = CUSTOMER_TYPE_SUBMIT_MAP[form.customerType] || form.customerType
+    // CO-601: 收集 project.initiation scope 自定义字段（schema 减预置清单）；无自定义值时省略该键
+    const customFields = collectCustomFields(
+      form,
+      unref(customFieldsSchema),
+      PROJECT_LOCKED_FIELD_KEYS['project.initiation'],
+      'project.initiation'
+    )
     return {
       ...form,
       projectType: pType && String(pType).trim() ? pType : null,
       customerType: cType && String(cType).trim() ? cType : null,
       annualRevenue: form.customerRevenue || form.annualRevenue,
       customerInfoRows: custFixedRows.value,
+      ...(Object.keys(customFields).length > 0 ? { customFields } : {}),
     }
   }
 
@@ -169,6 +181,8 @@ export function useInitiationStageActions({
       const data = response?.data || response
       if (!data) return
       Object.assign(form, data)
+      // CO-601: 自定义字段按 scope 摊平回显（预置 key 以 DTO 权威值为准，撞 key 脏数据忽略）
+      mergeCustomFieldsIntoModel(form, data.customFields, 'project.initiation', PROJECT_LOCKED_FIELD_KEYS['project.initiation'])
       if (data.tenderDocumentId) {
         try {
           const docResp = await projectsApi.getDocuments(props.projectId, {
@@ -520,5 +534,6 @@ export function useInitiationStageActions({
     saveDraft,
     submit,
     load,
+    buildPayload,
   }
 }

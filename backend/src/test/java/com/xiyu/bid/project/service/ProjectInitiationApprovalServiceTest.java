@@ -62,7 +62,8 @@ class ProjectInitiationApprovalServiceTest {
     @BeforeEach
     void setUp() {
         // 使用真实 ProjectInitiationMapper + ObjectMapper，让 toView() 真实执行
-        initiationMapper = new ProjectInitiationMapper(new ObjectMapper());
+        ObjectMapper om = new ObjectMapper();
+        initiationMapper = new ProjectInitiationMapper(om, new CustomFieldsCodec(om));
         service = new ProjectInitiationApprovalService(
                 initiationRepo,
                 leadRepo,

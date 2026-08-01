@@ -10,7 +10,8 @@ import {
   createField,
   extractWorkflowFormError,
   moveField,
-  removeField
+  removeField,
+  validateCustomFieldKeyConflicts
 } from './workflowFormDesignerCore.js'
 
 export function useWorkflowFormDesigner() {
@@ -251,6 +252,14 @@ export function useWorkflowFormDesigner() {
     if (!def) {
       ElMessage.error('未选中独立表单')
       throw new Error('No form selected')
+    }
+    // CO-601 US2：项目三 scope 保存/发布前 key 冲突校验（publish 复用 saveAll，天然覆盖）
+    const keyConflicts = validateCustomFieldKeyConflicts(formEngineDraft.scope, draft.schema.fields)
+    if (keyConflicts.length > 0) {
+      const message = `保存阻断：${keyConflicts.join('；')}`
+      formEngineError.value = message
+      ElMessage.error(message)
+      throw new Error(message)
     }
     formEngineLoading.save = true
     formEngineError.value = ''

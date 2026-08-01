@@ -16,7 +16,7 @@
     </div>
 
     <!-- Dynamic schema loaded: render DynamicFormRenderer -->
-    <template v-if="hasSchema && !forceFallback">
+    <template v-if="hasSchema && !forceFallback && !hybrid">
       <DynamicFormRenderer
         ref="formRendererRef"
         :fields="fields"
@@ -29,6 +29,29 @@
       />
       <!-- Extension slot: business-specific fields beyond schema (e.g. paste recognition, file upload) -->
       <slot name="extension-fields" :model-value="modelValue" :disabled="disabled" />
+    </template>
+
+    <!-- CO-601 Hybrid mode: fallback-form 始终渲染（保留保证金/客户矩阵/审批/OBS 上传等复杂交互），
+         DynamicFormRenderer 追加渲染 fields − presetKeys（仅自定义字段） -->
+    <template v-else-if="hybrid">
+      <slot
+        name="fallback-form"
+        :model-value="modelValue"
+        :update:model-value="handleUpdate"
+        :fields="fields"
+      />
+      <slot name="extension-fields" :model-value="modelValue" :disabled="disabled" />
+      <DynamicFormRenderer
+        v-if="hybridCustomFields.length > 0"
+        ref="formRendererRef"
+        :fields="hybridCustomFields"
+        :field-states="mergedFieldStates"
+        :model-value="modelValue"
+        :disabled="disabled"
+        :upload-fn="uploadFn"
+        @update:model-value="handleUpdate"
+        @submit="handleSubmit"
+      />
     </template>
 
     <!-- No dynamic schema or forceFallback: render inline fallback form -->
@@ -59,7 +82,10 @@ const props = defineProps({
   disabled: { type: Boolean, default: false },
   uploadFn: { type: Function, default: null },
   forceFallback: { type: Boolean, default: false },
-  autoFetch: { type: Boolean, default: true }
+  autoFetch: { type: Boolean, default: true },
+  // CO-601: hybrid=true 时 fallback-form 始终渲染，schema 中 fields − presetKeys 追加渲染（仅自定义字段）
+  hybrid: { type: Boolean, default: false },
+  presetKeys: { type: Array, default: () => [] }
 })
 
 const emit = defineEmits(['update:modelValue', 'submit', 'schema-loaded', 'schema-error', 'submit-success', 'submit-error'])
@@ -75,6 +101,13 @@ const formRendererRef = shallowRef(null)
 const formDataRef = { value: props.modelValue }
 
 const hasSchema = computed(() => fields.value && fields.value.length > 0)
+
+// CO-601 hybrid 模式：自定义字段集 = schema fields − presetKeys（预置字段由 fallback 硬编码表单渲染）
+const hybridCustomFields = computed(() => {
+  if (!props.hybrid) return []
+  const preset = new Set(props.presetKeys || [])
+  return (fields.value || []).filter((f) => f && !preset.has(f.key))
+})
 
 // ----- Composable集成 -----
 const conditionStates = useFormConditions(conditions.value, formDataRef)
@@ -227,7 +260,8 @@ defineExpose({
   submit,
   getFields: () => fields.value,
   getSchemaData: () => schemaData.value,
-  isDynamic: computed(() => hasSchema.value && !props.forceFallback),
+  // CO-601: hybrid 模式下 fallback 为主渲染，isDynamic=false 保持父组件校验策略不变
+  isDynamic: computed(() => hasSchema.value && !props.forceFallback && !props.hybrid),
   hasSchema,
   loading,
   error

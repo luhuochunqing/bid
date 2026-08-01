@@ -274,6 +274,8 @@ public class ProjectController {
                 .tagsJson(request.getTagsJson())
                 .customerManager(request.getCustomerManager())
                 .customerManagerId(request.getCustomerManagerId())
+                // CO-601: 自定义字段（Map 结构，无需 InputSanitizer 字符串清洗；scope 过滤在 Service 层）
+                .customFields(request.getCustomFields())
                 .build();
     }
 
