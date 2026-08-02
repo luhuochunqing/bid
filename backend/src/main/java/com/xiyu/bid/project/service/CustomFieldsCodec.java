@@ -49,13 +49,30 @@ public class CustomFieldsCodec {
         if (json == null || json.isBlank()) {
             return Collections.emptyMap();
         }
+        // 先尝试直接解析为 Map（MySQL JSON 列 / 普通 TEXT 列的正常路径）
         try {
             Map<String, Object> result = objectMapper.readValue(json, MAP_TYPE);
             return result != null ? result : Collections.emptyMap();
-        } catch (JsonProcessingException ex) {
-            log.warn("Custom fields JSON parse failed, fallback to empty map: {}", ex.getMessage());
-            return Collections.emptyMap();
+        } catch (JsonProcessingException ignored) {
+            // 继续尝试双重编码剥离
         }
+        // H2 JSON 列双重编码兜底：H2 把 JSON 字符串值再编码为 JSON 字符串
+        // 例如 {"a":1} 被存储为 "{\"a\":1}"，读取时需先取 textual 再解析为 Map
+        // 纯字符串（非 JSON 对象）仍降级为空 Map，保持 fromJson_nonObjectJson_degradesToEmptyMap 契约
+        try {
+            var node = objectMapper.readTree(json);
+            if (node.isTextual()) {
+                String inner = node.asText();
+                if (inner != null && !inner.isBlank() && inner.trim().startsWith("{")) {
+                    Map<String, Object> result = objectMapper.readValue(inner, MAP_TYPE);
+                    return result != null ? result : Collections.emptyMap();
+                }
+            }
+        } catch (JsonProcessingException ignored) {
+            // 继续走降级
+        }
+        log.warn("Custom fields JSON parse failed, fallback to empty map: {}", json);
+        return Collections.emptyMap();
     }
 
     /**
