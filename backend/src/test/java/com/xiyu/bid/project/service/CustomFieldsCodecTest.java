@@ -69,6 +69,15 @@ class CustomFieldsCodecTest {
     }
 
     @Test
+    void fromJson_h2DoubleEncodedJson_decodesToMap() {
+        // H2 JSON 列双重编码：{"a":1} 被存储为 "{\"a\":1}"
+        // 读取时需先取 textual 再解析为 Map（project_memory H2 双重编码 lessons）
+        String doubleEncoded = "\"{\\\"project.basic\\\":{\\\"budgetLevel\\\":\\\"重点客户\\\"}}\"";
+        Map<String, Object> result = codec.fromJson(doubleEncoded);
+        assertEquals(Map.of("budgetLevel", "重点客户"), result.get("project.basic"));
+    }
+
+    @Test
     void roundtrip_preservesValues() {
         Map<String, Object> map = Map.of(
                 "project.detail", Map.of("siteVisitDone", true, "visitCount", 3));
