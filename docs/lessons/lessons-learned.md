@@ -6981,3 +6981,71 @@ crm_eq_emp=1254, crm_eq_username=1254
 - `docs/lessons/lessons-learned.md` §60 — CRM 商机关联失败三层根因（spec 037 / 2026-07-16）
 - `backend/src/main/java/com/xiyu/bid/integration/organization/infrastructure/client/OrganizationDirectoryJsonMapper.java:36` — jobNumber → username 映射
 - `backend/src/main/java/com/xiyu/bid/integration/organization/application/OrganizationUserSyncWriter.java:107-118` — 三字段同源填充逻辑
+
+---
+
+## 99. 被关闭但未合并的 PR 改动仍可找回——git 孤儿 commit + 工作区 blob 对比重建新分支/新 PR（PR !2244 / 2026-08-02）
+
+### 问题背景
+
+PR !2244（e2e: CO-601 数据隔离 + /bidAdmin 角色）被手动关闭但**未合并**（`merged_at` 为空）、无关闭原因评论，head 分支 `agent/claude/co601-fix-e2e-test-isolation` 已被删除，改动未进 main。事后判断该改动有价值，需要还原。
+
+直接困境：分支删了、远端 PR 关了，`git log`/`git branch` 都找不到；
+但 head commit `29d7ae3` 因 Gitee 远端仍保留 ref（作为 PR 历史）而在本地对象库存在，可作孤儿 commit 直接 `git cat-file -t <sha>` 验证。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| PR 被关闭且分支删除，改动"消失" | 关闭的 PR 的 head commit 常以孤儿 commit 形式残留在本地对象库（`git cat-file` 可达），可恢复；恢复前无需 `git fsck`，直接 `git cat-file -t <head_sha>` | PR 的 head sha 从 `get_pull_detail` 的 `head.sha` 字段获取；先 `git cat-file -t` 确认对象存在 |
+| head commit 基于旧 main，直接并入 base 会漂移 | 孤儿 commit 的 merge-base 往往落后当前 main | 恢复时以 **origin/main 为 base** 重建分支（`git checkout -b <新分支> origin/main`），再 `git stash pop`/带上工作区改动，而不是直接基于孤儿 commit 的旧 base |
+| 改动可能不止于这一个 head commit | 原分支被删前，工作区/同一任务的分支上可能还有未提交改动，才是完整载体 | 用 `git stash list` + `git stash show -p` 检查其它临时快照；用文件 blob 对比确认孤儿 commit 内容是否被工作区更新版本覆盖 |
+| 关闭了但不知为何 | Gitee PR 关闭常不写原因，MCP `list_comments` 返回空 | 通过 `get_pull_detail` 的 `merged_at`（空=未合并）+ `state` 判断状态；不要假定"关闭=放弃" |
+
+### 操作规范
+
+1. 取被关闭 PR 的 head sha：Gitee MCP `get_pull_detail` → `head.sha`。
+2. 确认对象仍在本地（Gitee 保留 PR 历史 ref 时通常可达）：
+   ```bash
+   git cat-file -t <head_sha>   # commit → 可恢复；缺失则需 git fetch 该 sha
+   ```
+3. 以最新 main 为 base 重建分支（避免 base 漂移）：
+   ```bash
+   git checkout -b agent/trae/restore-<pr>-<slug> origin/main
+   ```
+4. 若工作区/临时分支还留有未提交改动（完整载体），stash 后自带，或直接工作区改动提交。
+5. 验证孤儿 commit 与工作区版本是否一致：对同一文件跑 `git show <head_sha>:<path> > /tmp/a` 与工作区文件 `diff`，确认覆盖关系（避免恢复旧版本、丢失新改动）。
+6. 走正常门禁提交 + push + 重建 PR；若可，直接在 PR body 标注"替换被关闭的 #FFNN"。
+
+### 相关文档
+
+- 本次实例：PR !2244 → 重建为 !2246（`agent/trae/revert-co601-e2e-pr2244`，commit `e491c7c2`）
+- `CLAUDE.md` §Git Safety Protocol
+
+
+## 100. session-gate auto-stash 会夹带同分支无关且会 revert 他人修复的有害改动——处理临时 stash 前必须审 diff（2026-08-02）
+
+### 问题背景
+
+收尾清理 `temp-test-co601-e2e` 分支时，发现 `stash@{0}`（session-gate 自动 stash，标记 `session-gate auto-stash <时间戳>`）。查看 `git stash show -p` 后发现，它不止包含本次 CO-601 相关文件（`CustomFieldsCodec`、e2e spec），还夹带了一批**过期的、会把已合入 main 的 OOM 修复给 revert 掉**的旧改动：`TenderController.java`（删 size 上限保护）、`application-dev.yml`（SQL 日志 WARN→DEBUG/TRACE）、`start.sh`（`-Xmx1g`→`-Xmx2g`）。若盲目 `stash pop`/`apply` 应用到当前分支，会回退 OOM 根因修复，造成回归风险。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| `git stash list` 看到 auto-stash 就误以为只是"本次临时内容" | session-gate 的 auto-stash 会打包**同一分支所有未提交改动**，可能含与本任务无关（甚至方向相反、revert 他人修复）的内容 | 处理任何 stash 前，先 `git stash show -p stash@{0}` 完整审 diff，分清"本任务相关 / 无关 / 有害 revert"三类 |
+| 只看 `--stat` 文件名就可能误判 | 文件名看不出改动是新增还是 revert | 必须看 diff 正文：检测"注释消失 + `->` 回退到旧值/旧逻辑"即为 revert 方向 |
+| 直接 drop 有心理负担，但内容有害就该 drop | 保留有害 stash 会让其在 rebase/pop 时误应用 | 审完后按"本次已覆盖→跳过、无关→drop、有害 revert→drop"原则清理；只保留确有独立价值的条目 |
+
+### 操作规范
+
+1. 收尾/处理临时分支时先 `git stash list`，重点关注 `session-gate auto-stash` 条目。
+2. `git stash show -p stash@{N}` 完整 diff（**不要只看 --stat**）。
+3. 对照 `git log` / 已合入标记判断：若文中出现"删除注释 + 回退到旧值"（如 OOM 修复的 `-Xmx1g`、SQL DEBUG），判定为**有害 revert**，应用于当前分支会造成回归。
+4. 逐条分类：本次已覆盖（如已在 PR 提交更新版本）→ 可跳过/drop；无关或有害 → `git stash drop stash@{N}`。
+5. 不可逆 drop 前，向用户展示 diff 结论并获得确认。
+
+### 相关文档
+
+- `CLAUDE.md` §环境坑点 9/10（launchd 自动重启 + watchdog fail-state）
+- 本次实例：`stash@{0}`（`3b480e2`）含 TenderController/application-dev.yml/start.sh 的 OOM revert，经确认后 drop。
