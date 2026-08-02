@@ -58,10 +58,13 @@ BACKEND_PROFILES="${SPRING_PROFILES_ACTIVE:-dev,mysql}"
 DB_HOST_DISPLAY="${DB_HOST:-localhost}"
 DB_PORT_DISPLAY="${DB_PORT:-3306}"
 
-# JVM 内存配置：避免 OOM Killer（exit code 137）导致后端在 E2E 测试中崩溃
-# -Xmx2g：最大堆内存 2GB（足够支撑 E2E 测试并发请求）
-# -Xms512m：初始堆内存 512MB（减少启动时频繁扩展堆）
-JVM_MEMORY="${JVM_MEMORY:--Xmx2g -Xms512m}"
+# JVM 内存配置：避免 macOS OOM Killer（exit code 137）杀进程
+# 根因：直接 `mvn spring-boot:run` 不走本脚本时，JVM 用默认堆（物理内存 1/4 = 8GB），
+# 在 macOS 内存紧张时（swap 17GB+）触发系统级 OOM Killer。
+# -Xmx1g：最大堆 1GB（dev 环境 316 条标讯/9 个 E2E 用例验证足够）
+# -Xms256m：初始堆 256MB（减少启动时频繁扩展堆）
+# -XX:MaxMetaspaceSize=256m：限制 Metaspace 防止类加载膨胀
+JVM_MEMORY="${JVM_MEMORY:--Xmx1g -Xms256m -XX:MaxMetaspaceSize=256m}"
 
 # 使用 MySQL 8.0 开发配置启动（自动种子化默认管理员 admin / XiyuAdmin2026!）
 echo "Using ${BACKEND_PROFILES} profile(s) (MySQL 8.0 on ${DB_HOST_DISPLAY}:${DB_PORT_DISPLAY}, auto-seeds default admin)"

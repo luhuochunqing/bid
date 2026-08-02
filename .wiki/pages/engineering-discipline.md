@@ -297,6 +297,7 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 | 外部服务异常必须保留原始 HTTP 状态码 | 502/503 比 500 更准确 | [[spring-pitfalls]] §9 |
 | `/api/*/list` 端点默认必须返回业务所需完整 DTO，敏感字段走单独端点；不允许 N+1 | 列表脱敏迫使前端 N+1 → 撞 429 → 用户看到 AxiosError（spec 035 / Account 详情 6 次反复修根因） | [[frontend-pitfalls]] §12 |
 | 前端业务层 catch 块禁止直接 `ElMessage.error` 覆盖全局 429 提示 | 全局 interceptor 已负责友好提示，重复弹窗会暴露 `AxiosError` | [[frontend-pitfalls]] §12 |
+| 分页查询 size 必须做上限保护（`PaginationConstants.MAX_PAGE_SIZE=100`） | 前端传超大 size（如 10000）会导致大查询占满内存触 OOM | PR !2245 |
 
 ### 5.2 测试规范
 
@@ -458,3 +459,4 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 | 2026-07-12 | 新增"全局 429 提示被业务层覆盖"案例到案例库索引，更新编码规范与 pre-push 拦截脚本索引 |
 | 2026-07-12 | 新增 "Account 详情 429（N+1）" 6 次反复修案例到 §6.3；§5.1 新增"list 端点必须返回完整 DTO"规范；§6.4 新增 2 个 pre-push 脚本（check-list-endpoint-n1 / audit-existing-429-exposure）| spec 035 沉淀 |
 | 2026-07-17 | 新增 "仓库全量导出超时（@Async 自调用）" 案例到 §6.3；根因 6（框架理解偏差）；修复方式：提取 @Async 方法到独立 Bean，参考 `WarehouseExportAsyncExecutor`；同时覆盖 Export/Ledger/Import 三处同源问题 | spec 039 沉淀，PR !2110 |
+| 2026-08-02 | 新增 "后端 OOM（exit 137）" 案例；根因：裸 `mvn spring-boot:run` 时 JVM 默认堆 = 物理内存 1/4，macOS 内存紧张时触发系统级 OOM Killer；规范：禁止裸 mvn 启动、必须显式 -Xmx；§5.1 编码规范新增"分页 size 必须上限保护（MAX_PAGE_SIZE=100）"，补齐 TenderController 遗漏 | OOM 根因修复，PR !2245 |

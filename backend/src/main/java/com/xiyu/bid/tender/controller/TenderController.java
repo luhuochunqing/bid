@@ -1,6 +1,7 @@
 package com.xiyu.bid.tender.controller;
 
 import com.xiyu.bid.common.domain.PagedResult;
+import com.xiyu.bid.config.PaginationConstants;
 import com.xiyu.bid.demo.service.DemoDataProvider;
 import com.xiyu.bid.demo.service.DemoFusionService;
 import com.xiyu.bid.demo.service.DemoModeService;
@@ -73,7 +74,13 @@ public class TenderController {
     public ResponseEntity<ApiResponse<PagedResult<TenderDTO>>> getAllTenders(@ModelAttribute TenderSearchCriteria criteria) {
         log.info("GET /api/tenders - criteria={}", criteria);
         sanitizeTenderSearchCriteria(criteria);
-        Page<TenderDTO> page = tenderQueryService.searchTendersPaged(criteria, PageRequest.of(Math.max(criteria.getPage(), 0), criteria.getSize() > 0 ? criteria.getSize() : 20));
+        // size 上限保护（2026-08-02 OOM 根因修复）：
+        // 前端工作台传 size=10000 会导致大查询（虽然 DB 只 316 条，但生产环境可能数万条）。
+        // 项目其他 Controller 已用 PaginationConstants.MAX_PAGE_SIZE=100，此处遗漏。
+        int safeSize = criteria.getSize() <= 0
+                ? PaginationConstants.DEFAULT_PAGE_SIZE
+                : Math.min(criteria.getSize(), PaginationConstants.MAX_PAGE_SIZE);
+        Page<TenderDTO> page = tenderQueryService.searchTendersPaged(criteria, PageRequest.of(Math.max(criteria.getPage(), 0), safeSize));
         PagedResult<TenderDTO> result = PagedResult.of(page.getContent(), page.getTotalElements(), page.getNumber(), page.getSize());
         if (demoModeService.isEnabled()) {
             List<TenderDTO> merged = demoFusionService.mergeByKey(result.content(), demoDataProvider.getDemoTenders(), TenderDTO::getId);

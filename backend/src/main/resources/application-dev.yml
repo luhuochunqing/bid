@@ -2,12 +2,12 @@ spring:
   main:
     allow-bean-definition-overriding: true
   jpa:
-    show-sql: true
+    show-sql: false
     hibernate:
       ddl-auto: update
     properties:
       hibernate:
-        format_sql: true
+        format_sql: false
         hbm2ddl:
           auto: update
 
@@ -35,8 +35,13 @@ logging:
   level:
     com.xiyu: DEBUG
     org.springframework.security: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    # Hibernate SQL 日志降级为 WARN（2026-08-02 OOM 根因修复）：
+    # dev profile 此前 SQL:DEBUG + show-sql:true + format_sql:true + BasicBinder:TRACE 四重输出，
+    # 9 个 E2E 用例产生 2961 条 SQL 日志（每条 10+ 行格式化），10h 累积 36428 条。
+    # WARN 级别下每条 SQL 语句（DEBUG 级别）不再逐条输出，仅保留 WARN 及以上级别，
+    # 与 logback-spring.xml 里 org.hibernate.SQL=WARN 保持一致。
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
 
 rate:
   limit:

@@ -91,14 +91,18 @@ npm run dev:all
 ```bash
 # 手动方式：后端（仅主工作区 trae）
 cd /Users/user/xiyu/worktrees/trae/backend
-# 推荐：使用 start.sh（已内置默认环境变量，需 XIYU_DEV_CONFIRMED=1）
+# 推荐：使用 start.sh（已内置默认环境变量 + JVM 内存限制，需 XIYU_DEV_CONFIRMED=1）
 XIYU_DEV_CONFIRMED=1 ./start.sh
 
-# 或直接使用 mvn（需手动传入必需环境变量）
+# 或直接使用 mvn（需手动传入必需环境变量 + 显式 -Xmx）
+# ⚠️ 禁止裸 `mvn spring-boot:run`：JVM 默认堆 = 物理内存 1/4（32GB 机器 = 8GB），
+#    在 macOS swap 17GB+ 时会触发系统级 OOM Killer（exit code 137）。
+#    必须显式传 -Xmx1g（与 start.sh 默认值一致）。
 JWT_SECRET="xiyu-bid-poc-local-dev-secret-key-please-change-in-prod-32bytes-min" \
 DB_PASSWORD="XiyuDB!2026" \
 CORS_ALLOWED_ORIGINS="http://localhost:1323,http://127.0.0.1:1323" \
 mvn spring-boot:run -Dspring-boot.run.profiles=dev \
+  -Dspring-boot.run.jvmArguments="-Xmx1g -Xms256m -XX:MaxMetaspaceSize=256m" \
   -Dspring-boot.run.arguments="--server.port=18089"
 ```
 
