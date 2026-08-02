@@ -3,6 +3,17 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-08-01] update | dynamic-form-engine 新增 §9.8 E2E 失败根因 + lessons-learned §96
+
+- 背景：T034 quickstart §4 E2E 测试 9 个全失败，但 CO-601 产品代码经手动 API 验证正常
+- 改动：
+  - `dynamic-form-engine.md`：
+    - §9.7 补充 quickstart.md §6 引用 + 标注 E2E 当前失败状态与根因
+    - 新增 §9.8 E2E 测试失败根因与判别流程（三类根因 + admin 手动验证判别法）
+  - `docs/lessons/lessons-learned.md`：新增 §96 E2E 测试失败三类根因模式（测试数据污染 / 角色权限不匹配 / 后端 OOM 崩溃）
+  - `specs/040-project-form-custom-fields/quickstart.md`：新增 §6 走查结果记录（§1-§5 验证结论表 + E2E 失败根因 + 手动 API 验证证据）
+- 关联：PR !2241（commit ee1bd1f74）、T034 走查任务
+
 ## [2026-07-31] backfill | dynamic-form-engine 新增 §9 CO-601 hybrid 渲染模式与自定义字段扩展
 
 - 背景：CO-601 PR !2235 合入 main，涉及 45 文件改动（表单引擎 hybrid 渲染模式 + 自定义字段扩展 + 预置字段锁定 + 前后端双重校验）

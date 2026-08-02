@@ -305,5 +305,16 @@ projects.custom_fields = {
 ### 9.7 相关文档
 
 - `specs/040-project-form-custom-fields/` — 完整 spec/plan/tasks/research/data-model/contracts/quickstart
-- `docs/lessons/lessons-learned.md` §91-§94 — 4 条工程教训
-- `e2e/project-form-custom-fields.spec.js` — 9 用例 E2E 全链路验证
+- `specs/040-project-form-custom-fields/quickstart.md` §6 — T034 走查结果记录（§1-§5 验证结论 + E2E 失败根因分析）
+- `docs/lessons/lessons-learned.md` §91-§96 — 6 条工程教训（§96: E2E 测试失败三类根因模式）
+- `e2e/project-form-custom-fields.spec.js` — 9 用例 E2E 全链路验证（**当前 9 个全失败，根因为测试代码数据污染+角色权限不匹配+后端 OOM，非产品代码缺陷，待后续任务修复**）
+
+### 9.8 E2E 测试失败根因与判别流程（T034 走查发现）
+
+T034 走查时 E2E 9 个全部失败，但手动 API 验证证明 CO-601 产品代码正常。三类根因（均非产品代码缺陷）：
+
+1. **测试数据污染**：`beforeEach` 未清理上一次运行的表单定义残留字段，累积导致 PUT 报 "key 重复"
+2. **角色权限不匹配**：测试用 `bid-Team` 创建项目，但 `POST /api/projects` 要求 `ADMIN/MANAGER`，被 Access Denied
+3. **后端 OOM 崩溃**：E2E 并发请求触发 `exit code: 137`（SIGKILL），后续测试全部 `ECONNREFUSED`
+
+**判别流程**：E2E 失败时，先用 admin 手动跑通同一 API 链路（curl 即可），若手动通过则属测试代码问题，不阻塞产品代码合入。详见 `docs/lessons/lessons-learned.md` §96。
