@@ -13,8 +13,8 @@
             type="success"
             class="header-action header-action--tender"
             :icon="DocumentChecked"
-            data-test="tender-breakdown-button"
-            @click="$emit('tender-breakdown')"
+            data-test="score-parse-button"
+            @click="$emit('open-score-parse')"
           >
             AI评分标准解析
           </el-button>
@@ -106,7 +106,6 @@ const emit = defineEmits([
   'status-change',
   'open-score-parse',
   'open-decompose',
-  'tender-breakdown',
   'score-draft-decompose',
   'remove-deliverable',
   'submit-to-document',
