@@ -6896,3 +6896,29 @@ if (admin) {
    - 检查信号：`ps aux | grep java` 后端进程消失；日志末尾有 `exit code: 137`
 
 **判别流程**：E2E 失败时，先用 admin 手动跑通同一 API 链路（curl 即可），若手动通过则属测试代码问题，不阻塞产品代码合入。手动 API 验证证据：创建→落库→回显一致。
+
+## 97. 业绩附件导出空图：application-prod.yml 配置缺失导致路径漂移（XIYU-1R / 2026-08-03）
+
+**背景**：生产环境导出业绩 ZIP 时，图片格式附件（jpg/png）全部导出空图，docx/pdf 正常。Sentry XIYU-1R 报 19 次 `附件文件不存在` 异常。
+
+**根因**：`application-prod.yml` 中缺少 `performance.attachment.root` 和 `app.upload.performance-dir` 的显式配置。代码 `@Value` 默认值为相对路径（`data/performance-attachments`），systemd WorkingDirectory 拼出 `/opt/xiyu-bid/shared/backend/data/performance-attachments/`，但批量导入的文件实际存放在 `/data/attachments/performance/<perfId>/`，路径不匹配。
+
+**为什么图片全失败而 docx 成功**：
+- 批量导入（3865 条，100% IMAGE）存的是相对路径 `/<perfId>/PF_*.jpg` → 读取时拼错路径 → 全部失败
+- 页面上传（21 条，含 4 DOCX + 2 PDF + 15 IMAGE）存的是绝对路径 `/opt/xiyu-bid/...` → 直接命中 → 全部成功
+- docx 成功不是因为格式特殊，而是刚好全是页面上传的
+
+**5 Whys**：
+1. 图片导出空图 → 批量导入的 file_url 是相对路径，读取时拼出的路径不存在
+2. 路径不存在 → `performance.attachment.root` 未显式配置，回退到代码默认值 `data/performance-attachments`（相对 WD）
+3. 为什么没配 → application-prod.yml 中 brand-auth-dir / warehouse.attachment.root 都显式配了，唯独 performance 两项遗漏
+4. 为什么遗漏没人发现 → 批量导入（7/10）后到首次导出（>3 周后）期间无人触发下载/导出
+5. 工程根因 → 违反「生产配置必须显式声明，不依赖代码默认值」纪律，缺少启动时目录存在性检查
+
+**修复**：application-prod.yml 补齐显式配置（PR !2248），生产 backend.env 热修复 + 重启验证通过。
+
+**教训**：
+1. **生产 yml 中所有 `@Value` 带路径默认值的字段必须显式声明**，不能依赖代码默认值。brand-auth / warehouse 做到了，performance 漏了。
+2. **批量导入后必须做闭环验证**：导入 → 重启 → 导出 ZIP → 校验图片非空。
+3. **路径不对称是隐蔽 bug 源**：写路径（导入时）和读路径（导出时）如果用不同的配置项，配置漂移后会导致"写入成功但读取失败"的静默故障。
+4. Sentry 告警（XIYU-1R 19 次）应设置升级阈值，≥3 次同类异常自动通知值班人。
