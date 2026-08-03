@@ -90,6 +90,9 @@ app:
     # 生产/测试环境绝对路径，避免 MultipartFile.transferTo 相对路径陷阱
     # systemd WorkingDirectory=/opt/xiyu-bid/shared/backend
     brand-auth-dir: ${APP_UPLOAD_BRAND_AUTH_DIR:/opt/xiyu-bid/shared/backend/uploads/brand-auth}
+    # 业绩附件（页面上传）— 生产绝对路径，避免相对 WorkingDirectory 漂移
+    # 根因：代码默认值 uploads/performance-attachments 是相对路径，systemd WorkingDirectory=/opt/xiyu-bid/shared/backend
+    performance-dir: ${APP_UPLOAD_PERFORMANCE_DIR:/opt/xiyu-bid/shared/backend/uploads/performance-attachments}
   crm:
     # CRM 集成 — 生产环境必须显式注入，主 application.yml 的默认值为空
     # 占位符在此重复声明是为了：(1) 让生产运维一目了然需要哪些变量
@@ -156,6 +159,14 @@ logging:
     org.hibernate.SQL: WARN
   # 日志文件路径在 logback-spring.xml 中通过 LOG_PATH 环境变量统一控制，
   # 避免 Spring Boot 默认 file appender 与自定义 logback 配置冲突。
+
+# 业绩附件存储根目录（批量导入路径）— 生产绝对路径，与部署脚本一致
+# 根因：代码默认值 data/performance-attachments 是相对 WorkingDirectory 的路径，
+# 但批量导入时文件实际存放在 /data/attachments/performance/<perfId>/，
+# 缺少此配置导致读取时拼出的路径不存在 → 图片导出空图 / 下载 500（XIYU-1R）
+performance:
+  attachment:
+    root: ${PERFORMANCE_ATTACHMENT_ROOT:/data/attachments/performance}
 
 # 仓库附件存储根目录（生产/测试环境绝对路径，与部署脚本一致）
 # 部署脚本默认将附件解压到 /data/attachments/warehouse
