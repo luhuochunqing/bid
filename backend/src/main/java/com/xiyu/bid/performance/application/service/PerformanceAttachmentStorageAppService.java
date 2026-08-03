@@ -41,7 +41,7 @@ public class PerformanceAttachmentStorageAppService {
     private String uploadDir;
 
     /** 批量导入附件的存储根目录（与 PerformanceImportAttachmentProcessor 共用同一配置） */
-    @Value("${performance.attachment.root:data/performance-attachments}")
+    @Value("${performance.attachment.root:data/attachments/performance}")
     private String attachmentRoot;
 
     public PerformanceAttachmentUploadDTO upload(String fileType, MultipartFile file) throws IOException {
@@ -128,7 +128,7 @@ public class PerformanceAttachmentStorageAppService {
      * @param fileUrl 数据库中存储的附件路径
      * @return 解析后的本地路径，null 表示 fileUrl 为空
      */
-    Path resolveLocalPath(String fileUrl) {
+    public Path resolveLocalPath(String fileUrl) {
         if (fileUrl == null || fileUrl.isBlank()) return null;
 
         // 1. 绝对路径（页面上传：dest.toAbsolutePath().normalize().toString()）

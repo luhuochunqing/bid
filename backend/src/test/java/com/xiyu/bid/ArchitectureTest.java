@@ -1074,4 +1074,21 @@ public class ArchitectureTest {
             .because("@Async self-invocation bypasses Spring AOP proxy — the annotation has no effect. "
                 + "Extract the @Async method to a separate bean so the proxy can intercept the cross-class call. "
                 + "See CO-560 and spec 031 R-002.");
+
+    /**
+     * RULE 14: Word 合订本 Builder 必须继承 AbstractWordBundleBuilder。
+     *
+     * 防止新增的 Builder 不复用公共逻辑（PDF 渲染、图片嵌入、分页符等），
+     * 导致 200+ 行重复代码回归。本规则确保所有 *WordBundleBuilder 都继承
+     * com.xiyu.bid.common.infrastructure.word.AbstractWordBundleBuilder。
+     */
+    @ArchTest
+    public static final ArchRule word_bundle_builders_should_extend_abstract_base =
+        classes()
+            .that().haveSimpleNameEndingWith("WordBundleBuilder")
+            .and().resideInAPackage("..infrastructure..")
+            .should().beAssignableTo(com.xiyu.bid.common.infrastructure.word.AbstractWordBundleBuilder.class)
+            .because("所有 Word 合订本 Builder 必须继承 AbstractWordBundleBuilder，"
+                + "复用 PDF 渲染/图片嵌入/分页符等公共逻辑，避免 200+ 行重复代码回归。"
+                + "参考：业绩合订本导出功能代码评审（2026-08）。");
 }

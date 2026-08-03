@@ -71,4 +71,15 @@ public class AsyncConfig {
     public Executor tenderImportExecutor() {
         return createExecutor("tender-import-", 2, 4, 50);
     }
+
+    /**
+     * 业绩合订本导出专用线程池。
+     * <p>core=1, max=2, queue=10：业绩合订本导出涉及 300 DPI 高清渲染，
+     * 内存与 CPU 消耗较大，严格限制并发避免 OOM。
+     * CallerRunsPolicy：队列满时由调用线程执行，避免任务被拒绝。
+     */
+    @Bean(name = "performanceBundleExportExecutor")
+    public Executor performanceBundleExportExecutor() {
+        return createExecutor("perf-bundle-export-", 1, 2, 10);
+    }
 }

@@ -63,6 +63,15 @@ public class PerformanceRepositoryAdapter implements PerformanceRepository {
 
     @Override
     @Transactional(readOnly = true)
+    public List<PerformanceRecord> findAllById(Iterable<Long> ids) {
+        if (ids == null || !ids.iterator().hasNext()) {
+            return List.of();
+        }
+        return jpaRepository.findAllById(ids).stream().map(this::toDomain).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<PerformanceRecord> findAll(PerformanceSearchCriteria criteria, PerformanceAlertConfig config) {
         var spec = PerformanceRecordSpecification.build(criteria, config);
         return jpaRepository.findAll(spec, Sort.by(Sort.Direction.DESC, "createdAt")).stream().map(this::toDomain).toList();
