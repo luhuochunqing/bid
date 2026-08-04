@@ -52,8 +52,9 @@ const elementComponentStubs = vi.hoisted(() => {
       template: '<div class="el-calendar-stub"><slot name="date-cell" :data="{ date: modelValue || new Date(), day: \'2026-04-22\', viewType: \'month\' }" /></div>',
     },
     ApprovalDialog: passthrough('<div class="approval-dialog-stub" />', ['visible', 'mode', 'approvalInfo']),
-    // Stub UserPicker so mounting Workbench does not pull useUserPicker → usersApi →
-    // client.js → router/index.js (createRouter) into the test module graph.
+    // Stub UserPicker 避免渲染其内部复杂依赖（useUserPicker → usersApi → client.js）。
+    // 注：vue-router mock 已补全 createRouter（见下方），导入链不再导致测试崩溃，
+    // 此 stub 现仅用于简化挂载。
     UserPicker: true,
   }
 })
@@ -96,7 +97,22 @@ const mockState = vi.hoisted(() => ({
 }))
 export const mocks = mockState
 
-vi.mock('vue-router', () => ({ useRouter: () => ({ push: mockState.routerPush }) }))
+// 历史教训：原 mock 只导出 useRouter，依赖 stub UserPicker + mock usersApi 切断
+// "client.js → router/index.js (createRouter)" 导入链。但导入链会随业务代码演进
+// 重新接通，导致 "No createRouter export is defined on the vue-router mock" 失败。
+// 根治方式：直接补全 createRouter/createWebHistory 导出，让 router/index.js 顶层
+// 执行不报错。client.js 的 router.push/currentRoute 不会在测试中实际执行
+// （@/api 和各 module 已被 mock），stub 返回值仅供模块加载期间不抛错。
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: mockState.routerPush }),
+  createRouter: () => ({
+    push: mockState.routerPush,
+    currentRoute: { value: { path: '/' } },
+    beforeEach: vi.fn(),
+    onError: vi.fn(),
+  }),
+  createWebHistory: () => ({}),
+}))
 vi.mock('@/stores/user', () => ({
   useUserStore: () => ({
     get currentUser() { return mockState.currentUser },
@@ -105,6 +121,18 @@ vi.mock('@/stores/user', () => ({
   })
 }))
 vi.mock('@/stores/bidding', () => ({ useBiddingStore: () => ({ setCalendar: mockState.setCalendar }) }))
+// WorkbenchNotifications 在 setup 顶层调用 useNotificationStore（Pinia），
+// 测试无 active Pinia，必须 mock 模块导出，返回 stub store。
+vi.mock('@/stores/notifications', () => ({
+  useNotificationStore: () => ({
+    loading: false,
+    notifications: [],
+    unreadCount: 0,
+    totalElements: 0,
+    markAsRead: vi.fn(),
+    fetchNotifications: vi.fn().mockResolvedValue({}),
+  }),
+}))
 vi.mock('@/api', () => ({
   dashboardApi: {
     getSummary: mockState.dashboardGetSummary,
@@ -133,8 +161,8 @@ vi.mock('@/api/modules/alerts.js', () => ({ alertHistoryApi: { getUnresolved: mo
 vi.mock('@/api/modules/tenders.js', () => ({ tendersApi: { getList: mockState.tendersGetList } }))
 vi.mock('@/api/modules/workbench.js', () => ({ workbenchApi: { getScheduleOverview: mockState.scheduleGetOverview, getDeadlineStats: mockState.workbenchGetDeadlineStats } }))
 vi.mock('@/api/modules/contractBorrow.js', () => ({ contractBorrowApi: { create: mockState.contractBorrowCreate } }))
-// Mock usersApi to break the UserPicker → useUserPicker → usersApi → client.js → router
-// import chain. The workbench fixture only mocks useRouter, not createRouter.
+// Mock usersApi 避免 UserPicker 触发真实 API 调用。vue-router mock 已补全
+// createRouter（见上方），此处不再承担"切断 router 导入链"职责。
 vi.mock('@/api/modules/users.js', () => ({
   usersApi: {
     search: vi.fn().mockResolvedValue([]),
