@@ -1,5 +1,7 @@
 package com.xiyu.bid.warehouse.application;
 
+import com.xiyu.bid.common.application.ExportTaskCompletion;
+import com.xiyu.bid.common.util.StringUtils;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.warehouse.domain.WarehouseAttachmentExportPolicy;
@@ -85,7 +87,7 @@ public class WarehouseExportAsyncExecutor {
             doExport(taskId, entities, filterDTO, "当前筛选", attachmentScope, attachmentForms, startMs);
         } catch (RuntimeException e) {
             log.error("仓库台账导出任务执行失败: taskId={}", taskId, e);
-            stateService.fail(taskId, WarehouseExportTaskStateService.truncate(e.getMessage(), 500));
+            stateService.fail(taskId, StringUtils.truncate(e.getMessage(), 500));
         } catch (IOException e) {
             log.error("仓库台账导出文件IO异常: taskId={}", taskId, e);
             stateService.fail(taskId, "文件写入失败: " + e.getMessage());
@@ -111,7 +113,7 @@ public class WarehouseExportAsyncExecutor {
             doExport(taskId, entities, null, "勾选模式", attachmentScope, attachmentForms, startMs);
         } catch (RuntimeException e) {
             log.error("仓库按ID批量导出任务执行失败: taskId={}", taskId, e);
-            stateService.fail(taskId, WarehouseExportTaskStateService.truncate(e.getMessage(), 500));
+            stateService.fail(taskId, StringUtils.truncate(e.getMessage(), 500));
         } catch (IOException e) {
             log.error("仓库按ID批量导出文件IO异常: taskId={}", taskId, e);
             stateService.fail(taskId, "文件写入失败: " + e.getMessage());
@@ -155,7 +157,7 @@ public class WarehouseExportAsyncExecutor {
             long elapsedMs = System.currentTimeMillis() - startMs;
             String resultSummary = exportPublisher.buildResultSummaryJson(
                     entities.size(), zip, filterDTO, elapsedMs, attachmentScope);
-            WarehouseExportTaskEntity task = stateService.complete(new ExportCompletion(
+            WarehouseExportTaskEntity task = stateService.complete(new ExportTaskCompletion(
                     taskId, entities.size(), filePath, resultSummary, FILE_TTL, startMs));
             // 通知发布是附加操作，失败不应影响主流程；放在事务外执行
             exportPublisher.publish(task, entities.size(), zip, filterDTO, elapsedMs, TS_FMT, attachmentScope);

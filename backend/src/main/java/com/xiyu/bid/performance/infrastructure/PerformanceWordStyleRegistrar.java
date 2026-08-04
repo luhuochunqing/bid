@@ -1,112 +1,27 @@
 package com.xiyu.bid.performance.infrastructure;
 
+import com.xiyu.bid.common.infrastructure.word.WordStyleRegistrar;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
-import org.apache.poi.xwpf.usermodel.XWPFStyle;
-import org.apache.poi.xwpf.usermodel.XWPFStyles;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTFonts;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPPrGeneral;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTRPr;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTStyle;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.STStyleType;
-
-import java.math.BigInteger;
 
 /**
- * 向 XWPFDocument 注册业绩合订本四级标题样式（Title/Heading1-4）到 word/styles.xml。
+ * 业绩合订本 Word 标题样式注册器（委托给公共 {@link WordStyleRegistrar}）。
  *
- * <p>根因说明（参考 CO-582 §3.4 彻底修复）：
- * Apache POI 的 {@code new XWPFDocument()} 默认不生成 {@code word/styles.xml}。
- * 即使段落调用 {@code p.setStyle("Heading1")}，也只是把 {@code <w:pStyle w:val="Heading1"/>}
- * 写到 {@code document.xml}，而 styles.xml 中没有对应样式定义——
- * Word/WPS 打开后无法识别为标题，导航窗格为空。
- *
- * <p>本类扩展为四级标题：H1 客户类型 / H2 集团名称 / H3 合同名称+附件分类 / H4 中标通知书。
- * 每个样式必须包含：
- * <ul>
- *   <li>{@code w:qFormat} —— 让 Word 把它列入"快速样式"</li>
- *   <li>{@code w:pPr/w:outlineLvl w:val="N"} —— 大纲级别（Word 导航窗格识别层级的唯一依据）</li>
- *   <li>{@code w:rFonts/w:sz/w:b} —— 字体/字号/加粗</li>
- * </ul>
+ * <p>D3-1 修复：原重复实现已迁移到 {@code com.xiyu.bid.common.infrastructure.word.WordStyleRegistrar}，
+ * 本类保留为门面，避免 Performance 模块内部调用方改动过大。
  */
 public final class PerformanceWordStyleRegistrar {
-
-    /**
-     * 大纲级别常量（OOXML w:outlineLvl w:val 取值）。
-     * <p>OOXML 规范规定 Title 与 Heading1 的 outlineLvl 均为 0（顶层）。
-     */
-    private static final int OUTLINE_LEVEL_TOP = 0;
-    private static final int OUTLINE_LEVEL_H2 = 1;
-    private static final int OUTLINE_LEVEL_H3 = 2;
-    private static final int OUTLINE_LEVEL_H4 = 3;
-
-    /** 字号换算：1 pt = 2 半磅（OOXML w:sz 单位是半磅）。 */
-    private static final int HALF_PT_PER_PT = 2;
 
     private PerformanceWordStyleRegistrar() {
         // 工具类，禁止实例化
     }
 
     /**
-     * 向文档注册 Title/Heading1/Heading2/Heading3/Heading4 五个标题样式定义。
+     * 向文档注册 Title/Heading1-4 五个标题样式定义。
      *
      * <p>调用时机：在 {@link PerformanceWordBundlePageSetup#applyTo} 之后、生成任何段落之前。
      * 重复调用安全：若样式 ID 已存在，POI 会覆盖旧定义。
-     *
-     * @param doc 目标文档，不能为 null
      */
     public static void registerHeadingStyles(XWPFDocument doc) {
-        if (doc == null) {
-            throw new NullPointerException("doc");
-        }
-        XWPFStyles styles = doc.createStyles();
-
-        registerStyle(styles, "Title", "Title",
-                PerformanceWordStyleConfig.FONT_HEITI,
-                PerformanceWordStyleConfig.SIZE_TITLE_PT,
-                true, OUTLINE_LEVEL_TOP);
-        registerStyle(styles, "Heading1", "heading 1",
-                PerformanceWordStyleConfig.FONT_HEITI,
-                PerformanceWordStyleConfig.SIZE_H1_PT,
-                true, OUTLINE_LEVEL_TOP);
-        registerStyle(styles, "Heading2", "heading 2",
-                PerformanceWordStyleConfig.FONT_HEITI,
-                PerformanceWordStyleConfig.SIZE_H2_PT,
-                true, OUTLINE_LEVEL_H2);
-        registerStyle(styles, "Heading3", "heading 3",
-                PerformanceWordStyleConfig.FONT_HEITI,
-                PerformanceWordStyleConfig.SIZE_H3_PT,
-                true, OUTLINE_LEVEL_H3);
-        registerStyle(styles, "Heading4", "heading 4",
-                PerformanceWordStyleConfig.FONT_SONGTI,
-                PerformanceWordStyleConfig.SIZE_H4_PT,
-                true, OUTLINE_LEVEL_H4);
-    }
-
-    private static void registerStyle(XWPFStyles styles, String styleId, String styleName,
-                                       String font, int fontSizePt, boolean bold, int outlineLvl) {
-        CTStyle ctStyle = CTStyle.Factory.newInstance();
-        ctStyle.setStyleId(styleId);
-        ctStyle.setType(STStyleType.PARAGRAPH);
-        ctStyle.addNewName().setVal(styleName);
-        ctStyle.addNewBasedOn().setVal("Normal");
-        ctStyle.addNewNext().setVal("Normal");
-        // qFormat：让 Word 把它识别为"快速样式"（标题）
-        ctStyle.addNewQFormat();
-        // outlineLvl：Word 导航窗格识别层级的唯一依据
-        CTPPrGeneral ppr = ctStyle.addNewPPr();
-        ppr.addNewOutlineLvl().setVal(BigInteger.valueOf(outlineLvl));
-        // 字符属性
-        CTRPr rpr = ctStyle.addNewRPr();
-        CTFonts fonts = rpr.addNewRFonts();
-        fonts.setAscii(font);
-        fonts.setEastAsia(font);
-        fonts.setHAnsi(font);
-        rpr.addNewSz().setVal(BigInteger.valueOf(fontSizePt * HALF_PT_PER_PT));
-        if (bold) {
-            rpr.addNewB();
-        }
-
-        XWPFStyle xwpfStyle = new XWPFStyle(ctStyle);
-        styles.addStyle(xwpfStyle);
+        WordStyleRegistrar.registerHeadingStyles(doc, PerformanceWordStyleConfig.CONFIG);
     }
 }

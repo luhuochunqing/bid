@@ -1,5 +1,7 @@
 package com.xiyu.bid.performance.application.service;
 
+import com.xiyu.bid.common.util.PathUtils;
+import com.xiyu.bid.performance.application.AttachmentPathResolver;
 import com.xiyu.bid.performance.application.dto.PerformanceAttachmentUploadDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -21,9 +23,12 @@ import java.util.UUID;
  * <p>路径陷阱防护参考 LL-028 与 brandAuth AttachmentUploadAppService：
  * uploadDir 相对路径时按 JVM 工作目录归一化为绝对路径，
  * 避免 MultipartFile.transferTo(File) 走 Tomcat 临时目录。
+ *
+ * <p>实现 {@link AttachmentPathResolver} 端口，供 infrastructure 层（WordBundleBuilder）依赖，
+ * 避免 infrastructure → application 的反向依赖（D2-2 修复）。
  */
 @Service
-public class PerformanceAttachmentStorageAppService {
+public class PerformanceAttachmentStorageAppService implements AttachmentPathResolver {
 
     private static final long MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
     // CO-442: 支持 PDF / JPG / PNG / Word / Excel
@@ -87,11 +92,7 @@ public class PerformanceAttachmentStorageAppService {
      * Files.createDirectories 与 MultipartFile.transferTo 使用同一基准。
      */
     private Path resolveAbsoluteUploadPath() {
-        Path p = Paths.get(uploadDir);
-        if (!p.isAbsolute()) {
-            p = Paths.get(System.getProperty("user.dir")).resolve(p).normalize();
-        }
-        return p;
+        return PathUtils.resolveAbsolute(uploadDir);
     }
 
     // ── 文件读取（供 ZIP 导出 + 附件下载端点使用） ──────────────
@@ -176,10 +177,6 @@ public class PerformanceAttachmentStorageAppService {
      * 将 attachmentRoot 归一化为绝对路径（与 resolveAbsoluteUploadPath 同策略）。
      */
     private Path resolveAbsoluteAttachmentRoot() {
-        Path p = Paths.get(attachmentRoot);
-        if (!p.isAbsolute()) {
-            p = Paths.get(System.getProperty("user.dir")).resolve(p).normalize();
-        }
-        return p;
+        return PathUtils.resolveAbsolute(attachmentRoot);
     }
 }

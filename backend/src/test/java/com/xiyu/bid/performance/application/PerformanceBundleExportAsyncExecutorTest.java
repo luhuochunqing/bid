@@ -3,6 +3,7 @@ package com.xiyu.bid.performance.application;
 import com.xiyu.bid.performance.application.command.PerformanceSearchCriteria;
 import com.xiyu.bid.performance.application.dto.PerformanceDTO;
 import com.xiyu.bid.performance.application.mapper.PerformanceMapper;
+import com.xiyu.bid.performance.config.PerformanceBundleExportProperties;
 import com.xiyu.bid.performance.domain.model.PerformanceAlertConfig;
 import com.xiyu.bid.performance.domain.model.PerformanceRecord;
 import com.xiyu.bid.performance.domain.port.PerformanceAlertConfigRepository;
@@ -21,11 +22,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -65,15 +68,26 @@ class PerformanceBundleExportAsyncExecutorTest {
     @Mock
     private PerformanceBundleExportNotificationPublisher exportPublisher;
 
+    @Mock
+    private PerformanceBundleExportProperties properties;
+
     @TempDir
     Path tempDir;
 
     @InjectMocks
     private PerformanceBundleExportAsyncExecutor asyncExecutor;
 
+    /**
+     * D4-1 修复后 MAX_EXPORT_RECORDS 已迁移到 {@link PerformanceBundleExportProperties}。
+     * 测试中通过 mock properties 注入小值 maxExportRecords（=5）以避免构造大量测试数据，
+     * 并 stub resolveAbsoluteRoot 返回 @TempDir，fileTtl 返回 7 天。
+     */
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(asyncExecutor, "exportRoot", tempDir.toString());
+        // lenient() 避免 strict mode 报 UnnecessaryStubbing（不是所有测试都用到全部 stub）
+        lenient().when(properties.getMaxExportRecords()).thenReturn(5);
+        lenient().when(properties.resolveAbsoluteRoot()).thenReturn(tempDir);
+        lenient().when(properties.getFileTtl()).thenReturn(Duration.ofDays(7));
     }
 
     // ========== N+1 查询防护测试（核心防复发） ==========
@@ -224,7 +238,7 @@ class PerformanceBundleExportAsyncExecutorTest {
     // ========== 记录数上限防复发测试（P1-2） ==========
 
     /**
-     * 防复发测试：筛选模式导出时，记录数超过 {@link PerformanceBundleExportAsyncExecutor#MAX_EXPORT_RECORDS}
+     * 防复发测试：筛选模式导出时，记录数超过 {@link PerformanceBundleExportProperties#getMaxExportRecords()}
      * 必须标记任务 FAILED，且不调用 wordBundleBuilder.buildBundle（避免 OOM）。
      */
     @Test
@@ -232,8 +246,8 @@ class PerformanceBundleExportAsyncExecutorTest {
         Long taskId = 7L;
         PerformanceSearchCriteria criteria = PerformanceSearchCriteria.empty();
 
-        // 构造超过上限的记录列表
-        int overLimit = PerformanceBundleExportAsyncExecutor.MAX_EXPORT_RECORDS + 1;
+        // 构造超过上限的记录列表（setUp 中 maxExportRecords=5）
+        int overLimit = properties.getMaxExportRecords() + 1;
         List<PerformanceRecord> records = java.util.stream.Stream
                 .generate(() -> buildRecord(10L))
                 .limit(overLimit)
@@ -263,7 +277,7 @@ class PerformanceBundleExportAsyncExecutorTest {
         Long taskId = 8L;
         PerformanceSearchCriteria criteria = PerformanceSearchCriteria.empty();
 
-        int atLimit = PerformanceBundleExportAsyncExecutor.MAX_EXPORT_RECORDS;
+        int atLimit = properties.getMaxExportRecords();
         // 每条记录使用不同 id，更接近真实导出场景，避免 mock 缓存掩盖问题
         List<PerformanceRecord> records = java.util.stream.IntStream
                 .range(0, atLimit)

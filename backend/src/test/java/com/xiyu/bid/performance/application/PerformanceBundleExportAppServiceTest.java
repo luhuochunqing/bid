@@ -1,6 +1,7 @@
 package com.xiyu.bid.performance.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.performance.config.PerformanceBundleExportProperties;
 import com.xiyu.bid.performance.infrastructure.persistence.entity.PerformanceExportTaskEntity;
 import com.xiyu.bid.performance.infrastructure.persistence.entity.PerformanceExportTaskEntity.ExportStatus;
 import com.xiyu.bid.performance.infrastructure.persistence.repository.PerformanceExportTaskRepository;
@@ -12,7 +13,6 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -22,6 +22,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
@@ -56,6 +57,9 @@ class PerformanceBundleExportAppServiceTest {
     @Mock
     private ObjectMapper objectMapper;
 
+    @Mock
+    private PerformanceBundleExportProperties properties;
+
     @InjectMocks
     private PerformanceBundleExportAppService appService;
 
@@ -67,8 +71,10 @@ class PerformanceBundleExportAppServiceTest {
 
     @BeforeEach
     void setUp() {
-        // 将 exportRoot 注入为 @TempDir 绝对路径，确保白名单校验基于真实目录
-        ReflectionTestUtils.setField(appService, "exportRoot", tempDir.toString());
+        // D2-1 修复后 exportRoot 已迁移到 PerformanceBundleExportProperties。
+        // stub resolveAbsoluteRoot 返回 @TempDir，确保白名单校验基于真实目录。
+        // lenient() 避免 strict mode 报 UnnecessaryStubbing（不是所有测试都走到 isWithinExportRoot）
+        lenient().when(properties.resolveAbsoluteRoot()).thenReturn(tempDir);
     }
 
     @Test

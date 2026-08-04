@@ -18,6 +18,19 @@ import java.util.concurrent.ThreadPoolExecutor;
  *
  * <p><b>MDC 透传</b>：自 spec 031 起，所有 executor 均挂载 {@link MdcTaskDecorator}，
  * 将主线程的 traceId/userId/roleCode 复制到异步线程，确保异步任务内日志可追溯用户身份（CO-373/US3）。
+ *
+ * <p><b>⚠️ Self-Invocation 警告（D2-3 修复）</b>
+ * <p>Spring AOP 代理无法拦截同类内部的方法调用。如果在 {@code @Service} 或 {@code @Component} 中
+ * 直接调用自身的 {@code @Async} 方法（self-invocation），{@code @Async} 注解会失效，
+ * 方法会在调用线程同步执行，导致：
+ * <ul>
+ *   <li>HTTP 请求线程被阻塞（Nginx 60s 超时 → 502）</li>
+ *   <li>线程池配置形同虚设（不会使用上述 executor）</li>
+ *   <li>MDC 上下文无法透传（MdcTaskDecorator 不生效）</li>
+ * </ul>
+ * <p><b>正确做法</b>：将 {@code @Async} 方法提取到独立的 Spring Bean 中，通过依赖注入调用。
+ * 参考实现：{@code PerformanceBundleExportAsyncExecutor}、{@code WarehouseExportAsyncExecutor}、
+ * {@code WarehouseImportAsyncExecutor} 均为独立 Bean。
  */
 @Configuration
 @EnableAsync

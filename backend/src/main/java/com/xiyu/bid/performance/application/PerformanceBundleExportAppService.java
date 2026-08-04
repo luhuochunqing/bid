@@ -2,14 +2,15 @@ package com.xiyu.bid.performance.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.common.util.PathUtils;
 import com.xiyu.bid.performance.application.command.PerformanceSearchCriteria;
+import com.xiyu.bid.performance.config.PerformanceBundleExportProperties;
 import com.xiyu.bid.performance.domain.AttachmentFilter;
 import com.xiyu.bid.performance.infrastructure.persistence.entity.PerformanceExportTaskEntity;
 import com.xiyu.bid.performance.infrastructure.persistence.entity.PerformanceExportTaskEntity.ExportStatus;
 import com.xiyu.bid.performance.infrastructure.persistence.repository.PerformanceExportTaskRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -52,13 +53,7 @@ public class PerformanceBundleExportAppService {
     private final PerformanceBundleExportAsyncExecutor asyncExecutor;
     private final PerformanceBundleExportTaskStateService stateService;
     private final ObjectMapper objectMapper;
-
-    /**
-     * 导出文件落盘根目录（与 {@link PerformanceBundleExportAsyncExecutor#exportRoot} 共用同一配置）。
-     * <p>用于 {@link #getExportFile} 白名单校验：{@code stored_file_path} 必须在此目录子树内。
-     */
-    @Value("${performance.bundle-export.root:data/performance-bundle-exports}")
-    private String exportRoot;
+    private final PerformanceBundleExportProperties properties;
 
     /**
      * 按 filter 模式创建合订本导出任务，触发异步执行。
@@ -83,17 +78,18 @@ public class PerformanceBundleExportAppService {
     /**
      * 按 ids 模式创建合订本导出任务。
      *
-     * @throws IllegalArgumentException 当 ids 为空或数量超过 {@link PerformanceBundleExportAsyncExecutor#MAX_EXPORT_RECORDS}
+     * @throws IllegalArgumentException 当 ids 为空或数量超过 {@link PerformanceBundleExportProperties#getMaxExportRecords()}
      */
     public ExportTaskResult exportByIds(List<Long> ids, Set<String> attachmentTypes,
                                          Long operatorId) {
         if (ids == null || ids.isEmpty()) {
             throw new IllegalArgumentException("ids 不能为空");
         }
-        if (ids.size() > PerformanceBundleExportAsyncExecutor.MAX_EXPORT_RECORDS) {
+        int maxRecords = properties.getMaxExportRecords();
+        if (ids.size() > maxRecords) {
             throw new IllegalArgumentException(
                     "勾选记录数 " + ids.size() + " 超过上限 "
-                            + PerformanceBundleExportAsyncExecutor.MAX_EXPORT_RECORDS
+                            + maxRecords
                             + "，请减少勾选数量后重试");
         }
         AttachmentFilter.validateTypes(attachmentTypes);
@@ -180,19 +176,7 @@ public class PerformanceBundleExportAppService {
      * 与 {@link PerformanceAttachmentStorageAppService#resolveLocalPath} 保持一致策略。
      */
     private boolean isWithinExportRoot(Path target) {
-        Path root = resolveAbsoluteExportRoot();
-        return target.startsWith(root);
-    }
-
-    /**
-     * 与附件存储路径防护（PerformanceAttachmentStorageAppService#resolveLocalPath）保持一致策略。
-     */
-    private Path resolveAbsoluteExportRoot() {
-        Path p = Paths.get(exportRoot);
-        if (!p.isAbsolute()) {
-            p = Paths.get(System.getProperty("user.dir")).resolve(p).normalize();
-        }
-        return p;
+        return PathUtils.isWithinSubtree(target, properties.resolveAbsoluteRoot());
     }
 
     public record ExportTaskResult(Long taskId) {}

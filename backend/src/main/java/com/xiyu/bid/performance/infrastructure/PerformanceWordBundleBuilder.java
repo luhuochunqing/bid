@@ -1,8 +1,8 @@
 package com.xiyu.bid.performance.infrastructure;
 
 import com.xiyu.bid.common.infrastructure.word.AbstractWordBundleBuilder;
+import com.xiyu.bid.performance.application.AttachmentPathResolver;
 import com.xiyu.bid.performance.application.dto.PerformanceDTO;
-import com.xiyu.bid.performance.application.service.PerformanceAttachmentStorageAppService;
 import com.xiyu.bid.performance.domain.valueobject.CustomerType;
 import com.xiyu.bid.performance.infrastructure.PerformanceBundleGroupTypes.AttachmentTypeGroup;
 import com.xiyu.bid.performance.infrastructure.PerformanceBundleGroupTypes.ContractGroup;
@@ -51,7 +51,7 @@ import java.util.Set;
 public class PerformanceWordBundleBuilder extends AbstractWordBundleBuilder {
 
     /** 附件路径解析服务（复用已有逻辑，支持绝对路径与批量导入相对路径） */
-    private final PerformanceAttachmentStorageAppService attachmentStorageService;
+    private final AttachmentPathResolver attachmentPathResolver;
 
     /**
      * 生成业绩合订本 Word 文档并写入输出流。
@@ -209,13 +209,13 @@ public class PerformanceWordBundleBuilder extends AbstractWordBundleBuilder {
 
     /**
      * 解析附件 fileUrl 到本地路径。
-     * 委托 {@link PerformanceAttachmentStorageAppService#resolveLocalPath} 处理两种格式：
+     * 委托 {@link AttachmentPathResolver#resolveLocalPath} 处理两种格式：
      * 绝对路径（页面上传）与相对路径（批量导入）。
      */
     private Path resolveAttachmentPath(String fileUrl) {
         if (fileUrl == null || fileUrl.isBlank()) return null;
         try {
-            return attachmentStorageService.resolveLocalPath(fileUrl);
+            return attachmentPathResolver.resolveLocalPath(fileUrl);
         } catch (RuntimeException e) {
             log.warn("附件路径解析失败: fileUrl={}, error={}", fileUrl, e.getMessage());
             return null;

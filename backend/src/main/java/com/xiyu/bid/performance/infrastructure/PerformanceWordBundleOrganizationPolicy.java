@@ -194,8 +194,7 @@ public final class PerformanceWordBundleOrganizationPolicy {
             List<PerformanceDTO> records,
             Set<String> attachmentTypes) {
 
-        Set<String> seenBySigningEntity = new LinkedHashSet<>();
-        Set<String> seenByGroup = new LinkedHashSet<>();
+        Set<String> seen = new LinkedHashSet<>();
         Map<String, List<PerformanceDTO.AttachmentDTO>> byType = new LinkedHashMap<>();
 
         for (PerformanceDTO r : records) {
@@ -210,7 +209,8 @@ public final class PerformanceWordBundleOrganizationPolicy {
                 if (!matchesAttachmentFilter(attachmentTypes, fileType)) continue;
                 if (!PerformanceAttachmentTypeLabels.isSoeShareable(fileType)) continue;
 
-                if (isDuplicate(fileType, signingEntity, seenBySigningEntity, seenByGroup)) continue;
+                // D1-1 简化：单 Set + dedupKey 函数替代双 Set + isDuplicate 方法
+                if (!seen.add(dedupKey(fileType, signingEntity))) continue;
 
                 byType.computeIfAbsent(fileType, k -> new ArrayList<>()).add(att);
             }
@@ -229,21 +229,17 @@ public final class PerformanceWordBundleOrganizationPolicy {
     }
 
     /**
-     * 央企共享附件去重判定。
+     * 央企共享附件去重键。
      * <ul>
-     *   <li>关系证明：按 (signingEntity, fileType) 去重</li>
-     *   <li>其他共享类型：按 (fileType) 去重</li>
+     *   <li>关系证明：{@code signingEntity|fileType}（每个签约抬头一次）</li>
+     *   <li>其他共享类型：{@code fileType}（每个集团一次）</li>
      * </ul>
-     *
-     * @return true 表示已出现过应跳过，false 表示首次出现应保留
      */
-    private static boolean isDuplicate(String fileType, String signingEntity,
-                                        Set<String> seenBySigningEntity, Set<String> seenByGroup) {
+    private static String dedupKey(String fileType, String signingEntity) {
         if (PerformanceAttachmentTypeLabels.TYPE_RELATIONSHIP_PROOF.equals(fileType)) {
-            String key = signingEntity + "|" + fileType;
-            return !seenBySigningEntity.add(key);
+            return signingEntity + "|" + fileType;
         }
-        return !seenByGroup.add(fileType);
+        return fileType;
     }
 
     /**

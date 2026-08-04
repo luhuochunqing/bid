@@ -1,8 +1,11 @@
 package com.xiyu.bid.performance.application;
 
+import com.xiyu.bid.common.application.ExportTaskCompletion;
+import com.xiyu.bid.common.util.StringUtils;
 import com.xiyu.bid.performance.application.command.PerformanceSearchCriteria;
 import com.xiyu.bid.performance.application.dto.PerformanceDTO;
 import com.xiyu.bid.performance.application.mapper.PerformanceMapper;
+import com.xiyu.bid.performance.config.PerformanceBundleExportProperties;
 import com.xiyu.bid.performance.domain.model.PerformanceAlertConfig;
 import com.xiyu.bid.performance.domain.port.PerformanceAlertConfigRepository;
 import com.xiyu.bid.performance.domain.port.PerformanceRepository;
@@ -10,7 +13,6 @@ import com.xiyu.bid.performance.infrastructure.PerformanceWordBundleBuilder;
 import com.xiyu.bid.performance.infrastructure.persistence.entity.PerformanceExportTaskEntity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
@@ -18,8 +20,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.time.Duration;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -33,6 +34,13 @@ import java.util.Set;
  *
  * <p>状态机委托 {@link PerformanceBundleExportTaskStateService}，
  * 文档构建委托 {@link PerformanceWordBundleBuilder}。
+ *
+ * <p>设计评估修复（CO-602）：
+ * <ul>
+ *   <li>D4-1：MAX_EXPORT_RECORDS 由 Properties 注入，默认 2000（原 5000 过高）</li>
+ *   <li>D4-3：直接写到目标目录的 .tmp 文件，成功后原子 rename，避免额外复制</li>
+ *   <li>D5-1：FILE_TTL 由 Properties 注入，默认 7 天（原 24h 过短）</li>
+ * </ul>
  */
 @Component
 @RequiredArgsConstructor
@@ -40,14 +48,6 @@ import java.util.Set;
 public class PerformanceBundleExportAsyncExecutor {
 
     private static final DateTimeFormatter TS_FMT = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
-    private static final Duration FILE_TTL = Duration.ofHours(24);
-
-    /**
-     * 单次导出最大业绩记录数。
-     * <p>限制全量加载到内存的记录数，防止 OOM。
-     * 超出时任务标记 FAILED 并提示用户缩小筛选范围或减少勾选数量。
-     */
-    public static final int MAX_EXPORT_RECORDS = 5000;
 
     /** 默认提醒配置（用于合同状态计算） */
     private static final PerformanceAlertConfig DEFAULT_CONFIG =
@@ -59,15 +59,7 @@ public class PerformanceBundleExportAsyncExecutor {
     private final PerformanceMapper mapper;
     private final PerformanceWordBundleBuilder wordBundleBuilder;
     private final PerformanceBundleExportNotificationPublisher exportPublisher;
-
-    /**
-     * 导出文件落盘根目录。
-     * <p>默认 {@code data/performance-bundle-exports}（持久化路径），
-     * 生产环境应通过 {@code performance.bundle-export.root} 配置专用目录。
-     * 禁止使用 {@code /tmp}：重启后文件丢失，导致下载 404。
-     */
-    @Value("${performance.bundle-export.root:data/performance-bundle-exports}")
-    private String exportRoot;
+    private final PerformanceBundleExportProperties properties;
 
     /**
      * 按 filter 模式异步执行业绩合订本导出。
@@ -83,15 +75,16 @@ public class PerformanceBundleExportAsyncExecutor {
             List<PerformanceDTO> records = repository.findAll(effective, config).stream()
                     .map(mapper::toDTO)
                     .toList();
-            if (records.size() > MAX_EXPORT_RECORDS) {
+            int maxRecords = properties.getMaxExportRecords();
+            if (records.size() > maxRecords) {
                 stateService.fail(taskId, "导出记录数 " + records.size() + " 超过上限 "
-                        + MAX_EXPORT_RECORDS + "，请缩小筛选范围后重试");
+                        + maxRecords + "，请缩小筛选范围后重试");
                 return;
             }
             doExport(taskId, records, attachmentTypes, filterSummary, startMs);
         } catch (RuntimeException e) {
             log.error("业绩合订本导出任务执行失败: taskId={}", taskId, e);
-            stateService.fail(taskId, PerformanceBundleExportTaskStateService.truncate(e.getMessage(), 500));
+            stateService.fail(taskId, StringUtils.truncate(e.getMessage(), 500));
         } catch (IOException e) {
             log.error("业绩合订本导出文件IO异常: taskId={}", taskId, e);
             stateService.fail(taskId, "文件写入失败: " + e.getMessage());
@@ -119,7 +112,7 @@ public class PerformanceBundleExportAsyncExecutor {
             doExport(taskId, records, attachmentTypes, filterSummary, startMs);
         } catch (RuntimeException e) {
             log.error("业绩按ID批量合订本导出任务执行失败: taskId={}", taskId, e);
-            stateService.fail(taskId, PerformanceBundleExportTaskStateService.truncate(e.getMessage(), 500));
+            stateService.fail(taskId, StringUtils.truncate(e.getMessage(), 500));
         } catch (IOException e) {
             log.error("业绩按ID合订本导出文件IO异常: taskId={}", taskId, e);
             stateService.fail(taskId, "文件写入失败: " + e.getMessage());
@@ -133,37 +126,33 @@ public class PerformanceBundleExportAsyncExecutor {
     private void doExport(Long taskId, List<PerformanceDTO> records,
                           Set<String> attachmentTypes, String filterSummary,
                           long startMs) throws IOException {
-        Path wordFile = null;
+        // D4-3 修复：直接写到目标目录的 .tmp 文件，成功后原子 rename，避免额外复制
+        Path dir = properties.resolveAbsoluteRoot();
+        Files.createDirectories(dir);
+        String ts = LocalDateTime.now().format(TS_FMT);
+        Path tempDest = dir.resolve("performance_bundle_" + taskId + "_" + ts + ".docx.tmp");
         try {
-            wordFile = Files.createTempFile("performance-bundle-", ".docx");
             long wordBytes;
-            try (OutputStream out = Files.newOutputStream(wordFile)) {
+            try (OutputStream out = Files.newOutputStream(tempDest)) {
                 wordBundleBuilder.buildBundle(records, attachmentTypes, out);
             }
-            wordBytes = Files.size(wordFile);
+            wordBytes = Files.size(tempDest);
 
-            String filePath = saveWord(taskId, wordFile);
+            Path finalDest = tempDest.resolveSibling(
+                    tempDest.getFileName().toString().replace(".tmp", ""));
+            Files.move(tempDest, finalDest, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            String filePath = finalDest.toString();
+
             long elapsedMs = System.currentTimeMillis() - startMs;
             String resultSummary = exportPublisher.buildResultSummaryJson(
                     records.size(), wordBytes, attachmentTypes, elapsedMs, filterSummary);
 
-            PerformanceExportTaskEntity task = stateService.complete(new PerformanceExportCompletion(
-                    taskId, records.size(), filePath, resultSummary, FILE_TTL, startMs));
+            PerformanceExportTaskEntity task = stateService.complete(new ExportTaskCompletion(
+                    taskId, records.size(), filePath, resultSummary, properties.getFileTtl(), startMs));
             exportPublisher.publish(task, records.size(), wordBytes, elapsedMs, filterSummary);
         } finally {
-            // 删除临时文件（最终文件已 saveWord 复制到 exportRoot）
-            if (wordFile != null) {
-                try { Files.deleteIfExists(wordFile); } catch (IOException ignored) {}
-            }
+            // 异常时清理 .tmp 文件（成功时已被 move 走）
+            try { Files.deleteIfExists(tempDest); } catch (IOException ignored) {}
         }
-    }
-
-    private String saveWord(Long taskId, Path tempFile) throws IOException {
-        Path dir = Paths.get(exportRoot);
-        Files.createDirectories(dir);
-        String ts = LocalDateTime.now().format(TS_FMT);
-        Path dest = dir.resolve("performance_bundle_" + taskId + "_" + ts + ".docx");
-        Files.copy(tempFile, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-        return dest.toString();
     }
 }

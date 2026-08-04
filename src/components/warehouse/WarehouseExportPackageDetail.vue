@@ -20,6 +20,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { formatBytes } from '@/utils/formatBytes'
 
 const props = defineProps({
   totalCount: { type: Number, default: 0 },
@@ -39,15 +40,6 @@ const formatElapsed = (ms) => {
   if (s < 60) return `${s} 秒`
   const m = Math.floor(s / 60)
   return `${m} 分 ${s % 60} 秒`
-}
-
-const formatBytes = (bytes) => {
-  if (!bytes || bytes <= 0) return '—'
-  const units = ['B', 'KB', 'MB', 'GB']
-  let v = bytes
-  let i = 0
-  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++ }
-  return `${v.toFixed(i > 0 ? 2 : 0)} ${units[i]}`
 }
 </script>
 

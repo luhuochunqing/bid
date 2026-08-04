@@ -115,6 +115,7 @@ import { ref, computed, watch } from 'vue'
 import { InfoFilled, Loading } from '@element-plus/icons-vue'
 import { useAsyncTask } from '@/composables/useAsyncTask'
 import { performanceBundleExportApi } from '@/api/modules/performanceBundleExport'
+import { formatBytes } from '@/utils/formatBytes'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -211,19 +212,19 @@ function handleRetry() {
   handleConfirm()
 }
 
-function formatBytes(bytes) {
-  if (!bytes) return '-'
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / 1024 / 1024).toFixed(2) + ' MB'
-}
-
+// D5-2 修复：仅在无任务时重置对话框状态。
+// 当任务运行中/已完成/已失败时，关闭后再次打开对话框应保留状态，让用户继续观察进度或下载文件。
+// 之前的实现无论任务状态都 reset()，会导致用户启动任务后关闭对话框再打开，
+// 看不到任务进度也下不了文件，只能重新触发导出（重复任务）。
 watch(() => props.visible, (val) => {
   if (val) {
-    // 默认不勾选任何附件类型：后端 AttachmentFilter 接受空 Set = 导出全部类型（含未来新增）。
-    // 这样 UI 文案"不勾选则导出全部类型"与默认状态保持一致，避免"默认全选"造成的语义歧义。
-    checkedTypes.value = []
-    reset()
+    const hasActiveTask = isRunning.value || isCompleted.value || isFailed.value
+    if (!hasActiveTask) {
+      // 默认不勾选任何附件类型：后端 AttachmentFilter 接受空 Set = 导出全部类型（含未来新增）。
+      // 这样 UI 文案"不勾选则导出全部类型"与默认状态保持一致，避免"默认全选"造成的语义歧义。
+      checkedTypes.value = []
+      reset()
+    }
   }
 })
 </script>

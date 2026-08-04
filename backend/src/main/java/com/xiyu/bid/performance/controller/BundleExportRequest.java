@@ -26,4 +26,26 @@ public record BundleExportRequest(
         PerformanceSearchCriteria criteria,
         Set<String> attachmentTypes
 ) {
+
+    /**
+     * D1-3 修复：判断是否为勾选模式（按 ID 导出）。
+     * <p>封装模式判断逻辑，避免 Controller 中重复 null/empty 检查。
+     */
+    public boolean isIdMode() {
+        return ids != null && !ids.isEmpty();
+    }
+
+    /**
+     * D1-3 修复：获取筛选条件，null 时返回空条件。
+     */
+    public PerformanceSearchCriteria safeCriteria() {
+        return criteria != null ? criteria : PerformanceSearchCriteria.empty();
+    }
+
+    /**
+     * D1-3 修复：获取附件类型筛选，null 时返回空集合。
+     */
+    public Set<String> safeAttachmentTypes() {
+        return attachmentTypes != null ? attachmentTypes : Set.of();
+    }
 }
