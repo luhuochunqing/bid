@@ -66,7 +66,7 @@ public final class WordStyleRegistrar {
             int level = i + 1;
             registerStyle(styles, "Heading" + level, "heading " + level,
                     h.font(), h.sizePt(), h.bold(),
-                    Math.min(i, Integer.MAX_VALUE));  // outlineLvl: H1=0, H2=1, ...
+                    i);  // outlineLvl: H1=0, H2=1, ...
         }
     }
 

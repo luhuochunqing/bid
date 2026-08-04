@@ -50,7 +50,7 @@ public abstract class AbstractExportTaskStateService<E, R extends JpaRepository<
     /**
      * 创建 PENDING 任务（独立事务）。
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Long createTask(String filterSnapshot, Long operatorId) {
         E task = newPendingTask(filterSnapshot, operatorId);
         E saved = repo.save(task);

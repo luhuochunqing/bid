@@ -67,6 +67,8 @@ public class PerformanceBundleExportNotificationPublisher {
 
     /**
      * 构建筛选摘要文本。
+     *
+     * <p>所有参数均可为 {@code null}，方法内部会做空值判断。
      */
     public static String buildFilterSummary(String keyword, String customerType,
                                              String groupCompany, Set<String> attachmentTypes) {

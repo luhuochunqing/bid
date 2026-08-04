@@ -4,7 +4,7 @@
 -- 维护声明: 维护者按项目SOP；与 V1184 一起提交，含 header 满足 FlywayRollbackScriptCoverageTest
 -- Source: V1184__create_performance_export_task.sql
 
--- U1184 rollback for V1184__create_performance_export_task.sql (业绩合订本导出任务表)
+-- U1184 rollback for V1184__create_performance_export_task.sql (业绩合订本导出任务表，PR #2250)
 -- 注意：回滚前请确认无活跃任务（status IN ('PENDING','PROCESSING')）
 --       已完成的导出文件（stored_file_path）需手动清理
 

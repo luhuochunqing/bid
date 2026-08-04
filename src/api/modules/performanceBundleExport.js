@@ -13,32 +13,6 @@ export const performanceBundleExportApi = {
   async triggerExport(payload = {}) {
     const res = await httpClient.post('/api/knowledge/performance/bundle-export', payload)
     return res
-  },
-
-  /**
-   * 查询导出任务状态
-   * @param {number} taskId
-   */
-  async getTaskStatus(taskId) {
-    return httpClient.get(`/api/knowledge/performance/bundle-export/tasks/${taskId}/status`)
-  },
-
-  /**
-   * 列出导出任务
-   * @param {number} page
-   * @param {number} size
-   */
-  async listTasks(page = 0, size = 15) {
-    return httpClient.get('/api/knowledge/performance/bundle-export/tasks', {
-      params: { page, size }
-    })
-  },
-
-  /**
-   * 下载导出文件（通过 useAsyncTask.downloadFile 流式下载，不直接调用此方法）
-   */
-  getDownloadUrl(taskId) {
-    return `/api/knowledge/performance/bundle-export/tasks/${taskId}/download`
   }
 }
 

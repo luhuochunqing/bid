@@ -3,6 +3,12 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-08-04] no-op | CO-602 P2 #13-#23 修复 — 标准代码质量改进，无新结论
+
+- 11 项 P2 修复均为标准代码质量改进（事务传播、审计注解、死参数/死代码清理、资源关闭、包迁移、枚举统一、回滚注释等）
+- 无新根因、新陷阱、新业务规则产出
+- 关联 PR：!2254
+
 ## [2026-08-04] update | oss-organization-sync-playbook 新增 §5.4 jobNumber 三字段同源 + lessons-learned §98
 
 - 背景：组织架构管理页"CRM 工号"列大部分用户显示"-"，业务人员困惑。PR !2252 修复时发现 `crm_sales_no`/`employee_number`/`username` 三字段同源，均填 OSS 事件库的 `jobNumber`

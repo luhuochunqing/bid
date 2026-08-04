@@ -1,7 +1,8 @@
-package com.xiyu.bid.performance.infrastructure;
+package com.xiyu.bid.performance.domain;
 
 import com.xiyu.bid.performance.application.dto.PerformanceDTO;
 import com.xiyu.bid.performance.domain.valueobject.CustomerType;
+import com.xiyu.bid.performance.infrastructure.PerformanceAttachmentTypeLabels;
 import com.xiyu.bid.performance.infrastructure.PerformanceBundleGroupTypes.AttachmentTypeGroup;
 import com.xiyu.bid.performance.infrastructure.PerformanceBundleGroupTypes.ContractGroup;
 import com.xiyu.bid.performance.infrastructure.PerformanceBundleGroupTypes.CustomerTypeGroup;
