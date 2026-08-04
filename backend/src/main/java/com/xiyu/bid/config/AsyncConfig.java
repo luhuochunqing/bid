@@ -25,14 +25,23 @@ public class AsyncConfig {
 
     /**
      * 创建带 MdcTaskDecorator 的线程池（统一构造，避免重复代码）。
+     * 默认使用 CallerRunsPolicy：队列满时由调用线程执行，避免任务被拒绝。
      */
     private ThreadPoolTaskExecutor createExecutor(String prefix, int core, int max, int queue) {
+        return createExecutor(prefix, core, max, queue, new ThreadPoolExecutor.CallerRunsPolicy());
+    }
+
+    /**
+     * 创建带 MdcTaskDecorator 的线程池（可自定义拒绝策略）。
+     */
+    private ThreadPoolTaskExecutor createExecutor(String prefix, int core, int max, int queue,
+                                                   java.util.concurrent.RejectedExecutionHandler handler) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(core);
         executor.setMaxPoolSize(max);
         executor.setQueueCapacity(queue);
         executor.setThreadNamePrefix(prefix);
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setRejectedExecutionHandler(handler);
         executor.setTaskDecorator(new MdcTaskDecorator());
         executor.initialize();
         return executor;
@@ -76,10 +85,16 @@ public class AsyncConfig {
      * 业绩合订本导出专用线程池。
      * <p>core=1, max=2, queue=10：业绩合订本导出涉及 300 DPI 高清渲染，
      * 内存与 CPU 消耗较大，严格限制并发避免 OOM。
-     * CallerRunsPolicy：队列满时由调用线程执行，避免任务被拒绝。
+     *
+     * <p><b>拒绝策略：AbortPolicy</b>（PR 修复 P1-4）
+     * <p>原 CallerRunsPolicy 会让 HTTP 请求线程同步执行 5-10 分钟的 Word 渲染，
+     * 导致 Nginx/网关 60s 超时返回 502，但任务仍在执行且 taskId 未返回给用户。
+     * 改用 AbortPolicy 后，队列满时抛 RejectedExecutionException，
+     * Controller 捕获后返回 503 "系统繁忙，请稍后重试"，用户可重新触发。
      */
     @Bean(name = "performanceBundleExportExecutor")
     public Executor performanceBundleExportExecutor() {
-        return createExecutor("perf-bundle-export-", 1, 2, 10);
+        return createExecutor("perf-bundle-export-", 1, 2, 10,
+                new ThreadPoolExecutor.AbortPolicy());
     }
 }

@@ -13,5 +13,9 @@ CREATE TABLE IF NOT EXISTS performance_export_task (
     created_at DATETIME NOT NULL,
     completed_at DATETIME NULL,
     failure_reason VARCHAR(500) NULL,
-    result_summary TEXT NULL COMMENT '导出统计 JSON：totalCount/wordBytes/elapsedMs/筛选摘要'
+    result_summary TEXT NULL COMMENT '导出统计 JSON：totalCount/wordBytes/elapsedMs/筛选摘要',
+    -- 索引：listTasks 查询按 created_by + created_at DESC 排序分页
+    INDEX idx_created_by_created_at (created_by, created_at),
+    -- 索引：清理过期任务时按 status 筛选
+    INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='业绩合订本导出任务';

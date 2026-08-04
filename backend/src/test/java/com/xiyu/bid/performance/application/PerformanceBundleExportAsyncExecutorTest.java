@@ -221,6 +221,71 @@ class PerformanceBundleExportAsyncExecutorTest {
         verify(stateService, times(1)).fail(eq(taskId), any());
     }
 
+    // ========== 记录数上限防复发测试（P1-2） ==========
+
+    /**
+     * 防复发测试：筛选模式导出时，记录数超过 {@link PerformanceBundleExportAsyncExecutor#MAX_EXPORT_RECORDS}
+     * 必须标记任务 FAILED，且不调用 wordBundleBuilder.buildBundle（避免 OOM）。
+     */
+    @Test
+    void executeExport_whenRecordsExceedMax_shouldFailTaskWithoutBuildingBundle() {
+        Long taskId = 7L;
+        PerformanceSearchCriteria criteria = PerformanceSearchCriteria.empty();
+
+        // 构造超过上限的记录列表
+        int overLimit = PerformanceBundleExportAsyncExecutor.MAX_EXPORT_RECORDS + 1;
+        List<PerformanceRecord> records = java.util.stream.Stream
+                .generate(() -> buildRecord(10L))
+                .limit(overLimit)
+                .toList();
+
+        when(alertConfigRepository.findActive()).thenReturn(
+                java.util.Optional.of(new PerformanceAlertConfig(null, 180, 90, true)));
+        when(repository.findAll(any(), any())).thenReturn(records);
+
+        asyncExecutor.executeExport(taskId, criteria, Set.of(), 100L,
+                "filterSummary", System.currentTimeMillis());
+
+        verify(stateService, times(1)).markProcessing(taskId);
+        verify(stateService, times(1)).fail(eq(taskId), any());
+        verify(stateService, times(0)).complete(any());
+        // 关键：不调用 buildBundle，避免 OOM
+        verify(wordBundleBuilder, times(0)).buildBundle(any(), any(), any());
+    }
+
+    /**
+     * 防复发测试：记录数刚好等于上限时正常导出（边界值）。
+     */
+    @Test
+    void executeExport_whenRecordsAtMax_shouldCompleteNormally() throws Exception {
+        Long taskId = 8L;
+        PerformanceSearchCriteria criteria = PerformanceSearchCriteria.empty();
+
+        int atLimit = PerformanceBundleExportAsyncExecutor.MAX_EXPORT_RECORDS;
+        PerformanceRecord record = buildRecord(10L);
+        PerformanceDTO dto = buildDto(10L);
+        List<PerformanceRecord> records = java.util.stream.Stream
+                .generate(() -> record)
+                .limit(atLimit)
+                .toList();
+
+        when(alertConfigRepository.findActive()).thenReturn(
+                java.util.Optional.of(new PerformanceAlertConfig(null, 180, 90, true)));
+        when(repository.findAll(any(), any())).thenReturn(records);
+        when(mapper.toDTO(record)).thenReturn(dto);
+        when(exportPublisher.buildResultSummaryJson(anyInt(), anyLong(), any(), anyLong(), any()))
+                .thenReturn("{}");
+        PerformanceExportTaskEntity completedTask = PerformanceExportTaskEntity.builder()
+                .id(taskId).status(ExportStatus.COMPLETED).createdBy(100L).build();
+        when(stateService.complete(any())).thenReturn(completedTask);
+
+        asyncExecutor.executeExport(taskId, criteria, Set.of(), 100L,
+                "filterSummary", System.currentTimeMillis());
+
+        verify(stateService, times(1)).complete(any());
+        verify(stateService, times(0)).fail(anyLong(), any());
+    }
+
     // ========== 测试辅助方法 ==========
 
     private static PerformanceRecord buildRecord(Long id) {

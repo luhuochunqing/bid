@@ -28,6 +28,8 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -35,6 +37,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.RejectedExecutionException;
 
 /**
  * 业绩合订本导出控制器 — 独立端点，与原 ZIP 导出入口分离（需求 §3）。
@@ -77,12 +80,19 @@ public class PerformanceBundleExportController {
                 ? request.attachmentTypes() : Set.of();
 
         PerformanceBundleExportAppService.ExportTaskResult result;
-        if (request != null && request.ids() != null && !request.ids().isEmpty()) {
-            result = exportAppService.exportByIds(request.ids(), attachmentTypes, operatorId);
-        } else {
-            PerformanceSearchCriteria criteria = (request != null && request.criteria() != null)
-                    ? request.criteria() : PerformanceSearchCriteria.empty();
-            result = exportAppService.export(criteria, attachmentTypes, operatorId);
+        try {
+            if (request != null && request.ids() != null && !request.ids().isEmpty()) {
+                result = exportAppService.exportByIds(request.ids(), attachmentTypes, operatorId);
+            } else {
+                PerformanceSearchCriteria criteria = (request != null && request.criteria() != null)
+                        ? request.criteria() : PerformanceSearchCriteria.empty();
+                result = exportAppService.export(criteria, attachmentTypes, operatorId);
+            }
+        } catch (RejectedExecutionException e) {
+            // 线程池满（AbortPolicy）：返回 503，提示用户稍后重试
+            log.warn("业绩合订本导出线程池已满，拒绝任务: operatorId={}", operatorId);
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(ApiResponse.error("系统繁忙，已有多个导出任务在排队，请稍后重试"));
         }
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(ApiResponse.success("合订本导出任务已创建", Map.of("taskId", result.taskId())));
@@ -139,7 +149,7 @@ public class PerformanceBundleExportController {
                 }
             };
             return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, buildContentDisposition(filename))
                     .contentType(MediaType.parseMediaType(
                             "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
                     .contentLength(fileSize)
@@ -160,6 +170,16 @@ public class PerformanceBundleExportController {
                 ? task.getCompletedAt().format(FILENAME_DT_FMT)
                 : LocalDateTime.now().format(FILENAME_DT_FMT);
         return "业绩合订本_" + ts + ".docx";
+    }
+
+    /**
+     * 构造 RFC 5987 兼容的 Content-Disposition 头，支持中文文件名。
+     * <p>同时提供 ASCII fallback（filename）和 UTF-8 编码（filename*），
+     * 兼容旧浏览器和现代浏览器，避免中文乱码。
+     */
+    private String buildContentDisposition(String filename) {
+        String encoded = URLEncoder.encode(filename, StandardCharsets.UTF_8).replace("+", "%20");
+        return "attachment; filename=\"" + encoded + "\"; filename*=UTF-8''" + encoded;
     }
 
     private Map<String, Object> toTaskMap(PerformanceExportTaskEntity t) {

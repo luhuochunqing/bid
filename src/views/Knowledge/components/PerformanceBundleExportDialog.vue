@@ -145,7 +145,8 @@ const indeterminate = computed(() => {
   const len = checkedTypes.value.length
   return len > 0 && len < ALL_VALUES.length
 })
-const canConfirm = computed(() => checkedTypes.value.length > 0)
+// 不勾选 = 导出全部类型（后端 AttachmentFilter 接受空 Set），因此始终允许确认
+const canConfirm = computed(() => true)
 
 const exportHintText = computed(() => {
   if (props.selectedIds.length > 0) {

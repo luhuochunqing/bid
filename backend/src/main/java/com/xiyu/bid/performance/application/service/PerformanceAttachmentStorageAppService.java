@@ -122,11 +122,14 @@ public class PerformanceAttachmentStorageAppService {
      * 解析 fileUrl 到本地文件路径.
      *
      * <p>解析策略：
-     * 1. 优先尝试作为绝对路径（页面上传存储的格式）
-     * 2. 若绝对路径不存在，拼接 attachmentRoot（批量导入存储的格式）
+     * 1. 优先尝试作为绝对路径（页面上传存储的格式），必须在白名单根目录下
+     * 2. 若绝对路径不存在或不合法，拼接 attachmentRoot（批量导入存储的格式）
+     *
+     * <p><b>路径穿越防护</b>：绝对路径模式必须落在 {@code uploadDir} 或 {@code attachmentRoot}
+     * 归一化后的子树内，避免数据库被污染时读取任意系统文件（如 {@code /etc/passwd}）。
      *
      * @param fileUrl 数据库中存储的附件路径
-     * @return 解析后的本地路径，null 表示 fileUrl 为空
+     * @return 解析后的本地路径，null 表示 fileUrl 为空或路径穿越被拦截
      */
     public Path resolveLocalPath(String fileUrl) {
         if (fileUrl == null || fileUrl.isBlank()) return null;
@@ -134,7 +137,12 @@ public class PerformanceAttachmentStorageAppService {
         // 1. 绝对路径（页面上传：dest.toAbsolutePath().normalize().toString()）
         Path absolutePath = Path.of(fileUrl).normalize();
         if (absolutePath.isAbsolute() && Files.exists(absolutePath)) {
-            return absolutePath;
+            // 白名单校验：必须落在 uploadDir 或 attachmentRoot 子树内
+            if (isWithinAllowedRoots(absolutePath)) {
+                return absolutePath;
+            }
+            // 不在白名单内：拒绝返回，避免读取任意系统文件
+            return null;
         }
 
         // 2. 相对路径（批量导入："/" + performanceId + "/" + storedFilename）
@@ -149,7 +157,29 @@ public class PerformanceAttachmentStorageAppService {
             return importPath;
         }
 
-        // 3. 回退：返回最佳猜测用于错误信息
+        // 3. 回退：返回最佳猜测用于错误信息（不在白名单的绝对路径已在步骤1返回 null）
         return absolutePath.isAbsolute() ? absolutePath : importPath;
+    }
+
+    /**
+     * 判断绝对路径是否落在允许的根目录（uploadDir 或 attachmentRoot）子树内。
+     * <p>两个根目录都按 JVM 工作目录归一化为绝对路径后再比较。
+     */
+    private boolean isWithinAllowedRoots(Path target) {
+        Path uploadRoot = resolveAbsoluteUploadPath();
+        Path importRoot = resolveAbsoluteAttachmentRoot();
+        Path normalized = target.normalize();
+        return normalized.startsWith(uploadRoot) || normalized.startsWith(importRoot);
+    }
+
+    /**
+     * 将 attachmentRoot 归一化为绝对路径（与 resolveAbsoluteUploadPath 同策略）。
+     */
+    private Path resolveAbsoluteAttachmentRoot() {
+        Path p = Paths.get(attachmentRoot);
+        if (!p.isAbsolute()) {
+            p = Paths.get(System.getProperty("user.dir")).resolve(p).normalize();
+        }
+        return p;
     }
 }

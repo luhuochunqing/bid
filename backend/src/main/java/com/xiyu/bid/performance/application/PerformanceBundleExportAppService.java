@@ -70,9 +70,20 @@ public class PerformanceBundleExportAppService {
 
     /**
      * 按 ids 模式创建合订本导出任务。
+     *
+     * @throws IllegalArgumentException 当 ids 为空或数量超过 {@link PerformanceBundleExportAsyncExecutor#MAX_EXPORT_RECORDS}
      */
     public ExportTaskResult exportByIds(List<Long> ids, Set<String> attachmentTypes,
                                          Long operatorId) {
+        if (ids == null || ids.isEmpty()) {
+            throw new IllegalArgumentException("ids 不能为空");
+        }
+        if (ids.size() > PerformanceBundleExportAsyncExecutor.MAX_EXPORT_RECORDS) {
+            throw new IllegalArgumentException(
+                    "勾选记录数 " + ids.size() + " 超过上限 "
+                            + PerformanceBundleExportAsyncExecutor.MAX_EXPORT_RECORDS
+                            + "，请减少勾选数量后重试");
+        }
         AttachmentFilter.validateTypes(attachmentTypes);
         String filterSnapshot = serializeIds(ids, attachmentTypes);
         String filterSummary = PerformanceBundleExportNotificationPublisher.buildFilterSummary(

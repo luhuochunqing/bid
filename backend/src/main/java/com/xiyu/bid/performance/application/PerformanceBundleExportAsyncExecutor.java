@@ -42,6 +42,13 @@ public class PerformanceBundleExportAsyncExecutor {
     private static final DateTimeFormatter TS_FMT = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
     private static final Duration FILE_TTL = Duration.ofHours(24);
 
+    /**
+     * 单次导出最大业绩记录数。
+     * <p>限制全量加载到内存的记录数，防止 OOM。
+     * 超出时任务标记 FAILED 并提示用户缩小筛选范围或减少勾选数量。
+     */
+    public static final int MAX_EXPORT_RECORDS = 5000;
+
     /** 默认提醒配置（用于合同状态计算） */
     private static final PerformanceAlertConfig DEFAULT_CONFIG =
             new PerformanceAlertConfig(null, 180, 90, true);
@@ -53,7 +60,13 @@ public class PerformanceBundleExportAsyncExecutor {
     private final PerformanceWordBundleBuilder wordBundleBuilder;
     private final PerformanceBundleExportNotificationPublisher exportPublisher;
 
-    @Value("${performance.bundle-export.root:/tmp/performance-bundle-exports}")
+    /**
+     * 导出文件落盘根目录。
+     * <p>默认 {@code data/performance-bundle-exports}（持久化路径），
+     * 生产环境应通过 {@code performance.bundle-export.root} 配置专用目录。
+     * 禁止使用 {@code /tmp}：重启后文件丢失，导致下载 404。
+     */
+    @Value("${performance.bundle-export.root:data/performance-bundle-exports}")
     private String exportRoot;
 
     /**
@@ -70,6 +83,11 @@ public class PerformanceBundleExportAsyncExecutor {
             List<PerformanceDTO> records = repository.findAll(effective, config).stream()
                     .map(mapper::toDTO)
                     .toList();
+            if (records.size() > MAX_EXPORT_RECORDS) {
+                stateService.fail(taskId, "导出记录数 " + records.size() + " 超过上限 "
+                        + MAX_EXPORT_RECORDS + "，请缩小筛选范围后重试");
+                return;
+            }
             doExport(taskId, records, attachmentTypes, filterSummary, startMs);
         } catch (RuntimeException e) {
             log.error("业绩合订本导出任务执行失败: taskId={}", taskId, e);

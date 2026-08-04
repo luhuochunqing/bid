@@ -21,6 +21,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -210,5 +211,79 @@ class PerformanceAttachmentStorageAppServiceTest {
         var result = service.upload("CATEGORY_PAGE", file);
         assertEquals("数据表格.xls", result.fileName());
         assertTrue(Files.exists(Paths.get(result.fileUrl())));
+    }
+
+    // ===== 路径穿越防护测试（P1-3 防复发） =====
+
+    @Test
+    @DisplayName("resolveLocalPath: 绝对路径在 uploadDir 子树内时正常返回")
+    void resolveLocalPath_absolutePathWithinUploadDir_returnsPath() throws IOException {
+        Path absUploadDir = tempDir.resolve("uploads/performance-attachments").toAbsolutePath();
+        ReflectionTestUtils.setField(service, "uploadDir", absUploadDir.toString());
+        ReflectionTestUtils.setField(service, "attachmentRoot",
+                tempDir.resolve("data/attachments/performance").toString());
+
+        // 模拟页面上传存储的文件
+        Path storedFile = absUploadDir.resolve("CONTRACT_AGREEMENT/uuid_test.pdf");
+        Files.createDirectories(storedFile.getParent());
+        Files.writeString(storedFile, "test content");
+
+        Path result = service.resolveLocalPath(storedFile.toString());
+        assertEquals(storedFile.normalize(), result.normalize());
+    }
+
+    @Test
+    @DisplayName("resolveLocalPath: 绝对路径在 attachmentRoot 子树内时正常返回")
+    void resolveLocalPath_absolutePathWithinAttachmentRoot_returnsPath() throws IOException {
+        Path absAttachmentRoot = tempDir.resolve("data/attachments/performance").toAbsolutePath();
+        ReflectionTestUtils.setField(service, "uploadDir",
+                tempDir.resolve("uploads/performance-attachments").toString());
+        ReflectionTestUtils.setField(service, "attachmentRoot", absAttachmentRoot.toString());
+
+        Path storedFile = absAttachmentRoot.resolve("123/PF_123_CONTRACT_AGREEMENT_xxx.pdf");
+        Files.createDirectories(storedFile.getParent());
+        Files.writeString(storedFile, "test content");
+
+        Path result = service.resolveLocalPath(storedFile.toString());
+        assertEquals(storedFile.normalize(), result.normalize());
+    }
+
+    @Test
+    @DisplayName("resolveLocalPath: 绝对路径不在白名单内时返回 null（路径穿越防护）")
+    void resolveLocalPath_absolutePathOutsideWhitelist_returnsNull() throws IOException {
+        ReflectionTestUtils.setField(service, "uploadDir",
+                tempDir.resolve("uploads/performance-attachments").toString());
+        ReflectionTestUtils.setField(service, "attachmentRoot",
+                tempDir.resolve("data/attachments/performance").toString());
+
+        // 模拟数据库被污染：fileUrl 指向 /etc/passwd 等系统文件
+        // 在 tempDir 下创建一个"系统文件"模拟
+        Path systemFile = tempDir.resolve("etc/passwd");
+        Files.createDirectories(systemFile.getParent());
+        Files.writeString(systemFile, "root:x:0:0:root:/root:/bin/bash");
+
+        Path result = service.resolveLocalPath(systemFile.toString());
+        assertNull(result, "绝对路径不在 uploadDir/attachmentRoot 子树内时必须返回 null");
+    }
+
+    @Test
+    @DisplayName("resolveLocalPath: 相对路径穿越（../）被拦截返回 null")
+    void resolveLocalPath_relativePathTraversal_returnsNull() {
+        ReflectionTestUtils.setField(service, "uploadDir",
+                tempDir.resolve("uploads/performance-attachments").toString());
+        ReflectionTestUtils.setField(service, "attachmentRoot",
+                tempDir.resolve("data/attachments/performance").toString());
+
+        // 相对路径尝试逃逸 attachmentRoot
+        Path result = service.resolveLocalPath("../../etc/passwd");
+        assertNull(result, "相对路径穿越必须被拦截");
+    }
+
+    @Test
+    @DisplayName("resolveLocalPath: null 或空字符串返回 null")
+    void resolveLocalPath_nullOrBlank_returnsNull() {
+        assertNull(service.resolveLocalPath(null));
+        assertNull(service.resolveLocalPath(""));
+        assertNull(service.resolveLocalPath("   "));
     }
 }

@@ -61,10 +61,12 @@ DB_PORT_DISPLAY="${DB_PORT:-3306}"
 # JVM 内存配置：避免 macOS OOM Killer（exit code 137）杀进程
 # 根因：直接 `mvn spring-boot:run` 不走本脚本时，JVM 用默认堆（物理内存 1/4 = 8GB），
 # 在 macOS 内存紧张时（swap 17GB+）触发系统级 OOM Killer。
-# -Xmx4g：最大堆 4GB（业绩合订本 300 DPI PDF 渲染 + 700附件累积需要较大堆）
-# -Xms1g：初始堆 1GB（减少启动时频繁扩展堆）
-# -XX:MaxMetaspaceSize=256m：限制 Metaspace 防止类加载膨胀
-JVM_MEMORY="${JVM_MEMORY:--Xmx4g -Xms1g -XX:MaxMetaspaceSize=256m}"
+#
+# dev 默认 -Xmx1g：保护 macOS 开发环境（PR #2245 修复 macOS OOM 回归）
+# 生产环境（业绩合订本 300 DPI PDF 渲染 + 大批量附件累积）需通过 JVM_MEMORY 环境变量覆盖：
+#   export JVM_MEMORY="-Xmx4g -Xms1g -XX:MaxMetaspaceSize=256m"
+# 或在生产部署脚本中显式设置（参考 docs/deployment/）
+JVM_MEMORY="${JVM_MEMORY:--Xmx1g -Xms256m -XX:MaxMetaspaceSize=256m}"
 
 # 使用 MySQL 8.0 开发配置启动（自动种子化默认管理员 admin / XiyuAdmin2026!）
 echo "Using ${BACKEND_PROFILES} profile(s) (MySQL 8.0 on ${DB_HOST_DISPLAY}:${DB_PORT_DISPLAY}, auto-seeds default admin)"
