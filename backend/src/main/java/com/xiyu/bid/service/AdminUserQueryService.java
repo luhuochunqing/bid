@@ -45,6 +45,24 @@ public class AdminUserQueryService {
     public PaginatedResult<AdminUserDTO> listUsersPage(int page, int size, String keyword,
                                                         Boolean enabled, String departmentCode,
                                                         String sourceApp) {
+        // 构建 externalDeptId -> departmentName 反查 Map（users.department_code 实际存 external_dept_id）
+        List<OrganizationDepartmentEntity> allDepts = departmentRepository.findAll();
+        Map<String, String> deptNameByExternalId = allDepts.stream()
+                .filter(d -> d.getExternalDeptId() != null && !d.getExternalDeptId().isBlank()
+                        && d.getDepartmentName() != null && !d.getDepartmentName().isBlank())
+                .collect(Collectors.toMap(
+                        OrganizationDepartmentEntity::getExternalDeptId,
+                        OrganizationDepartmentEntity::getDepartmentName,
+                        (a, b) -> a));
+        // 兼容：departmentCode -> departmentName（旧/本地数据兜底）
+        Map<String, String> deptNameByCode = allDepts.stream()
+                .filter(d -> d.getDepartmentCode() != null && !d.getDepartmentCode().isBlank()
+                        && d.getDepartmentName() != null && !d.getDepartmentName().isBlank())
+                .collect(Collectors.toMap(
+                        OrganizationDepartmentEntity::getDepartmentCode,
+                        OrganizationDepartmentEntity::getDepartmentName,
+                        (a, b) -> a));
+
         Stream<User> stream = userRepository.findAll().stream();
 
         if (keyword != null && !keyword.isBlank()) {
@@ -70,7 +88,7 @@ public class AdminUserQueryService {
 
         List<AdminUserDTO> all = stream
                 .sorted((left, right) -> String.CASE_INSENSITIVE_ORDER.compare(left.getUsername(), right.getUsername()))
-                .map(this::toDto)
+                .map(user -> toDtoWithDeptNames(user, deptNameByExternalId, deptNameByCode))
                 .toList();
 
         int total = all.size();
@@ -122,14 +140,35 @@ public class AdminUserQueryService {
     }
 
     public AdminUserDTO toDto(User user) {
+        return toDtoWithDeptNames(user, null, null);
+    }
+
+    /**
+     * 转 DTO 并填充 departmentName（从反查 Map 取值，优先级：Map > user 实体自身字段）。
+     * <p>users.department_code 实际存的是 OSS 的 external_dept_id，
+     * 因此优先按 externalDeptId 反查，兜底按 departmentCode 反查。
+     */
+    private AdminUserDTO toDtoWithDeptNames(User user,
+                                             Map<String, String> deptNameByExternalId,
+                                             Map<String, String> deptNameByCode) {
+        String deptCode = user.getDepartmentCode();
+        String resolvedName = user.getDepartmentName();
+        if ((resolvedName == null || resolvedName.isBlank()) && deptCode != null && !deptCode.isBlank()) {
+            if (deptNameByExternalId != null) {
+                resolvedName = deptNameByExternalId.get(deptCode);
+            }
+            if ((resolvedName == null || resolvedName.isBlank()) && deptNameByCode != null) {
+                resolvedName = deptNameByCode.get(deptCode);
+            }
+        }
         return AdminUserDTO.builder()
                 .id(user.getId())
                 .username(user.getUsername())
                 .fullName(user.getFullName())
                 .email(user.getEmail())
                 .phone(user.getPhone())
-                .departmentCode(user.getDepartmentCode())
-                .departmentName(user.getDepartmentName())
+                .departmentCode(deptCode)
+                .departmentName(resolvedName != null ? resolvedName : "")
                 .employeeNumber(user.getEmployeeNumber())
                 .crmSalesNo(user.getCrmSalesNo())
                 .roleId(user.getRoleProfile() == null ? null : user.getRoleProfile().getId())

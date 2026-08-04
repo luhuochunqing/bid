@@ -6922,3 +6922,62 @@ if (admin) {
 2. **批量导入后必须做闭环验证**：导入 → 重启 → 导出 ZIP → 校验图片非空。
 3. **路径不对称是隐蔽 bug 源**：写路径（导入时）和读路径（导出时）如果用不同的配置项，配置漂移后会导致"写入成功但读取失败"的静默故障。
 4. Sentry 告警（XIYU-1R 19 次）应设置升级阈值，≥3 次同类异常自动通知值班人。
+
+---
+
+## 98. OSS 工号三字段同源：username / employee_number / crm_sales_no 填的是同一个 jobNumber（PR !2252 / 2026-08-04）
+
+**背景**：组织架构管理页（/settings/organization）"CRM 工号"列大部分用户显示"-"，业务人员困惑。前端列标题用"CRM 工号"具有误导性。
+
+**根因（字段命名历史误会）**：
+
+OSS 事件库传过来的字段是 `jobNumber`（工号），在 `OrganizationDirectoryJsonMapper.java:36` 被映射到 `username`：
+
+```java
+// confirmed: YAPI returns "jobNumber"; tech spec confirms jobNumber = OA 账号 = username
+String username = firstText(node, "jobNumber", "userNo", "username", "loginName", "employeeNo", "userId");
+```
+
+然后在 `OrganizationUserSyncWriter.java:107-118`，同一个值被写入两个字段：
+
+```java
+if (looksLikeEmployeeNumber(plan.username())) {
+    user.setEmployeeNumber(plan.username());   // 工号 = jobNumber
+    user.setCrmSalesNo(plan.username());       // CRM 工号 = jobNumber（同一个值！）
+}
+```
+
+**字段命名历史**：
+
+| 时间 | 事件 | 字段状态 |
+|---|---|---|
+| CO-152（早期） | V1126 迁移添加 `crm_sales_no` 字段，命名"CRM 工号"，目的是换 CRM JWT token | `crm_sales_no` 全表 NULL |
+| CO-441 | 发现 OSS 同步时只把 `jobNumber` 写到 `username`，`employee_number` 没填，导致按工号查询失败 | `employee_number` 全表 NULL |
+| V1127 回填 | 把 OSS 用户的 `employee_number` 回填为 `username`（= `jobNumber`） | `employee_number` 全员有值 |
+| spec 037 | 澄清"OSS 工号即 CRM salesNo（已生产验证）"，新同步用户两个字段都填 `jobNumber` | 仅 1254 条新同步用户有 `crm_sales_no` |
+
+**数据库统计（生产环境）**：
+```
+total=8548, has_crm_no=1254, has_emp_no=8547
+crm_eq_emp=1254, crm_eq_username=1254
+```
+
+三个字段填的是**同一个值** —— OSS 事件库的 `jobNumber`。`crm_sales_no` 的"CRM"前缀是 CO-152 时期的命名误会（当时以为 CRM salesNo 是独立编号，spec 037 才澄清"OSS 工号即 CRM salesNo"）。
+
+**修复**（PR !2252）：
+1. 前端列标题 "CRM 工号" → "工号"
+2. 展示字段 `crmSalesNo`(1254/8548 有值) → `employeeNumber`(8547/8548 有值)
+3. 移除行内编辑功能（`crm_sales_no` 是集成字段，不应在前端 UI 编辑）
+
+**教训**：
+1. **字段命名一旦产生误会，会沿代码链路扩散到 UI**：`crm_sales_no` 被 CO-152 命名为"CRM 工号"，前端列标题直接复用，导致业务人员看到"CRM 工号"以为是 CRM 系统的独立编号。字段命名应基于真实业务语义，而非技术用途。
+2. **同源字段在 UI 应优先展示覆盖率高的**：`employee_number` 和 `crm_sales_no` 同源同值，但 `employee_number` 全员有值（V1127 回填），`crm_sales_no` 只有 spec 037 后同步的 1254 条有值。UI 列表展示应选覆盖率高的字段。
+3. **集成字段不应在前端 UI 编辑**：`crm_sales_no` 是用于换取 CRM JWT token 的集成字段，业务人员不应在前端编辑。即便历史代码加了行内编辑功能，也应识别并移除。
+4. **澄清字段真实来源优于"基于命名推测"**：本次最初基于 `crm_sales_no` 的"CRM"前缀推测它是"CRM 系统的销售编号、不是工号"，被用户质疑后回到 `OrganizationDirectoryJsonMapper` 代码才发现三字段同源。命名是历史负担，不是语义真相。
+5. **spec 037 澄清的"OSS 工号即 CRM salesNo"是关键事实**：这一行注释（`OrganizationUserSyncWriter.java:112-113`）是订正命名的依据，应在 wiki 中沉淀。
+
+**相关文档**：
+- `specs/037-crm-link-compensation/plan.md` — spec 037 实现计划（澄清 OSS 工号即 CRM salesNo）
+- `docs/lessons/lessons-learned.md` §60 — CRM 商机关联失败三层根因（spec 037 / 2026-07-16）
+- `backend/src/main/java/com/xiyu/bid/integration/organization/infrastructure/client/OrganizationDirectoryJsonMapper.java:36` — jobNumber → username 映射
+- `backend/src/main/java/com/xiyu/bid/integration/organization/application/OrganizationUserSyncWriter.java:107-118` — 三字段同源填充逻辑

@@ -79,52 +79,15 @@
             <el-table-column prop="username" label="用户名" width="120" />
             <el-table-column prop="email" label="邮箱" min-width="200" />
             <el-table-column prop="phone" label="手机号" width="130" />
-            <el-table-column label="部门" width="160">
+            <el-table-column label="部门" min-width="180">
               <template #default="{ row }">
-                <el-select
-                  v-if="editingDeptId === row.id"
-                  v-model="editDeptCode"
-                  @change="onDeptSelectChange"
-                  size="small"
-                  style="width: 130px"
-                >
-                  <el-option
-                    v-for="d in departments"
-                    :key="d.departmentCode"
-                    :label="d.departmentName"
-                    :value="d.departmentCode"
-                  />
-                </el-select>
-                <span v-else>
-                  {{ row.departmentName || '-' }}
-                  <el-button v-if="showEdit" text type="primary" size="small" @click="startEditDept(row)">
-                    <el-icon><Edit /></el-icon>
-                  </el-button>
-                </span>
+                {{ resolveDeptName(row) }}
               </template>
             </el-table-column>
             <el-table-column prop="roleName" label="角色" width="100" />
-            <el-table-column label="CRM 工号" width="170">
+            <el-table-column prop="employeeNumber" label="工号" width="130">
               <template #default="{ row }">
-                <div v-if="editingCrmId === row.id" class="crm-edit-cell">
-                  <el-input
-                    v-model="editCrmValue"
-                    size="small"
-                    placeholder="CRM 工号"
-                    maxlength="64"
-                    style="width: 110px"
-                    @keyup.enter="saveCrmSalesNo(row)"
-                    @keyup.esc="cancelEditCrm"
-                  />
-                  <el-button text type="primary" size="small" :loading="crmLoading === row.id" @click="saveCrmSalesNo(row)">保存</el-button>
-                  <el-button text size="small" @click="cancelEditCrm">取消</el-button>
-                </div>
-                <span v-else>
-                  {{ row.crmSalesNo || '-' }}
-                  <el-button text type="primary" size="small" @click="startEditCrm(row)">
-                    <el-icon><Edit /></el-icon>
-                  </el-button>
-                </span>
+                {{ row.employeeNumber || '-' }}
               </template>
             </el-table-column>
             <el-table-column label="状态" width="80" align="center">
@@ -165,10 +128,9 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { Search, Edit } from '@element-plus/icons-vue'
+import { Search } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { organizationApi } from '@/api/modules/organization.js'
-import { useUserCrmEdit } from './useUserCrmEdit.js'
-import { useDeptEdit } from './useDeptEdit.js'
 
 const loading = ref(false)
 const userList = ref([])
@@ -177,22 +139,43 @@ const totalCount = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
 
-// CO-152 Review D2-2: 部门行内编辑 + 状态切换（抽到 composable 控制文件行数）
-const { editingDeptId, editDeptCode, statusLoading, startEditDept, onDeptSelectChange, onStatusChange } = useDeptEdit(departments, userList)
-// CO-152: CRM 工号行内编辑（抽到 composable 控制文件行数）
-const { editingCrmId, editCrmValue, crmLoading, startEditCrm, cancelEditCrm, saveCrmSalesNo } = useUserCrmEdit()
+// 状态切换（启用/停用）
+const statusLoading = ref(null)
+async function onStatusChange(row, val) {
+  statusLoading.value = row.id
+  try {
+    await organizationApi.updateUserStatus(row.id, val)
+    ElMessage.success(val ? '已启用' : '已停用')
+  } catch { row.enabled = !val }
+  finally { statusLoading.value = null }
+}
+
+// 部门名本地映射（双保险：后端已填 departmentName，前端再按 deptCode/externalDeptId 兜底）
+const deptNameMap = computed(() => {
+  const m = new Map()
+  departments.value.forEach(d => {
+    if (!d.departmentName) return
+    if (d.departmentCode) m.set(d.departmentCode, d.departmentName)
+    if (d.externalDeptId) m.set(d.externalDeptId, d.departmentName)
+  })
+  return m
+})
+function resolveDeptName(row) {
+  return row?.departmentName
+    || (row?.departmentCode && deptNameMap.value.get(row.departmentCode))
+    || '-'
+}
 
 const searchForm = ref({ keyword: '', enabled: null })
 const selectedDeptCode = ref('')
-const selectedSourceApp = ref('ehsy')
+// 默认 "全部来源"：DB 中仅有 source_app='oss' 数据，ehsy 选项为历史遗留
+const selectedSourceApp = ref('')
 
 let debounceTimer = null
 function debouncedSearch() {
   clearTimeout(debounceTimer)
   debounceTimer = setTimeout(() => { currentPage.value = 1; loadUsers() }, 300)
 }
-
-const showEdit = computed(() => departments.value.length > 0)
 
 const ROOT_CODE = 'rootorg'
 
@@ -287,5 +270,4 @@ onMounted(async () => {
 .toolbar-left { display: flex; gap: 8px; align-items: center; }
 .pagination-row { display: flex; justify-content: flex-end; margin-top: 16px; }
 :deep(.el-switch) { --el-switch-on-color: var(--el-color-success); }
-.crm-edit-cell { display: flex; align-items: center; gap: 4px; }
 </style>
