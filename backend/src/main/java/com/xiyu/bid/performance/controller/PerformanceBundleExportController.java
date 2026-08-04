@@ -73,7 +73,7 @@ public class PerformanceBundleExportController {
      */
     @PostMapping
     @PreAuthorize("hasAuthority('" + PERM + "')")
-    @Auditable(action = "PERFORMANCE_BUNDLE_EXPORT_TRIGGER", description = "触发业绩合订本导出")
+    @Auditable(action = "CREATE", entityType = "PerformanceExportTask", description = "触发业绩合订本导出")
     public ResponseEntity<ApiResponse<Map<String, Object>>> triggerExport(
             @Valid @RequestBody(required = false) BundleExportRequest request) {
         Long operatorId = userResolver.resolveCurrentUserId();
@@ -102,7 +102,7 @@ public class PerformanceBundleExportController {
 
     @GetMapping("/tasks")
     @PreAuthorize("hasAuthority('" + PERM + "')")
-    @Auditable(action = "PERFORMANCE_BUNDLE_EXPORT_LIST", description = "查询导出任务列表")
+    @Auditable(action = "READ", entityType = "PerformanceExportTask", description = "查询导出任务列表")
     public ResponseEntity<ApiResponse<Map<String, Object>>> listExportTasks(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "15") int size) {
@@ -124,7 +124,7 @@ public class PerformanceBundleExportController {
 
     @GetMapping("/tasks/{taskId}/status")
     @PreAuthorize("hasAuthority('" + PERM + "')")
-    @Auditable(action = "PERFORMANCE_BUNDLE_EXPORT_STATUS", description = "查询导出任务状态")
+    @Auditable(action = "READ", entityType = "PerformanceExportTask", description = "查询导出任务状态")
     public ResponseEntity<ApiResponse<ExportTaskResponse>> getExportTaskStatus(@PathVariable Long taskId) {
         Long userId = userResolver.resolveCurrentUserId();
         if (userId == null) {
@@ -140,7 +140,7 @@ public class PerformanceBundleExportController {
 
     @GetMapping("/tasks/{taskId}/download")
     @PreAuthorize("hasAuthority('" + PERM + "')")
-    @Auditable(action = "PERFORMANCE_BUNDLE_EXPORT_DOWNLOAD", description = "下载导出文件")
+    @Auditable(action = "DOWNLOAD", entityType = "PerformanceExportTask", description = "下载导出文件")
     public ResponseEntity<StreamingResponseBody> downloadExportFile(@PathVariable Long taskId) {
         Long userId = userResolver.resolveCurrentUserId();
         if (userId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();

@@ -54,4 +54,15 @@ class AuditActionPolicyTest {
         // CO-324 事件驱动动态
         assertTrue(policy.shouldRecord("PROJECT_STAGE_TRANSITIONED"));
     }
+
+    /**
+     * CO-602: 敏感数据批量下载需留痕。PR !2256 的 PERFORMANCE_BUNDLE_EXPORT_DOWNLOAD
+     * 因 DOWNLOAD 不在 KEY_ACTIONS 被静默丢弃；补齐后短形式与复合形式均应命中。
+     */
+    @Test
+    void shouldRecordDownloadActions() {
+        assertTrue(policy.shouldRecord("DOWNLOAD"));
+        assertTrue(policy.shouldRecord("PERFORMANCE_BUNDLE_EXPORT_DOWNLOAD"));
+        assertTrue(policy.shouldRecord("download"));
+    }
 }

@@ -60,7 +60,11 @@ public final class AuditActionPolicy {
             "GATE",          // GATE_ADVANCE_TO_EVALUATION 等 startsWith(GATE_)
             "ADVANCE",       // ADVANCE_* 推进类操作
             "TRANSITION",    // TRANSITION_EVALUATION_SUB_STAGE 等 startsWith(TRANSITION_)
-            "ATTACH"         // ATTACH_EVALUATION_EVIDENCE 等 startsWith(ATTACH_)
+            "ATTACH",        // ATTACH_EVALUATION_EVIDENCE 等 startsWith(ATTACH_)
+            // CO-602: 敏感数据批量下载需留痕（业绩合订本/仓库附件导出下载）。
+            // PR !2256 曾用 PERFORMANCE_BUNDLE_EXPORT_DOWNLOAD 作 action，因不命中任何
+            // KEY 词被本策略静默丢弃——action 命名必须对齐 KEY_ACTIONS，见上方 CO-324 注释。
+            "DOWNLOAD"
     );
 
     public boolean shouldRecord(String action) {
