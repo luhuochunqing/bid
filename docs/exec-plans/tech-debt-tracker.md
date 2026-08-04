@@ -112,6 +112,13 @@
   source: CO-274 复盘（PR #842）
   note: `proceedToBid` 失败被空 catch 吞掉，导致后端 404 对用户不可见。需补充错误反馈与 E2E 回归测试。
 
+- area: `backend/src/main/java/com/xiyu/bid/{warehouse,performance,...}/infrastructure/persistence/entity/*ExportTaskEntity.java` + `db/migration-mysql` 各模块任务表
+  type: dependency-debt
+  severity: medium
+  status: open
+  source: PR !2250 系统性设计评审（2026-08-04，CO-602）
+  note: 异步导出/导入任务表已第 6 次按模块逐字段复制（warehouse_export_task V1032、personnel_batch_import_task V1022、platform_account_import_task V1084、ca_certificate_import_task V1085、tender_import_task V1153、performance_export_task V1184），字段完全同构（status/filter_snapshot/stored_file_path/expires_at/created_by 等）。PR !2250 引入的 `AbstractExportTaskStateService` 只抽象了 4 个状态转换方法，两个子类的 apply* 方法体仍逐字相同，executor 的三段式 catch 模板亦逐字雷同。下一次新增同类任务前，应合并为通用 `export_task` 表（加 `export_type` 列）+ 单实体 + executor 模板上移抽象类；涉及已有表迁移，需独立任务评估，不在功能 PR 内顺手做。
+
 ### 接口规范设计缺陷类
 
 - area: 接口规范/CRM 对接（`docs/integration/integration-tender-api-v3.1.md` §3.2 推标讯接口 / `WebhookEventListener` / `TenderPushRequest`）
