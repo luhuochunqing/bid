@@ -2,6 +2,8 @@ package com.xiyu.bid.warehouse.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.common.application.ExportTaskCompletion;
+import com.xiyu.bid.common.util.StringUtils;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.warehouse.domain.WarehouseLedgerExportPolicy;
@@ -86,7 +88,7 @@ public class WarehouseLedgerExportAsyncExecutor {
                 String filePath = saveZip(taskId, zip);
                 long elapsedMs = System.currentTimeMillis() - startMs;
                 String resultSummary = buildSummary(entities.size(), req, elapsedMs, zip);
-                WarehouseExportTaskEntity task = stateService.complete(new ExportCompletion(
+                WarehouseExportTaskEntity task = stateService.complete(new ExportTaskCompletion(
                         taskId, entities.size(), filePath, resultSummary, FILE_TTL, startMs));
                 ledgerPublisher.publish(task, entities.size(), req, elapsedMs);
             } finally {
@@ -94,7 +96,7 @@ public class WarehouseLedgerExportAsyncExecutor {
             }
         } catch (RuntimeException e) {
             log.error("台账导出失败: taskId={}", taskId, e);
-            stateService.fail(taskId, WarehouseExportTaskStateService.truncate(e.getMessage(), 500));
+            stateService.fail(taskId, StringUtils.truncate(e.getMessage(), 500));
         } catch (IOException e) {
             log.error("台账导出文件IO异常: taskId={}", taskId, e);
             stateService.fail(taskId, "文件写入失败: " + e.getMessage());

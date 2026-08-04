@@ -1,24 +1,18 @@
 package com.xiyu.bid.warehouse.infrastructure;
 
+import com.xiyu.bid.common.infrastructure.word.AbstractWordBundleBuilder;
 import com.xiyu.bid.warehouse.domain.WarehouseAttachmentOrganizationForm;
 import com.xiyu.bid.warehouse.domain.WarehouseAttachmentReadModel;
 import com.xiyu.bid.warehouse.domain.WarehouseAttachmentType;
 import com.xiyu.bid.warehouse.domain.WarehouseReadModel;
 import com.xiyu.bid.warehouse.domain.WarehouseWordBundleOrganizationPolicy;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.rendering.PDFRenderer;
-import org.apache.poi.util.Units;
-import org.apache.poi.xwpf.usermodel.ParagraphAlignment;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
-import org.apache.poi.xwpf.usermodel.XWPFParagraph;
-import org.apache.poi.xwpf.usermodel.XWPFRun;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -28,21 +22,19 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * 仓库 Word 合订本生成器（CO-582 §3.4-§3.9）。
- * 业务规则由 {@link WarehouseWordBundleOrganizationPolicy} 提供，样式由 {@link WarehouseWordStyleConfig} 提供。
- * 标题段落应用 Word pStyle（Title/Heading1-3），让 Word 导航窗格识别层级。
+ *
+ * <p>业务规则由 {@link WarehouseWordBundleOrganizationPolicy} 提供，
+ * 样式由 {@link WarehouseWordStyleConfig} 提供。
+ *
+ * <p>公共逻辑（文档标题/段落标题/PDF 渲染/图片嵌入/分页符等）继承自
+ * {@link AbstractWordBundleBuilder}，本类仅实现仓库模块特有的配置与业务逻辑。
  */
 @Component
 @Slf4j
-public class WarehouseWordBundleBuilder {
-
-    private static final String LABEL_NO_ATTACHMENT = "（无附件）";
-    private static final String LABEL_FILE_MISSING = "（文件缺失）";
-    private static final String LABEL_IMAGE_READ_FAILED = "（图片读取失败）";
-    private static final Set<String> IMAGE_EXTENSIONS = Set.of("jpg", "jpeg", "png");
+public class WarehouseWordBundleBuilder extends AbstractWordBundleBuilder {
 
     @Value("${warehouse.attachment.root:data/warehouse-attachments}")
     private String attachmentRoot;
@@ -59,16 +51,8 @@ public class WarehouseWordBundleBuilder {
         List<? extends WarehouseReadModel> sorted = WarehouseWordBundleOrganizationPolicy.sortByProvinceThenName(entities);
 
         try (XWPFDocument doc = new XWPFDocument()) {
-
-            // §3.9：页面尺寸与页边距
-            WarehouseWordBundlePageSetup.applyTo(doc);
-
-            // §3.4：注册 Title/Heading1-3 样式到 word/styles.xml
-            // 根因修复：POI 默认不生成 styles.xml，p.setStyle("Heading1") 失效，
-            // Word 导航窗格为空。必须在创建任何段落前先注册样式定义。
-            WarehouseWordStyleRegistrar.registerHeadingStyles(doc);
-
-            // 文档标题（§3.9：居中，黑体 18pt，加粗）
+            applyPageSetup(doc);
+            registerHeadingStyles(doc);
             writeDocumentTitle(doc);
 
             // §3.4：省份为分组层级，同省仓库只输出一次省标题
@@ -76,7 +60,7 @@ public class WarehouseWordBundleBuilder {
             for (WarehouseReadModel wh : sorted) {
                 String province = wh.getProvince();
                 if (province != null && !province.equals(lastProvince)) {
-                    writeProvinceHeading(doc, province);
+                    writeHeading(doc, province, "Heading1");
                     lastProvince = province;
                 }
                 List<? extends WarehouseAttachmentReadModel> attachments = attachmentsByWhId.get(wh.getId());
@@ -92,19 +76,51 @@ public class WarehouseWordBundleBuilder {
         }
     }
 
-    // ========== 文档标题（Title 样式） ==========
+    // ========== 子类配置实现 ==========
 
-    private void writeDocumentTitle(XWPFDocument doc) {
-        XWPFParagraph p = doc.createParagraph();
-        p.setAlignment(ParagraphAlignment.CENTER);
-        p.setStyle("Title");
-        p.createRun().setText("仓库附件合订本");
+    @Override
+    protected String getDocumentTitle() {
+        return "仓库附件合订本";
     }
 
-    // ========== 省份一级标题（Heading1 样式，§3.4 同省仓库合并到同一个省标题下） ==========
+    @Override
+    protected int getPdfRenderDpi() {
+        return WarehouseWordStyleConfig.PDF_RENDER_DPI;
+    }
 
-    private void writeProvinceHeading(XWPFDocument doc, String province) {
-        writeHeading(doc, province, "Heading1");
+    @Override
+    protected int getMaxPdfPages() {
+        return 0;  // 仓库模块不限制 PDF 页数
+    }
+
+    @Override
+    protected int getContentWidthTwips() {
+        return WarehouseWordStyleConfig.CONTENT_WIDTH_TWIPS;
+    }
+
+    @Override
+    protected void applyPageSetup(XWPFDocument doc) {
+        WarehouseWordBundlePageSetup.applyTo(doc);
+    }
+
+    @Override
+    protected void registerHeadingStyles(XWPFDocument doc) {
+        WarehouseWordStyleRegistrar.registerHeadingStyles(doc);
+    }
+
+    /**
+     * 将 BufferedImage 编码为 PNG 无损字节数组。
+     * <p>仓库模块使用 PNG 无损编码，保证产权证/发票等文件清晰度。
+     */
+    @Override
+    protected EncodedImage encodeImage(BufferedImage img) throws IOException {
+        ByteArrayOutputStream imgOut = new ByteArrayOutputStream();
+        ImageIO.write(img, "png", imgOut);
+        return new EncodedImage(
+                imgOut.toByteArray(),
+                XWPFDocument.PICTURE_TYPE_PNG,
+                "image.png"
+        );
     }
 
     // ========== 仓库段落（二级标题 Heading2） ==========
@@ -114,7 +130,6 @@ public class WarehouseWordBundleBuilder {
         writeHeading(doc, wh.getName(), "Heading2");
 
         if (attachments.isEmpty()) {
-            // §4：仓库无附件 → 标注"（无附件）"
             writeBodyText(doc, LABEL_NO_ATTACHMENT);
             return;
         }
@@ -157,33 +172,6 @@ public class WarehouseWordBundleBuilder {
         }
     }
 
-    private void renderPdfToWord(XWPFDocument doc, Path pdfFile) {
-        try (PDDocument pdf = PDDocument.load(pdfFile.toFile())) {
-            PDFRenderer renderer = new PDFRenderer(pdf);
-            int pageCount = pdf.getNumberOfPages();
-            for (int i = 0; i < pageCount; i++) {
-                try {
-                    BufferedImage img = renderer.renderImageWithDPI(i, WarehouseWordStyleConfig.PDF_RENDER_DPI);
-                    try {
-                        // §3.6：PDF 嵌入时不添加文字说明（如 "第N页"、原文件名）
-                        boolean inserted = insertImage(doc, img);
-                        if (inserted && i < pageCount - 1) {
-                            addPageBreak(doc);
-                        }
-                    } finally {
-                        img.flush();  // 释放内存，防止大批量导出 OOM
-                    }
-                } catch (IOException e) {
-                    log.warn("PDF 第{}页转换失败: file={}", i + 1, pdfFile, e);
-                    // §4：跳过该页，继续后续页
-                }
-            }
-        } catch (IOException e) {
-            log.warn("PDF 加载失败: file={}", pdfFile, e);
-            writeBodyText(doc, LABEL_FILE_MISSING);
-        }
-    }
-
     // ========== 照片附件 ==========
 
     private void writePhotos(XWPFDocument doc, List<? extends WarehouseAttachmentReadModel> attachments,
@@ -221,7 +209,7 @@ public class WarehouseWordBundleBuilder {
                     insertImage(doc, img);
                     // §3.7.2：照片按自然流式排版跨页，不再强制分页
                 } finally {
-                    img.flush();  // 释放内存，防止大批量导出 OOM
+                    img.flush();
                 }
             } catch (IOException e) {
                 log.warn("图片读取失败: file={}", file, e);
@@ -234,65 +222,5 @@ public class WarehouseWordBundleBuilder {
 
     private Path resolveAttachmentPath(WarehouseReadModel wh, WarehouseAttachmentReadModel att) {
         return Paths.get(attachmentRoot, String.valueOf(wh.getId()), att.getStoredFilename());
-    }
-
-    /**
-     * 写入标题段落，应用指定 pStyle（字体/字号/加粗/大纲级别由 styles.xml 中的样式定义接管）。
-     * <p>
-     * 样式定义见 {@link WarehouseWordStyleRegistrar#registerHeadingStyles}。
-     * 这里不再手动 setFontFamily/setFontSize/setBold，避免与样式定义重复。
-     */
-    private void writeHeading(XWPFDocument doc, String text, String styleName) {
-        XWPFParagraph p = doc.createParagraph();
-        p.setAlignment(ParagraphAlignment.LEFT);
-        p.setStyle(styleName);
-        p.createRun().setText(text);
-    }
-
-    private void writeBodyText(XWPFDocument doc, String text) {
-        XWPFParagraph p = doc.createParagraph();
-        XWPFRun run = p.createRun();
-        run.setText(text);
-    }
-
-    private boolean insertImage(XWPFDocument doc, BufferedImage img) {
-        try {
-            // 图片宽度自适应正文宽度
-            int targetWidthPx = WarehouseWordStyleConfig.CONTENT_WIDTH_TWIPS
-                    * WarehouseWordStyleConfig.PX_PER_INCH / 1440;
-            int imgWidth = img.getWidth();
-            int imgHeight = img.getHeight();
-            int width = Math.min(imgWidth, targetWidthPx);
-            int height = imgWidth > 0 ? (int) ((double) imgHeight * width / imgWidth) : imgHeight;
-
-            XWPFParagraph p = doc.createParagraph();
-            p.setAlignment(ParagraphAlignment.CENTER);
-            XWPFRun run = p.createRun();
-            ByteArrayOutputStream imgOut = new ByteArrayOutputStream();
-            ImageIO.write(img, "png", imgOut);
-            run.addPicture(new ByteArrayInputStream(imgOut.toByteArray()),
-                    XWPFDocument.PICTURE_TYPE_PNG,
-                    "image.png",
-                    Units.toEMU(width), Units.toEMU(height));
-            return true;
-        } catch (IOException | org.apache.poi.openxml4j.exceptions.InvalidFormatException | RuntimeException e) {
-            log.warn("图片插入 Word 失败: {}", e.getMessage());
-            writeBodyText(doc, LABEL_IMAGE_READ_FAILED);
-            return false;
-        }
-    }
-
-    private void addPageBreak(XWPFDocument doc) {
-        XWPFParagraph p = doc.createParagraph();
-        XWPFRun run = p.createRun();
-        run.addBreak(org.apache.poi.xwpf.usermodel.BreakType.PAGE);
-    }
-
-    private static String extractExtension(String filename) {
-        if (filename == null) return "";
-        int dot = filename.lastIndexOf('.');
-        return (dot >= 0 && dot < filename.length() - 1)
-                ? filename.substring(dot + 1).toLowerCase()
-                : "";
     }
 }

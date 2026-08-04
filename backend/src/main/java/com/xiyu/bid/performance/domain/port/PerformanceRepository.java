@@ -16,9 +16,24 @@ public interface PerformanceRepository {
 
     Optional<PerformanceRecord> findById(Long id);
 
+    /**
+     * 按 ID 批量查询业绩记录（避免 N+1 查询）。
+     * 用于批量导出场景，比循环 {@link #findById} 更高效。
+     *
+     * @param ids ID 集合，null 或空返回空列表
+     * @return 业绩记录列表（顺序不保证，调用方按需排序）
+     */
+    List<PerformanceRecord> findAllById(Iterable<Long> ids);
+
     Optional<PerformanceRecord> findByContractName(String contractName);
 
     List<PerformanceRecord> findAll(PerformanceSearchCriteria criteria, PerformanceAlertConfig config);
+
+    /**
+     * 按筛选条件统计记录数（与 {@link #findAll} 同一 Specification 语义）。
+     * 用于导出前先判定是否超限，避免全量加载后再拒绝。
+     */
+    long count(PerformanceSearchCriteria criteria, PerformanceAlertConfig config);
 
     PagedResult<PerformanceRecord> findAllPageable(PerformanceSearchCriteria criteria, PerformanceAlertConfig config, int pageNumber, int pageSize);
 

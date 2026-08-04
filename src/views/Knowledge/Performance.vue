@@ -23,6 +23,10 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
+        <!-- CO-582: 独立的业绩合订本导出入口（与 ZIP 导出分离） -->
+        <el-button v-if="canManagePerformance" type="success" @click="openBundleExport">
+          <el-icon class="btn-icon"><Document /></el-icon> 导出合订本
+        </el-button>
       </div>
     </div>
 
@@ -151,6 +155,13 @@
       :total-count="records.length"
       @confirm="handleExportZipConfirm"
     />
+    <!-- CO-582: 业绩合订本导出对话框 -->
+    <PerformanceBundleExportDialog
+      v-model:visible="bundleExportDialogVisible"
+      :selected-ids="selectedIds"
+      :total-count="records.length"
+      :criteria="searchForm"
+    />
   </div>
 </template>
 
@@ -158,7 +169,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { performanceApi } from '@/api/modules/performance.js'
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
-import { Plus, Upload, Download, Bell } from '@element-plus/icons-vue'
+import { Plus, Upload, Download, Bell, Document } from '@element-plus/icons-vue'
 import { useKnowledgePermission } from '@/composables/useKnowledgePermission'
 import { useListPagination } from '@/composables/useListPagination'
 import { PROJECT_TYPE_OPTIONS } from '@/constants/projectTypes.js'
@@ -168,6 +179,7 @@ import PerformanceFormDialog from './components/PerformanceFormDialog.vue'
 import PerformanceAlertConfigDialog from './components/performance/PerformanceAlertConfigDialog.vue'
 import PerformanceImportDialog from './components/PerformanceImportDialog.vue'
 import PerformanceExportZipDialog from './components/PerformanceExportZipDialog.vue'
+import PerformanceBundleExportDialog from './components/PerformanceBundleExportDialog.vue'
 
 const { canManagePerformance, canAdminAlert: canAdminPerformanceAlert } = useKnowledgePermission()
 
@@ -203,6 +215,10 @@ const importVisible = ref(false)
 const handleImport = () => { importVisible.value = true }
 
 const exportZipDialogVisible = ref(false)
+
+// CO-582: 业绩合订本导出对话框状态
+const bundleExportDialogVisible = ref(false)
+const openBundleExport = () => { bundleExportDialogVisible.value = true }
 
 const getCustomerTypeTagType = (t) => t === 'CENTRAL_SOE' ? 'danger' : t === 'LOCAL_SOE' ? 'warning' : t === 'GOVERNMENT_INSTITUTION' ? 'success' : 'primary'
 const getStatusTagType = (s) => s === 'EXPIRED' ? 'danger' : s === 'EXPIRING' ? 'warning' : 'success'

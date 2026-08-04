@@ -18,6 +18,19 @@ import java.util.concurrent.ThreadPoolExecutor;
  *
  * <p><b>MDC 透传</b>：自 spec 031 起，所有 executor 均挂载 {@link MdcTaskDecorator}，
  * 将主线程的 traceId/userId/roleCode 复制到异步线程，确保异步任务内日志可追溯用户身份（CO-373/US3）。
+ *
+ * <p><b>⚠️ Self-Invocation 警告（D2-3 修复）</b>
+ * <p>Spring AOP 代理无法拦截同类内部的方法调用。如果在 {@code @Service} 或 {@code @Component} 中
+ * 直接调用自身的 {@code @Async} 方法（self-invocation），{@code @Async} 注解会失效，
+ * 方法会在调用线程同步执行，导致：
+ * <ul>
+ *   <li>HTTP 请求线程被阻塞（Nginx 60s 超时 → 502）</li>
+ *   <li>线程池配置形同虚设（不会使用上述 executor）</li>
+ *   <li>MDC 上下文无法透传（MdcTaskDecorator 不生效）</li>
+ * </ul>
+ * <p><b>正确做法</b>：将 {@code @Async} 方法提取到独立的 Spring Bean 中，通过依赖注入调用。
+ * 参考实现：{@code PerformanceBundleExportAsyncExecutor}、{@code WarehouseExportAsyncExecutor}、
+ * {@code WarehouseImportAsyncExecutor} 均为独立 Bean。
  */
 @Configuration
 @EnableAsync
@@ -25,14 +38,30 @@ public class AsyncConfig {
 
     /**
      * 创建带 MdcTaskDecorator 的线程池（统一构造，避免重复代码）。
+     * <p>默认拒绝策略：{@link ThreadPoolExecutor.CallerRunsPolicy}——队列满时由调用线程执行，
+     * 避免任务被拒绝。适用于"任务不能丢失"的场景（审计日志、AI 分析、标讯导入等）。
+     * <p><b>不适用</b>于长耗时任务（如业绩合订本 Word 渲染），应改用下面的重载方法指定 AbortPolicy。
      */
     private ThreadPoolTaskExecutor createExecutor(String prefix, int core, int max, int queue) {
+        return createExecutor(prefix, core, max, queue, new ThreadPoolExecutor.CallerRunsPolicy());
+    }
+
+    /**
+     * 创建带 MdcTaskDecorator 的线程池（可自定义拒绝策略）。
+     * <p>调用方根据业务特性决定拒绝策略：
+     * <ul>
+     *   <li>任务不能丢失：CallerRunsPolicy（默认，但会阻塞调用线程）</li>
+     *   <li>长耗时任务、队列满需快速失败：AbortPolicy（Controller 捕获后返回 503）</li>
+     * </ul>
+     */
+    private ThreadPoolTaskExecutor createExecutor(String prefix, int core, int max, int queue,
+                                                   java.util.concurrent.RejectedExecutionHandler handler) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(core);
         executor.setMaxPoolSize(max);
         executor.setQueueCapacity(queue);
         executor.setThreadNamePrefix(prefix);
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setRejectedExecutionHandler(handler);
         executor.setTaskDecorator(new MdcTaskDecorator());
         executor.initialize();
         return executor;
@@ -70,5 +99,22 @@ public class AsyncConfig {
     @Bean(name = "tenderImportExecutor")
     public Executor tenderImportExecutor() {
         return createExecutor("tender-import-", 2, 4, 50);
+    }
+
+    /**
+     * 业绩合订本导出专用线程池。
+     * <p>core=1, max=2, queue=10：业绩合订本导出涉及 300 DPI 高清渲染，
+     * 内存与 CPU 消耗较大，严格限制并发避免 OOM。
+     *
+     * <p><b>拒绝策略：AbortPolicy</b>（PR 修复 P1-4）
+     * <p>原 CallerRunsPolicy 会让 HTTP 请求线程同步执行 5-10 分钟的 Word 渲染，
+     * 导致 Nginx/网关 60s 超时返回 502，但任务仍在执行且 taskId 未返回给用户。
+     * 改用 AbortPolicy 后，队列满时抛 RejectedExecutionException，
+     * Controller 捕获后返回 503 "系统繁忙，请稍后重试"，用户可重新触发。
+     */
+    @Bean(name = "performanceBundleExportExecutor")
+    public Executor performanceBundleExportExecutor() {
+        return createExecutor("perf-bundle-export-", 1, 2, 10,
+                new ThreadPoolExecutor.AbortPolicy());
     }
 }

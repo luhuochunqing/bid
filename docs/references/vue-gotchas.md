@@ -278,3 +278,67 @@ expect(textarea.props('readonly')).toBe(true)
 expect(textarea.props('disabled')).toBe(false)
 ```
 
+## 5. el-dialog 打开时无脑 reset() 导致异步任务状态丢失（CO-602 / 2026-08-04）
+
+### 问题
+
+```vue
+<!-- ❌ 错误：对话框打开时无论任务状态如何都 reset() -->
+watch(() => props.visible, (val) => {
+  if (val) {
+    checkedTypes.value = []
+    reset()  // ← 任务运行中/已完成/已失败时也会重置，导致状态丢失
+  }
+})
+```
+
+用户启动导出任务后关闭对话框，再次打开时：
+- 任务仍在运行，但对话框回到初始状态（看不到进度）
+- 任务已完成，但看不到"下载"按钮（无法下载文件）
+- 任务已失败，但看不到"重试"按钮
+
+### 修复
+
+```vue
+<!-- ✅ 正确：仅在无任务时重置 -->
+watch(() => props.visible, (val) => {
+  if (val) {
+    const hasActiveTask = isRunning.value || isCompleted.value || isFailed.value
+    if (!hasActiveTask) {
+      checkedTypes.value = []
+      reset()
+    }
+  }
+})
+```
+
+### 教训
+
+1. **对话框 watch visible 时必须区分"首次打开"和"重新打开"** — 有活跃任务时应保留状态
+2. **reset() 是全量重置** — 调用前必须确认不会丢失用户需要的状态
+
+## 6. formatBytes 重复实现导致精度不一致（CO-602 / 2026-08-04）
+
+### 问题
+
+项目中 3 处独立实现了字节格式化函数，精度规则不一致：
+
+| 位置 | KB 精度 | MB 精度 |
+|------|---------|---------|
+| PerformanceBundleExportDialog | toFixed(1) | toFixed(2) |
+| WarehouseExportPackageDetail | toFixed(2) | toFixed(2) |
+| 其他组件 | 各不相同 | 各不相同 |
+
+### 修复
+
+提取公共工具 `src/utils/formatBytes.js`，统一规则：
+- B：整数
+- KB/MB/GB：保留 2 位小数
+- 自动选择最合适的单位（1024 进制）
+- 0 或负数返回 fallback 字符
+
+### 教训
+
+1. **工具函数必须集中管理** — 不能在多个组件中重复实现，否则精度规则不一致
+2. **新增工具函数必须配套 spec 测试** — `src/utils/formatBytes.spec.js` 覆盖边界条件
+

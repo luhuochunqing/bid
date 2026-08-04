@@ -31,6 +31,8 @@
 
 服务器只负责运行包，不负责构建。不要在服务器上执行 `npm install`、`mvn package` 或 Git 拉代码发布。
 
+> **JVM 内存配置（业绩合订本导出）**：自 CO-602 起，业绩合订本导出涉及 300 DPI PDF 渲染 + 大批量附件累积，内存消耗较大。生产环境必须将 `/etc/xiyu-bid/backend.env` 中的 `JAVA_OPTS` 调整为 `JAVA_OPTS=-Xmx4g -Xms1g -XX:MaxMetaspaceSize=256m`（沿用第 96 次部署建立的机制：systemd ExecStart 引用 `${JAVA_OPTS}`，现网当前为 `-Xmx2g`），改完后 `sudo systemctl restart xiyu-bid-backend` 生效。**注意：`JVM_MEMORY` 只在 dev 脚本 `backend/start.sh` 中消费，生产 systemd 不读它，写进 backend.env 不会生效**。dev 环境 `backend/start.sh` 默认 `-Xmx1g`，仅用于小规模联调。
+
 ## 2. 发布原则
 
 1. 只从已通过 CI 和 `Main Release Pipeline` 的 `main` 提交发布。

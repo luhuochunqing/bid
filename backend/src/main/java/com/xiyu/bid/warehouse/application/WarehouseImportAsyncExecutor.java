@@ -1,5 +1,6 @@
 package com.xiyu.bid.warehouse.application;
 
+import com.xiyu.bid.common.util.StringUtils;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.warehouse.domain.ImportTaskStatus;
 import com.xiyu.bid.warehouse.domain.WarehouseImportPolicy;
@@ -116,7 +117,7 @@ public class WarehouseImportAsyncExecutor {
             taskState.fail(taskId, "文件读取失败: " + e.getMessage());
         } catch (RuntimeException e) {
             log.error("仓库导入执行失败: taskId={}", taskId, e);
-            taskState.fail(taskId, WarehouseExportTaskStateService.truncate(e.getMessage(), 500));
+            taskState.fail(taskId, StringUtils.truncate(e.getMessage(), 500));
         } catch (Error e) {
             // CO-469 第四轮教训：必须 catch Error，否则线程池线程被杀死，任务永远卡 PENDING/PROCESSING
             log.error("仓库导入遭遇 Error，尝试标记失败: taskId={}", taskId, e);
