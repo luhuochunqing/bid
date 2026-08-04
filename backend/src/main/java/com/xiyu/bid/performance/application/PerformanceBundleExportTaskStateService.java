@@ -6,9 +6,11 @@ import com.xiyu.bid.performance.infrastructure.persistence.entity.PerformanceExp
 import com.xiyu.bid.performance.infrastructure.persistence.entity.PerformanceExportTaskEntity.ExportStatus;
 import com.xiyu.bid.performance.infrastructure.persistence.repository.PerformanceExportTaskRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 业绩合订本导出任务状态机服务 — 集中管理 PENDING → PROCESSING → COMPLETED/FAILED 状态转换。
@@ -66,5 +68,21 @@ public class PerformanceBundleExportTaskStateService
         task.setStatus(ExportStatus.FAILED);
         task.setFailureReason(reason);
         task.setCompletedAt(now);
+    }
+
+    /**
+     * 定时清理过期或失败的导出任务（每天凌晨 3 点）。
+     */
+    @Scheduled(cron = "0 0 3 * * ?")
+    public void cleanupExpiredTasks() {
+        LocalDateTime now = LocalDateTime.now();
+        List<PerformanceExportTaskEntity> toDelete = repo.findAll().stream()
+                .filter(task -> task.getStatus() == ExportStatus.FAILED
+                        || (task.getExpiresAt() != null && task.getExpiresAt().isBefore(now)))
+                .toList();
+        if (!toDelete.isEmpty()) {
+            repo.deleteAll(toDelete);
+            log.info("清理过期/失败导出任务完成，共删除 {} 条", toDelete.size());
+        }
     }
 }

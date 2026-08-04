@@ -48,6 +48,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { InfoFilled } from '@element-plus/icons-vue'
+import { PERF_ATTACHMENT_TYPES, PERF_ALL_VALUES } from './attachmentTypeConstants'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -57,17 +58,9 @@ const props = defineProps({
 
 const emit = defineEmits(['update:visible', 'confirm'])
 
-const ATTACHMENT_TYPES = [
-  { value: 'CONTRACT_AGREEMENT', label: '合同协议', required: true },
-  { value: 'MALL_SCREENSHOT', label: '商城截图' },
-  { value: 'SOE_DIRECTORY', label: '央企名录' },
-  { value: 'RELATIONSHIP_PROOF', label: '关系证明' },
-  { value: 'CATEGORY_PAGE', label: '品类页' },
-  { value: 'BID_NOTICE', label: '中标通知书' },
-  { value: 'OTHER', label: '其他附件' }
-]
+const ATTACHMENT_TYPES = PERF_ATTACHMENT_TYPES
 
-const ALL_VALUES = ATTACHMENT_TYPES.map(t => t.value)
+const ALL_VALUES = PERF_ALL_VALUES
 
 const checkedTypes = ref([...ALL_VALUES])
 
