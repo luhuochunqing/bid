@@ -7019,3 +7019,18 @@ public static Path resolveAbsolute(String path) {
 1. **rebase 冲突中 HEAD 侧 ≠ 旧版本** — HEAD 是"新 base + 已重放提交"，含有 main 的最新内容；取 incoming 侧前必须确认 HEAD 侧没有需要保留的第三方内容。
 2. **提交统计是免费校验** — 文档类 rebase 提交出现大量 deletions（如 127 行）且与你的预期改动不符时，停下来 diff，不要继续。
 3. **解决文档冲突后的终态校验** — `diff` 目标文件与 rebase base 的版本，本分支未改的区域必须零差异；只能新增、不能误删。
+
+---
+
+## 106. `@Auditable` action 命名必须对齐 AuditActionPolicy 白名单——不命中即静默丢弃，注解形同虚设（CO-602 / PR !2256 踩坑 + PR !2258 修复 / 2026-08-04）
+
+**背景**：PR !2256 为业绩合订本导出四个端点补 `@Auditable` 审计注解，action 命名为 `PERFORMANCE_BUNDLE_EXPORT_TRIGGER/LIST/STATUS/DOWNLOAD`。合并后真实导出 + 下载，查 `audit_logs` 表**一条记录都没有**——注解全部形同虚设。
+
+**根因**：`AuditableAspect` 写日志前过 `AuditActionPolicy.shouldRecord()` 白名单（`backend/src/main/java/com/xiyu/bid/aspect/AuditableAspect.java:75`）：查询类前缀（READ/QUERY/VIEW/SEARCH/LIST/GET）直接丢弃；其余 action 必须 equals/前缀/后缀命中 KEY_ACTIONS（CREATE/UPDATE/DELETE/SUBMIT 等约 30 个词）。四个新 action 名一个词都不命中 → 全部静默丢弃。而 `AuditActionPolicy.java:51-54` 的注释本就记录过 CO-324 踩过完全相同的坑（`PROJECT_CLOSURE_APPROVED` 等命名不命中被丢弃），本次是第二次复发。
+
+**修复**（PR !2258）：`AuditActionPolicy` KEY_ACTIONS 增加 `DOWNLOAD`（敏感数据批量下载需留痕）；四个注解对齐全项目 219 处惯例（短动词 + entityType）：trigger=`CREATE`、list/status=`READ`（查询类按设计不落审计，注解仅作标记）、download=`DOWNLOAD`，均补 `entityType="PerformanceExportTask"`；`AuditActionPolicyTest` 补 DOWNLOAD 三种形式用例。修复后真实验证：任务 3 导出 + 下载，`audit_logs` 落库 CREATE（id 1069）、DOWNLOAD（id 1070）两条，status 轮询无 READ 记录（符合设计）。
+
+**教训**：
+1. **加 `@Auditable` 前先看 AuditActionPolicy 白名单** — action 命名不是自由文本，不命中 KEY_ACTIONS 的注解是死注解；零成本检查：心算 `shouldRecord("你的action")` 或直接跑 `AuditActionPolicyTest` 加一个断言。
+2. **审计类修复的验收标准是 audit_logs 落库记录** — 注解加上 ≠ 审计生效；必须真实触发操作后查表确认，本次正是"合并后查表"这一步揭穿了假修复。
+3. **记录在代码注释里的坑挡不住复发** — CO-324 的教训就写在 `AuditActionPolicy` 类注释里，评审者和作者都没看到。评审涉及审计/通知等"间接生效"机制时，必须把消费端校验逻辑（白名单/监听器）列入检查清单，而不是只看生产端代码形态。
