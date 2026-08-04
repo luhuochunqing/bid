@@ -18,6 +18,7 @@ AI 代理无法访问 Google Docs 或外部网页。本目录把**本项目实�
 | `vue-gotchas.md` | Vue 3 / Element Plus 陷阱与调试经验 | el-upload 事件绑定、内联表达式 vs 函数引用、el-select-v2 remote 模式 initialOptions 淹没搜索结果、症状侧定位方法论等陷阱 |
 | `spring-boot-gotchas.md` | Spring Boot 陷阱与调试经验 | Bean 名冲突（文件移动未删旧文件）等陷阱 |
 | `rollback-recovery-playbook.md` | 回退恢复 Playbook（内部经验） | cherry-pick 优先纪律；CO-338 恢复时手工重写导致 git blame 丢失的复盘 |
+| `engineering-discipline.md` | 工程纪律与流程约束（内部经验） | 生产 JAVA_OPTS 机制、feat/* 分支推送门禁行为与合法逃生路径 |
 
 ## 新增约定
 

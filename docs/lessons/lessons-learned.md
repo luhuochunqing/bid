@@ -6957,3 +6957,65 @@ public static Path resolveAbsolute(String path) {
 2. **新增工具类必须立即创建对应测试** — 不能"先跑通再补测试"，因为 surefire 静默跳过会造成假象
 3. **normalize() 应在路径归一化函数的所有分支生效** — 不能只在相对路径分支做 normalize，绝对路径同样需要
 4. **收尾流程的 Glob 检查是最后防线** — commit 前用 `Glob **/XxxTest.java` 确认测试文件实际存在
+
+---
+
+## 102. 已修复的陷阱在模块复制时复发——NotificationCreatedEvent(null id) 通知死路（CO-602 / PR !2250 / 2026-08-04）
+
+**背景**：业绩合订本导出（performance 模块）对标 warehouse 导出模式复制实现。设计评审发现其 `PerformanceBundleExportNotificationPublisher.publish()` 使用 `eventPublisher.publishEvent(new NotificationCreatedEvent(null, ...))`，而全仓库唯一监听器 `NotificationDeliveryTaskListener` 对 `notificationId == null` 直接 return——完成通知从未发出，且日志打印"通知已发布"谎称成功。
+
+**根因**：warehouse 侧早已踩过同一坑并改为直推 `WeComPushService#pushForRecipient`（根因记录在其类注释中），但 performance 模块复制模式时只复制了"代码结构"，没有复制"已修复的陷阱"。类注释里的教训不进入复制者的视野。
+
+**修复**：`PerformanceBundleExportNotificationPublisher` 改为注入 `WeComPushService` 直推，与 warehouse 两个 publisher 同构（commit dd78bd8f2）。
+
+**教训**：
+1. **复制模块模式时，陷阱会随模式一起复制** — 对标既有实现开发新模块时，必须先读目标模块类注释/教训库中记录的坑，而不是只抄当前代码形态。
+2. **"事件已发布"不等于"事件被消费"** — publishEvent 是 fire-and-forget，没有监听器消费的断言就是假成功。通知类功能验收必须看到投递侧的真实日志/记录。
+3. **修复应辐射所有同构实现** — 一个模式有 N 份拷贝时，任何一份上发现的 bug 都要检查其余 N-1 份（本次反向：旧模块修了，新模块又引入）。
+
+---
+
+## 103. ImageIO 编码 JPEG 前必须转 RGB——ARGB 图抛 Bogus input colorspace 且被异常吞没放大（CO-602 / PR !2250 / 2026-08-04）
+
+**背景**：业绩合订本 Word 导出中，含 alpha 通道的 PNG 附件（`ImageIO.read` 产出 `TYPE_INT_ARGB`/`TYPE_4BYTE_ABGR`）在合订本中静默丢失，文件本身完好。
+
+**根因**：`ImageWriter.write` 对 ARGB/ABGR 图像做 JPEG 编码抛 `javax.imageio.IIOException: Bogus input colorspace`；异常被上层的 `catch (IOException)` 吞掉，降级为"（图片读取失败）"占位文本——异常分类错误（编码问题被当成读取问题），日志只有一条不指名的泛化 warn。
+
+**修复**：编码前非 `TYPE_INT_RGB` 图像先转为白底 RGB（新建 `TYPE_INT_RGB` 图、`fillRect` 白底、`drawImage` 原图），并补 ARGB→JPEG 防回归测试（`AbstractWordBundleBuilderTest.insertImage_argbImage_shouldEncodeAsJpegSuccessfully`）。
+
+**教训**：
+1. **JPEG 无 alpha 通道，ImageIO 不做隐式转换** — 任何 `BufferedImage` → JPEG 的路径都要先确认 `getType() == TYPE_INT_RGB`，否则显式转换。
+2. **宽泛 catch + 泛化降级文案会掩盖真实故障分类** — "读取失败"的兜底文案把编码 bug 伪装成数据问题，排查方向完全被带偏。catch 处的降级文案应按异常发生阶段区分。
+3. **图片管线的测试必须用真实格式变体** — 只用 RGB 测试图永远发现不了 ARGB 路径问题；测试素材应覆盖 alpha/灰度/CMYK 等真实输入变体。
+
+---
+
+## 104. 设计评审三类"防线失效"模式——死代码钉死、防线滞后、绕过路径（CO-602 / PR !2250 / 2026-08-04）
+
+**背景**：PR !2250 系统性设计评审（三路线并行审查）在功能正确的代码中发现三类反复出现的防线失效模式，均有实例佐证：
+
+**模式一：死代码 + 钉死它的测试**。`ExportTaskResponse.from()`、`BundleExportRequest.isIdMode()/safeCriteria()/safeAttachmentTypes()` 为通过前一轮评审而新建，但 Controller 未接线（仍用手写 `toTaskMap`），同时配了 167 行测试让死代码看起来"有主人"。
+
+**模式二：防线滞后于伤害**。`maxExportRecords=2000` 是 OOM 防线，但实现在 `findAll` 全量加载 + DTO 映射**之后**才判 `records.size() > maxRecords`——超限场景下查询和映射开销已全部发生，防线形同虚设。修复：先 `count(criteria)` 判定再加载。
+
+**模式三：绕过路径无防线**。filter 模式有上限校验，ids 模式（前端勾选导出）完全没有，`ids` 字段也无 `@Size` 约束——勾选 5000 条即可绕过防 OOM 设计。
+
+**教训**：
+1. **为评审而写的代码必须检查接线** — 新建 DTO/工具方法后，`grep` 调用方数量是零成本检查；零调用方的"修复"是给评审看的，不是给系统的。
+2. **资源上限防线必须先于资源消耗** — 判上限用 `count`/预检，不要用加载后的 `size()`；所有入口路径（filter/ids/后续新增路径）共享同一防线。
+3. **多入口功能要逐入口核对约束** — 有一个入口做了校验不代表所有入口都有；评审时把入口列表画出来逐个打勾。
+
+---
+
+## 105. rebase 冲突解决取单侧前必须核对 diff 规模——"1 insertion, 127 deletions" 是危险信号（2026-08-04）
+
+**背景**：推送 PR !2250 时 pre-push 门禁自动 rebase 到最新 origin/main，`docs/lessons/lessons-learned.md` 连续两个冲突。第二个冲突的 HEAD 侧包含 main 新增的 #98/#99/#100 三个条目 + 本分支条目，incoming 侧只有一行章节标题。解决时取 incoming 侧整段替换，导致 main 侧 127 行（三个完整教训条目）被删除，rebase 继续并显示 `[detached HEAD] ... 1 insertion(+), 127 deletions(-)`。
+
+**根因**：conflict 标记内 HEAD 侧的内容不全是"本分支新增"，可能包含 rebase 目标（main）上比旧 base 更新的内容——这是 rebase 冲突与 merge 冲突语义的关键差异（rebase 中 HEAD=已重放的新 base + 已应用提交，incoming=正在重放的本分支提交）。把 HEAD 侧当作"旧内容"整体丢弃，就会删掉 main 的新增。
+
+**修复**：从 `git show c8cec7a16:docs/lessons/lessons-learned.md` 提取被删条目插回，验证 `diff <(git show <base>:<file>) <(git show HEAD:<file>)` 对本分支未触碰的内容零删除，再 `commit --fixup` + `rebase --autosquash` 归并。
+
+**教训**：
+1. **rebase 冲突中 HEAD 侧 ≠ 旧版本** — HEAD 是"新 base + 已重放提交"，含有 main 的最新内容；取 incoming 侧前必须确认 HEAD 侧没有需要保留的第三方内容。
+2. **提交统计是免费校验** — 文档类 rebase 提交出现大量 deletions（如 127 行）且与你的预期改动不符时，停下来 diff，不要继续。
+3. **解决文档冲突后的终态校验** — `diff` 目标文件与 rebase base 的版本，本分支未改的区域必须零差异；只能新增、不能误删。
