@@ -122,6 +122,55 @@ describe('useAsyncTask', () => {
     stopPolling()
   })
 
+  it('轮询瞬时失败（少于连续 5 次）不停轮，恢复后正常完成', async () => {
+    // 防回归（PR #2250）：300 DPI 合订本导出 5-10 分钟，一次 502/断网
+    // 不应让任务永远卡在"生成中"
+    const httpGet = vi.fn()
+      .mockRejectedValueOnce(new Error('502 Bad Gateway'))
+      .mockRejectedValueOnce(new Error('network'))
+      .mockResolvedValue({ data: { status: 'COMPLETED', totalCount: 3 } })
+
+    const { status, isRunning, isCompleted, startTask } = useAsyncTask({
+      submitFn: vi.fn().mockResolvedValue({ taskId: 'task-flaky' }),
+      statusUrl: (id) => `/api/tasks/${id}/status`,
+      httpGet,
+      pollInterval: 10,
+      autoCleanup: false
+    })
+
+    await startTask()
+    await new Promise((r) => setTimeout(r, 100))
+
+    expect(status.value).toBe('COMPLETED')
+    expect(isCompleted.value).toBe(true)
+    expect(isRunning.value).toBe(false)
+  })
+
+  it('轮询连续失败达到上限后置为 FAILED 并给出用户可见原因', async () => {
+    const httpGet = vi.fn().mockRejectedValue(new Error('network down'))
+    const onFailed = vi.fn()
+
+    const { status, failureReason, isRunning, isFailed, startTask } = useAsyncTask({
+      submitFn: vi.fn().mockResolvedValue({ taskId: 'task-down' }),
+      statusUrl: (id) => `/api/tasks/${id}/status`,
+      httpGet,
+      pollInterval: 10,
+      autoCleanup: false,
+      onFailed
+    })
+
+    await startTask()
+    await new Promise((r) => setTimeout(r, 150))
+
+    expect(status.value).toBe('FAILED')
+    expect(isFailed.value).toBe(true)
+    expect(isRunning.value).toBe(false)
+    expect(failureReason.value).toContain('状态查询连续失败')
+    expect(onFailed).toHaveBeenCalledTimes(1)
+    // 停轮后不再继续请求（5 次上限 + 少量时序余量）
+    expect(httpGet.mock.calls.length).toBeLessThanOrEqual(8)
+  })
+
   it('applyStatusData 手动应用状态数据', () => {
     const { status, totalCount, failureReason, summary, applyStatusData } = useAsyncTask({
       statusUrl: '/api/tasks/:id/status',

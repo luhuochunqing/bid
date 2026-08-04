@@ -7,6 +7,11 @@ const TERMINAL_STATUSES = ['COMPLETED', 'FAILED']
 // 下载超时：5 分钟无数据则中断（防止服务器挂起导致前端永远 hang）
 const DOWNLOAD_TIMEOUT_MS = 5 * 60 * 1000
 
+// 状态轮询连续失败上限：瞬时网络抖动（502/断网）不停轮，
+// 连续失败达到上限才放弃并置为 FAILED，避免长任务（业绩合订本导出 5-10 分钟）
+// 因一次抖动永远卡在"生成中"
+const MAX_POLL_FAILURES = 5
+
 /**
  * 下载错误类型 — 区分网络错误 / HTTP 错误 / 用户取消 / 流读取错误，
  * 便于 UI 层根据 code 显示不同提示。
@@ -72,10 +77,12 @@ export function useAsyncTask(options = {}) {
 
   function startPolling() {
     stopPolling()
+    let consecutiveFailures = 0
     pollTimer = setInterval(async () => {
       if (!taskId.value) return
       try {
         const { data } = await httpGet(buildStatusUrl(taskId.value))
+        consecutiveFailures = 0
         applyStatusData(data)
         if (typeof onStatusUpdate === 'function') onStatusUpdate(data)
         if (TERMINAL_STATUSES.includes(data.status)) {
@@ -84,7 +91,15 @@ export function useAsyncTask(options = {}) {
           if (data.status === 'FAILED' && typeof onFailed === 'function') onFailed(data)
         }
       } catch {
-        stopPolling()
+        consecutiveFailures += 1
+        if (consecutiveFailures >= MAX_POLL_FAILURES) {
+          stopPolling()
+          status.value = 'FAILED'
+          failureReason.value = '状态查询连续失败，请刷新页面或稍后重试'
+          if (typeof onFailed === 'function') {
+            onFailed({ status: 'FAILED', failureReason: failureReason.value })
+          }
+        }
       }
     }, pollInterval)
   }
