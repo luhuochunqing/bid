@@ -13,6 +13,9 @@
 #     层必须先设置，确保 JVM 启动时即进入 headless 模式。
 #   - EnvironmentFile 指向 /etc/xiyu-bid/backend.env，其中包含 DB_PASSWORD、
 #     JWT_SECRET 等敏感信息，不要提交到仓库。
+#   - ${JAVA_OPTS} 来自 backend.env（第 96 次部署建立的机制，现网为 -Xmx2g；
+#     CO-602 业绩合订本导出要求调整为 -Xmx4g -Xms1g）。必须保留在 ExecStart
+#     中，否则 backend.env 的 JVM 堆配置不生效。
 # ──────────────────────────────────────────────────────────────────
 
 [Unit]
@@ -24,6 +27,7 @@ User=jetty
 WorkingDirectory=/opt/xiyu-bid/shared/backend
 EnvironmentFile=/etc/xiyu-bid/backend.env
 ExecStart=/opt/xiyu-tools/jdk-21/bin/java \
+    ${JAVA_OPTS} \
     -Djava.awt.headless=true \
     -Dfile.encoding=UTF-8 \
     -Dsun.jnu.encoding=UTF-8 \
