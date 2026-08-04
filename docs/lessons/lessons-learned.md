@@ -7049,7 +7049,10 @@ PR !2244（e2e: CO-601 数据隔离 + /bidAdmin 角色）被手动关闭但**未
 
 - `CLAUDE.md` §环境坑点 9/10（launchd 自动重启 + watchdog fail-state）
 - 本次实例：`stash@{0}`（`3b480e2`）含 TenderController/application-dev.yml/start.sh 的 OOM revert，经确认后 drop。
-## 98. Surefire 静默跳过不存在的测试类导致"测试通过"假象 + PathUtils bug（CO-602 / 2026-08-04）
+
+---
+
+## 101. Surefire 静默跳过不存在的测试类导致"测试通过"假象 + PathUtils bug（CO-602 / 2026-08-04）
 
 **背景**：PR #2250 设计弯路修复阶段，运行 `mvn -o test -Dtest='PathUtilsTest,StringUtilsTest,ExportTaskResponseTest,BundleExportRequestTest'` 报 BUILD SUCCESS，4 个测试类"全部通过"。实际收尾时发现这 4 个测试文件根本不存在 — surefire 静默跳过了不存在的测试类。
 
