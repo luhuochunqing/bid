@@ -12,8 +12,8 @@ backlinks:
   - lessons-learned
   - architecture
 created: 2026-07-10
-updated: 2026-07-10
-health_checked: 2026-07-19
+updated: 2026-08-04
+health_checked: 2026-08-04
 ---
 # Spring Boot 陷阱集
 
@@ -453,6 +453,30 @@ try {
 
 ---
 
+## 10.5. @Async self-invocation（同类内部调用）导致代理失效（CO-602 / 2026-08-04）
+
+### 事故
+
+在 `@Service` 或 `@Component` 中直接调用自身的 `@Async` 方法（self-invocation），Spring AOP 代理无法拦截，`@Async` 注解失效，方法在调用线程同步执行。
+
+### 影响
+
+- HTTP 请求线程被阻塞（Nginx 60s 超时 → 502）
+- 线程池配置形同虚设（不会使用配置的 executor）
+- MDC 上下文无法透传（MdcTaskDecorator 不生效）
+
+### 正确做法
+
+将 `@Async` 方法提取到独立的 Spring Bean 中，通过依赖注入调用。
+
+参考实现：`PerformanceBundleExportAsyncExecutor`、`WarehouseExportAsyncExecutor`、`WarehouseImportAsyncExecutor` 均为独立 Bean。
+
+### 预防
+
+`AsyncConfig.java` 中已添加详细 Javadoc 警告，新增 `@Async` 方法时必须检查是否为 self-invocation。
+
+---
+
 ## 11. 相关文档
 
 - [[lessons-learned]] §50 — SPRING_CONFIG_IMPORT 外部配置覆盖案例
@@ -468,3 +492,4 @@ try {
 | 日期 | 变更内容 |
 |------|---------|
 | 2026-07-10 | 首次创建，从 8 个工作区历史对话中提取 Spring Boot 陷阱 |
+| 2026-08-04 | 追加 §10.5 @Async self-invocation 警告（CO-602 PR 设计评估修复） |
