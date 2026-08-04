@@ -44,7 +44,7 @@ public class TenderEvaluationNotificationService {
     private static final String REVIEW_TASK_DESC_TEMPLATE = "标讯「%s」已完成评估提交，请及时审核并决定是否投标。";
     private static final String STATUS_CHANGE_TITLE_TEMPLATE = "标讯「%s」状态已变更为已评估";
     private static final String STATUS_CHANGE_BODY_TEMPLATE = "标讯「%s」已由项目负责人提交评估，等待投标管理员/组长审核。";
-    private static final Set<String> REVIEWER_ROLES = RoleProfileCatalog.GLOBAL_ACCESS_ROLES;
+    private static final Set<String> REVIEWER_ROLES = RoleProfileCatalog.NOTIFICATION_RECIPIENT_ROLES;
 
     private final NotificationApplicationService notificationService;
     private final UserRepository userRepository;

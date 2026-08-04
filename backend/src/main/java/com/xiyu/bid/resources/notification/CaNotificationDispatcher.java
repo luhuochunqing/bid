@@ -38,12 +38,8 @@ public class CaNotificationDispatcher {
     private final NotificationApplicationService notificationService;
     private final UserRepository userRepository;
 
-    /** 投标管理员角色码集合（管理员 + 投标管理员 + 投标组长）。 */
-    private static final Set<String> BID_ADMIN_CODES = Set.of(
-            RoleProfileCatalog.ADMIN_CODE,   // 管理员
-            RoleProfileCatalog.BID_ADMIN_CODE,  // 投标管理员
-            RoleProfileCatalog.BID_LEAD_CODE     // 投标组长
-    );
+    /** 通知接收人角色码集合（排除 admin 超管，不参与业务通知）。 */
+    private static final Set<String> BID_ADMIN_CODES = RoleProfileCatalog.NOTIFICATION_RECIPIENT_ROLES;
 
     /**
      * 借用人提交申请 → 通知 CA 保管员。

@@ -1087,3 +1087,43 @@ if (dto.getManagerId() != null) {
 3. **同一员工在多个项目显示不同部门是快照问题的特征信号** — 如果是实时反查 bug，所有项目应该显示同一个错误部门；如果是快照 bug，不同项目会显示不同部门（对应不同时间点的快照）。排查时先看"是一致错误还是不一致错误"。
 4. **单元测试必须覆盖调岗场景** — 新增 `shouldAlwaysUseRealtimeDepartmentOverTenderSnapshot_whenEmployeeTransferred` 测试，模拟生产 06442 事故（3 个项目、3 个不同 tender.department 快照），断言全部显示当前实时部门。
 
+---
+
+## Sentry XIYU-F：通知接收人误含 admin 超管导致企微推送 skip（1024 次告警）
+
+> 2026-08-04 修复 · Sentry Issue: 7591309142
+
+**现象**：Sentry XIYU-F 持续产生 `WeCom notification skipped: user has no employee_number` WARNING 告警，累计 1024 次（生产 932 + 测试 92）。
+
+**根因**：
+
+`RoleProfileCatalog.GLOBAL_ACCESS_ROLES` 集合包含 `admin`（本地超级管理员），该集合同时用于：
+1. 权限判断 / 数据范围 / 任务可见性（admin 确实需要全局权限）
+2. **通知接收人解析**（admin 不参与业务通知，无 employee_number）
+
+通知接收人解析调用 `getAdminUserIds()` → `findEnabledByRoleProfileCodes(GLOBAL_ACCESS_ROLES)` → 选中 admin 用户 → 企微推送时 `WeComPushService.push()` 发现 `employee_number` 为空 → skip + Sentry WARNING。
+
+**关键认知**：admin 是本地超级管理员账号，不参与任何业务流程，不需要收到业务通知。`GLOBAL_ACCESS_ROLES` 的"全局权限"语义 ≠ "全局通知接收人"语义。
+
+**修复**：
+
+1. 在 `RoleProfileCatalog` 新增 `NOTIFICATION_RECIPIENT_ROLES` 常量（`GLOBAL_ACCESS_ROLES` 排除 `ADMIN_CODE`）：
+```java
+public static final Set<String> NOTIFICATION_RECIPIENT_ROLES =
+    Set.of(BID_ADMIN_CODE, BID_LEAD_CODE, BID_SYSTEM_ADMIN_CODE);
+```
+
+2. 4 个通知接收人解析点从 `GLOBAL_ACCESS_ROLES` 切换到 `NOTIFICATION_RECIPIENT_ROLES`：
+   - `NotificationRecipientResolver.getAdminUserIds()`
+   - `TenderEvaluationNotificationService.REVIEWER_ROLES`
+   - `TenderPendingAssignmentNotifier.ASSIGNER_ROLES`
+   - `WarehouseExpiryScanTask` 通知接收人查询
+
+3. 权限/数据范围/任务可见性等 7 处仍使用 `GLOBAL_ACCESS_ROLES`（不变）。
+
+**教训**：
+
+1. **"全局权限"和"全局通知接收人"是不同语义** — 同一个角色集合不能同时承载两种语义。admin 需要全局权限但不参与业务通知，必须按用途拆分常量。
+2. **Sentry 告警的根因可能不在上报点** — 上报点在 `WeComPushService.push()`，但根因在上游的接收人解析逻辑把不该选中的人选了进来。修复应从源头（接收人解析）入手，而非在下游（推送服务）打补丁。
+3. **静态常量集合的复用需要标注用途边界** — `GLOBAL_ACCESS_ROLES` 被 10 处引用，其中 3 处通知 + 7 处权限。新增 `NOTIFICATION_RECIPIENT_ROLES` 时必须明确 JavaDoc 标注"仅用于通知接收人解析，权限判断仍用 GLOBAL_ACCESS_ROLES"。
+4. **Sentry skip 告警本身是有效的观测手段** — 此前根因分析文档提出的"方案 A：skip 路径增加 Sentry 上报"已实施，才使得这个隐藏问题可见。但需要在修复后同步降噪，避免 1024 次重复告警淹没真实异常。

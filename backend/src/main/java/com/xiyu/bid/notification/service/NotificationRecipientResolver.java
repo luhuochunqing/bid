@@ -49,14 +49,14 @@ public class NotificationRecipientResolver {
     private final ProjectNotificationRecipientPolicy projectRecipientPolicy;
 
     /**
-     * 解析项目管理员用户 ID 列表（admin/bidAdmin/bid-TeamLeader）。
+     * 解析项目管理员用户 ID 列表（bidAdmin/bid-TeamLeader/bid-SystemAdmin，排除本地 admin 超级管理员）。
      *
      * <p>对应原 A 组重复：三处 service 私有方法完全复制粘贴的逻辑。</p>
      *
      * @return 启用状态的管理员用户 ID 列表；查询异常时返回空列表
      */
     public List<Long> getAdminUserIds() {
-        return getUserIdsByRoleCodes(RoleProfileCatalog.GLOBAL_ACCESS_ROLES);
+        return getUserIdsByRoleCodes(RoleProfileCatalog.NOTIFICATION_RECIPIENT_ROLES);
     }
 
     /**

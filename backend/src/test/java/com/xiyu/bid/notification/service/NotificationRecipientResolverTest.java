@@ -46,14 +46,27 @@ class NotificationRecipientResolverTest {
     }
 
     @Test
-    @DisplayName("getAdminUserIds：返回 admin/bidAdmin/bid-TeamLeague 启用用户 ID")
+    @DisplayName("getAdminUserIds：返回 bidAdmin/bid-TeamLeader/bid-SystemAdmin 启用用户 ID")
     void getAdminUserIds_ReturnsEnabledAdminIds() {
-        when(userRepository.findEnabledByRoleProfileCodes(List.copyOf(RoleProfileCatalog.GLOBAL_ACCESS_ROLES)))
+        when(userRepository.findEnabledByRoleProfileCodes(List.copyOf(RoleProfileCatalog.NOTIFICATION_RECIPIENT_ROLES)))
                 .thenReturn(List.of(user(1L), user(2L)));
 
         List<Long> result = resolver.getAdminUserIds();
 
         assertThat(result).containsExactlyInAnyOrder(1L, 2L);
+    }
+
+    @Test
+    @DisplayName("getAdminUserIds：排除 admin 超级管理员角色（admin 不参与业务通知，无 employee_number）")
+    void getAdminUserIds_ExcludesLocalAdminRole() {
+        // 验证 NOTIFICATION_RECIPIENT_ROLES 不包含 ADMIN_CODE
+        assertThat(RoleProfileCatalog.NOTIFICATION_RECIPIENT_ROLES)
+                .doesNotContain(RoleProfileCatalog.ADMIN_CODE);
+        // 验证集合仍包含投标业务管理员角色
+        assertThat(RoleProfileCatalog.NOTIFICATION_RECIPIENT_ROLES)
+                .contains(RoleProfileCatalog.BID_ADMIN_CODE,
+                        RoleProfileCatalog.BID_LEAD_CODE,
+                        RoleProfileCatalog.BID_SYSTEM_ADMIN_CODE);
     }
 
     @Test

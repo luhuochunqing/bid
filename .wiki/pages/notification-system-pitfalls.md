@@ -10,8 +10,8 @@ backlinks:
   - _index
   - integration-wecom
 created: 2026-07-10
-updated: 2026-07-10
-health_checked: 2026-07-19
+updated: 2026-08-04
+health_checked: 2026-08-04
 ---
 # 通知系统陷阱集
 
@@ -278,6 +278,34 @@ public void onTaskAssigned(TaskAssignedEvent event) {
 
 ---
 
+## 7. admin 超管误入通知接收人列表导致企微 skip（Sentry XIYU-F）
+
+### 7.1 事故
+
+Sentry XIYU-F 持续产生 `WeCom notification skipped: user has no employee_number` WARNING 告警，累计 1024 次（生产 932 + 测试 92）。
+
+### 7.2 根因
+
+`RoleProfileCatalog.GLOBAL_ACCESS_ROLES` 集合包含 `admin`（本地超级管理员），同时用于权限判断和通知接收人解析。admin 账号无 `employee_number`，被选为通知接收人后企微推送 skip。
+
+### 7.3 关键认知
+
+- `GLOBAL_ACCESS_ROLES` 的"全局权限"语义 ≠ "全局通知接收人"语义
+- admin 是本地超级管理员，不参与业务流程，不需要收到业务通知
+- 同一个角色集合不能同时承载权限和通知两种语义
+
+### 7.4 修复
+
+新增 `NOTIFICATION_RECIPIENT_ROLES` 常量（排除 `ADMIN_CODE`），4 个通知接收人解析点切换到新常量，权限/数据范围等 7 处不变。
+
+### 7.5 自检清单
+
+- [ ] 新增通知派发逻辑时，接收人角色集合是否误含 `admin`？
+- [ ] `GLOBAL_ACCESS_ROLES` 是否被用于通知接收人解析？（应改用 `NOTIFICATION_RECIPIENT_ROLES`）
+- [ ] Sentry skip 告警的根因是否在上游接收人解析而非下游推送服务？
+
+---
+
 ## 8. 相关文档
 
 - [[integration-wecom]] — 企微集成规范
@@ -292,3 +320,4 @@ public void onTaskAssigned(TaskAssignedEvent event) {
 | 日期 | 变更内容 |
 |------|---------|
 | 2026-07-10 | 首次创建，从 8 个工作区历史对话中提取通知系统陷阱 |
+| 2026-08-04 | 新增 §7：admin 超管误入通知接收人列表导致企微 skip（Sentry XIYU-F） |

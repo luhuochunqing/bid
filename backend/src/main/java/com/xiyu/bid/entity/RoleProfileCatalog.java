@@ -65,6 +65,10 @@ public final class RoleProfileCatalog {
     /** 拥有全局数据权限与操作权限的角色码集合。 */
     public static final Set<String> GLOBAL_ACCESS_ROLES = Set.of(ADMIN_CODE, BID_ADMIN_CODE, BID_LEAD_CODE, BID_SYSTEM_ADMIN_CODE);
 
+    /** 通知接收人角色码集合：GLOBAL_ACCESS_ROLES 排除 admin（本地超管不参与业务通知，无 employee_number）。
+     *  <p>仅用于通知接收人解析；权限/数据范围仍用 {@link #GLOBAL_ACCESS_ROLES}。 */
+    public static final Set<String> NOTIFICATION_RECIPIENT_ROLES = Set.of(BID_ADMIN_CODE, BID_LEAD_CODE, BID_SYSTEM_ADMIN_CODE);
+
     /** 不应继承 Legacy User.Role 鉴权兼容的新式受限角色。仅靠自身 ROLE_<CODE> + 细粒度 menuPermissions 鉴权。
      *  使用 case-insensitive TreeSet 支持大小写不敏感查找。 */
     public static final Set<String> ROLES_WITHOUT_LEGACY_ROLE_COMPAT;

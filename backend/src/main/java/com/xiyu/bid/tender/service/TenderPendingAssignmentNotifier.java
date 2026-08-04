@@ -34,7 +34,7 @@ public class TenderPendingAssignmentNotifier {
 
     private static final String TASK_TITLE_PREFIX = "【待分配】";
     private static final String TASK_DESC_TEMPLATE = "标讯「%s」已创建，请及时分配项目负责人。";
-    private static final Set<String> ASSIGNER_ROLES = RoleProfileCatalog.GLOBAL_ACCESS_ROLES;
+    private static final Set<String> ASSIGNER_ROLES = RoleProfileCatalog.NOTIFICATION_RECIPIENT_ROLES;
 
     private final NotificationApplicationService notificationService;
     private final UserRepository userRepository;
