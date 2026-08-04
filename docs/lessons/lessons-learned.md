@@ -958,6 +958,25 @@ public static Path resolveAbsolute(String path) {
 
 ---
 
+## 104. 部门树节点指数级膨胀——递归去重 Set 作用域错误导致 812→22795 节点（PR !2265 / 2026-08-04）
+
+**背景**：组织管理页面 `https://winbid-test.ehsy.com/settings/organization` 打开极慢（10s+ 卡死），800+ 部门数据量下浏览器 JS 堆 768MB+、DOM 元素 18万+。
+
+**根因**：
+1. `organization_departments` 表存在重复 `department_code` 记录（OSS 同步历史遗留）。旧版 `buildSubTree` 每层递归**新建独立 visited Set**（`const nextVisited = new Set(visited)`），而非共享同一全局 Set。同一个 `departmentCode` 在不同父分支下可以**重复挂载 N 次**，每次重复又递归构建其子树——典型的指数级膨胀：812 条记录 → 22795 个树节点。
+2. `el-tree default-expand-all` 导致 22795 个节点一次性全部展开渲染，产生 183104 个 DOM 元素和 768MB JS 堆占用。
+
+**修复**：
+1. `buildSubTree` 改为 `deptTree` computed 内创建**单个共享 `visited = new Set()`**，函数直接 mutate 该 Set，每个 `departmentCode` 在整棵树中只出现一次。
+2. 移除 `default-expand-all`，新增 `defaultExpandedKeys` computed，默认只展开 `rootorg` 根节点。
+
+**教训**：
+1. **递归去重的 Set 作用域必须在最外层创建** — 每层递归新建 Set 等于没有去重，因为不同分支各自维护独立 Set 无法感知彼此已访问的节点。正确做法是外层创建单个 Set 传入递归函数共享。
+2. **树组件 `default-expand-all` 在大数据量下是性能杀手** — 800+ 节点的树必须用 `default-expanded-keys` 只展开根节点或第一层，用户按需点击展开。
+3. **DB 存在脏数据（重复 code）时，前端必须做防御性去重** — 不能假设 `department_code` 唯一，全局 visited 是兜底防线。
+
+---
+
 ## 103. ImageIO 编码 JPEG 前必须转 RGB——ARGB 图抛 Bogus input colorspace 且被异常吞没放大（CO-602 / PR !2250 / 2026-08-04）
 
 **背景**：业绩合订本 Word 导出中，含 alpha 通道的 PNG 附件（`ImageIO.read` 产出 `TYPE_INT_ARGB`/`TYPE_4BYTE_ABGR`）在合订本中静默丢失，文件本身完好。
