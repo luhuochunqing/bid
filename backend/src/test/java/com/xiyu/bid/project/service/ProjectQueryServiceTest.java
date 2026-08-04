@@ -135,8 +135,8 @@ class ProjectQueryServiceTest {
     }
 
     @Test
-    @DisplayName("leaderDepartment 已有值时不被用户部门覆盖")
-    void shouldNotOverrideLeaderDepartmentWhenAlreadyPresent() {
+    @DisplayName("leaderDepartment 已有值时仍被实时部门覆盖（员工调岗后快照需更新）")
+    void shouldOverrideLeaderDepartmentWithRealtimeDepartment() {
         Project project = project(1L, 99L);
         when(projectRepository.findAll()).thenReturn(List.of(project));
         when(projectAccessScopeService.filterAccessibleProjects(any()))
@@ -162,7 +162,7 @@ class ProjectQueryServiceTest {
         List<ProjectDTO> result = service.getAllProjects();
 
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).getLeaderDepartment()).isEqualTo("已有部门");
+        assertThat(result.get(0).getLeaderDepartment()).isEqualTo("东部二区");
     }
 
     @Test

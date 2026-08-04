@@ -273,8 +273,8 @@ public class ProjectQueryService {
             // CO-591: 标书审核人 / 评标结果 / 服务周期 / bidStatus 一并由 stageEnricher 回填
             stageEnricher.populate(dto, stageCtx, stage, submitted, userMap);
 
-            // 项目负责人部门为空时，从项目 managerId 反查用户部门兜底回填
-            if (StringUtils.isBlank(dto.getLeaderDepartment()) && dto.getManagerId() != null) {
+            // 始终用实时部门覆盖：tender/pid 快照不随员工调岗更新，必须用 organization_departments 实时反查
+            if (dto.getManagerId() != null) {
                 String dept = managerDepartmentMap.get(dto.getManagerId());
                 if (!StringUtils.isBlank(dept)) {
                     dto.setLeaderDepartment(dept);
