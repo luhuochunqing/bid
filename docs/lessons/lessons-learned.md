@@ -7034,3 +7034,53 @@ public static Path resolveAbsolute(String path) {
 1. **加 `@Auditable` 前先看 AuditActionPolicy 白名单** — action 命名不是自由文本，不命中 KEY_ACTIONS 的注解是死注解；零成本检查：心算 `shouldRecord("你的action")` 或直接跑 `AuditActionPolicyTest` 加一个断言。
 2. **审计类修复的验收标准是 audit_logs 落库记录** — 注解加上 ≠ 审计生效；必须真实触发操作后查表确认，本次正是"合并后查表"这一步揭穿了假修复。
 3. **记录在代码注释里的坑挡不住复发** — CO-324 的教训就写在 `AuditActionPolicy` 类注释里，评审者和作者都没看到。评审涉及审计/通知等"间接生效"机制时，必须把消费端校验逻辑（白名单/监听器）列入检查清单，而不是只看生产端代码形态。
+
+---
+
+## 107. tender.department 历史快照覆盖实时反查导致调岗后项目页部门显示错误（PR !2257 / 2026-08-04）
+
+**背景**：生产环境工号 06442（刘向博）在三个项目页面显示三个不同的部门（能源电力四组 / 河南战区 / 客户开发部），但组织架构树显示当前部门是"豫皖项目组"。工号 10323（周子靖）在 `/project/29` 显示"客户开发部"，但组织架构显示"央企BD部"。
+
+**根因**：`ProjectQueryService.java:276-284` 的反查逻辑有 `isBlank` 前置条件：
+```java
+// BUG：只有 leaderDepartment 为空才反查，导致历史快照覆盖实时数据
+if (StringUtils.isBlank(dto.getLeaderDepartment()) && dto.getManagerId() != null) {
+    String dept = managerDepartmentMap.get(dto.getManagerId());
+    if (!StringUtils.isBlank(dept)) {
+        dto.setLeaderDepartment(dept);
+    }
+}
+```
+
+而 `ProjectListEnrichmentSupport.populateFromTender` L82-84 在 `leaderDepartment` 为空时用 `tender.department`（创建标讯时的历史快照）兜底填充：
+```java
+if (isBlank(dto.getLeaderDepartment()) && !isBlank(t.getDepartment())) {
+    dto.setLeaderDepartment(t.getDepartment());
+}
+```
+
+数据流：`pid.leaderDepartment=""` → `tender.department="能源电力四组"` 覆盖 → `isBlank("能源电力四组")=false` → 跳过实时反查 → 项目页显示历史快照部门。
+
+**5 Whys**：
+1. 项目页部门错误 → 显示的是 `tender.department` 历史快照，不是当前部门
+2. 为什么显示快照 → 反查有 `isBlank` 前置条件，快照非空就跳过实时反查
+3. 为什么有 `isBlank` 条件 → 原设计意图是"已有值就不覆盖"，但忽略了 `tender.department` 兜底填充会把空值变成历史快照值
+4. 为什么快照兜底在前 → `populateFromTender` 在 `enrichWithManagerDepartment` 之前执行，填充顺序导致反查被短路
+5. 工程根因 → **快照数据与实时反查的优先级倒置**：调岗后实时数据才是真值，历史快照应作为兜底而非覆盖
+
+**修复**（PR !2257）：去掉 `isBlank` 前置条件，让实时反查总覆盖历史快照：
+```java
+// FIX：只要有 managerId 就反查，实时数据覆盖历史快照
+if (dto.getManagerId() != null) {
+    String dept = managerDepartmentMap.get(dto.getManagerId());
+    if (!StringUtils.isBlank(dept)) {
+        dto.setLeaderDepartment(dept);
+    }
+}
+```
+
+**教训**：
+1. **快照字段（tender.department / project_leader_name 等）在调岗/转派场景下是过期数据** — 查询时必须优先用 ID 实时反查当前值，快照只能作为反查失败的兜底，不能作为"已有值就不覆盖"的依据。
+2. **`isBlank` 前置条件是隐蔽的优先级倒置** — 当上游有兜底填充逻辑时，"已有值就不覆盖"实际上等于"快照覆盖实时数据"。改这类反查逻辑时必须问：这个"已有值"是用户填的、还是上游兜底填的？如果是上游兜底填的，反查必须无条件覆盖。
+3. **同一员工在多个项目显示不同部门是快照问题的特征信号** — 如果是实时反查 bug，所有项目应该显示同一个错误部门；如果是快照 bug，不同项目会显示不同部门（对应不同时间点的快照）。排查时先看"是一致错误还是不一致错误"。
+4. **单元测试必须覆盖调岗场景** — 新增 `shouldAlwaysUseRealtimeDepartmentOverTenderSnapshot_whenEmployeeTransferred` 测试，模拟生产 06442 事故（3 个项目、3 个不同 tender.department 快照），断言全部显示当前实时部门。

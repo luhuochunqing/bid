@@ -17,8 +17,8 @@ backlinks:
   - roles-and-permissions
   - production-deployment-lessons
 created: 2026-07-09
-updated: 2026-07-09
-health_checked: 2026-07-19
+updated: 2026-08-04
+health_checked: 2026-08-04
 ---
 # OSS 组织架构同步实战手册
 
@@ -277,6 +277,18 @@ private OrganizationUserSnapshot enrichDepartmentName(String sourceApp, Organiza
 
 **教训**：临时表必须显式指定 `COLLATE` 与关联表对齐。
 
+### 6.4 项目页部门显示：实时反查必须覆盖 tender.department 历史快照（PR !2257）
+
+**事故**：工号 06442（刘向博）在三个项目页面显示三个不同部门（能源电力四组 / 河南战区 / 客户开发部），工号 10323（周子靖）在 `/project/29` 显示"客户开发部"，但组织架构树显示当前部门是"央企BD部"/"豫皖项目组"。
+
+**根因**：`ProjectQueryService.java:276-284` 的反查逻辑有 `isBlank` 前置条件，而 `ProjectListEnrichmentSupport.populateFromTender` L82-84 在 `leaderDepartment` 为空时用 `tender.department`（创建标讯时的历史快照）兜底填充。数据流：`pid.leaderDepartment=""` → `tender.department="能源电力四组"` 覆盖 → `isBlank("能源电力四组")=false` → 跳过实时反查 → 项目页显示历史快照部门。
+
+**修复**：去掉 `isBlank` 前置条件，让实时反查总覆盖历史快照（`ProjectQueryService.java:276-282`）。`tender.department` 快照仅在反查失败时作为兜底。
+
+**特征信号**：同一员工在多个项目显示不同部门 → 快照 bug；显示同一个错误部门 → 实时反查 bug。
+
+**教训**：快照字段（tender.department / project_leader_name 等）在调岗/转派场景下是过期数据，查询时必须优先用 ID 实时反查当前值，`isBlank` 前置条件会导致"上游兜底填充 → 反查被短路"的优先级倒置。详见 `docs/lessons/lessons-learned.md §107`。
+
 ---
 
 ## 7. 全量同步排障 Checklist
@@ -382,3 +394,4 @@ XIYU_ORG_EVENT_CONSUMER_GROUP=bms
 | 日期 | 变更内容 |
 |------|---------|
 | 2026-07-09 | 首次创建，沉淀首次生产部署的 OSS 同步实战经验 |
+| 2026-08-04 | 新增 §6.4 项目页部门显示：实时反查必须覆盖 tender.department 历史快照（PR !2257 调岗事故） |
