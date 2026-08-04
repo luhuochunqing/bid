@@ -66,21 +66,23 @@ public class PerformanceBundleExportAsyncExecutor {
      */
     @Async("performanceBundleExportExecutor")
     public void executeExport(Long taskId, PerformanceSearchCriteria criteria,
-                              Set<String> attachmentTypes, Long operatorId,
+                              Set<String> attachmentTypes,
                               String filterSummary, long startMs) {
         try {
             stateService.markProcessing(taskId);
             PerformanceAlertConfig config = alertConfigRepository.findActive().orElse(DEFAULT_CONFIG);
             PerformanceSearchCriteria effective = criteria != null ? criteria : PerformanceSearchCriteria.empty();
-            List<PerformanceDTO> records = repository.findAll(effective, config).stream()
-                    .map(mapper::toDTO)
-                    .toList();
+            // 先 count 判定超限拒绝，避免全量加载 + DTO 映射后才发现超限（内存浪费 / OOM 风险）
             int maxRecords = properties.getMaxExportRecords();
-            if (records.size() > maxRecords) {
-                stateService.fail(taskId, "导出记录数 " + records.size() + " 超过上限 "
+            long totalCount = repository.count(effective, config);
+            if (totalCount > maxRecords) {
+                stateService.fail(taskId, "导出记录数 " + totalCount + " 超过上限 "
                         + maxRecords + "，请缩小筛选范围后重试");
                 return;
             }
+            List<PerformanceDTO> records = repository.findAll(effective, config).stream()
+                    .map(mapper::toDTO)
+                    .toList();
             doExport(taskId, records, attachmentTypes, filterSummary, startMs);
         } catch (RuntimeException e) {
             log.error("业绩合订本导出任务执行失败: taskId={}", taskId, e);
@@ -100,10 +102,18 @@ public class PerformanceBundleExportAsyncExecutor {
      */
     @Async("performanceBundleExportExecutor")
     public void executeExportByIds(Long taskId, List<Long> ids,
-                                    Set<String> attachmentTypes, Long operatorId,
+                                    Set<String> attachmentTypes,
                                     String filterSummary, long startMs) {
         try {
             stateService.markProcessing(taskId);
+            // ids 模式同样受 maxExportRecords 上限约束（与 filter 模式对齐；
+            // AppService 入口已校验，此处为异步执行路径的 defense-in-depth）
+            int maxRecords = properties.getMaxExportRecords();
+            if (ids.size() > maxRecords) {
+                stateService.fail(taskId, "导出记录数 " + ids.size() + " 超过上限 "
+                        + maxRecords + "，请减少勾选数量后重试");
+                return;
+            }
             // 批量查询避免 N+1（原循环 findById 在 100 条业绩时产生 100 次 DB 查询）
             List<PerformanceDTO> records = repository.findAllById(ids).stream()
                     .map(mapper::toDTO)

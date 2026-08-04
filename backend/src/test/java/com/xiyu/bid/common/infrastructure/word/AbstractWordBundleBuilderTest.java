@@ -1,5 +1,6 @@
 package com.xiyu.bid.common.infrastructure.word;
 
+import com.xiyu.bid.performance.infrastructure.PerformanceWordBundleBuilder;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.junit.jupiter.api.Test;
 
@@ -82,6 +83,28 @@ class AbstractWordBundleBuilderTest {
 
         try (XWPFDocument doc = new XWPFDocument()) {
             BufferedImage img = new BufferedImage(200, 100, BufferedImage.TYPE_INT_RGB);
+
+            boolean result = builder.insertImage(doc, img);
+
+            assertThat(result).isTrue();
+        }
+    }
+
+    /**
+     * 防复发测试：含 alpha 通道的 PNG（TYPE_INT_ARGB）必须能成功编码为 JPEG 并嵌入。
+     * <p>背景：JPEG 编码器不接受 ARGB 色彩空间，直接编码会抛
+     * {@code IIOException: Bogus input colorspace}，被降级逻辑吞掉导致图片静默丢失。
+     * {@link PerformanceWordBundleBuilder#encodeImage} 修复为编码前先转白底 RGB。
+     * 若回退，本测试会因 IOException 降级而得到 false。
+     */
+    @Test
+    void insertImage_argbImage_shouldEncodeAsJpegSuccessfully() throws Exception {
+        // 使用真实的 PerformanceWordBundleBuilder（encodeImage 即 JPEG 编码实现）；
+        // attachmentPathResolver 在图片编码路径上不涉及，传 null
+        PerformanceWordBundleBuilder builder = new PerformanceWordBundleBuilder(null);
+
+        try (XWPFDocument doc = new XWPFDocument()) {
+            BufferedImage img = new BufferedImage(100, 100, BufferedImage.TYPE_INT_ARGB);
 
             boolean result = builder.insertImage(doc, img);
 

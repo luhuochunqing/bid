@@ -1,6 +1,8 @@
 package com.xiyu.bid.performance.controller;
 
 import com.xiyu.bid.performance.application.command.PerformanceSearchCriteria;
+import com.xiyu.bid.performance.config.PerformanceBundleExportProperties;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 import java.util.Set;
@@ -22,6 +24,8 @@ import java.util.Set;
  * @param attachmentTypes 附件类型筛选；空集合表示全部
  */
 public record BundleExportRequest(
+        @Size(max = PerformanceBundleExportProperties.DEFAULT_MAX_EXPORT_RECORDS,
+                message = "勾选数量超过单次导出上限")
         List<Long> ids,
         PerformanceSearchCriteria criteria,
         Set<String> attachmentTypes

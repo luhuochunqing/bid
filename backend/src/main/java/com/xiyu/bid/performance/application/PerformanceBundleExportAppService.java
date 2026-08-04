@@ -70,7 +70,7 @@ public class PerformanceBundleExportAppService {
                 null,
                 attachmentTypes);
         Long taskId = stateService.createTask(filterSnapshot, operatorId);
-        asyncExecutor.executeExport(taskId, criteria, attachmentTypes, operatorId,
+        asyncExecutor.executeExport(taskId, criteria, attachmentTypes,
                 filterSummary, System.currentTimeMillis());
         return new ExportTaskResult(taskId);
     }
@@ -97,7 +97,7 @@ public class PerformanceBundleExportAppService {
         String filterSummary = PerformanceBundleExportNotificationPublisher.buildFilterSummary(
                 null, null, null, attachmentTypes);
         Long taskId = stateService.createTask(filterSnapshot, operatorId);
-        asyncExecutor.executeExportByIds(taskId, ids, attachmentTypes, operatorId,
+        asyncExecutor.executeExportByIds(taskId, ids, attachmentTypes,
                 filterSummary, System.currentTimeMillis());
         return new ExportTaskResult(taskId);
     }

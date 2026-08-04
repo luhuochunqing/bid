@@ -29,6 +29,12 @@ public interface PerformanceRepository {
 
     List<PerformanceRecord> findAll(PerformanceSearchCriteria criteria, PerformanceAlertConfig config);
 
+    /**
+     * 按筛选条件统计记录数（与 {@link #findAll} 同一 Specification 语义）。
+     * 用于导出前先判定是否超限，避免全量加载后再拒绝。
+     */
+    long count(PerformanceSearchCriteria criteria, PerformanceAlertConfig config);
+
     PagedResult<PerformanceRecord> findAllPageable(PerformanceSearchCriteria criteria, PerformanceAlertConfig config, int pageNumber, int pageSize);
 
     void deleteById(Long id);

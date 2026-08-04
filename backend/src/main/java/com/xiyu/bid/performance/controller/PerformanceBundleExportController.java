@@ -6,8 +6,10 @@ import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.performance.application.PerformanceBundleExportAppService;
 import com.xiyu.bid.performance.application.command.PerformanceSearchCriteria;
+import com.xiyu.bid.performance.controller.dto.ExportTaskResponse;
 import com.xiyu.bid.performance.infrastructure.persistence.entity.PerformanceExportTaskEntity;
 import com.xiyu.bid.warehouse.controller.UserResolver;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -35,7 +37,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.RejectedExecutionException;
@@ -72,21 +73,20 @@ public class PerformanceBundleExportController {
     @PostMapping
     @PreAuthorize("hasAuthority('" + PERM + "')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> triggerExport(
-            @RequestBody(required = false) BundleExportRequest request) {
+            @Valid @RequestBody(required = false) BundleExportRequest request) {
         Long operatorId = userResolver.resolveCurrentUserId();
         if (operatorId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("未登录"));
         }
-        Set<String> attachmentTypes = (request != null && request.attachmentTypes() != null)
-                ? request.attachmentTypes() : Set.of();
+        Set<String> attachmentTypes = request != null ? request.safeAttachmentTypes() : Set.of();
 
         PerformanceBundleExportAppService.ExportTaskResult result;
         try {
-            if (request != null && request.ids() != null && !request.ids().isEmpty()) {
+            if (request != null && request.isIdMode()) {
                 result = exportAppService.exportByIds(request.ids(), attachmentTypes, operatorId);
             } else {
-                PerformanceSearchCriteria criteria = (request != null && request.criteria() != null)
-                        ? request.criteria() : PerformanceSearchCriteria.empty();
+                PerformanceSearchCriteria criteria = request != null
+                        ? request.safeCriteria() : PerformanceSearchCriteria.empty();
                 result = exportAppService.export(criteria, attachmentTypes, operatorId);
             }
         } catch (RejectedExecutionException e) {
@@ -113,7 +113,7 @@ public class PerformanceBundleExportController {
         Page<PerformanceExportTaskEntity> tasks = exportAppService.listTasks(
                 userId, PageRequest.of(page, safeSize, Sort.by("createdAt").descending()));
         return ResponseEntity.ok(ApiResponse.success(Map.of(
-                "content", tasks.getContent().stream().map(this::toTaskMap).toList(),
+                "content", tasks.getContent().stream().map(this::toTaskResponse).toList(),
                 "totalElements", tasks.getTotalElements(),
                 "totalPages", tasks.getTotalPages(),
                 "number", tasks.getNumber(),
@@ -123,14 +123,14 @@ public class PerformanceBundleExportController {
 
     @GetMapping("/tasks/{taskId}/status")
     @PreAuthorize("hasAuthority('" + PERM + "')")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getExportTaskStatus(@PathVariable Long taskId) {
+    public ResponseEntity<ApiResponse<ExportTaskResponse>> getExportTaskStatus(@PathVariable Long taskId) {
         Long userId = userResolver.resolveCurrentUserId();
         if (userId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("未登录"));
         }
         try {
             PerformanceExportTaskEntity task = exportAppService.getTaskStatus(taskId, userId);
-            return ResponseEntity.ok(ApiResponse.success(toTaskMap(task)));
+            return ResponseEntity.ok(ApiResponse.success(toTaskResponse(task)));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.notFound().build();
         }
@@ -186,18 +186,8 @@ public class PerformanceBundleExportController {
         return "attachment; filename=\"" + encoded + "\"; filename*=UTF-8''" + encoded;
     }
 
-    private Map<String, Object> toTaskMap(PerformanceExportTaskEntity t) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("id", t.getId());
-        map.put("status", t.getStatus().name());
-        map.put("totalCount", t.getTotalCount() != null ? t.getTotalCount() : 0);
-        map.put("downloadUrl", t.getDownloadUrl() != null ? t.getDownloadUrl() : "");
-        map.put("expiresAt", formatDt(t.getExpiresAt()));
-        map.put("createdAt", formatDt(t.getCreatedAt()));
-        map.put("completedAt", formatDt(t.getCompletedAt()));
-        map.put("failureReason", t.getFailureReason() != null ? t.getFailureReason() : "");
-        map.put("resultSummary", parseResultSummary(t.getResultSummary()));
-        return map;
+    private ExportTaskResponse toTaskResponse(PerformanceExportTaskEntity t) {
+        return ExportTaskResponse.from(t, this::parseResultSummary, DT_FMT);
     }
 
     @SuppressWarnings("unchecked")
@@ -208,9 +198,5 @@ public class PerformanceBundleExportController {
         } catch (IOException e) {
             return Map.of();
         }
-    }
-
-    private String formatDt(LocalDateTime dt) {
-        return dt != null ? dt.format(DT_FMT) : null;
     }
 }

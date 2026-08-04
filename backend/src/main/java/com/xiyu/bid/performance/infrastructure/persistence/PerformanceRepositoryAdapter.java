@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -67,14 +68,20 @@ public class PerformanceRepositoryAdapter implements PerformanceRepository {
         if (ids == null || !ids.iterator().hasNext()) {
             return List.of();
         }
-        return jpaRepository.findAllById(ids).stream().map(this::toDomain).toList();
+        return toDomainBatch(jpaRepository.findAllById(ids));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<PerformanceRecord> findAll(PerformanceSearchCriteria criteria, PerformanceAlertConfig config) {
         var spec = PerformanceRecordSpecification.build(criteria, config);
-        return jpaRepository.findAll(spec, Sort.by(Sort.Direction.DESC, "createdAt")).stream().map(this::toDomain).toList();
+        return toDomainBatch(jpaRepository.findAll(spec, Sort.by(Sort.Direction.DESC, "createdAt")));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long count(PerformanceSearchCriteria criteria, PerformanceAlertConfig config) {
+        return jpaRepository.count(PerformanceRecordSpecification.build(criteria, config));
     }
 
     @Override
@@ -158,10 +165,37 @@ public class PerformanceRepositoryAdapter implements PerformanceRepository {
         return e;
     }
 
+    /**
+     * 批量实体 → 领域模型转换：附件一次性按 performanceId 批量查询并分组装配，
+     * 避免逐条 findByPerformanceId 的 1+N 查询。
+     */
+    private List<PerformanceRecord> toDomainBatch(List<PerformanceRecordEntity> entities) {
+        if (entities.isEmpty()) {
+            return List.of();
+        }
+        List<Long> perfIds = entities.stream().map(PerformanceRecordEntity::getId).toList();
+        Map<Long, List<PerformanceRecord.AttachmentEntry>> attsByPerfId =
+                attRepository.findByPerformanceIdIn(perfIds).stream()
+                        .collect(Collectors.groupingBy(
+                                PerformanceAttachmentEntity::getPerformanceId,
+                                Collectors.mapping(this::toAttachmentEntry, Collectors.toList())));
+        return entities.stream()
+                .map(e -> toDomain(e, attsByPerfId.getOrDefault(e.getId(), List.of())))
+                .toList();
+    }
+
+    private PerformanceRecord.AttachmentEntry toAttachmentEntry(PerformanceAttachmentEntity a) {
+        return new PerformanceRecord.AttachmentEntry(
+                a.getId(), a.getFileName(), a.getFileUrl(), a.getFileType());
+    }
+
     private PerformanceRecord toDomain(PerformanceRecordEntity e) {
-        var atts = attRepository.findByPerformanceId(e.getId()).stream()
-                .map(a -> new PerformanceRecord.AttachmentEntry(
-                        a.getId(), a.getFileName(), a.getFileUrl(), a.getFileType())).toList();
+        return toDomain(e, attRepository.findByPerformanceId(e.getId()).stream()
+                .map(this::toAttachmentEntry).toList());
+    }
+
+    private PerformanceRecord toDomain(PerformanceRecordEntity e,
+                                       List<PerformanceRecord.AttachmentEntry> atts) {
         return new PerformanceRecord(
                 e.getId(), e.getContractName(), e.getSigningEntity(), e.getGroupCompany(),
                 e.getCustomerType(), e.getIndustry(), e.getProjectType(), e.getDockingMethod(),

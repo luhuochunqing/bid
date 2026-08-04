@@ -18,6 +18,8 @@ import javax.imageio.ImageIO;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.ImageWriter;
 import javax.imageio.stream.ImageOutputStream;
+import java.awt.Color;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -132,17 +134,20 @@ public class PerformanceWordBundleBuilder extends AbstractWordBundleBuilder {
      * 将 BufferedImage 编码为 JPEG 0.85 质量字节数组。
      * <p>300 DPI 保证高清分辨率，JPEG 0.85 保证视觉质量，
      * 同时内存占用仅为 PNG 的 1/5~1/10，避免大批量导出 OOM。
+     * <p>含 alpha 通道的图片（TYPE_INT_ARGB 等）直接编码 JPEG 会抛
+     * {@code IIOException: Bogus input colorspace}，先转为白底 RGB 再编码。
      */
     @Override
     protected EncodedImage encodeImage(BufferedImage img) throws IOException {
+        BufferedImage rgbImg = toRgb(img);
         ByteArrayOutputStream imgOut = new ByteArrayOutputStream();
         ImageWriter writer = ImageIO.getImageWritersByFormatName("jpeg").next();
-        try {
+        try (ImageOutputStream ios = ImageIO.createImageOutputStream(imgOut)) {
             ImageWriteParam param = writer.getDefaultWriteParam();
             param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
             param.setCompressionQuality(PerformanceWordStyleConfig.JPEG_COMPRESSION_QUALITY);
-            writer.setOutput(ImageIO.createImageOutputStream(imgOut));
-            writer.write(null, new IIOImage(img, null, null), param);
+            writer.setOutput(ios);
+            writer.write(null, new IIOImage(rgbImg, null, null), param);
         } finally {
             writer.dispose();
         }
@@ -151,6 +156,25 @@ public class PerformanceWordBundleBuilder extends AbstractWordBundleBuilder {
                 XWPFDocument.PICTURE_TYPE_JPEG,
                 "image.jpg"
         );
+    }
+
+    /**
+     * 非 RGB 图片转为 TYPE_INT_RGB（白底填充），保证 JPEG 编码兼容。
+     */
+    private static BufferedImage toRgb(BufferedImage img) {
+        if (img.getType() == BufferedImage.TYPE_INT_RGB) {
+            return img;
+        }
+        BufferedImage rgb = new BufferedImage(img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = rgb.createGraphics();
+        try {
+            g.setColor(Color.WHITE);
+            g.fillRect(0, 0, rgb.getWidth(), rgb.getHeight());
+            g.drawImage(img, 0, 0, null);
+        } finally {
+            g.dispose();
+        }
+        return rgb;
     }
 
     // ========== H1 客户类型 ==========

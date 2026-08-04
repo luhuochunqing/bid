@@ -21,6 +21,9 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "performance.bundle-export")
 public class PerformanceBundleExportProperties {
 
+    /** maxExportRecords 默认值（供 Bean Validation 注解等需要编译期常量的场景引用）。 */
+    public static final int DEFAULT_MAX_EXPORT_RECORDS = 2000;
+
     /**
      * 导出文件落盘根目录（与 AsyncExecutor / AppService 共用同一配置源）。
      */
@@ -35,7 +38,7 @@ public class PerformanceBundleExportProperties {
     /**
      * 单次导出记录数上限。超过则拒绝导出（D4-1 修复：原 5000 过高，OOM 风险）。
      */
-    private int maxExportRecords = 2000;
+    private int maxExportRecords = DEFAULT_MAX_EXPORT_RECORDS;
 
     public String getRoot() { return root; }
     public void setRoot(String root) {

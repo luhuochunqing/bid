@@ -118,7 +118,7 @@ class PerformanceBundleExportAsyncExecutorTest {
         when(stateService.complete(any())).thenReturn(completedTask);
 
         // 执行
-        asyncExecutor.executeExportByIds(taskId, ids, Set.of(), 100L,
+        asyncExecutor.executeExportByIds(taskId, ids, Set.of(),
                 "filterSummary", System.currentTimeMillis());
 
         // 防复发断言 1：必须调用 findAllById 一次
@@ -147,7 +147,7 @@ class PerformanceBundleExportAsyncExecutorTest {
                 .id(taskId).status(ExportStatus.COMPLETED).createdBy(100L).build();
         when(stateService.complete(any())).thenReturn(completedTask);
 
-        asyncExecutor.executeExportByIds(taskId, ids, Set.of(), 100L,
+        asyncExecutor.executeExportByIds(taskId, ids, Set.of(),
                 "filterSummary", System.currentTimeMillis());
 
         verify(repository, times(1)).findAllById(eq(ids));
@@ -167,6 +167,7 @@ class PerformanceBundleExportAsyncExecutorTest {
 
         when(alertConfigRepository.findActive()).thenReturn(
                 java.util.Optional.of(new PerformanceAlertConfig(null, 180, 90, true)));
+        when(repository.count(any(), any())).thenReturn(1L);
         when(repository.findAll(any(), any())).thenReturn(List.of(record));
         when(mapper.toDTO(record)).thenReturn(dto);
         when(exportPublisher.buildResultSummaryJson(anyInt(), anyLong(), any(), anyLong(), any()))
@@ -176,7 +177,7 @@ class PerformanceBundleExportAsyncExecutorTest {
                 .id(taskId).status(ExportStatus.COMPLETED).createdBy(100L).build();
         when(stateService.complete(any())).thenReturn(completedTask);
 
-        asyncExecutor.executeExport(taskId, criteria, Set.of(), 100L,
+        asyncExecutor.executeExport(taskId, criteria, Set.of(),
                 "filterSummary", System.currentTimeMillis());
 
         verify(stateService, times(1)).markProcessing(taskId);
@@ -193,7 +194,7 @@ class PerformanceBundleExportAsyncExecutorTest {
                 java.util.Optional.of(new PerformanceAlertConfig(null, 180, 90, true)));
         when(repository.findAll(any(), any())).thenThrow(new RuntimeException("DB 连接失败"));
 
-        asyncExecutor.executeExport(taskId, criteria, Set.of(), 100L,
+        asyncExecutor.executeExport(taskId, criteria, Set.of(),
                 "filterSummary", System.currentTimeMillis());
 
         verify(stateService, times(1)).markProcessing(taskId);
@@ -211,7 +212,7 @@ class PerformanceBundleExportAsyncExecutorTest {
         when(repository.findAll(any(), any())).thenThrow(new OutOfMemoryError("GC overhead"));
 
         assertThatThrownBy(() ->
-                asyncExecutor.executeExport(taskId, criteria, Set.of(), 100L,
+                asyncExecutor.executeExport(taskId, criteria, Set.of(),
                         "filterSummary", System.currentTimeMillis()))
                 .isInstanceOf(OutOfMemoryError.class);
 
@@ -227,7 +228,7 @@ class PerformanceBundleExportAsyncExecutorTest {
 
         when(repository.findAllById(ids)).thenThrow(new RuntimeException("DB 连接失败"));
 
-        asyncExecutor.executeExportByIds(taskId, ids, Set.of(), 100L,
+        asyncExecutor.executeExportByIds(taskId, ids, Set.of(),
                 "filterSummary", System.currentTimeMillis());
 
         verify(stateService, times(1)).markProcessing(taskId);
@@ -238,31 +239,29 @@ class PerformanceBundleExportAsyncExecutorTest {
     // ========== 记录数上限防复发测试（P1-2） ==========
 
     /**
-     * 防复发测试：筛选模式导出时，记录数超过 {@link PerformanceBundleExportProperties#getMaxExportRecords()}
-     * 必须标记任务 FAILED，且不调用 wordBundleBuilder.buildBundle（避免 OOM）。
+     * 防复发测试：筛选模式导出时，count 超过 {@link PerformanceBundleExportProperties#getMaxExportRecords()}
+     * 必须标记任务 FAILED，且不调用 findAll 全量加载 / wordBundleBuilder.buildBundle（避免 OOM）。
      */
     @Test
     void executeExport_whenRecordsExceedMax_shouldFailTaskWithoutBuildingBundle() {
         Long taskId = 7L;
         PerformanceSearchCriteria criteria = PerformanceSearchCriteria.empty();
 
-        // 构造超过上限的记录列表（setUp 中 maxExportRecords=5）
-        int overLimit = properties.getMaxExportRecords() + 1;
-        List<PerformanceRecord> records = java.util.stream.Stream
-                .generate(() -> buildRecord(10L))
-                .limit(overLimit)
-                .toList();
+        // count 超过上限（setUp 中 maxExportRecords=5）
+        long overLimit = properties.getMaxExportRecords() + 1L;
 
         when(alertConfigRepository.findActive()).thenReturn(
                 java.util.Optional.of(new PerformanceAlertConfig(null, 180, 90, true)));
-        when(repository.findAll(any(), any())).thenReturn(records);
+        when(repository.count(any(), any())).thenReturn(overLimit);
 
-        asyncExecutor.executeExport(taskId, criteria, Set.of(), 100L,
+        asyncExecutor.executeExport(taskId, criteria, Set.of(),
                 "filterSummary", System.currentTimeMillis());
 
         verify(stateService, times(1)).markProcessing(taskId);
         verify(stateService, times(1)).fail(eq(taskId), any());
         verify(stateService, times(0)).complete(any());
+        // 关键：先 count 判定超限后不再全量加载
+        verify(repository, times(0)).findAll(any(), any());
         // 关键：不调用 buildBundle，避免 OOM
         verify(wordBundleBuilder, times(0)).buildBundle(any(), any(), any());
     }
@@ -287,6 +286,7 @@ class PerformanceBundleExportAsyncExecutorTest {
 
         when(alertConfigRepository.findActive()).thenReturn(
                 java.util.Optional.of(new PerformanceAlertConfig(null, 180, 90, true)));
+        when(repository.count(any(), any())).thenReturn((long) atLimit);
         when(repository.findAll(any(), any())).thenReturn(records);
         when(mapper.toDTO(any(PerformanceRecord.class))).thenReturn(dto);
         when(exportPublisher.buildResultSummaryJson(anyInt(), anyLong(), any(), anyLong(), any()))
@@ -295,11 +295,35 @@ class PerformanceBundleExportAsyncExecutorTest {
                 .id(taskId).status(ExportStatus.COMPLETED).createdBy(100L).build();
         when(stateService.complete(any())).thenReturn(completedTask);
 
-        asyncExecutor.executeExport(taskId, criteria, Set.of(), 100L,
+        asyncExecutor.executeExport(taskId, criteria, Set.of(),
                 "filterSummary", System.currentTimeMillis());
 
         verify(stateService, times(1)).complete(any());
         verify(stateService, times(0)).fail(anyLong(), any());
+    }
+
+    /**
+     * 防复发测试：ids 模式导出时，ids 数量超过 {@link PerformanceBundleExportProperties#getMaxExportRecords()}
+     * 必须标记任务 FAILED，且不调用 findAllById / buildBundle（与 filter 模式上限对齐）。
+     */
+    @Test
+    void executeExportByIds_whenIdsExceedMax_shouldFailTaskWithoutQuery() {
+        Long taskId = 9L;
+        // 构造超过上限的 ids 列表（setUp 中 maxExportRecords=5）
+        List<Long> ids = java.util.stream.LongStream
+                .rangeClosed(1, properties.getMaxExportRecords() + 1L)
+                .boxed()
+                .toList();
+
+        asyncExecutor.executeExportByIds(taskId, ids, Set.of(),
+                "filterSummary", System.currentTimeMillis());
+
+        verify(stateService, times(1)).markProcessing(taskId);
+        verify(stateService, times(1)).fail(eq(taskId), any());
+        verify(stateService, times(0)).complete(any());
+        // 关键：超限后不再查询/构建，避免 OOM
+        verify(repository, times(0)).findAllById(any());
+        verify(wordBundleBuilder, times(0)).buildBundle(any(), any(), any());
     }
 
     // ========== 测试辅助方法 ==========
