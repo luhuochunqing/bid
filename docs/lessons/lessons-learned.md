@@ -7049,3 +7049,35 @@ PR !2244（e2e: CO-601 数据隔离 + /bidAdmin 角色）被手动关闭但**未
 
 - `CLAUDE.md` §环境坑点 9/10（launchd 自动重启 + watchdog fail-state）
 - 本次实例：`stash@{0}`（`3b480e2`）含 TenderController/application-dev.yml/start.sh 的 OOM revert，经确认后 drop。
+## 98. Surefire 静默跳过不存在的测试类导致"测试通过"假象 + PathUtils bug（CO-602 / 2026-08-04）
+
+**背景**：PR #2250 设计弯路修复阶段，运行 `mvn -o test -Dtest='PathUtilsTest,StringUtilsTest,ExportTaskResponseTest,BundleExportRequestTest'` 报 BUILD SUCCESS，4 个测试类"全部通过"。实际收尾时发现这 4 个测试文件根本不存在 — surefire 静默跳过了不存在的测试类。
+
+**根因（surefire 静默跳过）**：
+1. Maven Surefire 插件默认 `failIfNoTests=false`，`-Dtest=XXX` 指定的测试类不存在时不报错，只在输出中显示 `Tests run: 0`
+2. 当同时指定多个测试类（部分存在、部分不存在），输出中只显示存在的测试类结果，不存在的被静默忽略
+3. 本次场景：命令指定 9 个测试类，4 个不存在（PathUtilsTest/StringUtilsTest/ExportTaskResponseTest/BundleExportRequestTest），5 个存在且通过 → 看到 "BUILD SUCCESS" 误以为全部通过
+
+**根因（PathUtils bug）**：
+```java
+// BUG：绝对路径未 normalize
+public static Path resolveAbsolute(String path) {
+    Path p = Paths.get(path);
+    if (!p.isAbsolute()) {
+        p = Paths.get(System.getProperty("user.dir")).resolve(p).normalize();
+    }
+    return p; // ← 绝对路径直接返回，未 normalize
+}
+```
+`/data/exports/../exports/./file.docx` 应归一化为 `/data/exports/file.docx`，但原实现跳过了 normalize。
+
+**修复**：
+1. 创建 4 个缺失的测试文件（共 26 个测试用例）
+2. PathUtils.resolveAbsolute 修复：将 `normalize()` 提到 if 块外，无论绝对/相对路径都 normalize
+3. 收尾流程增加检查：`Glob **/XxxTest.java` 确认测试文件存在
+
+**教训**：
+1. **Maven Surefire 默认不报错不存在的测试类** — 运行 `-Dtest=` 后必须检查输出中 `Tests run:` 数量是否匹配预期，或加 `-Dsurefire.failIfNoSpecifiedTests=true`
+2. **新增工具类必须立即创建对应测试** — 不能"先跑通再补测试"，因为 surefire 静默跳过会造成假象
+3. **normalize() 应在路径归一化函数的所有分支生效** — 不能只在相对路径分支做 normalize，绝对路径同样需要
+4. **收尾流程的 Glob 检查是最后防线** — commit 前用 `Glob **/XxxTest.java` 确认测试文件实际存在
