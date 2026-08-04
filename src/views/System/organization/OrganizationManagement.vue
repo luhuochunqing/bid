@@ -19,7 +19,6 @@
             <h4>部门列表</h4>
             <el-select v-model="selectedSourceApp" size="small" placeholder="全部来源" style="width: 110px" @change="loadDepartments">
               <el-option label="全部来源" value="" />
-              <el-option label="ehsy" value="ehsy" />
               <el-option label="oss" value="oss" />
             </el-select>
           </div>
@@ -168,7 +167,7 @@ function resolveDeptName(row) {
 
 const searchForm = ref({ keyword: '', enabled: null })
 const selectedDeptCode = ref('')
-// 默认 "全部来源"：DB 中仅有 source_app='oss' 数据，ehsy 选项为历史遗留
+// 默认 "全部来源"：DB 中仅有 source_app='oss' 数据
 const selectedSourceApp = ref('')
 
 let debounceTimer = null
