@@ -342,3 +342,28 @@ watch(() => props.visible, (val) => {
 1. **工具函数必须集中管理** — 不能在多个组件中重复实现，否则精度规则不一致
 2. **新增工具函数必须配套 spec 测试** — `src/utils/formatBytes.spec.js` 覆盖边界条件
 
+## 7. 测试 mock 不完整导致 0-test 失败 + 断言过期（PR #2266 / 2026-08-04）
+
+### 问题
+
+`workbench-characterization.spec.js` 在 pre-commit hook 跑前端测试时失败，报 `No "createRouter" export is defined on the "vue-router" mock`（0 test），整个测试套件无法加载。
+
+### 根因（三层问题，不止 vue-router mock）
+
+1. **vue-router mock 缺失**：fixture 的 `vi.mock('vue-router', ...)` 只导出 `useRouter`，缺 `createRouter`/`createWebHistory`/`beforeEach`/`onError`。原设计依赖 stub UserPicker + mock usersApi 切断 `client.js → router/index.js` 导入链，但导入链随业务演进重新接通后崩溃。
+2. **Pinia store 未 mock**：`WorkbenchNotifications.vue` 在 setup 顶层调用 `useNotificationStore`（Pinia），fixture 未 mock，组件挂载时崩溃。
+3. **断言严重过期**：Workbench UI 改造（`193c96325` / `8b2943fb8`）移除了 QuickStart、Metrics、TenderList 等模块，原 case 2-7 断言全部失效。
+
+### 修复
+
+1. **vue-router mock 补全**：补 `createRouter`（返回含 `push`/`currentRoute`/`beforeEach`/`onError` 的 stub）、`createWebHistory`
+2. **补 mock `@/stores/notifications`**：含 `fetchNotifications`/`markAsRead`/`loading`/`notifications`/`unreadCount`/`totalElements`
+3. **重写 spec**：删除依赖已移除模块的 case，更新断言匹配当前渲染，锁定 TodoCategoryCards/DeadlinePanels/WorkbenchCalendarRebuild/WorkbenchNotifications 渲染结构
+
+### 教训
+
+1. **vi.mock 必须覆盖目标模块的所有顶层调用** — `router/index.js` 顶层调用 `createRouter`/`createWebHistory`/`router.beforeEach`/`router.onError`，mock 缺任一导出都会导致模块加载崩溃
+2. **不能依赖"切断导入链"作为 mock 策略** — 业务代码演进会重新接通导入链，必须直接 mock 目标模块的所有使用点
+3. **Pinia store 在 setup 顶层调用时必须在 fixture mock** — 否则组件挂载时 `getActivePinia()` 报错；项目惯例是 `vi.mock('@/stores/xxx', ...)` 而非初始化 Pinia
+4. **characterization test 必须随 UI 重构同步更新** — 重构移除/替换模块时，依赖这些模块的测试 case 必须删除或更新，否则断言过期
+
