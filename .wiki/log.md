@@ -3,6 +3,16 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-08-04] create | audit-whitelist-pitfalls 新建 + lessons-learned §106
+
+- 背景：PR !2256 补的四个 `@Auditable` action 命名（PERFORMANCE_BUNDLE_EXPORT_*）不命中 AuditActionPolicy KEY_ACTIONS，审计一条不落库；CO-324 同款坑第二次复发。PR !2258 修复（KEY_ACTIONS 加 DOWNLOAD + 注解对齐短动词惯例）
+- 改动：
+  - 新建 `.wiki/pages/audit-whitelist-pitfalls.md`（机制 + 两次复发记录 + 规范）
+  - `docs/lessons/lessons-learned.md`：新增 §106 审计 action 命名白名单陷阱
+  - `_index.md` 加索引行
+- 验收证据：修复后真实导出 + 下载，audit_logs 落库 CREATE（id 1069）/ DOWNLOAD（id 1070）两条
+- 触发点：任务收尾（§2 触发点 1）—— 根因修复 + 新陷阱
+
 ## [2026-08-04] no-op | CO-602 P2 #13-#23 修复 — 标准代码质量改进，无新结论
 
 - 11 项 P2 修复均为标准代码质量改进（事务传播、审计注解、死参数/死代码清理、资源关闭、包迁移、枚举统一、回滚注释等）
