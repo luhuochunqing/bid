@@ -32,6 +32,7 @@ health_checked: 2026-07-23
 - [[ai-provider-configuration]] — AI Provider 配置与陷阱指南（activeProvider / Doubao / 降级策略 / Sidecar）
 - [[engineering-discipline]] — 工程纪律手册（反复修复根因 / Bug修复SOP / 开发规范 / 经验积累机制）
 - [[api-openapi]] — OpenAPI/Swagger 接口规范
+- [[audit-whitelist-pitfalls]] — 审计白名单陷阱（@Auditable action 命名必须对齐 AuditActionPolicy，不命中即静默丢弃）
 - [[architecture]] — 架构合成
 - [[architecture/effective-role-resolution]] — 有效角色解析规范（Effective Role Resolution）
 - [[business-process]] — 业务流程
