@@ -541,4 +541,100 @@ class ProjectQueryServiceTest {
         // 已有值保护断言：revenue 保持原值，不被 det.annualRevenue 覆盖
         assertThat(preFilledDto.getRevenue()).isEqualByComparingTo(new BigDecimal("888.8"));
     }
+
+    // ===== 调岗场景回归：tender.department 历史快照不应覆盖实时部门 =====
+    // 生产事故：工号06442（刘向博）在三个项目显示三个不同部门
+    //   - project 26: tender.department="能源电力四组"（早期快照）
+    //   - project 33/34: tender.department="河南战区"（中期快照）
+    //   - project 35/38: tender.department=NULL（无快照，反查生效→"豫皖项目组"）
+    // 根因：populateFromTender 用 tender.department 覆盖空字符串的 leaderDepartment 后，
+    //       反查逻辑因 isBlank=false 被跳过，导致显示历史快照而非当前部门。
+    // 修复：去掉反查的 isBlank 前置条件，只要有实时反查结果就覆盖。
+
+    @Test
+    @DisplayName("调岗场景：同一负责人多个项目对应不同 tender.department 快照，全部应显示当前实时部门")
+    void shouldAlwaysUseRealtimeDepartmentOverTenderSnapshot_whenEmployeeTransferred() {
+        // 场景复现生产 06442 事故：3 个项目，3 个不同的 tender.department 历史快照
+        Project p1 = project(26L, 68L); p1.setTenderId(58L);
+        Project p2 = project(33L, 68L); p2.setTenderId(69L);
+        Project p3 = project(35L, 68L); p3.setTenderId(77L);
+        when(projectRepository.findAll()).thenReturn(List.of(p1, p2, p3));
+        when(projectAccessScopeService.filterAccessibleProjects(any()))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(demoModeService.isEnabled()).thenReturn(false);
+
+        // 3 个项目的立项详情 leader_department 都是空字符串（生产实际数据）
+        ProjectInitiationDetails d1 = new ProjectInitiationDetails(); d1.setProjectId(26L); d1.setLeaderDepartment("");
+        ProjectInitiationDetails d2 = new ProjectInitiationDetails(); d2.setProjectId(33L); d2.setLeaderDepartment("");
+        ProjectInitiationDetails d3 = new ProjectInitiationDetails(); d3.setProjectId(35L); d3.setLeaderDepartment("");
+        when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(26L, 33L, 35L)))
+                .thenReturn(List.of(d1, d2, d3));
+        when(projectLeadAssignmentRepository.findByProjectIdIn(List.of(26L, 33L, 35L)))
+                .thenReturn(List.of());
+
+        // 3 个 tender 对应 3 个不同的历史快照部门
+        Tender t1 = Tender.builder().id(58L).department("能源电力四组").build();
+        Tender t2 = Tender.builder().id(69L).department("河南战区").build();
+        Tender t3 = Tender.builder().id(77L).department(null).build();
+        when(tenderRepository.findAllById(List.of(58L, 69L, 77L)))
+                .thenReturn(List.of(t1, t2, t3));
+
+        // 用户 68（刘向博）当前 department_code=700554247（豫皖项目组）
+        User manager = new User();
+        manager.setId(68L);
+        manager.setDepartmentCode("700554247");
+        when(userRepository.findByIdIn(Set.of(68L))).thenReturn(List.of(manager));
+
+        // enricher 实时反查返回当前部门"豫皖项目组"
+        when(managerDepartmentEnricher.buildManagerDepartmentMap(eq(Set.of(68L)), any()))
+                .thenReturn(Map.of(68L, "豫皖项目组"));
+
+        ProjectQueryService service = createService();
+        List<ProjectDTO> result = service.getAllProjects();
+
+        assertThat(result).hasSize(3);
+        // 关键断言：3 个项目的 leaderDepartment 都应该是当前实时部门，不是历史快照
+        assertThat(result.get(0).getLeaderDepartment()).isEqualTo("豫皖项目组"); // p1: 不再是"能源电力四组"
+        assertThat(result.get(1).getLeaderDepartment()).isEqualTo("豫皖项目组"); // p2: 不再是"河南战区"
+        assertThat(result.get(2).getLeaderDepartment()).isEqualTo("豫皖项目组"); // p3: 保持反查结果
+    }
+
+    @Test
+    @DisplayName("调岗兜底：实时反查 map 为空时保留 tender 快照，避免清空已有值")
+    void shouldKeepTenderSnapshotWhenRealtimeLookupMisses() {
+        // 场景：员工刚同步到 OSS 但 organization_departments 表尚未建好对应记录，
+        // enricher 反查返回空 Map，此时应保留 tender.department 快照作为兜底。
+        Project project = project(1L, 99L);
+        project.setTenderId(100L);
+        when(projectRepository.findAll()).thenReturn(List.of(project));
+        when(projectAccessScopeService.filterAccessibleProjects(any()))
+                .thenAnswer(inv -> inv.getArgument(0));
+        when(demoModeService.isEnabled()).thenReturn(false);
+
+        ProjectInitiationDetails details = new ProjectInitiationDetails();
+        details.setProjectId(1L);
+        details.setLeaderDepartment(""); // pid 快照为空
+        when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(1L)))
+                .thenReturn(List.of(details));
+        when(projectLeadAssignmentRepository.findByProjectIdIn(List.of(1L)))
+                .thenReturn(List.of());
+
+        Tender tender = Tender.builder().id(100L).department("海外事业部").build();
+        when(tenderRepository.findAllById(List.of(100L))).thenReturn(List.of(tender));
+
+        User manager = new User();
+        manager.setId(99L);
+        manager.setDepartmentCode("700999999"); // 未在 organization_departments 表中
+        when(userRepository.findByIdIn(Set.of(99L))).thenReturn(List.of(manager));
+        // 反查返回空 Map（部门未建记录）
+        when(managerDepartmentEnricher.buildManagerDepartmentMap(eq(Set.of(99L)), any()))
+                .thenReturn(Map.of());
+
+        ProjectQueryService service = createService();
+        List<ProjectDTO> result = service.getAllProjects();
+
+        assertThat(result).hasSize(1);
+        // 兜底断言：反查未命中时保留 tender 快照，不清成 null
+        assertThat(result.get(0).getLeaderDepartment()).isEqualTo("海外事业部");
+    }
 }
