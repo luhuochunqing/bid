@@ -29,7 +29,7 @@
               :data="deptTree"
               :props="{ label: 'departmentName', children: 'children' }"
               node-key="departmentCode"
-              default-expand-all
+              :default-expanded-keys="defaultExpandedKeys"
               highlight-current
               @node-click="onDeptClick"
               :expand-on-click-node="true"
@@ -179,34 +179,46 @@ function debouncedSearch() {
 
 const ROOT_CODE = 'rootorg'
 
-function buildSubTree(parentCode, list, visited = new Set(), depth = 0) {
+// 全局 visited：每个 departmentCode 在整棵树中只出现一次（DB 中存在重复 code，避免节点指数级膨胀）
+function buildSubTree(parentCode, list, visited, depth = 0) {
   if (depth > 20) return []
   const children = list.filter(d => d.parentDepartmentCode === parentCode && !visited.has(d.departmentCode))
   return children.map(c => {
-    const nextVisited = new Set(visited)
-    nextVisited.add(c.departmentCode)
+    visited.add(c.departmentCode)
     return {
       ...c,
-      children: buildSubTree(c.departmentCode, list, nextVisited, depth + 1)
+      children: buildSubTree(c.departmentCode, list, visited, depth + 1)
     }
   })
 }
 
-const deptTree = computed(() => {
+// 默认只展开根节点（避免 800+ 部门全展开导致渲染卡死）
+const defaultExpandedKeys = computed(() => {
   const list = departments.value
   const root = list.find(d => d.departmentCode === ROOT_CODE)
+  return root ? [ROOT_CODE] : (list.length > 0 ? [list[0].departmentCode] : [])
+})
+
+const deptTree = computed(() => {
+  const list = departments.value
+  const visited = new Set()
+  const root = list.find(d => d.departmentCode === ROOT_CODE)
   if (root) {
+    visited.add(ROOT_CODE)
     return [{
       ...root,
-      children: buildSubTree(ROOT_CODE, list, new Set([ROOT_CODE]))
+      children: buildSubTree(ROOT_CODE, list, visited)
     }]
   }
   // fallback: 无 rootorg 时以 parent 为空或指向自身的节点为根
   const roots = list.filter(d => !d.parentDepartmentCode || d.parentDepartmentCode === d.departmentCode)
-  return roots.map(r => ({
-    ...r,
-    children: buildSubTree(r.departmentCode, list, new Set([r.departmentCode]))
-  }))
+  return roots.map(r => {
+    visited.add(r.departmentCode)
+    return {
+      ...r,
+      children: buildSubTree(r.departmentCode, list, visited)
+    }
+  })
 })
 
 function onDeptClick(data) {
