@@ -138,6 +138,15 @@ public class PerformanceBundleExportAppService {
     }
 
     public Path getExportFile(Long taskId, Long createdBy) throws IOException {
+        return getExportFileWithTask(taskId, createdBy).path();
+    }
+
+    /**
+     * 返回导出文件路径和任务实体，避免 Controller 重复查询。
+     *
+     * @since CO-602 PR 审查修复
+     */
+    public ExportFileResult getExportFileWithTask(Long taskId, Long createdBy) throws IOException {
         PerformanceExportTaskEntity task = exportTaskRepo.findByIdAndCreatedBy(taskId, createdBy)
                 .orElseThrow(() -> new IllegalArgumentException("导出任务不存在或无权限"));
 
@@ -162,7 +171,7 @@ public class PerformanceBundleExportAppService {
         if (!Files.exists(path)) {
             throw new IllegalStateException("导出文件已被清理");
         }
-        return path;
+        return new ExportFileResult(path, task);
     }
 
     /**
@@ -187,4 +196,11 @@ public class PerformanceBundleExportAppService {
     }
 
     public record ExportTaskResult(Long taskId) {}
+
+    /**
+     * 导出文件下载结果（路径 + 任务实体），避免 Controller 重复查询。
+     *
+     * @since CO-602 PR 审查修复
+     */
+    public record ExportFileResult(Path path, PerformanceExportTaskEntity task) {}
 }

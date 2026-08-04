@@ -155,8 +155,6 @@ const exportHintText = computed(() => {
 // 异步任务
 const {
   taskId,
-  status,
-  totalCount: taskTotalCount,
   failureReason,
   summary,
   isRunning,
@@ -202,7 +200,7 @@ async function handleConfirm() {
 }
 
 async function handleDownload() {
-  await downloadFile(taskId.value, (s) => {
+  await downloadFile(taskId.value, () => {
     const ts = new Date().toISOString().slice(0, 10).replace(/-/g, '')
     return `业绩合订本_${ts}.docx`
   })

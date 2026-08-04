@@ -1,6 +1,7 @@
 package com.xiyu.bid.performance.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.config.PaginationConstants;
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.performance.application.PerformanceBundleExportAppService;
@@ -107,8 +108,10 @@ public class PerformanceBundleExportController {
         if (userId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("未登录"));
         }
+        // 分页参数上限保护（项目规范：PaginationConstants.MAX_PAGE_SIZE=100）
+        int safeSize = Math.min(Math.max(size, 1), PaginationConstants.MAX_PAGE_SIZE);
         Page<PerformanceExportTaskEntity> tasks = exportAppService.listTasks(
-                userId, PageRequest.of(page, size, Sort.by("createdAt").descending()));
+                userId, PageRequest.of(page, safeSize, Sort.by("createdAt").descending()));
         return ResponseEntity.ok(ApiResponse.success(Map.of(
                 "content", tasks.getContent().stream().map(this::toTaskMap).toList(),
                 "totalElements", tasks.getTotalElements(),
@@ -139,12 +142,13 @@ public class PerformanceBundleExportController {
         Long userId = userResolver.resolveCurrentUserId();
         if (userId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         try {
-            Path filePath = exportAppService.getExportFile(taskId, userId);
-            PerformanceExportTaskEntity task = exportAppService.getTaskStatus(taskId, userId);
-            String filename = buildDownloadFilename(task);
-            long fileSize = Files.size(filePath);
+            // 单次查询同时获取文件路径和任务实体（CO-602 PR 审查修复：避免重复查询）
+            PerformanceBundleExportAppService.ExportFileResult result =
+                    exportAppService.getExportFileWithTask(taskId, userId);
+            String filename = buildDownloadFilename(result.task());
+            long fileSize = Files.size(result.path());
             StreamingResponseBody body = out -> {
-                try (InputStream in = Files.newInputStream(filePath)) {
+                try (InputStream in = Files.newInputStream(result.path())) {
                     in.transferTo(out);
                 }
             };
