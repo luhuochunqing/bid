@@ -9,6 +9,7 @@ import com.xiyu.bid.performance.infrastructure.persistence.entity.PerformanceExp
 import com.xiyu.bid.performance.infrastructure.persistence.repository.PerformanceExportTaskRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -37,6 +38,10 @@ import java.util.Set;
  *
  * <p>@Async 方法已提取到 {@link PerformanceBundleExportAsyncExecutor}，
  * 避免 Spring AOP self-invocation 导致 @Async 注解失效。
+ *
+ * <p><b>路径遍历防护</b>：{@link #getExportFile} 校验 {@code stored_file_path} 必须落在
+ * {@code exportRoot} 子树内，避免数据库被污染时读取任意系统文件（defense-in-depth，
+ * 与 {@code PerformanceAttachmentStorageAppService#resolveLocalPath} 保持一致）。
  */
 @Service
 @RequiredArgsConstructor
@@ -47,6 +52,13 @@ public class PerformanceBundleExportAppService {
     private final PerformanceBundleExportAsyncExecutor asyncExecutor;
     private final PerformanceBundleExportTaskStateService stateService;
     private final ObjectMapper objectMapper;
+
+    /**
+     * 导出文件落盘根目录（与 {@link PerformanceBundleExportAsyncExecutor#exportRoot} 共用同一配置）。
+     * <p>用于 {@link #getExportFile} 白名单校验：{@code stored_file_path} 必须在此目录子树内。
+     */
+    @Value("${performance.bundle-export.root:data/performance-bundle-exports}")
+    private String exportRoot;
 
     /**
      * 按 filter 模式创建合订本导出任务，触发异步执行。
@@ -139,11 +151,39 @@ public class PerformanceBundleExportAppService {
             throw new IllegalStateException("导出文件路径为空");
         }
 
-        Path path = Paths.get(task.getStoredFilePath());
+        Path path = Paths.get(task.getStoredFilePath()).normalize();
+        // 白名单校验：stored_file_path 必须落在 exportRoot 子树内
+        // defense-in-depth：虽然 stored_file_path 由系统生成，但 DB 被污染时仍可能读到任意系统文件
+        if (!isWithinExportRoot(path)) {
+            log.warn("导出文件路径不在 exportRoot 子树内，疑似 DB 污染: taskId={}, path={}",
+                    taskId, path);
+            throw new IllegalStateException("导出文件路径非法");
+        }
         if (!Files.exists(path)) {
             throw new IllegalStateException("导出文件已被清理");
         }
         return path;
+    }
+
+    /**
+     * 判断绝对路径是否落在 exportRoot 子树内。
+     * <p>exportRoot 相对路径时按 JVM 工作目录归一化为绝对路径，
+     * 与 {@link PerformanceAttachmentStorageAppService#resolveLocalPath} 保持一致策略。
+     */
+    private boolean isWithinExportRoot(Path target) {
+        Path root = resolveAbsoluteExportRoot();
+        return target.startsWith(root);
+    }
+
+    /**
+     * 与附件存储路径防护（PerformanceAttachmentStorageAppService#resolveLocalPath）保持一致策略。
+     */
+    private Path resolveAbsoluteExportRoot() {
+        Path p = Paths.get(exportRoot);
+        if (!p.isAbsolute()) {
+            p = Paths.get(System.getProperty("user.dir")).resolve(p).normalize();
+        }
+        return p;
     }
 
     public record ExportTaskResult(Long taskId) {}

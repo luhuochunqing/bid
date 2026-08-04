@@ -25,7 +25,9 @@ public class AsyncConfig {
 
     /**
      * 创建带 MdcTaskDecorator 的线程池（统一构造，避免重复代码）。
-     * 默认使用 CallerRunsPolicy：队列满时由调用线程执行，避免任务被拒绝。
+     * <p>默认拒绝策略：{@link ThreadPoolExecutor.CallerRunsPolicy}——队列满时由调用线程执行，
+     * 避免任务被拒绝。适用于"任务不能丢失"的场景（审计日志、AI 分析、标讯导入等）。
+     * <p><b>不适用</b>于长耗时任务（如业绩合订本 Word 渲染），应改用下面的重载方法指定 AbortPolicy。
      */
     private ThreadPoolTaskExecutor createExecutor(String prefix, int core, int max, int queue) {
         return createExecutor(prefix, core, max, queue, new ThreadPoolExecutor.CallerRunsPolicy());
@@ -33,6 +35,11 @@ public class AsyncConfig {
 
     /**
      * 创建带 MdcTaskDecorator 的线程池（可自定义拒绝策略）。
+     * <p>调用方根据业务特性决定拒绝策略：
+     * <ul>
+     *   <li>任务不能丢失：CallerRunsPolicy（默认，但会阻塞调用线程）</li>
+     *   <li>长耗时任务、队列满需快速失败：AbortPolicy（Controller 捕获后返回 503）</li>
+     * </ul>
      */
     private ThreadPoolTaskExecutor createExecutor(String prefix, int core, int max, int queue,
                                                    java.util.concurrent.RejectedExecutionHandler handler) {

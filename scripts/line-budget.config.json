@@ -65,6 +65,7 @@
         "src/views/Bidding/list/components/ManualTenderDialog.vue",
         "src/views/Knowledge/Personnel.vue",
         "src/views/Knowledge/Personnel.vue",
+        "src/views/Knowledge/Performance.vue",
         "src/views/Knowledge/Qualification.vue",
         "src/views/Knowledge/Template.vue",
         "src/views/Knowledge/components/qualification/QualFormDialog.vue",

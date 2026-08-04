@@ -142,9 +142,13 @@
     </el-card>
 
     <PerformanceDetailDrawer v-if="current" v-model:visible="detailVisible" :data="current" />
+
     <PerformanceFormDialog v-model:visible="formVisible" :data="editingRow" :submitting="submitting" @submit="handleSubmit" />
+
     <PerformanceAlertConfigDialog v-model="alertConfigVisible" />
+
     <PerformanceImportDialog v-model="importVisible" @imported="loadData" />
+
     <PerformanceExportZipDialog
       v-model:visible="exportZipDialogVisible"
       :selected-count="selectedIds.length"
@@ -178,16 +182,19 @@ import PerformanceExportZipDialog from './components/PerformanceExportZipDialog.
 import PerformanceBundleExportDialog from './components/PerformanceBundleExportDialog.vue'
 
 const { canManagePerformance, canAdminAlert: canAdminPerformanceAlert } = useKnowledgePermission()
+
 // Page state
 const searchForm = reactive({ keyword: '', customerTypes: [], projectTypes: [], statuses: [], customerLevels: [], territory: '', signingDateRange: null, expiryDateRange: null, hasBidNotice: null, projectManagerKeyword: '' })
 const loading = ref(false); const records = ref([]); const current = ref(null)
 const detailVisible = ref(false); const editingRow = ref(null); const formVisible = ref(false)
 const alertConfigVisible = ref(false); const submitting = ref(false)
 const selectedIds = ref([]); const handleSelectionChange = (rows) => { selectedIds.value = rows.map(r => r.id) }
+
 const {
   pagination, pageSizes, totalCount, pagedData: pagedRecords,
   handleSizeChange, resetPage
 } = useListPagination(records)
+
 // 分页序号
 const indexMethod = (index) => (pagination.value.page - 1) * pagination.value.pageSize + index + 1
 
@@ -206,10 +213,13 @@ const loadData = async () => {
 
 const importVisible = ref(false)
 const handleImport = () => { importVisible.value = true }
+
 const exportZipDialogVisible = ref(false)
+
 // CO-582: 业绩合订本导出对话框状态
 const bundleExportDialogVisible = ref(false)
 const openBundleExport = () => { bundleExportDialogVisible.value = true }
+
 const getCustomerTypeTagType = (t) => t === 'CENTRAL_SOE' ? 'danger' : t === 'LOCAL_SOE' ? 'warning' : t === 'GOVERNMENT_INSTITUTION' ? 'success' : 'primary'
 const getStatusTagType = (s) => s === 'EXPIRED' ? 'danger' : s === 'EXPIRING' ? 'warning' : 'success'
 const getExpiryDateClass = (row) => row.status === 'EXPIRED' ? 'text-danger' : row.status === 'EXPIRING' ? 'text-warning' : 'text-normal'
@@ -221,6 +231,7 @@ const getGroupTotalExpiryDateClass = (groupTotalExpiryDate) => {
 }
 const getDaysRemainingClass = (row) => (row.daysRemaining != null && row.daysRemaining < 0) ? 'text-danger' : row.status === 'EXPIRING' ? 'text-warning' : 'text-success'
 const formatDaysRemaining = (days) => (days == null) ? '-' : days < 0 ? `已逾期 ${Math.abs(days)} 天` : `${days} 天`
+
 const resetFilters = () => {
   Object.assign(searchForm, {
     keyword: '', customerTypes: [], projectTypes: [], statuses: [], customerLevels: [],
@@ -230,9 +241,11 @@ const resetFilters = () => {
   resetPage()
   loadData()
 }
+
 const openDetail = (row) => { current.value = row; detailVisible.value = true }
 const openForm = (row) => { editingRow.value = row; formVisible.value = true }
 const openAlertConfig = () => { alertConfigVisible.value = true }
+
 const handleSubmit = async (formData) => {
   submitting.value = true
   // CO-442: attachmentMap 改为 Map<fileType, Array>，展平时 flatMap 多文件
@@ -258,6 +271,7 @@ const handleSubmit = async (formData) => {
     submitting.value = false
   }
 }
+
 const handleDelete = async (row) => {
   try {
     await ElMessageBox.confirm(`您确定要删除合同「${row.contractName}」的业绩档案吗？`, '确认删除', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' })
@@ -268,6 +282,7 @@ const handleDelete = async (row) => {
     if (e !== 'cancel') ElMessage.error('删除失败，请重试')
   }
 }
+
 const handleExport = async (command) => {
   if (command === 'zip') {
     exportZipDialogVisible.value = true

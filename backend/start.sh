@@ -65,7 +65,8 @@ DB_PORT_DISPLAY="${DB_PORT:-3306}"
 # dev 默认 -Xmx1g：保护 macOS 开发环境（PR #2245 修复 macOS OOM 回归）
 # 生产环境（业绩合订本 300 DPI PDF 渲染 + 大批量附件累积）需通过 JVM_MEMORY 环境变量覆盖：
 #   export JVM_MEMORY="-Xmx4g -Xms1g -XX:MaxMetaspaceSize=256m"
-# 或在生产部署脚本中显式设置（参考 docs/deployment/）
+# 或在 systemd 服务单元 / backend.env 中显式设置
+# （部署文档：docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md §1 后端环境变量文件）
 JVM_MEMORY="${JVM_MEMORY:--Xmx1g -Xms256m -XX:MaxMetaspaceSize=256m}"
 
 # 使用 MySQL 8.0 开发配置启动（自动种子化默认管理员 admin / XiyuAdmin2026!）

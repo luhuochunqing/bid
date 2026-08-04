@@ -255,6 +255,8 @@ class PerformanceBundleExportAsyncExecutorTest {
 
     /**
      * 防复发测试：记录数刚好等于上限时正常导出（边界值）。
+     * <p>使用 IntStream.range 生成不同 id 的 record，更接近真实场景，
+     * 避免同一实例在循环引用时掩盖潜在的内存累积问题。
      */
     @Test
     void executeExport_whenRecordsAtMax_shouldCompleteNormally() throws Exception {
@@ -262,17 +264,17 @@ class PerformanceBundleExportAsyncExecutorTest {
         PerformanceSearchCriteria criteria = PerformanceSearchCriteria.empty();
 
         int atLimit = PerformanceBundleExportAsyncExecutor.MAX_EXPORT_RECORDS;
-        PerformanceRecord record = buildRecord(10L);
-        PerformanceDTO dto = buildDto(10L);
-        List<PerformanceRecord> records = java.util.stream.Stream
-                .generate(() -> record)
-                .limit(atLimit)
+        // 每条记录使用不同 id，更接近真实导出场景，避免 mock 缓存掩盖问题
+        List<PerformanceRecord> records = java.util.stream.IntStream
+                .range(0, atLimit)
+                .mapToObj(i -> buildRecord((long) i))
                 .toList();
+        PerformanceDTO dto = buildDto(10L);
 
         when(alertConfigRepository.findActive()).thenReturn(
                 java.util.Optional.of(new PerformanceAlertConfig(null, 180, 90, true)));
         when(repository.findAll(any(), any())).thenReturn(records);
-        when(mapper.toDTO(record)).thenReturn(dto);
+        when(mapper.toDTO(any(PerformanceRecord.class))).thenReturn(dto);
         when(exportPublisher.buildResultSummaryJson(anyInt(), anyLong(), any(), anyLong(), any()))
                 .thenReturn("{}");
         PerformanceExportTaskEntity completedTask = PerformanceExportTaskEntity.builder()

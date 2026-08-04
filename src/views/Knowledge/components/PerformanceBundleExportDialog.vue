@@ -102,7 +102,6 @@
       <el-button
         v-if="!isRunning && !isCompleted && !isFailed"
         type="primary"
-        :disabled="!canConfirm"
         @click="handleConfirm"
       >
         确认导出
@@ -145,8 +144,6 @@ const indeterminate = computed(() => {
   const len = checkedTypes.value.length
   return len > 0 && len < ALL_VALUES.length
 })
-// 不勾选 = 导出全部类型（后端 AttachmentFilter 接受空 Set），因此始终允许确认
-const canConfirm = computed(() => true)
 
 const exportHintText = computed(() => {
   if (props.selectedIds.length > 0) {
@@ -178,9 +175,10 @@ const {
   }
 })
 
-// ElProgress percentage 必须是 0-100 的数字，indeterminate 独立控制
+// ElProgress percentage 必须是 0-100 的数字；indeterminate 模式下 percentage 不显示具体进度，
+// 仅靠 isIndeterminate 控制循环动画。固定为 0 避免无意义的三元表达式。
 const isIndeterminate = computed(() => isRunning.value)
-const processingPercentage = computed(() => isRunning.value ? 0 : 0)
+const processingPercentage = 0
 
 function handleSelectAllChange(val) {
   checkedTypes.value = val ? [...ALL_VALUES] : []
@@ -192,7 +190,6 @@ function handleCancel() {
 }
 
 async function handleConfirm() {
-  if (!canConfirm.value) return
   const payload = {
     attachmentTypes: [...checkedTypes.value]
   }
@@ -225,7 +222,9 @@ function formatBytes(bytes) {
 
 watch(() => props.visible, (val) => {
   if (val) {
-    checkedTypes.value = [...ALL_VALUES]
+    // 默认不勾选任何附件类型：后端 AttachmentFilter 接受空 Set = 导出全部类型（含未来新增）。
+    // 这样 UI 文案"不勾选则导出全部类型"与默认状态保持一致，避免"默认全选"造成的语义歧义。
+    checkedTypes.value = []
     reset()
   }
 })

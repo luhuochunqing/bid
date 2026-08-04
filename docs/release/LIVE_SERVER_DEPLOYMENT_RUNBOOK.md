@@ -31,6 +31,8 @@
 
 服务器只负责运行包，不负责构建。不要在服务器上执行 `npm install`、`mvn package` 或 Git 拉代码发布。
 
+> **JVM 内存配置（业绩合订本导出）**：自 CO-602 起，业绩合订本导出涉及 300 DPI PDF 渲染 + 大批量附件累积，内存消耗较大。生产环境 systemd 服务单元或 `backend.env` 必须显式设置 `JVM_MEMORY="-Xmx4g -Xms1g -XX:MaxMetaspaceSize=256m"`，避免导出大规模业绩包时 OOM。dev 环境 `backend/start.sh` 默认 `-Xmx1g`，仅用于小规模联调。
+
 ## 2. 发布原则
 
 1. 只从已通过 CI 和 `Main Release Pipeline` 的 `main` 提交发布。
