@@ -228,6 +228,22 @@ public static boolean isAllowed(String roleCode) {
 - `OrganizationDepartmentRepository.findBySourceAppAndExternalDeptIdIn()` 查询
 - 列表场景下通过 `users.department_code` 反查部门名
 
+### 5.4 jobNumber 三字段同源（username / employee_number / crm_sales_no）
+
+**重要**：OSS 事件库传过来的 `jobNumber`（工号）在系统中被写入三个字段，值完全相同：
+
+| 字段 | 填充点 | 用途 | 覆盖率（2026-08-04 生产） |
+|---|---|---|---|
+| `username` | `OrganizationDirectoryJsonMapper.java:36` | 登录用户名 | 全员 |
+| `employee_number` | `OrganizationUserSyncWriter.java:107` + V1127 回填 | 业务工号（如 `TenderAutoAssignmentService` 按工号查项目经理 CO-441） | 8547/8548 |
+| `crm_sales_no` | `OrganizationUserSyncWriter.java:113`（spec 037 后） | 换取 CRM JWT token（CO-152） | 1254/8548 |
+
+**命名历史误会**：`crm_sales_no` 字段名带 "CRM" 前缀是 CO-152 时期的命名误会（当时以为 CRM salesNo 是独立编号），spec 037 已澄清"OSS 工号即 CRM salesNo（已生产验证）"。三个字段填的是同一个值 —— OSS 事件库的 `jobNumber`。
+
+**UI 显示建议**：列表展示工号应优先用 `employee_number`（覆盖率最高），列标题用"工号"而非"CRM 工号"。`crm_sales_no` 是集成字段，不应在前端 UI 编辑。
+
+**相关**：`docs/lessons/lessons-learned.md` §98
+
 ---
 
 ## 6. 部门名称补充机制

@@ -3,6 +3,14 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-08-04] update | oss-organization-sync-playbook 新增 §5.4 jobNumber 三字段同源 + lessons-learned §98
+
+- 背景：组织架构管理页"CRM 工号"列大部分用户显示"-"，业务人员困惑。PR !2252 修复时发现 `crm_sales_no`/`employee_number`/`username` 三字段同源，均填 OSS 事件库的 `jobNumber`
+- 改动：
+  - `oss-organization-sync-playbook.md`：新增 §5.4 jobNumber 三字段同源澄清（含填充点、用途、覆盖率、命名历史误会、UI 显示建议）
+  - `docs/lessons/lessons-learned.md`：新增 §98 OSS 工号三字段同源教训
+- 触发点：复合查询回填（§2 触发点 3）—— 用户质疑"CRM 工号"列命名，回到代码追溯发现三字段同源
+
 ## [2026-08-01] update | dynamic-form-engine 新增 §9.8 E2E 失败根因 + lessons-learned §96
 
 - 背景：T034 quickstart §4 E2E 测试 9 个全失败，但 CO-601 产品代码经手动 API 验证正常
