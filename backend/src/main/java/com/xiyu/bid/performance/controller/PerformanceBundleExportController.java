@@ -1,6 +1,7 @@
 package com.xiyu.bid.performance.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.annotation.Auditable;
 import com.xiyu.bid.config.PaginationConstants;
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.entity.RoleProfileCatalog;
@@ -72,6 +73,7 @@ public class PerformanceBundleExportController {
      */
     @PostMapping
     @PreAuthorize("hasAuthority('" + PERM + "')")
+    @Auditable(action = "PERFORMANCE_BUNDLE_EXPORT_TRIGGER", description = "触发业绩合订本导出")
     public ResponseEntity<ApiResponse<Map<String, Object>>> triggerExport(
             @Valid @RequestBody(required = false) BundleExportRequest request) {
         Long operatorId = userResolver.resolveCurrentUserId();
@@ -90,7 +92,6 @@ public class PerformanceBundleExportController {
                 result = exportAppService.export(criteria, attachmentTypes, operatorId);
             }
         } catch (RejectedExecutionException e) {
-            // 线程池满（AbortPolicy）：返回 503，提示用户稍后重试
             log.warn("业绩合订本导出线程池已满，拒绝任务: operatorId={}", operatorId);
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .body(ApiResponse.error("系统繁忙，已有多个导出任务在排队，请稍后重试"));
@@ -101,6 +102,7 @@ public class PerformanceBundleExportController {
 
     @GetMapping("/tasks")
     @PreAuthorize("hasAuthority('" + PERM + "')")
+    @Auditable(action = "PERFORMANCE_BUNDLE_EXPORT_LIST", description = "查询导出任务列表")
     public ResponseEntity<ApiResponse<Map<String, Object>>> listExportTasks(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "15") int size) {
@@ -108,7 +110,6 @@ public class PerformanceBundleExportController {
         if (userId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("未登录"));
         }
-        // 分页参数上限保护（项目规范：PaginationConstants.MAX_PAGE_SIZE=100）
         int safeSize = Math.min(Math.max(size, 1), PaginationConstants.MAX_PAGE_SIZE);
         Page<PerformanceExportTaskEntity> tasks = exportAppService.listTasks(
                 userId, PageRequest.of(page, safeSize, Sort.by("createdAt").descending()));
@@ -123,6 +124,7 @@ public class PerformanceBundleExportController {
 
     @GetMapping("/tasks/{taskId}/status")
     @PreAuthorize("hasAuthority('" + PERM + "')")
+    @Auditable(action = "PERFORMANCE_BUNDLE_EXPORT_STATUS", description = "查询导出任务状态")
     public ResponseEntity<ApiResponse<ExportTaskResponse>> getExportTaskStatus(@PathVariable Long taskId) {
         Long userId = userResolver.resolveCurrentUserId();
         if (userId == null) {
@@ -138,11 +140,11 @@ public class PerformanceBundleExportController {
 
     @GetMapping("/tasks/{taskId}/download")
     @PreAuthorize("hasAuthority('" + PERM + "')")
+    @Auditable(action = "PERFORMANCE_BUNDLE_EXPORT_DOWNLOAD", description = "下载导出文件")
     public ResponseEntity<StreamingResponseBody> downloadExportFile(@PathVariable Long taskId) {
         Long userId = userResolver.resolveCurrentUserId();
         if (userId == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         try {
-            // 单次查询同时获取文件路径和任务实体（CO-602 PR 审查修复：避免重复查询）
             PerformanceBundleExportAppService.ExportFileResult result =
                     exportAppService.getExportFileWithTask(taskId, userId);
             String filename = buildDownloadFilename(result.task());
@@ -176,11 +178,6 @@ public class PerformanceBundleExportController {
         return "业绩合订本_" + ts + ".docx";
     }
 
-    /**
-     * 构造 RFC 5987 兼容的 Content-Disposition 头，支持中文文件名。
-     * <p>同时提供 ASCII fallback（filename）和 UTF-8 编码（filename*），
-     * 兼容旧浏览器和现代浏览器，避免中文乱码。
-     */
     private String buildContentDisposition(String filename) {
         String encoded = URLEncoder.encode(filename, StandardCharsets.UTF_8).replace("+", "%20");
         return "attachment; filename=\"" + encoded + "\"; filename*=UTF-8''" + encoded;
