@@ -11,8 +11,8 @@ backlinks:
   - _index
   - multi-agent-defense-playbook
 created: 2026-05-10
-updated: 2026-06-22
-health_checked: 2026-07-23
+updated: 2026-08-04
+health_checked: 2026-08-04
 archive: true
 ---
 # 工程经验总结
