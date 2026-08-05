@@ -28,15 +28,15 @@ echo "登录用户: $ADMIN_USER (/bidAdmin 角色)"
 echo "=========================================="
 echo ""
 
-# ── Step 1: 登录获取 token ──
+# ── Step 1: 登录获取 token（token 在 Set-Cookie: access_token 中）──
 echo "[1/5] 登录 $ADMIN_USER ..."
-LOGIN_RESP=$(curl -s -X POST "$BASE_URL/api/auth/login" \
+LOGIN_RESP=$(curl -s -i -X POST "$BASE_URL/api/auth/login" \
   -H "Content-Type: application/json" \
   -d "{\"username\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\"}")
-TOKEN=$(echo "$LOGIN_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('data',{}).get('token',''))" 2>/dev/null || echo "")
+TOKEN=$(echo "$LOGIN_RESP" | grep -i "Set-Cookie: access_token=" | sed 's/.*access_token=//;s/;.*//' | tr -d '\r')
 
 if [ -z "$TOKEN" ]; then
-  echo "  ✗ 登录失败，响应: $LOGIN_RESP"
+  echo "  ✗ 登录失败，响应: $(echo "$LOGIN_RESP" | tail -1 | head -c 200)"
   exit 1
 fi
 echo "  ✓ 登录成功"
@@ -45,7 +45,7 @@ echo "  ✓ 登录成功"
 echo ""
 echo "[2/5] 确认当前用户角色 ..."
 ME_RESP=$(curl -s "$BASE_URL/api/auth/me" \
-  -H "Authorization: Bearer $TOKEN")
+  -b "access_token=$TOKEN")
 ROLE_CODE=$(echo "$ME_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('data',{}).get('roleCode',''))" 2>/dev/null || echo "")
 echo "  当前用户角色: $ROLE_CODE"
 if [ "$ROLE_CODE" != "/bidAdmin" ] && [ "$ROLE_CODE" != "bid-SystemAdmin" ] && [ "$ROLE_CODE" != "bid-TeamLeader" ]; then
@@ -56,7 +56,7 @@ fi
 echo ""
 echo "[3/5] 查询当前未读通知数 ..."
 NOTIF_BEFORE=$(curl -s "$BASE_URL/api/notifications?status=unread&page=0&size=1" \
-  -H "Authorization: Bearer $TOKEN")
+  -b "access_token=$TOKEN")
 UNREAD_BEFORE=$(echo "$NOTIF_BEFORE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('data',{}).get('totalElements',0))" 2>/dev/null || echo "0")
 echo "  当前未读通知数: $UNREAD_BEFORE"
 
@@ -64,28 +64,13 @@ echo "  当前未读通知数: $UNREAD_BEFORE"
 echo ""
 echo "[4/5] 查询可用项目 ..."
 PROJECTS_RESP=$(curl -s "$BASE_URL/api/projects?page=0&size=10" \
-  -H "Authorization: Bearer $TOKEN")
+  -b "access_token=$TOKEN")
 PROJECT_ID=$(echo "$PROJECTS_RESP" | python3 -c "
 import sys, json
-data = json.load(sys.stdin).get('data', {})
-items = data.get('content', data.get('items', []))
-for p in items:
-    stage = p.get('stage', p.get('currentStage', ''))
-    if stage in ('EVALUATION', 'RESULT_PENDING', 'RETROSPECTIVE'):
-        print(p.get('id', ''))
-        break
+data = json.load(sys.stdin).get('data', [])
+if isinstance(data, list) and data:
+    print(data[0].get('id', ''))
 " 2>/dev/null || echo "")
-
-if [ -z "$PROJECT_ID" ]; then
-  echo "  ⚠ 未找到评估阶段的项目，尝试用第一个项目 ..."
-  PROJECT_ID=$(echo "$PROJECTS_RESP" | python3 -c "
-import sys, json
-data = json.load(sys.stdin).get('data', {})
-items = data.get('content', data.get('items', []))
-if items:
-    print(items[0].get('id', ''))
-" 2>/dev/null || echo "")
-fi
 
 if [ -z "$PROJECT_ID" ]; then
   echo "  ✗ 未找到可用项目，请先创建一个项目"
@@ -97,7 +82,7 @@ echo "  使用项目 ID: $PROJECT_ID"
 echo ""
 echo "[5/5] 触发弃标通知 ..."
 ABANDON_RESP=$(curl -s -X POST "$BASE_URL/api/projects/$PROJECT_ID/evaluation/abandon" \
-  -H "Authorization: Bearer $TOKEN" \
+  -b "access_token=$TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"reason":"PR !2267 上线验证 — 测试 admin 排除后 /bidAdmin 是否收到通知"}')
 
@@ -110,7 +95,7 @@ sleep 2
 
 # ── 查询通知列表 ──
 NOTIF_AFTER=$(curl -s "$BASE_URL/api/notifications?status=unread&page=0&size=20" \
-  -H "Authorization: Bearer $TOKEN")
+  -b "access_token=$TOKEN")
 UNREAD_AFTER=$(echo "$NOTIF_AFTER" | python3 -c "import sys,json; print(json.load(sys.stdin).get('data',{}).get('totalElements',0))" 2>/dev/null || echo "0")
 echo "  当前未读通知数: $UNREAD_AFTER"
 
