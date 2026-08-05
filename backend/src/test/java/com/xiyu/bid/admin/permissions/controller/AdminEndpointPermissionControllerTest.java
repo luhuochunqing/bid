@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -15,6 +16,7 @@ import java.util.List;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -63,5 +65,27 @@ class AdminEndpointPermissionControllerTest {
     void staffCannotListEndpointPermissionMatrix() throws Exception {
         mockMvc.perform(get("/api/admin/permissions/endpoints"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void returnsEtagHeaderOnFirstFetch() throws Exception {
+        when(catalogAppService.listEndpointPermissions()).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/admin/permissions/endpoints"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("ETag", "W/\"co605-endpoints-v1\""))
+                .andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("max-age")));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void returns304WhenEtagMatches() throws Exception {
+        when(catalogAppService.listEndpointPermissions()).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/admin/permissions/endpoints")
+                        .header(HttpHeaders.IF_NONE_MATCH, "W/\"co605-endpoints-v1\""))
+                .andExpect(status().isNotModified())
+                .andExpect(header().string("ETag", "W/\"co605-endpoints-v1\""));
     }
 }

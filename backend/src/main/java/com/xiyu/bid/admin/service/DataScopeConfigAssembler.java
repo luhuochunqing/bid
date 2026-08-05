@@ -22,15 +22,16 @@ import java.util.stream.Collectors;
 public class DataScopeConfigAssembler {
 
     public DataScopeConfigResponse toResponse(List<User> users, List<RoleProfile> roles, DataScopeConfigPayload payload) {
+        // 性能优化 (CO-605): 不再返回 deptOptions/userOptions。
+        // 前端 useOrganizationSettings 已由 deptTree/users 派生这两个字段，
+        // 后端重复返回 1250+ 行部门列表和全量用户列表造成 4.3MB 响应体积。
         DepartmentGraph graph = DepartmentGraphPolicy.buildGraph(mergeDepartments(users, payload.getDepartmentTree()));
         Map<Long, DataScopeConfigPayload.UserScopeRule> userRules = indexUserRules(payload);
         Map<String, DataScopeConfigPayload.DepartmentScopeRule> deptRules = indexDepartmentRules(payload);
         return DataScopeConfigResponse.builder()
                 .userDataScope(users.stream().map(user -> toUserScopeItem(user, userRules.get(user.getId()))).toList())
                 .deptDataScope(graph.options().stream().map(option -> toDeptScopeItem(option, deptRules.get(option.code()))).toList())
-                .deptOptions(graph.options().stream().map(this::toDeptOptionItem).toList())
                 .deptTree(graph.tree().stream().map(this::toDeptTreeItem).toList())
-                .userOptions(users.stream().map(this::toUserOptionItem).toList())
                 .users(users.stream().map(this::toUserItem).toList())
                 .roles(toRoleItems(users, roles))
                 .build();
@@ -138,26 +139,8 @@ public class DataScopeConfigAssembler {
                 .toList();
     }
 
-    private DataScopeConfigResponse.DepartmentOptionItem toDeptOptionItem(DepartmentOption option) {
-        return DataScopeConfigResponse.DepartmentOptionItem.builder().code(option.code()).name(option.name()).build();
-    }
-
     private DataScopeConfigResponse.DepartmentTreeItem toDeptTreeItem(DepartmentNode node) {
         return DataScopeConfigResponse.DepartmentTreeItem.builder().deptCode(node.code()).deptName(node.name()).parentDeptCode(node.parentCode()).sortOrder(node.sortOrder()).build();
-    }
-
-    private DataScopeConfigResponse.UserOptionItem toUserOptionItem(User user) {
-        Long roleId = user.getRoleProfile() == null ? null : user.getRoleProfile().getId();
-        return DataScopeConfigResponse.UserOptionItem.builder()
-                .id(user.getId())
-                .name(user.getFullName())
-                .roleId(roleId)
-                // SAFE: 数据范围配置页的下拉选项展示用，CO-373 治理范围外的展示字段。
-                .role(user.getRoleCode())
-                .roleName(user.getRoleName())
-                .deptCode(DepartmentGraphPolicy.normalizeCode(user.getDepartmentCode()))
-                .dept(DepartmentGraphPolicy.normalizeName(user.getDepartmentName()))
-                .build();
     }
 
     private DataScopeConfigResponse.UserItem toUserItem(User user) {

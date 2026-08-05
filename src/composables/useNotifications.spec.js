@@ -24,7 +24,8 @@ describe('useNotifications', () => {
     vi.useFakeTimers()
     notificationsApi.getUnreadCount.mockResolvedValue({ count: 5 })
 
-    const { startPolling, stopPolling } = useNotifications({ pollingInterval: 30000, autoStart: false })
+    const { startPolling, stopPolling, _resetForTest } = useNotifications({ pollingInterval: 30000, autoStart: false })
+    _resetForTest()
     startPolling()
 
     // First tick triggers fetch
@@ -47,7 +48,8 @@ describe('useNotifications', () => {
     vi.useFakeTimers()
     notificationsApi.getUnreadCount.mockResolvedValue({ count: 0 })
 
-    const { startPolling, stopPolling } = useNotifications({ pollingInterval: 30000, autoStart: false })
+    const { startPolling, stopPolling, _resetForTest } = useNotifications({ pollingInterval: 30000, autoStart: false })
+    _resetForTest()
     startPolling()
     await vi.advanceTimersByTimeAsync(0)
     expect(notificationsApi.getUnreadCount).toHaveBeenCalledTimes(1)
@@ -70,7 +72,8 @@ describe('useNotifications', () => {
       .mockRejectedValueOnce(err429)
       .mockResolvedValueOnce({ count: 3 })
 
-    const { startPolling, stopPolling } = useNotifications({ pollingInterval: 30000, autoStart: false })
+    const { startPolling, stopPolling, _resetForTest } = useNotifications({ pollingInterval: 30000, autoStart: false })
+    _resetForTest()
     startPolling()
 
     // Initial fetch at start uses silentRateLimit config
@@ -97,7 +100,8 @@ describe('useNotifications', () => {
     vi.useFakeTimers()
     notificationsApi.getUnreadCount.mockResolvedValue({ count: 0 })
 
-    const { startPolling, stopPolling } = useNotifications({ pollingInterval: 30000, autoStart: false })
+    const { startPolling, stopPolling, _resetForTest } = useNotifications({ pollingInterval: 30000, autoStart: false })
+    _resetForTest()
     startPolling()
 
     await vi.advanceTimersByTimeAsync(0)
@@ -112,7 +116,8 @@ describe('useNotifications', () => {
     const err403 = { response: { status: 403 } }
     notificationsApi.getUnreadCount.mockRejectedValueOnce(err403)
 
-    const { startPolling, stopPolling } = useNotifications({ pollingInterval: 30000, autoStart: false })
+    const { startPolling, stopPolling, _resetForTest } = useNotifications({ pollingInterval: 30000, autoStart: false })
+    _resetForTest()
     startPolling()
 
     // Initial fetch triggers 403
@@ -124,6 +129,41 @@ describe('useNotifications', () => {
     expect(notificationsApi.getUnreadCount).toHaveBeenCalledTimes(1)
 
     stopPolling()
+    vi.useRealTimers()
+  })
+
+  it('CO-605: multiple instances share single polling timer', async () => {
+    vi.useFakeTimers()
+    notificationsApi.getUnreadCount.mockResolvedValue({ count: 0 })
+
+    const instance1 = useNotifications({ pollingInterval: 30000, autoStart: false })
+    const instance2 = useNotifications({ pollingInterval: 30000, autoStart: false })
+    instance1._resetForTest()
+
+    instance1.startPolling()
+    instance2.startPolling()
+
+    // 两个实例都 startPolling，但只有首个实例触发 tick + setInterval
+    await vi.advanceTimersByTimeAsync(0)
+    expect(notificationsApi.getUnreadCount).toHaveBeenCalledTimes(1)
+
+    // 推进一个周期：仍然只有一个 setInterval 在跑，只触发一次
+    notificationsApi.getUnreadCount.mockClear()
+    await vi.advanceTimersByTimeAsync(30000)
+    expect(notificationsApi.getUnreadCount).toHaveBeenCalledTimes(1)
+
+    // 第一个实例 stopPolling 不应停止全局轮询（还有活跃实例）
+    instance1.stopPolling()
+    notificationsApi.getUnreadCount.mockClear()
+    await vi.advanceTimersByTimeAsync(30000)
+    expect(notificationsApi.getUnreadCount).toHaveBeenCalledTimes(1)
+
+    // 最后一个实例 stopPolling 才真正停止全局轮询
+    instance2.stopPolling()
+    notificationsApi.getUnreadCount.mockClear()
+    await vi.advanceTimersByTimeAsync(60000)
+    expect(notificationsApi.getUnreadCount).toHaveBeenCalledTimes(0)
+
     vi.useRealTimers()
   })
 })

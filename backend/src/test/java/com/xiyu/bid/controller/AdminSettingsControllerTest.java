@@ -43,14 +43,19 @@ class AdminSettingsControllerTest {
 
     @Test
     void getDataScopeConfig_ShouldReturnPayload() throws Exception {
+        // CO-605: service 层不再返回 deptOptions/userOptions（性能优化，前端由 deptTree/users 派生）
         when(dataScopeConfigService.getConfig()).thenReturn(DataScopeConfigResponse.builder()
-                .deptOptions(List.of(DataScopeConfigResponse.DepartmentOptionItem.builder().code("SALES").name("销售部").build()))
+                .deptTree(List.of(DataScopeConfigResponse.DepartmentTreeItem.builder()
+                        .deptCode("SALES").deptName("销售部").sortOrder(1).build()))
                 .build());
 
         mockMvc.perform(get("/api/admin/settings/data-scope"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.deptOptions[0].code").value("SALES"));
+                .andExpect(jsonPath("$.data.deptTree[0].deptCode").value("SALES"))
+                // deptOptions/userOptions 仍可能因 @Builder.Default 序列化为空数组，但不包含实际数据
+                .andExpect(jsonPath("$.data.deptOptions").isEmpty())
+                .andExpect(jsonPath("$.data.userOptions").isEmpty());
     }
 
     @Test

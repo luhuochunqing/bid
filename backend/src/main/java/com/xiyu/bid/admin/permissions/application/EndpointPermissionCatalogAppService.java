@@ -6,6 +6,7 @@ package com.xiyu.bid.admin.permissions.application;
 import com.xiyu.bid.admin.permissions.core.EndpointPermissionDescriptor;
 import com.xiyu.bid.admin.permissions.core.EndpointPermissionPolicy;
 import com.xiyu.bid.admin.permissions.dto.EndpointPermissionItem;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -23,13 +24,26 @@ public class EndpointPermissionCatalogAppService {
     private final RequestMappingHandlerMapping handlerMapping;
     private final EndpointPermissionPolicy policy = new EndpointPermissionPolicy();
 
+    // CO-605: 接口权限矩阵在应用启动后不变（Controller 不会热加载），缓存避免每次扫描 Spring MVC handler mapping
+    private volatile List<EndpointPermissionItem> cachedEndpointPermissions;
+
     public EndpointPermissionCatalogAppService(
             @Qualifier("requestMappingHandlerMapping") RequestMappingHandlerMapping handlerMapping
     ) {
         this.handlerMapping = handlerMapping;
     }
 
+    @PostConstruct
+    void initializeCache() {
+        this.cachedEndpointPermissions = buildEndpointPermissions();
+    }
+
     public List<EndpointPermissionItem> listEndpointPermissions() {
+        List<EndpointPermissionItem> snapshot = this.cachedEndpointPermissions;
+        return snapshot != null ? snapshot : buildEndpointPermissions();
+    }
+
+    private List<EndpointPermissionItem> buildEndpointPermissions() {
         return handlerMapping.getHandlerMethods().entrySet().stream()
                 .flatMap(entry -> toItems(entry).stream())
                 .filter(item -> item.path().startsWith("/api/"))
