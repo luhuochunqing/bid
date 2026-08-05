@@ -1,0 +1,921 @@
+{
+  "info": {
+    "_postman_id": "ca-integration-api-collection-v1",
+    "name": "西域数智化投标管理平台 - CA证书对外API v2.0",
+    "description": "CA 证书对外查询接口完整测试集合。\n\n**前置步骤**：\n1. 先使用内部账号登录获取 JWT Token（「内部管理」→「管理员登录」）\n2. 用 JWT Token 创建含 `ca:read` scope 的 API Key（「内部管理」→「创建 API Key」）\n3. 将返回的 `secret` 填入 Collection Variables 的 `apiKeySecret`\n4. 运行「CA 对外接口」目录下的所有请求\n\n**认证规则**：\n- 内部管理接口：使用 `Authorization: Bearer <JWT Token>`，需管理员角色\n- 对外查询接口：使用 `X-API-Key: <apiKeySecret>`，需包含 `ca:read` scope",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:18089",
+      "type": "string",
+      "description": "后端 API 基础地址（本地联调 18089 / 测试环境 / 生产）"
+    },
+    {
+      "key": "jwtToken",
+      "value": "",
+      "type": "string",
+      "description": "【请先登录获取】内部 JWT Token，用于创建 API Key。格式：不含 Bearer 前缀的纯 token 字符串"
+    },
+    {
+      "key": "adminUsername",
+      "value": "admin",
+      "type": "string",
+      "description": "管理员用户名（本地 dev: admin / 测试: 实际管理员账号）"
+    },
+    {
+      "key": "adminPassword",
+      "value": "XiyuAdmin2026!",
+      "type": "string",
+      "description": "管理员密码（本地 dev: XiyuAdmin2026! / 测试: 实际密码）"
+    },
+    {
+      "key": "apiKeySecret",
+      "value": "",
+      "type": "string",
+      "description": "【创建 API Key 后自动填入】格式 xiyu_sk_xxxxxxxx。仅创建时返回一次，请妥善保存"
+    },
+    {
+      "key": "apiKeyId",
+      "value": "",
+      "type": "string",
+      "description": "创建的 API Key ID（用于禁用/启用/删除）"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. 内部管理（前置步骤）",
+      "item": [
+        {
+          "name": "0.1 管理员登录获取 JWT",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"登录成功 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true, \"success 应为 true\");",
+                  "    pm.expect(json.data).to.have.property(\"token\", \"必须返回 token 字段\");",
+                  "    // 自动把 token 写入 collection variable",
+                  "    pm.collectionVariables.set(\"jwtToken\", json.data.token);",
+                  "    console.log(\"JWT Token 已自动保存:\", json.data.token.substring(0, 30) + \"...\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{adminUsername}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "管理员登录，返回 JWT Token。成功后会自动写入 `jwtToken` variable。"
+          }
+        },
+        {
+          "name": "0.2 创建含 ca:read scope 的 API Key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"API Key 创建成功 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    pm.expect(json.data).to.have.property(\"secret\", \"必须返回 secret 字段（只返回一次）\");",
+                  "    pm.expect(json.data.secret).to.match(/^xiyu_sk_/, \"secret 必须以 xiyu_sk_ 开头\");",
+                  "    pm.expect(json.data.scopes).to.include(\"ca:read\", \"必须包含 ca:read scope\");",
+                  "    // 自动写入 variables",
+                  "    pm.collectionVariables.set(\"apiKeySecret\", json.data.secret);",
+                  "    pm.collectionVariables.set(\"apiKeyId\", json.data.id);",
+                  "    console.log(\"\\n============================================================\");",
+                  "    console.log(\"  API Key 已创建！请妥善保存以下信息：\");",
+                  "    console.log(\"  ID:\", json.data.id);",
+                  "    console.log(\"  SECRET:\", json.data.secret);",
+                  "    console.log(\"  SCOPES:\", JSON.stringify(json.data.scopes));",
+                  "    console.log(\"  过期时间:\", json.data.expiresAt || \"永不过期\");",
+                  "    console.log(\"  ⚠️  此 Secret 只返回一次，关闭后无法再获取！\");",
+                  "    console.log(\"============================================================\\n\");",
+                  "});",
+                  "",
+                  "pm.test(\"返回 notice 提示用户保存 secret\", function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.data).to.have.property(\"notice\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman 测试 CA 查询对接\",\n  \"scopes\": [\"ca:read\"],\n  \"expiresAt\": \"2027-08-05T00:00:00\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/api-keys",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "api-keys"]
+            },
+            "description": "创建含 `ca:read` scope 的 API Key。**注意**：expiresAt 在此脚本中设置为「24 小时后过期」，请按需修改。\n\n响应中的 `secret` 会自动写入 `apiKeySecret` variable。"
+          }
+        },
+        {
+          "name": "0.3 查看所有 API Key（验证创建成功）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"列出 API Key 成功 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    pm.expect(json.data).to.be.an(\"array\");",
+                  "    // 验证列表中不返回 secret（安全约束）",
+                  "    json.data.forEach(function(k) {",
+                  "        pm.expect(k).to.not.have.property(\"secret\", \"列表接口禁止返回 secret!\");",
+                  "    });",
+                  "    console.log(\"当前共有 API Key 数量:\", json.data.length);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwtToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/api-keys",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "api-keys"]
+            },
+            "description": "验证 API Key 已创建成功。**安全约束**：列表接口不返回 secret 字段。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. CA 对外接口（X-API-Key 认证）",
+      "item": [
+        {
+          "name": "1.1 CA 证书列表查询（分页+筛选）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"列表查询成功 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    pm.expect(json.data).to.have.all.keys(",
+                  "        \"content\", \"totalElements\", \"totalPages\", \"page\", \"size\", \"hasNext\", \"hasPrevious\"",
+                  "    , \"分页字段必须完整\");",
+                  "    pm.expect(json.data.content).to.be.an(\"array\");",
+                  "    pm.expect(json.data.size).to.be.at.most(100, \"size 必须 <= 100\");",
+                  "    console.log(\"当前页条数:\", json.data.content.length, \"/ 总计:\", json.data.totalElements);",
+                  "});",
+                  "",
+                  "pm.test(\"所有 CA 证书密码脱敏为 ******\", function () {",
+                  "    var json = pm.response.json();",
+                  "    json.data.content.forEach(function(ca) {",
+                  "        pm.expect(ca.caPassword).to.eql(\"******\", \"CA ID=\" + ca.id + \" 密码未脱敏！实际=\" + ca.caPassword);",
+                  "    });",
+                  "});",
+                  "",
+                  "pm.test(\"content 中已下架 (INACTIVE) 的 CA 不出现\", function () {",
+                  "    var json = pm.response.json();",
+                  "    json.data.content.forEach(function(ca) {",
+                  "        pm.expect(ca.status).to.not.eql(\"INACTIVE\", \"已下架 CA 不应出现在列表中\");",
+                  "    });",
+                  "});",
+                  "",
+                  "pm.test(\"每条记录包含核心字段\", function () {",
+                  "    var json = pm.response.json();",
+                  "    if (json.data.content.length === 0) {",
+                  "        console.log(\"⚠️  列表为空，跳过字段结构检查。请先添加 CA 证书数据\");",
+                  "        return;",
+                  "    }",
+                  "    var first = json.data.content[0];",
+                  "    pm.expect(first).to.have.all.keys(",
+                  "        \"id\", \"relatedPlatforms\", \"caType\", \"sealType\", \"electronicAccount\",",
+                  "        \"caPassword\", \"issuer\", \"holderName\", \"expiryDate\", \"caPlatformUrl\",",
+                  "        \"custodianId\", \"custodianName\", \"custodianEmployeeNumber\",",
+                  "        \"borrowStatus\", \"status\", \"remarks\", \"createdAt\", \"updatedAt\",",
+                  "        \"borrowerName\", \"borrowerEmployeeNumber\", \"borrowTime\"",
+                  "    , \"核心字段必须存在（借用人字段允许为 null）\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKeySecret}}",
+                "description": "对外 API Key（格式 xiyu_sk_xxxxxxxx）"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/integration/ca-certificates?page=0&size=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "integration", "ca-certificates"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0",
+                  "description": "页码（从 0 开始，负数被截断为 0）"
+                },
+                {
+                  "key": "size",
+                  "value": "20",
+                  "description": "每页条数（1-100，>100 截断为 100，<=0 提升为 1）"
+                },
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true,
+                  "description": "【可选筛选】状态：ACTIVE 正常 / EXPIRING 即将到期 / EXPIRED 已过期"
+                },
+                {
+                  "key": "borrowStatus",
+                  "value": "",
+                  "disabled": true,
+                  "description": "【可选筛选】借用状态：IN_STOCK 在库 / BORROWED 在借 / RETURNING 归还中"
+                },
+                {
+                  "key": "keyword",
+                  "value": "",
+                  "disabled": true,
+                  "description": "【可选筛选】关键词搜索（持有人/颁发机构/保管人姓名，模糊匹配）"
+                },
+                {
+                  "key": "caType",
+                  "value": "",
+                  "disabled": true,
+                  "description": "【可选筛选】CA 类型：ENTITY_CA 企业CA / PERSON_CA 个人CA / TAX_CA 税务CA"
+                },
+                {
+                  "key": "sealType",
+                  "value": "",
+                  "disabled": true,
+                  "description": "【可选筛选】印章类型：OFFICIAL_SEAL 公章 / LEGAL_SEAL 法人章 / FINANCE_SEAL 财务章"
+                },
+                {
+                  "key": "sort",
+                  "value": "createdAt,desc",
+                  "disabled": true,
+                  "description": "【可选】排序字段+方向，默认 createdAt,desc"
+                }
+              ]
+            },
+            "description": "分页查询 CA 证书列表。支持多维度筛选 + 分页 + 排序。\n\n**密码字段**：返回 `caPassword=******`（脱敏）。\n**下架排除**：`status=INACTIVE` 的已下架证书自动不返回。"
+          }
+        },
+        {
+          "name": "1.2 CA 证书统计概览",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"概览查询成功 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    pm.expect(json.data).to.have.all.keys(",
+                  "        \"total\", \"expiring\", \"expired\", \"borrowed\"",
+                  "    , \"必须返回四个统计维度\");",
+                  "    // 类型和范围校验",
+                  "    Object.keys(json.data).forEach(function(k) {",
+                  "        pm.expect(json.data[k]).to.be.a(\"number\", k + \" 必须是数字\");",
+                  "        pm.expect(json.data[k]).to.be.at.least(0, k + \" 不能为负数\");",
+                  "    });",
+                  "    console.log(\"CA 证书概览：总=\" + json.data.total +",
+                  "        \" / 即将到期=\" + json.data.expiring +",
+                  "        \" / 已过期=\" + json.data.expired +",
+                  "        \" / 在借=\" + json.data.borrowed);",
+                  "});",
+                  "",
+                  "pm.test(\"各分项之和不应大于总数\", function () {",
+                  "    var json = pm.response.json();",
+                  "    var sum = json.data.expiring + json.data.expired + json.data.borrowed;",
+                  "    pm.expect(sum).to.be.at.most(json.data.total, \"分项之和 > 总数？数据逻辑异常\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKeySecret}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/integration/ca-certificates/overview",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "integration", "ca-certificates", "overview"]
+            },
+            "description": "统计 CA 证书库四个维度的数量：\n- **total**：证书总数\n- **expiring**：即将到期（≤30天内过期）\n- **expired**：已过期\n- **borrowed**：当前在借"
+          }
+        },
+        {
+          "name": "1.3 CA 证书详情（按 ID）",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// 如果未手动设置 caDetailId，自动从列表接口取第一条 ID",
+                  "var existingId = pm.collectionVariables.get(\"caDetailId\");",
+                  "if (!existingId) {",
+                  "    console.log(\"caDetailId 未设置，跳过自动设置（请先跑列表并手动选 ID 填入 caDetailId variable，或直接改 URL 中的 1）\");",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"详情查询成功 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    pm.expect(json.data.id).to.be.a(\"number\");",
+                  "});",
+                  "",
+                  "pm.test(\"详情密码脱敏为 ******\", function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.data.caPassword).to.eql(\"******\");",
+                  "});",
+                  "",
+                  "pm.test(\"详情包含借用人字段（允许 null）\", function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.data).to.have.property(\"borrowerName\");",
+                  "    pm.expect(json.data).to.have.property(\"borrowerEmployeeNumber\");",
+                  "    pm.expect(json.data).to.have.property(\"borrowTime\");",
+                  "    if (json.data.borrowStatus === \"BORROWED\") {",
+                  "        // 在借状态下借用人信息必填",
+                  "        pm.expect(json.data.borrowerName).to.not.be.null;",
+                  "        console.log(\"当前借用人:\", json.data.borrowerName, \"(\", json.data.borrowerEmployeeNumber, \")\");",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKeySecret}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/integration/ca-certificates/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "integration", "ca-certificates", "1"]
+            },
+            "description": "按 ID 查询单条 CA 证书完整信息。请将路径中的 `1` 替换为实际存在的 CA 证书 ID。\n\n可先跑 1.1 列表查看有哪些 ID。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. 异常边界测试（负向用例）",
+      "item": [
+        {
+          "name": "2.1 无 X-API-Key 返回 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"缺少 API Key → 401\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(false);",
+                  "    pm.expect(json.code).to.eql(401);",
+                  "    pm.expect(json.msg).to.include(\"X-API-Key\").and.to.not.be.empty;",
+                  "    console.log(\"✅ 401 错误信息:\", json.msg);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/integration/ca-certificates",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "integration", "ca-certificates"]
+            },
+            "description": "故意不提供 X-API-Key，验证返回 401 以及友好的错误提示。"
+          }
+        },
+        {
+          "name": "2.2 错误的 API Key 返回 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"无效 API Key → 401\", function () {",
+                  "    pm.response.to.have.status(401);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(false);",
+                  "    pm.expect(json.code).to.eql(401);",
+                  "    console.log(\"✅ 401 错误信息:\", json.msg);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "xiyu_sk_this_is_an_invalid_key_1234567890"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/integration/ca-certificates",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "integration", "ca-certificates"]
+            },
+            "description": "使用格式正确但数据库中不存在的 Key，验证 401 响应。"
+          }
+        },
+        {
+          "name": "2.3 缺少 ca:read scope 的 Key → 403",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// 说明：此用例需要先手动创建一个不含 ca:read scope 的 API Key",
+                  "// 并将其填入 collection variable 'apiKeyNoCaReadScope'",
+                  "// 推荐创建命令：POST /api/admin/api-keys { name: \"No CA Scope\", scopes: [\"tender:read\"] }",
+                  "var key = pm.collectionVariables.get(\"apiKeyNoCaReadScope\");",
+                  "if (!key) {",
+                  "    console.log(\"⚠️  请先创建不含 ca:read scope 的 Key 并设置 apiKeyNoCaReadScope variable。本用例跳过。\");",
+                  "    pm.test.skip(\"缺少 apiKeyNoCaReadScope variable，已跳过此用例\");",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"不含 ca:read scope → 403\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(false);",
+                  "    console.log(\"✅ 403 缺少 scope →\", json.msg);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKeyNoCaReadScope}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/integration/ca-certificates/overview",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "integration", "ca-certificates", "overview"]
+            },
+            "description": "**前置**：请先创建一个不含 `ca:read` scope 的 API Key（例如只含 `tender:read`），填入 `apiKeyNoCaReadScope` variable。\n\n期望返回 403 Forbidden。"
+          }
+        },
+        {
+          "name": "2.4 ID 不存在 → 404（而非 500）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"ID 99999999 不存在 → 404\", function () {",
+                  "    pm.response.to.have.status(404);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(false);",
+                  "    pm.expect(json.code).to.eql(404);",
+                  "    pm.expect(json.msg).to.include(\"不存在\", \"错误消息应明确指出资源不存在\");",
+                  "    console.log(\"✅ 404 错误信息:\", json.msg);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKeySecret}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/integration/ca-certificates/99999999",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "integration", "ca-certificates", "99999999"]
+            },
+            "description": "访问一个不可能存在的超大 ID，验证返回 404 + 标准错误格式，而非 500 系统异常。"
+          }
+        },
+        {
+          "name": "2.5 ID 格式非法（非数字）→ 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"ID='abc' 非数字 → 400\", function () {",
+                  "    pm.response.to.have.status(400);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(false);",
+                  "    pm.expect(json.code).to.eql(400);",
+                  "    pm.expect(json.msg).to.include(\"格式错误\").and.to.include(\"id\");",
+                  "    console.log(\"✅ 400 参数格式错误:\", json.msg);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKeySecret}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/integration/ca-certificates/abc",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "integration", "ca-certificates", "abc"]
+            },
+            "description": "将 ID 替换为非数字字符串 'abc'，验证返回 400 友好提示，而非 500 系统异常。"
+          }
+        },
+        {
+          "name": "2.6 size > 100 被截断为 100（防过大拉取）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"size=9999 → 实际返回 size=100\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    pm.expect(json.data.size).to.eql(100, \"size 9999 应被截断为上限 100\");",
+                  "    console.log(\"✅ size 截断生效：请求 9999 → 实际\", json.data.size);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKeySecret}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/integration/ca-certificates?page=0&size=9999",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "integration", "ca-certificates"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "9999",
+                  "description": "故意请求超大 size"
+                }
+              ]
+            },
+            "description": "故意请求 size=9999，验证服务端截断为 100（后端硬上限）。"
+          }
+        },
+        {
+          "name": "2.7 api_key 参数方式认证（回退模式）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"通过 ?api_key= 查询参数方式认证成功\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    console.log(\"✅ 查询参数 api_key 方式认证成功\");",
+                  "});",
+                  "",
+                  "pm.test(\"密码同样脱敏\", function () {",
+                  "    var json = pm.response.json();",
+                  "    if (json.data.content.length > 0) {",
+                  "        pm.expect(json.data.content[0].caPassword).to.eql(\"******\");",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/integration/ca-certificates/overview?api_key={{apiKeySecret}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "integration", "ca-certificates", "overview"],
+              "query": [
+                {
+                  "key": "api_key",
+                  "value": "{{apiKeySecret}}",
+                  "description": "查询参数方式传递 API Key（用于浏览器下载链接等场景）"
+                }
+              ]
+            },
+            "description": "除 Header 方式外，ApiKeyAuthenticationFilter 也支持查询参数传递：`api_key=xxx` 或 `api-key=xxx`。\n\n此用例验证第二种认证方式。"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. 常用筛选组合（参考用例）",
+      "item": [
+        {
+          "name": "3.1 筛选即将到期 + 按到期日排序",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"筛选 status=EXPIRING 成功\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    console.log(\"即将到期 CA 数量:\", json.data.totalElements);",
+                  "    json.data.content.forEach(function(ca) {",
+                  "        console.log(\" - \" + ca.holderName + \" (\" + ca.expiryDate + \")\");",
+                  "    });",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKeySecret}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/integration/ca-certificates?page=0&size=20&status=EXPIRING&sort=expiryDate,asc",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "integration", "ca-certificates"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "EXPIRING"
+                },
+                {
+                  "key": "sort",
+                  "value": "expiryDate,asc",
+                  "description": "即将到期的排在前面"
+                }
+              ]
+            },
+            "description": "列出即将到期（EXPIRING）的 CA 证书，按到期日升序排列。"
+          }
+        },
+        {
+          "name": "3.2 筛选在库的企业 CA",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"在库企业 CA 筛选成功\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    json.data.content.forEach(function(ca) {",
+                  "        pm.expect(ca.borrowStatus).to.eql(\"IN_STOCK\");",
+                  "        pm.expect(ca.caType).to.eql(\"ENTITY_CA\");",
+                  "    });",
+                  "    console.log(\"在库企业 CA 数量:\", json.data.totalElements);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKeySecret}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/integration/ca-certificates?borrowStatus=IN_STOCK&caType=ENTITY_CA",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "integration", "ca-certificates"],
+              "query": [
+                {
+                  "key": "borrowStatus",
+                  "value": "IN_STOCK"
+                },
+                {
+                  "key": "caType",
+                  "value": "ENTITY_CA",
+                  "description": "企业 CA"
+                }
+              ]
+            },
+            "description": "borrowStatus=IN_STOCK（在库）AND caType=ENTITY_CA（企业CA）的组合筛选。"
+          }
+        },
+        {
+          "name": "3.3 关键词搜索（持有人/颁发机构/保管人）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"关键词搜索成功\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.eql(true);",
+                  "    console.log(\"关键词搜索结果数:\", json.data.totalElements);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKeySecret}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/integration/ca-certificates?keyword=张三",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "integration", "ca-certificates"],
+              "query": [
+                {
+                  "key": "keyword",
+                  "value": "张三",
+                  "description": "请改为实际存在的关键词"
+                }
+              ]
+            },
+            "description": "keyword 模糊搜索三个字段：holderName（持有人）、issuer（颁发机构）、custodianName（保管人）。"
+          }
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "noauth",
+    "description": "Collection 级默认不认证，具体请求各自按需设置（JWT Bearer 或 X-API-Key Header）"
+  }
+}

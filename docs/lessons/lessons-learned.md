@@ -1127,3 +1127,71 @@ public static final Set<String> NOTIFICATION_RECIPIENT_ROLES =
 2. **Sentry 告警的根因可能不在上报点** — 上报点在 `WeComPushService.push()`，但根因在上游的接收人解析逻辑把不该选中的人选了进来。修复应从源头（接收人解析）入手，而非在下游（推送服务）打补丁。
 3. **静态常量集合的复用需要标注用途边界** — `GLOBAL_ACCESS_ROLES` 被 10 处引用，其中 3 处通知 + 7 处权限。新增 `NOTIFICATION_RECIPIENT_ROLES` 时必须明确 JavaDoc 标注"仅用于通知接收人解析，权限判断仍用 GLOBAL_ACCESS_ROLES"。
 4. **Sentry skip 告警本身是有效的观测手段** — 此前根因分析文档提出的"方案 A：skip 路径增加 Sentry 上报"已实施，才使得这个隐藏问题可见。但需要在修复后同步降噪，避免 1024 次重复告警淹没真实异常。
+
+---
+
+## 108. `@RestControllerAdvice(basePackages=...)` 作用域陷阱：跨包 Controller 业务异常被 GlobalExceptionHandler 吞成 500（PR !2272 / 2026-08-05）
+
+**背景**：新增 CA 证书对外查询接口 `CaIntegrationController`（位于 `com.xiyu.bid.integration.external` 包），复用 `CaCertificateService.getById()` 时抛出 `CaBusinessException("CA证书不存在: " + id)`。期望返回 404，实际返回 500 "系统繁忙"。
+
+**根因**：
+
+项目已有 `CaExceptionHandler`（位于 `com.xiyu.bid.resources.controller` 包），声明为：
+```java
+@RestControllerAdvice(basePackages = "com.xiyu.bid.resources")
+public class CaExceptionHandler {
+    @ExceptionHandler(CaBusinessException.class)
+    public ResponseEntity<Map<String, Object>> handleCaBusiness(CaBusinessException ex) { ... }
+}
+```
+
+`basePackages = "com.xiyu.bid.resources"` 限定了该 handler 仅扫描 `resources` 包及其子包下的 Controller。而对外接口 Controller 在 `integration.external` 包，**不在扫描范围内**，`CaBusinessException` 找不到匹配的 `@ExceptionHandler`，向上冒泡到 `GlobalExceptionHandler.handleGlobalException(Exception ex)` 兜底返回 500。
+
+**5 Whys**：
+1. ID 不存在返回 500 而非 404 → `CaBusinessException` 没有被 `CaExceptionHandler` 捕获
+2. 为什么没捕获 → `CaExceptionHandler` 的 `@RestControllerAdvice(basePackages=...)` 限定了仅扫描 `resources` 包
+3. 为什么有 basePackages 限制 → 原设计意图是"CA 业务异常 handler 只对 resources 包内的 Controller 生效"，避免误捕获其他模块的同类异常
+4. 为什么跨包复用 Service 时没考虑到 → 新增对外 Controller 时只关注了接口契约，没审查异常处理链路
+5. 工程根因 → **`@RestControllerAdvice(basePackages=...)` 的作用域是"包级"而非"异常类型级"**，跨包复用 Service 时，业务异常的处理链路不会自动跟随
+
+**修复**（PR !2272）：在 `CaIntegrationController` 内部添加本地 `@ExceptionHandler`，不依赖远端的 `CaExceptionHandler`：
+```java
+@RestController
+@RequestMapping("/api/integration/ca-certificates")
+public class CaIntegrationController {
+
+    @ExceptionHandler(CaBusinessException.class)
+    public ResponseEntity<ApiResponse<Void>> handleCaBusiness(CaBusinessException ex) {
+        HttpStatus status = switch (ex.getErrorCode() == null ? "" : ex.getErrorCode()) {
+            case "AUTH_REQUIRED" -> HttpStatus.UNAUTHORIZED;
+            case "PERMISSION_DENIED" -> HttpStatus.FORBIDDEN;
+            case "NOT_FOUND" -> HttpStatus.NOT_FOUND;
+            default -> HttpStatus.NOT_FOUND;
+        };
+        return ResponseEntity.status(status).body(ApiResponse.error(status.value(), ex.getMessage()));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        // /{id} 传非数字 'abc' 时返回 400 而非 500
+        return ResponseEntity.badRequest().body(ApiResponse.error(400, "参数「" + ex.getName() + "」格式错误"));
+    }
+}
+```
+
+**教训**：
+
+1. **`@RestControllerAdvice(basePackages=...)` 是"包级作用域"而非"异常类型级"** — 同一种业务异常（如 `CaBusinessException`）在 resources 包内有 handler 兜底，跨到 integration 包就失效。新增跨包 Controller 时必须检查它依赖的 Service 抛出的业务异常是否在当前包有对应 handler。
+
+2. **跨包复用 Service 时要追踪异常处理链路** — 不能只看 Service 的方法签名和返回值，还要看它抛出的业务异常在哪些包内有 `@ExceptionHandler`。如果原 handler 有 `basePackages` 限制，跨包 Controller 必须自建本地 handler，否则异常会被 `GlobalExceptionHandler.handleGlobalException` 吞成 500 "系统繁忙"。
+
+3. **`MethodArgumentTypeMismatchException` 也是高频被吞的异常** — `/{id}` 路径变量传非数字（如 `abc`）时，Spring 抛此异常，如果没有本地 handler，同样被 GlobalExceptionHandler 吞成 500。对外接口必须在每个有 `@PathVariable` 的 Controller 内加本地 handler 返回 400。
+
+4. **对外接口的错误格式必须可预期** — 第三方系统依赖 HTTP 状态码和结构化错误体做处理。404 表示资源不存在、400 表示参数错误、401 表示未认证、403 表示无权限，这些都必须准确返回，不能统一变成 500。500 在对外接口契约中意味着"服务端 bug"，会触发对方系统的告警和重试逻辑。
+
+5. **排查信号：日志中出现 "系统异常" + 业务异常类名** — 当 `GlobalExceptionHandler.handleGlobalException` 捕获了一个本应有专用 handler 的业务异常时，日志会打印 "系统异常" + 完整堆栈（含 `CaBusinessException` 等）。看到业务异常类名出现在 global handler 日志里，就是作用域失效的信号。
+
+**相关代码**：
+- `backend/src/main/java/com/xiyu/bid/resources/controller/CaExceptionHandler.java` — 原 handler（basePackages 限定 resources）
+- `backend/src/main/java/com/xiyu/bid/integration/external/CaIntegrationController.java` — 新增本地 handler
+- `backend/src/main/java/com/xiyu/bid/exception/GlobalExceptionHandler.java` — 兜底 handler（L418-426）
