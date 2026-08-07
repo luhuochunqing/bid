@@ -5,7 +5,10 @@
 # 用途：确认 TenderPendingAssignmentNotifier 是否真的没有任何调用方
 # 结论：如果输出只有类定义自身（1 处），则为死代码
 #
-# 用法：bash scripts/check-deadcode-tender-notifier.sh
+# Input: $1 后端源码目录（默认 backend/src）
+# Output: 类名/方法名/注入引用计数 + 死代码判定结论（stdout）
+# Pos: scripts/ - 死代码检查工具
+# 维护声明: 若改动本脚本，请同步更新本 header 注释与 scripts/README.md
 # ============================================================
 set -euo pipefail
 

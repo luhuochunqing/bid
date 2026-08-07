@@ -2,6 +2,13 @@
 # ============================================================
 # 验证脚本：PR !2267 上线后验证 — 确认 admin 被排除、/bidAdmin 收到通知
 #
+# Input: $1 BASE_URL（默认 http://127.0.0.1:18089）
+#        $2 ADMIN_USER（默认 bid_admin，/bidAdmin 角色）
+#        $3 ADMIN_PASS（默认 Test@123）
+# Output: 通知验证过程与结论（stdout），失败时退出码 1
+# Pos: scripts/ - 上线后验证工具
+# 维护声明: 若改动本脚本，请同步更新本 header 注释与 scripts/README.md
+#
 # 用法：
 #   bash scripts/verify-notification-recipient-excludes-admin.sh [BASE_URL] [ADMIN_USER] [ADMIN_PASS]
 #
