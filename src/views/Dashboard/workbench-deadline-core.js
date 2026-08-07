@@ -115,28 +115,41 @@ function buildMetrics(defs, deadlineStats) {
  */
 export function normalizeDeadlineItems(raw = {}) {
   return {
-    registrationDeadline: normalizeItemList(raw.registrationDeadline),
-    bidOpening: normalizeItemList(raw.bidOpening),
+    // 报名截止/开标来源 Tender 表（存在重复记录风险），做防御性去重
+    registrationDeadline: normalizeDedupList(raw.registrationDeadline),
+    bidOpening: normalizeDedupList(raw.bidOpening),
+    // 保证金来源 Fee 表（非 Tender），后端不参与去重，前端保持原样避免不对称；
+    // 且按项目名去重可能误并"同一项目同日期的多笔保证金"，故不去重
     depositDeadline: normalizeItemList(raw.depositDeadline),
   }
 }
 
 function normalizeItemList(list) {
   if (!Array.isArray(list)) return []
-  // 双重保险去重：按 (date + name) 业务键去重，保留首次出现的条目
+  return list.map((item) => ({
+    id: item?.id ?? null,
+    name: String(item?.name ?? ''),
+    date: String(item?.date ?? ''),
+    targetId: item?.targetId ?? null,
+    targetType: item?.targetType === 'tender' ? 'tender' : 'project',
+  }))
+}
+
+/**
+ * 双重保险去重：按 (date + name) 业务键去重，保留首次出现的条目。
+ *
+ * 注意：业务键刻意不含 id —— 重复 Tender 是"同一标讯被推两遍"产生的不同 id 行，
+ * 若键含 id 则完全无法去重。副作用是同标题同日期的不同标讯可能被误并，
+ * 这是展示层防御的取舍，根治走数据清理 + 去重策略加固（见 lessons-learned §109 follow-up）。
+ */
+function normalizeDedupList(list) {
+  if (!Array.isArray(list)) return []
+  const items = normalizeItemList(list)
   const dedupMap = new Map()
-  for (const item of list) {
-    const date = String(item?.date ?? '')
-    const name = String(item?.name ?? '').trim()
-    const key = `${date}|${name}`
+  for (const item of items) {
+    const key = `${item.date}|${item.name.trim()}`
     if (!dedupMap.has(key)) {
-      dedupMap.set(key, {
-        id: item?.id ?? null,
-        name,
-        date,
-        targetId: item?.targetId ?? null,
-        targetType: item?.targetType === 'tender' ? 'tender' : 'project',
-      })
+      dedupMap.set(key, item)
     }
   }
   return Array.from(dedupMap.values())
