@@ -9,8 +9,8 @@ sources:
 backlinks:
   - _index
 created: 2026-05-28
-updated: 2026-06-21
-health_checked: 2026-07-23
+updated: 2026-08-07
+health_checked: 2026-08-07
 ---
 > 蓝图章节：§4.1 工作台
 > 对应飞书蓝图：https://my.feishu.cn/docx/FgLAdRmFho4QhwxncgAcfxKJn0d
@@ -21,7 +21,8 @@ health_checked: 2026-07-23
 |---------|---------|---------|---------|
 | 指标卡片 | ✅ 已完成 | E2E + API | `e2e/dashboard-metric-drilldown.spec.js` |
 | 快捷入口 | ✅ 已完成 | 手动 | 所有角色 Bannner 按钮有有效路由，处理待办路由跳转，Dialog 提交后导航到项目页 |
-| 日程日历 | ✅ 已完成 | E2E + API | `GET /api/workbench/schedule-overview` 真实数据 |
+| 日程日历 | ✅ 已完成（含防御性去重） | E2E + API | `GET /api/workbench/schedule-overview` 真实数据，后端按(eventType+date+title)去重，前端双重保险 |
+| 截止时间 | ✅ 已完成（含防御性去重） | API | 报名/开标/保证金列表按(date+name)去重 |
 | 我的待办 | ✅ 已完成 | API | 任务/预警/审批 4 独立端点 |
 | 进行中项目 | ✅ 已完成 | API + E2E | `GET /api/projects` 真实数据 |
 | AI 商机预测 | ⬜ 规划中 | — | 蓝图标明"规划中" |

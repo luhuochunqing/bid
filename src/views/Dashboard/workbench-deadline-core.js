@@ -123,13 +123,23 @@ export function normalizeDeadlineItems(raw = {}) {
 
 function normalizeItemList(list) {
   if (!Array.isArray(list)) return []
-  return list.map((item) => ({
-    id: item?.id ?? null,
-    name: String(item?.name ?? ''),
-    date: String(item?.date ?? ''),
-    targetId: item?.targetId ?? null,
-    targetType: item?.targetType === 'tender' ? 'tender' : 'project',
-  }))
+  // 双重保险去重：按 (date + name) 业务键去重，保留首次出现的条目
+  const dedupMap = new Map()
+  for (const item of list) {
+    const date = String(item?.date ?? '')
+    const name = String(item?.name ?? '').trim()
+    const key = `${date}|${name}`
+    if (!dedupMap.has(key)) {
+      dedupMap.set(key, {
+        id: item?.id ?? null,
+        name,
+        date,
+        targetId: item?.targetId ?? null,
+        targetType: item?.targetType === 'tender' ? 'tender' : 'project',
+      })
+    }
+  }
+  return Array.from(dedupMap.values())
 }
 
 /**

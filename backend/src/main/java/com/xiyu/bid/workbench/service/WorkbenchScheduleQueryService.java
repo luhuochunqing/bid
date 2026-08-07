@@ -24,7 +24,9 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -43,16 +45,37 @@ public class WorkbenchScheduleQueryService {
     public ScheduleOverviewDTO getScheduleOverview(LocalDate start, LocalDate end, Long assigneeId) {
         List<CalendarEventDTO> events = new ArrayList<>(calendarService.getEventsByDateRange(start, end));
         events.addAll(buildTenderDerivedEvents(start, end));
-        events.sort(Comparator.comparing(CalendarEventDTO::getEventDate));
+
+        // 防御性去重：按 (eventType + eventDate + title) 业务键去重，保留首次出现的事件
+        // 覆盖场景：1) Tender表存在重复记录导致重复派生事件；2) 用户手动创建的事件与Tender派生事件重复
+        Map<String, CalendarEventDTO> deduped = new LinkedHashMap<>();
+        for (CalendarEventDTO event : events) {
+            String key = buildDedupKey(event);
+            deduped.putIfAbsent(key, event);
+        }
+        List<CalendarEventDTO> result = new ArrayList<>(deduped.values());
+        result.sort(Comparator.comparing(CalendarEventDTO::getEventDate));
+
+        int duplicateCount = events.size() - result.size();
+        if (duplicateCount > 0) {
+            log.warn("Deduplicated {} calendar events for range {} to {}", duplicateCount, start, end);
+        }
 
         return ScheduleOverviewDTO.builder()
                 .start(start)
                 .end(end)
                 .assigneeId(assigneeId)
-                .total(events.size())
-                .urgent(events.stream().filter(item -> Boolean.TRUE.equals(item.getIsUrgent())).count())
-                .events(events)
+                .total(result.size())
+                .urgent(result.stream().filter(item -> Boolean.TRUE.equals(item.getIsUrgent())).count())
+                .events(result)
                 .build();
+    }
+
+    private String buildDedupKey(CalendarEventDTO event) {
+        String type = event.getEventType() != null ? event.getEventType().name() : "";
+        String date = event.getEventDate() != null ? event.getEventDate().toString() : "";
+        String title = event.getTitle() != null ? event.getTitle().trim() : "";
+        return type + "|" + date + "|" + title;
     }
 
     /**
