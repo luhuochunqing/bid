@@ -378,6 +378,105 @@ class WorkbenchDeadlineQueryServiceTest {
         assertThat(result.registrationDeadline().get(2).name()).isEqualTo("晚");
     }
 
+    // ==================== 防御性去重（dedupDeadlineItems）测试 ====================
+
+    /**
+     * 去重核心：Tender 表存在重复标讯（同标题+同日期）时，报名截止/开标条目必须合并为一条。
+     * 覆盖生产事故：日历/截止时间出现重复项目，根因是 Tender 表重复记录。
+     */
+    @Test
+    void duplicateTendersWithSameTitleAndDateMustBeDeduplicated() {
+        var today = LocalDate.of(2026, 5, 17);
+        when(projectAccessScopeService.currentUserHasGlobalAccess()).thenReturn(true);
+        when(projectAccessScopeService.getAllowedProjectIdsForCurrentUser()).thenReturn(List.of());
+
+        // 两条标题相同、报名截止日期相同的标讯（数据库重复记录）
+        Tender dup1 = Tender.builder().id(1L).title("重复标讯")
+                .registrationDeadline(LocalDateTime.of(2026, 5, 18, 10, 0)).build();
+        Tender dup2 = Tender.builder().id(2L).title("重复标讯")
+                .registrationDeadline(LocalDateTime.of(2026, 5, 18, 10, 0)).build();
+        when(tenderRepository.findTendersByRegistrationDeadlineBetween(any(), any()))
+                .thenReturn(List.of(dup1, dup2));
+        when(tenderRepository.findTendersByBidOpeningTimeBetween(any(), any())).thenReturn(List.of());
+        when(feeRepository.findFeesByDepositDeadlineBetween(any(), any())).thenReturn(List.of());
+
+        WorkbenchDeadlineItemsDTO result = service.getDeadlineItems(today, DeadlinePeriod.WEEK);
+
+        // 去重后仅保留 1 条（保留首次出现的 dup1）
+        assertThat(result.registrationDeadline()).hasSize(1);
+        assertThat(result.registrationDeadline().get(0).id()).isEqualTo(1L);
+        assertThat(result.registrationDeadline().get(0).name()).isEqualTo("重复标讯");
+    }
+
+    /**
+     * 去重边界：标题相同但日期不同 → 不是重复，必须全部保留。
+     * 防止去重键过宽导致不同批次标讯被误合并。
+     */
+    @Test
+    void sameTitleDifferentDateMustNotBeDeduplicated() {
+        var today = LocalDate.of(2026, 5, 17);
+        when(projectAccessScopeService.currentUserHasGlobalAccess()).thenReturn(true);
+        when(projectAccessScopeService.getAllowedProjectIdsForCurrentUser()).thenReturn(List.of());
+
+        Tender day1 = Tender.builder().id(1L).title("同名标讯")
+                .registrationDeadline(LocalDateTime.of(2026, 5, 18, 10, 0)).build();
+        Tender day2 = Tender.builder().id(2L).title("同名标讯")
+                .registrationDeadline(LocalDateTime.of(2026, 5, 20, 10, 0)).build();
+        when(tenderRepository.findTendersByRegistrationDeadlineBetween(any(), any()))
+                .thenReturn(List.of(day1, day2));
+        when(tenderRepository.findTendersByBidOpeningTimeBetween(any(), any())).thenReturn(List.of());
+        when(feeRepository.findFeesByDepositDeadlineBetween(any(), any())).thenReturn(List.of());
+
+        WorkbenchDeadlineItemsDTO result = service.getDeadlineItems(today, DeadlinePeriod.WEEK);
+
+        assertThat(result.registrationDeadline()).hasSize(2);
+    }
+
+    /**
+     * 去重 null 安全：标讯 title 为 null 时不得抛 NPE，条目仍应正常展示。
+     */
+    @Test
+    void nullTitleTenderMustNotThrowDuringDedup() {
+        var today = LocalDate.of(2026, 5, 17);
+        when(projectAccessScopeService.currentUserHasGlobalAccess()).thenReturn(true);
+        when(projectAccessScopeService.getAllowedProjectIdsForCurrentUser()).thenReturn(List.of());
+
+        Tender nullTitle = Tender.builder().id(1L).title(null)
+                .registrationDeadline(LocalDateTime.of(2026, 5, 18, 10, 0)).build();
+        when(tenderRepository.findTendersByRegistrationDeadlineBetween(any(), any()))
+                .thenReturn(List.of(nullTitle));
+        when(tenderRepository.findTendersByBidOpeningTimeBetween(any(), any())).thenReturn(List.of());
+        when(feeRepository.findFeesByDepositDeadlineBetween(any(), any())).thenReturn(List.of());
+
+        WorkbenchDeadlineItemsDTO result = service.getDeadlineItems(today, DeadlinePeriod.WEEK);
+
+        assertThat(result.registrationDeadline()).hasSize(1);
+        assertThat(result.registrationDeadline().get(0).name()).isNull();
+    }
+
+    /**
+     * 去重边界：两条 title = null 的标讯（同日期）应当被合并为一条，不抛异常。
+     */
+    @Test
+    void duplicateNullTitleTendersMustBeDeduplicatedWithoutNpe() {
+        var today = LocalDate.of(2026, 5, 17);
+        when(projectAccessScopeService.currentUserHasGlobalAccess()).thenReturn(true);
+        when(projectAccessScopeService.getAllowedProjectIdsForCurrentUser()).thenReturn(List.of());
+
+        Tender nullTitle1 = Tender.builder().id(1L).title(null)
+                .registrationDeadline(LocalDateTime.of(2026, 5, 18, 10, 0)).build();
+        Tender nullTitle2 = Tender.builder().id(2L).title(null)
+                .registrationDeadline(LocalDateTime.of(2026, 5, 18, 10, 0)).build();
+        when(tenderRepository.findTendersByRegistrationDeadlineBetween(any(), any()))
+                .thenReturn(List.of(nullTitle1, nullTitle2));
+        when(tenderRepository.findTendersByBidOpeningTimeBetween(any(), any())).thenReturn(List.of());
+        when(feeRepository.findFeesByDepositDeadlineBetween(any(), any())).thenReturn(List.of());
+
+        WorkbenchDeadlineItemsDTO result = service.getDeadlineItems(today, DeadlinePeriod.WEEK);
+
+        assertThat(result.registrationDeadline()).hasSize(1);
+    }
+
     /**
      * period=TODAY 时，查询窗口必须收敛到当天 0:00 - 23:59:59.999999999。
      */

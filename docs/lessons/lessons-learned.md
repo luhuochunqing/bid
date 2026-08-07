@@ -1195,3 +1195,59 @@ public class CaIntegrationController {
 - `backend/src/main/java/com/xiyu/bid/resources/controller/CaExceptionHandler.java` — 原 handler（basePackages 限定 resources）
 - `backend/src/main/java/com/xiyu/bid/integration/external/CaIntegrationController.java` — 新增本地 handler
 - `backend/src/main/java/com/xiyu/bid/exception/GlobalExceptionHandler.java` — 兜底 handler（L418-426）
+
+---
+
+## 109. 多数据源聚合层必须防御性去重：生产日历重复显示事故（2026-08-07）
+
+**背景**：生产环境（winbid.ehsy.com/dashboard）日历和截止时间模块出现重复项目，同一标讯在日历中显示2次。
+
+**根因**：
+
+1. **直接原因**：`WorkbenchScheduleQueryService` 合并两个数据源时无去重：
+   - `calendarService.getEventsByDateRange()` — 用户手动创建的日历事件
+   - `buildTenderDerivedEvents()` — 从 Tender 表派生的开标/报名截止事件
+   - 两路数据直接 `addAll` 后排序返回，无任何去重逻辑
+
+2. **数据层原因**：Tender 表存在真实重复记录。生产环境"截止时间"模块（只查 Tender 表，不合并 CalendarService）同样出现重复，证实数据库中已有重复标讯。
+
+3. **去重策略漏洞**：`TenderDeduplicationPolicy.isDuplicate()` 在 `purchaserName`/`registrationDeadline`/`bidOpeningTime` 任一为 null 时**直接返回 false 不判重**。外部推送路径（`TenderIntegrationCommandService.rejectDuplicateBusinessTender`）也跳过空时间字段的标讯，后续 update 补充时间字段时不会再次触发去重检查，导致重复记录进入数据库。
+
+**修复**（前后端双层防御）：
+
+- **后端**：
+  - `WorkbenchScheduleQueryService`：合并后按 `(eventType + eventDate + title)` 业务键去重，LinkedHashMap 保留首次出现的事件
+  - `WorkbenchDeadlineQueryService`：报名截止/开标列表分别按 `(date + name)` 去重
+  - 检测到重复时打印 warn 日志便于监控和后续数据清理
+- **前端**（双重保险）：
+  - `useWorkbenchSchedule.js`：API 返回数据 normalize 前先按 `(type + date + title)` 去重
+  - `workbench-deadline-core.js`：`normalizeItemList` 中按 `(date + name)` 去重
+
+**教训**：
+
+1. **多数据源聚合层是天然的去重点** — 任何 `listA.addAll(listB)` 操作都必须考虑去重，不能假设上游数据一定唯一。即使上游有去重策略（如 TenderDeduplicationService），历史数据、去重策略漏洞、并发写入都可能导致重复。
+
+2. **展示层防御性编程是最后一道防线** — 即使后端有去重，前端数据处理层也应加双重保险去重。前端去重成本极低（一次 Map 遍历），却能兜底后端未覆盖的边界情况、缓存异常、接口返回脏数据等问题。
+
+3. **去重策略不能因字段为 null 就跳过** — `if (field == null) return false` 的去重策略会留下漏洞：先插入字段不全的记录，后续更新补全字段时不再触发去重，就产生了重复。更安全的做法是：字段不全时按已有字段做宽松匹配，或在补全字段时重新触发去重检查。
+
+4. **LinkedHashMap 是去重的首选结构** — 用 `Map<String, T> + putIfAbsent` 去重，既保证 O(n) 时间复杂度，又通过 LinkedHashMap 保留原始插入顺序，避免去重后列表乱序。
+
+5. **生产问题排查技巧：检查"只查一个数据源"的模块** — 如果日历重复是前端渲染问题，那"截止时间"模块（数据源不同、渲染逻辑不同）不应也重复。两个独立模块同时重复 → 根因在共享的数据源（Tender表）而非展示层。
+
+**相关代码**：
+- `backend/src/main/java/com/xiyu/bid/workbench/service/WorkbenchScheduleQueryService.java` — 日历聚合去重
+- `backend/src/main/java/com/xiyu/bid/workbench/service/WorkbenchDeadlineQueryService.java` — 截止时间列表去重
+- `backend/src/main/java/com/xiyu/bid/tender/core/TenderDeduplicationPolicy.java` — Tender去重策略（null字段漏洞）
+- `src/views/Dashboard/useWorkbenchSchedule.js` — 前端日历数据去重
+- `src/views/Dashboard/workbench-deadline-core.js` — 前端截止时间去重
+
+**Follow-up 任务（已提升为正式任务，2026-08-07 思维链 Review H3）**：
+
+> 本次修复是**展示层（前后端）防御性兜底**，不消除数据源的真实重复。以下根治任务已从 follow-up 备注**提升为正式任务**，登记在 `docs/exec-plans/tech-debt-tracker.md` §「标讯去重：数据层清理 + 推送层策略加固」供重构 agent 扫描处理。前端薄防御层已移除（思维链 H2），去重单一事实源收敛到后端。
+>
+> 参考：`docs/exec-plans/tech-debt-tracker.md`「标讯去重：数据层清理 + 推送层策略加固」
+
+1. **Tender 数据清理脚本**：开发脚本扫描 Tender 表，按业务键（`purchaserName + registrationDeadline + bidOpeningTime`）找出重复记录，合并/清理历史脏数据。清理前需先备份，并确认不会误删有效记录（保留 `id` 最小的一条）。
+2. **去重策略加固（null 漏洞根治）**：`TenderDeduplicationPolicy.isDuplicate()` 当前在任一关键字段为 null 时直接返回 false 不判重。需改为：字段不全时按已有字段做宽松匹配，或在 Tender 更新补全时间字段时重新触发去重检查（`TenderIntegrationCommandService` 外部推送与 update 路径都要覆盖），堵住"先插不全区字段、后续补全不重判"的重复产生路径。
+3. **持续观察**：依赖本次新增的 warn 日志（日历聚合与截止时间去重命中时打印）持续监控，确认去重是否仍在触发、是否还有新重复进入，作为数据清理与策略加固的触发依据。

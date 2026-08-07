@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   normalizeDeadlineStats,
+  normalizeDeadlineItems,
   selectDeadlineMetrics,
 } from './workbench-deadline-core.js'
 
@@ -117,5 +118,46 @@ describe('selectDeadlineMetrics', () => {
     const result = selectDeadlineMetrics(['analytics'], null)
     expect(result).toHaveLength(4)
     result.forEach((card) => expect(card.value).toBe('0'))
+  })
+})
+
+describe('normalizeDeadlineItems', () => {
+  it('报名截止/开标按 (date + name) 去重，保留首次出现', () => {
+    const raw = {
+      registrationDeadline: [
+        { id: 1, name: '重复标讯', date: '2026-07-10', targetId: 1, targetType: 'tender' },
+        { id: 2, name: '重复标讯', date: '2026-07-10', targetId: 2, targetType: 'tender' },
+      ],
+      bidOpening: [],
+      depositDeadline: [],
+    }
+
+    const result = normalizeDeadlineItems(raw)
+
+    expect(result.registrationDeadline).toHaveLength(1)
+    expect(result.registrationDeadline[0].id).toBe(1)
+  })
+
+  it('保证金列表不去重（同一项目同日期的多笔保证金全部保留，与后端对称）', () => {
+    const raw = {
+      registrationDeadline: [],
+      bidOpening: [],
+      depositDeadline: [
+        { id: 1, name: 'XX项目', date: '2026-07-10', targetId: 100, targetType: 'project' },
+        { id: 2, name: 'XX项目', date: '2026-07-10', targetId: 100, targetType: 'project' },
+      ],
+    }
+
+    const result = normalizeDeadlineItems(raw)
+
+    // 保证金来源 Fee 表，后端不去重，前端保持原样避免不对称
+    expect(result.depositDeadline).toHaveLength(2)
+  })
+
+  it('空输入返回三个空数组', () => {
+    const result = normalizeDeadlineItems()
+    expect(result.registrationDeadline).toEqual([])
+    expect(result.bidOpening).toEqual([])
+    expect(result.depositDeadline).toEqual([])
   })
 })

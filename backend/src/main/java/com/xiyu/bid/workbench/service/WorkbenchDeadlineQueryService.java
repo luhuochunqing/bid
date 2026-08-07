@@ -20,9 +20,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -182,25 +184,25 @@ public class WorkbenchDeadlineQueryService {
         }
         Map<Long, String> projectNameById = resolveProjectNames(projectIdsToResolve);
 
-        // 报名截止 → 标讯名称 → 标讯详情
-        List<DeadlineItemDTO> regItems = regTenders.stream()
+        // 报名截止 → 标讯名称 → 标讯详情（防御性去重：按日期+标题）
+        List<DeadlineItemDTO> regItems = dedupDeadlineItems(regTenders.stream()
                 .filter(t -> t.getRegistrationDeadline() != null)
                 .sorted(Comparator.comparing(Tender::getRegistrationDeadline))
                 .map(t -> new DeadlineItemDTO(
                         t.getId(), t.getTitle(),
                         DATE_FORMATTER.format(t.getRegistrationDeadline()),
                         t.getId(), "tender"))
-                .toList();
+                .toList(), "registration");
 
-        // 开标 → 标讯名称 → 标讯详情
-        List<DeadlineItemDTO> openingItems = openingTenders.stream()
+        // 开标 → 标讯名称 → 标讯详情（防御性去重：按日期+标题）
+        List<DeadlineItemDTO> openingItems = dedupDeadlineItems(openingTenders.stream()
                 .filter(t -> t.getBidOpeningTime() != null)
                 .sorted(Comparator.comparing(Tender::getBidOpeningTime))
                 .map(t -> new DeadlineItemDTO(
                         t.getId(), t.getTitle(),
                         DATE_FORMATTER.format(t.getBidOpeningTime()),
                         t.getId(), "tender"))
-                .toList();
+                .toList(), "opening");
 
         // 保证金截止 → 项目名称 → 项目详情
         List<DeadlineItemDTO> depositItems = depositFees.stream()
@@ -213,6 +215,27 @@ public class WorkbenchDeadlineQueryService {
                 .toList();
 
         return new WorkbenchDeadlineItemsDTO(regItems, openingItems, depositItems);
+    }
+
+    /**
+     * 截止时间列表防御性去重：按 (date + name) 业务键去重，保留首次出现的条目。
+     * 覆盖场景：Tender表因历史数据/去重策略漏洞存在重复标讯记录。
+     */
+    private List<DeadlineItemDTO> dedupDeadlineItems(List<DeadlineItemDTO> items, String category) {
+        Map<String, DeadlineItemDTO> deduped = new LinkedHashMap<>();
+        for (DeadlineItemDTO item : items) {
+            String date = item.date() != null ? item.date() : "";
+            String name = item.name() != null ? item.name().trim() : "";
+            String key = date + "|" + name;
+            if (deduped.putIfAbsent(key, item) != null) {
+                log.debug("Deduplicated {} deadline item: date={}, name={}", category, date, name);
+            }
+        }
+        int removed = items.size() - deduped.size();
+        if (removed > 0) {
+            log.warn("Deduplicated {} {} deadline items (from {} to {})", removed, category, items.size(), deduped.size());
+        }
+        return new ArrayList<>(deduped.values());
     }
 
     private Map<Long, String> resolveProjectNames(Collection<Long> projectIds) {

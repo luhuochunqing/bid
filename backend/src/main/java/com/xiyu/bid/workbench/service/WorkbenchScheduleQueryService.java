@@ -24,7 +24,9 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -43,16 +45,49 @@ public class WorkbenchScheduleQueryService {
     public ScheduleOverviewDTO getScheduleOverview(LocalDate start, LocalDate end, Long assigneeId) {
         List<CalendarEventDTO> events = new ArrayList<>(calendarService.getEventsByDateRange(start, end));
         events.addAll(buildTenderDerivedEvents(start, end));
-        events.sort(Comparator.comparing(CalendarEventDTO::getEventDate));
+
+        // 防御性去重：仅对 Tender 派生事件（OPENING/DEADLINE）按 (eventType + eventDate + title) 业务键去重。
+        // 覆盖场景：Tender表存在重复记录（如某标讯被推送两遍）导致重复派生事件。
+        // 手动事件（MEETING/MILESTONE/REVIEW 等）在 calendar 维度唯一，用 id 作为 key，避免同 type+date+title 的手动事件被误并隐藏。
+        Map<String, CalendarEventDTO> deduped = new LinkedHashMap<>();
+        for (CalendarEventDTO event : events) {
+            EventType type = event.getEventType();
+            String key;
+            if (type == EventType.OPENING || type == EventType.DEADLINE) {
+                // Tender 派生事件：同业务键视为重复，保留首次出现
+                key = buildDedupKey(event);
+            } else if (event.getId() != null) {
+                // 手动事件：id 唯一，不使用业务键去重
+                key = "id:" + event.getId();
+            } else {
+                // 无 id 的手动事件兜底：退回业务键，避免被同一 null-id 合并
+                key = buildDedupKey(event);
+            }
+            deduped.putIfAbsent(key, event);
+        }
+        List<CalendarEventDTO> result = new ArrayList<>(deduped.values());
+        result.sort(Comparator.comparing(CalendarEventDTO::getEventDate));
+
+        int duplicateCount = events.size() - result.size();
+        if (duplicateCount > 0) {
+            log.warn("Deduplicated {} calendar events for range {} to {}", duplicateCount, start, end);
+        }
 
         return ScheduleOverviewDTO.builder()
                 .start(start)
                 .end(end)
                 .assigneeId(assigneeId)
-                .total(events.size())
-                .urgent(events.stream().filter(item -> Boolean.TRUE.equals(item.getIsUrgent())).count())
-                .events(events)
+                .total(result.size())
+                .urgent(result.stream().filter(item -> Boolean.TRUE.equals(item.getIsUrgent())).count())
+                .events(result)
                 .build();
+    }
+
+    private String buildDedupKey(CalendarEventDTO event) {
+        String type = event.getEventType() != null ? event.getEventType().name() : "";
+        String date = event.getEventDate() != null ? event.getEventDate().toString() : "";
+        String title = event.getTitle() != null ? event.getTitle().trim() : "";
+        return type + "|" + date + "|" + title;
     }
 
     /**

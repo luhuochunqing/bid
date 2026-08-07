@@ -218,6 +218,127 @@ class WorkbenchScheduleQueryServiceAccessTest {
         assertThat(response.getEvents().get(0).getTitle()).isEqualTo("截断后仍可见");
     }
 
+    // ==================== 防御性去重（buildDedupKey）测试 ====================
+
+    /**
+     * 去重收窄（P2#1）：手动事件（MEETING 等）在 calendar 维度唯一，即使 同类型+同日期+同标题 也不得通过业务键去重。
+     * 回归覆盖：去重仅对 Tender 派生事件（OPENING/DEADLINE）生效，避免手动事件被误并隐藏。
+     */
+    @Test
+    void manualEventsWithSameTypeDateTitleMustNotBeDeduplicated() {
+        LocalDate start = LocalDate.of(2026, 7, 1);
+        LocalDate end = LocalDate.of(2026, 7, 31);
+        // 两个相同手动事件（同类型 MEETING + 同日期 + 同标题），id 不同 → 必须全部保留
+        CalendarEventDTO ev1 = CalendarEventDTO.builder()
+                .id(1L).eventDate(LocalDate.of(2026, 7, 10))
+                .eventType(EventType.MEETING).title("重复会议").projectId(100L).isUrgent(false).build();
+        CalendarEventDTO ev2 = CalendarEventDTO.builder()
+                .id(2L).eventDate(LocalDate.of(2026, 7, 10))
+                .eventType(EventType.MEETING).title("重复会议").projectId(100L).isUrgent(false).build();
+        when(calendarService.getEventsByDateRange(start, end)).thenReturn(List.of(ev1, ev2));
+        when(projectAccessScopeService.currentUserHasGlobalAccess()).thenReturn(false);
+        when(projectAccessScopeService.getAllowedProjectIdsForCurrentUser()).thenReturn(List.of());
+
+        var response = service.getScheduleOverview(start, end, null);
+
+        assertThat(response.getEvents()).hasSize(2);
+        assertThat(response.getTotal()).isEqualTo(2);
+    }
+
+    /**
+     * 去重收窄（P2#1）：Tender 派生事件（OPENING）仍按业务键去重，手动事件（MEETING）不受影响。
+     * 混合场景：同一个 Tender 重复派生两条 OPENING 事件被合并，同时手动 MEETING 保留。
+     */
+    @Test
+    void dedupScopesToTenderDerivedEventsOnlyInMixedScenario() {
+        LocalDate start = LocalDate.of(2026, 7, 1);
+        LocalDate end = LocalDate.of(2026, 7, 31);
+        CalendarEventDTO meeting = CalendarEventDTO.builder()
+                .id(1L).eventDate(LocalDate.of(2026, 7, 10))
+                .eventType(EventType.MEETING).title("会议").projectId(100L).isUrgent(false).build();
+        when(calendarService.getEventsByDateRange(start, end)).thenReturn(List.of(meeting));
+        when(projectAccessScopeService.currentUserHasGlobalAccess()).thenReturn(true);
+        LocalDateTime opening = LocalDateTime.of(2026, 7, 10, 9, 30);
+        // 两个相同 Tender 派生 OPENING 事件（同标题同开标日期）→ 应合并为 1 条
+        Tender dup1 = tender(10L, "重复开标标讯", 200L, opening, null);
+        Tender dup2 = tender(11L, "重复开标标讯", 200L, opening, null);
+        when(tenderRepository.findTendersByBidOpeningTimeBetween(any(), any())).thenReturn(List.of(dup1, dup2));
+        when(tenderRepository.findTendersByRegistrationDeadlineBetween(any(), any())).thenReturn(List.of());
+
+        var response = service.getScheduleOverview(start, end, null);
+
+        // 1 条 OPENING（去重）+ 1 条 MEETING（保留）= 2 条
+        assertThat(response.getEvents()).hasSize(2);
+        assertThat(response.getEvents()).extracting(CalendarEventDTO::getEventType)
+                .containsExactlyInAnyOrder(EventType.OPENING, EventType.MEETING);
+        assertThat(response.getTotal()).isEqualTo(2);
+    }
+
+    /**
+     * 去重边界：同标题同日期但类型不同（开标 vs 会议）→ 不是重复，必须全部保留。
+     * 防止去重键过宽导致不同类型事件被误合并。
+     */
+    @Test
+    void sameTitleDateButDifferentTypeMustNotBeDeduplicated() {
+        LocalDate start = LocalDate.of(2026, 7, 1);
+        LocalDate end = LocalDate.of(2026, 7, 31);
+        Tender openingTender = tender(10L, "标讯-X", 200L, LocalDateTime.of(2026, 7, 10, 9, 30), null);
+        when(calendarService.getEventsByDateRange(start, end)).thenReturn(List.of());
+        when(projectAccessScopeService.currentUserHasGlobalAccess()).thenReturn(true);
+        when(tenderRepository.findTendersByBidOpeningTimeBetween(any(), any())).thenReturn(List.of(openingTender));
+        when(tenderRepository.findTendersByRegistrationDeadlineBetween(any(), any())).thenReturn(List.of());
+
+        var response = service.getScheduleOverview(start, end, null);
+
+        // 只有一个 OPENING 事件；无重复
+        assertThat(response.getEvents()).hasSize(1);
+        assertThat(response.getEvents().get(0).getEventType()).isEqualTo(EventType.OPENING);
+    }
+
+    /**
+     * 去重边界：两个不同 Tender（同标题同开标日期）经 buildTenderDerivedEvents 派生出相同事件 → 合并为一条。
+     * 覆盖 Tender 表重复记录导致的日历重复。
+     */
+    @Test
+    void duplicateTendersMustDeduplicateDerivedOpeningEvents() {
+        LocalDate start = LocalDate.of(2026, 7, 1);
+        LocalDate end = LocalDate.of(2026, 7, 31);
+        when(calendarService.getEventsByDateRange(start, end)).thenReturn(List.of());
+        when(projectAccessScopeService.currentUserHasGlobalAccess()).thenReturn(true);
+        LocalDateTime opening = LocalDateTime.of(2026, 7, 10, 9, 30);
+        Tender dup1 = tender(10L, "重复开标标讯", 200L, opening, null);
+        Tender dup2 = tender(11L, "重复开标标讯", 200L, opening, null);
+        when(tenderRepository.findTendersByBidOpeningTimeBetween(any(), any())).thenReturn(List.of(dup1, dup2));
+        when(tenderRepository.findTendersByRegistrationDeadlineBetween(any(), any())).thenReturn(List.of());
+
+        var response = service.getScheduleOverview(start, end, null);
+
+        // 去重后仅保留 1 条 OPENING 事件
+        assertThat(response.getEvents()).hasSize(1);
+        assertThat(response.getEvents().get(0).getEventType()).isEqualTo(EventType.OPENING);
+        assertThat(response.getEvents().get(0).getId()).isEqualTo(10L);
+        assertThat(response.getTotal()).isEqualTo(1);
+    }
+
+    /**
+     * 去重 null 安全：Tender title 为 null 时派生事件去重不得抛 NPE。
+     */
+    @Test
+    void nullTitleTenderDerivedEventMustNotThrowDuringDedup() {
+        LocalDate start = LocalDate.of(2026, 7, 1);
+        LocalDate end = LocalDate.of(2026, 7, 31);
+        when(calendarService.getEventsByDateRange(start, end)).thenReturn(List.of());
+        when(projectAccessScopeService.currentUserHasGlobalAccess()).thenReturn(true);
+        Tender nullTitle = tender(10L, null, 200L, LocalDateTime.of(2026, 7, 10, 9, 30), null);
+        when(tenderRepository.findTendersByBidOpeningTimeBetween(any(), any())).thenReturn(List.of(nullTitle));
+        when(tenderRepository.findTendersByRegistrationDeadlineBetween(any(), any())).thenReturn(List.of());
+
+        var response = service.getScheduleOverview(start, end, null);
+
+        assertThat(response.getEvents()).hasSize(1);
+        assertThat(response.getEvents().get(0).getTitle()).isNull();
+    }
+
     private CalendarEventDTO event(Long id, Long projectId, LocalDate eventDate) {
         return CalendarEventDTO.builder()
                 .id(id)

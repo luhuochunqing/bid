@@ -110,7 +110,9 @@ export function useWorkbenchSchedule({ router, assigneeIdRef, onEventsLoaded } =
         end: rangeEnd,
         assigneeId: assigneeIdRef?.value || undefined,
       })
-      const normalizedEvents = (response?.data?.events || []).map(normalizeCalendarEvent)
+      const rawEvents = response?.data?.events || []
+      // 去重由后端 WorkbenchScheduleQueryService 按业务键统一处理（单一事实源），前端不再重复实现（思维链 H2 收敛薄防御层）。
+      const normalizedEvents = rawEvents.map(normalizeCalendarEvent)
       calendarEvents.value = normalizedEvents
       onEventsLoaded?.(normalizedEvents)
       return normalizedEvents
