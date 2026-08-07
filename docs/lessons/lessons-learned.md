@@ -1242,9 +1242,11 @@ public class CaIntegrationController {
 - `src/views/Dashboard/useWorkbenchSchedule.js` — 前端日历数据去重
 - `src/views/Dashboard/workbench-deadline-core.js` — 前端截止时间去重
 
-**Follow-up 任务（当前本次为展示层防御性修复，根治尚需以下工作）**：
+**Follow-up 任务（已提升为正式任务，2026-08-07 思维链 Review H3）**：
 
-> 本次修复是**展示层（前后端）防御性兜底**，不消除数据源的真实重复。以下 follow-up 任务需在后续排期完成，根治重复数据的产生路径。
+> 本次修复是**展示层（前后端）防御性兜底**，不消除数据源的真实重复。以下根治任务已从 follow-up 备注**提升为正式任务**，登记在 `docs/exec-plans/tech-debt-tracker.md` §「标讯去重：数据层清理 + 推送层策略加固」供重构 agent 扫描处理。前端薄防御层已移除（思维链 H2），去重单一事实源收敛到后端。
+>
+> 参考：`docs/exec-plans/tech-debt-tracker.md`「标讯去重：数据层清理 + 推送层策略加固」
 
 1. **Tender 数据清理脚本**：开发脚本扫描 Tender 表，按业务键（`purchaserName + registrationDeadline + bidOpeningTime`）找出重复记录，合并/清理历史脏数据。清理前需先备份，并确认不会误删有效记录（保留 `id` 最小的一条）。
 2. **去重策略加固（null 漏洞根治）**：`TenderDeduplicationPolicy.isDuplicate()` 当前在任一关键字段为 null 时直接返回 false 不判重。需改为：字段不全时按已有字段做宽松匹配，或在 Tender 更新补全时间字段时重新触发去重检查（`TenderIntegrationCommandService` 外部推送与 update 路径都要覆盖），堵住"先插不全区字段、后续补全不重判"的重复产生路径。

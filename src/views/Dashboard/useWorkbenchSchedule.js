@@ -111,16 +111,8 @@ export function useWorkbenchSchedule({ router, assigneeIdRef, onEventsLoaded } =
         assigneeId: assigneeIdRef?.value || undefined,
       })
       const rawEvents = response?.data?.events || []
-      // 双重保险去重：按 (type + date + title) 业务键去重，保留首次出现的事件
-      // 覆盖场景：后端去重未覆盖的边界情况、缓存数据异常等
-      const dedupMap = new Map()
-      for (const event of rawEvents) {
-        const key = `${event.eventType || event.type || ''}|${event.eventDate || event.date || ''}|${(event.title || '').trim()}`
-        if (!dedupMap.has(key)) {
-          dedupMap.set(key, event)
-        }
-      }
-      const normalizedEvents = Array.from(dedupMap.values()).map(normalizeCalendarEvent)
+      // 去重由后端 WorkbenchScheduleQueryService 按业务键统一处理（单一事实源），前端不再重复实现（思维链 H2 收敛薄防御层）。
+      const normalizedEvents = rawEvents.map(normalizeCalendarEvent)
       calendarEvents.value = normalizedEvents
       onEventsLoaded?.(normalizedEvents)
       return normalizedEvents

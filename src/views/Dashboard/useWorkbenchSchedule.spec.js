@@ -98,6 +98,28 @@ describe('useWorkbenchSchedule', () => {
     expect(router.push).toHaveBeenCalledWith('/bidding/999')
   })
 
+  it('passes through all events without deduplication (backend is single source of truth)', async () => {
+    // 思维链 H2 收敛薄防御层：去重由后端 WorkbenchScheduleQueryService 统一处理，
+    // 前端不再重复实现，后端返回多少条就渲染多少条（含重复 Tender 派生事件也透传）。
+    getScheduleOverview.mockResolvedValue({
+      data: {
+        events: [
+          { id: 1, eventDate: '2026-07-10', eventType: 'OPENING', title: '重复开标', projectId: 20, isUrgent: false },
+          { id: 2, eventDate: '2026-07-10', eventType: 'OPENING', title: '重复开标', projectId: 20, isUrgent: false },
+          { id: 100, eventDate: '2026-07-10', eventType: 'MEETING', title: '会议', projectId: 30, isUrgent: false },
+          { id: 200, eventDate: '2026-07-11', eventType: 'REVIEW', title: '审核节点', projectId: 31, isUrgent: false },
+        ],
+      },
+    })
+
+    const schedule = useWorkbenchSchedule({ router, assigneeIdRef })
+    const events = await schedule.loadScheduleOverview()
+
+    // 4 条全部透传，不做任何去重
+    expect(events).toHaveLength(4)
+    expect(events.map((e) => e.id)).toEqual([1, 2, 100, 200])
+  })
+
   it('syncs selectedDateKey to the nearest upcoming event', async () => {
     getScheduleOverview.mockResolvedValue({
       data: {

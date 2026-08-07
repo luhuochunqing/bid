@@ -73,6 +73,10 @@ public class WorkbenchDeadlinePolicy {
         long weekCount = 0;
         long monthCount = 0;
 
+        // 方案 B（思维链 H1）：接受差异，不去重。
+        // stats（卡片计数）与列表（getDeadlineItems 按 date+name 去重）在重复数据下条数不一致，
+        // 属刻意取舍——stats 层仅有时间戳、无 name 业务键，按时间戳去重会误并同一时刻的不同标讯，
+        // 造成伪对齐与潜在少计。根治需数据层/推送层加固，此处不强求一致。
         for (LocalDateTime deadline : deadlines) {
             if (deadline == null) {
                 continue;

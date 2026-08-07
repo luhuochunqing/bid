@@ -148,6 +148,32 @@
 
 > 后续发现的技术债请追加到对应分类下，不要新建文件。
 
+### 标讯去重：数据层清理 + 推送层策略加固（从 lessons §109 follow-up 提升为正式任务）
+
+> **来源**：PR 日历/截止重复显示事故（2026-08-07）+ 思维链 Review H3。
+> **背景**：展示层防御性去重（后端 `WorkbenchScheduleQueryService` / `WorkbenchDeadlineQueryService` + 前端）已收敛——前端薄防御层已移除（H2），去重单一事实源在后端。但**数据源真实重复未消除**，展示层去重仅是"症状管理"。以下两项需作为正式任务根治重复产生路径。
+
+- area: `Tender` 表历史脏数据（生产库）
+  type: dependency-debt
+  severity: high
+  status: open
+  source: lessons-learned §109（2026-08-07）Follow-up 任务 1
+  note: 生产环境 Tender 表存在真实重复标讯（日历与截止列表同时重复证实）。需开发清理脚本按业务键（`purchaserName + registrationDeadline + bidOpeningTime`）扫描，保留 `id` 最小的一条，合并/清理历史脏数据。清理前先备份，确认不误删有效记录。依赖持续观察（日历/截止去重 warn 日志）确认清理后是否仍有新重复进入。
+
+- area: `backend/src/main/java/com/xiyu/bid/tender/core/TenderDeduplicationPolicy.java` + `backend/src/main/java/com/xiyu/bid/integration/external/TenderIntegrationCommandService.java`
+  type: out-of-sync-doc
+  severity: high
+  status: open
+  source: lessons-learned §109（2026-08-07）Follow-up 任务 2
+  note: `TenderDeduplicationPolicy.isDuplicate()` 在任一关键字段（`purchaserName`/`registrationDeadline`/`bidOpeningTime`）为 null 时直接返回 false 不判重；`TenderIntegrationCommandService.rejectDuplicateBusinessTender()`（外部推送路径）同样对空时间字段跳过判重。漏洞：先插入字段不全记录，后续 update 补全时间字段时不再触发去重检查，导致重复进入数据库。需改为：字段不全时按已有字段做宽松匹配，或在 Tender 更新补全时间字段时重新触发去重检查（外部推送与 update 路径都要覆盖）。治理模型参照 `TenderDeduplicationService` Javadoc 的调用方覆盖情况。
+
+- area: 持续观察（日历聚合 + 截止时间去重 warn 日志）
+  type: test-gap
+  severity: medium
+  status: open
+  source: lessons-learned §109（2026-08-07）Follow-up 任务 3
+  note: 依赖后端去重命中时打印的 warn 日志（`WorkbenchScheduleQueryService` / `WorkbenchDeadlineQueryService`）持续监控，确认去重是否仍在触发、是否还有新重复进入，作为数据清理与策略加固完成的验收依据。
+
 ### 通知派发接收人按资源可见性过滤审视清单（spec 030）
 
 > **来源**：spec 030 / 06131 案例（2026-07-06）

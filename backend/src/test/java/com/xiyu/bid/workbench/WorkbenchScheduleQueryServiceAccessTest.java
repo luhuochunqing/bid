@@ -221,14 +221,14 @@ class WorkbenchScheduleQueryServiceAccessTest {
     // ==================== 防御性去重（buildDedupKey）测试 ====================
 
     /**
-     * 去重核心：Tender 派生事件与手动事件合并后，完全重复的事件（同类型+同日期+同标题）必须合并为一条。
-     * 覆盖生产事故：日历显示重复项目。
+     * 去重收窄（P2#1）：手动事件（MEETING 等）在 calendar 维度唯一，即使 同类型+同日期+同标题 也不得通过业务键去重。
+     * 回归覆盖：去重仅对 Tender 派生事件（OPENING/DEADLINE）生效，避免手动事件被误并隐藏。
      */
     @Test
-    void duplicateEventsWithSameTypeDateTitleMustBeDeduplicated() {
+    void manualEventsWithSameTypeDateTitleMustNotBeDeduplicated() {
         LocalDate start = LocalDate.of(2026, 7, 1);
         LocalDate end = LocalDate.of(2026, 7, 31);
-        // 两个相同手动事件（同类型 MEETING + 同日期 + 同标题）
+        // 两个相同手动事件（同类型 MEETING + 同日期 + 同标题），id 不同 → 必须全部保留
         CalendarEventDTO ev1 = CalendarEventDTO.builder()
                 .id(1L).eventDate(LocalDate.of(2026, 7, 10))
                 .eventType(EventType.MEETING).title("重复会议").projectId(100L).isUrgent(false).build();
@@ -241,9 +241,37 @@ class WorkbenchScheduleQueryServiceAccessTest {
 
         var response = service.getScheduleOverview(start, end, null);
 
-        assertThat(response.getEvents()).hasSize(1);
-        assertThat(response.getEvents().get(0).getId()).isEqualTo(1L);
-        assertThat(response.getTotal()).isEqualTo(1);
+        assertThat(response.getEvents()).hasSize(2);
+        assertThat(response.getTotal()).isEqualTo(2);
+    }
+
+    /**
+     * 去重收窄（P2#1）：Tender 派生事件（OPENING）仍按业务键去重，手动事件（MEETING）不受影响。
+     * 混合场景：同一个 Tender 重复派生两条 OPENING 事件被合并，同时手动 MEETING 保留。
+     */
+    @Test
+    void dedupScopesToTenderDerivedEventsOnlyInMixedScenario() {
+        LocalDate start = LocalDate.of(2026, 7, 1);
+        LocalDate end = LocalDate.of(2026, 7, 31);
+        CalendarEventDTO meeting = CalendarEventDTO.builder()
+                .id(1L).eventDate(LocalDate.of(2026, 7, 10))
+                .eventType(EventType.MEETING).title("会议").projectId(100L).isUrgent(false).build();
+        when(calendarService.getEventsByDateRange(start, end)).thenReturn(List.of(meeting));
+        when(projectAccessScopeService.currentUserHasGlobalAccess()).thenReturn(true);
+        LocalDateTime opening = LocalDateTime.of(2026, 7, 10, 9, 30);
+        // 两个相同 Tender 派生 OPENING 事件（同标题同开标日期）→ 应合并为 1 条
+        Tender dup1 = tender(10L, "重复开标标讯", 200L, opening, null);
+        Tender dup2 = tender(11L, "重复开标标讯", 200L, opening, null);
+        when(tenderRepository.findTendersByBidOpeningTimeBetween(any(), any())).thenReturn(List.of(dup1, dup2));
+        when(tenderRepository.findTendersByRegistrationDeadlineBetween(any(), any())).thenReturn(List.of());
+
+        var response = service.getScheduleOverview(start, end, null);
+
+        // 1 条 OPENING（去重）+ 1 条 MEETING（保留）= 2 条
+        assertThat(response.getEvents()).hasSize(2);
+        assertThat(response.getEvents()).extracting(CalendarEventDTO::getEventType)
+                .containsExactlyInAnyOrder(EventType.OPENING, EventType.MEETING);
+        assertThat(response.getTotal()).isEqualTo(2);
     }
 
     /**
