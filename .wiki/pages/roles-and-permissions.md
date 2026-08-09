@@ -3,6 +3,9 @@ title: 角色与权限
 space: engineering
 category: reference
 tags: [角色, 权限, 用户, 认证, RBAC]
+created: 2026-04-15
+updated: 2026-08-09
+health_checked: 2026-08-09
 sources:
   - .wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx
   - src/router/index.js
@@ -16,9 +19,6 @@ backlinks:
   - implementation/attachment4-requirement-task-book
   - implementation/attachment6-function-list-trace
   - overview
-created: 2026-04-15
-updated: 2026-06-20
-health_checked: 2026-07-23
 ---
 # 角色与权限
 
@@ -194,6 +194,17 @@ Spring Security 上下文注入用户信息 -> 业务接口正常响应
 | 自动化门禁 | 新增后端项目权限覆盖门禁，扫描带 `projectId` 或引用项目关联 DTO/实体的 Controller/Service，要求命中统一项目访问守卫或显式豁免清单。 |
 
 详细说明参见 [[data-permission-hardening]]。
+
+### 文档上传/删除权限白名单
+
+项目文档的上传和删除操作由 `ProjectDocumentWorkflowPolicy` 纯核心策略控制角色白名单：
+
+| 操作 | 允许的角色 |
+|------|-----------|
+| 上传 | admin / /bidAdmin / bid-SystemAdmin / bid-TeamLeader / bid-projectLeader / bid-Team / bid-otherDept |
+| 删除 | admin / /bidAdmin / bid-SystemAdmin / bid-TeamLeader + 上传者本人 |
+
+> `bid-SystemAdmin` 于 2026-08-09 补入白名单。其权限基线等同 /bidAdmin（GLOBAL_ACCESS_ROLES / data_scope=all），此前遗漏导致 OSS 投标系统管理员（如 06234）上传/删除文档被误拒为"权限不足"。
 
 ## 5.1 西域给泊冉权限接口
 

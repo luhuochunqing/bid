@@ -29,6 +29,7 @@ class ProjectDocumentWorkflowPolicyTest {
     @ValueSource(strings = {
             RoleProfileCatalog.ADMIN_CODE,
             RoleProfileCatalog.BID_ADMIN_CODE,
+            RoleProfileCatalog.BID_SYSTEM_ADMIN_CODE,
             RoleProfileCatalog.BID_LEAD_CODE,
             RoleProfileCatalog.SALES_CODE,
             RoleProfileCatalog.BID_SPECIALIST_CODE,
@@ -67,10 +68,11 @@ class ProjectDocumentWorkflowPolicyTest {
     @ValueSource(strings = {
             RoleProfileCatalog.ADMIN_CODE,
             RoleProfileCatalog.BID_ADMIN_CODE,
+            RoleProfileCatalog.BID_SYSTEM_ADMIN_CODE,
             RoleProfileCatalog.BID_LEAD_CODE
     })
     void canDeleteProjectDocument_whenAdminBidAdminOrBidLead_shouldPermit(String roleCode) {
-        // CO-382: 对齐蓝图 §3.3.1.2「删除文档」权限矩阵——admin/bidAdmin/bid-TeamLeader 允许
+        // CO-382: 对齐蓝图 §3.3.1.2「删除文档」权限矩阵——admin/bidAdmin/bid-SystemAdmin/bid-TeamLeader 允许
         // CO-383: 管理员角色无需匹配 uploaderId
         var result = ProjectDocumentWorkflowPolicy.canDeleteProjectDocument(roleCode, CURRENT_USER_ID, OTHER_USER_ID);
         assertThat(result.allowed()).isTrue();
