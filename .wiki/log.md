@@ -3,6 +3,12 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-08-09] no-op | competitor-table-revamp 无新结论
+
+- 任务：项目详情-结果确认阶段「竞争对手情况」表格字段改造（4 列字段改名 + 控件类型改变）
+- 判断：按 §2 触发点 1 标准，无 bug 修复 / 无跨模块变更（仅 2 文件前端单组件）/ 无新业务规则 / 无新陷阱
+- 结论：无需回填 .wiki/pages/，仅记 no-op 行
+
 ## [2026-08-04] create | audit-whitelist-pitfalls 新建 + lessons-learned §106
 
 - 背景：PR !2256 补的四个 `@Auditable` action 命名（PERFORMANCE_BUNDLE_EXPORT_*）不命中 AuditActionPolicy KEY_ACTIONS，审计一条不落库；CO-324 同款坑第二次复发。PR !2258 修复（KEY_ACTIONS 加 DOWNLOAD + 注解对齐短动词惯例）
