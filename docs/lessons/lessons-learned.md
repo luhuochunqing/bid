@@ -1251,3 +1251,23 @@ public class CaIntegrationController {
 1. **Tender 数据清理脚本**：开发脚本扫描 Tender 表，按业务键（`purchaserName + registrationDeadline + bidOpeningTime`）找出重复记录，合并/清理历史脏数据。清理前需先备份，并确认不会误删有效记录（保留 `id` 最小的一条）。
 2. **去重策略加固（null 漏洞根治）**：`TenderDeduplicationPolicy.isDuplicate()` 当前在任一关键字段为 null 时直接返回 false 不判重。需改为：字段不全时按已有字段做宽松匹配，或在 Tender 更新补全时间字段时重新触发去重检查（`TenderIntegrationCommandService` 外部推送与 update 路径都要覆盖），堵住"先插不全区字段、后续补全不重判"的重复产生路径。
 3. **持续观察**：依赖本次新增的 warn 日志（日历聚合与截止时间去重命中时打印）持续监控，确认去重是否仍在触发、是否还有新重复进入，作为数据清理与策略加固的触发依据。
+
+## 110. 新增角色必须同步所有角色白名单——ProjectDocumentWorkflowPolicy 上传/删除遗漏 bid-SystemAdmin（2026-08-09）
+
+### 问题背景
+
+测试环境 06234 账号（OSS 投标系统管理员，角色 `bid-SystemAdmin`）在项目立项阶段上传招标文件、标书制作阶段上传投标文件时均报"权限不足"。
+
+### 根因
+
+`ProjectDocumentWorkflowPolicy.canUploadProjectDocument` 和 `canDeleteProjectDocument` 的角色白名单硬编码了 `admin` / `/bidAdmin` / `bid-TeamLeader` 等角色，但遗漏了 `bid-SystemAdmin`。该角色于 2026-06 作为"权限基线等同 /bidAdmin"的新角色引入（`GLOBAL_ACCESS_ROLES` / `data_scope=all`），但文档上传/删除策略白名单未同步更新。
+
+### 教训
+
+1. **新增角色时必须全局搜索角色白名单**：所有 `RoleProfileCatalog.xxx_CODE` 出现的角色枚举列表都需检查，包括 `@PreAuthorize hasAnyRole`、`ProjectDocumentWorkflowPolicy`、`ProjectAccessScopeService` 等。
+2. **纯核心策略的白名单是隐性权限闸门**：与 `@PreAuthorize` 注解不同，纯核心 Policy 类的角色判断不会出现在 Controller 层面，容易被忽略。新增角色时需 grep 所有 `RoleProfileCatalog` 引用点。
+3. **bid-SystemAdmin 权限基线等同 /bidAdmin**：两者都属 `GLOBAL_ACCESS_ROLES`，`data_scope=all`，在所有角色白名单中应保持一致。
+
+### 修复
+
+PR !2280：`canUploadProjectDocument` 和 `canDeleteProjectDocument` 白名单补入 `BID_SYSTEM_ADMIN_CODE`，测试覆盖对齐。
