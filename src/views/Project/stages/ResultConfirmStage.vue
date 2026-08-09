@@ -96,24 +96,63 @@
     <el-card shadow="never" class="stage-section">
       <template #header><span class="section-title">竞争对手情况</span></template>
       <el-table :data="form.competitors" border size="small" class="competitor-table">
-        <el-table-column prop="name" label="竞争对手名称" min-width="140">
+        <el-table-column prop="name" label="竞品公司名称" min-width="180">
           <template #default="{ row }">
-            <el-input v-model="row.name" placeholder="输入名称" size="small" :disabled="!canOperate" />
+            <el-select
+              v-model="row.name"
+              placeholder="选择竞品公司"
+              size="small"
+              filterable
+              clearable
+              :disabled="!canOperate"
+              class="competitor-cell-select"
+            >
+              <el-option v-for="c in COMPETITOR_COMPANY_OPTIONS" :key="c" :label="c" :value="c" />
+            </el-select>
           </template>
         </el-table-column>
-        <el-table-column prop="discount" label="折扣" width="120">
+        <el-table-column prop="discount" label="折扣/折" width="140">
           <template #default="{ row }">
-            <el-input v-model="row.discount" placeholder="如：95折" size="small" :disabled="!canOperate" />
+            <el-input-number
+              v-model="row.discount"
+              :precision="1"
+              :step="0.1"
+              :min="0"
+              :controls="false"
+              placeholder="如：9.5"
+              size="small"
+              :disabled="!canOperate"
+              class="competitor-cell-number"
+            />
           </template>
         </el-table-column>
-        <el-table-column prop="paymentTerm" label="账期" width="140">
+        <el-table-column prop="paymentTerm" label="账期/天" width="140">
           <template #default="{ row }">
-            <el-input v-model="row.paymentTerm" placeholder="如：月结60天" size="small" :disabled="!canOperate" />
+            <el-input-number
+              v-model="row.paymentTerm"
+              :precision="0"
+              :step="1"
+              :min="0"
+              :controls="false"
+              placeholder="如：60"
+              size="small"
+              :disabled="!canOperate"
+              class="competitor-cell-number"
+            />
           </template>
         </el-table-column>
-        <el-table-column prop="notes" label="其他说明" min-width="160">
+        <el-table-column prop="notes" label="是否中标" min-width="140">
           <template #default="{ row }">
-            <el-input v-model="row.notes" placeholder="补充信息" size="small" :disabled="!canOperate" />
+            <el-select
+              v-model="row.notes"
+              placeholder="选择中标状态"
+              size="small"
+              clearable
+              :disabled="!canOperate"
+              class="competitor-cell-select"
+            >
+              <el-option v-for="s in COMPETITOR_WIN_STATUS_OPTIONS" :key="s" :label="s" :value="s" />
+            </el-select>
           </template>
         </el-table-column>
         <el-table-column v-if="canOperate" label="操作" width="90" align="center">
@@ -162,7 +201,22 @@ const resultOptions = [
   { value: 'ABANDONED', label: '弃标' },
 ]
 
-const DEFAULT_COMPETITOR = () => ({ name: '', discount: '', paymentTerm: '', notes: '' })
+// 竞品公司名称下拉选项（可搜索）
+const COMPETITOR_COMPANY_OPTIONS = [
+  '震坤行', '鑫方盛', '浙江物产', '欧菲斯', '领先未来', '浙江宏伟', '咸亨国际', '企事通',
+  '一线达通', '京东', '苏宁', '科力普', '得力', '史泰博', '齐心', '广博', '一出科技',
+  '怡亚通', '申合信', '大江科技', '诚和致远', '阳采', '德致商成', '全程速达',
+]
+// 是否中标下拉选项
+const COMPETITOR_WIN_STATUS_OPTIONS = ['已中标', '未中标']
+
+const DEFAULT_COMPETITOR = () => ({ name: '', discount: null, paymentTerm: null, notes: '' })
+// 历史数据规整：discount/paymentTerm 可能是 "95折"/"月结60天" 等文本，提取首段数字给 el-input-number
+const toNumeric = (value) => {
+  if (value === '' || value === null || value === undefined) return null
+  const num = Number(String(value).replace(/[^0-9.]/g, ''))
+  return Number.isFinite(num) ? num : null
+}
 const DEFAULT_COMPETITORS = () => [DEFAULT_COMPETITOR(), DEFAULT_COMPETITOR(), DEFAULT_COMPETITOR()]
 
 const form = reactive({
@@ -267,7 +321,15 @@ async function load() {
         // CO-408: 根据 evidenceFileIds 回填 evidenceFiles（el-upload file-list），避免再次进入页面时文件名丢失
         await backfillEvidenceFiles(data.evidenceFileIds)
       }
-      if (data.competitors?.length) form.competitors = data.competitors.map(c => ({ ...c }))
+      if (data.competitors?.length) {
+        form.competitors = data.competitors.map(c => ({
+          name: c?.name || '',
+          // 兼容历史文本数据：提取数字给数字组件
+          discount: toNumeric(c?.discount),
+          paymentTerm: toNumeric(c?.paymentTerm),
+          notes: c?.notes || '',
+        }))
+      }
       // CO-590: 回填合同信息两字段
       if (data.servicePeriodYears != null) form.servicePeriodYears = Number(data.servicePeriodYears)
       if (data.servicePeriodEndDate) form.servicePeriodEndDate = data.servicePeriodEndDate
@@ -367,6 +429,8 @@ defineExpose({ load })
 .competitor-table { width: 100%; }
 .competitor-table :deep(.el-table__body td) { padding: 2px 0; }
 .competitor-table :deep(.el-table__body .el-input__inner) { height: 28px; }
+.competitor-table :deep(.competitor-cell-select),
+.competitor-table :deep(.competitor-cell-number) { width: 100%; }
 .add-row-btn { margin-top: 12px; }
 
 /* 操作按钮 */
