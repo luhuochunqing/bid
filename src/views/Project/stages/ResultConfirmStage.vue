@@ -179,6 +179,7 @@ import { ElMessage } from 'element-plus'
 import { Delete, Plus, UploadFilled } from '@element-plus/icons-vue'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
 import { getResultConfirmNextTab } from '@/constants/projectStages.js'
+import { COMPETITOR_COMPANY_OPTIONS, COMPETITOR_WIN_STATUS_OPTIONS } from '@/constants/competitors.js'
 import { getApiUrl } from '@/api/config.js'
 import { useUserStore } from '@/stores/user.js'
 import { downloadWithFilename } from '@/utils/download.js'
@@ -201,16 +202,12 @@ const resultOptions = [
   { value: 'ABANDONED', label: '弃标' },
 ]
 
-// 竞品公司名称下拉选项（可搜索）
-const COMPETITOR_COMPANY_OPTIONS = [
-  '震坤行', '鑫方盛', '浙江物产', '欧菲斯', '领先未来', '浙江宏伟', '咸亨国际', '企事通',
-  '一线达通', '京东', '苏宁', '科力普', '得力', '史泰博', '齐心', '广博', '一出科技',
-  '怡亚通', '申合信', '大江科技', '诚和致远', '阳采', '德致商成', '全程速达',
-]
-// 是否中标下拉选项
-const COMPETITOR_WIN_STATUS_OPTIONS = ['已中标', '未中标']
+// 竞品公司名称、是否中标下拉选项：抽到 @/constants/competitors.js，方便多处复用
 
 const DEFAULT_COMPETITOR = () => ({ name: '', discount: null, paymentTerm: null, notes: '' })
+// ⚠ 语义漂移说明：`notes` 字段在原表为「其他说明」自由文本，本次改造后 UI 上用于存储「是否中标」枚举
+// （'已中标' / '未中标'），但提交 payload 仍走 notes 字段名以保持后端 DTO 兼容。
+// 历史 notes 文本数据在 select 中会显示为空，属预期行为。如后续需要保留自由文本，请拆分为独立的 wonStatus 字段。
 // 历史数据规整：discount/paymentTerm 可能是 "95折"/"月结60天" 等文本，提取首段数字给 el-input-number
 const toNumeric = (value) => {
   if (value === '' || value === null || value === undefined) return null
@@ -365,12 +362,15 @@ async function submit() {
   if (form.servicePeriodYears == null || form.servicePeriodYears === '') return ElMessage.warning('请填写项目服务周期（年）')
   if (!form.servicePeriodEndDate) return ElMessage.warning('请选择服务周期截止时间')
   if (!form.evidenceFileIds.length) return ElMessage.warning('请上传凭证文件')
+  // 过滤全空竞品行（用户点了「添加一行」但未填写任何字段），避免脏数据进后端
+  // 判空统一：字符串字段用 trim() 检查非空，数字字段用 != null 检查（0 也算有值）
+  const competitors = form.competitors.filter(c => c.name?.trim() || c.discount != null || c.paymentTerm != null || c.notes?.trim())
   submitting.value = true
   try {
     const payload = {
       resultType: form.resultType,
       notes: form.notes, summary: form.summary,
-      evidenceFileIds: form.evidenceFileIds, competitors: form.competitors,
+      evidenceFileIds: form.evidenceFileIds, competitors,
       // CO-590: 合同信息两字段
       servicePeriodYears: form.servicePeriodYears,
       servicePeriodEndDate: form.servicePeriodEndDate,
