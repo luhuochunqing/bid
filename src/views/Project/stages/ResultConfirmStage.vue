@@ -115,11 +115,11 @@
           <template #default="{ row }">
             <el-input-number
               v-model="row.discount"
-              :precision="1"
-              :step="0.1"
+              :precision="0"
+              :step="1"
               :min="0"
               :controls="false"
-              placeholder="如：9.5"
+              placeholder="如：95"
               size="small"
               :disabled="!canOperate"
               class="competitor-cell-number"
@@ -322,7 +322,8 @@ async function load() {
         form.competitors = data.competitors.map(c => ({
           name: c?.name || '',
           // 兼容历史文本数据：提取数字给数字组件
-          discount: toNumeric(c?.discount),
+          // discount 字段为整数（95=95折），历史若为 9.5 小数则取整
+          discount: toNumeric(c?.discount) != null ? Math.round(toNumeric(c?.discount)) : null,
           paymentTerm: toNumeric(c?.paymentTerm),
           notes: c?.notes || '',
         }))
