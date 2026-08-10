@@ -8,8 +8,8 @@ sources:
 backlinks:
   - _index
 created: 2026-06-27
-updated: 2026-06-27
-health_checked: 2026-07-23
+updated: 2026-08-10
+health_checked: 2026-08-10
 ---
 # 日志系统查 Bug 手册
 
@@ -114,6 +114,22 @@ grep 'op_error' logs/app.log | tail -20
 ```bash
 grep 'exception=NullPointerException' logs/app.log
 ```
+
+### 场景 N：AI 案例沉淀失败
+
+项目结项触发 AI 案例沉淀时，若用户收到"AI 案例沉淀失败"通知，按 `CaseAiMatcher` 的关键词检索日志定位原因：
+
+| 现象 | 检索关键词 | 对应阶段 |
+|---|---|---|
+| 未配置 AI Provider | `AI 案例匹配失败：无法解析 AI Provider 配置` / `当前未启用任何 AI Provider` | 配置解析 |
+| 大模型调用失败 | `AI 案例匹配异常：大模型调用或解析失败` | HTTP 调用 |
+| 返回非 JSON 数组 | `大模型返回非 JSON 数组` | 响应解析 |
+| 返回 body 为 null | `大模型返回 body 为 null` | 响应解析 |
+
+排查要点：
+1. `AI 案例匹配开始：<评分项数> 个评分项` — 确认是否进入 AI 提取阶段（评分项为 0 时直接跳过，不算失败）。
+2. `调用大模型 <model> (baseUrl=...)` — 确认实际路由到的模型与地址。
+3. `AI 案例匹配完成：解析到 <n> 个匹配片段` — 确认解析成功；`debug` 级别可看完整 Prompt 与原始返回体（长文本已截断）。
 
 ## 命令速查表
 
