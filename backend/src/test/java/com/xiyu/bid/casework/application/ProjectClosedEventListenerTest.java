@@ -78,7 +78,7 @@ class ProjectClosedEventListenerTest {
     }
 
     @Test
-    @DisplayName("前置条件：缺少标书文件 → notifyFailure + 不入库")
+    @DisplayName("前置条件：缺少标书文件 -> notifyFailure(原因含'缺少标书文件') + 不入库")
     void noBidFile_triggersFailureNotification() {
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project(1L, 7L, "E2E 项目")));
         when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.empty());
@@ -87,12 +87,14 @@ class ProjectClosedEventListenerTest {
 
         listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
 
-        verify(notifier, times(1)).notifyFailure(anyLong(), any(), any(), any(), any());
+        ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
+        verify(notifier, times(1)).notifyFailure(anyLong(), any(), reasonCaptor.capture(), any(), any());
+        assertThat(reasonCaptor.getValue()).contains("缺少标书文件");
         verify(knowledgeCaseRepository, never()).saveAll(any());
     }
 
     @Test
-    @DisplayName("前置条件：缺少评分项 → notifyFailure + 不入库")
+    @DisplayName("前置条件：缺少评分项 -> notifyFailure(原因含'缺少评分项') + 不入库")
     void noScoreItems_triggersFailureNotification() {
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project(1L, 7L, "E2E 项目")));
         ProjectArchive archive = new ProjectArchive();
@@ -104,7 +106,9 @@ class ProjectClosedEventListenerTest {
 
         listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
 
-        verify(notifier, times(1)).notifyFailure(anyLong(), any(), any(), any(), any());
+        ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
+        verify(notifier, times(1)).notifyFailure(anyLong(), any(), reasonCaptor.capture(), any(), any());
+        assertThat(reasonCaptor.getValue()).contains("缺少评分项");
         verify(knowledgeCaseRepository, never()).saveAll(any());
     }
 
@@ -230,7 +234,7 @@ class ProjectClosedEventListenerTest {
     @Test
     @DisplayName("处理异常时调用 notifyFailure + 不向上抛")
     void exceptionTriggersFailureNotification() {
-        // 把异常抛在 try 块内 — archiveRepository.findByProjectId 是 try 块的第一行
+        // 把异常抛在 try 块内 - archiveRepository.findByProjectId 是 try 块的第一行
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project(1L, 7L, "E2E 项目")));
         when(archiveRepository.findByProjectId(1L))
                 .thenThrow(new RuntimeException("DB 故障"));
@@ -239,6 +243,56 @@ class ProjectClosedEventListenerTest {
         listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
 
         verify(notifier, times(1)).notifyFailure(anyLong(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("第 5 步 AI 提取失败 -> notifyFailure(原因含'AI 案例沉淀失败') + 不入库")
+    void aiExtractionFailure_triggersFailureNotification() {
+        Project project = project(1L, 7L, "E2E 项目");
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        ProjectArchive archive = new ProjectArchive();
+        archive.setId(99L);
+        when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
+        when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(bidFile(1L, 99L)));
+        List<ProjectScoreDraft> drafts = List.of(draft(101L, "技术方案", "要求提供架构图"));
+        when(scoreDraftRepository.findByProjectIdOrderByCategoryAscSourceTableIndexAscSourceRowIndexAsc(1L))
+                .thenReturn(drafts);
+        when(docTextExtractor.extract(any(), any(), any()))
+                .thenReturn(new ExtractedDocument("## 标书正文", 5, "text/markdown", "bid.pdf", java.util.Map.of()));
+        // 模拟 AI 调用抛异常
+        when(caseAiMatcher.extractSlicesWithAi(any(), any()))
+                .thenThrow(new IllegalStateException("AI 案例沉淀失败：大模型调用失败，原因：connection timeout"));
+
+        listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
+
+        ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
+        verify(notifier, times(1)).notifyFailure(anyLong(), any(), reasonCaptor.capture(), any(), any());
+        assertThat(reasonCaptor.getValue()).contains("AI 案例沉淀失败");
+        assertThat(reasonCaptor.getValue()).contains("大模型调用失败");
+        verify(knowledgeCaseRepository, never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("第 5 步 AI 提取失败 -> 不向上抛异常（Listener 吞异常防崩主流程）")
+    void aiExtractionFailure_doesNotPropagateException() {
+        Project project = project(1L, 7L, "E2E 项目");
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        ProjectArchive archive = new ProjectArchive();
+        archive.setId(99L);
+        when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
+        when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(bidFile(1L, 99L)));
+        when(scoreDraftRepository.findByProjectIdOrderByCategoryAscSourceTableIndexAscSourceRowIndexAsc(1L))
+                .thenReturn(List.of(draft(101L, "技术方案", "要求提供架构图")));
+        when(docTextExtractor.extract(any(), any(), any()))
+                .thenReturn(new ExtractedDocument("## 标书正文", 5, "text/markdown", "bid.pdf", java.util.Map.of()));
+        when(caseAiMatcher.extractSlicesWithAi(any(), any()))
+                .thenThrow(new IllegalStateException("AI 案例沉淀失败：大模型调用失败"));
+
+        // 不应抛异常 - Listener 必须吞掉异常，只发通知
+        listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
+
+        verify(notifier, times(1)).notifyFailure(anyLong(), any(), any(), any(), any());
+        verify(knowledgeCaseRepository, never()).saveAll(any());
     }
 
     private Project project(Long id, Long managerId, String name) {

@@ -34,15 +34,19 @@ public class CaseAiMatcher {
             // 没有评分项时无需 AI 提取；前置条件层（Listener）已对外承诺 0 cases 也算成功。
             return List.of();
         }
+        log.info("AI 案例匹配开始：{} 个评分项，标书文本长度 {} 字符", drafts.size(),
+                markdown != null ? markdown.length() : 0);
         List<AiMatchedSlice> result = new ArrayList<>();
         AiProviderRuntimeConfig config;
         try {
             config = routingAiProvider.resolveActiveConfig();
         } catch (RuntimeException ex) {
+            log.error("AI 案例匹配失败：无法解析 AI Provider 配置", ex);
             throw new IllegalStateException("AI 案例沉淀失败：未配置可用的 AI Provider，请联系管理员在 AI 管理页面启用。", ex);
         }
 
         if (config == null) {
+            log.error("AI 案例匹配失败：当前未启用任何 AI Provider");
             throw new IllegalStateException("AI 案例沉淀失败：当前未启用任何 AI Provider，请联系管理员在 AI 管理页面启用。");
         }
 
@@ -62,6 +66,10 @@ public class CaseAiMatcher {
                     "Extract proof snippets from the markdown for each criterion. Return JSON array format:\n" +
                     "[ {\"criteriaId\": 1, \"matchedSnippet\": \"...\", \"confidence\": 0.95} ]";
 
+            if (log.isDebugEnabled()) {
+                log.debug("AI 案例匹配 Prompt（model={}）：\n{}", config.model(), userPrompt);
+            }
+
             Map<String, Object> requestBody = new HashMap<>();
             requestBody.put("model", config.model());
             requestBody.put("messages", List.of(
@@ -74,6 +82,7 @@ public class CaseAiMatcher {
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.setBearerAuth(config.apiKey());
 
+            log.info("AI 案例匹配：调用大模型 {} (baseUrl={})", config.model(), config.baseUrl());
             ResponseEntity<String> response = restTemplate.exchange(
                     config.baseUrl(),
                     HttpMethod.POST,
@@ -81,8 +90,15 @@ public class CaseAiMatcher {
                     String.class
             );
 
-            if (response.getBody() != null) {
-                String jsonStr = extractJson(response.getBody());
+            String rawBody = response.getBody();
+            if (log.isDebugEnabled()) {
+                log.debug("AI 案例匹配：大模型原始返回（HTTP {}）：\n{}",
+                        response.getStatusCode().value(),
+                        rawBody != null ? truncateForLog(rawBody, 4000) : "<null>");
+            }
+
+            if (rawBody != null) {
+                String jsonStr = extractJson(rawBody);
                 JsonNode arrayNode = objectMapper.readTree(jsonStr);
                 if (arrayNode.isArray()) {
                     for (JsonNode node : arrayNode) {
@@ -92,13 +108,32 @@ public class CaseAiMatcher {
                         slice.setConfidence(node.path("confidence").asDouble(0.8));
                         result.add(slice);
                     }
+                    log.info("AI 案例匹配完成：解析到 {} 个匹配片段", result.size());
+                    for (AiMatchedSlice slice : result) {
+                        log.info("  - draftId={}, confidence={}, snippet={} (长度 {})",
+                                slice.getDraftId(),
+                                slice.getConfidence(),
+                                truncateForLog(slice.getMatchedSnippet(), 200),
+                                slice.getMatchedSnippet() != null ? slice.getMatchedSnippet().length() : 0);
+                    }
+                } else {
+                    log.warn("AI 案例匹配：大模型返回非 JSON 数组，解析到 0 个片段。原始 JSON: {}",
+                            truncateForLog(jsonStr, 1000));
                 }
+            } else {
+                log.warn("AI 案例匹配：大模型返回 body 为 null");
             }
         } catch (RuntimeException | com.fasterxml.jackson.core.JsonProcessingException e) {
+            log.error("AI 案例匹配异常：大模型调用或解析失败", e);
             // AI 真实调用失败时直接抛错；Listener 统一发"AI 沉淀失败"通知给触发者，禁止伪造证明片段入库。
             throw new IllegalStateException("AI 案例沉淀失败：大模型调用失败，原因：" + e.getMessage(), e);
         }
         return result;
+    }
+
+    private static String truncateForLog(String text, int maxLen) {
+        if (text == null) return "<null>";
+        return text.length() <= maxLen ? text : text.substring(0, maxLen) + "...(截断，共 " + text.length() + " 字符)";
     }
 
     public String extractCategory(String category) {
