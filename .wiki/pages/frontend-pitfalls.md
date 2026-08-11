@@ -593,9 +593,69 @@ async function loadAccounts() {
 
 ---
 
-## 14. 变更记录
+## 14. el-table 跨页勾选丢失 ids（前端分页 + 后端分页设计错配）
+
+### 14.1 事故
+
+业绩合订本导出：用户勾选 3-6 页约 30 条业绩，导出后 Word 只含第 6 页（最后一页）约 10 条台账数据，部分标题下无附件（错觉）。
+
+### 14.2 根因
+
+`src/views/Knowledge/Performance.vue` 的 el-table 配置缺陷 + 纯前端分页组合：
+
+```vue
+<!-- 错误：缺 row-key + reserve-selection -->
+<el-table :data="pagedRecords" @selection-change="handleSelectionChange">
+  <el-table-column type="selection" width="55" />
+```
+
+- `useListPagination.js` 用 `slice` 做纯前端分页，每次翻页 `pagedRecords` 整体重建
+- el-table 的 selection 跨页保留机制是为后端分页设计（`:data` 单页不变、靠 `row-key` 追踪）
+- 缺 `row-key` 时，`:data` 重建会清空 selection，`@selection-change` 触发后 `selectedIds` 只剩当前页
+
+### 14.3 5 Whys
+
+| 层级 | 回答 |
+|---|---|
+| 现象 | 勾选 30 条，导出只有 10 条 + 部分无附件 |
+| 为什么只有 10 条 | 后端 `totalCount=10`，前端 payload.ids 只含 10 个 |
+| 为什么前端只传 10 个 | el-table 缺 `row-key` + `reserve-selection`，翻页清空 selection |
+| 为什么翻页会清空 | 前端分页下 `pagedRecords` 整体 slice 重建，无 row-key 追踪选中状态 |
+| 工程根因 | 前端 slice 分页 + 后端分页设计错配，未按 el-table 跨页保留契约配置 |
+
+### 14.4 正确做法
+
+```vue
+<el-table :data="pagedRecords" row-key="id" @selection-change="handleSelectionChange">
+  <el-table-column type="selection" width="55" :reserve-selection="true" />
+```
+
+参考项目内已正确实现：`src/views/Bidding/customer-opportunity/CustomerOpportunityPool.vue` 的 `row-key="customerId"`。
+
+### 14.5 诊断证据（生产日志）
+
+- 服务器 `jetty@172.16.10.149`，traceId=8fb96e27d11145b4b9970fb690f5c9f4
+- `PerformanceBundleExportNotificationPublisher totalCount=10`（应 30）
+- 0 条"附件文件不存在" warn（排除 §97 路径漂移）
+- 0 条 ImageIO 异常（排除 §103 ARGB 编码）
+- PR !2250 后端 ids 模式 `@Size` 防线已就位
+
+### 14.6 规范
+
+- el-table `type="selection"` 列**必须**配 `row-key`
+- 纯前端 slice 分页下**额外**必加 `:reserve-selection="true"`
+- 关键业务操作后端必须打 `count` 日志，便于排查"前端少传 ids"
+
+### 14.7 "很多标题下无附件"是复合错觉
+
+实际是"应该出现的 20 个标题根本没出现"+"已出现的 10 个标题中部分无附件"的复合现象。用户描述现象时要追问"实际数量 vs 期望数量"，不能只听"很多"。
+
+---
+
+## 15. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
 | 2026-07-10 | 首次创建，从 8 个工作区历史对话中提取前端陷阱 |
 | 2026-07-12 | 新增 §12：业务层 catch 覆盖全局 429 友好提示 |
+| 2026-08-11 | 新增 §14：el-table 跨页勾选丢失 ids（业绩合订本导出 bug） |
