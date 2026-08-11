@@ -87,8 +87,8 @@
     </el-card>
 
     <el-card class="table-card kb-table-card" v-loading="loading">
-      <el-table :data="pagedRecords" stripe style="width: 100%" max-height="calc(100vh - 300px)" scrollbar-always-on @row-click="openDetail" @selection-change="handleSelectionChange" class="custom-table">
-        <el-table-column type="selection" width="55" />
+      <el-table :data="pagedRecords" stripe row-key="id" style="width: 100%" max-height="calc(100vh - 300px)" scrollbar-always-on @row-click="openDetail" @selection-change="handleSelectionChange" class="custom-table">
+        <el-table-column type="selection" width="55" :reserve-selection="true" />
         <el-table-column type="index" label="序号" width="110" align="center" :index="indexMethod" />
         <el-table-column prop="contractName" label="合同名称" min-width="180" />
         <el-table-column prop="signingEntity" label="签约单位" min-width="160" />
