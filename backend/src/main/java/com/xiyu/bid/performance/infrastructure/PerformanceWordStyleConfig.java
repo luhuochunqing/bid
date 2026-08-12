@@ -21,7 +21,7 @@ import java.util.List;
  * | 页边距                     | 上下 2.54cm, 左右 2cm  |
  * </pre>
  *
- * <p>高清渲染：PDF 转 PNG 使用 300 DPI，保证附件源文件清晰度不被压缩。
+ * <p>PDF 渲染：PDF 转 PNG 使用 150 DPI（OOM 修复，原 300 DPI 导致 30 条业绩导出 OOM）。
  *
  * <p>D3-1 修复：常量保留为向后兼容，新增 {@link #CONFIG} 实例供 common 组件使用。
  */
@@ -55,11 +55,15 @@ public final class PerformanceWordStyleConfig {
     public static final int MARGIN_LEFT_TWIPS = 1134;
     public static final int MARGIN_RIGHT_TWIPS = 1134;
 
-    // ========== 高清 PDF 渲染 ==========
+    // ========== PDF 渲染（OOM 修复：降 DPI + 降页数上限） ==========
 
-    /** 300 DPI 高清模式（业绩合订本专用） */
-    public static final int PDF_RENDER_DPI = 300;
-    public static final int MAX_PDF_PAGES_PER_FILE = 30;
+    /**
+     * PDF 渲染 DPI。原 300 DPI 会导致 30 条业绩导出 OOM（A4@300DPI=26MB/页 × 900 页 = 23.5GB）。
+     * 降至 150 DPI（A4@150DPI≈6.5MB/页），视觉质量可接受，内存占用降至 1/4。
+     */
+    public static final int PDF_RENDER_DPI = 150;
+    /** 单个 PDF 最多渲染页数。原 30 页过多，降至 10 页控制单文件内存占用。 */
+    public static final int MAX_PDF_PAGES_PER_FILE = 10;
     public static final float JPEG_COMPRESSION_QUALITY = 0.85f;
 
     // ========== 图片尺寸计算 ==========
