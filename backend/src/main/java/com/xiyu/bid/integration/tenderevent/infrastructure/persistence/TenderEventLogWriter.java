@@ -6,6 +6,7 @@ import com.xiyu.bid.integration.tenderevent.infrastructure.persistence.entity.Te
 import com.xiyu.bid.integration.tenderevent.infrastructure.persistence.repository.TenderEventLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 /**
  * 标讯事件流水记录实现（基础设施层）。
@@ -14,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
  */
 @RequiredArgsConstructor
 @Slf4j
+@Service
 public class TenderEventLogWriter implements TenderEventLogPort {
 
     private final TenderEventLogRepository repository;
