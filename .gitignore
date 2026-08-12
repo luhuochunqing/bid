@@ -63,16 +63,8 @@ test-login.html
 .omc/
 **/.omc/
 
-# Agent skill 运行时生成的 speckit 规范工具链文件（本地安装，非仓库管理）
-.agents/skills/speckit-analyze/
-.agents/skills/speckit-checklist/
-.agents/skills/speckit-clarify/
-.agents/skills/speckit-constitution/
-.agents/skills/speckit-implement/
-.agents/skills/speckit-plan/
-.agents/skills/speckit-specify/
-.agents/skills/speckit-tasks/
-.agents/skills/speckit-taskstoissues/
+# Agent skill 运行时（本地安装，非仓库管理）
+.agents/skills/
 
 # 构建产物（release 包、tar.gz）
 .release/
