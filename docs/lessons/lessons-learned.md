@@ -1271,3 +1271,47 @@ public class CaIntegrationController {
 ### 修复
 
 PR !2280：`canUploadProjectDocument` 和 `canDeleteProjectDocument` 白名单补入 `BID_SYSTEM_ADMIN_CODE`，测试覆盖对齐。
+
+---
+
+## 111. 新增被注入类漏加 `@Service` 导致 Spring 启动 crash-loop——纯 Mockito 单测 + `-DskipTests` 打包让它逃过所有门禁（2026-08-12）
+
+### 问题背景
+
+标讯创建事件推送西域 CRM 事件总线（`feat-tender-event-push`）部署到测试环境后，后端连续两次 crash-loop：
+
+- 第一次：`No qualifying bean of type 'TenderEventLogPort' available`（`TenderEventLogWriter` 漏加 `@Service`）
+- 第二次：`No qualifying bean of type 'TenderEventPayloadMapper' available`（`TenderEventPayloadMapper` 漏加 `@Service`）
+
+两次都是 `TenderEventPublishService` 构造函数注入失败，`APPLICATION FAILED TO START`，systemd 反复重启。
+
+### 根因链接（为什么升级很久没出问题，这次却逃过所有门禁）
+
+这**不是**"漏加一个注解"的偶然失误，而是一条门禁全空的门禁链：
+
+1. **单测用纯 Mockito，绕过 Spring 容器**：`TenderEventPublishServiceTest` 用 `@Mock private TenderEventPayloadMapper`，直接 `new TenderEventPublishService(...)` 手工注入 mock。测的是编排逻辑，**从不验证 Spring 装配**——漏加 `@Service` 在单测里永远体现不出来。
+2. **任务分支本地打包用 `-DskipTests`**：`package-release.sh` 强制 `mvn clean -DskipTests package`，跳过了全部测试。即使本地有全量上下文测试，这一步也完全不跑。
+3. **pre-push 门禁不启动 Spring 上下文**：`ArchitectureTest` / `FPJavaArchitectureTest` 是静态/字节码级架构检查，**不启动 Spring 容器**，测不出 DI 装配错误。
+4. **CI 的"能拦住"的测试需要 Docker**：`FlywayMysqlContainerTest`（`@SpringBootTest` + Testcontainers 全量上下文）本应能捕获 Bean 缺失，但它是**真正能孵化 Spring 容器的测试**，需要 Docker。本地开发环境 Docker 栈主要跑 MySQL/Redis，测试容器未必常开；且该测试只在 CI 的 `backend_changed=true` 且 PR 合入 main 时才跑。
+
+**为什么"升级很久没出问题"**：以往大多数功能是**修改已有 `@Service` 类**（不新增被注入类），或新增类是入口 Controller/Service 且顺手加了注解。这次是**新增一个独立模块的多个类**，其中两个被 `@RequiredArgsConstructor` 注入的类漏了注解，而它们恰好没有能触发 Spring 装配的测试路径。
+
+### 教训
+
+1. **新增被注入类时，凡用 `@RequiredArgsConstructor` 且作为依赖被别的 `@Service` 注入，必须加 `@Service`/`@Component` 注解**——这是 Spring 装配的硬约束，编译期和纯单测都测不出来。
+2. **纯 Mockito 单测算"逻辑正确"，不算"能启动"**：它为被测类手工注入 mock，把 Spring 装配这一步完全架空。被注入类的注解缺失、构造参数不匹配等问题，单测 100% 发现不了。
+3. **`-DskipTests` 打包是门禁盲区**：上线产物走 `package-release.sh` 时测试全跳过。**打包前应单独跑一次能孵化 Spring 容器的测试**（如 `mvn test -Dtest=FlywayMysqlContainerTest` 或至少 `mvn spring-boot:run` 启动冒烟），确认 Bean 装配无误，而不是只依赖单测绿。
+4. **"能拦截"的测试要真正跑起来才算防线**：`FlywayMysqlContainerTest` 存在但依赖 Docker，本地/特定分支不跑就形同虚设。**新增模块后，应在本地跑一次该全量上下文测试**，确认容器能起来再部署。
+
+### 操作规范
+
+1. 新增被 Spring 注入的类时，三连检查：`@Service` 注解 + `mvn compile` 通过 + 本地跑一次能孵化容器的测试（`mvn test -Dtest=FlywayMysqlContainerTest`）。
+2. 涉及新增模块/多类时，部署打包前**必跑**一次全量 Spring 上下文测试，不能只依赖纯 Mockito 单测。
+3. 若本地 Docker 不可用导致 `FlywayMysqlContainerTest` Skipped，视为**未验证**而非"通过"，部署前必须补跑或明确说明。
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/integration/tenderevent/application/TenderEventPayloadMapper.java`（补 `@Service`）
+- `backend/src/main/java/com/xiyu/bid/integration/tenderevent/infrastructure/persistence/TenderEventLogWriter.java`（补 `@Service`）
+- `.github/workflows/ci.yml` L193（`FlywayMysqlContainerTest` 全量上下文门禁）
+- `docs/release/deploy-report-2026-08-12-122nd-test.md`（第 122 次测试部署报告）
