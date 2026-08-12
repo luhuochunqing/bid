@@ -111,15 +111,15 @@
             </el-select>
           </template>
         </el-table-column>
-        <el-table-column prop="discount" label="折扣/折" width="140">
+        <el-table-column prop="discount" label="折扣/百分比" width="150">
           <template #default="{ row }">
             <el-input-number
               v-model="row.discount"
-              :precision="0"
-              :step="1"
+              :precision="2"
+              :step="0.01"
               :min="0"
               :controls="false"
-              placeholder="如：95"
+              placeholder="如：95.00"
               size="small"
               :disabled="!canOperate"
               class="competitor-cell-number"
@@ -322,8 +322,8 @@ async function load() {
         form.competitors = data.competitors.map(c => ({
           name: c?.name || '',
           // 兼容历史文本数据：提取数字给数字组件
-          // discount 字段为整数（95=95折），历史若为 9.5 小数则取整
-          discount: toNumeric(c?.discount) != null ? Math.round(toNumeric(c?.discount)) : null,
+          // discount 字段保留两位小数（95.00 = 95%）
+          discount: toNumeric(c?.discount) != null ? Math.round(toNumeric(c?.discount) * 100) / 100 : null,
           paymentTerm: toNumeric(c?.paymentTerm),
           notes: c?.notes || '',
         }))
