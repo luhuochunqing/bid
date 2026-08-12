@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.xiyu.bid.integration.tenderevent.domain.TenderEventPayload;
 import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
 
 /**
  * 标讯事件消息体 data 序列化（label: 纯映射，无业务决策）。
@@ -12,6 +13,7 @@ import lombok.RequiredArgsConstructor;
  * <p>把纯核心的 {@link TenderEventPayload}（record）序列化为事件总线要求的 JSON 字符串。
  * 只放关键标识：{@code tenderId} 必填，{@code externalId} 为空时省略，避免传脏数据。
  */
+@Service
 @RequiredArgsConstructor
 public final class TenderEventPayloadMapper {
 
