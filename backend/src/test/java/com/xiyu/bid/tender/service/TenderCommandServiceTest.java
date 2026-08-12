@@ -18,6 +18,7 @@ import com.xiyu.bid.tender.dto.TenderAttachmentDTO;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.integration.external.ProjectManagerIdResolver;
+import com.xiyu.bid.integration.tenderevent.application.TenderEventPublishService;
 import com.xiyu.bid.project.service.ProjectManagerDepartmentEnricher;
 import com.xiyu.bid.tender.entity.TenderAttachment;
 import org.junit.jupiter.api.BeforeEach;
@@ -110,7 +111,8 @@ class TenderCommandServiceTest {
                 tenderAuditService,
                 crmTenderSubjectChecker,
                 crmLinkPersistService,
-                departmentEnricher);
+                departmentEnricher,
+                mock(TenderEventPublishService.class));
 
         tender = Tender.builder()
                 .id(1L)

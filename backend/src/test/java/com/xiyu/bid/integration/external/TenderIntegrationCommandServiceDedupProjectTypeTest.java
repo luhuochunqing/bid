@@ -1,6 +1,7 @@
 package com.xiyu.bid.integration.external;
 
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.integration.tenderevent.application.TenderEventPublishService;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.tender.dto.TenderDTO;
@@ -35,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
@@ -97,7 +99,8 @@ class TenderIntegrationCommandServiceDedupProjectTypeTest {
                 eventPublisher, tenderAuditService, userRepository, crmOccupancyChecker,
                 new com.xiyu.bid.webhook.application.OperatorUsernameResolver(userRepository),
                 new TenderDeduplicationService(tenderRepository),
-                projectManagerIdResolver);
+                projectManagerIdResolver,
+                mock(TenderEventPublishService.class));
 
         // 默认：externalId 不存在（走创建新标讯路径）
         when(tenderRepository.findByExternalId(anyString())).thenReturn(Optional.empty());

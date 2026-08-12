@@ -2,6 +2,7 @@ package com.xiyu.bid.integration.external;
 
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.integration.tenderevent.application.TenderEventPublishService;
 import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
@@ -36,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -89,7 +91,8 @@ class TenderIntegrationCommandServiceCrmDuplicateTest {
                 eventPublisher, tenderAuditService, userRepository, crmOccupancyChecker,
                 new com.xiyu.bid.webhook.application.OperatorUsernameResolver(userRepository),
                 new com.xiyu.bid.tender.service.TenderDeduplicationService(tenderRepository),
-                projectManagerIdResolver);
+                projectManagerIdResolver,
+                mock(TenderEventPublishService.class));
         when(tenderRepository.save(any(Tender.class))).thenAnswer(inv -> inv.getArgument(0));
         TenderDTO stubDto = TenderDTO.builder().build();
         when(tenderMapper.toDTO(any(Tender.class))).thenReturn(stubDto);

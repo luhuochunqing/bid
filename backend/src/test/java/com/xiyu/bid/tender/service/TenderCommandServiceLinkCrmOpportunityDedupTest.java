@@ -4,6 +4,7 @@ import com.xiyu.bid.batch.repository.TenderAssignmentRecordRepository;
 import com.xiyu.bid.crm.application.CrmTenderSubjectChecker;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.integration.tenderevent.application.TenderEventPublishService;
 import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
@@ -25,6 +26,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -85,7 +87,8 @@ class TenderCommandServiceLinkCrmOpportunityDedupTest {
                 tenderAuditService,
                 crmTenderSubjectChecker,
                 crmLinkPersistService, // CO-501 修复后：独立 @Service 处理落库事务
-                null); // ProjectManagerDepartmentEnricher（本测试不涉及自动分配部门反查）
+                null, // ProjectManagerDepartmentEnricher（本测试不涉及自动分配部门反查）
+                mock(TenderEventPublishService.class));
     }
 
     @Test
