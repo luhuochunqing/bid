@@ -3,6 +3,9 @@ title: 审计白名单陷阱——@Auditable action 命名必须对齐 AuditActi
 space: engineering
 category: guide
 tags: [审计, Auditable, AuditActionPolicy, 白名单, audit_logs]
+created: 2026-08-04
+updated: 2026-08-04
+health_checked: 2026-08-12
 sources:
   - backend/src/main/java/com/xiyu/bid/audit/core/AuditActionPolicy.java
   - backend/src/main/java/com/xiyu/bid/aspect/AuditableAspect.java
@@ -10,9 +13,6 @@ sources:
 backlinks:
   - _index
   - lessons-learned
-created: 2026-08-04
-updated: 2026-08-04
-health_checked: 2026-08-04
 ---
 # 审计白名单陷阱
 

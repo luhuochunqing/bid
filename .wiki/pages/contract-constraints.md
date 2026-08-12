@@ -3,6 +3,9 @@ title: 合同约束
 space: implementation
 category: reference
 tags: [合同, SOW, 约束, 验收, 付款, 范围]
+created: 2026-04-23
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - .wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx
   - .wiki/extracts/contract__西域数智化投标管理平台建设项目合同-V1_0420.docx.md
@@ -21,9 +24,6 @@ backlinks:
   - overview
   - requirements
   - team-and-timeline
-created: 2026-04-23
-updated: 2026-06-20
-health_checked: 2026-07-23
 archive: true
 ---
 # 合同约束

@@ -3,6 +3,9 @@ title: 有效角色解析（Effective Role Resolution）规范
 space: engineering
 category: spec
 tags: [CO-373, 角色解析, EffectiveRoleResolver, DataScopeConfigService, FP-Java, fail-closed, OSS cache]
+created: 2026-06-28
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - backend/src/main/java/com/xiyu/bid/security/EffectiveRoleResolver.java
   - CLAUDE.md
@@ -11,9 +14,6 @@ backlinks:
   - architecture
   - lessons-learned/CO-361-five-rounds-no-fix
   - data-permission-hardening
-created: 2026-06-28
-updated: 2026-06-28
-health_checked: 2026-07-23
 ---
 
 # 有效角色解析（Effective Role Resolution）规范

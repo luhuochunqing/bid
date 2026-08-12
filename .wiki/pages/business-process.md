@@ -3,6 +3,9 @@ title: 业务流程
 space: engineering
 category: business
 tags: [业务流程, 投标生命周期, 六阶段, 标讯, 立项, 标书, 闭环]
+created: 2026-04-15
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - docs/specs/业务流程图.md
   - README.md
@@ -20,9 +23,6 @@ backlinks:
   - roles-and-permissions
   - team-and-timeline
   - workflow-form-center
-created: 2026-04-15
-updated: 2026-06-21
-health_checked: 2026-07-23
 ---
 # 业务流程
 

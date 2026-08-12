@@ -3,6 +3,9 @@ title: Flyway 迁移陷阱集
 space: engineering
 category: guide
 tags: [Flyway, 数据库迁移, MySQL, collation, 版本号冲突, baseline-on-migrate, 回滚脚本]
+created: 2026-07-10
+updated: 2026-07-31
+health_checked: 2026-08-12
 sources:
   - backend/src/main/resources/db/migration-mysql/
   - backend/src/main/resources/application-mysql.yml
@@ -13,9 +16,6 @@ backlinks:
   - lessons-learned
   - production-deployment-lessons
   - deployment
-created: 2026-07-10
-updated: 2026-07-31
-health_checked: 2026-07-31
 ---
 # Flyway 迁移陷阱集
 

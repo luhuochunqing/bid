@@ -1315,3 +1315,36 @@ PR !2280：`canUploadProjectDocument` 和 `canDeleteProjectDocument` 白名单�
 - `backend/src/main/java/com/xiyu/bid/integration/tenderevent/infrastructure/persistence/TenderEventLogWriter.java`（补 `@Service`）
 - `.github/workflows/ci.yml` L193（`FlywayMysqlContainerTest` 全量上下文门禁）
 - `docs/release/deploy-report-2026-08-12-122nd-test.md`（第 122 次测试部署报告）
+---
+
+## 112. 业绩批量导入按合同名 upsert 去重——重复合同名被合并覆盖，180 行只入库 141 条（2026-08-12）
+
+### 问题背景
+
+向测试环境 `winbid-test.ehsy.com/knowledge/performance` 批量导入"央企业绩导入文件包"（180 行 Excel + 708 附件）。后端返回 `successCount=180, failureCount=0, attachedCount=708, unmatchedFiles=[]`，但数据库 `performance_record` 实际只有 141 条记录。
+
+### 根因
+
+`PerformanceRowImporter.saveParsedRow` 按**合同名称唯一 upsert**：
+
+```java
+var existing = repository.findByContractName(parsed.contractName());
+if (existing.isPresent()) {
+    performanceId = updateService.update(existing.get().id(), parsed.command()).id();
+} else {
+    performanceId = createService.create(parsed.command()).id();
+}
+```
+
+源 Excel 180 行里合同名有 22 组重复、共 39 行（如"年度框架协议"出现 6 次签约单位各不相同、"易派客平台推广服务协议"4 次）。后端逐行处理时，重复合同名的后续行会 `update` 覆盖先前行，导致**只保留每组最后一个签约单位的数据，其余被覆盖丢失**。`successCount` 统计的是解析行数而非实际新建记录数，因此返回成功但不代表数据完整。
+
+### 教训
+
+1. **批量导入的"成功数"不等于"入库记录数"**：当落库逻辑含按业务键 upsert 时，`successCount` 可能远大于实际新建记录数。校验导入完整性必须直接查库核对记录数，不能只看接口返回。
+2. **合同名是业绩记录的唯一键**：同一合同名只允许一条记录，不同签约单位/项目类型的独立业绩若共用泛化合同名（如"买卖协议""年度框架协议"），导入时会被合并。多记录共用合同名属于数据质量问题。
+3. **被合并行是"后写覆盖先写"**：upsert 对重复键取最后出现行，先出现的独立数据（不同签约单位）会被静默丢弃，无任何报错，属于数据丢失隐患。
+4. **前端附件数量上限（100 个）与后端无限制不一致**：本次 708 附件需走后端直连 API 批量 multipart 上传，绕过前端组件限制；同时大请求（~265MB）需绕开网关层（APISIX 返回 413），直连后端端口（Spring multipart 上限 3GB）。
+
+### 处理
+
+将重复合同名唯一化（追加签约单位/客户类型等区分后缀，如 `年度框架协议（安泰科技股份有限公司-4）`），使 180 行全部成为独立记录；清空测试库业绩数据（`performance_record`、`performance_attachment` + 物理目录 `/data/attachments/performance/`）后重导，最终 180 条记录 + 708 附件全部入库、合同名无重复。

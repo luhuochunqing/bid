@@ -3,6 +3,9 @@ title: Spring Boot 陷阱集
 space: engineering
 category: guide
 tags: [Spring Boot, 事务, @Transactional, @Async, @ConditionalOnBean, 配置优先级, SPRING_CONFIG_IMPORT, 代理失效]
+created: 2026-07-10
+updated: 2026-08-04
+health_checked: 2026-08-12
 sources:
   - backend/src/main/java/com/xiyu/bid/
   - backend/src/main/resources/application.yml
@@ -11,9 +14,6 @@ backlinks:
   - _index
   - lessons-learned
   - architecture
-created: 2026-07-10
-updated: 2026-08-04
-health_checked: 2026-08-04
 ---
 # Spring Boot 陷阱集
 

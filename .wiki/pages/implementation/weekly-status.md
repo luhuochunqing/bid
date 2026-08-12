@@ -3,6 +3,9 @@ title: 实施周报与例会纪要模板
 space: implementation
 category: guide
 tags: [implementation, delivery]
+created: 2026-04-21
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - .wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx
   - docs/specs/启动会项目组织架构与沟通矩阵.md
@@ -14,9 +17,6 @@ backlinks:
   - implementation/development-sprint-2026-05-23
   - implementation/risk-register
   - implementation/xiyu-pending-confirmations
-created: 2026-04-21
-updated: 2026-06-21
-health_checked: 2026-07-23
 archive: true
 ---
 # 实施周报与例会纪要模板

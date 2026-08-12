@@ -3,14 +3,14 @@ title: 系统设置 — 蓝图功能实现对照
 space: engineering
 category: testing
 tags: [testing, 蓝图对照, 系统设置, settings]
+created: 2026-05-28
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - .wiki/sources/testing/module-07-settings-test.md
   - .wiki/sources/testing/module-07-settings-test.md
 backlinks:
   - _index
-created: 2026-05-28
-updated: 2026-06-21
-health_checked: 2026-07-23
 ---
 > 蓝图章节：§4.7 系统设置
 > 对应飞书蓝图：https://my.feishu.cn/docx/FgLAdRmFho4QhwxncgAcfxKJn0d

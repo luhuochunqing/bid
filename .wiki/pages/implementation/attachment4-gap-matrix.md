@@ -3,6 +3,9 @@ title: 附件4客户要求差距矩阵
 space: implementation
 category: reference
 tags: [附件4, 差距矩阵, 验收证据, 需求追溯, UAT]
+created: 2026-04-26
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - .wiki/sources/bidding/附件6：需求功能清单.md
   - .wiki/sources/bidding/附件6：需求功能清单.xlsx
@@ -18,9 +21,6 @@ backlinks:
   - implementation/attachment4-requirement-task-book
   - implementation/attachment6-function-list-trace
   - implementation/document-delivery-ledger
-created: 2026-04-26
-updated: 2026-06-21
-health_checked: 2026-07-23
 archive: true
 ---
 # 附件4客户要求差距矩阵

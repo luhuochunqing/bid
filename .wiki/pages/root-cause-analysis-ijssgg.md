@@ -3,14 +3,14 @@ title: 立项招标文件上传 Bug 根因分析 (IJSSGG)
 space: engineering
 category: analysis
 tags: [bug, 根因分析, 立项, 招标文件上传, 权限]
+created: 2026-06-13
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - src/views/Project/stages/InitiationStage.vue
   - src/views/Project/stages/useInitiationStageActions.js
 backlinks:
   - _index
-created: 2026-06-13
-updated: 2026-07-07
-health_checked: 2026-07-23
 archive: true
 ---
 # 立项招标文件上传 Bug 根因分析

@@ -3,6 +3,9 @@ title: 附件6需求功能清单追溯
 space: implementation
 category: reference
 tags: [附件6, 需求功能清单, 功能追溯, 验收颗粒度]
+created: 2026-04-26
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - .wiki/sources/bidding/附件6：需求功能清单.md
   - .wiki/sources/bidding/附件6：需求功能清单.xlsx
@@ -15,9 +18,6 @@ backlinks:
   - implementation/attachment4-gap-matrix
   - implementation/delivery-playbook
   - implementation/document-delivery-ledger
-created: 2026-04-26
-updated: 2026-06-27
-health_checked: 2026-07-23
 archive: true
 ---
 # 附件6需求功能清单追溯
