@@ -399,6 +399,16 @@ xiyu:
         cron: ${XIYU_ORG_RECONCILIATION_CRON:0 30 2 * * *}
         lookback-days: ${XIYU_ORG_RECONCILIATION_LOOKBACK_DAYS:3}
 
+      tender-event:
+        # 标讯创建事件推送 SDK（推送标讯到西域 CRM 事件总线）
+        # data 只放关键标识（tenderId/externalId），trace 进 HTTP Header
+        # 默认 disabled（安全默认），生产环境通过 XIYU_TENDER_EVENT_SDK_ENABLED=true 启用
+        sdk:
+          enabled: ${XIYU_TENDER_EVENT_SDK_ENABLED:false}
+          # 事件总线注册地址（base URL），生产环境必须通过环境变量覆盖
+          server-register-url: ${XIYU_TENDER_EVENT_SERVER_REGISTER_URL:}
+          # 服务注册名，默认 bid
+          service-name: ${XIYU_TENDER_EVENT_SERVICE_NAME:bid}
 
 server:
   port: 8080

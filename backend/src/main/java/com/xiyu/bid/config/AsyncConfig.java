@@ -117,4 +117,14 @@ public class AsyncConfig {
         return createExecutor("perf-bundle-export-", 1, 2, 10,
                 new ThreadPoolExecutor.AbortPolicy());
     }
+
+    /**
+     * 标讯事件推送专用线程池（向西域 CRM 事件总线推送标讯创建事件）。
+     * <p>core=1, max=2, queue=20, CallerRunsPolicy：事件推送不阻塞标讯创建主链路，
+     * 队列满时由调用线程兜底执行，避免事件丢失。
+     */
+    @Bean(name = "tenderEventExecutor")
+    public Executor tenderEventExecutor() {
+        return createExecutor("tender-event-", 1, 2, 20);
+    }
 }

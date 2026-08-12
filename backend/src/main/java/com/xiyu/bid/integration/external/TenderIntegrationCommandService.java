@@ -45,6 +45,8 @@ public class TenderIntegrationCommandService {
     private final OperatorUsernameResolver operatorUsernameResolver;
     private final TenderDeduplicationService tenderDeduplicationService;
     private final ProjectManagerIdResolver managerIdResolver;
+    /** 标讯创建事件推送（第三方平台来源，排除 CRM 回发；功能开关关闭时跳过）。 */
+    private final com.xiyu.bid.integration.tenderevent.application.TenderEventPublishService tenderEventPublishService;
 
     /**
      * 幂等推送标讯。
@@ -217,6 +219,9 @@ public class TenderIntegrationCommandService {
         String createUsername = userId != null ? "integration-" + request.getSourceSystem() : "system";
         String createUserId = userId != null ? String.valueOf(userId) : "system";
         tenderAuditService.logCreate(saved.getId(), createUsername, createUserId, null);
+
+        // 标讯创建事件推送（第三方平台来源，排除 CRM 回发；功能开关关闭时跳过）
+        tenderEventPublishService.publishOnCreate(saved);
 
         return TenderPushResponse.builder()
                 .tenderId(saved.getId())

@@ -64,6 +64,8 @@ public class TenderCommandService {
     private final TenderCrmLinkPersistService crmLinkPersistService;
     /** 部门名反查：复用 ProjectManagerDepartmentEnricher（user.department_code → organization_departments.department_name）。 */
     private final ProjectManagerDepartmentEnricher departmentEnricher;
+    /** 标讯创建事件推送（向西域 CRM 事件总线，功能开关关闭时跳过）。 */
+    private final com.xiyu.bid.integration.tenderevent.application.TenderEventPublishService tenderEventPublishService;
 
     public TenderDTO createTender(TenderDTO tenderDTO) {
         return createTender(tenderDTO, null);
@@ -97,6 +99,9 @@ public class TenderCommandService {
         String createUsername = operatorUsername != null ? operatorUsername : "system";
         String createUserId = userId != null ? String.valueOf(userId) : "system";
         tenderAuditService.logCreate(savedTender.getId(), createUsername, createUserId, null);
+
+        // 标讯创建事件推送（人工录入/批量导入，排除 CRM 回发；功能开关关闭时跳过）
+        tenderEventPublishService.publishOnCreate(savedTender);
 
         return tenderMapper.toDTO(savedTender);
     }

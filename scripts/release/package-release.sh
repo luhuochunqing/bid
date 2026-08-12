@@ -47,6 +47,27 @@ printf '\n==> Packaging backend jar\n'
 cd "$BACKEND_DIR"
 # 强制 clean：避免 target/ 残留旧迁移文件被打进 jar（2026-06-25 V1096 jar 内重复事故）
 # 教训：mvn package 增量编译不会清理已删除的 V*.sql，导致 jar 内出现两个 V1096
+# 容器测试门禁（2026-08-12 §111 事故）：新增被注入类漏加 @Service 会导致 Spring crash-loop，
+# 纯 Mockito 单测 + 本脚本的 -DskipTests 打包都测不出来。打包前强制跑一次能孵化 Spring
+# 全量上下文 + Testcontainers 的 FlywayMysqlContainerTest，验证 Bean 装配无误再打包。
+# 逃生阀：XIYU_SKIP_CONTAINER_TEST=true 可显式跳过（打印警告，仅限明确知道无需验证的场景）。
+if [[ "${XIYU_SKIP_CONTAINER_TEST:-false}" == "true" ]]; then
+  printf '⚠️  已显式跳过容器测试（XIYU_SKIP_CONTAINER_TEST=true）——未验证 Spring 装配，请确认这是有意为之\n' >&2
+else
+  printf '\n==> 容器测试门禁：验证 Spring 全量上下文 + Flyway（防止漏加 @Service 导致 crash-loop）\n'
+  if ! CONTAINER_TEST_LOG=$(mvn -Dtest=FlywayMysqlContainerTest -DfailIfNoTests=true test 2>&1); then
+    printf '❌ 容器测试失败（FlywayMysqlContainerTest）——Spring 上下文未能完整装配\n' >&2
+    printf '   常见根因：新增被注入类漏加 @Service/@Component 注解\n' >&2
+    printf '%s\n' "$CONTAINER_TEST_LOG" | tail -40 >&2
+    exit 1
+  fi
+  if grep -qE "Tests run:.*Skipped: [1-9]" <<<"$CONTAINER_TEST_LOG"; then
+    printf '❌ 容器测试有 Skipped——Docker 不可用或测试配置错误，测试跳过 ≠ 测试通过\n' >&2
+    grep -E "Tests run:" <<<"$CONTAINER_TEST_LOG" >&2 || true
+    exit 1
+  fi
+  printf '✅ 容器测试通过（FlywayMysqlContainerTest，Spring 全量上下文装配正常）\n'
+fi
 mvn clean -DskipTests package
 
 JAR_PATH="$(find "$BACKEND_DIR/target" -maxdepth 1 -type f -name '*.jar' ! -name '*original*.jar' | sort | head -n 1)"

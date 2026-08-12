@@ -1,6 +1,7 @@
 package com.xiyu.bid.integration.external;
 
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.integration.tenderevent.application.TenderEventPublishService;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.tender.entity.TenderEvaluation;
@@ -88,7 +89,8 @@ class TenderIntegrationServicePushEvaluationTest {
                 crmOccupancyChecker,
                 new com.xiyu.bid.webhook.application.OperatorUsernameResolver(mock(UserRepository.class)),
                 new com.xiyu.bid.tender.service.TenderDeduplicationService(tenderRepository),
-                mock(ProjectManagerIdResolver.class));
+                mock(ProjectManagerIdResolver.class),
+                mock(TenderEventPublishService.class));
     }
 
     private TenderPushRequest.EvaluationUpdate buildEval(String roleKey, String infoKey, String value) {
