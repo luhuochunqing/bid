@@ -3,6 +3,9 @@ title: Agent 开发 SOP 快速参考
 space: engineering
 category: guide
 tags: [SOP, 多Agent协作, lease协议, worktree, 开发流程]
+created: 2026-04-26
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - CLAUDE.md
   - scripts/who-touches.sh
@@ -10,9 +13,6 @@ sources:
 backlinks:
   - _index
   - lessons-learned
-created: 2026-04-26
-updated: 2026-07-08
-health_checked: 2026-07-23
 ---
 # Agent 开发 SOP 快速参考
 

@@ -3,6 +3,9 @@ title: 项目综述
 space: engineering
 category: guide
 tags: [项目, 概述, 西域, 交付, 合同]
+created: 2026-04-15
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - README.md
   - AGENTS.md
@@ -15,9 +18,6 @@ backlinks:
   - design-system
   - implementation/sow-2026-v1-4
   - team-and-timeline
-created: 2026-04-15
-updated: 2026-06-21
-health_checked: 2026-07-23
 ---
 # 项目综述
 

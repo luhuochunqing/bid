@@ -3,6 +3,9 @@ title: OpenAPI/Swagger 接口规范
 space: engineering
 category: integration
 tags: [api, openapi, swagger, integration, springdoc]
+created: 2026-04-25
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - backend/src/main/java/com/xiyu/bid/config/OpenApiConfig.java
   - backend/src/main/java/com/xiyu/bid/config/SecurityConfig.java
@@ -15,9 +18,6 @@ backlinks:
   - integration-tender-api
   - integration-wecom
   - workflow-form-center
-created: 2026-04-25
-updated: 2026-06-27
-health_checked: 2026-07-23
 ---
 # OpenAPI/Swagger 接口规范
 

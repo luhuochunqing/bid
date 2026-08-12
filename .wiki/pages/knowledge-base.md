@@ -3,13 +3,13 @@ title: 4.4 知识库 PRD (产品需求文档)
 space: engineering
 category: module
 tags: [知识库, 方案管理, 资质证书, 案例库, PRD]
+created: 2026-05-20
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - .wiki/sources/bidding/西域数智化投标管理平台-产品蓝图-初稿-V1.1.md
 backlinks:
   - _index
-created: 2026-05-20
-updated: 2026-06-21
-health_checked: 2026-07-23
 ---
 # 4.4 知识库产品需求文档 (PRD)
 

@@ -3,6 +3,9 @@ title: 标讯集成接口（外部系统对接）
 space: engineering
 category: integration
 tags: [integration, api, tender, crm, callback, x-api-key]
+created: 2026-06-21
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - docs/integration/标讯集成接口文档-v3.8.md
   - docs/integration/外部业务系统对接技术设计与接口规范说明.md
@@ -13,9 +16,6 @@ backlinks:
   - _index
   - api-openapi
   - integration-oa-crm
-created: 2026-06-21
-updated: 2026-06-27
-health_checked: 2026-07-23
 ---
 # 标讯集成接口（外部系统对接）
 

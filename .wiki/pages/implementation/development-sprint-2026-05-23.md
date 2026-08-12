@@ -3,15 +3,15 @@ title: 系统开发冲刺计划 2026-05-23 ~ 06-17
 space: implementation
 category: plan
 tags: [sprint, 开发计划, 冲刺, 每日跟进, 里程碑]
+created: 2026-05-22
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - .wiki/pages/implementation/sow-2026-v1-4.md
   - .wiki/pages/implementation/milestones.md
   - .wiki/pages/team-and-timeline.md
 backlinks:
   - _index
-created: 2026-05-22
-updated: 2026-06-27
-health_checked: 2026-07-23
 archive: true
 ---
 # 系统开发冲刺计划 2026-05-23 ~ 06-17

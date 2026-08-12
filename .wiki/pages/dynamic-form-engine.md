@@ -3,6 +3,9 @@ title: 动态表单自定义引擎
 space: engineering
 category: feature
 tags: [表单, 动态表单, 自定义, schema, 字段可见性, 跨字段验证, 多租户]
+created: 2026-05-24
+updated: 2026-07-31
+health_checked: 2026-08-12
 sources:
   - backend/src/main/java/com/xiyu/bid/formengine/
   - backend/src/main/resources/db/migration-mysql/V140__dynamic_form_engine.sql
@@ -20,9 +23,6 @@ sources:
   - specs/040-project-form-custom-fields/
 backlinks:
   - _index
-created: 2026-05-24
-updated: 2026-07-31
-health_checked: 2026-07-31
 ---
 # 动态表单自定义引擎
 

@@ -3,6 +3,9 @@ title: 架构合成
 space: engineering
 category: architecture
 tags: [架构, 前端, 后端, 数据库, Vue, SpringBoot, 技术栈]
+created: 2026-04-15
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - .wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx
   - docs/architecture/技术架构方案.md
@@ -29,9 +32,6 @@ backlinks:
   - requirements
   - roles-and-permissions
   - team-and-timeline
-created: 2026-04-15
-updated: 2026-06-21
-health_checked: 2026-07-23
 ---
 # 架构合成
 

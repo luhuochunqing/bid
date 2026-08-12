@@ -3,6 +3,9 @@ title: AI Provider 配置与陷阱指南
 space: engineering
 category: guide
 tags: [AI, Provider, DeepSeek, Doubao, qwen, activeProvider, 降级策略, Sidecar, textutil]
+created: 2026-07-10
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - backend/src/main/java/com/xiyu/bid/ai/
   - backend/src/main/resources/application.yml
@@ -11,9 +14,6 @@ backlinks:
   - _index
   - ai-capabilities
   - docinsight-engine
-created: 2026-07-10
-updated: 2026-07-10
-health_checked: 2026-07-19
 ---
 # AI Provider 配置与陷阱指南
 

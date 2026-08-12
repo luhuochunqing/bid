@@ -3,6 +3,9 @@ title: 系统集成中心 - 企业微信
 space: engineering
 category: integration
 tags: [integration, wecom, settings, sso, message-push]
+created: 2026-04-25
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - backend/src/main/java/com/xiyu/bid/integration/
   - src/views/System/SystemIntegration.vue
@@ -13,9 +16,6 @@ backlinks:
   - implementation/attachment4-gap-matrix
   - implementation/attachment6-function-list-trace
   - workflow-form-center
-created: 2026-04-25
-updated: 2026-06-21
-health_checked: 2026-07-23
 ---
 # 系统集成中心 - 企业微信
 

@@ -3,6 +3,9 @@ title: CRM 集成踩坑集
 space: engineering
 category: guide
 tags: [CRM, 集成, 踩坑, webhook, 商机状态, OAuth, CallerContext]
+created: 2026-07-10
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - backend/src/main/java/com/xiyu/bid/integration/external/TenderIntegrationCommandService.java
   - .wiki/pages/integration-oa-crm.md
@@ -11,9 +14,6 @@ backlinks:
   - _index
   - integration-oa-crm
   - lessons-learned
-created: 2026-07-10
-updated: 2026-07-10
-health_checked: 2026-07-19
 ---
 # CRM 集成踩坑集
 

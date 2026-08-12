@@ -3,6 +3,9 @@ title: 前端 Vue3 / Element Plus 陷阱集
 space: engineering
 category: guide
 tags: [前端, Vue3, Element Plus, reactive, ref, v-model, el-upload, el-form, 权限, E2E]
+created: 2026-07-10
+updated: 2026-07-26
+health_checked: 2026-08-12
 sources:
   - src/
   - .wiki/pages/lessons-learned.md
@@ -10,9 +13,6 @@ backlinks:
   - _index
   - lessons-learned
   - design-system
-created: 2026-07-10
-updated: 2026-07-26
-health_checked: 2026-07-19
 ---
 # 前端 Vue3 / Element Plus 陷阱集
 

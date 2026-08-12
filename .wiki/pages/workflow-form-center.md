@@ -3,6 +3,9 @@ title: 流程表单中心（OA 对接已取消）
 space: engineering
 category: integration
 tags: [workflow-form, approval, configuration]
+created: 2026-04-29
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - docs/research/WORKFLOW_FORM_CENTER.md
   - backend/src/main/java/com/xiyu/bid/workflowform/README.md
@@ -13,9 +16,6 @@ backlinks:
   - _index
   - integration-wecom
   - modules
-created: 2026-04-29
-updated: 2026-06-21
-health_checked: 2026-07-23
 ---
 # 流程表单中心
 

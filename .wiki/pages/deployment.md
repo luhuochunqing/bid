@@ -3,6 +3,9 @@ title: 部署与上线
 space: engineering
 category: guide
 tags: [部署, 上线, 发布, 运维, Docker, UAT]
+created: 2026-04-15
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - .wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx
   - docs/release/GO_LIVE_CHECKLIST.md
@@ -29,9 +32,6 @@ backlinks:
   - implementation/weekly-status
   - requirements
   - team-and-timeline
-created: 2026-04-15
-updated: 2026-06-27
-health_checked: 2026-07-23
 ---
 # 部署与上线
 

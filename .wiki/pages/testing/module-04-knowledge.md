@@ -3,14 +3,14 @@ title: 知识库 — 蓝图功能实现对照
 space: engineering
 category: testing
 tags: [testing, 蓝图对照, 知识库, knowledge]
+created: 2026-05-28
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - .wiki/sources/testing/module-04-knowledge-test.md
   - .wiki/sources/testing/module-04-knowledge-test.md
 backlinks:
   - _index
-created: 2026-05-28
-updated: 2026-06-21
-health_checked: 2026-07-23
 ---
 > 蓝图章节：§4.4 知识库
 > 对应飞书蓝图：https://my.feishu.cn/docx/FgLAdRmFho4QhwxncgAcfxKJn0d

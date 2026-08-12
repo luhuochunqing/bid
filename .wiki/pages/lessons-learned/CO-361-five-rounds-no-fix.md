@@ -3,6 +3,9 @@ title: CO-361 五次修复不彻底的教训 — 反复追症状不追根因的�
 space: engineering
 category: lesson
 tags: [教训, CO-361, CO-373, 角色解析, 工程治理, 多Agent协作, pre-existing-error, 接口一致性]
+created: 2026-06-28
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - docs/lessons/lessons-learned.md
   - backend/src/main/java/com/xiyu/bid/entity/User.java
@@ -10,9 +13,6 @@ backlinks:
   - _index
   - lessons-learned
   - architecture
-created: 2026-06-28
-updated: 2026-06-28
-health_checked: 2026-07-23
 archive: true
 ---
 

@@ -3,14 +3,14 @@ title: 标讯中心 — 蓝图功能实现对照
 space: engineering
 category: testing
 tags: [testing, 蓝图对照, 标讯中心, bidding]
+created: 2026-05-28
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - .wiki/sources/testing/module-02-bidding-test.md
   - .wiki/sources/testing/module-02-bidding-test.md
 backlinks:
   - _index
-created: 2026-05-28
-updated: 2026-06-21
-health_checked: 2026-07-23
 ---
 > 蓝图章节：§4.2 标讯中心
 > 对应飞书蓝图：https://my.feishu.cn/docx/FgLAdRmFho4QhwxncgAcfxKJn0d

@@ -3,6 +3,9 @@ title: 项目数据权限修复收口
 space: engineering
 category: reference
 tags: [数据权限, 项目隔离, 安全, 审计, RBAC]
+created: 2026-04-25
+updated: 2026-08-12
+health_checked: 2026-08-12
 sources:
   - docs/reports/data-permission-coverage-audit.md
   - backend/src/main/java/com/xiyu/bid/service/ProjectAccessScopeService.java
@@ -13,9 +16,6 @@ backlinks:
   - implementation/attachment6-function-list-trace
   - roles-and-permissions
   - workflow-form-center
-created: 2026-04-25
-updated: 2026-06-21
-health_checked: 2026-07-23
 ---
 # 项目数据权限修复收口
 
