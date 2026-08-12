@@ -687,3 +687,20 @@ E2E 测试栈（`application-e2e.yml` + H2 内存数据库）启动时通过 `--
 - [ ] 前端 UI 优化的 PR 必须列出受影响的 E2E 测试用例
 - [ ] E2E 选择器优先级：URL 参数 > data-testid > CSS class > 文本
 - [ ] 状态流转测试用 API 触发（双 session 模拟审核流程），不依赖 UI 拖拽
+
+## 七、业绩合订本导出 OOM——300 DPI PDF 渲染 + XWPFDocument 全量内存累积（2026-08-12）
+
+> 来源：PR !2283 修复
+> 教训级别：**P1**（测试环境导出直接 OOM）
+
+### 根因
+
+`PerformanceWordStyleConfig` 配置 `PDF_RENDER_DPI=300` + `MAX_PDF_PAGES_PER_FILE=30`，PDFBox 渲染每页 A4 为 26MB 图片。30 条业绩 × 30 页 = 900 页 × 26MB = 23.5GB，远超 JVM 2GB 堆。POI XWPFDocument 全量在内存中构建，无法流式释放。
+
+### 修复
+
+短期：DPI 300→150，maxPdfPages 30→10。中期：分批构建 docx 或改用 docx4j 流式 API。
+
+### 教训
+
+PDF 渲染内存放大公式：`页数 × DPI² × 4 bytes`。详见 `docs/lessons/lessons-learned.md §113`。

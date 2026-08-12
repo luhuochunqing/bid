@@ -1348,3 +1348,26 @@ if (existing.isPresent()) {
 ### 处理
 
 将重复合同名唯一化（追加签约单位/客户类型等区分后缀，如 `年度框架协议（安泰科技股份有限公司-4）`），使 180 行全部成为独立记录；清空测试库业绩数据（`performance_record`、`performance_attachment` + 物理目录 `/data/attachments/performance/`）后重导，最终 180 条记录 + 708 附件全部入库、合同名无重复。
+
+## 113. 业绩合订本导出 OOM——300 DPI PDF 渲染 + XWPFDocument 全量内存累积（2026-08-12）
+
+### 问题背景
+
+测试环境（`winbid-test.ehsy.com`，JVM `-Xmx2g`）勾选 30 条业绩导出合订本 Word，12 分钟后报 `OutOfMemoryError: Java heap space`。
+
+### 根因
+
+`PerformanceWordStyleConfig` 配置 `PDF_RENDER_DPI=300` + `MAX_PDF_PAGES_PER_FILE=30`，PDFBox `PDFRenderer.renderImageWithDPI` 将每页 A4 渲染为 `2481×3508` 像素图片（约 26MB/页）。30 条业绩 × 30 页 = 900 页 × 26MB = 23.5GB，远超 2GB 堆。POI `XWPFDocument` 全量在内存中构建，所有页面的 JPEG 编码字节累积在 doc 对象中直到 `doc.write(out)`，`img.flush()` 只释放 BufferedImage native 资源，不释放已嵌入 XWPFDocument 的字节数据。
+
+### 教训
+
+1. **PDF 渲染为图片的内存放大公式**：`页数 × DPI² × 4 bytes`（A4@300DPI=26MB/页，@150DPI=6.5MB/页）。Word 合订本导出的 DPI 应 ≤ 150，maxPdfPages 应 ≤ 10。
+2. **POI XWPFDocument 不支持流式写入**：大批量场景必须分批构建临时 docx 再合并，或改用 docx4j 流式 API。
+3. **前端修复暴露后端存量问题**：修复"跨页勾选丢失 ids"后（PR !2282），后端处理量从 10 条 → 30 条，暴露了内存管理缺陷。修复数据丢失类 bug 后，要验证后端能承载"全量数据"的处理压力。
+4. **§104 maxExportRecords 防线无法防"数量少但单条重"**：`maxExportRecords=2000` 防的是 records 数量，不是渲染内存总量。需要"渲染内存预估"防线：`records × avgAttachments × avgPages × dpi²` 超阈值时拒绝。
+
+### 处理
+
+短期修复：`PDF_RENDER_DPI` 300→150（内存降至 1/4），`MAX_PDF_PAGES_PER_FILE` 30→10（页数降至 1/3）。内存预估：30 条 × 10 页 × 6.5MB = 1.95GB（2GB 堆可承载）。生产建议 JVM `-Xmx` 提升至 4g。
+
+中期方案（根治）：分批构建 docx，每 N 条业绩生成临时 docx，最后合并；或改用 docx4j 流式写入。
