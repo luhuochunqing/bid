@@ -22,7 +22,7 @@
           {{ card.value }}<span class="unit">{{ card.unit }}</span>
         </div>
         <div class="kpi-foot">{{ card.foot }}</div>
-        <div class="kpi-trend" :class="card.trendDirection">{{ card.trendText }}</div>
+        <div v-if="card.trendText" class="kpi-trend" :class="card.trendDirection">{{ card.trendText }}</div>
       </div>
     </div>
   </div>
