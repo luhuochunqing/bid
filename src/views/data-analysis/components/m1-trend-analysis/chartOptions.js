@@ -1,5 +1,4 @@
 import * as echarts from 'echarts'
-import { PROJECT_STATUS_COLORS } from './filterConstants.js'
 
 export function buildChartOption(data, xAxisType) {
   if (!data || data.length === 0) return {}
@@ -12,13 +11,12 @@ export function buildChartOption(data, xAxisType) {
     return Number(rate.toFixed(1))
   })
 
-  const isStatusAxis = xAxisType === 'projectStatus'
+  const isCategoryChart = xAxisType === 'projectStatus'
   const showDataZoom = categories.length > 100
 
   const baseOption = {
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: 'cross' },
       backgroundColor: 'rgba(255, 255, 255, 0.95)',
       borderColor: '#E2E8F0',
       borderWidth: 1,
@@ -35,7 +33,7 @@ export function buildChartOption(data, xAxisType) {
       }
     },
     legend: {
-      data: isStatusAxis ? ['数量'] : ['投标数', '中标数', '中标率'],
+      data: isCategoryChart ? ['投标数', '中标数'] : ['投标数', '中标数', '中标率'],
       bottom: 0, left: 'center', icon: 'circle',
       textStyle: { color: '#475569', fontSize: 12 },
       itemWidth: 8, itemHeight: 8
@@ -49,7 +47,7 @@ export function buildChartOption(data, xAxisType) {
       axisLine: { lineStyle: { color: '#E2E8F0' } },
       axisLabel: {
         color: '#475569', fontSize: 11,
-        interval: isStatusAxis ? 0 : 'auto',
+        interval: isCategoryChart ? 0 : 'auto',
         rotate: categories.length > 10 ? 45 : 0
       },
       axisTick: { alignWithLabel: true }
@@ -64,7 +62,7 @@ export function buildChartOption(data, xAxisType) {
     color: '#10B981', borderRadius: [2, 2, 0, 0]
   }
 
-  if (isStatusAxis) {
+  if (isCategoryChart) {
     return {
       ...baseOption,
       yAxis: {
@@ -74,13 +72,8 @@ export function buildChartOption(data, xAxisType) {
         axisLabel: { color: '#475569', fontSize: 11 }
       },
       series: [
-        {
-          name: '数量', type: 'bar', data: bidCounts, barMaxWidth: 32,
-          itemStyle: {
-            borderRadius: [2, 2, 0, 0],
-            color: (params) => PROJECT_STATUS_COLORS[params.name] || commonBarStyle.color
-          }
-        }
+        { name: '投标数', type: 'bar', data: bidCounts, itemStyle: commonBarStyle, barMaxWidth: 32 },
+        { name: '中标数', type: 'bar', data: winCounts, itemStyle: commonWinBarStyle, barMaxWidth: 32 }
       ]
     }
   }

@@ -1,58 +1,62 @@
 <template>
   <div class="m4-competitor">
-    <!-- 区块标题：竞品分析 + 右侧独立日期筛选（PRD §9.2） -->
-    <div class="m4-section-title">
-      <span class="label">竞品分析</span>
-      <div class="m4-date-filter">
-        <el-date-picker v-model="dateRange" type="daterange" range-separator="~"
-          start-placeholder="开始日期" end-placeholder="结束日期"
-          value-format="YYYY-MM-DD" class="m4-date-picker" />
-        <button class="m4-btn" :disabled="loading" @click="fetchData">确认</button>
-        <button class="m4-btn reset" :disabled="loading" @click="resetDateRange">重置</button>
+    <div class="card-header">
+      <span class="card-title">竞品分析</span>
+    </div>
+
+    <div class="filter-area">
+      <div class="filter-row">
+        <div class="filter-item">
+          <label class="filter-label"><span class="required-star">*</span>竞品公司</label>
+          <el-select
+            v-model="selectedCompetitors"
+            multiple
+            filterable
+            remote
+            :remote-method="searchCompetitors"
+            :loading="searchLoading"
+            placeholder="请选择竞品公司"
+            class="filter-select"
+            @change="onCompetitorChange"
+          >
+            <el-option v-for="item in competitorOptions" :key="item" :label="item" :value="item" />
+          </el-select>
+        </div>
+        <div class="filter-item">
+          <label class="filter-label">招标主体</label>
+          <el-select
+            v-model="selectedEntities"
+            multiple
+            filterable
+            remote
+            :remote-method="searchEntities"
+            :loading="entityLoading"
+            placeholder="请选择招标主体（可选）"
+            class="filter-select"
+            clearable
+            @change="onEntityChange"
+          >
+            <el-option v-for="item in entityOptions" :key="item" :label="item" :value="item" />
+          </el-select>
+        </div>
+        <div class="filter-item">
+          <label class="filter-label">日期范围</label>
+          <el-date-picker
+            v-model="dateRange"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            value-format="YYYY-MM-DD"
+            class="filter-date"
+          />
+        </div>
+        <div class="filter-item filter-action">
+          <el-button type="primary" :loading="loading" @click="fetchData">查询</el-button>
+        </div>
       </div>
     </div>
 
-    <!-- 筛选栏：竞品公司 / 招标主体 / 项目名称 / 生成表格（PRD §9.3） -->
-    <div class="m4-filter-bar">
-      <div class="m4-filter-item m4-required">
-        <label>竞品公司</label>
-        <el-select v-model="selectedCompetitors" multiple filterable collapse-tags
-          collapse-tags-tooltip placeholder="请选择" class="m4-select"
-          @change="onCompetitorChange">
-          <el-option v-for="c in competitorOptions" :key="c" :label="c" :value="c" />
-        </el-select>
-      </div>
-
-      <div class="m4-filter-item">
-        <el-checkbox v-model="entityActive" class="m4-field-cb" @change="onEntityToggle">招标主体</el-checkbox>
-        <el-select v-model="selectedEntities" multiple filterable collapse-tags
-          collapse-tags-tooltip placeholder="请选择" class="m4-select" clearable
-          :disabled="!entityActive" @change="onEntityChange">
-          <el-option v-for="e in entityOptions" :key="e" :label="e" :value="e" />
-        </el-select>
-      </div>
-
-      <div class="m4-filter-item">
-        <el-checkbox v-model="projectNameActive" class="m4-field-cb" @change="onProjectNameToggle">项目名称</el-checkbox>
-        <el-select v-model="selectedProjectName" filterable remote :remote-method="searchProjectNames"
-          placeholder="请输入关键词搜索" class="m4-select" clearable
-          :disabled="!projectNameActive" @change="onProjectNameChange">
-          <el-option v-for="p in projectNameOptions" :key="p" :label="p" :value="p" />
-        </el-select>
-      </div>
-
-      <div class="m4-filter-item">
-        <el-checkbox v-model="generateTableChecked" :disabled="generateTableDisabled"
-          class="m4-field-cb" @change="onGenerateTableChange">生成表格</el-checkbox>
-      </div>
-
-      <div class="m4-filter-actions">
-        <button class="m4-btn" :disabled="loading" @click="fetchData">确认</button>
-        <button class="m4-btn reset" :disabled="loading" @click="resetFilters">重置</button>
-      </div>
-    </div>
-
-    <!-- 图表 -->
     <div class="chart-body">
       <div v-if="loading" class="status-overlay">
         <el-skeleton animated :count="1" style="padding: 20px;">
@@ -62,6 +66,7 @@
               <el-skeleton-item variant="rect" style="width: 60px; height: 160px;" />
               <el-skeleton-item variant="rect" style="width: 60px; height: 180px;" />
               <el-skeleton-item variant="rect" style="width: 60px; height: 140px;" />
+              <el-skeleton-item variant="rect" style="width: 60px; height: 200px;" />
             </div>
           </template>
         </el-skeleton>
@@ -74,70 +79,29 @@
       </div>
       <div v-else ref="chartRef" class="chart-container"></div>
     </div>
-
-    <!-- 竞品明细表格（PRD §9.15，仅项目模式 + 勾选生成表格时显示） -->
-    <div v-if="tableVisible && tableData" class="m4-table-wrapper">
-      <div class="m4-table-title-bar">
-        <span class="m4-table-title">{{ tableData.projectLabel }}</span>
-        <button class="m4-export-btn" @click="exportTable">导出 Excel</button>
-      </div>
-      <div class="m4-table-scroll">
-        <table class="m4-table">
-          <thead>
-            <tr><th>竞品公司</th><th>折扣/百分比</th><th>账期/天</th><th>是否中标</th></tr>
-          </thead>
-          <tbody>
-            <tr v-for="(r, i) in sortedTableRows" :key="i">
-              <td>{{ r.competitor }}</td>
-              <td>{{ r.discount }}</td>
-              <td>{{ r.paymentDays }}</td>
-              <td>
-                <span class="m4-won-tag" :class="r.isWon ? 'yes' : 'no'">
-                  {{ r.isWon ? '已中标' : '未中标' }}
-                </span>
-              </td>
-            </tr>
-            <tr v-if="sortedTableRows.length === 0">
-              <td colspan="4" class="m4-table-empty">暂无竞品数据</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useCompetitorData } from './composables/useCompetitorData.js'
-import { exportCompetitorTable } from './chartRenderer.js'
 
 const chartRef = ref(null)
+
 const {
-  loading, error, noData,
-  dateRange, selectedCompetitors, selectedEntities, selectedProjectName,
-  competitorOptions, entityOptions, projectNameOptions,
-  entityActive, projectNameActive, generateTableChecked, generateTableDisabled,
-  tableData, tableVisible,
-  searchProjectNames, onCompetitorChange,
-  onEntityToggle, onEntityChange, onProjectNameToggle, onProjectNameChange, onGenerateTableChange,
-  fetchData, resetDateRange, resetFilters, initOptions, resizeChart, disposeChart
+  loading, error, noData, searchLoading, entityLoading,
+  dateRange, selectedCompetitors, selectedEntities,
+  competitorOptions, entityOptions, allCompetitors,
+  searchCompetitors, searchEntities,
+  onCompetitorChange, onEntityChange,
+  fetchData, initOptions, resizeChart, disposeChart
 } = useCompetitorData(chartRef)
-
-// 表格排序：中标在前，折扣降序（PRD §9.15）
-const sortedTableRows = computed(() => {
-  const rows = tableData.value?.rows || []
-  return [...rows].sort((a, b) => {
-    if (a.isWon && !b.isWon) return -1
-    if (!a.isWon && b.isWon) return 1
-    return Number(b.discount) - Number(a.discount)
-  })
-})
-
-const exportTable = () => exportCompetitorTable(tableData.value)
 
 onMounted(async () => {
   await initOptions()
+  if (selectedCompetitors.value.length === 0 && allCompetitors.value.length > 0) {
+    selectedCompetitors.value = [allCompetitors.value[0]]
+  }
   fetchData()
   window.addEventListener('resize', resizeChart)
 })
@@ -151,71 +115,76 @@ defineExpose({ refresh: fetchData })
 </script>
 
 <style scoped>
-.m4-competitor { display: flex; flex-direction: column; height: 100%; }
+.m4-competitor {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-5);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
 
-.m4-section-title {
-  font-size: 16px; font-weight: 700; color: #1E293B;
-  margin-bottom: 18px; display: flex; align-items: center;
-  justify-content: space-between; gap: 12px;
-}
-.m4-section-title .label { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
-.m4-section-title .label::before {
-  content: ''; width: 4px; height: 20px;
-  background: var(--brand-xiyu-logo); border-radius: 2px;
-}
-.m4-date-filter { display: flex; align-items: center; gap: 8px; }
-.m4-date-picker { width: 280px; }
+.card-header { margin-bottom: var(--space-4); }
 
-.m4-filter-bar {
-  display: flex; gap: 10px 14px; align-items: center; flex-wrap: wrap;
-  padding: 14px 16px; background: var(--bg-subtle); border-radius: 6px;
-  margin-bottom: 16px; border: 1px solid var(--border-light);
+.card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
 }
-.m4-filter-item { display: flex; align-items: center; gap: 6px; }
-.m4-filter-item label { font-size: 12px; font-weight: 600; color: #1E293B; white-space: nowrap; }
-.m4-required label::after { content: ' *'; color: #EF4444; }
-.m4-field-cb { margin-right: 2px; }
-.m4-field-cb :deep(.el-checkbox__label) { font-size: 12px; font-weight: 600; color: #1E293B; padding-left: 6px; }
-.m4-select { width: 200px; }
-.m4-filter-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 
-.m4-btn {
-  background: var(--brand-xiyu-logo); color: var(--bg-card);
-  border: 1px solid var(--brand-xiyu-logo); border-radius: 4px;
-  padding: 6px 14px; font-size: 12px; font-weight: 500; line-height: 1;
-  cursor: pointer; white-space: nowrap; transition: opacity 0.15s ease;
+.filter-area {
+  margin-bottom: var(--space-4);
+  padding: var(--space-4);
+  background: var(--bg-subtle);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-light);
 }
-.m4-btn:hover:not(:disabled) { opacity: 0.88; }
-.m4-btn:disabled { cursor: not-allowed; opacity: 0.6; }
-.m4-btn.reset { background: var(--bg-card); color: var(--brand-xiyu-logo); }
 
-.chart-body { flex: 1; min-height: 0; position: relative; }
-.chart-container { width: 100%; height: 100%; min-height: 380px; }
-.status-overlay { display: flex; align-items: center; justify-content: center; min-height: 380px; }
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
 
-/* 竞品明细表格 */
-.m4-table-wrapper { margin-top: 16px; border: 1px solid var(--border-light); border-radius: 6px; overflow: hidden; }
-.m4-table-title-bar {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 16px; background: var(--bg-subtle); border-bottom: 1px solid var(--border-light);
+.filter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 180px;
+  flex: 1;
 }
-.m4-table-title { font-size: 13px; font-weight: 700; color: #1E293B; }
-.m4-export-btn {
-  background: linear-gradient(135deg, #3B82F6, #2563EB); color: var(--bg-card);
-  border: none; border-radius: 4px; padding: 5px 12px;
-  font-size: 12px; font-weight: 500; cursor: pointer;
+
+.filter-action { flex: 0 0 auto; min-width: auto; }
+
+.filter-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
 }
-.m4-export-btn:hover { opacity: 0.9; }
-.m4-table-scroll { max-height: 240px; overflow-y: auto; }
-.m4-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.m4-table thead { position: sticky; top: 0; z-index: 1; }
-.m4-table th {
-  background: var(--bg-subtle); color: var(--text-badge); font-weight: 600; text-align: center;
-  padding: 8px 12px; border-bottom: 1px solid var(--border-light);
+
+.required-star { color: var(--color-danger); margin-right: 2px; }
+.filter-select { width: 100%; }
+.filter-date { width: 100%; }
+
+.chart-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
 }
-.m4-table td { text-align: center; padding: 8px 12px; color: #334155; border-bottom: 1px solid var(--border-subtle); }
-.m4-table-empty { text-align: center; color: var(--text-lighter); padding: 20px; }
-.m4-won-tag { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; }
-.m4-won-tag.yes { background: #D1FAE5; color: #065F46; }
-.m4-won-tag.no { background: #FEE2E2; color: #991B1B; }
+
+.chart-container {
+  width: 100%;
+  height: 100%;
+  min-height: 380px;
+}
+
+.status-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 380px;
+}
 </style>

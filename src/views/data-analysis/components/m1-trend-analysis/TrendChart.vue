@@ -1,5 +1,14 @@
 <template>
   <div class="trend-chart-card">
+    <div class="chart-header">
+      <h3 class="chart-title">多维度趋势分析</h3>
+      <div class="chart-legend">
+        <span class="legend-item"><span class="legend-dot legend-dot-blue"></span>投标数</span>
+        <span class="legend-item"><span class="legend-dot legend-dot-green"></span>中标数</span>
+        <span class="legend-item"><span class="legend-dot legend-dot-orange"></span>中标率</span>
+      </div>
+    </div>
+
     <div v-if="loading" class="chart-state state-loading">
       <div class="loading-overlay">
         <el-icon class="is-loading" :size="28"><Loading /></el-icon>
@@ -91,11 +100,50 @@ defineExpose({ resize: resizeChart, getInstance: () => chartInstance })
 
 <style scoped>
 .trend-chart-card {
-  background: var(--bg-card);
+  background: #FFFFFF;
   border-radius: 12px;
   padding: 20px;
   position: relative;
 }
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.chart-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1E293B;
+  margin: 0;
+}
+
+.chart-legend {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.legend-dot-blue { background-color: #2563EB; }
+.legend-dot-green { background-color: #10B981; }
+.legend-dot-orange { background-color: #F59E0B; }
 
 .chart-container {
   width: 100%;
@@ -121,7 +169,7 @@ defineExpose({ resize: resizeChart, getInstance: () => chartInstance })
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--brand-primary);
+  color: #2563EB;
 }
 
 .state-error { padding: 40px 0; }

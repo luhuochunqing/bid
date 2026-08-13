@@ -195,14 +195,9 @@ export const dashboardApi = {
     return httpClient.get('/api/analytics/tender-entities')
   },
 
-  // M4 - 项目名称下拉选项（模糊搜索）
-  async getProjectNames(params = {}) {
-    return httpClient.get('/api/analytics/project-names', { params })
-  },
-
-  // M1 - 趋势分析增强(带筛选参数，支持 xAxis 维度切换)
+  // M1 - 趋势分析增强(带筛选参数)
   async getTrendsWithFilters(params) {
-    return httpClient.get('/api/analytics/trends/enhanced', { params })
+    return httpClient.get('/api/analytics/trends', { params })
   },
 
   // M1 - 筛选选项模糊搜索

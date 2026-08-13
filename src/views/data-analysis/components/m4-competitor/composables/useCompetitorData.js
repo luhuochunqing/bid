@@ -1,88 +1,43 @@
-import { ref, computed, nextTick, markRaw } from 'vue'
+import { ref, computed, watch, nextTick, markRaw } from 'vue'
 import * as echarts from 'echarts'
 import { dashboardApi } from '@/api/modules/dashboard.js'
-import { renderCompetitorChart } from '../chartRenderer.js'
-
-// PRD §9.4 竞品公司枚举（前端硬编码）
-const COMPETITOR_ENUM = ['震坤行', '京东', '阿里巴巴', '米思米', '固安捷', '咸享国际', '易买工品']
-const DEFAULT_DATE_RANGE = ['2026-01-01', '2026-12-31']
-
-// 将后端响应规范化为 chartRenderer 所需结构（兼容 PRD 格式与旧格式）
-function normalizeChartData(response, mode, selectedCompetitors, selectedEntities) {
-  const data = response?.data || response || {}
-  if (data.mode) return data
-
-  if (mode === 'grouped') {
-    const detail = data.detail || {}
-    const categories = selectedEntities.filter((e) => detail[e])
-    const groups = selectedCompetitors.map((comp) => {
-      const minData = categories.map((e) => Number(detail[e]?.[comp]?.min ?? 0))
-      const avgData = categories.map((e) => Number(detail[e]?.[comp]?.avg ?? 0))
-      const maxData = categories.map((e) => Number(detail[e]?.[comp]?.max ?? 0))
-      return { competitor: comp, minData, avgData, maxData }
-    })
-    const overallAvgLine = categories.map((e) => {
-      const avgs = selectedCompetitors.map((c) => Number(detail[e]?.[c]?.avg)).filter((v) => v > 0)
-      return avgs.length ? Number((avgs.reduce((s, v) => s + v, 0) / avgs.length).toFixed(1)) : 0
-    })
-    return { mode: 'grouped', categories, groups, overallAvgLine }
-  }
-
-  // 默认模式：兼容 { competitors, discounts: { comp: { min, avg, max } } }
-  const discounts = data.discounts || {}
-  const categories = selectedCompetitors
-  const series = [
-    { name: '最低折扣', data: selectedCompetitors.map((c) => Number(discounts[c]?.min ?? 0)) },
-    { name: '平均折扣', data: selectedCompetitors.map((c) => Number(discounts[c]?.avg ?? 0)) },
-    { name: '最高折扣', data: selectedCompetitors.map((c) => Number(discounts[c]?.max ?? 0)) }
-  ]
-  return { mode: 'default', categories, series }
-}
+import { renderDefaultMode, renderGroupedMode } from '../chartRenderer.js'
 
 export function useCompetitorData(chartRef) {
   const loading = ref(false)
   const error = ref(false)
   const noData = ref(false)
+  const searchLoading = ref(false)
+  const entityLoading = ref(false)
   let chartInstance = null
 
-  const dateRange = ref([...DEFAULT_DATE_RANGE])
-  const selectedCompetitors = ref([...COMPETITOR_ENUM])
+  const dateRange = ref(null)
+  const selectedCompetitors = ref([])
   const selectedEntities = ref([])
-  const selectedProjectName = ref(null)
-  const entityActive = ref(false)
-  const projectNameActive = ref(false)
-  const generateTableChecked = ref(false)
-
+  const competitorOptions = ref([])
   const entityOptions = ref([])
-  const projectNameOptions = ref([])
-  const lastRemovedCompetitor = ref(null)
+  const allCompetitors = ref([])
+  const allEntities = ref([])
 
   const chartData = ref(null)
-  const tableData = ref(null)
-  const tableVisible = ref(false)
+  const lastRemovedCompetitor = ref(null)
 
-  const competitorOptions = computed(() => COMPETITOR_ENUM)
+  const isGroupedMode = computed(() => selectedEntities.value.length > 0)
 
-  const generateTableDisabled = computed(
-    () => !projectNameActive.value || !selectedProjectName.value
-  )
-
-  const chartMode = computed(() => {
-    if (projectNameActive.value && selectedProjectName.value) return 'project'
-    if (selectedEntities.value.length > 0) return 'grouped'
-    return 'default'
-  })
-
-  const searchProjectNames = async (query) => {
-    if (!query) { projectNameOptions.value = []; return }
-    try {
-      const res = await dashboardApi.getProjectNames({ query })
-      const list = Array.isArray(res?.data) ? res.data : []
-      projectNameOptions.value = list.map((p) => (typeof p === 'string' ? p : p?.name || p?.label || '')).filter(Boolean)
-    } catch (err) {
-      console.warn('M4 project-names fetch error (non-fatal):', err)
-      projectNameOptions.value = []
+  const searchCompetitors = (query) => {
+    if (!query) {
+      competitorOptions.value = [...allCompetitors.value]
+      return
     }
+    competitorOptions.value = allCompetitors.value.filter((c) => c.includes(query))
+  }
+
+  const searchEntities = (query) => {
+    if (!query) {
+      entityOptions.value = [...allEntities.value]
+      return
+    }
+    entityOptions.value = allEntities.value.filter((e) => e.includes(query))
   }
 
   const onCompetitorChange = (val) => {
@@ -90,92 +45,63 @@ export function useCompetitorData(chartRef) {
       if (lastRemovedCompetitor.value) {
         selectedCompetitors.value = [lastRemovedCompetitor.value]
       }
-      return
     }
+  }
+
+  watch(selectedCompetitors, (newVal, oldVal) => {
+    if (oldVal && newVal && oldVal.length > 1 && newVal.length < oldVal.length) {
+      const removed = oldVal.find((item) => !newVal.includes(item))
+      if (removed) lastRemovedCompetitor.value = removed
+    }
+  })
+
+  const onEntityChange = () => {
     fetchData()
-  }
-
-  const onEntityToggle = (checked) => {
-    entityActive.value = checked
-    if (checked) {
-      projectNameActive.value = false
-      selectedProjectName.value = null
-      generateTableChecked.value = false
-    }
-  }
-
-  const onEntityChange = (val) => {
-    if (val && val.length > 0) {
-      entityActive.value = true
-      projectNameActive.value = false
-      selectedProjectName.value = null
-      generateTableChecked.value = false
-    }
-    fetchData()
-  }
-
-  const onProjectNameToggle = (checked) => {
-    projectNameActive.value = checked
-    if (checked) {
-      entityActive.value = false
-      selectedEntities.value = []
-    } else {
-      selectedProjectName.value = null
-      generateTableChecked.value = false
-    }
-  }
-
-  const onProjectNameChange = (val) => {
-    if (val) {
-      projectNameActive.value = true
-      entityActive.value = false
-      selectedEntities.value = []
-    }
-  }
-
-  const onGenerateTableChange = () => {
-    // 仅状态切换，实际表格生成在确认时触发
   }
 
   const renderChart = () => {
     if (!chartRef.value || !chartData.value) return
+
     nextTick(() => {
-      if (!chartInstance) chartInstance = markRaw(echarts.init(chartRef.value))
-      const ok = renderCompetitorChart(chartInstance, chartData.value)
-      if (!ok) noData.value = true
+      if (!chartInstance) {
+        chartInstance = markRaw(echarts.init(chartRef.value))
+      }
+
+      const ok = isGroupedMode.value
+        ? renderGroupedMode(chartInstance, chartData.value, selectedCompetitors.value, selectedEntities.value)
+        : renderDefaultMode(chartInstance, chartData.value, selectedCompetitors.value)
+
+      if (!ok) {
+        noData.value = true
+      }
       loading.value = false
     })
   }
 
-  async function fetchData() {
+  const fetchData = async () => {
     if (!selectedCompetitors.value || selectedCompetitors.value.length === 0) return
+
     loading.value = true
     error.value = false
     noData.value = false
-    tableVisible.value = false
+
     try {
-      const params = {
-        competitors: selectedCompetitors.value,
-        startDate: dateRange.value?.[0] || null,
-        endDate: dateRange.value?.[1] || null
+      const params = { competitors: selectedCompetitors.value }
+      if (selectedEntities.value.length > 0) {
+        params.tenderEntities = selectedEntities.value
       }
-      const mode = chartMode.value
-      if (mode === 'grouped') params.tenderEntities = selectedEntities.value
-      if (mode === 'project') params.projectName = selectedProjectName.value
+      if (dateRange.value && dateRange.value.length === 2) {
+        params.startDate = dateRange.value[0]
+        params.endDate = dateRange.value[1]
+      }
 
       const response = await dashboardApi.getCompetitorAnalysis(params)
-      chartData.value = normalizeChartData(response, mode, selectedCompetitors.value, selectedEntities.value)
+      chartData.value = response?.data || response || {}
 
-      // 项目模式 + 勾选生成表格 → 构建表格数据
-      if (mode === 'project' && generateTableChecked.value) {
-        const raw = response?.data || response || {}
-        tableData.value = {
-          projectLabel: raw.projectLabel || selectedProjectName.value,
-          rows: Array.isArray(raw.tableRows) ? raw.tableRows : []
-        }
-        tableVisible.value = true
-      } else {
-        tableData.value = null
+      if (!chartData.value || Object.keys(chartData.value).length === 0) {
+        noData.value = true
+        loading.value = false
+        return
       }
 
       renderChart()
@@ -186,47 +112,48 @@ export function useCompetitorData(chartRef) {
     }
   }
 
-  const resetDateRange = () => {
-    dateRange.value = [...DEFAULT_DATE_RANGE]
-    fetchData()
-  }
-
-  const resetFilters = () => {
-    selectedCompetitors.value = [...COMPETITOR_ENUM]
-    selectedEntities.value = []
-    selectedProjectName.value = null
-    entityActive.value = false
-    projectNameActive.value = false
-    generateTableChecked.value = false
-    tableData.value = null
-    tableVisible.value = false
-    fetchData()
-  }
-
   const initOptions = async () => {
     try {
-      const res = await dashboardApi.getTenderEntities()
-      const list = Array.isArray(res?.data) ? res.data : []
-      entityOptions.value = list.map((e) => (typeof e === 'string' ? e : e?.name || e?.entityName || '')).filter(Boolean)
+      const entityRes = await dashboardApi.getTenderEntities()
+      const entities = Array.isArray(entityRes?.data)
+        ? entityRes.data
+        : (Array.isArray(entityRes) ? entityRes : [])
+
+      allEntities.value = entities.map((e) => {
+        if (typeof e === 'string') return e
+        return e?.name || e?.entityName || ''
+      }).filter(Boolean)
+
+      entityOptions.value = [...allEntities.value]
     } catch (err) {
-      console.warn('M4 tender-entities fetch error (non-fatal):', err)
+      console.warn('M4 TenderEntities fetch error (non-fatal):', err)
+      allEntities.value = []
       entityOptions.value = []
     }
   }
 
-  const resizeChart = () => { if (chartInstance) chartInstance.resize() }
+  const resizeChart = () => {
+    if (chartInstance) chartInstance.resize()
+  }
+
+  const refresh = () => {
+    fetchData()
+  }
+
   const disposeChart = () => {
-    if (chartInstance) { chartInstance.dispose(); chartInstance = null }
+    if (chartInstance) {
+      chartInstance.dispose()
+      chartInstance = null
+    }
   }
 
   return {
-    loading, error, noData,
-    dateRange, selectedCompetitors, selectedEntities, selectedProjectName,
-    competitorOptions, entityOptions, projectNameOptions,
-    entityActive, projectNameActive, generateTableChecked, generateTableDisabled,
-    chartData, tableData, tableVisible, chartMode,
-    searchProjectNames, onCompetitorChange,
-    onEntityToggle, onEntityChange, onProjectNameToggle, onProjectNameChange, onGenerateTableChange,
-    fetchData, resetDateRange, resetFilters, initOptions, resizeChart, disposeChart
+    loading, error, noData, searchLoading, entityLoading,
+    dateRange, selectedCompetitors, selectedEntities,
+    competitorOptions, entityOptions, allCompetitors, allEntities,
+    chartData, isGroupedMode,
+    searchCompetitors, searchEntities,
+    onCompetitorChange, onEntityChange,
+    fetchData, initOptions, resizeChart, refresh, disposeChart
   }
 }
