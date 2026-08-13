@@ -55,6 +55,25 @@ export function useCompetitorData(chartRef) {
     }
   })
 
+  const renderChart = () => {
+    if (!chartRef.value || !chartData.value) return
+
+    nextTick(() => {
+      if (!chartInstance) {
+        chartInstance = markRaw(echarts.init(chartRef.value))
+      }
+
+      const ok = isGroupedMode.value
+        ? renderGroupedMode(chartInstance, chartData.value, selectedCompetitors.value, selectedEntities.value)
+        : renderDefaultMode(chartInstance, chartData.value, selectedCompetitors.value)
+
+      if (!ok) {
+        noData.value = true
+      }
+      loading.value = false
+    })
+  }
+
   const fetchData = async () => {
     if (!selectedCompetitors.value || selectedCompetitors.value.length === 0) return
 
@@ -91,25 +110,6 @@ export function useCompetitorData(chartRef) {
 
   const onEntityChange = () => {
     fetchData()
-  }
-
-  const renderChart = () => {
-    if (!chartRef.value || !chartData.value) return
-
-    nextTick(() => {
-      if (!chartInstance) {
-        chartInstance = markRaw(echarts.init(chartRef.value))
-      }
-
-      const ok = isGroupedMode.value
-        ? renderGroupedMode(chartInstance, chartData.value, selectedCompetitors.value, selectedEntities.value)
-        : renderDefaultMode(chartInstance, chartData.value, selectedCompetitors.value)
-
-      if (!ok) {
-        noData.value = true
-      }
-      loading.value = false
-    })
   }
 
   const initOptions = async () => {
