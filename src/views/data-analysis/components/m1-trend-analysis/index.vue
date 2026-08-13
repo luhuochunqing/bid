@@ -51,7 +51,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useFilterSearch } from './composables/useFilterSearch.js'
 import { useDrillDown } from './composables/useDrillDown.js'
 import { dashboardApi } from '@/api'
@@ -81,40 +81,59 @@ const chartError = ref('')
 const trendData = ref([])
 const currentFilters = ref(null)
 const currentXAxisType = ref('time')
+const currentXAxisDimensions = ref([])
 
-const chartEmpty = computed(() => {
-  return !chartLoading.value && !chartError.value && trendData.value.length === 0
-})
+// PRD 6.3 X 轴判断优先级
+const resolveXAxis = (dims) => {
+  if (!dims || dims.length === 0) return 'time'
+  if (dims.includes('dept') && dims.includes('person')) return 'person'
+  if (dims.includes('dept')) return 'dept'
+  if (dims.includes('person')) return 'person'
+  return dims[0]
+}
 
-const handleDepartmentChange = () => {
-  personOptions.value = []
+// 筛选字段 → 后端 API 参数映射
+const buildApiParams = (filters, xAxis) => {
+  const f = filters || {}
+  return {
+    xAxis,
+    ...(f.timeDimension ? { timeDimension: f.timeDimension } : {}),
+    ...(f.departments?.length ? { departmentIds: f.departments.join(',') } : {}),
+    ...(f.persons?.length ? { userIds: f.persons.join(',') } : {}),
+    ...(f.regions?.length ? { regionIds: f.regions.join(',') } : {}),
+    ...(f.customerTypes?.length ? { customerTypes: f.customerTypes.join(',') } : {}),
+    ...(f.projectTypes?.length ? { projectTypes: f.projectTypes.join(',') } : {}),
+    ...(f.projectStatuses?.length ? { statuses: f.projectStatuses.join(',') } : {}),
+    ...(f.tenderSubjects?.length ? { tenderEntities: f.tenderSubjects.join(',') } : {}),
+    ...(f.competitors?.length ? { competitorNames: f.competitors.join(',') } : {})
+  }
+}
+
+// 后端返回数据 → 图表数据格式适配
+const adaptTrendData = (raw) => {
+  if (!raw) return []
+  const categories = raw.categories || []
+  const bids = raw.bids || raw.bidSeries || []
+  const wins = raw.wins || raw.winSeries || []
+  const rate = raw.rate || raw.winRateSeries || []
+  return categories.map((cat, i) => ({
+    label: cat,
+    bidCount: bids[i] ?? 0,
+    winCount: wins[i] ?? 0,
+    winRate: rate[i] ?? 0
+  }))
 }
 
 const loadTrendData = async () => {
   chartLoading.value = true
   chartError.value = ''
-
   try {
-    const params = {
-      xAxis: currentXAxisType.value,
-      ...(currentFilters.value?.timeDimension ? { timeDimension: currentFilters.value.timeDimension } : {}),
-      ...(currentFilters.value?.departments?.length ? { departments: currentFilters.value.departments.join(',') } : {}),
-      ...(currentFilters.value?.persons?.length ? { persons: currentFilters.value.persons.join(',') } : {}),
-      ...(currentFilters.value?.regions?.length ? { regions: currentFilters.value.regions.join(',') } : {}),
-      ...(currentFilters.value?.customerTypes?.length ? { customerTypes: currentFilters.value.customerTypes.join(',') } : {}),
-      ...(currentFilters.value?.projectTypes?.length ? { projectTypes: currentFilters.value.projectTypes.join(',') } : {}),
-      ...(currentFilters.value?.projectStatuses?.length ? { projectStatuses: currentFilters.value.projectStatuses.join(',') } : {}),
-      ...(currentFilters.value?.tenderSubjects?.length ? { tenderSubjects: currentFilters.value.tenderSubjects.join(',') } : {}),
-      ...(currentFilters.value?.competitors?.length ? { competitors: currentFilters.value.competitors.join(',') } : {})
-    }
-
+    const params = buildApiParams(currentFilters.value, currentXAxisType.value)
     const response = await dashboardApi.getTrendsWithFilters(params)
     if (!response?.success) {
       throw new Error(response?.msg || '加载趋势数据失败')
     }
-
-    const data = response.data || []
-    trendData.value = Array.isArray(data) ? data : []
+    trendData.value = adaptTrendData(response.data)
   } catch (error) {
     chartError.value = error?.message || '数据加载失败，请稍后重试'
     trendData.value = []
@@ -126,19 +145,26 @@ const loadTrendData = async () => {
 
 const handleFilterConfirm = async (payload) => {
   currentFilters.value = payload.filters
-  currentXAxisType.value = payload.xAxisDimensions[0] || 'time'
+  currentXAxisDimensions.value = payload.xAxisDimensions || []
+  currentXAxisType.value = resolveXAxis(currentXAxisDimensions.value)
   await loadTrendData()
 }
 
 const handleFilterReset = () => {
   currentFilters.value = null
+  currentXAxisDimensions.value = []
   currentXAxisType.value = 'time'
   trendData.value = []
   chartError.value = ''
 }
 
+// PRD 6.4 部门-人员联动：部门变化时清空人员选项，用户重新搜索
+const handleDepartmentChange = () => {
+  personOptions.value = []
+}
+
 const handleBarClick = (params) => {
-  openDrill(params.data, currentXAxisType.value)
+  openDrill(params.data, currentXAxisType.value, params.seriesName, currentFilters.value)
 }
 
 onMounted(async () => {
