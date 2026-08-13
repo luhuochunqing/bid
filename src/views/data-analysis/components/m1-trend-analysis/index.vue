@@ -90,19 +90,6 @@ const handleDepartmentChange = () => {
   personOptions.value = []
 }
 
-const handleFilterConfirm = async (payload) => {
-  currentFilters.value = payload.filters
-  currentXAxisType.value = payload.xAxisDimensions[0] || 'time'
-  await loadTrendData()
-}
-
-const handleFilterReset = () => {
-  currentFilters.value = null
-  currentXAxisType.value = 'time'
-  trendData.value = []
-  chartError.value = ''
-}
-
 const loadTrendData = async () => {
   chartLoading.value = true
   chartError.value = ''
@@ -135,6 +122,19 @@ const loadTrendData = async () => {
   } finally {
     chartLoading.value = false
   }
+}
+
+const handleFilterConfirm = async (payload) => {
+  currentFilters.value = payload.filters
+  currentXAxisType.value = payload.xAxisDimensions[0] || 'time'
+  await loadTrendData()
+}
+
+const handleFilterReset = () => {
+  currentFilters.value = null
+  currentXAxisType.value = 'time'
+  trendData.value = []
+  chartError.value = ''
 }
 
 const handleBarClick = (params) => {
