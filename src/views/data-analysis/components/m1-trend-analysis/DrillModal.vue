@@ -38,7 +38,6 @@
         highlight-current-row
         @row-click="handleRowClick"
       >
-        <el-table-column type="index" label="序号" width="60" />
         <el-table-column prop="projectName" label="项目名称" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
             <el-link type="primary" :underline="false" @click.stop="navigateToProject(row)">
@@ -46,27 +45,19 @@
             </el-link>
           </template>
         </el-table-column>
-        <el-table-column prop="customerName" label="客户" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="region" label="区域" width="110" />
-        <el-table-column prop="department" label="部门" width="120" show-overflow-tooltip />
-        <el-table-column prop="managerName" label="负责人" width="110" />
-        <el-table-column prop="status" label="状态" width="110">
+        <el-table-column prop="managerName" label="项目经理" width="120" show-overflow-tooltip />
+        <el-table-column prop="techLeaderName" label="技术负责人" width="120" show-overflow-tooltip />
+        <el-table-column prop="openTime" label="开标时间" width="130" />
+        <el-table-column prop="status" label="项目状态" width="110">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small" effect="plain">
               {{ getStatusText(row.status) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="bidCount" label="投标数" width="80" align="right" />
-        <el-table-column prop="winCount" label="中标数" width="80" align="right" />
-        <el-table-column prop="winRate" label="中标率" width="80" align="right">
-          <template #default="{ row }">
-            {{ row.winRate != null ? `${row.winRate}%` : '-' }}
-          </template>
-        </el-table-column>
       </el-table>
 
-      <div v-if="totalPages > 1" class="pagination-wrapper">
+      <div v-if="total > 0" class="pagination-wrapper">
         <el-pagination
           v-model:current-page="currentPage"
           :page-size="pageSize"
@@ -74,6 +65,7 @@
           layout="prev, pager, next"
           @current-change="handlePageChange"
         />
+        <span class="page-info">第 {{ rangeStart }}-{{ rangeEnd }} 条 / 共 {{ total }} 条</span>
       </div>
     </div>
   </el-dialog>
@@ -125,6 +117,13 @@ const currentPage = computed(() => props.pagination.page || 1)
 const pageSize = computed(() => props.pagination.size || 10)
 const total = computed(() => props.pagination.total || 0)
 const totalPages = computed(() => props.pagination.totalPages || 0)
+const rangeStart = computed(() => {
+  if (total.value === 0) return 0
+  return (currentPage.value - 1) * pageSize.value + 1
+})
+const rangeEnd = computed(() => {
+  return Math.min(currentPage.value * pageSize.value, total.value)
+})
 
 const getStatusText = (status) => getProjectStatusText(status)
 const getStatusType = (status) => getProjectStatusType(status)
@@ -185,8 +184,16 @@ const handleRowClick = (row) => {
 .pagination-wrapper {
   display: flex;
   justify-content: center;
+  align-items: center;
+  gap: 16px;
   margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid #E2E8F0;
+}
+
+.page-info {
+  font-size: 12px;
+  color: var(--text-badge, #475569);
+  white-space: nowrap;
 }
 </style>
