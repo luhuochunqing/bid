@@ -92,40 +92,44 @@ export function useAnalyticsData() {
     }
   }
 
-  function buildTrend(changeValue, fallback) {
-    if (changeValue == null || changeValue === '') return { text: fallback, direction: 'up' }
-    const num = Number(changeValue)
-    if (isNaN(num)) return { text: `较去年同期 ${changeValue}`, direction: 'up' }
-    const sign = num > 0 ? '+' : ''
-    const arrow = num > 0 ? '↑ ' : num < 0 ? '↓ ' : ''
-    const direction = num > 0 ? 'up' : num < 0 ? 'down' : 'flat'
-    return { text: `${arrow}较去年同期 ${sign}${num}%`, direction }
+  function formatDateStr(date) {
+    if (!date) return null
+    if (typeof date === 'string') return date.slice(0, 10)
+    const d = new Date(date)
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
   }
 
   async function loadM0Data() {
     m0Loading.value = true
     m0Error.value = false
     try {
-      const res = await dashboardApi.getOverview()
-      const data = res?.data || {}
-      const totalCount = Number(data.totalBids ?? 0)
-      const biddingCount = Number(data.biddingCount ?? data.inProgressCount ?? 0)
-      const wonCount = Number(data.wonCount ?? data.wonBids ?? 0)
-      const winRate = data.winRate != null ? Number(data.winRate) : 0
-      const todayNew = Number(data.todayNewCount ?? data.todayNew ?? 0)
-      const t1 = { text: `今日新增 +${todayNew}`, direction: 'up' }
-      const t2 = buildTrend(data.biddingCountChange, '↑ 较去年同期 +0.0%')
-      const t3 = buildTrend(data.wonCountChange, '↑ 较去年同期 +0.0%')
-      const t4 = buildTrend(data.winRateChange, '↑ 较去年同期 +0.0%')
+      const dateStart = formatDateStr(globalDateRange.value?.[0])
+      const dateEnd = formatDateStr(globalDateRange.value?.[1])
+      const res = await dashboardApi.getEnhancedOverview(dateStart, dateEnd)
+      const d = res?.data || {}
+      const totalCount = Number(d.totalCount ?? 0)
+      const biddingCount = Number(d.biddingCount ?? 0)
+      const wonCount = Number(d.wonCount ?? 0)
+      const winRate = d.winRate != null ? Number(d.winRate) : 0
+      // PRD §5.3 接口不返回 change/todayNew 字段，trendText 留空不显示
       kpiCards.value = [
-        { key: 'totalCount', label: '投标总数', value: String(totalCount || '--'), unit: '个', foot: '投标项目总数', trendText: t1.text, trendDirection: t1.direction, colorClass: 'kpi-blue' },
-        { key: 'biddingCount', label: '投标中', value: String(biddingCount || '--'), unit: '个', foot: '项目状态为投标中', trendText: t2.text, trendDirection: t2.direction, colorClass: 'kpi-green' },
-        { key: 'wonCount', label: '中标数', value: String(wonCount || '--'), unit: '个', foot: '项目状态为已中标', trendText: t3.text, trendDirection: t3.direction, colorClass: 'kpi-orange' },
-        { key: 'winRate', label: '中标率', value: winRate != null ? String(winRate) : '--', unit: '%', foot: '中标数 / 投标数', trendText: t4.text, trendDirection: t4.direction, colorClass: 'kpi-purple' }
+        { key: 'totalCount', label: '投标总数', value: String(totalCount), unit: '个', foot: '投标项目总数', trendText: '', trendDirection: '', colorClass: 'kpi-blue' },
+        { key: 'biddingCount', label: '投标中', value: String(biddingCount), unit: '个', foot: '项目状态为投标中', trendText: '', trendDirection: '', colorClass: 'kpi-green' },
+        { key: 'wonCount', label: '中标数', value: String(wonCount), unit: '个', foot: '项目状态为已中标', trendText: '', trendDirection: '', colorClass: 'kpi-orange' },
+        { key: 'winRate', label: '中标率', value: winRate.toFixed(1), unit: '%', foot: '中标数 / 投标数', trendText: '', trendDirection: '', colorClass: 'kpi-purple' }
       ]
     } catch (e) {
       console.error('[M0] 加载KPI失败:', e)
-      m0Error.value = true
+      // PRD §5.4 接口失败：卡片数值区域显示「—」，不设 error 标志（有 fallback 数据）
+      kpiCards.value = [
+        { key: 'totalCount', label: '投标总数', value: '—', unit: '', foot: '投标项目总数', trendText: '', trendDirection: '', colorClass: 'kpi-blue' },
+        { key: 'biddingCount', label: '投标中', value: '—', unit: '', foot: '项目状态为投标中', trendText: '', trendDirection: '', colorClass: 'kpi-green' },
+        { key: 'wonCount', label: '中标数', value: '—', unit: '', foot: '项目状态为已中标', trendText: '', trendDirection: '', colorClass: 'kpi-orange' },
+        { key: 'winRate', label: '中标率', value: '—', unit: '', foot: '中标数 / 投标数', trendText: '', trendDirection: '', colorClass: 'kpi-purple' }
+      ]
     } finally {
       m0Loading.value = false
     }
@@ -138,6 +142,8 @@ export function useAnalyticsData() {
     try {
       const params = {
         xAxis: 'time',
+        startDate: formatDateStr(globalDateRange.value?.[0]),
+        endDate: formatDateStr(globalDateRange.value?.[1]),
         timeDimension: trendFilters.timeDimension,
         departmentIds: trendFilters.departments.join(',') || undefined,
         userIds: trendFilters.persons.join(',') || undefined,
@@ -165,8 +171,8 @@ export function useAnalyticsData() {
     m2Error.value = false
     try {
       const params = {
-        startDate: globalDateRange.value?.[0] || null,
-        endDate: globalDateRange.value?.[1] || null
+        startDate: formatDateStr(globalDateRange.value?.[0]),
+        endDate: formatDateStr(globalDateRange.value?.[1])
       }
       const res = await dashboardApi.getCustomerTypes(params)
       customerTypeData.value = Array.isArray(res?.data) ? res.data : []
@@ -183,8 +189,8 @@ export function useAnalyticsData() {
     m3Error.value = false
     try {
       const params = {
-        startDate: globalDateRange.value?.[0] || null,
-        endDate: globalDateRange.value?.[1] || null
+        startDate: formatDateStr(globalDateRange.value?.[0]),
+        endDate: formatDateStr(globalDateRange.value?.[1])
       }
       const res = await dashboardApi.getProjectTypes(params)
       projectTypeData.value = Array.isArray(res?.data) ? res.data : []

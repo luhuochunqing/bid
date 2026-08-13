@@ -95,6 +95,15 @@ export const dashboardApi = {
     return this.getOverview()
   },
 
+  // PRD §5.3 GET /api/analytics/overview/enhanced — 支持 dateStart/dateEnd 参数
+  // 返回 totalCount / biddingCount / wonCount / winRate
+  async getEnhancedOverview(dateStart, dateEnd) {
+    const params = {}
+    if (dateStart) params.startDate = dateStart
+    if (dateEnd) params.endDate = dateEnd
+    return httpClient.get('/api/analytics/overview/enhanced', { params })
+  },
+
   async getTrend() {
 
     const response = await httpClient.get('/api/analytics/trends')
