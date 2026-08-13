@@ -180,6 +180,31 @@ export const dashboardApi = {
     }
   },
 
+  // M3 - 项目类型分布
+  async getProjectTypes(params) {
+    return httpClient.get('/api/analytics/project-types', { params })
+  },
+
+  // M4 - 竞品分析
+  async getCompetitorAnalysis(data) {
+    return httpClient.post('/api/analytics/competitor-analysis', data)
+  },
+
+  // M4 - 招标主体下拉选项
+  async getTenderEntities() {
+    return httpClient.get('/api/analytics/tender-entities')
+  },
+
+  // M1 - 趋势分析增强(带筛选参数)
+  async getTrendsWithFilters(params) {
+    return httpClient.get('/api/analytics/trends', { params })
+  },
+
+  // M1 - 筛选选项模糊搜索
+  async searchOptions(type, query) {
+    return httpClient.get('/api/analytics/search-options', { params: { type, query } })
+  },
+
   async getLayout() {
     try {
       const response = await httpClient.get('/api/dashboard/layout/my', { silentAuthError: true })
