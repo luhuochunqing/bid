@@ -1,124 +1,73 @@
 <template>
-  <div class="filter-bar">
-    <div class="filter-grid">
-      <div class="filter-item">
-        <label class="filter-label">时间维度</label>
-        <el-radio-group v-model="filters.timeDimension" class="time-radio-group">
-          <el-radio-button value="day">日</el-radio-button>
-          <el-radio-button value="week">周</el-radio-button>
-          <el-radio-button value="month">月</el-radio-button>
-          <el-radio-button value="year">年</el-radio-button>
-        </el-radio-group>
-      </div>
-
-      <div class="filter-item">
-        <label class="filter-label">部门</label>
-        <FilterSelect
-          v-model="filters.departments"
-          :options="departmentOptions"
-          :loading="loadingDepartments"
-          placeholder="请选择部门"
-          @search="handleDepartmentSearch"
-          @change="handleDepartmentChange"
-        />
-      </div>
-
-      <div class="filter-item">
-        <label class="filter-label">人员</label>
-        <FilterSelect
-          v-model="filters.persons"
-          :options="personOptions"
-          :loading="loadingPersons"
-          placeholder="请选择人员"
-          @search="handlePersonSearch"
-        />
-      </div>
-
-      <div class="filter-item">
-        <label class="filter-label">区域</label>
-        <FilterSelect
-          v-model="filters.regions"
-          :options="regionOptions"
-          :loading="loadingRegions"
-          placeholder="请选择区域"
-          @search="handleRegionSearch"
-        />
-      </div>
-
-      <div class="filter-item">
-        <label class="filter-label">客户类型</label>
-        <FilterSelect
-          v-model="filters.customerTypes"
-          :options="customerTypeOptions"
-          :loading="loadingCustomerTypes"
-          placeholder="请选择客户类型"
-          @search="handleCustomerTypeSearch"
-        />
-      </div>
-
-      <div class="filter-item">
-        <label class="filter-label">项目类型</label>
-        <FilterSelect
-          v-model="filters.projectTypes"
-          :options="projectTypeOptions"
-          :loading="loadingProjectTypes"
-          placeholder="请选择项目类型"
-          @search="handleProjectTypeSearch"
-        />
-      </div>
-
-      <div class="filter-item">
-        <label class="filter-label">项目状态</label>
-        <FilterSelect
-          v-model="filters.projectStatuses"
-          :options="projectStatusOptions"
-          placeholder="请选择项目状态"
-          @search="handleProjectStatusSearch"
-        />
-      </div>
-
-      <div class="filter-item">
-        <label class="filter-label">招标主体</label>
-        <FilterSelect
-          v-model="filters.tenderSubjects"
-          :options="tenderSubjectOptions"
-          :loading="loadingTenderSubjects"
-          placeholder="请选择招标主体"
-          @search="handleTenderSubjectSearch"
-        />
-      </div>
-
-      <div class="filter-item">
-        <label class="filter-label">竞品公司</label>
-        <FilterSelect
-          v-model="filters.competitors"
-          :options="competitorOptions"
-          :loading="loadingCompetitors"
-          placeholder="请选择竞品公司"
-          @search="handleCompetitorSearch"
-        />
-      </div>
+  <div class="m8-filter-bar">
+    <div class="m8-filter-item">
+      <label class="m8-filter-label">时间维度</label>
+      <el-radio-group v-model="filters.timeDimension" class="time-radio-group" size="small">
+        <el-radio-button value="day">日</el-radio-button>
+        <el-radio-button value="week">周</el-radio-button>
+        <el-radio-button value="month">月</el-radio-button>
+        <el-radio-button value="year">年</el-radio-button>
+      </el-radio-group>
     </div>
 
-    <div class="x-axis-section">
-      <label class="filter-label">X轴维度（可多选）</label>
-      <el-checkbox-group v-model="xAxisDimensions" class="x-axis-checkbox-group">
-        <el-checkbox v-for="dim in xAxisOptions" :key="dim.value" :label="dim.value">
-          {{ dim.label }}
-        </el-checkbox>
-      </el-checkbox-group>
+    <div class="m8-filter-item">
+      <input type="checkbox" class="m9-xaxis-cb" :checked="xAxisDimensions.includes('dept')" @change="handleXAxisChange('dept', $event.target.checked)" />
+      <label class="m8-filter-label">部门</label>
+      <FilterSelect v-model="filters.departments" :options="departmentOptions" :loading="loadingDepartments" placeholder="请选择" @search="handleDepartmentSearch" @change="handleFieldChange('dept')" />
     </div>
 
-    <div class="filter-actions">
-      <el-button type="primary" :loading="submitting" @click="handleConfirm">确认</el-button>
-      <el-button @click="handleReset">重置</el-button>
+    <div class="m8-filter-item">
+      <input type="checkbox" class="m9-xaxis-cb" :checked="xAxisDimensions.includes('person')" @change="handleXAxisChange('person', $event.target.checked)" />
+      <label class="m8-filter-label">人员</label>
+      <FilterSelect v-model="filters.persons" :options="personOptions" :loading="loadingPersons" placeholder="请选择" @search="handlePersonSearch" @change="handleFieldChange('person')" />
+    </div>
+
+    <div class="m8-filter-item">
+      <input type="checkbox" class="m9-xaxis-cb" :checked="xAxisDimensions.includes('region')" @change="handleXAxisChange('region', $event.target.checked)" />
+      <label class="m8-filter-label">区域</label>
+      <FilterSelect v-model="filters.regions" :options="regionOptions" :loading="loadingRegions" placeholder="请选择" @search="handleRegionSearch" @change="handleFieldChange('region')" />
+    </div>
+
+    <div class="m8-filter-item">
+      <input type="checkbox" class="m9-xaxis-cb" :checked="xAxisDimensions.includes('customerType')" @change="handleXAxisChange('customerType', $event.target.checked)" />
+      <label class="m8-filter-label">客户类型</label>
+      <FilterSelect v-model="filters.customerTypes" :options="customerTypeOptions" :loading="loadingCustomerTypes" placeholder="请选择" @search="handleCustomerTypeSearch" @change="handleFieldChange('customerType')" />
+    </div>
+
+    <div class="m8-filter-item">
+      <input type="checkbox" class="m9-xaxis-cb" :checked="xAxisDimensions.includes('projectType')" @change="handleXAxisChange('projectType', $event.target.checked)" />
+      <label class="m8-filter-label">项目类型</label>
+      <FilterSelect v-model="filters.projectTypes" :options="projectTypeOptions" :loading="loadingProjectTypes" placeholder="请选择" @search="handleProjectTypeSearch" @change="handleFieldChange('projectType')" />
+    </div>
+
+    <div class="m8-filter-item">
+      <input type="checkbox" class="m9-xaxis-cb" :checked="xAxisDimensions.includes('projectStatus')" @change="handleXAxisChange('projectStatus', $event.target.checked)" />
+      <label class="m8-filter-label">项目状态</label>
+      <FilterSelect v-model="filters.projectStatuses" :options="projectStatusOptions" placeholder="请选择" @search="handleProjectStatusSearch" @change="handleFieldChange('projectStatus')" />
+    </div>
+
+    <div class="m8-filter-item">
+      <input type="checkbox" class="m9-xaxis-cb" :checked="xAxisDimensions.includes('tenderEntity')" @change="handleXAxisChange('tenderEntity', $event.target.checked)" />
+      <label class="m8-filter-label">招标主体</label>
+      <FilterSelect v-model="filters.tenderSubjects" :options="tenderSubjectOptions" :loading="loadingTenderSubjects" placeholder="请选择" @search="handleTenderSubjectSearch" @change="handleFieldChange('tenderEntity')" />
+    </div>
+
+    <div class="m8-filter-item">
+      <input type="checkbox" class="m9-xaxis-cb" :checked="xAxisDimensions.includes('competitor')" @change="handleXAxisChange('competitor', $event.target.checked)" />
+      <label class="m8-filter-label">竞品公司</label>
+      <FilterSelect v-model="filters.competitors" :options="competitorOptions" :loading="loadingCompetitors" placeholder="请选择" @search="handleCompetitorSearch" @change="handleFieldChange('competitor')" />
+    </div>
+
+    <div class="m9-filter-actions">
+      <button class="confirm-btn" :disabled="submitting" @click="handleConfirm">确认</button>
+      <button class="confirm-btn reset" @click="handleReset">重置</button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { PROJECT_STATUS_OPTIONS, X_AXIS_OPTIONS } from './filterConstants.js'
+import { ref } from 'vue'
+import { PROJECT_STATUS_OPTIONS } from './filterConstants.js'
 import FilterSelect from './FilterSelect.vue'
 
 const props = defineProps({
@@ -156,35 +105,55 @@ const filters = ref({
   tenderSubjects: [], competitors: []
 })
 
-const xAxisDimensions = ref(['time'])
+const xAxisDimensions = ref([])
 
-const xAxisOptions = computed(() => X_AXIS_OPTIONS)
+// X 轴维度 key → 筛选状态字段映射
+const AXIS_TO_FILTER = {
+  dept: 'departments', person: 'persons', region: 'regions',
+  customerType: 'customerTypes', projectType: 'projectTypes',
+  projectStatus: 'projectStatuses', tenderEntity: 'tenderSubjects',
+  competitor: 'competitors'
+}
+const NON_DEPT_PERSON = ['region', 'customerType', 'projectType', 'projectStatus', 'tenderEntity', 'competitor']
 
-watch(() => filters.value.persons, (val) => {
-  if (val.length > 0 && !xAxisDimensions.value.includes('department')) {
-    xAxisDimensions.value = [...xAxisDimensions.value, 'department']
-  }
-})
-
-watch(filters.value, (newFilters) => {
-  const autoCheckMap = {
-    departments: 'department', regions: 'region',
-    customerTypes: 'customerType', projectTypes: 'projectType',
-    projectStatuses: 'projectStatus', tenderSubjects: 'tenderSubject',
-    competitors: 'competitor'
-  }
-  const next = [...xAxisDimensions.value]
-  Object.entries(autoCheckMap).forEach(([key, dim]) => {
-    const vals = newFilters[key]
-    if (Array.isArray(vals) && vals.length > 0 && !next.includes(dim)) {
-      next.push(dim)
+// PRD 6.3 X 轴互斥逻辑
+const handleXAxisChange = (field, checked) => {
+  if (checked) {
+    if (field === 'dept' || field === 'person') {
+      xAxisDimensions.value = xAxisDimensions.value.filter(f => f === 'dept' || f === 'person')
+      if (!xAxisDimensions.value.includes(field)) xAxisDimensions.value.push(field)
+      if (field === 'person' && !xAxisDimensions.value.includes('dept')) {
+        xAxisDimensions.value.push('dept')
+      }
+      NON_DEPT_PERSON.forEach(key => { filters.value[AXIS_TO_FILTER[key]] = [] })
+    } else {
+      xAxisDimensions.value = [field]
+      Object.values(AXIS_TO_FILTER).forEach(fk => {
+        if (fk !== AXIS_TO_FILTER[field]) filters.value[fk] = []
+      })
     }
-  })
-  if (next.length !== xAxisDimensions.value.length ||
-      !next.every((d) => xAxisDimensions.value.includes(d))) {
-    xAxisDimensions.value = next
+  } else {
+    if (field === 'dept') {
+      xAxisDimensions.value = xAxisDimensions.value.filter(f => f !== 'person')
+    }
+    xAxisDimensions.value = xAxisDimensions.value.filter(f => f !== field)
+    if (field === 'dept') emit('department-change', filters.value.departments)
   }
-}, { deep: true })
+}
+
+// PRD 6.3 选值自动勾选：用户选值时自动勾选复选框并触发互斥
+const handleFieldChange = (dim) => {
+  const filterKey = AXIS_TO_FILTER[dim]
+  const vals = filters.value[filterKey]
+  if (Array.isArray(vals) && vals.length > 0 && !xAxisDimensions.value.includes(dim)) {
+    handleXAxisChange(dim, true)
+  }
+  // PRD 6.4 部门-人员联动：部门选值变化时通知父组件刷新人员下拉
+  if (dim === 'dept') {
+    filters.value.persons = []
+    emit('department-change', filters.value.departments)
+  }
+}
 
 const handleDepartmentSearch = (q) => emit('search-department', q)
 const handlePersonSearch = (q) => emit('search-person', q)
@@ -194,11 +163,6 @@ const handleProjectTypeSearch = (q) => emit('search-project-type', q)
 const handleProjectStatusSearch = (q) => emit('search-project-status', q)
 const handleTenderSubjectSearch = (q) => emit('search-tender-subject', q)
 const handleCompetitorSearch = (q) => emit('search-competitor', q)
-
-const handleDepartmentChange = (val) => {
-  if (val !== filters.value.departments) filters.value.persons = []
-  emit('department-change', val)
-}
 
 const handleConfirm = async () => {
   submitting.value = true
@@ -215,72 +179,90 @@ const handleReset = () => {
     customerTypes: [], projectTypes: [], projectStatuses: [],
     tenderSubjects: [], competitors: []
   }
-  xAxisDimensions.value = ['time']
+  xAxisDimensions.value = []
   emit('reset')
 }
 </script>
 
 <style scoped>
-.filter-bar {
-  background: #FFFFFF;
-  border-radius: 12px;
-  padding: 20px;
-  margin-bottom: 16px;
-}
-
-.filter-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-
-.filter-item {
+.m8-filter-bar {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
+  gap: 10px 14px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  background: #FAFBFC;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  border: 1px solid var(--status-neutral-bg);
 }
 
-.filter-label {
-  font-size: 13px;
+.m8-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  position: relative;
+}
+
+.m8-filter-label {
+  font-size: 12px;
   font-weight: 600;
-  color: #1E293B;
+  color: var(--login-brand-bg-mid);
   white-space: nowrap;
 }
 
-.time-radio-group { flex-shrink: 0; }
-
-.x-axis-section {
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid #E2E8F0;
+.m9-xaxis-cb {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: var(--brand-xiyu-logo);
+  margin: 0;
 }
 
-.x-axis-section .filter-label {
-  display: block;
-  margin-bottom: 10px;
+.time-radio-group {
+  flex-shrink: 0;
 }
 
-.x-axis-checkbox-group {
+.m8-filter-item :deep(.filter-select) {
+  width: 140px;
+}
+
+.m9-filter-actions {
   display: flex;
-  flex-wrap: wrap;
   gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
-.filter-actions {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #E2E8F0;
-  display: flex;
-  gap: 10px;
-  justify-content: flex-start;
+.confirm-btn {
+  padding: 5px 14px;
+  background: var(--brand-xiyu-logo);
+  color: var(--bg-white);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
-@media (max-width: 1200px) {
-  .filter-grid { grid-template-columns: repeat(2, 1fr); }
+.confirm-btn:hover {
+  background: var(--brand-xiyu-logo-hover);
 }
 
-@media (max-width: 768px) {
-  .filter-grid { grid-template-columns: 1fr; }
+.confirm-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.confirm-btn.reset {
+  background: var(--bg-white);
+  color: var(--text-badge);
+  border: 1px solid var(--status-neutral-bg);
+}
+
+.confirm-btn.reset:hover {
+  background: var(--bg-subtle);
 }
 </style>
