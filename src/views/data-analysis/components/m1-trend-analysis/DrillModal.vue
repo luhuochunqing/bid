@@ -11,7 +11,7 @@
     <div v-loading="loading" class="drill-content">
       <el-empty v-if="!loading && items.length === 0" description="暂无明细数据" :image-size="60" />
 
-      <div v-else class="drill-stats" v-if="summary">
+      <div v-else-if="summary" class="drill-stats">
         <div class="stat-item">
           <span class="stat-label">项目数</span>
           <strong class="stat-value">{{ summary.totalCount ?? 0 }}</strong>
@@ -129,18 +129,18 @@ const totalPages = computed(() => props.pagination.totalPages || 0)
 const getStatusText = (status) => getProjectStatusText(status)
 const getStatusType = (status) => getProjectStatusType(status)
 
+const navigateToProject = (row) => {
+  if (row.projectId || row.id) {
+    emit('navigate-project', row.projectId || row.id)
+  }
+}
+
 const handlePageChange = (page) => {
   emit('page-change', page)
 }
 
 const handleRowClick = (row) => {
   navigateToProject(row)
-}
-
-const navigateToProject = (row) => {
-  if (row.projectId || row.id) {
-    emit('navigate-project', row.projectId || row.id)
-  }
 }
 </script>
 
