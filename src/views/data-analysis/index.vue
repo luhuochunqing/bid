@@ -7,8 +7,8 @@
 
     <template v-else>
       <div class="page-header">
-        <h2 class="page-title">数据分析</h2>
-        <div class="header-actions">
+        <h1>数据分析</h1>
+        <div class="global-date-filter">
           <el-date-picker
             v-model="globalDateRange"
             type="daterange"
@@ -17,27 +17,28 @@
             end-placeholder="结束日期"
             size="default"
             :disabled="refreshing"
-            @change="handleGlobalDateChange"
           />
-          <el-button
-            type="primary"
-            :icon="Refresh"
-            :loading="refreshing"
-            @click="handleRefresh"
-          >刷新</el-button>
+          <button class="confirm-btn" :disabled="refreshing" @click="handleGlobalDateChange">确认</button>
+          <button class="confirm-btn reset" :disabled="refreshing" @click="handleGlobalDateReset">重置</button>
         </div>
       </div>
 
-      <section class="section section-m0">
+      <div class="section" id="m0">
+        <div class="section-title">
+          <span class="label">关键指标</span>
+        </div>
         <M0KpiCards
           :kpi-cards="kpiCards"
           :loading="m0Loading"
           :error="m0Error"
           @retry="loadM0Data"
         />
-      </section>
+      </div>
 
-      <section class="section section-m1">
+      <div class="section" id="m1">
+        <div class="section-title">
+          <span class="label">多维度趋势分析</span>
+        </div>
         <M1TrendAnalysis
           :filters="trendFilters"
           :chart-option="trendChartOption"
@@ -48,11 +49,11 @@
           @update:filters="handleTrendFilterChange"
           @drill="handleTrendDrill"
         />
-      </section>
+      </div>
 
-      <section class="section section-m2m3">
-        <div class="split-row">
-          <div class="split-col">
+      <div class="section section-pie" id="m2m3">
+        <div class="pie-row">
+          <div class="pie-col">
             <M2CustomerType
               :data="customerTypeData"
               :loading="m2Loading"
@@ -60,7 +61,7 @@
               @retry="loadM2Data"
             />
           </div>
-          <div class="split-col">
+          <div class="pie-col">
             <M3ProjectType
               :data="projectTypeData"
               :loading="m3Loading"
@@ -69,26 +70,18 @@
             />
           </div>
         </div>
-      </section>
+      </div>
 
-      <section class="section section-m4">
-        <M4Competitor
-          :date-range="m4DateRange"
-          :data="competitorData"
-          :loading="m4Loading"
-          :error="m4Error"
-          @update:date-range="handleM4DateChange"
-          @refresh="loadM4Data"
-          @retry="loadM4Data"
-        />
-      </section>
+      <div class="section section-m4" id="m4">
+        <M4Competitor />
+      </div>
     </template>
   </div>
 </template>
 
 <script setup>
 import { onMounted } from 'vue'
-import { Refresh, Loading } from '@element-plus/icons-vue'
+import { Loading } from '@element-plus/icons-vue'
 import { useAnalyticsData } from './composables/useAnalyticsData.js'
 import M0KpiCards from './components/m0-kpi-cards/index.vue'
 import M1TrendAnalysis from './components/m1-trend-analysis/index.vue'
@@ -97,15 +90,15 @@ import M3ProjectType from './components/m3-project-type/index.vue'
 import M4Competitor from './components/m4-competitor/index.vue'
 
 const {
-  globalDateRange, m4DateRange,
+  globalDateRange,
   initialLoading, refreshing,
   m0Loading, m0Error, m1Loading, m1ChartLoading, m1Error,
-  m2Loading, m2Error, m3Loading, m3Error, m4Loading, m4Error,
+  m2Loading, m2Error, m3Loading, m3Error,
   trendDrillLoading,
-  kpiCards, customerTypeData, projectTypeData, competitorData,
+  kpiCards, customerTypeData, projectTypeData,
   trendDrillData, trendChartOption, trendFilters,
-  loadM0Data, loadM1Data, loadM2Data, loadM3Data, loadM4Data, loadAllData,
-  handleGlobalDateChange, handleM4DateChange, handleRefresh,
+  loadM0Data, loadM1Data, loadM2Data, loadM3Data, loadAllData,
+  handleGlobalDateChange, handleGlobalDateReset,
   handleTrendFilterChange, handleTrendDrill
 } = useAnalyticsData()
 
@@ -115,97 +108,71 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.data-analysis {
-  padding: 24px;
-  background: var(--bg-subtle, #F5F7FA);
-  min-height: 100vh;
-}
+.data-analysis { padding: 24px; background: var(--bg-subtle); min-height: 100vh; }
 
 .page-loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 60vh;
-  color: var(--text-muted, #94A3B8);
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; min-height: 60vh; color: #94A3B8;
 }
+.page-loading .el-icon { font-size: 32px; color: var(--brand-xiyu-logo); margin-bottom: 16px; }
+.page-loading p { font-size: 14px; margin: 0; }
 
-.page-loading .el-icon {
-  font-size: 32px;
-  color: var(--brand-xiyu-logo, #2E7659);
-  margin-bottom: 16px;
-}
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.page-header h1 { font-size: 20px; font-weight: 700; color: #1E293B; margin: 0; }
 
-.page-loading p {
-  font-size: 14px;
-  margin: 0;
-}
+.global-date-filter { display: flex; gap: 10px; align-items: center; }
 
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
+.confirm-btn {
+  padding: 8px 20px; border: none; border-radius: 6px;
+  background: var(--brand-xiyu-logo); color: var(--bg-card);
+  font-size: 14px; font-weight: 500; cursor: pointer;
+  transition: background 0.2s; height: 32px;
 }
-
-.page-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--text-primary, #1E293B);
-  margin: 0;
-}
-
-.header-actions {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
+.confirm-btn:hover:not(:disabled) { background: var(--brand-xiyu-logo-hover); }
+.confirm-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.confirm-btn.reset { background: var(--bg-card); color: #475569; border: 1px solid #E2E8F0; }
+.confirm-btn.reset:hover:not(:disabled) { background: var(--bg-subtle); color: #1E293B; }
 
 .section {
-  margin-bottom: 24px;
+  background: var(--bg-card); border-radius: 12px; padding: 22px 28px;
+  margin-bottom: 20px; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  border: 1px solid #E2E8F0; transition: box-shadow 0.25s;
+}
+.section:hover { box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.07), 0 2px 4px -2px rgba(15, 23, 42, 0.05); }
+
+.section-title {
+  font-size: 16px; font-weight: 700; color: #1E293B; margin-bottom: 18px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.section-title .label { display: flex; align-items: center; gap: 10px; }
+.section-title .label::before {
+  content: ''; width: 4px; height: 20px;
+  background: var(--brand-xiyu-logo); border-radius: 2px;
 }
 
-.split-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-}
+.pie-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
-.split-col {
-  min-width: 0;
+.pie-col {
+  background: var(--bg-card); border-radius: 12px; border: 1px solid #E2E8F0;
+  padding: 22px 24px; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  transition: box-shadow 0.25s; min-width: 0;
 }
+.pie-col:hover { box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.07), 0 2px 4px -2px rgba(15, 23, 42, 0.05); }
 
-@media (max-width: 1400px) {
-  .split-row {
-    grid-template-columns: 1fr;
-  }
-}
+/* M2/M3 组件内部样式由 pie-col 提供，重置避免双重卡片 */
+.section-pie :deep(.m2-customer-type),
+.section-pie :deep(.m3-project-type) { background: transparent; border: none; box-shadow: none; padding: 0; }
+
+/* M4 组件内部自带卡片样式和标题，重置避免双重，标题由 page 层 section-title 提供 */
+.section-m4 :deep(.m4-competitor) { background: transparent; border: none; box-shadow: none; padding: 0; }
+.section-m4 :deep(.m4-competitor .card-header) { display: none; }
+
+@media (max-width: 1400px) { .pie-row { grid-template-columns: 1fr; } }
 
 @media (max-width: 768px) {
-  .data-analysis {
-    padding: 16px;
-  }
-
-  .page-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .header-actions {
-    width: 100%;
-    flex-wrap: wrap;
-  }
-
-  .header-actions .el-date-picker {
-    flex: 1;
-    min-width: 200px;
-  }
-}
-
-@media (hover: none) and (pointer: coarse) {
-  .el-button {
-    min-height: 44px;
-  }
+  .data-analysis { padding: 16px; }
+  .page-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .global-date-filter { width: 100%; flex-wrap: wrap; }
+  .global-date-filter .el-date-picker { flex: 1; min-width: 200px; }
 }
 </style>

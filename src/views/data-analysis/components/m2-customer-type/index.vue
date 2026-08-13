@@ -41,11 +41,9 @@ const error = ref(false)
 const noData = ref(false)
 let chartInstance = null
 
-const CHART_COLORS = [
-  '#2563EB', '#10B981', '#F59E0B', '#EF4444',
-  '#8B5CF6', '#EC4899', '#06B6D4', '#F97316',
-  '#6366F1', '#14B8A6', '#D946EF', '#84CC16'
-]
+// PRD §7.4 客户类型枚举与颜色
+const COLOR_MAP = { '政府机关/事业单位/高校': '#2E7659', '央企': '#10B981', '地方国企': '#F59E0B', '民企': '#60A5FA', '港澳台及外企': '#A78BFA', '未分类': '#CBD5E1' }
+const FALLBACK_COLOR = COLOR_MAP['未分类']
 
 const renderChart = (pieData, total, allEmpty, legendData) => {
   if (!chartRef.value) return
@@ -56,12 +54,12 @@ const renderChart = (pieData, total, allEmpty, legendData) => {
     }
 
     const seriesData = allEmpty
-      ? [{ value: pieData[0]?.count || 1, name: '未分类', itemStyle: { color: '#CBD5E1' } }]
-      : pieData.map((d, i) => ({
+      ? [{ value: pieData[0]?.count || 1, name: '未分类', itemStyle: { color: COLOR_MAP['未分类'] } }]
+      : pieData.map((d) => ({
           value: d.count,
           name: d.name,
           itemStyle: {
-            color: CHART_COLORS[i % CHART_COLORS.length]
+            color: COLOR_MAP[d.name] || d.color || FALLBACK_COLOR
           }
         }))
 
@@ -116,10 +114,10 @@ const renderChart = (pieData, total, allEmpty, legendData) => {
             show: true,
             formatter: function (params) {
               const pct = ((params.value / total) * 100).toFixed(1)
-              return pct + '%'
+              return params.name + '\n' + pct + '%'
             },
             color: '#475569',
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: 500
           },
           labelLine: {
@@ -136,7 +134,6 @@ const renderChart = (pieData, total, allEmpty, legendData) => {
           data: seriesData
         }
       ],
-      color: CHART_COLORS,
       grid: {
         containLabel: true
       }
@@ -167,11 +164,12 @@ const fetchData = async () => {
     }
 
     // Normalize: group by customer_type, empty → "未分类"
+    // 兼容 PRD §7.5 格式 ({ name, count, percentage, color }) 与旧格式 ({ customerType, count })
     const typeMap = new Map()
     let totalCount = 0
 
     rawData.forEach((item) => {
-      const label = item?.customerType || item?.customer_type || null
+      const label = item?.name || item?.customerType || item?.customer_type || null
       const displayName = label || '未分类'
       const count = Number(item?.count || item?.projectCount || 0)
 
@@ -181,6 +179,7 @@ const fetchData = async () => {
         typeMap.set(displayName, {
           name: displayName,
           count: count,
+          color: item?.color || null,
           isEmpty: !label
         })
       }
@@ -260,14 +259,18 @@ defineExpose({ refresh })
   flex-direction: column;
 }
 
-.card-header {
-  margin-bottom: var(--space-4);
-}
+.card-header { margin-bottom: 14px; }
 
 .card-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text-primary);
+  font-size: 15px; font-weight: 700; color: #1E293B;
+  display: flex; align-items: center;
+}
+
+.card-title::before {
+  content: ''; display: inline-block;
+  width: 3px; height: 15px;
+  background: var(--brand-xiyu-logo);
+  border-radius: 2px; margin-right: 8px; flex-shrink: 0;
 }
 
 .chart-body {

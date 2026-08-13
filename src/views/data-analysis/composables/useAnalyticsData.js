@@ -1,6 +1,7 @@
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { dashboardApi } from '@/api'
+import { PROJECT_STATUS_COLORS } from '../components/m1-trend-analysis/filterConstants.js'
 
 export function useAnalyticsData() {
   const defaultDateRange = () => [new Date('2026-01-01'), new Date('2026-12-31')]
@@ -32,13 +33,13 @@ export function useAnalyticsData() {
 
   const trendFilters = reactive({
     timeDimension: 'month',
+    departments: [],
+    persons: [],
+    regions: [],
     customerTypes: [],
     projectTypes: [],
-    industries: [],
-    regions: [],
+    projectStatuses: [],
     tenderEntities: [],
-    projectLeaders: [],
-    bidResults: [],
     competitors: []
   })
 
@@ -52,37 +53,53 @@ export function useAnalyticsData() {
     return num.toLocaleString()
   }
 
-  function buildTrendChartOption(data, dimension) {
+  function buildTrendChartOption(data, xAxisType) {
+    const isStatusAxis = xAxisType === 'projectStatus'
+    const categories = Array.isArray(data) ? data.map((d) => d.period || d.month || '-') : []
+    const bidData = Array.isArray(data) ? data.map((d) => Number(d.count || d.bids || 0)) : []
+    const winData = Array.isArray(data) ? data.map((d) => Number(d.wins || 0)) : []
+    const rateData = Array.isArray(data) ? data.map((d) => Number(d.rate || d.changePercentage || 0)) : []
+
+    if (isStatusAxis) {
+      const STATUS_FALLBACK = '#2563EB'
+      return {
+        tooltip: { trigger: 'axis' },
+        legend: { data: ['数量'] },
+        xAxis: { type: 'category', data: categories },
+        yAxis: { type: 'value', name: '数量' },
+        series: [{
+          name: '数量', type: 'bar', data: bidData,
+          itemStyle: {
+            color: (params) => PROJECT_STATUS_COLORS[params.name] || STATUS_FALLBACK
+          }
+        }]
+      }
+    }
+
     return {
       tooltip: { trigger: 'axis' },
       legend: { data: ['投标数', '中标数', '中标率'] },
-      xAxis: {
-        type: 'category',
-        data: Array.isArray(data) ? data.map((d) => d.period || d.month || '-') : []
-      },
+      xAxis: { type: 'category', data: categories },
       yAxis: [
         { type: 'value', name: '数量' },
         { type: 'value', name: '比率', min: 0, max: 100 }
       ],
       series: [
-        {
-          name: '投标数',
-          type: 'bar',
-          data: Array.isArray(data) ? data.map((d) => Number(d.count || d.bids || 0)) : []
-        },
-        {
-          name: '中标数',
-          type: 'bar',
-          data: Array.isArray(data) ? data.map((d) => Number(d.wins || 0)) : []
-        },
-        {
-          name: '中标率',
-          type: 'line',
-          yAxisIndex: 1,
-          data: Array.isArray(data) ? data.map((d) => Number(d.rate || d.changePercentage || 0)) : []
-        }
+        { name: '投标数', type: 'bar', data: bidData },
+        { name: '中标数', type: 'bar', data: winData },
+        { name: '中标率', type: 'line', yAxisIndex: 1, data: rateData }
       ]
     }
+  }
+
+  function buildTrend(changeValue, fallback) {
+    if (changeValue == null || changeValue === '') return { text: fallback, direction: 'up' }
+    const num = Number(changeValue)
+    if (isNaN(num)) return { text: `较去年同期 ${changeValue}`, direction: 'up' }
+    const sign = num > 0 ? '+' : ''
+    const arrow = num > 0 ? '↑ ' : num < 0 ? '↓ ' : ''
+    const direction = num > 0 ? 'up' : num < 0 ? 'down' : 'flat'
+    return { text: `${arrow}较去年同期 ${sign}${num}%`, direction }
   }
 
   async function loadM0Data() {
@@ -91,27 +108,20 @@ export function useAnalyticsData() {
     try {
       const res = await dashboardApi.getOverview()
       const data = res?.data || {}
+      const totalCount = Number(data.totalBids ?? 0)
+      const biddingCount = Number(data.biddingCount ?? data.inProgressCount ?? 0)
+      const wonCount = Number(data.wonCount ?? data.wonBids ?? 0)
+      const winRate = data.winRate != null ? Number(data.winRate) : 0
+      const todayNew = Number(data.todayNewCount ?? data.todayNew ?? 0)
+      const t1 = { text: `今日新增 +${todayNew}`, direction: 'up' }
+      const t2 = buildTrend(data.biddingCountChange, '↑ 较去年同期 +0.0%')
+      const t3 = buildTrend(data.wonCountChange, '↑ 较去年同期 +0.0%')
+      const t4 = buildTrend(data.winRateChange, '↑ 较去年同期 +0.0%')
       kpiCards.value = [
-        {
-          key: 'bids', label: '年度投标数',
-          value: String(data.totalBids ?? '--'),
-          trendText: data.totalBidsChange || '--', trend: 0, colorClass: 'green'
-        },
-        {
-          key: 'winRate', label: '中标率',
-          value: data.winRate != null ? data.winRate + '%' : '--',
-          trendText: data.winRateChange || '--', trend: 0, colorClass: 'blue'
-        },
-        {
-          key: 'amount', label: '中标金额',
-          value: data.totalAmount != null ? formatAmount(data.totalAmount) : '--',
-          trendText: data.totalAmountChange || '--', trend: 0, colorClass: 'orange'
-        },
-        {
-          key: 'cost', label: '投入费用',
-          value: data.totalCost != null ? formatAmount(data.totalCost) : '--',
-          trendText: data.totalCostChange || '--', trend: 0, colorClass: 'red'
-        }
+        { key: 'totalCount', label: '投标总数', value: String(totalCount || '--'), unit: '个', foot: '投标项目总数', trendText: t1.text, trendDirection: t1.direction, colorClass: 'kpi-blue' },
+        { key: 'biddingCount', label: '投标中', value: String(biddingCount || '--'), unit: '个', foot: '项目状态为投标中', trendText: t2.text, trendDirection: t2.direction, colorClass: 'kpi-green' },
+        { key: 'wonCount', label: '中标数', value: String(wonCount || '--'), unit: '个', foot: '项目状态为已中标', trendText: t3.text, trendDirection: t3.direction, colorClass: 'kpi-orange' },
+        { key: 'winRate', label: '中标率', value: winRate != null ? String(winRate) : '--', unit: '%', foot: '中标数 / 投标数', trendText: t4.text, trendDirection: t4.direction, colorClass: 'kpi-purple' }
       ]
     } catch (e) {
       console.error('[M0] 加载KPI失败:', e)
@@ -127,21 +137,20 @@ export function useAnalyticsData() {
     m1Error.value = false
     try {
       const params = {
-        startDate: globalDateRange.value?.[0] || null,
-        endDate: globalDateRange.value?.[1] || null,
+        xAxis: 'time',
         timeDimension: trendFilters.timeDimension,
+        departmentIds: trendFilters.departments.join(',') || undefined,
+        userIds: trendFilters.persons.join(',') || undefined,
+        regionIds: trendFilters.regions.join(',') || undefined,
         customerTypes: trendFilters.customerTypes.join(',') || undefined,
         projectTypes: trendFilters.projectTypes.join(',') || undefined,
-        industries: trendFilters.industries.join(',') || undefined,
-        regions: trendFilters.regions.join(',') || undefined,
+        statuses: trendFilters.projectStatuses.join(',') || undefined,
         tenderEntities: trendFilters.tenderEntities.join(',') || undefined,
-        projectLeaders: trendFilters.projectLeaders.join(',') || undefined,
-        bidResults: trendFilters.bidResults.join(',') || undefined,
-        competitors: trendFilters.competitors.join(',') || undefined
+        competitorNames: trendFilters.competitors.join(',') || undefined
       }
       const res = await dashboardApi.getTrendsWithFilters(params)
       const data = Array.isArray(res?.data) ? res.data : []
-      trendChartOption.value = buildTrendChartOption(data, trendFilters.timeDimension)
+      trendChartOption.value = buildTrendChartOption(data, 'time')
     } catch (e) {
       console.error('[M1] 加载趋势失败:', e)
       m1Error.value = true
@@ -210,7 +219,7 @@ export function useAnalyticsData() {
     refreshing.value = true
     try {
       await Promise.all([
-        loadM0Data(), loadM1Data(), loadM2Data(), loadM3Data(), loadM4Data()
+        loadM0Data(), loadM1Data(), loadM2Data(), loadM3Data()
       ])
     } finally {
       initialLoading.value = false
@@ -220,6 +229,12 @@ export function useAnalyticsData() {
 
   function handleGlobalDateChange() {
     ElMessage.info('日期范围已更新，正在刷新数据...')
+    loadAllData()
+  }
+
+  function handleGlobalDateReset() {
+    globalDateRange.value = defaultDateRange()
+    ElMessage.info('日期范围已重置，正在刷新数据...')
     loadAllData()
   }
 
@@ -252,7 +267,7 @@ export function useAnalyticsData() {
     kpiCards, customerTypeData, projectTypeData, competitorData,
     trendDrillData, trendChartOption, trendFilters,
     loadM0Data, loadM1Data, loadM2Data, loadM3Data, loadM4Data, loadAllData,
-    handleGlobalDateChange, handleM4DateChange, handleRefresh,
+    handleGlobalDateChange, handleGlobalDateReset, handleM4DateChange, handleRefresh,
     handleTrendFilterChange, handleTrendDrill
   }
 }
