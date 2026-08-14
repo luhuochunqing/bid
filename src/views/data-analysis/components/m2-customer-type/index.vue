@@ -53,9 +53,8 @@ const formatDateStr = (date) => {
 }
 
 const renderChart = (pieData, allEmpty, legendData) => {
-  if (!chartRef.value) return
-
   nextTick(() => {
+    if (!chartRef.value) return
     if (!chartInstance) {
       chartInstance = markRaw(echarts.init(chartRef.value))
     }
@@ -123,7 +122,6 @@ const renderChart = (pieData, allEmpty, legendData) => {
     }
 
     chartInstance.setOption(option, true)
-    loading.value = false
   })
 }
 
@@ -177,6 +175,7 @@ const fetchData = async () => {
     const allEmpty = Array.from(typeMap.values()).every((d) => d.isEmpty)
     if (allEmpty) {
       const total = Array.from(typeMap.values()).reduce((s, d) => s + d.count, 0)
+      loading.value = false
       renderChart([{ name: '未分类', count: total, isEmpty: true }], true)
       return
     }
@@ -194,6 +193,7 @@ const fetchData = async () => {
       return
     }
 
+    loading.value = false
     renderChart(pieData, false, legendData)
   } catch (err) {
     console.error('M2 CustomerType fetch error:', err)
