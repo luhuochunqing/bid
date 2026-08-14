@@ -58,17 +58,18 @@ const renderChart = (pieData, legendData) => {
       chartInstance = markRaw(echarts.init(chartRef.value))
     }
 
-    const totalCount = pieData.reduce((sum, d) => sum + d.count, 0)
+    // 饼图只显示有数据的分类，0 个的不显示
+    const seriesData = pieData
+      .filter((d) => d.count > 0)
+      .map((d) => ({
+        value: d.count,
+        name: d.name,
+        itemStyle: {
+          color: COLOR_MAP[d.name] || d.color || FALLBACK_COLOR
+        }
+      }))
 
-    const seriesData = pieData.map((d) => ({
-      // count=0 的分类用极小值渲染扇区，保证 label 可显示
-      value: d.count === 0 ? 0.001 : d.count,
-      name: d.name,
-      itemStyle: {
-        color: COLOR_MAP[d.name] || d.color || FALLBACK_COLOR
-      }
-    }))
-
+    // 图例保留全部 5 种分类，count=0 的显示为灰色
     const legendItems = legendData.map((d) => ({
       name: d.name,
       textStyle: {
@@ -80,12 +81,7 @@ const renderChart = (pieData, legendData) => {
     const option = {
       tooltip: {
         trigger: 'item',
-        formatter: (params) => {
-          const item = pieData.find(d => d.name === params.name)
-          const count = item ? item.count : 0
-          const pct = totalCount === 0 ? 0 : (count / totalCount * 100)
-          return `${params.name}: ${count}个 · ${pct.toFixed(1)}%`
-        }
+        formatter: '{b}: {c}个 · {d}%'
       },
       legend: {
         orient: 'horizontal',
@@ -99,12 +95,7 @@ const renderChart = (pieData, legendData) => {
           radius: ['40%', '65%'],
           center: ['50%', '45%'],
           label: {
-            formatter: (params) => {
-              const item = pieData.find(d => d.name === params.name)
-              const count = item ? item.count : 0
-              const pct = totalCount === 0 ? 0 : (count / totalCount * 100)
-              return `${params.name}\n${count}个 · ${pct.toFixed(1)}%`
-            },
+            formatter: '{b}\n{c}个 · {d}%',
             fontSize: 11,
             color: '#475569',
             fontWeight: 500
