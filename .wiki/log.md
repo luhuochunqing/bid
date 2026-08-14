@@ -3,6 +3,15 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-08-14] create | data-analysis-revamp 新建
+
+- 背景：数据分析页面全面重构（M0~M4 五模块），对照原型 + PRD 逐模块检查修复
+- 改动：
+  - 新建 `.wiki/pages/data-analysis-revamp.md`（模块结构 + FP-Java 三层 + 三模式竞品 + 数据口径 + 陷阱）
+  - `_index.md` 加索引行
+- 关键决策：M4 后端 FP-Java 三层分离；折扣 Integer→Double；时间过滤统一 p.createdAt；竞品枚举前端硬编码
+- 触发点：任务收尾（§2 触发点 1）—— 跨模块逻辑变更（51 文件）+ 新业务规则
+
 ## [2026-08-04] create | audit-whitelist-pitfalls 新建 + lessons-learned §106
 
 - 背景：PR !2256 补的四个 `@Auditable` action 命名（PERFORMANCE_BUNDLE_EXPORT_*）不命中 AuditActionPolicy KEY_ACTIONS，审计一条不落库；CO-324 同款坑第二次复发。PR !2258 修复（KEY_ACTIONS 加 DOWNLOAD + 注解对齐短动词惯例）
