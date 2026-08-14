@@ -58,8 +58,11 @@ const renderChart = (pieData, legendData) => {
       chartInstance = markRaw(echarts.init(chartRef.value))
     }
 
+    const totalCount = pieData.reduce((sum, d) => sum + d.count, 0)
+
     const seriesData = pieData.map((d) => ({
-      value: d.count,
+      // count=0 的分类用极小值渲染扇区，保证 label 可显示
+      value: d.count === 0 ? 0.001 : d.count,
       name: d.name,
       itemStyle: {
         color: COLOR_MAP[d.name] || d.color || FALLBACK_COLOR
@@ -77,7 +80,12 @@ const renderChart = (pieData, legendData) => {
     const option = {
       tooltip: {
         trigger: 'item',
-        formatter: '{b}: {c}个 · {d}%'
+        formatter: (params) => {
+          const item = pieData.find(d => d.name === params.name)
+          const count = item ? item.count : 0
+          const pct = totalCount === 0 ? 0 : (count / totalCount * 100)
+          return `${params.name}: ${count}个 · ${pct.toFixed(1)}%`
+        }
       },
       legend: {
         orient: 'horizontal',
@@ -91,7 +99,12 @@ const renderChart = (pieData, legendData) => {
           radius: ['40%', '65%'],
           center: ['50%', '45%'],
           label: {
-            formatter: '{b}\n{d}%',
+            formatter: (params) => {
+              const item = pieData.find(d => d.name === params.name)
+              const count = item ? item.count : 0
+              const pct = totalCount === 0 ? 0 : (count / totalCount * 100)
+              return `${params.name}\n${count}个 · ${pct.toFixed(1)}%`
+            },
             fontSize: 11,
             color: '#475569',
             fontWeight: 500
@@ -160,18 +173,12 @@ const fetchData = async () => {
       }
     })
 
-    // Filter out zero-count items for pie, keep in legend
-    const pieData = Array.from(typeMap.values()).filter((d) => d.count > 0)
+    // 全部 5 种分类都显示在饼图上，count=0 的分类显示为极小扇区
+    const pieData = Array.from(typeMap.values())
     const legendData = Array.from(typeMap.values()).map((d) => ({
       name: d.name,
       count: d.count
     }))
-
-    if (pieData.length === 0) {
-      noData.value = true
-      loading.value = false
-      return
-    }
 
     loading.value = false
     renderChart(pieData, legendData)
