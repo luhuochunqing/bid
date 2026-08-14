@@ -1,13 +1,14 @@
 <template>
   <div class="m8-filter-bar">
     <div class="m8-filter-item">
+      <input type="checkbox" class="m9-xaxis-cb" :checked="xAxisDimensions.includes('time')" @change="handleXAxisChange('time', $event.target.checked)" />
       <label class="m8-filter-label">时间维度</label>
-      <el-radio-group v-model="filters.timeDimension" class="time-radio-group" size="small">
-        <el-radio-button value="day">日</el-radio-button>
-        <el-radio-button value="week">周</el-radio-button>
-        <el-radio-button value="month">月</el-radio-button>
-        <el-radio-button value="year">年</el-radio-button>
-      </el-radio-group>
+      <el-select v-model="filters.timeDimension" class="time-dimension-select" size="small" @change="handleTimeDimensionChange">
+        <el-option label="日" value="day" />
+        <el-option label="周" value="week" />
+        <el-option label="月" value="month" />
+        <el-option label="年" value="year" />
+      </el-select>
     </div>
 
     <div class="m8-filter-item">
@@ -107,14 +108,20 @@ const filters = ref({
 
 const xAxisDimensions = ref([])
 
-// X 轴维度 key → 筛选状态字段映射
+// X 轴维度 key → 筛选状态字段映射（time 不映射到筛选值）
 const AXIS_TO_FILTER = {
+  time: null,
   dept: 'departments', person: 'persons', region: 'regions',
   customerType: 'customerTypes', projectType: 'projectTypes',
   projectStatus: 'projectStatuses', tenderEntity: 'tenderSubjects',
   competitor: 'competitors'
 }
-const NON_DEPT_PERSON = ['region', 'customerType', 'projectType', 'projectStatus', 'tenderEntity', 'competitor']
+const NON_DEPT_PERSON = ['time', 'region', 'customerType', 'projectType', 'projectStatus', 'tenderEntity', 'competitor']
+
+// 时间维度单选变化时触发确认（PRD 6.3 时间维度不参与互斥，仅切换粒度）
+const handleTimeDimensionChange = () => {
+  // 时间维度变化不需要勾选复选框，由确认按钮统一触发
+}
 
 // PRD 6.3 X 轴互斥逻辑
 const handleXAxisChange = (field, checked) => {
@@ -125,11 +132,11 @@ const handleXAxisChange = (field, checked) => {
       if (field === 'person' && !xAxisDimensions.value.includes('dept')) {
         xAxisDimensions.value.push('dept')
       }
-      NON_DEPT_PERSON.forEach(key => { filters.value[AXIS_TO_FILTER[key]] = [] })
+      NON_DEPT_PERSON.forEach(key => { if (AXIS_TO_FILTER[key]) filters.value[AXIS_TO_FILTER[key]] = [] })
     } else {
       xAxisDimensions.value = [field]
-      Object.values(AXIS_TO_FILTER).forEach(fk => {
-        if (fk !== AXIS_TO_FILTER[field]) filters.value[fk] = []
+      Object.entries(AXIS_TO_FILTER).forEach(([k, fk]) => {
+        if (fk && k !== field) filters.value[fk] = []
       })
     }
   } else {
