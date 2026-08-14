@@ -20,4 +20,8 @@ public class CompetitorAnalysisService {
     public List<String> getTenderEntities() {
         return assemblerService.getTenderEntities();
     }
+
+    public List<String> getProjectNames(String query) {
+        return assemblerService.getProjectNames(query);
+    }
 }
