@@ -41,8 +41,8 @@ const noData = ref(false)
 let chartInstance = null
 
 // PRD §7.4 客户类型枚举与颜色
-const COLOR_MAP = { '政府机关/事业单位/高校': '#2E7659', '央企': '#10B981', '地方国企': '#F59E0B', '民企': '#60A5FA', '港澳台及外企': '#A78BFA', '未分类': '#CBD5E1' }
-const FALLBACK_COLOR = COLOR_MAP['未分类']
+const COLOR_MAP = { '政府机关/事业单位/高校': '#2E7659', '央企': '#10B981', '地方国企': '#F59E0B', '民企': '#60A5FA', '港澳台及外企': '#A78BFA' }
+const FALLBACK_COLOR = '#CBD5E1'
 
 // 日期格式化（Date 对象/字符串 → yyyy-MM-dd）
 const formatDateStr = (date) => {
@@ -52,33 +52,28 @@ const formatDateStr = (date) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-const renderChart = (pieData, allEmpty, legendData) => {
+const renderChart = (pieData, legendData) => {
   nextTick(() => {
     if (!chartRef.value) return
     if (!chartInstance) {
       chartInstance = markRaw(echarts.init(chartRef.value))
     }
 
-    const seriesData = allEmpty
-      ? [{ value: pieData[0]?.count || 1, name: '未分类', itemStyle: { color: COLOR_MAP['未分类'] } }]
-      : pieData.map((d) => ({
-          value: d.count,
-          name: d.name,
-          itemStyle: {
-            color: COLOR_MAP[d.name] || d.color || FALLBACK_COLOR
-          }
-        }))
+    const seriesData = pieData.map((d) => ({
+      value: d.count,
+      name: d.name,
+      itemStyle: {
+        color: COLOR_MAP[d.name] || d.color || FALLBACK_COLOR
+      }
+    }))
 
-    // PRD §7.7: count=0 的类型不在饼图中显示扇区，但图例中仍显示（灰色禁用态）
-    const legendItems = allEmpty
-      ? [{ name: '未分类' }]
-      : (legendData || pieData).map((d) => ({
-          name: d.name,
-          textStyle: {
-            color: d.count === 0 ? '#CBD5E1' : '#475569',
-            fontSize: 12
-          }
-        }))
+    const legendItems = legendData.map((d) => ({
+      name: d.name,
+      textStyle: {
+        color: d.count === 0 ? '#CBD5E1' : '#475569',
+        fontSize: 12
+      }
+    }))
 
     const option = {
       tooltip: {
@@ -148,14 +143,13 @@ const fetchData = async () => {
       return
     }
 
-    // Normalize: group by customer_type, empty → "未分类"
-    // 后端字段: customerType, projectCount；兼容旧格式: name, count
+    // 后端返回 5 种标准分类，projectCount=0 的分类也包含在结果中
     const typeMap = new Map()
     let totalCount = 0
 
     rawData.forEach((item) => {
       const label = item?.customerType || item?.name || item?.customer_type || null
-      const displayName = label || '未分类'
+      const displayName = label || '未知'
       const count = Number(item?.projectCount || item?.count || 0)
 
       if (typeMap.has(displayName)) {
@@ -163,22 +157,11 @@ const fetchData = async () => {
       } else {
         typeMap.set(displayName, {
           name: displayName,
-          count: count,
-          color: item?.color || null,
-          isEmpty: !label
+          count: count
         })
       }
       totalCount += count
     })
-
-    // Check if all are empty-category
-    const allEmpty = Array.from(typeMap.values()).every((d) => d.isEmpty)
-    if (allEmpty) {
-      const total = Array.from(typeMap.values()).reduce((s, d) => s + d.count, 0)
-      loading.value = false
-      renderChart([{ name: '未分类', count: total, isEmpty: true }], true)
-      return
-    }
 
     // Filter out zero-count items for pie, keep in legend
     const pieData = Array.from(typeMap.values()).filter((d) => d.count > 0)

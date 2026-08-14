@@ -23,9 +23,7 @@ public class CustomerTypeAnalyticsAssemblerService {
         List<CustomerTypeProjectRow> rows = queryService.fetchProjectRows(startDate, endDate);
         List<CustomerTypeAggregate> aggregates = computationService.summarize(rows);
 
-        long uncategorizedCount = aggregates.stream()
-                .filter(aggregate -> CustomerTypeAnalyticsComputationService.UNCATEGORIZED_CUSTOMER_TYPE
-                        .equals(aggregate.customerType()))
+        long classifiedProjectCount = aggregates.stream()
                 .mapToLong(CustomerTypeAggregate::projectCount)
                 .sum();
         BigDecimal totalAmount = aggregates.stream()
@@ -34,8 +32,8 @@ public class CustomerTypeAnalyticsAssemblerService {
 
         return CustomerTypeAnalyticsResponse.builder()
                 .totalProjectCount((long) rows.size())
-                .classifiedProjectCount(rows.size() - uncategorizedCount)
-                .uncategorizedProjectCount(uncategorizedCount)
+                .classifiedProjectCount(classifiedProjectCount)
+                .uncategorizedProjectCount(0L)
                 .totalAmount(totalAmount)
                 .dimensions(aggregates.stream().map(this::toDimensionDTO).toList())
                 .build();
