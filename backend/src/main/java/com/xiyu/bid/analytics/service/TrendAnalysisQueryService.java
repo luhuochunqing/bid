@@ -138,6 +138,34 @@ public class TrendAnalysisQueryService {
         return query.getSingleResult();
     }
 
+    /**
+     * 查询今日新增项目数（PRD §3.1 投标总数卡片底部"今日新增"显示）。
+     * 不受全局日期筛选范围影响，固定查询今天创建的项目数。
+     */
+    long fetchTodayNewCount() {
+        Set<Long> projectIds = scopedProjectIds();
+        if (projectIds != null && projectIds.isEmpty()) {
+            return 0L;
+        }
+        Set<Long> queryProjectIds = projectIds == null ? Set.of() : projectIds;
+
+        String jpql = """
+                select count(p)
+                from Project p
+                where (:allAccess = true or p.id in :projectIds)
+                and p.createdAt >= :todayStart
+                and p.createdAt <= :todayEnd
+                """;
+
+        LocalDate today = LocalDate.now();
+        return entityManager.createQuery(jpql, Long.class)
+                .setParameter("allAccess", projectIds == null)
+                .setParameter("projectIds", queryProjectIds)
+                .setParameter("todayStart", today.atStartOfDay())
+                .setParameter("todayEnd", today.atTime(23, 59, 59))
+                .getSingleResult();
+    }
+
     private Set<Long> scopedProjectIds() {
         if (projectAccessScopeService.currentUserHasAdminAccess()) {
             return null;
