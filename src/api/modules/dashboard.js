@@ -1,12 +1,7 @@
-// Input: httpClient, API mode config, analytics normalizers and demo adapters
-// Output: dashboardApi - dashboard metrics, tasks, and drill-down accessors
+// Input: httpClient, analytics normalizers
+// Output: dashboardApi - dashboard metrics, tasks, drill-down accessors
 // Pos: src/api/modules/ - Frontend API module layer
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
-
-/**
- * 数据看板与任务模块 API
- * 真实 API 数据看板与任务访问层
- */
 import httpClient from '../client.js'
 
 function normalizeTrendItem(item) {
@@ -213,10 +208,14 @@ export const dashboardApi = {
   async getTrendsWithFilters(params) {
     return httpClient.get('/api/analytics/trends/enhanced', { params })
   },
-
-  // M1 - 筛选选项模糊搜索
-  async searchOptions(type, query) {
-    return httpClient.get('/api/analytics/search-options', { params: { type, query } })
+  // M1 - PRD §6.2 筛选区下拉选项一次性加载（7 个维度 DISTINCT）
+  async getFilterOptions() {
+    return httpClient.get('/api/analytics/filter-options')
+  },
+  // M1 - PRD §6.4 部门-人员联动：根据已选部门名称列表刷新人员下拉选项
+  async getPersonsByDepartments(departmentNames = []) {
+    const params = departmentNames.length ? { departmentNames } : {}
+    return httpClient.get('/api/analytics/filter-options/persons', { params })
   },
 
   async getLayout() {

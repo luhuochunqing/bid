@@ -41,7 +41,7 @@ export function buildChartOption(data, xAxisType) {
       itemWidth: 8, itemHeight: 8
     },
     grid: {
-      left: 50, right: 30, top: 20, bottom: showDataZoom ? 60 : 40
+      left: 50, right: 60, top: 50, bottom: showDataZoom ? 60 : 40
     },
     xAxis: {
       type: 'category',
