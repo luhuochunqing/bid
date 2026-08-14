@@ -16,7 +16,6 @@ import java.util.Set;
 @Component
 class CustomerTypeAnalyticsComputationService {
 
-    static final String UNCATEGORIZED_CUSTOMER_TYPE = "未分类";
     private static final String ALL_FILTER = "ALL";
 
     // 5 种标准客户类型分类（与 Excel 导入模板一致）
@@ -31,14 +30,18 @@ class CustomerTypeAnalyticsComputationService {
     );
 
     List<CustomerTypeAggregate> summarize(List<CustomerTypeProjectRow> rows) {
-        long totalProjects = rows.size();
+        // 初始化所有 5 种标准分类（即使 count=0 也包含在结果中）
         Map<String, MutableCustomerTypeAggregate> aggregates = new LinkedHashMap<>();
+        for (String category : ALLOWED_CATEGORIES) {
+            aggregates.put(category, new MutableCustomerTypeAggregate(category));
+        }
+
+        // 只统计精确匹配 5 种分类的项目，不匹配的跳过
         for (CustomerTypeProjectRow row : rows) {
             String cType = normalizeCustomerType(row.customerType());
-            MutableCustomerTypeAggregate aggregate = aggregates.computeIfAbsent(
-                    cType,
-                    MutableCustomerTypeAggregate::new
-            );
+            if (cType == null) continue;
+            MutableCustomerTypeAggregate aggregate = aggregates.get(cType);
+            if (aggregate == null) continue;
             aggregate.projectCount++;
             if (!row.projectStatus().isTerminal()) {
                 aggregate.activeProjectCount++;
@@ -48,6 +51,10 @@ class CustomerTypeAnalyticsComputationService {
             }
             aggregate.totalAmount = aggregate.totalAmount.add(defaultAmount(row.amount()));
         }
+
+        long totalProjects = aggregates.values().stream()
+                .mapToLong(a -> a.projectCount)
+                .sum();
 
         return aggregates.values().stream()
                 .map(aggregate -> aggregate.toImmutable(totalProjects))
@@ -74,44 +81,25 @@ class CustomerTypeAnalyticsComputationService {
             return rows;
         }
         return rows.stream()
-                .filter(row -> normalizeCustomerType(row.customerType()).equals(normalizedFilter))
+                .filter(row -> {
+                    String normalized = normalizeCustomerType(row.customerType());
+                    return normalized != null && normalized.equals(normalizedFilter);
+                })
                 .toList();
     }
 
+    /**
+     * 只返回精确匹配 5 种标准分类的值，不匹配的返回 null（跳过不统计）。
+     */
     String normalizeCustomerType(String customerType) {
         if (customerType == null || customerType.isBlank()) {
-            return UNCATEGORIZED_CUSTOMER_TYPE;
+            return null;
         }
         String trimmed = customerType.trim();
-
-        // 精确匹配 5 种标准分类
         if (ALLOWED_CATEGORIES.contains(trimmed)) {
             return trimmed;
         }
-
-        // 模糊映射：将数据库中的原始值映射到标准分类
-        if (trimmed.contains("政府") || trimmed.contains("事业单位") || trimmed.contains("高校") || trimmed.contains("机关")) {
-            return CATEGORY_GOVERNMENT;
-        }
-        if (trimmed.contains("央企") || "中央企业".equals(trimmed)) {
-            return CATEGORY_CENTRAL_SOE;
-        }
-        if (trimmed.contains("地方国企") || "地方国有企业".equals(trimmed)) {
-            return CATEGORY_LOCAL_SOE;
-        }
-        if (trimmed.contains("国企") || "国有企业".equals(trimmed)) {
-            // 泛化"国企"默认为地方国企
-            return CATEGORY_LOCAL_SOE;
-        }
-        if (trimmed.contains("民企") || trimmed.contains("民营")) {
-            return CATEGORY_PRIVATE;
-        }
-        if (trimmed.contains("港澳台") || trimmed.contains("外企") || trimmed.contains("外资")
-                || trimmed.contains("外商") || trimmed.contains("境外")) {
-            return CATEGORY_FOREIGN;
-        }
-
-        return UNCATEGORIZED_CUSTOMER_TYPE;
+        return null;
     }
 
     String deriveOutcome(CustomerTypeProjectRow row) {
