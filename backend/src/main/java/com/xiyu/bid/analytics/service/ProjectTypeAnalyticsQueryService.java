@@ -49,9 +49,9 @@ public class ProjectTypeAnalyticsQueryService {
                         left join Tender t on t.id = p.tenderId
                         left join User u on u.id = p.managerId
                         where (:allAccess = true or p.id in :projectIds)
-                          and (:startDate is null or coalesce(p.startDate, p.createdAt) >= :startDate)
-                          and (:endDate is null or coalesce(p.startDate, p.createdAt) <= :endDate)
-                        order by coalesce(p.startDate, p.createdAt) desc, p.id desc
+                          and (:startDate is null or p.createdAt >= :startDate)
+                          and (:endDate is null or p.createdAt <= :endDate)
+                        order by p.createdAt desc, p.id desc
                         """, ProjectTypeProjectRow.class)
                 .setParameter("allAccess", projectIds == null)
                 .setParameter("projectIds", queryProjectIds)
