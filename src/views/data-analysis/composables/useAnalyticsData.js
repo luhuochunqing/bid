@@ -1,7 +1,6 @@
-import { ref, reactive } from 'vue'
+import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { dashboardApi } from '@/api'
-import { PROJECT_STATUS_COLORS } from '../components/m1-trend-analysis/filterConstants.js'
 
 export function useAnalyticsData() {
   const defaultDateRange = () => [new Date('2026-01-01'), new Date('2026-12-31')]
@@ -13,35 +12,17 @@ export function useAnalyticsData() {
 
   const m0Loading = ref(false)
   const m0Error = ref(false)
-  const m1Loading = ref(false)
-  const m1ChartLoading = ref(false)
-  const m1Error = ref(false)
   const m2Loading = ref(false)
   const m2Error = ref(false)
   const m3Loading = ref(false)
   const m3Error = ref(false)
   const m4Loading = ref(false)
   const m4Error = ref(false)
-  const trendDrillLoading = ref(false)
 
   const kpiCards = ref([])
   const customerTypeData = ref([])
   const projectTypeData = ref([])
   const competitorData = ref([])
-  const trendDrillData = ref([])
-  const trendChartOption = ref({})
-
-  const trendFilters = reactive({
-    timeDimension: 'month',
-    departments: [],
-    persons: [],
-    regions: [],
-    customerTypes: [],
-    projectTypes: [],
-    projectStatuses: [],
-    tenderEntities: [],
-    competitors: []
-  })
 
   function formatAmount(val) {
     if (val == null) return '--'
@@ -51,45 +32,6 @@ export function useAnalyticsData() {
       return (num / 10000).toFixed(1) + '万'
     }
     return num.toLocaleString()
-  }
-
-  function buildTrendChartOption(data, xAxisType) {
-    const isStatusAxis = xAxisType === 'projectStatus'
-    const categories = Array.isArray(data) ? data.map((d) => d.period || d.month || '-') : []
-    const bidData = Array.isArray(data) ? data.map((d) => Number(d.count || d.bids || 0)) : []
-    const winData = Array.isArray(data) ? data.map((d) => Number(d.wins || 0)) : []
-    const rateData = Array.isArray(data) ? data.map((d) => Number(d.rate || d.changePercentage || 0)) : []
-
-    if (isStatusAxis) {
-      const STATUS_FALLBACK = '#2563EB'
-      return {
-        tooltip: { trigger: 'axis' },
-        legend: { data: ['数量'] },
-        xAxis: { type: 'category', data: categories },
-        yAxis: { type: 'value', name: '数量' },
-        series: [{
-          name: '数量', type: 'bar', data: bidData,
-          itemStyle: {
-            color: (params) => PROJECT_STATUS_COLORS[params.name] || STATUS_FALLBACK
-          }
-        }]
-      }
-    }
-
-    return {
-      tooltip: { trigger: 'axis' },
-      legend: { data: ['投标数', '中标数', '中标率'] },
-      xAxis: { type: 'category', data: categories },
-      yAxis: [
-        { type: 'value', name: '数量' },
-        { type: 'value', name: '比率', min: 0, max: 100 }
-      ],
-      series: [
-        { name: '投标数', type: 'bar', data: bidData },
-        { name: '中标数', type: 'bar', data: winData },
-        { name: '中标率', type: 'line', yAxisIndex: 1, data: rateData }
-      ]
-    }
   }
 
   function formatDateStr(date) {
@@ -132,37 +74,6 @@ export function useAnalyticsData() {
       ]
     } finally {
       m0Loading.value = false
-    }
-  }
-
-  async function loadM1Data() {
-    m1Loading.value = true
-    m1ChartLoading.value = true
-    m1Error.value = false
-    try {
-      const params = {
-        xAxis: 'time',
-        startDate: formatDateStr(globalDateRange.value?.[0]),
-        endDate: formatDateStr(globalDateRange.value?.[1]),
-        timeDimension: trendFilters.timeDimension,
-        departmentIds: trendFilters.departments.join(',') || undefined,
-        userIds: trendFilters.persons.join(',') || undefined,
-        regionIds: trendFilters.regions.join(',') || undefined,
-        customerTypes: trendFilters.customerTypes.join(',') || undefined,
-        projectTypes: trendFilters.projectTypes.join(',') || undefined,
-        statuses: trendFilters.projectStatuses.join(',') || undefined,
-        tenderEntities: trendFilters.tenderEntities.join(',') || undefined,
-        competitorNames: trendFilters.competitors.join(',') || undefined
-      }
-      const res = await dashboardApi.getTrendsWithFilters(params)
-      const data = Array.isArray(res?.data) ? res.data : []
-      trendChartOption.value = buildTrendChartOption(data, 'time')
-    } catch (e) {
-      console.error('[M1] 加载趋势失败:', e)
-      m1Error.value = true
-    } finally {
-      m1Loading.value = false
-      m1ChartLoading.value = false
     }
   }
 
@@ -224,8 +135,9 @@ export function useAnalyticsData() {
     initialLoading.value = true
     refreshing.value = true
     try {
+      // M1 自治：自己监听 globalDateRange 变化加载数据，不需要父组件 loadM1Data
       await Promise.all([
-        loadM0Data(), loadM1Data(), loadM2Data(), loadM3Data()
+        loadM0Data(), loadM2Data(), loadM3Data()
       ])
     } finally {
       initialLoading.value = false
@@ -252,28 +164,13 @@ export function useAnalyticsData() {
     loadAllData()
   }
 
-  function handleTrendFilterChange(newFilters) {
-    Object.assign(trendFilters, newFilters)
-    loadM1Data()
-  }
-
-  function handleTrendDrill() {
-    trendDrillLoading.value = true
-    setTimeout(() => {
-      trendDrillLoading.value = false
-    }, 500)
-  }
-
   return {
     globalDateRange, m4DateRange,
     initialLoading, refreshing,
-    m0Loading, m0Error, m1Loading, m1ChartLoading, m1Error,
+    m0Loading, m0Error,
     m2Loading, m2Error, m3Loading, m3Error, m4Loading, m4Error,
-    trendDrillLoading,
     kpiCards, customerTypeData, projectTypeData, competitorData,
-    trendDrillData, trendChartOption, trendFilters,
-    loadM0Data, loadM1Data, loadM2Data, loadM3Data, loadM4Data, loadAllData,
-    handleGlobalDateChange, handleGlobalDateReset, handleM4DateChange, handleRefresh,
-    handleTrendFilterChange, handleTrendDrill
+    loadM0Data, loadM2Data, loadM3Data, loadM4Data, loadAllData,
+    handleGlobalDateChange, handleGlobalDateReset, handleM4DateChange, handleRefresh
   }
 }

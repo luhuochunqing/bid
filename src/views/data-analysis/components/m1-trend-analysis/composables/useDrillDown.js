@@ -32,6 +32,8 @@ export function useDrillDown() {
       seriesName: ctx?.seriesName || '',
       page,
       size: 10,
+      ...(ctx?.startDate ? { startDate: ctx.startDate } : {}),
+      ...(ctx?.endDate ? { endDate: ctx.endDate } : {}),
       ...(f.departments?.length ? { departmentIds: f.departments.join(',') } : {}),
       ...(f.persons?.length ? { userIds: f.persons.join(',') } : {}),
       ...(f.regions?.length ? { regionIds: f.regions.join(',') } : {}),
@@ -43,13 +45,24 @@ export function useDrillDown() {
     }
   }
 
-  const openDrill = async (data, xAxisType, seriesName, filters) => {
+  const openDrill = async (data, xAxisType, seriesName, filters, dateRange) => {
     drillVisible.value = true
     drillLoading.value = true
     const axisValue = data?.label || data?.key || data?.value || ''
     drillTitle.value = buildTitle(xAxisType, axisValue, seriesName, null)
 
-    drillContext.value = { xAxisType, axisValue, seriesName, filters }
+    // 日期格式化
+    const fmt = (d) => {
+      if (!d) return null
+      if (typeof d === 'string') return d.slice(0, 10)
+      const dt = new Date(d)
+      return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+    }
+    drillContext.value = {
+      xAxisType, axisValue, seriesName, filters,
+      startDate: fmt(dateRange?.[0]),
+      endDate: fmt(dateRange?.[1])
+    }
 
     try {
       const drillParams = buildDrillParams(drillContext.value, 1)

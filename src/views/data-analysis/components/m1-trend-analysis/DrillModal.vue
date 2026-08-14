@@ -45,8 +45,8 @@
             </el-link>
           </template>
         </el-table-column>
-        <el-table-column prop="managerName" label="项目经理" width="120" show-overflow-tooltip />
-        <el-table-column prop="techLeaderName" label="技术负责人" width="120" show-overflow-tooltip />
+        <el-table-column prop="managerName" label="项目负责人" width="120" show-overflow-tooltip />
+        <el-table-column prop="techLeaderName" label="投标负责人" width="120" show-overflow-tooltip />
         <el-table-column prop="openTime" label="开标时间" width="130" />
         <el-table-column prop="status" label="项目状态" width="110">
           <template #default="{ row }">
