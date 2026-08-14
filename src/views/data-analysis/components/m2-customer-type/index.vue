@@ -62,6 +62,9 @@ const renderChart = (pieData, legendData) => {
     const seriesData = pieData.map((d) => ({
       value: d.count,
       name: d.name,
+      label: {
+        show: d.count > 0
+      },
       itemStyle: {
         color: COLOR_MAP[d.name] || d.color || FALLBACK_COLOR
       }
