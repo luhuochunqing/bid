@@ -1,3 +1,5 @@
+import { chinaRegionOptions } from '@/components/common/chinaRegionData.js'
+
 export const PROJECT_STATUS_OPTIONS = [
   { label: '投标中', value: 'BIDDING' },
   { label: '评标中', value: 'EVALUATING' },
@@ -17,6 +19,37 @@ export const PROJECT_STATUS_COLORS = {
   已流标: '#EA580C',
   弃标: '#9CA3AF'
 }
+
+// 客户类型选项（与投标项目筛选区保持一致，值和顺序相同）
+export const CUSTOMER_TYPE_OPTIONS = [
+  { label: '政府机关/事业单位/高校', value: '政府机关/事业单位/高校' },
+  { label: '央企', value: '央企' },
+  { label: '地方国企', value: '地方国企' },
+  { label: '民企', value: '民企' },
+  { label: '港澳台及外企', value: '港澳台及外企' }
+]
+
+// 项目类型选项（与投标项目筛选区保持一致，值和顺序相同）
+export const PROJECT_TYPE_OPTIONS = [
+  { label: '工业品', value: '工业品' },
+  { label: '办公', value: '办公' },
+  { label: '综合', value: '综合' },
+  { label: '集采', value: '集采' },
+  { label: '其他', value: '其他' }
+]
+
+// 竞品公司选项（固定列表）
+export const COMPETITOR_OPTIONS = [
+  '震坤行', '鑫方盛', '浙江物产', '欧菲斯', '领先未来',
+  '浙江宏伟', '咸亨国际', '企事通', '一线达通', '京东',
+  '苏宁', '科力普', '得力', '史泰博', '齐心',
+  '广博', '一出科技', '怡亚通', '申合信', '大江科技',
+  '诚和致远', '阳采', '德致商成', '全程速达'
+].map((name) => ({ label: name, value: name }))
+
+// 区域选项：取人工录入标讯时总部所在地字段选项值的一级（省/直辖市/特别行政区）
+// 来源：chinaRegionOptions 的第一级名称，与标讯录入表单保持一致
+export const REGION_OPTIONS = chinaRegionOptions.map((o) => ({ label: o.name, value: o.name }))
 
 // X 轴维度字段定义（timeDimension 不参与 X 轴复选框）
 export const X_AXIS_FIELDS = [

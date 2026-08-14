@@ -3,7 +3,14 @@
     <div class="m8-filter-item">
       <input type="checkbox" class="m9-xaxis-cb" :checked="xAxisDimensions.includes('time')" @change="handleXAxisChange('time', $event.target.checked)" />
       <label class="m8-filter-label">时间维度</label>
-      <el-select v-model="filters.timeDimension" class="time-dimension-select" size="small" @change="handleTimeDimensionChange">
+      <el-select
+        ref="timeDimensionSelectRef"
+        v-model="filters.timeDimension"
+        class="time-dimension-select"
+        size="small"
+        placeholder="请选择"
+        @change="handleTimeDimensionChange"
+      >
         <el-option label="日" value="day" />
         <el-option label="周" value="week" />
         <el-option label="月" value="month" />
@@ -26,19 +33,19 @@
     <div class="m8-filter-item">
       <input type="checkbox" class="m9-xaxis-cb" :checked="xAxisDimensions.includes('region')" @change="handleXAxisChange('region', $event.target.checked)" />
       <label class="m8-filter-label">区域</label>
-      <FilterSelect v-model="filters.regions" :options="regionOptions" :loading="loadingRegions" placeholder="请选择" @search="handleRegionSearch" @change="handleFieldChange('region')" />
+      <FilterSelect v-model="filters.regions" :options="regionOptions" placeholder="请选择" @search="handleRegionSearch" @change="handleFieldChange('region')" />
     </div>
 
     <div class="m8-filter-item">
       <input type="checkbox" class="m9-xaxis-cb" :checked="xAxisDimensions.includes('customerType')" @change="handleXAxisChange('customerType', $event.target.checked)" />
       <label class="m8-filter-label">客户类型</label>
-      <FilterSelect v-model="filters.customerTypes" :options="customerTypeOptions" :loading="loadingCustomerTypes" placeholder="请选择" @search="handleCustomerTypeSearch" @change="handleFieldChange('customerType')" />
+      <FilterSelect v-model="filters.customerTypes" :options="customerTypeOptions" placeholder="请选择" @search="handleCustomerTypeSearch" @change="handleFieldChange('customerType')" />
     </div>
 
     <div class="m8-filter-item">
       <input type="checkbox" class="m9-xaxis-cb" :checked="xAxisDimensions.includes('projectType')" @change="handleXAxisChange('projectType', $event.target.checked)" />
       <label class="m8-filter-label">项目类型</label>
-      <FilterSelect v-model="filters.projectTypes" :options="projectTypeOptions" :loading="loadingProjectTypes" placeholder="请选择" @search="handleProjectTypeSearch" @change="handleFieldChange('projectType')" />
+      <FilterSelect v-model="filters.projectTypes" :options="projectTypeOptions" placeholder="请选择" @search="handleProjectTypeSearch" @change="handleFieldChange('projectType')" />
     </div>
 
     <div class="m8-filter-item">
@@ -56,7 +63,7 @@
     <div class="m8-filter-item">
       <input type="checkbox" class="m9-xaxis-cb" :checked="xAxisDimensions.includes('competitor')" @change="handleXAxisChange('competitor', $event.target.checked)" />
       <label class="m8-filter-label">竞品公司</label>
-      <FilterSelect v-model="filters.competitors" :options="competitorOptions" :loading="loadingCompetitors" placeholder="请选择" @search="handleCompetitorSearch" @change="handleFieldChange('competitor')" />
+      <FilterSelect v-model="filters.competitors" :options="competitorOptions" placeholder="请选择" @search="handleCompetitorSearch" @change="handleFieldChange('competitor')" />
     </div>
 
     <div class="m9-filter-actions">
@@ -68,24 +75,22 @@
 
 <script setup>
 import { ref } from 'vue'
-import { PROJECT_STATUS_OPTIONS } from './filterConstants.js'
+import {
+  PROJECT_STATUS_OPTIONS,
+  CUSTOMER_TYPE_OPTIONS,
+  PROJECT_TYPE_OPTIONS,
+  COMPETITOR_OPTIONS,
+  REGION_OPTIONS
+} from './filterConstants.js'
 import FilterSelect from './FilterSelect.vue'
 
 const props = defineProps({
   departmentOptions: { type: Array, default: () => [] },
   personOptions: { type: Array, default: () => [] },
-  regionOptions: { type: Array, default: () => [] },
-  customerTypeOptions: { type: Array, default: () => [] },
-  projectTypeOptions: { type: Array, default: () => [] },
   tenderSubjectOptions: { type: Array, default: () => [] },
-  competitorOptions: { type: Array, default: () => [] },
   loadingDepartments: Boolean,
   loadingPersons: Boolean,
-  loadingRegions: Boolean,
-  loadingCustomerTypes: Boolean,
-  loadingProjectTypes: Boolean,
-  loadingTenderSubjects: Boolean,
-  loadingCompetitors: Boolean
+  loadingTenderSubjects: Boolean
 })
 
 const emit = defineEmits([
@@ -96,7 +101,12 @@ const emit = defineEmits([
   'department-change'
 ])
 
+const timeDimensionSelectRef = ref(null)
 const projectStatusOptions = ref(PROJECT_STATUS_OPTIONS)
+const customerTypeOptions = ref(CUSTOMER_TYPE_OPTIONS)
+const projectTypeOptions = ref(PROJECT_TYPE_OPTIONS)
+const competitorOptions = ref(COMPETITOR_OPTIONS)
+const regionOptions = ref(REGION_OPTIONS)
 const submitting = ref(false)
 
 const filters = ref({
@@ -118,12 +128,17 @@ const AXIS_TO_FILTER = {
 }
 const NON_DEPT_PERSON = ['time', 'region', 'customerType', 'projectType', 'projectStatus', 'tenderEntity', 'competitor']
 
-// 时间维度单选变化时触发确认（PRD 6.3 时间维度不参与互斥，仅切换粒度）
+// 时间维度单选后自动关闭下拉框
+// 用 setTimeout 确保 Element Plus 内部 change 处理完成后再触发 blur 关闭 popper
 const handleTimeDimensionChange = () => {
-  // 时间维度变化不需要勾选复选框，由确认按钮统一触发
+  setTimeout(() => {
+    timeDimensionSelectRef.value?.blur?.()
+  }, 50)
 }
 
 // PRD 6.3 X 轴互斥逻辑
+// 复选框变化时执行互斥逻辑（清空其他字段），但不立即刷新图表
+// 图表刷新由"确认"按钮触发
 const handleXAxisChange = (field, checked) => {
   if (checked) {
     if (field === 'dept' || field === 'person') {
@@ -152,12 +167,14 @@ const handleXAxisChange = (field, checked) => {
 const handleFieldChange = (dim) => {
   const filterKey = AXIS_TO_FILTER[dim]
   const vals = filters.value[filterKey]
+  // PRD 6.4 部门-人员联动：部门选值变化时先清空人员选值（确保 X 轴切换时 persons 已清空）
+  if (dim === 'dept') {
+    filters.value.persons = []
+  }
   if (Array.isArray(vals) && vals.length > 0 && !xAxisDimensions.value.includes(dim)) {
     handleXAxisChange(dim, true)
   }
-  // PRD 6.4 部门-人员联动：部门选值变化时通知父组件刷新人员下拉
   if (dim === 'dept') {
-    filters.value.persons = []
     emit('department-change', filters.value.departments)
   }
 }
@@ -230,9 +247,13 @@ const handleReset = () => {
   flex-shrink: 0;
 }
 
-.m8-filter-item :deep(.filter-select) {
-  width: 140px;
+.m8-filter-item :deep(.filter-select) { width: 140px; flex-shrink: 0; }
+.m8-filter-item :deep(.el-select .el-select__wrapper) { min-height: 28px; }
+.m8-filter-item :deep(.el-select .el-select__selection-wrapper) { overflow: hidden; }
+.m8-filter-item :deep(.el-select__tags-text) {
+  max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.time-dimension-select { width: 90px; flex-shrink: 0; }
 
 .m9-filter-actions {
   display: flex;

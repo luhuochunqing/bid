@@ -36,12 +36,12 @@ export function buildChartOption(data, xAxisType) {
     },
     legend: {
       data: isStatusAxis ? ['数量'] : ['投标数', '中标数', '中标率'],
-      bottom: 0, left: 'center', icon: 'circle',
+      top: 0, left: 'center', icon: 'circle',
       textStyle: { color: '#475569', fontSize: 12 },
       itemWidth: 8, itemHeight: 8
     },
     grid: {
-      left: 50, right: 60, top: 50, bottom: showDataZoom ? 60 : 40
+      left: 50, right: 60, top: 40, bottom: showDataZoom ? 60 : 40
     },
     xAxis: {
       type: 'category',
@@ -76,6 +76,7 @@ export function buildChartOption(data, xAxisType) {
       series: [
         {
           name: '数量', type: 'bar', data: bidCounts, barMaxWidth: 32,
+          label: { show: true, position: 'top', color: '#475569', fontSize: 11 },
           itemStyle: {
             borderRadius: [2, 2, 0, 0],
             color: (params) => PROJECT_STATUS_COLORS[params.name] || commonBarStyle.color
@@ -102,19 +103,20 @@ export function buildChartOption(data, xAxisType) {
       }
     ],
     series: [
-      { name: '投标数', type: 'bar', data: bidCounts, yAxisIndex: 0, itemStyle: commonBarStyle, barMaxWidth: 32 },
-      { name: '中标数', type: 'bar', data: winCounts, yAxisIndex: 0, itemStyle: commonWinBarStyle, barMaxWidth: 32 },
+      { name: '投标数', type: 'bar', data: bidCounts, yAxisIndex: 0, itemStyle: commonBarStyle, barMaxWidth: 24,
+        label: { show: true, position: 'top', color: '#2563EB', fontSize: 11 }
+      },
+      { name: '中标数', type: 'bar', data: winCounts, yAxisIndex: 0, itemStyle: commonWinBarStyle, barMaxWidth: 24,
+        label: { show: true, position: 'top', color: '#10B981', fontSize: 11 }
+      },
       {
         name: '中标率', type: 'line', data: winRates, yAxisIndex: 1,
         smooth: true, symbol: 'circle', symbolSize: 6,
         lineStyle: { color: '#F59E0B', width: 2 },
         itemStyle: { color: '#F59E0B' },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(245, 158, 11, 0.15)' },
-            { offset: 1, color: 'rgba(245, 158, 11, 0.02)' }
-          ])
-        }
+        label: { show: true, position: 'top', color: '#F59E0B', fontSize: 11, formatter: '{c}%' },
+        silent: false,
+        triggerLineEvent: false
       }
     ],
     ...(showDataZoom ? {

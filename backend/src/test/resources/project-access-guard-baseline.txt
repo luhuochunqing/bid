@@ -192,4 +192,5 @@ src/main/java/com/xiyu/bid/analytics/service/CompetitorAnalysisQueryService.java
 src/main/java/com/xiyu/bid/analytics/service/ProjectTypeAnalyticsAssemblerService.java | Pure assembler for already scoped analytics rows; no repository/user-boundary decision here.
 src/main/java/com/xiyu/bid/analytics/service/ProjectTypeAnalyticsComputationService.java | Computation helper consumes already scoped projects from query service; no independent request entry point.
 src/main/java/com/xiyu/bid/analytics/service/ProjectTypeAnalyticsQueryService.java | Query service with scoped access; project filtering implemented upstream.
+src/main/java/com/xiyu/bid/analytics/controller/TrendAnalysisController.java | Controller delegates to TrendAnalysisService + TrendDrillDownService; scoped project filtering is implemented downstream and this controller-level baseline prevents silent new unguarded endpoints.
 src/main/java/com/xiyu/bid/analytics/service/TrendAnalysisQueryService.java | Query service with scoped access; project filtering implemented upstream.

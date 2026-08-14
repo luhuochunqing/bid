@@ -26,22 +26,24 @@ export function useDrillDown() {
 
   const buildDrillParams = (ctx, page) => {
     const f = ctx?.filters || {}
+    // 后端 List<String> 参数：axios 会自动将数组序列化为 repeated query params（?key=a&key=b）
+    const toList = (arr) => (Array.isArray(arr) && arr.length ? arr : undefined)
     return {
       dimension: ctx?.xAxisType || 'time',
-      key: ctx?.axisValue || '',
+      axisValue: ctx?.axisValue || '',
       seriesName: ctx?.seriesName || '',
       page,
       size: 10,
       ...(ctx?.startDate ? { startDate: ctx.startDate } : {}),
       ...(ctx?.endDate ? { endDate: ctx.endDate } : {}),
-      ...(f.departments?.length ? { departmentIds: f.departments.join(',') } : {}),
-      ...(f.persons?.length ? { userIds: f.persons.join(',') } : {}),
-      ...(f.regions?.length ? { regionIds: f.regions.join(',') } : {}),
-      ...(f.customerTypes?.length ? { customerTypes: f.customerTypes.join(',') } : {}),
-      ...(f.projectTypes?.length ? { projectTypes: f.projectTypes.join(',') } : {}),
-      ...(f.projectStatuses?.length ? { statuses: f.projectStatuses.join(',') } : {}),
-      ...(f.tenderSubjects?.length ? { tenderEntities: f.tenderSubjects.join(',') } : {}),
-      ...(f.competitors?.length ? { competitorNames: f.competitors.join(',') } : {})
+      ...(toList(f.departments) ? { departments: toList(f.departments) } : {}),
+      ...(toList(f.persons) ? { persons: toList(f.persons) } : {}),
+      ...(toList(f.regions) ? { regions: toList(f.regions) } : {}),
+      ...(toList(f.customerTypes) ? { customerTypes: toList(f.customerTypes) } : {}),
+      ...(toList(f.projectTypes) ? { projectTypes: toList(f.projectTypes) } : {}),
+      ...(toList(f.projectStatuses) ? { statuses: toList(f.projectStatuses) } : {}),
+      ...(toList(f.tenderSubjects) ? { tenderEntities: toList(f.tenderSubjects) } : {}),
+      ...(toList(f.competitors) ? { competitorNames: toList(f.competitors) } : {})
     }
   }
 
@@ -66,7 +68,7 @@ export function useDrillDown() {
 
     try {
       const drillParams = buildDrillParams(drillContext.value, 1)
-      const response = await dashboardApi.getDrillDown('trends', drillParams)
+      const response = await dashboardApi.getTrendDrillDown(drillParams)
       if (!response?.success) throw new Error(response?.msg || '加载明细数据失败')
 
       const result = response.data || {}
@@ -94,7 +96,7 @@ export function useDrillDown() {
     drillLoading.value = true
     try {
       const drillParams = buildDrillParams(drillContext.value, page)
-      const response = await dashboardApi.getDrillDown('trends', drillParams)
+      const response = await dashboardApi.getTrendDrillDown(drillParams)
       if (!response?.success) throw new Error(response?.msg || '加载明细数据失败')
 
       const result = response.data || {}

@@ -57,7 +57,7 @@ public class TrendAnalysisService {
                 customerTypes, projectTypes, statusEnums
         );
 
-        TrendComputationResult result = computationService.computeTimeTrend(rows);
+        TrendComputationResult result = computationService.computeTimeTrend(rows, startDate, endDate);
 
         return TrendAnalysisResponse.builder()
                 .categories(result.categories())
