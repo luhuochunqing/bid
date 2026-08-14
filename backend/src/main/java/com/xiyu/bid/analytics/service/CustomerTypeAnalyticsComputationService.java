@@ -11,12 +11,24 @@ import java.math.RoundingMode;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Component
 class CustomerTypeAnalyticsComputationService {
 
     static final String UNCATEGORIZED_CUSTOMER_TYPE = "未分类";
     private static final String ALL_FILTER = "ALL";
+
+    // 5 种标准客户类型分类（与 Excel 导入模板一致）
+    private static final String CATEGORY_GOVERNMENT = "政府机关/事业单位/高校";
+    private static final String CATEGORY_CENTRAL_SOE = "央企";
+    private static final String CATEGORY_LOCAL_SOE = "地方国企";
+    private static final String CATEGORY_PRIVATE = "民企";
+    private static final String CATEGORY_FOREIGN = "港澳台及外企";
+    private static final Set<String> ALLOWED_CATEGORIES = Set.of(
+            CATEGORY_GOVERNMENT, CATEGORY_CENTRAL_SOE, CATEGORY_LOCAL_SOE,
+            CATEGORY_PRIVATE, CATEGORY_FOREIGN
+    );
 
     List<CustomerTypeAggregate> summarize(List<CustomerTypeProjectRow> rows) {
         long totalProjects = rows.size();
@@ -70,7 +82,36 @@ class CustomerTypeAnalyticsComputationService {
         if (customerType == null || customerType.isBlank()) {
             return UNCATEGORIZED_CUSTOMER_TYPE;
         }
-        return customerType.trim();
+        String trimmed = customerType.trim();
+
+        // 精确匹配 5 种标准分类
+        if (ALLOWED_CATEGORIES.contains(trimmed)) {
+            return trimmed;
+        }
+
+        // 模糊映射：将数据库中的原始值映射到标准分类
+        if (trimmed.contains("政府") || trimmed.contains("事业单位") || trimmed.contains("高校") || trimmed.contains("机关")) {
+            return CATEGORY_GOVERNMENT;
+        }
+        if (trimmed.contains("央企") || "中央企业".equals(trimmed)) {
+            return CATEGORY_CENTRAL_SOE;
+        }
+        if (trimmed.contains("地方国企") || "地方国有企业".equals(trimmed)) {
+            return CATEGORY_LOCAL_SOE;
+        }
+        if (trimmed.contains("国企") || "国有企业".equals(trimmed)) {
+            // 泛化"国企"默认为地方国企
+            return CATEGORY_LOCAL_SOE;
+        }
+        if (trimmed.contains("民企") || trimmed.contains("民营")) {
+            return CATEGORY_PRIVATE;
+        }
+        if (trimmed.contains("港澳台") || trimmed.contains("外企") || trimmed.contains("外资")
+                || trimmed.contains("外商") || trimmed.contains("境外")) {
+            return CATEGORY_FOREIGN;
+        }
+
+        return UNCATEGORIZED_CUSTOMER_TYPE;
     }
 
     String deriveOutcome(CustomerTypeProjectRow row) {
