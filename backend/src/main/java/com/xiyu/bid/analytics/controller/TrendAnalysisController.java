@@ -3,7 +3,9 @@ package com.xiyu.bid.analytics.controller;
 import com.xiyu.bid.analytics.dto.AnalyticsFilterOptionDTO;
 import com.xiyu.bid.analytics.dto.EnhancedOverviewResponse;
 import com.xiyu.bid.analytics.dto.TrendAnalysisResponse;
+import com.xiyu.bid.analytics.dto.TrendDrillDownResponse;
 import com.xiyu.bid.analytics.service.TrendAnalysisService;
+import com.xiyu.bid.analytics.service.TrendDrillDownService;
 import com.xiyu.bid.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +26,7 @@ import java.util.Map;
 public class TrendAnalysisController {
 
     private final TrendAnalysisService trendAnalysisService;
+    private final TrendDrillDownService trendDrillDownService;
 
     /**
      * M0: 增强关键指标，支持按日期筛选。
@@ -91,6 +94,48 @@ public class TrendAnalysisController {
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 trendAnalysisService.getPersonOptionsByDepartments(departmentNames)
+        ));
+    }
+
+    /**
+     * M1: PRD §6.6 趋势分析下钻 — 点击图表柱子弹窗展示符合条件的项目列表。
+     *
+     * <p>查询参数：</p>
+     * <ul>
+     *   <li>dimension：X 轴维度（time/dept/person/region/customerType/projectType/projectStatus/tenderEntity/competitor）</li>
+     *   <li>axisValue：当前 X 轴维度值（如 "2026-03" 或 "华东区"）</li>
+     *   <li>seriesName：系列名（"投标数" / "中标数"）</li>
+     *   <li>startDate/endDate：日期范围</li>
+     *   <li>其他筛选条件：departments/persons/regions/customerTypes/projectTypes/statuses/tenderEntities/competitorNames</li>
+     *   <li>page/size：分页参数（默认 1/10）</li>
+     * </ul>
+     */
+    @GetMapping("/trends/drilldown")
+    @PreAuthorize("hasAuthority('dashboard')")
+    public ResponseEntity<ApiResponse<TrendDrillDownResponse>> getTrendDrillDown(
+            @RequestParam String dimension,
+            @RequestParam String axisValue,
+            @RequestParam String seriesName,
+            @RequestParam(required = false) LocalDate startDate,
+            @RequestParam(required = false) LocalDate endDate,
+            @RequestParam(required = false) List<String> departments,
+            @RequestParam(required = false) List<String> persons,
+            @RequestParam(required = false) List<String> regions,
+            @RequestParam(required = false) List<String> customerTypes,
+            @RequestParam(required = false) List<String> projectTypes,
+            @RequestParam(required = false) List<String> statuses,
+            @RequestParam(required = false) List<String> tenderEntities,
+            @RequestParam(required = false) List<String> competitorNames,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer size
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                trendDrillDownService.drillDown(
+                        dimension, axisValue, seriesName,
+                        startDate, endDate, departments, persons, regions,
+                        customerTypes, projectTypes, statuses, tenderEntities,
+                        competitorNames, page, size
+                )
         ));
     }
 }

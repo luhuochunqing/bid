@@ -209,14 +209,14 @@ export const dashboardApi = {
     return httpClient.get('/api/analytics/trends/enhanced', { params })
   },
   // M1 - PRD §6.2 筛选区下拉选项一次性加载（7 个维度 DISTINCT）
-  async getFilterOptions() {
-    return httpClient.get('/api/analytics/filter-options')
-  },
+  async getFilterOptions() { return httpClient.get('/api/analytics/filter-options') },
   // M1 - PRD §6.4 部门-人员联动：根据已选部门名称列表刷新人员下拉选项
   async getPersonsByDepartments(departmentNames = []) {
     const params = departmentNames.length ? { departmentNames } : {}
     return httpClient.get('/api/analytics/filter-options/persons', { params })
   },
+  // M1 - PRD §6.6 趋势分析下钻
+  async getTrendDrillDown(params) { return httpClient.get('/api/analytics/trends/drilldown', { params }) },
 
   async getLayout() {
     try {

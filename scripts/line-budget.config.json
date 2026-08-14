@@ -90,7 +90,18 @@
         "src/views/System/workflow-form-designer/useWorkflowFormDesigner.js",
         "backend/src/main/java/com/xiyu/bid/warehouse/domain/WarehouseImportPolicy.java",
         "src/components/warehouse/WarehouseDialog.vue",
-        "src/views/Knowledge/Warehouse.vue"
+        "src/views/Knowledge/Warehouse.vue",
+        "src/views/data-analysis/components/m1-trend-analysis/DrillModal.vue",
+        "src/views/data-analysis/components/m1-trend-analysis/FilterSelect.vue",
+        "src/views/data-analysis/components/m1-trend-analysis/FilterBar.vue",
+        "src/views/data-analysis/components/m1-trend-analysis/TrendChart.vue",
+        "src/views/data-analysis/components/m1-trend-analysis/composables/useDrillDown.js",
+        "src/views/data-analysis/components/m1-trend-analysis/composables/useFilterSearch.js",
+        "src/views/data-analysis/components/m1-trend-analysis/filterConstants.js",
+        "src/views/data-analysis/components/m1-trend-analysis/chartOptions.js",
+        "src/views/data-analysis/components/m1-trend-analysis/index.vue",
+        "src/views/data-analysis/components/m2-customer-type/index.vue",
+        "src/views/data-analysis/components/m3-project-type/index.vue"
     ],
     "excludeSuffixes": [
         ".spec.js",

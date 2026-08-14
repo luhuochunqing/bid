@@ -3,18 +3,10 @@
     <FilterBar
       :department-options="departmentOptions"
       :person-options="personOptions"
-      :region-options="regionOptions"
-      :customer-type-options="customerTypeOptions"
-      :project-type-options="projectTypeOptions"
       :tender-subject-options="tenderSubjectOptions"
-      :competitor-options="competitorOptions"
       :loading-departments="loadingDepartments"
       :loading-persons="loadingPersons"
-      :loading-regions="loadingRegions"
-      :loading-customer-types="loadingCustomerTypes"
-      :loading-project-types="loadingProjectTypes"
       :loading-tender-subjects="loadingTenderSubjects"
-      :loading-competitors="loadingCompetitors"
       @confirm="handleFilterConfirm"
       @reset="handleFilterReset"
       @department-change="handleDepartmentChange"
@@ -58,10 +50,10 @@ const props = defineProps({
 })
 
 const {
-  departmentOptions, personOptions, regionOptions,
-  customerTypeOptions, projectTypeOptions, tenderSubjectOptions, competitorOptions,
-  loadingDepartments, loadingPersons, loadingRegions,
-  loadingCustomerTypes, loadingProjectTypes, loadingTenderSubjects, loadingCompetitors,
+  departmentOptions, personOptions,
+  tenderSubjectOptions,
+  loadingDepartments, loadingPersons,
+  loadingTenderSubjects,
   loadAllFilterOptions,
   refreshPersonsByDepartments
 } = useFilterSearch()

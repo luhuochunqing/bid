@@ -49,17 +49,96 @@ const initChart = () => {
   if (chartInstance) chartInstance.dispose()
   chartInstance = markRaw(echarts.init(chartRef.value, null, { renderer: 'canvas' }))
   chartInstance.setOption(buildChartOption(props.data, props.xAxisType), true)
-  chartInstance.on('click', (params) => {
-    if (params.componentType === 'series' && (params.seriesType === 'bar' || params.seriesType === 'line')) {
-      const dataItem = props.data[params.dataIndex]
-      if (dataItem) {
-        emit('bar-click', {
-          seriesName: params.seriesName,
-          dataIndex: params.dataIndex,
-          data: dataItem,
-          value: params.value
-        })
+
+  // 使用 zrender 的 click 事件，增大柱子点击容错区域
+  // 根因：窄图表下 bar 宽度可能只有 4px，点击容易落在间隙中导致 ECharts on('click') 不触发
+  chartInstance.getZr().on('click', (params) => {
+    const offsetX = params.offsetX
+    const offsetY = params.offsetY
+
+    // 反向计算 category index
+    const xIndex = chartInstance.convertFromPixel({ xAxisIndex: 0 }, offsetX)
+    const categoryIndex = Math.round(xIndex)
+    if (categoryIndex < 0 || categoryIndex >= props.data.length) return
+
+    const dataItem = props.data[categoryIndex]
+    if (!dataItem) return
+
+    // 用 getItemLayout 获取 bar 矩形，判断点击位置命中哪个 series
+    const model = chartInstance.getModel()
+    const isStatusAxis = props.xAxisType === 'projectStatus'
+    const seriesConfigs = isStatusAxis
+      ? [{ index: 0, name: '数量', valueKey: 'bidCount' }]
+      : [
+          { index: 0, name: '投标数', valueKey: 'bidCount' },
+          { index: 1, name: '中标数', valueKey: 'winCount' }
+        ]
+
+    // 辅助函数：获取 bar 矩形
+    const getBarRect = (cfg) => {
+      const sm = model.getSeriesByIndex(cfg.index)
+      if (!sm) return null
+      const layout = sm.getData().getItemLayout(categoryIndex)
+      if (!layout) return null
+      return {
+        left: layout.x,
+        right: layout.x + layout.width,
+        top: Math.min(layout.y, layout.y + layout.height),
+        bottom: Math.max(layout.y, layout.y + layout.height),
+        center: layout.x + layout.width / 2
       }
+    }
+
+    // 第一轮：精确命中（无容错），命中即返回
+    for (const cfg of seriesConfigs) {
+      const rect = getBarRect(cfg)
+      if (!rect) continue
+      if (offsetX >= rect.left && offsetX <= rect.right && offsetY >= rect.top && offsetY <= rect.bottom) {
+        const value = dataItem[cfg.valueKey] ?? 0
+        if (value > 0) {
+          emit('bar-click', {
+            seriesName: cfg.name,
+            dataIndex: categoryIndex,
+            data: dataItem,
+            value
+          })
+        }
+        return
+      }
+    }
+
+    // 第二轮：容错命中（左右各加 5px），选择 x 坐标距离最近的 bar
+    // 根因：窄图表下 bar 宽度可能仅 4px，点击容易落在间隙中
+    const tolerance = 5
+    let bestMatch = null
+    let bestDist = Infinity
+    for (const cfg of seriesConfigs) {
+      const rect = getBarRect(cfg)
+      if (!rect) continue
+      if (
+        offsetX >= rect.left - tolerance &&
+        offsetX <= rect.right + tolerance &&
+        offsetY >= rect.top &&
+        offsetY <= rect.bottom
+      ) {
+        const value = dataItem[cfg.valueKey] ?? 0
+        // 0 值柱子不触发下钻（用户需求：0 不需要点击）
+        if (value > 0) {
+          const dist = Math.abs(offsetX - rect.center)
+          if (dist < bestDist) {
+            bestDist = dist
+            bestMatch = { seriesName: cfg.name, value }
+          }
+        }
+      }
+    }
+    if (bestMatch) {
+      emit('bar-click', {
+        seriesName: bestMatch.seriesName,
+        dataIndex: categoryIndex,
+        data: dataItem,
+        value: bestMatch.value
+      })
     }
   })
 }
