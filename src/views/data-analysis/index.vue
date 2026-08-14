@@ -39,35 +39,16 @@
         <div class="section-title">
           <span class="label">多维度趋势分析</span>
         </div>
-        <M1TrendAnalysis
-          :filters="trendFilters"
-          :chart-option="trendChartOption"
-          :loading="m1Loading"
-          :chart-loading="m1ChartLoading"
-          :drill-data="trendDrillData"
-          :drill-loading="trendDrillLoading"
-          @update:filters="handleTrendFilterChange"
-          @drill="handleTrendDrill"
-        />
+        <M1TrendAnalysis :date-range="globalDateRange" />
       </div>
 
       <div class="section section-pie" id="m2m3">
         <div class="pie-row">
           <div class="pie-col">
-            <M2CustomerType
-              :data="customerTypeData"
-              :loading="m2Loading"
-              :error="m2Error"
-              @retry="loadM2Data"
-            />
+            <M2CustomerType :date-range="globalDateRange" />
           </div>
           <div class="pie-col">
-            <M3ProjectType
-              :data="projectTypeData"
-              :loading="m3Loading"
-              :error="m3Error"
-              @retry="loadM3Data"
-            />
+            <M3ProjectType :date-range="globalDateRange" />
           </div>
         </div>
       </div>
@@ -92,14 +73,10 @@ import M4Competitor from './components/m4-competitor/index.vue'
 const {
   globalDateRange,
   initialLoading, refreshing,
-  m0Loading, m0Error, m1Loading, m1ChartLoading, m1Error,
-  m2Loading, m2Error, m3Loading, m3Error,
-  trendDrillLoading,
-  kpiCards, customerTypeData, projectTypeData,
-  trendDrillData, trendChartOption, trendFilters,
-  loadM0Data, loadM1Data, loadM2Data, loadM3Data, loadAllData,
-  handleGlobalDateChange, handleGlobalDateReset,
-  handleTrendFilterChange, handleTrendDrill
+  m0Loading, m0Error,
+  kpiCards,
+  loadM0Data, loadAllData,
+  handleGlobalDateChange, handleGlobalDateReset
 } = useAnalyticsData()
 
 onMounted(() => {
