@@ -58,16 +58,14 @@ const renderChart = (pieData, legendData) => {
       chartInstance = markRaw(echarts.init(chartRef.value))
     }
 
-    // 饼图只显示有数据的分类，0 个的不显示
-    const seriesData = pieData
-      .filter((d) => d.count > 0)
-      .map((d) => ({
-        value: d.count,
-        name: d.name,
-        itemStyle: {
-          color: COLOR_MAP[d.name] || d.color || FALLBACK_COLOR
-        }
-      }))
+    // 饼图 series 保留全部 5 种分类，count=0 的以 value=0 保留（不渲染扇区，但图例可正常显示）
+    const seriesData = pieData.map((d) => ({
+      value: d.count,
+      name: d.name,
+      itemStyle: {
+        color: COLOR_MAP[d.name] || d.color || FALLBACK_COLOR
+      }
+    }))
 
     // 图例保留全部 5 种分类，count=0 的显示为灰色
     const legendItems = legendData.map((d) => ({
