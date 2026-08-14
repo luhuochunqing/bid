@@ -25,7 +25,6 @@
 </template>
 
 <script setup>
-/* eslint-disable no-use-before-define */
 import { ref, onMounted, onUnmounted, watch, markRaw, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import { dashboardApi } from '@/api/modules/dashboard.js'
@@ -145,7 +144,6 @@ const fetchData = async () => {
 
     // 后端返回 5 种标准分类，projectCount=0 的分类也包含在结果中
     const typeMap = new Map()
-    let totalCount = 0
 
     rawData.forEach((item) => {
       const label = item?.customerType || item?.name || item?.customer_type || null
@@ -160,7 +158,6 @@ const fetchData = async () => {
           count: count
         })
       }
-      totalCount += count
     })
 
     // Filter out zero-count items for pie, keep in legend
@@ -177,7 +174,7 @@ const fetchData = async () => {
     }
 
     loading.value = false
-    renderChart(pieData, false, legendData)
+    renderChart(pieData, legendData)
   } catch (err) {
     console.error('M2 CustomerType fetch error:', err)
     error.value = true
