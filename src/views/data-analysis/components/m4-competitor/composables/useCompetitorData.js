@@ -55,7 +55,6 @@ export function useCompetitorData(chartRef) {
 
   const entityOptions = ref([])
   const projectNameOptions = ref([])
-  const lastRemovedCompetitor = ref(null)
 
   const chartData = ref(null)
   const tableData = ref(null)
@@ -66,6 +65,20 @@ export function useCompetitorData(chartRef) {
   const generateTableDisabled = computed(
     () => !projectNameActive.value || !selectedProjectName.value
   )
+
+  // 解析折扣值为纯数字（PRD §9.15 — 折扣列只显示数字，不带百分号）
+  const parseDiscountValue = (raw) => {
+    if (raw == null) return ''
+    const cleaned = String(raw).replace(/[^0-9.]/g, '')
+    return cleaned === '' ? '' : cleaned
+  }
+
+  // 解析账期天数为纯数字（PRD §9.15 — 账期列显示天数）
+  const parsePaymentDays = (raw) => {
+    if (raw == null) return ''
+    const cleaned = String(raw).replace(/[^0-9]/g, '')
+    return cleaned === '' ? '' : cleaned
+  }
 
   const chartMode = computed(() => {
     if (projectNameActive.value && selectedProjectName.value) return 'project'
@@ -85,22 +98,26 @@ export function useCompetitorData(chartRef) {
     }
   }
 
+  // PRD §9.12 步骤 7 + §9.14：竞品公司至少保留 1 个，选值变化自动刷新
   const onCompetitorChange = (val) => {
     if (!val || val.length === 0) {
-      if (lastRemovedCompetitor.value) {
-        selectedCompetitors.value = [lastRemovedCompetitor.value]
-      }
+      // 恢复为默认全选（至少保留一个，不允许清空）
+      selectedCompetitors.value = [...COMPETITOR_ENUM]
       return
     }
     fetchData()
   }
 
+  // PRD §9.12 步骤 10：取消招标主体勾选时清空选值并切回默认模式
   const onEntityToggle = (checked) => {
     entityActive.value = checked
     if (checked) {
       projectNameActive.value = false
       selectedProjectName.value = null
       generateTableChecked.value = false
+    } else {
+      selectedEntities.value = []
+      fetchData()
     }
   }
 
@@ -114,6 +131,7 @@ export function useCompetitorData(chartRef) {
     fetchData()
   }
 
+  // PRD §9.12 步骤 13/10：勾选项目名称时互斥招标主体；取消时切回默认模式
   const onProjectNameToggle = (checked) => {
     projectNameActive.value = checked
     if (checked) {
@@ -122,6 +140,9 @@ export function useCompetitorData(chartRef) {
     } else {
       selectedProjectName.value = null
       generateTableChecked.value = false
+      tableData.value = null
+      tableVisible.value = false
+      fetchData()
     }
   }
 
@@ -225,6 +246,7 @@ export function useCompetitorData(chartRef) {
     competitorOptions, entityOptions, projectNameOptions,
     entityActive, projectNameActive, generateTableChecked, generateTableDisabled,
     chartData, tableData, tableVisible, chartMode,
+    parseDiscountValue, parsePaymentDays,
     searchProjectNames, onCompetitorChange,
     onEntityToggle, onEntityChange, onProjectNameToggle, onProjectNameChange, onGenerateTableChange,
     fetchData, resetDateRange, resetFilters, initOptions, resizeChart, disposeChart

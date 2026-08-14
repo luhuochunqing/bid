@@ -89,8 +89,8 @@
           <tbody>
             <tr v-for="(r, i) in sortedTableRows" :key="i">
               <td>{{ r.competitor }}</td>
-              <td>{{ r.discount }}</td>
-              <td>{{ r.paymentDays }}</td>
+              <td>{{ parseDiscountValue(r.discount) }}</td>
+              <td>{{ parsePaymentDays(r.paymentDays) }}</td>
               <td>
                 <span class="m4-won-tag" :class="r.isWon ? 'yes' : 'no'">
                   {{ r.isWon ? '已中标' : '未中标' }}
@@ -119,6 +119,7 @@ const {
   competitorOptions, entityOptions, projectNameOptions,
   entityActive, projectNameActive, generateTableChecked, generateTableDisabled,
   tableData, tableVisible,
+  parseDiscountValue, parsePaymentDays,
   searchProjectNames, onCompetitorChange,
   onEntityToggle, onEntityChange, onProjectNameToggle, onProjectNameChange, onGenerateTableChange,
   fetchData, resetDateRange, resetFilters, initOptions, resizeChart, disposeChart
@@ -130,11 +131,13 @@ const sortedTableRows = computed(() => {
   return [...rows].sort((a, b) => {
     if (a.isWon && !b.isWon) return -1
     if (!a.isWon && b.isWon) return 1
-    return Number(b.discount) - Number(a.discount)
+    const da = Number(parseDiscountValue(a.discount)) || 0
+    const db = Number(parseDiscountValue(b.discount)) || 0
+    return db - da
   })
 })
 
-const exportTable = () => exportCompetitorTable(tableData.value)
+const exportTable = () => exportCompetitorTable(tableData.value, parseDiscountValue, parsePaymentDays)
 
 onMounted(async () => {
   await initOptions()
