@@ -25,7 +25,6 @@
 </template>
 
 <script setup>
-/* eslint-disable no-use-before-define */
 import { ref, onMounted, onUnmounted, watch, markRaw, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import { dashboardApi } from '@/api/modules/dashboard.js'
@@ -41,8 +40,8 @@ const noData = ref(false)
 let chartInstance = null
 
 // PRD §8.4 项目类型枚举与颜色
-const COLOR_MAP = { '工业品': '#2E7659', '办公': '#10B981', '综合': '#F59E0B', '集采': '#60A5FA', '其他': '#A78BFA', '未分类': '#CBD5E1' }
-const FALLBACK_COLOR = COLOR_MAP['未分类']
+const COLOR_MAP = { '工业品': '#2E7659', '办公': '#10B981', '综合': '#F59E0B', '集采': '#60A5FA', '其他': '#A78BFA' }
+const FALLBACK_COLOR = '#CBD5E1'
 
 // 日期格式化（Date 对象/字符串 → yyyy-MM-dd）
 const formatDateStr = (date) => {
@@ -52,34 +51,33 @@ const formatDateStr = (date) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-const renderChart = (pieData, allEmpty, legendData) => {
-  if (!chartRef.value) return
-
+const renderChart = (pieData, legendData) => {
   nextTick(() => {
+    if (!chartRef.value) return
     if (!chartInstance) {
       chartInstance = markRaw(echarts.init(chartRef.value))
     }
 
-    const seriesData = allEmpty
-      ? [{ value: pieData[0]?.count || 1, name: '未分类', itemStyle: { color: COLOR_MAP['未分类'] } }]
-      : pieData.map((d) => ({
-          value: d.count,
-          name: d.name,
-          itemStyle: {
-            color: COLOR_MAP[d.name] || d.color || FALLBACK_COLOR
-          }
-        }))
+    // 饼图 series 保留全部 5 种分类，count=0 的以 value=0 保留（不渲染扇区，但图例可正常显示）
+    const seriesData = pieData.map((d) => ({
+      value: d.count,
+      name: d.name,
+      label: {
+        show: d.count > 0
+      },
+      itemStyle: {
+        color: COLOR_MAP[d.name] || d.color || FALLBACK_COLOR
+      }
+    }))
 
-    // PRD §8.8: count=0 的类型不在饼图中显示扇区，但图例中仍显示（灰色禁用态）
-    const legendItems = allEmpty
-      ? [{ name: '未分类' }]
-      : (legendData || pieData).map((d) => ({
-          name: d.name,
-          textStyle: {
-            color: d.count === 0 ? '#CBD5E1' : '#475569',
-            fontSize: 12
-          }
-        }))
+    // 图例保留全部 5 种分类，count=0 的显示为灰色
+    const legendItems = legendData.map((d) => ({
+      name: d.name,
+      textStyle: {
+        color: d.count === 0 ? '#CBD5E1' : '#475569',
+        fontSize: 12
+      }
+    }))
 
     const option = {
       tooltip: {
@@ -123,7 +121,6 @@ const renderChart = (pieData, allEmpty, legendData) => {
     }
 
     chartInstance.setOption(option, true)
-    loading.value = false
   })
 }
 
@@ -150,14 +147,12 @@ const fetchData = async () => {
       return
     }
 
-    // Normalize: group by project_type, empty → "未分类"
-    // 后端字段: projectType, projectCount；兼容旧格式: name, count
+    // 后端返回 5 种标准分类，projectCount=0 的分类也包含在结果中
     const typeMap = new Map()
-    let totalCount = 0
 
     rawData.forEach((item) => {
       const label = item?.projectType || item?.name || item?.project_type || null
-      const displayName = label || '未分类'
+      const displayName = label || '未知'
       const count = Number(item?.projectCount || item?.count || 0)
 
       if (typeMap.has(displayName)) {
@@ -165,36 +160,20 @@ const fetchData = async () => {
       } else {
         typeMap.set(displayName, {
           name: displayName,
-          count: count,
-          color: item?.color || null,
-          isEmpty: !label
+          count: count
         })
       }
-      totalCount += count
     })
 
-    // Check if all are empty-category
-    const allEmpty = Array.from(typeMap.values()).every((d) => d.isEmpty)
-    if (allEmpty) {
-      const total = Array.from(typeMap.values()).reduce((s, d) => s + d.count, 0)
-      renderChart([{ name: '未分类', count: total, isEmpty: true }], true)
-      return
-    }
-
-    // Filter out zero-count items for pie, keep in legend
-    const pieData = Array.from(typeMap.values()).filter((d) => d.count > 0)
+    // 全部 5 种分类都显示在饼图上，count=0 的分类显示为极小扇区
+    const pieData = Array.from(typeMap.values())
     const legendData = Array.from(typeMap.values()).map((d) => ({
       name: d.name,
       count: d.count
     }))
 
-    if (pieData.length === 0) {
-      noData.value = true
-      loading.value = false
-      return
-    }
-
-    renderChart(pieData, false, legendData)
+    loading.value = false
+    renderChart(pieData, legendData)
   } catch (err) {
     console.error('M3 ProjectType fetch error:', err)
     error.value = true
