@@ -7,8 +7,7 @@ created: 2026-08-14
 updated: 2026-08-14
 health_checked: 2026-08-14
 sources:
-  - PRD: https://my.feishu.cn/docx/ZiVMdeQR2oFLBcx0ic9cgIn8nSh
-  - 原型: 数据分析模块-v4.html
+  - .wiki/pages/data-analysis-revamp.md
 backlinks:
   - _index
   - testing/module-06-analytics
@@ -17,6 +16,8 @@ backlinks:
 
 > 本页面记录 2026-08-14 数据分析页面全面重构（M0~M4）的架构决策、数据口径和关键陷阱。
 > 分支：`agent/trae1/data-analysis-revamp`
+> PRD 文档：https://my.feishu.cn/docx/ZiVMdeQR2oFLBcx0ic9cgIn8nSh
+> 原型文件：数据分析模块-v4.html（桌面本地文件）
 
 ## 模块结构
 
