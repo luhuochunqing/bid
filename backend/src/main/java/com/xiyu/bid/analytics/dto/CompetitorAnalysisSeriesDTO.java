@@ -14,5 +14,5 @@ import java.util.List;
 public class CompetitorAnalysisSeriesDTO {
     private String name;
     private String type;
-    private List<Integer> data;
+    private List<Double> data;
 }

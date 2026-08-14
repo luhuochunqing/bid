@@ -31,8 +31,7 @@ import * as echarts from 'echarts'
 import { dashboardApi } from '@/api/modules/dashboard.js'
 
 const props = defineProps({
-  startDate: { type: String, default: '' },
-  endDate: { type: String, default: '' }
+  dateRange: { type: Array, default: null }
 })
 
 const chartRef = ref(null)
@@ -45,7 +44,15 @@ let chartInstance = null
 const COLOR_MAP = { '工业品': '#2E7659', '办公': '#10B981', '综合': '#F59E0B', '集采': '#60A5FA', '其他': '#A78BFA', '未分类': '#CBD5E1' }
 const FALLBACK_COLOR = COLOR_MAP['未分类']
 
-const renderChart = (pieData, total, allEmpty, legendData) => {
+// 日期格式化（Date 对象/字符串 → yyyy-MM-dd）
+const formatDateStr = (date) => {
+  if (!date) return null
+  if (typeof date === 'string') return date.slice(0, 10)
+  const d = new Date(date)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+const renderChart = (pieData, allEmpty, legendData) => {
   if (!chartRef.value) return
 
   nextTick(() => {
@@ -63,80 +70,56 @@ const renderChart = (pieData, total, allEmpty, legendData) => {
           }
         }))
 
+    // PRD §8.8: count=0 的类型不在饼图中显示扇区，但图例中仍显示（灰色禁用态）
     const legendItems = allEmpty
-      ? [{ name: '未分类', textStyle: { color: '#94A3B8', fontSize: 12 } }]
+      ? [{ name: '未分类' }]
       : (legendData || pieData).map((d) => ({
           name: d.name,
           textStyle: {
-            color: d.disabled ? '#CBD5E1' : '#475569',
+            color: d.count === 0 ? '#CBD5E1' : '#475569',
             fontSize: 12
-          },
-          icon: 'circle'
+          }
         }))
 
     const option = {
       tooltip: {
         trigger: 'item',
-        backgroundColor: 'rgba(255,255,255,0.96)',
-        borderColor: '#E2E8F0',
-        borderWidth: 1,
-        borderRadius: 8,
-        padding: [10, 14],
-        formatter: function (params) {
-          if (!params.value) return params.name + '<br/>暂无数据'
-          const pct = ((params.value / total) * 100).toFixed(1)
-          return `<strong>${params.name}</strong><br/>${params.value}个 · ${pct}%`
-        }
+        formatter: '{b}: {c}个 · {d}%'
       },
       legend: {
-        type: 'scroll',
         orient: 'horizontal',
         bottom: 0,
         left: 'center',
-        data: legendItems,
-        itemWidth: 10,
-        itemHeight: 10,
-        itemGap: 16
+        data: legendItems
       },
       series: [
         {
           type: 'pie',
           radius: ['40%', '65%'],
-          center: ['50%', '44%'],
-          avoidLabelOverlap: true,
-          padAngle: 0,
-          itemStyle: {
-            borderRadius: 0,
-            borderColor: '#fff',
-            borderWidth: 2
-          },
+          center: ['50%', '45%'],
           label: {
-            show: true,
-            formatter: function (params) {
-              const pct = ((params.value / total) * 100).toFixed(1)
-              return params.name + '\n' + pct + '%'
-            },
-            color: '#475569',
+            formatter: '{b}\n{d}%',
             fontSize: 11,
+            color: '#475569',
             fontWeight: 500
           },
           labelLine: {
-            show: true,
-            lineStyle: { color: '#94A3B8' }
+            length: 12,
+            length2: 8
+          },
+          itemStyle: {
+            borderColor: '#fff',
+            borderWidth: 2
           },
           emphasis: {
             itemStyle: {
               shadowBlur: 10,
-              shadowOffsetX: 0,
-              shadowColor: 'rgba(0, 0, 0, 0.15)'
+              shadowColor: 'rgba(0,0,0,0.12)'
             }
           },
           data: seriesData
         }
-      ],
-      grid: {
-        containLabel: true
-      }
+      ]
     }
 
     chartInstance.setOption(option, true)
@@ -151,11 +134,15 @@ const fetchData = async () => {
 
   try {
     const params = {}
-    if (props.startDate) params.startDate = props.startDate
-    if (props.endDate) params.endDate = props.endDate
+    const sd = formatDateStr(props.dateRange?.[0])
+    const ed = formatDateStr(props.dateRange?.[1])
+    if (sd) params.startDate = sd
+    if (ed) params.endDate = ed
 
     const response = await dashboardApi.getProjectTypes(params)
-    const rawData = response?.data || []
+    // 后端返回 { dimensions: [...] }，兼容数组格式
+    const rawResp = response?.data
+    const rawData = Array.isArray(rawResp) ? rawResp : (rawResp?.dimensions || [])
 
     if (!Array.isArray(rawData) || rawData.length === 0) {
       noData.value = true
@@ -164,14 +151,14 @@ const fetchData = async () => {
     }
 
     // Normalize: group by project_type, empty → "未分类"
-    // 兼容 PRD §8.5 格式 ({ name, count, percentage, color }) 与旧格式 ({ projectType, count })
+    // 后端字段: projectType, projectCount；兼容旧格式: name, count
     const typeMap = new Map()
     let totalCount = 0
 
     rawData.forEach((item) => {
-      const label = item?.name || item?.projectType || item?.project_type || null
+      const label = item?.projectType || item?.name || item?.project_type || null
       const displayName = label || '未分类'
-      const count = Number(item?.count || item?.projectCount || 0)
+      const count = Number(item?.projectCount || item?.count || 0)
 
       if (typeMap.has(displayName)) {
         typeMap.get(displayName).count += count
@@ -190,7 +177,7 @@ const fetchData = async () => {
     const allEmpty = Array.from(typeMap.values()).every((d) => d.isEmpty)
     if (allEmpty) {
       const total = Array.from(typeMap.values()).reduce((s, d) => s + d.count, 0)
-      renderChart([{ name: '未分类', count: total, isEmpty: true }], total, true)
+      renderChart([{ name: '未分类', count: total, isEmpty: true }], true)
       return
     }
 
@@ -198,8 +185,7 @@ const fetchData = async () => {
     const pieData = Array.from(typeMap.values()).filter((d) => d.count > 0)
     const legendData = Array.from(typeMap.values()).map((d) => ({
       name: d.name,
-      count: d.count,
-      disabled: d.count === 0
+      count: d.count
     }))
 
     if (pieData.length === 0) {
@@ -208,7 +194,7 @@ const fetchData = async () => {
       return
     }
 
-    renderChart(pieData, totalCount, false, legendData)
+    renderChart(pieData, false, legendData)
   } catch (err) {
     console.error('M3 ProjectType fetch error:', err)
     error.value = true
@@ -225,11 +211,11 @@ const refresh = () => {
 }
 
 watch(
-  () => [props.startDate, props.endDate],
+  () => props.dateRange,
   () => {
     fetchData()
   },
-  { deep: false }
+  { deep: true }
 )
 
 onMounted(() => {
@@ -282,13 +268,13 @@ defineExpose({ refresh })
 .chart-container {
   width: 100%;
   height: 100%;
-  min-height: 320px;
+  min-height: 300px;
 }
 
 .status-overlay {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 320px;
+  min-height: 300px;
 }
 </style>

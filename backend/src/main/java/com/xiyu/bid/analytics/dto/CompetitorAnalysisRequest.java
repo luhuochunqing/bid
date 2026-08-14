@@ -16,5 +16,6 @@ public class CompetitorAnalysisRequest {
     private LocalDate startDate;
     private LocalDate endDate;
     private List<String> competitorNames;
-    private String tenderEntity;
+    private List<String> tenderEntities;
+    private String projectName;
 }

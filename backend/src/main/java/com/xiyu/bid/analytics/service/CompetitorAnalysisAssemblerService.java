@@ -3,6 +3,8 @@ package com.xiyu.bid.analytics.service;
 import com.xiyu.bid.analytics.dto.CompetitorAnalysisRequest;
 import com.xiyu.bid.analytics.dto.CompetitorAnalysisResponse;
 import com.xiyu.bid.analytics.dto.CompetitorAnalysisSeriesDTO;
+import com.xiyu.bid.analytics.dto.CompetitorGroupDTO;
+import com.xiyu.bid.analytics.dto.CompetitorTableRowDTO;
 import com.xiyu.bid.analytics.model.CompetitorAnalysisRow;
 import com.xiyu.bid.analytics.service.CompetitorAnalysisComputationService.DiscountStats;
 import lombok.RequiredArgsConstructor;
@@ -10,11 +12,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -24,36 +23,63 @@ public class CompetitorAnalysisAssemblerService {
     private final CompetitorAnalysisComputationService computationService;
 
     public CompetitorAnalysisResponse analyze(CompetitorAnalysisRequest request) {
+        List<String> competitors = request.getCompetitorNames();
+        if (competitors == null || competitors.isEmpty()) {
+            return CompetitorAnalysisResponse.builder().mode("default").categories(List.of()).series(List.of()).build();
+        }
+
+        // 项目名称模式（PRD §9.8.5）
+        if (request.getProjectName() != null && !request.getProjectName().isBlank()) {
+            return buildProjectResponse(request);
+        }
+
         List<CompetitorAnalysisRow> rows = queryService.fetchCompetitorRows(
-                request.getCompetitorNames(),
+                competitors,
+                request.getTenderEntities(),
                 request.getStartDate(),
                 request.getEndDate()
         );
 
-        boolean isGrouped = request.getTenderEntity() != null && !request.getTenderEntity().isBlank();
-
-        if (isGrouped) {
-            return buildGroupedResponse(rows, request.getTenderEntity());
+        // 分组模式（PRD §9.8 — tenderEntities 非空）
+        if (request.getTenderEntities() != null && !request.getTenderEntities().isEmpty()) {
+            return buildGroupedResponse(rows, competitors, request.getTenderEntities());
         }
-        return buildDefaultResponse(rows);
+
+        // 默认模式（PRD §9.7）
+        return buildDefaultResponse(rows, competitors);
     }
 
     public List<String> getTenderEntities() {
         return queryService.fetchDistinctTenderEntities();
     }
 
-    private CompetitorAnalysisResponse buildDefaultResponse(List<CompetitorAnalysisRow> rows) {
+    public List<String> getProjectNames(String query) {
+        return queryService.fetchProjectNames(query);
+    }
+
+    /**
+     * 默认模式（PRD §9.7）— 竞品公司为 X 轴，min/avg/max 三段堆叠。
+     */
+    private CompetitorAnalysisResponse buildDefaultResponse(List<CompetitorAnalysisRow> rows, List<String> competitors) {
         Map<String, DiscountStats> statsMap = computationService.computeDiscountByCompetitor(rows);
 
-        List<String> categories = new ArrayList<>(statsMap.keySet());
-        List<Integer> minData = new ArrayList<>();
-        List<Integer> avgData = new ArrayList<>();
-        List<Integer> maxData = new ArrayList<>();
+        List<String> categories = new ArrayList<>();
+        List<Double> minData = new ArrayList<>();
+        List<Double> avgData = new ArrayList<>();
+        List<Double> maxData = new ArrayList<>();
 
-        for (DiscountStats stats : statsMap.values()) {
-            minData.add(stats.min());
-            avgData.add((int) Math.round(stats.average()));
-            maxData.add(stats.max());
+        for (String comp : competitors) {
+            categories.add(comp);
+            DiscountStats stats = statsMap.get(comp);
+            if (stats != null) {
+                minData.add(stats.min());
+                avgData.add(stats.average());
+                maxData.add(stats.max());
+            } else {
+                minData.add(0.0);
+                avgData.add(0.0);
+                maxData.add(0.0);
+            }
         }
 
         List<CompetitorAnalysisSeriesDTO> series = List.of(
@@ -69,85 +95,129 @@ public class CompetitorAnalysisAssemblerService {
                 .build();
     }
 
-    private CompetitorAnalysisResponse buildGroupedResponse(List<CompetitorAnalysisRow> rows, String tenderEntity) {
-        // 按招标主体过滤
-        List<CompetitorAnalysisRow> filteredRows = rows.stream()
-                .filter(row -> row.tenderEntity() != null && row.tenderEntity().contains(tenderEntity))
-                .toList();
+    /**
+     * 分组模式（PRD §9.8）— 招标主体为 X 轴，每个竞品公司一组堆叠（min/avg/max）+ 整体平均折扣折线。
+     */
+    private CompetitorAnalysisResponse buildGroupedResponse(
+            List<CompetitorAnalysisRow> rows,
+            List<String> competitors,
+            List<String> tenderEntities
+    ) {
+        // 按招标主体分组
+        Map<String, Map<String, DiscountStats>> grouped =
+                computationService.computeDiscountByTenderEntity(rows);
 
-        // 收集所有竞品公司名
-        Set<String> competitorNames = new LinkedHashSet<>();
-        for (CompetitorAnalysisRow row : filteredRows) {
-            if (row.competitorName() != null && !row.competitorName().isBlank()) {
-                competitorNames.add(row.competitorName());
+        // categories = 用户选中的招标主体（仅保留有数据的）
+        List<String> categories = new ArrayList<>();
+        for (String entity : tenderEntities) {
+            if (grouped.containsKey(entity)) {
+                categories.add(entity);
             }
         }
 
-        // 按招标主体分组
-        Map<String, Map<String, DiscountStats>> grouped =
-                computationService.computeDiscountByTenderEntity(filteredRows);
-
-        // 收集所有招标主体名（X轴类别）
-        List<String> categories = new ArrayList<>(grouped.keySet());
         if (categories.isEmpty()) {
             return CompetitorAnalysisResponse.builder()
                     .mode("grouped")
                     .categories(List.of())
-                    .series(List.of())
+                    .groups(List.of())
+                    .overallAvgLine(List.of())
                     .build();
         }
 
-        // 计算整体平均折扣
-        double overallAverage = computationService.computeOverallAverageDiscount(
-                grouped.values().stream()
-                        .flatMap(m -> m.entrySet().stream())
-                        .collect(Collectors.toMap(
-                                Map.Entry::getKey,
-                                Map.Entry::getValue,
-                                (a, b) -> a
-                        ))
-        );
-
-        // 构建系列：每个竞品公司一个折线
-        List<CompetitorAnalysisSeriesDTO> series = new ArrayList<>();
-        for (String competitor : competitorNames) {
-            List<Integer> data = new ArrayList<>();
+        // 构建每个竞品公司的 group（minData/avgData/maxData）
+        List<CompetitorGroupDTO> groups = new ArrayList<>();
+        for (String comp : competitors) {
+            List<Double> minData = new ArrayList<>();
+            List<Double> avgData = new ArrayList<>();
+            List<Double> maxData = new ArrayList<>();
             for (String entity : categories) {
                 Map<String, DiscountStats> entityStats = grouped.get(entity);
-                if (entityStats != null && entityStats.containsKey(competitor)) {
-                    data.add((int) Math.round(entityStats.get(competitor).average()));
+                if (entityStats != null && entityStats.containsKey(comp)) {
+                    DiscountStats stats = entityStats.get(comp);
+                    minData.add(stats.min());
+                    avgData.add(stats.average());
+                    maxData.add(stats.max());
                 } else {
-                    data.add(0);
+                    minData.add(0.0);
+                    avgData.add(0.0);
+                    maxData.add(0.0);
                 }
             }
-            series.add(CompetitorAnalysisSeriesDTO.builder()
-                    .name(competitor)
-                    .type("bar")
-                    .data(data)
+            groups.add(CompetitorGroupDTO.builder()
+                    .competitor(comp)
+                    .minData(minData)
+                    .avgData(avgData)
+                    .maxData(maxData)
                     .build());
         }
 
-        // 整体平均折扣线（每个招标主体一个值）
-        List<Double> overallAverageLine = new ArrayList<>();
+        // 整体平均折扣折线（PRD §9.8.2 — 每个招标主体下所有竞品公司平均折扣的再平均）
+        List<Double> overallAvgLine = new ArrayList<>();
         for (String entity : categories) {
             Map<String, DiscountStats> entityStats = grouped.get(entity);
             if (entityStats != null && !entityStats.isEmpty()) {
                 double avg = entityStats.values().stream()
-                        .mapToDouble(s -> s.average())
+                        .mapToDouble(DiscountStats::average)
                         .average()
                         .orElse(0.0);
-                overallAverageLine.add(Math.round(avg * 10.0) / 10.0);
+                overallAvgLine.add(computationService.round1(avg));
             } else {
-                overallAverageLine.add(0.0);
+                overallAvgLine.add(0.0);
             }
         }
 
         return CompetitorAnalysisResponse.builder()
                 .mode("grouped")
                 .categories(categories)
-                .series(series)
-                .overallAverageDiscount(overallAverage)
-                .overallAverageLine(overallAverageLine)
+                .groups(groups)
+                .overallAvgLine(overallAvgLine)
+                .build();
+    }
+
+    /**
+     * 项目名称模式（PRD §9.8.5 + §9.15）— 竞品公司为 X 轴，单条柱展示折扣 + 明细表格。
+     */
+    private CompetitorAnalysisResponse buildProjectResponse(CompetitorAnalysisRequest request) {
+        List<CompetitorAnalysisRow> rows = queryService.fetchProjectCompetitorRows(
+                request.getProjectName(),
+                request.getCompetitorNames(),
+                request.getStartDate(),
+                request.getEndDate()
+        );
+
+        // 构建竞品唯一列表（同一项目中每个竞品公司只出现一条记录，PRD §9.15）
+        Map<String, CompetitorAnalysisRow> uniqueByCompetitor = new LinkedHashMap<>();
+        for (CompetitorAnalysisRow row : rows) {
+            if (row.competitorName() != null && !row.competitorName().isBlank()) {
+                uniqueByCompetitor.putIfAbsent(row.competitorName(), row);
+            }
+        }
+
+        List<String> categories = new ArrayList<>(uniqueByCompetitor.keySet());
+        List<Double> discounts = new ArrayList<>();
+        List<CompetitorTableRowDTO> tableRows = new ArrayList<>();
+
+        for (String comp : categories) {
+            CompetitorAnalysisRow row = uniqueByCompetitor.get(comp);
+            Double discountVal = computationService.parseDiscount(row.discount());
+            discounts.add(discountVal != null ? discountVal : 0.0);
+
+            // 是否中标：project_result_competitor 表无 is_won 字段，通过 resultType 判断项目是否中标
+            boolean isWon = "WON".equalsIgnoreCase(row.resultType());
+            tableRows.add(CompetitorTableRowDTO.builder()
+                    .competitor(comp)
+                    .discount(row.discount())
+                    .paymentDays(row.paymentTerm())
+                    .isWon(isWon)
+                    .build());
+        }
+
+        return CompetitorAnalysisResponse.builder()
+                .mode("project")
+                .categories(categories)
+                .projectLabel(request.getProjectName())
+                .discounts(discounts)
+                .tableRows(tableRows)
                 .build();
     }
 }

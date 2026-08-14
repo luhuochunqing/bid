@@ -18,7 +18,7 @@ class CompetitorAnalysisComputationService {
     Map<String, DiscountStats> computeDiscountByCompetitor(List<CompetitorAnalysisRow> rows) {
         Map<String, MutableDiscountStats> statsMap = new LinkedHashMap<>();
         for (CompetitorAnalysisRow row : rows) {
-            Integer discount = parseDiscount(row.discount());
+            Double discount = parseDiscount(row.discount());
             if (discount == null) {
                 continue;
             }
@@ -26,7 +26,7 @@ class CompetitorAnalysisComputationService {
             if (name == null || name.isBlank()) {
                 continue;
             }
-            MutableDiscountStats stats = statsMap.computeIfAbsent(name, MutableDiscountStats::new);
+            MutableDiscountStats stats = statsMap.computeIfAbsent(name, k -> new MutableDiscountStats());
             stats.min = stats.min == null ? discount : Math.min(stats.min, discount);
             stats.max = stats.max == null ? discount : Math.max(stats.max, discount);
             stats.sum += discount;
@@ -48,7 +48,7 @@ class CompetitorAnalysisComputationService {
     Map<String, Map<String, DiscountStats>> computeDiscountByTenderEntity(List<CompetitorAnalysisRow> rows) {
         Map<String, Map<String, MutableDiscountStats>> grouped = new LinkedHashMap<>();
         for (CompetitorAnalysisRow row : rows) {
-            Integer discount = parseDiscount(row.discount());
+            Double discount = parseDiscount(row.discount());
             if (discount == null) {
                 continue;
             }
@@ -61,7 +61,7 @@ class CompetitorAnalysisComputationService {
                 continue;
             }
             Map<String, MutableDiscountStats> competitorMap = grouped.computeIfAbsent(entity, k -> new LinkedHashMap<>());
-            MutableDiscountStats stats = competitorMap.computeIfAbsent(name, MutableDiscountStats::new);
+            MutableDiscountStats stats = competitorMap.computeIfAbsent(name, k -> new MutableDiscountStats());
             stats.min = stats.min == null ? discount : Math.min(stats.min, discount);
             stats.max = stats.max == null ? discount : Math.max(stats.max, discount);
             stats.sum += discount;
@@ -83,56 +83,53 @@ class CompetitorAnalysisComputationService {
     }
 
     /**
-     * 计算整体平均折扣（分组模式使用）。
-     * 各竞品公司平均折扣之和 ÷ 有有效数据的竞品公司数量。
+     * 解析折扣值（PRD §9.11：过滤 null/空/非数值，CAST 为数值）。
+     * discount 字段为 varchar，如 "95" 或 "95折"，需提取数值部分。
      */
-    double computeOverallAverageDiscount(Map<String, DiscountStats> competitorStats) {
-        if (competitorStats.isEmpty()) {
-            return 0.0;
-        }
-        double sum = competitorStats.values().stream()
-                .mapToDouble(s -> s.average)
-                .sum();
-        return Math.round(sum / competitorStats.size() * 10.0) / 10.0;
-    }
-
-    Integer parseDiscount(String discount) {
+    Double parseDiscount(String discount) {
         if (discount == null || discount.isBlank()) {
             return null;
         }
         try {
-            return Integer.parseInt(discount.trim());
+            String cleaned = discount.trim().replaceAll("[^0-9.]", "");
+            if (cleaned.isEmpty()) {
+                return null;
+            }
+            double val = Double.parseDouble(cleaned);
+            return val > 0 ? val : null;
         } catch (NumberFormatException e) {
             return null;
         }
     }
 
+    /**
+     * 四舍五入保留 1 位小数。
+     */
+    double round1(double val) {
+        return Math.round(val * 10.0) / 10.0;
+    }
+
     public record DiscountStats(
-            int min,
-            int max,
+            double min,
+            double max,
             double average
     ) {
     }
 
     private static final class MutableDiscountStats {
-        private String name;
-        private Integer min;
-        private Integer max;
-        private int sum;
+        private Double min;
+        private Double max;
+        private double sum;
         private int count;
 
         MutableDiscountStats() {
         }
 
-        MutableDiscountStats(String name) {
-            this.name = name;
-        }
-
         DiscountStats toImmutable() {
-            double avg = count == 0 ? 0.0 : Math.round((double) sum / count * 10.0) / 10.0;
+            double avg = count == 0 ? 0.0 : Math.round(sum / count * 10.0) / 10.0;
             return new DiscountStats(
-                    min == null ? 0 : min,
-                    max == null ? 0 : max,
+                    min == null ? 0.0 : min,
+                    max == null ? 0.0 : max,
                     avg
             );
         }

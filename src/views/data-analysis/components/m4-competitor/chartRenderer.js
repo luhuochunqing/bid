@@ -195,17 +195,20 @@ export function renderCompetitorChart(chartInstance, chartData) {
 }
 
 // 导出竞品明细表格为 Excel(.xls)
-export function exportCompetitorTable(tableData) {
+// PRD §9.15 — 折扣列只显示数字，账期列显示天数
+export function exportCompetitorTable(tableData, parseDiscountValue, parsePaymentDays) {
   if (!tableData) return
   const rows = Array.isArray(tableData.rows) ? tableData.rows : []
   const sorted = [...rows].sort((a, b) => {
     if (a.isWon && !b.isWon) return -1
     if (!a.isWon && b.isWon) return 1
-    return Number(b.discount) - Number(a.discount)
+    const da = Number(parseDiscountValue(a.discount)) || 0
+    const db = Number(parseDiscountValue(b.discount)) || 0
+    return db - da
   })
   let html = '<table border="1"><thead><tr><th>竞品公司</th><th>折扣/百分比</th><th>账期/天</th><th>是否中标</th></tr></thead><tbody>'
   sorted.forEach((r) => {
-    html += `<tr><td>${r.competitor}</td><td>${r.discount}</td><td>${r.paymentDays ?? ''}</td><td>${r.isWon ? '已中标' : '未中标'}</td></tr>`
+    html += `<tr><td>${r.competitor}</td><td>${parseDiscountValue(r.discount)}</td><td>${parsePaymentDays(r.paymentDays)}</td><td>${r.isWon ? '已中标' : '未中标'}</td></tr>`
   })
   html += '</tbody></table>'
   const fullHtml = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"></head><body>${html}</body></html>`

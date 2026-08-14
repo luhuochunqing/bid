@@ -51,7 +51,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useFilterSearch } from './composables/useFilterSearch.js'
 import { useDrillDown } from './composables/useDrillDown.js'
 import { dashboardApi } from '@/api'
@@ -59,6 +59,11 @@ import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import FilterBar from './FilterBar.vue'
 import TrendChart from './TrendChart.vue'
 import DrillModal from './DrillModal.vue'
+
+// PRD §6.2 M1 接收父组件全局日期范围，用于趋势查询的 startDate/endDate
+const props = defineProps({
+  dateRange: { type: Array, default: null }
+})
 
 const {
   departmentOptions, personOptions, regionOptions,
@@ -92,11 +97,21 @@ const resolveXAxis = (dims) => {
   return dims[0]
 }
 
-// 筛选字段 → 后端 API 参数映射
+// 日期格式化
+const formatDateStr = (date) => {
+  if (!date) return null
+  if (typeof date === 'string') return date.slice(0, 10)
+  const d = new Date(date)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+// 筛选字段 → 后端 API 参数映射（PRD 6.7）
 const buildApiParams = (filters, xAxis) => {
   const f = filters || {}
   return {
     xAxis,
+    startDate: formatDateStr(props.dateRange?.[0]),
+    endDate: formatDateStr(props.dateRange?.[1]),
     ...(f.timeDimension ? { timeDimension: f.timeDimension } : {}),
     ...(f.departments?.length ? { departmentIds: f.departments.join(',') } : {}),
     ...(f.persons?.length ? { userIds: f.persons.join(',') } : {}),
@@ -164,8 +179,13 @@ const handleDepartmentChange = () => {
 }
 
 const handleBarClick = (params) => {
-  openDrill(params.data, currentXAxisType.value, params.seriesName, currentFilters.value)
+  openDrill(params.data, currentXAxisType.value, params.seriesName, currentFilters.value, props.dateRange)
 }
+
+// PRD §6.2 全局日期范围变化时自动重新加载趋势数据
+watch(() => props.dateRange, () => {
+  loadTrendData()
+}, { deep: true })
 
 onMounted(async () => {
   await loadTrendData()
