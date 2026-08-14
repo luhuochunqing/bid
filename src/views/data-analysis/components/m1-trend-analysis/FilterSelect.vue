@@ -50,7 +50,7 @@
 
       <template #footer>
         <div class="select-footer">
-          <el-button size="small" @click="handleSelectAllVisible">全选可见</el-button>
+          <el-button size="small" @click="handleSelectAllVisible">全选</el-button>
           <el-button size="small" @click="handleClearAll">清空</el-button>
         </div>
       </template>
@@ -198,7 +198,7 @@ const handleChange = (val) => {
 
 .select-footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px;
 }
 

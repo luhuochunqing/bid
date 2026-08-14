@@ -17,14 +17,6 @@
       :loading-competitors="loadingCompetitors"
       @confirm="handleFilterConfirm"
       @reset="handleFilterReset"
-      @search-department="searchDepartment"
-      @search-person="searchPerson"
-      @search-region="searchRegion"
-      @search-customer-type="searchCustomerType"
-      @search-project-type="searchProjectType"
-      @search-project-status="searchProjectStatus"
-      @search-tender-subject="searchTenderSubject"
-      @search-competitor="searchCompetitor"
       @department-change="handleDepartmentChange"
     />
 
@@ -70,9 +62,8 @@ const {
   customerTypeOptions, projectTypeOptions, tenderSubjectOptions, competitorOptions,
   loadingDepartments, loadingPersons, loadingRegions,
   loadingCustomerTypes, loadingProjectTypes, loadingTenderSubjects, loadingCompetitors,
-  searchDepartment, searchPerson, searchRegion,
-  searchCustomerType, searchProjectType, searchProjectStatus,
-  searchTenderSubject, searchCompetitor
+  loadAllFilterOptions,
+  refreshPersonsByDepartments
 } = useFilterSearch()
 
 const {
@@ -173,9 +164,14 @@ const handleFilterReset = () => {
   chartError.value = ''
 }
 
-// PRD 6.4 部门-人员联动：部门变化时清空人员选项，用户重新搜索
-const handleDepartmentChange = () => {
-  personOptions.value = []
+// PRD 6.4 部门-人员联动：部门选值变化时按已选部门刷新人员下拉选项
+// 同时清空已选但不在新部门范围内的人员（PRD 6.4 "已选但不再在过滤范围内的人员：自动清除"）
+const handleDepartmentChange = async (departments) => {
+  await refreshPersonsByDepartments(departments || [])
+  if (currentFilters.value?.persons?.length) {
+    // 清空人员选值，避免保留不在新部门范围内的人员
+    currentFilters.value.persons = []
+  }
 }
 
 const handleBarClick = (params) => {
@@ -188,6 +184,8 @@ watch(() => props.dateRange, () => {
 }, { deep: true })
 
 onMounted(async () => {
+  // PRD §6.2 一次性加载所有筛选维度选项
+  await loadAllFilterOptions()
   await loadTrendData()
 })
 </script>

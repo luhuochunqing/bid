@@ -1,6 +1,12 @@
 import { ref } from 'vue'
 import { dashboardApi } from '@/api'
 
+/**
+ * PRD §6.2 M1 筛选区下拉选项加载。
+ * - 初始化时调用 /api/analytics/filter-options 一次性加载 7 个维度选项
+ * - 部门-人员联动：部门选值变化时调用 /api/analytics/filter-options/persons 刷新人员下拉
+ * - 各 FilterSelect 内部通过 visibleOptions computed 做本地搜索过滤，无需远程搜索
+ */
 export function useFilterSearch() {
   const departmentOptions = ref([])
   const personOptions = ref([])
@@ -18,76 +24,67 @@ export function useFilterSearch() {
   const loadingTenderSubjects = ref(false)
   const loadingCompetitors = ref(false)
 
+  // 后端返回 { label, value, count? } → 前端 { label, value }
   function mapOptions(items) {
     return (items || []).map((item) => ({
-      label: item.name || item.label,
-      value: item.id ?? item.value
+      label: item.label ?? item.name ?? item.value,
+      value: item.value ?? item.id ?? item.label
     }))
   }
 
-  const searchDepartment = async (query) => {
+  /**
+   * PRD §6.2 一次性加载全部维度选项（onMounted 调用）。
+   * 项目状态由前端 PROJECT_STATUS_OPTIONS 常量提供，不在此加载。
+   */
+  async function loadAllFilterOptions() {
     loadingDepartments.value = true
-    try {
-      const res = await dashboardApi.searchOptions('department', query)
-      if (res?.success) departmentOptions.value = mapOptions(res.data)
-    } catch { /* silent */ }
-    finally { loadingDepartments.value = false }
-  }
-
-  const searchPerson = async (query) => {
     loadingPersons.value = true
-    try {
-      const res = await dashboardApi.searchOptions('person', query)
-      if (res?.success) personOptions.value = mapOptions(res.data)
-    } catch { /* silent */ }
-    finally { loadingPersons.value = false }
-  }
-
-  const searchRegion = async (query) => {
     loadingRegions.value = true
-    try {
-      const res = await dashboardApi.searchOptions('region', query)
-      if (res?.success) regionOptions.value = mapOptions(res.data)
-    } catch { /* silent */ }
-    finally { loadingRegions.value = false }
-  }
-
-  const searchCustomerType = async (query) => {
     loadingCustomerTypes.value = true
-    try {
-      const res = await dashboardApi.searchOptions('customerType', query)
-      if (res?.success) customerTypeOptions.value = mapOptions(res.data)
-    } catch { /* silent */ }
-    finally { loadingCustomerTypes.value = false }
-  }
-
-  const searchProjectType = async (query) => {
     loadingProjectTypes.value = true
-    try {
-      const res = await dashboardApi.searchOptions('projectType', query)
-      if (res?.success) projectTypeOptions.value = mapOptions(res.data)
-    } catch { /* silent */ }
-    finally { loadingProjectTypes.value = false }
-  }
-
-  const searchProjectStatus = async () => { /* 固化的8种状态，无需远程搜索 */ }
-
-  const searchTenderSubject = async (query) => {
     loadingTenderSubjects.value = true
-    try {
-      const res = await dashboardApi.searchOptions('tenderSubject', query)
-      if (res?.success) tenderSubjectOptions.value = mapOptions(res.data)
-    } catch { /* silent */ }
-    finally { loadingTenderSubjects.value = false }
-  }
-
-  const searchCompetitor = async (query) => {
     loadingCompetitors.value = true
     try {
-      const res = await dashboardApi.searchOptions('competitor', query)
-      if (res?.success) competitorOptions.value = mapOptions(res.data)
-    } catch { /* silent */ }
-    finally { loadingCompetitors.value = false }
+      const res = await dashboardApi.getFilterOptions()
+      if (res?.success && res.data) {
+        const d = res.data
+        departmentOptions.value = mapOptions(d.department)
+        personOptions.value = mapOptions(d.person)
+        regionOptions.value = mapOptions(d.region)
+        customerTypeOptions.value = mapOptions(d.customerType)
+        projectTypeOptions.value = mapOptions(d.projectType)
+        tenderSubjectOptions.value = mapOptions(d.tenderEntity)
+        competitorOptions.value = mapOptions(d.competitor)
+      }
+    } catch {
+      /* silent — 下拉为空，用户可重试 */
+    } finally {
+      loadingDepartments.value = false
+      loadingPersons.value = false
+      loadingRegions.value = false
+      loadingCustomerTypes.value = false
+      loadingProjectTypes.value = false
+      loadingTenderSubjects.value = false
+      loadingCompetitors.value = false
+    }
+  }
+
+  /**
+   * PRD §6.4 部门-人员联动：根据已选部门名称列表刷新人员下拉选项。
+   * departmentNames 为空数组或 null 时返回全部人员。
+   */
+  async function refreshPersonsByDepartments(departmentNames) {
+    loadingPersons.value = true
+    try {
+      const res = await dashboardApi.getPersonsByDepartments(departmentNames || [])
+      if (res?.success && Array.isArray(res.data)) {
+        personOptions.value = mapOptions(res.data)
+      }
+    } catch {
+      /* silent */
+    } finally {
+      loadingPersons.value = false
+    }
   }
 
   return {
@@ -95,8 +92,7 @@ export function useFilterSearch() {
     customerTypeOptions, projectTypeOptions, tenderSubjectOptions, competitorOptions,
     loadingDepartments, loadingPersons, loadingRegions,
     loadingCustomerTypes, loadingProjectTypes, loadingTenderSubjects, loadingCompetitors,
-    searchDepartment, searchPerson, searchRegion,
-    searchCustomerType, searchProjectType, searchProjectStatus,
-    searchTenderSubject, searchCompetitor
+    loadAllFilterOptions,
+    refreshPersonsByDepartments
   }
 }

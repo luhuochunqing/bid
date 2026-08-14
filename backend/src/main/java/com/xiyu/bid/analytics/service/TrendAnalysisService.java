@@ -1,5 +1,6 @@
 package com.xiyu.bid.analytics.service;
 
+import com.xiyu.bid.analytics.dto.AnalyticsFilterOptionDTO;
 import com.xiyu.bid.analytics.dto.EnhancedOverviewResponse;
 import com.xiyu.bid.analytics.dto.TrendAnalysisResponse;
 import com.xiyu.bid.analytics.service.TrendAnalysisComputationService.TrendComputationResult;
@@ -10,7 +11,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -18,6 +21,7 @@ public class TrendAnalysisService {
 
     private final TrendAnalysisQueryService queryService;
     private final TrendAnalysisComputationService computationService;
+    private final FilterOptionsQueryService filterOptionsQueryService;
 
     public TrendAnalysisResponse getEnhancedTrends(
             LocalDate startDate,
@@ -118,5 +122,39 @@ public class TrendAnalysisService {
     /** 保留 1 位小数 */
     private static double round1(double val) {
         return Math.round(val * 10.0) / 10.0;
+    }
+
+    /**
+     * PRD §6.2 M1 筛选区下拉选项一次性加载。
+     * 返回 7 个维度的 DISTINCT 选项（项目状态由前端常量定义，不在此返回）。
+     * key = 维度 key（department/person/region/customerType/projectType/tenderEntity/competitor），
+     * value = 选项列表（label 与 value 同值，便于前端选中后直接作为 API 参数传递）。
+     */
+    public Map<String, List<AnalyticsFilterOptionDTO>> getFilterOptions() {
+        Map<String, List<AnalyticsFilterOptionDTO>> result = new LinkedHashMap<>();
+        result.put("department", toStringOptions(filterOptionsQueryService.fetchDistinctDepartments()));
+        result.put("person", toStringOptions(filterOptionsQueryService.fetchDistinctPersons(null)));
+        result.put("region", toStringOptions(filterOptionsQueryService.fetchDistinctRegions()));
+        result.put("customerType", toStringOptions(filterOptionsQueryService.fetchDistinctCustomerTypes()));
+        result.put("projectType", toStringOptions(filterOptionsQueryService.fetchDistinctProjectTypes()));
+        result.put("tenderEntity", toStringOptions(filterOptionsQueryService.fetchDistinctTenderEntitiesForFilter()));
+        result.put("competitor", toStringOptions(filterOptionsQueryService.fetchDistinctCompetitorNames()));
+        return result;
+    }
+
+    /**
+     * PRD §6.4 部门-人员联动：根据已选部门名称列表刷新人员下拉选项。
+     */
+    public List<AnalyticsFilterOptionDTO> getPersonOptionsByDepartments(List<String> departmentNames) {
+        return toStringOptions(filterOptionsQueryService.fetchDistinctPersons(departmentNames));
+    }
+
+    private static List<AnalyticsFilterOptionDTO> toStringOptions(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        return values.stream()
+                .map(v -> AnalyticsFilterOptionDTO.builder().label(v).value(v).build())
+                .toList();
     }
 }
