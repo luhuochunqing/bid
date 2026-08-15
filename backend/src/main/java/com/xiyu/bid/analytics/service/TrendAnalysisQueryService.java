@@ -20,11 +20,17 @@ public class TrendAnalysisQueryService {
     private EntityManager entityManager;
 
     /**
-     * 查询项目趋势数据，按时间（年-月）分组。
+     * 查询项目趋势数据，按指定时间粒度（day/week/month/year）提取时间字段。
+     * timeDimension 参数决定 SELECT 中提取哪些时间字段：
+     *   - month: year, month, week=0, day=0
+     *   - week:  year, month=0, week, day=0
+     *   - day:   year, month, week=0, day
+     *   - year:  year, month=0, week=0, day=0
      */
     List<TimeDimensionRow> fetchTimeTrendRows(
             LocalDate startDate,
             LocalDate endDate,
+            String timeDimension,
             List<Long> departmentIds,
             List<Long> userIds,
             List<Long> regionIds,
@@ -32,18 +38,25 @@ public class TrendAnalysisQueryService {
             List<String> projectTypes,
             List<Project.Status> statuses
     ) {
-        // 构建动态 WHERE 条件
-        StringBuilder jpql = new StringBuilder("""
-                select new com.xiyu.bid.analytics.service.TrendAnalysisQueryService$TimeDimensionRow(
-                    function('year', p.createdAt),
-                    function('month', p.createdAt),
-                    p.id,
-                    p.status
-                )
-                from Project p
-                left join Tender t on t.id = p.tenderId
-                where 1=1
-                """);
+        // 根据 timeDimension 构建 SELECT 中的时间字段表达式
+        String selectExpr = switch (timeDimension != null ? timeDimension : "month") {
+            case "year" -> "function('year', p.createdAt), 0, 0, 0";
+            case "week" -> "function('year', p.createdAt), 0, cast(function('weekofyear', p.createdAt) as integer), 0";
+            case "day"  -> "function('year', p.createdAt), function('month', p.createdAt), 0, function('day', p.createdAt)";
+            default     -> "function('year', p.createdAt), function('month', p.createdAt), 0, 0";
+        };
+
+        // 构建动态 SELECT + WHERE 条件
+        StringBuilder jpql = new StringBuilder(
+                "select new com.xiyu.bid.analytics.service.TrendAnalysisQueryService$TimeDimensionRow(")
+                .append(selectExpr)
+                .append("""
+                        , p.id, p.status
+                        )
+                        from Project p
+                        left join Tender t on t.id = p.tenderId
+                        where 1=1
+                        """);
 
         if (startDate != null) {
             jpql.append(" and p.createdAt >= :startDate");
@@ -138,6 +151,8 @@ public class TrendAnalysisQueryService {
     public record TimeDimensionRow(
             Integer year,
             Integer month,
+            Integer week,
+            Integer day,
             Long projectId,
             Project.Status status
     ) {

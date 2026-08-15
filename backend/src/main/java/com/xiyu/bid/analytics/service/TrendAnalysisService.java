@@ -29,6 +29,7 @@ public class TrendAnalysisService {
             LocalDate startDate,
             LocalDate endDate,
             String xAxis,
+            String timeDimension,
             List<String> departmentIds,
             List<String> userIds,
             List<String> regionIds,
@@ -52,16 +53,19 @@ public class TrendAnalysisService {
                         .toList()
                 : null;
 
+        // 标准化 timeDimension 参数
+        String td = timeDimension != null ? timeDimension.toLowerCase() : "month";
+
         // PRD 6.3: 根据 xAxis 参数分发到不同维度的查询和计算
         TrendComputationResult result;
         if (xAxis == null || "time".equals(xAxis)) {
             // 时间维度
             List<TimeDimensionRow> rows = queryService.fetchTimeTrendRows(
-                    startDate, endDate,
+                    startDate, endDate, td,
                     null, null, null,
                     customerTypes, projectTypes, statusEnums
             );
-            result = computationService.computeTimeTrend(rows, startDate, endDate);
+            result = computationService.computeTimeTrend(rows, startDate, endDate, td);
         } else {
             String ax = xAxis;
             // 非时间维度：将 xAxis key 映射到对应的维度查询方法

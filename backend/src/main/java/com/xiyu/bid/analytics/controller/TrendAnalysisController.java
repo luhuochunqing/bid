@@ -44,6 +44,7 @@ public class TrendAnalysisController {
 
     /**
      * M1: 增强趋势分析，支持维度筛选参数。
+     * timeDimension: 时间粒度（day/week/month/year），仅当 xAxis=time 时生效。
      */
     @GetMapping("/trends/enhanced")
     @PreAuthorize("hasAuthority('dashboard')")
@@ -51,6 +52,7 @@ public class TrendAnalysisController {
             @RequestParam(required = false) LocalDate startDate,
             @RequestParam(required = false) LocalDate endDate,
             @RequestParam(required = false, defaultValue = "time") String xAxis,
+            @RequestParam(required = false, defaultValue = "month") String timeDimension,
             @RequestParam(required = false) List<String> departmentIds,
             @RequestParam(required = false) List<String> userIds,
             @RequestParam(required = false) List<String> regionIds,
@@ -62,7 +64,7 @@ public class TrendAnalysisController {
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 trendAnalysisService.getEnhancedTrends(
-                        startDate, endDate, xAxis,
+                        startDate, endDate, xAxis, timeDimension,
                         departmentIds, userIds, regionIds,
                         customerTypes, projectTypes, statuses,
                         tenderEntities, competitorNames

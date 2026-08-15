@@ -131,7 +131,7 @@ public class TrendAnalysisDimensionQueryService {
             List<String> tenderEntities, List<String> competitorNames) {
 
         StringBuilder jpql = new StringBuilder("select new com.xiyu.bid.analytics.service.DimensionRow(")
-                .append(selectExpr).append(") from Project p ")
+                .append(selectExpr).append(", p.id, p.status) from Project p ")
                 .append(joinClause).append(" where ").append(whereClause);
 
         if (startDate != null) jpql.append(" and p.createdAt >= :startDate");
