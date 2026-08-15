@@ -100,6 +100,11 @@ const togglePanel = () => {
   }
 }
 
+const emitChange = () => {
+  emit('update:modelValue', [...selectedValues.value])
+  emit('change', [...selectedValues.value])
+}
+
 const toggleOption = (value) => {
   if (selectedSet.value.has(value)) {
     selectedValues.value = selectedValues.value.filter((v) => v !== value)
@@ -119,11 +124,6 @@ const selectAllVisible = () => {
 const clearAll = () => {
   selectedValues.value = []
   emitChange()
-}
-
-const emitChange = () => {
-  emit('update:modelValue', [...selectedValues.value])
-  emit('change', [...selectedValues.value])
 }
 
 // 点击外部关闭
