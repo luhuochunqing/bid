@@ -189,8 +189,27 @@ public class TrendDrillDownService {
         if (axisValue == null || axisValue.isBlank()) return;
         switch (dimension) {
             case "time" -> {
-                // axisValue 格式 "2026-03" → 按年月过滤 created_at
-                where.append(" AND DATE_FORMAT(p.created_at, '%Y-%m') = :axisVal");
+                // axisValue 格式判断：日/周/月/年
+                if (axisValue.matches("\\d{4}-\\d{2}-\\d{2}")) {
+                    // 日格式 "2026-03-15"
+                    where.append(" AND DATE_FORMAT(p.created_at, '%Y-%m-%d') = :axisVal");
+                } else if (axisValue.matches("\\d{4}-W\\d+")) {
+                    // 周格式 "2026-W12" → YEARWEEK(p.created_at,1) 返回 YYYYWW
+                    String year = axisValue.substring(0, 4);
+                    String week = String.format("%02d", Integer.parseInt(axisValue.substring(6)));
+                    where.append(" AND YEARWEEK(p.created_at, 1) = :axisWeekVal");
+                    params.put("axisWeekVal", year + week);
+                    return; // 提前返回，避免执行下面的 params.put
+                } else if (axisValue.matches("\\d{4}-\\d{2}")) {
+                    // 月格式 "2026-03"（原逻辑）
+                    where.append(" AND DATE_FORMAT(p.created_at, '%Y-%m') = :axisVal");
+                } else if (axisValue.matches("\\d{4}")) {
+                    // 年格式 "2026"
+                    where.append(" AND YEAR(p.created_at) = :axisVal");
+                } else {
+                    // fallback 月格式
+                    where.append(" AND DATE_FORMAT(p.created_at, '%Y-%m') = :axisVal");
+                }
                 params.put("axisVal", axisValue);
             }
             case "dept" -> {
