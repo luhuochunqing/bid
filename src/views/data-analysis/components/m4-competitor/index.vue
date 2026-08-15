@@ -157,7 +157,7 @@ defineExpose({ refresh: fetchData })
 .m4-competitor { display: flex; flex-direction: column; height: 100%; }
 
 .m4-section-title {
-  font-size: 16px; font-weight: 700; color: #1E293B;
+  font-size: 16px; font-weight: 700; color: var(--text-primary);
   margin-bottom: 18px; display: flex; align-items: center;
   justify-content: space-between; gap: 12px;
 }
@@ -171,54 +171,63 @@ defineExpose({ refresh: fetchData })
 
 .m4-filter-bar {
   display: flex; gap: 10px 14px; align-items: center; flex-wrap: wrap;
-  padding: 14px 16px; background: var(--bg-subtle); border-radius: 6px;
+  padding: 14px 16px; background: var(--bg-subtle); border-radius: var(--radius-sm);
   margin-bottom: 16px; border: 1px solid var(--border-light);
 }
 .m4-filter-item { display: flex; align-items: center; gap: 6px; }
-.m4-filter-item label { font-size: 12px; font-weight: 600; color: #1E293B; white-space: nowrap; }
-.m4-required label::after { content: ' *'; color: #EF4444; }
+.m4-filter-item label { font-size: 12px; font-weight: 600; color: var(--text-primary); white-space: nowrap; }
+.m4-required label::after { content: ' *'; color: var(--color-danger); }
 .m4-field-cb { margin-right: 2px; }
-.m4-field-cb :deep(.el-checkbox__label) { font-size: 12px; font-weight: 600; color: #1E293B; padding-left: 6px; }
+.m4-field-cb :deep(.el-checkbox__label) { font-size: 12px; font-weight: 600; color: var(--text-primary); padding-left: 6px; }
 .m4-select { width: 200px; }
 .m4-filter-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 
 .m4-btn {
   background: var(--brand-xiyu-logo); color: var(--bg-card);
-  border: 1px solid var(--brand-xiyu-logo); border-radius: 4px;
-  padding: 6px 14px; font-size: 12px; font-weight: 500; line-height: 1;
+  border: none; border-radius: var(--radius-sm);
+  padding: 5px 14px; font-size: 12px; font-weight: 500; line-height: 1;
   cursor: pointer; white-space: nowrap; transition: opacity 0.15s ease;
 }
 .m4-btn:hover:not(:disabled) { opacity: 0.88; }
 .m4-btn:disabled { cursor: not-allowed; opacity: 0.6; }
-.m4-btn.reset { background: var(--bg-card); color: var(--brand-xiyu-logo); }
+.m4-btn.reset { background: var(--bg-card); color: var(--text-secondary); border: 1px solid var(--border-light); }
+.m4-btn.reset:hover:not(:disabled) { background: var(--bg-subtle); color: var(--text-primary); }
 
 .chart-body { flex: 1; min-height: 0; position: relative; }
 .chart-container { width: 100%; height: 100%; min-height: 380px; }
 .status-overlay { display: flex; align-items: center; justify-content: center; min-height: 380px; }
 
 /* 竞品明细表格 */
-.m4-table-wrapper { margin-top: 16px; border: 1px solid var(--border-light); border-radius: 6px; overflow: hidden; }
+.m4-table-wrapper { margin-top: 20px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow: hidden; background: var(--bg-card); }
 .m4-table-title-bar {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 16px; background: var(--bg-subtle); border-bottom: 1px solid var(--border-light);
+  padding: 14px 20px; background: var(--bg-subtle); border-bottom: 1px solid var(--border-color);
 }
-.m4-table-title { font-size: 13px; font-weight: 700; color: #1E293B; }
+.m4-table-title { font-size: 15px; font-weight: 700; color: var(--text-primary); }
 .m4-export-btn {
-  background: linear-gradient(135deg, #3B82F6, #2563EB); color: var(--bg-card);
-  border: none; border-radius: 4px; padding: 5px 12px;
-  font-size: 12px; font-weight: 500; cursor: pointer;
+  background: var(--brand-xiyu-logo); color: var(--bg-card);
+  border: none; border-radius: var(--radius-sm); padding: 5px 14px;
+  font-size: 12px; font-weight: 500; cursor: pointer; transition: opacity 0.2s;
 }
-.m4-export-btn:hover { opacity: 0.9; }
-.m4-table-scroll { max-height: 240px; overflow-y: auto; }
-.m4-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.m4-export-btn:hover { opacity: 0.92; box-shadow: var(--shadow-brand); }
+.m4-table-scroll { max-height: 210px; overflow-y: auto; }
+.m4-table-scroll::-webkit-scrollbar { width: 6px; }
+.m4-table-scroll::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+.m4-table-scroll::-webkit-scrollbar-track { background: transparent; }
+.m4-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .m4-table thead { position: sticky; top: 0; z-index: 1; }
 .m4-table th {
-  background: var(--bg-subtle); color: var(--text-badge); font-weight: 600; text-align: center;
-  padding: 8px 12px; border-bottom: 1px solid var(--border-light);
+  background: var(--bg-subtle); color: var(--text-primary); font-weight: 600; text-align: center;
+  padding: 10px 16px; border-bottom: 2px solid var(--border-color); white-space: nowrap;
 }
-.m4-table td { text-align: center; padding: 8px 12px; color: #334155; border-bottom: 1px solid var(--border-subtle); }
+.m4-table td {
+  text-align: center; padding: 10px 16px; color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-light);
+}
+.m4-table tr:last-child td { border-bottom: none; }
+.m4-table tr:hover td { background: var(--bg-subtle); }
 .m4-table-empty { text-align: center; color: var(--text-lighter); padding: 20px; }
-.m4-won-tag { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 600; }
-.m4-won-tag.yes { background: #D1FAE5; color: #065F46; }
-.m4-won-tag.no { background: #FEE2E2; color: #991B1B; }
+.m4-won-tag { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.m4-won-tag.yes { background: var(--status-success-bg); color: var(--status-success-color); }
+.m4-won-tag.no { background: var(--status-danger-bg); color: var(--status-danger-color); }
 </style>

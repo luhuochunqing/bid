@@ -140,9 +140,8 @@ onMounted(() => {
 .section-pie :deep(.m2-customer-type),
 .section-pie :deep(.m3-project-type) { background: transparent; border: none; box-shadow: none; padding: 0; }
 
-/* M4 组件内部自带卡片样式和标题，重置避免双重，标题由 page 层 section-title 提供 */
+/* M4 组件内部由 section 提供卡片背景，避免双重背景 */
 .section-m4 :deep(.m4-competitor) { background: transparent; border: none; box-shadow: none; padding: 0; }
-.section-m4 :deep(.m4-competitor .card-header) { display: none; }
 
 @media (max-width: 1400px) { .pie-row { grid-template-columns: 1fr; } }
 
