@@ -5,7 +5,7 @@
 
 const viteEnv = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {}
 const DEFAULT_API_HOST = '127.0.0.1'
-const DEFAULT_API_PORT = 18080
+const DEFAULT_API_PORT = 18089
 
 const trimTrailingSlash = (value) => value.replace(/\/+$/, '')
 
