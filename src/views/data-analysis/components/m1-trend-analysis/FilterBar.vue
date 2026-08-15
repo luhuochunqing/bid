@@ -27,7 +27,7 @@
     <div class="m8-filter-item">
       <input type="checkbox" class="m9-xaxis-cb" :checked="xAxisDimensions.includes('person')" @change="handleXAxisChange('person', $event.target.checked)" />
       <label class="m8-filter-label">人员</label>
-      <FilterSelect v-model="filters.persons" :options="personOptions" :loading="loadingPersons" :disabled="personDisabled" :placeholder="personDisabled ? '请先选择部门' : '请选择'" @search="handlePersonSearch" @change="handleFieldChange('person')" />
+      <FilterSelect v-model="filters.persons" :options="personOptions" :loading="loadingPersons" placeholder="请选择" @search="handlePersonSearch" @change="handleFieldChange('person')" />
     </div>
 
     <div class="m8-filter-item">
@@ -74,7 +74,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import {
   PROJECT_STATUS_OPTIONS,
   CUSTOMER_TYPE_OPTIONS,
@@ -116,11 +116,6 @@ const filters = ref({
   tenderSubjects: [], competitors: []
 })
 
-// 人员选择器在未选择部门时 disabled，提示"请先选择部门"
-const personDisabled = computed(() => {
-  return !filters.value.departments || filters.value.departments.length === 0
-})
-
 const xAxisDimensions = ref([])
 
 // X 轴维度 key → 筛选状态字段映射（time 不映射到筛选值）
@@ -151,6 +146,10 @@ const handleXAxisChange = (field, checked) => {
       if (!xAxisDimensions.value.includes(field)) xAxisDimensions.value.push(field)
       if (field === 'person' && !xAxisDimensions.value.includes('dept')) {
         xAxisDimensions.value.push('dept')
+        // 勾选人员时自动选中全部部门
+        filters.value.departments = props.departmentOptions.map(o => o.value)
+        // 触发人员加载
+        emit('department-change', filters.value.departments)
       }
       NON_DEPT_PERSON.forEach(key => { if (AXIS_TO_FILTER[key]) filters.value[AXIS_TO_FILTER[key]] = [] })
     } else {
