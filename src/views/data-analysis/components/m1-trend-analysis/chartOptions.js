@@ -1,10 +1,21 @@
 import * as echarts from 'echarts'
-import { PROJECT_STATUS_COLORS } from './filterConstants.js'
+import { PROJECT_STATUS_COLORS, PROJECT_STATUS_OPTIONS } from './filterConstants.js'
+
+// 项目状态枚举值 → 中文标签映射
+const STATUS_ENUM_TO_LABEL = Object.fromEntries(
+  PROJECT_STATUS_OPTIONS.map(o => [o.value, o.label])
+)
 
 export function buildChartOption(data, xAxisType) {
   if (!data || data.length === 0) return {}
 
   const categories = data.map((item) => item.label || item.name || '')
+  const isStatusAxis = xAxisType === 'projectStatus'
+
+  // 项目状态维度：将后端返回的枚举值转为中文标签
+  const displayCategories = isStatusAxis
+    ? categories.map(c => STATUS_ENUM_TO_LABEL[c] || c)
+    : categories
   const bidCounts = data.map((item) => item.bidCount ?? 0)
   const winCounts = data.map((item) => item.winCount ?? 0)
   const winRates = data.map((item) => {
@@ -12,8 +23,7 @@ export function buildChartOption(data, xAxisType) {
     return Number(rate.toFixed(1))
   })
 
-  const isStatusAxis = xAxisType === 'projectStatus'
-  const showDataZoom = categories.length > 100
+  const showDataZoom = displayCategories.length > 100
 
   const baseOption = {
     tooltip: {
@@ -45,12 +55,12 @@ export function buildChartOption(data, xAxisType) {
     },
     xAxis: {
       type: 'category',
-      data: categories,
+      data: isStatusAxis ? displayCategories : categories,
       axisLine: { lineStyle: { color: '#E2E8F0' } },
       axisLabel: {
         color: '#475569', fontSize: 11,
         interval: isStatusAxis ? 0 : 'auto',
-        rotate: categories.length > 10 ? 45 : 0
+        rotate: displayCategories.length > 10 ? 45 : 0
       },
       axisTick: { alignWithLabel: true }
     }
@@ -123,7 +133,7 @@ export function buildChartOption(data, xAxisType) {
       dataZoom: [
         {
           type: 'slider',
-          start: Math.max(0, 100 - (30 / categories.length) * 100),
+          start: Math.max(0, 100 - (30 / displayCategories.length) * 100),
           end: 100, height: 20, bottom: 10,
           borderColor: '#E2E8F0',
           fillerColor: 'rgba(37, 99, 235, 0.1)',
@@ -133,7 +143,7 @@ export function buildChartOption(data, xAxisType) {
         },
         {
           type: 'inside',
-          start: Math.max(0, 100 - (30 / categories.length) * 100),
+          start: Math.max(0, 100 - (30 / displayCategories.length) * 100),
           end: 100
         }
       ]
