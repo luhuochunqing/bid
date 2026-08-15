@@ -19,8 +19,9 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.sql.Connection;
+import java.sql.Statement;
 import java.time.LocalDateTime;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -177,7 +178,7 @@ class FlywayMysqlContainerTest {
     }
 
     @Test
-    void v1092MergesUsersWhenTargetRoleAlreadyExists() {
+    void v1092MergesUsersWhenTargetRoleAlreadyExists() throws java.sql.SQLException {
         // 核心分支验证：当 /bidAdmin 已存在且 bid_admin 也存在时，
         // V1092 必须将 bid_admin 下的用户合并到 /bidAdmin，然后删除 bid_admin。
         // 利用 V1092 脚本的幂等性，在当前已迁移的数据上人工构造该场景并重新执行迁移。
@@ -210,8 +211,16 @@ class FlywayMysqlContainerTest {
         );
 
         // 4. 重新执行 V1092 迁移脚本（幂等）
+        //    关键：必须用独立连接（不经连接池）。MySQL 临时表是会话级——
+        //    Context 启动时 Flyway 已在连接池某条连接上建过 tmp_role_mappings，
+        //    若复用该连接，CREATE TEMPORARY TABLE IF NOT EXISTS 不会重建，INSERT 会撞主键；
+        //    若用 jdbcTemplate 调用，可能取到不同连接，无法保证与 Flyway 会话隔离。
+        //    直接从容器拿一条新连接，临时表与会话绑定，天然与连接池隔离，无需逐个 DROP。
         String v1092Script = loadMigrationScript("db/migration-mysql/V1092__migrate_legacy_role_codes_to_oss_aligned.sql");
-        jdbcTemplate.execute(v1092Script);
+        try (Connection conn = MYSQL.createConnection("?allowMultiQueries=true");
+             Statement stmt = conn.createStatement()) {
+            stmt.execute(v1092Script);
+        }
 
         // 5. 验证：legacy 角色被删除，用户已合并到 /bidAdmin
         Integer legacyRoleCount = jdbcTemplate.queryForObject(
