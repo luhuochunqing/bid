@@ -204,7 +204,7 @@ export function useScoreParseDrawer(props, emit) {
   function exportReport() {
     const reportHtml = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>AI 评分标准解析报告 - ${props.projectId}</title>
-<style>body{font-family:sans-serif;padding:24px;color:var(--text-primary,#333);}table{width:100%;border-collapse:collapse;margin-top:16px;}th,td{border:1px solid var(--border-color,#ddd);padding:8px;font-size:12px;text-align:left;}th{background:var(--bg-muted,#f5f7fa);}.num{text-align:right;}</style>
+<style>body{font-family:sans-serif;padding:24px;color:var(--text-primary-ui);}table{width:100%;border-collapse:collapse;margin-top:16px;}th,td{border:1px solid var(--border-color);padding:8px;font-size:12px;text-align:left;}th{background:var(--fill-lightest);}.num{text-align:right;}</style>
 </head><body>
 <h2>AI 评分标准解析报告（项目 ID: ${props.projectId}）</h2>
 <p>招标文件：${sourceFileName.value} | 解析时间：${parseTime.value}</p>
