@@ -149,11 +149,12 @@ describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
     // 验证实际得分总和（客观项满分 11 分中实际获得 9 分）
     expect(wrapper.vm.actualTotalScore).toBe(9)
     expect(wrapper.text()).toContain('9')
-    expect(wrapper.text()).toContain('/ 11 分')
-    expect(wrapper.text()).toContain('仅客观项得分，主观项待评审')
+    expect(wrapper.text()).toContain('客观项 11')
+    expect(wrapper.text()).toContain('主观项 12')
 
-    // 主观项展示
-    expect(wrapper.text()).toContain('待专家评审')
+    // 底部说明文案
+    expect(wrapper.text()).toContain('AI 基于标书内容 + 知识库证书自动判定，计入总分')
+    expect(wrapper.text()).toContain('需评标专家人工评审，AI 不计分')
   })
 
   // QA-TC03: 评分项详情与建议弹窗（ScoreItemDetailModal）多场景验收
