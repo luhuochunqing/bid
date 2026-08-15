@@ -6,6 +6,7 @@ import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { bidAgentApi } from '@/api/modules/bidAgent.js'
 import { projectsApi } from '@/api/modules/projects.js'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { defaultScoreTemplate, defaultScoreResults } from './scoreParseDefaults.js'
 
 export function useScoreParseDrawer(props, emit) {
@@ -218,7 +219,7 @@ export function useScoreParseDrawer(props, emit) {
       emit('imported', { count })
     } catch (e) {
       if (e !== 'cancel') {
-        ElMessage.error(e?.response?.data?.msg || '导入评分草稿失败')
+        notifyErrorUnlessRateLimit(e, '导入评分草稿失败')
       }
     } finally {
       importing.value = false

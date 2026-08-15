@@ -1371,3 +1371,17 @@ if (existing.isPresent()) {
 短期修复：`PDF_RENDER_DPI` 300→150（内存降至 1/4），`MAX_PDF_PAGES_PER_FILE` 30→10（页数降至 1/3）。内存预估：30 条 × 10 页 × 6.5MB = 1.95GB（2GB 堆可承载）。生产建议 JVM `-Xmx` 提升至 4g。
 
 中期方案（根治）：分批构建 docx，每 N 条业绩生成临时 docx，最后合并；或改用 docx4j 流式写入。
+
+## 114. 前端 Composable API 异常处理 429 提示覆盖与 CSS Token 硬编码回退陷阱（2026-08-15）
+
+### 问题背景
+
+在重构 AI 评分标准解析抽屉（V3 双阶段架构）过程中，门禁检查触发了 2 处潜在工程规范拦截：
+1. `pre-push-gate.sh` 拦截了 Composable 中直接使用 `ElMessage.error(e?.message)` 的 catch 块；
+2. Token 治理门禁拦截了使用 `var(--bg-white, #fff)` 的 CSS 声明。
+
+### 根因与教训
+
+1. **429 限流提示覆盖**：Axios 响应拦截器统一处理了 429 限流并弹出友好防抖提示。如果业务层 catch 块直接调用 `ElMessage.error`，会二次弹出通用错误覆盖全局友好提示。统一规则：业务 catch 必须使用 `@/api/error-utils.js` 中的 `notifyErrorUnlessRateLimit(error, fallbackMsg)`。
+2. **CSS 变量的 Hex 降级值会被 Token 扫描器作为硬编码检测**：编写样式时随手写的 `var(--border-color, #e2e8f0)` 中的 `#e2e8f0` 会被静态分析器抓取并判定为硬编码颜色。应严格使用纯变量 `var(--border-color)` 或全局令牌变量 `var(--border-color, var(--color-gray-200))`。
+
