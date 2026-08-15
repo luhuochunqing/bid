@@ -77,7 +77,7 @@ public class TrendAnalysisService {
                         startDate, endDate, departmentIds, regionIds,
                         customerTypes, projectTypes, statusEnums, tenderEntities, competitorNames);
                 case "region" -> dimensionQueryService.fetchRegionRows(
-                        startDate, endDate, departmentIds, userIds,
+                        startDate, endDate, departmentIds, userIds, regionIds,
                         customerTypes, projectTypes, statusEnums, tenderEntities, competitorNames);
                 case "customerType" -> dimensionQueryService.fetchCustomerTypeRows(
                         startDate, endDate, departmentIds, userIds, regionIds,
@@ -87,16 +87,18 @@ public class TrendAnalysisService {
                         customerTypes, statusEnums, tenderEntities, competitorNames);
                 case "projectStatus" -> dimensionQueryService.fetchStatusRows(
                         startDate, endDate, departmentIds, userIds, regionIds,
-                        customerTypes, projectTypes, tenderEntities, competitorNames);
+                        customerTypes, projectTypes, statusEnums, tenderEntities, competitorNames);
                 case "tenderEntity" -> dimensionQueryService.fetchTenderEntityRows(
                         startDate, endDate, departmentIds, userIds, regionIds,
-                        customerTypes, projectTypes, statusEnums, competitorNames);
+                        customerTypes, projectTypes, statusEnums, tenderEntities, competitorNames);
                 case "competitor" -> dimensionQueryService.fetchCompetitorRows(
                         startDate, endDate, departmentIds, userIds, regionIds,
                         customerTypes, projectTypes, statusEnums, tenderEntities);
                 default -> throw new IllegalArgumentException("Unknown xAxis: " + ax);
             };
-            result = computationService.computeDimensionTrend(dimensionRows);
+            result = "projectStatus".equals(ax)
+                    ? computationService.computeProjectStatusTrend(dimensionRows)
+                    : computationService.computeDimensionTrend(dimensionRows);
         }
 
         return TrendAnalysisResponse.builder()

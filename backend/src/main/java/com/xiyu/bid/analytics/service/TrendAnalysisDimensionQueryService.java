@@ -49,13 +49,13 @@ public class TrendAnalysisDimensionQueryService {
 
     //=== 区域 ===//
     List<DimensionRow> fetchRegionRows(LocalDate startDate, LocalDate endDate,
-            List<String> departmentIds, List<String> userIds,
+            List<String> departmentIds, List<String> userIds, List<String> regionIds,
             List<String> customerTypes, List<String> projectTypes, List<Project.Status> statuses,
             List<String> tenderEntities, List<String> competitorNames) {
         return queryDimension("pid.headquartersLocation",
                 "join ProjectInitiationDetails pid on pid.projectId = p.id left join Tender t on t.id = p.tenderId left join User u on u.id = p.managerId left join ProjectResult pr on pr.projectId = p.id left join ProjectResultCompetitor prc on prc.resultId = pr.id",
                 "pid.headquartersLocation is not null and pid.headquartersLocation <> ''",
-                departmentIds, startDate, endDate, userIds, null,
+                departmentIds, startDate, endDate, userIds, regionIds,
                 customerTypes, projectTypes, statuses, tenderEntities, competitorNames);
     }
 
@@ -86,25 +86,25 @@ public class TrendAnalysisDimensionQueryService {
     //=== 项目状态 ===//
     List<DimensionRow> fetchStatusRows(LocalDate startDate, LocalDate endDate,
             List<String> departmentIds, List<String> userIds, List<String> regionIds,
-            List<String> customerTypes, List<String> projectTypes,
+            List<String> customerTypes, List<String> projectTypes, List<Project.Status> statuses,
             List<String> tenderEntities, List<String> competitorNames) {
         return queryDimension("p.status",
                 "left join Tender t on t.id = p.tenderId left join User u on u.id = p.managerId left join ProjectInitiationDetails pid on pid.projectId = p.id left join ProjectResult pr on pr.projectId = p.id left join ProjectResultCompetitor prc on prc.resultId = pr.id",
                 "1=1",
                 departmentIds, startDate, endDate, userIds, regionIds,
-                customerTypes, projectTypes, null, tenderEntities, competitorNames);
+                customerTypes, projectTypes, statuses, tenderEntities, competitorNames);
     }
 
     //=== 招标主体 ===//
     List<DimensionRow> fetchTenderEntityRows(LocalDate startDate, LocalDate endDate,
             List<String> departmentIds, List<String> userIds, List<String> regionIds,
             List<String> customerTypes, List<String> projectTypes, List<Project.Status> statuses,
-            List<String> competitorNames) {
+            List<String> tenderEntities, List<String> competitorNames) {
         return queryDimension("t.purchaserName",
                 "join Tender t on t.id = p.tenderId left join User u on u.id = p.managerId left join ProjectInitiationDetails pid on pid.projectId = p.id left join ProjectResult pr on pr.projectId = p.id left join ProjectResultCompetitor prc on prc.resultId = pr.id",
                 "t.purchaserName is not null and t.purchaserName <> ''",
                 departmentIds, startDate, endDate, userIds, regionIds,
-                customerTypes, projectTypes, statuses, null, competitorNames);
+                customerTypes, projectTypes, statuses, tenderEntities, competitorNames);
     }
 
     //=== 竞品公司 ===//
@@ -137,7 +137,14 @@ public class TrendAnalysisDimensionQueryService {
         if (startDate != null) jpql.append(" and p.createdAt >= :startDate");
         if (endDate != null) jpql.append(" and p.createdAt <= :endDate");
         if (userIds != null && !userIds.isEmpty()) jpql.append(" and u.fullName in :userIds");
-        if (regionIds != null && !regionIds.isEmpty()) jpql.append(" and pid.headquartersLocation in :regionIds");
+        if (regionIds != null && !regionIds.isEmpty()) {
+            jpql.append(" and (");
+            for (int i = 0; i < regionIds.size(); i++) {
+                if (i > 0) jpql.append(" or ");
+                jpql.append("pid.headquartersLocation like :regionPattern").append(i);
+            }
+            jpql.append(")");
+        }
         if (customerTypes != null && !customerTypes.isEmpty()) jpql.append(" and p.customerType in :customerTypes");
         if (projectTypes != null && !projectTypes.isEmpty()) jpql.append(" and t.projectType in :projectTypes");
         if (statuses != null && !statuses.isEmpty()) jpql.append(" and p.status in :statuses");
@@ -149,7 +156,11 @@ public class TrendAnalysisDimensionQueryService {
         if (startDate != null) query.setParameter("startDate", startDate.atStartOfDay());
         if (endDate != null) query.setParameter("endDate", endDate.atTime(23, 59, 59));
         if (userIds != null && !userIds.isEmpty()) query.setParameter("userIds", userIds);
-        if (regionIds != null && !regionIds.isEmpty()) query.setParameter("regionIds", regionIds);
+        if (regionIds != null && !regionIds.isEmpty()) {
+            for (int i = 0; i < regionIds.size(); i++) {
+                query.setParameter("regionPattern" + i, regionIds.get(i) + "%");
+            }
+        }
         if (customerTypes != null && !customerTypes.isEmpty()) query.setParameter("customerTypes", customerTypes);
         if (projectTypes != null && !projectTypes.isEmpty()) query.setParameter("projectTypes", projectTypes);
         if (statuses != null && !statuses.isEmpty()) query.setParameter("statuses", statuses);

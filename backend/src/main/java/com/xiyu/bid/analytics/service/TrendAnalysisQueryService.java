@@ -41,7 +41,7 @@ public class TrendAnalysisQueryService {
         // 根据 timeDimension 构建 SELECT 中的时间字段表达式
         String selectExpr = switch (timeDimension != null ? timeDimension : "month") {
             case "year" -> "function('year', p.createdAt), 0, 0, 0";
-            case "week" -> "function('year', p.createdAt), 0, cast(function('weekofyear', p.createdAt) as integer), 0";
+            case "week" -> "function('year', p.createdAt), 0, function('week', p.createdAt, 1), 0";
             case "day"  -> "function('year', p.createdAt), function('month', p.createdAt), 0, function('day', p.createdAt)";
             default     -> "function('year', p.createdAt), function('month', p.createdAt), 0, 0";
         };

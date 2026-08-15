@@ -8,6 +8,7 @@ import com.xiyu.bid.analytics.service.TrendAnalysisService;
 import com.xiyu.bid.analytics.service.TrendDrillDownService;
 import com.xiyu.bid.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,6 +20,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/analytics")
 @RequiredArgsConstructor
@@ -62,6 +64,8 @@ public class TrendAnalysisController {
             @RequestParam(required = false) List<String> tenderEntities,
             @RequestParam(required = false) List<String> competitorNames
     ) {
+        log.info("getEnhancedTrends called: xAxis={}, timeDimension={}, startDate={}, endDate={}, departmentIds={}, userIds={}, regionIds={}, customerTypes={}, projectTypes={}, statuses={}, tenderEntities={}, competitorNames={}",
+                xAxis, timeDimension, startDate, endDate, departmentIds, userIds, regionIds, customerTypes, projectTypes, statuses, tenderEntities, competitorNames);
         return ResponseEntity.ok(ApiResponse.success(
                 trendAnalysisService.getEnhancedTrends(
                         startDate, endDate, xAxis, timeDimension,

@@ -1,13 +1,13 @@
 <template>
   <div class="trend-chart-card">
-    <div v-if="loading" class="chart-state state-loading">
-      <div class="loading-overlay">
-        <el-icon class="is-loading" :size="28"><Loading /></el-icon>
-      </div>
-      <div ref="chartRef" class="chart-container"></div>
+    <!-- 图表容器始终在 DOM 中，避免 v-if 切换导致 ECharts 实例指向废弃 DOM 元素 -->
+    <div ref="chartRef" class="chart-container" :class="{ 'chart-dimmed': loading }"></div>
+
+    <div v-if="loading" class="chart-overlay">
+      <el-icon class="is-loading" :size="28"><Loading /></el-icon>
     </div>
 
-    <div v-else-if="error" class="chart-state state-error">
+    <div v-else-if="error" class="chart-overlay state-error">
       <el-result icon="error" title="数据加载失败" :sub-title="error">
         <template #extra>
           <el-button type="primary" size="small" @click="$emit('retry')">重试</el-button>
@@ -15,11 +15,9 @@
       </el-result>
     </div>
 
-    <div v-else-if="isEmpty" class="chart-state state-empty">
+    <div v-else-if="isEmpty" class="chart-overlay state-empty">
       <el-empty description="暂无数据" :image-size="80" />
     </div>
-
-    <div v-else ref="chartRef" class="chart-container"></div>
   </div>
 </template>
 
@@ -155,7 +153,8 @@ watch(() => props.xAxisType, () => { nextTick(() => updateChart()) })
 
 onMounted(() => {
   nextTick(() => {
-    if (!props.loading && !props.error && !isEmpty.value) initChart()
+    // 图表容器始终在 DOM 中，直接初始化
+    initChart()
     window.addEventListener('resize', resizeChart)
   })
 })
@@ -174,6 +173,7 @@ defineExpose({ resize: resizeChart, getInstance: () => chartInstance })
   border-radius: 12px;
   padding: 20px;
   position: relative;
+  min-height: 400px;
 }
 
 .chart-container {
@@ -182,25 +182,18 @@ defineExpose({ resize: resizeChart, getInstance: () => chartInstance })
   min-height: 300px;
 }
 
-.chart-state {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 400px;
+.chart-container.chart-dimmed {
+  opacity: 0.3;
+  pointer-events: none;
 }
 
-.state-loading { position: relative; }
-.state-loading .chart-container { opacity: 0.3; pointer-events: none; }
-
-.loading-overlay {
+.chart-overlay {
   position: absolute;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 10;
+  top: 0; left: 0; right: 0; bottom: 0;
   display: flex;
-  align-items: center;
   justify-content: center;
-  color: var(--brand-primary);
+  align-items: center;
+  z-index: 10;
 }
 
 .state-error { padding: 40px 0; }

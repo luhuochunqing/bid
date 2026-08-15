@@ -17,11 +17,18 @@ import java.util.Map;
 @Component
 class TrendAnalysisComputationService {
 
+    /**
+     * 按维度标签分组，计算投标数、中标数、中标率。
+     * 投标数 = 已中标(WON) + 未中标(LOST) 的项目数。
+     * 中标数 = 已中标(WON) 的项目数。
+     * 按 bidCount 降序排列（PRD 6.5）。
+     */
     TrendComputationResult computeDimensionTrend(List<DimensionRow> rows) {
         Map<String, MutableTrendBucket> bucketMap = new LinkedHashMap<>();
         for (DimensionRow row : rows) {
             String key = row.category() != null ? row.category() : "未知";
             MutableTrendBucket bucket = bucketMap.computeIfAbsent(key, MutableTrendBucket::new);
+            // 投标数口径：只统计已中标 + 未中标的项目
             if (row.status() == Project.Status.WON
                     || row.status() == Project.Status.LOST) {
                 bucket.bidCount++;
@@ -31,6 +38,7 @@ class TrendAnalysisComputationService {
             }
         }
 
+        // 按 bidCount 降序排列
         List<Map.Entry<String, MutableTrendBucket>> sorted = new ArrayList<>(bucketMap.entrySet());
         sorted.sort((a, b) -> Long.compare(b.getValue().bidCount, a.getValue().bidCount));
 
@@ -53,15 +61,64 @@ class TrendAnalysisComputationService {
         return new TrendComputationResult(categories, bidSeries, winSeries, winRateSeries);
     }
 
+    /**
+     * 项目状态维度专用计算：统计每个状态的所有项目数量（不限于 WON+LOST）。
+     * 因为 X 轴本身就是项目状态，每个状态的所有项目都应计入数量。
+     * 按 count 降序排列（PRD 6.5）。
+     */
+    TrendComputationResult computeProjectStatusTrend(List<DimensionRow> rows) {
+        Map<String, MutableTrendBucket> bucketMap = new LinkedHashMap<>();
+        for (DimensionRow row : rows) {
+            String key = row.category() != null ? row.category() : "未知";
+            MutableTrendBucket bucket = bucketMap.computeIfAbsent(key, MutableTrendBucket::new);
+            // 项目状态维度：统计所有项目（每个状态的项目都计入 bidCount）
+            bucket.bidCount++;
+            if (row.status() == Project.Status.WON) {
+                bucket.winCount++;
+            }
+        }
+
+        // 按 bidCount 降序排列
+        List<Map.Entry<String, MutableTrendBucket>> sorted = new ArrayList<>(bucketMap.entrySet());
+        sorted.sort((a, b) -> Long.compare(b.getValue().bidCount, a.getValue().bidCount));
+
+        List<String> categories = new ArrayList<>();
+        List<Long> bidSeries = new ArrayList<>();
+        List<Long> winSeries = new ArrayList<>();
+        List<Double> winRateSeries = new ArrayList<>();
+
+        for (Map.Entry<String, MutableTrendBucket> entry : sorted) {
+            categories.add(entry.getKey());
+            long bid = entry.getValue().bidCount;
+            long win = entry.getValue().winCount;
+            bidSeries.add(bid);
+            winSeries.add(win);
+            double winRate = bid == 0 ? 0.0
+                    : Math.round(win * 1000.0 / bid) / 10.0;
+            winRateSeries.add(winRate);
+        }
+
+        return new TrendComputationResult(categories, bidSeries, winSeries, winRateSeries);
+    }
+
+    /**
+     * 按指定时间粒度（day/week/month/year）分组，计算投标数、中标数、中标率。
+     * 投标数 = 已中标(WON) + 未中标(LOST) 的项目数。
+     * 中标数 = 已中标(WON) 的项目数。
+     * 当 startDate/endDate 均存在时，补全区间内所有时间槽（缺失显示 0），
+     * 确保 X 轴从区间起始连续到结束。
+     */
     TrendComputationResult computeTimeTrend(List<TimeDimensionRow> rows,
                                             LocalDate startDate, LocalDate endDate,
                                             String timeDimension) {
         String td = timeDimension != null ? timeDimension : "month";
 
+        // 按时间粒度分组
         Map<String, MutableTrendBucket> bucketMap = new LinkedHashMap<>();
         for (TimeDimensionRow row : rows) {
             String key = buildPeriodKey(row, td);
             MutableTrendBucket bucket = bucketMap.computeIfAbsent(key, MutableTrendBucket::new);
+            // 投标数口径：只统计已中标 + 未中标的项目
             if (row.status() == com.xiyu.bid.entity.Project.Status.WON
                     || row.status() == com.xiyu.bid.entity.Project.Status.LOST) {
                 bucket.bidCount++;
@@ -71,6 +128,8 @@ class TrendAnalysisComputationService {
             }
         }
 
+        // 生成完整时间序列：startDate ~ endDate 之间所有时间槽（正序），
+        // 缺失补 0，确保 X 轴从区间起始连续显示。
         List<String> sortedKeys = buildContinuousKeys(startDate, endDate, bucketMap.keySet(), td);
 
         List<String> categories = new ArrayList<>();
@@ -93,6 +152,13 @@ class TrendAnalysisComputationService {
         return new TrendComputationResult(categories, bidSeries, winSeries, winRateSeries);
     }
 
+    /**
+     * 根据时间粒度生成 period key。
+     *   - month: "YYYY-MM"
+     *   - week:  "YYYY-WXX"
+     *   - day:   "YYYY-MM-DD"
+     *   - year:  "YYYY"
+     */
     private String buildPeriodKey(TimeDimensionRow row, String timeDimension) {
         return switch (timeDimension != null ? timeDimension : "month") {
             case "year" -> row.year() != null ? String.valueOf(row.year()) : "未知";
@@ -108,6 +174,16 @@ class TrendAnalysisComputationService {
         };
     }
 
+    /**
+     * 生成 startDate~endDate 之间所有时间槽 key，按正序排列。
+     * 根据 timeDimension 选择生成的粒度：
+     *   - month: 逐月
+     *   - week:  逐周（ISO 周基准）
+     *   - day:   逐日
+     *   - year:  逐年
+     * 区间外但实际有数据的 key 也追加到末尾。
+     * 当 startDate/endDate 任一为空时，退化为仅按已有数据 key 排序。
+     */
     private List<String> buildContinuousKeys(LocalDate startDate, LocalDate endDate,
                                               java.util.Set<String> dataKeys, String timeDimension) {
         if (startDate == null || endDate == null) {
@@ -145,6 +221,7 @@ class TrendAnalysisComputationService {
                 }
             }
             default -> {
+                // month
                 YearMonth cur = YearMonth.from(startDate);
                 YearMonth end = YearMonth.from(endDate);
                 while (!cur.isAfter(end)) {
@@ -154,6 +231,7 @@ class TrendAnalysisComputationService {
             }
         }
 
+        // 追加区间外但实际有数据的 key（防御性，正常不会触发）
         for (String k : dataKeys) {
             if (!keys.contains(k)) {
                 keys.add(k);
@@ -172,10 +250,12 @@ class TrendAnalysisComputationService {
     }
 
     private static final class MutableTrendBucket {
+        private final String period;
         private long bidCount;
         private long winCount;
 
-        MutableTrendBucket(@SuppressWarnings("unused") String period) {
+        MutableTrendBucket(String period) {
+            this.period = period;
         }
     }
 }
