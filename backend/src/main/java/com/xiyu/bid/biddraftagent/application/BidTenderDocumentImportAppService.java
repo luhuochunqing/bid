@@ -16,6 +16,7 @@ import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
@@ -49,6 +50,7 @@ public class BidTenderDocumentImportAppService {
     private final BidDraftAgentJsonCodec jsonCodec;
     private final BidAgentOperatorResolver operatorResolver;
     private final TransactionTemplate transactionTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
     public BidTenderDocumentParseDTO parseTenderDocument(Long projectId, MultipartFile file) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
@@ -80,6 +82,12 @@ public class BidTenderDocumentImportAppService {
                 extracted,
                 profile
         );
+        // spec 041：招标文档保存成功后发布事件，scoreparse 异步消费自动触发评分标准解析
+        eventPublisher.publishEvent(new TenderDocumentStoredEvent(
+                projectId,
+                persistedDocument.document().getId(),
+                storedDocument.fileUrl()
+        ));
         return buildParseResult(persistedDocument, tender.getId(), extracted.textLength(), profile);
     }
 

@@ -34,7 +34,7 @@ import java.util.regex.Pattern;
  *   <li>格式4：价格评分 30分（维度 分值，无编号）</li>
  * </ul>
  */
-final class ScoringItemExtractor {
+public final class ScoringItemExtractor {
 
     /** 归一化正则，与 TenderIntakeTextProcessor 保持一致。 */
     private static final String WHITESPACE_PATTERN =
@@ -72,7 +72,7 @@ final class ScoringItemExtractor {
      * @param sectionText 评分标准章节文本
      * @return 提取到的评分项列表；无匹配时返回空列表
      */
-    static List<ScoringCriterion> extract(String sectionText) {
+    public static List<ScoringCriterion> extract(String sectionText) {
         List<ScoringItemRow> rows = extractRaw(sectionText);
         ScoringCriteriaClassificationPolicy policy = new ScoringCriteriaClassificationPolicy();
         List<ScoringCriterion> criteria = new ArrayList<>();

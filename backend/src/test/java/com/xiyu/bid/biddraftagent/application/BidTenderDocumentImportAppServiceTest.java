@@ -20,6 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.transaction.TransactionStatus;
@@ -68,6 +69,8 @@ class BidTenderDocumentImportAppServiceTest {
     private BidAgentOperatorResolver operatorResolver;
     @Mock
     private TransactionTemplate transactionTemplate;
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     private BidTenderDocumentImportAppService appService;
 
@@ -88,7 +91,8 @@ class BidTenderDocumentImportAppServiceTest {
                 new TenderRequirementEntityFactory(),
                 jsonCodec,
                 operatorResolver,
-                transactionTemplate
+                transactionTemplate,
+                eventPublisher
         );
     }
 

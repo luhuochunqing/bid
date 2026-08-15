@@ -67,6 +67,10 @@ public class PerformanceRecordEntity {
     @Column(name = "signing_date")
     private LocalDate signingDate;
 
+    /** 合同金额（V1188 新增；存量行为 NULL，匹配时跳过金额比对不失配——spec 041 research R7）。 */
+    @Column(name = "contract_amount", precision = 15, scale = 2)
+    private java.math.BigDecimal contractAmount;
+
     @Column(name = "expiry_date")
     private LocalDate expiryDate;
 
