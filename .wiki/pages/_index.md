@@ -69,6 +69,7 @@ backlinks:
 - [[spring-pitfalls]] — Spring Boot 陷阱集（@Transactional / @Async / SPRING_CONFIG_IMPORT / 配置优先级）
 - [[team-and-timeline]] — 团队与排期
 - [[testing/_index]] — 功能实现对照 — 测试说明文档索引
+- [[testing/container-test-env-compat]] — 容器测试环境兼容（Testcontainers / Docker Desktop / MySQL sql_mode）
 - [[testing/module-01-workbench]] — 工作台 — 蓝图功能实现对照
 - [[testing/module-02-bidding]] — 标讯中心 — 蓝图功能实现对照
 - [[testing/module-03-project]] — 投标项目 — 蓝图功能实现对照
