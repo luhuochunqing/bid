@@ -87,6 +87,40 @@ new MySQLContainer<>("mysql:8.0")
 本地未启动该容器时的失败（`Could not initialize class`）是**环境依赖**，非代码回归。
 验证 Testcontainers 路径需显式 `GITHUB_ACTIONS=true mvn test`。
 
+## 7. 打包被容器测试阻断时的处置 SOP（临时表残留）
+
+**症状**：`package-release.sh` 打包时，容器契约测试 `FlywayMysqlContainerTest.v1092MergesUsersWhenTargetRoleAlreadyExists`
+报 `Duplicate entry 'bidAdmin' for key 'tmp_role_mappings.PRIMARY'`。
+
+**根因**：V1092 脚本用 `CREATE TEMPORARY TABLE IF NOT EXISTS tmp_role_mappings` 建临时表。
+MySQL 临时表是**会话级**的，测试用例手动重放整份脚本时，若复用了 Context 启动时 Flyway
+建过该临时表的连接池会话，`IF NOT EXISTS` 不会重建，第 2 次 INSERT 撞主键。
+
+> **关键澄清**：这是**测试重放特有**的假阳性。生产/测试环境 Flyway 每个迁移版本只执行一次、
+> 不会重放，所以生产部署**不会**触发该冲突。V1092 脚本受 Flyway checksum 保护，**禁止修改**。
+
+**处置分层（按顺序判断，不要一上来绕门禁）**：
+
+1. **判定是"测试重放假阳性"还是"真迁移/生产问题"**
+   - 失败方法名含 `v1092` / 重放类，报错是 `Duplicate entry ... for key 'tmp_xxx.PRIMARY'`
+     → 测试重放特有，生产不受影响。
+   - 报错来自迁移本身（如 `Error 1292/1064/1267`）→ 可能反映生产风险，需当真问题处理。
+
+2. **测试重放假阳性** → 按测试层修，**绝不碰迁移脚本**。推荐改为**独立连接重放**：
+   直接从容器拿一条新连接（不经连接池），临时表与会话绑定、天然隔离，无需逐个 DROP：
+
+   ```java
+   try (Connection conn = MYSQL.createConnection("?allowMultiQueries=true");
+        Statement stmt = conn.createStatement()) {
+       stmt.execute(v1092Script);
+   }
+   ```
+
+3. **临时绕过** → 仅当判定为纯测试问题且时间紧，才用逃生阀
+   `XIYU_SKIP_CONTAINER_TEST=true` 跳过容器测试，但必须在 PR 注明"已绕过、待根治"并事后补修。
+
+4. **长期根治** → 重放迁移脚本的测试统一走独立连接（见第 2 步），避免为每张临时表逐个堆 DROP。
+
 ## 副作用（Cross-Module Impact）
 
 - **AbstractMysqlIntegrationTest** 的本地 fallback 依赖手动容器 `localhost:13306`，未启动即失败。
