@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useScoreParseDrawer } from './useScoreParseDrawer.js'
 import { bidAgentApi } from '@/api/modules/bidAgent.js'
 import { projectsApi } from '@/api/modules/projects.js'
-import { ElMessageBox } from 'element-plus'
+import { ElMessageBox, ElMessage } from 'element-plus'
 
 vi.mock('element-plus', async (importOriginal) => {
   const actual = await importOriginal()
@@ -103,5 +103,31 @@ describe('useScoreParseDrawer.js', () => {
     expect(ElMessageBox.confirm).toHaveBeenCalled()
     expect(projectsApi.importScoreDraftsFromAnalysis).toHaveBeenCalledWith(99)
     expect(emit).toHaveBeenCalledWith('imported', expect.any(Object))
+  })
+
+  it('supports runScoring with async runner adapter in stage 2', async () => {
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2 })
+
+    const customRunner = vi.fn().mockResolvedValue()
+    await drawer.runScoring({ runner: customRunner })
+
+    expect(customRunner).toHaveBeenCalled()
+    expect(drawer.scored.value).toBe(true)
+    expect(ElMessage.success).toHaveBeenCalledWith('AI 实际打分完成')
+  })
+
+  it('supports exportReport with popup or blob fallback', async () => {
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2 })
+
+    // Simulate popup blocked (window.open returns null)
+    const originalOpen = window.open
+    window.open = vi.fn().mockReturnValue(null)
+
+    drawer.exportReport()
+    expect(ElMessage.success).toHaveBeenCalledWith('已导出报告文件')
+
+    window.open = originalOpen
   })
 })

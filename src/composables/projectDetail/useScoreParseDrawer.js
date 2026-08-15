@@ -1,56 +1,23 @@
-// Input: props (projectId), emit
-// Output: 评分标准解析与对标打分状态机、计算属性及接口交互逻辑
-// Pos: src/composables/projectDetail/useScoreParseDrawer.js
-// 一旦我被更新，务必更新我的开头注释。
-
+/**
+ * AI 评分标准解析抽屉业务逻辑 Composable
+ * Pos: src/composables/projectDetail/useScoreParseDrawer.js
+ */
 import { ref, computed } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { bidAgentApi } from '@/api/modules/bidAgent.js'
 import { projectsApi } from '@/api/modules/projects.js'
-import { ElMessage, ElMessageBox } from 'element-plus'
-
-export const defaultScoreTemplate = [
-  { code: 'A1', dim: '技术方案', detail: '总体架构设计（架构图、组件划分、技术选型）', weight: 10, status: 'neutral', statusText: '待确认', scoreType: '主观项', estScore: '待评审', estBasis: '需评标专家根据标书技术方案描述人工评审' },
-  { code: 'A2', dim: '技术方案', detail: '微服务架构与高可用设计', weight: 8, status: 'neutral', statusText: '待确认', scoreType: '主观项', estScore: '待评审', estBasis: '需评标专家根据标书技术方案描述人工评审' },
-  { code: 'A3', dim: '技术方案', detail: '数据安全与备份恢复方案', weight: 6, status: 'neutral', statusText: '待确认', scoreType: '主观项', estScore: '待评审', estBasis: '需评标专家根据标书技术方案描述人工评审' },
-  { code: 'A4', dim: '技术方案', detail: '接口设计与开放能力', weight: 5, status: 'neutral', statusText: '待确认', scoreType: '主观项', estScore: '待评审', estBasis: '需评标专家根据标书技术方案描述人工评审' },
-  { code: 'B1', dim: '商务方案', detail: '报价合理性（与市场均价对比）', weight: 10, status: 'neutral', statusText: '待确认', scoreType: '客观项', estScore: 9, estBasis: 'AI 预计报价 580 万元处于市场均价区间（550-620 万元），预计得分 9' },
-  { code: 'B2', dim: '商务方案', detail: '付款方式响应', weight: 5, status: 'neutral', statusText: '待确认', scoreType: '客观项', estScore: 5, estBasis: 'AI 预计标书将完全响应招标付款方式（30%+60%+10%），预计满分' },
-  { code: 'C1', dim: '实施服务', detail: '项目实施计划与里程碑', weight: 7, status: 'neutral', statusText: '待确认', scoreType: '主观项', estScore: '待评审', estBasis: '需评标专家根据标书实施计划人工评审' },
-  { code: 'C2', dim: '实施服务', detail: '团队配置（项目经理 + 核心成员）', weight: 8, status: 'ok', statusText: '✓ 满足', scoreType: '客观项', estScore: 8, estBasis: '知识库命中：人员库匹配项目经理 PMP 认证 + 核心成员资质齐全，预计满分', kbHit: true },
-  { code: 'C3', dim: '实施服务', detail: '培训方案与知识转移', weight: 5, status: 'neutral', statusText: '待确认', scoreType: '主观项', estScore: '待评审', estBasis: '需评标专家根据标书培训方案人工评审' },
-  { code: 'D1', dim: '资质业绩', detail: '信息系统集成及服务资质', weight: 6, status: 'ok', statusText: '✓ 满足', scoreType: '客观项', estScore: 6, estBasis: '知识库命中：资质库匹配证书「信息系统集成及服务资质一级」，预计满分', kbHit: true },
-  { code: 'D2', dim: '资质业绩', detail: 'CMMI 5 级认证', weight: 5, status: 'danger', statusText: '✗ 不满足', scoreType: '客观项', estScore: 0, estBasis: '知识库未匹配 CMMI 5 级证书（最高为 CMMI 3 级），预计 0 分' },
-  { code: 'D3', dim: '资质业绩', detail: '近 3 年类似项目业绩（≥3 项）', weight: 7, status: 'ok', statusText: '✓ 满足', scoreType: '客观项', estScore: 7, estBasis: '知识库命中：业绩库匹配近 3 年类似项目 5 项（≥3 项要求），预计满分', kbHit: true },
-  { code: 'E1', dim: '加分项', detail: '本地化服务能力（本地团队 / 办公场地）', weight: 18, status: 'neutral', statusText: '待确认', scoreType: '主观项', estScore: '待评审', estBasis: '工商注册地与项目所在地不一致，需评标专家根据标书本地化服务承诺人工评审' },
-]
-
-export const defaultScoreResults = {
-  A1: { actualScore: null, scoreType: 'subjective', status: 'subjective', evidence: '技术方案描述类评分项，需评标专家人工评审' },
-  A2: { actualScore: null, scoreType: 'subjective', status: 'subjective', evidence: '技术方案描述类评分项，需评标专家人工评审' },
-  A3: { actualScore: null, scoreType: 'subjective', status: 'subjective', evidence: '技术方案描述类评分项，需评标专家人工评审' },
-  A4: { actualScore: null, scoreType: 'subjective', status: 'subjective', evidence: '技术方案描述类评分项，需评标专家人工评审' },
-  B1: { actualScore: 9, scoreType: 'objective', status: 'full', evidence: '报价 580 万元，处于市场均价区间（550-620 万元）', quote: '第 3 章 投标报价（第 12 页）：我方投标总价：人民币 580 万元整（含税）' },
-  B2: { actualScore: 5, scoreType: 'objective', status: 'full', evidence: '完全响应招标文件付款方式（30%+60%+10%）', quote: '第 5 章 商务条款响应（第 18 页）：我方完全接受招标文件规定的付款方式：合同签订后预付 30%，验收合格后付 60%，质保期满付 10%。' },
-  C1: { actualScore: null, scoreType: 'subjective', status: 'subjective', evidence: '实施计划类评分项，需评标专家人工评审' },
-  C2: { actualScore: 8, scoreType: 'objective', status: 'full', evidence: '标书 §3.2 配置项目经理 1 名 + 核心成员 5 名，人员资质均符合招标要求', quote: '第 6 章 实施服务方案（第 22 页）：项目经理：张三（PMP 认证，10 年智慧园区项目经验）；核心成员：架构师 1、前端 1、后端 2、测试 1。' },
-  C3: { actualScore: null, scoreType: 'subjective', status: 'subjective', evidence: '培训方案类评分项，需评标专家人工评审' },
-  D1: { actualScore: 6, scoreType: 'objective', status: 'full', evidence: '知识库命中：资质库匹配证书「信息系统集成及服务资质一级（有效期至 2027-08-12）」', kbHit: true },
-  D2: { actualScore: 3, scoreType: 'objective', status: 'partial', evidence: '标书已补充 CMMI 3 级证书说明及替代方案，部分满足要求', quote: '第 7 章 资质证明（第 28 页）：我方虽未取得 CMMI 5 级认证，但已通过 CMMI 3 级认证（证书编号：CN-XXXX-2024），并建立了完整的研发管理体系，可覆盖招标文件要求的研发过程管理能力。', missedReason: 'CMMI 5 级认证未找到匹配证书，标书已补充 CMMI 3 级说明，部分得分' },
-  D3: { actualScore: 7, scoreType: 'objective', status: 'full', evidence: '知识库命中：业绩库匹配近 3 年类似项目 5 项（≥3 项要求），含智慧园区项目 3 项', quote: '第 7 章 资质证明（第 30 页）：近 3 年类似项目业绩 5 项，含智慧园区项目 3 项' },
-  E1: { actualScore: null, scoreType: 'subjective', status: 'subjective', evidence: '本地化服务能力评分项，需评标专家人工评审（可参考工商注册地辅助判定）' },
-}
+import { defaultScoreTemplate, defaultScoreResults } from './scoreParseDefaults.js'
 
 export function useScoreParseDrawer(props, emit) {
   const visible = ref(false)
   const loading = ref(false)
   const error = ref('')
-
   const isSection1Expanded = ref(true)
   const currentStage = ref(2)
   const scored = ref(true)
   const scoringOverlayVisible = ref(false)
 
-  const sourceFileName = ref('xxx.pdf')
+  const sourceFileName = ref('测试招标文件.pdf')
   const parseTime = ref('')
   const bidFileName = ref('xxx 投标文件_v3.pdf')
   const scoreTime = ref('')
@@ -64,57 +31,72 @@ export function useScoreParseDrawer(props, emit) {
   const selectedItem = ref(null)
   const selectedResult = ref(null)
 
-  const totalWeight = computed(() => scoreItems.value.reduce((a, b) => a + (Number(b.weight) || 0), 0))
-  const objectiveWeight = computed(() =>
-    scoreItems.value.filter((s) => s.scoreType === '客观项').reduce((a, b) => a + (Number(b.weight) || 0), 0)
-  )
+  const totalWeight = computed(() => {
+    return scoreItems.value.reduce((acc, item) => acc + (Number(item.weight) || 0), 0) || 100
+  })
+
+  const objectiveWeight = computed(() => {
+    return scoreItems.value
+      .filter((s) => (s.scoreType || '').includes('客观') || (scoreResults.value[s.code]?.scoreType === 'objective'))
+      .reduce((acc, item) => acc + (Number(item.weight) || 0), 0)
+  })
+
   const subjectiveWeight = computed(() => totalWeight.value - objectiveWeight.value)
 
   const statsOkCount = computed(() => scoreItems.value.filter((s) => s.status === 'ok').length)
   const statsDangerCount = computed(() => scoreItems.value.filter((s) => s.status === 'danger').length)
-  const statsNeutralCount = computed(() => scoreItems.value.filter((s) => s.status !== 'ok' && s.status !== 'danger').length)
+  const statsNeutralCount = computed(() => scoreItems.value.filter((s) => s.status === 'neutral' || s.status === 'warn').length)
 
-  const estTotalScore = computed(() =>
-    scoreItems.value.reduce((sum, item) => sum + (typeof item.estScore === 'number' ? item.estScore : 0), 0)
-  )
-
-  const actualTotalScore = computed(() =>
-    Object.entries(scoreResults.value).reduce((sum, [, res]) => {
-      return sum + (res && res.scoreType === 'objective' && typeof res.actualScore === 'number' ? res.actualScore : 0)
+  const estTotalScore = computed(() => {
+    return scoreItems.value.reduce((acc, s) => {
+      return typeof s.estScore === 'number' ? acc + s.estScore : acc
     }, 0)
-  )
+  })
 
-  function openDetail(item, idx, mode) {
+  const actualTotalScore = computed(() => {
+    return Object.values(scoreResults.value).reduce((acc, r) => {
+      return r?.scoreType === 'objective' && typeof r?.actualScore === 'number' ? acc + r.actualScore : acc
+    }, 0)
+  })
+
+  function openDetail(item, result = null, mode = 'est') {
     selectedItem.value = item
-    selectedResult.value = scoreResults.value[item.code] || null
+    selectedResult.value = result || scoreResults.value[item.code] || null
     detailMode.value = mode
     detailModalVisible.value = true
   }
 
   async function open(options = {}) {
     visible.value = true
+    currentStage.value = options.stage || 2
+    if (options.file) {
+      bidFileName.value = options.file
+    }
+    await fetchStage1Data(options)
+  }
+
+  async function fetchStage1Data(options = {}) {
     loading.value = true
     error.value = ''
-    currentStage.value = options.stage ?? 2
-    scored.value = options.autoScore ? false : true
-    if (options.file) bidFileName.value = options.file
-
     try {
-      const [analysisResp, _qualResp, scoringResp] = await Promise.allSettled([
+      const [analysisRes, criteriaRes] = await Promise.allSettled([
         bidAgentApi.getFullAnalysis(props.projectId),
-        bidAgentApi.getQualificationMatch(props.projectId),
         bidAgentApi.getScoringCriteria(props.projectId),
       ])
 
-      parseTime.value = new Date().toLocaleString('zh-CN', { hour12: false })
-      scoreTime.value = new Date().toLocaleString('zh-CN', { hour12: false })
+      const analysisData = analysisRes.status === 'fulfilled' ? analysisRes.value?.data : null
+      const criteriaData = criteriaRes.status === 'fulfilled' ? criteriaRes.value?.data : null
 
-      const analysis = analysisResp.status === 'fulfilled' ? analysisResp.value?.data : null
-      const scoringData = scoringResp.status === 'fulfilled' ? scoringResp.value?.data : null
+      if (analysisData?.sourceFileName) {
+        sourceFileName.value = analysisData.sourceFileName
+      }
+      if (analysisData?.bidFileName) {
+        bidFileName.value = analysisData.bidFileName
+      }
+      parseTime.value = analysisData?.parseTime || new Date().toLocaleString('zh-CN', { hour12: false })
+      scoreTime.value = analysisData?.scoreTime || new Date().toLocaleString('zh-CN', { hour12: false })
 
-      sourceFileName.value = scoringData?.sourceFileName || analysis?.sourceFileName || 'xxx.pdf'
-
-      const apiItems = scoringData?.structuredItems || analysis?.scoringCriteria?.items || []
+      const apiItems = criteriaData?.structuredItems || analysisData?.scoringCriteria?.items
       if (Array.isArray(apiItems) && apiItems.length > 0) {
         scoreItems.value = apiItems.map((s, i) => {
           const fallback = defaultScoreTemplate[i] || {}
@@ -144,7 +126,7 @@ export function useScoreParseDrawer(props, emit) {
       })
 
       if (options.autoScore) {
-        setTimeout(() => runScoring(true), 400)
+        setTimeout(() => runScoring({ auto: true }), 400)
       }
     } catch (e) {
       error.value = e?.response?.data?.msg || '评分标准解析加载失败'
@@ -153,18 +135,27 @@ export function useScoreParseDrawer(props, emit) {
     }
   }
 
-  function runScoring(auto = false) {
+  async function runScoring(options = {}) {
+    const isAuto = typeof options === 'boolean' ? options : !!options?.auto
+    const customRunner = typeof options === 'object' && typeof options.runner === 'function' ? options.runner : null
+
     if (currentStage.value !== 2) {
       ElMessage.warning('请先进入阶段 2（上传投标文件后）')
       return
     }
     scoringOverlayVisible.value = true
-    setTimeout(() => {
-      scoringOverlayVisible.value = false
+    try {
+      if (customRunner) {
+        await customRunner()
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 1600))
+      }
       scored.value = true
       scoreTime.value = new Date().toLocaleString('zh-CN', { hour12: false })
-      ElMessage.success(auto ? 'AI 自动打分完成' : 'AI 实际打分完成')
-    }, 1600)
+      ElMessage.success(isAuto ? 'AI 自动打分完成' : 'AI 实际打分完成')
+    } finally {
+      scoringOverlayVisible.value = false
+    }
   }
 
   async function reparse() {
@@ -173,69 +164,72 @@ export function useScoreParseDrawer(props, emit) {
   }
 
   function exportReport() {
-    ElMessage.info('正在生成 AI 评分标准与打分解析报告 PDF...')
+    const reportHtml = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>AI 评分标准解析报告 - ${props.projectId}</title>
+<style>body{font-family:sans-serif;padding:24px;color:#333;}table{width:100%;border-collapse:collapse;margin-top:16px;}th,td{border:1px solid #ddd;padding:8px;font-size:12px;text-align:left;}th{background:#f5f7fa;}.num{text-align:right;}</style>
+</head><body>
+<h2>AI 评分标准解析与对标报告</h2>
+<p>项目编号：${props.projectId} | 招标文件：${sourceFileName.value} | 投标文件：${bidFileName.value}</p>
+<p>客观项得分合计：${actualTotalScore.value} 分 / ${objectiveWeight.value} 分 (总权重: ${totalWeight.value} 分)</p>
+<table><thead><tr><th>编号</th><th>维度</th><th>细则</th><th>权重</th><th>类别</th><th>满足状态</th><th>实际得分</th></tr></thead>
+<tbody>${scoreItems.value.map((s) => `<tr><td>${s.code}</td><td>${s.dim}</td><td>${s.req}</td><td class="num">${s.weight}</td><td>${s.scoreType}</td><td>${s.statusText}</td><td class="num">${scoreResults.value[s.code]?.actualScore ?? '待评审'}</td></tr>`).join('')}</tbody>
+</table></body></html>`
+
+    const printWin = window.open('', '_blank')
+    if (printWin) {
+      printWin.document.write(reportHtml)
+      printWin.document.close()
+      printWin.focus()
+      setTimeout(() => printWin.print(), 250)
+    } else {
+      // 降级使用 Blob 本地下载
+      if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+        const blob = new Blob([reportHtml], { type: 'text/html;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `AI评分标准解析报告_项目${props.projectId}.html`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        if (typeof URL.revokeObjectURL === 'function') {
+          URL.revokeObjectURL(url)
+        }
+      }
+      ElMessage.success('已导出报告文件')
+    }
   }
 
   async function importToDrafts() {
-    if (!scoreItems.value.length) return
-    try {
-      await ElMessageBox.confirm(
-        '将导入 AI 分析的评分标准到评分草稿，会覆盖现有未生成的草稿。确认导入？',
-        '导入到评分草稿',
-        { confirmButtonText: '确认导入', cancelButtonText: '取消', type: 'warning' }
-      )
-    } catch {
+    if (scoreItems.value.length === 0) {
+      ElMessage.warning('暂无评分项可导入')
       return
     }
-
-    importing.value = true
     try {
+      await ElMessageBox.confirm(
+        `确定将解析出的 ${scoreItems.value.length} 个评分项规则导入到项目评分草稿库中吗？`,
+        '导入到评分草稿',
+        { confirmButtonText: '确定导入', cancelButtonText: '取消', type: 'info' },
+      )
+      importing.value = true
       const res = await projectsApi.importScoreDraftsFromAnalysis(props.projectId)
-      if (res?.data) {
-        ElMessage.success(`成功导入 ${res.data.totalCount ?? scoreItems.value.length} 项评分草稿`)
-        emit('imported', res.data)
-      } else {
-        ElMessage.error(res?.msg || '导入失败')
-      }
+      const count = res?.data?.importedCount ?? scoreItems.value.length
+      ElMessage.success(`成功导入 ${count} 条评分项到草稿库`)
+      emit('imported', { count })
     } catch (e) {
-      ElMessage.error(e?.response?.data?.msg || e?.message || '导入失败')
+      if (e !== 'cancel') {
+        ElMessage.error(e?.response?.data?.msg || '导入评分草稿失败')
+      }
     } finally {
       importing.value = false
     }
   }
 
   return {
-    visible,
-    loading,
-    error,
-    isSection1Expanded,
-    currentStage,
-    scored,
-    scoringOverlayVisible,
-    sourceFileName,
-    parseTime,
-    bidFileName,
-    scoreTime,
-    importing,
-    scoreItems,
-    scoreResults,
-    detailModalVisible,
-    detailMode,
-    selectedItem,
-    selectedResult,
-    totalWeight,
-    objectiveWeight,
-    subjectiveWeight,
-    statsOkCount,
-    statsDangerCount,
-    statsNeutralCount,
-    estTotalScore,
-    actualTotalScore,
-    openDetail,
-    open,
-    runScoring,
-    reparse,
-    exportReport,
-    importToDrafts,
+    visible, loading, error, isSection1Expanded, currentStage, scored, scoringOverlayVisible,
+    sourceFileName, parseTime, bidFileName, scoreTime, importing, scoreItems, scoreResults,
+    detailModalVisible, detailMode, selectedItem, selectedResult, totalWeight, objectiveWeight,
+    subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
+    openDetail, open, runScoring, reparse, exportReport, importToDrafts,
   }
 }

@@ -25,6 +25,18 @@ describe('ScoreItemDetailModal.vue', () => {
     suggestion: '建议尽快启动 CMMI 5 级认证评估流程',
   }
 
+  const globalStubs = {
+    'el-dialog': {
+      template: `
+        <div class="el-dialog-mock" v-if="modelValue">
+          <div class="el-dialog__header">{{ title }}</div>
+          <slot />
+        </div>
+      `,
+      props: ['modelValue', 'title'],
+    },
+  }
+
   it('renders estimated mode correctly', () => {
     const wrapper = mount(ScoreItemDetailModal, {
       props: {
@@ -33,9 +45,10 @@ describe('ScoreItemDetailModal.vue', () => {
         item: mockItem,
         result: null,
       },
+      global: { stubs: globalStubs },
     })
 
-    expect(wrapper.find('.detail-modal-title').text()).toContain('D2 · 资质业绩 — 预计评分详情')
+    expect(wrapper.find('.el-dialog__header').text()).toContain('D2 · 资质业绩 — 预计评分详情')
     expect(wrapper.find('.detail-value.status-cell').text()).toBe('✗ 不满足')
     expect(wrapper.find('.detail-value.zero').text()).toBe('0 / 5')
     expect(wrapper.text()).toContain('知识库未匹配 CMMI 5 级证书')
@@ -49,9 +62,10 @@ describe('ScoreItemDetailModal.vue', () => {
         item: mockItem,
         result: mockResult,
       },
+      global: { stubs: globalStubs },
     })
 
-    expect(wrapper.find('.detail-modal-title').text()).toContain('D2 · 资质业绩 — 实际评分详情')
+    expect(wrapper.find('.el-dialog__header').text()).toContain('D2 · 资质业绩 — 实际评分详情')
     expect(wrapper.find('.detail-value.partial').text()).toBe('3 / 5')
     expect(wrapper.text()).toContain('标书已补充 CMMI 3 级证书说明及替代方案')
     expect(wrapper.text()).toContain('第 7 章 资质证明')
@@ -59,17 +73,17 @@ describe('ScoreItemDetailModal.vue', () => {
     expect(wrapper.text()).toContain('建议尽快启动 CMMI 5 级认证评估流程')
   })
 
-  it('emits close and update:visible when close button clicked', async () => {
+  it('handles closed event', async () => {
     const wrapper = mount(ScoreItemDetailModal, {
       props: {
         visible: true,
         mode: 'est',
         item: mockItem,
       },
+      global: { stubs: globalStubs },
     })
 
-    await wrapper.find('.detail-modal-close').trigger('click')
-    expect(wrapper.emitted('update:visible')?.[0]).toEqual([false])
+    wrapper.vm.handleClosed()
     expect(wrapper.emitted('close')).toBeTruthy()
   })
 })

@@ -4,69 +4,72 @@
   Pos: src/views/Project/stages/components/ScoreItemDetailModal.vue
 -->
 <template>
-  <div v-if="visible" class="detail-mask" :class="{ open: visible }" @click="handleClose">
-    <div class="detail-modal" :class="{ open: visible }" @click.stop>
-      <div class="detail-modal-header">
-        <div class="detail-modal-title">{{ modalTitle }}</div>
-        <button class="detail-modal-close" @click="handleClose">×</button>
+  <el-dialog
+    v-model="dialogVisible"
+    :title="modalTitle"
+    width="560px"
+    :append-to-body="true"
+    :close-on-click-modal="true"
+    class="score-item-detail-dialog"
+    @closed="handleClosed"
+  >
+    <div class="detail-modal-body">
+      <div class="detail-row">
+        <div class="detail-label">详细评分项要素</div>
+        <div class="detail-value">{{ item?.detail || item?.req || '-' }}</div>
       </div>
-      <div class="detail-modal-body">
-        <div class="detail-row">
-          <div class="detail-label">详细评分项要素</div>
-          <div class="detail-value">{{ item?.detail || '-' }}</div>
-        </div>
 
-        <div class="detail-row">
-          <div class="detail-label">权重 / 评分类别</div>
-          <div class="detail-value">
-            权重 {{ item?.weight ?? 0 }} 分 ｜
-            <span class="pill" :class="item?.scoreType === '客观项' ? 'info' : 'neutral'">{{ item?.scoreType || '客观项' }}</span>
+      <div class="detail-row">
+        <div class="detail-label">权重 / 评分类别</div>
+        <div class="detail-value">
+          权重 {{ item?.weight ?? 0 }} 分 ｜
+          <span class="pill" :class="item?.scoreType === '客观项' ? 'info' : 'neutral'">{{ item?.scoreType || '客观项' }}</span>
+        </div>
+      </div>
+
+      <div class="detail-row">
+        <div class="detail-label">满足状态</div>
+        <div class="detail-value status-cell" :class="item?.status || 'neutral'">
+          {{ item?.statusText || '待确认' }}
+        </div>
+      </div>
+
+      <div class="detail-row">
+        <div class="detail-label">{{ mode === 'actual' ? '实际得分' : '预计得分' }}</div>
+        <div class="detail-value" :class="scoreClass">{{ scoreDisplay }}</div>
+      </div>
+
+      <div class="detail-row">
+        <div class="detail-label">{{ mode === 'actual' ? '评分依据' : '得分依据' }}</div>
+        <div class="detail-quote">{{ basisText }}</div>
+      </div>
+
+      <div v-if="mode === 'actual' && result?.quote" class="detail-row">
+        <div class="detail-label">标书引用</div>
+        <div class="detail-quote">{{ result.quote }}</div>
+      </div>
+
+      <div v-if="mode === 'actual' && result?.missedReason" class="detail-row">
+        <div class="detail-label">缺失说明</div>
+        <div class="detail-miss">{{ result.missedReason }}</div>
+      </div>
+
+      <div v-if="suggestionText" class="detail-row">
+        <div class="detail-label">修改建议</div>
+        <div class="detail-suggestion">
+          <div class="suggestion-title">
+            💡 {{ item?.status === 'danger' ? '不满足项改进建议' : '待确认项补充建议' }}
           </div>
-        </div>
-
-        <div class="detail-row">
-          <div class="detail-label">满足状态</div>
-          <div class="detail-value status-cell" :class="item?.status || 'neutral'">
-            {{ item?.statusText || '待确认' }}
-          </div>
-        </div>
-
-        <div class="detail-row">
-          <div class="detail-label">{{ mode === 'actual' ? '实际得分' : '预计得分' }}</div>
-          <div class="detail-value" :class="scoreClass">{{ scoreDisplay }}</div>
-        </div>
-
-        <div class="detail-row">
-          <div class="detail-label">{{ mode === 'actual' ? '评分依据' : '得分依据' }}</div>
-          <div class="detail-quote">{{ basisText }}</div>
-        </div>
-
-        <div v-if="mode === 'actual' && result?.quote" class="detail-row">
-          <div class="detail-label">标书引用</div>
-          <div class="detail-quote">{{ result.quote }}</div>
-        </div>
-
-        <div v-if="mode === 'actual' && result?.missedReason" class="detail-row">
-          <div class="detail-label">缺失说明</div>
-          <div class="detail-miss">{{ result.missedReason }}</div>
-        </div>
-
-        <div v-if="suggestionText" class="detail-row">
-          <div class="detail-label">修改建议</div>
-          <div class="detail-suggestion">
-            <div class="suggestion-title">
-              💡 {{ item?.status === 'danger' ? '不满足项改进建议' : '待确认项补充建议' }}
-            </div>
-            {{ suggestionText }}
-          </div>
+          {{ suggestionText }}
         </div>
       </div>
     </div>
-  </div>
+  </el-dialog>
 </template>
 
 <script setup>
 import { computed } from 'vue'
+import { defaultSuggestions } from '@/composables/projectDetail/scoreParseDefaults.js'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -77,8 +80,12 @@ const props = defineProps({
 
 const emit = defineEmits(['update:visible', 'close'])
 
-function handleClose() {
-  emit('update:visible', false)
+const dialogVisible = computed({
+  get: () => props.visible,
+  set: (val) => emit('update:visible', val),
+})
+
+function handleClosed() {
   emit('close')
 }
 
@@ -118,19 +125,6 @@ const basisText = computed(() => {
   return props.item?.estBasis || '需评标专家根据标书描述人工评审'
 })
 
-const defaultSuggestions = {
-  A1: '建议在标书中补充完整的总体架构设计图，明确组件划分和技术选型依据，确保架构方案与招标要求逐条对齐',
-  A2: '建议补充微服务架构图、服务治理方案（注册中心、配置中心、网关）及高可用容灾设计说明',
-  A3: '建议详细描述数据加密方案（含国密算法支持）、备份策略（全量+增量）及灾难恢复流程',
-  A4: '建议补充 API 接口规范文档，提供第三方系统集成示例及开放能力清单',
-  B1: '建议补充报价明细构成说明，确保报价完整覆盖软硬件、实施、运维全部费用，避免漏项',
-  B2: '建议在标书中逐条明确响应招标文件规定的付款方式条款，避免模糊表述',
-  C1: '建议补充项目实施计划甘特图，明确各里程碑节点、交付物及责任人',
-  C3: '建议补充培训方案详细计划，包括培训内容、课时安排、考核方式及知识转移保障措施',
-  D2: '建议尽快启动 CMMI 5 级认证评估流程，或在标书中提供更充分的替代方案说明（如 CMMI 3 级 + 研发管理体系证明）',
-  E1: '建议在标书中补充本地化服务承诺，包括本地团队派驻计划、办公场地租赁证明或合作伙伴协议',
-}
-
 const suggestionText = computed(() => {
   if (props.result?.suggestion) return props.result.suggestion
   if (props.item?.suggestion) return props.item.suggestion
@@ -142,15 +136,7 @@ const suggestionText = computed(() => {
 </script>
 
 <style scoped>
-.detail-mask { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); opacity: 0; visibility: hidden; transition: opacity 0.25s, visibility 0.25s; z-index: 4000; }
-.detail-mask.open { opacity: 1; visibility: visible; }
-.detail-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.95); width: 560px; max-width: calc(100vw - 32px); max-height: 75vh; background: var(--bg-white); border-radius: var(--radius-md); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2); z-index: 4001; opacity: 0; visibility: hidden; transition: all 0.25s; display: flex; flex-direction: column; }
-.detail-modal.open { opacity: 1; visibility: visible; transform: translate(-50%, -50%) scale(1); }
-.detail-modal-header { padding: 14px 20px; border-bottom: 1px solid var(--gray-100); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
-.detail-modal-title { font-size: 15px; font-weight: 600; color: var(--text-primary); }
-.detail-modal-close { width: 28px; height: 28px; border-radius: var(--radius-sm); color: var(--text-muted); font-size: 18px; display: inline-flex; align-items: center; justify-content: center; background: none; border: none; cursor: pointer; }
-.detail-modal-close:hover { background: var(--bg-muted); color: var(--text-primary); }
-.detail-modal-body { flex: 1; overflow-y: auto; padding: 16px 20px; font-size: 13px; color: var(--text-primary-ui); line-height: 1.7; }
+.detail-modal-body { font-size: 13px; color: var(--text-primary-ui); line-height: 1.7; }
 .detail-row { margin-bottom: 14px; }
 .detail-label { font-size: 12px; font-weight: 600; color: var(--brand-xiyu-logo-active); margin-bottom: 4px; padding-left: 8px; border-left: 3px solid var(--brand-xiyu-logo); line-height: 1.4; }
 .detail-value { font-size: 13px; color: var(--text-primary-ui); }
