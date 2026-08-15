@@ -1,284 +1,259 @@
+<!--
+  Input: projectId, open options (stage, autoScore, file)
+  Output: AI 评分标准解析 V3 抽屉（阶段 1 招标文件提取 + 阶段 2 投标文件实际打分）
+  Pos: src/views/Project/stages/components/ScoreParseDrawer.vue
+  一旦我被更新，务必更新我的开头注释。
+-->
 <template>
-  <el-drawer v-model="visible" title="AI 评分标准解析" size="780px" :close-on-click-modal="false">
-    <div v-if="loading" style="text-align:center;padding:60px 0;color:var(--text-muted);">
-      <div style="font-size:28px;margin-bottom:12px;">🤖</div>
-      <div>AI 正在解析招标文件评分标准，联动知识库做智能比对<span class="dots"></span></div>
+  <el-drawer
+    v-model="visible"
+    title="AI 评分标准解析"
+    size="960px"
+    :close-on-click-modal="false"
+    class="score-parse-drawer"
+  >
+    <div v-if="loading" class="loading-state">
+      <div class="loading-icon">🤖</div>
+      <div class="loading-text">AI 正在解析评分标准，联动知识库做智能比对<span class="dots"></span></div>
     </div>
-    <div v-else-if="error" style="text-align:center;padding:60px 0;color:var(--color-warning);">
+
+    <div v-else-if="error" class="error-state">
       <div>⚠ {{ error }}</div>
+      <el-button size="small" style="margin-top: 12px" @click="reparse">重试</el-button>
     </div>
-    <template v-else>
-      <!-- 摘要统计 -->
-      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px;">
-        <div v-for="s in stats" :key="s.label" style="text-align:center;padding:10px 4px;background:var(--bg-muted);border-radius:6px;border:1px solid var(--gray-100);cursor:pointer;" @click="activeTab = s.key">
-          <div :style="{fontSize:'20px',fontWeight:700,color:s.color||'var(--brand-xiyu-logo)'}">{{ s.count }}</div>
-          <div style="font-size:11px;color:var(--text-light);margin-top:2px;">{{ s.label }}</div>
+
+    <div v-else class="drawer-content-wrapper">
+      <div class="scoring-overlay" :class="{ show: scoringOverlayVisible }">
+        <div class="spinner"></div>
+        <div class="scoring-text">AI 正在对标已上传标书进行实际打分...</div>
+        <div class="scoring-sub">读取评分项 → 解析标书内容 → 比对知识库资质证书 → 计算客观项得分</div>
+      </div>
+
+      <!-- 顶部操作与阶段指示栏 -->
+      <div class="top-action-bar">
+        <div class="stage-tag-info">
+          <span class="stage-badge" :class="currentStage === 1 ? 'stage-1' : 'stage-2'">
+            {{ currentStage === 1 ? '阶段 1 · 招标文件解析' : '阶段 2 · 投标文件打分' }}
+          </span>
+          <span class="sub-hint">
+            {{ currentStage === 1 ? '标书制作前评分项提取与满足度预判' : '针对已上传标书进行对标实际打分' }}
+          </span>
+        </div>
+        <div class="btn-group">
+          <button class="btn-tool" @click="reparse">🔄 重新解析</button>
+          <button class="btn-tool primary" :disabled="importing || scoreItems.length === 0" @click="importToDrafts">📥 导入到评分草稿</button>
+          <button class="btn-tool" @click="exportReport">📤 导出报告</button>
         </div>
       </div>
 
-      <!-- 来源信息 + 工具栏 -->
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
-        <span>📄 来源招标文件 · 解析时间 {{ parseTime }}</span>
-        <div style="display:flex;gap:6px;">
-          <button style="padding:4px 10px;background:var(--bg-white);border:1px solid var(--gray-200);border-radius:4px;font-size:11px;cursor:pointer;color:var(--border-focus);" @click="reparse">🔄 重新解析</button>
-          <button :disabled="importing || scoreItems.length === 0" :style="{ padding: '4px 10px', border: '1px solid var(--gray-200)', borderRadius: '4px', fontSize: '11px', cursor: (importing || scoreItems.length === 0) ? 'not-allowed' : 'pointer', background: 'var(--brand-xiyu-logo)', color: 'var(--bg-white)', borderColor: 'var(--brand-xiyu-logo)', opacity: (importing || scoreItems.length === 0) ? 0.6 : 1 }" @click="importToDrafts">📥 导入到评分草稿</button>
-          <button style="padding:4px 10px;background:var(--bg-white);border:1px solid var(--gray-200);border-radius:4px;font-size:11px;cursor:pointer;color:var(--border-focus);" @click="exportReport">📤 导出报告</button>
-        </div>
-      </div>
-
-      <!-- 折叠面板 -->
-      <div v-for="tab in tabs" :key="tab.key" style="background:var(--bg-white);border:1px solid var(--border-base);border-radius:8px;margin-bottom:8px;overflow:hidden;">
-        <div style="padding:10px 14px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;background:var(--bg-white);border-bottom:activeTab===tab.key?'1px solid var(--gray-100)':'transparent';" @click="toggleTab(tab.key)">
-          <div style="font-size:13px;font-weight:600;color:var(--gray-700);">{{ tab.icon }} {{ tab.title }}</div>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span v-for="p in tab.pills" :key="p.txt" :style="{fontSize:'11px',padding:'1px 6px',borderRadius:'3px',fontWeight:600,background:p.cls==='danger'?'var(--status-danger-bg)':p.cls==='warn'?'var(--status-warning-bg)':'var(--status-success-bg)',color:p.cls==='danger'?'var(--status-danger-color)':p.cls==='warn'?'var(--status-warning-color)':'var(--status-success-color)'}">{{ p.txt }}</span>
-            <span style="color:var(--text-lighter);font-size:14px;transition:transform .2s;">{{ activeTab === tab.key ? '▴' : '▾' }}</span>
+      <!-- 第一部分：招标文件解析 -->
+      <div class="section-divider">
+        <div class="section-title-bar">
+          <span class="section-num">1</span>
+          招标文件解析
+          <span class="section-sub">（规则提取与满足预判）</span>
+          <div class="section-actions">
+            <button class="btn-primary-sm" @click="reparse">🔄 重新解析</button>
           </div>
         </div>
-        <div v-if="activeTab === tab.key" style="padding:12px 14px;border-top:1px solid var(--gray-100);">
-          <!-- 评分表 -->
-          <table v-if="tab.key === 'score'" style="width:100%;border-collapse:collapse;font-size:12px;">
-            <thead><tr style="background:var(--bg-muted-2);"><th style="padding:6px 8px;border:1px solid var(--border-base);text-align:left;">编号</th><th style="padding:6px 8px;border:1px solid var(--border-base);text-align:left;">维度</th><th style="padding:6px 8px;border:1px solid var(--border-base);text-align:left;">指标</th><th style="padding:6px 8px;border:1px solid var(--border-base);text-align:center;">权重</th></tr></thead>
-            <tbody>
-              <tr v-for="s in scoreItems" :key="s.code"><td style="padding:6px 8px;border:1px solid var(--gray-100);">{{ s.code }}</td><td style="padding:6px 8px;border:1px solid var(--gray-100);">{{ s.dim }}</td><td style="padding:6px 8px;border:1px solid var(--gray-100);">{{ s.detail }}</td><td style="padding:6px 8px;border:1px solid var(--gray-100);text-align:center;font-weight:700;color:var(--brand-xiyu-logo);">{{ s.weight }}</td></tr>
-              <tr style="background:var(--bg-muted);"><td colspan="3" style="padding:6px 8px;text-align:right;font-weight:600;">合计</td><td style="padding:6px 8px;text-align:center;font-weight:700;color:var(--brand-xiyu-logo);">{{ totalWeight }}</td></tr>
-            </tbody>
-          </table>
 
-          <!-- 资质要求（含状态标签 + 筛选） -->
-          <div v-if="tab.key === 'qual'">
-            <div style="margin-bottom:8px;display:flex;gap:6px;">
-              <span v-for="f in qualFilters" :key="f.key" :style="{padding:'3px 10px',borderRadius:'12px',fontSize:'11px',cursor:'pointer',fontWeight:600,border:f.active?'2px solid var(--brand-xiyu-logo)':'1px solid var(--gray-200)',background:f.active?'var(--status-success-bg-soft-active)':'var(--bg-white)',color:f.active?'var(--brand-xiyu-logo)':'var(--text-secondary)'}" @click="setQualFilter(f.key)">{{ f.label }}</span>
-            </div>
-            <div v-for="q in filteredQualItems" :key="q.id" :style="{padding:'10px 12px',marginBottom:'8px',borderRadius:'6px',background:q.status==='ok'?'var(--status-success-bg-soft)':q.status==='warn'?'var(--status-warning-bg-soft)':q.status==='danger'?'var(--status-danger-bg-soft)':'var(--bg-muted)',border:'1px solid '+(q.status==='ok'?'var(--status-success-border)':q.status==='warn'?'var(--status-warning-border)':q.status==='danger'?'var(--status-danger-border)':'var(--gray-100)')}">
-              <div style="display:flex;justify-content:space-between;align-items:center;">
-                <div style="font-size:12px;font-weight:600;color:var(--gray-700);">{{ q.name }}</div>
-                <span :style="{fontSize:'11px',padding:'2px 8px',borderRadius:'3px',fontWeight:600,background:q.status==='ok'?'var(--status-success-bg)':q.status==='warn'?'var(--status-warning-bg)':q.status==='danger'?'var(--status-danger-bg)':'var(--status-neutral-bg)',color:q.status==='ok'?'var(--status-success-color)':q.status==='warn'?'var(--status-warning-color)':q.status==='danger'?'var(--status-danger-color)':'var(--text-badge)'}">{{ q.statusLabel }}</span>
-              </div>
-              <div style="font-size:11px;color:var(--gray-650);margin-top:6px;line-height:1.6;">
-                <div>📋 招标要求：{{ q.requirement }}</div>
-                <div style="margin-top:4px;">🔗 联动 <b style="color:var(--brand-primary);cursor:pointer;text-decoration:underline;" @click="jumpToSource(q.sourceUrl || q.source)">{{ q.source }}</b>：{{ q.detail }}</div>
-              </div>
+        <div class="toolbar">
+          <div class="toolbar-info">
+            <span class="doc-tag">📄 招标文件：{{ sourceFileName }}</span>
+            <span class="doc-time">解析时间 {{ parseTime }}</span>
+          </div>
+        </div>
+
+        <div class="collapse-item expanded">
+          <div class="collapse-header" @click="isSection1Expanded = !isSection1Expanded">
+            <div class="collapse-title">📋 评分标准提取</div>
+            <div class="collapse-meta">
+              <span class="pill ok">{{ scoreItems.length }} 项</span>
+              <span class="collapse-arrow">{{ isSection1Expanded ? '▴' : '▾' }}</span>
             </div>
           </div>
-
-          <!-- 通用列表（技术/商务/红线） -->
-          <div v-if="['tech','biz','red'].includes(tab.key)">
-            <div v-for="item in tabItems(tab.key)" :key="item.txt || item.clause" :style="{padding:'8px 10px',marginBottom:'6px',fontSize:'12px',lineHeight:1.6,borderBottom:'1px dashed var(--gray-100)'}">
-              <span v-if="tab.key==='red'" style="font-weight:600;color:var(--status-danger-color);">⚠ </span>
-              <span v-if="item.section" style="color:var(--brand-primary);font-size:11px;cursor:pointer;" @click="jumpToSection(item.section)">📌 §{{ item.section }}</span>
-              <span style="color:var(--gray-600);">{{ item.txt || item.clause }}{{ item.desc ? ' — ' + item.desc : '' }}</span>
-              <span v-if="item.tag" style="display:inline-block;background:var(--gray-100);color:var(--text-badge-2);padding:1px 6px;border-radius:3px;font-size:10px;margin-left:4px;">{{ item.tag }}</span>
-            </div>
+          <div v-show="isSection1Expanded" class="collapse-body">
+            <ScoreParseTable
+              mode="est"
+              :items="scoreItems"
+              :results="scoreResults"
+              :total-weight="totalWeight"
+              :stats-ok-count="statsOkCount"
+              :stats-danger-count="statsDangerCount"
+              :stats-neutral-count="statsNeutralCount"
+              :objective-weight="objectiveWeight"
+              :subjective-weight="subjectiveWeight"
+              :highlight-score="estTotalScore"
+              @open-detail="openDetail"
+            />
           </div>
         </div>
       </div>
-    </template>
+
+      <!-- 第二部分：投标文件评分 -->
+      <div class="section-divider">
+        <div class="section-title-bar">
+          <span class="section-num">2</span>
+          投标文件评分
+          <span class="section-sub">（标书对标打分与引用建议）</span>
+          <div class="section-actions">
+            <button class="btn-primary-sm" :disabled="currentStage === 1" @click="runScoring(false)">
+              {{ currentStage === 1 ? '⚡ AI 实际打分（需先上传标书）' : scored ? '⚡ 重新打分' : '⚡ AI 实际打分' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <div class="toolbar-info">
+            <span class="doc-tag">📦 投标文件：{{ bidFileName }}</span>
+            <span class="doc-time">评分时间 {{ scoreTime }}</span>
+          </div>
+        </div>
+
+        <div v-if="currentStage === 1" class="scoring-placeholder">
+          <div class="placeholder-icon">📦</div>
+          <div class="placeholder-text">尚未上传投标文件</div>
+          <div class="placeholder-sub">在标书制作中上传投标文件后，AI 将自动对标评分标准进行实际打分</div>
+        </div>
+
+        <div v-else-if="!scored" class="scoring-placeholder">
+          <div class="placeholder-icon">⚡</div>
+          <div class="placeholder-text">已检测到投标文件，尚未打分</div>
+          <div class="placeholder-sub">点击上方「AI 实际打分」按钮开始对标打分</div>
+        </div>
+
+        <div v-else class="scoring-table-container">
+          <ScoreParseTable
+            mode="actual"
+            :items="scoreItems"
+            :results="scoreResults"
+            :total-weight="totalWeight"
+            :stats-ok-count="statsOkCount"
+            :stats-danger-count="statsDangerCount"
+            :stats-neutral-count="statsNeutralCount"
+            :objective-weight="objectiveWeight"
+            :subjective-weight="subjectiveWeight"
+            :highlight-score="actualTotalScore"
+            @open-detail="openDetail"
+          />
+        </div>
+      </div>
+
+      <!-- 底部图例 -->
+      <div class="legend">
+        <template v-if="currentStage === 2 && scored">
+          <b class="legend-title">说明：</b>
+          <span class="pill info">客观项</span> AI 基于标书内容 + 知识库证书自动判定，计入总分；
+          <span class="pill neutral">主观项</span> 需评标专家人工评审，AI 不计分。
+        </template>
+        <template v-else-if="currentStage === 2">
+          <b class="legend-title">说明：</b> 阶段 2 已检测到投标文件，点击「AI 实际打分」按钮开始对标打分。
+        </template>
+        <template v-else>
+          <b class="legend-title">阶段 1 说明：</b> 当前仅展示满足状态（基于知识库资质证书预判），<b>不计算实际得分</b>。上传投标文件后进入阶段 2，AI 将自动对标打分。<br />
+          <span class="status-cell ok">✓ 满足</span> 知识库已匹配证书 ｜
+          <span class="status-cell danger">✗ 不满足</span> 知识库未匹配 ｜
+          <span class="status-cell neutral">待确认</span> 主观项或需人工判断
+        </template>
+      </div>
+    </div>
+
+    <!-- 评分项详情与建议弹窗 -->
+    <ScoreItemDetailModal
+      v-model:visible="detailModalVisible"
+      :mode="detailMode"
+      :item="selectedItem"
+      :result="selectedResult"
+    />
   </el-drawer>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { bidAgentApi } from '@/api/modules/bidAgent.js'
-import { projectsApi } from '@/api/modules/projects.js'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { useScoreParseDrawer } from '@/composables/projectDetail/useScoreParseDrawer.js'
+import ScoreItemDetailModal from './ScoreItemDetailModal.vue'
+import ScoreParseTable from './ScoreParseTable.vue'
 
-const props = defineProps({ projectId: { type: [String, Number], required: true } })
+const props = defineProps({
+  projectId: { type: [String, Number], required: true },
+})
+
 const emit = defineEmits(['parsed', 'imported'])
-const visible = ref(false)
-const loading = ref(false)
-const error = ref('')
-const activeTab = ref('qual')
 
-const parseTime = ref('')
-const scoreItems = ref([])
-const qualItems = ref([])
-const techItems = ref([])
-const bizItems = ref([])
-const redItems = ref([])
-const rawAnalysis = ref(null)
-const importing = ref(false)
+const {
+  visible, loading, error, isSection1Expanded, currentStage, scored, scoringOverlayVisible,
+  sourceFileName, parseTime, bidFileName, scoreTime, importing, scoreItems, scoreResults,
+  detailModalVisible, detailMode, selectedItem, selectedResult, totalWeight, objectiveWeight,
+  subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
+  openDetail, open, runScoring, reparse, exportReport, importToDrafts,
+} = useScoreParseDrawer(props, emit)
 
-const totalWeight = computed(() => scoreItems.value.reduce((a, b) => a + (b.weight || 0), 0))
-
-const stats = computed(() => [
-  { key: 'score', label: '评分项', count: scoreItems.value.length, color: 'var(--brand-xiyu-logo)' },
-  { key: 'qual', label: '资质要求', count: qualItems.value.length, color: qualItems.value.some(q => q.status === 'danger') ? 'var(--color-danger)' : qualItems.value.some(q => q.status === 'warn') ? 'var(--color-warning)' : 'var(--brand-xiyu-logo)' },
-  { key: 'tech', label: '技术要点', count: techItems.value.length, color: 'var(--brand-xiyu-logo)' },
-  { key: 'biz', label: '商务条款', count: bizItems.value.length, color: 'var(--brand-xiyu-logo)' },
-  { key: 'red', label: '风险/红线', count: redItems.value.length, color: 'var(--color-danger)' },
-])
-
-const qualPills = computed(() => {
-  const p = []
-  const danger = qualItems.value.filter(q => q.status === 'danger').length
-  const warn = qualItems.value.filter(q => q.status === 'warn').length
-  if (danger) p.push({ cls: 'danger', txt: danger + ' 项不满足' })
-  if (warn) p.push({ cls: 'warn', txt: warn + ' 项需关注' })
-  if (!danger && !warn) p.push({ cls: 'ok', txt: '全部满足' })
-  return p
-})
-
-const tabs = computed(() => [
-  { key: 'score', icon: '📋', title: '评分标准提取', pills: scoreItems.value.length ? [{ cls: 'ok', txt: scoreItems.value.length + ' 项' }] : [] },
-  { key: 'qual', icon: '🛡️', title: '资质要求识别（联动知识库）', pills: qualPills.value },
-  { key: 'tech', icon: '⚙️', title: '技术要点提取', pills: techItems.value.length ? [{ cls: 'ok', txt: techItems.value.length + ' 条' }] : [] },
-  { key: 'biz', icon: '💼', title: '商务条款解析', pills: bizItems.value.length ? [{ cls: 'ok', txt: bizItems.value.length + ' 条' }] : [] },
-  { key: 'red', icon: '🚫', title: '废标红线标记', pills: redItems.value.length ? [{ cls: 'danger', txt: redItems.value.length + ' 条' }] : [] },
-])
-
-function tabItems(key) {
-  if (key === 'tech') return techItems.value
-  if (key === 'biz') return bizItems.value
-  if (key === 'red') return redItems.value
-  return []
-}
-
-function toggleTab(key) {
-  activeTab.value = activeTab.value === key ? '' : key
-}
-
-async function open() {
-  visible.value = true
-  loading.value = true
-  error.value = ''
-  scoreItems.value = []
-  qualItems.value = []
-  techItems.value = []
-  bizItems.value = []
-  redItems.value = []
-  activeTab.value = 'score'
-
-  try {
-    const [analysisResp, qualResp] = await Promise.all([
-      bidAgentApi.getFullAnalysis(props.projectId),
-      bidAgentApi.getQualificationMatch(props.projectId),
-    ])
-
-    const analysis = analysisResp?.data
-    if (!analysis) { error.value = '暂无分析数据'; return }
-
-    rawAnalysis.value = analysis
-    parseTime.value = new Date().toLocaleString('zh-CN', { hour12: false })
-
-    // Score items
-    const si = analysis.scoringCriteria?.items || analysis.scoringItems || analysis.scoringCriteria || []
-    const scoreCodes = ['A1','A2','A3','A4','B1','B2','C1','C2','C3','D1','D2','D3','E1']
-    const scoreDims = ['技术方案','技术方案','技术方案','技术方案','商务方案','商务方案','实施服务','实施服务','实施服务','资质业绩','资质业绩','资质业绩','加分项']
-    scoreItems.value = (Array.isArray(si) ? si : []).map((s, i) => ({
-      code: s.code || scoreCodes[i] || '',
-      dim: s.dim || s.dimension || s.category || scoreDims[i] || '',
-      detail: s.detail || s.name || s.description || s.title || '',
-      weight: s.weight || s.score || s.points || 0,
-    }))
-
-    // Qualification items from qualification-match API
-    const qualData = qualResp?.data
-    if (qualData?.items || qualData?.qualifications) {
-      const items = qualData.items || qualData.qualifications || []
-      qualItems.value = items.map(q => ({
-        id: q.id || q.requirementId || Math.random().toString(36).slice(2, 6),
-        name: q.name || q.requirement || q.title || '',
-        requirement: q.requirement || q.description || '',
-        status: q.status === 'OK' ? 'ok' : q.status === 'MATCHED' ? 'ok' : q.status === 'WARN' ? 'warn' : q.status === 'NOT_MATCHED' ? 'danger' : q.status || 'warn',
-        statusLabel: q.statusLabel || q.status === 'OK' ? '✓ 符合' : q.status === 'MATCHED' ? '✓ 符合' : q.status === 'WARN' ? '⚠ 需关注' : q.status === 'NOT_MATCHED' ? '✗ 不满足' : '待确认',
-        source: q.source || q.sourceName || q.sourceType || '资质库',
-        detail: q.detail || q.message || q.note || q.comment || '',
-      }))
-    }
-
-    // Technical items
-    const tech = analysis.technicalClassification?.items || analysis.technicalRequirements || analysis.technicalItems || []
-    techItems.value = (Array.isArray(tech) ? tech : []).map(t => ({
-      txt: t.txt || t.text || t.name || t.title || t.description || t.requirement || (typeof t === 'string' ? t : ''),
-      tag: t.tag || t.type || t.category || t.level || '功能',
-    }))
-
-    // Commercial items
-    const biz = analysis.commercialClassification?.items || analysis.commercialRequirements || analysis.commercialItems || []
-    bizItems.value = (Array.isArray(biz) ? biz : []).map(b => ({
-      txt: b.txt || b.text || b.name || b.title || b.description || b.clause || b.requirement || (typeof b === 'string' ? b : ''),
-      tag: b.tag || b.type || b.category || '条款',
-    }))
-
-    // Redline items
-    const red = analysis.riskClassification?.items || analysis.riskItems || analysis.redLines || analysis.redlineItems || []
-    redItems.value = (Array.isArray(red) ? red : []).map(r => ({
-      clause: r.clause || r.name || r.title || r.risk || '',
-      desc: r.desc || r.description || r.detail || r.message || r.text || '',
-      section: r.section || r.source || '',
-    }))
-
-    emit('parsed', {
-      dangerCount: qualItems.value.filter(q => q.status === 'danger').length + redItems.value.length,
-      warnCount: qualItems.value.filter(q => q.status === 'warn').length,
-    })
-  } catch (e) { error.value = e?.response?.data?.msg || '评分标准解析失败' }
-  finally { loading.value = false }
-}
-
-const qualFilter = ref('all')
-const qualFilters = computed(() => {
-  const all = qualItems.value.length
-  const ok = qualItems.value.filter(q => q.status === 'ok').length
-  const warn = qualItems.value.filter(q => q.status === 'warn').length
-  const danger = qualItems.value.filter(q => q.status === 'danger').length
-  return [
-    { key: 'all', label: '全部 (' + all + ')', active: qualFilter.value === 'all' },
-    { key: 'ok', label: '✓ 已满足 (' + ok + ')', active: qualFilter.value === 'ok' },
-    { key: 'warn', label: '⚠ 需关注 (' + warn + ')', active: qualFilter.value === 'warn' },
-    { key: 'danger', label: '✗ 不满足 (' + danger + ')', active: qualFilter.value === 'danger' },
-  ]
-})
-
-function setQualFilter(key) { qualFilter.value = key }
-
-const filteredQualItems = computed(() => {
-  if (qualFilter.value === 'all') return qualItems.value
-  return qualItems.value.filter(q => q.status === qualFilter.value)
-})
-
-// Fix qual section to use filteredQualItems
-function jumpToSource(source) {
-  const routes = { '资质库': '/knowledge/qualification', '人员库': '/knowledge/personnel', '品牌授权': '/knowledge/brand', '业绩库': '/knowledge/performance' }
-  const path = routes[source] || null
-  if (path) window.open(path, '_blank')
-  else window.alert('跳转至 ' + source + '（演示）')
-}
-function jumpToSection(section) { window.alert('定位至招标文件 §' + section + '（演示）') }
-async function reparse() { await open() }
-function exportReport() { window.alert('已导出 AI 评分解析报告 PDF（演示）') }
-
-async function importToDrafts() {
-  if (!scoreItems.value.length) return
-  try {
-    await ElMessageBox.confirm(
-      `将导入 AI 分析的评分标准到评分草稿，会覆盖现有未生成的草稿。确认导入？`,
-      '导入到评分草稿',
-      { confirmButtonText: '确认导入', cancelButtonText: '取消', type: 'warning' }
-    )
-  } catch { return }
-
-  importing.value = true
-  try {
-    const res = await projectsApi.importScoreDraftsFromAnalysis(props.projectId)
-    if (res?.data) {
-      ElMessage.success(`成功导入 ${res.data.totalCount ?? scoreItems.value.length} 项评分草稿`)
-      emit('imported', res.data)
-    } else {
-      ElMessage.error(res?.msg || '导入失败')
-    }
-  } catch (e) {
-    ElMessage.error(e?.response?.data?.msg || e?.message || '导入失败')
-  } finally {
-    importing.value = false
-  }
-}
-
-defineExpose({ open })
+defineExpose({ open, runScoring })
 </script>
 
 <style scoped>
+.score-parse-drawer :deep(.el-drawer__body) { padding: 0; display: flex; flex-direction: column; }
+.drawer-content-wrapper { position: relative; flex: 1; overflow-y: auto; padding: 20px 24px 32px; background: var(--bg-white); }
+.loading-state, .error-state { text-align: center; padding: 80px 20px; color: var(--text-muted); }
+.loading-icon { font-size: 32px; margin-bottom: 12px; }
 .dots::after { content: '...'; animation: d 1.4s infinite; }
-@keyframes d { 0%,20%{content:''} 40%{content:'.'} 60%{content:'..'} 80%,100%{content:'...'} }
+@keyframes d { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
+
+.top-action-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--bg-subtle); border-radius: var(--radius-md); margin-bottom: 20px; }
+.stage-tag-info { display: flex; align-items: center; gap: 8px; }
+.stage-badge { padding: 4px 10px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; }
+.stage-badge.stage-1 { background: var(--status-info-bg); color: var(--status-info-color); }
+.stage-badge.stage-2 { background: var(--status-success-bg); color: var(--status-success-color); }
+.sub-hint { font-size: 12px; color: var(--text-secondary-ui); }
+
+.btn-group { display: flex; gap: 8px; }
+.btn-tool { padding: 5px 12px; background: var(--bg-white); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 12px; cursor: pointer; color: var(--border-focus); transition: all 0.16s ease; display: inline-flex; align-items: center; gap: 4px; }
+.btn-tool:hover { border-color: var(--brand-xiyu-logo); color: var(--brand-xiyu-logo); }
+.btn-tool.primary { background: var(--brand-xiyu-logo); color: var(--bg-white); border-color: var(--brand-xiyu-logo); font-weight: 600; }
+.btn-tool:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.section-divider { margin-top: 20px; margin-bottom: 16px; }
+.section-divider:first-of-type { margin-top: 0; }
+.section-title-bar { font-size: 15px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px; padding-bottom: 8px; border-bottom: 2px solid var(--brand-xiyu-logo); margin-bottom: 12px; }
+.section-num { width: 22px; height: 22px; background: var(--brand-xiyu-logo); color: var(--bg-white); border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
+.section-sub { font-size: 12px; font-weight: 400; color: var(--text-muted); margin-left: 4px; }
+.section-actions { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.btn-primary-sm { padding: 4px 12px; background: var(--brand-xiyu-logo); border: 1px solid var(--brand-xiyu-logo); border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; cursor: pointer; color: var(--bg-white); transition: all 0.16s ease; display: inline-flex; align-items: center; gap: 4px; }
+.btn-primary-sm:hover:not(:disabled) { background: var(--brand-xiyu-logo-hover); border-color: var(--brand-xiyu-logo-hover); }
+.btn-primary-sm:disabled { background: var(--gray-100); border-color: var(--gray-100); color: var(--gray-300); cursor: not-allowed; }
+
+.toolbar { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+.toolbar-info { display: flex; align-items: center; gap: 12px; width: 100%; }
+.toolbar-info .doc-tag { display: inline-flex; align-items: center; gap: 4px; }
+.toolbar-info .doc-time { margin-left: auto; white-space: nowrap; }
+
+.collapse-item { background: var(--bg-white); border: 1px solid var(--border-base); border-radius: var(--radius-md); margin-bottom: 8px; overflow: hidden; }
+.collapse-header { padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: var(--bg-white); transition: background 0.16s ease; }
+.collapse-header:hover { background: var(--bg-muted); }
+.collapse-title { font-size: 13px; font-weight: 600; color: var(--gray-700); display: flex; align-items: center; gap: 6px; }
+.collapse-meta { display: flex; align-items: center; gap: 8px; }
+.collapse-arrow { color: var(--text-lighter); font-size: 14px; }
+.collapse-body { padding: 12px 14px; border-top: 1px solid var(--gray-100); }
+
+.scoring-placeholder { text-align: center; padding: 36px 20px; background: var(--bg-muted); border-radius: var(--radius-md); border: 1px dashed var(--gray-200); }
+.placeholder-icon { font-size: 32px; margin-bottom: 10px; }
+.placeholder-text { font-size: 14px; font-weight: 600; color: var(--text-primary-ui); margin-bottom: 6px; }
+.placeholder-sub { font-size: 12px; color: var(--text-muted); }
+
+.scoring-overlay { position: absolute; inset: 0; background: rgba(255, 255, 255, 0.92); display: none; align-items: center; justify-content: center; flex-direction: column; z-index: 100; border-radius: var(--radius-md); }
+.scoring-overlay.show { display: flex; }
+.spinner { width: 42px; height: 42px; border: 3px solid var(--gray-100); border-top-color: var(--brand-xiyu-logo); border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 14px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.scoring-text { font-size: 14px; color: var(--text-primary-ui); font-weight: 600; }
+.scoring-sub { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+
+.legend { font-size: 12px; color: var(--gray-650); line-height: 1.8; margin-top: 14px; padding: 10px 14px; background: var(--bg-muted); border-radius: var(--radius-sm); border: 1px solid var(--gray-100); }
+.legend-title { color: var(--brand-xiyu-logo); }
+.pill { font-size: 11px; padding: 1px 6px; border-radius: 3px; font-weight: 600; display: inline-block; }
+.pill.ok { background: var(--status-success-bg); color: var(--status-success-color); }
+.pill.info { background: var(--status-info-bg); color: var(--status-info-color); }
+.pill.neutral { background: var(--status-neutral-bg); color: var(--status-neutral-color); }
+.status-cell { font-size: 12px; font-weight: 500; }
+.status-cell.ok { color: var(--status-success-color); }
+.status-cell.danger { color: var(--status-danger-color); }
+.status-cell.neutral { color: var(--text-muted); }
 </style>
