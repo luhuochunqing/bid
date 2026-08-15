@@ -109,16 +109,16 @@ const competitorOptions = ref(COMPETITOR_OPTIONS)
 const regionOptions = ref(REGION_OPTIONS)
 const submitting = ref(false)
 
-// 人员选择器在未选择部门时 disabled，提示"请先选择部门"
-const personDisabled = computed(() => {
-  return !filters.value.departments || filters.value.departments.length === 0
-})
-
 const filters = ref({
   timeDimension: 'month',
   departments: [], persons: [], regions: [],
   customerTypes: [], projectTypes: [], projectStatuses: [],
   tenderSubjects: [], competitors: []
+})
+
+// 人员选择器在未选择部门时 disabled，提示"请先选择部门"
+const personDisabled = computed(() => {
+  return !filters.value.departments || filters.value.departments.length === 0
 })
 
 const xAxisDimensions = ref([])
