@@ -96,24 +96,63 @@
     <el-card shadow="never" class="stage-section">
       <template #header><span class="section-title">竞争对手情况</span></template>
       <el-table :data="form.competitors" border size="small" class="competitor-table">
-        <el-table-column prop="name" label="竞争对手名称" min-width="140">
+        <el-table-column prop="name" label="竞品公司名称" min-width="180">
           <template #default="{ row }">
-            <el-input v-model="row.name" placeholder="输入名称" size="small" :disabled="!canOperate" />
+            <el-select
+              v-model="row.name"
+              placeholder="选择竞品公司"
+              size="small"
+              filterable
+              clearable
+              :disabled="!canOperate"
+              class="competitor-cell-select"
+            >
+              <el-option v-for="c in COMPETITOR_COMPANY_OPTIONS" :key="c" :label="c" :value="c" />
+            </el-select>
           </template>
         </el-table-column>
-        <el-table-column prop="discount" label="折扣" width="120">
+        <el-table-column prop="discount" label="折扣/百分比" width="150">
           <template #default="{ row }">
-            <el-input v-model="row.discount" placeholder="如：95折" size="small" :disabled="!canOperate" />
+            <el-input-number
+              v-model="row.discount"
+              :precision="2"
+              :step="0.01"
+              :min="0"
+              :controls="false"
+              placeholder="如：95.00"
+              size="small"
+              :disabled="!canOperate"
+              class="competitor-cell-number"
+            />
           </template>
         </el-table-column>
-        <el-table-column prop="paymentTerm" label="账期" width="140">
+        <el-table-column prop="paymentTerm" label="账期/天" width="140">
           <template #default="{ row }">
-            <el-input v-model="row.paymentTerm" placeholder="如：月结60天" size="small" :disabled="!canOperate" />
+            <el-input-number
+              v-model="row.paymentTerm"
+              :precision="0"
+              :step="1"
+              :min="0"
+              :controls="false"
+              placeholder="如：60"
+              size="small"
+              :disabled="!canOperate"
+              class="competitor-cell-number"
+            />
           </template>
         </el-table-column>
-        <el-table-column prop="notes" label="其他说明" min-width="160">
+        <el-table-column prop="notes" label="是否中标" min-width="140">
           <template #default="{ row }">
-            <el-input v-model="row.notes" placeholder="补充信息" size="small" :disabled="!canOperate" />
+            <el-select
+              v-model="row.notes"
+              placeholder="选择中标状态"
+              size="small"
+              clearable
+              :disabled="!canOperate"
+              class="competitor-cell-select"
+            >
+              <el-option v-for="s in COMPETITOR_WIN_STATUS_OPTIONS" :key="s" :label="s" :value="s" />
+            </el-select>
           </template>
         </el-table-column>
         <el-table-column v-if="canOperate" label="操作" width="90" align="center">
@@ -140,6 +179,7 @@ import { ElMessage } from 'element-plus'
 import { Delete, Plus, UploadFilled } from '@element-plus/icons-vue'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
 import { getResultConfirmNextTab } from '@/constants/projectStages.js'
+import { COMPETITOR_COMPANY_OPTIONS, COMPETITOR_WIN_STATUS_OPTIONS } from '@/constants/competitors.js'
 import { getApiUrl } from '@/api/config.js'
 import { useUserStore } from '@/stores/user.js'
 import { downloadWithFilename } from '@/utils/download.js'
@@ -162,7 +202,18 @@ const resultOptions = [
   { value: 'ABANDONED', label: '弃标' },
 ]
 
-const DEFAULT_COMPETITOR = () => ({ name: '', discount: '', paymentTerm: '', notes: '' })
+// 竞品公司名称、是否中标下拉选项：抽到 @/constants/competitors.js，方便多处复用
+
+const DEFAULT_COMPETITOR = () => ({ name: '', discount: null, paymentTerm: null, notes: '' })
+// ⚠ 语义漂移说明：`notes` 字段在原表为「其他说明」自由文本，本次改造后 UI 上用于存储「是否中标」枚举
+// （'已中标' / '未中标'），但提交 payload 仍走 notes 字段名以保持后端 DTO 兼容。
+// 历史 notes 文本数据在 select 中会显示为空，属预期行为。如后续需要保留自由文本，请拆分为独立的 wonStatus 字段。
+// 历史数据规整：discount/paymentTerm 可能是 "95折"/"月结60天" 等文本，提取首段数字给 el-input-number
+const toNumeric = (value) => {
+  if (value === '' || value === null || value === undefined) return null
+  const num = Number(String(value).replace(/[^0-9.]/g, ''))
+  return Number.isFinite(num) ? num : null
+}
 const DEFAULT_COMPETITORS = () => [DEFAULT_COMPETITOR(), DEFAULT_COMPETITOR(), DEFAULT_COMPETITOR()]
 
 const form = reactive({
@@ -267,7 +318,16 @@ async function load() {
         // CO-408: 根据 evidenceFileIds 回填 evidenceFiles（el-upload file-list），避免再次进入页面时文件名丢失
         await backfillEvidenceFiles(data.evidenceFileIds)
       }
-      if (data.competitors?.length) form.competitors = data.competitors.map(c => ({ ...c }))
+      if (data.competitors?.length) {
+        form.competitors = data.competitors.map(c => ({
+          name: c?.name || '',
+          // 兼容历史文本数据：提取数字给数字组件
+          // discount 字段保留两位小数（95.00 = 95%）
+          discount: toNumeric(c?.discount) != null ? Math.round(toNumeric(c?.discount) * 100) / 100 : null,
+          paymentTerm: toNumeric(c?.paymentTerm),
+          notes: c?.notes || '',
+        }))
+      }
       // CO-590: 回填合同信息两字段
       if (data.servicePeriodYears != null) form.servicePeriodYears = Number(data.servicePeriodYears)
       if (data.servicePeriodEndDate) form.servicePeriodEndDate = data.servicePeriodEndDate
@@ -303,12 +363,15 @@ async function submit() {
   if (form.servicePeriodYears == null || form.servicePeriodYears === '') return ElMessage.warning('请填写项目服务周期（年）')
   if (!form.servicePeriodEndDate) return ElMessage.warning('请选择服务周期截止时间')
   if (!form.evidenceFileIds.length) return ElMessage.warning('请上传凭证文件')
+  // 过滤全空竞品行（用户点了「添加一行」但未填写任何字段），避免脏数据进后端
+  // 判空统一：字符串字段用 trim() 检查非空，数字字段用 != null 检查（0 也算有值）
+  const competitors = form.competitors.filter(c => c.name?.trim() || c.discount != null || c.paymentTerm != null || c.notes?.trim())
   submitting.value = true
   try {
     const payload = {
       resultType: form.resultType,
       notes: form.notes, summary: form.summary,
-      evidenceFileIds: form.evidenceFileIds, competitors: form.competitors,
+      evidenceFileIds: form.evidenceFileIds, competitors,
       // CO-590: 合同信息两字段
       servicePeriodYears: form.servicePeriodYears,
       servicePeriodEndDate: form.servicePeriodEndDate,
@@ -367,6 +430,8 @@ defineExpose({ load })
 .competitor-table { width: 100%; }
 .competitor-table :deep(.el-table__body td) { padding: 2px 0; }
 .competitor-table :deep(.el-table__body .el-input__inner) { height: 28px; }
+.competitor-table :deep(.competitor-cell-select),
+.competitor-table :deep(.competitor-cell-number) { width: 100%; }
 .add-row-btn { margin-top: 12px; }
 
 /* 操作按钮 */
