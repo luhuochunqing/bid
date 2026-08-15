@@ -74,8 +74,10 @@ public class TrendAnalysisService {
         long totalCount = row.totalCount() != null ? row.totalCount() : 0L;
         long biddingCount = row.biddingCount() != null ? row.biddingCount() : 0L;
         long wonCount = row.wonCount() != null ? row.wonCount() : 0L;
-        double winRate = totalCount == 0 ? 0.0
-                : Math.round(wonCount * 1000.0 / totalCount) / 10.0;
+        long notWonCount = row.notWonCount() != null ? row.notWonCount() : 0L;
+        // 中标率 = 中标数 / (已中标 + 未中标)
+        double winRate = (wonCount + notWonCount) == 0 ? 0.0
+                : Math.round(wonCount * 1000.0 / (wonCount + notWonCount)) / 10.0;
 
         // PRD §3.1 去年同期数据（去年同期 = 上一年度同一日期范围）
         LocalDate yoyStart = startDate != null ? startDate.minusYears(1) : null;
@@ -85,8 +87,10 @@ public class TrendAnalysisService {
         long yoyTotalCount = yoyRow.totalCount() != null ? yoyRow.totalCount() : 0L;
         long yoyBiddingCount = yoyRow.biddingCount() != null ? yoyRow.biddingCount() : 0L;
         long yoyWonCount = yoyRow.wonCount() != null ? yoyRow.wonCount() : 0L;
-        double yoyWinRate = yoyTotalCount == 0 ? 0.0
-                : Math.round(yoyWonCount * 1000.0 / yoyTotalCount) / 10.0;
+        long yoyNotWonCount = yoyRow.notWonCount() != null ? yoyRow.notWonCount() : 0L;
+        // 中标率 = 中标数 / (已中标 + 未中标)
+        double yoyWinRate = (yoyWonCount + yoyNotWonCount) == 0 ? 0.0
+                : Math.round(yoyWonCount * 1000.0 / (yoyWonCount + yoyNotWonCount)) / 10.0;
 
         // PRD §3.1 同比计算（去年同期无数据时返回 null，前端显示「—」）
         Double totalCountYoy = yoyTotalCount > 0
@@ -110,6 +114,7 @@ public class TrendAnalysisService {
                 .totalCount(totalCount)
                 .biddingCount(biddingCount)
                 .wonCount(wonCount)
+                .notWonCount(notWonCount)
                 .winRate(winRate)
                 .totalCountYoy(totalCountYoy)
                 .biddingCountYoy(biddingCountYoy)

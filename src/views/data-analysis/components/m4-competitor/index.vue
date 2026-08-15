@@ -16,28 +16,20 @@
     <div class="m4-filter-bar">
       <div class="m4-filter-item m4-required">
         <label>竞品公司</label>
-        <el-select v-model="selectedCompetitors" multiple filterable collapse-tags
-          collapse-tags-tooltip placeholder="请选择" class="m4-select"
-          @change="onCompetitorChange">
-          <el-option v-for="c in competitorOptions" :key="c" :label="c" :value="c" />
-        </el-select>
+        <FilterSelect v-model="selectedCompetitors" :options="competitorOptions" placeholder="竞品公司" @change="onCompetitorChange" />
       </div>
 
       <div class="m4-filter-item">
         <el-checkbox v-model="entityActive" class="m4-field-cb" @change="onEntityToggle">招标主体</el-checkbox>
-        <el-select v-model="selectedEntities" multiple filterable collapse-tags
-          collapse-tags-tooltip placeholder="请选择" class="m4-select" clearable
-          :disabled="!entityActive" @change="onEntityChange">
-          <el-option v-for="e in entityOptions" :key="e" :label="e" :value="e" />
-        </el-select>
+        <FilterSelect v-model="selectedEntities" :options="entityOptions" hide-select-all placeholder="请选择" @change="onEntityChange" />
       </div>
 
       <div class="m4-filter-item">
         <el-checkbox v-model="projectNameActive" class="m4-field-cb" @change="onProjectNameToggle">项目名称</el-checkbox>
         <el-select v-model="selectedProjectName" filterable remote :remote-method="searchProjectNames"
           placeholder="请输入关键词搜索" class="m4-select" clearable
-          :disabled="!projectNameActive" @change="onProjectNameChange">
-          <el-option v-for="p in projectNameOptions" :key="p" :label="p" :value="p" />
+          @change="onProjectNameChange">
+          <el-option v-for="p in projectNameOptions" :key="p" :label="p" :value="p" :title="p" />
         </el-select>
       </div>
 
@@ -111,6 +103,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useCompetitorData } from './composables/useCompetitorData.js'
 import { exportCompetitorTable } from './chartRenderer.js'
+import FilterSelect from '../m1-trend-analysis/FilterSelect.vue'
 
 const chartRef = ref(null)
 const {
@@ -179,7 +172,12 @@ defineExpose({ refresh: fetchData })
 .m4-required label::after { content: ' *'; color: var(--color-danger); }
 .m4-field-cb { margin-right: 2px; }
 .m4-field-cb :deep(.el-checkbox__label) { font-size: 12px; font-weight: 600; color: var(--text-primary); padding-left: 6px; }
-.m4-select { width: 200px; }
+.m4-filter-item :deep(.filter-select) { width: 200px; }
+.m4-filter-item :deep(.el-select .el-select__wrapper) { min-height: 28px; }
+.m4-filter-item :deep(.el-select .el-select__selection-wrapper) { overflow: hidden; }
+.m4-filter-item :deep(.el-select__tags-text) {
+  max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .m4-filter-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 
 .m4-btn {

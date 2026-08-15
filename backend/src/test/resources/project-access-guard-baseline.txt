@@ -193,3 +193,7 @@ src/main/java/com/xiyu/bid/analytics/service/ProjectTypeAnalyticsComputationServ
 src/main/java/com/xiyu/bid/analytics/service/ProjectTypeAnalyticsQueryService.java | Query service with scoped access; project filtering implemented upstream.
 src/main/java/com/xiyu/bid/analytics/controller/TrendAnalysisController.java | Controller delegates to TrendAnalysisService + TrendDrillDownService; scoped project filtering is implemented downstream and this controller-level baseline prevents silent new unguarded endpoints.
 src/main/java/com/xiyu/bid/analytics/service/TrendAnalysisQueryService.java | Query service with scoped access; project filtering implemented upstream.
+src/main/java/com/xiyu/bid/analytics/service/CustomerTypeAnalyticsQueryService.java | 数据分析模块（M2客户类型）已移除 ProjectAccessScopeService 项目级权限过滤，仅靠菜单权限(@PreAuthorize('dashboard'))控制访问。
+src/main/java/com/xiyu/bid/analytics/service/DashboardAnalyticsQueryService.java | 数据分析模块（M0仪表盘概览）已移除 ProjectAccessScopeService 项目级权限过滤，仅靠菜单权限控制访问。
+src/main/java/com/xiyu/bid/analytics/service/FilterOptionsQueryService.java | 数据分析模块（M1筛选选项）已移除 ProjectAccessScopeService 项目级权限过滤，仅靠菜单权限控制访问。
+src/main/java/com/xiyu/bid/analytics/service/TrendDrillDownService.java | 数据分析模块（M1下钻）已移除 ProjectAccessScopeService 项目级权限过滤，仅靠菜单权限控制访问。

@@ -1,7 +1,6 @@
 package com.xiyu.bid.analytics.service;
 
 import com.xiyu.bid.entity.Project;
-import com.xiyu.bid.service.ProjectAccessScopeService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
@@ -10,11 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -23,7 +18,6 @@ public class TrendAnalysisQueryService {
 
     @PersistenceContext
     private EntityManager entityManager;
-    private final ProjectAccessScopeService projectAccessScopeService;
 
     /**
      * 查询项目趋势数据，按时间（年-月）分组。
@@ -38,12 +32,6 @@ public class TrendAnalysisQueryService {
             List<String> projectTypes,
             List<Project.Status> statuses
     ) {
-        Set<Long> projectIds = scopedProjectIds();
-        if (projectIds != null && projectIds.isEmpty()) {
-            return List.of();
-        }
-        Set<Long> queryProjectIds = projectIds == null ? Set.of() : projectIds;
-
         // 构建动态 WHERE 条件
         StringBuilder jpql = new StringBuilder("""
                 select new com.xiyu.bid.analytics.service.TrendAnalysisQueryService$TimeDimensionRow(
@@ -54,7 +42,7 @@ public class TrendAnalysisQueryService {
                 )
                 from Project p
                 left join Tender t on t.id = p.tenderId
-                where (:allAccess = true or p.id in :projectIds)
+                where 1=1
                 """);
 
         if (startDate != null) {
@@ -73,9 +61,7 @@ public class TrendAnalysisQueryService {
             jpql.append(" and p.status in :statuses");
         }
 
-        var query = entityManager.createQuery(jpql.toString(), TimeDimensionRow.class)
-                .setParameter("allAccess", projectIds == null)
-                .setParameter("projectIds", queryProjectIds);
+        var query = entityManager.createQuery(jpql.toString(), TimeDimensionRow.class);
 
         if (startDate != null) {
             query.setParameter("startDate", startDate.atStartOfDay());
@@ -97,24 +83,18 @@ public class TrendAnalysisQueryService {
     }
 
     /**
-     * 查询项目总数、投标中数、中标数（按日期范围过滤）。
+     * 查询项目总数（已中标+未中标+投标中+评标中）、投标中数、中标数、未中标数（按日期范围过滤）。
      */
     OverviewRow fetchOverviewRow(LocalDate startDate, LocalDate endDate) {
-        Set<Long> projectIds = scopedProjectIds();
-        if (projectIds != null && projectIds.isEmpty()) {
-            return new OverviewRow(0L, 0L, 0L, 0L);
-        }
-        Set<Long> queryProjectIds = projectIds == null ? Set.of() : projectIds;
-
         StringBuilder jpql = new StringBuilder("""
                 select new com.xiyu.bid.analytics.service.TrendAnalysisQueryService$OverviewRow(
-                    count(p),
+                    sum(case when p.status in ('WON', 'LOST', 'BIDDING', 'EVALUATING') then 1 else 0 end),
                     sum(case when p.status = 'BIDDING' then 1 else 0 end),
                     sum(case when p.status = 'WON' then 1 else 0 end),
-                    0L
+                    sum(case when p.status = 'LOST' then 1 else 0 end)
                 )
                 from Project p
-                where (:allAccess = true or p.id in :projectIds)
+                where 1=1
                 """);
 
         if (startDate != null) {
@@ -124,9 +104,7 @@ public class TrendAnalysisQueryService {
             jpql.append(" and p.createdAt <= :endDate");
         }
 
-        var query = entityManager.createQuery(jpql.toString(), OverviewRow.class)
-                .setParameter("allAccess", projectIds == null)
-                .setParameter("projectIds", queryProjectIds);
+        var query = entityManager.createQuery(jpql.toString(), OverviewRow.class);
 
         if (startDate != null) {
             query.setParameter("startDate", startDate.atStartOfDay());
@@ -143,40 +121,18 @@ public class TrendAnalysisQueryService {
      * 不受全局日期筛选范围影响，固定查询今天创建的项目数。
      */
     long fetchTodayNewCount() {
-        Set<Long> projectIds = scopedProjectIds();
-        if (projectIds != null && projectIds.isEmpty()) {
-            return 0L;
-        }
-        Set<Long> queryProjectIds = projectIds == null ? Set.of() : projectIds;
-
         String jpql = """
                 select count(p)
                 from Project p
-                where (:allAccess = true or p.id in :projectIds)
-                and p.createdAt >= :todayStart
+                where p.createdAt >= :todayStart
                 and p.createdAt <= :todayEnd
                 """;
 
         LocalDate today = LocalDate.now();
         return entityManager.createQuery(jpql, Long.class)
-                .setParameter("allAccess", projectIds == null)
-                .setParameter("projectIds", queryProjectIds)
                 .setParameter("todayStart", today.atStartOfDay())
                 .setParameter("todayEnd", today.atTime(23, 59, 59))
                 .getSingleResult();
-    }
-
-    private Set<Long> scopedProjectIds() {
-        if (projectAccessScopeService.currentUserHasAdminAccess()) {
-            return null;
-        }
-        List<Long> allowedIds = projectAccessScopeService.getAllowedProjectIdsForCurrentUser();
-        if (allowedIds == null || allowedIds.isEmpty()) {
-            return Set.of();
-        }
-        return allowedIds.stream()
-                .filter(Objects::nonNull)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     public record TimeDimensionRow(
@@ -191,7 +147,7 @@ public class TrendAnalysisQueryService {
             Long totalCount,
             Long biddingCount,
             Long wonCount,
-            Long reserved
+            Long notWonCount
     ) {
     }
 }
