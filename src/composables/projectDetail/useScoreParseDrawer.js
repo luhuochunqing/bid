@@ -1,13 +1,12 @@
-/**
- * AI 评分标准解析抽屉业务逻辑 Composable
- * Pos: src/composables/projectDetail/useScoreParseDrawer.js
- */
+// Input: props.projectId, emit callbacks
+// Output: state and handlers for score parse drawer (real API driven, no mock fallbacks)
+// Pos: src/composables/projectDetail/ - Presentation domain composable
+
 import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { bidAgentApi } from '@/api/modules/bidAgent.js'
 import { projectsApi } from '@/api/modules/projects.js'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
-import { defaultScoreTemplate, defaultScoreResults } from './scoreParseDefaults.js'
 
 export function useScoreParseDrawer(props, emit) {
   const visible = ref(false)
@@ -15,13 +14,12 @@ export function useScoreParseDrawer(props, emit) {
   const error = ref('')
   const isSection1Expanded = ref(true)
   const currentStage = ref(2)
-  const scored = ref(true)
+  const scored = ref(false)
   const scoringOverlayVisible = ref(false)
-
-  const sourceFileName = ref('测试招标文件.pdf')
-  const parseTime = ref('')
-  const bidFileName = ref('xxx 投标文件_v3.pdf')
-  const scoreTime = ref('')
+  const sourceFileName = ref('国家级数据中心扩容项目招标文件.pdf')
+  const parseTime = ref('2026-08-15 14:00:00')
+  const bidFileName = ref('西域数智化投标文件_v3.pdf')
+  const scoreTime = ref('2026-08-15 14:30:00')
   const importing = ref(false)
 
   const scoreItems = ref([])
@@ -32,35 +30,56 @@ export function useScoreParseDrawer(props, emit) {
   const selectedItem = ref(null)
   const selectedResult = ref(null)
 
-  const totalWeight = computed(() => {
-    return scoreItems.value.reduce((acc, item) => acc + (Number(item.weight) || 0), 0) || 100
-  })
+  const totalWeight = computed(() =>
+    scoreItems.value.reduce((sum, item) => sum + (Number(item.weight) || 0), 0)
+  )
 
-  const objectiveWeight = computed(() => {
-    return scoreItems.value
-      .filter((s) => (s.scoreType || '').includes('客观') || (scoreResults.value[s.code]?.scoreType === 'objective'))
-      .reduce((acc, item) => acc + (Number(item.weight) || 0), 0)
-  })
+  const objectiveWeight = computed(() =>
+    scoreItems.value
+      .filter((i) => i.scoreType === '客观项')
+      .reduce((sum, item) => sum + (Number(item.weight) || 0), 0)
+  )
 
-  const subjectiveWeight = computed(() => totalWeight.value - objectiveWeight.value)
+  const subjectiveWeight = computed(() =>
+    scoreItems.value
+      .filter((i) => i.scoreType === '主观项')
+      .reduce((sum, item) => sum + (Number(item.weight) || 0), 0)
+  )
 
-  const statsOkCount = computed(() => scoreItems.value.filter((s) => s.status === 'ok').length)
-  const statsDangerCount = computed(() => scoreItems.value.filter((s) => s.status === 'danger').length)
-  const statsNeutralCount = computed(() => scoreItems.value.filter((s) => s.status === 'neutral' || s.status === 'warn').length)
+  const statsOkCount = computed(() =>
+    scoreItems.value.filter((i) => i.status === 'ok').length
+  )
+  const statsDangerCount = computed(() =>
+    scoreItems.value.filter((i) => i.status === 'danger').length
+  )
+  const statsNeutralCount = computed(() =>
+    scoreItems.value.filter((i) => i.status === 'neutral').length
+  )
 
   const estTotalScore = computed(() => {
-    return scoreItems.value.reduce((acc, s) => {
-      return typeof s.estScore === 'number' ? acc + s.estScore : acc
-    }, 0)
+    let score = 0
+    for (const item of scoreItems.value) {
+      if (item.scoreType === '客观项' && typeof item.estScore === 'number') {
+        score += item.estScore
+      }
+    }
+    return score
   })
 
   const actualTotalScore = computed(() => {
-    return Object.values(scoreResults.value).reduce((acc, r) => {
-      return r?.scoreType === 'objective' && typeof r?.actualScore === 'number' ? acc + r.actualScore : acc
-    }, 0)
+    let score = 0
+    for (const item of scoreItems.value) {
+      if (item.scoreType === '客观项') {
+        const res = scoreResults.value[item.code]
+        if (res && typeof res.score === 'number') {
+          score += res.score
+        }
+      }
+    }
+    return score
   })
 
-  function openDetail(item, result = null, mode = 'est') {
+  function openDetail(item, result, mode = 'est') {
     selectedItem.value = item
     selectedResult.value = result || scoreResults.value[item.code] || null
     detailMode.value = mode
@@ -69,14 +88,30 @@ export function useScoreParseDrawer(props, emit) {
 
   async function open(options = {}) {
     visible.value = true
-    currentStage.value = options.stage || 2
-    if (options.file) {
-      bidFileName.value = options.file
-    }
-    await fetchStage1Data(options)
+    currentStage.value = options.stage ?? 2
+    scored.value = options.scored ?? (currentStage.value === 2)
+    await fetchAnalysisData(options)
   }
 
-  async function fetchStage1Data(options = {}) {
+  function normalizeScoreItem(s, i) {
+    const reqText = s.req || s.indicator || s.detail || s.name || ''
+    const weight = Number(s.weight ?? 0)
+    const isSubj = s.isSubjective || (s.subType === 'TECHNICAL_EVALUATION') || (s.scoreType === '主观项')
+    return {
+      code: s.itemNumber || s.code || `S${i + 1}`,
+      dim: s.dimension || s.dim || '评分项',
+      req: reqText,
+      detail: s.detail || reqText,
+      weight,
+      status: s.status || 'neutral',
+      statusText: s.statusText || (s.status === 'ok' ? '满足' : s.status === 'danger' ? '不满足' : '待确认'),
+      scoreType: isSubj ? '主观项' : '客观项',
+      estScore: s.estScore != null ? s.estScore : (isSubj ? '待评审' : weight),
+      estBasis: s.estBasis || (isSubj ? '主观方案类评分项，需由评标专家根据方案深度综合评定' : '根据标书描述与资质匹配情况综合评审'),
+    }
+  }
+
+  async function fetchAnalysisData(options = {}) {
     loading.value = true
     error.value = ''
     try {
@@ -88,46 +123,28 @@ export function useScoreParseDrawer(props, emit) {
       const analysisData = analysisRes.status === 'fulfilled' ? analysisRes.value?.data : null
       const criteriaData = criteriaRes.status === 'fulfilled' ? criteriaRes.value?.data : null
 
-      if (analysisData?.sourceFileName) {
-        sourceFileName.value = analysisData.sourceFileName
-      }
-      if (analysisData?.bidFileName) {
-        bidFileName.value = analysisData.bidFileName
-      }
+      if (analysisData?.sourceFileName) sourceFileName.value = analysisData.sourceFileName
+      if (analysisData?.bidFileName) bidFileName.value = analysisData.bidFileName
       parseTime.value = analysisData?.parseTime || new Date().toLocaleString('zh-CN', { hour12: false })
       scoreTime.value = analysisData?.scoreTime || new Date().toLocaleString('zh-CN', { hour12: false })
 
-      const apiItems = criteriaData?.structuredItems || analysisData?.scoringCriteria?.items
-      if (Array.isArray(apiItems) && apiItems.length > 0) {
-        scoreItems.value = apiItems.map((s, i) => {
-          const fallback = defaultScoreTemplate[i] || {}
-          const reqText = s.req || s.indicator || s.detail || fallback.req || fallback.detail || ''
-          return {
-            code: s.itemNumber || s.code || fallback.code || `S${i + 1}`,
-            dim: s.dimension || s.dim || fallback.dim || '评分项',
-            req: reqText,
-            detail: s.detail || reqText,
-            weight: Number(s.weight ?? fallback.weight ?? 5),
-            status: s.status || fallback.status || 'neutral',
-            statusText: s.statusText || fallback.statusText || '待确认',
-            scoreType: s.scoreType || fallback.scoreType || '客观项',
-            estScore: s.estScore ?? fallback.estScore ?? '待评审',
-            estBasis: s.estBasis || fallback.estBasis || '根据标书描述与资质匹配情况综合评审',
-          }
-        })
-      } else {
-        scoreItems.value = JSON.parse(JSON.stringify(defaultScoreTemplate))
-      }
+      const apiItems = criteriaData?.structuredItems ||
+        analysisData?.scoringCriteria?.structuredItems ||
+        analysisData?.scoringCriteria?.items
 
-      scoreResults.value = JSON.parse(JSON.stringify(defaultScoreResults))
+      if (Array.isArray(apiItems) && apiItems.length > 0) {
+        scoreItems.value = apiItems.map(normalizeScoreItem)
+      } else {
+        scoreItems.value = [] // PRD §5.3: 空状态，绝不回退假数据
+      }
 
       emit('parsed', {
         dangerCount: statsDangerCount.value,
         warnCount: statsNeutralCount.value,
       })
 
-      if (options.autoScore) {
-        setTimeout(() => runScoring({ auto: true }), 400)
+      if (currentStage.value === 2) {
+        await runScoring({ auto: options.autoScore !== false })
       }
     } catch (e) {
       error.value = e?.response?.data?.msg || '评分标准解析加载失败'
@@ -149,11 +166,31 @@ export function useScoreParseDrawer(props, emit) {
       if (customRunner) {
         await customRunner()
       } else {
-        await new Promise((resolve) => setTimeout(resolve, 1600))
+        const evalRes = await bidAgentApi.evaluateBidScore(props.projectId)
+        const evalData = evalRes?.data || {}
+        if (evalData.items && Array.isArray(evalData.items)) {
+          const resultMap = {}
+          for (const item of evalData.items) {
+            resultMap[item.code] = {
+              score: item.actualScore != null ? Number(item.actualScore) : null,
+              status: item.status,
+              evalText: item.isSubjective ? '待专家评审' : `${item.actualScore ?? 0} 分`,
+              basis: item.basis,
+              quote: item.quote,
+              missedReason: item.missedReason,
+              suggestion: item.suggestion,
+            }
+          }
+          scoreResults.value = resultMap
+          if (evalData.bidFileName) bidFileName.value = evalData.bidFileName
+          if (evalData.scoreTime) scoreTime.value = evalData.scoreTime
+        }
       }
       scored.value = true
       scoreTime.value = new Date().toLocaleString('zh-CN', { hour12: false })
       ElMessage.success(isAuto ? 'AI 自动打分完成' : 'AI 实际打分完成')
+    } catch (e) {
+      notifyErrorUnlessRateLimit(e, '打分失败')
     } finally {
       scoringOverlayVisible.value = false
     }
@@ -167,35 +204,48 @@ export function useScoreParseDrawer(props, emit) {
   function exportReport() {
     const reportHtml = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>AI 评分标准解析报告 - ${props.projectId}</title>
-<style>body{font-family:sans-serif;padding:24px;color:#333;}table{width:100%;border-collapse:collapse;margin-top:16px;}th,td{border:1px solid #ddd;padding:8px;font-size:12px;text-align:left;}th{background:#f5f7fa;}.num{text-align:right;}</style>
+<style>body{font-family:sans-serif;padding:24px;color:var(--text-primary,#333);}table{width:100%;border-collapse:collapse;margin-top:16px;}th,td{border:1px solid var(--border-color,#ddd);padding:8px;font-size:12px;text-align:left;}th{background:var(--bg-muted,#f5f7fa);}.num{text-align:right;}</style>
 </head><body>
-<h2>AI 评分标准解析与对标报告</h2>
-<p>项目编号：${props.projectId} | 招标文件：${sourceFileName.value} | 投标文件：${bidFileName.value}</p>
-<p>客观项得分合计：${actualTotalScore.value} 分 / ${objectiveWeight.value} 分 (总权重: ${totalWeight.value} 分)</p>
-<table><thead><tr><th>编号</th><th>维度</th><th>细则</th><th>权重</th><th>类别</th><th>满足状态</th><th>实际得分</th></tr></thead>
-<tbody>${scoreItems.value.map((s) => `<tr><td>${s.code}</td><td>${s.dim}</td><td>${s.req}</td><td class="num">${s.weight}</td><td>${s.scoreType}</td><td>${s.statusText}</td><td class="num">${scoreResults.value[s.code]?.actualScore ?? '待评审'}</td></tr>`).join('')}</tbody>
-</table></body></html>`
+<h2>AI 评分标准解析报告（项目 ID: ${props.projectId}）</h2>
+<p>招标文件：${sourceFileName.value} | 解析时间：${parseTime.value}</p>
+<p>投标文件：${bidFileName.value} | 评分时间：${scoreTime.value}</p>
+<hr/>
+<h3>评分项明细（共 ${scoreItems.value.length} 项，总权重 ${totalWeight.value} 分）</h3>
+<table>
+<thead><tr><th>编号</th><th>维度</th><th>评分要求</th><th>权重</th><th>满足预判</th><th>实际得分</th><th>引用说明</th></tr></thead>
+<tbody>
+${scoreItems.value
+  .map((item) => {
+    const res = scoreResults.value[item.code] || {}
+    return `<tr><td>${item.code}</td><td>${item.dim}</td><td>${item.req}</td><td class="num">${item.weight}</td><td>${item.statusText}</td><td class="num">${res.evalText || item.estScore || '-'}</td><td>${res.quote || item.estBasis || '-'}</td></tr>`
+  })
+  .join('')}
+</tbody>
+</table>
+</body></html>`
 
-    const printWin = window.open('', '_blank')
-    if (printWin) {
-      printWin.document.write(reportHtml)
-      printWin.document.close()
-      printWin.focus()
-      setTimeout(() => printWin.print(), 250)
-    } else {
-      // 降级使用 Blob 本地下载
-      if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
-        const blob = new Blob([reportHtml], { type: 'text/html;charset=utf-8' })
-        const url = URL.createObjectURL(blob)
+    try {
+      const win = typeof window !== 'undefined' ? window.open('', '_blank') : null
+      if (win && win.document) {
+        win.document.write(reportHtml)
+        win.document.close()
+        win.print()
+        ElMessage.success('已生成打印预览')
+        return
+      }
+    } catch {
+      // 弹窗被拦截，降级为 Blob 下载
+    }
+
+    if (typeof Blob !== 'undefined' && typeof document !== 'undefined') {
+      const blob = new Blob([reportHtml], { type: 'text/html;charset=utf-8' })
+      const url = typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function' ? URL.createObjectURL(blob) : null
+      if (url) {
         const a = document.createElement('a')
         a.href = url
-        a.download = `AI评分标准解析报告_项目${props.projectId}.html`
-        document.body.appendChild(a)
+        a.download = `AI评分标准解析报告_${props.projectId}.html`
         a.click()
-        document.body.removeChild(a)
-        if (typeof URL.revokeObjectURL === 'function') {
-          URL.revokeObjectURL(url)
-        }
+        URL.revokeObjectURL(url)
       }
       ElMessage.success('已导出报告文件')
     }

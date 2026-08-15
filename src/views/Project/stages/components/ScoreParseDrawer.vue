@@ -73,7 +73,15 @@
             </div>
           </div>
           <div v-show="isSection1Expanded" class="collapse-body">
+            <div v-if="scoreItems.length === 0" class="scoring-placeholder">
+              <div class="placeholder-icon">📋</div>
+              <div class="placeholder-text">尚未解析到评分标准，请上传招标文件后点击重新解析</div>
+              <div class="placeholder-sub">
+                <button class="btn-tool" @click="reparse">重新解析</button>
+              </div>
+            </div>
             <ScoreParseTable
+              v-else
               mode="est"
               :items="scoreItems"
               :results="scoreResults"
@@ -97,7 +105,7 @@
           投标文件评分
           <span class="section-sub">（标书对标打分与引用建议）</span>
           <div class="section-actions">
-            <button class="btn-primary-sm" :disabled="currentStage === 1" @click="runScoring(false)">
+            <button class="btn-primary-sm" :disabled="currentStage === 1 || scoreItems.length === 0" @click="runScoring(false)">
               {{ currentStage === 1 ? '⚡ AI 实际打分（需先上传标书）' : scored ? '⚡ 重新打分' : '⚡ AI 实际打分' }}
             </button>
           </div>
@@ -110,7 +118,13 @@
           </div>
         </div>
 
-        <div v-if="currentStage === 1" class="scoring-placeholder">
+        <div v-if="scoreItems.length === 0" class="scoring-placeholder">
+          <div class="placeholder-icon">📋</div>
+          <div class="placeholder-text">尚未解析到评分标准，无法进行投标文件对标打分</div>
+          <div class="placeholder-sub">请先在阶段 1 完成评分标准提取与解析</div>
+        </div>
+
+        <div v-else-if="currentStage === 1" class="scoring-placeholder">
           <div class="placeholder-icon">📦</div>
           <div class="placeholder-text">尚未上传投标文件</div>
           <div class="placeholder-sub">在标书制作中上传投标文件后，AI 将自动对标评分标准进行实际打分</div>

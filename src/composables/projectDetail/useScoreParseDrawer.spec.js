@@ -25,6 +25,8 @@ vi.mock('@/api/modules/bidAgent.js', () => ({
     getFullAnalysis: vi.fn(),
     getQualificationMatch: vi.fn(),
     getScoringCriteria: vi.fn(),
+    evaluateBidScore: vi.fn(),
+    getBidScoreEvaluation: vi.fn(),
   },
 }))
 
@@ -63,6 +65,18 @@ describe('useScoreParseDrawer.js', () => {
         ],
       },
     })
+    bidAgentApi.evaluateBidScore.mockResolvedValue({
+      data: {
+        projectId: 99,
+        bidFileName: '西域投标文件.pdf',
+        scoreTime: '2026-08-15 15:00:00',
+        actualTotalScore: 6,
+        items: [
+          { code: 'A1', actualScore: null, status: 'PENDING_EXPERT', isSubjective: true, basis: '需专家评审', quote: null, suggestion: '补充技术先进性阐述' },
+          { code: 'D1', actualScore: 6, status: 'SATISFIED', isSubjective: false, basis: '匹配系统集成证书', quote: '第 3 章资质证明', suggestion: '' },
+        ],
+      },
+    })
     projectsApi.importScoreDraftsFromAnalysis.mockResolvedValue({
       data: { importedCount: 2 },
     })
@@ -81,6 +95,17 @@ describe('useScoreParseDrawer.js', () => {
     expect(drawer.statsOkCount.value).toBe(1)
     expect(drawer.statsNeutralCount.value).toBe(1)
     expect(emit).toHaveBeenCalledWith('parsed', expect.any(Object))
+  })
+
+  it('sets empty scoreItems when backend returns no criteria items (PRD §5.3 empty state contract)', async () => {
+    bidAgentApi.getFullAnalysis.mockResolvedValue({ data: {} })
+    bidAgentApi.getScoringCriteria.mockResolvedValue({ data: { structuredItems: [] } })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1 })
+
+    expect(drawer.scoreItems.value).toEqual([])
+    expect(drawer.totalWeight.value).toBe(0)
   })
 
   it('handles detail modal inspection', async () => {
@@ -103,6 +128,16 @@ describe('useScoreParseDrawer.js', () => {
     expect(ElMessageBox.confirm).toHaveBeenCalled()
     expect(projectsApi.importScoreDraftsFromAnalysis).toHaveBeenCalledWith(99)
     expect(emit).toHaveBeenCalledWith('imported', expect.any(Object))
+  })
+
+  it('calls real evaluateBidScore API in stage 2 scoring', async () => {
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2 })
+
+    expect(bidAgentApi.evaluateBidScore).toHaveBeenCalledWith(99)
+    expect(drawer.scored.value).toBe(true)
+    expect(drawer.scoreResults.value['D1'].score).toBe(6)
+    expect(drawer.actualTotalScore.value).toBe(6)
   })
 
   it('supports runScoring with async runner adapter in stage 2', async () => {

@@ -69,7 +69,6 @@
 
 <script setup>
 import { computed } from 'vue'
-import { defaultSuggestions } from '@/composables/projectDetail/scoreParseDefaults.js'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -100,8 +99,9 @@ const scoreDisplay = computed(() => {
   const weight = props.item?.weight ?? 0
   if (props.mode === 'actual') {
     if (!props.result) return '—'
-    if (props.result.status === 'subjective' || props.result.actualScore === null || props.result.actualScore === undefined) return '待评审'
-    return `${props.result.actualScore} / ${weight}`
+    const actual = props.result.score ?? props.result.actualScore
+    if (props.result.status === 'subjective' || props.result.status === 'PENDING_EXPERT' || actual === null || actual === undefined) return '待评审'
+    return `${actual} / ${weight}`
   }
   return typeof props.item?.estScore === 'number' ? `${props.item.estScore} / ${weight}` : props.item?.estScore || '待评审'
 })
@@ -109,9 +109,10 @@ const scoreDisplay = computed(() => {
 const scoreClass = computed(() => {
   if (props.mode === 'actual') {
     if (!props.result) return 'na'
-    if (props.result.status === 'subjective' || props.result.actualScore === null || props.result.actualScore === undefined) return 'subjective'
-    if (props.result.actualScore === props.item?.weight) return 'full'
-    return props.result.actualScore === 0 ? 'zero' : 'partial'
+    const actual = props.result.score ?? props.result.actualScore
+    if (props.result.status === 'subjective' || props.result.status === 'PENDING_EXPERT' || actual === null || actual === undefined) return 'subjective'
+    if (actual === props.item?.weight) return 'full'
+    return actual === 0 ? 'zero' : 'partial'
   }
   if (typeof props.item?.estScore === 'number') {
     if (props.item.estScore === props.item?.weight) return 'full'
@@ -121,15 +122,18 @@ const scoreClass = computed(() => {
 })
 
 const basisText = computed(() => {
-  if (props.mode === 'actual') return props.result?.evidence || props.item?.estBasis || '暂无评分依据'
+  if (props.mode === 'actual') return props.result?.basis || props.result?.evidence || props.item?.estBasis || '暂无评分依据'
   return props.item?.estBasis || '需评标专家根据标书描述人工评审'
 })
 
 const suggestionText = computed(() => {
   if (props.result?.suggestion) return props.result.suggestion
   if (props.item?.suggestion) return props.item.suggestion
-  if (['danger', 'warn', 'neutral'].includes(props.item?.status)) {
-    return defaultSuggestions[props.item?.code] || (props.item?.status === 'danger' ? '建议针对此项要求补充证明材料或替代响应方案' : '建议在标书中详细补充相关阐述，降低评审不确定性')
+  if (['danger', 'warn', 'neutral', 'PARTIALLY_SATISFIED', 'NOT_SATISFIED'].includes(props.item?.status) ||
+      ['danger', 'warn', 'neutral', 'PARTIALLY_SATISFIED', 'NOT_SATISFIED'].includes(props.result?.status)) {
+    return props.item?.status === 'danger' || props.result?.status === 'NOT_SATISFIED'
+      ? '建议针对此项要求补充证明材料或替代响应方案'
+      : '建议在标书中详细补充相关阐述，降低评审不确定性'
   }
   return ''
 })

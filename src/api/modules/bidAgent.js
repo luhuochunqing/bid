@@ -148,6 +148,14 @@ export const bidAgentApi = {
   async getFullAnalysis(projectId) {
     return httpClient.get(`/api/projects/${projectId}/bid-agent/full-analysis`)
   },
+
+  async evaluateBidScore(projectId, payload = {}) {
+    return httpClient.post(`/api/projects/${projectId}/bid-agent/score-evaluation`, payload)
+  },
+
+  async getBidScoreEvaluation(projectId) {
+    return httpClient.get(`/api/projects/${projectId}/bid-agent/score-evaluation`)
+  },
 }
 
 export default bidAgentApi
