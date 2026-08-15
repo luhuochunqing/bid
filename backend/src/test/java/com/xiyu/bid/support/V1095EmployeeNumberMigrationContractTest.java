@@ -40,7 +40,12 @@ class V1095EmployeeNumberMigrationContractTest {
     static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0")
             .withDatabaseName("xiyu_bid_v1095_replay")
             .withUsername("xiyu")
-            .withPassword("xiyu");
+            .withPassword("xiyu")
+            // 对齐 AbstractMysqlIntegrationTest：sql_mode 去掉 NO_ZERO_DATE/NO_ZERO_IN_DATE（V1077 '0000-00-00' 兼容），collation 对齐 utf8mb4_unicode_ci（V1092 兼容）
+            .withCommand(
+                    "--character-set-server=utf8mb4",
+                    "--collation-server=utf8mb4_unicode_ci",
+                    "--sql-mode=ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION");
 
     @DynamicPropertySource
     static void registerDataSourceProperties(DynamicPropertyRegistry registry) {

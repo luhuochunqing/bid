@@ -64,11 +64,23 @@ class FlywayMysqlContainerTest {
     static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0")
             .withDatabaseName("xiyu_bid_test")
             .withUsername("xiyu")
-            .withPassword("xiyu");
+            .withPassword("xiyu")
+            // 与 AbstractMysqlIntegrationTest 对齐（V1077 '0000-00-00' 字面量兼容 + V1092 collation 兼容）：
+            // 1. sql_mode 去掉 MySQL 8.0 默认的 NO_ZERO_DATE/NO_ZERO_IN_DATE，否则 V1077 触发 Error 1292
+            // 2. collation-server 对齐生产 utf8mb4_unicode_ci，避免 V1092 临时表 JOIN 触发 collation 冲突
+            .withCommand(
+                    "--character-set-server=utf8mb4",
+                    "--collation-server=utf8mb4_unicode_ci",
+                    "--sql-mode=ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION");
 
     @DynamicPropertySource
     static void registerDataSourceProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
+        // allowMultiQueries=true：V1092 迁移脚本含多条语句（START TRANSACTION + CREATE + ...），
+        // 测试中 v1092MergesUsersWhenTargetRoleAlreadyExists 会手动重放整份脚本，
+        // 若 JDBC 不允许多语句，会报 Error 1064（syntax error）。首个参数用 '?' 分隔，
+        // 不能直接拼 '&'（否则会把 '&allowMultiQueries=true' 误当成数据库名一部分）。
+        String baseUrl = MYSQL.getJdbcUrl();
+        registry.add("spring.datasource.url", () -> baseUrl + (baseUrl.contains("?") ? "&" : "?") + "allowMultiQueries=true");
         registry.add("spring.datasource.username", MYSQL::getUsername);
         registry.add("spring.datasource.password", MYSQL::getPassword);
         registry.add("spring.datasource.driver-class-name", MYSQL::getDriverClassName);
@@ -128,7 +140,8 @@ class FlywayMysqlContainerTest {
         assertEquals(1, baselineRuns);
         assertEquals(1, projectQualityTableCount);
         assertEquals(1, tenderAssignmentTableCount);
-        assertEquals(3, roleSeedCount);
+        // V1091 已移除 staff 角色，admin + manager 共 2 个
+        assertEquals(2, roleSeedCount);
         assertEquals(0, legacyIncrementalRuns);
     }
 

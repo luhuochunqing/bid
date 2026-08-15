@@ -15,11 +15,16 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * V117 迁移回归测试：验证 ARCHIVED → WON 映射在真实 MySQL 上正确执行。
+ * V117 迁移回归测试：验证标讯状态扩展与评分分析关联增强在真实 MySQL 上生效。
  *
- * <p>背景：V117 负责将旧 enum 值迁移到新的 VARCHAR(32) 类型。
- * 其中 ARCHIVED 必须映射为 WON（与 V113 原始语义一致，而非 ABANDONED）。
- * 本测试在 Testcontainers MySQL 上执行完整 Flyway 链后，验证该映射正确性。
+ * <p>背景：V117（tender_status_expansion）操作的是 <b>tenders.status</b> 列，而非 projects：
+ * <ul>
+ *   <li>将 tenders.status 从旧枚举（PENDING/TRACKING/BIDDED/ABANDONED）扩展为投标全生命周期枚举
+ *       （PENDING_ASSIGNMENT/TRACKING/EVALUATED/BIDDING/WON/LOST/ABANDONED）；</li>
+ *   <li>迁移旧值：PENDING → PENDING_ASSIGNMENT、BIDDED → BIDDING；</li>
+ *   <li>给 score_analyses 增加 tender_id 列与索引。</li>
+ * </ul>
+ * 本测试在 Testcontainers MySQL 上执行完整 Flyway 链后，验证 V117 留下的目标状态。
  */
 @SpringBootTest(properties = "spring.main.allow-bean-definition-overriding=true")
 @ActiveProfiles("flyway-mysql")
@@ -34,7 +39,12 @@ class V117ProjectStatusMappingContractTest {
     static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0")
             .withDatabaseName("xiyu_bid_v117_test")
             .withUsername("xiyu")
-            .withPassword("xiyu");
+            .withPassword("xiyu")
+            // 对齐 AbstractMysqlIntegrationTest：sql_mode 去掉 NO_ZERO_DATE/NO_ZERO_IN_DATE（V1077 '0000-00-00' 兼容），collation 对齐 utf8mb4_unicode_ci（V1092 兼容）
+            .withCommand(
+                    "--character-set-server=utf8mb4",
+                    "--collation-server=utf8mb4_unicode_ci",
+                    "--sql-mode=ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION");
 
     @DynamicPropertySource
     static void registerDataSourceProperties(DynamicPropertyRegistry registry) {
@@ -44,67 +54,44 @@ class V117ProjectStatusMappingContractTest {
         registry.add("spring.datasource.driver-class-name", MYSQL::getDriverClassName);
     }
 
-    @Test
-    void v117_ShouldMapArchivedToWon() {
-        // 插入一条 status = 'ARCHIVED' 的旧数据
-        jdbcTemplate.execute("""
-                INSERT INTO projects (id, name, status, customer_name, tender_subject, created_by, updated_by)
-                VALUES (999991, 'V117-ARCHIVED-TEST', 'ARCHIVED', '测试客户', '测试标的', 1, 1)
-                """);
-
-        // 重新执行 V117 的 UPDATE 映射逻辑
-        jdbcTemplate.execute("UPDATE projects SET status = 'WON' WHERE status = 'ARCHIVED'");
-
-        String mappedStatus = jdbcTemplate.queryForObject(
-                "SELECT status FROM projects WHERE id = 999991", String.class);
-
-        assertThat(mappedStatus)
-                .as("ARCHIVED 必须映射为 WON（与 V113 原始语义一致，而非 ABANDONED）")
-                .isEqualTo("WON");
-    }
-
-    @Test
-    void v117_ShouldMapOtherOldEnumValuesCorrectly() {
-        jdbcTemplate.execute("""
-                INSERT INTO projects (id, name, status, customer_name, tender_subject, created_by, updated_by)
-                VALUES (999992, 'V117-PREPARING-TEST', 'PREPARING', '测试客户', '测试标的', 1, 1)
-                """);
-        jdbcTemplate.execute("""
-                INSERT INTO projects (id, name, status, customer_name, tender_subject, created_by, updated_by)
-                VALUES (999993, 'V117-REVIEWING-TEST', 'REVIEWING', '测试客户', '测试标的', 1, 1)
-                """);
-        jdbcTemplate.execute("""
-                INSERT INTO projects (id, name, status, customer_name, tender_subject, created_by, updated_by)
-                VALUES (999994, 'V117-SEALING-TEST', 'SEALING', '测试客户', '测试标的', 1, 1)
-                """);
-
-        jdbcTemplate.execute("UPDATE projects SET status = 'BIDDING' WHERE status = 'PREPARING'");
-        jdbcTemplate.execute("UPDATE projects SET status = 'EVALUATING' WHERE status = 'REVIEWING'");
-        jdbcTemplate.execute("UPDATE projects SET status = 'BIDDING' WHERE status = 'SEALING'");
-
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT status FROM projects WHERE id = 999992", String.class))
-                .isEqualTo("BIDDING");
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT status FROM projects WHERE id = 999993", String.class))
-                .isEqualTo("EVALUATING");
-        assertThat(jdbcTemplate.queryForObject(
-                "SELECT status FROM projects WHERE id = 999994", String.class))
-                .isEqualTo("BIDDING");
-    }
-
-    @Test
-    void v117_ColumnShouldBeVarchar() {
-        String columnType = jdbcTemplate.queryForObject("""
-                SELECT DATA_TYPE
+    private String tendersStatusColumnType() {
+        return jdbcTemplate.queryForObject("""
+                SELECT COLUMN_TYPE
                 FROM information_schema.COLUMNS
                 WHERE TABLE_SCHEMA = DATABASE()
-                  AND TABLE_NAME = 'projects'
+                  AND TABLE_NAME = 'tenders'
                   AND COLUMN_NAME = 'status'
                 """, String.class);
+    }
 
+    @Test
+    void v117_TendersStatusContainsExpandedEnums() {
+        String columnType = tendersStatusColumnType();
         assertThat(columnType)
-                .as("V117 执行后 projects.status 应为 VARCHAR 类型")
-                .isEqualTo("varchar");
+                .as("V117 后 tenders.status 枚举必须包含投标全生命周期目标值")
+                .contains("PENDING_ASSIGNMENT", "TRACKING", "EVALUATED", "BIDDING", "WON", "LOST", "ABANDONED");
+    }
+
+    @Test
+    void v117_TendersStatusDropsLegacyEnums() {
+        String columnType = tendersStatusColumnType();
+        // 带引号精确匹配独立枚举值，避免误伤 PENDING_ASSIGNMENT（含 'PENDING' 子串）
+        assertThat(columnType)
+                .as("V117 后旧值 PENDING/BIDDED 必须从 tenders.status 枚举中移除")
+                .doesNotContain("'PENDING'", "'BIDDED'");
+    }
+
+    @Test
+    void v117_ScoreAnalysesHasTenderIdColumn() {
+        Integer tenderIdColumnCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'score_analyses'
+                  AND COLUMN_NAME = 'tender_id'
+                """, Integer.class);
+        assertThat(tenderIdColumnCount)
+                .as("V117 后 score_analyses 必须存在 tender_id 列")
+                .isEqualTo(1);
     }
 }
