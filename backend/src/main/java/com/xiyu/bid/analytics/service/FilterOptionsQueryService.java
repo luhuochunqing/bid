@@ -1,5 +1,7 @@
 package com.xiyu.bid.analytics.service;
 
+import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationDepartmentEntity;
+import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationDepartmentRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
@@ -20,45 +22,41 @@ public class FilterOptionsQueryService {
     @PersistenceContext
     private EntityManager entityManager;
 
+    private final OrganizationDepartmentRepository organizationDepartmentRepository;
+
     /**
-     * PRD §6.2 M1 筛选区下拉选项 — 部门 DISTINCT（users.department_name）。
+     * PRD §6.2 M1 筛选区下拉选项 — 部门。
+     * 从 OSS 组织架构表（organization_departments）获取全量部门，不过滤失效部门。
      */
     List<String> fetchDistinctDepartments() {
-        return entityManager.createQuery("""
-                        select distinct u.departmentName
-                        from Project p
-                        join User u on u.id = p.managerId
-                        where u.departmentName is not null
-                          and u.departmentName <> ''
-                        order by u.departmentName
-                        """, String.class)
-                .getResultList();
+        return organizationDepartmentRepository.findAllByOrderByDepartmentCode()
+                .stream()
+                .map(OrganizationDepartmentEntity::getDepartmentName)
+                .filter(name -> name != null && !name.isEmpty())
+                .distinct()
+                .toList();
     }
 
     /**
      * PRD §6.2 M1 筛选区下拉选项 — 人员 DISTINCT（users.full_name）。
-     * 可选按部门名称过滤（PRD §6.4 部门-人员联动用，null 表示不过滤返回全部）。
-     * 注：fetchDistinctDepartments 返回 departmentName 作为下拉 value，
-     * 此处按 departmentName 过滤保持语义一致（同名部门对应同 code）。
+     * 直接从 User 表查询，不限制必须有项目。
+     * 可选按部门名称过滤（PRD §6.4 部门-人员联动用，departmentNames 为空时返回空列表）。
      */
     List<String> fetchDistinctPersons(List<String> departmentNames) {
-        StringBuilder jpql = new StringBuilder("""
-                select distinct u.fullName
-                from Project p
-                join User u on u.id = p.managerId
-                where u.fullName is not null
-                  and u.fullName <> ''
-                """);
-        if (departmentNames != null && !departmentNames.isEmpty()) {
-            jpql.append("  and u.departmentName in :departmentNames\n");
+        if (departmentNames == null || departmentNames.isEmpty()) {
+            // 未选部门时不返回人员，前端需提示"请先选择部门"
+            return List.of();
         }
-        jpql.append(" order by u.fullName");
-
-        var query = entityManager.createQuery(jpql.toString(), String.class);
-        if (departmentNames != null && !departmentNames.isEmpty()) {
-            query.setParameter("departmentNames", departmentNames);
-        }
-        return query.getResultList();
+        return entityManager.createQuery("""
+                        select distinct u.fullName
+                        from User u
+                        where u.fullName is not null
+                          and u.fullName <> ''
+                          and u.departmentName in :departmentNames
+                        order by u.fullName
+                        """, String.class)
+                .setParameter("departmentNames", departmentNames)
+                .getResultList();
     }
 
     /**

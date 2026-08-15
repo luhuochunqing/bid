@@ -68,8 +68,9 @@ const selectedSet = computed(() => new Set(selectedValues.value))
 const selectedCount = computed(() => selectedValues.value.length)
 const totalCount = computed(() => props.options.length)
 
-// trigger 显示逻辑：未选时显示"请选择"，有选中时显示"已选 N 项"
+// trigger 显示逻辑：disabled 时显示 placeholder，未选时显示"请选择"，有选中时显示"已选 N 项"
 const triggerText = computed(() => {
+  if (props.disabled) return props.placeholder
   const count = selectedCount.value
   if (count === 0) return '请选择'
   if (count === totalCount.value) return '全部'

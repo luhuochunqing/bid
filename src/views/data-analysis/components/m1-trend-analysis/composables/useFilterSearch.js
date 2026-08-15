@@ -28,31 +28,31 @@ export function useFilterSearch() {
   /**
    * PRD §6.2 一次性加载全部维度选项（onMounted 调用）。
    * 项目状态、客户类型、项目类型、竞品公司、区域由前端常量提供，不在此加载。
+   * 人员初始不加载，由部门联动触发加载。
    */
   async function loadAllFilterOptions() {
     loadingDepartments.value = true
-    loadingPersons.value = true
     loadingTenderSubjects.value = true
     try {
       const res = await dashboardApi.getFilterOptions()
       if (res?.success && res.data) {
         const d = res.data
         departmentOptions.value = mapOptions(d.department)
-        personOptions.value = mapOptions(d.person)
+        // 人员初始不加载，由部门联动触发加载
+        personOptions.value = []
         tenderSubjectOptions.value = mapOptions(d.tenderEntity)
       }
     } catch {
       /* silent — 下拉为空，用户可重试 */
     } finally {
       loadingDepartments.value = false
-      loadingPersons.value = false
       loadingTenderSubjects.value = false
     }
   }
 
   /**
    * PRD 6.4 部门-人员联动：根据已选部门名称列表刷新人员下拉选项。
-   * departmentNames 为空数组或 null 时返回全部人员。
+   * departmentNames 为空数组或 null 时清空人员选项（前端需提示"请先选择部门"）。
    */
   async function refreshPersonsByDepartments(departmentNames) {
     loadingPersons.value = true

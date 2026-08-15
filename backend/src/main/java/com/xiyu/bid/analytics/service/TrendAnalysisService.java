@@ -81,10 +81,10 @@ public class TrendAnalysisService {
                         customerTypes, projectTypes, statusEnums, tenderEntities, competitorNames);
                 case "customerType" -> dimensionQueryService.fetchCustomerTypeRows(
                         startDate, endDate, departmentIds, userIds, regionIds,
-                        projectTypes, statusEnums, tenderEntities, competitorNames);
+                        customerTypes, projectTypes, statusEnums, tenderEntities, competitorNames);
                 case "projectType" -> dimensionQueryService.fetchProjectTypeRows(
                         startDate, endDate, departmentIds, userIds, regionIds,
-                        customerTypes, statusEnums, tenderEntities, competitorNames);
+                        customerTypes, projectTypes, statusEnums, tenderEntities, competitorNames);
                 case "projectStatus" -> dimensionQueryService.fetchStatusRows(
                         startDate, endDate, departmentIds, userIds, regionIds,
                         customerTypes, projectTypes, statusEnums, tenderEntities, competitorNames);
@@ -98,7 +98,10 @@ public class TrendAnalysisService {
             };
             result = "projectStatus".equals(ax)
                     ? computationService.computeProjectStatusTrend(dimensionRows)
-                    : computationService.computeDimensionTrend(dimensionRows);
+                    : computationService.computeDimensionTrend(dimensionRows,
+                            "customerType".equals(ax) ? customerTypes :
+                            "projectType".equals(ax) ? projectTypes :
+                            null);
         }
 
         return TrendAnalysisResponse.builder()
