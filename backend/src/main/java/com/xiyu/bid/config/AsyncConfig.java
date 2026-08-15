@@ -127,4 +127,14 @@ public class AsyncConfig {
     public Executor tenderEventExecutor() {
         return createExecutor("tender-event-", 1, 2, 20);
     }
+
+    /**
+     * AI 评分标准解析/打分专用线程池（spec 041 新增）。
+     * <p>core=1, max=2, queue=20：LLM 解析涉及多轮 chunk 调用（分钟级），
+     * 严格限制并发避免 OpenAI 配额打爆；CallerRunsPolicy 保证任务不丢失。
+     */
+    @Bean(name = "scoreParseExecutor")
+    public Executor scoreParseExecutor() {
+        return createExecutor("score-parse-", 1, 2, 20);
+    }
 }
