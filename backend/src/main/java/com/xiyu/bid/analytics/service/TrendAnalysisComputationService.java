@@ -22,8 +22,10 @@ class TrendAnalysisComputationService {
      * 投标数 = 已中标(WON) + 未中标(LOST) 的项目数。
      * 中标数 = 已中标(WON) 的项目数。
      * 按 bidCount 降序排列（PRD 6.5）。
+     * @param expectedCategories 可选，期望在 X 轴上出现的分类列表（数量为 0 的也会展示），
+     *                           仅当 xAxis 为 customerType/projectType 时传入
      */
-    TrendComputationResult computeDimensionTrend(List<DimensionRow> rows) {
+    TrendComputationResult computeDimensionTrend(List<DimensionRow> rows, List<String> expectedCategories) {
         Map<String, MutableTrendBucket> bucketMap = new LinkedHashMap<>();
         for (DimensionRow row : rows) {
             String key = row.category() != null ? row.category() : "未知";
@@ -35,6 +37,13 @@ class TrendAnalysisComputationService {
             }
             if (row.status() == Project.Status.WON) {
                 bucket.winCount++;
+            }
+        }
+
+        // 补充期望分类中缺失的项（数量为 0 也在 X 轴上展示）
+        if (expectedCategories != null) {
+            for (String expected : expectedCategories) {
+                bucketMap.computeIfAbsent(expected, MutableTrendBucket::new);
             }
         }
 

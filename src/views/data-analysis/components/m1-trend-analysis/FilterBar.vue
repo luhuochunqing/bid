@@ -27,7 +27,7 @@
     <div class="m8-filter-item">
       <input type="checkbox" class="m9-xaxis-cb" :checked="xAxisDimensions.includes('person')" @change="handleXAxisChange('person', $event.target.checked)" />
       <label class="m8-filter-label">人员</label>
-      <FilterSelect v-model="filters.persons" :options="personOptions" :loading="loadingPersons" placeholder="请选择" @search="handlePersonSearch" @change="handleFieldChange('person')" />
+      <FilterSelect v-model="filters.persons" :options="personOptions" :loading="loadingPersons" :disabled="personDisabled" :placeholder="personDisabled ? '请先选择部门' : '请选择'" @search="handlePersonSearch" @change="handleFieldChange('person')" />
     </div>
 
     <div class="m8-filter-item">
@@ -74,7 +74,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import {
   PROJECT_STATUS_OPTIONS,
   CUSTOMER_TYPE_OPTIONS,
@@ -108,6 +108,11 @@ const projectTypeOptions = ref(PROJECT_TYPE_OPTIONS)
 const competitorOptions = ref(COMPETITOR_OPTIONS)
 const regionOptions = ref(REGION_OPTIONS)
 const submitting = ref(false)
+
+// 人员选择器在未选择部门时 disabled，提示"请先选择部门"
+const personDisabled = computed(() => {
+  return !filters.value.departments || filters.value.departments.length === 0
+})
 
 const filters = ref({
   timeDimension: 'month',
