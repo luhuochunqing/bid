@@ -88,7 +88,7 @@ public class TrendAnalysisDimensionQueryService {
             List<String> departmentIds, List<String> userIds, List<String> regionIds,
             List<String> customerTypes, List<String> projectTypes, List<Project.Status> statuses,
             List<String> tenderEntities, List<String> competitorNames) {
-        return queryDimension("p.status",
+        return queryDimension("cast(p.status as string)",
                 "left join Tender t on t.id = p.tenderId left join User u on u.id = p.managerId left join ProjectInitiationDetails pid on pid.projectId = p.id left join ProjectResult pr on pr.projectId = p.id left join ProjectResultCompetitor prc on prc.resultId = pr.id",
                 "1=1",
                 departmentIds, startDate, endDate, userIds, regionIds,
