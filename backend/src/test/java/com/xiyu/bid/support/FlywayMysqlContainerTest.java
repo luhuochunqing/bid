@@ -19,6 +19,9 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.util.Map;
 
@@ -43,6 +46,9 @@ class FlywayMysqlContainerTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private DataSource dataSource;
 
     // 生产 sql_mode 已确认（2026-06-30，通过 SSH jetty@172.16.38.78 直连 RDS 查询）：
     //   @@sql_mode = ''（空字符串，所有 strict mode 关闭）
@@ -177,7 +183,7 @@ class FlywayMysqlContainerTest {
     }
 
     @Test
-    void v1092MergesUsersWhenTargetRoleAlreadyExists() {
+    void v1092MergesUsersWhenTargetRoleAlreadyExists() throws java.sql.SQLException {
         // 核心分支验证：当 /bidAdmin 已存在且 bid_admin 也存在时，
         // V1092 必须将 bid_admin 下的用户合并到 /bidAdmin，然后删除 bid_admin。
         // 利用 V1092 脚本的幂等性，在当前已迁移的数据上人工构造该场景并重新执行迁移。
@@ -210,8 +216,16 @@ class FlywayMysqlContainerTest {
         );
 
         // 4. 重新执行 V1092 迁移脚本（幂等）
+        //    关键：必须用同一连接先 DROP 遗留的临时表 tmp_role_mappings。
+        //    MySQL 临时表是会话级——Context 启动时 Flyway 已在某条连接上建过它，
+        //    脚本里的 CREATE TEMPORARY TABLE IF NOT EXISTS 复用该连接时不会重建，INSERT 会撞主键。
+        //    若用 jdbcTemplate.execute() 两次调用，可能取到不同连接导致 DROP 无效，故显式持有连接。
         String v1092Script = loadMigrationScript("db/migration-mysql/V1092__migrate_legacy_role_codes_to_oss_aligned.sql");
-        jdbcTemplate.execute(v1092Script);
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement()) {
+            stmt.execute("DROP TEMPORARY TABLE IF EXISTS tmp_role_mappings");
+            stmt.execute(v1092Script);
+        }
 
         // 5. 验证：legacy 角色被删除，用户已合并到 /bidAdmin
         Integer legacyRoleCount = jdbcTemplate.queryForObject(
