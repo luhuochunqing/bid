@@ -8,6 +8,7 @@ import com.xiyu.bid.analytics.service.TrendAnalysisService;
 import com.xiyu.bid.analytics.service.TrendDrillDownService;
 import com.xiyu.bid.dto.ApiResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,6 +20,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/analytics")
 @RequiredArgsConstructor
@@ -44,6 +46,7 @@ public class TrendAnalysisController {
 
     /**
      * M1: 增强趋势分析，支持维度筛选参数。
+     * timeDimension: 时间粒度（day/week/month/year），仅当 xAxis=time 时生效。
      */
     @GetMapping("/trends/enhanced")
     @PreAuthorize("hasAuthority('dashboard')")
@@ -51,6 +54,7 @@ public class TrendAnalysisController {
             @RequestParam(required = false) LocalDate startDate,
             @RequestParam(required = false) LocalDate endDate,
             @RequestParam(required = false, defaultValue = "time") String xAxis,
+            @RequestParam(required = false, defaultValue = "month") String timeDimension,
             @RequestParam(required = false) List<String> departmentIds,
             @RequestParam(required = false) List<String> userIds,
             @RequestParam(required = false) List<String> regionIds,
@@ -60,9 +64,11 @@ public class TrendAnalysisController {
             @RequestParam(required = false) List<String> tenderEntities,
             @RequestParam(required = false) List<String> competitorNames
     ) {
+        log.info("getEnhancedTrends called: xAxis={}, timeDimension={}, startDate={}, endDate={}, departmentIds={}, userIds={}, regionIds={}, customerTypes={}, projectTypes={}, statuses={}, tenderEntities={}, competitorNames={}",
+                xAxis, timeDimension, startDate, endDate, departmentIds, userIds, regionIds, customerTypes, projectTypes, statuses, tenderEntities, competitorNames);
         return ResponseEntity.ok(ApiResponse.success(
                 trendAnalysisService.getEnhancedTrends(
-                        startDate, endDate, xAxis,
+                        startDate, endDate, xAxis, timeDimension,
                         departmentIds, userIds, regionIds,
                         customerTypes, projectTypes, statuses,
                         tenderEntities, competitorNames
