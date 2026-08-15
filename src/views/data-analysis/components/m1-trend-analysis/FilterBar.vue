@@ -57,7 +57,7 @@
     <div class="m8-filter-item">
       <input type="checkbox" class="m9-xaxis-cb" :checked="xAxisDimensions.includes('tenderEntity')" @change="handleXAxisChange('tenderEntity', $event.target.checked)" />
       <label class="m8-filter-label">招标主体</label>
-      <FilterSelect v-model="filters.tenderSubjects" :options="tenderSubjectOptions" :loading="loadingTenderSubjects" placeholder="请选择" @search="handleTenderSubjectSearch" @change="handleFieldChange('tenderEntity')" />
+      <FilterSelect v-model="filters.tenderSubjects" :options="tenderSubjectOptions" :loading="loadingTenderSubjects" hide-select-all placeholder="请选择" @search="handleTenderSubjectSearch" @change="handleFieldChange('tenderEntity')" />
     </div>
 
     <div class="m8-filter-item">

@@ -82,6 +82,17 @@ export function useAnalyticsData() {
         { key: 'wonCount', label: '中标数', value: String(wonCount), unit: '个', foot: '项目状态为已中标', trendText: wonTrend.text, trendDirection: wonTrend.direction, colorClass: 'kpi-orange' },
         { key: 'winRate', label: '中标率', value: winRate.toFixed(1), unit: '%', foot: '中标数 / 投标数', trendText: winRateTrend.text, trendDirection: winRateTrend.direction, colorClass: 'kpi-purple' }
       ]
+      // 跨年度检测：如果日期筛选区间跨年度，投标中/中标数/中标率的同比显示"—"
+      const start = globalDateRange.value?.[0]
+      const end = globalDateRange.value?.[1]
+      if (start && end && start.getFullYear() !== end.getFullYear()) {
+        kpiCards.value[1].trendText = ''
+        kpiCards.value[1].trendDirection = ''
+        kpiCards.value[2].trendText = ''
+        kpiCards.value[2].trendDirection = ''
+        kpiCards.value[3].trendText = ''
+        kpiCards.value[3].trendDirection = ''
+      }
     } catch (e) {
       console.error('[M0] 加载KPI失败:', e)
       // PRD §5.4 接口失败：卡片数值区域显示「—」，不设 error 标志（有 fallback 数据）

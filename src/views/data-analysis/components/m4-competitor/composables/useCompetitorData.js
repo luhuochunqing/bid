@@ -3,8 +3,17 @@ import * as echarts from 'echarts'
 import { dashboardApi } from '@/api/modules/dashboard.js'
 import { renderCompetitorChart } from '../chartRenderer.js'
 
-// PRD §9.4 竞品公司枚举（前端硬编码）
-const COMPETITOR_ENUM = ['震坤行', '京东', '阿里巴巴', '米思米', '固安捷', '咸享国际', '易买工品']
+// PRD §9.4 竞品公司枚举（与 M1 多维度趋势分析保持一致，共 24 项）
+const COMPETITOR_ENUM = [
+  '震坤行', '鑫方盛', '浙江物产', '欧菲斯', '领先未来',
+  '浙江宏伟', '咸亨国际', '企事通', '一线达通', '京东',
+  '苏宁', '科力普', '得力', '史泰博', '齐心',
+  '广博', '一出科技', '怡亚通', '申合信', '大江科技',
+  '诚和致远', '阳采', '德致商成', '全程速达'
+].map((name) => ({ label: name, value: name }))
+
+// 默认选中全部 24 项
+const DEFAULT_COMPETITORS = COMPETITOR_ENUM.map((c) => c.value)
 const DEFAULT_DATE_RANGE = ['2026-01-01', '2026-12-31']
 
 // 将后端响应规范化为 chartRenderer 所需结构（兼容 PRD 格式与旧格式）
@@ -46,7 +55,7 @@ export function useCompetitorData(chartRef) {
   let chartInstance = null
 
   const dateRange = ref([...DEFAULT_DATE_RANGE])
-  const selectedCompetitors = ref([...COMPETITOR_ENUM])
+  const selectedCompetitors = ref([...DEFAULT_COMPETITORS])
   const selectedEntities = ref([])
   const selectedProjectName = ref(null)
   const entityActive = ref(false)
@@ -101,8 +110,8 @@ export function useCompetitorData(chartRef) {
   // PRD §9.12 步骤 7 + §9.14：竞品公司至少保留 1 个，选值变化自动刷新
   const onCompetitorChange = (val) => {
     if (!val || val.length === 0) {
-      // 恢复为默认全选（至少保留一个，不允许清空）
-      selectedCompetitors.value = [...COMPETITOR_ENUM]
+      // 清空时保留第一项（震坤行）
+      selectedCompetitors.value = [COMPETITOR_ENUM[0].value]
       return
     }
     fetchData()
@@ -159,12 +168,14 @@ export function useCompetitorData(chartRef) {
   }
 
   const renderChart = () => {
-    if (!chartRef.value || !chartData.value) return
+    if (!chartData.value) return
+    // 先设 loading=false 让图表容器 div 渲染（v-else 分支），chartRef 才能可用
+    loading.value = false
     nextTick(() => {
+      if (!chartRef.value) return
       if (!chartInstance) chartInstance = markRaw(echarts.init(chartRef.value))
       const ok = renderCompetitorChart(chartInstance, chartData.value)
       if (!ok) noData.value = true
-      loading.value = false
     })
   }
 
@@ -176,7 +187,7 @@ export function useCompetitorData(chartRef) {
     tableVisible.value = false
     try {
       const params = {
-        competitors: selectedCompetitors.value,
+        competitorNames: selectedCompetitors.value,
         startDate: dateRange.value?.[0] || null,
         endDate: dateRange.value?.[1] || null
       }
@@ -213,7 +224,7 @@ export function useCompetitorData(chartRef) {
   }
 
   const resetFilters = () => {
-    selectedCompetitors.value = [...COMPETITOR_ENUM]
+    selectedCompetitors.value = [...DEFAULT_COMPETITORS]
     selectedEntities.value = []
     selectedProjectName.value = null
     entityActive.value = false
@@ -228,7 +239,10 @@ export function useCompetitorData(chartRef) {
     try {
       const res = await dashboardApi.getTenderEntities()
       const list = Array.isArray(res?.data) ? res.data : []
-      entityOptions.value = list.map((e) => (typeof e === 'string' ? e : e?.name || e?.entityName || '')).filter(Boolean)
+      entityOptions.value = list.map((e) => {
+        const name = typeof e === 'string' ? e : (e?.name || e?.entityName || '')
+        return { label: name, value: name }
+      }).filter((o) => o.value)
     } catch (err) {
       console.warn('M4 tender-entities fetch error (non-fatal):', err)
       entityOptions.value = []

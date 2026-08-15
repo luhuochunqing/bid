@@ -1,7 +1,6 @@
 package com.xiyu.bid.analytics.service;
 
 import com.xiyu.bid.analytics.dto.TrendDrillDownResponse;
-import com.xiyu.bid.service.ProjectAccessScopeService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import lombok.RequiredArgsConstructor;
@@ -11,7 +10,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -24,7 +22,6 @@ import java.util.Map;
 public class TrendDrillDownService {
 
     private final EntityManager entityManager;
-    private final ProjectAccessScopeService projectAccessScopeService;
 
     public TrendDrillDownResponse drillDown(
             String dimension,
@@ -45,17 +42,6 @@ public class TrendDrillDownService {
     ) {
         int pageSize = (size == null || size <= 0) ? 10 : Math.min(size, 200);
         int pageNum = (page == null || page <= 0) ? 1 : page;
-
-        // 全局访问权限（admin / bidAdmin / bid-TeamLeader / bid-SystemAdmin）→ 不限制项目 ID
-        boolean allAccess = projectAccessScopeService.currentUserHasGlobalAccess();
-        List<Long> projectIds = allAccess
-                ? Collections.emptyList()
-                : new ArrayList<>(projectAccessScopeService.getAllowedProjectIdsForCurrentUser());
-
-        // 如果非全局访问且无可见项目，直接返回空
-        if (!allAccess && projectIds.isEmpty()) {
-            return emptyResponse(pageNum, pageSize);
-        }
 
         // 构建原生 SQL
         StringBuilder where = new StringBuilder(" WHERE 1=1");
@@ -104,12 +90,6 @@ public class TrendDrillDownService {
         if (competitorNames != null && !competitorNames.isEmpty()) {
             where.append(" AND EXISTS (SELECT 1 FROM project_result pr2 JOIN project_result_competitor prc2 ON prc2.result_id = pr2.id WHERE pr2.project_id = p.id AND prc2.name IN (:competitorNames))");
             params.put("competitorNames", competitorNames);
-        }
-
-        // 权限过滤
-        if (!allAccess) {
-            where.append(" AND p.id IN (:scopedIds)");
-            params.put("scopedIds", projectIds);
         }
 
         // COUNT 查询

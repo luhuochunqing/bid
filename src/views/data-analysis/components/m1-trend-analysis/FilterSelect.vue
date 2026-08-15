@@ -1,9 +1,9 @@
 <template>
-  <div class="filter-select" ref="wrapperRef">
+  <div class="filter-select" :class="{ disabled: disabled }" ref="wrapperRef">
     <!-- 自定义 trigger：显示"全部"或"已选 N 项" + badge -->
     <div
       class="ms-trigger"
-      :class="{ open: panelVisible }"
+      :class="{ open: panelVisible, disabled: disabled }"
       @click="togglePanel"
     >
       <span class="ms-trigger-text">{{ triggerText }}</span>
@@ -35,7 +35,7 @@
         <div v-if="visibleOptions.length === 0" class="ms-empty">无匹配结果</div>
       </div>
       <div class="ms-actions">
-        <a @click.stop="selectAllVisible">全选</a>
+        <a v-if="!hideSelectAll" @click.stop="selectAllVisible">全选</a>
         <a @click.stop="clearAll">清空</a>
       </div>
     </div>
@@ -49,6 +49,8 @@ const props = defineProps({
   modelValue: { type: Array, default: () => [] },
   options: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
+  disabled: { type: Boolean, default: false },
+  hideSelectAll: { type: Boolean, default: false },
   placeholder: { type: String, default: '请选择' }
 })
 
@@ -90,6 +92,7 @@ watch(() => props.modelValue, (val) => {
 })
 
 const togglePanel = () => {
+  if (props.disabled) return
   panelVisible.value = !panelVisible.value
   if (panelVisible.value) {
     searchText.value = ''
@@ -166,6 +169,10 @@ onBeforeUnmount(() => {
   user-select: none;
 }
 .ms-trigger:hover { border-color: #2E7659; }
+.ms-trigger.disabled {
+  background: #F1F5F9; color: #CBD5E1; cursor: not-allowed; border-color: #E2E8F0;
+}
+.ms-trigger.disabled:hover { border-color: #E2E8F0; }
 .ms-trigger.open {
   border-color: #2E7659;
   box-shadow: 0 0 0 3px rgba(46,118,89,0.12);

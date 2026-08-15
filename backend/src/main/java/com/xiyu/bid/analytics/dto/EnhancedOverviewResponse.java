@@ -13,6 +13,7 @@ public class EnhancedOverviewResponse {
     private Long totalCount;
     private Long biddingCount;
     private Long wonCount;
+    private Long notWonCount;
     private Double winRate;
 
     // PRD §3.1 同比数据（null 表示去年同期无数据，前端显示「—」）
