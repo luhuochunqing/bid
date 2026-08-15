@@ -97,7 +97,7 @@ public class TrendAnalysisService {
                 default -> throw new IllegalArgumentException("Unknown xAxis: " + ax);
             };
             result = "projectStatus".equals(ax)
-                    ? computationService.computeProjectStatusTrend(dimensionRows)
+                    ? computationService.computeProjectStatusTrend(dimensionRows, statuses)
                     : computationService.computeDimensionTrend(dimensionRows,
                             "customerType".equals(ax) ? customerTypes :
                             "projectType".equals(ax) ? projectTypes :

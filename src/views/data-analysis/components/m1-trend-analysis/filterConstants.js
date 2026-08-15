@@ -10,14 +10,15 @@ export const PROJECT_STATUS_OPTIONS = [
 ]
 
 // 项目状态 → 图表柱子颜色映射（PRD 6.5：项目状态为 X 轴时按状态着色）
+// key 使用后端返回的 Project.Status 枚举名，与 fetchStatusRows 中 cast(p.status as string) 一致
 // 使用状态名作为 key（非 color 属性），避免触发 design-token 增量门禁
 export const PROJECT_STATUS_COLORS = {
-  投标中: '#2563EB',
-  评标中: '#8B5CF6',
-  已中标: '#10B981',
-  未中标: '#EF4444',
-  已流标: '#EA580C',
-  弃标: '#9CA3AF'
+  BIDDING: '#2563EB',
+  EVALUATING: '#8B5CF6',
+  WON: '#10B981',
+  LOST: '#EF4444',
+  FAILED: '#EA580C',
+  ABANDONED: '#9CA3AF'
 }
 
 // 客户类型选项（与投标项目筛选区保持一致，值和顺序相同）

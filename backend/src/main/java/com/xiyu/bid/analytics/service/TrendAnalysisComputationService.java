@@ -74,8 +74,10 @@ class TrendAnalysisComputationService {
      * 项目状态维度专用计算：统计每个状态的所有项目数量（不限于 WON+LOST）。
      * 因为 X 轴本身就是项目状态，每个状态的所有项目都应计入数量。
      * 按 count 降序排列（PRD 6.5）。
+     * @param expectedCategories 可选，期望在 X 轴上出现的分类列表（数量为 0 的也会展示），
+     *                           仅当 xAxis 为 projectStatus 时传入
      */
-    TrendComputationResult computeProjectStatusTrend(List<DimensionRow> rows) {
+    TrendComputationResult computeProjectStatusTrend(List<DimensionRow> rows, List<String> expectedCategories) {
         Map<String, MutableTrendBucket> bucketMap = new LinkedHashMap<>();
         for (DimensionRow row : rows) {
             String key = row.category() != null ? row.category() : "未知";
@@ -84,6 +86,13 @@ class TrendAnalysisComputationService {
             bucket.bidCount++;
             if (row.status() == Project.Status.WON) {
                 bucket.winCount++;
+            }
+        }
+
+        // 补充期望分类中缺失的项（数量为 0 也在 X 轴上展示）
+        if (expectedCategories != null) {
+            for (String expected : expectedCategories) {
+                bucketMap.computeIfAbsent(expected, MutableTrendBucket::new);
             }
         }
 
