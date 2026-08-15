@@ -14,7 +14,7 @@ import java.util.Map;
 @Component
 class ProjectTypeAnalyticsComputationService {
 
-    static final String UNCATEGORIZED_PROJECT_TYPE = "未分类";
+    static final String UNCATEGORIZED_PROJECT_TYPE = "其他";
 
     List<ProjectTypeAggregate> summarize(List<ProjectTypeProjectRow> rows) {
         long totalProjects = rows.size();
