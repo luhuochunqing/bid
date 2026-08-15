@@ -3,7 +3,7 @@ import { ElMessage } from 'element-plus'
 import { dashboardApi } from '@/api'
 
 export function useAnalyticsData() {
-  const defaultDateRange = () => [new Date('2026-01-01'), new Date('2026-12-31')]
+  const defaultDateRange = () => [new Date('2026-01-01'), new Date()]
   const globalDateRange = ref(defaultDateRange())
   const m4DateRange = ref(defaultDateRange())
 

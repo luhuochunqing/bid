@@ -14,7 +14,13 @@ const COMPETITOR_ENUM = [
 
 // 默认选中全部 24 项
 const DEFAULT_COMPETITORS = COMPETITOR_ENUM.map((c) => c.value)
-const DEFAULT_DATE_RANGE = ['2026-01-01', '2026-12-31']
+const DEFAULT_DATE_RANGE = () => {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  return [`${y}-01-01`, `${y}-${m}-${d}`]
+}
 
 // 将后端响应规范化为 chartRenderer 所需结构（兼容 PRD 格式与旧格式）
 function normalizeChartData(response, mode, selectedCompetitors, selectedEntities) {
@@ -54,7 +60,7 @@ export function useCompetitorData(chartRef) {
   const noData = ref(false)
   let chartInstance = null
 
-  const dateRange = ref([...DEFAULT_DATE_RANGE])
+  const dateRange = ref(DEFAULT_DATE_RANGE())
   const selectedCompetitors = ref([...DEFAULT_COMPETITORS])
   const selectedEntities = ref([])
   const selectedProjectName = ref(null)
@@ -219,7 +225,7 @@ export function useCompetitorData(chartRef) {
   }
 
   const resetDateRange = () => {
-    dateRange.value = [...DEFAULT_DATE_RANGE]
+    dateRange.value = DEFAULT_DATE_RANGE()
     fetchData()
   }
 
