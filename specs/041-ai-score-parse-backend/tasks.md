@@ -20,8 +20,8 @@
 
 **Purpose**: 任务分支基础设施与资源预订
 
-- [ ] T001 对 `db/migration-mysql` 与 `db/rollback/migration-mysql` acquire agent lock（`npm run agent:lock-acquire -- --path backend/src/main/resources/db/migration-mysql --scope directory --reason "score-parse V1187/V1188"`，rollback 同理）
-- [ ] T002 用 `bash scripts/new-migration.sh` 预约并创建两个迁移占位：V1187（score 三表）+ V1188（performance contract_amount），生成对应 U1187/U1188 回滚占位
+- [x] T001 对 `db/migration-mysql` 与 `db/rollback/migration-mysql` acquire agent lock（`npm run agent:lock-acquire -- --path backend/src/main/resources/db/migration-mysql --scope directory --reason "score-parse V1187/V1188"`，rollback 同理）
+- [x] T002 用 `bash scripts/new-migration.sh` 预约并创建两个迁移占位：V1187（score 三表）+ V1188（performance contract_amount），生成对应 U1187/U1188 回滚占位
 
 ---
 
@@ -29,14 +29,14 @@
 
 **Purpose**: 三表 schema、实体、仓库、异步执行器、任务状态机——所有 US 的公共地基
 
-- [ ] T003 编写 V1187 迁移 SQL：`score_parse_task` / `score_item` / `score_result`（字段见 data-model.md；含索引 project_id、task_id UK、score_item_id UK）+ U1187 回滚（DROP 三表，反序）
-- [ ] T004 编写 V1188 迁移 SQL：`performance_record` 加 `contract_amount DECIMAL(15,2) NULL` + U1188 回滚（DROP COLUMN）
-- [ ] T005 [P] 创建实体 `ScoreParseTask` / `ScoreItem` / `ScoreResult` 于 `backend/src/main/java/com/xiyu/bid/scoreparse/entity/`（含 @PrePersist/@PreUpdate 时间戳，字段与迁移一致）
-- [ ] T006 [P] 创建 Repository 三接口于 `backend/src/main/java/com/xiyu/bid/scoreparse/repository/`（ScoreParseTaskRepository 含 `findByTaskId`、`findByProjectIdAndTaskTypeAndStatusIn`、`findByStatusAndUpdatedAtBefore`）
-- [ ] T007 在 `backend/src/main/java/com/xiyu/bid/config/AsyncConfig.java` 新增 `scoreParseExecutor` bean（core=1/max=2/queue=20，createExecutor 挂 MdcTaskDecorator）
-- [ ] T008 [P] 实现 `ScoreParseTaskStateService`（`scoreparse/application/`）：createTask/markProcessing/markCompleted/markFailed + 三层降级 failTask（spec 031 范式，每方法独立 @Transactional）
-- [ ] T009 [P] 实现 `ScoreParseProgressService`（`scoreparse/application/`）：`Optional<StringRedisTemplate>` 降级，key `score:{parse|scoring}:progress:{taskId}` TTL 7d，DB fallback
-- [ ] T010 [P] 创建 domain 基础 record `ScoreCandidate`（`scoreparse/domain/`）：code/dim/detail/weight/scoreTypeGuess/contextNote/sourceText/location/semanticPattern
+- [x] T003 编写 V1187 迁移 SQL：`score_parse_task` / `score_item` / `score_result`（字段见 data-model.md；含索引 project_id、task_id UK、score_item_id UK）+ U1187 回滚（DROP 三表，反序）
+- [x] T004 编写 V1188 迁移 SQL：`performance_record` 加 `contract_amount DECIMAL(15,2) NULL` + U1188 回滚（DROP COLUMN）
+- [x] T005 [P] 创建实体 `ScoreParseTask` / `ScoreItem` / `ScoreResult` 于 `backend/src/main/java/com/xiyu/bid/scoreparse/entity/`（含 @PrePersist/@PreUpdate 时间戳，字段与迁移一致）
+- [x] T006 [P] 创建 Repository 三接口于 `backend/src/main/java/com/xiyu/bid/scoreparse/repository/`（ScoreParseTaskRepository 含 `findByTaskId`、`findByProjectIdAndTaskTypeAndStatusIn`、`findByStatusAndUpdatedAtBefore`）
+- [x] T007 在 `backend/src/main/java/com/xiyu/bid/config/AsyncConfig.java` 新增 `scoreParseExecutor` bean（core=1/max=2/queue=20，createExecutor 挂 MdcTaskDecorator）
+- [x] T008 [P] 实现 `ScoreParseTaskStateService`（`scoreparse/application/`）：createTask/markProcessing/markCompleted/markFailed + 三层降级 failTask（spec 031 范式，每方法独立 @Transactional）
+- [x] T009 [P] 实现 `ScoreParseProgressService`（`scoreparse/application/`）：`Optional<StringRedisTemplate>` 降级，key `score:{parse|scoring}:progress:{taskId}` TTL 7d，DB fallback
+- [x] T010 [P] 创建 domain 基础 record `ScoreCandidate`（`scoreparse/domain/`）：code/dim/detail/weight/scoreTypeGuess/contextNote/sourceText/location/semanticPattern
 
 **Checkpoint**: `mvn test -Dtest=ArchitectureTest` 全绿；迁移在本地库执行成功
 
@@ -50,21 +50,21 @@
 
 ### Tests for US1（先写，确认 FAIL）
 
-- [ ] T011 [P] [US1] `ScoreItemMergePolicyTest`（`backend/src/test/java/com/xiyu/bid/scoreparse/domain/`）：重复识别合并、语义相似不误删、编号重复保留首次
-- [ ] T012 [P] [US1] `ScoreTypeClassificationPolicyTest`：量化条件→客观、描述性→主观、报价类→主观
-- [ ] T013 [P] [US1] `WeightSumCheckTest` + `ItemCountCheckTest`：合计≠100 触发二次解析标记、0 项判定失败
-- [ ] T014 [P] [US1] `MarkdownScoreSectionLocatorTest`：表格/标题层级候选区域、前后文保留
+- [x] T011 [P] [US1] `ScoreItemMergePolicyTest`（`backend/src/test/java/com/xiyu/bid/scoreparse/domain/`）：重复识别合并、语义相似不误删、编号重复保留首次
+- [x] T012 [P] [US1] `ScoreTypeClassificationPolicyTest`：量化条件→客观、描述性→主观、报价类→主观
+- [x] T013 [P] [US1] `WeightSumCheckTest` + `ItemCountCheckTest`：合计≠100 触发二次解析标记、0 项判定失败
+- [x] T014 [P] [US1] `MarkdownScoreSectionLocatorTest`：表格/标题层级候选区域、前后文保留
 
 ### Implementation for US1
 
-- [ ] T015 [US1] 实现 domain：`ScoreItemMergePolicy` / `ScoreTypeClassificationPolicy` / `WeightSumCheck` / `ItemCountCheck`（让 T011-T013 转 GREEN）
-- [ ] T016 [US1] 实现 `MarkdownScoreSectionLocator`（`scoreparse/infrastructure/structure/`，纯静态方法）
-- [ ] T017 [US1] 实现 `ScoreParsePrompts` + `ScoreCandidateOutput` + `ScoreGapRecheckOutput`（`scoreparse/infrastructure/openai/`，契约见 contracts/llm-output-schema.md §1/§2/§3）
-- [ ] T018 [US1] 实现 `OpenAiScoreAnalyzer`：召回一（复用 RegexKeywordMatcher/ScoringItemExtractor）+ 召回二（T016）+ 召回三/四（chunk 多轮 LLM，复用 `OpenAiStructuredOutputService`，全量内容过 sanitizeUntrusted）
-- [ ] T019 [US1] 实现 `ScoreParseAppService`：trigger（互斥校验）+ `@Async("scoreParseExecutor")` executeParse（@Lazy self 代理）+ 编排 T15/T16/T18 → 合并 → 校验 → 差异触发二次/回补 → 落 score_item（0 项→FAILED）
-- [ ] T020 [US1] `BidTenderDocumentImportAppService` 保存成功后 publishEvent `TenderDocumentStoredEvent`（+1 行 + 事件 record 于 `biddraftagent/application/`）
-- [ ] T021 [US1] 实现 `TenderDocumentStoredListener`（`scoreparse/application/`，@Async @EventListener 消费 → trigger，进行中则 log.info 跳过）
-- [ ] T022 [US1] 实现 `ScoreParseController`（`scoreparse/controller/`）：POST /parse、GET /parse/status、GET /items（+summary 聚合，weightWarning）；类级 isAuthenticated + Service 层 assertCurrentUserCanAccessProject
+- [x] T015 [US1] 实现 domain：`ScoreItemMergePolicy` / `ScoreTypeClassificationPolicy` / `WeightSumCheck` / `ItemCountCheck`（让 T011-T013 转 GREEN）
+- [x] T016 [US1] 实现 `MarkdownScoreSectionLocator`（`scoreparse/infrastructure/structure/`，纯静态方法）
+- [x] T017 [US1] 实现 `ScoreParsePrompts` + `ScoreCandidateOutput` + `ScoreGapRecheckOutput`（`scoreparse/infrastructure/openai/`，契约见 contracts/llm-output-schema.md §1/§2/§3）
+- [x] T018 [US1] 实现 `OpenAiScoreAnalyzer`：召回一（复用 RegexKeywordMatcher/ScoringItemExtractor）+ 召回二（T016）+ 召回三/四（chunk 多轮 LLM，复用 `OpenAiStructuredOutputService`，全量内容过 sanitizeUntrusted）
+- [x] T019 [US1] 实现 `ScoreParseAppService`：trigger（互斥校验）+ `@Async("scoreParseExecutor")` executeParse（@Lazy self 代理）+ 编排 T15/T16/T18 → 合并 → 校验 → 差异触发二次/回补 → 落 score_item（0 项→FAILED）
+- [x] T020 [US1] `BidTenderDocumentImportAppService` 保存成功后 publishEvent `TenderDocumentStoredEvent`（+1 行 + 事件 record 于 `biddraftagent/application/`）
+- [x] T021 [US1] 实现 `TenderDocumentStoredListener`（`scoreparse/application/`，@Async @EventListener 消费 → trigger，进行中则 log.info 跳过）
+- [x] T022 [US1] 实现 `ScoreParseController`（`scoreparse/controller/`）：POST /parse、GET /parse/status、GET /items（+summary 聚合，weightWarning）；类级 isAuthenticated + Service 层 assertCurrentUserCanAccessProject
 
 **Checkpoint**: US1 独立可测（quickstart §3）
 
@@ -78,15 +78,15 @@
 
 ### Tests for US2（先写，确认 FAIL）
 
-- [ ] T023 [P] [US2] `CertMatchServiceTest`：完全/部分/未匹配、过期证书 expired=true、等级忽略时放行
-- [ ] T024 [P] [US2] `PersonMatchServiceTest`：比例计算（3/5）、证书子表 deleted_at 过滤、单人多证计一次
-- [ ] T025 [P] [US2] `ProjectMatchServiceTest`：数量比例、contract_amount NULL 跳过金额比对不失配
-- [ ] T026 [P] [US2] `WarehouseMatchServiceTest` + `BrandMatchServiceTest`：状态过滤、降级匹配标注、expireSoon 标记
+- [x] T023 [P] [US2] `CertMatchServiceTest`：完全/部分/未匹配、过期证书 expired=true、等级忽略时放行
+- [x] T024 [P] [US2] `PersonMatchServiceTest`：比例计算（3/5）、证书子表 deleted_at 过滤、单人多证计一次
+- [x] T025 [P] [US2] `ProjectMatchServiceTest`：数量比例、contract_amount NULL 跳过金额比对不失配
+- [x] T026 [P] [US2] `WarehouseMatchServiceTest` + `BrandMatchServiceTest`：状态过滤、降级匹配标注、expireSoon 标记
 
 ### Implementation for US2
 
-- [ ] T027 [US2] 实现五个 match AppService（`scoreparse/application/match/`）：Specification 动态查询 + tier/ratio 计算（mock repository 让 T023-T026 GREEN；契约见 contracts/knowledge-match-api.md）
-- [ ] T028 [US2] 实现 `KnowledgeMatchController`：POST /api/knowledge/{cert|person|project|warehouse|brand}/match，isAuthenticated
+- [x] T027 [US2] 实现五个 match AppService（`scoreparse/application/match/`）：Specification 动态查询 + tier/ratio 计算（mock repository 让 T023-T026 GREEN；契约见 contracts/knowledge-match-api.md）
+- [x] T028 [US2] 实现 `KnowledgeMatchController`：POST /api/knowledge/{cert|person|project|warehouse|brand}/match，isAuthenticated
 
 **Checkpoint**: US2 独立可测（quickstart §2，SC-005 计时）
 
@@ -100,15 +100,15 @@
 
 ### Tests for US3（先写，确认 FAIL）
 
-- [ ] T029 [P] [US3] `PartialScorePolicyTest`：四舍五入、开区间 (0,weight)、主观项 null 零泄漏（SC-003）
-- [ ] T030 [P] [US3] `ScoreStatusPolicyTest` + `ScoreRangeGuardTest`：满分 OK/零分 DANGER/部分与过期 PENDING、超区间置 null+PENDING
-- [ ] T031 [P] [US3] `SummaryAggregatorTest`：合计排除主观项、objective/subjectiveWeight、weightWarning
+- [x] T029 [P] [US3] `PartialScorePolicyTest`：四舍五入、开区间 (0,weight)、主观项 null 零泄漏（SC-003）
+- [x] T030 [P] [US3] `ScoreStatusPolicyTest` + `ScoreRangeGuardTest`：满分 OK/零分 DANGER/部分与过期 PENDING、超区间置 null+PENDING
+- [x] T031 [P] [US3] `SummaryAggregatorTest`：合计排除主观项、objective/subjectiveWeight、weightWarning
 
 ### Implementation for US3
 
-- [ ] T032 [US3] 实现 domain：`PartialScorePolicy` / `ScoreStatusPolicy` / `ScoreRangeGuard` / `SummaryAggregator`（T029-T031 GREEN）
-- [ ] T033 [US3] 实现 `EstimatedScoreService`（`scoreparse/application/`）：解析完成后按 scoreTypeGuess 分型调用 T27 五 match → 策略计算 → 回填 est_score/status_stage1/est_basis/kb_hit（主观项强制 null）；挂入 US1 编排链尾
-- [ ] T034 [US3] GET /items 响应接入 SummaryAggregator 输出（含 weightWarning）
+- [x] T032 [US3] 实现 domain：`PartialScorePolicy` / `ScoreStatusPolicy` / `ScoreRangeGuard` / `SummaryAggregator`（T029-T031 GREEN）
+- [x] T033 [US3] 实现 `EstimatedScoreService`（`scoreparse/application/`）：解析完成后按 scoreTypeGuess 分型调用 T27 五 match → 策略计算 → 回填 est_score/status_stage1/est_basis/kb_hit（主观项强制 null）；挂入 US1 编排链尾（含 `KnowledgeCategoryPolicy` 分型 + 关键词/数量提取，24 用例验证）
+- [x] T034 [US3] GET /items 响应接入 SummaryAggregator 输出（含 weightWarning）
 
 **Checkpoint**: US1+US2+US3 串联 = 阶段 1 完整链路
 
@@ -122,15 +122,15 @@
 
 ### Tests for US4（先写，确认 FAIL）
 
-- [ ] T035 [P] [US4] `ScoreAssessmentGuardTest`：actualScore 超区间置 null、主观项数字丢弃、quoteMissing→null
-- [ ] T036 [P] [US4] `ScoreScoringAppServiceTest`：前置条件（NO_BID_DOCUMENT/SCORE_ITEMS_NOT_READY/TASK_IN_PROGRESS）、整批覆盖、失败保留旧结果
+- [x] T035 [P] [US4] `ScoreAssessmentGuardTest`：actualScore 超区间置 null、主观项数字丢弃、quoteMissing→null（9 用例）
+- [x] T036 [P] [US4] `ScoreScoringAppServiceTest`：前置条件（NO_BID_DOCUMENT/SCORE_ITEMS_NOT_READY/TASK_IN_PROGRESS 409）、整批覆盖、失败保留旧结果（8 用例）
 
 ### Implementation for US4
 
-- [ ] T037 [US4] 实现 `ScoreAssessmentOutput` + 打分 prompt（`ScoreParsePrompts` 增阶段 2 模板，契约 §4）
-- [ ] T038 [US4] `OpenAiScoreAnalyzer` 增 assess 方法（每评分项一次调用 + ScoreRangeGuard/SubjectiveScoreGuard 守卫）
-- [ ] T039 [US4] 实现 `ScoreScoringAppService`：前置校验 → @Async executeScoring → 逐项 assess → 事务内整批写 score_result（T036 GREEN）
-- [ ] T040 [US4] `ScoreParseController` 增：POST /bid-documents（multipart，PDF/docx，50MB 校验，category=bid-file）、POST /scoring、GET /scoring/status、GET /results（不含 kbHit，FR-018）
+- [x] T037 [US4] 实现 `ScoreAssessmentOutput` + 打分 prompt（`ScoreParsePrompts` 增阶段 2 模板，契约 §4）
+- [x] T038 [US4] `OpenAiScoreAnalyzer` 增 assessObjective/assessSubjective 方法（每评分项一次调用，守卫收敛在 domain `ScoreAssessmentGuard`）
+- [x] T039 [US4] 实现 `ScoreScoringAppService`：前置校验 → @Async executeScoring → 逐项 assess → 全部成功后整批写 score_result（T036 GREEN）
+- [x] T040 [US4] `ScoreParseController` 增：POST /bid-documents（multipart，PDF/docx，50MB 校验，category=BID_FILE，`BidDocumentUploadService`）、POST /scoring（400/409 错误语义）、GET /scoring/status、GET /results（不含 kbHit，FR-018）
 
 **Checkpoint**: 阶段 2 完整链路（quickstart §4）
 
@@ -144,15 +144,15 @@
 
 ### Tests for US5（先写，确认 FAIL）
 
-- [ ] T041 [P] [US5] `ScoreParseTimeoutScanJobTest`：PROCESSING 超 30min → FAILED + timeout_marked=1、COMPLETED 不受影响
-- [ ] T042 [P] [US5] `ScoreParseTaskRecoveryRunnerTest`：启动时卡死任务恢复
-- [ ] T043 [P] [US5] 重新解析覆盖测试：评分项变化后旧 score_result 失效标记、重新打分仅覆盖打分结果
+- [x] T041 [P] [US5] `ScoreParseTimeoutScanJobTest`：PROCESSING 超 30min → FAILED + timeout_marked=1、COMPLETED 不受影响（5 用例：超时标记/阈值计算/自定义阈值/失败续扫/空集 noop）
+- [x] T042 [P] [US5] `ScoreParseTaskRecoveryRunnerTest`：启动时卡死任务恢复（4 用例：failTask 三层降级/阈值/单任务失败续扫/空集）
+- [x] T043 [P] [US5] 重新解析覆盖测试：`ScoreParseAppServiceTest` 重新解析删除旧 items+results、首次解析零删除；重新打分仅覆盖打分结果（`ScoreScoringAppServiceTest` 已覆盖 deleteByScoreItemIdIn 整批替换）
 
 ### Implementation for US5
 
-- [ ] T044 [US5] 实现 `ScoreParseTimeoutScanJob`（`scoreparse/infrastructure/scheduler/`，@Scheduled fixedDelay，阈值 `app.score-parse.timeout-minutes:30` 可注入）
-- [ ] T045 [US5] 实现 `ScoreParseTaskRecoveryRunner`（`scoreparse/infrastructure/bootstrap/`，ApplicationRunner @Order(30)，复用 failTask 三层降级）
-- [ ] T046 [US5] US1 编排链补齐 FR-021 覆盖语义（重新解析 DELETE 旧 items+results 并标记、重新打分整批替换）
+- [x] T044 [US5] 实现 `ScoreParseTimeoutScanJob`（`scoreparse/infrastructure/scheduler/`，@Scheduled fixedDelay=5min，阈值 `app.score-parse.timeout-minutes:30` 可注入，markTimeout 写 timeout_marked=1 + 契约超时文案）
+- [x] T045 [US5] 实现 `ScoreParseTaskRecoveryRunner`（`scoreparse/infrastructure/bootstrap/`，ApplicationRunner @Order(30)，复用 failTask 三层降级 + 清 Redis）
+- [x] T046 [US5] US1 编排链补齐 FR-021 覆盖语义（`invalidatePreviousResults`：旧 score_result 无 FK 级联显式删 + 旧 items 删除；重新打分整批替换已在 US4 实现）
 
 **Checkpoint**: 全部 User Story 完成
 

@@ -10,6 +10,7 @@ docs/implementation-notes/
 ├── README.md                              ← 你在这里（目录说明）
 ├── CO-212.md                              ← CO-212 实现笔记
 ├── CO-261.md                              ← CO-261 标讯分配/转派通知 + NotificationController 权限修复
+├── ai-score-parse-backend.md              ← AI 评分标准解析后端（spec 041）实现笔记
 ├── project-permission-audit.md            ← 项目权限审计笔记
 ├── role-permission-audit.md               ← 角色权限审计笔记
 └── prd-acceptance-handoff-2292-2293.md    ← PR #2292+#2293 PRD/原型验收缺口跟踪
@@ -21,6 +22,7 @@ docs/implementation-notes/
 |------|------|----------|
 | `CO-212.md` | CO-212 相关实现细节记录 | 低 |
 | `CO-261.md` | CO-261 标讯分配/转派后通知 + NotificationController 读取权限放开 | 低 |
+| `ai-score-parse-backend.md` | AI 评分标准解析后端（spec 041）实现细节记录 | 低 |
 | `project-permission-audit.md` | 项目权限审计过程记录 | 低 |
 | `role-permission-audit.md` | 角色权限审计过程记录 | 低 |
 | `prd-acceptance-handoff-2292-2293.md` | AI 评分标准解析 V3 验收 FAIL 项跟踪（P0–P3 勾选） | 高（修完勾掉） |
