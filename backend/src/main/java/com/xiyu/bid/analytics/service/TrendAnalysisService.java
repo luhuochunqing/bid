@@ -4,6 +4,7 @@ import com.xiyu.bid.analytics.dto.AnalyticsFilterOptionDTO;
 import com.xiyu.bid.analytics.dto.EnhancedOverviewResponse;
 import com.xiyu.bid.analytics.dto.TrendAnalysisResponse;
 import com.xiyu.bid.analytics.service.TrendAnalysisComputationService.TrendComputationResult;
+import com.xiyu.bid.analytics.service.DimensionRow;
 import com.xiyu.bid.analytics.service.TrendAnalysisQueryService.OverviewRow;
 import com.xiyu.bid.analytics.service.TrendAnalysisQueryService.TimeDimensionRow;
 import com.xiyu.bid.entity.Project;
@@ -20,6 +21,7 @@ import java.util.Map;
 public class TrendAnalysisService {
 
     private final TrendAnalysisQueryService queryService;
+    private final TrendAnalysisDimensionQueryService dimensionQueryService;
     private final TrendAnalysisComputationService computationService;
     private final FilterOptionsQueryService filterOptionsQueryService;
 
@@ -27,9 +29,9 @@ public class TrendAnalysisService {
             LocalDate startDate,
             LocalDate endDate,
             String xAxis,
-            List<Long> departmentIds,
-            List<Long> userIds,
-            List<Long> regionIds,
+            List<String> departmentIds,
+            List<String> userIds,
+            List<String> regionIds,
             List<String> customerTypes,
             List<String> projectTypes,
             List<String> statuses,
@@ -50,14 +52,48 @@ public class TrendAnalysisService {
                         .toList()
                 : null;
 
-        // 默认按时间维度查询
-        List<TimeDimensionRow> rows = queryService.fetchTimeTrendRows(
-                startDate, endDate,
-                departmentIds, userIds, regionIds,
-                customerTypes, projectTypes, statusEnums
-        );
-
-        TrendComputationResult result = computationService.computeTimeTrend(rows, startDate, endDate);
+        // PRD 6.3: 根据 xAxis 参数分发到不同维度的查询和计算
+        TrendComputationResult result;
+        if (xAxis == null || "time".equals(xAxis)) {
+            // 时间维度
+            List<TimeDimensionRow> rows = queryService.fetchTimeTrendRows(
+                    startDate, endDate,
+                    null, null, null,
+                    customerTypes, projectTypes, statusEnums
+            );
+            result = computationService.computeTimeTrend(rows, startDate, endDate);
+        } else {
+            String ax = xAxis;
+            // 非时间维度：将 xAxis key 映射到对应的维度查询方法
+            List<DimensionRow> dimensionRows = switch (ax) {
+                case "dept" -> dimensionQueryService.fetchDeptRows(
+                        startDate, endDate, userIds, regionIds,
+                        customerTypes, projectTypes, statusEnums, tenderEntities, competitorNames);
+                case "person" -> dimensionQueryService.fetchPersonRows(
+                        startDate, endDate, departmentIds, regionIds,
+                        customerTypes, projectTypes, statusEnums, tenderEntities, competitorNames);
+                case "region" -> dimensionQueryService.fetchRegionRows(
+                        startDate, endDate, departmentIds, userIds,
+                        customerTypes, projectTypes, statusEnums, tenderEntities, competitorNames);
+                case "customerType" -> dimensionQueryService.fetchCustomerTypeRows(
+                        startDate, endDate, departmentIds, userIds, regionIds,
+                        projectTypes, statusEnums, tenderEntities, competitorNames);
+                case "projectType" -> dimensionQueryService.fetchProjectTypeRows(
+                        startDate, endDate, departmentIds, userIds, regionIds,
+                        customerTypes, statusEnums, tenderEntities, competitorNames);
+                case "projectStatus" -> dimensionQueryService.fetchStatusRows(
+                        startDate, endDate, departmentIds, userIds, regionIds,
+                        customerTypes, projectTypes, tenderEntities, competitorNames);
+                case "tenderEntity" -> dimensionQueryService.fetchTenderEntityRows(
+                        startDate, endDate, departmentIds, userIds, regionIds,
+                        customerTypes, projectTypes, statusEnums, competitorNames);
+                case "competitor" -> dimensionQueryService.fetchCompetitorRows(
+                        startDate, endDate, departmentIds, userIds, regionIds,
+                        customerTypes, projectTypes, statusEnums, tenderEntities);
+                default -> throw new IllegalArgumentException("Unknown xAxis: " + ax);
+            };
+            result = computationService.computeDimensionTrend(dimensionRows);
+        }
 
         return TrendAnalysisResponse.builder()
                 .categories(result.categories())

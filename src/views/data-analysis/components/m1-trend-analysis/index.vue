@@ -91,11 +91,13 @@ const formatDateStr = (date) => {
 // 筛选字段 → 后端 API 参数映射（PRD 6.7）
 const buildApiParams = (filters, xAxis) => {
   const f = filters || {}
+  const isTimeAxis = !xAxis || xAxis === 'time'
   return {
     xAxis,
     startDate: formatDateStr(props.dateRange?.[0]),
     endDate: formatDateStr(props.dateRange?.[1]),
-    ...(f.timeDimension ? { timeDimension: f.timeDimension } : {}),
+    // timeDimension 仅当 X 轴为时间维度时发送
+    ...(isTimeAxis && f.timeDimension ? { timeDimension: f.timeDimension } : {}),
     ...(f.departments?.length ? { departmentIds: f.departments.join(',') } : {}),
     ...(f.persons?.length ? { userIds: f.persons.join(',') } : {}),
     ...(f.regions?.length ? { regionIds: f.regions.join(',') } : {}),
