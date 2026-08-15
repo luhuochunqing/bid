@@ -28,15 +28,8 @@ public class TrendAnalysisQueryService {
      *   - year:  year, month=0, week=0, day=0
      */
     List<TimeDimensionRow> fetchTimeTrendRows(
-            LocalDate startDate,
-            LocalDate endDate,
-            String timeDimension,
-            List<Long> departmentIds,
-            List<Long> userIds,
-            List<Long> regionIds,
-            List<String> customerTypes,
-            List<String> projectTypes,
-            List<Project.Status> statuses
+            TrendQueryCriteria criteria,
+            String timeDimension
     ) {
         // 根据 timeDimension 构建 SELECT 中的时间字段表达式
         String selectExpr = switch (timeDimension != null ? timeDimension : "month") {
@@ -58,38 +51,38 @@ public class TrendAnalysisQueryService {
                         where 1=1
                         """);
 
-        if (startDate != null) {
+        if (criteria.startDate() != null) {
             jpql.append(" and p.createdAt >= :startDate");
         }
-        if (endDate != null) {
+        if (criteria.endDate() != null) {
             jpql.append(" and p.createdAt <= :endDate");
         }
-        if (projectTypes != null && !projectTypes.isEmpty()) {
+        if (criteria.projectTypes() != null && !criteria.projectTypes().isEmpty()) {
             jpql.append(" and t.projectType in :projectTypes");
         }
-        if (customerTypes != null && !customerTypes.isEmpty()) {
+        if (criteria.customerTypes() != null && !criteria.customerTypes().isEmpty()) {
             jpql.append(" and p.customerType in :customerTypes");
         }
-        if (statuses != null && !statuses.isEmpty()) {
+        if (criteria.statuses() != null && !criteria.statuses().isEmpty()) {
             jpql.append(" and p.status in :statuses");
         }
 
         var query = entityManager.createQuery(jpql.toString(), TimeDimensionRow.class);
 
-        if (startDate != null) {
-            query.setParameter("startDate", startDate.atStartOfDay());
+        if (criteria.startDate() != null) {
+            query.setParameter("startDate", criteria.startDate().atStartOfDay());
         }
-        if (endDate != null) {
-            query.setParameter("endDate", endDate.atTime(23, 59, 59));
+        if (criteria.endDate() != null) {
+            query.setParameter("endDate", criteria.endDate().atTime(23, 59, 59));
         }
-        if (projectTypes != null && !projectTypes.isEmpty()) {
-            query.setParameter("projectTypes", projectTypes);
+        if (criteria.projectTypes() != null && !criteria.projectTypes().isEmpty()) {
+            query.setParameter("projectTypes", criteria.projectTypes());
         }
-        if (customerTypes != null && !customerTypes.isEmpty()) {
-            query.setParameter("customerTypes", customerTypes);
+        if (criteria.customerTypes() != null && !criteria.customerTypes().isEmpty()) {
+            query.setParameter("customerTypes", criteria.customerTypes());
         }
-        if (statuses != null && !statuses.isEmpty()) {
-            query.setParameter("statuses", statuses);
+        if (criteria.statuses() != null && !criteria.statuses().isEmpty()) {
+            query.setParameter("statuses", criteria.statuses());
         }
 
         return query.getResultList();

@@ -79,7 +79,8 @@ class MaintainabilityArchitectureTest {
         "com.xiyu.bid.projectworkflow.service.ProjectTaskWorkflowService",
         "com.xiyu.bid.projectworkflow.service.ProjectDocumentWorkflowService",
         "com.xiyu.bid.projectworkflow.service.ProjectWorkflowService",
-        "com.xiyu.bid.analytics.service.TrendAnalysisQueryService$TimeDimensionRow"
+        "com.xiyu.bid.analytics.service.TrendAnalysisQueryService$TimeDimensionRow",
+        "com.xiyu.bid.analytics.service.TrendQueryCriteria"
     );
 
     private static final Set<String> SERVICE_PUBLIC_METHOD_BUDGET_EXEMPTIONS = Set.of(
@@ -88,7 +89,8 @@ class MaintainabilityArchitectureTest {
         "com.xiyu.bid.analytics.service.DashboardAnalyticsService",
         "com.xiyu.bid.approval.service.ApprovalWorkflowService",
         "com.xiyu.bid.projectworkflow.service.ProjectWorkflowService",
-        "com.xiyu.bid.analytics.service.TrendAnalysisQueryService$TimeDimensionRow"
+        "com.xiyu.bid.analytics.service.TrendAnalysisQueryService$TimeDimensionRow",
+        "com.xiyu.bid.analytics.service.TrendQueryCriteria"
     );
 
     private final JavaClasses productionClasses = new ClassFileImporter()

@@ -53,56 +53,57 @@ public class TrendAnalysisService {
                         .toList()
                 : null;
 
-        // 标准化 timeDimension 参数
-        String td = timeDimension != null ? timeDimension.toLowerCase() : "month";
+// 统一构建查询参数，所有维度共用
+        TrendQueryCriteria criteria = buildCriteria(startDate, endDate,
+                departmentIds, userIds, regionIds,
+                customerTypes, projectTypes, statusEnums,
+                tenderEntities, competitorNames);
 
-        // PRD 6.3: 根据 xAxis 参数分发到不同维度的查询和计算
-        TrendComputationResult result;
-        if (xAxis == null || "time".equals(xAxis)) {
-            // 时间维度
-            List<TimeDimensionRow> rows = queryService.fetchTimeTrendRows(
-                    startDate, endDate, td,
-                    null, null, null,
-                    customerTypes, projectTypes, statusEnums
-            );
-            result = computationService.computeTimeTrend(rows, startDate, endDate, td);
-        } else {
-            String ax = xAxis;
-            // 非时间维度：将 xAxis key 映射到对应的维度查询方法
-            List<DimensionRow> dimensionRows = switch (ax) {
-                case "dept" -> dimensionQueryService.fetchDeptRows(
-                        startDate, endDate, userIds, regionIds,
-                        customerTypes, projectTypes, statusEnums, tenderEntities, competitorNames);
-                case "person" -> dimensionQueryService.fetchPersonRows(
-                        startDate, endDate, departmentIds, regionIds,
-                        customerTypes, projectTypes, statusEnums, tenderEntities, competitorNames);
-                case "region" -> dimensionQueryService.fetchRegionRows(
-                        startDate, endDate, departmentIds, userIds, regionIds,
-                        customerTypes, projectTypes, statusEnums, tenderEntities, competitorNames);
-                case "customerType" -> dimensionQueryService.fetchCustomerTypeRows(
-                        startDate, endDate, departmentIds, userIds, regionIds,
-                        customerTypes, projectTypes, statusEnums, tenderEntities, competitorNames);
-                case "projectType" -> dimensionQueryService.fetchProjectTypeRows(
-                        startDate, endDate, departmentIds, userIds, regionIds,
-                        customerTypes, projectTypes, statusEnums, tenderEntities, competitorNames);
-                case "projectStatus" -> dimensionQueryService.fetchStatusRows(
-                        startDate, endDate, departmentIds, userIds, regionIds,
-                        customerTypes, projectTypes, statusEnums, tenderEntities, competitorNames);
-                case "tenderEntity" -> dimensionQueryService.fetchTenderEntityRows(
-                        startDate, endDate, departmentIds, userIds, regionIds,
-                        customerTypes, projectTypes, statusEnums, tenderEntities, competitorNames);
-                case "competitor" -> dimensionQueryService.fetchCompetitorRows(
-                        startDate, endDate, departmentIds, userIds, regionIds,
-                        customerTypes, projectTypes, statusEnums, tenderEntities);
-                default -> throw new IllegalArgumentException("Unknown xAxis: " + ax);
-            };
-            result = "projectStatus".equals(ax)
-                    ? computationService.computeProjectStatusTrend(dimensionRows, statuses)
-                    : computationService.computeDimensionTrend(dimensionRows,
-                            "customerType".equals(ax) ? customerTypes :
-                            "projectType".equals(ax) ? projectTypes :
-                            null);
-        }
+        // 按 xAxis 路由到不同维度的查询 + 计算（PRD 6.3）
+        String ax = xAxis != null ? xAxis : "time";
+        String td = timeDimension != null ? timeDimension.toLowerCase() : "month";
+        TrendComputationResult result = switch (ax) {
+            case "time" -> {
+                var rows = queryService.fetchTimeTrendRows(criteria, td);
+                yield computationService.computeTimeTrend(rows, startDate, endDate, td);
+            }
+            case "dept" -> {
+                var rows = dimensionQueryService.fetchDeptRows(criteria);
+                yield computationService.computeDimensionTrend(rows, null);
+            }
+            case "person" -> {
+                var rows = dimensionQueryService.fetchPersonRows(criteria);
+                yield computationService.computeDimensionTrend(rows, null);
+            }
+            case "region" -> {
+                var rows = dimensionQueryService.fetchRegionRows(criteria);
+                yield computationService.computeDimensionTrend(rows, null);
+            }
+            case "customerType" -> {
+                var rows = dimensionQueryService.fetchCustomerTypeRows(criteria);
+                yield computationService.computeDimensionTrend(rows, customerTypes);
+            }
+            case "projectType" -> {
+                var rows = dimensionQueryService.fetchProjectTypeRows(criteria);
+                yield computationService.computeDimensionTrend(rows, projectTypes);
+            }
+            case "projectStatus" -> {
+                var rows = dimensionQueryService.fetchStatusRows(criteria);
+                yield computationService.computeProjectStatusTrend(rows, statuses);
+            }
+            case "tenderEntity" -> {
+                var rows = dimensionQueryService.fetchTenderEntityRows(criteria);
+                yield computationService.computeDimensionTrend(rows, null);
+            }
+            case "competitor" -> {
+                var rows = dimensionQueryService.fetchCompetitorRows(criteria);
+                yield computationService.computeDimensionTrend(rows, null);
+            }
+            default -> {
+                var rows = queryService.fetchTimeTrendRows(criteria, td);
+                yield computationService.computeTimeTrend(rows, startDate, endDate, td);
+            }
+        };
 
         return TrendAnalysisResponse.builder()
                 .categories(result.categories())
@@ -172,6 +173,19 @@ public class TrendAnalysisService {
     /** 保留 1 位小数 */
     private static double round1(double val) {
         return Math.round(val * 10.0) / 10.0;
+    }
+
+    /** 构建 TrendQueryCriteria，统一查询参数传递 */
+    private static TrendQueryCriteria buildCriteria(
+            LocalDate startDate, LocalDate endDate,
+            List<String> departmentIds, List<String> userIds, List<String> regionIds,
+            List<String> customerTypes, List<String> projectTypes,
+            List<Project.Status> statuses,
+            List<String> tenderEntities, List<String> competitorNames) {
+        return new TrendQueryCriteria(startDate, endDate,
+                departmentIds, userIds, regionIds,
+                customerTypes, projectTypes, statuses,
+                tenderEntities, competitorNames);
     }
 
     /**
