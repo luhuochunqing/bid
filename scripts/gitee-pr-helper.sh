@@ -16,6 +16,12 @@
 #   GITEE_OWNER     — 仓库所有者（默认: allinai888）
 #   GITEE_REPO      — 仓库名（默认: bid）
 #   GITEE_BASE_BRANCH — 目标分支（默认: main）
+#   GIT_PR_TITLE    — 可选，覆盖默认从 commit message 提取的 PR 标题（与 pr-create.sh 命名对齐）
+#   GIT_PR_BODY     — 可选，覆盖默认从 commit body 提取的 PR 描述（与 pr-create.sh 命名对齐）
+#
+# 变更历史:
+#   2026-08-09 修复 Gitee API v5 字段名 bug：description → body（原 bug 导致创建 PR 时描述为空）
+#              新增 GIT_PR_TITLE / GIT_PR_BODY 环境变量，与 scripts/pr-create.sh 命名对齐
 set -euo pipefail
 
 GITEE_OWNER="${GITEE_OWNER:-allinai888}"
@@ -116,19 +122,28 @@ create_pr() {
   #
   #   根因：...
   #   修复内容：...
+  # 可用环境变量 GIT_PR_TITLE / GIT_PR_BODY 覆盖（与 scripts/pr-create.sh 命名对齐）
+  # 最后一个 commit 是 docs/wiki 类辅助 commit 时尤其有用
   local commit_subject commit_body
   commit_subject=$(git log -1 --format='%s' 2>/dev/null || echo "")
   commit_body=$(git log -1 --format='%b' 2>/dev/null || echo "")
 
-  # 标题：优先用 commit subject；为空时 fallback 到分支名
-  if [[ -n "$commit_subject" ]]; then
+  # 标题：GIT_PR_TITLE > commit subject > 分支名
+  if [[ -n "${GIT_PR_TITLE:-}" ]]; then
+    pr_title="$GIT_PR_TITLE"
+  elif [[ -n "$commit_subject" ]]; then
     pr_title="$commit_subject"
   else
     pr_title="${branch##*/}: update"
   fi
 
+  # 描述：GIT_PR_BODY > commit body > 默认 fallback
+  if [[ -n "${GIT_PR_BODY:-}" ]]; then
+    commit_body="$GIT_PR_BODY"
+  fi
+
   # 用 python3 构造 JSON（安全转义，避免双引号/换行破坏 JSON 结构）
-  # 描述：commit body 非空则用 commit body；否则用 fallback
+  # 描述字段：Gitee API v5 的 PR 描述字段名是 'body'（不是 'description'）
   local payload
   payload=$(python3 -c "
 import json, sys
@@ -138,17 +153,17 @@ print(json.dumps({
     'title': title,
     'head': sys.argv[3],
     'base': sys.argv[4],
-    'description': description,
+    'body': description,
     'prune_source_branch': True
 }, ensure_ascii=False))
 " "$pr_title" "$commit_body" "$branch" "$GITEE_BASE")
 
-  local body="$payload"
+  local http_payload="$payload"
 
   local result
   result=$(curl -s -X POST -H "Authorization: Bearer ${GITEE_TOKEN}" \
     -H "Content-Type: application/json" \
-    -d "$body" "${API}/pulls" 2>/dev/null)
+    -d "$http_payload" "${API}/pulls" 2>/dev/null)
 
   local pr_num
   pr_num=$(echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('number','?'))" 2>/dev/null || echo "?")
