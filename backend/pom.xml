@@ -23,7 +23,7 @@
         <jjwt.version>0.12.3</jjwt.version>
         <eventlibrary.version>release_0.0.2</eventlibrary.version>
         <ehsy.maven.repository.url>https://maven.ehsy.com/nexus/service/local/repositories/releases/content/</ehsy.maven.repository.url>
-        <testcontainers.version>1.19.3</testcontainers.version>
+        <testcontainers.version>1.21.4</testcontainers.version>
         <jacoco.version>0.8.12</jacoco.version>
         <archunit.version>1.4.1</archunit.version>
         <checkstyle.version>10.17.0</checkstyle.version>

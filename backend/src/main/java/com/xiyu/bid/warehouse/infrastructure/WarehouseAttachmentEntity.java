@@ -4,6 +4,8 @@ import com.xiyu.bid.warehouse.domain.WarehouseAttachmentReadModel;
 import com.xiyu.bid.warehouse.domain.WarehouseAttachmentType;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.time.LocalDateTime;
 
 @Entity
@@ -27,6 +29,7 @@ public class WarehouseAttachmentEntity implements WarehouseAttachmentReadModel {
     private WarehouseEntity warehouse;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 30)
     private WarehouseAttachmentType type;
 

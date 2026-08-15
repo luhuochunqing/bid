@@ -48,6 +48,7 @@ backlinks:
 | 类型 | 位置 | 说明 |
 |------|------|------|
 | 模块测试说明 | `module-*.md` | 9 模块功能实现对照 + curl 示例 |
+| 容器测试环境兼容 | [container-test-env-compat.md](container-test-env-compat.md) | Testcontainers / Docker Desktop / MySQL sql_mode / schema-validation 兼容坑 |
 | 手动测试用例 | `docs/testing/manual-cases/` | 9 模块 32+ 条人工测试用例 |
 | API 测试集合 | `api-tests/*.http` | 9 文件 75+ 场景（VS Code REST Client） |
 | E2E 测试 | `e2e/*.spec.js` | 36+ spec 文件（9 个在 CI 中运行） |
