@@ -204,6 +204,34 @@ result = computationService.computeProjectStatusTrend(dimensionRows, statuses);
 - 竞品数据：通过 `project_result_competitor` → `project_result` → `project` 链路关联
 - 招标主体：使用 `t.purchaserName`（招标主体名称）
 
+### ⚠️ 高频错误模式 6：Hibernate 数据库函数参数不匹配
+
+**现象**：选择时间维度中的"周"后，图表空白或 API 返回 400 错误。
+
+**根因**：Hibernate 的 `function('week', p.createdAt, 1)` 传了 2 个参数给 MySQL 的 `WEEK()` 函数，但 MySQL 的 `WEEK()` 函数只接受 1 个参数（日期），不接受第 2 个参数（mode）。
+
+**复现条件**：
+- `xAxis=time` + `timeDimension=week`
+- 后端 JPQL 中使用了 `function('week', p.createdAt, 1)`
+- 后端日志出现 `FunctionArgumentException`
+
+**排查方法**：
+1. 用 curl 直接调用 API 验证：`curl -s "http://127.0.0.1:<backend-port>/api/analytics/trends/enhanced?xAxis=time&timeDimension=week&startDate=2026-01-01&endDate=2026-12-31"`
+2. 查看后端日志是否包含 `FunctionArgumentException`
+3. 检查 `TrendAnalysisQueryService` 中时间维度的 JPQL 查询
+
+**修复方法**：将 `function('week', p.createdAt, 1)` 改为 `function('week', p.createdAt)`（单参数，使用 MySQL 默认 mode 0，周日为一周第一天）。
+
+```java
+// 错误：传了 2 个参数
+case "week" -> "function('year', p.createdAt), 0, function('week', p.createdAt, 1), 0";
+
+// 正确：传 1 个参数
+case "week" -> "function('year', p.createdAt), 0, function('week', p.createdAt), 0";
+```
+
+**注意**：其他时间维度函数（`year`、`month`、`day`）都是单参数，不会出现此问题。只有 `week` 容易因为想传 mode 参数而踩坑。
+
 ### ⚠️ 高频错误模式 5：前端参数构造错误
 
 **现象**：切换时间维度（日/周/月/年）后图表空白，或筛选条件不生效。
@@ -237,6 +265,7 @@ function buildApiParams() {
 | 图表完全空白，F12 无报错 | 后端端口不匹配 / 后端未启动 | 1 → 2 → 3 |
 | 图表空白，F12 报 404/409 | 后端启动失败 / API 路径错误 / 类型不匹配 | 1 → 3 |
 | 切换时间维度后空白 | 后端未处理 timeDimension 参数 / 前端未发送该参数 | 3 → 5 |
+| 选择"周"维度后 400 错误 | Hibernate `week()` 函数多传了 mode 参数 | 3 → 排查模式 6 |
 | 筛选条件不生效（区域/招标主体/项目状态） | 后端 switch 分支漏传参数 | 3 → 排查模式 1 |
 | 项目状态 Y 值不正确 | 使用了通用 computeDimensionTrend 而非专用方法 | 3 → 排查模式 2 |
 | 项目状态 API 返回 409 | JPQL 查询返回枚举而非 String | 3 → 排查模式 3 |
