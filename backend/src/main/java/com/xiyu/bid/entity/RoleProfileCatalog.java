@@ -46,6 +46,11 @@ public final class RoleProfileCatalog {
     public static final String KNOWLEDGE_WAREHOUSE_PERMISSION = "knowledge-warehouse";
     public static final String KNOWLEDGE_PERFORMANCE_PERMISSION = "knowledge-performance";
 
+    /** 数据分析页面权限键（前端路由 /analytics/dashboard 与侧边栏使用同一键）。
+     *  仅授予 3 个全局角色：投标系统管理员(bid-SystemAdmin)/投标管理员(/bidAdmin)/投标组长(bid-TeamLeader)；
+     *  admin 经 {@code List.of("all")} 动态展开天然覆盖。OSS 用户由菜单 1007 映射获得（见 application.yml）。 */
+    public static final String ANALYTICS_DASHBOARD_PERMISSION = "analytics-dashboard";
+
     /** 系统管理接口鉴权限键（specs/024-preauthorize-unification）。本地 admin 显式获得；
      *  OSS 用户可由 OSS 端菜单授权持有（CO-551 修订，仅 {@code all} 为本地超级管理员专属）。 */
     public static final String SYSTEM_ADMIN_PERMISSION = "system.admin";
@@ -101,8 +106,6 @@ public final class RoleProfileCatalog {
             BID_SYSTEM_ADMIN_CODE, BID_ADMIN_CODE, BID_LEAD_CODE, SALES_CODE,
             BID_SPECIALIST_CODE, ADMIN_STAFF_CODE, BID_OTHER_DEPT_CODE);
 
-    /** /bidAdmin 和 bid-SystemAdmin 共享的菜单权限（权限等同投标管理员），抽出至 {@link RoleProfileAdminPermissions} 以控制主类行数。 */
-
     /** 角色定义表，key 为角色 code。使用 case-insensitive TreeMap 以支持大小写不敏感查找
      *  （OSS 同步与本地 DB 可能传入不同大小写的 code）。 */
     private static final Map<String, SeedDefinition> DEFINITIONS;
@@ -122,6 +125,7 @@ public final class RoleProfileCatalog {
                         "dashboard:view_activity_list", "dashboard:view_priority_todos")));
         map.put(BID_LEAD_CODE, new SeedDefinition(BID_LEAD_CODE, "投标组长", "标书编制与评标推进负责人", true, "all",
                 List.of("dashboard", "bidding", "project", "resource",
+                        ANALYTICS_DASHBOARD_PERMISSION,
                         "settings", "settings-alerts",
                         "task.assign", "evaluation.update", "result.register",
                         "retrospective.submit", "closure.request",
@@ -245,11 +249,9 @@ public final class RoleProfileCatalog {
         return canonical != null && GLOBAL_ACCESS_ROLES.contains(canonical);
     }
 
-    /** 该 roleCode 是否应在颁发 Spring Security authority 时跳过 Legacy User.Role 兼容
-     *  （即不发 {@code ROLE_STAFF/ADMIN/MANAGER}）。
-     *  <p>命中条件（roleCode 非空时任一）：(1) 在 {@link #ROLES_WITHOUT_LEGACY_ROLE_COMPAT}，
-     *  或 (2) 未在 catalog 注册（防御手动 INSERT 的角色误拿 STAFF fallback）。
-     *  <p>roleCode 为 null/空白（纯 Legacy 用户）返回 false，保留其 {@code user.getRole()} 鉴权。 */
+    /** 是否应在颁发 Spring Security authority 时跳过 Legacy User.Role 兼容（不发 ROLE_STAFF/ADMIN/MANAGER）。
+     *  <p>命中条件（roleCode 非空时任一）：在 {@link #ROLES_WITHOUT_LEGACY_ROLE_COMPAT}，或未在 catalog 注册
+     *  （防御手动 INSERT 的角色误拿 STAFF fallback）。roleCode 为 null/空白（纯 Legacy 用户）返回 false。 */
     public static boolean shouldSkipLegacyRoleCompat(String roleCode) {
         if (roleCode == null || roleCode.isBlank()) {
             return false;
@@ -259,16 +261,9 @@ public final class RoleProfileCatalog {
     }
 
     /**
-     * 将角色码转换为 Spring Security authority 名称。
-     * <p>
-     * 规则：去除前导斜杠，连字符转下划线再大写。
-     * <ul>
-     *   <li>{@code /bidAdmin} → {@code BIDADMIN}</li>
-     *   <li>{@code bid-TeamLeader} → {@code BID_TEAMLEADER}</li>
-     *   <li>{@code bid-otherDept} → {@code BID_OTHERDEPT}</li>
-     * </ul>
-     * 用于统一 {@code @PreAuthorize} 中的 {@code hasRole()/hasAuthority()} 写法，
-     * 避免各处手动 {@code replace("-", "_").toUpperCase()} 导致的不一致。
+     * 将角色码转换为 Spring Security authority 名称：去除前导斜杠，连字符转下划线再大写。
+     * 例：{@code /bidAdmin}→{@code BIDADMIN}、{@code bid-TeamLeader}→{@code BID_TEAMLEADER}。
+     * 用于统一 {@code @PreAuthorize} 中 hasRole()/hasAuthority() 写法，避免手动 replace 不一致。
      *
      * @param roleCode 角色码（如 /bidAdmin）
      * @return authority 名称（如 BIDADMIN），null/空白返回 null

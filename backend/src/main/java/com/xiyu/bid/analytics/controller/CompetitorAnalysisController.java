@@ -19,13 +19,13 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/analytics")
 @RequiredArgsConstructor
-@PreAuthorize("isAuthenticated()")
+@PreAuthorize("hasAuthority('analytics-dashboard')")
 public class CompetitorAnalysisController {
 
     private final CompetitorAnalysisService competitorAnalysisService;
 
     @PostMapping("/competitor-analysis")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAuthority('analytics-dashboard')")
     public ResponseEntity<ApiResponse<CompetitorAnalysisResponse>> analyzeCompetitors(
             @RequestBody CompetitorAnalysisRequest request
     ) {
@@ -35,7 +35,7 @@ public class CompetitorAnalysisController {
     }
 
     @GetMapping("/tender-entities")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAuthority('analytics-dashboard')")
     public ResponseEntity<ApiResponse<List<String>>> getTenderEntities() {
         return ResponseEntity.ok(ApiResponse.success(
                 competitorAnalysisService.getTenderEntities()
@@ -43,7 +43,7 @@ public class CompetitorAnalysisController {
     }
 
     @GetMapping("/project-names")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAuthority('analytics-dashboard')")
     public ResponseEntity<ApiResponse<List<String>>> getProjectNames(
             @RequestParam(value = "query", required = false) String query
     ) {

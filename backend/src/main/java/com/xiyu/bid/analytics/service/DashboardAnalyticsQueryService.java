@@ -6,6 +6,7 @@ import com.xiyu.bid.analytics.repository.DashboardAnalyticsReadRepository;
 import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -25,38 +26,39 @@ class DashboardAnalyticsQueryService {
 
     private final DashboardAnalyticsReadRepository readRepository;
     private final UserRepository userRepository;
+    private final ProjectAccessScopeService projectAccessScopeService;
 
     DashboardAnalyticsRepository.OverviewSnapshot fetchOverviewSnapshot() {
-        return readRepository.fetchOverviewSnapshot(null);
+        return readRepository.fetchOverviewSnapshot(scopedProjectIds());
     }
 
     List<DashboardAnalyticsRepository.MonthlyTrendRow> fetchTenderTrendRows() {
-        return readRepository.fetchTenderTrendRows(null);
+        return readRepository.fetchTenderTrendRows(scopedProjectIds());
     }
 
     List<DashboardAnalyticsRepository.MonthlyTrendRow> fetchProjectTrendRows() {
-        return readRepository.fetchProjectTrendRows(null);
+        return readRepository.fetchProjectTrendRows(scopedProjectIds());
     }
 
     List<DashboardAnalyticsRepository.StatusCountRow> fetchStatusCounts() {
-        return readRepository.fetchStatusCounts(null);
+        return readRepository.fetchStatusCounts(scopedProjectIds());
     }
 
     List<DashboardAnalyticsRepository.SourceAggregateRow> fetchSourceAggregateRows(int limit) {
-        return readRepository.fetchSourceAggregateRows(null, limit);
+        return readRepository.fetchSourceAggregateRows(scopedProjectIds(), limit);
     }
 
     List<DashboardAnalyticsRepository.ProductLineCandidateRow> fetchProductLineCandidateRows() {
-        return readRepository.fetchProductLineCandidateRows(null);
+        return readRepository.fetchProductLineCandidateRows(scopedProjectIds());
     }
 
     List<DashboardAnalyticsRepository.TenderSummaryRow> fetchTenderSummaryRows() {
-        return readRepository.fetchTenderSummaryRows(null);
+        return readRepository.fetchTenderSummaryRows(scopedProjectIds());
     }
 
     List<ProjectSnapshotAggregate> fetchProjectSnapshotsByTenderIds(Collection<Long> tenderIds) {
         return aggregateProjectSnapshots(readRepository.fetchProjectSnapshotRowsByTenderIds(
-                null,
+                scopedProjectIds(),
                 tenderIds
         ));
     }
@@ -66,7 +68,7 @@ class DashboardAnalyticsQueryService {
             java.time.LocalDate endDate
     ) {
         return aggregateProjectSnapshots(readRepository.fetchProjectSnapshotRowsByDateRange(
-                null,
+                scopedProjectIds(),
                 startDate,
                 endDate
         ));
@@ -88,14 +90,14 @@ class DashboardAnalyticsQueryService {
             java.time.LocalDate startDate,
             java.time.LocalDate endDate
     ) {
-        return readRepository.fetchRevenueDrillDownRows(null, startDate, endDate);
+        return readRepository.fetchRevenueDrillDownRows(scopedProjectIds(), startDate, endDate);
     }
 
     List<DashboardAnalyticsRepository.ProjectDrillDownRow> fetchProjectDrillDownRows(
             java.time.LocalDate startDate,
             java.time.LocalDate endDate
     ) {
-        return readRepository.fetchProjectDrillDownRows(null, startDate, endDate);
+        return readRepository.fetchProjectDrillDownRows(scopedProjectIds(), startDate, endDate);
     }
 
     Map<Long, User> fetchUsersByIds(Collection<Long> userIds) {
@@ -128,7 +130,7 @@ class DashboardAnalyticsQueryService {
      */
     ProjectSnapshotWithUsers fetchProjectSnapshotsWithUsersByTenderIds(Collection<Long> tenderIds) {
         List<DashboardAnalyticsRepository.ProjectSnapshotRowWithUsers> rows =
-                readRepository.fetchProjectSnapshotRowsWithUsersByTenderIds(null, tenderIds);
+                readRepository.fetchProjectSnapshotRowsWithUsersByTenderIds(scopedProjectIds(), tenderIds);
 
         Map<Long, ProjectSnapshotAggregate> aggregates = rows.stream()
                 .collect(Collectors.toMap(
@@ -172,7 +174,7 @@ class DashboardAnalyticsQueryService {
             java.time.LocalDate endDate
     ) {
         List<DashboardAnalyticsRepository.ProjectSnapshotRowWithUsers> rows =
-                readRepository.fetchProjectSnapshotRowsWithUsersByDateRange(null, startDate, endDate);
+                readRepository.fetchProjectSnapshotRowsWithUsersByDateRange(scopedProjectIds(), startDate, endDate);
 
         Map<Long, ProjectSnapshotAggregate> aggregates = rows.stream()
                 .collect(Collectors.toMap(
@@ -231,6 +233,23 @@ class DashboardAnalyticsQueryService {
             userIds.addAll(project.teamMemberIds());
         }
         return userIds;
+    }
+
+    /**
+     * 当前用户可见项目 ID 集合；null 表示全局可见（admin + 投标管理员/组长/系统管理员）。
+     * 数据分析页面权限仅限 GLOBAL_ACCESS_ROLES，非全局角色属防御式兜底。
+     */
+    private Set<Long> scopedProjectIds() {
+        if (projectAccessScopeService.currentUserHasGlobalAccess()) {
+            return null;
+        }
+        List<Long> allowedIds = projectAccessScopeService.getAllowedProjectIdsForCurrentUser();
+        if (allowedIds == null || allowedIds.isEmpty()) {
+            return Set.of();
+        }
+        return allowedIds.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     private List<ProjectSnapshotAggregate> aggregateProjectSnapshots(

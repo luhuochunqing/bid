@@ -23,6 +23,7 @@ public class CustomerTypeAnalyticsAssemblerService {
         List<CustomerTypeProjectRow> rows = queryService.fetchProjectRows(startDate, endDate);
         List<CustomerTypeAggregate> aggregates = computationService.summarize(rows);
 
+        // P1-3 口径：只统计 5 个标准分类，未分类不计数，totalProjectCount = 已分类总数
         long classifiedProjectCount = aggregates.stream()
                 .mapToLong(CustomerTypeAggregate::projectCount)
                 .sum();
@@ -31,9 +32,10 @@ public class CustomerTypeAnalyticsAssemblerService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         return CustomerTypeAnalyticsResponse.builder()
-                .totalProjectCount((long) rows.size())
+                .totalProjectCount(classifiedProjectCount)
                 .classifiedProjectCount(classifiedProjectCount)
-                .uncategorizedProjectCount((long) rows.size() - classifiedProjectCount)
+                // 废弃字段：新口径下未分类不计数，恒为 0（保留字段避免序列化破坏）
+                .uncategorizedProjectCount(0L)
                 .totalAmount(totalAmount)
                 .dimensions(aggregates.stream().map(this::toDimensionDTO).toList())
                 .build();

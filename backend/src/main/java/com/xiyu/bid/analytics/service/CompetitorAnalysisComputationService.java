@@ -8,6 +8,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * M4 竞品分析纯计算服务：折扣统计与序列构造。
+ * <p>输入行已由上游 {@link CompetitorAnalysisQueryService} 经
+ * {@code ProjectAccessScopeService} 完成项目级数据权限过滤，
+ * 本类为无副作用纯计算，不访问数据源也不做权限决策。
+ */
 @Component
 class CompetitorAnalysisComputationService {
 

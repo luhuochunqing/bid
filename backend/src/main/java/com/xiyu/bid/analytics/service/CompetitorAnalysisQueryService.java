@@ -1,6 +1,7 @@
 package com.xiyu.bid.analytics.service;
 
 import com.xiyu.bid.analytics.model.CompetitorAnalysisRow;
+import com.xiyu.bid.service.ProjectAccessScopeService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
@@ -9,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @Transactional(readOnly = true)
@@ -17,6 +19,8 @@ public class CompetitorAnalysisQueryService {
 
     @PersistenceContext
     private EntityManager entityManager;
+
+    private final ProjectAccessScopeService projectAccessScopeService;
 
     /**
      * 获取竞品记录行（PRD §9.9 关联链路）。
@@ -28,6 +32,9 @@ public class CompetitorAnalysisQueryService {
             LocalDate startDate,
             LocalDate endDate
     ) {
+        // 项目级数据权限：非全局角色仅可见授权范围内项目（防御式兜底）
+        Set<Long> scopeIds = AnalyticsProjectScopeSupport.scopedProjectIds(projectAccessScopeService);
+        boolean allAccess = scopeIds == null;
         StringBuilder jpql = new StringBuilder("""
                 select new com.xiyu.bid.analytics.model.CompetitorAnalysisRow(
                     p.id,
@@ -44,7 +51,8 @@ public class CompetitorAnalysisQueryService {
                 join ProjectResult pr on pr.id = prc.resultId
                 join Project p on p.id = pr.projectId
                 left join Tender t on t.id = p.tenderId
-                where prc.name in :competitorNames
+                where (:allAccess = true or p.id in :scopeIds)
+                  and prc.name in :competitorNames
                   and (:startDate is null or p.createdAt >= :startDate)
                   and (:endDate is null or p.createdAt <= :endDate)
                 """);
@@ -54,6 +62,8 @@ public class CompetitorAnalysisQueryService {
         jpql.append(" order by p.createdAt desc, p.id desc");
 
         var query = entityManager.createQuery(jpql.toString(), CompetitorAnalysisRow.class)
+                .setParameter("allAccess", allAccess)
+                .setParameter("scopeIds", allAccess ? Set.of(-1L) : scopeIds)
                 .setParameter("competitorNames", competitorNames)
                 .setParameter("startDate", startDate == null ? null : startDate.atStartOfDay())
                 .setParameter("endDate", endDate == null ? null : endDate.atTime(23, 59, 59));
@@ -72,6 +82,8 @@ public class CompetitorAnalysisQueryService {
             LocalDate startDate,
             LocalDate endDate
     ) {
+        Set<Long> scopeIds = AnalyticsProjectScopeSupport.scopedProjectIds(projectAccessScopeService);
+        boolean allAccess = scopeIds == null;
         StringBuilder jpql = new StringBuilder("""
                 select new com.xiyu.bid.analytics.model.CompetitorAnalysisRow(
                     p.id,
@@ -88,13 +100,16 @@ public class CompetitorAnalysisQueryService {
                 join ProjectResult pr on pr.id = prc.resultId
                 join Project p on p.id = pr.projectId
                 left join Tender t on t.id = p.tenderId
-                where p.name = :projectName
+                where (:allAccess = true or p.id in :scopeIds)
+                  and p.name = :projectName
                   and prc.name in :competitorNames
                   and (:startDate is null or p.createdAt >= :startDate)
                   and (:endDate is null or p.createdAt <= :endDate)
                 order by prc.sortOrder asc, prc.id asc
                 """);
         return entityManager.createQuery(jpql.toString(), CompetitorAnalysisRow.class)
+                .setParameter("allAccess", allAccess)
+                .setParameter("scopeIds", allAccess ? Set.of(-1L) : scopeIds)
                 .setParameter("projectName", projectName)
                 .setParameter("competitorNames", competitorNames)
                 .setParameter("startDate", startDate == null ? null : startDate.atStartOfDay())
@@ -103,32 +118,42 @@ public class CompetitorAnalysisQueryService {
     }
 
     /**
-     * 获取招标主体下拉选项（PRD §9.10 — 基于所有项目，不限竞品记录）。
+     * 获取招标主体下拉选项（PRD §9.10 — 基于可见项目，不限竞品记录）。
      */
     List<String> fetchDistinctTenderEntities() {
+        Set<Long> scopeIds = AnalyticsProjectScopeSupport.scopedProjectIds(projectAccessScopeService);
+        boolean allAccess = scopeIds == null;
         return entityManager.createQuery("""
                         select distinct t.purchaserName
                         from Project p
                         join Tender t on t.id = p.tenderId
-                        where t.purchaserName is not null
+                        where (:allAccess = true or p.id in :scopeIds)
+                          and t.purchaserName is not null
                           and t.purchaserName <> ''
                         order by t.purchaserName
                         """, String.class)
+                .setParameter("allAccess", allAccess)
+                .setParameter("scopeIds", allAccess ? Set.of(-1L) : scopeIds)
                 .getResultList();
     }
 
     /**
-     * 模糊搜索项目名称（PRD §9.3 — 基于所有项目，不限竞品记录）。
+     * 模糊搜索项目名称（PRD §9.3 — 仅基于当前用户可见项目，防止越权枚举项目名）。
      */
     List<String> fetchProjectNames(String query) {
+        Set<Long> scopeIds = AnalyticsProjectScopeSupport.scopedProjectIds(projectAccessScopeService);
+        boolean allAccess = scopeIds == null;
         String pattern = query == null || query.isBlank() ? "%" : "%" + query.trim().toLowerCase() + "%";
         return entityManager.createQuery("""
                         select distinct p.name
                         from Project p
-                        where p.name is not null
+                        where (:allAccess = true or p.id in :scopeIds)
+                          and p.name is not null
                           and lower(p.name) like :pattern
                         order by p.name
                         """, String.class)
+                .setParameter("allAccess", allAccess)
+                .setParameter("scopeIds", allAccess ? Set.of(-1L) : scopeIds)
                 .setParameter("pattern", pattern)
                 .setMaxResults(50)
                 .getResultList();

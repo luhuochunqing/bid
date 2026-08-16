@@ -1,6 +1,7 @@
 package com.xiyu.bid.analytics.service;
 
 import com.xiyu.bid.analytics.dto.TrendDrillDownResponse;
+import com.xiyu.bid.service.ProjectAccessScopeService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +13,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * M1 趋势分析下钻查询（PRD 6.6）。
@@ -22,6 +24,7 @@ import java.util.Map;
 public class TrendDrillDownService {
 
     private final EntityManager entityManager;
+    private final ProjectAccessScopeService projectAccessScopeService;
 
     public TrendDrillDownResponse drillDown(
             String dimension,
@@ -46,6 +49,13 @@ public class TrendDrillDownService {
         // 构建原生 SQL
         StringBuilder where = new StringBuilder(" WHERE 1=1");
         Map<String, Object> params = new HashMap<>();
+
+        // 项目级数据权限：非全局角色仅可见授权范围内项目（防御式兜底）
+        Set<Long> scopeIds = AnalyticsProjectScopeSupport.scopedProjectIds(projectAccessScopeService);
+        boolean allAccess = scopeIds == null;
+        where.append(" AND (:allAccess = TRUE OR p.id IN (:scopeIds))");
+        params.put("allAccess", allAccess);
+        params.put("scopeIds", allAccess ? List.of(-1L) : scopeIds);
 
         // 维度值过滤（axisValue 对应的维度列）
         appendDimensionFilter(where, params, dimension, axisValue);
@@ -142,7 +152,8 @@ public class TrendDrillDownService {
                     .managerName((String) row[5])
                     .techLeaderName((String) row[6])
                     .openTime(row[7] != null ? ((java.util.Date) row[7]).toInstant()
-                            .atZone(java.time.ZoneId.systemDefault())
+                            // P2-3：固定东八区业务口径，避免服务器时区影响开标时间展示
+                            .atZone(java.time.ZoneId.of("Asia/Shanghai"))
                             .toLocalDateTime() : null)
                     .build());
         }

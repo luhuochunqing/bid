@@ -11,6 +11,12 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
+/**
+ * M3 项目类型分析装配服务：编排查询与计算，输出响应 DTO。
+ * <p>项目级数据权限由上游 {@link ProjectTypeAnalyticsQueryService} 经
+ * {@code ProjectAccessScopeService} 统一过滤，本类只消费已授权范围内的行，
+ * 不独立做项目访问决策。
+ */
 @Service
 @RequiredArgsConstructor
 public class ProjectTypeAnalyticsAssemblerService {
@@ -22,9 +28,8 @@ public class ProjectTypeAnalyticsAssemblerService {
         List<ProjectTypeProjectRow> rows = queryService.fetchProjectRows(startDate, endDate);
         List<ProjectTypeAggregate> aggregates = computationService.summarize(rows);
 
-        long uncategorizedCount = aggregates.stream()
-                .filter(aggregate -> ProjectTypeAnalyticsComputationService.UNCATEGORIZED_PROJECT_TYPE
-                        .equals(aggregate.projectType()))
+        // P1-4 口径：只统计 5 个标准分类，未分类不计数，totalProjectCount = 已分类总数
+        long classifiedProjectCount = aggregates.stream()
                 .mapToLong(ProjectTypeAggregate::projectCount)
                 .sum();
         BigDecimal totalAmount = aggregates.stream()
@@ -32,9 +37,10 @@ public class ProjectTypeAnalyticsAssemblerService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         return ProjectTypeAnalyticsResponse.builder()
-                .totalProjectCount((long) rows.size())
-                .classifiedProjectCount(rows.size() - uncategorizedCount)
-                .uncategorizedProjectCount(uncategorizedCount)
+                .totalProjectCount(classifiedProjectCount)
+                .classifiedProjectCount(classifiedProjectCount)
+                // 废弃字段：新口径下未分类不计数，恒为 0（保留字段避免序列化破坏）
+                .uncategorizedProjectCount(0L)
                 .totalAmount(totalAmount)
                 .dimensions(aggregates.stream().map(this::toDimensionDTO).toList())
                 .build();

@@ -18,13 +18,13 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/analytics")
 @RequiredArgsConstructor
-@PreAuthorize("isAuthenticated()")
+@PreAuthorize("hasAuthority('analytics-dashboard')")
 public class CustomerTypeAnalyticsController {
 
     private final CustomerTypeAnalyticsAssemblerService customerTypeAnalyticsService;
 
     @GetMapping("/customer-types")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAuthority('analytics-dashboard')")
     public ResponseEntity<ApiResponse<CustomerTypeAnalyticsResponse>> getCustomerTypes(
             @RequestParam(required = false) LocalDate startDate,
             @RequestParam(required = false) LocalDate endDate
@@ -33,7 +33,7 @@ public class CustomerTypeAnalyticsController {
     }
 
     @GetMapping("/drilldown/customer-type")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAuthority('analytics-dashboard')")
     public ResponseEntity<ApiResponse<List<CustomerTypeDrillDownRowDTO>>> getCustomerTypeDrillDown(
             @RequestParam(required = false) String customerType,
             @RequestParam(required = false) LocalDate startDate,

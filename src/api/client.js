@@ -58,7 +58,13 @@ const httpClient = axios.create({
   baseURL: API_CONFIG.baseURL,
   timeout: API_CONFIG.timeout,
   headers: API_CONFIG.headers,
-  withCredentials: true
+  withCredentials: true,
+  // 数组参数序列化为 repeated query params（?key=a&key=b）：
+  // axios 默认生成 key[]=a&key[]=b，Spring @RequestParam List<String> 无法绑定，
+  // 导致数据分析筛选条件（departments/customerTypes 等）静默失效
+  paramsSerializer: {
+    indexes: null
+  }
 })
 
 const refreshAuthSession = async () => {

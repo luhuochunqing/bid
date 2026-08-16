@@ -2,6 +2,7 @@ package com.xiyu.bid.analytics.service;
 
 import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationDepartmentEntity;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationDepartmentRepository;
+import com.xiyu.bid.service.ProjectAccessScopeService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * PRD §6.2 M1 筛选区下拉选项查询 — 7 个维度的 DISTINCT 值。
@@ -23,6 +25,7 @@ public class FilterOptionsQueryService {
     private EntityManager entityManager;
 
     private final OrganizationDepartmentRepository organizationDepartmentRepository;
+    private final ProjectAccessScopeService projectAccessScopeService;
 
     /**
      * PRD §6.2 M1 筛选区下拉选项 — 部门。
@@ -63,14 +66,20 @@ public class FilterOptionsQueryService {
      * PRD §6.2 M1 筛选区下拉选项 — 区域 DISTINCT（project_initiation_details.headquarters_location）。
      */
     List<String> fetchDistinctRegions() {
+        // 项目级数据权限：仅返回当前用户可见项目的区域选项
+        Set<Long> scopeIds = AnalyticsProjectScopeSupport.scopedProjectIds(projectAccessScopeService);
+        boolean allAccess = scopeIds == null;
         return entityManager.createQuery("""
                         select distinct pid.headquartersLocation
                         from Project p
                         join ProjectInitiationDetails pid on pid.projectId = p.id
-                        where pid.headquartersLocation is not null
+                        where (:allAccess = true or p.id in :scopeIds)
+                          and pid.headquartersLocation is not null
                           and pid.headquartersLocation <> ''
                         order by pid.headquartersLocation
                         """, String.class)
+                .setParameter("allAccess", allAccess)
+                .setParameter("scopeIds", allAccess ? Set.of(-1L) : scopeIds)
                 .getResultList();
     }
 
@@ -78,13 +87,18 @@ public class FilterOptionsQueryService {
      * PRD §6.2 M1 筛选区下拉选项 — 客户类型 DISTINCT（projects.customer_type）。
      */
     List<String> fetchDistinctCustomerTypes() {
+        Set<Long> scopeIds = AnalyticsProjectScopeSupport.scopedProjectIds(projectAccessScopeService);
+        boolean allAccess = scopeIds == null;
         return entityManager.createQuery("""
                         select distinct p.customerType
                         from Project p
-                        where p.customerType is not null
+                        where (:allAccess = true or p.id in :scopeIds)
+                          and p.customerType is not null
                           and p.customerType <> ''
                         order by p.customerType
                         """, String.class)
+                .setParameter("allAccess", allAccess)
+                .setParameter("scopeIds", allAccess ? Set.of(-1L) : scopeIds)
                 .getResultList();
     }
 
@@ -92,14 +106,19 @@ public class FilterOptionsQueryService {
      * PRD §6.2 M1 筛选区下拉选项 — 项目类型 DISTINCT（tenders.project_type）。
      */
     List<String> fetchDistinctProjectTypes() {
+        Set<Long> scopeIds = AnalyticsProjectScopeSupport.scopedProjectIds(projectAccessScopeService);
+        boolean allAccess = scopeIds == null;
         return entityManager.createQuery("""
                         select distinct t.projectType
                         from Project p
                         join Tender t on t.id = p.tenderId
-                        where t.projectType is not null
+                        where (:allAccess = true or p.id in :scopeIds)
+                          and t.projectType is not null
                           and t.projectType <> ''
                         order by t.projectType
                         """, String.class)
+                .setParameter("allAccess", allAccess)
+                .setParameter("scopeIds", allAccess ? Set.of(-1L) : scopeIds)
                 .getResultList();
     }
 
@@ -109,14 +128,19 @@ public class FilterOptionsQueryService {
      * 此处基于所有可见项目（不限制必须有竞品记录）。
      */
     List<String> fetchDistinctTenderEntitiesForFilter() {
+        Set<Long> scopeIds = AnalyticsProjectScopeSupport.scopedProjectIds(projectAccessScopeService);
+        boolean allAccess = scopeIds == null;
         return entityManager.createQuery("""
                         select distinct t.purchaserName
                         from Project p
                         join Tender t on t.id = p.tenderId
-                        where t.purchaserName is not null
+                        where (:allAccess = true or p.id in :scopeIds)
+                          and t.purchaserName is not null
                           and t.purchaserName <> ''
                         order by t.purchaserName
                         """, String.class)
+                .setParameter("allAccess", allAccess)
+                .setParameter("scopeIds", allAccess ? Set.of(-1L) : scopeIds)
                 .getResultList();
     }
 
@@ -124,15 +148,20 @@ public class FilterOptionsQueryService {
      * PRD §6.2 M1 筛选区下拉选项 — 竞品公司 DISTINCT（project_result_competitor.name）。
      */
     List<String> fetchDistinctCompetitorNames() {
+        Set<Long> scopeIds = AnalyticsProjectScopeSupport.scopedProjectIds(projectAccessScopeService);
+        boolean allAccess = scopeIds == null;
         return entityManager.createQuery("""
                         select distinct prc.name
                         from ProjectResultCompetitor prc
                         join ProjectResult pr on pr.id = prc.resultId
                         join Project p on p.id = pr.projectId
-                        where prc.name is not null
+                        where (:allAccess = true or p.id in :scopeIds)
+                          and prc.name is not null
                           and prc.name <> ''
                         order by prc.name
                         """, String.class)
+                .setParameter("allAccess", allAccess)
+                .setParameter("scopeIds", allAccess ? Set.of(-1L) : scopeIds)
                 .getResultList();
     }
 }

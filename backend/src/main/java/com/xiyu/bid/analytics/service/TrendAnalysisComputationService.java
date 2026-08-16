@@ -10,10 +10,19 @@ import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.IsoFields;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+/**
+ * 趋势分析纯计算服务（无副作用，输入行列表 → 图表序列）。
+ *
+ * <p>输入行已由上游 {@link TrendAnalysisQueryService} / {@link TrendAnalysisDimensionQueryService}
+ * 经 {@code ProjectAccessScopeService} 完成项目级数据权限过滤，本服务不接触存储、
+ * 不做权限判定，仅做分组/去重/补零等纯计算。</p>
+ */
 @Component
 class TrendAnalysisComputationService {
 
@@ -27,8 +36,15 @@ class TrendAnalysisComputationService {
      */
     TrendComputationResult computeDimensionTrend(List<DimensionRow> rows, List<String> expectedCategories) {
         Map<String, MutableTrendBucket> bucketMap = new LinkedHashMap<>();
+        // P1-2 去重：LEFT JOIN 结果/竞品表会使同一项目在同一分类下产生多行，
+        // 按 (category, projectId) 去重，与下钻 COUNT(DISTINCT p.id) 口径对齐；
+        // 竞品维度下一个项目可合法分属多个竞品分类，故去重键含 category。
+        Set<String> countedKeys = new HashSet<>();
         for (DimensionRow row : rows) {
             String key = row.category() != null ? row.category() : "未知";
+            if (row.projectId() != null && !countedKeys.add(key + "|" + row.projectId())) {
+                continue;
+            }
             MutableTrendBucket bucket = bucketMap.computeIfAbsent(key, MutableTrendBucket::new);
             // 投标数口径：只统计已中标 + 未中标的项目
             if (row.status() == Project.Status.WON
@@ -79,8 +95,13 @@ class TrendAnalysisComputationService {
      */
     TrendComputationResult computeProjectStatusTrend(List<DimensionRow> rows, List<String> expectedCategories) {
         Map<String, MutableTrendBucket> bucketMap = new LinkedHashMap<>();
+        // P1-2 去重：同 computeDimensionTrend，按 (category, projectId) 去重对齐下钻口径。
+        Set<String> countedKeys = new HashSet<>();
         for (DimensionRow row : rows) {
             String key = row.category() != null ? row.category() : "未知";
+            if (row.projectId() != null && !countedKeys.add(key + "|" + row.projectId())) {
+                continue;
+            }
             MutableTrendBucket bucket = bucketMap.computeIfAbsent(key, MutableTrendBucket::new);
             // 项目状态维度：统计所有项目（每个状态的项目都计入 bidCount）
             bucket.bidCount++;
@@ -133,15 +154,19 @@ class TrendAnalysisComputationService {
 
         // 按时间粒度分组
         Map<String, MutableTrendBucket> bucketMap = new LinkedHashMap<>();
+        // P1-2 去重：防御式按 projectId 去重，与下钻 COUNT(DISTINCT p.id) 口径对齐。
+        Set<Long> countedProjectIds = new HashSet<>();
         for (TimeDimensionRow row : rows) {
+            if (row.projectId() != null && !countedProjectIds.add(row.projectId())) {
+                continue;
+            }
             String key = buildPeriodKey(row, td);
             MutableTrendBucket bucket = bucketMap.computeIfAbsent(key, MutableTrendBucket::new);
             // 投标数口径：只统计已中标 + 未中标的项目
-            if (row.status() == com.xiyu.bid.entity.Project.Status.WON
-                    || row.status() == com.xiyu.bid.entity.Project.Status.LOST) {
+            if (row.status() == Project.Status.WON || row.status() == Project.Status.LOST) {
                 bucket.bidCount++;
             }
-            if (row.status() == com.xiyu.bid.entity.Project.Status.WON) {
+            if (row.status() == Project.Status.WON) {
                 bucket.winCount++;
             }
         }
@@ -171,11 +196,7 @@ class TrendAnalysisComputationService {
     }
 
     /**
-     * 根据时间粒度生成 period key。
-     *   - month: "YYYY-MM"
-     *   - week:  "YYYY-WXX"
-     *   - day:   "YYYY-MM-DD"
-     *   - year:  "YYYY"
+     * 根据时间粒度生成 period key：month→"YYYY-MM"、week→"YYYY-WXX"、day→"YYYY-MM-DD"、year→"YYYY"。
      */
     private String buildPeriodKey(TimeDimensionRow row, String timeDimension) {
         return switch (timeDimension != null ? timeDimension : "month") {

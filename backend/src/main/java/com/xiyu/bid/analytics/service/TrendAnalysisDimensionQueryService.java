@@ -1,6 +1,7 @@
 package com.xiyu.bid.analytics.service;
 
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.service.ProjectAccessScopeService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
@@ -9,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
 /**
  * M1 多维度趋势查询服务 — 按 xAxis 维度分组查询项目数据（非时间维度）。
@@ -22,6 +24,8 @@ public class TrendAnalysisDimensionQueryService {
 
     @PersistenceContext
     private EntityManager entityManager;
+
+    private final ProjectAccessScopeService projectAccessScopeService;
 
     //=== 部门 ===//
     List<DimensionRow> fetchDeptRows(TrendQueryCriteria criteria) {
@@ -95,6 +99,9 @@ public class TrendAnalysisDimensionQueryService {
             TrendQueryCriteria criteria, List<String> departmentOverride) {
 
         List<String> deptIds = departmentOverride != null ? departmentOverride : criteria.departmentIds();
+        // 项目级数据权限：非全局角色仅可见授权范围内项目（防御式兜底）
+        Set<Long> scopeIds = AnalyticsProjectScopeSupport.scopedProjectIds(projectAccessScopeService);
+        boolean allAccess = scopeIds == null;
         LocalDate startDate = criteria.startDate();
         LocalDate endDate = criteria.endDate();
         List<String> userIds = criteria.userIds();
@@ -107,7 +114,8 @@ public class TrendAnalysisDimensionQueryService {
 
         StringBuilder jpql = new StringBuilder("select new com.xiyu.bid.analytics.service.DimensionRow(")
                 .append(selectExpr).append(", p.id, p.status) from Project p ")
-                .append(joinClause).append(" where ").append(whereClause);
+                .append(joinClause).append(" where (").append(whereClause)
+                .append(") and (:allAccess = true or p.id in :scopeIds)");
 
         if (startDate != null) jpql.append(" and p.createdAt >= :startDate");
         if (endDate != null) jpql.append(" and p.createdAt <= :endDate");
@@ -128,6 +136,8 @@ public class TrendAnalysisDimensionQueryService {
         if (isNotEmpty(deptIds)) jpql.append(" and u.departmentName in :departmentIds");
 
         var query = entityManager.createQuery(jpql.toString(), DimensionRow.class);
+        query.setParameter("allAccess", allAccess);
+        query.setParameter("scopeIds", allAccess ? Set.of(-1L) : scopeIds);
         if (startDate != null) query.setParameter("startDate", startDate.atStartOfDay());
         if (endDate != null) query.setParameter("endDate", endDate.atTime(23, 59, 59));
         if (isNotEmpty(userIds)) query.setParameter("userIds", userIds);

@@ -20,11 +20,18 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * M0/M1 趋势分析控制器：数据分析页专用接口，鉴权限定 analytics-dashboard
+ * （仅投标系统管理员/投标管理员/投标组长 + 本地 admin）。
+ * <p>项目级数据权限由下层查询服务（TrendAnalysisQueryService /
+ * TrendAnalysisDimensionQueryService / TrendDrillDownService / FilterOptionsQueryService）
+ * 经 ProjectAccessScopeService 统一过滤。
+ */
 @Slf4j
 @RestController
 @RequestMapping("/api/analytics")
 @RequiredArgsConstructor
-@PreAuthorize("isAuthenticated()")
+@PreAuthorize("hasAuthority('analytics-dashboard')")
 public class TrendAnalysisController {
 
     private final TrendAnalysisService trendAnalysisService;
@@ -34,7 +41,7 @@ public class TrendAnalysisController {
      * M0: 增强关键指标，支持按日期筛选。
      */
     @GetMapping("/overview/enhanced")
-    @PreAuthorize("hasAuthority('dashboard')")
+    @PreAuthorize("hasAuthority('analytics-dashboard')")
     public ResponseEntity<ApiResponse<EnhancedOverviewResponse>> getEnhancedOverview(
             @RequestParam(required = false) LocalDate startDate,
             @RequestParam(required = false) LocalDate endDate
@@ -49,7 +56,7 @@ public class TrendAnalysisController {
      * timeDimension: 时间粒度（day/week/month/year），仅当 xAxis=time 时生效。
      */
     @GetMapping("/trends/enhanced")
-    @PreAuthorize("hasAuthority('dashboard')")
+    @PreAuthorize("hasAuthority('analytics-dashboard')")
     public ResponseEntity<ApiResponse<TrendAnalysisResponse>> getEnhancedTrends(
             @RequestParam(required = false) LocalDate startDate,
             @RequestParam(required = false) LocalDate endDate,
@@ -82,7 +89,7 @@ public class TrendAnalysisController {
      * 项目状态由前端常量定义，不在此返回。
      */
     @GetMapping("/filter-options")
-    @PreAuthorize("hasAuthority('dashboard')")
+    @PreAuthorize("hasAuthority('analytics-dashboard')")
     public ResponseEntity<ApiResponse<Map<String, List<AnalyticsFilterOptionDTO>>>> getFilterOptions() {
         return ResponseEntity.ok(ApiResponse.success(
                 trendAnalysisService.getFilterOptions()
@@ -94,7 +101,7 @@ public class TrendAnalysisController {
      * departmentNames 不传时返回全部人员。
      */
     @GetMapping("/filter-options/persons")
-    @PreAuthorize("hasAuthority('dashboard')")
+    @PreAuthorize("hasAuthority('analytics-dashboard')")
     public ResponseEntity<ApiResponse<List<AnalyticsFilterOptionDTO>>> getPersonsByDepartments(
             @RequestParam(required = false) List<String> departmentNames
     ) {
@@ -117,7 +124,7 @@ public class TrendAnalysisController {
      * </ul>
      */
     @GetMapping("/trends/drilldown")
-    @PreAuthorize("hasAuthority('dashboard')")
+    @PreAuthorize("hasAuthority('analytics-dashboard')")
     public ResponseEntity<ApiResponse<TrendDrillDownResponse>> getTrendDrillDown(
             @RequestParam String dimension,
             @RequestParam String axisValue,

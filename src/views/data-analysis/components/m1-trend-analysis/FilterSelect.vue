@@ -261,10 +261,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   transition: all 0.15s;
 }
-.ms-option.checked .ms-check {
-  background: #2E7659;
-  border-color: #2E7659;
-}
+.ms-option.checked .ms-check { background: #2E7659; border-color: #2E7659; }
 .ms-option.checked .ms-check::after {
   content: '';
   width: 4px;
@@ -275,12 +272,7 @@ onBeforeUnmount(() => {
 }
 .ms-label { flex: 1; }
 
-.ms-empty {
-  padding: 12px;
-  text-align: center;
-  color: #94A3B8;
-  font-size: 12px;
-}
+.ms-empty { padding: 12px; text-align: center; color: #94A3B8; font-size: 12px; }
 
 .ms-actions {
   display: flex;
@@ -292,12 +284,6 @@ onBeforeUnmount(() => {
   z-index: 1;
   justify-content: flex-end;
 }
-.ms-actions a {
-  font-size: 11px;
-  color: #2E7659;
-  cursor: pointer;
-  text-decoration: none;
-  font-weight: 500;
-}
+.ms-actions a { font-size: 11px; color: #2E7659; cursor: pointer; text-decoration: none; font-weight: 500; }
 .ms-actions a:hover { text-decoration: underline; }
 </style>

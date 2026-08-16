@@ -15,6 +15,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * M4 竞品分析装配服务：编排查询与计算，输出响应 DTO。
+ * <p>项目级数据权限由上游 {@link CompetitorAnalysisQueryService} 经
+ * {@code ProjectAccessScopeService} 统一过滤，本类只消费已授权范围内的行，
+ * 不独立做项目访问决策。
+ */
 @Service
 @RequiredArgsConstructor
 public class CompetitorAnalysisAssemblerService {

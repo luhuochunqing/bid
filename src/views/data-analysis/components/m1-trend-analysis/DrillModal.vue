@@ -153,58 +153,28 @@ const handlePageChange = (page) => {
   flex-direction: column;
   margin: 0;
 }
-.drill-modal :deep(.el-dialog__header) {
-  padding: 0;
-  margin: 0;
-  border-bottom: 1px solid #E2E8F0;
-}
-.drill-modal :deep(.el-dialog__header::after) {
-  display: none;
-}
+.drill-modal :deep(.el-dialog__header),
+.drill-modal :deep(.el-dialog__body),
+.drill-modal :deep(.el-dialog__footer) { padding: 0; }
+.drill-modal :deep(.el-dialog__header) { margin: 0; border-bottom: 1px solid #E2E8F0; }
+.drill-modal :deep(.el-dialog__header::after) { display: none; }
 .drill-modal :deep(.el-dialog__body) {
-  padding: 0;
   flex: 1;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
-.drill-modal :deep(.el-dialog__footer) {
-  padding: 0;
-  border-top: 1px solid #E2E8F0;
-  flex-shrink: 0;
-}
+.drill-modal :deep(.el-dialog__footer) { border-top: 1px solid #E2E8F0; flex-shrink: 0; }
 
 /* ===== header ===== */
-.m2-modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 24px;
-}
-.m2-modal-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #1E293B;
-}
-.m2-modal-close {
-  font-size: 20px;
-  color: #94A3B8;
-  cursor: pointer;
-  line-height: 1;
-  transition: color 0.2s;
-}
-.m2-modal-close:hover {
-  color: #DC2626;
-}
+.m2-modal-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; }
+.m2-modal-title { font-size: 16px; font-weight: 700; color: #1E293B; }
+.m2-modal-close { font-size: 20px; color: #94A3B8; cursor: pointer; line-height: 1; transition: color 0.2s; }
+.m2-modal-close:hover { color: #DC2626; }
 
 /* ===== body ===== */
-.m2-modal-body {
-  padding: 10px 24px;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
-}
+.m2-modal-body { padding: 10px 24px; overflow-y: auto; flex: 1; min-height: 0; }
 
 /* ===== table - 复刻原型 data-table ===== */
 .data-table {
@@ -232,12 +202,8 @@ const handlePageChange = (page) => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.data-table tbody tr {
-  transition: background 0.15s;
-}
-.data-table tbody tr:hover {
-  background: #F0F9F6;
-}
+.data-table tbody tr { transition: background 0.15s; }
+.data-table tbody tr:hover { background: #F0F9F6; }
 /* 720px 宽度下列宽分配：项目负责人/投标负责人/开标时间加宽确保显示全 */
 .data-table .col-name { width: 24%; }
 .data-table .col-manager { width: 18%; }
@@ -254,62 +220,20 @@ const handlePageChange = (page) => {
   max-width: 100%;
   font-weight: 500;
 }
-.data-table .cell-name:hover {
-  text-decoration: underline;
-  color: #1F5A44;
-}
+.data-table .cell-name:hover { text-decoration: underline; color: #1F5A44; }
 
 /* ===== tags - 复刻原型 tag 样式 ===== */
-.tag {
-  display: inline-block;
-  padding: 2px 10px;
-  border-radius: 10px;
-  font-size: 12px;
-  line-height: 1.5;
-  font-weight: 500;
-}
-.tag-blue {
-  background: #E6F4EF;
-  color: #2E7659;
-  border: 1px solid rgba(46, 118, 89, 0.15);
-}
-.tag-green {
-  background: #DCFCE7;
-  color: #16A34A;
-  border: 1px solid rgba(22, 163, 74, 0.15);
-}
-.tag-orange {
-  background: #FEF3C7;
-  color: #D97706;
-  border: 1px solid rgba(217, 119, 6, 0.15);
-}
-.tag-gray {
-  background: #F1F5F9;
-  color: #94A3B8;
-  border: 1px solid #E2E8F0;
-}
-.tag-red {
-  background: #FEE2E2;
-  color: #DC2626;
-  border: 1px solid rgba(220, 38, 38, 0.15);
-}
+.tag { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 12px; line-height: 1.5; font-weight: 500; }
+.tag-blue { background: #E6F4EF; color: #2E7659; border: 1px solid rgba(46, 118, 89, 0.15); }
+.tag-green { background: #DCFCE7; color: #16A34A; border: 1px solid rgba(22, 163, 74, 0.15); }
+.tag-orange { background: #FEF3C7; color: #D97706; border: 1px solid rgba(217, 119, 6, 0.15); }
+.tag-gray { background: #F1F5F9; color: #94A3B8; border: 1px solid #E2E8F0; }
+.tag-red { background: #FEE2E2; color: #DC2626; border: 1px solid rgba(220, 38, 38, 0.15); }
 
 /* ===== footer / pagination - 复刻原型 m2-modal-footer ===== */
-.m2-modal-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 24px;
-  font-size: 13px;
-}
-.m2-page-info {
-  color: #94A3B8;
-}
-.m2-page-controls {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-}
+.m2-modal-footer { display: flex; justify-content: space-between; align-items: center; padding: 8px 24px; font-size: 13px; }
+.m2-page-info { color: #94A3B8; }
+.m2-page-controls { display: flex; gap: 4px; align-items: center; }
 .m2-page-controls button {
   padding: 5px 12px;
   border: 1px solid #E2E8F0;
@@ -321,25 +245,9 @@ const handlePageChange = (page) => {
   transition: all 0.2s;
   font-weight: 500;
 }
-.m2-page-controls button:hover:not(:disabled) {
-  color: #2E7659;
-  border-color: #5BAA8A;
-  background: #F0F9F6;
-}
-.m2-page-controls button.active {
-  background: linear-gradient(135deg, #2E7659, #1F5A44);
-  color: #fff;
-  border-color: transparent;
-}
-.m2-page-controls button:disabled {
-  color: #CBD5E1;
-  cursor: not-allowed;
-}
+.m2-page-controls button:hover:not(:disabled) { color: #2E7659; border-color: #5BAA8A; background: #F0F9F6; }
+.m2-page-controls button.active { background: linear-gradient(135deg, #2E7659, #1F5A44); color: #fff; border-color: transparent; }
+.m2-page-controls button:disabled { color: #CBD5E1; cursor: not-allowed; }
 
-.empty-state {
-  padding: 40px;
-  text-align: center;
-  color: #94A3B8;
-  font-size: 13px;
-}
+.empty-state { padding: 40px; text-align: center; color: #94A3B8; font-size: 13px; }
 </style>

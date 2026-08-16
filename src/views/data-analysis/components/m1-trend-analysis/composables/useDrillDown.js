@@ -26,7 +26,8 @@ export function useDrillDown() {
 
   const buildDrillParams = (ctx, page) => {
     const f = ctx?.filters || {}
-    // 后端 List<String> 参数：axios 会自动将数组序列化为 repeated query params（?key=a&key=b）
+    // 后端 List<String> 参数：依赖 src/api/client.js 的 paramsSerializer（indexes: null）
+    // 将数组序列化为 repeated query params（?key=a&key=b），Spring 才能正确绑定
     const toList = (arr) => (Array.isArray(arr) && arr.length ? arr : undefined)
     return {
       dimension: ctx?.xAxisType || 'time',

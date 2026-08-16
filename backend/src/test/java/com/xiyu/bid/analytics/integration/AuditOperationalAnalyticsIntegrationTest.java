@@ -55,7 +55,7 @@ class AuditOperationalAnalyticsIntegrationTest extends AbstractAuditOperationalA
     }
 
     @Test
-    @WithMockUser(username = "admin", authorities = {"ROLE_ADMIN", "dashboard", "all"})
+    @WithMockUser(username = "audit-admin", authorities = {"ROLE_ADMIN", "dashboard", "all"})
     void analyticsEndpoints_ShouldReturnRealProductLinesAndDrillDownData() throws Exception {
         mockMvc.perform(get("/api/analytics/overview"))
                 .andExpect(status().isOk())
@@ -80,7 +80,8 @@ class AuditOperationalAnalyticsIntegrationTest extends AbstractAuditOperationalA
                 .andExpect(jsonPath("$.data.metricKey").value("revenue"))
                 .andExpect(jsonPath("$.data.items[0].title").value("智慧办公平台采购"))
                 .andExpect(jsonPath("$.data.summary.totalCount").value(1));
-        assertQueryCountAtMost(2);
+        // P0-1 数据权限守卫引入 1 次用户解析查询，基线由 2 上调至 3
+        assertQueryCountAtMost(3);
 
         resetStatistics();
         mockMvc.perform(get("/api/analytics/drill-down")
@@ -107,7 +108,8 @@ class AuditOperationalAnalyticsIntegrationTest extends AbstractAuditOperationalA
                 .andExpect(jsonPath("$.data.metricKey").value("projects"))
                 .andExpect(jsonPath("$.data.items[0].title").value("智慧办公实施项目"))
                 .andExpect(jsonPath("$.data.summary.activeCount").value(1));
-        assertQueryCountAtMost(2);
+        // P0-1 数据权限守卫引入 1 次用户解析查询，基线由 2 上调至 3
+        assertQueryCountAtMost(3);
 
         resetStatistics();
         mockMvc.perform(get("/api/analytics/drilldown/team")
@@ -118,11 +120,12 @@ class AuditOperationalAnalyticsIntegrationTest extends AbstractAuditOperationalA
                 .andExpect(jsonPath("$.data.items[0].count").value(1))
                 .andExpect(jsonPath("$.data.items[0].managedProjectCount").value(1))
                 .andExpect(jsonPath("$.data.summary.totalCompletedTasks").value(0));
-        assertQueryCountAtMost(5);
+        // P0-1 数据权限守卫引入 1 次用户解析查询，基线由 5 上调至 6
+        assertQueryCountAtMost(6);
     }
 
     @Test
-    @WithMockUser(username = "admin", authorities = {"ROLE_ADMIN", "dashboard", "all"})
+    @WithMockUser(username = "audit-admin", authorities = {"ROLE_ADMIN", "dashboard", "all"})
     void analyticsEndpoints_ShouldReturnAccessibleProjectDataForAdmin() throws Exception {
         User adminAnalyticsUser = userRepository.save(User.builder()
                 .username("analytics-admin")
@@ -169,7 +172,7 @@ class AuditOperationalAnalyticsIntegrationTest extends AbstractAuditOperationalA
     }
 
     @Test
-    @WithMockUser(username = "admin", authorities = {"ROLE_ADMIN", "dashboard", "all"})
+    @WithMockUser(username = "audit-admin", authorities = {"ROLE_ADMIN", "dashboard", "all"})
     void analyticsEndpoints_ShouldReturnWinRateAndTeamDrillDownData() throws Exception {
         mockMvc.perform(get("/api/analytics/drilldown/win-rate")
                         .param("outcome", "WON"))
@@ -188,12 +191,12 @@ class AuditOperationalAnalyticsIntegrationTest extends AbstractAuditOperationalA
                 .andExpect(jsonPath("$.data.items[0].managedProjectCount").value(1))
                 .andExpect(jsonPath("$.data.summary.totalCompletedTasks").value(0));
     }
-
     @Test
-    @WithMockUser(username = "admin", authorities = {"ROLE_ADMIN", "dashboard", "all"})
-    void customerTypeAnalytics_ShouldUseProjectCustomerTypeAndKeepEmptyValuesUncategorized() throws Exception {
+    @WithMockUser(username = "audit-admin", authorities = {"ROLE_ADMIN", "dashboard", "analytics-dashboard", "all"})
+    void customerTypeAnalytics_ShouldCountOnlyFiveStandardCategoriesAndIgnoreUncategorized() throws Exception {
+        // P1-3 口径：仅统计 5 个标准客户类型分类，未分类（空值）与非标准值不计数
         project.setCustomer("华东政务中心");
-        project.setCustomerType("政府客户");
+        project.setCustomerType("政府机关/事业单位/高校");
         project.setIndustry("智慧办公");
         projectRepository.save(project);
 
@@ -222,16 +225,28 @@ class AuditOperationalAnalyticsIntegrationTest extends AbstractAuditOperationalA
         mockMvc.perform(get("/api/analytics/customer-types"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.totalProjectCount").value(2))
-                .andExpect(jsonPath("$.data.uncategorizedProjectCount").value(2))
+                // 新口径：totalProjectCount = 已分类总数（空值项目不计数）
+                .andExpect(jsonPath("$.data.totalProjectCount").value(1))
+                .andExpect(jsonPath("$.data.classifiedProjectCount").value(1))
+                .andExpect(jsonPath("$.data.uncategorizedProjectCount").value(0))
+                .andExpect(jsonPath("$.data.dimensions[*].customerType", hasItem("政府机关/事业单位/高校")))
                 .andExpect(jsonPath("$.data.dimensions[*].customerType", not(hasItem("政府客户"))))
                 .andExpect(jsonPath("$.data.dimensions[*].customerType", not(hasItem("未分类"))))
                 .andExpect(jsonPath("$.data.dimensions[*].customerType", not(hasItem("能源"))));
 
+        // 未分类下钻已移除：传"未分类"返回空列表（不再提供未分类项目明细）
         mockMvc.perform(get("/api/analytics/drilldown/customer-type")
                         .param("customerType", "未分类"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data").isEmpty());
+
+        // 标准分类下钻正常返回已分类项目
+        mockMvc.perform(get("/api/analytics/drilldown/customer-type")
+                        .param("customerType", "政府机关/事业单位/高校"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].customerType").value("政府机关/事业单位/高校"));
     }
 }

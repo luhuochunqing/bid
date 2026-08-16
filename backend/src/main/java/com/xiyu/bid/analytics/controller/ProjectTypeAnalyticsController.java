@@ -16,13 +16,13 @@ import java.time.LocalDate;
 @RestController
 @RequestMapping("/api/analytics")
 @RequiredArgsConstructor
-@PreAuthorize("isAuthenticated()")
+@PreAuthorize("hasAuthority('analytics-dashboard')")
 public class ProjectTypeAnalyticsController {
 
     private final ProjectTypeAnalyticsService projectTypeAnalyticsService;
 
     @GetMapping("/project-types")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAuthority('analytics-dashboard')")
     public ResponseEntity<ApiResponse<ProjectTypeAnalyticsResponse>> getProjectTypes(
             @RequestParam(required = false) LocalDate startDate,
             @RequestParam(required = false) LocalDate endDate
