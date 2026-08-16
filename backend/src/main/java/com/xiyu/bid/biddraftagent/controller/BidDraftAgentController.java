@@ -9,8 +9,6 @@ import com.xiyu.bid.biddraftagent.application.QualificationMatchAppService;
 import com.xiyu.bid.biddraftagent.application.RiskClassificationAppService;
 import com.xiyu.bid.biddraftagent.application.ScoringCriteriaClassificationAppService;
 import com.xiyu.bid.biddraftagent.application.TechnicalClassificationAppService;
-import com.xiyu.bid.biddraftagent.application.BidScoreEvaluationAppService;
-import com.xiyu.bid.biddraftagent.domain.BidScoreEvaluationPolicy;
 import com.xiyu.bid.biddraftagent.domain.validation.KnowledgeBaseMatchResult;
 import com.xiyu.bid.biddraftagent.domain.validation.QualificationMatchResult;
 import com.xiyu.bid.biddraftagent.dto.BidDraftAgentApplyResponseDTO;
@@ -50,7 +48,6 @@ public class BidDraftAgentController {
     private final ScoringCriteriaClassificationAppService scoringCriteriaClassificationAppService;
     private final KnowledgeBaseMatchAppService knowledgeBaseMatchAppService;
     private final FullAnalysisAppService fullAnalysisAppService;
-    private final BidScoreEvaluationAppService bidScoreEvaluationAppService;
 
     @PostMapping(value = "/tender-documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("isAuthenticated()")
@@ -208,21 +205,4 @@ public class BidDraftAgentController {
         return ResponseEntity.ok(ApiResponse.success("全维度分析完成", result));
     }
 
-    @PostMapping("/score-evaluation")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<BidScoreEvaluationPolicy.EvaluationResult>> evaluateScore(
-            @PathVariable Long projectId) {
-        log.info("BidAgent evaluateScore: projectId={}", projectId);
-        var result = bidScoreEvaluationAppService.evaluateForProject(projectId);
-        return ResponseEntity.ok(ApiResponse.success("投标文件打分完成", result));
-    }
-
-    @GetMapping("/score-evaluation")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<BidScoreEvaluationPolicy.EvaluationResult>> getScoreEvaluation(
-            @PathVariable Long projectId) {
-        log.info("BidAgent getScoreEvaluation: projectId={}", projectId);
-        var result = bidScoreEvaluationAppService.evaluateForProject(projectId);
-        return ResponseEntity.ok(ApiResponse.success("获取投标文件打分完成", result));
-    }
 }
