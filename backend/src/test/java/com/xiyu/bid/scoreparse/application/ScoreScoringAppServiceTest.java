@@ -212,7 +212,7 @@ class ScoreScoringAppServiceTest {
     }
 
     @Test
-    void bidDocumentLoadFailure_marksFailedAndPreservesOldResults() {
+    void bidDocumentLoadFailure_marksFailedAndWritesFallbackPendingResults() {
         mockNoActiveScoringTask();
         mockBidDocumentPresent();
         ScoreItem objective = item(10L, "资质", "具备 CMMI 5 级认证证书", "10", "OBJECTIVE");
@@ -225,8 +225,12 @@ class ScoreScoringAppServiceTest {
         service.triggerScoring(PROJECT_ID);
 
         verify(stateService).failTask(anyString(), anyString());
-        verify(resultRepository, never()).deleteByScoreItemIdIn(anyList());
-        verify(resultRepository, never()).saveAll(anyList());
+        ArgumentCaptor<List<ScoreResult>> captor = ArgumentCaptor.captor();
+        verify(resultRepository).saveAll(captor.capture());
+        ScoreResult fallback = captor.getValue().get(0);
+        assertThat(fallback.getActualScore()).isNull();
+        assertThat(fallback.getStatusStage2()).isEqualTo("PENDING");
+        assertThat(fallback.getMissedReason()).contains("投标文件解析失败");
     }
 
     @Test

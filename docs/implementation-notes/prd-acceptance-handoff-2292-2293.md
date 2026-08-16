@@ -107,16 +107,16 @@
 - 改动：`scoreParseTask.js` 设置 `POLL_MAX_ATTEMPTS = 900`（30 分钟），`ScoreParseTaskStateService.java` 超时文案严格对齐 PRD 原文（解析：「解析超时，请检查文件大小或稍后重试」；打分：「打分超时，请检查文件大小或稍后重试」）。
 - 验证：前后端单测全量对齐并通过。
 
-### P1-6 四路召回不完整
+### P1-6 四路召回（分层流水线架构）
 
 - [x] **R016**
-- 改动：`OpenAiScoreAnalyzer` 统一管理关键词规则、文档章节结构、评分语义特征与全文 LLM 四路候选池。
-- 验证：`ScoreParseAppServiceTest` 覆盖多路召回与去重。
+- 架构说明：`OpenAiScoreAnalyzer` 采用分层流水线模型（召回一正则提取 + 召回二结构章节定位优先提取候选表，召回三/四基于分块切片进行评分规则语义与全文 LLM 提取，经 `ScoreItemMergePolicy` 去重合并），非并行多线程。
+- 验证：`ScoreParseAppServiceTest` 覆盖多路召回与合并去重。
 
-### P1-7 维度级分值闭环缺失
+### P1-7 维度级分值闭环与声明分值比对
 
 - [x] **R020**
-- 改动：`WeightSumCheck` 增强维度级权重核算与回补机制。
+- 改动：`WeightSumCheck` 增强维度级权重核算，从维度名称或上下文注记提取招标声明分值（如“商务部分（30分）”），与维度内累计权重比对，超出容差或存在分值缺口时触发回补机制。
 - 验证：`WeightSumCheckTest` 6 个用例全通。
 
 ### P1-8 数量 / 编号连续性未校验
@@ -153,7 +153,7 @@
 
 - [x] **R027** `ItemCountCheck.java` 0 项失败文案：「未在文件中识别到评分标准章节，请确认文件内容或手动联系管理员」
 - [x] **R043** `ScoreParseController.java` 未解析就打分返回友好文案：「请等待招标文件解析完成后再进行打分」
-- [x] **R050** 投标文件异常时写入客观项待确认状态
+- [x] **R050** 投标文件异常时写入客观测项待确认状态（`writeFallbackPendingResults`）
 - [x] **R074** 权限校验拦截文案统一
 - [x] **R030 / R031** 文件上传限制对齐 PRD（50MB + 格式提示）
 - 验证：`ItemCountCheckTest`、`ScoreParseController` 测试通过。
@@ -170,11 +170,11 @@
 - 改动：`ScoreTypeClassificationPolicy.java` 优先采用 LLM 的 `scoreTypeGuess` 结构化判定，仅将报价类关键词（投标报价/评标基准价等）强制覆盖为主观项。
 - 验证：`ScoreTypeClassificationPolicyTest` AI 优先及报价覆盖用例全绿。
 
-### P2-7 阶段 2 未按类型公式计分
+### P2-7 阶段 2 按类型与 matchRatio 公式计分
 
 - [x] **R044**
-- 改动：`ScoreAssessmentGuard` 与 `ScoreScoringAppService` 结合 `PartialScorePolicy` 严格按分档与比例计算。
-- 验证：`ScoreAssessmentGuardTest` 9 个用例全绿。
+- 改动：`ScoreAssessmentGuard` 与 `ScoreScoringAppService` 结合 `PartialScorePolicy` 直接按 `matchRatio` 分档计算客观项得分，不使用 LLM 裸分反推；主观项分值严格置 null 待专家评审。
+- 验证：`ScoreAssessmentGuardTest` 9 个用例全绿，`ScoreScoringAppServiceTest` 全通。
 
 ### P2-8 完整性回补触发面不够
 

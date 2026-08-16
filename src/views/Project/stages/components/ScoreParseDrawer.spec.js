@@ -102,4 +102,75 @@ describe('ScoreParseDrawer.vue', () => {
     expect(scoreParseApi.triggerScoring).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('尚未上传投标文件')
   })
+
+  it('renders disabled button and prompt when in stage 1 without bid document', async () => {
+    scoreParseApi.getItems.mockResolvedValue({ data: { items: itemsFixture, meta: { bidFileName: null } } })
+    scoreParseApi.getResults.mockResolvedValue({ data: { results: [] } })
+
+    const wrapper = mount(ScoreParseDrawer, {
+      props: { projectId: 123 },
+      global: {
+        stubs: {
+          'el-drawer': { template: '<div class="el-drawer-mock" v-if="modelValue"><slot /></div>', props: ['modelValue'] },
+          'el-dialog': true,
+          'el-button': true,
+        },
+      },
+    })
+
+    await wrapper.vm.open({ stage: 1, autoScore: false })
+    const buttons = wrapper.findAll('.section-actions button')
+    const btn = buttons[1]
+    expect(btn.attributes('disabled')).toBeDefined()
+    expect(btn.text()).toContain('需先上传标书')
+  })
+
+  it('renders AI 实际打分 button when bid document exists but unscored', async () => {
+    const emptyResults = [
+      { scoreItemId: 1, code: 'A1', actualScore: null, status: 'PENDING', evidence: null, quote: null, suggestion: null },
+      { scoreItemId: 2, code: 'D1', actualScore: null, status: 'PENDING', evidence: null, quote: null, suggestion: null },
+    ]
+    scoreParseApi.getItems.mockResolvedValue({ data: { items: itemsFixture, meta: { bidFileName: '投标书.pdf' } } })
+    scoreParseApi.getResults.mockResolvedValue({ data: { results: emptyResults } })
+
+    const wrapper = mount(ScoreParseDrawer, {
+      props: { projectId: 123 },
+      global: {
+        stubs: {
+          'el-drawer': { template: '<div class="el-drawer-mock" v-if="modelValue"><slot /></div>', props: ['modelValue'] },
+          'el-dialog': true,
+          'el-button': true,
+        },
+      },
+    })
+
+    await wrapper.vm.open({ autoScore: false })
+    const buttons = wrapper.findAll('.section-actions button')
+    const btn = buttons[1]
+    expect(btn.attributes('disabled')).toBeUndefined()
+    expect(btn.text()).toBe('⚡ AI 实际打分')
+    expect(wrapper.text()).toContain('已检测到投标文件，尚未打分')
+  })
+
+  it('renders 重新打分 button when already scored', async () => {
+    scoreParseApi.getItems.mockResolvedValue({ data: { items: itemsFixture, meta: { bidFileName: '投标书.pdf' } } })
+    scoreParseApi.getResults.mockResolvedValue({ data: resultsFixture })
+
+    const wrapper = mount(ScoreParseDrawer, {
+      props: { projectId: 123 },
+      global: {
+        stubs: {
+          'el-drawer': { template: '<div class="el-drawer-mock" v-if="modelValue"><slot /></div>', props: ['modelValue'] },
+          'el-dialog': true,
+          'el-button': true,
+        },
+      },
+    })
+
+    await wrapper.vm.open({ autoScore: false })
+    const buttons = wrapper.findAll('.section-actions button')
+    const btn = buttons[1]
+    expect(btn.attributes('disabled')).toBeUndefined()
+    expect(btn.text()).toBe('⚡ 重新打分')
+  })
 })

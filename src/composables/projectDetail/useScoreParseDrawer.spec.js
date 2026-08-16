@@ -244,4 +244,44 @@ describe('useScoreParseDrawer.js', () => {
 
     window.open = originalOpen
   })
+
+  it('correctly identifies empty unscored results as hasResults=false and scored=false', async () => {
+    const emptyResults = [
+      { scoreItemId: 1, code: 'A1', actualScore: null, status: 'PENDING', evidence: null, quote: null, suggestion: null },
+      { scoreItemId: 2, code: 'D1', actualScore: null, status: 'PENDING', evidence: null, quote: null, suggestion: null },
+    ]
+    scoreParseApi.getItems.mockResolvedValue({
+      data: {
+        items: REAL_ITEMS,
+        meta: { bidFileName: '西域投标文件.pdf' },
+      },
+    })
+    scoreParseApi.getResults.mockResolvedValue({
+      data: { results: emptyResults },
+    })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open()
+
+    expect(drawer.scored.value).toBe(false)
+    expect(drawer.currentStage.value).toBe(2)
+  })
+
+  it('correctly identifies scored results as hasResults=true and scored=true', async () => {
+    scoreParseApi.getItems.mockResolvedValue({
+      data: {
+        items: REAL_ITEMS,
+        meta: { bidFileName: '西域投标文件.pdf' },
+      },
+    })
+    scoreParseApi.getResults.mockResolvedValue({
+      data: { results: REAL_RESULTS },
+    })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open()
+
+    expect(drawer.scored.value).toBe(true)
+    expect(drawer.currentStage.value).toBe(2)
+  })
 })

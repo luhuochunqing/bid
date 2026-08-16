@@ -119,18 +119,19 @@ public class ScoreScoringAppService {
         ScoreParseTask task = taskRepository.findByTaskId(taskId)
                 .orElseThrow(() -> new IllegalStateException("任务不存在: " + taskId));
 
+        List<ScoreItem> items = itemRepository.findByProjectIdOrderByItemIndexAsc(task.getProjectId());
         updateProgress(taskId, 5, "READ_BID_DOCUMENT", "读取投标文件");
         String bidDocText;
         try {
             bidDocText = loadBidDocumentText(task.getProjectId());
         } catch (RuntimeException ex) {
-            log.warn("投标文件解析失败: taskId={}, msg={}", taskId, ex.getMessage());
+            log.warn("投标文件解析失败，写入全员待确认: taskId={}, msg={}", taskId, ex.getMessage());
+            writeFallbackPendingResults(task, items, "投标文件解析失败，转人工待确认: " + ex.getMessage());
             stateService.failTask(taskId, "投标文件解析失败: " + ex.getMessage());
             progressService.clearProgress(taskId);
             return;
         }
 
-        List<ScoreItem> items = itemRepository.findByProjectIdOrderByItemIndexAsc(task.getProjectId());
         List<ScoreResult> results = new ArrayList<>(items.size());
         for (int i = 0; i < items.size(); i++) {
             ScoreItem item = items.get(i);
@@ -141,8 +142,7 @@ public class ScoreScoringAppService {
 
         // FR-021 整批覆盖：全部 assess 成功后才删旧写新
         updateProgress(taskId, 95, "PERSIST", "打分结果落库");
-        resultRepository.deleteByScoreItemIdIn(
-                items.stream().map(ScoreItem::getId).toList());
+        resultRepository.deleteByScoreItemIdIn(items.stream().map(ScoreItem::getId).toList());
         resultRepository.saveAll(results);
 
         log.info("打分任务完成: taskId={}, items={}", taskId, results.size());
@@ -150,19 +150,23 @@ public class ScoreScoringAppService {
         progressService.clearProgress(taskId);
     }
 
+    private void writeFallbackPendingResults(ScoreParseTask task, List<ScoreItem> items, String reason) {
+        if (items == null || items.isEmpty()) return;
+        List<ScoreResult> fallbacks = items.stream().map(item -> ScoreResult.builder()
+                .scoreItemId(item.getId()).scoringTaskId(task.getId()).actualScore(null)
+                .statusStage2(ScoreAssessmentGuard.TYPE_SUBJECTIVE.equals(item.getScoreType()) ? null : "PENDING")
+                .missedReason(reason).build()).toList();
+        resultRepository.deleteByScoreItemIdIn(items.stream().map(ScoreItem::getId).toList());
+        resultRepository.saveAll(fallbacks);
+    }
+
     private List<ProjectDocument> findBidDocuments(Long projectId) {
-        List<ProjectDocument> docs = projectDocumentRepository
-                .findByProjectIdAndFiltersOrderByCreatedAtDesc(projectId, "BID", null, null);
-        if (!docs.isEmpty()) {
-            return docs;
+        for (String cat : List.of("BID", "BID_FILE", "BID_DOCUMENT")) {
+            List<ProjectDocument> docs = projectDocumentRepository
+                    .findByProjectIdAndFiltersOrderByCreatedAtDesc(projectId, cat, null, null);
+            if (!docs.isEmpty()) return docs;
         }
-        docs = projectDocumentRepository
-                .findByProjectIdAndFiltersOrderByCreatedAtDesc(projectId, "BID_FILE", null, null);
-        if (!docs.isEmpty()) {
-            return docs;
-        }
-        return projectDocumentRepository
-                .findByProjectIdAndFiltersOrderByCreatedAtDesc(projectId, "BID_DOCUMENT", null, null);
+        return List.of();
     }
 
     private String loadBidDocumentText(Long projectId) {
@@ -178,7 +182,7 @@ public class ScoreScoringAppService {
         return extracted.text();
     }
 
-    /** 单项对标：LLM 输出 → ScoreAssessmentGuard 守卫 → PartialScorePolicy 计算 → ScoreResult */
+    /** 单项对标：LLM matchRatio 输出 → PartialScorePolicy 计算 → ScoreAssessmentGuard 守卫 → ScoreResult */
     private ScoreResult assessItem(ScoreParseTask task, ScoreItem item, String bidDocText) {
         String excerpt = ScoreDocExcerptExtractor.extractRelevantExcerpt(
                 bidDocText, item, BID_DOC_EXCERPT_MAX_CHARS);
@@ -192,19 +196,22 @@ public class ScoreScoringAppService {
         ScoreAssessmentGuard.Result assessment = assessmentGuard.guard(
                 toGuardInput(output), item.getWeight(), item.getScoreType());
         if (assessment.rangeInvalid()) {
-            log.warn("AI 得分超出 [0, {}] 区间，置空待确认: itemId={}",
-                    item.getWeight(), item.getId());
+            log.warn("AI 得分超出 [0, {}] 区间，置空待确认: itemId={}", item.getWeight(), item.getId());
         }
         if (assessment.subjectiveDropped()) {
             log.info("主观项数字输出已丢弃（SC-003）: itemId={}", item.getId());
         }
 
-        BigDecimal finalActualScore = assessment.actualScore();
-        if (ScoreAssessmentGuard.TYPE_OBJECTIVE.equals(item.getScoreType()) && finalActualScore != null) {
-            int ratio = output.matchRatio != null ? output.matchRatio
-                    : finalActualScore.multiply(BigDecimal.valueOf(100)).divide(item.getWeight(), 0, RoundingMode.HALF_UP).intValue();
-            String tier = ratio >= 100 ? "FULL" : (ratio <= 0 ? "NONE" : "PARTIAL");
-            finalActualScore = partialScorePolicy.compute(item.getWeight(), tier, ratio, item.getScoreType());
+        BigDecimal finalActualScore = null;
+        if (ScoreAssessmentGuard.TYPE_OBJECTIVE.equals(item.getScoreType()) && !assessment.rangeInvalid()) {
+            Integer matchRatio = assessment.matchRatio() != null ? assessment.matchRatio()
+                    : (output != null ? output.matchRatio : null);
+            if (matchRatio != null) {
+                String tier = matchRatio >= 100 ? "FULL" : (matchRatio <= 0 ? "NONE" : "PARTIAL");
+                finalActualScore = partialScorePolicy.compute(item.getWeight(), tier, matchRatio, item.getScoreType());
+            } else if (assessment.actualScore() != null) {
+                finalActualScore = assessment.actualScore();
+            }
         }
 
         String status = statusPolicy.evaluate(
