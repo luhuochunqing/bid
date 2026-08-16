@@ -75,7 +75,7 @@
           <div v-show="isSection1Expanded" class="collapse-body">
             <div v-if="scoreItems.length === 0" class="scoring-placeholder">
               <div class="placeholder-icon">📋</div>
-              <div class="placeholder-text">尚未解析到评分标准，请上传招标文件后点击「重新解析」</div>
+              <div class="placeholder-text">尚未解析到评分标准，将使用立项招标文件解析。若立项尚未上传，请先在立项阶段上传招标文件。</div>
               <div class="placeholder-sub">
                 <button class="btn-tool" @click="reparse">重新解析</button>
               </div>

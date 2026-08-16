@@ -240,7 +240,7 @@ describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
 
     await wrapper.vm.open({ stage: 1, autoScore: false })
     expect(wrapper.vm.scoreItems.length).toBe(0)
-    expect(wrapper.text()).toContain('尚未解析到评分标准，请上传招标文件后点击「重新解析」')
+    expect(wrapper.text()).toContain('尚未解析到评分标准，将使用立项招标文件解析')
   })
 
   // QA-TC07: 待确认客观项空值得分展示（spec 044 FR-001/002/003，PRD 1.3）

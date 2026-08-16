@@ -5,7 +5,6 @@
         <el-icon><DocumentChecked /></el-icon>
         <span>标书编制流程</span>
         <div class="workflow-header-actions" aria-label="标书编制操作">
-          <el-button type="success" size="small" plain @click="detail.bidAgent.openDrawer">AI 生成初稿</el-button>
           <el-button v-if="!detail.bidProcess.initiated" type="primary" size="small" @click="detail.handleInitiateProcess">发起流程</el-button>
         </div>
       </div>

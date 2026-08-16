@@ -129,6 +129,11 @@ export function useScoreParseDrawer(props, emit) {
       }
       scored.value = options.scored !== undefined ? options.scored : hasResults
 
+      // 立项招标文件已在，打开抽屉时若还没有评分项则直接解析
+      if (scoreItems.value.length === 0 && options.autoParse !== false) {
+        await startParse({ silent: true })
+      }
+
       // 仅当阶段 2 且从未打分且显式指定 autoScore 时才自动打分
       if (currentStage.value === 2 && !hasResults && options.autoScore === true) {
         await runScoring({ auto: true })
@@ -203,20 +208,31 @@ export function useScoreParseDrawer(props, emit) {
     }
   }
 
-  async function reparse() {
+  async function startParse(options = {}) {
+    const silent = !!options.silent
     try {
       scoringOverlayVisible.value = true
-      // spec 041 真接口：POST /parse（FR-021 覆盖旧解析结果）→ 轮询 → 重拉 items
       await scoreParseApi.triggerParse(props.projectId)
       const done = await pollTask(() => scoreParseApi.getParseStatus(props.projectId), '解析')
       if (done?.completedAt) parseTime.value = formatTime(done.completedAt)
-      await fetchAnalysisData({ stage: currentStage.value, autoScore: false })
-      ElMessage.success('已重新解析评分标准')
+      await fetchAnalysisData({ stage: currentStage.value, autoScore: false, autoParse: false })
+      if (!silent) {
+        ElMessage.success('已重新解析评分标准')
+      }
     } catch (e) {
-      notifyErrorUnlessRateLimit(e, '重新解析失败')
+      const msg = e?.response?.data?.msg || e?.message || '重新解析失败'
+      if (silent) {
+        error.value = msg
+      } else {
+        notifyErrorUnlessRateLimit(e, '重新解析失败')
+      }
     } finally {
       scoringOverlayVisible.value = false
     }
+  }
+
+  async function reparse() {
+    await startParse({ silent: false })
   }
 
   function exportReport() {

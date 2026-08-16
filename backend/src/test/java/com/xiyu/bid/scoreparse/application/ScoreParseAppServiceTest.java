@@ -5,6 +5,7 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.biddraftagent.entity.BidTenderDocumentSnapshot;
 import com.xiyu.bid.biddraftagent.repository.BidTenderDocumentSnapshotRepository;
+import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -70,6 +72,8 @@ class ScoreParseAppServiceTest {
     private EstimatedScoreService estimatedScoreService;
     @Mock
     private ScoreItemPersistenceService itemPersistenceService;
+    @Mock
+    private InitiationTenderTextResolver initiationTenderTextResolver;
 
     private ScoreParseAppService service;
 
@@ -79,7 +83,7 @@ class ScoreParseAppServiceTest {
                 taskRepository, itemRepository, resultRepository, projectDocumentRepository,
                 stateService, progressService, snapshotRepository,
                 projectAccessScopeService, scoreAnalyzer, estimatedScoreService,
-                itemPersistenceService);
+                itemPersistenceService, initiationTenderTextResolver);
         ReflectionTestUtils.setField(service, "self", service);
     }
 
@@ -111,11 +115,9 @@ class ScoreParseAppServiceTest {
                 ScoreParseTask.builder()
                         .id(5L).taskId(TASK_ID).projectId(PROJECT_ID)
                         .taskType("PARSE").status("PENDING").build()));
-        when(snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(PROJECT_ID))
-                .thenReturn(Optional.of(BidTenderDocumentSnapshot.builder()
-                        .id(9L).projectId(PROJECT_ID)
-                        .fileName("tender.pdf").fileUrl("doc-insight://t/1")
-                        .extractedText("评分办法：...").build()));
+        when(initiationTenderTextResolver.resolve(PROJECT_ID))
+                .thenReturn(Optional.of(new TenderTextSource(
+                        "tender.pdf", "doc-insight://t/1", "评分办法：...")));
         when(scoreAnalyzer.recallCandidates(anyString(), isNull(), any()))
                 .thenReturn(List.of(
                         candidate("A1", "资质", "具备 CMMI 5 级认证证书", "60"),
@@ -135,11 +137,35 @@ class ScoreParseAppServiceTest {
     }
 
     @Test
-    void getItems_metaCarriesFileNamesAndTimes() {
+    void triggerParse_rejectsWhenNoInitiationTender() {
+        when(initiationTenderTextResolver.hasSource(PROJECT_ID)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.triggerParse(PROJECT_ID))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(InitiationTenderTextResolver.NO_TENDER_MESSAGE);
+    }
+
+    @Test
+    void getItems_metaFallsBackToSnapshotName() {
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of());
+        when(initiationTenderTextResolver.findLatestTenderDocument(PROJECT_ID))
+                .thenReturn(Optional.empty());
         when(snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(PROJECT_ID))
                 .thenReturn(Optional.of(BidTenderDocumentSnapshot.builder()
-                        .fileName("招标文件-v3.pdf").build()));
+                        .fileName("旧快照.pdf").build()));
+        when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(anyLong(), anyString(), anyList()))
+                .thenReturn(List.of());
+
+        ScoreParseItemsDTO dto = service.getItems(PROJECT_ID);
+
+        assertThat(dto.meta().sourceFileName()).isEqualTo("旧快照.pdf");
+    }
+
+    @Test
+    void getItems_metaCarriesFileNamesAndTimes() {
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of());
+        when(initiationTenderTextResolver.findLatestTenderDocument(PROJECT_ID))
+                .thenReturn(Optional.of(ProjectDocument.builder().name("招标文件-v3.pdf").build()));
         when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
                 eq(PROJECT_ID), eq("PARSE"), anyList()))
                 .thenReturn(List.of(ScoreParseTask.builder()
@@ -163,6 +189,8 @@ class ScoreParseAppServiceTest {
     @Test
     void getItems_metaNullSafeWhenNoSnapshotOrTasks() {
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of());
+        when(initiationTenderTextResolver.findLatestTenderDocument(PROJECT_ID))
+                .thenReturn(Optional.empty());
         when(snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(PROJECT_ID))
                 .thenReturn(Optional.empty());
         when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(anyLong(), anyString(), anyList()))

@@ -87,14 +87,28 @@ describe('useScoreParseDrawer.js', () => {
     expect(emit).toHaveBeenCalledWith('parsed', expect.any(Object))
   })
 
-  it('sets empty scoreItems when backend returns no items (PRD §5.3 empty state contract)', async () => {
+  it('auto-parses initiation tender when drawer opens with no items', async () => {
+    scoreParseApi.getItems
+      .mockResolvedValueOnce({ data: { items: [], summary: null } })
+      .mockResolvedValueOnce({ data: { items: REAL_ITEMS, summary: null } })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1 })
+
+    expect(scoreParseApi.triggerParse).toHaveBeenCalledWith(99)
+    expect(scoreParseApi.getParseStatus).toHaveBeenCalled()
+    expect(drawer.scoreItems.value.length).toBe(2)
+  })
+
+  it('keeps empty items when auto-parse finds no initiation tender', async () => {
     scoreParseApi.getItems.mockResolvedValue({ data: { items: [], summary: null } })
+    scoreParseApi.triggerParse.mockRejectedValue({ response: { data: { msg: '请先在立项阶段上传招标文件' } } })
 
     const drawer = useScoreParseDrawer(props, emit)
     await drawer.open({ stage: 1 })
 
     expect(drawer.scoreItems.value).toEqual([])
-    expect(drawer.totalWeight.value).toBe(0)
+    expect(drawer.error.value).toBe('请先在立项阶段上传招标文件')
   })
 
   it('fills source info bar from items meta (R007/R022: file names no longer stuck at em-dash)', async () => {
