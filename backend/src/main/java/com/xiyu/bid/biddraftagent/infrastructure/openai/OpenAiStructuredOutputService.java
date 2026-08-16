@@ -3,7 +3,7 @@ package com.xiyu.bid.biddraftagent.infrastructure.openai;
 import org.springframework.stereotype.Service;
 
 @Service
-class OpenAiStructuredOutputService {
+public class OpenAiStructuredOutputService {
 
     private final OpenAiStructuredOutputTransport transport;
 
@@ -11,7 +11,7 @@ class OpenAiStructuredOutputService {
         this.transport = pTransport;
     }
 
-    <T> T request(
+    public <T> T request(
             String prompt,
             Class<T> responseType,
             OpenAiBidAgentRequestConfig config,

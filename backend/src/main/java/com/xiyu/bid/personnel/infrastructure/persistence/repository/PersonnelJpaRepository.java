@@ -14,7 +14,8 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface PersonnelJpaRepository extends JpaRepository<PersonnelEntity, Long> {
+public interface PersonnelJpaRepository extends JpaRepository<PersonnelEntity, Long>,
+        org.springframework.data.jpa.repository.JpaSpecificationExecutor<PersonnelEntity> {
 
     Optional<PersonnelEntity> findByEmployeeNumber(String employeeNumber);
 

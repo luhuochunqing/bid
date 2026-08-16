@@ -27,6 +27,7 @@
           :show-submit-button="false"
           :can-manage-project-tasks="ctx.canManageProjectTasks && canManageTasksInDrafting()"
           :is-demo-mode="ctx.isDemoMode"
+          :score-risk-count="scoreRiskCount"
           @task-click="ctx.handleTaskClick"
           @save-task="ctx.handleSaveTask"
           @status-change="ctx.handleTaskStatusChange"
@@ -36,7 +37,7 @@
           @submit-to-document="ctx.handleSubmitToDocument"
           @submit-review="ctx.handleSubmitReview"
         />
-        <ScoreParseDrawer ref="scoreParseRef" :project-id="ctx.project?.id" />
+        <ScoreParseDrawer ref="scoreParseRef" :project-id="ctx.project?.id" @parsed="handleScoreParsed" />
         <TaskDecomposeDialog ref="taskDecomposeRef" :project-id="ctx.project?.id" />
         <DraftingStage
           v-if="ctx.project?.id"
@@ -105,16 +106,6 @@
         </el-timeline-item>
       </el-timeline>
     </el-card>
-
-    <!-- 项目文档（暂时隐藏）
-    <el-card class="document-card">
-      ...
-    </el-card>
-    -->
-
-    <!-- 协作讨论（暂时隐藏
-    <ProjectCollaborationCard :project-id="ctx.project?.id" />
-    -->
   </div>
 </template>
 
@@ -122,7 +113,6 @@
 import { ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Clock, Switch } from '@element-plus/icons-vue'
-// import { Document, DocumentChecked, Folder, Upload } from '@element-plus/icons-vue' // 暂时隐藏项目文档
 import { useProjectDetailContext } from '@/composables/projectDetail/context.js'
 import { useProjectStore } from '@/stores/project'
 import { routeToStageCode } from '@/constants/projectStages'
@@ -130,7 +120,6 @@ import ProjectApprovalStatusCard from '@/components/project/ProjectApprovalStatu
 import ProjectBasicInfoCard from '@/components/project/ProjectBasicInfoCard.vue'
 import ProjectStageTimeline from '@/components/project/stage/ProjectStageTimeline.vue'
 import ProjectTaskBoardCard from '@/components/project/ProjectTaskBoardCard.vue'
-// import ProjectCollaborationCard from '@/components/project/ProjectCollaborationCard.vue' // 暂时隐藏
 import InitiationStage from '@/views/Project/stages/InitiationStage.vue'
 import DraftingStage from '@/views/Project/stages/DraftingStage.vue'
 import EvaluationStage from '@/views/Project/stages/EvaluationStage.vue'
@@ -156,6 +145,13 @@ const scoreParseRef = ref(null)
 const taskDecomposeRef = ref(null)
 const resultType = ref('')
 const bidReviewState = ref(null)
+const scoreRiskCount = ref(0)
+
+function handleScoreParsed(counts) {
+  if (counts && typeof counts.dangerCount === 'number') {
+    scoreRiskCount.value = counts.dangerCount
+  }
+}
 
 async function loadBidReviewState() {
   if (!ctx.project?.id || currentProjectStage.value !== 'DRAFTING') {

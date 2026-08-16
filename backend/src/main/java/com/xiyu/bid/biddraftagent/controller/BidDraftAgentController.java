@@ -204,4 +204,5 @@ public class BidDraftAgentController {
         var result = fullAnalysisAppService.analyzeForProject(projectId);
         return ResponseEntity.ok(ApiResponse.success("全维度分析完成", result));
     }
+
 }

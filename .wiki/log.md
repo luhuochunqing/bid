@@ -208,3 +208,7 @@
   - E2E 选择器优先级：URL 参数 > data-testid > CSS class > 文本
 - 关联文件：`backend/src/main/java/com/xiyu/bid/entity/RoleProfileCatalog.java`、`backend/src/main/java/com/xiyu/bid/bootstrap/FormDefinitionE2eSeeder.java`、`e2e/task-board-customization.spec.js`
 
+
+## [2026-08-15] task | score-parse-backend 任务收尾回填
+- 新增 [[score-parse-service]]（spec 041 后端全链路：解析/匹配/打分/超时）
+- 更新 _index.md 索引

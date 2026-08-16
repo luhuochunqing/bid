@@ -10,7 +10,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 
-class TenderIntakeTextProcessor {
+public final class TenderIntakeTextProcessor {
 
     /** 候选文本上下文半径（行数）。包级可见以便测试引用，避免魔法数字。 */
     static final int INTAKE_CONTEXT_RADIUS = 3;
@@ -242,7 +242,7 @@ class TenderIntakeTextProcessor {
         }
     }
 
-    static String sanitizeUntrusted(String raw) {
+    public static String sanitizeUntrusted(String raw) {
         if (raw == null) return "";
         return raw.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }

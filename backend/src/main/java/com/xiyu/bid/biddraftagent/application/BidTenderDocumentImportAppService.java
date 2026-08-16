@@ -16,6 +16,7 @@ import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
@@ -29,7 +30,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class BidTenderDocumentImportAppService {
 
-    private static final long MAX_FILE_SIZE_BYTES = 30L * 1024L * 1024L;
+    private static final long MAX_FILE_SIZE_BYTES = 50L * 1024L * 1024L;
     private static final String DOCUMENT_CATEGORY = "TENDER_FILE";
     private static final String LINKED_ENTITY_TYPE = "TENDER";
     private static final String PARSE_SUCCESS_MESSAGE = "招标文件已解析，已更新招标要求快照";
@@ -49,6 +50,7 @@ public class BidTenderDocumentImportAppService {
     private final BidDraftAgentJsonCodec jsonCodec;
     private final BidAgentOperatorResolver operatorResolver;
     private final TransactionTemplate transactionTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
     public BidTenderDocumentParseDTO parseTenderDocument(Long projectId, MultipartFile file) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
@@ -80,6 +82,12 @@ public class BidTenderDocumentImportAppService {
                 extracted,
                 profile
         );
+        // spec 041：招标文档保存成功后发布事件，scoreparse 异步消费自动触发评分标准解析
+        eventPublisher.publishEvent(new TenderDocumentStoredEvent(
+                projectId,
+                persistedDocument.document().getId(),
+                storedDocument.fileUrl()
+        ));
         return buildParseResult(persistedDocument, tender.getId(), extracted.textLength(), profile);
     }
 
@@ -102,7 +110,7 @@ public class BidTenderDocumentImportAppService {
             throw new IllegalArgumentException("请上传招标文件");
         }
         if (file.getSize() > MAX_FILE_SIZE_BYTES) {
-            throw new IllegalArgumentException("招标文件不能超过 30MB");
+            throw new IllegalArgumentException("招标文件不能超过 50MB");
         }
     }
 

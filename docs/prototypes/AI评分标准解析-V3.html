@@ -1,0 +1,1415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>AI 评分标准解析 · 交互演示</title>
+<style>
+  /* ========== 设计 Token ========== */
+  :root {
+    --brand-xiyu-logo: #2E7659;
+    --brand-xiyu-logo-light: #E7F2ED;
+    --brand-xiyu-logo-active: #1F553F;
+    --brand-xiyu-logo-hover: #27674E;
+    --brand-primary: #0066CC;
+    --text-primary: #1A1A1A;
+    --text-primary-ui: #303133;
+    --text-secondary: #666666;
+    --text-secondary-ui: #606266;
+    --text-tertiary: #999999;
+    --text-muted: #909399;
+    --text-light: #888888;
+    --text-lighter: #9CA3AF;
+    --text-link: #0066CC;
+    --gray-50: #F5F7FA;
+    --gray-100: #E8E8E8;
+    --gray-150: #E8ECF0;
+    --gray-200: #D0D0D0;
+    --gray-250: #E4E7ED;
+    --gray-300: #B0B0B0;
+    --gray-350: #909399;
+    --gray-500: #666666;
+    --gray-600: #444444;
+    --gray-650: #6B7280;
+    --gray-700: #333333;
+    --gray-750: #303133;
+    --bg-white: #FFFFFF;
+    --bg-muted: #FAFAFA;
+    --bg-muted-2: #F9FAFB;
+    --bg-subtle: #F5F7FA;
+    --border-base: #DCDFE6;
+    --border-focus: #374151;
+    --status-success-bg: #D1FAE5;
+    --status-success-color: #065F46;
+    --status-success-border: #BBF7D0;
+    --status-success-bg-soft: #F0FDF4;
+    --status-success-bg-soft-active: #F0F9F4;
+    --status-warning-bg: #FEF3C7;
+    --status-warning-color: #92400E;
+    --status-warning-border: #FDE68A;
+    --status-warning-bg-soft: #FFFBEB;
+    --status-danger-bg: #FEE2E2;
+    --status-danger-color: #991B1B;
+    --status-danger-border: #FECACA;
+    --status-danger-bg-soft: #FEF2F2;
+    --status-neutral-bg: #E2E8F0;
+    --status-neutral-color: #475569;
+    --status-info-bg: #DBEAFE;
+    --status-info-color: #1E40AF;
+    --status-info-border: #BFDBFE;
+    --status-special-bg: #EDE9FE;
+    --status-special-color: #5B21B6;
+    --status-special-border: #DDD6FE;
+    --font-family: 'Plus Jakarta Sans', 'PingFang SC', 'Microsoft YaHei',
+      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+      'Helvetica Neue', Arial, sans-serif;
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-button: 6px;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.10), 0 2px 6px rgba(0, 0, 0, 0.05);
+    --shadow-drawer: 0 8px 24px rgba(0, 0, 0, 0.12);
+    --focus-primary: rgba(46, 118, 89, 0.4);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    font-family: var(--font-family);
+    font-size: 14px;
+    color: var(--text-primary-ui);
+    background: var(--bg-subtle);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--gray-200); border-radius: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  .page { min-height: 100vh; padding: 24px 32px; }
+
+  /* 顶部标题栏 */
+  .page-header {
+    background: var(--bg-white);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    padding: 16px 24px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .page-header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .page-header h1 .logo-icon {
+    width: 28px; height: 28px;
+    background: var(--brand-xiyu-logo);
+    border-radius: var(--radius-sm);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 16px;
+  }
+  .page-header .stage-switcher {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .stage-switcher .switch-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-right: 4px;
+  }
+  .stage-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: var(--radius-button);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg-muted);
+    border: 1px solid var(--gray-100);
+    transition: all 0.16s ease;
+  }
+  .stage-btn:hover { background: var(--bg-subtle); color: var(--text-primary-ui); }
+  .stage-btn.active {
+    background: var(--brand-xiyu-logo);
+    color: #fff;
+    border-color: var(--brand-xiyu-logo);
+  }
+  .stage-btn .num {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--gray-200);
+    color: var(--gray-700);
+    font-size: 11px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .stage-btn.active .num { background: rgba(255,255,255,0.25); color: #fff; }
+
+  /* 阶段提示条 */
+  .stage-hint {
+    background: var(--status-info-bg);
+    border: 1px solid var(--status-info-border);
+    border-radius: var(--radius-md);
+    padding: 10px 16px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    color: var(--status-info-color);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .stage-hint .hint-icon { font-size: 16px; }
+
+  /* 任务看板卡片 */
+  .task-card {
+    background: var(--bg-white);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--gray-100);
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .task-card-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--gray-100);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .card-title-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    font-size: 15px;
+    color: var(--text-primary-ui);
+  }
+  .card-title-group .title-icon { color: var(--brand-xiyu-logo); font-size: 18px; }
+  .card-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .btn-ai-score {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 0 10px;
+    border-radius: 7px;
+    font-weight: 600;
+    font-size: 13px;
+    color: #23785d;
+    background: transparent;
+    transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+  }
+  .btn-ai-score:hover { background: #f4f8f6; color: #14684d; }
+  .btn-ai-score:focus-visible { box-shadow: 0 0 0 3px rgba(35, 120, 93, 0.16); outline: none; }
+  .btn-ai-score .ai-icon { width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; }
+  .btn-ai-score .risk-badge {
+    display: inline-block;
+    background: #dc2626;
+    color: #fff;
+    border-radius: 10px;
+    font-size: 10px;
+    padding: 1px 5px;
+    margin-left: 3px;
+    line-height: 1.3;
+    font-weight: 600;
+  }
+
+  .btn-add-task {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 32px;
+    padding: 0 10px;
+    border-radius: 7px;
+    font-weight: 600;
+    font-size: 13px;
+    color: #2f6fba;
+    background: transparent;
+    transition: background-color 0.16s ease, color 0.16s ease;
+  }
+  .btn-add-task:hover { background: #eef5ff; color: #225b9b; }
+
+  .kanban-container {
+    display: flex;
+    gap: 16px;
+    padding: 16px 20px;
+    min-height: 200px;
+  }
+  .kanban-col {
+    flex: 1;
+    background: var(--bg-subtle);
+    border-radius: var(--radius-md);
+    padding: 12px;
+    min-width: 0;
+  }
+  .col-header {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray-700);
+    padding: 6px 8px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .col-count {
+    display: inline-block;
+    background: var(--gray-100);
+    color: var(--text-secondary);
+    font-size: 11px;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+  }
+  .mini-task-card {
+    background: var(--bg-white);
+    border: 1px solid var(--gray-250);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+  .mini-task-card .mtc-title { font-size: 13px; font-weight: 600; color: var(--text-primary-ui); margin-bottom: 4px; }
+  .mini-task-card .mtc-info { font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between; }
+
+  /* ========== 抽屉 ========== */
+  .drawer-mask {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    z-index: 2000;
+  }
+  .drawer-mask.open { opacity: 1; visibility: visible; }
+
+  .drawer {
+    position: fixed;
+    top: 0; right: 0; bottom: 0;
+    width: 960px;
+    max-width: calc(100vw - 16px);
+    background: var(--bg-white);
+    box-shadow: var(--shadow-drawer);
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    z-index: 2001;
+    display: flex;
+    flex-direction: column;
+  }
+  .drawer.open { transform: translateX(0); }
+
+  .drawer-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--gray-100);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .drawer-title { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+  .drawer-close {
+    width: 32px; height: 32px;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-size: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.16s ease;
+  }
+  .drawer-close:hover { background: var(--bg-muted); color: var(--text-primary); }
+
+  .drawer-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 24px;
+    position: relative;
+  }
+
+  /* ========== 来源信息 + 工具栏 ========== */
+  .toolbar {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .toolbar-info { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; }
+  .toolbar-info .doc-tag { display: inline-flex; align-items: center; gap: 4px; }
+  .toolbar-info .doc-time { margin-left: auto; white-space: nowrap; }
+  .toolbar-info .no-bid { color: var(--status-warning-color); font-weight: 500; }
+  .toolbar-info .has-bid { color: var(--status-success-color); font-weight: 500; }
+  .toolbar-buttons { display: flex; gap: 6px; }
+
+  .btn-tool {
+    padding: 4px 10px;
+    background: var(--bg-white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    cursor: pointer;
+    color: var(--border-focus);
+    transition: all 0.16s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .btn-tool:hover { border-color: var(--brand-xiyu-logo); color: var(--brand-xiyu-logo); }
+  .btn-tool:disabled { color: var(--gray-300); cursor: not-allowed; opacity: 0.6; }
+  .btn-tool:disabled:hover { border-color: var(--gray-200); color: var(--gray-300); }
+
+  .btn-primary {
+    padding: 4px 14px;
+    background: var(--brand-xiyu-logo);
+    border: 1px solid var(--brand-xiyu-logo);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #fff;
+    transition: all 0.16s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .btn-primary:hover { background: var(--brand-xiyu-logo-hover); border-color: var(--brand-xiyu-logo-hover); }
+  .btn-primary:disabled { background: var(--gray-100); border-color: var(--gray-100); color: var(--gray-300); cursor: not-allowed; }
+
+  /* ========== 分区标题栏 ========== */
+  .section-divider {
+    margin-top: 20px;
+    margin-bottom: 12px;
+  }
+  .section-divider:first-of-type { margin-top: 0; }
+  .section-title-bar {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--brand-xiyu-logo);
+    margin-bottom: 12px;
+  }
+  .section-title-bar .section-num {
+    width: 22px; height: 22px;
+    background: var(--brand-xiyu-logo);
+    color: #fff;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .section-title-bar .section-sub {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-muted);
+    margin-left: 4px;
+  }
+  .section-title-bar .section-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  /* ========== 折叠面板 ========== */
+  .collapse-item {
+    background: var(--bg-white);
+    border: 1px solid var(--border-base);
+    border-radius: var(--radius-md);
+    margin-bottom: 8px;
+    overflow: hidden;
+  }
+  .collapse-header {
+    padding: 10px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    background: var(--bg-white);
+    transition: background 0.16s ease;
+  }
+  .collapse-header:hover { background: var(--bg-muted); }
+  .collapse-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gray-700);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .collapse-meta { display: flex; align-items: center; gap: 8px; }
+  .collapse-arrow { color: var(--text-lighter); font-size: 14px; transition: transform 0.2s ease; }
+  .collapse-item.expanded .collapse-arrow { transform: rotate(180deg); }
+  .collapse-body { padding: 12px 14px; border-top: 1px solid var(--gray-100); }
+
+  /* ========== 状态 Pill ========== */
+  .pill {
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+    display: inline-block;
+  }
+  .pill.ok { background: var(--status-success-bg); color: var(--status-success-color); }
+  .pill.warn { background: var(--status-warning-bg); color: var(--status-warning-color); }
+  .pill.danger { background: var(--status-danger-bg); color: var(--status-danger-color); }
+  .pill.neutral { background: var(--status-neutral-bg); color: var(--status-neutral-color); }
+  .pill.info { background: var(--status-info-bg); color: var(--status-info-color); }
+  .pill.special { background: var(--status-special-bg); color: var(--status-special-color); }
+  /* ========== 评分表 ========== */
+  .score-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .score-table th {
+    padding: 6px 8px;
+    border: 1px solid var(--border-base);
+    text-align: left;
+    background: var(--bg-muted-2);
+    color: var(--gray-700);
+    font-weight: 600;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .score-table th.center { text-align: center; }
+  .score-table td {
+    padding: 6px 8px;
+    border: 1px solid var(--gray-100);
+    color: var(--text-primary-ui);
+    vertical-align: top;
+  }
+  .score-table td.center { text-align: center; }
+  .score-table td.weight { text-align: center; font-weight: 700; color: var(--brand-xiyu-logo); }
+  .score-table tfoot td { background: var(--gray-50); font-weight: 600; border-top: 2px solid var(--brand-xiyu-logo); padding: 8px; }
+  .score-table tfoot td.weight { color: var(--brand-xiyu-logo); }
+  .score-table tfoot td.score-highlight {
+    background: var(--brand-xiyu-logo-light);
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--brand-xiyu-logo-active);
+    text-align: center;
+  }
+  .score-table tfoot td.summary-cell { font-size: 12px; font-weight: 600; color: var(--gray-650); white-space: nowrap; }
+  .score-table tfoot td.summary-cell .sep { color: var(--gray-300); margin: 0 4px; font-weight: 400; }
+  .score-table tfoot td.summary-cell .num-ok { color: var(--status-success-color); font-weight: 600; }
+  .score-table tfoot td.summary-cell .num-danger { color: var(--status-danger-color); font-weight: 600; }
+  .score-table tfoot td.summary-cell .num-neutral { color: var(--text-muted); font-weight: 600; }
+  .score-table tfoot td.summary-cell .num-info { color: var(--status-info-color); font-weight: 600; }
+  .status-cell { font-size: 12px; font-weight: 500; white-space: nowrap; }
+  .status-cell.ok { color: var(--status-success-color); }
+  .status-cell.warn { color: var(--status-warning-color); }
+  .status-cell.danger { color: var(--status-danger-color); }
+  .status-cell.neutral { color: var(--text-muted); }
+  .status-cell.neutral::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--brand-primary);
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+  .status-cell .upgrade-tag {
+    display: inline-block;
+    margin-top: 2px;
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: var(--status-info-bg);
+    color: var(--status-info-color);
+    border: 1px solid var(--status-info-border);
+    font-weight: 600;
+  }
+
+  .actual-cell { font-weight: 700; text-align: center; font-size: 13px; }
+  .actual-cell.full { color: var(--status-success-color); }
+  .actual-cell.partial { color: var(--status-warning-color); }
+  .actual-cell.zero { color: var(--status-danger-color); }
+  .actual-cell.subjective { color: var(--text-muted); font-weight: 400; font-size: 11px; }
+  .actual-cell.na { color: var(--text-lighter); }
+
+  .evidence-cell { font-size: 11px; color: var(--gray-650); line-height: 1.6; }
+  .evidence-cell .tag-row { margin-bottom: 4px; display: flex; gap: 4px; flex-wrap: wrap; }
+  .evidence-cell .quote {
+    background: var(--status-success-bg-soft);
+    border-left: 3px solid var(--status-success-border);
+    padding: 4px 8px;
+    margin-top: 4px;
+    border-radius: 0 4px 4px 0;
+    color: var(--gray-700);
+    font-size: 11px;
+  }
+  .evidence-cell .miss {
+    background: var(--status-danger-bg-soft);
+    border-left: 3px solid var(--status-danger-border);
+    padding: 4px 8px;
+    margin-top: 4px;
+    border-radius: 0 4px 4px 0;
+    color: var(--status-danger-color);
+    font-size: 11px;
+  }
+
+  /* ========== 资质要求卡片 ========== */
+  .qual-card {
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    border-radius: 6px;
+    border: 1px solid var(--gray-100);
+    background: var(--bg-muted);
+  }
+  .qual-card.ok { background: var(--status-success-bg-soft); border-color: var(--status-success-border); }
+  .qual-card.warn { background: var(--status-warning-bg-soft); border-color: var(--status-warning-border); }
+  .qual-card.danger { background: var(--status-danger-bg-soft); border-color: var(--status-danger-border); }
+  .qual-card-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .qual-card-name { font-size: 12px; font-weight: 600; color: var(--gray-700); }
+  .qual-card-body { font-size: 11px; color: var(--gray-650); line-height: 1.6; }
+  .qual-card-body .kb-link { color: var(--brand-primary); cursor: pointer; text-decoration: underline; font-weight: 500; }
+
+  /* ========== 通用列表项 ========== */
+  .list-item {
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    font-size: 12px;
+    line-height: 1.6;
+    border-bottom: 1px dashed var(--gray-100);
+    color: var(--gray-600);
+  }
+  .list-item:last-child { border-bottom: none; }
+  .list-item .section-link { color: var(--brand-primary); font-size: 11px; cursor: pointer; margin-right: 4px; }
+  .list-item .item-tag {
+    display: inline-block;
+    background: var(--gray-100);
+    color: #4B5563;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    margin-left: 4px;
+  }
+  .list-item.red .red-icon { color: var(--status-danger-color); font-weight: 600; margin-right: 4px; }
+
+  /* ========== 打分占位区 ========== */
+  .scoring-placeholder {
+    text-align: center;
+    padding: 40px 20px;
+    background: var(--bg-muted);
+    border-radius: var(--radius-md);
+    border: 1px dashed var(--gray-200);
+  }
+  .scoring-placeholder .placeholder-icon { font-size: 36px; margin-bottom: 12px; }
+  .scoring-placeholder .placeholder-text { font-size: 14px; font-weight: 600; color: var(--text-primary-ui); margin-bottom: 6px; }
+  .scoring-placeholder .placeholder-sub { font-size: 12px; color: var(--text-muted); }
+
+  /* ========== Toast ========== */
+  .toast {
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-100px);
+    background: var(--bg-white);
+    border: 1px solid var(--gray-250);
+    border-radius: var(--radius-md);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+    padding: 14px 18px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary-ui);
+    z-index: 3000;
+    transition: transform 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 380px;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+  .toast.warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+  .toast.error { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+  .toast .toast-icon { font-size: 18px; }
+
+  /* ========== 打分进度遮罩 ========== */
+  .scoring-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.9);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    z-index: 100;
+    border-radius: var(--radius-md);
+  }
+  .scoring-overlay.show { display: flex; }
+  .scoring-overlay .spinner {
+    width: 40px; height: 40px;
+    border: 3px solid var(--gray-100);
+    border-top-color: var(--brand-xiyu-logo);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 12px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .scoring-overlay .scoring-text { font-size: 14px; color: var(--text-primary-ui); font-weight: 500; }
+  .scoring-overlay .scoring-sub { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+
+  /* ========== 图例 ========== */
+  .legend {
+    font-size: 12px;
+    color: var(--gray-650);
+    line-height: 1.8;
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: var(--bg-muted);
+    border-radius: var(--radius-sm);
+  }
+
+  /* ========== 详情按钮 ========== */
+  .btn-detail {
+    padding: 2px 10px;
+    background: var(--bg-white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    cursor: pointer;
+    color: var(--brand-xiyu-logo);
+    transition: all 0.16s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .btn-detail:hover { background: var(--brand-xiyu-logo-light); border-color: var(--brand-xiyu-logo); }
+
+  /* ========== 详情弹窗 ========== */
+  .detail-mask {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+    z-index: 4000;
+  }
+  .detail-mask.open { opacity: 1; visibility: visible; }
+  .detail-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.95);
+    width: 560px;
+    max-width: calc(100vw - 32px);
+    max-height: 70vh;
+    background: var(--bg-white);
+    border-radius: var(--radius-md);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+    z-index: 4001;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s ease, transform 0.25s ease;
+    display: flex;
+    flex-direction: column;
+  }
+  .detail-modal.open {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  .detail-modal-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--gray-100);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .detail-modal-title { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+  .detail-modal-close {
+    width: 28px; height: 28px;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-size: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.16s ease;
+  }
+  .detail-modal-close:hover { background: var(--bg-muted); color: var(--text-primary); }
+  .detail-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+    font-size: 13px;
+    color: var(--text-primary-ui);
+    line-height: 1.7;
+  }
+  .detail-modal-body .detail-row { margin-bottom: 14px; }
+  .detail-modal-body .detail-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--brand-xiyu-logo-active);
+    margin-bottom: 4px;
+    padding-left: 8px;
+    border-left: 3px solid var(--brand-xiyu-logo);
+    line-height: 1.4;
+  }
+  .detail-modal-body .detail-value { font-size: 13px; color: var(--text-primary-ui); }
+  .detail-modal-body .detail-quote {
+    background: var(--status-success-bg-soft);
+    border-left: 3px solid var(--status-success-border);
+    padding: 8px 12px;
+    margin-top: 6px;
+    border-radius: 0 4px 4px 0;
+    color: var(--gray-700);
+    font-size: 12px;
+  }
+  .detail-modal-body .detail-miss {
+    background: var(--status-danger-bg-soft);
+    border-left: 3px solid var(--status-danger-border);
+    padding: 8px 12px;
+    margin-top: 6px;
+    border-radius: 0 4px 4px 0;
+    color: var(--status-danger-color);
+    font-size: 12px;
+  }
+  .detail-modal-body .detail-suggestion {
+    background: #EFF6FF;
+    border-left: 3px solid #3B82F6;
+    padding: 10px 12px;
+    margin-top: 6px;
+    border-radius: 0 4px 4px 0;
+    color: #1E40AF;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+  .detail-modal-body .detail-suggestion .suggestion-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  @media (max-width: 1024px) {
+    .page { padding: 16px; }
+    .drawer { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- 顶部标题栏 -->
+  <div class="page-header">
+    <h1>
+      <span class="logo-icon">西</span>
+      AI 评分标准解析 · 交互演示
+    </h1>
+    <div class="stage-switcher">
+      <span class="switch-label">演示场景切换：</span>
+      <button class="stage-btn" id="stage1Btn" onclick="switchStage(1)">
+        <span class="num">1</span>阶段 1：招标文件解析
+      </button>
+      <button class="stage-btn active" id="stage2Btn" onclick="switchStage(2)">
+        <span class="num">2</span>阶段 2：投标文件打分
+      </button>
+    </div>
+  </div>
+
+  <!-- 阶段提示条 -->
+  <div class="stage-hint" id="stageHint">
+    <span class="hint-icon">💡</span>
+    <span id="stageHintText">当前为阶段 2：投标负责人已上传投标文件（xxx 投标文件_v3.pdf），AI 已完成对标评分规则的实际打分。</span>
+  </div>
+
+  <!-- 任务看板卡片 -->
+  <div class="task-card">
+    <div class="task-card-header">
+      <div class="card-title-group">
+        <span class="title-icon">☰</span>
+        <span>任务看板</span>
+      </div>
+      <div class="card-actions">
+        <button class="btn-ai-score" onclick="openDrawer()">
+          <span class="ai-icon">✓</span>
+          AI 评分标准解析
+          <span class="risk-badge" id="riskBadge" style="display:none;">1</span>
+        </button>
+        <button class="btn-add-task" onclick="showToast('演示环境，暂不支持添加任务', 'info')">
+          <span>+</span>
+          添加任务
+        </button>
+      </div>
+    </div>
+    <div class="kanban-container">
+      <div class="kanban-col">
+        <div class="col-header"><span>待办</span><span class="col-count">3</span></div>
+        <div class="mini-task-card"><div class="mtc-title">技术方案编写</div><div class="mtc-info"><span>张三</span><span>截止 08-15</span></div></div>
+        <div class="mini-task-card"><div class="mtc-title">商务报价方案</div><div class="mtc-info"><span>李四</span><span>截止 08-16</span></div></div>
+        <div class="mini-task-card"><div class="mtc-title">资质材料整理</div><div class="mtc-info"><span>王五</span><span>截止 08-17</span></div></div>
+      </div>
+      <div class="kanban-col">
+        <div class="col-header"><span>待审核</span><span class="col-count">1</span></div>
+        <div class="mini-task-card"><div class="mtc-title">实施方案编写</div><div class="mtc-info"><span>赵六</span><span>已提交</span></div></div>
+      </div>
+      <div class="kanban-col">
+        <div class="col-header"><span>已完成</span><span class="col-count">2</span></div>
+        <div class="mini-task-card"><div class="mtc-title">项目需求分析</div><div class="mtc-info"><span>张三</span><span>已完成</span></div></div>
+        <div class="mini-task-card"><div class="mtc-title">招标文件解读</div><div class="mtc-info"><span>李四</span><span>已完成</span></div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 抽屉遮罩 -->
+<div class="drawer-mask" id="drawerMask" onclick="closeDrawer()"></div>
+
+<!-- 抽屉 -->
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <div class="drawer-title">AI 评分标准解析</div>
+    <button class="drawer-close" onclick="closeDrawer()">×</button>
+  </div>
+  <div class="drawer-body">
+
+    <!-- 打分进度遮罩 -->
+    <div class="scoring-overlay" id="scoringOverlay">
+      <div class="spinner"></div>
+      <div class="scoring-text">AI 正在对标已上传标书进行实际打分...</div>
+      <div class="scoring-sub">读取评分项 → 解析标书内容 → 比对知识库资质证书 → 计算客观项得分</div>
+    </div>
+
+    <!-- ========== 第一部分：招标文件解析 ========== -->
+    <div class="section-divider">
+      <div class="section-title-bar">
+        <span class="section-num">1</span>
+        招标文件解析
+        <div class="section-actions">
+          <button class="btn-primary" onclick="showToast('AI 正在重新解析招标文件...', 'info')">🔄 重新解析</button>
+        </div>
+      </div>
+
+      <!-- 来源信息 -->
+      <div class="toolbar">
+        <div class="toolbar-info" id="toolbarInfo">
+          <span class="doc-tag">📄 招标文件：xxx.pdf</span>
+          <span class="doc-time">解析时间 2026-07-30 14:38:25</span>
+        </div>
+      </div>
+
+      <div id="collapseContainer"></div>
+    </div>
+
+    <!-- ========== 第二部分：投标文件评分 ========== -->
+    <div class="section-divider">
+      <div class="section-title-bar">
+        <span class="section-num">2</span>
+        投标文件评分
+        <div class="section-actions">
+          <button class="btn-primary" id="btnScore" onclick="runScoring(false)">⚡ AI 实际打分</button>
+        </div>
+      </div>
+      <div class="toolbar">
+        <div class="toolbar-info" id="bidDocInfo">
+          <span class="doc-tag">📦 投标文件：xxx 投标文件.pdf</span>
+          <span class="doc-time">评分时间 2026-07-30 14:38:25</span>
+        </div>
+      </div>
+      <div id="scoringContainer"></div>
+    </div>
+
+    <!-- 图例 -->
+    <div class="legend" id="scoreLegend"></div>
+
+  </div>
+</div>
+
+<!-- 详情弹窗 -->
+<div class="detail-mask" id="detailMask" onclick="closeDetail()"></div>
+<div class="detail-modal" id="detailModal">
+  <div class="detail-modal-header">
+    <div class="detail-modal-title" id="detailModalTitle">详情</div>
+    <button class="detail-modal-close" onclick="closeDetail()">×</button>
+  </div>
+  <div class="detail-modal-body" id="detailModalBody"></div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <span class="toast-icon"></span>
+  <span class="toast-content"></span>
+</div>
+
+<script>
+  // ========== 评分项数据 ==========
+  const scoreItems = [
+    { code: 'A1', dim: '技术方案', detail: '总体架构设计（架构图、组件划分、技术选型）', weight: 10, status: 'neutral', statusText: '待确认', scoreType: '主观项', estScore: '待评审', estBasis: '需评标专家根据标书技术方案描述人工评审' },
+    { code: 'A2', dim: '技术方案', detail: '微服务架构与高可用设计', weight: 8, status: 'neutral', statusText: '待确认', scoreType: '主观项', estScore: '待评审', estBasis: '需评标专家根据标书技术方案描述人工评审' },
+    { code: 'A3', dim: '技术方案', detail: '数据安全与备份恢复方案', weight: 6, status: 'neutral', statusText: '待确认', scoreType: '主观项', estScore: '待评审', estBasis: '需评标专家根据标书技术方案描述人工评审' },
+    { code: 'A4', dim: '技术方案', detail: '接口设计与开放能力', weight: 5, status: 'neutral', statusText: '待确认', scoreType: '主观项', estScore: '待评审', estBasis: '需评标专家根据标书技术方案描述人工评审' },
+    { code: 'B1', dim: '商务方案', detail: '报价合理性（与市场均价对比）', weight: 10, status: 'neutral', statusText: '待确认', scoreType: '客观项', estScore: 9, estBasis: 'AI 预计报价 580 万元处于市场均价区间（550-620 万元），预计得分 9' },
+    { code: 'B2', dim: '商务方案', detail: '付款方式响应', weight: 5, status: 'neutral', statusText: '待确认', scoreType: '客观项', estScore: 5, estBasis: 'AI 预计标书将完全响应招标付款方式（30%+60%+10%），预计满分' },
+    { code: 'C1', dim: '实施服务', detail: '项目实施计划与里程碑', weight: 7, status: 'neutral', statusText: '待确认', scoreType: '主观项', estScore: '待评审', estBasis: '需评标专家根据标书实施计划人工评审' },
+    { code: 'C2', dim: '实施服务', detail: '团队配置（项目经理 + 核心成员）', weight: 8, status: 'ok', statusText: '✓ 满足', scoreType: '客观项', estScore: 8, estBasis: '知识库命中：人员库匹配项目经理 PMP 认证 + 核心成员资质齐全，预计满分', kbHit: true },
+    { code: 'C3', dim: '实施服务', detail: '培训方案与知识转移', weight: 5, status: 'neutral', statusText: '待确认', scoreType: '主观项', estScore: '待评审', estBasis: '需评标专家根据标书培训方案人工评审' },
+    { code: 'D1', dim: '资质业绩', detail: '信息系统集成及服务资质', weight: 6, status: 'ok', statusText: '✓ 满足', scoreType: '客观项', estScore: 6, estBasis: '知识库命中：资质库匹配证书「信息系统集成及服务资质一级」，预计满分', kbHit: true },
+    { code: 'D2', dim: '资质业绩', detail: 'CMMI 5 级认证', weight: 5, status: 'danger', statusText: '✗ 不满足', scoreType: '客观项', estScore: 0, estBasis: '知识库未匹配 CMMI 5 级证书（最高为 CMMI 3 级），预计 0 分' },
+    { code: 'D3', dim: '资质业绩', detail: '近 3 年类似项目业绩（≥3 项）', weight: 7, status: 'ok', statusText: '✓ 满足', scoreType: '客观项', estScore: 7, estBasis: '知识库命中：业绩库匹配近 3 年类似项目 5 项（≥3 项要求），预计满分', kbHit: true },
+    { code: 'E1', dim: '加分项', detail: '本地化服务能力（本地团队 / 办公场地）', weight: 18, status: 'neutral', statusText: '待确认', scoreType: '主观项', estScore: '待评审', estBasis: '工商注册地与项目所在地不一致，需评标专家根据标书本地化服务承诺人工评审' },
+  ];
+
+  // ========== 打分结果数据（阶段 2） ==========
+  const scoreResults = {
+    A1: { actualScore: null, scoreType: 'subjective', status: 'subjective', evidence: '技术方案描述类评分项，需评标专家人工评审' },
+    A2: { actualScore: null, scoreType: 'subjective', status: 'subjective', evidence: '技术方案描述类评分项，需评标专家人工评审' },
+    A3: { actualScore: null, scoreType: 'subjective', status: 'subjective', evidence: '技术方案描述类评分项，需评标专家人工评审' },
+    A4: { actualScore: null, scoreType: 'subjective', status: 'subjective', evidence: '技术方案描述类评分项，需评标专家人工评审' },
+    B1: { actualScore: 9, scoreType: 'objective', status: 'full', evidence: '报价 580 万元，处于市场均价区间（550-620 万元）', quote: '第 3 章 投标报价（第 12 页）：我方投标总价：人民币 580 万元整（含税）' },
+    B2: { actualScore: 5, scoreType: 'objective', status: 'full', evidence: '完全响应招标文件付款方式（30%+60%+10%）', quote: '第 5 章 商务条款响应（第 18 页）：我方完全接受招标文件规定的付款方式：合同签订后预付 30%，验收合格后付 60%，质保期满付 10%。' },
+    C1: { actualScore: null, scoreType: 'subjective', status: 'subjective', evidence: '实施计划类评分项，需评标专家人工评审' },
+    C2: { actualScore: 8, scoreType: 'objective', status: 'full', evidence: '标书 §3.2 配置项目经理 1 名 + 核心成员 5 名，人员资质均符合招标要求', quote: '第 6 章 实施服务方案（第 22 页）：项目经理：张三（PMP 认证，10 年智慧园区项目经验）；核心成员：架构师 1、前端 1、后端 2、测试 1。' },
+    C3: { actualScore: null, scoreType: 'subjective', status: 'subjective', evidence: '培训方案类评分项，需评标专家人工评审' },
+    D1: { actualScore: 6, scoreType: 'objective', status: 'full', evidence: '知识库命中：资质库匹配证书「信息系统集成及服务资质一级（有效期至 2027-08-12）」', kbHit: true },
+    D2: { actualScore: 3, scoreType: 'objective', status: 'partial', evidence: '标书已补充 CMMI 3 级证书说明及替代方案，部分满足要求', quote: '第 7 章 资质证明（第 28 页）：我方虽未取得 CMMI 5 级认证，但已通过 CMMI 3 级认证（证书编号：CN-XXXX-2024），并建立了完整的研发管理体系，可覆盖招标文件要求的研发过程管理能力。', missedReason: 'CMMI 5 级认证未找到匹配证书，标书已补充 CMMI 3 级说明，部分得分' },
+    D3: { actualScore: 7, scoreType: 'objective', status: 'full', evidence: '知识库命中：业绩库匹配近 3 年类似项目 5 项（≥3 项要求），含智慧园区项目 3 项', quote: '第 7 章 资质证明（第 30 页）：近 3 年类似项目业绩 5 项，含智慧园区项目 3 项' },
+    E1: { actualScore: null, scoreType: 'subjective', status: 'subjective', evidence: '本地化服务能力评分项，需评标专家人工评审（可参考工商注册地辅助判定）' },
+  };
+
+  // ========== 修改建议（仅用于阶段 2 不满足/待确认项） ==========
+  const suggestionMap = {
+    A1: '建议在标书中补充完整的总体架构设计图，明确组件划分和技术选型依据，确保架构方案与招标要求逐条对齐',
+    A2: '建议补充微服务架构图、服务治理方案（注册中心、配置中心、网关）及高可用容灾设计说明',
+    A3: '建议详细描述数据加密方案（含国密算法支持）、备份策略（全量+增量）及灾难恢复流程',
+    A4: '建议补充 API 接口规范文档，提供第三方系统集成示例及开放能力清单',
+    B1: '建议补充报价明细构成说明，确保报价完整覆盖软硬件、实施、运维全部费用，避免漏项',
+    B2: '建议在标书中逐条明确响应招标文件规定的付款方式条款，避免模糊表述',
+    C1: '建议补充项目实施计划甘特图，明确各里程碑节点、交付物及责任人',
+    C3: '建议补充培训方案详细计划，包括培训内容、课时安排、考核方式及知识转移保障措施',
+    D2: '建议尽快启动 CMMI 5 级认证评估流程，或在标书中提供更充分的替代方案说明（如 CMMI 3 级 + 研发管理体系证明）',
+    E1: '建议在标书中补充本地化服务承诺，包括本地团队派驻计划、办公场地租赁证明或合作伙伴协议',
+  };
+
+  // ========== 状态变量（默认阶段 2 + 已打分，打开即展示完整抽屉详情） ==========
+  let currentStage = 2;
+  let scored = true;
+
+  // ========== 阶段切换 ==========
+  function switchStage(stage) {
+    currentStage = stage;
+    scored = false;
+    document.getElementById('stage1Btn').classList.toggle('active', stage === 1);
+    document.getElementById('stage2Btn').classList.toggle('active', stage === 2);
+    document.getElementById('stageHintText').textContent = stage === 1
+      ? '当前为阶段 1：投标负责人刚进入标书制作阶段，尚未上传投标文件。点击下方任务看板中的「AI 评分标准解析」按钮打开抽屉。'
+      : '当前为阶段 2：投标负责人已上传投标文件（xxx 投标文件_v3.pdf），AI 将自动对标评分规则进行实际打分。打开抽屉后将自动触发打分。';
+    document.getElementById('riskBadge').style.display = stage === 1 ? 'inline-block' : 'none';
+    renderToolbar();
+    renderCollapse();
+    renderScoringSection();
+    renderLegend();
+  }
+
+  // ========== 抽屉控制 ==========
+  function openDrawer() {
+    document.getElementById('drawerMask').classList.add('open');
+    document.getElementById('drawer').classList.add('open');
+    renderToolbar();
+    renderCollapse();
+    renderScoringSection();
+    renderLegend();
+    if (currentStage === 2 && !scored) {
+      setTimeout(() => runScoring(true), 500);
+    }
+  }
+  function closeDrawer() {
+    document.getElementById('drawerMask').classList.remove('open');
+    document.getElementById('drawer').classList.remove('open');
+  }
+
+  // ========== 渲染工具栏 ==========
+  function renderToolbar() {
+    const btnScore = document.getElementById('btnScore');
+    if (currentStage === 1) {
+      btnScore.disabled = true;
+      btnScore.textContent = '⚡ AI 实际打分（需先上传标书）';
+    } else {
+      btnScore.disabled = false;
+      btnScore.textContent = scored ? '⚡ 重新打分' : '⚡ AI 实际打分';
+    }
+  }
+
+  // ========== 渲染折叠面板（第一部分：招标文件解析） ==========
+  function renderCollapse() {
+    const container = document.getElementById('collapseContainer');
+    let html = '';
+    html += '<div class="collapse-item expanded">';
+    html += '<div class="collapse-header">';
+    html += '<div class="collapse-title">📋 评分标准提取</div>';
+    html += '<div class="collapse-meta"><span class="pill ok">13 项</span></div>';
+    html += '</div>';
+    html += '<div class="collapse-body">' + renderScoreTable() + '</div>';
+    html += '</div>';
+    container.innerHTML = html;
+  }
+
+  // ========== 渲染评分标准表（第一部分，仅展示招标文件提取的评分标准） ==========
+  function renderScoreTable() {
+    let html = '<table class="score-table"><thead><tr>';
+    html += '<th>编号</th><th>评分项</th><th>评分项详细要素</th><th class="center">权重</th><th>满足状态</th>';
+    html += '<th class="center">评分类别</th><th class="center">预计得分</th><th class="center">得分依据</th>';
+    html += '</tr></thead><tbody>';
+
+    let okCount = 0, dangerCount = 0, neutralCount = 0;
+    let estTotal = 0;
+
+    scoreItems.forEach((s, i) => {
+      if (s.status === 'ok') okCount++;
+      else if (s.status === 'danger') dangerCount++;
+      else neutralCount++;
+
+      // 预计得分样式
+      let estScoreHtml = '';
+      if (typeof s.estScore === 'number') {
+        if (s.estScore === s.weight) {
+          estScoreHtml = '<span class="actual-cell full">' + s.estScore + '</span>';
+        } else if (s.estScore === 0) {
+          estScoreHtml = '<span class="actual-cell zero">' + s.estScore + '</span>';
+        } else {
+          estScoreHtml = '<span class="actual-cell partial">' + s.estScore + '</span>';
+        }
+        estTotal += s.estScore;
+      } else {
+        estScoreHtml = '<span class="actual-cell subjective">' + s.estScore + '</span>';
+      }
+
+      // 评分类别样式
+      const scoreTypeCls = s.scoreType === '客观项' ? 'info' : 'neutral';
+      const scoreTypeHtml = '<span class="pill ' + scoreTypeCls + '">' + s.scoreType + '</span>';
+
+      html += '<tr>';
+      html += '<td>' + s.code + '</td>';
+      html += '<td>' + s.dim + '</td>';
+      html += '<td>' + s.detail + '</td>';
+      html += '<td class="weight">' + s.weight + '</td>';
+      html += '<td class="status-cell ' + s.status + '">' + s.statusText + '</td>';
+      html += '<td class="center">' + scoreTypeHtml + '</td>';
+      html += '<td class="center">' + estScoreHtml + '</td>';
+      html += '<td class="center"><button class="btn-detail" onclick="showEstDetail(' + i + ')">详情</button></td>';
+      html += '</tr>';
+    });
+
+    const totalWeight = scoreItems.reduce((a, b) => a + b.weight, 0);
+    const objectiveWeight = scoreItems.filter(s => s.scoreType === '客观项').reduce((a, b) => a + b.weight, 0);
+    const subjectiveWeight = totalWeight - objectiveWeight;
+    html += '</tbody><tfoot><tr>';
+    html += '<td colspan="3" style="text-align:right;">合计</td>';
+    html += '<td class="weight">' + totalWeight + '</td>';
+    html += '<td class="summary-cell"><span class="num-ok">' + okCount + ' 满足</span><span class="sep">·</span><span class="num-danger">' + dangerCount + ' 不满足</span><span class="sep">·</span><span class="num-neutral">' + neutralCount + ' 待确认</span></td>';
+    html += '<td class="summary-cell"><span class="num-info">客观项 ' + objectiveWeight + '</span><span class="sep">·</span><span class="num-neutral">主观项 ' + subjectiveWeight + '</span></td>';
+    html += '<td class="score-highlight">' + estTotal + '</td>';
+    html += '<td></td>';
+    html += '</tr></tfoot></table>';
+    return html;
+  }
+
+  // ========== 渲染投标文件评分区（第二部分） ==========
+  function renderScoringSection() {
+    const container = document.getElementById('scoringContainer');
+
+    if (currentStage === 1) {
+      container.innerHTML =
+        '<div class="scoring-placeholder">' +
+          '<div class="placeholder-icon">📦</div>' +
+          '<div class="placeholder-text">尚未上传投标文件</div>' +
+          '<div class="placeholder-sub">切换到阶段 2 并上传投标文件后，AI 将自动对标评分标准进行实际打分</div>' +
+        '</div>';
+      return;
+    }
+
+    if (!scored) {
+      container.innerHTML =
+        '<div class="scoring-placeholder">' +
+          '<div class="placeholder-icon">⚡</div>' +
+          '<div class="placeholder-text">已检测到投标文件，尚未打分</div>' +
+          '<div class="placeholder-sub">点击上方「AI 实际打分」按钮开始对标打分</div>' +
+        '</div>';
+      return;
+    }
+
+    container.innerHTML = renderScoringTable();
+  }
+
+  // ========== 渲染打分结果表（第二部分，与第一部分一一对应） ==========
+  function renderScoringTable() {
+    let html = '<table class="score-table"><thead><tr>';
+    html += '<th>编号</th><th>评分项</th><th>评分项详细要素</th><th class="center">权重</th><th>满足状态</th>';
+    html += '<th class="center">评分类别</th><th class="center">实际得分</th><th class="center">得分依据</th>';
+    html += '</tr></thead><tbody>';
+
+    let okCount = 0, dangerCount = 0, neutralCount = 0;
+
+    scoreItems.forEach((s, i) => {
+      const r = scoreResults[s.code];
+      let stageStatus = s.status;
+      let stageStatusText = s.statusText;
+      if (stageStatus === 'ok') okCount++;
+      else if (stageStatus === 'danger') dangerCount++;
+      else neutralCount++;
+
+      const rowClass = '';
+      const tooltip = '';
+
+      // 评分类别样式
+      const scoreTypeCls = s.scoreType === '客观项' ? 'info' : 'neutral';
+      const scoreTypeHtml = '<span class="pill ' + scoreTypeCls + '">' + s.scoreType + '</span>';
+
+      // 实际得分
+      let actualHtml = '<span class="actual-cell na">—</span>';
+      if (r) {
+        if (r.status === 'subjective') {
+          actualHtml = '<span class="actual-cell subjective">待评审</span>';
+        } else if (r.status === 'full') {
+          actualHtml = '<span class="actual-cell full">' + r.actualScore + '</span>';
+        } else if (r.status === 'partial') {
+          actualHtml = '<span class="actual-cell partial">' + r.actualScore + '</span>';
+        } else if (r.status === 'zero') {
+          actualHtml = '<span class="actual-cell zero">0</span>';
+        }
+      }
+
+      html += '<tr' + rowClass + '>';
+      html += '<td>' + s.code + '</td>';
+      html += '<td>' + s.dim + '</td>';
+      html += '<td>' + s.detail + '</td>';
+      html += '<td class="weight">' + s.weight + '</td>';
+      html += '<td class="status-cell ' + stageStatus + '"' + tooltip + '>' + stageStatusText + '</td>';
+      html += '<td class="center">' + scoreTypeHtml + '</td>';
+      html += '<td class="center">' + actualHtml + '</td>';
+      html += '<td class="center"><button class="btn-detail" onclick="showActualDetail(' + i + ')">详情</button></td>';
+      html += '</tr>';
+    });
+
+    // 合计行
+    const totalWeight = scoreItems.reduce((a, b) => a + b.weight, 0);
+    const totalActual = Object.values(scoreResults).reduce((a, r) => a + (r.scoreType === 'objective' ? r.actualScore : 0), 0);
+    const objectiveWeight = scoreItems.filter(s => scoreResults[s.code].scoreType === 'objective').reduce((a, b) => a + b.weight, 0);
+    const subjectiveWeight = totalWeight - objectiveWeight;
+
+    html += '</tbody><tfoot><tr>';
+    html += '<td colspan="3" style="text-align:right;">合计</td>';
+    html += '<td class="weight">' + totalWeight + '</td>';
+    html += '<td class="summary-cell"><span class="num-ok">' + okCount + ' 满足</span><span class="sep">·</span><span class="num-danger">' + dangerCount + ' 不满足</span><span class="sep">·</span><span class="num-neutral">' + neutralCount + ' 待确认</span></td>';
+    html += '<td class="summary-cell"><span class="num-info">客观项 ' + objectiveWeight + '</span><span class="sep">·</span><span class="num-neutral">主观项 ' + subjectiveWeight + '</span></td>';
+    html += '<td class="score-highlight">' + totalActual + '</td>';
+    html += '<td></td>';
+    html += '</tr></tfoot></table>';
+    return html;
+  }
+
+  // ========== 渲染图例 ==========
+  function renderLegend() {
+    const legend = document.getElementById('scoreLegend');
+    if (currentStage === 2 && scored) {
+      legend.innerHTML = '<b style="color:var(--brand-xiyu-logo);">说明：</b>' +
+        '<span class="pill info">客观项</span> AI 基于标书内容 + 知识库证书自动判定，计入总分；' +
+        '<span class="pill neutral">主观项</span> 需评标专家人工评审，AI 不计分。';
+    } else if (currentStage === 2) {
+      legend.innerHTML = '<b style="color:var(--brand-xiyu-logo);">说明：</b>阶段 2 已检测到投标文件，点击「AI 实际打分」按钮开始对标打分。';
+    } else {
+      legend.innerHTML = '<b style="color:var(--brand-xiyu-logo);">阶段 1 说明：</b>当前仅展示满足状态（基于知识库资质证书预判），<b>不计算实际得分</b>。上传投标文件后进入阶段 2，AI 将自动对标打分。<br>' +
+        '<span class="status-cell ok">✓ 满足</span> 知识库已匹配证书 ｜ ' +
+        '<span class="status-cell danger">✗ 不满足</span> 知识库未匹配 ｜ ' +
+        '<span class="status-cell neutral">待确认</span> 主观项或需人工判断';
+    }
+  }
+
+  // ========== 执行打分 ==========
+  function runScoring(auto) {
+    if (currentStage !== 2) {
+      showToast('请先切换到阶段 2（上传投标文件后）', 'warning');
+      return;
+    }
+    const overlay = document.getElementById('scoringOverlay');
+    overlay.classList.add('show');
+    setTimeout(() => {
+      overlay.classList.remove('show');
+      scored = true;
+      renderToolbar();
+      renderCollapse();
+      renderScoringSection();
+      renderLegend();
+      showToast(auto ? 'AI 自动打分完成' : 'AI 实际打分完成', 'success');
+    }, 2000);
+  }
+
+  // ========== Toast ==========
+  function showToast(msg, type) {
+    const toast = document.getElementById('toast');
+    const icon = type === 'success' ? '✓' : type === 'warning' ? '⚠' : type === 'error' ? '✗' : 'ℹ';
+    toast.className = 'toast ' + (type || '');
+    toast.querySelector('.toast-icon').textContent = icon;
+    toast.querySelector('.toast-content').textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2500);
+  }
+
+  // ========== 详情弹窗 ==========
+  function showEstDetail(index) {
+    const s = scoreItems[index];
+    document.getElementById('detailModalTitle').textContent = s.code + ' · ' + s.dim + ' — 预计评分详情';
+
+    // 预计得分样式
+    let estScoreHtml = '';
+    if (typeof s.estScore === 'number') {
+      if (s.estScore === s.weight) {
+        estScoreHtml = '<span class="actual-cell full">' + s.estScore + ' / ' + s.weight + '</span>';
+      } else if (s.estScore === 0) {
+        estScoreHtml = '<span class="actual-cell zero">' + s.estScore + ' / ' + s.weight + '</span>';
+      } else {
+        estScoreHtml = '<span class="actual-cell partial">' + s.estScore + ' / ' + s.weight + '</span>';
+      }
+    } else {
+      estScoreHtml = '<span class="actual-cell subjective">待评审</span>';
+    }
+
+    const scoreTypeCls = s.scoreType === '客观项' ? 'info' : 'neutral';
+
+    let html = '';
+    html += '<div class="detail-row"><div class="detail-label">详细评分项要素</div><div class="detail-value">' + s.detail + '</div></div>';
+    html += '<div class="detail-row"><div class="detail-label">权重 / 评分类别</div><div class="detail-value">权重 ' + s.weight + ' 分 ｜ <span class="pill ' + scoreTypeCls + '">' + s.scoreType + '</span></div></div>';
+    html += '<div class="detail-row"><div class="detail-label">满足状态</div><div class="detail-value status-cell ' + s.status + '">' + s.statusText + '</div></div>';
+    html += '<div class="detail-row"><div class="detail-label">预计得分</div><div class="detail-value">' + estScoreHtml + '</div></div>';
+    html += '<div class="detail-row"><div class="detail-label">得分依据</div>';
+    html += '<div class="detail-quote">' + s.estBasis + '</div>';
+    html += '</div>';
+
+    document.getElementById('detailModalBody').innerHTML = html;
+    document.getElementById('detailMask').classList.add('open');
+    document.getElementById('detailModal').classList.add('open');
+  }
+
+  function showActualDetail(index) {
+    const s = scoreItems[index];
+    const r = scoreResults[s.code];
+    document.getElementById('detailModalTitle').textContent = s.code + ' · ' + s.dim + ' — 实际评分详情';
+
+    // 实际得分样式
+    let actualScoreHtml = '<span class="actual-cell na">—</span>';
+    if (r) {
+      if (r.status === 'subjective') {
+        actualScoreHtml = '<span class="actual-cell subjective">待评审</span>';
+      } else if (r.status === 'full') {
+        actualScoreHtml = '<span class="actual-cell full">' + r.actualScore + ' / ' + s.weight + '</span>';
+      } else if (r.status === 'partial') {
+        actualScoreHtml = '<span class="actual-cell partial">' + r.actualScore + ' / ' + s.weight + '</span>';
+      } else if (r.status === 'zero') {
+        actualScoreHtml = '<span class="actual-cell zero">0 / ' + s.weight + '</span>';
+      }
+    }
+
+    const scoreTypeCls = s.scoreType === '客观项' ? 'info' : 'neutral';
+
+    let html = '';
+    html += '<div class="detail-row"><div class="detail-label">详细评分项要素</div><div class="detail-value">' + s.detail + '</div></div>';
+    html += '<div class="detail-row"><div class="detail-label">权重 / 评分类别</div><div class="detail-value">权重 ' + s.weight + ' 分 ｜ <span class="pill ' + scoreTypeCls + '">' + s.scoreType + '</span></div></div>';
+    html += '<div class="detail-row"><div class="detail-label">满足状态</div><div class="detail-value status-cell ' + s.status + '">' + s.statusText + '</div></div>';
+    html += '<div class="detail-row"><div class="detail-label">实际得分</div><div class="detail-value">' + actualScoreHtml + '</div></div>';
+    html += '<div class="detail-row"><div class="detail-label">评分依据</div>';
+    html += '<div class="detail-quote">' + (r ? r.evidence : '暂无数据') + '</div>';
+    html += '</div>';
+
+    // 标书引用
+    if (r && r.quote) {
+      html += '<div class="detail-row"><div class="detail-label">标书引用</div>';
+      html += '<div class="detail-quote">' + r.quote + '</div>';
+      html += '</div>';
+    }
+
+    // 缺失原因
+    if (r && r.missedReason) {
+      html += '<div class="detail-row"><div class="detail-label">缺失说明</div>';
+      html += '<div class="detail-miss">' + r.missedReason + '</div>';
+      html += '</div>';
+    }
+
+    // 修改建议（仅不满足/待确认项）
+    if (s.status === 'danger' || s.status === 'neutral') {
+      const suggestion = suggestionMap[s.code];
+      if (suggestion) {
+        html += '<div class="detail-row"><div class="detail-label">修改建议</div>';
+        html += '<div class="detail-suggestion">';
+        html += '<div class="suggestion-title">💡 ' + (s.status === 'danger' ? '不满足项改进建议' : '待确认项补充建议') + '</div>';
+        html += suggestion;
+        html += '</div></div>';
+      }
+    }
+
+    document.getElementById('detailModalBody').innerHTML = html;
+    document.getElementById('detailMask').classList.add('open');
+    document.getElementById('detailModal').classList.add('open');
+  }
+
+  function closeDetail() {
+    document.getElementById('detailMask').classList.remove('open');
+    document.getElementById('detailModal').classList.remove('open');
+  }
+
+  // ========== 初始化（默认阶段 2 + 已打分，打开即展示完整抽屉详情） ==========
+  // 检测 URL 参数：autoScore=1 表示从标书质量核查页跳转过来，需自动触发打分
+  const urlParams = new URLSearchParams(window.location.search);
+  const autoScore = urlParams.get('autoScore') === '1';
+  const fileParam = urlParams.get('file');
+
+  if (autoScore) {
+    // 从质量核查页跳转：重置为未打分状态，打开抽屉后自动触发打分动画
+    scored = false;
+    if (fileParam) {
+      document.getElementById('bidDocInfo').innerHTML =
+        '<span class="doc-tag">📦 投标文件：' + fileParam + '</span><span class="doc-time">评分时间 —</span>';
+      document.getElementById('stageHintText').textContent =
+        '当前为阶段 2：投标负责人已上传投标文件（' + fileParam + '），AI 正在对标评分规则进行实际打分。';
+    }
+  }
+
+  renderToolbar();
+  renderCollapse();
+  renderScoringSection();
+  renderLegend();
+  // 自动打开抽屉；若 autoScore=1 则因 scored=false 会自动触发 runScoring
+  setTimeout(openDrawer, 100);
+</script>
+</body>
+</html>

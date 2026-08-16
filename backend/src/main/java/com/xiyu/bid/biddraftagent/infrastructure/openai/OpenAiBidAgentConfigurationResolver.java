@@ -37,7 +37,7 @@ public class OpenAiBidAgentConfigurationResolver {
         this.tenderIntakeTimeout = pTenderIntakeTimeout;
     }
 
-    OpenAiBidAgentRequestConfig resolve(String useCase) {
+    public OpenAiBidAgentRequestConfig resolve(String useCase) {
         Duration requestTimeout = effectiveChatCompletionTimeout();
         return activeProviderRequest(requestTimeout)
                 .orElseThrow(() -> missingProviderConfiguration(useCase));

@@ -7,17 +7,23 @@
           <span>任务看板</span>
         </div>
         <div class="actions">
-          <el-button
+          <el-badge
             v-if="perm.canManageTaskBoardTopActions"
-            link
-            type="success"
-            class="header-action header-action--tender"
-            :icon="DocumentChecked"
-            data-test="score-parse-button"
-            @click="$emit('open-score-parse')"
+            :value="props.scoreRiskCount"
+            :hidden="!props.scoreRiskCount || props.scoreRiskCount <= 0"
+            class="score-parse-badge"
           >
-            AI评分标准解析
-          </el-button>
+            <el-button
+              link
+              type="success"
+              class="header-action header-action--tender"
+              :icon="DocumentChecked"
+              data-test="score-parse-button"
+              @click="$emit('open-score-parse')"
+            >
+              AI 评分标准解析
+            </el-button>
+          </el-badge>
           <el-button
             v-if="perm.canManageTaskBoardTopActions"
             link
@@ -129,6 +135,10 @@ const props = defineProps({
   showSubmitButton: {
     type: Boolean,
     default: true,
+  },
+  scoreRiskCount: {
+    type: Number,
+    default: 0,
   },
 })
 
