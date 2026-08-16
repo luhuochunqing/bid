@@ -12,12 +12,18 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
+import java.util.regex.Pattern;
+
 /**
  * 投标文件评分相关段落提取器（FR-053）。
  *
  * <p>基于评分项维度与细则关键词对全文段落打分并提取最相关的段落片段，避免一刀切硬截断。
  */
 public final class ScoreDocExcerptExtractor {
+
+    private static final Pattern CONDITION_SCORE_PATTERN = Pattern.compile(
+            "(?:满足|提供|具备|每|若|如|未提供|不满足|凡|符合|按|出现|配置)[^\\n。；;]{1,60}?(?:得|计|加|扣|减|按|给)\\s*\\d+(?:\\.\\d+)?\\s*分" +
+            "|\\d+(?:\\.\\d+)?\\s*分[^\\n。；;]{1,40}?(?:满足|提供|具备|要求|标准|条件)");
 
     private ScoreDocExcerptExtractor() {
     }
@@ -97,7 +103,7 @@ public final class ScoreDocExcerptExtractor {
         return !sb.isEmpty() ? sb.toString() : fullText.substring(0, Math.min(fullText.length(), maxChars));
     }
 
-    /** 提取包含评分规则语义特征的段落切片（用于四路召回之召回三） */
+    /** 提取包含条件→得分语义特征的段落切片（用于四路召回之召回三，不依赖显式「评分标准」关键词） */
     public static List<String> extractSemanticScoreParagraphs(String fullText) {
         if (fullText == null || fullText.isBlank()) {
             return List.of();
@@ -106,9 +112,7 @@ public final class ScoreDocExcerptExtractor {
         String[] paragraphs = fullText.split("\n{2,}");
         for (String p : paragraphs) {
             String trimmed = p.trim();
-            if (trimmed.length() >= 10 && (trimmed.contains("评分标准") || trimmed.contains("评分办法")
-                    || trimmed.contains("评审标准") || trimmed.contains("分值分配")
-                    || trimmed.contains("评分细则") || trimmed.contains("分值设定"))) {
+            if (trimmed.length() >= 10 && CONDITION_SCORE_PATTERN.matcher(trimmed).find()) {
                 result.add(trimmed);
             }
         }

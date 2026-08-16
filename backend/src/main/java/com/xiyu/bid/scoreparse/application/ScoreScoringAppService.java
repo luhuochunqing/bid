@@ -10,6 +10,7 @@ import com.xiyu.bid.biddraftagent.application.TenderDocumentStorage;
 import com.xiyu.bid.biddraftagent.application.TenderDocumentTextExtractor;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
+import com.xiyu.bid.scoreparse.domain.KnowledgeCategoryPolicy;
 import com.xiyu.bid.scoreparse.domain.PartialScorePolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreAssessmentGuard;
 import com.xiyu.bid.scoreparse.domain.ScoreStatusPolicy;
@@ -69,6 +70,7 @@ public class ScoreScoringAppService {
     private final ScoreStatusPolicy statusPolicy = new ScoreStatusPolicy();
     private final SummaryAggregator summaryAggregator = new SummaryAggregator();
     private final PartialScorePolicy partialScorePolicy = new PartialScorePolicy();
+    private final KnowledgeCategoryPolicy categoryPolicy = new KnowledgeCategoryPolicy();
 
     @Lazy
     @Autowired
@@ -207,8 +209,8 @@ public class ScoreScoringAppService {
             Integer matchRatio = assessment.matchRatio() != null ? assessment.matchRatio()
                     : (output != null ? output.matchRatio : null);
             if (matchRatio != null) {
-                String tier = matchRatio >= 100 ? "FULL" : (matchRatio <= 0 ? "NONE" : "PARTIAL");
-                finalActualScore = partialScorePolicy.compute(item.getWeight(), tier, matchRatio, item.getScoreType());
+                String category = categoryPolicy.categorize(item.getDim(), item.getDetail());
+                finalActualScore = partialScorePolicy.computeStage2Score(item.getWeight(), category, matchRatio, item.getScoreType());
             } else if (assessment.actualScore() != null) {
                 finalActualScore = assessment.actualScore();
             }
@@ -272,14 +274,10 @@ public class ScoreScoringAppService {
 
     private ScoreScoringResultsDTO.ScoreResultDTO toResultDTO(ScoreItem item, ScoreResult result) {
         return new ScoreScoringResultsDTO.ScoreResultDTO(
-                item.getId(), item.getCode(), item.getDim(), item.getDetail(),
-                item.getWeight(), item.getScoreType(),
-                result == null ? null : result.getStatusStage2(),
-                result == null ? null : result.getActualScore(),
-                result == null ? null : result.getEvidence(),
-                result == null ? null : result.getQuote(),
-                result == null ? null : result.getMissedReason(),
-                result == null ? null : result.getSuggestion(),
+                item.getId(), item.getCode(), item.getDim(), item.getDetail(), item.getWeight(), item.getScoreType(),
+                result == null ? null : result.getStatusStage2(), result == null ? null : result.getActualScore(),
+                result == null ? null : result.getEvidence(), result == null ? null : result.getQuote(),
+                result == null ? null : result.getMissedReason(), result == null ? null : result.getSuggestion(),
                 result == null ? null : result.getMatchRatio());
     }
 

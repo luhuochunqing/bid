@@ -59,4 +59,39 @@ public class PartialScorePolicy {
         }
         return raw;
     }
+
+    /**
+     * 阶段 2 按类型公式计分（PRD §3.4）：
+     * 资质/仓库/品牌分档，人员按符合人数比，业绩按数量比；LLM 仅出证据与符合比例，后端按公式换算。
+     */
+    public BigDecimal computeStage2Score(BigDecimal weight, String category, Integer matchRatio, String scoreType) {
+        if (TYPE_SUBJECTIVE.equals(scoreType) || weight == null || matchRatio == null) {
+            return null;
+        }
+        int ratio = Math.max(0, Math.min(100, matchRatio));
+        if (ratio == 0) {
+            return BigDecimal.ZERO;
+        }
+        if (ratio >= 100) {
+            return weight;
+        }
+
+        BigDecimal calculated;
+        String cat = category == null ? KnowledgeCategoryPolicy.CATEGORY_OTHER : category;
+        switch (cat) {
+            case KnowledgeCategoryPolicy.CATEGORY_CERT:
+            case KnowledgeCategoryPolicy.CATEGORY_WAREHOUSE:
+            case KnowledgeCategoryPolicy.CATEGORY_BRAND:
+                BigDecimal tierFactor = ratio >= 50 ? BigDecimal.valueOf(0.5) : BigDecimal.valueOf(0.2);
+                calculated = weight.multiply(tierFactor).setScale(1, RoundingMode.HALF_UP);
+                break;
+            case KnowledgeCategoryPolicy.CATEGORY_PERSON:
+            case KnowledgeCategoryPolicy.CATEGORY_PROJECT:
+            default:
+                calculated = weight.multiply(BigDecimal.valueOf(ratio))
+                        .divide(HUNDRED, 1, RoundingMode.HALF_UP);
+                break;
+        }
+        return calculated.min(weight).max(BigDecimal.ZERO);
+    }
 }

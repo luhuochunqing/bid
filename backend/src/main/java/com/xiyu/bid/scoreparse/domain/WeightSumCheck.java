@@ -21,7 +21,8 @@ public class WeightSumCheck {
 
     /** 容差：四舍五入误差容忍 ±0.5 分 */
     private static final BigDecimal TOLERANCE = new BigDecimal("0.5");
-    private static final Pattern DECLARED_WEIGHT_PATTERN = Pattern.compile("(\\d+(?:\\.\\d+)?)\\s*分");
+    private static final Pattern DIM_HEADER_DECLARED_PATTERN = Pattern.compile(
+            "(技术|商务|价格|服务|资信|综合|资质|响应)[^\\d\\n，,。；;]{0,12}?[:：（(]?\\s*(\\d+(?:\\.\\d+)?)\\s*分");
 
     public Result check(List<BigDecimal> weights) {
         BigDecimal total = BigDecimal.ZERO;
@@ -44,7 +45,8 @@ public class WeightSumCheck {
         }
         BigDecimal total = BigDecimal.ZERO;
         Map<String, BigDecimal> dimSums = new HashMap<>();
-        Map<String, BigDecimal> declaredWeights = new HashMap<>();
+        Map<String, BigDecimal> familySums = new HashMap<>();
+        Map<String, BigDecimal> declaredFamilyWeights = new HashMap<>();
 
         for (ScoreCandidate candidate : candidates) {
             BigDecimal w = candidate.weight() == null ? BigDecimal.ZERO : candidate.weight();
@@ -52,21 +54,19 @@ public class WeightSumCheck {
             String dim = candidate.dim() == null || candidate.dim().isBlank() ? "其他" : candidate.dim().trim();
             dimSums.put(dim, dimSums.getOrDefault(dim, BigDecimal.ZERO).add(w));
 
-            if (!declaredWeights.containsKey(dim)) {
-                BigDecimal declared = extractDeclaredWeight(dim, candidate.contextNote());
-                if (declared != null) {
-                    declaredWeights.put(dim, declared);
-                }
-            }
+            String family = extractFamily(dim);
+            familySums.put(family, familySums.getOrDefault(family, BigDecimal.ZERO).add(w));
+
+            extractAndRecordDeclared(dim, candidate.contextNote(), declaredFamilyWeights);
         }
         boolean totalWarning = total.subtract(BigDecimal.valueOf(100)).abs().compareTo(TOLERANCE) > 0;
         boolean dimAnomaly = dimSums.values().stream().anyMatch(w -> w.compareTo(BigDecimal.ZERO) <= 0);
 
         boolean declaredMismatch = false;
-        for (Map.Entry<String, BigDecimal> entry : declaredWeights.entrySet()) {
+        for (Map.Entry<String, BigDecimal> entry : declaredFamilyWeights.entrySet()) {
             BigDecimal declared = entry.getValue();
-            BigDecimal actualDimSum = dimSums.getOrDefault(entry.getKey(), BigDecimal.ZERO);
-            if (actualDimSum.subtract(declared).abs().compareTo(TOLERANCE) > 0) {
+            BigDecimal actualSum = familySums.getOrDefault(entry.getKey(), BigDecimal.ZERO);
+            if (actualSum.subtract(declared).abs().compareTo(TOLERANCE) > 0) {
                 declaredMismatch = true;
                 break;
             }
@@ -76,27 +76,24 @@ public class WeightSumCheck {
         return new Result(total, totalWarning, needRecheck, Collections.unmodifiableMap(dimSums));
     }
 
-    private BigDecimal extractDeclaredWeight(String dim, String contextNote) {
-        if (dim != null && !dim.isBlank() && dim.length() <= 30 && !containsScoringRuleKeywords(dim)) {
-            Matcher m = DECLARED_WEIGHT_PATTERN.matcher(dim);
-            if (m.find()) {
-                try {
-                    return new BigDecimal(m.group(1));
-                } catch (NumberFormatException ignored) {
-                }
-            }
+    private String extractFamily(String dim) {
+        for (String key : List.of("技术", "商务", "价格", "服务", "资信", "综合", "资质", "响应")) {
+            if (dim.contains(key)) return key;
         }
-        if (contextNote != null && !contextNote.isBlank() && (contextNote.startsWith("#") || contextNote.startsWith("第") || contextNote.startsWith("【"))
-                && contextNote.length() <= 40 && !containsScoringRuleKeywords(contextNote)) {
-            Matcher sm = DECLARED_WEIGHT_PATTERN.matcher(contextNote);
-            if (sm.find()) {
-                try {
-                    return new BigDecimal(sm.group(1));
-                } catch (NumberFormatException ignored) {
-                }
-            }
+        return dim;
+    }
+
+    private void extractAndRecordDeclared(String dim, String contextNote, Map<String, BigDecimal> declaredMap) {
+        String text = (dim == null ? "" : dim) + " " + (contextNote == null ? "" : contextNote);
+        if (text.isBlank() || containsScoringRuleKeywords(text)) return;
+        Matcher m = DIM_HEADER_DECLARED_PATTERN.matcher(text);
+        if (m.find()) {
+            String family = m.group(1);
+            try {
+                BigDecimal val = new BigDecimal(m.group(2));
+                declaredMap.putIfAbsent(family, val);
+            } catch (NumberFormatException ignored) {}
         }
-        return null;
     }
 
     private boolean containsScoringRuleKeywords(String text) {

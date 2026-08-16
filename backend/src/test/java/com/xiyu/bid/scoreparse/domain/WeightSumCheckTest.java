@@ -105,4 +105,17 @@ class WeightSumCheckTest {
         WeightSumCheck.Result result = check.checkCandidates(List.of(c1, c2));
         assertThat(result.needRecheck()).isTrue();
     }
+
+    @Test
+    void checkCandidates_dimWithoutScore_contextHeaderMatched() {
+        // dim 仅为「技术方案」，但 contextNote 为「# 第三章 评标办法 - 技术部分（30分）」
+        ScoreCandidate c1 = new ScoreCandidate("A1", "技术方案", "架构设计", new BigDecimal("15"), "SUBJECTIVE", "# 第三章 评标办法 - 技术部分（30分）", null, null, null);
+        ScoreCandidate c2 = new ScoreCandidate("A2", "技术方案", "实施方案", new BigDecimal("15"), "SUBJECTIVE", "# 第三章 评标办法 - 技术部分（30分）", null, null, null);
+        ScoreCandidate c3 = new ScoreCandidate("B1", "商务部分", "报价", new BigDecimal("70"), "SUBJECTIVE", "【商务部分：70分】", null, null, null);
+
+        WeightSumCheck.Result result = check.checkCandidates(List.of(c1, c2, c3));
+        assertThat(result.totalWeight()).isEqualByComparingTo("100");
+        assertThat(result.weightWarning()).isFalse();
+        assertThat(result.needRecheck()).isFalse();
+    }
 }

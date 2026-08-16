@@ -17,6 +17,7 @@ import com.xiyu.bid.scoreparse.entity.ScoreResult;
 import com.xiyu.bid.scoreparse.infrastructure.openai.OpenAiScoreAnalyzer;
 import com.xiyu.bid.scoreparse.infrastructure.openai.ScoreAssessmentOutput;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
+import com.xiyu.bid.scoreparse.domain.KnowledgeCategoryPolicy;
 import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
@@ -156,7 +157,7 @@ class ScoreScoringAppServiceTest {
 
         ScoreResult objectiveResult = saved.stream()
                 .filter(r -> r.getScoreItemId().equals(10L)).findFirst().orElseThrow();
-        assertThat(objectiveResult.getActualScore()).isEqualByComparingTo("8");
+        assertThat(objectiveResult.getActualScore()).isEqualByComparingTo("5.0");
         assertThat(objectiveResult.getMatchRatio()).isEqualTo(80);
         assertThat(objectiveResult.getQuote()).isEqualTo("第 2.1 节 P8");
         assertThat(objectiveResult.getStatusStage2()).isEqualTo("PENDING");
