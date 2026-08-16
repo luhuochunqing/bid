@@ -56,12 +56,12 @@ describe('useScoreParseDrawer.js', () => {
     vi.clearAllMocks()
     ElMessageBox.confirm.mockResolvedValue('confirm')
     emit = vi.fn()
-    scoreParseApi.getItems.mockResolvedValue({ data: { items: REAL_ITEMS, summary: null } })
+    scoreParseApi.getItems.mockResolvedValue({ data: { items: REAL_ITEMS, summary: null, sourceFileName: '国家级数据中心扩容项目招标文件.pdf', parseTime: '2026-08-15T14:00:00' } })
     scoreParseApi.triggerParse.mockResolvedValue({ data: { taskId: 't-parse', status: 'PENDING' } })
     scoreParseApi.getParseStatus.mockResolvedValue({ data: { taskId: 't-parse', status: 'COMPLETED', progress: 100, completedAt: '2026-08-15T14:00:00' } })
     scoreParseApi.triggerScoring.mockResolvedValue({ data: { taskId: 't-score', status: 'PENDING' } })
     scoreParseApi.getScoringStatus.mockResolvedValue({ data: { taskId: 't-score', status: 'COMPLETED', progress: 100, completedAt: '2026-08-15T15:00:00' } })
-    scoreParseApi.getResults.mockResolvedValue({ data: { results: REAL_RESULTS, summary: null } })
+    scoreParseApi.getResults.mockResolvedValue({ data: { results: REAL_RESULTS, summary: null, bidFileName: '西域投标文件_v3.pdf', scoreTime: '2026-08-15T15:00:00' } })
     projectsApi.importScoreDraftsFromAnalysis.mockResolvedValue({
       data: { importedCount: 2 },
     })
@@ -164,6 +164,31 @@ describe('useScoreParseDrawer.js', () => {
     expect(drawer.scoreResults.value['D1'].basis).toBe('标书第 3 章提供系统集成证书复印件')
     expect(drawer.scoreResults.value['A1'].evalText).toBe('待专家评审')
     expect(drawer.actualTotalScore.value).toBe(6)
+  })
+
+  it('populates sourceFileName/bidFileName from API responses (P1 fix: no hardcoded file names)', async () => {
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2 })
+
+    // sourceFileName/parseTime from getItems response
+    expect(drawer.sourceFileName.value).toBe('国家级数据中心扩容项目招标文件.pdf')
+    expect(drawer.parseTime.value).toContain('2026')
+
+    // bidFileName/scoreTime from getResults response
+    expect(drawer.bidFileName.value).toBe('西域投标文件_v3.pdf')
+    expect(drawer.scoreTime.value).toContain('2026')
+  })
+
+  it('keeps em-dash fallback when API omits file metadata', async () => {
+    scoreParseApi.getItems.mockResolvedValue({ data: { items: REAL_ITEMS, summary: null } })
+    scoreParseApi.getResults.mockResolvedValue({ data: { results: REAL_RESULTS, summary: null } })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2 })
+
+    expect(drawer.sourceFileName.value).toBe('—')
+    // bidFileName stays '—' since API didn't return it
+    // (scoreTime gets overwritten by pollTask completedAt, that's expected)
   })
 
   it('surfaces backend FAILED status as scoring error', async () => {
