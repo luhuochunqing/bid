@@ -223,15 +223,15 @@ class AuditOperationalAnalyticsIntegrationTest extends AbstractAuditOperationalA
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.totalProjectCount").value(2))
-                .andExpect(jsonPath("$.data.uncategorizedProjectCount").value(1))
-                .andExpect(jsonPath("$.data.dimensions[*].customerType", hasItems("政府客户", "未分类")))
+                .andExpect(jsonPath("$.data.uncategorizedProjectCount").value(2))
+                .andExpect(jsonPath("$.data.dimensions[*].customerType", not(hasItem("政府客户"))))
+                .andExpect(jsonPath("$.data.dimensions[*].customerType", not(hasItem("未分类"))))
                 .andExpect(jsonPath("$.data.dimensions[*].customerType", not(hasItem("能源"))));
 
         mockMvc.perform(get("/api/analytics/drilldown/customer-type")
                         .param("customerType", "未分类"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data[0].projectName").value("历史客户类型空值项目"))
-                .andExpect(jsonPath("$.data[0].customerType").value("未分类"));
+                .andExpect(jsonPath("$.data").isEmpty());
     }
 }

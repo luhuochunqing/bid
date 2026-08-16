@@ -33,7 +33,7 @@ public class CustomerTypeAnalyticsAssemblerService {
         return CustomerTypeAnalyticsResponse.builder()
                 .totalProjectCount((long) rows.size())
                 .classifiedProjectCount(classifiedProjectCount)
-                .uncategorizedProjectCount(0L)
+                .uncategorizedProjectCount((long) rows.size() - classifiedProjectCount)
                 .totalAmount(totalAmount)
                 .dimensions(aggregates.stream().map(this::toDimensionDTO).toList())
                 .build();
