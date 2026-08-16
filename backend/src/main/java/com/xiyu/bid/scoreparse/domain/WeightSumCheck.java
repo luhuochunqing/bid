@@ -77,14 +77,17 @@ public class WeightSumCheck {
     }
 
     private BigDecimal extractDeclaredWeight(String dim, String contextNote) {
-        Matcher m = DECLARED_WEIGHT_PATTERN.matcher(dim);
-        if (m.find()) {
-            try {
-                return new BigDecimal(m.group(1));
-            } catch (NumberFormatException ignored) {
+        if (dim != null && !dim.isBlank() && dim.length() <= 30 && !containsScoringRuleKeywords(dim)) {
+            Matcher m = DECLARED_WEIGHT_PATTERN.matcher(dim);
+            if (m.find()) {
+                try {
+                    return new BigDecimal(m.group(1));
+                } catch (NumberFormatException ignored) {
+                }
             }
         }
-        if (contextNote != null) {
+        if (contextNote != null && !contextNote.isBlank() && (contextNote.startsWith("#") || contextNote.startsWith("第") || contextNote.startsWith("【"))
+                && contextNote.length() <= 40 && !containsScoringRuleKeywords(contextNote)) {
             Matcher sm = DECLARED_WEIGHT_PATTERN.matcher(contextNote);
             if (sm.find()) {
                 try {
@@ -94,6 +97,11 @@ public class WeightSumCheck {
             }
         }
         return null;
+    }
+
+    private boolean containsScoringRuleKeywords(String text) {
+        return text.contains("每") || text.contains("扣") || text.contains("得") || text.contains("加")
+                || text.contains("项") || text.contains("个") || text.contains("少");
     }
 
     /**

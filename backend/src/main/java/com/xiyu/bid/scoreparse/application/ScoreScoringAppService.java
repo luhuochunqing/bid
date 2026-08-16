@@ -125,9 +125,10 @@ public class ScoreScoringAppService {
         try {
             bidDocText = loadBidDocumentText(task.getProjectId());
         } catch (RuntimeException ex) {
+            String prdMsg = "投标文件解析失败，无法完成打分，请检查文件内容或重新上传";
             log.warn("投标文件解析失败，写入全员待确认: taskId={}, msg={}", taskId, ex.getMessage());
-            writeFallbackPendingResults(task, items, "投标文件解析失败，转人工待确认: " + ex.getMessage());
-            stateService.failTask(taskId, "投标文件解析失败: " + ex.getMessage());
+            writeFallbackPendingResults(task, items, prdMsg);
+            stateService.failTask(taskId, prdMsg);
             progressService.clearProgress(taskId);
             return;
         }
@@ -154,8 +155,7 @@ public class ScoreScoringAppService {
         if (items == null || items.isEmpty()) return;
         List<ScoreResult> fallbacks = items.stream().map(item -> ScoreResult.builder()
                 .scoreItemId(item.getId()).scoringTaskId(task.getId()).actualScore(null)
-                .statusStage2(ScoreAssessmentGuard.TYPE_SUBJECTIVE.equals(item.getScoreType()) ? null : "PENDING")
-                .missedReason(reason).build()).toList();
+                .statusStage2("PENDING").missedReason(reason).build()).toList();
         resultRepository.deleteByScoreItemIdIn(items.stream().map(ScoreItem::getId).toList());
         resultRepository.saveAll(fallbacks);
     }

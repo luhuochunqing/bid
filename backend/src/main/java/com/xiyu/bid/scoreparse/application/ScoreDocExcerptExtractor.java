@@ -97,5 +97,23 @@ public final class ScoreDocExcerptExtractor {
         return !sb.isEmpty() ? sb.toString() : fullText.substring(0, Math.min(fullText.length(), maxChars));
     }
 
+    /** 提取包含评分规则语义特征的段落切片（用于四路召回之召回三） */
+    public static List<String> extractSemanticScoreParagraphs(String fullText) {
+        if (fullText == null || fullText.isBlank()) {
+            return List.of();
+        }
+        List<String> result = new ArrayList<>();
+        String[] paragraphs = fullText.split("\n{2,}");
+        for (String p : paragraphs) {
+            String trimmed = p.trim();
+            if (trimmed.length() >= 10 && (trimmed.contains("评分标准") || trimmed.contains("评分办法")
+                    || trimmed.contains("评审标准") || trimmed.contains("分值分配")
+                    || trimmed.contains("评分细则") || trimmed.contains("分值设定"))) {
+                result.add(trimmed);
+            }
+        }
+        return result;
+    }
+
     private record ScoredParagraph(int index, String text, int score) {}
 }

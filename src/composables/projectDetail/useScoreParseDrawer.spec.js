@@ -196,7 +196,7 @@ describe('useScoreParseDrawer.js', () => {
   })
 
   it('surfaces backend FAILED status as scoring error', async () => {
-    scoreParseApi.getResults.mockResolvedValueOnce({ data: { results: [], summary: null } })
+    scoreParseApi.getResults.mockResolvedValue({ data: { results: [], summary: null } })
     scoreParseApi.getScoringStatus.mockResolvedValue({
       data: { taskId: 't-score', status: 'FAILED', errorMessage: '投标文件未上传' },
     })
@@ -206,6 +206,29 @@ describe('useScoreParseDrawer.js', () => {
 
     expect(drawer.scoreResults.value).toEqual({})
     expect(drawer.error.value).toBe('') // runScoring 自捕获错误并 toast，不污染 error
+  })
+
+  it('renders all items as pending when backend writes fallback results on scoring failure', async () => {
+    const fallbackResults = [
+      { scoreItemId: 1, code: 'A1', actualScore: null, status: 'PENDING', evidence: null, quote: null, missedReason: '投标文件解析失败，无法完成打分，请检查文件内容或重新上传' },
+      { scoreItemId: 2, code: 'D1', actualScore: null, status: 'PENDING', evidence: null, quote: null, missedReason: '投标文件解析失败，无法完成打分，请检查文件内容或重新上传' },
+    ]
+    scoreParseApi.getItems.mockResolvedValue({
+      data: { items: REAL_ITEMS, meta: { bidFileName: '损坏标书.pdf' } },
+    })
+    scoreParseApi.getScoringStatus.mockResolvedValue({
+      data: { taskId: 't-score', status: 'FAILED', errorMessage: '投标文件解析失败，无法完成打分，请检查文件内容或重新上传' },
+    })
+    scoreParseApi.getResults.mockResolvedValue({
+      data: { results: fallbackResults },
+    })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2, autoScore: true })
+
+    expect(drawer.scored.value).toBe(true)
+    expect(drawer.scoreResults.value['A1'].evalText).toBe('待确认')
+    expect(drawer.scoreResults.value['A1'].missedReason).toContain('投标文件解析失败')
   })
 
   it('reparse triggers real parse task and refreshes items (FR-021)', async () => {

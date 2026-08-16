@@ -108,7 +108,8 @@ export function useScoreParseDrawer(props, emit) {
             (r.status && r.status !== 'neutral' && r.status !== 'PENDING' && r.status !== 'PENDING_EXPERT') ||
             Boolean(r.evidence) ||
             Boolean(r.quote) ||
-            Boolean(r.suggestion)
+            Boolean(r.suggestion) ||
+            Boolean(r.missedReason)
           )
         }
       } catch {
@@ -151,41 +152,50 @@ export function useScoreParseDrawer(props, emit) {
     try {
       if (customRunner) {
         await customRunner()
+        scored.value = true
+        ElMessage.success(isAuto ? 'AI 自动打分完成' : 'AI 实际打分完成')
       } else {
-        // spec 041 真接口：POST /scoring（异步触发）→ 轮询 status → GET /results
         await scoreParseApi.triggerScoring(props.projectId)
-        const done = await pollTask(() => scoreParseApi.getScoringStatus(props.projectId), '打分')
-        if (done?.completedAt) scoreTime.value = formatTime(done.completedAt)
+        let done = null
+        let pollError = null
+        try {
+          done = await pollTask(() => scoreParseApi.getScoringStatus(props.projectId), '打分')
+          if (done?.completedAt) scoreTime.value = formatTime(done.completedAt)
+        } catch (err) {
+          pollError = err
+        }
 
-        const resultsRes = await scoreParseApi.getResults(props.projectId)
-        const resultsData = resultsRes?.data
-        const results = resultsData?.results
+        try {
+          const resultsRes = await scoreParseApi.getResults(props.projectId)
+          const resultsData = resultsRes?.data
+          const results = resultsData?.results
+          if (resultsData?.bidFileName) bidFileName.value = resultsData.bidFileName
+          if (resultsData?.scoreTime) scoreTime.value = formatTime(resultsData.scoreTime) || resultsData.scoreTime
 
-        // P1 修复：从打分结果响应读取投标文件元数据
-        if (resultsData?.bidFileName) bidFileName.value = resultsData.bidFileName
-        if (resultsData?.scoreTime) scoreTime.value = formatTime(resultsData.scoreTime) || resultsData.scoreTime
-
-        if (Array.isArray(results)) {
-          const resultMap = {}
-          for (const r of results) {
-            const isSubj = r.scoreType === 'SUBJECTIVE' || r.scoreType === '主观项'
-            const actualVal = r.actualScore != null ? Number(r.actualScore) : null
-            resultMap[r.code] = {
-              actualScore: actualVal,
-              score: actualVal,
-              status: STATUS_MAP[r.status] || 'neutral',
-              evalText: isSubj ? '待确认' : (actualVal != null ? `${actualVal} 分` : '—'),
-              basis: r.evidence,
-              quote: r.quote,
-              missedReason: r.missedReason,
-              suggestion: r.suggestion,
+          if (Array.isArray(results) && results.length > 0) {
+            const resultMap = {}
+            for (const r of results) {
+              resultMap[r.code] = normalizeScoreResult(r)
+            }
+            scoreResults.value = resultMap
+            const hasValidResults = results.some((r) =>
+              r.actualScore != null || r.score != null || Boolean(r.evidence) || Boolean(r.quote) || Boolean(r.missedReason)
+            )
+            if (hasValidResults) {
+              scored.value = true
             }
           }
-          scoreResults.value = resultMap
+        } catch {
+          // 降级忽略
+        }
+
+        if (pollError) {
+          notifyErrorUnlessRateLimit(pollError, '打分失败')
+        } else {
+          scored.value = true
+          ElMessage.success(isAuto ? 'AI 自动打分完成' : 'AI 实际打分完成')
         }
       }
-      scored.value = true
-      ElMessage.success(isAuto ? 'AI 自动打分完成' : 'AI 实际打分完成')
     } catch (e) {
       notifyErrorUnlessRateLimit(e, '打分失败')
     } finally {
@@ -210,50 +220,24 @@ export function useScoreParseDrawer(props, emit) {
   }
 
   function exportReport() {
-    const reportHtml = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>AI 评分标准解析报告 - ${props.projectId}</title>
-<style>body{font-family:sans-serif;padding:24px;color:var(--text-primary-ui);}table{width:100%;border-collapse:collapse;margin-top:16px;}th,td{border:1px solid var(--border-color);padding:8px;font-size:12px;text-align:left;}th{background:var(--fill-lightest);}.num{text-align:right;}</style>
-</head><body>
-<h2>AI 评分标准解析报告（项目 ID: ${props.projectId}）</h2>
-<p>招标文件：${sourceFileName.value} | 解析时间：${parseTime.value}</p>
-<p>投标文件：${bidFileName.value} | 评分时间：${scoreTime.value}</p>
-<hr/>
-<h3>评分项明细（共 ${scoreItems.value.length} 项，总权重 ${totalWeight.value} 分）</h3>
-<table>
-<thead><tr><th>编号</th><th>维度</th><th>评分要求</th><th>权重</th><th>满足预判</th><th>实际得分</th><th>引用说明</th></tr></thead>
-<tbody>
-${scoreItems.value
-  .map((item) => {
-    const res = scoreResults.value[item.code] || {}
-    return `<tr><td>${item.code}</td><td>${item.dim}</td><td>${item.req}</td><td class="num">${item.weight}</td><td>${item.statusText}</td><td class="num">${res.evalText || item.estScore || '-'}</td><td>${res.quote || item.estBasis || '-'}</td></tr>`
-  })
-  .join('')}
-</tbody>
-</table>
-</body></html>`
+    const rows = scoreItems.value.map((item) => {
+      const res = scoreResults.value[item.code] || {}
+      return `<tr><td>${item.code}</td><td>${item.dim}</td><td>${item.req}</td><td class="num">${item.weight}</td><td>${item.statusText}</td><td class="num">${res.evalText || item.estScore || '-'}</td><td>${res.quote || item.estBasis || '-'}</td></tr>`
+    }).join('')
+    const reportHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>AI 评分标准解析报告 - ${props.projectId}</title><style>body{font-family:sans-serif;padding:24px;}table{width:100%;border-collapse:collapse;margin-top:16px;}th,td{border:1px solid #ccc;padding:8px;font-size:12px;}.num{text-align:right;}</style></head><body><h2>AI 评分标准解析报告（项目 ID: ${props.projectId}）</h2><p>招标文件：${sourceFileName.value} | 解析时间：${parseTime.value}</p><p>投标文件：${bidFileName.value} | 评分时间：${scoreTime.value}</p><hr/><h3>评分项明细（共 ${scoreItems.value.length} 项，总权重 ${totalWeight.value} 分）</h3><table><thead><tr><th>编号</th><th>维度</th><th>评分要求</th><th>权重</th><th>满足预判</th><th>实际得分</th><th>引用说明</th></tr></thead><tbody>${rows}</tbody></table></body></html>`
 
     try {
       const win = typeof window !== 'undefined' ? window.open('', '_blank') : null
       if (win && win.document) {
-        win.document.write(reportHtml)
-        win.document.close()
-        win.print()
-        ElMessage.success('已生成打印预览')
-        return
+        win.document.write(reportHtml); win.document.close(); win.print(); ElMessage.success('已生成打印预览'); return
       }
-    } catch {
-      // 弹窗被拦截，降级为 Blob 下载
-    }
+    } catch {}
 
     if (typeof Blob !== 'undefined' && typeof document !== 'undefined') {
       const blob = new Blob([reportHtml], { type: 'text/html;charset=utf-8' })
       const url = typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function' ? URL.createObjectURL(blob) : null
       if (url) {
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `AI评分标准解析报告_${props.projectId}.html`
-        a.click()
-        URL.revokeObjectURL(url)
+        const a = document.createElement('a'); a.href = url; a.download = `AI评分标准解析报告_${props.projectId}.html`; a.click(); URL.revokeObjectURL(url)
       }
       ElMessage.success('已导出报告文件')
     }

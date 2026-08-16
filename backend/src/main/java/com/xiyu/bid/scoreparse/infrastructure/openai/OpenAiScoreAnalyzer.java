@@ -69,30 +69,55 @@ public class OpenAiScoreAnalyzer {
      */
     public List<ScoreCandidate> recallCandidates(
             String fullText, String structuredMetadata, ProgressReporter progress) {
-        report(progress, 5, "召回一/二：正则规则 + 文档结构定位");
-        List<ScoreCandidate> candidates = new ArrayList<>(recallByRegexAndStructure(fullText));
+        report(progress, 5, "召回一/二：关键词正则规则 + 文档结构定位");
+        List<ScoreCandidate> candidates = new ArrayList<>();
+        candidates.addAll(recallLane1RegexRules(fullText));
+        candidates.addAll(recallLane2DocumentStructure(fullText));
 
-        report(progress, 15, "召回三/四：评分规则语义 + LLM 全文语义");
-        candidates.addAll(recallByLlm(fullText, structuredMetadata, progress));
+        report(progress, 15, "召回三/四：评分规则语义切片 + LLM 全文语义提取");
+        candidates.addAll(recallLane3ScoreSemanticPatterns(fullText));
+        candidates.addAll(recallLane4LlmFullText(fullText, structuredMetadata, progress));
         return candidates;
     }
 
-    /** 召回一（正则）+ 召回二（结构定位）：区域定位后正则提取 */
-    private List<ScoreCandidate> recallByRegexAndStructure(String fullText) {
-        List<MarkdownScoreSectionLocator.ScoreSection> sections =
-                MarkdownScoreSectionLocator.locate(fullText);
-        List<ScoreCandidate> candidates = new ArrayList<>();
+    /** 召回一：关键词与正则规则提取 */
+    private List<ScoreCandidate> recallLane1RegexRules(String fullText) {
+        List<ScoreCandidate> list = new ArrayList<>();
+        for (ScoringCriterion criterion : ScoringItemExtractor.extract(fullText)) {
+            list.add(toCandidate(criterion, null));
+        }
+        log.info("召回一（正则规则）完成: count={}", list.size());
+        return list;
+    }
+
+    /** 召回二：文档章节与表格结构定位提取 */
+    private List<ScoreCandidate> recallLane2DocumentStructure(String fullText) {
+        List<MarkdownScoreSectionLocator.ScoreSection> sections = MarkdownScoreSectionLocator.locate(fullText);
+        List<ScoreCandidate> list = new ArrayList<>();
         for (MarkdownScoreSectionLocator.ScoreSection section : sections) {
             for (ScoringCriterion criterion : ScoringItemExtractor.extract(section.content())) {
-                candidates.add(toCandidate(criterion, section));
+                list.add(toCandidate(criterion, section));
             }
         }
-        log.info("召回一/二完成: sections={}, candidates={}", sections.size(), candidates.size());
-        return candidates;
+        log.info("召回二（文档结构）完成: sections={}, count={}", sections.size(), list.size());
+        return list;
     }
 
-    /** 召回三/四：chunk 切片多轮 LLM 结构化提取；单 chunk 失败不阻断 */
-    private List<ScoreCandidate> recallByLlm(
+    /** 召回三：评分规则专用语义模式（评审办法、评分细则关键区域）提取 */
+    private List<ScoreCandidate> recallLane3ScoreSemanticPatterns(String fullText) {
+        List<ScoreCandidate> list = new ArrayList<>();
+        List<String> semanticParagraphs = ScoreDocExcerptExtractor.extractSemanticScoreParagraphs(fullText);
+        for (String paragraph : semanticParagraphs) {
+            for (ScoringCriterion criterion : ScoringItemExtractor.extract(paragraph)) {
+                list.add(toCandidate(criterion, null));
+            }
+        }
+        log.info("召回三（评分规则语义）完成: count={}", list.size());
+        return list;
+    }
+
+    /** 召回四：chunk 切片多轮 LLM 全文结构化提取；单 chunk 失败不阻断 */
+    private List<ScoreCandidate> recallLane4LlmFullText(
             String fullText, String structuredMetadata, ProgressReporter progress) {
         List<DocumentChunk> chunks = structuralChunker.chunk(fullText, structuredMetadata);
         List<ScoreCandidate> candidates = new ArrayList<>();
@@ -124,7 +149,7 @@ public class OpenAiScoreAnalyzer {
             report(progress, 15 + llmProgressSpan * (i + 1) / chunks.size(),
                     "召回三/四：LLM 语义提取 " + (i + 1) + "/" + chunks.size());
         }
-        log.info("召回三/四完成: chunks={}, candidates={}", chunks.size(), candidates.size());
+        log.info("召回四（LLM 全文语义）完成: chunks={}, count={}", chunks.size(), candidates.size());
         return candidates;
     }
 

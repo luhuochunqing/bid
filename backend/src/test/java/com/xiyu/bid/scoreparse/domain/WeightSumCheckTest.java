@@ -70,4 +70,39 @@ class WeightSumCheckTest {
         ));
         assertThat(result.weightWarning()).isFalse();
     }
+
+    @Test
+    void checkCandidates_declaredDimensionMatched_noRecheck() {
+        ScoreCandidate c1 = new ScoreCandidate("A1", "技术方案（30分）", "架构设计", new BigDecimal("15"), "SUBJECTIVE", null, null, null, null);
+        ScoreCandidate c2 = new ScoreCandidate("A2", "技术方案（30分）", "实施方案", new BigDecimal("15"), "SUBJECTIVE", null, null, null, null);
+        ScoreCandidate c3 = new ScoreCandidate("B1", "商务部分（70分）", "报价", new BigDecimal("70"), "SUBJECTIVE", null, null, null, null);
+
+        WeightSumCheck.Result result = check.checkCandidates(List.of(c1, c2, c3));
+        assertThat(result.totalWeight()).isEqualByComparingTo("100");
+        assertThat(result.weightWarning()).isFalse();
+        assertThat(result.needRecheck()).isFalse();
+        assertThat(result.dimensionWeights()).containsEntry("技术方案（30分）", new BigDecimal("30"));
+    }
+
+    @Test
+    void checkCandidates_ruleSentenceNotMistakenAsDeclaredWeight() {
+        // 规则细则「每提供一个得2分，最高10分」不应被误判为维度声明2分
+        ScoreCandidate c1 = new ScoreCandidate("C1", "资质业绩", "每提供一个得2分，最高10分", new BigDecimal("10"), "OBJECTIVE", "每提供一个得2分", null, null, null);
+        ScoreCandidate c2 = new ScoreCandidate("C2", "技术方案", "方案描述", new BigDecimal("90"), "SUBJECTIVE", null, null, null, null);
+
+        WeightSumCheck.Result result = check.checkCandidates(List.of(c1, c2));
+        assertThat(result.totalWeight()).isEqualByComparingTo("100");
+        assertThat(result.weightWarning()).isFalse();
+        assertThat(result.needRecheck()).isFalse();
+    }
+
+    @Test
+    void checkCandidates_declaredDimensionMismatch_triggersRecheck() {
+        // 维度声明 30 分，但项合计只有 20 分 -> 差值超 ±0.5 触发回补
+        ScoreCandidate c1 = new ScoreCandidate("A1", "技术方案（30分）", "架构设计", new BigDecimal("20"), "SUBJECTIVE", null, null, null, null);
+        ScoreCandidate c2 = new ScoreCandidate("B1", "商务部分（70分）", "报价", new BigDecimal("80"), "SUBJECTIVE", null, null, null, null);
+
+        WeightSumCheck.Result result = check.checkCandidates(List.of(c1, c2));
+        assertThat(result.needRecheck()).isTrue();
+    }
 }

@@ -52,11 +52,12 @@ export function normalizeScoreItem(s, i) {
 
 export function normalizeScoreResult(r) {
   const isSubj = r.scoreType === 'SUBJECTIVE' || r.scoreType === '主观项'
+  const isPending = r.status === 'PENDING' || r.statusStage2 === 'PENDING' || Boolean(r.missedReason)
   return {
     status: STATUS_MAP[r.status] || (r.actualScore != null ? 'ok' : 'neutral'),
     score: isSubj ? null : (r.actualScore != null ? Number(r.actualScore) : null),
     actualScore: isSubj ? null : (r.actualScore != null ? Number(r.actualScore) : null),
-    evalText: isSubj ? '待确认' : (r.actualScore != null ? `${r.actualScore} 分` : '未评分'),
+    evalText: isSubj ? '待确认' : (r.actualScore != null ? `${r.actualScore} 分` : (isPending ? '待确认' : '未评分')),
     basis: r.evidence || '',
     quote: r.quote || '',
     missedReason: r.missedReason || '',
