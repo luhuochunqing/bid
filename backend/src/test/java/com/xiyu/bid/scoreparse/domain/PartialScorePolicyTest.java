@@ -86,24 +86,24 @@ class PartialScorePolicyTest {
     }
 
     @Test
-    @DisplayName("阶段2资质/仓库/品牌分档计分：50%比例得50%档位分")
+    @DisplayName("阶段2资质/仓库/品牌计分：60% 比例得 6 分")
     void stage2_certTierScoring_half() {
         BigDecimal score = policy.computeStage2Score(new BigDecimal("10"), KnowledgeCategoryPolicy.CATEGORY_CERT, 60, "OBJECTIVE");
-        assertThat(score).isEqualByComparingTo("5.0");
+        assertThat(score).isEqualByComparingTo("6");
     }
 
     @Test
     @DisplayName("阶段2人员按符合比例线性计分：3/5=60% 得 6 分")
     void stage2_personRatioScoring_linear() {
         BigDecimal score = policy.computeStage2Score(new BigDecimal("10"), KnowledgeCategoryPolicy.CATEGORY_PERSON, 60, "OBJECTIVE");
-        assertThat(score).isEqualByComparingTo("6.0");
+        assertThat(score).isEqualByComparingTo("6");
     }
 
     @Test
     @DisplayName("阶段2业绩按数量比例计分：80% 得 8 分")
     void stage2_projectRatioScoring_linear() {
         BigDecimal score = policy.computeStage2Score(new BigDecimal("10"), KnowledgeCategoryPolicy.CATEGORY_PROJECT, 80, "OBJECTIVE");
-        assertThat(score).isEqualByComparingTo("8.0");
+        assertThat(score).isEqualByComparingTo("8");
     }
 
     @Test

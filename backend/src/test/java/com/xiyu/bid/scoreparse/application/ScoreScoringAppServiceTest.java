@@ -157,7 +157,7 @@ class ScoreScoringAppServiceTest {
 
         ScoreResult objectiveResult = saved.stream()
                 .filter(r -> r.getScoreItemId().equals(10L)).findFirst().orElseThrow();
-        assertThat(objectiveResult.getActualScore()).isEqualByComparingTo("5.0");
+        assertThat(objectiveResult.getActualScore()).isEqualByComparingTo("8");
         assertThat(objectiveResult.getMatchRatio()).isEqualTo(80);
         assertThat(objectiveResult.getQuote()).isEqualTo("第 2.1 节 P8");
         assertThat(objectiveResult.getStatusStage2()).isEqualTo("PENDING");

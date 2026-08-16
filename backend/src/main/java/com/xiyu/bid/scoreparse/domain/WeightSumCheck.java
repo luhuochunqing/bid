@@ -73,7 +73,7 @@ public class WeightSumCheck {
         }
 
         boolean needRecheck = totalWarning || dimAnomaly || declaredMismatch;
-        return new Result(total, totalWarning, needRecheck, Collections.unmodifiableMap(dimSums));
+        return new Result(total, totalWarning, needRecheck, Collections.unmodifiableMap(dimSums), Collections.unmodifiableMap(declaredFamilyWeights));
     }
 
     private String extractFamily(String dim) {
@@ -84,21 +84,29 @@ public class WeightSumCheck {
     }
 
     private void extractAndRecordDeclared(String dim, String contextNote, Map<String, BigDecimal> declaredMap) {
-        String text = (dim == null ? "" : dim) + " " + (contextNote == null ? "" : contextNote);
-        if (text.isBlank() || containsScoringRuleKeywords(text)) return;
-        Matcher m = DIM_HEADER_DECLARED_PATTERN.matcher(text);
-        if (m.find()) {
-            String family = m.group(1);
-            try {
-                BigDecimal val = new BigDecimal(m.group(2));
-                declaredMap.putIfAbsent(family, val);
-            } catch (NumberFormatException ignored) {}
+        if (contextNote != null && !contextNote.isBlank() && !isRuleSentence(contextNote)) {
+            Matcher m = DIM_HEADER_DECLARED_PATTERN.matcher(contextNote);
+            if (m.find()) {
+                String family = m.group(1);
+                try {
+                    declaredMap.putIfAbsent(family, new BigDecimal(m.group(2)));
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+        if (dim != null && !dim.isBlank() && !isRuleSentence(dim)) {
+            Matcher m = DIM_HEADER_DECLARED_PATTERN.matcher(dim);
+            if (m.find()) {
+                String family = m.group(1);
+                try {
+                    declaredMap.putIfAbsent(family, new BigDecimal(m.group(2)));
+                } catch (NumberFormatException ignored) {}
+            }
         }
     }
 
-    private boolean containsScoringRuleKeywords(String text) {
-        return text.contains("每") || text.contains("扣") || text.contains("得") || text.contains("加")
-                || text.contains("项") || text.contains("个") || text.contains("少");
+    private boolean isRuleSentence(String text) {
+        return text.contains("每提供") || text.contains("每具备") || text.contains("扣完为止")
+                || text.contains("最多得") || text.contains("最高得") || text.contains("每个得");
     }
 
     /**
@@ -106,10 +114,15 @@ public class WeightSumCheck {
      * @param weightWarning    合计 ≠ 100（容差内）标记，前端展示实际总分
      * @param needRecheck      触发二次解析/完整性回补标记（FR-005）
      * @param dimensionWeights 维度分值归集
+     * @param declaredWeights  解析到的维度声明总分（如 技术 -> 30）
      */
-    public record Result(BigDecimal totalWeight, boolean weightWarning, boolean needRecheck, Map<String, BigDecimal> dimensionWeights) {
+    public record Result(BigDecimal totalWeight, boolean weightWarning, boolean needRecheck,
+                         Map<String, BigDecimal> dimensionWeights, Map<String, BigDecimal> declaredWeights) {
+        public Result(BigDecimal totalWeight, boolean weightWarning, boolean needRecheck, Map<String, BigDecimal> dimensionWeights) {
+            this(totalWeight, weightWarning, needRecheck, dimensionWeights, Collections.emptyMap());
+        }
         public Result(BigDecimal totalWeight, boolean weightWarning, boolean needRecheck) {
-            this(totalWeight, weightWarning, needRecheck, Collections.emptyMap());
+            this(totalWeight, weightWarning, needRecheck, Collections.emptyMap(), Collections.emptyMap());
         }
     }
 }
