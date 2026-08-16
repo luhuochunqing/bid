@@ -115,8 +115,8 @@ class ScoreParseAppServiceTest {
                 ScoreParseTask.builder()
                         .id(5L).taskId(TASK_ID).projectId(PROJECT_ID)
                         .taskType("PARSE").status("PENDING").build()));
-        when(initiationTenderTextResolver.resolve(PROJECT_ID))
-                .thenReturn(Optional.of(new TenderTextSource(
+        when(initiationTenderTextResolver.resolveIntake(PROJECT_ID))
+                .thenReturn(TenderIntake.found(new TenderTextSource(
                         "tender.pdf", "doc-insight://t/1", "评分办法：...")));
         when(scoreAnalyzer.recallCandidates(anyString(), isNull(), any()))
                 .thenReturn(List.of(
@@ -138,11 +138,25 @@ class ScoreParseAppServiceTest {
 
     @Test
     void triggerParse_rejectsWhenNoInitiationTender() {
-        when(initiationTenderTextResolver.hasSource(PROJECT_ID)).thenReturn(false);
+        when(initiationTenderTextResolver.resolveIntake(PROJECT_ID))
+                .thenReturn(TenderIntake.unavailable(InitiationTenderTextResolver.NO_TENDER_MESSAGE));
 
         assertThatThrownBy(() -> service.triggerParse(PROJECT_ID))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(InitiationTenderTextResolver.NO_TENDER_MESSAGE);
+        verify(stateService).createTask(anyString(), eq(PROJECT_ID), eq("PARSE"), isNull(), isNull());
+        verify(stateService).failTask(anyString(), eq(InitiationTenderTextResolver.NO_TENDER_MESSAGE));
+    }
+
+    @Test
+    void triggerParse_rejectsOversizedWithoutSnapshot() {
+        when(initiationTenderTextResolver.resolveIntake(PROJECT_ID))
+                .thenReturn(TenderIntake.unavailable(BoundedHttpDownloader.TOO_LARGE_MESSAGE));
+
+        assertThatThrownBy(() -> service.triggerParse(PROJECT_ID))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(BoundedHttpDownloader.TOO_LARGE_MESSAGE);
+        verify(stateService).failTask(anyString(), eq(BoundedHttpDownloader.TOO_LARGE_MESSAGE));
     }
 
     @Test
@@ -159,6 +173,44 @@ class ScoreParseAppServiceTest {
         ScoreParseItemsDTO dto = service.getItems(PROJECT_ID);
 
         assertThat(dto.meta().sourceFileName()).isEqualTo("旧快照.pdf");
+        assertThat(dto.meta().lastParseStatus()).isNull();
+        assertThat(dto.meta().lastParseError()).isNull();
+    }
+
+    @Test
+    void getItems_lastParseMetaNullWhenNoParseTask() {
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of());
+        when(initiationTenderTextResolver.findLatestTenderDocument(PROJECT_ID))
+                .thenReturn(Optional.empty());
+        when(snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(PROJECT_ID))
+                .thenReturn(Optional.empty());
+        when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(anyLong(), anyString(), anyList()))
+                .thenReturn(List.of());
+
+        ScoreParseItemsDTO dto = service.getItems(PROJECT_ID);
+
+        assertThat(dto.meta().lastParseStatus()).isNull();
+        assertThat(dto.meta().lastParseError()).isNull();
+    }
+
+    @Test
+    void getItems_lastParseMetaCarriesFailedError() {
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of());
+        when(initiationTenderTextResolver.findLatestTenderDocument(PROJECT_ID))
+                .thenReturn(Optional.of(ProjectDocument.builder().name("招标.pdf").build()));
+        when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                eq(PROJECT_ID), eq("PARSE"), anyList()))
+                .thenReturn(List.of(ScoreParseTask.builder()
+                        .id(9L).taskType("PARSE").status("FAILED")
+                        .errorMessage("立项招标文件无法读取").build()));
+        when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                eq(PROJECT_ID), eq("SCORING"), anyList()))
+                .thenReturn(List.of());
+
+        ScoreParseItemsDTO dto = service.getItems(PROJECT_ID);
+
+        assertThat(dto.meta().lastParseStatus()).isEqualTo("FAILED");
+        assertThat(dto.meta().lastParseError()).isEqualTo("立项招标文件无法读取");
     }
 
     @Test
@@ -202,5 +254,7 @@ class ScoreParseAppServiceTest {
         assertThat(dto.meta().parseTime()).isNull();
         assertThat(dto.meta().bidFileName()).isNull();
         assertThat(dto.meta().scoreTime()).isNull();
+        assertThat(dto.meta().lastParseStatus()).isNull();
+        assertThat(dto.meta().lastParseError()).isNull();
     }
 }

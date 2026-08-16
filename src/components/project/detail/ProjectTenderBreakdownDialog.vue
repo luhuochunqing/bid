@@ -10,7 +10,7 @@
       <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
       <div class="el-upload__text">将招标文件拖到此处，或<em>点击选择</em></div>
       <template #tip>
-        <div class="el-upload__tip">支持 doc、docx、文本型 pdf。解析后可用于拆解任务和 AI 生成初稿。</div>
+        <div class="el-upload__tip">支持 doc、docx、文本型 pdf。解析后可用于拆解任务和评分标准解析。</div>
       </template>
     </el-upload>
 

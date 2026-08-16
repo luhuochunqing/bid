@@ -89,7 +89,7 @@ describe('useScoreParseDrawer.js', () => {
 
   it('auto-parses initiation tender when drawer opens with no items', async () => {
     scoreParseApi.getItems
-      .mockResolvedValueOnce({ data: { items: [], summary: null } })
+      .mockResolvedValueOnce({ data: { items: [], summary: null, meta: { lastParseStatus: null } } })
       .mockResolvedValueOnce({ data: { items: REAL_ITEMS, summary: null } })
 
     const drawer = useScoreParseDrawer(props, emit)
@@ -98,6 +98,63 @@ describe('useScoreParseDrawer.js', () => {
     expect(scoreParseApi.triggerParse).toHaveBeenCalledWith(99)
     expect(scoreParseApi.getParseStatus).toHaveBeenCalled()
     expect(drawer.scoreItems.value.length).toBe(2)
+  })
+
+  it('does not auto-parse when lastParseStatus is FAILED and shows lastParseError', async () => {
+    scoreParseApi.getItems.mockResolvedValue({
+      data: {
+        items: [],
+        summary: null,
+        meta: { lastParseStatus: 'FAILED', lastParseError: '立项招标文件无法读取' },
+      },
+    })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1 })
+
+    expect(scoreParseApi.triggerParse).not.toHaveBeenCalled()
+    expect(drawer.error.value).toBe('立项招标文件无法读取')
+  })
+
+  it('follows in-flight PENDING parse when drawer opens with empty items', async () => {
+    scoreParseApi.getItems
+      .mockResolvedValueOnce({ data: { items: [], summary: null, meta: { lastParseStatus: 'PENDING' } } })
+      .mockResolvedValueOnce({ data: { items: REAL_ITEMS, summary: null, meta: { lastParseStatus: 'COMPLETED' } } })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1 })
+
+    expect(scoreParseApi.triggerParse).toHaveBeenCalledWith(99)
+    expect(scoreParseApi.getParseStatus).toHaveBeenCalled()
+    expect(drawer.scoreItems.value.length).toBe(2)
+  })
+
+  it('follows in-flight PROCESSING parse when drawer opens with empty items', async () => {
+    scoreParseApi.getItems
+      .mockResolvedValueOnce({ data: { items: [], summary: null, meta: { lastParseStatus: 'PROCESSING' } } })
+      .mockResolvedValueOnce({ data: { items: REAL_ITEMS, summary: null, meta: { lastParseStatus: 'COMPLETED' } } })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1 })
+
+    expect(scoreParseApi.triggerParse).toHaveBeenCalledWith(99)
+    expect(scoreParseApi.getParseStatus).toHaveBeenCalled()
+  })
+
+  it('does not auto-parse when lastParseStatus is COMPLETED even if items are empty', async () => {
+    scoreParseApi.getItems.mockResolvedValue({
+      data: {
+        items: [],
+        summary: null,
+        meta: { lastParseStatus: 'COMPLETED', lastParseError: null },
+      },
+    })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1 })
+
+    expect(scoreParseApi.triggerParse).not.toHaveBeenCalled()
+    expect(drawer.error.value).toBe('')
   })
 
   it('keeps empty items when auto-parse finds no initiation tender', async () => {

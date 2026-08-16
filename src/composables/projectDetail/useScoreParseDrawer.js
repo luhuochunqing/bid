@@ -129,9 +129,12 @@ export function useScoreParseDrawer(props, emit) {
       }
       scored.value = options.scored !== undefined ? options.scored : hasResults
 
-      // 立项招标文件已在，打开抽屉时若还没有评分项则直接解析
-      if (scoreItems.value.length === 0 && options.autoParse !== false) {
+      const lastParseStatus = meta.lastParseStatus ?? null
+      const inFlight = lastParseStatus === 'PENDING' || lastParseStatus === 'PROCESSING'
+      if (scoreItems.value.length === 0 && (lastParseStatus == null || inFlight) && options.autoParse !== false) {
         await startParse({ silent: true })
+      } else if (lastParseStatus === 'FAILED') {
+        error.value = meta.lastParseError || '评分标准解析失败，请重新解析'
       }
 
       // 仅当阶段 2 且从未打分且显式指定 autoScore 时才自动打分

@@ -15,11 +15,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
@@ -55,7 +50,7 @@ public class InitiationTenderTextResolver {
             ObsShareUrlSigner obsShareUrlSigner
     ) {
         this(projectDocumentRepository, snapshotRepository, fileStorage, tenderDocumentStorage,
-                textExtractor, obsShareUrlSigner, InitiationTenderTextResolver::httpGet);
+                textExtractor, obsShareUrlSigner, new BoundedHttpDownloader()::get);
     }
 
     InitiationTenderTextResolver(
@@ -77,8 +72,7 @@ public class InitiationTenderTextResolver {
     }
 
     public boolean hasSource(Long projectId) {
-        return findLatestTenderDocument(projectId).isPresent()
-                || snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(projectId).isPresent();
+        return resolveIntake(projectId).source().isPresent();
     }
 
     public Optional<ProjectDocument> findLatestTenderDocument(Long projectId) {
@@ -93,26 +87,66 @@ public class InitiationTenderTextResolver {
     }
 
     public Optional<TenderTextSource> resolve(Long projectId) {
-        Optional<TenderTextSource> fromInitiation = findLatestTenderDocument(projectId)
-                .map(this::extractFromDocument);
-        if (fromInitiation.isPresent()) {
-            return fromInitiation;
+        return resolveIntake(projectId).source();
+    }
+
+    public TenderIntake resolveIntake(Long projectId) {
+        Optional<ProjectDocument> document = findLatestTenderDocument(projectId);
+        boolean tooLarge = false;
+        if (document.isPresent()) {
+            ExtractAttempt attempt = tryExtract(document.get());
+            if (attempt.source().isPresent()) {
+                return TenderIntake.found(attempt.source().get());
+            }
+            tooLarge = attempt.tooLarge();
+            log.warn("立项招标文件不可用，回退历史底稿: projectId={}", projectId);
         }
+        Optional<TenderTextSource> snapshot = snapshotSource(projectId);
+        if (snapshot.isPresent()) {
+            return TenderIntake.found(snapshot.get());
+        }
+        return TenderIntake.unavailable(
+                tooLarge ? BoundedHttpDownloader.TOO_LARGE_MESSAGE : NO_TENDER_MESSAGE);
+    }
+
+    private ExtractAttempt tryExtract(ProjectDocument document) {
+        try {
+            byte[] content = loadBytes(document.getFileUrl());
+            if (content == null || content.length == 0) {
+                log.warn("立项招标文件无法读取: name={}", document.getName());
+                return ExtractAttempt.miss();
+            }
+            var extracted = textExtractor.extract(document.getName(), document.getFileType(), content);
+            if (extracted == null || extracted.text() == null || extracted.text().isBlank()) {
+                log.warn("立项招标文件未能提取正文: name={}", document.getName());
+                return ExtractAttempt.miss();
+            }
+            return ExtractAttempt.ok(new TenderTextSource(document.getName(), document.getFileUrl(), extracted.text()));
+        } catch (RuntimeException exception) {
+            log.warn("立项招标文件读取失败: name={}, msg={}", document.getName(), exception.getMessage());
+            return BoundedHttpDownloader.TOO_LARGE_MESSAGE.equals(exception.getMessage())
+                    ? ExtractAttempt.oversized() : ExtractAttempt.miss();
+        }
+    }
+
+    private record ExtractAttempt(Optional<TenderTextSource> source, boolean tooLarge) {
+        static ExtractAttempt ok(TenderTextSource source) {
+            return new ExtractAttempt(Optional.of(source), false);
+        }
+
+        static ExtractAttempt miss() {
+            return new ExtractAttempt(Optional.empty(), false);
+        }
+
+        static ExtractAttempt oversized() {
+            return new ExtractAttempt(Optional.empty(), true);
+        }
+    }
+
+    private Optional<TenderTextSource> snapshotSource(Long projectId) {
         return snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(projectId)
                 .filter(snapshot -> snapshot.getExtractedText() != null && !snapshot.getExtractedText().isBlank())
                 .map(this::fromSnapshot);
-    }
-
-    private TenderTextSource extractFromDocument(ProjectDocument document) {
-        byte[] content = loadBytes(document.getFileUrl());
-        if (content == null || content.length == 0) {
-            throw new IllegalStateException("立项招标文件无法读取，请重新上传");
-        }
-        var extracted = textExtractor.extract(document.getName(), document.getFileType(), content);
-        if (extracted == null || extracted.text() == null || extracted.text().isBlank()) {
-            throw new IllegalStateException("立项招标文件未能提取正文，请检查文件是否为可读 PDF/Word");
-        }
-        return new TenderTextSource(document.getName(), document.getFileUrl(), extracted.text());
     }
 
     private TenderTextSource fromSnapshot(BidTenderDocumentSnapshot snapshot) {
@@ -124,17 +158,26 @@ public class InitiationTenderTextResolver {
             return null;
         }
         if (fileUrl.startsWith(FileUrlPrefixes.OBS_DIRECT)) {
-            return obsShareUrlSigner.trySign(fileUrl)
-                    .map(this::fetchSigned)
-                    .orElse(null);
+            return capSize(obsShareUrlSigner.trySign(fileUrl).map(this::fetchSigned).orElse(null));
         }
         Optional<byte[]> stored = fileStorage.load(fileUrl).map(LoadedProjectDocumentFile::content);
         if (stored.isPresent() && stored.get().length > 0) {
-            return stored.get();
+            return capSize(stored.get());
         }
-        return tenderDocumentStorage.loadByFileUrl(fileUrl)
+        return capSize(tenderDocumentStorage.loadByFileUrl(fileUrl)
                 .map(LoadedTenderDocument::content)
-                .orElse(null);
+                .orElse(null));
+    }
+
+    private byte[] capSize(byte[] content) {
+        if (content == null) {
+            return null;
+        }
+        if (content.length > BoundedHttpDownloader.MAX_BYTES) {
+            log.warn("招标文件超过 50MB，跳过该来源: bytes={}", content.length);
+            throw new IllegalStateException(BoundedHttpDownloader.TOO_LARGE_MESSAGE);
+        }
+        return content;
     }
 
     private byte[] fetchSigned(String signedUrl) {
@@ -147,19 +190,5 @@ public class InitiationTenderTextResolver {
             }
             return null;
         }
-    }
-
-    private static byte[] httpGet(String url) throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .timeout(Duration.ofSeconds(60))
-                .GET()
-                .build();
-        HttpResponse<byte[]> response = HttpClient.newHttpClient()
-                .send(request, HttpResponse.BodyHandlers.ofByteArray());
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new IllegalStateException("下载招标文件失败 HTTP " + response.statusCode());
-        }
-        return response.body();
     }
 }
