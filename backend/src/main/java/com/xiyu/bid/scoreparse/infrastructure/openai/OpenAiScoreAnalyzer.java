@@ -12,6 +12,7 @@ import com.xiyu.bid.biddraftagent.infrastructure.openai.ScoringItemExtractor;
 import com.xiyu.bid.biddraftagent.infrastructure.openai.TenderIntakeTextProcessor;
 import com.xiyu.bid.docinsight.domain.DocumentChunk;
 import com.xiyu.bid.docinsight.domain.StructuralDocumentChunker;
+import com.xiyu.bid.scoreparse.application.ScoreDocExcerptExtractor;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.infrastructure.structure.MarkdownScoreSectionLocator;
 import lombok.extern.slf4j.Slf4j;

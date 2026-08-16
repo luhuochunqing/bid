@@ -24,7 +24,8 @@ import org.springframework.data.redis.cache.RedisCacheConfiguration;
  *
  * <h3>Cache registry</h3>
  * <ul>
- *   <li>{@code dashboard:overview} — 看板概览，TTL 5 分钟</li>
+ *   <li>{@code dashboard:overview} — 看板概览，TTL 5 分钟；key 带用户名维度
+ *       （overview 含项目级数据权限过滤，不同用户可见范围不同，P2-3）</li>
  *   <li>{@code users:enabled} — 启用用户列表（仅 @CacheEvict，TTL 仅作兜底）</li>
  * </ul>
  */

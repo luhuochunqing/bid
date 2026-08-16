@@ -12,12 +12,16 @@ import com.xiyu.bid.entity.RoleProfile;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.UserRepository;
+import com.xiyu.bid.security.EffectiveRoleResolver;
+import com.xiyu.bid.security.domain.EffectiveRoleResult;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.Instant;
@@ -25,6 +29,9 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
@@ -49,16 +56,47 @@ class OssRoleNonDiffusionTest {
     @Mock
     private OssPermissionCache ossPermissionCache;
 
+    @Mock
+    private EffectiveRoleResolver effectiveRoleResolver;
+
     @InjectMocks
     private UserDetailsServiceImpl userDetailsService;
+
+    @BeforeEach
+    void setUp() {
+        // 模拟 EffectiveRoleResolver 的真实决策逻辑（与 EffectiveRolePolicy.decide 一致，
+        // 与 UserDetailsServiceImplTest#setUp 同源）：
+        // - OSS 用户缓存 admin：OSS_ADMIN_REJECTED（fail-closed 拒绝）
+        // - OSS 用户缓存命中（非 admin）：缓存 roleCode + CACHE_HIT
+        // - OSS 用户 cache miss：CACHE_MISS_FAIL_CLOSED
+        // - 本地用户：entity roleCode + LOCAL_USER
+        lenient().when(effectiveRoleResolver.resolve(any(User.class))).thenAnswer(inv -> {
+            User u = inv.getArgument(0);
+            Optional<OssPermissionCache.CacheEntry> entry = ossPermissionCache.getEntry(u.getUsername());
+            boolean cacheHit = entry.isPresent() && entry.get().roleCode() != null
+                    && !entry.get().roleCode().isBlank();
+            if (cacheHit) {
+                String cachedRoleCode = entry.get().roleCode();
+                if (u.isOssUser() && "admin".equalsIgnoreCase(cachedRoleCode.trim())) {
+                    return new EffectiveRoleResult(null, EffectiveRoleResult.Source.OSS_ADMIN_REJECTED);
+                }
+                return new EffectiveRoleResult(cachedRoleCode, EffectiveRoleResult.Source.CACHE_HIT);
+            }
+            if (u.isOssUser()) {
+                return new EffectiveRoleResult(null, EffectiveRoleResult.Source.CACHE_MISS_FAIL_CLOSED);
+            }
+            return new EffectiveRoleResult(u.getRoleCode(), EffectiveRoleResult.Source.LOCAL_USER);
+        });
+    }
 
     /**
      * OSS admin 用户即使 OSS 缓存返回 all 权限，也不应触发 catalog seed 扩散。
      *
-     * <p>这是 spec 032 的核心止血逻辑，本测试锁定该行为，确保方案 A 落地后仍生效。
+     * <p>CO-373 + §78 后该行为已升级为 fail-closed 直接拒绝（OSS 的 admin 属于其他系统，
+     * 本系统不接受），拒绝本身即天然保证不扩散。
      */
     @Test
-    @DisplayName("OSS admin 用户缓存含 all 时不扩散 catalog seed 权限")
+    @DisplayName("OSS admin 用户缓存含 all 时 fail-closed 拒绝，不扩散 catalog seed 权限")
     void ossAdminWithAllShouldNotExpandCatalogSeed() {
         User user = ossUser("oss_admin_all", RoleProfileCatalog.ADMIN_CODE);
         when(userRepository.findByUsername("oss_admin_all")).thenReturn(Optional.of(user));
@@ -66,28 +104,16 @@ class OssRoleNonDiffusionTest {
                 RoleProfileCatalog.ADMIN_CODE, List.of("all"), null, Instant.now().plusSeconds(60));
         when(ossPermissionCache.getEntry("oss_admin_all")).thenReturn(Optional.of(entry));
 
-        UserDetails details = userDetailsService.loadUserByUsername("oss_admin_all");
-
-        // all 被过滤（admin 专属）
-        assertThat(details.getAuthorities())
-                .extracting("authority")
-                .doesNotContain("all");
-
-        // 不含其他角色的独有权限键（catalog seed 不扩散）
-        assertThat(details.getAuthorities())
-                .extracting("authority")
-                .doesNotContain(
-                        "bidding.manage", "task.review", "retrospective.submit",
-                        "brand-auth.edit", "certificate.manage", "qualification.view",
-                        "task.view.own", "task.handle.own", "closure.request",
-                        "task.assign", "evaluation.update", "result.register");
+        assertThatThrownBy(() -> userDetailsService.loadUserByUsername("oss_admin_all"))
+                .isInstanceOf(BadCredentialsException.class)
+                .hasMessageContaining("OSS 用户缓存角色为其他系统的 admin");
     }
 
     /**
      * OSS 用户即使 OSS 缓存 roleCode=admin，也不应拿到 system.admin / warehouse.manage 补发。
      *
      * <p>spec 032 + CO-551 修订：OSS 用户的 system.admin/warehouse.manage 由 OSS 菜单映射决定，
-     * 不走本地 admin fallback 补发逻辑。
+     * 不走本地 admin fallback 补发逻辑。CO-373 后 OSS admin 直接 fail-closed 拒绝。
      */
     @Test
     @DisplayName("OSS admin 用户不走本地 admin fallback 补发 system.admin/warehouse.manage")
@@ -99,16 +125,11 @@ class OssRoleNonDiffusionTest {
                 RoleProfileCatalog.ADMIN_CODE, List.of("bidding"), null, Instant.now().plusSeconds(60));
         when(ossPermissionCache.getEntry("oss_admin_no_fallback")).thenReturn(Optional.of(entry));
 
-        UserDetails details = userDetailsService.loadUserByUsername("oss_admin_no_fallback");
-
-        // OSS 用户不通过本地 admin fallback 拿到 system.admin/warehouse.manage
-        // （这些权限只能由 OSS 菜单映射 1010/100408 显式授权）
-        assertThat(details.getAuthorities())
-                .extracting("authority")
-                .doesNotContain(
-                        RoleProfileCatalog.SYSTEM_ADMIN_PERMISSION,
-                        RoleProfileCatalog.WAREHOUSE_MANAGE_PERMISSION)
-                .contains("bidding");
+        // OSS 用户缓存 admin → fail-closed 拒绝，根本不会构造 authorities，
+        // 天然不可能拿到 system.admin/warehouse.manage 补发
+        assertThatThrownBy(() -> userDetailsService.loadUserByUsername("oss_admin_no_fallback"))
+                .isInstanceOf(BadCredentialsException.class)
+                .hasMessageContaining("OSS 用户缓存角色为其他系统的 admin");
     }
 
     /**

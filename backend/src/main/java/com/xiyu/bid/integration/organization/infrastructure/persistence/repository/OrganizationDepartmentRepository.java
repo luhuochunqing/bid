@@ -21,4 +21,10 @@ public interface OrganizationDepartmentRepository extends JpaRepository<Organiza
      * 注意：生产环境 users.department_code 实际存的是 OSS 的 external_dept_id（见 OrganizationDirectoryJsonMapper）。
      */
     List<OrganizationDepartmentEntity> findBySourceAppAndExternalDeptIdIn(String sourceApp, Collection<String> externalDeptIds);
+
+    /**
+     * 获取所有部门（不过滤 enabled 状态），按部门编码排序。
+     * 用于 M1 趋势分析部门下拉选项从 OSS 全量获取。
+     */
+    List<OrganizationDepartmentEntity> findAllByOrderByDepartmentCode();
 }

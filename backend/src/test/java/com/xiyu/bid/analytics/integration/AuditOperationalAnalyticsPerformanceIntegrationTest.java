@@ -23,8 +23,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(NoOpPasswordEncryptionTestConfig.class)
 class AuditOperationalAnalyticsPerformanceIntegrationTest extends AbstractAuditOperationalAnalyticsIntegrationTest {
 
+    // P0-1 数据权限守卫为每个端点引入 1 次用户解析查询，各基线相应上调 1
     @Test
-    @WithMockUser(username = "admin", authorities = {"ROLE_ADMIN", "dashboard", "all"})
+    @WithMockUser(username = "audit-admin", authorities = {"ROLE_ADMIN", "dashboard", "all"})
     void analyticsQueries_ShouldStayBelowNaiveBaselines() throws Exception {
         long productLineStatements = measureStatements(() -> mockMvc.perform(get("/api/analytics/product-lines"))
                 .andExpect(status().isOk()));
@@ -33,7 +34,7 @@ class AuditOperationalAnalyticsPerformanceIntegrationTest extends AbstractAuditO
                 .as("product-lines should use fewer SQL statements than the naive baseline")
                 .isGreaterThan(0L)
                 .isLessThan(productLineBaseline)
-                .isLessThanOrEqualTo(4L);
+                .isLessThanOrEqualTo(5L);
 
         long drillDownStatements = measureStatements(() -> mockMvc.perform(get("/api/analytics/drill-down")
                 .param("type", "trend")
@@ -44,7 +45,7 @@ class AuditOperationalAnalyticsPerformanceIntegrationTest extends AbstractAuditO
                 .as("drill-down should use fewer SQL statements than the naive baseline")
                 .isGreaterThan(0L)
                 .isLessThan(drillDownBaseline)
-                .isLessThanOrEqualTo(8L);
+                .isLessThanOrEqualTo(9L);
 
         long winRateStatements = measureStatements(() -> mockMvc.perform(get("/api/analytics/drilldown/win-rate")
                 .param("outcome", "WON"))
@@ -54,7 +55,7 @@ class AuditOperationalAnalyticsPerformanceIntegrationTest extends AbstractAuditO
                 .as("win-rate drill-down should use fewer SQL statements than the naive baseline")
                 .isGreaterThan(0L)
                 .isLessThan(winRateBaseline)
-                .isLessThanOrEqualTo(8L);
+                .isLessThanOrEqualTo(9L);
 
         long teamStatements = measureStatements(() -> mockMvc.perform(get("/api/analytics/drilldown/team")
                 .param("role", "ADMIN"))
@@ -64,6 +65,6 @@ class AuditOperationalAnalyticsPerformanceIntegrationTest extends AbstractAuditO
                 .as("team drill-down should use fewer SQL statements than the naive baseline")
                 .isGreaterThan(0L)
                 .isLessThan(teamBaseline)
-                .isLessThanOrEqualTo(8L);
+                .isLessThanOrEqualTo(9L);
     }
 }

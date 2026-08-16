@@ -25,7 +25,7 @@ public final class PerformanceBundleGroupTypes {
         // 纯数据结构集合，禁止实例化
     }
 
-    /** H1: 客户类型分组（央企 / 地方国企 / 民企 / 政府机关/事业单位 / 港澳台及外企）。 */
+    /** H1: 客户类型分组（央企 / 地方国企 / 民企 / 政府机关/事业单位/高校 / 港澳台及外企）。 */
     public record CustomerTypeGroup(
             CustomerType customerType,
             List<GroupCompanyGroup> groups

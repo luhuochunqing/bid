@@ -9,11 +9,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -22,16 +19,13 @@ public class CustomerTypeAnalyticsQueryService {
 
     @PersistenceContext
     private EntityManager entityManager;
+
     private final ProjectAccessScopeService projectAccessScopeService;
 
     List<CustomerTypeProjectRow> fetchProjectRows(LocalDate startDate, LocalDate endDate) {
-        Set<Long> projectIds = scopedProjectIds();
-        if (projectIds != null && projectIds.isEmpty()) {
-            return List.of();
-        }
-        // allAccess=true 短路整个 WHERE 条件，所以 projectIds 实际值在 admin 访问时无意义；
-        // 为保持语义清晰，使用空集合而非 Set.of(-1L)
-        Set<Long> queryProjectIds = projectIds == null ? Set.of() : projectIds;
+        // 项目级数据权限：非全局角色仅可见授权范围内项目（防御式兜底，页面权限已限 GLOBAL_ACCESS_ROLES）
+        Set<Long> scopeIds = AnalyticsProjectScopeSupport.scopedProjectIds(projectAccessScopeService);
+        boolean allAccess = scopeIds == null;
         return entityManager.createQuery("""
                         select new com.xiyu.bid.analytics.model.CustomerTypeProjectRow(
                             p.id,
@@ -51,28 +45,15 @@ public class CustomerTypeAnalyticsQueryService {
                         from Project p
                         left join Tender t on t.id = p.tenderId
                         left join User u on u.id = p.managerId
-                        where (:allAccess = true or p.id in :projectIds)
-                          and (:startDate is null or coalesce(p.startDate, p.createdAt) >= :startDate)
-                          and (:endDate is null or coalesce(p.startDate, p.createdAt) <= :endDate)
-                        order by coalesce(p.startDate, p.createdAt) desc, p.id desc
+                        where (:allAccess = true or p.id in :scopeIds)
+                          and (:startDate is null or p.createdAt >= :startDate)
+                          and (:endDate is null or p.createdAt <= :endDate)
+                        order by p.createdAt desc, p.id desc
                         """, CustomerTypeProjectRow.class)
-                .setParameter("allAccess", projectIds == null)
-                .setParameter("projectIds", queryProjectIds)
+                .setParameter("allAccess", allAccess)
+                .setParameter("scopeIds", allAccess ? Set.of(-1L) : scopeIds)
                 .setParameter("startDate", startDate == null ? null : startDate.atStartOfDay())
                 .setParameter("endDate", endDate == null ? null : endDate.atTime(23, 59, 59))
                 .getResultList();
-    }
-
-    private Set<Long> scopedProjectIds() {
-        if (projectAccessScopeService.currentUserHasAdminAccess()) {
-            return null;
-        }
-        List<Long> allowedIds = projectAccessScopeService.getAllowedProjectIdsForCurrentUser();
-        if (allowedIds == null || allowedIds.isEmpty()) {
-            return Set.of();
-        }
-        return allowedIds.stream()
-                .filter(Objects::nonNull)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 }

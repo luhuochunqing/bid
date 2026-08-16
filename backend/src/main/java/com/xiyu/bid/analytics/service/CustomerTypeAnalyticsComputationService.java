@@ -11,22 +11,37 @@ import java.math.RoundingMode;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Component
 class CustomerTypeAnalyticsComputationService {
 
-    static final String UNCATEGORIZED_CUSTOMER_TYPE = "未分类";
     private static final String ALL_FILTER = "ALL";
 
+    // 5 种标准客户类型分类（与 Excel 导入模板一致）
+    private static final String CATEGORY_GOVERNMENT = "政府机关/事业单位/高校";
+    private static final String CATEGORY_CENTRAL_SOE = "央企";
+    private static final String CATEGORY_LOCAL_SOE = "地方国企";
+    private static final String CATEGORY_PRIVATE = "民企";
+    private static final String CATEGORY_FOREIGN = "港澳台及外企";
+    private static final Set<String> ALLOWED_CATEGORIES = Set.of(
+            CATEGORY_GOVERNMENT, CATEGORY_CENTRAL_SOE, CATEGORY_LOCAL_SOE,
+            CATEGORY_PRIVATE, CATEGORY_FOREIGN
+    );
+
     List<CustomerTypeAggregate> summarize(List<CustomerTypeProjectRow> rows) {
-        long totalProjects = rows.size();
+        // 初始化所有 5 种标准分类（即使 count=0 也包含在结果中）
         Map<String, MutableCustomerTypeAggregate> aggregates = new LinkedHashMap<>();
+        for (String category : ALLOWED_CATEGORIES) {
+            aggregates.put(category, new MutableCustomerTypeAggregate(category));
+        }
+
+        // 只统计精确匹配 5 种分类的项目，不匹配的跳过
         for (CustomerTypeProjectRow row : rows) {
             String cType = normalizeCustomerType(row.customerType());
-            MutableCustomerTypeAggregate aggregate = aggregates.computeIfAbsent(
-                    cType,
-                    MutableCustomerTypeAggregate::new
-            );
+            if (cType == null) continue;
+            MutableCustomerTypeAggregate aggregate = aggregates.get(cType);
+            if (aggregate == null) continue;
             aggregate.projectCount++;
             if (!row.projectStatus().isTerminal()) {
                 aggregate.activeProjectCount++;
@@ -36,6 +51,10 @@ class CustomerTypeAnalyticsComputationService {
             }
             aggregate.totalAmount = aggregate.totalAmount.add(defaultAmount(row.amount()));
         }
+
+        long totalProjects = aggregates.values().stream()
+                .mapToLong(a -> a.projectCount)
+                .sum();
 
         return aggregates.values().stream()
                 .map(aggregate -> aggregate.toImmutable(totalProjects))
@@ -62,15 +81,25 @@ class CustomerTypeAnalyticsComputationService {
             return rows;
         }
         return rows.stream()
-                .filter(row -> normalizeCustomerType(row.customerType()).equals(normalizedFilter))
+                .filter(row -> {
+                    String normalized = normalizeCustomerType(row.customerType());
+                    return normalized != null && normalized.equals(normalizedFilter);
+                })
                 .toList();
     }
 
+    /**
+     * 只返回精确匹配 5 种标准分类的值，不匹配的返回 null（跳过不统计）。
+     */
     String normalizeCustomerType(String customerType) {
         if (customerType == null || customerType.isBlank()) {
-            return UNCATEGORIZED_CUSTOMER_TYPE;
+            return null;
         }
-        return customerType.trim();
+        String trimmed = customerType.trim();
+        if (ALLOWED_CATEGORIES.contains(trimmed)) {
+            return trimmed;
+        }
+        return null;
     }
 
     String deriveOutcome(CustomerTypeProjectRow row) {
