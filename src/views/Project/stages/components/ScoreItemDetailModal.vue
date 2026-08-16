@@ -190,3 +190,9 @@ const suggestionText = computed(() => {
 .detail-suggestion { background: var(--status-info-bg); border-left: 3px solid var(--status-info-color); padding: 10px 12px; margin-top: 6px; border-radius: 0 4px 4px 0; color: var(--status-info-color); font-size: 12px; line-height: 1.7; }
 .suggestion-title { font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 4px; }
 </style>
+
+<style>
+/* PRD 6.4：弹窗整体高度不超过视口 70%，超出内容在 body 内部滚动（el-dialog 为 append-to-body 挂载，scoped 样式不可达） */
+.score-item-detail-dialog.el-dialog { max-height: 70vh; display: flex; flex-direction: column; }
+.score-item-detail-dialog.el-dialog .el-dialog__body { overflow-y: auto; flex: 1; }
+</style>
