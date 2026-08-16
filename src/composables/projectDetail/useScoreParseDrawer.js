@@ -4,9 +4,10 @@
 
 import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { bidAgentApi } from '@/api/modules/bidAgent.js'
+import { scoreParseApi } from '@/api/modules/scoreParse.js'
 import { projectsApi } from '@/api/modules/projects.js'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
+import { STATUS_MAP, formatTime, pollTask } from './scoreParseTask.js'
 
 export function useScoreParseDrawer(props, emit) {
   const visible = ref(false)
@@ -16,10 +17,10 @@ export function useScoreParseDrawer(props, emit) {
   const currentStage = ref(2)
   const scored = ref(false)
   const scoringOverlayVisible = ref(false)
-  const sourceFileName = ref('国家级数据中心扩容项目招标文件.pdf')
-  const parseTime = ref('2026-08-15 14:00:00')
-  const bidFileName = ref('西域数智化投标文件_v3.pdf')
-  const scoreTime = ref('2026-08-15 14:30:00')
+  const sourceFileName = ref('—')
+  const parseTime = ref('—')
+  const bidFileName = ref('—')
+  const scoreTime = ref('—')
   const importing = ref(false)
 
   const scoreItems = ref([])
@@ -94,20 +95,20 @@ export function useScoreParseDrawer(props, emit) {
   }
 
   function normalizeScoreItem(s, i) {
-    const reqText = s.req || s.indicator || s.detail || s.name || ''
-    const weight = Number(s.weight ?? 0)
-    const isSubj = s.isSubjective || (s.subType === 'TECHNICAL_EVALUATION') || (s.scoreType === '主观项')
+    const isSubj = s.scoreType === 'SUBJECTIVE' || s.scoreType === '主观项'
+    const status = STATUS_MAP[s.status] || 'neutral'
     return {
-      code: s.itemNumber || s.code || `S${i + 1}`,
-      dim: s.dimension || s.dim || '评分项',
-      req: reqText,
-      detail: s.detail || reqText,
-      weight,
-      status: s.status || 'neutral',
-      statusText: s.statusText || (s.status === 'ok' ? '满足' : s.status === 'danger' ? '不满足' : '待确认'),
+      code: s.code || `S${i + 1}`,
+      dim: s.dim || '评分项',
+      req: s.detail || '',
+      detail: s.detail || '',
+      weight: Number(s.weight ?? 0),
+      status,
+      statusText: status === 'ok' ? '满足' : status === 'danger' ? '不满足' : '待确认',
       scoreType: isSubj ? '主观项' : '客观项',
-      estScore: s.estScore != null ? s.estScore : (isSubj ? '待评审' : weight),
-      estBasis: s.estBasis || (isSubj ? '主观方案类评分项，需由评标专家根据方案深度综合评定' : '根据标书描述与资质匹配情况综合评审'),
+      // 主观项后端强制 null（spec 041 FR-014）；客观项未匹配也无预判，显示 —
+      estScore: s.estScore != null ? Number(s.estScore) : (isSubj ? '待评审' : '—'),
+      estBasis: s.estBasis || (isSubj ? '主观方案类评分项，需由评标专家根据方案深度综合评定' : '—'),
     }
   }
 
@@ -115,22 +116,9 @@ export function useScoreParseDrawer(props, emit) {
     loading.value = true
     error.value = ''
     try {
-      const [analysisRes, criteriaRes] = await Promise.allSettled([
-        bidAgentApi.getFullAnalysis(props.projectId),
-        bidAgentApi.getScoringCriteria(props.projectId),
-      ])
-
-      const analysisData = analysisRes.status === 'fulfilled' ? analysisRes.value?.data : null
-      const criteriaData = criteriaRes.status === 'fulfilled' ? criteriaRes.value?.data : null
-
-      if (analysisData?.sourceFileName) sourceFileName.value = analysisData.sourceFileName
-      if (analysisData?.bidFileName) bidFileName.value = analysisData.bidFileName
-      parseTime.value = analysisData?.parseTime || new Date().toLocaleString('zh-CN', { hour12: false })
-      scoreTime.value = analysisData?.scoreTime || new Date().toLocaleString('zh-CN', { hour12: false })
-
-      const apiItems = criteriaData?.structuredItems ||
-        analysisData?.scoringCriteria?.structuredItems ||
-        analysisData?.scoringCriteria?.items
+      // spec 041 真接口：GET /score-parse/items（阶段 1 清单）
+      const res = await scoreParseApi.getItems(props.projectId)
+      const apiItems = res?.data?.items
 
       if (Array.isArray(apiItems) && apiItems.length > 0) {
         scoreItems.value = apiItems.map(normalizeScoreItem)
@@ -166,28 +154,31 @@ export function useScoreParseDrawer(props, emit) {
       if (customRunner) {
         await customRunner()
       } else {
-        const evalRes = await bidAgentApi.evaluateBidScore(props.projectId)
-        const evalData = evalRes?.data || {}
-        if (evalData.items && Array.isArray(evalData.items)) {
+        // spec 041 真接口：POST /scoring（异步触发）→ 轮询 status → GET /results
+        await scoreParseApi.triggerScoring(props.projectId)
+        const done = await pollTask(() => scoreParseApi.getScoringStatus(props.projectId))
+        if (done?.completedAt) scoreTime.value = formatTime(done.completedAt)
+
+        const resultsRes = await scoreParseApi.getResults(props.projectId)
+        const results = resultsRes?.data?.results
+        if (Array.isArray(results)) {
           const resultMap = {}
-          for (const item of evalData.items) {
-            resultMap[item.code] = {
-              score: item.actualScore != null ? Number(item.actualScore) : null,
-              status: item.status,
-              evalText: item.isSubjective ? '待专家评审' : `${item.actualScore ?? 0} 分`,
-              basis: item.basis,
-              quote: item.quote,
-              missedReason: item.missedReason,
-              suggestion: item.suggestion,
+          for (const r of results) {
+            const isSubj = r.scoreType === 'SUBJECTIVE'
+            resultMap[r.code] = {
+              score: r.actualScore != null ? Number(r.actualScore) : null,
+              status: STATUS_MAP[r.status] || 'neutral',
+              evalText: isSubj ? '待专家评审' : (r.actualScore != null ? `${Number(r.actualScore)} 分` : '—'),
+              basis: r.evidence,
+              quote: r.quote,
+              missedReason: r.missedReason,
+              suggestion: r.suggestion,
             }
           }
           scoreResults.value = resultMap
-          if (evalData.bidFileName) bidFileName.value = evalData.bidFileName
-          if (evalData.scoreTime) scoreTime.value = evalData.scoreTime
         }
       }
       scored.value = true
-      scoreTime.value = new Date().toLocaleString('zh-CN', { hour12: false })
       ElMessage.success(isAuto ? 'AI 自动打分完成' : 'AI 实际打分完成')
     } catch (e) {
       notifyErrorUnlessRateLimit(e, '打分失败')
@@ -197,8 +188,19 @@ export function useScoreParseDrawer(props, emit) {
   }
 
   async function reparse() {
-    await open({ stage: currentStage.value, autoScore: false })
-    ElMessage.success('已重新解析评分标准')
+    try {
+      scoringOverlayVisible.value = true
+      // spec 041 真接口：POST /parse（FR-021 覆盖旧解析结果）→ 轮询 → 重拉 items
+      await scoreParseApi.triggerParse(props.projectId)
+      const done = await pollTask(() => scoreParseApi.getParseStatus(props.projectId))
+      if (done?.completedAt) parseTime.value = formatTime(done.completedAt)
+      await fetchAnalysisData({ stage: currentStage.value, autoScore: false })
+      ElMessage.success('已重新解析评分标准')
+    } catch (e) {
+      notifyErrorUnlessRateLimit(e, '重新解析失败')
+    } finally {
+      scoringOverlayVisible.value = false
+    }
   }
 
   function exportReport() {

@@ -118,6 +118,14 @@ backlinks:
   - 风险等级自动判定：80-100 低风险、60-79 中等风险、0-59 高风险
   - 支持项目历史趋势跟踪与多项目对比分析，支持一键导入到项目评分草稿库。
 
+#### AI 评分标准解析 V3 抽屉（spec 041）
+
+- 前端：`ScoreParseDrawer.vue` + `useScoreParseDrawer.js` + `scoreParseTask.js`（轮询/枚举映射）
+- API 模块：`src/api/modules/scoreParse.js` → spec 041 真接口 `/api/projects/{id}/score-parse/*`
+- 阶段 2 实际打分走异步任务：`triggerScoring → pollTask(2s/150次) → getResults`
+- 状态映射：OK/DANGER/PENDING → ok/danger/neutral；OBJECTIVE/SUBJECTIVE → 客观项/主观项
+- 假后端已清除：`biddraftagent` 的 BidScoreEvaluationPolicy/AppService/score-evaluation 端点（关键词硬编码打分）已删除，统一走 spec 041 真 LLM 打分
+
 ### 3.3 竞争情报
 
 **配置 ID**：`competition-intel` | **类别**：`prepare`

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import ScoreParseDrawer from './ScoreParseDrawer.vue'
 import ScoreItemDetailModal from './ScoreItemDetailModal.vue'
-import { bidAgentApi } from '@/api/modules/bidAgent.js'
+import { scoreParseApi } from '@/api/modules/scoreParse.js'
 import { projectsApi } from '@/api/modules/projects.js'
 import { ElMessageBox, ElMessage } from 'element-plus'
 
@@ -22,13 +22,14 @@ vi.mock('element-plus', async (importOriginal) => {
   }
 })
 
-vi.mock('@/api/modules/bidAgent.js', () => ({
-  bidAgentApi: {
-    getFullAnalysis: vi.fn(),
-    getQualificationMatch: vi.fn(),
-    getScoringCriteria: vi.fn(),
-    evaluateBidScore: vi.fn(),
-    getBidScoreEvaluation: vi.fn(),
+vi.mock('@/api/modules/scoreParse.js', () => ({
+  scoreParseApi: {
+    getItems: vi.fn(),
+    triggerParse: vi.fn(),
+    getParseStatus: vi.fn(),
+    triggerScoring: vi.fn(),
+    getScoringStatus: vi.fn(),
+    getResults: vi.fn(),
   },
 }))
 
@@ -38,22 +39,20 @@ vi.mock('@/api/modules/projects.js', () => ({
   },
 }))
 
-const qaCriteriaFixture = [
-  { itemNumber: 'A1', dimension: '技术方案', indicator: '总体架构设计', weight: 12, status: 'neutral', statusText: '待确认', scoreType: '主观项', estScore: '待评审' },
-  { itemNumber: 'D1', dimension: '资质业绩', indicator: 'ISO9001 质量认证', weight: 6, status: 'ok', statusText: '✓ 满足', scoreType: '客观项', estScore: 6 },
-  { itemNumber: 'D2', dimension: '资质业绩', indicator: 'CMMI 5 级认证', weight: 5, status: 'danger', statusText: '✗ 不满足', scoreType: '客观项', estScore: 0 },
+// spec 041 真接口 DTO 形状（ScoreItemDTO / ScoreScoringResultsDTO）
+const qaItemsFixture = [
+  { id: 1, code: 'A1', dim: '技术方案', detail: '总体架构设计', weight: 12, scoreType: 'SUBJECTIVE', status: 'PENDING', estScore: null, estBasis: null, kbHit: null },
+  { id: 2, code: 'D1', dim: '资质业绩', detail: 'ISO9001 质量认证', weight: 6, scoreType: 'OBJECTIVE', status: 'OK', estScore: 6, estBasis: '知识库命中 ISO9001 证书', kbHit: true },
+  { id: 3, code: 'D2', dim: '资质业绩', detail: 'CMMI 5 级认证', weight: 5, scoreType: 'OBJECTIVE', status: 'DANGER', estScore: 0, estBasis: '知识库无 CMMI 5 级证书', kbHit: false },
 ]
 
-const qaEvaluationFixture = {
-  projectId: 1001,
-  bidFileName: '西域数智化投标文件_v3.pdf',
-  scoreTime: '2026-08-15 14:30:00',
-  actualTotalScore: 9,
-  items: [
-    { code: 'A1', actualScore: null, status: 'PENDING_EXPERT', isSubjective: true, basis: '主观方案类需专家综合评审', quote: null, missedReason: null, suggestion: '建议细化微服务与容灾架构' },
-    { code: 'D1', actualScore: 6, status: 'SATISFIED', isSubjective: false, basis: '匹配到 ISO9001 证书', quote: '第 7 章资质证明：已取得 ISO9001 证书', missedReason: null, suggestion: '' },
-    { code: 'D2', actualScore: 3, status: 'PARTIALLY_SATISFIED', isSubjective: false, basis: '标书已补充 CMMI 3 级说明及替代方案', quote: '第 7 章资质证明：我方已通过 CMMI 3 级认证', missedReason: 'CMMI 5 级认证未找到匹配证书', suggestion: '建议尽快启动 CMMI 5 级认证评估流程' },
+const qaResultsFixture = {
+  results: [
+    { scoreItemId: 1, code: 'A1', dim: '技术方案', detail: '总体架构设计', weight: 12, scoreType: 'SUBJECTIVE', status: 'PENDING', actualScore: null, evidence: null, quote: null, missedReason: null, suggestion: '建议细化微服务与容灾架构' },
+    { scoreItemId: 2, code: 'D1', dim: '资质业绩', detail: 'ISO9001 质量认证', weight: 6, scoreType: 'OBJECTIVE', status: 'OK', actualScore: 6, evidence: '标书第 7 章提供 ISO9001 证书复印件', quote: '第 7 章资质证明：已取得 ISO9001 证书', missedReason: null, suggestion: null },
+    { scoreItemId: 3, code: 'D2', dim: '资质业绩', detail: 'CMMI 5 级认证', weight: 5, scoreType: 'OBJECTIVE', status: 'PENDING', actualScore: 3, evidence: '标书已补充 CMMI 3 级说明及替代方案', quote: '第 7 章资质证明：我方已通过 CMMI 3 级认证', missedReason: 'CMMI 5 级认证未找到匹配证书', suggestion: '建议尽快启动 CMMI 5 级认证评估流程' },
   ],
+  summary: null,
 }
 
 describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
@@ -73,27 +72,12 @@ describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     ElMessageBox.confirm.mockResolvedValue('confirm')
-    bidAgentApi.getFullAnalysis.mockResolvedValue({
-      data: {
-        sourceFileName: '国家级数据中心扩容项目招标文件.pdf',
-        bidFileName: '西域数智化投标文件_v3.pdf',
-        parseTime: '2026-08-15 14:00:00',
-        scoreTime: '2026-08-15 14:30:00',
-        scoringCriteria: {
-          items: qaCriteriaFixture,
-        },
-      },
-    })
-    bidAgentApi.getQualificationMatch.mockResolvedValue({ data: {} })
-    bidAgentApi.getScoringCriteria.mockResolvedValue({
-      data: {
-        sourceFileName: '国家级数据中心扩容项目招标文件.pdf',
-        structuredItems: qaCriteriaFixture,
-      },
-    })
-    bidAgentApi.evaluateBidScore.mockResolvedValue({
-      data: qaEvaluationFixture,
-    })
+    scoreParseApi.getItems.mockResolvedValue({ data: { items: qaItemsFixture, summary: null } })
+    scoreParseApi.triggerParse.mockResolvedValue({ data: { taskId: 't-parse', status: 'PENDING' } })
+    scoreParseApi.getParseStatus.mockResolvedValue({ data: { taskId: 't-parse', status: 'COMPLETED', progress: 100, completedAt: '2026-08-15T14:00:00' } })
+    scoreParseApi.triggerScoring.mockResolvedValue({ data: { taskId: 't-score', status: 'PENDING' } })
+    scoreParseApi.getScoringStatus.mockResolvedValue({ data: { taskId: 't-score', status: 'COMPLETED', progress: 100, completedAt: '2026-08-15T14:30:00' } })
+    scoreParseApi.getResults.mockResolvedValue({ data: qaResultsFixture })
     projectsApi.importScoreDraftsFromAnalysis.mockResolvedValue({
       data: { importedCount: 3 },
     })
@@ -111,7 +95,8 @@ describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
     expect(wrapper.vm.visible).toBe(true)
     expect(wrapper.vm.currentStage).toBe(1)
     expect(wrapper.text()).toContain('阶段 1 · 招标文件解析')
-    expect(wrapper.text()).toContain('国家级数据中心扩容项目招标文件.pdf')
+    // 真接口不返回文件名，展示 — 占位而非硬编码假文件名
+    expect(wrapper.text()).toContain('招标文件：—')
 
     // 验证评分标准与维度
     expect(wrapper.vm.scoreItems.length).toBe(3)
@@ -141,10 +126,12 @@ describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
 
     await wrapper.vm.open({ stage: 2, autoScore: false })
 
-    expect(bidAgentApi.evaluateBidScore).toHaveBeenCalledWith(projectId)
+    // spec 041 真接口：触发 → 轮询 → 拉结果
+    expect(scoreParseApi.triggerScoring).toHaveBeenCalledWith(projectId)
+    expect(scoreParseApi.getScoringStatus).toHaveBeenCalledWith(projectId)
+    expect(scoreParseApi.getResults).toHaveBeenCalledWith(projectId)
     expect(wrapper.vm.currentStage).toBe(2)
     expect(wrapper.text()).toContain('阶段 2 · 投标文件打分')
-    expect(wrapper.text()).toContain('西域数智化投标文件_v3.pdf')
 
     // 验证实际得分总和（客观项满分 11 分中实际获得 9 分）
     expect(wrapper.vm.actualTotalScore).toBe(9)
@@ -241,8 +228,7 @@ describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
 
   // QA-TC06: 空数据状态验收（PRD §5.3）
   it('QA-TC06: [空状态] 当未解析到评分标准时，展示标准空状态提示而非虚假模板', async () => {
-    bidAgentApi.getFullAnalysis.mockResolvedValue({ data: {} })
-    bidAgentApi.getScoringCriteria.mockResolvedValue({ data: { structuredItems: [] } })
+    scoreParseApi.getItems.mockResolvedValue({ data: { items: [], summary: null } })
 
     const wrapper = mount(ScoreParseDrawer, {
       props: { projectId },
