@@ -17,7 +17,7 @@ class ItemCountCheckTest {
         // 0 项 → 解析失败终态（FR-007：任务 FAILED + "未在文件中识别到评分标准章节"）
         ItemCountCheck.Result result = check.check(0);
         assertThat(result.failed()).isTrue();
-        assertThat(result.failureMessage()).isEqualTo("未在文件中识别到评分标准章节");
+        assertThat(result.failureMessage()).isEqualTo("未在文件中识别到评分标准章节，请确认文件内容或手动联系管理员");
     }
 
     @Test

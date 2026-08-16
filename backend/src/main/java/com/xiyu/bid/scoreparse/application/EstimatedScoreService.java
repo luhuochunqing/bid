@@ -122,7 +122,7 @@ public class EstimatedScoreService {
         LocalDate today = LocalDate.now();
         return switch (category) {
             case KnowledgeCategoryPolicy.CATEGORY_CERT -> certMatchService.match(new CertMatchRequest(
-                    keywords, null, today, null));
+                    keywords, categoryPolicy.extractLevel(detail), today, null));
             case KnowledgeCategoryPolicy.CATEGORY_PERSON -> personMatchService.match(new PersonMatchRequest(
                     keywords, null, categoryPolicy.extractCount(detail, "人")));
             case KnowledgeCategoryPolicy.CATEGORY_PROJECT -> projectMatchService.match(new ProjectMatchRequest(
@@ -152,6 +152,9 @@ public class EstimatedScoreService {
     }
 
     private String buildBasis(String category, KnowledgeMatchResult match, boolean flagged) {
+        if (flagged && KnowledgeCategoryPolicy.CATEGORY_CERT.equals(category)) {
+            return "证书已过期，标书需补充说明或更新证书";
+        }
         String label = switch (category) {
             case KnowledgeCategoryPolicy.CATEGORY_CERT -> "资质证书";
             case KnowledgeCategoryPolicy.CATEGORY_PERSON -> "人员";

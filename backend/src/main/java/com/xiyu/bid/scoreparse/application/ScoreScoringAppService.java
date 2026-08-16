@@ -14,8 +14,8 @@ import com.xiyu.bid.scoreparse.domain.ScoreAssessmentGuard;
 import com.xiyu.bid.scoreparse.domain.ScoreStatusPolicy;
 import com.xiyu.bid.scoreparse.domain.SummaryAggregator;
 import com.xiyu.bid.scoreparse.dto.ScoreParseProgressDTO;
-import com.xiyu.bid.scoreparse.dto.ScoreScoringResultsDTO;
 import com.xiyu.bid.scoreparse.dto.ScoreParseTriggerDTO;
+import com.xiyu.bid.scoreparse.dto.ScoreScoringResultsDTO;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
 import com.xiyu.bid.scoreparse.entity.ScoreResult;
@@ -34,20 +34,15 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 阶段 2 投标文件实际打分应用服务（spec 041 US4 编排层）。
- *
- * <p>triggerScoring（同步，&lt;1s）：FR-019 前置校验（标书已上传 + 评分项就绪 +
- * 任务互斥）→ 创建 PENDING 任务 → 自代理触发异步执行。
- * <p>executeScoringAsync（异步，分钟级）：读取投标文件全文 → 逐项 LLM 对标
- * （客观项打分 / 主观项建议）→ {@link ScoreAssessmentGuard} 守卫 →
- * 全部成功后整批覆盖 score_result（FR-021；中途失败不删旧结果，US4 场景 6）。
- *
- * <p>纯核心决策在 domain（ScoreAssessmentGuard/ScoreStatusPolicy），
- * 本类只做编排与持久化（FP-Java Split-First）。
  */
 @Service
 @RequiredArgsConstructor
@@ -56,8 +51,6 @@ public class ScoreScoringAppService {
 
     private static final String TASK_TYPE_SCORING = "SCORING";
     private static final List<String> ACTIVE_STATUSES = List.of("PENDING", "PROCESSING");
-    private static final String BID_DOCUMENT_CATEGORY = "BID_FILE";
-    /** LLM 单项上下文节选上限（全文超长时截取，避免 prompt 超限） */
     private static final int BID_DOC_EXCERPT_MAX_CHARS = 12000;
 
     private final ScoreParseTaskRepository taskRepository;
@@ -74,23 +67,15 @@ public class ScoreScoringAppService {
     private final ScoreStatusPolicy statusPolicy = new ScoreStatusPolicy();
     private final SummaryAggregator summaryAggregator = new SummaryAggregator();
 
-    /** 自身代理（解决 @Async 自调用失效）；@Lazy 避免循环依赖 */
     @Lazy
     @Autowired
     private ScoreScoringAppService self;
 
-    /**
-     * 触发实际打分（FR-019）。
-     * <p>前置校验失败抛 IllegalArgumentException（Controller 转 400 语义）：
-     * NO_BID_DOCUMENT（需先上传标书）/ SCORE_ITEMS_NOT_READY（需先完成解析）。
-     * 已有进行中打分任务时幂等返回该任务。
-     */
+    /** 触发实际打分（FR-019 前置校验与创建任务） */
     public ScoreParseTriggerDTO triggerScoring(Long projectId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
 
-        List<ProjectDocument> bidDocs = projectDocumentRepository
-                .findByProjectIdAndFiltersOrderByCreatedAtDesc(
-                        projectId, BID_DOCUMENT_CATEGORY, null, null);
+        List<ProjectDocument> bidDocs = findBidDocuments(projectId);
         if (bidDocs.isEmpty()) {
             throw new IllegalArgumentException("NO_BID_DOCUMENT");
         }
@@ -143,7 +128,7 @@ public class ScoreScoringAppService {
             results.add(assessItem(task, item, bidDocText));
         }
 
-        // FR-021 整批覆盖：全部 assess 成功后才删旧写新（失败路径不触及旧结果）
+        // FR-021 整批覆盖：全部 assess 成功后才删旧写新
         updateProgress(taskId, 95, "PERSIST", "打分结果落库");
         resultRepository.deleteByScoreItemIdIn(
                 items.stream().map(ScoreItem::getId).toList());
@@ -154,24 +139,38 @@ public class ScoreScoringAppService {
         progressService.clearProgress(taskId);
     }
 
+    private List<ProjectDocument> findBidDocuments(Long projectId) {
+        List<ProjectDocument> docs = projectDocumentRepository
+                .findByProjectIdAndFiltersOrderByCreatedAtDesc(projectId, "BID", null, null);
+        if (!docs.isEmpty()) {
+            return docs;
+        }
+        docs = projectDocumentRepository
+                .findByProjectIdAndFiltersOrderByCreatedAtDesc(projectId, "BID_FILE", null, null);
+        if (!docs.isEmpty()) {
+            return docs;
+        }
+        return projectDocumentRepository
+                .findByProjectIdAndFiltersOrderByCreatedAtDesc(projectId, "BID_DOCUMENT", null, null);
+    }
+
     private String loadBidDocumentText(Long projectId) {
-        ProjectDocument bidDoc = projectDocumentRepository
-                .findByProjectIdAndFiltersOrderByCreatedAtDesc(
-                        projectId, BID_DOCUMENT_CATEGORY, null, null)
-                .stream().findFirst()
-                .orElseThrow(() -> new IllegalStateException(
-                        "投标文件不存在，项目: " + projectId));
+        List<ProjectDocument> bidDocs = findBidDocuments(projectId);
+        if (bidDocs.isEmpty()) {
+            throw new IllegalStateException("投标文件不存在，项目: " + projectId);
+        }
+        ProjectDocument bidDoc = bidDocs.get(0);
         LoadedTenderDocument loaded = documentStorage.loadByFileUrl(bidDoc.getFileUrl())
-                .orElseThrow(() -> new IllegalStateException(
-                        "投标文件加载失败: " + bidDoc.getFileUrl()));
+                .orElseThrow(() -> new IllegalStateException("投标文件加载失败: " + bidDoc.getFileUrl()));
         ExtractedTenderDocument extracted = textExtractor.extract(
                 bidDoc.getName(), null, loaded.content());
         return extracted.text();
     }
 
-    /** 单项对标：LLM 输出 → ScoreAssessmentGuard 守卫 → ScoreResult（状态由 ScoreStatusPolicy 判定） */
+    /** 单项对标：LLM 输出 → ScoreAssessmentGuard 守卫 → ScoreResult */
     private ScoreResult assessItem(ScoreParseTask task, ScoreItem item, String bidDocText) {
-        String excerpt = truncate(bidDocText);
+        String excerpt = ScoreDocExcerptExtractor.extractRelevantExcerpt(
+                bidDocText, item, BID_DOC_EXCERPT_MAX_CHARS);
         ScoreAssessmentOutput output;
         if (ScoreAssessmentGuard.TYPE_SUBJECTIVE.equals(item.getScoreType())) {
             output = scoreAnalyzer.assessSubjective(item.getDetail(), excerpt);
@@ -217,18 +216,14 @@ public class ScoreScoringAppService {
                 .build();
     }
 
-    /** 查询打分状态（Redis 优先，DB fallback） */
+    /** 查询打分状态 */
     public ScoreParseProgressDTO getStatus(Long projectId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         ScoreParseTask task = latestTask(projectId, TASK_TYPE_SCORING);
         return progressService.getProgress(task.getTaskId());
     }
 
-    /**
-     * 查询打分结果（契约 §7）。
-     * <p>FR-018：阶段 2 输出不含 kbHit；未打分项 status=null（前端显示未打分）。
-     * 汇总复用 {@link com.xiyu.bid.scoreparse.domain.SummaryAggregator}（得分换传 actualScore）。
-     */
+    /** 阶段 2 打分结果查询（契约 §7）：按 item_index 升序，合并 item 基础信息与打分结果 */
     public ScoreScoringResultsDTO getResults(Long projectId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         List<ScoreItem> items = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId);
@@ -237,25 +232,25 @@ public class ScoreScoringAppService {
                     BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0,
                     BigDecimal.ZERO, BigDecimal.ZERO, false));
         }
-        java.util.Map<Long, ScoreResult> resultMap = resultRepository
+        Map<Long, ScoreResult> resultMap = resultRepository
                 .findByScoreItemIdIn(items.stream().map(ScoreItem::getId).toList())
                 .stream()
-                .collect(java.util.stream.Collectors.toMap(
-                        ScoreResult::getScoreItemId, java.util.function.Function.identity(),
+                .collect(Collectors.toMap(
+                        ScoreResult::getScoreItemId, Function.identity(),
                         (first, second) -> first));
 
         List<ScoreScoringResultsDTO.ScoreResultDTO> resultDTOs = items.stream()
                 .map(item -> toResultDTO(item, resultMap.get(item.getId())))
                 .toList();
-        com.xiyu.bid.scoreparse.domain.SummaryAggregator.Result summary =
-                summaryAggregator.aggregate(items.stream()
-                        .map(item -> new com.xiyu.bid.scoreparse.domain.SummaryAggregator.Item(
-                                item.getWeight(), item.getScoreType(),
-                                resultMap.get(item.getId()) == null
-                                        ? null : resultMap.get(item.getId()).getActualScore(),
-                                resultMap.get(item.getId()) == null
-                                        ? null : resultMap.get(item.getId()).getStatusStage2()))
-                        .toList());
+
+        SummaryAggregator.Result summary = summaryAggregator.aggregate(items.stream()
+                .map(item -> new SummaryAggregator.Item(
+                        item.getWeight(), item.getScoreType(),
+                        resultMap.get(item.getId()) == null
+                                ? null : resultMap.get(item.getId()).getActualScore(),
+                        resultMap.get(item.getId()) == null
+                                ? null : resultMap.get(item.getId()).getStatusStage2()))
+                .toList());
         return new ScoreScoringResultsDTO(resultDTOs, new ScoreScoringResultsDTO.Summary(
                 summary.totalWeight(), summary.totalEstScore(),
                 summary.okCount(), summary.dangerCount(), summary.pendingCount(),
@@ -280,16 +275,8 @@ public class ScoreScoringAppService {
         List<ScoreParseTask> tasks = taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
                 projectId, taskType, List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED"));
         return tasks.stream()
-                .max(java.util.Comparator.comparing(ScoreParseTask::getId))
+                .max(Comparator.comparing(ScoreParseTask::getId))
                 .orElseThrow(() -> new IllegalStateException("项目无打分任务: " + projectId));
-    }
-
-    private static String truncate(String text) {
-        if (text == null) {
-            return "";
-        }
-        return text.length() <= BID_DOC_EXCERPT_MAX_CHARS
-                ? text : text.substring(0, BID_DOC_EXCERPT_MAX_CHARS);
     }
 
     private void updateProgress(String taskId, int progress, String stageKey, String stageText) {

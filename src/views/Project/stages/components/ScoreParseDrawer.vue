@@ -26,7 +26,7 @@
       <div class="scoring-overlay" :class="{ show: scoringOverlayVisible }">
         <div class="spinner"></div>
         <div class="scoring-text">AI 正在对标已上传标书进行实际打分...</div>
-        <div class="scoring-sub">读取评分项 → 解析标书内容 → 比对知识库资质证书 → 计算客观项得分</div>
+        <div class="scoring-sub">读取评分项 → 解析标书内容 → 比对知识库资质证书、仓库信息、品牌授权资料 → 计算客观项得分</div>
       </div>
 
       <!-- 顶部操作与阶段指示栏 -->
@@ -75,7 +75,7 @@
           <div v-show="isSection1Expanded" class="collapse-body">
             <div v-if="scoreItems.length === 0" class="scoring-placeholder">
               <div class="placeholder-icon">📋</div>
-              <div class="placeholder-text">尚未解析到评分标准，请上传招标文件后点击重新解析</div>
+              <div class="placeholder-text">尚未解析到评分标准，请上传招标文件后点击「重新解析」</div>
               <div class="placeholder-sub">
                 <button class="btn-tool" @click="reparse">重新解析</button>
               </div>

@@ -37,22 +37,33 @@ public class ScoreTypeClassificationPolicy {
             "先进|合理|可行|酌情|视情况|可操作|完整性强|科学性|优[良秀]的|一般的|较强|完好|理解深刻|贴合");
 
     public String classify(String detail) {
+        return classify(detail, null);
+    }
+
+    public String classify(String detail, String scoreTypeGuess) {
         if (detail == null || detail.isBlank()) {
             return "SUBJECTIVE";
         }
-        // 1. 报价类 → 主观
+        // 1. 报价类强制覆盖为主观（PRD 业务规则优先：基准价公式计算，知识库不可预测）
         if (PRICE_PATTERN.matcher(detail).find()) {
             return "SUBJECTIVE";
         }
-        // 2. 量化条件 → 客观
+        // 2. AI 结构化判定优先（R025）
+        if (scoreTypeGuess != null && !scoreTypeGuess.isBlank()) {
+            String normalized = scoreTypeGuess.trim().toUpperCase();
+            if ("OBJECTIVE".equals(normalized) || "SUBJECTIVE".equals(normalized)) {
+                return normalized;
+            }
+        }
+        // 3. 量化条件规则兜底 → 客观
         if (QUANTIFIED_PATTERN.matcher(detail).find()) {
             return "OBJECTIVE";
         }
-        // 3. 描述性 → 主观
+        // 4. 描述性要求规则兜底 → 主观
         if (DESCRIPTIVE_PATTERN.matcher(detail).find()) {
             return "SUBJECTIVE";
         }
-        // 4. 兜底：条件式给分（具备/提供/满足 + 数字 + 分）→ 客观
+        // 5. 条件式给分兜底（具备/提供/满足 + 数字 + 分）→ 客观
         if (Pattern.compile("(具备|提供|满足|达到).{0,40}[0-9０-９]+").matcher(detail).find()) {
             return "OBJECTIVE";
         }

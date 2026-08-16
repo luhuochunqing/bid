@@ -101,16 +101,23 @@ class ScoreItemPersistenceServiceTest {
                 .thenReturn(List.of());
 
         service.persistItems(PROJECT_ID, PARSE_TASK_ID, List.of(
-                // detail 含"证书"关键词 → OBJECTIVE（即使 LLM guess 是 SUBJECTIVE）
+                // guess 为 null 时按 detail 规则兜底 → OBJECTIVE
                 new ScoreCandidate("A1", "资质", "具备 CMMI 5 级认证证书",
-                        new BigDecimal("60"), "SUBJECTIVE", null,
+                        new BigDecimal("60"), null, null,
                         "具备 CMMI 5 级认证证书", "P47", "SEMANTIC"),
-                // detail 含主观词 → SUBJECTIVE
-                candidate("A2", "方案优秀程度高、内容完整", "40")));
+                // AI 结构化判定优先 → OBJECTIVE
+                new ScoreCandidate("A2", "技术", "方案阐述清晰",
+                        new BigDecimal("20"), "OBJECTIVE", null,
+                        "方案阐述清晰", "P48", "SEMANTIC"),
+                // 报价类强制主观覆盖 → SUBJECTIVE
+                new ScoreCandidate("A3", "价格", "投标报价偏离率评分",
+                        new BigDecimal("20"), "OBJECTIVE", null,
+                        "投标报价偏离率评分", "P49", "SEMANTIC")));
 
         ArgumentCaptor<List<ScoreItem>> saved = capturedSavedItems();
         assertThat(saved.getValue().get(0).getScoreType()).isEqualTo("OBJECTIVE");
-        assertThat(saved.getValue().get(1).getScoreType()).isEqualTo("SUBJECTIVE");
+        assertThat(saved.getValue().get(1).getScoreType()).isEqualTo("OBJECTIVE");
+        assertThat(saved.getValue().get(2).getScoreType()).isEqualTo("SUBJECTIVE");
         assertThat(saved.getValue().get(0).getStatusStage1()).isEqualTo("PENDING");
     }
 

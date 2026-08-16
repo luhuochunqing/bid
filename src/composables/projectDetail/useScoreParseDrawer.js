@@ -7,7 +7,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { scoreParseApi } from '@/api/modules/scoreParse.js'
 import { projectsApi } from '@/api/modules/projects.js'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
-import { STATUS_MAP, formatTime, pollTask } from './scoreParseTask.js'
+import { STATUS_MAP, formatTime, pollTask, normalizeScoreItem, normalizeScoreResult } from './scoreParseTask.js'
 
 export function useScoreParseDrawer(props, emit) {
   const visible = ref(false)
@@ -31,54 +31,21 @@ export function useScoreParseDrawer(props, emit) {
   const selectedItem = ref(null)
   const selectedResult = ref(null)
 
-  const totalWeight = computed(() =>
-    scoreItems.value.reduce((sum, item) => sum + (Number(item.weight) || 0), 0)
-  )
+  const totalWeight = computed(() => scoreItems.value.reduce((sum, item) => sum + (Number(item.weight) || 0), 0))
+  const objectiveWeight = computed(() => scoreItems.value.filter((i) => i.scoreType === '客观项').reduce((sum, item) => sum + (Number(item.weight) || 0), 0))
+  const subjectiveWeight = computed(() => scoreItems.value.filter((i) => i.scoreType === '主观项').reduce((sum, item) => sum + (Number(item.weight) || 0), 0))
 
-  const objectiveWeight = computed(() =>
-    scoreItems.value
-      .filter((i) => i.scoreType === '客观项')
-      .reduce((sum, item) => sum + (Number(item.weight) || 0), 0)
-  )
+  const statsOkCount = computed(() => scoreItems.value.filter((i) => i.status === 'ok').length)
+  const statsDangerCount = computed(() => scoreItems.value.filter((i) => i.status === 'danger').length)
+  const statsNeutralCount = computed(() => scoreItems.value.filter((i) => i.status === 'neutral').length)
 
-  const subjectiveWeight = computed(() =>
-    scoreItems.value
-      .filter((i) => i.scoreType === '主观项')
-      .reduce((sum, item) => sum + (Number(item.weight) || 0), 0)
-  )
-
-  const statsOkCount = computed(() =>
-    scoreItems.value.filter((i) => i.status === 'ok').length
-  )
-  const statsDangerCount = computed(() =>
-    scoreItems.value.filter((i) => i.status === 'danger').length
-  )
-  const statsNeutralCount = computed(() =>
-    scoreItems.value.filter((i) => i.status === 'neutral').length
-  )
-
-  const estTotalScore = computed(() => {
-    let score = 0
-    for (const item of scoreItems.value) {
-      if (item.scoreType === '客观项' && typeof item.estScore === 'number') {
-        score += item.estScore
-      }
-    }
-    return score
-  })
-
-  const actualTotalScore = computed(() => {
-    let score = 0
-    for (const item of scoreItems.value) {
-      if (item.scoreType === '客观项') {
-        const res = scoreResults.value[item.code]
-        if (res && typeof res.score === 'number') {
-          score += res.score
-        }
-      }
-    }
-    return score
-  })
+  const estTotalScore = computed(() => scoreItems.value.reduce((sum, i) => sum + (i.scoreType === '客观项' && typeof i.estScore === 'number' ? i.estScore : 0), 0))
+  const actualTotalScore = computed(() => scoreItems.value.reduce((sum, i) => {
+    if (i.scoreType !== '客观项') return sum
+    const res = scoreResults.value[i.code]
+    const val = res?.actualScore ?? res?.score
+    return sum + (typeof val === 'number' ? val : 0)
+  }, 0))
 
   function openDetail(item, result, mode = 'est') {
     selectedItem.value = item
@@ -89,46 +56,24 @@ export function useScoreParseDrawer(props, emit) {
 
   async function open(options = {}) {
     visible.value = true
-    currentStage.value = options.stage ?? 2
-    scored.value = options.scored ?? (currentStage.value === 2)
     await fetchAnalysisData(options)
-  }
-
-  function normalizeScoreItem(s, i) {
-    const isSubj = s.scoreType === 'SUBJECTIVE' || s.scoreType === '主观项'
-    const status = STATUS_MAP[s.status] || 'neutral'
-    return {
-      code: s.code || `S${i + 1}`,
-      dim: s.dim || '评分项',
-      req: s.detail || '',
-      detail: s.detail || '',
-      weight: Number(s.weight ?? 0),
-      status,
-      statusText: status === 'ok' ? '满足' : status === 'danger' ? '不满足' : '待确认',
-      scoreType: isSubj ? '主观项' : '客观项',
-      // 主观项后端强制 null（spec 041 FR-014）；客观项未匹配也无预判，显示 —
-      estScore: s.estScore != null ? Number(s.estScore) : (isSubj ? '待评审' : '—'),
-      estBasis: s.estBasis || (isSubj ? '主观方案类评分项，需由评标专家根据方案深度综合评定' : '—'),
-    }
   }
 
   async function fetchAnalysisData(options = {}) {
     loading.value = true
     error.value = ''
     try {
-      // spec 041 真接口：GET /score-parse/items（阶段 1 清单 + 来源信息栏 meta）
       const res = await scoreParseApi.getItems(props.projectId)
       const data = res?.data
       const apiItems = data?.items
 
-      // P1 修复：从 API 响应读取文件元数据（后端 DTO 扩展后自动生效）
       if (data?.sourceFileName) sourceFileName.value = data.sourceFileName
       if (data?.parseTime) parseTime.value = formatTime(data.parseTime) || data.parseTime
 
       if (Array.isArray(apiItems) && apiItems.length > 0) {
         scoreItems.value = apiItems.map(normalizeScoreItem)
       } else {
-        scoreItems.value = [] // PRD §5.3: 空状态，绝不回退假数据
+        scoreItems.value = []
       }
 
       // 来源信息栏元数据（R007/R022：无则保持空态占位）
@@ -143,8 +88,37 @@ export function useScoreParseDrawer(props, emit) {
         warnCount: statsNeutralCount.value,
       })
 
-      if (currentStage.value === 2) {
-        await runScoring({ auto: options.autoScore !== false })
+      let hasResults = false
+      try {
+        const resultsRes = await scoreParseApi.getResults(props.projectId)
+        const resultsData = resultsRes?.data
+        const results = resultsData?.results
+        if (resultsData?.bidFileName) bidFileName.value = resultsData.bidFileName
+        if (resultsData?.scoreTime) scoreTime.value = formatTime(resultsData.scoreTime) || resultsData.scoreTime
+
+        if (Array.isArray(results) && results.length > 0) {
+          const resultMap = {}
+          for (const r of results) {
+            resultMap[r.code] = normalizeScoreResult(r)
+          }
+          scoreResults.value = resultMap
+          hasResults = true
+        }
+      } catch {
+        // results 不存在时正常忽略
+      }
+
+      // 阶段与打分状态判定
+      if (options.stage !== undefined) {
+        currentStage.value = options.stage
+      } else {
+        currentStage.value = (hasResults || (!!bidFileName.value && bidFileName.value !== '—')) ? 2 : 1
+      }
+      scored.value = options.scored !== undefined ? options.scored : hasResults
+
+      // 仅当阶段 2 且从未打分且显式指定 autoScore 时才自动打分
+      if (currentStage.value === 2 && !hasResults && options.autoScore === true) {
+        await runScoring({ auto: true })
       }
     } catch (e) {
       error.value = e?.response?.data?.msg || '评分标准解析加载失败'
@@ -168,7 +142,7 @@ export function useScoreParseDrawer(props, emit) {
       } else {
         // spec 041 真接口：POST /scoring（异步触发）→ 轮询 status → GET /results
         await scoreParseApi.triggerScoring(props.projectId)
-        const done = await pollTask(() => scoreParseApi.getScoringStatus(props.projectId))
+        const done = await pollTask(() => scoreParseApi.getScoringStatus(props.projectId), '打分')
         if (done?.completedAt) scoreTime.value = formatTime(done.completedAt)
 
         const resultsRes = await scoreParseApi.getResults(props.projectId)
@@ -182,11 +156,13 @@ export function useScoreParseDrawer(props, emit) {
         if (Array.isArray(results)) {
           const resultMap = {}
           for (const r of results) {
-            const isSubj = r.scoreType === 'SUBJECTIVE'
+            const isSubj = r.scoreType === 'SUBJECTIVE' || r.scoreType === '主观项'
+            const actualVal = r.actualScore != null ? Number(r.actualScore) : null
             resultMap[r.code] = {
-              score: r.actualScore != null ? Number(r.actualScore) : null,
+              actualScore: actualVal,
+              score: actualVal,
               status: STATUS_MAP[r.status] || 'neutral',
-              evalText: isSubj ? '待专家评审' : (r.actualScore != null ? `${Number(r.actualScore)} 分` : '—'),
+              evalText: isSubj ? '待确认' : (actualVal != null ? `${actualVal} 分` : '—'),
               basis: r.evidence,
               quote: r.quote,
               missedReason: r.missedReason,
@@ -210,7 +186,7 @@ export function useScoreParseDrawer(props, emit) {
       scoringOverlayVisible.value = true
       // spec 041 真接口：POST /parse（FR-021 覆盖旧解析结果）→ 轮询 → 重拉 items
       await scoreParseApi.triggerParse(props.projectId)
-      const done = await pollTask(() => scoreParseApi.getParseStatus(props.projectId))
+      const done = await pollTask(() => scoreParseApi.getParseStatus(props.projectId), '解析')
       if (done?.completedAt) parseTime.value = formatTime(done.completedAt)
       await fetchAnalysisData({ stage: currentStage.value, autoScore: false })
       ElMessage.success('已重新解析评分标准')

@@ -86,10 +86,10 @@ describe('scoreParseTask — spec 041 状态映射与任务轮询纯函数', () 
 
       const promise = pollTask(fetcher)
       promise.catch(() => {}) // 防止 unhandled rejection
-      // 推进足够长时间（150 次 × 2s + 冗余）
-      await vi.advanceTimersByTimeAsync(2000 * 151)
+      // 推进足够长时间（900 次 × 2s + 冗余）
+      await vi.advanceTimersByTimeAsync(2000 * 901)
 
-      await expect(promise).rejects.toThrow('任务轮询超时')
+      await expect(promise).rejects.toThrow('解析超时，请检查文件大小或稍后重试')
     })
 
     it('响应缺少 data 包裹时按空对象处理并进入轮询', async () => {

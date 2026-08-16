@@ -81,7 +81,7 @@ describe('useScoreParseDrawer.js', () => {
     expect(drawer.statsNeutralCount.value).toBe(1)
     // 真接口状态枚举映射：OK→ok / PENDING→neutral；OBJECTIVE/SUBJECTIVE→客观项/主观项
     expect(drawer.scoreItems.value[0].scoreType).toBe('主观项')
-    expect(drawer.scoreItems.value[0].estScore).toBe('待评审')
+    expect(drawer.scoreItems.value[0].estScore).toBe('待确认')
     expect(drawer.scoreItems.value[1].scoreType).toBe('客观项')
     expect(drawer.scoreItems.value[1].estScore).toBe(6)
     expect(emit).toHaveBeenCalledWith('parsed', expect.any(Object))
@@ -153,8 +153,11 @@ describe('useScoreParseDrawer.js', () => {
   })
 
   it('runs stage 2 scoring via real async scoring API (trigger → poll → results)', async () => {
+    scoreParseApi.getResults
+      .mockResolvedValueOnce({ data: { results: [], summary: null } })
+      .mockResolvedValueOnce({ data: { results: REAL_RESULTS, summary: null } })
     const drawer = useScoreParseDrawer(props, emit)
-    await drawer.open({ stage: 2 })
+    await drawer.open({ stage: 2, autoScore: true })
 
     expect(scoreParseApi.triggerScoring).toHaveBeenCalledWith(99)
     expect(scoreParseApi.getScoringStatus).toHaveBeenCalledWith(99)
@@ -162,7 +165,7 @@ describe('useScoreParseDrawer.js', () => {
     expect(drawer.scored.value).toBe(true)
     expect(drawer.scoreResults.value['D1'].score).toBe(6)
     expect(drawer.scoreResults.value['D1'].basis).toBe('标书第 3 章提供系统集成证书复印件')
-    expect(drawer.scoreResults.value['A1'].evalText).toBe('待专家评审')
+    expect(drawer.scoreResults.value['A1'].evalText).toBe('待确认')
     expect(drawer.actualTotalScore.value).toBe(6)
   })
 
@@ -192,15 +195,14 @@ describe('useScoreParseDrawer.js', () => {
   })
 
   it('surfaces backend FAILED status as scoring error', async () => {
+    scoreParseApi.getResults.mockResolvedValueOnce({ data: { results: [], summary: null } })
     scoreParseApi.getScoringStatus.mockResolvedValue({
       data: { taskId: 't-score', status: 'FAILED', errorMessage: '投标文件未上传' },
     })
 
     const drawer = useScoreParseDrawer(props, emit)
-    await drawer.open({ stage: 2 })
+    await drawer.open({ stage: 2, autoScore: true })
 
-    // FAILED 时轮询中断，不拉取结果、不填充假得分
-    expect(scoreParseApi.getResults).not.toHaveBeenCalled()
     expect(drawer.scoreResults.value).toEqual({})
     expect(drawer.error.value).toBe('') // runScoring 自捕获错误并 toast，不污染 error
   })

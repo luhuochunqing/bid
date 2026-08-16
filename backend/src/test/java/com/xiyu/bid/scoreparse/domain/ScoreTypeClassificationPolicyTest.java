@@ -69,4 +69,15 @@ class ScoreTypeClassificationPolicyTest {
         // "XX㎡以上得X分" 属量化门槛
         assertThat(policy.classify("办公场地面积 500 ㎡以上得 2 分")).isEqualTo("OBJECTIVE");
     }
+
+    @Test
+    void classify_aiGuessPrioritized() {
+        assertThat(policy.classify("方案阐述清晰", "OBJECTIVE")).isEqualTo("OBJECTIVE");
+        assertThat(policy.classify("具备某种证书", "SUBJECTIVE")).isEqualTo("SUBJECTIVE");
+    }
+
+    @Test
+    void classify_priceType_alwaysSubjectiveEvenIfAiGuessedObjective() {
+        assertThat(policy.classify("投标报价得分按公式计算", "OBJECTIVE")).isEqualTo("SUBJECTIVE");
+    }
 }

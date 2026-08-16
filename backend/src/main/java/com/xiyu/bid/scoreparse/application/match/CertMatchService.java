@@ -32,9 +32,10 @@ public class CertMatchService {
 
     public KnowledgeMatchResult match(CertMatchRequest request) {
         LocalDate today = LocalDate.now();
+        LocalDate validCheckDate = request.requireValidUntil() != null ? request.requireValidUntil() : today;
         List<CertMatchedItem> matched = repository.findAll(specificationOf(request)).stream()
                 .map(row -> new CertMatchedItem(row.getId(), row.getName(), row.getLevel(),
-                        row.getExpiryDate(), isExpired(row, today)))
+                        row.getExpiryDate(), isExpired(row, validCheckDate)))
                 .toList();
         boolean anyExpired = matched.stream().anyMatch(CertMatchedItem::expired);
         MatchTierPolicy.Outcome outcome = MatchTierPolicy.evaluate(
@@ -52,10 +53,7 @@ public class CertMatchService {
             if (StringUtils.hasText(request.requiredLevel())) {
                 predicates.add(cb.like(root.get("level"), "%" + request.requiredLevel().trim() + "%"));
             }
-            if (request.requireValidUntil() != null) {
-                predicates.add(cb.greaterThanOrEqualTo(root.get("expiryDate"), request.requireValidUntil()));
-                predicates.add(cb.notEqual(root.get("status"), QualificationStatus.RETIRED));
-            }
+            predicates.add(cb.notEqual(root.get("status"), QualificationStatus.RETIRED));
             return cb.and(predicates.toArray(new Predicate[0]));
         };
     }

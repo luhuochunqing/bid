@@ -89,7 +89,11 @@ class ScoreScoringAppServiceTest {
     @Test
     void noBidDocument_rejectsWithSemantic() {
         when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
+                PROJECT_ID, "BID", null, null)).thenReturn(List.of());
+        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
                 PROJECT_ID, "BID_FILE", null, null)).thenReturn(List.of());
+        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
+                PROJECT_ID, "BID_DOCUMENT", null, null)).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.triggerScoring(PROJECT_ID))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -252,9 +256,9 @@ class ScoreScoringAppServiceTest {
     private void mockBidDocumentPresent() {
         ProjectDocument bidDoc = ProjectDocument.builder()
                 .id(77L).projectId(PROJECT_ID).name("投标文件.pdf")
-                .documentCategory("BID_FILE").fileUrl(BID_FILE_URL).build();
+                .documentCategory("BID").fileUrl(BID_FILE_URL).build();
         when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
-                PROJECT_ID, "BID_FILE", null, null)).thenReturn(List.of(bidDoc));
+                PROJECT_ID, "BID", null, null)).thenReturn(List.of(bidDoc));
     }
 
     private void mockItemsPresent() {

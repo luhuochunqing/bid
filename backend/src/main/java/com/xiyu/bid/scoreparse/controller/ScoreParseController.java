@@ -87,8 +87,14 @@ public class ScoreParseController {
             return ResponseEntity.status(HttpStatus.ACCEPTED)
                     .body(ApiResponse.success("打分任务已提交", result));
         } catch (IllegalArgumentException exception) {
+            String msg = exception.getMessage();
+            if ("SCORE_ITEMS_NOT_READY".equals(msg)) {
+                msg = "请等待招标文件解析完成后再进行打分";
+            } else if ("NO_BID_DOCUMENT".equals(msg)) {
+                msg = "请先上传投标文件后再进行打分";
+            }
             return ResponseEntity.badRequest()
-                    .body(ApiResponse.error(400, exception.getMessage()));
+                    .body(ApiResponse.error(400, msg));
         } catch (IllegalStateException exception) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                     .body(ApiResponse.error(409, exception.getMessage()));

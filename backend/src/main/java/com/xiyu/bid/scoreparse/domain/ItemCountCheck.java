@@ -11,7 +11,7 @@ package com.xiyu.bid.scoreparse.domain;
  */
 public class ItemCountCheck {
 
-    private static final String FAILURE_MESSAGE = "未在文件中识别到评分标准章节";
+    private static final String FAILURE_MESSAGE = "未在文件中识别到评分标准章节，请确认文件内容或手动联系管理员";
 
     public Result check(int itemCount) {
         boolean failed = itemCount <= 0;

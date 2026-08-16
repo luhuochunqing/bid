@@ -29,8 +29,8 @@
 
       <div class="detail-row">
         <div class="detail-label">满足状态</div>
-        <div class="detail-value status-cell" :class="item?.status || 'neutral'">
-          {{ item?.statusText || '待确认' }}
+        <div class="detail-value status-cell" :class="`status-${currentStatus}`">
+          {{ currentStatusText }}
         </div>
       </div>
 
@@ -41,12 +41,18 @@
 
       <div class="detail-row">
         <div class="detail-label">{{ mode === 'actual' ? '评分依据' : '得分依据' }}</div>
-        <div class="detail-quote">{{ basisText }}</div>
+        <div class="detail-quote">
+          <div v-if="mode === 'est' && item?.kbHit" class="kb-hit-badge">
+            <span class="pill kb-pill">知识库命中</span>
+          </div>
+          <div>{{ basisText }}</div>
+        </div>
       </div>
 
-      <div v-if="mode === 'actual' && result?.quote" class="detail-row">
+      <!-- R048: 阶段 2 标书引用，quote 为空显示「无」 -->
+      <div v-if="mode === 'actual'" class="detail-row">
         <div class="detail-label">标书引用</div>
-        <div class="detail-quote">{{ result.quote }}</div>
+        <div class="detail-quote">{{ result?.quote || '无' }}</div>
       </div>
 
       <div v-if="mode === 'actual' && result?.missedReason" class="detail-row">
@@ -54,11 +60,12 @@
         <div class="detail-miss">{{ result.missedReason }}</div>
       </div>
 
-      <div v-if="suggestionText" class="detail-row">
+      <!-- R065: 修改建议仅阶段 2 且仅不满足/待确认 -->
+      <div v-if="mode === 'actual' && suggestionText" class="detail-row">
         <div class="detail-label">修改建议</div>
         <div class="detail-suggestion">
           <div class="suggestion-title">
-            💡 {{ item?.status === 'danger' ? '不满足项改进建议' : '待确认项补充建议' }}
+            💡 {{ (currentStatus === 'danger') ? '不满足项改进建议' : '待确认项补充建议' }}
           </div>
           {{ suggestionText }}
         </div>
@@ -95,24 +102,48 @@ const modalTitle = computed(() => {
   return `${code} · ${dim} — ${suffix}`
 })
 
+const currentStatus = computed(() => {
+  if (props.mode === 'actual') {
+    return props.result?.status || 'neutral'
+  }
+  return props.item?.status || 'neutral'
+})
+
+const currentStatusText = computed(() => {
+  const status = currentStatus.value
+  if (status === 'ok') return '✓ 满足'
+  if (status === 'danger') return '✗ 不满足'
+  return '● 待确认'
+})
+
 const scoreDisplay = computed(() => {
   const weight = props.item?.weight ?? 0
   if (props.mode === 'actual') {
     if (!props.result) return '—'
-    const actual = props.result.score ?? props.result.actualScore
-    if (props.result.status === 'subjective' || props.result.status === 'PENDING_EXPERT' || actual === null || actual === undefined) return '待评审'
+    const actual = props.result.actualScore ?? props.result.score
+    if (props.item?.scoreType === '主观项' || props.result.status === 'subjective' || props.result.status === 'PENDING_EXPERT' || actual === null || actual === undefined) {
+      return '待确认'
+    }
     return `${actual} / ${weight}`
   }
-  return typeof props.item?.estScore === 'number' ? `${props.item.estScore} / ${weight}` : props.item?.estScore || '待评审'
+  if (props.item?.scoreType === '主观项') {
+    return '待确认'
+  }
+  return typeof props.item?.estScore === 'number' ? `${props.item.estScore} / ${weight}` : props.item?.estScore || '待确认'
 })
 
 const scoreClass = computed(() => {
   if (props.mode === 'actual') {
     if (!props.result) return 'na'
-    const actual = props.result.score ?? props.result.actualScore
-    if (props.result.status === 'subjective' || props.result.status === 'PENDING_EXPERT' || actual === null || actual === undefined) return 'subjective'
+    const actual = props.result.actualScore ?? props.result.score
+    if (props.item?.scoreType === '主观项' || props.result.status === 'subjective' || props.result.status === 'PENDING_EXPERT' || actual === null || actual === undefined) {
+      return 'subjective'
+    }
     if (actual === props.item?.weight) return 'full'
     return actual === 0 ? 'zero' : 'partial'
+  }
+  if (props.item?.scoreType === '主观项') {
+    return 'subjective'
   }
   if (typeof props.item?.estScore === 'number') {
     if (props.item.estScore === props.item?.weight) return 'full'
@@ -126,16 +157,11 @@ const basisText = computed(() => {
   return props.item?.estBasis || '需评标专家根据标书描述人工评审'
 })
 
+// R065: 仅阶段 2 且仅不满足/待确认；禁止阶段 1 出建议、禁止硬编码兜底句
 const suggestionText = computed(() => {
-  if (props.result?.suggestion) return props.result.suggestion
-  if (props.item?.suggestion) return props.item.suggestion
-  if (['danger', 'warn', 'neutral', 'PARTIALLY_SATISFIED', 'NOT_SATISFIED'].includes(props.item?.status) ||
-      ['danger', 'warn', 'neutral', 'PARTIALLY_SATISFIED', 'NOT_SATISFIED'].includes(props.result?.status)) {
-    return props.item?.status === 'danger' || props.result?.status === 'NOT_SATISFIED'
-      ? '建议针对此项要求补充证明材料或替代响应方案'
-      : '建议在标书中详细补充相关阐述，降低评审不确定性'
-  }
-  return ''
+  if (props.mode !== 'actual') return ''
+  if (currentStatus.value === 'ok') return ''
+  return props.result?.suggestion || props.item?.suggestion || ''
 })
 </script>
 
@@ -147,6 +173,8 @@ const suggestionText = computed(() => {
 .pill { font-size: 11px; padding: 1px 6px; border-radius: 3px; font-weight: 600; display: inline-block; }
 .pill.info { background: var(--status-info-bg); color: var(--status-info-color); }
 .pill.neutral { background: var(--status-neutral-bg); color: var(--status-neutral-color); }
+.pill.kb-pill { background: #ede9fe; color: #7c3aed; margin-bottom: 4px; font-size: 11px; }
+.kb-hit-badge { margin-bottom: 4px; }
 .status-cell { font-size: 12px; font-weight: 500; }
 .status-cell.ok { color: var(--status-success-color); }
 .status-cell.warn { color: var(--status-warning-color); }

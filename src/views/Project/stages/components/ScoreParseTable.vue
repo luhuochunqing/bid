@@ -22,14 +22,14 @@
         <tr v-for="item in items" :key="item.code">
           <td class="code-cell">{{ item.code }}</td>
           <td class="dim-cell">{{ item.dim }}</td>
-          <td class="req-cell">{{ item.req }}</td>
+          <td class="req-cell">{{ item.req || item.detail }}</td>
           <td class="weight-cell">{{ item.weight }}</td>
           <td>
-            <span class="status-cell" :class="item.status">
-              <span v-if="item.status === 'neutral'" class="dot">● </span>
-              <span v-else-if="item.status === 'ok'">✓ </span>
-              <span v-else-if="item.status === 'danger'">✕ </span>
-              {{ item.statusText?.replace(/^[✓✕●\s]+/, '') || item.statusText }}
+            <span class="status-cell" :class="getItemStatus(item)">
+              <span v-if="getItemStatus(item) === 'neutral'" class="dot">● </span>
+              <span v-else-if="getItemStatus(item) === 'ok'">✓ </span>
+              <span v-else-if="getItemStatus(item) === 'danger'">✗ </span>
+              {{ getItemStatusText(item) }}
             </span>
           </td>
           <td style="text-align: center">
@@ -50,11 +50,14 @@
       <tfoot>
         <tr class="tfoot-row">
           <td colspan="3" class="tfoot-title">合计</td>
-          <td class="weight-cell tfoot-weight">{{ totalWeight }}</td>
-          <td colspan="2" class="tfoot-stats">
-            <span class="stat-tag ok">{{ statsOkCount }} 满足</span> ·
-            <span class="stat-tag danger">{{ statsDangerCount }} 不满足</span> ·
-            <span class="stat-tag neutral">{{ statsNeutralCount }} 待确认</span>
+          <td class="weight-cell tfoot-weight">
+            <div>{{ totalWeight }}</div>
+            <div v-if="totalWeight !== 100" class="weight-warning">权重合计与 100 分不符</div>
+          </td>
+          <td class="tfoot-stats">
+            <span class="stat-tag ok">{{ currentStats.ok }} 满足</span> ·
+            <span class="stat-tag danger">{{ currentStats.danger }} 不满足</span> ·
+            <span class="stat-tag neutral">{{ currentStats.neutral }} 待确认</span>
           </td>
           <td class="tfoot-dim-dist">
             <span class="obj-text">客观项 {{ objectiveWeight }}</span> ·
@@ -62,9 +65,10 @@
           </td>
           <td class="score-cell tfoot-highlight">
             <div class="highlight-score-box">
-              {{ highlightScore }}
+              {{ currentHighlightScore }}
             </div>
           </td>
+          <td></td>
         </tr>
       </tfoot>
     </table>
@@ -72,6 +76,8 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
+
 const props = defineProps({
   items: { type: Array, required: true },
   results: { type: Object, default: () => ({}) },
@@ -87,26 +93,44 @@ const props = defineProps({
 
 defineEmits(['open-detail'])
 
+function getItemStatus(item) {
+  if (props.mode === 'actual') {
+    const res = props.results[item.code]
+    return res?.status || 'neutral'
+  }
+  return item.status || 'neutral'
+}
+
+function getItemStatusText(item) {
+  const status = getItemStatus(item)
+  if (status === 'ok') return '满足'
+  if (status === 'danger') return '不满足'
+  return '待确认'
+}
+
 function getScoreText(item) {
   if (props.mode === 'actual') {
     const res = props.results[item.code]
     if (!res) return '—'
-    if (res.status === 'subjective' || res.actualScore === null || res.actualScore === undefined) return '待评审'
-    return res.actualScore
+    const actual = res.actualScore ?? res.score
+    if (res.status === 'subjective' || item.scoreType === '主观项' || actual === null || actual === undefined) return '待确认'
+    return actual
   }
   if (typeof item.estScore === 'number') {
     return item.estScore
   }
-  return item.estScore || '待评审'
+  if (item.scoreType === '主观项') return '待确认'
+  return item.estScore || '待确认'
 }
 
 function getScoreClass(item) {
   if (props.mode === 'actual') {
     const res = props.results[item.code]
     if (!res) return 'na'
-    if (res.status === 'subjective' || res.actualScore === null || res.actualScore === undefined) return 'subjective'
-    if (res.actualScore === item.weight) return 'full'
-    return res.actualScore === 0 ? 'zero' : 'partial'
+    const actual = res.actualScore ?? res.score
+    if (res.status === 'subjective' || item.scoreType === '主观项' || actual === null || actual === undefined) return 'subjective'
+    if (actual === item.weight) return 'full'
+    return actual === 0 ? 'zero' : 'partial'
   }
   if (typeof item.estScore === 'number') {
     if (item.estScore === item.weight) return 'full'
@@ -114,6 +138,50 @@ function getScoreClass(item) {
   }
   return 'subjective'
 }
+
+const currentStats = computed(() => {
+  if (props.mode === 'actual') {
+    let ok = 0, danger = 0, neutral = 0
+    for (const item of props.items) {
+      const status = getItemStatus(item)
+      if (status === 'ok') ok++
+      else if (status === 'danger') danger++
+      else neutral++
+    }
+    return { ok, danger, neutral }
+  }
+  return {
+    ok: props.statsOkCount || props.items.filter((i) => i.status === 'ok').length,
+    danger: props.statsDangerCount || props.items.filter((i) => i.status === 'danger').length,
+    neutral: props.statsNeutralCount || props.items.filter((i) => i.status === 'neutral').length,
+  }
+})
+
+const currentHighlightScore = computed(() => {
+  if (props.mode === 'actual') {
+    let score = 0
+    for (const item of props.items) {
+      if (item.scoreType === '客观项') {
+        const res = props.results[item.code]
+        const val = res?.actualScore ?? res?.score
+        if (typeof val === 'number') {
+          score += val
+        }
+      }
+    }
+    return score
+  }
+  if (typeof props.highlightScore === 'number' || typeof props.highlightScore === 'string') {
+    return props.highlightScore
+  }
+  let score = 0
+  for (const item of props.items) {
+    if (item.scoreType === '客观项' && typeof item.estScore === 'number') {
+      score += item.estScore
+    }
+  }
+  return score
+})
 </script>
 
 <style scoped>
@@ -129,6 +197,7 @@ function getScoreClass(item) {
 .pill.neutral { background: var(--status-neutral-bg); color: var(--status-neutral-color); }
 .req-cell { line-height: 1.5; color: var(--text-primary-ui); font-size: 12px; }
 .weight-cell { text-align: center; font-weight: 600; font-family: monospace; color: var(--brand-xiyu-logo); font-size: 13px; }
+.weight-warning { font-size: 10px; color: var(--status-danger-color); font-weight: normal; margin-top: 2px; line-height: 1.2; }
 .status-cell { font-size: 12px; font-weight: 500; }
 .status-cell.ok { color: var(--brand-xiyu-logo); }
 .status-cell.danger { color: var(--status-danger-color); }

@@ -52,6 +52,15 @@ public class KnowledgeCategoryPolicy {
         return CATEGORY_OTHER;
     }
 
+    /** 提取要求资质等级：如 "甲级" / "一级" / "CMMI 3" / "特级"。 */
+    public String extractLevel(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        Matcher matcher = Pattern.compile("([一二三四甲乙丙]级|CMMI\\s*[1-5]|L[1-5]|特级)").matcher(text);
+        return matcher.find() ? matcher.group(1).replaceAll("\\s+", "") : null;
+    }
+
     /** 提取要求数量：如 "不少于 5 人" / "业绩 3 个"。 */
     public Integer extractCount(String text, String unitPattern) {
         if (text == null || text.isBlank()) {

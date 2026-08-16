@@ -73,8 +73,10 @@ public class ScoreParseTaskStateService {
         });
     }
 
-    /** 超时终态文案（契约 §错误形态统一） */
-    public static final String TIMEOUT_MESSAGE = "任务超时终止，保留上次成功结果";
+    /** 超时终态文案（PRD 规范） */
+    public static final String TIMEOUT_MESSAGE = "解析超时，请检查文件大小或稍后重试";
+    public static final String TIMEOUT_MESSAGE_PARSE = "解析超时，请检查文件大小或稍后重试";
+    public static final String TIMEOUT_MESSAGE_SCORING = "打分超时，请检查文件大小或稍后重试";
 
     /**
      * 超时扫描专用（FR-020）：FAILED + timeout_marked=1 + 契约超时文案。
@@ -84,7 +86,9 @@ public class ScoreParseTaskStateService {
         taskRepository.findByTaskId(taskId).ifPresent(task -> {
             task.setStatus("FAILED");
             task.setTimeoutMarked(true);
-            task.setErrorMessage(TIMEOUT_MESSAGE);
+            String message = "SCORING".equalsIgnoreCase(task.getTaskType())
+                    ? TIMEOUT_MESSAGE_SCORING : TIMEOUT_MESSAGE_PARSE;
+            task.setErrorMessage(message);
             task.setCompletedAt(LocalDateTime.now());
             taskRepository.save(task);
         });

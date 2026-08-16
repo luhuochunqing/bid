@@ -119,12 +119,15 @@ describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
 
   // QA-TC02: 阶段 2 (投标文件打分) 真实后端 API 驱动计分与主观项隔离
   it('QA-TC02: [阶段2] 真实打分展示、客观项得分合计与主观项专家评审', async () => {
+    scoreParseApi.getResults
+      .mockResolvedValueOnce({ data: { results: [], summary: null } })
+      .mockResolvedValueOnce({ data: qaResultsFixture })
     const wrapper = mount(ScoreParseDrawer, {
       props: { projectId },
       global: { stubs: globalStubs },
     })
 
-    await wrapper.vm.open({ stage: 2, autoScore: false })
+    await wrapper.vm.open({ stage: 2, autoScore: true })
 
     // spec 041 真接口：触发 → 轮询 → 拉结果
     expect(scoreParseApi.triggerScoring).toHaveBeenCalledWith(projectId)
@@ -237,6 +240,6 @@ describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
 
     await wrapper.vm.open({ stage: 1, autoScore: false })
     expect(wrapper.vm.scoreItems.length).toBe(0)
-    expect(wrapper.text()).toContain('尚未解析到评分标准，请上传招标文件后点击重新解析')
+    expect(wrapper.text()).toContain('尚未解析到评分标准，请上传招标文件后点击「重新解析」')
   })
 })
