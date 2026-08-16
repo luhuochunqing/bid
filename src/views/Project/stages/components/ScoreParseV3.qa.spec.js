@@ -130,7 +130,7 @@ describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
     await wrapper.vm.open({ stage: 2, autoScore: true })
 
     // spec 041 真接口：触发 → 轮询 → 拉结果
-    expect(scoreParseApi.triggerScoring).toHaveBeenCalledWith(projectId)
+    expect(scoreParseApi.triggerScoring).toHaveBeenCalledWith(projectId, expect.objectContaining({ source: 'AUTO' }))
     expect(scoreParseApi.getScoringStatus).toHaveBeenCalledWith(projectId)
     expect(scoreParseApi.getResults).toHaveBeenCalledWith(projectId)
     expect(wrapper.vm.currentStage).toBe(2)

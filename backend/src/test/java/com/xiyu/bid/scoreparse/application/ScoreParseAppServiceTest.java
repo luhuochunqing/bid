@@ -144,7 +144,7 @@ class ScoreParseAppServiceTest {
         assertThatThrownBy(() -> service.triggerParse(PROJECT_ID))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage(InitiationTenderTextResolver.NO_TENDER_MESSAGE);
-        verify(stateService).createTask(anyString(), eq(PROJECT_ID), eq("PARSE"), isNull(), isNull());
+        verify(stateService).createTask(anyString(), eq(PROJECT_ID), eq("PARSE"), isNull(), isNull(), eq("MANUAL"));
         verify(stateService).failTask(anyString(), eq(InitiationTenderTextResolver.NO_TENDER_MESSAGE));
     }
 
@@ -256,5 +256,41 @@ class ScoreParseAppServiceTest {
         assertThat(dto.meta().scoreTime()).isNull();
         assertThat(dto.meta().lastParseStatus()).isNull();
         assertThat(dto.meta().lastParseError()).isNull();
+    }
+
+    @Test
+    void triggerParse_autoWithHistory_doesNotCreateTask() {
+        ScoreParseTask old = ScoreParseTask.builder()
+                .id(3L).taskId("old-parse").projectId(PROJECT_ID)
+                .taskType("PARSE").status("COMPLETED").build();
+        when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                PROJECT_ID, "PARSE", List.of("PENDING", "PROCESSING"))).thenReturn(List.of());
+        when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                PROJECT_ID, "PARSE", List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED")))
+                .thenReturn(List.of(old));
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of());
+
+        var dto = service.triggerParse(PROJECT_ID, "AUTO");
+
+        assertThat(dto.taskId()).isEqualTo("old-parse");
+        verify(stateService, org.mockito.Mockito.never())
+                .createTask(anyString(), any(), anyString(), any(), any(), anyString());
+    }
+
+    @Test
+    void triggerParse_manualWithHistory_stillCreates() {
+        when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                PROJECT_ID, "PARSE", List.of("PENDING", "PROCESSING"))).thenReturn(List.of());
+        when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                PROJECT_ID, "PARSE", List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED")))
+                .thenReturn(List.of(ScoreParseTask.builder()
+                        .id(3L).taskId("old-parse").taskType("PARSE").status("COMPLETED").build()));
+        when(initiationTenderTextResolver.resolveIntake(PROJECT_ID))
+                .thenReturn(TenderIntake.found(new TenderTextSource(
+                        "tender.pdf", "doc-insight://t/1", "评分办法")));
+
+        service.triggerParse(PROJECT_ID, "MANUAL");
+
+        verify(stateService).createTask(anyString(), eq(PROJECT_ID), eq("PARSE"), isNull(), isNull(), eq("MANUAL"));
     }
 }

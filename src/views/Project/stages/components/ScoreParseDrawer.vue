@@ -105,7 +105,12 @@
           投标文件评分
           <span class="section-sub">（标书对标打分与引用建议）</span>
           <div class="section-actions">
-            <button class="btn-primary-sm" :disabled="currentStage === 1 || scoreItems.length === 0" @click="runScoring(false)">
+            <div v-if="currentStage === 2 && scoreItems.length > 0" class="score-scope">
+              <label><input v-model="scoringScope" type="radio" value="ALL"> 全部</label>
+              <label><input v-model="scoringScope" type="radio" value="UNSATISFIED"> 仅不满足</label>
+              <label><input v-model="scoringScope" type="radio" value="ITEMS"> 勾选</label>
+            </div>
+            <button class="btn-primary-sm" :disabled="currentStage === 1 || scoreItems.length === 0" @click="runScoring({ auto: false, scope: scoringScope, itemIds: selectedItemIds })">
               {{ currentStage === 1 ? '⚡ AI 实际打分（需先上传标书）' : scored ? '⚡ 重新打分' : '⚡ AI 实际打分' }}
             </button>
           </div>
@@ -114,8 +119,15 @@
         <div class="toolbar">
           <div class="toolbar-info">
             <span class="doc-tag">📦 投标文件：{{ bidFileName }}</span>
+            <span v-if="scoringHint" class="doc-tag">{{ scoringHint }}</span>
+            <span v-if="circuitHint" class="doc-tag">{{ circuitHint }}</span>
             <span class="doc-time">评分时间 {{ scoreTime }}</span>
           </div>
+        </div>
+        <div v-if="scoringScope === 'ITEMS' && currentStage === 2" class="item-picks">
+          <label v-for="item in scoreItems" :key="item.code">
+            <input v-model="selectedItemIds" type="checkbox" :value="item.id"> {{ item.code }}
+          </label>
         </div>
 
         <div v-if="scoreItems.length === 0" class="scoring-placeholder">
@@ -195,8 +207,8 @@ const emit = defineEmits(['parsed', 'imported'])
 
 const {
   visible, loading, error, isSection1Expanded, currentStage, scored, scoringOverlayVisible,
-  sourceFileName, parseTime, bidFileName, scoreTime, importing, scoreItems, scoreResults,
-  detailModalVisible, detailMode, selectedItem, selectedResult, totalWeight, objectiveWeight,
+  sourceFileName, parseTime, bidFileName, scoreTime, importing, scoringHint, circuitHint, scoringScope, selectedItemIds,
+  scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult, totalWeight, objectiveWeight,
   subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
   openDetail, open, runScoring, reparse, exportReport, importToDrafts,
 } = useScoreParseDrawer(props, emit)
@@ -231,6 +243,8 @@ defineExpose({ open, runScoring })
 .section-num { width: 22px; height: 22px; background: var(--brand-xiyu-logo); color: var(--bg-white); border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
 .section-sub { font-size: 12px; font-weight: 400; color: var(--text-muted); margin-left: 4px; }
 .section-actions { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.score-scope { display: inline-flex; gap: 8px; font-size: 12px; color: var(--text-secondary-ui); font-weight: 400; }
+.item-picks { display: flex; flex-wrap: wrap; gap: 8px 12px; font-size: 12px; color: var(--text-secondary-ui); margin-bottom: 10px; }
 .btn-primary-sm { padding: 4px 12px; background: var(--brand-xiyu-logo); border: 1px solid var(--brand-xiyu-logo); border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; cursor: pointer; color: var(--bg-white); transition: all 0.16s ease; display: inline-flex; align-items: center; gap: 4px; }
 .btn-primary-sm:hover:not(:disabled) { background: var(--brand-xiyu-logo-hover); border-color: var(--brand-xiyu-logo-hover); }
 .btn-primary-sm:disabled { background: var(--gray-100); border-color: var(--gray-100); color: var(--gray-300); cursor: not-allowed; }

@@ -36,6 +36,7 @@ export function normalizeScoreItem(s, i) {
   const isSubj = s.scoreType === 'SUBJECTIVE' || s.scoreType === '主观项'
   const status = STATUS_MAP[s.status] || 'neutral'
   return {
+    id: s.id,
     code: s.code || `S${i + 1}`,
     dim: s.dim || '评分项',
     detail: s.detail || '',
@@ -66,5 +67,6 @@ export function normalizeScoreResult(r) {
     missedReason: r.missedReason || '',
     suggestion: r.suggestion || '',
     matchRatio: r.matchRatio != null ? Number(r.matchRatio) : null,
+    reuseKind: r.reuseKind || null,
   }
 }

@@ -9,9 +9,11 @@ import com.xiyu.bid.scoreparse.application.BidDocumentUploadService;
 import com.xiyu.bid.scoreparse.application.ScoreParseAppService;
 import com.xiyu.bid.scoreparse.application.ScoreScoringAppService;
 import com.xiyu.bid.scoreparse.dto.BidDocumentUploadDTO;
+import com.xiyu.bid.scoreparse.dto.ScoreParseCommand;
 import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
 import com.xiyu.bid.scoreparse.dto.ScoreParseProgressDTO;
 import com.xiyu.bid.scoreparse.dto.ScoreParseTriggerDTO;
+import com.xiyu.bid.scoreparse.dto.ScoreScoringCommand;
 import com.xiyu.bid.scoreparse.dto.ScoreScoringResultsDTO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -22,6 +24,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -47,8 +50,15 @@ public class ScoreParseController {
     @Operation(summary = "触发评分标准解析", description = "四路召回 + LLM 结构化提取 + 闭环校验；已有进行中任务时返回该任务")
     @PostMapping("/parse")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<ScoreParseTriggerDTO>> triggerParse(@PathVariable Long projectId) {
-        ScoreParseTriggerDTO result = scoreParseAppService.triggerParse(projectId);
+    public ResponseEntity<ApiResponse<ScoreParseTriggerDTO>> triggerParse(
+            @PathVariable Long projectId,
+            @RequestBody(required = false) ScoreParseCommand command) {
+        String source = command == null ? "MANUAL" : command.normalizedSource();
+        ScoreParseTriggerDTO result = scoreParseAppService.triggerParse(projectId, source);
+        if (result == null) {
+            return ResponseEntity.ok(ApiResponse.success("未新建自动解析任务",
+                    new ScoreParseTriggerDTO(null, "SKIPPED", "SKIPPED", "已有解析历史或自动路径已熔断")));
+        }
         return ResponseEntity.status(HttpStatus.ACCEPTED)
                 .body(ApiResponse.success("解析任务已提交", result));
     }
@@ -81,9 +91,11 @@ public class ScoreParseController {
             description = "前置校验：标书已上传 + 评分标准已解析；已有进行中任务返回 409（契约 §5）")
     @PostMapping("/scoring")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<ScoreParseTriggerDTO>> triggerScoring(@PathVariable Long projectId) {
+    public ResponseEntity<ApiResponse<ScoreParseTriggerDTO>> triggerScoring(
+            @PathVariable Long projectId,
+            @RequestBody(required = false) ScoreScoringCommand command) {
         try {
-            ScoreParseTriggerDTO result = scoreScoringAppService.triggerScoring(projectId);
+            ScoreParseTriggerDTO result = scoreScoringAppService.triggerScoring(projectId, command);
             return ResponseEntity.status(HttpStatus.ACCEPTED)
                     .body(ApiResponse.success("打分任务已提交", result));
         } catch (IllegalArgumentException exception) {

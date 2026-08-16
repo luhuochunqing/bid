@@ -7,7 +7,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { scoreParseApi } from '@/api/modules/scoreParse.js'
 import { projectsApi } from '@/api/modules/projects.js'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
-import { STATUS_MAP, formatTime, pollTask, normalizeScoreItem, normalizeScoreResult } from './scoreParseTask.js'
+import { formatTime, pollTask, normalizeScoreItem } from './scoreParseTask.js'
+import { parseTriggerSource, scoringBody, scoringSkipHint, mapScoreResults, hasMeaningfulResults, circuitHintFromMeta } from './scoreParseSpendGuard.js'
 
 export function useScoreParseDrawer(props, emit) {
   const visible = ref(false)
@@ -22,6 +23,10 @@ export function useScoreParseDrawer(props, emit) {
   const bidFileName = ref('—')
   const scoreTime = ref('—')
   const importing = ref(false)
+  const scoringHint = ref('')
+  const circuitHint = ref('')
+  const scoringScope = ref('ALL')
+  const selectedItemIds = ref([])
 
   const scoreItems = ref([])
   const scoreResults = ref({})
@@ -69,66 +74,31 @@ export function useScoreParseDrawer(props, emit) {
 
       if (data?.sourceFileName) sourceFileName.value = data.sourceFileName
       if (data?.parseTime) parseTime.value = formatTime(data.parseTime) || data.parseTime
-
-      if (Array.isArray(apiItems) && apiItems.length > 0) {
-        scoreItems.value = apiItems.map(normalizeScoreItem)
-      } else {
-        scoreItems.value = []
-      }
-
-      // 来源信息栏元数据（R007/R022：无则保持空态占位）
+      scoreItems.value = Array.isArray(apiItems) && apiItems.length > 0 ? apiItems.map(normalizeScoreItem) : []
       const meta = res?.data?.meta || {}
       if (meta.sourceFileName) sourceFileName.value = meta.sourceFileName
       if (meta.parseTime) parseTime.value = formatTime(meta.parseTime)
       if (meta.bidFileName) bidFileName.value = meta.bidFileName
       if (meta.scoreTime) scoreTime.value = formatTime(meta.scoreTime)
-
-      emit('parsed', {
-        dangerCount: statsDangerCount.value,
-        warnCount: statsNeutralCount.value,
-      })
+      if (meta.lastScoringHint) scoringHint.value = meta.lastScoringHint
+      circuitHint.value = circuitHintFromMeta(meta)
+      emit('parsed', { dangerCount: statsDangerCount.value, warnCount: statsNeutralCount.value })
 
       let hasResults = false
       try {
-        const resultsRes = await scoreParseApi.getResults(props.projectId)
-        const resultsData = resultsRes?.data
+        const resultsData = (await scoreParseApi.getResults(props.projectId))?.data
         const results = resultsData?.results
         if (resultsData?.bidFileName && !meta.bidFileName) bidFileName.value = resultsData.bidFileName
         if (resultsData?.scoreTime && !meta.scoreTime) scoreTime.value = formatTime(resultsData.scoreTime) || resultsData.scoreTime
-
         if (Array.isArray(results) && results.length > 0) {
-          const resultMap = {}
-          for (const r of results) {
-            resultMap[r.code] = normalizeScoreResult(r)
-          }
-          scoreResults.value = resultMap
-          hasResults = results.some((r) =>
-            r.actualScore != null ||
-            r.score != null ||
-            (r.status && r.status !== 'neutral' && r.status !== 'PENDING' && r.status !== 'PENDING_EXPERT') ||
-            Boolean(r.evidence) ||
-            Boolean(r.quote) ||
-            Boolean(r.suggestion) ||
-            Boolean(r.missedReason)
-          )
+          scoreResults.value = mapScoreResults(results)
+          hasResults = hasMeaningfulResults(results)
         }
-      } catch {
-        // results 不存在时正常忽略
-      }
+      } catch { /* results 不存在时忽略 */ }
 
-      // 阶段与打分状态判定（无投标文件必须为阶段1，有文件未打分为阶段2且scored=false）
-      const hasBidDoc = Boolean(
-        meta.bidFileName ||
-        (bidFileName.value && bidFileName.value !== '—') ||
-        props.hasBidDocument
-      )
-      if (options.stage !== undefined) {
-        currentStage.value = options.stage
-      } else {
-        currentStage.value = (hasResults || hasBidDoc) ? 2 : 1
-      }
+      const hasBidDoc = Boolean(meta.bidFileName || (bidFileName.value && bidFileName.value !== '—') || props.hasBidDocument)
+      currentStage.value = options.stage !== undefined ? options.stage : ((hasResults || hasBidDoc) ? 2 : 1)
       scored.value = options.scored !== undefined ? options.scored : hasResults
-
       const lastParseStatus = meta.lastParseStatus ?? null
       const inFlight = lastParseStatus === 'PENDING' || lastParseStatus === 'PROCESSING'
       if (scoreItems.value.length === 0 && (lastParseStatus == null || inFlight) && options.autoParse !== false) {
@@ -136,8 +106,6 @@ export function useScoreParseDrawer(props, emit) {
       } else if (lastParseStatus === 'FAILED') {
         error.value = meta.lastParseError || '评分标准解析失败，请重新解析'
       }
-
-      // 仅当阶段 2 且从未打分且显式指定 autoScore 时才自动打分
       if (currentStage.value === 2 && !hasResults && options.autoScore === true) {
         await runScoring({ auto: true })
       }
@@ -163,7 +131,19 @@ export function useScoreParseDrawer(props, emit) {
         scored.value = true
         ElMessage.success(isAuto ? 'AI 自动打分完成' : 'AI 实际打分完成')
       } else {
-        await scoreParseApi.triggerScoring(props.projectId)
+        const body = scoringBody({
+          source: isAuto ? 'AUTO' : 'MANUAL',
+          scope: options.scope || scoringScope.value,
+          itemIds: options.itemIds || selectedItemIds.value,
+        })
+        const triggered = await scoreParseApi.triggerScoring(props.projectId, body)
+        const skipHint = scoringSkipHint(triggered?.data)
+        if (skipHint) scoringHint.value = skipHint
+        if (triggered?.data?.outcome === 'SKIPPED') {
+          scored.value = true
+          ElMessage.info(skipHint || '文件未变化')
+          return
+        }
         let done = null
         let pollError = null
         try {
@@ -174,28 +154,15 @@ export function useScoreParseDrawer(props, emit) {
         }
 
         try {
-          const resultsRes = await scoreParseApi.getResults(props.projectId)
-          const resultsData = resultsRes?.data
+          const resultsData = (await scoreParseApi.getResults(props.projectId))?.data
           const results = resultsData?.results
           if (resultsData?.bidFileName) bidFileName.value = resultsData.bidFileName
           if (resultsData?.scoreTime) scoreTime.value = formatTime(resultsData.scoreTime) || resultsData.scoreTime
-
           if (Array.isArray(results) && results.length > 0) {
-            const resultMap = {}
-            for (const r of results) {
-              resultMap[r.code] = normalizeScoreResult(r)
-            }
-            scoreResults.value = resultMap
-            const hasValidResults = results.some((r) =>
-              r.actualScore != null || r.score != null || Boolean(r.evidence) || Boolean(r.quote) || Boolean(r.missedReason)
-            )
-            if (hasValidResults) {
-              scored.value = true
-            }
+            scoreResults.value = mapScoreResults(results)
+            if (hasMeaningfulResults(results)) scored.value = true
           }
-        } catch {
-          // 降级忽略
-        }
+        } catch { /* 降级忽略 */ }
 
         if (pollError) {
           notifyErrorUnlessRateLimit(pollError, '打分失败')
@@ -215,7 +182,11 @@ export function useScoreParseDrawer(props, emit) {
     const silent = !!options.silent
     try {
       scoringOverlayVisible.value = true
-      await scoreParseApi.triggerParse(props.projectId)
+      const started = await scoreParseApi.triggerParse(props.projectId, { source: parseTriggerSource(silent) })
+      if (!started?.data?.taskId || started?.data?.status === 'SKIPPED') {
+        await fetchAnalysisData({ stage: currentStage.value, autoScore: false, autoParse: false })
+        return
+      }
       const done = await pollTask(() => scoreParseApi.getParseStatus(props.projectId), '解析')
       if (done?.completedAt) parseTime.value = formatTime(done.completedAt)
       await fetchAnalysisData({ stage: currentStage.value, autoScore: false, autoParse: false })
@@ -289,9 +260,9 @@ export function useScoreParseDrawer(props, emit) {
 
   return {
     visible, loading, error, isSection1Expanded, currentStage, scored, scoringOverlayVisible,
-    sourceFileName, parseTime, bidFileName, scoreTime, importing, scoreItems, scoreResults,
-    detailModalVisible, detailMode, selectedItem, selectedResult, totalWeight, objectiveWeight,
-    subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
-    openDetail, open, runScoring, reparse, exportReport, importToDrafts,
+    sourceFileName, parseTime, bidFileName, scoreTime, importing, scoringHint, circuitHint, scoringScope, selectedItemIds,
+    scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult,
+    totalWeight, objectiveWeight, subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount,
+    estTotalScore, actualTotalScore, openDetail, open, runScoring, reparse, exportReport, importToDrafts,
   }
 }

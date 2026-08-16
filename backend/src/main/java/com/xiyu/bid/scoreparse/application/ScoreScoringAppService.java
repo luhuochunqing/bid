@@ -1,28 +1,25 @@
 // Input: projectId（触发打分）/ taskId（异步执行）
 // Output: ScoreParseTriggerDTO（触发）/ score_result 落库（执行）
-// Pos: scoreparse/application — 阶段 2 实际打分编排（spec 041 US4）
+// Pos: scoreparse/application — 阶段 2 实际打分编排（spec 041 US4 / 044 花费守卫）
 // 维护声明: 维护者按项目SOP；FR-012/FR-019/FR-021；spec 031 异步四件套范式
 package com.xiyu.bid.scoreparse.application;
 
-import com.xiyu.bid.biddraftagent.application.ExtractedTenderDocument;
-import com.xiyu.bid.biddraftagent.application.LoadedTenderDocument;
-import com.xiyu.bid.biddraftagent.application.TenderDocumentStorage;
-import com.xiyu.bid.biddraftagent.application.TenderDocumentTextExtractor;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
-import com.xiyu.bid.scoreparse.domain.KnowledgeCategoryPolicy;
-import com.xiyu.bid.scoreparse.domain.PartialScorePolicy;
-import com.xiyu.bid.scoreparse.domain.ScoreAssessmentGuard;
-import com.xiyu.bid.scoreparse.domain.ScoreStatusPolicy;
+import com.xiyu.bid.biddraftagent.application.TenderDocumentStorage;
+import com.xiyu.bid.biddraftagent.application.TenderDocumentTextExtractor;
+import com.xiyu.bid.scoreparse.domain.AutoFailCircuit;
+import com.xiyu.bid.scoreparse.domain.BidChapterDirtySet;
+import com.xiyu.bid.scoreparse.domain.BidScoreSkipPolicy;
 import com.xiyu.bid.scoreparse.domain.SummaryAggregator;
 import com.xiyu.bid.scoreparse.dto.ScoreParseProgressDTO;
 import com.xiyu.bid.scoreparse.dto.ScoreParseTriggerDTO;
+import com.xiyu.bid.scoreparse.dto.ScoreScoringCommand;
 import com.xiyu.bid.scoreparse.dto.ScoreScoringResultsDTO;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
 import com.xiyu.bid.scoreparse.entity.ScoreResult;
 import com.xiyu.bid.scoreparse.infrastructure.openai.OpenAiScoreAnalyzer;
-import com.xiyu.bid.scoreparse.infrastructure.openai.ScoreAssessmentOutput;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
@@ -35,7 +32,6 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -45,7 +41,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * 阶段 2 投标文件实际打分应用服务（spec 041 US4 编排层）。
+ * 阶段 2 投标文件实际打分应用服务（spec 041 US4 / 044 编排层）。
  */
 @Service
 @RequiredArgsConstructor
@@ -54,7 +50,6 @@ public class ScoreScoringAppService {
 
     private static final String TASK_TYPE_SCORING = "SCORING";
     private static final List<String> ACTIVE_STATUSES = List.of("PENDING", "PROCESSING");
-    private static final int BID_DOC_EXCERPT_MAX_CHARS = 12000;
 
     private final ScoreParseTaskRepository taskRepository;
     private final ScoreItemRepository itemRepository;
@@ -66,46 +61,68 @@ public class ScoreScoringAppService {
     private final ScoreParseProgressService progressService;
     private final ProjectAccessScopeService projectAccessScopeService;
     private final OpenAiScoreAnalyzer scoreAnalyzer;
-    private final ScoreAssessmentGuard assessmentGuard = new ScoreAssessmentGuard();
-    private final ScoreStatusPolicy statusPolicy = new ScoreStatusPolicy();
     private final SummaryAggregator summaryAggregator = new SummaryAggregator();
-    private final PartialScorePolicy partialScorePolicy = new PartialScorePolicy();
-    private final KnowledgeCategoryPolicy categoryPolicy = new KnowledgeCategoryPolicy();
+    private final ScoreScoringItemPicker itemPicker = new ScoreScoringItemPicker();
 
     @Lazy
     @Autowired
     private ScoreScoringAppService self;
 
-    /** 触发实际打分（FR-019 前置校验与创建任务） */
     public ScoreParseTriggerDTO triggerScoring(Long projectId) {
-        projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
+        return triggerScoring(projectId, ScoreScoringCommand.defaults());
+    }
 
+    public ScoreParseTriggerDTO triggerScoring(Long projectId, ScoreScoringCommand command) {
+        projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
+        ScoreScoringCommand cmd = command == null ? ScoreScoringCommand.defaults() : command;
         List<ScoreItem> items = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId);
         if (items.isEmpty()) {
             throw new IllegalArgumentException("SCORE_ITEMS_NOT_READY");
         }
-
-        List<ProjectDocument> bidDocs = findBidDocuments(projectId);
+        ScoreBidDocumentLookup docs = docs();
+        List<ProjectDocument> bidDocs = docs.findBidDocuments(projectId);
         if (bidDocs.isEmpty()) {
             throw new IllegalArgumentException("NO_BID_DOCUMENT");
         }
-
-        List<ScoreParseTask> activeTasks = taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+        List<ScoreParseTask> active = taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
                 projectId, TASK_TYPE_SCORING, ACTIVE_STATUSES);
-        if (!activeTasks.isEmpty()) {
-            log.info("项目 {} 已有进行中打分任务 {}，拒绝重复触发", projectId, activeTasks.get(0).getTaskId());
+        if (!active.isEmpty()) {
+            if ("AUTO".equals(cmd.normalizedSource())) {
+                ScoreParseTask existing = active.get(0);
+                return new ScoreParseTriggerDTO(existing.getTaskId(), existing.getStatus());
+            }
             throw new IllegalStateException("TASK_IN_PROGRESS");
         }
-
-        String taskId = UUID.randomUUID().toString();
+        if ("AUTO".equals(cmd.normalizedSource())
+                && new ScoreParseAutoPolicy(taskRepository, itemRepository).circuitOpen(projectId)) {
+            throw new IllegalStateException(AutoFailCircuit.OPEN_MESSAGE);
+        }
         ProjectDocument bidDoc = bidDocs.get(0);
-        stateService.createTask(taskId, projectId, TASK_TYPE_SCORING, bidDoc.getName(), bidDoc.getFileUrl());
-        log.info("创建打分任务: taskId={}, projectId={}, file={}", taskId, projectId, bidDoc.getName());
+        byte[] bytes = docs.loadBytes(bidDoc.getFileUrl());
+        String bidHash = BidScoreSkipPolicy.hashBytes(bytes);
+        String itemHash = BidScoreSkipPolicy.hashItems(items.stream()
+                .map(item -> BidScoreSkipPolicy.itemFingerprint(item.getId(), item.getWeight(), item.getDetail()))
+                .toList());
+        ScoreParseTask last = latestCompletedScoring(projectId);
+        if (BidScoreSkipPolicy.shouldSkip(bidHash, itemHash,
+                last == null ? null : last.getBidContentHash(), last == null ? null : last.getItemSetHash())) {
+            return completeSkipped(projectId, bidDoc, bidHash, itemHash, cmd.normalizedSource());
+        }
+        String taskId = UUID.randomUUID().toString();
+        ScoreParseTask created = stateService.createTask(
+                taskId, projectId, TASK_TYPE_SCORING, bidDoc.getName(), bidDoc.getFileUrl(), cmd.normalizedSource());
+        created.setStage(cmd.normalizedScope());
+        created.setBidContentHash(bidHash);
+        created.setItemSetHash(itemHash);
+        if ("ITEMS".equals(cmd.normalizedScope()) && cmd.itemIds() != null && !cmd.itemIds().isEmpty()) {
+            created.setChapterHashes("IDS:" + cmd.itemIds().stream().map(String::valueOf)
+                    .collect(Collectors.joining(",")));
+        }
+        taskRepository.save(created);
         self.executeScoringAsync(taskId);
         return new ScoreParseTriggerDTO(taskId, "PENDING");
     }
 
-    /** 异步执行打分（scoreParseExecutor，分钟级 LLM 调用） */
     @Async("scoreParseExecutor")
     public void executeScoringAsync(String taskId) {
         try {
@@ -120,133 +137,56 @@ public class ScoreScoringAppService {
         stateService.markProcessing(taskId);
         ScoreParseTask task = taskRepository.findByTaskId(taskId)
                 .orElseThrow(() -> new IllegalStateException("任务不存在: " + taskId));
-
         List<ScoreItem> items = itemRepository.findByProjectIdOrderByItemIndexAsc(task.getProjectId());
-        updateProgress(taskId, 5, "READ_BID_DOCUMENT", "读取投标文件");
+        updateProgress(taskId, 5, "读取投标文件");
         String bidDocText;
         try {
-            bidDocText = loadBidDocumentText(task.getProjectId());
+            bidDocText = docs().loadText(task.getProjectId());
         } catch (RuntimeException ex) {
             String prdMsg = "投标文件解析失败，无法完成打分，请检查文件内容或重新上传";
             log.warn("投标文件解析失败，写入全员待确认: taskId={}, msg={}", taskId, ex.getMessage());
-            writeFallbackPendingResults(task, items, prdMsg);
+            resultRepository.deleteByScoreItemIdIn(items.stream().map(ScoreItem::getId).toList());
+            resultRepository.saveAll(new ScoreItemAssessor(scoreAnalyzer).fallbackPending(task, items, prdMsg));
             stateService.failTask(taskId, prdMsg);
             progressService.clearProgress(taskId);
             return;
         }
-
+        Map<Long, ScoreResult> oldResults = resultRepository
+                .findByScoreItemIdIn(items.stream().map(ScoreItem::getId).toList())
+                .stream().collect(Collectors.toMap(ScoreResult::getScoreItemId, Function.identity(), (a, b) -> a));
+        ScoreScoringItemPicker.Plan plan = itemPicker.plan(
+                items, oldResults, bidDocText, latestCompletedScoring(task.getProjectId()),
+                task.getStage(), parseItemIds(task.getChapterHashes()));
+        ScoreItemAssessor assessor = new ScoreItemAssessor(scoreAnalyzer);
         List<ScoreResult> results = new ArrayList<>(items.size());
+        java.util.Set<Long> assessIds = plan.toAssess().stream().map(ScoreItem::getId).collect(Collectors.toSet());
         for (int i = 0; i < items.size(); i++) {
             ScoreItem item = items.get(i);
-            updateProgress(taskId, 10 + 80 * (i + 1) / items.size(), "ASSESS",
+            if (!assessIds.contains(item.getId()) && oldResults.containsKey(item.getId())) {
+                results.add(assessor.reuse(task, oldResults.get(item.getId())));
+                continue;
+            }
+            updateProgress(taskId, 10 + 80 * (i + 1) / items.size(),
                     "对标打分 " + (i + 1) + "/" + items.size());
-            results.add(assessItem(task, item, bidDocText));
+            results.add(assessor.assess(task, item, bidDocText));
         }
-
-        // FR-021 整批覆盖：全部 assess 成功后才删旧写新
-        updateProgress(taskId, 95, "PERSIST", "打分结果落库");
+        task.setStage(plan.stageToken());
+        task.setChapterHashes(BidChapterHashCodec.encode(
+                BidChapterDirtySet.toHashMap(BidChapterDirtySet.split(bidDocText))));
+        taskRepository.save(task);
+        updateProgress(taskId, 95, "打分结果落库");
         resultRepository.deleteByScoreItemIdIn(items.stream().map(ScoreItem::getId).toList());
         resultRepository.saveAll(results);
-
         log.info("打分任务完成: taskId={}, items={}", taskId, results.size());
         stateService.markCompleted(taskId);
         progressService.clearProgress(taskId);
     }
 
-    private void writeFallbackPendingResults(ScoreParseTask task, List<ScoreItem> items, String reason) {
-        if (items == null || items.isEmpty()) return;
-        List<ScoreResult> fallbacks = items.stream().map(item -> ScoreResult.builder()
-                .scoreItemId(item.getId()).scoringTaskId(task.getId()).actualScore(null)
-                .statusStage2("PENDING").missedReason(reason).build()).toList();
-        resultRepository.deleteByScoreItemIdIn(items.stream().map(ScoreItem::getId).toList());
-        resultRepository.saveAll(fallbacks);
-    }
-
-    private List<ProjectDocument> findBidDocuments(Long projectId) {
-        for (String cat : List.of("BID", "BID_FILE", "BID_DOCUMENT")) {
-            List<ProjectDocument> docs = projectDocumentRepository
-                    .findByProjectIdAndFiltersOrderByCreatedAtDesc(projectId, cat, null, null);
-            if (!docs.isEmpty()) return docs;
-        }
-        return List.of();
-    }
-
-    private String loadBidDocumentText(Long projectId) {
-        List<ProjectDocument> bidDocs = findBidDocuments(projectId);
-        if (bidDocs.isEmpty()) {
-            throw new IllegalStateException("投标文件不存在，项目: " + projectId);
-        }
-        ProjectDocument bidDoc = bidDocs.get(0);
-        LoadedTenderDocument loaded = documentStorage.loadByFileUrl(bidDoc.getFileUrl())
-                .orElseThrow(() -> new IllegalStateException("投标文件加载失败: " + bidDoc.getFileUrl()));
-        ExtractedTenderDocument extracted = textExtractor.extract(
-                bidDoc.getName(), null, loaded.content());
-        return extracted.text();
-    }
-
-    /** 单项对标：LLM matchRatio 输出 → PartialScorePolicy 计算 → ScoreAssessmentGuard 守卫 → ScoreResult */
-    private ScoreResult assessItem(ScoreParseTask task, ScoreItem item, String bidDocText) {
-        String excerpt = ScoreDocExcerptExtractor.extractRelevantExcerpt(
-                bidDocText, item, BID_DOC_EXCERPT_MAX_CHARS);
-        ScoreAssessmentOutput output;
-        if (ScoreAssessmentGuard.TYPE_SUBJECTIVE.equals(item.getScoreType())) {
-            output = scoreAnalyzer.assessSubjective(item.getDetail(), excerpt);
-        } else {
-            output = scoreAnalyzer.assessObjective(item.getDetail(), item.getWeight(), excerpt);
-        }
-
-        ScoreAssessmentGuard.Result assessment = assessmentGuard.guard(
-                toGuardInput(output), item.getWeight(), item.getScoreType());
-        if (assessment.rangeInvalid()) {
-            log.warn("AI 得分超出 [0, {}] 区间，置空待确认: itemId={}", item.getWeight(), item.getId());
-        }
-        if (assessment.subjectiveDropped()) {
-            log.info("主观项数字输出已丢弃（SC-003）: itemId={}", item.getId());
-        }
-
-        BigDecimal finalActualScore = null;
-        if (ScoreAssessmentGuard.TYPE_OBJECTIVE.equals(item.getScoreType()) && !assessment.rangeInvalid()) {
-            Integer matchRatio = assessment.matchRatio() != null ? assessment.matchRatio()
-                    : (output != null ? output.matchRatio : null);
-            if (matchRatio != null) {
-                String category = categoryPolicy.categorize(item.getDim(), item.getDetail());
-                finalActualScore = partialScorePolicy.computeStage2Score(item.getWeight(), category, matchRatio, item.getScoreType());
-            } else if (assessment.actualScore() != null) {
-                finalActualScore = assessment.actualScore();
-            }
-        }
-
-        String status = statusPolicy.evaluate(
-                finalActualScore, item.getWeight(), item.getScoreType(), false);
-        return ScoreResult.builder()
-                .scoreItemId(item.getId())
-                .scoringTaskId(task.getId())
-                .actualScore(finalActualScore)
-                .statusStage2(status)
-                .evidence(assessment.evidence())
-                .quote(assessment.quote())
-                .missedReason(assessment.missedReason())
-                .suggestion(assessment.suggestion())
-                .matchRatio(assessment.matchRatio())
-                .build();
-    }
-
-    private ScoreAssessmentGuard.Input toGuardInput(ScoreAssessmentOutput output) {
-        return ScoreAssessmentGuard.Input.builder()
-                .actualScore(output.actualScore == null ? null : BigDecimal.valueOf(output.actualScore))
-                .matchRatio(output.matchRatio).evidence(output.evidence).quote(output.quote)
-                .quoteMissing(output.quoteMissing).missedReason(output.missedReason)
-                .suggestion(output.suggestion).build();
-    }
-
-    /** 查询打分状态 */
     public ScoreParseProgressDTO getStatus(Long projectId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
-        ScoreParseTask task = latestTask(projectId, TASK_TYPE_SCORING);
-        return progressService.getProgress(task.getTaskId());
+        return progressService.getProgress(latestTask(projectId).getTaskId());
     }
 
-    /** 阶段 2 打分结果查询（契约 §7）：按 item_index 升序，合并 item 基础信息与打分结果 */
     public ScoreScoringResultsDTO getResults(Long projectId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         List<ScoreItem> items = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId);
@@ -257,10 +197,8 @@ public class ScoreScoringAppService {
         Map<Long, ScoreResult> resultMap = resultRepository
                 .findByScoreItemIdIn(items.stream().map(ScoreItem::getId).toList())
                 .stream().collect(Collectors.toMap(ScoreResult::getScoreItemId, Function.identity(), (a, b) -> a));
-
         List<ScoreScoringResultsDTO.ScoreResultDTO> resultDTOs = items.stream()
                 .map(item -> toResultDTO(item, resultMap.get(item.getId()))).toList();
-
         SummaryAggregator.Result summary = summaryAggregator.aggregate(items.stream()
                 .map(item -> new SummaryAggregator.Item(item.getWeight(), item.getScoreType(),
                         resultMap.get(item.getId()) == null ? null : resultMap.get(item.getId()).getActualScore(),
@@ -272,23 +210,62 @@ public class ScoreScoringAppService {
                 summary.objectiveWeight(), summary.subjectiveWeight(), summary.weightWarning()));
     }
 
+    private ScoreParseTriggerDTO completeSkipped(Long projectId, ProjectDocument bidDoc,
+                                                 String bidHash, String itemHash, String source) {
+        String taskId = UUID.randomUUID().toString();
+        ScoreParseTask created = stateService.createTask(
+                taskId, projectId, TASK_TYPE_SCORING, bidDoc.getName(), bidDoc.getFileUrl(), source);
+        created.setStatus("COMPLETED");
+        created.setProgress(100);
+        created.setStage("SKIPPED");
+        created.setBidContentHash(bidHash);
+        created.setItemSetHash(itemHash);
+        created.setCompletedAt(java.time.LocalDateTime.now());
+        taskRepository.save(created);
+        return new ScoreParseTriggerDTO(taskId, "COMPLETED", "SKIPPED", "文件未变化");
+    }
+
+    private ScoreBidDocumentLookup docs() {
+        return new ScoreBidDocumentLookup(projectDocumentRepository, documentStorage, textExtractor);
+    }
+
+    private ScoreParseTask latestCompletedScoring(Long projectId) {
+        return taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                        projectId, TASK_TYPE_SCORING, List.of("COMPLETED"))
+                .stream().max(Comparator.comparing(ScoreParseTask::getId)).orElse(null);
+    }
+
+    private List<Long> parseItemIds(String raw) {
+        if (raw == null || !raw.startsWith("IDS:")) {
+            return List.of();
+        }
+        List<Long> ids = new ArrayList<>();
+        for (String part : raw.substring(4).split(",")) {
+            if (!part.isBlank()) {
+                ids.add(Long.valueOf(part.trim()));
+            }
+        }
+        return ids;
+    }
+
     private ScoreScoringResultsDTO.ScoreResultDTO toResultDTO(ScoreItem item, ScoreResult result) {
         return new ScoreScoringResultsDTO.ScoreResultDTO(
                 item.getId(), item.getCode(), item.getDim(), item.getDetail(), item.getWeight(), item.getScoreType(),
                 result == null ? null : result.getStatusStage2(), result == null ? null : result.getActualScore(),
                 result == null ? null : result.getEvidence(), result == null ? null : result.getQuote(),
                 result == null ? null : result.getMissedReason(), result == null ? null : result.getSuggestion(),
-                result == null ? null : result.getMatchRatio());
+                result == null ? null : result.getMatchRatio(),
+                result == null ? null : result.getReuseKind());
     }
 
-    private ScoreParseTask latestTask(Long projectId, String taskType) {
+    private ScoreParseTask latestTask(Long projectId) {
         return taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
-                        projectId, taskType, List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED"))
+                        projectId, TASK_TYPE_SCORING, List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED"))
                 .stream().max(Comparator.comparing(ScoreParseTask::getId))
                 .orElseThrow(() -> new IllegalStateException("项目无打分任务: " + projectId));
     }
 
-    private void updateProgress(String taskId, int progress, String stageKey, String stageText) {
+    private void updateProgress(String taskId, int progress, String stageText) {
         stateService.updateProgress(taskId, progress, stageText);
         progressService.updateProgress(taskId, new ScoreParseProgressDTO(
                 taskId, "PROCESSING", progress, stageText, null, null, null));

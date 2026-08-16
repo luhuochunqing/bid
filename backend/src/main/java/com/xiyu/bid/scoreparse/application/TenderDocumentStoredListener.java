@@ -29,6 +29,11 @@ public class TenderDocumentStoredListener {
     @EventListener
     public void onTenderDocumentStored(TenderDocumentStoredEvent event) {
         try {
+            if (!scoreParseAppService.allowAutoParse(event.projectId())) {
+                log.info("跳过自动评分解析（已有历史或熔断）: projectId={}, documentId={}",
+                        event.projectId(), event.documentId());
+                return;
+            }
             log.info("收到招标文档存储事件，触发评分标准解析: projectId={}, documentId={}",
                     event.projectId(), event.documentId());
             scoreParseAppService.triggerParseFromEvent(event.projectId());

@@ -16,8 +16,8 @@ export const scoreParseApi = {
   },
 
   /** 触发评分标准解析（异步任务，返回 { taskId, status }；FR-021 覆盖旧解析结果） */
-  async triggerParse(projectId) {
-    return httpClient.post(`/api/projects/${projectId}/score-parse/parse`)
+  async triggerParse(projectId, body = {}) {
+    return httpClient.post(`/api/projects/${projectId}/score-parse/parse`, body)
   },
 
   /** 解析进度轮询（PENDING/PROCESSING/COMPLETED/FAILED） */
@@ -26,8 +26,8 @@ export const scoreParseApi = {
   },
 
   /** 触发阶段 2 实际打分（异步任务，返回 { taskId, status }） */
-  async triggerScoring(projectId) {
-    return httpClient.post(`/api/projects/${projectId}/score-parse/scoring`)
+  async triggerScoring(projectId, body = {}) {
+    return httpClient.post(`/api/projects/${projectId}/score-parse/scoring`, body)
   },
 
   /** 阶段 2 打分进度轮询（PENDING/PROCESSING/COMPLETED/FAILED） */

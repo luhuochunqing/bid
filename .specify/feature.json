@@ -1,2 +1,3 @@
-{"feature_directory":"specs/043-harden-score-parse-intake"}
-
+{
+  "feature_directory": "specs/044-score-llm-spend-guard"
+}

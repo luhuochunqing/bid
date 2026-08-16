@@ -39,6 +39,8 @@
           </td>
           <td class="score-cell" :class="getScoreClass(item)">
             {{ getScoreText(item) }}
+            <span v-if="mode === 'actual' && results[item.code]?.reuseKind === 'REUSED'" class="pill neutral">沿用</span>
+            <span v-else-if="mode === 'actual' && results[item.code]?.reuseKind === 'FRESH'" class="pill info">重评</span>
           </td>
           <td style="text-align: center">
             <button class="btn-detail" @click="$emit('open-detail', item, results[item.code] || null, mode)">

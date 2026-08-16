@@ -4,9 +4,7 @@
 // 维护声明: 维护者按项目SOP；spec 031 异步四件套范式（@Async + DB + Redis + 自代理）
 package com.xiyu.bid.scoreparse.application;
 
-import com.xiyu.bid.biddraftagent.entity.BidTenderDocumentSnapshot;
 import com.xiyu.bid.biddraftagent.repository.BidTenderDocumentSnapshotRepository;
-import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.scoreparse.domain.ItemCountCheck;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
@@ -70,40 +68,53 @@ public class ScoreParseAppService {
     @Autowired
     private ScoreParseAppService self;
 
-    /** 触发解析。立项招标文件或历史快照至少一份，否则 400。 */
+    /** 触发解析。立项招标文件或历史快照至少一份，否则 400。缺省 MANUAL。 */
     public ScoreParseTriggerDTO triggerParse(Long projectId) {
+        return triggerParse(projectId, "MANUAL");
+    }
+
+    public ScoreParseTriggerDTO triggerParse(Long projectId, String source) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
-        return triggerParseInternal(projectId);
+        return triggerParseInternal(projectId, "AUTO".equalsIgnoreCase(source) ? "AUTO" : "MANUAL");
     }
 
     /** 事件路径（无用户上下文）；源头已校验项目权限。 */
     public ScoreParseTriggerDTO triggerParseFromEvent(Long projectId) {
-        return triggerParseInternal(projectId);
+        return triggerParseInternal(projectId, "AUTO");
     }
 
-    private ScoreParseTriggerDTO triggerParseInternal(Long projectId) {
+    /** 监听器：从未解析且未熔断才允许自动新建。 */
+    public boolean allowAutoParse(Long projectId) {
+        return new ScoreParseAutoPolicy(taskRepository, itemRepository)
+                .allowAuto(projectId, latestTaskOrNull(projectId, TASK_TYPE_PARSE));
+    }
+
+    private ScoreParseTriggerDTO triggerParseInternal(Long projectId, String source) {
         List<ScoreParseTask> activeTasks = taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
                 projectId, TASK_TYPE_PARSE, ACTIVE_STATUSES);
         if (!activeTasks.isEmpty()) {
             ScoreParseTask existing = activeTasks.get(0);
-            log.info("项目 {} 已有进行中解析任务 {}，直接返回", projectId, existing.getTaskId());
             return new ScoreParseTriggerDTO(existing.getTaskId(), existing.getStatus());
+        }
+        ScoreParseTask latestParse = latestTaskOrNull(projectId, TASK_TYPE_PARSE);
+        if ("AUTO".equals(source) && !new ScoreParseAutoPolicy(taskRepository, itemRepository)
+                .allowAuto(projectId, latestParse)) {
+            return latestParse == null ? null : new ScoreParseTriggerDTO(latestParse.getTaskId(), latestParse.getStatus());
         }
         TenderIntake intake = initiationTenderTextResolver.resolveIntake(projectId);
         if (intake.source().isEmpty()) {
-            return rejectUnavailable(projectId, intake.emptyReason());
+            return rejectUnavailable(projectId, intake.emptyReason(), source);
         }
         String taskId = UUID.randomUUID().toString();
-        stateService.createTask(taskId, projectId, TASK_TYPE_PARSE, null, null);
-        log.info("创建解析任务: taskId={}, projectId={}", taskId, projectId);
+        stateService.createTask(taskId, projectId, TASK_TYPE_PARSE, null, null, source);
         self.executeParseAsync(taskId);
         return new ScoreParseTriggerDTO(taskId, "PENDING");
     }
 
-    private ScoreParseTriggerDTO rejectUnavailable(Long projectId, String reason) {
+    private ScoreParseTriggerDTO rejectUnavailable(Long projectId, String reason, String source) {
         String message = reason == null || reason.isBlank() ? NO_SNAPSHOT_MESSAGE : reason;
         String taskId = UUID.randomUUID().toString();
-        stateService.createTask(taskId, projectId, TASK_TYPE_PARSE, null, null);
+        stateService.createTask(taskId, projectId, TASK_TYPE_PARSE, null, null, source);
         stateService.failTask(taskId, message);
         throw new IllegalArgumentException(message);
     }
@@ -207,39 +218,12 @@ public class ScoreParseAppService {
                 summary.totalWeight(), summary.totalEstScore(),
                 summary.okCount(), summary.dangerCount(), summary.pendingCount(),
                 summary.objectiveWeight(), summary.subjectiveWeight(),
-                summary.weightWarning()), buildMeta(projectId));
-    }
-
-    /** 来源信息栏元数据：快照文件名 + 最近 PARSE/SCORING 任务或现网标书的文件名与完成时间（无则 null） */
-    private ScoreParseItemsDTO.Meta buildMeta(Long projectId) {
-        String sourceFileName = initiationTenderTextResolver.findLatestTenderDocument(projectId)
-                .map(ProjectDocument::getName)
-                .or(() -> snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(projectId)
-                        .map(BidTenderDocumentSnapshot::getFileName))
-                .orElse(null);
-        ScoreParseTask parseTask = latestTaskOrNull(projectId, TASK_TYPE_PARSE);
-        ScoreParseTask scoringTask = latestTaskOrNull(projectId, "SCORING");
-        String bidName = scoringTask != null && scoringTask.getFileName() != null
-                ? scoringTask.getFileName() : findCurrentBidFileName(projectId);
-        boolean failed = parseTask != null && "FAILED".equals(parseTask.getStatus());
-        return new ScoreParseItemsDTO.Meta(
-                sourceFileName,
-                parseTask == null ? null : parseTask.getCompletedAt(),
-                bidName,
-                scoringTask == null ? null : scoringTask.getCompletedAt(),
-                parseTask == null ? null : parseTask.getStatus(),
-                failed ? parseTask.getErrorMessage() : null);
-    }
-
-    private String findCurrentBidFileName(Long projectId) {
-        for (String cat : List.of("BID", "BID_FILE", "BID_DOCUMENT")) {
-            List<ProjectDocument> docs = projectDocumentRepository
-                    .findByProjectIdAndFiltersOrderByCreatedAtDesc(projectId, cat, null, null);
-            if (!docs.isEmpty()) {
-                return docs.get(0).getName();
-            }
-        }
-        return null;
+                summary.weightWarning()),
+                new ScoreParseItemsMetaBuilder(initiationTenderTextResolver, snapshotRepository,
+                        taskRepository, itemRepository, resultRepository,
+                        new ScoreBidDocumentLookup(projectDocumentRepository, null, null))
+                        .build(projectId, latestTaskOrNull(projectId, TASK_TYPE_PARSE),
+                                latestTaskOrNull(projectId, "SCORING")));
     }
 
     private ScoreParseTask latestTaskOrNull(Long projectId, String taskType) {

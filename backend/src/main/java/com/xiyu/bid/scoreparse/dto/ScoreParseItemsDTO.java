@@ -38,7 +38,11 @@ public record ScoreParseItemsDTO(
             String bidFileName,
             LocalDateTime scoreTime,
             String lastParseStatus,
-            String lastParseError
+            String lastParseError,
+            String lastScoringOutcome,
+            String lastScoringHint,
+            Boolean circuitOpen,
+            Integer reusedItemCount
     ) {
     }
 }
