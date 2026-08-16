@@ -1371,3 +1371,42 @@ if (existing.isPresent()) {
 短期修复：`PDF_RENDER_DPI` 300→150（内存降至 1/4），`MAX_PDF_PAGES_PER_FILE` 30→10（页数降至 1/3）。内存预估：30 条 × 10 页 × 6.5MB = 1.95GB（2GB 堆可承载）。生产建议 JVM `-Xmx` 提升至 4g。
 
 中期方案（根治）：分批构建 docx，每 N 条业绩生成临时 docx，最后合并；或改用 docx4j 流式写入。
+
+---
+
+## 114. Hibernate `week()` 函数仅接受 1 参数——MySQL WEEK() 默认 mode 0 兼容（2026-08-16）
+
+### 问题背景
+
+数据分析模块多维趋势分析选择"周"时间维度时，后端返回 400 错误。`function('week', p.createdAt, 1)` 传入了 2 个参数，Hibernate 底层调用 MySQL `WEEK()` 函数时抛出 `FunctionArgumentException`，由 `GlobalExceptionHandler` 转换为 400 返回。
+
+### 根因
+
+```java
+// BUG：week() 传了 2 个参数，Hibernate 无法映射到 MySQL WEEK(date, mode)
+function('week', p.createdAt, 1)
+```
+
+MySQL `WEEK(date[, mode])` 语法确实支持可选 mode 参数（0-7），但 Hibernate 的 `function()` 注册器只支持单参数版本的 `WEEK()`。多参数调用时 Hibernate 找不到匹配的 `SQLFunction` 实现，抛出 `FunctionArgumentException`。
+
+### 修复
+
+改为单参数调用，使用 MySQL 默认 mode 0（返回值范围 0-53，周日为一周第一天）：
+
+```java
+function('week', p.createdAt)
+```
+
+### 教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| SQL 函数多参数调用 | Hibernate `function()` 注册的 SQL 函数可能不支持多参数 | 使用 `function('func', col)` 前必须先确认 Hibernate 注册的签名，不要假设与原生 SQL 语法一致 |
+| 400 错误被误读 | `FunctionArgumentException` 被 GlobalExceptionHandler 转成 400（前端参数校验失败），排查方向被带偏 | 后端 400 错误不一定是前端参数问题，也可能是后端 SQL 函数调用异常，需从日志中找 `FunctionArgumentException` |
+| 多时间维度查询无测试覆盖 | 日/周/月/年四个维度的 SQL 查询只在联调时手动验证 | 时间维度查询必须为每个维度编写单元测试，且测试应覆盖不同的 SQL 函数签名 |
+
+### 操作规范
+
+1. 使用 Hibernate `function()` 调用数据库函数前，先在 Hibernate 注册表中确认函数签名（单参数/多参数）。
+2. 后端 400 错误应先查日志中的 `FunctionArgumentException` 或 `JdbcSQLSyntaxErrorException`，排除 SQL 函数问题后再排查前端参数。
+3. 时间维度/分组聚合类查询，每个维度（日/周/月/年）应有独立测试用例，确保 SQL 函数在不同数据库兼容。
