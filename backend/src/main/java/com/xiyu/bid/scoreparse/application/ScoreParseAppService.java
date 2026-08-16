@@ -195,7 +195,7 @@ public class ScoreParseAppService {
         return progressService.getProgress(task.getTaskId());
     }
 
-    /** 查询评分项清单 + 汇总统计（FR-017 / FR-022，US3 SummaryAggregator 域核心） */
+    /** 查询评分项清单 + 汇总统计 + 来源信息栏元数据（FR-017 / FR-022，US3 SummaryAggregator 域核心） */
     public ScoreParseItemsDTO getItems(Long projectId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         List<ScoreItem> items = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId);
@@ -210,7 +210,26 @@ public class ScoreParseAppService {
                 summary.totalWeight(), summary.totalEstScore(),
                 summary.okCount(), summary.dangerCount(), summary.pendingCount(),
                 summary.objectiveWeight(), summary.subjectiveWeight(),
-                summary.weightWarning()));
+                summary.weightWarning()), buildMeta(projectId));
+    }
+
+    /** 来源信息栏元数据：快照文件名 + 最近 PARSE/SCORING 任务的文件名与完成时间（无则 null） */
+    private ScoreParseItemsDTO.Meta buildMeta(Long projectId) {
+        String sourceFileName = snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(projectId)
+                .map(BidTenderDocumentSnapshot::getFileName).orElse(null);
+        ScoreParseTask parseTask = latestTaskOrNull(projectId, TASK_TYPE_PARSE);
+        ScoreParseTask scoringTask = latestTaskOrNull(projectId, "SCORING");
+        return new ScoreParseItemsDTO.Meta(
+                sourceFileName,
+                parseTask == null ? null : parseTask.getCompletedAt(),
+                scoringTask == null ? null : scoringTask.getFileName(),
+                scoringTask == null ? null : scoringTask.getCompletedAt());
+    }
+
+    private ScoreParseTask latestTaskOrNull(Long projectId, String taskType) {
+        return taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                        projectId, taskType, List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED"))
+                .stream().max(java.util.Comparator.comparing(ScoreParseTask::getId)).orElse(null);
     }
 
     private ScoreParseTask latestTask(Long projectId, String taskType) {

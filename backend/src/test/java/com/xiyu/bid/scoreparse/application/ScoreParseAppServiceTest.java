@@ -6,6 +6,7 @@ package com.xiyu.bid.scoreparse.application;
 import com.xiyu.bid.biddraftagent.entity.BidTenderDocumentSnapshot;
 import com.xiyu.bid.biddraftagent.repository.BidTenderDocumentSnapshotRepository;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
+import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
 import com.xiyu.bid.scoreparse.infrastructure.openai.OpenAiScoreAnalyzer;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
@@ -21,12 +22,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -126,5 +129,47 @@ class ScoreParseAppServiceTest {
     private ScoreCandidate candidate(String code, String dim, String detail, String weight) {
         return new ScoreCandidate(code, dim, detail, new BigDecimal(weight),
                 "OBJECTIVE", null, detail, "P47", "SEMANTIC");
+    }
+
+    @Test
+    void getItems_metaCarriesFileNamesAndTimes() {
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of());
+        when(snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(PROJECT_ID))
+                .thenReturn(Optional.of(BidTenderDocumentSnapshot.builder()
+                        .fileName("招标文件-v3.pdf").build()));
+        when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                eq(PROJECT_ID), eq("PARSE"), anyList()))
+                .thenReturn(List.of(ScoreParseTask.builder()
+                        .id(1L).taskType("PARSE").status("COMPLETED")
+                        .completedAt(LocalDateTime.of(2026, 8, 16, 10, 0)).build()));
+        when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                eq(PROJECT_ID), eq("SCORING"), anyList()))
+                .thenReturn(List.of(ScoreParseTask.builder()
+                        .id(2L).taskType("SCORING").status("COMPLETED")
+                        .fileName("投标文件-终稿.docx")
+                        .completedAt(LocalDateTime.of(2026, 8, 16, 11, 0)).build()));
+
+        ScoreParseItemsDTO dto = service.getItems(PROJECT_ID);
+
+        assertThat(dto.meta().sourceFileName()).isEqualTo("招标文件-v3.pdf");
+        assertThat(dto.meta().parseTime()).isEqualTo(LocalDateTime.of(2026, 8, 16, 10, 0));
+        assertThat(dto.meta().bidFileName()).isEqualTo("投标文件-终稿.docx");
+        assertThat(dto.meta().scoreTime()).isEqualTo(LocalDateTime.of(2026, 8, 16, 11, 0));
+    }
+
+    @Test
+    void getItems_metaNullSafeWhenNoSnapshotOrTasks() {
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of());
+        when(snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(PROJECT_ID))
+                .thenReturn(Optional.empty());
+        when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(anyLong(), anyString(), anyList()))
+                .thenReturn(List.of());
+
+        ScoreParseItemsDTO dto = service.getItems(PROJECT_ID);
+
+        assertThat(dto.meta().sourceFileName()).isNull();
+        assertThat(dto.meta().parseTime()).isNull();
+        assertThat(dto.meta().bidFileName()).isNull();
+        assertThat(dto.meta().scoreTime()).isNull();
     }
 }
