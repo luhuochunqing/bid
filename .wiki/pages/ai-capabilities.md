@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [AI, 智能, 大模型, 合规, 评分, 竞争情报, 智能装配]
 created: 2026-04-15
-updated: 2026-08-15
-health_checked: 2026-08-15
+updated: 2026-08-16
+health_checked: 2026-08-16
 sources:
   - src/config/ai-prompts.js
   - backend/AI_MODULE_SUMMARY.md
@@ -122,7 +122,8 @@ backlinks:
 
 - 前端：`ScoreParseDrawer.vue` + `useScoreParseDrawer.js` + `scoreParseTask.js`（轮询/枚举映射）
 - API 模块：`src/api/modules/scoreParse.js` → spec 041 真接口 `/api/projects/{id}/score-parse/*`
-- 阶段 2 实际打分走异步任务：`triggerScoring → pollTask(2s/150次) → getResults`
+- 阶段 1 招标正文：立项已上传的 `TENDER` 文件（`InitiationTenderTextResolver`），不走 Bid Agent 初稿
+- 阶段 2 实际打分走异步任务：`triggerScoring → pollTask(2s/900次) → getResults`
 - 状态映射：OK/DANGER/PENDING → ok/danger/neutral；OBJECTIVE/SUBJECTIVE → 客观项/主观项
 - 假后端已清除：`biddraftagent` 的 BidScoreEvaluationPolicy/AppService/score-evaluation 端点（关键词硬编码打分）已删除，统一走 spec 041 真 LLM 打分
 

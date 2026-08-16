@@ -46,7 +46,8 @@ trigger（同步<1s，互斥校验+建任务）
       → EstimatedScoreService 阶段1预计得分（链尾）
 ```
 
-- 事件挂链：`TenderDocumentStoredEvent` → 招标文件入库后自动触发解析
+- **正文来源（2026-08-16）**：立项 `TENDER` 优先，其次 Bid Agent `TENDER_FILE`，再兜底旧快照。打开评分抽屉无评分项时自动 `POST /parse`。不再要求走「启动 AI 生成初稿」。
+- 事件挂链：`TenderDocumentStoredEvent` 仍可触发解析，但产品主路径是立项文件 + 评分抽屉
 - 进度：Redis 缓存 by taskId（`ScoreParseProgressService`），非 DB 轮询
 
 ## 4. 知识库五类匹配（US2，`/api/score-parse/match/*`）

@@ -10,6 +10,12 @@
 - 关键决策：空值必须保留 `null` + PENDING，禁止兜底 0；`el-dialog` append-to-body 需非 scoped 样式限高
 - 触发点：任务收尾（§2 触发点 1）—— 根因修复 + 新规范
 
+## [2026-08-16] task | 评分解析改走立项招标文件
+
+- 结论：阶段 1 正文以立项 `TENDER` 为准，打开评分抽屉自动解析；编制页「启动 AI 生成初稿」不再作为评分入口
+- 回填：[[score-parse-service]] §3、[[ai-capabilities]] V3 抽屉
+- 触发点：任务收尾（§2 触发点 1）
+
 ## [2026-08-14] create | data-analysis-revamp 新建
 
 - 背景：数据分析页面全面重构（M0~M4 五模块），对照原型 + PRD 逐模块检查修复
