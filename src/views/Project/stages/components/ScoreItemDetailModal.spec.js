@@ -49,7 +49,7 @@ describe('ScoreItemDetailModal.vue', () => {
     })
 
     expect(wrapper.find('.el-dialog__header').text()).toContain('D2 · 资质业绩 — 预计评分详情')
-    expect(wrapper.find('.detail-value.status-cell').text()).toBe('✗ 不满足')
+    expect(wrapper.find('.status-cell').text()).toBe('✗ 不满足')
     expect(wrapper.find('.detail-value.zero').text()).toBe('0 / 5')
     expect(wrapper.text()).toContain('知识库未匹配 CMMI 5 级证书')
   })

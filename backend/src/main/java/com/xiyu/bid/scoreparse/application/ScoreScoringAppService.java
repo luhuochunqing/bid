@@ -10,6 +10,7 @@ import com.xiyu.bid.biddraftagent.application.TenderDocumentStorage;
 import com.xiyu.bid.biddraftagent.application.TenderDocumentTextExtractor;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
+import com.xiyu.bid.scoreparse.domain.PartialScorePolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreAssessmentGuard;
 import com.xiyu.bid.scoreparse.domain.ScoreStatusPolicy;
 import com.xiyu.bid.scoreparse.domain.SummaryAggregator;
@@ -33,6 +34,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -66,6 +68,7 @@ public class ScoreScoringAppService {
     private final ScoreAssessmentGuard assessmentGuard = new ScoreAssessmentGuard();
     private final ScoreStatusPolicy statusPolicy = new ScoreStatusPolicy();
     private final SummaryAggregator summaryAggregator = new SummaryAggregator();
+    private final PartialScorePolicy partialScorePolicy = new PartialScorePolicy();
 
     @Lazy
     @Autowired
@@ -75,14 +78,16 @@ public class ScoreScoringAppService {
     public ScoreParseTriggerDTO triggerScoring(Long projectId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
 
-        List<ProjectDocument> bidDocs = findBidDocuments(projectId);
-        if (bidDocs.isEmpty()) {
-            throw new IllegalArgumentException("NO_BID_DOCUMENT");
-        }
         List<ScoreItem> items = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId);
         if (items.isEmpty()) {
             throw new IllegalArgumentException("SCORE_ITEMS_NOT_READY");
         }
+
+        List<ProjectDocument> bidDocs = findBidDocuments(projectId);
+        if (bidDocs.isEmpty()) {
+            throw new IllegalArgumentException("NO_BID_DOCUMENT");
+        }
+
         List<ScoreParseTask> activeTasks = taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
                 projectId, TASK_TYPE_SCORING, ACTIVE_STATUSES);
         if (!activeTasks.isEmpty()) {
@@ -90,12 +95,10 @@ public class ScoreScoringAppService {
             throw new IllegalStateException("TASK_IN_PROGRESS");
         }
 
-        ProjectDocument bidDoc = bidDocs.get(0);
         String taskId = UUID.randomUUID().toString();
-        stateService.createTask(taskId, projectId, TASK_TYPE_SCORING,
-                bidDoc.getName(), bidDoc.getFileUrl());
-        log.info("创建打分任务: taskId={}, projectId={}, bidDoc={}",
-                taskId, projectId, bidDoc.getName());
+        ProjectDocument bidDoc = bidDocs.get(0);
+        stateService.createTask(taskId, projectId, TASK_TYPE_SCORING, bidDoc.getName(), bidDoc.getFileUrl());
+        log.info("创建打分任务: taskId={}, projectId={}, file={}", taskId, projectId, bidDoc.getName());
         self.executeScoringAsync(taskId);
         return new ScoreParseTriggerDTO(taskId, "PENDING");
     }
@@ -117,7 +120,15 @@ public class ScoreScoringAppService {
                 .orElseThrow(() -> new IllegalStateException("任务不存在: " + taskId));
 
         updateProgress(taskId, 5, "READ_BID_DOCUMENT", "读取投标文件");
-        String bidDocText = loadBidDocumentText(task.getProjectId());
+        String bidDocText;
+        try {
+            bidDocText = loadBidDocumentText(task.getProjectId());
+        } catch (RuntimeException ex) {
+            log.warn("投标文件解析失败: taskId={}, msg={}", taskId, ex.getMessage());
+            stateService.failTask(taskId, "投标文件解析失败: " + ex.getMessage());
+            progressService.clearProgress(taskId);
+            return;
+        }
 
         List<ScoreItem> items = itemRepository.findByProjectIdOrderByItemIndexAsc(task.getProjectId());
         List<ScoreResult> results = new ArrayList<>(items.size());
@@ -167,7 +178,7 @@ public class ScoreScoringAppService {
         return extracted.text();
     }
 
-    /** 单项对标：LLM 输出 → ScoreAssessmentGuard 守卫 → ScoreResult */
+    /** 单项对标：LLM 输出 → ScoreAssessmentGuard 守卫 → PartialScorePolicy 计算 → ScoreResult */
     private ScoreResult assessItem(ScoreParseTask task, ScoreItem item, String bidDocText) {
         String excerpt = ScoreDocExcerptExtractor.extractRelevantExcerpt(
                 bidDocText, item, BID_DOC_EXCERPT_MAX_CHARS);
@@ -188,12 +199,20 @@ public class ScoreScoringAppService {
             log.info("主观项数字输出已丢弃（SC-003）: itemId={}", item.getId());
         }
 
+        BigDecimal finalActualScore = assessment.actualScore();
+        if (ScoreAssessmentGuard.TYPE_OBJECTIVE.equals(item.getScoreType()) && finalActualScore != null) {
+            int ratio = output.matchRatio != null ? output.matchRatio
+                    : finalActualScore.multiply(BigDecimal.valueOf(100)).divide(item.getWeight(), 0, RoundingMode.HALF_UP).intValue();
+            String tier = ratio >= 100 ? "FULL" : (ratio <= 0 ? "NONE" : "PARTIAL");
+            finalActualScore = partialScorePolicy.compute(item.getWeight(), tier, ratio, item.getScoreType());
+        }
+
         String status = statusPolicy.evaluate(
-                assessment.actualScore(), item.getWeight(), item.getScoreType(), false);
+                finalActualScore, item.getWeight(), item.getScoreType(), false);
         return ScoreResult.builder()
                 .scoreItemId(item.getId())
                 .scoringTaskId(task.getId())
-                .actualScore(assessment.actualScore())
+                .actualScore(finalActualScore)
                 .statusStage2(status)
                 .evidence(assessment.evidence())
                 .quote(assessment.quote())
@@ -205,15 +224,10 @@ public class ScoreScoringAppService {
 
     private ScoreAssessmentGuard.Input toGuardInput(ScoreAssessmentOutput output) {
         return ScoreAssessmentGuard.Input.builder()
-                .actualScore(output.actualScore == null
-                        ? null : BigDecimal.valueOf(output.actualScore))
-                .matchRatio(output.matchRatio)
-                .evidence(output.evidence)
-                .quote(output.quote)
-                .quoteMissing(output.quoteMissing)
-                .missedReason(output.missedReason)
-                .suggestion(output.suggestion)
-                .build();
+                .actualScore(output.actualScore == null ? null : BigDecimal.valueOf(output.actualScore))
+                .matchRatio(output.matchRatio).evidence(output.evidence).quote(output.quote)
+                .quoteMissing(output.quoteMissing).missedReason(output.missedReason)
+                .suggestion(output.suggestion).build();
     }
 
     /** 查询打分状态 */
@@ -229,33 +243,24 @@ public class ScoreScoringAppService {
         List<ScoreItem> items = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId);
         if (items.isEmpty()) {
             return new ScoreScoringResultsDTO(List.of(), new ScoreScoringResultsDTO.Summary(
-                    BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0,
-                    BigDecimal.ZERO, BigDecimal.ZERO, false));
+                    BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, BigDecimal.ZERO, BigDecimal.ZERO, false));
         }
         Map<Long, ScoreResult> resultMap = resultRepository
                 .findByScoreItemIdIn(items.stream().map(ScoreItem::getId).toList())
-                .stream()
-                .collect(Collectors.toMap(
-                        ScoreResult::getScoreItemId, Function.identity(),
-                        (first, second) -> first));
+                .stream().collect(Collectors.toMap(ScoreResult::getScoreItemId, Function.identity(), (a, b) -> a));
 
         List<ScoreScoringResultsDTO.ScoreResultDTO> resultDTOs = items.stream()
-                .map(item -> toResultDTO(item, resultMap.get(item.getId())))
-                .toList();
+                .map(item -> toResultDTO(item, resultMap.get(item.getId()))).toList();
 
         SummaryAggregator.Result summary = summaryAggregator.aggregate(items.stream()
-                .map(item -> new SummaryAggregator.Item(
-                        item.getWeight(), item.getScoreType(),
-                        resultMap.get(item.getId()) == null
-                                ? null : resultMap.get(item.getId()).getActualScore(),
-                        resultMap.get(item.getId()) == null
-                                ? null : resultMap.get(item.getId()).getStatusStage2()))
+                .map(item -> new SummaryAggregator.Item(item.getWeight(), item.getScoreType(),
+                        resultMap.get(item.getId()) == null ? null : resultMap.get(item.getId()).getActualScore(),
+                        resultMap.get(item.getId()) == null ? null : resultMap.get(item.getId()).getStatusStage2()))
                 .toList());
         return new ScoreScoringResultsDTO(resultDTOs, new ScoreScoringResultsDTO.Summary(
                 summary.totalWeight(), summary.totalEstScore(),
                 summary.okCount(), summary.dangerCount(), summary.pendingCount(),
-                summary.objectiveWeight(), summary.subjectiveWeight(),
-                summary.weightWarning()));
+                summary.objectiveWeight(), summary.subjectiveWeight(), summary.weightWarning()));
     }
 
     private ScoreScoringResultsDTO.ScoreResultDTO toResultDTO(ScoreItem item, ScoreResult result) {
@@ -272,10 +277,9 @@ public class ScoreScoringAppService {
     }
 
     private ScoreParseTask latestTask(Long projectId, String taskType) {
-        List<ScoreParseTask> tasks = taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
-                projectId, taskType, List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED"));
-        return tasks.stream()
-                .max(Comparator.comparing(ScoreParseTask::getId))
+        return taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                        projectId, taskType, List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED"))
+                .stream().max(Comparator.comparing(ScoreParseTask::getId))
                 .orElseThrow(() -> new IllegalStateException("项目无打分任务: " + projectId));
     }
 

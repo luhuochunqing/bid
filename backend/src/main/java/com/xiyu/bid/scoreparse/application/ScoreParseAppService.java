@@ -6,6 +6,8 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.biddraftagent.entity.BidTenderDocumentSnapshot;
 import com.xiyu.bid.biddraftagent.repository.BidTenderDocumentSnapshotRepository;
+import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
+import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.scoreparse.domain.ItemCountCheck;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreItemMergePolicy;
@@ -37,15 +39,6 @@ import java.util.UUID;
 
 /**
  * 评分标准解析应用服务（spec 041 US1 编排层）。
- *
- * <p>trigger（同步，&lt;1s）：互斥校验 → 创建 PENDING 任务 → 自代理触发异步执行。
- * <p>executeParse（异步，分钟级）：四路召回 → 合并去重 → 客观/主观分类 →
- * 权重/数量闭环校验（差异触发完整性回补）→ score_item 覆盖落库。
- *
- * <p>纯核心决策在 domain（MergePolicy/ClassificationPolicy/WeightSumCheck/ItemCountCheck），
- * 本类只做编排与持久化（FP-Java Split-First）。
- *
- * @see com.xiyu.bid.tender.service.TenderImportAppService（spec 031 异步范式参照）
  */
 @Service
 @RequiredArgsConstructor
@@ -59,6 +52,7 @@ public class ScoreParseAppService {
     private final ScoreParseTaskRepository taskRepository;
     private final ScoreItemRepository itemRepository;
     private final ScoreResultRepository resultRepository;
+    private final ProjectDocumentRepository projectDocumentRepository;
     private final ScoreParseTaskStateService stateService;
     private final ScoreParseProgressService progressService;
     private final BidTenderDocumentSnapshotRepository snapshotRepository;
@@ -153,15 +147,16 @@ public class ScoreParseAppService {
         List<ScoreCandidate> valid = filterInvalidWeights(merged);
 
         // FR-005/FR-022 权重闭环校验：合计≠100 触发完整性回补
-        WeightSumCheck.Result weightResult = checkWeights(valid);
-        if (weightResult.needRecheck()) {
-            updateProgress(taskId, 80, "GAP_RECHECK", "权重合计异常，触发完整性回补");
+        WeightSumCheck.Result weightResult = weightSumCheck.checkCandidates(valid);
+        ItemCountCheck.Result continuityResult = itemCountCheck.checkCandidates(valid);
+        if (weightResult.needRecheck() || continuityResult.needRecheck()) {
+            updateProgress(taskId, 80, "GAP_RECHECK", "分值或编号连续性异常，触发完整性回补");
             List<ScoreCandidate> missed = scoreAnalyzer.recheckGaps(
                     snapshot.getExtractedText(), valid);
             if (!missed.isEmpty()) {
                 log.info("完整性回补发现遗漏项: taskId={}, missed={}", taskId, missed.size());
                 valid = filterInvalidWeights(mergePolicy.merge(concat(valid, missed)));
-                weightResult = checkWeights(valid);
+                weightResult = weightSumCheck.checkCandidates(valid);
             }
         }
 
@@ -213,17 +208,31 @@ public class ScoreParseAppService {
                 summary.weightWarning()), buildMeta(projectId));
     }
 
-    /** 来源信息栏元数据：快照文件名 + 最近 PARSE/SCORING 任务的文件名与完成时间（无则 null） */
+    /** 来源信息栏元数据：快照文件名 + 最近 PARSE/SCORING 任务或现网标书的文件名与完成时间（无则 null） */
     private ScoreParseItemsDTO.Meta buildMeta(Long projectId) {
         String sourceFileName = snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(projectId)
                 .map(BidTenderDocumentSnapshot::getFileName).orElse(null);
         ScoreParseTask parseTask = latestTaskOrNull(projectId, TASK_TYPE_PARSE);
         ScoreParseTask scoringTask = latestTaskOrNull(projectId, "SCORING");
+        String currentBid = findCurrentBidFileName(projectId);
+        String finalBidName = (scoringTask != null && scoringTask.getFileName() != null)
+                ? scoringTask.getFileName() : currentBid;
         return new ScoreParseItemsDTO.Meta(
                 sourceFileName,
                 parseTask == null ? null : parseTask.getCompletedAt(),
-                scoringTask == null ? null : scoringTask.getFileName(),
+                finalBidName,
                 scoringTask == null ? null : scoringTask.getCompletedAt());
+    }
+
+    private String findCurrentBidFileName(Long projectId) {
+        for (String cat : List.of("BID", "BID_FILE", "BID_DOCUMENT")) {
+            List<ProjectDocument> docs = projectDocumentRepository
+                    .findByProjectIdAndFiltersOrderByCreatedAtDesc(projectId, cat, null, null);
+            if (!docs.isEmpty()) {
+                return docs.get(0).getName();
+            }
+        }
+        return null;
     }
 
     private ScoreParseTask latestTaskOrNull(Long projectId, String taskType) {

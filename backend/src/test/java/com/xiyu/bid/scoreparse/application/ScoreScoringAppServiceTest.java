@@ -88,6 +88,7 @@ class ScoreScoringAppServiceTest {
 
     @Test
     void noBidDocument_rejectsWithSemantic() {
+        mockItemsPresent();
         when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
                 PROJECT_ID, "BID", null, null)).thenReturn(List.of());
         when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
@@ -103,7 +104,6 @@ class ScoreScoringAppServiceTest {
 
     @Test
     void scoreItemsNotReady_rejectsWithSemantic() {
-        mockBidDocumentPresent();
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.triggerScoring(PROJECT_ID))

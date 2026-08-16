@@ -122,6 +122,7 @@ describe('useScoreParseDrawer.js', () => {
 
   it('keeps em-dash placeholders when meta is absent (no fake data fallback)', async () => {
     scoreParseApi.getItems.mockResolvedValue({ data: { items: REAL_ITEMS, summary: null } })
+    scoreParseApi.getResults.mockResolvedValue({ data: { results: [] } })
 
     const drawer = useScoreParseDrawer(props, emit)
     await drawer.open({ stage: 1 })

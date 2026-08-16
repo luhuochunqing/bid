@@ -30,7 +30,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class BidTenderDocumentImportAppService {
 
-    private static final long MAX_FILE_SIZE_BYTES = 30L * 1024L * 1024L;
+    private static final long MAX_FILE_SIZE_BYTES = 50L * 1024L * 1024L;
     private static final String DOCUMENT_CATEGORY = "TENDER_FILE";
     private static final String LINKED_ENTITY_TYPE = "TENDER";
     private static final String PARSE_SUCCESS_MESSAGE = "招标文件已解析，已更新招标要求快照";
@@ -110,7 +110,7 @@ public class BidTenderDocumentImportAppService {
             throw new IllegalArgumentException("请上传招标文件");
         }
         if (file.getSize() > MAX_FILE_SIZE_BYTES) {
-            throw new IllegalArgumentException("招标文件不能超过 30MB");
+            throw new IllegalArgumentException("招标文件不能超过 50MB");
         }
     }
 

@@ -29,7 +29,7 @@
 
       <div class="detail-row">
         <div class="detail-label">满足状态</div>
-        <div class="detail-value status-cell" :class="`status-${currentStatus}`">
+        <div class="status-cell" :class="currentStatus">
           {{ currentStatusText }}
         </div>
       </div>
@@ -49,10 +49,10 @@
         </div>
       </div>
 
-      <!-- R048: 阶段 2 标书引用，quote 为空显示「无」 -->
+      <!-- R048: 阶段 2 标书引用，quote 为空显示「标书引用：无」 -->
       <div v-if="mode === 'actual'" class="detail-row">
         <div class="detail-label">标书引用</div>
-        <div class="detail-quote">{{ result?.quote || '无' }}</div>
+        <div class="detail-quote">{{ result?.quote || '标书引用：无' }}</div>
       </div>
 
       <div v-if="mode === 'actual' && result?.missedReason" class="detail-row">

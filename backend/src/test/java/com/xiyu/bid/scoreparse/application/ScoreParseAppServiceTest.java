@@ -5,6 +5,7 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.biddraftagent.entity.BidTenderDocumentSnapshot;
 import com.xiyu.bid.biddraftagent.repository.BidTenderDocumentSnapshotRepository;
+import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
@@ -54,6 +55,8 @@ class ScoreParseAppServiceTest {
     @Mock
     private ScoreResultRepository resultRepository;
     @Mock
+    private ProjectDocumentRepository projectDocumentRepository;
+    @Mock
     private ScoreParseTaskStateService stateService;
     @Mock
     private ScoreParseProgressService progressService;
@@ -73,7 +76,7 @@ class ScoreParseAppServiceTest {
     @BeforeEach
     void setUp() {
         service = new ScoreParseAppService(
-                taskRepository, itemRepository, resultRepository,
+                taskRepository, itemRepository, resultRepository, projectDocumentRepository,
                 stateService, progressService, snapshotRepository,
                 projectAccessScopeService, scoreAnalyzer, estimatedScoreService,
                 itemPersistenceService);

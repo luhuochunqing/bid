@@ -114,4 +114,10 @@ public class ScoreParseController {
     public ResponseEntity<ApiResponse<ScoreScoringResultsDTO>> getResults(@PathVariable Long projectId) {
         return ResponseEntity.ok(ApiResponse.success(scoreScoringAppService.getResults(projectId)));
     }
+
+    @org.springframework.web.bind.annotation.ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccessDenied(org.springframework.security.access.AccessDeniedException ex) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error(403, "您无权限查看此任务的评分解析结果"));
+    }
 }

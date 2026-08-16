@@ -93,8 +93,8 @@ export function useScoreParseDrawer(props, emit) {
         const resultsRes = await scoreParseApi.getResults(props.projectId)
         const resultsData = resultsRes?.data
         const results = resultsData?.results
-        if (resultsData?.bidFileName) bidFileName.value = resultsData.bidFileName
-        if (resultsData?.scoreTime) scoreTime.value = formatTime(resultsData.scoreTime) || resultsData.scoreTime
+        if (resultsData?.bidFileName && !meta.bidFileName) bidFileName.value = resultsData.bidFileName
+        if (resultsData?.scoreTime && !meta.scoreTime) scoreTime.value = formatTime(resultsData.scoreTime) || resultsData.scoreTime
 
         if (Array.isArray(results) && results.length > 0) {
           const resultMap = {}
@@ -102,17 +102,29 @@ export function useScoreParseDrawer(props, emit) {
             resultMap[r.code] = normalizeScoreResult(r)
           }
           scoreResults.value = resultMap
-          hasResults = true
+          hasResults = results.some((r) =>
+            r.actualScore != null ||
+            r.score != null ||
+            (r.status && r.status !== 'neutral' && r.status !== 'PENDING' && r.status !== 'PENDING_EXPERT') ||
+            Boolean(r.evidence) ||
+            Boolean(r.quote) ||
+            Boolean(r.suggestion)
+          )
         }
       } catch {
         // results 不存在时正常忽略
       }
 
-      // 阶段与打分状态判定
+      // 阶段与打分状态判定（无投标文件必须为阶段1，有文件未打分为阶段2且scored=false）
+      const hasBidDoc = Boolean(
+        meta.bidFileName ||
+        (bidFileName.value && bidFileName.value !== '—') ||
+        props.hasBidDocument
+      )
       if (options.stage !== undefined) {
         currentStage.value = options.stage
       } else {
-        currentStage.value = (hasResults || (!!bidFileName.value && bidFileName.value !== '—')) ? 2 : 1
+        currentStage.value = (hasResults || hasBidDoc) ? 2 : 1
       }
       scored.value = options.scored !== undefined ? options.scored : hasResults
 
