@@ -97,6 +97,39 @@ describe('useScoreParseDrawer.js', () => {
     expect(drawer.totalWeight.value).toBe(0)
   })
 
+  it('fills source info bar from items meta (R007/R022: file names no longer stuck at em-dash)', async () => {
+    scoreParseApi.getItems.mockResolvedValue({
+      data: {
+        items: REAL_ITEMS,
+        summary: null,
+        meta: {
+          sourceFileName: '招标文件-v3.pdf',
+          parseTime: '2026-08-16T10:00:00',
+          bidFileName: '投标文件-终稿.docx',
+          scoreTime: '2026-08-16T11:30:00',
+        },
+      },
+    })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1 })
+
+    expect(drawer.sourceFileName.value).toBe('招标文件-v3.pdf')
+    expect(drawer.parseTime.value).toContain('10:00:00')
+    expect(drawer.bidFileName.value).toBe('投标文件-终稿.docx')
+    expect(drawer.scoreTime.value).toContain('11:30:00')
+  })
+
+  it('keeps em-dash placeholders when meta is absent (no fake data fallback)', async () => {
+    scoreParseApi.getItems.mockResolvedValue({ data: { items: REAL_ITEMS, summary: null } })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1 })
+
+    expect(drawer.sourceFileName.value).toBe('—')
+    expect(drawer.bidFileName.value).toBe('—')
+  })
+
   it('handles detail modal inspection', async () => {
     const drawer = useScoreParseDrawer(props, emit)
     await drawer.open({ stage: 1 })

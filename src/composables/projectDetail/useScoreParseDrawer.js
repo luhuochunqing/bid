@@ -116,7 +116,7 @@ export function useScoreParseDrawer(props, emit) {
     loading.value = true
     error.value = ''
     try {
-      // spec 041 真接口：GET /score-parse/items（阶段 1 清单）
+      // spec 041 真接口：GET /score-parse/items（阶段 1 清单 + 来源信息栏 meta）
       const res = await scoreParseApi.getItems(props.projectId)
       const apiItems = res?.data?.items
 
@@ -125,6 +125,13 @@ export function useScoreParseDrawer(props, emit) {
       } else {
         scoreItems.value = [] // PRD §5.3: 空状态，绝不回退假数据
       }
+
+      // 来源信息栏元数据（R007/R022：无则保持空态占位）
+      const meta = res?.data?.meta || {}
+      if (meta.sourceFileName) sourceFileName.value = meta.sourceFileName
+      if (meta.parseTime) parseTime.value = formatTime(meta.parseTime)
+      if (meta.bidFileName) bidFileName.value = meta.bidFileName
+      if (meta.scoreTime) scoreTime.value = formatTime(meta.scoreTime)
 
       emit('parsed', {
         dangerCount: statsDangerCount.value,
