@@ -30,7 +30,7 @@ public class PerformanceExcelTemplateGenerator {
     };
 
     private static final String[] CUSTOMER_TYPE_OPTIONS = {
-            "政府机关/事业单位", "央企", "地方国企", "民企", "港澳台及外企"
+            "政府机关/事业单位/高校", "央企", "地方国企", "民企", "港澳台及外企"
     };
 
     private static final String[] PROJECT_TYPE_OPTIONS = {

@@ -63,10 +63,10 @@ public class ScanExpiringPerformanceAppService {
         if (type == null) return "未知";
         return switch (type) {
             case CENTRAL_SOE -> "央企";
-            case GOVERNMENT_INSTITUTION -> "政府机关/事业单位";
+            case GOVERNMENT_INSTITUTION -> "政府机关/事业单位/高校";
             case LOCAL_SOE -> "地方国企";
             case PRIVATE_ENTERPRISE -> "民企";
-            case FOREIGN_HK_MACAO_TW -> "港澳台/外企";
+            case FOREIGN_HK_MACAO_TW -> "港澳台及外企";
         };
     }
 

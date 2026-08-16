@@ -16,6 +16,8 @@ final class RoleProfileAdminPermissions {
     static final List<String> LIST = List.of(
             "dashboard", "operation-logs", "bidding", "project", "knowledge", "resource",
             "analytics", "settings", "settings-alerts",
+            // 数据分析页面（/analytics/dashboard）：仅 3 个全局角色持有，与 catalog 口径一致
+            RoleProfileCatalog.ANALYTICS_DASHBOARD_PERMISSION,
             "task.review", "retrospective.submit", "retrospective.review", "closure.review", "lead.assign",
             RoleProfileCatalog.BIDDING_MANAGE_PERMISSION, RoleProfileCatalog.BIDDING_CREATE_PERMISSION,
             RoleProfileCatalog.BIDDING_DELETE_PERMISSION, RoleProfileCatalog.BIDDING_SYNC_PERMISSION,

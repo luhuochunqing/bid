@@ -39,6 +39,7 @@ backlinks:
 - [[business-process]] — 业务流程
 - [[crm-integration-lessons]] — CRM 集成踩坑集（商机状态 / webhook / OAuth / CallerContext）
 - [[dashboard-gap-analysis]] — 工作台卡片 vs 标书要求对照
+- [[data-analysis-revamp]] — 数据分析页面重构 — 架构与数据口径（M0~M4 / FP-Java 三层 / 三模式竞品分析）
 - [[data-model]] — 数据模型
 - [[data-permission-hardening]] — 项目数据权限修复收口
 - [[deployment]] — 部署与上线

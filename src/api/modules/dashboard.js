@@ -1,12 +1,7 @@
-// Input: httpClient, API mode config, analytics normalizers and demo adapters
-// Output: dashboardApi - dashboard metrics, tasks, and drill-down accessors
+// Input: httpClient, analytics normalizers
+// Output: dashboardApi - dashboard metrics, tasks, drill-down accessors
 // Pos: src/api/modules/ - Frontend API module layer
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
-
-/**
- * 数据看板与任务模块 API
- * 真实 API 数据看板与任务访问层
- */
 import httpClient from '../client.js'
 
 function normalizeTrendItem(item) {
@@ -95,6 +90,15 @@ export const dashboardApi = {
     return this.getOverview()
   },
 
+  // PRD §5.3 GET /api/analytics/overview/enhanced — 支持 dateStart/dateEnd 参数
+  // 返回 totalCount / biddingCount / wonCount / winRate
+  async getEnhancedOverview(dateStart, dateEnd) {
+    const params = {}
+    if (dateStart) params.startDate = dateStart
+    if (dateEnd) params.endDate = dateEnd
+    return httpClient.get('/api/analytics/overview/enhanced', { params })
+  },
+
   async getTrend() {
 
     const response = await httpClient.get('/api/analytics/trends')
@@ -179,6 +183,40 @@ export const dashboardApi = {
           successRate: 0 } }
     }
   },
+
+  // M3 - 项目类型分布
+  async getProjectTypes(params) {
+    return httpClient.get('/api/analytics/project-types', { params })
+  },
+
+  // M4 - 竞品分析
+  async getCompetitorAnalysis(data) {
+    return httpClient.post('/api/analytics/competitor-analysis', data)
+  },
+
+  // M4 - 招标主体下拉选项
+  async getTenderEntities() {
+    return httpClient.get('/api/analytics/tender-entities')
+  },
+
+  // M4 - 项目名称下拉选项（模糊搜索）
+  async getProjectNames(params = {}) {
+    return httpClient.get('/api/analytics/project-names', { params })
+  },
+
+  // M1 - 趋势分析增强(带筛选参数，支持 xAxis 维度切换)
+  async getTrendsWithFilters(params) {
+    return httpClient.get('/api/analytics/trends/enhanced', { params })
+  },
+  // M1 - PRD §6.2 筛选区下拉选项一次性加载（7 个维度 DISTINCT）
+  async getFilterOptions() { return httpClient.get('/api/analytics/filter-options') },
+  // M1 - PRD §6.4 部门-人员联动：根据已选部门名称列表刷新人员下拉选项
+  async getPersonsByDepartments(departmentNames = []) {
+    const params = departmentNames.length ? { departmentNames } : {}
+    return httpClient.get('/api/analytics/filter-options/persons', { params })
+  },
+  // M1 - PRD §6.6 趋势分析下钻
+  async getTrendDrillDown(params) { return httpClient.get('/api/analytics/trends/drilldown', { params }) },
 
   async getLayout() {
     try {

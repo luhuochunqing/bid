@@ -29,12 +29,12 @@ public final class PerformanceEnumLabels {
             case "港澳台及外企", "港澳台/外企" -> CustomerType.FOREIGN_HK_MACAO_TW;
             default -> {
                 try { yield CustomerType.valueOf(s); }
-                catch (IllegalArgumentException e) { throw new IllegalArgumentException("无效值 \"" + s + "\"，可选值：政府机关/事业单位、央企、地方国企、民企、港澳台及外企"); }
+                catch (IllegalArgumentException e) { throw new IllegalArgumentException("无效值 \"" + s + "\"，可选值：政府机关/事业单位/高校、央企、地方国企、民企、港澳台及外企"); }
             }
         };
     }
 
-    // 反向解析仍保留 "政府机关/事业单位/高校" 兼容旧 Excel 模板，但枚举 displayName 统一为 "政府机关/事业单位"
+    // 枚举 displayName 已统一为 "政府机关/事业单位/高校"，与 Excel 模板一致
 
     public static ProjectType parseProjectType(String s) {
         if (s == null || s.isBlank()) return null;

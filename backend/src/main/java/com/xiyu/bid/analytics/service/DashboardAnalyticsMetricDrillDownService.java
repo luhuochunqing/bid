@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -33,6 +34,9 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 class DashboardAnalyticsMetricDrillDownService {
+
+    /** 业务口径固定为东八区，避免服务器时区偏移导致任务逾期判定等口径漂移（P2-3） */
+    private static final ZoneId BUSINESS_ZONE = ZoneId.of("Asia/Shanghai");
 
     private final DashboardAnalyticsQueryService queryService;
     private final DashboardAnalyticsComputationService computationService;
@@ -158,7 +162,8 @@ class DashboardAnalyticsMetricDrillDownService {
 
         Map<Long, TeamTaskAggregate> taskByAssignee = computationService.summarizeTaskRows(
                 queryService.fetchTaskSnapshots(collectProjectIds(filteredProjects)),
-                LocalDateTime.now()
+                // P2-3：固定东八区业务口径，避免服务器时区影响任务逾期判定
+                LocalDateTime.now(BUSINESS_ZONE)
         );
         Map<Long, TeamAggregate> aggregates = computationService.buildTeamProjectAggregates(filteredProjects, tenderById);
         List<AnalyticsDrillDownRowDTO> baseRows = assemblerService.toTeamDrillDownRows(aggregates, userById, taskByAssignee);

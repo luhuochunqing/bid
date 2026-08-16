@@ -47,7 +47,11 @@ public class DashboardAnalyticsService {
     private final DashboardAnalyticsMetricDrillDownService metricDrillDownService;
     private final DashboardDemoFusionService demoFusionService;
 
-    @Cacheable(value = "dashboard:overview", key = "'overview'")
+    // P2-3：缓存 key 带当前用户名。overview 已经项目级数据权限过滤，不同用户
+    // 可见范围不同；固定 key 会导致缓存层越权（A 用户的全量数据被 B 用户读到）。
+    @Cacheable(value = "dashboard:overview",
+            key = "'overview:' + (T(org.springframework.security.core.context.SecurityContextHolder)"
+                    + ".getContext().getAuthentication()?.getName() ?: 'anonymous')")
     // TTL: 5 分钟（显式配置于 CacheConfig#redisCacheManagerBuilderCustomizer）
     public DashboardOverviewDTO getOverview() {
         log.debug("Fetching dashboard overview from database");
@@ -188,7 +192,8 @@ public class DashboardAnalyticsService {
         return metricDrillDownService.getProjectDrillDown(status, startDate, endDate, page, size);
     }
 
-    @CacheEvict(value = "dashboard:overview", key = "'overview'")
+    // P2-3：key 已带用户维度，清空时按 cacheName 整体清除（allEntries）
+    @CacheEvict(value = "dashboard:overview", allEntries = true)
     public void clearOverviewCache() {
         log.debug("Clearing dashboard overview cache");
     }

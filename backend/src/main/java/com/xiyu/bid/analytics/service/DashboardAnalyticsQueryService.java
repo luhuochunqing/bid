@@ -29,8 +29,7 @@ class DashboardAnalyticsQueryService {
     private final ProjectAccessScopeService projectAccessScopeService;
 
     DashboardAnalyticsRepository.OverviewSnapshot fetchOverviewSnapshot() {
-        Set<Long> projectIds = scopedProjectIds();
-        return readRepository.fetchOverviewSnapshot(projectIds);
+        return readRepository.fetchOverviewSnapshot(scopedProjectIds());
     }
 
     List<DashboardAnalyticsRepository.MonthlyTrendRow> fetchTenderTrendRows() {
@@ -236,6 +235,23 @@ class DashboardAnalyticsQueryService {
         return userIds;
     }
 
+    /**
+     * 当前用户可见项目 ID 集合；null 表示全局可见（admin + 投标管理员/组长/系统管理员）。
+     * 数据分析页面权限仅限 GLOBAL_ACCESS_ROLES，非全局角色属防御式兜底。
+     */
+    private Set<Long> scopedProjectIds() {
+        if (projectAccessScopeService.currentUserHasGlobalAccess()) {
+            return null;
+        }
+        List<Long> allowedIds = projectAccessScopeService.getAllowedProjectIdsForCurrentUser();
+        if (allowedIds == null || allowedIds.isEmpty()) {
+            return Set.of();
+        }
+        return allowedIds.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
     private List<ProjectSnapshotAggregate> aggregateProjectSnapshots(
             List<DashboardAnalyticsRepository.ProjectSnapshotRow> rows
     ) {
@@ -266,18 +282,5 @@ class DashboardAnalyticsQueryService {
             }
         }
         return aggregates.values().stream().toList();
-    }
-
-    private Set<Long> scopedProjectIds() {
-        if (projectAccessScopeService.currentUserHasAdminAccess()) {
-            return null;
-        }
-        List<Long> allowedIds = projectAccessScopeService.getAllowedProjectIdsForCurrentUser();
-        if (allowedIds == null || allowedIds.isEmpty()) {
-            return Set.of();
-        }
-        return allowedIds.stream()
-                .filter(Objects::nonNull)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 }

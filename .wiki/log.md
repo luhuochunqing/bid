@@ -3,20 +3,14 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
-## [2026-08-15] compound | 容器测试环境兼容（Testcontainers / Docker Desktop / MySQL sql_mode）复合查询回填
+## [2026-08-14] create | data-analysis-revamp 新建
 
-- 背景：测试环境部署时容器测试门禁报 docker-java 400 错误，经确认后临时用 `XIYU_SKIP_CONTAINER_TEST=true` 逃生阀绕过；用户要求单独处理此环境兼容问题
-- 处理：
-  - 新建 `.wiki/pages/testing/container-test-env-compat.md`（Testcontainers 1.19.3→1.21.4 升级、docker-java 3.4.2 兼容 Docker Desktop 4.54、MySQL sql_mode 对齐、schema-validation enum/VARCHAR 修复、allowMultiQueries、mvn clean 缓存清理）
-  - `.wiki/pages/_index.md` 与 `.wiki/pages/testing/_index.md` 各加索引行
-- 触发点：复合查询回填（§2 触发点 3）—— 涉及 pom/多个测试类/迁移脚本/Wiki 多层，下次还会被问"容器测试怎么配的"
-- 关联：commit `7a719c920`
-
-## [2026-08-09] no-op | competitor-table-revamp 无新结论
-
-- 任务：项目详情-结果确认阶段「竞争对手情况」表格字段改造（4 列字段改名 + 控件类型改变）
-- 判断：按 §2 触发点 1 标准，无 bug 修复 / 无跨模块变更（仅 2 文件前端单组件）/ 无新业务规则 / 无新陷阱
-- 结论：无需回填 .wiki/pages/，仅记 no-op 行
+- 背景：数据分析页面全面重构（M0~M4 五模块），对照原型 + PRD 逐模块检查修复
+- 改动：
+  - 新建 `.wiki/pages/data-analysis-revamp.md`（模块结构 + FP-Java 三层 + 三模式竞品 + 数据口径 + 陷阱）
+  - `_index.md` 加索引行
+- 关键决策：M4 后端 FP-Java 三层分离；折扣 Integer→Double；时间过滤统一 p.createdAt；竞品枚举前端硬编码
+- 触发点：任务收尾（§2 触发点 1）—— 跨模块逻辑变更（51 文件）+ 新业务规则
 
 ## [2026-08-04] create | audit-whitelist-pitfalls 新建 + lessons-learned §106
 
