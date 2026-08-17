@@ -238,15 +238,17 @@ public class OpenAiScoreAnalyzer {
                                        MarkdownScoreSectionLocator.ScoreSection section) {
         String detail = criterion.indicator() != null && !criterion.indicator().isBlank()
                 ? criterion.indicator() : criterion.dimension();
+        // 召回一/三无章节定位时传 null，此时章节相关字段降级为空串（2026-08-17 项目 226 NPE 回归）
+        boolean hasSection = section != null;
         return new ScoreCandidate(
                 safeText(criterion.itemNumber()),
                 safeText(criterion.dimension()),
                 detail,
                 criterion.weight(),
                 null,
-                section.sectionTitle(),
-                truncate(section.content()),
-                section.location(),
+                hasSection ? section.sectionTitle() : "",
+                hasSection ? truncate(section.content()) : "",
+                hasSection ? section.location() : "",
                 "RECALL_REGEX_STRUCTURE"
         );
     }

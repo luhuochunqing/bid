@@ -241,3 +241,8 @@
 - 触发：测试环境项目 225 评分解析 100% 失败（`Conversion = '"'`），根因 `ScoreParsePrompts` text block 模板示例文案 `占30%"` 中字面 `%` 未转义
 - 更新：`score-parse-service.md §7` 追加 prompt 模板 Formatter 格式串踩坑条目
 - 关联：`docs/lessons/lessons-learned.md §117`、回归测试 `ScoreParsePromptsTest`（4 用例）
+
+## [2026-08-17] bugfix | 评分解析 NPE 修复 + 扫描件排查经验回填
+- 触发：项目 226 召回三产出候选后 toCandidate 裸访问 null section NPE；项目 225 "未识别到评分标准章节"实为扫描件（markdownLength=3）
+- 更新：`score-parse-service.md §7` 追加 null section 降级、扫描件失败文案两条踩坑
+- 关联：`docs/lessons/lessons-learned.md §118`、回归测试 `OpenAiScoreAnalyzerTest`

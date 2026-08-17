@@ -1568,3 +1568,38 @@ java.util.UnknownFormatConversionException: Conversion = '"'
 - `backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/openai/ScoreParsePrompts.java`（修复位置：第 26 行）
 - `backend/src/test/java/com/xiyu/bid/scoreparse/infrastructure/openai/ScoreParsePromptsTest.java`（回归测试，新建）
 - 测试环境 release `9c9b9d91d`（第 125 次部署）首次引入该功能并暴露问题
+
+## 118. 私有转换方法对 null 参数不设防：上游传 null 即全线崩溃（2026-08-17）
+
+### 问题背景
+
+§117 修复上线（`78facc5b2`）6 分钟后，测试环境项目 226 再现解析崩溃：
+
+```
+java.lang.NullPointerException: Cannot invoke "...ScoreSection.sectionTitle()" because "section" is null
+  at OpenAiScoreAnalyzer.toCandidate(OpenAiScoreAnalyzer.java:247)
+  at OpenAiScoreAnalyzer.recallLane3ScoreSemanticPatterns(OpenAiScoreAnalyzer.java:113)
+```
+
+### 根因
+
+`toCandidate(ScoringCriterion, ScoreSection)` 直接访问 `section.sectionTitle()/content()/location()`，而**召回一（line 88）与召回三（line 113）两个调用点都传 `null`**（这两路召回没有章节定位）。只要召回一或召回三产出候选即 NPE，整个任务异常终止，后续召回（LLM 兜底）被剥夺执行机会。
+
+之前未暴露的原因链：第 125 次部署前 `%` 格式符 bug 挡在最前面（任何文件必炸）→ 修复后第一批测试文件召回一/三恰好 0 候选 → 项目 226 的文件首次让召回三产出候选 → NPE 首爆。
+
+### 修复
+
+`section == null` 时章节相关字段（contextNote/sourceText/location）降级为空串，召回流程继续。回归测试 `OpenAiScoreAnalyzerTest`：构造同时命中召回一提取与召回三语义过滤的单行文本（`"1 技术方案完整性 提供完整的实施方案得10分"`），修复前精确复现线上 NPE。
+
+### 教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 私有转换方法假设参数非空 | 同一方法有传 null 的调用点时，"参数不可能为 null" 的假设就是 bug | 转换/装配方法若允许语义上的"无此数据"（如无章节定位），必须显式处理 null 分支，不允许裸访问 |
+| 连环 bug 逐个挡路 | 修一个崩一个是"层层挡路"模式：前面的必炸 bug 掩盖后面的条件触发 bug | 新功能首发后连续崩溃，先全链路静态审查同类模式（裸解引用、格式串、越界），不要逐次上线逐次发现 |
+| 测试盲区：分支未被真实数据走过 | 召回一/三有候选的路径从未在测试中执行过 | 对每个召回/提取分支，构造能触发该分支的最小输入做冒烟，而非只测空输入的 happy path |
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/openai/OpenAiScoreAnalyzer.java`（修复位置：toCandidate 双参版本）
+- `backend/src/test/java/com/xiyu/bid/scoreparse/infrastructure/openai/OpenAiScoreAnalyzerTest.java`（回归测试，新建）
