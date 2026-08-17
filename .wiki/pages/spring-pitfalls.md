@@ -538,6 +538,60 @@ public class InitiationTenderTextResolver {
 
 ---
 
+## 10.7. @Async 线程内调 Repository 写操作抛 `TransactionRequiredException`（T025 终验 / 2026-08-17）
+
+### 事故
+
+`ScoreScoringAppService` 的 `@Async` 打分执行路径中，成功/失败出口直接调 `resultRepository.deleteByScoreItemIdIn(...)` + `saveAll(...)`，测试环境触发失败任务时抛：
+
+```
+javax.persistence.TransactionRequiredException: No EntityManager with actual transaction available
+- cannot reliably process 'remove' call
+```
+
+任务状态卡死、结果不落库、进度缓存不清理。
+
+### 根因
+
+- `@Async` 方法本体**没有** `@Transactional`，异步线程无事务上下文（同 §3 的 Session 不传递，但 §3 症状是 `LazyInitializationException`，本条是写操作直接被拒）。
+- `deleteBy...` 这类需要事务的写操作在无事务上下文中由 JPA 直接抛 `TransactionRequiredException`——**不是静默失败，是硬异常**，且发生在异步线程里没有全局兜底，任务终态落空。
+- 隐蔽性：单测用 Mockito mock repository，`deleteBy...` 只是普通 mock 调用，永远不暴露；只有真实EntityManager 才会炸。
+
+### 正确做法
+
+写操作抽独立事务组件，编排类只调用不落库：
+
+```java
+@Component
+@RequiredArgsConstructor
+public class ScoreResultOverwriter {
+    private final ScoreResultRepository resultRepository;
+
+    @Transactional  // ← Spring 代理保证异步线程内开启事务
+    public void replaceAtomically(List<Long> scoreItemIds, List<ScoreResult> results) {
+        resultRepository.deleteByScoreItemIdIn(scoreItemIds);
+        resultRepository.saveAll(results);
+    }
+}
+```
+
+注意：给 `@Async` 方法本体直接加 `@Transactional` 也能修，但长事务包住分钟级 LLM 调用是反模式；**短事务组件 + 编排类无事务**才是正解（顺带满足行预算 300 拆分）。
+
+### 预防
+
+1. @Async 方法内任何 repository 写操作，必须经由带 `@Transactional` 的组件方法。
+2. 单测注释要写明：mock 模式下 `@Transactional` 不生效，生产端事务由 Spring 代理保证——别把"测试绿"当"事务对"。
+3. 涉及 DELETE+INSERT 覆盖语义（先删结果再删 item）的场景，事务边界必须包住两步。
+
+### 相关
+
+- `backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreResultOverwriter.java`（修复组件）
+- `backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreScoringAppService.java`（编排类改造）
+- [[score-parse-service]] §7 —— 配额 512MB 对齐 + 本条事务修复的模块侧记录
+- spec 045 T025 终验（docs/release/deploy-report-2026-08-17-131st-test.md）
+
+---
+
 ## 11. 相关文档
 
 - [[lessons-learned]] §50 — SPRING_CONFIG_IMPORT 外部配置覆盖案例
@@ -555,3 +609,4 @@ public class InitiationTenderTextResolver {
 | 2026-07-10 | 首次创建，从 8 个工作区历史对话中提取 Spring Boot 陷阱 |
 | 2026-08-04 | 追加 §10.5 @Async self-invocation 警告（CO-602 PR 设计评估修复） |
 | 2026-08-17 | 追加 §10.6 多构造函数 @Autowired 陷阱（PR !2301） |
+| 2026-08-17 | 追加 §10.7 @Async 线程事务缺失抛 TransactionRequiredException（spec 045 T025 终验） |
