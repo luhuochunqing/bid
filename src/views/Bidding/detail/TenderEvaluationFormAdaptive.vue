@@ -31,7 +31,7 @@
               <el-form-item label="入围家数" prop="shortlistedCount">
                 <el-input-number v-model="modelValue.basic.shortlistedCount" :min="1" :precision="0" />
               </el-form-item>
-              <el-form-item label="年度电商采购金额（万元）" prop="annualProcurementAmount">
+              <el-form-item label="客户电商年采购金额（万）" prop="annualProcurementAmount">
                 <el-input-number v-model="modelValue.basic.annualProcurementAmount" :min="0" :precision="2" />
               </el-form-item>
               <el-form-item label="招标文件不利项" prop="adverseItems">
@@ -43,19 +43,19 @@
               <el-form-item label="风险兜底方案" prop="riskMitigationPlan">
                 <el-input v-model="modelValue.basic.riskMitigationPlan" type="textarea" :rows="3" placeholder="请填写风险兜底方案（可选）" maxlength="5000" />
               </el-form-item>
-              <el-form-item label="项目经理是否了解评标全流程" prop="pmUnderstandsProcess">
-                <el-input v-model="modelValue.basic.pmUnderstandsProcess" type="textarea" :rows="2" placeholder="请填写（可选）" maxlength="2000" />
+              <el-form-item label="项目经理评标全流程概述" prop="pmUnderstandsProcess">
+                <el-input v-model="modelValue.basic.pmUnderstandsProcess" type="textarea" :rows="2" placeholder="请概述项目经理对评标全流程的了解（可选）" maxlength="2000" />
               </el-form-item>
               <el-form-item label="需要的支持及关键信息备注" prop="supportNeeded">
                 <el-input v-model="modelValue.basic.supportNeeded" type="textarea" :rows="3" placeholder="请填写需要的支持及备注（可选）" maxlength="5000" />
               </el-form-item>
-              <el-form-item label="项目计划 GAP" prop="projectPlanGap">
+              <el-form-item label="项目计划GAP附件">
                 <AdaptiveGapUpload
                   v-model="modelValue.basic"
                   :tender-id="tenderId"
                 />
               </el-form-item>
-              <el-form-item label="客户营收（亿元）" prop="customerRevenue">
+              <el-form-item label="客户年营收（亿）" prop="customerRevenue">
                 <el-input-number v-model="modelValue.basic.customerRevenue" :min="0" :precision="2" />
               </el-form-item>
             </el-form>

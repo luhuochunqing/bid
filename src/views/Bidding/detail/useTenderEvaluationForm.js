@@ -13,7 +13,6 @@ function makeEmptyBasic() {
     contingencyPlan: '',
     processKnowledge: '',
     supportNotes: '',
-    projectPlanGap: '',
     projectPlanGapFiles: [],
   }
 }
@@ -74,7 +73,6 @@ export function evaluationToForm(evaluation) {
       contingencyPlan: basicDTO.contingencyPlan ?? blank.basic.contingencyPlan,
       processKnowledge: basicDTO.processKnowledge ?? blank.basic.processKnowledge,
       supportNotes: basicDTO.supportNotes ?? blank.basic.supportNotes,
-      projectPlanGap: basicDTO.projectPlanGap ?? blank.basic.projectPlanGap,
       projectPlanGapFiles: Array.isArray(basicDTO.projectPlanGapFiles) ? basicDTO.projectPlanGapFiles : blank.basic.projectPlanGapFiles,
     },
     customerInfo: eavToFlat(customers),
@@ -121,7 +119,6 @@ export function buildApiPayload(form) {
       contingencyPlan: b.contingencyPlan || null,
       processKnowledge: b.processKnowledge || null,
       supportNotes: b.supportNotes || null,
-      projectPlanGap: b.projectPlanGap || null,
       projectPlanGapFiles: Array.isArray(b.projectPlanGapFiles) ? b.projectPlanGapFiles : [],
     },
     evaluationCustomerInfos: Array.isArray(form.customerInfo) ? form.customerInfo.flatMap((row) =>
@@ -144,10 +141,10 @@ export function validateBasicSection(basic) {
     return '计划入围供应商数量不能小于 1'
   }
   if (basic.mroOfficeFlowAmount != null && Number(basic.mroOfficeFlowAmount) < 0) {
-    return '电商MRO+办公流水金额不能为负数'
+    return '客户电商年采购金额不能为负数'
   }
   if (basic.customerRevenue != null && Number(basic.customerRevenue) < 0) {
-    return '客户营收不能为负数'
+    return '客户年营收不能为负数'
   }
   return null
 }

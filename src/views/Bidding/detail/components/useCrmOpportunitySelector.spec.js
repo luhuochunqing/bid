@@ -185,9 +185,10 @@ describe('useCrmOpportunitySelector', () => {
     expect(emitted.evaluationData.basic).toEqual(expect.objectContaining({
       riskAssessment: '竞争对手低价冲击',
       supportNotes: '客户决策周期长',
-      projectPlanGap: '时间紧张',
       projectPlanGapFiles: [{ fileName: 'GAP附件', fileUrl: 'https://crm.example.com/gap.pdf' }],
     }))
+    // 2026-08-17 需求 3：GAP 文本字段下线，CRM 商机的 projectGap 文本不再带入
+    expect(emitted.evaluationData.basic.projectPlanGap).toBeUndefined()
     // CO-312: 是否投标/弃标原因由项目负责人手动填写，关联时不带入 recommendation 段
     expect(emitted.evaluationData.recommendation).toBeUndefined()
   })

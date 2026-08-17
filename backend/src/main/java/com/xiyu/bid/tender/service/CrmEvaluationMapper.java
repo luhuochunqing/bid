@@ -66,7 +66,7 @@ class CrmEvaluationMapper {
                 chance.backupPlan() != null ? (chance.backupPlan() ? "是" : "否") : "",
                 normalizeToEmpty(chance.managerUnderstandProcess()),
                 normalizeToEmpty(chance.remark()),
-                normalizeToEmpty(chance.projectGap()),
+                // 2026-08-17 需求 3：CRM 商机的 projectGap 文本不再带入（GAP 文本下线），附件仍走 parseGapFiles
                 chance.customerRevenue(),
                 parseGapFiles(chance.gapFile()));
     }

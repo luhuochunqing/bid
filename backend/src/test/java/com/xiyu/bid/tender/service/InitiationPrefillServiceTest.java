@@ -93,7 +93,8 @@ class InitiationPrefillServiceTest {
         assertThat(saved.getRiskAssessment()).isEqualTo("风险Y");
         assertThat(saved.getRiskMitigationPlan()).isEqualTo("是");
         assertThat(saved.getSupportNeeded()).isEqualTo("支持Z");
-        assertThat(saved.getProjectPlanGap()).isEqualTo("GAP说明");
+        // 2026-08-17 需求 3：GAP 文本字段下线，即使评估表有存量文本也不再带入立项
+        assertThat(saved.getProjectPlanGap()).isNull();
         assertThat(saved.getCustomerInfoJson()).isNull();
     }
 

@@ -294,7 +294,7 @@ class TenderEvaluationSubmissionServiceTest {
 
         TenderEvaluationSubmitRequest invalid = new TenderEvaluationSubmitRequest(
                 null,
-                new EvaluationBasicDTO(0, BigDecimal.ZERO, "", "", "", "", "", "", BigDecimal.ZERO),
+                new EvaluationBasicDTO(0, BigDecimal.ZERO, "", "", "", "", "", BigDecimal.ZERO),
                 null, null);
 
         assertThatThrownBy(() ->
@@ -553,7 +553,7 @@ class TenderEvaluationSubmissionServiceTest {
 
         TenderEvaluationSubmitRequest invalid = new TenderEvaluationSubmitRequest(
                 null,
-                new EvaluationBasicDTO(0, new BigDecimal("-1"), "", "", "", "", "", "", new BigDecimal("-1")),
+                new EvaluationBasicDTO(0, new BigDecimal("-1"), "", "", "", "", "", new BigDecimal("-1")),
                 null, null);
 
         assertThatThrownBy(() -> service.submit(TENDER_ID, invalid, EVALUATOR_ID))
@@ -576,7 +576,7 @@ class TenderEvaluationSubmissionServiceTest {
                 any(), any())).thenReturn(java.util.List.of());
 
         EvaluationBasicDTO basicWithGap = new EvaluationBasicDTO(
-                1, BigDecimal.ZERO, "", "", "", "", "", "", BigDecimal.ZERO,
+                1, BigDecimal.ZERO, "", "", "", "", "", BigDecimal.ZERO,
                 java.util.List.of(new EvaluationBasicDTO.GapFileRef("GAP附件", "https://crm.example.com/gap.pdf")));
         TenderEvaluationSubmitRequest req = new TenderEvaluationSubmitRequest(
                 BidRecommendation.RECOMMEND, basicWithGap, null, null);
@@ -606,7 +606,7 @@ class TenderEvaluationSubmissionServiceTest {
                 any(), any())).thenReturn(java.util.List.of(existingDoc));
 
         EvaluationBasicDTO basicNoGap = new EvaluationBasicDTO(
-                1, BigDecimal.ZERO, "", "", "", "", "", "", BigDecimal.ZERO,
+                1, BigDecimal.ZERO, "", "", "", "", "", BigDecimal.ZERO,
                 java.util.List.of());
         TenderEvaluationSubmitRequest req = new TenderEvaluationSubmitRequest(
                 BidRecommendation.RECOMMEND, basicNoGap, null, null);
@@ -725,7 +725,7 @@ class TenderEvaluationSubmissionServiceTest {
 
         // projectPlanGapFiles 为 null（使用旧版构造器）
         EvaluationBasicDTO basicWithNullGapFiles = new EvaluationBasicDTO(
-                1, BigDecimal.ZERO, "", "", "", "", "", "", BigDecimal.ZERO);
+                1, BigDecimal.ZERO, "", "", "", "", "", BigDecimal.ZERO);
         TenderEvaluationSubmitRequest req = new TenderEvaluationSubmitRequest(
                 BidRecommendation.RECOMMEND, basicWithNullGapFiles, null, null);
 
@@ -757,7 +757,7 @@ class TenderEvaluationSubmissionServiceTest {
 
         // projectPlanGapFiles 为空列表（明确清空）
         EvaluationBasicDTO basicWithEmptyGapFiles = new EvaluationBasicDTO(
-                1, BigDecimal.ZERO, "", "", "", "", "", "", BigDecimal.ZERO,
+                1, BigDecimal.ZERO, "", "", "", "", "", BigDecimal.ZERO,
                 java.util.List.of());
         TenderEvaluationSubmitRequest req = new TenderEvaluationSubmitRequest(
                 BidRecommendation.RECOMMEND, basicWithEmptyGapFiles, null, null);

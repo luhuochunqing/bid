@@ -128,7 +128,6 @@ class TenderEvaluationCrmSyncServiceTest {
         assertThat(basic.contingencyPlan()).isEqualTo("是");
         assertThat(basic.processKnowledge()).isEqualTo("了解流程");
         assertThat(basic.supportNotes()).isEqualTo("重要备注");
-        assertThat(basic.projectPlanGap()).isEqualTo("存在GAP");
         assertThat(basic.customerRevenue()).isEqualByComparingTo(new BigDecimal("800"));
         // customerInfos 来自 CRM：每个对接人 14 行
         List<EvaluationCustomerInfoDTO> infos = result.evaluationCustomerInfos();
@@ -311,7 +310,7 @@ class TenderEvaluationCrmSyncServiceTest {
     private TenderEvaluationSubmitRequest buildUserReq() {
         EvaluationBasicDTO userBasic = new EvaluationBasicDTO(
                 3, new BigDecimal("100"), "用户填的不利项", "用户填的风险",
-                "否", "否", "用户填的备注", "用户填的GAP", new BigDecimal("500"),
+                "否", "否", "用户填的备注", new BigDecimal("500"),
                 null);
         EvaluationCustomerInfoDTO userInfo = new EvaluationCustomerInfoDTO(
                 "PROJECT_HIGHEST_DECISION_MAKER", "NAME", "用户填的名字", "TEXT");

@@ -69,7 +69,7 @@ public class TenderEvaluationSubmissionMapper {
         b.setContingencyPlan(basic.contingencyPlan());
         b.setProcessKnowledge(basic.processKnowledge());
         b.setSupportNotes(basic.supportNotes());
-        b.setProjectPlanGap(basic.projectPlanGap());
+        // 2026-08-17 需求 3：GAP 文本字段停写（DB 列保留，存量不动）；附件链路见 gapFilesSync
         b.setCustomerRevenue(basic.customerRevenue());
         entity.setBasic(b);
     }
@@ -156,7 +156,6 @@ public class TenderEvaluationSubmissionMapper {
                     b.getContingencyPlan(),
                     b.getProcessKnowledge(),
                     b.getSupportNotes(),
-                    b.getProjectPlanGap(),
                     b.getCustomerRevenue(),
                     toGapFileRefs(gapFiles)
             );

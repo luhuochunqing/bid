@@ -167,6 +167,8 @@ export function useInitiationStageActions({
     )
     return {
       ...form,
+      // GAP 文本字段已下线（需求 3，2026-08-17）：不提交文本，避免空串覆盖存量值
+      projectPlanGap: null,
       projectType: pType && String(pType).trim() ? pType : null,
       customerType: cType && String(cType).trim() ? cType : null,
       annualRevenue: form.customerRevenue || form.annualRevenue,
@@ -302,7 +304,6 @@ export function useInitiationStageActions({
         riskMitigationPlan: src.riskMitigationPlan || '',
         tenderAdverseItems: src.tenderAdverseItems || src.unfavorableItems || '',
         supportNeeded: src.supportNeeded || '',
-        projectPlanGap: src.projectPlanGap || '',
         projectPlanGapFiles: Array.isArray(src.projectPlanGapFiles) ? src.projectPlanGapFiles : [],
         projectName: src.projectName || src.name || '',
         tenderId,
@@ -325,7 +326,6 @@ export function useInitiationStageActions({
               riskMitigationPlan: b.contingencyPlan ?? form.riskMitigationPlan,
               pmUnderstandsProcess: b.processKnowledge ?? form.pmUnderstandsProcess,
               supportNeeded: b.supportNotes ?? form.supportNeeded,
-              projectPlanGap: b.projectPlanGap ?? form.projectPlanGap,
               projectPlanGapFiles: Array.isArray(b.projectPlanGapFiles) ? b.projectPlanGapFiles : form.projectPlanGapFiles,
             })
           }

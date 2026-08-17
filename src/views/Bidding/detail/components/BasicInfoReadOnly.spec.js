@@ -169,16 +169,15 @@ describe('BasicFieldsSection — 评估表基础段多行字段启用 autosize',
   })
 })
 
-describe('ProjectPlanGapUpload — GAP 多行字段启用 autosize', () => {
+describe('ProjectPlanGapUpload — GAP 文本框已下线（需求 3，2026-08-17）', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
   })
 
-  it('项目计划差距应启用 autosize', async () => {
+  it('组件不再渲染 GAP 文本域，仅保留附件上传', async () => {
     const wrapper = mountWithElementPlus(ProjectPlanGapUpload, {
       props: {
         modelValue: {
-          projectPlanGap: '差距1\n差距2',
           projectPlanGapFiles: [],
         },
         tenderId: 9001,
@@ -188,8 +187,7 @@ describe('ProjectPlanGapUpload — GAP 多行字段启用 autosize', () => {
     await wrapper.vm.$nextTick()
 
     const textareas = wrapper.findAllComponents({ name: 'ElInput' }).filter(c => c.props('type') === 'textarea')
-    expect(textareas).toHaveLength(1)
-    expectTextareaAutosize(textareas[0], { minRows: 3, maxRows: 10 })
+    expect(textareas).toHaveLength(0)
   })
 })
 

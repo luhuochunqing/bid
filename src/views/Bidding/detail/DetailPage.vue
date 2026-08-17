@@ -294,7 +294,6 @@ function transformCrmBasic(basic) {
     contingencyPlan: basic?.contingencyPlan ?? '',
     processKnowledge: basic?.processKnowledge ?? '',
     supportNotes: basic?.supportNotes ?? '',
-    projectPlanGap: basic?.projectPlanGap ?? '',
     customerRevenue: basic?.customerRevenue ?? null,
     projectPlanGapFiles: Array.isArray(basic?.projectPlanGapFiles) ? basic.projectPlanGapFiles : [],
   }

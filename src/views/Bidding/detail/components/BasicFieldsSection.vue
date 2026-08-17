@@ -21,7 +21,7 @@
     </el-form-item>
 
     <el-form-item
-      label="电商MRO+办公流水金额（万）"
+      label="客户电商年采购金额（万）"
       prop="mroOfficeFlowAmount"
       :error="errors.mroOfficeFlowAmount"
     >
@@ -36,7 +36,7 @@
     </el-form-item>
 
     <el-form-item
-      label="客户营收（亿）"
+      label="客户年营收（亿）"
       prop="customerRevenue"
       :error="errors.customerRevenue"
     >
@@ -107,7 +107,7 @@
       </el-form-item>
 
       <el-form-item
-        label="是否了解评标全流程"
+        label="项目经理评标全流程概述"
         prop="processKnowledge"
       >
         <textarea
@@ -122,7 +122,7 @@
           v-model="localBasic.processKnowledge"
           type="textarea"
           :autosize="{ minRows: 3, maxRows: 10 }"
-          placeholder="请填写对评标流程的了解程度"
+          placeholder="请概述项目经理对评标全流程的了解"
           maxlength="5000"
         />
       </el-form-item>

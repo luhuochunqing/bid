@@ -101,7 +101,7 @@
           <el-table-column label="项目类型" width="110" v-if="columnVisible.projectType">
             <template #default="{ row }"><el-tag size="small">{{ projectTypeLabel(row.projectType) }}</el-tag></template>
           </el-table-column>
-          <el-table-column label="客户营收（亿）" prop="revenue" width="150" sortable="custom" v-if="columnVisible.revenue">
+          <el-table-column label="客户年营收（亿）" prop="revenue" width="150" sortable="custom" v-if="columnVisible.revenue">
             <template #default="{ row }">{{ row.revenue != null ? Number(row.revenue).toFixed(2) : '-' }}</template>
           </el-table-column>
           <el-table-column label="客户类型" width="140" v-if="columnVisible.customerType" class-name="wrap-cell">
@@ -277,7 +277,7 @@ const columnOptions = [
   { key: 'sourceModule', label: '来源平台' },
   { key: 'stage', label: '项目阶段' },
   { key: 'evaluationSubStage', label: '评标结果' },
-  { key: 'revenue', label: '客户营收（亿）' },
+  { key: 'revenue', label: '客户年营收（亿）' },
   { key: 'region', label: '总部所在地' },
   { key: 'leaderDepartment', label: '项目负责人部门' },
   { key: 'biddingLeaderName', label: '投标负责人' },

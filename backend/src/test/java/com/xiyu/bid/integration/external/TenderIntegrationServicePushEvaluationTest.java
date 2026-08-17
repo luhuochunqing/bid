@@ -196,7 +196,7 @@ class TenderIntegrationServicePushEvaluationTest {
                 "测试GAP附件.pdf", "https://example.com/gap.pdf");
         EvaluationBasicDTO basic = new EvaluationBasicDTO(
                 null, null, null, null, null, null, null,
-                "测试项目计划GAP", null, List.of(gapRef));
+                null, List.of(gapRef));
         TenderPushRequest.EvaluationUpdate evaluation = TenderPushRequest.EvaluationUpdate.builder()
                 .evaluationBasic(basic)
                 .build();
@@ -230,7 +230,7 @@ class TenderIntegrationServicePushEvaluationTest {
                 "旧GAP附件.pdf", "https://example.com/old-gap.pdf");
         EvaluationBasicDTO basicWithFile = new EvaluationBasicDTO(
                 null, null, null, null, null, null, null,
-                "旧GAP", null, List.of(gapRef));
+                null, List.of(gapRef));
         TenderPushRequest.EvaluationUpdate firstEvaluation = TenderPushRequest.EvaluationUpdate.builder()
                 .evaluationBasic(basicWithFile)
                 .build();
@@ -238,7 +238,7 @@ class TenderIntegrationServicePushEvaluationTest {
 
         EvaluationBasicDTO basicEmpty = new EvaluationBasicDTO(
                 null, null, null, null, null, null, null,
-                "已清空", null, List.of());
+                null, List.of());
         TenderPushRequest.EvaluationUpdate secondEvaluation = TenderPushRequest.EvaluationUpdate.builder()
                 .evaluationBasic(basicEmpty)
                 .build();

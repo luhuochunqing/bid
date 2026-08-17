@@ -43,7 +43,7 @@ public final class EvaluationToInitiationMapper {
         if (b.getContingencyPlan() != null) e.setRiskMitigationPlan(b.getContingencyPlan());
         if (b.getProcessKnowledge() != null) e.setPmUnderstandsProcess(b.getProcessKnowledge());
         if (b.getSupportNotes() != null) e.setSupportNeeded(b.getSupportNotes());
-        if (b.getProjectPlanGap() != null) e.setProjectPlanGap(b.getProjectPlanGap());
+        // 2026-08-17 需求 3：GAP 文本映射行移除（文本字段下线，不再带入立项）
     }
 
     /**
