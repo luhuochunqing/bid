@@ -1,4 +1,3 @@
-import * as echarts from 'echarts'
 import { PROJECT_STATUS_COLORS, PROJECT_STATUS_OPTIONS } from './filterConstants.js'
 
 // 项目状态枚举值 → 中文标签映射

@@ -26,7 +26,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, watch, markRaw, nextTick } from 'vue'
-import * as echarts from 'echarts'
+import echarts from '@/utils/echarts'
 import { dashboardApi } from '@/api/modules/dashboard.js'
 
 const props = defineProps({
