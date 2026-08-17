@@ -71,6 +71,7 @@
 - 根因：`open()` 无条件调用 `runScoring()`。
 - 改动：`useScoreParseDrawer.js` 中 `open()` 调整为：先 `getItems`，再 `getResults` 查询已有打分；仅在阶段 2 且无任何历史打分时才自动触发打分。
 - 验证：`useScoreParseDrawer.spec.js` 验证已有结果打开抽屉时不触发 `POST /scoring`。
+- **[2026-08-16 勘误，spec 044]** "自动触发打分"分支要求显式传入 `autoScore: true`，生产入口（任务看板按钮）均无参调用，故实际产品行为是：打开抽屉只展示已有结果，打分一律由用户点击「AI 实际打分」触发（与 PRD 1.1 一致）。"防重复打分"的修复效果成立，但"首次自动打分"未在产品路径生效，特此更正。
 
 ---
 

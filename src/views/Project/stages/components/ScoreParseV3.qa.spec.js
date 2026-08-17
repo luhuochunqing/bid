@@ -242,4 +242,52 @@ describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
     expect(wrapper.vm.scoreItems.length).toBe(0)
     expect(wrapper.text()).toContain('尚未解析到评分标准，请上传招标文件后点击「重新解析」')
   })
+
+  // QA-TC07: 待确认客观项空值得分展示（spec 044 FR-001/002/003，PRD 1.3）
+  it('QA-TC07: [阶段1] 客观项无预判得分显示"待确认"，不得误显示红色 0 分', async () => {
+    // 后端待确认路径：知识库类别未识别 / 单项匹配失败 → estScore=null + PENDING
+    scoreParseApi.getItems.mockResolvedValue({
+      data: {
+        items: [
+          { id: 1, code: 'D1', dim: '资质业绩', detail: 'ISO9001 质量认证', weight: 6, scoreType: 'OBJECTIVE', status: 'OK', estScore: 6, estBasis: '知识库命中', kbHit: true },
+          { id: 2, code: 'D2', dim: '资质业绩', detail: 'CMMI 5 级认证', weight: 5, scoreType: 'OBJECTIVE', status: 'DANGER', estScore: 0, estBasis: '知识库未匹配', kbHit: false },
+          { id: 3, code: 'W1', dim: '仓储配置', detail: '本地化仓储服务中心', weight: 4, scoreType: 'OBJECTIVE', status: 'PENDING', estScore: null, estBasis: '未识别到知识库匹配类别，待人工确认预计得分', kbHit: false },
+        ],
+        summary: null,
+      },
+    })
+
+    const wrapper = mount(ScoreParseDrawer, {
+      props: { projectId },
+      global: { stubs: globalStubs },
+    })
+
+    await wrapper.vm.open({ stage: 1, autoScore: false })
+
+    // 归一化后空值得分保留 null（不再被转成数字 0）
+    const pendingItem = wrapper.vm.scoreItems.find((s) => s.code === 'W1')
+    expect(pendingItem.estScore).toBeNull()
+    expect(pendingItem.estBasis).toBe('未识别到知识库匹配类别，待人工确认预计得分')
+
+    // 表格得分列：满分 full / 真实零分 zero / 待确认 subjective（非 zero 红色）
+    const scoreCells = wrapper.findAll('.parse-table tbody tr .score-cell')
+    expect(scoreCells).toHaveLength(3)
+    expect(scoreCells[0].classes()).toContain('full')
+    expect(scoreCells[1].classes()).toContain('zero')
+    expect(scoreCells[2].classes()).toContain('subjective')
+    expect(scoreCells[2].classes()).not.toContain('zero')
+    expect(scoreCells[2].text()).toBe('待确认')
+
+    // 合计口径：仅计数字得分（6 + 0），null 不参与求和
+    expect(wrapper.vm.estTotalScore).toBe(6)
+
+    // 详情弹窗（预计模式）：待确认项得分显示"待确认"，与表格口径一致
+    wrapper.vm.openDetail(pendingItem, null, 'est')
+    const modalWrapper = mount(ScoreItemDetailModal, {
+      props: { visible: true, mode: 'est', item: pendingItem, result: null },
+      global: { stubs: globalStubs },
+    })
+    expect(modalWrapper.text()).toContain('待确认')
+    expect(modalWrapper.find('.detail-value.subjective').exists()).toBe(true)
+  })
 })

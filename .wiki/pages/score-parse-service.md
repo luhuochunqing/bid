@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
-updated: 2026-08-15
-health_checked: 2026-08-15
+updated: 2026-08-16
+health_checked: 2026-08-16
 sources:
   - specs/041-ai-score-parse-backend/spec.md
   - specs/041-ai-score-parse-backend/plan.md
@@ -71,6 +71,9 @@ trigger（同步<1s，互斥校验+建任务）
 
 - 满足状态：客观项满分=OK / 零分=DANGER / 部分得分或过期=PENDING；主观项恒 PENDING
 - 守卫：`ScoreAssessmentGuard`（域纯函数）统一钳位与置空
+- **空值语义（spec 044 / PRD 1.3）**：客观项无预判得分（类别未识别 / 单项匹配失败）时 `est_score` 必须保留 `null` + `PENDING`，禁止兜底转 `0`（否则会被误渲染为红色 0 分）
+  - 前端 `scoreParseTask.js normalizeScoreItem`：空值原样透传 null；`est_basis` 缺失时兜底"待人工确认预计得分"
+  - UI：待确认（灰字 + 蓝点）≠ DANGER（红色 0 分），两者语义必须区分
 
 ## 6. 触发控制与超时（US5）
 
@@ -85,6 +88,10 @@ trigger（同步<1s，互斥校验+建任务）
 - **@Async 自代理**：`@Lazy @Autowired self` 解决自调用失效（同 spec 031 范式）
 - **行预算 300**：ScoreParseAppService 拆出 ScoreItemPersistenceService；持久化细节测试同步迁移，勿在编排类里堆持久化断言
 - **FR-021 覆盖语义**：重解析必须先删 `score_result`（by 旧 item IDs）再删 `score_item`，顺序不可反
+- **UI 对齐（spec 044 / PRD 6.4-6.5）**：
+  - 详情弹窗整体高度 ≤70vh（`el-dialog` 为 append-to-body 挂载，scoped 样式不可达，须用非 scoped 块 + `.el-dialog__body { overflow-y:auto }`）
+  - 待确认状态 = 灰字 + 蓝点前缀（非 DANGER 红色）
+- **50MB 文案统一**：`BidDocumentUploadService.validateFile` 超限提示"文件大小超过限制（50MB），请压缩后重新上传"（PRD 5.3）；后端测试只断言 `50MB` 片段，不锁死全文案
 
 ## 8. 验证基线
 

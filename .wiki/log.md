@@ -3,6 +3,13 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-08-16] update | score-parse-service 空值语义 + UI 对齐 + 50MB 文案（spec 044）
+
+- 背景：PR !2292 验收发现客观项空 `estScore` 被前端兜底转 `0`，误显示红色 0 分（P1）；弹窗高度超 70vh（P2）；待确认状态未区分灰字蓝点（P2）；50MB 提示文案未对齐 PRD 5.3（P2）
+- 改动：`score-parse-service.md` §5 补空值语义、§7 补 UI 对齐与 50MB 文案规范
+- 关键决策：空值必须保留 `null` + PENDING，禁止兜底 0；`el-dialog` append-to-body 需非 scoped 样式限高
+- 触发点：任务收尾（§2 触发点 1）—— 根因修复 + 新规范
+
 ## [2026-08-14] create | data-analysis-revamp 新建
 
 - 背景：数据分析页面全面重构（M0~M4 五模块），对照原型 + PRD 逐模块检查修复

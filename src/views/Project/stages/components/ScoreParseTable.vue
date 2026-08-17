@@ -201,8 +201,9 @@ const currentHighlightScore = computed(() => {
 .status-cell { font-size: 12px; font-weight: 500; }
 .status-cell.ok { color: var(--brand-xiyu-logo); }
 .status-cell.danger { color: var(--status-danger-color); }
-.status-cell.neutral { color: var(--status-info-color); }
-.status-cell .dot { font-size: 9px; vertical-align: middle; }
+/* PRD 6.5：待确认 = 灰色文字 + 蓝色圆点前缀 */
+.status-cell.neutral { color: var(--text-muted); }
+.status-cell .dot { font-size: 9px; vertical-align: middle; color: var(--brand-primary); }
 .score-cell { font-weight: 600; font-family: monospace; text-align: center; font-size: 13px; white-space: nowrap; }
 .score-cell.full { color: var(--brand-xiyu-logo); font-weight: 700; }
 .score-cell.partial { color: var(--status-warning-color); font-weight: 700; }

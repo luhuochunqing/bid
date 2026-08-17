@@ -75,7 +75,7 @@ public class BidDocumentUploadService {
             throw new IllegalArgumentException("请上传投标文件");
         }
         if (file.getSize() > MAX_FILE_SIZE_BYTES) {
-            throw new IllegalArgumentException("投标文件不能超过 50MB");
+            throw new IllegalArgumentException("文件大小超过限制（50MB），请压缩后重新上传");
         }
         String extension = extensionOf(originalFileName(file));
         if (!ALLOWED_EXTENSIONS.contains(extension)) {
