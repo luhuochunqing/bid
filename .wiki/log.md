@@ -236,3 +236,8 @@
 ## [2026-08-15] task | score-parse-backend 任务收尾回填
 - 新增 [[score-parse-service]]（spec 041 后端全链路：解析/匹配/打分/超时）
 - 更新 _index.md 索引
+
+## [2026-08-17] bugfix | 评分解析 prompt 模板 % 转义修复回填
+- 触发：测试环境项目 225 评分解析 100% 失败（`Conversion = '"'`），根因 `ScoreParsePrompts` text block 模板示例文案 `占30%"` 中字面 `%` 未转义
+- 更新：`score-parse-service.md §7` 追加 prompt 模板 Formatter 格式串踩坑条目
+- 关联：`docs/lessons/lessons-learned.md §117`、回归测试 `ScoreParsePromptsTest`（4 用例）
