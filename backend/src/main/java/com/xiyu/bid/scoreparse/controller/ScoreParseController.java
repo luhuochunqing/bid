@@ -6,6 +6,7 @@ package com.xiyu.bid.scoreparse.controller;
 
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.scoreparse.application.BidDocumentUploadService;
+import com.xiyu.bid.scoreparse.application.OversizedBidFileException;
 import com.xiyu.bid.scoreparse.application.ScoreParseAppService;
 import com.xiyu.bid.scoreparse.application.ScoreScoringAppService;
 import com.xiyu.bid.scoreparse.dto.BidDocumentUploadDTO;
@@ -104,6 +105,8 @@ public class ScoreParseController {
                 msg = "请等待招标文件解析完成后再进行打分";
             } else if ("NO_BID_DOCUMENT".equals(msg)) {
                 msg = "请先上传投标文件后再进行打分";
+            } else if ("OVERSIZED_BID_FILE".equals(msg)) {
+                msg = OversizedBidFileException.MESSAGE;
             }
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error(400, msg));

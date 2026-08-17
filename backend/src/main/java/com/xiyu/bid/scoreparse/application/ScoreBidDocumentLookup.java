@@ -13,11 +13,6 @@ import com.xiyu.bid.projectworkflow.service.ProjectDocumentFileStorage;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
@@ -65,7 +60,7 @@ final class ScoreBidDocumentLookup {
         this.textExtractor = textExtractor;
         this.fileStorage = fileStorage;
         this.obsShareUrlSigner = obsShareUrlSigner;
-        this.urlFetcher = urlFetcher != null ? urlFetcher : ScoreBidDocumentLookup::defaultFetchUrl;
+        this.urlFetcher = urlFetcher != null ? urlFetcher : new BoundedHttpDownloader()::get;
     }
 
     String latestName(Long projectId) {
@@ -95,9 +90,13 @@ final class ScoreBidDocumentLookup {
                 try {
                     byte[] data = urlFetcher.get(signedUrl.get());
                     if (data != null && data.length > 0) {
-                        return data;
+                        return capSize(data);
                     }
                 } catch (IOException | InterruptedException | RuntimeException ex) {
+                    // 超限必须立即中止，不能吞掉后走 fallback 链路（fallback 同样会 OOM）
+                    if (BoundedHttpDownloader.TOO_LARGE_MESSAGE.equals(ex.getMessage())) {
+                        throw new OversizedBidFileException();
+                    }
                     log.warn("通过 OBS 签名链接下载投标文件失败: fileUrl={}, msg={}", fileUrl, ex.getMessage());
                     if (ex instanceof InterruptedException) {
                         Thread.currentThread().interrupt();
@@ -109,17 +108,26 @@ final class ScoreBidDocumentLookup {
         if (fileStorage != null) {
             Optional<byte[]> stored = fileStorage.load(fileUrl).map(LoadedProjectDocumentFile::content);
             if (stored.isPresent() && stored.get().length > 0) {
-                return stored.get();
+                return capSize(stored.get());
             }
         }
         // 3. TenderDocumentStorage (doc-insight://xxx 等)
         if (documentStorage != null) {
             Optional<byte[]> loaded = documentStorage.loadByFileUrl(fileUrl).map(LoadedTenderDocument::content);
             if (loaded.isPresent() && loaded.get().length > 0) {
-                return loaded.get();
+                return capSize(loaded.get());
             }
         }
         throw new IllegalStateException("投标文件加载失败: " + fileUrl);
+    }
+
+    private static byte[] capSize(byte[] content) {
+        if (content.length > BoundedHttpDownloader.MAX_BYTES) {
+            log.warn("投标文件超过 {}MB 上限，拒绝加载: bytes={}",
+                    BoundedHttpDownloader.MAX_BYTES / 1024 / 1024, content.length);
+            throw new OversizedBidFileException();
+        }
+        return content;
     }
 
     String loadText(Long projectId) {
@@ -134,19 +142,5 @@ final class ScoreBidDocumentLookup {
             throw new IllegalStateException("投标文件未能提取出有效正文: " + bidDoc.getName());
         }
         return extracted.text();
-    }
-
-    private static byte[] defaultFetchUrl(String url) throws IOException, InterruptedException {
-        HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .timeout(Duration.ofSeconds(120))
-                .GET()
-                .build();
-        HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new IllegalStateException("下载 OBS 文件失败 HTTP " + response.statusCode());
-        }
-        return response.body();
     }
 }

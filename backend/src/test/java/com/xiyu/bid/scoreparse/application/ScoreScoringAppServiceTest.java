@@ -110,6 +110,45 @@ class ScoreScoringAppServiceTest {
     }
 
     @Test
+    void oversizedBidFile_rejectsWithSemantic() {
+        // 根因行为测试：1.62GB 投标文件曾全量加载导致 OOM，
+        // 现在 50MB 预检在同步段直接拒绝（OVERSIZED_BID_FILE 语义码），不创建注定失败的任务
+        mockNoActiveScoringTask();
+        mockBidDocumentPresent();
+        mockItemsPresent();
+        when(documentStorage.loadByFileUrl(BID_FILE_URL))
+                .thenReturn(Optional.of(new LoadedTenderDocument(
+                        new StoredTenderDocument(BID_FILE_URL, "/tmp/bid.pdf", "sha256"),
+                        new byte[BoundedHttpDownloader.MAX_BYTES + 1])));
+
+        assertThatThrownBy(() -> service.triggerScoring(PROJECT_ID))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("OVERSIZED_BID_FILE");
+        verify(stateService, never()).createTask(anyString(), any(), anyString(), any(), any(), anyString());
+    }
+
+    @Test
+    void oversizedBidFileInAsync_failsTaskWithFriendlyMessage() {
+        // 异步段兜底：若超限在 doExecuteScoring 才暴露（如 AUTO 复用任务路径），
+        // 任务标记 FAILED 并带用户可操作文案
+        ScoreParseTask task = scoringTask();
+        when(taskRepository.findByTaskId(anyString())).thenReturn(Optional.of(task));
+        mockBidDocumentPresent();
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID))
+                .thenReturn(List.of(item(10L, "资质", "具备 CMMI 5 级认证证书", "10", "OBJECTIVE")));
+        when(documentStorage.loadByFileUrl(BID_FILE_URL))
+                .thenReturn(Optional.of(new LoadedTenderDocument(
+                        new StoredTenderDocument(BID_FILE_URL, "/tmp/bid.pdf", "sha256"),
+                        new byte[BoundedHttpDownloader.MAX_BYTES + 1])));
+
+        service.executeScoringAsync("task-uuid");
+
+        verify(stateService).failTask(eq("task-uuid"), eq(OversizedBidFileException.MESSAGE));
+        verify(progressService).clearProgress("task-uuid");
+        verify(stateService, never()).markCompleted(anyString());
+    }
+
+    @Test
     void scoreItemsNotReady_rejectsWithSemantic() {
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of());
 

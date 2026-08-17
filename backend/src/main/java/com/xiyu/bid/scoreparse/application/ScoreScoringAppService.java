@@ -123,7 +123,12 @@ public class ScoreScoringAppService {
             throw new IllegalStateException(AutoFailCircuit.OPEN_MESSAGE);
         }
         ProjectDocument bidDoc = bidDocs.get(0);
-        byte[] bytes = docs.loadBytes(bidDoc.getFileUrl());
+        byte[] bytes;
+        try {
+            bytes = docs.loadBytes(bidDoc.getFileUrl());
+        } catch (OversizedBidFileException ex) {
+            throw new IllegalArgumentException("OVERSIZED_BID_FILE");
+        }
         String bidHash = BidScoreSkipPolicy.hashBytes(bytes);
         String itemHash = BidScoreSkipPolicy.hashItems(items.stream()
                 .map(item -> BidScoreSkipPolicy.itemFingerprint(item.getId(), item.getWeight(), item.getDetail()))
@@ -168,12 +173,8 @@ public class ScoreScoringAppService {
         try {
             bidDocText = docs().loadText(task.getProjectId());
         } catch (RuntimeException ex) {
-            String prdMsg = "投标文件解析失败，无法完成打分，请检查文件内容或重新上传";
-            log.warn("投标文件解析失败，写入全员待确认: taskId={}, msg={}", taskId, ex.getMessage());
-            resultRepository.deleteByScoreItemIdIn(items.stream().map(ScoreItem::getId).toList());
-            resultRepository.saveAll(new ScoreItemAssessor(scoreAnalyzer).fallbackPending(task, items, prdMsg));
-            stateService.failTask(taskId, prdMsg);
-            progressService.clearProgress(taskId);
+            failScoringWithPending(taskId, task, items, ex instanceof OversizedBidFileException
+                    ? ex.getMessage() : "投标文件解析失败，无法完成打分，请检查文件内容或重新上传");
             return;
         }
         Map<Long, ScoreResult> oldResults = resultRepository
@@ -252,6 +253,13 @@ public class ScoreScoringAppService {
 
     private ScoreBidDocumentLookup docs() {
         return new ScoreBidDocumentLookup(projectDocumentRepository, documentStorage, textExtractor, fileStorage, obsShareUrlSigner);
+    }
+
+    private void failScoringWithPending(String taskId, ScoreParseTask task, List<ScoreItem> items, String message) {
+        resultRepository.deleteByScoreItemIdIn(items.stream().map(ScoreItem::getId).toList());
+        resultRepository.saveAll(new ScoreItemAssessor(scoreAnalyzer).fallbackPending(task, items, message));
+        stateService.failTask(taskId, message);
+        progressService.clearProgress(taskId);
     }
 
     private ScoreParseTask latestCompletedScoring(Long projectId) {

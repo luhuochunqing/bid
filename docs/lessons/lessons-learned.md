@@ -1631,3 +1631,42 @@ java.lang.NullPointerException: Cannot invoke "...ScoreSection.sectionTitle()" b
 - `backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreBidDocumentLookup.java`
 - `backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreScoringAppService.java`
 - `backend/src/test/java/com/xiyu/bid/scoreparse/application/ScoreBidDocumentLookupTest.java`
+
+## 120. 解除上传限制必须成对审视下游读取链路：OBS 直传 1.62GB 投标文件打分 OOM（2026-08-17，教训 119 的连环坑）
+
+### 问题背景
+
+测试环境页面报"投标文件加载失败：obs-direct:f2a75682-..."，服务器日志伴随 `java.lang.OutOfMemoryError: Java heap space`。该文件 `bid_file.file_size = 1743831704`（1.62GB），当天早些时候刚完成教训 119 的修复（解除上传 50MB 限制 + lookup 接入 OBS 直传）。
+
+### 根因（5 Whys）
+
+1. 为什么页面报"投标文件加载失败"？→ `ScoreBidDocumentLookup.loadBytes()` 三条链路全失败，抛兜底 `IllegalStateException`
+2. 为什么 OBS 直传链路失败？→ 服务器日志 `Java heap space`：`defaultFetchUrl` 用 `HttpResponse.BodyHandlers.ofByteArray()` 把 1.62GB 全量读进 JVM 堆
+3. 为什么没有大小预检？→ 同包 `BoundedHttpDownloader`（50MB Content-Length 预检 + 流式累计中止）已存在，且招标文件链路 `InitiationTenderTextResolver` 已正确接入，但投标文件链路 `ScoreBidDocumentLookup` 默认 fetcher 落到无限制的 `defaultFetchUrl`
+4. 为什么漏接？→ 教训 119 修复（commit c0387daee）新增 OBS 直传分支时，没有 grep 全局收敛 `ofByteArray`/`defaultFetchUrl` 的同类风险点——**同类防护只修了一半**
+5. 为什么会形成这个缺口？→ "解除上传限制"与"下游读取防护"没有成对设计：上传放开到 GB 级后，下游全量读取的内存模型必然击穿，这是同一对矛盾的两面
+
+### 修复（一次性根治）
+
+- `ScoreBidDocumentLookup` 默认 fetcher 从 `defaultFetchUrl` 换为 `new BoundedHttpDownloader()::get`，删除无限制实现；OBS/本地存储/doc-insight 三条链路统一 `capSize`（50MB）
+- OBS 分支 catch 中识别 `TOO_LARGE_MESSAGE` 后立即抛 `OversizedBidFileException` 中止，**不允许吞掉后走 fallback**（fallback 链路同样会 OOM）
+- `ScoreScoringAppService.triggerScoring` 同步段（bidHash 计算处）catch 超限转 `IllegalArgumentException("OVERSIZED_BID_FILE")`；Controller 转 400 + "投标文件超过 50MB，无法完成打分，请压缩后重新上传"
+- `doExecuteScoring` 异步段保留 catch 兜底：`failTask` + `fallbackPending` 带同一文案
+- 根因行为测试 4 个：OBS 超限中止 / 本地存储超限 / 同步段语义码拒绝 / 异步段兜底文案
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| 解除上传限制后下游 OOM | 上传策略与读取策略必须成对设计：放开上限的那一刻，就要审计所有全量读取该文件的位置 | 修"限制类" bug 时，必须 grep 该资源的全部消费方，确认大小/内存假设仍然成立 |
+| 防护组件存在但没接上 | `BoundedHttpDownloader` 与 `InitiationTenderTextResolver` 模式都已存在，新增同类链路时未对齐 | 新增文件读取链路时，先找包内/模块内已有的 bounded 下载与 capSize 模式并复用；禁止新写裸 `ofByteArray()` |
+| catch 块吞掉超限异常继续 fallback | 超限是确定性失败，换链路重试只会重复 OOM | 大小超限类异常必须立即中止并转换为用户可操作提示，与"网络抖动可重试"严格区分 |
+| 同一文件同一天第二轮回踩 | 教训 119 修复时只验证了"能传"，未验证"传完之后下游读得动" | 大文件链路修复的验证清单必须包含端到端：上传 → 触发下游（打分/解析）→ 观察内存与结果 |
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreBidDocumentLookup.java`（修复核心：三链路 capSize + BoundedHttpDownloader 默认化）
+- `backend/src/main/java/com/xiyu/bid/scoreparse/application/OversizedBidFileException.java`（新建语义异常）
+- `backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreScoringAppService.java`（同步段拒绝 + 异步段兜底）
+- `backend/src/main/java/com/xiyu/bid/scoreparse/controller/ScoreParseController.java`（OVERSIZED_BID_FILE → 400 文案）
+- `backend/src/main/java/com/xiyu/bid/scoreparse/application/BoundedHttpDownloader.java`（既有防护组件，本次复用）

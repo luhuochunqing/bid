@@ -136,4 +136,33 @@ class ScoreBidDocumentLookupTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("投标文件不存在");
     }
+
+    @Test
+    void loadBytes_obsDirectOversizedFile_throwsOversizedException() {
+        // 复现 OOM 根因：BoundedHttpDownloader 检出 Content-Length/流式超限时抛 TOO_LARGE，
+        // lookup 必须转成 OversizedBidFileException 立即中止，不能吞掉走 fallback
+        lookup = new ScoreBidDocumentLookup(
+                projectDocumentRepository, documentStorage, textExtractor,
+                fileStorage, obsShareUrlSigner,
+                url -> { throw new IllegalStateException(BoundedHttpDownloader.TOO_LARGE_MESSAGE); });
+        when(obsShareUrlSigner.trySign("obs-direct:f2a75682-f248-4867"))
+                .thenReturn(Optional.of("https://obs.huaweicloud.com/signed-url"));
+
+        assertThatThrownBy(() -> lookup.loadBytes("obs-direct:f2a75682-f248-4867"))
+                .isInstanceOf(OversizedBidFileException.class)
+                .hasMessageContaining("投标文件超过 50MB");
+    }
+
+    @Test
+    void loadBytes_localStorageOversizedContent_throwsOversizedException() {
+        // 本地/挂载存储同样有 50MB 上限，防止换条链路继续 OOM
+        when(fileStorage.load("/storage/oversized.pdf"))
+                .thenReturn(Optional.of(new LoadedProjectDocumentFile(
+                        "/storage/oversized.pdf", "/storage/oversized.pdf", "pdf",
+                        new byte[BoundedHttpDownloader.MAX_BYTES + 1], null)));
+
+        assertThatThrownBy(() -> lookup.loadBytes("/storage/oversized.pdf"))
+                .isInstanceOf(OversizedBidFileException.class)
+                .hasMessageContaining("投标文件超过 50MB");
+    }
 }
