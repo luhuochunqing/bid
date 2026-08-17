@@ -12,6 +12,7 @@ import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.projectworkflow.service.LoadedProjectDocumentFile;
 import com.xiyu.bid.projectworkflow.service.ProjectDocumentFileStorage;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -41,6 +42,7 @@ public class InitiationTenderTextResolver {
     private final ObsShareUrlSigner obsShareUrlSigner;
     private final UrlContentFetcher urlContentFetcher;
 
+    @Autowired
     public InitiationTenderTextResolver(
             ProjectDocumentRepository projectDocumentRepository,
             BidTenderDocumentSnapshotRepository snapshotRepository,
