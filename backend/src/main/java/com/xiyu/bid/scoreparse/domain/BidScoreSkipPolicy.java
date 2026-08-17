@@ -1,6 +1,10 @@
 package com.xiyu.bid.scoreparse.domain;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
@@ -22,6 +26,24 @@ public final class BidScoreSkipPolicy {
             return null;
         }
         return sha256(content);
+    }
+
+    /** 流式 SHA-256（spec 045）：OnDisk 临时文件与 hashBytes 同口径，同内容必同 hash。 */
+    public static String hashFile(Path file) {
+        if (file == null) {
+            return null;
+        }
+        try (InputStream in = Files.newInputStream(file)) {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) != -1) {
+                digest.update(buf, 0, n);
+            }
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (IOException | NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("投标文件哈希计算失败: " + file, exception);
+        }
     }
 
     public static String hashItems(List<String> itemFingerprints) {

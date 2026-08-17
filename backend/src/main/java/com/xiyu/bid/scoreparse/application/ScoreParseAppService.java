@@ -221,7 +221,7 @@ public class ScoreParseAppService {
                 summary.weightWarning()),
                 new ScoreParseItemsMetaBuilder(initiationTenderTextResolver, snapshotRepository,
                         taskRepository, itemRepository, resultRepository,
-                        new ScoreBidDocumentLookup(projectDocumentRepository, null, null))
+                        new ScoreBidDocumentLookup(projectDocumentRepository, null, null, null, null))
                         .build(projectId, latestTaskOrNull(projectId, TASK_TYPE_PARSE),
                                 latestTaskOrNull(projectId, "SCORING")));
     }

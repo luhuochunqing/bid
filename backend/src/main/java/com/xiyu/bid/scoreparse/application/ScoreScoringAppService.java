@@ -5,9 +5,6 @@
 package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
-import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
-import com.xiyu.bid.biddraftagent.application.TenderDocumentStorage;
-import com.xiyu.bid.biddraftagent.application.TenderDocumentTextExtractor;
 import com.xiyu.bid.scoreparse.domain.AutoFailCircuit;
 import com.xiyu.bid.scoreparse.domain.BidChapterDirtySet;
 import com.xiyu.bid.scoreparse.domain.BidScoreSkipPolicy;
@@ -24,8 +21,6 @@ import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
-import com.xiyu.bid.file.application.ObsShareUrlSigner;
-import com.xiyu.bid.projectworkflow.service.ProjectDocumentFileStorage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
@@ -54,15 +49,11 @@ public class ScoreScoringAppService {
     private final ScoreParseTaskRepository taskRepository;
     private final ScoreItemRepository itemRepository;
     private final ScoreResultRepository resultRepository;
-    private final ProjectDocumentRepository projectDocumentRepository;
-    private final TenderDocumentStorage documentStorage;
-    private final TenderDocumentTextExtractor textExtractor;
     private final ScoreParseTaskStateService stateService;
     private final ScoreParseProgressService progressService;
     private final ProjectAccessScopeService projectAccessScopeService;
     private final OpenAiScoreAnalyzer scoreAnalyzer;
-    private final ProjectDocumentFileStorage fileStorage;
-    private final ObsShareUrlSigner obsShareUrlSigner;
+    private final BidFileLoadingCoordinator bidFileLoader;
     private final SummaryAggregator summaryAggregator = new SummaryAggregator();
     private final ScoreScoringItemPicker itemPicker = new ScoreScoringItemPicker();
 
@@ -73,24 +64,19 @@ public class ScoreScoringAppService {
     @Autowired
     public ScoreScoringAppService(
             ScoreParseTaskRepository taskRepository, ScoreItemRepository itemRepository,
-            ScoreResultRepository resultRepository, ProjectDocumentRepository projectDocumentRepository,
-            TenderDocumentStorage documentStorage, TenderDocumentTextExtractor textExtractor,
+            ScoreResultRepository resultRepository,
             ScoreParseTaskStateService stateService, ScoreParseProgressService progressService,
             ProjectAccessScopeService projectAccessScopeService, OpenAiScoreAnalyzer scoreAnalyzer,
-            ProjectDocumentFileStorage fileStorage, ObsShareUrlSigner obsShareUrlSigner
+            BidFileLoadingCoordinator bidFileLoader
     ) {
         this.taskRepository = taskRepository;
         this.itemRepository = itemRepository;
         this.resultRepository = resultRepository;
-        this.projectDocumentRepository = projectDocumentRepository;
-        this.documentStorage = documentStorage;
-        this.textExtractor = textExtractor;
         this.stateService = stateService;
         this.progressService = progressService;
         this.projectAccessScopeService = projectAccessScopeService;
         this.scoreAnalyzer = scoreAnalyzer;
-        this.fileStorage = fileStorage;
-        this.obsShareUrlSigner = obsShareUrlSigner;
+        this.bidFileLoader = bidFileLoader;
     }
 
     public ScoreParseTriggerDTO triggerScoring(Long projectId) {
@@ -104,8 +90,7 @@ public class ScoreScoringAppService {
         if (items.isEmpty()) {
             throw new IllegalArgumentException("SCORE_ITEMS_NOT_READY");
         }
-        ScoreBidDocumentLookup docs = docs();
-        List<ProjectDocument> bidDocs = docs.findBidDocuments(projectId);
+        List<ProjectDocument> bidDocs = bidFileLoader.findBidDocuments(projectId);
         if (bidDocs.isEmpty()) {
             throw new IllegalArgumentException("NO_BID_DOCUMENT");
         }
@@ -123,13 +108,13 @@ public class ScoreScoringAppService {
             throw new IllegalStateException(AutoFailCircuit.OPEN_MESSAGE);
         }
         ProjectDocument bidDoc = bidDocs.get(0);
-        byte[] bytes;
+        String taskId = UUID.randomUUID().toString();
+        String bidHash;
         try {
-            bytes = docs.loadBytes(bidDoc.getFileUrl());
-        } catch (OversizedBidFileException ex) {
-            throw new IllegalArgumentException("OVERSIZED_BID_FILE");
+            bidHash = bidFileLoader.contentHashOnly(bidDoc, taskId);
+        } catch (BidFileQuotaException ex) {
+            throw new IllegalArgumentException("BID_FILE_QUOTA_EXCEEDED");
         }
-        String bidHash = BidScoreSkipPolicy.hashBytes(bytes);
         String itemHash = BidScoreSkipPolicy.hashItems(items.stream()
                 .map(item -> BidScoreSkipPolicy.itemFingerprint(item.getId(), item.getWeight(), item.getDetail()))
                 .toList());
@@ -138,7 +123,6 @@ public class ScoreScoringAppService {
                 last == null ? null : last.getBidContentHash(), last == null ? null : last.getItemSetHash())) {
             return completeSkipped(projectId, bidDoc, bidHash, itemHash, cmd.normalizedSource());
         }
-        String taskId = UUID.randomUUID().toString();
         ScoreParseTask created = stateService.createTask(
                 taskId, projectId, TASK_TYPE_SCORING, bidDoc.getName(), bidDoc.getFileUrl(), cmd.normalizedSource());
         created.setStage(cmd.normalizedScope());
@@ -171,10 +155,11 @@ public class ScoreScoringAppService {
         updateProgress(taskId, 5, "读取投标文件");
         String bidDocText;
         try {
-            bidDocText = docs().loadText(task.getProjectId());
+            bidDocText = bidFileLoader.load(task.getProjectId(), taskId).text();
         } catch (RuntimeException ex) {
-            failScoringWithPending(taskId, task, items, ex instanceof OversizedBidFileException
-                    ? ex.getMessage() : "投标文件解析失败，无法完成打分，请检查文件内容或重新上传");
+            failScoringWithPending(taskId, task, items, ex instanceof OversizedBidTextException
+                    || ex instanceof BidFileQuotaException ? ex.getMessage()
+                    : "投标文件解析失败，无法完成打分，请检查文件内容或重新上传");
             return;
         }
         Map<Long, ScoreResult> oldResults = resultRepository
@@ -249,10 +234,6 @@ public class ScoreScoringAppService {
         created.setCompletedAt(java.time.LocalDateTime.now());
         taskRepository.save(created);
         return new ScoreParseTriggerDTO(taskId, "COMPLETED", "SKIPPED", "文件未变化");
-    }
-
-    private ScoreBidDocumentLookup docs() {
-        return new ScoreBidDocumentLookup(projectDocumentRepository, documentStorage, textExtractor, fileStorage, obsShareUrlSigner);
     }
 
     private void failScoringWithPending(String taskId, ScoreParseTask task, List<ScoreItem> items, String message) {

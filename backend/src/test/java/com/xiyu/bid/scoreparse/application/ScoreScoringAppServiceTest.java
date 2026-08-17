@@ -1,15 +1,9 @@
-// Input: projectId（触发打分）/ mock 存储与 LLM 依赖
-// Output: 前置校验/整批覆盖/失败保留旧结果断言
-// Pos: scoreparse/application — spec 041 US4 编排测试（FR-012/FR-019/FR-021）
+// Input: projectId（触发打分）/ mock 协调器与 LLM 依赖
+// Output: 前置校验/配额语义/文本量超限传播/整批覆盖/失败保留旧结果断言
+// Pos: scoreparse/application — spec 041 US4 + 045 T012（coordinator 二态接线）
 package com.xiyu.bid.scoreparse.application;
 
-import com.xiyu.bid.biddraftagent.application.ExtractedTenderDocument;
-import com.xiyu.bid.biddraftagent.application.LoadedTenderDocument;
-import com.xiyu.bid.biddraftagent.application.StoredTenderDocument;
-import com.xiyu.bid.biddraftagent.application.TenderDocumentStorage;
-import com.xiyu.bid.biddraftagent.application.TenderDocumentTextExtractor;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
-import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.scoreparse.dto.ScoreParseTriggerDTO;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
@@ -19,8 +13,6 @@ import com.xiyu.bid.scoreparse.infrastructure.openai.ScoreAssessmentOutput;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
-import com.xiyu.bid.file.application.ObsShareUrlSigner;
-import com.xiyu.bid.projectworkflow.service.ProjectDocumentFileStorage;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,21 +32,22 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 阶段 2 实际打分编排测试（spec 041 US4）。
+ * 阶段 2 实际打分编排测试（spec 041 US4 / 045 接线）。
  * <p>FR-019 前置校验（标书已上传 + 评分项就绪 + 任务互斥）；
- * FR-021 整批覆盖；US4 场景 6 失败保留旧结果。
+ * FR-021 整批覆盖；US4 场景 6 失败保留旧结果；
+ * spec 045：同步段配额拒绝语义 + 异步段文本量超限传播。
  */
 @ExtendWith(MockitoExtension.class)
 class ScoreScoringAppServiceTest {
 
     private static final Long PROJECT_ID = 1L;
     private static final String BID_FILE_URL = "doc-insight://bid/test.pdf";
+    private static final String BID_TEXT = "投标文件全文内容";
 
     @Mock
     private ScoreParseTaskRepository taskRepository;
@@ -62,12 +55,6 @@ class ScoreScoringAppServiceTest {
     private ScoreItemRepository itemRepository;
     @Mock
     private ScoreResultRepository resultRepository;
-    @Mock
-    private ProjectDocumentRepository projectDocumentRepository;
-    @Mock
-    private TenderDocumentStorage documentStorage;
-    @Mock
-    private TenderDocumentTextExtractor textExtractor;
     @Mock
     private ScoreParseTaskStateService stateService;
     @Mock
@@ -77,9 +64,7 @@ class ScoreScoringAppServiceTest {
     @Mock
     private OpenAiScoreAnalyzer scoreAnalyzer;
     @Mock
-    private com.xiyu.bid.projectworkflow.service.ProjectDocumentFileStorage fileStorage;
-    @Mock
-    private com.xiyu.bid.file.application.ObsShareUrlSigner obsShareUrlSigner;
+    private BidFileLoadingCoordinator bidFileLoader;
 
     private ScoreScoringAppService service;
 
@@ -87,21 +72,15 @@ class ScoreScoringAppServiceTest {
     void setUp() {
         service = new ScoreScoringAppService(
                 taskRepository, itemRepository, resultRepository,
-                projectDocumentRepository, documentStorage, textExtractor,
                 stateService, progressService, projectAccessScopeService, scoreAnalyzer,
-                fileStorage, obsShareUrlSigner);
+                bidFileLoader);
         ReflectionTestUtils.setField(service, "self", service);
     }
 
     @Test
     void noBidDocument_rejectsWithSemantic() {
         mockItemsPresent();
-        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
-                PROJECT_ID, "BID", null, null)).thenReturn(List.of());
-        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
-                PROJECT_ID, "BID_FILE", null, null)).thenReturn(List.of());
-        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
-                PROJECT_ID, "BID_DOCUMENT", null, null)).thenReturn(List.of());
+        when(bidFileLoader.findBidDocuments(PROJECT_ID)).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.triggerScoring(PROJECT_ID))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -110,42 +89,44 @@ class ScoreScoringAppServiceTest {
     }
 
     @Test
-    void oversizedBidFile_rejectsWithSemantic() {
-        // 根因行为测试：1.62GB 投标文件曾全量加载导致 OOM，
-        // 现在 50MB 预检在同步段直接拒绝（OVERSIZED_BID_FILE 语义码），不创建注定失败的任务
+    void bidFileQuota_rejectsWithSemantic() {
+        // 同步段配额拒绝（FR-002）：Content-Length 预检超 2GB 直接 400，不创建注定失败的任务
         mockNoActiveScoringTask();
         mockBidDocumentPresent();
         mockItemsPresent();
-        when(documentStorage.loadByFileUrl(BID_FILE_URL))
-                .thenReturn(Optional.of(new LoadedTenderDocument(
-                        new StoredTenderDocument(BID_FILE_URL, "/tmp/bid.pdf", "sha256"),
-                        new byte[BoundedHttpDownloader.MAX_BYTES + 1])));
+        when(bidFileLoader.contentHashOnly(any(ProjectDocument.class), anyString()))
+                .thenThrow(new BidFileQuotaException());
 
         assertThatThrownBy(() -> service.triggerScoring(PROJECT_ID))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("OVERSIZED_BID_FILE");
+                .hasMessageContaining("BID_FILE_QUOTA_EXCEEDED");
         verify(stateService, never()).createTask(anyString(), any(), anyString(), any(), any(), anyString());
     }
 
     @Test
-    void oversizedBidFileInAsync_failsTaskWithFriendlyMessage() {
-        // 异步段兜底：若超限在 doExecuteScoring 才暴露（如 AUTO 复用任务路径），
-        // 任务标记 FAILED 并带用户可操作文案
+    void oversizedBidTextInAsync_failsTaskWithFriendlyMessage() {
+        // 异步段文本量超限（FR-004）：任务 FAILED + OversizedBidTextException.MESSAGE 原文，不产生部分得分
         ScoreParseTask task = scoringTask();
         when(taskRepository.findByTaskId(anyString())).thenReturn(Optional.of(task));
-        mockBidDocumentPresent();
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID))
                 .thenReturn(List.of(item(10L, "资质", "具备 CMMI 5 级认证证书", "10", "OBJECTIVE")));
-        when(documentStorage.loadByFileUrl(BID_FILE_URL))
-                .thenReturn(Optional.of(new LoadedTenderDocument(
-                        new StoredTenderDocument(BID_FILE_URL, "/tmp/bid.pdf", "sha256"),
-                        new byte[BoundedHttpDownloader.MAX_BYTES + 1])));
+        when(bidFileLoader.load(eq(PROJECT_ID), anyString()))
+                .thenThrow(new OversizedBidTextException());
 
         service.executeScoringAsync("task-uuid");
 
-        verify(stateService).failTask(eq("task-uuid"), eq(OversizedBidFileException.MESSAGE));
+        verify(stateService).failTask(eq("task-uuid"), eq(OversizedBidTextException.MESSAGE));
         verify(progressService).clearProgress("task-uuid");
         verify(stateService, never()).markCompleted(anyString());
+        // FR-004 不产生部分得分：fallbackPending 占位结果 actualScore 全空 + 超限文案
+        ArgumentCaptor<List<ScoreResult>> captor = ArgumentCaptor.captor();
+        verify(resultRepository).saveAll(captor.capture());
+        assertThat(captor.getValue()).isNotEmpty();
+        assertThat(captor.getValue()).allSatisfy(r -> {
+            assertThat(r.getActualScore()).isNull();
+            assertThat(r.getStatusStage2()).isEqualTo("PENDING");
+            assertThat(r.getMissedReason()).isEqualTo(OversizedBidTextException.MESSAGE);
+        });
     }
 
     @Test
@@ -288,7 +269,8 @@ class ScoreScoringAppServiceTest {
         ScoreItem objective = item(10L, "资质", "具备 CMMI 5 级认证证书", "10", "OBJECTIVE");
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID))
                 .thenReturn(List.of(objective));
-        when(documentStorage.loadByFileUrl(BID_FILE_URL)).thenReturn(Optional.empty());
+        when(bidFileLoader.contentHashOnly(any(ProjectDocument.class), anyString()))
+                .thenThrow(new IllegalStateException("投标文件加载失败: " + BID_FILE_URL));
 
         assertThatThrownBy(() -> service.triggerScoring(PROJECT_ID))
                 .isInstanceOf(IllegalStateException.class)
@@ -304,11 +286,10 @@ class ScoreScoringAppServiceTest {
         mockBidDocumentPresent();
         ScoreItem objective = item(10L, "资质", "具备 CMMI 5 级认证证书", "10", "OBJECTIVE");
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of(objective));
-        byte[] bytes = "pdf-bytes".getBytes();
-        when(documentStorage.loadByFileUrl(BID_FILE_URL))
-                .thenReturn(Optional.of(new LoadedTenderDocument(
-                        new StoredTenderDocument(BID_FILE_URL, "/tmp/bid.pdf", "sha256"), bytes)));
-        String bidHash = com.xiyu.bid.scoreparse.domain.BidScoreSkipPolicy.hashBytes(bytes);
+        String bidHash = com.xiyu.bid.scoreparse.domain.BidScoreSkipPolicy.hashBytes(
+                BID_TEXT.getBytes());
+        when(bidFileLoader.contentHashOnly(any(ProjectDocument.class), anyString()))
+                .thenReturn(bidHash);
         String itemHash = com.xiyu.bid.scoreparse.domain.BidScoreSkipPolicy.hashItems(List.of(
                 com.xiyu.bid.scoreparse.domain.BidScoreSkipPolicy.itemFingerprint(
                         10L, objective.getWeight(), objective.getDetail())));
@@ -357,8 +338,7 @@ class ScoreScoringAppServiceTest {
         ProjectDocument bidDoc = ProjectDocument.builder()
                 .id(77L).projectId(PROJECT_ID).name("投标文件.pdf")
                 .documentCategory("BID").fileUrl(BID_FILE_URL).build();
-        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
-                PROJECT_ID, "BID", null, null)).thenReturn(List.of(bidDoc));
+        when(bidFileLoader.findBidDocuments(PROJECT_ID)).thenReturn(List.of(bidDoc));
     }
 
     private void mockItemsPresent() {
@@ -370,13 +350,10 @@ class ScoreScoringAppServiceTest {
         ScoreParseTask task = scoringTask();
         when(stateService.createTask(anyString(), any(), anyString(), any(), any(), anyString())).thenReturn(task);
         when(taskRepository.findByTaskId(anyString())).thenReturn(Optional.of(task));
-        when(documentStorage.loadByFileUrl(BID_FILE_URL))
-                .thenReturn(Optional.of(new LoadedTenderDocument(
-                        new StoredTenderDocument(BID_FILE_URL, "/tmp/bid.pdf", "sha256"),
-                        "pdf-bytes".getBytes())));
-        when(textExtractor.extract(anyString(), isNull(), any(byte[].class)))
-                .thenReturn(new ExtractedTenderDocument(
-                        "投标文件.pdf", "application/pdf", "投标文件全文内容", 8, "pdf"));
+        when(bidFileLoader.contentHashOnly(any(ProjectDocument.class), anyString()))
+                .thenReturn("trigger-hash");
+        when(bidFileLoader.load(eq(PROJECT_ID), anyString()))
+                .thenReturn(new BidFileLoadingCoordinator.LoadedBidDocument(BID_TEXT, "async-hash"));
     }
 
     private ScoreParseTask scoringTask() {

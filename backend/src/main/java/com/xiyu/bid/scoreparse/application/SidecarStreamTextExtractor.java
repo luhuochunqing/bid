@@ -1,0 +1,121 @@
+// Input: 临时文件 Path + 文件名（OnDisk 路径，LoadedBidFile.OnDisk）
+// Output: 提取后的 markdown 纯文本；char 超限抛 OversizedBidTextException
+// Pos: scoreparse/application — /convert-stream 流式客户端（spec 045 T009，契约 contracts/sidecar-streaming-api.md）
+package com.xiyu.bid.scoreparse.application;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.UUID;
+
+/**
+ * sidecar /convert-stream 客户端：磁盘临时文件流式上传（ofFile，零整包内存），
+ * 响应流式读 + char 计数，累计 > max-text-chars(500万) 中止连接抛
+ * OversizedBidTextException（FR-004），否则拼装文本返回。
+ * <p>与 docinsight 的 MarkItDownSidecarExtractor 互不相干：本类只服务打分链路。
+ */
+@Component
+public class SidecarStreamTextExtractor {
+
+    private static final String SIDECAR_KEY_HEADER = "X-Sidecar-Key";
+    private static final int ERROR_SNIPPET_MAX_CHARS = 512;
+
+    private final HttpClient httpClient;
+    private final String sidecarUrl;
+    private final String sharedKey;
+    private final long maxTextChars;
+    private final long extractTimeoutSeconds;
+
+    public SidecarStreamTextExtractor(
+            @Value("${app.score-parse.sidecar-url:http://127.0.0.1:8009}") String sidecarUrl,
+            @Value("${app.score-parse.sidecar-shared-key:${SIDECAR_SHARED_KEY:}}") String sharedKey,
+            @Value("${app.score-parse.bid-file.max-text-chars:5000000}") long maxTextChars,
+            @Value("${app.score-parse.bid-file.extract-timeout-seconds:600}") long extractTimeoutSeconds) {
+        this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
+        this.sidecarUrl = sidecarUrl.endsWith("/")
+                ? sidecarUrl.substring(0, sidecarUrl.length() - 1)
+                : sidecarUrl;
+        this.sharedKey = sharedKey == null ? "" : sharedKey.trim();
+        this.maxTextChars = maxTextChars;
+        this.extractTimeoutSeconds = extractTimeoutSeconds;
+    }
+
+    public String extract(Path file, String fileName) throws IOException, InterruptedException {
+        String boundary = "xiyu-score-parse-" + UUID.randomUUID().toString().replace("-", "");
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
+                .uri(URI.create(sidecarUrl + "/convert-stream"))
+                .timeout(Duration.ofSeconds(extractTimeoutSeconds))
+                .header("Content-Type", "multipart/form-data; boundary=" + boundary);
+        if (!sharedKey.isBlank()) {
+            requestBuilder.header(SIDECAR_KEY_HEADER, sharedKey);
+        }
+        HttpRequest request = requestBuilder
+                .POST(HttpRequest.BodyPublishers.concat(
+                        HttpRequest.BodyPublishers.ofByteArray(multipartPrefix(boundary, fileName)),
+                        HttpRequest.BodyPublishers.ofFile(file),
+                        HttpRequest.BodyPublishers.ofByteArray(multipartSuffix(boundary))))
+                .build();
+        HttpResponse<InputStream> response =
+                httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        int status = response.statusCode();
+        if (status == 422) {
+            throw new IllegalStateException("投标文件无法解析：" + readErrorSnippet(response.body()));
+        }
+        if (status < 200 || status >= 300) {
+            throw new IllegalStateException("调用文档转换服务失败 HTTP " + status + "：" + readErrorSnippet(response.body()));
+        }
+        try (InputStream body = response.body()) {
+            return readTextWithCharLimit(body);
+        }
+    }
+
+    private static byte[] multipartPrefix(String boundary, String fileName) {
+        return ("--" + boundary + "\r\n"
+                + "Content-Disposition: form-data; name=\"file\"; filename=\"" + fileName + "\"\r\n"
+                + "Content-Type: application/octet-stream\r\n\r\n")
+                .getBytes(StandardCharsets.UTF_8);
+    }
+
+    private static byte[] multipartSuffix(String boundary) {
+        return ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
+    }
+
+    /** 流式读响应 + char 计数：累计超限即抛（关闭 body 中止连接），不先缓冲完整文本再判。 */
+    private String readTextWithCharLimit(InputStream body) throws IOException {
+        StringBuilder text = new StringBuilder();
+        Reader reader = new InputStreamReader(body, StandardCharsets.UTF_8);
+        char[] buf = new char[8192];
+        long totalChars = 0;
+        int n;
+        while ((n = reader.read(buf)) != -1) {
+            totalChars += n;
+            if (totalChars > maxTextChars) {
+                throw new OversizedBidTextException();
+            }
+            text.append(buf, 0, n);
+        }
+        return text.toString();
+    }
+
+    private static String readErrorSnippet(InputStream body) {
+        try (body) {
+            Reader reader = new InputStreamReader(body, StandardCharsets.UTF_8);
+            char[] buf = new char[ERROR_SNIPPET_MAX_CHARS];
+            int n = reader.read(buf);
+            return n <= 0 ? "" : new String(buf, 0, n).trim();
+        } catch (IOException ex) {
+            return "";
+        }
+    }
+}

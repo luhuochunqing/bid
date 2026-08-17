@@ -22,7 +22,7 @@
 | Remote 名 | URL | 用途 |
 |---|---|---|
 | `origin` | `git@gitee.com:allinai888/bid.git` | **主仓库**：PR / CI / 协作走这里 |
-| `github` | `git@github-bid:yzcynk5vtp-ship-it/bid.git` | **AI 协作入口 + 镜像**：AI 工具改代码，本地同步回 Gitee |
+| `github` | `git@github-allinai:allinai0506/bid.git` | **AI 协作入口 + 镜像**：AI 工具改代码，本地同步回 Gitee |
 
 **日常推送命令**：
 ```bash
@@ -41,15 +41,15 @@ git checkout main && git merge review/ai-xxx && git push origin main
 
 **SSH 配置**：
 - Gitee：`~/.ssh/id_ed25519`（默认 key）
-- GitHub：`~/.ssh/github_bid_mirror` + `~/.ssh/config` 中的 `Host github-bid`（`IdentitiesOnly yes`）
-- GitHub 账户：`yzcynk5vtp-ship-it`（deploy key 仅绑定 `bid` 仓库，已开启 write access）
+- GitHub：`~/.ssh/id_ed25519_allinai` + `~/.ssh/config` 中的 `Host github-allinai`（`IdentitiesOnly yes`）
+- GitHub 账户：`allinai0506`
 
 **重要约定**：
 - **Gitee 是唯一 source of truth**：所有最终代码以 Gitee main 为准
 - **GitHub 改动必须审查**：AI 工具的改动不能直接合入，必须本地审查
 - 所有 PR / Code Review / CI 仍走 Gitee，GitHub 不走 Gitee CI
 - 推送前门禁（`pre-push-gate.sh` 等）对两个 remote 都生效
-- 旧 GitHub 账户 `ericforai` 已封禁，新账户为 `yzcynk5vtp-ship-it`
+- 旧 GitHub 账户 `ericforai`、`yzcynk5vtp-ship-it`、`luhuochunqing` 均已下线，当前账户为 `allinai0506`
 - 完整同步流程详见 skill `github-sync`
 
 ## 当前项目口径

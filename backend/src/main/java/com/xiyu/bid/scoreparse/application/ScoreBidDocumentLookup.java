@@ -1,9 +1,10 @@
+// Input: projectId + taskId（定位投标文件并按二态加载）
+// Output: LoadedBidFile（OBS 流式自适应 spill / 本地与 doc-insight 内存快路径）
+// Pos: scoreparse/application — spec 045 T010：loadBytes 单态 → loadBidFile 二态，capSize 字节硬限废止
 package com.xiyu.bid.scoreparse.application;
 
-import com.xiyu.bid.biddraftagent.application.ExtractedTenderDocument;
 import com.xiyu.bid.biddraftagent.application.LoadedTenderDocument;
 import com.xiyu.bid.biddraftagent.application.TenderDocumentStorage;
-import com.xiyu.bid.biddraftagent.application.TenderDocumentTextExtractor;
 import com.xiyu.bid.file.application.ObsShareUrlSigner;
 import com.xiyu.bid.file.domain.FileUrlPrefixes;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
@@ -17,50 +18,30 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 投标文件查找与正文读取。
- * <p>支持华为云 OBS 对象存储直传 (obs-direct:xxx)、本地 ProjectDocumentFileStorage 和 TenderDocumentStorage。
+ * 投标文件查找与二态加载（spec 045）。
+ * <p>OBS 直传走 StreamingBidFileFetcher 流式自适应 spill（≤50MB 内存 / 超限落盘）；
+ * 本地 ProjectDocumentFileStorage 与 TenderDocumentStorage 链路维持 byte[] 快路径。
+ * 字节大小硬限（capSize/OversizedBidFileException）已废止，限制口径统一为文本量/磁盘配额。
  */
 @Slf4j
 final class ScoreBidDocumentLookup {
 
-    @FunctionalInterface
-    interface UrlFetcher {
-        byte[] get(String url) throws IOException, InterruptedException;
-    }
-
     private final ProjectDocumentRepository projectDocumentRepository;
     private final TenderDocumentStorage documentStorage;
-    private final TenderDocumentTextExtractor textExtractor;
     private final ProjectDocumentFileStorage fileStorage;
     private final ObsShareUrlSigner obsShareUrlSigner;
-    private final UrlFetcher urlFetcher;
+    private final StreamingBidFileFetcher streamingFetcher;
 
     ScoreBidDocumentLookup(ProjectDocumentRepository projectDocumentRepository,
                            TenderDocumentStorage documentStorage,
-                           TenderDocumentTextExtractor textExtractor) {
-        this(projectDocumentRepository, documentStorage, textExtractor, null, null, null);
-    }
-
-    ScoreBidDocumentLookup(ProjectDocumentRepository projectDocumentRepository,
-                           TenderDocumentStorage documentStorage,
-                           TenderDocumentTextExtractor textExtractor,
-                           ProjectDocumentFileStorage fileStorage,
-                           ObsShareUrlSigner obsShareUrlSigner) {
-        this(projectDocumentRepository, documentStorage, textExtractor, fileStorage, obsShareUrlSigner, null);
-    }
-
-    ScoreBidDocumentLookup(ProjectDocumentRepository projectDocumentRepository,
-                           TenderDocumentStorage documentStorage,
-                           TenderDocumentTextExtractor textExtractor,
                            ProjectDocumentFileStorage fileStorage,
                            ObsShareUrlSigner obsShareUrlSigner,
-                           UrlFetcher urlFetcher) {
+                           StreamingBidFileFetcher streamingFetcher) {
         this.projectDocumentRepository = projectDocumentRepository;
         this.documentStorage = documentStorage;
-        this.textExtractor = textExtractor;
         this.fileStorage = fileStorage;
         this.obsShareUrlSigner = obsShareUrlSigner;
-        this.urlFetcher = urlFetcher != null ? urlFetcher : new BoundedHttpDownloader()::get;
+        this.streamingFetcher = streamingFetcher;
     }
 
     String latestName(Long projectId) {
@@ -79,24 +60,29 @@ final class ScoreBidDocumentLookup {
         return List.of();
     }
 
-    byte[] loadBytes(String fileUrl) {
+    /** 加载项目最新投标文件（二态）；OnDisk 临时文件以 {tempDir}/{taskId}.part 落盘。 */
+    LoadedBidFile loadBidFile(Long projectId, String taskId) {
+        List<ProjectDocument> bidDocs = findBidDocuments(projectId);
+        if (bidDocs.isEmpty()) {
+            throw new IllegalStateException("投标文件不存在，项目: " + projectId);
+        }
+        return loadBidFile(bidDocs.get(0), taskId);
+    }
+
+    LoadedBidFile loadBidFile(ProjectDocument bidDoc, String taskId) {
+        String fileUrl = bidDoc.getFileUrl();
         if (fileUrl == null || fileUrl.isBlank()) {
             throw new IllegalStateException("投标文件 fileUrl 为空");
         }
-        // 1. OBS 直传链接 (obs-direct:xxx)
-        if (fileUrl.startsWith(FileUrlPrefixes.OBS_DIRECT) && obsShareUrlSigner != null) {
+        // 1. OBS 直传链接 (obs-direct:xxx)：流式自适应 spill（配额拒绝立即中止，不走 fallback）
+        if (fileUrl.startsWith(FileUrlPrefixes.OBS_DIRECT) && obsShareUrlSigner != null && streamingFetcher != null) {
             Optional<String> signedUrl = obsShareUrlSigner.trySign(fileUrl);
             if (signedUrl.isPresent()) {
                 try {
-                    byte[] data = urlFetcher.get(signedUrl.get());
-                    if (data != null && data.length > 0) {
-                        return capSize(data);
-                    }
+                    return streamingFetcher.fetch(signedUrl.get(), taskId, bidDoc.getName(), bidDoc.getFileType());
+                } catch (BidFileQuotaException ex) {
+                    throw ex;
                 } catch (IOException | InterruptedException | RuntimeException ex) {
-                    // 超限必须立即中止，不能吞掉后走 fallback 链路（fallback 同样会 OOM）
-                    if (BoundedHttpDownloader.TOO_LARGE_MESSAGE.equals(ex.getMessage())) {
-                        throw new OversizedBidFileException();
-                    }
                     log.warn("通过 OBS 签名链接下载投标文件失败: fileUrl={}, msg={}", fileUrl, ex.getMessage());
                     if (ex instanceof InterruptedException) {
                         Thread.currentThread().interrupt();
@@ -104,43 +90,20 @@ final class ScoreBidDocumentLookup {
                 }
             }
         }
-        // 2. ProjectDocumentFileStorage 本地/挂载存储
+        // 2. ProjectDocumentFileStorage 本地/挂载存储（内存快路径，无字节上限）
         if (fileStorage != null) {
             Optional<byte[]> stored = fileStorage.load(fileUrl).map(LoadedProjectDocumentFile::content);
             if (stored.isPresent() && stored.get().length > 0) {
-                return capSize(stored.get());
+                return new LoadedBidFile.InMemory(stored.get(), bidDoc.getName(), bidDoc.getFileType());
             }
         }
-        // 3. TenderDocumentStorage (doc-insight://xxx 等)
+        // 3. TenderDocumentStorage (doc-insight://xxx 等，内存快路径)
         if (documentStorage != null) {
             Optional<byte[]> loaded = documentStorage.loadByFileUrl(fileUrl).map(LoadedTenderDocument::content);
             if (loaded.isPresent() && loaded.get().length > 0) {
-                return capSize(loaded.get());
+                return new LoadedBidFile.InMemory(loaded.get(), bidDoc.getName(), bidDoc.getFileType());
             }
         }
         throw new IllegalStateException("投标文件加载失败: " + fileUrl);
-    }
-
-    private static byte[] capSize(byte[] content) {
-        if (content.length > BoundedHttpDownloader.MAX_BYTES) {
-            log.warn("投标文件超过 {}MB 上限，拒绝加载: bytes={}",
-                    BoundedHttpDownloader.MAX_BYTES / 1024 / 1024, content.length);
-            throw new OversizedBidFileException();
-        }
-        return content;
-    }
-
-    String loadText(Long projectId) {
-        List<ProjectDocument> bidDocs = findBidDocuments(projectId);
-        if (bidDocs.isEmpty()) {
-            throw new IllegalStateException("投标文件不存在，项目: " + projectId);
-        }
-        ProjectDocument bidDoc = bidDocs.get(0);
-        byte[] content = loadBytes(bidDoc.getFileUrl());
-        ExtractedTenderDocument extracted = textExtractor.extract(bidDoc.getName(), bidDoc.getFileType(), content);
-        if (extracted == null || extracted.text() == null || extracted.text().isBlank()) {
-            throw new IllegalStateException("投标文件未能提取出有效正文: " + bidDoc.getName());
-        }
-        return extracted.text();
     }
 }

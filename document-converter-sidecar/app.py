@@ -17,6 +17,7 @@ import tempfile
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, UploadFile
+from fastapi.responses import JSONResponse, StreamingResponse
 from markitdown import MarkItDown
 
 from converter import extract_headings
@@ -32,7 +33,9 @@ logger = logging.getLogger(__name__)
 # Configuration (env-var driven)
 # ---------------------------------------------------------------------------
 
-_MAX_UPLOAD_MB: int = int(os.environ.get("SIDECAR_MAX_UPLOAD_MB", "30"))
+# Default raised 30→2048 (spec 045 T008): /convert-stream consumes multi-GB bid
+# documents streamed from the Java backend; quota enforcement lives on the Java side.
+_MAX_UPLOAD_MB: int = int(os.environ.get("SIDECAR_MAX_UPLOAD_MB", "2048"))
 MAX_UPLOAD_SIZE_BYTES: int = _MAX_UPLOAD_MB * 1024 * 1024
 
 SIDECAR_HOST: str = os.environ.get("SIDECAR_HOST", "127.0.0.1")
@@ -148,6 +151,76 @@ async def convert_document(
     except Exception as exc:
         logger.exception("Document conversion failed for file %s", file.filename)
         raise HTTPException(status_code=500, detail="文档转换失败") from exc
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        if converted_path and os.path.exists(converted_path):
+            os.remove(converted_path)
+
+
+@app.post("/convert-stream")
+async def convert_document_stream(
+    file: UploadFile,
+    x_sidecar_key: str | None = Header(default=None),
+) -> StreamingResponse:
+    """Convert an uploaded document and stream back plain markdown text (spec 045).
+
+    Contract: specs/045-bid-file-streaming-scoring/contracts/sidecar-streaming-api.md
+    Request side mirrors /convert (streamed 64KB reads + 413 guard), response side
+    is a text/plain StreamingResponse without JSON metadata. Unparseable documents
+    return 422 {"error": ...}; auth matches /convert (X-Sidecar-Key / 401).
+    """
+    await _check_auth(x_sidecar_key)
+
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="未提供文件名")
+
+    original_suffix: str = os.path.splitext(file.filename)[1].lower() or ".bin"
+
+    tmp_path: str | None = None
+    converted_path: str | None = None
+    try:
+        # Stream the upload straight to disk (no in-memory chunk list for GB files)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=original_suffix) as tmp:
+            tmp_path = tmp.name
+            total_read: int = 0
+            chunk_size: int = 64 * 1024  # 64 KB
+            while True:
+                chunk = await file.read(chunk_size)
+                if not chunk:
+                    break
+                total_read += len(chunk)
+                if total_read > MAX_UPLOAD_SIZE_BYTES:
+                    raise HTTPException(status_code=413, detail="请求体过大")
+                tmp.write(chunk)
+
+        processing_path: str = tmp_path
+
+        # Legacy .doc → .docx conversion via textutil (macOS only, best-effort)
+        if original_suffix == ".doc":
+            converted_path = tmp_path + "x"
+            try:
+                subprocess.run(
+                    ["textutil", "-convert", "docx", tmp_path, "-output", converted_path],
+                    check=True,
+                    capture_output=True,
+                )
+                processing_path = converted_path
+            except Exception:
+                logger.warning("textutil .doc→.docx conversion failed; falling back to original")
+
+        try:
+            result = md.convert(processing_path)
+        except Exception:
+            logger.exception("Streaming conversion failed for file %s", file.filename)
+            return JSONResponse(status_code=422, content={"error": "文档无法解析：格式不支持或已损坏"})
+
+        markdown_text: str = result.text_content or ""
+
+        # Conversion already produced the full text; temp files can be removed now
+        # (finally block below). Yield as a chunked text/plain body without JSON.
+        return StreamingResponse(iter([markdown_text]), media_type="text/plain; charset=utf-8")
+
     finally:
         if tmp_path and os.path.exists(tmp_path):
             os.remove(tmp_path)

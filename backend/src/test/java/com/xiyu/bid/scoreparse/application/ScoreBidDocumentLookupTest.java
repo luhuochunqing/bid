@@ -1,10 +1,11 @@
+// Input: projectId + taskId（mock 存储与流式 fetcher）
+// Output: loadBidFile 二态断言（InMemory 快路径 / OnDisk spill / 配额即拒 / IO 降级）
+// Pos: scoreparse/application — spec 045 T012：capSize 断言废止，改二态断言
 package com.xiyu.bid.scoreparse.application;
 
-import com.xiyu.bid.biddraftagent.application.ExtractedTenderDocument;
 import com.xiyu.bid.biddraftagent.application.LoadedTenderDocument;
 import com.xiyu.bid.biddraftagent.application.StoredTenderDocument;
 import com.xiyu.bid.biddraftagent.application.TenderDocumentStorage;
-import com.xiyu.bid.biddraftagent.application.TenderDocumentTextExtractor;
 import com.xiyu.bid.file.application.ObsShareUrlSigner;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
@@ -16,115 +17,142 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ScoreBidDocumentLookupTest {
 
     private static final Long PROJECT_ID = 100L;
+    private static final String TASK_ID = "task-uuid";
 
     @Mock
     private ProjectDocumentRepository projectDocumentRepository;
     @Mock
     private TenderDocumentStorage documentStorage;
     @Mock
-    private TenderDocumentTextExtractor textExtractor;
-    @Mock
     private ProjectDocumentFileStorage fileStorage;
     @Mock
     private ObsShareUrlSigner obsShareUrlSigner;
+    @Mock
+    private StreamingBidFileFetcher streamingFetcher;
 
     private ScoreBidDocumentLookup lookup;
 
     @BeforeEach
     void setUp() {
         lookup = new ScoreBidDocumentLookup(
-                projectDocumentRepository, documentStorage, textExtractor,
-                fileStorage, obsShareUrlSigner,
-                url -> "OBS文件内容".getBytes(StandardCharsets.UTF_8));
+                projectDocumentRepository, documentStorage, fileStorage,
+                obsShareUrlSigner, streamingFetcher);
     }
 
     @Test
-    void loadText_obsDirectFile_successfullyExtractsText() {
+    void loadBidFile_obsDirectSmallFile_returnsInMemory() throws Exception {
         String fileUrl = "obs-direct:bid/project100/sample.pdf";
-        ProjectDocument doc = ProjectDocument.builder()
-                .id(1L)
-                .projectId(PROJECT_ID)
-                .name("投标文件.pdf")
-                .fileType("pdf")
-                .fileUrl(fileUrl)
-                .build();
+        mockBidDocument(fileUrl);
+        byte[] content = "OBS文件内容".getBytes(StandardCharsets.UTF_8);
+        when(obsShareUrlSigner.trySign(fileUrl)).thenReturn(Optional.of("https://obs/signed-url"));
+        when(streamingFetcher.fetch(eq("https://obs/signed-url"), eq(TASK_ID), eq("投标文件.pdf"), eq("pdf")))
+                .thenReturn(new LoadedBidFile.InMemory(content, "投标文件.pdf", "pdf"));
 
-        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(PROJECT_ID, "BID", null, null))
-                .thenReturn(List.of(doc));
-        when(obsShareUrlSigner.trySign(fileUrl))
-                .thenReturn(Optional.of("https://obs.huaweicloud.com/signed-url"));
-        when(textExtractor.extract(eq("投标文件.pdf"), eq("pdf"), any(byte[].class)))
-                .thenReturn(new ExtractedTenderDocument("投标文件.pdf", "application/pdf", "提取到的标书正文", 7, "markitdown"));
+        LoadedBidFile loaded = lookup.loadBidFile(PROJECT_ID, TASK_ID);
 
-        String text = lookup.loadText(PROJECT_ID);
-
-        assertThat(text).isEqualTo("提取到的标书正文");
+        assertThat(loaded).isInstanceOf(LoadedBidFile.InMemory.class);
+        assertThat(((LoadedBidFile.InMemory) loaded).content()).isEqualTo(content);
+        assertThat(loaded.fileName()).isEqualTo("投标文件.pdf");
     }
 
     @Test
-    void loadText_fileStorageFallback_successfullyExtractsText() {
-        String fileUrl = "/storage/uploads/bid.docx";
-        ProjectDocument doc = ProjectDocument.builder()
-                .id(2L)
-                .projectId(PROJECT_ID)
-                .name("投标文件.docx")
-                .fileType("docx")
-                .fileUrl(fileUrl)
-                .build();
+    void loadBidFile_obsDirectSpilledFile_returnsOnDisk() throws Exception {
+        String fileUrl = "obs-direct:bid/project100/big.pdf";
+        mockBidDocument(fileUrl);
+        Path spill = Path.of("/tmp/xiyu-score-parse", TASK_ID + ".part");
+        when(obsShareUrlSigner.trySign(fileUrl)).thenReturn(Optional.of("https://obs/signed-url"));
+        when(streamingFetcher.fetch(anyString(), eq(TASK_ID), anyString(), anyString()))
+                .thenReturn(new LoadedBidFile.OnDisk(spill, "投标文件.pdf", "pdf"));
 
-        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(PROJECT_ID, "BID", null, null))
-                .thenReturn(List.of(doc));
+        LoadedBidFile loaded = lookup.loadBidFile(PROJECT_ID, TASK_ID);
+
+        assertThat(loaded).isInstanceOf(LoadedBidFile.OnDisk.class);
+        assertThat(((LoadedBidFile.OnDisk) loaded).tempFile()).isEqualTo(spill);
+    }
+
+    @Test
+    void loadBidFile_obsDirectQuotaExceeded_propagatesWithoutFallback() throws Exception {
+        // 配额拒绝必须立即中止（FR-002），不能吞掉换本地链路重试
+        String fileUrl = "obs-direct:bid/project100/huge.pdf";
+        mockBidDocument(fileUrl);
+        when(obsShareUrlSigner.trySign(fileUrl)).thenReturn(Optional.of("https://obs/signed-url"));
+        when(streamingFetcher.fetch(anyString(), eq(TASK_ID), anyString(), anyString()))
+                .thenThrow(new BidFileQuotaException());
+
+        assertThatThrownBy(() -> lookup.loadBidFile(PROJECT_ID, TASK_ID))
+                .isInstanceOf(BidFileQuotaException.class)
+                .hasMessageContaining("配额");
+        verify(fileStorage, never()).load(anyString());
+    }
+
+    @Test
+    void loadBidFile_obsDirectIoError_fallsBackToLocal() throws Exception {
+        // OBS 下载抖动（签名过期/网络断）降级本地链路，不让任务直接失败
+        String fileUrl = "obs-direct:bid/project100/flaky.pdf";
+        mockBidDocument(fileUrl);
+        byte[] content = "本地内容".getBytes(StandardCharsets.UTF_8);
+        when(obsShareUrlSigner.trySign(fileUrl)).thenReturn(Optional.of("https://obs/signed-url"));
+        when(streamingFetcher.fetch(anyString(), eq(TASK_ID), anyString(), anyString()))
+                .thenThrow(new IOException("connection reset"));
         when(fileStorage.load(fileUrl))
-                .thenReturn(Optional.of(new LoadedProjectDocumentFile(fileUrl, fileUrl, "docx", "本地存储内容".getBytes(StandardCharsets.UTF_8), null)));
-        when(textExtractor.extract(eq("投标文件.docx"), eq("docx"), any(byte[].class)))
-                .thenReturn(new ExtractedTenderDocument("投标文件.docx", "application/docx", "本地提取正文", 6, "markitdown"));
+                .thenReturn(Optional.of(new LoadedProjectDocumentFile(fileUrl, fileUrl, "pdf", content, null)));
 
-        String text = lookup.loadText(PROJECT_ID);
+        LoadedBidFile loaded = lookup.loadBidFile(PROJECT_ID, TASK_ID);
 
-        assertThat(text).isEqualTo("本地提取正文");
+        assertThat(loaded).isInstanceOf(LoadedBidFile.InMemory.class);
+        assertThat(((LoadedBidFile.InMemory) loaded).content()).isEqualTo(content);
     }
 
     @Test
-    void loadText_tenderDocumentStorageFallback_successfullyExtractsText() {
-        String fileUrl = "doc-insight://bid/tender.pdf";
-        ProjectDocument doc = ProjectDocument.builder()
-                .id(3L)
-                .projectId(PROJECT_ID)
-                .name("旧标书.pdf")
-                .fileType("pdf")
-                .fileUrl(fileUrl)
-                .build();
+    void loadBidFile_fileStorageFallback_returnsInMemory() {
+        String fileUrl = "/storage/uploads/bid.docx";
+        mockBidDocument(fileUrl);
+        byte[] content = "本地存储内容".getBytes(StandardCharsets.UTF_8);
+        when(fileStorage.load(fileUrl))
+                .thenReturn(Optional.of(new LoadedProjectDocumentFile(fileUrl, fileUrl, "docx", content, null)));
 
-        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(PROJECT_ID, "BID", null, null))
-                .thenReturn(List.of(doc));
+        LoadedBidFile loaded = lookup.loadBidFile(PROJECT_ID, TASK_ID);
+
+        assertThat(loaded).isInstanceOf(LoadedBidFile.InMemory.class);
+        assertThat(((LoadedBidFile.InMemory) loaded).content()).isEqualTo(content);
+    }
+
+    @Test
+    void loadBidFile_tenderDocumentStorageFallback_returnsInMemory() {
+        String fileUrl = "doc-insight://bid/tender.pdf";
+        mockBidDocument(fileUrl);
+        byte[] content = "doc-insight内容".getBytes(StandardCharsets.UTF_8);
         when(documentStorage.loadByFileUrl(fileUrl))
                 .thenReturn(Optional.of(new LoadedTenderDocument(
-                        new StoredTenderDocument(fileUrl, "/tmp/tender.pdf", "sha256"),
-                        "doc-insight内容".getBytes(StandardCharsets.UTF_8))));
-        when(textExtractor.extract(eq("旧标书.pdf"), eq("pdf"), any(byte[].class)))
-                .thenReturn(new ExtractedTenderDocument("旧标书.pdf", "application/pdf", "doc-insight提取正文", 12, "markitdown"));
+                        new StoredTenderDocument(fileUrl, "/tmp/tender.pdf", "sha256"), content)));
 
-        String text = lookup.loadText(PROJECT_ID);
+        LoadedBidFile loaded = lookup.loadBidFile(PROJECT_ID, TASK_ID);
 
-        assertThat(text).isEqualTo("doc-insight提取正文");
+        assertThat(loaded).isInstanceOf(LoadedBidFile.InMemory.class);
+        assertThat(((LoadedBidFile.InMemory) loaded).content()).isEqualTo(content);
     }
 
     @Test
-    void loadText_noDocumentFound_throwsException() {
+    void loadBidFile_noDocumentFound_throwsException() {
         when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(PROJECT_ID, "BID", null, null))
                 .thenReturn(List.of());
         when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(PROJECT_ID, "BID_FILE", null, null))
@@ -132,37 +160,29 @@ class ScoreBidDocumentLookupTest {
         when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(PROJECT_ID, "BID_DOCUMENT", null, null))
                 .thenReturn(List.of());
 
-        assertThatThrownBy(() -> lookup.loadText(PROJECT_ID))
+        assertThatThrownBy(() -> lookup.loadBidFile(PROJECT_ID, TASK_ID))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("投标文件不存在");
     }
 
     @Test
-    void loadBytes_obsDirectOversizedFile_throwsOversizedException() {
-        // 复现 OOM 根因：BoundedHttpDownloader 检出 Content-Length/流式超限时抛 TOO_LARGE，
-        // lookup 必须转成 OversizedBidFileException 立即中止，不能吞掉走 fallback
-        lookup = new ScoreBidDocumentLookup(
-                projectDocumentRepository, documentStorage, textExtractor,
-                fileStorage, obsShareUrlSigner,
-                url -> { throw new IllegalStateException(BoundedHttpDownloader.TOO_LARGE_MESSAGE); });
-        when(obsShareUrlSigner.trySign("obs-direct:f2a75682-f248-4867"))
-                .thenReturn(Optional.of("https://obs.huaweicloud.com/signed-url"));
+    void loadBidFile_blankFileUrl_throwsException() {
+        mockBidDocument(" ");
 
-        assertThatThrownBy(() -> lookup.loadBytes("obs-direct:f2a75682-f248-4867"))
-                .isInstanceOf(OversizedBidFileException.class)
-                .hasMessageContaining("投标文件超过 50MB");
+        assertThatThrownBy(() -> lookup.loadBidFile(PROJECT_ID, TASK_ID))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("fileUrl 为空");
     }
 
-    @Test
-    void loadBytes_localStorageOversizedContent_throwsOversizedException() {
-        // 本地/挂载存储同样有 50MB 上限，防止换条链路继续 OOM
-        when(fileStorage.load("/storage/oversized.pdf"))
-                .thenReturn(Optional.of(new LoadedProjectDocumentFile(
-                        "/storage/oversized.pdf", "/storage/oversized.pdf", "pdf",
-                        new byte[BoundedHttpDownloader.MAX_BYTES + 1], null)));
-
-        assertThatThrownBy(() -> lookup.loadBytes("/storage/oversized.pdf"))
-                .isInstanceOf(OversizedBidFileException.class)
-                .hasMessageContaining("投标文件超过 50MB");
+    private void mockBidDocument(String fileUrl) {
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(1L)
+                .projectId(PROJECT_ID)
+                .name("投标文件.pdf")
+                .fileType("pdf")
+                .fileUrl(fileUrl)
+                .build();
+        when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(PROJECT_ID, "BID", null, null))
+                .thenReturn(List.of(doc));
     }
 }
