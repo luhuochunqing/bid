@@ -4,8 +4,8 @@ space: engineering
 category: reference
 tags: [角色, 权限, 用户, 认证, RBAC]
 created: 2026-04-15
-updated: 2026-08-09
-health_checked: 2026-08-09
+updated: 2026-08-17
+health_checked: 2026-08-17
 sources:
   - .wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx
   - src/router/index.js
