@@ -137,7 +137,8 @@ export function useProjectCreateModel({ route, userStore, projectStore, router }
 
   async function loadAvailableTenders() {
     try {
-      const tenderResult = await tendersApi.getList()
+      // size:100 显式对齐后端 MAX_PAGE_SIZE 上限（选择器需要尽量全的候选列表）
+      const tenderResult = await tendersApi.getList({ size: 100 })
       if (tenderResult?.success) {
         availableTenders.value = Array.isArray(tenderResult.data) ? tenderResult.data : []
       }

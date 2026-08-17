@@ -50,7 +50,8 @@ export function useWorkbenchRoleTodos({ roleRef, userIdRef }) {
       return
     }
     try {
-      const response = await tendersApi.getList({ status: statusParam })
+      // size:100 显式对齐后端 MAX_PAGE_SIZE 上限（默认 10000 已收敛，避免无效大参数）
+      const response = await tendersApi.getList({ status: statusParam, size: 100 })
       const tenders = Array.isArray(response?.data) ? response.data : []
       // 不在前端截断，显示所有符合条件的标讯（卡片内部滚动）
       tenderTodos.value = tenders.map((item) => ({

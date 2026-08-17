@@ -60,7 +60,7 @@ describe('tendersApi', () => {
 
     const result = await tendersApi.getList(params)
 
-    expect(httpClient.get).toHaveBeenCalledWith('/api/tenders', { params: { ...params, size: 10000 } })
+    expect(httpClient.get).toHaveBeenCalledWith('/api/tenders', { params: { ...params, size: 100 } })
     expect(result.success).toBe(true)
     expect(result.data).toHaveLength(2)
     expect(result.total).toBe(2)
