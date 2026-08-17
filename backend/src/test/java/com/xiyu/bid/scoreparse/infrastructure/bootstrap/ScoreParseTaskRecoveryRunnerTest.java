@@ -1,10 +1,8 @@
-// Input: mock 任务仓库/状态机/进度缓存 + 注入时钟
-// Output: 启动恢复断言（卡死任务 FAILED、失败续扫、空集 noop）
-// Pos: scoreparse/infrastructure/bootstrap — spec 041 US5（FR-020）
 package com.xiyu.bid.scoreparse.infrastructure.bootstrap;
 
 import com.xiyu.bid.scoreparse.application.ScoreParseProgressService;
 import com.xiyu.bid.scoreparse.application.ScoreParseTaskStateService;
+import com.xiyu.bid.scoreparse.application.TempBidFileStore;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
 import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,6 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.DefaultApplicationArguments;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,8 +27,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 服务启动卡死任务恢复 Runner 测试（spec 041 US5）。
- * <p>启动时扫描 PROCESSING 超阈值任务 → failTask 三层降级 + 清 Redis；
+ * 服务启动卡死任务恢复 Runner 测试（spec 041 US5；spec 045 US2 临时文件清理）。
+ * <p>启动时扫描 PROCESSING 超阈值任务 → failTask 三层降级 + 清 Redis + 释放临时文件；
  * 参考 TenderImportTaskRecoveryRunner（spec 031）范式。
  */
 @ExtendWith(MockitoExtension.class)
@@ -43,17 +42,29 @@ class ScoreParseTaskRecoveryRunnerTest {
     private ScoreParseTaskStateService stateService;
     @Mock
     private ScoreParseProgressService progressService;
+    @Mock
+    private TempBidFileStore tempFileStore;
 
     private ScoreParseTaskRecoveryRunner runner;
 
     @BeforeEach
     void setUp() {
         runner = new ScoreParseTaskRecoveryRunner(
-                taskRepository, stateService, progressService, 30);
+                taskRepository, stateService, progressService, tempFileStore, 30);
     }
 
     @Test
-    void stuckProcessingTask_recoveredWithFailTaskAndProgressCleared() {
+    void run_callsCleanupAllAndRecovers() {
+        when(taskRepository.findByStatusAndUpdatedAtBefore(eq("PROCESSING"), any(LocalDateTime.class)))
+                .thenReturn(List.of());
+
+        runner.run(new DefaultApplicationArguments(new String[0]));
+
+        verify(tempFileStore).cleanupAll();
+    }
+
+    @Test
+    void stuckProcessingTask_recoveredWithFailTaskAndProgressClearedAndFileReleased() {
         ScoreParseTask stuck = task("task-stuck", "PARSE");
         when(taskRepository.findByStatusAndUpdatedAtBefore(eq("PROCESSING"), any(LocalDateTime.class)))
                 .thenReturn(List.of(stuck));
@@ -63,6 +74,7 @@ class ScoreParseTaskRecoveryRunnerTest {
         assertThat(recovered).isEqualTo(1);
         verify(stateService).failTask(eq("task-stuck"), contains("服务重启"));
         verify(progressService).clearProgress("task-stuck");
+        verify(tempFileStore).release("task-stuck");
     }
 
     @Test

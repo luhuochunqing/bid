@@ -5,6 +5,7 @@ package com.xiyu.bid.scoreparse.infrastructure.scheduler;
 
 import com.xiyu.bid.scoreparse.application.ScoreParseProgressService;
 import com.xiyu.bid.scoreparse.application.ScoreParseTaskStateService;
+import com.xiyu.bid.scoreparse.application.TempBidFileStore;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
 import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,7 +28,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * 30 分钟超时扫描 Job 测试（spec 041 US5，FR-020）。
+ * 30 分钟超时扫描 Job 测试（spec 041 US5，FR-020；spec 045 US2 临时文件清理）。
  * <p>PROCESSING 超时 → FAILED + timeout_marked=1（契约 errorMessage）；
  * 阈值 app.score-parse.timeout-minutes 可注入；单任务失败不中断扫描。
  */
@@ -42,13 +43,15 @@ class ScoreParseTimeoutScanJobTest {
     private ScoreParseTaskStateService stateService;
     @Mock
     private ScoreParseProgressService progressService;
+    @Mock
+    private TempBidFileStore tempFileStore;
 
     private ScoreParseTimeoutScanJob job;
 
     @BeforeEach
     void setUp() {
         job = new ScoreParseTimeoutScanJob(
-                taskRepository, stateService, progressService, 30);
+                taskRepository, stateService, progressService, tempFileStore, 30);
     }
 
     @Test
@@ -62,6 +65,7 @@ class ScoreParseTimeoutScanJobTest {
         assertThat(marked).isEqualTo(1);
         verify(stateService).markTimeout("task-stuck");
         verify(progressService).clearProgress("task-stuck");
+        verify(tempFileStore).release("task-stuck");
     }
 
     @Test
@@ -79,7 +83,7 @@ class ScoreParseTimeoutScanJobTest {
     @Test
     void customTimeoutMinutes_respected() {
         ScoreParseTimeoutScanJob tenMinuteJob = new ScoreParseTimeoutScanJob(
-                taskRepository, stateService, progressService, 10);
+                taskRepository, stateService, progressService, tempFileStore, 10);
         when(taskRepository.findByStatusAndUpdatedAtBefore(eq("PROCESSING"), any(LocalDateTime.class)))
                 .thenReturn(List.of());
 

@@ -6,6 +6,7 @@ package com.xiyu.bid.scoreparse.infrastructure.scheduler;
 
 import com.xiyu.bid.scoreparse.application.ScoreParseProgressService;
 import com.xiyu.bid.scoreparse.application.ScoreParseTaskStateService;
+import com.xiyu.bid.scoreparse.application.TempBidFileStore;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
 import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -18,11 +19,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 评分解析/打分任务超时扫描 Job（spec 041 US5，FR-020）。
+ * 评分解析/打分任务超时扫描 Job（spec 041 US5，FR-020；spec 045 US2 临时文件清理）。
  *
  * <p>每 5 分钟扫描 {@code status='PROCESSING' AND updated_at < now()-timeout-minutes}
  * 的任务，标记 FAILED（timeout_marked=1，契约文案"任务超时终止，保留上次成功结果"）
- * 并清 Redis 进度缓存。旧结果不删除（FR-020 保留上次成功结果）。
+ * 并清 Redis 进度缓存，同时 release 关联临时文件。旧结果不删除（FR-020 保留上次成功结果）。
  *
  * <p>阈值 {@code app.score-parse.timeout-minutes} 默认 30 分钟，可注入。
  */
@@ -34,16 +35,19 @@ public class ScoreParseTimeoutScanJob {
     private final ScoreParseTaskRepository taskRepository;
     private final ScoreParseTaskStateService stateService;
     private final ScoreParseProgressService progressService;
+    private final TempBidFileStore tempFileStore;
     private final long timeoutMinutes;
 
     public ScoreParseTimeoutScanJob(
             ScoreParseTaskRepository taskRepository,
             ScoreParseTaskStateService stateService,
             ScoreParseProgressService progressService,
+            TempBidFileStore tempFileStore,
             @Value("${app.score-parse.timeout-minutes:30}") long timeoutMinutes) {
         this.taskRepository = taskRepository;
         this.stateService = stateService;
         this.progressService = progressService;
+        this.tempFileStore = tempFileStore;
         this.timeoutMinutes = timeoutMinutes;
     }
 
@@ -71,6 +75,9 @@ public class ScoreParseTimeoutScanJob {
             try {
                 stateService.markTimeout(task.getTaskId());
                 progressService.clearProgress(task.getTaskId());
+                if (tempFileStore != null) {
+                    tempFileStore.release(task.getTaskId());
+                }
                 marked++;
                 log.warn("任务超时终止: taskId={}, taskType={}, updatedAt={}",
                         task.getTaskId(), task.getTaskType(), task.getUpdatedAt());

@@ -73,14 +73,14 @@
 
 ### Tests for US2（先写、先失败）
 
-- [ ] T013 [P] [US2] `TempBidFileStoreTest` 增补：并发总量 >`max-total-bytes`(4GB) 时 reserve 拒绝抛 `BidFileQuotaException`；release 后计数递减、额度可复用；流式累计中发现总量超限即中止回滚——`backend/src/test/java/com/xiyu/bid/scoreparse/application/TempBidFileStoreTest.java`
+- [x] T013 [P] [US2] `TempBidFileStoreTest` 增补：并发总量 >`max-total-bytes`(4GB) 时 reserve 拒绝抛 `BidFileQuotaException`；release 后计数递减、额度可复用；流式累计中发现总量超限即中止回滚——`backend/src/test/java/com/xiyu/bid/scoreparse/application/TempBidFileStoreTest.java`
 
 ### Implementation for US2
 
-- [ ] T014 [US2] `TempBidFileStore` 配额增强：`AtomicLong currentTotalBytes` + reserve 时 CAS 检查 `已用量+declaredBytes ≤ max-total-bytes`；写过程中每 chunk 累计实际值，超限中止并回滚本次登记——`scoreparse/application/TempBidFileStore.java`（depends T013；R4：单实例无跨进程争用）
-- [ ] T015 [P] [US2] `ScoreParseTimeoutScanJob` 挂点：`markTimeout(taskId)` 后调用 `TempBidFileStore.release(taskId)`——`scoreparse/infrastructure/scheduler/ScoreParseTimeoutScanJob.java`
-- [ ] T016 [P] [US2] `ScoreParseTaskRecoveryRunner` 挂点：`recover` 对每个恢复任务 `failTask` 后 `release(taskId)`；启动时先 `cleanupAll()`（进程重启 = 无进行中任务，建立计数零基线）——`scoreparse/infrastructure/bootstrap/ScoreParseTaskRecoveryRunner.java`
-- [ ] T017 [US2] `ScoreParseController` 语义映射：`BID_FILE_QUOTA_EXCEEDED` → `BidFileQuotaException.MESSAGE`（400）——`scoreparse/controller/ScoreParseController.java`（contracts/api-error-semantics.md 同步段表）
+- [x] T014 [US2] `TempBidFileStore` 配额增强：`AtomicLong currentTotalBytes` + reserve 时 CAS 检查 `已用量+declaredBytes ≤ max-total-bytes`；写过程中每 chunk 累计实际值，超限中止并回滚本次登记——`scoreparse/application/TempBidFileStore.java`（depends T013；R4：单实例无跨进程争用）
+- [x] T015 [P] [US2] `ScoreParseTimeoutScanJob` 挂点：`markTimeout(taskId)` 后调用 `TempBidFileStore.release(taskId)`——`scoreparse/infrastructure/scheduler/ScoreParseTimeoutScanJob.java`
+- [x] T016 [P] [US2] `ScoreParseTaskRecoveryRunner` 挂点：`recover` 对每个恢复任务 `failTask` 后 `release(taskId)`；启动时先 `cleanupAll()`（进程重启 = 无进行中任务，建立计数零基线）——`scoreparse/infrastructure/bootstrap/ScoreParseTaskRecoveryRunner.java`
+- [x] T017 [US2] `ScoreParseController` 语义映射：`BID_FILE_QUOTA_EXCEEDED` → `BidFileQuotaException.MESSAGE`（400）——`scoreparse/controller/ScoreParseController.java`（contracts/api-error-semantics.md 同步段表）
 
 **Checkpoint**: quickstart 场景 4+5 通过；并发 2×1.5GB 场景（SC 前置）临时目录占用 ≤4GB 且任务后 60s 内清零。
 
@@ -94,12 +94,12 @@
 
 ### Tests for US3（先写、先失败）
 
-- [ ] T018 [P] [US3] `ScoreScoringAppServiceTest` 增补：`OversizedBidTextException` 在异步段被捕获 → `failScoringWithPending(taskId, ..., OversizedBidTextException.MESSAGE)` 且 `stateService.failTask` 收到同文案；不落任何部分 `score_result`——`backend/src/test/java/com/xiyu/bid/scoreparse/application/ScoreScoringAppServiceTest.java`
+- [x] T018 [P] [US3] `ScoreScoringAppServiceTest` 增补：`OversizedBidTextException` 在异步段被捕获 → `failScoringWithPending(taskId, ..., OversizedBidTextException.MESSAGE)` 且 `stateService.failTask` 收到同文案；不落任何部分 `score_result`——`backend/src/test/java/com/xiyu/bid/scoreparse/application/ScoreScoringAppServiceTest.java`
 
 ### Implementation for US3
 
-- [ ] T019 [US3] 异步段异常传播：`doExecuteScoring` 的提取调用 catch `OversizedBidTextException` → 走既有 `failScoringWithPending` 统一出口（message = 异常 MESSAGE，禁止改写）；同步段触发时转语义码 `OVERSIZED_BID_TEXT`——`scoreparse/application/ScoreScoringAppService.java`（depends T018；char 计数已在 T009 实现，本任务只做传播链路）
-- [ ] T020 [US3] `ScoreParseController` 映射增补：`OVERSIZED_BID_TEXT` → `OversizedBidTextException.MESSAGE`——`scoreparse/controller/ScoreParseController.java`
+- [x] T019 [US3] 异步段异常传播：`doExecuteScoring` 的提取调用 catch `OversizedBidTextException` → 走既有 `failScoringWithPending` 统一出口（message = 异常 MESSAGE，禁止改写）；同步段触发时转语义码 `OVERSIZED_BID_TEXT`——`scoreparse/application/ScoreScoringAppService.java`（depends T018；char 计数已在 T009 实现，本任务只做传播链路）
+- [x] T020 [US3] `ScoreParseController` 映射增补：`OVERSIZED_BID_TEXT` → `OversizedBidTextException.MESSAGE`——`scoreparse/controller/ScoreParseController.java`
 
 **Checkpoint**: quickstart 场景 3 通过；`score_parse_task.error_message` 文案与 contracts/api-error-semantics.md 异步段表逐字一致。
 
@@ -113,8 +113,8 @@
 
 ### Implementation for US4
 
-- [ ] T021 [US4] 删除 `OversizedBidFileException` 与 `ScoreBidDocumentLookup.capSize` 残留调用、`ScoreParseController` 的 `OVERSIZED_BID_FILE` 映射行、相关过时测试断言——`scoreparse/application/OversizedBidFileException.java`（删文件）+ `ScoreBidDocumentLookup.java` + `ScoreParseController.java`（depends T010；`BoundedHttpDownloader` 不动——招标链路继续用）
-- [ ] T022 [US4] SC-005 验收 + 文档回填：全局 grep 清零截图入 PR 描述；`.wiki/pages/score-parse-service.md` 更新（50MB 防护条目改为「流式落盘 + 文本量 500 万字上限」口径）；`docs/lessons/lessons-learned.md` §120 追加根治方案索引（不改历史条目）——`.wiki/pages/score-parse-service.md`、`docs/lessons/lessons-learned.md`
+- [x] T021 [US4] 删除 `OversizedBidFileException` 与 `ScoreBidDocumentLookup.capSize` 残留调用、`ScoreParseController` 的 `OVERSIZED_BID_FILE` 映射行、相关过时测试断言——`scoreparse/application/OversizedBidFileException.java`（删文件）+ `ScoreBidDocumentLookup.java` + `ScoreParseController.java`（depends T010；`BoundedHttpDownloader` 不动——招标链路继续用）
+- [x] T022 [US4] SC-005 验收 + 文档回填：全局 grep 清零截图入 PR 描述；`.wiki/pages/score-parse-service.md` 更新（50MB 防护条目改为「流式落盘 + 文本量 500 万字上限」口径）；`docs/lessons/lessons-learned.md` §120 追加根治方案索引（不改历史条目）——`.wiki/pages/score-parse-service.md`、`docs/lessons/lessons-learned.md`
 
 **Checkpoint**: SC-005 grep = 0；`npm run check:doc-governance` + `node scripts/wiki-check.mjs` 绿。
 
@@ -122,7 +122,7 @@
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T023 [P] 全量回归门禁：`cd backend && mvn test`（全量）+ `npm run build` + `npm run test:unit`（前端虽零改动，按 Completion Gate 执行）+ `mvn test -Dtest=ArchitectureTest,FPJavaArchitectureTest,MaintainabilityArchitectureTest`
+- [x] T023 [P] 全量回归门禁：`cd backend && mvn test`（全量）+ `npm run build` + `npm run test:unit`（前端虽零改动，按 Completion Gate 执行）+ `mvn test -Dtest=ArchitectureTest,FPJavaArchitectureTest,MaintainabilityArchitectureTest`
 - [ ] T024 部署前置检查（research R9）：生产 `df -h` temp-dir 挂载点 ≥6GB（4GB 配额 + 安全垫），不足则生产环境独立调小 `max-total-bytes`；检查项写入部署 runbook 备注
 - [ ] T025 测试环境部署 + quickstart 场景 1 终验（SC-001 铁证）：project 226 的 1.62GB 文件触发打分，任务终态 + `grep -c "OutOfMemoryError\|Java heap space"` = 0 + 堆峰值监控证据；部署报告落 `docs/release/`
 
