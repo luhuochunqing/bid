@@ -23,9 +23,7 @@
           <el-button v-if="perm.canAIBidDocumentQualityCheck" type="success" link class="header-action header-action--tender" :icon="DocumentChecked" @click="ctx.runBidDocumentQualityCheck?.()">
             AI标书质量核查
           </el-button>
-          <el-button type="success" link class="header-action header-action--tender" :icon="MagicStick" @click="ctx.bidAgent?.openDrawer?.()">
-            启动AI生成初稿
-          </el-button>
+
         </div>
       </div>
     </template>
@@ -152,7 +150,7 @@
 </template>
 
 <script setup>
-import { DocumentChecked, Loading, MagicStick, Search, UploadFilled } from '@element-plus/icons-vue'
+import { DocumentChecked, Loading, Search, UploadFilled } from '@element-plus/icons-vue'
 import { ref, computed, reactive, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getApiUrl } from '@/api/config.js'
@@ -172,7 +170,6 @@ import { useObsProjectDocumentUpload } from '@/composables/useObsProjectDocument
 import { useDeleteGuard } from '@/composables/useDeleteGuard.js'
 const userStore = useUserStore()
 const ctx = useProjectDetailContext()
-const { bidAgent } = ctx
 
 // bidReviewerIds/primaryLeadId/secondaryLeadId 需在 perm 之前定义
 // CO-484 v2：bidReviewerIds 为数组（多人审核，最多 3 人）

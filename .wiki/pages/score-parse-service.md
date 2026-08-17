@@ -46,7 +46,10 @@ trigger（同步<1s，互斥校验+建任务）
       → EstimatedScoreService 阶段1预计得分（链尾）
 ```
 
-- 事件挂链：`TenderDocumentStoredEvent` → 招标文件入库后自动触发解析
+- **正文来源（2026-08-16）**：立项 `TENDER` 优先，其次 Bid Agent `TENDER_FILE`，再兜底旧快照。不再要求走「启动 AI 生成初稿」。
+- **自动解析门闩（spec 043）**：仅当从未有过 PARSE 任务且无评分项时自动新建；PENDING/PROCESSING 跟随已有任务；FAILED 展示原因、不自动重打。无源 400 会落 FAILED，避免每次打开抽屉再 POST。
+- **读取上限**：远程/本地招标文件硬限制 50MB（先看 Content-Length，再流式累计）。超大无底稿提示「招标文件超过 50MB，无法解析」；有底稿则回退。`hasSource` 与 `resolve` 同一套成功条件。
+- 事件挂链：`TenderDocumentStoredEvent` 仍可触发解析，但产品主路径是立项文件 + 评分抽屉
 - 进度：Redis 缓存 by taskId（`ScoreParseProgressService`），非 DB 轮询
 
 ## 4. 知识库五类匹配（US2，`/api/score-parse/match/*`）

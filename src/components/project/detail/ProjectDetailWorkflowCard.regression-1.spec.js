@@ -67,7 +67,7 @@ describe('ProjectDetailWorkflowCard regression coverage', () => {
     const empty = wrapper.find('.el-empty')
     const initiateButton = wrapper.findAll('el-button, button').find((button) => button.text().includes('立即发起'))
 
-    expect(wrapper.find('.workflow-header-actions').text()).toContain('AI 生成初稿')
+    expect(wrapper.find('.workflow-header-actions').text()).not.toContain('AI 生成初稿')
     expect(wrapper.find('.workflow-header-actions').text()).toContain('发起流程')
     expect(empty.attributes('description')).toBe('暂未发起标书编制流程')
     expect(initiateButton.exists()).toBe(true)

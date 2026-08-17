@@ -26,7 +26,8 @@ public record ScoreScoringResultsDTO(
             String quote,
             String missedReason,
             String suggestion,
-            Integer matchRatio
+            Integer matchRatio,
+            String reuseKind
     ) {
     }
 

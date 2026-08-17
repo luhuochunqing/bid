@@ -87,14 +87,85 @@ describe('useScoreParseDrawer.js', () => {
     expect(emit).toHaveBeenCalledWith('parsed', expect.any(Object))
   })
 
-  it('sets empty scoreItems when backend returns no items (PRD §5.3 empty state contract)', async () => {
+  it('auto-parses initiation tender when drawer opens with no items', async () => {
+    scoreParseApi.getItems
+      .mockResolvedValueOnce({ data: { items: [], summary: null, meta: { lastParseStatus: null } } })
+      .mockResolvedValueOnce({ data: { items: REAL_ITEMS, summary: null } })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1 })
+
+    expect(scoreParseApi.triggerParse).toHaveBeenCalledWith(99, { source: 'AUTO' })
+    expect(scoreParseApi.getParseStatus).toHaveBeenCalled()
+    expect(drawer.scoreItems.value.length).toBe(2)
+  })
+
+  it('does not auto-parse when lastParseStatus is FAILED and shows lastParseError', async () => {
+    scoreParseApi.getItems.mockResolvedValue({
+      data: {
+        items: [],
+        summary: null,
+        meta: { lastParseStatus: 'FAILED', lastParseError: '立项招标文件无法读取' },
+      },
+    })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1 })
+
+    expect(scoreParseApi.triggerParse).not.toHaveBeenCalled()
+    expect(drawer.error.value).toBe('立项招标文件无法读取')
+  })
+
+  it('follows in-flight PENDING parse when drawer opens with empty items', async () => {
+    scoreParseApi.getItems
+      .mockResolvedValueOnce({ data: { items: [], summary: null, meta: { lastParseStatus: 'PENDING' } } })
+      .mockResolvedValueOnce({ data: { items: REAL_ITEMS, summary: null, meta: { lastParseStatus: 'COMPLETED' } } })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1 })
+
+    expect(scoreParseApi.triggerParse).toHaveBeenCalledWith(99, { source: 'AUTO' })
+    expect(scoreParseApi.getParseStatus).toHaveBeenCalled()
+    expect(drawer.scoreItems.value.length).toBe(2)
+  })
+
+  it('follows in-flight PROCESSING parse when drawer opens with empty items', async () => {
+    scoreParseApi.getItems
+      .mockResolvedValueOnce({ data: { items: [], summary: null, meta: { lastParseStatus: 'PROCESSING' } } })
+      .mockResolvedValueOnce({ data: { items: REAL_ITEMS, summary: null, meta: { lastParseStatus: 'COMPLETED' } } })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1 })
+
+    expect(scoreParseApi.triggerParse).toHaveBeenCalledWith(99, { source: 'AUTO' })
+    expect(scoreParseApi.getParseStatus).toHaveBeenCalled()
+  })
+
+  it('does not auto-parse when lastParseStatus is COMPLETED even if items are empty', async () => {
+    scoreParseApi.getItems.mockResolvedValue({
+      data: {
+        items: [],
+        summary: null,
+        meta: { lastParseStatus: 'COMPLETED', lastParseError: null },
+      },
+    })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1 })
+
+    expect(scoreParseApi.triggerParse).not.toHaveBeenCalled()
+    expect(drawer.error.value).toBe('')
+  })
+
+  it('keeps empty items when auto-parse finds no initiation tender', async () => {
     scoreParseApi.getItems.mockResolvedValue({ data: { items: [], summary: null } })
+    scoreParseApi.triggerParse.mockRejectedValue({ response: { data: { msg: '请先在立项阶段上传招标文件' } } })
 
     const drawer = useScoreParseDrawer(props, emit)
     await drawer.open({ stage: 1 })
 
     expect(drawer.scoreItems.value).toEqual([])
-    expect(drawer.totalWeight.value).toBe(0)
+    expect(drawer.error.value).toBe('请先在立项阶段上传招标文件')
   })
 
   it('fills source info bar from items meta (R007/R022: file names no longer stuck at em-dash)', async () => {
@@ -118,6 +189,21 @@ describe('useScoreParseDrawer.js', () => {
     expect(drawer.parseTime.value).toContain('10:00:00')
     expect(drawer.bidFileName.value).toBe('投标文件-终稿.docx')
     expect(drawer.scoreTime.value).toContain('11:30:00')
+  })
+
+  it('shows circuit hint when meta.circuitOpen is true', async () => {
+    scoreParseApi.getItems.mockResolvedValue({
+      data: {
+        items: REAL_ITEMS,
+        summary: null,
+        meta: { circuitOpen: true },
+      },
+    })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1 })
+
+    expect(drawer.circuitHint.value).toBe('自动路径已停，请检查文件后手点重新解析或重新打分')
   })
 
   it('keeps em-dash placeholders when meta is absent (no fake data fallback)', async () => {
@@ -160,7 +246,7 @@ describe('useScoreParseDrawer.js', () => {
     const drawer = useScoreParseDrawer(props, emit)
     await drawer.open({ stage: 2, autoScore: true })
 
-    expect(scoreParseApi.triggerScoring).toHaveBeenCalledWith(99)
+    expect(scoreParseApi.triggerScoring).toHaveBeenCalledWith(99, expect.objectContaining({ source: 'AUTO', scope: 'ALL' }))
     expect(scoreParseApi.getScoringStatus).toHaveBeenCalledWith(99)
     expect(scoreParseApi.getResults).toHaveBeenCalledWith(99)
     expect(drawer.scored.value).toBe(true)
@@ -237,7 +323,7 @@ describe('useScoreParseDrawer.js', () => {
 
     await drawer.reparse()
 
-    expect(scoreParseApi.triggerParse).toHaveBeenCalledWith(99)
+    expect(scoreParseApi.triggerParse).toHaveBeenCalledWith(99, { source: 'MANUAL' })
     expect(scoreParseApi.getItems).toHaveBeenCalledTimes(2)
     expect(ElMessage.success).toHaveBeenCalledWith('已重新解析评分标准')
   })
@@ -306,5 +392,39 @@ describe('useScoreParseDrawer.js', () => {
 
     expect(drawer.scored.value).toBe(true)
     expect(drawer.currentStage.value).toBe(2)
+  })
+
+  it('submits ITEMS scope and selected ids when rescoring', async () => {
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2 })
+    drawer.scoringScope.value = 'ITEMS'
+    drawer.selectedItemIds.value = [1, 2]
+
+    await drawer.runScoring({ auto: false, scope: 'ITEMS', itemIds: [1, 2] })
+
+    expect(scoreParseApi.triggerScoring).toHaveBeenCalledWith(99, {
+      source: 'MANUAL',
+      scope: 'ITEMS',
+      itemIds: [1, 2],
+    })
+  })
+
+  it('shows skip hint and does not poll when file is unchanged', async () => {
+    scoreParseApi.triggerScoring.mockResolvedValue({
+      data: { taskId: 't-skip', status: 'COMPLETED', outcome: 'SKIPPED', hint: '文件未变化' },
+    })
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 2 })
+
+    await drawer.runScoring({ auto: false, scope: 'ITEMS', itemIds: [1] })
+
+    expect(scoreParseApi.triggerScoring).toHaveBeenCalledWith(99, expect.objectContaining({
+      scope: 'ITEMS',
+      itemIds: [1],
+    }))
+    expect(scoreParseApi.getScoringStatus).not.toHaveBeenCalled()
+    expect(ElMessage.info).toHaveBeenCalledWith('文件未变化')
+    expect(drawer.scoringHint.value).toBe('文件未变化')
+    expect(drawer.scored.value).toBe(true)
   })
 })

@@ -18,17 +18,6 @@
       </div>
     </template>
 
-    <div class="bid-agent-entry">
-      <div class="bid-agent-copy">
-        <p class="bid-agent-eyebrow">标书生成 Agent</p>
-        <p class="bid-agent-desc">上传招标文件，AI 自动拆解要求、匹配资料并生成标书初稿，写入文档编辑器。</p>
-      </div>
-      <el-button type="success" @click="openBidAgentDrawer">
-        <el-icon><MagicStick /></el-icon>
-        启动 AI 生成初稿
-      </el-button>
-    </div>
-
     <DraftingBidPanel
       :project-id="projectId"
       :can-submit-bid-for-review="canSubmitBidForReview"
@@ -43,7 +32,7 @@
 </template>
 
 <script setup>
-import { CircleCheckFilled, DocumentChecked, MagicStick, Search } from '@element-plus/icons-vue'
+import { CircleCheckFilled, DocumentChecked, Search } from '@element-plus/icons-vue'
 import { useProjectDetailContext } from '@/composables/projectDetail/context.js'
 import DraftingBidPanel from './DraftingBidPanel.vue'
 
@@ -62,7 +51,6 @@ const emit = defineEmits(['advanced', 'openAiRecommend'])
 
 const ctx = useProjectDetailContext()
 
-function openBidAgentDrawer() { ctx.bidAgent?.openDrawer?.() }
 function openAiRecommend() { emit('openAiRecommend') }
 function handleOpenComplianceCheck() { ctx.runAICheck?.() }
 function handleOpenBidDocumentQualityCheck() { ctx.runBidDocumentQualityCheck?.() }

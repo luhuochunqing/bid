@@ -150,7 +150,7 @@ async function seedPerformance(session) {
   return res.ok
 }
 
-test.describe('bid agent knowledge base match and full analysis', () => {
+test.describe.skip('bid agent knowledge base match and full analysis（初稿入口已下线，评分改走立项招标文件 + ScoreParseDrawer）', () => {
   let session
   let project
   let seededLibraries = {}

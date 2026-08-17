@@ -69,6 +69,18 @@ public class ScoreParseTask {
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
 
+    @Column(name = "trigger_source", length = 16)
+    private String triggerSource;
+
+    @Column(name = "bid_content_hash", length = 64)
+    private String bidContentHash;
+
+    @Column(name = "item_set_hash", length = 64)
+    private String itemSetHash;
+
+    @Column(name = "chapter_hashes", columnDefinition = "TEXT")
+    private String chapterHashes;
+
     /** 超时扫描 job 标记（超时置 FAILED 时写 1） */
     @Column(name = "timeout_marked", nullable = false)
     @Builder.Default

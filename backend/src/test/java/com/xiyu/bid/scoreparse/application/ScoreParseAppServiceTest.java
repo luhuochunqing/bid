@@ -5,6 +5,7 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.biddraftagent.entity.BidTenderDocumentSnapshot;
 import com.xiyu.bid.biddraftagent.repository.BidTenderDocumentSnapshotRepository;
+import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -70,6 +72,8 @@ class ScoreParseAppServiceTest {
     private EstimatedScoreService estimatedScoreService;
     @Mock
     private ScoreItemPersistenceService itemPersistenceService;
+    @Mock
+    private InitiationTenderTextResolver initiationTenderTextResolver;
 
     private ScoreParseAppService service;
 
@@ -79,7 +83,7 @@ class ScoreParseAppServiceTest {
                 taskRepository, itemRepository, resultRepository, projectDocumentRepository,
                 stateService, progressService, snapshotRepository,
                 projectAccessScopeService, scoreAnalyzer, estimatedScoreService,
-                itemPersistenceService);
+                itemPersistenceService, initiationTenderTextResolver);
         ReflectionTestUtils.setField(service, "self", service);
     }
 
@@ -111,11 +115,9 @@ class ScoreParseAppServiceTest {
                 ScoreParseTask.builder()
                         .id(5L).taskId(TASK_ID).projectId(PROJECT_ID)
                         .taskType("PARSE").status("PENDING").build()));
-        when(snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(PROJECT_ID))
-                .thenReturn(Optional.of(BidTenderDocumentSnapshot.builder()
-                        .id(9L).projectId(PROJECT_ID)
-                        .fileName("tender.pdf").fileUrl("doc-insight://t/1")
-                        .extractedText("评分办法：...").build()));
+        when(initiationTenderTextResolver.resolveIntake(PROJECT_ID))
+                .thenReturn(TenderIntake.found(new TenderTextSource(
+                        "tender.pdf", "doc-insight://t/1", "评分办法：...")));
         when(scoreAnalyzer.recallCandidates(anyString(), isNull(), any()))
                 .thenReturn(List.of(
                         candidate("A1", "资质", "具备 CMMI 5 级认证证书", "60"),
@@ -135,11 +137,87 @@ class ScoreParseAppServiceTest {
     }
 
     @Test
-    void getItems_metaCarriesFileNamesAndTimes() {
+    void triggerParse_rejectsWhenNoInitiationTender() {
+        when(initiationTenderTextResolver.resolveIntake(PROJECT_ID))
+                .thenReturn(TenderIntake.unavailable(InitiationTenderTextResolver.NO_TENDER_MESSAGE));
+
+        assertThatThrownBy(() -> service.triggerParse(PROJECT_ID))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(InitiationTenderTextResolver.NO_TENDER_MESSAGE);
+        verify(stateService).createTask(anyString(), eq(PROJECT_ID), eq("PARSE"), isNull(), isNull(), eq("MANUAL"));
+        verify(stateService).failTask(anyString(), eq(InitiationTenderTextResolver.NO_TENDER_MESSAGE));
+    }
+
+    @Test
+    void triggerParse_rejectsOversizedWithoutSnapshot() {
+        when(initiationTenderTextResolver.resolveIntake(PROJECT_ID))
+                .thenReturn(TenderIntake.unavailable(BoundedHttpDownloader.TOO_LARGE_MESSAGE));
+
+        assertThatThrownBy(() -> service.triggerParse(PROJECT_ID))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(BoundedHttpDownloader.TOO_LARGE_MESSAGE);
+        verify(stateService).failTask(anyString(), eq(BoundedHttpDownloader.TOO_LARGE_MESSAGE));
+    }
+
+    @Test
+    void getItems_metaFallsBackToSnapshotName() {
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of());
+        when(initiationTenderTextResolver.findLatestTenderDocument(PROJECT_ID))
+                .thenReturn(Optional.empty());
         when(snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(PROJECT_ID))
                 .thenReturn(Optional.of(BidTenderDocumentSnapshot.builder()
-                        .fileName("招标文件-v3.pdf").build()));
+                        .fileName("旧快照.pdf").build()));
+        when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(anyLong(), anyString(), anyList()))
+                .thenReturn(List.of());
+
+        ScoreParseItemsDTO dto = service.getItems(PROJECT_ID);
+
+        assertThat(dto.meta().sourceFileName()).isEqualTo("旧快照.pdf");
+        assertThat(dto.meta().lastParseStatus()).isNull();
+        assertThat(dto.meta().lastParseError()).isNull();
+    }
+
+    @Test
+    void getItems_lastParseMetaNullWhenNoParseTask() {
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of());
+        when(initiationTenderTextResolver.findLatestTenderDocument(PROJECT_ID))
+                .thenReturn(Optional.empty());
+        when(snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(PROJECT_ID))
+                .thenReturn(Optional.empty());
+        when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(anyLong(), anyString(), anyList()))
+                .thenReturn(List.of());
+
+        ScoreParseItemsDTO dto = service.getItems(PROJECT_ID);
+
+        assertThat(dto.meta().lastParseStatus()).isNull();
+        assertThat(dto.meta().lastParseError()).isNull();
+    }
+
+    @Test
+    void getItems_lastParseMetaCarriesFailedError() {
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of());
+        when(initiationTenderTextResolver.findLatestTenderDocument(PROJECT_ID))
+                .thenReturn(Optional.of(ProjectDocument.builder().name("招标.pdf").build()));
+        when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                eq(PROJECT_ID), eq("PARSE"), anyList()))
+                .thenReturn(List.of(ScoreParseTask.builder()
+                        .id(9L).taskType("PARSE").status("FAILED")
+                        .errorMessage("立项招标文件无法读取").build()));
+        when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                eq(PROJECT_ID), eq("SCORING"), anyList()))
+                .thenReturn(List.of());
+
+        ScoreParseItemsDTO dto = service.getItems(PROJECT_ID);
+
+        assertThat(dto.meta().lastParseStatus()).isEqualTo("FAILED");
+        assertThat(dto.meta().lastParseError()).isEqualTo("立项招标文件无法读取");
+    }
+
+    @Test
+    void getItems_metaCarriesFileNamesAndTimes() {
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of());
+        when(initiationTenderTextResolver.findLatestTenderDocument(PROJECT_ID))
+                .thenReturn(Optional.of(ProjectDocument.builder().name("招标文件-v3.pdf").build()));
         when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
                 eq(PROJECT_ID), eq("PARSE"), anyList()))
                 .thenReturn(List.of(ScoreParseTask.builder()
@@ -163,6 +241,8 @@ class ScoreParseAppServiceTest {
     @Test
     void getItems_metaNullSafeWhenNoSnapshotOrTasks() {
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of());
+        when(initiationTenderTextResolver.findLatestTenderDocument(PROJECT_ID))
+                .thenReturn(Optional.empty());
         when(snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(PROJECT_ID))
                 .thenReturn(Optional.empty());
         when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(anyLong(), anyString(), anyList()))
@@ -174,5 +254,43 @@ class ScoreParseAppServiceTest {
         assertThat(dto.meta().parseTime()).isNull();
         assertThat(dto.meta().bidFileName()).isNull();
         assertThat(dto.meta().scoreTime()).isNull();
+        assertThat(dto.meta().lastParseStatus()).isNull();
+        assertThat(dto.meta().lastParseError()).isNull();
+    }
+
+    @Test
+    void triggerParse_autoWithHistory_doesNotCreateTask() {
+        ScoreParseTask old = ScoreParseTask.builder()
+                .id(3L).taskId("old-parse").projectId(PROJECT_ID)
+                .taskType("PARSE").status("COMPLETED").build();
+        when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                PROJECT_ID, "PARSE", List.of("PENDING", "PROCESSING"))).thenReturn(List.of());
+        when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                PROJECT_ID, "PARSE", List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED")))
+                .thenReturn(List.of(old));
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of());
+
+        var dto = service.triggerParse(PROJECT_ID, "AUTO");
+
+        assertThat(dto.taskId()).isEqualTo("old-parse");
+        verify(stateService, org.mockito.Mockito.never())
+                .createTask(anyString(), any(), anyString(), any(), any(), anyString());
+    }
+
+    @Test
+    void triggerParse_manualWithHistory_stillCreates() {
+        when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                PROJECT_ID, "PARSE", List.of("PENDING", "PROCESSING"))).thenReturn(List.of());
+        when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                PROJECT_ID, "PARSE", List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED")))
+                .thenReturn(List.of(ScoreParseTask.builder()
+                        .id(3L).taskId("old-parse").taskType("PARSE").status("COMPLETED").build()));
+        when(initiationTenderTextResolver.resolveIntake(PROJECT_ID))
+                .thenReturn(TenderIntake.found(new TenderTextSource(
+                        "tender.pdf", "doc-insight://t/1", "评分办法")));
+
+        service.triggerParse(PROJECT_ID, "MANUAL");
+
+        verify(stateService).createTask(anyString(), eq(PROJECT_ID), eq("PARSE"), isNull(), isNull(), eq("MANUAL"));
     }
 }

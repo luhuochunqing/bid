@@ -4,14 +4,11 @@
 // 维护声明: 维护者按项目SOP；spec 031 异步四件套范式（@Async + DB + Redis + 自代理）
 package com.xiyu.bid.scoreparse.application;
 
-import com.xiyu.bid.biddraftagent.entity.BidTenderDocumentSnapshot;
 import com.xiyu.bid.biddraftagent.repository.BidTenderDocumentSnapshotRepository;
-import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.scoreparse.domain.ItemCountCheck;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreItemMergePolicy;
-import com.xiyu.bid.scoreparse.domain.ScoreTypeClassificationPolicy;
 import com.xiyu.bid.scoreparse.domain.SummaryAggregator;
 import com.xiyu.bid.scoreparse.domain.WeightSumCheck;
 import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
@@ -47,7 +44,7 @@ public class ScoreParseAppService {
 
     private static final String TASK_TYPE_PARSE = "PARSE";
     private static final List<String> ACTIVE_STATUSES = List.of("PENDING", "PROCESSING");
-    private static final String NO_SNAPSHOT_MESSAGE = "未找到项目的招标文件快照，请先上传招标文件";
+    private static final String NO_SNAPSHOT_MESSAGE = InitiationTenderTextResolver.NO_TENDER_MESSAGE;
 
     private final ScoreParseTaskRepository taskRepository;
     private final ScoreItemRepository itemRepository;
@@ -60,8 +57,8 @@ public class ScoreParseAppService {
     private final OpenAiScoreAnalyzer scoreAnalyzer;
     private final EstimatedScoreService estimatedScoreService;
     private final ScoreItemPersistenceService itemPersistenceService;
+    private final InitiationTenderTextResolver initiationTenderTextResolver;
     private final ScoreItemMergePolicy mergePolicy = new ScoreItemMergePolicy();
-    private final ScoreTypeClassificationPolicy classificationPolicy = new ScoreTypeClassificationPolicy();
     private final WeightSumCheck weightSumCheck = new WeightSumCheck();
     private final ItemCountCheck itemCountCheck = new ItemCountCheck();
     private final SummaryAggregator summaryAggregator = new SummaryAggregator();
@@ -71,41 +68,55 @@ public class ScoreParseAppService {
     @Autowired
     private ScoreParseAppService self;
 
-    /**
-     * 触发解析（FR-019 互斥：已有 PENDING/PROCESSING 任务时返回该任务）。
-     * 前置条件：项目已有招标文件快照（无 → IllegalArgumentException，Controller 转 400）。
-     */
+    /** 触发解析。立项招标文件或历史快照至少一份，否则 400。缺省 MANUAL。 */
     public ScoreParseTriggerDTO triggerParse(Long projectId) {
+        return triggerParse(projectId, "MANUAL");
+    }
+
+    public ScoreParseTriggerDTO triggerParse(Long projectId, String source) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
-        return triggerParseInternal(projectId);
+        return triggerParseInternal(projectId, "AUTO".equalsIgnoreCase(source) ? "AUTO" : "MANUAL");
     }
 
-    /**
-     * 系统事件路径入口（无用户上下文守卫）。
-     * <p>供 {@code TenderDocumentStoredListener} 在异步线程消费事件时调用：
-     * 事件源头（招标文档导入）已完成项目权限校验，异步线程无 SecurityContext 不再重复守卫。
-     */
+    /** 事件路径（无用户上下文）；源头已校验项目权限。 */
     public ScoreParseTriggerDTO triggerParseFromEvent(Long projectId) {
-        return triggerParseInternal(projectId);
+        return triggerParseInternal(projectId, "AUTO");
     }
 
-    private ScoreParseTriggerDTO triggerParseInternal(Long projectId) {
-        snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(projectId)
-                .orElseThrow(() -> new IllegalArgumentException("NO_TENDER_DOCUMENT"));
+    /** 监听器：从未解析且未熔断才允许自动新建。 */
+    public boolean allowAutoParse(Long projectId) {
+        return new ScoreParseAutoPolicy(taskRepository, itemRepository)
+                .allowAuto(projectId, latestTaskOrNull(projectId, TASK_TYPE_PARSE));
+    }
 
+    private ScoreParseTriggerDTO triggerParseInternal(Long projectId, String source) {
         List<ScoreParseTask> activeTasks = taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
                 projectId, TASK_TYPE_PARSE, ACTIVE_STATUSES);
         if (!activeTasks.isEmpty()) {
             ScoreParseTask existing = activeTasks.get(0);
-            log.info("项目 {} 已有进行中解析任务 {}，直接返回", projectId, existing.getTaskId());
             return new ScoreParseTriggerDTO(existing.getTaskId(), existing.getStatus());
         }
-
+        ScoreParseTask latestParse = latestTaskOrNull(projectId, TASK_TYPE_PARSE);
+        if ("AUTO".equals(source) && !new ScoreParseAutoPolicy(taskRepository, itemRepository)
+                .allowAuto(projectId, latestParse)) {
+            return latestParse == null ? null : new ScoreParseTriggerDTO(latestParse.getTaskId(), latestParse.getStatus());
+        }
+        TenderIntake intake = initiationTenderTextResolver.resolveIntake(projectId);
+        if (intake.source().isEmpty()) {
+            return rejectUnavailable(projectId, intake.emptyReason(), source);
+        }
         String taskId = UUID.randomUUID().toString();
-        stateService.createTask(taskId, projectId, TASK_TYPE_PARSE, null, null);
-        log.info("创建解析任务: taskId={}, projectId={}", taskId, projectId);
+        stateService.createTask(taskId, projectId, TASK_TYPE_PARSE, null, null, source);
         self.executeParseAsync(taskId);
         return new ScoreParseTriggerDTO(taskId, "PENDING");
+    }
+
+    private ScoreParseTriggerDTO rejectUnavailable(Long projectId, String reason, String source) {
+        String message = reason == null || reason.isBlank() ? NO_SNAPSHOT_MESSAGE : reason;
+        String taskId = UUID.randomUUID().toString();
+        stateService.createTask(taskId, projectId, TASK_TYPE_PARSE, null, null, source);
+        stateService.failTask(taskId, message);
+        throw new IllegalArgumentException(message);
     }
 
     /** 异步执行解析（scoreParseExecutor，分钟级 LLM 调用） */
@@ -124,22 +135,24 @@ public class ScoreParseAppService {
         ScoreParseTask task = taskRepository.findByTaskId(taskId)
                 .orElseThrow(() -> new IllegalStateException("任务不存在: " + taskId));
 
-        BidTenderDocumentSnapshot snapshot = snapshotRepository
-                .findTopByProjectIdOrderByCreatedAtDescIdDesc(task.getProjectId())
-                .orElse(null);
-        if (snapshot == null) {
-            stateService.failTask(taskId, NO_SNAPSHOT_MESSAGE);
+        TenderIntake intake = initiationTenderTextResolver.resolveIntake(task.getProjectId());
+        if (intake.source().isEmpty()) {
+            String reason = intake.emptyReason() == null ? NO_SNAPSHOT_MESSAGE : intake.emptyReason();
+            log.warn("读取立项招标文件失败: taskId={}, msg={}", taskId, reason);
+            stateService.failTask(taskId, reason);
+            progressService.clearProgress(taskId);
             return;
         }
-        task.setFileName(snapshot.getFileName());
-        task.setFileUrl(snapshot.getFileUrl());
+        TenderTextSource source = intake.source().orElseThrow();
+        task.setFileName(source.fileName());
+        task.setFileUrl(source.fileUrl());
         taskRepository.save(task);
 
         updateProgress(taskId, 5, "READ_DOCUMENT", "读取招标文件");
 
         // FR-001 四路召回（召回一/二正则+结构、召回三/四 LLM 语义）
         List<ScoreCandidate> candidates = scoreAnalyzer.recallCandidates(
-                snapshot.getExtractedText(), null,
+                source.text(), null,
                 (progress, stage) -> updateProgress(taskId, progress, "RECALL", stage));
 
         // FR-004 合并去重 + Validation 丢弃（weight 无法解析为数字的候选丢弃并记日志）
@@ -152,7 +165,7 @@ public class ScoreParseAppService {
         if (weightResult.needRecheck() || continuityResult.needRecheck()) {
             updateProgress(taskId, 80, "GAP_RECHECK", "分值或编号连续性异常，触发完整性回补");
             List<ScoreCandidate> missed = scoreAnalyzer.recheckGaps(
-                    snapshot.getExtractedText(), valid);
+                    source.text(), valid);
             if (!missed.isEmpty()) {
                 log.info("完整性回补发现遗漏项: taskId={}, missed={}", taskId, missed.size());
                 valid = filterInvalidWeights(mergePolicy.merge(concat(valid, missed)));
@@ -205,34 +218,12 @@ public class ScoreParseAppService {
                 summary.totalWeight(), summary.totalEstScore(),
                 summary.okCount(), summary.dangerCount(), summary.pendingCount(),
                 summary.objectiveWeight(), summary.subjectiveWeight(),
-                summary.weightWarning()), buildMeta(projectId));
-    }
-
-    /** 来源信息栏元数据：快照文件名 + 最近 PARSE/SCORING 任务或现网标书的文件名与完成时间（无则 null） */
-    private ScoreParseItemsDTO.Meta buildMeta(Long projectId) {
-        String sourceFileName = snapshotRepository.findTopByProjectIdOrderByCreatedAtDescIdDesc(projectId)
-                .map(BidTenderDocumentSnapshot::getFileName).orElse(null);
-        ScoreParseTask parseTask = latestTaskOrNull(projectId, TASK_TYPE_PARSE);
-        ScoreParseTask scoringTask = latestTaskOrNull(projectId, "SCORING");
-        String currentBid = findCurrentBidFileName(projectId);
-        String finalBidName = (scoringTask != null && scoringTask.getFileName() != null)
-                ? scoringTask.getFileName() : currentBid;
-        return new ScoreParseItemsDTO.Meta(
-                sourceFileName,
-                parseTask == null ? null : parseTask.getCompletedAt(),
-                finalBidName,
-                scoringTask == null ? null : scoringTask.getCompletedAt());
-    }
-
-    private String findCurrentBidFileName(Long projectId) {
-        for (String cat : List.of("BID", "BID_FILE", "BID_DOCUMENT")) {
-            List<ProjectDocument> docs = projectDocumentRepository
-                    .findByProjectIdAndFiltersOrderByCreatedAtDesc(projectId, cat, null, null);
-            if (!docs.isEmpty()) {
-                return docs.get(0).getName();
-            }
-        }
-        return null;
+                summary.weightWarning()),
+                new ScoreParseItemsMetaBuilder(initiationTenderTextResolver, snapshotRepository,
+                        taskRepository, itemRepository, resultRepository,
+                        new ScoreBidDocumentLookup(projectDocumentRepository, null, null))
+                        .build(projectId, latestTaskOrNull(projectId, TASK_TYPE_PARSE),
+                                latestTaskOrNull(projectId, "SCORING")));
     }
 
     private ScoreParseTask latestTaskOrNull(Long projectId, String taskType) {
@@ -249,12 +240,6 @@ public class ScoreParseAppService {
                 .orElseThrow(() -> new IllegalStateException("项目无解析任务: " + projectId));
     }
 
-    /**
-     * FR-021 重新解析覆盖语义与候选落库由 {@link ScoreItemPersistenceService} 承担
-     * （单一职责拆分：旧 score_result 显式删除 + 旧 items 清理 + 批量写入）。
-     */
-
-
     private List<ScoreCandidate> filterInvalidWeights(List<ScoreCandidate> candidates) {
         List<ScoreCandidate> valid = new ArrayList<>();
         int dropped = 0;
@@ -269,10 +254,6 @@ public class ScoreParseAppService {
             log.warn("丢弃权重无法解析的候选 {} 项（spec Edge Cases）", dropped);
         }
         return valid;
-    }
-
-    private WeightSumCheck.Result checkWeights(List<ScoreCandidate> candidates) {
-        return weightSumCheck.check(candidates.stream().map(ScoreCandidate::weight).toList());
     }
 
     private List<ScoreCandidate> concat(List<ScoreCandidate> first, List<ScoreCandidate> second) {

@@ -29,6 +29,12 @@ public class ScoreParseTaskStateService {
     @Transactional
     public ScoreParseTask createTask(String taskId, Long projectId, String taskType,
                                      String fileName, String fileUrl) {
+        return createTask(taskId, projectId, taskType, fileName, fileUrl, "MANUAL");
+    }
+
+    @Transactional
+    public ScoreParseTask createTask(String taskId, Long projectId, String taskType,
+                                     String fileName, String fileUrl, String triggerSource) {
         ScoreParseTask task = ScoreParseTask.builder()
                 .taskId(taskId)
                 .projectId(projectId)
@@ -38,6 +44,7 @@ public class ScoreParseTaskStateService {
                 .timeoutMarked(false)
                 .fileName(fileName)
                 .fileUrl(fileUrl)
+                .triggerSource(triggerSource == null || triggerSource.isBlank() ? "MANUAL" : triggerSource)
                 .build();
         return taskRepository.save(task);
     }

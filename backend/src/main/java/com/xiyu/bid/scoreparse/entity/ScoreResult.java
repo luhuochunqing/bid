@@ -70,6 +70,9 @@ public class ScoreResult {
     @Column(name = "match_ratio")
     private Integer matchRatio;
 
+    @Column(name = "reuse_kind", length = 16)
+    private String reuseKind;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

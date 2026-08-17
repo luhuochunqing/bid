@@ -100,7 +100,7 @@ class ScoreScoringAppServiceTest {
         assertThatThrownBy(() -> service.triggerScoring(PROJECT_ID))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("NO_BID_DOCUMENT");
-        verify(stateService, never()).createTask(anyString(), any(), anyString(), any(), any());
+        verify(stateService, never()).createTask(anyString(), any(), anyString(), any(), any(), anyString());
     }
 
     @Test
@@ -110,7 +110,7 @@ class ScoreScoringAppServiceTest {
         assertThatThrownBy(() -> service.triggerScoring(PROJECT_ID))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("SCORE_ITEMS_NOT_READY");
-        verify(stateService, never()).createTask(anyString(), any(), anyString(), any(), any());
+        verify(stateService, never()).createTask(anyString(), any(), anyString(), any(), any(), anyString());
     }
 
     @Test
@@ -127,7 +127,26 @@ class ScoreScoringAppServiceTest {
         assertThatThrownBy(() -> service.triggerScoring(PROJECT_ID))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("TASK_IN_PROGRESS");
-        verify(stateService, never()).createTask(anyString(), any(), anyString(), any(), any());
+        verify(stateService, never()).createTask(anyString(), any(), anyString(), any(), any(), anyString());
+    }
+
+    @Test
+    void autoScoringFollowsInProgressTask() {
+        ScoreParseTask existing = ScoreParseTask.builder()
+                .id(9L).taskId("existing-task").projectId(PROJECT_ID)
+                .taskType("SCORING").status("PROCESSING").build();
+        when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                PROJECT_ID, "SCORING", List.of("PENDING", "PROCESSING")))
+                .thenReturn(List.of(existing));
+        mockBidDocumentPresent();
+        mockItemsPresent();
+
+        ScoreParseTriggerDTO dto = service.triggerScoring(
+                PROJECT_ID, new com.xiyu.bid.scoreparse.dto.ScoreScoringCommand("AUTO", "ALL", List.of()));
+
+        assertThat(dto.taskId()).isEqualTo("existing-task");
+        assertThat(dto.status()).isEqualTo("PROCESSING");
+        verify(stateService, never()).createTask(anyString(), any(), anyString(), any(), any(), anyString());
     }
 
     @Test
@@ -168,7 +187,12 @@ class ScoreScoringAppServiceTest {
         assertThat(subjectiveResult.getMatchRatio()).isNull();
         assertThat(subjectiveResult.getSuggestion()).isEqualTo("建议补充实施计划细化到人天");
         assertThat(subjectiveResult.getStatusStage2()).isEqualTo("PENDING");
+        assertThat(subjectiveResult.getReuseKind()).isEqualTo("FRESH");
         verify(stateService).markCompleted(anyString());
+        ArgumentCaptor<ScoreParseTask> taskCaptor = ArgumentCaptor.forClass(ScoreParseTask.class);
+        verify(taskRepository, org.mockito.Mockito.atLeastOnce()).save(taskCaptor.capture());
+        assertThat(taskCaptor.getAllValues().stream().anyMatch(t -> t.getBidContentHash() != null
+                && t.getItemSetHash() != null)).isTrue();
     }
 
     @Test
@@ -219,19 +243,45 @@ class ScoreScoringAppServiceTest {
         ScoreItem objective = item(10L, "资质", "具备 CMMI 5 级认证证书", "10", "OBJECTIVE");
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID))
                 .thenReturn(List.of(objective));
-        ScoreParseTask task = scoringTask();
-        when(taskRepository.findByTaskId(anyString())).thenReturn(Optional.of(task));
         when(documentStorage.loadByFileUrl(BID_FILE_URL)).thenReturn(Optional.empty());
 
-        service.triggerScoring(PROJECT_ID);
+        assertThatThrownBy(() -> service.triggerScoring(PROJECT_ID))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("投标文件加载失败");
+        verify(stateService, never()).createTask(anyString(), any(), anyString(), any(), any(), anyString());
+        verify(stateService, never()).failTask(anyString(), anyString());
+        verify(resultRepository, never()).saveAll(anyList());
+    }
 
-        verify(stateService).failTask(anyString(), anyString());
-        ArgumentCaptor<List<ScoreResult>> captor = ArgumentCaptor.captor();
-        verify(resultRepository).saveAll(captor.capture());
-        ScoreResult fallback = captor.getValue().get(0);
-        assertThat(fallback.getActualScore()).isNull();
-        assertThat(fallback.getStatusStage2()).isEqualTo("PENDING");
-        assertThat(fallback.getMissedReason()).contains("投标文件解析失败");
+    @Test
+    void sameBidAndItemHash_skipsWithoutAnalyzer() {
+        mockNoActiveScoringTask();
+        mockBidDocumentPresent();
+        ScoreItem objective = item(10L, "资质", "具备 CMMI 5 级认证证书", "10", "OBJECTIVE");
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of(objective));
+        byte[] bytes = "pdf-bytes".getBytes();
+        when(documentStorage.loadByFileUrl(BID_FILE_URL))
+                .thenReturn(Optional.of(new LoadedTenderDocument(
+                        new StoredTenderDocument(BID_FILE_URL, "/tmp/bid.pdf", "sha256"), bytes)));
+        String bidHash = com.xiyu.bid.scoreparse.domain.BidScoreSkipPolicy.hashBytes(bytes);
+        String itemHash = com.xiyu.bid.scoreparse.domain.BidScoreSkipPolicy.hashItems(List.of(
+                com.xiyu.bid.scoreparse.domain.BidScoreSkipPolicy.itemFingerprint(
+                        10L, objective.getWeight(), objective.getDetail())));
+        when(taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                PROJECT_ID, "SCORING", List.of("COMPLETED")))
+                .thenReturn(List.of(ScoreParseTask.builder()
+                        .id(8L).taskId("prev").projectId(PROJECT_ID)
+                        .taskType("SCORING").status("COMPLETED")
+                        .bidContentHash(bidHash).itemSetHash(itemHash).build()));
+        when(stateService.createTask(anyString(), any(), anyString(), any(), any(), anyString()))
+                .thenReturn(scoringTask());
+
+        ScoreParseTriggerDTO dto = service.triggerScoring(PROJECT_ID);
+
+        assertThat(dto.outcome()).isEqualTo("SKIPPED");
+        assertThat(dto.hint()).contains("文件未变化");
+        verify(scoreAnalyzer, never()).assessObjective(anyString(), any(), anyString());
+        verify(scoreAnalyzer, never()).assessSubjective(anyString(), anyString());
     }
 
     @Test
@@ -273,6 +323,7 @@ class ScoreScoringAppServiceTest {
 
     private void mockTaskAndBidDocumentText() {
         ScoreParseTask task = scoringTask();
+        when(stateService.createTask(anyString(), any(), anyString(), any(), any(), anyString())).thenReturn(task);
         when(taskRepository.findByTaskId(anyString())).thenReturn(Optional.of(task));
         when(documentStorage.loadByFileUrl(BID_FILE_URL))
                 .thenReturn(Optional.of(new LoadedTenderDocument(

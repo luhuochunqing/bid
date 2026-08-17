@@ -30,12 +30,19 @@ public record ScoreParseItemsDTO(
     /**
      * 来源信息栏元数据：招标文件名/解析时间来自最新快照与最近 PARSE 任务；
      * 投标文件名/评分时间来自最近 SCORING 任务（fileName 即上传的投标文件名）。
+     * lastParseStatus/lastParseError：最近一条 PARSE 任务；无 PARSE 行时均为 null。
      */
     public record Meta(
             String sourceFileName,
             LocalDateTime parseTime,
             String bidFileName,
-            LocalDateTime scoreTime
+            LocalDateTime scoreTime,
+            String lastParseStatus,
+            String lastParseError,
+            String lastScoringOutcome,
+            String lastScoringHint,
+            Boolean circuitOpen,
+            Integer reusedItemCount
     ) {
     }
 }
