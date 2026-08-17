@@ -1501,3 +1501,70 @@ public InitiationTenderTextResolver(
 - PR !2300（得分 LLM 消费防护）——引入第 2 个构造函数的变更
 - PR #2301（本修复）：追加 `@Autowired` 注解
 - Lesson 111：同类"Spring 装配问题门禁全空"模式的另一个案例（漏 `@Service`）。
+
+## 117. text block + formatted()：模板里的字面 % 必须写成 %%，否则 100% 崩溃（2026-08-17）
+
+### 问题背景
+
+测试环境（winbid-test，release `9c9b9d91d`）项目 225 的 AI 评分标准解析失败，页面提示：
+
+```
+⚠ 解析失败: Conversion = '"'
+```
+
+服务器日志（journalctl + application.json.log）：
+
+```
+java.util.UnknownFormatConversionException: Conversion = '"'
+  at java.base/java.lang.String.formatted(String.java:4441)
+  at ScoreParsePrompts.buildCandidateExtractionPrompt(ScoreParsePrompts.java:51)
+  at OpenAiScoreAnalyzer.recallLane4LlmFullText(OpenAiScoreAnalyzer.java:133)
+  at ScoreParseAppService.doExecuteParse(ScoreParseAppService.java:154)
+```
+
+### 根因
+
+`ScoreParsePrompts` 的 prompt 模板是 text block，末尾 `.formatted(index, total, chunkText)` —— **模板本质是 `java.util.Formatter` 格式串**。模板第 26 行示例文案：
+
+```java
+- 明确的分值（如"10分"、"占30%"、"得X分"）
+                      ↑↑
+          % 后紧跟英文双引号 " (0x25 0x22) → 非法转换符 %"
+```
+
+`Formatter` 解析格式串时把 `%"` 当成转换符，抛 `UnknownFormatConversionException: Conversion = '"'`。
+
+两个关键认知：
+1. **与招标正文无关**。`chunkText` 经 `%s` 参数传入，不参与格式解析；非法格式符在**模板自身的示例文案**里。任何项目、任何输入都必炸——这就是"改了 3 天第一步还是跑不通"的原因：第一阶段候选提取每次调用必失败。
+2. **该类此前零测试**。`buildCandidateExtractionPrompt` 等方法从未被单测调用过，一次真实调用即可暴露。
+
+### 修复
+
+```java
+// 修复前：占30%" → % 后紧跟引号，非法
+- 明确的分值（如"10分"、"占30%"、"得X分"）
+// 修复后：%% 是 Formatter 的字面百分号转义，渲染后输出单 %
+- 明确的分值（如"10分"、"占30%%"、"得X分"）
+```
+
+回归测试 `ScoreParsePromptsTest`：覆盖全部 4 个 prompt 构建方法，参数含 `%`/引号/中文引号，断言透传不参与格式解析。注意 `%%` 渲染后是单 `%`，断言要写 `"占30%\""` 而不是 `"占30%%"`。
+
+### 教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| text block 模板里的字面 `%` 没转义 | text block + `.formatted()` 组合中，模板就是格式串，字面 `%` 必须写 `%%` | 凡是 text block 配 `.formatted(`/`String.format(`，CR 时必扫模板文本里的字面 `%`（重点：示例文案里的百分比） |
+| 静态模板类零测试 | 这类 bug 与输入无关、100% 必现，一次冒烟调用就能抓住，但没有任何调用就永远不炸 | 静态工具类的每个公开方法必须有"至少调用一次"的冒烟单测；新功能的第一条测试应是最小真实调用 |
+| 异常消息被直接透传到前端 | `Conversion = '"'` 是 `java.util.Formatter` 特有错误格式，可直接反查格式串问题 | 看到未知异常先看异常类名与消息格式，`UnknownFormatConversionException` 直接指向格式串，不要往输入数据方向猜 |
+
+### 操作规范
+
+1. **prompt/模板类新增或修改时**：本地必须有一次真实调用（单测或 main 方法）观察渲染结果，再 push。
+2. **排查此类问题**：`UnknownFormatConversionException` = 格式串自身有非法 `%`，与参数值无关，直接检查格式串模板。
+3. **全仓扫描方法**（本次已扫，无同类活 bug）：`rg '%[^sdfn%0-9,$.#+\- )(tTbBhHcCeEgGaAoOxX\s]'` 过滤后人工排除 JPQL `LIKE %:x%`、SQL `DATE_FORMAT '%Y-%m-%d'`、正则、SLF4J `{}` 占位符。
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/openai/ScoreParsePrompts.java`（修复位置：第 26 行）
+- `backend/src/test/java/com/xiyu/bid/scoreparse/infrastructure/openai/ScoreParsePromptsTest.java`（回归测试，新建）
+- 测试环境 release `9c9b9d91d`（第 125 次部署）首次引入该功能并暴露问题

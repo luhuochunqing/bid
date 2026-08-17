@@ -95,6 +95,7 @@ trigger（同步<1s，互斥校验+建任务）
   - 详情弹窗整体高度 ≤70vh（`el-dialog` 为 append-to-body 挂载，scoped 样式不可达，须用非 scoped 块 + `.el-dialog__body { overflow-y:auto }`）
   - 待确认状态 = 灰字 + 蓝点前缀（非 DANGER 红色）
 - **50MB 文案统一**：`BidDocumentUploadService.validateFile` 超限提示"文件大小超过限制（50MB），请压缩后重新上传"（PRD 5.3）；后端测试只断言 `50MB` 片段，不锁死全文案
+- **prompt 模板是 Formatter 格式串**：`ScoreParsePrompts` 的 text block 配 `.formatted()`，模板内字面 `%` 必须写 `%%`（如示例文案 `占30%%`），否则 `UnknownFormatConversionException` 且与输入无关 100% 必炸（2026-08-17 项目 225 线上事故，详见 lessons-learned §117；回归测试 `ScoreParsePromptsTest`）
 
 ## 8. 验证基线
 
