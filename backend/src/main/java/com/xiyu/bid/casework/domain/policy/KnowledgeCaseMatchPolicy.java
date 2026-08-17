@@ -103,12 +103,26 @@ public class KnowledgeCaseMatchPolicy {
                 criteria.scoringItemTitle()
         );
 
+        String respText = candidate.getResponseText();
+        String summary = respText != null && respText.length() > 100
+                ? respText.substring(0, 100) + "..."
+                : respText;
+
         return new KnowledgeCaseMatchScore(
                 candidate.getId(),
                 score,
                 label,
                 reasons.isEmpty() ? "基础匹配" : String.join("、", reasons),
-                highlighted
+                highlighted,
+                candidate.getScoringPointTitle(),
+                candidate.getRequirementRaw(),
+                candidate.getResponseText(),
+                summary,
+                candidate.getSourceProjectName(),
+                candidate.getCustomerType(),
+                candidate.getProjectType(),
+                candidate.getBidResult(),
+                candidate.getReuseCount() != null ? candidate.getReuseCount() : 0
         );
     }
 

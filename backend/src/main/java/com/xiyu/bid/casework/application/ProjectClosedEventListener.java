@@ -90,19 +90,34 @@ public class ProjectClosedEventListener {
 
             CasePrecipitationContext ctx = loadProjectContext(projectId);
 
-            List<KnowledgeCase> casesToSave = buildCases(event, draftsForGate, matchedSlices, ctx);
+            List<KnowledgeCase> candidates = buildCases(event, draftsForGate, matchedSlices, ctx);
+            List<KnowledgeCase> existing = knowledgeCaseRepository.findBySourceProjectId(projectId);
+            java.util.Set<String> existingTitles = existing.stream()
+                    .map(KnowledgeCase::getScoringPointTitle)
+                    .filter(java.util.Objects::nonNull)
+                    .collect(java.util.stream.Collectors.toSet());
+
+            List<KnowledgeCase> casesToSave = candidates.stream()
+                    .filter(c -> !existingTitles.contains(c.getScoringPointTitle()))
+                    .toList();
 
             if (!casesToSave.isEmpty()) {
                 knowledgeCaseRepository.saveAll(casesToSave);
-                log.info("Successfully persisted {} knowledge cases for project: {}", casesToSave.size(), projectId);
+                log.info("Successfully persisted {} new knowledge cases for project: {} ({} skipped as duplicate)",
+                        casesToSave.size(), projectId, candidates.size() - casesToSave.size());
                 notifier.notifySuccess(projectId, event.getProjectName(), casesToSave.size(),
                         System.currentTimeMillis() - startTime, ctx.projectOpt.orElse(null), event.getTriggerUserId());
             } else {
-                log.info("No cases to save for project: {}", projectId);
+                log.info("No new cases to save for project: {} (total candidates: {}, existing: {})",
+                        projectId, candidates.size(), existing.size());
                 notifier.notifySuccess(projectId, event.getProjectName(), 0,
                         System.currentTimeMillis() - startTime, ctx.projectOpt.orElse(null), event.getTriggerUserId());
             }
 
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            log.info("Knowledge cases for project {} already persisted by concurrent event, treated as idempotent success", projectId);
+            notifier.notifySuccess(projectId, event.getProjectName(), 0,
+                    System.currentTimeMillis() - startTime, project, event.getTriggerUserId());
         } catch (RuntimeException e) {
             log.error("Failed to process project closed AI slicing", e);
             String reason = e.getMessage() != null ? e.getMessage() : "处理异常，请检查系统日志";

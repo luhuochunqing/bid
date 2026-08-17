@@ -136,6 +136,8 @@ public class KnowledgeCaseRecommendAppService {
         );
     }
 
+    private static final int MAX_CANDIDATE_POOL = 200;
+
     private List<KnowledgeCase> fetchCandidates(KnowledgeCaseMatchCriteria criteria) {
         Specification<KnowledgeCase> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -149,6 +151,10 @@ public class KnowledgeCaseRecommendAppService {
 
             return cb.and(predicates.toArray(new Predicate[0]));
         };
-        return knowledgeCaseRepository.findAll(spec);
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(
+                0, MAX_CANDIDATE_POOL, org.springframework.data.domain.Sort.by(
+                        org.springframework.data.domain.Sort.Direction.DESC, "reuseCount", "id"));
+        return knowledgeCaseRepository.findAll(spec, pageable).getContent();
     }
 }
+

@@ -94,7 +94,7 @@ const stubs = {
   ElDialog: { template: '<div />' },
   ElInput: { template: '<input />' },
   ElCheckbox: { template: '<input type="checkbox" />' },
-  CaseSliceRecommendDrawer: { template: '<div />' },
+  AiRecommendDrawer: { template: '<div />' },
   PerformanceRecommendDrawer: { template: '<div />' },
   QualityCheckDialog: { template: '<div />' },
 }

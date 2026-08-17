@@ -295,6 +295,62 @@ class ProjectClosedEventListenerTest {
         verify(knowledgeCaseRepository, never()).saveAll(any());
     }
 
+    @Test
+    @DisplayName("重复结项事件时自动去重，不重复持久化已有评分项案例")
+    void onProjectClosed_WhenCasesAlreadyExist_ShouldDeduplicateAndNotSaveDuplicates() {
+        ProjectArchive archive = new ProjectArchive();
+        archive.setId(99L);
+        when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
+        when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(bidFile(1L, 99L)));
+        when(scoreDraftRepository.findByProjectIdOrderByCategoryAscSourceTableIndexAscSourceRowIndexAsc(1L))
+                .thenReturn(List.of(draft(101L, "技术方案", "要求提供架构图")));
+        when(docTextExtractor.extract(any(), any(), any()))
+                .thenReturn(new ExtractedDocument("## 标书正文", 5, "text/markdown", "bid.pdf", java.util.Map.of()));
+        CaseAiMatcher.AiMatchedSlice slice = new CaseAiMatcher.AiMatchedSlice();
+        slice.setDraftId(101L);
+        slice.setMatchedSnippet("架构图已提供");
+        when(caseAiMatcher.extractSlicesWithAi(any(), any()))
+                .thenReturn(List.of(slice));
+
+        KnowledgeCase existing = new KnowledgeCase();
+        existing.setId(50L);
+        existing.setSourceProjectId(1L);
+        existing.setScoringPointTitle("技术方案");
+        when(knowledgeCaseRepository.findBySourceProjectId(1L)).thenReturn(List.of(existing));
+
+        listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
+
+        // 已经存在，不应该调用 saveAll
+        verify(knowledgeCaseRepository, never()).saveAll(any());
+        verify(notifier, times(1)).notifySuccess(org.mockito.ArgumentMatchers.eq(1L), any(), org.mockito.ArgumentMatchers.eq(0), anyLong(), any(), any());
+    }
+
+    @Test
+    @DisplayName("并发结项抛出 DataIntegrityViolationException 时应作为幂等成功处理并发送成功通知")
+    void onProjectClosed_WhenConcurrentUniqueViolationOccurs_ShouldHandleAsIdempotentSuccess() {
+        ProjectArchive archive = new ProjectArchive();
+        archive.setId(99L);
+        when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
+        when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(bidFile(1L, 99L)));
+        when(scoreDraftRepository.findByProjectIdOrderByCategoryAscSourceTableIndexAscSourceRowIndexAsc(1L))
+                .thenReturn(List.of(draft(101L, "技术方案", "要求提供架构图")));
+        when(docTextExtractor.extract(any(), any(), any()))
+                .thenReturn(new ExtractedDocument("## 标书正文", 5, "text/markdown", "bid.pdf", java.util.Map.of()));
+        CaseAiMatcher.AiMatchedSlice slice = new CaseAiMatcher.AiMatchedSlice();
+        slice.setDraftId(101L);
+        slice.setMatchedSnippet("架构图已提供");
+        when(caseAiMatcher.extractSlicesWithAi(any(), any()))
+                .thenReturn(List.of(slice));
+        when(knowledgeCaseRepository.findBySourceProjectId(1L)).thenReturn(List.of());
+        when(knowledgeCaseRepository.saveAll(any()))
+                .thenThrow(new org.springframework.dao.DataIntegrityViolationException("Duplicate entry"));
+
+        listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
+
+        verify(notifier, times(1)).notifySuccess(org.mockito.ArgumentMatchers.eq(1L), any(), org.mockito.ArgumentMatchers.eq(0), anyLong(), any(), any());
+        verify(notifier, never()).notifyFailure(anyLong(), any(), any(), any(), any());
+    }
+
     private Project project(Long id, Long managerId, String name) {
         Project p = new Project();
         p.setId(id);

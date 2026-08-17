@@ -2,10 +2,10 @@
 title: AI 能力
 space: engineering
 category: module
-tags: [AI, 智能, 大模型, 合规, 评分, 竞争情报, 智能装配]
+tags: [AI, 智能, 大模型, 合规, 评分, 竞争情报, 智能装配, 案例库]
 created: 2026-04-15
-updated: 2026-08-16
-health_checked: 2026-08-16
+updated: 2026-08-17
+health_checked: 2026-08-17
 sources:
   - src/config/ai-prompts.js
   - backend/AI_MODULE_SUMMARY.md
@@ -342,6 +342,28 @@ AiAnalysisResponse
 | 标讯获取 | AI 分析、ROI 核算 | 标讯价值评估、投标决策辅助 |
 | 项目立项 | 竞争情报 | 竞争态势分析，辅助立项决策 |
 | 任务分解 | 协作中心、自动化任务 | 智能任务拆解与分配 |
-| 标书编制 | 智能装配、合规雷达、评分点覆盖、版本管理 | 标书生成、质量保障、过程管理 |
+| 标书编制 | 智能装配、合规雷达、评分点覆盖、版本管理、案例库智能推荐 | 标书生成、质量保障、过程管理、历史优秀案例复用 |
 | 投标提交 | 合规雷达 | 提交前最终合规复核 |
-| 结果闭环 | 竞争情报、AI 分析 | 竞对信息更新、案例沉淀分析 |
+| 结果闭环 | 竞争情报、AI 分析、案例自动沉淀 | 竞对信息更新、结项标书切片自动沉淀案例库 |
+
+---
+
+## 9. 案例库智能推荐与结项自动沉淀 (Knowledge Case Engine)
+
+### 9.1 投标编制主链路推荐
+- **入口**：在「投标编制阶段」点击「AI智能推荐案例」，呼出 `AiRecommendDrawer` 抽屉。
+- **匹配机制**：
+  - 读取当前项目解析出的评分项列表（`ProjectScoreDraft`）。
+  - 调用 `/api/cases/recommend` 由 `KnowledgeCaseMatchPolicy` 执行多因子匹配（评分项文本 Jaccard 相似度、行业/客户类型匹配度、中标结果加权）。
+  - 支持 300ms 防抖的关键词二次过滤。
+- **复用与闭环**：
+  - 提供双面板原文对照抽屉（`AiRecommendDualPaneDialog`），展示评分项命中与标书上下文。
+  - 点击「复用」将应答内容写入系统剪贴板，同时调用 `POST /api/cases/{id}/reuse` 记录复用次数并审计。
+
+### 9.2 结项自动沉淀与幂等防重
+- **触发机制**：项目状态流转为 `CLOSED` 时触发 `ProjectClosedEvent`。
+- **处理链路**：`ProjectClosedEventListener` 异步加载归档标书全文与评分项草稿，调用大模型切片匹配提取优秀应答。
+- **并发幂等**：
+  - DB 层：`knowledge_case` 表建立 `(source_project_id, scoring_point_title)` 复合唯一索引。
+  - 应用层：内存比对过滤 + 捕获 `DataIntegrityViolationException` 按幂等成功处理，防止重复结项造成脏数据。
+

@@ -1670,3 +1670,38 @@ java.lang.NullPointerException: Cannot invoke "...ScoreSection.sectionTitle()" b
 - `backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreScoringAppService.java`（同步段拒绝 + 异步段兜底）
 - `backend/src/main/java/com/xiyu/bid/scoreparse/controller/ScoreParseController.java`（OVERSIZED_BID_FILE → 400 文案）
 - `backend/src/main/java/com/xiyu/bid/scoreparse/application/BoundedHttpDownloader.java`（既有防护组件，本次复用）
+
+---
+
+## 121. AI 案例库与投标编制全链路打通：组件错挂、内存扫描防御与沉淀幂等
+
+### 问题背景
+
+PRD 要求投标编制阶段接入案例库智能推荐，结项时自动将标书切片沉淀为历史案例。排查发现四个关键断层与风险：
+1. **组件错挂与孤立**：`DraftingStage.vue` 模板挂载了受 `system:admin` 权限限制的切片抽屉 `CaseSliceRecommendDrawer`，已开发完成的 `AiRecommendDrawer` 沦为死代码。
+2. **DTO 字段缺失**：后端 `/api/cases/recommend` 仅返回算法分值，缺失评分项原文、应答摘要、来源项目等 9 个核心元数据，导致前端展示空白。
+3. **全表扫描与 OOM 隐患**：`KnowledgeCaseRecommendAppService` 使用无分页的 `findAll(spec)` 将全量 ACTIVE 案例拉入 JVM 堆打分。
+4. **结项沉淀非幂等**：`knowledge_case` 表无复合唯一索引，重复结项或并发事件可能导致重复插入或报错。
+
+### 修复（全链路闭环与防御）
+
+- 前端：在 `DraftingStage.vue` 正式挂载 `AiRecommendDrawer.vue`，清理孤立的 `CaseSliceRecommendDrawer.vue`；抽离 `AiRecommendDualPaneDialog.vue` 子组件以满足单文件 300 行预算；为 `keywordFilter` 实现真实的 300ms 输入防抖并优化 `handleOpen` 避免并发冗余请求。
+- 后端：扩充 `KnowledgeCaseMatchScore` 9 个元数据字段并在 Policy 中装配；`KnowledgeCaseRecommendAppService.fetchCandidates` 增加 `PageRequest.of(0, 200)` 粗排截断（按复用次数倒序），防御全表内存打满。
+- 数据库与并发：新增 V1192 迁移脚本创建 `(source_project_id, scoring_point_title)` 复合唯一索引；`ProjectClosedEventListener` 在应用层比对去重，并在持久化时捕获 `DataIntegrityViolationException` 按幂等成功处理。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| 组件错挂导致开发成果孤立 | 开发新抽屉后未检查入口页面模板中的挂载点 | 新增/重构前端业务组件时，必须端到端核验调用入口、路由/抽屉挂载与用户权限矩阵 |
+| 推荐打分在应用层全表内存扫描 | 算法在应用层计算容易忽视底层数据量增长 | 无论领域打分多高效，DB 查询必须有 `PageRequest` 粗排截断，杜绝无限制 `findAll` |
+| 异步事件沉淀缺少并发唯一保护 | 内存 Set 过滤无法抵御高并发下的同时入库 | 数据唯一性必须由 DB 唯一索引兜底，且应用层捕获唯一键冲突时应视作幂等成功，不抛虚假告警 |
+
+### 相关文件
+
+- `src/views/Project/stages/DraftingStage.vue` / `AiRecommendDrawer.vue` / `AiRecommendDualPaneDialog.vue`
+- `backend/src/main/java/com/xiyu/bid/casework/application/service/KnowledgeCaseRecommendAppService.java`
+- `backend/src/main/java/com/xiyu/bid/casework/application/ProjectClosedEventListener.java`
+- `backend/src/main/java/com/xiyu/bid/casework/domain/model/KnowledgeCaseMatchScore.java`
+- `backend/src/main/resources/db/migration-mysql/V1192__add_knowledge_case_dedup_unique_index.sql`
+

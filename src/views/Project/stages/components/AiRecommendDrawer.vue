@@ -1,34 +1,22 @@
 <template>
-  <el-drawer
-    v-model="visible"
-    title="AI 智能推荐"
-    size="680px"
-    append-to-body
-    @open="handleOpen"
-  >
+  <el-drawer v-model="visible" title="AI 智能推荐" size="680px" append-to-body @open="handleOpen">
     <div class="ai-recommend-drawer">
+      <!-- 评分项为空时的提示 -->
+      <el-alert v-if="!scoreDraftsLoading && scoreDrafts.length === 0" type="warning" :closable="false" show-icon>
+        <template #title>
+          <div class="empty-score-alert">
+            <span>暂无评分项数据，请先在任务看板进行「AI 评分标准解析」</span>
+            <el-button type="primary" size="small" @click="handleGoToScoreParse">前往解析</el-button>
+          </div>
+        </template>
+      </el-alert>
+
       <!-- 评分项筛选 -->
       <div class="drawer-section">
         <label class="section-label">评分项</label>
-        <el-select
-          v-model="selectedItem"
-          placeholder="请选择评分项"
-          clearable
-          filterable
-          style="width: 100%"
-          @change="handleItemChange"
-        >
-          <el-option-group
-            v-for="group in scoringItemGroups"
-            :key="group.category"
-            :label="group.category"
-          >
-            <el-option
-              v-for="item in group.items"
-              :key="item.id"
-              :label="item.scoreItemTitle"
-              :value="item.scoreItemTitle"
-            />
+        <el-select v-model="selectedItem" placeholder="请选择评分项" clearable filterable style="width: 100%" @change="handleItemChange">
+          <el-option-group v-for="group in scoringItemGroups" :key="group.category" :label="group.category">
+            <el-option v-for="item in group.items" :key="item.id" :label="item.scoreItemTitle" :value="item.scoreItemTitle" />
           </el-option-group>
         </el-select>
       </div>
@@ -36,12 +24,7 @@
       <!-- 关键词二次过滤 -->
       <div class="drawer-section">
         <label class="section-label">关键词过滤</label>
-        <el-input
-          v-model="keywordFilter"
-          placeholder="输入关键词进一步筛选..."
-          clearable
-          @input="debouncedFilter"
-        />
+        <el-input v-model="keywordFilter" placeholder="输入关键词进一步筛选..." clearable />
       </div>
 
       <!-- 匹配案例列表 -->
@@ -67,12 +50,7 @@
                 <div class="tag-row mt-2">
                   <el-tag size="small" type="primary" effect="plain">{{ getProjectTypeLabel(item.projectType) }}</el-tag>
                   <el-tag size="small" type="success" effect="plain">{{ getCustomerTypeLabel(item.customerType) }}</el-tag>
-                  <el-tag
-                    v-if="item.bidResult"
-                    size="small"
-                    :type="item.bidResult === 'WON' ? 'success' : 'info'"
-                    effect="plain"
-                  >
+                  <el-tag v-if="item.bidResult" size="small" :type="item.bidResult === 'WON' ? 'success' : 'info'" effect="plain">
                     {{ item.bidResult === 'WON' ? '中标' : '未中标' }}
                   </el-tag>
                 </div>
@@ -89,11 +67,7 @@
               </div>
             </div>
           </template>
-          <el-empty
-            v-else-if="!loadingCases && selectedItem"
-            description="暂无与本评分项相似的历史案例"
-            :image-size="80"
-          />
+          <el-empty v-else-if="!loadingCases && selectedItem" description="暂无与本评分项相似的历史案例" :image-size="80" />
           <div v-else-if="!selectedItem && defaultCases.length > 0" class="select-hint">基于项目基本信息推荐 {{ defaultCases.length }} 条案例，选择评分项可进一步筛选</div>
           <div v-else class="select-hint">请先选择一个评分项查看匹配的历史案例</div>
         </div>
@@ -101,31 +75,7 @@
     </div>
 
     <!-- 双面板详情弹窗 -->
-    <el-dialog v-model="detailVisible" title="" width="1100px" :close-on-click-modal="false" destroy-on-close class="dual-pane-dialog">
-      <div v-if="selectedCase" class="dual-pane-body">
-        <div class="dual-pane-left">
-          <div class="dp-section"><div class="dp-label">命中评分项</div><div class="dp-val">{{ selectedCase.scoringTitle }}</div></div>
-          <div class="dp-section"><div class="dp-label">匹配度</div><div class="dp-val"><el-tag :type="selectedCase.score >= 85 ? 'danger' : 'primary'">{{ selectedCase.score }}% {{ selectedCase.scoreLabel }}</el-tag></div></div>
-          <div class="dp-section"><div class="dp-label">来源项目</div><div class="dp-val">{{ selectedCase.sourceProjectName }}</div></div>
-          <div class="dp-section"><div class="dp-label">中标结果</div><div class="dp-val">{{ selectedCase.bidResult === 'WON' ? '中标' : selectedCase.bidResult === 'LOST' ? '未中标' : '—' }}</div></div>
-          <div class="dp-section"><div class="dp-label">复用次数</div><div class="dp-val">{{ selectedCase.reuseCount }} 次</div></div>
-          <div class="dp-section"><div class="dp-label">应答原文</div><div class="dp-snippet">{{ selectedCase.responseTextSummary || selectedCase.responseText }}</div></div>
-        </div>
-        <div class="dual-pane-right">
-          <div class="reader-head">📄 {{ selectedCase.docName || selectedCase.sourceProjectName || '来源标书' }}<span v-if="selectedCase.page"> · 第 {{ selectedCase.page }} 页</span></div>
-          <div class="reader-page">
-            <h5>{{ selectedCase.scoringTitle }}</h5>
-            <div v-html="safeHtml(selectedCase.readerHTML || selectedCase.highlightedText || selectedCase.responseText)"></div>
-          </div>
-        </div>
-      </div>
-      <template #footer>
-        <div class="dp-footer">
-          <el-button type="primary" @click="handleReuse(selectedCase)">📋 复用此案例</el-button>
-          <el-button @click="detailVisible = false">关闭</el-button>
-        </div>
-      </template>
-    </el-dialog>
+    <AiRecommendDualPaneDialog v-model="detailVisible" :selected-case="selectedCase" @reuse="handleReuse" />
   </el-drawer>
 </template>
 
@@ -135,12 +85,14 @@ import { ElMessage } from 'element-plus'
 import { casesApi } from '@/api/modules/knowledge.js'
 import { projectsApi } from '@/api'
 import { getProjectTypeLabel, getCustomerTypeLabel } from '@/views/Knowledge/views/caseLabels.js'
-import { safeHtml } from '@/utils/safeHtml.js'
+import AiRecommendDualPaneDialog from './AiRecommendDualPaneDialog.vue'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
+const emit = defineEmits(['go-to-score-parse'])
 const visible = defineModel({ type: Boolean, default: false })
 
 const scoreDrafts = ref([])
+const scoreDraftsLoading = ref(false)
 const selectedItem = ref('')
 const keywordFilter = ref('')
 const cases = ref([])
@@ -148,6 +100,11 @@ const loadingCases = ref(false)
 const detailVisible = ref(false)
 const selectedCase = ref(null)
 const defaultCases = ref([])
+
+function handleGoToScoreParse() {
+  visible.value = false
+  emit('go-to-score-parse')
+}
 
 const scoringItemGroups = computed(() => {
   const groups = {}
@@ -169,44 +126,66 @@ const filteredCases = computed(() => {
   )
 })
 
-let debounceTimer
-function debouncedFilter() {
-  clearTimeout(debounceTimer)
-  debounceTimer = setTimeout(() => {}, 200)
-}
-
 async function handleOpen() {
+  scoreDraftsLoading.value = true
   try {
     const result = await projectsApi.getScoreDrafts(props.projectId)
     scoreDrafts.value = Array.isArray(result?.data) ? result.data : []
-    // 默认选中第一项并触发检索
     if (scoreDrafts.value.length > 0) {
       selectedItem.value = scoreDrafts.value[0].scoreItemTitle
       await handleItemChange()
+    } else {
+      await loadDefaultProjectCases()
     }
-  } catch { scoreDrafts.value = [] }
-  // 立项即推荐：基于项目基本信息触发初步推荐
+  } catch {
+    scoreDrafts.value = []
+    await loadDefaultProjectCases()
+  } finally {
+    scoreDraftsLoading.value = false
+  }
+}
+
+async function loadDefaultProjectCases() {
+  if (defaultCases.value.length > 0) {
+    cases.value = defaultCases.value
+    return
+  }
   try {
     const r = await casesApi.recommendForProject(props.projectId, '')
     defaultCases.value = (Array.isArray(r) ? r : []).map(normalizeRecommendCase)
     if (!selectedItem.value) cases.value = defaultCases.value
-  } catch { /* ignore */ }
+  } catch {
+    defaultCases.value = []
+  }
 }
 
-
 async function handleItemChange() {
-  if (!selectedItem.value) { cases.value = [...defaultCases.value]; return }
+  if (!selectedItem.value) {
+    if (defaultCases.value.length === 0) {
+      await loadDefaultProjectCases()
+    } else {
+      cases.value = [...defaultCases.value]
+    }
+    return
+  }
   loadingCases.value = true
   try {
     const result = await casesApi.recommendCases(props.projectId, selectedItem.value, keywordFilter.value)
     cases.value = Array.isArray(result) ? result.map(normalizeRecommendCase) : []
-  } catch { cases.value = [] }
-  finally { loadingCases.value = false }
+  } catch {
+    cases.value = []
+  } finally {
+    loadingCases.value = false
+  }
 }
 
+let keywordDebounceTimer
 watch(keywordFilter, () => {
   if (selectedItem.value) {
-    handleItemChange()
+    clearTimeout(keywordDebounceTimer)
+    keywordDebounceTimer = setTimeout(() => {
+      handleItemChange()
+    }, 300)
   }
 })
 
@@ -246,13 +225,10 @@ async function handleReuse(item) {
   const text = item.responseText || item.responseTextSummary || ''
   try {
     await navigator.clipboard.writeText(text)
-    // 调用后端复用计数 API
     try {
       await casesApi.reuseCase(item.caseId)
       item.reuseCount = (item.reuseCount || 0) + 1
-    } catch {
-      // 计数失败不影响用户体验
-    }
+    } catch { /* ignore */ }
     ElMessage.success({ message: '已复制应答内容到剪贴板', duration: 3000 })
   } catch {
     ElMessage.error('复制到剪贴板失败')
@@ -281,17 +257,5 @@ async function handleReuse(item) {
 .case-meta { font-size: 12px; color: var(--text-muted); display: flex; gap: 16px; margin-bottom: 12px; }
 .case-card-footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-top: 10px; border-top: 1px solid var(--gray-250); }
 .mt-2 { margin-top: 8px; }
-
-.dual-pane-body { display: flex; gap: 0; min-height: 400px; }
-.dual-pane-left { flex: 0 0 380px; padding: 0 16px 0 0; overflow-y: auto; border-right: 1px solid #eee; }
-.dual-pane-right { flex: 1; padding: 0 0 0 16px; overflow-y: auto; }
-.dp-section { margin-bottom: 14px; }
-.dp-label { font-size: 11px; color: #888; font-weight: 600; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .5px; }
-.dp-val { font-size: 13px; color: #333; line-height: 1.6; }
-.dp-snippet { background: #f5f8f6; border-left: 3px solid #2E7659; padding: 10px 12px; border-radius: 4px; font-size: 12px; line-height: 1.7; color: #444; }
-.reader-head { font-size: 12px; color: #888; margin-bottom: 10px; }
-.reader-page { background: #fff; border: 1px solid #e0e0e0; border-radius: 4px; padding: 16px 20px; font-size: 13px; line-height: 1.9; color: #444; }
-.reader-page h5 { font-size: 14px; font-weight: 600; margin: 0 0 8px; color: #222; }
-.reader-page :deep(.hit) { background: #fff4b8; padding: 1px 3px; border-radius: 2px; }
-.dp-footer { display: flex; justify-content: flex-end; gap: 8px; }
 </style>
+
