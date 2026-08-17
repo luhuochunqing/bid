@@ -757,3 +757,25 @@ describe('DraftingStage customUpload 上传成功后刷新列表 + 成功提示'
     expect(getDocumentsMock).toHaveBeenCalled()
   })
 })
+
+describe('DraftingStage beforeBidUpload 投标文件大小与格式校验', () => {
+  it('支持大文件上传（如 100MB、500MB），不设 50MB 限制', async () => {
+    const wrapper = await mountDraftingStage({ currentStage: 'DRAFTING' })
+    const beforeBidUpload = wrapper.vm.$.setupState.beforeBidUpload
+
+    const largeFile = { name: '超大标书.pdf', size: 100 * 1024 * 1024 }
+    expect(beforeBidUpload(largeFile)).toBe(true)
+
+    const hugeFile = { name: '超大标书2.docx', size: 500 * 1024 * 1024 }
+    expect(beforeBidUpload(hugeFile)).toBe(true)
+  })
+
+  it('拦截不支持的文件格式并给出错误提示', async () => {
+    const wrapper = await mountDraftingStage({ currentStage: 'DRAFTING' })
+    const beforeBidUpload = wrapper.vm.$.setupState.beforeBidUpload
+
+    const invalidFile = { name: 'dangerous.exe', size: 1024 }
+    expect(beforeBidUpload(invalidFile)).toBe(false)
+    expect(ElMessage.error).toHaveBeenCalledWith('仅支持 PDF/Word/Excel/图片格式')
+  })
+})

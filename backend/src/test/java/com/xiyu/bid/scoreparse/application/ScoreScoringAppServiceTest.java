@@ -17,9 +17,10 @@ import com.xiyu.bid.scoreparse.entity.ScoreResult;
 import com.xiyu.bid.scoreparse.infrastructure.openai.OpenAiScoreAnalyzer;
 import com.xiyu.bid.scoreparse.infrastructure.openai.ScoreAssessmentOutput;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
-import com.xiyu.bid.scoreparse.domain.KnowledgeCategoryPolicy;
 import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
+import com.xiyu.bid.file.application.ObsShareUrlSigner;
+import com.xiyu.bid.projectworkflow.service.ProjectDocumentFileStorage;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -75,6 +76,10 @@ class ScoreScoringAppServiceTest {
     private ProjectAccessScopeService projectAccessScopeService;
     @Mock
     private OpenAiScoreAnalyzer scoreAnalyzer;
+    @Mock
+    private com.xiyu.bid.projectworkflow.service.ProjectDocumentFileStorage fileStorage;
+    @Mock
+    private com.xiyu.bid.file.application.ObsShareUrlSigner obsShareUrlSigner;
 
     private ScoreScoringAppService service;
 
@@ -83,7 +88,8 @@ class ScoreScoringAppServiceTest {
         service = new ScoreScoringAppService(
                 taskRepository, itemRepository, resultRepository,
                 projectDocumentRepository, documentStorage, textExtractor,
-                stateService, progressService, projectAccessScopeService, scoreAnalyzer);
+                stateService, progressService, projectAccessScopeService, scoreAnalyzer,
+                fileStorage, obsShareUrlSigner);
         ReflectionTestUtils.setField(service, "self", service);
     }
 

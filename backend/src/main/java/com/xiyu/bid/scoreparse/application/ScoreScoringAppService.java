@@ -24,7 +24,8 @@ import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
-import lombok.RequiredArgsConstructor;
+import com.xiyu.bid.file.application.ObsShareUrlSigner;
+import com.xiyu.bid.projectworkflow.service.ProjectDocumentFileStorage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
@@ -44,7 +45,6 @@ import java.util.stream.Collectors;
  * 阶段 2 投标文件实际打分应用服务（spec 041 US4 / 044 编排层）。
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class ScoreScoringAppService {
 
@@ -61,12 +61,37 @@ public class ScoreScoringAppService {
     private final ScoreParseProgressService progressService;
     private final ProjectAccessScopeService projectAccessScopeService;
     private final OpenAiScoreAnalyzer scoreAnalyzer;
+    private final ProjectDocumentFileStorage fileStorage;
+    private final ObsShareUrlSigner obsShareUrlSigner;
     private final SummaryAggregator summaryAggregator = new SummaryAggregator();
     private final ScoreScoringItemPicker itemPicker = new ScoreScoringItemPicker();
 
     @Lazy
     @Autowired
     private ScoreScoringAppService self;
+
+    @Autowired
+    public ScoreScoringAppService(
+            ScoreParseTaskRepository taskRepository, ScoreItemRepository itemRepository,
+            ScoreResultRepository resultRepository, ProjectDocumentRepository projectDocumentRepository,
+            TenderDocumentStorage documentStorage, TenderDocumentTextExtractor textExtractor,
+            ScoreParseTaskStateService stateService, ScoreParseProgressService progressService,
+            ProjectAccessScopeService projectAccessScopeService, OpenAiScoreAnalyzer scoreAnalyzer,
+            ProjectDocumentFileStorage fileStorage, ObsShareUrlSigner obsShareUrlSigner
+    ) {
+        this.taskRepository = taskRepository;
+        this.itemRepository = itemRepository;
+        this.resultRepository = resultRepository;
+        this.projectDocumentRepository = projectDocumentRepository;
+        this.documentStorage = documentStorage;
+        this.textExtractor = textExtractor;
+        this.stateService = stateService;
+        this.progressService = progressService;
+        this.projectAccessScopeService = projectAccessScopeService;
+        this.scoreAnalyzer = scoreAnalyzer;
+        this.fileStorage = fileStorage;
+        this.obsShareUrlSigner = obsShareUrlSigner;
+    }
 
     public ScoreParseTriggerDTO triggerScoring(Long projectId) {
         return triggerScoring(projectId, ScoreScoringCommand.defaults());
@@ -226,24 +251,19 @@ public class ScoreScoringAppService {
     }
 
     private ScoreBidDocumentLookup docs() {
-        return new ScoreBidDocumentLookup(projectDocumentRepository, documentStorage, textExtractor);
+        return new ScoreBidDocumentLookup(projectDocumentRepository, documentStorage, textExtractor, fileStorage, obsShareUrlSigner);
     }
 
     private ScoreParseTask latestCompletedScoring(Long projectId) {
-        return taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
-                        projectId, TASK_TYPE_SCORING, List.of("COMPLETED"))
+        return taskRepository.findByProjectIdAndTaskTypeAndStatusIn(projectId, TASK_TYPE_SCORING, List.of("COMPLETED"))
                 .stream().max(Comparator.comparing(ScoreParseTask::getId)).orElse(null);
     }
 
     private List<Long> parseItemIds(String raw) {
-        if (raw == null || !raw.startsWith("IDS:")) {
-            return List.of();
-        }
+        if (raw == null || !raw.startsWith("IDS:")) return List.of();
         List<Long> ids = new ArrayList<>();
         for (String part : raw.substring(4).split(",")) {
-            if (!part.isBlank()) {
-                ids.add(Long.valueOf(part.trim()));
-            }
+            if (!part.isBlank()) ids.add(Long.valueOf(part.trim()));
         }
         return ids;
     }
@@ -254,8 +274,7 @@ public class ScoreScoringAppService {
                 result == null ? null : result.getStatusStage2(), result == null ? null : result.getActualScore(),
                 result == null ? null : result.getEvidence(), result == null ? null : result.getQuote(),
                 result == null ? null : result.getMissedReason(), result == null ? null : result.getSuggestion(),
-                result == null ? null : result.getMatchRatio(),
-                result == null ? null : result.getReuseKind());
+                result == null ? null : result.getMatchRatio(), result == null ? null : result.getReuseKind());
     }
 
     private ScoreParseTask latestTask(Long projectId) {

@@ -39,7 +39,7 @@
       >
         <el-icon class="upload-icon"><UploadFilled /></el-icon>
         <div class="upload-text">将投标文件拖到此处，或<em>点击上传</em></div>
-        <div class="upload-tip">支持 PDF、Word、Excel 等格式，单文件不超过 50MB</div>
+        <div class="upload-tip">支持 PDF、Word、Excel、图片等格式</div>
         <template #file="{ file }">
           <div class="bid-file-row">
             <a href="javascript:void(0)" class="upload-file-link" :class="{ 'is-readonly': !canDownloadBidFile }" @click.prevent="handleDownloadBidFile(file)">{{ file.name }}</a>
@@ -323,7 +323,6 @@ function handleGoToScoreParse() {
 function beforeBidUpload(file) {
   const valid = ['.pdf', '.doc', '.docx', '.xlsx', '.jpg', '.png'].some(e => file.name.toLowerCase().endsWith(e))
   if (!valid) { ElMessage.error('仅支持 PDF/Word/Excel/图片格式'); return false }
-  if (file.size > 50 * 1024 * 1024) { ElMessage.error('投标文件不能超过 50MB'); return false }
   return true
 }
 
