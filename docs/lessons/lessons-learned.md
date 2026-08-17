@@ -1603,3 +1603,31 @@ java.lang.NullPointerException: Cannot invoke "...ScoreSection.sectionTitle()" b
 
 - `backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/openai/OpenAiScoreAnalyzer.java`（修复位置：toCandidate 双参版本）
 - `backend/src/test/java/com/xiyu/bid/scoreparse/infrastructure/openai/OpenAiScoreAnalyzerTest.java`（回归测试，新建）
+
+## 119. 业务大文件上传与下游 AI 解析限制解耦：禁止在核心上传入口误加硬编码拦截（2026-08-17）
+
+### 问题背景
+
+在引入 AI 评分标准解析及实际打分功能时，为了限制 LLM 解析单次消耗，前端在标书编制阶段的核心上传入口（`DraftingStage.vue`）硬编码了 `file.size > 50 * 1024 * 1024`（50MB 限制），后端也增加了带 50MB 校验的 Multipart 上传接口。导致用户原本支持 GB 级直传华为云 OBS 的投标文件无法正常上传。
+
+### 根因与修复
+
+1. **根因**：混淆了“标书制作业务大文件存储”与“下游 AI 解析 Token/文本处理范围”，误在平台通用上传前端入口加锁。同时下游打分读取服务 `ScoreBidDocumentLookup` 早期未接入 OBS 直传签名链路。
+2. **修复**：
+   - 前端回退 `DraftingStage.vue` 的 50MB 限制与提示文案，恢复直传华为云 OBS 全格式与大文件支持。
+   - 后端 `ScoreBidDocumentLookup` 增加 `ObsShareUrlSigner` / `ProjectDocumentFileStorage` / `TenderDocumentStorage` 全链路兼容，支持透明读取 OBS 直传文件（`obs-direct:xxx`）与本地文件。
+   - 补齐单元测试 `ScoreBidDocumentLookupTest` 与 `DraftingStage.spec.js` 大文件校验用例。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| AI 能力限制反向污染通用业务入口 | AI 解析吞吐或额度限制应在 AI 触发/解析层做流式切片或降级，严禁反向约束用户核心资产上传 | 核心业务资产（投标文件、工程图纸）存储必须保持无上限直传 OBS，AI 处理层按需分块 |
+| 下游读取未对齐存储真实形态 | 存储层早已演进为 `obs-direct:xxx` 直传，下游新服务却按本地临时文件假设编写 | 读取 `project_document` 必须统一通过通用 Resolver/Signer 适配 OBS 真实协议 |
+
+### 相关文件
+
+- `src/views/Project/stages/DraftingStage.vue` / `DraftingStage.spec.js`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreBidDocumentLookup.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreScoringAppService.java`
+- `backend/src/test/java/com/xiyu/bid/scoreparse/application/ScoreBidDocumentLookupTest.java`

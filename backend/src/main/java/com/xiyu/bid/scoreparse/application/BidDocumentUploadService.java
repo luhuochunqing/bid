@@ -32,7 +32,6 @@ import java.util.Set;
 @Slf4j
 public class BidDocumentUploadService {
 
-    private static final long MAX_FILE_SIZE_BYTES = 50L * 1024L * 1024L;
     private static final String DOCUMENT_CATEGORY = "BID_FILE";
     private static final String LINKED_ENTITY_TYPE = "PROJECT";
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "docx");
@@ -73,9 +72,6 @@ public class BidDocumentUploadService {
     private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("请上传投标文件");
-        }
-        if (file.getSize() > MAX_FILE_SIZE_BYTES) {
-            throw new IllegalArgumentException("文件大小超过限制（50MB），请压缩后重新上传");
         }
         String extension = extensionOf(originalFileName(file));
         if (!ALLOWED_EXTENSIONS.contains(extension)) {
