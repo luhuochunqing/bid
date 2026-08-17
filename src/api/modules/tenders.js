@@ -49,7 +49,9 @@ function isNumericId(id) {
 
 export const tendersApi = {
   async getList(params = {}) {
-    const response = await httpClient.get('/api/tenders', { params: { ...params, size: params.size || 10000 } })
+    // size 上限对齐后端 PaginationConstants.MAX_PAGE_SIZE=100（2026-08-17 P2 收敛）：
+    // 传 10000 是无效危险参数，后端 TenderController 会 clamp 到 100；需要少量数据时调用方显式传小 size。
+    const response = await httpClient.get('/api/tenders', { params: { ...params, size: params.size || 100 } })
     // 兼容两种格式：旧 flat array / 新 PagedResult { content, totalElements }
     const rawData = response?.data
     const list = Array.isArray(rawData) ? rawData

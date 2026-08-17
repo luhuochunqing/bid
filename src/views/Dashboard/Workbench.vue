@@ -292,7 +292,7 @@ async function loadWorkbenchProjects() {
 async function loadWorkbenchTenders() {
   if (!userStore.hasPermission('bidding')) { hotTenders.value = []; return }
   try {
-    const response = await tendersApi.getList()
+    const response = await tendersApi.getList({ size: 6 })
     const tenders = Array.isArray(response?.data) ? response.data : []
     hotTenders.value = tenders.slice(0, 6).map((item) => {
       const score = Number(item.aiScore || 0)
