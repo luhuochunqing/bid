@@ -277,14 +277,6 @@ export const projectsApi = {
     }).then(normalizeScoreDraftResponse)
   },
 
-  async importScoreDraftsFromAnalysis(projectId) {
-    if (!isNumericId(projectId)) {
-      return apiModeFailure('project')
-    }
-
-    return httpClient.post(`/api/projects/${projectId}/score-drafts/import-from-analysis`).then(normalizeScoreDraftResponse)
-  },
-
   async getScoreDrafts(projectId) {
     if (!isNumericId(projectId)) {
       return apiModeFailure('project')

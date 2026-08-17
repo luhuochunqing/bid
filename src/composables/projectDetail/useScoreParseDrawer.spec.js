@@ -1,16 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useScoreParseDrawer } from './useScoreParseDrawer.js'
 import { scoreParseApi } from '@/api/modules/scoreParse.js'
-import { projectsApi } from '@/api/modules/projects.js'
-import { ElMessageBox, ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus'
 
 vi.mock('element-plus', async (importOriginal) => {
   const actual = await importOriginal()
   return {
     ...actual,
-    ElMessageBox: {
-      confirm: vi.fn(),
-    },
     ElMessage: {
       success: vi.fn(),
       warning: vi.fn(),
@@ -31,12 +27,6 @@ vi.mock('@/api/modules/scoreParse.js', () => ({
   },
 }))
 
-vi.mock('@/api/modules/projects.js', () => ({
-  projectsApi: {
-    importScoreDraftsFromAnalysis: vi.fn(),
-  },
-}))
-
 // spec 041 真接口 DTO 形状（ScoreItemDTO / ScoreScoringResultsDTO）
 const REAL_ITEMS = [
   { id: 1, code: 'A1', dim: '技术方案', detail: '架构设计科学合理', weight: 10, scoreType: 'SUBJECTIVE', status: 'PENDING', estScore: null, estBasis: null, kbHit: null },
@@ -54,7 +44,6 @@ describe('useScoreParseDrawer.js', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    ElMessageBox.confirm.mockResolvedValue('confirm')
     emit = vi.fn()
     scoreParseApi.getItems.mockResolvedValue({ data: { items: REAL_ITEMS, summary: null, sourceFileName: '国家级数据中心扩容项目招标文件.pdf', parseTime: '2026-08-15T14:00:00' } })
     scoreParseApi.triggerParse.mockResolvedValue({ data: { taskId: 't-parse', status: 'PENDING' } })
@@ -62,9 +51,6 @@ describe('useScoreParseDrawer.js', () => {
     scoreParseApi.triggerScoring.mockResolvedValue({ data: { taskId: 't-score', status: 'PENDING' } })
     scoreParseApi.getScoringStatus.mockResolvedValue({ data: { taskId: 't-score', status: 'COMPLETED', progress: 100, completedAt: '2026-08-15T15:00:00' } })
     scoreParseApi.getResults.mockResolvedValue({ data: { results: REAL_RESULTS, summary: null, bidFileName: '西域投标文件_v3.pdf', scoreTime: '2026-08-15T15:00:00' } })
-    projectsApi.importScoreDraftsFromAnalysis.mockResolvedValue({
-      data: { importedCount: 2 },
-    })
   })
 
   it('initializes default states properly and opens drawer in stage 1', async () => {
@@ -229,16 +215,6 @@ describe('useScoreParseDrawer.js', () => {
     expect(drawer.selectedItem.value.code).toBe('A1')
   })
 
-  it('handles importToDrafts API call', async () => {
-    const drawer = useScoreParseDrawer(props, emit)
-    await drawer.open({ stage: 1 })
-
-    await drawer.importToDrafts()
-    expect(ElMessageBox.confirm).toHaveBeenCalled()
-    expect(projectsApi.importScoreDraftsFromAnalysis).toHaveBeenCalledWith(99)
-    expect(emit).toHaveBeenCalledWith('imported', expect.any(Object))
-  })
-
   it('runs stage 2 scoring via real async scoring API (trigger → poll → results)', async () => {
     scoreParseApi.getResults
       .mockResolvedValueOnce({ data: { results: [], summary: null } })
@@ -338,20 +314,6 @@ describe('useScoreParseDrawer.js', () => {
     expect(customRunner).toHaveBeenCalled()
     expect(drawer.scored.value).toBe(true)
     expect(ElMessage.success).toHaveBeenCalledWith('AI 实际打分完成')
-  })
-
-  it('supports exportReport with popup or blob fallback', async () => {
-    const drawer = useScoreParseDrawer(props, emit)
-    await drawer.open({ stage: 2 })
-
-    // Simulate popup blocked (window.open returns null)
-    const originalOpen = window.open
-    window.open = vi.fn().mockReturnValue(null)
-
-    drawer.exportReport()
-    expect(ElMessage.success).toHaveBeenCalledWith('已导出报告文件')
-
-    window.open = originalOpen
   })
 
   it('correctly identifies empty unscored results as hasResults=false and scored=false', async () => {

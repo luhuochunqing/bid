@@ -1,18 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import ScoreParseDrawer from './ScoreParseDrawer.vue'
 import ScoreItemDetailModal from './ScoreItemDetailModal.vue'
 import { scoreParseApi } from '@/api/modules/scoreParse.js'
-import { projectsApi } from '@/api/modules/projects.js'
-import { ElMessageBox, ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus'
 
 vi.mock('element-plus', async (importOriginal) => {
   const actual = await importOriginal()
   return {
     ...actual,
-    ElMessageBox: {
-      confirm: vi.fn(),
-    },
     ElMessage: {
       success: vi.fn(),
       warning: vi.fn(),
@@ -30,12 +26,6 @@ vi.mock('@/api/modules/scoreParse.js', () => ({
     triggerScoring: vi.fn(),
     getScoringStatus: vi.fn(),
     getResults: vi.fn(),
-  },
-}))
-
-vi.mock('@/api/modules/projects.js', () => ({
-  projectsApi: {
-    importScoreDraftsFromAnalysis: vi.fn(),
   },
 }))
 
@@ -71,16 +61,12 @@ describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    ElMessageBox.confirm.mockResolvedValue('confirm')
     scoreParseApi.getItems.mockResolvedValue({ data: { items: qaItemsFixture, summary: null } })
     scoreParseApi.triggerParse.mockResolvedValue({ data: { taskId: 't-parse', status: 'PENDING' } })
     scoreParseApi.getParseStatus.mockResolvedValue({ data: { taskId: 't-parse', status: 'COMPLETED', progress: 100, completedAt: '2026-08-15T14:00:00' } })
     scoreParseApi.triggerScoring.mockResolvedValue({ data: { taskId: 't-score', status: 'PENDING' } })
     scoreParseApi.getScoringStatus.mockResolvedValue({ data: { taskId: 't-score', status: 'COMPLETED', progress: 100, completedAt: '2026-08-15T14:30:00' } })
     scoreParseApi.getResults.mockResolvedValue({ data: qaResultsFixture })
-    projectsApi.importScoreDraftsFromAnalysis.mockResolvedValue({
-      data: { importedCount: 3 },
-    })
   })
 
   // QA-TC01: 阶段 1 (招标文件解析) 完整流程与数据展现
@@ -94,7 +80,8 @@ describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
 
     expect(wrapper.vm.visible).toBe(true)
     expect(wrapper.vm.currentStage).toBe(1)
-    expect(wrapper.text()).toContain('阶段 1 · 招标文件解析')
+    // 顶部操作栏已移除（导入草稿/导出报告/阶段标签下线），阶段 1 以 section 标题与空态体现
+    expect(wrapper.text()).toContain('招标文件解析')
     // 真接口不返回文件名，展示 — 占位而非硬编码假文件名
     expect(wrapper.text()).toContain('招标文件：—')
 
@@ -134,7 +121,7 @@ describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
     expect(scoreParseApi.getScoringStatus).toHaveBeenCalledWith(projectId)
     expect(scoreParseApi.getResults).toHaveBeenCalledWith(projectId)
     expect(wrapper.vm.currentStage).toBe(2)
-    expect(wrapper.text()).toContain('阶段 2 · 投标文件打分')
+    expect(wrapper.text()).toContain('投标文件评分')
 
     // 验证实际得分总和（客观项满分 11 分中实际获得 9 分）
     expect(wrapper.vm.actualTotalScore).toBe(9)
@@ -183,8 +170,8 @@ describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
     expect(modalWrapper.text()).toContain('建议尽快启动 CMMI 5 级认证评估流程')
   })
 
-  // QA-TC04: 操作工具链验收（重新解析、导入草稿、导出报告）
-  it('QA-TC04: [操作栏] 重新解析、导入评分草稿与报告导出降级正常工作', async () => {
+  // QA-TC04: 重新解析操作验收（顶部操作栏移除后，入口保留在「招标文件解析」标题栏）
+  it('QA-TC04: [操作栏] 招标文件解析标题栏「重新解析」触发真实解析任务', async () => {
     const wrapper = mount(ScoreParseDrawer, {
       props: { projectId },
       global: { stubs: globalStubs },
@@ -192,25 +179,14 @@ describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
 
     await wrapper.vm.open({ stage: 2 })
 
-    // 1. 重新解析
-    await wrapper.vm.reparse()
+    const reparseBtn = wrapper.findAll('.section-actions button')[0]
+    expect(reparseBtn.text()).toContain('重新解析')
+    await reparseBtn.trigger('click')
+    await flushPromises()
+
+    expect(scoreParseApi.triggerParse).toHaveBeenCalledWith(projectId, { source: 'MANUAL' })
+    expect(scoreParseApi.getItems).toHaveBeenCalled()
     expect(ElMessage.success).toHaveBeenCalledWith('已重新解析评分标准')
-
-    // 2. 导入评分草稿
-    await wrapper.vm.importToDrafts()
-    expect(ElMessageBox.confirm).toHaveBeenCalled()
-    expect(projectsApi.importScoreDraftsFromAnalysis).toHaveBeenCalledWith(projectId)
-    expect(ElMessage.success).toHaveBeenCalledWith('成功导入 3 条评分项到草稿库')
-    expect(wrapper.emitted('imported')?.[0]).toEqual([{ count: 3 }])
-
-    // 3. 导出报告（模拟弹窗被拦截时的 Blob 降级）
-    const originalOpen = window.open
-    window.open = vi.fn().mockReturnValue(null)
-
-    wrapper.vm.exportReport()
-    expect(ElMessage.success).toHaveBeenCalledWith('已导出报告文件')
-
-    window.open = originalOpen
   })
 
   // QA-TC05: 折叠面板与展开切换验收
