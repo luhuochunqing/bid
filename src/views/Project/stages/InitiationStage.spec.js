@@ -85,13 +85,13 @@ describe('InitiationStage — PRD §4.3 4-section layout', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('是否需要保证金')
     expect(wrapper.text()).toContain('计划入围供应商数量')
-    expect(wrapper.text()).toContain('电商MRO+办公流水金额')
-    expect(wrapper.text()).toContain('客户营收')
+    expect(wrapper.text()).toContain('客户电商年采购金额')
+    expect(wrapper.text()).toContain('客户年营收')
     expect(wrapper.text()).toContain('招标文件不利项')
     expect(wrapper.text()).toContain('风险预判')
     expect(wrapper.text()).toContain('项目经理综合评估是否有兜底方案')
     expect(wrapper.text()).toContain('需要的支持及其他关键信息备注')
-    expect(wrapper.text()).toContain('项目计划GAP')
+    expect(wrapper.text()).toContain('项目计划GAP附件')
   })
 
   it('calls submit when valid', async () => {

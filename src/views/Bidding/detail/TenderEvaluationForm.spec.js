@@ -199,7 +199,7 @@ async function fillRequiredBasicFields(wrapper) {
     if (input.exists()) await input.setValue('3')
   }
   // Find mroOfficeFlowAmount
-  const mroItem = wrapper.findAll('.el-form-item-stub').find(el => el.find('label').text() === '电商MRO+办公流水金额（万）')
+  const mroItem = wrapper.findAll('.el-form-item-stub').find(el => el.find('label').text() === '客户电商年采购金额（万）')
   if (mroItem) {
     const input = mroItem.find('input.el-input-number-stub')
     if (input.exists()) await input.setValue('500000')
@@ -244,14 +244,14 @@ describe('TenderEvaluationForm — instance-level permission matrix (V130 3-sect
     const wrapper = makeWrapper({ canFill: true, canDecide: false, evaluation: null })
     const text = wrapper.text()
     expect(text).toContain('计划入围供应商数量')
-    expect(text).toContain('电商MRO+办公流水金额')
-    expect(text).toContain('客户营收')
+    expect(text).toContain('客户电商年采购金额')
+    expect(text).toContain('客户年营收')
     expect(text).toContain('招标文件不利项')
     expect(text).toContain('风险预判')
     expect(text).toContain('是否有兜底方案')
-    expect(text).toContain('是否了解评标全流程')
+    expect(text).toContain('项目经理评标全流程概述')
     expect(text).toContain('需要的支持及备注')
-    expect(text).toContain('项目计划 GAP')
+    expect(text).toContain('项目计划GAP附件')
   })
 
   it('renders section 2: 客户信息', () => {

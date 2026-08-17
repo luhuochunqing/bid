@@ -125,7 +125,7 @@ public class TenderCrmLinkIntegrationTest {
 
         // 2. 构造请求 Payload (带有客户信息和 GAP 附件)
         EvaluationBasicDTO basicDTO = new EvaluationBasicDTO(
-                null, null, null, "Testing Gap Risk", null, null, null, null, null,
+                null, null, null, "Testing Gap Risk", null, null, null, null,
                 List.of(new GapFileRef("GAP1.pdf", "https://example.com/gap1.pdf"))
         );
         List<EvaluationCustomerInfoDTO> customerInfosDto = List.of(

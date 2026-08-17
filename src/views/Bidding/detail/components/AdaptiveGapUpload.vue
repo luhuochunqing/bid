@@ -1,12 +1,5 @@
 <template>
   <div>
-    <el-input
-      v-model="localGap"
-      type="textarea"
-      :rows="3"
-      placeholder="请填写项目计划差距（可选）"
-      maxlength="5000"
-    />
     <div v-if="gapUploadUrl" class="gap-file-upload">
       <el-upload :with-credentials="true"
         :file-list="localFiles"
@@ -46,11 +39,6 @@ const props = defineProps({
 })
 
 const userStore = useUserStore()
-
-const localGap = computed({
-  get: () => props.modelValue.projectPlanGap ?? '',
-  set: (v) => { props.modelValue.projectPlanGap = v },
-})
 
 const localFiles = computed(() => props.modelValue.projectPlanGapFiles ?? [])
 

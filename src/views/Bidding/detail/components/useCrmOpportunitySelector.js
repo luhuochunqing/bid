@@ -228,7 +228,6 @@ export function useCrmOpportunitySelector(props, emit) {
           contingencyPlan: chance.backupPlan != null ? (chance.backupPlan ? '是' : '否') : '',
           processKnowledge: chance.managerUnderstandProcess || '',
           supportNotes: chance.remark || '',
-          projectPlanGap: chance.projectGap || '',
           projectPlanGapFiles: parseGapFiles(chance.gapFile),
           customerRevenue: chance.customerRevenue || null,
         },

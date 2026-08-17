@@ -246,3 +246,8 @@
 - 触发：项目 226 召回三产出候选后 toCandidate 裸访问 null section NPE；项目 225 "未识别到评分标准章节"实为扫描件（markdownLength=3）
 - 更新：`score-parse-service.md §7` 追加 null section 降级、扫描件失败文案两条踩坑
 - 关联：`docs/lessons/lessons-learned.md §118`、回归测试 `OpenAiScoreAnalyzerTest`
+
+## [2026-08-17] task | 评估表字段文案调整 + GAP 文本框下线回填
+- 触发：客户需求 2026-08-17 批次（分支 `agent/qoder/eval-form-field-adjustments`），三项文案改名 + GAP 文本框下线（附件保留），跨前端双表单/立项/后端 DTO/Mapper 共 32 文件
+- 新增 [[evaluation-form-field-adjustments]]：需求清单 / GAP 只停写不删列策略 / 立项深耦合保留决策 / V1191 迁移注意点
+- 更新 _index.md 索引

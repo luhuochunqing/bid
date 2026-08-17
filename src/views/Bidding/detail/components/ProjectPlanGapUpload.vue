@@ -1,20 +1,5 @@
 <template>
   <div class="gap-upload-wrapper">
-    <textarea
-      v-if="disabled"
-      v-autosize
-      :value="localGap || '-'"
-      readonly
-      class="readonly-textarea"
-    />
-    <el-input
-      v-else
-      v-model="localGap"
-      type="textarea"
-      :autosize="{ minRows: 3, maxRows: 10 }"
-      placeholder="请填写项目计划差距（可选）"
-      maxlength="5000"
-    />
     <div v-if="!disabled" class="gap-file-upload">
       <el-upload :with-credentials="true"
         :file-list="localFiles"
@@ -74,11 +59,6 @@ const props = defineProps({
 })
 
 const userStore = useUserStore()
-
-const localGap = computed({
-  get: () => props.modelValue.projectPlanGap ?? '',
-  set: (v) => { props.modelValue.projectPlanGap = v },
-})
 
 const localFiles = computed(() => props.modelValue.projectPlanGapFiles ?? [])
 
@@ -149,10 +129,6 @@ function beforeGapUpload(file) {
   width: 100%;
 }
 
-.gap-upload-wrapper :deep(.el-textarea__inner) {
-  min-height: 72px !important;
-}
-
 .gap-file-upload {
   margin-top: 8px;
 }
@@ -200,20 +176,5 @@ function beforeGapUpload(file) {
   white-space: nowrap;
   display: inline-block;
   max-width: 100%;
-}
-
-.readonly-textarea {
-  width: 100%;
-  min-height: 72px;
-  padding: 5px 11px;
-  border: 1px solid var(--gray-100, #E8E8E8);
-  border-radius: 6px;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: 1.5;
-  color: var(--text-primary-ui, #303133);
-  background: var(--bg-subtle, #F5F7FA);
-  resize: vertical;
-  overflow-y: auto;
 }
 </style>

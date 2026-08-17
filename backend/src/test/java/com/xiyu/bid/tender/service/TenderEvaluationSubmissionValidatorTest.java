@@ -76,7 +76,7 @@ class TenderEvaluationSubmissionValidatorTest {
             EvaluationRecommendationDTO recommendation) {
         return new TenderEvaluationSubmitRequest(
                 TenderEvaluation.BidRecommendation.RECOMMEND,
-                new EvaluationBasicDTO(2, null, null, null, null, null, null, null, null, null),
+                new EvaluationBasicDTO(2, null, null, null, null, null, null, null, null),
                 customerInfos,
                 recommendation
         );

@@ -84,7 +84,7 @@ public class TenderEvaluationIntegrationService {
         if (b.contingencyPlan() != null) basic.setContingencyPlan(b.contingencyPlan());
         if (b.processKnowledge() != null) basic.setProcessKnowledge(b.processKnowledge());
         if (b.supportNotes() != null) basic.setSupportNotes(b.supportNotes());
-        if (b.projectPlanGap() != null) basic.setProjectPlanGap(b.projectPlanGap());
+        // 2026-08-17 需求 3：GAP 文本字段停写（DB 列保留）；GAP 附件回填链路 CO-262 不变
         if (b.customerRevenue() != null) basic.setCustomerRevenue(b.customerRevenue());
         evalEntity.setBasic(basic);
     }

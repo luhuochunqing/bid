@@ -48,6 +48,7 @@ backlinks:
 - [[design-system]] — 设计系统基线
 - [[docinsight-engine]] — DocInsight 文档智能引擎
 - [[dynamic-form-engine]] — 动态表单自定义引擎
+- [[evaluation-form-field-adjustments]] — 评估表字段文案调整与 GAP 文本框下线（2026-08-17 客户需求批次 / V1191）
 - [[flyway-migration-pitfalls]] — Flyway 迁移陷阱集（collation / 版本号冲突 / baseline-on-migrate / 回滚脚本）
 - [[frontend-pitfalls]] — 前端 Vue3 / Element Plus 陷阱集（reactive / el-upload / el-form / 权限 / E2E）
 - [[glossary]] — 术语表

@@ -44,18 +44,17 @@
 <el-divider />
 <div class="grid-2">
   <el-form-item label="计划入围供应商数量"><el-input-number v-model="form.expectedBidders" :disabled="fieldDisabled && !isApprovalMode" :min="1" :max="255" :precision="0" /></el-form-item>
-  <el-form-item label="电商MRO+办公流水金额（万）"><el-input-number v-model="form.annualEcommerceAmount" :disabled="fieldDisabled" :min="0" :precision="2" @focus="handleAmountFocus('annualEcommerceAmount')" @blur="handleAmountBlur('annualEcommerceAmount')" /></el-form-item>
+  <el-form-item label="客户电商年采购金额（万）"><el-input-number v-model="form.annualEcommerceAmount" :disabled="fieldDisabled" :min="0" :precision="2" @focus="handleAmountFocus('annualEcommerceAmount')" @blur="handleAmountBlur('annualEcommerceAmount')" /></el-form-item>
 </div>
 <div class="grid-2">
-  <el-form-item label="客户营收（亿）"><el-input-number v-model="form.customerRevenue" :disabled="fieldDisabled" :min="0" :precision="2" @focus="handleAmountFocus('customerRevenue')" @blur="handleAmountBlur('customerRevenue')" /></el-form-item>
+  <el-form-item label="客户年营收（亿）"><el-input-number v-model="form.customerRevenue" :disabled="fieldDisabled" :min="0" :precision="2" @focus="handleAmountFocus('customerRevenue')" @blur="handleAmountBlur('customerRevenue')" /></el-form-item>
 </div>
 <el-form-item label="招标文件不利项"><el-input v-model="form.tenderAdverseItems" :disabled="fieldDisabled && !isApprovalMode" type="textarea" :rows="3" maxlength="500" show-word-limit /></el-form-item>
 <el-form-item label="风险预判"><el-input v-model="form.riskAssessment" :disabled="fieldDisabled" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
 <el-form-item label="项目经理综合评估是否有兜底方案"><el-switch :model-value="form.riskMitigationPlan === '是'" :disabled="fieldDisabled" @update:model-value="form.riskMitigationPlan = $event ? '是' : '否'" /></el-form-item>
-<el-form-item label="项目经理是否了解评标全流程"><el-input v-model="form.pmUnderstandsProcess" :disabled="fieldDisabled" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
+<el-form-item label="项目经理评标全流程概述"><el-input v-model="form.pmUnderstandsProcess" :disabled="fieldDisabled" type="textarea" :rows="3" maxlength="5000" placeholder="请概述项目经理对评标全流程的了解" /></el-form-item>
 <el-form-item label="需要的支持及其他关键信息备注"><el-input v-model="form.supportNeeded" :disabled="fieldDisabled" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
-<el-form-item label="项目计划GAP">
-    <el-input v-model="form.projectPlanGap" :disabled="fieldDisabled" type="textarea" :rows="3" maxlength="5000" />
+<el-form-item label="项目计划GAP附件">
     <el-upload :with-credentials="true" v-model:file-list="planGapFiles" :http-request="planGapCustomUpload" :before-upload="beforePlanGapUpload" :on-success="onPlanGapUploadSuccess" :on-remove="onPlanGapFileRemove" :disabled="fieldDisabled || !props.projectId || props.projectId === 'new'" multiple drag accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" :limit="5" style="margin-top:8px">
       <el-button size="small" type="primary">上传附件</el-button>
       <template #tip><div class="el-upload__tip">支持拖拽上传，最多5个文件，单个不超过10MB</div></template>

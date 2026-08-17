@@ -16,7 +16,7 @@
           :errors="basicErrors"
         >
           <template #gap>
-            <el-form-item label="项目计划 GAP" prop="projectPlanGap">
+            <el-form-item label="项目计划GAP附件">
               <ProjectPlanGapUpload
                 v-model="form.basic"
                 :tender-id="tenderId"
@@ -134,8 +134,8 @@ const basicErrors = computed(() => {
   const err = validateBasicSection(form.basic)
   if (!err) return {}
   if (err.includes('计划入围供应商数量')) return { plannedShortlistedCount: err }
-  if (err.includes('电商MRO+办公流水金额')) return { mroOfficeFlowAmount: err }
-  if (err.includes('客户营收')) return { customerRevenue: err }
+  if (err.includes('客户电商年采购金额')) return { mroOfficeFlowAmount: err }
+  if (err.includes('客户年营收')) return { customerRevenue: err }
   if (err.includes('不利项')) return { unfavorableItems: err }
   if (err.includes('风险预判')) return { riskAssessment: err }
   return {}

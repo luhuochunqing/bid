@@ -27,7 +27,6 @@ class TenderEvaluationFormPolicyTest {
                         "已有备选方案",
                         "熟悉",
                         "需要法务支持",
-                        "时间紧张",
                         new BigDecimal("120000")
                 ),
                 Collections.emptyList(),
@@ -58,7 +57,7 @@ class TenderEvaluationFormPolicyTest {
     @DisplayName("plannedShortlistedCount = 0 -> MIN_VALUE 错误")
     void validate_plannedShortlistedCountZero_returnsError() {
         ValidationResult result = TenderEvaluationFormPolicy.validate(withBasic(
-                new EvaluationBasicDTO(0, BigDecimal.ZERO, "", "", "", "", "", "", BigDecimal.ZERO)
+                new EvaluationBasicDTO(0, BigDecimal.ZERO, "", "", "", "", "", BigDecimal.ZERO)
         ));
 
         assertThat(result.isValid()).isFalse();
@@ -69,7 +68,7 @@ class TenderEvaluationFormPolicyTest {
     @DisplayName("plannedShortlistedCount = null -> 有效（非必填）")
     void validate_plannedShortlistedCountNull_isValid() {
         ValidationResult result = TenderEvaluationFormPolicy.validate(withBasic(
-                new EvaluationBasicDTO(null, BigDecimal.ZERO, "", "", "", "", "", "", BigDecimal.ZERO)
+                new EvaluationBasicDTO(null, BigDecimal.ZERO, "", "", "", "", "", BigDecimal.ZERO)
         ));
 
         assertThat(result.isValid()).isTrue();
@@ -81,7 +80,7 @@ class TenderEvaluationFormPolicyTest {
     @DisplayName("mroOfficeFlowAmount 为负数 -> MIN_VALUE 错误")
     void validate_mroOfficeFlowAmountNegative_returnsError() {
         ValidationResult result = TenderEvaluationFormPolicy.validate(withBasic(
-                new EvaluationBasicDTO(3, new BigDecimal("-1"), "", "", "", "", "", "", BigDecimal.ZERO)
+                new EvaluationBasicDTO(3, new BigDecimal("-1"), "", "", "", "", "", BigDecimal.ZERO)
         ));
 
         assertThat(result.isValid()).isFalse();
@@ -92,7 +91,7 @@ class TenderEvaluationFormPolicyTest {
     @DisplayName("mroOfficeFlowAmount = null -> 有效（非必填）")
     void validate_mroOfficeFlowAmountNull_isValid() {
         ValidationResult result = TenderEvaluationFormPolicy.validate(withBasic(
-                new EvaluationBasicDTO(3, null, "", "", "", "", "", "", BigDecimal.ZERO)
+                new EvaluationBasicDTO(3, null, "", "", "", "", "", BigDecimal.ZERO)
         ));
 
         assertThat(result.isValid()).isTrue();
@@ -104,7 +103,7 @@ class TenderEvaluationFormPolicyTest {
     @DisplayName("customerRevenue 为负数 -> MIN_VALUE 错误")
     void validate_customerRevenueNegative_returnsError() {
         ValidationResult result = TenderEvaluationFormPolicy.validate(withBasic(
-                new EvaluationBasicDTO(3, BigDecimal.ZERO, "", "", "", "", "", "", new BigDecimal("-1"))
+                new EvaluationBasicDTO(3, BigDecimal.ZERO, "", "", "", "", "", new BigDecimal("-1"))
         ));
 
         assertThat(result.isValid()).isFalse();
@@ -115,7 +114,7 @@ class TenderEvaluationFormPolicyTest {
     @DisplayName("customerRevenue = null -> 有效（非必填）")
     void validate_customerRevenueNull_isValid() {
         ValidationResult result = TenderEvaluationFormPolicy.validate(withBasic(
-                new EvaluationBasicDTO(3, BigDecimal.ZERO, "", "", "", "", "", "", null)
+                new EvaluationBasicDTO(3, BigDecimal.ZERO, "", "", "", "", "", null)
         ));
 
         assertThat(result.isValid()).isTrue();
@@ -127,7 +126,7 @@ class TenderEvaluationFormPolicyTest {
     @DisplayName("多个字段同时越界 -> 多条错误")
     void validate_multipleErrors_returnsAllOfThem() {
         ValidationResult result = TenderEvaluationFormPolicy.validate(withBasic(
-                new EvaluationBasicDTO(0, new BigDecimal("-1"), "", "", "", "", "", "", new BigDecimal("-1"))
+                new EvaluationBasicDTO(0, new BigDecimal("-1"), "", "", "", "", "", new BigDecimal("-1"))
         ));
 
         assertThat(result.isValid()).isFalse();

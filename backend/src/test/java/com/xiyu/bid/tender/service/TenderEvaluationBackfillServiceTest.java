@@ -110,7 +110,7 @@ class TenderEvaluationBackfillServiceTest {
                 "MATERIALS_COMPANY_CHAIRMAN", "NAME", "李四", "TEXT"
         );
         EvaluationBasicDTO basicDTO = new EvaluationBasicDTO(
-                3, new BigDecimal("100.5"), "None", "Low", "Yes", "Yes", "Support", "Gap", new BigDecimal("500")
+                3, new BigDecimal("100.5"), "None", "Low", "Yes", "Yes", "Support", new BigDecimal("500")
         );
         
         TenderEvaluationSubmitRequest req = new TenderEvaluationSubmitRequest(
