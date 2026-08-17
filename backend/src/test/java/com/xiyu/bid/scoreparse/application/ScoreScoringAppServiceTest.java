@@ -71,10 +71,12 @@ class ScoreScoringAppServiceTest {
 
     @BeforeEach
     void setUp() {
+        // 真实 overwriter（内嵌 mock repo）：单测无 Spring 代理、@Transactional 不生效；
+        // 生产端事务由 Spring 对 ScoreResultOverwriter 的代理保证（T025 修复），单测验证 DELETE+INSERT 调用
         service = new ScoreScoringAppService(
                 taskRepository, itemRepository, resultRepository,
                 stateService, progressService, projectAccessScopeService, scoreAnalyzer,
-                bidFileLoader);
+                bidFileLoader, new ScoreResultOverwriter(resultRepository));
         ReflectionTestUtils.setField(service, "self", service);
     }
 

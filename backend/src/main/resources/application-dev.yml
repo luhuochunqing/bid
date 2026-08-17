@@ -57,6 +57,9 @@ rate:
 app:
   tender-processing:
     worker-enabled: ${APP_TENDER_WORKER_ENABLED:false}
+  # 本地开发 sidecar 由 dev-services.sh 启动在 8009（服务器部署为 8000，见 SidecarStreamTextExtractor 默认值）
+  score-parse:
+    sidecar-url: ${APP_SCORE_PARSE_SIDECAR_URL:http://127.0.0.1:8009}
   bootstrap:
     admin:
       username: admin

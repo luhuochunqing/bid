@@ -22,7 +22,7 @@ import java.util.Optional;
 /**
  * 投标文件流式下载器：内存 buffer 累计 ≤ ram-buffer-bytes(50MB) 全程内存（快路径，
  * 零元数据依赖）；超过即 flush {taskId}.part 继续流式写盘（spill）；单文件累计
- * > max-file-bytes(2GB) 中止抛 BidFileQuotaException。
+ * > max-file-bytes(512MB) 中止抛 BidFileQuotaException。
  * <p>骨架复用 BoundedHttpDownloader（ofInputStream + 8KB buf + Content-Length 预检）。
  */
 @Component
@@ -37,7 +37,7 @@ public class StreamingBidFileFetcher {
     public StreamingBidFileFetcher(
             TempBidFileStore tempFileStore,
             @Value("${app.score-parse.bid-file.ram-buffer-bytes:52428800}") long ramBufferBytes,
-            @Value("${app.score-parse.bid-file.max-file-bytes:2147483648}") long maxFileBytes,
+            @Value("${app.score-parse.bid-file.max-file-bytes:536870912}") long maxFileBytes,
             @Value("${app.score-parse.bid-file.download-timeout-seconds:600}") long downloadTimeoutSeconds) {
         this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
         this.tempFileStore = tempFileStore;
