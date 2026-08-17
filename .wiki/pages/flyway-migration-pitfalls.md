@@ -346,15 +346,69 @@ INSERT IGNORE INTO form_definition_registry(scope, scope_label, ...) VALUES (...
 
 ---
 
-## 12. 迁移脚本命名规范
+## 12. ADD COLUMN 必须幂等 — 警惕 V145 等老迁移已定义同名列
 
-### 12.1 规范
+### 12.1 事故
+
+V1188__add_contract_amount_to_performance_record.sql（spec 041 业绩评分）直接 `ALTER TABLE performance_record ADD COLUMN contract_amount DECIMAL(15,2)`。但 V145__performance_library.sql 早在 2026 年就定义了 `performance_record.contract_amount DECIMAL(15,2) COMMENT '合同金额(万元)'` 列 + 索引 `idx_perf_amount`。
+
+**现象**：
+- FlywayMysqlContainerTest 4 个测试全部 ApplicationContext 加载失败
+- 错误：`SQLSyntaxErrorException: Duplicate column name 'contract_amount'`
+- 阻塞 V1189、V1190 等后续迁移，部署阻塞
+
+**根因**：spec 041 调研 R7 未察觉 V145 已有该列，假设 performance_record 表没有 contract_amount 列就新增。代码层 `PerformanceRecordEntity.contractAmount` 字段已映射该列，但 spec 调研漏检老迁移。
+
+### 12.2 修复（幂等存储过程版）
+
+```sql
+-- ✅ 正确：用 information_schema 检查列存在性，列不存在才 ADD
+DELIMITER $$
+DROP PROCEDURE IF EXISTS add_contract_amount_if_missing$$
+CREATE PROCEDURE add_contract_amount_if_missing()
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema = DATABASE()
+                     AND table_name = 'performance_record'
+                     AND column_name = 'contract_amount') THEN
+        ALTER TABLE performance_record
+            ADD COLUMN contract_amount DECIMAL(15,2) NULL COMMENT '...' AFTER ...;
+        ALTER TABLE performance_record ADD INDEX idx_perf_amount (contract_amount);
+    END IF;
+END$$
+DELIMITER ;
+CALL add_contract_amount_if_missing();
+DROP PROCEDURE IF EXISTS add_contract_amount_if_missing;
+```
+
+回滚脚本 U1188 同步改为 No-op rollback，避免误删 V145 原列：
+
+```sql
+-- U1188: No-op rollback（V1188 幂等版不删除 V145 原列）
+-- 如确需回滚 schema，请人工执行 DROP COLUMN 并备份相关数据。
+SELECT 'U1188 no-op rollback' AS message;
+```
+
+### 12.3 教训
+
+- **新增 ADD COLUMN 迁移前，必须 grep 老迁移目录确认目标表是否已有同名列**：`grep -rn "ADD COLUMN.*<col_name>" backend/src/main/resources/db/migration-mysql/` + `grep -rn "<table_name>.*<col_name>" backend/src/main/resources/db/migration-mysql/`
+- **spec 调研阶段必须扫描现有迁移**：不能只看当前表结构，要追溯老迁移（如 V145）是否已定义目标列
+- **ADD COLUMN 必须用 information_schema 幂等存储过程版**：MySQL 8.0 不支持 `ADD COLUMN IF NOT EXISTS`（Flyway 9.22.3 会记 success=0）
+- **回滚脚本 DROP COLUMN 是破坏性操作**：若列被老迁移（如 V145）定义，U 脚本误删会导致其他模块 Unknown column 异常；优先 No-op + 注释说明，要求人工回滚
+- **单位语义冲突要显式记录**：V145 注释"万元"vs V1188 注释"元"是 spec 调研疏漏，修复时保留 V145 语义，不改存量数据
+- 来源：2026-08-17 测试环境部署（commit 30b2de723），本地 FlywayMysqlContainerTest 全绿验证
+
+---
+
+## 13. 迁移脚本命名规范
+
+### 13.1 规范
 
 - **基线版本**：`B{version}_*.sql`（如 `B73__full_schema_baseline.sql`）
 - **增量版本**：`V{version}___{desc}.sql`（如 `V1081__remove_task_executor_role.sql`）
 - **回滚版本**：`U{version}__{desc}.sql`（如 `U1081__remove_task_executor_role.sql`）
 
-### 12.2 版本号
+### 13.2 版本号
 
 - 必须大于已有最大版本号
 - **严禁手动猜测或 `ls | tail` 决定版本号**
@@ -362,7 +416,7 @@ INSERT IGNORE INTO form_definition_registry(scope, scope_label, ...) VALUES (...
 
 ---
 
-## 13. 相关文档
+## 14. 相关文档
 
 - [[lessons-learned]] §一 §二 — 数据库迁移目录清理、CI 配置对齐
 - [[production-deployment-lessons]] §1 — collation 冲突案例
@@ -372,9 +426,10 @@ INSERT IGNORE INTO form_definition_registry(scope, scope_label, ...) VALUES (...
 
 ---
 
-## 14. 变更记录
+## 15. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
 | 2026-07-10 | 首次创建，从 8 个工作区历史对话中提取 Flyway 迁移陷阱 |
 | 2026-07-31 | 新增 §11 INSERT IGNORE + NULL 唯一键不幂等（U1182 回滚脚本事故，PR !2229）；原 §11~§13 顺延为 §12~§14 |
+| 2026-08-17 | 新增 §12 ADD COLUMN 必须幂等 — V145 列冲突事故（V1188 vs V145 contract_amount，commit 30b2de723）；原 §12~§14 顺延为 §13~§15 |
