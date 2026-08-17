@@ -3,9 +3,8 @@
 // Pos: src/composables/projectDetail/ - Presentation domain composable
 
 import { ref, computed } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { scoreParseApi } from '@/api/modules/scoreParse.js'
-import { projectsApi } from '@/api/modules/projects.js'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { formatTime, pollTask, normalizeScoreItem } from './scoreParseTask.js'
 import { parseTriggerSource, scoringBody, scoringSkipHint, mapScoreResults, hasMeaningfulResults, circuitHintFromMeta } from './scoreParseSpendGuard.js'
@@ -22,7 +21,6 @@ export function useScoreParseDrawer(props, emit) {
   const parseTime = ref('—')
   const bidFileName = ref('—')
   const scoreTime = ref('—')
-  const importing = ref(false)
   const scoringHint = ref('')
   const circuitHint = ref('')
   const scoringScope = ref('ALL')
@@ -209,60 +207,11 @@ export function useScoreParseDrawer(props, emit) {
     await startParse({ silent: false })
   }
 
-  function exportReport() {
-    const rows = scoreItems.value.map((item) => {
-      const res = scoreResults.value[item.code] || {}
-      return `<tr><td>${item.code}</td><td>${item.dim}</td><td>${item.req}</td><td class="num">${item.weight}</td><td>${item.statusText}</td><td class="num">${res.evalText || item.estScore || '-'}</td><td>${res.quote || item.estBasis || '-'}</td></tr>`
-    }).join('')
-    const reportHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>AI 评分标准解析报告 - ${props.projectId}</title><style>body{font-family:sans-serif;padding:24px;}table{width:100%;border-collapse:collapse;margin-top:16px;}th,td{border:1px solid #ccc;padding:8px;font-size:12px;}.num{text-align:right;}</style></head><body><h2>AI 评分标准解析报告（项目 ID: ${props.projectId}）</h2><p>招标文件：${sourceFileName.value} | 解析时间：${parseTime.value}</p><p>投标文件：${bidFileName.value} | 评分时间：${scoreTime.value}</p><hr/><h3>评分项明细（共 ${scoreItems.value.length} 项，总权重 ${totalWeight.value} 分）</h3><table><thead><tr><th>编号</th><th>维度</th><th>评分要求</th><th>权重</th><th>满足预判</th><th>实际得分</th><th>引用说明</th></tr></thead><tbody>${rows}</tbody></table></body></html>`
-
-    try {
-      const win = typeof window !== 'undefined' ? window.open('', '_blank') : null
-      if (win && win.document) {
-        win.document.write(reportHtml); win.document.close(); win.print(); ElMessage.success('已生成打印预览'); return
-      }
-    } catch {}
-
-    if (typeof Blob !== 'undefined' && typeof document !== 'undefined') {
-      const blob = new Blob([reportHtml], { type: 'text/html;charset=utf-8' })
-      const url = typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function' ? URL.createObjectURL(blob) : null
-      if (url) {
-        const a = document.createElement('a'); a.href = url; a.download = `AI评分标准解析报告_${props.projectId}.html`; a.click(); URL.revokeObjectURL(url)
-      }
-      ElMessage.success('已导出报告文件')
-    }
-  }
-
-  async function importToDrafts() {
-    if (scoreItems.value.length === 0) {
-      ElMessage.warning('暂无评分项可导入')
-      return
-    }
-    try {
-      await ElMessageBox.confirm(
-        `确定将解析出的 ${scoreItems.value.length} 个评分项规则导入到项目评分草稿库中吗？`,
-        '导入到评分草稿',
-        { confirmButtonText: '确定导入', cancelButtonText: '取消', type: 'info' },
-      )
-      importing.value = true
-      const res = await projectsApi.importScoreDraftsFromAnalysis(props.projectId)
-      const count = res?.data?.importedCount ?? scoreItems.value.length
-      ElMessage.success(`成功导入 ${count} 条评分项到草稿库`)
-      emit('imported', { count })
-    } catch (e) {
-      if (e !== 'cancel') {
-        notifyErrorUnlessRateLimit(e, '导入评分草稿失败')
-      }
-    } finally {
-      importing.value = false
-    }
-  }
-
   return {
     visible, loading, error, isSection1Expanded, currentStage, scored, scoringOverlayVisible,
-    sourceFileName, parseTime, bidFileName, scoreTime, importing, scoringHint, circuitHint, scoringScope, selectedItemIds,
+    sourceFileName, parseTime, bidFileName, scoreTime, scoringHint, circuitHint, scoringScope, selectedItemIds,
     scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult,
     totalWeight, objectiveWeight, subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount,
-    estTotalScore, actualTotalScore, openDetail, open, runScoring, reparse, exportReport, importToDrafts,
+    estTotalScore, actualTotalScore, openDetail, open, runScoring, reparse,
   }
 }

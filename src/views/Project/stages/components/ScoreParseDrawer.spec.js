@@ -7,7 +7,6 @@ vi.mock('element-plus', async (importOriginal) => {
   const actual = await importOriginal()
   return {
     ...actual,
-    ElMessageBox: { confirm: vi.fn() },
     ElMessage: { success: vi.fn(), warning: vi.fn(), info: vi.fn(), error: vi.fn() },
   }
 })
@@ -20,12 +19,6 @@ vi.mock('@/api/modules/scoreParse.js', () => ({
     triggerScoring: vi.fn(),
     getScoringStatus: vi.fn(),
     getResults: vi.fn(),
-  },
-}))
-
-vi.mock('@/api/modules/projects.js', () => ({
-  projectsApi: {
-    importScoreDraftsFromAnalysis: vi.fn(),
   },
 }))
 

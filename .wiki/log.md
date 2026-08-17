@@ -3,6 +3,13 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-08-17] task | 评分解析抽屉顶部操作栏下线（导入评分草稿/导出报告取消）
+
+- 触发：产品确认「AI 评分标准解析」抽屉顶部操作栏（阶段标签 + 重新解析/导入评分草稿/导出报告）为已取消功能，PR 删除 6 文件（分支 `agent/zcode/remove-scoreparse-topbar`）
+- 更新：`score-parse-service.md §7` 追加前端抽屉下线条目（已删函数名 / 重新解析保留入口三处）
+- 关键约束：`useScoreParseDrawer` 的 `importToDrafts()`/`exportReport()`、`projects.js` 的 `importScoreDraftsFromAnalysis()`、`imported` emit 已删，勿再按这些名字检索
+- 触发点：任务收尾（§2 触发点 1）—— 跨模块逻辑变更（≥3 文件）+ 新业务约束
+
 ## [2026-08-17] update | spring-pitfalls §10.6 追加多构造函数 @Autowired 陷阱（PR !2301）
 
 - 背景：同步 PR !2300 后，`InitiationTenderTextResolver` 因新增测试构造函数（变成多构造）且未标记 `@Autowired`，导致后端启动 crash `No default constructor found`；PR #2301 追加 `@Autowired` 修复

@@ -2,7 +2,8 @@
   Input: projectId, open options (stage, autoScore, file)
   Output: AI 评分标准解析 V3 抽屉（阶段 1 招标文件提取 + 阶段 2 投标文件实际打分）
   Pos: src/views/Project/stages/components/ScoreParseDrawer.vue
-  一旦我被更新，务必更新我的开头注释。
+  注：顶部操作栏（阶段标签 + 重新解析 / 导入评分草稿 / 导出报告）已随"导入到评分草稿/导出报告"功能取消而删除（2026-08-17）。
+      重新解析按钮保留在「招标文件解析」标题栏。一旦我被更新，务必更新我的开头注释。
 -->
 <template>
   <el-drawer
@@ -27,23 +28,6 @@
         <div class="spinner"></div>
         <div class="scoring-text">AI 正在对标已上传标书进行实际打分...</div>
         <div class="scoring-sub">读取评分项 → 解析标书内容 → 比对知识库资质证书、仓库信息、品牌授权资料 → 计算客观项得分</div>
-      </div>
-
-      <!-- 顶部操作与阶段指示栏 -->
-      <div class="top-action-bar">
-        <div class="stage-tag-info">
-          <span class="stage-badge" :class="currentStage === 1 ? 'stage-1' : 'stage-2'">
-            {{ currentStage === 1 ? '阶段 1 · 招标文件解析' : '阶段 2 · 投标文件打分' }}
-          </span>
-          <span class="sub-hint">
-            {{ currentStage === 1 ? '标书制作前评分项提取与满足度预判' : '针对已上传标书进行对标实际打分' }}
-          </span>
-        </div>
-        <div class="btn-group">
-          <button class="btn-tool" @click="reparse">🔄 重新解析</button>
-          <button class="btn-tool primary" :disabled="importing || scoreItems.length === 0" @click="importToDrafts">📥 导入到评分草稿</button>
-          <button class="btn-tool" @click="exportReport">📤 导出报告</button>
-        </div>
       </div>
 
       <!-- 第一部分：招标文件解析 -->
@@ -203,14 +187,14 @@ const props = defineProps({
   projectId: { type: [String, Number], required: true },
 })
 
-const emit = defineEmits(['parsed', 'imported'])
+const emit = defineEmits(['parsed'])
 
 const {
   visible, loading, error, isSection1Expanded, currentStage, scored, scoringOverlayVisible,
-  sourceFileName, parseTime, bidFileName, scoreTime, importing, scoringHint, circuitHint, scoringScope, selectedItemIds,
+  sourceFileName, parseTime, bidFileName, scoreTime, scoringHint, circuitHint, scoringScope, selectedItemIds,
   scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult, totalWeight, objectiveWeight,
   subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
-  openDetail, open, runScoring, reparse, exportReport, importToDrafts,
+  openDetail, open, runScoring, reparse,
 } = useScoreParseDrawer(props, emit)
 
 defineExpose({ open, runScoring })
@@ -224,18 +208,8 @@ defineExpose({ open, runScoring })
 .dots::after { content: '...'; animation: d 1.4s infinite; }
 @keyframes d { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
 
-.top-action-bar { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--bg-subtle); border-radius: var(--radius-md); margin-bottom: 20px; }
-.stage-tag-info { display: flex; align-items: center; gap: 8px; }
-.stage-badge { padding: 4px 10px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; }
-.stage-badge.stage-1 { background: var(--status-info-bg); color: var(--status-info-color); }
-.stage-badge.stage-2 { background: var(--status-success-bg); color: var(--status-success-color); }
-.sub-hint { font-size: 12px; color: var(--text-secondary-ui); }
-
-.btn-group { display: flex; gap: 8px; }
 .btn-tool { padding: 5px 12px; background: var(--bg-white); border: 1px solid var(--gray-200); border-radius: var(--radius-sm); font-size: 12px; cursor: pointer; color: var(--border-focus); transition: all 0.16s ease; display: inline-flex; align-items: center; gap: 4px; }
 .btn-tool:hover { border-color: var(--brand-xiyu-logo); color: var(--brand-xiyu-logo); }
-.btn-tool.primary { background: var(--brand-xiyu-logo); color: var(--bg-white); border-color: var(--brand-xiyu-logo); font-weight: 600; }
-.btn-tool:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .section-divider { margin-top: 20px; margin-bottom: 16px; }
 .section-divider:first-of-type { margin-top: 0; }
