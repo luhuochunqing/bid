@@ -4,7 +4,7 @@ space: engineering
 category: guide
 tags: [前端, Vue3, Element Plus, reactive, ref, v-model, el-upload, el-form, 权限, E2E]
 created: 2026-07-10
-updated: 2026-07-26
+updated: 2026-08-17
 health_checked: 2026-08-12
 sources:
   - src/
@@ -676,7 +676,30 @@ echarts 5 支持按需注册（`echarts/core` + `echarts/charts` + `echarts/comp
 
 ---
 
-## 16. 变更记录
+## 16. API 模块 getList 默认 size 参数不宜过大
+
+### 16.1 事故
+
+`tendersApi.getList()` 默认 `size: 10000`，远大于后端 `MAX_PAGE_SIZE=100`。工作台热门标讯只展示 6 条却拉全量 100 条，造成不必要的接口耗时（2026-08-17 线上 API 耗时采样确认）。
+
+### 16.2 根因
+
+前端 API 模块写 `params.size || 10000` 时无人质疑"10000 是否合理"——等同后端无分页。后端 TenderController 虽有 clamp 保护（2026-08-02 OOM 根因修复），但 wire 协议仍传 10000，且下次后端改 clamp 值或去 clamp 时风险暴露。
+
+### 16.3 正确做法
+
+- API 模块默认 size 对齐后端 `PaginationConstants.MAX_PAGE_SIZE`（当前 100），不要擅自写 10000
+- 调用方按需传显式 size：需要 6 条传 `{ size: 6 }`，需要全量候选传 `{ size: 100 }`
+- 列表页类（需要状态计数、全量前端筛选）走 store 统一传筛选参数，不依赖默认大 size
+
+### 16.4 教训
+
+- API 模块默认值和后端服务端约束必须一致，否则默认值等价于"不计后果"
+- 工作台每个数据源都是独立场景，应该各自声明数据量需求，而不是依赖一个模块全都拉的默认值
+
+---
+
+## 17. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
@@ -684,3 +707,4 @@ echarts 5 支持按需注册（`echarts/core` + `echarts/charts` + `echarts/comp
 | 2026-07-12 | 新增 §12：业务层 catch 覆盖全局 429 友好提示 |
 | 2026-08-11 | 新增 §14：el-table 跨页勾选丢失 ids（业绩合订本导出 bug） |
 | 2026-08-17 | 新增 §15：echarts 全量引入 chunk 膨胀，改按需注册 |
+| 2026-08-17 | 新增 §16：API getList 默认 size 10000 过剩，对齐后端 MAX_PAGE_SIZE=100 |
