@@ -40,7 +40,9 @@ public class SidecarStreamTextExtractor {
     private final long extractTimeoutSeconds;
 
     public SidecarStreamTextExtractor(
-            @Value("${app.score-parse.sidecar-url:http://127.0.0.1:8009}") String sidecarUrl,
+            // 默认值与部署现实对齐：测试/生产 sidecar 容器映射 host 8000（同 doc-insight 两个提取器）；
+            // 本地开发（dev-services.sh，端口 8009）由 application-dev.yml 覆盖
+            @Value("${app.score-parse.sidecar-url:http://localhost:8000}") String sidecarUrl,
             @Value("${app.score-parse.sidecar-shared-key:${SIDECAR_SHARED_KEY:}}") String sharedKey,
             @Value("${app.score-parse.bid-file.max-text-chars:5000000}") long maxTextChars,
             @Value("${app.score-parse.bid-file.extract-timeout-seconds:600}") long extractTimeoutSeconds) {

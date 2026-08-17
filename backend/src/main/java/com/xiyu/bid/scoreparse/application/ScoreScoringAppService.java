@@ -54,6 +54,7 @@ public class ScoreScoringAppService {
     private final ProjectAccessScopeService projectAccessScopeService;
     private final OpenAiScoreAnalyzer scoreAnalyzer;
     private final BidFileLoadingCoordinator bidFileLoader;
+    private final ScoreResultOverwriter resultOverwriter;
     private final SummaryAggregator summaryAggregator = new SummaryAggregator();
     private final ScoreScoringItemPicker itemPicker = new ScoreScoringItemPicker();
 
@@ -67,7 +68,7 @@ public class ScoreScoringAppService {
             ScoreResultRepository resultRepository,
             ScoreParseTaskStateService stateService, ScoreParseProgressService progressService,
             ProjectAccessScopeService projectAccessScopeService, OpenAiScoreAnalyzer scoreAnalyzer,
-            BidFileLoadingCoordinator bidFileLoader
+            BidFileLoadingCoordinator bidFileLoader, ScoreResultOverwriter resultOverwriter
     ) {
         this.taskRepository = taskRepository;
         this.itemRepository = itemRepository;
@@ -77,6 +78,7 @@ public class ScoreScoringAppService {
         this.projectAccessScopeService = projectAccessScopeService;
         this.scoreAnalyzer = scoreAnalyzer;
         this.bidFileLoader = bidFileLoader;
+        this.resultOverwriter = resultOverwriter;
     }
 
     public ScoreParseTriggerDTO triggerScoring(Long projectId) {
@@ -155,6 +157,9 @@ public class ScoreScoringAppService {
         try {
             loaded = bidFileLoader.load(task.getProjectId(), taskId);
         } catch (RuntimeException ex) {
+            // 兜底文案不给用户看堆栈，但运维必须能看到根因（045 T025 排查教训：异常被吞导致盲飞）
+            log.warn("投标文件加载/提取失败: taskId={}, projectId={}, type={}, msg={}",
+                    taskId, task.getProjectId(), ex.getClass().getSimpleName(), ex.getMessage(), ex);
             failScoringWithPending(taskId, task, items, ex instanceof OversizedBidTextException
                     || ex instanceof BidFileQuotaException ? ex.getMessage()
                     : "投标文件解析失败，无法完成打分，请检查文件内容或重新上传");
@@ -198,8 +203,7 @@ public class ScoreScoringAppService {
                 BidChapterDirtySet.toHashMap(BidChapterDirtySet.split(bidDocText))));
         taskRepository.save(task);
         updateProgress(taskId, 95, "打分结果落库");
-        resultRepository.deleteByScoreItemIdIn(items.stream().map(ScoreItem::getId).toList());
-        resultRepository.saveAll(results);
+        resultOverwriter.replaceAtomically(items.stream().map(ScoreItem::getId).toList(), results);
         log.info("打分任务完成: taskId={}, items={}", taskId, results.size());
         stateService.markCompleted(taskId);
         progressService.clearProgress(taskId);
@@ -249,8 +253,10 @@ public class ScoreScoringAppService {
     }
 
     private void failScoringWithPending(String taskId, ScoreParseTask task, List<ScoreItem> items, String message) {
-        resultRepository.deleteByScoreItemIdIn(items.stream().map(ScoreItem::getId).toList());
-        resultRepository.saveAll(new ScoreItemAssessor(scoreAnalyzer).fallbackPending(task, items, message));
+        // 原子覆盖走独立组件拿事务（@Async 线程无事务，AppService 内直调派生 delete 会抛 TransactionRequiredException）
+        resultOverwriter.replaceAtomically(
+                items.stream().map(ScoreItem::getId).toList(),
+                new ScoreItemAssessor(scoreAnalyzer).fallbackPending(task, items, message));
         stateService.failTask(taskId, message);
         progressService.clearProgress(taskId);
     }

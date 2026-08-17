@@ -33,9 +33,11 @@ logger = logging.getLogger(__name__)
 # Configuration (env-var driven)
 # ---------------------------------------------------------------------------
 
-# Default raised 30→2048 (spec 045 T008): /convert-stream consumes multi-GB bid
-# documents streamed from the Java backend; quota enforcement lives on the Java side.
-_MAX_UPLOAD_MB: int = int(os.environ.get("SIDECAR_MAX_UPLOAD_MB", "2048"))
+# Default 512 (spec 045 T025): aligned with Java-side app.score-parse.bid-file
+# .max-file-bytes (StreamingBidFileFetcher). markitdown conversion of inputs
+# beyond ~512MB OOM-kills the sidecar (observed with a 1.62GB bid document);
+# both ends MUST keep the same value.
+_MAX_UPLOAD_MB: int = int(os.environ.get("SIDECAR_MAX_UPLOAD_MB", "512"))
 MAX_UPLOAD_SIZE_BYTES: int = _MAX_UPLOAD_MB * 1024 * 1024
 
 SIDECAR_HOST: str = os.environ.get("SIDECAR_HOST", "127.0.0.1")

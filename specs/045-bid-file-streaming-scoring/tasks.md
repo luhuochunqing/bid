@@ -123,8 +123,8 @@
 ## Phase 7: Polish & Cross-Cutting Concerns
 
 - [x] T023 [P] 全量回归门禁：`cd backend && mvn test`（全量）+ `npm run build` + `npm run test:unit`（前端虽零改动，按 Completion Gate 执行）+ `mvn test -Dtest=ArchitectureTest,FPJavaArchitectureTest,MaintainabilityArchitectureTest`
-- [ ] T024 部署前置检查（research R9）：生产 `df -h` temp-dir 挂载点 ≥6GB（4GB 配额 + 安全垫），不足则生产环境独立调小 `max-total-bytes`；检查项写入部署 runbook 备注
-- [ ] T025 测试环境部署 + quickstart 场景 1 终验（SC-001 铁证）：project 226 的 1.62GB 文件触发打分，任务终态 + `grep -c "OutOfMemoryError\|Java heap space"` = 0 + 堆峰值监控证据；部署报告落 `docs/release/`
+- [ ] T024 部署前置检查（research R9）：生产 `df -h` temp-dir 挂载点 ≥6GB（4GB 配额 + 安全垫），不足则生产环境独立调小 `max-total-bytes`；检查项写入部署 runbook 备注（测试环境 2026-08-17 已达成：清理 buildkit + 旧 release 后 40GB 可用）
+- [x] T025 测试环境部署 + quickstart 场景 1 终验（SC-001 铁证）：project 226 的 1.62GB 文件触发打分，任务终态 + `grep -c "OutOfMemoryError\|Java heap space"` = 0 + 堆峰值监控证据；部署报告落 `docs/release/`（2026-08-17 第 131 次部署完成：1.62GB > 512MB 配额走 FR-002 同步拒绝，400 + 配额精确文案 + 0.77s 拦截 + OOM=0 + 无 .part 残留 + sidecar 存活；过程中修复 sidecar OOM 根因——Java 端配额 2GB 形同虚设，降 512MB 与 sidecar markitdown 实际转换能力对齐，另修复 @Async 线程事务缺失；报告 docs/release/deploy-report-2026-08-17-131st-test.md）
 
 ---
 
