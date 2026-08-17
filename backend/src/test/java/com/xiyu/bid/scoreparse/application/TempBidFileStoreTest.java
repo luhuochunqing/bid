@@ -47,6 +47,34 @@ class TempBidFileStoreTest {
     }
 
     @Test
+    void reserve_throwsWhenCurrentTotalExceedsQuota() {
+        TempBidFileStore quotaStore = new TempBidFileStore(tempDir, 100);
+        quotaStore.recordSpillChunk("task-1", 60);
+
+        // 已用 60，再写入 50 超过总量 100，抛出 BidFileQuotaException
+        org.junit.jupiter.api.Assertions.assertThrows(BidFileQuotaException.class, () -> {
+            quotaStore.recordSpillChunk("task-2", 50);
+        });
+
+        // 验证失败后 task-2 不占配额，超限回滚后 currentTotalBytes 仍为 60
+        assertThat(quotaStore.getCurrentTotalBytes()).isEqualTo(60);
+    }
+
+    @Test
+    void release_decreasesCurrentTotalBytesAndEnablesReuse() {
+        TempBidFileStore quotaStore = new TempBidFileStore(tempDir, 100);
+        quotaStore.recordSpillChunk("task-1", 80);
+        assertThat(quotaStore.getCurrentTotalBytes()).isEqualTo(80);
+
+        quotaStore.release("task-1");
+        assertThat(quotaStore.getCurrentTotalBytes()).isEqualTo(0);
+
+        // 配额释放后，新任务可成功分配
+        quotaStore.recordSpillChunk("task-2", 80);
+        assertThat(quotaStore.getCurrentTotalBytes()).isEqualTo(80);
+    }
+
+    @Test
     void cleanupAll_deletesAllPartFilesOnly() throws IOException {
         Path a = store.reserve("task-a");
         Path b = store.reserve("task-b");
@@ -61,5 +89,19 @@ class TempBidFileStoreTest {
         assertThat(Files.exists(a)).isFalse();
         assertThat(Files.exists(b)).isFalse();
         assertThat(Files.exists(keep)).isTrue();
+    }
+
+    @Test
+    void cleanupAll_resetsCurrentTotalBytesToZero() throws IOException {
+        TempBidFileStore quotaStore = new TempBidFileStore(tempDir, 100);
+        Path a = quotaStore.reserve("task-a");
+        Files.write(a, "a".getBytes());
+        quotaStore.recordSpillChunk("task-a", 50);
+        assertThat(quotaStore.getCurrentTotalBytes()).isEqualTo(50);
+
+        quotaStore.cleanupAll();
+
+        assertThat(Files.exists(a)).isFalse();
+        assertThat(quotaStore.getCurrentTotalBytes()).isEqualTo(0);
     }
 }

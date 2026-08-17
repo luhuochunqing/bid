@@ -1,11 +1,8 @@
-// Input: score_parse_task 表（PROCESSING 且 updated_at 超阈值的卡死任务）
-// Output: 卡死任务 failTask 三层降级 + 清 Redis 进度
-// Pos: scoreparse/infrastructure/bootstrap — spec 041 US5（FR-020）
-// 维护声明: 维护者按项目SOP；参照 TenderImportTaskRecoveryRunner（spec 031）范式
 package com.xiyu.bid.scoreparse.infrastructure.bootstrap;
 
 import com.xiyu.bid.scoreparse.application.ScoreParseProgressService;
 import com.xiyu.bid.scoreparse.application.ScoreParseTaskStateService;
+import com.xiyu.bid.scoreparse.application.TempBidFileStore;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
 import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -20,15 +17,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 评分解析/打分卡死任务恢复 Runner（spec 041 US5）。
+ * 评分解析/打分卡死任务恢复 Runner（spec 041 US5；spec 045 US2 临时文件清理与基线归零）。
  *
- * <p>应用启动时扫描 {@code status='PROCESSING' AND updated_at < now()-30min}
+ * <p>应用启动时先调用 {@link TempBidFileStore#cleanupAll()} 建立零基线，
+ * 接着扫描 {@code status='PROCESSING' AND updated_at < now()-30min}
  * 的任务，复用 {@link ScoreParseTaskStateService#failTask} 三层降级标记 FAILED
- * 并清 Redis 进度缓存。
- *
- * <p><b>背景</b>：解析/打分任务在 @Async 线程内存执行，服务重启时 JVM 终止
- * 无法恢复；30 分钟阈值避免误伤启动后刚触发的新任务（与 spec 031 恢复 Runner
- * 同阈值；阈值内卡死任务由 {@code ScoreParseTimeoutScanJob} 定时兜底）。
+ * 并清 Redis 进度缓存与临时文件。
  */
 @Component
 @Profile({"dev", "prod", "mysql"})
@@ -39,21 +33,27 @@ public class ScoreParseTaskRecoveryRunner implements ApplicationRunner {
     private final ScoreParseTaskRepository taskRepository;
     private final ScoreParseTaskStateService stateService;
     private final ScoreParseProgressService progressService;
+    private final TempBidFileStore tempFileStore;
     private final long stuckThresholdMinutes;
 
     public ScoreParseTaskRecoveryRunner(
             ScoreParseTaskRepository taskRepository,
             ScoreParseTaskStateService stateService,
             ScoreParseProgressService progressService,
+            TempBidFileStore tempFileStore,
             @Value("${app.score-parse.timeout-minutes:30}") long stuckThresholdMinutes) {
         this.taskRepository = taskRepository;
         this.stateService = stateService;
         this.progressService = progressService;
+        this.tempFileStore = tempFileStore;
         this.stuckThresholdMinutes = stuckThresholdMinutes;
     }
 
     @Override
     public void run(ApplicationArguments args) {
+        if (tempFileStore != null) {
+            tempFileStore.cleanupAll();
+        }
         recover(LocalDateTime.now());
     }
 
@@ -76,6 +76,9 @@ public class ScoreParseTaskRecoveryRunner implements ApplicationRunner {
             try {
                 stateService.failTask(taskId, "服务重启导致任务中断，请重新触发");
                 progressService.clearProgress(taskId);
+                if (tempFileStore != null) {
+                    tempFileStore.release(taskId);
+                }
                 recovered++;
                 log.warn("卡死任务已标记 FAILED: taskId={} taskType={} updatedAt={}",
                         taskId, task.getTaskType(), task.getUpdatedAt());

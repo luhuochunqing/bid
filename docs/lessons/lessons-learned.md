@@ -1671,6 +1671,8 @@ java.lang.NullPointerException: Cannot invoke "...ScoreSection.sectionTitle()" b
 - `backend/src/main/java/com/xiyu/bid/scoreparse/controller/ScoreParseController.java`（OVERSIZED_BID_FILE → 400 文案）
 - `backend/src/main/java/com/xiyu/bid/scoreparse/application/BoundedHttpDownloader.java`（既有防护组件，本次复用）
 
+> **演进说明（2026-08-17 spec 045）**：上述 50MB 止血方案已在 spec 045 中被彻底根治方案替代（流式自适应落盘 + sidecar 流式提取 + 500 万字文本量设限 + 4GB 并发总量配额），打分侧 50MB 字节硬限完全废止，`OversizedBidFileException` 删除。详见 `specs/045-bid-file-streaming-scoring/`。
+
 ---
 
 ## 121. AI 案例库与投标编制全链路打通：组件错挂、内存扫描防御与沉淀幂等

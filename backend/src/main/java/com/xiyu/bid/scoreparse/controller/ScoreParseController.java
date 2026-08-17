@@ -6,7 +6,8 @@ package com.xiyu.bid.scoreparse.controller;
 
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.scoreparse.application.BidDocumentUploadService;
-import com.xiyu.bid.scoreparse.application.OversizedBidFileException;
+import com.xiyu.bid.scoreparse.application.BidFileQuotaException;
+import com.xiyu.bid.scoreparse.application.OversizedBidTextException;
 import com.xiyu.bid.scoreparse.application.ScoreParseAppService;
 import com.xiyu.bid.scoreparse.application.ScoreScoringAppService;
 import com.xiyu.bid.scoreparse.dto.BidDocumentUploadDTO;
@@ -32,9 +33,9 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
- * 评分标准解析 Controller（spec 041 US1/US4）。
+ * 评分标准解析 Controller（spec 041 US1/US4；spec 045 错误语义收口）。
  * <p>鉴权：类级 isAuthenticated + Service 层 assertCurrentUserCanAccessProject（403 语义统一）。
- * <p>错误语义（契约 §5）：IllegalArgumentException → 400（NO_BID_DOCUMENT/SCORE_ITEMS_NOT_READY）；
+ * <p>错误语义（契约 §5）：IllegalArgumentException → 400（NO_BID_DOCUMENT/SCORE_ITEMS_NOT_READY/BID_FILE_QUOTA_EXCEEDED/OVERSIZED_BID_TEXT）；
  * IllegalStateException → 409（TASK_IN_PROGRESS）。
  */
 @RestController
@@ -105,8 +106,10 @@ public class ScoreParseController {
                 msg = "请等待招标文件解析完成后再进行打分";
             } else if ("NO_BID_DOCUMENT".equals(msg)) {
                 msg = "请先上传投标文件后再进行打分";
-            } else if ("OVERSIZED_BID_FILE".equals(msg)) {
-                msg = OversizedBidFileException.MESSAGE;
+            } else if ("BID_FILE_QUOTA_EXCEEDED".equals(msg)) {
+                msg = BidFileQuotaException.MESSAGE;
+            } else if ("OVERSIZED_BID_TEXT".equals(msg)) {
+                msg = OversizedBidTextException.MESSAGE;
             }
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error(400, msg));

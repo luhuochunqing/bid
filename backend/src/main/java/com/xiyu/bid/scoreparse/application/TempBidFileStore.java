@@ -12,30 +12,47 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 投标文件临时落盘管理：{tempDir}/{taskId}.part 命名约定。
  * <p>OnDisk 临时文件的删除责任唯一归属本类（release）；调用方在任务终态/异常路径调用 release。
- * 配额（max-total-bytes）属 US2 范围，本类预留计数扩展点。
+ * 并发总量配额（max-total-bytes: 默认 4GB）受本类管控（spec 045 US2/FR-002）。
  */
 @Component
 @Slf4j
 public class TempBidFileStore {
 
     private final Path tempDir;
+    private final long maxTotalBytes;
+    private final AtomicLong currentTotalBytes = new AtomicLong(0);
+    private final ConcurrentMap<String, java.util.concurrent.atomic.LongAdder> taskAllocations = new ConcurrentHashMap<>();
 
     @Autowired
     public TempBidFileStore(
-            @Value("${app.score-parse.bid-file.temp-dir:${java.io.tmpdir}/xiyu-score-parse}") String tempDir) {
-        this(Path.of(tempDir));
+            @Value("${app.score-parse.bid-file.temp-dir:${java.io.tmpdir}/xiyu-score-parse}") String tempDir,
+            @Value("${app.score-parse.bid-file.max-total-bytes:4294967296}") long maxTotalBytes) {
+        this(Path.of(tempDir), maxTotalBytes);
     }
 
     TempBidFileStore(Path tempDir) {
+        this(tempDir, 4294967296L);
+    }
+
+    TempBidFileStore(Path tempDir, long maxTotalBytes) {
         this.tempDir = tempDir;
+        this.maxTotalBytes = maxTotalBytes;
     }
 
     /** 登记 spill 目标路径（目录惰性创建）。 */
     public Path reserve(String taskId) {
+        if (currentTotalBytes.get() >= maxTotalBytes) {
+            log.warn("投标文件落盘配额超限(reserve): taskId={}, currentTotalBytes={}, maxTotalBytes={}",
+                    taskId, currentTotalBytes.get(), maxTotalBytes);
+            throw new BidFileQuotaException();
+        }
         try {
             Files.createDirectories(tempDir);
         } catch (IOException ex) {
@@ -44,13 +61,37 @@ public class TempBidFileStore {
         return tempDir.resolve(taskId + ".part");
     }
 
-    /** 删除 {taskId}.part（幂等：文件不存在 no-op）。 */
+    /** 记录并累计 spill chunk 写入量，超限则抛出 BidFileQuotaException 并回滚本次 chunk */
+    public void recordSpillChunk(String taskId, long chunkSize) {
+        if (chunkSize <= 0) {
+            return;
+        }
+        long newTotal = currentTotalBytes.addAndGet(chunkSize);
+        if (newTotal > maxTotalBytes) {
+            currentTotalBytes.addAndGet(-chunkSize);
+            log.warn("投标文件落盘配额超限(chunk): taskId={}, currentTotalBytes={}, requestedChunk={}, maxTotalBytes={}",
+                    taskId, currentTotalBytes.get(), chunkSize, maxTotalBytes);
+            throw new BidFileQuotaException();
+        }
+        taskAllocations.computeIfAbsent(taskId, k -> new java.util.concurrent.atomic.LongAdder()).add(chunkSize);
+    }
+
+    /** 删除 {taskId}.part（幂等：文件不存在 no-op）并归还配额。 */
     public void release(String taskId) {
         releasePath(tempDir.resolve(taskId + ".part"));
+        java.util.concurrent.atomic.LongAdder allocated = taskAllocations.remove(taskId);
+        if (allocated != null) {
+            long sum = allocated.sum();
+            if (sum > 0) {
+                currentTotalBytes.updateAndGet(cur -> Math.max(0L, cur - sum));
+            }
+        }
     }
 
     /** 启动全清：删除 tempDir 下全部 *.part（进程重启 = 无进行中任务，建立零基线）。 */
     public void cleanupAll() {
+        taskAllocations.clear();
+        currentTotalBytes.set(0);
         if (!Files.isDirectory(tempDir)) {
             return;
         }
@@ -61,6 +102,10 @@ public class TempBidFileStore {
         } catch (IOException ex) {
             log.warn("投标文件临时目录全清失败: dir={}", tempDir, ex);
         }
+    }
+
+    public long getCurrentTotalBytes() {
+        return currentTotalBytes.get();
     }
 
     private void releasePath(Path path) {

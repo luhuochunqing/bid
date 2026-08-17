@@ -31,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -89,18 +90,19 @@ class ScoreScoringAppServiceTest {
     }
 
     @Test
-    void bidFileQuota_rejectsWithSemantic() {
-        // 同步段配额拒绝（FR-002）：Content-Length 预检超 2GB 直接 400，不创建注定失败的任务
+    void triggerScoring_returnsPendingImmediatelyWithoutDownloading() {
+        // 同步段零下载（spec 045 性能优化）：triggerScoring 快速创建任务返回 PENDING，不阻塞 HTTP 线程
         mockNoActiveScoringTask();
         mockBidDocumentPresent();
         mockItemsPresent();
-        when(bidFileLoader.contentHashOnly(any(ProjectDocument.class), anyString()))
-                .thenThrow(new BidFileQuotaException());
+        when(stateService.createTask(anyString(), any(), anyString(), any(), any(), anyString()))
+                .thenReturn(scoringTask());
 
-        assertThatThrownBy(() -> service.triggerScoring(PROJECT_ID))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("BID_FILE_QUOTA_EXCEEDED");
-        verify(stateService, never()).createTask(anyString(), any(), anyString(), any(), any(), anyString());
+        ScoreParseTriggerDTO dto = service.triggerScoring(PROJECT_ID);
+
+        assertThat(dto.status()).isEqualTo("PENDING");
+        verify(bidFileLoader, never()).load(any(Long.class), anyString());
+        verify(stateService).createTask(anyString(), eq(PROJECT_ID), eq("SCORING"), any(), any(), anyString());
     }
 
     @Test
@@ -264,20 +266,17 @@ class ScoreScoringAppServiceTest {
 
     @Test
     void bidDocumentLoadFailure_marksFailedAndWritesFallbackPendingResults() {
-        mockNoActiveScoringTask();
-        mockBidDocumentPresent();
-        ScoreItem objective = item(10L, "资质", "具备 CMMI 5 级认证证书", "10", "OBJECTIVE");
+        ScoreParseTask task = scoringTask();
+        when(taskRepository.findByTaskId(anyString())).thenReturn(Optional.of(task));
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID))
-                .thenReturn(List.of(objective));
-        when(bidFileLoader.contentHashOnly(any(ProjectDocument.class), anyString()))
+                .thenReturn(List.of(item(10L, "资质", "具备 CMMI 5 级认证证书", "10", "OBJECTIVE")));
+        when(bidFileLoader.load(eq(PROJECT_ID), anyString()))
                 .thenThrow(new IllegalStateException("投标文件加载失败: " + BID_FILE_URL));
 
-        assertThatThrownBy(() -> service.triggerScoring(PROJECT_ID))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("投标文件加载失败");
-        verify(stateService, never()).createTask(anyString(), any(), anyString(), any(), any(), anyString());
-        verify(stateService, never()).failTask(anyString(), anyString());
-        verify(resultRepository, never()).saveAll(anyList());
+        service.executeScoringAsync("task-uuid");
+
+        verify(stateService).failTask(eq("task-uuid"), contains("投标文件解析失败"));
+        verify(resultRepository).saveAll(anyList());
     }
 
     @Test
@@ -288,8 +287,6 @@ class ScoreScoringAppServiceTest {
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of(objective));
         String bidHash = com.xiyu.bid.scoreparse.domain.BidScoreSkipPolicy.hashBytes(
                 BID_TEXT.getBytes());
-        when(bidFileLoader.contentHashOnly(any(ProjectDocument.class), anyString()))
-                .thenReturn(bidHash);
         String itemHash = com.xiyu.bid.scoreparse.domain.BidScoreSkipPolicy.hashItems(List.of(
                 com.xiyu.bid.scoreparse.domain.BidScoreSkipPolicy.itemFingerprint(
                         10L, objective.getWeight(), objective.getDetail())));
@@ -298,6 +295,7 @@ class ScoreScoringAppServiceTest {
                 .thenReturn(List.of(ScoreParseTask.builder()
                         .id(8L).taskId("prev").projectId(PROJECT_ID)
                         .taskType("SCORING").status("COMPLETED")
+                        .fileUrl(BID_FILE_URL)
                         .bidContentHash(bidHash).itemSetHash(itemHash).build()));
         when(stateService.createTask(anyString(), any(), anyString(), any(), any(), anyString()))
                 .thenReturn(scoringTask());
@@ -323,8 +321,8 @@ class ScoreScoringAppServiceTest {
 
         service.triggerScoring(PROJECT_ID);
 
-        verify(stateService).failTask(anyString(), anyString());
-        verify(resultRepository, never()).deleteByScoreItemIdIn(anyList());
+        verify(stateService).markProcessing(anyString());
+        verify(stateService).failTask(anyString(), contains("LLM 超时"));
         verify(resultRepository, never()).saveAll(anyList());
     }
 
@@ -350,8 +348,6 @@ class ScoreScoringAppServiceTest {
         ScoreParseTask task = scoringTask();
         when(stateService.createTask(anyString(), any(), anyString(), any(), any(), anyString())).thenReturn(task);
         when(taskRepository.findByTaskId(anyString())).thenReturn(Optional.of(task));
-        when(bidFileLoader.contentHashOnly(any(ProjectDocument.class), anyString()))
-                .thenReturn("trigger-hash");
         when(bidFileLoader.load(eq(PROJECT_ID), anyString()))
                 .thenReturn(new BidFileLoadingCoordinator.LoadedBidDocument(BID_TEXT, "async-hash"));
     }

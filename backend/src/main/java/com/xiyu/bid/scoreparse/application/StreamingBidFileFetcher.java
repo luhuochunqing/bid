@@ -93,6 +93,7 @@ public class StreamingBidFileFetcher {
                     throw new BidFileQuotaException();
                 }
                 if (spillOut != null) {
+                    tempFileStore.recordSpillChunk(taskId, n);
                     spillOut.write(buf, 0, n);
                 } else if (total <= ramBufferBytes) {
                     buffer.write(buf, 0, n);
@@ -100,7 +101,9 @@ public class StreamingBidFileFetcher {
                     // spill：内存 buffer flush 到临时文件，继续流式写盘
                     spillPath = tempFileStore.reserve(taskId);
                     spillOut = Files.newOutputStream(spillPath);
-                    spillOut.write(buffer.toByteArray());
+                    byte[] initial = buffer.toByteArray();
+                    tempFileStore.recordSpillChunk(taskId, (long) initial.length + n);
+                    spillOut.write(initial);
                     buffer.reset();
                     spillOut.write(buf, 0, n);
                 }

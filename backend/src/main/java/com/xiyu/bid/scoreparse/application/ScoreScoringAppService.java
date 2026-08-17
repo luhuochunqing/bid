@@ -109,24 +109,22 @@ public class ScoreScoringAppService {
         }
         ProjectDocument bidDoc = bidDocs.get(0);
         String taskId = UUID.randomUUID().toString();
-        String bidHash;
-        try {
-            bidHash = bidFileLoader.contentHashOnly(bidDoc, taskId);
-        } catch (BidFileQuotaException ex) {
-            throw new IllegalArgumentException("BID_FILE_QUOTA_EXCEEDED");
-        }
         String itemHash = BidScoreSkipPolicy.hashItems(items.stream()
                 .map(item -> BidScoreSkipPolicy.itemFingerprint(item.getId(), item.getWeight(), item.getDetail()))
                 .toList());
         ScoreParseTask last = latestCompletedScoring(projectId);
-        if (BidScoreSkipPolicy.shouldSkip(bidHash, itemHash,
-                last == null ? null : last.getBidContentHash(), last == null ? null : last.getItemSetHash())) {
-            return completeSkipped(projectId, bidDoc, bidHash, itemHash, cmd.normalizedSource());
+        // 快速指纹预检：若投标文件 URL 与评分项集均与上次成功任务一致，无需下载直接跳过（0ms 响应，零双重下载）
+        if (last != null && bidDoc.getFileUrl() != null && bidDoc.getFileUrl().equals(last.getFileUrl())
+                && itemHash != null && itemHash.equals(last.getItemSetHash())) {
+            return completeSkipped(projectId, bidDoc, last.getBidContentHash(), itemHash, cmd.normalizedSource());
         }
+
         ScoreParseTask created = stateService.createTask(
                 taskId, projectId, TASK_TYPE_SCORING, bidDoc.getName(), bidDoc.getFileUrl(), cmd.normalizedSource());
         created.setStage(cmd.normalizedScope());
-        created.setBidContentHash(bidHash);
+        if (last != null && bidDoc.getFileUrl() != null && bidDoc.getFileUrl().equals(last.getFileUrl())) {
+            created.setBidContentHash(last.getBidContentHash());
+        }
         created.setItemSetHash(itemHash);
         if ("ITEMS".equals(cmd.normalizedScope()) && cmd.itemIds() != null && !cmd.itemIds().isEmpty()) {
             created.setChapterHashes("IDS:" + cmd.itemIds().stream().map(String::valueOf)
@@ -153,20 +151,34 @@ public class ScoreScoringAppService {
                 .orElseThrow(() -> new IllegalStateException("任务不存在: " + taskId));
         List<ScoreItem> items = itemRepository.findByProjectIdOrderByItemIndexAsc(task.getProjectId());
         updateProgress(taskId, 5, "读取投标文件");
-        String bidDocText;
+        BidFileLoadingCoordinator.LoadedBidDocument loaded;
         try {
-            bidDocText = bidFileLoader.load(task.getProjectId(), taskId).text();
+            loaded = bidFileLoader.load(task.getProjectId(), taskId);
         } catch (RuntimeException ex) {
             failScoringWithPending(taskId, task, items, ex instanceof OversizedBidTextException
                     || ex instanceof BidFileQuotaException ? ex.getMessage()
                     : "投标文件解析失败，无法完成打分，请检查文件内容或重新上传");
             return;
         }
+        task.setBidContentHash(loaded.contentHash());
+        ScoreParseTask last = latestCompletedScoring(task.getProjectId());
+        if (last != null && BidScoreSkipPolicy.shouldSkip(loaded.contentHash(), task.getItemSetHash(),
+                last.getBidContentHash(), last.getItemSetHash())) {
+            task.setStatus("COMPLETED");
+            task.setProgress(100);
+            task.setStage("SKIPPED");
+            task.setCompletedAt(java.time.LocalDateTime.now());
+            taskRepository.save(task);
+            stateService.markCompleted(taskId);
+            progressService.clearProgress(taskId);
+            return;
+        }
+        String bidDocText = loaded.text();
         Map<Long, ScoreResult> oldResults = resultRepository
                 .findByScoreItemIdIn(items.stream().map(ScoreItem::getId).toList())
                 .stream().collect(Collectors.toMap(ScoreResult::getScoreItemId, Function.identity(), (a, b) -> a));
         ScoreScoringItemPicker.Plan plan = itemPicker.plan(
-                items, oldResults, bidDocText, latestCompletedScoring(task.getProjectId()),
+                items, oldResults, bidDocText, last,
                 task.getStage(), parseItemIds(task.getChapterHashes()));
         ScoreItemAssessor assessor = new ScoreItemAssessor(scoreAnalyzer);
         List<ScoreResult> results = new ArrayList<>(items.size());

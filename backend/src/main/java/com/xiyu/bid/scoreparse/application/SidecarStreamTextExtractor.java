@@ -3,6 +3,7 @@
 // Pos: scoreparse/application — /convert-stream 流式客户端（spec 045 T009，契约 contracts/sidecar-streaming-api.md）
 package com.xiyu.bid.scoreparse.application;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -26,6 +27,7 @@ import java.util.UUID;
  * <p>与 docinsight 的 MarkItDownSidecarExtractor 互不相干：本类只服务打分链路。
  */
 @Component
+@Slf4j
 public class SidecarStreamTextExtractor {
 
     private static final String SIDECAR_KEY_HEADER = "X-Sidecar-Key";
@@ -101,6 +103,7 @@ public class SidecarStreamTextExtractor {
         while ((n = reader.read(buf)) != -1) {
             totalChars += n;
             if (totalChars > maxTextChars) {
+                log.warn("投标文件文本量超限(extract): totalChars={}, maxTextChars={}", totalChars, maxTextChars);
                 throw new OversizedBidTextException();
             }
             text.append(buf, 0, n);
