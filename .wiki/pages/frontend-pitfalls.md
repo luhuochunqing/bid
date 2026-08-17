@@ -652,10 +652,35 @@ async function loadAccounts() {
 
 ---
 
-## 15. 变更记录
+## 15. echarts 全量引入导致 chunk 膨胀（已改为按需注册）
+
+### 15.1 事故
+
+页面切换内容展示慢排查发现：`import * as echarts from 'echarts'` 全量引入使 echarts chunk 达 821.9K（gzip 270K），叠加服务器 Nginx 未开 gzip，页面切换传输成本极高。
+
+### 15.2 根因
+
+echarts 5 支持按需注册（`echarts/core` + `echarts/charts` + `echarts/components`），但业务代码 9 处均为全量 namespace 引入，tree-shaking 完全失效。
+
+### 15.3 正确做法（2026-08-17 已落地）
+
+- 全站唯一 import 点：`src/utils/echarts.js`，统一注册 Bar/Line/Pie/Radar + Title/Tooltip/Grid/Legend/DataZoom/Radar 组件 + CanvasRenderer
+- 业务代码一律 `import echarts from '@/utils/echarts'`，**禁止**直接 `import 'echarts'`
+- 新增图表类型（如 gauge/scatter）或组件（如 visualMap/Toolbox）时，在 `src/utils/echarts.js` 追加注册；漏注册的症状是图表空白 + console 报 `Unknown component` / `Series type xxx not exists`
+- 实测收益：echarts chunk 821.9K→406.9K（gzip 270K→137K），vendor 同步 -40K
+
+### 15.4 教训
+
+- 大型图表库引入时先查按需注册方案，全量 namespace import 是体积杀手
+- vite `manualChunks` 只决定拆分位置，不解决包内体积；瘦身必须靠 tree-shaking
+
+---
+
+## 16. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
 | 2026-07-10 | 首次创建，从 8 个工作区历史对话中提取前端陷阱 |
 | 2026-07-12 | 新增 §12：业务层 catch 覆盖全局 429 友好提示 |
 | 2026-08-11 | 新增 §14：el-table 跨页勾选丢失 ids（业绩合订本导出 bug） |
+| 2026-08-17 | 新增 §15：echarts 全量引入 chunk 膨胀，改按需注册 |

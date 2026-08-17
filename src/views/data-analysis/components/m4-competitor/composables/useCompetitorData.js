@@ -1,5 +1,5 @@
 import { ref, computed, nextTick, markRaw } from 'vue'
-import * as echarts from 'echarts'
+import echarts from '@/utils/echarts'
 import { dashboardApi } from '@/api/modules/dashboard.js'
 import { renderCompetitorChart } from '../chartRenderer.js'
 

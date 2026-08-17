@@ -23,7 +23,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, watch, markRaw, nextTick, computed } from 'vue'
-import * as echarts from 'echarts'
+import echarts from '@/utils/echarts'
 import { Loading } from '@element-plus/icons-vue'
 import { buildChartOption } from './chartOptions.js'
 
