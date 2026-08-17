@@ -1423,3 +1423,81 @@ function('week', p.createdAt)
 1. 使用 Hibernate `function()` 调用数据库函数前，先在 Hibernate 注册表中确认函数签名（单参数/多参数）。
 2. 后端 400 错误应先查日志中的 `FunctionArgumentException` 或 `JdbcSQLSyntaxErrorException`，排除 SQL 函数问题后再排查前端参数。
 3. 时间维度/分组聚合类查询，每个维度（日/周/月/年）应有独立测试用例，确保 SQL 函数在不同数据库兼容。
+
+---
+
+## 116. Spring @Component 存在多构造函数时，必须用 @Autowired 明确标注注入入口（PR !2301 / 2026-08-17）
+
+### 问题背景
+
+同步 PR !2300（feat: 得分 LLM 消费防护）到本地后，后端启动直接 crash：
+
+```
+BeanInstantiationException: Failed to instantiate [InitiationTenderTextResolver]: No default constructor found
+Caused by: java.lang.NoSuchMethodException: InitiationTenderTextResolver.<init>()
+```
+
+该类在之前的单构造函数版本可正常启动；PR !2300 新增了一个 package-private 的 7 参数测试构造函数后（第 2 个构造函数），Spring 在启动时无法决定使用哪个构造函数，回退到"找无参构造函数"的逻辑，因该类所有字段都是 `final` 没有无参构造，启动失败。
+
+### 根因
+
+```java
+@Component
+public class InitiationTenderTextResolver {
+    // 构造函数 1：public 6 参数（面向 Spring 生产注入）
+    public InitiationTenderTextResolver(ProjectDocumentRepository repo, ..., ObsShareUrlSigner signer) { ... }
+
+    // 构造函数 2：package-private 7 参数（面向测试，注入 UrlContentFetcher stub）
+    InitiationTenderTextResolver(ProjectDocumentRepository repo, ..., UrlContentFetcher fetcher) { ... }
+}
+```
+
+Spring 构造函数注入规则：
+- **单构造函数** → 即使无 `@Autowired` 也自动使用（Spring 4.3+ 约定）。
+- **多构造函数** → 必须在其中一个上显式加 `@Autowired`；否则 Spring 视为"类希望使用 setter/字段注入"，进而尝试寻找无参构造函数，找不到就抛 `No default constructor found`。
+
+本次 PR !2300 新增了"测试专用构造函数"（构造函数数量从 1 → 2），但没有在生产构造函数上补 `@Autowired`，导致触发"多构造函数无明确入口 → 找无参 → 失败"的路径。**单测不会发现**——因为测试代码直接 `new InitiationTenderTextResolver(...)` 手工调用 package-private 构造，完全绕过 Spring 容器。
+
+### 修复
+
+在生产用的 public 构造函数上添加 `@Autowired`：
+
+```java
+@Autowired  // ← 新增：多构造函数场景必须明确标记注入入口
+public InitiationTenderTextResolver(
+        ProjectDocumentRepository projectDocumentRepository,
+        BidTenderDocumentSnapshotRepository snapshotRepository,
+        ProjectDocumentFileStorage fileStorage,
+        TenderDocumentStorage tenderDocumentStorage,
+        TenderDocumentTextExtractor textExtractor,
+        ObsShareUrlSigner obsShareUrlSigner
+) {
+    this(projectDocumentRepository, snapshotRepository, fileStorage, tenderDocumentStorage,
+            textExtractor, obsShareUrlSigner, new BoundedHttpDownloader()::get);
+}
+```
+
+测试用的 package-private 构造函数保留，不加 `@Autowired`，由单测直接调用。
+
+### 教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 新增构造函数破坏了"单构造函数自动注入"的隐式约定 | "能工作"不代表"有显式契约"。Spring 4.3+ 的单构造免 `@Autowired` 是语法糖，一旦有第 2 个构造函数立即失效 | 被 Spring 注入的 `@Component/@Service` 类，如果存在多个构造函数（含测试专用构造），**必须在生产构造函数上加 `@Autowired`**，不能依赖"单构造时自动匹配"的隐式行为 |
+| 测试代码绕过 Spring 容器，新增构造函数的破坏性无法在单测中发现 | `new ClassA(arg1, ..., argN)` 的纯 Mockito/手工注入模式，不会验证 Spring 装配路径 | 凡是 `@Component` 类存在"测试专用构造函数"场景，必须至少有一次集成测试启动 Spring 上下文 |
+| 类的"构造函数数量"是脆弱的隐式假设 | 重构/新增测试构造时不会提醒"之前依赖了单构造免注解" | Code Review 时，凡是 `@Component/@Service` 类新增了任何构造函数，第一反应检查：生产构造函数上有 `@Autowired` 吗？ |
+
+### 操作规范
+
+1. **`@Component/@Service` 类新增构造函数 = 必查清单**：
+   - 单构造函数 → 保持现状（可无 `@Autowired`），但建议显式加以防后续再加第 2 个。
+   - 多构造函数 → 立即在生产入口构造上加 `@Autowired`，CR 时不通过视为 blocker。
+2. **测试专用构造函数**（package-private / 参数更多用于 stub 注入）：不加 `@Autowired`，但在类头注释中说明用途。
+3. **Spring 启动 smoke 测试**：有新增类/构造函数变更的 PR，本地必须至少跑一次 `mvn spring-boot:run` 观察 `Started XiyuBidApplication` 成功日志后再 push。
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/scoreparse/application/InitiationTenderTextResolver.java`（补 `@Autowired` 的修复位置）
+- PR !2300（得分 LLM 消费防护）——引入第 2 个构造函数的变更
+- PR #2301（本修复）：追加 `@Autowired` 注解
+- Lesson 111：同类"Spring 装配问题门禁全空"模式的另一个案例（漏 `@Service`）。

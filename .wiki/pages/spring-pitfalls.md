@@ -2,10 +2,10 @@
 title: Spring Boot 陷阱集
 space: engineering
 category: guide
-tags: [Spring Boot, 事务, @Transactional, @Async, @ConditionalOnBean, 配置优先级, SPRING_CONFIG_IMPORT, 代理失效]
+tags: [Spring Boot, 事务, @Transactional, @Async, @ConditionalOnBean, 配置优先级, SPRING_CONFIG_IMPORT, 代理失效, 构造函数注入, @Autowired]
 created: 2026-07-10
-updated: 2026-08-04
-health_checked: 2026-08-12
+updated: 2026-08-17
+health_checked: 2026-08-17
 sources:
   - backend/src/main/java/com/xiyu/bid/
   - backend/src/main/resources/application.yml
@@ -477,6 +477,67 @@ try {
 
 ---
 
+## 10.6. `@Component/@Service` 多构造函数必须用 `@Autowired` 明确标记注入入口（PR !2301 / 2026-08-17）
+
+### 事故
+
+同步 PR !2300（feat: 得分 LLM 消费防护）到本地后后端启动 crash：
+
+```
+BeanInstantiationException: Failed to instantiate [InitiationTenderTextResolver]: No default constructor found
+Caused by: NoSuchMethodException: InitiationTenderTextResolver.<init>()
+```
+
+`InitiationTenderTextResolver` 在"单构造函数"版本能正常启动；PR !2300 新增了一个 package-private 的 7 参数测试专用构造函数（第 2 个构造）后，Spring 在启动时无法决策走哪条，回退到"找无参构造函数"，但该类字段全是 `final`，没有无参构造，启动失败。
+
+### 根因（Spring 构造函数注入规则）
+
+| 场景 | 行为 |
+|------|------|
+| 单构造函数（任何可见性） | 即使无 `@Autowired` 也自动使用（Spring 4.3+ 约定，语法糖） |
+| 多构造函数（≥2），其中一个有 `@Autowired` | 使用被标记的那一个（正确） |
+| 多构造函数（≥2），**都没有** `@Autowired` | Spring 视为「类希望 setter/字段注入」→ 尝试无参构造 → 找不到就 `No default constructor found` |
+
+本次 bug：**构造函数数量从 1 → 2，但没有补 `@Autowired`**，从"单构造免注解"的隐式安全区滑落到"多构造无入口"的失败路径。
+
+### 为什么单测发现不了
+
+单测代码直接 `new InitiationTenderTextResolver(arg1, ..., arg7)` 手工调用 package-private 构造，**完全绕过 Spring 容器**。多构造函数冲突、DI 装配失败这类问题，在纯 Mockito/手工 new 模式下永远不会暴露。同类事故 Lesson 111（漏加 `@Service`）也触发了相同的"测试绕开 Spring 容器 → 上线才 crash"路径。
+
+### 正确做法
+
+```java
+@Component
+public class InitiationTenderTextResolver {
+    @Autowired  // ← 多构造场景必须显式标记生产注入入口
+    public InitiationTenderTextResolver(ProjectDocumentRepository repo, ..., ObsShareUrlSigner signer) {
+        this(repo, ..., signer, new BoundedHttpDownloader()::get);
+    }
+
+    // 测试专用构造：package-private，参数更多，用于 stub UrlContentFetcher
+    InitiationTenderTextResolver(ProjectDocumentRepository repo, ..., UrlContentFetcher fetcher) { ... }
+}
+```
+
+### 预防
+
+1. **`@Component/@Service` 类新增构造函数 = 必查 checklist**：
+   - 单构造 → 建议仍显式加 `@Autowired`（防止后续再加第 2 个时忘记回头补）。
+   - 多构造 → 立即在生产入口构造上加 `@Autowired`；CR 时不通过视为 blocker。
+2. **测试专用构造**（package-private / 参数更多）：不加 `@Autowired`，但在类头注释中注明用途。
+3. **新增类/构造函数变更的 PR**：本地必跑至少一次 `mvn spring-boot:run` 观察 `Started XiyuBidApplication` 成功日志再 push。
+4. Code Review 规则：凡是 `@Component/@Service` 的 diff 中新增了构造函数，第一反应问——"生产构造函数上有 `@Autowired` 吗？"
+
+### 相关
+
+- `backend/src/main/java/com/xiyu/bid/scoreparse/application/InitiationTenderTextResolver.java`（修复位置）
+- PR !2300（得分 LLM 消费防护）—— 引入第 2 个构造函数的变更
+- PR #2301（修复）—— 追加 `@Autowired` 注解
+- [[lessons-learned]] §111：同类"Spring 装配门禁全空"模式（漏 `@Service`）。
+- [[lessons-learned]] §116：完整根因分析与操作规范。
+
+---
+
 ## 11. 相关文档
 
 - [[lessons-learned]] §50 — SPRING_CONFIG_IMPORT 外部配置覆盖案例
@@ -493,3 +554,4 @@ try {
 |------|---------|
 | 2026-07-10 | 首次创建，从 8 个工作区历史对话中提取 Spring Boot 陷阱 |
 | 2026-08-04 | 追加 §10.5 @Async self-invocation 警告（CO-602 PR 设计评估修复） |
+| 2026-08-17 | 追加 §10.6 多构造函数 @Autowired 陷阱（PR !2301） |

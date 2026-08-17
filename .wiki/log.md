@@ -3,6 +3,17 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-08-17] update | spring-pitfalls §10.6 追加多构造函数 @Autowired 陷阱（PR !2301）
+
+- 背景：同步 PR !2300 后，`InitiationTenderTextResolver` 因新增测试构造函数（变成多构造）且未标记 `@Autowired`，导致后端启动 crash `No default constructor found`；PR #2301 追加 `@Autowired` 修复
+- 改动：
+  - `docs/lessons/lessons-learned.md`：新增 §116 完整根因分析 + 教训 + 操作规范
+  - `.wiki/pages/spring-pitfalls.md`：追加 §10.6 事故/根因/正确做法/预防，更新 frontmatter tags 与变更记录
+- 关键结论：单构造免 `@Autowired` 是语法糖；一旦类出现 ≥2 个构造函数，**必须**在生产入口构造函数上显式 `@Autowired`
+- 触发点：任务收尾（§2 触发点 1 + §2 触发点 3 根因分析复合查询）
+
+---
+
 ## [2026-08-16] update | score-parse-service 空值语义 + UI 对齐 + 50MB 文案（spec 044）
 
 - 背景：PR !2292 验收发现客观项空 `estScore` 被前端兜底转 `0`，误显示红色 0 分（P1）；弹窗高度超 70vh（P2）；待确认状态未区分灰字蓝点（P2）；50MB 提示文案未对齐 PRD 5.3（P2）
