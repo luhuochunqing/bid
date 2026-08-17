@@ -96,6 +96,7 @@ trigger（同步<1s，互斥校验+建任务）
   - 待确认状态 = 灰字 + 蓝点前缀（非 DANGER 红色）
   - 表格用 `table-layout: fixed` 时，窄列（编号 48px）放 nowrap/不可断内容会溢出叠压相邻列；tfoot 多格统计（nowrap 文案塞进 80px 满足状态列）同理全叠。修法：编号列加宽 + `word-break: break-all`，tfoot 改 `colspan=8` 单条 flex（`flex-wrap: wrap`）横向排布（2026-08-17 项目 225 UI 事故）
 - **投标文件走 OBS 对象存储（2026-08-17）**：投标文件编制阶段通过 `useObsProjectDocumentUpload` 走华为云 OBS 直传（`obs-direct:xxx`），不设 50MB 业务上传限制。阶段 2 实际打分服务 `ScoreBidDocumentLookup` 透明兼容 `ObsShareUrlSigner` / `ProjectDocumentFileStorage` / `TenderDocumentStorage` 提取文本。
+- **打分读取侧 50MB 防护（2026-08-17 连环坑）**：上传放开到 GB 级后，`ScoreBidDocumentLookup` 曾用无限制 `defaultFetchUrl`（`ofByteArray()`）全量加载 1.62GB 投标文件直接 OOM。现默认 fetcher 复用 `BoundedHttpDownloader`（与招标文件链路同口径），OBS/本地/doc-insight 三链路统一 `capSize` 50MB；超限抛 `OversizedBidFileException` 立即中止（禁止吞掉走 fallback，fallback 同样 OOM），同步段转 `OVERSIZED_BID_FILE` 语义码返回 400「投标文件超过 50MB，无法完成打分，请压缩后重新上传」。教训：解除上传限制必须成对审计下游读取链路（详见 lessons-learned §120）。
 - **prompt 模板是 Formatter 格式串**：`ScoreParsePrompts` 的 text block 配 `.formatted()`，模板内字面 `%` 必须写 `%%`（如示例文案 `占30%%`），否则 `UnknownFormatConversionException` 且与输入无关 100% 必炸（2026-08-17 项目 225 线上事故，详见 lessons-learned §117；回归测试 `ScoreParsePromptsTest`）
 - **toCandidate 对 null section 必须降级**：召回一/三以 `null` section 调用 `toCandidate`，裸访问 `section.sectionTitle()` 即 NPE 全任务终止（2026-08-17 项目 226 事故，详见 §118；回归测试 `OpenAiScoreAnalyzerTest`）；新召回路或转换方法允许"无此数据"语义时必须显式处理 null 分支
 - **扫描件输入的失败文案**：sidecar 提取文本 <10 字符（`low_text_density` 警告）时四路召回必然空手，最终报"未识别到评分标准章节"——文案有误导性，真实原因是文件无文本层（扫描件/图片型 docx）；排查时先看 `markdownLength` 而不是怀疑解析逻辑
