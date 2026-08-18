@@ -80,7 +80,8 @@ class ScoreItemPersistenceServiceTest {
     }
 
     @Test
-    void blankCode_fallsBackToItemIndex() {
+    void blankCode_savedAsEmptyString_noFakeIndex() {
+        // spec 046 FR-004：空 code 落空串，不再补假编号（原 String.valueOf(i+1) 已移除）
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID))
                 .thenReturn(List.of());
 
@@ -89,10 +90,28 @@ class ScoreItemPersistenceServiceTest {
                 candidate("  ", "项目负责人具备 PMP", "20")));
 
         ArgumentCaptor<List<ScoreItem>> saved = capturedSavedItems();
-        assertThat(saved.getValue().get(0).getCode()).isEqualTo("1");
+        assertThat(saved.getValue().get(0).getCode()).isEmpty();
         assertThat(saved.getValue().get(0).getItemIndex()).isEqualTo(1);
-        assertThat(saved.getValue().get(1).getCode()).isEqualTo("2");
+        assertThat(saved.getValue().get(1).getCode()).isEmpty();
         assertThat(saved.getValue().get(1).getItemIndex()).isEqualTo(2);
+    }
+
+    @Test
+    void outOfOrderCodes_itemIndexFollowsNumericCodeOrder() {
+        // spec 046 FR-003：乱序候选（6,7,1）落库 itemIndex 按编号数值序重编
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID))
+                .thenReturn(List.of());
+
+        service.persistItems(PROJECT_ID, PARSE_TASK_ID, List.of(
+                candidate("6", "技术方案", "30"),
+                candidate("7", "实施方案", "20"),
+                candidate("1", "资质业绩", "50")));
+
+        ArgumentCaptor<List<ScoreItem>> saved = capturedSavedItems();
+        assertThat(saved.getValue()).extracting(ScoreItem::getCode)
+                .containsExactly("1", "6", "7");
+        assertThat(saved.getValue()).extracting(ScoreItem::getItemIndex)
+                .containsExactly(1, 2, 3);
     }
 
     @Test

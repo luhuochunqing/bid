@@ -6,11 +6,14 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.biddraftagent.repository.BidTenderDocumentSnapshotRepository;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
+import com.xiyu.bid.scoreparse.domain.GhostCandidateFilter;
 import com.xiyu.bid.scoreparse.domain.ItemCountCheck;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreItemMergePolicy;
 import com.xiyu.bid.scoreparse.domain.SummaryAggregator;
+import com.xiyu.bid.scoreparse.domain.WeightOverloadTrimPolicy;
 import com.xiyu.bid.scoreparse.domain.WeightSumCheck;
+import com.xiyu.bid.scoreparse.infrastructure.openai.RecallOutcome;
 import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
 import com.xiyu.bid.scoreparse.dto.ScoreParseProgressDTO;
 import com.xiyu.bid.scoreparse.dto.ScoreParseTriggerDTO;
@@ -45,6 +48,8 @@ public class ScoreParseAppService {
     private static final String TASK_TYPE_PARSE = "PARSE";
     private static final List<String> ACTIVE_STATUSES = List.of("PENDING", "PROCESSING");
     private static final String NO_SNAPSHOT_MESSAGE = InitiationTenderTextResolver.NO_TENDER_MESSAGE;
+    /** spec 046 FR-002 超载判定上限（WeightSumCheck 容差 +0.5） */
+    private static final BigDecimal OVERLOAD_LIMIT = new BigDecimal("100.5");
 
     private final ScoreParseTaskRepository taskRepository;
     private final ScoreItemRepository itemRepository;
@@ -62,6 +67,8 @@ public class ScoreParseAppService {
     private final WeightSumCheck weightSumCheck = new WeightSumCheck();
     private final ItemCountCheck itemCountCheck = new ItemCountCheck();
     private final SummaryAggregator summaryAggregator = new SummaryAggregator();
+    private final GhostCandidateFilter ghostFilter = new GhostCandidateFilter();
+    private final WeightOverloadTrimPolicy trimPolicy = new WeightOverloadTrimPolicy();
 
     /** 自身代理（解决 @Async 自调用失效）；@Lazy 避免循环依赖 */
     @Lazy
@@ -150,14 +157,21 @@ public class ScoreParseAppService {
 
         updateProgress(taskId, 5, "READ_DOCUMENT", "读取招标文件");
 
-        // FR-001 四路召回（召回一/二正则+结构、召回三/四 LLM 语义）
-        List<ScoreCandidate> candidates = scoreAnalyzer.recallCandidates(
+        // FR-001 四路召回（召回一/二正则+结构、召回三/四 LLM 语义）；skippedChunks 落库（spec 046 FR-005）
+        RecallOutcome outcome = scoreAnalyzer.recallCandidates(
                 source.text(), null,
                 (progress, stage) -> updateProgress(taskId, progress, "RECALL", stage));
+        List<ScoreCandidate> candidates = outcome.candidates();
+        task.setSkippedChunks(outcome.skippedChunks());
+        taskRepository.save(task);
 
-        // FR-004 合并去重 + Validation 丢弃（weight 无法解析为数字的候选丢弃并记日志）
+        // FR-004 合并去重 → 幽灵过滤（spec 046 FR-001）→ Validation 丢弃
         List<ScoreCandidate> merged = mergePolicy.merge(candidates);
-        List<ScoreCandidate> valid = filterInvalidWeights(merged);
+        List<ScoreCandidate> ghostFiltered = ghostFilter.filter(merged);
+        if (ghostFiltered.size() < merged.size()) {
+            log.info("幽灵候选过滤（spec 046 FR-001）: taskId={} {}→{}", taskId, merged.size(), ghostFiltered.size());
+        }
+        List<ScoreCandidate> valid = filterInvalidWeights(ghostFiltered);
 
         // FR-005/FR-022 权重闭环校验：合计≠100 触发完整性回补
         WeightSumCheck.Result weightResult = weightSumCheck.checkCandidates(valid);
@@ -171,6 +185,15 @@ public class ScoreParseAppService {
                 valid = filterInvalidWeights(mergePolicy.merge(concat(valid, missed)));
                 weightResult = weightSumCheck.checkCandidates(valid);
             }
+        }
+
+        // spec 046 FR-002 超载剔除：合计 > 100.5 时两轮剔嫌疑（无code → 无sourceText）
+        if (weightResult.totalWeight().compareTo(OVERLOAD_LIMIT) > 0) {
+            WeightOverloadTrimPolicy.TrimResult trimmed = trimPolicy.trim(valid, OVERLOAD_LIMIT);
+            valid = trimmed.remaining();
+            log.warn("权重超载剔除（spec 046 FR-002）: taskId={}, total={}, removed={}",
+                    taskId, weightResult.totalWeight(), trimmed.removed().size());
+            weightResult = weightSumCheck.checkCandidates(valid);
         }
 
         // FR-006/FR-007 数量校验：0 项 → 解析失败终态

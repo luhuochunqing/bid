@@ -42,7 +42,8 @@ public record ScoreParseItemsDTO(
             String lastScoringOutcome,
             String lastScoringHint,
             Boolean circuitOpen,
-            Integer reusedItemCount
+            Integer reusedItemCount,
+            Integer skippedChunks
     ) {
     }
 }
