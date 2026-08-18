@@ -16,7 +16,6 @@ import org.springframework.stereotype.Component;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Optional;
 
 /**
  * 项目档案文件响应工厂：按 file_path 存储类型构建预览/下载响应。
@@ -47,12 +46,13 @@ public class ArchiveFileResponseFactory {
     public ResponseEntity<Resource> build(ArchiveFile file, boolean inline) {
         String rawPath = file.getFilePath();
         // OBS 直传文件不在本地磁盘，统一走 ObsDirectRedirects：签发预签名 URL 后 302 重定向，
-        // 失败精确区分 404（BidFile 不存在）/ 502（OBS 故障）
-        Optional<ResponseEntity<Resource>> redirect = ObsDirectRedirects.tryRedirect(obsShareUrlSigner, rawPath);
-        if (redirect.isPresent()) {
-            return redirect.get();
-        }
+        // 失败精确区分 404（BidFile 不存在）/ 502（OBS 故障）；非 obs-direct 走本地文件流
+        return ObsDirectRedirects.tryRedirect(obsShareUrlSigner, rawPath)
+                .orElseGet(() -> buildLocalFileResponse(file, rawPath, inline));
+    }
 
+    /** 本地物理路径文件：校验边界后流式返回 200。 */
+    private ResponseEntity<Resource> buildLocalFileResponse(ArchiveFile file, String rawPath, boolean inline) {
         Path filePath = resolveAndValidateFilePath(rawPath);
         long fileSize;
         try {
