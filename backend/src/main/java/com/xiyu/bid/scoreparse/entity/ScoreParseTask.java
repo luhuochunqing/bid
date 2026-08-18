@@ -81,6 +81,10 @@ public class ScoreParseTask {
     @Column(name = "chapter_hashes", columnDefinition = "TEXT")
     private String chapterHashes;
 
+    /** LLM 提取跳过的 chunk 数（spec 046 FR-005；null 表示旧任务无此统计） */
+    @Column(name = "skipped_chunks")
+    private Integer skippedChunks;
+
     /** 超时扫描 job 标记（超时置 FAILED 时写 1） */
     @Column(name = "timeout_marked", nullable = false)
     @Builder.Default

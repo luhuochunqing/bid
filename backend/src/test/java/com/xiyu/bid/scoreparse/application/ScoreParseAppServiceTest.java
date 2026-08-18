@@ -11,6 +11,7 @@ import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
 import com.xiyu.bid.scoreparse.infrastructure.openai.OpenAiScoreAnalyzer;
+import com.xiyu.bid.scoreparse.infrastructure.openai.RecallOutcome;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
@@ -89,7 +90,7 @@ class ScoreParseAppServiceTest {
 
     @Test
     void reparse_delegatesPersistenceWithCandidates() {
-        mockHappyPathParseFlow();
+        mockParseFlowReturning(defaultCandidates());
 
         service.executeParseAsync(TASK_ID);
 
@@ -101,7 +102,7 @@ class ScoreParseAppServiceTest {
 
     @Test
     void firstParse_alsoDelegatesPersistence() {
-        mockHappyPathParseFlow();
+        mockParseFlowReturning(defaultCandidates());
 
         service.executeParseAsync(TASK_ID);
 
@@ -110,18 +111,83 @@ class ScoreParseAppServiceTest {
         verify(stateService).markCompleted(TASK_ID);
     }
 
-    private void mockHappyPathParseFlow() {
-        when(taskRepository.findByTaskId(TASK_ID)).thenReturn(Optional.of(
-                ScoreParseTask.builder()
-                        .id(5L).taskId(TASK_ID).projectId(PROJECT_ID)
-                        .taskType("PARSE").status("PENDING").build()));
+    @Test
+    void parse_filtersGhostCandidates() {
+        // spec 046 FR-001：表头回声幽灵项（dim=detail="得分"≤4字、无code/sourceText）；
+        // 权重合计 30+30+40=100 不触发 FR-002，确保断言仅依赖幽灵过滤
+        mockParseFlowReturning(List.of(
+                candidate("A1", "资质", "具备 CMMI 5 级认证证书", "30"),
+                ghostHeaderEcho("40"),
+                candidate("A2", "业绩", "近三年类似项目业绩不少于 3 个", "30")));
+
+        service.executeParseAsync(TASK_ID);
+
+        assertThat(capturedPersistedCandidates().getValue())
+                .extracting(ScoreCandidate::code)
+                .containsExactly("A1", "A2");
+    }
+
+    @Test
+    void parse_trimsWeightOverload() {
+        // spec 046 FR-002：合计 60+40+30=130 > 100.5 → 无 code 嫌疑项被剔，合计回 100
+        mockParseFlowReturning(List.of(
+                candidate("A1", "资质", "具备 CMMI 认证", "60"),
+                candidate("A2", "业绩", "近三年业绩", "40"),
+                noCodeCandidate("其他", "汇总说明行", "30")));
+
+        service.executeParseAsync(TASK_ID);
+
+        List<ScoreCandidate> persisted = capturedPersistedCandidates().getValue();
+        assertThat(persisted).extracting(ScoreCandidate::code).containsExactly("A1", "A2");
+        assertThat(persisted.stream().map(ScoreCandidate::weight)
+                .reduce(BigDecimal.ZERO, BigDecimal::add))
+                .isEqualByComparingTo("100");
+    }
+
+    @Test
+    void parse_persistsSkippedChunks() {
+        // spec 046 FR-005：LLM 跳过 chunk 数落库 task.skippedChunks
+        ScoreParseTask task = mockParseFlowReturning(defaultCandidates(), 2);
+
+        service.executeParseAsync(TASK_ID);
+
+        assertThat(task.getSkippedChunks()).isEqualTo(2);
+        verify(stateService).markCompleted(TASK_ID);
+    }
+
+    private List<ScoreCandidate> defaultCandidates() {
+        return List.of(
+                candidate("A1", "资质", "具备 CMMI 5 级认证证书", "60"),
+                candidate("A2", "业绩", "近三年类似项目业绩不少于 3 个", "40"));
+    }
+
+    private ScoreParseTask mockParseFlowReturning(List<ScoreCandidate> recalled) {
+        return mockParseFlowReturning(recalled, 0);
+    }
+
+    private ScoreParseTask mockParseFlowReturning(List<ScoreCandidate> recalled, int skippedChunks) {
+        ScoreParseTask task = ScoreParseTask.builder()
+                .id(5L).taskId(TASK_ID).projectId(PROJECT_ID)
+                .taskType("PARSE").status("PENDING").build();
+        when(taskRepository.findByTaskId(TASK_ID)).thenReturn(Optional.of(task));
         when(initiationTenderTextResolver.resolveIntake(PROJECT_ID))
                 .thenReturn(TenderIntake.found(new TenderTextSource(
                         "tender.pdf", "doc-insight://t/1", "评分办法：...")));
         when(scoreAnalyzer.recallCandidates(anyString(), isNull(), any()))
-                .thenReturn(List.of(
-                        candidate("A1", "资质", "具备 CMMI 5 级认证证书", "60"),
-                        candidate("A2", "业绩", "近三年类似项目业绩不少于 3 个", "40")));
+                .thenReturn(new RecallOutcome(recalled, skippedChunks));
+        return task;
+    }
+
+    /** project 212 表头回声：dim=detail="得分"、无 code/sourceText */
+    private ScoreCandidate ghostHeaderEcho(String weight) {
+        return new ScoreCandidate(null, "得分", "得分", new BigDecimal(weight),
+                "OBJECTIVE", null, null, "P47", "SEMANTIC");
+    }
+
+    /** 无 code 但有 sourceText（避开幽灵规则2，命中 FR-002 第一轮剔除） */
+    private ScoreCandidate noCodeCandidate(String dim, String detail, String weight) {
+        return new ScoreCandidate(null, dim, detail, new BigDecimal(weight),
+                "OBJECTIVE", null, "原文条款文本", "P47", "SEMANTIC");
     }
 
     @SuppressWarnings("unchecked")

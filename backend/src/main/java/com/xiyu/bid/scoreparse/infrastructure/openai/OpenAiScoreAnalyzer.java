@@ -33,7 +33,8 @@ import java.util.function.BiConsumer;
  *
  * <p>合并去重由 AppService 编排 {@code ScoreItemMergePolicy} 完成，本类只负责召回。
  * 所有文档内容过 {@link TenderIntakeTextProcessor#sanitizeUntrusted}（安全契约）。
- * 单 chunk LLM 失败不阻断整体（log.warn 继续）；正则召回始终可用作兜底。
+ * 单 chunk LLM 失败重试 1 次后跳过不阻断（skippedChunks 计数，spec 046 US3）；
+ * 正则召回始终可用作兜底。
  */
 @Service
 @Profile("!e2e")
@@ -62,13 +63,12 @@ public class OpenAiScoreAnalyzer {
     }
 
     /**
-     * 四路召回，返回合并前的候选池。
-     *
+     * 四路召回，返回合并前的候选池与跳过 chunk 数（spec 046 US3 可见性）。
      * @param fullText          招标文件全文
      * @param structuredMetadata doc-insight 结构化元数据（可为 null）
      * @param progress          进度回调（可为 null）
      */
-    public List<ScoreCandidate> recallCandidates(
+    public RecallOutcome recallCandidates(
             String fullText, String structuredMetadata, ProgressReporter progress) {
         report(progress, 5, "召回一/二：关键词正则规则 + 文档结构定位");
         List<ScoreCandidate> candidates = new ArrayList<>();
@@ -77,8 +77,9 @@ public class OpenAiScoreAnalyzer {
 
         report(progress, 15, "召回三/四：评分规则语义切片 + LLM 全文语义提取");
         candidates.addAll(recallLane3ScoreSemanticPatterns(fullText));
-        candidates.addAll(recallLane4LlmFullText(fullText, structuredMetadata, progress));
-        return candidates;
+        RecallOutcome lane4 = recallLane4LlmFullText(fullText, structuredMetadata, progress);
+        candidates.addAll(lane4.candidates());
+        return new RecallOutcome(candidates, lane4.skippedChunks());
     }
 
     /** 召回一：关键词与正则规则提取 */
@@ -117,41 +118,54 @@ public class OpenAiScoreAnalyzer {
         return list;
     }
 
-    /** 召回四：chunk 切片多轮 LLM 全文结构化提取；单 chunk 失败不阻断 */
-    private List<ScoreCandidate> recallLane4LlmFullText(
+    /** 召回四：chunk 切片多轮 LLM 全文结构化提取；单 chunk 两连败跳过不阻断 */
+    private RecallOutcome recallLane4LlmFullText(
             String fullText, String structuredMetadata, ProgressReporter progress) {
         List<DocumentChunk> chunks = structuralChunker.chunk(fullText, structuredMetadata);
         List<ScoreCandidate> candidates = new ArrayList<>();
         if (chunks.isEmpty()) {
             log.warn("结构化切片为空，跳过 LLM 召回");
-            return candidates;
+            return new RecallOutcome(candidates, 0);
         }
         OpenAiBidAgentRequestConfig config = configurationResolver.resolve(USE_CASE);
         int llmProgressSpan = 60; // 15% → 75%
+        int skipped = 0;
         for (int i = 0; i < chunks.size(); i++) {
             DocumentChunk chunk = chunks.get(i);
             String prompt = ScoreParsePrompts.buildCandidateExtractionPrompt(
                     TenderIntakeTextProcessor.sanitizeUntrusted(chunk.text()),
                     i + 1, chunks.size());
-            try {
-                ScoreCandidateOutput output = structuredOutputService.request(
-                        prompt, ScoreCandidateOutput.class, config,
-                        "AI structured response did not include score candidates");
-                if (output != null && output.candidates != null) {
-                    output.candidates.stream()
-                            .filter(candidate -> candidate != null && candidate.detail != null)
-                            .map(this::toCandidate)
-                            .forEach(candidates::add);
-                }
-            } catch (RuntimeException exception) {
-                log.warn("评分候选 LLM 提取失败 chunk {}/{}: {} — 跳过该 chunk",
-                        i + 1, chunks.size(), exception.getMessage());
+            ScoreCandidateOutput output = requestCandidatesWithRetry(prompt, config);
+            if (output == null) {
+                skipped++;
+                log.warn("评分候选 LLM 提取两连败 chunk {}/{} — 跳过该 chunk", i + 1, chunks.size());
+            } else if (output.candidates != null) {
+                output.candidates.stream()
+                        .filter(candidate -> candidate != null && candidate.detail != null)
+                        .map(this::toCandidate)
+                        .forEach(candidates::add);
             }
             report(progress, 15 + llmProgressSpan * (i + 1) / chunks.size(),
                     "召回三/四：LLM 语义提取 " + (i + 1) + "/" + chunks.size());
         }
-        log.info("召回四（LLM 全文语义）完成: chunks={}, count={}", chunks.size(), candidates.size());
-        return candidates;
+        log.info("召回四（LLM 全文语义）完成: chunks={}, count={}, skipped={}",
+                chunks.size(), candidates.size(), skipped);
+        return new RecallOutcome(candidates, skipped);
+    }
+
+    /** 候选提取调用：RuntimeException 重试恰好 1 次，两连败返回 null（调用方记跳过）。 */
+    private ScoreCandidateOutput requestCandidatesWithRetry(
+            String prompt, OpenAiBidAgentRequestConfig config) {
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            try {
+                return structuredOutputService.request(
+                        prompt, ScoreCandidateOutput.class, config,
+                        "AI structured response did not include score candidates");
+            } catch (RuntimeException exception) {
+                log.warn("评分候选 LLM 提取第 {} 次尝试失败: {}", attempt, exception.getMessage());
+            }
+        }
+        return null;
     }
 
     /**

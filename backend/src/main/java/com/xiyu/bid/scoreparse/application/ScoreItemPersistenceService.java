@@ -5,6 +5,7 @@
 package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
+import com.xiyu.bid.scoreparse.domain.ScoreItemOrderPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreTypeClassificationPolicy;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.entity.ScoreResult;
@@ -35,11 +36,13 @@ public class ScoreItemPersistenceService {
     private final ScoreItemRepository itemRepository;
     private final ScoreResultRepository resultRepository;
     private final ScoreTypeClassificationPolicy classificationPolicy = new ScoreTypeClassificationPolicy();
+    private final ScoreItemOrderPolicy orderPolicy = new ScoreItemOrderPolicy();
 
     /** 候选覆盖落库：比对指纹，结构变化时清理旧打分，未变化时保留旧打分并重挂 */
     public void persistItems(Long projectId, Long parseTaskId, List<ScoreCandidate> candidates) {
+        List<ScoreCandidate> ordered = orderPolicy.sort(candidates);
         List<ScoreItem> oldItems = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId);
-        boolean fingerprintUnchanged = isFingerprintUnchanged(oldItems, candidates);
+        boolean fingerprintUnchanged = isFingerprintUnchanged(oldItems, ordered);
 
         Map<String, ScoreResult> oldResultByCode = Map.of();
         if (fingerprintUnchanged && !oldItems.isEmpty()) {
@@ -55,15 +58,15 @@ public class ScoreItemPersistenceService {
         invalidatePreviousResults(projectId, !fingerprintUnchanged);
 
         List<ScoreItem> items = new ArrayList<>();
-        for (int i = 0; i < candidates.size(); i++) {
-            ScoreCandidate candidate = candidates.get(i);
+        for (int i = 0; i < ordered.size(); i++) {
+            ScoreCandidate candidate = ordered.get(i);
             String scoreType = classificationPolicy.classify(candidate.detail(), candidate.scoreTypeGuess());
             items.add(ScoreItem.builder()
                     .projectId(projectId)
                     .parseTaskId(parseTaskId)
                     .itemIndex(i + 1)
                     .code(candidate.code() == null || candidate.code().isBlank()
-                            ? String.valueOf(i + 1) : candidate.code())
+                            ? "" : candidate.code())
                     .dim(candidate.dim())
                     .detail(candidate.detail())
                     .weight(candidate.weight())
@@ -110,7 +113,7 @@ public class ScoreItemPersistenceService {
             ScoreItem old = oldItems.get(i);
             ScoreCandidate candidate = candidates.get(i);
             String code = candidate.code() == null || candidate.code().isBlank()
-                    ? String.valueOf(i + 1) : candidate.code();
+                    ? "" : candidate.code();
             if (!Objects.equals(old.getCode(), code)
                     || !Objects.equals(old.getWeight(), candidate.weight())
                     || !Objects.equals(old.getDetail(), candidate.detail())) {

@@ -59,7 +59,8 @@ final class ScoreParseItemsMetaBuilder {
                 failed ? parseTask.getErrorMessage() : null,
                 outcome, ScoreScoringHint.text(outcome, reused, total, stage),
                 new ScoreParseAutoPolicy(taskRepository, itemRepository).circuitOpen(projectId),
-                reused);
+                reused,
+                parseTask == null ? null : parseTask.getSkippedChunks());
     }
 
     private Integer countReused(Long projectId) {
