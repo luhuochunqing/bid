@@ -38,6 +38,7 @@
 | `root-cause-analysis-stage-notification-created-by.md` | Bug 根因分析 | 阶段变更通知 created_by 为空导致提交投标 500 | 2026-06-21 |
 | `shell-gotchas.md` | 技术陷阱 | Shell 转义导致 SQL 中 `$` 特殊字符截断，密码值被破坏 | 2026-06-20 |
 | `build-gotchas.md` | 技术陷阱 | git-commit-id-plugin 在 worktree 读取主仓库 HEAD，git.properties 失真；Maven `-DskipTests` 只跳过测试运行不跳过编译；Maven target 目录残留旧 Flyway 迁移文件导致打包后版本冲突 | 2026-06-25 |
+| `git-gotchas.md` | 技术陷阱 | squash merge 后本地 `git branch -d` 判"未完全合并"失败需用 `-D`；远端分支不会自动删需手动 `git push origin --delete` | 2026-08-18 |
 | `root-cause-analysis-tender-intake-ai-prompt.md` | Bug 根因分析 | 标讯 AI 识别准确率低（零样本 prompt → Few-Shot + CoT + 正则预提取 + markitdown sections 元数据；金额归一化；手机号边界匹配） | 2026-07-15 |
 | `root-cause-analysis-bid-file-upload-issues.md` | Bug 根因分析 | 投标文件上传 4 个问题（进度条不显示 / 列表不刷新 / 上传中允许提交 / 删除状态不同步；emit('change') + ref.loadDocuments() 双向同步） | 2026-07-16 |
 | `root-cause-analysis-warehouse-attachment-root-path.md` | Bug 根因分析 | 仓库附件根路径绝对/相对不一致 + PDF 照片静默跳过 + application-prod.yml 配置缺失（静默跳过必须打 WARN 日志） | 2026-07-17 |
