@@ -3,7 +3,7 @@ name: "xiyu-chart-debug"
 description: "当图表渲染异常、图表空白、数据不显示、筛选不生效、X轴切换失败、筛选值与图表不匹配、API返回409/400错误、Hibernate FunctionArgumentException 时使用。覆盖M1趋势图/M2客户类型/M3项目类型/M4竞品分析的全链路排查。"
 ---
 
-# Chart Debug Checklist — 数据分析图表排查清单
+# 西域图表排查 — 数据分析图表排查清单
 
 ## 核心原则
 
