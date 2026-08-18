@@ -4,12 +4,13 @@ space: engineering
 category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
-updated: 2026-08-17
+updated: 2026-08-18
 health_checked: 2026-08-17
 sources:
   - specs/041-ai-score-parse-backend/spec.md
   - specs/041-ai-score-parse-backend/plan.md
   - specs/045-bid-file-streaming-scoring/spec.md
+  - specs/046-fix-score-parse-ghost/spec.md
   - backend/src/main/java/com/xiyu/bid/scoreparse/
   - docs/implementation-notes/ai-score-parse-backend.md
 backlinks:
@@ -39,11 +40,13 @@ backlinks:
 ```
 trigger（同步<1s，互斥校验+建任务）
   └→ executeParse（异步）
-      四路召回（关键词/文档结构/评分规则语义/LLM全文）
+      四路召回（关键词/文档结构/评分规则语义/LLM全文）→ RecallOutcome(candidates, skippedChunks)
       → ScoreItemMergePolicy 合并去重
+      → GhostCandidateFilter 幽灵过滤（spec 046 FR-001）
       → WeightSumCheck + ItemCountCheck 闭环校验（差异触发二次回补）
+      → WeightOverloadTrimPolicy 超载剔除：合计>100.5 两轮剔嫌疑（spec 046 FR-002）
       → ScoreTypeClassificationPolicy 客观/主观分类
-      → ScoreItemPersistenceService 覆盖落库
+      → ScoreItemPersistenceService 覆盖落库（ScoreItemOrderPolicy 编号数值序，空code落""）
       → EstimatedScoreService 阶段1预计得分（链尾）
 ```
 
@@ -108,7 +111,12 @@ trigger（同步<1s，互斥校验+建任务）
 - **prompt 模板是 Formatter 格式串**：`ScoreParsePrompts` 的 text block 配 `.formatted()`，模板内字面 `%` 必须写 `%%`（如示例文案 `占30%%`），否则 `UnknownFormatConversionException` 且与输入无关 100% 必炸（2026-08-17 项目 225 线上事故，详见 lessons-learned §117；回归测试 `ScoreParsePromptsTest`）
 - **toCandidate 对 null section 必须降级**：召回一/三以 `null` section 调用 `toCandidate`，裸访问 `section.sectionTitle()` 即 NPE 全任务终止（2026-08-17 项目 226 事故，详见 §118；回归测试 `OpenAiScoreAnalyzerTest`）；新召回路或转换方法允许"无此数据"语义时必须显式处理 null 分支
 - **扫描件输入的失败文案**：sidecar 提取文本 <10 字符（`low_text_density` 警告）时四路召回必然空手，最终报"未识别到评分标准章节"——文案有误导性，真实原因是文件无文本层（扫描件/图片型 docx）；排查时先看 `markdownLength` 而不是怀疑解析逻辑
-- **前端抽屉：导入评分草稿/导出报告已下线（2026-08-17）**：`ScoreParseDrawer` 顶部操作栏（阶段标签 + 重新解析/导入评分草稿/导出报告）随功能取消整体删除。`useScoreParseDrawer` 的 `importToDrafts()`/`exportReport()`、`projects.js` 的 `importScoreDraftsFromAnalysis()`、`imported` emit 一并清理。重新解析入口保留三处：「招标文件解析」标题栏 / 错误重试 / 空态占位。注意：别再按 `importToDrafts` / `exportReport` 这两个已删函数名检索。
+- **前端抽屉：导入评分草稿/导出报告已下线（2026-08-17）**：`ScoreParseDrawer` 顶部操作栏（阶段标签 + 重新解析/导入评分草稿/导出报告）随功能取消整体删除。`useScoreParseDrawer` 的 `importToDrafts()`/`exportReport()`、`projects.js` 的 `importScoreDraftsFromAnalysis()`、`imported` emit 一并清理。重新解析入口保留三处：「招标文件解析」标题栏 / 错误重试 / 空态占位。注意：别再按 `importToDrafts` / `exportReport()` 这两个已删函数名检索。
+- **幽灵项三重根因与治理（2026-08-18 spec 046，project 212 权重 200 事故）**：LLM 把表头/汇总行当评分项召回（如 dim=detail="得分"、weight=100），去重不滤、权重校验只补漏不剔除，三项叠加导致落库权重合计 200。治理（三个 domain 纯函数，TDD 全覆盖）：
+  - `GhostCandidateFilter`（FR-001）：规则1 dim 与 detail 归一化（trim+去空白）相同且 ≤4 字 → 表头回声滤除；规则2 code 空白且 sourceText 空白 → 非条款行滤除；有 code 或 sourceText 任一即保留（真实项零误删）。插在 merge 之后、weight 校验之前。
+  - `WeightOverloadTrimPolicy`（FR-002）：合计 >100.5 时两轮剔嫌疑（先无 code → 再无 sourceText），逐个剔+重算达标即停；剔尽仍超保留现状（weightWarning 兜底）。插在完整性回补之后。
+  - `ScoreItemOrderPolicy`（FR-003/004）：落库按编号数值序（`^\d+(-\d+)?$` major/minor，4-1<4-2），不可解析稳定置后；空 code 落 `""` 不再补行号假编号（旧逻辑假编号会与真实编号冲突）。
+  - **LLM chunk 失败可见性（FR-005）**：单 chunk 失败重试 1 次，两连败跳过并计数 `RecallOutcome.skippedChunks` → `score_parse_task.skipped_chunks`（V1193）→ Meta 透出 `skippedChunks`。此前 chunk 静默跳过用户无感知，解析质量问题不可见。
 
 ## 8. 验证基线
 
