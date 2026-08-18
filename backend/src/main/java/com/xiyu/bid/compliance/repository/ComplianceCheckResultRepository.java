@@ -85,4 +85,37 @@ public interface ComplianceCheckResultRepository
     Optional<ComplianceCheckResult>
         findTopByProjectIdAndCheckTypeOrderByCheckedAtDesc(
                 Long projectId, ComplianceCheckResult.CheckType checkType);
+
+    /**
+     * 根据任务ID查找检查结果.
+     *
+     * @param taskId 任务UUID
+     * @return 检查结果
+     */
+    Optional<ComplianceCheckResult> findByTaskId(String taskId);
+
+    /**
+     * 根据文件哈希查找最新已完成的检查结果（缓存复用）.
+     *
+     * @param bidFileHash 投标文件SHA-256
+     * @param tenderFileHash 招标文件SHA-256
+     * @param status 任务状态
+     * @return 缓存结果
+     */
+    Optional<ComplianceCheckResult>
+        findTopByBidFileHashAndTenderFileHashAndStatusOrderByCheckedAtDesc(
+                String bidFileHash, String tenderFileHash,
+                ComplianceCheckResult.TaskStatus status);
+
+    /**
+     * 根据项目ID和状态列表查询正在进行中的任务.
+     *
+     * @param projectId 项目ID
+     * @param checkType 检查类型
+     * @param statuses 状态列表
+     * @return 进行中的任务列表
+     */
+    List<ComplianceCheckResult> findByProjectIdAndCheckTypeAndStatusIn(
+            Long projectId, ComplianceCheckResult.CheckType checkType,
+            List<ComplianceCheckResult.TaskStatus> statuses);
 }

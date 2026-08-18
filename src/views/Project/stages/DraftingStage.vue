@@ -20,7 +20,7 @@
           <el-button v-if="perm.canAIRecommendCase" type="success" link class="header-action header-action--orange" :icon="Search" @click="aiDrawerVisible = true">
             AI智能推荐案例
           </el-button>
-          <el-button v-if="perm.canAIBidDocumentQualityCheck" type="success" link class="header-action header-action--tender" :icon="DocumentChecked" @click="ctx.runBidDocumentQualityCheck?.()">
+          <el-button v-if="perm.canAIBidDocumentQualityCheck" type="success" link class="header-action header-action--tender" :icon="DocumentChecked" @click="handleOpenQualityCheck">
             AI标书质量核查
           </el-button>
 
@@ -146,7 +146,7 @@
   </el-dialog>
 
   <AiRecommendDrawer v-model="aiDrawerVisible" :project-id="projectId" @go-to-score-parse="handleGoToScoreParse" />
-  <QualityCheckDialog ref="qualityCheckRef" :project-id="projectId" />
+  <QualityCheckDrawer ref="qualityCheckRef" :project-id="projectId" />
 </template>
 
 <script setup>
@@ -160,7 +160,7 @@ import { STAGE_TRANSITION_MAP } from '@/constants/projectStages.js'
 import { useUserStore } from '@/stores/user'
 import ProjectDocumentTable from './components/ProjectDocumentTable.vue'
 import AiRecommendDrawer from './components/AiRecommendDrawer.vue'
-import QualityCheckDialog from './components/QualityCheckDialog.vue'
+import QualityCheckDrawer from './components/QualityCheckDrawer.vue'
 import { useProjectDetailContext } from '@/composables/projectDetail/context.js'
 import { useProjectDraftingPermissions, canDeleteDocumentAs } from '@/composables/projectDetail/useProjectDraftingPermissions.js'
 import { useProjectDocumentsExport } from '@/composables/projectDetail/useProjectDocumentsExport.js'
@@ -312,8 +312,12 @@ function handleDownloadBidFile(file) {
 const qualityCheckRef = ref(null)
 const projectDocTableRef = ref(null)
 
+function handleOpenQualityCheck() {
+  qualityCheckRef.value?.open()
+}
+
 watch(() => ctx.bidDocQualityResult?.value, (val) => {
-  if (val?.issues?.length) qualityCheckRef.value?.open(val)
+  if (val?.issues?.length) qualityCheckRef.value?.open()
 }, { deep: true })
 
 function handleGoToScoreParse() {

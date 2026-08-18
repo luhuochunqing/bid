@@ -35,6 +35,7 @@ src/main/java/com/xiyu/bid/casework/controller/ScoreItemCaseRecommendController.
 src/main/java/com/xiyu/bid/collaboration/controller/CollaborationController.java | Collaboration project semantics remain audit debt; no unified project guard evidence in current controller/service chain.
 src/main/java/com/xiyu/bid/collaboration/service/CollaborationService.java | Collaboration service carries projectId but is not yet integrated with ProjectAccessScopeService; tracked permission debt.
 src/main/java/com/xiyu/bid/competitionintel/controller/CompetitionIntelController.java | Competition intel project analysis remains P1/P2 permission debt until service-level project guard is added.
+src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckTaskAppService.java | Compliance quality check task orchestration service delegates to compliance check result repository; project access guard is tracked as compliance module debt and asserted at controller boundary.
 src/main/java/com/xiyu/bid/compliance/controller/ComplianceController.java | Compliance project analysis remains P1/P2 permission debt until service-level project guard is added.
 src/main/java/com/xiyu/bid/documenteditor/controller/DocumentEditorController.java | Controller delegates to document editor services/guard; baseline documents controller-level delegation.
 src/main/java/com/xiyu/bid/documenteditor/service/DocumentDraftTreeImportService.java | Import helper is called from guarded document editor flows; no standalone user entry point.

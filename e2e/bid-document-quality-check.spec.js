@@ -79,9 +79,9 @@ test.describe('AI标书质量核查', () => {
     if (await qualityCheckButton.isVisible({ timeout: 5000 }).catch(() => false)) {
       await qualityCheckButton.click()
 
-      // 等待检查完成（出现弹窗或成功提示）
+      // 等待检查完成（出现抽屉或成功提示）
       await expect(
-        page.locator('.el-dialog:has-text("AI 标书质量核查"), .el-message--success').first()
+        page.locator('.el-drawer:has-text("AI 标书质量核查"), .el-dialog:has-text("AI 标书质量核查"), .el-message--success').first()
       ).toBeVisible({ timeout: 15000 }).catch(() => {})
     } else {
       test.skip()

@@ -93,6 +93,85 @@ public class ComplianceCheckResult {
     private CheckType checkType = CheckType.COMPLIANCE;
 
     /**
+     * 异步任务UUID
+     */
+    @Column(name = "task_id", length = 64)
+    private String taskId;
+
+    /**
+     * 异步任务状态
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 32)
+    @Builder.Default
+    private TaskStatus status = TaskStatus.COMPLETED;
+
+    /**
+     * 任务进度百分比 (0-100)
+     */
+    @Column(name = "progress")
+    @Builder.Default
+    private Integer progress = 100;
+
+    /**
+     * 当前步骤说明
+     */
+    @Column(name = "current_step", length = 128)
+    private String currentStep;
+
+    /**
+     * 失败错误信息
+     */
+    @Column(name = "error_message", length = 1000)
+    private String errorMessage;
+
+    /**
+     * 投标文件名
+     */
+    @Column(name = "bid_file_name")
+    private String bidFileName;
+
+    /**
+     * 投标文件SHA-256
+     */
+    @Column(name = "bid_file_hash", length = 64)
+    private String bidFileHash;
+
+    /**
+     * 招标文件SHA-256
+     */
+    @Column(name = "tender_file_hash", length = 64)
+    private String tenderFileHash;
+
+    /**
+     * 通过项数
+     */
+    @Column(name = "passed_count")
+    @Builder.Default
+    private Integer passedCount = 0;
+
+    /**
+     * 不通过项数
+     */
+    @Column(name = "failed_count")
+    @Builder.Default
+    private Integer failedCount = 0;
+
+    /**
+     * 待确认项数
+     */
+    @Column(name = "manual_review_count")
+    @Builder.Default
+    private Integer manualReviewCount = 0;
+
+    /**
+     * 总检查项数
+     */
+    @Column(name = "total_count")
+    @Builder.Default
+    private Integer totalCount = 25;
+
+    /**
      * 创建时间
      */
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -126,6 +205,17 @@ public class ComplianceCheckResult {
         NON_COMPLIANT,     // 不合规
         PARTIAL_COMPLIANT, // 部分合规
         WARNING            // 警告
+    }
+
+    /**
+     * 任务流转状态枚举
+     */
+    public enum TaskStatus {
+        INIT,       // 初始化
+        PARSING,    // 文件解析中
+        CHECKING,   // 质量核查中
+        COMPLETED,  // 已完成
+        FAILED      // 失败
     }
 
     /**

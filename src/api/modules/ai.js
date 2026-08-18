@@ -10,6 +10,7 @@
 import httpClient from '../client.js'
 import { buildFeatureUnavailableResponse } from '../featureAvailability.js'
 import { projectQualityApi } from './ai/quality.js'
+import { complianceApi } from './ai/compliance.js'
 
 function isNumericId(id) {
   return /^\d+$/.test(String(id))
@@ -245,57 +246,7 @@ export const roiApi = {
     return httpClient.post('/api/ai/roi/sensitivity', data)
   } }
 
-export const complianceApi = {
-  async getCheckResult(projectId) {
-    if (!isNumericId(projectId)) {
-      return Promise.resolve(buildFeatureUnavailableResponse('compliance-check', {
-        message: 'Project ID must be numeric in API mode' }))
-    }
-
-    const response = await httpClient.get(`/api/compliance/project/${projectId}/results`)
-    const results = Array.isArray(response?.data) ? response.data.map(normalizeComplianceResult) : []
-    return { ...response, data: results }
-  },
-
-  async performCheck(projectId) {
-    if (!isNumericId(projectId)) {
-      return Promise.resolve(buildFeatureUnavailableResponse('compliance-check', {
-        message: 'Project ID must be numeric in API mode' }))
-    }
-
-    const response = await httpClient.post(`/api/compliance/check/project/${projectId}`)
-    return { ...response, data: response?.data ? normalizeComplianceResult(response.data) : null }
-  },
-
-  async performTenderCheck(tenderId) {
-    if (!isNumericId(tenderId)) {
-      return Promise.resolve(buildFeatureUnavailableResponse('compliance-check', {
-        message: 'Tender ID must be numeric in API mode' }))
-    }
-
-    const response = await httpClient.post(`/api/compliance/check/tender/${tenderId}`)
-    return { ...response, data: response?.data ? normalizeComplianceResult(response.data) : null }
-  },
-
-  async checkBidDocumentQuality(projectId) {
-    if (!isNumericId(projectId)) {
-      return Promise.resolve(buildFeatureUnavailableResponse('bid-document-quality-check', {
-        message: 'Project ID must be numeric in API mode' }))
-    }
-
-    const response = await httpClient.post(`/api/compliance/bid-document/check/${projectId}`)
-    return { ...response, data: response?.data ? normalizeComplianceResult(response.data) : null }
-  },
-
-  async getBidDocumentQualityResult(projectId) {
-    if (!isNumericId(projectId)) {
-      return Promise.resolve(buildFeatureUnavailableResponse('bid-document-quality-check', {
-        message: 'Project ID must be numeric in API mode' }))
-    }
-
-    const response = await httpClient.get(`/api/compliance/bid-document/results/${projectId}`)
-    return { ...response, data: response?.data ? normalizeComplianceResult(response.data) : null }
-  } }
+export { complianceApi }
 
 export default {
   bid: bidAnalysisApi,
