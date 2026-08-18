@@ -202,6 +202,8 @@ public class ScoreParseAppService {
             task.setOriginalTotalWeight(normalized.originalTotal());
             taskRepository.save(task);
         }
+        // spec 047 C002：归一后重算，完成日志 totalWeight/weightWarning 反映落库值
+        weightResult = weightSumCheck.checkCandidates(valid);
         // FR-006/FR-007 数量校验：0 项 → 解析失败终态
         ItemCountCheck.Result countResult = itemCountCheck.check(valid.size());
         if (countResult.failed()) {
@@ -279,9 +281,7 @@ public class ScoreParseAppService {
                 dropped++;
             }
         }
-        if (dropped > 0) {
-            log.warn("丢弃权重无法解析的候选 {} 项（spec Edge Cases）", dropped);
-        }
+        if (dropped > 0) log.warn("丢弃权重无法解析的候选 {} 项（spec Edge Cases）", dropped);
         return valid;
     }
 

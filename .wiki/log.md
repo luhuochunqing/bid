@@ -3,6 +3,13 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-08-18] update | score-parse-service 权重归一化 Convergence 收口（spec 047 C001/C002）
+
+- 触发：spec 047 Convergence 阶段补齐——US3 信号契约单测 + 归一化后日志口径
+- 改动：`score-parse-service.md` §7 追加「归一化后完成日志口径（C002）」（日志 totalWeight/weightWarning 必须重算反映落库值）；§8 追加「spec 047 收敛单测（C001）」（`OriginalTotalWeightSignalTest` 5 用例锚定 US3 信号链路：Summary 序列化 / @Column 映射 / getItems 透出）
+- 关键结论：归一化重算 `weightResult` 仅修诊断口径，不改变落库业务正确性；信号链路（persist→entity→DTO→透出）已由契约单测锚定
+- 触发点：pre-push wiki-health-check（§2 触发点 4，代码变更需回填）
+
 ## [2026-08-17] task | 评分解析抽屉顶部操作栏下线（导入评分草稿/导出报告取消）
 
 - 触发：产品确认「AI 评分标准解析」抽屉顶部操作栏（阶段标签 + 重新解析/导入评分草稿/导出报告）为已取消功能，PR 删除 6 文件（分支 `agent/zcode/remove-scoreparse-topbar`）

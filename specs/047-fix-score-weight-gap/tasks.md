@@ -151,6 +151,38 @@ User Story 内均含测试任务（测试先行，先红后绿）。
 
 ---
 
+## Phase N: Convergence
+
+**Purpose**: `/speckit-converge` 核对 spec/plan/tasks 与代码库现状，追补缺口任务。核对结论：
+US1/US2（归一化算法、确定性、比例保持）、US3 的信号持久化 + getItems 透出 + V1195 迁移 + DTO/entity
+字段均已实现与文档一致；实测 12 条纯单测覆盖缺口/超载/恰好100/容差/空集/比例/确定性/字段保留/null 权重
+等分支（≥ SC-002 的 10 条）。
+
+**核对发现的唯一缺口**：T008（US3 契约/信号单测）未实现——`backend/src/test/java/com/xiyu/bid/scoreparse/`
+下没有任何针对 `ScoreParseItemsDTO.Summary.originalTotalWeight` 序列化/可空、`ScoreParseTask.originalTotalWeight`
+映射、`getItems` 透出信号的单测（grep `originalTotalWeight` 0 命中）。代码已接线但缺测试锚定，无法证明 US3
+信号链路正确性。故追加下述任务补齐。
+
+- [ ] C001 [US3] 补 US3 信号/契约单测（题干即 T008 缺口，路径
+      `backend/src/test/java/com/xiyu/bid/scoreparse/application/OriginalTotalWeightSignalTest.java`）：
+      - `ScoreParseItemsDTO.Summary(...)` 构造 + Jackson `ObjectMapper.writeValueAsString` 断言
+        `originalTotalWeight` 字段在序列化 JSON 中存在、值正确、可空（`null` 时键为 `"originalTotalWeight":null`）
+      - `ScoreParseTask` 反射/Getter 断言 `originalTotalWeight` 字段及 `@Column(name="original_total_weight")`
+        映射存在（缺失时断言 FAIL）
+      - `getItems` 透出逻辑：latest PARSE task 的 `originalTotalWeight` 非 null 时写入
+        `Summary.originalTotalWeight`；null 时透传 null——若 `getItems` 依赖 DB/Spring 上下文，
+        可将透出映射抽为纯函数 `SummaryAggregator`/DTO 装配测试，或对 load 'em DTO 构造函数做最小验证
+      - 先红后绿：新测试当前缺失 → 断言 FAIL，再补最小实现（若实现已存在则直接 GREEN）
+- [x] C002 [P] 门禁复核（归一化后 parse 日志语义）：`ScoreParseAppService.doExecuteParse` 完成日志
+      `log.info(... weightResult.totalWeight() ...)`（约 L222-223）在归一化后打印的仍是归一化前的
+      `weightResult`（如 90/200），与落库 items 实际合计 100 不一致。为排查口径一致性，改为在归一化后
+      重算 `weightResult = weightSumCheck.checkCandidates(valid)` 再打印；若归一并重算后 `weightWarning`
+      期望为 false。此为诊断语义修正，不改变落库业务正确性。
+
+**Checkpoint**: C001 绿 + C002 日志口径一致 → Convergence 闭合。
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
