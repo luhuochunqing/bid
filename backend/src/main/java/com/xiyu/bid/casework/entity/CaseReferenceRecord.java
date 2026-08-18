@@ -38,6 +38,15 @@ public class CaseReferenceRecord {
     @Column(name = "source_project_name")
     private String sourceProjectName;
 
+    @Column(name = "project_id")
+    private Long projectId;
+
+    @Column(name = "score_item_id")
+    private Long scoreItemId;
+
+    @Column(name = "reuse_mode", length = 20)
+    private String reuseMode;
+
     @Column(name = "referenced_at", nullable = false, updatable = false)
     private LocalDateTime referencedAt;
 

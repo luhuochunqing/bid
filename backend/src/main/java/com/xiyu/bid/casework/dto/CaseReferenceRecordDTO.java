@@ -20,5 +20,8 @@ public class CaseReferenceRecordDTO {
     private String referenceTarget;
     private String referenceContext;
     private String sourceProjectName;
+    private Long projectId;
+    private Long scoreItemId;
+    private String reuseMode;
     private LocalDateTime referencedAt;
 }
