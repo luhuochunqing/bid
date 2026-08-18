@@ -51,6 +51,7 @@ import { tasksApi } from './modules/tasks.js'
 import { organizationIntegrationApi, weComIntegrationApi } from './modules/systemIntegration.js'
 import { tenderFavoritesApi } from './modules/tenderFavorites.js'
 import { caseSlicesApi } from './modules/caseSlices.js'
+import { caseRecommendationApi } from './modules/caseRecommendation.js'
 
 export {
   httpClient,
@@ -89,6 +90,7 @@ export {
   tasksApi,
   tenderFavoritesApi,
   caseSlicesApi,
+  caseRecommendationApi,
   weComIntegrationApi,
   organizationIntegrationApi
 }

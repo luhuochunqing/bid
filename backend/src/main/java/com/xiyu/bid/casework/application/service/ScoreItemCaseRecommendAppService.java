@@ -1,0 +1,165 @@
+package com.xiyu.bid.casework.application.service;
+
+import com.xiyu.bid.casework.domain.policy.ScoreItemCaseMatchPolicy;
+import com.xiyu.bid.casework.dto.ScoreItemCaseRecommendRequest;
+import com.xiyu.bid.casework.dto.ScoreItemCaseRecommendResponse;
+import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
+import com.xiyu.bid.casework.infrastructure.KnowledgeCaseRepository;
+import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.repository.ProjectRepository;
+import com.xiyu.bid.scoreparse.dto.ScoreItemDTO;
+import com.xiyu.bid.scoreparse.entity.ScoreItem;
+import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
+import com.xiyu.bid.service.ProjectAccessScopeService;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * 评分项级智能案例推荐应用服务（编排层 / 副作用隔离）。
+ *
+ * <p>负责：
+ * <ul>
+ *   <li>项目数据权限校验（ProjectAccessScopeService）</li>
+ *   <li>从数据库装配 ScoreItem 条款详情与项目上下文</li>
+ *   <li>查询激活状态的候选案例集</li>
+ *   <li>调用纯核心 {@link ScoreItemCaseMatchPolicy} 进行评分计算与排序截断</li>
+ *   <li>转换为标准化响应 DTO</li>
+ * </ul>
+ */
+@Slf4j
+@Service
+@Transactional(readOnly = true)
+public class ScoreItemCaseRecommendAppService {
+
+    private final KnowledgeCaseRepository knowledgeCaseRepository;
+    private final ScoreItemRepository scoreItemRepository;
+    private final ProjectRepository projectRepository;
+    private final ProjectAccessScopeService projectAccessScopeService;
+
+    private final ScoreItemCaseMatchPolicy matchPolicy = new ScoreItemCaseMatchPolicy();
+
+    public ScoreItemCaseRecommendAppService(
+            KnowledgeCaseRepository knowledgeCaseRepository,
+            ScoreItemRepository scoreItemRepository,
+            ProjectRepository projectRepository,
+            ProjectAccessScopeService projectAccessScopeService) {
+        this.knowledgeCaseRepository = knowledgeCaseRepository;
+        this.scoreItemRepository = scoreItemRepository;
+        this.projectRepository = projectRepository;
+        this.projectAccessScopeService = projectAccessScopeService;
+    }
+
+    /**
+     * 为项目指定评分项（或关键词）检索推荐案例
+     */
+    public ScoreItemCaseRecommendResponse recommend(Long projectId, ScoreItemCaseRecommendRequest request) {
+        projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
+
+        Project project = projectRepository.findById(projectId).orElse(null);
+        String projectType = project != null ? project.getIndustry() : null;
+        String customerType = project != null ? project.getCustomerType() : null;
+
+        ScoreItem scoreItem = null;
+        if (request.getScoreItemId() != null) {
+            scoreItem = scoreItemRepository.findById(request.getScoreItemId()).orElse(null);
+        } else if (request.getScoreItemCode() != null && !request.getScoreItemCode().trim().isEmpty()) {
+            String code = request.getScoreItemCode().trim();
+            scoreItem = scoreItemRepository.findByProjectIdOrderByItemIndexAsc(projectId).stream()
+                    .filter(s -> code.equalsIgnoreCase(s.getCode()))
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        ScoreItemCaseMatchPolicy.ScoreItemContext context = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                scoreItem != null ? scoreItem.getId() : request.getScoreItemId(),
+                scoreItem != null ? scoreItem.getCode() : null,
+                scoreItem != null ? scoreItem.getDim() : null,
+                scoreItem != null ? scoreItem.getDetail() : null,
+                projectType,
+                customerType,
+                request.getKeyword()
+        );
+
+        // 仅召回 ACTIVE 状态案例
+        List<KnowledgeCase> allActiveCases = knowledgeCaseRepository.findAll().stream()
+                .filter(c -> "ACTIVE".equalsIgnoreCase(c.getStatus()) || c.getStatus() == null)
+                .toList();
+
+        List<ScoreItemCaseRecommendResponse.Item> evaluatedItems = allActiveCases.stream()
+                .map(candidate -> {
+                    ScoreItemCaseMatchPolicy.MatchResult result = matchPolicy.evaluate(candidate, context);
+                    return toResponseItem(candidate, result);
+                })
+                .filter(item -> item.getMatchScore() > 0)
+                .sorted(Comparator.comparing(ScoreItemCaseRecommendResponse.Item::getIsPinned, Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(ScoreItemCaseRecommendResponse.Item::getMatchScore, Comparator.reverseOrder())
+                        .thenComparing(ScoreItemCaseRecommendResponse.Item::getReuseCount, Comparator.nullsLast(Comparator.reverseOrder())))
+                .toList();
+
+        int page = request.getPage() != null && request.getPage() >= 0 ? request.getPage() : 0;
+        int size = request.getSize() != null && request.getSize() > 0 ? request.getSize() : 10;
+        int fromIndex = Math.min(page * size, evaluatedItems.size());
+        int toIndex = Math.min(fromIndex + size, evaluatedItems.size());
+
+        List<ScoreItemCaseRecommendResponse.Item> pageItems = evaluatedItems.subList(fromIndex, toIndex);
+
+        return ScoreItemCaseRecommendResponse.builder()
+                .total(evaluatedItems.size())
+                .items(pageItems)
+                .build();
+    }
+
+    /**
+     * 获取指定项目的评分项列表 (PRD 4.2 契约)
+     */
+    public List<ScoreItemDTO> getScoreItems(Long projectId) {
+        projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
+        return scoreItemRepository.findByProjectIdOrderByItemIndexAsc(projectId).stream()
+                .map(item -> new ScoreItemDTO(
+                        item.getId(),
+                        item.getCode(),
+                        item.getDim(),
+                        item.getDetail(),
+                        item.getWeight(),
+                        item.getScoreType(),
+                        item.getStatusStage1(),
+                        item.getEstScore(),
+                        item.getEstBasis(),
+                        item.getKbHit(),
+                        item.getLocation()
+                ))
+                .toList();
+    }
+
+    private ScoreItemCaseRecommendResponse.Item toResponseItem(KnowledgeCase candidate, ScoreItemCaseMatchPolicy.MatchResult result) {
+        String summary = candidate.getResponseText();
+        if (summary != null && summary.length() > 200) {
+            summary = summary.substring(0, 200) + "...";
+        }
+
+        return ScoreItemCaseRecommendResponse.Item.builder()
+                .id(candidate.getId())
+                .sourceProjectId(candidate.getSourceProjectId())
+                .sourceProjectName(candidate.getSourceProjectName())
+                .scoringPointTitle(candidate.getScoringPointTitle())
+                .scoringCategory(candidate.getScoringCategory())
+                .matchScore(result.score())
+                .matchLabel(result.matchLabel())
+                .matchReasons(result.matchReasons())
+                .matchedKeywords(result.matchedKeywords())
+                .requirementRaw(candidate.getRequirementRaw())
+                .responseText(candidate.getResponseText())
+                .responseTextSummary(summary)
+                .customerType(candidate.getCustomerType())
+                .projectType(candidate.getProjectType())
+                .bidResult(candidate.getBidResult())
+                .reuseCount(candidate.getReuseCount() != null ? candidate.getReuseCount() : 0)
+                .isPinned(candidate.getIsPinned() != null && candidate.getIsPinned())
+                .build();
+    }
+}

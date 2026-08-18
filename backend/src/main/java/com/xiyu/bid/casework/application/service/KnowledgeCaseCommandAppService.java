@@ -17,14 +17,26 @@ public class KnowledgeCaseCommandAppService {
 
     @Transactional
     public Map<String, Object> reuseCase(Long id, String userName) {
+        return reuseCase(id, userName, null);
+    }
+
+    @Transactional
+    public Map<String, Object> reuseCase(Long id, String userName, com.xiyu.bid.casework.dto.CaseReferenceRecordCreateRequest request) {
         KnowledgeCase c = caseRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("案例不存在: " + id));
         c.setReuseCount(c.getReuseCount() + 1);
         caseRepository.save(c);
 
+        String target = (request != null && request.getReferenceTarget() != null) ? request.getReferenceTarget() : "REUSE";
+        String context = (request != null && request.getReferenceContext() != null) ? request.getReferenceContext() : "从案例库复用应答片段";
+        Long projectId = request != null ? request.getProjectId() : null;
+        Long scoreItemId = request != null ? request.getScoreItemId() : null;
+        String reuseMode = request != null ? request.getReuseMode() : "APPEND";
+
         // 创建复用引用记录，追踪谁在什么时候复用了此案例
         caseReferenceAppService.createReferenceRecord(
-                id, userName, "REUSE", "从案例库复用应答片段", c.getSourceProjectName());
+                id, userName, target, context, c.getSourceProjectName(),
+                projectId, scoreItemId, reuseMode);
 
         return Map.of(
                 "caseId", c.getId(),

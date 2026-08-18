@@ -8,4 +8,8 @@ import java.util.List;
 public interface CaseReferenceRecordRepository extends JpaRepository<CaseReferenceRecord, Long> {
 
     List<CaseReferenceRecord> findByCaseIdOrderByReferencedAtDesc(Long caseId);
+
+    List<CaseReferenceRecord> findByProjectIdOrderByReferencedAtDesc(Long projectId);
+
+    List<CaseReferenceRecord> findByScoreItemIdOrderByReferencedAtDesc(Long scoreItemId);
 }

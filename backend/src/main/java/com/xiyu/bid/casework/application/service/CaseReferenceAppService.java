@@ -24,12 +24,22 @@ public class CaseReferenceAppService {
     public CaseReferenceRecordDTO createReferenceRecord(Long caseId, String referencedByName,
                                                         String referenceTarget, String referenceContext,
                                                         String sourceProjectName) {
+        return createReferenceRecord(caseId, referencedByName, referenceTarget, referenceContext, sourceProjectName, null, null, "APPEND");
+    }
+
+    public CaseReferenceRecordDTO createReferenceRecord(Long caseId, String referencedByName,
+                                                        String referenceTarget, String referenceContext,
+                                                        String sourceProjectName, Long projectId,
+                                                        Long scoreItemId, String reuseMode) {
         CaseReferenceRecord record = CaseReferenceRecord.builder()
                 .caseId(caseId)
                 .referencedByName(referencedByName != null ? referencedByName : "未知用户")
-                .referenceTarget(referenceTarget.trim())
+                .referenceTarget(referenceTarget != null ? referenceTarget.trim() : "REUSE")
                 .referenceContext(referenceContext)
                 .sourceProjectName(sourceProjectName)
+                .projectId(projectId)
+                .scoreItemId(scoreItemId)
+                .reuseMode(reuseMode != null ? reuseMode : "APPEND")
                 .build();
         CaseReferenceRecord saved = caseReferenceRecordRepository.save(record);
 
@@ -52,6 +62,9 @@ public class CaseReferenceAppService {
                 .referenceContext(referenceRecord.getReferenceContext())
                 .referencedAt(referenceRecord.getReferencedAt())
                 .sourceProjectName(referenceRecord.getSourceProjectName())
+                .projectId(referenceRecord.getProjectId())
+                .scoreItemId(referenceRecord.getScoreItemId())
+                .reuseMode(referenceRecord.getReuseMode())
                 .build();
     }
 }

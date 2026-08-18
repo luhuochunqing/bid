@@ -1,0 +1,147 @@
+.drawer-header-custom {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.header-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-icon {
+  font-size: 18px;
+}
+
+.header-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.case-count-badge :deep(.el-badge__content) {
+  background-color: var(--brand-xiyu-logo);
+}
+
+.header-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.drawer-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  height: 100%;
+}
+
+.no-score-item-alert {
+  margin-bottom: 2px;
+}
+
+.alert-title {
+  font-size: 13px;
+}
+
+.alert-action {
+  margin-top: 4px;
+}
+
+.filter-card {
+  background: var(--bg-subtle);
+  border: 1px solid var(--gray-150);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.filter-row {
+  display: flex;
+  align-items: center;
+}
+
+.filter-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.filter-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary-ui);
+  width: 60px;
+  flex-shrink: 0;
+}
+
+.score-select {
+  flex: 1;
+}
+
+.score-option-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+}
+
+.option-code {
+  font-weight: 600;
+  color: var(--brand-xiyu-logo);
+}
+
+.option-dim {
+  color: var(--gray-600);
+}
+
+.option-detail {
+  color: var(--text-lighter);
+  margin-left: auto;
+}
+
+.keyword-input :deep(.el-input-group__append) {
+  background-color: var(--brand-xiyu-logo);
+  color: var(--bg-white);
+  border-color: var(--brand-xiyu-logo);
+}
+
+.case-list-container {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 200px;
+}
+
+.case-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.empty-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 16px;
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+}
+
+.empty-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.empty-desc {
+  font-size: 12.5px;
+  color: var(--text-lighter);
+}

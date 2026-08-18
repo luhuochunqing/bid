@@ -20,4 +20,10 @@ public class CaseReferenceRecordCreateRequest {
     private String referenceTarget;
 
     private String referenceContext;
+
+    private Long projectId;
+
+    private Long scoreItemId;
+
+    private String reuseMode;
 }

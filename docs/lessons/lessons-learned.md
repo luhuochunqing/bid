@@ -1707,3 +1707,33 @@ PRD 要求投标编制阶段接入案例库智能推荐，结项时自动将标�
 - `backend/src/main/java/com/xiyu/bid/casework/domain/model/KnowledgeCaseMatchScore.java`
 - `backend/src/main/resources/db/migration-mysql/V1192__add_knowledge_case_dedup_unique_index.sql`
 
+---
+
+## 122. AI 智能推荐案例：细粒度评分项语义匹配、富文本高亮 XSS 防御与 Controller DTO 隔离 (PR !2324 / 2026-08-18)
+
+### 问题背景
+
+《AI 智能推荐案例 — 抽屉详情（PRD）》要求在标书编制阶段，支持根据当前项目的评分项（`ScoreItem.detail`）条款进行细粒度语义匹配并推荐历史案例，且支持查看详情高亮对比与一键复用到标书指定章节。
+
+在开发与门禁自检中发现三类关键设计注意点：
+1. **粗粒度 vs 细粒度匹配**：项目级大文本向量会稀释单项条款语义，必须以评分项 `detail` 条款为核心做滑动分词重叠度加权计算。
+2. **富文本高亮 XSS 风险**：前端使用 `v-html` 渲染高亮匹配词时，若直接在原文上执行正则替换 `<span>`，一旦原文包含 HTML 标签会导致 XSS 隐患，必须先做 HTML 实体转义。
+3. **Controller 实体穿透拦截**：Controller 层直接返回 `ScoreItem` 实体会触发架构门禁（ArchUnit 规则），必须返回标准 `ScoreItemDTO`，实现领域模型与传输协议彻底解耦。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| 粗粒度语义稀释 | 用整份标书匹配案例会导致单条款特征被稀释 | 推荐策略以评分项 `detail` 细粒度条款为第一特征，结合滑动 n-gram 分词 + 维度一致性加权 |
+| `v-html` 注入风险 | 正则高亮文本未转义 HTML 实体存在 XSS 漏洞 | 在 `v-html` 渲染前，先执行 `escapeHtml` 实体转义与 `escapeRegExp` 正则转义 |
+| Controller 实体穿透 | Controller 直接暴露 JPA Entity 破坏分层边界 | Controller 接口出入参必须统一使用 DTO / Record，严禁 Entity 穿透到控制器 |
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/casework/domain/policy/ScoreItemCaseMatchPolicy.java`
+- `backend/src/main/java/com/xiyu/bid/casework/application/service/ScoreItemCaseRecommendAppService.java`
+- `backend/src/main/java/com/xiyu/bid/casework/controller/ScoreItemCaseRecommendController.java`
+- `src/views/Bidding/components/AICaseRecommendDrawer.vue` / `AICaseRecommendCard.vue` / `AICaseDetailModal.vue`
+- `backend/src/main/resources/db/migration-mysql/V1193__add_score_item_to_case_reference.sql`
+
+
