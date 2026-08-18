@@ -14,6 +14,7 @@ import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +40,7 @@ public class ScoreItemPersistenceService {
     private final ScoreItemOrderPolicy orderPolicy = new ScoreItemOrderPolicy();
 
     /** 候选覆盖落库：比对指纹，结构变化时清理旧打分，未变化时保留旧打分并重挂 */
+    @Transactional
     public void persistItems(Long projectId, Long parseTaskId, List<ScoreCandidate> candidates) {
         List<ScoreCandidate> ordered = orderPolicy.sort(candidates);
         List<ScoreItem> oldItems = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId);
