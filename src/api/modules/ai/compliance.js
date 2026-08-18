@@ -1,6 +1,7 @@
 // Input: httpClient, isNumericId, buildFeatureUnavailableResponse
 // Output: complianceApi - Compliance & Bid Quality Check APIs
 // Pos: src/api/modules/ai/ - AI compliance API layer
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 import httpClient from '../../client.js'
 import { buildFeatureUnavailableResponse } from '../../featureAvailability.js'

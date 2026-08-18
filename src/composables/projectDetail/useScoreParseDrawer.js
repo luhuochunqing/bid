@@ -23,8 +23,6 @@ export function useScoreParseDrawer(props, emit) {
   const scoreTime = ref('—')
   const scoringHint = ref('')
   const circuitHint = ref('')
-  const scoringScope = ref('ALL')
-  const selectedItemIds = ref([])
 
   const scoreItems = ref([])
   const scoreResults = ref({})
@@ -131,8 +129,8 @@ export function useScoreParseDrawer(props, emit) {
       } else {
         const body = scoringBody({
           source: isAuto ? 'AUTO' : 'MANUAL',
-          scope: options.scope || scoringScope.value,
-          itemIds: options.itemIds || selectedItemIds.value,
+          scope: options.scope || 'ALL',
+          itemIds: options.itemIds || [],
         })
         const triggered = await scoreParseApi.triggerScoring(props.projectId, body)
         const skipHint = scoringSkipHint(triggered?.data)
@@ -209,7 +207,7 @@ export function useScoreParseDrawer(props, emit) {
 
   return {
     visible, loading, error, isSection1Expanded, currentStage, scored, scoringOverlayVisible,
-    sourceFileName, parseTime, bidFileName, scoreTime, scoringHint, circuitHint, scoringScope, selectedItemIds,
+    sourceFileName, parseTime, bidFileName, scoreTime, scoringHint, circuitHint,
     scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult,
     totalWeight, objectiveWeight, subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount,
     estTotalScore, actualTotalScore, openDetail, open, runScoring, reparse,

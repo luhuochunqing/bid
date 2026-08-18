@@ -64,8 +64,8 @@
                 <span class="stat-tag neutral">{{ currentStats.neutral }} 待确认</span>
               </span>
               <span class="tfoot-dim-dist">
-                <span class="obj-text">客观项 {{ objectiveWeight }}</span> ·
-                <span class="subj-text">主观项 {{ subjectiveWeight }}</span>
+                <span class="obj-text">客观项权重 {{ objectiveWeight }}</span> ·
+                <span class="subj-text">主观项权重 {{ subjectiveWeight }}</span>
               </span>
               <span class="highlight-score-box">{{ currentHighlightScore }}</span>
             </div>

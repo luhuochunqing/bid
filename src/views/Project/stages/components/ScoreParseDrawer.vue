@@ -3,7 +3,9 @@
   Output: AI 评分标准解析 V3 抽屉（阶段 1 招标文件提取 + 阶段 2 投标文件实际打分）
   Pos: src/views/Project/stages/components/ScoreParseDrawer.vue
   注：顶部操作栏（阶段标签 + 重新解析 / 导入评分草稿 / 导出报告）已随"导入到评分草稿/导出报告"功能取消而删除（2026-08-17）。
-      重新解析按钮保留在「招标文件解析」标题栏。一旦我被更新，务必更新我的开头注释。
+      重新解析按钮保留在「招标文件解析」标题栏。
+      两节副标题（规则提取与满足预判 / 标书对标打分与引用建议）与打分范围单选（全部/仅不满足/勾选）
+      已按用户反馈删除，打分固定全量 scope=ALL（2026-08-18）。一旦我被更新，务必更新我的开头注释。
 -->
 <template>
   <el-drawer
@@ -35,7 +37,6 @@
         <div class="section-title-bar">
           <span class="section-num">1</span>
           招标文件解析
-          <span class="section-sub">（规则提取与满足预判）</span>
           <div class="section-actions">
             <button class="btn-primary-sm" @click="reparse">🔄 重新解析</button>
           </div>
@@ -87,14 +88,8 @@
         <div class="section-title-bar">
           <span class="section-num">2</span>
           投标文件评分
-          <span class="section-sub">（标书对标打分与引用建议）</span>
           <div class="section-actions">
-            <div v-if="currentStage === 2 && scoreItems.length > 0" class="score-scope">
-              <label><input v-model="scoringScope" type="radio" value="ALL"> 全部</label>
-              <label><input v-model="scoringScope" type="radio" value="UNSATISFIED"> 仅不满足</label>
-              <label><input v-model="scoringScope" type="radio" value="ITEMS"> 勾选</label>
-            </div>
-            <button class="btn-primary-sm" :disabled="currentStage === 1 || scoreItems.length === 0" @click="runScoring({ auto: false, scope: scoringScope, itemIds: selectedItemIds })">
+            <button class="btn-primary-sm" :disabled="currentStage === 1 || scoreItems.length === 0" @click="runScoring({ auto: false })">
               {{ currentStage === 1 ? '⚡ AI 实际打分（需先上传标书）' : scored ? '⚡ 重新打分' : '⚡ AI 实际打分' }}
             </button>
           </div>
@@ -108,12 +103,6 @@
             <span class="doc-time">评分时间 {{ scoreTime }}</span>
           </div>
         </div>
-        <div v-if="scoringScope === 'ITEMS' && currentStage === 2" class="item-picks">
-          <label v-for="item in scoreItems" :key="item.code">
-            <input v-model="selectedItemIds" type="checkbox" :value="item.id"> {{ item.code }}
-          </label>
-        </div>
-
         <div v-if="scoreItems.length === 0" class="scoring-placeholder">
           <div class="placeholder-icon">📋</div>
           <div class="placeholder-text">尚未解析到评分标准，无法进行投标文件对标打分</div>
@@ -191,7 +180,7 @@ const emit = defineEmits(['parsed'])
 
 const {
   visible, loading, error, isSection1Expanded, currentStage, scored, scoringOverlayVisible,
-  sourceFileName, parseTime, bidFileName, scoreTime, scoringHint, circuitHint, scoringScope, selectedItemIds,
+  sourceFileName, parseTime, bidFileName, scoreTime, scoringHint, circuitHint,
   scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult, totalWeight, objectiveWeight,
   subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
   openDetail, open, runScoring, reparse,
@@ -215,10 +204,7 @@ defineExpose({ open, runScoring })
 .section-divider:first-of-type { margin-top: 0; }
 .section-title-bar { font-size: 15px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 8px; padding-bottom: 8px; border-bottom: 2px solid var(--brand-xiyu-logo); margin-bottom: 12px; }
 .section-num { width: 22px; height: 22px; background: var(--brand-xiyu-logo); color: var(--bg-white); border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
-.section-sub { font-size: 12px; font-weight: 400; color: var(--text-muted); margin-left: 4px; }
 .section-actions { margin-left: auto; display: flex; gap: 6px; align-items: center; }
-.score-scope { display: inline-flex; gap: 8px; font-size: 12px; color: var(--text-secondary-ui); font-weight: 400; }
-.item-picks { display: flex; flex-wrap: wrap; gap: 8px 12px; font-size: 12px; color: var(--text-secondary-ui); margin-bottom: 10px; }
 .btn-primary-sm { padding: 4px 12px; background: var(--brand-xiyu-logo); border: 1px solid var(--brand-xiyu-logo); border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; cursor: pointer; color: var(--bg-white); transition: all 0.16s ease; display: inline-flex; align-items: center; gap: 4px; }
 .btn-primary-sm:hover:not(:disabled) { background: var(--brand-xiyu-logo-hover); border-color: var(--brand-xiyu-logo-hover); }
 .btn-primary-sm:disabled { background: var(--gray-100); border-color: var(--gray-100); color: var(--gray-300); cursor: not-allowed; }

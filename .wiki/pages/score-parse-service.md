@@ -114,6 +114,7 @@ trigger（同步<1s，互斥校验+建任务）
 - **toCandidate 对 null section 必须降级**：召回一/三以 `null` section 调用 `toCandidate`，裸访问 `section.sectionTitle()` 即 NPE 全任务终止（2026-08-17 项目 226 事故，详见 §118；回归测试 `OpenAiScoreAnalyzerTest`）；新召回路或转换方法允许"无此数据"语义时必须显式处理 null 分支
 - **扫描件输入的失败文案**：sidecar 提取文本 <10 字符（`low_text_density` 警告）时四路召回必然空手，最终报"未识别到评分标准章节"——文案有误导性，真实原因是文件无文本层（扫描件/图片型 docx）；排查时先看 `markdownLength` 而不是怀疑解析逻辑
 - **前端抽屉：导入评分草稿/导出报告已下线（2026-08-17）**：`ScoreParseDrawer` 顶部操作栏（阶段标签 + 重新解析/导入评分草稿/导出报告）随功能取消整体删除。`useScoreParseDrawer` 的 `importToDrafts()`/`exportReport()`、`projects.js` 的 `importScoreDraftsFromAnalysis()`、`imported` emit 一并清理。重新解析入口保留三处：「招标文件解析」标题栏 / 错误重试 / 空态占位。注意：别再按 `importToDrafts` / `exportReport()` 这两个已删函数名检索。
+- **前端抽屉：两节副标题与打分范围单选已删（2026-08-18 客户验收反馈）**：「（规则提取与满足预判）」「（标书对标打分与引用建议）」副标题及重新打分左侧「全部/仅不满足/勾选」单选删除，`useScoreParseDrawer` 的 `scoringScope`/`selectedItemIds` 死状态一并清理，打分固定 `scope=ALL`（`runScoring` 仍支持 options 透传 scope/itemIds）。合计栏「客观项/主观项」标签改为「客观项权重/主观项权重」澄清语义——客户反馈"合计得分不对"实为权重合计被误读为得分，得分合计以高亮分值为准（阶段1 预计/阶段2 实际）。
 - **幽灵项三重根因与治理（2026-08-18 spec 046，project 212 权重 200 事故）**：LLM 把表头/汇总行当评分项召回（如 dim=detail="得分"、weight=100），去重不滤、权重校验只补漏不剔除，三项叠加导致落库权重合计 200。治理（三个 domain 纯函数，TDD 全覆盖）：
   - `GhostCandidateFilter`（FR-001）：规则1 dim 与 detail 归一化（trim+去空白）相同且 ≤4 字 → 表头回声滤除；规则2 code 空白且 sourceText 空白 → 非条款行滤除；有 code 或 sourceText 任一即保留（真实项零误删）。插在 merge 之后、weight 校验之前。
   - `WeightOverloadTrimPolicy`（FR-002）：合计 >100.5 时两轮剔嫌疑（先无 code → 再无 sourceText），逐个剔+重算达标即停；剔尽仍超保留现状（weightWarning 兜底）。插在完整性回补之后。

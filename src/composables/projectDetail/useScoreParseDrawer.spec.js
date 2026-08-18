@@ -356,11 +356,9 @@ describe('useScoreParseDrawer.js', () => {
     expect(drawer.currentStage.value).toBe(2)
   })
 
-  it('submits ITEMS scope and selected ids when rescoring', async () => {
+  it('passes scope and itemIds options through when rescoring', async () => {
     const drawer = useScoreParseDrawer(props, emit)
     await drawer.open({ stage: 2 })
-    drawer.scoringScope.value = 'ITEMS'
-    drawer.selectedItemIds.value = [1, 2]
 
     await drawer.runScoring({ auto: false, scope: 'ITEMS', itemIds: [1, 2] })
 

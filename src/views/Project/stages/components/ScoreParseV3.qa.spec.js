@@ -126,12 +126,38 @@ describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
     // 验证实际得分总和（客观项满分 11 分中实际获得 9 分）
     expect(wrapper.vm.actualTotalScore).toBe(9)
     expect(wrapper.text()).toContain('9')
-    expect(wrapper.text()).toContain('客观项 11')
-    expect(wrapper.text()).toContain('主观项 12')
+    expect(wrapper.text()).toContain('客观项权重 11')
+    expect(wrapper.text()).toContain('主观项权重 12')
 
     // 底部说明文案
     expect(wrapper.text()).toContain('AI 基于标书内容 + 知识库证书自动判定，计入总分')
     expect(wrapper.text()).toContain('需评标专家人工评审，AI 不计分')
+  })
+
+  // QA-TC02b: 打分按钮固定全量打分（「全部/仅不满足/勾选」单选已删的回归护栏）
+  it('QA-TC02b: [阶段2] 手动打分按钮固定提交 scope=ALL 全量打分', async () => {
+    scoreParseApi.getResults
+      .mockResolvedValueOnce({ data: { results: [], summary: null } })
+      .mockResolvedValueOnce({ data: qaResultsFixture })
+    const wrapper = mount(ScoreParseDrawer, {
+      props: { projectId },
+      global: { stubs: globalStubs },
+    })
+
+    await wrapper.vm.open({ stage: 2 })
+
+    const scoreBtn = wrapper.findAll('button.btn-primary-sm').find((b) => b.text().includes('AI 实际打分'))
+    expect(scoreBtn).toBeTruthy()
+    expect(scoreBtn.attributes('disabled')).toBeUndefined()
+    await scoreBtn.trigger('click')
+    await flushPromises()
+
+    // 单选删除后 UI 无 scope 输入源：请求体必为全量，itemIds 恒为空数组
+    expect(scoreParseApi.triggerScoring).toHaveBeenCalledWith(projectId, {
+      source: 'MANUAL',
+      scope: 'ALL',
+      itemIds: [],
+    })
   })
 
   // QA-TC03: 评分项详情与建议弹窗（ScoreItemDetailModal）多场景验收

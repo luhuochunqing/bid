@@ -43,6 +43,13 @@
 
 ### 遗留清理类
 
+- area: `backend scoreparse /score-parse/scoring` scope 枚举（UNSATISFIED/ITEMS）
+  type: dead-code
+  severity: low
+  status: open
+  source: PR !2329 review FYI#5（2026-08-18，客户验收反馈 UI 精简）
+  note: 前端打分范围单选已删，打分固定 scope=ALL；后端 UNSATISFIED/ITEMS 分支与前端 `scoringBody` 的 scope/itemIds 透传参数暂无生产调用方（仅 `defineExpose` 公开契约保留）。待产品确认不再恢复「仅不满足打分」后，评估下线后端枚举分支并简化 `runScoring`/`scoringBody` 签名。
+
 - area: `frontendDemo` 适配层 / `demoPersistence`
   type: mock-leak
   severity: medium

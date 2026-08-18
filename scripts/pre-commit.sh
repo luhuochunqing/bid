@@ -13,6 +13,7 @@
 #   5. Dead role/permission references (warning only)
 #   6. Composable ref/raw input convention (warning only)
 #   7. Backend core policy CR enforcement (warning only)
+#   8. Staged governed files doc-governance header (blocking)
 
 set -euo pipefail
 
@@ -93,9 +94,14 @@ node "${SCRIPTS_DIR}/check-composable-unpack.mjs" --staged || true
 echo "   ✅ Composable input convention gate passed (warnings only)"
 
 # ── Gate 7: Backend core policy CR enforcement ───────────────────────────────
-echo "🔍 [gate-7/7] Checking backend core policy CR enforcement..."
+echo "🔍 [gate-7/8] Checking backend core policy CR enforcement..."
 node "${SCRIPTS_DIR}/check-core-policy-cr.mjs" --staged || true
 echo "   ✅ Core policy CR gate passed (warnings only)"
+
+# ── Gate 8: Staged governed files doc-governance header ──────────────────────
+echo "🔍 [gate-8/8] Checking doc-governance headers for staged governed files..."
+node "${SCRIPTS_DIR}/check-doc-governance.mjs" --staged
+echo "   ✅ Doc-governance staged gate passed"
 
 echo ""
 echo "✅ All pre-commit gates passed"

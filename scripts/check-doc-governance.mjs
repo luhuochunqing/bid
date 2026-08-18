@@ -1,4 +1,4 @@
-// Input: repository filesystem, governed directory list, governed file patterns
+// Input: repository filesystem, governed directory list, governed file patterns; `--staged` flag for pre-commit staged-files-only mode
 // Output: documentation governance violations for README coverage and file headers
 // Pos: scripts/ - Repository maintenance guardrail
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -6,6 +6,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
+import { execFileSync } from 'node:child_process'
+import { checkGovernedFileContent } from './lib/doc-governance-checker.mjs'
 
 const repoRoot = process.cwd()
 const readmeDeclaration = '一旦我所属的文件夹有所变化，请更新我。'
@@ -58,6 +60,36 @@ const governedFilePatterns = [
 ]
 
 const violations = []
+
+// --staged 模式（pre-commit 调用）：只校验暂存区中受治理文件的头注释，
+// 把「头注释缺失」从 build 时拦截前移到 commit 时拦截（源头拦截，
+// PR !2329 review Nit#1：compliance.js 漏声明合入 main 后挡住所有人 build 的教训）。
+// README 覆盖检查不在 staged 模式跑（完整检查仍由 npm run check:doc-governance 负责）。
+const stagedMode = process.argv.includes('--staged')
+
+if (stagedMode) {
+  const stagedFiles = execFileSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACM'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  })
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  for (const relativePath of stagedFiles) {
+    if (!isGovernedFile(relativePath)) {
+      continue
+    }
+    const stagedContent = execFileSync('git', ['show', `:${relativePath}`], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    })
+    const { violations: fileViolations } = checkGovernedFileContent(stagedContent)
+    for (const violation of fileViolations) {
+      violations.push(`${relativePath} ${violation}`)
+    }
+  }
+}
 
 function isGovernedFile(relativePath) {
   return governedFilePatterns.some((pattern) => pattern.test(relativePath))
@@ -156,27 +188,33 @@ function walk(dirPath) {
   }
 }
 
-for (const relativeDir of governedDirectories) {
-  checkReadme(relativeDir)
-}
+if (!stagedMode) {
+  for (const relativeDir of governedDirectories) {
+    checkReadme(relativeDir)
+  }
 
-for (const relativeDir of backendModuleDirectories) {
-  checkReadme(relativeDir, { requireInventory: true })
-}
+  for (const relativeDir of backendModuleDirectories) {
+    checkReadme(relativeDir, { requireInventory: true })
+  }
 
-for (const root of ['src', 'scripts']) {
-  const fullRoot = path.join(repoRoot, root)
-  if (fs.existsSync(fullRoot)) {
-    walk(fullRoot)
+  for (const root of ['src', 'scripts']) {
+    const fullRoot = path.join(repoRoot, root)
+    if (fs.existsSync(fullRoot)) {
+      walk(fullRoot)
+    }
   }
 }
 
 if (violations.length > 0) {
-  console.error('Documentation governance check failed:')
+  console.error(stagedMode ? 'Documentation governance check failed (staged files):' : 'Documentation governance check failed:')
   for (const violation of violations) {
     console.error(`- ${violation}`)
   }
   process.exit(1)
 }
 
-console.log(`Documentation governance check passed for ${governedDirectories.length + backendModuleDirectories.length} directories.`)
+console.log(
+  stagedMode
+    ? 'Documentation governance check passed for staged governed files.'
+    : `Documentation governance check passed for ${governedDirectories.length + backendModuleDirectories.length} directories.`,
+)

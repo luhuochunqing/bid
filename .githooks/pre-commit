@@ -59,6 +59,11 @@ node "$ROOT_DIR/scripts/check-e2e-selectors.mjs"
 # TDD 测试先行门禁：检测到 staged 业务代码变更但没有对应的测试文件时，直接阻断提交，以确保 fix/test 比例（2026-06-12 gemini/enforce-tdd-precommit）
 "$ROOT_DIR/scripts/check-tdd-coverage.sh" --ci
 
+# 受治理文件头注释门禁：staged 中命中 doc-governance 模式的文件必须有 Input/Output/Pos/维护声明头
+# 工程背景(2026-08-18 PR !2329 review): compliance.js 漏维护声明合入 main，挡住所有 PR 的 build 链
+# （check:doc-governance 在 build 时才全仓拦截）；前移到 commit 时只查 staged 文件，源头拦截
+node "$ROOT_DIR/scripts/check-doc-governance.mjs" --staged
+
 
 # 分支卫生提醒：检查是否已 push + 是否有 PR（不阻断提交）
 "$ROOT_DIR/scripts/check-branch-hygiene.sh" || true
