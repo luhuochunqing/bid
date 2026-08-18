@@ -205,3 +205,12 @@
 **豁免条件参考**：① 接收人是 dataScope=all 全局角色（admin / /bidAdmin / bid-TeamLeader 等）；② 接收人是资源当事人（applicant/custodian/assignee 等）；③ targetUrl 跳转到接收人一定能访问的页面（通知中心/资源总览/非项目详情）；④ 通知场景是全公司广播（资质到期/仓库到期/人员到期等通用提醒）。
 
 **关键洞察**：`TASK_MUTATION_ALLOWED_ROLES` 是全仓唯一把 `bid-Team`（普通受限角色）纳入广播范围的常量。未来新增通知派发器时，**接收人集合只要含 `bid-Team`/`bid-otherDept`/`bid-administration` 等 `dataScope=self` 角色，就必须对接收人做项目可见性过滤**（参考 `NotificationRecipientFilter` + `ProjectAccessScopeService.canAccessProject`）。这是 lessons §44 的核心检查清单项。
+
+### TenderAttachmentUrlResolver 静态字段注入反模式（integration.external）
+
+> **来源**：PR !2331 生产风险审计（2026-08-18）F2 项
+> **背景**：`TenderAttachmentUrlResolver` 用 `@Value`/`@Autowired` setter 注入**静态字段**（`publicBaseUrl`、`obsShareUrlSigner`），所有方法为静态方法。属 CO-280 既有债：静态 API 被 `TenderIntegrationMapper`、`TenderMapper`、`ProjectResultPayloadAssembler` 等多处直接调用，改实例化注入会级联波及所有调用点。
+> **风险**：① 依赖 Spring 容器初始化顺序，Bean 创建前调用得到 null；② 单测需 ReflectionTestUtils 注入静态字段，易漏；③ 多 Spring 上下文测试（如 @SpringBootTest 并行）相互污染静态状态。
+> **建议**：重构为实例方法 + 构造器注入，调用点（约 3 个类 6 处）同步注入实例；`TenderIntegrationMapper` 若为静态工具类需先实例化。
+> **状态**：open，不阻塞当前交付（CRM 回调 URL 永久化修复已在该反模式上安全落地，行为正确且有测试覆盖）。
+> **复杂度**：中（半天），风险：低-中（有 31+14 个 Resolver 相关测试兜底）。
