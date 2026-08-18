@@ -3,7 +3,6 @@ package com.xiyu.bid.compliance.service;
 import com.xiyu.bid.brandauth.domain.port.BrandAuthorizationRepository;
 import com.xiyu.bid.compliance.domain.QualityEvidence;
 import com.xiyu.bid.entity.Qualification;
-import com.xiyu.bid.performance.domain.port.PerformanceRepository;
 import com.xiyu.bid.personnel.domain.port.PersonnelRepository;
 import com.xiyu.bid.repository.QualificationRepository;
 import com.xiyu.bid.warehouse.infrastructure.WarehouseRepository;
@@ -25,7 +24,6 @@ public class KnowledgeBaseOnDemandLoader {
 
     private final QualificationRepository qualificationRepository;
     private final PersonnelRepository personnelRepository;
-    private final PerformanceRepository performanceRepository;
     private final BrandAuthorizationRepository brandAuthorizationRepository;
     private final WarehouseRepository warehouseRepository;
 
@@ -33,12 +31,10 @@ public class KnowledgeBaseOnDemandLoader {
     public KnowledgeBaseOnDemandLoader(
             final QualificationRepository qualificationRepository,
             final PersonnelRepository personnelRepository,
-            final PerformanceRepository performanceRepository,
             final BrandAuthorizationRepository brandAuthorizationRepository,
             final WarehouseRepository warehouseRepository) {
         this.qualificationRepository = qualificationRepository;
         this.personnelRepository = personnelRepository;
-        this.performanceRepository = performanceRepository;
         this.brandAuthorizationRepository = brandAuthorizationRepository;
         this.warehouseRepository = warehouseRepository;
     }
@@ -89,8 +85,8 @@ public class KnowledgeBaseOnDemandLoader {
         if (personnelRepository != null) {
             evidences.add(QualityEvidence.knowledgeBase("人员库", "personnel_check", "已对照企业专家与项目经理库"));
         }
-        if (performanceRepository != null) {
-            evidences.add(QualityEvidence.knowledgeBase("业绩库", "performance_check", "已检索类似同行业历史标杆案例"));
+        if (brandAuthorizationRepository != null) {
+            evidences.add(QualityEvidence.knowledgeBase("品牌授权库", "brand_auth_check", "已检索品牌制造商授权与代理证书"));
         }
         return evidences;
     }

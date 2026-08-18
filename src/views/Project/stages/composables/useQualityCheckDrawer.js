@@ -1,6 +1,7 @@
 import { ref, reactive, computed, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { complianceApi } from '@/api/modules/ai.js'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 
 export function useQualityCheckDrawer(props) {
   const visible = ref(false)
@@ -127,7 +128,7 @@ export function useQualityCheckDrawer(props) {
       startPolling(task.taskId)
     } catch (e) {
       polling.value = false
-      ElMessage.error('触发质量核查异常: ' + (e.message || '网络连接失败'))
+      notifyErrorUnlessRateLimit(e, '触发质量核查异常')
     }
   }
 
