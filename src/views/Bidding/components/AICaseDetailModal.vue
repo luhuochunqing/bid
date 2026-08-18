@@ -107,16 +107,31 @@ const getScoreClass = (score) => {
   return 'score-normal'
 }
 
+const escapeHtml = (str) => {
+  if (!str) return ''
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
+const escapeRegExp = (str) => {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 const highlightedResponseText = computed(() => {
   if (!props.caseDetail || !props.caseDetail.responseText) {
     return '暂无应答内容'
   }
-  let text = props.caseDetail.responseText
+  let text = escapeHtml(props.caseDetail.responseText)
   const keywords = props.caseDetail.matchedKeywords || []
   if (keywords.length > 0) {
     keywords.forEach((kw) => {
       if (kw && kw.length >= 2) {
-        const reg = new RegExp(`(${kw})`, 'gi')
+        const escapedKw = escapeHtml(kw)
+        const reg = new RegExp(`(${escapeRegExp(escapedKw)})`, 'gi')
         text = text.replace(reg, '<mark class="highlight-kw">$1</mark>')
       }
     })

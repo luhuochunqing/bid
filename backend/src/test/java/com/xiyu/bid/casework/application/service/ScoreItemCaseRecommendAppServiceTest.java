@@ -51,6 +51,7 @@ class ScoreItemCaseRecommendAppServiceTest {
         Project project = new Project();
         project.setId(projectId);
         project.setCustomerType("STATE_OWNED");
+        project.setIndustry("ENERGY");
 
         ScoreItem scoreItem = ScoreItem.builder()
                 .id(scoreItemId)
@@ -67,6 +68,7 @@ class ScoreItemCaseRecommendAppServiceTest {
         case1.setScoringCategory("技术方案");
         case1.setRequirementRaw("要求提供微服务与容灾备份");
         case1.setResponseText("我方具备微服务容灾部署架构");
+        case1.setProjectType("ENERGY");
         case1.setCustomerType("STATE_OWNED");
         case1.setBidResult("WON");
         case1.setStatus("ACTIVE");

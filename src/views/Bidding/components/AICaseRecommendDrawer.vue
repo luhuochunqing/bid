@@ -135,7 +135,6 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { caseRecommendationApi } from '@/api/modules/caseRecommendation'
 import AICaseRecommendCard from './AICaseRecommendCard.vue'

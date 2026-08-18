@@ -76,13 +76,28 @@ const getScoreBadgeClass = (score) => {
   return 'badge-normal'
 }
 
+const escapeHtml = (str) => {
+  if (!str) return ''
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
+const escapeRegExp = (str) => {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 const highlightText = (text, keywords) => {
   if (!text) return ''
-  let sanitized = text
+  let sanitized = escapeHtml(text)
   if (keywords && keywords.length > 0) {
     keywords.forEach((kw) => {
       if (kw && kw.length >= 2) {
-        const reg = new RegExp(`(${kw})`, 'gi')
+        const escapedKw = escapeHtml(kw)
+        const reg = new RegExp(`(${escapeRegExp(escapedKw)})`, 'gi')
         sanitized = sanitized.replace(reg, '<span class="kw-hl">$1</span>')
       }
     })
@@ -100,16 +115,13 @@ const highlightText = (text, keywords) => {
   transition: all 0.2s ease;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
-
 .case-card:hover {
   border-color: var(--brand-xiyu-logo);
   box-shadow: 0 4px 8px var(--brand-xiyu-logo-shadow);
 }
-
 .pinned-card {
   border-left: 3px solid var(--brand-xiyu-logo);
 }
-
 .card-header {
   display: flex;
   justify-content: space-between;
@@ -117,14 +129,12 @@ const highlightText = (text, keywords) => {
   gap: 8px;
   margin-bottom: 8px;
 }
-
 .title-wrap {
   display: flex;
   align-items: center;
   gap: 6px;
   flex: 1;
 }
-
 .pin-tag {
   font-size: 11px;
   background: var(--color-warning-bg);
@@ -133,14 +143,12 @@ const highlightText = (text, keywords) => {
   border-radius: 4px;
   font-weight: 500;
 }
-
 .case-title {
   font-size: 14.5px;
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.4;
 }
-
 .match-score-badge {
   display: inline-flex;
   align-items: center;
@@ -151,22 +159,9 @@ const highlightText = (text, keywords) => {
   font-weight: 600;
   flex-shrink: 0;
 }
-
-.badge-high {
-  background: var(--brand-xiyu-logo-light);
-  color: var(--brand-xiyu-logo);
-}
-
-.badge-medium {
-  background: var(--color-info-bg);
-  color: var(--brand-primary);
-}
-
-.badge-normal {
-  background: var(--gray-50);
-  color: var(--gray-650);
-}
-
+.badge-high { background: var(--brand-xiyu-logo-light); color: var(--brand-xiyu-logo); }
+.badge-medium { background: var(--color-info-bg); color: var(--brand-primary); }
+.badge-normal { background: var(--gray-50); color: var(--gray-650); }
 .card-meta {
   display: flex;
   align-items: center;
@@ -175,41 +170,25 @@ const highlightText = (text, keywords) => {
   margin-bottom: 8px;
   font-size: 12px;
 }
-
 .meta-tag {
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 11.5px;
 }
-
-.category-tag {
-  background: var(--gray-50);
-  color: var(--gray-600);
-}
-
-.won-tag {
-  background: var(--color-success-bg);
-  color: var(--color-success-dark);
-}
-
-.customer-tag {
-  background: var(--color-warning-bg);
-  color: var(--color-warning);
-}
-
+.category-tag { background: var(--gray-50); color: var(--gray-600); }
+.won-tag { background: var(--color-success-bg); color: var(--color-success-dark); }
+.customer-tag { background: var(--color-warning-bg); color: var(--color-warning); }
 .source-proj {
   color: var(--text-lighter);
   margin-left: auto;
   font-size: 11.5px;
 }
-
 .reasons-wrap {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
   margin-bottom: 8px;
 }
-
 .reason-pill {
   font-size: 11px;
   background: var(--bg-subtle);
@@ -218,7 +197,6 @@ const highlightText = (text, keywords) => {
   border-radius: 4px;
   border: 1px solid var(--color-info-bg);
 }
-
 .requirement-preview {
   background: var(--bg-muted-2);
   padding: 6px 10px;
@@ -228,12 +206,7 @@ const highlightText = (text, keywords) => {
   margin-bottom: 8px;
   line-height: 1.4;
 }
-
-.preview-label {
-  font-weight: 500;
-  color: var(--gray-600);
-}
-
+.preview-label { font-weight: 500; color: var(--gray-600); }
 .response-summary-box {
   background: var(--bg-subtle);
   border-left: 2px solid var(--brand-xiyu-logo);
@@ -244,12 +217,7 @@ const highlightText = (text, keywords) => {
   color: var(--text-primary-ui);
   margin-bottom: 10px;
 }
-
-.summary-label {
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
+.summary-label { font-weight: 600; color: var(--text-primary); }
 :deep(.kw-hl) {
   background: var(--color-warning-light);
   color: var(--color-warning);
@@ -257,7 +225,6 @@ const highlightText = (text, keywords) => {
   padding: 0 2px;
   border-radius: 2px;
 }
-
 .card-footer {
   display: flex;
   justify-content: space-between;
@@ -265,22 +232,12 @@ const highlightText = (text, keywords) => {
   border-top: 1px dashed var(--gray-150);
   padding-top: 8px;
 }
-
-.reuse-stat {
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-
-.footer-actions {
-  display: flex;
-  gap: 8px;
-}
-
+.reuse-stat { font-size: 12px; color: var(--text-tertiary); }
+.footer-actions { display: flex; gap: 8px; }
 .quick-reuse-btn {
   background-color: var(--brand-xiyu-logo);
   border-color: var(--brand-xiyu-logo);
 }
-
 .quick-reuse-btn:hover {
   background-color: var(--brand-xiyu-logo-hover);
   border-color: var(--brand-xiyu-logo-hover);

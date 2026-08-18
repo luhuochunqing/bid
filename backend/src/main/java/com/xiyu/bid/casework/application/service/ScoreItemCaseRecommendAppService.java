@@ -61,7 +61,7 @@ public class ScoreItemCaseRecommendAppService {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
 
         Project project = projectRepository.findById(projectId).orElse(null);
-        String projectType = project != null ? project.getCustomerType() : null;
+        String projectType = project != null ? project.getIndustry() : null;
         String customerType = project != null ? project.getCustomerType() : null;
 
         ScoreItem scoreItem = null;
