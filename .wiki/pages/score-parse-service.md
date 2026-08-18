@@ -5,12 +5,13 @@ category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
 updated: 2026-08-18
-health_checked: 2026-08-17
+health_checked: 2026-08-18
 sources:
   - specs/041-ai-score-parse-backend/spec.md
   - specs/041-ai-score-parse-backend/plan.md
   - specs/045-bid-file-streaming-scoring/spec.md
   - specs/046-fix-score-parse-ghost/spec.md
+  - specs/047-fix-score-weight-gap/spec.md
   - backend/src/main/java/com/xiyu/bid/scoreparse/
   - docs/implementation-notes/ai-score-parse-backend.md
 backlinks:
@@ -45,6 +46,7 @@ trigger（同步<1s，互斥校验+建任务）
       → GhostCandidateFilter 幽灵过滤（spec 046 FR-001）
       → WeightSumCheck + ItemCountCheck 闭环校验（差异触发二次回补）
       → WeightOverloadTrimPolicy 超载剔除：合计>100.5 两轮剔嫌疑（spec 046 FR-002）
+      → WeightNormalizationPolicy 权重归一化：合计偏离100（容差±0.5外且>0）按比例缩放+最大余数法收敛，落库和恒=100（spec 047）
       → ScoreTypeClassificationPolicy 客观/主观分类
       → ScoreItemPersistenceService 覆盖落库（ScoreItemOrderPolicy 编号数值序，空code落""）
       → EstimatedScoreService 阶段1预计得分（链尾）
@@ -119,9 +121,12 @@ trigger（同步<1s，互斥校验+建任务）
   - **LLM chunk 失败可见性（FR-005）**：单 chunk 失败重试 1 次，两连败跳过并计数 `RecallOutcome.skippedChunks` → `score_parse_task.skipped_chunks`（V1193）→ Meta 透出 `skippedChunks`。此前 chunk 静默跳过用户无感知，解析质量问题不可见。
   - **@Async 落库事务缺失第二处（2026-08-18 spec 046 部署验证发现）**：`ScoreItemPersistenceService.persistItems` 内的 `deleteByScoreItemIdIn`/`deleteByProjectId` 同样在 `@Async` 线程抛 `No EntityManager with actual transaction`，全任务在落库阶段终止（召回结果全丢）。修复：`persistItems` 加 `@Transactional`（跨 bean 调用代理生效）。与 §7 `ScoreResultOverwriter` 同类根因——**@Async 管线里所有含 bulk delete/save 的落库方法都必须显式开事务**，save 单条可侥幸、delete 必炸。
   - **LLM 网关"成功返回空候选"不触发重试也不计 skip（2026-08-18 测试环境事故）**：ai-tech.ehsy.com 的 qwen3.7-max 自某时刻起对候选提取 prompt 持续返回空 `candidates`（HTTP 200 + 合法 JSON + 空数组），召回四 `count=0, skipped=0` 零异常，三次稳定复现；切 `gemini-3.5-flash` 后同文档恢复 count=10。排查要点：skippedChunks=0 且 count=0 ≠ 代码回归，先换模型对照再查代码；此形态 FR-005 覆盖不到（重试只兜 HTTP/异常失败），只能靠 weightWarning + 完整性回补兜底。
+  - **权重合计缺口根治：归一化（spec 047）**：spec 046 只对合计≠100 透 `weightWarning` 提示不修正，用户仍看到 90 缺 10 分。spec 047 改为在超载剔除后、落库前对候选集执行权重归一化——`WeightNormalizationPolicy`（纯核心，10 用例）对 `total>0 且 |total-100|>0.5` 按 `scale=100/total` 逐项缩放 + **最大余数法**确定性分配四舍五入余数（同余按 index 升序，保证可复现），落库合计恒=100 且保持相对比例。归一化发生则把原始合计写 `score_parse_task.original_total_weight`（V1194）并在 items 接口 `summary.originalTotalWeight` 透出（null=未归一化）；`weightWarning` 归一化后恒 false。前端据此可呈现"原合计 X，已补齐到 100"。
+  - **ScoreParseAppService 行预算 300 临界**：spec 047 归一并排进编排类，文件卡在 300 行边缘——紧凑化手段（合并 record 参数、去冗余空行、内联单次调用）可过线，勿再往编排类加逻辑，继续拆分到子服务。
 
 ## 8. 验证基线
 
 - 单测：解析编排/持久化覆盖/匹配五类/预计得分/阶段2打分/超时扫描/启动恢复 全绿（~143 用例含 biddraftagent 回归）
-- **spec 046 测试环境真实验证（2026-08-18，project 212）**：7 项全真实评分项（幽灵"得分 得分 100"行已消失）、DB item_index 1-7 与 code 数值序一致、`skipped_chunks=0` 落库且 meta 透出、事务修复后落库 COMPLETED。totalWeight=90≠100（LLM 提取完整性缺口 10 分，`weightWarning=true` 兜底透出）——对照修复前 200 事故已根治；权重缺口属解析质量问题非 spec 046 范围。
+- **spec 046 测试环境真实验证（2026-08-18，project 212）**：7 项全真实评分项（幽灵"得分 得分 100"行已消失）、DB item_index 1-7 与 code 数值序一致、`skipped_chunks=0` 落库且 meta 透出、事务修复后落库 COMPLETED。对照修复前 200 事故已根治。
+- **spec 047 权重归一化（2026-08-18）**：`WeightNormalizationPolicyTest` 10 用例全绿（缺口 90→100 / 超载 200→100 / 恰好 100 透传 / 容差 99.6 透传 / 空候选 / 相对比例保持 / 确定性可复现 / 顺序无关收敛 / 仅改 weight / null 权重）。编排类行预算 300 达标，checkstyle 改动文件 0 violations，架构测试 43 通过。落库合计恒=100，缺口不再以 `weightWarning` 提示收场。
 - 架构：ArchitectureTest + FPJavaArchitectureTest + ProjectAccessGuardCoverageTest 通过

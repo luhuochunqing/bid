@@ -11,6 +11,7 @@ import com.xiyu.bid.scoreparse.domain.ItemCountCheck;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreItemMergePolicy;
 import com.xiyu.bid.scoreparse.domain.SummaryAggregator;
+import com.xiyu.bid.scoreparse.domain.WeightNormalizationPolicy;
 import com.xiyu.bid.scoreparse.domain.WeightOverloadTrimPolicy;
 import com.xiyu.bid.scoreparse.domain.WeightSumCheck;
 import com.xiyu.bid.scoreparse.infrastructure.openai.RecallOutcome;
@@ -182,20 +183,25 @@ public class ScoreParseAppService {
                     source.text(), valid);
             if (!missed.isEmpty()) {
                 log.info("完整性回补发现遗漏项: taskId={}, missed={}", taskId, missed.size());
-                valid = filterInvalidWeights(mergePolicy.merge(concat(valid, missed)));
+                valid = filterInvalidWeights(mergePolicy.merge(
+                        java.util.stream.Stream.concat(valid.stream(), missed.stream()).toList()));
                 weightResult = weightSumCheck.checkCandidates(valid);
             }
         }
-
-        // spec 046 FR-002 超载剔除：合计 > 100.5 时两轮剔嫌疑（无code → 无sourceText）
+        // spec 046 FR-002 超载剔除：合计 > 100.5 两轮剔嫌疑（无code → 无sourceText）
         if (weightResult.totalWeight().compareTo(OVERLOAD_LIMIT) > 0) {
-            WeightOverloadTrimPolicy.TrimResult trimmed = trimPolicy.trim(valid, OVERLOAD_LIMIT);
+            var trimmed = trimPolicy.trim(valid, OVERLOAD_LIMIT);
             valid = trimmed.remaining();
-            log.warn("权重超载剔除（spec 046 FR-002）: taskId={}, total={}, removed={}",
-                    taskId, weightResult.totalWeight(), trimmed.removed().size());
+            log.warn("权重超载剔除 spec046: removed={}", trimmed.removed().size());
             weightResult = weightSumCheck.checkCandidates(valid);
         }
-
+        // spec 047 FR-001 权重归一化：偏离 100（容差外 >0）收敛 100 并透出 US3 信号
+        var normalized = new WeightNormalizationPolicy().normalize(valid);
+        if (normalized.originalTotal() != null) {
+            valid = normalized.normalizedCandidates();
+            task.setOriginalTotalWeight(normalized.originalTotal());
+            taskRepository.save(task);
+        }
         // FR-006/FR-007 数量校验：0 项 → 解析失败终态
         ItemCountCheck.Result countResult = itemCountCheck.check(valid.size());
         if (countResult.failed()) {
@@ -237,15 +243,16 @@ public class ScoreParseAppService {
                         item.getWeight(), item.getScoreType(), item.getEstScore(),
                         item.getStatusStage1()))
                 .toList());
+        ScoreParseTask latest = latestTaskOrNull(projectId, TASK_TYPE_PARSE);
         return new ScoreParseItemsDTO(itemDTOs, new ScoreParseItemsDTO.Summary(
                 summary.totalWeight(), summary.totalEstScore(),
                 summary.okCount(), summary.dangerCount(), summary.pendingCount(),
                 summary.objectiveWeight(), summary.subjectiveWeight(),
-                summary.weightWarning()),
+                summary.weightWarning(), latest == null ? null : latest.getOriginalTotalWeight()),
                 new ScoreParseItemsMetaBuilder(initiationTenderTextResolver, snapshotRepository,
                         taskRepository, itemRepository, resultRepository,
                         new ScoreBidDocumentLookup(projectDocumentRepository, null, null, null, null))
-                        .build(projectId, latestTaskOrNull(projectId, TASK_TYPE_PARSE),
+                        .build(projectId, latest,
                                 latestTaskOrNull(projectId, "SCORING")));
     }
 
@@ -256,10 +263,9 @@ public class ScoreParseAppService {
     }
 
     private ScoreParseTask latestTask(Long projectId, String taskType) {
-        List<ScoreParseTask> tasks = taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
-                projectId, taskType, List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED"));
-        return tasks.stream()
-                .max(java.util.Comparator.comparing(ScoreParseTask::getId))
+        return taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
+                        projectId, taskType, List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED"))
+                .stream().max(java.util.Comparator.comparing(ScoreParseTask::getId))
                 .orElseThrow(() -> new IllegalStateException("项目无解析任务: " + projectId));
     }
 
@@ -277,12 +283,6 @@ public class ScoreParseAppService {
             log.warn("丢弃权重无法解析的候选 {} 项（spec Edge Cases）", dropped);
         }
         return valid;
-    }
-
-    private List<ScoreCandidate> concat(List<ScoreCandidate> first, List<ScoreCandidate> second) {
-        List<ScoreCandidate> all = new ArrayList<>(first);
-        all.addAll(second);
-        return all;
     }
 
     private void updateProgress(String taskId, int progress, String stageKey, String stageText) {
