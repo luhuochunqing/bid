@@ -3,25 +3,15 @@
     <div class="m8-filter-item">
       <input type="checkbox" class="m9-xaxis-cb" :checked="xAxisDimensions.includes('time')" @change="handleXAxisChange('time', $event.target.checked)" />
       <label class="m8-filter-label">时间维度</label>
-      <el-select
-        ref="timeDimensionSelectRef"
-        v-model="filters.timeDimension"
-        class="time-dimension-select"
-        size="small"
-        placeholder="请选择"
-        @change="handleTimeDimensionChange"
-      >
-        <el-option label="日" value="day" />
-        <el-option label="周" value="week" />
-        <el-option label="月" value="month" />
-        <el-option label="年" value="year" />
+      <el-select ref="timeDimensionSelectRef" v-model="filters.timeDimension" class="time-dimension-select" size="small" placeholder="请选择" @change="handleTimeDimensionChange">
+        <el-option label="日" value="day" /><el-option label="周" value="week" /><el-option label="月" value="month" /><el-option label="年" value="year" />
       </el-select>
     </div>
 
     <div class="m8-filter-item">
       <input type="checkbox" class="m9-xaxis-cb" :checked="xAxisDimensions.includes('dept')" @change="handleXAxisChange('dept', $event.target.checked)" />
       <label class="m8-filter-label">部门</label>
-      <FilterSelect v-model="filters.departments" :options="departmentOptions" :loading="loadingDepartments" placeholder="请选择" @search="handleDepartmentSearch" @change="handleFieldChange('dept')" />
+      <TreeSelectDropdown v-model="filters.departments" :options="departmentOptions" placeholder="请选择" class="filter-tree-select" @change="handleDeptValueChange" />
     </div>
 
     <div class="m8-filter-item">
@@ -76,13 +66,11 @@
 <script setup>
 import { ref } from 'vue'
 import {
-  PROJECT_STATUS_OPTIONS,
-  CUSTOMER_TYPE_OPTIONS,
-  PROJECT_TYPE_OPTIONS,
-  COMPETITOR_OPTIONS,
-  REGION_OPTIONS
+  PROJECT_STATUS_OPTIONS, CUSTOMER_TYPE_OPTIONS,
+  PROJECT_TYPE_OPTIONS, COMPETITOR_OPTIONS, REGION_OPTIONS
 } from './filterConstants.js'
 import FilterSelect from './FilterSelect.vue'
+import TreeSelectDropdown from '../shared/TreeSelectDropdown.vue'
 
 const props = defineProps({
   departmentOptions: { type: Array, default: () => [] },
@@ -94,11 +82,9 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'confirm', 'reset',
-  'search-department', 'search-person', 'search-region',
+  'confirm', 'reset', 'search-department', 'search-person', 'search-region',
   'search-customer-type', 'search-project-type', 'search-project-status',
-  'search-tender-subject', 'search-competitor',
-  'department-change'
+  'search-tender-subject', 'search-competitor', 'department-change'
 ])
 
 const timeDimensionSelectRef = ref(null)
@@ -110,35 +96,35 @@ const regionOptions = ref(REGION_OPTIONS)
 const submitting = ref(false)
 
 const filters = ref({
-  timeDimension: 'month',
-  departments: [], persons: [], regions: [],
+  timeDimension: 'month', departments: [], persons: [], regions: [],
   customerTypes: [], projectTypes: [], projectStatuses: [],
   tenderSubjects: [], competitors: []
 })
-
 const xAxisDimensions = ref([])
 
-// X 轴维度 key → 筛选状态字段映射（time 不映射到筛选值）
 const AXIS_TO_FILTER = {
-  time: null,
-  dept: 'departments', person: 'persons', region: 'regions',
+  time: null, dept: 'departments', person: 'persons', region: 'regions',
   customerType: 'customerTypes', projectType: 'projectTypes',
-  projectStatus: 'projectStatuses', tenderEntity: 'tenderSubjects',
-  competitor: 'competitors'
+  projectStatus: 'projectStatuses', tenderEntity: 'tenderSubjects', competitor: 'competitors'
 }
 const NON_DEPT_PERSON = ['time', 'region', 'customerType', 'projectType', 'projectStatus', 'tenderEntity', 'competitor']
 
-// 时间维度单选后自动关闭下拉框
-// 用 setTimeout 确保 Element Plus 内部 change 处理完成后再触发 blur 关闭 popper
-const handleTimeDimensionChange = () => {
-  setTimeout(() => {
-    timeDimensionSelectRef.value?.blur?.()
-  }, 50)
+const extractAllValues = (items) => {
+  let values = []
+  if (!items || !Array.isArray(items)) return values
+  for (const item of items) {
+    if (item.value) values.push(item.value)
+    if (item.children && Array.isArray(item.children)) {
+      values = values.concat(extractAllValues(item.children))
+    }
+  }
+  return values
 }
 
-// PRD 6.3 X 轴互斥逻辑
-// 复选框变化时执行互斥逻辑（清空其他字段），但不立即刷新图表
-// 图表刷新由"确认"按钮触发
+const handleTimeDimensionChange = () => {
+  setTimeout(() => { timeDimensionSelectRef.value?.blur?.() }, 50)
+}
+
 const handleXAxisChange = (field, checked) => {
   if (checked) {
     if (field === 'dept' || field === 'person') {
@@ -146,9 +132,7 @@ const handleXAxisChange = (field, checked) => {
       if (!xAxisDimensions.value.includes(field)) xAxisDimensions.value.push(field)
       if (field === 'person' && !xAxisDimensions.value.includes('dept')) {
         xAxisDimensions.value.push('dept')
-        // 勾选人员时自动选中全部部门
-        filters.value.departments = props.departmentOptions.map(o => o.value)
-        // 触发人员加载
+        filters.value.departments = extractAllValues(props.departmentOptions)
         emit('department-change', filters.value.departments)
       }
       NON_DEPT_PERSON.forEach(key => { if (AXIS_TO_FILTER[key]) filters.value[AXIS_TO_FILTER[key]] = [] })
@@ -167,11 +151,14 @@ const handleXAxisChange = (field, checked) => {
   }
 }
 
-// PRD 6.3 选值自动勾选：用户选值时自动勾选复选框并触发互斥
+const handleDeptValueChange = (val) => {
+  filters.value.departments = val || []
+  handleFieldChange('dept')
+}
+
 const handleFieldChange = (dim) => {
   const filterKey = AXIS_TO_FILTER[dim]
   const vals = filters.value[filterKey]
-  // PRD 6.4 部门-人员联动：部门选值变化时先清空人员选值（确保 X 轴切换时 persons 已清空）
   if (dim === 'dept') {
     filters.value.persons = []
   }
@@ -214,87 +201,28 @@ const handleReset = () => {
 
 <style scoped>
 .m8-filter-bar {
-  display: flex;
-  gap: 10px 14px;
-  align-items: center;
-  flex-wrap: wrap;
-  padding: 14px 16px;
-  background: #FAFBFC;
-  border-radius: 6px;
-  margin-bottom: 16px;
-  border: 1px solid var(--status-neutral-bg);
+  display: flex; gap: 10px 14px; align-items: center; flex-wrap: wrap;
+  padding: 14px 16px; background: #FAFBFC; border-radius: 6px;
+  margin-bottom: 16px; border: 1px solid var(--status-neutral-bg);
 }
-
-.m8-filter-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  position: relative;
-}
-
-.m8-filter-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--login-brand-bg-mid);
-  white-space: nowrap;
-}
-
-.m9-xaxis-cb {
-  width: 14px;
-  height: 14px;
-  cursor: pointer;
-  accent-color: var(--brand-xiyu-logo);
-  margin: 0;
-}
-
-.time-radio-group {
-  flex-shrink: 0;
-}
-
-.m8-filter-item :deep(.filter-select) { width: 140px; flex-shrink: 0; }
+.m8-filter-item { display: flex; align-items: center; gap: 5px; position: relative; }
+.m8-filter-label { font-size: 12px; font-weight: 600; color: var(--login-brand-bg-mid); white-space: nowrap; }
+.m9-xaxis-cb { width: 14px; height: 14px; cursor: pointer; accent-color: var(--brand-xiyu-logo); margin: 0; }
+.time-radio-group { flex-shrink: 0; }
+.m8-filter-item :deep(.filter-select),
+.m8-filter-item :deep(.filter-tree-select),
+.m8-filter-item :deep(.el-tree-select) { width: 140px; flex-shrink: 0; }
 .m8-filter-item :deep(.el-select .el-select__wrapper) { min-height: 28px; }
 .m8-filter-item :deep(.el-select .el-select__selection-wrapper) { overflow: hidden; }
-.m8-filter-item :deep(.el-select__tags-text) {
-  max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
+.m8-filter-item :deep(.el-select__tags-text) { max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .time-dimension-select { width: 90px; flex-shrink: 0; }
-
-.m9-filter-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-shrink: 0;
-  margin-left: auto;
-}
-
+.m9-filter-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; margin-left: auto; }
 .confirm-btn {
-  padding: 5px 14px;
-  background: var(--brand-xiyu-logo);
-  color: var(--bg-white);
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
+  padding: 5px 14px; background: var(--brand-xiyu-logo); color: var(--bg-white);
+  border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; white-space: nowrap;
 }
-
-.confirm-btn:hover {
-  background: var(--brand-xiyu-logo-hover);
-}
-
-.confirm-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.confirm-btn.reset {
-  background: var(--bg-white);
-  color: var(--text-badge);
-  border: 1px solid var(--status-neutral-bg);
-}
-
-.confirm-btn.reset:hover {
-  background: var(--bg-subtle);
-}
+.confirm-btn:hover { background: var(--brand-xiyu-logo-hover); }
+.confirm-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.confirm-btn.reset { background: var(--bg-white); color: var(--text-badge); border: 1px solid var(--status-neutral-bg); }
+.confirm-btn.reset:hover { background: var(--bg-subtle); }
 </style>

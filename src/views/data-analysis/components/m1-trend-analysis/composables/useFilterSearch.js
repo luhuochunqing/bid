@@ -17,18 +17,23 @@ export function useFilterSearch() {
   const loadingPersons = ref(false)
   const loadingTenderSubjects = ref(false)
 
-  // 后端返回 { label, value, count? } → 前端 { label, value }
+  // 后端返回 { label, value, count?, children? } → 前端 { label, value, children? }
   function mapOptions(items) {
-    return (items || []).map((item) => ({
-      label: item.label ?? item.name ?? item.value,
-      value: item.value ?? item.id ?? item.label
-    }))
+    return (items || []).map((item) => {
+      const node = {
+        label: item.label ?? item.name ?? item.value,
+        value: item.value ?? item.id ?? item.label
+      }
+      if (item.children && Array.isArray(item.children) && item.children.length > 0) {
+        node.children = mapOptions(item.children)
+      }
+      return node
+    })
   }
 
   /**
    * PRD §6.2 一次性加载全部维度选项（onMounted 调用）。
    * 项目状态、客户类型、项目类型、竞品公司、区域由前端常量提供，不在此加载。
-   * 人员初始不加载，由部门联动触发加载。
    */
   async function loadAllFilterOptions() {
     loadingDepartments.value = true
@@ -38,8 +43,7 @@ export function useFilterSearch() {
       if (res?.success && res.data) {
         const d = res.data
         departmentOptions.value = mapOptions(d.department)
-        // 人员初始不加载，由部门联动触发加载
-        personOptions.value = []
+        personOptions.value = mapOptions(d.person)
         tenderSubjectOptions.value = mapOptions(d.tenderEntity)
       }
     } catch {
@@ -52,7 +56,6 @@ export function useFilterSearch() {
 
   /**
    * PRD 6.4 部门-人员联动：根据已选部门名称列表刷新人员下拉选项。
-   * departmentNames 为空数组或 null 时清空人员选项（前端需提示"请先选择部门"）。
    */
   async function refreshPersonsByDepartments(departmentNames) {
     loadingPersons.value = true

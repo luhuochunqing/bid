@@ -1,3 +1,8 @@
+// Input: TrendAnalysisService, HTTP requests
+// Output: Trend analysis and filter options API response
+// Pos: Controller/API 控制层
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+
 package com.xiyu.bid.analytics.controller;
 
 import com.xiyu.bid.analytics.dto.AnalyticsFilterOptionDTO;
@@ -90,7 +95,7 @@ public class TrendAnalysisController {
      */
     @GetMapping("/filter-options")
     @PreAuthorize("hasAuthority('analytics-dashboard')")
-    public ResponseEntity<ApiResponse<Map<String, List<AnalyticsFilterOptionDTO>>>> getFilterOptions() {
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getFilterOptions() {
         return ResponseEntity.ok(ApiResponse.success(
                 trendAnalysisService.getFilterOptions()
         ));

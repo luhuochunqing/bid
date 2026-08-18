@@ -1,3 +1,8 @@
+// Input: EntityManager, ProjectAccessScopeService, TrendQueryCriteria
+// Output: DimensionRow data lists
+// Pos: Query Service/数据查询层
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+
 package com.xiyu.bid.analytics.service;
 
 import com.xiyu.bid.entity.Project;
@@ -44,8 +49,30 @@ public class TrendAnalysisDimensionQueryService {
     }
 
     //=== 区域 ===//
+    /**
+     * 提取总部所在地一级地址（省/直辖市/自治区/特别行政区）。
+     * 存储格式: "广东省深圳市"/"北京市北京市"/"内蒙古自治区呼和浩特市"/"香港特别行政区中西区"。
+     * 使用原生 SQL CASE 提取省级前缀：直辖市取前3字符(X市)，
+     * "省"/"区"后缀用 LOCATE 定位截取。
+     */
+    private static final String REGION_EXTRACT_EXPR = """
+            CASE
+              WHEN pid.headquartersLocation LIKE '北京市%' THEN '北京市'
+              WHEN pid.headquartersLocation LIKE '天津市%' THEN '天津市'
+              WHEN pid.headquartersLocation LIKE '上海市%' THEN '上海市'
+              WHEN pid.headquartersLocation LIKE '重庆市%' THEN '重庆市'
+              WHEN pid.headquartersLocation LIKE '香港特别行政区%' THEN '香港特别行政区'
+              WHEN pid.headquartersLocation LIKE '澳门特别行政区%' THEN '澳门特别行政区'
+              WHEN pid.headquartersLocation LIKE '台湾省%' THEN '台湾省'
+              WHEN pid.headquartersLocation LIKE '%自治区%'
+                THEN SUBSTRING(pid.headquartersLocation, 1, LOCATE('自治区', pid.headquartersLocation) + 2)
+              WHEN pid.headquartersLocation LIKE '%省%'
+                THEN SUBSTRING(pid.headquartersLocation, 1, LOCATE('省', pid.headquartersLocation))
+              ELSE pid.headquartersLocation
+            END""";
+
     List<DimensionRow> fetchRegionRows(TrendQueryCriteria criteria) {
-        return queryDimension("pid.headquartersLocation",
+        return queryDimension(REGION_EXTRACT_EXPR,
                 "join ProjectInitiationDetails pid on pid.projectId = p.id left join Tender t on t.id = p.tenderId left join User u on u.id = p.managerId left join ProjectResult pr on pr.projectId = p.id left join ProjectResultCompetitor prc on prc.resultId = pr.id",
                 "pid.headquartersLocation is not null and pid.headquartersLocation <> ''",
                 criteria, null);

@@ -1,3 +1,8 @@
+// Input: CustomerTypeProjectRow lists
+// Output: CustomerTypeAggregate lists
+// Pos: Computation Service/纯计算层
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+
 package com.xiyu.bid.analytics.service;
 
 import com.xiyu.bid.analytics.model.CustomerTypeAggregate;
@@ -89,15 +94,36 @@ class CustomerTypeAnalyticsComputationService {
     }
 
     /**
-     * 只返回精确匹配 5 种标准分类的值，不匹配的返回 null（跳过不统计）。
+     * 将项目的 customerType 字段值归一到 5 种标准分类之一。
+     * 优先精确匹配，fallback 到模糊匹配（包含关键词）。
+     * 不匹配任何分类时返回 null（跳过不统计）。
      */
     String normalizeCustomerType(String customerType) {
         if (customerType == null || customerType.isBlank()) {
             return null;
         }
         String trimmed = customerType.trim();
+        // 1) 精确匹配
         if (ALLOWED_CATEGORIES.contains(trimmed)) {
             return trimmed;
+        }
+        // 2) 模糊匹配：覆盖常见变体写法
+        if (trimmed.contains("政府") || trimmed.contains("事业单位") || trimmed.contains("高校")
+                || trimmed.contains("机关")) {
+            return CATEGORY_GOVERNMENT;
+        }
+        if (trimmed.contains("央企") || trimmed.contains("中央企业")) {
+            return CATEGORY_CENTRAL_SOE;
+        }
+        if (trimmed.contains("地方国企") || (trimmed.contains("国企") && !trimmed.contains("央"))) {
+            return CATEGORY_LOCAL_SOE;
+        }
+        if (trimmed.contains("民企") || trimmed.contains("民营")) {
+            return CATEGORY_PRIVATE;
+        }
+        if (trimmed.contains("港澳台") || trimmed.contains("外企") || trimmed.contains("外资")
+                || trimmed.contains("合资")) {
+            return CATEGORY_FOREIGN;
         }
         return null;
     }

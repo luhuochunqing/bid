@@ -1,5 +1,11 @@
+// Input: OrganizationDepartmentRepository, EntityManager, ProjectAccessScopeService
+// Output: Filter options, distinct values, and department tree
+// Pos: Query Service/数据查询层
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+
 package com.xiyu.bid.analytics.service;
 
+import com.xiyu.bid.analytics.dto.AnalyticsDepartmentTreeDTO;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationDepartmentEntity;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationDepartmentRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
@@ -9,7 +15,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -28,7 +37,7 @@ public class FilterOptionsQueryService {
     private final ProjectAccessScopeService projectAccessScopeService;
 
     /**
-     * PRD §6.2 M1 筛选区下拉选项 — 部门。
+     * PRD §6.2 M1 筛选区下拉选项 — 部门（扁平列表，向后兼容）。
      * 从 OSS 组织架构表（organization_departments）获取全量部门，不过滤失效部门。
      */
     List<String> fetchDistinctDepartments() {
@@ -41,21 +50,87 @@ public class FilterOptionsQueryService {
     }
 
     /**
+     * PRD §6.2 M1 筛选区下拉选项 — 部门树形结构。
+     * 利用 parentDepartmentCode 构建层级关系，无效部门不过滤。
+     * 返回格式：{ label, value(=departmentName), children }，前端 el-tree-select 直接使用。
+     */
+    List<AnalyticsDepartmentTreeDTO> fetchDepartmentTree() {
+        List<OrganizationDepartmentEntity> allDepts =
+                organizationDepartmentRepository.findAllByOrderByDepartmentCode();
+
+        // code → DTO 索引
+        Map<String, AnalyticsDepartmentTreeDTO> codeToDtoMap = new LinkedHashMap<>();
+        for (OrganizationDepartmentEntity dept : allDepts) {
+            String name = dept.getDepartmentName();
+            if (name == null || name.isEmpty()) continue;
+            codeToDtoMap.put(dept.getDepartmentCode(), AnalyticsDepartmentTreeDTO.builder()
+                    .label(name)
+                    .value(name)
+                    .children(new ArrayList<>())
+                    .build());
+        }
+
+        // 组装树：将子节点挂到父节点的 children 下
+        List<AnalyticsDepartmentTreeDTO> roots = new ArrayList<>();
+        for (OrganizationDepartmentEntity dept : allDepts) {
+            String code = dept.getDepartmentCode();
+            AnalyticsDepartmentTreeDTO dto = codeToDtoMap.get(code);
+            if (dto == null) continue;
+
+            String parentCode = dept.getParentDepartmentCode();
+            if (parentCode != null && !parentCode.isEmpty() && codeToDtoMap.containsKey(parentCode)) {
+                codeToDtoMap.get(parentCode).getChildren().add(dto);
+            } else {
+                roots.add(dto);
+            }
+        }
+
+        // 清理空 children（设为 null，减少序列化体积）
+        cleanEmptyChildren(roots);
+        return roots;
+    }
+
+    private static void cleanEmptyChildren(List<AnalyticsDepartmentTreeDTO> nodes) {
+        if (nodes == null) return;
+        for (AnalyticsDepartmentTreeDTO node : nodes) {
+            if (node.getChildren() != null && node.getChildren().isEmpty()) {
+                node.setChildren(null);
+            } else {
+                cleanEmptyChildren(node.getChildren());
+            }
+        }
+    }
+
+    /**
      * PRD §6.2 M1 筛选区下拉选项 — 人员 DISTINCT（users.full_name）。
-     * 直接从 User 表查询，不限制必须有项目。
-     * 可选按部门名称过滤（PRD §6.4 部门-人员联动用，departmentNames 为空时返回空列表）。
+     * 直接从 User 表查询，不限制必须有项目（无效人员不过滤，全部包含）。
+     * 当 departmentNames 为空时返回全量人员；有部门时按部门名称或部门编码匹配。
      */
     List<String> fetchDistinctPersons(List<String> departmentNames) {
         if (departmentNames == null || departmentNames.isEmpty()) {
-            // 未选部门时不返回人员，前端需提示"请先选择部门"
-            return List.of();
+            return entityManager.createQuery("""
+                            select distinct u.fullName
+                            from User u
+                            where u.fullName is not null
+                              and u.fullName <> ''
+                            order by u.fullName
+                            """, String.class)
+                    .getResultList();
         }
         return entityManager.createQuery("""
                         select distinct u.fullName
                         from User u
                         where u.fullName is not null
                           and u.fullName <> ''
-                          and u.departmentName in :departmentNames
+                          and (
+                            u.departmentName in :departmentNames
+                            or u.departmentCode in (
+                              select d.departmentCode from OrganizationDepartmentEntity d where d.departmentName in :departmentNames
+                            )
+                            or u.departmentCode in (
+                              select d.externalDeptId from OrganizationDepartmentEntity d where d.departmentName in :departmentNames
+                            )
+                          )
                         order by u.fullName
                         """, String.class)
                 .setParameter("departmentNames", departmentNames)

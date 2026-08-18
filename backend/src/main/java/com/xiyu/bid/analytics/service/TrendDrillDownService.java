@@ -1,8 +1,14 @@
+// Input: EntityManager, ProjectAccessScopeService, HTTP drilldown requests
+// Output: TrendDrillDownResponse DTO
+// Pos: Service/数据查询与下钻服务层
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+
 package com.xiyu.bid.analytics.service;
 
 import com.xiyu.bid.analytics.dto.TrendDrillDownResponse;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -23,7 +29,8 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class TrendDrillDownService {
 
-    private final EntityManager entityManager;
+    @PersistenceContext
+    private EntityManager entityManager;
     private final ProjectAccessScopeService projectAccessScopeService;
 
     public TrendDrillDownResponse drillDown(
@@ -81,8 +88,16 @@ public class TrendDrillDownService {
         appendInFilter(where, params, "p.customer_type", "customerTypes", customerTypes);
         appendInFilter(where, params, "t.project_type", "projectTypes", projectTypes);
         appendInFilter(where, params, "p.status", "statuses", statuses);
-        appendInFilter(where, params, "t.purchaser_name", "tenderEntities", tenderEntities);
-        appendInFilter(where, params, "pid.headquarters_location", "regions", regions);
+        // 区域过滤（总部所在地前缀匹配）
+        if (regions != null && !regions.isEmpty()) {
+            where.append(" AND (");
+            for (int i = 0; i < regions.size(); i++) {
+                if (i > 0) where.append(" OR ");
+                where.append("pid.headquarters_location LIKE :regionPattern").append(i);
+                params.put("regionPattern" + i, regions.get(i) + "%");
+            }
+            where.append(")");
+        }
 
         // 部门过滤（通过 manager_id → users.department_name）
         if (departments != null && !departments.isEmpty()) {
