@@ -2,10 +2,10 @@
 title: CRM 集成踩坑集
 space: engineering
 category: guide
-tags: [CRM, 集成, 踩坑, webhook, 商机状态, OAuth, CallerContext]
+tags: [CRM, 集成, 踩坑, webhook, 商机状态, OAuth, CallerContext, OBS预签名]
 created: 2026-07-10
-updated: 2026-08-12
-health_checked: 2026-08-12
+updated: 2026-08-18
+health_checked: 2026-08-18
 sources:
   - backend/src/main/java/com/xiyu/bid/integration/external/TenderIntegrationCommandService.java
   - .wiki/pages/integration-oa-crm.md
@@ -251,7 +251,44 @@ API Key 同时支持两种传递方式：
 
 ---
 
-## 9. 相关文档
+## 9. 回调下发 OBS 预签名 URL 会过期 — 外部系统必须给永久端点
+
+### 9.1 事故
+
+2026-08 客户投诉：§4.2 项目结果回调 feedback.evidenceFiles[].fileUrl 无法访问。
+生产验证（uploadId=4c15375b）：文件 09:52:38 上传 → 09:52:48 回调 DELIVERED，
+fileUrl 是 `ObsShareUrlSigner` 签发的 1 小时预签名 URL（Expires = 签发时刻+3600s），
+CRM 存储该字符串后 1 小时即永久失效。
+
+### 9.2 根因
+
+- OBS 文件永久存储，但预签名 URL 有效期由签发时 expireSeconds 决定（本项目硬限 [60, 3600] 秒）
+- `ProjectResultPayloadAssembler` 组装 feedback 时把 `obs-direct:{uploadId}` 实时签成预签名 URL 下发，
+  适合"立即点开"场景，不适合"对方存下来以后用"场景
+- **文件永久 ≠ URL 永久**；OBS 签名上限约 7 天，做不到永久 URL
+
+### 9.3 修复模式
+
+给外部系统下发**永久下载端点**而非签名 URL：
+
+1. `TenderAttachmentUrlResolver.toIntegrationDownloadUrl/toIntegrationFullUrl`：`obs-direct:` 包装为
+   `{publicBaseUrl}/api/integration/tenders/attachments/download?fileUrl=obs-direct%3A...`（仅外部系统路径，
+   内部用户 `toDownloadUrl()` 仍走预签名）
+2. `TenderAttachmentDownloadService` 新增 `obs-direct:` 分支：复用 `ObsShareUrlSigner` 实时签发后 302 重定向
+   （照搬 `ArchiveFileResponseFactory` 既有模式，不写第二套签名）
+
+历史数据无需修 DB（源头存的是伪协议，永不过期），上线后对历史项目重推 §4.2 回调即可覆盖 CRM 侧旧 URL。
+
+### 9.4 教训
+
+- **给外部系统持久化存储的 URL 必须是永久端点**，预签名 URL 只适合短时消费
+- **排障先验证前提**：最初把文件名里的毫秒时间戳误当上传时间，误判"6 天有效期、非我们代码签发"，
+  生产 SQL（bid_file/project_documents/webhook_delivery_logs 三表时间线）才还原真相
+- **复用既有签名器**（ObsShareUrlSigner），不要在新端点里写第二套签名逻辑
+
+---
+
+## 10. 相关文档
 
 - [[integration-oa-crm]] — CRM 接口规范（字段定义、响应格式）
 - [[lessons-learned]] §六 — PR 合并验证盲区（CRM bidInfoSync 回传修复案例）
@@ -260,8 +297,9 @@ API Key 同时支持两种传递方式：
 
 ---
 
-## 10. 变更记录
+## 11. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
 | 2026-07-10 | 首次创建，从 8 个工作区历史对话中提取 CRM 集成踩坑教训 |
+| 2026-08-18 | 新增 §9：回调下发 OBS 预签名 URL 过期事故与永久端点修复模式 |
