@@ -1,0 +1,158 @@
+.quality-check-drawer :deep(.el-drawer__header) {
+  margin-bottom: 0;
+  padding: 16px 20px;
+  border-bottom: 1px solid #ebeef5;
+}
+.drawer-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+.header-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.header-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1f2937;
+}
+.header-sub-row {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+.file-name-meta, .check-time-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.polling-progress-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 80px 20px;
+}
+.progress-box {
+  width: 100%;
+  max-width: 520px;
+  text-align: center;
+}
+.ai-bot-avatar {
+  font-size: 40px;
+  margin-bottom: 16px;
+  animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+.progress-step-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 16px;
+}
+.step-progress-bar {
+  margin-bottom: 12px;
+}
+.progress-hint {
+  font-size: 12px;
+  color: #9ca3af;
+  line-height: 1.5;
+}
+.stats-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.stat-card {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+.stat-card.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+.stat-num {
+  font-size: 22px;
+  font-weight: 700;
+}
+.stat-total .stat-num { color: #1f2937; }
+.stat-passed .stat-num { color: #16a34a; }
+.stat-failed .stat-num { color: #dc2626; }
+.stat-manual .stat-num { color: #d97706; }
+.stat-label {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+.filter-tab-bar {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: flex-start;
+}
+.category-section {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.category-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f8fafc;
+  cursor: pointer;
+  user-select: none;
+}
+.cat-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+}
+.cat-count {
+  font-size: 12px;
+  color: #64748b;
+  margin-left: 6px;
+}
+.cat-badges-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.badge-tag {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.fail-tag { background: #fee2e2; color: #991b1b; }
+.manual-tag { background: #fef3c7; color: #92400e; }
+.pass-tag { background: #dcfce7; color: #166534; }
+.collapse-arrow {
+  transition: transform 0.2s ease;
+}
+.collapse-arrow.rotated {
+  transform: rotate(-90deg);
+}
+.category-items-list {
+  border-top: 1px solid #f1f5f9;
+}
