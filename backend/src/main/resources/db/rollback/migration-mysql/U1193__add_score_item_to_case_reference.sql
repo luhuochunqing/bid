@@ -1,4 +1,9 @@
--- Undo V1193: drop added columns from case_reference_records
+-- Input: 回滚脚本参数、当前 DB 状态
+-- Output: 回滚 case_reference_records 新增字段与索引
+-- Pos: 与 V1193 配对，作为案例复用增强的回滚
+-- 维护声明: 维护者按项目SOP；与 V1193 一起提交，含 header 满足 FlywayRollbackScriptCoverageTest
+-- Source: V1193__add_score_item_to_case_reference.sql
+
 ALTER TABLE case_reference_records
     DROP INDEX IF EXISTS idx_case_ref_score_item,
     DROP INDEX IF EXISTS idx_case_ref_project,

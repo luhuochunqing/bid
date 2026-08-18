@@ -7,10 +7,10 @@ import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCaseRepository;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.repository.ProjectRepository;
+import com.xiyu.bid.scoreparse.dto.ScoreItemDTO;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,7 +33,6 @@ import java.util.Optional;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class ScoreItemCaseRecommendAppService {
 
@@ -43,6 +42,17 @@ public class ScoreItemCaseRecommendAppService {
     private final ProjectAccessScopeService projectAccessScopeService;
 
     private final ScoreItemCaseMatchPolicy matchPolicy = new ScoreItemCaseMatchPolicy();
+
+    public ScoreItemCaseRecommendAppService(
+            KnowledgeCaseRepository knowledgeCaseRepository,
+            ScoreItemRepository scoreItemRepository,
+            ProjectRepository projectRepository,
+            ProjectAccessScopeService projectAccessScopeService) {
+        this.knowledgeCaseRepository = knowledgeCaseRepository;
+        this.scoreItemRepository = scoreItemRepository;
+        this.projectRepository = projectRepository;
+        this.projectAccessScopeService = projectAccessScopeService;
+    }
 
     /**
      * 为项目指定评分项（或关键词）检索推荐案例
@@ -107,9 +117,23 @@ public class ScoreItemCaseRecommendAppService {
     /**
      * 获取指定项目的评分项列表 (PRD 4.2 契约)
      */
-    public List<ScoreItem> getScoreItems(Long projectId) {
+    public List<ScoreItemDTO> getScoreItems(Long projectId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
-        return scoreItemRepository.findByProjectIdOrderByItemIndexAsc(projectId);
+        return scoreItemRepository.findByProjectIdOrderByItemIndexAsc(projectId).stream()
+                .map(item -> new ScoreItemDTO(
+                        item.getId(),
+                        item.getCode(),
+                        item.getDim(),
+                        item.getDetail(),
+                        item.getWeight(),
+                        item.getScoreType(),
+                        item.getStatusStage1(),
+                        item.getEstScore(),
+                        item.getEstBasis(),
+                        item.getKbHit(),
+                        item.getLocation()
+                ))
+                .toList();
     }
 
     private ScoreItemCaseRecommendResponse.Item toResponseItem(KnowledgeCase candidate, ScoreItemCaseMatchPolicy.MatchResult result) {

@@ -65,6 +65,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { caseRecommendationApi } from '@/api/modules/caseRecommendation'
 
 const props = defineProps({
@@ -177,7 +178,7 @@ const handleConfirmReuse = async () => {
     })
     dialogVisible.value = false
   } catch (err) {
-    ElMessage.error(err.message || '复用案例失败，请重试')
+    notifyErrorUnlessRateLimit(err, '复用案例失败，请重试')
   } finally {
     submitting.value = false
   }

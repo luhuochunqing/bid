@@ -136,13 +136,21 @@ class ScoreItemCaseRecommendControllerTest {
     @WithMockUser
     @DisplayName("GET /api/projects/{projectId}/score-items 成功返回评分项列表")
     void testGetScoreItemsSuccess() throws Exception {
-        com.xiyu.bid.scoreparse.entity.ScoreItem item = new com.xiyu.bid.scoreparse.entity.ScoreItem();
-        item.setId(10L);
-        item.setCode("A1");
-        item.setDim("技术方案");
-        item.setDetail("系统架构高可用设计");
+        com.xiyu.bid.scoreparse.dto.ScoreItemDTO dto = new com.xiyu.bid.scoreparse.dto.ScoreItemDTO(
+                10L,
+                "A1",
+                "技术方案",
+                "系统架构高可用设计",
+                null,
+                "TECHNICAL",
+                "PENDING",
+                null,
+                null,
+                null,
+                "第2章 技术方案"
+        );
 
-        when(recommendAppService.getScoreItems(eq(123L))).thenReturn(List.of(item));
+        when(recommendAppService.getScoreItems(eq(123L))).thenReturn(List.of(dto));
 
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/projects/123/score-items"))
                 .andExpect(status().isOk())

@@ -136,6 +136,7 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { caseRecommendationApi } from '@/api/modules/caseRecommendation'
 import AICaseRecommendCard from './AICaseRecommendCard.vue'
 import AICaseDetailModal from './AICaseDetailModal.vue'
@@ -216,7 +217,7 @@ const fetchRecommendations = async () => {
       totalCases.value = 0
     }
   } catch (err) {
-    ElMessage.error(err.message || '获取推荐案例失败')
+    notifyErrorUnlessRateLimit(err, '获取推荐案例失败')
     recommendedCases.value = []
   } finally {
     loading.value = false

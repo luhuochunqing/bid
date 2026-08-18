@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.xiyu.bid.scoreparse.entity.ScoreItem;
+import com.xiyu.bid.scoreparse.dto.ScoreItemDTO;
 import org.springframework.web.bind.annotation.GetMapping;
 import java.util.List;
 
@@ -48,7 +48,7 @@ public class ScoreItemCaseRecommendController {
      */
     @GetMapping("/score-items")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<List<ScoreItem>> getScoreItems(@PathVariable Long projectId) {
+    public ResponseEntity<List<ScoreItemDTO>> getScoreItems(@PathVariable Long projectId) {
         return ResponseEntity.ok(recommendAppService.getScoreItems(projectId));
     }
 }
