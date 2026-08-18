@@ -271,11 +271,15 @@ CRM 存储该字符串后 1 小时即永久失效。
 
 给外部系统下发**永久下载端点**而非签名 URL：
 
-1. `TenderAttachmentUrlResolver.toIntegrationDownloadUrl/toIntegrationFullUrl`：`obs-direct:` 包装为
+1. `TenderAttachmentUrlResolver.toIntegrationEndpointUrlOrNull`（共享分发，
+   toIntegrationDownloadUrl/toIntegrationFullUrl 共用）：`obs-direct:` 包装为
    `{publicBaseUrl}/api/integration/tenders/attachments/download?fileUrl=obs-direct%3A...`（仅外部系统路径，
    内部用户 `toDownloadUrl()` 仍走预签名）
-2. `TenderAttachmentDownloadService` 新增 `obs-direct:` 分支：复用 `ObsShareUrlSigner` 实时签发后 302 重定向
-   （照搬 `ArchiveFileResponseFactory` 既有模式，不写第二套签名）
+2. 下载端点统一走 `ObsDirectRedirects.tryRedirect`（file/application 包，2026-08-18 重构收口）：
+   复用 `ObsShareUrlSigner.signObsDirect` 富结果实时签发后 302 重定向，
+   精确区分 404（BidFile 不存在）/ 502（OBS 故障），不写第二套签名
+3. **对接契约**（标讯集成接口文档 §4.2）：CRM 侧必须跟随 302 重定向；端点免认证（URL-as-capability）
+4. **部署依赖**：`xiyu.public-base-url` 必须配置（未配置时 Resolver 打 warn，但下发的相对路径 CRM 不可用）
 
 历史数据无需修 DB（源头存的是伪协议，永不过期），上线后对历史项目重推 §4.2 回调即可覆盖 CRM 侧旧 URL。
 
@@ -284,7 +288,10 @@ CRM 存储该字符串后 1 小时即永久失效。
 - **给外部系统持久化存储的 URL 必须是永久端点**，预签名 URL 只适合短时消费
 - **排障先验证前提**：最初把文件名里的毫秒时间戳误当上传时间，误判"6 天有效期、非我们代码签发"，
   生产 SQL（bid_file/project_documents/webhook_delivery_logs 三表时间线）才还原真相
-- **复用既有签名器**（ObsShareUrlSigner），不要在新端点里写第二套签名逻辑
+- **复用既有签名器**（ObsShareUrlSigner），不要在新端点里写第二套签名逻辑；
+  多处相同的"obs-direct → 签发 → 302"行为要收口到单一共享组件（ObsDirectRedirects），避免三份拷贝各自演化
+- **永久免认证端点是安全权衡**：URL-as-capability 能力窗口从 1 小时扩到永久，
+  收紧需 CRM 方配合（改传 api_key），属集成契约变更，不能单方面改
 
 ---
 
@@ -303,3 +310,4 @@ CRM 存储该字符串后 1 小时即永久失效。
 |------|---------|
 | 2026-07-10 | 首次创建，从 8 个工作区历史对话中提取 CRM 集成踩坑教训 |
 | 2026-08-18 | 新增 §9：回调下发 OBS 预签名 URL 过期事故与永久端点修复模式 |
+| 2026-08-18 | §9 更新：ObsDirectRedirects 重构收口、404/502 语义精确化、对接契约与安全姿态声明 |

@@ -4,6 +4,7 @@
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.integration.external;
 
+import com.xiyu.bid.file.application.ObsDirectRedirects;
 import com.xiyu.bid.file.application.ObsShareUrlSigner;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
@@ -73,25 +74,18 @@ public class TenderAttachmentDownloadService {
         if (fileUrl == null || fileUrl.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "文件 URL 不能为空");
         }
+        if (fileUrl.startsWith(ObsShareUrlSigner.OBS_DIRECT_PREFIX)) {
+            // OBS 直传文件：实时签发预签名 URL 后 302 重定向（统一走 ObsDirectRedirects，404/502 语义精确）
+            return ObsDirectRedirects.tryRedirect(obsShareUrlSigner, fileUrl)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "无效的文件 URL 格式"));
+        }
         if (fileUrl.startsWith("http://") || fileUrl.startsWith("https://")) {
             return downloadExternal(fileUrl);
-        }
-        if (fileUrl.startsWith(ObsShareUrlSigner.OBS_DIRECT_PREFIX)) {
-            return downloadObsDirect(fileUrl);
         }
         if (!fileUrl.startsWith("doc-insight://")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "无效的文件 URL 格式");
         }
         return downloadLocal(fileUrl);
-    }
-
-    /** OBS 直传文件：实时签发预签名 URL 后 302 重定向（与 ArchiveFileResponseFactory 行为对齐）。 */
-    private ResponseEntity<Resource> downloadObsDirect(String fileUrl) {
-        String signedUrl = obsShareUrlSigner.trySign(fileUrl)
-                .filter(url -> !url.equals(fileUrl))
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "OBS 文件不存在或不可用"));
-        return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(signedUrl)).build();
     }
 
     /** 下载本地 doc-insight:// 文件。 */

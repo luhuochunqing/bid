@@ -1,7 +1,6 @@
 package com.xiyu.bid.casework.application;
 
 import com.xiyu.bid.casework.infrastructure.ArchiveFile;
-import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.file.application.ObsShareUrlSigner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -10,10 +9,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.core.io.Resource;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -22,7 +21,8 @@ import static org.mockito.Mockito.when;
 
 /**
  * spec 039：档案文件响应工厂测试。
- * obs-direct: 伪协议 → 302 重定向预签名 URL；本地物理路径 → 流式 200；越界 → 400 语义异常。
+ * obs-direct: 伪协议 → 302 重定向预签名 URL（统一走 ObsDirectRedirects，404/502 语义精确）；
+ * 本地物理路径 → 流式 200；越界 → 400 语义异常。
  */
 class ArchiveFileResponseFactoryTest {
 
@@ -55,8 +55,8 @@ class ArchiveFileResponseFactoryTest {
     @Test
     void build_obsDirectPath_shouldReturn302WithSignedUrl() {
         ArchiveFile file = archiveFile("obs-direct:upload-123");
-        when(obsShareUrlSigner.trySign("obs-direct:upload-123"))
-                .thenReturn(Optional.of("https://obs.example.com/signed/abc?signature=x"));
+        when(obsShareUrlSigner.signObsDirect("obs-direct:upload-123"))
+                .thenReturn(ObsShareUrlSigner.SignResult.signed("https://obs.example.com/signed/abc?signature=x"));
 
         ResponseEntity<Resource> response = factory.build(file, false);
 
@@ -65,23 +65,26 @@ class ArchiveFileResponseFactoryTest {
     }
 
     @Test
-    void build_obsDirectPath_signFailed_shouldThrowNotFound() {
+    void build_obsDirectPath_fileNotFound_shouldThrow404() {
         ArchiveFile file = archiveFile("obs-direct:missing-upload");
-        when(obsShareUrlSigner.trySign("obs-direct:missing-upload")).thenReturn(Optional.empty());
+        when(obsShareUrlSigner.signObsDirect("obs-direct:missing-upload"))
+                .thenReturn(ObsShareUrlSigner.SignResult.of(ObsShareUrlSigner.SignOutcome.FILE_NOT_FOUND));
 
         assertThatThrownBy(() -> factory.build(file, false))
-                .isInstanceOf(ResourceNotFoundException.class);
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
     }
 
     @Test
-    void build_obsDirectPath_signReturnedRawValue_shouldThrowNotFound() {
-        // 防御：trySign 对非 obs-direct 输入原样返回；此处模拟异常返回原值时不得 302 到伪协议地址
-        ArchiveFile file = archiveFile("obs-direct:raw-value");
-        when(obsShareUrlSigner.trySign("obs-direct:raw-value"))
-                .thenReturn(Optional.of("obs-direct:raw-value"));
+    void build_obsDirectPath_signFailed_shouldThrow502() {
+        // OBS 上游故障 ≠ 资源不存在，语义上为 502（可重试），避免误导排障
+        ArchiveFile file = archiveFile("obs-direct:obs-down");
+        when(obsShareUrlSigner.signObsDirect("obs-direct:obs-down"))
+                .thenReturn(ObsShareUrlSigner.SignResult.of(ObsShareUrlSigner.SignOutcome.SIGN_FAILED));
 
         assertThatThrownBy(() -> factory.build(file, true))
-                .isInstanceOf(ResourceNotFoundException.class);
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY));
     }
 
     @Test

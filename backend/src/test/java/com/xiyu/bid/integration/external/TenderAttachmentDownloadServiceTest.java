@@ -14,7 +14,6 @@ import org.springframework.web.server.ResponseStatusException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -44,8 +43,9 @@ class TenderAttachmentDownloadServiceTest {
     @Test
     @DisplayName("obs-direct:{uploadId} 签发成功时返回 302 重定向到预签名 URL")
     void download_obsDirectSigned_returns302() {
-        org.mockito.Mockito.when(obsShareUrlSigner.trySign("obs-direct:upload-abc"))
-                .thenReturn(Optional.of("https://ehsy-widbid.obs.cn-east-3.myhuaweicloud.com/bids/test.png?Signature=xxx"));
+        org.mockito.Mockito.when(obsShareUrlSigner.signObsDirect("obs-direct:upload-abc"))
+                .thenReturn(ObsShareUrlSigner.SignResult.signed(
+                        "https://ehsy-widbid.obs.cn-east-3.myhuaweicloud.com/bids/test.png?Signature=xxx"));
 
         ResponseEntity<Resource> response = service.download("obs-direct:upload-abc");
 
@@ -55,15 +55,27 @@ class TenderAttachmentDownloadServiceTest {
     }
 
     @Test
-    @DisplayName("obs-direct:{uploadId} 签发失败（文件不存在/OBS 故障）返回 404")
-    void download_obsDirectSignFailed_returns404() {
-        org.mockito.Mockito.when(obsShareUrlSigner.trySign("obs-direct:non-existent"))
-                .thenReturn(Optional.empty());
+    @DisplayName("obs-direct:{uploadId} 文件不存在返回 404")
+    void download_obsDirectFileNotFound_returns404() {
+        org.mockito.Mockito.when(obsShareUrlSigner.signObsDirect("obs-direct:non-existent"))
+                .thenReturn(ObsShareUrlSigner.SignResult.of(ObsShareUrlSigner.SignOutcome.FILE_NOT_FOUND));
 
         assertThatThrownBy(() -> service.download("obs-direct:non-existent"))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode().value())
                         .isEqualTo(404));
+    }
+
+    @Test
+    @DisplayName("obs-direct:{uploadId} OBS 签发故障返回 502（区别于 404，可重试）")
+    void download_obsDirectSignFailed_returns502() {
+        org.mockito.Mockito.when(obsShareUrlSigner.signObsDirect("obs-direct:obs-down"))
+                .thenReturn(ObsShareUrlSigner.SignResult.of(ObsShareUrlSigner.SignOutcome.SIGN_FAILED));
+
+        assertThatThrownBy(() -> service.download("obs-direct:obs-down"))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode().value())
+                        .isEqualTo(502));
     }
 
     // ── doc-insight:// 本地下载 ────────────────────────────────────────────────

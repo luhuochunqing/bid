@@ -5,6 +5,8 @@
 package com.xiyu.bid.integration.external;
 
 import com.xiyu.bid.file.application.ObsShareUrlSigner;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -28,6 +30,8 @@ import static com.xiyu.bid.apikey.infrastructure.ApiKeyAuthConstants.DEFAULT_QUE
  */
 @Component
 public class TenderAttachmentUrlResolver {
+
+    private static final Logger log = LoggerFactory.getLogger(TenderAttachmentUrlResolver.class);
 
     /** 公开端点根地址（如 https://winbid-test.ehsy.com）。 */
     private static String publicBaseUrl;
@@ -106,23 +110,9 @@ public class TenderAttachmentUrlResolver {
         if (u == null || u.isBlank()) {
             return u;
         }
-        // obs-direct: → 集成下载端点 URL（永久有效，端点内实时签发预签名 URL，修复 CRM 侧链接 1 小时过期）
-        if (u.startsWith(ObsShareUrlSigner.OBS_DIRECT_PREFIX)) {
-            return wrapObsDirectAsIntegrationUrl(u);
-        }
-        // 已是集成下载地址，幂等返回
-        if (u.startsWith("/api/integration/tenders/attachments/download?")) {
-            return prependPublicBaseUrl(u);
-        }
-        // 旧 /api/doc-insight/download? 格式重定向到新端点
-        String legacyDocInsightParams = extractOwnLegacyDocInsightParams(u);
-        if (legacyDocInsightParams != null) {
-            return prependPublicBaseUrl("/api/integration/tenders/attachments/download?" + legacyDocInsightParams);
-        }
-        // doc-insight:// 转换为集成下载端点
-        if (u.startsWith("doc-insight://")) {
-            return prependPublicBaseUrl("/api/integration/tenders/attachments/download?fileUrl="
-                    + URLEncoder.encode(u, StandardCharsets.UTF_8));
+        String endpointUrl = toIntegrationEndpointUrlOrNull(u);
+        if (endpointUrl != null) {
+            return endpointUrl;
         }
         // http(s):// 外部 URL 原样返回
         return u;
@@ -158,21 +148,9 @@ public class TenderAttachmentUrlResolver {
      */
     public static String toIntegrationFullUrl(String url) {
         if (url == null) return null;
-        // obs-direct: → 集成下载端点 URL（永久有效，端点内实时签发预签名 URL，修复 CRM 侧链接 1 小时过期）
-        if (url.startsWith(ObsShareUrlSigner.OBS_DIRECT_PREFIX)) {
-            return wrapObsDirectAsIntegrationUrl(url);
-        }
-        if (url.startsWith("doc-insight://")) {
-            return toIntegrationDownloadUrl(url);
-        }
-        // 旧 /api/doc-insight/download? 格式重定向到新端点
-        String legacyDocInsightParams = extractOwnLegacyDocInsightParams(url);
-        if (legacyDocInsightParams != null) {
-            return prependPublicBaseUrl("/api/integration/tenders/attachments/download?" + legacyDocInsightParams);
-        }
-        // 已是集成下载地址
-        if (url.startsWith("/api/integration/tenders/attachments/download?")) {
-            return prependPublicBaseUrl(url);
+        String endpointUrl = toIntegrationEndpointUrlOrNull(url);
+        if (endpointUrl != null) {
+            return endpointUrl;
         }
         if (url.startsWith("/api/")) {
             return prependPublicBaseUrl(url);
@@ -234,6 +212,31 @@ public class TenderAttachmentUrlResolver {
     }
 
     /**
+     * 集成下载端点的共享分发（toIntegrationDownloadUrl / toIntegrationFullUrl 共用，避免双入口重复实现）。
+     *
+     * <p>按优先级处理：obs-direct:（包装为永久端点 URL，端点内实时签发预签名 URL，
+     * 修复 CRM 侧链接 1 小时过期）→ 已是集成端点（幂等）→ 旧 doc-insight 端点（重定向）
+     * → doc-insight://（转换）；均不命中返回 null 由调用方接管。
+     */
+    private static String toIntegrationEndpointUrlOrNull(String u) {
+        if (u.startsWith(ObsShareUrlSigner.OBS_DIRECT_PREFIX)) {
+            return wrapObsDirectAsIntegrationUrl(u);
+        }
+        if (u.startsWith("/api/integration/tenders/attachments/download?")) {
+            return prependPublicBaseUrl(u);
+        }
+        String legacyDocInsightParams = extractOwnLegacyDocInsightParams(u);
+        if (legacyDocInsightParams != null) {
+            return prependPublicBaseUrl("/api/integration/tenders/attachments/download?" + legacyDocInsightParams);
+        }
+        if (u.startsWith("doc-insight://")) {
+            return prependPublicBaseUrl("/api/integration/tenders/attachments/download?fileUrl="
+                    + URLEncoder.encode(u, StandardCharsets.UTF_8));
+        }
+        return null;
+    }
+
+    /**
      * 将 obs-direct:{uploadId} 包装为 CRM 集成下载端点 URL。
      *
      * <p>端点 URL 本身永久有效（fileUrl 参数为伪协议原值），CRM 每次访问时由
@@ -241,6 +244,10 @@ public class TenderAttachmentUrlResolver {
      * 从根本上解决回调下发的 URL 过期问题。</p>
      */
     private static String wrapObsDirectAsIntegrationUrl(String u) {
+        if (publicBaseUrl == null || publicBaseUrl.isBlank()) {
+            log.warn("xiyu.public-base-url 未配置，外部系统收到的 obs-direct 下载 URL 为相对路径（{}），"
+                    + "跨系统场景将不可用，请检查部署配置", u);
+        }
         return prependPublicBaseUrl("/api/integration/tenders/attachments/download?fileUrl="
                 + URLEncoder.encode(u, StandardCharsets.UTF_8));
     }
