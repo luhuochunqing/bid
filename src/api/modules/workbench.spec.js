@@ -71,4 +71,30 @@ describe('workbenchApi', () => {
       events: [],
     })
   })
+
+  it('getOpportunityPredictions should request predictions and normalize array payload', async () => {
+    getMock.mockResolvedValue({
+      success: true,
+      data: [
+        { projectId: 1, projectName: '智慧水务一期工程', predictedBidDate: '2026-09-14', near: true },
+      ],
+    })
+
+    const result = await workbenchApi.getOpportunityPredictions()
+
+    expect(getMock).toHaveBeenCalledWith('/api/workbench/opportunity-predictions')
+    expect(result.success).toBe(true)
+    expect(result.data).toHaveLength(1)
+    expect(result.data[0].predictedBidDate).toBe('2026-09-14')
+  })
+
+  it('getOpportunityPredictions should fall back to empty list on failure', async () => {
+    getMock.mockRejectedValue(new Error('network down'))
+
+    const result = await workbenchApi.getOpportunityPredictions()
+
+    expect(result.success).toBe(false)
+    expect(result.data).toEqual([])
+    expect(result.error).toBeInstanceOf(Error)
+  })
 })
