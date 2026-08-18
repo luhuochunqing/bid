@@ -23,7 +23,8 @@ public record ScoreParseItemsDTO(
             int pendingCount,
             BigDecimal objectiveWeight,
             BigDecimal subjectiveWeight,
-            boolean weightWarning
+            boolean weightWarning,
+            BigDecimal originalTotalWeight
     ) {
     }
 
