@@ -1,6 +1,7 @@
 // Input: fileUrl 字符串（obs-direct: / doc-insight:// / http(s):// / /api/... 相对路径）
 // Output: 转换后的下载 URL（OBS 预签名 URL / XiYu 内部端点 / CRM 集成端点）
 // Pos: integration.external — 附件 URL 转换器，承载 publicBaseUrl 配置和端点选择逻辑
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.integration.external;
 
 import com.xiyu.bid.file.application.ObsShareUrlSigner;
@@ -19,7 +20,8 @@ import static com.xiyu.bid.apikey.infrastructure.ApiKeyAuthConstants.DEFAULT_QUE
 /**
  * 附件下载 URL 转换器（CO-280 403 修复）。
  *
- * <p>三条转换路径：obs-direct:{uploadId} → OBS 预签名 URL（{@link ObsShareUrlSigner}）；
+ * <p>三条转换路径：obs-direct:{uploadId}：内部用户 → OBS 预签名 URL（{@link ObsShareUrlSigner}），
+ * 外部系统 → 集成下载端点 URL（永久有效，下载时实时签发）；
  * doc-insight:// → XiYu 内部端点；http(s):// → 原样返回。
  * {@code publicBaseUrl} 通过 {@link Value @Value} 注入静态字段，
  * {@code obsShareUrlSigner} 通过 {@link Autowired @Autowired} 注入静态字段。
@@ -104,10 +106,9 @@ public class TenderAttachmentUrlResolver {
         if (u == null || u.isBlank()) {
             return u;
         }
-        // obs-direct: → OBS 预签名 URL（签发失败回退为原值）
-        Optional<String> obsSigned = tryResolveObsDirect(u);
-        if (obsSigned.isPresent()) {
-            return obsSigned.get();
+        // obs-direct: → 集成下载端点 URL（永久有效，端点内实时签发预签名 URL，修复 CRM 侧链接 1 小时过期）
+        if (u.startsWith(ObsShareUrlSigner.OBS_DIRECT_PREFIX)) {
+            return wrapObsDirectAsIntegrationUrl(u);
         }
         // 已是集成下载地址，幂等返回
         if (u.startsWith("/api/integration/tenders/attachments/download?")) {
@@ -157,10 +158,9 @@ public class TenderAttachmentUrlResolver {
      */
     public static String toIntegrationFullUrl(String url) {
         if (url == null) return null;
-        // obs-direct: → OBS 预签名 URL（签发失败回退为原值）
-        Optional<String> obsSigned = tryResolveObsDirect(url);
-        if (obsSigned.isPresent()) {
-            return obsSigned.get();
+        // obs-direct: → 集成下载端点 URL（永久有效，端点内实时签发预签名 URL，修复 CRM 侧链接 1 小时过期）
+        if (url.startsWith(ObsShareUrlSigner.OBS_DIRECT_PREFIX)) {
+            return wrapObsDirectAsIntegrationUrl(url);
         }
         if (url.startsWith("doc-insight://")) {
             return toIntegrationDownloadUrl(url);
@@ -231,6 +231,18 @@ public class TenderAttachmentUrlResolver {
             result.add(resolve(url, context));
         }
         return result;
+    }
+
+    /**
+     * 将 obs-direct:{uploadId} 包装为 CRM 集成下载端点 URL。
+     *
+     * <p>端点 URL 本身永久有效（fileUrl 参数为伪协议原值），CRM 每次访问时由
+     * TenderAttachmentDownloadService 实时签发预签名 URL 并 302 重定向，
+     * 从根本上解决回调下发的 URL 过期问题。</p>
+     */
+    private static String wrapObsDirectAsIntegrationUrl(String u) {
+        return prependPublicBaseUrl("/api/integration/tenders/attachments/download?fileUrl="
+                + URLEncoder.encode(u, StandardCharsets.UTF_8));
     }
 
     private static String extractOwnLegacyDocInsightParams(String url) {

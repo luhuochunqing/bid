@@ -244,6 +244,29 @@ class ProjectResultPayloadAssemblerTest {
     }
 
     @Test
+    @DisplayName("OBS 直传凭证 fileUrl 包装为集成下载端点（永久有效，非预签名 URL）")
+    void feedbackJson_obsDirectFileUrl_pointsToIntegrationEndpoint() throws Exception {
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(1033L).projectId(PROJECT_ID)
+                .name("企业微信截图.png").size("2048000")
+                .fileUrl("obs-direct:4c15375b-718b-4ea4-8baa-4495288cdca3")
+                .uploaderName("张三").build();
+        when(projectDocumentRepository.findAllById(List.of(1033L))).thenReturn(List.of(doc));
+        when(projectInitiationDetailsRepository.findByProjectId(PROJECT_ID)).thenReturn(Optional.empty());
+
+        String feedback = assembler().buildFeedbackString(buildEvent(
+                BidResultType.WON, List.of(1033L), List.of()), "张三");
+
+        JsonNode root = new ObjectMapper().readTree(feedback);
+        String fileUrl = root.get("evidenceFiles").get(0).get("fileUrl").asText();
+        assertThat(fileUrl)
+                .contains("/api/integration/tenders/attachments/download?fileUrl=obs-direct%3A4c15375b");
+        // 永久端点而非 1 小时过期的预签名 URL
+        assertThat(fileUrl).doesNotContain("Signature=");
+        assertThat(fileUrl).doesNotContain("Expires=");
+    }
+
+    @Test
     @DisplayName("CO-300: LOST/FAILED/ABANDONED feedback 含对应原因字段，WON 不含")
     void feedback_containsReasonFieldByResultType() throws Exception {
         ObjectMapper mapper = new ObjectMapper();

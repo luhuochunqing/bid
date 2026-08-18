@@ -1,6 +1,7 @@
 // Input: HTTP GET /api/integration/tenders/attachments/download?fileUrl=...
 // Output: 文件流响应（Content-Disposition: attachment）
 // Pos: integration.external — CRM 跨系统附件下载 REST 入口（X-API-Key 认证）
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.integration.external;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>支持的 fileUrl 格式：
  * <ul>
+ *   <li>{@code obs-direct:{uploadId}}：OBS 直传文件，实时签发预签名 URL 后 302 重定向</li>
  *   <li>{@code doc-insight://<relativePath>}：XiYu 本地存储文件</li>
  *   <li>{@code http(s)://<url>}：外部 URL 代理下载（CRM 推送附件）</li>
  * </ul>
@@ -49,10 +51,11 @@ public class TenderAttachmentDownloadController {
     /**
      * 下载附件文件。
      *
-     * <p>支持 {@code doc-insight://}（本地存储）和 {@code http(s)://}（外部代理下载）两种 URL 格式。
+     * <p>支持 {@code obs-direct:}（302 重定向 OBS）、{@code doc-insight://}（本地存储）
+     * 和 {@code http(s)://}（外部代理下载）三种 URL 格式。
      * 响应头包含 {@code Content-Disposition: attachment}，浏览器会触发下载而非导航。
      *
-     * @param fileUrl 文件 URL，必须以 {@code doc-insight://} 或 {@code http(s)://} 开头
+     * @param fileUrl 文件 URL，支持 obs-direct: / doc-insight:// / http(s):// 开头
      * @return 文件流响应
      * @throws org.springframework.web.server.ResponseStatusException 400（参数非法）/ 404（文件不存在）/ 502（外部下载失败）
      */

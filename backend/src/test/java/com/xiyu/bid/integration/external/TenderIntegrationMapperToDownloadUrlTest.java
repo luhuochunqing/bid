@@ -293,51 +293,57 @@ class TenderIntegrationMapperToDownloadUrlTest {
         field.set(null, signer);
     }
 
-    // ── obs-direct: 前缀 URL 转换（OBS 直传文件 CRM 回传修复）──────────────
+    // ── obs-direct: 前缀 URL 转换（外部系统 → 集成下载端点，永久有效；内部用户 → 预签名）──
 
     @Test
-    @DisplayName("obs-direct:{uploadId} 在 obsShareUrlSigner 为 null 时原样返回（回退行为）")
-    void toIntegrationDownloadUrl_obsDirectWithoutSigner_returnsAsIs() {
-        // obsShareUrlSigner 为 null（单元测试默认场景），obs-direct: 原样返回
+    @DisplayName("obs-direct:{uploadId} 未配置 publicBaseUrl 时包装为相对路径集成端点（不依赖 signer）")
+    void toIntegrationDownloadUrl_obsDirect_wrapsAsIntegrationEndpoint() {
         String result = TenderAttachmentUrlResolver.toIntegrationDownloadUrl("obs-direct:upload-abc-123");
-        assertThat(result).isEqualTo("obs-direct:upload-abc-123");
+        assertThat(result).isEqualTo("/api/integration/tenders/attachments/download?fileUrl=obs-direct%3Aupload-abc-123");
     }
 
     @Test
-    @DisplayName("obs-direct:{uploadId} 配置了 signer 时转换为 OBS 预签名 URL")
-    void toIntegrationDownloadUrl_obsDirectWithSigner_returnsPresignedUrl() throws Exception {
-        ObsShareUrlSigner mockSigner = org.mockito.Mockito.mock(ObsShareUrlSigner.class);
-        org.mockito.Mockito.when(mockSigner.trySign("obs-direct:upload-abc-123"))
-                .thenReturn(Optional.of("https://widbid-obs.ehsy.com/bids/test.pdf?Signature=xxx"));
-        setObsShareUrlSigner(mockSigner);
-
+    @DisplayName("obs-direct:{uploadId} 配置了 publicBaseUrl 时返回完整集成端点 URL（永久有效，非预签名）")
+    void toIntegrationDownloadUrl_obsDirectWithPublicBaseUrl_returnsFullEndpointUrl() throws Exception {
+        setPublicBaseUrl("https://winbid-test.ehsy.com");
         try {
             String result = TenderAttachmentUrlResolver.toIntegrationDownloadUrl("obs-direct:upload-abc-123");
-            assertThat(result).startsWith("https://widbid-obs.ehsy.com/");
-            assertThat(result).contains("Signature=xxx");
+            assertThat(result).isEqualTo(
+                    "https://winbid-test.ehsy.com/api/integration/tenders/attachments/download?fileUrl=obs-direct%3Aupload-abc-123");
+            assertThat(result).doesNotContain("Signature=");
         } finally {
-            setObsShareUrlSigner(null);
+            setPublicBaseUrl("");
         }
     }
 
     @Test
-    @DisplayName("obs-direct:{uploadId} signer 返回 empty 时回退为原值")
-    void toIntegrationDownloadUrl_obsDirectSignerEmpty_returnsOriginal() throws Exception {
-        ObsShareUrlSigner mockSigner = org.mockito.Mockito.mock(ObsShareUrlSigner.class);
-        org.mockito.Mockito.when(mockSigner.trySign("obs-direct:non-existent"))
-                .thenReturn(Optional.empty());
-        setObsShareUrlSigner(mockSigner);
-
+    @DisplayName("obs-direct:{uploadId} toIntegrationFullUrl 同样包装为集成端点 URL")
+    void toIntegrationFullUrl_obsDirect_returnsIntegrationEndpoint() throws Exception {
+        setPublicBaseUrl("https://winbid-test.ehsy.com");
         try {
-            String result = TenderAttachmentUrlResolver.toIntegrationDownloadUrl("obs-direct:non-existent");
-            assertThat(result).isEqualTo("obs-direct:non-existent");
+            String result = TenderAttachmentUrlResolver.toIntegrationFullUrl("obs-direct:upload-abc-123");
+            assertThat(result).isEqualTo(
+                    "https://winbid-test.ehsy.com/api/integration/tenders/attachments/download?fileUrl=obs-direct%3Aupload-abc-123");
         } finally {
-            setObsShareUrlSigner(null);
+            setPublicBaseUrl("");
         }
     }
 
     @Test
-    @DisplayName("obs-direct:{uploadId} toDownloadUrl 也走 OBS 预签名路径")
+    @DisplayName("obs-direct:{uploadId} 有 apiKey 时包装为集成端点并追加 api_key")
+    void toIntegrationFullUrl_obsDirectWithApiKey_appendsApiKey() throws Exception {
+        setPublicBaseUrl("https://winbid-test.ehsy.com");
+        try {
+            String result = TenderAttachmentUrlResolver.toIntegrationFullUrl("obs-direct:upload-abc-123", "xiyu_sk_test_key");
+            assertThat(result).isEqualTo(
+                    "https://winbid-test.ehsy.com/api/integration/tenders/attachments/download?fileUrl=obs-direct%3Aupload-abc-123&api_key=xiyu_sk_test_key");
+        } finally {
+            setPublicBaseUrl("");
+        }
+    }
+
+    @Test
+    @DisplayName("obs-direct:{uploadId} toDownloadUrl（内部用户）仍走 OBS 预签名路径")
     void toDownloadUrl_obsDirectWithSigner_returnsPresignedUrl() throws Exception {
         ObsShareUrlSigner mockSigner = org.mockito.Mockito.mock(ObsShareUrlSigner.class);
         org.mockito.Mockito.when(mockSigner.trySign("obs-direct:upload-abc-123"))
@@ -346,22 +352,6 @@ class TenderIntegrationMapperToDownloadUrlTest {
 
         try {
             String result = TenderAttachmentUrlResolver.toDownloadUrl("obs-direct:upload-abc-123");
-            assertThat(result).startsWith("https://widbid-obs.ehsy.com/");
-        } finally {
-            setObsShareUrlSigner(null);
-        }
-    }
-
-    @Test
-    @DisplayName("obs-direct:{uploadId} toIntegrationFullUrl 也走 OBS 预签名路径")
-    void toIntegrationFullUrl_obsDirectWithSigner_returnsPresignedUrl() throws Exception {
-        ObsShareUrlSigner mockSigner = org.mockito.Mockito.mock(ObsShareUrlSigner.class);
-        org.mockito.Mockito.when(mockSigner.trySign("obs-direct:upload-abc-123"))
-                .thenReturn(Optional.of("https://widbid-obs.ehsy.com/bids/test.pdf?Signature=zzz"));
-        setObsShareUrlSigner(mockSigner);
-
-        try {
-            String result = TenderAttachmentUrlResolver.toIntegrationFullUrl("obs-direct:upload-abc-123");
             assertThat(result).startsWith("https://widbid-obs.ehsy.com/");
         } finally {
             setObsShareUrlSigner(null);
