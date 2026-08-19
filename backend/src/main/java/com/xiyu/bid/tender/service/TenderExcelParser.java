@@ -1,7 +1,7 @@
 // Input: byte[]（.xlsx 文件字节流）
 // Output: ParsedExcel（rows + errors + totalRows）
 // Pos: service/标讯批量导入 Excel 解析器
-// 维护声明: HEADERS / REGIONS / CUSTOMER_TYPES / PRIORITIES / PROJECT_TYPES 与 TenderImportTemplateBuilder 共享，调整需同步前端 BulkImportDialog 与说明文案。
+// 维护声明: HEADERS / CONTACT_NATURES / REGIONS / CUSTOMER_TYPES / PRIORITIES / PROJECT_TYPES 与 TenderImportTemplateBuilder 共享，调整需同步前端 BulkImportDialog 与说明文案。
 
 package com.xiyu.bid.tender.service;
 
@@ -22,9 +22,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -48,16 +50,36 @@ public class TenderExcelParser {
     static final String[] HEADERS = {
             "项目名称*", "招标主体*", "总部所在地*",
             "报名截止时间*", "开标时间*",
-            "联系人1*", "联系人1手机号", "联系人1座机", "联系人1邮箱",
-            "联系人2", "联系人2手机号", "联系人2座机", "联系人2邮箱",
+            "联系人1性质", "联系人1*", "联系人1手机号", "联系人1座机", "联系人1邮箱",
+            "联系人2性质", "联系人2", "联系人2手机号", "联系人2座机", "联系人2邮箱",
             "客户类型*", "优先级*", "项目类型*", "来源平台", "标讯描述"
     };
+
+    static final List<String> CONTACT_NATURES = List.of("客户", "代理", "标前");
 
     static final List<String> CUSTOMER_TYPES = List.of("政府机关/事业单位/高校", "央企", "地方国企", "民企", "港澳台及外企");
     static final List<String> PRIORITIES = List.of("S", "A", "B", "C");
     static final List<String> REGIONS = TenderRegionCatalog.REGIONS;
 
     static final List<String> PROJECT_TYPES = List.of("工业品", "办公", "综合", "集采", "其他");
+
+    /** HEADERS 归一化名称 -> 列索引，parseRow 按名称取列，避免硬编码索引漂移。 */
+    private static final Map<String, Integer> COLUMN_INDEX;
+    static {
+        Map<String, Integer> map = new HashMap<>();
+        for (int i = 0; i < HEADERS.length; i++) {
+            map.put(normalizeHeader(HEADERS[i]), i);
+        }
+        COLUMN_INDEX = Map.copyOf(map);
+    }
+
+    private static int col(String headerName) {
+        Integer index = COLUMN_INDEX.get(normalizeHeader(headerName));
+        if (index == null) {
+            throw new IllegalStateException("HEADERS 中不存在列: " + headerName);
+        }
+        return index;
+    }
 
     private static final int MAX_ROWS = 500;
 
@@ -147,25 +169,28 @@ public class TenderExcelParser {
 
     private TenderRequest parseRow(Row row) {
         TenderRequest req = new TenderRequest();
-        req.setTitle(cellReader.readString(row.getCell(0)));
-        req.setTenderAgency(cellReader.readString(row.getCell(1)));
-        req.setPurchaserName(cellReader.readString(row.getCell(1)));
-        req.setRegion(cellReader.readString(row.getCell(2)));
-        req.setRegistrationDeadline(cellReader.readDateTime(row.getCell(3), "报名截止时间"));
-        req.setBidOpeningTime(cellReader.readDateTime(row.getCell(4), "开标时间"));
-        req.setContactName(cellReader.readString(row.getCell(5)));
-        req.setContactPhone(cellReader.readString(row.getCell(6)));
-        req.setContactTel(cellReader.readString(row.getCell(7)));
-        req.setContactMail(cellReader.readString(row.getCell(8)));
-        req.setContactName2(cellReader.readString(row.getCell(9)));
-        req.setContactPhone2(cellReader.readString(row.getCell(10)));
-        req.setContactTel2(cellReader.readString(row.getCell(11)));
-        req.setContactMail2(cellReader.readString(row.getCell(12)));
-        req.setCustomerType(cellReader.readString(row.getCell(13)));
-        req.setPriority(cellReader.readString(row.getCell(14)));
-        req.setProjectType(cellReader.readString(row.getCell(15)));
-        req.setSourcePlatform(cellReader.readString(row.getCell(16)));
-        req.setDescription(cellReader.readString(row.getCell(17)));
+        req.setTitle(cellReader.readString(row.getCell(col("项目名称"))));
+        String purchaser = cellReader.readString(row.getCell(col("招标主体")));
+        req.setTenderAgency(purchaser);
+        req.setPurchaserName(purchaser);
+        req.setRegion(cellReader.readString(row.getCell(col("总部所在地"))));
+        req.setRegistrationDeadline(cellReader.readDateTime(row.getCell(col("报名截止时间")), "报名截止时间"));
+        req.setBidOpeningTime(cellReader.readDateTime(row.getCell(col("开标时间")), "开标时间"));
+        req.setContactNature(cellReader.readString(row.getCell(col("联系人1性质"))));
+        req.setContactName(cellReader.readString(row.getCell(col("联系人1"))));
+        req.setContactPhone(cellReader.readString(row.getCell(col("联系人1手机号"))));
+        req.setContactTel(cellReader.readString(row.getCell(col("联系人1座机"))));
+        req.setContactMail(cellReader.readString(row.getCell(col("联系人1邮箱"))));
+        req.setContactNature2(cellReader.readString(row.getCell(col("联系人2性质"))));
+        req.setContactName2(cellReader.readString(row.getCell(col("联系人2"))));
+        req.setContactPhone2(cellReader.readString(row.getCell(col("联系人2手机号"))));
+        req.setContactTel2(cellReader.readString(row.getCell(col("联系人2座机"))));
+        req.setContactMail2(cellReader.readString(row.getCell(col("联系人2邮箱"))));
+        req.setCustomerType(cellReader.readString(row.getCell(col("客户类型"))));
+        req.setPriority(cellReader.readString(row.getCell(col("优先级"))));
+        req.setProjectType(cellReader.readString(row.getCell(col("项目类型"))));
+        req.setSourcePlatform(cellReader.readString(row.getCell(col("来源平台"))));
+        req.setDescription(cellReader.readString(row.getCell(col("标讯描述"))));
         req.setSource(com.xiyu.bid.entity.Tender.SourceType.BULK_IMPORT.getLabel());
         req.setSourceType(com.xiyu.bid.entity.Tender.SourceType.BULK_IMPORT);
         req.setPublishDate(LocalDate.now());
@@ -202,6 +227,28 @@ public class TenderExcelParser {
         if (request.getContactName() == null || request.getContactName().isBlank()) {
             errors.add(new RowError(displayRow, "contactName", "联系人1不能为空"));
             explicitFields.add("contactName");
+        }
+        // 联系人性质字典值校验（空值允许）；登记 explicitFields 避免与 TenderRequest @Pattern 重复报错
+        if (request.getContactNature() != null && !request.getContactNature().isBlank()
+                && !CONTACT_NATURES.contains(request.getContactNature())) {
+            errors.add(new RowError(displayRow, "contactNature",
+                    "联系人1性质必须是：" + String.join(" / ", CONTACT_NATURES)));
+            explicitFields.add("contactNature");
+        }
+        if (request.getContactNature2() != null && !request.getContactNature2().isBlank()
+                && !CONTACT_NATURES.contains(request.getContactNature2())) {
+            errors.add(new RowError(displayRow, "contactNature2",
+                    "联系人2性质必须是：" + String.join(" / ", CONTACT_NATURES)));
+            explicitFields.add("contactNature2");
+        }
+        // 条件必填：联系人有姓名时联系人性质必填
+        if (request.getContactName() != null && !request.getContactName().isBlank()
+                && (request.getContactNature() == null || request.getContactNature().isBlank())) {
+            errors.add(new RowError(displayRow, "contactNature", "联系人1有姓名时联系人1性质必填"));
+        }
+        if (request.getContactName2() != null && !request.getContactName2().isBlank()
+                && (request.getContactNature2() == null || request.getContactNature2().isBlank())) {
+            errors.add(new RowError(displayRow, "contactNature2", "联系人2有姓名时联系人2性质必填"));
         }
 
         Set<ConstraintViolation<TenderRequest>> violations = validator.validate(request);

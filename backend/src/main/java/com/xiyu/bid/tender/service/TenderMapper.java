@@ -48,10 +48,12 @@ public class TenderMapper {
                 .bidOpeningTime(tender.getBidOpeningTime())
                 .registrationDeadline(tender.getRegistrationDeadline())
                 .contactName(tender.getContactName())
+                .contactNature(tender.getContactNature())
                 .contactPhone(tender.getContactPhone())
                 .contactTel(tender.getContactTel())
                 .contactMail(tender.getContactMail())
                 .contactName2(tender.getContactName2())
+                .contactNature2(tender.getContactNature2())
                 .contactPhone2(tender.getContactPhone2())
                 .contactTel2(tender.getContactTel2())
                 .contactMail2(tender.getContactMail2())
@@ -118,10 +120,12 @@ public class TenderMapper {
                 .bidOpeningTime(request.getBidOpeningTime())
                 .registrationDeadline(request.getRegistrationDeadline())
                 .contactName(request.getContactName())
+                .contactNature(request.getContactNature())
                 .contactPhone(request.getContactPhone())
                 .contactTel(request.getContactTel())
                 .contactMail(request.getContactMail())
                 .contactName2(request.getContactName2())
+                .contactNature2(request.getContactNature2())
                 .contactPhone2(request.getContactPhone2())
                 .contactTel2(request.getContactTel2())
                 .contactMail2(request.getContactMail2())
@@ -167,10 +171,12 @@ public class TenderMapper {
                 .bidOpeningTime(dto.getBidOpeningTime())
                 .registrationDeadline(dto.getRegistrationDeadline())
                 .contactName(dto.getContactName())
+                .contactNature(dto.getContactNature())
                 .contactPhone(dto.getContactPhone())
                 .contactTel(dto.getContactTel())
                 .contactMail(dto.getContactMail())
                 .contactName2(dto.getContactName2())
+                .contactNature2(dto.getContactNature2())
                 .contactPhone2(dto.getContactPhone2())
                 .contactTel2(dto.getContactTel2())
                 .contactMail2(dto.getContactMail2())
@@ -224,10 +230,12 @@ public class TenderMapper {
         if (dto.getBidOpeningTime() != null) target.setBidOpeningTime(dto.getBidOpeningTime());
         if (dto.getRegistrationDeadline() != null) target.setRegistrationDeadline(dto.getRegistrationDeadline());
         if (dto.getContactName() != null) target.setContactName(dto.getContactName());
+        if (dto.getContactNature() != null) target.setContactNature(dto.getContactNature());
         if (dto.getContactPhone() != null) target.setContactPhone(dto.getContactPhone());
         if (dto.getContactTel() != null) target.setContactTel(dto.getContactTel());
         if (dto.getContactMail() != null) target.setContactMail(dto.getContactMail());
         if (dto.getContactName2() != null) target.setContactName2(dto.getContactName2());
+        if (dto.getContactNature2() != null) target.setContactNature2(dto.getContactNature2());
         if (dto.getContactPhone2() != null) target.setContactPhone2(dto.getContactPhone2());
         if (dto.getContactTel2() != null) target.setContactTel2(dto.getContactTel2());
         if (dto.getContactMail2() != null) target.setContactMail2(dto.getContactMail2());
@@ -263,21 +271,21 @@ public class TenderMapper {
     }
 
     public List<ContactDTO> buildContacts(Tender tender) {
-        return buildContacts(tender.getContactName(), tender.getContactPhone(), tender.getContactTel(), tender.getContactMail(),
-                tender.getContactName2(), tender.getContactPhone2(), tender.getContactTel2(), tender.getContactMail2());
+        return buildContacts(tender.getContactName(), tender.getContactPhone(), tender.getContactTel(), tender.getContactMail(), tender.getContactNature(),
+                tender.getContactName2(), tender.getContactPhone2(), tender.getContactTel2(), tender.getContactMail2(), tender.getContactNature2());
     }
 
     /** 从 DTO 扁平字段构建联系人数组（列表接口使用）。 */
     public List<ContactDTO> buildContactsFromDTO(TenderDTO dto) {
-        return buildContacts(dto.getContactName(), dto.getContactPhone(), dto.getContactTel(), dto.getContactMail(),
-                dto.getContactName2(), dto.getContactPhone2(), dto.getContactTel2(), dto.getContactMail2());
+        return buildContacts(dto.getContactName(), dto.getContactPhone(), dto.getContactTel(), dto.getContactMail(), dto.getContactNature(),
+                dto.getContactName2(), dto.getContactPhone2(), dto.getContactTel2(), dto.getContactMail2(), dto.getContactNature2());
     }
 
-    private List<ContactDTO> buildContacts(String n1, String p1, String t1, String m1, String n2, String p2, String t2, String m2) {
+    private List<ContactDTO> buildContacts(String n1, String p1, String t1, String m1, String nat1, String n2, String p2, String t2, String m2, String nat2) {
         List<ContactDTO> contacts = new ArrayList<>();
         // CO-402: name/phone/tel/mail 任一字段有值即加入列表（原仅 name 非空才加入，导致联系人2姓名为空但有电话时丢失）
-        if (hasAnyContactField(n1, p1, t1, m1)) contacts.add(ContactDTO.builder().name(n1).phone(p1).tel(t1).mail(m1).build());
-        if (hasAnyContactField(n2, p2, t2, m2)) contacts.add(ContactDTO.builder().name(n2).phone(p2).tel(t2).mail(m2).build());
+        if (hasAnyContactField(n1, p1, t1, m1)) contacts.add(ContactDTO.builder().name(n1).phone(p1).tel(t1).mail(m1).nature(nat1).build());
+        if (hasAnyContactField(n2, p2, t2, m2)) contacts.add(ContactDTO.builder().name(n2).phone(p2).tel(t2).mail(m2).nature(nat2).build());
         return contacts;
     }
 

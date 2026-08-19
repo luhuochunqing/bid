@@ -21,7 +21,15 @@ public class TenderRequestSanitizer {
         sanitizeString(request::setPurchaserName, request.getPurchaserName(), 255);
         sanitizeString(request::setPurchaserHash, request.getPurchaserHash(), 64);
         sanitizeString(request::setContactName, request.getContactName(), 100);
+        sanitizeString(request::setContactNature, request.getContactNature(), 20);
         sanitizeString(request::setContactPhone, request.getContactPhone(), 50);
+        sanitizeString(request::setContactTel, request.getContactTel(), 50);
+        sanitizeString(request::setContactMail, request.getContactMail(), 100);
+        sanitizeString(request::setContactName2, request.getContactName2(), 100);
+        sanitizeString(request::setContactNature2, request.getContactNature2(), 20);
+        sanitizeString(request::setContactPhone2, request.getContactPhone2(), 50);
+        sanitizeString(request::setContactTel2, request.getContactTel2(), 50);
+        sanitizeString(request::setContactMail2, request.getContactMail2(), 100);
         sanitizeString(request::setSourceDocumentName, request.getSourceDocumentName(), 255);
         sanitizeString(request::setSourceDocumentFileType, request.getSourceDocumentFileType(), 100);
         sanitizeString(request::setSourceDocumentFileUrl, request.getSourceDocumentFileUrl(), 1000);

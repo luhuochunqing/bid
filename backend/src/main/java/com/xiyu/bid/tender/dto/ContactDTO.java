@@ -25,4 +25,7 @@ public class ContactDTO {
 
     /** 邮箱 */
     private String mail;
+
+    /** 联系人性质（客户/代理/标前） */
+    private String nature;
 }

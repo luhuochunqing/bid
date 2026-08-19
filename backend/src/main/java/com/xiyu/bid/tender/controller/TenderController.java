@@ -14,12 +14,15 @@ import com.xiyu.bid.tender.dto.TenderBidResponse;
 import com.xiyu.bid.tender.dto.TenderCrmLinkRequest;
 import com.xiyu.bid.tender.dto.TenderImportProgressDTO;
 import com.xiyu.bid.tender.dto.TenderImportTaskDTO;
+import com.xiyu.bid.tender.validation.ManualTenderValidation;
 import com.xiyu.bid.tender.service.*;
 import com.xiyu.bid.util.InputSanitizer;
 import com.xiyu.bid.annotation.DataScope;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.groups.Default;
+import org.springframework.validation.annotation.Validated;
 import com.xiyu.bid.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -105,7 +108,7 @@ public class TenderController {
     @PreAuthorize("hasAnyRole('ADMIN', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'BID_TEAM', 'SALES', 'BID_SYSTEMADMIN')")
     @Idempotent
     @Operation(summary = "创建标讯")
-    public ResponseEntity<ApiResponse<TenderDTO>> createTender(@Valid @RequestBody TenderRequest req, @AuthenticationPrincipal UserDetails user) {
+    public ResponseEntity<ApiResponse<TenderDTO>> createTender(@Validated({Default.class, ManualTenderValidation.class}) @RequestBody TenderRequest req, @AuthenticationPrincipal UserDetails user) {
         log.info("POST /api/tenders - {}", req.getTitle());
         sanitizeTenderRequest(req);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("创建成功", tenderCommandService.createTender(tenderMapper.toDTO(req), resolveUserId(user))));
@@ -114,7 +117,7 @@ public class TenderController {
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'BID_TEAMLEADER', 'BIDADMIN', 'BID_PROJECTLEADER', 'SALES', 'BID_SYSTEMADMIN')")
     @Operation(summary = "修改标讯")
-    public ResponseEntity<ApiResponse<TenderDTO>> updateTender(@PathVariable Long id, @Valid @RequestBody TenderRequest req, @AuthenticationPrincipal UserDetails user) {
+    public ResponseEntity<ApiResponse<TenderDTO>> updateTender(@PathVariable Long id, @Validated({Default.class, ManualTenderValidation.class}) @RequestBody TenderRequest req, @AuthenticationPrincipal UserDetails user) {
         log.info("PUT /api/tenders/{}", id);
         rejectDemoMutation(id);
         sanitizeTenderRequest(req);

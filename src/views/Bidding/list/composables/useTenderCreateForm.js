@@ -61,12 +61,20 @@ export function useTenderCreateForm() {
   function validateContacts() {
     const f = form.value
     if (f.contact?.trim()) {
+      if (!f.contactNature?.trim()) {
+        ElMessage.warning('请填写联系人1的性质')
+        return false
+      }
       if (!f.phone?.trim() && !f.landline?.trim() && !f.mail?.trim()) {
         ElMessage.warning('请填写联系人1的至少一种联系方式（手机/座机/邮箱）')
         return false
       }
     }
     if (f.contact2?.trim()) {
+      if (!f.contactNature2?.trim()) {
+        ElMessage.warning('请填写联系人2的性质')
+        return false
+      }
       if (!f.phone2?.trim() && !f.landline2?.trim() && !f.mail2?.trim()) {
         ElMessage.warning('请填写联系人2的至少一种联系方式（手机/座机/邮箱）')
         return false
@@ -90,8 +98,8 @@ function createForm() {
     title: '', purchaser: '', region: '', deadline: null, bidOpeningTime: null,
     customerType: '', priority: '', projectType: '',
     sourcePlatform: MANUAL_SOURCE_LABEL,
-    contact: '', phone: '', landline: '', mail: '',
-    contact2: '', phone2: '', landline2: '', mail2: '',
+    contact: '', contactNature: '', phone: '', landline: '', mail: '',
+    contact2: '', contactNature2: '', phone2: '', landline2: '', mail2: '',
     description: '', tenderInfo: '', attachments: [],
     pastedText: '',
   }
@@ -108,9 +116,11 @@ function mapTenderToForm(tender) {
     priority: tender.priority || '',
     projectType: tender.projectType || '',
     sourcePlatform: tender.source || MANUAL_SOURCE_LABEL,
-    contact: tender.contactName || '', phone: tender.contactPhone || '',
+    contact: tender.contactName || '', contactNature: tender.contactNature || '',
+    phone: tender.contactPhone || '',
     landline: tender.contactTel || '', mail: tender.contactMail || '',
-    contact2: tender.contactName2 || '', phone2: tender.contactPhone2 || '',
+    contact2: tender.contactName2 || '', contactNature2: tender.contactNature2 || '',
+    phone2: tender.contactPhone2 || '',
     landline2: tender.contactTel2 || '', mail2: tender.contactMail2 || '',
     description: tender.description || '', tenderInfo: tender.tenderInfo || '',
     attachments: (tender.attachments || []).map(a => ({

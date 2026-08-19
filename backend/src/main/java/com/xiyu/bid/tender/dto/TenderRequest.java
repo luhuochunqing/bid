@@ -2,6 +2,8 @@ package com.xiyu.bid.tender.dto;
 
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.tender.validation.HeadquartersRegion;
+import com.xiyu.bid.tender.validation.ManualTenderValidation;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Future;
@@ -76,6 +78,11 @@ public class TenderRequest {
     @Size(max = 100, message = "联系人长度不能超过100个字符")
     private String contactName;
 
+    /* 字典值与 TenderExcelParser.CONTACT_NATURES / 前端 CONTACT_NATURE_OPTIONS 保持一致 */
+    @Size(max = 20, message = "联系人1性质最多20个字符")
+    @Pattern(regexp = "^(客户|代理|标前)?$", message = "联系人1性质必须是客户/代理/标前")
+    private String contactNature;
+
     @Size(max = 50, message = "联系电话长度不能超过50个字符")
     @Pattern(regexp = "^(1[3-9]\\d{9})?$", message = "请输入正确的手机号格式")
     private String contactPhone;
@@ -93,6 +100,11 @@ public class TenderRequest {
     /* 联系人2 */
     @Size(max = 100, message = "联系人2姓名长度不能超过100个字符")
     private String contactName2;
+
+    /* 字典值与 TenderExcelParser.CONTACT_NATURES / 前端 CONTACT_NATURE_OPTIONS 保持一致 */
+    @Size(max = 20, message = "联系人2性质最多20个字符")
+    @Pattern(regexp = "^(客户|代理|标前)?$", message = "联系人2性质必须是客户/代理/标前")
+    private String contactNature2;
 
     @Size(max = 50, message = "联系人2电话长度不能超过50个字符")
     @Pattern(regexp = "^(1[3-9]\\d{9})?$", message = "请输入正确的手机号格式")
@@ -163,4 +175,17 @@ public class TenderRequest {
 
     /* CRM商机名称 */
     private String crmOpportunityName;
+
+    /* 拆成两条 @AssertTrue，报错时能区分联系人1/2（单条合并校验只能给笼统消息） */
+    @AssertTrue(message = "联系人1有姓名时联系人1性质必填", groups = ManualTenderValidation.class)
+    private boolean isContactNatureValid() {
+        return contactName == null || contactName.isBlank()
+            || (contactNature != null && !contactNature.isBlank());
+    }
+
+    @AssertTrue(message = "联系人2有姓名时联系人2性质必填", groups = ManualTenderValidation.class)
+    private boolean isContactNature2Valid() {
+        return contactName2 == null || contactName2.isBlank()
+            || (contactNature2 != null && !contactNature2.isBlank());
+    }
 }

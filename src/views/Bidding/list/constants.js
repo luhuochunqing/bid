@@ -92,6 +92,13 @@ export const PRIORITY_OPTIONS = [
   },
 ]
 
+// 联系人性质下拉选项
+export const CONTACT_NATURE_OPTIONS = [
+  { label: '客户', value: '客户' },
+  { label: '代理', value: '代理' },
+  { label: '标前', value: '标前' },
+]
+
 // 来源类型下拉选项。value 用英文枚举名作为查询参数（@JsonCreator 兼容中英文）
 export const SOURCE_OPTIONS = [
   { label: EXTERNAL_PLATFORM_SOURCE_LABEL, value: 'EXTERNAL_PLATFORM' },
@@ -190,11 +197,13 @@ export function createManualTenderForm() {
     sourcePlatform: MANUAL_SOURCE_LABEL,
     // 联系人1
     contact: '',
+    contactNature: '',
     phone: '',
     landline: '',
     mail: '',
     // 联系人2
     contact2: '',
+    contactNature2: '',
     phone2: '',
     landline2: '',
     mail2: '',

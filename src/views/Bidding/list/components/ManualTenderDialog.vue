@@ -86,6 +86,13 @@
               </el-form-item>
             </el-col>
             <el-col :span="12">
+              <el-form-item label="联系人性质" :required="!!form.contact?.trim()">
+                <el-select v-model="form.contactNature" placeholder="请选择" class="full-width">
+                  <el-option v-for="opt in CONTACT_NATURE_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
               <el-form-item label="联系人" prop="contact">
                 <el-input v-model="form.contact" placeholder="联系人姓名" class="full-width" />
               </el-form-item>
@@ -93,6 +100,13 @@
             <el-col :span="12">
               <el-form-item label="联系方式" prop="phone">
                 <el-input v-model="form.phone" placeholder="手机号/座机/邮箱" class="full-width" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="联系人2性质" :required="!!form.contact2?.trim()">
+                <el-select v-model="form.contactNature2" placeholder="请选择" class="full-width">
+                  <el-option v-for="opt in CONTACT_NATURE_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
+                </el-select>
               </el-form-item>
             </el-col>
             <el-col :span="12">
@@ -181,6 +195,7 @@ import {
   MANUAL_FORM_RULES,
   PRIORITY_OPTIONS,
   PROJECT_TYPE_OPTIONS,
+  CONTACT_NATURE_OPTIONS,
 } from '../constants.js'
 
 const ACCEPT_FILE_TYPES = '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document'

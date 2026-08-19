@@ -125,15 +125,18 @@ public class TenderIntegrationMapper {
         tender.setContactPhone(null);
         tender.setContactTel(null);
         tender.setContactMail(null);
+        tender.setContactNature(null);
         tender.setContactName2(null);
         tender.setContactPhone2(null);
         tender.setContactTel2(null);
         tender.setContactMail2(null);
+        tender.setContactNature2(null);
         ContactDTO c1 = contactInfo.get(0);
         if (c1.getName() != null) tender.setContactName(InputSanitizer.sanitizeString(c1.getName(), 100));
         if (c1.getPhone() != null) tender.setContactPhone(InputSanitizer.sanitizeString(c1.getPhone(), 50));
         if (c1.getTel() != null) tender.setContactTel(InputSanitizer.sanitizeString(c1.getTel(), 50));
         if (c1.getMail() != null) tender.setContactMail(InputSanitizer.sanitizeString(c1.getMail(), 100));
+        if (c1.getNature() != null) tender.setContactNature(InputSanitizer.sanitizeString(c1.getNature(), 20));
 
         if (contactInfo.size() > 1) {
             ContactDTO c2 = contactInfo.get(1);
@@ -141,6 +144,7 @@ public class TenderIntegrationMapper {
             if (c2.getPhone() != null) tender.setContactPhone2(InputSanitizer.sanitizeString(c2.getPhone(), 50));
             if (c2.getTel() != null) tender.setContactTel2(InputSanitizer.sanitizeString(c2.getTel(), 50));
             if (c2.getMail() != null) tender.setContactMail2(InputSanitizer.sanitizeString(c2.getMail(), 100));
+            if (c2.getNature() != null) tender.setContactNature2(InputSanitizer.sanitizeString(c2.getNature(), 20));
         }
     }
 

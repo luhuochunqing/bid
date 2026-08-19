@@ -37,10 +37,12 @@ public class TenderDTO {
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm")
     private LocalDateTime registrationDeadline;
     private String contactName;
+    private String contactNature;
     private String contactPhone;
     private String contactTel;
     private String contactMail;
     private String contactName2;
+    private String contactNature2;
     private String contactPhone2;
     private String contactTel2;
     private String contactMail2;

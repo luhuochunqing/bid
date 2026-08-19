@@ -52,6 +52,9 @@ public class TenderImportService {
     /** @deprecated 改用 {@link TenderExcelParser#PROJECT_TYPES} */
     @Deprecated
     static final List<String> PROJECT_TYPES = TenderExcelParser.PROJECT_TYPES;
+    /** @deprecated 改用 {@link TenderExcelParser#CONTACT_NATURES} */
+    @Deprecated
+    static final List<String> CONTACT_NATURES = TenderExcelParser.CONTACT_NATURES;
 
     private static final long MAX_FILE_BYTES = 5L * 1024 * 1024;
 

@@ -74,21 +74,23 @@
                   </el-form-item>
                 </el-col>
               </el-row>
-              <!-- 联系人1 分组段：保持 4+6+7+7 横排布局 -->
+              <!-- 联系人1 分组段：保持 3+3+6+6+6 横排布局 -->
               <el-row v-else-if="segment.type === 'contact1' && hasContact1Enabled" :gutter="16">
                 <el-col :span="24"><div class="contact-group-title">联系人1</div></el-col>
-                <el-col :span="4" v-if="fieldEnabled('contact')"><el-form-item label="姓名" prop="contact" label-width="56px" :required="fieldRequired('contact')"><el-input v-model="form.contact" placeholder="联系人姓名" /></el-form-item></el-col>
+                <el-col :span="3" v-if="fieldEnabled('contactNature')"><el-form-item label="性质" :required="!!form.contact?.trim()" label-width="56px"><el-select v-model="form.contactNature" placeholder="请选择" class="full-width"><el-option v-for="opt in CONTACT_NATURE_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" /></el-select></el-form-item></el-col>
+                <el-col :span="3" v-if="fieldEnabled('contact')"><el-form-item label="姓名" prop="contact" label-width="56px" :required="fieldRequired('contact')"><el-input v-model="form.contact" placeholder="联系人姓名" /></el-form-item></el-col>
                 <el-col :span="6" v-if="fieldEnabled('phone')"><el-form-item label="手机号" prop="phone" label-width="64px" :required="fieldRequired('phone')"><el-input v-model="form.phone" placeholder="手机号" /></el-form-item></el-col>
-                <el-col :span="7" v-if="fieldEnabled('landline')"><el-form-item label="座机" prop="landline" label-width="56px"><el-input v-model="form.landline" placeholder="座机（如 010-12345678）" /></el-form-item></el-col>
-                <el-col :span="7" v-if="fieldEnabled('mail')"><el-form-item label="邮箱" prop="mail" label-width="56px"><el-input v-model="form.mail" placeholder="邮箱" /></el-form-item></el-col>
+                <el-col :span="6" v-if="fieldEnabled('landline')"><el-form-item label="座机" prop="landline" label-width="56px"><el-input v-model="form.landline" placeholder="座机（如 010-12345678）" /></el-form-item></el-col>
+                <el-col :span="6" v-if="fieldEnabled('mail')"><el-form-item label="邮箱" prop="mail" label-width="56px"><el-input v-model="form.mail" placeholder="邮箱" /></el-form-item></el-col>
               </el-row>
-              <!-- 联系人2 分组段：保持 4+6+7+7 横排布局 -->
+              <!-- 联系人2 分组段：保持 3+3+6+6+6 横排布局 -->
               <el-row v-else-if="segment.type === 'contact2' && hasContact2Enabled" :gutter="16">
                 <el-col :span="24"><div class="contact-group-title">联系人2 <span class="optional-tag">选填</span></div></el-col>
-                <el-col :span="4" v-if="fieldEnabled('contact2')"><el-form-item label="姓名" label-width="56px"><el-input v-model="form.contact2" placeholder="联系人姓名" /></el-form-item></el-col>
+                <el-col :span="3" v-if="fieldEnabled('contactNature2')"><el-form-item label="性质" :required="!!form.contact2?.trim()" label-width="56px"><el-select v-model="form.contactNature2" placeholder="请选择" class="full-width"><el-option v-for="opt in CONTACT_NATURE_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" /></el-select></el-form-item></el-col>
+                <el-col :span="3" v-if="fieldEnabled('contact2')"><el-form-item label="姓名" label-width="56px"><el-input v-model="form.contact2" placeholder="联系人姓名" /></el-form-item></el-col>
                 <el-col :span="6" v-if="fieldEnabled('phone2')"><el-form-item label="手机号" prop="phone2" label-width="64px"><el-input v-model="form.phone2" placeholder="手机号" /></el-form-item></el-col>
-                <el-col :span="7" v-if="fieldEnabled('landline2')"><el-form-item label="座机" label-width="56px"><el-input v-model="form.landline2" placeholder="座机" /></el-form-item></el-col>
-                <el-col :span="7" v-if="fieldEnabled('mail2')"><el-form-item label="邮箱" label-width="56px"><el-input v-model="form.mail2" placeholder="邮箱" /></el-form-item></el-col>
+                <el-col :span="6" v-if="fieldEnabled('landline2')"><el-form-item label="座机" label-width="56px"><el-input v-model="form.landline2" placeholder="座机" /></el-form-item></el-col>
+                <el-col :span="6" v-if="fieldEnabled('mail2')"><el-form-item label="邮箱" label-width="56px"><el-input v-model="form.mail2" placeholder="邮箱" /></el-form-item></el-col>
               </el-row>
             </template>
           </el-form>
@@ -104,7 +106,7 @@ import { DocumentCopy, Upload } from '@element-plus/icons-vue'
 import AdaptiveFormPage from '@/components/common/AdaptiveFormPage.vue'
 import { chinaRegionOptions } from '@/components/common/chinaRegionData.js'
 import { useRegionCascaderValue, REGION_CASCADER_PROPS, createRegionCascaderAutoClose } from '@/composables/useRegionCascaderValue.js'
-import { MANUAL_FORM_RULES } from '../constants.js'
+import { MANUAL_FORM_RULES, CONTACT_NATURE_OPTIONS } from '../constants.js'
 import { FIXED_GROUP_KEYS } from '@/views/System/workflow-form-designer/workflowFormDesignerCore.js'
 
 const props = defineProps({
@@ -157,10 +159,12 @@ const DEFAULT_FIELDS = [
   { key: 'customerType', label: '客户类型', type: 'select', required: true, enabled: true },
   { key: 'priority', label: '优先级', type: 'select', required: true, enabled: true },
   { key: 'projectType', label: '项目类型', type: 'select', required: true, enabled: true },
+  { key: 'contactNature', label: '联系人1性质', type: 'select', required: false, enabled: true },
   { key: 'contact', label: '联系人1', type: 'text', required: false, enabled: true },
   { key: 'phone', label: '联系人1手机号', type: 'text', required: false, enabled: true },
   { key: 'landline', label: '联系人1座机', type: 'text', required: false, enabled: true },
   { key: 'mail', label: '联系人1邮箱', type: 'text', required: false, enabled: true },
+  { key: 'contactNature2', label: '联系人2性质', type: 'select', required: false, enabled: true },
   { key: 'contact2', label: '联系人2', type: 'text', required: false, enabled: true },
   { key: 'phone2', label: '联系人2手机号', type: 'text', required: false, enabled: true },
   { key: 'landline2', label: '联系人2座机', type: 'text', required: false, enabled: true },
@@ -179,18 +183,22 @@ const fieldSegments = computed(() => {
   const segments = []
   let currentSimple = []
   for (const field of fields) {
-    if (field.key === 'contact') {
+    if (field.key === 'contact' || field.key === 'contactNature') {
       if (currentSimple.length > 0) {
         segments.push({ type: 'simple', fields: currentSimple })
         currentSimple = []
       }
-      segments.push({ type: 'contact1' })
-    } else if (field.key === 'contact2') {
+      if (field.key === 'contact') {
+        segments.push({ type: 'contact1' })
+      }
+    } else if (field.key === 'contact2' || field.key === 'contactNature2') {
       if (currentSimple.length > 0) {
         segments.push({ type: 'simple', fields: currentSimple })
         currentSimple = []
       }
-      segments.push({ type: 'contact2' })
+      if (field.key === 'contact2') {
+        segments.push({ type: 'contact2' })
+      }
     } else if (FIXED_GROUP_KEYS.includes(field.key)) {
       // 联系人分组的其他字段（phone/landline/mail 等）：跳过，已在分组中渲染
       continue
