@@ -3,10 +3,28 @@
 // Pos: scoreparse/infrastructure/openai
 package com.xiyu.bid.scoreparse.infrastructure.openai;
 
+import java.util.regex.Pattern;
+
 /** 评分标准解析 prompt 模板（纯静态，无状态）。 */
 public final class ScoreParsePrompts {
 
+    /** markdown 内联图片（含 sidecar /convert 对图片 base64 的 `...` 占位符），喂模型前剥离，避免 Gemini 解码报 500。 */
+    private static final Pattern MD_IMAGE = Pattern.compile("!\\[[^\\]]*\\]\\([^\\)]*\\)");
+    /** 兜底剥离未被 markdown 包裹的裸 data:image URI 片段（`data:...;base64,...`）。 */
+    private static final Pattern BARE_DATA_IMAGE =
+            Pattern.compile("data:image/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=\\.]*");
+
     private ScoreParsePrompts() {
+    }
+
+    /** 过剥后作为基于文本的 LLM 输入，避免残留 base64 占位符触发多模态解码失败（spec 048 测试环境回归）。 */
+    private static String promptSafe(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String stripped = MD_IMAGE.matcher(raw).replaceAll(" ");
+        stripped = BARE_DATA_IMAGE.matcher(stripped).replaceAll(" ");
+        return stripped.trim();
     }
 
     /**
@@ -118,7 +136,7 @@ public final class ScoreParsePrompts {
                 硬性规则：
                 - 只依据投标文件节选判断，禁止假设文件中不存在的内容
                 - quoteMissing=true 时 quote 必须为 null
-                """.formatted(weight, scoreItemDetail, bidDocExcerpt, imageGuidance, weight);
+                """.formatted(weight, promptSafe(scoreItemDetail), promptSafe(bidDocExcerpt), imageGuidance, weight);
     }
 
     /**
@@ -143,6 +161,6 @@ public final class ScoreParsePrompts {
                 - quoteMissing: false
                 - missedReason: null
                 - suggestion: 针对该主观项的投标文件完善建议（一到两句话，指出可补强的方向）
-                """.formatted(scoreItemDetail, bidDocExcerpt);
+                """.formatted(promptSafe(scoreItemDetail), promptSafe(bidDocExcerpt));
     }
 }

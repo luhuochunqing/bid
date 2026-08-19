@@ -77,9 +77,14 @@
 
 ### 验证
 
-- [~] T020 [US1] 端到端真实样本验证（quickstart V1）：主工作区起 dev 栈，上传含图证据投标文件 →「AI 实际打分」→ 客观项 `evidence/quote` 引用图片内容判定满足；同时验证 US1 场景 2（无图文档行为与现状一致）与场景 3（构造损坏图 → 该项纯文本、任务完成）；doc-insight 上传路径（InMemory）同样有图（review H2 验证点）
+- [X] T020 [US1] 端到端真实样本验证（quickstart V1）：主工作区起 dev 栈，上传含图证据投标文件 →「AI 实际打分」→ 客观项 `evidence/quote` 引用图片内容判定满足；同时验证 US1 场景 2（无图文档行为与现状一致）与场景 3（构造损坏图 → 该项纯文本、任务完成）；doc-insight 上传路径（InMemory）同样有图（review H2 验证点）
   - **本地已完成（2026-08-19 dev 栈，DeepSeek 纯文本降级）**：场景 2/3 全过——损坏图片文件打分任务 COMPLETED 100%、客观项落库正常（`actualScore/evidence/evidence`）、主观项 PENDING、数据库唯一约束冲突修复生效（重新打分 DELETE+INSERT 不再 Duplicate entry）、sidecar 损坏图跳过+warning。
-  - **已知限制（SC-001 未达成）**：含图证据"evidence 引用图片内容判定满足"（Gemini 真消费）需测试环境配置 Gemini-3.5-Flash（custom provider）后补测；本地 dev 栈 activeProvider=deepseek（纯文本），无 Gemini key，无法本地验证 SC-001。部署时再补测。
+  - **测试环境补测完成（2026-08-19，Gemini-3.5-Flash custom provider 真消费）——SC-001 达成**：
+    - 环境确认：`/actuator/health` aiProvider=`gemini-3.5-flash`、`apiKeyConfigured=true`；后端日志 bootstrap 三处确认。
+    - 根因修复验证：修复前（13:49/14:24）误把含损坏 data-URI 的 markdown 喂 Gemini → 500 → "打分任务异常终止"；`ScoreParsePrompts.promptSafe` 剥离 `data:image...;base64` 后，含图样本（project 224，docId 1018，`t020_bid_v2.docx`）打分任务 **COMPLETED 100%（15:11→15:13）**，无异常。
+    - 多模态真消费：15 项中 12 客观项打分为 0.0/DANGER（诚实结果：该软开企业投标文件确不含五金/消防/泵阀等物料），其中 **5 项 evidence 显式引用图片**（"文字与图片"/"附图"/"资质证书图片（ISO 9001/27001）"）——图片走独立多模态 content parts 入模后被模型引用（文本内 data-URI 已剥离，无图则模型不可能写出"图片"字样）。
+    - sidecar 抽图链路：`Sidecar extraction completed (markitdown, 283ms)`。
+  - **本地 dev 限制仍在**：本地 dev 栈 activeProvider=deepseek（纯文本），无 Gemini key，无法本地复现 SC-001；SC-001 以测试环境结果为准。
 
 **Checkpoint**: US1 端到端可演示 —— MVP 达成
 
