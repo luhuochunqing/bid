@@ -95,7 +95,7 @@ public class TrendAnalysisDimensionQueryService {
             jpql.append(" and p.id in :regionProjectIds");
         }
         if (isNotEmpty(customerTypes)) {
-            jpql.append(" and (pid.customerType in :customerTypes or (pid.customerType is null and p.customerType in :customerTypes))");
+            jpql.append(" and coalesce(nullif(pid.customerType, ''), p.customerType) in :customerTypes");
         }
         if (isNotEmpty(projectTypes)) jpql.append(" and t.projectType in :projectTypes");
         if (isNotEmpty(statuses)) jpql.append(" and p.status in :statuses");
@@ -212,7 +212,7 @@ public class TrendAnalysisDimensionQueryService {
             jpql.append(" and p.id in :regionProjectIds");
         }
         if (isNotEmpty(customerTypes)) {
-            jpql.append(" and (pid.customerType in :customerTypes or (pid.customerType is null and p.customerType in :customerTypes))");
+            jpql.append(" and coalesce(nullif(pid.customerType, ''), p.customerType) in :customerTypes");
         }
         if (isNotEmpty(projectTypes)) jpql.append(" and t.projectType in :projectTypes");
         if (isNotEmpty(statuses)) jpql.append(" and p.status in :statuses");

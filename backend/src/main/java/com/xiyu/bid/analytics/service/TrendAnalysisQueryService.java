@@ -92,6 +92,7 @@ public class TrendAnalysisQueryService {
                         )
                         from Project p
                         left join Tender t on t.id = p.tenderId
+                        left join ProjectInitiationDetails pid on pid.projectId = p.id
                         where (:allAccess = true or p.id in :scopeIds)
                         """);
 
@@ -105,7 +106,8 @@ public class TrendAnalysisQueryService {
             jpql.append(" and t.projectType in :projectTypes");
         }
         if (criteria.customerTypes() != null && !criteria.customerTypes().isEmpty()) {
-            jpql.append(" and p.customerType in :customerTypes");
+            // 客户类型口径与维度查询一致：优先立项详情值、空串回退主表快照（pid.project_id 唯一，无行扇出）
+            jpql.append(" and coalesce(nullif(pid.customerType, ''), p.customerType) in :customerTypes");
         }
         if (criteria.statuses() != null && !criteria.statuses().isEmpty()) {
             jpql.append(" and p.status in :statuses");
@@ -155,6 +157,7 @@ public class TrendAnalysisQueryService {
                 )
                 from Project p
                 left join Tender t on t.id = p.tenderId
+                left join ProjectInitiationDetails pid on pid.projectId = p.id
                 where (:allAccess = true or p.id in :scopeIds)
                 """);
 
@@ -168,7 +171,8 @@ public class TrendAnalysisQueryService {
             jpql.append(" and t.projectType in :projectTypes");
         }
         if (criteria.customerTypes() != null && !criteria.customerTypes().isEmpty()) {
-            jpql.append(" and p.customerType in :customerTypes");
+            // 客户类型口径与维度查询一致：优先立项详情值、空串回退主表快照（pid.project_id 唯一，无行扇出）
+            jpql.append(" and coalesce(nullif(pid.customerType, ''), p.customerType) in :customerTypes");
         }
         if (criteria.statuses() != null && !criteria.statuses().isEmpty()) {
             jpql.append(" and p.status in :statuses");

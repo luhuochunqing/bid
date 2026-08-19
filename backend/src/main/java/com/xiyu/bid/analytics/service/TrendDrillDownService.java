@@ -85,9 +85,9 @@ public class TrendDrillDownService {
             where.append(" AND p.status = 'WON'");
         }
 
-        // 通用筛选条件（客户类型优先取立项详情值，回退项目主表快照，与统计口径一致）
+        // 通用筛选条件（客户类型优先取立项详情值、空串回退项目主表快照，coalesce 口径与统计维度一致）
         if (customerTypes != null && !customerTypes.isEmpty()) {
-            where.append(" AND (pid.customer_type IN (:customerTypes) OR (pid.customer_type IS NULL AND p.customer_type IN (:customerTypes)))");
+            where.append(" AND COALESCE(NULLIF(pid.customer_type, ''), p.customer_type) IN (:customerTypes)");
             params.put("customerTypes", customerTypes);
         }
         appendInFilter(where, params, "t.project_type", "projectTypes", projectTypes);
@@ -254,7 +254,7 @@ public class TrendDrillDownService {
                 params.put("axisVal", axisValue);
             }
             case "customerType" -> {
-                where.append(" AND (pid.customer_type = :axisVal OR (pid.customer_type IS NULL AND p.customer_type = :axisVal))");
+                where.append(" AND COALESCE(NULLIF(pid.customer_type, ''), p.customer_type) = :axisVal");
                 params.put("axisVal", axisValue);
             }
             case "projectType" -> {

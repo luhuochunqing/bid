@@ -43,6 +43,9 @@ class AnalyticsRegionFilterJpqlRegressionTest {
     private TrendAnalysisQueryService timeQueryService;
     private TrendDrillDownService drillDownService;
 
+    /** 项目 F 的 ID：pid.customerType 空串 + p.customerType='政府'（空串语义裂缝回归种子） */
+    private Long projectFId;
+
     @BeforeEach
     void setUp() {
         ProjectAccessScopeService scope = Mockito.mock(ProjectAccessScopeService.class);
@@ -98,12 +101,66 @@ class AnalyticsRegionFilterJpqlRegressionTest {
                 .projectId(e.getId())
                 .headquartersLocation("")
                 .build());
+        // 客户类型空串语义裂缝种子：pid.customerType='' 但 p.customerType='政府'，
+        // 分组柱子取值走 coalesce 回退到 '政府'，筛选/下钻必须同口径命中
+        Project f = new Project();
+        f.setName("项目F-客户类型空串回退");
+        f.setStatus(Project.Status.WON);
+        f.setCustomerType("政府");
+        f.setTenderId(1L);
+        f.setManagerId(999L);
+        f.setCreatedAt(LocalDateTime.of(2026, 3, 15, 10, 0));
+        entityManager.persist(f);
+        entityManager.persist(ProjectInitiationDetails.builder()
+                .projectId(f.getId())
+                .headquartersLocation("安徽省合肥市")
+                .customerType("")
+                .build());
+        projectFId = f.getId();
         entityManager.flush();
     }
 
     private TrendQueryCriteria jiangsuCriteria() {
         return new TrendQueryCriteria(null, null, null, null,
                 List.of("江苏省"), null, null, null, null, null);
+    }
+
+    private TrendQueryCriteria governmentCriteria() {
+        return new TrendQueryCriteria(null, null, null, null,
+                null, List.of("政府"), null, null, null, null);
+    }
+
+    @Test
+    @DisplayName("客户类型空串语义：pid.customerType='' 回退主表快照，筛'政府'在分组/时间/下钻均命中")
+    void customerTypeEmptyStringFallsBackToProjectSnapshot() {
+        // 维度分组：筛 "政府" 必须命中项目 F（旧 is null 口径会漏掉空串）
+        var rows = dimensionQueryService.fetchCustomerTypeRows(governmentCriteria());
+        assertThat(rows).allSatisfy(r -> assertThat(r.category()).isEqualTo("政府"));
+        assertThat(rows).extracting(DimensionRow::projectId).contains(projectFId);
+
+        // 时间维度（month/week）同口径命中
+        var monthRows = timeQueryService.fetchTimeTrendRows(governmentCriteria(), "month");
+        assertThat(monthRows).extracting(TrendAnalysisQueryService.TimeDimensionRow::projectId)
+                .contains(projectFId);
+        var weekRows = timeQueryService.fetchTimeTrendRows(governmentCriteria(), "week");
+        assertThat(weekRows).extracting(TrendAnalysisQueryService.TimeDimensionRow::projectId)
+                .contains(projectFId);
+
+        // 下钻通用筛选命中
+        var drill = drillDownService.drillDown(
+                "time", null, "投标数",
+                null, null, null, null, null, List.of("政府"), null, null,
+                null, null, 1, 10);
+        assertThat(drill.getSummary().getTotalCount()).isEqualTo(1L);
+        assertThat(drill.getItems()).extracting("projectId").containsExactly(projectFId);
+
+        // 下钻 customerType 轴点击同口径命中
+        var axisDrill = drillDownService.drillDown(
+                "customerType", "政府", "投标数",
+                null, null, null, null, null, null, null, null,
+                null, null, 1, 10);
+        assertThat(axisDrill.getSummary().getTotalCount()).isEqualTo(1L);
+        assertThat(axisDrill.getItems()).extracting("projectId").containsExactly(projectFId);
     }
 
     @Test
