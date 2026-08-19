@@ -240,8 +240,9 @@ public class CompetitorAnalysisAssemblerService {
             Double discountVal = computationService.parseDiscount(row.discount());
             discounts.add(discountVal != null ? discountVal : 0.0);
 
-            // 是否中标：综合项目详情的中标状态、立项中标结果以及结果确认类型进行判断
-            boolean isWon = isWonStatus(row.resultType(), row.projectStatus());
+            // 是否中标：读竞品行自身的 notes 枚举（结果确认「竞争对手情况」表格录入），
+            // 项目级状态是我司中标结果，不能作为每个竞品的中标依据。
+            boolean isWon = computationService.parseCompetitorWon(row.notes());
             tableRows.add(CompetitorTableRowDTO.builder()
                     .competitor(comp)
                     .discount(row.discount())
@@ -257,16 +258,5 @@ public class CompetitorAnalysisAssemblerService {
                 .discounts(discounts)
                 .tableRows(tableRows)
                 .build();
-    }
-
-    private boolean isWonStatus(String resultType, com.xiyu.bid.entity.Project.Status status) {
-        if (status == com.xiyu.bid.entity.Project.Status.WON) {
-            return true;
-        }
-        if (resultType == null) {
-            return false;
-        }
-        String r = resultType.trim().toUpperCase();
-        return r.equals("WON") || r.contains("已中标") || r.contains("中标");
     }
 }

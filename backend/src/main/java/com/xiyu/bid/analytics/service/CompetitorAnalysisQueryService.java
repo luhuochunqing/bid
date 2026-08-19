@@ -48,6 +48,7 @@ public class CompetitorAnalysisQueryService {
                     prc.discount,
                     t.purchaserName,
                     prc.paymentTerm,
+                    prc.notes,
                     pr.resultType,
                     p.status,
                     p.createdAt
@@ -102,6 +103,7 @@ public class CompetitorAnalysisQueryService {
                     prc.discount,
                     t.purchaserName,
                     prc.paymentTerm,
+                    prc.notes,
                     coalesce(nullif(pr.resultType, ''), nullif(pid.bidResultStatus, ''), cast(p.status as string)),
                     p.status,
                     p.createdAt
