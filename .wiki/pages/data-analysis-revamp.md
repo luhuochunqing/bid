@@ -59,6 +59,18 @@ backlinks:
 M2/M3 时间过滤统一使用 `p.createdAt`（项目创建时间），**不是** `coalesce(p.startDate, p.createdAt)`。
 PRD §6/§7 明确数据口径以项目创建时间为准。
 
+### 投标数口径（2026-08-19 修订）
+
+- 投标数 = **全部项目**（含 BIDDING/EVALUATING/INITIATED 等进行中状态），与 M0 KPI「投标总数」、项目状态维度口径对齐。
+- 旧口径（仅 WON+LOST）导致：有总部所在地的项目多为进行中状态时，区域维度图表值全 0。
+- 中标数 = WON 项目数，不变。下钻"投标数"系列不再追加 `status IN ('WON','LOST')` 过滤。
+
+### 客户类型取值口径（2026-08-19 修订）
+
+- 统一取值 `coalesce(nullif(pid.customerType, ''), p.customerType)`：**优先立项详情**（详情页可编辑值），回退项目主表创建时快照。
+- 根因：立项表单只写 `project_initiation_details.customer_type`，从不同步 `projects.customer_type`，统计读主表导致与详情页展示分裂。
+- 同步覆盖：M2 查询 / M1 customerType 维度与筛选 / M1 下钻 / M1 筛选选项（FilterOptionsQueryService）。
+
 ### 折扣精度（M4）
 
 折扣值从 `Integer` 改为 `Double`，支持小数精度。
@@ -104,6 +116,17 @@ PRD §9.12 步骤 7 + §9.14：竞品公司至少保留 1 个，不允许清空�
 - 招标主体模式下，竞品公司不强制受限于预设的 24 个枚举名单，而是动态收集所选招标主体项目下实际存在的全部竞品公司，生成对应的最高/最低/平均折扣柱子。
 - 项目模式下直接提取项目“结果确认阶段-竞争对手情况”中的全部竞品及折扣生成图表与明细表格。
 - ECharts DOM 生命周期：骨架屏 `v-if="loading"` 切换会导致容器 DOM 销毁重建，在 `renderChart` 中需检验 `chartInstance.getDom()` 是否与当前 ref 对齐，发生脱节时需重新初始化。
+
+### 8. 项目模式请求不得被入口空检查拦截（M4，2026-08-19）
+
+- `CompetitorAnalysisAssemblerService.analyze()` 入口原先对 `competitors` 为空的请求直接返回空响应；项目模式前端只传 `projectName` 不传竞品列表，请求被拦截导致永远"暂无数据"。
+- 修复：入口判断改为 `(competitors 为空) && (非项目模式)` 才短路；项目模式按项目名定位，同时**忽略时间范围过滤**（`fetchProjectCompetitorRows` 无时间条件）——项目名下拉（`fetchProjectNames`）不带时间过滤，若查询带时间会造成"能搜到、查不到"的不一致。
+
+### 9. 部门树形下拉的交互规范（M1，2026-08-19）
+
+- 部门下拉（`shared/TreeSelectDropdown.vue` + `TreeSelectNode.vue`）必须与 `FilterSelect.vue` 交互一致：trigger 显示"请选择/全部/已选 N 项"+badge、面板含搜索框与全选/清空按钮。
+- 勾选语义为 check-strictly（父子独立）：后端按部门名 `u.departmentName IN (...)` 精确匹配，勾选父部门不会级联选中子部门。
+- 树节点通过 provide/inject 共享选中集合与展开状态，递归组件 `TreeSelectNode` 无需逐层转发事件。
 
 ## 文件清单
 
