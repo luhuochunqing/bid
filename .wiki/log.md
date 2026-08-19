@@ -275,3 +275,9 @@
 - 触发：部署到测试环境（release c93bf9d93-api8080）；打包时 FlywayMysqlContainerTest 失败
 - 根因：V1196 建 status VARCHAR(32) 与 JPA TaskStatus @Enumerated(STRING) 不匹配，Hibernate schema-validation 启动即崩（V1040→V1041 同款）
 - 修复：V1197 MODIFY COLUMN ENUM + U1197（PR !2335），沉淀 lessons-learned §123 + 部署报告 133rd
+
+## [2026-08-19] knowledge | §4.2 回调历史数据重推运维接口落地
+- 触发：!2331 验证时发现历史回调（task 348）payload 存的是已过期 OBS 预签名 URL；落地重推工具
+- 回填：crm-integration-lessons.md §9.5（接口/实现/排查入口 webhook_delivery_tasks.payload）
+- 关键点：重推=从 DB 重建领域事件重新发布，复用现有监听器组装 payload，不维护第二套组装逻辑
+- 未新建页面（仅在既有页追加小节）

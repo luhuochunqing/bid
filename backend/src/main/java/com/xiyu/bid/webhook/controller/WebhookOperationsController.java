@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/webhooks/operations")
+@PreAuthorize("hasRole('ADMIN')")
 @RequiredArgsConstructor
 public class WebhookOperationsController {
 
@@ -32,7 +33,6 @@ public class WebhookOperationsController {
      * 走既有的 1min/5min/15min 异步投递与重试机制。
      */
     @PostMapping("/project-result/{resultId}/redeliver")
-    @PreAuthorize("hasRole('ADMIN')")
     public RedeliveryOutcome redeliverProjectResult(@PathVariable Long resultId) {
         return redeliveryService.redeliver(resultId);
     }
