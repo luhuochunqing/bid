@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.ai.client.AiProviderRuntimeConfig;
 import com.xiyu.bid.ai.client.RoutingAiProvider;
-import com.xiyu.bid.projectworkflow.entity.ProjectScoreDraft;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpEntity;
@@ -29,12 +28,12 @@ public class CaseAiMatcher {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
 
-    public List<AiMatchedSlice> extractSlicesWithAi(String markdown, List<ProjectScoreDraft> drafts) {
-        if (drafts == null || drafts.isEmpty()) {
+    public List<AiMatchedSlice> extractSlicesWithAi(String markdown, List<ScoreItemSnapshot> criteria) {
+        if (criteria == null || criteria.isEmpty()) {
             // 没有评分项时无需 AI 提取；前置条件层（Listener）已对外承诺 0 cases 也算成功。
             return List.of();
         }
-        log.info("AI 案例匹配开始：{} 个评分项，标书文本长度 {} 字符", drafts.size(),
+        log.info("AI 案例匹配开始：{} 个评分项，标书文本长度 {} 字符", criteria.size(),
                 markdown != null ? markdown.length() : 0);
         List<AiMatchedSlice> result = new ArrayList<>();
         AiProviderRuntimeConfig config;
@@ -53,11 +52,11 @@ public class CaseAiMatcher {
         // 调用大模型
         try {
             List<Map<String, Object>> criteriaList = new ArrayList<>();
-            for (ProjectScoreDraft draft : drafts) {
+            for (ScoreItemSnapshot criterion : criteria) {
                 criteriaList.add(Map.of(
-                        "id", draft.getId(),
-                        "title", draft.getScoreItemTitle(),
-                        "rule", draft.getScoreRuleText()
+                        "id", criterion.id(),
+                        "title", criterion.title(),
+                        "rule", criterion.ruleText()
                 ));
             }
 

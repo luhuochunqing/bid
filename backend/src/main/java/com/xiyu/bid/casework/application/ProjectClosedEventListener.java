@@ -8,14 +8,14 @@ import com.xiyu.bid.casework.infrastructure.ProjectArchive;
 import com.xiyu.bid.casework.infrastructure.ProjectArchiveRepository;
 import com.xiyu.bid.docinsight.application.DocumentTextExtractor;
 import com.xiyu.bid.docinsight.application.ExtractedDocument;
-import com.xiyu.bid.entity.Project;
-import com.xiyu.bid.entity.Tender;
-import com.xiyu.bid.projectworkflow.entity.ProjectScoreDraft;
-import com.xiyu.bid.projectworkflow.repository.ProjectScoreDraftRepository;
 import com.xiyu.bid.bidresult.entity.BidResultFetchResult;
 import com.xiyu.bid.bidresult.repository.BidResultFetchResultRepository;
+import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
+import com.xiyu.bid.scoreparse.entity.ScoreItem;
+import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -36,7 +36,7 @@ public class ProjectClosedEventListener {
 
     private final ProjectArchiveRepository archiveRepository;
     private final ArchiveFileRepository fileRepository;
-    private final ProjectScoreDraftRepository scoreDraftRepository;
+    private final ScoreItemRepository scoreItemRepository;
     private final KnowledgeCaseRepository knowledgeCaseRepository;
     private final ProjectRepository projectRepository;
     private final TenderRepository tenderRepository;
@@ -64,9 +64,8 @@ public class ProjectClosedEventListener {
                 List<ArchiveFile> files = fileRepository.findByArchiveId(archiveForGateOpt.get().getId());
                 hasBidFile = files.stream().anyMatch(f -> "BID".equals(f.getDocumentCategory()));
             }
-            List<ProjectScoreDraft> draftsForGate = scoreDraftRepository
-                    .findByProjectIdOrderByCategoryAscSourceTableIndexAscSourceRowIndexAsc(projectId);
-            boolean hasScoreItems = !draftsForGate.isEmpty();
+            List<ScoreItemSnapshot> scoreItemsForGate = loadScoreItemSnapshots(projectId);
+            boolean hasScoreItems = !scoreItemsForGate.isEmpty();
 
             if (!hasBidFile || !hasScoreItems) {
                 List<String> missing = new ArrayList<>();
@@ -79,18 +78,18 @@ public class ProjectClosedEventListener {
             }
 
             String markdown = loadBidFileMarkdown(event, projectId);
-            if (draftsForGate.isEmpty()) {
-                log.info("No score drafts found for project: {}, skip AI case slice", projectId);
+            if (scoreItemsForGate.isEmpty()) {
+                log.info("No score items found for project: {}, skip AI case slice", projectId);
                 notifier.notifySuccess(projectId, event.getProjectName(), 0,
                         System.currentTimeMillis() - startTime, project, event.getTriggerUserId());
                 return;
             }
 
-            List<CaseAiMatcher.AiMatchedSlice> matchedSlices = caseAiMatcher.extractSlicesWithAi(markdown, draftsForGate);
+            List<CaseAiMatcher.AiMatchedSlice> matchedSlices = caseAiMatcher.extractSlicesWithAi(markdown, scoreItemsForGate);
 
             CasePrecipitationContext ctx = loadProjectContext(projectId);
 
-            List<KnowledgeCase> candidates = buildCases(event, draftsForGate, matchedSlices, ctx);
+            List<KnowledgeCase> candidates = buildCases(event, scoreItemsForGate, matchedSlices, ctx);
             List<KnowledgeCase> existing = knowledgeCaseRepository.findBySourceProjectId(projectId);
             java.util.Set<String> existingTitles = existing.stream()
                     .map(KnowledgeCase::getScoringPointTitle)
@@ -201,31 +200,43 @@ public class ProjectClosedEventListener {
         return new CasePrecipitationContext(projectOpt, projectType, customerType, productLine, bidResult);
     }
 
-    private List<KnowledgeCase> buildCases(ProjectClosedEvent event, List<ProjectScoreDraft> drafts,
+    /**
+     * 将 score_item 实体映射为案例沉淀快照。
+     * <p>映射口径（已确认）：title/detail 取 {@code score_item.dim}/{@code score_item.detail}，
+     * category 同样取 {@code dim}，由 {@link CaseAiMatcher#extractCategory} 按中文关键词归类为
+     * 技术 / 商务 / 实施服务 / 资质业绩。
+     */
+    private List<ScoreItemSnapshot> loadScoreItemSnapshots(Long projectId) {
+        return scoreItemRepository.findByProjectIdOrderByItemIndexAsc(projectId).stream()
+                .map(item -> new ScoreItemSnapshot(item.getId(), item.getDim(), item.getDetail(), item.getDim()))
+                .toList();
+    }
+
+    private List<KnowledgeCase> buildCases(ProjectClosedEvent event, List<ScoreItemSnapshot> scoreItems,
                                             List<CaseAiMatcher.AiMatchedSlice> matchedSlices,
                                             CasePrecipitationContext ctx) {
         Long projectId = event.getProjectId();
         List<KnowledgeCase> casesToSave = new ArrayList<>();
 
         for (CaseAiMatcher.AiMatchedSlice slice : matchedSlices) {
-            ProjectScoreDraft draft = drafts.stream()
-                    .filter(d -> d.getId().equals(slice.getDraftId()))
+            ScoreItemSnapshot scoreItem = scoreItems.stream()
+                    .filter(s -> s.id().equals(slice.getDraftId()))
                     .findFirst()
                     .orElse(null);
-            if (draft == null) continue;
+            if (scoreItem == null) continue;
 
             KnowledgeCase kCase = new KnowledgeCase();
             kCase.setSourceProjectId(projectId);
             kCase.setSourceProjectName(event.getProjectName());
-            kCase.setScoringPointTitle(draft.getScoreItemTitle());
-            kCase.setRequirementRaw(draft.getScoreRuleText() != null ? draft.getScoreRuleText() : "暂无要求");
+            kCase.setScoringPointTitle(scoreItem.title());
+            kCase.setRequirementRaw(scoreItem.ruleText() != null ? scoreItem.ruleText() : "暂无要求");
             kCase.setResponseText(slice.getMatchedSnippet());
             kCase.setReuseCount(0);
             kCase.setStatus("ACTIVE");
             kCase.setCustomerType(ctx.customerType != null ? ctx.customerType : "国有企业");
             kCase.setProjectType(ctx.projectType != null ? ctx.projectType : "综合");
             kCase.setBidResult(ctx.bidResult);
-            kCase.setScoringCategory(caseAiMatcher.extractCategory(draft.getCategory()));
+            kCase.setScoringCategory(caseAiMatcher.extractCategory(scoreItem.category()));
             kCase.setProductLine(ctx.productLine);
             casesToSave.add(kCase);
         }

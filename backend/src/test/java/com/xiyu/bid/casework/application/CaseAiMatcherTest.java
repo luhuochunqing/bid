@@ -2,7 +2,6 @@ package com.xiyu.bid.casework.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.ai.client.RoutingAiProvider;
-import com.xiyu.bid.projectworkflow.entity.ProjectScoreDraft;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -50,8 +49,8 @@ class CaseAiMatcherTest {
         when(routingAiProvider.resolveActiveConfig())
                 .thenThrow(new IllegalStateException("AI disabled"));
 
-        ProjectScoreDraft tech = draft(101L, "技术方案", "要求提供技术架构图");
-        ProjectScoreDraft biz = draft(102L, "商务条款", "要求提供报价明细");
+        ScoreItemSnapshot tech = snapshot(101L, "技术方案", "要求提供技术架构图", "技术方案");
+        ScoreItemSnapshot biz = snapshot(102L, "商务条款", "要求提供报价明细", "商务条款");
 
         assertThatThrownBy(() -> caseAiMatcher.extractSlicesWithAi("## 标书内容", List.of(tech, biz)))
                 .isInstanceOf(IllegalStateException.class)
@@ -66,7 +65,7 @@ class CaseAiMatcherTest {
     void extractSlices_throwsWhenConfigNull() {
         when(routingAiProvider.resolveActiveConfig()).thenReturn(null);
 
-        ProjectScoreDraft tech = draft(101L, "技术方案", "要求提供技术架构图");
+        ScoreItemSnapshot tech = snapshot(101L, "技术方案", "要求提供技术架构图", "技术方案");
 
         assertThatThrownBy(() -> caseAiMatcher.extractSlicesWithAi("## 标书内容", List.of(tech)))
                 .isInstanceOf(IllegalStateException.class)
@@ -127,11 +126,7 @@ class CaseAiMatcherTest {
         assertThat(caseAiMatcher.extractCategory(null)).isEqualTo("其他");
     }
 
-    private ProjectScoreDraft draft(Long id, String title, String rule) {
-        ProjectScoreDraft d = new ProjectScoreDraft();
-        d.setId(id);
-        d.setScoreItemTitle(title);
-        d.setScoreRuleText(rule);
-        return d;
+    private ScoreItemSnapshot snapshot(Long id, String title, String rule, String category) {
+        return new ScoreItemSnapshot(id, title, rule, category);
     }
 }
