@@ -100,7 +100,7 @@ public class TrendDrillDownService {
             }
             List<String> effectiveRegions = regionAxis ? List.of(axisValue) : regions;
             Set<Long> regionMatchedIds = AnalyticsRegionFilterSupport.regionMatchedProjectIds(
-                    entityManager, projectAccessScopeService, effectiveRegions);
+                    entityManager, projectAccessScopeService, effectiveRegions, startDate, endDate);
             if (regionMatchedIds.isEmpty()) return emptyResponse(pageNum, pageSize);
             where.append(" AND p.id IN (:regionProjectIds)");
             params.put("regionProjectIds", regionMatchedIds);

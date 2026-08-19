@@ -196,7 +196,7 @@ public class TrendAnalysisDimensionQueryService {
         // 区域筛选与图表分组统一省份归一化口径：预计算命中项目 ID，
         // 替代原始串 LIKE 前缀匹配（历史短省名/自由文本格式下两口径不一致，见 AnalyticsRegionFilterSupport）
         Set<Long> regionMatchedIds = AnalyticsRegionFilterSupport.regionMatchedProjectIds(
-                entityManager, projectAccessScopeService, regionIds);
+                entityManager, projectAccessScopeService, regionIds, startDate, endDate);
         if (regionMatchedIds != null) {
             if (regionMatchedIds.isEmpty()) {
                 return List.of();

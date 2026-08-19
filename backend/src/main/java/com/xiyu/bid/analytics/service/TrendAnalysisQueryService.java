@@ -48,7 +48,8 @@ public class TrendAnalysisQueryService {
         // 区域筛选与图表分组统一省份归一化口径（见 AnalyticsRegionFilterSupport）；
         // 历史缺口：时间维度查询未消费 criteria.regionIds()，导致选区域后时间趋势不受影响
         Set<Long> regionMatchedIds = AnalyticsRegionFilterSupport.regionMatchedProjectIds(
-                entityManager, projectAccessScopeService, criteria.regionIds());
+                entityManager, projectAccessScopeService, criteria.regionIds(),
+                criteria.startDate(), criteria.endDate());
         if (regionMatchedIds != null && regionMatchedIds.isEmpty()) {
             return List.of();
         }
