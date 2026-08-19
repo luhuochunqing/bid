@@ -42,6 +42,17 @@ class RegionDimensionExtractorTest {
             西藏自治区拉萨市,    西藏自治区
             宁夏回族自治区银川市, 宁夏回族自治区
             广西壮族自治区南宁市, 广西壮族自治区
+            江苏,                江苏省
+            江苏淮安,            江苏省
+            内蒙古,              内蒙古自治区
+            内蒙古呼和浩特市,    内蒙古自治区
+            广西,                广西壮族自治区
+            西藏,                西藏自治区
+            新疆,                新疆维吾尔自治区
+            河北,                河北省
+            黑龙江,              黑龙江省
+            陕西,                陕西省
+            吉林市,              吉林省
             """)
     void testExtractProvince(String input, String expected) {
         assertThat(RegionDimensionExtractor.extractProvince(input)).isEqualTo(expected);
@@ -60,5 +71,22 @@ class RegionDimensionExtractorTest {
     void testExtractProvinceFallback() {
         assertThat(RegionDimensionExtractor.extractProvince("华东大区")).isEqualTo("华东大区");
         assertThat(RegionDimensionExtractor.extractProvince("海外地区")).isEqualTo("海外地区");
+    }
+
+    @Test
+    @DisplayName("双源取值口径：总部所在地非空白优先，空白回退标讯区域，均空白返回 null")
+    void testResolveRawLocation() {
+        assertThat(RegionDimensionExtractor.resolveRawLocation("江苏省淮安市", "浙江省杭州市"))
+                .isEqualTo("江苏省淮安市");
+        assertThat(RegionDimensionExtractor.resolveRawLocation(null, "浙江省杭州市"))
+                .isEqualTo("浙江省杭州市");
+        assertThat(RegionDimensionExtractor.resolveRawLocation("", "浙江省杭州市"))
+                .isEqualTo("浙江省杭州市");
+        assertThat(RegionDimensionExtractor.resolveRawLocation("   ", "浙江省杭州市"))
+                .isEqualTo("浙江省杭州市");
+        assertThat(RegionDimensionExtractor.resolveRawLocation(null, null)).isNull();
+        assertThat(RegionDimensionExtractor.resolveRawLocation("", "")).isNull();
+        assertThat(RegionDimensionExtractor.resolveRawLocation(" 江苏省淮安市 ", null))
+                .isEqualTo("江苏省淮安市");
     }
 }
