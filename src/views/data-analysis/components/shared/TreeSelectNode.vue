@@ -36,6 +36,8 @@ defineProps({
 
 const tree = inject('treeSelectContext')
 if (!tree) throw new Error('TreeSelectNode 必须在 TreeSelectDropdown 内使用')
+// selectedSet 由父组件 TreeSelectDropdown 提供，模板中自动解包为 Set
+const { selectedSet } = tree
 
 function hasChildren(node) {
   return Array.isArray(node.children) && node.children.length > 0
