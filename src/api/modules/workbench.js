@@ -1,5 +1,5 @@
-// Input: workbench schedule overview query params, deadline stats, project/resource todo queries
-// Output: workbenchApi - explicit frontend adapter for /api/workbench/* (schedule overview, deadline stats, project todos, resource pending approvals)
+// Input: workbench schedule overview query params, deadline stats, project/resource todo queries, opportunity predictions
+// Output: workbenchApi - explicit frontend adapter for /api/workbench/* (schedule overview, deadline stats, project todos, resource pending approvals, opportunity predictions)
 // Pos: src/api/modules/ - Feature API module for workbench
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -69,6 +69,23 @@ export const workbenchApi = {
   async getProjectTodos() {
     try {
       const response = await httpClient.get('/api/workbench/project-todos')
+      return {
+        success: response?.success !== false,
+        data: Array.isArray(response?.data) ? response.data : [],
+      }
+    } catch (error) {
+      return { success: false, data: [], error }
+    }
+  },
+
+  /**
+   * 工作台 AI 商机预测：基于已中标/流标项目按提醒规则预测下一轮招标时间。
+   * 后端只返回未来 6 个月内商机，按预测招标时间升序；提醒通知暂未接入。
+   * @returns {Promise<{success: boolean, data: Array}>}
+   */
+  async getOpportunityPredictions() {
+    try {
+      const response = await httpClient.get('/api/workbench/opportunity-predictions')
       return {
         success: response?.success !== false,
         data: Array.isArray(response?.data) ? response.data : [],

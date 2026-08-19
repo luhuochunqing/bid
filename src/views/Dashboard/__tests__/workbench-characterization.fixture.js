@@ -1,5 +1,8 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { vi } from 'vitest'
+// vi.mock 会被 vitest 提升到文件顶部，此导入拿到的仍是 mock 后的 vue 模块
+// （mock 内 ...actual 保留了真实 computed）；提前导入避免 hoisted 块内 use-before-define。
+import { computed } from 'vue'
 
 const elementComponentStubs = vi.hoisted(() => {
   const passthrough = (template, props = [], emits = []) => ({ props, emits, template })
@@ -41,6 +44,28 @@ const elementComponentStubs = vi.hoisted(() => {
       emits: ['update:modelValue'],
       template: '<input class="el-input-number-stub" type="number" :value="modelValue" @input="$emit(\'update:modelValue\', Number($event.target.value))" />',
     },
+    // 表格 stub（OpportunityPredictionCard）：provide 的行数据必须包 computed 保持响应式
+    // （异步加载后列 stub 才能读到最新值）；列 stub 逐行渲染插槽，保留 row/$index 作用域。
+    'el-table': {
+      props: ['data', 'rowClassName', 'size'],
+      emits: ['row-click'],
+      provide() { return { tableRows: computed(() => this.data || []) } },
+      template: '<div class="el-table-stub"><slot /></div>',
+    },
+    'el-table-column': {
+      props: ['label', 'prop', 'width', 'minWidth', 'align', 'fixed', 'showOverflowTooltip'],
+      inject: ['tableRows'],
+      template:
+        '<div class="el-table-column-stub" :data-label="label">' +
+        '<template v-for="(row, idx) in tableRows" :key="idx"><slot :row="row" :$index="idx" /></template>' +
+        '</div>',
+    },
+    'el-pagination': {
+      props: ['currentPage', 'pageSize', 'total', 'layout', 'small'],
+      emits: ['update:currentPage'],
+      template: '<div class="el-pagination-stub" />',
+    },
+    'el-empty': passthrough('<div class="el-empty-stub">{{ description }}</div>', ['description', 'imageSize']),
     'el-dialog': {
       props: ['modelValue', 'title', 'width', 'destroyOnClose'],
       emits: ['update:modelValue'],
@@ -52,9 +77,7 @@ const elementComponentStubs = vi.hoisted(() => {
       template: '<div class="el-calendar-stub"><slot name="date-cell" :data="{ date: modelValue || new Date(), day: \'2026-04-22\', viewType: \'month\' }" /></div>',
     },
     ApprovalDialog: passthrough('<div class="approval-dialog-stub" />', ['visible', 'mode', 'approvalInfo']),
-    // Stub UserPicker 避免渲染其内部复杂依赖（useUserPicker → usersApi → client.js）。
-    // 注：vue-router mock 已补全 createRouter（见下方），导入链不再导致测试崩溃，
-    // 此 stub 现仅用于简化挂载。
+    // Stub UserPicker 简化挂载（router 导入链已由下方 vue-router mock 补全兜底）。
     UserPicker: true,
   }
 })
@@ -90,6 +113,7 @@ const mockState = vi.hoisted(() => ({
   scheduleGetOverview: vi.fn(),
   tendersGetList: vi.fn(),
   workbenchGetDeadlineStats: vi.fn().mockResolvedValue({ success: true, data: {} }),
+  workbenchGetOpportunityPredictions: vi.fn().mockResolvedValue({ success: true, data: [] }),
   messageSuccess: vi.fn(),
   messageWarning: vi.fn(),
   messageError: vi.fn(),
@@ -97,12 +121,8 @@ const mockState = vi.hoisted(() => ({
 }))
 export const mocks = mockState
 
-// 历史教训：原 mock 只导出 useRouter，依赖 stub UserPicker + mock usersApi 切断
-// "client.js → router/index.js (createRouter)" 导入链。但导入链会随业务代码演进
-// 重新接通，导致 "No createRouter export is defined on the vue-router mock" 失败。
-// 根治方式：直接补全 createRouter/createWebHistory 导出，让 router/index.js 顶层
-// 执行不报错。client.js 的 router.push/currentRoute 不会在测试中实际执行
-// （@/api 和各 module 已被 mock），stub 返回值仅供模块加载期间不抛错。
+// 历史教训：只 mock useRouter 会在导入链接通时因缺 createRouter 导出而失败，
+// 根治方式是补全 createRouter/createWebHistory；stub 返回值仅供模块加载不抛错。
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: mockState.routerPush }),
   createRouter: () => ({
@@ -154,15 +174,15 @@ vi.mock('@/api', () => ({
   workbenchApi: {
     getScheduleOverview: mockState.scheduleGetOverview,
     getDeadlineStats: mockState.workbenchGetDeadlineStats,
+    getOpportunityPredictions: mockState.workbenchGetOpportunityPredictions,
   },
 }))
 vi.mock('@/api/modules/dashboard.js', () => ({ tasksApi: { getMine: mockState.tasksGetMine, complete: mockState.tasksComplete } }))
 vi.mock('@/api/modules/alerts.js', () => ({ alertHistoryApi: { getUnresolved: mockState.alertGetUnresolved, acknowledge: mockState.alertAcknowledge } }))
 vi.mock('@/api/modules/tenders.js', () => ({ tendersApi: { getList: mockState.tendersGetList } }))
-vi.mock('@/api/modules/workbench.js', () => ({ workbenchApi: { getScheduleOverview: mockState.scheduleGetOverview, getDeadlineStats: mockState.workbenchGetDeadlineStats } }))
+vi.mock('@/api/modules/workbench.js', () => ({ workbenchApi: { getScheduleOverview: mockState.scheduleGetOverview, getDeadlineStats: mockState.workbenchGetDeadlineStats, getOpportunityPredictions: mockState.workbenchGetOpportunityPredictions } }))
 vi.mock('@/api/modules/contractBorrow.js', () => ({ contractBorrowApi: { create: mockState.contractBorrowCreate } }))
-// Mock usersApi 避免 UserPicker 触发真实 API 调用。vue-router mock 已补全
-// createRouter（见上方），此处不再承担"切断 router 导入链"职责。
+// Mock usersApi 避免 UserPicker 触发真实 API 调用。
 vi.mock('@/api/modules/users.js', () => ({
   usersApi: {
     search: vi.fn().mockResolvedValue([]),
@@ -189,10 +209,7 @@ const globalMountOptions = {
 
 export const users = {
   sales: {
-    id: 7,
-    name: '小王',
-    role: 'sales',
-    dept: '销售一部',
+    id: 7, name: '小王', role: 'sales', dept: '销售一部',
     menuPermissions: [
       'dashboard', 'dashboard.quickStart', 'bidding', 'project', 'project.create',
       'dashboard:view_welcome_banner', 'dashboard:view_metric_cards', 'dashboard:view_calendar',
@@ -201,9 +218,7 @@ export const users = {
     ]
   },
   manager: {
-    id: 8,
-    name: '张经理',
-    role: 'manager',
+    id: 8, name: '张经理', role: 'manager',
     menuPermissions: [
       'dashboard', 'bidding', 'project', 'task.assign', 'task.review',
       'dashboard:view_welcome_banner', 'dashboard:view_metric_cards', 'dashboard:view_calendar',
@@ -215,9 +230,7 @@ export const users = {
     ]
   },
   bid_specialist: {
-    id: 9,
-    name: '李工',
-    role: 'bid_specialist',
+    id: 9, name: '李工', role: 'bid_specialist',
     menuPermissions: [
       'dashboard', 'bidding', 'project', 'task.review',
       'dashboard:view_welcome_banner', 'dashboard:view_metric_cards', 'dashboard:view_calendar',
@@ -231,36 +244,27 @@ export const users = {
 
 export function resetApiMocks() {
   mockState.dashboardGetSummary.mockResolvedValue({
-    success: true,
-    data: { totalBudget: 2000000, successRate: 48.6, totalTenders: 12, activeProjects: 4, pendingTasks: 3 },
+    success: true, data: { totalBudget: 2000000, successRate: 48.6, totalTenders: 12, activeProjects: 4, pendingTasks: 3 },
   })
   mockState.tasksGetMine.mockResolvedValue({ data: [{ id: 501, title: 'API任务：完善技术方案', priority: 'HIGH', status: 'TODO', dueDate: '2026-04-23T10:30:00' }] })
   mockState.tasksComplete.mockResolvedValue({ success: true, data: { status: 'COMPLETED' } })
   mockState.alertGetUnresolved.mockResolvedValue({ data: [{ id: 601, severity: 'CRITICAL', message: '保证金即将到期', status: 'ACTIVE', createdAt: '2026-04-21T09:00:00' }] })
   mockState.alertAcknowledge.mockResolvedValue({ success: true })
   mockState.approvalGetPendingApprovals.mockResolvedValue({
-    totalCount: 2,
-    data: [{ id: 701, title: '数字政府项目 - 预算审批', approvalType: 'expense', applicantDept: '销售一部', submitTime: '2026-04-22 09:00' }],
+    totalCount: 2, data: [{ id: 701, title: '数字政府项目 - 预算审批', approvalType: 'expense', applicantDept: '销售一部', submitTime: '2026-04-22 09:00' }],
   })
-  mockState.approvalGetMyApprovals.mockResolvedValue({
-    data: [{ id: 801, title: '数字政府项目 - 标书支持申请', status: 'PENDING', description: '等待技术支持排期', submitTime: '2026-04-22 08:30' }],
-  })
+  mockState.approvalGetMyApprovals.mockResolvedValue({ data: [{ id: 801, title: '数字政府项目 - 标书支持申请', status: 'PENDING', description: '等待技术支持排期', submitTime: '2026-04-22 08:30' }] })
   mockState.approvalSubmitApproval.mockResolvedValue({ success: true, data: { id: 901 } })
   mockState.projectsGetList.mockResolvedValue({
-    success: true,
-    data: [{ id: '101', name: '数字政府项目' }, { id: '102', projectName: '智慧园区项目' }],
+    success: true, data: [{ id: '101', name: '数字政府项目' }, { id: '102', projectName: '智慧园区项目' }],
   })
-  mockState.qualificationsGetList.mockResolvedValue({
-    success: true,
-    data: [{ id: 201, name: '高新技术企业证书' }],
-  })
+  mockState.qualificationsGetList.mockResolvedValue({ success: true, data: [{ id: 201, name: '高新技术企业证书' }] })
   mockState.qualificationsCreateBorrow.mockResolvedValue({ success: true, data: { id: 301 } })
   mockState.contractBorrowCreate.mockResolvedValue({ success: true, data: { id: 401 } })
   mockState.expenseCreate.mockResolvedValue({ success: true, data: { id: 501 } })
-  mockState.scheduleGetOverview.mockResolvedValue({
-    data: { events: [{ id: 301, eventDate: '2026-04-23', eventType: 'DEADLINE', title: '数字政府项目截标', projectId: 101, isUrgent: true }] },
-  })
+  mockState.scheduleGetOverview.mockResolvedValue({ data: { events: [{ id: 301, eventDate: '2026-04-23', eventType: 'DEADLINE', title: '数字政府项目截标', projectId: 101, isUrgent: true }] } })
   mockState.tendersGetList.mockResolvedValue({ success: true, data: [{ id: 'B001', title: '某央企智慧办公平台采购项目', aiScore: 92 }] })
+  mockState.workbenchGetOpportunityPredictions.mockResolvedValue({ success: true, data: [] })
 }
 
 export async function mountWorkbench(user = users.sales) {

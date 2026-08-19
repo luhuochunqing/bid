@@ -699,7 +699,44 @@ echarts 5 支持按需注册（`echarts/core` + `echarts/charts` + `echarts/comp
 
 ---
 
-## 17. 变更记录
+## 17. 全局 `text-overflow: ellipsis` 把状态列挤成"黑点"
+
+### 17.1 事故
+
+工作台 AI 商机预测表格：为修复长文本列省略号不生效，给所有 `.el-table .cell` 全局加了 `overflow: hidden; text-overflow: ellipsis`，结果项目状态列的 el-tag 后面出现一个"黑点"。
+
+### 17.2 根因
+
+全局 ellipsis 作用到**所有**单元格。状态列宽度固定（105px）装不下标签时，被截断的内容渲染出省略号「…」，在窄列里视觉上只剩一个点，看起来像黑点——不是渲染 bug，是截断规则的误伤。
+
+项目全局 `table.css` 给所有 el-table 体单元格设了 `white-space: normal + overflow: visible`（长内容换行基线），覆盖了 `show-overflow-tooltip` 依赖的截断样式。修复时若反向全局加 ellipsis，就会伤及不需要截断的列。
+
+### 17.3 正确做法
+
+用 `:has()` 把 ellipsis 收窄到明确标记的列，其余列只保留 `nowrap`：
+
+```css
+/* 只对需要截断的列（内层 span 带 op-trunc-text 标记）启用 ellipsis */
+.op-table-wrap :deep(.el-table__body .cell) {
+  white-space: nowrap;
+}
+.op-table-wrap :deep(.el-table__body td:has(.op-trunc-text) .cell) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+```
+
+参考实现：`src/views/Dashboard/components/OpportunityPredictionCard.vue`（项目名称/招标主体两列标记 `op-trunc-text`）。
+
+### 17.4 规范
+
+- 覆盖全局 table.css 截断基线时，**禁止**全局加 `text-overflow: ellipsis`，必须按列收窄
+- 状态/标签类窄列只允许 `white-space: nowrap`，不加 ellipsis
+- 修复后验证：Playwright 检查目标列 `textOverflow === 'clip'`（非 ellipsis）
+
+---
+
+## 18. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
@@ -708,3 +745,5 @@ echarts 5 支持按需注册（`echarts/core` + `echarts/charts` + `echarts/comp
 | 2026-08-11 | 新增 §14：el-table 跨页勾选丢失 ids（业绩合订本导出 bug） |
 | 2026-08-17 | 新增 §15：echarts 全量引入 chunk 膨胀，改按需注册 |
 | 2026-08-17 | 新增 §16：API getList 默认 size 10000 过剩，对齐后端 MAX_PAGE_SIZE=100 |
+| 2026-08-18 | 新增 §17：全局 ellipsis 把状态列挤成"黑点"（工作台商机预测表格） |
+

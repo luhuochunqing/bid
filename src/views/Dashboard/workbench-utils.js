@@ -35,6 +35,14 @@ function toDateOnly(value) {
   return typeof value === 'string' ? value.slice(0, 10) : undefined
 }
 
+/**
+ * 项目状态枚举名 → 中文标签（8 状态全量，与后端 Project.Status.displayName() 对齐）。
+ * 未知/缺失状态原样返回（缺失时返回空字符串），由调用方决定兜底展示。
+ */
+export function projectStatusLabel(status) {
+  return PROJECT_STATUS_META[status]?.status || (status || '')
+}
+
 // Demo tender id 以 '-' 开头，非真实标讯。判断集中在此，避免多处重复
 export function isRealTenderId(id) {
   return Boolean(id) && !String(id).startsWith('-')

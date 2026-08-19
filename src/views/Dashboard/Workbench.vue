@@ -49,17 +49,7 @@
 
     <!-- 第 5 部分：AI 商机预测 + 消息通知 -->
     <div class="rebuild-ai-notif">
-      <div class="rebuild-ai-card">
-        <div class="rebuild-card-header">
-          <div class="rebuild-card-title"><span class="icon"></span>AI 商机预测</div>
-          <span class="rebuild-ai-tag">敬请期待</span>
-        </div>
-        <div class="rebuild-ai-placeholder">
-          <div class="rebuild-ai-icon">🤖</div>
-          <div class="rebuild-ai-title">AI 商机预测模块 · 规划中</div>
-          <div class="rebuild-ai-sub">基于历史中标数据 + 公开标讯<br>预测潜在高胜率商机 · 后续版本上线</div>
-        </div>
-      </div>
+      <OpportunityPredictionCard />
       <WorkbenchNotifications />
     </div>
 
@@ -101,6 +91,7 @@ import TodoCategoryCards from '@/views/Dashboard/components/TodoCategoryCards.vu
 import DeadlinePanels from '@/views/Dashboard/components/DeadlinePanels.vue'
 import WorkbenchCalendarRebuild from '@/views/Dashboard/components/WorkbenchCalendarRebuild.vue'
 import WorkbenchNotifications from '@/views/Dashboard/components/WorkbenchNotifications.vue'
+import OpportunityPredictionCard from '@/views/Dashboard/components/OpportunityPredictionCard.vue'
 import {
   Briefcase, Calendar, Check, DataAnalysis, Document, Flag, TrendCharts, User,
 } from '@element-plus/icons-vue'
