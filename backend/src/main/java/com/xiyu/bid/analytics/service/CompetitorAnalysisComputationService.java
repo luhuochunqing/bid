@@ -1,3 +1,8 @@
+// Input: CompetitorAnalysisRow data lists
+// Output: DiscountStats / 折扣序列 / 竞品中标枚举解析
+// Pos: Computation Service/纯计算层
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+
 package com.xiyu.bid.analytics.service;
 
 import com.xiyu.bid.analytics.model.CompetitorAnalysisRow;
@@ -106,6 +111,16 @@ class CompetitorAnalysisComputationService {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    /**
+     * 解析竞品行是否中标。
+     * <p>存储于 project_result_competitor.notes：结果确认表格的「是否中标」列经前端
+     * 语义漂移复用该字段写入「已中标/未中标」枚举（见 ResultConfirmStage.vue）。
+     * 历史「其他说明」自由文本与空值不属于枚举，按未中标处理。
+     */
+    boolean parseCompetitorWon(String notes) {
+        return notes != null && "已中标".equals(notes.trim());
     }
 
     /**
