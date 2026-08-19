@@ -64,14 +64,9 @@ public class TrendDrillDownService {
         params.put("allAccess", allAccess);
         params.put("scopeIds", allAccess ? List.of(-1L) : scopeIds);
 
-        // 维度值过滤（axisValue 对应的维度列；region 维度走省份归一化口径，保证下钻条数 = 柱子数字）
-        if ("region".equals(dimension) && axisValue != null && !axisValue.isBlank()) {
-            Set<Long> regionAxisIds = AnalyticsRegionFilterSupport.regionMatchedProjectIds(
-                    entityManager, projectAccessScopeService, List.of(axisValue));
-            if (regionAxisIds.isEmpty()) return emptyResponse(pageNum, pageSize);
-            where.append(" AND p.id IN (:regionAxisIds)");
-            params.put("regionAxisIds", regionAxisIds);
-        } else {
+        // 维度值过滤（axisValue 对应的维度列）；region 维度统一走下方省份归一化过滤
+        boolean regionAxis = "region".equals(dimension) && axisValue != null && !axisValue.isBlank();
+        if (!regionAxis) {
             appendDimensionFilter(where, params, dimension, axisValue);
         }
 
@@ -97,10 +92,15 @@ public class TrendDrillDownService {
         }
         appendInFilter(where, params, "t.project_type", "projectTypes", projectTypes);
         appendInFilter(where, params, "p.status", "statuses", statuses);
-        // 区域过滤：与图表分组同口径的省份归一化匹配（见 AnalyticsRegionFilterSupport）
-        if (regions != null && !regions.isEmpty()) {
+        // 区域过滤：与图表分组同口径的省份归一化匹配（见 AnalyticsRegionFilterSupport）。
+        // axisValue（点击柱子省份）与 regions（筛选器省份）取交集后只计算一次，避免重复全表回捞
+        if (regionAxis || (regions != null && !regions.isEmpty())) {
+            if (regionAxis && regions != null && !regions.isEmpty() && !regions.contains(axisValue)) {
+                return emptyResponse(pageNum, pageSize); // 交集为空
+            }
+            List<String> effectiveRegions = regionAxis ? List.of(axisValue) : regions;
             Set<Long> regionMatchedIds = AnalyticsRegionFilterSupport.regionMatchedProjectIds(
-                    entityManager, projectAccessScopeService, regions);
+                    entityManager, projectAccessScopeService, effectiveRegions);
             if (regionMatchedIds.isEmpty()) return emptyResponse(pageNum, pageSize);
             where.append(" AND p.id IN (:regionProjectIds)");
             params.put("regionProjectIds", regionMatchedIds);

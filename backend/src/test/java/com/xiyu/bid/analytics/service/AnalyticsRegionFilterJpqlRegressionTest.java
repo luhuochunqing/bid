@@ -6,6 +6,7 @@
 package com.xiyu.bid.analytics.service;
 
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import jakarta.persistence.EntityManager;
@@ -83,6 +84,20 @@ class AnalyticsRegionFilterJpqlRegressionTest {
         buildProject("项目C-自由文本", Project.Status.WON, "江苏淮安");
         // 其他省份（不应命中江苏省筛选）
         buildProject("项目D-浙江", Project.Status.BIDDING, "浙江省杭州市");
+        // 总部所在地为空串，回退标讯区域 t.region（验证双源回退分支端到端）
+        Tender tender = Tender.builder().title("测试招标公告").region("浙江省杭州市").build();
+        entityManager.persist(tender);
+        Project e = new Project();
+        e.setName("项目E-回退标讯区域");
+        e.setStatus(Project.Status.WON);
+        e.setTenderId(tender.getId());
+        e.setManagerId(999L);
+        e.setCreatedAt(LocalDateTime.of(2026, 3, 15, 10, 0));
+        entityManager.persist(e);
+        entityManager.persist(ProjectInitiationDetails.builder()
+                .projectId(e.getId())
+                .headquartersLocation("")
+                .build());
         entityManager.flush();
     }
 
@@ -122,6 +137,48 @@ class AnalyticsRegionFilterJpqlRegressionTest {
     }
 
     @Test
+    @DisplayName("时间维度 week 粒度：区域筛选同样生效")
+    void weeklyTimeTrendRowsRespectRegionFilter() {
+        var rows = timeQueryService.fetchTimeTrendRows(jiangsuCriteria(), "week");
+
+        assertThat(rows).hasSize(3);
+    }
+
+    @Test
+    @DisplayName("双源回退：总部所在地为空串时命中 t.region 省份")
+    void regionFilterFallsBackToTenderRegion() {
+        var rows = dimensionQueryService.fetchRegionRows(new TrendQueryCriteria(
+                null, null, null, null,
+                List.of("浙江省"), null, null, null, null, null));
+
+        // 项目D（pid 规范拼接）+ 项目E（pid 空串回退 t.region）
+        assertThat(rows).hasSize(2);
+        assertThat(rows).allSatisfy(r -> assertThat(r.category()).isEqualTo("浙江省"));
+        assertThat(rows).extracting(DimensionRow::projectId).doesNotHaveDuplicates();
+    }
+
+    @Test
+    @DisplayName("空集语义：筛选无命中省份返回空而非全量")
+    void regionFilterWithoutMatchReturnsEmpty() {
+        var rows = dimensionQueryService.fetchRegionRows(new TrendQueryCriteria(
+                null, null, null, null,
+                List.of("青海省"), null, null, null, null, null));
+        assertThat(rows).isEmpty();
+
+        var drillDownResponse = drillDownService.drillDown(
+                "time", null, "投标数",
+                null, null, null, null, List.of("青海省"), null, null,
+                null, null, null, 1, 10);
+        assertThat(drillDownResponse.getSummary().getTotalCount()).isZero();
+        assertThat(drillDownResponse.getItems()).isEmpty();
+
+        var weeklyRows = timeQueryService.fetchTimeTrendRows(new TrendQueryCriteria(
+                null, null, null, null,
+                List.of("青海省"), null, null, null, null, null), "week");
+        assertThat(weeklyRows).isEmpty();
+    }
+
+    @Test
     @DisplayName("下钻 regions 过滤：条数 = 柱子数字（含短省名存量数据）")
     void drillDownRegionsFilterMatchesNormalizedProvince() {
         var response = drillDownService.drillDown(
@@ -142,5 +199,23 @@ class AnalyticsRegionFilterJpqlRegressionTest {
 
         assertThat(response.getSummary().getTotalCount()).isEqualTo(3L);
         assertThat(response.getItems()).hasSize(3);
+    }
+
+    @Test
+    @DisplayName("下钻 axisValue 与 regions 同时存在：取交集且只归一化计算一次")
+    void drillDownRegionAxisValueIntersectsWithRegionsFilter() {
+        // 交集命中：axisValue=江苏省 ∈ regions
+        var hit = drillDownService.drillDown(
+                "region", "江苏省", "投标数",
+                null, null, null, null, List.of("江苏省", "浙江省"), null, null,
+                null, null, null, 1, 10);
+        assertThat(hit.getSummary().getTotalCount()).isEqualTo(3L);
+
+        // 交集为空：axisValue=江苏省 ∉ regions=[浙江省]，返回空而非全量
+        var miss = drillDownService.drillDown(
+                "region", "江苏省", "投标数",
+                null, null, null, null, List.of("浙江省"), null, null,
+                null, null, null, 1, 10);
+        assertThat(miss.getSummary().getTotalCount()).isZero();
     }
 }
