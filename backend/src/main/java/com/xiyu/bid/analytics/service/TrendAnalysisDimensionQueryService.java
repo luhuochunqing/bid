@@ -84,10 +84,13 @@ public class TrendAnalysisDimensionQueryService {
     }
 
     //=== 客户类型 ===//
+    /** 客户类型取值口径：优先立项详情（详情页可编辑值），回退项目主表创建时快照，与 M2/下钻一致。 */
+    private static final String CUSTOMER_TYPE_EXPR = "coalesce(nullif(pid.customerType, ''), p.customerType)";
+
     List<DimensionRow> fetchCustomerTypeRows(TrendQueryCriteria criteria) {
-        return queryDimension("p.customerType",
+        return queryDimension(CUSTOMER_TYPE_EXPR,
                 "left join Tender t on t.id = p.tenderId left join User u on u.id = p.managerId left join ProjectInitiationDetails pid on pid.projectId = p.id left join ProjectResult pr on pr.projectId = p.id left join ProjectResultCompetitor prc on prc.resultId = pr.id",
-                "p.customerType is not null and p.customerType <> ''",
+                CUSTOMER_TYPE_EXPR + " is not null and " + CUSTOMER_TYPE_EXPR + " <> ''",
                 criteria, null);
     }
 
@@ -160,7 +163,7 @@ public class TrendAnalysisDimensionQueryService {
             }
             jpql.append(")");
         }
-        if (isNotEmpty(customerTypes)) jpql.append(" and p.customerType in :customerTypes");
+        if (isNotEmpty(customerTypes)) jpql.append(" and ").append(CUSTOMER_TYPE_EXPR).append(" in :customerTypes");
         if (isNotEmpty(projectTypes)) jpql.append(" and t.projectType in :projectTypes");
         if (isNotEmpty(statuses)) jpql.append(" and p.status in :statuses");
         if (isNotEmpty(tenderEntities)) jpql.append(" and t.purchaserName in :tenderEntities");

@@ -171,18 +171,20 @@ public class FilterOptionsQueryService {
     }
 
     /**
-     * PRD §6.2 M1 筛选区下拉选项 — 客户类型 DISTINCT（projects.customer_type）。
+     * PRD §6.2 M1 筛选区下拉选项 — 客户类型 DISTINCT。
+     * 口径与统计一致：优先立项详情值，回退项目主表快照（coalesce）。
      */
     List<String> fetchDistinctCustomerTypes() {
         Set<Long> scopeIds = AnalyticsProjectScopeSupport.scopedProjectIds(projectAccessScopeService);
         boolean allAccess = scopeIds == null;
         return entityManager.createQuery("""
-                        select distinct p.customerType
+                        select distinct coalesce(nullif(pid.customerType, ''), p.customerType)
                         from Project p
+                        left join ProjectInitiationDetails pid on pid.projectId = p.id
                         where (:allAccess = true or p.id in :scopeIds)
-                          and p.customerType is not null
-                          and p.customerType <> ''
-                        order by p.customerType
+                          and coalesce(nullif(pid.customerType, ''), p.customerType) is not null
+                          and coalesce(nullif(pid.customerType, ''), p.customerType) <> ''
+                        order by 1
                         """, String.class)
                 .setParameter("allAccess", allAccess)
                 .setParameter("scopeIds", allAccess ? Set.of(-1L) : scopeIds)

@@ -37,12 +37,15 @@ public class CompetitorAnalysisAssemblerService {
 
     public CompetitorAnalysisResponse analyze(CompetitorAnalysisRequest request) {
         List<String> competitors = request.getCompetitorNames();
-        if (competitors == null || competitors.isEmpty()) {
+        // 项目名称模式（PRD §9.8.5）：按项目名定位单项目，动态提取其全部竞品，
+        // 前端该项目模式不传竞品列表，competitors 为空时也需放行进入项目分支。
+        boolean projectMode = request.getProjectName() != null && !request.getProjectName().isBlank();
+        if ((competitors == null || competitors.isEmpty()) && !projectMode) {
             return CompetitorAnalysisResponse.builder().mode("default").categories(List.of()).series(List.of()).build();
         }
 
         // 项目名称模式（PRD §9.8.5）
-        if (request.getProjectName() != null && !request.getProjectName().isBlank()) {
+        if (projectMode) {
             return buildProjectResponse(request);
         }
 
@@ -213,11 +216,11 @@ public class CompetitorAnalysisAssemblerService {
      * 项目名称模式（PRD §9.8.5 + §9.15）— 竞品公司为 X 轴，单条柱展示折扣 + 明细表格。
      */
     private CompetitorAnalysisResponse buildProjectResponse(CompetitorAnalysisRequest request) {
+        // 时间范围过滤仅适用于跨项目趋势模式；项目模式按项目名精确定位，忽略时间参数，
+        // 避免创建于往年的项目（如年度筛选范围外）被误滤导致"暂无数据"。
         List<CompetitorAnalysisRow> rows = queryService.fetchProjectCompetitorRows(
                 request.getProjectName(),
-                request.getCompetitorNames(),
-                request.getStartDate(),
-                request.getEndDate()
+                request.getCompetitorNames()
         );
 
         // 构建竞品唯一列表（同一项目中每个竞品公司只出现一条记录，PRD §9.15）

@@ -1,3 +1,8 @@
+// Input: DimensionRow / TimeDimensionRow lists from query services
+// Output: TrendComputationResult (categories + bid/win/winRate series)
+// Pos: Computation Service/纯计算层（投标数=全部项目口径）
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+
 package com.xiyu.bid.analytics.service;
 
 import com.xiyu.bid.analytics.service.DimensionRow;
@@ -28,9 +33,8 @@ class TrendAnalysisComputationService {
 
     /**
      * 按维度标签分组，计算投标数、中标数、中标率。
-     * 投标数 = 已中标(WON) + 未中标(LOST) 的项目数。
-     * 中标数 = 已中标(WON) 的项目数。
-     * 按 bidCount 降序排列（PRD 6.5）。
+     * 投标数 = 全部项目（含进行中状态，与 M0 KPI「投标总数」、状态维度口径对齐；旧 WON+LOST 口径曾致区域维度全 0）。
+     * 中标数 = 已中标(WON) 的项目数。按 bidCount 降序排列（PRD 6.5）。
      * @param expectedCategories 可选，期望在 X 轴上出现的分类列表（数量为 0 的也会展示），
      *                           仅当 xAxis 为 customerType/projectType 时传入
      */
@@ -46,11 +50,8 @@ class TrendAnalysisComputationService {
                 continue;
             }
             MutableTrendBucket bucket = bucketMap.computeIfAbsent(key, MutableTrendBucket::new);
-            // 投标数口径：只统计已中标 + 未中标的项目
-            if (row.status() == Project.Status.WON
-                    || row.status() == Project.Status.LOST) {
-                bucket.bidCount++;
-            }
+            // 投标数口径：全部项目计入
+            bucket.bidCount++;
             if (row.status() == Project.Status.WON) {
                 bucket.winCount++;
             }
@@ -142,7 +143,7 @@ class TrendAnalysisComputationService {
 
     /**
      * 按指定时间粒度（day/week/month/year）分组，计算投标数、中标数、中标率。
-     * 投标数 = 已中标(WON) + 未中标(LOST) 的项目数。
+     * 投标数 = 全部项目（含进行中状态），与 computeDimensionTrend / M0 KPI 口径对齐。
      * 中标数 = 已中标(WON) 的项目数。
      * 当 startDate/endDate 均存在时，补全区间内所有时间槽（缺失显示 0），
      * 确保 X 轴从区间起始连续到结束。
@@ -162,10 +163,8 @@ class TrendAnalysisComputationService {
             }
             String key = buildPeriodKey(row, td);
             MutableTrendBucket bucket = bucketMap.computeIfAbsent(key, MutableTrendBucket::new);
-            // 投标数口径：只统计已中标 + 未中标的项目
-            if (row.status() == Project.Status.WON || row.status() == Project.Status.LOST) {
-                bucket.bidCount++;
-            }
+            // 投标数口径：全部项目计入
+            bucket.bidCount++;
             if (row.status() == Project.Status.WON) {
                 bucket.winCount++;
             }

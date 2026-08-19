@@ -199,9 +199,11 @@ export function useCompetitorData(chartRef) {
     tableVisible.value = false
     try {
       const mode = chartMode.value
-      const params = {
-        startDate: dateRange.value?.[0] || null,
-        endDate: dateRange.value?.[1] || null
+      const params = {}
+      // 项目模式按项目名定位单个项目，不受时间范围过滤（项目可能创建于往年）
+      if (mode !== 'project') {
+        params.startDate = dateRange.value?.[0] || null
+        params.endDate = dateRange.value?.[1] || null
       }
       if (mode === 'default') {
         params.competitorNames = selectedCompetitors.value
