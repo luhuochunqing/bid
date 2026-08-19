@@ -101,6 +101,34 @@ class RegionDimensionExtractorTest {
     }
 
     @Test
+    @DisplayName("护栏：别名表所有全称 ∈ TenderRegionCatalog 省份集合（防别名表与 catalog 漂移）")
+    @SuppressWarnings("unchecked")
+    void testAliasValuesWithinRegionCatalogProvinces() throws Exception {
+        var aliasField = RegionDimensionExtractor.class.getDeclaredField("SHORT_NAME_ALIASES");
+        aliasField.setAccessible(true);
+        java.util.Map<String, String> aliases = (java.util.Map<String, String>) aliasField.get(null);
+
+        // catalog 省份全集 = 直辖市/港澳台 + 普通省/自治区一级名（PROVINCES 为 private，反射读取）
+        java.util.Set<String> catalogProvinces = new java.util.HashSet<>(
+                com.xiyu.bid.tender.core.TenderRegionCatalog.PROVINCE_ONLY);
+        var provincesField = com.xiyu.bid.tender.core.TenderRegionCatalog.class
+                .getDeclaredField("PROVINCES");
+        provincesField.setAccessible(true);
+        java.util.List<?> provinces = (java.util.List<?>) provincesField.get(null);
+        for (Object entry : provinces) {
+            var accessor = entry.getClass().getMethod("province");
+            accessor.setAccessible(true);
+            catalogProvinces.add((String) accessor.invoke(entry));
+        }
+
+        assertThat(catalogProvinces).hasSize(34);
+        aliases.forEach((shortName, fullName) ->
+                assertThat(catalogProvinces)
+                        .as("别名 [%s] 的全称 [%s] 应属于 TenderRegionCatalog 省份", shortName, fullName)
+                        .contains(fullName));
+    }
+
+    @Test
     @DisplayName("双源取值口径：总部所在地非空白优先，空白回退标讯区域，均空白返回 null")
     void testResolveRawLocation() {
         assertThat(RegionDimensionExtractor.resolveRawLocation("江苏省淮安市", "浙江省杭州市"))
