@@ -53,6 +53,8 @@ class RegionDimensionExtractorTest {
             黑龙江,              黑龙江省
             陕西,                陕西省
             吉林市,              吉林省
+            海南,                海南省
+            海南省海口市,        海南省
             """)
     void testExtractProvince(String input, String expected) {
         assertThat(RegionDimensionExtractor.extractProvince(input)).isEqualTo(expected);
@@ -71,6 +73,31 @@ class RegionDimensionExtractorTest {
     void testExtractProvinceFallback() {
         assertThat(RegionDimensionExtractor.extractProvince("华东大区")).isEqualTo("华东大区");
         assertThat(RegionDimensionExtractor.extractProvince("海外地区")).isEqualTo("海外地区");
+    }
+
+    @Test
+    @DisplayName("前缀歧义 key：青海海南藏族自治州/海南州不归入海南省，保持独立桶")
+    void testAmbiguousShortNameKeepsOwnBucket() {
+        assertThat(RegionDimensionExtractor.extractProvince("海南藏族自治州")).isEqualTo("海南藏族自治州");
+        assertThat(RegionDimensionExtractor.extractProvince("海南州")).isEqualTo("海南州");
+        assertThat(RegionDimensionExtractor.extractProvince("海南藏族自治州共和县")).isEqualTo("海南藏族自治州共和县");
+        // 精确短省名仍归一化
+        assertThat(RegionDimensionExtractor.extractProvince("海南")).isEqualTo("海南省");
+    }
+
+    @Test
+    @DisplayName("别名映射全量遍历：每个短省名 key 均归一化为对应全称（防手写映射拼写逃逸）")
+    @SuppressWarnings("unchecked")
+    void testAllShortNameAliasesNormalized() throws Exception {
+        var field = RegionDimensionExtractor.class.getDeclaredField("SHORT_NAME_ALIASES");
+        field.setAccessible(true);
+        java.util.Map<String, String> aliases = (java.util.Map<String, String>) field.get(null);
+
+        assertThat(aliases).hasSize(34);
+        aliases.forEach((shortName, fullName) ->
+                assertThat(RegionDimensionExtractor.extractProvince(shortName))
+                        .as("短省名 [%s] 应归一化为 [%s]", shortName, fullName)
+                        .isEqualTo(fullName));
     }
 
     @Test

@@ -7,6 +7,7 @@ package com.xiyu.bid.analytics.service;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 区域维度省份提取器（纯函数，无状态，完全避免在 SQL 中进行跨表 collation 拼接）。
@@ -21,6 +22,13 @@ public final class RegionDimensionExtractor {
      * 全称口径与 {@code TenderRegionCatalog} 省份表一致。
      */
     private static final Map<String, String> SHORT_NAME_ALIASES = buildShortNameAliases();
+
+    /**
+     * 存在前缀歧义的短省名 key："海南" 是青海省"海南藏族自治州"/"海南州"的前缀。
+     * 此类 key 仅在与短省名精确相等时归一化，前缀值继续走兜底保持独立桶，
+     * 避免被静默并入错误省份（吉林/吉林市同名但同属吉林省，不在此列）。
+     */
+    private static final Set<String> EXACT_MATCH_ONLY_KEYS = Set.of("海南");
 
     private RegionDimensionExtractor() {
     }
@@ -73,9 +81,14 @@ public final class RegionDimensionExtractor {
         if (loc.startsWith("宁夏")) return "宁夏回族自治区";
         if (loc.startsWith("广西")) return "广西壮族自治区";
 
-        // 无后缀短省名（历史存量格式，如 "江苏"、"江苏淮安"、"北京"）
+        // 无后缀短省名（历史存量格式，如 "江苏"、"江苏淮安"、"北京"）；
+        // 歧义 key（见 EXACT_MATCH_ONLY_KEYS）仅精确匹配才归一化
         for (Map.Entry<String, String> alias : SHORT_NAME_ALIASES.entrySet()) {
-            if (loc.startsWith(alias.getKey())) {
+            String key = alias.getKey();
+            boolean matched = EXACT_MATCH_ONLY_KEYS.contains(key)
+                    ? loc.equals(key)
+                    : loc.startsWith(key);
+            if (matched) {
                 return alias.getValue();
             }
         }
