@@ -50,7 +50,7 @@ public class IntegrationEndpointUrls {
     }
 
     /** publicBaseUrl + 指定路径的完整前缀；未配置 publicBaseUrl 时返回 null。 */
-    public String ownAbsolutePathPrefix(String path) {
+    private String ownAbsolutePathPrefix(String path) {
         if (publicBaseUrl == null || publicBaseUrl.isBlank()) {
             return null;
         }

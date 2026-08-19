@@ -11,6 +11,7 @@ import com.xiyu.bid.tender.dto.ContactDTO;
 import com.xiyu.bid.tender.dto.TenderAttachmentDTO;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import com.xiyu.bid.tender.dto.TenderRequest;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -20,15 +21,13 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Component
+@RequiredArgsConstructor
 public class TenderMapper {
+
+    private static final int BID_NOTICE_TRUNCATE = 200;
 
     private final TenderAttachmentUrlResolver attachmentUrlResolver;
 
-    public TenderMapper(TenderAttachmentUrlResolver attachmentUrlResolver) {
-        this.attachmentUrlResolver = attachmentUrlResolver;
-    }
-
-    private static final int BID_NOTICE_TRUNCATE = 200;
     public TenderDTO toDTO(Tender tender) {
         if (tender == null) {
             return null;

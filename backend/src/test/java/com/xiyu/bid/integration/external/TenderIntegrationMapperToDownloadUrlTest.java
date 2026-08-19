@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * TenderIntegrationMapper URL 转换单元测试。
@@ -291,8 +293,8 @@ class TenderIntegrationMapperToDownloadUrlTest {
     @Test
     @DisplayName("obs-direct:{uploadId} toDownloadUrl（内部用户）仍走 OBS 预签名路径")
     void toDownloadUrl_obsDirectWithSigner_returnsPresignedUrl() {
-        ObsShareUrlSigner mockSigner = org.mockito.Mockito.mock(ObsShareUrlSigner.class);
-        org.mockito.Mockito.when(mockSigner.trySign("obs-direct:upload-abc-123"))
+        ObsShareUrlSigner mockSigner = mock(ObsShareUrlSigner.class);
+        when(mockSigner.trySign("obs-direct:upload-abc-123"))
                 .thenReturn(Optional.of("https://widbid-obs.ehsy.com/bids/test.pdf?Signature=yyy"));
         TenderAttachmentUrlResolver resolverWithSigner =
                 new TenderAttachmentUrlResolver(new IntegrationEndpointUrls(""), mockSigner);
