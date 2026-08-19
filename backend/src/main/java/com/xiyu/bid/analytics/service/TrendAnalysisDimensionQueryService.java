@@ -49,37 +49,40 @@ public class TrendAnalysisDimensionQueryService {
     }
 
     //=== 区域 ===//
+    /** 区域取值口径：优先立项详情总部所在地，回退标讯区域。 */
+    private static final String REGION_FIELD_EXPR = "coalesce(nullif(pid.headquartersLocation, ''), t.region)";
+
     /**
-     * 提取总部所在地一级地址（省/直辖市/自治区/特别行政区）。
+     * 提取总部所在地/区域一级地址（省/直辖市/自治区/特别行政区）。
      * 存储格式: "广东省深圳市"/"北京市北京市"/"内蒙古自治区呼和浩特市"/"香港特别行政区中西区"。
      * 使用原生 SQL CASE 提取省级前缀：直辖市取前3字符(X市)，
      * "省"/"区"后缀用 LOCATE 定位截取。
      */
     private static final String REGION_EXTRACT_EXPR = """
             CASE
-              WHEN pid.headquartersLocation LIKE '北京市%' THEN '北京市'
-              WHEN pid.headquartersLocation LIKE '天津市%' THEN '天津市'
-              WHEN pid.headquartersLocation LIKE '上海市%' THEN '上海市'
-              WHEN pid.headquartersLocation LIKE '重庆市%' THEN '重庆市'
-              WHEN pid.headquartersLocation LIKE '香港%' THEN '香港特别行政区'
-              WHEN pid.headquartersLocation LIKE '澳门%' THEN '澳门特别行政区'
-              WHEN pid.headquartersLocation LIKE '台湾%' THEN '台湾省'
-              WHEN pid.headquartersLocation LIKE '%自治区%'
-                THEN SUBSTRING(pid.headquartersLocation, 1, LOCATE('自治区', pid.headquartersLocation) + 2)
-              WHEN pid.headquartersLocation LIKE '内蒙古%' THEN '内蒙古自治区'
-              WHEN pid.headquartersLocation LIKE '新疆%' THEN '新疆维吾尔自治区'
-              WHEN pid.headquartersLocation LIKE '西藏%' THEN '西藏自治区'
-              WHEN pid.headquartersLocation LIKE '宁夏%' THEN '宁夏回族自治区'
-              WHEN pid.headquartersLocation LIKE '广西%' THEN '广西壮族自治区'
-              WHEN pid.headquartersLocation LIKE '%省%'
-                THEN SUBSTRING(pid.headquartersLocation, 1, LOCATE('省', pid.headquartersLocation))
-              ELSE '其他'
+              WHEN coalesce(nullif(pid.headquartersLocation, ''), t.region) LIKE '北京市%' THEN '北京市'
+              WHEN coalesce(nullif(pid.headquartersLocation, ''), t.region) LIKE '天津市%' THEN '天津市'
+              WHEN coalesce(nullif(pid.headquartersLocation, ''), t.region) LIKE '上海市%' THEN '上海市'
+              WHEN coalesce(nullif(pid.headquartersLocation, ''), t.region) LIKE '重庆市%' THEN '重庆市'
+              WHEN coalesce(nullif(pid.headquartersLocation, ''), t.region) LIKE '香港%' THEN '香港特别行政区'
+              WHEN coalesce(nullif(pid.headquartersLocation, ''), t.region) LIKE '澳门%' THEN '澳门特别行政区'
+              WHEN coalesce(nullif(pid.headquartersLocation, ''), t.region) LIKE '台湾%' THEN '台湾省'
+              WHEN coalesce(nullif(pid.headquartersLocation, ''), t.region) LIKE '%自治区%'
+                THEN SUBSTRING(coalesce(nullif(pid.headquartersLocation, ''), t.region), 1, LOCATE('自治区', coalesce(nullif(pid.headquartersLocation, ''), t.region)) + 2)
+              WHEN coalesce(nullif(pid.headquartersLocation, ''), t.region) LIKE '内蒙古%' THEN '内蒙古自治区'
+              WHEN coalesce(nullif(pid.headquartersLocation, ''), t.region) LIKE '新疆%' THEN '新疆维吾尔自治区'
+              WHEN coalesce(nullif(pid.headquartersLocation, ''), t.region) LIKE '西藏%' THEN '西藏自治区'
+              WHEN coalesce(nullif(pid.headquartersLocation, ''), t.region) LIKE '宁夏%' THEN '宁夏回族自治区'
+              WHEN coalesce(nullif(pid.headquartersLocation, ''), t.region) LIKE '广西%' THEN '广西壮族自治区'
+              WHEN coalesce(nullif(pid.headquartersLocation, ''), t.region) LIKE '%省%'
+                THEN SUBSTRING(coalesce(nullif(pid.headquartersLocation, ''), t.region), 1, LOCATE('省', coalesce(nullif(pid.headquartersLocation, ''), t.region)))
+              ELSE coalesce(nullif(pid.headquartersLocation, ''), t.region)
             END""";
 
     List<DimensionRow> fetchRegionRows(TrendQueryCriteria criteria) {
         return queryDimension(REGION_EXTRACT_EXPR,
-                "join ProjectInitiationDetails pid on pid.projectId = p.id left join Tender t on t.id = p.tenderId left join User u on u.id = p.managerId left join ProjectResult pr on pr.projectId = p.id left join ProjectResultCompetitor prc on prc.resultId = pr.id",
-                "pid.headquartersLocation is not null and pid.headquartersLocation <> ''",
+                "left join ProjectInitiationDetails pid on pid.projectId = p.id left join Tender t on t.id = p.tenderId left join User u on u.id = p.managerId left join ProjectResult pr on pr.projectId = p.id left join ProjectResultCompetitor prc on prc.resultId = pr.id",
+                "(pid.headquartersLocation is not null and pid.headquartersLocation <> '') or (t.region is not null and t.region <> '')",
                 criteria, null);
     }
 
@@ -159,7 +162,7 @@ public class TrendAnalysisDimensionQueryService {
             jpql.append(" and (");
             for (int i = 0; i < regionIds.size(); i++) {
                 if (i > 0) jpql.append(" or ");
-                jpql.append("pid.headquartersLocation like :regionPattern").append(i);
+                jpql.append(REGION_FIELD_EXPR).append(" like :regionPattern").append(i);
             }
             jpql.append(")");
         }

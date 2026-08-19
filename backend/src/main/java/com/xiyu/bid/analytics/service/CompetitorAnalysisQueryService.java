@@ -102,13 +102,14 @@ public class CompetitorAnalysisQueryService {
                     prc.discount,
                     t.purchaserName,
                     prc.paymentTerm,
-                    pr.resultType,
+                    coalesce(nullif(pr.resultType, ''), nullif(pid.bidResultStatus, ''), cast(p.status as string)),
                     p.status,
                     p.createdAt
                 )
                 from ProjectResultCompetitor prc
                 join ProjectResult pr on pr.id = prc.resultId
                 join Project p on p.id = pr.projectId
+                left join ProjectInitiationDetails pid on pid.projectId = p.id
                 left join Tender t on t.id = p.tenderId
                 where (:allAccess = true or p.id in :scopeIds)
                   and p.name = :projectName

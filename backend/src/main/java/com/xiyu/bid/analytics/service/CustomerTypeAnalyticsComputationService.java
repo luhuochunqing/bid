@@ -95,7 +95,7 @@ class CustomerTypeAnalyticsComputationService {
 
     /**
      * 将项目的 customerType 字段值归一到 5 种标准分类之一。
-     * 优先精确匹配，fallback 到模糊匹配（包含关键词）。
+     * 支持数据库中存储的英文枚举（GOVERNMENT/CENTRAL_SOE/LOCAL_SOE/PRIVATE/FOREIGN 等）及中文变体。
      * 不匹配任何分类时返回 null（跳过不统计）。
      */
     String normalizeCustomerType(String customerType) {
@@ -103,11 +103,30 @@ class CustomerTypeAnalyticsComputationService {
             return null;
         }
         String trimmed = customerType.trim();
-        // 1) 精确匹配
+        // 1) 精确匹配中文标准分类
         if (ALLOWED_CATEGORIES.contains(trimmed)) {
             return trimmed;
         }
-        // 2) 模糊匹配：覆盖常见变体写法
+        String upper = trimmed.toUpperCase();
+
+        // 2) 英文枚举精确与前缀匹配
+        if (upper.equals("GOVERNMENT") || upper.equals("GOVERNMENT_INSTITUTION")) {
+            return CATEGORY_GOVERNMENT;
+        }
+        if (upper.equals("CENTRAL_SOE") || upper.equals("STATE_OWNED")) {
+            return CATEGORY_CENTRAL_SOE;
+        }
+        if (upper.equals("LOCAL_SOE")) {
+            return CATEGORY_LOCAL_SOE;
+        }
+        if (upper.equals("PRIVATE") || upper.equals("PRIVATE_ENTERPRISE")) {
+            return CATEGORY_PRIVATE;
+        }
+        if (upper.equals("FOREIGN") || upper.equals("FOREIGN_HK_MACAO_TW") || upper.startsWith("FOREIGN_")) {
+            return CATEGORY_FOREIGN;
+        }
+
+        // 3) 中文模糊匹配：覆盖常见变体写法
         if (trimmed.contains("政府") || trimmed.contains("事业单位") || trimmed.contains("高校")
                 || trimmed.contains("机关")) {
             return CATEGORY_GOVERNMENT;
@@ -118,7 +137,7 @@ class CustomerTypeAnalyticsComputationService {
         if (trimmed.contains("地方国企") || ((trimmed.contains("国企") || trimmed.contains("国有")) && !trimmed.contains("央"))) {
             return CATEGORY_LOCAL_SOE;
         }
-        if (trimmed.contains("民企") || trimmed.contains("民营") || trimmed.contains("私营")) {
+        if (trimmed.contains("民企") || trimmed.contains("民营") || trimmed.contains("私营") || trimmed.contains("企业客户")) {
             return CATEGORY_PRIVATE;
         }
         if (trimmed.contains("港澳台") || trimmed.contains("港") || trimmed.contains("澳") || trimmed.contains("台")

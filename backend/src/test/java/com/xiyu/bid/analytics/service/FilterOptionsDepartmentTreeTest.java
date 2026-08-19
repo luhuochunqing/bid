@@ -38,6 +38,11 @@ class FilterOptionsDepartmentTreeTest {
     @InjectMocks
     private FilterOptionsQueryService service;
 
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "entityManager", entityManager);
+    }
+
     @Test
     @DisplayName("多层级部门正确组装为父子树形结构，叶子节点 children 为 null")
     void shouldAssembleDepartmentTreeCorrectly() {
@@ -60,6 +65,11 @@ class FilterOptionsDepartmentTreeTest {
         standaloneRoot.setDepartmentCode("D004");
         standaloneRoot.setDepartmentName("运营中心");
         standaloneRoot.setParentDepartmentCode(null);
+
+        jakarta.persistence.TypedQuery<String> typedQuery = org.mockito.Mockito.mock(jakarta.persistence.TypedQuery.class);
+        when(entityManager.createQuery(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(String.class)))
+                .thenReturn(typedQuery);
+        when(typedQuery.getResultList()).thenReturn(List.of());
 
         when(departmentRepository.findAllByOrderByDepartmentCode())
                 .thenReturn(List.of(root, child1, subChild, standaloneRoot));
@@ -88,5 +98,27 @@ class FilterOptionsDepartmentTreeTest {
         AnalyticsDepartmentTreeDTO standaloneNode = tree.get(1);
         assertThat(standaloneNode.getLabel()).isEqualTo("运营中心");
         assertThat(standaloneNode.getChildren()).isNull();
+    }
+
+    @Test
+    @DisplayName("当组织架构表为空时，自动从 User 表补齐部门作为根节点")
+    void shouldFallbackToUserDepartmentsWhenOrganizationTableIsEmpty() {
+        when(departmentRepository.findAllByOrderByDepartmentCode())
+                .thenReturn(List.of());
+
+        jakarta.persistence.TypedQuery<String> typedQuery = org.mockito.Mockito.mock(jakarta.persistence.TypedQuery.class);
+        when(entityManager.createQuery(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(String.class)))
+                .thenReturn(typedQuery);
+        when(typedQuery.getResultList()).thenReturn(List.of("技术部", "市场部"));
+
+        List<AnalyticsDepartmentTreeDTO> tree = service.fetchDepartmentTree();
+
+        assertThat(tree).hasSize(2);
+        assertThat(tree.get(0).getLabel()).isEqualTo("技术部");
+        assertThat(tree.get(0).getValue()).isEqualTo("技术部");
+        assertThat(tree.get(0).getChildren()).isNull();
+        assertThat(tree.get(1).getLabel()).isEqualTo("市场部");
+        assertThat(tree.get(1).getValue()).isEqualTo("市场部");
+        assertThat(tree.get(1).getChildren()).isNull();
     }
 }

@@ -38,7 +38,7 @@ public class CustomerTypeAnalyticsQueryService {
                             p.name,
                             t.title,
                             p.customer,
-                            coalesce(nullif(pid.customerType, ''), p.customerType),
+                            coalesce(nullif(pid.customerType, ''), nullif(p.customerType, ''), t.customerType),
                             p.status,
                             p.managerId,
                             u.fullName,
