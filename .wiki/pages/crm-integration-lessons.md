@@ -293,6 +293,17 @@ CRM 存储该字符串后 1 小时即永久失效。
 - **永久免认证端点是安全权衡**：URL-as-capability 能力窗口从 1 小时扩到永久，
   收紧需 CRM 方配合（改传 api_key），属集成契约变更，不能单方面改
 
+### 9.5 历史数据重推工具（2026-08-19 落地）
+
+- 运维接口：`POST /api/webhooks/operations/project-result/{resultId}/redeliver`（仅 ADMIN）
+- 实现：`ProjectResultRedeliveryService` 从 DB（project_result / project_result_competitors /
+  projects / users）重建 `ProjectResultConfirmedEvent` 并重新发布，现有
+  `ProjectResultConfirmedWebhookListener` 用当前代码组装 payload 入队（零重复组装逻辑），
+  复用 1min/5min/15min 重试机制；occurredAt 取原登记时间保持 businessKey 一致
+- 排查入口：历史回调实际 payload 存在 `webhook_delivery_tasks.payload`（logs 表不存 payload）
+- 测试环境实锤：task 348（08-16，project 225）payload 中 fileUrl 为已过期 OBS 预签名 URL，
+  全库带佐证文件的历史回调仅此 1 条
+
 ---
 
 ## 10. 相关文档
@@ -311,3 +322,4 @@ CRM 存储该字符串后 1 小时即永久失效。
 | 2026-07-10 | 首次创建，从 8 个工作区历史对话中提取 CRM 集成踩坑教训 |
 | 2026-08-18 | 新增 §9：回调下发 OBS 预签名 URL 过期事故与永久端点修复模式 |
 | 2026-08-18 | §9 更新：ObsDirectRedirects 重构收口、404/502 语义精确化、对接契约与安全姿态声明 |
+| 2026-08-19 | 新增 §9.5：历史数据重推运维接口落地（webhook_delivery_tasks.payload 为排查入口） |
