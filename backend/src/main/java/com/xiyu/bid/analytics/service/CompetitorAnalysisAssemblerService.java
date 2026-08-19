@@ -17,8 +17,10 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * M4 竞品分析装配服务：编排查询与计算，输出响应 DTO。
@@ -139,7 +141,7 @@ public class CompetitorAnalysisAssemblerService {
         }
 
         // 收集所有实际存在的竞品公司（去重并保持顺序）
-        java.util.Set<String> allComps = new java.util.LinkedHashSet<>();
+        Set<String> allComps = new LinkedHashSet<>();
         for (String entity : categories) {
             Map<String, DiscountStats> entityStats = grouped.get(entity);
             if (entityStats != null) {

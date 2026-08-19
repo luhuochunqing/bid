@@ -61,14 +61,19 @@ public class TrendAnalysisDimensionQueryService {
               WHEN pid.headquartersLocation LIKE '天津市%' THEN '天津市'
               WHEN pid.headquartersLocation LIKE '上海市%' THEN '上海市'
               WHEN pid.headquartersLocation LIKE '重庆市%' THEN '重庆市'
-              WHEN pid.headquartersLocation LIKE '香港特别行政区%' THEN '香港特别行政区'
-              WHEN pid.headquartersLocation LIKE '澳门特别行政区%' THEN '澳门特别行政区'
-              WHEN pid.headquartersLocation LIKE '台湾省%' THEN '台湾省'
+              WHEN pid.headquartersLocation LIKE '香港%' THEN '香港特别行政区'
+              WHEN pid.headquartersLocation LIKE '澳门%' THEN '澳门特别行政区'
+              WHEN pid.headquartersLocation LIKE '台湾%' THEN '台湾省'
               WHEN pid.headquartersLocation LIKE '%自治区%'
                 THEN SUBSTRING(pid.headquartersLocation, 1, LOCATE('自治区', pid.headquartersLocation) + 2)
+              WHEN pid.headquartersLocation LIKE '内蒙古%' THEN '内蒙古自治区'
+              WHEN pid.headquartersLocation LIKE '新疆%' THEN '新疆维吾尔自治区'
+              WHEN pid.headquartersLocation LIKE '西藏%' THEN '西藏自治区'
+              WHEN pid.headquartersLocation LIKE '宁夏%' THEN '宁夏回族自治区'
+              WHEN pid.headquartersLocation LIKE '广西%' THEN '广西壮族自治区'
               WHEN pid.headquartersLocation LIKE '%省%'
                 THEN SUBSTRING(pid.headquartersLocation, 1, LOCATE('省', pid.headquartersLocation))
-              ELSE pid.headquartersLocation
+              ELSE '其他'
             END""";
 
     List<DimensionRow> fetchRegionRows(TrendQueryCriteria criteria) {

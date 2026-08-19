@@ -108,6 +108,7 @@ public class FilterOptionsQueryService {
      */
     List<String> fetchDistinctPersons(List<String> departmentNames) {
         if (departmentNames == null || departmentNames.isEmpty()) {
+            // 注意：全量加载用于初始人员下拉选项呈现，当用户量巨大时可考虑引入分页或检索提示
             return entityManager.createQuery("""
                             select distinct u.fullName
                             from User u
@@ -117,6 +118,20 @@ public class FilterOptionsQueryService {
                             """, String.class)
                     .getResultList();
         }
+
+        // 优化子查询性能：先通过仓库预查匹配的部门编码集合，避免在 SQL 中进行双重关联子查询
+        List<OrganizationDepartmentEntity> matchedDepts =
+                organizationDepartmentRepository.findByDepartmentNameIn(departmentNames);
+        java.util.Set<String> targetCodes = new java.util.HashSet<>();
+        for (OrganizationDepartmentEntity dept : matchedDepts) {
+            if (dept.getDepartmentCode() != null && !dept.getDepartmentCode().isEmpty()) {
+                targetCodes.add(dept.getDepartmentCode());
+            }
+            if (dept.getExternalDeptId() != null && !dept.getExternalDeptId().isEmpty()) {
+                targetCodes.add(dept.getExternalDeptId());
+            }
+        }
+
         return entityManager.createQuery("""
                         select distinct u.fullName
                         from User u
@@ -124,16 +139,13 @@ public class FilterOptionsQueryService {
                           and u.fullName <> ''
                           and (
                             u.departmentName in :departmentNames
-                            or u.departmentCode in (
-                              select d.departmentCode from OrganizationDepartmentEntity d where d.departmentName in :departmentNames
-                            )
-                            or u.departmentCode in (
-                              select d.externalDeptId from OrganizationDepartmentEntity d where d.departmentName in :departmentNames
-                            )
+                            or (:hasCodes = true and u.departmentCode in :targetCodes)
                           )
                         order by u.fullName
                         """, String.class)
                 .setParameter("departmentNames", departmentNames)
+                .setParameter("hasCodes", !targetCodes.isEmpty())
+                .setParameter("targetCodes", targetCodes.isEmpty() ? java.util.Set.of("") : targetCodes)
                 .getResultList();
     }
 

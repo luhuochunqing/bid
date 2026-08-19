@@ -113,10 +113,9 @@ export function useCompetitorData(chartRef) {
     }
   }
 
-  // PRD §9.12 步骤 7 + §9.14：竞品公司至少保留 1 个，选值变化自动刷新
+  // PRD §9.12 步骤 7 + §9.14：竞品公司至少保留 1 个；当用户清空选择时自动回退为默认首项（震坤行）并重新触发数据请求
   const onCompetitorChange = (val) => {
     if (!val || val.length === 0) {
-      // 清空时保留第一项（震坤行）
       selectedCompetitors.value = [COMPETITOR_ENUM[0].value]
     } else {
       selectedCompetitors.value = val

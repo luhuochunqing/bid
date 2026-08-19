@@ -8,6 +8,7 @@ package com.xiyu.bid.analytics.service;
 import com.xiyu.bid.analytics.dto.AnalyticsFilterOptionDTO;
 import com.xiyu.bid.analytics.dto.EnhancedOverviewResponse;
 import com.xiyu.bid.analytics.dto.TrendAnalysisResponse;
+import com.xiyu.bid.analytics.dto.TrendFilterOptionsResponseDTO;
 import com.xiyu.bid.analytics.service.TrendAnalysisComputationService.TrendComputationResult;
 import com.xiyu.bid.analytics.service.DimensionRow;
 import com.xiyu.bid.analytics.service.TrendAnalysisQueryService.OverviewRow;
@@ -195,20 +196,18 @@ public class TrendAnalysisService {
 
     /**
      * PRD §6.2 M1 筛选区下拉选项一次性加载。
-     * 返回 7 个维度的 DISTINCT 选项（项目状态由前端常量定义，不在此返回）。
-     * key = 维度 key（department/person/region/customerType/projectType/tenderEntity/competitor），
-     * value = 选项列表（label 与 value 同值，便于前端选中后直接作为 API 参数传递）。
+     * 返回 7 个维度的选项（项目状态由前端常量定义，不在此返回）。
      */
-    public Map<String, Object> getFilterOptions() {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("department", filterOptionsQueryService.fetchDepartmentTree());
-        result.put("person", toStringOptions(filterOptionsQueryService.fetchDistinctPersons(null)));
-        result.put("region", toStringOptions(filterOptionsQueryService.fetchDistinctRegions()));
-        result.put("customerType", toStringOptions(filterOptionsQueryService.fetchDistinctCustomerTypes()));
-        result.put("projectType", toStringOptions(filterOptionsQueryService.fetchDistinctProjectTypes()));
-        result.put("tenderEntity", toStringOptions(filterOptionsQueryService.fetchDistinctTenderEntitiesForFilter()));
-        result.put("competitor", toStringOptions(filterOptionsQueryService.fetchDistinctCompetitorNames()));
-        return result;
+    public TrendFilterOptionsResponseDTO getFilterOptions() {
+        return TrendFilterOptionsResponseDTO.builder()
+                .department(filterOptionsQueryService.fetchDepartmentTree())
+                .person(toStringOptions(filterOptionsQueryService.fetchDistinctPersons(null)))
+                .region(toStringOptions(filterOptionsQueryService.fetchDistinctRegions()))
+                .customerType(toStringOptions(filterOptionsQueryService.fetchDistinctCustomerTypes()))
+                .projectType(toStringOptions(filterOptionsQueryService.fetchDistinctProjectTypes()))
+                .tenderEntity(toStringOptions(filterOptionsQueryService.fetchDistinctTenderEntitiesForFilter()))
+                .competitor(toStringOptions(filterOptionsQueryService.fetchDistinctCompetitorNames()))
+                .build();
     }
 
     /**

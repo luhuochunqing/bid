@@ -178,7 +178,7 @@ const handleProjectStatusSearch = (q) => emit('search-project-status', q)
 const handleTenderSubjectSearch = (q) => emit('search-tender-subject', q)
 const handleCompetitorSearch = (q) => emit('search-competitor', q)
 
-const handleConfirm = async () => {
+const handleConfirm = () => {
   submitting.value = true
   try {
     emit('confirm', { filters: { ...filters.value }, xAxisDimensions: [...xAxisDimensions.value] })

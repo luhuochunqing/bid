@@ -8,6 +8,7 @@ package com.xiyu.bid.analytics.controller;
 import com.xiyu.bid.analytics.dto.AnalyticsFilterOptionDTO;
 import com.xiyu.bid.analytics.dto.EnhancedOverviewResponse;
 import com.xiyu.bid.analytics.dto.TrendAnalysisResponse;
+import com.xiyu.bid.analytics.dto.TrendFilterOptionsResponseDTO;
 import com.xiyu.bid.analytics.dto.TrendDrillDownResponse;
 import com.xiyu.bid.analytics.service.TrendAnalysisService;
 import com.xiyu.bid.analytics.service.TrendDrillDownService;
@@ -90,12 +91,12 @@ public class TrendAnalysisController {
 
     /**
      * M1: PRD §6.2 筛选区下拉选项一次性加载。
-     * 返回 7 个维度的 DISTINCT 选项（部门/人员/区域/客户类型/项目类型/招标主体/竞品公司）。
+     * 返回 7 个维度的选项（部门树/人员/区域/客户类型/项目类型/招标主体/竞品公司）。
      * 项目状态由前端常量定义，不在此返回。
      */
     @GetMapping("/filter-options")
     @PreAuthorize("hasAuthority('analytics-dashboard')")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getFilterOptions() {
+    public ResponseEntity<ApiResponse<TrendFilterOptionsResponseDTO>> getFilterOptions() {
         return ResponseEntity.ok(ApiResponse.success(
                 trendAnalysisService.getFilterOptions()
         ));

@@ -88,13 +88,17 @@ public class TrendDrillDownService {
         appendInFilter(where, params, "p.customer_type", "customerTypes", customerTypes);
         appendInFilter(where, params, "t.project_type", "projectTypes", projectTypes);
         appendInFilter(where, params, "p.status", "statuses", statuses);
-        // 区域过滤（总部所在地前缀匹配）
+        // 区域过滤（总部所在地前缀匹配，参数化绑定并转义 LIKE 通配符防注入与异常匹配）
         if (regions != null && !regions.isEmpty()) {
             where.append(" AND (");
             for (int i = 0; i < regions.size(); i++) {
                 if (i > 0) where.append(" OR ");
                 where.append("pid.headquarters_location LIKE :regionPattern").append(i);
-                params.put("regionPattern" + i, regions.get(i) + "%");
+                String safePattern = regions.get(i)
+                        .replace("\\", "\\\\")
+                        .replace("%", "\\%")
+                        .replace("_", "\\_");
+                params.put("regionPattern" + i, safePattern + "%");
             }
             where.append(")");
         }

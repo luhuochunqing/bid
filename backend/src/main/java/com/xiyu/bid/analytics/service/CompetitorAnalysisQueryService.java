@@ -61,6 +61,9 @@ public class CompetitorAnalysisQueryService {
                   and (:endDate is null or p.createdAt <= :endDate)
                 """);
         boolean hasTenderEntities = tenderEntities != null && !tenderEntities.isEmpty();
+        // 模式分支：
+        // 1. 招标主体模式（grouped）：按 purchaserName 过滤，不限制固定竞品枚举，以便动态发现该主体下的实际所有竞争对手；
+        // 2. 默认模式（default）：按用户选中的竞品公司列表过滤。
         if (hasTenderEntities) {
             jpql.append("  and t.purchaserName in :tenderEntities\n");
         } else if (competitorNames != null && !competitorNames.isEmpty()) {

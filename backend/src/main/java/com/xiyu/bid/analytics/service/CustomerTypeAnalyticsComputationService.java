@@ -115,14 +115,14 @@ class CustomerTypeAnalyticsComputationService {
         if (trimmed.contains("央企") || trimmed.contains("中央企业")) {
             return CATEGORY_CENTRAL_SOE;
         }
-        if (trimmed.contains("地方国企") || (trimmed.contains("国企") && !trimmed.contains("央"))) {
+        if (trimmed.contains("地方国企") || ((trimmed.contains("国企") || trimmed.contains("国有")) && !trimmed.contains("央"))) {
             return CATEGORY_LOCAL_SOE;
         }
-        if (trimmed.contains("民企") || trimmed.contains("民营")) {
+        if (trimmed.contains("民企") || trimmed.contains("民营") || trimmed.contains("私营")) {
             return CATEGORY_PRIVATE;
         }
-        if (trimmed.contains("港澳台") || trimmed.contains("外企") || trimmed.contains("外资")
-                || trimmed.contains("合资")) {
+        if (trimmed.contains("港澳台") || trimmed.contains("港") || trimmed.contains("澳") || trimmed.contains("台")
+                || trimmed.contains("外企") || trimmed.contains("外资") || trimmed.contains("合资")) {
             return CATEGORY_FOREIGN;
         }
         return null;

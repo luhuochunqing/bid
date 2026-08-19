@@ -27,4 +27,9 @@ public interface OrganizationDepartmentRepository extends JpaRepository<Organiza
      * 用于 M1 趋势分析部门下拉选项从 OSS 全量获取。
      */
     List<OrganizationDepartmentEntity> findAllByOrderByDepartmentCode();
+
+    /**
+     * 根据部门名称批量查询部门记录（不过滤 enabled 状态）。
+     */
+    List<OrganizationDepartmentEntity> findByDepartmentNameIn(Collection<String> departmentNames);
 }
