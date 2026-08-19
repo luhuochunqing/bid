@@ -47,4 +47,22 @@ class ScoreParsePromptsTest {
                         TRICKY_TEXT, "方案优:5-4分 良:3-2分 占比50%”"))
                 .doesNotThrowAnyException();
     }
+
+    @Test
+    void buildObjectiveAssessmentPrompt_withImagesAppendsNeutralImageGuidance() {
+        String prompt = ScoreParsePrompts.buildObjectiveAssessmentPrompt(
+                TRICKY_TEXT, 30.0, "案例满足率证明", true);
+
+        assertThat(prompt).contains("附图为投标文件中的部分图片");
+        assertThat(prompt).contains("请先判断每张图是否与评分项相关");
+        assertThat(prompt).contains("引用依据时说明来自图片");
+    }
+
+    @Test
+    void buildObjectiveAssessmentPrompt_withoutImagesHasNoImageGuidance() {
+        String prompt = ScoreParsePrompts.buildObjectiveAssessmentPrompt(
+                TRICKY_TEXT, 30.0, "案例满足率证明");
+
+        assertThat(prompt).doesNotContain("附图");
+    }
 }

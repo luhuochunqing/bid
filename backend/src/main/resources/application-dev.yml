@@ -60,6 +60,12 @@ app:
   # 本地开发 sidecar 由 dev-services.sh 启动在 8009（服务器部署为 8000，见 SidecarStreamTextExtractor 默认值）
   score-parse:
     sidecar-url: ${APP_SCORE_PARSE_SIDECAR_URL:http://127.0.0.1:8009}
+    # 048 多模态图片评分（spec 048）：客观项打分携带投标文件图片；关闭 enabled 即全链路回退纯文本
+    multimodal:
+      enabled: ${APP_SCORE_PARSE_MULTIMODAL_ENABLED:true}
+      max-images-per-item: ${APP_SCORE_PARSE_MULTIMODAL_MAX_IMAGES_PER_ITEM:3}
+      max-image-bytes-per-item: ${APP_SCORE_PARSE_MULTIMODAL_MAX_IMAGE_BYTES_PER_ITEM:5242880}
+      max-extract-response-bytes: ${APP_SCORE_PARSE_MULTIMODAL_MAX_EXTRACT_RESPONSE_BYTES:26214400}
   bootstrap:
     admin:
       username: admin

@@ -82,6 +82,21 @@ public final class ScoreParsePrompts {
      */
     public static String buildObjectiveAssessmentPrompt(
             String scoreItemDetail, double weight, String bidDocExcerpt) {
+        return buildObjectiveAssessmentPrompt(scoreItemDetail, weight, bidDocExcerpt, false);
+    }
+
+    /**
+     * 阶段 2：客观项打分（多模态过载）。
+     * withImages=true 时请求携带投标文件图片 content parts，prompt 追加中性图片判定指引
+     * （配给与评分项无关，声明"相关"会失真，见 spec 048 review M3）。
+     */
+    public static String buildObjectiveAssessmentPrompt(
+            String scoreItemDetail, double weight, String bidDocExcerpt, boolean withImages) {
+        String imageGuidance = withImages ? """
+
+                附图为投标文件中的部分图片，请先判断每张图是否与评分项相关，
+                再结合相关图片判定满足度，引用依据时说明来自图片。
+                """ : "";
         return """
                 你是投标文件评审专家。对照评分标准，评估投标文件对本评分项的满足程度。
 
@@ -90,7 +105,7 @@ public final class ScoreParsePrompts {
 
                 投标文件相关内容节选：
                 %s
-
+                %s
                 输出 JSON 字段要求：
                 - actualScore: 投标文件实际可得分（0 到 %s 之间的数字）
                 - matchRatio: 满足度百分比（0-100 整数）
@@ -103,7 +118,7 @@ public final class ScoreParsePrompts {
                 硬性规则：
                 - 只依据投标文件节选判断，禁止假设文件中不存在的内容
                 - quoteMissing=true 时 quote 必须为 null
-                """.formatted(weight, scoreItemDetail, bidDocExcerpt, weight);
+                """.formatted(weight, scoreItemDetail, bidDocExcerpt, imageGuidance, weight);
     }
 
     /**

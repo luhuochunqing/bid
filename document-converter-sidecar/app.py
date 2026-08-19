@@ -21,6 +21,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from markitdown import MarkItDown
 
 from converter import extract_headings
+from image_extractor import extract_images
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -228,6 +229,54 @@ async def convert_document_stream(
             os.remove(tmp_path)
         if converted_path and os.path.exists(converted_path):
             os.remove(converted_path)
+
+
+@app.post("/convert-images")
+async def convert_document_images(
+    file: UploadFile,
+    x_sidecar_key: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """Extract embedded images with section attribution from an uploaded document (spec 048).
+
+    Contract: specs/048-score-parse-image-multimodal/contracts/sidecar-images-api.md
+    Request side mirrors /convert-stream (streamed 64KB reads + 413 guard);
+    response is JSON {images[], truncated, warnings}. Supported types:
+    .docx/.pptx/.pdf — anything else returns an empty manifest (the caller
+    falls back to plain text). Unparseable documents return 422 {"error": ...};
+    auth matches /convert (X-Sidecar-Key / 401).
+    """
+    await _check_auth(x_sidecar_key)
+
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="未提供文件名")
+
+    original_suffix: str = os.path.splitext(file.filename)[1].lower() or ".bin"
+
+    tmp_path: str | None = None
+    try:
+        # Stream the upload straight to disk (same pattern as /convert-stream)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=original_suffix) as tmp:
+            tmp_path = tmp.name
+            total_read: int = 0
+            chunk_size: int = 64 * 1024  # 64 KB
+            while True:
+                chunk = await file.read(chunk_size)
+                if not chunk:
+                    break
+                total_read += len(chunk)
+                if total_read > MAX_UPLOAD_SIZE_BYTES:
+                    raise HTTPException(status_code=413, detail="请求体过大")
+                tmp.write(chunk)
+
+        try:
+            return extract_images(tmp_path)
+        except Exception:
+            logger.exception("Image extraction failed for file %s", file.filename)
+            return JSONResponse(status_code=422, content={"error": "文档无法解析：格式不支持或已损坏"})
+
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 
 @app.get("/health")

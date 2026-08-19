@@ -4,24 +4,31 @@
 
 package com.xiyu.bid.scoreparse.infrastructure.openai;
 
+import com.xiyu.bid.biddraftagent.infrastructure.openai.MultimodalImage;
 import com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiBidAgentConfigurationResolver;
 import com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiBidAgentRequestConfig;
 import com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiStructuredOutputService;
 import com.xiyu.bid.docinsight.domain.DocumentChunk;
 import com.xiyu.bid.docinsight.domain.StructuralDocumentChunker;
+import com.xiyu.bid.scoreparse.domain.DocumentImage;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -134,6 +141,48 @@ class OpenAiScoreAnalyzerTest {
                 .contains("具备ISO9001质量管理体系认证的得3分", "项目经理具备PMP证书的得2分");
     }
 
+    @Test
+    void assessObjective_withImages_callsMultimodalServiceWithMappedImages() {
+        // spec 048 T017：DocumentImage → MultimodalImage 映射 + prompt 含图片判定指引（中性措辞）
+        OpenAiScoreAnalyzer analyzer = new OpenAiScoreAnalyzer(
+                structuredOutputService, configurationResolver, structuralChunker);
+        when(configurationResolver.resolve(anyString())).thenReturn(requestConfig());
+        ScoreAssessmentOutput output = new ScoreAssessmentOutput();
+        when(structuredOutputService.request(anyString(), anyList(), eq(ScoreAssessmentOutput.class), any(), anyString()))
+                .thenReturn(output);
+        DocumentImage image = new DocumentImage(0, "image/png", "资质", 2, 640, 480, "aGk=");
+
+        ScoreAssessmentOutput result = analyzer.assessObjective(
+                "具备 CMMI 5 级认证证书", BigDecimal.TEN, "投标文件节选", List.of(image));
+
+        assertThat(result).isSameAs(output);
+        ArgumentCaptor<List<MultimodalImage>> captor = multimodalImagesCaptor();
+        verify(structuredOutputService).request(
+                contains("附图"), captor.capture(), eq(ScoreAssessmentOutput.class), any(), anyString());
+        assertThat(captor.getValue()).containsExactly(new MultimodalImage("image/png", "aGk="));
+    }
+
+    @Test
+    void assessObjective_legacySignature_delegatesWithEmptyImagesAndNoGuidance() {
+        // spec 048 T017：旧签名保留委托（零回归）——空图走纯文本语义，prompt 无图片指引
+        OpenAiScoreAnalyzer analyzer = new OpenAiScoreAnalyzer(
+                structuredOutputService, configurationResolver, structuralChunker);
+        when(configurationResolver.resolve(anyString())).thenReturn(requestConfig());
+        ScoreAssessmentOutput output = new ScoreAssessmentOutput();
+        when(structuredOutputService.request(anyString(), anyList(), eq(ScoreAssessmentOutput.class), any(), anyString()))
+                .thenReturn(output);
+
+        ScoreAssessmentOutput result = analyzer.assessObjective(
+                "具备 CMMI 5 级认证证书", BigDecimal.TEN, "投标文件节选");
+
+        assertThat(result).isSameAs(output);
+        ArgumentCaptor<List<MultimodalImage>> captor = multimodalImagesCaptor();
+        verify(structuredOutputService).request(
+                argThat(prompt -> !prompt.contains("附图")), captor.capture(),
+                eq(ScoreAssessmentOutput.class), any(), anyString());
+        assertThat(captor.getValue()).isEmpty();
+    }
+
     private void stubChunks(String... texts) {
         List<DocumentChunk> chunks = new ArrayList<>();
         for (String text : texts) {
@@ -156,5 +205,10 @@ class OpenAiScoreAnalyzerTest {
     /** OpenAiBidAgentApiStyle 为包私有枚举，scoreparse 测试包无法直接构造，mock record 透传即可。 */
     private static OpenAiBidAgentRequestConfig requestConfig() {
         return mock(OpenAiBidAgentRequestConfig.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static ArgumentCaptor<List<MultimodalImage>> multimodalImagesCaptor() {
+        return ArgumentCaptor.forClass((Class) List.class);
     }
 }

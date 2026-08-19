@@ -73,10 +73,11 @@ class ScoreScoringAppServiceTest {
     void setUp() {
         // 真实 overwriter（内嵌 mock repo）：单测无 Spring 代理、@Transactional 不生效；
         // 生产端事务由 Spring 对 ScoreResultOverwriter 的代理保证（T025 修复），单测验证 DELETE+INSERT 调用
+        // 预算参数取 dev 默认（spec 048 T019：app.score-parse.multimodal.* 注入）
         service = new ScoreScoringAppService(
                 taskRepository, itemRepository, resultRepository,
                 stateService, progressService, projectAccessScopeService, scoreAnalyzer,
-                bidFileLoader, new ScoreResultOverwriter(resultRepository));
+                bidFileLoader, new ScoreResultOverwriter(resultRepository), 3, 5242880L);
         ReflectionTestUtils.setField(service, "self", service);
     }
 
@@ -308,6 +309,35 @@ class ScoreScoringAppServiceTest {
         assertThat(dto.hint()).contains("文件未变化");
         verify(scoreAnalyzer, never()).assessObjective(anyString(), any(), anyString());
         verify(scoreAnalyzer, never()).assessSubjective(anyString(), anyString());
+    }
+
+    @Test
+    void loadedImages_passedToAssessorWithinBudget() {
+        // spec 048 T019：doExecuteScoring 将 loaded.images() 传入 assessor，预算内图片到达多模态 analyzer 过载
+        mockNoActiveScoringTask();
+        mockBidDocumentPresent();
+        ScoreItem objective = item(10L, "资质", "具备 CMMI 5 级认证证书", "10", "OBJECTIVE");
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID)).thenReturn(List.of(objective));
+        ScoreParseTask task = scoringTask();
+        when(stateService.createTask(anyString(), any(), anyString(), any(), any(), anyString())).thenReturn(task);
+        when(taskRepository.findByTaskId(anyString())).thenReturn(Optional.of(task));
+        com.xiyu.bid.scoreparse.domain.DocumentImage img0 =
+                new com.xiyu.bid.scoreparse.domain.DocumentImage(0, "image/png", "资质", 1, 640, 480, "aaaa");
+        com.xiyu.bid.scoreparse.domain.DocumentImage img1 =
+                new com.xiyu.bid.scoreparse.domain.DocumentImage(1, "image/png", "资质", 2, 640, 480, "bbbb");
+        when(bidFileLoader.load(eq(PROJECT_ID), anyString())).thenReturn(
+                new BidFileLoadingCoordinator.LoadedBidDocument(BID_TEXT, "async-hash", List.of(img0, img1)));
+        when(scoreAnalyzer.assessObjective(anyString(), any(BigDecimal.class), anyString(), anyList()))
+                .thenReturn(assessment(8.0, 80, "证书扫描件图示满足", null, false, null, null));
+
+        service.triggerScoring(PROJECT_ID);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<com.xiyu.bid.scoreparse.domain.DocumentImage>> captor =
+                ArgumentCaptor.forClass((Class) List.class);
+        verify(scoreAnalyzer).assessObjective(anyString(), any(BigDecimal.class), anyString(), captor.capture());
+        assertThat(captor.getValue()).containsExactly(img0, img1);
+        verify(stateService).markCompleted(anyString());
     }
 
     @Test

@@ -7,6 +7,9 @@ import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.errors.BadRequestException;
 import com.openai.models.ResponseFormatJsonObject;
+import com.openai.models.chat.completions.ChatCompletionContentPart;
+import com.openai.models.chat.completions.ChatCompletionContentPartImage;
+import com.openai.models.chat.completions.ChatCompletionContentPartText;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
 import com.openai.models.chat.completions.ChatCompletionMessage;
 import com.openai.models.chat.completions.ChatCompletion;
@@ -18,6 +21,8 @@ import com.openai.models.responses.StructuredResponseCreateParams;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -93,6 +98,37 @@ class OpenAiSdkStructuredOutputTransport implements OpenAiStructuredOutputTransp
         }
     }
 
+    @Override
+    public <T> Optional<T> requestWithChatCompletionsMultimodal(
+            String prompt,
+            List<MultimodalImage> images,
+            Class<T> responseType,
+            OpenAiBidAgentRequestConfig config
+    ) {
+        if (jsonSchemaUnsupported.get()) {
+            return requestWithJsonObjectMultimodal(prompt, images, responseType, config);
+        }
+        try {
+            StructuredChatCompletionCreateParams<T> params = ChatCompletionCreateParams.<T>builder()
+                    .addUserMessageOfArrayOfContentParts(contentParts(prompt, images))
+                    .model(config.model())
+                    .responseFormat(responseType)
+                    .build();
+            StructuredChatCompletion<T> completion = client(config).chat().completions().create(params);
+            return completion.choices().stream()
+                    .findFirst()
+                    .flatMap(choice -> choice.message().content());
+        } catch (BadRequestException exception) {
+            if (supportsJsonObjectFallback(exception)) {
+                log.warn("AI 网关不支持 json_schema 结构化输出，多模态请求降级 json_object 模式。错误: {}",
+                        preview(exception.getMessage()));
+                jsonSchemaUnsupported.set(true);
+                return requestWithJsonObjectMultimodal(prompt, images, responseType, config);
+            }
+            throw exception;
+        }
+    }
+
     private OpenAIClient client(OpenAiBidAgentRequestConfig config) {
         return OpenAIOkHttpClient.builder()
                 .apiKey(config.apiKey())
@@ -128,6 +164,43 @@ class OpenAiSdkStructuredOutputTransport implements OpenAiStructuredOutputTransp
 
                 %s
                 """.formatted(prompt);
+    }
+
+    /**
+     * 组装多模态 content parts：文本 part 在第一位，其后按顺序跟随全部图片 data URL。
+     */
+    private List<ChatCompletionContentPart> contentParts(String text, List<MultimodalImage> images) {
+        List<ChatCompletionContentPart> parts = new ArrayList<>();
+        parts.add(ChatCompletionContentPart.ofText(
+                ChatCompletionContentPartText.builder().text(text).build()));
+        for (MultimodalImage image : images) {
+            parts.add(ChatCompletionContentPart.ofImageUrl(
+                    ChatCompletionContentPartImage.builder()
+                            .imageUrl(ChatCompletionContentPartImage.ImageUrl.builder()
+                                    .url(image.dataUrl())
+                                    .build())
+                            .build()));
+        }
+        return List.copyOf(parts);
+    }
+
+    private <T> Optional<T> requestWithJsonObjectMultimodal(
+            String prompt,
+            List<MultimodalImage> images,
+            Class<T> responseType,
+            OpenAiBidAgentRequestConfig config
+    ) {
+        ChatCompletionCreateParams params = ChatCompletionCreateParams.builder()
+                .addUserMessageOfArrayOfContentParts(contentParts(jsonObjectPrompt(prompt), images))
+                .model(config.model())
+                .responseFormat(ResponseFormatJsonObject.builder().build())
+                .build();
+        ChatCompletion completion = client(config).chat().completions().create(params);
+        return completion.choices().stream()
+                .findFirst()
+                .map(ChatCompletion.Choice::message)
+                .flatMap(ChatCompletionMessage::content)
+                .map(content -> readValue(content, responseType));
     }
 
     private boolean supportsJsonObjectFallback(BadRequestException exception) {

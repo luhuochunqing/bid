@@ -1,10 +1,11 @@
 // Input: 招标文件全文/Markdown + structuredMetadata + 进度回调
 // Output: List<ScoreCandidate>（四路召回合并前的候选池）/ 回补候选
 // Pos: scoreparse/infrastructure/openai — LLM 编排（召回三/四 + 完整性回补）
-// 维护声明: 维护者按项目SOP；spec 041 FR-001 四路召回、FR-005 二次回补
+// 维护声明: 维护者按项目SOP；spec 041 FR-001 四路召回、FR-005 二次回补；候选映射拆至 ScoreCandidateMapper（2026-08-19 满足 300 行预算）
 package com.xiyu.bid.scoreparse.infrastructure.openai;
 
 import com.xiyu.bid.biddraftagent.domain.ScoringCriterion;
+import com.xiyu.bid.biddraftagent.infrastructure.openai.MultimodalImage;
 import com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiBidAgentConfigurationResolver;
 import com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiBidAgentRequestConfig;
 import com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiStructuredOutputService;
@@ -13,6 +14,7 @@ import com.xiyu.bid.biddraftagent.infrastructure.openai.TenderIntakeTextProcesso
 import com.xiyu.bid.docinsight.domain.DocumentChunk;
 import com.xiyu.bid.docinsight.domain.StructuralDocumentChunker;
 import com.xiyu.bid.scoreparse.application.ScoreDocExcerptExtractor;
+import com.xiyu.bid.scoreparse.domain.DocumentImage;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.infrastructure.structure.MarkdownScoreSectionLocator;
 import lombok.extern.slf4j.Slf4j;
@@ -42,7 +44,6 @@ import java.util.function.BiConsumer;
 public class OpenAiScoreAnalyzer {
 
     private static final String USE_CASE = "score parse analysis";
-    private static final int SOURCE_TEXT_MAX_CHARS = 500;
 
     private final OpenAiStructuredOutputService structuredOutputService;
     private final OpenAiBidAgentConfigurationResolver configurationResolver;
@@ -86,7 +87,7 @@ public class OpenAiScoreAnalyzer {
     private List<ScoreCandidate> recallLane1RegexRules(String fullText) {
         List<ScoreCandidate> list = new ArrayList<>();
         for (ScoringCriterion criterion : ScoringItemExtractor.extract(fullText)) {
-            list.add(toCandidate(criterion, null));
+            list.add(ScoreCandidateMapper.fromCriterion(criterion, null));
         }
         log.info("召回一（正则规则）完成: count={}", list.size());
         return list;
@@ -98,7 +99,7 @@ public class OpenAiScoreAnalyzer {
         List<ScoreCandidate> list = new ArrayList<>();
         for (MarkdownScoreSectionLocator.ScoreSection section : sections) {
             for (ScoringCriterion criterion : ScoringItemExtractor.extract(section.content())) {
-                list.add(toCandidate(criterion, section));
+                list.add(ScoreCandidateMapper.fromCriterion(criterion, section));
             }
         }
         log.info("召回二（文档结构）完成: sections={}, count={}", sections.size(), list.size());
@@ -111,7 +112,7 @@ public class OpenAiScoreAnalyzer {
         List<String> semanticParagraphs = ScoreDocExcerptExtractor.extractSemanticScoreParagraphs(fullText);
         for (String paragraph : semanticParagraphs) {
             for (ScoringCriterion criterion : ScoringItemExtractor.extract(paragraph)) {
-                list.add(toCandidate(criterion, null));
+                list.add(ScoreCandidateMapper.fromCriterion(criterion, null));
             }
         }
         log.info("召回三（评分规则语义）完成: count={}", list.size());
@@ -142,7 +143,7 @@ public class OpenAiScoreAnalyzer {
             } else if (output.candidates != null) {
                 output.candidates.stream()
                         .filter(candidate -> candidate != null && candidate.detail != null)
-                        .map(this::toCandidate)
+                        .map(ScoreCandidateMapper::fromLlmCandidate)
                         .forEach(candidates::add);
             }
             report(progress, 15 + llmProgressSpan * (i + 1) / chunks.size(),
@@ -177,7 +178,7 @@ public class OpenAiScoreAnalyzer {
         OpenAiBidAgentRequestConfig config = configurationResolver.resolve(USE_CASE);
         String prompt = ScoreParsePrompts.buildGapRecheckPrompt(
                 TenderIntakeTextProcessor.sanitizeUntrusted(fullTextExcerpt),
-                summarizeKnownItems(knownItems),
+                ScoreCandidateMapper.summarizeKnownItems(knownItems),
                 "footnotes, table-remarks, cross-page-refs");
         try {
             ScoreGapRecheckOutput output = structuredOutputService.request(
@@ -188,7 +189,7 @@ public class OpenAiScoreAnalyzer {
             }
             return output.missedItems.stream()
                     .filter(candidate -> candidate != null && candidate.detail != null)
-                    .map(this::toCandidate)
+                    .map(ScoreCandidateMapper::fromLlmCandidate)
                     .toList();
         } catch (RuntimeException exception) {
             log.warn("完整性回补扫描失败（忽略，不阻断主流程）: {}", exception.getMessage());
@@ -208,13 +209,35 @@ public class OpenAiScoreAnalyzer {
      */
     public ScoreAssessmentOutput assessObjective(
             String scoreItemDetail, java.math.BigDecimal weight, String bidDocExcerpt) {
+        return assessObjective(scoreItemDetail, weight, bidDocExcerpt, List.of());
+    }
+
+    /**
+     * 阶段 2：客观项对标打分多模态过载（spec 048 T017）。
+     * <p>images 非空时映射为 {@link MultimodalImage} 走 service 多模态过载，
+     * prompt 追加中性图片判定指引；images 为空时行为与旧签名完全一致（委托 service 纯文本路径）。
+     * 图片 part 不被支持等降级语义（BadRequestException / RESPONSES 风格 ISE）由调用层
+     * （ScoreItemAssessor）处理（契约 contracts/transport-multimodal.md 降级矩阵）。
+     *
+     * @param images 已按预算配给的投标文件图片（可为空清单）
+     */
+    public ScoreAssessmentOutput assessObjective(
+            String scoreItemDetail, java.math.BigDecimal weight, String bidDocExcerpt,
+            List<DocumentImage> images) {
         OpenAiBidAgentRequestConfig config = configurationResolver.resolve(USE_CASE);
+        boolean withImages = images != null && !images.isEmpty();
         String prompt = ScoreParsePrompts.buildObjectiveAssessmentPrompt(
                 TenderIntakeTextProcessor.sanitizeUntrusted(scoreItemDetail),
                 weight.doubleValue(),
-                TenderIntakeTextProcessor.sanitizeUntrusted(bidDocExcerpt));
+                TenderIntakeTextProcessor.sanitizeUntrusted(bidDocExcerpt),
+                withImages);
+        List<MultimodalImage> multimodalImages = withImages
+                ? images.stream()
+                        .map(image -> new MultimodalImage(image.mimeType(), image.base64()))
+                        .toList()
+                : List.of();
         return structuredOutputService.request(
-                prompt, ScoreAssessmentOutput.class, config,
+                prompt, multimodalImages, ScoreAssessmentOutput.class, config,
                 "AI structured response did not include score assessment");
     }
 
@@ -230,66 +253,6 @@ public class OpenAiScoreAnalyzer {
         return structuredOutputService.request(
                 prompt, ScoreAssessmentOutput.class, config,
                 "AI structured response did not include subjective suggestion");
-    }
-
-    private String summarizeKnownItems(List<ScoreCandidate> knownItems) {
-        if (knownItems == null || knownItems.isEmpty()) {
-            return "（无已提取项）";
-        }
-        StringBuilder sb = new StringBuilder();
-        for (ScoreCandidate item : knownItems) {
-            if (sb.length() > 0) {
-                sb.append('\n');
-            }
-            sb.append(safeText(item.code())).append(' ')
-                    .append(safeText(item.dim())).append(' ')
-                    .append(item.weight() == null ? "?" : item.weight()).append("分");
-        }
-        return sb.toString();
-    }
-
-    private ScoreCandidate toCandidate(ScoringCriterion criterion,
-                                       MarkdownScoreSectionLocator.ScoreSection section) {
-        String detail = criterion.indicator() != null && !criterion.indicator().isBlank()
-                ? criterion.indicator() : criterion.dimension();
-        // 召回一/三无章节定位时传 null，此时章节相关字段降级为空串（2026-08-17 项目 226 NPE 回归）
-        boolean hasSection = section != null;
-        return new ScoreCandidate(
-                safeText(criterion.itemNumber()),
-                safeText(criterion.dimension()),
-                detail,
-                criterion.weight(),
-                null,
-                hasSection ? section.sectionTitle() : "",
-                hasSection ? truncate(section.content()) : "",
-                hasSection ? section.location() : "",
-                "RECALL_REGEX_STRUCTURE"
-        );
-    }
-
-    private ScoreCandidate toCandidate(ScoreCandidateOutput.Candidate candidate) {
-        return new ScoreCandidate(
-                safeText(candidate.code),
-                safeText(candidate.dim),
-                candidate.detail,
-                candidate.weight == null ? null : java.math.BigDecimal.valueOf(candidate.weight),
-                safeText(candidate.scoreTypeGuess),
-                safeText(candidate.contextNote),
-                truncate(safeText(candidate.sourceText)),
-                safeText(candidate.location),
-                safeText(candidate.semanticPattern)
-        );
-    }
-
-    private static String safeText(String value) {
-        return value == null ? "" : value.trim();
-    }
-
-    private static String truncate(String text) {
-        if (text == null) {
-            return "";
-        }
-        return text.length() <= SOURCE_TEXT_MAX_CHARS ? text : text.substring(0, SOURCE_TEXT_MAX_CHARS);
     }
 
     private static void report(ProgressReporter progress, int value, String stage) {

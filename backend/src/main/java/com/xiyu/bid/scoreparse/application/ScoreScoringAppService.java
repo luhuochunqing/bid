@@ -1,14 +1,14 @@
 // Input: projectId（触发打分）/ taskId（异步执行）
 // Output: ScoreParseTriggerDTO（触发）/ score_result 落库（执行）
 // Pos: scoreparse/application — 阶段 2 实际打分编排（spec 041 US4 / 044 花费守卫）
-// 维护声明: 维护者按项目SOP；FR-012/FR-019/FR-021；spec 031 异步四件套范式
+// 维护声明: 维护者按项目SOP；FR-012/FR-019/FR-021；spec 031 异步四件套范式；结果装配拆至 ScoreScoringResultsAssembler（2026-08-19 满足 300 行预算）
 package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.scoreparse.domain.AutoFailCircuit;
 import com.xiyu.bid.scoreparse.domain.BidChapterDirtySet;
 import com.xiyu.bid.scoreparse.domain.BidScoreSkipPolicy;
-import com.xiyu.bid.scoreparse.domain.SummaryAggregator;
+import com.xiyu.bid.scoreparse.domain.ImageBudget;
 import com.xiyu.bid.scoreparse.dto.ScoreParseProgressDTO;
 import com.xiyu.bid.scoreparse.dto.ScoreParseTriggerDTO;
 import com.xiyu.bid.scoreparse.dto.ScoreScoringCommand;
@@ -23,11 +23,11 @@ import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -55,7 +55,8 @@ public class ScoreScoringAppService {
     private final OpenAiScoreAnalyzer scoreAnalyzer;
     private final BidFileLoadingCoordinator bidFileLoader;
     private final ScoreResultOverwriter resultOverwriter;
-    private final SummaryAggregator summaryAggregator = new SummaryAggregator();
+    private final ImageBudget imageBudget;
+    private final ScoreScoringResultsAssembler resultsAssembler = new ScoreScoringResultsAssembler();
     private final ScoreScoringItemPicker itemPicker = new ScoreScoringItemPicker();
 
     @Lazy
@@ -68,7 +69,9 @@ public class ScoreScoringAppService {
             ScoreResultRepository resultRepository,
             ScoreParseTaskStateService stateService, ScoreParseProgressService progressService,
             ProjectAccessScopeService projectAccessScopeService, OpenAiScoreAnalyzer scoreAnalyzer,
-            BidFileLoadingCoordinator bidFileLoader, ScoreResultOverwriter resultOverwriter
+            BidFileLoadingCoordinator bidFileLoader, ScoreResultOverwriter resultOverwriter,
+            @Value("${app.score-parse.multimodal.max-images-per-item:3}") int multimodalMaxImagesPerItem,
+            @Value("${app.score-parse.multimodal.max-image-bytes-per-item:5242880}") long multimodalMaxImageBytesPerItem
     ) {
         this.taskRepository = taskRepository;
         this.itemRepository = itemRepository;
@@ -79,6 +82,8 @@ public class ScoreScoringAppService {
         this.scoreAnalyzer = scoreAnalyzer;
         this.bidFileLoader = bidFileLoader;
         this.resultOverwriter = resultOverwriter;
+        // spec 048 T019：图片配给预算从 app.score-parse.multimodal.* 解析，经 ScoreItemAssessor 构造器注入
+        this.imageBudget = new ImageBudget(multimodalMaxImagesPerItem, multimodalMaxImageBytesPerItem);
     }
 
     public ScoreParseTriggerDTO triggerScoring(Long projectId) {
@@ -185,7 +190,7 @@ public class ScoreScoringAppService {
         ScoreScoringItemPicker.Plan plan = itemPicker.plan(
                 items, oldResults, bidDocText, last,
                 task.getStage(), parseItemIds(task.getChapterHashes()));
-        ScoreItemAssessor assessor = new ScoreItemAssessor(scoreAnalyzer);
+        ScoreItemAssessor assessor = new ScoreItemAssessor(scoreAnalyzer, imageBudget);
         List<ScoreResult> results = new ArrayList<>(items.size());
         java.util.Set<Long> assessIds = plan.toAssess().stream().map(ScoreItem::getId).collect(Collectors.toSet());
         for (int i = 0; i < items.size(); i++) {
@@ -196,7 +201,7 @@ public class ScoreScoringAppService {
             }
             updateProgress(taskId, 10 + 80 * (i + 1) / items.size(),
                     "对标打分 " + (i + 1) + "/" + items.size());
-            results.add(assessor.assess(task, item, bidDocText));
+            results.add(assessor.assess(task, item, bidDocText, loaded.images()));
         }
         task.setStage(plan.stageToken());
         task.setChapterHashes(BidChapterHashCodec.encode(
@@ -217,24 +222,10 @@ public class ScoreScoringAppService {
     public ScoreScoringResultsDTO getResults(Long projectId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         List<ScoreItem> items = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId);
-        if (items.isEmpty()) {
-            return new ScoreScoringResultsDTO(List.of(), new ScoreScoringResultsDTO.Summary(
-                    BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, 0, BigDecimal.ZERO, BigDecimal.ZERO, false));
-        }
         Map<Long, ScoreResult> resultMap = resultRepository
                 .findByScoreItemIdIn(items.stream().map(ScoreItem::getId).toList())
                 .stream().collect(Collectors.toMap(ScoreResult::getScoreItemId, Function.identity(), (a, b) -> a));
-        List<ScoreScoringResultsDTO.ScoreResultDTO> resultDTOs = items.stream()
-                .map(item -> toResultDTO(item, resultMap.get(item.getId()))).toList();
-        SummaryAggregator.Result summary = summaryAggregator.aggregate(items.stream()
-                .map(item -> new SummaryAggregator.Item(item.getWeight(), item.getScoreType(),
-                        resultMap.get(item.getId()) == null ? null : resultMap.get(item.getId()).getActualScore(),
-                        resultMap.get(item.getId()) == null ? null : resultMap.get(item.getId()).getStatusStage2()))
-                .toList());
-        return new ScoreScoringResultsDTO(resultDTOs, new ScoreScoringResultsDTO.Summary(
-                summary.totalWeight(), summary.totalEstScore(),
-                summary.okCount(), summary.dangerCount(), summary.pendingCount(),
-                summary.objectiveWeight(), summary.subjectiveWeight(), summary.weightWarning()));
+        return resultsAssembler.assemble(items, resultMap);
     }
 
     private ScoreParseTriggerDTO completeSkipped(Long projectId, ProjectDocument bidDoc,
@@ -256,7 +247,7 @@ public class ScoreScoringAppService {
         // 原子覆盖走独立组件拿事务（@Async 线程无事务，AppService 内直调派生 delete 会抛 TransactionRequiredException）
         resultOverwriter.replaceAtomically(
                 items.stream().map(ScoreItem::getId).toList(),
-                new ScoreItemAssessor(scoreAnalyzer).fallbackPending(task, items, message));
+                new ScoreItemAssessor(scoreAnalyzer, imageBudget).fallbackPending(task, items, message));
         stateService.failTask(taskId, message);
         progressService.clearProgress(taskId);
     }
@@ -273,15 +264,6 @@ public class ScoreScoringAppService {
             if (!part.isBlank()) ids.add(Long.valueOf(part.trim()));
         }
         return ids;
-    }
-
-    private ScoreScoringResultsDTO.ScoreResultDTO toResultDTO(ScoreItem item, ScoreResult result) {
-        return new ScoreScoringResultsDTO.ScoreResultDTO(
-                item.getId(), item.getCode(), item.getDim(), item.getDetail(), item.getWeight(), item.getScoreType(),
-                result == null ? null : result.getStatusStage2(), result == null ? null : result.getActualScore(),
-                result == null ? null : result.getEvidence(), result == null ? null : result.getQuote(),
-                result == null ? null : result.getMissedReason(), result == null ? null : result.getSuggestion(),
-                result == null ? null : result.getMatchRatio(), result == null ? null : result.getReuseKind());
     }
 
     private ScoreParseTask latestTask(Long projectId) {

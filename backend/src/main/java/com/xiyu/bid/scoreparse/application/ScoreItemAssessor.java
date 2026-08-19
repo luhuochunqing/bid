@@ -1,5 +1,8 @@
 package com.xiyu.bid.scoreparse.application;
 
+import com.openai.errors.BadRequestException;
+import com.xiyu.bid.scoreparse.domain.DocumentImage;
+import com.xiyu.bid.scoreparse.domain.ImageBudget;
 import com.xiyu.bid.scoreparse.domain.KnowledgeCategoryPolicy;
 import com.xiyu.bid.scoreparse.domain.PartialScorePolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreAssessmentGuard;
@@ -9,33 +12,44 @@ import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
 import com.xiyu.bid.scoreparse.entity.ScoreResult;
 import com.xiyu.bid.scoreparse.infrastructure.openai.OpenAiScoreAnalyzer;
 import com.xiyu.bid.scoreparse.infrastructure.openai.ScoreAssessmentOutput;
+import io.sentry.Sentry;
 import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
-/** 单项 LLM 对标与沿用拷贝。 */
+/**
+ * 单项 LLM 对标与沿用拷贝。
+ * <p>spec 048 US1（T018）：客观项携带投标文件图片走多模态打分；
+ * 配给 = 预算内全量携带（index 顺序确定性截断，US2 换 ImageAssigner 章节配给）；
+ * 降级矩阵见 contracts/transport-multimodal.md——无图/损坏项 → 纯文本，
+ * 多模态不被支持（BadRequestException / RESPONSES 风格 ISE）→ 纯文本重试一次 + Sentry，不阻断任务。
+ */
 @Slf4j
 final class ScoreItemAssessor {
 
     private static final int BID_DOC_EXCERPT_MAX_CHARS = 12000;
 
     private final OpenAiScoreAnalyzer scoreAnalyzer;
+    private final ImageBudget imageBudget;
     private final ScoreAssessmentGuard assessmentGuard = new ScoreAssessmentGuard();
     private final ScoreStatusPolicy statusPolicy = new ScoreStatusPolicy();
     private final PartialScorePolicy partialScorePolicy = new PartialScorePolicy();
     private final KnowledgeCategoryPolicy categoryPolicy = new KnowledgeCategoryPolicy();
 
-    ScoreItemAssessor(OpenAiScoreAnalyzer scoreAnalyzer) {
+    ScoreItemAssessor(OpenAiScoreAnalyzer scoreAnalyzer, ImageBudget imageBudget) {
         this.scoreAnalyzer = scoreAnalyzer;
+        this.imageBudget = imageBudget;
     }
 
-    ScoreResult assess(ScoreParseTask task, ScoreItem item, String bidDocText) {
+    ScoreResult assess(ScoreParseTask task, ScoreItem item, String bidDocText, List<DocumentImage> images) {
         String excerpt = ScoreDocExcerptExtractor.extractRelevantExcerpt(
                 bidDocText, item, BID_DOC_EXCERPT_MAX_CHARS);
-        ScoreAssessmentOutput output = ScoreAssessmentGuard.TYPE_SUBJECTIVE.equals(item.getScoreType())
+        boolean subjective = ScoreAssessmentGuard.TYPE_SUBJECTIVE.equals(item.getScoreType());
+        ScoreAssessmentOutput output = subjective
                 ? scoreAnalyzer.assessSubjective(item.getDetail(), excerpt)
-                : scoreAnalyzer.assessObjective(item.getDetail(), item.getWeight(), excerpt);
+                : assessObjective(item, excerpt, allocateImagesWithinBudget(images));
         ScoreAssessmentGuard.Result assessment = assessmentGuard.guard(
                 toGuardInput(output), item.getWeight(), item.getScoreType());
         if (assessment.rangeInvalid()) {
@@ -52,6 +66,54 @@ final class ScoreItemAssessor {
                 .evidence(assessment.evidence()).quote(assessment.quote())
                 .missedReason(assessment.missedReason()).suggestion(assessment.suggestion())
                 .matchRatio(assessment.matchRatio()).reuseKind("FRESH").build();
+    }
+
+    /**
+     * 客观项打分：配给后有图 → 多模态过载；多模态不被支持
+     * （图片 part 被拒 BadRequestException / RESPONSES 风格 ISE）→ 纯文本重试恰好一次，
+     * log.warn + Sentry 上报，不阻断任务（FR-005 降级矩阵）。
+     */
+    private ScoreAssessmentOutput assessObjective(ScoreItem item, String excerpt, List<DocumentImage> images) {
+        if (images.isEmpty()) {
+            return scoreAnalyzer.assessObjective(item.getDetail(), item.getWeight(), excerpt);
+        }
+        try {
+            return scoreAnalyzer.assessObjective(item.getDetail(), item.getWeight(), excerpt, images);
+        } catch (BadRequestException | IllegalStateException ex) {
+            log.warn("多模态打分降级纯文本重试: itemId={}, type={}, msg={}",
+                    item.getId(), ex.getClass().getSimpleName(), ex.getMessage());
+            Sentry.captureException(ex);
+            return scoreAnalyzer.assessObjective(item.getDetail(), item.getWeight(), excerpt);
+        }
+    }
+
+    /**
+     * US1 最简配给：预算内全量携带（index 顺序，超图数/字节预算即确定性截断）。
+     * 损坏项（空 base64 / 空 mimeType）防御式跳过；全损坏 → 空配给走纯文本。
+     */
+    private List<DocumentImage> allocateImagesWithinBudget(List<DocumentImage> images) {
+        if (images == null || images.isEmpty()) {
+            return List.of();
+        }
+        List<DocumentImage> budgeted = new ArrayList<>();
+        long bytes = 0;
+        for (DocumentImage image : images) {
+            if (image == null || image.base64() == null || image.base64().isBlank()
+                    || image.mimeType() == null || image.mimeType().isBlank()) {
+                log.warn("跳过损坏图片项（base64/mimeType 非法）: index={}",
+                        image == null ? null : image.index());
+                continue;
+            }
+            if (budgeted.size() >= imageBudget.maxImagesPerItem()
+                    || bytes + image.base64().length() > imageBudget.maxImageBytesPerItem()) {
+                log.warn("图片配给超预算截断: carried={}, budgetImages={}, bytes={}, budgetBytes={}",
+                        budgeted.size(), imageBudget.maxImagesPerItem(), bytes, imageBudget.maxImageBytesPerItem());
+                break;
+            }
+            budgeted.add(image);
+            bytes += image.base64().length();
+        }
+        return List.copyOf(budgeted);
     }
 
     ScoreResult reuse(ScoreParseTask task, ScoreResult old) {

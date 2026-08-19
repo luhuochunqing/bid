@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -138,6 +139,78 @@ class OpenAiSdkStructuredOutputTransportTest {
         assertThat(server.getRequestCount())
                 .as("第二次调用应只发 1 个请求（缓存命中，直接 json_object）")
                 .isEqualTo(3);
+    }
+
+    /**
+     * 多模态测试 1：图片非空时发送 text part + image_url parts 的混合 content.
+     *
+     * <p>验证：请求 body 中 text part 在第一位，其后按顺序跟随全部图片 data URL。</p>
+     */
+    @Test
+    void requestWithChatCompletionsMultimodal_sendsTextAndImageContentParts() throws Exception {
+        server.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody(chatCompletionResponse("{\"value\":\"ok\"}")));
+
+        Optional<TestPayload> result = transport.requestWithChatCompletionsMultimodal(
+                "score prompt",
+                List.of(
+                        new MultimodalImage("image/png", "aGk="),
+                        new MultimodalImage("image/jpeg", "eHk=")
+                ),
+                TestPayload.class,
+                config(server.url("/v1").toString())
+        );
+
+        assertThat(result).isPresent();
+        assertThat(result.get().value).isEqualTo("ok");
+
+        RecordedRequest request = server.takeRequest();
+        String body = request.getBody().readUtf8();
+        int textIdx = body.indexOf("\"type\":\"text\"");
+        int firstImageIdx = body.indexOf("\"type\":\"image_url\"");
+        assertThat(textIdx).as("应包含 text content part").isGreaterThanOrEqualTo(0);
+        assertThat(firstImageIdx).as("应包含 image_url content part").isGreaterThanOrEqualTo(0);
+        assertThat(textIdx).as("text part 应位于 image part 之前").isLessThan(firstImageIdx);
+        assertThat(body).contains("data:image/png;base64,aGk=");
+        assertThat(body).contains("data:image/jpeg;base64,eHk=");
+        assertThat(body).contains("score prompt");
+    }
+
+    /**
+     * 多模态测试 2：json_object fallback 路径保留图片 part，文本 part 追加 JSON 包装前缀.
+     *
+     * <p>验证：jsonSchemaUnsupported 缓存命中时，多模态请求直接走 json_object（1 次 HTTP），
+     * 图片 data URL 原样携带，文本 part 含 jsonObjectPrompt 前缀与原始 prompt。</p>
+     */
+    @Test
+    void requestWithChatCompletionsMultimodal_jsonObjectFallbackKeepsImagesAndWrapsText() throws Exception {
+        setJsonSchemaUnsupported(true);
+
+        server.enqueue(new MockResponse()
+                .setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody(chatCompletionResponse("{\"value\":\"ok\"}")));
+
+        Optional<TestPayload> result = transport.requestWithChatCompletionsMultimodal(
+                "score prompt",
+                List.of(new MultimodalImage("image/png", "aGk=")),
+                TestPayload.class,
+                config(server.url("/v1").toString())
+        );
+
+        assertThat(result).isPresent();
+        assertThat(result.get().value).isEqualTo("ok");
+        assertThat(server.getRequestCount())
+                .as("缓存命中后应只发 1 个请求（json_object 多模态）")
+                .isEqualTo(1);
+
+        RecordedRequest request = server.takeRequest();
+        String body = request.getBody().readUtf8();
+        assertThat(body).contains("data:image/png;base64,aGk=");
+        assertThat(body).contains("Return exactly one valid JSON object");
+        assertThat(body).contains("score prompt");
     }
 
     // --- helpers ---

@@ -13,3 +13,7 @@ pydub
 speechrecognition
 python-multipart==0.0.9
 pypandoc==1.17
+# 048 多模态图片评分：/convert-images 抽图（docx/pptx/pdf 分派）
+python-docx
+python-pptx
+PyMuPDF
