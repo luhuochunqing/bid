@@ -1,6 +1,7 @@
 // Input: ProjectQueryService 返回的项目列表（mock）
-// Output: 窗口过滤 / 结果类型过滤 / 排序 / 字段映射的覆盖
+// Output: 窗口过滤 / 全状态参与 / 排序 / 字段映射的覆盖
 // Pos: backend/src/test/java/com/xiyu/bid/workbench/service/ - 商机预测查询服务测试
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.workbench.service;
 
 import com.xiyu.bid.entity.Project;
@@ -134,22 +135,24 @@ class WorkbenchOpportunityQueryServiceTest {
     }
 
     @Test
-    @DisplayName("结果过滤：未中标 / 投标中等非 WON/FAILED 项目不参与预测")
-    void shouldOnlyIncludeWonAndFailedProjects() {
+    @DisplayName("全状态参与预测：未中标 / 投标中等非 WON/FAILED 项目同样返回")
+    void shouldIncludeProjectsOfAllStatuses() {
         ProjectDTO lost = baseProject().id(20L).bidStatus("LOST")
-                .servicePeriodEndDate(LocalDate.of(2026, 11, 1)).build();
+                .servicePeriodEndDate(LocalDate.of(2026, 12, 1)).build(); // 预测 2026-09-01
         ProjectDTO bidding = baseProject().id(21L).status(Project.Status.BIDDING).bidStatus("BIDDING")
-                .servicePeriodEndDate(LocalDate.of(2026, 11, 1)).build();
-        ProjectDTO won = baseProject().id(22L).bidStatus("WON")
-                .servicePeriodEndDate(LocalDate.of(2026, 11, 1)).build(); // 预测 2026-08-01... 已过去
+                .servicePeriodEndDate(LocalDate.of(2026, 12, 10)).build(); // 预测 2026-09-10
         ProjectDTO wonVisible = baseProject().id(23L).bidStatus("WON")
                 .servicePeriodEndDate(LocalDate.of(2026, 12, 1)).build(); // 预测 2026-09-01
-        when(projectQueryService.getAllProjects()).thenReturn(List.of(lost, bidding, won, wonVisible));
+        ProjectDTO windowOut = baseProject().id(24L).bidStatus("LOST")
+                .servicePeriodEndDate(LocalDate.of(2028, 6, 1)).build(); // 预测 2028-03-01，窗口外仍被过滤
+        when(projectQueryService.getAllProjects()).thenReturn(List.of(lost, bidding, wonVisible, windowOut));
 
         List<WorkbenchOpportunityDTO> rows = service.getOpportunityPredictions(TODAY);
 
-        assertEquals(1, rows.size());
-        assertEquals(23L, rows.get(0).projectId());
+        assertEquals(3, rows.size());
+        assertEquals(List.of("LOST", "WON", "BIDDING"),
+                rows.stream().map(WorkbenchOpportunityDTO::resultType).toList()); // 按预测时间升序
+        assertEquals(List.of(20L, 23L, 21L), rows.stream().map(WorkbenchOpportunityDTO::projectId).toList());
     }
 
     @Test

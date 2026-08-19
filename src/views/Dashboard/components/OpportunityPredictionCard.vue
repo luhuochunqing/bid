@@ -92,6 +92,7 @@ import { useRouter } from 'vue-router'
 import { workbenchApi } from '@/api'
 import { navigateToProject } from '@/utils/projectNavigation.js'
 import { customerTypeLabel, projectTypeLabel } from '@/views/Project/utils/projectListFormatters.js'
+import { getProjectStatusType } from '@/views/Dashboard/workbench-formatters.js'
 
 const PAGE_SIZE = 5
 
@@ -138,13 +139,14 @@ function formatYears(value) {
   return Number.isFinite(num) ? String(num) : '-'
 }
 
-function statusLabel(resultType) {
-  return resultType === 'FAILED' ? '流标' : '已中标'
+// 项目状态枚举名 → 中文标签（与后端 Project.Status.displayName() 对齐）；
+// ElTag 配色复用 workbench-formatters.js 的唯一映射（见 Dashboard/README.md）
+const STATUS_LABEL = {
+  WON: '已中标', FAILED: '已流标', LOST: '未中标', ABANDONED: '已放弃',
+  BIDDING: '投标中', EVALUATING: '评标中', INITIATED: '已立项', PENDING_INITIATION: '待立项',
 }
-
-function statusTagType(resultType) {
-  return resultType === 'FAILED' ? 'danger' : 'success'
-}
+const statusLabel = (resultType) => STATUS_LABEL[resultType] ?? resultType ?? '-'
+const statusTagType = (resultType) => getProjectStatusType(statusLabel(resultType))
 
 // 客户类型轻标签配色（与 V3 设计稿一致）
 function customerTypeChip(value) {

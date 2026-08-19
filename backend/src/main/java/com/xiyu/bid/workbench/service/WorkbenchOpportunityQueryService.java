@@ -1,6 +1,7 @@
 // Input: ProjectQueryService（已按权限过滤并 enrich 的项目列表）
 // Output: 未来 6 个月内预测招标的商机行列表（按预测时间升序）
 // Pos: workbench/service/ - 工作台商机预测查询服务
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.workbench.service;
 
 import com.xiyu.bid.project.dto.ProjectDTO;
@@ -21,7 +22,7 @@ import java.util.Objects;
 /**
  * 工作台 AI 商机预测查询服务。
  *
- * <p>基于已中标（WON）/ 流标（FAILED）项目，按
+ * <p>所有状态的项目均参与预测（已中标/流标/未中标/投标中等），按
  * {@link OpportunityPredictionPolicy} 提醒规则预测下一轮招标时间，
  * 只返回未来 6 个月内的商机，按预测招标时间升序。
  *
@@ -36,7 +37,6 @@ import java.util.Objects;
 public class WorkbenchOpportunityQueryService {
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-    private static final String RESULT_WON = "WON";
 
     private final ProjectQueryService projectQueryService;
 
@@ -49,7 +49,6 @@ public class WorkbenchOpportunityQueryService {
     @Transactional(readOnly = true)
     public List<WorkbenchOpportunityDTO> getOpportunityPredictions(final LocalDate today) {
         List<WorkbenchOpportunityDTO> opportunities = projectQueryService.getAllProjects().stream()
-                .filter(WorkbenchOpportunityQueryService::isPredictable)
                 .map(project -> toDto(project, today))
                 .filter(Objects::nonNull)
                 .sorted(Comparator.comparing(WorkbenchOpportunityDTO::predictedBidDate))
@@ -57,12 +56,6 @@ public class WorkbenchOpportunityQueryService {
         log.debug("Workbench opportunity predictions: {} rows (window={} months)",
                 opportunities.size(), OpportunityPredictionPolicy.VISIBLE_WINDOW_MONTHS);
         return opportunities;
-    }
-
-    /** 仅已中标 / 流标项目参与预测（bidStatus 优先，缺失时回退 Project.status）。 */
-    private static boolean isPredictable(final ProjectDTO project) {
-        String resultType = resolveResultType(project);
-        return RESULT_WON.equals(resultType) || OpportunityPredictionPolicy.RESULT_FAILED.equals(resultType);
     }
 
     /**
