@@ -93,9 +93,11 @@ public class TrendAnalysisQueryService {
                         )
                         from Project p
                         left join Tender t on t.id = p.tenderId
-                        left join ProjectInitiationDetails pid on pid.projectId = p.id
-                        where (:allAccess = true or p.id in :scopeIds)
                         """);
+        // 仅客户类型筛选启用时 join 立项详情（pid.project_id 唯一，无行扇出），避免无谓 join
+        jpql.append(criteria.customerTypes() != null && !criteria.customerTypes().isEmpty()
+                ? "left join ProjectInitiationDetails pid on pid.projectId = p.id where (:allAccess = true or p.id in :scopeIds)"
+                : "where (:allAccess = true or p.id in :scopeIds)");
 
         if (criteria.startDate() != null) {
             jpql.append(" and p.createdAt >= :startDate");
@@ -158,9 +160,10 @@ public class TrendAnalysisQueryService {
                 )
                 from Project p
                 left join Tender t on t.id = p.tenderId
-                left join ProjectInitiationDetails pid on pid.projectId = p.id
-                where (:allAccess = true or p.id in :scopeIds)
                 """);
+        jpql.append(criteria.customerTypes() != null && !criteria.customerTypes().isEmpty()
+                ? "left join ProjectInitiationDetails pid on pid.projectId = p.id where (:allAccess = true or p.id in :scopeIds)"
+                : "where (:allAccess = true or p.id in :scopeIds)");
 
         if (criteria.startDate() != null) {
             jpql.append(" and p.createdAt >= :startDate");
