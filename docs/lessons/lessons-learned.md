@@ -1882,3 +1882,38 @@ No new cases to save for project: 1350 (total candidates: 0, existing: 0)
 
 - `backend/src/main/java/com/xiyu/bid/casework/application/ProjectClosedEventListener.java`
 - `backend/src/test/java/com/xiyu/bid/casework/application/ProjectClosedEventListenerTest.java`
+
+## 127. 竞品「是否中标」用项目级状态推导：语义层级错配 + notes 字段语义漂移陷阱（2026-08-19，PR !2339 验收遗留）
+
+### 背景
+
+PR !2339 修复竞品分析项目模式"暂无数据"后，用户复测发现数据能显示了，但明细表格「是否中标」列全部误显「已中标」。项目「测试竞品公司」状态为 WON（我司中标），竞品行各自的真实中标状态在项目详情「竞争对手情况」表格中录入。
+
+### 根因
+
+1. **语义层级错配**：`buildProjectResponse` 用 `isWonStatus(row.resultType(), row.projectStatus())` 推导竞品行 isWon——`resultType`/`projectStatus` 均为**项目级**字段（我司的中标结果），所有竞品行共用同一个值：项目 WON → 整列「已中标」。竞品的中标状态与项目（我司）的中标状态是两个独立事实，不能互相推导。
+2. **真数据源是语义漂移字段**：项目详情「竞争对手情况」表格的「是否中标」列（`ResultConfirmStage.vue` 下拉枚举 `['已中标','未中标']`）实际写入 `project_result_competitor.notes`——该列原为「其他说明」自由文本，前端改造后复用存枚举（源码有明确注释）。竞品分析查询链路从未带出 `prc.notes`，实体上该字段名也完全暗示不了中标语义，导致排查者想不到真源在这里。
+3. **历史修复方向反噬**：早前一轮修复为解决"项目未流转结果确认阶段时竞品全显未中标"，把项目级状态兜底进 isWon 判定（`coalesce(resultType, bidResultStatus, status)` + `isWonStatus`）——短期看似更准，实际把层级错配固化成正式口径。
+
+### 修复
+
+- `CompetitorAnalysisQueryService` 两条 JPQL（项目模式/趋势模式）select 均补 `prc.notes` 列；`CompetitorAnalysisRow` record 同步加字段。
+- 新增 `CompetitorAnalysisComputationService.parseCompetitorWon(String notes)`：仅 `"已中标"`（trim 后精确匹配）为 true；「未中标」/null/历史自由文本均为 false。
+- `buildProjectResponse` 改用 `parseCompetitorWon(row.notes())`；删除 `isWonStatus`。
+- H2 实测回归 `CompetitorAnalysisJpqlRegressionTest`：复现"项目 WON + 竞品 notes 各异"场景，验证 JPQL 构造器 10 参匹配与 notes 按行独立带出。
+
+### 经验教训
+
+| 模式 | 教训 | 预防 |
+| --- | --- | --- |
+| 语义层级错配 | "项目的事实"不能推导"项目中每个参与者的事实"——竞品中标 ≠ 我司中标，聚合口径混入会整列传染 | 表格行级字段先问：值归属主体是行（竞品）还是父对象（项目）？ |
+| 语义漂移字段 | UI 把枚举塞进"其他说明/备注"类自由文本列时，下游无从从字段名推断真源——必须查前端写入代码 | 排查"某列数据从哪来"时直接搜前端组件绑定的 prop，而不是按字段名猜表 |
+| JPQL 构造器改动必须实测 | record 加字段后 JPQL `select new` 参数不匹配是运行时错误，纯 Mockito 单测完全不覆盖 | 查询层改动配 @DataJpaTest H2 实测（本项目已有先例模式） |
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/analytics/service/CompetitorAnalysisQueryService.java`（JPQL 补 prc.notes）
+- `backend/src/main/java/com/xiyu/bid/analytics/service/CompetitorAnalysisComputationService.java`（parseCompetitorWon）
+- `backend/src/main/java/com/xiyu/bid/analytics/service/CompetitorAnalysisAssemblerService.java`（isWon 来源替换）
+- `src/views/Project/stages/ResultConfirmStage.vue`（notes 语义漂移源头，L208-210 注释）
+- `src/constants/competitors.js`（COMPETITOR_WIN_STATUS_OPTIONS 枚举）

@@ -128,6 +128,12 @@ PRD §9.12 步骤 7 + §9.14：竞品公司至少保留 1 个，不允许清空�
 - 勾选语义为 check-strictly（父子独立）：后端按部门名 `u.departmentName IN (...)` 精确匹配，勾选父部门不会级联选中子部门。
 - 树节点通过 provide/inject 共享选中集合与展开状态，递归组件 `TreeSelectNode` 无需逐层转发事件。
 
+### 10. 竞品「是否中标」数据源 = notes 语义漂移字段（M4，2026-08-19）
+
+- 项目详情「竞争对手情况」表格的「是否中标」下拉（枚举 `已中标/未中标`，定义于 `src/constants/competitors.js`）写入的是 `project_result_competitor.notes`——该列原名「其他说明」，前端语义漂移复用（`ResultConfirmStage.vue` L208 有注释）。
+- 竞品分析任何按竞品维度取「是否中标」的功能必须读 `prc.notes` 并经 `parseCompetitorWon` 解析（仅「已中标」精确匹配为 true）；**禁止**用 `projects.status`/`ProjectResult.resultType`/`pid.bidResultStatus` 推导——那些是我司（项目级）的中标事实，会整列传染。
+- 历史「其他说明」自由文本（非枚举）按未中标处理，与前端 select 显示为空的行为对齐。
+
 ## 文件清单
 
 ### 后端（analytics 包）
@@ -207,5 +213,6 @@ src/views/data-analysis/
 ### 4. 竞品表格是否中标真实状态关联
 - **背景**：原判定仅依赖结果确认的 `result_type == 'WON'`。若项目还未流转到结果确认阶段，但实际上项目状态 `projects.status` 已经为 `WON` 或立项详情中标状态 `pid.bid_result_status` 已经为 "已中标" 时被错误判定为未中标。
 - **改动**：`fetchProjectCompetitorRows` 补充查询 `coalesce(nullif(pr.resultType, ''), nullif(pid.bidResultStatus, ''), cast(p.status as string))`，并由 `isWonStatus` 辅助方法综合判定项目是否中标，准确展现项目的最新中标状态。
+- **⚠ 2026-08-19 修订（PR !2339 验收遗留）**：上述口径属**语义层级错配**——`resultType`/`status` 是项目级（我司）中标结果，不能推导每个竞品各自的中标状态，项目 WON 时整列误显「已中标」。正确数据源为 `project_result_competitor.notes`（结果确认「竞争对手情况」表格的「是否中标」列经前端语义漂移写入该字段，枚举 `已中标/未中标`）。现行实现：两条 JPQL 均带出 `prc.notes`，`parseCompetitorWon(notes)` 精确匹配「已中标」为 true，其余（含历史自由文本）为 false；`isWonStatus` 已删除。详见 lessons-learned §127。
 
 

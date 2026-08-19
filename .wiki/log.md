@@ -292,3 +292,8 @@
 - 触发：用户复测报 4 问题——M1 区域值全 0、M2 客户类型统计错、M4 项目模式暂无数据、部门下拉丢搜索/全选清空（分支 `agent/zcode/fix-analytics-round2`）
 - 更新 [[data-analysis-revamp]]：§数据口径追加「投标数=全部项目」「客户类型 coalesce 双源」两条修订；§关键陷阱追加 §8 项目模式入口空检查、§9 部门树形下拉交互规范
 - 关联：`docs/lessons/lessons-learned.md §124`、回归测试 `CompetitorAnalysisAssemblerServiceTest`（新增 3 用例）+ `TrendAnalysisComputationServiceTest`（新增进行中口径用例）
+## [2026-08-19] bugfix | 竞品分析「是否中标」整列误显已中标 — notes 语义漂移字段回填
+- 触发：PR !2339 验收遗留复测——项目「测试竞品公司」竞品明细表格是否中标全显「已中标」（分支 `agent/zcode/fix-competitor-won-notes`）
+- 根因：isWon 用项目级状态（resultType/status）推导，语义层级错配；真源是 `project_result_competitor.notes`（前端「竞争对手情况」表格是否中标下拉写入，字段语义漂移）
+- 更新 [[data-analysis-revamp]]：§4 追加 2026-08-19 修订说明（推翻项目级推导口径）；§关键陷阱追加 §10 竞品是否中标数据源规范
+- 关联：`docs/lessons/lessons-learned.md §127`；回归测试 `CompetitorAnalysisJpqlRegressionTest`（H2 实测 JPQL 构造器 10 参 + notes 按行独立带出）+ `CompetitorAnalysisComputationServiceTest`（枚举解析 3 用例）
