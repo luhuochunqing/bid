@@ -265,3 +265,8 @@
 - 触发：客户需求 2026-08-17 批次（分支 `agent/qoder/eval-form-field-adjustments`），三项文案改名 + GAP 文本框下线（附件保留），跨前端双表单/立项/后端 DTO/Mapper 共 32 文件
 - 新增 [[evaluation-form-field-adjustments]]：需求清单 / GAP 只停写不删列策略 / 立项深耦合保留决策 / V1191 迁移注意点
 - 更新 _index.md 索引
+
+## [2026-08-19] task | TenderAttachmentUrlResolver 静态注入反模式 DI 重构
+- 触发：tech-debt-tracker 条目（PR !2331 审计 F2 项，分支 `agent/qoder/resolver-di-refactor`，合入 PR !2334）；跨模块 23 文件，满足“跨模块逻辑变更”触发标准
+- 更新 [[spring-pitfalls]] §10.8：@Value/@Autowired 注入静态字段反模式的四类风险 / 构造器注入 + 配置承载类修复范式 / migrate-callers-then-delete / 循环依赖规避 / 三条预防规则
+- 未新建页面、未改 _index.md（仅在既有页追加小节）
