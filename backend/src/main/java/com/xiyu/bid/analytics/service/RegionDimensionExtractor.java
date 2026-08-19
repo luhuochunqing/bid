@@ -20,8 +20,9 @@ public final class RegionDimensionExtractor {
      * 无后缀短省名 → 标准全称映射（31 个大陆省级单位 + 港澳台），
      * 兼容历史存量数据中的短省名存储格式（如 "江苏"、"内蒙古"、"北京"）。
      * 全称口径与 {@code TenderRegionCatalog} 省份表一致。
+     * 包可见供同包护栏测试直接断言（避免反射）。
      */
-    private static final Map<String, String> SHORT_NAME_ALIASES = buildShortNameAliases();
+    static final Map<String, String> SHORT_NAME_ALIASES = buildShortNameAliases();
 
     /**
      * 存在前缀歧义的短省名 key："海南" 是青海省"海南藏族自治州"/"海南州"的前缀。

@@ -87,11 +87,8 @@ class RegionDimensionExtractorTest {
 
     @Test
     @DisplayName("别名映射全量遍历：每个短省名 key 均归一化为对应全称（防手写映射拼写逃逸）")
-    @SuppressWarnings("unchecked")
-    void testAllShortNameAliasesNormalized() throws Exception {
-        var field = RegionDimensionExtractor.class.getDeclaredField("SHORT_NAME_ALIASES");
-        field.setAccessible(true);
-        java.util.Map<String, String> aliases = (java.util.Map<String, String>) field.get(null);
+    void testAllShortNameAliasesNormalized() {
+        java.util.Map<String, String> aliases = RegionDimensionExtractor.SHORT_NAME_ALIASES;
 
         assertThat(aliases).hasSize(34);
         aliases.forEach((shortName, fullName) ->
@@ -102,11 +99,8 @@ class RegionDimensionExtractorTest {
 
     @Test
     @DisplayName("护栏：别名表所有全称 ∈ TenderRegionCatalog 省份集合（防别名表与 catalog 漂移）")
-    @SuppressWarnings("unchecked")
     void testAliasValuesWithinRegionCatalogProvinces() throws Exception {
-        var aliasField = RegionDimensionExtractor.class.getDeclaredField("SHORT_NAME_ALIASES");
-        aliasField.setAccessible(true);
-        java.util.Map<String, String> aliases = (java.util.Map<String, String>) aliasField.get(null);
+        java.util.Map<String, String> aliases = RegionDimensionExtractor.SHORT_NAME_ALIASES;
 
         // catalog 省份全集 = 直辖市/港澳台 + 普通省/自治区一级名（PROVINCES 为 private，反射读取）
         java.util.Set<String> catalogProvinces = new java.util.HashSet<>(
