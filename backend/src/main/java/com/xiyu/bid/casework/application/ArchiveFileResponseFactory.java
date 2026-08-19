@@ -1,9 +1,8 @@
 package com.xiyu.bid.casework.application;
 
 import com.xiyu.bid.casework.infrastructure.ArchiveFile;
-import com.xiyu.bid.exception.ResourceNotFoundException;
+import com.xiyu.bid.file.application.ObsDirectRedirects;
 import com.xiyu.bid.file.application.ObsShareUrlSigner;
-import com.xiyu.bid.file.domain.FileUrlPrefixes;
 import com.xiyu.bid.shared.security.FilePathGuard;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,7 +14,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -26,7 +24,7 @@ import java.nio.file.Path;
  * <ul>
  *   <li>本地物理路径（multipart 上传归档）→ 校验边界后流式返回 200</li>
  *   <li>{@code obs-direct:{uploadId}} 伪协议（OBS 直传归档，含 V1171 回填）→
- *       委托 {@link ObsShareUrlSigner} 签发预签名 URL，返回 302 让浏览器直连 OBS，
+ *       统一走 {@link ObsDirectRedirects} 签发预签名 URL，返回 302 让浏览器直连 OBS，
  *       与项目文档下载（ProjectDocumentDownloadService）的处理方式对齐</li>
  * </ul>
  */
@@ -47,15 +45,14 @@ public class ArchiveFileResponseFactory {
      */
     public ResponseEntity<Resource> build(ArchiveFile file, boolean inline) {
         String rawPath = file.getFilePath();
-        if (rawPath != null && rawPath.startsWith(FileUrlPrefixes.OBS_DIRECT)) {
-            // OBS 直传文件不在本地磁盘，签发预签名 URL 后 302 重定向；签发失败按资源不存在处理
-            String signedUrl = obsShareUrlSigner.trySign(rawPath)
-                    .filter(url -> !url.equals(rawPath))
-                    .orElseThrow(() -> ResourceNotFoundException.withMessage(
-                            "Archive file not available: " + file.getId()));
-            return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(signedUrl)).build();
-        }
+        // OBS 直传文件不在本地磁盘，统一走 ObsDirectRedirects：签发预签名 URL 后 302 重定向，
+        // 失败精确区分 404（BidFile 不存在）/ 502（OBS 故障）；非 obs-direct 走本地文件流
+        return ObsDirectRedirects.tryRedirect(obsShareUrlSigner, rawPath)
+                .orElseGet(() -> buildLocalFileResponse(file, rawPath, inline));
+    }
 
+    /** 本地物理路径文件：校验边界后流式返回 200。 */
+    private ResponseEntity<Resource> buildLocalFileResponse(ArchiveFile file, String rawPath, boolean inline) {
         Path filePath = resolveAndValidateFilePath(rawPath);
         long fileSize;
         try {

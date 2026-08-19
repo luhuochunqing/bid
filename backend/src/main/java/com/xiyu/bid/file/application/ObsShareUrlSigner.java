@@ -39,6 +39,15 @@ public class ObsShareUrlSigner {
     /** obs-direct: 伪协议前缀，与前端 useObsUploadFallback.js 的 OBS_DIRECT_PREFIX 保持一致。 */
     public static final String OBS_DIRECT_PREFIX = FileUrlPrefixes.OBS_DIRECT;
 
+    /** 签发结果状态：区分"文件不存在"（404 语义）与"OBS 故障"（502 语义），供下载端点精确报错。 */
+    public enum SignOutcome { SIGNED, NOT_OBS_DIRECT, FILE_NOT_FOUND, SIGN_FAILED }
+
+    /** 签发结果：outcome 为 SIGNED 时 url 为预签名 URL，其余情况 url 为 null。 */
+    public record SignResult(SignOutcome outcome, String url) {
+        public static SignResult signed(String url) { return new SignResult(SignOutcome.SIGNED, url); }
+        public static SignResult of(SignOutcome outcome) { return new SignResult(outcome, null); }
+    }
+
     /** CRM 回调场景的预签名 URL 有效期（秒），取 DownloadPolicy 允许的最大值。 */
     private static final int SHARE_URL_EXPIRE_SECONDS = DownloadPolicy.MAX_EXPIRE_SECONDS;
 
@@ -57,24 +66,42 @@ public class ObsShareUrlSigner {
      *         查不到/OBS 故障时返回 Optional.empty()
      */
     public Optional<String> trySign(String fileUrl) {
+        SignResult result = signObsDirect(fileUrl);
+        return switch (result.outcome()) {
+            case SIGNED -> Optional.of(result.url());
+            case NOT_OBS_DIRECT -> Optional.of(fileUrl);
+            case FILE_NOT_FOUND, SIGN_FAILED -> Optional.empty();
+        };
+    }
+
+    /**
+     * 签发 obs-direct:{uploadId} 并返回富结果（区分失败原因）。
+     *
+     * <p>与 {@link #trySign(String)} 的区别：保留失败原因，供下载端点将
+     * "BidFile 不存在"映射为 404、"OBS 故障"映射为 502，避免统一 404 误导排障。
+     *
+     * @param fileUrl 原始 fileUrl，可能为 obs-direct:{uploadId} 或其他格式
+     * @return SIGNED（含预签名 URL）/ NOT_OBS_DIRECT（原值透传）/ FILE_NOT_FOUND / SIGN_FAILED
+     */
+    public SignResult signObsDirect(String fileUrl) {
         if (fileUrl == null || fileUrl.isBlank()) {
-            return Optional.empty();
+            return SignResult.of(SignOutcome.FILE_NOT_FOUND);
         }
         if (!fileUrl.startsWith(OBS_DIRECT_PREFIX)) {
             // 非 obs-direct: 前缀，原样返回，让调用方继续处理
-            return Optional.of(fileUrl);
+            return SignResult.of(SignOutcome.NOT_OBS_DIRECT);
         }
 
         String uploadId = fileUrl.substring(OBS_DIRECT_PREFIX.length());
         if (uploadId.isBlank()) {
             log.warn("obs-direct URL 缺少 uploadId: {}", fileUrl);
-            return Optional.empty();
+            return SignResult.of(SignOutcome.FILE_NOT_FOUND);
         }
 
         Optional<BidFile> bidFileOpt = bidFileRepository.findByUploadId(uploadId);
         if (bidFileOpt.isEmpty()) {
             log.warn("obs-direct URL 对应的 BidFile 不存在: uploadId={}", uploadId);
-            return Optional.empty();
+            return SignResult.of(SignOutcome.FILE_NOT_FOUND);
         }
         BidFile bidFile = bidFileOpt.get();
 
@@ -85,10 +112,10 @@ public class ObsShareUrlSigner {
                     bidFile.getBucket(), bidFile.getObjectKey(), expireSeconds);
             log.debug("obs-direct URL 已签发: uploadId={} -> {} (expireSeconds={})",
                     uploadId, signed.url(), expireSeconds);
-            return Optional.of(signed.url());
+            return SignResult.signed(signed.url());
         } catch (RuntimeException e) {
             log.error("签发 OBS 预签名 URL 失败: uploadId={}", uploadId, e);
-            return Optional.empty();
+            return SignResult.of(SignOutcome.SIGN_FAILED);
         }
     }
 }

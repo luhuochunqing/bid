@@ -1,8 +1,11 @@
-// Input: fileUrl（doc-insight:// 本地路径 或 http(s):// 外部 URL）
-// Output: ResponseEntity<Resource> 文件流 + Content-Disposition 头；非法路径抛 ResponseStatusException
+// Input: fileUrl（obs-direct: OBS 直传 / doc-insight:// 本地路径 / http(s):// 外部 URL）
+// Output: ResponseEntity<Resource> 文件流 + Content-Disposition 头；obs-direct 走 302 预签名重定向；非法路径抛 ResponseStatusException
 // Pos: integration.external — CRM 跨系统附件下载服务，复用本地存储与外部代理下载逻辑
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.integration.external;
 
+import com.xiyu.bid.file.application.ObsDirectRedirects;
+import com.xiyu.bid.file.application.ObsShareUrlSigner;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -40,12 +43,18 @@ import java.util.stream.Collectors;
  * <p>支持的 fileUrl 格式：
  * <ul>
  *   <li>{@code doc-insight://<relativePath>}：本地存储文件</li>
+ *   <li>{@code obs-direct:{uploadId}}：OBS 直传文件，实时签发预签名 URL 后 302 重定向</li>
  *   <li>{@code http(s)://<url>}：外部 URL 代理下载（CRM 推送附件）</li>
  * </ul>
  */
 @Service
 public class TenderAttachmentDownloadService {
 
+    private final ObsShareUrlSigner obsShareUrlSigner;
+
+    public TenderAttachmentDownloadService(ObsShareUrlSigner obsShareUrlSigner) {
+        this.obsShareUrlSigner = obsShareUrlSigner;
+    }
     /** 文件存储目录，与 LocalDocumentStorage / DocInsightController 共享同一配置。 */
     @Value("${app.doc-insight.upload-dir:}")
     private String configuredUploadDir;
@@ -57,13 +66,18 @@ public class TenderAttachmentDownloadService {
     /**
      * 下载文件。
      *
-     * @param fileUrl 文件 URL，支持 doc-insight:// 和 http(s)://
-     * @return 文件流响应
+     * @param fileUrl 文件 URL，支持 obs-direct: / doc-insight:// 和 http(s)://
+     * @return 文件流响应；obs-direct: 返回 302 重定向到实时签发的预签名 URL
      * @throws ResponseStatusException 400（参数非法）/ 404（文件不存在）/ 502（外部下载失败）
      */
     public ResponseEntity<Resource> download(String fileUrl) {
         if (fileUrl == null || fileUrl.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "文件 URL 不能为空");
+        }
+        if (fileUrl.startsWith(ObsShareUrlSigner.OBS_DIRECT_PREFIX)) {
+            // OBS 直传文件：实时签发预签名 URL 后 302 重定向（统一走 ObsDirectRedirects，404/502 语义精确）
+            return ObsDirectRedirects.tryRedirect(obsShareUrlSigner, fileUrl)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "无效的文件 URL 格式"));
         }
         if (fileUrl.startsWith("http://") || fileUrl.startsWith("https://")) {
             return downloadExternal(fileUrl);

@@ -1,3 +1,7 @@
+// Input: 合规检查上下文（资质/人员/品牌授权/仓库查询需求）
+// Output: 按需加载的知识库质量证据（Qualification/Personnel/BrandAuthorization/Warehouse）
+// Pos: compliance/service/ - 知识库按需加载服务（构造器注入，支持无参降级）
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.service;
 
 import com.xiyu.bid.brandauth.domain.port.BrandAuthorizationRepository;
@@ -40,7 +44,7 @@ public class KnowledgeBaseOnDemandLoader {
     }
 
     public KnowledgeBaseOnDemandLoader() {
-        this(null, null, null, null, null);
+        this(null, null, null, null);
     }
 
     /**

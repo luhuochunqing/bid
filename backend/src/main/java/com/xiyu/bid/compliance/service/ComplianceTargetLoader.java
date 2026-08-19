@@ -1,3 +1,7 @@
+// Input: 项目/标讯上下文 + 合规检查目标配置
+// Output: 加载后的合规检查目标集合（文档内容解析，异常容错降级）
+// Pos: compliance/service/ - 合规检查目标加载服务
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.service;
 
 import com.xiyu.bid.compliance.domain.DocumentContent;
@@ -184,7 +188,7 @@ public class ComplianceTargetLoader {
             if (fileUrl.startsWith("file://")) {
                 return Paths.get(fileUrl.substring(7));
             }
-        } catch (java.nio.file.InvalidPathException | RuntimeException ignored) {
+        } catch (RuntimeException ignored) {
         }
         return null;
     }

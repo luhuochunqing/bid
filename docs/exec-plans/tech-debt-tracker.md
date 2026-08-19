@@ -205,3 +205,13 @@
 **豁免条件参考**：① 接收人是 dataScope=all 全局角色（admin / /bidAdmin / bid-TeamLeader 等）；② 接收人是资源当事人（applicant/custodian/assignee 等）；③ targetUrl 跳转到接收人一定能访问的页面（通知中心/资源总览/非项目详情）；④ 通知场景是全公司广播（资质到期/仓库到期/人员到期等通用提醒）。
 
 **关键洞察**：`TASK_MUTATION_ALLOWED_ROLES` 是全仓唯一把 `bid-Team`（普通受限角色）纳入广播范围的常量。未来新增通知派发器时，**接收人集合只要含 `bid-Team`/`bid-otherDept`/`bid-administration` 等 `dataScope=self` 角色，就必须对接收人做项目可见性过滤**（参考 `NotificationRecipientFilter` + `ProjectAccessScopeService.canAccessProject`）。这是 lessons §44 的核心检查清单项。
+
+### TenderAttachmentUrlResolver 静态字段注入反模式（integration.external）
+
+> **来源**：PR !2331 生产风险审计（2026-08-18）F2 项
+> **背景**：`TenderAttachmentUrlResolver` 用 `@Value`/`@Autowired` setter 注入**静态字段**（`publicBaseUrl`、`obsShareUrlSigner`），所有方法为静态方法。属 CO-280 既有债：静态 API 被 `TenderIntegrationMapper`、`TenderMapper`、`ProjectResultPayloadAssembler` 等多处直接调用，改实例化注入会级联波及所有调用点。
+> **风险**：① 依赖 Spring 容器初始化顺序，Bean 创建前调用得到 null；② 单测需 ReflectionTestUtils 注入静态字段，易漏；③ 多 Spring 上下文测试（如 @SpringBootTest 并行）相互污染静态状态。
+> **建议**：重构为实例方法 + 构造器注入，同时把 legacy doc-insight 兼容逻辑（`extractOwnLegacyDocInsightParams`/`ownAbsolutePathPrefix`/`isOwnIntegrationDownloadUrl`）拆出，解决文件顶格 300 行硬上限问题。
+> **实测影响面**（2026-08-19 评估，PR !2331 审查期间）：主代码 4 文件（Resolver 本体 + `TenderIntegrationMapper`/`ProjectResultPayloadAssembler` 各 +1 final 字段，`TenderMapper` 需新增构造器）；测试 12+ 构造点（`new TenderIntegrationMapper(...)` ×8、`new ProjectResultPayloadAssembler(...)` ×2、`new TenderMapper()` ×3）+ 2 个反射设静态字段的测试文件（`TenderIntegrationMapperToDownloadUrlTest` 31 用例 / `CallerContextUrlResolverTest` 12 用例）需改实例构造。纯 DI 重构行为中性，编译器保证不遗漏调用点。
+> **状态**：open。已决策（2026-08-19）：不并入热修复 PR !2331，待其合入后从 main 开独立分支修复，避免跨模块重构拖慢生产热修复上线。
+> **复杂度**：中（半天），风险：低（行为中性 + 79 个 Resolver 相关测试兜底）。
