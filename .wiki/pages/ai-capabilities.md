@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [AI, 智能, 大模型, 合规, 评分, 竞争情报, 智能装配, 案例库]
 created: 2026-04-15
-updated: 2026-08-17
-health_checked: 2026-08-17
+updated: 2026-08-19
+health_checked: 2026-08-19
 sources:
   - src/config/ai-prompts.js
   - backend/AI_MODULE_SUMMARY.md
@@ -383,7 +383,9 @@ AiAnalysisResponse
 
 ### 9.2 结项自动沉淀与幂等防重
 - **触发机制**：项目状态流转为 `CLOSED` 时触发 `ProjectClosedEvent`。
-- **处理链路**：`ProjectClosedEventListener` 异步加载归档标书全文与评分项草稿，调用大模型切片匹配提取优秀应答。
+- **评分项数据源**：`score_item`（招标文件解析产物，spec 041）。前置判定与构建均读 `score_item`（经 `ScoreItemSnapshot` 承载），`scoringCategory` 由 `CaseAiMatcher.extractCategory(score_item.dim)` 按中文关键词归类为技术/商务/实施服务/资质业绩。
+- **处理链路**：`ProjectClosedEventListener` 异步加载归档标书全文与评分项，调用大模型切片匹配提取优秀应答。
+  - ⚠️ 历史坑：早期依赖 `project_score_drafts`（导入评分草稿链路，入口 2026-08-17 下线后全表为空），导致结项后无法沉淀案例；draft 链路删除后须改读 `score_item`。
 - **并发幂等**：
   - DB 层：`knowledge_case` 表建立 `(source_project_id, scoring_point_title)` 复合唯一索引。
   - 应用层：内存比对过滤 + 捕获 `DataIntegrityViolationException` 按幂等成功处理，防止重复结项造成脏数据。

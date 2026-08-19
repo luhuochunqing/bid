@@ -1802,3 +1802,38 @@ PR !2333 修复数据分析 7 项缺陷后用户复测仍报 4 个问题：M1 �
 - `backend/src/main/java/com/xiyu/bid/analytics/service/TrendAnalysisComputationService.java`（投标数口径）
 - `backend/src/main/java/com/xiyu/bid/analytics/service/CompetitorAnalysisAssemblerService.java`（入口放行）
 - `src/views/data-analysis/components/shared/TreeSelectDropdown.vue` + `TreeSelectNode.vue`（部门下拉交互）
+
+---
+
+## 125. 案例沉淀读已下线数据源 `project_score_drafts` 导致结项后无法生成案例（2026-08-19，PR !2343）
+
+### 背景
+
+测试环境项目 1350 已结项（`stage=CLOSED`），但「AI 自动生成案例」按钮不可用且未生成案例。反复联调无果，前端 `precipitateReady=false`、`precipitateTooltip` 为空。
+
+### 根因
+
+案例沉淀前置判定与 AI 切片构建读 `project_score_drafts`（评分草稿表），该表数据来源——「导入评分草稿」入口已于 2026-08-17 前端下线，导致全表为空；真实评分项已存在 `score_item`（spec 041 招标文件解析产物），但沉淀链路从未读取它。两个独立数据源，评分草稿链路删除后沉淀功能成了无源之水。
+
+### 修复
+
+前置判定（`CasePrecipitationAppService.getReadiness`）与 `ProjectClosedEventListener` 门禁 + `buildCases` 全部改读 `score_item`：
+- 引入轻量 DTO `ScoreItemSnapshot(id, title, ruleText, category)`，避免 `casework` 直接依赖 `scoreparse` 实体，保持跨模块边界清晰（ArchUnit 通过）。
+- `CaseAiMatcher` 输入从 `ProjectScoreDraft` 改为 `ScoreItemSnapshot`。
+- `scoringCategory` 映射口径：`CaseAiMatcher.extractCategory(score_item.dim)`——`dim` 是中文业务词（技术/商务/实施服务/资质业绩），复用既有中文关键词归类，不再依赖已删除 draft 的 category 字段。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| 数据源随功能下线空转 | 某条链路的数据源入口被下线后，读它的消费方不会报错、只会静默返回空，功能"看起来没坏其实已死" | 删除功能入口 / 清理废弃表时，全仓 grep 该表的消费方（Repository 方法），一并迁移或显式标注废弃 |
+| 前置条件判定与真实链路数据源分裂 | 前端校验用的 readiness 与后端实际沉淀读的不是同一张表，会出现"校验通过但沉淀无数据"或"校验不过但数据在别处" | 前置条件判定与业务执行必须读同一数据源，用例/TODO 里显式断言数据源表名 |
+| 跨模块实体依赖 | 直接让 application 依赖另一模块的 JPA Entity 会破坏分层，但跨模块取数又是刚需 | 用契约化的轻量 DTO / Record 承载所需字段，实体只在来源模块内部流转 |
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/casework/application/CasePrecipitationAppService.java`
+- `backend/src/main/java/com/xiyu/bid/casework/application/ProjectClosedEventListener.java`
+- `backend/src/main/java/com/xiyu/bid/casework/application/CaseAiMatcher.java`
+- `backend/src/main/java/com/xiyu/bid/casework/application/ScoreItemSnapshot.java`（新增）
+- `backend/src/test/java/com/xiyu/bid/casework/application/CasePrecipitationAppServiceTest.java`（新增）
