@@ -1736,4 +1736,33 @@ PRD 要求投标编制阶段接入案例库智能推荐，结项时自动将标�
 - `src/views/Bidding/components/AICaseRecommendDrawer.vue` / `AICaseRecommendCard.vue` / `AICaseDetailModal.vue`
 - `backend/src/main/resources/db/migration-mysql/V1193__add_score_item_to_case_reference.sql`
 
+## 123. Flyway 迁移建 VARCHAR 列但 JPA 实体是 @Enumerated(STRING)：Hibernate schema-validation 启动即崩（2026-08-19，第 133 次部署容器测试门禁拦截）
+
+### 背景
+
+第 133 次测试环境部署打包时，容器测试门禁（`FlywayMysqlContainerTest`，2026-08-12 §111 事故后引入）失败：Hibernate schema-validation 报 `compliance_check_results.status` 列 `found [varchar], expecting [enum]`。若绕过门禁直接部署，后端启动即 crash-loop。
+
+### 根因
+
+V1196 迁移新增 `status VARCHAR(32) NOT NULL DEFAULT 'COMPLETED'`，但对应 JPA 实体字段是 `@Enumerated(EnumType.STRING)` 枚举。Hibernate 6 对 STRING 枚举列期望 MySQL `ENUM` 类型，schema-validation（ddl-auto=validate）启动时校验列类型不匹配直接拒绝启动。与 V1040→V1041（check_type 列）历史事故完全同款。
+
+### 修复
+
+新增 V1197 `MODIFY COLUMN status ENUM('INIT','PARSING','CHECKING','COMPLETED','FAILED') NOT NULL DEFAULT 'COMPLETED'`（参照 V1041 先例，大写枚举值可过 validate，MySQL ENUM 比较大小写不敏感），配套 U1197 回滚脚本，PR !2335 合入后继续部署成功。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| 迁移列类型与 JPA 枚举不匹配 | 给 `@Enumerated(EnumType.STRING)` 实体字段建列必须用 `ENUM(...)` 而非 `VARCHAR` | 迁移评审检查清单：新增列若映射枚举实体字段，列类型必须为 ENUM |
+| 门禁价值验证 | 容器测试门禁拦截了一起必然后端 crash 的缺陷，纯单测无法发现 | 部署打包必过 `FlywayMysqlContainerTest`，逃生阀仅限明确无需验证的场景 |
+| 回滚脚本位置与头部 | U 脚本必须放 `db/rollback/migration-mysql/`（非迁移目录）且含 `-- Input: migration-mysql/Vn__xxx.sql` 头 | `FlywayRollbackScriptCoverageTest` 强制校验，pre-push 门禁拦截 |
+
+### 相关文件
+
+- `backend/src/main/resources/db/migration-mysql/V1196__extend_compliance_check_results_for_quality.sql`（缺陷来源）
+- `backend/src/main/resources/db/migration-mysql/V1197__fix_compliance_check_status_enum.sql`（修复）
+- `backend/src/main/resources/db/rollback/migration-mysql/U1197__fix_compliance_check_status_enum.sql`（回滚）
+- `backend/src/main/java/com/xiyu/bid/compliance/entity/ComplianceCheckResult.java`（TaskStatus 枚举）
+
 
