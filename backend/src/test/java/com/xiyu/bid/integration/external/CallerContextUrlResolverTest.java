@@ -18,6 +18,10 @@ class CallerContextUrlResolverTest {
 
     private static final String DOC_INSIGHT = "doc-insight://STORAGE/sample.pdf";
 
+    /** 同源部署（无 publicBaseUrl）、无 signer 的 Resolver 实例。 */
+    private final TenderAttachmentUrlResolver resolver =
+            new TenderAttachmentUrlResolver(new IntegrationEndpointUrls(""), null);
+
     // ── CallerContext 基础语义 ─────────────────────────────────────────────
 
     @Test
@@ -50,7 +54,7 @@ class CallerContextUrlResolverTest {
     @Test
     void resolve_internalUser_prefersInternalDownloadEndpoint() {
         CallerContext ctx = CallerContext.internalUser();
-        String url = TenderAttachmentUrlResolver.resolve(DOC_INSIGHT, ctx);
+        String url = resolver.resolve(DOC_INSIGHT, ctx);
         assertNotNull(url);
         // 内部用户应使用 /api/doc-insight/download 端点
         assertTrue(url.contains("/api/doc-insight/download"),
@@ -63,7 +67,7 @@ class CallerContextUrlResolverTest {
     @Test
     void resolve_externalSystemWithApiKey_usesIntegrationEndpointWithParam() {
         CallerContext ctx = CallerContext.externalSystem("xiyu_sk_test_key");
-        String url = TenderAttachmentUrlResolver.resolve(DOC_INSIGHT, ctx);
+        String url = resolver.resolve(DOC_INSIGHT, ctx);
         assertNotNull(url);
         // 外部系统应使用 /api/integration/tenders/attachments/download 端点
         assertTrue(url.contains("/api/integration/tenders/attachments/download"),
@@ -76,7 +80,7 @@ class CallerContextUrlResolverTest {
     @Test
     void resolve_externalSystemWithoutApiKey_usesIntegrationEndpoint() {
         CallerContext ctx = CallerContext.externalSystem(null);
-        String url = TenderAttachmentUrlResolver.resolve(DOC_INSIGHT, ctx);
+        String url = resolver.resolve(DOC_INSIGHT, ctx);
         assertNotNull(url);
         // 无 API Key 时仍使用集成端点，但不加 api_key 参数
         assertTrue(url.contains("/api/integration/tenders/attachments/download"),
@@ -87,15 +91,15 @@ class CallerContextUrlResolverTest {
 
     @Test
     void resolve_nullUrl_returnsNull_safe() {
-        assertNull(TenderAttachmentUrlResolver.resolve(null, CallerContext.internalUser()));
-        assertNull(TenderAttachmentUrlResolver.resolve(null, CallerContext.externalSystem("x")));
+        assertNull(resolver.resolve(null, CallerContext.internalUser()));
+        assertNull(resolver.resolve(null, CallerContext.externalSystem("x")));
     }
 
     @Test
     void resolve_emptyUrl_returnsEmpty_safe() {
         String empty = "";
-        assertEquals(empty, TenderAttachmentUrlResolver.resolve(empty, CallerContext.internalUser()));
-        assertEquals(empty, TenderAttachmentUrlResolver.resolve(empty, CallerContext.externalSystem("x")));
+        assertEquals(empty, resolver.resolve(empty, CallerContext.internalUser()));
+        assertEquals(empty, resolver.resolve(empty, CallerContext.externalSystem("x")));
     }
 
     // ── resolveBatch() 批量转换 ─────────────────────────────────────
@@ -109,7 +113,7 @@ class CallerContextUrlResolverTest {
                 "https://example.com/already-external.pdf"
         );
         CallerContext ctx = CallerContext.internalUser();
-        List<String> results = TenderAttachmentUrlResolver.resolveBatch(inputs, ctx);
+        List<String> results = resolver.resolveBatch(inputs, ctx);
 
         assertEquals(inputs.size(), results.size(), "Batch result size must match input");
         // 第一个 doc-insight 应转换为内部端点
@@ -130,7 +134,7 @@ class CallerContextUrlResolverTest {
                 null
         );
         CallerContext ctx = CallerContext.externalSystem("xiyu_sk_test_key");
-        List<String> results = TenderAttachmentUrlResolver.resolveBatch(inputs, ctx);
+        List<String> results = resolver.resolveBatch(inputs, ctx);
 
         assertEquals(inputs.size(), results.size());
         // doc-insight:// URL 应转换为集成端点，并附加 api_key
@@ -146,8 +150,8 @@ class CallerContextUrlResolverTest {
     @Test
     void resolve_internalUser_equivalentTo_toDownloadUrl() {
         CallerContext ctx = CallerContext.internalUser();
-        String viaResolve = TenderAttachmentUrlResolver.resolve(DOC_INSIGHT, ctx);
-        String direct = TenderAttachmentUrlResolver.toDownloadUrl(DOC_INSIGHT);
+        String viaResolve = resolver.resolve(DOC_INSIGHT, ctx);
+        String direct = resolver.toDownloadUrl(DOC_INSIGHT);
         assertEquals(direct, viaResolve);
     }
 
@@ -155,16 +159,16 @@ class CallerContextUrlResolverTest {
     void resolve_externalSystemWithKey_equivalentTo_toIntegrationFullUrlWithKey() {
         String key = "xiyu_sk_test_key";
         CallerContext ctx = CallerContext.externalSystem(key);
-        String viaResolve = TenderAttachmentUrlResolver.resolve(DOC_INSIGHT, ctx);
-        String direct = TenderAttachmentUrlResolver.toIntegrationFullUrl(DOC_INSIGHT, key);
+        String viaResolve = resolver.resolve(DOC_INSIGHT, ctx);
+        String direct = resolver.toIntegrationFullUrl(DOC_INSIGHT, key);
         assertEquals(direct, viaResolve);
     }
 
     @Test
     void resolve_externalSystemNoKey_equivalentTo_toIntegrationFullUrlNoParam() {
         CallerContext ctx = CallerContext.externalSystem(null);
-        String viaResolve = TenderAttachmentUrlResolver.resolve(DOC_INSIGHT, ctx);
-        String direct = TenderAttachmentUrlResolver.toIntegrationFullUrl(DOC_INSIGHT);
+        String viaResolve = resolver.resolve(DOC_INSIGHT, ctx);
+        String direct = resolver.toIntegrationFullUrl(DOC_INSIGHT);
         assertEquals(direct, viaResolve);
     }
 }

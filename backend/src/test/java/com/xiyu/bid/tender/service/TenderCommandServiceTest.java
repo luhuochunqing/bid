@@ -17,7 +17,9 @@ import com.xiyu.bid.service.ProjectAccessScopeService;
 import com.xiyu.bid.tender.dto.TenderAttachmentDTO;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.integration.external.IntegrationEndpointUrls;
 import com.xiyu.bid.integration.external.ProjectManagerIdResolver;
+import com.xiyu.bid.integration.external.TenderAttachmentUrlResolver;
 import com.xiyu.bid.integration.tenderevent.application.TenderEventPublishService;
 import com.xiyu.bid.project.service.ProjectManagerDepartmentEnricher;
 import com.xiyu.bid.tender.entity.TenderAttachment;
@@ -97,7 +99,7 @@ class TenderCommandServiceTest {
 
     @BeforeEach
     void setUp() {
-        tenderMapper = new TenderMapper();
+        tenderMapper = new TenderMapper(new TenderAttachmentUrlResolver(new IntegrationEndpointUrls(""), null));
         accessGuard = new TenderProjectAccessGuard(projectRepository, projectAccessScopeService, dataScopeConfigService, userRepository, tenderAssignmentRecordRepository);
         statusTransitionPolicy = new TenderStatusTransitionPolicy();
         tenderCommandService = new TenderCommandService(

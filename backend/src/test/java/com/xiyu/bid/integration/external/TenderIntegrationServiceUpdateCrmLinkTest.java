@@ -66,7 +66,8 @@ class TenderIntegrationServiceUpdateCrmLinkTest {
         TenderEvaluationIntegrationMapper evaluationMapper = new TenderEvaluationIntegrationMapper(
                 tenderEvaluationRepository, submissionMapper);
         TenderIntegrationMapper mapper = new TenderIntegrationMapper(
-                tenderMapper, evaluationMapper, projectManagerIdResolver);
+                tenderMapper, evaluationMapper, projectManagerIdResolver,
+                new TenderAttachmentUrlResolver(new IntegrationEndpointUrls(""), null));
         TenderEvaluationIntegrationService evaluationService = new TenderEvaluationIntegrationService(
                 tenderEvaluationRepository, evaluationMapper, projectDocumentRepository);
         TenderIntegrationResolver helper = new TenderIntegrationResolver(tenderRepository);

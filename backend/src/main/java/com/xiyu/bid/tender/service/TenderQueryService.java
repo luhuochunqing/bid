@@ -1,3 +1,7 @@
+// Input: 标讯查询条件 / 标讯 ID / 分页参数
+// Output: TenderDTO 列表与详情（附件 URL 经 TenderAttachmentUrlResolver 实例标准化为下载端点）
+// Pos: tender.service — 标讯只读查询服务（搜索/详情/附件加载，数据权限经 TenderProjectAccessGuard 过滤）
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.tender.service;
 
 import com.xiyu.bid.batch.entity.TenderAssignmentRecord;
@@ -7,7 +11,7 @@ import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.tender.entity.TenderAttachment;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.exception.ResourceNotFoundException;
-import com.xiyu.bid.integration.external.TenderIntegrationMapper;
+import com.xiyu.bid.integration.external.TenderAttachmentUrlResolver;
 import com.xiyu.bid.project.service.ProjectManagerDepartmentEnricher;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.tender.repository.TenderAttachmentRepository;
@@ -44,6 +48,7 @@ public class TenderQueryService {
     private final TenderAssignmentRecordRepository tenderAssignmentRecordRepository;
     private final TenderManagerInfoFetcher managerInfoFetcher;
     private final ProjectManagerDepartmentEnricher departmentEnricher;
+    private final TenderAttachmentUrlResolver attachmentUrlResolver;
 
     public List<TenderDTO> searchTenders(TenderSearchCriteria criteria) {
         log.debug("Searching tenders with criteria: {}", criteria);
@@ -67,7 +72,7 @@ public class TenderQueryService {
                 .map(a -> TenderAttachmentDTO.builder()
                         .fileName(a.getFileName())
                         .fileType(a.getFileType())
-                        .fileUrl(TenderIntegrationMapper.toDownloadUrl(a.getFileUrl()))
+                        .fileUrl(attachmentUrlResolver.toDownloadUrl(a.getFileUrl()))
                         .build())
                 .collect(Collectors.toList()));
         return dto;

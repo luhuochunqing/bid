@@ -58,6 +58,7 @@ public class ProjectResultPayloadAssembler {
     private final ProjectDocumentRepository projectDocumentRepository;
     private final ProjectInitiationDetailsRepository projectInitiationDetailsRepository;
     private final ObjectMapper objectMapper;
+    private final TenderAttachmentUrlResolver attachmentUrlResolver;
 
     /**
      * 组装 §4.2 回调载荷。
@@ -151,7 +152,7 @@ public class ProjectResultPayloadAssembler {
             if (doc == null) continue;
             Map<String, Object> file = new LinkedHashMap<>();
             file.put("fileName", safe(doc.getName()));
-            file.put("fileUrl", TenderAttachmentUrlResolver.resolve(
+            file.put("fileUrl", attachmentUrlResolver.resolve(
                     safe(doc.getFileUrl()), CallerContext.externalSystem(null)));
             file.put("fileSize", parseSize(doc.getSize()));
             files.add(file);
@@ -191,7 +192,7 @@ public class ProjectResultPayloadAssembler {
             if (doc == null) continue;
             files.add(new EvidenceFile(
                     safe(doc.getName()),
-                    TenderAttachmentUrlResolver.resolve(safe(doc.getFileUrl()), CallerContext.externalSystem(null)),
+                    attachmentUrlResolver.resolve(safe(doc.getFileUrl()), CallerContext.externalSystem(null)),
                     parseSize(doc.getSize())));
         }
         return files;

@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.crm.infrastructure.dto.ProjectResultCallbackPayload;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.integration.external.IntegrationEndpointUrls;
+import com.xiyu.bid.integration.external.TenderAttachmentUrlResolver;
 import com.xiyu.bid.project.core.BidResultType;
 import com.xiyu.bid.project.domain.ProjectResultConfirmedEvent;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
@@ -47,7 +49,8 @@ class ProjectResultPayloadAssemblerTest {
     private ProjectResultPayloadAssembler assembler() {
         return new ProjectResultPayloadAssembler(
                 tenderRepository, userRepository, projectDocumentRepository,
-                projectInitiationDetailsRepository, new ObjectMapper());
+                projectInitiationDetailsRepository, new ObjectMapper(),
+                new TenderAttachmentUrlResolver(new IntegrationEndpointUrls(""), null));
     }
 
     @Test

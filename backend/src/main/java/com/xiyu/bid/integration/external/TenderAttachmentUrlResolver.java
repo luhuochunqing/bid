@@ -1,14 +1,12 @@
 // Input: fileUrl 字符串（obs-direct: / doc-insight:// / http(s):// / /api/... 相对路径）
 // Output: 转换后的下载 URL（OBS 预签名 URL / XiYu 内部端点 / CRM 集成端点）
-// Pos: integration.external — 附件 URL 转换器，承载 publicBaseUrl 配置和端点选择逻辑
+// Pos: integration.external — 附件 URL 转换器，按调用方上下文选择端点与认证方式
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.integration.external;
 
 import com.xiyu.bid.file.application.ObsShareUrlSigner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.net.URLEncoder;
@@ -25,35 +23,28 @@ import static com.xiyu.bid.apikey.infrastructure.ApiKeyAuthConstants.DEFAULT_QUE
  * <p>三条转换路径：obs-direct:{uploadId}：内部用户 → OBS 预签名 URL（{@link ObsShareUrlSigner}），
  * 外部系统 → 集成下载端点 URL（永久有效，下载时实时签发）；
  * doc-insight:// → XiYu 内部端点；http(s):// → 原样返回。
- * {@code publicBaseUrl} 通过 {@link Value @Value} 注入静态字段，
- * {@code obsShareUrlSigner} 通过 {@link Autowired @Autowired} 注入静态字段。
+ *
+ * <p>依赖均走构造器注入：端点 URL 构造委托 {@link IntegrationEndpointUrls}
+ * （承载 publicBaseUrl 配置）；{@code obsShareUrlSigner} 单元测试中可传 null。
  */
 @Component
 public class TenderAttachmentUrlResolver {
 
     private static final Logger log = LoggerFactory.getLogger(TenderAttachmentUrlResolver.class);
 
-    /** 公开端点根地址（如 https://winbid-test.ehsy.com）。 */
-    private static String publicBaseUrl;
+    private final IntegrationEndpointUrls endpointUrls;
+    private final ObsShareUrlSigner obsShareUrlSigner;
 
-    @Value("${xiyu.public-base-url:}")
-    public void setPublicBaseUrl(String value) {
-        TenderAttachmentUrlResolver.publicBaseUrl = value;
-    }
-
-    /** OBS 分享 URL 签发器，单元测试中为 null。 */
-    private static ObsShareUrlSigner obsShareUrlSigner;
-
-    @Autowired
-    public void setObsShareUrlSigner(ObsShareUrlSigner signer) {
-        TenderAttachmentUrlResolver.obsShareUrlSigner = signer;
+    public TenderAttachmentUrlResolver(IntegrationEndpointUrls endpointUrls, ObsShareUrlSigner obsShareUrlSigner) {
+        this.endpointUrls = endpointUrls;
+        this.obsShareUrlSigner = obsShareUrlSigner;
     }
 
     /**
      * 尝试将 obs-direct:{uploadId} 转换为 OBS 预签名 URL。
      * 非 obs-direct: 前缀返回 empty（让后续逻辑接管）；签发失败也返回 empty。
      */
-    private static Optional<String> tryResolveObsDirect(String url) {
+    private Optional<String> tryResolveObsDirect(String url) {
         if (url == null || !url.startsWith(ObsShareUrlSigner.OBS_DIRECT_PREFIX)) {
             return Optional.empty();
         }
@@ -74,7 +65,7 @@ public class TenderAttachmentUrlResolver {
      * 否则返回相对路径（同源部署场景）。
      * 幂等：已是下载地址的不再二次包装（CO-283）。
      */
-    public static String toDownloadUrl(String u) {
+    public String toDownloadUrl(String u) {
         if (u == null || u.isBlank()) {
             return u;
         }
@@ -83,11 +74,11 @@ public class TenderAttachmentUrlResolver {
         if (obsSigned.isPresent()) {
             return obsSigned.get();
         }
-        if (u.startsWith("/api/doc-insight/download?")) {
-            return prependPublicBaseUrl(u);
+        if (u.startsWith(IntegrationEndpointUrls.LEGACY_DOC_INSIGHT_QUERY_PREFIX)) {
+            return endpointUrls.prependBase(u);
         }
         if (u.startsWith("doc-insight://")) {
-            return prependPublicBaseUrl("/api/doc-insight/download?fileUrl="
+            return endpointUrls.prependBase(IntegrationEndpointUrls.LEGACY_DOC_INSIGHT_QUERY_PREFIX + "fileUrl="
                     + URLEncoder.encode(u, StandardCharsets.UTF_8));
         }
         return u;
@@ -97,7 +88,7 @@ public class TenderAttachmentUrlResolver {
      * 构造 CRM 集成下载端点 URL（CO-280 403 修复）。
      *
      * <p>生成 {@code /api/integration/tenders/attachments/download} 端点 URL，
-     * 该端点走 {@code ApiKeyAuthenticationFilter}（X-API-Key 头），不需要 XiYu 登录态。
+     * 该端点公开访问（permitAll，URL-as-capability），不需要 XiYu 登录态。
      * 适用于 CRM 跨系统访问附件的场景。
      *
      * <p>若配置了 xiyu.public-base-url，返回完整 URL（供 CRM 跨域访问）；
@@ -106,7 +97,7 @@ public class TenderAttachmentUrlResolver {
      * @param u 原始 fileUrl，支持 doc-insight:// / http(s):// / 已是下载地址的 URL
      * @return 集成下载端点 URL
      */
-    public static String toIntegrationDownloadUrl(String u) {
+    public String toIntegrationDownloadUrl(String u) {
         if (u == null || u.isBlank()) {
             return u;
         }
@@ -125,7 +116,7 @@ public class TenderAttachmentUrlResolver {
      *
      * <p>注意：此方法生成的是 XiYu 内部下载端点 URL，需要 XiYu 登录态。
      */
-    public static String toFullUrl(String url) {
+    public String toFullUrl(String url) {
         if (url == null) return null;
         // obs-direct: → OBS 预签名 URL（签发失败回退为原值）
         Optional<String> obsSigned = tryResolveObsDirect(url);
@@ -136,7 +127,7 @@ public class TenderAttachmentUrlResolver {
             return toDownloadUrl(url);
         }
         if (url.startsWith("/api/")) {
-            return prependPublicBaseUrl(url);
+            return endpointUrls.prependBase(url);
         }
         return url;
     }
@@ -146,14 +137,14 @@ public class TenderAttachmentUrlResolver {
      * 同时处理已被 TenderMapper.toDTO() 转换为 /api/... 相对路径的 URL。
      * http(s):// 等已是完整 URL 的直接返回。
      */
-    public static String toIntegrationFullUrl(String url) {
+    public String toIntegrationFullUrl(String url) {
         if (url == null) return null;
         String endpointUrl = toIntegrationEndpointUrlOrNull(url);
         if (endpointUrl != null) {
             return endpointUrl;
         }
         if (url.startsWith("/api/")) {
-            return prependPublicBaseUrl(url);
+            return endpointUrls.prependBase(url);
         }
         return url;
     }
@@ -169,9 +160,9 @@ public class TenderAttachmentUrlResolver {
      * @param apiKey 明文 API Key（为 null 或空串时退化为无参数版本）
      * @return 集成下载端点 URL，含 api_key 查询参数（当 apiKey 非空时）
      */
-    public static String toIntegrationFullUrl(String url, String apiKey) {
+    public String toIntegrationFullUrl(String url, String apiKey) {
         String result = toIntegrationFullUrl(url);
-        if (apiKey != null && !apiKey.isBlank() && isOwnIntegrationDownloadUrl(result)) {
+        if (apiKey != null && !apiKey.isBlank() && endpointUrls.isOwnIntegrationDownloadUrl(result)) {
             return appendApiKeyParam(result, apiKey);
         }
         return result;
@@ -186,7 +177,7 @@ public class TenderAttachmentUrlResolver {
      *   <li>外部系统但无 apiKey → {@link #toIntegrationFullUrl(String)}</li>
      * </ul>
      */
-    public static String resolve(String fileUrl, CallerContext context) {
+    public String resolve(String fileUrl, CallerContext context) {
         if (context == null || context.isInternalUser()) {
             return toDownloadUrl(fileUrl);
         }
@@ -202,7 +193,7 @@ public class TenderAttachmentUrlResolver {
      *
      * @see #resolve(String, CallerContext)
      */
-    public static List<String> resolveBatch(List<String> fileUrls, CallerContext context) {
+    public List<String> resolveBatch(List<String> fileUrls, CallerContext context) {
         if (fileUrls == null) return null;
         List<String> result = new ArrayList<>(fileUrls.size());
         for (String url : fileUrls) {
@@ -218,19 +209,20 @@ public class TenderAttachmentUrlResolver {
      * 修复 CRM 侧链接 1 小时过期）→ 已是集成端点（幂等）→ 旧 doc-insight 端点（重定向）
      * → doc-insight://（转换）；均不命中返回 null 由调用方接管。
      */
-    private static String toIntegrationEndpointUrlOrNull(String u) {
+    private String toIntegrationEndpointUrlOrNull(String u) {
         if (u.startsWith(ObsShareUrlSigner.OBS_DIRECT_PREFIX)) {
             return wrapObsDirectAsIntegrationUrl(u);
         }
-        if (u.startsWith("/api/integration/tenders/attachments/download?")) {
-            return prependPublicBaseUrl(u);
+        if (u.startsWith(IntegrationEndpointUrls.INTEGRATION_DOWNLOAD_QUERY_PREFIX)) {
+            return endpointUrls.prependBase(u);
         }
-        String legacyDocInsightParams = extractOwnLegacyDocInsightParams(u);
+        String legacyDocInsightParams = endpointUrls.extractOwnLegacyDocInsightParams(u);
         if (legacyDocInsightParams != null) {
-            return prependPublicBaseUrl("/api/integration/tenders/attachments/download?" + legacyDocInsightParams);
+            return endpointUrls.prependBase(
+                    IntegrationEndpointUrls.INTEGRATION_DOWNLOAD_QUERY_PREFIX + legacyDocInsightParams);
         }
         if (u.startsWith("doc-insight://")) {
-            return prependPublicBaseUrl("/api/integration/tenders/attachments/download?fileUrl="
+            return endpointUrls.prependBase(IntegrationEndpointUrls.INTEGRATION_DOWNLOAD_QUERY_PREFIX + "fileUrl="
                     + URLEncoder.encode(u, StandardCharsets.UTF_8));
         }
         return null;
@@ -243,53 +235,13 @@ public class TenderAttachmentUrlResolver {
      * TenderAttachmentDownloadService 实时签发预签名 URL 并 302 重定向，
      * 从根本上解决回调下发的 URL 过期问题。</p>
      */
-    private static String wrapObsDirectAsIntegrationUrl(String u) {
-        if (publicBaseUrl == null || publicBaseUrl.isBlank()) {
+    private String wrapObsDirectAsIntegrationUrl(String u) {
+        if (!endpointUrls.hasPublicBaseUrl()) {
             log.warn("xiyu.public-base-url 未配置，外部系统收到的 obs-direct 下载 URL 为相对路径（{}），"
                     + "跨系统场景将不可用，请检查部署配置", u);
         }
-        return prependPublicBaseUrl("/api/integration/tenders/attachments/download?fileUrl="
+        return endpointUrls.prependBase(IntegrationEndpointUrls.INTEGRATION_DOWNLOAD_QUERY_PREFIX + "fileUrl="
                 + URLEncoder.encode(u, StandardCharsets.UTF_8));
-    }
-
-    private static String extractOwnLegacyDocInsightParams(String url) {
-        String legacyPath = "/api/doc-insight/download?";
-        if (url.startsWith(legacyPath)) {
-            return url.substring(legacyPath.length());
-        }
-        String ownAbsoluteLegacyPath = ownAbsolutePathPrefix(legacyPath);
-        if (ownAbsoluteLegacyPath != null && url.startsWith(ownAbsoluteLegacyPath)) {
-            return url.substring(ownAbsoluteLegacyPath.length());
-        }
-        return null;
-    }
-
-    private static boolean isOwnIntegrationDownloadUrl(String url) {
-        if (url == null) return false;
-        String integrationPath = "/api/integration/tenders/attachments/download";
-        if (url.startsWith(integrationPath)) {
-            return true;
-        }
-        String ownAbsoluteIntegrationPath = ownAbsolutePathPrefix(integrationPath);
-        return ownAbsoluteIntegrationPath != null && url.startsWith(ownAbsoluteIntegrationPath);
-    }
-
-    private static String ownAbsolutePathPrefix(String path) {
-        if (publicBaseUrl == null || publicBaseUrl.isBlank()) {
-            return null;
-        }
-        String baseUrl = publicBaseUrl.endsWith("/")
-                ? publicBaseUrl.substring(0, publicBaseUrl.length() - 1)
-                : publicBaseUrl;
-        return baseUrl + path;
-    }
-
-    /** 若配置了 publicBaseUrl，将相对路径补全为完整 URL；否则原样返回。 */
-    private static String prependPublicBaseUrl(String relative) {
-        if (publicBaseUrl == null || publicBaseUrl.isBlank()) {
-            return relative;
-        }
-        return publicBaseUrl + relative;
     }
 
     /** 附加 api_key 查询参数到 URL，正确处理已有 query string 的情况。 */

@@ -1,8 +1,11 @@
+// Input: Tender 实体 / TenderRequest / 待构建的联系人字段
+// Output: TenderDTO（含附件下载 URL 标准化）/ Tender 实体 / 联系人数组
+// Pos: tender.service — 标讯实体与 DTO 双向映射（附件 URL 经 TenderAttachmentUrlResolver 实例标准化）
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.tender.service;
 
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.integration.external.TenderAttachmentUrlResolver;
-import com.xiyu.bid.integration.external.TenderIntegrationMapper;
 import com.xiyu.bid.tender.entity.TenderAttachment;
 import com.xiyu.bid.tender.dto.ContactDTO;
 import com.xiyu.bid.tender.dto.TenderAttachmentDTO;
@@ -18,6 +21,12 @@ import java.util.stream.Collectors;
 
 @Component
 public class TenderMapper {
+
+    private final TenderAttachmentUrlResolver attachmentUrlResolver;
+
+    public TenderMapper(TenderAttachmentUrlResolver attachmentUrlResolver) {
+        this.attachmentUrlResolver = attachmentUrlResolver;
+    }
 
     private static final int BID_NOTICE_TRUNCATE = 200;
     public TenderDTO toDTO(Tender tender) {
@@ -50,10 +59,10 @@ public class TenderMapper {
                 .contactInfo(buildContacts(tender))
                 .sourceDocumentName(tender.getSourceDocumentName())
                 .sourceDocumentFileType(tender.getSourceDocumentFileType())
-                .sourceDocumentFileUrl(TenderAttachmentUrlResolver.toDownloadUrl(tender.getSourceDocumentFileUrl()))
+                .sourceDocumentFileUrl(attachmentUrlResolver.toDownloadUrl(tender.getSourceDocumentFileUrl()))
                 .attachments(tender.getAttachments() == null || tender.getAttachments().isEmpty() ? Collections.emptyList()
                         : tender.getAttachments().stream().map(a -> TenderAttachmentDTO.builder()
-                                .fileName(a.getFileName()).fileType(a.getFileType()).fileUrl(toDownloadUrl(a.getFileUrl())).build())
+                                .fileName(a.getFileName()).fileType(a.getFileType()).fileUrl(attachmentUrlResolver.toDownloadUrl(a.getFileUrl())).build())
                                 .collect(Collectors.toList()))
                 .customerType(tender.getCustomerType())
                 .priority(tender.getPriority())
@@ -75,7 +84,7 @@ public class TenderMapper {
                 .creatorId(tender.getCreatorId())
                 .creatorName(tender.getCreatorName())
                 .bidNotice(truncate(tender.getBidNotice(), BID_NOTICE_TRUNCATE))
-                .bidNoticeFileUrl(TenderAttachmentUrlResolver.toDownloadUrl(tender.getBidNoticeFileUrl()))
+                .bidNoticeFileUrl(attachmentUrlResolver.toDownloadUrl(tender.getBidNoticeFileUrl()))
                 .projectType(tender.getProjectType())
                 .projectId(tender.getProjectId())
                 .tenderInfo(tender.getTenderInfo())
@@ -301,9 +310,5 @@ public class TenderMapper {
     private static String truncate(String value, int maxLen) {
         if (value == null) return null;
         return value.length() <= maxLen ? value : value.substring(0, maxLen);
-    }
-
-    private static String toDownloadUrl(String fileUrl) {
-        return TenderIntegrationMapper.toDownloadUrl(fileUrl);
     }
 }

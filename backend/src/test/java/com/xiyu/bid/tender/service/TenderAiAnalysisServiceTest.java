@@ -2,6 +2,8 @@ package com.xiyu.bid.tender.service;
 
 import com.xiyu.bid.ai.service.AiService;
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.integration.external.IntegrationEndpointUrls;
+import com.xiyu.bid.integration.external.TenderAttachmentUrlResolver;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,7 +38,7 @@ class TenderAiAnalysisServiceTest {
 
     @BeforeEach
     void setUp() {
-        tenderMapper = new TenderMapper();
+        tenderMapper = new TenderMapper(new TenderAttachmentUrlResolver(new IntegrationEndpointUrls(""), null));
         aiAnalysisService = new TenderAiAnalysisService(tenderRepository, tenderMapper, accessGuard, aiService);
 
         tender = Tender.builder()

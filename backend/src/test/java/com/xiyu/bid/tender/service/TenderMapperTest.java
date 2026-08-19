@@ -1,6 +1,8 @@
 package com.xiyu.bid.tender.service;
 
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.integration.external.IntegrationEndpointUrls;
+import com.xiyu.bid.integration.external.TenderAttachmentUrlResolver;
 import com.xiyu.bid.tender.dto.ContactDTO;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import com.xiyu.bid.tender.dto.TenderRequest;
@@ -18,7 +20,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class TenderMapperTest {
 
-    private final TenderMapper tenderMapper = new TenderMapper();
+    private final TenderMapper tenderMapper = new TenderMapper(
+            new TenderAttachmentUrlResolver(new IntegrationEndpointUrls(""), null));
 
     private Tender buildTender(String n1, String p1, String t1, String m1,
                                String n2, String p2, String t2, String m2) {

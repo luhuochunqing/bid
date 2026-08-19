@@ -5,6 +5,8 @@ import com.xiyu.bid.batch.repository.TenderAssignmentRecordRepository;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.integration.external.IntegrationEndpointUrls;
+import com.xiyu.bid.integration.external.TenderAttachmentUrlResolver;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationDepartmentEntity;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationDepartmentRepository;
 import com.xiyu.bid.project.service.ProjectManagerDepartmentEnricher;
@@ -63,7 +65,8 @@ class TenderQueryServiceTest {
         TenderManagerInfoFetcher fetcher = new TenderManagerInfoFetcher(
                 projectRepository, userRepository, enricher);
         return new TenderQueryService(tenderRepository, tenderMapper, tenderAttachmentRepository, accessGuard,
-                projectRepository, userRepository, tenderAssignmentRecordRepository, fetcher, enricher);
+                projectRepository, userRepository, tenderAssignmentRecordRepository, fetcher, enricher,
+                new TenderAttachmentUrlResolver(new IntegrationEndpointUrls(""), null));
     }
 
     private Tender tender(long id, String title) {
