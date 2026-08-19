@@ -134,6 +134,11 @@ PRD §9.12 步骤 7 + §9.14：竞品公司至少保留 1 个，不允许清空�
 - 竞品分析任何按竞品维度取「是否中标」的功能必须读 `prc.notes` 并经 `parseCompetitorWon` 解析（仅「已中标」精确匹配为 true）；**禁止**用 `projects.status`/`ProjectResult.resultType`/`pid.bidResultStatus` 推导——那些是我司（项目级）的中标事实，会整列传染。
 - 历史「其他说明」自由文本（非枚举）按未中标处理，与前端 select 显示为空的行为对齐。
 
+### 11. 跨表字符集 Collation 与纯函数解耦（2026-08-19）
+
+- **现象**：MySQL 中对不同 Collation 的列（如 `projects.customer_type` 与 `project_initiation_details.customer_type`）进行 `COALESCE` 时，返回表达式 Collation 会变为 `NONE`，导致后续 `!= ''` 或 `LIKE` 比较抛出 `Error 1267: Illegal mix of collations`，引发 500。
+- **根治**：SQL 层取消跨表 COALESCE 比较，拆分为各自列的布尔过滤；区域省级提取剥离出 SQL 20 行 CASE 表达式，改由纯函数 `RegionDimensionExtractor.extractProvince()` 在 Java 内存计算，彻底免疫数据库字符集差异。
+
 ## 文件清单
 
 ### 后端（analytics 包）

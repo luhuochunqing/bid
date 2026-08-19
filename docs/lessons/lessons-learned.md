@@ -1917,3 +1917,48 @@ PR !2339 修复竞品分析项目模式"暂无数据"后，用户复测发现数
 - `backend/src/main/java/com/xiyu/bid/analytics/service/CompetitorAnalysisAssemblerService.java`（isWon 来源替换）
 - `src/views/Project/stages/ResultConfirmStage.vue`（notes 语义漂移源头，L208-210 注释）
 - `src/constants/competitors.js`（COMPETITOR_WIN_STATUS_OPTIONS 枚举）
+
+---
+
+## 128. MySQL 跨表字段 Collation 不一致导致 COALESCE 比较抛 Error 1267 (HY000)（2026-08-19）
+
+### 背景与服务器崩溃现场
+
+多维度趋势模块在测试服务器部署后，前端筛选区「部门」和「人员」下拉框数据完全为空。由于前端 `useFilterSearch.js` 中使用了 `catch { /* silent */ }` 静默吞错，前端表面上无任何异常报错。
+通过全链路日志排查 SOP 查验 `/var/log/xiyu-bid/application.json.log`，抓取到真实异常为后端接口 `/api/analytics/filter-options` 与 `/api/analytics/trends/enhanced` 抛出 HTTP 500：
+```
+JDBC exception executing SQL [select distinct coalesce(nullif(pid1_0.customer_type,''),p1_0.customer_type) from projects p1_0 left join project_initiation_details pid1_0 on pid1_0.project_id=p1_0.id where ... and coalesce(...)!=''] [Illegal mix of collations (utf8mb4_bin,NONE) and (utf8mb4_0900_ai_ci,COERCIBLE) for operation '<>']
+```
+
+### 根因深度剖析 (5 Whys)
+
+1. **MySQL 跨表 Collation 混合规则**：`projects` 表与 `project_initiation_details` / `tenders` 表在历史迁移中创建的字符串列 Collation 不同（`utf8mb4_bin` vs `utf8mb4_0900_ai_ci`）。
+2. **COALESCE Collation 降级**：当 MySQL 执行 `COALESCE(colA, colB)` 且两列 Collation 不一致时，返回表达式的 Collation 被隐式设为 **`NONE`**。
+3. **比较操作失败**：当对 Collation 为 `NONE` 的表达式进行 `<> ''`、`!= ''` 或 `LIKE '北京市%'` 比较时，MySQL 无法完成跨字符排序规则的强制转换，直接抛出 `Error 1267: Illegal mix of collations for operation '<>' / 'like'`。
+4. **前端静默吞错陷阱**：前端 `useFilterSearch.js` 的 `catch` 块中没有任何 `console.error` 或错误提示，导致 500 接口报错直接表现为选项数组为空。
+
+### 彻底根治方案
+
+1. **消除 SQL 跨表 COALESCE / CASE 比较**：
+   - 不在 SQL `WHERE` 条件中对 `COALESCE(pid.col, p.col)` 进行比较，拆解为独立列的布尔表达式：`((pid.col IS NOT NULL AND pid.col <> '') OR (pid.col IS NULL AND p.col IS NOT NULL AND p.col <> ''))`。
+   - 区域省份解析从 SQL 20 行 `CASE WHEN coalesce(...) LIKE ...` 剥离，改为 Java 层纯函数 `RegionDimensionExtractor.extractProvince()`，100% 纯单测覆盖，彻底免疫数据库底层 Collation 差异。
+2. **前端移除静默吞错**：
+   - 改造 `useFilterSearch.js`，严格按照规范增加 `console.error` 日志输出。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| 跨表 COALESCE 的 Collation 陷阱 | MySQL 对不同 Collation 字段进行 COALESCE 会使结果 Collation 变为 NONE，在此基础上的 LIKE / <> 比较会必杀崩盘 | 避免在 SQL WHERE / CASE 中对跨表不同 Collation 的字符串列做 COALESCE 比较，优先在各表字段独立做 WHERE 条件，或在 Java 内存做合并与解析 |
+| 前端 silent catch 掩盖后端 500 | 接口 500 被 catch 吞掉，排查者容易误以为是"后端查出来数据为空"而盲目修改业务取数逻辑 | 严禁前端 catch 静默吞掉核心接口报错（`lessons-learned.md §25`），必须打出 error log |
+| 未查真实日志凭空打补丁 | 缺乏真实服务器日志证据前，多次打补丁越修越错 | 第 2 次修复同一 bug 时必须停下来走全链路日志排查 SOP，抓取完整 SQL 堆栈 |
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/analytics/service/RegionDimensionExtractor.java`（新增纯函数）
+- `backend/src/main/java/com/xiyu/bid/analytics/service/RegionDimensionRawRow.java`（新增）
+- `backend/src/main/java/com/xiyu/bid/analytics/service/FilterOptionsQueryService.java`
+- `backend/src/main/java/com/xiyu/bid/analytics/service/TrendAnalysisDimensionQueryService.java`
+- `backend/src/main/java/com/xiyu/bid/analytics/service/TrendDrillDownService.java`
+- `backend/src/test/java/com/xiyu/bid/analytics/service/RegionDimensionExtractorTest.java`（新增单测）
+- `src/views/data-analysis/components/m1-trend-analysis/composables/useFilterSearch.js`
