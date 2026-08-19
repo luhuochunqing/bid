@@ -221,3 +221,9 @@ src/views/data-analysis/
 - **⚠ 2026-08-19 修订（PR !2339 验收遗留）**：上述口径属**语义层级错配**——`resultType`/`status` 是项目级（我司）中标结果，不能推导每个竞品各自的中标状态，项目 WON 时整列误显「已中标」。正确数据源为 `project_result_competitor.notes`（结果确认「竞争对手情况」表格的「是否中标」列经前端语义漂移写入该字段，枚举 `已中标/未中标`）。现行实现：两条 JPQL 均带出 `prc.notes`，`parseCompetitorWon(notes)` 精确匹配「已中标」为 true，其余（含历史自由文本）为 false；`isWonStatus` 已删除。详见 lessons-learned §127。
 
 
+
+### 5. 全库 collation 统一（V1198，2026-08-19）
+- **背景**：上述第 2/3 条的跨表 `coalesce(...)` 表达式在测试环境触发 MySQL ERROR 1267（`Illegal mix of collations`）——历史表（`tenders`/`projects` 等 141 张）为 `utf8mb4_unicode_ci`，新表为库默认 `utf8mb4_0900_ai_ci`；不同 collation 列做 COALESCE 结果退化为 `utf8mb4_bin`+NONE，LIKE/<> 比较直接报错，多维度趋势「区域统计」500。
+- **代码层**：PR !2347 消除区域维度跨表 COALESCE（改 Java 纯函数 `RegionDimensionExtractor`），但 customerType 维度仍残留跨表 coalesce。
+- **数据层根治**：V1198 迁移用存储过程遍历 `information_schema.TABLES`，把全部非 `utf8mb4_0900_ai_ci` 基础表 CONVERT 对齐库默认（幂等）。测试环境演练：141 表/51MB，10.8s 完成，执行前已全量备份，原崩溃 SQL 复验通过。
+- **教训**：collation/charset 属环境级配置漂移，本地与生产不一致时单测全绿也会线上炸；详见 lessons-learned §128/§129。

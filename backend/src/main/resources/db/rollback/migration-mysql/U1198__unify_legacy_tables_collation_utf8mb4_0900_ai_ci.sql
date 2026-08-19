@@ -1,5 +1,8 @@
--- U1198__unify_legacy_tables_collation_utf8mb4_0900_ai_ci.sql
---
+-- Input: migration-mysql/V1198__unify_legacy_tables_collation_utf8mb4_0900_ai_ci.sql
+-- Output: rollback script for mysql environments; review data-loss comments before production use.
+-- Pos: Flyway historical down migration coverage for 西域数智化投标管理平台.
+-- 维护声明: source migration changes must update this rollback script in the same branch.
+
 -- 回滚 V1198（统一历史表 collation 为 utf8mb4_0900_ai_ci）。
 --
 -- ⚠️ 回滚语义说明：

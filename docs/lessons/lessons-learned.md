@@ -1962,3 +1962,36 @@ JDBC exception executing SQL [select distinct coalesce(nullif(pid1_0.customer_ty
 - `backend/src/main/java/com/xiyu/bid/analytics/service/TrendDrillDownService.java`
 - `backend/src/test/java/com/xiyu/bid/analytics/service/RegionDimensionExtractorTest.java`（新增单测）
 - `src/views/data-analysis/components/m1-trend-analysis/composables/useFilterSearch.js`
+
+---
+
+## 129. §128 的数据层根治补记：V1198 统一全库 collation（2026-08-19）
+
+### 问题背景
+
+§128 采用代码层修法（消除区域维度跨表 COALESCE + Java 纯函数），但同模块 `customerType` 维度仍残留两处跨表 coalesce（`TrendAnalysisDimensionQueryService` L138、`FilterOptionsQueryService` L217）——只要库内 collation 漂移还在，同款 1267 就是打地鼠。
+
+### 根治方案（V1198）
+
+Flyway 迁移用存储过程遍历 `information_schema.TABLES`，把所有 `TABLE_COLLATION <> 'utf8mb4_0900_ai_ci'` 的基础表 `CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci`，对齐库默认。幂等：已对齐的表不进游标。
+
+### 测试环境演练实测
+
+- 漂移规模：141 张 `utf8mb4_unicode_ci` 历史表，总量约 51MB，最大表 `organization_sync_items` 10.8 万行/36.6MB。
+- 执行耗时：**10.8 秒**全量完成，残留非对齐表 0。CONVERT 需重建表（写锁），生产执行建议放部署窗口。
+- 边界验证（执行前必查）：所有列均为 utf8mb4、无列级 collation 覆盖、无 latin1 遗留列，同字符集转 collation 无损。
+- 演练前 DB 全量备份：`/opt/xiyu-bid/db-backups/winbid-pre-collation-unify-*.sql.gz`。
+- 复验：原崩溃 SQL（coalesce LIKE '北京市%'）执行正常，接口不再 500。
+
+### 经验教训
+
+| 模式 | 教训 | 预防 |
+| --- | --- | --- |
+| 代码层 workaround vs 数据层根治 | 代码层逐个表达式绕开，数据层一次清零所有同模式隐患（本例 customerType 残留即漏网） | 修环境配置漂移类 bug 时优先评估"把环境拉齐"的可行性与成本 |
+| 动态迁移适配多环境 | 测试/生产表集合可能不同，存储过程遍历 information_schema 比静态 141 条 ALTER 更稳 | 环境差异型迁移用 information_schema 驱动 + 幂等谓词 |
+| ALTER 前边界检查 | CONVERT 会转换所有字符串列，若有 latin1/binary 列会连带变更 | 执行前查 `CHARACTER_SET_NAME <> 'utf8mb4'` 与列级 collation 覆盖 |
+
+### 相关文件
+
+- `backend/src/main/resources/db/migration-mysql/V1198__unify_legacy_tables_collation_utf8mb4_0900_ai_ci.sql`
+- `backend/src/main/resources/db/rollback/migration-mysql/U1198__unify_legacy_tables_collation_utf8mb4_0900_ai_ci.sql`
