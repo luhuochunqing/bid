@@ -46,8 +46,8 @@ export function useFilterSearch() {
         personOptions.value = mapOptions(d.person)
         tenderSubjectOptions.value = mapOptions(d.tenderEntity)
       }
-    } catch {
-      /* silent — 下拉为空，用户可重试 */
+    } catch (err) {
+      console.error('[useFilterSearch] Failed to load all filter options:', err)
     } finally {
       loadingDepartments.value = false
       loadingTenderSubjects.value = false
@@ -55,7 +55,7 @@ export function useFilterSearch() {
   }
 
   /**
-   * PRD 6.4 部门-人员联动：根据已选部门名称列表刷新人员下拉选项。
+   * PRD §6.4 部门-人员联动：根据已选部门名称列表刷新人员下拉选项。
    */
   async function refreshPersonsByDepartments(departmentNames) {
     loadingPersons.value = true
@@ -64,8 +64,8 @@ export function useFilterSearch() {
       if (res?.success && Array.isArray(res.data)) {
         personOptions.value = mapOptions(res.data)
       }
-    } catch {
-      /* silent */
+    } catch (err) {
+      console.error('[useFilterSearch] Failed to refresh persons by departments:', err)
     } finally {
       loadingPersons.value = false
     }

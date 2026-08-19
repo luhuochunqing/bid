@@ -83,7 +83,10 @@ public class TrendDrillDownService {
         }
 
         // 通用筛选条件（客户类型优先取立项详情值，回退项目主表快照，与统计口径一致）
-        appendInFilter(where, params, "COALESCE(NULLIF(pid.customer_type, ''), p.customer_type)", "customerTypes", customerTypes);
+        if (customerTypes != null && !customerTypes.isEmpty()) {
+            where.append(" AND (pid.customer_type IN (:customerTypes) OR (pid.customer_type IS NULL AND p.customer_type IN (:customerTypes)))");
+            params.put("customerTypes", customerTypes);
+        }
         appendInFilter(where, params, "t.project_type", "projectTypes", projectTypes);
         appendInFilter(where, params, "p.status", "statuses", statuses);
         // 区域过滤（总部所在地前缀匹配，参数化绑定并转义 LIKE 通配符防注入与异常匹配）
@@ -91,7 +94,8 @@ public class TrendDrillDownService {
             where.append(" AND (");
             for (int i = 0; i < regions.size(); i++) {
                 if (i > 0) where.append(" OR ");
-                where.append("COALESCE(NULLIF(pid.headquarters_location, ''), t.region) LIKE :regionPattern").append(i);
+                where.append("(pid.headquarters_location LIKE :regionPattern").append(i)
+                        .append(" OR (pid.headquarters_location IS NULL AND t.region LIKE :regionPattern").append(i).append("))");
                 String safePattern = regions.get(i)
                         .replace("\\", "\\\\")
                         .replace("%", "\\%")
@@ -249,11 +253,11 @@ public class TrendDrillDownService {
                 params.put("axisVal", axisValue);
             }
             case "region" -> {
-                where.append(" AND pid.headquarters_location LIKE :axisVal");
+                where.append(" AND (pid.headquarters_location LIKE :axisVal OR (pid.headquarters_location IS NULL AND t.region LIKE :axisVal))");
                 params.put("axisVal", axisValue + "%");
             }
             case "customerType" -> {
-                where.append(" AND COALESCE(NULLIF(pid.customer_type, ''), p.customer_type) = :axisVal");
+                where.append(" AND (pid.customer_type = :axisVal OR (pid.customer_type IS NULL AND p.customer_type = :axisVal))");
                 params.put("axisVal", axisValue);
             }
             case "projectType" -> {
