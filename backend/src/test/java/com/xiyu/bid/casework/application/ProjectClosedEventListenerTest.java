@@ -10,6 +10,8 @@ import com.xiyu.bid.casework.infrastructure.ProjectArchive;
 import com.xiyu.bid.casework.infrastructure.ProjectArchiveRepository;
 import com.xiyu.bid.docinsight.application.DocumentTextExtractor;
 import com.xiyu.bid.docinsight.application.ExtractedDocument;
+import com.xiyu.bid.file.application.ObsShareUrlSigner;
+import com.xiyu.bid.file.domain.FileUrlPrefixes;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.repository.ProjectRepository;
@@ -20,6 +22,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
 import java.util.Optional;
@@ -57,6 +60,8 @@ class ProjectClosedEventListenerTest {
     private DocumentTextExtractor docTextExtractor;
     private CaseAiMatcher caseAiMatcher;
     private CasePrecipitationNotifier notifier;
+    private ObsShareUrlSigner obsShareUrlSigner;
+    private RestTemplate restTemplate;
     private ProjectClosedEventListener listener;
 
     @BeforeEach
@@ -71,10 +76,13 @@ class ProjectClosedEventListenerTest {
         docTextExtractor = mock(DocumentTextExtractor.class);
         caseAiMatcher = mock(CaseAiMatcher.class);
         notifier = mock(CasePrecipitationNotifier.class);
+        obsShareUrlSigner = mock(ObsShareUrlSigner.class);
+        restTemplate = mock(RestTemplate.class);
         listener = new ProjectClosedEventListener(
                 archiveRepository, fileRepository, scoreItemRepository,
                 knowledgeCaseRepository, projectRepository, tenderRepository,
-                bidResultRepository, docTextExtractor, caseAiMatcher, notifier);
+                bidResultRepository, docTextExtractor, caseAiMatcher, notifier,
+                obsShareUrlSigner, restTemplate);
     }
 
     @Test
@@ -349,6 +357,67 @@ class ProjectClosedEventListenerTest {
 
         verify(notifier, times(1)).notifySuccess(org.mockito.ArgumentMatchers.eq(1L), any(), org.mockito.ArgumentMatchers.eq(0), anyLong(), any(), any());
         verify(notifier, never()).notifyFailure(anyLong(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("OBS 直传标书：签名下载成功 -> 解析正文并保存案例")
+    void obsBidFile_downloadAndSave() {
+        Project project = project(1L, 7L, "E2E 项目");
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        ProjectArchive archive = new ProjectArchive();
+        archive.setId(99L);
+        when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
+        ArchiveFile obsBid = bidFile(1L, 99L);
+        obsBid.setFilePath(FileUrlPrefixes.OBS_DIRECT + "upload123");
+        when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(obsBid));
+        when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
+                .thenReturn(List.of(scoreItem(101L, "技术方案", "要求提供架构图")));
+        when(obsShareUrlSigner.trySign(FileUrlPrefixes.OBS_DIRECT + "upload123"))
+                .thenReturn(Optional.of("https://obs.example.com/signed"));
+        when(restTemplate.getForObject("https://obs.example.com/signed", byte[].class))
+                .thenReturn("PDF_BYTES".getBytes());
+        when(docTextExtractor.extract(any(), any(), any()))
+                .thenReturn(new ExtractedDocument("## 标书正文(obs)", 5, "text/markdown", "bid.pdf",
+                        java.util.Map.of()));
+        when(caseAiMatcher.extractSlicesWithAi(any(), any()))
+                .thenReturn(List.of(slice(101L, "技术方案证明片段", 0.9)));
+        when(caseAiMatcher.extractCategory(any())).thenReturn("技术");
+        when(tenderRepository.findById(any())).thenReturn(Optional.empty());
+        when(bidResultRepository.findFirstByProjectIdAndStatusOrderByConfirmedAtDescFetchTimeDesc(
+                anyLong(), any())).thenReturn(Optional.empty());
+
+        listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
+
+        // 必须走签名下载，而不是把 obs-direct 当本地文件读
+        verify(restTemplate).getForObject("https://obs.example.com/signed", byte[].class);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<KnowledgeCase>> captor = ArgumentCaptor.forClass(List.class);
+        verify(knowledgeCaseRepository, times(1)).saveAll(captor.capture());
+        assertThat(captor.getValue()).hasSize(1);
+        verify(notifier, times(1)).notifySuccess(anyLong(), any(), anyInt(), anyLong(), any(), any());
+    }
+
+    @Test
+    @DisplayName("OBS 标书签名失败 -> notifyFailure(原因含 OBS) + 不入库")
+    void obsBidFile_signFailure_notifiesFailure() {
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project(1L, 7L, "E2E 项目")));
+        ProjectArchive archive = new ProjectArchive();
+        archive.setId(99L);
+        when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
+        ArchiveFile obsBid = bidFile(1L, 99L);
+        obsBid.setFilePath(FileUrlPrefixes.OBS_DIRECT + "upload123");
+        when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(obsBid));
+        when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
+                .thenReturn(List.of(scoreItem(101L, "技术方案", "要求提供架构图")));
+        when(obsShareUrlSigner.trySign(FileUrlPrefixes.OBS_DIRECT + "upload123"))
+                .thenReturn(Optional.empty());
+
+        listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
+
+        ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
+        verify(notifier, times(1)).notifyFailure(anyLong(), any(), reasonCaptor.capture(), any(), any());
+        assertThat(reasonCaptor.getValue()).contains("OBS");
+        verify(knowledgeCaseRepository, never()).saveAll(any());
     }
 
     private Project project(Long id, Long managerId, String name) {
