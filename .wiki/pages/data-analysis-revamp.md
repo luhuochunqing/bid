@@ -187,3 +187,25 @@ src/views/data-analysis/
 - pre-commit 钩子：208 test files, 1700 tests passed
 - 架构测试：MaintainabilityArchitectureTest + FPJavaArchitectureTest + ProjectAccessGuardCoverageTest 12 tests passed
 
+
+## 2026-08-19 缺陷修复与口径补齐
+
+为修复测试环境下的多维度统计、客户类型饼图及竞品表格问题，进行如下口径升级与缺陷修复：
+
+### 1. 部门/人员联动兜底
+- **背景**：测试环境可能未同步 OSS 组织架构数据，导致 `organization_departments` 表为空。
+- **改动**：`FilterOptionsQueryService.fetchDepartmentTree()` 增加了 `users.department_name` 去重提取和自动合并。若组织表为空或存在孤立部门，将其平级补齐为根节点，确保任何环境下部门树均有值。前端未选择任何部门时，人员下拉恢复为加载全量有效人员。
+
+### 2. 区域提取与 Left Join 改动
+- **背景**：原区域提取使用 INNER JOIN `ProjectInitiationDetails` 且强过滤 `headquartersLocation`，导致未立项或总部所在地为空的项目被全部过滤。
+- **改动**：改为 `left join`，区域提取与过滤参数化统一使用 `coalesce(nullif(pid.headquartersLocation, ''), t.region)`。优先提取立项总部，兜底回退到标讯区域，保证未立项项目也正常参与区域维度统计，解决柱状图数据全为 0 的问题。
+
+### 3. 客户类型英文枚举映射补齐
+- **背景**：数据库 `customer_type` 字段可能存储来自外部集成或标讯同步的英文枚举名（如 `GOVERNMENT`/`CENTRAL_SOE` 等）。原 `normalizeCustomerType` 仅支持中文字符，导致数据匹配失败归为 null 并在统计中过滤。
+- **改动**：在 `CustomerTypeAnalyticsComputationService.normalizeCustomerType` 中全面追加英文枚举代码及中英文变体别名到 5 类标准分类（政府、央企、地方国企、民企、外企）的解析映射；`CustomerTypeAnalyticsQueryService` 采用多重 coalesce 兜底，解决饼图数字不显示且统计均为 0 的问题。
+
+### 4. 竞品表格是否中标真实状态关联
+- **背景**：原判定仅依赖结果确认的 `result_type == 'WON'`。若项目还未流转到结果确认阶段，但实际上项目状态 `projects.status` 已经为 `WON` 或立项详情中标状态 `pid.bid_result_status` 已经为 "已中标" 时被错误判定为未中标。
+- **改动**：`fetchProjectCompetitorRows` 补充查询 `coalesce(nullif(pr.resultType, ''), nullif(pid.bidResultStatus, ''), cast(p.status as string))`，并由 `isWonStatus` 辅助方法综合判定项目是否中标，准确展现项目的最新中标状态。
+
+

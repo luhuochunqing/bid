@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,16 +73,37 @@ public class FilterOptionsQueryService {
 
         // 组装树：将子节点挂到父节点的 children 下
         List<AnalyticsDepartmentTreeDTO> roots = new ArrayList<>();
+        Set<String> presentNames = new HashSet<>();
         for (OrganizationDepartmentEntity dept : allDepts) {
             String code = dept.getDepartmentCode();
             AnalyticsDepartmentTreeDTO dto = codeToDtoMap.get(code);
             if (dto == null) continue;
+            presentNames.add(dto.getValue());
 
             String parentCode = dept.getParentDepartmentCode();
             if (parentCode != null && !parentCode.isEmpty() && codeToDtoMap.containsKey(parentCode)) {
                 codeToDtoMap.get(parentCode).getChildren().add(dto);
             } else {
                 roots.add(dto);
+            }
+        }
+
+        // 兜底与补齐：查询 User 表中实际存在的部门，若尚未包含在组织树中（例如环境未同步组织表），自动补齐为根节点
+        List<String> userDepts = entityManager.createQuery("""
+                        select distinct u.departmentName
+                        from User u
+                        where u.departmentName is not null
+                          and u.departmentName <> ''
+                        order by u.departmentName
+                        """, String.class)
+                .getResultList();
+        for (String uDept : userDepts) {
+            if (!presentNames.contains(uDept)) {
+                roots.add(AnalyticsDepartmentTreeDTO.builder()
+                        .label(uDept)
+                        .value(uDept)
+                        .build());
+                presentNames.add(uDept);
             }
         }
 

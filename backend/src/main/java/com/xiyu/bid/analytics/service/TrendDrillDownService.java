@@ -91,7 +91,7 @@ public class TrendDrillDownService {
             where.append(" AND (");
             for (int i = 0; i < regions.size(); i++) {
                 if (i > 0) where.append(" OR ");
-                where.append("pid.headquarters_location LIKE :regionPattern").append(i);
+                where.append("COALESCE(NULLIF(pid.headquarters_location, ''), t.region) LIKE :regionPattern").append(i);
                 String safePattern = regions.get(i)
                         .replace("\\", "\\\\")
                         .replace("%", "\\%")
