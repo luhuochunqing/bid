@@ -84,14 +84,15 @@ public class TrendAnalysisDimensionQueryService {
         if (startDate != null) jpql.append(" and p.createdAt >= :startDate");
         if (endDate != null) jpql.append(" and p.createdAt <= :endDate");
         if (isNotEmpty(userIds)) jpql.append(" and u.fullName in :userIds");
-        if (isNotEmpty(regionIds)) {
-            jpql.append(" and (");
-            for (int i = 0; i < regionIds.size(); i++) {
-                if (i > 0) jpql.append(" or ");
-                jpql.append("(pid.headquartersLocation like :regionPattern").append(i)
-                        .append(" or (pid.headquartersLocation is null and t.region like :regionPattern").append(i).append("))");
+        // 区域筛选与图表分组统一省份归一化口径：预计算命中项目 ID，
+        // 替代原始串 LIKE 前缀匹配（历史短省名/自由文本格式下两口径不一致，见 AnalyticsRegionFilterSupport）
+        Set<Long> regionMatchedIds = AnalyticsRegionFilterSupport.regionMatchedProjectIds(
+                entityManager, projectAccessScopeService, regionIds);
+        if (regionMatchedIds != null) {
+            if (regionMatchedIds.isEmpty()) {
+                return List.of();
             }
-            jpql.append(")");
+            jpql.append(" and p.id in :regionProjectIds");
         }
         if (isNotEmpty(customerTypes)) {
             jpql.append(" and (pid.customerType in :customerTypes or (pid.customerType is null and p.customerType in :customerTypes))");
@@ -108,10 +109,8 @@ public class TrendAnalysisDimensionQueryService {
         if (startDate != null) query.setParameter("startDate", startDate.atStartOfDay());
         if (endDate != null) query.setParameter("endDate", endDate.atTime(23, 59, 59));
         if (isNotEmpty(userIds)) query.setParameter("userIds", userIds);
-        if (isNotEmpty(regionIds)) {
-            for (int i = 0; i < regionIds.size(); i++) {
-                query.setParameter("regionPattern" + i, regionIds.get(i) + "%");
-            }
+        if (regionMatchedIds != null) {
+            query.setParameter("regionProjectIds", regionMatchedIds);
         }
         if (isNotEmpty(customerTypes)) query.setParameter("customerTypes", customerTypes);
         if (isNotEmpty(projectTypes)) query.setParameter("projectTypes", projectTypes);
@@ -202,14 +201,15 @@ public class TrendAnalysisDimensionQueryService {
         if (startDate != null) jpql.append(" and p.createdAt >= :startDate");
         if (endDate != null) jpql.append(" and p.createdAt <= :endDate");
         if (isNotEmpty(userIds)) jpql.append(" and u.fullName in :userIds");
-        if (isNotEmpty(regionIds)) {
-            jpql.append(" and (");
-            for (int i = 0; i < regionIds.size(); i++) {
-                if (i > 0) jpql.append(" or ");
-                jpql.append("(pid.headquartersLocation like :regionPattern").append(i)
-                        .append(" or (pid.headquartersLocation is null and t.region like :regionPattern").append(i).append("))");
+        // 区域筛选与图表分组统一省份归一化口径：预计算命中项目 ID，
+        // 替代原始串 LIKE 前缀匹配（历史短省名/自由文本格式下两口径不一致，见 AnalyticsRegionFilterSupport）
+        Set<Long> regionMatchedIds = AnalyticsRegionFilterSupport.regionMatchedProjectIds(
+                entityManager, projectAccessScopeService, regionIds);
+        if (regionMatchedIds != null) {
+            if (regionMatchedIds.isEmpty()) {
+                return List.of();
             }
-            jpql.append(")");
+            jpql.append(" and p.id in :regionProjectIds");
         }
         if (isNotEmpty(customerTypes)) {
             jpql.append(" and (pid.customerType in :customerTypes or (pid.customerType is null and p.customerType in :customerTypes))");
@@ -226,10 +226,8 @@ public class TrendAnalysisDimensionQueryService {
         if (startDate != null) query.setParameter("startDate", startDate.atStartOfDay());
         if (endDate != null) query.setParameter("endDate", endDate.atTime(23, 59, 59));
         if (isNotEmpty(userIds)) query.setParameter("userIds", userIds);
-        if (isNotEmpty(regionIds)) {
-            for (int i = 0; i < regionIds.size(); i++) {
-                query.setParameter("regionPattern" + i, regionIds.get(i) + "%");
-            }
+        if (regionMatchedIds != null) {
+            query.setParameter("regionProjectIds", regionMatchedIds);
         }
         if (isNotEmpty(customerTypes)) query.setParameter("customerTypes", customerTypes);
         if (isNotEmpty(projectTypes)) query.setParameter("projectTypes", projectTypes);
