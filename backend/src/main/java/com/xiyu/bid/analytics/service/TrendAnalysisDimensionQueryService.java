@@ -77,23 +77,17 @@ public class TrendAnalysisDimensionQueryService {
                 left join User u on u.id = p.managerId
                 left join ProjectResult pr on pr.projectId = p.id
                 left join ProjectResultCompetitor prc on prc.resultId = pr.id
-                where ((pid.headquartersLocation is not null and pid.headquartersLocation <> '') or (t.region is not null and t.region <> ''))
+                where ((pid.headquartersLocation is not null and trim(pid.headquartersLocation) <> '') or (t.region is not null and trim(t.region) <> ''))
                   and (:allAccess = true or p.id in :scopeIds)
                 """);
 
         if (startDate != null) jpql.append(" and p.createdAt >= :startDate");
         if (endDate != null) jpql.append(" and p.createdAt <= :endDate");
         if (isNotEmpty(userIds)) jpql.append(" and u.fullName in :userIds");
-        // 区域筛选与图表分组统一省份归一化口径：预计算命中项目 ID，
-        // 替代原始串 LIKE 前缀匹配（历史短省名/自由文本格式下两口径不一致，见 AnalyticsRegionFilterSupport）
-        Set<Long> regionMatchedIds = AnalyticsRegionFilterSupport.regionMatchedProjectIds(
-                entityManager, projectAccessScopeService, regionIds);
-        if (regionMatchedIds != null) {
-            if (regionMatchedIds.isEmpty()) {
-                return List.of();
-            }
-            jpql.append(" and p.id in :regionProjectIds");
-        }
+        // 区域筛选与图表分组统一省份归一化口径（extractProvince），直接在 Java 端
+        // 提取循环内过滤，避免预计算 IN 分支造成双重全表扫描与大 IN 参数；
+        // 空集语义：筛选启用但零命中时循环过滤后返回空列表
+        Set<String> wantedProvinces = isNotEmpty(regionIds) ? Set.copyOf(regionIds) : null;
         if (isNotEmpty(customerTypes)) {
             jpql.append(" and coalesce(nullif(pid.customerType, ''), p.customerType) in :customerTypes");
         }
@@ -109,9 +103,6 @@ public class TrendAnalysisDimensionQueryService {
         if (startDate != null) query.setParameter("startDate", startDate.atStartOfDay());
         if (endDate != null) query.setParameter("endDate", endDate.atTime(23, 59, 59));
         if (isNotEmpty(userIds)) query.setParameter("userIds", userIds);
-        if (regionMatchedIds != null) {
-            query.setParameter("regionProjectIds", regionMatchedIds);
-        }
         if (isNotEmpty(customerTypes)) query.setParameter("customerTypes", customerTypes);
         if (isNotEmpty(projectTypes)) query.setParameter("projectTypes", projectTypes);
         if (isNotEmpty(statuses)) query.setParameter("statuses", statuses);
@@ -122,10 +113,11 @@ public class TrendAnalysisDimensionQueryService {
         List<RegionDimensionRawRow> rawList = query.getResultList();
         List<DimensionRow> rows = new ArrayList<>(rawList.size());
         for (RegionDimensionRawRow raw : rawList) {
-            String rawLoc = raw.pidHeadquartersLocation() != null && !raw.pidHeadquartersLocation().isBlank()
-                    ? raw.pidHeadquartersLocation()
-                    : raw.tenderRegion();
-            String prov = RegionDimensionExtractor.extractProvince(rawLoc);
+            String prov = RegionDimensionExtractor.extractProvince(
+                    RegionDimensionExtractor.resolveRawLocation(raw.pidHeadquartersLocation(), raw.tenderRegion()));
+            if (wantedProvinces != null && !wantedProvinces.contains(prov)) {
+                continue;
+            }
             rows.add(new DimensionRow(prov, raw.projectId(), raw.status()));
         }
         return rows;
