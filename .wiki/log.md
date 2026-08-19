@@ -281,3 +281,8 @@
 - 回填：crm-integration-lessons.md §9.5（接口/实现/排查入口 webhook_delivery_tasks.payload）
 - 关键点：重推=从 DB 重建领域事件重新发布，复用现有监听器组装 payload，不维护第二套组装逻辑
 - 未新建页面（仅在既有页追加小节）
+
+## [2026-08-19] bugfix | 数据分析 PR!2333 验收四连漏修复（口径分裂/入口拦截/组件交互）回填
+- 触发：用户复测报 4 问题——M1 区域值全 0、M2 客户类型统计错、M4 项目模式暂无数据、部门下拉丢搜索/全选清空（分支 `agent/zcode/fix-analytics-round2`）
+- 更新 [[data-analysis-revamp]]：§数据口径追加「投标数=全部项目」「客户类型 coalesce 双源」两条修订；§关键陷阱追加 §8 项目模式入口空检查、§9 部门树形下拉交互规范
+- 关联：`docs/lessons/lessons-learned.md §124`、回归测试 `CompetitorAnalysisAssemblerServiceTest`（新增 3 用例）+ `TrendAnalysisComputationServiceTest`（新增进行中口径用例）

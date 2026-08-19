@@ -36,6 +36,25 @@ class TrendAnalysisComputationServiceTest {
     }
 
     @Test
+    @DisplayName("投标数口径：进行中项目（投标中/评标中/已立项）也计入，仅中标计入中标数")
+    void inProgressProjectsCountIntoBidSeries() {
+        // 区域维度全 0 回归：有总部所在地的项目多为进行中状态，此前 WON+LOST 口径漏计
+        List<DimensionRow> rows = List.of(
+                new DimensionRow("广东省", 1L, Project.Status.BIDDING),
+                new DimensionRow("广东省", 2L, Project.Status.EVALUATING),
+                new DimensionRow("广东省", 3L, Project.Status.INITIATED),
+                new DimensionRow("广东省", 4L, Project.Status.WON),
+                new DimensionRow("北京市", 5L, Project.Status.BIDDING)
+        );
+
+        TrendAnalysisComputationService.TrendComputationResult result =
+                service.computeDimensionTrend(rows, null);
+
+        assertThat(result.bidSeries()).containsExactly(4L, 1L);
+        assertThat(result.winSeries()).containsExactly(1L, 0L);
+    }
+
+    @Test
     @DisplayName("竞品维度下同一项目分属不同竞品分类时各计一次")
     void sameProjectAcrossDifferentCategoriesCountsPerCategory() {
         List<DimensionRow> rows = List.of(

@@ -1,3 +1,8 @@
+// Input: EntityManager, ProjectAccessScopeService, date range
+// Output: CustomerTypeProjectRow lists (coalesce 立项详情优先的客户类型)
+// Pos: Query Service/数据查询层
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+
 package com.xiyu.bid.analytics.service;
 
 import com.xiyu.bid.analytics.model.CustomerTypeProjectRow;
@@ -33,7 +38,7 @@ public class CustomerTypeAnalyticsQueryService {
                             p.name,
                             t.title,
                             p.customer,
-                            p.customerType,
+                            coalesce(nullif(pid.customerType, ''), p.customerType),
                             p.status,
                             p.managerId,
                             u.fullName,
@@ -45,6 +50,7 @@ public class CustomerTypeAnalyticsQueryService {
                         from Project p
                         left join Tender t on t.id = p.tenderId
                         left join User u on u.id = p.managerId
+                        left join ProjectInitiationDetails pid on pid.projectId = p.id
                         where (:allAccess = true or p.id in :scopeIds)
                           and (:startDate is null or p.createdAt >= :startDate)
                           and (:endDate is null or p.createdAt <= :endDate)

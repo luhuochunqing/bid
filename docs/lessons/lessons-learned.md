@@ -1766,3 +1766,39 @@ V1196 迁移新增 `status VARCHAR(32) NOT NULL DEFAULT 'COMPLETED'`，但对应
 - `backend/src/main/java/com/xiyu/bid/compliance/entity/ComplianceCheckResult.java`（TaskStatus 枚举）
 
 
+
+## 124. 数据分析统计与详情页字段双源分裂 + 模式入口空检查拦截新请求（2026-08-19，PR !2333 验收四连漏）
+
+### 背景
+
+PR !2333 修复数据分析 7 项缺陷后用户复测仍报 4 个问题：M1 区域图表值全 0、M2 客户类型 5 类统计全错、M4 项目名称模式"暂无数据"、M1 部门下拉丢失搜索框/全选清空按钮。
+
+### 根因
+
+1. **字段双源分裂**：项目详情页立项表单编辑客户类型只写 `project_initiation_details.customer_type`（`ProjectInitiationMapper.applyInput`），从不同步 `projects.customer_type`；而 M1/M2 统计、筛选、下钻全部读 `projects.customer_type`。用户改了详情页，统计纹丝不动——上一轮只改了归一化函数，数据源根本不对。
+2. **统计口径过窄**：`TrendAnalysisComputationService` 投标数仅计 `WON+LOST`；测试环境有总部所在地的项目几乎全是 `BIDDING` 进行中状态 → 区域维度行存在但值全 0，X 轴省份全靠前端常量补位。
+3. **入口防御检查挡住新模式请求**：`CompetitorAnalysisAssemblerService.analyze()` 入口对 `competitors` 为空的请求直接短路返回空响应；项目名称模式前端只传 `projectName` 不传竞品列表，永远进不了项目分支。叠加 `fetchProjectCompetitorRows` 带 createdAt 时间过滤而项目名下拉 `fetchProjectNames` 不带——"能搜到、查不到"。
+4. **组件替换丢失交互**：部门树形改造直接换成裸 `el-tree-select`，丢失了 `FilterSelect` 的搜索框/全选/清空/"已选 N 项" trigger 风格。
+
+### 修复
+
+- 客户类型取值统一 `coalesce(nullif(pid.customerType,''), p.customerType)`（优先立项详情、回退主表快照），覆盖 M2 查询/M1 维度与筛选/下钻/筛选项。
+- 投标数口径改为全部项目（对齐 M0 KPI「投标总数」与状态维度），下钻"投标数"系列去掉状态过滤。
+- `analyze()` 入口改为 `(competitors 为空) && (非项目模式)` 才短路；项目模式查询移除时间过滤。
+- 部门下拉重构为 `TreeSelectDropdown`（FilterSelect 风格 trigger/搜索/全选/清空）+ 递归 `TreeSelectNode`（provide/inject 共享状态）。
+
+### 经验教训
+
+| 模式 | 教训 | 预防 |
+| --- | --- | --- |
+| 统计类 bug 先对数据源 | "统计数字不对"第一优先级是核对统计读的字段与详情页展示的字段是否同一列，而不是先改归一化/计算逻辑 | 新增统计口径前先跑 SQL 对比两表字段值分布 |
+| 入口空检查 vs 新模式 | 门面方法入口的参数空检查会在新增"不需要该参数"的模式时静默拦截请求，返回空数据而非报错 | 新增模式分支时检查入口防御逻辑是否兼容空参数模式 |
+| 下拉选项与查询过滤条件对称 | 选项接口不过滤的条件（时间/权限），查询接口也不应过滤，否则出现"能选中、查不到" | 选项接口与查询接口的过滤条件清单 diff |
+| 组件替换保交互清单 | 换选择器组件时先枚举旧组件的交互资产（搜索/全选/清空/计数 trigger），逐项迁移 | UI 验收清单包含"下拉框交互完整性" |
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/analytics/service/CustomerTypeAnalyticsQueryService.java`（coalesce 数据源）
+- `backend/src/main/java/com/xiyu/bid/analytics/service/TrendAnalysisComputationService.java`（投标数口径）
+- `backend/src/main/java/com/xiyu/bid/analytics/service/CompetitorAnalysisAssemblerService.java`（入口放行）
+- `src/views/data-analysis/components/shared/TreeSelectDropdown.vue` + `TreeSelectNode.vue`（部门下拉交互）

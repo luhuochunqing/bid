@@ -208,12 +208,7 @@ const handleReset = () => {
 .m8-filter-label { font-size: 12px; font-weight: 600; color: var(--login-brand-bg-mid); white-space: nowrap; }
 .m9-xaxis-cb { width: 14px; height: 14px; cursor: pointer; accent-color: var(--brand-xiyu-logo); margin: 0; }
 .time-radio-group { flex-shrink: 0; }
-.m8-filter-item :deep(.filter-select),
-.m8-filter-item :deep(.filter-tree-select),
-.m8-filter-item :deep(.el-tree-select) { width: 140px; flex-shrink: 0; }
-.m8-filter-item :deep(.el-select .el-select__wrapper) { min-height: 28px; }
-.m8-filter-item :deep(.el-select .el-select__selection-wrapper) { overflow: hidden; }
-.m8-filter-item :deep(.el-select__tags-text) { max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m8-filter-item :deep(.filter-select) { width: 140px; flex-shrink: 0; }
 .time-dimension-select { width: 90px; flex-shrink: 0; }
 .m9-filter-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; margin-left: auto; }
 .confirm-btn {

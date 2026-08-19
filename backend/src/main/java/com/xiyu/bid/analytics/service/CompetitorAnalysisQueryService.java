@@ -86,12 +86,11 @@ public class CompetitorAnalysisQueryService {
 
     /**
      * 获取项目模式竞品记录（PRD §9.8.5 — 按项目名称过滤）。
+     * 按项目名精确定位单项目，不做时间范围过滤（项目可能创建于往年）。
      */
     List<CompetitorAnalysisRow> fetchProjectCompetitorRows(
             String projectName,
-            List<String> competitorNames,
-            LocalDate startDate,
-            LocalDate endDate
+            List<String> competitorNames
     ) {
         Set<Long> scopeIds = AnalyticsProjectScopeSupport.scopedProjectIds(projectAccessScopeService);
         boolean allAccess = scopeIds == null;
@@ -113,16 +112,12 @@ public class CompetitorAnalysisQueryService {
                 left join Tender t on t.id = p.tenderId
                 where (:allAccess = true or p.id in :scopeIds)
                   and p.name = :projectName
-                  and (:startDate is null or p.createdAt >= :startDate)
-                  and (:endDate is null or p.createdAt <= :endDate)
                 order by prc.sortOrder asc, prc.id asc
                 """);
         return entityManager.createQuery(jpql.toString(), CompetitorAnalysisRow.class)
                 .setParameter("allAccess", allAccess)
                 .setParameter("scopeIds", allAccess ? Set.of(-1L) : scopeIds)
                 .setParameter("projectName", projectName)
-                .setParameter("startDate", startDate == null ? null : startDate.atStartOfDay())
-                .setParameter("endDate", endDate == null ? null : endDate.atTime(23, 59, 59))
                 .getResultList();
     }
 

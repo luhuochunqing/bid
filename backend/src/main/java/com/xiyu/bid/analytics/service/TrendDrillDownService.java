@@ -77,15 +77,13 @@ public class TrendDrillDownService {
             params.put("endDate", endDate.plusDays(1).atStartOfDay());
         }
 
-        // 系列名过滤：投标数=已中标(WON)+未中标(LOST)，中标数=WON
-        if ("投标数".equals(seriesName)) {
-            where.append(" AND p.status IN ('WON', 'LOST')");
-        } else if ("中标数".equals(seriesName)) {
+        // 系列名过滤：投标数=全部项目（无附加状态条件，与图表口径对齐），中标数=WON
+        if ("中标数".equals(seriesName)) {
             where.append(" AND p.status = 'WON'");
         }
 
-        // 通用筛选条件
-        appendInFilter(where, params, "p.customer_type", "customerTypes", customerTypes);
+        // 通用筛选条件（客户类型优先取立项详情值，回退项目主表快照，与统计口径一致）
+        appendInFilter(where, params, "COALESCE(NULLIF(pid.customer_type, ''), p.customer_type)", "customerTypes", customerTypes);
         appendInFilter(where, params, "t.project_type", "projectTypes", projectTypes);
         appendInFilter(where, params, "p.status", "statuses", statuses);
         // 区域过滤（总部所在地前缀匹配，参数化绑定并转义 LIKE 通配符防注入与异常匹配）
@@ -255,7 +253,7 @@ public class TrendDrillDownService {
                 params.put("axisVal", axisValue + "%");
             }
             case "customerType" -> {
-                where.append(" AND p.customer_type = :axisVal");
+                where.append(" AND COALESCE(NULLIF(pid.customer_type, ''), p.customer_type) = :axisVal");
                 params.put("axisVal", axisValue);
             }
             case "projectType" -> {
