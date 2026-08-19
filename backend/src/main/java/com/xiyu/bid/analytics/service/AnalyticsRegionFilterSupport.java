@@ -72,7 +72,9 @@ final class AnalyticsRegionFilterSupport {
             query.setParameter("startDate", startDate.atStartOfDay());
         }
         if (endDate != null) {
-            query.setParameter("endDate", endDate.atTime(23, 59, 59));
+            // 上界放宽为次日零点（与下钻主查询同口径）：命中集是下游结果的超集恒安全，
+            // 若用 23:59:59 会漏掉 (23:59:59, 次日零点) 区间内被下游命中的项目（超集不变式失效）
+            query.setParameter("endDate", endDate.plusDays(1).atStartOfDay());
         }
 
         @SuppressWarnings("unchecked")

@@ -19,6 +19,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -46,6 +47,13 @@ class AnalyticsRegionFilterJpqlRegressionTest {
     /** 项目 F 的 ID：pid.customerType 空串 + p.customerType='政府'（空串语义裂缝回归种子） */
     private Long projectFId;
 
+    /** 项目 A 的 ID：受限权限回归用例中唯一授权可见的项目 */
+    private Long projectAId;
+
+    /** 日期边界种子：G 在截止日 23:59:59 之后（下钻口径内），H 在截止日次日（范围外） */
+    private Long boundaryInId;
+    private Long boundaryOutId;
+
     @BeforeEach
     void setUp() {
         ProjectAccessScopeService scope = Mockito.mock(ProjectAccessScopeService.class);
@@ -64,12 +72,25 @@ class AnalyticsRegionFilterJpqlRegressionTest {
     }
 
     private Project buildProject(String name, Project.Status status, String headquartersLocation) {
+        return buildProjectAt(name, status, headquartersLocation, LocalDateTime.of(2026, 3, 15, 10, 0));
+    }
+
+    /** @PrePersist 覆盖 createdAt，边界用例需 persist 后回写精确时间戳 */
+    private void forceCreatedAt(Long projectId, LocalDateTime createdAt) {
+        entityManager.createQuery("update Project p set p.createdAt = :ts where p.id = :id")
+                .setParameter("ts", createdAt)
+                .setParameter("id", projectId)
+                .executeUpdate();
+    }
+
+    private Project buildProjectAt(String name, Project.Status status, String headquartersLocation,
+                                   LocalDateTime createdAt) {
         Project p = new Project();
         p.setName(name);
         p.setStatus(status);
         p.setTenderId(1L);
         p.setManagerId(999L);
-        p.setCreatedAt(LocalDateTime.of(2026, 3, 15, 10, 0));
+        p.setCreatedAt(createdAt);
         entityManager.persist(p);
         entityManager.persist(ProjectInitiationDetails.builder()
                 .projectId(p.getId())
@@ -80,7 +101,7 @@ class AnalyticsRegionFilterJpqlRegressionTest {
 
     private void seedData() {
         // 规范拼接格式（旧 LIKE 能命中）
-        buildProject("项目A-规范拼接", Project.Status.WON, "江苏省淮安市");
+        projectAId = buildProject("项目A-规范拼接", Project.Status.WON, "江苏省淮安市").getId();
         // 历史无后缀短省名（旧 LIKE '江苏省%' 漏掉，归一化口径应命中）
         buildProject("项目B-短省名", Project.Status.BIDDING, "江苏");
         // 自由文本省+市（旧 LIKE 漏掉，归一化口径应命中）
@@ -117,6 +138,17 @@ class AnalyticsRegionFilterJpqlRegressionTest {
                 .customerType("")
                 .build());
         projectFId = f.getId();
+        // 日期边界种子（新疆，不干扰既有江苏/浙江断言）：
+        // G = 截止日 23:59:59.500（旧 Support 用 23:59:59 上界会漏），H = 截止日次日（超范围）；
+        // Project @PrePersist 会覆盖 createdAt，须 persist 后用 UPDATE 回写精确时间戳
+        Project g = buildProjectAt("项目G-边界内", Project.Status.BIDDING, "新疆维吾尔自治区乌鲁木齐市",
+                LocalDateTime.of(2026, 3, 16, 23, 59, 59, 500_000_000));
+        Project h = buildProjectAt("项目H-边界外", Project.Status.BIDDING, "新疆维吾尔自治区克拉玛依市",
+                LocalDateTime.of(2026, 3, 17, 0, 0, 1));
+        forceCreatedAt(g.getId(), LocalDateTime.of(2026, 3, 16, 23, 59, 59, 500_000_000));
+        forceCreatedAt(h.getId(), LocalDateTime.of(2026, 3, 17, 0, 0, 1));
+        boundaryInId = g.getId();
+        boundaryOutId = h.getId();
         entityManager.flush();
     }
 
@@ -171,6 +203,66 @@ class AnalyticsRegionFilterJpqlRegressionTest {
         assertThat(rows).hasSize(3);
         assertThat(rows).allSatisfy(r -> assertThat(r.category()).isEqualTo("江苏省"));
         assertThat(rows).extracting(DimensionRow::projectId).doesNotHaveDuplicates();
+    }
+
+    @Test
+    @DisplayName("区域+日期联合过滤：endDate 边界（23:59:59 后区间）与下钻一致不静默丢项目")
+    void regionFilterWithDateRangeBoundaryAlignedWithDrillDown() {
+        LocalDate start = LocalDate.of(2026, 3, 16);
+        LocalDate end = LocalDate.of(2026, 3, 16);
+
+        // 下钻主查询口径 <= endDate 次日零点：G（23:59:59.500）命中、H（次日）不命中；
+        // 区域命中集必须同口径（旧 Support 用 23:59:59 上界会静默漏掉 G）
+        var drill = drillDownService.drillDown(
+                "time", null, "投标数",
+                start, end, null, null, List.of("新疆维吾尔自治区"), null, null, null,
+                null, null, 1, 10);
+        assertThat(drill.getSummary().getTotalCount()).isEqualTo(1L);
+        assertThat(drill.getItems()).extracting("projectId").containsExactly(boundaryInId);
+
+        // region 轴点击 + 日期联合同样命中 G、不含 H
+        var regionAxisDrill = drillDownService.drillDown(
+                "region", "新疆维吾尔自治区", "投标数",
+                start, end, null, null, null, null, null, null,
+                null, null, 1, 10);
+        assertThat(regionAxisDrill.getSummary().getTotalCount()).isEqualTo(1L);
+        assertThat(regionAxisDrill.getItems()).extracting("projectId")
+                .containsExactly(boundaryInId)
+                .doesNotContain(boundaryOutId);
+
+        // 对照：同日期窗口换未命中省份返回空
+        var miss = drillDownService.drillDown(
+                "time", null, "投标数",
+                start, end, null, null, List.of("浙江省"), null, null, null,
+                null, null, 1, 10);
+        assertThat(miss.getSummary().getTotalCount()).isZero();
+    }
+
+    @Test
+    @DisplayName("非全局权限角色：区域命中集与下游均受授权范围限制（scopeIds 分支生效）")
+    void regionFilterRespectsRestrictedProjectScope() {
+        ProjectAccessScopeService restricted = Mockito.mock(ProjectAccessScopeService.class);
+        when(restricted.currentUserHasGlobalAccess()).thenReturn(false);
+        when(restricted.getAllowedProjectIdsForCurrentUser()).thenReturn(List.of(projectAId));
+
+        var restrictedDimension = new TrendAnalysisDimensionQueryService(restricted);
+        ReflectionTestUtils.setField(restrictedDimension, "entityManager", entityManager);
+        var restrictedDrillDown = new TrendDrillDownService(restricted);
+        ReflectionTestUtils.setField(restrictedDrillDown, "entityManager", entityManager);
+
+        // 维度分组共享入口：江苏省命中 A/B/C，但授权范围仅 A 可见
+        var rows = restrictedDimension.fetchStatusRows(new TrendQueryCriteria(
+                null, null, null, null, List.of("江苏省"), null, null, null, null, null));
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).projectId()).isEqualTo(projectAId);
+
+        // 下钻同样受限：仅 A 可见
+        var drill = restrictedDrillDown.drillDown(
+                "time", null, "投标数",
+                null, null, null, null, List.of("江苏省"), null, null, null,
+                null, null, 1, 10);
+        assertThat(drill.getSummary().getTotalCount()).isEqualTo(1L);
+        assertThat(drill.getItems()).extracting("projectId").containsExactly(projectAId);
     }
 
     @Test
