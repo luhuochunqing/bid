@@ -61,7 +61,7 @@
 - 触发：任务收尾（§2 触发点 1）—— 跨模块逻辑变更（前后端 29 文件），新增业务字段
 - 改动：
   - `integration-tender-api.md`：contactInfo 字段说明补充 nature；版本演进追加 2026-08-19 代码层 contactNature 条目
-- 关键结论：新增字段走校验分组隔离（ManualTenderValidation 挂手动路径条件必填，CRM 集成路径豁免）；Flyway 版本号与 origin/main 冲突时重命名为更高版本号（V1189→V1198）并清理 target 残留与数据库失败记录
+- 关键结论：新增字段走校验分组隔离（ManualTenderValidation 挂手动路径条件必填，CRM 集成路径豁免）；Flyway 版本号与 origin/main 连续撞号时重命名为更高版本号（V1189→V1198→V1199→V1200）并清理 target 残留与数据库失败记录
 - 触发点：任务收尾（§2 触发点 1）+ pre-push wiki-health-check（§2 触发点 4）
 
 ## [2026-08-19] update | 数据分析 M1/M2/M4 核心数据缺陷与口径升级修复
