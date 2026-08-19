@@ -65,4 +65,45 @@ class ScoreParsePromptsTest {
 
         assertThat(prompt).doesNotContain("附图");
     }
+
+    // ------------------------------------------------------------------
+    // promptSafe 剥离：主观/客观 prompt 喂 Gemini 前抹掉 markdown 图片与
+    // data:image base64 占位符，避免 Gemini 解码报 500（spec 048 测试环境回归）。
+    // ------------------------------------------------------------------
+
+    @Test
+    void buildObjectiveAssessmentPrompt_stripsMarkdownImageFromBidExcerpt() {
+        String excerpt = "案例证明 ![](data:image/png;base64,abc...==) 见下图\n" + TRICKY_TEXT;
+        String prompt = ScoreParsePrompts.buildObjectiveAssessmentPrompt(
+                TRICKY_TEXT, 30.0, excerpt);
+
+        assertThat(prompt).doesNotContain("data:");
+        assertThat(prompt).doesNotContain("base64");
+        assertThat(prompt).doesNotContain("![");
+        // 剥离后仅用空格替换，不吞掉相邻文本
+        assertThat(prompt).contains(TRICKY_TEXT);
+    }
+
+    @Test
+    void buildSubjectiveSuggestionPrompt_stripsBareDataUri() {
+        String excerpt = "方案说明 data:image/jpeg;base64,/9j/4AAQ 的图片正文（占位符截断）";
+        String prompt = ScoreParsePrompts.buildSubjectiveSuggestionPrompt(
+                TRICKY_TEXT, excerpt);
+
+        assertThat(prompt).doesNotContain("data:image");
+        assertThat(prompt).doesNotContain("base64");
+        assertThat(prompt).contains("方案说明");
+        assertThat(prompt).contains("的图片正文");
+    }
+
+    @Test
+    void buildObjectiveAssessmentPrompt_withImagesStillHasImageGuidanceAfterStrip() {
+        String excerpt = "案例 ![](data:image/png;base64,xxx==) 附件";
+        String prompt = ScoreParsePrompts.buildObjectiveAssessmentPrompt(
+                TRICKY_TEXT, 30.0, excerpt, true);
+
+        // 图片指引保留（真正图片走 multimodal content parts，不进 prompt 文本）
+        assertThat(prompt).contains("附图为投标文件中的部分图片");
+        assertThat(prompt).doesNotContain("data:");
+    }
 }
