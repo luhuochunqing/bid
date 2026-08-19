@@ -736,7 +736,43 @@ echarts 5 支持按需注册（`echarts/core` + `echarts/charts` + `echarts/comp
 
 ---
 
-## 18. 变更记录
+## 18. Vue provide/inject 子组件模板直接引用注入字段但未解构（undefined.has 渲染崩溃）
+
+### 18.1 事故
+
+数据分析模块筛选区自定义 TreeSelect：展开任一层级时报 `[ErrorBoundary] Unhandled render error: TypeError: Cannot read properties of undefined (reading 'has')`。子组件模板里直接写了 `selectedSet.has(node.value)`，但 `selectedSet` 在 `<script setup>` 里从未声明。
+
+### 18.2 根因
+
+父组件 `TreeSelectDropdown.vue` 用 `provide('treeSelectContext', { selectedSet, isExpanded, toggleExpand, toggle })` 注入上下文。子组件 `TreeSelectNode.vue` 只写了：
+
+```javascript
+const tree = inject('treeSelectContext')
+```
+
+然后模板直接用 `selectedSet.has(...)` 与 `tree.isExpanded(...)`。`tree` 拿到了，但 `selectedSet` 是注入对象上的**字段**，未解构到当前作用域 → 模板编译成访问未定义变量 → `.has` 抛错。
+
+> minified 后局部变量被压缩改名，线上 bundle 里 grep 不到 `selectedSet` 字符串，无法靠搜字符串验证是否修复——用 bundle md5 与本地构建产物对比更可靠。
+
+### 18.3 正确做法
+
+从注入上下文解构到当前作用域：
+
+```javascript
+const tree = inject('treeSelectContext')
+if (!tree) throw new Error('TreeSelectNode 必须在 TreeSelectDropdown 内使用')
+const { selectedSet } = tree  // 解构注入字段，模板才可用
+```
+
+### 18.4 规范
+
+- 模板中引用的每个注入字段，都必须先从 `inject()` 结果里解构，或统一走 `tree.xxx` 访问，不能混用
+- 新增 provide/inject 组件时，子组件先本地 build 一次，确认模板引用的注入字段全部在作用域内
+- 验证线上修复用 bundle md5 对比（grep minified 字符串不可靠）
+
+---
+
+## 19. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
@@ -746,4 +782,5 @@ echarts 5 支持按需注册（`echarts/core` + `echarts/charts` + `echarts/comp
 | 2026-08-17 | 新增 §15：echarts 全量引入 chunk 膨胀，改按需注册 |
 | 2026-08-17 | 新增 §16：API getList 默认 size 10000 过剩，对齐后端 MAX_PAGE_SIZE=100 |
 | 2026-08-18 | 新增 §17：全局 ellipsis 把状态列挤成"黑点"（工作台商机预测表格） |
+| 2026-08-19 | 新增 §18：provide/inject 子组件未解构注入字段 → undefined.has 渲染崩溃（数据分析 TreeSelect） |
 

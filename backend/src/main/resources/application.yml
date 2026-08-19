@@ -449,7 +449,7 @@ rate:
   limit:
     # Default rate limits for unauthenticated/anonymous requests (external API)
     default:
-      max: ${RATE_LIMIT_DEFAULT_MAX:100}
+      max: ${RATE_LIMIT_DEFAULT_MAX:200}
       window-seconds: ${RATE_LIMIT_DEFAULT_WINDOW:60}
     # Rate limits for API-key authenticated requests (external API)
     api-key:
