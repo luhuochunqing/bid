@@ -12,9 +12,9 @@ import com.xiyu.bid.docinsight.application.DocumentTextExtractor;
 import com.xiyu.bid.docinsight.application.ExtractedDocument;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
-import com.xiyu.bid.projectworkflow.entity.ProjectScoreDraft;
-import com.xiyu.bid.projectworkflow.repository.ProjectScoreDraftRepository;
 import com.xiyu.bid.repository.ProjectRepository;
+import com.xiyu.bid.scoreparse.entity.ScoreItem;
+import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -49,7 +49,7 @@ class ProjectClosedEventListenerTest {
 
     private ProjectArchiveRepository archiveRepository;
     private ArchiveFileRepository fileRepository;
-    private ProjectScoreDraftRepository scoreDraftRepository;
+    private ScoreItemRepository scoreItemRepository;
     private KnowledgeCaseRepository knowledgeCaseRepository;
     private ProjectRepository projectRepository;
     private TenderRepository tenderRepository;
@@ -63,7 +63,7 @@ class ProjectClosedEventListenerTest {
     void setUp() {
         archiveRepository = mock(ProjectArchiveRepository.class);
         fileRepository = mock(ArchiveFileRepository.class);
-        scoreDraftRepository = mock(ProjectScoreDraftRepository.class);
+        scoreItemRepository = mock(ScoreItemRepository.class);
         knowledgeCaseRepository = mock(KnowledgeCaseRepository.class);
         projectRepository = mock(ProjectRepository.class);
         tenderRepository = mock(TenderRepository.class);
@@ -72,7 +72,7 @@ class ProjectClosedEventListenerTest {
         caseAiMatcher = mock(CaseAiMatcher.class);
         notifier = mock(CasePrecipitationNotifier.class);
         listener = new ProjectClosedEventListener(
-                archiveRepository, fileRepository, scoreDraftRepository,
+                archiveRepository, fileRepository, scoreItemRepository,
                 knowledgeCaseRepository, projectRepository, tenderRepository,
                 bidResultRepository, docTextExtractor, caseAiMatcher, notifier);
     }
@@ -82,8 +82,8 @@ class ProjectClosedEventListenerTest {
     void noBidFile_triggersFailureNotification() {
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project(1L, 7L, "E2E 项目")));
         when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.empty());
-        when(scoreDraftRepository.findByProjectIdOrderByCategoryAscSourceTableIndexAscSourceRowIndexAsc(1L))
-                .thenReturn(List.of(draft(101L, "技术方案", "要求提供架构图")));
+        when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
+                .thenReturn(List.of(scoreItem(101L, "技术方案", "要求提供架构图")));
 
         listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
 
@@ -101,7 +101,7 @@ class ProjectClosedEventListenerTest {
         archive.setId(99L);
         when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
         when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(bidFile(1L, 99L)));
-        when(scoreDraftRepository.findByProjectIdOrderByCategoryAscSourceTableIndexAscSourceRowIndexAsc(1L))
+        when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
                 .thenReturn(List.of());
 
         listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
@@ -122,10 +122,10 @@ class ProjectClosedEventListenerTest {
         when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
         ArchiveFile bidFile = bidFile(1L, 99L);
         when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(bidFile));
-        List<ProjectScoreDraft> drafts = List.of(
-                draft(101L, "技术方案", "要求提供架构图"),
-                draft(102L, "商务条款", "要求提供报价明细"));
-        when(scoreDraftRepository.findByProjectIdOrderByCategoryAscSourceTableIndexAscSourceRowIndexAsc(1L))
+        List<ScoreItem> drafts = List.of(
+                scoreItem(101L, "技术方案", "要求提供架构图"),
+                scoreItem(102L, "商务条款", "要求提供报价明细"));
+        when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
                 .thenReturn(drafts);
         when(docTextExtractor.extract(any(), any(), any()))
                 .thenReturn(new ExtractedDocument("## 标书正文", 5, "text/markdown", "bid.pdf", java.util.Map.of()));
@@ -164,8 +164,8 @@ class ProjectClosedEventListenerTest {
         archive.setId(99L);
         when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
         when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(bidFile(1L, 99L)));
-        when(scoreDraftRepository.findByProjectIdOrderByCategoryAscSourceTableIndexAscSourceRowIndexAsc(1L))
-                .thenReturn(List.of(draft(101L, "技术方案", "要求提供架构图")));
+        when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
+                .thenReturn(List.of(scoreItem(101L, "技术方案", "要求提供架构图")));
         when(docTextExtractor.extract(any(), any(), any()))
                 .thenReturn(new ExtractedDocument("## 标书正文", 5, "text/markdown", "bid.pdf", java.util.Map.of()));
         when(caseAiMatcher.extractSlicesWithAi(any(), any()))
@@ -204,8 +204,8 @@ class ProjectClosedEventListenerTest {
         archive.setId(99L);
         when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
         when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(bidFile(1L, 99L)));
-        when(scoreDraftRepository.findByProjectIdOrderByCategoryAscSourceTableIndexAscSourceRowIndexAsc(1L))
-                .thenReturn(List.of(draft(101L, "技术方案", "要求提供架构图")));
+        when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
+                .thenReturn(List.of(scoreItem(101L, "技术方案", "要求提供架构图")));
         when(docTextExtractor.extract(any(), any(), any()))
                 .thenReturn(new ExtractedDocument("## 标书正文", 5, "text/markdown", "bid.pdf", java.util.Map.of()));
         when(caseAiMatcher.extractSlicesWithAi(any(), any()))
@@ -254,8 +254,8 @@ class ProjectClosedEventListenerTest {
         archive.setId(99L);
         when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
         when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(bidFile(1L, 99L)));
-        List<ProjectScoreDraft> drafts = List.of(draft(101L, "技术方案", "要求提供架构图"));
-        when(scoreDraftRepository.findByProjectIdOrderByCategoryAscSourceTableIndexAscSourceRowIndexAsc(1L))
+        List<ScoreItem> drafts = List.of(scoreItem(101L, "技术方案", "要求提供架构图"));
+        when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
                 .thenReturn(drafts);
         when(docTextExtractor.extract(any(), any(), any()))
                 .thenReturn(new ExtractedDocument("## 标书正文", 5, "text/markdown", "bid.pdf", java.util.Map.of()));
@@ -281,8 +281,8 @@ class ProjectClosedEventListenerTest {
         archive.setId(99L);
         when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
         when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(bidFile(1L, 99L)));
-        when(scoreDraftRepository.findByProjectIdOrderByCategoryAscSourceTableIndexAscSourceRowIndexAsc(1L))
-                .thenReturn(List.of(draft(101L, "技术方案", "要求提供架构图")));
+        when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
+                .thenReturn(List.of(scoreItem(101L, "技术方案", "要求提供架构图")));
         when(docTextExtractor.extract(any(), any(), any()))
                 .thenReturn(new ExtractedDocument("## 标书正文", 5, "text/markdown", "bid.pdf", java.util.Map.of()));
         when(caseAiMatcher.extractSlicesWithAi(any(), any()))
@@ -302,8 +302,8 @@ class ProjectClosedEventListenerTest {
         archive.setId(99L);
         when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
         when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(bidFile(1L, 99L)));
-        when(scoreDraftRepository.findByProjectIdOrderByCategoryAscSourceTableIndexAscSourceRowIndexAsc(1L))
-                .thenReturn(List.of(draft(101L, "技术方案", "要求提供架构图")));
+        when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
+                .thenReturn(List.of(scoreItem(101L, "技术方案", "要求提供架构图")));
         when(docTextExtractor.extract(any(), any(), any()))
                 .thenReturn(new ExtractedDocument("## 标书正文", 5, "text/markdown", "bid.pdf", java.util.Map.of()));
         CaseAiMatcher.AiMatchedSlice slice = new CaseAiMatcher.AiMatchedSlice();
@@ -332,8 +332,8 @@ class ProjectClosedEventListenerTest {
         archive.setId(99L);
         when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
         when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(bidFile(1L, 99L)));
-        when(scoreDraftRepository.findByProjectIdOrderByCategoryAscSourceTableIndexAscSourceRowIndexAsc(1L))
-                .thenReturn(List.of(draft(101L, "技术方案", "要求提供架构图")));
+        when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
+                .thenReturn(List.of(scoreItem(101L, "技术方案", "要求提供架构图")));
         when(docTextExtractor.extract(any(), any(), any()))
                 .thenReturn(new ExtractedDocument("## 标书正文", 5, "text/markdown", "bid.pdf", java.util.Map.of()));
         CaseAiMatcher.AiMatchedSlice slice = new CaseAiMatcher.AiMatchedSlice();
@@ -360,13 +360,8 @@ class ProjectClosedEventListenerTest {
         return p;
     }
 
-    private ProjectScoreDraft draft(Long id, String title, String rule) {
-        ProjectScoreDraft d = new ProjectScoreDraft();
-        d.setId(id);
-        d.setScoreItemTitle(title);
-        d.setScoreRuleText(rule);
-        d.setCategory("技术评分");
-        return d;
+    private ScoreItem scoreItem(Long id, String dim, String detail) {
+        return ScoreItem.builder().id(id).dim(dim).detail(detail).build();
     }
 
     private ArchiveFile bidFile(Long id, Long archiveId) {

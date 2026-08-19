@@ -7,11 +7,11 @@ import com.xiyu.bid.casework.infrastructure.ProjectArchiveRepository;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.project.core.ProjectStage;
 import com.xiyu.bid.project.service.ProjectStageService;
-import com.xiyu.bid.projectworkflow.entity.ProjectScoreDraft;
-import com.xiyu.bid.projectworkflow.repository.ProjectScoreDraftRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.scoreparse.entity.ScoreItem;
+import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -40,7 +40,7 @@ public class CasePrecipitationAppService {
 
     private final ProjectArchiveRepository archiveRepository;
     private final ArchiveFileRepository fileRepository;
-    private final ProjectScoreDraftRepository scoreDraftRepository;
+    private final ScoreItemRepository scoreItemRepository;
     private final ProjectRepository projectRepository;
     private final ProjectStageService projectStageService;
     private final ApplicationEventPublisher eventPublisher;
@@ -82,9 +82,9 @@ public class CasePrecipitationAppService {
             missingItems.add("缺少标书文件，请先在标书编制阶段上传标书文件");
         }
 
-        List<ProjectScoreDraft> drafts = scoreDraftRepository
-                .findByProjectIdOrderByCategoryAscSourceTableIndexAscSourceRowIndexAsc(projectId);
-        hasScoreItems = !drafts.isEmpty();
+        List<ScoreItem> items = scoreItemRepository
+                .findByProjectIdOrderByItemIndexAsc(projectId);
+        hasScoreItems = !items.isEmpty();
 
         if (!hasScoreItems) {
             missingItems.add("缺少评分项，请先在标书编制阶段完成招标文件解析");
