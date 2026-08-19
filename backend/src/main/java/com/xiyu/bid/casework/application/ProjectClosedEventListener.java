@@ -26,6 +26,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -185,13 +186,15 @@ public class ProjectClosedEventListener {
         return fallback;
     }
 
-    private byte[] loadFileBytes(String filePath) throws java.io.IOException {
+    byte[] loadFileBytes(String filePath) throws java.io.IOException {
         if (filePath.startsWith(FileUrlPrefixes.OBS_DIRECT)) {
             Optional<String> signedUrl = obsShareUrlSigner.trySign(filePath);
             if (signedUrl.isEmpty()) {
                 throw new IllegalStateException("OBS 签名失败，无法下载标书: " + filePath);
             }
-            byte[] bytes = restTemplate.getForObject(signedUrl.get(), byte[].class);
+            // 必须传 URI 而非 String：getForObject(URI,..) 不经过 UriTemplateHandler，
+            // 预签名 URL 的 % 不被二次编码 → OBS 验签不再 SignatureDoesNotMatch(403)
+            byte[] bytes = restTemplate.getForObject(URI.create(signedUrl.get()), byte[].class);
             if (bytes == null || bytes.length == 0) {
                 throw new IllegalStateException("OBS 标书下载结果为空: " + filePath);
             }
