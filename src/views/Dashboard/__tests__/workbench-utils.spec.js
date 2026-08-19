@@ -5,6 +5,7 @@ import {
   normalizeCalendarEvent,
   normalizeAlertForTodo,
   extractCustomersFromProjects,
+  projectStatusLabel,
 } from '@/views/Dashboard/workbench-utils.js'
 
 beforeEach(() => {
@@ -373,5 +374,25 @@ describe('isRealTenderId', () => {
   it('returns true for non-numeric real id', () => {
     expect(isRealTenderId('abc-123')).toBe(true)
     expect(isRealTenderId('tender_456')).toBe(true)
+  })
+})
+
+describe('projectStatusLabel', () => {
+  it('maps all 8 canonical statuses to Chinese labels', () => {
+    expect(projectStatusLabel('WON')).toBe('已中标')
+    expect(projectStatusLabel('LOST')).toBe('未中标')
+    expect(projectStatusLabel('FAILED')).toBe('已流标')
+    expect(projectStatusLabel('BIDDING')).toBe('投标中')
+    expect(projectStatusLabel('EVALUATING')).toBe('评标中')
+    expect(projectStatusLabel('INITIATED')).toBe('已立项')
+    expect(projectStatusLabel('PENDING_INITIATION')).toBe('待立项')
+    expect(projectStatusLabel('ABANDONED')).toBe('已放弃')
+  })
+
+  it('returns unknown status as-is, empty string for missing', () => {
+    expect(projectStatusLabel('SOME_NEW_STATUS')).toBe('SOME_NEW_STATUS')
+    expect(projectStatusLabel(null)).toBe('')
+    expect(projectStatusLabel(undefined)).toBe('')
+    expect(projectStatusLabel('')).toBe('')
   })
 })

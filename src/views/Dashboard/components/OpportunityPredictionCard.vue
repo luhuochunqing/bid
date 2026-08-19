@@ -93,6 +93,7 @@ import { workbenchApi } from '@/api'
 import { navigateToProject } from '@/utils/projectNavigation.js'
 import { customerTypeLabel, projectTypeLabel } from '@/views/Project/utils/projectListFormatters.js'
 import { getProjectStatusType } from '@/views/Dashboard/workbench-formatters.js'
+import { projectStatusLabel } from '@/views/Dashboard/workbench-utils.js'
 
 const PAGE_SIZE = 5
 
@@ -139,13 +140,9 @@ function formatYears(value) {
   return Number.isFinite(num) ? String(num) : '-'
 }
 
-// 项目状态枚举名 → 中文标签（与后端 Project.Status.displayName() 对齐）；
+// 项目状态标签复用 workbench-utils.js 的 8 状态映射（避免重复定义），
 // ElTag 配色复用 workbench-formatters.js 的唯一映射（见 Dashboard/README.md）
-const STATUS_LABEL = {
-  WON: '已中标', FAILED: '已流标', LOST: '未中标', ABANDONED: '已放弃',
-  BIDDING: '投标中', EVALUATING: '评标中', INITIATED: '已立项', PENDING_INITIATION: '待立项',
-}
-const statusLabel = (resultType) => STATUS_LABEL[resultType] ?? resultType ?? '-'
+const statusLabel = (resultType) => projectStatusLabel(resultType) || '-'
 const statusTagType = (resultType) => getProjectStatusType(statusLabel(resultType))
 
 // 客户类型轻标签配色（与 V3 设计稿一致）
