@@ -4,7 +4,7 @@ space: engineering
 category: architecture
 tags: [analytics, data-analysis, m0-m4, competitor, echarts, fp-java]
 created: 2026-08-14
-updated: 2026-08-14
+updated: 2026-08-20
 health_checked: 2026-08-14
 sources:
   - .wiki/pages/data-analysis-revamp.md
@@ -227,3 +227,11 @@ src/views/data-analysis/
 - **代码层**：PR !2347 消除区域维度跨表 COALESCE（改 Java 纯函数 `RegionDimensionExtractor`），但 customerType 维度仍残留跨表 coalesce。
 - **数据层根治**：V1198 迁移用存储过程遍历 `information_schema.TABLES`，把全部非 `utf8mb4_0900_ai_ci` 基础表 CONVERT 对齐库默认（幂等）。测试环境演练：141 表/51MB，10.8s 完成，执行前已全量备份，原崩溃 SQL 复验通过。
 - **教训**：collation/charset 属环境级配置漂移，本地与生产不一致时单测全绿也会线上炸；详见 lessons-learned §128/§129。
+
+## 2026-08-20 区域筛选与分组口径统一（省份归一化）
+
+- **背景**：多维度趋势分析选定区域筛选后，投标数/中标数 KPI 与图表柱子数量不一致。
+- **根因（三口径分裂）**：①筛选 SQL 用 LIKE 前缀匹配原始文本，分组侧却做省份归一化提取，两端口径不同步；②区域取值空串回退不对称（一侧回退、一侧不回退）；③时间维度查询不消费 regionIds，筛选对时间趋势不生效。
+- **修复方案**：筛选/分组/下钻/时间趋势四条链路统一走 `RegionDimensionExtractor`：`resolveRawLocation` 双源取值（`pid.headquartersLocation` 非空白优先，空白回退 `t.region`）+ `extractProvince` 省份归一（含 34 条短省名别名表 SHORT_NAME_ALIASES；「海南」等歧义短名仅精确匹配避免误归省份）。`AnalyticsRegionFilterSupport` 区域命中集 endDate 上界放宽至次日零点与下钻口径对齐；客户类型过滤统一 coalesce 口径堵住空串语义裂缝。
+- **口径边界**：双源取值不含 `projects.region`（曾尝试三源口径，经确认本地数据缺失系 mock 数据无总部所在地所致，已回退）；纯市级自由文本（如「苏州市」）无法归省，需市→省映射表，另开任务。
+- **验证**：175+ 定向测试全绿（Trend/Region/Analytics/DrillDown/ArchitectureTest）+ line-budget 门禁 + 三轮代码审查。分支 `agent/qoder/fix-trend-region-filter-stats`。

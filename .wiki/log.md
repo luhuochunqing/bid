@@ -297,3 +297,9 @@
 - 根因：isWon 用项目级状态（resultType/status）推导，语义层级错配；真源是 `project_result_competitor.notes`（前端「竞争对手情况」表格是否中标下拉写入，字段语义漂移）
 - 更新 [[data-analysis-revamp]]：§4 追加 2026-08-19 修订说明（推翻项目级推导口径）；§关键陷阱追加 §10 竞品是否中标数据源规范
 - 关联：`docs/lessons/lessons-learned.md §127`；回归测试 `CompetitorAnalysisJpqlRegressionTest`（H2 实测 JPQL 构造器 10 参 + notes 按行独立带出）+ `CompetitorAnalysisComputationServiceTest`（枚举解析 3 用例）
+
+## [2026-08-20] bugfix | 多维度趋势区域筛选与分组口径统一（省份归一化）回填
+- 触发：区域筛选后投标数/中标数 KPI 与图表柱子不一致（分支 `agent/qoder/fix-trend-region-filter-stats`）
+- 根因：筛选 LIKE 前缀匹配 vs 分组省份归一化两口径分裂；空串回退不对称；时间维度不消费 regionIds
+- 更新 [[data-analysis-revamp]]：追加「2026-08-20 区域筛选与分组口径统一」小节（双源取值 + extractProvince 归一 + 34 条短省名别名 + endDate 边界对齐）
+- 口径边界：不含 projects.region（三源尝试已回退）；纯市级自由文本归省需市→省映射表另开任务
