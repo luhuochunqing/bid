@@ -55,7 +55,8 @@ public final class RegionDimensionExtractor {
      * 将原始地址或区域字符串解析为一级省级行政区单位。
      *
      * @param location 原始字符串，例如 "江苏省淮安市"、"北京市北京市"、"内蒙古自治区呼和浩特市"
-     * @return 一级行政区名称，例如 "江苏省"、"北京市"、"内蒙古自治区"；无法解析时返回 "其他"
+     * @return 一级行政区名称，例如 "江苏省"、"北京市"、"内蒙古自治区"；
+     *         null/空白返回 "其他"；其余无法归一化的原串原样返回，保持独立桶
      */
     public static String extractProvince(String location) {
         if (location == null || location.isBlank()) {
@@ -137,13 +138,13 @@ public final class RegionDimensionExtractor {
         aliases.put("陕西", "陕西省");
         aliases.put("甘肃", "甘肃省");
         aliases.put("青海", "青海省");
-        // 5 个自治区
+        // 5 个自治区（为全集完整性保留：已被上方前置分支遮蔽，实际不会命中）
         aliases.put("内蒙古", "内蒙古自治区");
         aliases.put("广西", "广西壮族自治区");
         aliases.put("西藏", "西藏自治区");
         aliases.put("宁夏", "宁夏回族自治区");
         aliases.put("新疆", "新疆维吾尔自治区");
-        // 港澳台
+        // 港澳台（为全集完整性保留：已被上方前置分支遮蔽，实际不会命中）
         aliases.put("台湾", "台湾省");
         aliases.put("香港", "香港特别行政区");
         aliases.put("澳门", "澳门特别行政区");
