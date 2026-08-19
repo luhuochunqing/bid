@@ -64,8 +64,16 @@ public class TrendDrillDownService {
         params.put("allAccess", allAccess);
         params.put("scopeIds", allAccess ? List.of(-1L) : scopeIds);
 
-        // 维度值过滤（axisValue 对应的维度列）
-        appendDimensionFilter(where, params, dimension, axisValue);
+        // 维度值过滤（axisValue 对应的维度列；region 维度走省份归一化口径，保证下钻条数 = 柱子数字）
+        if ("region".equals(dimension) && axisValue != null && !axisValue.isBlank()) {
+            Set<Long> regionAxisIds = AnalyticsRegionFilterSupport.regionMatchedProjectIds(
+                    entityManager, projectAccessScopeService, List.of(axisValue));
+            if (regionAxisIds.isEmpty()) return emptyResponse(pageNum, pageSize);
+            where.append(" AND p.id IN (:regionAxisIds)");
+            params.put("regionAxisIds", regionAxisIds);
+        } else {
+            appendDimensionFilter(where, params, dimension, axisValue);
+        }
 
         // 日期范围
         if (startDate != null) {
@@ -89,20 +97,13 @@ public class TrendDrillDownService {
         }
         appendInFilter(where, params, "t.project_type", "projectTypes", projectTypes);
         appendInFilter(where, params, "p.status", "statuses", statuses);
-        // 区域过滤（总部所在地前缀匹配，参数化绑定并转义 LIKE 通配符防注入与异常匹配）
+        // 区域过滤：与图表分组同口径的省份归一化匹配（见 AnalyticsRegionFilterSupport）
         if (regions != null && !regions.isEmpty()) {
-            where.append(" AND (");
-            for (int i = 0; i < regions.size(); i++) {
-                if (i > 0) where.append(" OR ");
-                where.append("(pid.headquarters_location LIKE :regionPattern").append(i)
-                        .append(" OR (pid.headquarters_location IS NULL AND t.region LIKE :regionPattern").append(i).append("))");
-                String safePattern = regions.get(i)
-                        .replace("\\", "\\\\")
-                        .replace("%", "\\%")
-                        .replace("_", "\\_");
-                params.put("regionPattern" + i, safePattern + "%");
-            }
-            where.append(")");
+            Set<Long> regionMatchedIds = AnalyticsRegionFilterSupport.regionMatchedProjectIds(
+                    entityManager, projectAccessScopeService, regions);
+            if (regionMatchedIds.isEmpty()) return emptyResponse(pageNum, pageSize);
+            where.append(" AND p.id IN (:regionProjectIds)");
+            params.put("regionProjectIds", regionMatchedIds);
         }
 
         // 部门过滤（通过 manager_id → users.department_name）
@@ -251,10 +252,6 @@ public class TrendDrillDownService {
             case "person" -> {
                 where.append(" AND u.full_name = :axisVal");
                 params.put("axisVal", axisValue);
-            }
-            case "region" -> {
-                where.append(" AND (pid.headquarters_location LIKE :axisVal OR (pid.headquarters_location IS NULL AND t.region LIKE :axisVal))");
-                params.put("axisVal", axisValue + "%");
             }
             case "customerType" -> {
                 where.append(" AND (pid.customer_type = :axisVal OR (pid.customer_type IS NULL AND p.customer_type = :axisVal))");
