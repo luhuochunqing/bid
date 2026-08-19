@@ -151,11 +151,6 @@ const handleXAxisChange = (field, checked) => {
   }
 }
 
-const handleDeptValueChange = (val) => {
-  filters.value.departments = val || []
-  handleFieldChange('dept')
-}
-
 const handleFieldChange = (dim) => {
   const filterKey = AXIS_TO_FILTER[dim]
   const vals = filters.value[filterKey]
@@ -170,7 +165,11 @@ const handleFieldChange = (dim) => {
   }
 }
 
-const handleDepartmentSearch = (q) => emit('search-department', q)
+const handleDeptValueChange = (val) => {
+  filters.value.departments = val || []
+  handleFieldChange('dept')
+}
+
 const handlePersonSearch = (q) => emit('search-person', q)
 const handleRegionSearch = (q) => emit('search-region', q)
 const handleCustomerTypeSearch = (q) => emit('search-customer-type', q)

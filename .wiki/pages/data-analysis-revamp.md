@@ -88,10 +88,22 @@ PRD §9.12 步骤 10/13：招标主体和项目名称互斥。
 PRD §9.12 步骤 7 + §9.14：竞品公司至少保留 1 个，不允许清空。
 `onCompetitorChange` 检测空选值时恢复默认全选（`COMPETITOR_ENUM` 7 个竞品）。
 
-### 4. 竞品枚举硬编码（M4）
+### 5. 部门树形层级与无效部门展示（M1）
 
-PRD §9.4：竞品公司列表前端硬编码（震坤行/京东/阿里巴巴/米思米/固安捷/咸享国际/易买工品）。
-不走后端枚举接口，避免不必要的服务端依赖。
+- 组织架构具有多层级树形结构，通过 `parentDepartmentCode` 递归构建 `AnalyticsDepartmentTreeDTO`。
+- 业务规范：数据分析筛选区的部门与人员不过滤无效/停用状态，确保历史项目数据能够完整按历史归属组织进行归类与统计。
+
+### 6. 区域维度总部所在地一级地址匹配（M1）
+
+- 项目详情中的 `headquartersLocation` 字段通常存有省级+市级拼接字符串（如“广东省深圳市”）。
+- 趋势分析按“区域”维度聚合时，后端通过 SQL/JPQL `CASE` 表达式提取一级行政区（省/直辖市/自治区/特别行政区），与前端省份选项匹配。
+- 下钻查询与通用筛选时，针对 `headquartersLocation` 需采用前缀模糊匹配（`LIKE '广东省%'`），避免精确 `IN` 匹配丢失下属城市数据。
+
+### 7. 招标主体与项目模式竞品公司动态展示（M4）
+
+- 招标主体模式下，竞品公司不强制受限于预设的 24 个枚举名单，而是动态收集所选招标主体项目下实际存在的全部竞品公司，生成对应的最高/最低/平均折扣柱子。
+- 项目模式下直接提取项目“结果确认阶段-竞争对手情况”中的全部竞品及折扣生成图表与明细表格。
+- ECharts DOM 生命周期：骨架屏 `v-if="loading"` 切换会导致容器 DOM 销毁重建，在 `renderChart` 中需检验 `chartInstance.getDom()` 是否与当前 ref 对齐，发生脱节时需重新初始化。
 
 ## 文件清单
 
@@ -100,20 +112,27 @@ PRD §9.4：竞品公司列表前端硬编码（震坤行/京东/阿里巴巴/�
 ```
 backend/src/main/java/com/xiyu/bid/analytics/
 ├── controller/
-│   └── CompetitorAnalysisController.java      # REST 端点 + /project-names
+│   ├── CompetitorAnalysisController.java      # REST 端点 + /project-names
+│   └── TrendAnalysisController.java           # 趋势分析与筛选选项端点
 ├── service/
 │   ├── CompetitorAnalysisService.java          # 门面
 │   ├── CompetitorAnalysisQueryService.java     # 数据访问（JPQL + 权限过滤）
 │   ├── CompetitorAnalysisComputationService.java # 纯计算（折扣解析 + 统计）
-│   └── CompetitorAnalysisAssemblerService.java # 三模式响应组装
+│   ├── CompetitorAnalysisAssemblerService.java # 三模式响应组装
+│   ├── FilterOptionsQueryService.java          # 筛选区选项（含部门树与人员）
+│   ├── TrendAnalysisDimensionQueryService.java # 多维度聚合查询（含区域一级地址提取）
+│   ├── TrendAnalysisService.java               # 趋势分析门面
+│   └── TrendDrillDownService.java              # 趋势分析下钻查询
 ├── dto/
+│   ├── AnalyticsDepartmentTreeDTO.java         # 部门树形 DTO
 │   ├── CompetitorAnalysisRequest.java          # tenderEntities 列表 + projectName
 │   ├── CompetitorAnalysisResponse.java         # 三模式响应
 │   ├── CompetitorAnalysisSeriesDTO.java        # 默认模式 series
 │   ├── CompetitorGroupDTO.java                 # 分组模式 min/avg/max
 │   └── CompetitorTableRowDTO.java              # 项目模式表格行
 └── model/
-    └── CompetitorAnalysisRow.java              # 数据行 record
+    ├── CompetitorAnalysisRow.java              # 竞品数据行 record
+    └── CustomerTypeAggregate.java              # 客户类型聚合 record
 ```
 
 ### 前端（data-analysis）
@@ -123,16 +142,18 @@ src/views/data-analysis/
 ├── index.vue                                   # 页面入口（M0~M4 布局）
 ├── composables/useAnalyticsData.js             # 公共数据加载
 └── components/
+    ├── shared/TreeSelectDropdown.vue           # 树形下拉选择组件
     ├── m0-kpi-cards/index.vue                  # KPI 卡片
     ├── m1-trend-analysis/
     │   ├── index.vue                           # 趋势分析
+    │   ├── FilterBar.vue                       # 筛选栏（含部门树选择）
     │   ├── DrillModal.vue                      # 钻取弹窗
     │   └── composables/useDrillDown.js         # 钻取逻辑
     ├── m2-customer-type/index.vue              # 客户类型饼图
     ├── m3-project-type/index.vue               # 项目类型饼图
     └── m4-competitor/
         ├── index.vue                           # 竞品分析
-        ├── composables/useCompetitorData.js    # 状态管理
+        ├── composables/useCompetitorData.js    # 状态管理（含 DOM 重新挂载）
         └── chartRenderer.js                    # ECharts 配置 + 导出
 ```
 
@@ -140,5 +161,6 @@ src/views/data-analysis/
 
 - `npm run build` — exit 0
 - `npm run check:line-budgets` — 全部 ≤ 300 行
-- pre-commit 钩子：202 test files, 1657 tests passed
+- pre-commit 钩子：208 test files, 1700 tests passed
 - 架构测试：MaintainabilityArchitectureTest + FPJavaArchitectureTest + ProjectAccessGuardCoverageTest 12 tests passed
+
