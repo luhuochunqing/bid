@@ -65,7 +65,7 @@ const totalCount = computed(() => allValues.value.length)
 
 const triggerText = computed(() => {
   const count = selectedCount.value
-  if (count === 0) return '请选择'
+  if (count === 0) return props.placeholder
   if (totalCount.value > 0 && count === totalCount.value) return '全部'
   return `已选 ${count} 项`
 })

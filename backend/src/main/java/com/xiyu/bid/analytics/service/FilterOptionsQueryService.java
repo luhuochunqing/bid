@@ -184,7 +184,7 @@ public class FilterOptionsQueryService {
                         where (:allAccess = true or p.id in :scopeIds)
                           and coalesce(nullif(pid.customerType, ''), p.customerType) is not null
                           and coalesce(nullif(pid.customerType, ''), p.customerType) <> ''
-                        order by 1
+                        order by coalesce(nullif(pid.customerType, ''), p.customerType)
                         """, String.class)
                 .setParameter("allAccess", allAccess)
                 .setParameter("scopeIds", allAccess ? Set.of(-1L) : scopeIds)

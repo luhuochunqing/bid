@@ -77,10 +77,8 @@ public class TrendDrillDownService {
             params.put("endDate", endDate.plusDays(1).atStartOfDay());
         }
 
-        // 系列名过滤：投标数=全部项目（与图表口径对齐），中标数=WON
-        if ("投标数".equals(seriesName)) {
-            // 全部项目计入，无附加状态条件
-        } else if ("中标数".equals(seriesName)) {
+        // 系列名过滤：投标数=全部项目（无附加状态条件，与图表口径对齐），中标数=WON
+        if ("中标数".equals(seriesName)) {
             where.append(" AND p.status = 'WON'");
         }
 
