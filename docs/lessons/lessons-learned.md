@@ -2803,3 +2803,34 @@ PR !2399 报价评分截断治理提交后，经严格评审发现 2 个 CRITICA
 
 - `backend/src/main/java/com/xiyu/bid/tender/service/TenderEvaluationSubmissionMapper.java`
 - `backend/src/test/java/com/xiyu/bid/tender/service/TenderEvaluationSubmissionServiceTest.java`（回归测试）
+
+## 159. Flyway 迁移版本号被 origin/main 占用：rebase 后本地脚本需重命名更高版本号（2026-08-19，contactNature 全链路）
+
+### 背景
+
+标讯联系人性质（contactNature）全链路实现中，本地迁移脚本最初使用 V1189，后两次撞号：origin/main 先被占用 V1189（analytics 权限迁移），重命名为 V1198 后再次发现 origin/main 已占用 V1198（collation 统一迁移），最终重命名为 V1200（V1199 亦被 origin/main 占用）。首次撞号时启动报 `Found more than one migration with version 1189`。
+
+### 根因与连锁问题
+
+1. **版本号冲突**：多 Agent 并行开发时各自挑选"当前最大版本号+1"，push 先后决定占用权，后合入方必须重命名。
+2. **target 残留**：`target/classes` 中残留旧版本号文件，即使源文件已重命名，未 `mvn clean` 仍会重复加载。
+3. **数据库脏状态**：首次失败启动已执行部分 DDL（建列）并写入失败历史记录，重命名后重跑报 `Duplicate column name`。
+
+### 修复动作
+
+- 迁移脚本与回滚脚本同步重命名为更高版本号（V1189/U1189 → V1200/U1200，期间 V1198、V1199 相继被占用），amend 提交。
+- `mvn clean` 清理 target/classes 残留旧迁移文件。
+- 手动删除 `flyway_schema_history` 中的失败记录与已建的空列，再重新应用迁移。
+
+### 教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| 版本号挑选竞争 | 多 Agent 并行时版本号随时可能被占用，可能连续撞号 | 推送/启动失败报 "more than one migration with version X" 时，先 `git fetch` 核对 origin/main 已占用版本，重命名为当前最大版本号之上，回滚脚本同步改名；push 前必须再次比对 origin/main 的迁移目录 |
+| target 缓存残留 | 重命名迁移文件后旧 class 副本仍在 classpath | 改动迁移文件后必须 `mvn clean` 再启动 |
+| 失败启动留下脏库 | Flyway 失败记录 + 部分 DDL 会让重试报 Duplicate column | 重命名迁移前先清理 flyway_schema_history 失败行与已建列，禁止直接重跑 |
+
+### 相关文件
+
+- `backend/src/main/resources/db/migration-mysql/V1200__add_contact_nature_to_tenders.sql`
+- `backend/src/main/resources/db/rollback/migration-mysql/U1200__add_contact_nature_to_tenders.sql`

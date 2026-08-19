@@ -56,6 +56,14 @@
 - 关键结论：⑥ `RestTemplate.getForObject(byte[].class)` 整文件读堆无防护，fallback `new String(content,UTF_8)` 二次分配 → OOM；⑦ OBS 是真实标书数据源，提取失败必须 notifyFailure，禁止回退占位文本假成功。修复入口大小防护（超限抛 DocInsightException）+ OBS 失败 rethrow。
 - 触发点：任务收尾（§2 触发点 3 根因分析复合查询）
 
+## [2026-08-19] task | 标讯联系人性质(contactNature)字段全链路实现
+
+- 触发：任务收尾（§2 触发点 1）—— 跨模块逻辑变更（前后端 29 文件），新增业务字段
+- 改动：
+  - `integration-tender-api.md`：contactInfo 字段说明补充 nature；版本演进追加 2026-08-19 代码层 contactNature 条目
+- 关键结论：新增字段走校验分组隔离（ManualTenderValidation 挂手动路径条件必填，CRM 集成路径豁免）；Flyway 版本号与 origin/main 冲突时重命名为更高版本号（V1189→V1198）并清理 target 残留与数据库失败记录
+- 触发点：任务收尾（§2 触发点 1）+ pre-push wiki-health-check（§2 触发点 4）
+
 ## [2026-08-19] update | 数据分析 M1/M2/M4 核心数据缺陷与口径升级修复
 
 - 触发：测试服务器人工测试反馈：部门与人员选项空、区域统计为 0、客户类型饼图为 0、竞品明细表格“是否中标”不准
