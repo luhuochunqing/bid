@@ -270,3 +270,8 @@
 - 触发：tech-debt-tracker 条目（PR !2331 审计 F2 项，分支 `agent/qoder/resolver-di-refactor`，合入 PR !2334）；跨模块 23 文件，满足“跨模块逻辑变更”触发标准
 - 更新 [[spring-pitfalls]] §10.8：@Value/@Autowired 注入静态字段反模式的四类风险 / 构造器注入 + 配置承载类修复范式 / migrate-callers-then-delete / 循环依赖规避 / 三条预防规则
 - 未新建页面、未改 _index.md（仅在既有页追加小节）
+
+## [2026-08-19] deploy | 第 133 次测试部署：容器测试门禁拦截 V1196 枚举列缺陷
+- 触发：部署到测试环境（release c93bf9d93-api8080）；打包时 FlywayMysqlContainerTest 失败
+- 根因：V1196 建 status VARCHAR(32) 与 JPA TaskStatus @Enumerated(STRING) 不匹配，Hibernate schema-validation 启动即崩（V1040→V1041 同款）
+- 修复：V1197 MODIFY COLUMN ENUM + U1197（PR !2335），沉淀 lessons-learned §123 + 部署报告 133rd
