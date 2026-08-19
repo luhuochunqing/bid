@@ -113,12 +113,12 @@ export function useCompetitorData(chartRef) {
     }
   }
 
-  // PRD §9.12 步骤 7 + §9.14：竞品公司至少保留 1 个，选值变化自动刷新
+  // PRD §9.12 步骤 7 + §9.14：竞品公司至少保留 1 个；当用户清空选择时自动回退为默认首项（震坤行）并重新触发数据请求
   const onCompetitorChange = (val) => {
     if (!val || val.length === 0) {
-      // 清空时保留第一项（震坤行）
       selectedCompetitors.value = [COMPETITOR_ENUM[0].value]
-      return
+    } else {
+      selectedCompetitors.value = val
     }
     fetchData()
   }
@@ -179,6 +179,10 @@ export function useCompetitorData(chartRef) {
     loading.value = false
     nextTick(() => {
       if (!chartRef.value) return
+      if (chartInstance && chartInstance.getDom() !== chartRef.value) {
+        chartInstance.dispose()
+        chartInstance = null
+      }
       if (!chartInstance) chartInstance = markRaw(echarts.init(chartRef.value))
       const ok = renderCompetitorChart(chartInstance, chartData.value)
       if (!ok) noData.value = true
@@ -186,20 +190,27 @@ export function useCompetitorData(chartRef) {
   }
 
   async function fetchData() {
-    if (!selectedCompetitors.value || selectedCompetitors.value.length === 0) return
+    if (!selectedCompetitors.value || selectedCompetitors.value.length === 0) {
+      selectedCompetitors.value = [COMPETITOR_ENUM[0].value]
+    }
     loading.value = true
     error.value = false
     noData.value = false
     tableVisible.value = false
     try {
+      const mode = chartMode.value
       const params = {
-        competitorNames: selectedCompetitors.value,
         startDate: dateRange.value?.[0] || null,
         endDate: dateRange.value?.[1] || null
       }
-      const mode = chartMode.value
-      if (mode === 'grouped') params.tenderEntities = selectedEntities.value
-      if (mode === 'project') params.projectName = selectedProjectName.value
+      if (mode === 'default') {
+        params.competitorNames = selectedCompetitors.value
+      } else if (mode === 'grouped') {
+        params.competitorNames = selectedCompetitors.value
+        params.tenderEntities = selectedEntities.value
+      } else if (mode === 'project') {
+        params.projectName = selectedProjectName.value
+      }
 
       const response = await dashboardApi.getCompetitorAnalysis(params)
       chartData.value = normalizeChartData(response, mode, selectedCompetitors.value, selectedEntities.value)

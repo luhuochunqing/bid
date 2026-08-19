@@ -1,3 +1,8 @@
+// Input: CompetitorAnalysisQueryService, CompetitorAnalysisComputationService
+// Output: CompetitorAnalysisResponse DTO
+// Pos: Service/装配服务层
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+
 package com.xiyu.bid.analytics.service;
 
 import com.xiyu.bid.analytics.dto.CompetitorAnalysisRequest;
@@ -12,8 +17,10 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * M4 竞品分析装配服务：编排查询与计算，输出响应 DTO。
@@ -120,6 +127,9 @@ public class CompetitorAnalysisAssemblerService {
                 categories.add(entity);
             }
         }
+        if (categories.isEmpty() && !tenderEntities.isEmpty()) {
+            categories.addAll(tenderEntities);
+        }
 
         if (categories.isEmpty()) {
             return CompetitorAnalysisResponse.builder()
@@ -130,9 +140,28 @@ public class CompetitorAnalysisAssemblerService {
                     .build();
         }
 
+        // 收集所有实际存在的竞品公司（去重并保持顺序）
+        Set<String> allComps = new LinkedHashSet<>();
+        for (String entity : categories) {
+            Map<String, DiscountStats> entityStats = grouped.get(entity);
+            if (entityStats != null) {
+                allComps.addAll(entityStats.keySet());
+            }
+        }
+        // 如果用户有指定竞品且有交集，则以用户指定的竞品为先，否则使用实际所有竞品
+        List<String> targetCompetitors = new ArrayList<>();
+        if (competitors != null && !competitors.isEmpty()) {
+            for (String c : competitors) {
+                if (allComps.contains(c)) targetCompetitors.add(c);
+            }
+        }
+        if (targetCompetitors.isEmpty()) {
+            targetCompetitors.addAll(allComps);
+        }
+
         // 构建每个竞品公司的 group（minData/avgData/maxData）
         List<CompetitorGroupDTO> groups = new ArrayList<>();
-        for (String comp : competitors) {
+        for (String comp : targetCompetitors) {
             List<Double> minData = new ArrayList<>();
             List<Double> avgData = new ArrayList<>();
             List<Double> maxData = new ArrayList<>();

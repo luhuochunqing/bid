@@ -1,3 +1,8 @@
+// Input: EntityManager, ProjectAccessScopeService
+// Output: CompetitorAnalysisRow data lists
+// Pos: Query Service/数据查询层
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+
 package com.xiyu.bid.analytics.service;
 
 import com.xiyu.bid.analytics.model.CompetitorAnalysisRow;
@@ -52,23 +57,29 @@ public class CompetitorAnalysisQueryService {
                 join Project p on p.id = pr.projectId
                 left join Tender t on t.id = p.tenderId
                 where (:allAccess = true or p.id in :scopeIds)
-                  and prc.name in :competitorNames
                   and (:startDate is null or p.createdAt >= :startDate)
                   and (:endDate is null or p.createdAt <= :endDate)
                 """);
-        if (tenderEntities != null && !tenderEntities.isEmpty()) {
+        boolean hasTenderEntities = tenderEntities != null && !tenderEntities.isEmpty();
+        // 模式分支：
+        // 1. 招标主体模式（grouped）：按 purchaserName 过滤，不限制固定竞品枚举，以便动态发现该主体下的实际所有竞争对手；
+        // 2. 默认模式（default）：按用户选中的竞品公司列表过滤。
+        if (hasTenderEntities) {
             jpql.append("  and t.purchaserName in :tenderEntities\n");
+        } else if (competitorNames != null && !competitorNames.isEmpty()) {
+            jpql.append("  and prc.name in :competitorNames\n");
         }
         jpql.append(" order by p.createdAt desc, p.id desc");
 
         var query = entityManager.createQuery(jpql.toString(), CompetitorAnalysisRow.class)
                 .setParameter("allAccess", allAccess)
                 .setParameter("scopeIds", allAccess ? Set.of(-1L) : scopeIds)
-                .setParameter("competitorNames", competitorNames)
                 .setParameter("startDate", startDate == null ? null : startDate.atStartOfDay())
                 .setParameter("endDate", endDate == null ? null : endDate.atTime(23, 59, 59));
-        if (tenderEntities != null && !tenderEntities.isEmpty()) {
+        if (hasTenderEntities) {
             query.setParameter("tenderEntities", tenderEntities);
+        } else if (competitorNames != null && !competitorNames.isEmpty()) {
+            query.setParameter("competitorNames", competitorNames);
         }
         return query.getResultList();
     }
@@ -102,7 +113,6 @@ public class CompetitorAnalysisQueryService {
                 left join Tender t on t.id = p.tenderId
                 where (:allAccess = true or p.id in :scopeIds)
                   and p.name = :projectName
-                  and prc.name in :competitorNames
                   and (:startDate is null or p.createdAt >= :startDate)
                   and (:endDate is null or p.createdAt <= :endDate)
                 order by prc.sortOrder asc, prc.id asc
@@ -111,7 +121,6 @@ public class CompetitorAnalysisQueryService {
                 .setParameter("allAccess", allAccess)
                 .setParameter("scopeIds", allAccess ? Set.of(-1L) : scopeIds)
                 .setParameter("projectName", projectName)
-                .setParameter("competitorNames", competitorNames)
                 .setParameter("startDate", startDate == null ? null : startDate.atStartOfDay())
                 .setParameter("endDate", endDate == null ? null : endDate.atTime(23, 59, 59))
                 .getResultList();

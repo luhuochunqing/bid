@@ -8,9 +8,10 @@
     collapse-tags-tooltip
     clearable
     check-strictly
-    check-on-click-node
+    show-checkbox
+    filterable
     size="small"
-    style="width: 100%"
+    class="tree-select-dropdown"
     node-key="value"
     :props="{
       label: 'label',
@@ -18,8 +19,8 @@
       value: 'value',
       disabled: 'disabled'
     }"
-    @update:model-value="$emit('update:modelValue', $event)"
-    @clear="$emit('update:modelValue', [])"
+    @update:model-value="handleChange"
+    @clear="handleClear"
   />
 </template>
 
@@ -39,5 +40,15 @@ defineProps({
   }
 })
 
-defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'change'])
+
+const handleChange = (val) => {
+  emit('update:modelValue', val || [])
+  emit('change', val || [])
+}
+
+const handleClear = () => {
+  emit('update:modelValue', [])
+  emit('change', [])
+}
 </script>
