@@ -211,6 +211,7 @@
 > **来源**：PR !2331 生产风险审计（2026-08-18）F2 项
 > **背景**：`TenderAttachmentUrlResolver` 用 `@Value`/`@Autowired` setter 注入**静态字段**（`publicBaseUrl`、`obsShareUrlSigner`），所有方法为静态方法。属 CO-280 既有债：静态 API 被 `TenderIntegrationMapper`、`TenderMapper`、`ProjectResultPayloadAssembler` 等多处直接调用，改实例化注入会级联波及所有调用点。
 > **风险**：① 依赖 Spring 容器初始化顺序，Bean 创建前调用得到 null；② 单测需 ReflectionTestUtils 注入静态字段，易漏；③ 多 Spring 上下文测试（如 @SpringBootTest 并行）相互污染静态状态。
-> **建议**：重构为实例方法 + 构造器注入，调用点（约 3 个类 6 处）同步注入实例；`TenderIntegrationMapper` 若为静态工具类需先实例化。
-> **状态**：open，不阻塞当前交付（CRM 回调 URL 永久化修复已在该反模式上安全落地，行为正确且有测试覆盖）。
-> **复杂度**：中（半天），风险：低-中（有 31+14 个 Resolver 相关测试兜底）。
+> **建议**：重构为实例方法 + 构造器注入，同时把 legacy doc-insight 兼容逻辑（`extractOwnLegacyDocInsightParams`/`ownAbsolutePathPrefix`/`isOwnIntegrationDownloadUrl`）拆出，解决文件顶格 300 行硬上限问题。
+> **实测影响面**（2026-08-19 评估，PR !2331 审查期间）：主代码 4 文件（Resolver 本体 + `TenderIntegrationMapper`/`ProjectResultPayloadAssembler` 各 +1 final 字段，`TenderMapper` 需新增构造器）；测试 12+ 构造点（`new TenderIntegrationMapper(...)` ×8、`new ProjectResultPayloadAssembler(...)` ×2、`new TenderMapper()` ×3）+ 2 个反射设静态字段的测试文件（`TenderIntegrationMapperToDownloadUrlTest` 31 用例 / `CallerContextUrlResolverTest` 12 用例）需改实例构造。纯 DI 重构行为中性，编译器保证不遗漏调用点。
+> **状态**：open。已决策（2026-08-19）：不并入热修复 PR !2331，待其合入后从 main 开独立分支修复，避免跨模块重构拖慢生产热修复上线。
+> **复杂度**：中（半天），风险：低（行为中性 + 79 个 Resolver 相关测试兜底）。
