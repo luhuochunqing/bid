@@ -263,7 +263,11 @@ public class ProjectClosedEventListener {
                     .filter(s -> s.id().equals(slice.getDraftId()))
                     .findFirst()
                     .orElse(null);
-            if (scoreItem == null) continue;
+            if (scoreItem == null) {
+                log.warn("AI 返回的 criteriaId={} 未匹配到任何 score_item（共 {} 个），丢弃该片段；若为 0 入库请检查 LLM id 回显 / 文档解析",
+                        slice.getDraftId(), scoreItems.size());
+                continue;
+            }
 
             KnowledgeCase kCase = new KnowledgeCase();
             kCase.setSourceProjectId(projectId);
