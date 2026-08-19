@@ -23,8 +23,8 @@ package com.xiyu.bid.integration.external;
  * // 外部 API 场景
  * CallerContext ctx = CallerContext.externalSystem("xiyu_sk_...");
  *
- * // 转换 URL
- * String url = TenderAttachmentUrlResolver.resolve(fileUrl, ctx);
+ * // 转换 URL（resolver 为注入的 TenderAttachmentUrlResolver 实例）
+ * String url = resolver.resolve(fileUrl, ctx);
  * }</pre>
  */
 public final class CallerContext {

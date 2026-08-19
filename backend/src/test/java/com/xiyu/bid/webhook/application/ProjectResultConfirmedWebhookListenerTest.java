@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.integration.external.ExternalSystemPrefix;
+import com.xiyu.bid.integration.external.IntegrationEndpointUrls;
+import com.xiyu.bid.integration.external.TenderAttachmentUrlResolver;
 import com.xiyu.bid.project.core.BidResultType;
 import com.xiyu.bid.project.domain.ProjectResultConfirmedEvent;
 import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
@@ -68,7 +70,8 @@ class ProjectResultConfirmedWebhookListenerTest {
         ObjectMapper objectMapper = new ObjectMapper();
         ProjectResultPayloadAssembler assembler = new ProjectResultPayloadAssembler(
                 tenderRepository, userRepository, projectDocumentRepository,
-                projectInitiationDetailsRepository, objectMapper);
+                projectInitiationDetailsRepository, objectMapper,
+                new TenderAttachmentUrlResolver(new IntegrationEndpointUrls(""), null));
         ProjectResultConfirmedWebhookListener l = new ProjectResultConfirmedWebhookListener(
                 taskRepository, tenderRepository, objectMapper,
                 tenderCrmOpportunityCodeResolver, assembler, operatorUsernameResolver);

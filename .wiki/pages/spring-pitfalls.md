@@ -592,6 +592,39 @@ public class ScoreResultOverwriter {
 
 ---
 
+## 10.8. `@Value`/`@Autowired` 注入静态字段反模式（TenderAttachmentUrlResolver 重构 / 2026-08-19）
+
+### 现象
+
+`TenderAttachmentUrlResolver`（CO-280 403 修复体系核心）用 setter 把 `@Value("${xiyu.public-base-url:}")` 和 `ObsShareUrlSigner` 注入**静态字段**，所有方法被迫 static。后果：
+
+1. 依赖 Spring 容器初始化顺序，Bean 创建前调用得到 null；
+2. 单测必须 `ReflectionTestUtils.setField(类, null, ...)` 设静态字段，还需 @AfterEach 清理，易漏；
+3. 多 Spring 上下文测试（@SpringBootTest 并行）相互污染静态状态；
+4. 静态工具类无法拆分，文件顶格 300 行硬上限。
+
+### 修复（分支 agent/qoder/resolver-di-refactor）
+
+- Resolver 改构造器注入 + 实例方法；新建 `IntegrationEndpointUrls` 承载配置与端点路径常量（Resolver 300 → 252 行）。
+- 删除 `TenderIntegrationMapper.toDownloadUrl` 静态委托（migrate-callers-then-delete：调用方 `TenderMapper`/`TenderQueryService`/`ProjectResultPayloadAssembler` 同波改直接注入 Resolver，不留兼容层）。
+- 循环依赖规避：`TenderIntegrationMapper` 已持有 `TenderMapper` 字段，故 `TenderMapper` 反向只能直接注入 Resolver，不能再注入 `TenderIntegrationMapper`。
+- 测试全部改实例构造（`new TenderAttachmentUrlResolver(new IntegrationEndpointUrls(""), null)`），反射设静态字段全部移除。
+
+### 预防
+
+1. 新代码禁止 setter 注入静态字段；code review 看到 `static` + `@Value`/`@Autowired` 直接打回。
+2. 配置值需要多处使用时，抽 `@Component` 配置承载类（如 `IntegrationEndpointUrls`）而非静态字段。
+3. 静态工具方法只留给无状态的纯函数（如 URL 编码、字符串拼接）；任何依赖外部配置/Bean 的逻辑必须实例化。
+
+### 相关
+
+- `backend/src/main/java/com/xiyu/bid/integration/external/TenderAttachmentUrlResolver.java`（重构主体）
+- `backend/src/main/java/com/xiyu/bid/integration/external/IntegrationEndpointUrls.java`（新增配置承载类）
+- [[crm-integration-lessons]] —— CO-280/CRM 回调 URL 体系（本重构的上游背景）
+- docs/exec-plans/tech-debt-tracker.md —— 对应条目已标记 resolved
+
+---
+
 ## 11. 相关文档
 
 - [[lessons-learned]] §50 — SPRING_CONFIG_IMPORT 外部配置覆盖案例
@@ -610,3 +643,4 @@ public class ScoreResultOverwriter {
 | 2026-08-04 | 追加 §10.5 @Async self-invocation 警告（CO-602 PR 设计评估修复） |
 | 2026-08-17 | 追加 §10.6 多构造函数 @Autowired 陷阱（PR !2301） |
 | 2026-08-17 | 追加 §10.7 @Async 线程事务缺失抛 TransactionRequiredException（spec 045 T025 终验） |
+| 2026-08-19 | 追加 §10.8 静态字段注入反模式与 TenderAttachmentUrlResolver DI 重构 |

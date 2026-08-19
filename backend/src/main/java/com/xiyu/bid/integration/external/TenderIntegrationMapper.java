@@ -30,6 +30,7 @@ public class TenderIntegrationMapper {
     private final TenderMapper tenderMapper;
     private final TenderEvaluationIntegrationMapper evaluationMapper;
     private final ProjectManagerIdResolver managerIdResolver;
+    private final TenderAttachmentUrlResolver attachmentUrlResolver;
 
     /**
      * 将推送请求映射为 Tender 实体。
@@ -234,24 +235,16 @@ public class TenderIntegrationMapper {
      */
     void normalizeFileUrls(TenderDTO dto, CallerContext context) {
         dto.setSourceDocumentFileUrl(
-                TenderAttachmentUrlResolver.resolve(dto.getSourceDocumentFileUrl(), context));
+                attachmentUrlResolver.resolve(dto.getSourceDocumentFileUrl(), context));
         dto.setBidNoticeFileUrl(
-                TenderAttachmentUrlResolver.resolve(dto.getBidNoticeFileUrl(), context));
+                attachmentUrlResolver.resolve(dto.getBidNoticeFileUrl(), context));
         if (dto.getAttachments() != null) {
             dto.getAttachments().forEach(a ->
-                    a.setFileUrl(TenderAttachmentUrlResolver.resolve(a.getFileUrl(), context)));
+                    a.setFileUrl(attachmentUrlResolver.resolve(a.getFileUrl(), context)));
         }
     }
 
     // ── 工具方法 ──────────────────────────────────────────────────────────────
-
-    /**
-     * 构造附件下载 URL（XiYu 内部端点）。
-     * 委托到 {@link TenderAttachmentUrlResolver#toDownloadUrl(String)}。
-     */
-    public static String toDownloadUrl(String u) {
-        return TenderAttachmentUrlResolver.toDownloadUrl(u);
-    }
 
     static String buildExternalId(String sourceSystem, String sourceId) {
         return sourceSystem + ":" + sourceId;

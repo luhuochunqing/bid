@@ -59,7 +59,8 @@ class TenderIntegrationServicePushEvaluationTest {
         TenderIntegrationMapper mapper = new TenderIntegrationMapper(
                 mock(TenderMapper.class),
                 evaluationMapper,
-                mock(ProjectManagerIdResolver.class));
+                mock(ProjectManagerIdResolver.class),
+                new TenderAttachmentUrlResolver(new IntegrationEndpointUrls(""), null));
         TenderEvaluationIntegrationService evaluationService = new TenderEvaluationIntegrationService(
                 tenderEvaluationRepository,
                 evaluationMapper,
