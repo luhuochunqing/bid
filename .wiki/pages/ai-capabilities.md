@@ -385,7 +385,8 @@ AiAnalysisResponse
 - **触发机制**：项目状态流转为 `CLOSED` 时触发 `ProjectClosedEvent`。
 - **评分项数据源**：`score_item`（招标文件解析产物，spec 041）。前置判定与构建均读 `score_item`（经 `ScoreItemSnapshot` 承载），`scoringCategory` 由 `CaseAiMatcher.extractCategory(score_item.dim)` 按中文关键词归类为技术/商务/实施服务/资质业绩。
 - **处理链路**：`ProjectClosedEventListener` 异步加载归档标书全文与评分项，调用大模型切片匹配提取优秀应答。
-  - ⚠️ 历史坑：早期依赖 `project_score_drafts`（导入评分草稿链路，入口 2026-08-17 下线后全表为空），导致结项后无法沉淀案例；draft 链路删除后须改读 `score_item`。
+  - ⚠️ 历史坑 1（project_score_drafts）：早期依赖 `project_score_drafts`（导入评分草稿链路，入口 2026-08-17 下线后全表为空），导致结项后无法沉淀案例；draft 链路删除后须改读 `score_item`。
+  - ⚠️ 历史坑 2（标书正文读取）：归档标书 `filePath` 为 `obs-direct:`（OBS 云存储引用）时，若直接用 `Files.readAllBytes` 当本地路径读会抛 `NoSuchFileException`，回退到 16 字符占位文本，导致 AI 返回 `criteriaId=0` 空片段、入库 0 条。必须经 `ObsShareUrlSigner.trySign` 签名预签名 URL 后下载字节；OBS 读取失败应上报失败通知而非虚假成功。
 - **并发幂等**：
   - DB 层：`knowledge_case` 表建立 `(source_project_id, scoring_point_title)` 复合唯一索引。
   - 应用层：内存比对过滤 + 捕获 `DataIntegrityViolationException` 按幂等成功处理，防止重复结项造成脏数据。

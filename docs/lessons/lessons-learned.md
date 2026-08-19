@@ -1837,3 +1837,48 @@ PR !2333 修复数据分析 7 项缺陷后用户复测仍报 4 个问题：M1 �
 - `backend/src/main/java/com/xiyu/bid/casework/application/CaseAiMatcher.java`
 - `backend/src/main/java/com/xiyu/bid/casework/application/ScoreItemSnapshot.java`（新增）
 - `backend/src/test/java/com/xiyu/bid/casework/application/CasePrecipitationAppServiceTest.java`（新增）
+
+## 126. 案例沉淀入库 0 条：loadBidFileMarkdown 用本地文件读 OBS `obs-direct:` 引用（2026-08-19）
+
+### 背景
+
+修复第 125 节后，项目 1350（ai测试01）结项后「AI 生成案例完成」按钮可点、能收到消息，但消息为「入库 0 条案例。处理时长 6 秒」。链路已通但 0 入库，需要查后端日志定位。
+
+### 根因
+
+日志给出完整闭环：
+
+```
+ERROR Failed to extract markdown from bid file: obs-direct:195e258c-84d8-4987-87d6-4a83f48d98d9
+      java.nio.file.NoSuchFileException: obs-direct:195e258c-...
+      at ...loadBidFileMarkdown(ProjectClosedEventListener.java:151)
+AI 案例匹配开始：7 个评分项，标书文本长度 16 字符
+AI 案例匹配完成：解析到 1 个匹配片段
+  - draftId=0, confidence=0.8, snippet= (长度 0)
+No new cases to save for project: 1350 (total candidates: 0, existing: 0)
+```
+
+1. **标书正文读取失败**：`loadBidFileMarkdown` 用 `Files.readAllBytes(Paths.get(filePath))` 读归档标书，但归档的 `filePath` 是 `obs-direct:{uploadId}`（OBS 云存储引用，不是本地路径）→ `NoSuchFileException` → 回退到 16 字符占位文本 `"# ai测试01\n暂无标书正文。"`。
+2. **AI 拿到空文本** → 无从匹配，返回 `criteriaId=0` + 空 snippet。
+3. **draftId=0 匹配不到评分项** → `buildCases` 里 `scoreItem == null` 直接 `continue` → `candidates=0` → 入库 0 条仍报「成功」。
+
+### 修复
+
+`loadBidFileMarkdown` 识别 `obs-direct:` 前缀走 OBS 签名下载：
+- 注入 `ObsShareUrlSigner`（file 公共模块）+ `RestTemplate`。
+- `obs-direct:` → `obsShareUrlSigner.trySign(filePath)` 取预签名 URL → `restTemplate.getForObject(url, byte[].class)` 下载字节 → 喂 `docTextExtractor`。
+- OBS 读取/签名失败抛异常上报 `notifyFailure`（禁止让 AI 对着占位文本虚假成功）；本地路径保留原容错（文件可能已迁移）。
+- 新增 2 个单测：OBS 下载成功入库、OBS 签名失败上报。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|---|---|---|
+| 云存储引用被当本地路径读 | `obs-direct:`/`oss://` 等是伪协议引用，不是文件系统路径，`Files.readAllBytes` 必然 `NoSuchFileException` | 读取文件前先判前缀：OBS 引用走签名下载，本地路径才 `Files.readAllBytes` |
+| 读不到正文却回退占位继续 AI | 回退占位文本后 AI 只能返回空匹配，最终发「入库 0 条」的成功通知，掩盖真实故障 | 真实业务数据源（OBS 标书）读取失败必须上报失败通知，禁止用占位文本「假成功」 |
+| 排障盲区：只盯匹配不盯输入 | 盯着 `draftId` 匹配找不到根因，其实病根在输入侧——AI 收到的标书文本只有 16 字符 | 先确认 AI 输入（标书文本长度、评分项清单）真实可靠，再查 AI 输出与匹配逻辑 |
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/casework/application/ProjectClosedEventListener.java`
+- `backend/src/test/java/com/xiyu/bid/casework/application/ProjectClosedEventListenerTest.java`

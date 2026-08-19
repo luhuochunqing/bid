@@ -8,6 +8,8 @@ import com.xiyu.bid.casework.infrastructure.ProjectArchive;
 import com.xiyu.bid.casework.infrastructure.ProjectArchiveRepository;
 import com.xiyu.bid.docinsight.application.DocumentTextExtractor;
 import com.xiyu.bid.docinsight.application.ExtractedDocument;
+import com.xiyu.bid.file.application.ObsShareUrlSigner;
+import com.xiyu.bid.file.domain.FileUrlPrefixes;
 import com.xiyu.bid.bidresult.entity.BidResultFetchResult;
 import com.xiyu.bid.bidresult.repository.BidResultFetchResultRepository;
 import com.xiyu.bid.entity.Project;
@@ -22,6 +24,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -44,6 +47,8 @@ public class ProjectClosedEventListener {
     private final DocumentTextExtractor docTextExtractor;
     private final CaseAiMatcher caseAiMatcher;
     private final CasePrecipitationNotifier notifier;
+    private final ObsShareUrlSigner obsShareUrlSigner;
+    private final RestTemplate restTemplate;
 
     @Async
     @EventListener
@@ -147,17 +152,52 @@ public class ProjectClosedEventListener {
             return fallback;
         }
 
+        String filePath = bidFile.getFilePath();
+        boolean isObs = filePath.startsWith(FileUrlPrefixes.OBS_DIRECT);
+
+        // 读取标书字节：obs-direct: 是 OBS 云存储引用，需签名后经预签名 URL 下载；其余视为本地/挂载路径直接读。
+        byte[] fileBytes;
         try {
-            byte[] fileBytes = Files.readAllBytes(Paths.get(bidFile.getFilePath()));
+            fileBytes = loadFileBytes(filePath);
+        } catch (RuntimeException | java.io.IOException e) {
+            // OBS 是真实业务数据源，读不到必须上报失败，禁止让 AI 对着占位文本虚假成功；
+            // 本地路径则保留容错（文件可能已迁移），回退占位继续后续流程。
+            if (isObs) {
+                log.error("读取 OBS 标书失败，中止案例沉淀: {}", filePath, e);
+                throw e instanceof RuntimeException
+                        ? (RuntimeException) e
+                        : new IllegalStateException("读取 OBS 标书失败: " + filePath, e);
+            }
+            log.error("读取本地标书失败，回退占位文本: {}", filePath, e);
+            return fallback;
+        }
+
+        try {
+            byte[] extractTarget = fileBytes == null ? new byte[0] : fileBytes;
             ExtractedDocument doc = docTextExtractor.extract(
-                    bidFile.getFileName(), "application/octet-stream", fileBytes);
+                    bidFile.getFileName(), "application/octet-stream", extractTarget);
             if (doc != null && doc.text() != null) {
                 return doc.text();
             }
-        } catch (RuntimeException | java.io.IOException e) {
-            log.error("Failed to extract markdown from bid file: {}", bidFile.getFilePath(), e);
+        } catch (RuntimeException e) {
+            log.error("Failed to extract markdown from bid file: {}", filePath, e);
         }
         return fallback;
+    }
+
+    private byte[] loadFileBytes(String filePath) throws java.io.IOException {
+        if (filePath.startsWith(FileUrlPrefixes.OBS_DIRECT)) {
+            Optional<String> signedUrl = obsShareUrlSigner.trySign(filePath);
+            if (signedUrl.isEmpty()) {
+                throw new IllegalStateException("OBS 签名失败，无法下载标书: " + filePath);
+            }
+            byte[] bytes = restTemplate.getForObject(signedUrl.get(), byte[].class);
+            if (bytes == null || bytes.length == 0) {
+                throw new IllegalStateException("OBS 标书下载结果为空: " + filePath);
+            }
+            return bytes;
+        }
+        return Files.readAllBytes(Paths.get(filePath));
     }
 
     private CasePrecipitationContext loadProjectContext(Long projectId) {
@@ -223,7 +263,11 @@ public class ProjectClosedEventListener {
                     .filter(s -> s.id().equals(slice.getDraftId()))
                     .findFirst()
                     .orElse(null);
-            if (scoreItem == null) continue;
+            if (scoreItem == null) {
+                log.warn("AI 返回的 criteriaId={} 未匹配到任何 score_item（共 {} 个），丢弃该片段；若为 0 入库请检查 LLM id 回显 / 文档解析",
+                        slice.getDraftId(), scoreItems.size());
+                continue;
+            }
 
             KnowledgeCase kCase = new KnowledgeCase();
             kCase.setSourceProjectId(projectId);
