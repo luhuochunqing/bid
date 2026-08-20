@@ -29,6 +29,14 @@ public final class ScoreDocExcerptExtractor {
     }
 
     public static String extractRelevantExcerpt(String fullText, ScoreItem item, int maxChars) {
+        if (item == null) {
+            return "";
+        }
+        return extractRelevantExcerpt(fullText, item.getDim(), item.getDetail(), maxChars);
+    }
+
+    /** dim/detail 重载：供案例沉淀链路直接传评分维度与细则关键词，避免跨模块依赖 ScoreItem */
+    public static String extractRelevantExcerpt(String fullText, String dim, String detail, int maxChars) {
         if (fullText == null || fullText.isBlank()) {
             return "";
         }
@@ -37,11 +45,11 @@ public final class ScoreDocExcerptExtractor {
         }
 
         List<String> keywords = new ArrayList<>();
-        if (item.getDim() != null && !item.getDim().isBlank()) {
-            keywords.add(item.getDim());
+        if (dim != null && !dim.isBlank()) {
+            keywords.add(dim);
         }
-        if (item.getDetail() != null) {
-            for (String token : item.getDetail().split("[^\\p{IsHan}a-zA-Z0-9]+")) {
+        if (detail != null) {
+            for (String token : detail.split("[^\\p{IsHan}a-zA-Z0-9]+")) {
                 if (token.length() >= 2 && !token.matches("\\d+")) {
                     keywords.add(token);
                 }
