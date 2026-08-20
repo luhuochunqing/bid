@@ -2,6 +2,12 @@
 
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
+## [2026-08-20] no-op | ponytail-safe-cuts 无新业务结论
+
+- 触发：删除死代码（icons.js / demoPersistence / useDebounce）+ 去掉已不读取的 VITE_API_MODE
+- 结论已写 `docs/lessons/lessons-learned.md` §135 与 `docs/implementation-notes/ponytail-safe-cuts.md`；无新业务规则需合成 wiki 页
+- 触发点：任务收尾（§2 触发点 1）—— 代码变更但无新 wiki 页面
+
 ## [2026-08-20] compound | case-precipitation-oversize-oom 复合查询回填（跨模块根因）
 
 - 触发：13 天内叠加到项目"ai测试01"，点【AI自动生成案例】通知"成功但入库 0 条"；追根因定位为 401MB 标书 OOM

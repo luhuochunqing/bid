@@ -2182,3 +2182,24 @@ Caused by: java.lang.OutOfMemoryError: Java heap space
 - `backend/src/main/java/com/xiyu/bid/analytics/service/AnalyticsCustomerTypeFilterSupport.java`（筛选 ID 集口径）
 - `backend/src/main/java/com/xiyu/bid/analytics/service/TrendAnalysisDimensionQueryService.java` / `TrendAnalysisQueryService.java` / `TrendDrillDownService.java`（接入点）
 - `backend/src/test/java/com/xiyu/bid/analytics/service/AnalyticsCustomerTypeJpqlRegressionTest.java`（英文枚举回归：分组/筛选/下钻）
+
+---
+
+## 135. 健康检查不要 grep 已经没人读的环境变量（2026-08-20）
+
+### 问题背景
+
+`config.js` 早已硬编码 `mode: 'api'`，不再读取 `VITE_API_MODE`。但 `scripts/dev-frontend-health.sh` 仍在拉取到的 `config.js` 源码里搜 `"VITE_API_MODE": "api"`——源码里从来没有这个字符串。活脚本、CI、`.env.example` 还在注入这个死变量，新 agent 跟着抄。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 健康检查断言 env 名，代码已不读 | 检查过的是构建注入痕迹，不是运行时行为 | 断言真实信号（此处是 `mode: 'api'`），不要断言已退役的 env |
+| 死 env 留在启动脚本 | 文档/CI/健康检查互相抄，僵尸变量活得比代码久 | 删读取方时同步删注入方；留下门禁防回潮（如 `demoPersistence` 的 import 拦截） |
+
+### 相关文件
+
+- `src/api/config.js`
+- `scripts/dev-frontend-health.sh`
+- `docs/implementation-notes/ponytail-safe-cuts.md`

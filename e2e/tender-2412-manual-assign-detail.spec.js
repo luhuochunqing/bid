@@ -22,7 +22,7 @@ import { injectSession, ensureApiSession, apiBaseUrl } from './auth-helpers.js'
  * 依赖：
  * - 前端修复：actionMatrix.js resolveRoleGroup 支持 'admin' 角色（2026-06 修复）
  * - 后端：TenderAutoAssignmentService + createTender 保持 PENDING 当无 CRM 映射
- * - 真实 API 路径（VITE_API_MODE=api）
+ * - 真实 API 路径
  */
 
 test.describe.configure({ mode: 'serial' })

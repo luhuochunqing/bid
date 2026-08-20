@@ -53,9 +53,9 @@
 - area: `frontendDemo` 适配层 / `demoPersistence`
   type: mock-leak
   severity: medium
-  status: open
+  status: resolved
   source: SECURITY.md §Mock 政策（遗留代码现状）
-  note: 历史遗留适配层，仅作清理对象，不允许新增、不允许扩散。
+  note: `src/utils/demoPersistence.js` 已删除；`check-front-data-boundaries` 仍拦截 import。
 
 - area: `src/mock` / `src/api/mock-adapters/` / `.env.mock`
   type: mock-leak

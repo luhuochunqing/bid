@@ -20,10 +20,8 @@
 
 | 文件 | 地位 | 功能 |
 |------|------|------|
-| `demoPersistence.js` | 工具模块 | 封装 demo 模式下的本地持久化读写 |
 | `featureFeedback.js` | 工具模块 | 统一处理特性未开放、反馈提示等 UI 反馈逻辑 |
 | `firstNonBlank.js` | 工具模块 | 返回首个非空白值，供用户字段归一化和标签格式化复用 |
-| `icons.js` | 工具模块 | 统一导出图标映射和图标辅助函数 |
 | `keyboardNavMode.js` | 工具模块 | 标记键盘导航输入模式，用于区分 Tab 焦点和鼠标点击焦点 |
 | `notificationHelpers.js` | 工具模块 | 通知图标、类型、payload、@ 提及解析和源实体路由解析；TASK 通知通过 payload.projectId 回到项目任务上下文 |
 

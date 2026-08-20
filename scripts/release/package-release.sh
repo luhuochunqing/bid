@@ -32,7 +32,6 @@ cd "$ROOT_DIR"
 # OBS 大文件直传：默认 true 启用浏览器直传 OBS（后端须同时配好 XIYU_OBS_*）
 # 第 8 次生产部署漏传 VITE_OBS_ENABLED=true 导致 OBS 直传失效事故的根治修复：
 # 默认值从 false 改为 true，不传也启用；如需关闭须显式传 VITE_OBS_ENABLED=false
-VITE_API_MODE=api \
 VITE_API_BASE_URL="$API_BASE_URL" \
 VITE_OBS_ENABLED="${VITE_OBS_ENABLED:-true}" \
 VITE_SENTRY_DSN="${VITE_SENTRY_DSN:-}" \

@@ -960,7 +960,6 @@ start_frontend() {
     fi
     nohup env \
       VITE_CACHE_DIR="$frontend_cache_dir" \
-      VITE_API_MODE=api \
       VITE_API_BASE_URL="http://127.0.0.1:${BACKEND_PORT}" \
       npm run dev -- --host 127.0.0.1 --port "$FRONTEND_PORT" --force \
       >>"$FRONTEND_LOG" 2>&1 < /dev/null &

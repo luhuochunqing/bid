@@ -10,7 +10,6 @@
 
 variables:
   CI: "true"
-  VITE_API_MODE: "api"
   VITE_API_BASE_URL: "http://127.0.0.1:18080"
   PLATFORM_ENCRYPTION_KEY: "ci-test-key-2026"
   PLATFORM_ACCOUNT_ENCRYPTION_KEY: "test-platform-encryption-key-2026"
