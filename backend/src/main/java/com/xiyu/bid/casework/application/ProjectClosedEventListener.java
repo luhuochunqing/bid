@@ -18,15 +18,18 @@ import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
+import com.xiyu.bid.scoreparse.application.LoadedBidFile;
+import com.xiyu.bid.scoreparse.application.SidecarStreamTextExtractor;
+import com.xiyu.bid.scoreparse.application.StreamingBidFileFetcher;
+import com.xiyu.bid.scoreparse.application.TempBidFileStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.transaction.support.TransactionTemplate;
 
-import java.net.URI;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -49,11 +52,13 @@ public class ProjectClosedEventListener {
     private final CaseAiMatcher caseAiMatcher;
     private final CasePrecipitationNotifier notifier;
     private final ObsShareUrlSigner obsShareUrlSigner;
-    private final RestTemplate restTemplate;
+    private final StreamingBidFileFetcher streamingFetcher;
+    private final SidecarStreamTextExtractor streamTextExtractor;
+    private final TempBidFileStore tempBidFileStore;
+    private final TransactionTemplate transactionTemplate;
 
     @Async
     @EventListener
-    @Transactional
     public void onProjectClosed(ProjectClosedEvent event) {
         long startTime = System.currentTimeMillis();
         Long projectId = event.getProjectId();
@@ -84,12 +89,6 @@ public class ProjectClosedEventListener {
             }
 
             String markdown = loadBidFileMarkdown(event, projectId);
-            if (scoreItemsForGate.isEmpty()) {
-                log.info("No score items found for project: {}, skip AI case slice", projectId);
-                notifier.notifySuccess(projectId, event.getProjectName(), 0,
-                        System.currentTimeMillis() - startTime, project, event.getTriggerUserId());
-                return;
-            }
 
             List<CaseAiMatcher.AiMatchedSlice> matchedSlices = caseAiMatcher.extractSlicesWithAi(markdown, scoreItemsForGate);
 
@@ -107,17 +106,14 @@ public class ProjectClosedEventListener {
                     .toList();
 
             if (!casesToSave.isEmpty()) {
-                knowledgeCaseRepository.saveAll(casesToSave);
+                // 事务只包落库：下载/转换/LLM 摘录等长耗时步骤都在事务外，避免长时间持有 DB 连接
+                transactionTemplate.executeWithoutResult(status ->
+                        knowledgeCaseRepository.saveAll(casesToSave));
                 log.info("Successfully persisted {} new knowledge cases for project: {} ({} skipped as duplicate)",
                         casesToSave.size(), projectId, candidates.size() - casesToSave.size());
-                notifier.notifySuccess(projectId, event.getProjectName(), casesToSave.size(),
-                        System.currentTimeMillis() - startTime, ctx.projectOpt.orElse(null), event.getTriggerUserId());
-            } else {
-                log.info("No new cases to save for project: {} (total candidates: {}, existing: {})",
-                        projectId, candidates.size(), existing.size());
-                notifier.notifySuccess(projectId, event.getProjectName(), 0,
-                        System.currentTimeMillis() - startTime, ctx.projectOpt.orElse(null), event.getTriggerUserId());
             }
+            notifier.notifySuccess(projectId, event.getProjectName(), casesToSave.size(),
+                    System.currentTimeMillis() - startTime, ctx.projectOpt.orElse(null), event.getTriggerUserId());
 
         } catch (org.springframework.dao.DataIntegrityViolationException e) {
             log.info("Knowledge cases for project {} already persisted by concurrent event, treated as idempotent success", projectId);
@@ -149,62 +145,64 @@ public class ProjectClosedEventListener {
                 .orElse(null);
 
         String fallback = "# " + event.getProjectName() + "\n暂无标书正文。";
-        if (bidFile == null || bidFile.getFilePath() == null) {
+        String filePath = bidFile == null ? null : bidFile.getFilePath();
+        if (filePath == null) {
             return fallback;
         }
-
-        String filePath = bidFile.getFilePath();
-        boolean isObs = filePath.startsWith(FileUrlPrefixes.OBS_DIRECT);
-
-        byte[] fileBytes;
+        // taskId 绑定临时文件命名：OBS 流式加载可能 spill 落盘，结束必须 release 归还配额
+        String taskId = "case-" + projectId;
         try {
-            fileBytes = loadFileBytes(filePath);
-        } catch (RuntimeException | java.io.IOException e) {
-            // OBS 是真实数据源，读不到必须上报失败；本地路径保留容错（文件可能已迁移）回退占位。
-            if (isObs) {
-                log.error("读取 OBS 标书失败，中止案例沉淀: {}", filePath, e);
-                throw e instanceof RuntimeException
-                        ? (RuntimeException) e
-                        : new IllegalStateException("读取 OBS 标书失败: " + filePath, e);
+            if (filePath.startsWith(FileUrlPrefixes.OBS_DIRECT)) {
+                return loadObsBidFileMarkdown(filePath, bidFile, taskId);
             }
+            return extractLocalBidFileMarkdown(filePath, bidFile, fallback);
+        } finally {
+            // InMemory 快路径 release 为幂等 no-op；OnDisk 删除 {taskId}.part
+            tempBidFileStore.release(taskId);
+        }
+    }
+
+    /** OBS 标书流式加载 + 二态分派（spec 049 T004）：≤50MB InMemory→docTextExtractor 快路径；
+     * 超限 OnDisk→sidecar /convert-stream 流式转换。失败一律 rethrow，禁止占位文本虚假成功。 */
+    private String loadObsBidFileMarkdown(String filePath, ArchiveFile bidFile, String taskId) {
+        Optional<String> signedUrl = obsShareUrlSigner.trySign(filePath);
+        if (signedUrl.isEmpty()) {
+            throw new IllegalStateException("OBS 签名失败，无法下载标书: " + filePath);
+        }
+        LoadedBidFile loaded;
+        try {
+            loaded = streamingFetcher.fetch(signedUrl.get(), taskId, bidFile.getFileName(), "application/octet-stream");
+        } catch (IOException | InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("流式下载 OBS 标书失败: " + filePath, e);
+        }
+        switch (loaded) {
+            case LoadedBidFile.InMemory mem -> {
+                ExtractedDocument doc = docTextExtractor.extract(mem.fileName(), mem.contentType(), mem.content());
+                return doc != null && doc.text() != null ? doc.text() : "";
+            }
+            case LoadedBidFile.OnDisk disk -> {
+                try {
+                    return streamTextExtractor.extract(disk.tempFile(), disk.fileName());
+                } catch (IOException | InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("流式提取 OBS 标书文本失败: " + filePath, e);
+                }
+            }
+        }
+    }
+
+    private String extractLocalBidFileMarkdown(String filePath, ArchiveFile bidFile, String fallback) {
+        try {
+            byte[] fileBytes = Files.readAllBytes(Paths.get(filePath));
+            ExtractedDocument doc = docTextExtractor.extract(
+                    bidFile.getFileName(), "application/octet-stream", fileBytes);
+            return doc != null && doc.text() != null ? doc.text() : fallback;
+        } catch (RuntimeException | IOException e) {
+            // 本地路径保留容错（文件可能已迁移）回退占位。
             log.error("读取本地标书失败，回退占位文本: {}", filePath, e);
             return fallback;
         }
-
-        try {
-            byte[] extractTarget = fileBytes == null ? new byte[0] : fileBytes;
-            ExtractedDocument doc = docTextExtractor.extract(
-                    bidFile.getFileName(), "application/octet-stream", extractTarget);
-            if (doc != null && doc.text() != null) {
-                return doc.text();
-            }
-        } catch (RuntimeException e) {
-            // 与 fileBytes 读取的 OBS 分支同口径：OBS 是真实标书数据源，文本提取失败/文件超限必须上报，
-            // 禁止回退占位文本让 AI 对着"暂无标书正文"虚假"成功但入库 0 条"（case 沉淀 OOM 根因）。
-            if (isObs) {
-                log.error("提取 OBS 标书文本失败，中止案例沉淀: {}", filePath, e);
-                throw e;
-            }
-            log.error("Failed to extract markdown from bid file: {}", filePath, e);
-        }
-        return fallback;
-    }
-
-    byte[] loadFileBytes(String filePath) throws java.io.IOException {
-        if (filePath.startsWith(FileUrlPrefixes.OBS_DIRECT)) {
-            Optional<String> signedUrl = obsShareUrlSigner.trySign(filePath);
-            if (signedUrl.isEmpty()) {
-                throw new IllegalStateException("OBS 签名失败，无法下载标书: " + filePath);
-            }
-            // 必须传 URI 而非 String：getForObject(URI,..) 不经过 UriTemplateHandler，
-            // 预签名 URL 的 % 不被二次编码 → OBS 验签不再 SignatureDoesNotMatch(403)
-            byte[] bytes = restTemplate.getForObject(URI.create(signedUrl.get()), byte[].class);
-            if (bytes == null || bytes.length == 0) {
-                throw new IllegalStateException("OBS 标书下载结果为空: " + filePath);
-            }
-            return bytes;
-        }
-        return Files.readAllBytes(Paths.get(filePath));
     }
 
     private CasePrecipitationContext loadProjectContext(Long projectId) {
@@ -243,12 +241,7 @@ public class ProjectClosedEventListener {
         return new CasePrecipitationContext(projectOpt, projectType, customerType, productLine, bidResult);
     }
 
-    /**
-     * 将 score_item 实体映射为案例沉淀快照。
-     * <p>映射口径（已确认）：title/detail 取 {@code score_item.dim}/{@code score_item.detail}，
-     * category 同样取 {@code dim}，由 {@link CaseAiMatcher#extractCategory} 按中文关键词归类为
-     * 技术 / 商务 / 实施服务 / 资质业绩。
-     */
+    /** 将 score_item 映射为案例沉淀快照：title/detail/category 均取 dim（口径已确认，category 由 extractCategory 归类）。 */
     private List<ScoreItemSnapshot> loadScoreItemSnapshots(Long projectId) {
         return scoreItemRepository.findByProjectIdOrderByItemIndexAsc(projectId).stream()
                 .map(item -> new ScoreItemSnapshot(item.getId(), item.getDim(), item.getDetail(), item.getDim()))
