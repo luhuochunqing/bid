@@ -431,9 +431,11 @@ class ProjectClosedEventListenerTest {
         // 内嵌真实 HTTP 服务器，记录「实际到达的原始请求路径」，返回 200 + 字节。
         // 不 mock 网络层——mock 会掩盖 RestTemplate 对预签名 URL 的二次编码行为（之前的 403 根因）。
         AtomicReference<String> rawPath = new AtomicReference<>();
+        AtomicReference<String> rawQuery = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {
             rawPath.set(exchange.getRequestURI().getRawPath());
+            rawQuery.set(exchange.getRequestURI().getRawQuery());
             byte[] body = "PDF_BYTES".getBytes();
             exchange.sendResponseHeaders(200, body.length);
             try (var os = exchange.getResponseBody()) {
@@ -466,6 +468,9 @@ class ProjectClosedEventListenerTest {
             // 关键断言：服务器收到的路径保持单次编码（%E5...），未被二次编码成 %25E5
             assertThat(rawPath.get()).contains("%E5%BC%A0%E5%AE%B6%E5%8F%A3");
             assertThat(rawPath.get()).doesNotContain("%25E5");
+            // query 同理：Signature=abc%3D 的 %3D 不得被二次编码成 %253D（同样触发 403）
+            assertThat(rawQuery.get()).contains("Signature=abc%3D");
+            assertThat(rawQuery.get()).doesNotContain("%253D");
         } finally {
             server.stop(0);
         }
