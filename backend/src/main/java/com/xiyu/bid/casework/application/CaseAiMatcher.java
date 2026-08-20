@@ -91,9 +91,10 @@ public class CaseAiMatcher {
         String cleanExcerpt = stripBase64Images(excerpt);
         if (cleanExcerpt.contains("data:image") || cleanExcerpt.contains("base64")) {
             // 剥离后仍残留 base64 痕迹：说明真实文档中存在 stripBase64Images 未覆盖的形态，
-            // 记录片段头尾便于诊断（长 base64 可能被截断在任意位置）。
-            log.warn("AI 案例匹配：评分项 {}（{}）剥离后仍残留 base64 痕迹，片段(前300字符)：{}",
-                    criterion.id(), criterion.title(), truncateForLog(cleanExcerpt, 300));
+            // 打印 data:image/base64 出现处的上下文（含序号），便于精确定位残留形态。
+            log.warn("AI 案例匹配：评分项 {}（{}）剥离后仍残留 base64 痕迹，data:image 出现 {} 处。上下文：{}",
+                    criterion.id(), criterion.title(), countOccurrences(cleanExcerpt, "data:image"),
+                    excerptContexts(cleanExcerpt, "data:image", 120));
         }
         String userPrompt = "CRITERION TITLE:\n" + criterion.title()
                 + "\n\nCRITERION RULE:\n" + criterion.ruleText()
@@ -189,11 +190,44 @@ public class CaseAiMatcher {
         cleaned = cleaned.replaceAll(
                 "!\\[[^\\]]*\\]\\(\\s*data:image/[^;)]*;base64,[A-Za-z0-9+/=\\s]*",
                 "[image]");
-        // 3) 裸 data URI（未以 markdown 语法包裹的残留）
+        // 3) 裸 data URI（未以 markdown 语法包裹的残留）：
+        //    mime 段容忍尾随空格（如 "data:image/png ;base64,"），payload 容忍换行/空白
         cleaned = cleaned.replaceAll(
-                "data:image/[A-Za-z0-9.+-]+;base64,[A-Za-z0-9+/=\\s]*",
+                "data:image/[A-Za-z0-9.+-]+\\s*;\\s*base64,?[\\sA-Za-z0-9+/=]*",
                 "[image]");
         return cleaned;
+    }
+
+    /** 统计子串出现次数（诊断用，剥离后仍残留 base64 痕迹时定位） */
+    private static int countOccurrences(String text, String needle) {
+        int count = 0;
+        int from = 0;
+        int idx;
+        while ((idx = text.indexOf(needle, from)) >= 0) {
+            count++;
+            from = idx + needle.length();
+        }
+        return count;
+    }
+
+    /** 提取子串所有出现处的前后上下文（诊断用，最多 3 处，每处前 120 字符） */
+    private static String excerptContexts(String text, String needle, int radius) {
+        StringBuilder sb = new StringBuilder();
+        int from = 0;
+        int shown = 0;
+        int idx;
+        while (shown < 3 && (idx = text.indexOf(needle, from)) >= 0) {
+            int start = Math.max(0, idx - radius);
+            int end = Math.min(text.length(), idx + needle.length() + radius);
+            String ctx = text.substring(start, end).replace('\n', '⏎');
+            if (sb.length() > 0) {
+                sb.append(" ||| ");
+            }
+            sb.append("[").append(idx).append("] ").append(ctx);
+            from = idx + needle.length();
+            shown++;
+        }
+        return sb.length() == 0 ? "<none>" : sb.toString();
     }
 
     public String extractCategory(String category) {
