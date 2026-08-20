@@ -132,7 +132,8 @@ class KnowledgeBaseRealQueryTest {
         List<QualityEvidence> evidences = outcome.matches().stream()
                 .map(QualityEvidence::fromKnowledgeMatch).toList();
         List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
-                doc, "招标要求", evidences, TenderRequirements.empty(), outcome.failedSources());
+                doc, DocumentContent.fromText("tender.pdf", "hash_t", "招标要求"),
+                evidences, TenderRequirements.empty(), outcome.failedSources());
 
         assertThat(results).hasSize(25);
         for (String code : List.of(

@@ -142,15 +142,15 @@
 
 ### Tests for US4 ⚠️
 
-- [ ] T039 [P] [US4] `EvidenceLocator` 纯函数单测：命中返回真实 pageNumber + quote（为 PageContent.text 子串）、未命中返回 Optional.empty()、quote 长度上限截断，新建 backend/src/test/java/com/xiyu/bid/compliance/domain/EvidenceLocatorTest.java
+- [X] T039 [P] [US4] `EvidenceLocator` 纯函数单测：命中返回真实 pageNumber + quote（为 PageContent.text 子串）、未命中返回 Optional.empty()、quote 长度上限截断，新建 backend/src/test/java/com/xiyu/bid/compliance/domain/EvidenceLocatorTest.java
 
 ### Implementation for US4
 
-- [ ] T040 [US4] 新建纯核心 `EvidenceLocator`（输入 pages + 关键词/章节线索 → `EvidenceHit(pageNumber, quote)`，data-model.md §3.3），文件 backend/src/main/java/com/xiyu/bid/compliance/domain/policy/EvidenceLocator.java
-- [ ] T041 [US4] 扩展 `QualityEvidence` record：新增可空字段 `knowledgeSource`（四库枚举）与 `matched`（Boolean），compact constructor 校验，保持旧 JSON 反序列化兼容（backend/src/main/java/com/xiyu/bid/compliance/domain/QualityEvidence.java，data-model.md §2.1）
-- [ ] T042 [US4] `BidDocumentQualityEngine`（backend/src/main/java/com/xiyu/bid/compliance/domain/policy/BidDocumentQualityEngine.java）证据生成改造：page 全部经 EvidenceLocator 定位（未命中传 null），quote 为命中上下文原文摘录；KnowledgeMatch 映射新字段
-- [ ] T043 [US4] 前端 src/views/Project/stages/components/QualityCheckItemCard.vue 证据链面板渲染 `knowledgeSource` 标签与 `matched` 结论
-- [ ] T044 [US4] `mvn test` + `npm run build` 全绿后原子提交
+- [X] T040 [US4] 新建纯核心 `EvidenceLocator`（输入 pages + 关键词/章节线索 → `EvidenceHit(pageNumber, quote)`，data-model.md §3.3），文件 backend/src/main/java/com/xiyu/bid/compliance/domain/policy/EvidenceLocator.java
+- [X] T041 [US4] 扩展 `QualityEvidence` record：新增可空字段 `knowledgeSource`（四库枚举）与 `matched`（Boolean），compact constructor 校验，保持旧 JSON 反序列化兼容（backend/src/main/java/com/xiyu/bid/compliance/domain/QualityEvidence.java，data-model.md §2.1）
+- [X] T042 [US4] `BidDocumentQualityEngine`（backend/src/main/java/com/xiyu/bid/compliance/domain/policy/BidDocumentQualityEngine.java）证据生成改造：page 全部经 EvidenceLocator 定位（未命中传 null），quote 为命中上下文原文摘录；KnowledgeMatch 映射新字段
+- [X] T043 [US4] 前端 src/views/Project/stages/components/QualityCheckItemCard.vue 证据链面板渲染 `knowledgeSource` 标签与 `matched` 结论
+- [X] T044 [US4] `mvn test` + `npm run build` 全绿后原子提交
 
 **Checkpoint**: 抽查任意 FAIL/MANUAL 项，页码与原文可与真实 PDF 逐页对照；page=1 硬编码零残留
 

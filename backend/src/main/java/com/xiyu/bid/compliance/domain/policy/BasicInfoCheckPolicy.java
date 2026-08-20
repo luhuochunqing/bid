@@ -34,7 +34,7 @@ public final class BasicInfoCheckPolicy {
         boolean hasBidder = text.contains("投标") || text.contains("单位") || text.contains("公司");
         boolean hasDate = text.matches("(?s).*(\\d{4}年|\\d{4}-|\\d{4}/).*");
 
-        List<QualityEvidence> evidences = List.of(QualityEvidence.bid("封面第一页", 1, snippet(text, 200)));
+        List<QualityEvidence> evidences = List.of(QualityEvidence.bid("封面第一页", pages.get(0).pageNumber(), snippet(text, 200)));
         if (hasProject && hasBidder && hasDate) {
             return QualityCheckItemResult.pass(item, "封面要素完整，包含项目名称、投标人信息与编制日期", evidences);
         }

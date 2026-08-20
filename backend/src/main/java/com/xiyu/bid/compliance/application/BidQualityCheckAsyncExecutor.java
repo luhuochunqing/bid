@@ -80,7 +80,7 @@ public class BidQualityCheckAsyncExecutor {
                     .toList();
 
             List<QualityCheckItemResult> itemResults = BidDocumentQualityEngine.evaluateAll(
-                    bidDoc, tenderDoc.fullText(), kbEvidences, requirements, kbOutcome.failedSources());
+                    bidDoc, tenderDoc, kbEvidences, requirements, kbOutcome.failedSources());
 
             // Step 3: 汇总指标并持久化 (progress: 100)
             int passed = 0;
