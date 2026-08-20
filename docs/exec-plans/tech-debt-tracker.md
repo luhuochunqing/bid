@@ -124,7 +124,7 @@
   severity: medium
   status: open
   source: PR !2250 系统性设计评审（2026-08-04，CO-602）
-  note: 异步导出/导入任务表已第 6 次按模块逐字段复制（warehouse_export_task V1032、personnel_batch_import_task V1022、platform_account_import_task V1084、ca_certificate_import_task V1085、tender_import_task V1153、performance_export_task V1184），字段完全同构（status/filter_snapshot/stored_file_path/expires_at/created_by 等）。PR !2250 引入的 `AbstractExportTaskStateService` 只抽象了 4 个状态转换方法，两个子类的 apply* 方法体仍逐字相同，executor 的三段式 catch 模板亦逐字雷同。下一次新增同类任务前，应合并为通用 `export_task` 表（加 `export_type` 列）+ 单实体 + executor 模板上移抽象类；涉及已有表迁移，需独立任务评估，不在功能 PR 内顺手做。
+  note: 异步导出/导入任务表已第 6 次按模块逐字段复制（warehouse_export_task V1032、personnel_import_task V1022、platform_account_import_task V1084、ca_certificate_import_task V1085、tender_import_task V1153、performance_export_task V1184）。根因不是「没有通用表」——基线 export_tasks 一直在，但 /api/export 不写它，后来者只能抄 warehouse。存量专表不迁（独立任务）。防复发：scripts/check-async-task-table.sh 拦截新建 *_export_task/*_import_task（lessons-learned §139）。
 
 ### 接口规范设计缺陷类
 

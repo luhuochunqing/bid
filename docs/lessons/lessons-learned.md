@@ -2258,3 +2258,34 @@ Caused by: java.lang.OutOfMemoryError: Java heap space
 
 - `scripts/release/deploy-test.sh`
 - 测试服务器 `/opt/xiyu-bid/shared/backend/app.jar`
+
+---
+
+## 139. 通用异步任务表在却没人写：后来者会按模块再抄一张表（2026-08-20）
+
+### 问题背景
+
+基线 `export_tasks`（`ExportTask.java`，含 `data_type` / `export_type` / PENDING→FAILED）早就存在。后来仓库、业绩、人员、CA、平台账号、标讯各自新建 `*_export_task` / `*_import_task`，列几乎同构。V1184 注释写「独立表避免与仓库导出任务混杂」，等于给复制发许可证。
+
+**不是忘了这张表，是这张表没接上异步链路。** `ExportTaskRepository` 生产代码零注入；`/api/export/excel` 写临时文件后直接返回，不落库、不轮询、无 TTL。后来者要「异步 + 进度 + 下载 URL」时，搜到的能跑样本是 `warehouse_export_task`，于是复制。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 通用表存在但主路径不写它 | 基础设施只建表不够，没有写入/轮询/下载，后来者会当死代码 | 通用能力必须有一条活路径；README 不许写成「已提供编排」如果 Controller 没用 Repository |
+| 模块隔离被理解成「每模块一张任务表」 | 状态机相同，差异只是 type 列；「避免混杂」不是建表理由 | 新增异步导入/导出：写入 `export_tasks`（或扩一列 type），禁止 `CREATE TABLE xxx_export_task` |
+| 半截抽象挡不住复制 | `AbstractExportTaskStateService` 抽了 4 个状态方法，子类 `apply*` 仍逐字相同，新模块继续抄实体 | 新模块接抽象类 + 通用表，不要再抄 Entity/Flyway |
+
+### 防复发
+
+- 门禁：`scripts/check-async-task-table.sh`（pre-commit + pre-push）。新建 `*_export_task` / `*_import_task` 硬失败。
+- 逃生阀：`ASYNC_TASK_TABLE_ALLOW_NEW=1`，PR 必须说明为何不能用 `export_tasks`。
+- 存量 6～7 张专表不迁（独立任务）；本门禁只拦第 N+1 张。
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/export/entity/ExportTask.java`
+- `backend/src/main/java/com/xiyu/bid/common/application/AbstractExportTaskStateService.java`
+- `scripts/check-async-task-table.sh`
+- `docs/exec-plans/tech-debt-tracker.md`（异步任务表复制条目）

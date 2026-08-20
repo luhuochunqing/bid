@@ -280,6 +280,16 @@ else
     pass "Flyway 迁移目录守卫（commit 范围无 V/B 文件放在 db/migration/）"
   fi
 fi
+echo "── 异步任务表复制拦截 ──"
+if [ "${ASYNC_TASK_TABLE_ALLOW_NEW:-0}" = "1" ]; then
+  skip "异步任务表复制拦截（ASYNC_TASK_TABLE_ALLOW_NEW=1 逃生阀）"
+elif [ "${BACKEND_CHANGED:-0}" -eq 0 ]; then
+  skip "异步任务表复制拦截（无 backend/ 变更）"
+elif GATE_BASE="${GATE_BASE:-origin/main}" bash "$ROOT_DIR/scripts/check-async-task-table.sh" --push; then
+  pass "异步任务表复制拦截"
+else
+  fail "异步任务表复制拦截 — 检测到新建 *_export_task / *_import_task。接 export_tasks + AbstractExportTaskStateService（lessons §139）。逃生阀 ASYNC_TASK_TABLE_ALLOW_NEW=1"
+fi
 # ── 3.9. 自定义表单 schema 覆盖式迁移拦截（教训 #61 防复发） ──
 # 工程背景（2026-07-16 用户反馈）：
 #   V1007/V1120/V1166/V1167 都是无条件 UPDATE form_definition_registry SET schema_json，
