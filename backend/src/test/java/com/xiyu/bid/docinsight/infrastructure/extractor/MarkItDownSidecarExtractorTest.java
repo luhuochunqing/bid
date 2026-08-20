@@ -106,4 +106,29 @@ class MarkItDownSidecarExtractorTest {
         // 超限必须在进入任何网络请求前兜住——绝不能把超大 multipart 发出去或走 fallback new String
         verify(restTemplate, never()).postForObject(anyString(), any(HttpEntity.class), eq(String.class));
     }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("方案B回归：超限 DocInsightException 经 @Recover 原样抛出，不被包装成 ExhaustedRetryException")
+    void docInsightException_recover_rethrowsOriginal() {
+        MarkItDownSidecarExtractor extractor = new MarkItDownSidecarExtractor(
+                restTemplate,
+                new ObjectMapper(),
+                "http://localhost:8000",
+                "test-sidecar-key",
+                30L
+        );
+
+        DocInsightException cause = new DocInsightException(0,
+                "文档文件超过转换上限 30MB，无法提取文本: 大标书.docx（实际 382MB）");
+
+        // @Recover(DocInsightException) 必须原样 throw 原始异常（非 fallback、非换抛），
+        // 否则 RecoverAnnotationRecoveryHandler 匹配不到恢复方法，会把真实业务失败包装成
+        // ExhaustedRetryException("Cannot locate recovery method") 掩埋根因。
+        assertThatThrownBy(() -> extractor.recover(cause, "大标书.docx", "application/octet-stream",
+                new byte[]{'x'}))
+                .isSameAs(cause);
+
+        // 确定性失败绝不降级为占位文本——不允许走任何 fallbackExtract
+        verify(restTemplate, never()).postForObject(anyString(), any(HttpEntity.class), eq(String.class));
+    }
 }
