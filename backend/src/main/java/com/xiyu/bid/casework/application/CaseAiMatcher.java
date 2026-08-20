@@ -63,6 +63,8 @@ public class CaseAiMatcher {
                 log.warn("AI 案例匹配：评分项 {}（{}）无可用摘录，跳过（诚实降级，不伪造）", criterion.id(), criterion.title());
                 continue;
             }
+            log.info("AI 案例匹配：评分项 {}（{}）摘录长度 {} 字符，开头(前200)：{}",
+                    criterion.id(), criterion.title(), excerpt.length(), truncateForLog(excerpt, 200));
             AiMatchedSlice slice;
             try {
                 slice = extractSliceForCriterion(config, criterion, excerpt);
