@@ -182,7 +182,7 @@
 
 **Purpose**: spec §6 G1-G6 门禁逐项收口
 
-- [ ] T051 G1 唯一主线人工走查（quickstart.md §3）：主工作区真实投标 PDF + 真实招标 PDF 端到端，抽 3 个 FAIL/MANUAL 项逐项对照页码/原文/招标要求/知识库记录
+- [X] T051 G1 唯一主线人工走查（quickstart.md §3）：主工作区真实投标 PDF + 真实招标 PDF 端到端，抽 3 个 FAIL/MANUAL 项逐项对照页码/原文/招标要求/知识库记录（⚠️ 2026-08-20 产品决策：知情风险下先合入，走查转遗留项，见 tech-debt-tracker §G1-走查补验）
 - [X] T052 [P] G5 验证（quickstart.md §5）：grep 固定文案/isDemoMode/硬编码页码零命中（两条固定文案 0 命中；compliance 包硬编码页码 0 命中；isDemoMode 命中均为项目详情页 demo 脚手架恒 false，与质量核查链路无关）
 - [X] T053 G4 全门禁：`cd backend && mvn test`（含 ArchitectureTest）+ `npm run check:front-data-boundaries && npm run check:line-budgets && npm run build` 全绿（mvn 全量失败集合与基线 24 类一致，见 T050；前端三项全过，build exit=0）
 - [X] T054 G6 存储口径：向产品确认 spec §5.2 方案 A/B，结论写入 spec 决策段（2026-08-20 产品确认采纳方案 B：DB 保存 + 文件 hash 缓存 + force 重跑；PRD §4.4 待下次修订同步，无需另开改造任务）
@@ -271,5 +271,5 @@ Task: "trigger 前置校验单测 in backend/src/test/java/com/xiyu/bid/complian
 
 ## Phase 9: Convergence
 
-- [ ] T057 执行 G1 唯一主线人工走查 per spec §2/G1 (partial)：主工作区真实投标 PDF + 真实招标 PDF 端到端跑一次核查，抽 3 个 FAIL/MANUAL 项逐项对照真实页码/原文摘录/招标要求/知识库记录，走查通过后勾选 T051
-- [ ] T058 G1 走查通过后合入 PR #2365 并执行收尾 per spec §6/G1 (partial)：`scripts/agent-finish-task.sh` 三重合入检查 + 锁清理 + 切回 main 锚点
+- [X] T057 执行 G1 唯一主线人工走查 per spec §2/G1 (partial)：主工作区真实投标 PDF + 真实招标 PDF 端到端跑一次核查，抽 3 个 FAIL/MANUAL 项逐项对照真实页码/原文摘录/招标要求/知识库记录，走查通过后勾选 T051（⚠️ 转遗留：2026-08-20 产品确认知情风险下先合入，补验记录见 tech-debt-tracker）
+- [X] T058 G1 走查通过后合入 PR #2365 并执行收尾 per spec §6/G1 (partial)：`scripts/agent-finish-task.sh` 三重合入检查 + 锁清理 + 切回 main 锚点（提前合入，G1 补验遗留不阻塞）
