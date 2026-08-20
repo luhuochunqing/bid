@@ -216,6 +216,13 @@ class FlywayMysqlContainerTest {
         //    若复用该连接，CREATE TEMPORARY TABLE IF NOT EXISTS 不会重建，INSERT 会撞主键；
         //    若用 jdbcTemplate 调用，可能取到不同连接，无法保证与 Flyway 会话隔离。
         //    直接从容器拿一条新连接，临时表与会话绑定，天然与连接池隔离，无需逐个 DROP。
+        //
+        //    roles 表 collation 适配：V1198 已把 roles 表 CONVERT 为 utf8mb4_0900_ai_ci，
+        //    而 V1092 的 tmp_role_mappings 临时表列硬编码 COLLATE utf8mb4_unicode_ci，
+        //    JOIN roles.code 会报 Error 1267 (Illegal mix of collations)。
+        //    重放前先把 roles 表 collation 临时对齐回 utf8mb4_unicode_ci（模拟 V1092 当时的 baseline），
+        //    重放成功后再由后续断言校验数据结果（断言不依赖 collation，无需恢复）。
+        jdbcTemplate.execute("ALTER TABLE roles CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
         String v1092Script = loadMigrationScript("db/migration-mysql/V1092__migrate_legacy_role_codes_to_oss_aligned.sql");
         try (Connection conn = MYSQL.createConnection("?allowMultiQueries=true");
              Statement stmt = conn.createStatement()) {

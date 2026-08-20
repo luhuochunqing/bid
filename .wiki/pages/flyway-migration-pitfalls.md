@@ -4,7 +4,7 @@ space: engineering
 category: guide
 tags: [Flyway, 数据库迁移, MySQL, collation, 版本号冲突, baseline-on-migrate, 回滚脚本]
 created: 2026-07-10
-updated: 2026-07-31
+updated: 2026-08-20
 health_checked: 2026-08-20
 sources:
   - backend/src/main/resources/db/migration-mysql/
@@ -400,15 +400,47 @@ SELECT 'U1188 no-op rollback' AS message;
 
 ---
 
-## 13. 迁移脚本命名规范
+## 13. 已发布迁移的测试重放 — collation CONVERT 会破坏历史迁移
 
-### 13.1 规范
+### 13.1 事故
+
+V1198 用存储过程把全库 `roles` 表 CONVERT 为 `utf8mb4_0900_ai_ci`。而 V1092 的 `tmp_role_mappings` 临时表列硬编码 `COLLATE utf8mb4_unicode_ci`，`FlywayMysqlContainerTest` 重放 V1092 时 JOIN `roles.code` 报：
+
+```
+Error 1267: Illegal mix of collations (utf8mb4_0900_ai_ci, COERCIBLE) and (utf8mb4_unicode_ci, IMPLICIT)
+```
+
+### 13.2 根因
+
+- V1092 是**已发布迁移**（受 Flyway checksum 保护，内容不可改）。
+- V1198 把表默认 collation 统一成 utf8mb4_0900_ai_ci，改变了 V1092 重放时的基线，使其临时表的硬编码 COLLATE 与之冲突。
+- 容器测试（Testcontainers）全量重放迁移，与生产"已应用后只跑增量"的路径不同，会暴露这种跨迁移的 collation 漂移。
+
+### 13.3 修复（测试侧对齐，不动已发布迁移）
+
+```java
+// 重放前先把 roles 表 collation 临时对齐回 utf8mb4_unicode_ci（模拟 V1092 当时的 baseline）
+jdbcTemplate.execute("ALTER TABLE roles CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+String v1092Script = loadMigrationScript("db/migration-mysql/V1092__migrate_legacy_role_codes_to_oss_aligned.sql");
+```
+
+### 13.4 教训
+
+- **已发布迁移不可修改**（checksum 保护），测试重放冲突时应在**测试侧对齐 collation/基线**，而不是改旧迁移或用 `flyway:repair`。
+- **全量重放的容器测试会暴露跨迁移 collation 漂移**：新迁移 CONVERT 全表 collation 后，要检查旧迁移里的临时表/JOIN 是否依赖旧 collation。
+- 对齐是模拟真实历史基线，断言不依赖 collation 时无需恢复；若要保真可考虑 per-version 隔离。
+
+---
+
+## 14. 迁移脚本命名规范
+
+### 14.1 规范
 
 - **基线版本**：`B{version}_*.sql`（如 `B73__full_schema_baseline.sql`）
 - **增量版本**：`V{version}___{desc}.sql`（如 `V1081__remove_task_executor_role.sql`）
 - **回滚版本**：`U{version}__{desc}.sql`（如 `U1081__remove_task_executor_role.sql`）
 
-### 13.2 版本号
+### 14.2 版本号
 
 - 必须大于已有最大版本号
 - **严禁手动猜测或 `ls | tail` 决定版本号**
@@ -416,7 +448,7 @@ SELECT 'U1188 no-op rollback' AS message;
 
 ---
 
-## 14. 相关文档
+## 15. 相关文档
 
 - [[lessons-learned]] §一 §二 — 数据库迁移目录清理、CI 配置对齐
 - [[production-deployment-lessons]] §1 — collation 冲突案例
@@ -426,10 +458,11 @@ SELECT 'U1188 no-op rollback' AS message;
 
 ---
 
-## 15. 变更记录
+## 16. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
 | 2026-07-10 | 首次创建，从 8 个工作区历史对话中提取 Flyway 迁移陷阱 |
 | 2026-07-31 | 新增 §11 INSERT IGNORE + NULL 唯一键不幂等（U1182 回滚脚本事故，PR !2229）；原 §11~§13 顺延为 §12~§14 |
 | 2026-08-17 | 新增 §12 ADD COLUMN 必须幂等 — V145 列冲突事故（V1188 vs V145 contract_amount，commit 30b2de723）；原 §12~§14 顺延为 §13~§15 |
+| 2026-08-20 | 新增 §13 已发布迁移的测试重放 collation 冲突（V1198 CONVERT 全表 collation 破坏 V1092 重放，commit 2c90a6f85）；原 §13~§15 顺延为 §14~§16 |
