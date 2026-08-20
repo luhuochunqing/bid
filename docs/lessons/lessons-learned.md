@@ -2784,3 +2784,22 @@ PR !2399 报价评分截断治理提交后，经严格评审发现 2 个 CRITICA
 **教训**：
 - fixed 布局表格新增/改列内容时，列宽必须按最坏长度文案（最大位数、最长枚举）核算，内容区 = 列宽 - 左右 padding；`nowrap` 内容溢出是静默视觉缺陷，单测与构建都拦不住，需人工核算或浏览器目检
 - 共享组件在同页多实例渲染时，测试断言选择器必须限定到区分性容器，避免跨实例计数污染
+
+## 158. 评估表草稿保存 503：前端恒发 `recommendation={shouldBid:null}`，后端仅判 `rec==null`，显式插 null 击穿 NOT NULL DEFAULT（2026-08-20）
+
+### 问题背景
+
+评估表「保存草稿」接口偶发 503，根因是 SQL 1048（Column 'should_bid' cannot be null）。前端草稿保存**恒定**发送 `recommendation={shouldBid:null}`（非整体缺省），后端判定逻辑只检查 `recommendation == null`——对象非 null 但字段为 null 时，会**显式**向 `should_bid` 列插入 NULL，使该列 `NOT NULL DEFAULT` 约束不生效（DEFAULT 仅在列缺省时触发，显式 NULL 不算缺省），直接 1048 报错。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 前端恒发空壳对象 `{shouldBid:null}` | 序列化层"字段存在但值为 null"与"字段不存在"语义不同，后端不能只判外层对象 null | 判空要穿透到字段级：`recommendation == null || recommendation.shouldBid() == null` 才视为"无建议内容"，跳过插入 |
+| NOT NULL DEFAULT 被显式 NULL 击穿 | MySQL DEFAULT 只对"列未出现"生效，JPA 显式 set null 会写入 NULL 触发 1048 | 实体落库前对可选字段做 null 短路（不 set / 整体不持久化），不要依赖数据库 DEFAULT 兜底 |
+| 偶发 503 掩盖真实 SQL 错误 | 网关/异常转换层把 DataIntegrityViolation 包成 503，误导为服务不可用 | 排查 5xx 先看后端原始异常栈（SQL 1048 这类约束错误），不要只信状态码 |
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/tender/service/TenderEvaluationSubmissionMapper.java`
+- `backend/src/test/java/com/xiyu/bid/tender/service/TenderEvaluationSubmissionServiceTest.java`（回归测试）
