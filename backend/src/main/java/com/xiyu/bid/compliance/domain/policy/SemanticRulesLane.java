@@ -14,6 +14,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * 语义项规则 lane（纯核心）：只产出确定性硬信号.
@@ -37,6 +38,13 @@ public final class SemanticRulesLane {
             BidQualityCheckItem.QUALIFICATION_REVIEW,
             BidQualityCheckItem.SCORING_RESPONSE,
             BidQualityCheckItem.CLARIFICATION_RESPONSE);
+
+    /** 负偏离/不满足声明的否定修饰词（紧邻关键词前出现时豁免 FAIL），按长度降序避免前缀误匹配. */
+    private static final List<String> NEGATION_TERMS = List.of(
+            "无任何", "不存在", "没有", "不含", "无", "未", "零");
+
+    /** 资格/关键词匹配归一化：剔除空白（含全角空格）与全部 Unicode 标点，降低 LLM 提取表述与标书写法的差异. */
+    private static final Pattern NORMALIZE_PATTERN = Pattern.compile("[\\s\\u3000\\p{P}]");
 
     private SemanticRulesLane() {
     }
@@ -92,19 +100,24 @@ public final class SemanticRulesLane {
 
     /**
      * 一票否决第一阶段：标书缺失招标硬性资格要求即 FAIL（veto_keyword 关键词阶段）.
+     *
+     * <p>匹配前对投标全文与资格表述做归一化（去空白/标点），
+     * 避免 LLM 提取表述（如 "ISO27001 信息安全认证"）与标书写法（"ISO 27001"）因
+     * 空白/全半角差异而误判缺失.
      */
     private static Optional<QualityCheckItemResult> vetoFirstStage(
             final DocumentContent bidDoc,
             final DocumentContent tenderDoc,
             final TenderRequirements requirements,
             final List<QualityEvidence> kbEvidences) {
+        String bidText = normalize(bidDoc.fullText());
         List<QualityEvidence> evidences = new ArrayList<>();
         for (String qualification : requirements.mandatoryQualifications()) {
             if (qualification.isBlank()) {
                 continue;
             }
             evidences.add(EvidenceAssembler.locateTender(tenderDoc, "招标文件资质要求", List.of(qualification)));
-            if (!bidDoc.fullText().contains(qualification)) {
+            if (!bidText.contains(normalize(qualification))) {
                 if (kbEvidences != null) {
                     evidences.addAll(kbEvidences);
                 }
@@ -119,20 +132,60 @@ public final class SemanticRulesLane {
     }
 
     /**
-     * 实质性响应：标书自述负偏离/不满足即 FAIL（确定性硬信号）.
+     * 实质性响应：标书自述存在负偏离/不满足 → FAIL（确定性硬信号）；
+     * 提及偏离但全部为否定表述（"无负偏离"/"无不满足"）→ PASS（自述无偏离）；
+     * 未提及 → empty 交 LLM lane.
      */
     private static Optional<QualityCheckItemResult> declaredDeviation(final DocumentContent bidDoc) {
-        boolean hasDeviation = bidDoc.fullText().contains("负偏离") || bidDoc.fullText().contains("不满足");
-        if (!hasDeviation) {
-            return Optional.empty();
+        String text = bidDoc.fullText();
+        boolean declared = containsNonNegated(text, "负偏离") || containsNonNegated(text, "不满足");
+        if (declared) {
+            List<QualityEvidence> evidences = List.of(
+                    EvidenceAssembler.locateBid(bidDoc, "偏离表章节", List.of("负偏离", "不满足")));
+            return Optional.of(QualityCheckItemResult.fail(
+                    BidQualityCheckItem.RESPONSIVENESS_REVIEW,
+                    "商务或技术条款中存在实质性负偏离！",
+                    "请核减负偏离项或补充合理解释",
+                    evidences));
         }
-        List<QualityEvidence> evidences = List.of(
-                EvidenceAssembler.locateBid(bidDoc, "偏离表章节", List.of("负偏离", "不满足")));
-        return Optional.of(QualityCheckItemResult.fail(
-                BidQualityCheckItem.RESPONSIVENESS_REVIEW,
-                "商务或技术条款中存在实质性负偏离！",
-                "请核减负偏离项或补充合理解释",
-                evidences));
+        if (text.contains("负偏离") || text.contains("不满足")) {
+            List<QualityEvidence> evidences = List.of(
+                    EvidenceAssembler.locateBid(bidDoc, "偏离表章节", List.of("负偏离", "不满足")));
+            return Optional.of(QualityCheckItemResult.pass(
+                    BidQualityCheckItem.RESPONSIVENESS_REVIEW,
+                    "投标文件未声明实质性负偏离", evidences));
+        }
+        return Optional.empty();
+    }
+
+    /** 文本中是否存在未被否定修饰的指定关键词出现（如"无负偏离"中的"负偏离"不计数）. */
+    private static boolean containsNonNegated(final String text, final String keyword) {
+        int from = 0;
+        int idx;
+        while ((idx = text.indexOf(keyword, from)) >= 0) {
+            if (!hasNegationPrefix(text, idx)) {
+                return true;
+            }
+            from = idx + keyword.length();
+        }
+        return false;
+    }
+
+    /** 关键词紧邻前缀（最多 4 字符）是否以否定修饰词结尾. */
+    private static boolean hasNegationPrefix(final String text, final int idx) {
+        int start = Math.max(0, idx - 4);
+        String prefix = text.substring(start, idx);
+        for (String negation : NEGATION_TERMS) {
+            if (prefix.endsWith(negation)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 匹配归一化：去空白（含全角空格）与全部标点. */
+    private static String normalize(final String text) {
+        return text == null ? "" : NORMALIZE_PATTERN.matcher(text).replaceAll("");
     }
 
     private static QualityCheckItemResult referenceMissing(final BidQualityCheckItem item, final String detail) {

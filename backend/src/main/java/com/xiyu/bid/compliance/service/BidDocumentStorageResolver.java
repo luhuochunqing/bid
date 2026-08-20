@@ -69,7 +69,7 @@ public class BidDocumentStorageResolver {
                 LoadedProjectDocumentFile loaded = fileStorage.load(fileUrl)
                         .orElseThrow(() -> new BusinessException(404,
                                 docLabel + "在存储中不存在，请重新上传：" + fileUrl));
-                return writeTempFile(loaded.content(), docLabel);
+                return writeTempFile(loaded.content(), fileName, docLabel);
             case OBS_DIRECT:
                 String presignedUrl = obsShareUrlSigner.trySign(fileUrl)
                         .orElseThrow(() -> new BusinessException(404,
@@ -82,14 +82,14 @@ public class BidDocumentStorageResolver {
     }
 
     /**
-     * 将存储读取的字节写入临时文件.
+     * 将存储读取的字节写入临时文件（保留真实扩展名，便于 Sidecar 识别文档类型）.
      */
-    private Path writeTempFile(final byte[] content, final String docLabel) {
+    private Path writeTempFile(final byte[] content, final String fileName, final String docLabel) {
         if (content == null || content.length == 0) {
             throw new BusinessException(404, docLabel + "内容为空，请重新上传");
         }
         try {
-            Path tempFile = Files.createTempFile("xiyu-quality-doc-", ".pdf");
+            Path tempFile = Files.createTempFile("xiyu-quality-doc-", suffixOf(fileName));
             Files.write(tempFile, content);
             return tempFile;
         } catch (IOException e) {

@@ -224,3 +224,12 @@
 > **风险**：链路未经真实数据端到端验证，可能存在解析/定位/裁决在真实文件下的未暴露问题（如超大文件、扫描版 PDF、LLM 真实响应格式漂移）。
 > **补验动作**：主工作区（trae）启动开发环境，按 `specs/049-bid-quality-check-realization/quickstart.md §3` 执行走查；发现问题按 lessons §140（047 验收失真复盘）标准追根因，不接受"形态通过"。
 > **状态**：open（优先级 high，建议下次部署测试环境后第一时间补验）。
+
+### 049-后续跟进：标书质量核查 PR !2365 审查遗留项（2026-08-21 评审）
+
+> **来源**：PR !2365 事后评审（google-code-review），三处代码问题已在本轮顺手修复（见 PR 分支 `agent/zcode/fix-2365-followups`），以下为需另行跟进的项。
+> **① LLM JSON 围栏剥离待验**：`LlmVerdictParser`/`TenderRequirementsParser` 直接 `ObjectMapper.readTree`，未处理 LLM 网关常见的 ```json 围栏（`CaseAiMatcher.java:268` 已有同款先例）。一旦模型返回带围栏 JSON，裁决全部降级 MANUAL、招标要求全 missing，功能静默失效。已排除在"顺手修复"外（需服务器端真实响应验证），建议 G1 走查/部署验证时同步补防御性剥离（纯解析层逻辑，可单测覆盖，不依赖端到端）。
+> **② trigger 同步全量解析 + 双重解析**：`BidQualityCheckTaskAppService` 在 HTTP 请求线程做完整下载（OBS 超时上限 120s）+ Sidecar 解析校验"可解析性"，缓存未命中时 async executor 再把下载+解析重做一遍。大文件下 trigger 请求阻塞数分钟。建议：前置校验只查元数据（文件存在），解析校验移异步侧置 FAILED 态；或解析结果透传复用。注意勿削弱 G3 门禁（"无文件不核查 4xx"）。
+> **③ `LlmAdjudicator.adjudicate()` 批量方法仅测试使用**：生产走引擎逐项 `adjudicateItem`，批量方法进度记账与引擎循环重复。保留作 API（契约测试覆盖），若后续简化可删并迁移测试走引擎。
+> **④ tasks.md T051/T057/T058 未完成却勾选 [X]**：本 PR 修的正是"验收失真"，自身验收勾选有形态通过之嫌，已合入不便回改；后续 spec 收尾任务应保持 `[ ]` + ⚠️ 注释，完成后再勾。
+> **状态**：open（①②建议随 G1 走查一并处理；③④可选）。

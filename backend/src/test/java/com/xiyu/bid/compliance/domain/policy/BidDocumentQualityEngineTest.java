@@ -77,6 +77,45 @@ class BidDocumentQualityEngineTest {
     }
 
     @Test
+    @DisplayName("实质性响应回归：标书自述\"无负偏离/无不满足\"时不应误判 FAIL，应判定 PASS")
+    void testResponsivenessReview_WhenExplicitlyNoDeviation_Passes() {
+        String bidContent = "偏离表：付款方式无负偏离，无不满足项。";
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid", bidContent);
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.fromText("tender.pdf", "hash_t", "招标要求"),
+                Collections.emptyList(), TenderRequirements.empty(), Set.of());
+
+        QualityCheckItemResult respResult = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.RESPONSIVENESS_REVIEW.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(respResult.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(respResult.conclusion()).doesNotContain("存在实质性负偏离");
+    }
+
+    @Test
+    @DisplayName("一票否决归一化回归：标书含带空格/标点的同一资格表述时不应误判缺失 FAIL")
+    void testQualificationVeto_NormalizedText_SameCertificationNotFailed() {
+        TenderRequirements requirements = new TenderRequirements(
+                List.of(), List.of("ISO27001信息安全认证"), List.of(), List.of(), List.of(), false);
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid",
+                "项目名称：测试\n具备 ISO 27001 信息安全认证（有效期至2027年）");
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), requirements, Set.of());
+
+        QualityCheckItemResult vetoResult = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_VETO.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        // 第一阶段命中，无确定性硬信号 → 交 LLM lane（未启用则 MANUAL），不得武断 FAIL
+        assertThat(vetoResult.status()).isNotEqualTo(QualityCheckStatus.FAIL);
+    }
+
+    @Test
     @DisplayName("降级测试：招标要求哨兵态时比对项 MANUAL + [REFERENCE_MISSING]，独立项照常")
     void testEvaluateAll_WhenRequirementsMissing_ComparisonItemsDegrade() {
         String bidContent = "项目名称：测试\n投标函\n偏离表：无负偏离";

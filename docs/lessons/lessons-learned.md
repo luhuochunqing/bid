@@ -2336,3 +2336,25 @@ spec 049 US5 中 `LlmAdjudicator#adjudicateItem` 源码无任何 try/catch、无
 | 门禁基于字节码而非源码 | 源码"看起来纯"不等于字节码纯；编译器为语言特性注入的隐藏构造（MatchException/合成类）会被 ArchUnit 判据命中 | 纯核心类报异常流违规但源码无异常时，先 `javap -c` 看字节码再改代码；纯核心对 sealed 类型分派优先 instanceof 链而非 switch 模式匹配 |
 | void 业务方法触发"业务方法必须返回值"门禁 | 私有静态 helper 也在扫描范围 | 纯核心的 append/add 类 helper 改为返回合并后的集合（调用方可忽略返回值，门禁只查签名） |
 | JSON 解析放纯核心 | Jackson checked 异常在纯核心必然 try/catch，必违规 | 解析器置 service 边界层（TenderRequirementsParser/LlmVerdictParser 先例），纯核心只消费解析后的值类型 |
+
+## 142. 质量核查 contains 直出的否定语义盲区 + 精确匹配脆弱性（2026-08-21）
+
+### 问题背景
+
+PR !2365（spec 049 质量核查实质化）评审 + 修复中发现两处确定性 lane 的 `String.contains` 直出误判：
+
+1. **否定语义盲区**：`SemanticRulesLane.declaredDeviation` 用 `contains("负偏离")||contains("不满足")` 判定"标书自述负偏离 → FAIL"。投标文件**标准表述"偏离表：无负偏离"**（含"负偏离"子串）被误判 FAIL；测试 fixture 里就写了"偏离表：无负偏离"但未断言 RESPONSIVENESS 状态，误报被掩盖。
+2. **精确匹配脆弱性**：`vetoFirstStage` 用 `bidDoc.fullText().contains(qualification)` 对 LLM 提取的**完整资格表述**做精确子串匹配。LLM 提取 "ISO27001 信息安全认证" vs 标书写 "ISO 27001"，空白/标点差异即误判"缺失一票否决项 → FAIL"。
+
+### 修复方案
+
+1. `declaredDeviation` 改三分支：含关键词且**未被否定修饰** → FAIL；提及但全为否定表述（无/未/零/没有/不存在/不含/无任何 + 关键词）→ 确定性 PASS（自述无偏离）；未提及 → 交 LLM lane。否定判断：检查关键词紧邻前缀（前 4 字符）是否以否定词结尾，避免"付款方式存在负偏离"（前缀"存在"）被误豁免。
+2. `vetoFirstStage` 匹配前对投标全文与资格表述统一归一化（去空白含全角空格 + 全部 Unicode 标点 `\p{P}`），保留"缺失即 FAIL"的 spec 语义，仅消除表述差异误报。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| contains 直出 FAIL 遇否定表述误报 | 中文投标文件"无负偏离/无不满足"是标准合规表述，contains 命中即误报 | 确定性规则 lane 用关键词直出硬信号前，先枚举否定语义（紧邻前缀否定词豁免）；宁可 MANUAL 也不武断 FAIL |
+| LLM 提取物与文档原文精确匹配 | LLM 提取的资格表述带空白/标点，与文档写法不一致，contains 必误判 | 跨源文本匹配先归一化（去空白/全半角/标点）再 contains；一票否决项（FAIL=废标级）尤其不能靠裸 contains |
+| 测试 fixture 未断言受影响项状态 | 测试写"偏离表：无负偏离"却只断言 VETO，RESPONSIVENESS 误报未暴露 | 涉及确定性 lane 的测试 fixture，对每个受影响检查项断言具体状态（PASS/FAIL/MANUAL），不留"未断言"盲区 |
