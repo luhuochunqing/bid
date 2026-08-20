@@ -18,14 +18,19 @@ import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import com.xiyu.bid.repository.TenderRepository;
+import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 
+import java.net.InetSocketAddress;
+import java.net.URI;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -374,7 +379,7 @@ class ProjectClosedEventListenerTest {
                 .thenReturn(List.of(scoreItem(101L, "技术方案", "要求提供架构图")));
         when(obsShareUrlSigner.trySign(FileUrlPrefixes.OBS_DIRECT + "upload123"))
                 .thenReturn(Optional.of("https://obs.example.com/signed"));
-        when(restTemplate.getForObject("https://obs.example.com/signed", byte[].class))
+        when(restTemplate.getForObject(URI.create("https://obs.example.com/signed"), byte[].class))
                 .thenReturn("PDF_BYTES".getBytes());
         when(docTextExtractor.extract(any(), any(), any()))
                 .thenReturn(new ExtractedDocument("## 标书正文(obs)", 5, "text/markdown", "bid.pdf",
@@ -388,8 +393,8 @@ class ProjectClosedEventListenerTest {
 
         listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
 
-        // 必须走签名下载，而不是把 obs-direct 当本地文件读
-        verify(restTemplate).getForObject("https://obs.example.com/signed", byte[].class);
+        // 必须走签名下载，而不是把 obs-direct 当本地文件读；注意传的是 URI 而非 String
+        verify(restTemplate).getForObject(URI.create("https://obs.example.com/signed"), byte[].class);
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<KnowledgeCase>> captor = ArgumentCaptor.forClass(List.class);
         verify(knowledgeCaseRepository, times(1)).saveAll(captor.capture());
@@ -418,6 +423,57 @@ class ProjectClosedEventListenerTest {
         verify(notifier, times(1)).notifyFailure(anyLong(), any(), reasonCaptor.capture(), any(), any());
         assertThat(reasonCaptor.getValue()).contains("OBS");
         verify(knowledgeCaseRepository, never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("根因回归：OBS 预签名 URL 含 % 编码时下载不得二次编码（RestTemplate 传 URI，内嵌真实服务器）")
+    void obsPresignedUrl_notDoubleEncoded_rootCauseRegression() throws Exception {
+        // 内嵌真实 HTTP 服务器，记录「实际到达的原始请求路径」，返回 200 + 字节。
+        // 不 mock 网络层——mock 会掩盖 RestTemplate 对预签名 URL 的二次编码行为（之前的 403 根因）。
+        AtomicReference<String> rawPath = new AtomicReference<>();
+        AtomicReference<String> rawQuery = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            rawPath.set(exchange.getRequestURI().getRawPath());
+            rawQuery.set(exchange.getRequestURI().getRawQuery());
+            byte[] body = "PDF_BYTES".getBytes();
+            exchange.sendResponseHeaders(200, body.length);
+            try (var os = exchange.getResponseBody()) {
+                os.write(body);
+            }
+            exchange.close();
+        });
+        server.start();
+        try {
+            int port = server.getAddress().getPort();
+            // 模拟 OBS 预签名 URL：路径已含一次 percent 编码（%E5...）。若被二次编码会变 %25E5，
+            // 触发 SignatureDoesNotMatch(403)。签名参数同样含 %3D。
+            String signedUrl = "http://127.0.0.1:" + port
+                    + "/bids/2026/08/u/%E5%BC%A0%E5%AE%B6%E5%8F%A3.docx?Expires=1787155399&Signature=abc%3D";
+
+            ObsShareUrlSigner signer = mock(ObsShareUrlSigner.class);
+            when(signer.trySign(FileUrlPrefixes.OBS_DIRECT + "upload123"))
+                    .thenReturn(Optional.of(signedUrl));
+
+            RestTemplate realRest = new RestTemplate(new SimpleClientHttpRequestFactory());
+            ProjectClosedEventListener underTest = new ProjectClosedEventListener(
+                    archiveRepository, fileRepository, scoreItemRepository,
+                    knowledgeCaseRepository, projectRepository, tenderRepository,
+                    bidResultRepository, docTextExtractor, caseAiMatcher, notifier,
+                    signer, realRest);
+
+            byte[] bytes = underTest.loadFileBytes(FileUrlPrefixes.OBS_DIRECT + "upload123");
+
+            assertThat(bytes).isEqualTo("PDF_BYTES".getBytes());
+            // 关键断言：服务器收到的路径保持单次编码（%E5...），未被二次编码成 %25E5
+            assertThat(rawPath.get()).contains("%E5%BC%A0%E5%AE%B6%E5%8F%A3");
+            assertThat(rawPath.get()).doesNotContain("%25E5");
+            // query 同理：Signature=abc%3D 的 %3D 不得被二次编码成 %253D（同样触发 403）
+            assertThat(rawQuery.get()).contains("Signature=abc%3D");
+            assertThat(rawQuery.get()).doesNotContain("%253D");
+        } finally {
+            server.stop(0);
+        }
     }
 
     private Project project(Long id, Long managerId, String name) {

@@ -1995,3 +1995,53 @@ Flyway 迁移用存储过程遍历 `information_schema.TABLES`，把所有 `TABL
 
 - `backend/src/main/resources/db/migration-mysql/V1198__unify_legacy_tables_collation_utf8mb4_0900_ai_ci.sql`
 - `backend/src/main/resources/db/rollback/migration-mysql/U1198__unify_legacy_tables_collation_utf8mb4_0900_ai_ci.sql`
+
+---
+
+## 130. OBS 预签名 URL 二次编码导致 SignatureDoesNotMatch (403) — RestTemplate 传 String 走 UriTemplateHandler（2026-08-19，§125/§126 的连环坑）
+
+### 问题背景
+
+测试环境项目 1350「AI 生成案例」在 §126 修复（改经 `ObsShareUrlSigner.trySign` 签名 `obs-direct:`）后，结项仍报"AI 生成案例失败，原因 403 Forbidden"。走全链路日志排查 SOP 抓 `/var/log/xiyu-bid/application.json.log` 拿到完整 OBS 错误体（`LoggingClientHttpRequestInterceptor` 输出）：
+
+```xml
+<Code>SignatureDoesNotMatch</Code>
+<Message>The request signature we calculated does not match the signature you provided.</Message>
+<StringToSign>GET.../widbid-obs.ehsy.com/bids/2026/08/195e258c-84d8.../%25E5%25BC%25A0%25E5...docx</StringToSign>
+```
+
+**StringToSign 中文件名是双重编码 `%25E5%25BC%25A0`**（张家口银行投标6.16.docx），而非预期的单次编码 `%E5%BC%A0`。
+
+### 根因深度剖析（5 Whys）
+
+1. **RestTemplate.getForObject(String, ...) 的 UriTemplateHandler**：传 String 的 `getForObject(String url, ...)` 会把注册的 `UriTemplateHandler`（默认 `DefaultUriBuilderFactory`）把 URL 当 URI 模板处理，对已百分号编码的预签名 URL 再次编码，`%` → `%25`。
+2. **OBS 预签名 URL 的本质**：签名时对 `objectKey`（含中文文件名）做一次 percent 编码得到 `%E5%BC%A0...`，并把该串与 `Expires/Signature` 一起计算签名；下载时必须**原样**发这个串。
+3. **二次编码导致验签失败**：RestTemplate 把 `%E5` 变成 `%25E5` 后发往 OBS，OBS 收到的是 `%25E5`，用它重建的 `StringToSign` 与签名时用的 `%E5` 不一致 → `SignatureDoesNotMatch` 403。
+4. **测试 mock 掩盖真实行为**：§126 的 `obsBidFile_downloadAndSave` 测试把 `restTemplate.getForObject(...)` mock 成直接返回 byte[]，断言字节回写成功，**从不走真实网络**，因此二次编码从未被测试暴露，测试全绿却埋雷。
+5. **运行态 vs 测试态偏差**：本地/CI 全绿，测试环境真实下载才触发。
+
+### 根本修复
+
+`loadFileBytes` 下载预签名 URL 改传 **URI 对象**而非 String：
+
+```java
+byte[] bytes = restTemplate.getForObject(URI.create(signedUrl.get()), byte[].class);
+```
+
+`getForObject(URI, ...)` 重载**不经过 `UriTemplateHandler`**，预签名 URL 保持单次编码原样发送。
+
+### 教训（七大根因判定）
+
+- **主根因：测试不测根因**。上轮 mock 网络层 → 测试全绿但 bug 在，真实网络行为被 mock 掩盖。符合工程纪律"测试全绿，bug 还在 / 只测修过的函数"。
+- 本次修复的根因回归测试**用内嵌真实 HttpServer**（`com.sun.net.httpserver.HttpServer`）记录服务器实际收到的 raw path，断言保持 `%E5..` 不含 `%25E5`，不再 mock 网络层。
+
+### 预防措施
+
+1. **凡是「第三方签名 URL / 外部 HTTP 下载」类功能，禁止只靠 mock RestTemplate 断言**；必须用内嵌真实 HTTP 服务器走真实网络（参考 `StreamingBidFileFetcherTest`、`ProjectClosedEventListenerTest#obsPresignedUrl_notDoubleEncoded_rootCauseRegression`）。
+2. **拿到外部返回的完整错误体先看 `StringToSign` / 请求路径**，二次编码一眼可辨（`%25` 双百分号）。
+3. 认准 `getForObject(URI, ...)` 与 `getForObject(String, ...)` 幂等：预签名/已编码 URL 一律传 URI。
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/casework/application/ProjectClosedEventListener.java`（`loadFileBytes`）
+- `backend/src/test/java/com/xiyu/bid/casework/application/ProjectClosedEventListenerTest.java`（`obsPresignedUrl_notDoubleEncoded_rootCauseRegression`）

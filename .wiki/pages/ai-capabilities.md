@@ -387,6 +387,7 @@ AiAnalysisResponse
 - **处理链路**：`ProjectClosedEventListener` 异步加载归档标书全文与评分项，调用大模型切片匹配提取优秀应答。
   - ⚠️ 历史坑 1（project_score_drafts）：早期依赖 `project_score_drafts`（导入评分草稿链路，入口 2026-08-17 下线后全表为空），导致结项后无法沉淀案例；draft 链路删除后须改读 `score_item`。
   - ⚠️ 历史坑 2（标书正文读取）：归档标书 `filePath` 为 `obs-direct:`（OBS 云存储引用）时，若直接用 `Files.readAllBytes` 当本地路径读会抛 `NoSuchFileException`，回退到 16 字符占位文本，导致 AI 返回 `criteriaId=0` 空片段、入库 0 条。必须经 `ObsShareUrlSigner.trySign` 签名预签名 URL 后下载字节；OBS 读取失败应上报失败通知而非虚假成功。
+  - ⚠️ 历史坑 3（预签名 URL 二次编码 403）：经 `ObsShareUrlSigner.trySign` 拿到预签名 URL 后，**必须用 `RestTemplate.getForObject(URI, ...)` 下载而不能传 `String`**。传 String 会走 `UriTemplateHandler`，把预签名 URL 中已 percent 编码的 `%` 二次编码成 `%25`，导致 OBS 验签用的资源路径与签名时不匹配，抛 `SignatureDoesNotMatch` 403。曾用默认 RestTemplate mock 断言"测试全绿"却掩盖了真实网络行为——根因回归测试须用内嵌真实 HttpServer 断言服务器收到的路径保持单次编码（`%E5..` 而非 `%25E5..`）。
 - **并发幂等**：
   - DB 层：`knowledge_case` 表建立 `(source_project_id, scoring_point_title)` 复合唯一索引。
   - 应用层：内存比对过滤 + 捕获 `DataIntegrityViolationException` 按幂等成功处理，防止重复结项造成脏数据。
