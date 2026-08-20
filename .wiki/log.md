@@ -317,3 +317,9 @@
 - 更新 [[score-parse-service]]：§7 追加「原文保真对齐」治理三件套（ScoreOriginalTextAligner / fromLlmCandidate 加源文参 / enrich 原文背书覆盖）与前端 UI 调整条目；§8 追加验证基线
 - 边界：存量 score_item 不回溯需重新解析；dim 对齐失败保留 LLM 输出属预期；防幻觉靠"无背书不覆盖"约束
 - 关联测试：ScoreOriginalTextAlignerTest(6) + ScoreCandidateMapperTest(3) + ScoreItemMergePolicyTest(+2) + OpenAiScoreAnalyzerTest(6) 回归，前端 ScoreParseV3.qa.spec.js(8) + build EXIT=0
+
+## [2026-08-20] review-fix | 评分解析原文保真 design review 修复回填（P1/P2）
+- 触发：对 PR !2356 做思维链 design review，发现 sameDim 全等判据挡掉同编号不同名称场景的唯一完整版本（P1）、对齐失败静默降级无可观测信号（P2）
+- 修复：MergePolicy 增"归一化子串判同项"补强分支（互不为子串维持丢弃，防误并）；Mapper detail 对齐失败 WARN；召回四完成日志带 aligned=N/M 对齐率；enrich 死分支清理；既有测试锚定新行为
+- 更新 [[score-parse-service]]：治理三件套条目补 P1 判据与可观测性说明
+- 关联：`docs/lessons/lessons-learned.md §133`；回归 ScoreItemMergePolicyTest 12 用例（新增同编号不同名称补强/防误并 2 例）共 27/27
