@@ -164,15 +164,15 @@
 
 ### Tests for US5 ⚠️
 
-- [ ] T045 [P] [US5] LLM 裁决契约测试：固定输入（TenderRequirements + KnowledgeMatch + Evidence）→ 固定输出结构（PASS/FAIL/MANUAL + reasonCode + evidence）；单项失败 → MANUAL + LOW_CONFIDENCE；Noop → 语义项全 MANUAL，新建 backend/src/test/java/com/xiyu/bid/compliance/domain/LlmAdjudicationContractTest.java
+- [X] T045 [P] [US5] LLM 裁决契约测试：固定输入（TenderRequirements + KnowledgeMatch + Evidence）→ 固定输出结构（PASS/FAIL/MANUAL + reasonCode + evidence）；单项失败 → MANUAL + LOW_CONFIDENCE；Noop → 语义项全 MANUAL，新建 backend/src/test/java/com/xiyu/bid/compliance/domain/LlmAdjudicationContractTest.java
 
 ### Implementation for US5
 
-- [ ] T046 [US5] `BidDocumentQualityEngine` 拆分（Constitution IV 300 行硬上限 + plan Complexity Tracking）：规则 lane、LLM lane、证据组装各自成类，落于 backend/src/main/java/com/xiyu/bid/compliance/domain/policy/ 下（每文件 ≤300 行，wc -l 自查）
-- [ ] T047 [US5] LLM lane 实现：语义项（responsive_clause 类、veto_keyword 二阶段、scoring_response、clarification_resp 等）输入 = T028 的 TenderRequirements + T033-T036 的 KnowledgeMatch + T040 的 Evidence，经 `RoutingAiProvider` 裁决 → PASS/FAIL/MANUAL + reason（reasonCode ∈ PRD §3.5 五值集合）+ evidence
-- [ ] T048 [US5] 进度上报：LLM lane 经 `ProgressReporter` 回调更新任务 progress 与 currentStep（参照 scoreparse OpenAiScoreAnalyzer 召回 lane 范式），backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckAsyncExecutor.java 接线
-- [ ] T049 [US5] 失败分支：单项 LLM 失败置 MANUAL + LOW_CONFIDENCE 不阻断整体；AI 未启用（Noop）时语义项全部 MANUAL 并注明原因；任务保持 COMPLETED
-- [ ] T050 [US5] `mvn test`（含 ArchitectureTest）全绿 + 拆分后 wc -l 全部 ≤300 后原子提交
+- [X] T046 [US5] `BidDocumentQualityEngine` 拆分（Constitution IV 300 行硬上限 + plan Complexity Tracking）：规则 lane、LLM lane、证据组装各自成类，落于 backend/src/main/java/com/xiyu/bid/compliance/domain/policy/ 下（每文件 ≤300 行，wc -l 自查）
+- [X] T047 [US5] LLM lane 实现：语义项（responsive_clause 类、veto_keyword 二阶段、scoring_response、clarification_resp 等）输入 = T028 的 TenderRequirements + T033-T036 的 KnowledgeMatch + T040 的 Evidence，经 `RoutingAiProvider` 裁决 → PASS/FAIL/MANUAL + reason（reasonCode ∈ PRD §3.5 五值集合）+ evidence
+- [X] T048 [US5] 进度上报：LLM lane 经 `ProgressReporter` 回调更新任务 progress 与 currentStep（参照 scoreparse OpenAiScoreAnalyzer 召回 lane 范式），backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckAsyncExecutor.java 接线
+- [X] T049 [US5] 失败分支：单项 LLM 失败置 MANUAL + LOW_CONFIDENCE 不阻断整体；AI 未启用（Noop）时语义项全部 MANUAL 并注明原因；任务保持 COMPLETED
+- [X] T050 [US5] `mvn test`（含 ArchitectureTest）全绿 + 拆分后 wc -l 全部 ≤300 后原子提交
 
 **Checkpoint**: 25 项中确定性项毫秒级出结果、语义项由真实 LLM 裁决；全链路 = 真实文件 + 真实知识库 + 真实 AI
 

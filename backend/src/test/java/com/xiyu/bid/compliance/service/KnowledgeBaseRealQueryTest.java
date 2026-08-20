@@ -129,11 +129,9 @@ class KnowledgeBaseRealQueryTest {
         assertThat(outcome.failedSources()).containsExactly("qualification");
 
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid", "投标函 资质证书");
-        List<QualityEvidence> evidences = outcome.matches().stream()
-                .map(QualityEvidence::fromKnowledgeMatch).toList();
         List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
                 doc, DocumentContent.fromText("tender.pdf", "hash_t", "招标要求"),
-                evidences, TenderRequirements.empty(), outcome.failedSources());
+                outcome.matches(), TenderRequirements.empty(), outcome.failedSources());
 
         assertThat(results).hasSize(25);
         for (String code : List.of(

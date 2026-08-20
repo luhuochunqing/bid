@@ -4,7 +4,6 @@ import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
 import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityCheckStatus;
-import com.xiyu.bid.compliance.domain.QualityEvidence;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -42,12 +41,11 @@ class BidDocumentQualityEngineTest {
         TenderRequirements requirements = new TenderRequirements(
                 List.of(), List.of("ISO27001 信息安全认证证书"), List.of(), List.of(), List.of(), false);
 
-        List<QualityEvidence> kbEvidences = List.of(QualityEvidence.fromKnowledgeMatch(
-                new KnowledgeMatch(KnowledgeMatch.SOURCE_QUALIFICATION, "7",
-                        "资质证书: ISO9001质量管理体系认证（等级: 甲级）", true)));
+        List<KnowledgeMatch> kbMatches = List.of(new KnowledgeMatch(KnowledgeMatch.SOURCE_QUALIFICATION, "7",
+                "资质证书: ISO9001质量管理体系认证（等级: 甲级）", true));
 
         List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
-                doc, tenderDoc, kbEvidences, requirements, Set.of());
+                doc, tenderDoc, kbMatches, requirements, Set.of());
 
         QualityCheckItemResult vetoResult = results.stream()
                 .filter(r -> r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_VETO.getCode()))

@@ -2,17 +2,20 @@ package com.xiyu.bid.compliance.application;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.ai.client.AiProvider;
 import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityCheckStatus;
-import com.xiyu.bid.compliance.domain.QualityEvidence;
 import com.xiyu.bid.compliance.domain.policy.BidDocumentQualityEngine;
 import com.xiyu.bid.compliance.domain.policy.KnowledgeQueryOutcome;
+import com.xiyu.bid.compliance.domain.policy.LlmAdjudicator;
+import com.xiyu.bid.compliance.domain.policy.LlmVerdict;
 import com.xiyu.bid.compliance.domain.policy.TenderRequirements;
 import com.xiyu.bid.compliance.entity.ComplianceCheckResult;
 import com.xiyu.bid.compliance.repository.ComplianceCheckResultRepository;
 import com.xiyu.bid.compliance.service.ComplianceTargetLoader;
 import com.xiyu.bid.compliance.service.KnowledgeBaseOnDemandLoader;
+import com.xiyu.bid.compliance.service.LlmVerdictParser;
 import com.xiyu.bid.compliance.service.TenderDocumentLoader;
 import com.xiyu.bid.compliance.service.TenderRequirementsExtractor;
 import lombok.RequiredArgsConstructor;
@@ -34,11 +37,15 @@ public class BidQualityCheckAsyncExecutor {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
+    /** LLM 裁决单项 max_tokens（裁决层只输出小 JSON，不需长响应）. */
+    private static final int LLM_ADJUDICATION_MAX_TOKENS = 1024;
+
     private final ComplianceCheckResultRepository resultRepository;
     private final ComplianceTargetLoader targetLoader;
     private final KnowledgeBaseOnDemandLoader kbLoader;
     private final TenderDocumentLoader tenderDocumentLoader;
     private final TenderRequirementsExtractor requirementsExtractor;
+    private final AiProvider aiProvider;
 
     /**
      * 后台异步执行标书质量核查.
@@ -75,12 +82,13 @@ public class BidQualityCheckAsyncExecutor {
             KnowledgeQueryOutcome kbOutcome = kbLoader != null
                     ? kbLoader.queryKnowledgeBases(requiredCerts)
                     : KnowledgeQueryOutcome.empty();
-            List<QualityEvidence> kbEvidences = kbOutcome.matches().stream()
-                    .map(QualityEvidence::fromKnowledgeMatch)
-                    .toList();
 
+            // spec 049 第五步：LLM 混合裁决；AI 未启用降级 Noop，单项失败 LOW_CONFIDENCE，不阻断任务
             List<QualityCheckItemResult> itemResults = BidDocumentQualityEngine.evaluateAll(
-                    bidDoc, tenderDoc, kbEvidences, requirements, kbOutcome.failedSources());
+                    bidDoc, tenderDoc, kbOutcome.matches(), requirements, kbOutcome.failedSources(),
+                    new LlmAdjudicator(buildLlmPort()),
+                    (progress, step) -> updateTaskStep(checkResult, ComplianceCheckResult.TaskStatus.CHECKING,
+                            60 + progress * 30 / 100, "AI 语义裁决 " + progress + "%：" + step));
 
             // Step 3: 汇总指标并持久化 (progress: 100)
             int passed = 0;
@@ -140,5 +148,28 @@ public class BidQualityCheckAsyncExecutor {
         checkResult.setProgress(progress);
         checkResult.setCurrentStep(currentStep);
         resultRepository.save(checkResult);
+    }
+
+    /**
+     * LLM 通道适配（副作用边界）：一切失败在本方法吸收为 {@link LlmVerdict.ChatOutcome} 值——
+     * AI 未启用/未配置（IllegalStateException）→ Noop；其余调用异常 → Failure；
+     * 响应 JSON 解析由 {@link LlmVerdictParser} 完成，非法 → Invalid。纯核心无异常流.
+     */
+    private LlmVerdict.LlmChatPort<LlmVerdict> buildLlmPort() {
+        return prompt -> {
+            String response;
+            try {
+                response = aiProvider.chatCompletion(prompt, LLM_ADJUDICATION_MAX_TOKENS);
+            } catch (IllegalStateException e) {
+                log.warn("AI 未启用或未配置，语义项降级为人工确认: {}", e.getMessage());
+                return LlmVerdict.noop();
+            } catch (RuntimeException e) {
+                log.error("LLM 语义裁决调用失败", e);
+                return LlmVerdict.failure(e.getMessage());
+            }
+            return LlmVerdictParser.parse(response)
+                    .map(LlmVerdict::success)
+                    .orElseGet(LlmVerdict::invalid);
+        };
     }
 }
