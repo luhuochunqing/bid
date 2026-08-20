@@ -27,7 +27,7 @@
 完整本地门禁（手动触发）：
 - `npm run ci:local:quick` — 快速预检（编译 + 架构门禁）
 - `npm run ci:local` — 完整本地 CI 模拟（需本地 Docker）
-- `npm run agent:pre-push-dry-run` — 模拟推送前 15 道门禁
+- `bash scripts/pre-push-dry-run.sh` — 模拟推送前 15 道门禁
 - `npm run ci:pre-pr` / `bash scripts/ci-pre-pr.sh` — 提交 PR 前一站式门禁
 
 ### Gitee CI（远端门禁）

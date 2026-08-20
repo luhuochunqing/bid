@@ -59,7 +59,7 @@ mvn clean package
 ```
 
 ## 本地联调启动建议
-- 推荐从仓库根目录使用 `npm run dev:stable:start` 或 `bash scripts/dev-services.sh start`，由根目录脚本统一拉起前后端。
+- 推荐从仓库根目录使用 `XIYU_DEV_CONFIRMED=1 bash scripts/dev-services.sh start`，由根目录脚本统一拉起前后端。
 - 根目录启动脚本会自动传入 `dev,mysql`、本地 MySQL 默认连接和 Redis 连接参数。
 - 本机如果没有 `6379`，但 Docker 把 Redis 暴露在 `16379`，根目录脚本会自动识别并切换。
 - 如果你只在 `backend/` 目录里单独执行 `mvn spring-boot:run`，请自己显式提供数据库、Redis 和 JWT 环境变量。

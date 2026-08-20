@@ -98,12 +98,13 @@
 
 ```bash
 pnpm install
-npm run dev:stable:start
-npm run dev:stable:status
+export XIYU_DEV_CONFIRMED=1
+bash scripts/dev-services.sh start
+bash scripts/dev-services.sh status
 ```
 
 说明：
-- `npm run dev:stable:start` 会调用 `scripts/dev-services.sh`，统一拉起文档转换 sidecar、后端和前端，适合日常联调和反复重启
+- `scripts/dev-services.sh start` 统一拉起文档转换 sidecar、后端和前端，适合日常联调和反复重启（仅主工作区 trae）
 - `npm run dev:all` 是兼容入口，会先按当前目录加载 `scripts/dev-env.sh`，再转调同一套 `scripts/dev-services.sh` 稳定启动逻辑
 - 主目录默认启动到前端 `127.0.0.1:1314`、后端 `127.0.0.1:18080`、sidecar `127.0.0.1:8000`、数据库 `xiyu_bid_main`
 - 多 Agent worktree 会自动使用专属端口和数据库，例如 Codex worktree 使用前端 `1316`、后端 `18082`、sidecar `8002`、数据库 `xiyu_bid_codex`
@@ -120,15 +121,15 @@ npm run dev:stable:status
 
 ```bash
 pnpm install
-npm run dev:docker:start
+bash scripts/local-docker-stack.sh dev
 ```
 
 常用命令：
 
 ```bash
-npm run dev:docker:status
-npm run dev:docker:logs
-npm run dev:docker:stop
+bash scripts/local-docker-stack.sh status
+bash scripts/local-docker-stack.sh logs
+bash scripts/local-docker-stack.sh stop
 ```
 
 默认容器变量：
@@ -141,7 +142,7 @@ npm run dev:docker:stop
 
 ```bash
 # 仅在特殊情况下覆盖端口（默认 3306/6379 已在 docker-compose.yml 中固化）
-DB_PORT=3306 REDIS_PORT=6379 npm run dev:docker:start
+DB_PORT=3306 REDIS_PORT=6379 bash scripts/local-docker-stack.sh dev
 ```
 
 ### 运行模式矩阵
@@ -158,11 +159,12 @@ DB_PORT=3306 REDIS_PORT=6379 npm run dev:docker:start
 当你需要服务在当前终端退出后仍保持可用，请使用守护式脚本：
 
 ```bash
-npm run dev:stable:start
-npm run dev:stable:status
-npm run dev:stable:logs
-npm run dev:stable:watch:start
-npm run dev:stable:watch:status
+export XIYU_DEV_CONFIRMED=1
+bash scripts/dev-services.sh start
+bash scripts/dev-services.sh status
+bash scripts/dev-services.sh logs
+bash scripts/dev-services.sh watch-start
+bash scripts/dev-services.sh watch-status
 ```
 
 这套方式会自动：
@@ -175,8 +177,9 @@ npm run dev:stable:watch:status
 停止服务：
 
 ```bash
-npm run dev:stable:watch:stop
-npm run dev:stable:stop
+export XIYU_DEV_CONFIRMED=1
+bash scripts/dev-services.sh watch-stop
+bash scripts/dev-services.sh stop
 ```
 
 查看当前运行模式（可快速确认是否 e2e Demo 融合）：

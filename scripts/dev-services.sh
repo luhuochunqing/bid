@@ -594,7 +594,7 @@ print_backend_mismatch() {
   echo "[backend] port $BACKEND_PORT is occupied by another service" >&2
   echo "[backend] expected workspace marker: $ROOT_DIR/backend" >&2
   lsof -nP -iTCP:"$BACKEND_PORT" -sTCP:LISTEN >&2 || true
-  echo "[backend] stop the conflicting service or run: npm run dev:stable:stop" >&2
+  echo "[backend] stop the conflicting service or run: XIYU_DEV_CONFIRMED=1 $0 stop" >&2
 }
 
 resolve_redis_port() {

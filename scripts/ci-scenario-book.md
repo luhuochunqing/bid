@@ -192,7 +192,7 @@ cd backend && mvn compile
 # 修复编译错误后推送修复
 ```
 
-**预防**：推送前运行 `npm run agent:pre-push-dry-run -- --backend` 编译验证。
+**预防**：推送前运行 `bash scripts/pre-push-dry-run.sh --backend` 编译验证。
 
 ---
 
@@ -232,7 +232,7 @@ cd backend && mvn test -Dtest=FailedTestClass
 
 ```bash
 # 一键查看当前分支的 CI 合规状态
-npm run agent:pre-push-dry-run -- --backend --frontend
+bash scripts/pre-push-dry-run.sh --backend --frontend
 
 # 清理过期锁
 npm run agent:lock-cleanup
