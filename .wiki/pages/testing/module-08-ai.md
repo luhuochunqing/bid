@@ -5,7 +5,7 @@ category: testing
 tags: [testing, 蓝图对照, AI, 智能, 招标拆解, 合规, 商机预测]
 created: 2026-05-28
 updated: 2026-08-12
-health_checked: 2026-08-12
+health_checked: 2026-08-20
 sources:
   - .wiki/sources/testing/module-08-ai-test.md
   - .wiki/sources/testing/module-08-ai-test.md

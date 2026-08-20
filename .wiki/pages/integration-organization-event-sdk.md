@@ -5,7 +5,7 @@ category: integration
 tags: [integration, organization, event-sdk, event-bus, data-scope]
 created: 2026-04-28
 updated: 2026-08-12
-health_checked: 2026-08-12
+health_checked: 2026-08-20
 sources:
   - .wiki/sources/customer/事件库SDK接入说明方案.doc
   - .wiki/sources/technical/泊冉投标系统与西域对接技术相关内容.md

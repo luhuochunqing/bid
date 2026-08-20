@@ -11,7 +11,7 @@ backlinks:
   - _index
 created: 2026-08-12
 updated: 2026-08-12
-health_checked: 2026-08-12
+health_checked: 2026-08-20
 ---
 # 标讯创建事件推送 - 西域 CRM 事件总线
 

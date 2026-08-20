@@ -5,7 +5,7 @@ category: integration
 tags: [integration, boran, permission, 角色, 权限, xiyu-to-boran]
 created: 2026-06-22
 updated: 2026-08-12
-health_checked: 2026-08-12
+health_checked: 2026-08-20
 sources:
   - docs/references/xiyu-to-boran-permission-api-23353-login.md
   - docs/references/xiyu-to-boran-permission-api-23358-getUserInfo.md

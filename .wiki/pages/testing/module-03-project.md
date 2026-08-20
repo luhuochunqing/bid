@@ -5,7 +5,7 @@ category: testing
 tags: [testing, 蓝图对照, 投标项目, project]
 created: 2026-05-28
 updated: 2026-08-12
-health_checked: 2026-08-12
+health_checked: 2026-08-20
 sources:
   - .wiki/sources/testing/module-03-project-test.md
   - .wiki/sources/testing/module-03-project-test.md

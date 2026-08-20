@@ -5,7 +5,7 @@ category: testing
 tags: [testing, 蓝图对照, 资源管理, resource]
 created: 2026-05-28
 updated: 2026-08-12
-health_checked: 2026-08-12
+health_checked: 2026-08-20
 sources:
   - .wiki/sources/testing/module-05-resource-test.md
   - .wiki/sources/testing/module-05-resource-test.md

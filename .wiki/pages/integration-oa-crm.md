@@ -5,7 +5,7 @@ category: integration
 tags: [integration, crm, api]
 created: 2026-05-07
 updated: 2026-08-12
-health_checked: 2026-08-12
+health_checked: 2026-08-20
 sources:
   - .wiki/sources/technical/泊冉投标系统与西域对接技术相关内容.md
   - .wiki/extracts/technical__泊冉投标系统与西域对接技术相关内容.md.md

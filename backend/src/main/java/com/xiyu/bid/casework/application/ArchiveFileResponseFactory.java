@@ -1,6 +1,6 @@
 package com.xiyu.bid.casework.application;
 
-import com.xiyu.bid.casework.infrastructure.ArchiveFile;
+import com.xiyu.bid.casework.domain.model.ArchiveFileReadModel;
 import com.xiyu.bid.file.application.ObsDirectRedirects;
 import com.xiyu.bid.file.application.ObsShareUrlSigner;
 import com.xiyu.bid.shared.security.FilePathGuard;
@@ -40,10 +40,10 @@ public class ArchiveFileResponseFactory {
     /**
      * 构建档案文件响应。
      *
-     * @param file   归档文件记录
+     * @param file   归档文件记录（领域读模型）
      * @param inline true=预览（inline + 推断 Content-Type），false=下载（attachment + octet-stream）
      */
-    public ResponseEntity<Resource> build(ArchiveFile file, boolean inline) {
+    public ResponseEntity<Resource> build(ArchiveFileReadModel file, boolean inline) {
         String rawPath = file.getFilePath();
         // OBS 直传文件不在本地磁盘，统一走 ObsDirectRedirects：签发预签名 URL 后 302 重定向，
         // 失败精确区分 404（BidFile 不存在）/ 502（OBS 故障）；非 obs-direct 走本地文件流
@@ -52,7 +52,7 @@ public class ArchiveFileResponseFactory {
     }
 
     /** 本地物理路径文件：校验边界后流式返回 200。 */
-    private ResponseEntity<Resource> buildLocalFileResponse(ArchiveFile file, String rawPath, boolean inline) {
+    private ResponseEntity<Resource> buildLocalFileResponse(ArchiveFileReadModel file, String rawPath, boolean inline) {
         Path filePath = resolveAndValidateFilePath(rawPath);
         long fileSize;
         try {

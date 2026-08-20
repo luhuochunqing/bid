@@ -1,5 +1,6 @@
 package com.xiyu.bid.casework.infrastructure;
 
+import com.xiyu.bid.casework.domain.model.ArchiveFileReadModel;
 import jakarta.persistence.*;
 import lombok.Data;
 import java.time.LocalDateTime;
@@ -7,7 +8,7 @@ import java.time.LocalDateTime;
 @Data
 @Entity
 @Table(name = "archive_file")
-public class ArchiveFile {
+public class ArchiveFile implements ArchiveFileReadModel {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

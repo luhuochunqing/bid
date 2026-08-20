@@ -5,7 +5,7 @@ category: guide
 tags: [首页, 导航, wiki]
 created: 2026-06-27
 updated: 2026-08-12
-health_checked: 2026-08-12
+health_checked: 2026-08-20
 sources:
   - docs/specs/WIKI.md
   - .wiki/INDEX.md

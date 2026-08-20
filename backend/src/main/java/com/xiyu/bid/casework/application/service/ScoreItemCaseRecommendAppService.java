@@ -1,10 +1,15 @@
+// Input: ScoreItemCaseRecommendRequest (recommendation parameters)
+// Output: ScoreItemCaseRecommendResponse (evaluated and sorted recommendation items)
+// Pos: backend/src/main/java/com/xiyu/bid/casework/application/service/ - App Service Layer
+// 维护声明: 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+
 package com.xiyu.bid.casework.application.service;
 
+import com.xiyu.bid.casework.application.port.KnowledgeCaseQueryPort;
+import com.xiyu.bid.casework.domain.model.KnowledgeCaseReadModel;
 import com.xiyu.bid.casework.domain.policy.ScoreItemCaseMatchPolicy;
 import com.xiyu.bid.casework.dto.ScoreItemCaseRecommendRequest;
 import com.xiyu.bid.casework.dto.ScoreItemCaseRecommendResponse;
-import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
-import com.xiyu.bid.casework.infrastructure.KnowledgeCaseRepository;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.scoreparse.dto.ScoreItemDTO;
@@ -36,7 +41,7 @@ import java.util.Optional;
 @Transactional(readOnly = true)
 public class ScoreItemCaseRecommendAppService {
 
-    private final KnowledgeCaseRepository knowledgeCaseRepository;
+    private final KnowledgeCaseQueryPort knowledgeCaseQueryPort;
     private final ScoreItemRepository scoreItemRepository;
     private final ProjectRepository projectRepository;
     private final ProjectAccessScopeService projectAccessScopeService;
@@ -44,11 +49,11 @@ public class ScoreItemCaseRecommendAppService {
     private final ScoreItemCaseMatchPolicy matchPolicy = new ScoreItemCaseMatchPolicy();
 
     public ScoreItemCaseRecommendAppService(
-            KnowledgeCaseRepository knowledgeCaseRepository,
+            KnowledgeCaseQueryPort knowledgeCaseQueryPort,
             ScoreItemRepository scoreItemRepository,
             ProjectRepository projectRepository,
             ProjectAccessScopeService projectAccessScopeService) {
-        this.knowledgeCaseRepository = knowledgeCaseRepository;
+        this.knowledgeCaseQueryPort = knowledgeCaseQueryPort;
         this.scoreItemRepository = scoreItemRepository;
         this.projectRepository = projectRepository;
         this.projectAccessScopeService = projectAccessScopeService;
@@ -85,10 +90,8 @@ public class ScoreItemCaseRecommendAppService {
                 request.getKeyword()
         );
 
-        // 仅召回 ACTIVE 状态案例
-        List<KnowledgeCase> allActiveCases = knowledgeCaseRepository.findAll().stream()
-                .filter(c -> "ACTIVE".equalsIgnoreCase(c.getStatus()) || c.getStatus() == null)
-                .toList();
+        // 通过端口获取已激活案例（ACTIVE 过滤已下沉至 adapter）
+        List<KnowledgeCaseReadModel> allActiveCases = knowledgeCaseQueryPort.findAllActive();
 
         List<ScoreItemCaseRecommendResponse.Item> evaluatedItems = allActiveCases.stream()
                 .map(candidate -> {
@@ -136,7 +139,7 @@ public class ScoreItemCaseRecommendAppService {
                 .toList();
     }
 
-    private ScoreItemCaseRecommendResponse.Item toResponseItem(KnowledgeCase candidate, ScoreItemCaseMatchPolicy.MatchResult result) {
+    private ScoreItemCaseRecommendResponse.Item toResponseItem(KnowledgeCaseReadModel candidate, ScoreItemCaseMatchPolicy.MatchResult result) {
         String summary = candidate.getResponseText();
         if (summary != null && summary.length() > 200) {
             summary = summary.substring(0, 200) + "...";

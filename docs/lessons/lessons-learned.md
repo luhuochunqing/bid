@@ -2045,3 +2045,26 @@ byte[] bytes = restTemplate.getForObject(URI.create(signedUrl.get()), byte[].cla
 
 - `backend/src/main/java/com/xiyu/bid/casework/application/ProjectClosedEventListener.java`（`loadFileBytes`）
 - `backend/src/test/java/com/xiyu/bid/casework/application/ProjectClosedEventListenerTest.java`（`obsPresignedUrl_notDoubleEncoded_rootCauseRegression`）
+
+---
+
+## 131. 规避 application→infrastructure 架构违规：使用 Port/Adapter 与 ReadModel 实现依赖反转（2026-08-20）
+
+### 问题背景
+
+在 `casework` 模块架构检查中，`ArchiveFileResponseFactory` 和 `ScoreItemCaseRecommendAppService` 直接依赖了基础设施层的 JPA Entity （`ArchiveFile`, `KnowledgeCase`）和 JPA Repository（`KnowledgeCaseRepository`），触发了 `BidCaseSliceArchitectureTest.applicationDoesNotDependOnInfrastructure` 架构测试拦截（25 处违规）。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 编排层/应用服务直接依赖 JPA 实体和仓库 | 应用服务应该依赖领域层的 读模型（ReadModel）接口 或 端口（Port），而非具体的持久化对象，以实现真正的依赖反转（DIP）。 | 1. 在 domain/model 层引入 `ReadModel` 接口（例如 `ArchiveFileReadModel`）隔离 Entity。<br>2. 在 application 层引入 Port 接口（例如 `KnowledgeCaseQueryPort`），让 infrastructure 层的 Adapter 进行实现以对外提供数据，消除 JPA Repo 直接依赖。 |
+| JPA 实体（Entity）作为参数污染应用服务/工厂 | 实体直接传入响应构建器，导致应用层组件与底层的物理表映射关系高度耦合。 | 响应工厂或应用服务应只接收 ReadModel 接口或数据传输对象（DTO），禁止在不被豁免的 application 类中直接引入 Entity 作为方法参数。 |
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/casework/domain/model/ArchiveFileReadModel.java`
+- `backend/src/main/java/com/xiyu/bid/casework/application/port/KnowledgeCaseQueryPort.java`
+- `backend/src/main/java/com/xiyu/bid/casework/infrastructure/KnowledgeCaseQueryAdapter.java`
+- `backend/src/main/java/com/xiyu/bid/casework/application/service/ScoreItemCaseRecommendAppService.java`
+
