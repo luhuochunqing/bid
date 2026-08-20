@@ -47,3 +47,14 @@ Authorization: Bearer {{token}}
 ### 7. 边界：不存在的标讯 AI 分析
 GET http://localhost:18081/api/tenders/999999/match-score/evaluate
 Authorization: Bearer {{token}}
+
+### 8. 正常流程：标书质量核查——触发异步任务（spec 049，需项目已上传 BID 类投标文件）
+# 将 {projectId} 替换为已上传投标文件的项目 ID
+POST http://localhost:18081/api/compliance/bid-quality/trigger/1?force=false
+Authorization: Bearer {{token}}
+
+### 9. 边界：标书质量核查——无投标文件项目触发应返回 4xx（spec 049 US1 G3）
+# 预期：HTTP 422，message = "无法执行核查，请先上传投标文件"，不创建任务
+# 将 {projectId} 替换为未上传任何投标文件的项目 ID
+POST http://localhost:18081/api/compliance/bid-quality/trigger/2?force=true
+Authorization: Bearer {{token}}

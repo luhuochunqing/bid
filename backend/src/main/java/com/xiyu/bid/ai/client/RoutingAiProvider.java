@@ -55,6 +55,15 @@ public class RoutingAiProvider implements AiProvider {
     }
 
     @Override
+    public String chatCompletion(String prompt, int maxTokens) {
+        AiProviderRuntimeConfig config = resolveActiveConfig();
+        if (config == null) {
+            return mockAiProvider.chatCompletion(prompt, maxTokens);
+        }
+        return openAiCompatibleClient.chatCompletion(config, prompt, maxTokens);
+    }
+
+    @Override
     public float[] embed(String text) {
         AiProviderRuntimeConfig config = resolveActiveConfig();
         if ("deepseek".equals(config.providerCode())) {

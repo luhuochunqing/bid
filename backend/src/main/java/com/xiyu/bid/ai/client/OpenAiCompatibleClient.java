@@ -79,6 +79,13 @@ public class OpenAiCompatibleClient {
         callChatCompletion(config, "Return only the word OK.", 16);
     }
 
+    /**
+     * 通用 chat completion：返回模型原始文本（结构化 JSON 提取场景，spec 049 US2）.
+     */
+    public String chatCompletion(AiProviderRuntimeConfig config, String prompt, int maxTokens) {
+        return callChatCompletion(config, prompt, maxTokens);
+    }
+
     public BidDocumentQualityAiPreviewDTO previewBidDocumentQuality(
             AiProviderRuntimeConfig config, String documentContent, String tenderText) {
         String doc = truncate(documentContent, MAX_BID_PREVIEW_CONTENT);

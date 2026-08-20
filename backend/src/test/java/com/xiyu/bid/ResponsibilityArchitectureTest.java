@@ -66,7 +66,6 @@ class ResponsibilityArchitectureTest {
         "com.xiyu.bid.ai.client.OpenAiCompatibleClient",
         "com.xiyu.bid.approval.controller.ApprovalController",
         "com.xiyu.bid.batch.controller.BatchOperationController",
-        "com.xiyu.bid.compliance.domain.BidDocumentQualityCheckPolicy",
         "com.xiyu.bid.entity.Tender",
         "com.xiyu.bid.exception.GlobalExceptionHandler",
         "com.xiyu.bid.integration.external.TenderIntegrationService",

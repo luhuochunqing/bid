@@ -35,14 +35,32 @@
           <el-tag size="small" :type="getEvidenceSourceTagType(ev.sourceType)" effect="light">
             {{ formatEvidenceSource(ev.sourceType) }}
           </el-tag>
+          <el-tag
+            v-if="ev.sourceType === 'KNOWLEDGE_BASE' && ev.knowledgeSource"
+            size="small"
+            type="warning"
+            effect="plain"
+          >
+            {{ formatKnowledgeSource(ev.knowledgeSource) }}
+          </el-tag>
+          <el-tag
+            v-if="ev.sourceType === 'KNOWLEDGE_BASE' && ev.matched !== null && ev.matched !== undefined"
+            size="small"
+            :type="ev.matched ? 'success' : 'danger'"
+            effect="plain"
+          >
+            {{ ev.matched ? '已匹配' : '未匹配' }}
+          </el-tag>
           <span class="evidence-title">{{ ev.sourceTitle }}</span>
           <span v-if="ev.pageNumber" class="evidence-page-badge">第 {{ ev.pageNumber }} 页</span>
+          <span v-else class="evidence-page-badge unresolved">未定位到原文页</span>
         </div>
-        <div class="evidence-quote-box">
+        <div v-if="ev.quote" class="evidence-quote-box">
           <span class="quote-mark">“</span>
           {{ ev.quote }}
           <span class="quote-mark">”</span>
         </div>
+        <div v-else class="evidence-quote-box unresolved">未在原文中定位到相关内容，需人工核实</div>
       </div>
     </div>
   </div>
@@ -109,6 +127,16 @@ function formatEvidenceSource(sourceType) {
     case 'BID': return '投标文件原文'
     case 'KNOWLEDGE_BASE': return '企业知识库'
     default: return sourceType
+  }
+}
+
+function formatKnowledgeSource(knowledgeSource) {
+  switch (knowledgeSource) {
+    case 'qualification': return '资质库'
+    case 'brand-authorization': return '品牌授权库'
+    case 'personnel': return '人员库'
+    case 'performance': return '业绩库'
+    default: return knowledgeSource
   }
 }
 </script>
@@ -203,6 +231,10 @@ function formatEvidenceSource(sourceType) {
   border-radius: 3px;
   font-weight: 600;
 }
+.evidence-page-badge.unresolved {
+  color: #b45309;
+  background: #fef3c7;
+}
 .evidence-quote-box {
   font-size: 12px;
   color: #475569;
@@ -212,6 +244,12 @@ function formatEvidenceSource(sourceType) {
   border-radius: 2px;
   line-height: 1.5;
   font-style: italic;
+}
+.evidence-quote-box.unresolved {
+  color: #b45309;
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+  font-style: normal;
 }
 .quote-mark {
   color: #94a3b8;

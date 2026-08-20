@@ -9,6 +9,9 @@ import com.xiyu.bid.compliance.dto.QualityCheckTaskDTO;
 import com.xiyu.bid.compliance.entity.ComplianceCheckResult;
 import com.xiyu.bid.compliance.repository.ComplianceCheckResultRepository;
 import com.xiyu.bid.compliance.service.ComplianceTargetLoader;
+import com.xiyu.bid.compliance.service.TenderDocumentLoader;
+import com.xiyu.bid.exception.BusinessException;
+import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,6 +35,7 @@ public class BidQualityCheckTaskAppService {
 
     private final ComplianceCheckResultRepository resultRepository;
     private final ComplianceTargetLoader targetLoader;
+    private final TenderDocumentLoader tenderDocumentLoader;
     private final BidQualityCheckAsyncExecutor asyncExecutor;
 
     /**
@@ -62,10 +66,21 @@ public class BidQualityCheckTaskAppService {
             return toTaskDTO(existing);
         }
 
-        // 2. 若非强制刷新，检查当前文件的 SHA-256 哈希是否命中已有已完成缓存
+        // 2. 同步前置校验（spec 049 第一步，contracts/bid-quality-api.md §1）：
+        // 无 BID 类投标文件或文件不可解析 → 4xx，不创建任务
+        ProjectDocument bidDocEntity = targetLoader.findLatestBidDocument(projectId);
+        if (bidDocEntity == null || bidDocEntity.getFileUrl() == null
+                || bidDocEntity.getFileUrl().isBlank()) {
+            throw new BusinessException(422, "无法执行核查，请先上传投标文件");
+        }
+        DocumentContent bidDoc = targetLoader.loadBidDocument(projectId);
+        if (bidDoc.fullText() == null || bidDoc.fullText().isBlank()) {
+            throw new BusinessException(422, "无法执行核查：投标文件解析失败，请确认文件可正常打开后重新上传");
+        }
+
+        // 3. 若非强制刷新，检查当前文件的 SHA-256 哈希是否命中已有已完成缓存
         if (!force) {
-            DocumentContent bidDoc = targetLoader.loadBidDocument(projectId);
-            DocumentContent tenderDoc = targetLoader.loadTenderDocument(projectId);
+            DocumentContent tenderDoc = tenderDocumentLoader.loadTenderDocument(projectId);
             String bidHash = bidDoc.fileHash();
             String tenderHash = tenderDoc.fileHash();
 
@@ -82,7 +97,7 @@ public class BidQualityCheckTaskAppService {
             }
         }
 
-        // 3. 创建新的异步任务记录
+        // 4. 创建新的异步任务记录
         String taskId = UUID.randomUUID().toString().replace("-", "");
         ComplianceCheckResult taskEntity = ComplianceCheckResult.builder()
                 .projectId(projectId)
@@ -98,7 +113,7 @@ public class BidQualityCheckTaskAppService {
 
         ComplianceCheckResult saved = resultRepository.save(taskEntity);
 
-        // 4. 触发异步执行
+        // 5. 触发异步执行
         asyncExecutor.executeAsync(saved.getId(), projectId, taskId);
 
         log.info("Triggered new async quality check task: {} for project: {}", taskId, projectId);

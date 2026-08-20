@@ -216,3 +216,11 @@
 > **状态**：resolved（2026-08-19）。决策记录：不并入热修复 PR !2331，待其合入后从 main 开独立分支修复，避免跨模块重构拖慢生产热修复上线。
 > **解决**：分支 `agent/qoder/resolver-di-refactor` 完成——Resolver 改实例方法 + 构造器注入，新建 `IntegrationEndpointUrls` 承载 publicBaseUrl 配置与端点路径常量（Resolver 300 → 252 行）；删除 `TenderIntegrationMapper.toDownloadUrl` 静态委托，调用方（`TenderMapper`/`TenderQueryService`/`ProjectResultPayloadAssembler`）改直接注入 Resolver；测试 12+ 构造点与 2 个反射测试文件全部改实例构造，消除静态状态污染。211 个相关用例 + ArchitectureTest 全绿。见 PR !2334。
 > **复杂度**：中（半天），风险：低（行为中性 + 79 个 Resolver 相关测试兜底）。
+
+### G1-走查补验：标书质量核查实质化端到端人工走查（spec 049）
+
+> **来源**：spec 049 收尾决策（2026-08-20，产品确认）
+> **背景**：spec 049「AI 标书质量核查实质化」代码实现与全部机器门禁（G2-G6 + FP/单测/前端 build）已完成并通过，但 G1 唯一主线（spec §2 压轴条款：真实投标 PDF + 真实招标 PDF 端到端跑一次核查，抽 3 个 FAIL/MANUAL 项逐项对照真实页码/原文摘录/招标要求/知识库记录）**尚未人工走查**。产品决策：知情风险下先合入 PR #2365，走查转本遗留项。
+> **风险**：链路未经真实数据端到端验证，可能存在解析/定位/裁决在真实文件下的未暴露问题（如超大文件、扫描版 PDF、LLM 真实响应格式漂移）。
+> **补验动作**：主工作区（trae）启动开发环境，按 `specs/049-bid-quality-check-realization/quickstart.md §3` 执行走查；发现问题按 lessons §140（047 验收失真复盘）标准追根因，不接受"形态通过"。
+> **状态**：open（优先级 high，建议下次部署测试环境后第一时间补验）。

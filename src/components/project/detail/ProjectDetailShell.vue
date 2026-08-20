@@ -146,9 +146,6 @@ const projectDetailContext = reactive({
     await ai.runAICheck()
     await quality.runQualityCheck({ silent: true })
   },
-  runBidDocumentQualityCheck: async () => {
-    await ai.runBidDocumentQualityCheck()
-  },
 })
 
 provide(projectDetailKey, projectDetailContext)

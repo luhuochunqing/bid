@@ -4,12 +4,12 @@ import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
 import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityCheckStatus;
-import com.xiyu.bid.compliance.domain.QualityEvidence;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -22,7 +22,8 @@ class BidDocumentQualityEngineTest {
         DocumentContent doc = DocumentContent.fromText("full.pdf", "hash_full", content);
 
         List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
-                doc, "招标文件内容", Collections.emptyList());
+                doc, DocumentContent.fromText("tender.pdf", "hash_t", "招标文件内容"),
+                Collections.emptyList(), TenderRequirements.empty(), Set.of());
 
         assertThat(results).hasSize(25);
         for (int i = 0; i < 25; i++) {
@@ -31,17 +32,20 @@ class BidDocumentQualityEngineTest {
     }
 
     @Test
-    @DisplayName("一票否决项测试：招标明确要求 ISO27001 且标书缺失时断言 FAIL")
+    @DisplayName("一票否决项测试：提取的招标硬性要求 ISO27001 且标书缺失时断言 FAIL")
     void testQualificationVeto_WhenMissingRequiredCertificate_Fails() {
         String tenderText = "一票否决条款：投标人必须具备 ISO27001 信息安全认证证书。";
+        DocumentContent tenderDoc = DocumentContent.fromText("tender.pdf", "hash_t", tenderText);
         String bidContent = "项目名称：测试\n投标人：西域\n2026年\n具备 ISO9001 认证";
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid", bidContent);
+        TenderRequirements requirements = new TenderRequirements(
+                List.of(), List.of("ISO27001 信息安全认证证书"), List.of(), List.of(), List.of(), false);
 
-        List<QualityEvidence> kbEvidences = List.of(
-                QualityEvidence.knowledgeBase("企业资质库", null, "企业资质库未检索到关于 [ISO27001] 的有效证书记录"));
+        List<KnowledgeMatch> kbMatches = List.of(new KnowledgeMatch(KnowledgeMatch.SOURCE_QUALIFICATION, "7",
+                "资质证书: ISO9001质量管理体系认证（等级: 甲级）", true));
 
         List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
-                doc, tenderText, kbEvidences);
+                doc, tenderDoc, kbMatches, requirements, Set.of());
 
         QualityCheckItemResult vetoResult = results.stream()
                 .filter(r -> r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_VETO.getCode()))
@@ -60,7 +64,8 @@ class BidDocumentQualityEngineTest {
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid", bidContent);
 
         List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
-                doc, "招标要求", Collections.emptyList());
+                doc, DocumentContent.fromText("tender.pdf", "hash_t", "招标要求"),
+                Collections.emptyList(), TenderRequirements.empty(), Set.of());
 
         QualityCheckItemResult respResult = results.stream()
                 .filter(r -> r.itemCode().equals(BidQualityCheckItem.RESPONSIVENESS_REVIEW.getCode()))
@@ -69,5 +74,32 @@ class BidDocumentQualityEngineTest {
 
         assertThat(respResult.status()).isEqualTo(QualityCheckStatus.FAIL);
         assertThat(respResult.conclusion()).contains("实质性负偏离");
+    }
+
+    @Test
+    @DisplayName("降级测试：招标要求哨兵态时比对项 MANUAL + [REFERENCE_MISSING]，独立项照常")
+    void testEvaluateAll_WhenRequirementsMissing_ComparisonItemsDegrade() {
+        String bidContent = "项目名称：测试\n投标函\n偏离表：无负偏离";
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid", bidContent);
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(),
+                TenderRequirements.missingSentinel(), Set.of());
+
+        assertThat(results).hasSize(25);
+        QualityCheckItemResult vetoResult = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_VETO.getCode()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(vetoResult.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(vetoResult.conclusion()).contains("[REFERENCE_MISSING]");
+
+        // 独立项（实质性响应）不受哨兵态影响，照常裁决
+        QualityCheckItemResult respResult = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.RESPONSIVENESS_REVIEW.getCode()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(respResult.status()).isNotEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(respResult.conclusion()).doesNotContain("[REFERENCE_MISSING]");
     }
 }

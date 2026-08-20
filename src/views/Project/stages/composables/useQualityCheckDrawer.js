@@ -101,6 +101,21 @@ export function useQualityCheckDrawer(props) {
     }
   }
 
+  // spec 049 第一步：trigger 同步 4xx（无投标文件/解析失败）→ 提示后端消息且不进入轮询；
+  // 独立于 catch 块以便 429 限流仍走全局友好提示（429 治理：catch 体内不出现 ElMessage.error）
+  function markTriggerRejected(e) {
+    polling.value = false
+    progressPercent.value = 0
+    progressStatus.value = 'exception'
+    const msg = e.response.data?.msg || e.response.data?.message
+    ElMessage.error(msg || '无法执行核查，请先上传投标文件')
+  }
+
+  function isClientRejection(e) {
+    const status = e?.response?.status
+    return status >= 400 && status < 500 && status !== 429
+  }
+
   async function triggerCheck(force = false) {
     stopPolling()
     polling.value = true
@@ -128,6 +143,10 @@ export function useQualityCheckDrawer(props) {
       startPolling(task.taskId)
     } catch (e) {
       polling.value = false
+      if (isClientRejection(e)) {
+        markTriggerRejected(e)
+        return
+      }
       notifyErrorUnlessRateLimit(e, '触发质量核查异常')
     }
   }
