@@ -33,6 +33,18 @@ public interface AiProvider {
             String documentContent, String tenderText);
 
     /**
+     * Generic chat completion returning the raw assistant text.
+     * Used for structured JSON extraction prompts (e.g. tender requirements,
+     * spec 049 US2). Implementations throw when AI is disabled/unconfigured;
+     * callers degrade gracefully.
+     *
+     * @param prompt The full prompt to send
+     * @param maxTokens Maximum tokens for the completion
+     * @return Raw completion text
+     */
+    String chatCompletion(String prompt, int maxTokens);
+
+    /**
      * Generate a dense embedding vector for the given text.
      *
      * @param text The text to embed

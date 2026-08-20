@@ -3,6 +3,7 @@ package com.xiyu.bid.ai.client;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.models.responses.ResponseCreateParams;
+import com.openai.models.responses.ResponseOutputText;
 import com.openai.models.responses.StructuredResponse;
 import com.openai.models.responses.StructuredResponseCreateParams;
 import com.xiyu.bid.ai.dto.AiAnalysisResponse;
@@ -62,6 +63,24 @@ public class OpenAiProvider implements AiProvider {
     @Override
     public float[] embed(String text) {
         throw new UnsupportedOperationException("OpenAiProvider does not support embeddings yet");
+    }
+
+    @Override
+    public String chatCompletion(String prompt, int maxTokens) {
+        com.openai.models.responses.Response response = client.responses().create(
+                ResponseCreateParams.builder()
+                        .input(prompt)
+                        .model(model)
+                        .build());
+        return response.output().stream()
+                .map(item -> item.message())
+                .flatMap(Optional::stream)
+                .flatMap(message -> message.content().stream())
+                .map(content -> content.outputText())
+                .flatMap(Optional::stream)
+                .map(ResponseOutputText::text)
+                .findFirst()
+                .orElse("");
     }
 
     @Override

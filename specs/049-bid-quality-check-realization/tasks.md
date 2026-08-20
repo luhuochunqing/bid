@@ -96,15 +96,15 @@
 
 ### Tests for US2 ⚠️
 
-- [ ] T025 [P] [US2] 提取契约测试（contracts/tender-requirements-extraction.md §4 四例：正常提取/无章节不臆造/非法 JSON 得 missing/Noop 得 missing），新建 backend/src/test/java/com/xiyu/bid/compliance/domain/TenderRequirementExtractionTest.java
+- [X] T025 [P] [US2] 提取契约测试（contracts/tender-requirements-extraction.md §4 四例：正常提取/无章节不臆造/非法 JSON 得 missing/Noop 得 missing），新建 backend/src/test/java/com/xiyu/bid/compliance/domain/TenderRequirementExtractionTest.java
 
 ### Implementation for US2
 
-- [ ] T026 [US2] 新建纯核心 record `TenderRequirements`（含 ScoringItem、VetoClause 嵌套与 `missing()` 哨兵，data-model.md §3.1），文件 backend/src/main/java/com/xiyu/bid/compliance/domain/policy/TenderRequirements.java
-- [ ] T027 [US2] 重构 `ComplianceTargetLoader.loadTenderDocument`：复用 `scoreparse/application/InitiationTenderTextResolver.findLatestTenderDocument` 定位招标文件 → 走 T019 相同存储分派 + Sidecar 解析；随后删除 `loadProjectTenderText`（grep 确认无引用）
-- [ ] T028 [US2] LLM 结构化提取：经 `RoutingAiProvider` 输出 contracts/tender-requirements-extraction.md §2 的 JSON → 解析为 `TenderRequirements`；集成进 `BidQualityCheckAsyncExecutor` PARSING 阶段，并删除 `extractRequiredCerts` 硬编码方法（backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckAsyncExecutor.java）
-- [ ] T029 [US2] 降级分支：招标未上传/提取失败/AI 未启用 → `TenderRequirements.missing()`，比对项 MANUAL + `[REFERENCE_MISSING]`、独立项照常；失败 `log.error` 打堆栈（Constitution VII §3）
-- [ ] T030 [US2] `mvn test` 全绿后原子提交（附提取契约测试证据）
+- [X] T026 [US2] 新建纯核心 record `TenderRequirements`（含 ScoringItem、VetoClause 嵌套与 `missing()` 哨兵，data-model.md §3.1），文件 backend/src/main/java/com/xiyu/bid/compliance/domain/policy/TenderRequirements.java
+- [X] T027 [US2] 重构 `ComplianceTargetLoader.loadTenderDocument`：复用 `scoreparse/application/InitiationTenderTextResolver.findLatestTenderDocument` 定位招标文件 → 走 T019 相同存储分派 + Sidecar 解析；随后删除 `loadProjectTenderText`（grep 确认无引用）
+- [X] T028 [US2] LLM 结构化提取：经 `RoutingAiProvider` 输出 contracts/tender-requirements-extraction.md §2 的 JSON → 解析为 `TenderRequirements`；集成进 `BidQualityCheckAsyncExecutor` PARSING 阶段，并删除 `extractRequiredCerts` 硬编码方法（backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckAsyncExecutor.java）
+- [X] T029 [US2] 降级分支：招标未上传/提取失败/AI 未启用 → `TenderRequirements.missing()`，比对项 MANUAL + `[REFERENCE_MISSING]`、独立项照常；失败 `log.error` 打堆栈（Constitution VII §3）
+- [X] T030 [US2] `mvn test` 全绿后原子提交（附提取契约测试证据）
 
 **Checkpoint**: 核查依据切换为真实招标文件；报告 TENDER 类证据引用招标 PDF 原文而非 Tender.description
 

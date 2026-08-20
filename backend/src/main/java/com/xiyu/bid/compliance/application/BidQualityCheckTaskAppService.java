@@ -9,6 +9,7 @@ import com.xiyu.bid.compliance.dto.QualityCheckTaskDTO;
 import com.xiyu.bid.compliance.entity.ComplianceCheckResult;
 import com.xiyu.bid.compliance.repository.ComplianceCheckResultRepository;
 import com.xiyu.bid.compliance.service.ComplianceTargetLoader;
+import com.xiyu.bid.compliance.service.TenderDocumentLoader;
 import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +35,7 @@ public class BidQualityCheckTaskAppService {
 
     private final ComplianceCheckResultRepository resultRepository;
     private final ComplianceTargetLoader targetLoader;
+    private final TenderDocumentLoader tenderDocumentLoader;
     private final BidQualityCheckAsyncExecutor asyncExecutor;
 
     /**
@@ -78,7 +80,7 @@ public class BidQualityCheckTaskAppService {
 
         // 3. 若非强制刷新，检查当前文件的 SHA-256 哈希是否命中已有已完成缓存
         if (!force) {
-            DocumentContent tenderDoc = targetLoader.loadTenderDocument(projectId);
+            DocumentContent tenderDoc = tenderDocumentLoader.loadTenderDocument(projectId);
             String bidHash = bidDoc.fileHash();
             String tenderHash = tenderDoc.fileHash();
 

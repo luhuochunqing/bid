@@ -8,6 +8,7 @@ import com.xiyu.bid.compliance.dto.QualityCheckTaskDTO;
 import com.xiyu.bid.compliance.entity.ComplianceCheckResult;
 import com.xiyu.bid.compliance.repository.ComplianceCheckResultRepository;
 import com.xiyu.bid.compliance.service.ComplianceTargetLoader;
+import com.xiyu.bid.compliance.service.TenderDocumentLoader;
 import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,13 +44,17 @@ class BidQualityCheckTriggerPreconditionTest {
     private ComplianceTargetLoader targetLoader;
 
     @Mock
+    private TenderDocumentLoader tenderDocumentLoader;
+
+    @Mock
     private BidQualityCheckAsyncExecutor asyncExecutor;
 
     private BidQualityCheckTaskAppService taskAppService;
 
     @BeforeEach
     void setUp() {
-        taskAppService = new BidQualityCheckTaskAppService(resultRepository, targetLoader, asyncExecutor);
+        taskAppService = new BidQualityCheckTaskAppService(
+                resultRepository, targetLoader, tenderDocumentLoader, asyncExecutor);
     }
 
     @Test

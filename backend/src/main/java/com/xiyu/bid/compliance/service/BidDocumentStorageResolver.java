@@ -55,38 +55,45 @@ public class BidDocumentStorageResolver {
      * @throws BusinessException 未知前缀或存储读不到文件时（禁止降级）
      */
     public Path resolvePhysicalFile(final String fileUrl, final String fileName) {
+        return resolvePhysicalFile(fileUrl, fileName, "投标文件");
+    }
+
+    /**
+     * 按存储类型分派取流，输出本地临时文件（带文档类型标签，用于错误文案）.
+     */
+    public Path resolvePhysicalFile(final String fileUrl, final String fileName, final String docLabel) {
         ProjectDocumentStorageType storageType = ProjectDocumentStorageType.fromFileUrl(fileUrl);
         switch (storageType) {
             case LOCAL_BID_AGENT:
             case DOC_INSIGHT:
                 LoadedProjectDocumentFile loaded = fileStorage.load(fileUrl)
                         .orElseThrow(() -> new BusinessException(404,
-                                "投标文件在存储中不存在，请重新上传：" + fileUrl));
-                return writeTempFile(loaded.content());
+                                docLabel + "在存储中不存在，请重新上传：" + fileUrl));
+                return writeTempFile(loaded.content(), docLabel);
             case OBS_DIRECT:
                 String presignedUrl = obsShareUrlSigner.trySign(fileUrl)
                         .orElseThrow(() -> new BusinessException(404,
-                                "投标文件预签名下载失败，请重新上传：" + fileUrl));
+                                docLabel + "预签名下载失败，请重新上传：" + fileUrl));
                 return downloadToTempFile(presignedUrl, fileName);
             default:
                 throw new BusinessException(422,
-                        "投标文件存储类型无法识别，请重新上传：" + fileUrl);
+                        docLabel + "存储类型无法识别，请重新上传：" + fileUrl);
         }
     }
 
     /**
      * 将存储读取的字节写入临时文件.
      */
-    private Path writeTempFile(final byte[] content) {
+    private Path writeTempFile(final byte[] content, final String docLabel) {
         if (content == null || content.length == 0) {
-            throw new BusinessException(404, "投标文件内容为空，请重新上传");
+            throw new BusinessException(404, docLabel + "内容为空，请重新上传");
         }
         try {
-            Path tempFile = Files.createTempFile("xiyu-quality-bid-", ".pdf");
+            Path tempFile = Files.createTempFile("xiyu-quality-doc-", ".pdf");
             Files.write(tempFile, content);
             return tempFile;
         } catch (IOException e) {
-            throw new BusinessException(500, "写入投标文件临时文件失败", e);
+            throw new BusinessException(500, "写入" + docLabel + "临时文件失败", e);
         }
     }
 

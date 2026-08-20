@@ -7,10 +7,13 @@ import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityCheckStatus;
 import com.xiyu.bid.compliance.domain.QualityEvidence;
 import com.xiyu.bid.compliance.domain.policy.BidDocumentQualityEngine;
+import com.xiyu.bid.compliance.domain.policy.TenderRequirements;
 import com.xiyu.bid.compliance.entity.ComplianceCheckResult;
 import com.xiyu.bid.compliance.repository.ComplianceCheckResultRepository;
 import com.xiyu.bid.compliance.service.ComplianceTargetLoader;
 import com.xiyu.bid.compliance.service.KnowledgeBaseOnDemandLoader;
+import com.xiyu.bid.compliance.service.TenderDocumentLoader;
+import com.xiyu.bid.compliance.service.TenderRequirementsExtractor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -34,6 +37,8 @@ public class BidQualityCheckAsyncExecutor {
     private final ComplianceCheckResultRepository resultRepository;
     private final ComplianceTargetLoader targetLoader;
     private final KnowledgeBaseOnDemandLoader kbLoader;
+    private final TenderDocumentLoader tenderDocumentLoader;
+    private final TenderRequirementsExtractor requirementsExtractor;
 
     /**
      * 后台异步执行标书质量核查.
@@ -54,7 +59,9 @@ public class BidQualityCheckAsyncExecutor {
             updateTaskStep(checkResult, ComplianceCheckResult.TaskStatus.PARSING, 20, "正在加载并解析投标文件与招标文件...");
 
             DocumentContent bidDoc = targetLoader.loadBidDocument(projectId);
-            DocumentContent tenderDoc = targetLoader.loadTenderDocument(projectId);
+            DocumentContent tenderDoc = tenderDocumentLoader.loadTenderDocument(projectId);
+            // spec 049 第二步：招标要求 LLM 结构化提取（全部失败场景降级 missing 哨兵，不阻断任务）
+            TenderRequirements requirements = requirementsExtractor.extract(tenderDoc);
 
             checkResult.setBidFileName(bidDoc.fileName());
             checkResult.setBidFileHash(bidDoc.fileHash());
@@ -63,7 +70,7 @@ public class BidQualityCheckAsyncExecutor {
             // Step 2: 知识库检索与 25 项规则核查 (progress: 60)
             updateTaskStep(checkResult, ComplianceCheckResult.TaskStatus.CHECKING, 60, "正在对照企业知识库并执行25项质量核查...");
 
-            List<String> requiredCerts = extractRequiredCerts(tenderDoc.fullText());
+            List<String> requiredCerts = requirements.mandatoryQualifications();
             List<QualityEvidence> kbEvidences = new ArrayList<>();
             if (kbLoader != null) {
                 kbEvidences.addAll(kbLoader.matchQualifications(requiredCerts));
@@ -71,7 +78,7 @@ public class BidQualityCheckAsyncExecutor {
             }
 
             List<QualityCheckItemResult> itemResults = BidDocumentQualityEngine.evaluateAll(
-                    bidDoc, tenderDoc.fullText(), kbEvidences);
+                    bidDoc, tenderDoc.fullText(), kbEvidences, requirements);
 
             // Step 3: 汇总指标并持久化 (progress: 100)
             int passed = 0;
@@ -131,14 +138,5 @@ public class BidQualityCheckAsyncExecutor {
         checkResult.setProgress(progress);
         checkResult.setCurrentStep(currentStep);
         resultRepository.save(checkResult);
-    }
-
-    private List<String> extractRequiredCerts(final String tenderText) {
-        List<String> list = new ArrayList<>();
-        if (tenderText == null) return list;
-        if (tenderText.contains("ISO27001")) list.add("ISO27001");
-        if (tenderText.contains("ISO9001")) list.add("ISO9001");
-        if (tenderText.contains("CMMI")) list.add("CMMI");
-        return list;
     }
 }

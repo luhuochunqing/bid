@@ -120,34 +120,6 @@ public class ComplianceTargetLoader {
         }
     }
 
-    /**
-     * 加载项目关联的最新招标文件结构化内容 (DocumentContent).
-     */
-    public DocumentContent loadTenderDocument(final Long projectId) {
-        Project project = requireProject(projectId);
-        String tenderText = loadProjectTenderText(projectId);
-        String hash = SidecarStreamDocumentAdapter.computeStringSha256(tenderText);
-        return DocumentContent.fromText("tender_document.pdf", hash, tenderText);
-    }
-
-    /**
-     * 加载项目关联的招标文件文本.
-     *
-     * @param projectId 项目ID
-     * @return 招标文本内容
-     */
-    public String loadProjectTenderText(final Long projectId) {
-        Project project = requireProject(projectId);
-        if (project.getTenderId() != null) {
-            Tender tender = tenderRepository.findById(
-                    project.getTenderId()).orElse(null);
-            if (tender != null && tender.getDescription() != null) {
-                return tender.getDescription();
-            }
-        }
-        return project.getName() != null ? project.getName() : "";
-    }
-
     public ProjectDocument findLatestBidDocument(final Long projectId) {
         if (projectDocumentRepository == null) {
             return null;

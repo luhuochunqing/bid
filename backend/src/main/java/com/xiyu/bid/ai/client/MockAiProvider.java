@@ -49,11 +49,8 @@ public class MockAiProvider implements AiProvider {
     @Override
     public AiAnalysisResponse analyzeTender(String content, Map<String, Object> context) {
         log.debug("Mock AI analyzing tender content length: {}", content != null ? content.length() : 0);
-
-        // Simulate AI processing delay
         simulateProcessingDelay();
 
-        // Generate score based on content and context
         int score = calculateScore(content, context);
         Tender.RiskLevel riskLevel = calculateRiskLevel(score);
 
@@ -70,11 +67,8 @@ public class MockAiProvider implements AiProvider {
     @Override
     public AiAnalysisResponse analyzeProject(Long projectId, Map<String, Object> context) {
         log.debug("Mock AI analyzing project id: {}", projectId);
-
-        // Simulate AI processing delay
         simulateProcessingDelay();
 
-        // Generate score based on project context
         int score = calculateProjectScore(context);
         Tender.RiskLevel riskLevel = calculateRiskLevel(score);
 
@@ -88,13 +82,9 @@ public class MockAiProvider implements AiProvider {
                 .build();
     }
 
-    /**
-     * Calculate score based on content and context
-     */
     private int calculateScore(String content, Map<String, Object> context) {
         int baseScore = 60;
 
-        // Adjust based on content length
         if (content != null && !content.isEmpty()) {
             if (content.length() > 1000) {
                 baseScore += 10;
@@ -103,7 +93,6 @@ public class MockAiProvider implements AiProvider {
             }
         }
 
-        // Adjust based on context
         if (context != null) {
             Object budget = context.get("budget");
             if (budget instanceof Number) {
@@ -276,6 +265,15 @@ public class MockAiProvider implements AiProvider {
     public float[] embed(String text) {
         log.debug("Mock AI embedding text length: {}", text != null ? text.length() : 0);
         return new float[1024];
+    }
+
+    @Override
+    public String chatCompletion(String prompt, int maxTokens) {
+        log.info("Mock AI provider: chatCompletion called - returning empty structured JSON (AI not configured)");
+        simulateProcessingDelay();
+        // 本地开发兜底：返回合法但全空的招标要求 JSON（不臆造，spec 049 US2 降级语义）
+        return "{\"scoringItems\":[],\"mandatoryQualifications\":[],\"vetoClauses\":[],"
+                + "\"compositionRequirements\":[],\"formatRequirements\":[]}";
     }
 
     @Override

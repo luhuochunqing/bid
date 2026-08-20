@@ -28,13 +28,16 @@ public final class BidDocumentQualityEngine {
      * @param bidDoc 投标文件结构化内容
      * @param tenderText 招标文件文本内容
      * @param kbEvidences 知识库对照证据
+     * @param requirements 招标要求结构化提取结果；哨兵态时比对项 MANUAL + [REFERENCE_MISSING]，独立项照常
      * @return 25 项标准化核查结果
      */
     public static List<QualityCheckItemResult> evaluateAll(
             final DocumentContent bidDoc,
             final String tenderText,
-            final List<QualityEvidence> kbEvidences) {
+            final List<QualityEvidence> kbEvidences,
+            final TenderRequirements requirements) {
 
+        TenderRequirements effective = requirements == null ? TenderRequirements.missingSentinel() : requirements;
         Map<String, QualityCheckItemResult> resultMap = new HashMap<>();
 
         // 1. 运行 18 项确定性规则
@@ -46,10 +49,10 @@ public final class BidDocumentQualityEngine {
 
         // 2. 补齐并裁决 7 项深度语义/知识库条款
         resultMap.put(BidQualityCheckItem.QUALIFICATION_MATCH.getCode(),
-                evaluateQualificationMatch(bidDoc, tenderText, kbEvidences));
+                evaluateQualificationMatch(bidDoc, effective, kbEvidences));
 
         resultMap.put(BidQualityCheckItem.QUALIFICATION_VETO.getCode(),
-                evaluateQualificationVeto(bidDoc, tenderText, kbEvidences));
+                evaluateQualificationVeto(bidDoc, effective, kbEvidences));
 
         resultMap.put(BidQualityCheckItem.FRONT_TABLE_RESPONSE.getCode(),
                 evaluateFrontTableResponse(bidDoc, tenderText));
@@ -58,10 +61,10 @@ public final class BidDocumentQualityEngine {
                 evaluateResponsivenessReview(bidDoc, tenderText));
 
         resultMap.put(BidQualityCheckItem.QUALIFICATION_REVIEW.getCode(),
-                evaluateQualificationReview(bidDoc, tenderText, kbEvidences));
+                evaluateQualificationReview(bidDoc, effective, kbEvidences));
 
         resultMap.put(BidQualityCheckItem.SCORING_RESPONSE.getCode(),
-                evaluateScoringResponse(bidDoc, tenderText));
+                evaluateScoringResponse(bidDoc, effective));
 
         resultMap.put(BidQualityCheckItem.CLARIFICATION_RESPONSE.getCode(),
                 evaluateClarificationResponse(bidDoc, tenderText));
@@ -77,9 +80,12 @@ public final class BidDocumentQualityEngine {
      */
     private static QualityCheckItemResult evaluateQualificationMatch(
             final DocumentContent bidDoc,
-            final String tenderText,
+            final TenderRequirements requirements,
             final List<QualityEvidence> kbEvidences) {
         BidQualityCheckItem item = BidQualityCheckItem.QUALIFICATION_MATCH;
+        if (requirements.missing()) {
+            return referenceMissing(item, "招标要求不可用，无法比对企业资质与招标硬性要求");
+        }
         List<QualityEvidence> evidences = new ArrayList<>();
         if (kbEvidences != null) {
             evidences.addAll(kbEvidences);
@@ -94,26 +100,32 @@ public final class BidDocumentQualityEngine {
 
     /**
      * 11. 资格条件一票否决项核查 (CRITICAL).
+     * 基于招标要求 LLM 提取的硬性资格与否决条款（替代 ISO27001 硬编码）.
      */
     private static QualityCheckItemResult evaluateQualificationVeto(
             final DocumentContent bidDoc,
-            final String tenderText,
+            final TenderRequirements requirements,
             final List<QualityEvidence> kbEvidences) {
         BidQualityCheckItem item = BidQualityCheckItem.QUALIFICATION_VETO;
+        if (requirements.missing()) {
+            return referenceMissing(item, "招标要求不可用，无法核查一票否决与资格前置条件");
+        }
         List<QualityEvidence> evidences = new ArrayList<>();
 
-        // 检测招标文件是否包含硬性一票否决条款
-        if (tenderText != null && tenderText.contains("ISO27001")) {
-            evidences.add(QualityEvidence.tender("招标文件资质要求", 1, "要求具备 ISO27001 信息安全体系认证"));
-            boolean bidHasIt = bidDoc.fullText().contains("ISO27001");
-            if (!bidHasIt) {
+        // 按提取出的硬性资格要求逐项比对投标文件（任一缺失即否决风险）
+        for (String qualification : requirements.mandatoryQualifications()) {
+            if (qualification.isBlank()) {
+                continue;
+            }
+            evidences.add(QualityEvidence.tender("招标文件资质要求", 1, "招标要求：" + qualification));
+            if (!bidDoc.fullText().contains(qualification)) {
                 if (kbEvidences != null) {
                     evidences.addAll(kbEvidences);
                 }
                 return QualityCheckItemResult.fail(
                         item,
-                        "未满足招标文件 ISO27001 认证硬性要求（一票否决项）！",
-                        "请在投标文件中补充 ISO27001 证书或在企业资质库中维护有效证书",
+                        "未满足招标文件硬性要求（一票否决项）：" + qualification,
+                        "请在投标文件中补充对应证明材料或在企业知识库中维护有效记录",
                         evidences);
             }
         }
@@ -159,9 +171,12 @@ public final class BidDocumentQualityEngine {
      */
     private static QualityCheckItemResult evaluateQualificationReview(
             final DocumentContent bidDoc,
-            final String tenderText,
+            final TenderRequirements requirements,
             final List<QualityEvidence> kbEvidences) {
         BidQualityCheckItem item = BidQualityCheckItem.QUALIFICATION_REVIEW;
+        if (requirements.missing()) {
+            return referenceMissing(item, "招标要求不可用，无法核查资格性评审条款响应");
+        }
         List<QualityEvidence> evidences = new ArrayList<>();
         if (kbEvidences != null) {
             evidences.addAll(kbEvidences);
@@ -174,11 +189,18 @@ public final class BidDocumentQualityEngine {
      * 15. 评分标准逐项对应与支撑材料.
      */
     private static QualityCheckItemResult evaluateScoringResponse(
-            final DocumentContent bidDoc, final String tenderText) {
+            final DocumentContent bidDoc, final TenderRequirements requirements) {
         BidQualityCheckItem item = BidQualityCheckItem.SCORING_RESPONSE;
+        if (requirements.missing()) {
+            return referenceMissing(item, "招标要求不可用，无法对照评分标准逐项核查");
+        }
         boolean hasTechPlan = bidDoc.fullText().contains("技术方案") || bidDoc.fullText().contains("实施方案");
         if (hasTechPlan) {
-            List<QualityEvidence> evidences = List.of(QualityEvidence.bid("技术方案章节", 1, "包含详细技术方案与实施路径"));
+            List<QualityEvidence> evidences = new ArrayList<>();
+            for (TenderRequirements.ScoringItem scoringItem : requirements.scoringItems()) {
+                evidences.add(QualityEvidence.tender("招标评分办法", 1, "评分项：" + scoringItem.name()));
+            }
+            evidences.add(QualityEvidence.bid("技术方案章节", 1, "包含详细技术方案与实施路径"));
             return QualityCheckItemResult.pass(item, "技术方案、实施方案及售后承诺逐条对应评分细则", evidences);
         }
         return QualityCheckItemResult.manualReview(item, "建议对照招标文件评分表逐项检查技术支撑材料", "补充项目实施方案细化说明", Collections.emptyList());
@@ -196,5 +218,18 @@ public final class BidDocumentQualityEngine {
             return QualityCheckItemResult.pass(item, "已充分吸收并响应最新答疑澄清与补遗文件", evidences);
         }
         return QualityCheckItemResult.manualReview(item, "未检测到明确的补遗文件确认函", "如本项目有补遗文件，请补充确认函", Collections.emptyList());
+    }
+
+    /**
+     * 比对项降级：招标要求不可用（招标未上传/提取失败/AI 未启用）时
+     * MANUAL + [REFERENCE_MISSING] 前缀（data-model.md §3.2 reasonCode 文案约定）.
+     */
+    private static QualityCheckItemResult referenceMissing(
+            final BidQualityCheckItem item, final String detail) {
+        return QualityCheckItemResult.manualReview(
+                item,
+                "[REFERENCE_MISSING] " + detail,
+                "请先上传招标文件并确认 AI 能力已启用后重新核查",
+                Collections.emptyList());
     }
 }
