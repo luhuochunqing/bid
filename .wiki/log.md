@@ -364,5 +364,5 @@
 - 触发：质量核查从"固定文案证据 + page=1"实质化为全真实链路（分支 `agent/qoder/bid-quality-realization`，commits b492c41ca..1bf99ab23）
 - 架构：五步真实数据流（投标文件/招标要求 LLM 提取/四知识库/真实页码定位/混合裁决）；确定性 18 项 + 语义规则 lane + LLM 裁决 lane（只做裁决层不做全量直出）
 - FP-Java 失败传导：通道失败在边界吸收为 `LlmVerdict.ChatOutcome` sealed 四值（Success/Invalid/Noop/Failure），纯核心无异常流；reasonCode 五值（PRD §3.5），MANUAL 态 `[CODE] ` 前缀
-- 新陷阱：Java 21 switch 模式匹配编译产物含 `new MatchException` 触发 FP 门禁 → 纯核心用 instanceof 序贯链（lessons §140）；验收失真复盘见 lessons §139
-- 新建 [[bid-quality-check-realization]]；关联 specs/049-bid-quality-check-realization/、docs/lessons/lessons-learned.md §139/§140
+- 新陷阱：Java 21 switch 模式匹配编译产物含 `new MatchException` 触发 FP 门禁 → 纯核心用 instanceof 序贯链（lessons §141）；验收失真复盘见 lessons §140
+- 新建 [[bid-quality-check-realization]]；关联 specs/049-bid-quality-check-realization/、docs/lessons/lessons-learned.md §140/§141
