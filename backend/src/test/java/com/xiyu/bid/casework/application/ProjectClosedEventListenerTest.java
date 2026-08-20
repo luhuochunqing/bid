@@ -17,17 +17,23 @@ import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
+import com.xiyu.bid.scoreparse.application.LoadedBidFile;
+import com.xiyu.bid.scoreparse.application.SidecarStreamTextExtractor;
+import com.xiyu.bid.scoreparse.application.StreamingBidFileFetcher;
+import com.xiyu.bid.scoreparse.application.TempBidFileStore;
 import com.xiyu.bid.repository.TenderRepository;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.net.InetSocketAddress;
-import java.net.URI;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
@@ -40,6 +46,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 /**
@@ -66,8 +73,14 @@ class ProjectClosedEventListenerTest {
     private CaseAiMatcher caseAiMatcher;
     private CasePrecipitationNotifier notifier;
     private ObsShareUrlSigner obsShareUrlSigner;
-    private RestTemplate restTemplate;
+    private StreamingBidFileFetcher streamingFetcher;
+    private SidecarStreamTextExtractor streamTextExtractor;
+    private TempBidFileStore tempBidFileStore;
+    private TransactionTemplate transactionTemplate;
     private ProjectClosedEventListener listener;
+
+    @TempDir
+    Path tempDir;
 
     @BeforeEach
     void setUp() {
@@ -82,12 +95,20 @@ class ProjectClosedEventListenerTest {
         caseAiMatcher = mock(CaseAiMatcher.class);
         notifier = mock(CasePrecipitationNotifier.class);
         obsShareUrlSigner = mock(ObsShareUrlSigner.class);
-        restTemplate = mock(RestTemplate.class);
+        streamingFetcher = mock(StreamingBidFileFetcher.class);
+        streamTextExtractor = mock(SidecarStreamTextExtractor.class);
+        tempBidFileStore = mock(TempBidFileStore.class);
+        // 真实 TransactionTemplate + mock PlatformTransactionManager：execute 回调真实执行（saveAll 生效），
+        // 避免 Mockito 对接口 default 方法 executeWithoutResult 的 mock 行为差异
+        PlatformTransactionManager txManager = mock(PlatformTransactionManager.class);
+        when(txManager.getTransaction(any())).thenReturn(mock(TransactionStatus.class));
+        transactionTemplate = new TransactionTemplate(txManager);
         listener = new ProjectClosedEventListener(
                 archiveRepository, fileRepository, scoreItemRepository,
                 knowledgeCaseRepository, projectRepository, tenderRepository,
                 bidResultRepository, docTextExtractor, caseAiMatcher, notifier,
-                obsShareUrlSigner, restTemplate);
+                obsShareUrlSigner, streamingFetcher, streamTextExtractor,
+                tempBidFileStore, transactionTemplate);
     }
 
     @Test
@@ -329,6 +350,7 @@ class ProjectClosedEventListenerTest {
         existing.setId(50L);
         existing.setSourceProjectId(1L);
         existing.setScoringPointTitle("技术方案");
+        existing.setScoringPointId(101L); // 与候选评分项 101 一致 → 按评分项 ID 去重跳过
         when(knowledgeCaseRepository.findBySourceProjectId(1L)).thenReturn(List.of(existing));
 
         listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
@@ -336,6 +358,41 @@ class ProjectClosedEventListenerTest {
         // 已经存在，不应该调用 saveAll
         verify(knowledgeCaseRepository, never()).saveAll(any());
         verify(notifier, times(1)).notifySuccess(org.mockito.ArgumentMatchers.eq(1L), any(), org.mockito.ArgumentMatchers.eq(0), anyLong(), any(), any());
+    }
+
+    @Test
+    @DisplayName("同标题多评分项（如 61/62 均叫'投标报价'）— 按评分项 ID 去重，全部传入 saveAll 不误删（spec 049 唯一键回归）")
+    void sameTitleMultipleScoreItems_allPersisted() {
+        ProjectArchive archive = new ProjectArchive();
+        archive.setId(99L);
+        when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
+        when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(bidFile(1L, 99L)));
+        when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
+                .thenReturn(List.of(
+                        scoreItem(101L, "投标报价", "要求提供设备报价明细"),
+                        scoreItem(102L, "投标报价", "要求提供服务报价明细")));
+        when(docTextExtractor.extract(any(), any(), any()))
+                .thenReturn(new ExtractedDocument("## 标书正文", 5, "text/markdown", "bid.pdf", java.util.Map.of()));
+        CaseAiMatcher.AiMatchedSlice s1 = new CaseAiMatcher.AiMatchedSlice();
+        s1.setDraftId(101L);
+        s1.setMatchedSnippet("设备报价已提供");
+        CaseAiMatcher.AiMatchedSlice s2 = new CaseAiMatcher.AiMatchedSlice();
+        s2.setDraftId(102L);
+        s2.setMatchedSnippet("服务报价已提供");
+        when(caseAiMatcher.extractSlicesWithAi(any(), any()))
+                .thenReturn(List.of(s1, s2));
+        // 无既有记录
+        when(knowledgeCaseRepository.findBySourceProjectId(1L)).thenReturn(List.of());
+
+        listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
+
+        ArgumentCaptor<List<KnowledgeCase>> captor = ArgumentCaptor.forClass(List.class);
+        verify(knowledgeCaseRepository, times(1)).saveAll(captor.capture());
+        assertThat(captor.getValue()).hasSize(2);
+        // 两条同标题记录必须携带各自的评分项 ID，供唯一键 (source_project_id, scoring_point_id) 区分
+        assertThat(captor.getValue()).extracting(KnowledgeCase::getScoringPointId).containsExactly(101L, 102L);
+        assertThat(captor.getValue()).extracting(KnowledgeCase::getScoringPointTitle).containsOnly("投标报价");
+        verify(notifier, times(1)).notifySuccess(org.mockito.ArgumentMatchers.eq(1L), any(), org.mockito.ArgumentMatchers.eq(2), anyLong(), any(), any());
     }
 
     @Test
@@ -365,8 +422,8 @@ class ProjectClosedEventListenerTest {
     }
 
     @Test
-    @DisplayName("OBS 直传标书：签名下载成功 -> 解析正文并保存案例")
-    void obsBidFile_downloadAndSave() {
+    @DisplayName("OBS 直传标书：流式下载成功 -> 解析正文并保存案例")
+    void obsBidFile_downloadAndSave() throws Exception {
         Project project = project(1L, 7L, "E2E 项目");
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
         ProjectArchive archive = new ProjectArchive();
@@ -379,8 +436,8 @@ class ProjectClosedEventListenerTest {
                 .thenReturn(List.of(scoreItem(101L, "技术方案", "要求提供架构图")));
         when(obsShareUrlSigner.trySign(FileUrlPrefixes.OBS_DIRECT + "upload123"))
                 .thenReturn(Optional.of("https://obs.example.com/signed"));
-        when(restTemplate.getForObject(URI.create("https://obs.example.com/signed"), byte[].class))
-                .thenReturn("PDF_BYTES".getBytes());
+        when(streamingFetcher.fetch("https://obs.example.com/signed", "case-1", "bid.pdf", "application/octet-stream"))
+                .thenReturn(new LoadedBidFile.InMemory("PDF_BYTES".getBytes(), "bid.pdf", "application/octet-stream"));
         when(docTextExtractor.extract(any(), any(), any()))
                 .thenReturn(new ExtractedDocument("## 标书正文(obs)", 5, "text/markdown", "bid.pdf",
                         java.util.Map.of()));
@@ -393,8 +450,8 @@ class ProjectClosedEventListenerTest {
 
         listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
 
-        // 必须走签名下载，而不是把 obs-direct 当本地文件读；注意传的是 URI 而非 String
-        verify(restTemplate).getForObject(URI.create("https://obs.example.com/signed"), byte[].class);
+        // 必须走流式下载（不是把 obs-direct 当本地文件读），签名 URL 原样传给 fetcher（不二次编码）
+        verify(streamingFetcher).fetch("https://obs.example.com/signed", "case-1", "bid.pdf", "application/octet-stream");
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<KnowledgeCase>> captor = ArgumentCaptor.forClass(List.class);
         verify(knowledgeCaseRepository, times(1)).saveAll(captor.capture());
@@ -427,7 +484,7 @@ class ProjectClosedEventListenerTest {
 
     @Test
     @DisplayName("根因回归：OBS 标书文本提取失败/超限 -> notifyFailure(原因含 OBS) + 不入库，禁止占位虚假成功")
-    void obsBidFile_extractFailure_notifiesFailureInsteadOfFalseSuccess() {
+    void obsBidFile_extractFailure_notifiesFailureInsteadOfFalseSuccess() throws Exception {
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project(1L, 7L, "E2E 项目")));
         ProjectArchive archive = new ProjectArchive();
         archive.setId(99L);
@@ -440,8 +497,8 @@ class ProjectClosedEventListenerTest {
         // 签名下载成功返回字节
         when(obsShareUrlSigner.trySign(FileUrlPrefixes.OBS_DIRECT + "upload123"))
                 .thenReturn(Optional.of("https://obs.example.com/signed"));
-        when(restTemplate.getForObject(URI.create("https://obs.example.com/signed"), byte[].class))
-                .thenReturn(new byte[]{1, 2, 3});
+        when(streamingFetcher.fetch(any(), any(), any(), any()))
+                .thenReturn(new LoadedBidFile.InMemory(new byte[]{1, 2, 3}, "bid.pdf", "application/octet-stream"));
         // 提取超限：extractor 抛受控异常（真实场景为 MarkItDownSidecarExtractor 的大小防护）
         when(docTextExtractor.extract(any(), any(), any()))
                 .thenThrow(new IllegalArgumentException("文档文件超过转换上限 30MB，无法提取文本: bid.pdf（实际 401MB）"));
@@ -456,10 +513,11 @@ class ProjectClosedEventListenerTest {
     }
 
     @Test
-    @DisplayName("根因回归：OBS 预签名 URL 含 % 编码时下载不得二次编码（RestTemplate 传 URI，内嵌真实服务器）")
+    @DisplayName("根因回归：OBS 预签名 URL 含 % 编码时下载不得二次编码（流式下载器 HttpClient，内嵌真实服务器）")
     void obsPresignedUrl_notDoubleEncoded_rootCauseRegression() throws Exception {
         // 内嵌真实 HTTP 服务器，记录「实际到达的原始请求路径」，返回 200 + 字节。
-        // 不 mock 网络层——mock 会掩盖 RestTemplate 对预签名 URL 的二次编码行为（之前的 403 根因）。
+        // 不 mock 网络层——mock 会掩盖下载器对预签名 URL 的二次编码行为（之前 RestTemplate 403 根因；
+        // 现由 StreamingBidFileFetcher 的 HttpClient 承担下载，行为迁移至此做回归证据）。
         AtomicReference<String> rawPath = new AtomicReference<>();
         AtomicReference<String> rawQuery = new AtomicReference<>();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -481,20 +539,14 @@ class ProjectClosedEventListenerTest {
             String signedUrl = "http://127.0.0.1:" + port
                     + "/bids/2026/08/u/%E5%BC%A0%E5%AE%B6%E5%8F%A3.docx?Expires=1787155399&Signature=abc%3D";
 
-            ObsShareUrlSigner signer = mock(ObsShareUrlSigner.class);
-            when(signer.trySign(FileUrlPrefixes.OBS_DIRECT + "upload123"))
-                    .thenReturn(Optional.of(signedUrl));
+            // 真实 StreamingBidFileFetcher（缩小阈值 4KB/16KB）+ 真实 TempBidFileStore（public 构造器）
+            TempBidFileStore store = new TempBidFileStore(tempDir.toString(), 1024 * 1024L);
+            StreamingBidFileFetcher fetcher = new StreamingBidFileFetcher(store, 4 * 1024L, 16 * 1024L, 30);
 
-            RestTemplate realRest = new RestTemplate(new SimpleClientHttpRequestFactory());
-            ProjectClosedEventListener underTest = new ProjectClosedEventListener(
-                    archiveRepository, fileRepository, scoreItemRepository,
-                    knowledgeCaseRepository, projectRepository, tenderRepository,
-                    bidResultRepository, docTextExtractor, caseAiMatcher, notifier,
-                    signer, realRest);
+            LoadedBidFile result = fetcher.fetch(signedUrl, "case-1", "投标文件.docx", "application/octet-stream");
 
-            byte[] bytes = underTest.loadFileBytes(FileUrlPrefixes.OBS_DIRECT + "upload123");
-
-            assertThat(bytes).isEqualTo("PDF_BYTES".getBytes());
+            assertThat(result).isInstanceOf(LoadedBidFile.InMemory.class);
+            assertThat(((LoadedBidFile.InMemory) result).content()).isEqualTo("PDF_BYTES".getBytes());
             // 关键断言：服务器收到的路径保持单次编码（%E5...），未被二次编码成 %25E5
             assertThat(rawPath.get()).contains("%E5%BC%A0%E5%AE%B6%E5%8F%A3");
             assertThat(rawPath.get()).doesNotContain("%25E5");

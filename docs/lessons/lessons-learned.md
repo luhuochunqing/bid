@@ -2203,3 +2203,58 @@ Caused by: java.lang.OutOfMemoryError: Java heap space
 - `src/api/config.js`
 - `scripts/dev-frontend-health.sh`
 - `docs/implementation-notes/ponytail-safe-cuts.md`
+
+## 136. LLM 网关返回 OpenAI choices 包装：自研解析器必须复用正规 client 的解包链路（2026-08-20）
+
+### 问题背景
+
+案例沉淀链路 `CaseAiMatcher` 自己写 `extractJson`（取首个 `{` 到末个 `}`）解析 LLM 返回。但网关返回标准 OpenAI 格式 `{"choices":[{"message":{"content":"```json\n{...}\n```"}}]}`，`extractJson` 把整个 choices 包装当目标 JSON，`matchedSnippet` 必然取不到 → 摘录质量很好却 8 个评分项全部"诚实降级为无证据"，knowledge_case 恒 0 条且发"成功通知"（spec 049）。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 后写代码绕过正规 client 直接裸调网关 | 项目已有 `OpenAiCompatibleClient` → `AiResponseParser.extractContentFromResponse` 的正确解包链路（先 `choices[0].message.content` 再解析），自研新解析器没复用就重新踩了旧坑 | 调 LLM 网关一律走统一 client；新写解析必须先解 OpenAI choices 包装（`unpackContent`），失败回退裸 JSON |
+| 解析出的字段为空时直接判"无证据" | 字段空可能是**解析失败**而非 LLM 真判无证据；诊断日志要打印解包后的原始返回而不是 choices 包装 | 无证据分支打印 `node.toString()` 前 300 字符辅助定位；先确认字段名/结构再信降级结论 |
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/casework/application/CaseAiMatcher.java`
+- `backend/src/main/java/com/xiyu/bid/ai/client/AiResponseParser.java`
+
+## 137. 知识沉淀唯一键粒度：同标题多评分项是合法领域形态，不能按标题去重（2026-08-20）
+
+### 问题背景
+
+项目 1350 的评分项 61/62 标题同为"投标报价"（真实数据）。`knowledge_case` 唯一键 `(source_project_id, scoring_point_title)` 覆盖标题，`saveAll` 整批插入两条同标题记录撞唯一键 → 整个事务回滚 → 0 条入库；`DataIntegrityViolationException` 被 catch 成"幂等成功"发通知，用户看到成功但实际无数据（spec 049 SC-001）。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 唯一键粒度=标题，领域里标题不唯一 | 唯一键必须建在**领域唯一标识**（评分项 ID）上，不能建在展示字段（标题）上；同标题多评分项是合法形态 | 去重/唯一约束用业务主键（scoring_point_id），不要用标题 |
+| 入库异常被吞成"成功通知" | `DataIntegrityViolationException` 当成并发幂等兜底，结果吞掉了**非并发**的真实冲突（同批自撞唯一键），误导验收 | 幂等兜底要有区分：同批自撞（前查后插的竞态）与整批回滚（数据语义冲突）不能都当幂等成功 |
+
+### 相关文件
+
+- `backend/src/main/resources/db/migration-mysql/V1199__knowledge_case_scoring_point_id_dedup.sql`
+- `backend/src/main/java/com/xiyu/bid/casework/application/ProjectClosedEventListener.java`
+- `backend/src/main/java/com/xiyu/bid/casework/infrastructure/KnowledgeCase.java`
+
+## 138. 部署脚本"文件上传完成"不等于"进程重启完成"：验收触发要等新进程就位（2026-08-20）
+
+### 问题背景
+
+`deploy-test.sh` 输出 "Remote deployment completed" 仅表示文件已上传/脚本完成，进程重启在随后才发生。紧接着触发验收，请求落在**旧进程**上跑旧代码，得到"修复无效"的错误结论（spec 049：误判新代码未生效）。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 部署完成通知 ≠ 进程重启完成 | 重启用 systemd/脚本异步执行，文件上传完和进程就绪有时间差 | 部署后先 `ps -eo pid,lstart` 确认新进程启动时间，再触发验收 |
+| 旧进程日志污染判断 | 新触发的请求可能由旧进程处理，日志时间戳在重启前 | 以**进程启动时间**为界，只信启动后产生的日志/结果 |
+
+### 相关文件
+
+- `scripts/release/deploy-test.sh`
+- 测试服务器 `/opt/xiyu-bid/shared/backend/app.jar`

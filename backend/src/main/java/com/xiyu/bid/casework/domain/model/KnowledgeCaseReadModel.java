@@ -18,6 +18,8 @@ public interface KnowledgeCaseReadModel {
 
     String getScoringPointTitle();
 
+    Long getScoringPointId();
+
     String getRequirementRaw();
 
     String getResponseText();
