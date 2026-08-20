@@ -2096,13 +2096,13 @@ Caused by: java.lang.OutOfMemoryError: Java heap space
 
 ### 修复方案
 
-**1. `MarkItDownSidecarExtractor.extract()` 加大小防护（根因层）**：任何 content 超过 `app.doc-insight.sidecar-max-upload-mb`（默认 30MB，与 sidecar `SIDECAR_MAX_UPLOAD_MB` 同步）直接抛 `IllegalArgumentException`，**在进入任何大内存 POST / fallback 之前兜住**。`IllegalArgumentException` 不在 `@Retryable(retryFor={RestClientException,IllegalStateException})` 内，不会触发无意义重试。
+**1. `MarkItDownSidecarExtractor.extract()` 加大小防护（根因层）**：任何 content 超过 `app.doc-insight.sidecar-max-upload-mb`（默认 30MB，与 sidecar `SIDECAR_MAX_UPLOAD_MB` 同步）直接抛 `DocInsightException`（领域异常，不用通用 `IllegalArgumentException`），**在进入任何大内存 POST / fallback 之前兜住**。`DocInsightException` 不在 `@Retryable(retryFor={RestClientException,IllegalStateException})` 内，不会触发无意义重试。
 
 **2. `ProjectClosedEventListener.loadBidFileMarkdown()` 对 OBS 提取失败 rethrow（防虚假成功）**：与 `loadFileBytes` 的 OBS 分支同口径——OBS 是真实标书数据源，`docTextExtractor.extract()` 抛异常（含超限）必须 rethrow 走 `notifyFailure`，**禁止回退占位文本让 AI 对着"暂无标书正文"假成功"入库 0 条"**。
 
 ### 根因行为测试（不 mock 网络/大内存）
 
-- `MarkItDownSidecarExtractorTest#oversizedContent_throwsControlledExceptionInsteadOfOom`：31MB content 超限 → 断言抛 `IllegalArgumentException`（含"超过转换上限"），并 `verify(never)` sidecar POST——证明在进入任何网络请求前兜住。
+- `MarkItDownSidecarExtractorTest#oversizedContent_throwsControlledExceptionInsteadOfOom`：31MB content 超限 → 断言抛 `DocInsightException`（含"超过转换上限"），并 `verify(never)` sidecar POST——证明在进入任何网络请求前兜住。
 - `ProjectClosedEventListenerTest#obsBidFile_extractFailure_notifiesFailureInsteadOfFalseSuccess`：OBS 标书 extract 抛超限 → `notifyFailure`(原因含"超过转换上限") + `saveAll(never)`——证明失败上报而非占位假成功。
 
 ### 经验教训
@@ -2113,6 +2113,7 @@ Caused by: java.lang.OutOfMemoryError: Java heap space
 | 框架理解偏差 | 以为 `RestTemplate.getForObject(byte[].class)` 能承载任意大小下载，实际 `ByteArrayHttpMessageConverter` 整文件进堆无防护 | **外部大文件下载/转换前必须先判大小上限**；超过目标系统上限（sidecar 30MB）不得继续上传/fallback |
 | 回退占位 = 假成功 | extract 失败回退占位文本，AI 空匹配 → 发"成功但 0 条"通知掩盖真实故障 | 真实业务数据源读取/转换失败必须**上报失败通知**，禁止 fallback 占位让上层误判成功 |
 | `new String(任意字节)` 兜底危险 | `fallbackExtract` 末尾对二进制 `.docx` 直接 `new String(content, UTF_8)` 二次分配内存必 OOM | 兜底 plain text 解析只对**已知文本型** input 有意义；未知二进制必须先判 `content.length` 上限或并发给 sidecar，禁止整读转 String |
+| `@Recover` 匹配不到就包装 | 超限 `DocInsightException` 抛到 Retry 拦截器后，`RecoverAnnotationRecoveryHandler` 遍历现有 `@Recover(RestClientException/IllegalStateException)` 均不匹配 → 抛 `ExhaustedRetryException: Cannot locate recovery method` 把真实根因掩埋 | **有 domain 异常参与 `@Retryable` 方法时必须补对应 `@Recover(该异常)` 原样 rethrow**；否则真实业务失败会被包装成通用 `ExhaustedRetryException` 掩盖 |
 
 ### 相关文件
 

@@ -81,3 +81,22 @@ DocumentAnalysisResult result = docInsightService.process(
 5. “AI 生成初稿”读取同一份解析结果生成标书章节计划和初稿内容。
 
 这意味着解析招标文件不再被隐藏在“AI 生成初稿”按钮之后；它是项目进入执行后的独立准备动作。
+
+## 6. 文件大小上限与失败语义（案例沉淀防 OOM）
+
+侧车（Sidecar）有硬性上传上限 `SIDECAR_MAX_UPLOAD_MB`（默认 **30MB**，后端 `app.doc-insight.sidecar-max-upload-mb` 保持一致）。
+
+### 6.1 大小防护（enter 前置兜底）
+`MarkItDownSidecarExtractor.extract` 入口对超过上限的 content 直接抛 `DocInsightException`：
+- 避免把超大 multipart 发往 sidecar（必 413）后互退（fallback）对二进制 `new String` 二次分配导致 **OOM**（实测 400MB 标书整读堆 OOM 根因）。
+- 该异常**不在 `@Retryable(retryFor=...)` 内**，属确定性失败、不重试，由调用方上报失败而非内存爆炸。
+
+### 6.2 `@Retryable` 的 `@Recover` 匹配机制（易踩坑）
+Spring Retry 校验 `@Recover` 方法时，`RecoverAnnotationRecoveryHandler` 会**按异常类型遍历类内所有 `@Recover` 方法做匹配**。若抛出的业务异常（如 `DocInsightException`）与现有 `@Recover(RestClientException/IllegalStateException)` 均不匹配，会出现：
+
+```
+org.springframework.retry.ExhaustedRetryException: Cannot locate recovery method
+    Caused by: com.xiyu.bid.docinsight...DocInsightException: 文档文件超过转换上限 ...
+```
+
+真实业务失败被包装成通用 `ExhaustedRetryException`，**掩盖根因**。修复：新增一个 `@Recover(DocInsightException)` 方法**原样 rethrow** 原始异常，让 handler 能匹配并透出真实原因。
