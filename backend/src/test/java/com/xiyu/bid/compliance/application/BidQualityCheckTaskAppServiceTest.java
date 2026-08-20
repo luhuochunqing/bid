@@ -6,6 +6,7 @@ import com.xiyu.bid.compliance.dto.QualityCheckTaskDTO;
 import com.xiyu.bid.compliance.entity.ComplianceCheckResult;
 import com.xiyu.bid.compliance.repository.ComplianceCheckResultRepository;
 import com.xiyu.bid.compliance.service.ComplianceTargetLoader;
+import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,14 +43,24 @@ class BidQualityCheckTaskAppServiceTest {
         taskAppService = new BidQualityCheckTaskAppService(resultRepository, targetLoader, asyncExecutor);
     }
 
+    /** spec 049 前置校验：stub 项目存在已上传投标文件. */
+    private void stubBidDocumentExists(final Long projectId) {
+        ProjectDocument doc = new ProjectDocument();
+        doc.setId(1L);
+        doc.setName("bid.pdf");
+        doc.setFileUrl("bid-agent://tender-documents/p" + projectId + "/bid.pdf");
+        when(targetLoader.findLatestBidDocument(projectId)).thenReturn(doc);
+    }
+
     @Test
     @DisplayName("首次触发核查时创建新任务并异步执行")
     void testTriggerQualityCheck_NewTask() {
         Long projectId = 100L;
         when(resultRepository.findByProjectIdAndCheckTypeAndStatusIn(eq(projectId), any(), any()))
                 .thenReturn(Collections.emptyList());
+        stubBidDocumentExists(projectId);
         when(targetLoader.loadBidDocument(projectId))
-                .thenReturn(DocumentContent.fromText("bid.pdf", "hash_bid_1", "投标文件正文"));
+                .thenReturn(DocumentContent.fromText("bid.pdf", "hash_bid_1", " 投标文件正文"));
         when(targetLoader.loadTenderDocument(projectId))
                 .thenReturn(DocumentContent.fromText("tender.pdf", "hash_tender_1", "招标要求"));
         when(resultRepository.findTopByBidFileHashAndTenderFileHashAndStatusOrderByCheckedAtDesc(
@@ -100,6 +111,7 @@ class BidQualityCheckTaskAppServiceTest {
         Long projectId = 100L;
         when(resultRepository.findByProjectIdAndCheckTypeAndStatusIn(eq(projectId), any(), any()))
                 .thenReturn(Collections.emptyList());
+        stubBidDocumentExists(projectId);
         when(targetLoader.loadBidDocument(projectId))
                 .thenReturn(DocumentContent.fromText("bid.pdf", "hash_cached", "已解析内容"));
         when(targetLoader.loadTenderDocument(projectId))

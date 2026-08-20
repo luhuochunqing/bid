@@ -127,7 +127,15 @@ export function useQualityCheckDrawer(props) {
 
       startPolling(task.taskId)
     } catch (e) {
+      // spec 049 第一步：trigger 同步 4xx（无投标文件/解析失败）→ 提示后端消息且不进入轮询
       polling.value = false
+      progressPercent.value = 0
+      if (e?.response?.status >= 400 && e?.response?.status < 500) {
+        progressStatus.value = 'exception'
+        const msg = e.response.data?.msg || e.response.data?.message
+        ElMessage.error(msg || '无法执行核查，请先上传投标文件')
+        return
+      }
       notifyErrorUnlessRateLimit(e, '触发质量核查异常')
     }
   }

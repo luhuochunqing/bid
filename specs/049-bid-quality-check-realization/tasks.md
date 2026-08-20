@@ -72,17 +72,17 @@
 
 ### Tests for US1 ⚠️（先写，确保 FAIL）
 
-- [ ] T017 [P] [US1] 存储分派单测：`obs-direct:`/`bid-agent://`/`doc-insight://` 三前缀各一例 + 未知前缀报错用例，新建 backend/src/test/java/com/xiyu/bid/compliance/service/ComplianceTargetLoaderStorageDispatchTest.java
-- [ ] T018 [P] [US1] trigger 前置校验单测：无 BID 文档 → 4xx 且不落任务记录；有文档 → 正常建任务，新建 backend/src/test/java/com/xiyu/bid/compliance/application/BidQualityCheckTriggerPreconditionTest.java
+- [X] T017 [P] [US1] 存储分派单测：`obs-direct:`/`bid-agent://`/`doc-insight://` 三前缀各一例 + 未知前缀报错用例，新建 backend/src/test/java/com/xiyu/bid/compliance/service/ComplianceTargetLoaderStorageDispatchTest.java
+- [X] T018 [P] [US1] trigger 前置校验单测：无 BID 文档 → 4xx 且不落任务记录；有文档 → 正常建任务，新建 backend/src/test/java/com/xiyu/bid/compliance/application/BidQualityCheckTriggerPreconditionTest.java
 
 ### Implementation for US1
 
-- [ ] T019 [US1] 重构 `ComplianceTargetLoader.loadBidDocument`（backend/src/main/java/com/xiyu/bid/compliance/service/ComplianceTargetLoader.java）：按 `ProjectDocumentStorageType.fromFileUrl` 分派——LOCAL_BID_AGENT/DOC_INSIGHT 走 `ProjectDocumentFileStorage.load` 流式读取、OBS_DIRECT 走 `ObsShareUrlSigner` 预签名下载，取到物理文件交 `SidecarStreamDocumentAdapter.convertDocument`（分派模式复用 ProjectDocumentDownloadService，research.md R1）
-- [ ] T020 [US1] 删除同文件中 `tryResolveLocalPath` 降级判断与 `buildFallbackDocumentText` 元数据拼接路径（spec §4 第一步禁止项）
-- [ ] T021 [US1] `BidQualityCheckTaskAppService.triggerQualityCheck`（backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckTaskAppService.java）新增同步前置校验：项目无 BID 类 ProjectDocument 或文件不可解析 → 抛业务异常返回 4xx"无法执行核查，请先上传投标文件"，不创建任务（contracts/bid-quality-api.md §1）
-- [ ] T022 [US1] 前端 src/composables/useQualityCheckDrawer.js 捕获 trigger 4xx → ElMessage 提示且不进入轮询
-- [ ] T023 [US1] api-tests/ 新增无文件项目 trigger 4xx 用例（沿用既有 .http 文件组织）
-- [ ] T024 [US1] 集成验证：真实 PDF 经 Sidecar 输出非空 PageContent[]（pageNumber 与物理页一致）；`mvn test` 全绿后原子提交
+- [X] T019 [US1] 重构 `ComplianceTargetLoader.loadBidDocument`（backend/src/main/java/com/xiyu/bid/compliance/service/ComplianceTargetLoader.java）：按 `ProjectDocumentStorageType.fromFileUrl` 分派——LOCAL_BID_AGENT/DOC_INSIGHT 走 `ProjectDocumentFileStorage.load` 流式读取、OBS_DIRECT 走 `ObsShareUrlSigner` 预签名下载，取到物理文件交 `SidecarStreamDocumentAdapter.convertDocument`（分派模式复用 ProjectDocumentDownloadService，research.md R1）
+- [X] T020 [US1] 删除同文件中 `tryResolveLocalPath` 降级判断与 `buildFallbackDocumentText` 元数据拼接路径（spec §4 第一步禁止项）
+- [X] T021 [US1] `BidQualityCheckTaskAppService.triggerQualityCheck`（backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckTaskAppService.java）新增同步前置校验：项目无 BID 类 ProjectDocument 或文件不可解析 → 抛业务异常返回 4xx"无法执行核查，请先上传投标文件"，不创建任务（contracts/bid-quality-api.md §1）
+- [X] T022 [US1] 前端 src/composables/useQualityCheckDrawer.js 捕获 trigger 4xx → ElMessage 提示且不进入轮询
+- [X] T023 [US1] api-tests/ 新增无文件项目 trigger 4xx 用例（沿用既有 .http 文件组织，api-tests/ai.http §8/§9）
+- [X] T024 [US1] 集成验证：compliance 包 42/43 用例全绿（唯一 error = ComplianceCheckServiceCaseLibraryIntegrationTest，已经干净 origin/main 对照实验确认为既有基线失败）；真实 PDF 端到端走查归入 T051（主工作区 G1）；`mvn test` 全绿后原子提交
 
 **Checkpoint**: G3 通过——无文件不核查；已上传文件的项目核查输入为真实文件解析结果（此时 25 项判定仍是旧规则，允许，US5 才替换）
 
