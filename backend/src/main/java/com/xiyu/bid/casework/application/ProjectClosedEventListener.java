@@ -96,13 +96,15 @@ public class ProjectClosedEventListener {
 
             List<KnowledgeCase> candidates = buildCases(event, scoreItemsForGate, matchedSlices, ctx);
             List<KnowledgeCase> existing = knowledgeCaseRepository.findBySourceProjectId(projectId);
-            java.util.Set<String> existingTitles = existing.stream()
-                    .map(KnowledgeCase::getScoringPointTitle)
+            // 幂等去重按评分项 ID（非标题）：同一项目可存在多个同标题评分项（如 61/62 均叫"投标报价"），
+            // 按标题去重会误跳过合法评分项，唯一键与之一致（uk_source_proj_scoring_point，spec 049 验收发现）。
+            java.util.Set<Long> existingPointIds = existing.stream()
+                    .map(KnowledgeCase::getScoringPointId)
                     .filter(java.util.Objects::nonNull)
                     .collect(java.util.stream.Collectors.toSet());
 
             List<KnowledgeCase> casesToSave = candidates.stream()
-                    .filter(c -> !existingTitles.contains(c.getScoringPointTitle()))
+                    .filter(c -> c.getScoringPointId() == null || !existingPointIds.contains(c.getScoringPointId()))
                     .toList();
 
             if (!casesToSave.isEmpty()) {
@@ -269,6 +271,7 @@ public class ProjectClosedEventListener {
             kCase.setSourceProjectId(projectId);
             kCase.setSourceProjectName(event.getProjectName());
             kCase.setScoringPointTitle(scoreItem.title());
+            kCase.setScoringPointId(scoreItem.id());
             kCase.setRequirementRaw(scoreItem.ruleText() != null ? scoreItem.ruleText() : "暂无要求");
             kCase.setResponseText(slice.getMatchedSnippet());
             kCase.setReuseCount(0);

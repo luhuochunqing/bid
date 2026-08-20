@@ -39,6 +39,7 @@ class ScoreItemCaseMatchPolicyTest {
         @Override public Long getSourceProjectId() { return 100L; }
         @Override public String getSourceProjectName() { return "TestProject"; }
         @Override public String getScoringPointTitle() { return scoringPointTitle; }
+        @Override public Long getScoringPointId() { return id; }
         @Override public String getScoringCategory() { return scoringCategory; }
         @Override public String getRequirementRaw() { return requirementRaw; }
         @Override public String getResponseText() { return responseText; }

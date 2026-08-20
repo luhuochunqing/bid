@@ -350,6 +350,7 @@ class ProjectClosedEventListenerTest {
         existing.setId(50L);
         existing.setSourceProjectId(1L);
         existing.setScoringPointTitle("技术方案");
+        existing.setScoringPointId(101L); // 与候选评分项 101 一致 → 按评分项 ID 去重跳过
         when(knowledgeCaseRepository.findBySourceProjectId(1L)).thenReturn(List.of(existing));
 
         listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
@@ -357,6 +358,41 @@ class ProjectClosedEventListenerTest {
         // 已经存在，不应该调用 saveAll
         verify(knowledgeCaseRepository, never()).saveAll(any());
         verify(notifier, times(1)).notifySuccess(org.mockito.ArgumentMatchers.eq(1L), any(), org.mockito.ArgumentMatchers.eq(0), anyLong(), any(), any());
+    }
+
+    @Test
+    @DisplayName("同标题多评分项（如 61/62 均叫'投标报价'）— 按评分项 ID 去重，全部传入 saveAll 不误删（spec 049 唯一键回归）")
+    void sameTitleMultipleScoreItems_allPersisted() {
+        ProjectArchive archive = new ProjectArchive();
+        archive.setId(99L);
+        when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
+        when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(bidFile(1L, 99L)));
+        when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
+                .thenReturn(List.of(
+                        scoreItem(101L, "投标报价", "要求提供设备报价明细"),
+                        scoreItem(102L, "投标报价", "要求提供服务报价明细")));
+        when(docTextExtractor.extract(any(), any(), any()))
+                .thenReturn(new ExtractedDocument("## 标书正文", 5, "text/markdown", "bid.pdf", java.util.Map.of()));
+        CaseAiMatcher.AiMatchedSlice s1 = new CaseAiMatcher.AiMatchedSlice();
+        s1.setDraftId(101L);
+        s1.setMatchedSnippet("设备报价已提供");
+        CaseAiMatcher.AiMatchedSlice s2 = new CaseAiMatcher.AiMatchedSlice();
+        s2.setDraftId(102L);
+        s2.setMatchedSnippet("服务报价已提供");
+        when(caseAiMatcher.extractSlicesWithAi(any(), any()))
+                .thenReturn(List.of(s1, s2));
+        // 无既有记录
+        when(knowledgeCaseRepository.findBySourceProjectId(1L)).thenReturn(List.of());
+
+        listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
+
+        ArgumentCaptor<List<KnowledgeCase>> captor = ArgumentCaptor.forClass(List.class);
+        verify(knowledgeCaseRepository, times(1)).saveAll(captor.capture());
+        assertThat(captor.getValue()).hasSize(2);
+        // 两条同标题记录必须携带各自的评分项 ID，供唯一键 (source_project_id, scoring_point_id) 区分
+        assertThat(captor.getValue()).extracting(KnowledgeCase::getScoringPointId).containsExactly(101L, 102L);
+        assertThat(captor.getValue()).extracting(KnowledgeCase::getScoringPointTitle).containsOnly("投标报价");
+        verify(notifier, times(1)).notifySuccess(org.mockito.ArgumentMatchers.eq(1L), any(), org.mockito.ArgumentMatchers.eq(2), anyLong(), any(), any());
     }
 
     @Test

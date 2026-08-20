@@ -29,6 +29,9 @@ public class KnowledgeCase implements KnowledgeCaseReadModel {
     @Column(name = "scoring_point_title", nullable = false)
     private String scoringPointTitle;
 
+    @Column(name = "scoring_point_id")
+    private Long scoringPointId;
+
     @Column(name = "requirement_raw", nullable = false, columnDefinition = "TEXT")
     private String requirementRaw;
 
