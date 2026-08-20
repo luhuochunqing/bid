@@ -1,18 +1,28 @@
 package com.xiyu.bid.casework.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.ai.client.AiProviderRuntimeConfig;
 import com.xiyu.bid.ai.client.RoutingAiProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -124,6 +134,136 @@ class CaseAiMatcherTest {
     @DisplayName("extractCategory 智能打标 — null 安全返回'其他'")
     void extractCategory_null() {
         assertThat(caseAiMatcher.extractCategory(null)).isEqualTo("其他");
+    }
+
+    @Test
+    @DisplayName("prompt 只含相关摘录不含全文 — 摘录化防上下文超限")
+    void prompt_containsExcerptOnly_notFullMarkdown() {
+        when(routingAiProvider.resolveActiveConfig()).thenReturn(config());
+        when(restTemplate.exchange(eq(BASE_URL), eq(HttpMethod.POST), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>("{\"matchedSnippet\": \"本系统采用微服务架构\", \"confidence\": 0.9}", HttpStatus.OK));
+
+        ScoreItemSnapshot tech = snapshot(101L, "技术方案", "要求提供技术架构图", "技术方案");
+        List<CaseAiMatcher.AiMatchedSlice> slices = caseAiMatcher.extractSlicesWithAi(buildBigMarkdown(), List.of(tech));
+
+        assertThat(slices).hasSize(1);
+        assertThat(slices.get(0).getDraftId()).isEqualTo(101L);
+        assertThat(slices.get(0).getMatchedSnippet()).isEqualTo("本系统采用微服务架构");
+
+        // 校验实际发出的 prompt：只含关键词命中的相关摘录，机密段落（全文非相关区）不得进入提示词
+        ArgumentCaptor<HttpEntity> entityCaptor = ArgumentCaptor.forClass(HttpEntity.class);
+        verify(restTemplate).exchange(eq(BASE_URL), eq(HttpMethod.POST), entityCaptor.capture(), eq(String.class));
+        Map<String, Object> body = (Map<String, Object>) entityCaptor.getValue().getBody();
+        List<Map<String, String>> messages = (List<Map<String, String>>) body.get("messages");
+        String userPrompt = messages.get(1).get("content");
+        assertThat(userPrompt).contains("本系统采用微服务架构");
+        assertThat(userPrompt).doesNotContain("机密内部价格底线");
+    }
+
+    @Test
+    @DisplayName("调用次数=评分项数 — 逐项单条 prompt")
+    void oneCallPerCriterion() {
+        when(routingAiProvider.resolveActiveConfig()).thenReturn(config());
+        when(restTemplate.exchange(eq(BASE_URL), eq(HttpMethod.POST), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>("{\"matchedSnippet\": \"证据片段\", \"confidence\": 0.85}", HttpStatus.OK));
+
+        ScoreItemSnapshot tech = snapshot(101L, "技术方案", "要求提供技术架构图", "技术方案");
+        ScoreItemSnapshot biz = snapshot(102L, "商务条款", "要求提供报价明细", "商务条款");
+        List<CaseAiMatcher.AiMatchedSlice> slices =
+                caseAiMatcher.extractSlicesWithAi(buildBigMarkdown(), List.of(tech, biz));
+
+        assertThat(slices).hasSize(2);
+        assertThat(slices).extracting(CaseAiMatcher.AiMatchedSlice::getDraftId).containsExactly(101L, 102L);
+        verify(restTemplate, times(2)).exchange(eq(BASE_URL), eq(HttpMethod.POST), any(), eq(String.class));
+    }
+
+    @Test
+    @DisplayName("大模型返回非合法 JSON — 该评分项降级跳过不抛错，不伪造")
+    void malformedJson_skipsItemGracefully() {
+        when(routingAiProvider.resolveActiveConfig()).thenReturn(config());
+        when(restTemplate.exchange(eq(BASE_URL), eq(HttpMethod.POST), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>("抱歉我无法处理这段请求", HttpStatus.OK));
+
+        ScoreItemSnapshot tech = snapshot(101L, "技术方案", "要求提供技术架构图", "技术方案");
+        List<CaseAiMatcher.AiMatchedSlice> slices = caseAiMatcher.extractSlicesWithAi(buildBigMarkdown(), List.of(tech));
+
+        assertThat(slices).isEmpty();
+        verify(restTemplate, times(1)).exchange(eq(BASE_URL), eq(HttpMethod.POST), any(), eq(String.class));
+    }
+
+    @Test
+    @DisplayName("无可用摘录（空标书）— 诚实跳过，不调 LLM、不伪造片段")
+    void blankMarkdown_skipsWithoutLlmCall() {
+        when(routingAiProvider.resolveActiveConfig()).thenReturn(config());
+
+        ScoreItemSnapshot tech = snapshot(101L, "技术方案", "要求提供技术架构图", "技术方案");
+        List<CaseAiMatcher.AiMatchedSlice> slices = caseAiMatcher.extractSlicesWithAi("", List.of(tech));
+
+        assertThat(slices).isEmpty();
+        verify(restTemplate, never()).exchange(anyString(), any(), any(), any(Class.class));
+    }
+
+    @Test
+    @DisplayName("LLM 判定无证据（空 matchedSnippet）— 诚实降级不伪造入库")
+    void emptySnippet_honestSkip() {
+        when(routingAiProvider.resolveActiveConfig()).thenReturn(config());
+        when(restTemplate.exchange(eq(BASE_URL), eq(HttpMethod.POST), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>("{\"matchedSnippet\": \"\", \"confidence\": 0.0}", HttpStatus.OK));
+
+        ScoreItemSnapshot tech = snapshot(101L, "技术方案", "要求提供技术架构图", "技术方案");
+        List<CaseAiMatcher.AiMatchedSlice> slices = caseAiMatcher.extractSlicesWithAi(buildBigMarkdown(), List.of(tech));
+
+        assertThat(slices).isEmpty();
+    }
+
+    @Test
+    @DisplayName("大模型真实调用失败（上游 5xx）— 抛 IllegalStateException 供 Listener 发失败通知")
+    void realCallFailure_throwsForListener() {
+        when(routingAiProvider.resolveActiveConfig()).thenReturn(config());
+        when(restTemplate.exchange(eq(BASE_URL), eq(HttpMethod.POST), any(), eq(String.class)))
+                .thenThrow(new HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR, "upstream 500"));
+
+        ScoreItemSnapshot tech = snapshot(101L, "技术方案", "要求提供技术架构图", "技术方案");
+        assertThatThrownBy(() -> caseAiMatcher.extractSlicesWithAi(buildBigMarkdown(), List.of(tech)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("大模型调用失败");
+    }
+
+    @Test
+    @DisplayName("兼容大模型返回单元素数组形态 — 归一化为单条对象解析")
+    void arrayResponse_normalizedToSingleSlice() {
+        when(routingAiProvider.resolveActiveConfig()).thenReturn(config());
+        when(restTemplate.exchange(eq(BASE_URL), eq(HttpMethod.POST), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>("[{\"matchedSnippet\": \"微服务架构支撑\", \"confidence\": 0.9}]", HttpStatus.OK));
+
+        ScoreItemSnapshot tech = snapshot(101L, "技术方案", "要求提供技术架构图", "技术方案");
+        List<CaseAiMatcher.AiMatchedSlice> slices = caseAiMatcher.extractSlicesWithAi(buildBigMarkdown(), List.of(tech));
+
+        assertThat(slices).hasSize(1);
+        assertThat(slices.get(0).getMatchedSnippet()).isEqualTo("微服务架构支撑");
+    }
+
+    private static final String BASE_URL = "https://ai.example.com/v1/chat/completions";
+
+    private AiProviderRuntimeConfig config() {
+        return new AiProviderRuntimeConfig("qwen", BASE_URL, "qwen-max", "test-key");
+    }
+
+    /**
+     * 构造 >12K 字符的假标书：填充段落撑大体量（触发摘录化路径），
+     * 段落 25 含关键词"技术方案"（命中），段落 5 为机密段落（不应进 prompt）。
+     */
+    private String buildBigMarkdown() {
+        String filler = "这是与评分无关的填充段落，仅用于撑大全文长度避免整段原文直接透传。".repeat(120);
+        String secret = "机密内部价格底线不应泄露给大模型" + filler;
+        String hit = "技术方案 本系统采用微服务架构，支持高并发，满足性能要求。" + filler;
+        List<String> paras = new ArrayList<>();
+        for (int i = 0; i < 40; i++) {
+            paras.add(filler + "段落序号" + i);
+        }
+        paras.set(5, secret);
+        paras.set(25, hit);
+        return String.join("\n\n", paras);
     }
 
     private ScoreItemSnapshot snapshot(Long id, String title, String rule, String category) {
