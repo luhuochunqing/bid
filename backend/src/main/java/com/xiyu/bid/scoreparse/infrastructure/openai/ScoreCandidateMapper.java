@@ -50,7 +50,9 @@ final class ScoreCandidateMapper {
      * 命中则回填为原文精确片段（逐字一致，消除模型复述时的空白/断词漂移）；
      * detail 对齐成功时 sourceText 取同一片段，保证 sourceText 包含 detail
      * （原文背书关系，供 {@code ScoreItemMergePolicy} 识别更完整版本）。
-     * detail 对齐失败（模型概括改写）记 WARN 保留 LLM 输出（可观测降级）。
+     * detail 对齐失败（模型概括改写）记 WARN 保留 LLM 输出（可观测降级），
+     * <b>sourceText 置空</b>——LLM 复述的 sourceText 自包含 detail 会让
+     * 背书判据对幻觉文本天然成立（伪背书），source_text 只允许携带原文验证过的内容。
      *
      * @param sourceText 候选来源原文（chunk 文本 / 回补节选），可为 null（降级为纯 LLM 输出）
      */
@@ -75,7 +77,7 @@ final class ScoreCandidateMapper {
                 candidate.weight == null ? null : java.math.BigDecimal.valueOf(candidate.weight),
                 safeText(candidate.scoreTypeGuess),
                 safeText(candidate.contextNote),
-                alignedSource != null ? alignedSource : llmSource,
+                alignedSource != null ? alignedSource : "",
                 safeText(candidate.location),
                 safeText(candidate.semanticPattern)
         );

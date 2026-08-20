@@ -46,9 +46,10 @@ class ScoreCandidateMapperTest {
         String paraphrased = "提供类似项目业绩，每个2分";
         ScoreCandidate mapped = ScoreCandidateMapper.fromLlmCandidate(
                 llmCandidate("技术方案", paraphrased, paraphrased), chunk);
-        // 概括改写无法对齐 → 保留 LLM 输出；detail 非 sourceText 子串关系不再被强化
+        // 概括改写无法对齐 → detail 保留 LLM 输出；sourceText 置空——LLM 复述自包含 detail
+        // 会绕过 MergePolicy 背书判据（伪背书），source_text 只允许携带原文验证过的内容
         assertThat(mapped.detail()).isEqualTo(paraphrased);
-        assertThat(mapped.sourceText()).isEqualTo(paraphrased);
+        assertThat(mapped.sourceText()).isEmpty();
     }
 
     @Test
@@ -56,6 +57,6 @@ class ScoreCandidateMapperTest {
         ScoreCandidate mapped = ScoreCandidateMapper.fromLlmCandidate(
                 llmCandidate("商务部分", "商务响应偏离情况", "商务响应偏离情况"), null);
         assertThat(mapped.detail()).isEqualTo("商务响应偏离情况");
-        assertThat(mapped.sourceText()).isEqualTo("商务响应偏离情况");
+        assertThat(mapped.sourceText()).isEmpty();
     }
 }

@@ -133,7 +133,7 @@ trigger（同步<1s，互斥校验+建任务）
   3. `ScoreItemMergePolicy.enrich` detail 首次出现优先 + 正则召回先入池 → 残缺短语版挤掉 LLM 完整版。
   治理三件套（domain 纯核心，TDD 全覆盖）：
   - `ScoreOriginalTextAligner.align(original, llmText)`：LLM 文本按 Unicode 空白拆段 → 每段 `Pattern.quote` → 段间空白弹性（零或多，兼容中文无空格+模型断词加空格）正则在原文定位；命中返回**原文精确片段**（逐字保留原文空白/换行/标点），未命中返回 null（调用方降级保留 LLM 输出）。
-  - `ScoreCandidateMapper.fromLlmCandidate(candidate, sourceText)` 签名加来源原文参数（召回四传 sanitize 后 chunk 文本、回补传节选）：detail/dim/sourceText 依次对齐回填；detail 命中时 sourceText=detail（原文背书包含关系）。
+  - `ScoreCandidateMapper.fromLlmCandidate(candidate, sourceText)` 签名加来源原文参数（召回四传 sanitize 后 chunk 文本、回补传节选）：detail/dim/sourceText 依次对齐回填；detail 命中时 sourceText=detail（原文背书包含关系）；**对齐失败时 sourceText 置空**（google-code-review 阻塞项修复）——LLM 复述的 sourceText 自包含 detail 会让背书判据对幻觉文本天然成立（伪背书），source_text 列只允许携带原文验证过的内容，防幻觉闭环。
   - `ScoreItemMergePolicy.enrich`：later.detail 有原文背书（`sourceText.contains(detail)`）且比 base 更长 → 覆盖首次版本（跨行条款取完整原文）；无背书即使更长也不覆盖（防 LLM 幻觉长文本污染）。同编号不同名称（两路 dim 表述不一致，如正则"技术部分" vs LLM"技术方案"）时以"base.detail 是 later.detail 的归一化子串"判同项补强，互不为子串的真不同项撞编号维持丢弃（review P1 修复，防误并子串判据）。
   - 可观测性：Mapper 对 detail 对齐失败记 WARN（含 code/dim/detail 头部 60 字）；召回四完成日志带 `aligned=N/M` 对齐率（判据：detail 为 chunk 原文精确子串）。对齐率低 = 模型概括改写多，重新解析前先换模型对照（同 §7 空候选事故排查思路）。
   副作用：前端零改动（detail 落库已保真）；**存量 score_item 数据不回溯，需重新解析才生效**；dim 对齐失败（LLM 归纳的维度名）保留 LLM 输出属预期。

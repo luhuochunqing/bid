@@ -51,6 +51,20 @@ class ScoreItemMergePolicyTest {
     }
 
     @Test
+    void merge_emptySourceBacking_keepsFirstDetail() {
+        // 对齐失败候选的 sourceText 为空（Mapper 置空防自包含伪背书）：
+        // 无背书不覆盖——幻觉长文本即使 detail 自述完整也不得挤掉正则残缺版
+        ScoreCandidate regexLane = new ScoreCandidate("A1", "技术方案", "方案完整性 10 分",
+                new BigDecimal("10"), null, null, "方案完整性 10 分", "P47", null);
+        ScoreCandidate hallucinated = new ScoreCandidate("A1", "技术方案",
+                "幻觉长文本：模型编造的完整条款表述，远长于正则召回的残缺行内片段。",
+                new BigDecimal("10"), null, null, "", "P47", null);
+        List<ScoreCandidate> merged = policy.merge(List.of(regexLane, hallucinated));
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).detail()).isEqualTo("方案完整性 10 分");
+    }
+
+    @Test
     void merge_sameCodeDifferentDim_backedSupersetDetail_stillEnriched() {
         // 两路召回 dim 表述不一致（正则"技术部分" vs LLM"技术方案"），但正则残缺 detail
         // 是 LLM 对齐版 detail 的子串：判定同一项，补强 detail，dim 保留首次出现
