@@ -107,10 +107,9 @@ public class ComplianceTargetLoader {
             return DocumentContent.fromText(fileName, hash, fallbackText);
         }
 
-        // 若无上传文档记录，降级使用项目描述文本
-        String fallbackText = loadProjectDocumentContent(projectId);
-        String hash = SidecarStreamDocumentAdapter.computeStringSha256(fallbackText);
-        return DocumentContent.fromText(project.getName() != null ? project.getName() : "project_bid.pdf", hash, fallbackText);
+        // 无上传文档记录：返回空文档（禁止降级为项目描述元数据，spec 049 第一步）
+        log.warn("项目 {} 无投标文件，返回空文档内容", projectId);
+        return DocumentContent.empty();
     }
 
     /**
@@ -121,24 +120,6 @@ public class ComplianceTargetLoader {
         String tenderText = loadProjectTenderText(projectId);
         String hash = SidecarStreamDocumentAdapter.computeStringSha256(tenderText);
         return DocumentContent.fromText("tender_document.pdf", hash, tenderText);
-    }
-
-    /**
-     * 加载项目关联的标书文档文本内容（向后兼容）.
-     *
-     * @param projectId 项目ID
-     * @return 文档文本内容
-     */
-    public String loadProjectDocumentContent(final Long projectId) {
-        Project project = requireProject(projectId);
-        StringBuilder content = new StringBuilder();
-        if (project.getName() != null) {
-            content.append("项目名称：").append(project.getName()).append("\n");
-        }
-        if (project.getDescription() != null) {
-            content.append(project.getDescription()).append("\n");
-        }
-        return content.toString();
     }
 
     /**

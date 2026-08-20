@@ -1,6 +1,5 @@
 package com.xiyu.bid.compliance.controller;
 
-import com.xiyu.bid.compliance.application.BidDocumentQualityCheckAppService;
 import com.xiyu.bid.compliance.application.BidQualityCheckTaskAppService;
 import com.xiyu.bid.compliance.dto.QualityCheckReportDTO;
 import com.xiyu.bid.compliance.dto.QualityCheckTaskDTO;
@@ -28,9 +27,6 @@ class ComplianceControllerTest {
     private ComplianceCheckService complianceCheckService;
 
     @Mock
-    private BidDocumentQualityCheckAppService bidDocumentQualityCheckAppService;
-
-    @Mock
     private BidQualityCheckTaskAppService qualityCheckTaskAppService;
 
     private ComplianceController controller;
@@ -39,7 +35,6 @@ class ComplianceControllerTest {
     void setUp() {
         controller = new ComplianceController(
                 complianceCheckService,
-                bidDocumentQualityCheckAppService,
                 qualityCheckTaskAppService);
     }
 

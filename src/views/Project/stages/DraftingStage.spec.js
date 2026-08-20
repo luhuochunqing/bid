@@ -66,8 +66,6 @@ vi.mock('@/composables/projectDetail/context.js', () => ({
     project: { value: { managerId: 1, teamMembers: [2], primaryLeadUserId: 3, secondaryLeadUserId: 4 } },
     userStore: { currentUser: mockCurrentUser },
     bidAgent: {},
-    bidDocQualityResult: { value: null },
-    runBidDocumentQualityCheck: () => {},
   }),
 }))
 
@@ -96,7 +94,6 @@ const stubs = {
   ElCheckbox: { template: '<input type="checkbox" />' },
   AiRecommendDrawer: { template: '<div />' },
   PerformanceRecommendDrawer: { template: '<div />' },
-  QualityCheckDialog: { template: '<div />' },
 }
 
 async function mountDraftingStage(props = {}) {

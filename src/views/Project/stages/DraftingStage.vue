@@ -316,10 +316,6 @@ function handleOpenQualityCheck() {
   qualityCheckRef.value?.open()
 }
 
-watch(() => ctx.bidDocQualityResult?.value, (val) => {
-  if (val?.issues?.length) qualityCheckRef.value?.open()
-}, { deep: true })
-
 function handleGoToScoreParse() {
   emit('go-to-score-parse')
 }

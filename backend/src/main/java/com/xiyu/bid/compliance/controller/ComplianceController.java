@@ -6,7 +6,6 @@
 package com.xiyu.bid.compliance.controller;
 
 import com.xiyu.bid.annotation.Auditable;
-import com.xiyu.bid.compliance.application.BidDocumentQualityCheckAppService;
 import com.xiyu.bid.compliance.application.BidQualityCheckTaskAppService;
 import com.xiyu.bid.compliance.dto.ComplianceCheckResultDTO;
 import com.xiyu.bid.compliance.dto.QualityCheckReportDTO;
@@ -38,7 +37,6 @@ import java.util.List;
 public class ComplianceController {
 
     private final ComplianceCheckService complianceCheckService;
-    private final BidDocumentQualityCheckAppService bidDocumentQualityCheckAppService;
     private final BidQualityCheckTaskAppService qualityCheckTaskAppService;
 
     /**
@@ -156,35 +154,5 @@ public class ComplianceController {
             @PathVariable final Long projectId) {
         QualityCheckReportDTO report = qualityCheckTaskAppService.getLatestQualityReport(projectId);
         return ResponseEntity.ok(ApiResponse.success(report));
-    }
-
-    /**
-     * 标书文档质量核查（向后兼容旧接口）.
-     *
-     * @param projectId 项目ID
-     * @return 质量核查结果
-     */
-    @PostMapping("/bid-document/check/{projectId}")
-    @PreAuthorize("isAuthenticated()")
-    @Auditable(action = "CREATE", entityType = "BidDocumentQualityCheck",
-            description = "Perform bid document quality check")
-    public ResponseEntity<ApiResponse<ComplianceCheckResultDTO>> checkBidDocumentQuality(
-            @PathVariable final Long projectId) {
-        ComplianceCheckResultDTO result = bidDocumentQualityCheckAppService.checkBidDocumentQuality(projectId);
-        return ResponseEntity.ok(ApiResponse.success("Bid document quality check completed", result));
-    }
-
-    /**
-     * 获取项目最新的标书文档质量核查结果（向后兼容旧接口）.
-     *
-     * @param projectId 项目ID
-     * @return 质量核查结果
-     */
-    @GetMapping("/bid-document/results/{projectId}")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<ComplianceCheckResultDTO>> getBidDocumentQualityResult(
-            @PathVariable final Long projectId) {
-        ComplianceCheckResultDTO result = bidDocumentQualityCheckAppService.getLatestQualityCheckResult(projectId);
-        return ResponseEntity.ok(ApiResponse.success(result));
     }
 }

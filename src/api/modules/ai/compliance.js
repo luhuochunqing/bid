@@ -94,23 +94,5 @@ export const complianceApi = {
         message: 'Project ID must be numeric in API mode' }))
     }
     return httpClient.get(`/api/compliance/bid-quality/report/${projectId}`)
-  },
-
-  async checkBidDocumentQuality(projectId) {
-    if (!isNumericId(projectId)) {
-      return Promise.resolve(buildFeatureUnavailableResponse('bid-document-quality-check', {
-        message: 'Project ID must be numeric in API mode' }))
-    }
-    const response = await httpClient.post(`/api/compliance/bid-document/check/${projectId}`)
-    return { ...response, data: response?.data ? normalizeComplianceResult(response.data) : null }
-  },
-
-  async getBidDocumentQualityResult(projectId) {
-    if (!isNumericId(projectId)) {
-      return Promise.resolve(buildFeatureUnavailableResponse('bid-document-quality-check', {
-        message: 'Project ID must be numeric in API mode' }))
-    }
-    const response = await httpClient.get(`/api/compliance/bid-document/results/${projectId}`)
-    return { ...response, data: response?.data ? normalizeComplianceResult(response.data) : null }
   }
 }
