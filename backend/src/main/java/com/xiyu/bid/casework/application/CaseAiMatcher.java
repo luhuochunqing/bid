@@ -162,7 +162,8 @@ public class CaseAiMatcher {
             return null;
         }
         if (slice.getMatchedSnippet() == null || slice.getMatchedSnippet().isBlank()) {
-            log.info("AI 案例匹配：评分项 {}（{}）无匹配证据，诚实降级不伪造", criterion.id(), criterion.title());
+            log.info("AI 案例匹配：评分项 {}（{}）无匹配证据，诚实降级不伪造。原始返回(前300): {}",
+                    criterion.id(), criterion.title(), truncateForLog(node.toString(), 300));
             return null;
         }
         log.info("AI 案例匹配：评分项 {}（{}）命中，confidence={}, snippet 长度 {}",
