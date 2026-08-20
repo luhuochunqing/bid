@@ -341,3 +341,10 @@
 - 根因：归一化逻辑只存在于 M2 计算服务私有方法，M1 趋势新链路漏接——分组原值透传 + 筛选 `coalesce(...) IN` 对英文枚举行不命中；双源字段写入形态不一致（立项详情存枚举名、主表存中文文本）
 - 更新 [[data-analysis-revamp]]：追加「2026-08-20 客户类型分组/筛选/下钻归一化口径统一」小节（CustomerTypeNormalizer 纯函数 + AnalyticsCustomerTypeFilterSupport ID 集过滤 + 前端状态映射/饼图标签）；关键陷阱新增 §12（双源字段消费前必须先归一化）
 - 关联：`docs/lessons/lessons-learned.md §134`；回归 AnalyticsCustomerTypeJpqlRegressionTest（英文枚举分组/筛选/下钻）+ CustomerTypeNormalizerTest 6 例，后端 65 例 + 前端 vitest 4 例全绿
+
+## [2026-08-20] bugfix | spec 049 案例沉淀超大标书攻坚完成（choices 包装解析 + 唯一键粒度）回填
+- 触发：测试环境项目 1350（401MB）沉淀验收，SC-001 未达成——摘录质量良好却 8 评分项全判"无证据"、0 条入库且发成功通知
+- 根因 1：CaseAiMatcher 自研 extractJson 取首{末}，把网关 OpenAI choices 包装当目标 JSON，matchedSnippet 取不到（字段名其实正确）；修复 unpackContent 解 choices[0].message.content，与 AiResponseParser 正规链路对齐
+- 根因 2：评分项 61/62 标题同为"投标报价"，唯一键 (project_id, title) 同批自撞整批回滚；DataIntegrityViolationException 被吞成"幂等成功"；修复 V1199 加 scoring_point_id 列，唯一键改 (project_id, scoring_point_id)，幂等去重按评分项 ID
+- 更新 [[case-precipitation-streaming]]：新页（完整链路 + 三坑 + SC 验收表 + 部署时序陷阱）；关联 [[case-precipitation-oversize-oom]] 前身
+- 关联：`docs/lessons/lessons-learned.md §136/§137/§138`；回归 CaseAiMatcherTest 28 + ProjectClosedEventListenerTest 15 + 相关 policy 测试，本任务相关 51 全绿（4 个 archive 集成测试 403 为基线环境问题，stash 验证确认非本次引入）
