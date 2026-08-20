@@ -8,10 +8,15 @@ import com.xiyu.bid.biddraftagent.domain.ScoringCriterion;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreOriginalTextAligner;
 import com.xiyu.bid.scoreparse.infrastructure.structure.MarkdownScoreSectionLocator;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 
-/** 召回候选映射：外部提取器/LLM 输出 → {@link ScoreCandidate} 域对象（纯函数，无状态）。 */
+/**
+ * 召回候选映射：外部提取器/LLM 输出 → {@link ScoreCandidate} 域对象。
+ * 无业务状态；仅观测日志（对齐失败 WARN），不改变映射行为。
+ */
+@Slf4j
 final class ScoreCandidateMapper {
 
     private static final int SOURCE_TEXT_MAX_CHARS = 500;
@@ -45,38 +50,43 @@ final class ScoreCandidateMapper {
      * 命中则回填为原文精确片段（逐字一致，消除模型复述时的空白/断词漂移）；
      * detail 对齐成功时 sourceText 取同一片段，保证 sourceText 包含 detail
      * （原文背书关系，供 {@code ScoreItemMergePolicy} 识别更完整版本）。
+     * detail 对齐失败（模型概括改写）记 WARN 保留 LLM 输出（可观测降级）。
      *
      * @param sourceText 候选来源原文（chunk 文本 / 回补节选），可为 null（降级为纯 LLM 输出）
      */
     static ScoreCandidate fromLlmCandidate(ScoreCandidateOutput.Candidate candidate, String sourceText) {
         String original = sourceText == null ? "" : sourceText;
+        String llmDim = safeText(candidate.dim);
         String llmDetail = candidate.detail == null ? "" : candidate.detail.trim();
         String llmSource = truncate(safeText(candidate.sourceText));
 
         String alignedDetail = ScoreOriginalTextAligner.align(original, llmDetail);
-        String detail = alignedDetail != null ? alignedDetail : llmDetail;
+        String alignedDim = ScoreOriginalTextAligner.align(original, llmDim);
         String alignedSource = alignedDetail != null ? alignedDetail
-                : alignOrKeep(original, llmSource);
+                : ScoreOriginalTextAligner.align(original, llmSource);
+        if (alignedDetail == null && !original.isBlank()) {
+            log.warn("评分候选 detail 原文对齐失败（保留 LLM 输出）: code={}, dim={}, detail={}",
+                    safeText(candidate.code), llmDim, head(llmDetail));
+        }
         return new ScoreCandidate(
                 safeText(candidate.code),
-                alignOrKeep(original, safeText(candidate.dim)),
-                detail,
+                alignedDim != null ? alignedDim : llmDim,
+                alignedDetail != null ? alignedDetail : llmDetail,
                 candidate.weight == null ? null : java.math.BigDecimal.valueOf(candidate.weight),
                 safeText(candidate.scoreTypeGuess),
                 safeText(candidate.contextNote),
-                alignedSource,
+                alignedSource != null ? alignedSource : llmSource,
                 safeText(candidate.location),
                 safeText(candidate.semanticPattern)
         );
     }
 
-    /** 对齐命中返回原文片段，未命中保留 LLM 输出。 */
-    private static String alignOrKeep(String original, String llmText) {
-        if (llmText == null || llmText.isEmpty()) {
+    /** 日志用 detail 头部截断（60 字符）。 */
+    private static String head(String text) {
+        if (text == null) {
             return "";
         }
-        String aligned = ScoreOriginalTextAligner.align(original, llmText);
-        return aligned != null ? aligned : llmText;
+        return text.length() <= 60 ? text : text.substring(0, 60) + "…";
     }
 
     /** 已提取项摘要（完整性回补 prompt 输入，FR-005） */

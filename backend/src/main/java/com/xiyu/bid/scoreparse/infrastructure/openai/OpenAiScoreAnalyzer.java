@@ -131,6 +131,7 @@ public class OpenAiScoreAnalyzer {
         OpenAiBidAgentRequestConfig config = configurationResolver.resolve(USE_CASE);
         int llmProgressSpan = 60; // 15% → 75%
         int skipped = 0;
+        int alignedCount = 0;
         for (int i = 0; i < chunks.size(); i++) {
             DocumentChunk chunk = chunks.get(i);
             String chunkText = TenderIntakeTextProcessor.sanitizeUntrusted(chunk.text());
@@ -141,17 +142,29 @@ public class OpenAiScoreAnalyzer {
                 skipped++;
                 log.warn("评分候选 LLM 提取两连败 chunk {}/{} — 跳过该 chunk", i + 1, chunks.size());
             } else if (output.candidates != null) {
-                output.candidates.stream()
+                List<ScoreCandidate> chunkCandidates = output.candidates.stream()
                         .filter(candidate -> candidate != null && candidate.detail != null)
                         .map(candidate -> ScoreCandidateMapper.fromLlmCandidate(candidate, chunkText))
-                        .forEach(candidates::add);
+                        .toList();
+                alignedCount += countAligned(chunkCandidates, chunkText);
+                candidates.addAll(chunkCandidates);
             }
             report(progress, 15 + llmProgressSpan * (i + 1) / chunks.size(),
                     "召回三/四：LLM 语义提取 " + (i + 1) + "/" + chunks.size());
         }
-        log.info("召回四（LLM 全文语义）完成: chunks={}, count={}, skipped={}",
-                chunks.size(), candidates.size(), skipped);
+        log.info("召回四（LLM 全文语义）完成: chunks={}, count={}, skipped={}, aligned={}/{}",
+                chunks.size(), candidates.size(), skipped, alignedCount, candidates.size());
         return new RecallOutcome(candidates, skipped);
+    }
+
+    /**
+     * 对齐成功数统计：detail 为 chunk 原文的精确子串（对齐回填后必成立；
+     * LLM 原样输出因空白漂移通常不成立），供解析质量可观测。
+     */
+    private static int countAligned(List<ScoreCandidate> chunkCandidates, String chunkText) {
+        return (int) chunkCandidates.stream()
+                .filter(candidate -> chunkText.contains(candidate.detail()))
+                .count();
     }
 
     /** 候选提取调用：RuntimeException 重试恰好 1 次，两连败返回 null（调用方记跳过）。 */

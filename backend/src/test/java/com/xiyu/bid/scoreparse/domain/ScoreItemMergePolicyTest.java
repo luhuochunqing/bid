@@ -51,6 +51,35 @@ class ScoreItemMergePolicyTest {
     }
 
     @Test
+    void merge_sameCodeDifferentDim_backedSupersetDetail_stillEnriched() {
+        // 两路召回 dim 表述不一致（正则"技术部分" vs LLM"技术方案"），但正则残缺 detail
+        // 是 LLM 对齐版 detail 的子串：判定同一项，补强 detail，dim 保留首次出现
+        ScoreCandidate regexLane = new ScoreCandidate("A1", "技术部分", "方案完整性",
+                new BigDecimal("10"), null, null, "方案完整性", "P47", null);
+        String fullDetail = "技术方案要求：方案完整性、方案先进性与合理性，并提供实施组织安排。";
+        ScoreCandidate llmLane = new ScoreCandidate("A1", "技术方案", fullDetail,
+                new BigDecimal("10"), null, null, fullDetail, "P47 评分表", "GRADE_TO_SCORE");
+        List<ScoreCandidate> merged = policy.merge(List.of(regexLane, llmLane));
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).detail()).isEqualTo(fullDetail);
+        assertThat(merged.get(0).dim()).isEqualTo("技术部分");
+    }
+
+    @Test
+    void merge_sameCodeDifferentDim_disjointDetail_keepsFirstOccurrence() {
+        // 真不同项撞编号：两段 detail 互不为子串，即使 later 有背书且更长也不并（防误吞）
+        ScoreCandidate first = new ScoreCandidate("B2", "项目管理机构", "项目经理具备 PMP 证书 5 分",
+                new BigDecimal("5"), null, null, "项目经理具备 PMP 证书 5 分", "P52", null);
+        String other = "售后服务方案完善、响应机制健全，提供 7×24 小时驻场支持服务安排的得 3 分。";
+        ScoreCandidate second = new ScoreCandidate("B2", "售后服务", other,
+                new BigDecimal("3"), null, null, other, "P53", null);
+        List<ScoreCandidate> merged = policy.merge(List.of(first, second));
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).dim()).isEqualTo("项目管理机构");
+        assertThat(merged.get(0).detail()).isEqualTo("项目经理具备 PMP 证书 5 分");
+    }
+
+    @Test
     void merge_duplicateCodeAndDim_keepsOne() {
         List<ScoreCandidate> merged = policy.merge(List.of(
                 candidate("A1", "技术方案", "方案完整性 10 分", "10"),
@@ -58,6 +87,8 @@ class ScoreItemMergePolicyTest {
         ));
         assertThat(merged).hasSize(1);
         assertThat(merged.get(0).code()).isEqualTo("A1");
+        // 行为锚定（2026-08-20 背书覆盖规则）：重复召回取有原文背书的更完整版，非首次版
+        assertThat(merged.get(0).detail()).isEqualTo("方案完整性 10 分（重复召回）");
     }
 
     @Test
