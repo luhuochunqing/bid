@@ -360,3 +360,9 @@
 - 根因 2：评分项 61/62 标题同为"投标报价"，唯一键 (project_id, title) 同批自撞整批回滚；DataIntegrityViolationException 被吞成"幂等成功"；修复 V1199 加 scoring_point_id 列，唯一键改 (project_id, scoring_point_id)，幂等去重按评分项 ID
 - 更新 [[case-precipitation-streaming]]：新页（完整链路 + 三坑 + SC 验收表 + 部署时序陷阱）；关联 [[case-precipitation-oversize-oom]] 前身
 - 关联：`docs/lessons/lessons-learned.md §136/§137/§138`；回归 CaseAiMatcherTest 28 + ProjectClosedEventListenerTest 15 + 相关 policy 测试，本任务相关 51 全绿（4 个 archive 集成测试 403 为基线环境问题，stash 验证确认非本次引入）
+## [2026-08-20] feature | spec 049 标书质量核查实质化（T001-T055 完成）回填
+- 触发：质量核查从"固定文案证据 + page=1"实质化为全真实链路（分支 `agent/qoder/bid-quality-realization`，commits b492c41ca..1bf99ab23）
+- 架构：五步真实数据流（投标文件/招标要求 LLM 提取/四知识库/真实页码定位/混合裁决）；确定性 18 项 + 语义规则 lane + LLM 裁决 lane（只做裁决层不做全量直出）
+- FP-Java 失败传导：通道失败在边界吸收为 `LlmVerdict.ChatOutcome` sealed 四值（Success/Invalid/Noop/Failure），纯核心无异常流；reasonCode 五值（PRD §3.5），MANUAL 态 `[CODE] ` 前缀
+- 新陷阱：Java 21 switch 模式匹配编译产物含 `new MatchException` 触发 FP 门禁 → 纯核心用 instanceof 序贯链（lessons §140）；验收失真复盘见 lessons §139
+- 新建 [[bid-quality-check-realization]]；关联 specs/049-bid-quality-check-realization/、docs/lessons/lessons-learned.md §139/§140
