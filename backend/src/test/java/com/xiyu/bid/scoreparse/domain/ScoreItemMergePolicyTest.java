@@ -22,6 +22,35 @@ class ScoreItemMergePolicyTest {
     }
 
     @Test
+    void merge_sourceBackedLongerDetail_replacesTruncatedFirstDetail() {
+        // 正则召回先入（跨行单元格被拆碎的残缺片段），LLM 召回后入（对齐回填的完整原文）：
+        // later 有原文背书（sourceText 包含 detail）且更完整 → 覆盖首次版本
+        ScoreCandidate regexLane = new ScoreCandidate("A1", "技术方案", "方案完整性",
+                new BigDecimal("10"), null, null, "方案完整性", "P47", null);
+        String fullDetail = "技术方案的内容包括：方案完整性、方案先进性与合理性、实施组织方案。";
+        ScoreCandidate llmLane = new ScoreCandidate("A1", "技术方案", fullDetail,
+                new BigDecimal("10"), null, null, fullDetail, "P47 评分表", "GRADE_TO_SCORE");
+        List<ScoreCandidate> merged = policy.merge(List.of(regexLane, llmLane));
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).detail()).isEqualTo(fullDetail);
+        assertThat(merged.get(0).sourceText()).isEqualTo(fullDetail);
+    }
+
+    @Test
+    void merge_unbackedLongerDetail_keepsFirstDetail() {
+        // later 无原文背书（sourceText 不包含 detail，LLM 概括改写）：
+        // 即使更长也不覆盖首次版本，防止幻觉文本污染
+        ScoreCandidate regexLane = new ScoreCandidate("A1", "技术方案", "方案完整性 10 分",
+                new BigDecimal("10"), null, null, "方案完整性 10 分", "P47", null);
+        ScoreCandidate llmLane = new ScoreCandidate("A1", "技术方案",
+                "要求投标人方案完整、先进且合理，同时提供实施组织安排（概括）",
+                new BigDecimal("10"), null, null, "技术方案 完整性 先进性 合理性", "P47", null);
+        List<ScoreCandidate> merged = policy.merge(List.of(regexLane, llmLane));
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).detail()).isEqualTo("方案完整性 10 分");
+    }
+
+    @Test
     void merge_duplicateCodeAndDim_keepsOne() {
         List<ScoreCandidate> merged = policy.merge(List.of(
                 candidate("A1", "技术方案", "方案完整性 10 分", "10"),

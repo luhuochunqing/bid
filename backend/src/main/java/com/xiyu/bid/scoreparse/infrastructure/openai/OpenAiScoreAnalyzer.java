@@ -133,9 +133,9 @@ public class OpenAiScoreAnalyzer {
         int skipped = 0;
         for (int i = 0; i < chunks.size(); i++) {
             DocumentChunk chunk = chunks.get(i);
+            String chunkText = TenderIntakeTextProcessor.sanitizeUntrusted(chunk.text());
             String prompt = ScoreParsePrompts.buildCandidateExtractionPrompt(
-                    TenderIntakeTextProcessor.sanitizeUntrusted(chunk.text()),
-                    i + 1, chunks.size());
+                    chunkText, i + 1, chunks.size());
             ScoreCandidateOutput output = requestCandidatesWithRetry(prompt, config);
             if (output == null) {
                 skipped++;
@@ -143,7 +143,7 @@ public class OpenAiScoreAnalyzer {
             } else if (output.candidates != null) {
                 output.candidates.stream()
                         .filter(candidate -> candidate != null && candidate.detail != null)
-                        .map(ScoreCandidateMapper::fromLlmCandidate)
+                        .map(candidate -> ScoreCandidateMapper.fromLlmCandidate(candidate, chunkText))
                         .forEach(candidates::add);
             }
             report(progress, 15 + llmProgressSpan * (i + 1) / chunks.size(),
@@ -176,8 +176,9 @@ public class OpenAiScoreAnalyzer {
     public List<ScoreCandidate> recheckGaps(
             String fullTextExcerpt, List<ScoreCandidate> knownItems) {
         OpenAiBidAgentRequestConfig config = configurationResolver.resolve(USE_CASE);
+        String sanitizedExcerpt = TenderIntakeTextProcessor.sanitizeUntrusted(fullTextExcerpt);
         String prompt = ScoreParsePrompts.buildGapRecheckPrompt(
-                TenderIntakeTextProcessor.sanitizeUntrusted(fullTextExcerpt),
+                sanitizedExcerpt,
                 ScoreCandidateMapper.summarizeKnownItems(knownItems),
                 "footnotes, table-remarks, cross-page-refs");
         try {
@@ -189,7 +190,7 @@ public class OpenAiScoreAnalyzer {
             }
             return output.missedItems.stream()
                     .filter(candidate -> candidate != null && candidate.detail != null)
-                    .map(ScoreCandidateMapper::fromLlmCandidate)
+                    .map(candidate -> ScoreCandidateMapper.fromLlmCandidate(candidate, sanitizedExcerpt))
                     .toList();
         } catch (RuntimeException exception) {
             log.warn("完整性回补扫描失败（忽略，不阻断主流程）: {}", exception.getMessage());

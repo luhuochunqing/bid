@@ -6,6 +6,7 @@ package com.xiyu.bid.scoreparse.infrastructure.openai;
 
 import com.xiyu.bid.biddraftagent.domain.ScoringCriterion;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
+import com.xiyu.bid.scoreparse.domain.ScoreOriginalTextAligner;
 import com.xiyu.bid.scoreparse.infrastructure.structure.MarkdownScoreSectionLocator;
 
 import java.util.List;
@@ -37,19 +38,45 @@ final class ScoreCandidateMapper {
         );
     }
 
-    /** LLM 召回候选映射（spec 041 FR-001 召回四输出） */
-    static ScoreCandidate fromLlmCandidate(ScoreCandidateOutput.Candidate candidate) {
+    /**
+     * LLM 召回候选映射（spec 041 FR-001 召回四输出）。
+     *
+     * <p>原文保真：detail/dim/sourceText 依次在来源原文上做空白弹性对齐，
+     * 命中则回填为原文精确片段（逐字一致，消除模型复述时的空白/断词漂移）；
+     * detail 对齐成功时 sourceText 取同一片段，保证 sourceText 包含 detail
+     * （原文背书关系，供 {@code ScoreItemMergePolicy} 识别更完整版本）。
+     *
+     * @param sourceText 候选来源原文（chunk 文本 / 回补节选），可为 null（降级为纯 LLM 输出）
+     */
+    static ScoreCandidate fromLlmCandidate(ScoreCandidateOutput.Candidate candidate, String sourceText) {
+        String original = sourceText == null ? "" : sourceText;
+        String llmDetail = candidate.detail == null ? "" : candidate.detail.trim();
+        String llmSource = truncate(safeText(candidate.sourceText));
+
+        String alignedDetail = ScoreOriginalTextAligner.align(original, llmDetail);
+        String detail = alignedDetail != null ? alignedDetail : llmDetail;
+        String alignedSource = alignedDetail != null ? alignedDetail
+                : alignOrKeep(original, llmSource);
         return new ScoreCandidate(
                 safeText(candidate.code),
-                safeText(candidate.dim),
-                candidate.detail,
+                alignOrKeep(original, safeText(candidate.dim)),
+                detail,
                 candidate.weight == null ? null : java.math.BigDecimal.valueOf(candidate.weight),
                 safeText(candidate.scoreTypeGuess),
                 safeText(candidate.contextNote),
-                truncate(safeText(candidate.sourceText)),
+                alignedSource,
                 safeText(candidate.location),
                 safeText(candidate.semanticPattern)
         );
+    }
+
+    /** 对齐命中返回原文片段，未命中保留 LLM 输出。 */
+    private static String alignOrKeep(String original, String llmText) {
+        if (llmText == null || llmText.isEmpty()) {
+            return "";
+        }
+        String aligned = ScoreOriginalTextAligner.align(original, llmText);
+        return aligned != null ? aligned : llmText;
     }
 
     /** 已提取项摘要（完整性回补 prompt 输入，FR-005） */
