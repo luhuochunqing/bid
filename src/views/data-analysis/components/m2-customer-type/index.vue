@@ -96,7 +96,8 @@ const renderChart = (pieData, legendData) => {
           radius: ['40%', '65%'],
           center: ['50%', '45%'],
           label: {
-            formatter: '{b}\n{c}个 · {d}%',
+            // 扇区标签只显示客户类型与比例（数量保留在 tooltip 悬停详情中）
+            formatter: '{b}\n{d}%',
             fontSize: 11,
             color: '#475569',
             fontWeight: 500
