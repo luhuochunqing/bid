@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -22,7 +23,7 @@ class BidDocumentQualityEngineTest {
         DocumentContent doc = DocumentContent.fromText("full.pdf", "hash_full", content);
 
         List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
-                doc, "招标文件内容", Collections.emptyList(), TenderRequirements.empty());
+                doc, "招标文件内容", Collections.emptyList(), TenderRequirements.empty(), Set.of());
 
         assertThat(results).hasSize(25);
         for (int i = 0; i < 25; i++) {
@@ -39,11 +40,12 @@ class BidDocumentQualityEngineTest {
         TenderRequirements requirements = new TenderRequirements(
                 List.of(), List.of("ISO27001 信息安全认证证书"), List.of(), List.of(), List.of(), false);
 
-        List<QualityEvidence> kbEvidences = List.of(
-                QualityEvidence.knowledgeBase("企业资质库", null, "企业资质库未检索到关于 [ISO27001] 的有效证书记录"));
+        List<QualityEvidence> kbEvidences = List.of(QualityEvidence.fromKnowledgeMatch(
+                new KnowledgeMatch(KnowledgeMatch.SOURCE_QUALIFICATION, "7",
+                        "资质证书: ISO9001质量管理体系认证（等级: 甲级）", true)));
 
         List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
-                doc, tenderText, kbEvidences, requirements);
+                doc, tenderText, kbEvidences, requirements, Set.of());
 
         QualityCheckItemResult vetoResult = results.stream()
                 .filter(r -> r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_VETO.getCode()))
@@ -62,7 +64,7 @@ class BidDocumentQualityEngineTest {
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid", bidContent);
 
         List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
-                doc, "招标要求", Collections.emptyList(), TenderRequirements.empty());
+                doc, "招标要求", Collections.emptyList(), TenderRequirements.empty(), Set.of());
 
         QualityCheckItemResult respResult = results.stream()
                 .filter(r -> r.itemCode().equals(BidQualityCheckItem.RESPONSIVENESS_REVIEW.getCode()))
@@ -80,7 +82,7 @@ class BidDocumentQualityEngineTest {
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid", bidContent);
 
         List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
-                doc, "", Collections.emptyList(), TenderRequirements.missingSentinel());
+                doc, "", Collections.emptyList(), TenderRequirements.missingSentinel(), Set.of());
 
         assertThat(results).hasSize(25);
         QualityCheckItemResult vetoResult = results.stream()

@@ -118,17 +118,17 @@
 
 ### Tests for US3 ⚠️
 
-- [ ] T031 [P] [US3] 四库真实匹配集成测试（每库至少一条真实记录命中）+ 空库/查询异常 → MANUAL 分支单测，新建 backend/src/test/java/com/xiyu/bid/compliance/service/KnowledgeBaseRealQueryTest.java
+- [X] T031 [P] [US3] 四库真实匹配集成测试（每库至少一条真实记录命中）+ 空库/查询异常 → MANUAL 分支单测，新建 backend/src/test/java/com/xiyu/bid/compliance/service/KnowledgeBaseRealQueryTest.java
 
 ### Implementation for US3
 
-- [ ] T032 [US3] 新建纯核心 record `KnowledgeMatch`（knowledgeSource/recordId/content/matched，data-model.md §3.2），文件 backend/src/main/java/com/xiyu/bid/compliance/domain/policy/KnowledgeMatch.java
-- [ ] T033 [US3] `KnowledgeBaseOnDemandLoader`（backend/src/main/java/com/xiyu/bid/compliance/service/KnowledgeBaseOnDemandLoader.java）资质库：保留真查询并输出 `KnowledgeMatch` 结构化结果
-- [ ] T034 [US3] 同文件品牌授权库：`BrandAuthorizationRepository` 真实查询授权记录（品牌、期限、范围），替换固定文案
-- [ ] T035 [US3] 同文件人员库：`PersonnelRepository` 真实查询人员及资质证书，替换固定文案
-- [ ] T036 [US3] 同文件业绩库：移除误注入的 `WarehouseRepository`，替换为 performance 模块 `PerformanceRepository`（`PerformanceRecordEntity`）真实业绩查询
-- [ ] T037 [US3] 删除"已对照企业专家与项目经理库"、"已检索品牌制造商授权与代理证书"等固定文案证据；单库超时/异常 → 依赖该库检查项置 MANUAL 不阻断其他项（PRD §5.1）
-- [ ] T038 [US3] `mvn test` 全绿后原子提交（附四库集成测试证据）
+- [X] T032 [US3] 新建纯核心 record `KnowledgeMatch`（knowledgeSource/recordId/content/matched，data-model.md §3.2），文件 backend/src/main/java/com/xiyu/bid/compliance/domain/policy/KnowledgeMatch.java
+- [X] T033 [US3] `KnowledgeBaseOnDemandLoader`（backend/src/main/java/com/xiyu/bid/compliance/service/KnowledgeBaseOnDemandLoader.java）资质库：保留真查询并输出 `KnowledgeMatch` 结构化结果
+- [X] T034 [US3] 同文件品牌授权库：`BrandAuthorizationRepository` 真实查询授权记录（品牌、期限、范围），替换固定文案
+- [X] T035 [US3] 同文件人员库：`PersonnelRepository` 真实查询人员及资质证书，替换固定文案
+- [X] T036 [US3] 同文件业绩库：移除误注入的 `WarehouseRepository`，替换为 performance 模块 `PerformanceRepository`（`PerformanceRecordEntity`）真实业绩查询
+- [X] T037 [US3] 删除"已对照企业专家与项目经理库"、"已检索品牌制造商授权与代理证书"等固定文案证据；单库超时/异常 → 依赖该库检查项置 MANUAL 不阻断其他项（PRD §5.1）
+- [X] T038 [US3] `mvn test` 全绿后原子提交（附四库集成测试证据）
 
 **Checkpoint**: KNOWLEDGE_BASE 类证据全部含真实 recordId 且能在对应库中找到记录；固定文案证据零残留
 

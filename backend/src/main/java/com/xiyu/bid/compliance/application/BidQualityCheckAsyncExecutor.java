@@ -7,6 +7,7 @@ import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityCheckStatus;
 import com.xiyu.bid.compliance.domain.QualityEvidence;
 import com.xiyu.bid.compliance.domain.policy.BidDocumentQualityEngine;
+import com.xiyu.bid.compliance.domain.policy.KnowledgeQueryOutcome;
 import com.xiyu.bid.compliance.domain.policy.TenderRequirements;
 import com.xiyu.bid.compliance.entity.ComplianceCheckResult;
 import com.xiyu.bid.compliance.repository.ComplianceCheckResultRepository;
@@ -21,7 +22,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -71,14 +71,16 @@ public class BidQualityCheckAsyncExecutor {
             updateTaskStep(checkResult, ComplianceCheckResult.TaskStatus.CHECKING, 60, "正在对照企业知识库并执行25项质量核查...");
 
             List<String> requiredCerts = requirements.mandatoryQualifications();
-            List<QualityEvidence> kbEvidences = new ArrayList<>();
-            if (kbLoader != null) {
-                kbEvidences.addAll(kbLoader.matchQualifications(requiredCerts));
-                kbEvidences.addAll(kbLoader.matchKeyPersonnelAndPerformance(tenderDoc.fullText()));
-            }
+            // spec 049 第三步：四知识库真实检索；单库异常记录失败源，依赖项由引擎置 MANUAL 不阻断
+            KnowledgeQueryOutcome kbOutcome = kbLoader != null
+                    ? kbLoader.queryKnowledgeBases(requiredCerts)
+                    : KnowledgeQueryOutcome.empty();
+            List<QualityEvidence> kbEvidences = kbOutcome.matches().stream()
+                    .map(QualityEvidence::fromKnowledgeMatch)
+                    .toList();
 
             List<QualityCheckItemResult> itemResults = BidDocumentQualityEngine.evaluateAll(
-                    bidDoc, tenderDoc.fullText(), kbEvidences, requirements);
+                    bidDoc, tenderDoc.fullText(), kbEvidences, requirements, kbOutcome.failedSources());
 
             // Step 3: 汇总指标并持久化 (progress: 100)
             int passed = 0;

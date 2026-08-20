@@ -1,5 +1,7 @@
 package com.xiyu.bid.compliance.domain;
 
+import com.xiyu.bid.compliance.domain.policy.KnowledgeMatch;
+
 import java.io.Serializable;
 
 /**
@@ -37,9 +39,13 @@ public record QualityEvidence(
         return new QualityEvidence("BID", title, page, quote, null, 1.0);
     }
 
-    public static QualityEvidence knowledgeBase(
-            final String title, final String recordId, final String quote) {
+    /**
+     * 四知识库真实匹配记录 → 证据（spec 049 第三步，data-model.md §3.2 转换）.
+     * sourceTitle 承载知识库来源枚举语义（qualification/brand-authorization/personnel/performance）.
+     */
+    public static QualityEvidence fromKnowledgeMatch(final KnowledgeMatch match) {
         return new QualityEvidence(
-                "KNOWLEDGE_BASE", title, null, quote, recordId, 1.0);
+                "KNOWLEDGE_BASE", match.knowledgeSource(), null,
+                match.content(), match.recordId(), match.matched() ? 1.0 : 0.0);
     }
 }

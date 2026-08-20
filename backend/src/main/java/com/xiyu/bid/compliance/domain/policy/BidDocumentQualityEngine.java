@@ -12,6 +12,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 标书质量 25 项全量核查聚合裁决引擎.
@@ -29,15 +30,18 @@ public final class BidDocumentQualityEngine {
      * @param tenderText 招标文件文本内容
      * @param kbEvidences 知识库对照证据
      * @param requirements 招标要求结构化提取结果；哨兵态时比对项 MANUAL + [REFERENCE_MISSING]，独立项照常
+     * @param failedKnowledgeSources 查询失败的知识库来源集合；依赖该库的检查项 MANUAL + [EVIDENCE_INSUFFICIENT]，不阻断其他项（PRD §5.1）
      * @return 25 项标准化核查结果
      */
     public static List<QualityCheckItemResult> evaluateAll(
             final DocumentContent bidDoc,
             final String tenderText,
             final List<QualityEvidence> kbEvidences,
-            final TenderRequirements requirements) {
+            final TenderRequirements requirements,
+            final Set<String> failedKnowledgeSources) {
 
         TenderRequirements effective = requirements == null ? TenderRequirements.missingSentinel() : requirements;
+        Set<String> failedKb = failedKnowledgeSources == null ? Set.of() : failedKnowledgeSources;
         Map<String, QualityCheckItemResult> resultMap = new HashMap<>();
 
         // 1. 运行 18 项确定性规则
@@ -49,10 +53,10 @@ public final class BidDocumentQualityEngine {
 
         // 2. 补齐并裁决 7 项深度语义/知识库条款
         resultMap.put(BidQualityCheckItem.QUALIFICATION_MATCH.getCode(),
-                evaluateQualificationMatch(bidDoc, effective, kbEvidences));
+                evaluateQualificationMatch(bidDoc, effective, kbEvidences, failedKb));
 
         resultMap.put(BidQualityCheckItem.QUALIFICATION_VETO.getCode(),
-                evaluateQualificationVeto(bidDoc, effective, kbEvidences));
+                evaluateQualificationVeto(bidDoc, effective, kbEvidences, failedKb));
 
         resultMap.put(BidQualityCheckItem.FRONT_TABLE_RESPONSE.getCode(),
                 evaluateFrontTableResponse(bidDoc, tenderText));
@@ -61,7 +65,7 @@ public final class BidDocumentQualityEngine {
                 evaluateResponsivenessReview(bidDoc, tenderText));
 
         resultMap.put(BidQualityCheckItem.QUALIFICATION_REVIEW.getCode(),
-                evaluateQualificationReview(bidDoc, effective, kbEvidences));
+                evaluateQualificationReview(bidDoc, effective, kbEvidences, failedKb));
 
         resultMap.put(BidQualityCheckItem.SCORING_RESPONSE.getCode(),
                 evaluateScoringResponse(bidDoc, effective));
@@ -81,10 +85,14 @@ public final class BidDocumentQualityEngine {
     private static QualityCheckItemResult evaluateQualificationMatch(
             final DocumentContent bidDoc,
             final TenderRequirements requirements,
-            final List<QualityEvidence> kbEvidences) {
+            final List<QualityEvidence> kbEvidences,
+            final Set<String> failedKnowledgeSources) {
         BidQualityCheckItem item = BidQualityCheckItem.QUALIFICATION_MATCH;
         if (requirements.missing()) {
             return referenceMissing(item, "招标要求不可用，无法比对企业资质与招标硬性要求");
+        }
+        if (failedKnowledgeSources.contains(KnowledgeMatch.SOURCE_QUALIFICATION)) {
+            return knowledgeBaseUnavailable(item, "企业资质库查询异常，无法比对企业资质与招标硬性要求");
         }
         List<QualityEvidence> evidences = new ArrayList<>();
         if (kbEvidences != null) {
@@ -105,10 +113,14 @@ public final class BidDocumentQualityEngine {
     private static QualityCheckItemResult evaluateQualificationVeto(
             final DocumentContent bidDoc,
             final TenderRequirements requirements,
-            final List<QualityEvidence> kbEvidences) {
+            final List<QualityEvidence> kbEvidences,
+            final Set<String> failedKnowledgeSources) {
         BidQualityCheckItem item = BidQualityCheckItem.QUALIFICATION_VETO;
         if (requirements.missing()) {
             return referenceMissing(item, "招标要求不可用，无法核查一票否决与资格前置条件");
+        }
+        if (failedKnowledgeSources.contains(KnowledgeMatch.SOURCE_QUALIFICATION)) {
+            return knowledgeBaseUnavailable(item, "企业资质库查询异常，无法核查一票否决与资格前置条件");
         }
         List<QualityEvidence> evidences = new ArrayList<>();
 
@@ -172,10 +184,14 @@ public final class BidDocumentQualityEngine {
     private static QualityCheckItemResult evaluateQualificationReview(
             final DocumentContent bidDoc,
             final TenderRequirements requirements,
-            final List<QualityEvidence> kbEvidences) {
+            final List<QualityEvidence> kbEvidences,
+            final Set<String> failedKnowledgeSources) {
         BidQualityCheckItem item = BidQualityCheckItem.QUALIFICATION_REVIEW;
         if (requirements.missing()) {
             return referenceMissing(item, "招标要求不可用，无法核查资格性评审条款响应");
+        }
+        if (failedKnowledgeSources.contains(KnowledgeMatch.SOURCE_QUALIFICATION)) {
+            return knowledgeBaseUnavailable(item, "企业资质库查询异常，无法核查资格性评审条款响应");
         }
         List<QualityEvidence> evidences = new ArrayList<>();
         if (kbEvidences != null) {
@@ -230,6 +246,19 @@ public final class BidDocumentQualityEngine {
                 item,
                 "[REFERENCE_MISSING] " + detail,
                 "请先上传招标文件并确认 AI 能力已启用后重新核查",
+                Collections.emptyList());
+    }
+
+    /**
+     * 单库失败降级：依赖该库的检查项置 MANUAL + [EVIDENCE_INSUFFICIENT]，不阻断其他项
+     * （PRD §5.1，spec 049 第三步异常分支）.
+     */
+    private static QualityCheckItemResult knowledgeBaseUnavailable(
+            final BidQualityCheckItem item, final String detail) {
+        return QualityCheckItemResult.manualReview(
+                item,
+                "[EVIDENCE_INSUFFICIENT] " + detail,
+                "知识库查询异常，请在知识库恢复后人工复核对应证明材料",
                 Collections.emptyList());
     }
 }
