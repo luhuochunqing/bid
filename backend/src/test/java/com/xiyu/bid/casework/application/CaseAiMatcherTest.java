@@ -295,6 +295,51 @@ class CaseAiMatcherTest {
         assertThat(CaseAiMatcher.stripBase64Images(input)).isEqualTo(input);
     }
 
+    @Test
+    @DisplayName("stripBase64Images — 截断无闭合括号的图片（摘录 12K 截断切掉右括号）也被剥离")
+    void stripBase64Images_truncatedNoClosingParen() {
+        String input = "![架构图](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQ";
+        String out = CaseAiMatcher.stripBase64Images(input);
+        assertThat(out).doesNotContain("data:image").doesNotContain("base64");
+        assertThat(out).contains("[image]");
+    }
+
+    @Test
+    @DisplayName("stripBase64Images — 截断后紧邻中文正文的图片（无右括号无空白）也被剥离")
+    void stripBase64Images_truncatedAdjacentToChinese() {
+        String input = "![架构图](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQ以下是正文";
+        String out = CaseAiMatcher.stripBase64Images(input);
+        assertThat(out).doesNotContain("data:image").doesNotContain("base64");
+        assertThat(out).contains("[image]").contains("以下是正文");
+    }
+
+    @Test
+    @DisplayName("stripBase64Images — base64 载荷含换行也被剥离")
+    void stripBase64Images_base64WithNewline() {
+        String input = "![logo](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ\nAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAAASUVORK5CYII=)";
+        String out = CaseAiMatcher.stripBase64Images(input);
+        assertThat(out).doesNotContain("data:image").doesNotContain("base64");
+        assertThat(out).contains("[image]");
+    }
+
+    @Test
+    @DisplayName("stripBase64Images — mime 含空格等畸形形态也被剥离")
+    void stripBase64Images_malformedMime() {
+        String input = "![图](data:image/png ;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAA)";
+        String out = CaseAiMatcher.stripBase64Images(input);
+        assertThat(out).doesNotContain("data:image").doesNotContain("base64");
+        assertThat(out).contains("[image]");
+    }
+
+    @Test
+    @DisplayName("stripBase64Images — 空 alt 的图片也被剥离")
+    void stripBase64Images_emptyAlt() {
+        String input = "正文\n\n![](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==)\n\n结尾";
+        String out = CaseAiMatcher.stripBase64Images(input);
+        assertThat(out).doesNotContain("data:image").doesNotContain("base64");
+        assertThat(out).contains("[image]").contains("正文").contains("结尾");
+    }
+
     private static final String BASE_URL = "https://ai.example.com/v1/chat/completions";
 
     private AiProviderRuntimeConfig config() {

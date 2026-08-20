@@ -89,6 +89,12 @@ public class CaseAiMatcher {
         // LLM 网关会把 prompt 中的 base64 当多模态输入解析，数据不完整时直接 500（convert_request_failed）。
         // 摘录只服务于文本证据提取，图片对评分证据无意义，统一替换为占位符（spec 049 验收发现）。
         String cleanExcerpt = stripBase64Images(excerpt);
+        if (cleanExcerpt.contains("data:image") || cleanExcerpt.contains("base64")) {
+            // 剥离后仍残留 base64 痕迹：说明真实文档中存在 stripBase64Images 未覆盖的形态，
+            // 记录片段头尾便于诊断（长 base64 可能被截断在任意位置）。
+            log.warn("AI 案例匹配：评分项 {}（{}）剥离后仍残留 base64 痕迹，片段(前300字符)：{}",
+                    criterion.id(), criterion.title(), truncateForLog(cleanExcerpt, 300));
+        }
         String userPrompt = "CRITERION TITLE:\n" + criterion.title()
                 + "\n\nCRITERION RULE:\n" + criterion.ruleText()
                 + "\n\nRELEVANT DOCUMENT EXCERPT:\n" + cleanExcerpt
@@ -168,20 +174,22 @@ public class CaseAiMatcher {
 
     /**
      * 剥离摘录中的 markdown 内嵌 base64 图片数据，避免 LLM 网关把 base64 当多模态输入解析失败（spec 049 验收发现）。
-     * 处理两种形态：标准 markdown 图片语法 {@code ![alt](data:image/png;base64,xxxx)} 与可能残留的裸 data URI。
-     * base64 载荷统一替换为 {@code [image]} 占位符，保留文本语义；非图片文本原样返回。
+     * 处理三种形态：标准 markdown 图片 {@code ![alt](data:image/png;base64,xxxx)}、无闭合括号的截断形态、
+     * 以及可能残留的裸 data URI。base64 载荷统一替换为 {@code [image]} 占位符，保留文本语义。
      */
     static String stripBase64Images(String text) {
         if (text == null || text.isEmpty()) {
             return text;
         }
-        // 1) 标准 markdown 图片：![alt](data:image/<mime>;base64,<payload>)
-        //    用 ?: 非贪婪 + 允许换行（长 base64 可能被 markdown 转换器折行）
+        // 1) 标准 markdown 图片（含闭合括号，跨行/非贪婪到右括号）
         String cleaned = text.replaceAll(
                 "!\\[[^\\]]*\\]\\(\\s*data:image/[^;)]*;base64,[^)]*\\)",
                 "[image]");
-        // 2) 裸 data URI（未以 markdown 语法包裹的残留）：data:image/<mime>;base64,<payload>
-        //    payload 只由 base64 字母表 + 可能的空白/换行构成
+        // 2) 无闭合括号的截断图片（摘录 12K 截断可能切掉右括号）：data: 前缀 + base64 字符表到边界
+        cleaned = cleaned.replaceAll(
+                "!\\[[^\\]]*\\]\\(\\s*data:image/[^;)]*;base64,[A-Za-z0-9+/=\\s]*",
+                "[image]");
+        // 3) 裸 data URI（未以 markdown 语法包裹的残留）
         cleaned = cleaned.replaceAll(
                 "data:image/[A-Za-z0-9.+-]+;base64,[A-Za-z0-9+/=\\s]*",
                 "[image]");
