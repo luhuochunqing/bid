@@ -84,8 +84,7 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
         log.info("Document extraction started: fileName={}, contentType={}, size={} bytes, sidecarUrl={}",
                 fileName, contentType, content.length, sidecarUrl);
 
-        // 大小防护：sidecar 有 SIDECAR_MAX_UPLOAD_MB（默认 30MB）硬上限，超限上传必被 413 且 fallback 大文件二次分配必 OOM，
-        // 故在进入任何大内存 POST/fallback 前抛领域异常（不在 @Retryable retryFor 内，不重试），由调用方上报失败而非内存爆炸。
+        // 大小防护：sidecar 有限制（SIDECAR_MAX_UPLOAD_MB 默认 30MB），超限上传必 413 且 fallback 大文件 OOM，故进入大内存操作前抛领域异常（不在 retryFor 内，不重试）。
         if (content.length > maxUploadBytes) {
             throw new DocInsightException(0, "文档文件超过转换上限 "
                     + (maxUploadBytes / 1024 / 1024) + "MB，无法提取文本: " + fileName
@@ -155,10 +154,7 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
         }
     }
 
-    /**
-     * Check sidecar health before attempting document conversion.
-     * 防御性编程：任何异常都视为不健康，绝不允许健康检查本身抛出异常导致 500。
-     */
+    // 防御：健康检查异常视为不健康，绝不允许健康检查抛异常导致 500
     private boolean checkSidecarHealth() {
         try {
             restTemplate.getForObject(sidecarUrl + "/health", String.class);
@@ -184,12 +180,14 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
         return fallbackExtract(fileName, contentType, content, "sidecar_invalid_result");
     }
 
-    /**
-     * Fallback extraction when sidecar fails.
-     * For .doc files: uses Apache POI HWPF.
-     * For .pdf files: uses Apache PDFBox.
-     * For other files: attempts plain text fallback (best effort, may produce garbage for binary files).
-     */
+    // DocInsightException 属确定性失败（如超限），原样抛出，避免被 RecoverAnnotationRecoveryHandler
+    // 包装成 ExhaustedRetryException("Cannot locate recovery method") 掩盖真实失败原因。
+    @Recover
+    public ExtractedDocument recover(DocInsightException e, String fileName, String contentType, byte[] content) {
+        throw e;
+    }
+
+    // Fallback: .doc → POI HWPF, .pdf → PDFBox, 其他 best-effort plain text（二进制可能出乱码）
     private ExtractedDocument fallbackExtract(String fileName, String contentType, byte[] content, String reason) {
         if (content == null || content.length == 0) {
             throw new IllegalStateException("Sidecar extraction failed for " + fileName
