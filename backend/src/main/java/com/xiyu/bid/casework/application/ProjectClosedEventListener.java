@@ -156,13 +156,11 @@ public class ProjectClosedEventListener {
         String filePath = bidFile.getFilePath();
         boolean isObs = filePath.startsWith(FileUrlPrefixes.OBS_DIRECT);
 
-        // 读取标书字节：obs-direct: 是 OBS 云存储引用，需签名后经预签名 URL 下载；其余视为本地/挂载路径直接读。
         byte[] fileBytes;
         try {
             fileBytes = loadFileBytes(filePath);
         } catch (RuntimeException | java.io.IOException e) {
-            // OBS 是真实业务数据源，读不到必须上报失败，禁止让 AI 对着占位文本虚假成功；
-            // 本地路径则保留容错（文件可能已迁移），回退占位继续后续流程。
+            // OBS 是真实数据源，读不到必须上报失败；本地路径保留容错（文件可能已迁移）回退占位。
             if (isObs) {
                 log.error("读取 OBS 标书失败，中止案例沉淀: {}", filePath, e);
                 throw e instanceof RuntimeException
@@ -181,6 +179,12 @@ public class ProjectClosedEventListener {
                 return doc.text();
             }
         } catch (RuntimeException e) {
+            // 与 fileBytes 读取的 OBS 分支同口径：OBS 是真实标书数据源，文本提取失败/文件超限必须上报，
+            // 禁止回退占位文本让 AI 对着"暂无标书正文"虚假"成功但入库 0 条"（case 沉淀 OOM 根因）。
+            if (isObs) {
+                log.error("提取 OBS 标书文本失败，中止案例沉淀: {}", filePath, e);
+                throw e;
+            }
             log.error("Failed to extract markdown from bid file: {}", filePath, e);
         }
         return fallback;
@@ -204,11 +208,7 @@ public class ProjectClosedEventListener {
     }
 
     private CasePrecipitationContext loadProjectContext(Long projectId) {
-        // 蓝图 4.1.1.2.1 业务字段：行业 / 客户类型 / 产品线 — 三个独立语义。
-        // 行业：tender.industry（带 project.industry 兜底）
-        // 客户类型：project.customerType
-        // 产品线：project.sourceModule（项目源模块，最接近"产品线"语义的字段；空时使用"综合产品线"）
-        // 修复前走弯路：行业和产品线都从 tender.projectType 取，导致前端"按行业筛选"得到错位结果。
+        // 蓝图 4.1.1.2.1 三独立语义：行业←tender.industry(兜底 project.industry)、客户类型←customerType、产品线←sourceModule（勿走 projectType，历史错位根因）
         String projectType = "综合";
         String customerType = "其他";
         String productLine = "综合产品线";

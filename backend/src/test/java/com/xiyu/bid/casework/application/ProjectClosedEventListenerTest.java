@@ -426,6 +426,36 @@ class ProjectClosedEventListenerTest {
     }
 
     @Test
+    @DisplayName("根因回归：OBS 标书文本提取失败/超限 -> notifyFailure(原因含 OBS) + 不入库，禁止占位虚假成功")
+    void obsBidFile_extractFailure_notifiesFailureInsteadOfFalseSuccess() {
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project(1L, 7L, "E2E 项目")));
+        ProjectArchive archive = new ProjectArchive();
+        archive.setId(99L);
+        when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
+        ArchiveFile obsBid = bidFile(1L, 99L);
+        obsBid.setFilePath(FileUrlPrefixes.OBS_DIRECT + "upload123");
+        when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(obsBid));
+        when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
+                .thenReturn(List.of(scoreItem(101L, "技术方案", "要求提供架构图")));
+        // 签名下载成功返回字节
+        when(obsShareUrlSigner.trySign(FileUrlPrefixes.OBS_DIRECT + "upload123"))
+                .thenReturn(Optional.of("https://obs.example.com/signed"));
+        when(restTemplate.getForObject(URI.create("https://obs.example.com/signed"), byte[].class))
+                .thenReturn(new byte[]{1, 2, 3});
+        // 提取超限：extractor 抛受控异常（真实场景为 MarkItDownSidecarExtractor 的大小防护）
+        when(docTextExtractor.extract(any(), any(), any()))
+                .thenThrow(new IllegalArgumentException("文档文件超过转换上限 30MB，无法提取文本: bid.pdf（实际 401MB）"));
+
+        listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "E2E 项目"));
+
+        // OBS 是真实标书来源：提取失败必须上报失败通知，绝不回退占位文本走"成功但 0 条"；失败原因透出超限真相
+        ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
+        verify(notifier, times(1)).notifyFailure(anyLong(), any(), reasonCaptor.capture(), any(), any());
+        assertThat(reasonCaptor.getValue()).contains("超过转换上限");
+        verify(knowledgeCaseRepository, never()).saveAll(any());
+    }
+
+    @Test
     @DisplayName("根因回归：OBS 预签名 URL 含 % 编码时下载不得二次编码（RestTemplate 传 URI，内嵌真实服务器）")
     void obsPresignedUrl_notDoubleEncoded_rootCauseRegression() throws Exception {
         // 内嵌真实 HTTP 服务器，记录「实际到达的原始请求路径」，返回 200 + 字节。

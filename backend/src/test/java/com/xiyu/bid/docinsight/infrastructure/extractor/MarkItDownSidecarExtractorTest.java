@@ -2,6 +2,7 @@ package com.xiyu.bid.docinsight.infrastructure.extractor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.docinsight.application.ExtractedDocument;
+import com.xiyu.bid.docinsight.application.exception.DocInsightException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -13,6 +14,7 @@ import org.springframework.web.client.RestTemplate;
 import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -32,7 +34,8 @@ class MarkItDownSidecarExtractorTest {
                 restTemplate,
                 new ObjectMapper(),
                 "http://localhost:8000",
-                "test-sidecar-key"
+                "test-sidecar-key",
+                30L
         );
         String sidecarResponse = """
                 {
@@ -62,7 +65,8 @@ class MarkItDownSidecarExtractorTest {
                 restTemplate,
                 new ObjectMapper(),
                 "http://localhost:8000",
-                "test-sidecar-key"
+                "test-sidecar-key",
+                30L
         );
 
         ExtractedDocument result = extractor.extract(
@@ -74,6 +78,32 @@ class MarkItDownSidecarExtractorTest {
         assertThat(result.text()).isEqualTo("标题：南方电网供应链数字化项目");
         assertThat(result.textLength()).isEqualTo(result.text().length());
         assertThat(result.extractorKey()).isEqualTo("plain-text");
+        verify(restTemplate, never()).postForObject(anyString(), any(HttpEntity.class), eq(String.class));
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("根因回归：超大 content 超过转换上限 -> 抛受控异常而非 OOM（不得触发 sidecar POST/fallback）")
+    void oversizedContent_throwsControlledExceptionInsteadOfOom() {
+        MarkItDownSidecarExtractor extractor = new MarkItDownSidecarExtractor(
+                restTemplate,
+                new ObjectMapper(),
+                "http://localhost:8000",
+                "test-sidecar-key",
+                30L   // 上限 30MB，与 sidecar SIDECAR_MAX_UPLOAD_MB 一致
+        );
+
+        // 超过 30MB 上限即可触发超限分支（无需 401MB 实体积，避免测试堆压力）——超限在进入任何大内存 POST/fallback 前兜住。
+        byte[] oversized = new byte[31 * 1024 * 1024];
+        // 填入一点可打印字符让 new String 有内容（但此分支根本不该走到 new String）
+        oversized[0] = 'A';
+
+        assertThatThrownBy(() -> extractor.extract(
+                "张家口银行——投标6.16.docx", "application/octet-stream", oversized))
+                .isInstanceOf(DocInsightException.class)
+                .hasMessageContaining("超过转换上限")
+                .hasMessageContaining("30MB");
+
+        // 超限必须在进入任何网络请求前兜住——绝不能把超大 multipart 发出去或走 fallback new String
         verify(restTemplate, never()).postForObject(anyString(), any(HttpEntity.class), eq(String.class));
     }
 }

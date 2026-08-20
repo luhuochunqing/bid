@@ -2068,3 +2068,56 @@ byte[] bytes = restTemplate.getForObject(URI.create(signedUrl.get()), byte[].cla
 - `backend/src/main/java/com/xiyu/bid/casework/infrastructure/KnowledgeCaseQueryAdapter.java`
 - `backend/src/main/java/com/xiyu/bid/casework/application/service/ScoreItemCaseRecommendAppService.java`
 
+---
+
+## 132. 案例沉淀 OOM：超大标书整文件读堆 + fallback plain text 二次分配（2026-08-20，§126/§130 的连环坑）
+
+### 问题背景
+
+§130 修好 OBS 预签名 403 后，项目 1350「AI 生成案例」下载终于成功，但结项仍报"AI 生成案例已完成，入库 0 条案例，处理时长 1 分 11 秒"。全链路日志排查 SOP 抓 `/var/log/xiyu-bid/application.json.log` 拿到决定性证据：
+
+```
+Document extraction started: fileName=张家口银行——投标6.16.docx, size=401229775 bytes
+Caused by: java.lang.OutOfMemoryError: Java heap space
+  at String.<init> / MarkItDownSidecarExtractor.fallbackExtract(line 221)   ← 把整文件 new String
+  at ByteArrayHttpMessageConverter.readInternal                              ← RestTemplate 把整文件读堆
+  at ProjectClosedEventListener.loadFileBytes(ProjectClosedEventListener.java:197)
+```
+
+标书 `401229775 bytes ≈ 383MB`，backend 堆 `-Xmx2g`。sidecar 端 `SIDECAR_MAX_UPLOAD_MB` 默认 **30MB**，上传必被 413 → health/网络异常 → 走 fallback → `fallbackExtract` 末尾对二进制 `.docx` 直接 `new String(content, UTF_8)` 二次分配约 800MB → OOM → extract 失败返回占位文本 → AI 对着 `暂无标书正文` 匹配 → 入库 0 条。
+
+### 5 个为什么
+
+1. 为什么入库 0 条？→ AI 拿到 16 字符占位文本，匹配不出有效切片。
+2. 为什么是占位文本？→ `docTextExtractor.extract()` 抛异常被 `loadBidFileMarkdown` catch 后回退占位。
+3. 为什么抛异常？→ `OutOfMemoryError: Java heap space`（`fallbackExtract` 的 `new String(content)`）。
+4. 为什么 OOM？→ 401MB 标书被 `RestTemplate.getForObject(byte[].class)` 整读进堆，fallback 又 `new String` 二次分配，`-Xmx2g` 堆爆。
+5. 为什么没早发现？→ §126 之前 403 让下载在验签就失败，**根本进不到文本转换**，此 OOM 被 403 掩盖；§130 修好 403 后，被掩盖的"大文件整载入 + 无限流防护"问题暴露（**修 A 破 B**）。
+
+### 修复方案
+
+**1. `MarkItDownSidecarExtractor.extract()` 加大小防护（根因层）**：任何 content 超过 `app.doc-insight.sidecar-max-upload-mb`（默认 30MB，与 sidecar `SIDECAR_MAX_UPLOAD_MB` 同步）直接抛 `IllegalArgumentException`，**在进入任何大内存 POST / fallback 之前兜住**。`IllegalArgumentException` 不在 `@Retryable(retryFor={RestClientException,IllegalStateException})` 内，不会触发无意义重试。
+
+**2. `ProjectClosedEventListener.loadBidFileMarkdown()` 对 OBS 提取失败 rethrow（防虚假成功）**：与 `loadFileBytes` 的 OBS 分支同口径——OBS 是真实标书数据源，`docTextExtractor.extract()` 抛异常（含超限）必须 rethrow 走 `notifyFailure`，**禁止回退占位文本让 AI 对着"暂无标书正文"假成功"入库 0 条"**。
+
+### 根因行为测试（不 mock 网络/大内存）
+
+- `MarkItDownSidecarExtractorTest#oversizedContent_throwsControlledExceptionInsteadOfOom`：31MB content 超限 → 断言抛 `IllegalArgumentException`（含"超过转换上限"），并 `verify(never)` sidecar POST——证明在进入任何网络请求前兜住。
+- `ProjectClosedEventListenerTest#obsBidFile_extractFailure_notifiesFailureInsteadOfFalseSuccess`：OBS 标书 extract 抛超限 → `notifyFailure`(原因含"超过转换上限") + `saveAll(never)`——证明失败上报而非占位假成功。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 修 A 破 B | §130 修好 403 后，被 403 掩盖的"大文件整载入 + fallback OOM"暴露 | **403/500 等"前置失败"修复后，必须重跑下游整链路**；被前置错误掩盖的同类风险点（大文件读堆/OOM）要在同次任务 grep 全局收敛 |
+| 框架理解偏差 | 以为 `RestTemplate.getForObject(byte[].class)` 能承载任意大小下载，实际 `ByteArrayHttpMessageConverter` 整文件进堆无防护 | **外部大文件下载/转换前必须先判大小上限**；超过目标系统上限（sidecar 30MB）不得继续上传/fallback |
+| 回退占位 = 假成功 | extract 失败回退占位文本，AI 空匹配 → 发"成功但 0 条"通知掩盖真实故障 | 真实业务数据源读取/转换失败必须**上报失败通知**，禁止 fallback 占位让上层误判成功 |
+| `new String(任意字节)` 兜底危险 | `fallbackExtract` 末尾对二进制 `.docx` 直接 `new String(content, UTF_8)` 二次分配内存必 OOM | 兜底 plain text 解析只对**已知文本型** input 有意义；未知二进制必须先判 `content.length` 上限或并发给 sidecar，禁止整读转 String |
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/docinsight/infrastructure/extractor/MarkItDownSidecarExtractor.java`（大小防护）
+- `backend/src/main/java/com/xiyu/bid/casework/application/ProjectClosedEventListener.java`（OBS 提取失败 rethrow）
+- `backend/src/test/java/com/xiyu/bid/docinsight/infrastructure/extractor/MarkItDownSidecarExtractorTest.java`
+- `backend/src/test/java/com/xiyu/bid/casework/application/ProjectClosedEventListenerTest.java`
+

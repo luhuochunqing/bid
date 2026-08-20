@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.docinsight.application.DocumentTextExtractor;
 import com.xiyu.bid.docinsight.application.ExtractedDocument;
+import com.xiyu.bid.docinsight.application.exception.DocInsightException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -46,16 +47,20 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
     private final ObjectMapper objectMapper;
     private final String sidecarUrl;
     private final String sidecarSharedKey;
+    private final long maxUploadBytes;
 
     public MarkItDownSidecarExtractor(
             @Qualifier("markItDownSidecarRestTemplate") RestTemplate restTemplate,
             ObjectMapper objectMapper,
             @Value("${app.doc-insight.sidecar-url:http://localhost:8000}") String sidecarUrl,
-            @Value("${app.doc-insight.sidecar-shared-key:${APP_DOC_INSIGHT_SIDECAR_SHARED_KEY:${SIDECAR_SHARED_KEY:}}}") String sidecarSharedKey) {
+            @Value("${app.doc-insight.sidecar-shared-key:${APP_DOC_INSIGHT_SIDECAR_SHARED_KEY:${SIDECAR_SHARED_KEY:}}}") String sidecarSharedKey,
+            @Value("${app.doc-insight.sidecar-max-upload-mb:30}") long maxUploadMb) {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
         this.sidecarUrl = sidecarUrl;
         this.sidecarSharedKey = sidecarSharedKey == null ? "" : sidecarSharedKey.trim();
+        // 与 sidecar 端 SIDECAR_MAX_UPLOAD_MB（默认 30）保持一致，避免超限文件仍被上传→被甩 413→fallback OOM。
+        this.maxUploadBytes = Math.multiplyExact(maxUploadMb, 1024L * 1024L);
     }
 
     @Override
@@ -78,6 +83,14 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
 
         log.info("Document extraction started: fileName={}, contentType={}, size={} bytes, sidecarUrl={}",
                 fileName, contentType, content.length, sidecarUrl);
+
+        // 大小防护：sidecar 有 SIDECAR_MAX_UPLOAD_MB（默认 30MB）硬上限，超限上传必被 413 且 fallback 大文件二次分配必 OOM，
+        // 故在进入任何大内存 POST/fallback 前抛领域异常（不在 @Retryable retryFor 内，不重试），由调用方上报失败而非内存爆炸。
+        if (content.length > maxUploadBytes) {
+            throw new DocInsightException(0, "文档文件超过转换上限 "
+                    + (maxUploadBytes / 1024 / 1024) + "MB，无法提取文本: " + fileName
+                    + "（实际 " + (content.length / 1024 / 1024) + "MB）");
+        }
 
         // Sidecar health check before upload
         boolean sidecarHealthy = checkSidecarHealth();
@@ -185,7 +198,6 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
 
         String lowerName = fileName.toLowerCase(Locale.ROOT);
 
-        // Try Apache POI HWPF for .doc files
         if (lowerName.endsWith(".doc") || "application/msword".equals(contentType)) {
             String text = extractDocWithPoi(content);
             if (text != null && !text.isBlank()) {
@@ -217,7 +229,6 @@ public class MarkItDownSidecarExtractor implements DocumentTextExtractor {
             log.warn("PDFBox fallback extraction returned empty for {}", fileName);
         }
 
-        // Last resort: plain text (will likely be garbage for binary files)
         String text = new String(content, StandardCharsets.UTF_8);
         int printableCount = 0;
         for (char c : text.toCharArray()) {

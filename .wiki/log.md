@@ -2,6 +2,13 @@
 
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
+## [2026-08-20] compound | case-precipitation-oversize-oom 复合查询回填（跨模块根因）
+
+- 触发：13 天内叠加到项目"ai测试01"，点【AI自动生成案例】通知"成功但入库 0 条"；追根因定位为 401MB 标书 OOM
+- 改动：新建 `lessons-learned/case-precipitation-oversize-oom.md`；更新 `_index.md` 索引
+- 关键结论：⑥ `RestTemplate.getForObject(byte[].class)` 整文件读堆无防护，fallback `new String(content,UTF_8)` 二次分配 → OOM；⑦ OBS 是真实标书数据源，提取失败必须 notifyFailure，禁止回退占位文本假成功。修复入口大小防护（超限抛 DocInsightException）+ OBS 失败 rethrow。
+- 触发点：任务收尾（§2 触发点 3 根因分析复合查询）
+
 ## [2026-08-19] update | 数据分析 M1/M2/M4 核心数据缺陷与口径升级修复
 
 - 触发：测试服务器人工测试反馈：部门与人员选项空、区域统计为 0、客户类型饼图为 0、竞品明细表格“是否中标”不准

@@ -61,6 +61,7 @@ backlinks:
 - [[knowledge-base]] — 4.4 知识库 PRD (产品需求文档)
 - [[lessons-learned]] — 工程经验总结
 - [[lessons-learned/CO-361-five-rounds-no-fix]] — CO-361 五次修复不彻底的教训（反复追症状不追根因的代价）
+- [[lessons-learned/case-precipitation-oversize-oom]] — AI 生成案例超大标书 OOM 导致入库 0 条（整文件读堆 + 二次分配 + OBS 假成功上报）
 - [[modules]] — 模块目录
 - [[multi-agent-defense-playbook]] — 多 Agent 并行开发防御工程化手册
 - [[notification-system-pitfalls]] — 通知系统陷阱集（targetUrl / SYSTEM_USER_ID / @TransactionalEventListener / 静默吞异常）
