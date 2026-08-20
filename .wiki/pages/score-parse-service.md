@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
-updated: 2026-08-19
-health_checked: 2026-08-19
+updated: 2026-08-20
+health_checked: 2026-08-20
 sources:
   - specs/041-ai-score-parse-backend/spec.md
   - specs/041-ai-score-parse-backend/plan.md
@@ -127,6 +127,16 @@ trigger（同步<1s，互斥校验+建任务）
   - **ScoreParseAppService 行预算 300 临界**：spec 047 归一并排进编排类，文件卡在 300 行边缘——紧凑化手段（合并 record 参数、去冗余空行、内联单次调用）可过线，勿再往编排类加逻辑，继续拆分到子服务。
 - **多模态图片：把 data-URI base64 拼进 prompt 文本 → Gemini 报 500 整任务 FAILED（2026-08-19 spec 048 测试环境回归）**：客观项应走「图片独立多模态 content parts 入模」，但打分 prompt 模板样板里把 `scoreItemDetail`/`bidDocExcerpt` 直接 `formatted()`，若其中含 sidecar `/convert` 返回的 `![...](data:image/png;base64,...)` 或截断裸 `data:` 片段，Gemini 解码失败抛"illegal base64 data" 500，整任务 FAILED（日志"打分任务异常终止"）。修复：`ScoreParsePrompts.promptSafe(raw)` 先正则剥离 markdown 内联图片占位符（`![...](...)`）与 `data:image/...;base64,` 裸 URI 段再格式化；`ScoreItemAssessor` 客观分支把 `DocumentImage` 映射为 `MultimodalImage` 走多模态过载，图片不进 prompt 文本以免双写。回归测试 +3 至 9 用例（`ScoreParsePromptsTest`）。
   - **验证基准（测试环境 Gemini-3.5-Flash 真消费完成）**：`/actuator/health` aiProvider=gemini-3.5-flash、apiKeyConfigured=true；修复后 project 224 含图样本打分任务 COMPLETED 100%（15:11→15:13），12 客观项 0.0/DANGER（诚实结果），其中 5 项 evidence 显式引用图片（"文字与图片/附图/资质证书图片 ISO 9001/27001"）——文本内 data-URI 已剥离，模型仍写出"图片"字样，反证图片确实从独立 content parts 入模。多图鉴权：**竞技场图片务必喂满 base64 完整段，截断占位符即是本次 500 根源**。
+- **评分项/详细要素原文保真对齐（2026-08-20 客户验收反馈）**：客户反馈"识别出的评分项与详细要素文字和招标文件评分表原文不一致"。三层根因叠加：
+  1. LLM 输出 dim/detail/sourceText 是模型复述——prompt"禁止摘要、禁止改写"是软约束，空白/断词漂移（全角→半角空格、中文断词加空格、跨行合并）无校验拦截；
+  2. 正则召回（ScoringItemExtractor）按单行拆"编号+维度+指标+分值"，跨行单元格天然拆碎成短语；
+  3. `ScoreItemMergePolicy.enrich` detail 首次出现优先 + 正则召回先入池 → 残缺短语版挤掉 LLM 完整版。
+  治理三件套（domain 纯核心，TDD 全覆盖）：
+  - `ScoreOriginalTextAligner.align(original, llmText)`：LLM 文本按 Unicode 空白拆段 → 每段 `Pattern.quote` → 段间空白弹性（零或多，兼容中文无空格+模型断词加空格）正则在原文定位；命中返回**原文精确片段**（逐字保留原文空白/换行/标点），未命中返回 null（调用方降级保留 LLM 输出）。
+  - `ScoreCandidateMapper.fromLlmCandidate(candidate, sourceText)` 签名加来源原文参数（召回四传 sanitize 后 chunk 文本、回补传节选）：detail/dim/sourceText 依次对齐回填；detail 命中时 sourceText=detail（原文背书包含关系）。
+  - `ScoreItemMergePolicy.enrich`：later.detail 有原文背书（`sourceText.contains(detail)`）且比 base 更长 → 覆盖首次版本（跨行条款取完整原文）；无背书即使更长也不覆盖（防 LLM 幻觉长文本污染）。
+  副作用：前端零改动（detail 落库已保真）；**存量 score_item 数据不回溯，需重新解析才生效**；dim 对齐失败（LLM 归纳的维度名）保留 LLM 输出属预期。
+- **前端表格 UI 调整（2026-08-20 客户验收反馈）**：实际评分列"重评"标签（`reuseKind==='FRESH'`）删除，"沿用"（REUSED）保留；tfoot 顺序调整为「满足统计（靠左）→ 合计+总权重 → 客观项权重·主观项权重 → 高亮得分」，`margin-right:auto` 从 `.tfoot-label` 移至 `.tfoot-stats`。别再按"重评"文案检索已删标签。
 
 ## 8. 验证基线
 
@@ -134,4 +144,5 @@ trigger（同步<1s，互斥校验+建任务）
 - **spec 046 测试环境真实验证（2026-08-18，project 212）**：7 项全真实评分项（幽灵"得分 得分 100"行已消失）、DB item_index 1-7 与 code 数值序一致、`skipped_chunks=0` 落库且 meta 透出、事务修复后落库 COMPLETED。对照修复前 200 事故已根治。
 - **spec 047 权重归一化（2026-08-18）**：`WeightNormalizationPolicyTest` 10 用例全绿（缺口 90→100 / 超载 200→100 / 恰好 100 透传 / 容差 99.6 透传 / 空候选 / 相对比例保持 / 确定性可复现 / 顺序无关收敛 / 仅改 weight / null 权重）。编排类行预算 300 达标，checkstyle 改动文件 0 violations，架构测试 43 通过。落库合计恒=100，缺口不再以 `weightWarning` 提示收场。
 - **spec 047 收敛单测（2026-08-18 C001）**：`OriginalTotalWeightSignalTest` 5 用例锚定 US3 信号链路——`Summary.originalTotalWeight` Jackson 序列化（非 null 值 `:90` / null 键存在且为 null）、`ScoreParseTask` 反射断言 `@Column(name="original_total_weight")` 映射存在、getter 读写闭环 + `getItems` 透出映射语义（latest 非 null 携带值 / null 透传 null）。配 C002 日志重算，Convergence 闭合。
+- **原文保真对齐（2026-08-20）**：`ScoreOriginalTextAlignerTest` 6 用例 + `ScoreCandidateMapperTest` 3 用例 + `ScoreItemMergePolicyTest` 10 用例（新增背书覆盖/无背书保留 2 例）+ `OpenAiScoreAnalyzerTest` 回归 6 用例全绿（25/25）；前端 `ScoreParseV3.qa.spec.js` 8 用例通过、`npm run build`（含全部治理检查）EXIT=0。
 - 架构：ArchitectureTest + FPJavaArchitectureTest + ProjectAccessGuardCoverageTest 通过
