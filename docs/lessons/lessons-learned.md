@@ -2122,3 +2122,27 @@ Caused by: java.lang.OutOfMemoryError: Java heap space
 - `backend/src/test/java/com/xiyu/bid/docinsight/infrastructure/extractor/MarkItDownSidecarExtractorTest.java`
 - `backend/src/test/java/com/xiyu/bid/casework/application/ProjectClosedEventListenerTest.java`
 
+
+---
+
+## 133. LLM 输出"原文复述"不可靠：prompt 软约束 + 合并"首次优先"叠加导致展示文字与原文不一致（2026-08-20）
+
+### 问题背景
+
+客户验收反馈"识别出的评分项和详细要素文字与招标文件评分表原文不一致"（评分标准解析模块）。排查发现三层根因叠加：LLM 输出 dim/detail/sourceText 是模型复述，prompt 里"禁止摘要、禁止改写"只是软约束，空白/断词漂移（全角↔半角空格、中文断词加空格、跨行合并）无任何校验拦截；正则召回按单行拆解，跨行单元格天然拆碎成短语；`ScoreItemMergePolicy.enrich` detail"首次出现优先"+正则召回先入池，残缺短语版挤掉 LLM 完整版。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| prompt 约束 LLM"原样输出"无确定性保障 | 涉及"逐字保真"的展示需求，必须在代码层做确定性校验/回填，prompt 只是第一道软约束 | LLM 自由文本字段落库前，用空白弹性子串匹配（`Pattern.quote` 拆段 + 段间空白正则）在原文中定位并回填原文精确片段；未命中降级保留 + WARN 可观测 |
+| 合并去重"首次出现优先"隐含挤掉更完整版本的风险 | "首次优先"防的是幻觉覆盖，但会保留先入池的残缺版本；需要区分"更完整"与"幻觉" | 用数据驱动的背书判据：later.detail 是 later.sourceText 的子串（对齐回填后成立）且更长才允许覆盖；无背书即使更长也不覆盖 |
+| 同编号不同名称直接丢弃 later，挡住补强路径 | 两路召回对同一评分项的 dim 表述常不一致（"技术部分" vs "技术方案"），sameDim 全等判据会挡掉唯一完整版本 | 差异场景用"内容包含关系"二次判定：base.detail 是 later.detail 的归一化子串 → 同一项补强；互不为子串 → 真不同项撞编号，维持丢弃（防误并） |
+| 背书判据依赖自引用字段（伪背书） | sourceText 与 detail 同源于 LLM 输出时 `contains` 恒成立，幻觉文本可自证"有背书"绕过防幻觉保护 | 背书判定所依赖的字段必须来自独立真源（原文对齐结果）；未通过验证的内容应置空而非降级携带，切断自证链路 |
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreOriginalTextAligner.java`（空白弹性对齐纯函数）
+- `backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/openai/ScoreCandidateMapper.java`（fromLlmCandidate 对齐回填 + 失败 WARN + sourceText 置空防伪背书）
+- `backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreItemMergePolicy.java`（背书覆盖 + 同编号不同名称子串判据）
+- `backend/src/test/java/com/xiyu/bid/scoreparse/domain/ScoreItemMergePolicyTest.java`（背书覆盖/防误并/空背书防御回归）

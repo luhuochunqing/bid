@@ -310,3 +310,22 @@
 - 根因：筛选 LIKE 前缀匹配 vs 分组省份归一化两口径分裂；空串回退不对称；时间维度不消费 regionIds
 - 更新 [[data-analysis-revamp]]：追加「2026-08-20 区域筛选与分组口径统一」小节（双源取值 + extractProvince 归一 + 34 条短省名别名 + endDate 边界对齐）
 - 口径边界：不含 projects.region（三源尝试已回退）；纯市级自由文本归省需市→省映射表另开任务
+
+## [2026-08-20] feature | 评分标准解析原文保真对齐 + 评分表格 UI 调整回填
+- 触发：客户验收反馈三条——评分项/详细要素文字与招标文件评分表原文不一致；实际评分列去除"重评"标签；总权重移到客观项权重前（分支 `agent/zcode/score-parse-fidelity`）
+- 根因：LLM 复述无逐字校验（空白/断词漂移）+ 正则召回跨行拆碎 + MergePolicy detail 首次优先让残缺短语版挤掉完整版
+- 更新 [[score-parse-service]]：§7 追加「原文保真对齐」治理三件套（ScoreOriginalTextAligner / fromLlmCandidate 加源文参 / enrich 原文背书覆盖）与前端 UI 调整条目；§8 追加验证基线
+- 边界：存量 score_item 不回溯需重新解析；dim 对齐失败保留 LLM 输出属预期；防幻觉靠"无背书不覆盖"约束
+- 关联测试：ScoreOriginalTextAlignerTest(6) + ScoreCandidateMapperTest(3) + ScoreItemMergePolicyTest(+2) + OpenAiScoreAnalyzerTest(6) 回归，前端 ScoreParseV3.qa.spec.js(8) + build EXIT=0
+
+## [2026-08-20] review-fix | 评分解析原文保真 design review 修复回填（P1/P2）
+- 触发：对 PR !2356 做思维链 design review，发现 sameDim 全等判据挡掉同编号不同名称场景的唯一完整版本（P1）、对齐失败静默降级无可观测信号（P2）
+- 修复：MergePolicy 增"归一化子串判同项"补强分支（互不为子串维持丢弃，防误并）；Mapper detail 对齐失败 WARN；召回四完成日志带 aligned=N/M 对齐率；enrich 死分支清理；既有测试锚定新行为
+- 更新 [[score-parse-service]]：治理三件套条目补 P1 判据与可观测性说明
+- 关联：`docs/lessons/lessons-learned.md §133`；回归 ScoreItemMergePolicyTest 12 用例（新增同编号不同名称补强/防误并 2 例）共 27/27
+
+## [2026-08-20] review-fix | google-code-review 阻塞项：自包含伪背书绕过防幻觉判据
+- 触发：google-code-review 审查发现 hasSourceBacking（sourceText.contains(detail)）可被自包含绕过——LLM 幻觉候选的 sourceText 是模型复述，天然包含自己的 detail，伪背书成立后长幻觉文本可覆盖正则残缺版
+- 修复：Mapper 对齐失败分支 sourceText 置空（detail 保留 LLM 输出做展示降级，source_text 只携带原文验证内容）；MapperTest 两用例断言更新 + MergePolicyTest 新增空背书防御用例
+- 副作用核查：GhostCandidateFilter"无 code 且无 sourceText"滤除、WeightOverloadTrimPolicy 剔嫌疑对幻觉候选更严格（方向正确）；scoreparse 全包 319/319 通过
+- 更新 [[score-parse-service]]：治理三件套条目补"对齐失败 sourceText 置空"语义

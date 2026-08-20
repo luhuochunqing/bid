@@ -22,6 +22,78 @@ class ScoreItemMergePolicyTest {
     }
 
     @Test
+    void merge_sourceBackedLongerDetail_replacesTruncatedFirstDetail() {
+        // 正则召回先入（跨行单元格被拆碎的残缺片段），LLM 召回后入（对齐回填的完整原文）：
+        // later 有原文背书（sourceText 包含 detail）且更完整 → 覆盖首次版本
+        ScoreCandidate regexLane = new ScoreCandidate("A1", "技术方案", "方案完整性",
+                new BigDecimal("10"), null, null, "方案完整性", "P47", null);
+        String fullDetail = "技术方案的内容包括：方案完整性、方案先进性与合理性、实施组织方案。";
+        ScoreCandidate llmLane = new ScoreCandidate("A1", "技术方案", fullDetail,
+                new BigDecimal("10"), null, null, fullDetail, "P47 评分表", "GRADE_TO_SCORE");
+        List<ScoreCandidate> merged = policy.merge(List.of(regexLane, llmLane));
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).detail()).isEqualTo(fullDetail);
+        assertThat(merged.get(0).sourceText()).isEqualTo(fullDetail);
+    }
+
+    @Test
+    void merge_unbackedLongerDetail_keepsFirstDetail() {
+        // later 无原文背书（sourceText 不包含 detail，LLM 概括改写）：
+        // 即使更长也不覆盖首次版本，防止幻觉文本污染
+        ScoreCandidate regexLane = new ScoreCandidate("A1", "技术方案", "方案完整性 10 分",
+                new BigDecimal("10"), null, null, "方案完整性 10 分", "P47", null);
+        ScoreCandidate llmLane = new ScoreCandidate("A1", "技术方案",
+                "要求投标人方案完整、先进且合理，同时提供实施组织安排（概括）",
+                new BigDecimal("10"), null, null, "技术方案 完整性 先进性 合理性", "P47", null);
+        List<ScoreCandidate> merged = policy.merge(List.of(regexLane, llmLane));
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).detail()).isEqualTo("方案完整性 10 分");
+    }
+
+    @Test
+    void merge_emptySourceBacking_keepsFirstDetail() {
+        // 对齐失败候选的 sourceText 为空（Mapper 置空防自包含伪背书）：
+        // 无背书不覆盖——幻觉长文本即使 detail 自述完整也不得挤掉正则残缺版
+        ScoreCandidate regexLane = new ScoreCandidate("A1", "技术方案", "方案完整性 10 分",
+                new BigDecimal("10"), null, null, "方案完整性 10 分", "P47", null);
+        ScoreCandidate hallucinated = new ScoreCandidate("A1", "技术方案",
+                "幻觉长文本：模型编造的完整条款表述，远长于正则召回的残缺行内片段。",
+                new BigDecimal("10"), null, null, "", "P47", null);
+        List<ScoreCandidate> merged = policy.merge(List.of(regexLane, hallucinated));
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).detail()).isEqualTo("方案完整性 10 分");
+    }
+
+    @Test
+    void merge_sameCodeDifferentDim_backedSupersetDetail_stillEnriched() {
+        // 两路召回 dim 表述不一致（正则"技术部分" vs LLM"技术方案"），但正则残缺 detail
+        // 是 LLM 对齐版 detail 的子串：判定同一项，补强 detail，dim 保留首次出现
+        ScoreCandidate regexLane = new ScoreCandidate("A1", "技术部分", "方案完整性",
+                new BigDecimal("10"), null, null, "方案完整性", "P47", null);
+        String fullDetail = "技术方案要求：方案完整性、方案先进性与合理性，并提供实施组织安排。";
+        ScoreCandidate llmLane = new ScoreCandidate("A1", "技术方案", fullDetail,
+                new BigDecimal("10"), null, null, fullDetail, "P47 评分表", "GRADE_TO_SCORE");
+        List<ScoreCandidate> merged = policy.merge(List.of(regexLane, llmLane));
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).detail()).isEqualTo(fullDetail);
+        assertThat(merged.get(0).dim()).isEqualTo("技术部分");
+    }
+
+    @Test
+    void merge_sameCodeDifferentDim_disjointDetail_keepsFirstOccurrence() {
+        // 真不同项撞编号：两段 detail 互不为子串，即使 later 有背书且更长也不并（防误吞）
+        ScoreCandidate first = new ScoreCandidate("B2", "项目管理机构", "项目经理具备 PMP 证书 5 分",
+                new BigDecimal("5"), null, null, "项目经理具备 PMP 证书 5 分", "P52", null);
+        String other = "售后服务方案完善、响应机制健全，提供 7×24 小时驻场支持服务安排的得 3 分。";
+        ScoreCandidate second = new ScoreCandidate("B2", "售后服务", other,
+                new BigDecimal("3"), null, null, other, "P53", null);
+        List<ScoreCandidate> merged = policy.merge(List.of(first, second));
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).dim()).isEqualTo("项目管理机构");
+        assertThat(merged.get(0).detail()).isEqualTo("项目经理具备 PMP 证书 5 分");
+    }
+
+    @Test
     void merge_duplicateCodeAndDim_keepsOne() {
         List<ScoreCandidate> merged = policy.merge(List.of(
                 candidate("A1", "技术方案", "方案完整性 10 分", "10"),
@@ -29,6 +101,8 @@ class ScoreItemMergePolicyTest {
         ));
         assertThat(merged).hasSize(1);
         assertThat(merged.get(0).code()).isEqualTo("A1");
+        // 行为锚定（2026-08-20 背书覆盖规则）：重复召回取有原文背书的更完整版，非首次版
+        assertThat(merged.get(0).detail()).isEqualTo("方案完整性 10 分（重复召回）");
     }
 
     @Test
