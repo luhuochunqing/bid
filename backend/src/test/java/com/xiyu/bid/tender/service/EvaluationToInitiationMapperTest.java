@@ -227,4 +227,42 @@ class EvaluationToInitiationMapperTest {
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).getPreferenceBasis()).isEqualTo("CRM回填依据");
     }
+
+    @Test
+    void toCustomerInfoRows_telMapsToTelWhenPresent() {
+        List<TenderEvaluationCustomerInfo> infos = List.of(
+                TenderEvaluationCustomerInfo.builder()
+                        .roleKey("EXPERT_1")
+                        .infoKey("NAME")
+                        .cellValue("专家A")
+                        .valueType(ValueType.TEXT)
+                        .build(),
+                TenderEvaluationCustomerInfo.builder()
+                        .roleKey("EXPERT_1")
+                        .infoKey("TEL")
+                        .cellValue("010-12345678")
+                        .valueType(ValueType.TEXT)
+                        .build());
+
+        List<CustomerInfoRow> rows = EvaluationToInitiationMapper.toCustomerInfoRows(infos);
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).getTel()).isEqualTo("010-12345678");
+    }
+
+    @Test
+    void toCustomerInfoRows_telIsNullWhenAbsent() {
+        List<TenderEvaluationCustomerInfo> infos = List.of(
+                TenderEvaluationCustomerInfo.builder()
+                        .roleKey("EXPERT_1")
+                        .infoKey("NAME")
+                        .cellValue("专家A")
+                        .valueType(ValueType.TEXT)
+                        .build());
+
+        List<CustomerInfoRow> rows = EvaluationToInitiationMapper.toCustomerInfoRows(infos);
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).getTel()).isNull();
+    }
 }

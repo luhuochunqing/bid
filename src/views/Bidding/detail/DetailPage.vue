@@ -302,7 +302,7 @@ function transformCrmBasic(basic) {
 function transformCrmCustomerInfos(customerInfos) {
   if (!Array.isArray(customerInfos)) return []
   const result = []
-  const infoFields = ['NAME','CONTACT_INFO','POSITION','XIYU_CONTACT','CONTACT_METHOD','INFO_TENDENCY_BASIS',
+  const infoFields = ['NAME','CONTACT_INFO','TEL','POSITION','XIYU_CONTACT','CONTACT_METHOD','INFO_TENDENCY_BASIS',
     'CONTACTED','GUIDED_BID','CAN_GET_KEY_INFO','CAN_REMOVE_ADVERSE',
     'CAN_SYNC_EVAL','TENDENCY','INFO_CLEAR_WINNER_BID','INFO_WIN_RATE_IMPACT']
   for (const row of customerInfos) {

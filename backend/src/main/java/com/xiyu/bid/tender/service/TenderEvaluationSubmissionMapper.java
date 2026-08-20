@@ -114,7 +114,12 @@ public class TenderEvaluationSubmissionMapper {
     }
 
     private void applyRecommendation(TenderEvaluation entity, EvaluationRecommendationDTO rec) {
-        if (rec == null) {
+        // 草稿阶段建议段非必填：前端会透传 {shouldBid:null} 的空对象。
+        // should_bid 列为 NOT NULL，显式插入 null 会触发 SQL 1048（DEFAULT 不生效），
+        // 故 shouldBid 缺省视为无建议内容；已有子行由 orphanRemoval 一并删除。
+        // 边界取舍：草稿阶段未选是否投标时整段建议不落库（受 should_bid NOT NULL 约束），
+        // reason 若已填将随段落丢弃——依赖前端在未选 shouldBid 时禁用/隐藏 reason 输入避免数据静默丢失。
+        if (rec == null || rec.shouldBid() == null) {
             entity.setRecommendation(null);
             return;
         }

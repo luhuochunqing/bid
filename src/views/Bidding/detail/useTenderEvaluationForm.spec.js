@@ -105,7 +105,7 @@ describe('evaluationToForm', () => {
 })
 
 describe('buildApiPayload', () => {
-  it('uses explicit valueTypes for all 14 customer info fields', () => {
+  it('uses explicit valueTypes for all 15 customer info fields', () => {
     const row = CUSTOMER_INFO_COLUMNS.reduce((acc, col) => {
       acc[col.key] = col.key === 'INFO_CLEAR_WINNER_BID' ? true : `value-${col.key}`
       return acc
@@ -118,8 +118,14 @@ describe('buildApiPayload', () => {
 
     const payload = buildApiPayload(form)
 
-    expect(CUSTOMER_INFO_COLUMNS).toHaveLength(14)
-    expect(payload.evaluationCustomerInfos).toHaveLength(14)
+    expect(CUSTOMER_INFO_COLUMNS).toHaveLength(15)
+    expect(payload.evaluationCustomerInfos).toHaveLength(15)
+    // TEL（对接人座机号）列存在且紧跟 CONTACT_INFO 之后
+    const telIndex = CUSTOMER_INFO_COLUMNS.findIndex(col => col.key === 'TEL')
+    expect(telIndex).toBeGreaterThan(0)
+    expect(CUSTOMER_INFO_COLUMNS[telIndex - 1].key).toBe('CONTACT_INFO')
+    expect(CUSTOMER_INFO_COLUMNS[telIndex]).toMatchObject({ label: '对接人座机号', type: 'text' })
+    expect(CUSTOMER_INFO_COLUMNS.find(col => col.key === 'CONTACT_INFO').label).toBe('对接人手机号')
     for (const col of CUSTOMER_INFO_COLUMNS) {
       expect(VT[col.key]).toBeDefined()
       expect(payload.evaluationCustomerInfos).toContainEqual(

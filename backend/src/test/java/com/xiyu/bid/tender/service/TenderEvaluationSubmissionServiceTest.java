@@ -10,6 +10,7 @@ import com.xiyu.bid.tender.core.TenderEvaluationFormPolicy;
 import com.xiyu.bid.tender.dto.TenderEvaluationDTO;
 import com.xiyu.bid.tender.dto.TenderEvaluationSubmitRequest;
 import com.xiyu.bid.tender.dto.EvaluationBasicDTO;
+import com.xiyu.bid.tender.dto.EvaluationRecommendationDTO;
 import com.xiyu.bid.tender.entity.TenderEvaluation;
 import com.xiyu.bid.tender.entity.TenderEvaluation.BidRecommendation;
 import com.xiyu.bid.tender.entity.TenderEvaluation.EvaluationStatus;
@@ -254,6 +255,28 @@ class TenderEvaluationSubmissionServiceTest {
 
         assertThat(dto.evaluationStatus()).isEqualTo(EvaluationStatus.DRAFT);
         verify(evaluationRepository).save(any(TenderEvaluation.class));
+    }
+
+    @Test
+    @DisplayName("saveDraft: recommendation 对象非 null 但 shouldBid=null 时不插入子实体（503 回归）")
+    void saveDraft_recommendationWithNullShouldBid_doesNotPersistRecommendation() {
+        stubTenderAndEvaluator();
+        when(evaluationRepository.findByTenderId(TENDER_ID)).thenReturn(Optional.empty());
+        when(evaluationRepository.save(any(TenderEvaluation.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        // 前端草稿透传 {shouldBid:null, reason:null} 空对象；should_bid 列为 NOT NULL，
+        // 旧实现会透传插入 null 触发 SQL 1048 违约导致 503，修复后应视为无建议内容。
+        TenderEvaluationSubmitRequest req = new TenderEvaluationSubmitRequest(
+                null, null, null, new EvaluationRecommendationDTO(null, null));
+
+        TenderEvaluationDTO dto = service.saveDraft(TENDER_ID, req, EVALUATOR_ID);
+
+        assertThat(dto.evaluationStatus()).isEqualTo(EvaluationStatus.DRAFT);
+        assertThat(dto.evaluationRecommendation()).isNull();
+        ArgumentCaptor<TenderEvaluation> captor = ArgumentCaptor.forClass(TenderEvaluation.class);
+        verify(evaluationRepository).save(captor.capture());
+        assertThat(captor.getValue().getRecommendation()).isNull();
     }
 
     // ---------- 3. submit ----------

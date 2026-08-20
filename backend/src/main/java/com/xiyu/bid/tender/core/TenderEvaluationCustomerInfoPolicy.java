@@ -1,5 +1,5 @@
 // Input: List of customer info EAV rows (evaluation_id, role_key, info_key, value, value_type)
-// Output: ValidationResult (fixed 13 roles × 14 info columns, no row mutations, value_type matching)
+// Output: ValidationResult (fixed 14 roles × 16 info columns, no row mutations, value_type matching)
 // Pos: 纯核心层（core）- 不依赖 Spring / JPA / 任何外部框架
 // 维护声明: 客户信息矩阵的固定结构规则在此一次性校验；service 层不允许重复校验或绕过此策略。
 package com.xiyu.bid.tender.core;
@@ -16,7 +16,7 @@ import java.util.regex.Pattern;
  * <p>规则：
  * <ul>
  *   <li>role_key 必须属于预定义的 14 个固定角色，或外部接口兜底生成的 EXTERNAL_ROLE_N → INVALID_ROLE</li>
- *   <li>info_key 必须属于预定义的 14 个固定信息维度 → INVALID_INFO_KEY</li>
+ *   <li>info_key 必须属于预定义的 16 个固定信息维度 → INVALID_INFO_KEY</li>
  *   <li>value_type 必须与预期类型一致（TEXT / DROPDOWN / SWITCH / ENUM14 / ENUM7 / DROPDOWN6）→ INVALID_VALUE_TYPE</li>
  *   <li>不允许提交未被认可的 role_key → INVALID_ROLE</li>
  *   <li>必填的 info_key 值不能为空 → REQUIRED</li>
@@ -40,7 +40,7 @@ import java.util.regex.Pattern;
  *   <li>EXPERT_3 — 专家 3</li>
  * </ol>
  *
- * <p>FR-005 定义的 14 个固定信息维度及其预期值类型：
+ * <p>FR-005 定义的 16 个固定信息维度及其预期值类型：
  * <table>
  *   <tr><th>info_key</th><th>中文名</th><th>类型</th></tr>
  *   <tr><td>NAME</td><td>姓名</td><td>TEXT</td></tr>
@@ -57,6 +57,8 @@ import java.util.regex.Pattern;
  *   <tr><td>CAN_REMOVE_ADVERSE</td><td>是否可删除不利项</td><td>DROPDOWN（是/否）</td></tr>
  *   <tr><td>CAN_SYNC_EVAL</td><td>是否可同步评标信息</td><td>DROPDOWN（是/否）</td></tr>
  *   <tr><td>TENDENCY</td><td>对我司的倾向性</td><td>DROPDOWN（支持/中立/反对）</td></tr>
+ *   <tr><td>CONTACT_INFO</td><td>对接人手机号</td><td>TEXT</td></tr>
+ *   <tr><td>TEL</td><td>对接人座机号</td><td>TEXT</td></tr>
  * </table>
  *
  * <p>调用约定：
@@ -109,7 +111,7 @@ public final class TenderEvaluationCustomerInfoPolicy {
         Map.entry("EXPERT_3", "专家3")
     );
 
-    /** 15 个固定信息维度键（2026-06-16 删除 ROLE_NAME/HIGH_LEVEL_EXCHANGE/KEY_TARGET；2026-06-18 新增 CONTACT_INFO 兼容 CRM 字段映射）。 */
+    /** 16 个固定信息维度键（2026-06-16 删除 ROLE_NAME/HIGH_LEVEL_EXCHANGE/KEY_TARGET；2026-06-18 新增 CONTACT_INFO 兼容 CRM 字段映射；2026-08-20 新增 TEL 对接人座机号、CONTACT_INFO 显示名改为对接人手机号）。 */
     public static final Set<String> VALID_INFO_KEYS = Set.of(
         "NAME",
         "POSITION",
@@ -125,7 +127,8 @@ public final class TenderEvaluationCustomerInfoPolicy {
         "CAN_GET_KEY_INFO",
         "CAN_REMOVE_ADVERSE",
         "CAN_SYNC_EVAL",
-        "TENDENCY"
+        "TENDENCY",
+        "TEL"
     );
 
     /** 信息维度键 → 预期值类型。 */
@@ -144,7 +147,8 @@ public final class TenderEvaluationCustomerInfoPolicy {
         Map.entry("CAN_GET_KEY_INFO", "DROPDOWN"),
         Map.entry("CAN_REMOVE_ADVERSE", "DROPDOWN"),
         Map.entry("CAN_SYNC_EVAL", "DROPDOWN"),
-        Map.entry("TENDENCY", "DROPDOWN")
+        Map.entry("TENDENCY", "DROPDOWN"),
+        Map.entry("TEL", "TEXT")
     );
 
     /** 信息维度键 → 中文显示名。 */
@@ -152,7 +156,7 @@ public final class TenderEvaluationCustomerInfoPolicy {
         Map.entry("NAME", "姓名"),
         Map.entry("POSITION", "职位"),
         Map.entry("XIYU_CONTACT", "西域项目负责人"),
-        Map.entry("CONTACT_INFO", "联系方式"),
+        Map.entry("CONTACT_INFO", "对接人手机号"),
         Map.entry("CONTACT_METHOD", "触达方式"),
         Map.entry("EVALUATION_BASIS", "倾向性评估依据"),
         Map.entry("INFO_TENDENCY_BASIS", "倾向性评估依据"),
@@ -163,7 +167,8 @@ public final class TenderEvaluationCustomerInfoPolicy {
         Map.entry("CAN_GET_KEY_INFO", "是否可获取关键信息"),
         Map.entry("CAN_REMOVE_ADVERSE", "是否可删除不利项"),
         Map.entry("CAN_SYNC_EVAL", "是否可同步评标信息"),
-        Map.entry("TENDENCY", "对我司的倾向性")
+        Map.entry("TENDENCY", "对我司的倾向性"),
+        Map.entry("TEL", "对接人座机号")
     );
 
     /**
@@ -220,7 +225,7 @@ public final class TenderEvaluationCustomerInfoPolicy {
                 errors.add(new FieldError(
                     prefix + ".infoKey",
                     CODE_INVALID_INFO_KEY,
-                    "信息维度键 '" + row.infoKey + "' 不在 14 个固定信息维度列表中"));
+                    "信息维度键 '" + row.infoKey + "' 不在 16 个固定信息维度列表中"));
                 continue;
             }
 

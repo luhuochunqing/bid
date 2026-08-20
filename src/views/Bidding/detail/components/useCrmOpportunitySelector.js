@@ -186,6 +186,9 @@ export function useCrmOpportunitySelector(props, emit) {
             roleKey,
             NAME: c.name || '',
             CONTACT_INFO: c.phone || c.email || '',
+            // TEL ← CRM 对接人座机号 fixed_phone；CRM 未上线时字段缺失/为空，映射为空串
+            // （前端 buildApiPayload 空值过滤不落行）。SYNC: 与后端 CrmEvaluationMapper 的 TEL 映射镜像一致。
+            TEL: c.fixed_phone || '',
             POSITION: isKnownPosition ? c.position : null,
           XIYU_CONTACT: c.ehsyProjectManager || '',
           CONTACT_METHOD: c.contactMethod || '',

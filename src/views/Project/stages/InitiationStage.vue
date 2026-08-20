@@ -68,7 +68,8 @@
 <template #empty><span>暂无客户信息（由标讯评估表带入）</span></template>
 <!-- 列顺序、标签、控件类型对齐 customerInfoMatrixConfig.js -->
 <el-table-column label="姓名" width="140"><template #default="{row}"><el-input v-model="row.name" :disabled="fieldDisabled" size="small" placeholder="请输入姓名" /></template></el-table-column>
-<el-table-column label="联系方式" width="160"><template #default="{row}"><el-input v-model="row.contactInfo" :disabled="fieldDisabled" size="small" placeholder="手机号/电话/邮箱" /></template></el-table-column>
+<el-table-column label="对接人手机号" width="160"><template #default="{row}"><el-input v-model="row.contactInfo" :disabled="fieldDisabled" size="small" placeholder="手机号" /></template></el-table-column>
+<el-table-column label="对接人座机号" width="160"><template #default="{row}"><el-input v-model="row.tel" :disabled="fieldDisabled" size="small" placeholder="请输入座机号" /></template></el-table-column>
 <el-table-column label="职位" width="220"><template #default="{row}"><el-select v-model="row.position" :disabled="fieldDisabled" size="small" placeholder="请选择"><el-option v-for="o in POSITION_OPTIONS" :key="o.value" :label="o.label" :value="o.value" /></el-select></template></el-table-column>
 <el-table-column label="西域项目负责人" width="160"><template #default="{row}"><el-input v-model="row.xiyuContact" :disabled="fieldDisabled" size="small" placeholder="请输入负责人" /></template></el-table-column>
 <el-table-column label="触达方式" width="180"><template #default="{row}"><el-select v-model="row.reachMethod" :disabled="fieldDisabled" size="small" placeholder="请选择"><el-option v-for="o in CONTACT_METHOD_OPTIONS" :key="o.value" :label="o.label" :value="o.value" /></el-select></template></el-table-column>

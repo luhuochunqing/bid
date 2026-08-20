@@ -71,7 +71,7 @@ class TenderIntegrationServiceEvaluationTest {
         List<TenderEvaluationCustomerInfo> rows = customerInfoRepository.findByEvaluationId(eval.getId());
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).getRoleKey()).isEqualTo("DECISION_MAKER");
-        assertThat(rows.get(0).getInfoKey()).isEqualTo("attitude");
+        assertThat(rows.get(0).getInfoKey()).isEqualTo("ATTITUDE");
         assertThat(rows.get(0).getCellValue()).isEqualTo("支持");
     }
 
@@ -277,6 +277,102 @@ class TenderIntegrationServiceEvaluationTest {
             assertThat(row.getInfoKey()).isEqualTo("CONTACT_INFO");
             assertThat(row.getCellValue()).isEqualTo("18888888888");
         });
+    }
+
+    @Test
+    @DisplayName("EAV 格式传小写 infoKey tel 应归一为大写 TEL 落库")
+    void saveEvaluation_eavLowercaseTel_shouldNormalizeToUppercaseTel() {
+        Long tenderId = createTender();
+
+        Map<String, Object> eavRow = new LinkedHashMap<>();
+        eavRow.put("roleKey", "PROJECT_HIGHEST_DECISION_MAKER");
+        eavRow.put("infoKey", " tel ");
+        eavRow.put("value", "010-12345678");
+        eavRow.put("valueType", "TEXT");
+
+        evaluationService.saveEvaluation(tenderId, null, List.of(eavRow), null);
+
+        TenderEvaluation evaluation = tenderEvaluationRepository.findByTenderId(tenderId).orElseThrow();
+        List<TenderEvaluationCustomerInfo> rows = customerInfoRepository.findByEvaluationId(evaluation.getId());
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).getInfoKey()).isEqualTo("TEL");
+        assertThat(rows.get(0).getCellValue()).isEqualTo("010-12345678");
+        assertThat(rows.get(0).getValueType()).isEqualTo(TenderEvaluationCustomerInfo.ValueType.TEXT);
+    }
+
+    @Test
+    @DisplayName("Flat 格式提交含 TEL 的客户信息应落库 infoKey=TEL valueType=TEXT")
+    void saveEvaluation_flatWithTel_shouldSaveTelAsText() {
+        Long tenderId = createTender();
+
+        // Flat 格式：TEL 作为 roleData 的字段键
+        Map<String, Object> roleData = new LinkedHashMap<>();
+        roleData.put("roleKey", "PROJECT_HIGHEST_DECISION_MAKER");
+        roleData.put("NAME", "张三");
+        roleData.put("TEL", "010-87654321");
+
+        evaluationService.saveEvaluation(tenderId, null, List.of(roleData), null);
+
+        TenderEvaluation evaluation = tenderEvaluationRepository.findByTenderId(tenderId).orElseThrow();
+        List<TenderEvaluationCustomerInfo> rows = customerInfoRepository.findByEvaluationId(evaluation.getId());
+        assertRow(rows, "TEL", "010-87654321", TenderEvaluationCustomerInfo.ValueType.TEXT);
+        assertRow(rows, "NAME", "张三", TenderEvaluationCustomerInfo.ValueType.TEXT);
+    }
+
+    @Test
+    @DisplayName("EAV 格式提交含 TEL 的客户信息应落库 infoKey=TEL valueType=TEXT 且全量替换旧行")
+    void saveEvaluation_eavWithTel_shouldReplaceAllRowsAndSaveTelAsText() {
+        Long tenderId = createTender();
+
+        // 先落一行旧数据，验证 EAV 保存的全量替换语义
+        Map<String, Object> oldRow = new LinkedHashMap<>();
+        oldRow.put("roleKey", "PROJECT_HIGHEST_DECISION_MAKER");
+        oldRow.put("NAME", "李四");
+        evaluationService.saveEvaluation(tenderId, null, List.of(oldRow), null);
+
+        // EAV 格式：TEL 作为 infoKey
+        Map<String, Object> eavRow = new LinkedHashMap<>();
+        eavRow.put("roleKey", "EXTERNAL_ROLE_9");
+        eavRow.put("infoKey", "TEL");
+        eavRow.put("value", "021-11112222");
+        eavRow.put("valueType", "TEXT");
+
+        evaluationService.saveEvaluation(tenderId, null, List.of(eavRow), null);
+
+        TenderEvaluation evaluation = tenderEvaluationRepository.findByTenderId(tenderId).orElseThrow();
+        List<TenderEvaluationCustomerInfo> rows = customerInfoRepository.findByEvaluationId(evaluation.getId());
+        // 全量替换：旧的 NAME 行被清除，仅剩新 EAV 行
+        assertThat(rows).hasSize(1);
+        assertRow(rows, "TEL", "021-11112222", TenderEvaluationCustomerInfo.ValueType.TEXT);
+        assertThat(rows.get(0).getRoleKey()).isEqualTo("EXTERNAL_ROLE_9");
+    }
+
+    @Test
+    @DisplayName("预置 TEL EAV 行后详情 flatten 路径应输出 TEL 键")
+    void buildEvaluationDTO_withPresetTelRow_shouldFlattenTelKey() {
+        Long tenderId = createTender();
+
+        Map<String, Object> eavRow = new LinkedHashMap<>();
+        eavRow.put("roleKey", "PROJECT_HIGHEST_DECISION_MAKER");
+        eavRow.put("infoKey", "TEL");
+        eavRow.put("value", "010-12345678");
+        eavRow.put("valueType", "TEXT");
+        evaluationService.saveEvaluation(tenderId, null, List.of(eavRow), null);
+
+        // 详情/flatten 路径需要真实 mapper（setUp 中 submissionMapper 为 mock，无法构建 DTO）
+        TenderEvaluationIntegrationMapper realMapper = new TenderEvaluationIntegrationMapper(
+                tenderEvaluationRepository, new TenderEvaluationSubmissionMapper());
+        Tender tender = tenderRepository.findById(tenderId).orElseThrow();
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> dto = (Map<String, Object>) realMapper.buildEvaluationDTO(tenderId, tender);
+
+        assertThat(dto).isNotNull();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> flattened = (List<Map<String, Object>>) dto.get("evaluationCustomerInfos");
+        assertThat(flattened).hasSize(1);
+        assertThat(flattened.get(0)).containsEntry("roleKey", "PROJECT_HIGHEST_DECISION_MAKER");
+        assertThat(flattened.get(0)).containsEntry("TEL", "010-12345678");
     }
 
     private void assertRow(List<TenderEvaluationCustomerInfo> rows, String infoKey, String value,

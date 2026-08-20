@@ -133,7 +133,7 @@ class TenderIntegrationServicePushEvaluationTest {
         List<TenderEvaluationCustomerInfo> rows = customerInfoRepository.findByEvaluationId(eval.getId());
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).getRoleKey()).isEqualTo("DECISION_MAKER");
-        assertThat(rows.get(0).getInfoKey()).isEqualTo("attitude");
+        assertThat(rows.get(0).getInfoKey()).isEqualTo("ATTITUDE");
         assertThat(rows.get(0).getCellValue()).isEqualTo("支持");
     }
 
@@ -158,7 +158,7 @@ class TenderIntegrationServicePushEvaluationTest {
         List<TenderEvaluationCustomerInfo> rows = customerInfoRepository.findByEvaluationId(eval.getId());
         assertThat(rows).hasSize(1);
         assertThat(rows.get(0).getRoleKey()).isEqualTo("INFLUENCER");
-        assertThat(rows.get(0).getInfoKey()).isEqualTo("position");
+        assertThat(rows.get(0).getInfoKey()).isEqualTo("POSITION");
         assertThat(rows.get(0).getCellValue()).isEqualTo("总监");
     }
 

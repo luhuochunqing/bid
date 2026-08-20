@@ -22,7 +22,7 @@ function makeEmptyForm() { return { basic: makeEmptyBasic(), customerInfo: [], r
 // ---- Mapping helpers ----
 /** Map column key → backend valueType */
 export const VT = {
-  NAME: 'TEXT', CONTACT_INFO: 'TEXT', POSITION: 'ENUM14', XIYU_CONTACT: 'TEXT', CONTACT_METHOD: 'ENUM7',
+  NAME: 'TEXT', CONTACT_INFO: 'TEXT', TEL: 'TEXT', POSITION: 'ENUM14', XIYU_CONTACT: 'TEXT', CONTACT_METHOD: 'ENUM7',
   INFO_TENDENCY_BASIS: 'TEXT', INFO_CLEAR_WINNER_BID: 'SWITCH', INFO_WIN_RATE_IMPACT: 'DROPDOWN6',
   CONTACTED: 'DROPDOWN', GUIDED_BID: 'DROPDOWN',
   CAN_GET_KEY_INFO: 'DROPDOWN', CAN_REMOVE_ADVERSE: 'DROPDOWN',

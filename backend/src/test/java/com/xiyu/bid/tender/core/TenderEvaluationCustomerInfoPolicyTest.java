@@ -53,4 +53,56 @@ class TenderEvaluationCustomerInfoPolicyTest {
         assertThat(TenderEvaluationCustomerInfoPolicy.isValidRoleKey("EXTERNAL_ROLE_ABC")).isFalse();
         assertThat(TenderEvaluationCustomerInfoPolicy.isValidRoleKey("EXTERNAL_ROLE_")).isFalse();
     }
+
+    @Test
+    @DisplayName("TEL 是合法 infoKey，值类型为 TEXT，显示名为对接人座机号")
+    void validate_telInfoKey_isValidWithTextTypeAndDisplayName() {
+        assertThat(TenderEvaluationCustomerInfoPolicy.isValidInfoKey("TEL")).isTrue();
+        assertThat(TenderEvaluationCustomerInfoPolicy.VALID_INFO_KEYS).contains("TEL");
+        assertThat(TenderEvaluationCustomerInfoPolicy.INFO_KEY_VALUE_TYPES.get("TEL")).isEqualTo("TEXT");
+        assertThat(TenderEvaluationCustomerInfoPolicy.INFO_DISPLAY_NAMES.get("TEL")).isEqualTo("对接人座机号");
+
+        ValidationResult result = TenderEvaluationCustomerInfoPolicy.validate(List.of(
+                new TenderEvaluationCustomerInfoPolicy.CustomerInfoRow(
+                        "ELECTRONICS_COMPANY_CHAIRMAN", "TEL", "010-12345678", "TEXT")
+        ));
+
+        assertThat(result.isValid()).isTrue();
+    }
+
+    @Test
+    @DisplayName("CONTACT_INFO 显示名为对接人手机号")
+    void infoDisplayNames_contactInfo_isMobilePhone() {
+        assertThat(TenderEvaluationCustomerInfoPolicy.INFO_DISPLAY_NAMES.get("CONTACT_INFO"))
+                .isEqualTo("对接人手机号");
+    }
+
+    @Test
+    @DisplayName("固定信息维度共 16 个，TEL 选填（不在必填集中）")
+    void infoKeys_totalCountIsSixteen_andTelOptional() {
+        assertThat(TenderEvaluationCustomerInfoPolicy.VALID_INFO_KEYS).hasSize(16);
+        assertThat(TenderEvaluationCustomerInfoPolicy.INFO_KEY_VALUE_TYPES).hasSize(16);
+        assertThat(TenderEvaluationCustomerInfoPolicy.INFO_DISPLAY_NAMES).hasSize(16);
+        assertThat(TenderEvaluationCustomerInfoPolicy.REQUIRED_INFO_KEYS).doesNotContain("TEL");
+
+        ValidationResult result = TenderEvaluationCustomerInfoPolicy.validate(List.of(
+                new TenderEvaluationCustomerInfoPolicy.CustomerInfoRow(
+                        "ELECTRONICS_COMPANY_CHAIRMAN", "TEL", "", "TEXT")
+        ));
+
+        assertThat(result.isValid()).isTrue();
+    }
+
+    @Test
+    @DisplayName("TEL 值类型不匹配时报 INVALID_VALUE_TYPE")
+    void validate_telWrongValueType_returnsInvalidValueType() {
+        ValidationResult result = TenderEvaluationCustomerInfoPolicy.validate(List.of(
+                new TenderEvaluationCustomerInfoPolicy.CustomerInfoRow(
+                        "ELECTRONICS_COMPANY_CHAIRMAN", "TEL", "010-12345678", "DROPDOWN")
+        ));
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.errors()).extracting(FieldError::code)
+                .containsOnly("INVALID_VALUE_TYPE");
+    }
 }

@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -91,13 +92,16 @@ public class TenderEvaluationIntegrationMapper {
 
     /**
      * 将 CRM 推送的字段名标准化为前端矩阵使用的 infoKey。
+     * <p>EAV / Flat 两种入参格式共用本方法：先 trim + 大写归一，再做别名映射，
+     * 保证外部系统传小写键（如 {@code tel}）时与 Policy 白名单（全大写）一致。
      */
     String normalizeCustomerInfoKey(String infoKey) {
         if (infoKey == null) return null;
-        return switch (infoKey) {
+        String normalized = infoKey.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
             case "CONTACT" -> "CONTACT_INFO";
             case "EVALUATION_BASIS" -> "INFO_TENDENCY_BASIS";
-            default -> infoKey;
+            default -> normalized;
         };
     }
 

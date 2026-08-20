@@ -4,7 +4,7 @@ space: engineering
 category: integration
 tags: [integration, api, tender, crm, callback, x-api-key]
 created: 2026-06-21
-updated: 2026-08-12
+updated: 2026-08-20
 health_checked: 2026-08-20
 sources:
   - docs/integration/标讯集成接口文档-v3.8.md
@@ -90,6 +90,7 @@ backlinks:
 | `sourceType` | 来源类型，`EXTERNAL_PLATFORM` 表示外部推送 |
 | `contactInfo` | v3.1+ 联系人数组，每项含 name/phone/tel/mail；同时保留 contactName 等扁平字段向下兼容 |
 | `evaluation` | v3.1+ 项目评估嵌套对象，含基础信息段、客户信息矩阵、投标负责人建议三段 |
+| `evaluation.customerInfos` | 客户信息矩阵 EAV 行列表；含 TEL（对接人座机号，TEXT 类型）维度；写入前 infoKey 做归一化（trim + toUpperCase，见 TenderEvaluationIntegrationMapper），大小写/首尾空格差异不影响落库 |
 | `attachments` | v3.2+ 标讯附件数组，每项含 fileName/fileType/fileUrl |
 | `tenderInfo` / `projectManagerName` / `department` / `creatorName` / `createDate` | v3.7+ 标讯创建接口新增 5 个字段 |
 
