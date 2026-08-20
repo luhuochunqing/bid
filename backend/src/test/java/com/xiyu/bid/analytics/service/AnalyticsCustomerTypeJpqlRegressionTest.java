@@ -27,7 +27,8 @@ import static org.mockito.Mockito.when;
 /**
  * 客户类型双源口径（coalesce 优先立项详情）JPQL 回归：
  * 纯 Mockito 单测无法验证 JPQL/native SQL 字符串可被 Hibernate 真实解析，
- * 本测试在 H2 上实际执行改动的三条查询路径（筛选项 DISTINCT / M2 行查询 / M1 维度分组）。
+ * 本测试在 H2 上实际执行改动的查询路径（筛选项 DISTINCT / M2 行查询 / M1 维度分组 / 下钻）。
+ * 含英文枚举回归：立项详情存 CENTRAL_SOE 等枚举名时，分组/筛选/下钻统一归一化为中文标准分类。
  */
 @DataJpaTest
 @ActiveProfiles("test")
@@ -91,6 +92,12 @@ class AnalyticsCustomerTypeJpqlRegressionTest {
         entityManager.persist(c);
         entityManager.persist(buildDetails(c.getId(), "事业单位"));
 
+        // 项目D：立项详情存英文枚举名（ProjectInitiationMapper.applyInput 真实写入口径），主表为空
+        Project d = buildProject("项目D-英文枚举", Project.Status.BIDDING, null);
+        d.setCreatedAt(LocalDateTime.of(2026, 3, 20, 10, 0));
+        entityManager.persist(d);
+        entityManager.persist(buildDetails(d.getId(), "CENTRAL_SOE"));
+
         entityManager.flush();
     }
 
@@ -106,41 +113,69 @@ class AnalyticsCustomerTypeJpqlRegressionTest {
     void distinctCustomerTypesUseCoalescedValue() {
         List<String> options = filterOptionsService.fetchDistinctCustomerTypes();
 
-        // H2 按字符排序：事(U+4E8B) < 央(U+592E) < 政(U+653F)
-        assertThat(options).containsExactly("事业单位", "央企", "政府");
+        // DISTINCT 返回双源原始值（含英文枚举种子）；H2 排序 ASCII 在前：
+        // CENTRAL_SOE < 事(U+4E8B) < 央(U+592E) < 政(U+653F)
+        assertThat(options).containsExactly("CENTRAL_SOE", "事业单位", "央企", "政府");
     }
 
     @Test
-    @DisplayName("M2 行查询：构造器表达式返回 coalesce 后的客户类型")
+    @DisplayName("M2 行查询：构造器表达式返回 coalesce 后的客户类型原始值")
     void customerTypeRowsCarryCoalescedValue() {
         var rows = customerTypeQueryService.fetchProjectRows(null, null);
 
+        // M2 行查询返回原始值，归一化在计算层（CustomerTypeNormalizer）完成
         assertThat(rows).extracting(r -> r.customerType())
-                .containsExactlyInAnyOrder("央企", "政府", "事业单位");
+                .containsExactlyInAnyOrder("央企", "政府", "事业单位", "CENTRAL_SOE");
     }
 
     @Test
-    @DisplayName("M1 维度分组：双源值分组 + 筛选条件走 coalesce 表达式")
+    @DisplayName("M1 维度分组：双源值分组 + 筛选条件与分组同口径命中")
     void dimensionRowsGroupByCoalescedValueAndFilterMatches() {
         var rows = dimensionQueryService.fetchCustomerTypeRows(new TrendQueryCriteria(
                 null, null, null, null, null,
                 List.of("央企"), null, null, null, null));
 
-        assertThat(rows).hasSize(1);
-        assertThat(rows.get(0).category()).isEqualTo("央企");
-        assertThat(rows.get(0).status()).isEqualTo(Project.Status.BIDDING);
+        // 项目A（中文 "央企"）+ 项目D（英文 CENTRAL_SOE 归一化）均命中，标签统一为中文标准分类
+        assertThat(rows).hasSize(2);
+        assertThat(rows).allSatisfy(r -> {
+            assertThat(r.category()).isEqualTo("央企");
+            assertThat(r.status()).isEqualTo(Project.Status.BIDDING);
+        });
     }
 
     @Test
-    @DisplayName("M1 下钻：原生 SQL COALESCE 维度过滤与全项目投标数口径可执行")
-    void drillDownFiltersCustomerTypeByCoalescedColumn() {
+    @DisplayName("M1 维度分组：英文枚举种子归一化为中文标准分类，筛选同口径命中")
+    void dimensionRowsNormalizeEnglishEnumToChineseCategory() {
+        // 不启用筛选：英文枚举 CENTRAL_SOE 归一化后与中文标准值 "央企"（项目A）合并同柱
+        var allRows = dimensionQueryService.fetchCustomerTypeRows(new TrendQueryCriteria(
+                null, null, null, null, null,
+                null, null, null, null, null));
+        assertThat(allRows).filteredOn(r -> "央企".equals(r.category())).hasSize(2);
+        // 归一化失败的原始值不产生英文柱子
+        assertThat(allRows).extracting(DimensionRow::category)
+                .doesNotContain("CENTRAL_SOE", "GOVERNMENT", "PRIVATE");
+
+        // 启用筛选：中文标准值筛选命中英文枚举种子（旧 coalesce IN 直匹配会漏）
+        var rows = dimensionQueryService.fetchCustomerTypeRows(new TrendQueryCriteria(
+                null, null, null, null, null,
+                List.of("央企"), null, null, null, null));
+        assertThat(rows).extracting(DimensionRow::category).containsOnly("央企");
+        assertThat(rows).extracting(DimensionRow::projectId)
+                .anySatisfy(id -> assertThat(id).isNotNull());
+        assertThat(rows).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("M1 下钻：axisValue=中文标准分类时英文枚举种子同口径命中")
+    void drillDownCustomerTypeAxisMatchesNormalizedEnglishEnum() {
         var response = drillDownService.drillDown(
                 "customerType", "央企", "投标数",
                 null, null, null, null, null, null, null,
                 null, null, null, 1, 10);
 
-        assertThat(response.getSummary().getTotalCount()).isEqualTo(1L);
-        assertThat(response.getItems()).hasSize(1);
-        assertThat(response.getItems().get(0).getProjectName()).isEqualTo("项目A-口径优先级");
+        // 项目A（立项详情中文 "央企"）+ 项目D（立项详情英文 CENTRAL_SOE）
+        assertThat(response.getSummary().getTotalCount()).isEqualTo(2L);
+        assertThat(response.getItems()).extracting("projectName")
+                .containsExactlyInAnyOrder("项目A-口径优先级", "项目D-英文枚举");
     }
 }

@@ -22,8 +22,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * M1 趋势分析下钻查询（PRD 6.6）。
- * 根据当前 X 轴维度值、系列名、日期范围和其他筛选条件查询项目列表。
+ * M1 趋势分析下钻查询（PRD 6.6）：按 X 轴维度值/系列名/日期范围/筛选条件查询项目列表；
+ * 客户类型统一走 AnalyticsCustomerTypeFilterSupport 归一化口径（同图表分组），替代 coalesce 直匹配。
  */
 @Service
 @RequiredArgsConstructor
@@ -64,13 +64,13 @@ public class TrendDrillDownService {
         params.put("allAccess", allAccess);
         params.put("scopeIds", allAccess ? List.of(-1L) : scopeIds);
 
-        // 维度值过滤（axisValue 对应的维度列）；region 维度统一走下方省份归一化过滤
+        // 维度值过滤（axisValue 对应的维度列）；region/customerType 维度统一走下方归一化过滤
         boolean regionAxis = "region".equals(dimension) && axisValue != null && !axisValue.isBlank();
-        if (!regionAxis) {
+        boolean customerTypeAxis = "customerType".equals(dimension) && axisValue != null && !axisValue.isBlank();
+        if (!regionAxis && !customerTypeAxis) {
             appendDimensionFilter(where, params, dimension, axisValue);
         }
 
-        // 日期范围
         if (startDate != null) {
             where.append(" AND p.created_at >= :startDate");
             params.put("startDate", startDate.atStartOfDay());
@@ -85,10 +85,17 @@ public class TrendDrillDownService {
             where.append(" AND p.status = 'WON'");
         }
 
-        // 通用筛选条件（客户类型优先取立项详情值、空串回退项目主表快照，coalesce 口径与统计维度一致）
-        if (customerTypes != null && !customerTypes.isEmpty()) {
-            where.append(" AND COALESCE(NULLIF(pid.customer_type, ''), p.customer_type) IN (:customerTypes)");
-            params.put("customerTypes", customerTypes);
+        // 通用筛选：客户类型与分组同口径归一化匹配；axisValue 与 customerTypes 取交集后只算一次
+        if (customerTypeAxis || (customerTypes != null && !customerTypes.isEmpty())) {
+            if (customerTypeAxis && customerTypes != null && !customerTypes.isEmpty() && !customerTypes.contains(axisValue)) {
+                return emptyResponse(pageNum, pageSize); // 交集为空
+            }
+            List<String> effectiveCustomerTypes = customerTypeAxis ? List.of(axisValue) : customerTypes;
+            Set<Long> customerTypeMatchedIds = AnalyticsCustomerTypeFilterSupport.customerTypeMatchedProjectIds(
+                    entityManager, projectAccessScopeService, effectiveCustomerTypes, startDate, endDate);
+            if (customerTypeMatchedIds.isEmpty()) return emptyResponse(pageNum, pageSize);
+            where.append(" AND p.id IN (:customerTypeProjectIds)");
+            params.put("customerTypeProjectIds", customerTypeMatchedIds);
         }
         appendInFilter(where, params, "t.project_type", "projectTypes", projectTypes);
         appendInFilter(where, params, "p.status", "statuses", statuses);
@@ -251,10 +258,6 @@ public class TrendDrillDownService {
             }
             case "person" -> {
                 where.append(" AND u.full_name = :axisVal");
-                params.put("axisVal", axisValue);
-            }
-            case "customerType" -> {
-                where.append(" AND COALESCE(NULLIF(pid.customer_type, ''), p.customer_type) = :axisVal");
                 params.put("axisVal", axisValue);
             }
             case "projectType" -> {
