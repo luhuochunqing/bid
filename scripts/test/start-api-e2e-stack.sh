@@ -84,12 +84,12 @@ require_port_clear() {
   if [[ -n "$occupying_process" ]]; then
     printf '   占用进程: %s\n' "$occupying_process" >&2
   fi
-  printf '\n💡 如果您在本地运行 agent dev 服务（npm run agent:up），请先执行：\n' >&2
-  printf '     export XIYU_DEV_CONFIRMED=1 && npm run agent:stop\n' >&2
+  printf '\n💡 如果您在本地运行 agent dev 服务（scripts/agent-dev.sh up），请先执行：\n' >&2
+  printf '     export XIYU_DEV_CONFIRMED=1 && bash scripts/agent-dev.sh stop\n' >&2
   printf '   然后再运行：\n' >&2
   printf '     npx playwright test\n' >&2
   printf '   测试完成后，恢复开发环境：\n' >&2
-  printf '     export XIYU_DEV_CONFIRMED=1 && npm run agent:up\n\n' >&2
+  printf '     export XIYU_DEV_CONFIRMED=1 && bash scripts/agent-dev.sh up\n\n' >&2
   lsof -nP -iTCP:"$port" -sTCP:LISTEN >&2 || true
   return 1
 }

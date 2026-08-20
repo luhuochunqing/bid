@@ -2,6 +2,12 @@
 
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
+## [2026-08-20] no-op | cut-npm-aliases 无新业务结论
+
+- 触发：删除 33 条 npm script 别名，启动入口改 bash
+- 结论：`docs/implementation-notes/cut-npm-aliases.md`；CI 未使用被删名
+- 触发点：任务收尾（§2 触发点 1）
+
 ## [2026-08-20] no-op | ponytail-safe-cuts 无新业务结论
 
 - 触发：删除死代码（icons.js / demoPersistence / useDebounce）+ 去掉已不读取的 VITE_API_MODE

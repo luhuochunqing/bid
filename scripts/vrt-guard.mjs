@@ -162,7 +162,7 @@ try {
   }
 } catch (err) {
   console.error('\n  ERROR  Could not reach app at', BASE_URL);
-  console.error('  Make sure the dev server is running: npm run dev:stable:start\n');
+  console.error('  Make sure the dev server is running: XIYU_DEV_CONFIRMED=1 bash scripts/dev-services.sh start\n');
   await browser.close();
   process.exit(2);
 }
