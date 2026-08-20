@@ -3,7 +3,9 @@
 > 一旦我所属的文件夹有所变化，请更新我。
 
 ## 职责
-通用导出模块提供 Excel 导出与导出任务编排能力，供多个业务域复用。这里是跨域导出的基础设施边界，不承载具体业务规则。
+通用导出模块提供 Excel 导出能力。表 `export_tasks` 是**跨模块异步导出任务**的唯一落点（`data_type` 区分业务）。
+
+**现状**：`/api/export/excel` 仍是同步写临时文件，**没有**写入 `export_tasks`（Repository 无生产注入）。新增异步导出/导入必须接这张表 + `AbstractExportTaskStateService`，禁止再 `CREATE TABLE xxx_export_task`。门禁：`scripts/check-async-task-table.sh`（lessons-learned §139）。
 
 ## 边界清单
 | 文件 | 地位 | 功能 |

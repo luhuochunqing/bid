@@ -8,6 +8,11 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
+/**
+ * 通用异步导出任务（表 export_tasks）。
+ * 新增导出不要再建 xxx_export_task：按 data_type 区分，接 AbstractExportTaskStateService。
+ * 注意：/api/export/excel 目前走同步临时文件，尚未写入本表（lessons-learned §139）。
+ */
 @Entity
 @Table(name = "export_tasks", indexes = {
     @Index(name = "idx_export_user", columnList = "created_by"),

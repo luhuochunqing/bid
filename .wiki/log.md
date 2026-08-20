@@ -2,6 +2,12 @@
 
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
+## [2026-08-20] task | 异步任务表复制门禁（§139）
+
+- 触发：基线 export_tasks 未接入异步路径，模块专表复制 6 次
+- 改动：lessons-learned §139；`scripts/check-async-task-table.sh` 进 pre-commit/pre-push
+- 触发点：任务收尾（§2 触发点 1）—— 新约束 + 防复发门禁
+
 ## [2026-08-20] no-op | cut-npm-aliases 无新业务结论
 
 - 触发：删除 33 条 npm script 别名，启动入口改 bash
