@@ -2289,3 +2289,50 @@ Caused by: java.lang.OutOfMemoryError: Java heap space
 - `backend/src/main/java/com/xiyu/bid/common/application/AbstractExportTaskStateService.java`
 - `scripts/check-async-task-table.sh`
 - `docs/exec-plans/tech-debt-tracker.md`（异步任务表复制条目）
+
+## 140. 标书质量核查 047 验收失真根因：Mock 证据 + 固定文案 + page=1 硬编码让"全绿"无实质（2026-08-20，spec 049 实质化复盘）
+
+### 问题背景
+
+标书质量核查（compliance 模块）曾长期"验收看起来全绿"但无实质价值：检查证据是固定文案（如"已对照企业专家与项目经理库""已检索品牌制造商授权"），页码恒为 1，检查项结论与真实投标/招标文件、知识库无任何关联。同时存在新旧双链路（同步旧链 + 异步新链）并行，行为分叉且旧链无真实数据源。spec 049 五步实质化（真实投标文件 → 真实招标要求 LLM 提取 → 四知识库真实查询 → 真实页码/原文定位 → LLM 混合裁决）完成后的复盘。
+
+### 根因链
+
+1. **证据无真源**：早期实现为快速出界面，证据 quote 用模板文案、pageNumber 写死 1，前端"看起来有证据"但不可回查。
+2. **无机器门禁拦截失真**：没有任何测试断言"证据必须来自真实定位"，Mock/固定文案在 code review 中也不显眼。
+3. **双链路漂移**：重构引入异步链路后旧同步链路未删，两条链路各自演化，验收时走的链路与代码主链路不一致。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 证据类功能用固定文案/硬编码页码凑数 | "看起来有证据"比"没有证据"更危险——验收会误判功能已完成 | 证据字段必须有真实定位器（命中真页码+原文摘录，未命中 page=null+空 quote 显式暴露）；用 grep 门禁验收（固定文案/`pageNumber, 1`/isDemoMode 零命中，见 specs/049 quickstart §5） |
+| 失败路径静默吞掉 | 知识库单库异常/AI 未启用若直接吞掉，用户拿到"全绿"假象 | 失败必须传导为可见状态：单库失败记 failedSources → 依赖项 MANUAL+reasonCode（PRD §3.5 五值）；AI 未启用 Noop → MANUAL 注明原因，任务仍 COMPLETED |
+| 重构留旧链路"以防万一" | 双链路并存必然漂移，验收走哪条链不可控 | 新链路就绪即删旧链（spec 049 第零步先做双链路合并，解除验收阻塞项后再推进 US） |
+| LLM 全量直出不可控 | 让 LLM 直接产出全部 25 项结论，幻觉无确定性拦截 | 混合裁决：确定性规则 lane 毫秒级先跑，LLM 只做语义项裁决层；通道一切失败（未启用/异常/响应非法）在边界适配器吸收为 sealed 值类型（ChatOutcome 四值），纯核心无异常流、单项降级不阻断整体 |
+
+### 相关文件
+
+- `specs/049-bid-quality-check-realization/`（spec/plan/tasks/quickstart/research，commits b492c41ca..cd4f9855c）
+- `backend/src/main/java/com/xiyu/bid/compliance/domain/policy/`（BidDocumentQualityEngine/SemanticRulesLane/LlmAdjudicator/EvidenceAssembler/EvidenceLocator/ManualReasons/LlmVerdict）
+- `backend/src/main/java/com/xiyu/bid/compliance/service/KnowledgeBaseOnDemandLoader.java`（四库真实查询 + failedSources）
+
+---
+
+## 141. Java 21 switch 模式匹配编译产物含 MatchException 构造，触发 FP 门禁"纯核心禁止构造 Throwable"（2026-08-20）
+
+### 问题背景
+
+spec 049 US5 中 `LlmAdjudicator#adjudicateItem` 源码无任何 try/catch、无 throws、无异常构造，但 `FPJavaArchitectureTest.pure_core_must_not_use_exceptions_for_business_flow` 仍报该方法。javap 反汇编发现：对 sealed 接口做 `switch` 模式匹配时，javac 为穷尽性守卫生成 `new java.lang.MatchException` + `athrow` 字节码，被门禁的"方法内构造 Throwable 子类"判据命中。
+
+### 修复方案
+
+改用 `instanceof` 模式匹配序贯判定（if-instanceof-return 链）：编译产物不生成 MatchException，语义等价且保留 record 解构绑定（`instanceof Success<LlmVerdict> success`）。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 门禁基于字节码而非源码 | 源码"看起来纯"不等于字节码纯；编译器为语言特性注入的隐藏构造（MatchException/合成类）会被 ArchUnit 判据命中 | 纯核心类报异常流违规但源码无异常时，先 `javap -c` 看字节码再改代码；纯核心对 sealed 类型分派优先 instanceof 链而非 switch 模式匹配 |
+| void 业务方法触发"业务方法必须返回值"门禁 | 私有静态 helper 也在扫描范围 | 纯核心的 append/add 类 helper 改为返回合并后的集合（调用方可忽略返回值，门禁只查签名） |
+| JSON 解析放纯核心 | Jackson checked 异常在纯核心必然 try/catch，必违规 | 解析器置 service 边界层（TenderRequirementsParser/LlmVerdictParser 先例），纯核心只消费解析后的值类型 |

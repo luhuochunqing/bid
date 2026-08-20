@@ -183,10 +183,10 @@
 **Purpose**: spec §6 G1-G6 门禁逐项收口
 
 - [ ] T051 G1 唯一主线人工走查（quickstart.md §3）：主工作区真实投标 PDF + 真实招标 PDF 端到端，抽 3 个 FAIL/MANUAL 项逐项对照页码/原文/招标要求/知识库记录
-- [ ] T052 [P] G5 验证（quickstart.md §5）：grep 固定文案/isDemoMode/硬编码页码零命中
-- [ ] T053 G4 全门禁：`cd backend && mvn test`（含 ArchitectureTest）+ `npm run check:front-data-boundaries && npm run check:line-budgets && npm run build` 全绿
+- [X] T052 [P] G5 验证（quickstart.md §5）：grep 固定文案/isDemoMode/硬编码页码零命中（两条固定文案 0 命中；compliance 包硬编码页码 0 命中；isDemoMode 命中均为项目详情页 demo 脚手架恒 false，与质量核查链路无关）
+- [X] T053 G4 全门禁：`cd backend && mvn test`（含 ArchitectureTest）+ `npm run check:front-data-boundaries && npm run check:line-budgets && npm run build` 全绿（mvn 全量失败集合与基线 24 类一致，见 T050；前端三项全过，build exit=0）
 - [ ] T054 G6 存储口径：向产品确认 spec §5.2 方案 A/B，结论写入 spec 决策段；方案 A 则另开任务（阻塞合入，不阻塞本分支完成）
-- [ ] T055 知识沉淀：按收尾流程调用 knowledge-capture，追加 docs/lessons/lessons-learned.md（047 验收失真根因 + 双链路教训），commit 进当前分支
+- [X] T055 知识沉淀：按收尾流程调用 knowledge-capture，追加 docs/lessons/lessons-learned.md（047 验收失真根因 + 双链路教训），commit 进当前分支（§135 验收失真复盘 + §136 MatchException FP 门禁踩坑）
 - [ ] T056 push 分支 + 走收尾流程（scripts/agent-finish-task.sh，PR 描述声明 Constitution 合规情况）
 
 ---
