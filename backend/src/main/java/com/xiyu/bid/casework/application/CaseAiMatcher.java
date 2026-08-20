@@ -85,9 +85,13 @@ public class CaseAiMatcher {
      * 返回 null 表示该评分项无匹配证据（诚实降级），由调用方跳过。
      */
     private AiMatchedSlice extractSliceForCriterion(AiProviderRuntimeConfig config, ScoreItemSnapshot criterion, String excerpt) {
+        // 剥离 markdown 内嵌 base64 图片数据：docx→markdown 转换会把图片内联成 data:image/...;base64,
+        // LLM 网关会把 prompt 中的 base64 当多模态输入解析，数据不完整时直接 500（convert_request_failed）。
+        // 摘录只服务于文本证据提取，图片对评分证据无意义，统一替换为占位符（spec 049 验收发现）。
+        String cleanExcerpt = stripBase64Images(excerpt);
         String userPrompt = "CRITERION TITLE:\n" + criterion.title()
                 + "\n\nCRITERION RULE:\n" + criterion.ruleText()
-                + "\n\nRELEVANT DOCUMENT EXCERPT:\n" + excerpt
+                + "\n\nRELEVANT DOCUMENT EXCERPT:\n" + cleanExcerpt
                 + "\n\nReturn a single JSON object: {\"matchedSnippet\": \"exact proof text from the excerpt\", \"confidence\": 0.0-1.0}. "
                 + "If the excerpt contains no proof for the criterion, return {\"matchedSnippet\": \"\", \"confidence\": 0.0}.";
 
@@ -160,6 +164,28 @@ public class CaseAiMatcher {
     private static String truncateForLog(String text, int maxLen) {
         if (text == null) return "<null>";
         return text.length() <= maxLen ? text : text.substring(0, maxLen) + "...(截断，共 " + text.length() + " 字符)";
+    }
+
+    /**
+     * 剥离摘录中的 markdown 内嵌 base64 图片数据，避免 LLM 网关把 base64 当多模态输入解析失败（spec 049 验收发现）。
+     * 处理两种形态：标准 markdown 图片语法 {@code ![alt](data:image/png;base64,xxxx)} 与可能残留的裸 data URI。
+     * base64 载荷统一替换为 {@code [image]} 占位符，保留文本语义；非图片文本原样返回。
+     */
+    static String stripBase64Images(String text) {
+        if (text == null || text.isEmpty()) {
+            return text;
+        }
+        // 1) 标准 markdown 图片：![alt](data:image/<mime>;base64,<payload>)
+        //    用 ?: 非贪婪 + 允许换行（长 base64 可能被 markdown 转换器折行）
+        String cleaned = text.replaceAll(
+                "!\\[[^\\]]*\\]\\(\\s*data:image/[^;)]*;base64,[^)]*\\)",
+                "[image]");
+        // 2) 裸 data URI（未以 markdown 语法包裹的残留）：data:image/<mime>;base64,<payload>
+        //    payload 只由 base64 字母表 + 可能的空白/换行构成
+        cleaned = cleaned.replaceAll(
+                "data:image/[A-Za-z0-9.+-]+;base64,[A-Za-z0-9+/=\\s]*",
+                "[image]");
+        return cleaned;
     }
 
     public String extractCategory(String category) {

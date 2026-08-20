@@ -243,6 +243,58 @@ class CaseAiMatcherTest {
         assertThat(slices.get(0).getMatchedSnippet()).isEqualTo("微服务架构支撑");
     }
 
+    @Test
+    @DisplayName("prompt 剥离 markdown 内嵌 base64 图片 — 防 LLM 网关 convert_request_failed 500")
+    void prompt_stripsBase64Images_notSendRawDataUri() {
+        when(routingAiProvider.resolveActiveConfig()).thenReturn(config());
+        when(restTemplate.exchange(eq(BASE_URL), eq(HttpMethod.POST), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>("{\"matchedSnippet\": \"本系统采用微服务架构\", \"confidence\": 0.9}", HttpStatus.OK));
+
+        // 摘录命中段落同时含 base64 图片（docx→markdown 常见形态），必须被剥离后才能发给 LLM
+        String markdown = "技术方案 本系统采用微服务架构。\n\n"
+                + "![架构图](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==)\n\n"
+                + "性能要求满足高并发。";
+        ScoreItemSnapshot tech = snapshot(101L, "技术方案", "要求提供技术架构图", "技术方案");
+        caseAiMatcher.extractSlicesWithAi(markdown, List.of(tech));
+
+        ArgumentCaptor<HttpEntity> entityCaptor = ArgumentCaptor.forClass(HttpEntity.class);
+        verify(restTemplate).exchange(eq(BASE_URL), eq(HttpMethod.POST), entityCaptor.capture(), eq(String.class));
+        Map<String, Object> body = (Map<String, Object>) entityCaptor.getValue().getBody();
+        List<Map<String, String>> messages = (List<Map<String, String>>) body.get("messages");
+        String userPrompt = messages.get(1).get("content");
+        assertThat(userPrompt).doesNotContain("data:image");
+        assertThat(userPrompt).doesNotContain("base64");
+        assertThat(userPrompt).contains("本系统采用微服务架构");
+        assertThat(userPrompt).contains("性能要求满足高并发");
+    }
+
+    @Test
+    @DisplayName("stripBase64Images — 标准 markdown 图片语法替换为占位符")
+    void stripBase64Images_markdownSyntax() {
+        String input = "正文一\n\n![架构图](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==)\n\n正文二";
+        String out = CaseAiMatcher.stripBase64Images(input);
+        assertThat(out).contains("正文一").contains("正文二");
+        assertThat(out).doesNotContain("data:image").doesNotContain("base64");
+        assertThat(out).contains("[image]");
+    }
+
+    @Test
+    @DisplayName("stripBase64Images — 裸 data URI 残留也被剥离")
+    void stripBase64Images_bareDataUri() {
+        String input = "内容 data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==";
+        String out = CaseAiMatcher.stripBase64Images(input);
+        assertThat(out).contains("内容");
+        assertThat(out).doesNotContain("data:image").doesNotContain("base64");
+        assertThat(out).contains("[image]");
+    }
+
+    @Test
+    @DisplayName("stripBase64Images — 无图片文本原样返回")
+    void stripBase64Images_plainTextUntouched() {
+        String input = "纯文本摘录，不含任何图片数据。";
+        assertThat(CaseAiMatcher.stripBase64Images(input)).isEqualTo(input);
+    }
+
     private static final String BASE_URL = "https://ai.example.com/v1/chat/completions";
 
     private AiProviderRuntimeConfig config() {
