@@ -241,6 +241,8 @@ PASS / FAIL / MANUAL + reason（含 reasonCode）+ evidence
 
 倾向 B，但必须由产品确认后写入本节，不得由开发自行决定。
 
+**✅ 决策已定案（2026-08-20，产品确认）**：采纳**方案 B**——DB 保存核查报告 + 按文件版本 hash 缓存复用 + force=true 强制重跑。PRD §4.4 原文（不持久化 + Redis TTL 30 分钟）废弃，待下次 PRD 修订时同步。当前工程实现（`ComplianceCheckResult` 持久化 + `BidQualityCheckTaskAppService` 缓存命中/force 重跑）即为目标形态，无需另开改造任务。G6 门禁达成。
+
 ---
 
 ## 6. 验收门禁清单（Acceptance Gate）
