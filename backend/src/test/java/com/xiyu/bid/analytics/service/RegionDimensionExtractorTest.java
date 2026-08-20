@@ -42,6 +42,19 @@ class RegionDimensionExtractorTest {
             西藏自治区拉萨市,    西藏自治区
             宁夏回族自治区银川市, 宁夏回族自治区
             广西壮族自治区南宁市, 广西壮族自治区
+            江苏,                江苏省
+            江苏淮安,            江苏省
+            内蒙古,              内蒙古自治区
+            内蒙古呼和浩特市,    内蒙古自治区
+            广西,                广西壮族自治区
+            西藏,                西藏自治区
+            新疆,                新疆维吾尔自治区
+            河北,                河北省
+            黑龙江,              黑龙江省
+            陕西,                陕西省
+            吉林市,              吉林省
+            海南,                海南省
+            海南省海口市,        海南省
             """)
     void testExtractProvince(String input, String expected) {
         assertThat(RegionDimensionExtractor.extractProvince(input)).isEqualTo(expected);
@@ -60,5 +73,69 @@ class RegionDimensionExtractorTest {
     void testExtractProvinceFallback() {
         assertThat(RegionDimensionExtractor.extractProvince("华东大区")).isEqualTo("华东大区");
         assertThat(RegionDimensionExtractor.extractProvince("海外地区")).isEqualTo("海外地区");
+    }
+
+    @Test
+    @DisplayName("前缀歧义 key：青海海南藏族自治州/海南州不归入海南省，保持独立桶")
+    void testAmbiguousShortNameKeepsOwnBucket() {
+        assertThat(RegionDimensionExtractor.extractProvince("海南藏族自治州")).isEqualTo("海南藏族自治州");
+        assertThat(RegionDimensionExtractor.extractProvince("海南州")).isEqualTo("海南州");
+        assertThat(RegionDimensionExtractor.extractProvince("海南藏族自治州共和县")).isEqualTo("海南藏族自治州共和县");
+        // 精确短省名仍归一化
+        assertThat(RegionDimensionExtractor.extractProvince("海南")).isEqualTo("海南省");
+    }
+
+    @Test
+    @DisplayName("别名映射全量遍历：每个短省名 key 均归一化为对应全称（防手写映射拼写逃逸）")
+    void testAllShortNameAliasesNormalized() {
+        java.util.Map<String, String> aliases = RegionDimensionExtractor.SHORT_NAME_ALIASES;
+
+        assertThat(aliases).hasSize(34);
+        aliases.forEach((shortName, fullName) ->
+                assertThat(RegionDimensionExtractor.extractProvince(shortName))
+                        .as("短省名 [%s] 应归一化为 [%s]", shortName, fullName)
+                        .isEqualTo(fullName));
+    }
+
+    @Test
+    @DisplayName("护栏：别名表所有全称 ∈ TenderRegionCatalog 省份集合（防别名表与 catalog 漂移）")
+    void testAliasValuesWithinRegionCatalogProvinces() throws Exception {
+        java.util.Map<String, String> aliases = RegionDimensionExtractor.SHORT_NAME_ALIASES;
+
+        // catalog 省份全集 = 直辖市/港澳台 + 普通省/自治区一级名（PROVINCES 为 private，反射读取）
+        java.util.Set<String> catalogProvinces = new java.util.HashSet<>(
+                com.xiyu.bid.tender.core.TenderRegionCatalog.PROVINCE_ONLY);
+        var provincesField = com.xiyu.bid.tender.core.TenderRegionCatalog.class
+                .getDeclaredField("PROVINCES");
+        provincesField.setAccessible(true);
+        java.util.List<?> provinces = (java.util.List<?>) provincesField.get(null);
+        for (Object entry : provinces) {
+            var accessor = entry.getClass().getMethod("province");
+            accessor.setAccessible(true);
+            catalogProvinces.add((String) accessor.invoke(entry));
+        }
+
+        assertThat(catalogProvinces).hasSize(34);
+        aliases.forEach((shortName, fullName) ->
+                assertThat(catalogProvinces)
+                        .as("别名 [%s] 的全称 [%s] 应属于 TenderRegionCatalog 省份", shortName, fullName)
+                        .contains(fullName));
+    }
+
+    @Test
+    @DisplayName("双源取值口径：总部所在地非空白优先，空白回退标讯区域，均空白返回 null")
+    void testResolveRawLocation() {
+        assertThat(RegionDimensionExtractor.resolveRawLocation("江苏省淮安市", "浙江省杭州市"))
+                .isEqualTo("江苏省淮安市");
+        assertThat(RegionDimensionExtractor.resolveRawLocation(null, "浙江省杭州市"))
+                .isEqualTo("浙江省杭州市");
+        assertThat(RegionDimensionExtractor.resolveRawLocation("", "浙江省杭州市"))
+                .isEqualTo("浙江省杭州市");
+        assertThat(RegionDimensionExtractor.resolveRawLocation("   ", "浙江省杭州市"))
+                .isEqualTo("浙江省杭州市");
+        assertThat(RegionDimensionExtractor.resolveRawLocation(null, null)).isNull();
+        assertThat(RegionDimensionExtractor.resolveRawLocation("", "")).isNull();
+        assertThat(RegionDimensionExtractor.resolveRawLocation(" 江苏省淮安市 ", null))
+                .isEqualTo("江苏省淮安市");
     }
 }

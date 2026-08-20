@@ -64,8 +64,11 @@ public class TrendDrillDownService {
         params.put("allAccess", allAccess);
         params.put("scopeIds", allAccess ? List.of(-1L) : scopeIds);
 
-        // 维度值过滤（axisValue 对应的维度列）
-        appendDimensionFilter(where, params, dimension, axisValue);
+        // 维度值过滤（axisValue 对应的维度列）；region 维度统一走下方省份归一化过滤
+        boolean regionAxis = "region".equals(dimension) && axisValue != null && !axisValue.isBlank();
+        if (!regionAxis) {
+            appendDimensionFilter(where, params, dimension, axisValue);
+        }
 
         // 日期范围
         if (startDate != null) {
@@ -82,27 +85,25 @@ public class TrendDrillDownService {
             where.append(" AND p.status = 'WON'");
         }
 
-        // 通用筛选条件（客户类型优先取立项详情值，回退项目主表快照，与统计口径一致）
+        // 通用筛选条件（客户类型优先取立项详情值、空串回退项目主表快照，coalesce 口径与统计维度一致）
         if (customerTypes != null && !customerTypes.isEmpty()) {
-            where.append(" AND (pid.customer_type IN (:customerTypes) OR (pid.customer_type IS NULL AND p.customer_type IN (:customerTypes)))");
+            where.append(" AND COALESCE(NULLIF(pid.customer_type, ''), p.customer_type) IN (:customerTypes)");
             params.put("customerTypes", customerTypes);
         }
         appendInFilter(where, params, "t.project_type", "projectTypes", projectTypes);
         appendInFilter(where, params, "p.status", "statuses", statuses);
-        // 区域过滤（总部所在地前缀匹配，参数化绑定并转义 LIKE 通配符防注入与异常匹配）
-        if (regions != null && !regions.isEmpty()) {
-            where.append(" AND (");
-            for (int i = 0; i < regions.size(); i++) {
-                if (i > 0) where.append(" OR ");
-                where.append("(pid.headquarters_location LIKE :regionPattern").append(i)
-                        .append(" OR (pid.headquarters_location IS NULL AND t.region LIKE :regionPattern").append(i).append("))");
-                String safePattern = regions.get(i)
-                        .replace("\\", "\\\\")
-                        .replace("%", "\\%")
-                        .replace("_", "\\_");
-                params.put("regionPattern" + i, safePattern + "%");
+        // 区域过滤：与图表分组同口径的省份归一化匹配（见 AnalyticsRegionFilterSupport）。
+        // axisValue（点击柱子省份）与 regions（筛选器省份）取交集后只计算一次，避免重复全表回捞
+        if (regionAxis || (regions != null && !regions.isEmpty())) {
+            if (regionAxis && regions != null && !regions.isEmpty() && !regions.contains(axisValue)) {
+                return emptyResponse(pageNum, pageSize); // 交集为空
             }
-            where.append(")");
+            List<String> effectiveRegions = regionAxis ? List.of(axisValue) : regions;
+            Set<Long> regionMatchedIds = AnalyticsRegionFilterSupport.regionMatchedProjectIds(
+                    entityManager, projectAccessScopeService, effectiveRegions, startDate, endDate);
+            if (regionMatchedIds.isEmpty()) return emptyResponse(pageNum, pageSize);
+            where.append(" AND p.id IN (:regionProjectIds)");
+            params.put("regionProjectIds", regionMatchedIds);
         }
 
         // 部门过滤（通过 manager_id → users.department_name）
@@ -252,12 +253,8 @@ public class TrendDrillDownService {
                 where.append(" AND u.full_name = :axisVal");
                 params.put("axisVal", axisValue);
             }
-            case "region" -> {
-                where.append(" AND (pid.headquarters_location LIKE :axisVal OR (pid.headquarters_location IS NULL AND t.region LIKE :axisVal))");
-                params.put("axisVal", axisValue + "%");
-            }
             case "customerType" -> {
-                where.append(" AND (pid.customer_type = :axisVal OR (pid.customer_type IS NULL AND p.customer_type = :axisVal))");
+                where.append(" AND COALESCE(NULLIF(pid.customer_type, ''), p.customer_type) = :axisVal");
                 params.put("axisVal", axisValue);
             }
             case "projectType" -> {

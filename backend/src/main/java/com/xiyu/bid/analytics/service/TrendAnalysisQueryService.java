@@ -1,3 +1,8 @@
+// Input: EntityManager, ProjectAccessScopeService, TrendQueryCriteria, 时间粒度
+// Output: TimeDimensionRow/WeeklyRawRow/OverviewRow 数据列表与汇总行
+// Pos: Query Service/时间维度数据查询层
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+
 package com.xiyu.bid.analytics.service;
 
 import com.xiyu.bid.entity.Project;
@@ -40,12 +45,21 @@ public class TrendAnalysisQueryService {
             TrendQueryCriteria criteria,
             String timeDimension
     ) {
+        // 区域筛选与图表分组统一省份归一化口径（见 AnalyticsRegionFilterSupport）；
+        // 历史缺口：时间维度查询未消费 criteria.regionIds()，导致选区域后时间趋势不受影响
+        Set<Long> regionMatchedIds = AnalyticsRegionFilterSupport.regionMatchedProjectIds(
+                entityManager, projectAccessScopeService, criteria.regionIds(),
+                criteria.startDate(), criteria.endDate());
+        if (regionMatchedIds != null && regionMatchedIds.isEmpty()) {
+            return List.of();
+        }
+
         // P1-6：周维度在 Java 端按 ISO 周计算（与 buildContinuousKeys 的 IsoFields、
         // 下钻 YEARWEEK(date, 1) 口径对齐）。MySQL WEEK() 默认 mode 0（周日开始、0-53）
         // 与 ISO 周不一致；且 Hibernate function('week', ...) 仅支持单参数（lessons §114），
         // 无法传 mode，故改为取 createdAt 后在 Java 端计算。
         if ("week".equals(timeDimension)) {
-            return fetchWeeklyRows(criteria).stream()
+            return fetchWeeklyRows(criteria, regionMatchedIds).stream()
                     .map(r -> {
                         LocalDate date = r.createdAt() != null ? r.createdAt().toLocalDate() : null;
                         return new TimeDimensionRow(
@@ -79,8 +93,11 @@ public class TrendAnalysisQueryService {
                         )
                         from Project p
                         left join Tender t on t.id = p.tenderId
-                        where (:allAccess = true or p.id in :scopeIds)
                         """);
+        // 仅客户类型筛选启用时 join 立项详情（pid.project_id 唯一，无行扇出），避免无谓 join
+        jpql.append(criteria.customerTypes() != null && !criteria.customerTypes().isEmpty()
+                ? "left join ProjectInitiationDetails pid on pid.projectId = p.id where (:allAccess = true or p.id in :scopeIds)"
+                : "where (:allAccess = true or p.id in :scopeIds)");
 
         if (criteria.startDate() != null) {
             jpql.append(" and p.createdAt >= :startDate");
@@ -92,10 +109,14 @@ public class TrendAnalysisQueryService {
             jpql.append(" and t.projectType in :projectTypes");
         }
         if (criteria.customerTypes() != null && !criteria.customerTypes().isEmpty()) {
-            jpql.append(" and p.customerType in :customerTypes");
+            // 客户类型口径与维度查询一致：优先立项详情值、空串回退主表快照（pid.project_id 唯一，无行扇出）
+            jpql.append(" and coalesce(nullif(pid.customerType, ''), p.customerType) in :customerTypes");
         }
         if (criteria.statuses() != null && !criteria.statuses().isEmpty()) {
             jpql.append(" and p.status in :statuses");
+        }
+        if (regionMatchedIds != null) {
+            jpql.append(" and p.id in :regionProjectIds");
         }
 
         var query = entityManager.createQuery(jpql.toString(), TimeDimensionRow.class);
@@ -117,14 +138,18 @@ public class TrendAnalysisQueryService {
         if (criteria.statuses() != null && !criteria.statuses().isEmpty()) {
             query.setParameter("statuses", criteria.statuses());
         }
+        if (regionMatchedIds != null) {
+            query.setParameter("regionProjectIds", regionMatchedIds);
+        }
 
         return query.getResultList();
     }
 
     /**
      * 周维度专用：取 createdAt 原始时间戳，ISO 周字段在 Java 端计算（P1-6）。
+     * regionMatchedIds 为 null 表示未启用区域筛选（口径同 fetchTimeTrendRows）。
      */
-    private List<WeeklyRawRow> fetchWeeklyRows(TrendQueryCriteria criteria) {
+    private List<WeeklyRawRow> fetchWeeklyRows(TrendQueryCriteria criteria, Set<Long> regionMatchedIds) {
         // 项目级数据权限：非全局角色仅可见授权范围内项目（防御式兜底）
         Set<Long> scopeIds = AnalyticsProjectScopeSupport.scopedProjectIds(projectAccessScopeService);
         boolean allAccess = scopeIds == null;
@@ -135,8 +160,10 @@ public class TrendAnalysisQueryService {
                 )
                 from Project p
                 left join Tender t on t.id = p.tenderId
-                where (:allAccess = true or p.id in :scopeIds)
                 """);
+        jpql.append(criteria.customerTypes() != null && !criteria.customerTypes().isEmpty()
+                ? "left join ProjectInitiationDetails pid on pid.projectId = p.id where (:allAccess = true or p.id in :scopeIds)"
+                : "where (:allAccess = true or p.id in :scopeIds)");
 
         if (criteria.startDate() != null) {
             jpql.append(" and p.createdAt >= :startDate");
@@ -148,10 +175,14 @@ public class TrendAnalysisQueryService {
             jpql.append(" and t.projectType in :projectTypes");
         }
         if (criteria.customerTypes() != null && !criteria.customerTypes().isEmpty()) {
-            jpql.append(" and p.customerType in :customerTypes");
+            // 客户类型口径与维度查询一致：优先立项详情值、空串回退主表快照（pid.project_id 唯一，无行扇出）
+            jpql.append(" and coalesce(nullif(pid.customerType, ''), p.customerType) in :customerTypes");
         }
         if (criteria.statuses() != null && !criteria.statuses().isEmpty()) {
             jpql.append(" and p.status in :statuses");
+        }
+        if (regionMatchedIds != null) {
+            jpql.append(" and p.id in :regionProjectIds");
         }
 
         var query = entityManager.createQuery(jpql.toString(), WeeklyRawRow.class);
@@ -171,6 +202,9 @@ public class TrendAnalysisQueryService {
         }
         if (criteria.statuses() != null && !criteria.statuses().isEmpty()) {
             query.setParameter("statuses", criteria.statuses());
+        }
+        if (regionMatchedIds != null) {
+            query.setParameter("regionProjectIds", regionMatchedIds);
         }
 
         return query.getResultList();
