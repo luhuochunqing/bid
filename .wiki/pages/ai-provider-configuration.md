@@ -5,7 +5,7 @@ category: guide
 tags: [AI, Provider, DeepSeek, Doubao, qwen, activeProvider, 降级策略, Sidecar, textutil]
 created: 2026-07-10
 updated: 2026-08-12
-health_checked: 2026-08-12
+health_checked: 2026-08-20
 sources:
   - backend/src/main/java/com/xiyu/bid/ai/
   - backend/src/main/resources/application.yml

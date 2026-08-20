@@ -3,7 +3,6 @@ package com.xiyu.bid.casework.application.service;
 import com.xiyu.bid.casework.dto.ScoreItemCaseRecommendRequest;
 import com.xiyu.bid.casework.dto.ScoreItemCaseRecommendResponse;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
-import com.xiyu.bid.casework.infrastructure.KnowledgeCaseRepository;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
@@ -28,7 +27,7 @@ import static org.mockito.Mockito.when;
 class ScoreItemCaseRecommendAppServiceTest {
 
     @Mock
-    private KnowledgeCaseRepository knowledgeCaseRepository;
+    private com.xiyu.bid.casework.application.port.KnowledgeCaseQueryPort knowledgeCaseQueryPort;
 
     @Mock
     private ScoreItemRepository scoreItemRepository;
@@ -85,7 +84,7 @@ class ScoreItemCaseRecommendAppServiceTest {
 
         when(projectRepository.findById(eq(projectId))).thenReturn(Optional.of(project));
         when(scoreItemRepository.findById(eq(scoreItemId))).thenReturn(Optional.of(scoreItem));
-        when(knowledgeCaseRepository.findAll()).thenReturn(List.of(case1, case2));
+        when(knowledgeCaseQueryPort.findAllActive()).thenReturn(List.of(case1, case2));
 
         ScoreItemCaseRecommendRequest request = ScoreItemCaseRecommendRequest.builder()
                 .scoreItemId(scoreItemId)

@@ -5,7 +5,7 @@ category: reference
 tags: [文档交付, 台账, 验收证据, 签字, 付款门禁]
 created: 2026-04-26
 updated: 2026-08-12
-health_checked: 2026-08-12
+health_checked: 2026-08-20
 sources:
   - .wiki/sources/bidding/附件6：需求功能清单.md
   - .wiki/sources/bidding/附件6：需求功能清单.xlsx

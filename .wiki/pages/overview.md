@@ -5,7 +5,7 @@ category: guide
 tags: [项目, 概述, 西域, 交付, 合同]
 created: 2026-04-15
 updated: 2026-08-12
-health_checked: 2026-08-12
+health_checked: 2026-08-20
 sources:
   - README.md
   - AGENTS.md

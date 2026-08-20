@@ -5,7 +5,7 @@ category: business
 tags: [需求, RFP, 功能清单, 需求任务书, 追溯矩阵, 合同]
 created: 2026-04-15
 updated: 2026-08-12
-health_checked: 2026-08-12
+health_checked: 2026-08-20
 sources:
   - .wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx
   - .wiki/sources/bidding/附件6：需求功能清单.md
