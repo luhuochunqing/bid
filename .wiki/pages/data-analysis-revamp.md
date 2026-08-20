@@ -70,6 +70,7 @@ PRD §6/§7 明确数据口径以项目创建时间为准。
 - 统一取值 `coalesce(nullif(pid.customerType, ''), p.customerType)`：**优先立项详情**（详情页可编辑值），回退项目主表创建时快照。
 - 根因：立项表单只写 `project_initiation_details.customer_type`，从不同步 `projects.customer_type`，统计读主表导致与详情页展示分裂。
 - 同步覆盖：M2 查询 / M1 customerType 维度与筛选 / M1 下钻 / M1 筛选选项（FilterOptionsQueryService）。
+- **归一化口径补充（2026-08-20）**：coalesce 取回的是双源原始值（英文枚举/中文文本混杂），任何分组/筛选/下钻必须经 `CustomerTypeNormalizer.normalize()` 再比对，见关键陷阱 §12。
 
 ### 折扣精度（M4）
 
@@ -138,6 +139,12 @@ PRD §9.12 步骤 7 + §9.14：竞品公司至少保留 1 个，不允许清空�
 
 - **现象**：MySQL 中对不同 Collation 的列（如 `projects.customer_type` 与 `project_initiation_details.customer_type`）进行 `COALESCE` 时，返回表达式 Collation 会变为 `NONE`，导致后续 `!= ''` 或 `LIKE` 比较抛出 `Error 1267: Illegal mix of collations`，引发 500。
 - **根治**：SQL 层取消跨表 COALESCE 比较，拆分为各自列的布尔过滤；区域省级提取剥离出 SQL 20 行 CASE 表达式，改由纯函数 `RegionDimensionExtractor.extractProvince()` 在 Java 内存计算，彻底免疫数据库字符集差异。
+
+### 12. 客户类型双源字段"写入形态不一致"，任何消费方必须先归一化（2026-08-20）
+
+- `project_initiation_details.customer_type` 存英文枚举名（`ProjectInitiationMapper.applyInput` 写 `enum.name()`），`projects.customer_type` 存中文文本——同一字段双源写入形态不一致，`coalesce(...)` 直匹配/原样分组必然在其中一个源上静默失效（X 轴英文 + 筛选漏统计）。
+- 所有客户类型消费方（M1 分组/筛选/下钻/时间维度、M2 饼图）必须经同一纯函数入口 `CustomerTypeNormalizer.normalize()`（英文枚举/中文变体 → 5 标准分类，不匹配返回 null 不计数）；筛选无法下推 SQL 时改用"预计算命中 ID 集"模式（`AnalyticsCustomerTypeFilterSupport`，仿 `AnalyticsRegionFilterSupport`）。
+- **新增任何客户类型消费方时禁止重新实现归一化或直接 SQL 匹配**，grep `CustomerTypeNormalizer` 找既有口径。
 
 ## 文件清单
 
@@ -235,3 +242,14 @@ src/views/data-analysis/
 - **修复方案**：筛选/分组/下钻/时间趋势四条链路统一走 `RegionDimensionExtractor`：`resolveRawLocation` 双源取值（`pid.headquartersLocation` 非空白优先，空白回退 `t.region`）+ `extractProvince` 省份归一（含 34 条短省名别名表 SHORT_NAME_ALIASES；「海南」等歧义短名仅精确匹配避免误归省份）。`AnalyticsRegionFilterSupport` 区域命中集 endDate 上界放宽至次日零点与下钻口径对齐；客户类型过滤统一 coalesce 口径堵住空串语义裂缝。
 - **口径边界**：双源取值不含 `projects.region`（曾尝试三源口径，经确认本地数据缺失系 mock 数据无总部所在地所致，已回退）；纯市级自由文本（如「苏州市」）无法归省，需市→省映射表，另开任务。
 - **验证**：175+ 定向测试全绿（Trend/Region/Analytics/DrillDown/ArchitectureTest）+ line-budget 门禁 + 三轮代码审查。分支 `agent/qoder/fix-trend-region-filter-stats`。
+
+## 2026-08-20 客户类型分组/筛选/下钻归一化口径统一
+
+- **背景**：M1 客户类型维度 X 轴显示 `CENTRAL_SOE/GOVERNMENT` 英文枚举名；筛选器选中文客户类型时已立项项目被静默漏统计。另有前端侧：`PROJECT_STATUS_OPTIONS` 缺 `PENDING_INITIATION/INITIATED`，projectStatus 维度 X 轴回退显示英文枚举名。
+- **根因**：归一化逻辑只存在于 M2 计算服务私有方法（`CustomerTypeAnalyticsComputationService.normalizeCustomerType`），M1 趋势新链路漏接——分组原值透传、筛选 `coalesce(...) IN (中文值)` 对英文枚举行永远不命中。
+- **修复方案**：
+  - 抽取纯函数工具 `CustomerTypeNormalizer`（FP-Java 纯核心，无注入无 IO），M2 委托复用，M1 分组/筛选/下钻/时间维度（含 `TrendAnalysisQueryService` month/week）全部经同一入口；分组归一化为 null 的脏数据行丢弃（对齐 M2"未分类不计数"决策）。
+  - 筛选改"归一化后 ID 集"过滤：新建 `AnalyticsCustomerTypeFilterSupport.customerTypeMatchedProjectIds()`（原生 SQL 取双源原始值 → Java 归一化匹配 → 收集 projectId），维度/时间/下钻（含 customerType 轴点击 axisValue）统一 `p.id IN :ids`，保证"筛选后数字 = 柱子之和"。
+  - 前端：`filterConstants.js` 补 `待立项/已立项` 选项与着色；`useDrillDown.js` buildTitle 状态枚举转中文；M2 饼图扇区标签 `{b}\n{c}个 · {d}%` → `{b}\n{d}%`（tooltip 保留数量）。
+- **口径边界**：中标率口径与下钻负责人兜底本次不动；非 5 分类脏数据不计数、不做 Flyway 数据订正。
+- **验证**：`mvn test -Dtest='*Analytics*,*CustomerType*'` 65 例全绿（含英文枚举分组/筛选/下钻回归）+ `vitest run src/views/data-analysis` 4 例全绿。分支 `agent/qoder/fix-m1-trend-cn-labels`。

@@ -2146,3 +2146,39 @@ Caused by: java.lang.OutOfMemoryError: Java heap space
 - `backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/openai/ScoreCandidateMapper.java`（fromLlmCandidate 对齐回填 + 失败 WARN + sourceText 置空防伪背书）
 - `backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreItemMergePolicy.java`（背书覆盖 + 同编号不同名称子串判据）
 - `backend/src/test/java/com/xiyu/bid/scoreparse/domain/ScoreItemMergePolicyTest.java`（背书覆盖/防误并/空背书防御回归）
+
+---
+
+## 134. M1 趋势客户类型 X 轴显示英文枚举 + 筛选漏统计：双源字段"写入形态不一致"而查询链路各自直匹配（2026-08-20）
+
+### 问题背景
+
+数据分析页 `/analytics/dashboard` M1 多维度趋势分析：客户类型维度只勾 X 轴不选值时，图表 X 轴出现 `CENTRAL_SOE/GOVERNMENT` 等英文枚举名；且筛选器选中文客户类型时，已立项项目被静默漏统计。
+
+### 根因链
+
+1. **写入形态不一致**：立项详情 `project_initiation_details.customer_type` 存英文枚举名（`ProjectInitiationMapper.applyInput` 写 `d.getCustomerType().name()`），项目主表快照存中文文本（标讯导入/人工录入）。
+2. **分组透传原始值**：M1 趋势维度查询 `coalesce(nullif(pid.customer_type,''), p.customer_type)` 原值直接作为分组标签返回，无归一化 → X 轴显示英文。
+3. **筛选 SQL 直匹配双源原始串**：筛选器传中文值，`coalesce(...) IN (中文值)` 对英文枚举行永远不命中 → 已立项项目漏统计。
+4. **为什么 M2 饼图正常？** `CustomerTypeAnalyticsComputationService.normalizeCustomerType` 在计算层做了英文枚举/中文变体 → 5 标准分类的归一化；M1 趋势链路是新链路，**漏掉了同一归一化**（同一口径逻辑只存在于一处时，新消费方必然漏）。
+
+### 修复方案
+
+1. **抽取纯函数工具 `CustomerTypeNormalizer`**（FP-Java 纯核心，无注入无 IO）：归一化逻辑从 M2 计算服务迁入，M2 委托复用，M1 分组/筛选/下钻/时间维度全部经同一入口。
+2. **分组归一化**：`fetchCustomerTypeRows` 后处理把 `DimensionRow.category` 归一到 5 标准中文分类，归一化失败的脏数据行丢弃（对齐 M2"未分类不计数"既有决策）。
+3. **筛选改"归一化后 ID 集"过滤**：新建 `AnalyticsCustomerTypeFilterSupport`（仿既有 `AnalyticsRegionFilterSupport` 模式）——原生 SQL 取回双源原始值，Java 端归一化匹配后收集 projectId，下游查询用 `p.id IN :ids` 过滤；维度查询/时间维度/下钻（含 axisValue 轴点击）全部接入，保证"筛选后数字 = 柱子之和"。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 同字段双源写入形态不一致 | 立项详情存枚举名、主表存中文文本，任何直匹配查询都会在其中一个源上静默失效 | **双源 coalesce 字段的分组/筛选/下钻必须先归一化再比对**；归一化函数抽纯工具类，所有消费方走同一入口 |
+| 口径逻辑只存在于一处私有方法 | M2 有归一化、M1 新链路漏掉，bug 在验收后才发现 | **统计口径类逻辑（归一化/去重/边界）必须抽公共纯函数**；新增消费方时 grep 既有同字段的口径处理 |
+| 筛选与分组口径分叉 | 分组的 Java 端归一化 vs 筛选的 SQL `IN` 直匹配，两套口径导致筛选计数 ≠ 柱子之和 | **筛选必须与分组共用同一归一化函数**；无法下推到 SQL 的归一化改用"预计算命中 ID 集"模式（见 AnalyticsRegionFilterSupport/AnalyticsCustomerTypeFilterSupport） |
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/analytics/service/CustomerTypeNormalizer.java`（归一化纯函数）
+- `backend/src/main/java/com/xiyu/bid/analytics/service/AnalyticsCustomerTypeFilterSupport.java`（筛选 ID 集口径）
+- `backend/src/main/java/com/xiyu/bid/analytics/service/TrendAnalysisDimensionQueryService.java` / `TrendAnalysisQueryService.java` / `TrendDrillDownService.java`（接入点）
+- `backend/src/test/java/com/xiyu/bid/analytics/service/AnalyticsCustomerTypeJpqlRegressionTest.java`（英文枚举回归：分组/筛选/下钻）

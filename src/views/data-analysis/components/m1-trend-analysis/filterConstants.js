@@ -1,6 +1,8 @@
 import { chinaRegionOptions } from '@/components/common/chinaRegionData.js'
 
 export const PROJECT_STATUS_OPTIONS = [
+  { label: '待立项', value: 'PENDING_INITIATION' },
+  { label: '已立项', value: 'INITIATED' },
   { label: '投标中', value: 'BIDDING' },
   { label: '评标中', value: 'EVALUATING' },
   { label: '已中标', value: 'WON' },
@@ -13,6 +15,8 @@ export const PROJECT_STATUS_OPTIONS = [
 // key 使用中文标签，与 chartOptions.js 中 STATUS_ENUM_TO_LABEL 转换后的 X 轴标签一致
 // 使用状态名作为 key（非 color 属性），避免触发 design-token 增量门禁
 export const PROJECT_STATUS_COLORS = {
+  待立项: '#94A3B8',
+  已立项: '#0EA5E9',
   投标中: '#2563EB',
   评标中: '#8B5CF6',
   已中标: '#10B981',

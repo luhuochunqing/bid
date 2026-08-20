@@ -23,16 +23,8 @@ class CustomerTypeAnalyticsComputationService {
 
     private static final String ALL_FILTER = "ALL";
 
-    // 5 种标准客户类型分类（与 Excel 导入模板一致）
-    private static final String CATEGORY_GOVERNMENT = "政府机关/事业单位/高校";
-    private static final String CATEGORY_CENTRAL_SOE = "央企";
-    private static final String CATEGORY_LOCAL_SOE = "地方国企";
-    private static final String CATEGORY_PRIVATE = "民企";
-    private static final String CATEGORY_FOREIGN = "港澳台及外企";
-    private static final Set<String> ALLOWED_CATEGORIES = Set.of(
-            CATEGORY_GOVERNMENT, CATEGORY_CENTRAL_SOE, CATEGORY_LOCAL_SOE,
-            CATEGORY_PRIVATE, CATEGORY_FOREIGN
-    );
+    // 5 种标准客户类型分类常量与归一化逻辑统一收敛到 CustomerTypeNormalizer（M1 趋势链路复用）
+    private static final Set<String> ALLOWED_CATEGORIES = CustomerTypeNormalizer.ALLOWED_CATEGORIES;
 
     List<CustomerTypeAggregate> summarize(List<CustomerTypeProjectRow> rows) {
         // 初始化所有 5 种标准分类（即使 count=0 也包含在结果中）
@@ -94,57 +86,11 @@ class CustomerTypeAnalyticsComputationService {
     }
 
     /**
-     * 将项目的 customerType 字段值归一到 5 种标准分类之一。
-     * 支持数据库中存储的英文枚举（GOVERNMENT/CENTRAL_SOE/LOCAL_SOE/PRIVATE/FOREIGN 等）及中文变体。
-     * 不匹配任何分类时返回 null（跳过不统计）。
+     * 归一化入口：委托纯函数工具 {@link CustomerTypeNormalizer#normalize}，
+     * 与 M1 趋势维度分组/筛选/下钻保持同一口径。
      */
     String normalizeCustomerType(String customerType) {
-        if (customerType == null || customerType.isBlank()) {
-            return null;
-        }
-        String trimmed = customerType.trim();
-        // 1) 精确匹配中文标准分类
-        if (ALLOWED_CATEGORIES.contains(trimmed)) {
-            return trimmed;
-        }
-        String upper = trimmed.toUpperCase();
-
-        // 2) 英文枚举精确与前缀匹配
-        if (upper.equals("GOVERNMENT") || upper.equals("GOVERNMENT_INSTITUTION")) {
-            return CATEGORY_GOVERNMENT;
-        }
-        if (upper.equals("CENTRAL_SOE") || upper.equals("STATE_OWNED")) {
-            return CATEGORY_CENTRAL_SOE;
-        }
-        if (upper.equals("LOCAL_SOE")) {
-            return CATEGORY_LOCAL_SOE;
-        }
-        if (upper.equals("PRIVATE") || upper.equals("PRIVATE_ENTERPRISE")) {
-            return CATEGORY_PRIVATE;
-        }
-        if (upper.equals("FOREIGN") || upper.equals("FOREIGN_HK_MACAO_TW") || upper.startsWith("FOREIGN_")) {
-            return CATEGORY_FOREIGN;
-        }
-
-        // 3) 中文模糊匹配：覆盖常见变体写法
-        if (trimmed.contains("政府") || trimmed.contains("事业单位") || trimmed.contains("高校")
-                || trimmed.contains("机关")) {
-            return CATEGORY_GOVERNMENT;
-        }
-        if (trimmed.contains("央企") || trimmed.contains("中央企业")) {
-            return CATEGORY_CENTRAL_SOE;
-        }
-        if (trimmed.contains("地方国企") || ((trimmed.contains("国企") || trimmed.contains("国有")) && !trimmed.contains("央"))) {
-            return CATEGORY_LOCAL_SOE;
-        }
-        if (trimmed.contains("民企") || trimmed.contains("民营") || trimmed.contains("私营") || trimmed.contains("企业客户")) {
-            return CATEGORY_PRIVATE;
-        }
-        if (trimmed.contains("港澳台") || trimmed.contains("港") || trimmed.contains("澳") || trimmed.contains("台")
-                || trimmed.contains("外企") || trimmed.contains("外资") || trimmed.contains("合资")) {
-            return CATEGORY_FOREIGN;
-        }
-        return null;
+        return CustomerTypeNormalizer.normalize(customerType);
     }
 
     String deriveOutcome(CustomerTypeProjectRow row) {

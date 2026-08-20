@@ -158,16 +158,18 @@ class AnalyticsRegionFilterJpqlRegressionTest {
     }
 
     private TrendQueryCriteria governmentCriteria() {
+        // 筛选参数用标准分类口径：主表快照变体 "政府" 归一化后命中（CustomerTypeNormalizer）
         return new TrendQueryCriteria(null, null, null, null,
-                null, List.of("政府"), null, null, null, null);
+                null, List.of("政府机关/事业单位/高校"), null, null, null, null);
     }
 
     @Test
-    @DisplayName("客户类型空串语义：pid.customerType='' 回退主表快照，筛'政府'在分组/时间/下钻均命中")
+    @DisplayName("客户类型空串语义：pid.customerType='' 回退主表快照，筛标准分类在分组/时间/下钻均命中")
     void customerTypeEmptyStringFallsBackToProjectSnapshot() {
-        // 维度分组：筛 "政府" 必须命中项目 F（旧 is null 口径会漏掉空串）
+        // 维度分组：筛标准分类必须命中项目 F（旧 is null 口径会漏掉空串），
+        // 分组标签同步归一化：变体 "政府" 归入标准柱子 "政府机关/事业单位/高校"
         var rows = dimensionQueryService.fetchCustomerTypeRows(governmentCriteria());
-        assertThat(rows).allSatisfy(r -> assertThat(r.category()).isEqualTo("政府"));
+        assertThat(rows).allSatisfy(r -> assertThat(r.category()).isEqualTo("政府机关/事业单位/高校"));
         assertThat(rows).extracting(DimensionRow::projectId).contains(projectFId);
 
         // 时间维度（month/week）同口径命中
@@ -181,14 +183,14 @@ class AnalyticsRegionFilterJpqlRegressionTest {
         // 下钻通用筛选命中
         var drill = drillDownService.drillDown(
                 "time", null, "投标数",
-                null, null, null, null, null, List.of("政府"), null, null,
+                null, null, null, null, null, List.of("政府机关/事业单位/高校"), null, null,
                 null, null, 1, 10);
         assertThat(drill.getSummary().getTotalCount()).isEqualTo(1L);
         assertThat(drill.getItems()).extracting("projectId").containsExactly(projectFId);
 
-        // 下钻 customerType 轴点击同口径命中
+        // 下钻 customerType 轴点击同口径命中（axisValue 为归一化后的柱子标签）
         var axisDrill = drillDownService.drillDown(
-                "customerType", "政府", "投标数",
+                "customerType", "政府机关/事业单位/高校", "投标数",
                 null, null, null, null, null, null, null, null,
                 null, null, 1, 10);
         assertThat(axisDrill.getSummary().getTotalCount()).isEqualTo(1L);

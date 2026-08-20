@@ -3,7 +3,7 @@ import { useRouter } from 'vue-router'
 import { dashboardApi } from '@/api'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { navigateToProject } from '@/utils/projectNavigation.js'
-import { X_AXIS_LABELS } from '../filterConstants.js'
+import { PROJECT_STATUS_OPTIONS, X_AXIS_LABELS } from '../filterConstants.js'
 
 export function useDrillDown() {
   const router = useRouter()
@@ -20,8 +20,12 @@ export function useDrillDown() {
 
   const buildTitle = (xAxisType, axisValue, seriesName, total) => {
     const dimLabel = X_AXIS_LABELS[xAxisType] || xAxisType || '时间'
+    // 项目状态维度的 axisValue 为后端枚举名（下钻参数保持枚举名不变），标题展示转中文
+    const valueLabel = xAxisType === 'projectStatus'
+      ? (PROJECT_STATUS_OPTIONS.find(o => o.value === axisValue)?.label || axisValue)
+      : axisValue
     const countSuffix = total != null ? `（共 ${total} 项）` : ''
-    return `${dimLabel}「${axisValue || ''}」${seriesName || ''}明细${countSuffix}`
+    return `${dimLabel}「${valueLabel || ''}」${seriesName || ''}明细${countSuffix}`
   }
 
   const buildDrillParams = (ctx, page) => {

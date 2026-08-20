@@ -329,3 +329,9 @@
 - 修复：Mapper 对齐失败分支 sourceText 置空（detail 保留 LLM 输出做展示降级，source_text 只携带原文验证内容）；MapperTest 两用例断言更新 + MergePolicyTest 新增空背书防御用例
 - 副作用核查：GhostCandidateFilter"无 code 且无 sourceText"滤除、WeightOverloadTrimPolicy 剔嫌疑对幻觉候选更严格（方向正确）；scoreparse 全包 319/319 通过
 - 更新 [[score-parse-service]]：治理三件套条目补"对齐失败 sourceText 置空"语义
+
+## [2026-08-20] bugfix | M1 趋势客户类型 X 轴英文枚举 + 筛选漏统计（双源写入形态不一致）回填
+- 触发：数据分析页 M1 客户类型维度 X 轴显示 `CENTRAL_SOE/GOVERNMENT` 英文枚举名；筛选器选中文客户类型漏统计已立项项目（分支 `agent/qoder/fix-m1-trend-cn-labels`）
+- 根因：归一化逻辑只存在于 M2 计算服务私有方法，M1 趋势新链路漏接——分组原值透传 + 筛选 `coalesce(...) IN` 对英文枚举行不命中；双源字段写入形态不一致（立项详情存枚举名、主表存中文文本）
+- 更新 [[data-analysis-revamp]]：追加「2026-08-20 客户类型分组/筛选/下钻归一化口径统一」小节（CustomerTypeNormalizer 纯函数 + AnalyticsCustomerTypeFilterSupport ID 集过滤 + 前端状态映射/饼图标签）；关键陷阱新增 §12（双源字段消费前必须先归一化）
+- 关联：`docs/lessons/lessons-learned.md §134`；回归 AnalyticsCustomerTypeJpqlRegressionTest（英文枚举分组/筛选/下钻）+ CustomerTypeNormalizerTest 6 例，后端 65 例 + 前端 vitest 4 例全绿

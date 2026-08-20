@@ -22,6 +22,10 @@ import java.util.Set;
  * M1 多维度趋势查询服务 — 按 xAxis 维度分组查询项目数据（非时间维度）。
  * 每个查询方法调用 {@link #queryDimension} 构建不同维度的 JPQL，
  * 由 {@link TrendAnalysisComputationService} 统一聚合。
+ *
+ * <p>客户类型口径：分组经 {@link CustomerTypeNormalizer} 归一化为 5 种标准中文分类
+ * （立项详情存英文枚举名，不归一化会导致 X 轴显示英文）；筛选经
+ * {@link AnalyticsCustomerTypeFilterSupport} 预计算命中项目 ID，与分组同口径。</p>
  */
 @Service
 @Transactional(readOnly = true)
@@ -88,8 +92,15 @@ public class TrendAnalysisDimensionQueryService {
         // 提取循环内过滤，避免预计算 IN 分支造成双重全表扫描与大 IN 参数；
         // 空集语义：筛选启用但零命中时循环过滤后返回空列表
         Set<String> wantedProvinces = isNotEmpty(regionIds) ? Set.copyOf(regionIds) : null;
-        if (isNotEmpty(customerTypes)) {
-            jpql.append(" and coalesce(nullif(pid.customerType, ''), p.customerType) in :customerTypes");
+        // 客户类型筛选与分组统一归一化口径（CustomerTypeNormalizer），预计算命中项目 ID，
+        // 替代 coalesce IN 直匹配（立项详情存英文枚举名时中文筛选值全部漏统计）
+        Set<Long> customerTypeMatchedIds = AnalyticsCustomerTypeFilterSupport.customerTypeMatchedProjectIds(
+                entityManager, projectAccessScopeService, customerTypes, startDate, endDate);
+        if (customerTypeMatchedIds != null) {
+            if (customerTypeMatchedIds.isEmpty()) {
+                return List.of();
+            }
+            jpql.append(" and p.id in :customerTypeProjectIds");
         }
         if (isNotEmpty(projectTypes)) jpql.append(" and t.projectType in :projectTypes");
         if (isNotEmpty(statuses)) jpql.append(" and p.status in :statuses");
@@ -103,7 +114,9 @@ public class TrendAnalysisDimensionQueryService {
         if (startDate != null) query.setParameter("startDate", startDate.atStartOfDay());
         if (endDate != null) query.setParameter("endDate", endDate.atTime(23, 59, 59));
         if (isNotEmpty(userIds)) query.setParameter("userIds", userIds);
-        if (isNotEmpty(customerTypes)) query.setParameter("customerTypes", customerTypes);
+        if (customerTypeMatchedIds != null) {
+            query.setParameter("customerTypeProjectIds", customerTypeMatchedIds);
+        }
         if (isNotEmpty(projectTypes)) query.setParameter("projectTypes", projectTypes);
         if (isNotEmpty(statuses)) query.setParameter("statuses", statuses);
         if (isNotEmpty(tenderEntities)) query.setParameter("tenderEntities", tenderEntities);
@@ -124,12 +137,25 @@ public class TrendAnalysisDimensionQueryService {
     }
 
     //=== 客户类型 ===//
-    /** 客户类型取值口径：优先立项详情（详情页可编辑值），回退项目主表创建时快照。 */
+    /**
+     * 客户类型取值口径：优先立项详情（详情页可编辑值），回退项目主表创建时快照。
+     * 分组标签经 {@link CustomerTypeNormalizer} 归一化为 5 种标准中文分类；
+     * 归一化失败（非 5 分类的脏数据）的行丢弃，与 M2 客户类型统计"未分类不计数"口径对齐。
+     */
     List<DimensionRow> fetchCustomerTypeRows(TrendQueryCriteria criteria) {
-        return queryDimension("coalesce(nullif(pid.customerType, ''), p.customerType)",
+        List<DimensionRow> rawRows = queryDimension("coalesce(nullif(pid.customerType, ''), p.customerType)",
                 "left join Tender t on t.id = p.tenderId left join User u on u.id = p.managerId left join ProjectInitiationDetails pid on pid.projectId = p.id left join ProjectResult pr on pr.projectId = p.id left join ProjectResultCompetitor prc on prc.resultId = pr.id",
                 "(pid.customerType is not null and pid.customerType <> '') or (p.customerType is not null and p.customerType <> '')",
                 criteria, null);
+        List<DimensionRow> rows = new ArrayList<>(rawRows.size());
+        for (DimensionRow row : rawRows) {
+            String normalized = CustomerTypeNormalizer.normalize(row.category());
+            if (normalized == null) {
+                continue;
+            }
+            rows.add(new DimensionRow(normalized, row.projectId(), row.status()));
+        }
+        return rows;
     }
 
     //=== 项目类型 ===//
@@ -203,8 +229,15 @@ public class TrendAnalysisDimensionQueryService {
             }
             jpql.append(" and p.id in :regionProjectIds");
         }
-        if (isNotEmpty(customerTypes)) {
-            jpql.append(" and coalesce(nullif(pid.customerType, ''), p.customerType) in :customerTypes");
+        // 客户类型筛选与分组统一归一化口径（CustomerTypeNormalizer），预计算命中项目 ID，
+        // 替代 coalesce IN 直匹配（立项详情存英文枚举名时中文筛选值全部漏统计）
+        Set<Long> customerTypeMatchedIds = AnalyticsCustomerTypeFilterSupport.customerTypeMatchedProjectIds(
+                entityManager, projectAccessScopeService, customerTypes, startDate, endDate);
+        if (customerTypeMatchedIds != null) {
+            if (customerTypeMatchedIds.isEmpty()) {
+                return List.of();
+            }
+            jpql.append(" and p.id in :customerTypeProjectIds");
         }
         if (isNotEmpty(projectTypes)) jpql.append(" and t.projectType in :projectTypes");
         if (isNotEmpty(statuses)) jpql.append(" and p.status in :statuses");
@@ -221,7 +254,9 @@ public class TrendAnalysisDimensionQueryService {
         if (regionMatchedIds != null) {
             query.setParameter("regionProjectIds", regionMatchedIds);
         }
-        if (isNotEmpty(customerTypes)) query.setParameter("customerTypes", customerTypes);
+        if (customerTypeMatchedIds != null) {
+            query.setParameter("customerTypeProjectIds", customerTypeMatchedIds);
+        }
         if (isNotEmpty(projectTypes)) query.setParameter("projectTypes", projectTypes);
         if (isNotEmpty(statuses)) query.setParameter("statuses", statuses);
         if (isNotEmpty(tenderEntities)) query.setParameter("tenderEntities", tenderEntities);
