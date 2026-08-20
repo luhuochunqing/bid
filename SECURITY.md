@@ -7,7 +7,7 @@ Mock 政策、权限守卫、安全审计。
 - **唯一支持路径**：前端、后端、E2E、演示环境均以真实后端 API 为唯一事实源。
 - **前端 Mock**：已清空（`src/mock`、`src/api/mock-adapters/`、`.env.mock` 均已删除）；`src/api/config.js` 硬编码 `mode: 'api'`。
 - **后端 `demo/` 包**：`backend/src/main/java/com/xiyu/bid/demo/` 是 E2E 测试的合法辅助包，用于提供 `E2eDemoDataInitializer` 等测试数据初始化，非 Mock 代码。
-- **遗留代码现状**：仓库内仍可见 `frontendDemo` 适配层、`demoPersistence` 等历史遗留；这些内容当前只应被视为清理对象，不允许新增、不允许扩散。
+- **遗留代码现状**：`demoPersistence.js` 已删除；`check-front-data-boundaries` 仍拦截对该模块的 import，防止回潮。
 - **执行要求**：任何新功能、Bug 修复、测试回归、截图演示都必须以真实后端联调为前提。
 
 ### Final Class Mock 策略

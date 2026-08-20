@@ -12,7 +12,7 @@
 - 技术负责人：修复 blocker 并给出版本说明
 
 ## Environment
-- 前端：`VITE_API_MODE=api`
+- 前端：真实 API（`src/api/config.js` 硬编码 `mode: 'api'`）
 - 后端：Spring Boot + MySQL 8.0 + Redis
 - 数据库：已应用 Flyway baseline 与增量迁移
 - 监控：`/actuator/health` 可访问，`/actuator/prometheus` 按安全策略可访问或返回 401/403

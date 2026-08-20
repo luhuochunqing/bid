@@ -106,7 +106,7 @@ docker exec "$REDIS_CONTAINER_NAME" redis-cli ping >/dev/null
 
 printf '==> Building frontend assets\n'
 cd "$ROOT_DIR"
-VITE_API_MODE=api VITE_API_BASE_URL="$UAT_API_BASE_URL" npm run build >/dev/null
+VITE_API_BASE_URL="$UAT_API_BASE_URL" npm run build >/dev/null
 
 printf '==> Compiling backend\n'
 cd "$BACKEND_DIR"

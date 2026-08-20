@@ -42,9 +42,9 @@ config_source="$(curl_frontend "$config_source_url" 2>/dev/null)" || {
 }
 
 case "$config_source" in
-  *'"VITE_API_MODE": "api"'*|*'"VITE_API_MODE":"api"'*) ;;
+  *"mode: 'api'"*|*'mode: "api"'*) ;;
   *)
-    printf '[frontend] runtime is not in VITE_API_MODE=api\n' >&2
+    printf '[frontend] runtime API config is not mode: api\n' >&2
     exit 1
     ;;
 esac

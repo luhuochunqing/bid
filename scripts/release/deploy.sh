@@ -14,12 +14,9 @@ bash "$ROOT_DIR/scripts/release/preflight.sh"
 printf '\n==> Running rehearsal env contract checks\n'
 bash "$ROOT_DIR/scripts/test/release-rehearsal-contract.sh"
 
-printf '\n==> Building frontend (mock mode)\n'
+printf '\n==> Building frontend\n'
 cd "$ROOT_DIR"
 npm run build
-
-printf '\n==> Building frontend (api mode)\n'
-VITE_API_MODE=api npm run build
 
 printf '\n==> Compiling backend\n'
 cd "$BACKEND_DIR"

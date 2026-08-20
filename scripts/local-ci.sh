@@ -48,7 +48,6 @@ case "$MODE" in
 esac
 
 export CI=true
-export VITE_API_MODE=api
 export VITE_API_BASE_URL="${VITE_API_BASE_URL:-http://127.0.0.1:18089}"
 export PLATFORM_ENCRYPTION_KEY="${PLATFORM_ENCRYPTION_KEY:-ci-test-key-2026}"
 export PLATFORM_ACCOUNT_ENCRYPTION_KEY="${PLATFORM_ACCOUNT_ENCRYPTION_KEY:-test-platform-encryption-key-2026}"
@@ -207,7 +206,7 @@ run_common_setup() {
 trap restore_tracked_vite_cache EXIT
 
 printf 'Local CI mode: %s\n' "$MODE"
-printf 'API mode: %s (%s)\n' "$VITE_API_MODE" "$VITE_API_BASE_URL"
+printf 'API base: %s\n' "$VITE_API_BASE_URL"
 
 case "$MODE" in
   quick)

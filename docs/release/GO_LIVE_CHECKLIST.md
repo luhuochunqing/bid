@@ -4,7 +4,6 @@
 - [ ] 候选版本已冻结
 - [ ] `docs/COMMERCIAL_SCOPE.md` 已确认正式版白名单与 demo-only 黑名单
 - [ ] `npm run build` 通过
-- [ ] `VITE_API_MODE=api npm run build` 通过
 - [ ] `mvn -DskipTests compile` 通过
 - [ ] 关键测试通过
   - [ ] `npm run test:unit` — 前端单元测试全绿（161 files, 969+ tests）

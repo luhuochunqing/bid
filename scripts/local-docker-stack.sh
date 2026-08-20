@@ -246,7 +246,6 @@ write_env_file() {
     printf 'export REDIS_DB=%q\n' "$REDIS_DB"
     printf 'export SPRING_DATA_REDIS_DATABASE=%q\n' "$SPRING_DATA_REDIS_DATABASE"
     printf 'export JWT_SECRET=%q\n' "$JWT_SECRET"
-    printf 'export VITE_API_MODE=api\n'
     printf 'export VITE_API_BASE_URL=%q\n' "http://127.0.0.1:${BACKEND_PORT}"
     printf 'export MYSQL_CONTAINER_NAME=%q\n' "$MYSQL_CONTAINER_NAME"
     printf 'export REDIS_CONTAINER_NAME=%q\n' "$REDIS_CONTAINER_NAME"

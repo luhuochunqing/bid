@@ -21,7 +21,6 @@
 | 前端组件（`src/components/`） | 7 | 5 | 6 | 5 | — |
 | Flyway 迁移 | 7 | 6 | 7 | 8 | 现有生成器覆盖回滚；schema 文档由 `db:generate-schema` 生成 |
 | E2E（Playwright） | 6 | 6 | 7 | 6 | — |
-| 遗留 `frontendDemo` / `demoPersistence` | 4 | 4 | 4 | 4 | 清理对象，见 tech-debt-tracker |
 
 ## 数据来源
 

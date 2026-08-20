@@ -23,7 +23,6 @@ fi
 #      前端页面 host 与 API host 同为 127.0.0.1, HttpOnly cookie 可正常发送.
 #   3. 若用 localhost, 浏览器可能解析到 IPv6, 而后端返回的 Set-Cookie host=localhost
 #      在 IPv4 访问时不会被回传, 导致登录后所有 API 请求都是 anonymous -> 403.
-export VITE_API_MODE="${VITE_API_MODE:-api}"
 export VITE_API_BASE_URL="${VITE_API_BASE_URL:-http://127.0.0.1:${BACKEND_PORT}}"
 
 echo "Starting frontend on port $FRONTEND_PORT (API -> $VITE_API_BASE_URL)..."

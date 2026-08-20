@@ -124,8 +124,8 @@ fi
 
 # ====== 门禁 8: 前端构建 ======
 if [ "$run_frontend" = true ]; then
-  info "[08/14] 前端构建 (VITE_API_MODE=api)..."
-  if VITE_API_MODE=api npx vite build 2>&1 | tail -5; then
+  info "[08/14] 前端构建..."
+  if npx vite build 2>&1 | tail -5; then
     pass "前端构建"
   else
     fail "前端构建"

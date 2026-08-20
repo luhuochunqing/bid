@@ -13,7 +13,8 @@ docs/implementation-notes/
 ├── ai-score-parse-backend.md              ← AI 评分标准解析后端（spec 041）实现笔记
 ├── project-permission-audit.md            ← 项目权限审计笔记
 ├── role-permission-audit.md               ← 角色权限审计笔记
-└── prd-acceptance-handoff-2292-2293.md    ← PR #2292+#2293 PRD/原型验收缺口跟踪
+├── prd-acceptance-handoff-2292-2293.md    ← PR #2292+#2293 PRD/原型验收缺口跟踪
+└── ponytail-safe-cuts.md                  ← 低风险死代码清理（7–11、19）
 ```
 
 ## 各文件职责
@@ -26,6 +27,7 @@ docs/implementation-notes/
 | `project-permission-audit.md` | 项目权限审计过程记录 | 低 |
 | `role-permission-audit.md` | 角色权限审计过程记录 | 低 |
 | `prd-acceptance-handoff-2292-2293.md` | AI 评分标准解析 V3 验收 FAIL 项跟踪（P0–P3 勾选） | 高（修完勾掉） |
+| `ponytail-safe-cuts.md` | 审计项 7–11、19：死文件/死依赖/`VITE_API_MODE` | 低 |
 
 ## 维护声明
 

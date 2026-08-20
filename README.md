@@ -111,7 +111,7 @@ npm run dev:stable:status
 - 启动脚本会自动传入本地 MySQL 默认用户 `xiyu_user`
 - 启动脚本会自动识别本机 Redis：默认 `6379`（与 `docker-compose.yml` 固定端口一致）
 - 启动脚本会为文档转换 sidecar 自动生成本地共享密钥，保存到 `.runtime/dev-services/sidecar.shared-key`，并同时注入 sidecar 与后端，不写入源码
-- 前端会以 `VITE_API_MODE=api` 连接真实后端（不新增前端 mock 主入口）
+- 前端以真实后端为唯一数据源（`src/api/config.js` 硬编码 `mode: 'api'`）
 - 如需覆盖本地连接信息，可在启动前设置 `DB_HOST`、`DB_PORT`、`DB_NAME`、`DB_USERNAME`、`DB_PASSWORD`、`REDIS_HOST`、`REDIS_PORT`
 
 ### 新 Mac / 未安装 MySQL 的 Docker 启动方式
@@ -203,7 +203,7 @@ mvn spring-boot:run -Dspring-boot.run.arguments="--server.port=18089"
 
 # 终端 2：启动前端
 cd /Users/user/xiyu/worktrees/trae
-VITE_API_MODE=api VITE_API_BASE_URL=http://127.0.0.1:18089 npm run dev -- --host 127.0.0.1 --port 1323
+VITE_API_BASE_URL=http://127.0.0.1:18089 npm run dev -- --host 127.0.0.1 --port 1323
 ```
 
 > **端口说明**：自 2026-06-21 起开发环境统一到主工作区 `/Users/user/xiyu/worktrees/trae`，端口固定为前端 `1323` / 后端 `18089` / sidecar `8009` / MySQL `3306` / Redis `6379`。多项目端口分配规范见 `CLAUDE.md §多项目端口分配`。

@@ -50,7 +50,6 @@
 前端改动至少执行：
 
 - `npm run build`
-- `VITE_API_MODE=api npm run build`
 
 后端改动至少执行：
 
