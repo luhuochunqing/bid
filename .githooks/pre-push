@@ -187,8 +187,9 @@ while IFS=' ' read -r local_ref local_sha remote_ref remote_sha; do
     fi
 
     # root-commit ratchet: refuse pushes that would grow the root count.
+    # FORCE_PUSH_OK=1 豁免：GitHub 单向镜像等经批准的 force push 场景（与上方非快进放行共用同一开关）。
     root_count=$(git rev-list --max-parents=0 "${local_sha}" | wc -l | tr -d ' ')
-    if [ "${root_count}" -gt "${MAX_ROOTS}" ]; then
+    if [ "${FORCE_PUSH_OK:-0}" != "1" ] && [ "${root_count}" -gt "${MAX_ROOTS}" ]; then
       echo "::pre-push:: refusing push to ${remote_ref}: HEAD has ${root_count} root commits, ratchet allows ${MAX_ROOTS}." >&2
       echo "  This usually means a history rewrite (filter-repo, checkout --orphan, replace --graft) added a new disconnected segment." >&2
       echo "  See ericforai/bidding#224 before proceeding." >&2

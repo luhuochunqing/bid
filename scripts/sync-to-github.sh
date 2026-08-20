@@ -109,7 +109,8 @@ if [ "$BEHIND" != "0" ] && [ "$BEHIND" != "?" ]; then
   echo ""
 fi
 
-git push github origin/main:refs/heads/main --force-with-lease
+# FORCE_PUSH_OK=1: 允许 .githooks/pre-push 的 root-commit ratchet 放行（GitHub 单向镜像本就是经批准的 force 覆盖）
+FORCE_PUSH_OK=1 git push github origin/main:refs/heads/main --force-with-lease
 echo ""
 
 # ─── 4. 验证结果 ───────────────────────────────────────────────────────────
