@@ -40,7 +40,6 @@
           <td class="score-cell" :class="getScoreClass(item)">
             {{ getScoreText(item) }}
             <span v-if="mode === 'actual' && results[item.code]?.reuseKind === 'REUSED'" class="pill neutral">沿用</span>
-            <span v-else-if="mode === 'actual' && results[item.code]?.reuseKind === 'FRESH'" class="pill info">重评</span>
           </td>
           <td style="text-align: center">
             <button class="btn-detail" @click="$emit('open-detail', item, results[item.code] || null, mode)">
@@ -53,16 +52,16 @@
         <tr class="tfoot-row">
           <td colspan="8" class="tfoot-bar">
             <div class="tfoot-flex">
-              <span class="tfoot-label">
-                合计
-                <span v-if="totalWeight !== 100" class="weight-warning">权重合计与 100 分不符</span>
-              </span>
-              <span class="weight-cell tfoot-weight">{{ totalWeight }}</span>
               <span class="tfoot-stats">
                 <span class="stat-tag ok">{{ currentStats.ok }} 满足</span> ·
                 <span class="stat-tag danger">{{ currentStats.danger }} 不满足</span> ·
                 <span class="stat-tag neutral">{{ currentStats.neutral }} 待确认</span>
               </span>
+              <span class="tfoot-label">
+                合计
+                <span v-if="totalWeight !== 100" class="weight-warning">权重合计与 100 分不符</span>
+              </span>
+              <span class="weight-cell tfoot-weight">{{ totalWeight }}</span>
               <span class="tfoot-dim-dist">
                 <span class="obj-text">客观项权重 {{ objectiveWeight }}</span> ·
                 <span class="subj-text">主观项权重 {{ subjectiveWeight }}</span>
@@ -216,9 +215,9 @@ const currentHighlightScore = computed(() => {
 .tfoot-row { background: var(--bg-muted); font-weight: 600; border-top: 2px solid var(--border-base); }
 .tfoot-bar { padding: 8px; }
 .tfoot-flex { display: flex; align-items: center; justify-content: flex-end; gap: 18px; flex-wrap: wrap; }
-.tfoot-label { margin-right: auto; color: var(--text-primary); font-size: 12px; }
+.tfoot-label { color: var(--text-primary); font-size: 12px; }
 .tfoot-weight { font-size: 13px; color: var(--brand-xiyu-logo); font-weight: 700; }
-.tfoot-stats { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.tfoot-stats { margin-right: auto; font-size: 12px; color: var(--text-muted); white-space: nowrap; }
 .stat-tag.ok { color: var(--brand-xiyu-logo); font-weight: 600; }
 .stat-tag.danger { color: var(--status-danger-color); font-weight: 600; }
 .stat-tag.neutral { color: var(--text-muted); font-weight: 600; }
