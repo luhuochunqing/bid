@@ -91,4 +91,31 @@ class ScoreDocExcerptExtractorTest {
     void nullItem_returnsEmpty() {
         assertThat(ScoreDocExcerptExtractor.extractRelevantExcerpt("全文内容", null, 100)).isEmpty();
     }
+
+    @Test
+    void tocAnchorParagraphs_areExcludedFromEvidence() {
+        // 模拟 401MB 标书 markdown 的形态：Word 自动目录锚点段（含评分项标题，但只有导航无正文证据）
+        // + 正文证据段。TOC 段不得被当成证据送进摘录。全文长度必须超预算才会走关键词路径。
+        String text = String.join("\n\n",
+                "[1. 公司综合实力 1978](#_Toc232494505)",          // TOC 锚点：命中关键词但无证据
+                "第一章 公司基本情况",                                // 正文章节标题
+                "本公司注册于上海，成立十年，注册资本一亿元，拥有多项行业资质，综合实力雄厚。", // 真实证据
+                "[2. 项目标准和要求承诺函 1990](#_Toc232494506)",   // TOC 锚点
+                "结语");
+        int maxChars = 60; // < 全文长度，触发关键词打分路径
+
+        String result = ScoreDocExcerptExtractor.extractRelevantExcerpt(text, "公司综合实力", "注册资本资质", maxChars);
+
+        assertThat(result).contains("注册资本一亿元").contains("综合实力雄厚");
+        assertThat(result).doesNotContain("#_Toc");
+    }
+
+    @Test
+    void allTocAnchors_fallbackStillNonEmpty() {
+        // 极端退化：全文都是 TOC 锚点段（无任何正文），不抛异常、不把锚点当证据得分
+        String text = "[1. 公司综合实力 1978](#_Toc1)\n\n[2. 售后服务方案 1990](#_Toc2)\n\n[3. 技术评审 2001](#_Toc3)";
+        String result = ScoreDocExcerptExtractor.extractRelevantExcerpt(text, "公司综合实力", "资质", 20);
+        // 无正文可提取时返回空（诚实：无可用摘录），而非把目录锚点当证据
+        assertThat(result).isEmpty();
+    }
 }
