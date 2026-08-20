@@ -230,6 +230,54 @@ class CaseAiMatcherTest {
     }
 
     @Test
+    @DisplayName("OpenAI choices 包装 + content 带 ```json 围栏 — 解包后命中 matchedSnippet（spec 049 验收发现）")
+    void openaiChoicesWrapped_withJsonFence_parsesSnippet() {
+        when(routingAiProvider.resolveActiveConfig()).thenReturn(config());
+        // 网关真实形态：choices[0].message.content 内是带围栏的 JSON 对象
+        String raw = "{\"choices\":[{\"finish_reason\":\"stop\",\"index\":0,"
+                + "\"message\":{\"role\":\"assistant\",\"content\":\"```json\\n{\\\"matchedSnippet\\\": \\\"本系统采用微服务架构\\\", \\\"confidence\\\": 0.85}\\n```\"}}]}";
+        when(restTemplate.exchange(eq(BASE_URL), eq(HttpMethod.POST), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>(raw, HttpStatus.OK));
+
+        ScoreItemSnapshot tech = snapshot(101L, "技术方案", "要求提供技术架构图", "技术方案");
+        List<CaseAiMatcher.AiMatchedSlice> slices = caseAiMatcher.extractSlicesWithAi(buildBigMarkdown(), List.of(tech));
+
+        assertThat(slices).hasSize(1);
+        assertThat(slices.get(0).getMatchedSnippet()).isEqualTo("本系统采用微服务架构");
+        assertThat(slices.get(0).getConfidence()).isEqualTo(0.85);
+    }
+
+    @Test
+    @DisplayName("OpenAI choices 包装 + content 为纯 JSON（无围栏）— 同样命中")
+    void openaiChoicesWrapped_plainJsonContent_parsesSnippet() {
+        when(routingAiProvider.resolveActiveConfig()).thenReturn(config());
+        String raw = "{\"choices\":[{\"message\":{\"content\":\"{\\\"matchedSnippet\\\": \\\"客服响应及时\\\", \\\"confidence\\\": 0.9}\"}}]}";
+        when(restTemplate.exchange(eq(BASE_URL), eq(HttpMethod.POST), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>(raw, HttpStatus.OK));
+
+        ScoreItemSnapshot tech = snapshot(101L, "技术方案", "要求提供技术架构图", "技术方案");
+        List<CaseAiMatcher.AiMatchedSlice> slices = caseAiMatcher.extractSlicesWithAi(buildBigMarkdown(), List.of(tech));
+
+        assertThat(slices).hasSize(1);
+        assertThat(slices.get(0).getMatchedSnippet()).isEqualTo("客服响应及时");
+    }
+
+    @Test
+    @DisplayName("choices 包装但 content 为空 — 回退裸 JSON 解析（兼容直返目标 JSON 的 provider）")
+    void openaiChoicesWrapped_emptyContent_fallsBackToBareJson() {
+        when(routingAiProvider.resolveActiveConfig()).thenReturn(config());
+        // content 为空串 → unpackContent 原样返回 → extractJson 命中裸 JSON
+        String raw = "{\"choices\":[{\"message\":{\"content\":\"\"}}]}";
+        when(restTemplate.exchange(eq(BASE_URL), eq(HttpMethod.POST), any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>(raw, HttpStatus.OK));
+
+        ScoreItemSnapshot tech = snapshot(101L, "技术方案", "要求提供技术架构图", "技术方案");
+        List<CaseAiMatcher.AiMatchedSlice> slices = caseAiMatcher.extractSlicesWithAi(buildBigMarkdown(), List.of(tech));
+
+        assertThat(slices).isEmpty();
+    }
+
+    @Test
     @DisplayName("兼容大模型返回单元素数组形态 — 归一化为单条对象解析")
     void arrayResponse_normalizedToSingleSlice() {
         when(routingAiProvider.resolveActiveConfig()).thenReturn(config());

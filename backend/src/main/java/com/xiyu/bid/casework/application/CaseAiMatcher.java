@@ -140,7 +140,9 @@ public class CaseAiMatcher {
 
         JsonNode node;
         try {
-            node = objectMapper.readTree(extractJson(rawBody));
+            // LLM 网关返回 OpenAI 兼容格式 choices[0].message.content（content 可能带 ```json 围栏）。
+            // 必须先解出 content，否则把整个 choices 包装当目标 JSON 解析会取不到 matchedSnippet（spec 049 验收发现）。
+            node = objectMapper.readTree(extractJson(unpackContent(rawBody)));
         } catch (JsonProcessingException e) {
             log.warn("AI 案例匹配：评分项 {}（{}）大模型返回非合法 JSON，跳过。原始: {}",
                     criterion.id(), criterion.title(), truncateForLog(rawBody, 300));
@@ -260,6 +262,29 @@ public class CaseAiMatcher {
             return response.substring(startIndex, endIndex + 1);
         }
         return response;
+    }
+
+    /**
+     * 解开 LLM 网关的 OpenAI 兼容包装：choices[0].message.content 才是模型生成内容（可能带 ```json 围栏）。
+     * 解析失败或结构不符时原样返回，交给 extractJson 按裸 JSON 兜底（兼容直接返回目标 JSON 的 provider）。
+     */
+    private String unpackContent(String rawBody) {
+        if (rawBody == null || rawBody.isBlank()) {
+            return rawBody;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(rawBody);
+            JsonNode choices = root.path("choices");
+            if (choices.isArray() && choices.size() > 0) {
+                String content = choices.get(0).path("message").path("content").asText(null);
+                if (content != null && !content.isBlank()) {
+                    return content;
+                }
+            }
+        } catch (JsonProcessingException ignored) {
+            // 不是合法 JSON（纯文本/错误信息），交给 extractJson 兜底
+        }
+        return rawBody;
     }
 
     @lombok.Data
