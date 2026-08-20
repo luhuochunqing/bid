@@ -2,6 +2,13 @@
 
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
+## [2026-08-21] update | 标书质量核查 contains 直出误判修复（负偏离否定语义 + veto 归一化）
+
+- 触发：PR !2365 google-code-review 审查发现 `declaredDeviation` 把"偏离表：无负偏离"误判 FAIL（否定语义盲区）、`vetoFirstStage` 精确匹配 LLM 提取资格全文误判缺失 FAIL（空白/标点差异）
+- 改动：`bid-quality-check-realization.md` §4 追加陷阱 5、6；`docs/lessons/lessons-learned.md` §142；新增 2 回归测试锚定（否定前缀豁免 + 归一化匹配）
+- 关键结论：一票否决项（FAIL=废标级）禁止裸 contains 直出；含否定语义关键词须紧邻前缀判断；跨源文本匹配先归一化（去空白/全半角/标点）
+- 触发点：任务收尾（§2 触发点 1）—— 代码变更 + 新增业务结论回填
+
 ## [2026-08-20] task | 异步任务表复制门禁（§139）
 
 - 触发：基线 export_tasks 未接入异步路径，模块专表复制 6 次
