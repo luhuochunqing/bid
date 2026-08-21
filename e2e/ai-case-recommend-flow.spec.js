@@ -98,6 +98,12 @@ test.describe('AI智能案例推荐', () => {
     const optionCount = await page.locator('.el-select-dropdown:visible').last()
       .locator('.el-select-dropdown__item').count().catch(() => 0)
     expect(optionCount > 0 || await emptyAlert.isVisible()).toBeTruthy()
+
+    const firstCard = drawer.locator('.recommend-case-card').first()
+    if (await firstCard.isVisible().catch(() => false)) {
+      await expect(firstCard).not.toContainText(/复用\s+\d+\s*次/)
+      await expect(firstCard.getByRole('button', { name: /复用/ })).toBeVisible()
+    }
   })
 
   test('案例库页面案例卡片展示正常', async ({ page }) => {
