@@ -89,6 +89,55 @@ def test_docx_image_inlining_suppressed(app_module):
         os.remove(path)
 
 
+def test_docx_pre_process_memory_bench(app_module):
+    """Memory guard: docx with large embedded media must not balloon in memory.
+
+    Regression guard for MarkItDown pre_process_docx: without bypass, a 30MB
+    media file causes >60MB in-memory zip re-encoding. With bypass, peak memory
+    stays below 15MB.
+    """
+    import zipfile
+    import tracemalloc
+    import markitdown.converters._docx_converter as dc
+
+    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
+        path = tmp.name
+        with zipfile.ZipFile(path, "w") as z:
+            z.writestr(
+                "word/document.xml",
+                '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+                "<w:body><w:p><w:r><w:t>Memory Guard Benchmark Header</w:t></w:r></w:p></w:body></w:document>",
+            )
+            z.writestr(
+                "[Content_Types].xml",
+                '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+                '<Default Extension="xml" ContentType="application/xml"/></Types>',
+            )
+            # Add 25MB of dummy media
+            dummy_media = b"x" * (5 * 1024 * 1024)
+            for i in range(5):
+                z.writestr(f"word/media/image_{i}.png", dummy_media)
+
+    original_mammoth = mammoth.convert_to_html
+    original_pre_process = dc.pre_process_docx
+    try:
+        tracemalloc.start()
+        result = app_module._convert_worker(path)
+        _, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+
+        assert "Memory Guard Benchmark Header" in result.text_content
+        # Peak memory must be strictly bounded under 20MB (normal is <5MB)
+        assert peak < 20 * 1024 * 1024, f"Peak memory {peak / (1024*1024):.2f}MB exceeded 20MB budget"
+    finally:
+        mammoth.convert_to_html = original_mammoth
+        dc.pre_process_docx = original_pre_process
+        app_module._MAMMOTH_PATCHED = False
+        app_module._PRE_PROCESS_PATCHED = False
+        if os.path.exists(path):
+            os.remove(path)
+
+
 # ---------------------------------------------------------------------------
 # Defense in depth: dead worker -> 503 + pool self-heal
 # ---------------------------------------------------------------------------

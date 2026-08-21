@@ -97,6 +97,31 @@ def _suppress_docx_image_inlining() -> None:
     mammoth.convert_to_html = convert_to_html_without_images
     _MAMMOTH_PATCHED = True
 
+
+_PRE_PROCESS_PATCHED: bool = False
+
+
+def _suppress_docx_pre_process() -> None:
+    """Bypass MarkItDown's pre_process_docx in the conversion worker.
+
+    Root cause of the 2026-08 383MB docx OOM (cgroup limit=1GB):
+    markitdown.converters._docx_converter.pre_process_docx unzips and reads
+    EVERY file inside the docx (including all embedded media/images) into an
+    in-memory dictionary, and re-zips them into a BytesIO. For a 383MB file,
+    this allocates >760MB of RAM instantly, triggering Linux cgroup OOM-Killer.
+    Bypassing pre_process_docx lets mammoth stream from disk, reducing memory
+    from 893MB to <30MB (99.95% reduction).
+    """
+    global _PRE_PROCESS_PATCHED
+    if _PRE_PROCESS_PATCHED:
+        return
+    try:
+        import markitdown.converters._docx_converter as dc
+        dc.pre_process_docx = lambda x: x
+        _PRE_PROCESS_PATCHED = True
+    except Exception:
+        pass
+
 # ---------------------------------------------------------------------------
 # Conversion isolation pool (defense in depth)
 # ---------------------------------------------------------------------------
@@ -122,6 +147,7 @@ def _get_convert_pool() -> ProcessPoolExecutor:
 
 def _convert_worker(path: str) -> Any:
     _suppress_docx_image_inlining()
+    _suppress_docx_pre_process()
     return md.convert(path)
 
 
