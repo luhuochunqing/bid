@@ -8,17 +8,22 @@ Position: Standalone FastAPI process; consumed by the Java backend MarkItDownSid
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import os
 import secrets
 import subprocess
 import tempfile
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from markitdown import MarkItDown
+
+import mammoth
 
 from converter import extract_headings
 from image_extractor import extract_images
@@ -50,6 +55,87 @@ if not _SHARED_KEY:
         "SIDECAR_SHARED_KEY is not set — authentication is disabled. "
         "Set this env var in production to protect the /convert endpoint."
     )
+
+# ---------------------------------------------------------------------------
+# Memory guard: suppress docx image base64 inlining (OOM root cause fix)
+# ---------------------------------------------------------------------------
+
+_MAMMOTH_PATCHED: bool = False
+
+
+def _suppress_docx_image_inlining() -> None:
+    """Replace mammoth's default base64 data-uri image converter with an
+    empty placeholder (idempotent, applied inside the conversion worker only).
+
+    Root cause of the 2026-08 test-env OOM (20min -> 4.7GB RSS, 7 kills):
+    mammoth (markitdown's .docx backend) inlines every embedded image as a
+    base64 data URI. A real bid document with 1893 images / 401MB media
+    expands to ~559MB HTML and a multi-GB transient heap. Reproduced locally:
+    400 noisy JPEGs -> 65.7MB HTML / 724MB peak RSS (14.7x media size);
+    with suppression the peak stays at interpreter baseline (~49MB).
+    The Java caller strips data URIs from markdown anyway, so inlining is
+    pure memory waste.
+
+    MUST NOT be applied in the parent process: /convert-images
+    (image_extractor._extract_docx) relies on mammoth data URIs to extract
+    embedded images, and markitdown's DocxConverter does not forward
+    keep_data_uris down to the mammoth call — so the suppression is scoped
+    to the worker process where text conversion actually runs.
+    """
+    global _MAMMOTH_PATCHED
+    if _MAMMOTH_PATCHED:
+        return
+    # mammoth.images.inline is a decorator factory (img_element); a valid
+    # convert_image must return [html.element(...)]. Keep alt text, drop src.
+    placeholder = mammoth.images.img_element(lambda image: {"src": ""})
+    original = mammoth.convert_to_html
+
+    def convert_to_html_without_images(fileobj, **kwargs):
+        kwargs.setdefault("convert_image", placeholder)
+        return original(fileobj, **kwargs)
+
+    mammoth.convert_to_html = convert_to_html_without_images
+    _MAMMOTH_PATCHED = True
+
+# ---------------------------------------------------------------------------
+# Conversion isolation pool (defense in depth)
+# ---------------------------------------------------------------------------
+
+# Each conversion runs in a single worker process so residual memory blow-ups
+# (pptx/pdf converters, malformed files) are absorbed by the worker instead of
+# PID 1: cgroup OOM recycles the worker, not the service. max_tasks_per_child
+# bounds per-worker growth and returns memory to the OS periodically.
+_MAX_CONVERSIONS_PER_WORKER: int = int(
+    os.environ.get("SIDECAR_MAX_CONVERSIONS_PER_WORKER", "16")
+)
+_CONVERT_POOL: ProcessPoolExecutor | None = None
+
+
+def _get_convert_pool() -> ProcessPoolExecutor:
+    global _CONVERT_POOL
+    if _CONVERT_POOL is None:
+        _CONVERT_POOL = ProcessPoolExecutor(
+            max_workers=1, max_tasks_per_child=_MAX_CONVERSIONS_PER_WORKER
+        )
+    return _CONVERT_POOL
+
+
+def _convert_worker(path: str) -> Any:
+    _suppress_docx_image_inlining()
+    return md.convert(path)
+
+
+async def _convert_document(path: str) -> Any:
+    """Run md.convert in the isolated worker pool (async seam; tests patch this)."""
+    global _CONVERT_POOL
+    loop = asyncio.get_running_loop()
+    try:
+        return await loop.run_in_executor(_get_convert_pool(), _convert_worker, path)
+    except BrokenProcessPool:
+        logger.error("Conversion worker died (likely OOM); recycling pool")
+        _CONVERT_POOL = None
+        raise HTTPException(status_code=503, detail="文档转换服务繁忙，请稍后重试")
+
 
 # ---------------------------------------------------------------------------
 # App + markitdown instance
@@ -130,7 +216,7 @@ async def convert_document(
             except Exception:
                 logger.warning("textutil .doc→.docx conversion failed; falling back to original")
 
-        result = md.convert(processing_path)
+        result = await _convert_document(processing_path)
         markdown_text: str = result.text_content
 
         sections = extract_headings(markdown_text)
@@ -213,7 +299,9 @@ async def convert_document_stream(
                 logger.warning("textutil .doc→.docx conversion failed; falling back to original")
 
         try:
-            result = md.convert(processing_path)
+            result = await _convert_document(processing_path)
+        except HTTPException:
+            raise
         except Exception:
             logger.exception("Streaming conversion failed for file %s", file.filename)
             return JSONResponse(status_code=422, content={"error": "文档无法解析：格式不支持或已损坏"})
