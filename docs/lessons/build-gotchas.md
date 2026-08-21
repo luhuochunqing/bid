@@ -4,6 +4,115 @@
 
 ---
 
+## 5. Docker 层缓存应急重建：只改 COPY 行等靠后指令时 apt/pip 层全命中
+
+### 场景
+
+2026-08-21 测试环境 sidecar 容器崩溃循环事故中，服务器侧需紧急修复 Dockerfile 并重建镜像。完整构建（apt-get install + pip install）约 8 分钟，事故处置等不起。
+
+### 技巧
+
+Docker 构建是逐层缓存的：**只有某条指令及其输入发生变化时，该层及之后的所有层才会重建**。如果只修改 `COPY` 行这类靠后指令（不改 requirements.txt、不换基础镜像），之前的 apt/pip 重型层全部命中缓存：
+
+```
+FROM python:3.x          ← 缓存命中
+RUN apt-get install ...  ← 缓存命中（数秒）
+RUN pip install -r reqs  ← 缓存命中（数秒）
+COPY app.py converter.py image_extractor.py ./   ← 唯一变化的层
+CMD [...]                ← 重建
+```
+
+实测：8 分钟完整构建降为数秒完成。
+
+### 边界
+
+| 改动内容 | 缓存行为 |
+|---------|---------|
+| 只改 COPY 行 / CMD / ENV 靠后指令 | 全部前置层命中，秒级 |
+| 改 requirements.txt | pip 层失效，重新安装全部依赖 |
+| 换基础镜像 tag | 全部失效 |
+
+### 经验教训
+
+1. **应急重建前先判断改动落在哪一层**——改动越靠后，缓存收益越大
+2. **不要为了"保险"而 `docker build --no-cache`**——无谓放弃全部缓存，事故场景下浪费时间
+3. 该技巧只适用于应急修复；正式修复仍应走仓库 PR 流程保持代码与服务器一致
+
+### 相关文档
+
+- [root-cause-analysis-sidecar-mammoth-oom.md](file:///Users/user/xiyu/worktrees/trae/docs/lessons/root-cause-analysis-sidecar-mammoth-oom.md) — 同一 sidecar 的历史 OOM 根因分析
+- `docs/release/deploy-report-2026-08-21-140th-test.md` — 本次事故完整时间线
+
+---
+
+## 4. Dockerfile COPY 漏文件导致容器崩溃循环（潜伏缺陷被镜像重建暴露）
+
+### 问题
+
+2026-08-21 第 140 次测试环境部署，sidecar 容器替换后立即进入崩溃循环：
+
+```
+ModuleNotFoundError: No module named 'image_extractor'
+  File "/app/app.py", line 29, in <module>
+    from image_extractor import extract_images
+```
+
+`docker ps` 显示容器状态 `Restarting (1)`，健康探测返回空。
+
+### 根因
+
+`app.py` 此前新增了 `from image_extractor import extract_images`（图片提取功能），但 `document-converter-sidecar/Dockerfile` 与 `Dockerfile.cn` 的 COPY 行均未同步：
+
+```dockerfile
+# ❌ 缺陷：漏掉 image_extractor.py
+COPY app.py converter.py ./
+
+# ✅ 修复
+COPY app.py converter.py image_extractor.py ./
+```
+
+容器内 `image_extractor.py` 不存在 → app.py 启动即崩。
+
+**为什么以前没炸**：线上旧镜像构建于 image_extractor 功能合入之前，当时的 app.py 没有这个 import，所以旧镜像一直正常运行。本次部署触发镜像重建，潜伏缺陷才第一次被执行路径命中。
+
+### 潜伏缺陷暴露模式（核心教训）
+
+> **旧镜像能跑 ≠ Dockerfile 正确。**
+
+Dockerfile 是"声明式构建配方"，但它的正确性只在**下一次构建**时被验证。只要满足以下条件，缺陷可以潜伏任意久：
+
+1. 源码新增了模块/import，但 Dockerfile 未同步
+2. 期间没有触发过镜像全量重建（复用旧镜像）
+3. 一旦重建 → 立刻在生产/测试环境爆炸
+
+同类风险点：`.dockerignore` 误排除新目录、requirements.txt 漏新依赖、entrypoint 引用未复制的脚本。
+
+### 正确做法
+
+1. **改 app 入口 import 时，同步检查 Dockerfile COPY 清单**——把"Dockerfile 是否覆盖新文件"纳入 code review checklist
+2. **新容器替换后立即验证，不能只看 `Up`**：
+   ```bash
+   docker ps --filter name=<container>           # 看 Up 还是 Restarting
+   curl -s http://127.0.0.1:<port>/health        # 应用级健康
+   docker logs <container> --tail 20             # 启动日志有无 traceback
+   ```
+3. **应急修复路径**：服务器侧 sed 改 COPY 行 → 重建（见 §5 层缓存技巧）→ 替换容器 → 健康确认；仓库侧同修并走 PR 消除漂移
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| COPY 清单与源码脱节 | Dockerfile 缺陷只在重建时暴露 | 改入口 import 必查 Dockerfile |
+| 旧镜像掩盖缺陷 | 能运行的是旧镜像，不是当前 Dockerfile | 定期用当前 Dockerfile 做验证性重建 |
+| 容器 `Up 1 second` 被误判成功 | 崩溃循环初期也显示 Up | 替换后必须 health + logs 双确认 |
+
+### 相关文档
+
+- `docs/release/deploy-report-2026-08-21-140th-test.md` — 本次事故完整时间线与 Smoke 结果
+- [root-cause-analysis-sidecar-mammoth-oom.md](file:///Users/user/xiyu/worktrees/trae/docs/lessons/root-cause-analysis-sidecar-mammoth-oom.md) — 同一 sidecar 的历史 OOM 根因分析
+
+---
+
 ## 3. Maven target 目录残留旧 Flyway 迁移文件导致打包后版本冲突
 
 ### 问题
