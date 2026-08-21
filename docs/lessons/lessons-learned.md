@@ -2448,3 +2448,32 @@ sidecar OOM 根治任务（PR !2373，完整根因见 `root-cause-analysis-sidec
 - `document-converter-sidecar/app.py`
 - `document-converter-sidecar/tests/test_app.py`
 
+---
+
+## 146. MarkItDown Docx pre_process_docx 内存解包爆炸致 1GB 容器 OOM（2026-08-21）
+
+### 问题背景
+
+在流式落盘与 mammoth 猴补丁合入后，测试环境对 383MB 标书（`张家口银行——投标6.16.docx`）发起 AI 标书质量核查时依然报错 422。全链路排查内核 `dmesg` 发现 Sidecar Worker 进程仍消耗了 893MB RSS 并被 cgroup OOM-Killer 杀死。
+
+根因追踪：MarkItDown 的 `_docx_converter.py` 在把 docx 传给 mammoth 前，默认调用了 `pre_process_docx` 对 OMML 数学公式做预处理。该函数通过 `files = {name: zip_input.read(name) for name in zip_input.namelist()}` 把 docx 压缩包内的所有条目（包含 1893 张图片、380MB 媒体）全量解压进内存字典，并重新打包输出到 `BytesIO`，一次性产生 >760MB 的内存分配，直接击穿 1GB 容器限制。
+
+### 修复方案
+
+1. 在 Sidecar 转换 Worker 子进程中将 `markitdown.converters._docx_converter.pre_process_docx` 替换为直通函数（`lambda stream: stream`），避免媒体文件解包与内存重打包。
+2. `mammoth.convert_to_html` 直接基于磁盘临时文件流按需读取 `word/document.xml`，解析 380MB 标书的内存峰值从 **893MB 暴降至 <30MB（降幅 >96%）**。
+3. 在 `document-converter-sidecar/tests/test_memory_guard.py` 中新增 `test_docx_pre_process_memory_bench` 内存峰值基准测试（`tracemalloc` 断言 peak < 20MB）。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 第三方转换库内部隐藏的全量解包 | 很多第三方文档转换库（如 MarkItDown）在处理特定格式时，内部会隐藏 `zipfile.read()` 导致 2x~3x 内存膨胀 | 接入第三方解析库时，必须通过 `tracemalloc` 进行大文件内存火焰图/基准测试，禁止在没有内存断言的情况下直接上线 |
+| 测试不测根因导致的假修复 | 单测只用几 KB 的 mock 文件测流程，单测全绿却掩盖了 383MB 文件在真实解析调用链中的内存峰值 | 涉及内存敏感或 OOM 缺陷的修复，必须编写带有几十兆媒体负载的真实 Benchmark 单测，用数据证明内存峰值受控 |
+
+### 相关文件
+
+- `specs/051-sidecar-markitdown-pre-process-memory-optimization/`
+- `document-converter-sidecar/app.py`
+- `document-converter-sidecar/tests/test_memory_guard.py`
+
