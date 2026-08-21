@@ -39,7 +39,7 @@ The service will be available at `http://127.0.0.1:8000`.
 | `SIDECAR_HOST` | `127.0.0.1` | Bind address for the uvicorn server |
 | `SIDECAR_PORT` | `8000` | Bind port for the uvicorn server |
 | `SIDECAR_SHARED_KEY` | *(unset)* | Shared secret enforced via `X-Sidecar-Key` request header. **Must be set in production.** When unset a warning is logged and auth is skipped (dev convenience). |
-| `SIDECAR_MAX_UPLOAD_MB` | `30` | Maximum accepted upload size in megabytes. Requests exceeding this limit receive HTTP 413. Matches the Java-side `MarkItDownSidecarTextExtractor` limit. |
+| `SIDECAR_MAX_UPLOAD_MB` | `512` | Maximum accepted upload size in megabytes. Requests exceeding this limit receive HTTP 413. Aligned with the Java-side `app.score-parse.bid-file.max-file-bytes` (StreamingBidFileFetcher); both ends MUST keep the same value (spec 045). |
 
 仓库级 `scripts/dev-services.sh` 会在本地运行时生成 `.runtime/dev-services/sidecar.shared-key`，
 并同时注入 sidecar 与 Java 后端；不要把该密钥写入源码或提交到 Git。
@@ -94,6 +94,7 @@ Convert a document to Markdown.
 | 401 | `认证失败` | `X-Sidecar-Key` missing or wrong when key is configured |
 | 413 | `请求体过大` | Upload exceeds `SIDECAR_MAX_UPLOAD_MB` |
 | 500 | `文档转换失败` | Internal conversion error (details logged server-side only) |
+| 503 | `文档转换服务繁忙，请稍后重试` | Conversion worker process died (likely OOM); the pool is recycled automatically and the next request starts a fresh worker. Also returned by `/convert-stream`. |
 
 ---
 

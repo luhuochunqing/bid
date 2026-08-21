@@ -12,7 +12,7 @@ from __future__ import annotations
 import io
 import os
 import sys
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 
 import pytest
 from httpx import AsyncClient, ASGITransport
@@ -58,7 +58,7 @@ async def test_convert_stream_returns_200_text_plain(no_key_app):
     mock_result = MagicMock()
     mock_result.text_content = "# 标题\n\n投标文件正文内容。"
     app_module = sys.modules["app"]
-    with patch.object(app_module.md, "convert", return_value=mock_result):
+    with patch.object(app_module, "_convert_document", new=AsyncMock(return_value=mock_result)):
         response = await _post_convert_stream(no_key_app, b"%PDF-fake-doc")
 
     assert response.status_code == 200
@@ -75,7 +75,7 @@ async def test_convert_stream_no_text_layer_returns_200_empty_body(no_key_app):
     mock_result = MagicMock()
     mock_result.text_content = ""
     app_module = sys.modules["app"]
-    with patch.object(app_module.md, "convert", return_value=mock_result):
+    with patch.object(app_module, "_convert_document", new=AsyncMock(return_value=mock_result)):
         response = await _post_convert_stream(no_key_app, b"%PDF-scanned-no-text")
 
     assert response.status_code == 200
@@ -90,7 +90,7 @@ async def test_convert_stream_no_text_layer_returns_200_empty_body(no_key_app):
 @pytest.mark.asyncio
 async def test_convert_stream_unparseable_returns_422(no_key_app):
     app_module = sys.modules["app"]
-    with patch.object(app_module.md, "convert", side_effect=ValueError("unsupported format")):
+    with patch.object(app_module, "_convert_document", new=AsyncMock(side_effect=ValueError("unsupported format"))):
         response = await _post_convert_stream(no_key_app, b"\x00\x01 not a document")
 
     assert response.status_code == 422

@@ -443,3 +443,52 @@ public final class RoleProfileAdminPermissionFilter {
 - `src/views/ProjectTaskBoard/components/ProjectTaskBoardCard.vue` — 任务看板卡片
 - 飞书文档（内部技术版）：https://my.feishu.cn/docx/ANFTdx5MboHtHGxkGqrcBkJwnDd
 - 飞书文档（客户友好版）：https://my.feishu.cn/docx/T143dQfRuoPn4RxqivPcrRI3nmh
+
+---
+
+## 6. Sidecar docx 转换采用单 worker 进程池隔离 + BrokenProcessPool 自愈 503
+
+**日期**: 2026-08-21
+**决策者**: trae
+**相关 Issue**: sidecar OOM 根治（PR !2373）/ 前置事故 §143
+**状态**: 已采纳
+
+### 背景
+
+sidecar 容器在测试环境 20 分钟膨胀至 4.7GB（§143 事故）。根因是 mammoth 默认把 docx 图片 base64 内联进 HTML（本地复现：400 JPEGs → 65.7MB HTML / 724MB peak RSS）。修复需要抑制内联，但同进程的 `/convert-images` 路径依赖 mammoth 原生 data URI 语义提取原图——两条路径对同一符号的语义要求相反，且 markitdown 的 `keep_data_uris` 存在分层断裂无法透传到 mammoth 层。
+
+### 决策
+
+1. **patch 只在 worker 子进程内生效**：`ProcessPoolExecutor(max_workers=1, max_tasks_per_child=16)`，`_convert_worker()` 首行执行 `_suppress_docx_image_inlining()`；父进程 mammoth 保持干净，`/convert-images` 不受影响。
+2. **单 worker 吸收 OOM 保 PID 1**：worker 被 cgroup OOM kill 时父进程存活，服务不整体死亡。
+3. **max_tasks_per_child=16 定期回收**：限制单 worker 累积的内存碎片，env `SIDECAR_MAX_CONVERSIONS_PER_WORKER` 可调。
+4. **BrokenProcessPool 自愈**：捕获异常 → 池置 None（下次请求懒重建）→ 返回 503「文档转换服务繁忙」而非挂死。
+5. **async seam**：`async def _convert_document(path)` 作为测试 patch 目标（AsyncMock 无法跨进程边界）。
+
+### 备选方案（及否决理由）
+
+| 方案 | 优点 | 缺点 | 是否采纳 |
+|------|------|------|---------|
+| 单 worker 进程池 + worker 内 patch + 自愈 503 | 语义天然分流；OOM 隔离；定期回收；自愈 | 跨进程序列化开销；测试需 seam | ✅ 采纳 |
+| 全局 patch + flag 按请求切换抑制状态 | 改动最小 | 并发请求下 flag 竞态；`/convert-images` 与 `/convert` 交错时语义互踩 | ❌ 正确性不可保证 |
+| fork 前不打 patch、每请求 fork 子进程转换 | 隔离最彻底 | 每请求 fork 开销大；markitdown 初始化成本重复支付 | ❌ 性能不可接受 |
+| 升级/替换 markitdown 修透传 | 根治库层面 | 版本升级风险面大；上游未必接受 patch | ❌ 超出本次范围，留作长期观察 |
+
+### 权衡与约束
+
+1. **幂等 guard 必须覆盖三种启动模式**：fork（继承 False）、spawn（re-import 重置）、max_tasks_per_child 重启（全新初始化）——`_MAMMOTH_PATCHED` 在三种模式下都能保证 worker 内恰好执行一次 patch。
+2. **MUST NOT patch in parent process** 是硬约束：suppression 函数 docstring 显式声明，防止未来有人在父进程"顺手"调用破坏 `/convert-images`。
+3. **503 而非 500**：worker 被 OOM kill 是瞬态资源问题，客户端可重试；`/convert-stream` 内层必须放行 HTTPException 防止被兜底 except 吞成 500。
+4. **池置 None 懒重建**：不在异常路径同步重建池（可能再次失败），留给下一个请求懒初始化。
+
+### 验证
+
+- pytest 回归 **29 passed, 0 failed**（含 suppression 直调 worker 测试、BrokenProcessPool → 503 + 池自愈断言、stream 503 透传、真实池端到端 txt 转换）
+- 本地复现对照：400 JPEGs docx 抑制后 peak RSS 724MB → ~49MB
+- `/convert-images` 父进程路径回归通过（data URI 提取不受影响）
+
+### 相关文档
+
+- `docs/lessons/root-cause-analysis-sidecar-mammoth-oom.md` — 完整根因分析
+- `docs/lessons/lessons-learned.md` §143 — 容器限制止血条目 / §144 — 猴补丁陷阱
+- `document-converter-sidecar/app.py` — 决策落地代码

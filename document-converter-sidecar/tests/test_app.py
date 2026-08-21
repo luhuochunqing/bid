@@ -10,7 +10,7 @@ import io
 import os
 import logging
 import sys
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 
 import pytest
 from httpx import AsyncClient, ASGITransport
@@ -110,7 +110,7 @@ async def test_upload_within_limit_does_not_413(no_key_app):
     with patch.dict(os.environ, {"SIDECAR_MAX_UPLOAD_MB": "1"}, clear=False):
         import app as size_limited_app  # noqa: PLC0415
 
-    with patch.object(size_limited_app.md, "convert", return_value=mock_result):
+    with patch.object(size_limited_app, "_convert_document", new=AsyncMock(return_value=mock_result)):
         async with AsyncClient(
             transport=ASGITransport(app=size_limited_app.app), base_url="http://test"
         ) as client:
@@ -159,7 +159,7 @@ async def test_correct_key_header_proceeds(keyed_app):
     mock_result.text_content = "# Title\n\nBody text that is sufficiently long for the density check."
     # Patch the md instance on the module that backs keyed_app
     app_module = sys.modules["app"]
-    with patch.object(app_module.md, "convert", return_value=mock_result):
+    with patch.object(app_module, "_convert_document", new=AsyncMock(return_value=mock_result)):
         async with AsyncClient(
             transport=ASGITransport(app=keyed_app), base_url="http://test"
         ) as client:
@@ -178,7 +178,7 @@ async def test_no_key_configured_allows_request_without_header(no_key_app, caplo
     app_module = sys.modules["app"]
     mock_result = MagicMock()
     mock_result.text_content = "# Title\n\nBody text that is sufficiently long for the density check."
-    with patch.object(app_module.md, "convert", return_value=mock_result):
+    with patch.object(app_module, "_convert_document", new=AsyncMock(return_value=mock_result)):
         async with AsyncClient(
             transport=ASGITransport(app=no_key_app), base_url="http://test"
         ) as client:
@@ -215,7 +215,7 @@ async def test_no_key_configured_logs_warning(caplog):
 async def test_conversion_error_returns_generic_chinese_message(no_key_app):
     """Conversion exceptions must return the generic Chinese error, not the raw exception."""
     app_module = sys.modules["app"]
-    with patch.object(app_module.md, "convert", side_effect=RuntimeError("internal details")):
+    with patch.object(app_module, "_convert_document", new=AsyncMock(side_effect=RuntimeError("internal details"))):
         async with AsyncClient(
             transport=ASGITransport(app=no_key_app), base_url="http://test"
         ) as client:
