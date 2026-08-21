@@ -23,27 +23,47 @@ describe('AICaseDetailModal.vue', () => {
     },
     'el-descriptions': true,
     'el-descriptions-item': true,
-    'el-tag': true,
+    'el-tag': {
+      template: '<span><slot /></span>'
+    },
     'el-divider': true,
     'el-button': true
   }
 
-  it('renders detail modal with highlighted text and meta tags', () => {
+  it('renders three-module detail without reuse count', () => {
     const wrapper = mount(AICaseDetailModal, {
       props: {
         modelValue: true,
-        caseDetail: mockCase
+        caseDetail: {
+          ...mockCase,
+          reuseCount: 8,
+          bidEntity: '某省电力公司',
+          createdAt: '2026-03-12',
+          projectStatus: 'WON',
+          customerType: 'CENTRAL_SOE',
+          projectType: '综合'
+        }
       },
       global: {
         stubs: commonStubs
       }
     })
 
-    expect(wrapper.text()).toContain('高可用架构与容灾方案')
-    expect(wrapper.text()).toContain('95%')
-    expect(wrapper.text()).toContain('优质')
-    expect(wrapper.text()).toContain('2025省级电网项目')
-    expect(wrapper.html()).toContain('highlight-kw')
+    const text = wrapper.text()
+    expect(text).toContain('高可用架构与容灾方案')
+    expect(text).toContain('95%')
+    expect(text).toContain('优质')
+    expect(text).toContain('评分项详细要素原文')
+    expect(text).toContain('应答片段原文')
+    expect(text).toContain('项目名称')
+    expect(text).toContain('2025省级电网项目')
+    expect(text).toContain('招标主体')
+    expect(text).toContain('创建时间')
+    expect(text).toContain('项目状态')
+    expect(text).toContain('客户类型')
+    expect(text).toContain('项目类型')
+    expect(text).not.toMatch(/复用次数/)
+    expect(text).not.toMatch(/复用\s*\d+\s*次/)
   })
 
   it('emits reuse event when reuse button is clicked', async () => {

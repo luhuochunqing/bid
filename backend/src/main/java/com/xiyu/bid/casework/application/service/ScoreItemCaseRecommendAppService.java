@@ -20,9 +20,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 评分项级智能案例推荐应用服务（编排层 / 副作用隔离）。
@@ -33,7 +37,7 @@ import java.util.Optional;
  *   <li>从数据库装配 ScoreItem 条款详情与项目上下文</li>
  *   <li>查询激活状态的候选案例集</li>
  *   <li>调用纯核心 {@link ScoreItemCaseMatchPolicy} 进行评分计算与排序截断</li>
- *   <li>转换为标准化响应 DTO</li>
+ *   <li>批量装配来源项目招标主体/项目状态，并转换为标准化响应 DTO</li>
  * </ul>
  */
 @Slf4j
@@ -41,10 +45,13 @@ import java.util.Optional;
 @Transactional(readOnly = true)
 public class ScoreItemCaseRecommendAppService {
 
+    private static final DateTimeFormatter CREATED_AT_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE;
+
     private final KnowledgeCaseQueryPort knowledgeCaseQueryPort;
     private final ScoreItemRepository scoreItemRepository;
     private final ProjectRepository projectRepository;
     private final ProjectAccessScopeService projectAccessScopeService;
+    private final ScoreItemCaseSourceMetaLoader sourceMetaLoader;
 
     private final ScoreItemCaseMatchPolicy matchPolicy = new ScoreItemCaseMatchPolicy();
 
@@ -52,11 +59,13 @@ public class ScoreItemCaseRecommendAppService {
             KnowledgeCaseQueryPort knowledgeCaseQueryPort,
             ScoreItemRepository scoreItemRepository,
             ProjectRepository projectRepository,
-            ProjectAccessScopeService projectAccessScopeService) {
+            ProjectAccessScopeService projectAccessScopeService,
+            ScoreItemCaseSourceMetaLoader sourceMetaLoader) {
         this.knowledgeCaseQueryPort = knowledgeCaseQueryPort;
         this.scoreItemRepository = scoreItemRepository;
         this.projectRepository = projectRepository;
         this.projectAccessScopeService = projectAccessScopeService;
+        this.sourceMetaLoader = sourceMetaLoader;
     }
 
     /**
@@ -92,11 +101,17 @@ public class ScoreItemCaseRecommendAppService {
 
         // 通过端口获取已激活案例（ACTIVE 过滤已下沉至 adapter）
         List<KnowledgeCaseReadModel> allActiveCases = knowledgeCaseQueryPort.findAllActive();
+        Set<Long> sourceProjectIds = allActiveCases.stream()
+                .map(KnowledgeCaseReadModel::getSourceProjectId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, ScoreItemCaseSourceMetaLoader.SourceMeta> sourceMetaByProjectId =
+                sourceMetaLoader.load(sourceProjectIds);
 
         List<ScoreItemCaseRecommendResponse.Item> evaluatedItems = allActiveCases.stream()
                 .map(candidate -> {
                     ScoreItemCaseMatchPolicy.MatchResult result = matchPolicy.evaluate(candidate, context);
-                    return toResponseItem(candidate, result);
+                    return toResponseItem(candidate, result, sourceMetaByProjectId.get(candidate.getSourceProjectId()));
                 })
                 .filter(item -> item.getMatchScore() > 0)
                 .sorted(Comparator.comparing(ScoreItemCaseRecommendResponse.Item::getIsPinned, Comparator.nullsLast(Comparator.reverseOrder()))
@@ -139,7 +154,10 @@ public class ScoreItemCaseRecommendAppService {
                 .toList();
     }
 
-    private ScoreItemCaseRecommendResponse.Item toResponseItem(KnowledgeCaseReadModel candidate, ScoreItemCaseMatchPolicy.MatchResult result) {
+    private ScoreItemCaseRecommendResponse.Item toResponseItem(
+            KnowledgeCaseReadModel candidate,
+            ScoreItemCaseMatchPolicy.MatchResult result,
+            ScoreItemCaseSourceMetaLoader.SourceMeta sourceMeta) {
         String summary = candidate.getResponseText();
         if (summary != null && summary.length() > 200) {
             summary = summary.substring(0, 200) + "...";
@@ -163,6 +181,9 @@ public class ScoreItemCaseRecommendAppService {
                 .bidResult(candidate.getBidResult())
                 .reuseCount(candidate.getReuseCount() != null ? candidate.getReuseCount() : 0)
                 .isPinned(candidate.getIsPinned() != null && candidate.getIsPinned())
+                .createdAt(candidate.getCreatedAt() == null ? null : candidate.getCreatedAt().format(CREATED_AT_FORMAT))
+                .bidEntity(sourceMeta == null ? null : sourceMeta.bidEntity())
+                .projectStatus(sourceMeta == null ? null : sourceMeta.projectStatus())
                 .build();
     }
 }

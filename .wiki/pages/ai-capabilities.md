@@ -4,7 +4,7 @@ space: engineering
 category: module
 tags: [AI, 智能, 大模型, 合规, 评分, 竞争情报, 智能装配, 案例库]
 created: 2026-04-15
-updated: 2026-08-19
+updated: 2026-08-21
 health_checked: 2026-08-19
 sources:
   - src/config/ai-prompts.js
@@ -378,8 +378,10 @@ AiAnalysisResponse
   - 调用 `/api/cases/recommend` 由 `KnowledgeCaseMatchPolicy` 执行多因子匹配（评分项文本 Jaccard 相似度、行业/客户类型匹配度、中标结果加权）。
   - 支持 300ms 防抖的关键词二次过滤。
 - **复用与闭环**：
-  - 提供双面板原文对照抽屉（`AiRecommendDualPaneDialog`），展示评分项命中与标书上下文。
-  - 点击「复用」将应答内容写入系统剪贴板，同时调用 `POST /api/cases/{id}/reuse` 记录复用次数并审计。
+  - 案例卡片不展示复用次数。
+  - 详情弹窗（`AiRecommendDualPaneDialog`）三模块：顶部评分项；中部三层（评分项详细要素原文 / 应答片段原文 / 案例元信息：项目名称、招标主体、创建时间、项目状态、客户类型、项目类型）；底部「复用」。
+  - 点击「复用」将应答内容写入系统剪贴板，同时调用 `POST /api/cases/{id}/reuse` 记录复用（后端累加 `reuse_count`，界面不展示）。
+  - 推荐列表额外返回 `bidEntity` / `createdAt` / `projectStatus`（来源项目 + 标讯批量装配，不落案例表）。
 
 ### 9.2 结项自动沉淀与幂等防重
 - **触发机制**：项目状态流转为 `CLOSED` 时触发 `ProjectClosedEvent`。

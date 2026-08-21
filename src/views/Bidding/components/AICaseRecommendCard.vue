@@ -45,7 +45,6 @@
 
     <!-- 底部操作 -->
     <div class="card-footer">
-      <span class="reuse-stat">📊 {{ caseItem.reuseCount || 0 }} 次复用</span>
       <div class="footer-actions">
         <el-button size="small" @click="$emit('view-detail', caseItem)">
           查看详情
@@ -227,12 +226,11 @@ const highlightText = (text, keywords) => {
 }
 .card-footer {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   border-top: 1px dashed var(--gray-150);
   padding-top: 8px;
 }
-.reuse-stat { font-size: 12px; color: var(--text-tertiary); }
 .footer-actions { display: flex; gap: 8px; }
 .quick-reuse-btn {
   background-color: var(--brand-xiyu-logo);

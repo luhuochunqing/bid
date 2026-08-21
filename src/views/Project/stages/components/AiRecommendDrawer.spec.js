@@ -85,6 +85,8 @@ describe('AiRecommendDrawer.vue', () => {
     })
     expect(wrapper.text()).toContain('技术方案实施细则')
     expect(wrapper.text()).toContain('国家电网信息化项目')
+    expect(wrapper.text()).not.toMatch(/复用\s+\d+\s*次/)
+    expect(wrapper.text()).not.toMatch(/复用次数/)
   })
 
   it('copies text and calls reuseCase on handleReuse', async () => {
