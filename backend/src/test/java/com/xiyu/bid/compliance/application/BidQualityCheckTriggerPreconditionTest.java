@@ -3,7 +3,6 @@
 // Pos: compliance/application/ - trigger 前置校验单测（spec 049 US1 / T018）
 package com.xiyu.bid.compliance.application;
 
-import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.dto.QualityCheckTaskDTO;
 import com.xiyu.bid.compliance.entity.ComplianceCheckResult;
 import com.xiyu.bid.compliance.repository.ComplianceCheckResultRepository;
@@ -23,6 +22,7 @@ import java.util.Collections;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -69,7 +69,7 @@ class BidQualityCheckTriggerPreconditionTest {
                 .hasMessageContaining("请先上传投标文件");
 
         verify(resultRepository, never()).save(any());
-        verify(asyncExecutor, never()).executeAsync(any(), any(), any());
+        verify(asyncExecutor, never()).executeAsync(any(), any(), any(), anyBoolean());
     }
 
     @Test
@@ -87,28 +87,11 @@ class BidQualityCheckTriggerPreconditionTest {
                 .hasMessageContaining("请先上传投标文件");
 
         verify(resultRepository, never()).save(any());
+        verify(asyncExecutor, never()).executeAsync(any(), any(), any(), anyBoolean());
     }
 
     @Test
-    @DisplayName("文件存在但解析结果为空时拒绝触发（解析失败语义）")
-    void trigger_unparsableBidDocument_throwsAndDoesNotCreateTask() {
-        when(resultRepository.findByProjectIdAndCheckTypeAndStatusIn(
-                any(), any(), any())).thenReturn(Collections.emptyList());
-        ProjectDocument doc = new ProjectDocument();
-        doc.setId(7L);
-        doc.setFileUrl("bid-agent://tender-documents/p200/bid.pdf");
-        when(targetLoader.findLatestBidDocument(PROJECT_ID)).thenReturn(doc);
-        when(targetLoader.loadBidDocument(PROJECT_ID)).thenReturn(DocumentContent.empty());
-
-        assertThatThrownBy(() -> taskAppService.triggerQualityCheck(PROJECT_ID, true))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("解析");
-
-        verify(resultRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("有可解析投标文件时正常创建任务并异步执行")
+    @DisplayName("文档记录存在且有 fileUrl 时毫秒级创建任务并启动异步执行")
     void trigger_withBidDocument_createsTask() {
         when(resultRepository.findByProjectIdAndCheckTypeAndStatusIn(
                 any(), any(), any())).thenReturn(Collections.emptyList());
@@ -117,8 +100,6 @@ class BidQualityCheckTriggerPreconditionTest {
         doc.setName("投标文件.pdf");
         doc.setFileUrl("bid-agent://tender-documents/p200/bid.pdf");
         when(targetLoader.findLatestBidDocument(PROJECT_ID)).thenReturn(doc);
-        when(targetLoader.loadBidDocument(PROJECT_ID))
-                .thenReturn(DocumentContent.fromText("投标文件.pdf", "hash-1", "真实投标正文"));
 
         ComplianceCheckResult saved = ComplianceCheckResult.builder()
                 .id(1L)
@@ -133,7 +114,6 @@ class BidQualityCheckTriggerPreconditionTest {
 
         assertThat(task.getTaskId()).isEqualTo("task-001");
         verify(resultRepository).save(any(ComplianceCheckResult.class));
-        // taskId 由服务内部生成 UUID，不与实体字段绑定
-        verify(asyncExecutor).executeAsync(eq(1L), eq(PROJECT_ID), any(String.class));
+        verify(asyncExecutor).executeAsync(eq(1L), eq(PROJECT_ID), any(String.class), eq(true));
     }
 }

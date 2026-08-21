@@ -2550,3 +2550,47 @@ sidecar OOM 根治任务（PR !2373，完整根因见 `root-cause-analysis-sidec
 - `backend/src/test/java/com/xiyu/bid/compliance/service/DocxMediaFilterTest.java`
 - `backend/src/test/java/com/xiyu/bid/compliance/service/SidecarStreamDocumentAdapterTest.java`
 
+---
+
+## 149. 异步任务触发接口禁止同步重操作与大事务阻塞进度可见性（2026-08-21）
+
+### 问题背景
+
+在 `https://winbid-test.ehsy.com/project/1351` 触发标书质量核查时，前端弹出 `请求超时，请检查网络后重试`。
+
+排查证实：
+1. **触发接口假异步**：`triggerQualityCheck` HTTP POST 请求在返回 `taskId` 之前，同步调用了 `targetLoader.loadBidDocument` 与 `tenderDocumentLoader.loadTenderDocument`（执行大文件下载与 Sidecar 文本提取，耗时达 60.4 秒）。
+2. **超时截断**：前端 Axios 全局超时配置为 30 秒（`API_CONFIG.timeout = 30000`），请求在 30 秒时被 Axios 主动断开，用户感知为“请求超时”。
+3. **重复解析与大事务阻塞**：后台异步线程 `executeAsync` 再次全量解析文件（单文件重复解析 2 次）；且 `executeAsync` 整个方法加了 `@Transactional`，中间阶段的 `updateTaskStep`（20%、60%、80%）未独立提交，导致前端轮询在整个任务完成前始终读到 `INIT 0%`。
+
+### 修复方案
+
+1. **触发接口纯化为毫秒级响应**：
+   - `triggerQualityCheck` 仅校验数据库中是否存在有效投标文件记录（元数据检查，< 5ms）；
+   - 保存 `INIT` 任务实体后立即返回 `taskId`，HTTP 接口响应时间降至 $< 10\text{ms}$，彻底根除 30 秒超时；
+2. **耗时逻辑完全异步化**：
+   - 文件的物理加载、瘦身、Sidecar 解析、SHA-256 缓存命中检测与 LLM 裁决全量交由后台异步线程；
+   - 若文件不可解析，异步线程更新状态为 `FAILED` 并记录具体错误原因；
+3. **独立事务进度更新器**：
+   - 引入 `BidQualityCheckProgressUpdater`，使用 `@Transactional(propagation = Propagation.REQUIRES_NEW)`；
+   - 每次任务步骤变更（20% 解析 -> 60% 知识库核查 -> 80% AI 语义裁决 -> 100% 完成/失败）即时独立 commit 到数据库，保证前端轮询秒级感知真实进度。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 异步触发接口混杂长耗时同步 I/O | 在 HTTP 触发端点中执行大文件下载与微服务解析极易击穿前端 Client 30s 超时阈值 | 异步任务的触发接口（POST /trigger）必须在 50ms 内完成元数据校验与任务记录创建，禁止在主线程同步调用外部重 I/O |
+| 异步方法整体大事务导致中间进度不可见 | `@Transactional` 标注在异步顶层方法上会导致所有中间进度更新滞留在事务缓冲区，直到整个长任务结束才一次性提交 | 异步长任务的进度与状态更新必须使用独立事务（`REQUIRES_NEW`）或无大事务即时提交，确保轮询端点秒级读到真实状态 |
+| 触发端与异步端重复执行相同解析 | 未理清生命周期职责导致文件被下载并解析 2 次 | 耗时任务的执行管道必须单一源，消除冗余重复操作 |
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckTaskAppService.java`
+- `backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckAsyncExecutor.java`
+- `backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckProgressUpdater.java`
+- `backend/src/test/java/com/xiyu/bid/compliance/application/BidQualityCheckTaskAppServiceTest.java`
+- `backend/src/test/java/com/xiyu/bid/compliance/application/BidQualityCheckTriggerPreconditionTest.java`
+- `backend/src/test/java/com/xiyu/bid/compliance/application/BidQualityCheckAsyncExecutorTest.java`
+- `backend/src/test/java/com/xiyu/bid/compliance/application/BidQualityCheckProgressUpdaterTest.java`
+
+
