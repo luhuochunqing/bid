@@ -121,6 +121,30 @@ async def test_upload_within_limit_does_not_413(no_key_app):
     assert response.status_code != 413
 
 
+@pytest.mark.asyncio
+async def test_convert_streaming_content_hash(no_key_app):
+    """Verify streamed disk upload computes accurate SHA-256 hash without in-memory join."""
+    import hashlib
+    import app as sidecar_app
+    content = b"streaming test content for sha256 calculation"
+    expected_hash = hashlib.sha256(content).hexdigest()
+
+    mock_result = MagicMock()
+    mock_result.text_content = "# Section\n\nContent for testing streamed upload hash calculation."
+
+    with patch.object(sidecar_app.md, "convert", return_value=mock_result):
+        async with AsyncClient(
+            transport=ASGITransport(app=no_key_app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                "/convert",
+                files={"file": ("test.pdf", io.BytesIO(content), "application/pdf")},
+            )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["contentHash"] == expected_hash
+
+
 # ---------------------------------------------------------------------------
 # HIGH-1: Authentication via X-Sidecar-Key
 # ---------------------------------------------------------------------------

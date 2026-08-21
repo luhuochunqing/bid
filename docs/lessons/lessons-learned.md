@@ -2415,3 +2415,36 @@ sidecar OOM 根治任务（PR !2373，完整根因见 `root-cause-analysis-sidec
 - `document-converter-sidecar/app.py`（`_suppress_docx_image_inlining` 幂等版 + `_convert_worker`）
 - `document-converter-sidecar/tests/test_memory_guard.py`（suppression 直调 worker + finally 还原）
 - `docs/lessons/root-cause-analysis-sidecar-mammoth-oom.md` — 完整根因分析
+
+---
+
+## 145. Sidecar /convert 内存全量拼接致 1GB 容器内大标书解析 OOM 崩溃（2026-08-21）
+
+### 问题背景
+
+在 §143 容器加固为 `--memory=1g` 后，测试环境对项目 1350 的 383MB 标书（`张家口银行——投标6.16.docx`）发起 AI 标书质量核查时报错："无法执行核查：投标文件解析失败，请确认文件可正常打开后重新上传"（HTTP 422）。
+
+全链路日志排查 SOP 证实：
+1. `document-converter-sidecar/app.py` 的 `/convert` 接口使用 `chunks: list[bytes]` + `b"".join(chunks)` 将上传文件全量读入内存，383MB 文件瞬间消耗超过 1GB 内存，触发 Python `MemoryError` 并被 Docker OOM-Killer（`Killed`）；
+2. Sidecar 进程崩溃导致 TCP 中断，Java 端抛出 `HTTP/1.1 header parser received no bytes`；
+3. Java 端 `SidecarStreamDocumentAdapter` 降级读取二进制文件触发 `Input length = 1`，最终返回空文本导致 422 业务异常。
+
+### 修复方案
+
+1. 改造 `document-converter-sidecar/app.py` 的 `/convert` 接口，移除 `chunks` 列表与 `b"".join(chunks)`，统一采用 64KB 流式直接写入 `tempfile.NamedTemporaryFile`。
+2. 在流式写入循环中调用 `hasher.update(chunk)` 增量计算 `contentHash`，保持对外哈希结果一致。
+3. 新增单测 `test_convert_streaming_content_hash` 验证流式 SHA-256 计算一致性。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| HTTP 大文件接口在内存中拼接字节 | 容器内存加固后，内存中做 `b"".join` 会让内存峰值暴涨至文件大小的 2~3 倍，直接触发 OOM | 处理文件上传的 Web 端点（无论是 FastAPI 还是 Spring）必须边读边写磁盘临时文件，禁止将全量文件内容加载到内存中 |
+| 相同能力在不同接口实现不一致 | `/convert-stream` 已实现流式落盘，但 `/convert` 遗留了全量内存拼接 | 同一模块内处理文件流的接口必须对齐同一套流式落盘最佳实践，避免历史遗留接口成为隐藏炸弹 |
+
+### 相关文件
+
+- `specs/050-sidecar-convert-streaming-to-disk/`
+- `document-converter-sidecar/app.py`
+- `document-converter-sidecar/tests/test_app.py`
+

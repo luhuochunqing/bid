@@ -173,34 +173,28 @@ async def convert_document(
     if not file.filename:
         raise HTTPException(status_code=400, detail="未提供文件名")
 
-    # --- Stream-read with size guard (CRITICAL-2) ---
-    chunks: list[bytes] = []
-    total_read: int = 0
-    chunk_size: int = 64 * 1024  # 64 KB
-
-    while True:
-        chunk = await file.read(chunk_size)
-        if not chunk:
-            break
-        total_read += len(chunk)
-        if total_read > MAX_UPLOAD_SIZE_BYTES:
-            raise HTTPException(status_code=413, detail="请求体过大")
-        chunks.append(chunk)
-
-    content: bytes = b"".join(chunks)
-
-    # SHA-256 for deduplication / cache key on the Java side
-    content_hash: str = hashlib.sha256(content).hexdigest()
-
+    hasher = hashlib.sha256()
     original_suffix: str = os.path.splitext(file.filename)[1].lower() or ".bin"
 
     tmp_path: str | None = None
     converted_path: str | None = None
     try:
+        # Stream the upload straight to disk with progressive SHA-256 calculation
         with tempfile.NamedTemporaryFile(delete=False, suffix=original_suffix) as tmp:
-            tmp.write(content)
             tmp_path = tmp.name
+            total_read: int = 0
+            chunk_size: int = 64 * 1024  # 64 KB
+            while True:
+                chunk = await file.read(chunk_size)
+                if not chunk:
+                    break
+                total_read += len(chunk)
+                if total_read > MAX_UPLOAD_SIZE_BYTES:
+                    raise HTTPException(status_code=413, detail="请求体过大")
+                hasher.update(chunk)
+                tmp.write(chunk)
 
+        content_hash: str = hasher.hexdigest()
         processing_path: str = tmp_path
 
         # Legacy .doc → .docx conversion via textutil (macOS only, best-effort)
