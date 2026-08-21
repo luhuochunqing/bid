@@ -69,7 +69,12 @@ test.describe('AI智能案例推荐', () => {
       test.skip(true, 'AI 智能推荐按钮在 DRAFTING stage 不可见')
       return
     }
+    // 先挂起 score-items 请求等待，避免「加载中但尚未展示空数据警告」的瞬时不可判态导致一致性断言 flaky
+    const scoreItemsSettled = page
+      .waitForResponse((r) => r.url().includes('/score-items'), { timeout: 10000 })
+      .catch(() => null)
     await recommendBtn.click()
+    await scoreItemsSettled
 
     // 等待抽屉打开（el-drawer open state）
     const drawer = page.locator('.el-drawer.open, .el-drawer__open').first()
@@ -86,6 +91,13 @@ test.describe('AI智能案例推荐', () => {
     // 验证关键词输入存在
     const keywordInput = drawer.locator('input[placeholder*="关键词"]').first()
     await expect(keywordInput).toBeVisible()
+
+    // 状态一致性断言：评分项下拉要么有选项，要么明确提示去解析，禁止「壳在数据空」不可判状态
+    const emptyAlert = drawer.getByText('暂无评分项数据').first()
+    await scoringSelect.click()
+    const optionCount = await page.locator('.el-select-dropdown:visible').last()
+      .locator('.el-select-dropdown__item').count().catch(() => 0)
+    expect(optionCount > 0 || await emptyAlert.isVisible()).toBeTruthy()
   })
 
   test('案例库页面案例卡片展示正常', async ({ page }) => {

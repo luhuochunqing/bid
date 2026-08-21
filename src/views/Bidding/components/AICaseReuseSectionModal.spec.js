@@ -63,4 +63,74 @@ describe('AICaseReuseSectionModal.vue', () => {
 
     expect(wrapper.emitted('reuse-success')).toBeTruthy()
   })
+
+  // PRD 4.2：章节树默认选中当前评分项对应章节（可修改）
+  it('preselects cascader path when defaultChapter matches a tree node', async () => {
+    const wrapper = mount(AICaseReuseSectionModal, {
+      props: {
+        modelValue: true,
+        caseData: mockCase,
+        projectId: 123,
+        scoreItemId: 1,
+        defaultChapter: '1.1 投标承诺书'
+      },
+      global: {
+        stubs: {
+          'el-dialog': {
+            template: '<div class="el-dialog-stub"><slot/><slot name="footer"/></div>'
+          },
+          'el-form': true,
+          'el-form-item': true,
+          'el-cascader': true,
+          'el-input': true,
+          'el-radio-group': true,
+          'el-radio-button': true,
+          'el-button': true
+        }
+      }
+    })
+
+    // 命中内置章节树叶子节点 → 级联预选完整路径
+    expect(wrapper.vm.selectedSection).toEqual(['第1章 商务标响应', '1.1 投标承诺书'])
+
+    await wrapper.vm.handleConfirmReuse()
+    await flushPromises()
+
+    expect(caseRecommendationApi.reuseCase).toHaveBeenCalledWith(
+      101,
+      expect.objectContaining({
+        targetChapter: '第1章 商务标响应 / 1.1 投标承诺书',
+        reuseMode: 'APPEND'
+      })
+    )
+  })
+
+  it('falls back to custom input when defaultChapter matches no tree node', async () => {
+    const wrapper = mount(AICaseReuseSectionModal, {
+      props: {
+        modelValue: true,
+        caseData: mockCase,
+        projectId: 123,
+        scoreItemId: 1,
+        defaultChapter: '第9章 不存在的章节'
+      },
+      global: {
+        stubs: {
+          'el-dialog': {
+            template: '<div class="el-dialog-stub"><slot/><slot name="footer"/></div>'
+          },
+          'el-form': true,
+          'el-form-item': true,
+          'el-cascader': true,
+          'el-input': true,
+          'el-radio-group': true,
+          'el-radio-button': true,
+          'el-button': true
+        }
+      }
+    })
+
+    expect(wrapper.vm.selectedSection).toEqual([])
+    expect(wrapper.vm.customChapterInput).toBe('第9章 不存在的章节')
+  })
 })

@@ -373,3 +373,15 @@
 - FP-Java 失败传导：通道失败在边界吸收为 `LlmVerdict.ChatOutcome` sealed 四值（Success/Invalid/Noop/Failure），纯核心无异常流；reasonCode 五值（PRD §3.5），MANUAL 态 `[CODE] ` 前缀
 - 新陷阱：Java 21 switch 模式匹配编译产物含 `new MatchException` 触发 FP 门禁 → 纯核心用 instanceof 序贯链（lessons §141）；验收失真复盘见 lessons §140
 - 新建 [[bid-quality-check-realization]]；关联 specs/049-bid-quality-check-realization/、docs/lessons/lessons-learned.md §140/§141
+## [2026-08-21] bugfix | AI 案例推荐数据源修复（score_item 新契约 + casework 裸响应二次解包）回填
+- 触发：项目详情页「AI 智能案例推荐」抽屉招标文件已解析但评分项不显示
+- 根因 1：数据源错配——抽屉读 project_score_drafts 旧表（spec-041 后恒空），解析链路写 score_item 新表；修复切到 caseRecommendationApi（PRD 4.2 契约），后端零改动
+- 根因 2：casework 四个端点全部裸 ResponseEntity（不走统一信封），client.js 拦截器已解包后 API 层再取 .data 得 undefined（双重解包）；修复裸透传 + spec 契约锁定
+- 连带：AICaseReuseSectionModal 的 reuse-success 事件从拿到 undefined 恢复为真实返回值；E2E 加 waitForResponse 时序加固 + 状态一致性断言
+- 新建 [[ai-case-recommend-data-source-fix]]；关联 [[score-parse-service]]；回归 12 个直接相关单测 + lint 全绿，Production Risk Review PASS（无 P0/P1）
+## [2026-08-21] feature | PRD 4.2 复用定位弹窗默认选中章节（合入审查 Warning #1）回填
+- 触发：PR #2370 合入审查发现遗漏——PRD 1.1/4.2 要求复用定位弹窗章节树默认选中当前评分项对应章节（可修改）
+- 原缺陷：AICaseReuseSectionModal 的 defaultChapter 只写手输框不预选级联；抽屉 currentDefaultChapter 依赖不存在的 targetChapter 字段恒为空
+- 修复：新增 sectionTreeMatch.js（BFS 三级匹配：完整路径/label/最长包含）；弹窗打开时 applyDefaultSelection 级联预选+打开重置；抽屉映射改 targetChapter 优先→dim 类别回退内置章节树→空
+- 限制声明：真实章节树 API 属 spec 046 Phase 3；score_item 无 targetChapter 字段，映射落地前靠 dim 回退
+- 更新 [[ai-case-recommend-data-source-fix]]；回归 23 个相关单测全绿（含新增 8 用例）

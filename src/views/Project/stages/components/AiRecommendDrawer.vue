@@ -2,7 +2,7 @@
   <el-drawer v-model="visible" title="AI 智能推荐" size="680px" append-to-body @open="handleOpen">
     <div class="ai-recommend-drawer">
       <!-- 评分项为空时的提示 -->
-      <el-alert v-if="!scoreDraftsLoading && scoreDrafts.length === 0" type="warning" :closable="false" show-icon>
+      <el-alert v-if="!scoreItemsLoading && scoreItems.length === 0" type="warning" :closable="false" show-icon>
         <template #title>
           <div class="empty-score-alert">
             <span>暂无评分项数据，请先在任务看板进行「AI 评分标准解析」</span>
@@ -14,9 +14,14 @@
       <!-- 评分项筛选 -->
       <div class="drawer-section">
         <label class="section-label">评分项</label>
-        <el-select v-model="selectedItem" placeholder="请选择评分项" clearable filterable style="width: 100%" @change="handleItemChange">
-          <el-option-group v-for="group in scoringItemGroups" :key="group.category" :label="group.category">
-            <el-option v-for="item in group.items" :key="item.id" :label="item.scoreItemTitle" :value="item.scoreItemTitle" />
+        <el-select v-model="selectedItemId" placeholder="请选择评分项" clearable filterable style="width: 100%" @change="handleItemChange">
+          <el-option-group v-for="group in scoringItemGroups" :key="group.dim" :label="group.dim">
+            <el-option
+              v-for="item in group.items"
+              :key="item.id"
+              :label="`${item.code ? item.code + ' ' : ''}${item.dim || ''} - ${(item.detail || '').slice(0, 24)}...`"
+              :value="item.id"
+            />
           </el-option-group>
         </el-select>
       </div>
@@ -31,7 +36,7 @@
       <div class="drawer-section">
         <label class="section-label">
           匹配案例
-          <el-tag v-if="selectedItem" size="small" type="info">{{ filteredCases.length }} 个结果</el-tag>
+          <el-tag v-if="selectedItemId" size="small" type="info">{{ filteredCases.length }} 个结果</el-tag>
         </label>
         <div v-loading="loadingCases" class="cases-container">
           <template v-if="filteredCases.length > 0">
@@ -67,8 +72,8 @@
               </div>
             </div>
           </template>
-          <el-empty v-else-if="!loadingCases && selectedItem" description="暂无与本评分项相似的历史案例" :image-size="80" />
-          <div v-else-if="!selectedItem && defaultCases.length > 0" class="select-hint">基于项目基本信息推荐 {{ defaultCases.length }} 条案例，选择评分项可进一步筛选</div>
+          <el-empty v-else-if="!loadingCases && selectedItemId" description="暂无与本评分项相似的历史案例" :image-size="80" />
+          <div v-else-if="!selectedItemId && defaultCases.length > 0" class="select-hint">基于项目基本信息推荐 {{ defaultCases.length }} 条案例，选择评分项可进一步筛选</div>
           <div v-else class="select-hint">请先选择一个评分项查看匹配的历史案例</div>
         </div>
       </div>
@@ -82,8 +87,8 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { casesApi } from '@/api/modules/knowledge.js'
-import { projectsApi } from '@/api'
+import { caseRecommendationApi } from '@/api/modules/caseRecommendation'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { getProjectTypeLabel, getCustomerTypeLabel } from '@/views/Knowledge/views/caseLabels.js'
 import AiRecommendDualPaneDialog from './AiRecommendDualPaneDialog.vue'
 
@@ -91,9 +96,9 @@ const props = defineProps({ projectId: { type: [String, Number], required: true 
 const emit = defineEmits(['go-to-score-parse'])
 const visible = defineModel({ type: Boolean, default: false })
 
-const scoreDrafts = ref([])
-const scoreDraftsLoading = ref(false)
-const selectedItem = ref('')
+const scoreItems = ref([])
+const scoreItemsLoading = ref(false)
+const selectedItemId = ref(null)
 const keywordFilter = ref('')
 const cases = ref([])
 const loadingCases = ref(false)
@@ -108,10 +113,10 @@ function handleGoToScoreParse() {
 
 const scoringItemGroups = computed(() => {
   const groups = {}
-  scoreDrafts.value.forEach(d => {
-    const cat = d.category || '其他'
-    if (!groups[cat]) groups[cat] = { category: cat, items: [] }
-    groups[cat].items.push(d)
+  scoreItems.value.forEach(d => {
+    const dim = d.dim || '其他'
+    if (!groups[dim]) groups[dim] = { dim, items: [] }
+    groups[dim].items.push(d)
   })
   return Object.values(groups)
 })
@@ -127,21 +132,23 @@ const filteredCases = computed(() => {
 })
 
 async function handleOpen() {
-  scoreDraftsLoading.value = true
+  scoreItemsLoading.value = true
   try {
-    const result = await projectsApi.getScoreDrafts(props.projectId)
-    scoreDrafts.value = Array.isArray(result?.data) ? result.data : []
-    if (scoreDrafts.value.length > 0) {
-      selectedItem.value = scoreDrafts.value[0].scoreItemTitle
+    const res = await caseRecommendationApi.getScoreItems(props.projectId)
+    const items = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : [])
+    scoreItems.value = items
+    if (items.length > 0) {
+      selectedItemId.value = items[0].id
       await handleItemChange()
     } else {
       await loadDefaultProjectCases()
     }
-  } catch {
-    scoreDrafts.value = []
+  } catch (err) {
+    scoreItems.value = []
+    notifyErrorUnlessRateLimit(err, '获取评分项失败')
     await loadDefaultProjectCases()
   } finally {
-    scoreDraftsLoading.value = false
+    scoreItemsLoading.value = false
   }
 }
 
@@ -151,16 +158,17 @@ async function loadDefaultProjectCases() {
     return
   }
   try {
-    const r = await casesApi.recommendForProject(props.projectId, '')
-    defaultCases.value = (Array.isArray(r) ? r : []).map(normalizeRecommendCase)
-    if (!selectedItem.value) cases.value = defaultCases.value
-  } catch {
+    const res = await caseRecommendationApi.recommendCases(props.projectId, { keyword: '', page: 0, size: 20 })
+    defaultCases.value = (res?.items || []).map(normalizeRecommendCase)
+    if (!selectedItemId.value) cases.value = defaultCases.value
+  } catch (err) {
     defaultCases.value = []
+    notifyErrorUnlessRateLimit(err, '获取推荐案例失败')
   }
 }
 
 async function handleItemChange() {
-  if (!selectedItem.value) {
+  if (!selectedItemId.value) {
     if (defaultCases.value.length === 0) {
       await loadDefaultProjectCases()
     } else {
@@ -170,10 +178,16 @@ async function handleItemChange() {
   }
   loadingCases.value = true
   try {
-    const result = await casesApi.recommendCases(props.projectId, selectedItem.value, keywordFilter.value)
-    cases.value = Array.isArray(result) ? result.map(normalizeRecommendCase) : []
-  } catch {
+    const res = await caseRecommendationApi.recommendCases(props.projectId, {
+      scoreItemId: selectedItemId.value,
+      keyword: keywordFilter.value.trim(),
+      page: 0,
+      size: 20
+    })
+    cases.value = (res?.items || []).map(normalizeRecommendCase)
+  } catch (err) {
     cases.value = []
+    notifyErrorUnlessRateLimit(err, '获取推荐案例失败')
   } finally {
     loadingCases.value = false
   }
@@ -181,7 +195,7 @@ async function handleItemChange() {
 
 let keywordDebounceTimer
 watch(keywordFilter, () => {
-  if (selectedItem.value) {
+  if (selectedItemId.value) {
     clearTimeout(keywordDebounceTimer)
     keywordDebounceTimer = setTimeout(() => {
       handleItemChange()
@@ -191,17 +205,17 @@ watch(keywordFilter, () => {
 
 function normalizeRecommendCase(item) {
   return {
-    caseId: item.caseId,
-    scoringTitle: item.scoringTitle || item.scoringPointTitle,
+    caseId: item.id ?? item.caseId,
+    scoringTitle: item.scoringPointTitle || item.scoringTitle,
     responseTextSummary: summarize(item.responseTextSummary || item.responseText || ''),
     projectType: item.projectType,
     customerType: item.customerType,
     bidResult: item.bidResult,
     reuseCount: item.reuseCount || 0,
     sourceProjectName: item.sourceProjectName,
-    score: item.score || 0,
-    scoreLabel: item.scoreLabel || '',
-    matchReason: item.matchReason || '',
+    score: item.matchScore ?? item.score ?? 0,
+    scoreLabel: item.matchLabel || item.scoreLabel || '',
+    matchReason: Array.isArray(item.matchReasons) ? item.matchReasons.join('；') : (item.matchReason || ''),
     highlightedText: item.highlightedText || '',
     responseText: item.responseText || '',
     requirementRaw: item.requirementRaw || '',
@@ -226,7 +240,7 @@ async function handleReuse(item) {
   try {
     await navigator.clipboard.writeText(text)
     try {
-      await casesApi.reuseCase(item.caseId)
+      await caseRecommendationApi.reuseCase(item.caseId)
       item.reuseCount = (item.reuseCount || 0) + 1
     } catch { /* ignore */ }
     ElMessage.success({ message: '已复制应答内容到剪贴板', duration: 3000 })
