@@ -2358,3 +2358,33 @@ PR !2365（spec 049 质量核查实质化）评审 + 修复中发现两处确定
 | contains 直出 FAIL 遇否定表述误报 | 中文投标文件"无负偏离/无不满足"是标准合规表述，contains 命中即误报 | 确定性规则 lane 用关键词直出硬信号前，先枚举否定语义（紧邻前缀否定词豁免）；宁可 MANUAL 也不武断 FAIL |
 | LLM 提取物与文档原文精确匹配 | LLM 提取的资格表述带空白/标点，与文档写法不一致，contains 必误判 | 跨源文本匹配先归一化（去空白/全半角/标点）再 contains；一票否决项（FAIL=废标级）尤其不能靠裸 contains |
 | 测试 fixture 未断言受影响项状态 | 测试写"偏离表：无负偏离"却只断言 VETO，RESPONSIVENESS 误报未暴露 | 涉及确定性 lane 的测试 fixture，对每个受影响检查项断言具体状态（PASS/FAIL/MANUAL），不留"未断言"盲区 |
+
+---
+
+## 143. Docker 容器默认无内存限制：sidecar 泄漏挤占宿主内存致后端 JVM native OOM（2026-08-21）
+
+### 问题背景
+
+第 139 次测试环境部署（172.16.38.78，7.5GB 内存无 swap）后 20 分钟，sidecar 容器内存膨胀至 4.7GB，挤占同机后端 JVM 的 native 内存，后端崩溃：`mmap failed to map 1332740096 bytes, errno=12`（native OOM，非堆 OOM，`-Xmx` 限制管不到）。systemd 自动拉起后第二实例仍受挤占风险。
+
+排查确认两台环境（测试 + 生产 172.16.10.149）的 sidecar 容器均为 `docker inspect Memory=0`（无限制），且 sidecar 是**全机唯一 Docker 容器**（后端=systemd 裸机、前端=宿主 Nginx、MySQL/Redis=宿主安装）。根因：`document-converter-sidecar/README.md` 标准启动命令缺 `--memory` 参数——标准命令文档是所有环境复制部署的唯一来源，缺一个参数 = 所有环境裸奔。
+
+### 处置与验证
+
+1. **实证容器化归属**：用户质疑"测试环境用 Docker 了吗"，凭记忆不可靠——`/proc/<pid>/cgroup` 显示全部控制器归属 `/docker/<container-id>` 是铁证；`docker ps` + `systemctl` 排除法补全拓扑。
+2. **在线加限零停机**：`docker update --memory=1g --memory-swap=1g xiyu-sidecar`（测试）/ `--memory=2g`（生产，容纳真实大文件转换峰值），`docker inspect` 确认生效 + health 探测通过。
+3. **长效固化**：README 启动命令补 `--memory=2g --memory-swap=2g` 并标注 REQUIRED + 事故引用。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 容器默认 Memory=0 无限制 | 宿主无 swap 时，容器泄漏会挤占同机其他进程的 native 内存，表现为"无关进程"（后端 JVM）native OOM，与堆内 OOM（§113/§132）模式不同 | 常驻容器启动命令必须带 `--memory`/`--memory-swap`；标准命令文档（README）改动按安全参数对待，缺失即全环境复制裸奔 |
+| 凭记忆断言环境拓扑 | "测试环境用 Docker 了吗"这类问题必须上机器实证，不能凭上次会话记忆辩解 | 容器归属判定用 `/proc/<pid>/cgroup` 的 `/docker/<id>` 前缀作铁证；`docker ps` + `systemctl list-units` 排除法补全全机拓扑 |
+| `docker update` 限制会丢 | 在线加限零停机，但容器删除重建后限制归零，隐患静默回归 | 容器重建/迁移后必须复查 `docker inspect Memory`；期望失效模式=内核 OOM 杀容器 + `RestartPolicy=always` 拉起 + 后端优雅降级（WARN），宁可死 sidecar 不死后端 JVM |
+
+### 相关文件
+
+- `document-converter-sidecar/README.md`（启动命令已固化 --memory）
+- `docs/release/deploy-report-2026-08-21-139th-test.md`（事故时间线与两环境处置记录）
+- 遗留：sidecar 泄漏根治（`app.py`/`converter.py`，20 分钟膨胀至 4.7GB 的真实根因）另开任务，容器限制只是止血
