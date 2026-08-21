@@ -40,6 +40,8 @@ The service will be available at `http://127.0.0.1:8000`.
 | `SIDECAR_PORT` | `8000` | Bind port for the uvicorn server |
 | `SIDECAR_SHARED_KEY` | *(unset)* | Shared secret enforced via `X-Sidecar-Key` request header. **Must be set in production.** When unset a warning is logged and auth is skipped (dev convenience). |
 | `SIDECAR_MAX_UPLOAD_MB` | `512` | Maximum accepted upload size in megabytes. Requests exceeding this limit receive HTTP 413. Aligned with the Java-side `app.score-parse.bid-file.max-file-bytes` (StreamingBidFileFetcher); both ends MUST keep the same value (spec 045). |
+| `SIDECAR_MAX_CONVERSIONS_PER_WORKER` | `16` | Maximum conversions a worker process handles before it is recycled (`ProcessPoolExecutor.max_tasks_per_child`). Bounds per-worker RSS growth; after this many `/convert` or `/convert-stream` jobs the worker is replaced so memory returns to the OS. Worker OOM still returns HTTP 503 and the pool is rebuilt automatically. |
+| `SIDECAR_MAX_IMAGE_BYTES` | `15728640` (15MB) | Cumulative extracted-image byte budget for `POST /convert-images`. Extraction stops early with `truncated=true` and keeps what was already collected. Calibrated against the Java-side `max-extract-response-bytes` of 25MB (15MB binary ≈ 20MB after base64 ×4/3); bump either side only in sync (spec 048). |
 
 仓库级 `scripts/dev-services.sh` 会在本地运行时生成 `.runtime/dev-services/sidecar.shared-key`，
 并同时注入 sidecar 与 Java 后端；不要把该密钥写入源码或提交到 Git。
