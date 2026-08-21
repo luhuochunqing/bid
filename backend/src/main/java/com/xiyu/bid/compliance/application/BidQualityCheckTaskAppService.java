@@ -2,7 +2,6 @@ package com.xiyu.bid.compliance.application;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.dto.QualityCheckReportDTO;
 import com.xiyu.bid.compliance.dto.QualityCheckTaskDTO;
@@ -24,7 +23,7 @@ import java.util.UUID;
 
 /**
  * 标书质量核查任务应用编排服务.
- * 负责任务流转控制、SHA-256 哈希缓存防抖与报告组装.
+ * 负责任务流转控制、毫秒级响应与报告组装.
  */
 @Service
 @RequiredArgsConstructor
@@ -39,7 +38,7 @@ public class BidQualityCheckTaskAppService {
     private final BidQualityCheckAsyncExecutor asyncExecutor;
 
     /**
-     * 触发标书质量核查异步任务（含缓存防抖）.
+     * 触发标书质量核查异步任务（毫秒级响应）.
      *
      * @param projectId 项目ID
      * @param force 是否强制跳过缓存重新核查
@@ -66,38 +65,15 @@ public class BidQualityCheckTaskAppService {
             return toTaskDTO(existing);
         }
 
-        // 2. 同步前置校验（spec 049 第一步，contracts/bid-quality-api.md §1）：
-        // 无 BID 类投标文件或文件不可解析 → 4xx，不创建任务
+        // 2. 同步前置元数据轻量校验（spec 049 第一步，contracts/bid-quality-api.md §1）：
+        // 无 BID 类投标文件记录或无有效 fileUrl → 4xx，不创建任务
         ProjectDocument bidDocEntity = targetLoader.findLatestBidDocument(projectId);
         if (bidDocEntity == null || bidDocEntity.getFileUrl() == null
                 || bidDocEntity.getFileUrl().isBlank()) {
             throw new BusinessException(422, "无法执行核查，请先上传投标文件");
         }
-        DocumentContent bidDoc = targetLoader.loadBidDocument(projectId);
-        if (bidDoc.fullText() == null || bidDoc.fullText().isBlank()) {
-            throw new BusinessException(422, "无法执行核查：投标文件解析失败，请确认文件可正常打开后重新上传");
-        }
 
-        // 3. 若非强制刷新，检查当前文件的 SHA-256 哈希是否命中已有已完成缓存
-        if (!force) {
-            DocumentContent tenderDoc = tenderDocumentLoader.loadTenderDocument(projectId);
-            String bidHash = bidDoc.fileHash();
-            String tenderHash = tenderDoc.fileHash();
-
-            if (!bidHash.isBlank()) {
-                ComplianceCheckResult cached = resultRepository
-                        .findTopByBidFileHashAndTenderFileHashAndStatusOrderByCheckedAtDesc(
-                                bidHash, tenderHash, ComplianceCheckResult.TaskStatus.COMPLETED)
-                        .orElse(null);
-
-                if (cached != null) {
-                    log.info("Hit SHA-256 cache for quality check, reusing result: {}", cached.getTaskId());
-                    return toTaskDTO(cached);
-                }
-            }
-        }
-
-        // 4. 创建新的异步任务记录
+        // 3. 创建新的异步任务记录（毫秒级入库）
         String taskId = UUID.randomUUID().toString().replace("-", "");
         ComplianceCheckResult taskEntity = ComplianceCheckResult.builder()
                 .projectId(projectId)
@@ -108,15 +84,16 @@ public class BidQualityCheckTaskAppService {
                 .progress(0)
                 .currentStep("初始化质量核查任务...")
                 .riskScore(0)
+                .bidFileName(bidDocEntity.getName())
                 .checkedAt(LocalDateTime.now())
                 .build();
 
         ComplianceCheckResult saved = resultRepository.save(taskEntity);
 
-        // 5. 触发异步执行
-        asyncExecutor.executeAsync(saved.getId(), projectId, taskId);
+        // 4. 触发后台异步执行（大文件下载、瘦身、Sidecar解析、LLM核查等耗时动作全部在后台异步完成）
+        asyncExecutor.executeAsync(saved.getId(), projectId, taskId, force);
 
-        log.info("Triggered new async quality check task: {} for project: {}", taskId, projectId);
+        log.info("Triggered new async quality check task: {} for project: {}, force: {}", taskId, projectId, force);
         return toTaskDTO(saved);
     }
 
@@ -160,7 +137,7 @@ public class BidQualityCheckTaskAppService {
         QualityCheckTaskDTO task = triggerQualityCheck(projectId, true);
         ComplianceCheckResult result = resultRepository.findByTaskId(task.getTaskId()).orElse(null);
         if (result != null && result.getStatus() != ComplianceCheckResult.TaskStatus.COMPLETED) {
-            asyncExecutor.executeAsync(result.getId(), projectId, task.getTaskId());
+            asyncExecutor.executeAsync(result.getId(), projectId, task.getTaskId(), true);
             result = resultRepository.findById(result.getId()).orElse(result);
         }
         return toReportDTO(result);

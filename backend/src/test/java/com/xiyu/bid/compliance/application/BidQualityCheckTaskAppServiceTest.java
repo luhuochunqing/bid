@@ -1,7 +1,5 @@
 package com.xiyu.bid.compliance.application;
 
-import com.xiyu.bid.compliance.domain.DocumentContent;
-import com.xiyu.bid.compliance.dto.QualityCheckReportDTO;
 import com.xiyu.bid.compliance.dto.QualityCheckTaskDTO;
 import com.xiyu.bid.compliance.entity.ComplianceCheckResult;
 import com.xiyu.bid.compliance.repository.ComplianceCheckResultRepository;
@@ -17,9 +15,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -48,7 +46,6 @@ class BidQualityCheckTaskAppServiceTest {
                 resultRepository, targetLoader, tenderDocumentLoader, asyncExecutor);
     }
 
-    /** spec 049 前置校验：stub 项目存在已上传投标文件. */
     private void stubBidDocumentExists(final Long projectId) {
         ProjectDocument doc = new ProjectDocument();
         doc.setId(1L);
@@ -58,19 +55,12 @@ class BidQualityCheckTaskAppServiceTest {
     }
 
     @Test
-    @DisplayName("首次触发核查时创建新任务并异步执行")
+    @DisplayName("首次触发核查时毫秒级创建新任务并异步执行")
     void testTriggerQualityCheck_NewTask() {
         Long projectId = 100L;
         when(resultRepository.findByProjectIdAndCheckTypeAndStatusIn(eq(projectId), any(), any()))
                 .thenReturn(Collections.emptyList());
         stubBidDocumentExists(projectId);
-        when(targetLoader.loadBidDocument(projectId))
-                .thenReturn(DocumentContent.fromText("bid.pdf", "hash_bid_1", " 投标文件正文"));
-        when(tenderDocumentLoader.loadTenderDocument(projectId))
-                .thenReturn(DocumentContent.fromText("tender.pdf", "hash_tender_1", "招标要求"));
-        when(resultRepository.findTopByBidFileHashAndTenderFileHashAndStatusOrderByCheckedAtDesc(
-                eq("hash_bid_1"), eq("hash_tender_1"), eq(ComplianceCheckResult.TaskStatus.COMPLETED)))
-                .thenReturn(Optional.empty());
 
         ComplianceCheckResult saved = ComplianceCheckResult.builder()
                 .id(1L)
@@ -84,8 +74,8 @@ class BidQualityCheckTaskAppServiceTest {
         QualityCheckTaskDTO taskDTO = taskAppService.triggerQualityCheck(projectId, false);
 
         assertThat(taskDTO).isNotNull();
-        assertThat(taskDTO.getTaskId()).isNotBlank();
-        verify(asyncExecutor).executeAsync(eq(1L), eq(projectId), any(String.class));
+        assertThat(taskDTO.getTaskId()).isEqualTo("test_task_123");
+        verify(asyncExecutor).executeAsync(eq(1L), eq(projectId), any(String.class), eq(false));
     }
 
     @Test
@@ -111,32 +101,9 @@ class BidQualityCheckTaskAppServiceTest {
     }
 
     @Test
-    @DisplayName("文件哈希一致且 force=false 时命中缓存秒级返回")
-    void testTriggerQualityCheck_CacheHit() {
-        Long projectId = 100L;
-        when(resultRepository.findByProjectIdAndCheckTypeAndStatusIn(eq(projectId), any(), any()))
-                .thenReturn(Collections.emptyList());
-        stubBidDocumentExists(projectId);
-        when(targetLoader.loadBidDocument(projectId))
-                .thenReturn(DocumentContent.fromText("bid.pdf", "hash_cached", "已解析内容"));
-        when(tenderDocumentLoader.loadTenderDocument(projectId))
-                .thenReturn(DocumentContent.fromText("tender.pdf", "hash_tender", "招标要求"));
-
-        ComplianceCheckResult cached = ComplianceCheckResult.builder()
-                .id(3L)
-                .projectId(projectId)
-                .taskId("cached_task_789")
-                .status(ComplianceCheckResult.TaskStatus.COMPLETED)
-                .progress(100)
-                .build();
-
-        when(resultRepository.findTopByBidFileHashAndTenderFileHashAndStatusOrderByCheckedAtDesc(
-                eq("hash_cached"), eq("hash_tender"), eq(ComplianceCheckResult.TaskStatus.COMPLETED)))
-                .thenReturn(Optional.of(cached));
-
-        QualityCheckTaskDTO taskDTO = taskAppService.triggerQualityCheck(projectId, false);
-
-        assertThat(taskDTO.getTaskId()).isEqualTo("cached_task_789");
-        assertThat(taskDTO.getStatus()).isEqualTo(ComplianceCheckResult.TaskStatus.COMPLETED);
+    @DisplayName("项目ID为空时抛出非法参数异常")
+    void testTriggerQualityCheck_NullProjectId() {
+        assertThatThrownBy(() -> taskAppService.triggerQualityCheck(null, false))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }

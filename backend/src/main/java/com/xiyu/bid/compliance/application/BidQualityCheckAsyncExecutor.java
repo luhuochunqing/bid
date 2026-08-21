@@ -1,6 +1,5 @@
 package com.xiyu.bid.compliance.application;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.ai.client.AiProvider;
 import com.xiyu.bid.compliance.domain.DocumentContent;
@@ -22,10 +21,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 标书质量核查后台异步执行器.
@@ -46,36 +44,53 @@ public class BidQualityCheckAsyncExecutor {
     private final TenderDocumentLoader tenderDocumentLoader;
     private final TenderRequirementsExtractor requirementsExtractor;
     private final AiProvider aiProvider;
+    private final BidQualityCheckProgressUpdater progressUpdater;
 
     /**
      * 后台异步执行标书质量核查.
+     *
+     * @param resultId 检查结果记录ID
+     * @param projectId 项目ID
+     * @param taskId 任务UUID
+     * @param force 是否强制跳过缓存重新核查
      */
     @Async
-    @Transactional
-    public void executeAsync(final Long resultId, final Long projectId, final String taskId) {
-        log.info("Starting async bid quality check task: {} for project: {}", taskId, projectId);
-
-        ComplianceCheckResult checkResult = resultRepository.findById(resultId).orElse(null);
-        if (checkResult == null) {
-            log.warn("ComplianceCheckResult not found for id: {}", resultId);
-            return;
-        }
+    public void executeAsync(final Long resultId, final Long projectId, final String taskId, final boolean force) {
+        log.info("Starting async bid quality check task: {} for project: {}, force: {}", taskId, projectId, force);
 
         try {
             // Step 1: 解析文件 (progress: 20)
-            updateTaskStep(checkResult, ComplianceCheckResult.TaskStatus.PARSING, 20, "正在加载并解析投标文件与招标文件...");
+            progressUpdater.updateProgress(resultId, ComplianceCheckResult.TaskStatus.PARSING, 20, "正在加载并解析投标文件与招标文件...");
 
             DocumentContent bidDoc = targetLoader.loadBidDocument(projectId);
+            if (bidDoc == null || bidDoc.fullText() == null || bidDoc.fullText().isBlank()) {
+                log.warn("Bid document for project {} is empty or unparsable", projectId);
+                progressUpdater.markFailed(resultId, "无法执行核查：投标文件解析失败，请确认文件可正常打开后重新上传");
+                return;
+            }
+
             DocumentContent tenderDoc = tenderDocumentLoader.loadTenderDocument(projectId);
+            progressUpdater.updateFileMetadata(resultId, bidDoc.fileName(), bidDoc.fileHash(), tenderDoc.fileHash());
+
+            // 缓存检查：若非强制刷新，检查当前文件的 SHA-256 哈希是否命中已有已完成记录
+            if (!force && !bidDoc.fileHash().isBlank()) {
+                Optional<ComplianceCheckResult> cachedOpt = resultRepository
+                        .findTopByBidFileHashAndTenderFileHashAndStatusOrderByCheckedAtDesc(
+                                bidDoc.fileHash(), tenderDoc.fileHash(), ComplianceCheckResult.TaskStatus.COMPLETED);
+
+                if (cachedOpt.isPresent() && !cachedOpt.get().getId().equals(resultId)) {
+                    ComplianceCheckResult cached = cachedOpt.get();
+                    log.info("Hit SHA-256 cache for quality check, reusing result from task: {}", cached.getTaskId());
+                    progressUpdater.applyCachedResult(resultId, cached);
+                    return;
+                }
+            }
+
             // spec 049 第二步：招标要求 LLM 结构化提取（全部失败场景降级 missing 哨兵，不阻断任务）
             TenderRequirements requirements = requirementsExtractor.extract(tenderDoc);
 
-            checkResult.setBidFileName(bidDoc.fileName());
-            checkResult.setBidFileHash(bidDoc.fileHash());
-            checkResult.setTenderFileHash(tenderDoc.fileHash());
-
             // Step 2: 知识库检索与 25 项规则核查 (progress: 60)
-            updateTaskStep(checkResult, ComplianceCheckResult.TaskStatus.CHECKING, 60, "正在对照企业知识库并执行25项质量核查...");
+            progressUpdater.updateProgress(resultId, ComplianceCheckResult.TaskStatus.CHECKING, 60, "正在对照企业知识库并执行25项质量核查...");
 
             List<String> requiredCerts = requirements.mandatoryQualifications();
             // spec 049 第三步：四知识库真实检索；单库异常记录失败源，依赖项由引擎置 MANUAL 不阻断
@@ -87,7 +102,7 @@ public class BidQualityCheckAsyncExecutor {
             List<QualityCheckItemResult> itemResults = BidDocumentQualityEngine.evaluateAll(
                     bidDoc, tenderDoc, kbOutcome.matches(), requirements, kbOutcome.failedSources(),
                     new LlmAdjudicator(buildLlmPort()),
-                    (progress, step) -> updateTaskStep(checkResult, ComplianceCheckResult.TaskStatus.CHECKING,
+                    (progress, step) -> progressUpdater.updateProgress(resultId, ComplianceCheckResult.TaskStatus.CHECKING,
                             60 + progress * 30 / 100, "AI 语义裁决 " + progress + "%：" + step));
 
             // Step 3: 汇总指标并持久化 (progress: 100)
@@ -104,50 +119,34 @@ public class BidQualityCheckAsyncExecutor {
                 }
             }
 
-            checkResult.setPassedCount(passed);
-            checkResult.setFailedCount(failed);
-            checkResult.setManualReviewCount(manual);
-            checkResult.setTotalCount(itemResults.size());
-
-            // 计算整体合规状态
+            ComplianceCheckResult.Status overallStatus;
             if (failed > 0) {
-                checkResult.setOverallStatus(ComplianceCheckResult.Status.NON_COMPLIANT);
+                overallStatus = ComplianceCheckResult.Status.NON_COMPLIANT;
             } else if (manual > 0) {
-                checkResult.setOverallStatus(ComplianceCheckResult.Status.PARTIAL_COMPLIANT);
+                overallStatus = ComplianceCheckResult.Status.PARTIAL_COMPLIANT;
             } else {
-                checkResult.setOverallStatus(ComplianceCheckResult.Status.COMPLIANT);
+                overallStatus = ComplianceCheckResult.Status.COMPLIANT;
             }
 
             int riskScore = Math.min(100, failed * 20 + manual * 5);
-            checkResult.setRiskScore(riskScore);
-            checkResult.setCheckDetails(OBJECT_MAPPER.writeValueAsString(itemResults));
-            checkResult.setCheckedAt(LocalDateTime.now());
+            String checkDetailsJson = OBJECT_MAPPER.writeValueAsString(itemResults);
 
-            updateTaskStep(checkResult, ComplianceCheckResult.TaskStatus.COMPLETED, 100, "核查完成");
-            resultRepository.save(checkResult);
+            progressUpdater.completeTask(resultId, overallStatus, riskScore, checkDetailsJson, passed, failed, manual, itemResults.size());
 
             log.info("Async bid quality check task completed: {}, status={}, passed={}, failed={}, manual={}",
-                    taskId, checkResult.getOverallStatus(), passed, failed, manual);
+                    taskId, overallStatus, passed, failed, manual);
 
         } catch (java.io.IOException | RuntimeException e) {
             log.error("Async bid quality check task failed: {}", taskId, e);
-            checkResult.setStatus(ComplianceCheckResult.TaskStatus.FAILED);
-            checkResult.setProgress(100);
-            checkResult.setCurrentStep("核查失败");
-            checkResult.setErrorMessage(e.getMessage() != null ? e.getMessage() : "核查过程中发生未知异常");
-            resultRepository.save(checkResult);
+            progressUpdater.markFailed(resultId, e.getMessage() != null ? e.getMessage() : "核查过程中发生未知异常");
         }
     }
 
-    private void updateTaskStep(
-            final ComplianceCheckResult checkResult,
-            final ComplianceCheckResult.TaskStatus status,
-            final int progress,
-            final String currentStep) {
-        checkResult.setStatus(status);
-        checkResult.setProgress(progress);
-        checkResult.setCurrentStep(currentStep);
-        resultRepository.save(checkResult);
+    /**
+     * 重载兼容旧三参数调用（默认 force=false）.
+     */
+    public void executeAsync(final Long resultId, final Long projectId, final String taskId) {
+        executeAsync(resultId, projectId, taskId, false);
     }
 
     /**
