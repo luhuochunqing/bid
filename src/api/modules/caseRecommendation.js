@@ -9,6 +9,8 @@ export const caseRecommendationApi = {
   /**
    * 基于评分项与关键词推荐案例
    * POST /api/projects/{projectId}/cases/recommend
+   * 注：后端直接返回裸 {total, items}（不走统一信封），
+   * client.js 拦截器已解包 response.data，此处不可再取 .data
    */
   async recommendCases(projectId, params = {}) {
     return httpClient.post(`/api/projects/${projectId}/cases/recommend`, {
@@ -16,15 +18,17 @@ export const caseRecommendationApi = {
       keyword: params.keyword || '',
       page: params.page || 0,
       size: params.size || 10
-    }).then(res => res.data)
+    })
   },
 
   /**
    * 获取当前项目的评分项列表 (PRD 4.2 契约)
    * GET /api/projects/{projectId}/score-items
+   * 注：后端直接返回裸数组（不走统一信封），
+   * client.js 拦截器已解包 response.data，此处不可再取 .data
    */
   async getScoreItems(projectId) {
-    return httpClient.get(`/api/projects/${projectId}/score-items`).then(res => res.data)
+    return httpClient.get(`/api/projects/${projectId}/score-items`)
   },
 
   /**
