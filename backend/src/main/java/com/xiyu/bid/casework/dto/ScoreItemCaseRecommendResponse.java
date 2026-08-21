@@ -39,5 +39,8 @@ public class ScoreItemCaseRecommendResponse {
         private String bidResult;
         private Integer reuseCount;
         private Boolean isPinned;
+        private String createdAt;
+        private String bidEntity;
+        private String projectStatus;
     }
 }

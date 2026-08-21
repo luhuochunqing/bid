@@ -2,6 +2,13 @@
 
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
+## [2026-08-21] update | AI智能案例推荐详情三模块 + 去掉复用次数展示
+
+- 触发：标书制作 AI 智能推荐，卡片/详情不再展示复用次数；详情改为顶部评分项 + 中部三层原文/元信息 + 底部复用
+- 改动：`ai-capabilities.md` §9.1；`knowledge-base.md` §4.2.4；实现笔记 `docs/implementation-notes/ai-case-recommend-detail-layout.md`
+- 关键结论：案例库页仍保留复用次数；招标主体/项目状态按 sourceProjectId 批量查标讯/项目，不落 knowledge_case；空元信息统一 `-`
+- 触发点：任务收尾（§2 触发点 1）—— 跨前端+后端 UI 契约变更回填
+
 ## [2026-08-21] update | 标书质量核查 contains 直出误判修复（负偏离否定语义 + veto 归一化）
 
 - 触发：PR !2365 google-code-review 审查发现 `declaredDeviation` 把"偏离表：无负偏离"误判 FAIL（否定语义盲区）、`vetoFirstStage` 精确匹配 LLM 提取资格全文误判缺失 FAIL（空白/标点差异）

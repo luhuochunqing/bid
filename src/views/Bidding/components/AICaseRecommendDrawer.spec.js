@@ -87,7 +87,8 @@ describe('AICaseRecommendDrawer.vue', () => {
     expect(wrapper.text()).toContain('系统高可用架构')
     expect(wrapper.text()).toContain('92%')
     expect(wrapper.text()).toContain('优质')
-    expect(wrapper.text()).toContain('3 次复用')
+    expect(wrapper.text()).not.toMatch(/次复用/)
+    expect(wrapper.text()).not.toMatch(/复用次数/)
   })
 
   it('triggers search when keyword changes and search button is clicked', async () => {

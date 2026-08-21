@@ -64,7 +64,6 @@
               <div class="case-summary">{{ item.responseTextSummary }}</div>
               <div class="case-meta">
                 <span>来源: {{ item.sourceProjectName }}</span>
-                <span>复用 {{ item.reuseCount }} 次</span>
               </div>
               <div class="case-card-footer">
                 <el-button type="primary" size="small" link @click="viewDetail(item)">详情</el-button>
@@ -213,15 +212,14 @@ function normalizeRecommendCase(item) {
     bidResult: item.bidResult,
     reuseCount: item.reuseCount || 0,
     sourceProjectName: item.sourceProjectName,
+    bidEntity: item.bidEntity || '',
+    createdAt: item.createdAt || '',
+    projectStatus: item.projectStatus || '',
     score: item.matchScore ?? item.score ?? 0,
     scoreLabel: item.matchLabel || item.scoreLabel || '',
     matchReason: Array.isArray(item.matchReasons) ? item.matchReasons.join('；') : (item.matchReason || ''),
-    highlightedText: item.highlightedText || '',
     responseText: item.responseText || '',
     requirementRaw: item.requirementRaw || '',
-    docName: item.docName || item.sourceDocName || '',
-    page: item.page || item.sourcePage || '',
-    readerHTML: item.readerHTML || item.highlightedText || item.responseText || '',
   }
 }
 

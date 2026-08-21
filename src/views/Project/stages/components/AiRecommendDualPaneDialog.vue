@@ -1,61 +1,170 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    title=""
-    width="1100px"
+    title="案例详情"
+    width="720px"
     :close-on-click-modal="false"
     destroy-on-close
-    class="dual-pane-dialog"
+    class="case-detail-dialog"
     @update:model-value="emit('update:modelValue', $event)"
   >
-    <div v-if="selectedCase" class="dual-pane-body">
-      <div class="dual-pane-left">
-        <div class="dp-section"><div class="dp-label">命中评分项</div><div class="dp-val">{{ selectedCase.scoringTitle }}</div></div>
-        <div class="dp-section"><div class="dp-label">匹配度</div><div class="dp-val"><el-tag :type="selectedCase.score >= 85 ? 'danger' : 'primary'">{{ selectedCase.score }}% {{ selectedCase.scoreLabel }}</el-tag></div></div>
-        <div class="dp-section"><div class="dp-label">来源项目</div><div class="dp-val">{{ selectedCase.sourceProjectName }}</div></div>
-        <div class="dp-section"><div class="dp-label">中标结果</div><div class="dp-val">{{ selectedCase.bidResult === 'WON' ? '中标' : selectedCase.bidResult === 'LOST' ? '未中标' : '—' }}</div></div>
-        <div class="dp-section"><div class="dp-label">复用次数</div><div class="dp-val">{{ selectedCase.reuseCount }} 次</div></div>
-        <div class="dp-section"><div class="dp-label">应答原文</div><div class="dp-snippet">{{ selectedCase.responseTextSummary || selectedCase.responseText }}</div></div>
-      </div>
-      <div class="dual-pane-right">
-        <div class="reader-head">📄 {{ selectedCase.docName || selectedCase.sourceProjectName || '来源标书' }}<span v-if="selectedCase.page"> · 第 {{ selectedCase.page }} 页</span></div>
-        <div class="reader-page">
-          <h5>{{ selectedCase.scoringTitle }}</h5>
-          <div v-html="safeHtml(selectedCase.readerHTML || selectedCase.highlightedText || selectedCase.responseText)"></div>
+    <div v-if="selectedCase" class="detail-body">
+      <section class="detail-module scoring-module">
+        <div class="module-label">评分项</div>
+        <div class="scoring-title">{{ selectedCase.scoringTitle || selectedCase.scoringPointTitle }}</div>
+        <div v-if="selectedCase.score != null || selectedCase.matchScore != null" class="scoring-score">
+          <el-tag :type="scoreTagType" size="small">
+            {{ displayScore }}% {{ selectedCase.scoreLabel || selectedCase.matchLabel || '' }}
+          </el-tag>
         </div>
-      </div>
+      </section>
+
+      <section class="detail-module middle-module">
+        <div class="layer">
+          <h4 class="layer-title">评分项详细要素原文</h4>
+          <div class="layer-body">{{ selectedCase.requirementRaw || '暂无评分项详细要素原文' }}</div>
+        </div>
+        <div class="layer">
+          <h4 class="layer-title">应答片段原文</h4>
+          <div class="layer-body">{{ selectedCase.responseText || '暂无应答片段原文' }}</div>
+        </div>
+        <div class="layer">
+          <h4 class="layer-title">案例元信息</h4>
+          <dl class="meta-grid">
+            <div class="meta-item">
+              <dt>项目名称</dt>
+              <dd>{{ displayValue(selectedCase.sourceProjectName) }}</dd>
+            </div>
+            <div class="meta-item">
+              <dt>招标主体</dt>
+              <dd>{{ displayValue(selectedCase.bidEntity) }}</dd>
+            </div>
+            <div class="meta-item">
+              <dt>创建时间</dt>
+              <dd>{{ displayValue(selectedCase.createdAt) }}</dd>
+            </div>
+            <div class="meta-item">
+              <dt>项目状态</dt>
+              <dd>{{ displayProjectStatus(selectedCase.projectStatus) }}</dd>
+            </div>
+            <div class="meta-item">
+              <dt>客户类型</dt>
+              <dd>{{ displayMappedLabel(selectedCase.customerType, getCustomerTypeLabel) }}</dd>
+            </div>
+            <div class="meta-item">
+              <dt>项目类型</dt>
+              <dd>{{ displayMappedLabel(selectedCase.projectType, getProjectTypeLabel) }}</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
     </div>
     <template #footer>
-      <div class="dp-footer">
-        <el-button type="primary" @click="emit('reuse', selectedCase)">📋 复用此案例</el-button>
-        <el-button @click="emit('update:modelValue', false)">关闭</el-button>
+      <div class="detail-footer">
+        <el-button type="primary" @click="emit('reuse', selectedCase)">复用</el-button>
       </div>
     </template>
   </el-dialog>
 </template>
 
 <script setup>
-import { safeHtml } from '@/utils/safeHtml.js'
+import { computed } from 'vue'
+import { getProjectTypeLabel, getCustomerTypeLabel } from '@/views/Knowledge/views/caseLabels.js'
+import { getProjectStatusText } from '@/views/Project/project-utils.js'
 
-defineProps({
+const props = defineProps({
   modelValue: { type: Boolean, default: false },
   selectedCase: { type: Object, default: null },
 })
 
 const emit = defineEmits(['update:modelValue', 'reuse'])
+
+const displayScore = computed(() => {
+  const caseItem = props.selectedCase || {}
+  return caseItem.score ?? caseItem.matchScore ?? 0
+})
+
+const scoreTagType = computed(() => (displayScore.value >= 85 ? 'danger' : 'primary'))
+
+function displayValue(value) {
+  if (value == null || String(value).trim() === '') return '-'
+  return value
+}
+
+function displayProjectStatus(status) {
+  const text = getProjectStatusText(status)
+  return text || '-'
+}
+
+function displayMappedLabel(value, mapLabel) {
+  if (value == null || String(value).trim() === '') return '-'
+  return mapLabel(value)
+}
 </script>
 
 <style scoped>
-.dual-pane-body { display: flex; gap: 0; min-height: 400px; }
-.dual-pane-left { flex: 0 0 380px; padding: 0 16px 0 0; overflow-y: auto; border-right: 1px solid var(--gray-200); }
-.dual-pane-right { flex: 1; padding: 0 0 0 16px; overflow-y: auto; }
-.dp-section { margin-bottom: 14px; }
-.dp-label { font-size: 11px; color: var(--text-muted); font-weight: 600; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .5px; }
-.dp-val { font-size: 13px; color: var(--gray-750); line-height: 1.6; }
-.dp-snippet { background: var(--el-fill-color-lighter); border-left: 3px solid #2E7659; padding: 10px 12px; border-radius: 4px; font-size: 12px; line-height: 1.7; color: var(--text-secondary-ui); }
-.reader-head { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; }
-.reader-page { background: var(--bg-card); border: 1px solid var(--gray-250); border-radius: 4px; padding: 16px 20px; font-size: 13px; line-height: 1.9; color: var(--gray-750); }
-.reader-page h5 { font-size: 14px; font-weight: 600; margin: 0 0 8px; color: var(--gray-800); }
-.reader-page :deep(.hit) { background: #fff4b8; padding: 1px 3px; border-radius: 2px; }
-.dp-footer { display: flex; justify-content: flex-end; gap: 8px; }
+.detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.detail-module {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.module-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.4px;
+}
+.scoring-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+.middle-module {
+  gap: 14px;
+}
+.layer-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.layer-body {
+  background: var(--el-fill-color-lighter);
+  border-left: 3px solid var(--brand-xiyu-logo);
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-secondary-ui);
+  white-space: pre-wrap;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+  margin: 0;
+}
+.meta-item dt {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.meta-item dd {
+  margin: 0;
+  font-size: 13px;
+  color: var(--gray-750);
+  line-height: 1.5;
+}
+.detail-footer {
+  display: flex;
+  justify-content: flex-end;
+}
 </style>
