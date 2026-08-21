@@ -58,6 +58,20 @@ API 模块层若再 `.then(res => res.data)` 会得到 `undefined`（双重解�
 **规则**：`caseRecommendationApi` 的 4 个方法一律裸透传，禁止再加 `.data` 解包。
 契约回归锁在 `src/api/modules/caseRecommendation.spec.js`。
 
+## PRD 4.2 复用定位弹窗默认选中（Warning #1 补充）
+
+PRD 1.1/4.2：复用定位弹窗章节树**默认选中当前评分项对应章节（可修改）**。实现链路：
+
+1. 抽屉 `currentDefaultChapter`：优先 `item.targetChapter`（后端章节关联落地后直接生效）
+   → 无则按 `dim` 类别关键词回退到内置章节树（商务/报价/资格→第1章，技术/方案/服务→第2章）→ 空（用户手选）
+2. `AICaseReuseSectionModal` 打开时 `applyDefaultSelection`：用 `findSectionPathByChapter`
+   （`sectionTreeMatch.js`，BFS：完整路径相等 → label 相等 → 最长包含匹配）在章节树里找路径，
+   命中则级联预选 `selectedSection`，未命中回退手输框预填
+3. 每次打开重置选择，避免上次残留；弹窗已打开时切换评分项会同步刷新默认选中
+
+限制：真实标书章节树 API 属 spec 046 Phase 3，当前弹窗用内置演示树；
+后端 `score_item` 无 targetChapter 字段，映射落地前靠 dim 回退。
+
 ## 消费方地图（改这个 API 前必读）
 
 - `AiRecommendDrawer.vue`（项目详情抽屉）— 4 个方法全用

@@ -67,6 +67,7 @@ import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { caseRecommendationApi } from '@/api/modules/caseRecommendation'
+import { findSectionPathByChapter } from './sectionTreeMatch.js'
 
 const props = defineProps({
   modelValue: {
@@ -132,14 +133,34 @@ const treeOptions = computed(() => {
   return props.sectionTree
 })
 
+// PRD 4.2：targetSection 默认选中当前评分项对应章节（可修改），
+// 路径匹配规则见 sectionTreeMatch.js
+function applyDefaultSelection() {
+  // 每次打开重置，避免上次选择残留（dialog destroy-on-close 仅销毁内容，组件状态保留）
+  selectedSection.value = []
+  const chapter = props.defaultChapter
+  if (!chapter) {
+    customChapterInput.value = ''
+    return
+  }
+  const matchedPath = findSectionPathByChapter(treeOptions.value, chapter)
+  if (matchedPath.length) {
+    selectedSection.value = matchedPath
+  } else {
+    customChapterInput.value = chapter
+  }
+}
+
+watch(dialogVisible, (visible) => {
+  if (visible) applyDefaultSelection()
+}, { immediate: true })
+
+// 抽屉切换评分项后 defaultChapter 会变化；弹窗已打开时同步刷新默认选中
 watch(
   () => props.defaultChapter,
-  (val) => {
-    if (val) {
-      customChapterInput.value = val
-    }
-  },
-  { immediate: true }
+  () => {
+    if (dialogVisible.value) applyDefaultSelection()
+  }
 )
 
 const handleConfirmReuse = async () => {

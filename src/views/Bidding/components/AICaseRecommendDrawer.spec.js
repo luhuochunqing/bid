@@ -144,4 +144,38 @@ describe('AICaseRecommendDrawer.vue', () => {
     expect(caseItem.reuseCount).toBe(4)
     expect(wrapper.emitted('case-reused')).toBeTruthy()
   })
+
+  // PRD 4.2：复用定位弹窗默认选中当前评分项对应章节
+  it('maps selected score item to default chapter via targetChapter then dim fallback', async () => {
+    const wrapper = mount(AICaseRecommendDrawer, {
+      props: {
+        modelValue: true,
+        projectId: 123
+      },
+      global: {
+        directives: {
+          loading: () => {}
+        },
+        stubs: commonStubs
+      }
+    })
+
+    await flushPromises()
+    wrapper.vm.selectedScoreItemId = 1
+    // 显式 targetChapter 优先
+    expect(wrapper.vm.currentDefaultChapter).toBe('第3章 技术方案')
+
+    // 无 targetChapter 时按 dim 类别回退到内置章节树
+    caseRecommendationApi.getScoreItems.mockResolvedValue([
+      { id: 2, code: 'B1', dim: '商务评审', detail: '资质业绩' }
+    ])
+    wrapper.vm.scoreItems = [{ id: 2, code: 'B1', dim: '商务评审', detail: '资质业绩' }]
+    wrapper.vm.selectedScoreItemId = 2
+    expect(wrapper.vm.currentDefaultChapter).toBe('第1章 商务标响应')
+
+    // 未知类别 → 空，由用户手选
+    wrapper.vm.scoreItems = [{ id: 3, code: 'C1', dim: '未知维度', detail: '' }]
+    wrapper.vm.selectedScoreItemId = 3
+    expect(wrapper.vm.currentDefaultChapter).toBe('')
+  })
 })

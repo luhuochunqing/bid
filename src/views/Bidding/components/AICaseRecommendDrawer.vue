@@ -178,10 +178,19 @@ const detailModalVisible = ref(false)
 const reuseModalVisible = ref(false)
 const activeCase = ref(null)
 
+// PRD 4.2：复用定位弹窗章节树默认选中当前评分项对应章节。
+// 映射优先级：显式 targetChapter 字段（后端章节关联落地后直接生效）
+// → dim 类别关键词回退到内置章节树（商务→商务标响应 / 技术→技术服务方案）
+// → 空（由用户在弹窗中手选，PRD 允许修改）
 const currentDefaultChapter = computed(() => {
   if (!selectedScoreItemId.value) return ''
   const item = scoreItems.value.find((s) => s.id === selectedScoreItemId.value)
-  return item && item.targetChapter ? item.targetChapter : ''
+  if (!item) return ''
+  if (item.targetChapter) return item.targetChapter
+  const dim = item.dim || ''
+  if (dim.includes('商务') || dim.includes('报价') || dim.includes('资格')) return '第1章 商务标响应'
+  if (dim.includes('技术') || dim.includes('方案') || dim.includes('服务')) return '第2章 技术服务方案'
+  return ''
 })
 
 const loadScoreItems = async () => {
