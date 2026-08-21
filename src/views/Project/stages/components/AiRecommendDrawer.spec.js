@@ -1,21 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import AiRecommendDrawer from './AiRecommendDrawer.vue'
-import { casesApi } from '@/api/modules/knowledge.js'
-import { projectsApi } from '@/api'
+import { caseRecommendationApi } from '@/api/modules/caseRecommendation'
 
-vi.mock('@/api/modules/knowledge.js', () => ({
-  casesApi: {
+vi.mock('@/api/modules/caseRecommendation', () => ({
+  caseRecommendationApi: {
+    getScoreItems: vi.fn(),
     recommendCases: vi.fn(),
-    recommendForProject: vi.fn(),
     reuseCase: vi.fn(),
   },
 }))
 
-vi.mock('@/api', () => ({
-  projectsApi: {
-    getScoreDrafts: vi.fn(),
-  },
+vi.mock('@/api/error-utils.js', () => ({
+  notifyErrorUnlessRateLimit: vi.fn(),
 }))
 
 describe('AiRecommendDrawer.vue', () => {
@@ -49,25 +46,25 @@ describe('AiRecommendDrawer.vue', () => {
     'el-alert': { template: `<div class="el-alert-mock"><slot name="title" /></div>` },
   }
 
-  it('loads score drafts and triggers preliminary recommendations on open', async () => {
-    projectsApi.getScoreDrafts.mockResolvedValue({
-      data: [
-        { id: 1, scoreItemTitle: '技术方案实施', category: '技术评分' },
+  it('loads score items and triggers preliminary recommendations on open', async () => {
+    caseRecommendationApi.getScoreItems.mockResolvedValue([
+      { id: 1, code: '3.1', dim: '技术评分', detail: '技术方案实施方案完整可行' },
+    ])
+    caseRecommendationApi.recommendCases.mockResolvedValue({
+      total: 1,
+      items: [
+        {
+          id: 101,
+          scoringPointTitle: '技术方案实施细则',
+          responseText: '我们具备成熟的技术方案实施能力',
+          sourceProjectName: '国家电网信息化项目',
+          matchScore: 92,
+          matchLabel: '优质',
+          bidResult: 'WON',
+          reuseCount: 3,
+        },
       ],
     })
-    casesApi.recommendForProject.mockResolvedValue([])
-    casesApi.recommendCases.mockResolvedValue([
-      {
-        caseId: 101,
-        scoringTitle: '技术方案实施细则',
-        responseText: '我们具备成熟的技术方案实施能力',
-        sourceProjectName: '国家电网信息化项目',
-        score: 92,
-        scoreLabel: '优质',
-        bidResult: 'WON',
-        reuseCount: 3,
-      },
-    ])
 
     const wrapper = mount(AiRecommendDrawer, {
       props: {
@@ -79,25 +76,33 @@ describe('AiRecommendDrawer.vue', () => {
 
     await flushPromises()
 
-    expect(projectsApi.getScoreDrafts).toHaveBeenCalledWith(10)
-    expect(casesApi.recommendCases).toHaveBeenCalledWith(10, '技术方案实施', '')
+    expect(caseRecommendationApi.getScoreItems).toHaveBeenCalledWith(10)
+    expect(caseRecommendationApi.recommendCases).toHaveBeenCalledWith(10, {
+      scoreItemId: 1,
+      keyword: '',
+      page: 0,
+      size: 20,
+    })
     expect(wrapper.text()).toContain('技术方案实施细则')
     expect(wrapper.text()).toContain('国家电网信息化项目')
   })
 
   it('copies text and calls reuseCase on handleReuse', async () => {
-    projectsApi.getScoreDrafts.mockResolvedValue({ data: [] })
-    casesApi.recommendForProject.mockResolvedValue([
-      {
-        caseId: 202,
-        scoringTitle: '售后服务承诺',
-        responseText: '7x24小时响应',
-        sourceProjectName: '政务云运维项目',
-        score: 88,
-        scoreLabel: '优质',
-        reuseCount: 1,
-      },
-    ])
+    caseRecommendationApi.getScoreItems.mockResolvedValue([])
+    caseRecommendationApi.recommendCases.mockResolvedValue({
+      total: 1,
+      items: [
+        {
+          id: 202,
+          scoringPointTitle: '售后服务承诺',
+          responseText: '7x24小时响应',
+          sourceProjectName: '政务云运维项目',
+          matchScore: 88,
+          matchLabel: '优质',
+          reuseCount: 1,
+        },
+      ],
+    })
 
     const wrapper = mount(AiRecommendDrawer, {
       props: {
@@ -114,6 +119,23 @@ describe('AiRecommendDrawer.vue', () => {
     await reuseButtons[0].trigger('click')
 
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('7x24小时响应')
-    expect(casesApi.reuseCase).toHaveBeenCalledWith(202)
+    expect(caseRecommendationApi.reuseCase).toHaveBeenCalledWith(202)
+  })
+
+  it('shows empty-score alert and falls back when getScoreItems fails', async () => {
+    caseRecommendationApi.getScoreItems.mockRejectedValue(new Error('500'))
+    caseRecommendationApi.recommendCases.mockResolvedValue({ total: 0, items: [] })
+
+    const wrapper = mount(AiRecommendDrawer, {
+      props: {
+        projectId: 10,
+        modelValue: true,
+      },
+      global: { stubs: globalStubs },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.find('.el-alert-mock').exists()).toBe(true)
   })
 })
