@@ -121,6 +121,20 @@ if [[ "$body" != *"## Wiki 更新"* ]]; then
 > 详见 .wiki/WIKI.md §2 触发点 2"
 fi
 
+# ── 重复实现门禁（提交 PR 自动执行）──────────────────────────────────────
+# 逃生阀：DUPLICATE_IMPL_SKIP=1
+_PR_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+echo "── 重复实现检查（提交 PR 自动执行）──"
+if [ "${DUPLICATE_IMPL_SKIP:-0}" = "1" ]; then
+  echo "⚠  DUPLICATE_IMPL_SKIP=1 — 跳过重复实现检查"
+elif ! node "$_PR_ROOT/scripts/check-duplicate-implementations.mjs"; then
+  echo ""
+  echo "❌ 重复实现门禁未通过，已阻止创建 PR。请复用已有实现，或在新增声明上一行加："
+  echo "   // REUSE-OK: <existing-path> — <具体原因>"
+  echo "逃生阀: DUPLICATE_IMPL_SKIP=1"
+  exit 1
+fi
+
 # ── 创建 PR ───────────────────────────────────────────────────────────────
 case "$remote_url" in
   *github.com*)

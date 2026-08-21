@@ -353,6 +353,22 @@ if [ -f "$ROOT_DIR/package.json" ]; then
   fi
 fi
 
+# ── 5.4 重复实现检查（防造轮子）─────────────────────────
+# 逃生阀：DUPLICATE_IMPL_SKIP=1
+echo "── 重复实现（防造轮子）──"
+DUP_CODE_CHANGED=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -cE '^(src/|backend/src/main/java/)' || true)
+if [ "${DUPLICATE_IMPL_SKIP:-0}" = "1" ]; then
+  skip "重复实现检查（DUPLICATE_IMPL_SKIP=1 逃生阀）"
+elif [ "${DUP_CODE_CHANGED:-0}" -eq 0 ]; then
+  skip "重复实现检查（无 src/ 或 backend Java 变更）"
+else
+  if node "$ROOT_DIR/scripts/check-duplicate-implementations.mjs" --base "$GATE_BASE" --head HEAD; then
+    pass "重复实现检查"
+  else
+    fail "重复实现检查 — 新增代码与仓库已有实现重复，应复用现有代码。豁免：声明上一行加 // REUSE-OK: <path> — <原因>。逃生阀：DUPLICATE_IMPL_SKIP=1"
+  fi
+fi
+
 # ── 5.5. 429 友好提示覆盖拦截（spec-034 防复发） ─────────
 # 工程背景（2026-07-11 部署后反馈）：
 #   全局 axios interceptor 已将 HTTP 429 包装为友好提示“请求过于频繁，请稍后再试”，

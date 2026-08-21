@@ -25,6 +25,7 @@
     "check:doc-governance": "node scripts/check-doc-governance.mjs",
     "check:line-budgets": "node scripts/check-line-budgets.mjs",
     "check:line-budgets:staged": "node scripts/check-line-budgets.mjs --staged",
+    "check:duplicate-implementations": "node scripts/check-duplicate-implementations.mjs",
     "check:task-status-literal": "node scripts/check-task-status-literal.mjs",
     "check:rolecode-direct-calls": "node scripts/check-rolecode-direct-calls.mjs",
     "check:vue-template-balance": "node scripts/check-vue-template-balance.mjs",

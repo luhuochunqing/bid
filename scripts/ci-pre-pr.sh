@@ -12,6 +12,7 @@
 # 对比 GitHub CI `ci.yml`:
 #   agent-locks     ✅  → pre-push-gate.sh
 #   line-budget     ✅  → check-line-budgets.mjs
+#   duplicate-impl  ✅  → check-duplicate-implementations.mjs
 #   frontend        ✅  → test:unit + build:api + governance checks
 #   backend         ✅  → ArchitectureTest + quality gates
 #   quality-scope   ✅  → route-e2e-compat + e2e-ui-sync
@@ -81,6 +82,12 @@ if npm run check:line-budgets --silent 2>/dev/null; then
   pass "line-budgets"
 else
   fail "line-budgets"
+fi
+
+if node scripts/check-duplicate-implementations.mjs; then
+  pass "duplicate-implementations"
+else
+  fail "duplicate-implementations — 新增代码与仓库已有实现重复，应复用现有代码"
 fi
 
 if npm run check:token-governance --silent 2>/dev/null; then
