@@ -138,6 +138,7 @@ ssh jetty@172.16.38.78 'sudo systemctl stop xiyu-bid-backend && \
 
 ## 待办
 
-- [ ] **sidecar 长期治理（高优先）**：为 `document-converter-sidecar` Docker 容器增加内存限制（如 `--memory=1g --memory-swap=1g`）或排查修复其内存泄漏；当前 7.5GB 无 swap 的主机在 sidecar 膨胀时会再次挤爆后端 JVM
+- [x] ~~sidecar 内存限制加固~~ ✅ 当日完成：测试 1GB / 生产 2GB 在线生效，README 启动命令已固化
+- [ ] **sidecar 内存泄漏根治**：容器限制只是止血，`app.py`/`converter.py` 的泄漏需另开任务排查（测试环境曾运行约 20 分钟膨胀至 4.7GB）
 - [ ] 复测 AI 案例推荐：项目详情案例推荐抽屉（score_item 新契约）+ 复用定位弹窗默认选中当前评分项对应章节
-- [ ] 本报告提交 PR 合入 main
+- [ ] 本报告提交 PR 合入 main（PR !2371）
