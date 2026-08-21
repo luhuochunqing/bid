@@ -2387,4 +2387,31 @@ PR !2365（spec 049 质量核查实质化）评审 + 修复中发现两处确定
 
 - `document-converter-sidecar/README.md`（启动命令已固化 --memory）
 - `docs/release/deploy-report-2026-08-21-139th-test.md`（事故时间线与两环境处置记录）
-- 遗留：sidecar 泄漏根治（`app.py`/`converter.py`，20 分钟膨胀至 4.7GB 的真实根因）另开任务，容器限制只是止血
+- ~~遗留：sidecar 泄漏根治（`app.py`/`converter.py`，20 分钟膨胀至 4.7GB 的真实根因）另开任务，容器限制只是止血~~ → 已闭环，见 §144 与 `root-cause-analysis-sidecar-mammoth-oom.md`
+
+---
+
+## 144. 全局猴补丁副作用 + markitdown keep_data_uris 分层断裂：sidecar OOM 根治中的两个陷阱（2026-08-21）
+
+### 问题背景
+
+sidecar OOM 根治任务（PR !2373，完整根因见 `root-cause-analysis-sidecar-mammoth-oom.md`）中踩到两个 Python 侧陷阱：
+
+1. **全局猴补丁破坏同进程其他调用方**：为抑制 docx→HTML 转换的 base64 图片内联，最初把 mammoth patch 打在模块级全局——结果 `/convert-images` 路径的 image_extractor 依赖 mammoth 原生 data URI 语义提取原图，被 patch 后返回空 src，2 个测试失败（images 空）。
+2. **markitdown `keep_data_uris=False` 表面可解实际无效**：该选项只在 `_markdownify.py:107` 的 markdownify 层生效；docx 路径的 `_docx_converter.py:80-82` 调用 mammoth 时只传 style_map 不透传该选项——图片在 mammoth 层就已 base64 内联成巨型 HTML，内存峰值已发生，markdownify 层再剥离为时已晚。
+
+最终方案：patch 移入 `ProcessPoolExecutor` worker 进程内执行（`_convert_worker` 首行），父进程 mammoth 保持干净——进程隔离天然分流两条路径的相反语义需求。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 全局猴补丁破坏依赖原语义的其他调用方 | patch 模块级共享符号 = 改变全进程行为；同进程中任何依赖原语义的代码路径都会静默中招 | patch 前 grep 枚举所有调用方对原语义的依赖；无法共存的语义用进程/子进程隔离作用域，不用 flag 分支切换 |
+| 外部库"表面开关"不透传到底层 | markitdown 文档有 `keep_data_uris` ≠ docx 路径会消费它；分层架构中上层选项可能根本到不了出问题的那一层 | 用库的配置项前 grep 库源码确认参数流向（谁读它、在哪一层生效）；验证方式=小样本实测内存/输出差异 |
+| 测试直调绕过 patch 生效点 | suppression 测试最初直调 `md.convert`（父进程），patch 在 worker 内根本不生效，测试假绿 | 测试必须走与生产一致的调用链（直调 `_convert_worker`）；finally 还原父进程共享状态，避免污染后续测试 |
+
+### 相关文件
+
+- `document-converter-sidecar/app.py`（`_suppress_docx_image_inlining` 幂等版 + `_convert_worker`）
+- `document-converter-sidecar/tests/test_memory_guard.py`（suppression 直调 worker + finally 还原）
+- `docs/lessons/root-cause-analysis-sidecar-mammoth-oom.md` — 完整根因分析
