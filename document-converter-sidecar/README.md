@@ -126,9 +126,20 @@ pytest tests/ -v
 docker build -t document-converter-sidecar .
 
 # Run (production — supply a real key)
+# --memory flags are REQUIRED: the converter accumulates memory across large
+# documents and can starve the host, OOM-killing the backend JVM
+# (incident 2026-08-21 on test). Use 2g in production, 1g on smaller test hosts.
 docker run -p 8000:8000 \
+  --memory=2g --memory-swap=2g \
   -e SIDECAR_SHARED_KEY=your-secret-here \
   document-converter-sidecar
+```
+
+Apply the limit to an already-running container (lost if the container is
+recreated — always re-check after rebuilds):
+
+```bash
+docker update --memory=2g --memory-swap=2g xiyu-sidecar
 ```
 
 ---
