@@ -1,3 +1,7 @@
+// Input: 临时文件路径 + 文件名
+// Output: 结构化 DocumentContent（Markdown、分页、SHA-256 哈希，含安全降级守卫）
+// Pos: compliance/service/ - 标书文档转换 Sidecar 流式适配器
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -91,19 +95,45 @@ public class SidecarStreamDocumentAdapter {
             } else {
                 log.warn("Sidecar /convert 返回状态码 {}: {}, 降级使用本地哈希与文本", response.statusCode(), response.body());
             }
-        } catch (java.io.IOException | InterruptedException | RuntimeException e) {
-            log.warn("调用文档转换 Sidecar 异常，采用本地降级解析: {}", e.getMessage());
+        } catch (Throwable t) {
+            log.warn("调用文档转换 Sidecar 异常，采用本地降级解析: {}", t.getMessage());
         }
 
-        // 降级处理：读取文本或计算本地哈希
+        // 降级处理：仅对纯文本且小文件（<=5MB）尝试本地读取；
+        // 对 .docx / .pdf / .zip 等二进制文件或大文件，绝不调用 Files.readString，直接返回空文本以避免堆外 DirectBuffer OOM
         try {
             String contentHash = computeSha256(filePath);
-            String localText = Files.readString(filePath, StandardCharsets.UTF_8);
-            return buildDocumentContent(fileName, contentHash, localText);
-        } catch (java.io.IOException | RuntimeException e) {
-            log.warn("读取本地降级文件失败: {}", e.getMessage());
+            if (isSmallPlainTextFile(fileName, filePath)) {
+                String localText = Files.readString(filePath, StandardCharsets.UTF_8);
+                return buildDocumentContent(fileName, contentHash, localText);
+            }
+            log.info("文件 ({}) 为二进制或超大文件，跳过本地文本读取降级，仅保留哈希", fileName);
+            return new DocumentContent(fileName, contentHash, "", Collections.emptyList());
+        } catch (Throwable t) {
+            log.warn("读取本地降级文件失败: {}", t.getMessage());
             String hash = computeSha256(filePath);
             return new DocumentContent(fileName, hash, "", Collections.emptyList());
+        }
+    }
+
+    private static final java.util.Set<String> PLAIN_TEXT_EXTENSIONS = java.util.Set.of(
+            ".txt", ".md", ".markdown", ".csv", ".json", ".xml", ".html", ".htm"
+    );
+    private static final long MAX_LOCAL_READ_BYTES = 5 * 1024 * 1024; // 5MB
+
+    private boolean isSmallPlainTextFile(final String fileName, final Path filePath) {
+        if (fileName == null || filePath == null) {
+            return false;
+        }
+        String lowerName = fileName.toLowerCase();
+        boolean isPlainText = PLAIN_TEXT_EXTENSIONS.stream().anyMatch(lowerName::endsWith);
+        if (!isPlainText) {
+            return false;
+        }
+        try {
+            return Files.size(filePath) <= MAX_LOCAL_READ_BYTES;
+        } catch (Throwable t) {
+            return false;
         }
     }
 
