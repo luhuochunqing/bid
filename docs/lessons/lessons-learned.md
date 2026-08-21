@@ -2477,3 +2477,37 @@ sidecar OOM 根治任务（PR !2373，完整根因见 `root-cause-analysis-sidec
 - `document-converter-sidecar/app.py`
 - `document-converter-sidecar/tests/test_memory_guard.py`
 
+---
+
+## 147. 标书降级读取 Files.readString 导致 JVM 堆外 DirectBuffer OOM 与 500 异常击穿（2026-08-21）
+
+### 问题背景
+
+在测试环境中对项目 1351（投标文件 `四川能投办公投标文件（V1)20260605.docx` 高达 **1.66GB**）触发 AI 标书质量核查时，前端等待 70 秒后报错 500。
+
+全链路日志排查发现：
+1. 1.66GB 的 docx 文件在传输或转换异常时，Java 端 `SidecarStreamDocumentAdapter` 触发了本地降级分支；
+2. 降级代码直接调用了 `Files.readString(filePath, StandardCharsets.UTF_8)`，试图将 1.66GB 的二进制 docx 全量读入堆外内存，导致 JVM 分配 1.74GB `DirectByteBuffer` 时内存超限，抛出 `java.lang.OutOfMemoryError: Cannot reserve 1743831704 bytes of direct buffer memory`；
+3. 原代码的 catch 块仅捕获 `Exception`，未拦截 `java.lang.Error`，导致 OOM 致命错误击穿 Spring 框架，请求超时 70 秒后返回未处理的 HTTP 500。
+
+### 修复方案
+
+1. 改造 `SidecarStreamDocumentAdapter`：
+   - 增加 `isSmallPlainTextFile` 白名单检查（仅针对 `.txt`, `.md`, `.json`, `.csv` 等且 <= 5MB 的纯文本文件允许本地读取）；
+   - 对 `.docx`, `.pdf`, `.zip` 等二进制或大文件，跳过本地文本读取降级，仅计算 SHA-256 哈希并返回空文本，坚决禁止调用 `Files.readString`；
+   - 将 catch 异常范围统一扩展为 `Throwable`，彻底杜绝 JVM Error 逃逸导致 500。
+2. 编写单元测试 `SidecarStreamDocumentAdapterTest`，覆盖二进制文件和超大文件的安全降级行为。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 二进制/大文件随意调用 Files.readString | `Files.readString` 内部会分配大块 DirectBuffer，对几十兆以上或非文本文件调用极易引发堆外 OOM | 禁止在未经后缀白名单与文件大小（<=5MB）校验的情况下对任意上传文件调用 `Files.readString` 或全量加载内存 API |
+| catch 只捕获 Exception 导致 JVM Error 逃逸 | 底层 OOM 等 `Error` 会绕过 `catch (Exception e)` 直穿 Spring 框架导致 500 崩溃 | 关键系统边界和资源降级方法必须捕获 `Throwable` 或前置防御，确保服务韧性与明确的业务错误返回 |
+
+### 相关文件
+
+- `specs/052-sidecar-docx-stream-filter-and-backend-guard/`
+- `backend/src/main/java/com/xiyu/bid/compliance/service/SidecarStreamDocumentAdapter.java`
+- `backend/src/test/java/com/xiyu/bid/compliance/service/SidecarStreamDocumentAdapterTest.java`
+
