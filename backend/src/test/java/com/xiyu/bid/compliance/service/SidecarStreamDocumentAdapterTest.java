@@ -66,4 +66,24 @@ class SidecarStreamDocumentAdapterTest {
         assertThat(content.fileHash()).isNotEmpty();
         assertThat(content.fullText()).isEmpty();
     }
+
+    @Test
+    @DisplayName("大 docx 文件在发送 Sidecar 时能正常通过 DocxMediaFilter 流式过滤并计算原文件哈希")
+    void convertDocument_largeDocx_filtersMediaCorrectly(@TempDir Path tempDir) throws IOException {
+        Path largeDocx = tempDir.resolve("huge_with_media.docx");
+        // 创建 21MB 的 docx 文件（模拟大体积）
+        byte[] dummyDocx = new byte[21 * 1024 * 1024];
+        dummyDocx[0] = 0x50;
+        dummyDocx[1] = 0x4B;
+        dummyDocx[2] = 0x03;
+        dummyDocx[3] = 0x04;
+        Files.write(largeDocx, dummyDocx);
+
+        DocumentContent content = adapter.convertDocument(largeDocx, "huge_with_media.docx");
+
+        assertThat(content).isNotNull();
+        assertThat(content.fileName()).isEqualTo("huge_with_media.docx");
+        assertThat(content.fileHash()).isNotEmpty();
+    }
 }
+

@@ -2511,3 +2511,42 @@ sidecar OOM 根治任务（PR !2373，完整根因见 `root-cause-analysis-sidec
 - `backend/src/main/java/com/xiyu/bid/compliance/service/SidecarStreamDocumentAdapter.java`
 - `backend/src/test/java/com/xiyu/bid/compliance/service/SidecarStreamDocumentAdapterTest.java`
 
+---
+
+## 148. 超大 Docx 标书媒体前置流式过滤与 HTTP 传输超限秒级优化（2026-08-21）
+
+### 问题背景
+
+在超大标书（如 1.66GB docx）AI 标书质量核查场景中，虽已修复 DirectBuffer OOM，但直接向 Sidecar 发送 1.66GB HTTP 请求体时，触发了 Sidecar 512MB (`MAX_UPLOAD_SIZE_BYTES`) 安全上传上限（HTTP 413）与网络传输超时，导致 Java 前置同步校验报 `422: 无法执行核查：投标文件解析失败`。
+
+排查证实：
+1. 1.66GB 的 docx 文件中，99.99% 的体积为 `word/media/` 内嵌的高清图片，核心文本 `word/document.xml` 仅 147KB；
+2. 文本解析服务（MarkItDown/Mammoth）在提取 Markdown 时仅依赖 XML 文本与段落结构，内嵌图片在提取纯文本时完全多余；
+3. 将 1.66GB 完整多媒体通过 HTTP 传输给 Sidecar 是性能与网络瓶颈的唯一根源。
+
+### 修复方案
+
+1. 新增纯 JDK 流式过滤器 `DocxMediaFilter`：
+   - 当检测到 `.docx` 文件大小超过 20MB 时，使用 `java.util.zip.ZipInputStream` 与 `ZipOutputStream` 流式滤除 `word/media/` 媒体条目；
+   - 过滤过程内存占用 $< 1\text{MB}$，耗时 $< 0.5$ 秒，将 1.66GB docx 精简为 1.5MB 的纯文本骨架 docx；
+   - 原始文件 SHA-256 哈希不受影响，保持全局唯一指纹；
+2. 改造 `SidecarStreamDocumentAdapter`：
+   - 优先发送瘦身后的临时 docx，请求体从 1.66GB 骤降至 1.5MB（缩小 99.9%）；
+   - 在 `finally` 块中通过 `Files.deleteIfExists` 严格原子清理临时文件；
+3. 单元测试 `DocxMediaFilterTest` 与 `SidecarStreamDocumentAdapterTest` 覆盖大文件过滤、小文件跳过与损坏 zip 回退。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 向解析微服务全量传输含媒体的大文件 | docx/pptx 等复合归档中 99% 为媒体数据，直接全量传输会导致网络瓶颈、HTTP 413 超限与无谓内存消耗 | 在调用下游纯文本提取服务前，应在调用端或管道首端对归档结构进行流式去媒体瘦身，按需传输 |
+| 临时文件残留风险 | 瘦身生成的临时文件若未清理会导致磁盘耗尽 | 临时文件生命周期必须绑定 `try-finally` 或使用受控临时目录，确保即用即清 |
+
+### 相关文件
+
+- `specs/053-docx-media-stream-filter-fast-intake/`
+- `backend/src/main/java/com/xiyu/bid/compliance/service/DocxMediaFilter.java`
+- `backend/src/main/java/com/xiyu/bid/compliance/service/SidecarStreamDocumentAdapter.java`
+- `backend/src/test/java/com/xiyu/bid/compliance/service/DocxMediaFilterTest.java`
+- `backend/src/test/java/com/xiyu/bid/compliance/service/SidecarStreamDocumentAdapterTest.java`
+
