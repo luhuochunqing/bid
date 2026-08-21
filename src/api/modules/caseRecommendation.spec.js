@@ -74,22 +74,25 @@ describe('caseRecommendationApi', () => {
     })
   })
 
-  // 案例详情/复用走统一信封端点，保留 .data 解包行为
-  it('getCaseDetail(): unwraps envelope data', async () => {
-    httpClient.get.mockResolvedValue({ success: true, data: { id: 42 } })
+  // 案例详情/复用同样直接返回裸对象（KnowledgeCaseController 返回 ResponseEntity，无信封），
+  // 同样不可再取 .data（2026-08 review 阻断项：原实现与旧测试均误判为信封端点）。
+  it('getCaseDetail(): returns bare case object as-is without double unwrapping', async () => {
+    const bareCase = { id: 42, scoringPointTitle: '评分点', responseText: '应答原文' }
+    httpClient.get.mockResolvedValue(bareCase)
 
     const result = await caseRecommendationApi.getCaseDetail(42)
 
     expect(httpClient.get).toHaveBeenCalledWith('/api/cases/42')
-    expect(result).toEqual({ id: 42 })
+    expect(result).toEqual(bareCase)
   })
 
-  it('reuseCase(): posts to reuse endpoint and unwraps envelope data', async () => {
-    httpClient.post.mockResolvedValue({ success: true, data: { reuseCount: 2 } })
+  it('reuseCase(): posts to reuse endpoint and returns bare result map as-is', async () => {
+    const bareResult = { caseId: 42, newReuseCount: 2 }
+    httpClient.post.mockResolvedValue(bareResult)
 
     const result = await caseRecommendationApi.reuseCase(42, { scoreItemId: 1 })
 
     expect(httpClient.post).toHaveBeenCalledWith('/api/cases/42/reuse', { scoreItemId: 1 })
-    expect(result).toEqual({ reuseCount: 2 })
+    expect(result).toEqual(bareResult)
   })
 })

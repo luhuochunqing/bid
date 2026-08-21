@@ -34,16 +34,20 @@ export const caseRecommendationApi = {
   /**
    * 获取案例详情
    * GET /api/cases/{caseId}
+   * 注：后端 KnowledgeCaseController 直接返回裸 KnowledgeCase（不走统一信封），
+   * client.js 拦截器已解包 response.data，此处不可再取 .data
    */
   async getCaseDetail(caseId) {
-    return httpClient.get(`/api/cases/${caseId}`).then(res => res.data)
+    return httpClient.get(`/api/cases/${caseId}`)
   },
 
   /**
    * 复用案例并记录
    * POST /api/cases/{caseId}/reuse
+   * 注：后端直接返回裸 Map（不走统一信封），
+   * client.js 拦截器已解包 response.data，此处不可再取 .data
    */
   async reuseCase(caseId, data = {}) {
-    return httpClient.post(`/api/cases/${caseId}/reuse`, data).then(res => res.data)
+    return httpClient.post(`/api/cases/${caseId}/reuse`, data)
   }
 }

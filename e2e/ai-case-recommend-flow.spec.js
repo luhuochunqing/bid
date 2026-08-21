@@ -69,7 +69,12 @@ test.describe('AI智能案例推荐', () => {
       test.skip(true, 'AI 智能推荐按钮在 DRAFTING stage 不可见')
       return
     }
+    // 先挂起 score-items 请求等待，避免「加载中但尚未展示空数据警告」的瞬时不可判态导致一致性断言 flaky
+    const scoreItemsSettled = page
+      .waitForResponse((r) => r.url().includes('/score-items'), { timeout: 10000 })
+      .catch(() => null)
     await recommendBtn.click()
+    await scoreItemsSettled
 
     // 等待抽屉打开（el-drawer open state）
     const drawer = page.locator('.el-drawer.open, .el-drawer__open').first()
