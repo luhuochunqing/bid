@@ -27,8 +27,37 @@
 完整本地门禁（手动触发）：
 - `npm run ci:local:quick` — 快速预检（编译 + 架构门禁）
 - `npm run ci:local` — 完整本地 CI 模拟（需本地 Docker）
-- `bash scripts/pre-push-dry-run.sh` — 模拟推送前 15 道门禁
+- `bash scripts/pre-push-dry-run.sh` — 模拟推送前质量门禁
 - `npm run ci:pre-pr` / `bash scripts/ci-pre-pr.sh` — 提交 PR 前一站式门禁
+- `npm run check:duplicate-implementations` — 防造轮子：检查 PR 新增代码是否与仓库已有 Component/Hook/Service/API/Function/Utils 重复
+
+### 重复实现门禁（防造轮子）
+
+**只走本地门禁和本地 CI**（Gitee Go 未付费，远端 CI 不作为这条门禁的执行点）：
+
+| 本地入口 | 何时自动跑 |
+|---|---|
+| `git push`（agent 分支会顺带自动创建 PR） | `pre-push-gate.sh` + `pr-create.sh` 各跑一次 |
+| `./scripts/pr-create.sh ...` | 创建 PR 前阻断 |
+| `npm run gitee:pr-create` | `gitee-pr-helper.sh create` 创建前阻断 |
+| `npm run ci:pre-pr` / `npm run ci:local` | 本地一站式 CI 里包含此项 |
+
+扫描相对 `origin/main` 的**新增符号**（不是改已有函数）：
+
+| 检查对象 | 扫描范围 |
+|---|---|
+| Component | `src/components/**`、`**/components/*.vue` |
+| Hook | `src/composables/**`、`useXxx` |
+| Service | 后端 `*Service` / `*Facade` 等，不含 Controller 对 Service 的同名委托 |
+| API | `src/api/**` 导出函数 |
+| Function / Utils | `src/utils/**`、可复用 helper、Java `*Util` / `*Helper` |
+
+判定：
+- **PASS**：没有发现重复实现（无合理复用对象）
+- **FAIL**：发现重复实现，报告指出应复用的现有文件与符号（含「名称不同但功能相同」）
+
+豁免：在新增声明上一行写 `// REUSE-OK: <existing-path> — <原因>`。  
+逃生阀：`DUPLICATE_IMPL_SKIP=1`（须在 PR 说明理由）。
 
 ### Gitee CI（远端门禁）
 
@@ -54,7 +83,7 @@
 
 ## 创建 Pull Request
 
-推荐使用统一脚本 `scripts/pr-create.sh`（自动适配 GitHub / Gitee）：
+推荐使用统一脚本 `scripts/pr-create.sh`（自动适配 GitHub / Gitee）。创建前会跑重复实现门禁，拦截把已有 Component/Hook/Service/API/Utils 再造一遍的 PR：
 
 ```bash
 # 方式一：title + body 文件

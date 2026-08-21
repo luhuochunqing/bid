@@ -139,6 +139,8 @@ run_line_budget_gate() {
   base="$(resolve_line_budget_base)"
   log_step "line budget gate: base=$base head=HEAD"
   (cd "$ROOT_DIR" && node scripts/check-line-budgets.mjs --base "$base" --head HEAD)
+  log_step "duplicate implementation gate: base=$base head=HEAD"
+  (cd "$ROOT_DIR" && node scripts/check-duplicate-implementations.mjs --base "$base" --head HEAD)
 }
 
 run_frontend_quick() {

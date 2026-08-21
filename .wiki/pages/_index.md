@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [首页, 导航, wiki]
 created: 2026-06-27
-updated: 2026-08-12
-health_checked: 2026-08-20
+updated: 2026-08-21
+health_checked: 2026-08-21
 sources:
   - docs/specs/WIKI.md
   - .wiki/INDEX.md
@@ -32,6 +32,7 @@ backlinks:
 - [[ai-provider-configuration]] — AI Provider 配置与陷阱指南（activeProvider / Doubao / 降级策略 / Sidecar）
 - [[score-parse-service]] — AI 评分标准解析后端服务（spec 041：四路召回解析 / 知识库五类匹配 / 阶段化打分 / 超时保护）
 - [[engineering-discipline]] — 工程纪律手册（反复修复根因 / Bug修复SOP / 开发规范 / 经验积累机制）
+- [[duplicate-implementation-gate]] — 重复实现门禁（防造轮子：PR 新增 Component/Hook/Service/API/Utils 对照已有实现）
 - [[api-openapi]] — OpenAPI/Swagger 接口规范
 - [[audit-whitelist-pitfalls]] — 审计白名单陷阱（@Auditable action 命名必须对齐 AuditActionPolicy，不命中即静默丢弃）
 - [[bid-quality-check-realization]] — 标书质量核查实质化架构（spec 049：五步真实数据流 / 确定性+规则+LLM 混合裁决 / ChatOutcome 失败传导）

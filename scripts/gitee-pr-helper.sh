@@ -90,6 +90,20 @@ create_pr() {
     exit 1
   fi
 
+  # 逃生阀：DUPLICATE_IMPL_SKIP=1
+  local repo_root
+  repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+  if [ "${DUPLICATE_IMPL_SKIP:-0}" = "1" ]; then
+    echo "[gitee-pr] ⚠ DUPLICATE_IMPL_SKIP=1 — 跳过重复实现检查"
+  else
+    echo "[gitee-pr] 重复实现检查（提交 PR 自动执行）..."
+    if ! node "$repo_root/scripts/check-duplicate-implementations.mjs"; then
+      echo "[gitee-pr] ❌ 重复实现门禁未通过。请复用已有实现，或加 // REUSE-OK: <path> — <原因>" >&2
+      echo "[gitee-pr] 逃生阀: DUPLICATE_IMPL_SKIP=1" >&2
+      exit 1
+    fi
+  fi
+
   # 检查分支是否已推送
   local remote
   remote=$(git config "branch.${branch}.remote" 2>/dev/null || echo "origin")
