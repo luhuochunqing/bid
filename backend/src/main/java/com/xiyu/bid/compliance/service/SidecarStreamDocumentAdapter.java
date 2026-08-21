@@ -65,7 +65,19 @@ public class SidecarStreamDocumentAdapter {
             return DocumentContent.empty();
         }
 
+        String rawContentHash = computeSha256(filePath);
+        Path uploadFilePath = filePath;
+        boolean needsCleanup = false;
+
         try {
+            if (DocxMediaFilter.shouldFilter(filePath, fileName, DocxMediaFilter.DEFAULT_THRESHOLD_BYTES)) {
+                Path slimPath = DocxMediaFilter.filterMediaToTempFile(filePath);
+                if (slimPath != null && !slimPath.equals(filePath)) {
+                    uploadFilePath = slimPath;
+                    needsCleanup = true;
+                }
+            }
+
             String boundary = "xiyu-compliance-" + UUID.randomUUID().toString().replace("-", "");
             HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                     .uri(URI.create(sidecarUrl + "/convert"))
@@ -79,7 +91,7 @@ public class SidecarStreamDocumentAdapter {
             HttpRequest request = requestBuilder
                     .POST(HttpRequest.BodyPublishers.concat(
                             HttpRequest.BodyPublishers.ofByteArray(multipartPrefix(boundary, fileName)),
-                            HttpRequest.BodyPublishers.ofFile(filePath),
+                            HttpRequest.BodyPublishers.ofFile(uploadFilePath),
                             HttpRequest.BodyPublishers.ofByteArray(multipartSuffix(boundary))))
                     .build();
 
@@ -87,9 +99,9 @@ public class SidecarStreamDocumentAdapter {
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 JsonNode root = objectMapper.readTree(response.body());
                 String markdown = root.path("markdown").asText("");
-                String contentHash = root.path("contentHash").asText("");
-                if (contentHash.isBlank()) {
-                    contentHash = computeSha256(filePath);
+                String contentHash = rawContentHash;
+                if (contentHash == null || contentHash.isBlank()) {
+                    contentHash = root.path("contentHash").asText("");
                 }
                 return buildDocumentContent(fileName, contentHash, markdown);
             } else {
@@ -97,12 +109,20 @@ public class SidecarStreamDocumentAdapter {
             }
         } catch (Throwable t) {
             log.warn("调用文档转换 Sidecar 异常，采用本地降级解析: {}", t.getMessage());
+        } finally {
+            if (needsCleanup && uploadFilePath != null) {
+                try {
+                    Files.deleteIfExists(uploadFilePath);
+                } catch (IOException e) {
+                    log.warn("清理 Docx 瘦身临时文件失败 {}: {}", uploadFilePath, e.getMessage());
+                }
+            }
         }
 
         // 降级处理：仅对纯文本且小文件（<=5MB）尝试本地读取；
         // 对 .docx / .pdf / .zip 等二进制文件或大文件，绝不调用 Files.readString，直接返回空文本以避免堆外 DirectBuffer OOM
         try {
-            String contentHash = computeSha256(filePath);
+            String contentHash = (rawContentHash != null && !rawContentHash.isBlank()) ? rawContentHash : computeSha256(filePath);
             if (isSmallPlainTextFile(fileName, filePath)) {
                 String localText = Files.readString(filePath, StandardCharsets.UTF_8);
                 return buildDocumentContent(fileName, contentHash, localText);
@@ -111,7 +131,7 @@ public class SidecarStreamDocumentAdapter {
             return new DocumentContent(fileName, contentHash, "", Collections.emptyList());
         } catch (Throwable t) {
             log.warn("读取本地降级文件失败: {}", t.getMessage());
-            String hash = computeSha256(filePath);
+            String hash = (rawContentHash != null && !rawContentHash.isBlank()) ? rawContentHash : computeSha256(filePath);
             return new DocumentContent(fileName, hash, "", Collections.emptyList());
         }
     }
