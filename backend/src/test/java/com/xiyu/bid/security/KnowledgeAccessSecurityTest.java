@@ -101,6 +101,9 @@ class KnowledgeAccessSecurityTest {
     private com.xiyu.bid.casework.infrastructure.ArchiveFileRepository archiveFileRepository;
     @MockBean
     private com.xiyu.bid.casework.application.ArchiveFileListService archiveFileListService;
+    // eede8d1e1 重构后 ProjectArchiveController 新增协作者，WebMvc 切片需显式补 mock
+    @MockBean
+    private com.xiyu.bid.casework.application.ArchiveFileResponseFactory archiveFileResponseFactory;
 
     // --- KnowledgeCaseController 协作者 ---
     @MockBean
@@ -504,10 +507,12 @@ class KnowledgeAccessSecurityTest {
         when(workflowService.findArchiveById(98L)).thenReturn(mockArchive);
 
         // 反射设置 controller 的 configuredUploadDir 字段
-        com.xiyu.bid.casework.controller.ProjectArchiveController controller =
-                mockMvc.getDispatcherServlet().getWebApplicationContext()
-                        .getBean(com.xiyu.bid.casework.controller.ProjectArchiveController.class);
-        org.springframework.test.util.ReflectionTestUtils.setField(controller, "configuredUploadDir", tempDir.toString());
+        // CO-430/spec039 后该字段已迁入 ArchiveFileResponseFactory，切片中工厂为 mock，
+        // 直接 stub build(...) 返回 200 响应（权限断言目标不受影响）
+        when(archiveFileResponseFactory.build(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(false)))
+                .thenReturn(org.springframework.http.ResponseEntity.ok(
+                        new org.springframework.core.io.ByteArrayResource(new byte[]{1, 2, 3})));
 
         mockMvc.perform(get("/api/archive/files/400/download"))
                 .andExpect(status().isOk());
@@ -534,10 +539,11 @@ class KnowledgeAccessSecurityTest {
         mockArchive.setProjectId(128L);
         when(workflowService.findArchiveById(98L)).thenReturn(mockArchive);
 
-        com.xiyu.bid.casework.controller.ProjectArchiveController controller =
-                mockMvc.getDispatcherServlet().getWebApplicationContext()
-                        .getBean(com.xiyu.bid.casework.controller.ProjectArchiveController.class);
-        org.springframework.test.util.ReflectionTestUtils.setField(controller, "configuredUploadDir", tempDir.toString());
+        // 同上：字段已迁入 ArchiveFileResponseFactory，改为 stub 工厂返回 200
+        when(archiveFileResponseFactory.build(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(true)))
+                .thenReturn(org.springframework.http.ResponseEntity.ok(
+                        new org.springframework.core.io.ByteArrayResource(new byte[]{1, 2, 3})));
 
         mockMvc.perform(get("/api/archive/files/400/preview"))
                 .andExpect(status().isOk());

@@ -56,6 +56,9 @@ class ProjectArchiveControllerDownloadPathTest {
     @Autowired
     private com.xiyu.bid.casework.infrastructure.ProjectArchiveRepository archiveRepository;
 
+    @Autowired
+    private com.xiyu.bid.repository.UserRepository userRepository;
+
     @Value("${app.doc-insight.upload-dir:}")
     private String configuredUploadDir;
 
@@ -66,6 +69,15 @@ class ProjectArchiveControllerDownloadPathTest {
         return (configuredUploadDir == null || configuredUploadDir.isBlank())
                 ? System.getProperty("java.io.tmpdir") + "/xiyu-doc-insight-uploads"
                 : configuredUploadDir;
+    }
+
+    // 本类 @DirtiesContext(AFTER_EACH) 每方法重建上下文，且 @WithMockUser(username="admin")
+    // 需要库内同名用户（hasAdminAccess 要求存在非 OSS 用户行）；"admin" 不在全局种子清单，
+    // 由本类自行补种（避免与其他测试的 INSERT 撞 users.username 唯一键）
+    @org.junit.jupiter.api.BeforeEach
+    void seedMockUsers() {
+        com.xiyu.bid.testsupport.integration.IntegrationMockUserSeeder
+                .ensureSeededFor(userRepository, "admin");
     }
 
     @Test
@@ -168,8 +180,10 @@ class ProjectArchiveControllerDownloadPathTest {
         file.setUploadUserName("王工");
         file = fileRepository.save(file);
 
-        Mockito.when(obsShareUrlSigner.trySign("obs-direct:upload-abc123"))
-                .thenReturn(Optional.of("https://obs.example.com/signed/abc?signature=x"));
+        // spec 039 收口后下载端点统一走 ObsDirectRedirects -> signObsDirect（富结果契约），
+        // 旧 trySign stub 已不再被生产代码调用，改为 stub signObsDirect
+        Mockito.when(obsShareUrlSigner.signObsDirect("obs-direct:upload-abc123"))
+                .thenReturn(ObsShareUrlSigner.SignResult.signed("https://obs.example.com/signed/abc?signature=x"));
 
         // 修复前：resolveAbsoluteWithin 对伪协议路径抛"文件路径越界"（400/500）；
         // 修复后：302 重定向到 OBS 预签名 URL，与项目文档下载行为对齐

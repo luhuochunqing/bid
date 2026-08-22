@@ -12,7 +12,6 @@ import java.time.LocalDate;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -123,7 +122,8 @@ class CalendarControllerCommandTest extends AbstractCalendarControllerTest {
     @Test
     @DisplayName("DELETE /api/calendar/1 - 应该成功删除事件")
     void shouldDeleteEventSuccessfully() throws Exception {
-        doNothing().when(calendarService).deleteEvent(1L);
+        // deleteEvent 返回 CalendarEventDTO（非 void），不能用 doNothing()
+        when(calendarService.deleteEvent(1L)).thenReturn(null);
 
         mockMvc.perform(delete("/api/calendar/1"))
                 .andExpect(status().isOk())

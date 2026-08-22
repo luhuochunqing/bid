@@ -27,7 +27,6 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -109,7 +108,7 @@ class ProjectInitiationControllerWebMvcTest {
     @DisplayName("approve 仅 primaryLeadUserId 无 comment 返回 200（comment 可选）")
     void approve_onlyPrimaryLead_returns200() throws Exception {
         when(projectCurrentUserLookupService.requireUserId(any())).thenReturn(1L);
-        doNothing().when(approvalService).approve(eq(1L), any(), eq(1L));
+        when(approvalService.approve(eq(1L), any(), eq(1L))).thenReturn(null);
         mockMvc.perform(post("/api/projects/1/initiation/approve")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"primaryLeadUserId\":100}"))
@@ -121,7 +120,7 @@ class ProjectInitiationControllerWebMvcTest {
     @DisplayName("approve primaryLeadUserId + comment 返回 200")
     void approve_validRequest_returns200() throws Exception {
         when(projectCurrentUserLookupService.requireUserId(any())).thenReturn(1L);
-        doNothing().when(approvalService).approve(eq(1L), any(), eq(1L));
+        when(approvalService.approve(eq(1L), any(), eq(1L))).thenReturn(null);
         mockMvc.perform(post("/api/projects/1/initiation/approve")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"primaryLeadUserId\":100,\"comment\":\"同意\"}"))
@@ -152,7 +151,7 @@ class ProjectInitiationControllerWebMvcTest {
     @DisplayName("reject 正常 comment 返回 200")
     void reject_validComment_returns200() throws Exception {
         when(projectCurrentUserLookupService.requireUserId(any())).thenReturn(1L);
-        doNothing().when(approvalService).reject(eq(1L), any(), eq(1L));
+        when(approvalService.reject(eq(1L), any(), eq(1L))).thenReturn(null);
         mockMvc.perform(post("/api/projects/1/initiation/reject")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"comment\":\"不行\"}"))
@@ -186,7 +185,7 @@ class ProjectInitiationControllerWebMvcTest {
     @DisplayName("approve expectedBidders=255 返回 200（边界值）")
     void approve_expectedBiddersAtMax_returns200() throws Exception {
         when(projectCurrentUserLookupService.requireUserId(any())).thenReturn(1L);
-        doNothing().when(approvalService).approve(eq(1L), any(), eq(1L));
+        when(approvalService.approve(eq(1L), any(), eq(1L))).thenReturn(null);
         mockMvc.perform(post("/api/projects/1/initiation/approve")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"primaryLeadUserId\":100,\"expectedBidders\":255}"))

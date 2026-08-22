@@ -1,0 +1,2 @@
+org.springframework.test.context.TestExecutionListener=\
+com.xiyu.bid.testsupport.integration.MockAuthSeedTestExecutionListener

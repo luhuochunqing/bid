@@ -52,14 +52,10 @@ class ProductionSecurityPropertiesTest {
         assertPlaceholder(properties, "app.crm.contact-person-base-url", "${XIYU_CRM_CONTACT_PERSON_BASE_URL:}");
         assertPlaceholder(properties, "app.crm.client-id", "${XIYU_CRM_CLIENT_ID:}");
         assertPlaceholder(properties, "app.crm.client-secret", "${XIYU_CRM_CLIENT_SECRET:}");
-        assertPlaceholder(properties, "app.crm.oauth-username", "${XIYU_CRM_OAUTH_USERNAME:}");
-        assertPlaceholder(properties, "app.crm.oauth-password", "${XIYU_CRM_OAUTH_PASSWORD:}");
+        // spec 037（599ab68db）已清理 oauth-username/oauth-password/generate-token-nick-name/sales-no
+        // 遗留配置键（代码不再用配置账号登录 OSS 换 CRM token），不再对外部化做断言
         assertPlaceholder(properties, "app.crm.generate-token-path",
                 "${XIYU_CRM_GENERATE_TOKEN_PATH:/common/inner/generateToken}");
-        assertPlaceholder(properties, "app.crm.generate-token-nick-name",
-                "${XIYU_CRM_GENERATE_TOKEN_NICK_NAME:}");
-        assertPlaceholder(properties, "app.crm.generate-token-sales-no",
-                "${XIYU_CRM_GENERATE_TOKEN_SALES_NO:}");
         assertPlaceholder(properties, "app.crm.auth.apply-token-path",
                 "${XIYU_CRM_AUTH_APPLY_TOKEN_PATH:/auth/applyToken}");
         assertPlaceholder(properties, "app.crm.auth.oauth-login-path",
