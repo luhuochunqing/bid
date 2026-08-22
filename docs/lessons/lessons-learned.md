@@ -2594,3 +2594,30 @@ sidecar OOM 根治任务（PR !2373，完整根因见 `root-cause-analysis-sidec
 - `backend/src/test/java/com/xiyu/bid/compliance/application/BidQualityCheckProgressUpdaterTest.java`
 
 
+
+## 150. 全量回归暴露三类系统性测试债：projectScoped 联动、种子写域、契约漂移（2026-08-22）
+
+### 问题背景
+
+对 main 做全量 `mvn test`：8386 个用例中 **49 Failures + 38 Errors**，且 E2E 栈启动即崩（`OpenAiScoreAnalyzer` Bean 缺失）。隔离复现确认全部为存量问题，CI 未拦截——因 ci.yml 后端只跑架构测试 + Expense/BarCertificate 两个集成类，绝大多数失败处于盲区。
+
+根因聚成三类：
+
+1. **projectScoped 审计迁移缺测试联动（约 80 个 403）**：Service 加 `@Auditable(ln = true)` 后，调用链经 `ProjectAccessScopeService.resolveCurrentUser` 强制查库解析当前用户；而 `@WithMockUser` 默认 username=`user` 在 H2 测试库不存在 → 统一 403「当前用户不存在或不可用」。引入点如 `553822ac6` 给 CalendarService 补 `ln=true` 时未跑受影响集成测试。
+2. **测试基建写错数据库**：修复时新增的全局 TestExecutionListener 种子器第一版无条件写库，把 seed 行写进了本地共享 MySQL 容器库（`xiyu_bid_verify` 跨 JVM 运行持久），导致 `FlywayMysqlContainerTest` 的 V1092「role_id NULL 计数」假失败（首轮绿、二轮红）；seed 的 `admin` 还与 `TenderCrmLinkIntegrationTest` 自建用户撞唯一键。
+3. **公共契约变更后测试侧漂移积压**：spec039 下载收口换签名（trySign→signObsDirect）、spec037 清理配置键、CO-590 DTO 加必填、任务接口加参、eede8d1e1 控制器加依赖、V1091 收敛 role 枚举、048 加 profile 条件——每次都只改了生产侧，测试侧欠账累积到一次全量回归集中爆发。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| projectScoped 迁移后集成测试批量 403 | `@PreAuthorize` 只看 authority 看不出来，真正的闸门在 service 层查库；mock 用户不在库 = 全部拒绝（fail-closed 是对的，测试没跟上） | 给 Service 加 `@Auditable(ln=true)`/接入 scope 守卫时，必须同步跑受影响集成测试；新写集成测试优先自建同名真实用户（参考 AiDeepCapabilityIntegrationTest 范式）；存量 `@WithMockUser` 由 `IntegrationMockUserSeeder` 兜底 |
+| 测试种子器污染共享持久容器 | 本地（非 CI）AbstractMysqlIntegrationTest 家族共享一个跨运行持久的 MySQL 库；Flyway 迁移类断言对 users 表数据敏感，任何额外 INSERT 都会造成"首轮绿二轮红"的假失败 | 测试数据种子必须限定写入域：检查 JDBC URL 为 `jdbc:h2:mem:` 才落库；自定义 username 不进全局清单，由测试类显式补种（避免撞唯一键） |
+| 公共契约变更不同步测试侧 | 方法签名/DTO 校验注解/配置键/Bean 条件装配每变一次就是一批隐性测试债；CI 面窄时债会静默滚雪球 | 改公共契约（service 方法签名、DTO @NotNull、删除配置键、@Profile/@Conditional、控制器构造器参数）时，同一次提交内 grep 测试目录引用并同步更新；定期跑全量 `mvn test` 作为门禁补充 |
+
+### 相关文件
+
+- `backend/src/test/java/com/xiyu/bid/testsupport/integration/IntegrationMockUserSeeder.java`
+- `backend/src/test/java/com/xiyu/bid/testsupport/integration/MockAuthSeedTestExecutionListener.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/openai/E2eNoopScoreAnalyzer.java`
+- `implementation-notes.html`（本次修复完整决策矩阵与验证证据）
