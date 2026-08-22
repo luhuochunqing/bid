@@ -1,3 +1,8 @@
+// Input: CreateManufacturerAuthCommand + 当前用户 ID
+// Output: 创建结果（DTO + 可选重复告警）
+// Pos: brandauth/manufacturer/application/service
+// 维护声明: 维护品牌授权创建的类型化校验（MANUFACTURER 用授权起止；AGENT 用 auth1/auth2
+// 双时间段链并推导整体授权区间）；字段增删须同步 Command 与表单抽屉。
 package com.xiyu.bid.brandauth.manufacturer.application.service;
 
 import com.xiyu.bid.brandauth.manufacturer.application.command.CreateManufacturerAuthCommand;
@@ -40,8 +45,23 @@ public class CreateManufacturerAuthAppService {
     public CreateResult create(final CreateManufacturerAuthCommand cmd,
             final Long userId) {
         boolean isAgent = "AGENT".equals(cmd.authorizationType());
-        if (!cmd.authEndDate().isAfter(cmd.authStartDate())) {
-            throw new BusinessException("结束时间须晚于开始时间");
+        // 按类型校验时间段：MANUFACTURER 用授权起止；AGENT 用 auth1/auth2 双时间段
+        if (isAgent) {
+            if (cmd.auth1StartDate() == null || cmd.auth1EndDate() == null
+                    || cmd.auth2StartDate() == null || cmd.auth2EndDate() == null) {
+                throw new BusinessException("请完整填写授权 1 区与授权 2 区时间段");
+            }
+            if (!cmd.auth1EndDate().isAfter(cmd.auth1StartDate())
+                    || !cmd.auth2EndDate().isAfter(cmd.auth2StartDate())) {
+                throw new BusinessException("结束时间须晚于开始时间");
+            }
+        } else {
+            if (cmd.authStartDate() == null || cmd.authEndDate() == null) {
+                throw new BusinessException("请填写授权开始与结束时间");
+            }
+            if (!cmd.authEndDate().isAfter(cmd.authStartDate())) {
+                throw new BusinessException("结束时间须晚于开始时间");
+            }
         }
         
         boolean dup = repository
@@ -55,7 +75,12 @@ public class CreateManufacturerAuthAppService {
                         cmd.productLine(), cmd.brandId(), cmd.brandName(),
                         cmd.importDomestic(), cmd.manufacturerName(),
                         cmd.agentName(),
-                        cmd.authStartDate(), cmd.authEndDate(),
+                        // 整体授权区间 = 两段链的并集（auth_start/end_date 列 NOT NULL，
+                        // 且列表"有效期较早值"/状态计算依赖有值的有效期）
+                        cmd.auth1StartDate().isBefore(cmd.auth2StartDate())
+                                ? cmd.auth1StartDate() : cmd.auth2StartDate(),
+                        cmd.auth1EndDate().isAfter(cmd.auth2EndDate())
+                                ? cmd.auth1EndDate() : cmd.auth2EndDate(),
                         cmd.auth1StartDate(), cmd.auth1EndDate(),
                         cmd.auth1Remarks(),
                         cmd.auth2StartDate(), cmd.auth2EndDate(),
