@@ -2,7 +2,9 @@ package com.xiyu.bid.resources.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.platform.util.PasswordEncryptionUtil;
+import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.resources.dto.ExpenseApproveRequest;
+import com.xiyu.bid.testsupport.integration.IntegrationMockUserSeeder;
 import com.xiyu.bid.resources.entity.Expense;
 import com.xiyu.bid.resources.repository.ExpenseApprovalRecordRepository;
 import com.xiyu.bid.resources.repository.ExpenseRepository;
@@ -49,6 +51,9 @@ class ExpensePaymentControllerIntegrationTest {
     @Autowired
     private ExpenseApprovalRecordRepository approvalRecordRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
     private Expense approvedExpense;
     private Expense pendingExpense;
 
@@ -84,6 +89,10 @@ class ExpensePaymentControllerIntegrationTest {
     void setUp() throws Exception {
         approvalRecordRepository.deleteAll();
         expenseRepository.deleteAll();
+        // 本类 @DirtiesContext(AFTER_EACH) 且在 @BeforeEach 内即调用受守卫接口，
+        // 全局 MockAuthSeedTestExecutionListener 的 beforeTestExecution 钩子晚于此处，
+        // 需在清理后显式补种 mock 认证同名用户
+        IntegrationMockUserSeeder.ensureSeeded(userRepository);
 
         approvedExpense = expenseRepository.save(Expense.builder()
                 .projectId(2001L)
