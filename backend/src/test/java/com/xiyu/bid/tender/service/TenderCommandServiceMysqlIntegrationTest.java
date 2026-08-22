@@ -119,6 +119,11 @@ class TenderCommandServiceMysqlIntegrationTest extends AbstractMysqlIntegrationT
     @MockBean
     private ProjectManagerIdResolver projectManagerIdResolver;
 
+    // CO-501/spec037 后 linkCrmOpportunity 会先调真实 CRM 校验招标主体；
+    // 集成测试不打外网，统一桩为校验通过（409 唯一性防御由本地 occupancyChecker 承担）
+    @MockBean
+    private com.xiyu.bid.crm.application.CrmTenderSubjectChecker crmTenderSubjectChecker;
+
     private User adminUser;
 
     @BeforeEach
@@ -138,6 +143,9 @@ class TenderCommandServiceMysqlIntegrationTest extends AbstractMysqlIntegrationT
         // 默认 mock：自动分配无匹配
         when(autoAssignmentService.autoAssignIfPossible(any(), nullable(String.class)))
                 .thenReturn(AssignmentResult.noMatch());
+        // 默认 mock：CRM 招标主体校验通过（purchaserId 任意非零值）
+        when(crmTenderSubjectChecker.check(any(), any(), any()))
+                .thenReturn(com.xiyu.bid.crm.application.CrmTenderSubjectChecker.CheckResult.passed(1L));
         // 准备 admin 用户（真实 DB 落库 + 缓存写入，让真实 commandAccessGuard 通过）
         adminUser = setupAdminUser();
     }

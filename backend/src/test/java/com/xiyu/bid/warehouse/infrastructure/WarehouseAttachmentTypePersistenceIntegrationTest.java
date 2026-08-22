@@ -26,6 +26,15 @@ class WarehouseAttachmentTypePersistenceIntegrationTest extends AbstractMysqlInt
     @Autowired
     private WarehouseAttachmentRepository attachmentRepository;
 
+    // 本地（非 CI）AbstractMysqlIntegrationTest 共享持久容器库 xiyu_bid_verify，
+    // 数据跨 JVM 运行残留；uk_warehouse_name 唯一键要求先清历史同名行
+    @org.junit.jupiter.api.BeforeEach
+    void removeLeftoverWarehouse() {
+        attachmentRepository.deleteAll();
+        warehouseRepository.findByName("测试仓库").ifPresent(warehouseRepository::delete);
+        flushAndClear();
+    }
+
     @Test
     void 所有附件类型枚举值都能正确持久化和查询() {
         WarehouseEntity warehouse = warehouseRepository.save(WarehouseEntity.builder()

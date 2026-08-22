@@ -467,6 +467,14 @@ class MarginQuerySupportMysqlIntegrationTest {
         }
     }
 
+    /** summaryBase 位置序列读取：返回 [pendingCount, overdueCount]。 */
+    private long[] querySummaryCounters(StringBuilder sql) {
+        return jdbcTemplate.queryForObject(
+                sql.toString(),
+                Map.of(),
+                (rs, rowNum) -> new long[] {rs.getLong(3), rs.getLong(5)});
+    }
+
     @Test
     @DisplayName("CO-508: summaryBase 已退回金额不计入 totalPending / overdueAmount")
     void summaryBase_overdueCount_usesAmountBasedNotReturned() {
@@ -482,20 +490,20 @@ class MarginQuerySupportMysqlIntegrationTest {
         try {
             StringBuilder sql = MarginQuerySupport.summaryBase(MarginQueryRole.ADMIN);
 
-            Map<String, Object> before =
-                    jdbcTemplate.queryForMap(sql.toString(), Map.of());
-            long pendingCountBefore = ((Number) before.get("pendingCount")).longValue();
-            long overdueCountBefore = ((Number) before.get("overdueCount")).longValue();
+            // summaryBase 为位置序列（无列别名），生产侧 MarginService 亦按 row[i] 消费：
+            // [0]=totalAmount [1]=pendingAmount [2]=pendingCount [3]=overdueAmount [4]=overdueCount
+            long[] countersBefore = querySummaryCounters(sql);
+            long pendingCountBefore = countersBefore[0];
+            long overdueCountBefore = countersBefore[1];
 
             // 删除 project_closure 让行变为"未退回 + 已超期"，应同时计入 pending + overdue
             jdbcTemplate.update(
                     "DELETE FROM project_closure WHERE project_id = :pid",
                     Map.of("pid", projectId));
 
-            Map<String, Object> after =
-                    jdbcTemplate.queryForMap(sql.toString(), Map.of());
-            long pendingCountAfter = ((Number) after.get("pendingCount")).longValue();
-            long overdueCountAfter = ((Number) after.get("overdueCount")).longValue();
+            long[] countersAfter = querySummaryCounters(sql);
+            long pendingCountAfter = countersAfter[0];
+            long overdueCountAfter = countersAfter[1];
 
             assertThat(pendingCountAfter - pendingCountBefore)
                     .as("删除 project_closure 后，行从'已退回'变'已超期'，"
@@ -1150,10 +1158,12 @@ class MarginQuerySupportMysqlIntegrationTest {
     private Long createTestUser(final String fullName) {
         String username = "test-user-" + System.nanoTime();
         String email = username + "@test.local";
-        String sql = "INSERT INTO users"
-                   + " (username, email, full_name, password, role,"
-                   + "  enabled, email_verified, created_at) "
-                   + "VALUES (:u, :e, :f, 'nopass', 'STAFF', TRUE, FALSE, NOW())";
+         // V1091 后 users.role 收敛为 ENUM('ADMIN','MANAGER')，'STAFF' 已非法（Data truncated）
+         // 本方法仅造 lead-assignment 关联数据，角色值不参与 MarginQueryRole 片段匹配
+         String sql = "INSERT INTO users"
+                    + " (username, email, full_name, password, role,"
+                    + "  enabled, email_verified, created_at) "
+                    + "VALUES (:u, :e, :f, 'nopass', 'MANAGER', TRUE, FALSE, NOW())";
         Map<String, Object> params = new HashMap<>();
         params.put("u", username);
         params.put("e", email);
