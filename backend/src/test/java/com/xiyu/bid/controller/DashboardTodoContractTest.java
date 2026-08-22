@@ -60,7 +60,8 @@ class DashboardTodoContractTest {
                 .dueDate(LocalDateTime.of(2026, 3, 20, 18, 0))
                 .build();
 
-        when(taskService.getAccessibleTasksByAssigneeId(7L, "alice")).thenReturn(List.of(task));
+        // /api/tasks/my 已扩展 projectStage 过滤参数（三参签名），未传时为 null
+        when(taskService.getAccessibleTasksByAssigneeId(7L, "alice", null)).thenReturn(List.of(task));
 
         mockMvc.perform(get("/api/tasks/my").param("assigneeId", "7"))
                 .andExpect(status().isOk())
