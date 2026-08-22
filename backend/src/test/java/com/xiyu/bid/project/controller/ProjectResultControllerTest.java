@@ -66,9 +66,13 @@ class ProjectResultControllerTest {
     }
 
     private ResultRegistrationRequest wonReq() {
+        // CO-590 后 servicePeriodYears/servicePeriodEndDate 为 @NotNull 必填，
+        // 缺失会在 Bean Validation 阶段 400，走不到 service 层
         return ResultRegistrationRequest.builder()
                 .resultType(BidResultType.WON)
                 .awardAmount(new BigDecimal("100000"))
+                .servicePeriodYears(new BigDecimal("3.0"))
+                .servicePeriodEndDate(java.time.LocalDate.now().plusYears(3))
                 .evidenceFileIds(List.of(101L))
                 .summary("中标")
                 .build();
