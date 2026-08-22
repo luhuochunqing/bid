@@ -10,6 +10,7 @@
 import { test, expect } from '@playwright/test'
 import { apiBaseUrl, authedJson, createAuthenticatedSession, createProjectFixture } from './support/project-fixtures.js'
 import { ensureApiSession, injectSession } from './auth-helpers.js'
+const frontendBaseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:1323'
 
 // 项目详情页已从 el-tabs 切换为 el-steps（ProjectStageTimeline）。
 // 直接通过 URL stage 参数 /project/{id}/drafting 激活 DRAFTING tab，
@@ -23,7 +24,7 @@ async function reloadToTaskBoard(page) {
 async function bootstrapProject(page, label) {
   const session = await createAuthenticatedSession()
   const project = await createProjectFixture(session, label)
-  await page.context().addCookies([{ name: "access_token", value: session.token, url: "http://127.0.0.1:18089", httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: "http://127.0.0.1:1323", httpOnly: true, sameSite: "Lax" }])
+  await page.context().addCookies([{ name: "access_token", value: session.token, url: apiBaseUrl, httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: frontendBaseUrl, httpOnly: true, sameSite: "Lax" }])
   await page.addInitScript(({ token, user }) => {
     sessionStorage.setItem('token', token)
     sessionStorage.setItem('user', JSON.stringify(user))

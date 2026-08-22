@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { ensureApiSession, injectSession } from './auth-helpers.js'
+const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18089'
 
 /**
  * §4.1.3.5 下架确认弹窗 E2E（重写版，匹配实际 UI）
@@ -31,7 +32,7 @@ async function loginAsRole(page, role) {
 async function createQualificationForRetire(token) {
   // 通过 API 创建一条资质，便于后续触发表格"下架"按钮
   const certNo = `RET-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
-  const res = await fetch('http://127.0.0.1:18089/api/knowledge/qualifications', {
+  const res = await fetch(`${apiBaseUrl}/api/knowledge/qualifications`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

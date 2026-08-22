@@ -9,6 +9,8 @@
 // Pos: e2e/ - Playwright E2E coverage for task form field adjustments
 import { test, expect } from '@playwright/test'
 import { createAuthenticatedSession, createProjectFixture } from './support/project-fixtures.js'
+const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18089'
+const frontendBaseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:1323'
 
 async function switchToTaskBoardTab(page) {
   const draftingTab = page.getByRole('tab', { name: '标书编制' })
@@ -22,7 +24,7 @@ async function switchToTaskBoardTab(page) {
 async function bootstrap(page, label) {
   const session = await createAuthenticatedSession()
   const project = await createProjectFixture(session, label)
-  await page.context().addCookies([{ name: "access_token", value: session.token, url: "http://127.0.0.1:18089", httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: "http://127.0.0.1:1323", httpOnly: true, sameSite: "Lax" }])
+  await page.context().addCookies([{ name: "access_token", value: session.token, url: apiBaseUrl, httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: frontendBaseUrl, httpOnly: true, sameSite: "Lax" }])
   await page.addInitScript(({ token, user }) => {
     sessionStorage.setItem('token', token)
     sessionStorage.setItem('user', JSON.stringify(user))

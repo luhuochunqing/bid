@@ -1,6 +1,8 @@
 // @ui-cover:project
 import { expect, test } from '@playwright/test'
 import { createAuthenticatedSession, createProjectFixture } from './support/project-fixtures.js'
+const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18089'
+const frontendBaseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:1323'
 
 const longProjectLabel = '中国石油天然气集团有限公司2026年电商采购项目长标题布局回归'
 
@@ -16,7 +18,7 @@ async function openProjectDetail(page, width = 1024, height = 900) {
   const project = await createProjectFixture(session, longProjectLabel)
 
   await page.setViewportSize({ width, height })
-  await page.context().addCookies([{ name: "access_token", value: session.token, url: "http://127.0.0.1:18089", httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: "http://127.0.0.1:1323", httpOnly: true, sameSite: "Lax" }])
+  await page.context().addCookies([{ name: "access_token", value: session.token, url: apiBaseUrl, httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: frontendBaseUrl, httpOnly: true, sameSite: "Lax" }])
   await page.addInitScript(({ token, user }) => {
     sessionStorage.setItem('token', token)
     sessionStorage.setItem('user', JSON.stringify(user))

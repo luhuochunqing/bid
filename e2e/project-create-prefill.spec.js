@@ -4,11 +4,13 @@
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 import { test, expect } from '@playwright/test'
 import { createAuthenticatedSession } from './support/project-fixtures.js'
+const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18089'
+const frontendBaseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:1323'
 
 test('project create page prefills basic and detail fields from URL query params', async ({ page }) => {
   const session = await createAuthenticatedSession()
 
-  await page.context().addCookies([{ name: "access_token", value: session.token, url: "http://127.0.0.1:18089", httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: "http://127.0.0.1:1323", httpOnly: true, sameSite: "Lax" }])
+  await page.context().addCookies([{ name: "access_token", value: session.token, url: apiBaseUrl, httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: frontendBaseUrl, httpOnly: true, sameSite: "Lax" }])
   await page.addInitScript(({ token, user }) => {
     sessionStorage.setItem('token', token)
     sessionStorage.setItem('user', JSON.stringify(user))
