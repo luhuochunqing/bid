@@ -392,3 +392,9 @@
 - 修复：新增 sectionTreeMatch.js（BFS 三级匹配：完整路径/label/最长包含）；弹窗打开时 applyDefaultSelection 级联预选+打开重置；抽屉映射改 targetChapter 优先→dim 类别回退内置章节树→空
 - 限制声明：真实章节树 API 属 spec 046 Phase 3；score_item 无 targetChapter 字段，映射落地前靠 dim 回退
 - 更新 [[ai-case-recommend-data-source-fix]]；回归 23 个相关单测全绿（含新增 8 用例）
+## 2026-08-22 后端测试基线修复（PR !2382）
+- 触发：全量 mvn test 发现 main 基线失守——8386 用例 49F+38E + E2E 栈启动崩溃
+- 根因三类：projectScoped 审计迁移缺测试联动（约80个403）；公共契约变更测试侧漂移积压；e2e profile Bean 缺口
+- 修复：全局 mock 用户种子机制（spring.factories 单数 key / beforeTestExecution 相位 / H2-only 守卫）；E2eNoopScoreAnalyzer 桩；各漂移点对齐
+- 最终回归 BUILD SUCCESS：0F/0E/9 skipped
+- 更新 [[backend-test-baseline-green]]；沉淀 docs/lessons #150
