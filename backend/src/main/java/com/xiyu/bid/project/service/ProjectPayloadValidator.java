@@ -1,7 +1,7 @@
 // Input: ProjectDTO 载荷 + creating 标志
-// Output: 归一化后的 ProjectDTO（trim/枚举/团队成员规范化）
+// Output: 归一化后的 ProjectDTO（trim/团队成员规范化）
 // Pos: project/service
-// 维护声明: 维护项目创建/更新载荷的统一校验与归一化；新增透传字段（如 stage）须在此显式保留。
+// 维护声明: 维护项目创建/更新载荷的统一校验与归一化；新增透传字段须在此显式保留。
 package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.entity.Project;
@@ -35,8 +35,6 @@ final class ProjectPayloadValidator {
 
         return ProjectDTO.builder()
                 .id(dto.getId()).name(dto.getName().trim()).tenderId(dto.getTenderId()).status(normStatus)
-                // PRD §5.4 stage 透传（创建时可指定初始阶段，缺省由实体默认 INITIATED）
-                .stage(dto.getStage())
                 .managerId(dto.getManagerId()).teamMembers(normTeam).startDate(dto.getStartDate()).endDate(dto.getEndDate())
                 .sourceModule(trimToNull(dto.getSourceModule())).sourceCustomerId(trimToNull(dto.getSourceCustomerId()))
                 .sourceCustomer(trimToNull(dto.getSourceCustomer())).sourceOpportunityId(trimToNull(dto.getSourceOpportunityId()))

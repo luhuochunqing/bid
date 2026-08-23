@@ -13,10 +13,8 @@ public record CreateManufacturerAuthCommand(
         @NotBlank String importDomestic,
         @NotBlank String manufacturerName,
         String agentName,
-        // AGENT 类型使用 auth1/auth2 双时间段，authStartDate/authEndDate 仅 MANUFACTURER 必填
-        //（按类型在 AppService 内校验，见 CreateManufacturerAuthAppService#validate）
-        LocalDate authStartDate,
-        LocalDate authEndDate,
+        @NotNull LocalDate authStartDate,
+        @NotNull LocalDate authEndDate,
         LocalDate auth1StartDate,
         LocalDate auth1EndDate,
         String auth1Remarks,

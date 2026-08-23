@@ -405,3 +405,4 @@
 - 根因③：register 只认 RoleProfileCatalog 注册码 → auth-helpers 加遗留角色名映射
 - 根因④（真实产品缺陷）：AGENT 品牌授权因后端无条件 @NotNull 无法经 UI 创建 → 已改按类型校验+推导整体区间
 - 更新 [[backend-test-baseline-green]]
+- 勘误：上一条中「AGENT 创建缺陷」结论有误——前端会派生授权日期，原后端校验无碍；已 revert 生产改动（PR !2386），E2E 改走生命周期 API 的 fixture 后全绿。教训：改生产代码前必须用真实链路复现缺陷，不能以手工构造的请求作为证据

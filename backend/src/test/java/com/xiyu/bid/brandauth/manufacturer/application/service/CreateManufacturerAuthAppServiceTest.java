@@ -119,41 +119,6 @@ class CreateManufacturerAuthAppServiceTest {
     }
 
     @Test
-    void createAgent_shouldDeriveOverallSpan_whenManufacturerLevelDatesAbsent() {
-        // UI AGENT 表单没有 授权起止（manufacturer 专属字段）→ 命令两日期为 null，
-        // 整体区间必须由 auth1/auth2 推导（auth_start/end_date 列 NOT NULL）。
-        // 业务约束：授权2 不得晚于授权1 结束，故整体结束 = auth1End
-        LocalDate start = LocalDate.now();
-        LocalDate end = start.plusDays(365);
-        var cmd = new CreateManufacturerAuthCommand(
-                "AGENT", ProductLine.CUTTING_TOOLS, "BR-006", "代理品牌",
-                "进口", "原厂A", "代理商X",
-                null, null,
-                start, end, null,
-                start.plusDays(30), end.minusDays(1), null,
-                null);
-
-        var result = service.create(cmd, 1L);
-
-        assertNotNull(result.dto());
-        assertEquals(start, result.dto().authStartDate(), "整体开始 = 两段最早开始");
-        assertEquals(end, result.dto().authEndDate(), "整体结束 = auth1End（业务链末端）");
-    }
-
-    @Test
-    void createAgent_shouldThrow_whenBothTimeRangesIncomplete() {
-        var cmd = new CreateManufacturerAuthCommand(
-                "AGENT", ProductLine.CUTTING_TOOLS, "BR-007", "品牌",
-                "进口", "原厂A", "代理商X",
-                null, null,
-                null, null, null,
-                null, null, null,
-                null);
-
-        assertThrows(BusinessException.class, () -> service.create(cmd, 1L));
-    }
-
-    @Test
     void createAgent_shouldThrow_whenAgentNameBlank() {
         LocalDate start = LocalDate.now();
         LocalDate end = start.plusDays(365);
