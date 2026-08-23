@@ -250,6 +250,7 @@ public class ProjectController {
                 .name(request.getName())
                 .tenderId(request.getTenderId())
                 .status(request.getStatus())
+                .stage(request.getStage())
                 .managerId(request.getManagerId())
                 .teamMembers(request.getTeamMembers())
                 .startDate(request.getStartDate())
