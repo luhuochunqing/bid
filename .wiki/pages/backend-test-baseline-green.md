@@ -50,5 +50,5 @@ projectScoped 审计链路经 `ProjectAccessScopeService.resolveCurrentUser` 查
 - **隔离栈端口**：BACKEND_PORT/FRONTEND_PORT 非 18089/1323 时，spec 内 cookie/fetch/goto 必须用 env 驱动 baseURL；每次 playwright 运行必须带同一组 env（global-teardown 会拆栈）
 - **详情页阶段切换**：项目详情的阶段步进器是 el-steps（`.el-step`，无 tab role），点击 `.project-stage-timeline .el-step` 按 title 过滤；POST /api/projects 支持 stage 初始值
 - **角色码**：register 仅认 RoleProfileCatalog 注册码（STAFF/MANAGER 等遗留名会 400）；auth-helpers.ensureApiSession 已内置归一化映射
-- **已知产品缺陷修复**：品牌授权 AGENT 类型创建曾因 CreateManufacturerAuthCommand 无条件 @NotNull(authStartDate/authEndDate) 而无法经 UI 提交——现按类型校验并由 auth1/auth2 推导整体区间（auth_start/end_date 列 NOT NULL）
+- **勘误（2026-08-23）**：此前判断「AGENT 品牌授权无法经 UI 创建（后端 @NotNull 缺陷）」经复核**不成立**——前端 handleSubmit 本就会派生 authStartDate/authEndDate=auth2 区间，原校验对真实流程可过；当时的 400 null 证据来自手工构造的不完整请求。生产代码已回滚恢复原校验；E2E 改走真实生命周期 fixture（PL 上传招标文件→提交立项→lizong 审批）后 spec 全绿
 - 剩余 spec 漂移按簇对齐中（performance/initiation/warehouse-export/list-filter 等），模式同上：对照 error-context 快照 + 当前组件源码修正定位器与断言

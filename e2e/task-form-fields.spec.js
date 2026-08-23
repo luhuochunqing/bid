@@ -8,7 +8,7 @@
 //   N5 — 完成情况说明: 文本输入可填写
 // Pos: e2e/ - Playwright E2E coverage for task form field adjustments
 import { test, expect } from '@playwright/test'
-import { createAuthenticatedSession, createProjectFixture } from './support/project-fixtures.js'
+import { advanceProjectToDrafting, createAuthenticatedSession, createProjectFixture, ensureRoleUser } from './support/project-fixtures.js'
 const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18089'
 const frontendBaseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:1323'
 
@@ -20,7 +20,9 @@ async function switchToTaskBoardTab(page) {
 
 async function bootstrap(page, label) {
   const session = await createAuthenticatedSession()
-  const project = await createProjectFixture(session, label, { stage: 'DRAFTING' })
+  const pl = await ensureRoleUser('bid-projectLeader')
+  const project = await createProjectFixture(session, label, { teamMembers: [session.user.id, pl.id] })
+  await advanceProjectToDrafting(session, project.id, pl)
   await page.context().addCookies([{ name: "access_token", value: session.token, url: apiBaseUrl, httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: frontendBaseUrl, httpOnly: true, sameSite: "Lax" }])
   await page.addInitScript(({ token, user }) => {
     sessionStorage.setItem('token', token)
