@@ -44,3 +44,11 @@ projectScoped 审计链路经 `ProjectAccessScopeService.resolveCurrentUser` 查
 ## 4. 新写集成测试规范
 
 优先在测试内自建同名真实用户（参考 `AiDeepCapabilityIntegrationTest#aiEndpoints_ForStaff_ShouldDenyHiddenAndUnlinkedTargets`）；种子器仅是存量 `@WithMockUser` 测试的兜底，不是新测试的捷径。
+
+## 5. E2E 基建补充（2026-08-23）
+
+- **隔离栈端口**：BACKEND_PORT/FRONTEND_PORT 非 18089/1323 时，spec 内 cookie/fetch/goto 必须用 env 驱动 baseURL；每次 playwright 运行必须带同一组 env（global-teardown 会拆栈）
+- **详情页阶段切换**：项目详情的阶段步进器是 el-steps（`.el-step`，无 tab role），点击 `.project-stage-timeline .el-step` 按 title 过滤；POST /api/projects 支持 stage 初始值
+- **角色码**：register 仅认 RoleProfileCatalog 注册码（STAFF/MANAGER 等遗留名会 400）；auth-helpers.ensureApiSession 已内置归一化映射
+- **已知产品缺陷修复**：品牌授权 AGENT 类型创建曾因 CreateManufacturerAuthCommand 无条件 @NotNull(authStartDate/authEndDate) 而无法经 UI 提交——现按类型校验并由 auth1/auth2 推导整体区间（auth_start/end_date 列 NOT NULL）
+- 剩余 spec 漂移按簇对齐中（performance/initiation/warehouse-export/list-filter 等），模式同上：对照 error-context 快照 + 当前组件源码修正定位器与断言
