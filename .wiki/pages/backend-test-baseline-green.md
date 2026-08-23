@@ -52,3 +52,9 @@ projectScoped 审计链路经 `ProjectAccessScopeService.resolveCurrentUser` 查
 - **角色码**：register 仅认 RoleProfileCatalog 注册码（STAFF/MANAGER 等遗留名会 400）；auth-helpers.ensureApiSession 已内置归一化映射
 - **勘误（2026-08-23）**：此前判断「AGENT 品牌授权无法经 UI 创建（后端 @NotNull 缺陷）」经复核**不成立**——前端 handleSubmit 本就会派生 authStartDate/authEndDate=auth2 区间，原校验对真实流程可过；当时的 400 null 证据来自手工构造的不完整请求。生产代码已回滚恢复原校验；E2E 改走真实生命周期 fixture（PL 上传招标文件→提交立项→lizong 审批）后 spec 全绿
 - 剩余 spec 漂移按簇对齐中（performance/initiation/warehouse-export/list-filter 等），模式同上：对照 error-context 快照 + 当前组件源码修正定位器与断言
+
+## 6. 动态表单 schema 种子（2026-08-23 补充）
+
+FormDefinitionE2eSeeder 的 tender.entry schema 必须与前端 fallback 表单字段集保持同步。
+V1166 对齐后字段为：项目名称/招标主体/总部所在地(cascader)/报名截止时间/开标时间/客户类型/优先级/项目类型。
+pastedText（粘贴识别 textarea）由 schema 驱动渲染——schema 缺此字段则粘贴识别不可用。
