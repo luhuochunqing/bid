@@ -129,8 +129,7 @@ export async function ensureRoleUser(role) {
  *   投标项目负责人(PL)上传招标文件 → PL 提交立项 → bid-admin 审批通过（INITIATED→DRAFTING）
  * 前置：projectId 的 teamMembers 必须包含 PL 用户 id（服务层做项目访问断言）。
  */
-export async function advanceProjectToDrafting(session, projectId, pl) {
-  // 1. PL 上传招标文件（multipart，documentCategory=TENDER）
+export async function uploadTenderDocument(plToken, projectId) {
   const form = new FormData()
   form.append('file', new Blob(['%PDF-1.4 e2e-fixture'], { type: 'application/pdf' }), '招标文件.pdf')
   form.append('name', '招标文件.pdf')
@@ -141,30 +140,34 @@ export async function advanceProjectToDrafting(session, projectId, pl) {
   form.append('linkedEntityId', String(projectId))
   const docRes = await fetch(`${apiBaseUrl}/api/projects/${projectId}/documents`, {
     method: 'POST',
-    headers: { Cookie: `access_token=${pl.token}` },
+    headers: { Cookie: `access_token=${plToken}` },
     body: form,
   })
   const docJson = await docRes.json().catch(() => null)
   if (!docRes.ok || !docJson?.data?.id) {
     throw new Error(`tender doc upload failed ${docRes.status}: ${JSON.stringify(docJson).slice(0, 200)}`)
   }
+  return docJson.data.id
+}
 
-  // 2. PL 提交立项
-  await requestJson(`${apiBaseUrl}/api/projects/${projectId}/initiation`, {
+export async function submitInitiation(plToken, projectId, tenderDocumentId) {
+  // 提交立项 → reviewStatus=PENDING_REVIEW（提交人须 BID_PROJECTLEADER 及以上）
+  return requestJson(`${apiBaseUrl}/api/projects/${projectId}/initiation`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Cookie: `access_token=${pl.token}` },
+    headers: { 'Content-Type': 'application/json', Cookie: `access_token=${plToken}` },
     body: JSON.stringify({
       ownerUnit: 'E2E Owner Unit',
       needDeposit: 'NO',
       expectedBidders: 3,
       bidOpenTime: new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 19),
-      tenderDocumentId: docJson.data.id,
+      tenderDocumentId,
     }),
   })
+}
 
-  // 3. 审批通过（INITIATED→DRAFTING）。
-  //    审批人固定用 E2eDemoDataInitializer 种子的 lizong（密码 123456）：
-  //    实证其权限确定可用；动态注册用户的授权差异会偶发方法安全 403。
+export async function approveInitiation(adminSession, projectId, primaryLeadUserId) {
+  // 审批通过（INITIATED→DRAFTING）。审批人用 E2eDemoDataInitializer 种子的 lizong（密码 123456）：
+  // 实证其权限确定可用；动态注册用户的授权差异会偶发方法安全 403。
   const adminLogin = await fetch(`${apiBaseUrl}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -173,11 +176,17 @@ export async function advanceProjectToDrafting(session, projectId, pl) {
   if (!adminLogin.ok) throw new Error(`approver login failed ${adminLogin.status}`)
   const adminCookies = adminLogin.headers.getSetCookie?.() || []
   const adminAt = adminCookies.find(c => c.startsWith('access_token='))
-  await requestJson(`${apiBaseUrl}/api/projects/${projectId}/initiation/approve`, {
+  return requestJson(`${apiBaseUrl}/api/projects/${projectId}/initiation/approve`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Cookie: `access_token=${adminAt.split(';')[0].split('=')[1]}` },
-    body: JSON.stringify({ primaryLeadUserId: pl.id }),
+    body: JSON.stringify({ primaryLeadUserId }),
   })
+}
+
+export async function advanceProjectToDrafting(session, projectId, pl) {
+  const docId = await uploadTenderDocument(pl.token, projectId)
+  await submitInitiation(pl.token, projectId, docId)
+  await approveInitiation(session, projectId, pl.id)
   return projectId
 }
 
