@@ -147,10 +147,12 @@ test.describe('§4.2.x — 阶段化按钮可见性：enter 阶段', () => {
     const bottomBtns = await getBottomButtons(page)
     const bottomNames = (await buttonNames(bottomBtns)).map((n) => n.trim())
 
-    // enter 阶段（basicInfoSavedAt=null）：bid_admin 看到 保存 + 取消
-    expect(bottomNames).toContain('保存')
-    expect(bottomNames).toContain('取消')
-    // 不应看到阶段化流程按钮
+    // 待分配阶段当前设计：头部 分配销售+删除；底部 编辑（CO-441 后矩阵）
+    const headerBtns0 = await getHeaderButtons(page)
+    const headerNames0 = (await buttonNames(headerBtns0)).map((n) => n.trim())
+    expect(headerNames0).toContain('分配销售')
+    expect(headerNames0).toContain('删除')
+    expect(bottomNames).toContain('编辑')
     expect(bottomNames).not.toContain('下一步')
     expect(bottomNames).not.toContain('提交')
   })
@@ -192,10 +194,9 @@ test.describe('§4.2.x — 阶段化按钮可见性：assigned 阶段', () => {
     const bottomBtns = await getBottomButtons(page)
     const bottomNames = (await buttonNames(bottomBtns)).map((n) => n.trim())
 
-    // 底部应为空
-    expect(bottomNames).toHaveLength(0)
+    // 保存后状态仍为待分配：底部为 编辑，头部 分配销售（当前矩阵）
+    expect(bottomNames).toContain('编辑')
 
-    // 头部应有 分配 按钮（PENDING_ASSIGNMENT + admin_lead）
     const headerBtns = await getHeaderButtons(page)
     const headerNames = (await buttonNames(headerBtns)).map((n) => n.trim())
     expect(headerNames).toContain('分配销售')
@@ -318,14 +319,17 @@ test.describe('§4.2.x — 完整生命周期按钮切换验证', () => {
     const tenderId = await apiCreateTender(session)
     expect(tenderId).toBeTruthy()
 
-    // ---- 阶段1: enter（新建，未保存基本信息）----
+    // ---- 阶段1: 待分配（新建，未保存基本信息）：头部 分配销售+删除；底部 编辑 ----
     await goToDetail(page, tenderId)
     let bottomBtns = await getBottomButtons(page)
     let bottomNames = (await buttonNames(bottomBtns)).map((n) => n.trim())
-    expect(bottomNames).toContain('保存')
-    expect(bottomNames).toContain('取消')
+    expect(bottomNames).toContain('编辑')
 
-    // ---- 阶段2: assigned（保存基本信息）----
+    let headerBtns = await getHeaderButtons(page)
+    let headerNames = (await buttonNames(headerBtns)).map((n) => n.trim())
+    expect(headerNames).toContain('分配销售')
+
+    // ---- 阶段2: 保存基本信息后仍为待分配：底部 编辑，头部 分配销售 ----
     await apiUpdateTender(session, tenderId, {
       title: `E2E-LifeCycle-${Date.now()}`,
       purchaserName: 'E2E-生命周期测试',
@@ -333,10 +337,10 @@ test.describe('§4.2.x — 完整生命周期按钮切换验证', () => {
     await goToDetail(page, tenderId)
     bottomBtns = await getBottomButtons(page)
     bottomNames = (await buttonNames(bottomBtns)).map((n) => n.trim())
-    expect(bottomNames).toHaveLength(0) // 底部空
+    expect(bottomNames).toContain('编辑')
 
-    const headerBtns = await getHeaderButtons(page)
-    const headerNames = (await buttonNames(headerBtns)).map((n) => n.trim())
+    headerBtns = await getHeaderButtons(page)
+    headerNames = (await buttonNames(headerBtns)).map((n) => n.trim())
     expect(headerNames).toContain('分配销售')
   })
 
