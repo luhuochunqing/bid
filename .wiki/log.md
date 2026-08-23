@@ -398,3 +398,10 @@
 - 修复：全局 mock 用户种子机制（spring.factories 单数 key / beforeTestExecution 相位 / H2-only 守卫）；E2eNoopScoreAnalyzer 桩；各漂移点对齐
 - 最终回归 BUILD SUCCESS：0F/0E/9 skipped
 - 更新 [[backend-test-baseline-green]]；沉淀 docs/lessons #150
+## 2026-08-23 E2E spec 漂移对齐（进行中）
+- 全量 chromium 首次建立基线：217/374；51 失败 spec 聚为四类根因
+- 根因①：27 个 spec 硬编码 18089/1323 → env 驱动 baseURL
+- 根因②：详情页阶段步进器为 el-steps 自绘（无 tab role）+ 项目创建 API 不支持 stage → 已打通 stage 链路并修引导函数
+- 根因③：register 只认 RoleProfileCatalog 注册码 → auth-helpers 加遗留角色名映射
+- 根因④（真实产品缺陷）：AGENT 品牌授权因后端无条件 @NotNull 无法经 UI 创建 → 已改按类型校验+推导整体区间
+- 更新 [[backend-test-baseline-green]]

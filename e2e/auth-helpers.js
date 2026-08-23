@@ -77,8 +77,18 @@ async function loginForSession(username, password) {
   return { token: extractAccessTokenFromResponse(response), data: payload?.data }
 }
 
+// 遗留角色名 → RoleProfileCatalog 注册码（register 的 resolveRoleProfile 只认注册码，
+// 'STAFF' 等遗留名会 400 "Role not found"）。语义映射保持测试意图不变。
+const LEGACY_ROLE_CODES = {
+  STAFF: 'bid-Team',        // 投标辅助人员 → 投标专员
+  MANAGER: 'bid-TeamLeader', // 经理 → 投标组长
+  ADMIN: 'admin',
+  USER: 'bid-Team'
+}
+
 export async function ensureApiSession({ username, role = 'ADMIN', fullName, password = defaultPassword }) {
   const email = `${username}@example.com`
+  const resolvedRole = LEGACY_ROLE_CODES[role] || role
 
   // 注册新用户 (H13: register 不签 token, 仅创建账号; 409 已存在走 login)
   try {
@@ -90,7 +100,7 @@ export async function ensureApiSession({ username, role = 'ADMIN', fullName, pas
         password,
         email,
         fullName: fullName || username,
-        role
+        role: resolvedRole
       })
     })
   } catch (error) {

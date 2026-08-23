@@ -56,6 +56,9 @@ public class ProjectRequest {
     private LocalDateTime endDate;
 
     @Size(max = 100, message = "来源模块长度不能超过100个字符")
+    /** PRD §5.4 六阶段 FSM；缺省 INITIATED（V99 schema 列）。 */
+    private String stage;
+
     private String sourceModule;
 
     @Size(max = 100, message = "来源客户ID长度不能超过100个字符")

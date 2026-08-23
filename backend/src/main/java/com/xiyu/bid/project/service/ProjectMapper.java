@@ -1,3 +1,7 @@
+// Input: ProjectDTO / Project 实体
+// Output: 双向映射（toDto/toEntity/withCustomFields）
+// Pos: project/service
+// 维护声明: 维护项目 DTO↔实体字段映射；DTO 增删字段须同步 toEntity/toDto 两侧。
 package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.entity.Project;
@@ -58,6 +62,7 @@ public final class ProjectMapper {
                 .name(dto.getName())
                 .tenderId(dto.getTenderId())
                 .status(dto.getStatus() != null ? dto.getStatus() : Project.Status.PENDING_INITIATION)
+                .stage(dto.getStage() != null ? dto.getStage() : "INITIATED")
                 .managerId(dto.getManagerId())
                 .teamMembers(dto.getTeamMembers() != null ? dto.getTeamMembers() : List.of())
                 .startDate(dto.getStartDate())

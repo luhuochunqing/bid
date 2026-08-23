@@ -98,7 +98,7 @@ export function toLocalDateTimeString(date) {
     .slice(0, 19)
 }
 
-export async function createProjectFixture(session, label = '项目详情流程') {
+export async function createProjectFixture(session, label = '项目详情流程', overrides = {}) {
   const suffix = Date.now()
   const tenderPayload = await authedJson('/api/tenders', session.token, {
     method: 'POST',
@@ -126,6 +126,8 @@ export async function createProjectFixture(session, label = '项目详情流程'
       status: 'BIDDING',
       managerId: session.user.id,
       teamMembers: [session.user.id],
+      // 需要任务看板/标书编制阶段的用例传 { stage: 'DRAFTING' }
+      ...overrides,
       startDate: toLocalDateTimeString(new Date()),
       endDate: toLocalDateTimeString(new Date(Date.now() + 10 * 24 * 60 * 60 * 1000)),
     }),
