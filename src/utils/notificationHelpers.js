@@ -8,7 +8,8 @@ import {
   Warning,
   Document,
   ChatDotRound,
-  InfoFilled
+  InfoFilled,
+  TrendCharts
 } from '@element-plus/icons-vue'
 
 export const NOTIFICATION_ICON_BY_TYPE = {
@@ -29,6 +30,7 @@ export const NOTIFICATION_ICON_BY_TYPE = {
   CA_BORROW_DUE_SOON: Warning,
   CA_BORROW_OVERDUE: Warning,
   CA_BORROW_APPROVED: Document,
+  OPPORTUNITY_PREDICTION: TrendCharts,
   DEFAULT: Bell
 }
 
@@ -56,7 +58,8 @@ export const NOTIFICATION_TYPE_LABELS = {
   CA_BORROW_PENDING: 'CA借用待审批',
   CA_BORROW_DUE_SOON: 'CA借用即将到期',
   CA_BORROW_OVERDUE: 'CA借用逾期',
-  CA_BORROW_APPROVED: 'CA借用已通过'
+  CA_BORROW_APPROVED: 'CA借用已通过',
+  OPPORTUNITY_PREDICTION: '商机预测'
 }
 
 export const getNotificationIcon = (type) =>

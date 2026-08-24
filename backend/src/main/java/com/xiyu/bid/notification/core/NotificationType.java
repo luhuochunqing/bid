@@ -28,5 +28,7 @@ public enum NotificationType {
     /** A borrowed CA is past its expected return date. */
     CA_BORROW_OVERDUE,
     /** A CA borrow application has been approved by custodian. */
-    CA_BORROW_APPROVED
+    CA_BORROW_APPROVED,
+    /** 商机预测提醒（预测下次招标时间已到，提示创建商机） */
+    OPPORTUNITY_PREDICTION
 }
