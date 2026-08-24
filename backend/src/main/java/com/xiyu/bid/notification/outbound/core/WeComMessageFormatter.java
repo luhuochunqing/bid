@@ -143,6 +143,7 @@ public final class WeComMessageFormatter {
             case "CA_BORROW_DUE_SOON" -> "CA借用即将到期";
             case "CA_BORROW_OVERDUE" -> "CA借用逾期";
             case "CA_BORROW_APPROVED" -> "CA借用已通过";
+            case "OPPORTUNITY_PREDICTION" -> "商机预测";
             default -> "通知";
         };
     }

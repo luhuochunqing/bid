@@ -8,7 +8,9 @@ package com.xiyu.bid.integration.tenderevent.domain;
  * {@code {serviceName, eventTopic, eventSource, data}}。
  */
 public enum TenderEventCode {
-    BID_TENDER_CHANGE("BidTenderChange", "bid", "TENDER", "tenderId");
+    BID_TENDER_CHANGE("BidTenderChange", "bid", "TENDER", "tenderId"),
+    /** 商机预测提醒：预测下次招标时间已到，通知西域侧创建商机。 */
+    OPPORTUNITY_PREDICTION("OpportunityPrediction", "bid", "OPPORTUNITY", "projectId");
 
     private final String topic;
     private final String source;

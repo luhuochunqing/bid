@@ -2,6 +2,13 @@
 
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
+## [2026-08-24] feature | 商机预测提醒链路实现（054）
+
+- 触发：需求补齐商机预测"提醒通知"（原仅列表数据）；4 条预测规则已复用 `OpportunityPredictionPolicy.predict`，本次交付定时扫描 → 判定 → 多渠道通知
+- 改动：新增页面 `opportunity-prediction-reminder.md`；`docs/implementation-notes/CO-商机预测提醒.md`；`specs/054-*`；后端 workbench 编排+定时任务+提醒日志表；前端 `notificationHelpers.js` 图标/标签
+- 关键结论：提醒时机 = predict 返回的"预测招标时间"，`today >= predicted` 且从未提醒过；项目经理取"自动分配"已落库 `Project.managerId`（定时任务无登录态禁止 CRM 实时反查，`CrmAuthService` 禁令）；每项目只提醒一次用独立表 `project_id` 唯一键；无截止日期省略截止句；事件库失败不阻断主链路
+- 触发点：任务收尾（§2 触发点 1）—— 跨模块逻辑变更 + 新业务规则回填
+
 ## [2026-08-21] update | AI智能案例推荐详情三模块 + 去掉复用次数展示
 
 - 触发：标书制作 AI 智能推荐，卡片/详情不再展示复用次数；详情改为顶部评分项 + 中部三层原文/元信息 + 底部复用

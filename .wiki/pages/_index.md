@@ -70,6 +70,7 @@ backlinks:
 - [[modules]] — 模块目录
 - [[multi-agent-defense-playbook]] — 多 Agent 并行开发防御工程化手册
 - [[notification-system-pitfalls]] — 通知系统陷阱集（targetUrl / SYSTEM_USER_ID / @TransactionalEventListener / 静默吞异常）
+- [[opportunity-prediction-reminder]] — 商机预测提醒（定时扫描 → 判定 → 站内信/企微/事件库多渠道通知，每项目一次）
 - [[operations/logging-bug-investigation-guide]] — 日志系统查 Bug 手册
 - [[overview]] — 项目综述
 - [[requirements]] — 需求追溯
