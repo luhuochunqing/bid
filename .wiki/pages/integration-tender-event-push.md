@@ -10,8 +10,8 @@ sources:
 backlinks:
   - _index
 created: 2026-08-12
-updated: 2026-08-12
-health_checked: 2026-08-20
+updated: 2026-08-24
+health_checked: 2026-08-24
 ---
 # 标讯创建事件推送 - 西域 CRM 事件总线
 
@@ -80,8 +80,18 @@ backend/src/main/java/com/xiyu/bid/integration/tenderevent/
 ├── application/     # 编排：端口(发布/流水)、payload mapper、发布服务
 └── infrastructure/
     ├── persistence/ # 事件流水表实体/仓库
-    └── sdk/         # 直连 HTTP 生产者 + 配置
+    └── sdk/         # 直连 HTTP 生产者 + 配置（TenderEventHttpSender 持有 wire 契约）
 ```
+
+## Wire 契约单一源（2026-08-24 去重）
+
+`TenderEventHttpSender`（`infrastructure/sdk/`）是事件总线 wire 契约的**唯一持有者**：body 组装
+（`serviceName/eventTopic/eventSource/data`）、响应 `data.result` 解析、`traceId/spanId/parentId` HTTP Header、
+RestClient 3s/5s 超时。`TenderEventSdkProducer` 与 `OpportunityPredictionEventPublisher` 都委托它发送，
+各自只保留自己的载荷与上下文日志（公开构造/入口不变）。
+
+> 新的事件发布方直接复用 `TenderEventHttpSender`，**不要**再复制 body/trace/超时逻辑（本页此前的重复即此类 slop）。
+> 标讯事件应用层管线（`TenderEventPublishService`/Port/流水表）不感知该重构。
 
 ## 关键设计
 

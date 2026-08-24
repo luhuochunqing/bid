@@ -50,6 +50,13 @@
 但**新增独立轻量 `OpportunityPredictionEventPublisher`**，不改动既有标讯事件管线（避免回归）。
 事件类型 `OPPORTUNITY_PREDICTION` 加入 `TenderEventCode`。
 
+> **后续去重（ai-slop-cleaner）**：同一事件总线的 wire 契约（body 组装、`data.result` 解析、
+> trace 头、RestClient 3s/5s 超时）在 `TenderEventSdkProducer` 与新 publisher 中重复约 30 行。
+> 已抽为包内共享 `TenderEventHttpSender`（`infrastructure/sdk`），两者都委托它发送：
+> `TenderEventSdkProducer` 仅保留标讯载荷与上下文日志（构造签名不变，`TenderEventSdkProducerTest`
+> 原样通过）；`OpportunityPredictionEventPublisher` 缩至约 60 行。**标讯事件应用层管线
+> （`TenderEventPublishService`/Port/事件流水）未改动**，仍满足"避免回归"初衷。
+
 ### 6. 定时任务无登录态 → repository 全量直查
 
 不能复用带权限过滤的 `ProjectQueryService.getAllProjects()`（依赖登录态），

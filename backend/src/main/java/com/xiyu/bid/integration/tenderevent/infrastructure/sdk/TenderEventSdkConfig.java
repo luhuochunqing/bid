@@ -1,13 +1,11 @@
 package com.xiyu.bid.integration.tenderevent.infrastructure.sdk;
 
 import com.xiyu.bid.integration.tenderevent.application.TenderEventPublishPort;
-import java.time.Duration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 /**
@@ -28,13 +26,7 @@ public class TenderEventSdkConfig {
             havingValue = "true"
     )
     public TenderEventPublishPort tenderEventPublishPort(TenderEventSdkProperties properties) {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofSeconds(3));
-        factory.setReadTimeout(Duration.ofSeconds(5));
-        RestClient restClient = RestClient.builder()
-                .baseUrl(properties.serverRegisterUrl())
-                .requestFactory(factory)
-                .build();
+        RestClient restClient = TenderEventHttpSender.defaultRestClient(properties);
         return new TenderEventSdkProducer(properties, restClient);
     }
 

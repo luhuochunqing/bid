@@ -413,3 +413,8 @@
 - 根因④（真实产品缺陷）：AGENT 品牌授权因后端无条件 @NotNull 无法经 UI 创建 → 已改按类型校验+推导整体区间
 - 更新 [[backend-test-baseline-green]]
 - 勘误：上一条中「AGENT 创建缺陷」结论有误——前端会派生授权日期，原后端校验无碍；已 revert 生产改动（PR !2386），E2E 改走生命周期 API 的 fixture 后全绿。教训：改生产代码前必须用真实链路复现缺陷，不能以手工构造的请求作为证据
+## 2026-08-24 refactor | 事件总线 wire 契约去重回填（ai-slop-cleaner）
+- 触发：ai-slop-cleaner 走查 054 商机预测提醒特性，发现标讯事件与商机预测事件两个 producer 重复同一套直连契约（body/data.result/trace header/3s-5s 超时，约 30 行 ×2）
+- 修复：新增 `TenderEventHttpSender`（infrastructure/sdk）唯一持有 wire 契约；`TenderEventSdkProducer` 构造签名不变委托 sender（4 例 MockRestServiceServer wire 断言原样通过）；`OpportunityPredictionEventPublisher` 缩至约 60 行，仍受 sdk.enabled 开关控制
+- 标讯事件应用层管线（TenderEventPublishService/Port/流水表）零改动；定向 26 测试全绿
+- 更新 [[integration-tender-event-push]]；教训：**新事件发布方复用 TenderEventHttpSender，勿再复制 wire 契约**
