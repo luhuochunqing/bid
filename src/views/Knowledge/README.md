@@ -30,7 +30,7 @@
 | 文件 | 地位 | 功能 |
 |------|------|------|
 | `CaseCard.vue` | Component | 案例卡片，被 `CaseGrid.vue` 使用 |
-| `CaseDetailDrawer.vue` | Component | 案例详情抽屉，被 `CaseGrid.vue` 使用 |
+| `CaseDetailDialog.vue` | Component | 案例详情弹窗，被 `CaseGrid.vue` 使用 |
 | `views/caseLabels.js` | Constants | 案例库枚举常量（项目类型/客户类型/评分类别/状态） |
 
 ### 其他子目录

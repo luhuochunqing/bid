@@ -2668,3 +2668,32 @@ sidecar OOM 根治任务（PR !2373，完整根因见 `root-cause-analysis-sidec
 - `backend/src/test/java/com/xiyu/bid/scoreparse/infrastructure/structure/MarkdownScoreSectionLocatorTest.java`
 - `backend/src/test/java/com/xiyu/bid/scoreparse/infrastructure/openai/OpenAiScoreAnalyzerTest.java`
 
+## 152. nohup 启动 vite 未重定向 stdin：PTY 关闭后 dev server 主线程阻塞假死，E2E 全军覆没（2026-08-24）
+
+### 问题背景
+
+本地起 1323 前端（`nohup npx vite --port 1323 ... > /tmp/xx.log 2>&1 &`）后，首请求 200 正常；跨 shell 会话后 Playwright E2E 全部 `page.goto` 90s 超时（`net::ERR_ABORTED`），连 `curl http://127.0.0.1:1323/` 都挂起——TCP 能握手但永不响应，vite 进程 0% CPU。
+
+### 根因
+
+`nohup ... &` 只处理了 SIGHUP 与 stdout/stderr，**stdin 仍挂在启动它的伪终端（PTY）上**。工具会话（Agent shell）结束时 PTY master 关闭，Node 主线程随后在死 TTY 上执行阻塞 `read()`，整个事件循环卡死（`sample` 采样栈 100% 停在 `uv__stream_io → read`）——进程活着、端口在听、但永远不处理任何请求。
+
+### 修复方案与规范
+
+启动命令补全 stdin 重定向：
+
+```bash
+nohup npx vite --port 1323 --host 127.0.0.1 < /dev/null > /tmp/xx.log 2>&1 &
+```
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| dev server "启动正常、跨会话必假死"（TCP 可连无响应、CPU 0%） | `nohup` 不重定向 stdin 时，进程 stdin 继承 PTY；PTY 关闭后 Node 阻塞 read 卡死事件循环 | 后台化长驻进程必须三件套：`< /dev/null` + `> log 2>&1` + `&`；排查此类假死直接 `sample <pid> 3` 看主线程栈 |
+| 按 `pkill -f "vite --port"` 杀进程失败 | 实际命令行是 `node .../vite.js --port`，模式没匹配上 | 杀端口进程用 `kill $(lsof -nP -iTCP:<port> -sTCP:LISTEN -t)` 按端口定位 |
+
+### 相关文件
+
+- 无代码改动（运维教训）；受影响命令：本地前端启动（qoder1 worktree，端口 1323）
+

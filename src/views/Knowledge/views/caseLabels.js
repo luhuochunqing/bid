@@ -11,17 +11,15 @@ export const CUSTOMER_TYPE_LABELS = {
   LOCAL_SOE: '地方国企',
   PRIVATE: '民企',
   FOREIGN_ENTERPRISE: '港澳台及外企',
-  // 兼容旧数据
+  // 兼容旧数据（仅用于展示映射，不进筛选项）
   STATE_OWNED: '央企',
   FOREIGN: '港澳台及外企'
 }
 
-export const SCORING_CATEGORIES = ['技术', '商务', '实施服务', '资质业绩']
-
-export const STATUS_LABELS = {
-  ACTIVE: '上架',
-  OFF_SHELF: '已下架'
-}
+// 筛选用客户类型选项（不含旧数据兼容键，避免下拉出现重复文案）
+export const CUSTOMER_TYPE_OPTIONS = Object.entries(CUSTOMER_TYPE_LABELS)
+  .filter(([val]) => val !== 'STATE_OWNED' && val !== 'FOREIGN')
+  .map(([value, label]) => ({ value, label }))
 
 // 案例模块保留 '常规项目' 作为空值 fallback（语义：未归类项目视为常规项目）
 export const getProjectTypeLabel = (val) => PROJECT_TYPE_LABELS[val] || val || '常规项目'

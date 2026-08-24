@@ -1,3 +1,8 @@
+// Input: /api/cases 下的案例库 HTTP 请求（列表筛选、详情、导出、沉淀、推荐等）
+// Output: 案例列表/详情/导出响应，权限由 @PreAuthorize 与角色守卫承担
+// Pos: Backend/casework 模块控制器——案例库 REST 入口
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+
 package com.xiyu.bid.casework.controller;
 
 import com.xiyu.bid.casework.application.service.CaseExportAppService;
@@ -11,7 +16,7 @@ import com.xiyu.bid.casework.domain.model.KnowledgeCaseMatchScore;
 import com.xiyu.bid.casework.dto.CaseExportQuery;
 import com.xiyu.bid.casework.dto.CaseReferenceRecordDTO;
 import com.xiyu.bid.casework.dto.KnowledgeCaseResponse;
-import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
+import com.xiyu.bid.casework.dto.KnowledgeCaseDetailResponse;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -65,13 +70,12 @@ public class KnowledgeCaseController {
             @RequestParam(required = false) String closeDateFrom,
             @RequestParam(required = false) String closeDateTo,
             @RequestParam(required = false) String statuses,
-            @RequestParam(defaultValue = "created") String sortBy,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(queryAppService.queryCases(
                 keyword, scoringCategory, customerType, parseList(projectTypes),
                 uploadDateFrom, uploadDateTo, closeDateFrom, closeDateTo,
-                parseList(statuses), sortBy, page, size));
+                parseList(statuses), page, size));
     }
 
     @GetMapping("/recommend")
@@ -96,7 +100,7 @@ public class KnowledgeCaseController {
 
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<KnowledgeCase> getCaseDetail(@PathVariable Long id) {
+    public ResponseEntity<KnowledgeCaseDetailResponse> getCaseDetail(@PathVariable Long id) {
         return ResponseEntity.ok(queryAppService.getCaseDetail(id));
     }
 

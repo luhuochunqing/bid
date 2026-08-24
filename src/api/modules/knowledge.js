@@ -219,7 +219,6 @@ export const casesApi = {
         closeDateTo: params.closeDateTo || undefined,
         statuses: Array.isArray(params.statuses) && params.statuses.length > 0
           ? params.statuses.join(',') : undefined,
-        sortBy: params.sort || 'created',
         page: typeof params.page === 'number' ? params.page - 1 : 0,
         size: params.pageSize || 16
       }
@@ -277,10 +276,6 @@ export const casesApi = {
     return response?.data || response
   },
 
-  async offShelfCase(id) {
-    const response = await httpClient.post(`/api/cases/${id}/off-shelf`)
-    return response?.data || response
-  },
   async checkPrecipitationReadiness(projectId) {
     const response = await httpClient.get('/api/cases/precipitation-readiness', {
       params: { projectId }

@@ -302,7 +302,7 @@ class KnowledgeAccessSecurityTest {
     @DisplayName("投标专员(authorities含project) GET /api/cases → 200")
     @WithMockUser(authorities = {"project"})
     void listCases_shouldSucceed_forBidSpecialist() throws Exception {
-        when(queryAppService.queryCases(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), anyInt(), anyInt()))
+        when(queryAppService.queryCases(any(), any(), any(), any(), any(), any(), any(), any(), any(), anyInt(), anyInt()))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 10), 0));
         mockMvc.perform(get("/api/cases"))
                 .andExpect(status().isOk());
@@ -320,7 +320,7 @@ class KnowledgeAccessSecurityTest {
     @DisplayName("回归：MANAGER(GET含project) GET /api/cases → 200")
     @WithMockUser(authorities = {"ROLE_MANAGER", "project"})
     void listCases_shouldSucceed_forManager() throws Exception {
-        when(queryAppService.queryCases(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), anyInt(), anyInt()))
+        when(queryAppService.queryCases(any(), any(), any(), any(), any(), any(), any(), any(), any(), anyInt(), anyInt()))
                 .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 10), 0));
         mockMvc.perform(get("/api/cases"))
                 .andExpect(status().isOk());
