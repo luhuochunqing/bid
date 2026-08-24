@@ -104,6 +104,18 @@ test.describe('§4.2.4 — tender detail page assign/transfer button visibility'
     const tenderId = await seedTenderForDetail(session, 'TRACKING')
     expect(tenderId).toBeTruthy()
 
+    // CO-441: TRACKING 且 projectManagerId != null 才显示「转派销售」；
+    // API 创建的标讯无负责人，先经批量分配接口指定负责人
+    const assignRes = await apiRequest('/api/batch/tenders/assign', session, {
+      method: 'POST',
+      body: JSON.stringify({
+        tenderIds: [tenderId],
+        assigneeId: session.user.id,
+        remark: 'E2E 转派前置分配',
+      }),
+    })
+    expect(assignRes?.success).toBeTruthy()
+
     await page.goto(`/bidding/${tenderId}`)
     await page.waitForSelector('.detail-meta-grid', { timeout: 10000 })
 
@@ -133,16 +145,16 @@ test.describe('§4.2.4 — tender detail page assign/transfer button visibility'
     await page.waitForSelector('.detail-meta-grid', { timeout: 10000 })
     await expect(page.getByRole('button', { name: '删除' })).toBeVisible()
 
-    // 2. sales does not see it
+    // 2. sales does not see it（sales 无权查看他人标讯，详情 403 呈错误态，无任何操作按钮）
     await loginAsRole(page, 'bid-projectLeader')
     await page.goto(`/bidding/${tenderId}`)
-    await page.waitForSelector('.detail-meta-grid', { timeout: 10000 })
+    await page.waitForLoadState('domcontentloaded')
     await expect(page.getByRole('button', { name: '删除' })).not.toBeVisible()
 
     // 3. bid_lead does not see it
     await loginAsRole(page, 'bid-TeamLeader')
     await page.goto(`/bidding/${tenderId}`)
-    await page.waitForSelector('.detail-meta-grid', { timeout: 10000 })
+    await page.waitForLoadState('domcontentloaded')
     await expect(page.getByRole('button', { name: '删除' })).not.toBeVisible()
   })
 })
@@ -157,10 +169,14 @@ test.describe('§V1026 — TRACKING sales evaluation flow buttons', () => {
     const tenderId = await seedTenderForDetail(session, 'TRACKING')
     expect(tenderId).toBeTruthy()
 
-    // Assign tender to self to become project manager
-    await apiRequest(`/api/tenders/${tenderId}`, session, {
-      method: 'PUT',
-      body: JSON.stringify({ projectManagerId: session.user.id, status: 'TRACKING' })
+    // Assign tender to self to become project manager（TenderRequest 无 projectManagerId 字段，走批量分配接口）
+    await apiRequest('/api/batch/tenders/assign', session, {
+      method: 'POST',
+      body: JSON.stringify({
+        tenderIds: [tenderId],
+        assigneeId: session.user.id,
+        remark: 'E2E V1026 前置分配',
+      })
     })
 
     await page.goto(`/bidding/${tenderId}`)
