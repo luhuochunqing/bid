@@ -1,6 +1,7 @@
 <template>
   <el-dialog v-model="internalVisible" :title="caseData?.scoringPointTitle || caseData?.scoringTitle || '案例详情'" width="640px" align-center destroy-on-close>
-    <div v-if="caseData" class="dialog-container" v-loading="loading">
+    <div class="dialog-container" v-loading="loading">
+      <template v-if="caseData">
       <!-- 1. 评分项详细要素原文（浅色背景展示区） -->
       <div class="section-title">评分项详细要素原文</div>
       <div class="content-box requirement-box">{{ caseData.requirementRaw || '暂无要求' }}</div>
@@ -31,6 +32,7 @@
           <el-icon style="vertical-align:-.2em;margin-right:4px"><CopyDocument /></el-icon>复用
         </el-button>
       </div>
+      </template>
     </div>
   </el-dialog>
 </template>
@@ -64,7 +66,7 @@ const bidResultType = computed(() => {
 </script>
 
 <style scoped>
-.dialog-container { padding: 0 4px 8px 4px; }
+.dialog-container { padding: 0 4px 8px 4px; min-height: 120px; }
 .section-title { font-size: 15px; font-weight: 600; color: var(--el-text-color-primary); margin-bottom: 12px; border-left: 4px solid var(--el-color-primary); padding-left: 8px; }
 .case-desc { margin-bottom: 16px; }
 .content-box { background-color: var(--el-fill-color-light); border-radius: 6px; padding: 12px; font-size: 13px; line-height: 1.6; color: var(--el-text-color-regular); white-space: pre-wrap; border: 1px solid var(--el-border-color-lighter); }

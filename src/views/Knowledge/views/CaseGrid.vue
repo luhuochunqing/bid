@@ -135,7 +135,7 @@ const openBidDocument = async (d) => {
 const viewDetail = async (id) => {
   dialogVisible.value = true; dialogLoading.value = true; selectedCase.value = null
   try { const res = await casesApi.getDetail(id); selectedCase.value = res?.data || res
-  } catch { ElMessage.error('获取案例详情失败') } finally { dialogLoading.value = false }
+  } catch { ElMessage.error('获取案例详情失败'); dialogVisible.value = false } finally { dialogLoading.value = false }
 }
 
 const SESSION_KEY = 'case-detail-state'
