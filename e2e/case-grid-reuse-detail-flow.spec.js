@@ -48,7 +48,7 @@ test.describe('§44.1.1.2 案例库 — 复用与详情流程', () => {
     }
   })
 
-  test('案例详情抽屉不再包含置顶/下架操作', async ({ page }) => {
+  test('案例详情弹窗不再包含置顶/下架操作', async ({ page }) => {
     const suffix = Date.now()
     const session = await ensureApiSession({
       username: `e2e_detail_actions_${suffix}`,
@@ -60,7 +60,7 @@ test.describe('§44.1.1.2 案例库 — 复用与详情流程', () => {
     await page.goto('/knowledge/case')
     await page.waitForLoadState('load')
 
-    // 点击第一个案例卡片打开详情抽屉（空库时跳过）
+    // 点击第一个案例卡片打开详情弹窗（空库时跳过）
     const firstCard = page.locator('.case-card').first()
     if (await firstCard.isVisible()) {
       await firstCard.click()
@@ -71,19 +71,19 @@ test.describe('§44.1.1.2 案例库 — 复用与详情流程', () => {
     }
   })
 
-  test('案例详情抽屉显示元信息与查看源项目/标书原文按钮', async ({ page }) => {
+  test('案例详情弹窗显示元信息与查看源项目/标书原文按钮', async ({ page }) => {
     const suffix = Date.now()
     const session = await ensureApiSession({
-      username: `e2e_drawer_detail_${suffix}`,
+      username: `e2e_dialog_detail_${suffix}`,
       role: '/bidAdmin',
-      fullName: 'E2E 抽屉详情 Admin'
+      fullName: 'E2E 弹窗详情 Admin'
     })
 
     await injectSession(page, session)
     await page.goto('/knowledge/case')
     await page.waitForLoadState('load')
 
-    // 点击第一个案例卡片打开抽屉（空库时跳过）
+    // 点击第一个案例卡片打开弹窗（空库时跳过）
     const firstCard = page.locator('.case-card').first()
     if (await firstCard.isVisible()) {
       await firstCard.click()

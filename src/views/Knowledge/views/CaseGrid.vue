@@ -45,8 +45,8 @@
       </div>
     </div>
 
-    <CaseDetailDrawer v-model="drawerVisible" :case-data="selectedCase" :loading="drawerLoading"
-      @reuse="handleReuseInDrawer" @go-source="goToSourceProject" @open-bid="openBidDocument" />
+    <CaseDetailDialog v-model="dialogVisible" :case-data="selectedCase" :loading="dialogLoading"
+      @reuse="handleReuseInDialog" @go-source="goToSourceProject" @open-bid="openBidDocument" />
   </div>
 </template>
 
@@ -56,12 +56,12 @@ import { ElMessage } from 'element-plus'
 import httpClient from '@/api/client.js'
 import { casesApi } from '@/api/modules/knowledge.js'
 import CaseCard from './components/CaseCard.vue'
-import CaseDetailDrawer from './components/CaseDetailDrawer.vue'
+import CaseDetailDialog from './components/CaseDetailDialog.vue'
 import { PROJECT_TYPE_LABELS, CUSTOMER_TYPE_OPTIONS } from './caseLabels.js'
 
 const filters = reactive({ keyword: '', customerType: '', projectType: '' })
 const loading = ref(false); const cases = ref([]); const page = ref(1); const pageSize = ref(16); const totalElements = ref(0)
-const drawerVisible = ref(false); const drawerLoading = ref(false); const selectedCase = ref(null)
+const dialogVisible = ref(false); const dialogLoading = ref(false); const selectedCase = ref(null)
 const exportLoading = ref(false)
 
 const buildFilterParams = () => ({
@@ -117,7 +117,7 @@ const handleReuse = async (item) => {
   } catch { ElMessage.error('复制失败') }
 }
 
-const handleReuseInDrawer = async (d) => {
+const handleReuseInDialog = async (d) => {
   try { await navigator.clipboard.writeText(d.responseText || ''); await casesApi.reuseCase(d.caseId || d.id); ElMessage.success('已复制到剪贴板')
   } catch { ElMessage.error('复制失败') }
 }
@@ -133,42 +133,42 @@ const openBidDocument = async (d) => {
 }
 
 const viewDetail = async (id) => {
-  drawerVisible.value = true; drawerLoading.value = true; selectedCase.value = null
+  dialogVisible.value = true; dialogLoading.value = true; selectedCase.value = null
   try { const res = await casesApi.getDetail(id); selectedCase.value = res?.data || res
-  } catch { ElMessage.error('获取案例详情失败') } finally { drawerLoading.value = false }
+  } catch { ElMessage.error('获取案例详情失败') } finally { dialogLoading.value = false }
 }
 
-const SESSION_KEY = 'case-drawer-state'
-const restoreDrawerState = () => {
+const SESSION_KEY = 'case-detail-state'
+const restoreDialogState = () => {
   try {
     const saved = sessionStorage.getItem(SESSION_KEY)
     if (saved) {
       const state = JSON.parse(saved)
       if (state.caseId) {
-        selectedCase.value = state; drawerVisible.value = true
+        selectedCase.value = state; dialogVisible.value = true
       }
     }
   } catch { /* ignore parse errors */ }
 }
 
-// Save drawer state before unmount (tab switch / page navigate)
-const saveDrawerState = () => {
-  if (drawerVisible.value && selectedCase.value) {
+// Save dialog state before unmount (tab switch / page navigate)
+const saveDialogState = () => {
+  if (dialogVisible.value && selectedCase.value) {
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(selectedCase.value))
   } else {
     sessionStorage.removeItem(SESSION_KEY)
   }
 }
 
-// Also save when drawer visibility changes
-watch(drawerVisible, (visible) => {
+// Also save when dialog visibility changes
+watch(dialogVisible, (visible) => {
   if (!visible) {
     sessionStorage.removeItem(SESSION_KEY)
   }
 })
 
-onMounted(() => { restoreDrawerState(); loadCases(); })
-onBeforeUnmount(saveDrawerState)
+onMounted(() => { restoreDialogState(); loadCases(); })
+onBeforeUnmount(saveDialogState)
 </script>
 
 <style scoped lang="scss">
