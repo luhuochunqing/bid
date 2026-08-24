@@ -93,8 +93,11 @@ const handleSearch = async () => {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     })
     const data = await res.json()
-    if (data?.success && Array.isArray(data?.data?.content)) {
-      results.value = data.data.content.map(item => ({
+    // CaseSearchResultDTO 结构为 { items, total }；兼容旧 Page 结构 { content }
+    const payload = data?.data
+    const content = Array.isArray(payload?.content) ? payload.content : Array.isArray(payload?.items) ? payload.items : []
+    if (content.length) {
+      results.value = content.map(item => ({
         id: item.id, name: item.title || '未命名方案',
         projectName: item.customerName || '未知项目', industry: item.industry || '未分类',
         date: item.projectDate || item.createdAt || '未知日期',

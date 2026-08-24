@@ -30,7 +30,12 @@ test.describe('knowledge case review', () => {
     expect(caseId).toBeTruthy()
 
     await injectSession(page, session)
-    await page.goto(`/knowledge/case/detail?id=${caseId}`)
-    await expect(page.getByText(`E2E 案例复盘 ${suffix}`)).toBeVisible()
+    // 独立案例详情页已下线（/knowledge/case/detail 路由不存在，案例详情并入案例库抽屉）；
+    // Case 实体的 UI 出口为 AI 方案复用页（/ai-center/solution-reuse 读 /api/knowledge/cases）
+    await page.goto('/ai-center/solution-reuse')
+    const keywordInput = page.locator('input').first()
+    await keywordInput.fill(`E2E 案例复盘 ${suffix}`)
+    await page.getByRole('button', { name: /搜索|查询/ }).first().click()
+    await expect(page.getByText(`E2E 案例复盘 ${suffix}`).first()).toBeVisible({ timeout: 10000 })
   })
 })
