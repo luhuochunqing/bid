@@ -142,6 +142,31 @@ class OpenAiScoreAnalyzerTest {
     }
 
     @Test
+    void recallCandidates_manyChunks_filtersToRelevantScoringChunks() {
+        OpenAiScoreAnalyzer analyzer = new OpenAiScoreAnalyzer(
+                structuredOutputService, configurationResolver, structuralChunker);
+        // 5 个 chunk，其中 1 个含评分关键词
+        List<DocumentChunk> chunks = List.of(
+                new DocumentChunk("第一章 招标公告 内容1", List.of("第一章")),
+                new DocumentChunk("第二章 投标人须知 内容2", List.of("第二章")),
+                new DocumentChunk("第三章 评审办法 评分标准：财务状况满分20分", List.of("第三章 评审办法")),
+                new DocumentChunk("第四章 合同条款 内容4", List.of("第四章")),
+                new DocumentChunk("第五章 技术规范 内容5", List.of("第五章"))
+        );
+        when(structuralChunker.chunk(any(), any())).thenReturn(chunks);
+        when(configurationResolver.resolve(anyString())).thenReturn(requestConfig());
+        when(structuredOutputService.request(anyString(), eq(ScoreCandidateOutput.class), any(), anyString()))
+                .thenReturn(llmOutput("财务状况满分20分"));
+
+        RecallOutcome outcome = analyzer.recallCandidates(NEUTRAL_TEXT, null, null);
+
+        // 仅对含评分特征的 chunk 发起 LLM 调用（1 次而非 5 次）
+        verify(structuredOutputService, times(1))
+                .request(anyString(), eq(ScoreCandidateOutput.class), any(), anyString());
+        assertThat(outcome.candidates()).isNotEmpty();
+    }
+
+    @Test
     void assessObjective_withImages_callsMultimodalServiceWithMappedImages() {
         // spec 048 T017：DocumentImage → MultimodalImage 映射 + prompt 含图片判定指引（中性措辞）
         OpenAiScoreAnalyzer analyzer = new OpenAiScoreAnalyzer(

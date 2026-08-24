@@ -148,6 +148,16 @@ def _get_convert_pool() -> ProcessPoolExecutor:
 def _convert_worker(path: str) -> Any:
     _suppress_docx_image_inlining()
     _suppress_docx_pre_process()
+    if path.lower().endswith(".pdf"):
+        try:
+            from types import SimpleNamespace
+            from converter import convert_pdf_to_markdown
+
+            pdf_md = convert_pdf_to_markdown(path)
+            if pdf_md and len(pdf_md.strip()) >= 50:
+                return SimpleNamespace(text_content=pdf_md, markdown=pdf_md)
+        except Exception as e:
+            logger.warning("Custom PDF conversion failed, falling back to markitdown: %s", e)
     return md.convert(path)
 
 

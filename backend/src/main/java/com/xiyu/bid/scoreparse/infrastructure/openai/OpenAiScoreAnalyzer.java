@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.regex.Pattern;
 
 /**
  * 评分标准解析 LLM 编排器（spec 041 FR-001 四路召回）。
@@ -119,10 +120,14 @@ public class OpenAiScoreAnalyzer {
         return list;
     }
 
+    private static final Pattern SCORE_CHUNK_KEYWORD_PATTERN = Pattern.compile(
+            "评分|评标|评审|分值|满分|得分|评分项|详细评审|商务标|技术标|综合评估|价格分|商务分|技术分|加分|扣分|分细则");
+
     /** 召回四：chunk 切片多轮 LLM 全文结构化提取；单 chunk 两连败跳过不阻断 */
     private RecallOutcome recallLane4LlmFullText(
             String fullText, String structuredMetadata, ProgressReporter progress) {
-        List<DocumentChunk> chunks = structuralChunker.chunk(fullText, structuredMetadata);
+        List<DocumentChunk> allChunks = structuralChunker.chunk(fullText, structuredMetadata);
+        List<DocumentChunk> chunks = filterRelevantChunks(allChunks);
         List<ScoreCandidate> candidates = new ArrayList<>();
         if (chunks.isEmpty()) {
             log.warn("结构化切片为空，跳过 LLM 召回");
@@ -152,9 +157,25 @@ public class OpenAiScoreAnalyzer {
             report(progress, 15 + llmProgressSpan * (i + 1) / chunks.size(),
                     "召回三/四：LLM 语义提取 " + (i + 1) + "/" + chunks.size());
         }
-        log.info("召回四（LLM 全文语义）完成: chunks={}, count={}, skipped={}, aligned={}/{}",
-                chunks.size(), candidates.size(), skipped, alignedCount, candidates.size());
+        log.info("召回四（LLM 全文语义）完成: chunks={}/{}, count={}, skipped={}, aligned={}/{}",
+                chunks.size(), allChunks.size(), candidates.size(), skipped, alignedCount, candidates.size());
         return new RecallOutcome(candidates, skipped);
+    }
+
+    private List<DocumentChunk> filterRelevantChunks(List<DocumentChunk> allChunks) {
+        if (allChunks.size() <= 4) {
+            return allChunks;
+        }
+        List<DocumentChunk> relevant = new ArrayList<>();
+        for (DocumentChunk chunk : allChunks) {
+            boolean pathMatches = chunk.sectionPath() != null && chunk.sectionPath().stream()
+                    .anyMatch(p -> p != null && SCORE_CHUNK_KEYWORD_PATTERN.matcher(p).find());
+            boolean textMatches = SCORE_CHUNK_KEYWORD_PATTERN.matcher(chunk.text()).find();
+            if (pathMatches || textMatches) {
+                relevant.add(chunk);
+            }
+        }
+        return relevant.isEmpty() ? allChunks : relevant;
     }
 
     /**

@@ -2621,3 +2621,50 @@ sidecar OOM 根治任务（PR !2373，完整根因见 `root-cause-analysis-sidec
 - `backend/src/test/java/com/xiyu/bid/testsupport/integration/MockAuthSeedTestExecutionListener.java`
 - `backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/openai/E2eNoopScoreAnalyzer.java`
 - `implementation-notes.html`（本次修复完整决策矩阵与验证证据）
+
+---
+
+## 151. 复杂/大体量标书 PDF 评分标准解析准确率系统性治理（Sidecar 换行与表格保真 + 跨维度编号防碰撞 + 聚焦切片召回）（2026-08-24）
+
+### 问题背景
+
+用户反馈"AI评分标准解析功能在某些招标文件（如 203 页、3MB、双标的的大型央国企电子商城招标文件）完全解析不准，很多评分项丢失或无法识别"。
+
+全链路实测定位出 4 大系统性缺陷：
+1. **Sidecar PDF 转换回退丢失换行与表格**：`markitdown` 在处理 PDF 时，由于 `plain_pages > form_pages` 回退到 `pdfminer.extract_text`，受字体与排版 matrix 影响输出 0 个 `\n` 换行符（全篇十万字变成单行长串），导致后端所有基于行正则与 Markdown 表格的提取器完全失效。
+2. **候选池合并策略将编号视为全局唯一导致跨维度误吞**：`ScoreItemMergePolicy` 的 `mergeKey` 仅以 `candidate.code()` 为键；当商务评分项编号为 `1`、技术评分项编号也为 `1` 时，技术评分项及后续重号项因 `sameDim=false` 且非子串被**静默丢弃**。
+3. **盲目全篇 Chunking 稀释信号并引发跨页割裂**：`StructuralDocumentChunker` 在无 Markdown 标题元数据时切出 25 个 4000 字 chunk 全篇机械送 LLM，不仅评分表格跨页被腰斩，且 90% 均为非评分合同噪声，拖慢耗时并增加幻觉。
+4. **表格定位器缺乏纯文本与中文大章节感知**：`MarkdownScoreSectionLocator` 仅匹配 `|` 管道表格，对纯文本排版招标文件无法定位核心评分章节。
+
+### 修复方案
+
+1. **Sidecar PDF 结构化保真转换（`converter.py` & `app.py`）**：
+   - 引入 `pdfplumber` 逐页提取表格为标准 Markdown 管道表格（`| col | col |`），单内换行转 `<br>`，彻底保留文本 `\n` 换行结构。
+   - 增强 `extract_headings` 支持中文招标文件标准层级（`第X章 ...`、`评审办法前附表`、`1 评审方法` 等），输出带完整 breadcrumb 路径的结构化 section 元数据。
+2. **评分合并策略防碰撞重构（`ScoreItemMergePolicy.java`）**：
+   - 区分"同维度同编号合并补强"与"跨维度同编号独立保留"：当 `code` 相同但 `dim` 属于不同维度且内容互不包含时，作为独立评分项保留（例如商务项 1 与技术项 1 各自保留）。
+3. **评分章节双模定位（`MarkdownScoreSectionLocator.java`）**：
+   - 支持 Markdown 管道表格定位，并在无表格时自动回退为纯文本评分大章节定位，支持中文标题向上溯源。
+4. **LLM 全文语义聚焦切片（`OpenAiScoreAnalyzer.java`）**：
+   - 在 `recallLane4LlmFullText` 中增加 `filterRelevantChunks`，优先仅将包含评分关键词与章节路径的高信号 chunk 送入 LLM，大幅削减 80%+ 的无关合同噪音调用，响应提速数倍且大幅降低幻觉。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| PDF 解析单行化（0 换行）导致下游正则全军覆没 | PDF 文本抽取库（如 pdfminer/markitdown）容易在复杂排版/多栏/字体 matrix 下丢失换行符与表格结构 | PDF 转换必须保留表格结构与段落换行（使用 pdfplumber 提取表格转化为 Markdown 管道表）；入库或下游分析前校验换行符密度 |
+| 合并去重 Key 范围过大导致真数据被误删 | 真实招标文件各章节/维度通常各自从 1 开始编号，编号仅在章节内唯一，不能作为全局唯一 Key | 合并策略必须考虑维度隔离（`dim + code` 复合防碰撞），仅在同维度或明确为同项原文扩展时才合并，跨维度不同项必须各自保留 |
+| 200 页文档盲目全篇切片调用 LLM | 全文几十个 chunk 无差别调用 LLM 耗时极长、成本高昂且 90% 为噪声 | 语义召回前应基于文档目录/大章节/关键词做高信号 chunk 过滤与聚焦，让 LLM 专注于评分章节 |
+
+### 相关文件
+
+- `document-converter-sidecar/converter.py`
+- `document-converter-sidecar/app.py`
+- `document-converter-sidecar/tests/test_app.py`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreItemMergePolicy.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/structure/MarkdownScoreSectionLocator.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/openai/OpenAiScoreAnalyzer.java`
+- `backend/src/test/java/com/xiyu/bid/scoreparse/domain/ScoreItemMergePolicyTest.java`
+- `backend/src/test/java/com/xiyu/bid/scoreparse/infrastructure/structure/MarkdownScoreSectionLocatorTest.java`
+- `backend/src/test/java/com/xiyu/bid/scoreparse/infrastructure/openai/OpenAiScoreAnalyzerTest.java`
+

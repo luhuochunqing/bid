@@ -290,10 +290,6 @@ def test_extract_headings_char_offsets():
     assert result[-1]["charEnd"] == len(text)
 
 
-# ---------------------------------------------------------------------------
-# Health check
-# ---------------------------------------------------------------------------
-
 @pytest.mark.asyncio
 async def test_health_check(no_key_app):
     async with AsyncClient(
@@ -302,3 +298,31 @@ async def test_health_check(no_key_app):
         response = await client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "up"}
+
+
+def test_extract_headings_chinese_tender_structure():
+    from converter import extract_headings
+
+    text = """第一章 招标公告
+招标人发布公告内容。
+
+第二章 投标人须知
+投标人须知前附表内容。
+
+第三章 评审办法（综合评估法）
+评审办法前附表
+评审标准与细则表格。
+
+1 评审方法
+采用综合评估法。
+
+第四章 合同条款
+合同条款详情。
+"""
+    result = extract_headings(text)
+    assert len(result) >= 4
+    headings = [r["heading"] for r in result]
+    assert "第一章 招标公告" in headings
+    assert "第三章 评审办法（综合评估法）" in headings
+    assert "评审办法前附表" in headings
+
