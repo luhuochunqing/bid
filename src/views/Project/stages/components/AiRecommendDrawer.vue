@@ -60,9 +60,10 @@
       </div>
     </div>
 
-    <!-- 详情弹窗：复用案例库详情组件（居中弹窗），内容保持一致 -->
+    <!-- 详情弹窗：复用案例库详情组件（居中弹窗），内容保持一致；嵌套于抽屉内必须 append-to-body，否则层级被抽屉压制 -->
     <CaseDetailDialog
       v-model="detailVisible"
+      append-to-body
       :case-data="detailCase"
       :loading="detailLoading"
       @reuse="handleReuseInDetail"
