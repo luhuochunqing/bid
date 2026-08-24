@@ -135,7 +135,9 @@ const routes = [
       },
       {
         path: 'project/create',
-        redirect: '/project'
+        name: 'ProjectCreate',
+        component: () => import('@/views/Project/Create.vue'),
+        meta: { title: '创建项目', showBack: true }
       },
       {
         path: 'project/:id',

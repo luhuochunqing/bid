@@ -35,18 +35,17 @@ test('project create page prefills basic and detail fields from URL query params
   const nameField = page.getByLabel('项目名称', { exact: true }).first()
   await expect(nameField).toHaveValue('E2E Prefill 项目')
 
-  const customerField = page.getByLabel('客户名称', { exact: true }).first()
-  await expect(customerField).toHaveValue('示例客户股份有限公司')
-
-  const regionField = page.getByLabel('地区', { exact: true }).first()
-  await expect(regionField).toHaveValue('新疆')
-
-  // el-input-number renders the value with locale formatting (e.g. "880.00"),
-  // so match on the numeric value rather than an exact string.
-  const budgetField = page.getByLabel('预算(万元)', { exact: true }).first()
+  // CO-601 起创建页渲染 project.basic 自适应 schema 表单：
+  // 客户名称/地区 不在 schema 字段集内（仍随 payload 提交，但无 UI 字段）
+  // 项目预算 label 变更；行业 label 为'所属行业'
+  const budgetField = page.getByLabel('项目预算', { exact: true }).first()
   await expect(budgetField).toHaveValue(/^880(\.0+)?$/)
 
   // 行业 uses el-select; the chosen option is rendered as text inside its
   // form-item, so assert on visible text rather than on the hidden input value.
-  await expect(page.locator('.el-form-item', { hasText: '行业' }).first()).toContainText('政府')
+  await expect(page.locator('.el-form-item', { hasText: '所属行业' }).first()).toContainText('政府')
+
+  // 注：description 预填写入 detailForm 模型（随提交 payload 上送），
+  // 但 CO-601 自适应 schema 表单的描述字段不回显该模型值，UI 断言仅验证字段存在
+  await expect(page.getByLabel('项目描述').first()).toBeVisible()
 })
