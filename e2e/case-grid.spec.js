@@ -17,7 +17,7 @@ test.describe('case grid', () => {
     await expect(page.getByText('案例库').first()).toBeVisible({ timeout: 10000 })
 
     // Filter form present
-    await expect(page.getByPlaceholder('搜索打分点/需求/应答...')).toBeVisible()
+    await expect(page.getByPlaceholder('搜索评分项/要素...')).toBeVisible()
 
     // 等筛选栏 / 卡片 / 空状态其一渲染完成（避免 networkidle 等待）
     await page.waitForSelector('.el-select, .case-card, .el-empty', { timeout: 10000 })
@@ -35,12 +35,12 @@ test.describe('case grid', () => {
     await page.goto('/knowledge/case')
     await page.waitForSelector('.el-select, .case-card, .el-empty', { timeout: 10000 })
 
-    const input = page.getByPlaceholder('搜索打分点/需求/应答...')
+    const input = page.getByPlaceholder('搜索评分项/要素...')
     await input.fill('测试关键词')
 
-    // 点筛选后等 /api/cases 列表接口响应
+    // 点查询后等 /api/cases 列表接口响应
     const respPromise = page.waitForResponse(r => r.url().includes('/api/cases') && r.status() === 200, { timeout: 10000 })
-    await page.getByRole('button', { name: '筛选' }).click()
+    await page.getByRole('button', { name: '查询' }).click()
     await respPromise
 
     // No error toast should appear (basic smoke test)
@@ -69,20 +69,24 @@ test.describe('case grid', () => {
     await expect(page.getByRole('option', { name: '央企' }).first()).toHaveCount(1)
   })
 
-  test('date range picker is accessible', async ({ page }) => {
+  test('project type filter is accessible', async ({ page }) => {
     const { ensureApiSession, injectSession } = await import('./auth-helpers.js')
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
     const session = await ensureApiSession({
-      username: `e2e_casegrid_date_${suffix}`,
+      username: `e2e_casegrid_ptype_${suffix}`,
       role: '/bidAdmin',
-      fullName: 'E2E CaseGrid Date'
+      fullName: 'E2E CaseGrid PType'
     })
     await injectSession(page, session)
     await page.goto('/knowledge/case')
     await page.waitForSelector('.el-select, .case-card, .el-empty', { timeout: 10000 })
 
-    // el-date-picker 不暴露 combobox role，通过 .el-form-item 定位 .el-date-editor
-    const picker = page.locator('.el-form-item').filter({ hasText: '上传时间' }).locator('.el-date-editor')
-    await expect(picker).toBeVisible()
+    // 项目类型单选下拉可打开（筛选区精简后保留字段，与客户类型一致为单选）
+    const formItem = page.locator('.el-form-item').filter({ hasText: '项目类型' })
+    const selectWrapper = formItem.locator('.el-select')
+    await expect(selectWrapper).toBeVisible()
+    await selectWrapper.click()
+    // 下拉展开后 .el-select-dropdown 渲染到 body（选项内容随字典变化，只断言下拉已展开）
+    await expect(page.locator('.el-select-dropdown:visible').first()).toHaveCount(1)
   })
 })

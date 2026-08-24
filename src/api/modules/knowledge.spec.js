@@ -202,7 +202,6 @@ describe('casesApi', () => {
         closeDateFrom: undefined,
         closeDateTo: undefined,
         statuses: 'PUBLISHED',
-        sortBy: 'created',
         page: 1, // 内部把 page 从 1-based 转为 0-based
         size: 16
       }
@@ -236,14 +235,6 @@ describe('casesApi', () => {
     await casesApi.reuseCase(42)
 
     expect(httpClient.post).toHaveBeenCalledWith('/api/cases/42/reuse')
-  })
-
-  it('offShelfCase(): calls POST /api/cases/{id}/off-shelf', async () => {
-    httpClient.post.mockResolvedValue({ success: true })
-
-    await casesApi.offShelfCase(42)
-
-    expect(httpClient.post).toHaveBeenCalledWith('/api/cases/42/off-shelf')
   })
 
   it('checkPrecipitationReadiness(): calls GET /api/cases/precipitation-readiness', async () => {

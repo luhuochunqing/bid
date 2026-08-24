@@ -1,8 +1,16 @@
+// Input: 案例库列表/详情查询参数（关键词、客户类型、项目类型等）
+// Output: 分页案例列表（KnowledgeCaseResponse）与案例详情（KnowledgeCaseDetailResponse，含招标主体）
+// Pos: Backend/casework 模块应用服务——案例查询（列表固定按创建时间倒序）
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+
 package com.xiyu.bid.casework.application.service;
 
+import com.xiyu.bid.casework.dto.KnowledgeCaseDetailResponse;
 import com.xiyu.bid.casework.dto.KnowledgeCaseResponse;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
 import com.xiyu.bid.casework.infrastructure.KnowledgeCaseRepository;
+import com.xiyu.bid.project.entity.ProjectInitiationDetails;
+import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -24,6 +32,7 @@ import java.util.List;
 public class KnowledgeCaseQueryAppService {
 
     private final KnowledgeCaseRepository caseRepository;
+    private final ProjectInitiationDetailsRepository initiationDetailsRepository;
 
     public Page<KnowledgeCaseResponse> queryCases(
             String keyword,
@@ -35,15 +44,11 @@ public class KnowledgeCaseQueryAppService {
             String closeDateFrom,
             String closeDateTo,
             List<String> statuses,
-            String sortBy,
             int page,
             int size) {
 
-        Sort pinnedSort = Sort.by(Sort.Direction.DESC, "isPinned");
-        Sort secondarySort = "reuse".equalsIgnoreCase(sortBy)
-                ? Sort.by(Sort.Direction.DESC, "reuseCount")
-                : Sort.by(Sort.Direction.DESC, "createdAt");
-        Sort sort = pinnedSort.and(secondarySort);
+        // 列表固定按创建时间倒序（置顶/最热复用排序已随 UI 下线，导出排序见 CaseExportQuery.sortBy）
+        Sort sort = Sort.by(Sort.Direction.DESC, "createdAt");
 
         Specification<KnowledgeCase> spec = buildSpecification(
                 keyword, scoringCategory, customerType, projectTypes,
@@ -58,9 +63,37 @@ public class KnowledgeCaseQueryAppService {
         return new PageImpl<>(responses, PageRequest.of(page, size), pagedResult.getTotalElements());
     }
 
-    public KnowledgeCase getCaseDetail(Long id) {
-        return caseRepository.findById(id)
+    public KnowledgeCaseDetailResponse getCaseDetail(Long id) {
+        KnowledgeCase kCase = caseRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("案例不存在: " + id));
+        return toDetailResponse(kCase);
+    }
+
+    /** 招标主体：通过 source_project_id 关联 project_initiation_details.owner_unit，关联不到为 null。 */
+    private KnowledgeCaseDetailResponse toDetailResponse(KnowledgeCase c) {
+        String ownerUnit = c.getSourceProjectId() == null ? null
+                : initiationDetailsRepository.findByProjectId(c.getSourceProjectId())
+                        .map(ProjectInitiationDetails::getOwnerUnit)
+                        .orElse(null);
+        return new KnowledgeCaseDetailResponse(
+                c.getId(),
+                c.getSourceProjectId(),
+                c.getSourceProjectName(),
+                ownerUnit,
+                c.getScoringPointTitle(),
+                c.getScoringPointId(),
+                c.getRequirementRaw(),
+                c.getResponseText(),
+                c.getReuseCount(),
+                c.getIsPinned(),
+                c.getStatus(),
+                c.getCustomerType(),
+                c.getProjectType(),
+                c.getBidResult(),
+                c.getScoringCategory(),
+                c.getProductLine(),
+                c.getCreatedAt()
+        );
     }
 
     private Specification<KnowledgeCase> buildSpecification(
