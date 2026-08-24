@@ -73,10 +73,10 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
-import httpClient from '@/api/client.js'
 import { caseRecommendationApi } from '@/api/modules/caseRecommendation'
+import { projectLifecycleApi } from '@/api/modules/projectLifecycle'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import CaseCard from '@/views/Knowledge/views/components/CaseCard.vue'
 import CaseDetailDrawer from '@/views/Knowledge/views/components/CaseDetailDrawer.vue'
@@ -122,8 +122,10 @@ function optionTitle(item) {
 }
 
 const filteredCases = computed(() => {
-  if (!keywordFilter.value.trim()) return cases.value
+  // 选中评分项时 handleItemChange 已把关键词传给服务端过滤，客户端不再叠加过滤，避免误杀语义匹配结果
+  if (selectedItemId.value) return cases.value
   const kw = keywordFilter.value.trim().toLowerCase()
+  if (!kw) return cases.value
   return cases.value.filter(c =>
     (c.scoringTitle || '').toLowerCase().includes(kw) ||
     (c.responseTextSummary || '').toLowerCase().includes(kw) ||
@@ -194,6 +196,7 @@ async function handleItemChange() {
 }
 
 let keywordDebounceTimer
+onBeforeUnmount(() => clearTimeout(keywordDebounceTimer))
 watch(keywordFilter, () => {
   if (selectedItemId.value) {
     clearTimeout(keywordDebounceTimer)
@@ -203,30 +206,19 @@ watch(keywordFilter, () => {
   }
 })
 
+// 推荐接口条目 → CaseCard 所需字段（详情全文由 getCaseDetail 单独拉取，此处不透传无用字段）
 function normalizeRecommendCase(item) {
   return {
     caseId: item.id ?? item.caseId,
     scoringTitle: item.scoringPointTitle || item.scoringTitle,
-    responseTextSummary: summarize(item.responseTextSummary || item.responseText || ''),
+    responseTextSummary: item.responseTextSummary || item.responseText || '',
     projectType: item.projectType,
     customerType: item.customerType,
-    bidResult: item.bidResult,
-    reuseCount: item.reuseCount || 0,
-    sourceProjectName: item.sourceProjectName,
-    bidEntity: item.bidEntity || '',
     createdAt: item.createdAt || '',
-    projectStatus: item.projectStatus || '',
     score: item.matchScore ?? item.score ?? 0,
-    scoreLabel: item.matchLabel || item.scoreLabel || '',
-    matchReason: Array.isArray(item.matchReasons) ? item.matchReasons.join('；') : (item.matchReason || ''),
     responseText: item.responseText || '',
-    requirementRaw: item.requirementRaw || '',
+    sourceProjectName: item.sourceProjectName,
   }
-}
-
-function summarize(text) {
-  if (!text) return ''
-  return text.length > 100 ? text.slice(0, 100) + '...' : text
 }
 
 async function viewDetail(caseId) {
@@ -270,8 +262,8 @@ function goToSourceProject(d) {
 async function openBidDocument(d) {
   if (!d?.sourceProjectId) { ElMessage.warning('标书原文暂不可用'); return }
   try {
-    const res = await httpClient.get(`/api/archive/export-zip/${d.sourceProjectId}`, { responseType: 'blob' })
-    const url = URL.createObjectURL(new Blob([res], { type: 'application/zip' }))
+    const res = await projectLifecycleApi.exportProjectArchive(d.sourceProjectId)
+    const url = URL.createObjectURL(res.data)
     const a = document.createElement('a')
     a.href = url
     a.download = `标书原文-${d.sourceProjectId}.zip`

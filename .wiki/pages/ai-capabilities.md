@@ -378,8 +378,8 @@ AiAnalysisResponse
   - 调用 `/api/cases/recommend` 由 `KnowledgeCaseMatchPolicy` 执行多因子匹配（评分项文本 Jaccard 相似度、行业/客户类型匹配度、中标结果加权）。
   - 支持 300ms 防抖的关键词二次过滤。
 - **复用与闭环**：
-  - 案例卡片不展示复用次数。
-  - 详情弹窗（`AiRecommendDualPaneDialog`）三模块：顶部评分项；中部三层（评分项详细要素原文 / 应答片段原文 / 案例元信息：项目名称、招标主体、创建时间、项目状态、客户类型、项目类型）；底部「复用」。
+  - 案例卡片直接复用案例库 `CaseCard`（2 列网格，左下角创建时间；推荐场景经可选 `matchScore` prop 额外渲染「匹配度 N%」，案例库不传零变化）。
+  - 详情复用案例库 `CaseDetailDrawer`（点击卡片调 `GET /api/cases/{caseId}` 拉全量含招标主体），三模块：评分项详细要素原文 / 应答片段全文 / 案例元信息（项目名称、招标主体、创建时间、项目状态、客户类型、项目类型）；底部「查看源项目 / 标书原文 / 复用」。原自研 `AiRecommendDualPaneDialog` 已删除（2026-08 对齐案例库 PRD 精简重构）。
   - 点击「复用」将应答内容写入系统剪贴板，同时调用 `POST /api/cases/{id}/reuse` 记录复用（后端累加 `reuse_count`，界面不展示）。
   - 推荐列表额外返回 `bidEntity` / `createdAt` / `projectStatus`（来源项目 + 标讯批量装配，不落案例表）。
 

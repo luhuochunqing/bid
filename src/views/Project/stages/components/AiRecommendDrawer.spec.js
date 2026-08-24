@@ -16,6 +16,14 @@ vi.mock('@/api/error-utils.js', () => ({
   notifyErrorUnlessRateLimit: vi.fn(),
 }))
 
+vi.mock('@/api/modules/projectLifecycle', () => ({
+  projectLifecycleApi: {
+    exportProjectArchive: vi.fn(),
+  },
+}))
+
+import { projectLifecycleApi } from '@/api/modules/projectLifecycle'
+
 const LONG_DETAIL = '技术方案实施方案完整可行，包含架构设计、部署方案与应急预案等关键要素'
 
 const recommendItem = {
@@ -70,17 +78,21 @@ describe('AiRecommendDrawer.vue', () => {
     'el-option-group': { props: ['label'], template: `<div><slot /></div>` },
     'el-option': { props: ['label', 'value'], template: `<div class="el-option-mock"><slot /></div>` },
     'el-tooltip': { props: ['content'], template: `<span class="el-tooltip-mock"><slot /></span>` },
-    'el-input': { template: `<input />` },
+    'el-input': {
+      props: ['modelValue'],
+      emits: ['update:modelValue'],
+      template: `<input :value="modelValue" @input="$emit('update:modelValue', $event.target.value)" />`,
+    },
     'el-tag': { template: `<span><slot /></span>` },
     'el-button': { template: `<button @click="$emit('click', $event)"><slot /></button>` },
     'el-empty': { template: `<div class="el-empty-mock" />` },
     'el-alert': { template: `<div class="el-alert-mock"><slot name="title" /></div>` },
-    'el-card': { template: `<div class="el-card-mock" v-on="$attrs"><slot /></div>` },
+    'el-card': { template: `<div class="el-card-mock"><slot /></div>` },
     'el-icon': { template: `<i><slot /></i>` },
     CaseDetailDrawer: {
       props: ['modelValue', 'caseData', 'loading'],
       emits: ['update:modelValue', 'reuse', 'go-source', 'open-bid'],
-      template: `<div class="detail-drawer-mock" v-if="modelValue">{{ caseData?.ownerUnit }}</div>`,
+      template: `<div class="detail-drawer-mock" v-if="modelValue">{{ caseData?.ownerUnit }}<button class="mock-open-bid" @click="$emit('open-bid', caseData)">标书原文</button></div>`,
     },
   }
 
@@ -144,6 +156,58 @@ describe('AiRecommendDrawer.vue', () => {
     const detailMock = wrapper.find('.detail-drawer-mock')
     expect(detailMock.exists()).toBe(true)
     expect(detailMock.text()).toContain('某省电力公司')
+  })
+
+  it('server-filters by keyword when score item selected and keeps semantic matches without client-side killing', async () => {
+    caseRecommendationApi.getScoreItems.mockResolvedValue([
+      { id: 1, code: '3.1', dim: '技术评分', detail: LONG_DETAIL },
+    ])
+    // 返回项各字段均不含「电网」：若客户端仍叠加过滤会误杀该语义匹配结果，卡片应保留
+    caseRecommendationApi.recommendCases.mockResolvedValue({
+      total: 1,
+      items: [{ ...recommendItem, sourceProjectName: '某省电力公司信息化项目' }],
+    })
+    const wrapper = mountDrawer()
+    await flushPromises()
+
+    await wrapper.find('input').setValue('电网')
+    await vi.waitFor(() => {
+      expect(caseRecommendationApi.recommendCases).toHaveBeenLastCalledWith(10, {
+        scoreItemId: 1,
+        keyword: '电网',
+        page: 0,
+        size: 20,
+      })
+    })
+    await flushPromises()
+
+    expect(wrapper.find('.recommend-grid .case-card').exists()).toBe(true)
+  })
+
+  it('downloads bid archive zip from the blob payload (res.data), not the raw response', async () => {
+    const blobPayload = new Blob(['zip-bytes'], { type: 'application/zip' })
+    projectLifecycleApi.exportProjectArchive.mockResolvedValue({ data: blobPayload })
+    const createObjectURL = vi.fn(() => 'blob:mock-url')
+    const revokeObjectURL = vi.fn()
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    window.URL.createObjectURL = createObjectURL
+    window.URL.revokeObjectURL = revokeObjectURL
+
+    try {
+      caseRecommendationApi.getCaseDetail.mockResolvedValue(caseDetailResponse)
+      const wrapper = await mockOpenWithCases([recommendItem])
+
+      await wrapper.find('.recommend-grid .case-card').trigger('click')
+      await flushPromises()
+      await wrapper.find('.mock-open-bid').trigger('click')
+      await flushPromises()
+
+      expect(projectLifecycleApi.exportProjectArchive).toHaveBeenCalledWith(55)
+      expect(createObjectURL).toHaveBeenCalledWith(blobPayload)
+      expect(document.body.textContent).toContain('标书原文下载成功')
+    } finally {
+      clickSpy.mockRestore()
+    }
   })
 
   it('copies text and calls reuseCase on card reuse button', async () => {
