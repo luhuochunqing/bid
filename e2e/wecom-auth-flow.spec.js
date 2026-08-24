@@ -1,42 +1,12 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('WeCom OAuth2 SSO Flow', () => {
-  test('displays WeCom login button and redirects to WeCom OAuth page', async ({ page }) => {
+  test('login page intentionally hides WeCom entry (fedbfcc56)', async ({ page }) => {
     await page.goto('/login')
 
-    // Check if the button exists  // @ui-cover:auth
-    const wecomButton = page.locator('.wecom-button')
-    await expect(wecomButton).toBeVisible()
-    await expect(wecomButton).toContainText('企业微信登录')
-
-    // Intercept the authorize-params call
-    await page.route('**/api/auth/wecom/authorize-params', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          success: true,
-          message: 'Auth params generated',
-          data: {
-            state: 'test_state_123',
-            appid: 'ww_test_appid',
-            agentid: '1000002'
-          }
-        })
-      })
-    })
-
-    // Click and check if it tries to redirect
-    // We use a mock to avoid actual redirect out of the app
-    
-    // In our implementation, we change window.location.href
-    // Playwright will follow it unless we catch it or check the URL
-    await wecomButton.click()
-    
-    // Verify the URL constructed
-    // Note: Since window.location.href is changed, the page will navigate. 
-    // We can just check the URL before it actually leaves if possible, or expect a navigation error/timeout to the external domain.
-    // Alternatively, we can check the call to authorize-params was made.
+    // 企业微信登录入口已按 fedbfcc56 有意下线（SocialLogin 组件不再挂载）；
+    // OAuth 回调链路（code+state → /api/auth/wecom/callback）仍保留，见下方回调用例
+    await expect(page.locator('.wecom-button')).toHaveCount(0)
   })
 
   test('handles successful WeCom callback', async ({ page }) => {
@@ -91,7 +61,7 @@ test.describe('WeCom OAuth2 SSO Flow', () => {
   })
 
   test('handles state validation failure', async ({ page }) => {
-    // Mock the callback API with 403
+    // Mock the callback API with 403（msg 字段才是前端透传的错误文案）
     await page.route('**/api/auth/wecom/callback*', async (route) => {
       await route.fulfill({
         status: 403,
@@ -99,7 +69,7 @@ test.describe('WeCom OAuth2 SSO Flow', () => {
         body: JSON.stringify({
           success: false,
           code: 403,
-          message: 'INVALID_STATE'
+          msg: 'INVALID_STATE'
         })
       })
     })
