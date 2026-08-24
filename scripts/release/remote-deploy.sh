@@ -102,6 +102,22 @@ if [[ -n "$DB_BACKUP_COMMAND" ]]; then
 fi
 
 printf '==> Activating frontend assets\n'
+
+# ── 前端目录全层级属主校验（rm 前置，避免无权删除导致部署失败）──
+# 工程背景（2026-08-24 第 141 次测试部署）：/srv/www/xiyu-bid/assets/ 子目录属主曾为 nginx:nginx，
+# jetty 用户 rm -rf "$FRONTEND_PUBLIC_DIR" 时 Permission denied，部署中断。
+# 本校验递归检测目录树属主，若存在非当前用户的条目，则 sudo chown -R 修复后再删除激活。
+DEPLOY_USER="$(id -un)"
+if [[ -d "$FRONTEND_PUBLIC_DIR" ]]; then
+  NON_OWNED="$(find "$FRONTEND_PUBLIC_DIR" ! -user "$DEPLOY_USER" -print 2>/dev/null | head -n 5)"
+  if [[ -n "$NON_OWNED" ]]; then
+    printf '⚠️  前端目录存在非 %s 属主的条目，执行 sudo chown -R 修复：\n' "$DEPLOY_USER"
+    printf '    %s\n' "$NON_OWNED"
+    sudo chown -R "$DEPLOY_USER" "$FRONTEND_PUBLIC_DIR"
+    printf '✅ 前端目录属主已统一为 %s，可安全删除并激活\n' "$DEPLOY_USER"
+  fi
+fi
+
 rm -rf "$PENDING_FRONTEND_DIR"
 mkdir -p "$PENDING_FRONTEND_DIR"
 cp -R "$RELEASE_DIR/frontend/." "$PENDING_FRONTEND_DIR/"
