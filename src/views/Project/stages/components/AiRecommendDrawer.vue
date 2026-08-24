@@ -229,8 +229,8 @@ async function viewDetail(caseId) {
   try {
     const res = await caseRecommendationApi.getCaseDetail(caseId)
     detailCase.value = res?.data || res
-  } catch {
-    ElMessage.error('获取案例详情失败')
+  } catch (err) {
+    notifyErrorUnlessRateLimit(err, '获取案例详情失败')
     detailVisible.value = false
   } finally {
     detailLoading.value = false
@@ -240,11 +240,17 @@ async function viewDetail(caseId) {
 async function copyAndRecordReuse(caseId, text) {
   try {
     await navigator.clipboard.writeText(text)
-    await caseRecommendationApi.reuseCase(caseId)
-    ElMessage.success('已复制到剪贴板')
   } catch {
-    ElMessage.error('复制失败')
+    ElMessage.error('复制失败') // SAFE: 非 API 错误（剪贴板）
+    return
   }
+  try {
+    await caseRecommendationApi.reuseCase(caseId)
+  } catch (err) {
+    notifyErrorUnlessRateLimit(err, '复用记录失败')
+    return
+  }
+  ElMessage.success('已复制到剪贴板')
 }
 
 function handleReuse(item) {
@@ -272,7 +278,7 @@ async function openBidDocument(d) {
     URL.revokeObjectURL(url)
     ElMessage.success('标书原文下载成功')
   } catch (e) {
-    ElMessage.error('标书原文下载失败：' + (e?.response?.data?.msg || e?.message || '未知错误'))
+    notifyErrorUnlessRateLimit(e, '标书原文下载失败')
   }
 }
 </script>
