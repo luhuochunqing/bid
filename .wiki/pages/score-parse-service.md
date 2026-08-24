@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
-updated: 2026-08-20
-health_checked: 2026-08-20
+updated: 2026-08-24
+health_checked: 2026-08-24
 sources:
   - specs/041-ai-score-parse-backend/spec.md
   - specs/041-ai-score-parse-backend/plan.md
@@ -42,8 +42,9 @@ backlinks:
 ```
 trigger（同步<1s，互斥校验+建任务）
   └→ executeParse（异步）
-      四路召回（关键词/文档结构/评分规则语义/LLM全文）→ RecallOutcome(candidates, skippedChunks)
-      → ScoreItemMergePolicy 合并去重
+      Sidecar PDF 转换（pdfplumber 逐页抽取管道表格 + 换行保真）
+      → 四路召回（关键词/文档结构/评分规则语义/LLM全文高信号聚焦切片）→ RecallOutcome(candidates, skippedChunks)
+      → ScoreItemMergePolicy 合并去重（同维度同编号合并补强；跨维度同编号独立保留）
       → GhostCandidateFilter 幽灵过滤（spec 046 FR-001）
       → WeightSumCheck + ItemCountCheck 闭环校验（差异触发二次回补）
       → WeightOverloadTrimPolicy 超载剔除：合计>100.5 两轮剔嫌疑（spec 046 FR-002）
@@ -53,6 +54,9 @@ trigger（同步<1s，互斥校验+建任务）
       → EstimatedScoreService 阶段1预计得分（链尾）
 ```
 
+- **Sidecar PDF 转换保真（2026-08-24）**：针对复杂排版 PDF，Sidecar 优先使用 `convert_pdf_to_markdown` 通过 `pdfplumber` 抽取表格为 Markdown 管道表格，单元格内换行转 `<br>`，段落换行 `\n` 严格保真，彻底解决 `markitdown`/`pdfminer` 单行化（0 换行）缺陷。
+- **跨维度去重防碰撞（2026-08-24）**：`ScoreItemMergePolicy` 区分同维度同编号合并与跨维度同编号保留，避免多标的/多部分招标文件（如商务表 1 与技术表 1）因编号相同被误吞。
+- **LLM 全文聚焦切片（2026-08-24）**：`OpenAiScoreAnalyzer` 在多 chunk 时基于 sectionPath 和评分关键词过滤高信号 chunk，避免数十个无关合同 chunk 盲目调用 LLM 稀释信号。
 - **正文来源（2026-08-16）**：立项 `TENDER` 优先，其次 Bid Agent `TENDER_FILE`，再兜底旧快照。不再要求走「启动 AI 生成初稿」。
 - **自动解析门闩（spec 043）**：仅当从未有过 PARSE 任务且无评分项时自动新建；PENDING/PROCESSING 跟随已有任务；FAILED 展示原因、不自动重打。无源 400 会落 FAILED，避免每次打开抽屉再 POST。
 - **读取上限**：远程/本地招标文件硬限制 50MB（先看 Content-Length，再流式累计）。超大无底稿提示「招标文件超过 50MB，无法解析」；有底稿则回退。`hasSource` 与 `resolve` 同一套成功条件。
