@@ -1,53 +1,27 @@
 // @ui-cover:document
 import { test, expect } from '@playwright/test'
+import { ensureApiSession } from './auth-helpers.js'
 const frontendBaseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:1323'
 
 const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18089'
 
 async function apiLogin() {
-  const username = process.env.COMMERCIAL_E2E_USERNAME || `eri100_${Date.now()}`
-  const password = process.env.COMMERCIAL_E2E_PASSWORD || 'XiyuDemo!2026'
-  let payload
-
-  try {
-    const response = await fetch(`${apiBaseUrl}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    })
-
-    if (!response.ok) throw new Error(`Login failed with status ${response.status}`)
-    payload = await response.json()
-  } catch {
-    const response = await fetch(`${apiBaseUrl}/api/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username,
-        password,
-        email: `${username}@example.com`,
-        fullName: 'ERI-100 E2E',
-        role: '/bidAdmin',
-      }),
-    })
-
-    if (!response.ok) throw new Error(`Register failed with status ${response.status}`)
-    payload = await response.json()
-  }
-
-  const auth = payload?.data
-  if (!payload?.success || !auth?.token || !auth?.id) {
-    throw new Error('Login payload missing token or user identity')
-  }
+  // H13 后 access token 走 HttpOnly Set-Cookie（body.token=null），统一复用 auth-helpers
+  const session = await ensureApiSession({
+    username: process.env.COMMERCIAL_E2E_USERNAME || `eri100_${Date.now()}`,
+    role: '/bidAdmin',
+    fullName: 'ERI-100 E2E',
+    password: process.env.COMMERCIAL_E2E_PASSWORD || 'XiyuDemo!2026',
+  })
 
   return {
-    token: auth.token,
+    token: session.token,
     user: {
-      id: auth.id,
-      name: auth.fullName || auth.username,
-      username: auth.username,
-      email: auth.email,
-      role: String(auth.role || '').toLowerCase(),
+      id: session.user.id,
+      name: session.user.name,
+      username: session.user.username,
+      email: session.user.email,
+      role: String(session.user.role || '').toLowerCase(),
     },
   }
 }
