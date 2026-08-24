@@ -50,13 +50,14 @@ test.describe('auth access control', () => {
   })
 
   test('blocks staff from analytics dashboard route', async ({ page }) => {
-    // bid-administration（行政人员）无 analytics 权限，会被重定向到 /dashboard
+    // bid-administration（行政人员）无 analytics-dashboard 权限，访问被守卫拦截；
+    // 其权限集不含 dashboard 菜单键，getFirstAccessiblePath 落到资质证书页
     await loginAsRole(page, 'bid-administration', 'Access Staff')
 
     await page.goto('/analytics/dashboard')
 
-    await expect(page).toHaveURL(/\/dashboard$/)
-    await expect(page.getByText('工作台').first()).toBeVisible()
+    await expect(page).toHaveURL(/\/knowledge\/qualification$/, { timeout: 15000 })
+    await expect(page.getByRole('heading', { name: '资质证书' })).toBeVisible({ timeout: 10000 })
   })
 
   test('restores allowed project scope from refresh when stored user hint is stale', async ({ page }) => {
