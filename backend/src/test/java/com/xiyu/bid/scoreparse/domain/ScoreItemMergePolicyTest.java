@@ -80,17 +80,19 @@ class ScoreItemMergePolicyTest {
     }
 
     @Test
-    void merge_sameCodeDifferentDim_disjointDetail_keepsFirstOccurrence() {
-        // 真不同项撞编号：两段 detail 互不为子串，即使 later 有背书且更长也不并（防误吞）
+    void merge_sameCodeDifferentDim_disjointDetail_keepsBoth() {
+        // 真不同项撞编号（如商务表 1 vs 技术表 1）：两段 detail 互不为子串，各自属于不同维度，均应保留
         ScoreCandidate first = new ScoreCandidate("B2", "项目管理机构", "项目经理具备 PMP 证书 5 分",
                 new BigDecimal("5"), null, null, "项目经理具备 PMP 证书 5 分", "P52", null);
         String other = "售后服务方案完善、响应机制健全，提供 7×24 小时驻场支持服务安排的得 3 分。";
         ScoreCandidate second = new ScoreCandidate("B2", "售后服务", other,
                 new BigDecimal("3"), null, null, other, "P53", null);
         List<ScoreCandidate> merged = policy.merge(List.of(first, second));
-        assertThat(merged).hasSize(1);
+        assertThat(merged).hasSize(2);
         assertThat(merged.get(0).dim()).isEqualTo("项目管理机构");
         assertThat(merged.get(0).detail()).isEqualTo("项目经理具备 PMP 证书 5 分");
+        assertThat(merged.get(1).dim()).isEqualTo("售后服务");
+        assertThat(merged.get(1).detail()).isEqualTo(other);
     }
 
     @Test
@@ -119,14 +121,15 @@ class ScoreItemMergePolicyTest {
     }
 
     @Test
-    void merge_duplicateCodeKeepsFirstOccurrence() {
-        // 编号重复但名称不同：保留首次出现（data-model item_index 语义）
+    void merge_sameCodeDifferentDim_preservesBothItems() {
+        // 跨维度编号重复但名称内容不同：均保留（例如商务项 1 与技术项 1）
         List<ScoreCandidate> merged = policy.merge(List.of(
-                candidate("B2", "项目管理机构", "项目经理具备 PMP 证书 5 分", "5"),
-                candidate("B2", "售后服务", "售后响应时间 2 小时内 3 分", "3")
+                candidate("1", "商务评分", "企业规模与业绩 10 分", "10"),
+                candidate("1", "技术评分", "技术对接方案与能力 20 分", "20")
         ));
-        assertThat(merged).hasSize(1);
-        assertThat(merged.get(0).dim()).isEqualTo("项目管理机构");
+        assertThat(merged).hasSize(2);
+        assertThat(merged.get(0).dim()).isEqualTo("商务评分");
+        assertThat(merged.get(1).dim()).isEqualTo("技术评分");
     }
 
     @Test

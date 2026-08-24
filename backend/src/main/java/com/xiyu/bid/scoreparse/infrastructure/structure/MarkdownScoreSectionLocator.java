@@ -45,6 +45,10 @@ public final class MarkdownScoreSectionLocator {
     public record ScoreSection(String content, String location, String sectionTitle) {
     }
 
+    /** 下一章节标题格式：第X章、第X条。遇到则停止提取。 */
+    private static final Pattern NEXT_CHAPTER_PATTERN = Pattern.compile(
+            "^第[一二三四五六七八九十百千万\\d]+[章节条篇]");
+
     /** 定位全部评分标准候选区域 */
     public static List<ScoreSection> locate(String markdown) {
         if (markdown == null || markdown.isBlank()) {
@@ -66,6 +70,47 @@ public final class MarkdownScoreSectionLocator {
                 }
             } else {
                 i++;
+            }
+        }
+
+        // 兜底：若文档中没有 Markdown 管道表格（如纯文本），尝试按章节标题定位评分区域
+        if (sections.isEmpty()) {
+            sections.addAll(locatePlainChapterSections(lines));
+        }
+
+        return sections;
+    }
+
+    private static List<ScoreSection> locatePlainChapterSections(String[] lines) {
+        List<ScoreSection> sections = new ArrayList<>();
+        for (int i = 0; i < lines.length; i++) {
+            String trimmed = lines[i] == null ? "" : lines[i].trim();
+            if (trimmed.length() <= 40 && SCORE_HEADING_PATTERN.matcher(trimmed).find()
+                    && !trimmed.contains("详见") && !trimmed.contains("参见")) {
+                int start = i;
+                int end = i + 1;
+                int blankCount = 0;
+                while (end < lines.length) {
+                    String line = lines[end] == null ? "" : lines[end].trim();
+                    if (line.isBlank()) {
+                        blankCount++;
+                        if (blankCount >= 4) {
+                            break;
+                        }
+                    } else {
+                        blankCount = 0;
+                        if (end > start && NEXT_CHAPTER_PATTERN.matcher(line).find()
+                                && !SCORE_HEADING_PATTERN.matcher(line).find()) {
+                            break;
+                        }
+                    }
+                    end++;
+                }
+                String content = joinLines(lines, start, end);
+                if (content.length() >= 50 && TABLE_SCORE_PATTERN.matcher(content).find()) {
+                    sections.add(new ScoreSection(content, "L" + (start + 1) + "-L" + end, trimmed));
+                    i = end - 1;
+                }
             }
         }
         return sections;
@@ -91,6 +136,9 @@ public final class MarkdownScoreSectionLocator {
             if (trimmed.startsWith("#")) {
                 String title = trimmed.replaceFirst("^#+\\s*", "");
                 return SCORE_HEADING_PATTERN.matcher(title).find() ? title : null;
+            }
+            if (trimmed.length() <= 40 && SCORE_HEADING_PATTERN.matcher(trimmed).find()) {
+                return trimmed;
             }
         }
         return null;

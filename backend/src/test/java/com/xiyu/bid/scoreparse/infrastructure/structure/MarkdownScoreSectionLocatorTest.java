@@ -115,6 +115,28 @@ class MarkdownScoreSectionLocatorTest {
     }
 
     @Test
+    void locate_plainTextChapterSection_foundWhenNoPipeTables() {
+        String plainText = """
+                第一章 招标公告
+                招标公告说明文字。
+
+                第三章 评审办法（综合评估法）
+                评审办法前附表
+                1. 商务评分标准：财务状况 20分，企业规模 10分，总分 30分。
+                2. 技术评分标准：方案先进性 40分，服务承诺 30分，满分 70分。
+
+                第四章 合同条款
+                合同正文内容。
+                """;
+        List<MarkdownScoreSectionLocator.ScoreSection> sections =
+                MarkdownScoreSectionLocator.locate(plainText);
+        assertThat(sections).isNotEmpty();
+        assertThat(sections.get(0).content()).contains("商务评分标准");
+        assertThat(sections.get(0).content()).contains("技术评分标准");
+        assertThat(sections.get(0).sectionTitle()).contains("评审办法");
+    }
+
+    @Test
     void locate_multipleScoreSections_allFound() {
         String markdown = """
                 ## 技术评分标准
