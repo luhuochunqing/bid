@@ -29,6 +29,7 @@ health_checked: 2026-08-24
 
 ## 陷阱与边界
 
+- **`v-loading` 不能挂在 `v-if` 为假的元素上**：`CaseDetailDialog.vue` 加载期 `caseData=null`，若 `v-loading` 与 `v-if="caseData"` 同元素，加载动画永不渲染（弹窗白屏无反馈）。正确做法：`v-loading` 挂常驻容器、`v-if` 收窄到内容本体（见 commit a47c49949）。
 - **客户类型字典有旧数据兼容键**：`CUSTOMER_TYPE_LABELS` 里 `STATE_OWNED`/`FOREIGN` 仅用于展示映射（兼容旧数据），筛选项必须用派生的 `CUSTOMER_TYPE_OPTIONS`（已过滤这两个键），否则下拉会出现重复文案。
 - **casework → project.repository 依赖**：`KnowledgeCaseQueryAppService` 直接注入 `ProjectInitiationDetailsRepository`，与模块既有惯例一致（`ProjectArchiveDetailService` 等 4 处先例），ArchUnit 允许；但已在 `project-access-guard-baseline.txt` 声明其仅做展示字段关联、不以 projectId 做访问控制。
 - **`KnowledgeAccessSecurityTest` 的 mock 签名**：`queryCases` 增减参数时必须同步该测试中 `any()` 的个数（当前 11 参：9 个 `any()` + 2 个 `anyInt()`），且 spec 039 后 archive 下载/预览用例已改为 mock `ArchiveFileResponseFactory.build(...)`，不要再反射设置 `configuredUploadDir`。
