@@ -60,8 +60,8 @@
       </div>
     </div>
 
-    <!-- 详情抽屉：复用案例库详情组件，内容保持一致 -->
-    <CaseDetailDrawer
+    <!-- 详情弹窗：复用案例库详情组件（居中弹窗），内容保持一致 -->
+    <CaseDetailDialog
       v-model="detailVisible"
       :case-data="detailCase"
       :loading="detailLoading"
@@ -79,7 +79,7 @@ import { caseRecommendationApi } from '@/api/modules/caseRecommendation'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import CaseCard from '@/views/Knowledge/views/components/CaseCard.vue'
-import CaseDetailDrawer from '@/views/Knowledge/views/components/CaseDetailDrawer.vue'
+import CaseDetailDialog from '@/views/Knowledge/views/components/CaseDetailDialog.vue'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
 const emit = defineEmits(['go-to-score-parse'])

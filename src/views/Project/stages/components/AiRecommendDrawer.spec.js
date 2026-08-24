@@ -89,10 +89,10 @@ describe('AiRecommendDrawer.vue', () => {
     'el-alert': { template: `<div class="el-alert-mock"><slot name="title" /></div>` },
     'el-card': { template: `<div class="el-card-mock"><slot /></div>` },
     'el-icon': { template: `<i><slot /></i>` },
-    CaseDetailDrawer: {
+    CaseDetailDialog: {
       props: ['modelValue', 'caseData', 'loading'],
       emits: ['update:modelValue', 'reuse', 'go-source', 'open-bid'],
-      template: `<div class="detail-drawer-mock" v-if="modelValue">{{ caseData?.ownerUnit }}<button class="mock-open-bid" @click="$emit('open-bid', caseData)">标书原文</button></div>`,
+      template: `<div class="detail-dialog-mock" v-if="modelValue">{{ caseData?.ownerUnit }}<button class="mock-open-bid" @click="$emit('open-bid', caseData)">标书原文</button></div>`,
     },
   }
 
@@ -145,7 +145,7 @@ describe('AiRecommendDrawer.vue', () => {
     expect(wrapper.text()).not.toMatch(/复用次数/)
   })
 
-  it('opens case-library detail drawer with full detail fetched by caseId', async () => {
+  it('opens case-library detail dialog with full detail fetched by caseId', async () => {
     caseRecommendationApi.getCaseDetail.mockResolvedValue(caseDetailResponse)
     const wrapper = await mockOpenWithCases([recommendItem])
 
@@ -153,7 +153,7 @@ describe('AiRecommendDrawer.vue', () => {
     await flushPromises()
 
     expect(caseRecommendationApi.getCaseDetail).toHaveBeenCalledWith(101)
-    const detailMock = wrapper.find('.detail-drawer-mock')
+    const detailMock = wrapper.find('.detail-dialog-mock')
     expect(detailMock.exists()).toBe(true)
     expect(detailMock.text()).toContain('某省电力公司')
   })
