@@ -2,6 +2,7 @@
   <el-card class="case-card" shadow="hover" @click="$emit('view-detail', caseData.caseId || caseData.id)">
     <div class="case-card-header">
       <div class="title-row">
+        <span v-if="matchScore !== null && matchScore !== undefined" class="match-stat">匹配度 <strong>{{ matchScore }}%</strong></span>
         <span class="scoring-title">{{ caseData.scoringTitle }}</span>
       </div>
       <div class="tag-row mt-2">
@@ -28,7 +29,11 @@ import { computed } from 'vue'
 import { CopyDocument } from '@element-plus/icons-vue'
 import { getProjectTypeLabel, getCustomerTypeLabel } from '../caseLabels.js'
 import DateTimeDisplay from '@/components/common/DateTimeDisplay.vue'
-const props = defineProps({ caseData: Object })
+const props = defineProps({
+  caseData: Object,
+  // 可选匹配度（%）：仅 AI 智能推荐等场景传入，案例库不传即零变化
+  matchScore: { type: [Number, String], default: null },
+})
 defineEmits(['view-detail', 'reuse'])
 const truncatedSummary = computed(() => {
   const text = props.caseData?.responseTextSummary || ''
@@ -50,6 +55,8 @@ const truncatedSummary = computed(() => {
 }
 .case-card-header { border-bottom: 1px dashed var(--el-border-color-lighter); padding-bottom: 12px; }
 .title-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.match-stat { flex-shrink: 0; font-size: 12px; line-height: 20px; padding: 0 6px; border-radius: 4px; color: var(--el-color-primary); background: var(--el-color-primary-light-9);
+  strong { font-weight: 600; } }
 .scoring-title { font-size: 15px; font-weight: 600; color: var(--el-text-color-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tag-row { display: flex; align-items: center; }
 .case-card-body { padding: 12px 0; flex-grow: 1; }

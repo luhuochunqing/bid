@@ -11,7 +11,7 @@
         </template>
       </el-alert>
 
-      <!-- 评分项筛选 -->
+      <!-- 评分项筛选（选项来自「AI 评分标准解析」结果，悬停查看完整要素原文） -->
       <div class="drawer-section">
         <label class="section-label">评分项</label>
         <el-select v-model="selectedItemId" placeholder="请选择评分项" clearable filterable style="width: 100%" @change="handleItemChange">
@@ -19,9 +19,13 @@
             <el-option
               v-for="item in group.items"
               :key="item.id"
-              :label="`${item.code ? item.code + ' ' : ''}${item.dim || ''} - ${(item.detail || '').slice(0, 24)}...`"
+              :label="optionTitle(item)"
               :value="item.id"
-            />
+            >
+              <el-tooltip :content="optionFullText(item)" placement="right" :show-after="150">
+                <div class="score-option-line">{{ optionFullText(item) }}</div>
+              </el-tooltip>
+            </el-option>
           </el-option-group>
         </el-select>
       </div>
@@ -32,45 +36,23 @@
         <el-input v-model="keywordFilter" placeholder="输入关键词进一步筛选..." clearable />
       </div>
 
-      <!-- 匹配案例列表 -->
+      <!-- 匹配案例列表（卡片与案例库一致，额外展示匹配度） -->
       <div class="drawer-section">
         <label class="section-label">
           匹配案例
           <el-tag v-if="selectedItemId" size="small" type="info">{{ filteredCases.length }} 个结果</el-tag>
         </label>
         <div v-loading="loadingCases" class="cases-container">
-          <template v-if="filteredCases.length > 0">
-            <div
+          <div v-if="filteredCases.length > 0" class="recommend-grid">
+            <CaseCard
               v-for="item in filteredCases"
               :key="item.caseId"
-              class="recommend-case-card"
-              :class="{ 'high-quality': item.scoreLabel === '优质' }"
-            >
-              <div class="case-card-header">
-                <div class="title-row">
-                  <el-tag v-if="item.scoreLabel === '优质'" size="small" type="danger" effect="dark">优质</el-tag>
-                  <el-tag size="small" type="warning">{{ item.score }}%</el-tag>
-                  <h4 class="case-title">{{ item.scoringTitle }}</h4>
-                </div>
-                <div class="tag-row mt-2">
-                  <el-tag size="small" type="primary" effect="plain">{{ getProjectTypeLabel(item.projectType) }}</el-tag>
-                  <el-tag size="small" type="success" effect="plain">{{ getCustomerTypeLabel(item.customerType) }}</el-tag>
-                  <el-tag v-if="item.bidResult" size="small" :type="item.bidResult === 'WON' ? 'success' : 'info'" effect="plain">
-                    {{ item.bidResult === 'WON' ? '中标' : '未中标' }}
-                  </el-tag>
-                </div>
-              </div>
-              <div class="case-requirement">评分项原文: {{ (item.requirementRaw || "").slice(0, 80) }}{{ (item.requirementRaw || "").length > 80 ? "..." : "" }}</div>
-              <div class="case-summary">{{ item.responseTextSummary }}</div>
-              <div class="case-meta">
-                <span>来源: {{ item.sourceProjectName }}</span>
-              </div>
-              <div class="case-card-footer">
-                <el-button type="primary" size="small" link @click="viewDetail(item)">详情</el-button>
-                <el-button type="success" size="small" @click="handleReuse(item)">复用</el-button>
-              </div>
-            </div>
-          </template>
+              :case-data="item"
+              :match-score="item.score"
+              @view-detail="viewDetail"
+              @reuse="handleReuse"
+            />
+          </div>
           <el-empty v-else-if="!loadingCases && selectedItemId" description="暂无与本评分项相似的历史案例" :image-size="80" />
           <div v-else-if="!selectedItemId && defaultCases.length > 0" class="select-hint">基于项目基本信息推荐 {{ defaultCases.length }} 条案例，选择评分项可进一步筛选</div>
           <div v-else class="select-hint">请先选择一个评分项查看匹配的历史案例</div>
@@ -78,18 +60,26 @@
       </div>
     </div>
 
-    <!-- 双面板详情弹窗 -->
-    <AiRecommendDualPaneDialog v-model="detailVisible" :selected-case="selectedCase" @reuse="handleReuse" />
+    <!-- 详情抽屉：复用案例库详情组件，内容保持一致 -->
+    <CaseDetailDrawer
+      v-model="detailVisible"
+      :case-data="detailCase"
+      :loading="detailLoading"
+      @reuse="handleReuseInDetail"
+      @go-source="goToSourceProject"
+      @open-bid="openBidDocument"
+    />
   </el-drawer>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import httpClient from '@/api/client.js'
 import { caseRecommendationApi } from '@/api/modules/caseRecommendation'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
-import { getProjectTypeLabel, getCustomerTypeLabel } from '@/views/Knowledge/views/caseLabels.js'
-import AiRecommendDualPaneDialog from './AiRecommendDualPaneDialog.vue'
+import CaseCard from '@/views/Knowledge/views/components/CaseCard.vue'
+import CaseDetailDrawer from '@/views/Knowledge/views/components/CaseDetailDrawer.vue'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
 const emit = defineEmits(['go-to-score-parse'])
@@ -101,9 +91,11 @@ const selectedItemId = ref(null)
 const keywordFilter = ref('')
 const cases = ref([])
 const loadingCases = ref(false)
-const detailVisible = ref(false)
-const selectedCase = ref(null)
 const defaultCases = ref([])
+
+const detailVisible = ref(false)
+const detailLoading = ref(false)
+const detailCase = ref(null)
 
 function handleGoToScoreParse() {
   visible.value = false
@@ -119,6 +111,15 @@ const scoringItemGroups = computed(() => {
   })
   return Object.values(groups)
 })
+
+function optionFullText(item) {
+  return `${item.code ? item.code + ' ' : ''}${item.dim || ''} - ${item.detail || ''}`
+}
+
+function optionTitle(item) {
+  if (item.code) return `${item.code} ${item.dim || ''}`.trim()
+  return item.dim || ''
+}
 
 const filteredCases = computed(() => {
   if (!keywordFilter.value.trim()) return cases.value
@@ -228,22 +229,57 @@ function summarize(text) {
   return text.length > 100 ? text.slice(0, 100) + '...' : text
 }
 
-function viewDetail(item) {
-  selectedCase.value = item
+async function viewDetail(caseId) {
   detailVisible.value = true
+  detailLoading.value = true
+  detailCase.value = null
+  try {
+    const res = await caseRecommendationApi.getCaseDetail(caseId)
+    detailCase.value = res?.data || res
+  } catch {
+    ElMessage.error('获取案例详情失败')
+    detailVisible.value = false
+  } finally {
+    detailLoading.value = false
+  }
 }
 
-async function handleReuse(item) {
-  const text = item.responseText || item.responseTextSummary || ''
+async function copyAndRecordReuse(caseId, text) {
   try {
     await navigator.clipboard.writeText(text)
-    try {
-      await caseRecommendationApi.reuseCase(item.caseId)
-      item.reuseCount = (item.reuseCount || 0) + 1
-    } catch { /* ignore */ }
-    ElMessage.success({ message: '已复制应答内容到剪贴板', duration: 3000 })
+    await caseRecommendationApi.reuseCase(caseId)
+    ElMessage.success('已复制到剪贴板')
   } catch {
-    ElMessage.error('复制到剪贴板失败')
+    ElMessage.error('复制失败')
+  }
+}
+
+function handleReuse(item) {
+  return copyAndRecordReuse(item.caseId, item.responseText || item.responseTextSummary || '')
+}
+
+function handleReuseInDetail(d) {
+  return copyAndRecordReuse(d.caseId || d.id, d.responseText || '')
+}
+
+function goToSourceProject(d) {
+  if (d?.sourceProjectId) window.open(`/bidding/detail/${d.sourceProjectId}`, '_blank')
+  else ElMessage.warning('来源项目不可用')
+}
+
+async function openBidDocument(d) {
+  if (!d?.sourceProjectId) { ElMessage.warning('标书原文暂不可用'); return }
+  try {
+    const res = await httpClient.get(`/api/archive/export-zip/${d.sourceProjectId}`, { responseType: 'blob' })
+    const url = URL.createObjectURL(new Blob([res], { type: 'application/zip' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `标书原文-${d.sourceProjectId}.zip`
+    a.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success('标书原文下载成功')
+  } catch (e) {
+    ElMessage.error('标书原文下载失败：' + (e?.response?.data?.msg || e?.message || '未知错误'))
   }
 }
 </script>
@@ -251,23 +287,11 @@ async function handleReuse(item) {
 <style scoped>
 .ai-recommend-drawer { display: flex; flex-direction: column; gap: 20px; }
 .drawer-section { display: flex; flex-direction: column; gap: 8px; }
-.section-label { font-size: 14px; font-weight: 600; color: var(--text-secondary-ui); }
+.section-label { font-size: 14px; font-weight: 600; color: var(--text-secondary-ui); display: flex; align-items: center; gap: 8px; }
 .cases-container { min-height: 200px; }
 .select-hint { color: var(--text-muted); font-size: 14px; text-align: center; padding: 40px 0; }
-.recommend-case-card {
-  background: var(--bg-card); border: 1px solid var(--gray-250); border-radius: 8px;
-  padding: 16px; margin-bottom: 12px; transition: box-shadow 0.3s;
-}
-.recommend-case-card:hover { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
-.recommend-case-card.high-quality { border-color: var(--el-color-danger); background: linear-gradient(135deg, var(--el-color-danger-light-9) 0%, transparent 30%); }
-.case-card-header { margin-bottom: 8px; }
-.title-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
-.case-title { margin: 0; font-size: 15px; font-weight: 600; color: var(--gray-750); flex: 1; line-height: 1.5; }
-.tag-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.case-requirement { font-size: 12px; color: var(--el-text-color-secondary); line-height: 1.5; margin-bottom: 6px; padding: 4px 8px; background: var(--el-fill-color-lighter); border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.case-summary { font-size: 13px; color: var(--text-secondary-ui); line-height: 1.6; margin-bottom: 12px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.case-meta { font-size: 12px; color: var(--text-muted); display: flex; gap: 16px; margin-bottom: 12px; }
-.case-card-footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-top: 10px; border-top: 1px solid var(--gray-250); }
-.mt-2 { margin-top: 8px; }
+.score-option-line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recommend-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+@media (max-width: 720px) { .recommend-grid { grid-template-columns: 1fr; } }
+.empty-score-alert { display: flex; align-items: center; gap: 12px; }
 </style>
-
