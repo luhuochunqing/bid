@@ -15,7 +15,7 @@ async function loginAsRoleProfile(page, roleProfile) {
   const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
   const session = await ensureApiSession({
     username: `bulk_${roleProfile}_${suffix}`,
-    role: '/bidAdmin',
+    role: roleProfile,
     fullName: `Bulk ${roleProfile}`
   })
 
