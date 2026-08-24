@@ -1,11 +1,11 @@
 // @ui-cover:bidding
 import { test, expect } from '@playwright/test'
+import { ensureApiSession } from './auth-helpers.js'
 const frontendBaseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:1323'
 
 const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18089'
 const username = process.env.COMMERCIAL_E2E_USERNAME || `eri98_${Date.now()}`
 const password = process.env.COMMERCIAL_E2E_PASSWORD || 'XiyuDemo!2026'
-const email = `${username}@example.com`
 
 async function requestJson(url, options = {}) {
   const response = await fetch(url, options)
@@ -18,41 +18,23 @@ async function requestJson(url, options = {}) {
   return payload
 }
 
+// H13 后 access token 走 HttpOnly Set-Cookie（body.token=null），统一复用 auth-helpers 会话逻辑
 async function ensureSession() {
-  try {
-    await requestJson(`${apiBaseUrl}/api/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username,
-        password,
-        email,
-        fullName: 'ERI-98 E2E',
-        role: '/bidAdmin',
-      }),
-    })
-  } catch (error) {
-    if (!String(error.message).includes('409')) throw error
-  }
-
-  const payload = await requestJson(`${apiBaseUrl}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
+  const session = await ensureApiSession({
+    username,
+    role: '/bidAdmin',
+    fullName: 'ERI-98 E2E',
+    password,
   })
 
-  if (!payload?.success || !payload?.data?.token || !payload?.data?.id) {
-    throw new Error('Backend login response missing token or user identity')
-  }
-
   return {
-    token: payload.data.token,
+    token: session.token,
     user: {
-      id: payload.data.id,
-      name: payload.data.fullName || payload.data.username,
-      username: payload.data.username,
-      email: payload.data.email,
-      role: String(payload.data.role || '').toLowerCase(),
+      id: session.user.id,
+      name: session.user.name,
+      username: session.user.username,
+      email: session.user.email,
+      role: String(session.user.role || '').toLowerCase(),
     },
   }
 }
@@ -90,6 +72,9 @@ test('tender AI analysis page uses real backend analysis', async ({ page }) => {
 
   const tenderId = tenderPayload?.data?.id
   expect(tenderId).toBeTruthy()
+
+  // AI 分析结果需先触发生成（GET 为只读，未生成时 404）
+  await authedJson(`/api/tenders/${tenderId}/ai-analysis`, session, { method: 'POST' })
 
   await page.context().addCookies([{ name: "access_token", value: session.token, url: apiBaseUrl, httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: frontendBaseUrl, httpOnly: true, sameSite: "Lax" }])
   await page.addInitScript(({ token, user }) => {
