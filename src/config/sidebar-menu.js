@@ -153,6 +153,11 @@ export const sidebarMenuConfig = [
         meta: { title: '系统集成', permissionKeys: ['settings-integration'] }
       },
       {
+        path: '/settings/competitors',
+        name: 'CompetitorLibrary',
+        meta: { title: '竞争对手库', permissionKeys: ['competitor.govern'] }
+      },
+      {
         path: '/operation-logs',
         name: 'OperationLogs',
         meta: { title: '日志说明', permissionKeys: ['operation-logs'] }

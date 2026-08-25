@@ -1,5 +1,6 @@
 package com.xiyu.bid.competitionintel.dto;
 
+import com.xiyu.bid.competitionintel.entity.CompetitorStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -25,5 +26,6 @@ public class CompetitorDTO {
     private BigDecimal marketShare;
     private BigDecimal typicalBidRangeMin;
     private BigDecimal typicalBidRangeMax;
+    private CompetitorStatus status;
     private LocalDateTime createdAt;
 }

@@ -2,6 +2,9 @@ package com.xiyu.bid.competitionintel.repository;
 
 import com.xiyu.bid.competitionintel.entity.CompetitionAnalysis;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -31,4 +34,11 @@ public interface CompetitionAnalysisRepository extends JpaRepository<Competition
      * 查找项目最新的分析记录
      */
     List<CompetitionAnalysis> findTop1ByProjectIdOrderByAnalysisDateDesc(Long projectId);
+
+    /**
+     * 合并竞品：将 source 竞品的分析记录迁移到 target 竞品（specs/055）
+     */
+    @Modifying
+    @Query("UPDATE CompetitionAnalysis a SET a.competitorId = :targetId WHERE a.competitorId = :sourceId")
+    int updateCompetitorIdForMerge(@Param("sourceId") Long sourceId, @Param("targetId") Long targetId);
 }

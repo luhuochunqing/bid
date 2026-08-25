@@ -21,6 +21,7 @@ final class RoleProfileAdminPermissions {
             "task.review", "retrospective.submit", "retrospective.review", "closure.review", "lead.assign",
             RoleProfileCatalog.BIDDING_MANAGE_PERMISSION, RoleProfileCatalog.BIDDING_CREATE_PERMISSION,
             RoleProfileCatalog.BIDDING_DELETE_PERMISSION, RoleProfileCatalog.BIDDING_SYNC_PERMISSION,
+            RoleProfileCatalog.COMPETITOR_CREATE_PERMISSION, RoleProfileCatalog.COMPETITOR_GOVERN_PERMISSION,
             RoleProfileCatalog.BRAND_AUTH_VIEW_PERMISSION, RoleProfileCatalog.BRAND_AUTH_CREATE_PERMISSION,
             RoleProfileCatalog.BRAND_AUTH_EDIT_PERMISSION, RoleProfileCatalog.BRAND_AUTH_REVOKE_PERMISSION,
             "knowledge-brand-auth",

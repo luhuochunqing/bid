@@ -9,26 +9,20 @@
  */
 import httpClient from '../client.js'
 
+// 对齐后端 CompetitorDTO（specs/055）：竞品字典仅含 name/industry/strengths/weaknesses/
+// marketShare/typicalBidRange/status，不再伪造 region/website/winRate 等后端不返回的字段。
 function normalizeCompetitor(item) {
   return {
     id: item?.id,
-    name: item?.name || '未知竞争对手',
-    industry: item?.industry || 'OTHER',
-    region: item?.region || '',
-    website: item?.website || '',
-    contactEmail: item?.contactEmail || '',
-    contactPhone: item?.contactPhone || '',
-    annualRevenue: item?.annualRevenue || 0,
-    employeeCount: item?.employeeCount || 0,
-    description: item?.description || '',
-    strengths: item?.strengths || [],
-    weaknesses: item?.weaknesses || [],
-    winCount: item?.winCount || 0,
-    bidCount: item?.bidCount || 0,
-    winRate: item?.winRate || 0,
-    avgBidAmount: item?.avgBidAmount || 0,
-    createdAt: item?.createdAt || '',
-    updatedAt: item?.updatedAt || '' }
+    name: item?.name || '',
+    industry: item?.industry || '',
+    strengths: item?.strengths || '',
+    weaknesses: item?.weaknesses || '',
+    marketShare: item?.marketShare ?? null,
+    typicalBidRangeMin: item?.typicalBidRangeMin ?? null,
+    typicalBidRangeMax: item?.typicalBidRangeMax ?? null,
+    status: item?.status || 'ACTIVE',
+    createdAt: item?.createdAt || '' }
 }
 
 function normalizeAnalysis(item) {
@@ -63,18 +57,41 @@ export const competitionIntelApi = {
     return { ...response, data: normalizeCompetitor(response?.data) }
   },
 
+  // 兼容旧调用（传对象取 .name，传字符串直接用），语义现为幂等 upsert（specs/055）
   async createCompetitor(data) {
-    const response = await httpClient.post('/api/ai/competition/competitors', data)
+    const name = typeof data === 'string' ? data : data?.name
+    return this.upsertCompetitor(name)
+  },
+
+  async upsertCompetitor(name) {
+    const response = await httpClient.post('/api/ai/competition/competitors', { name })
     return { ...response, data: normalizeCompetitor(response?.data) }
   },
 
+  // 兼容旧调用（传对象取 .name），语义现为改名
   async updateCompetitor(id, data) {
-    const response = await httpClient.put(`/api/ai/competition/competitors/${id}`, data)
-    return { ...response, data: normalizeCompetitor({ ...response?.data, ...data }) }
+    const name = typeof data === 'string' ? data : data?.name
+    return this.renameCompetitor(id, name)
   },
 
+  async renameCompetitor(id, name) {
+    const response = await httpClient.put(`/api/ai/competition/competitors/${id}`, { name })
+    return { ...response, data: normalizeCompetitor(response?.data) }
+  },
+
+  async mergeCompetitor(id, targetId) {
+    const response = await httpClient.post(`/api/ai/competition/competitors/${id}/merge`, { targetId })
+    return { ...response, data: normalizeCompetitor(response?.data) }
+  },
+
+  async disableCompetitor(id) {
+    const response = await httpClient.post(`/api/ai/competition/competitors/${id}/disable`)
+    return { ...response, data: normalizeCompetitor(response?.data) }
+  },
+
+  // 兼容旧调用：后端无物理删除端点，delete 语义转软停用（specs/055）
   async deleteCompetitor(id) {
-    return httpClient.delete(`/api/ai/competition/competitors/${id}`)
+    return this.disableCompetitor(id)
   },
 
   async getAnalysis(projectId) {

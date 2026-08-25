@@ -5,11 +5,14 @@
 package com.xiyu.bid.competitionintel.controller;
 
 import com.xiyu.bid.competitionintel.dto.AnalysisCreateRequest;
-import com.xiyu.bid.competitionintel.dto.CompetitorCreateRequest;
 import com.xiyu.bid.competitionintel.dto.CompetitionAnalysisDTO;
 import com.xiyu.bid.competitionintel.dto.CompetitorDTO;
+import com.xiyu.bid.competitionintel.dto.CompetitorMergeRequest;
+import com.xiyu.bid.competitionintel.dto.CompetitorUpsertRequest;
 import com.xiyu.bid.competitionintel.service.CompetitionIntelService;
+import com.xiyu.bid.competitionintel.service.CompetitorGovernanceService;
 import com.xiyu.bid.dto.ApiResponse;
+import com.xiyu.bid.entity.RoleProfileCatalog;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,8 +22,10 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -37,29 +42,67 @@ import java.util.List;
 public class CompetitionIntelController {
 
     private final CompetitionIntelService competitionIntelService;
+    private final CompetitorGovernanceService competitorGovernanceService;
 
     /**
-     * 获取所有竞争对手
+     * 获取竞品列表（默认仅启用中；includeDisabled=true 返回全部供治理页）
      */
     @GetMapping("/competitors")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<List<CompetitorDTO>>> getAllCompetitors() {
-        log.info("GET /api/ai/competition/competitors - Fetching all competitors");
-        List<CompetitorDTO> competitors = competitionIntelService.getAllCompetitors();
+    public ResponseEntity<ApiResponse<List<CompetitorDTO>>> getAllCompetitors(
+            @RequestParam(name = "includeDisabled", required = false, defaultValue = "false") boolean includeDisabled) {
+        log.info("GET /api/ai/competition/competitors - Fetching competitors (includeDisabled={})", includeDisabled);
+        List<CompetitorDTO> competitors = includeDisabled
+                ? competitorGovernanceService.getAllCompetitors()
+                : competitorGovernanceService.getActiveCompetitors();
         return ResponseEntity.ok(ApiResponse.success("Successfully retrieved competitors", competitors));
     }
 
     /**
-     * 创建竞争对手
+     * 幂等 upsert 竞品（录入端输入即建，specs/055）
      */
     @PostMapping("/competitors")
-    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
-    public ResponseEntity<ApiResponse<CompetitorDTO>> createCompetitor(
-            @Valid @RequestBody CompetitorCreateRequest request) {
-        log.info("POST /api/ai/competition/competitors - Creating competitor: {}", request.getName());
-        CompetitorDTO competitor = competitionIntelService.createCompetitor(request);
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Competitor created successfully", competitor));
+    @PreAuthorize("hasAuthority('" + RoleProfileCatalog.COMPETITOR_CREATE_PERMISSION + "')")
+    public ResponseEntity<ApiResponse<CompetitorDTO>> upsertCompetitor(
+            @Valid @RequestBody CompetitorUpsertRequest request) {
+        log.info("POST /api/ai/competition/competitors - Upserting competitor: {}", request.getName());
+        CompetitorDTO competitor = competitorGovernanceService.upsertCompetitor(request.getName());
+        return ResponseEntity.ok(ApiResponse.success("Competitor upserted successfully", competitor));
+    }
+
+    /**
+     * 改名竞品（治理端，specs/055）
+     */
+    @PutMapping("/competitors/{id}")
+    @PreAuthorize("hasAuthority('" + RoleProfileCatalog.COMPETITOR_GOVERN_PERMISSION + "')")
+    public ResponseEntity<ApiResponse<CompetitorDTO>> renameCompetitor(
+            @PathVariable Long id, @Valid @RequestBody CompetitorUpsertRequest request) {
+        log.info("PUT /api/ai/competition/competitors/{} - Renaming competitor to {}", id, request.getName());
+        CompetitorDTO competitor = competitorGovernanceService.renameCompetitor(id, request.getName());
+        return ResponseEntity.ok(ApiResponse.success("Competitor renamed successfully", competitor));
+    }
+
+    /**
+     * 合并竞品（治理端，specs/055）
+     */
+    @PostMapping("/competitors/{id}/merge")
+    @PreAuthorize("hasAuthority('" + RoleProfileCatalog.COMPETITOR_GOVERN_PERMISSION + "')")
+    public ResponseEntity<ApiResponse<CompetitorDTO>> mergeCompetitor(
+            @PathVariable Long id, @Valid @RequestBody CompetitorMergeRequest request) {
+        log.info("POST /api/ai/competition/competitors/{}/merge - Merging into {}", id, request.getTargetId());
+        CompetitorDTO competitor = competitorGovernanceService.mergeCompetitor(id, request.getTargetId());
+        return ResponseEntity.ok(ApiResponse.success("Competitor merged successfully", competitor));
+    }
+
+    /**
+     * 停用竞品（治理端，specs/055）
+     */
+    @PostMapping("/competitors/{id}/disable")
+    @PreAuthorize("hasAuthority('" + RoleProfileCatalog.COMPETITOR_GOVERN_PERMISSION + "')")
+    public ResponseEntity<ApiResponse<CompetitorDTO>> disableCompetitor(@PathVariable Long id) {
+        log.info("POST /api/ai/competition/competitors/{}/disable - Disabling competitor", id);
+        CompetitorDTO competitor = competitorGovernanceService.disableCompetitor(id);
+        return ResponseEntity.ok(ApiResponse.success("Competitor disabled successfully", competitor));
     }
 
     /**

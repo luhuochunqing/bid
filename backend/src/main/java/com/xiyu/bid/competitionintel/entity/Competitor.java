@@ -3,6 +3,7 @@ package com.xiyu.bid.competitionintel.entity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.Builder.Default;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -35,6 +36,14 @@ public class Competitor {
      */
     @Column(nullable = false, length = 200)
     private String name;
+
+    /**
+     * 竞品状态（ACTIVE 启用 / DISABLED 停用）
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private CompetitorStatus status = CompetitorStatus.ACTIVE;
 
     /**
      * 所属行业

@@ -104,10 +104,12 @@
               size="small"
               filterable
               clearable
+              allow-create
+              default-first-option
               :disabled="!canOperate"
               class="competitor-cell-select"
             >
-              <el-option v-for="c in COMPETITOR_COMPANY_OPTIONS" :key="c" :label="c" :value="c" />
+              <el-option v-for="c in competitorOptions" :key="c" :label="c" :value="c" />
             </el-select>
           </template>
         </el-table-column>
@@ -199,7 +201,8 @@ import { casesApi } from '@/api/modules/knowledge.js'
 import { readinessToTooltip } from './readinessTooltip.js'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { getResultConfirmNextTab } from '@/constants/projectStages.js'
-import { COMPETITOR_COMPANY_OPTIONS, COMPETITOR_WIN_STATUS_OPTIONS } from '@/constants/competitors.js'
+import { COMPETITOR_WIN_STATUS_OPTIONS } from '@/constants/competitors.js'
+import { competitionIntelApi } from '@/api/modules/competitionIntel.js'
 import { getApiUrl } from '@/api/config.js'
 import { useUserStore } from '@/stores/user.js'
 import { downloadWithFilename } from '@/utils/download.js'
@@ -226,6 +229,31 @@ const resultOptions = [
 // 竞品公司名称、是否中标下拉选项：抽到 @/constants/competitors.js，方便多处复用
 
 const DEFAULT_COMPETITOR = () => ({ name: '', discount: null, paymentTerm: null, notes: '' })
+
+// 竞品下拉选项：从后端全局竞品字典动态加载（specs/055），不再用前端硬编码常量
+const competitorOptions = ref([])
+async function loadCompetitorOptions() {
+  try {
+    const res = await competitionIntelApi.getCompetitors()
+    competitorOptions.value = (res?.data || []).map(c => c.name).filter(Boolean)
+  } catch (e) {
+    // NFR-04：下拉加载失败降级为空列表，允许自由输入，不阻断结果登记
+    competitorOptions.value = []
+  }
+}
+// 对录入端新输入的竞品名做幂等 upsert（已存在返回已有，不存在自动入库），不阻断登记主流程
+async function ensureCompetitorNames(names) {
+  const newNames = [...new Set(names)].filter(n => n && !competitorOptions.value.includes(n))
+  if (!newNames.length) return
+  for (const name of newNames) {
+    try {
+      await competitionIntelApi.upsertCompetitor(name)
+    } catch (e) {
+      notifyErrorUnlessRateLimit(e, `竞品「${name}」自动入库失败`)
+    }
+  }
+  await loadCompetitorOptions()
+}
 // ⚠ 语义漂移说明：`notes` 字段在原表为「其他说明」自由文本，本次改造后 UI 上用于存储「是否中标」枚举
 // （'已中标' / '未中标'），但提交 payload 仍走 notes 字段名以保持后端 DTO 兼容。
 // 历史 notes 文本数据在 select 中会显示为空，属预期行为。如后续需要保留自由文本，请拆分为独立的 wonStatus 字段。
@@ -418,6 +446,8 @@ async function submit() {
   // 过滤全空竞品行（用户点了「添加一行」但未填写任何字段），避免脏数据进后端
   // 判空统一：字符串字段用 trim() 检查非空，数字字段用 != null 检查（0 也算有值）
   const competitors = form.competitors.filter(c => c.name?.trim() || c.discount != null || c.paymentTerm != null || c.notes?.trim())
+  // 竞品名自动入库（幂等 upsert，失败不阻断登记）
+  await ensureCompetitorNames(competitors.map(c => c.name?.trim()).filter(Boolean))
   submitting.value = true
   try {
     const payload = {
@@ -438,7 +468,7 @@ async function submit() {
   finally { submitting.value = false }
 }
 
-onMounted(load)
+onMounted(() => { load(); loadCompetitorOptions() })
 
 defineExpose({ load, checkPrecipitationReadiness, triggerPrecipitation })
 </script>

@@ -227,6 +227,7 @@ public class CompetitionIntelService {
                 .marketShare(competitor.getMarketShare())
                 .typicalBidRangeMin(competitor.getTypicalBidRangeMin())
                 .typicalBidRangeMax(competitor.getTypicalBidRangeMax())
+                .status(competitor.getStatus())
                 .createdAt(competitor.getCreatedAt())
                 .build();
     }
