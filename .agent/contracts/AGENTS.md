@@ -74,13 +74,13 @@
 
 ## 协作暗号
 
-- **"早操SOP"** → `git fetch origin && git rebase origin/main && bash scripts/sync-env.sh .`（自动检测 GitHub 镜像状态；如需同步加 `SYNC_TO_GITHUB=1`，仅主工作区生效）
-- **"早操SOP + 同步 GitHub"** → `SYNC_TO_GITHUB=1 bash scripts/sync-env.sh .`（主工作区专用，顺便把 Gitee main 推到 GitHub 保持镜像最新）
-- **"开个任务/开个分支 XX"** → `scripts/agent-start-task.sh <当前agent名> <XX> origin/main --in-place`
-- **"早操SOP + 开个分支 XX"** → 同上，相当于 `--in-place` 一次完成全部流程
+- **"早操SOP"** → `git fetch origin && git rebase origin/main && bash scripts/sync-env.sh .`（自动检测 GitHub 镜像状态；如需同步加 `SYNC_TO_GITHUB=1`，仅开发宿主生效）
+- **"早操SOP + 同步 GitHub"** → `SYNC_TO_GITHUB=1 bash scripts/sync-env.sh .`（开发宿主专用，顺便把 Gitee main 推到 GitHub 保持镜像最新）
+- **"开个任务/开个分支 XX"** -> `scripts/agent-start-task.sh <当前agent名> <XX> origin/main`（默认从基准仓库拉独立临时 worktree，纯源码，收尾自动删）
+- **"早操SOP + 开个分支 XX"** -> 先 `sync-env.sh` 同步基线，再 `agent-start-task.sh` 拉临时 worktree
 - **"收个任务/收尾"** → 见下方"收尾流程"小节（主路径：`scripts/agent-finish-task.sh`；手动 fallback：五步流程）
-- **"健康检查"** → `npm run agent:health-check`（聚合主工作区 sidecar/backend/frontend 健康状态；其他 worktree 不再启动开发环境）
-- **"启动开发环境"** → 仅主工作区（`/Users/user/xiyu/worktrees/trae`）允许执行 `./scripts/start-frontend.sh` / `./scripts/start-backend.sh` / `./scripts/dev-services.sh`；其他 worktree 由脚本守卫拒绝执行
+- **"健康检查"** → `npm run agent:health-check`（聚合开发宿主 sidecar/backend/frontend 健康状态；临时 worktree 不启动开发环境）
+- **"启动开发环境"** → 仅开发宿主（`/Users/user/xiyu/worktrees/trae`）允许执行 `./scripts/start-frontend.sh` / `./scripts/start-backend.sh` / `./scripts/dev-services.sh`；临时 worktree 由脚本守卫拒绝执行
 - **"推 GitHub 镜像"** → `bash scripts/sync-to-github.sh`（Gitee main → GitHub main 单向镜像，含安全检查，禁止反向覆盖）
 - **"同步 GitHub 改动"** → `bash scripts/sync-from-github.sh <commit-or-branch>`（GitHub → Gitee 增量 cherry-pick，禁止 merge/覆盖）
 
@@ -247,5 +247,5 @@
 
 - **技术栈**：Vue 3 + Vite 5 + Element Plus | Java 21 + Spring Boot 3.2 + JPA + MySQL 8.0 + Flyway | Playwright（以 `backend/pom.xml` 为唯一源）
 - **本地启动必须**：`export XIYU_DEV_CONFIRMED=1`（生产部署不得使用本地脚本）
-- **开发环境统一**：自 2026-06-21 起，所有开发资源（前端 1323 / 后端 18089 / Sidecar 8009 / 数据库 xiyu_bid_main / Redis DB 0）统一到主工作区 `/Users/user/xiyu/worktrees/trae`。其他 worktree（claude/codex/cursor/gemini/kimi/mimo/qoder/zcode）仅用于代码编辑和 git 操作，不启动开发环境，不分配独立端口/数据库。详见 `CLAUDE.md §多 Agent 执行手册`
-- **开场约定**：AI 代理开启新任务时，先声明当前环境（worktree 名称、当前分支、协作模式、是否主工作区）
+- **开发环境统一**：自 2026-06-21 起，所有开发资源（前端 1323 / 后端 18089 / Sidecar 8009 / 数据库 xiyu_bid_main / Redis DB 0）统一到开发宿主 `/Users/user/xiyu/worktrees/trae`。临时任务 worktree（`xiyu-<agent>-<task>`）纯源码，仅做代码编辑和 git 操作，不启动开发环境。详见 `CLAUDE.md §多 Agent 执行手册`
+- **开场约定**：AI 代理开启新任务时，先声明当前环境（worktree 名称、当前分支、协作模式、是否开发宿主）

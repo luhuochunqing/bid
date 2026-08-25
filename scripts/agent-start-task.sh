@@ -11,8 +11,8 @@ Usage:
   scripts/agent-start-task.sh <agent> <task-slug> [base-ref] [options]
 
 Options:
-  --in-place             早操三连 + 在当前 worktree 内创建分支（自动 fetch + rebase + sync-env）
-                         ⚠️ 自 2026-06-22 起，此模式为唯一支持模式，不再允许创建独立 worktree。
+  --in-place             在当前 worktree 内创建分支（早操三连：fetch + rebase + sync-env）
+                         默认模式（不加该选项）从主仓库拉独立临时 worktree（纯源码，用后即删）。
   --lock <path>          Acquire an initial file lock after worktree creation.
   --lock-dir <path>      Acquire an initial directory lock after worktree creation.
   --touch <path>         Run who-touches preflight check for a planned change path.
@@ -25,9 +25,10 @@ Options:
   --dry-run              Print the planned operations without changing files.
 
 Example:
-  scripts/agent-start-task.sh codex project-task-breakdown-from-tender origin/main --in-place
-  scripts/agent-start-task.sh codex project-page --in-place --lock src/views/Project/Detail.vue --lock-reason "项目详情页改造"
-  scripts/agent-start-task.sh codex project-page --in-place --touch src/views/Project/Detail.vue
+  # 默认：从主仓库拉独立临时 worktree（纯源码，收尾自动删）
+  scripts/agent-start-task.sh codex project-task-breakdown-from-tender origin/main
+  scripts/agent-start-task.sh codex project-page --lock src/views/Project/Detail.vue --lock-reason "项目详情页改造"
+  # 旧持久 worktree 内联模式（显式 --in-place）
   scripts/agent-start-task.sh codex quick-fix origin/main --in-place
 USAGE
 }
@@ -160,17 +161,6 @@ if [[ ! "$LOCK_DAYS" =~ ^[1-9][0-9]*$ ]]; then
   exit 1
 fi
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 自 2026-06-22 起，强制要求 --in-place 模式，不再允许创建独立 worktree
-# ─────────────────────────────────────────────────────────────────────────────
-if [[ "$IN_PLACE" != "1" ]]; then
-  echo "agent-start-task: 错误 - 必须使用 --in-place 模式。" >&2
-  echo "  自 2026-06-22 起，不再允许创建独立的临时 worktree。" >&2
-  echo "  所有任务必须在持久 worktree 内以 --in-place 模式完成。" >&2
-  echo "  用法: scripts/agent-start-task.sh <agent> <task> origin/main --in-place" >&2
-  exit 1
-fi
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Resolve the true repository root even when this script is invoked from inside a worktree.
@@ -199,10 +189,17 @@ REPO_ROOT="$(resolve_repo_root "$(cd "$SCRIPT_DIR/.." && pwd)")"
 WORKTREES_ROOT="${WORKTREES_ROOT:-$HOME/xiyu/worktrees}"
 INVOCATION_WORKTREE_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "$REPO_ROOT")"
 
-# --in-place 模式：在当前 worktree 内创建分支
-WORKTREE_PATH="$INVOCATION_WORKTREE_ROOT"
+# 模式分发：
+#   --in-place → 在当前 worktree 内创建分支（旧持久 worktree 内联模式）
+#   默认       → 从主仓库拉独立临时 worktree（纯源码，收尾自动删）
+if [[ "$IN_PLACE" == "1" ]]; then
+  WORKTREE_PATH="$INVOCATION_WORKTREE_ROOT"
+else
+  WORKTREE_PATH="$WORKTREES_ROOT/xiyu-$AGENT_NAME-$TASK_SLUG"
+fi
 WORKTREE_NAME="$(basename "$WORKTREE_PATH")"
 BRANCH_NAME="agent/$AGENT_NAME/$TASK_SLUG"
+WORKTREE_CREATED=0
 BRANCH_CREATED=0
 LOCKS_ACQUIRED=0
 ACQUIRED_LOCK_PATHS=()
@@ -267,12 +264,15 @@ cleanup_on_error() {
     done
   fi
 
-  # 注意：不可在此删除 worktree。自 2026-06-22 起强制 --in-place 模式，
-  # WORKTREE_PATH 是各 agent 的持久 worktree，失败清理只回收分支。
   if [[ "$BRANCH_CREATED" == "1" ]]; then
     if git show-ref --verify --quiet "refs/heads/$BRANCH_NAME"; then
       git branch -D "$BRANCH_NAME" >/dev/null 2>&1 || true
     fi
+  fi
+
+  # 临时 worktree 模式：初始化失败时回收已创建的临时 worktree
+  if [[ "$IN_PLACE" != "1" && "$WORKTREE_CREATED" == "1" && -d "$WORKTREE_PATH" ]]; then
+    git worktree remove "$WORKTREE_PATH" --force >/dev/null 2>&1 || rm -rf "$WORKTREE_PATH"
   fi
 }
 trap cleanup_on_error EXIT
@@ -299,9 +299,13 @@ if [[ "$DRY_RUN" == "1" ]]; then
   echo "  worktree: $WORKTREE_PATH"
   echo "  branch:   $BRANCH_NAME"
   echo "  base:     $BASE_REF"
-  echo "  mode:     in-place (current worktree)"
+  if [[ "$IN_PLACE" == "1" ]]; then
+    echo "  mode:     in-place (current worktree)"
+    echo "  morning:  fetch + rebase origin/main + sync-env.sh"
+  else
+    echo "  mode:     isolated temp worktree (git worktree add, pure-source)"
+  fi
   echo "  touch:    ${#TOUCH_PATHS[@]} paths"
-  echo "  morning:  fetch + rebase origin/main + sync-env.sh"
   echo "  locks:    ${#LOCK_PATHS[@]} locks"
   echo
   if [[ "${#TOUCH_PATHS[@]}" -gt 0 ]]; then
@@ -339,24 +343,44 @@ if [[ "$DRY_RUN" == "1" ]]; then
   exit 0
 fi
 
-# --in-place 模式：确认当前在锚点分支上，pull 最新 main，再切分支
-current_branch="$(git rev-parse --abbrev-ref HEAD)"
-if [[ "$current_branch" != "agent/${AGENT_NAME}-init" ]]; then
-  echo "agent-start-task: --in-place requires being on the anchor branch 'agent/${AGENT_NAME}-init' (currently on '$current_branch')" >&2
-  exit 1
-fi
-# --- 早操三连：基线对齐 + 环境同步（agent-sop-quickref.md §一）---
+# --- 创建分支：按模式分发 --in-place 或独立临时 worktree ---
+if [[ "$IN_PLACE" == "1" ]]; then
+  # 确认当前在锚点分支上，pull 最新 main，再切分支
+  current_branch="$(git rev-parse --abbrev-ref HEAD)"
+  if [[ "$current_branch" != "agent/${AGENT_NAME}-init" ]]; then
+    echo "agent-start-task: --in-place requires being on the anchor branch 'agent/${AGENT_NAME}-init' (currently on '$current_branch')" >&2
+    exit 1
+  fi
+  # --- 早操三连：基线对齐 + 环境同步（agent-sop-quickref.md §一）---
 
-echo "agent-start-task: [morning-routine] git fetch origin..."
-git fetch origin
-echo "agent-start-task: [morning-routine] git rebase origin/main..."
-git rebase origin/main
-echo "agent-start-task: [morning-routine] sync-env.sh ."
-bash scripts/sync-env.sh .
-# -------------------------------------
-echo "agent-start-task: creating branch $BRANCH_NAME in current worktree..."
-git checkout -b "$BRANCH_NAME"
-BRANCH_CREATED=1
+  echo "agent-start-task: [morning-routine] git fetch origin..."
+  git fetch origin
+  echo "agent-start-task: [morning-routine] git rebase origin/main..."
+  git rebase origin/main
+  echo "agent-start-task: [morning-routine] sync-env.sh ."
+  bash scripts/sync-env.sh .
+  # -------------------------------------
+  echo "agent-start-task: creating branch $BRANCH_NAME in current worktree..."
+  git checkout -b "$BRANCH_NAME"
+  BRANCH_CREATED=1
+else
+  # 独立临时 worktree：先从主仓库 fetch，再 git worktree add
+  # BASE_REF 默认 origin/main，需具备本地 ref；没有则先 fetch
+  if ! git rev-parse --verify --quiet "${BASE_REF}"; then
+    echo "agent-start-task: fetching origin to resolve base $BASE_REF..."
+    git fetch origin
+  fi
+  if [[ -d "$WORKTREE_PATH" ]]; then
+    echo "agent-start-task: 目标 worktree 目录已存在，拒绝覆盖: $WORKTREE_PATH" >&2
+    exit 1
+  fi
+  mkdir -p "$(dirname "$WORKTREE_PATH")"
+  echo "agent-start-task: adding temp worktree $WORKTREE_PATH @ $BASE_REF ..."
+  git worktree add -b "$BRANCH_NAME" "$WORKTREE_PATH" "$BASE_REF"
+  WORKTREE_CREATED=1
+  BRANCH_CREATED=1
+fi
+
 cat > "$WORKTREE_PATH/.agent-task-context" <<EOF
 agent=$AGENT_NAME
 task=$TASK_SLUG
@@ -364,9 +388,9 @@ branch=$BRANCH_NAME
 base=$BASE_REF
 worktree=$WORKTREE_PATH
 repo_root=$WORKTREE_PATH
-mode=in-place
-created_from_branch=$(git rev-parse --abbrev-ref HEAD | sed "s/.*/agent\/${AGENT_NAME}-init/")
-created_from_rev=$(git rev-parse HEAD)
+mode=$([[ "$IN_PLACE" == "1" ]] && echo "in-place" || echo "temp-worktree")
+created_from_branch=$BASE_REF
+created_from_rev=$(git -C "$WORKTREE_PATH" rev-parse HEAD)
 created_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 EOF
 
@@ -427,7 +451,9 @@ fi
 
 trap - EXIT
 
-echo "Created task branch (in-place):"
+MODE_LABEL="临时 worktree"
+if [[ "$IN_PLACE" == "1" ]]; then MODE_LABEL="in-place"; fi
+echo "Created task branch ($MODE_LABEL):"
 echo "  worktree: $WORKTREE_PATH"
 echo "  branch:   $BRANCH_NAME"
 echo "  base:     $BASE_REF"
