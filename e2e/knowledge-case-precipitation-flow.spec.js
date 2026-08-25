@@ -81,7 +81,7 @@ test.describe('4.1.1.2.1 AI 案例沉淀 — 6 步异步任务模型', () => {
     const joined = missing.join('|')
     expect(joined).toMatch(/标书|BID|文件/)
     expect(joined).toMatch(/评分项|打分点/)
-    expect(joined).toMatch(/CLOSED|结项|阶段/)
+    expect(joined).toMatch(/CLOSED|结项|阶段|结果确认|结果登记/)
   })
 
   test('权限：STAFF 角色无法访问手动触发沉淀端点', async () => {

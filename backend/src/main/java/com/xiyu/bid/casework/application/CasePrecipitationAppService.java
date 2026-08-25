@@ -4,12 +4,11 @@ import com.xiyu.bid.casework.infrastructure.ArchiveFile;
 import com.xiyu.bid.casework.infrastructure.ArchiveFileRepository;
 import com.xiyu.bid.casework.infrastructure.ProjectArchive;
 import com.xiyu.bid.casework.infrastructure.ProjectArchiveRepository;
+import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.User;
-import com.xiyu.bid.project.core.ProjectStage;
-import com.xiyu.bid.project.service.ProjectStageService;
+import com.xiyu.bid.project.repository.ProjectResultRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
-import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import lombok.RequiredArgsConstructor;
@@ -27,10 +26,10 @@ import java.util.Optional;
 @Slf4j
 /**
  * 案例沉淀前置条件校验与手动触发服务。
- * <p>前置条件（蓝图 4.1.1.2.1）：
+ * <p>前置条件：
  * <ol>
  *   <li>项目存在</li>
- *   <li>项目阶段已进入 CLOSED</li>
+ *   <li>项目已完成结果确认（登记结果）</li>
  *   <li>项目下至少有一份 BID 分类文件（标书文件）</li>
  *   <li>项目下至少有一项评分项</li>
  * </ol>
@@ -42,7 +41,7 @@ public class CasePrecipitationAppService {
     private final ArchiveFileRepository fileRepository;
     private final ScoreItemRepository scoreItemRepository;
     private final ProjectRepository projectRepository;
-    private final ProjectStageService projectStageService;
+    private final ProjectResultRepository projectResultRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final UserRepository userRepository;
 
@@ -55,7 +54,7 @@ public class CasePrecipitationAppService {
     public ReadinessResult getReadiness(Long projectId) {
         List<String> missingItems = new ArrayList<>();
         boolean projectExists = false;
-        boolean stageClosed = false;
+        boolean resultConfirmed = false;
         boolean hasBidFile = false;
         boolean hasScoreItems = false;
 
@@ -66,10 +65,9 @@ public class CasePrecipitationAppService {
         }
         projectExists = true;
 
-        ProjectStage currentStage = projectStageService.currentStage(projectId);
-        stageClosed = currentStage == ProjectStage.CLOSED;
-        if (!stageClosed) {
-            missingItems.add("项目阶段未进入 CLOSED（当前阶段：" + currentStage + "），需先完成复盘并结项");
+        resultConfirmed = projectResultRepository.findByProjectId(projectId).isPresent();
+        if (!resultConfirmed) {
+            missingItems.add("项目尚未完成结果确认，需先登记投标结果");
         }
 
         Optional<ProjectArchive> archiveOpt = archiveRepository.findByProjectId(projectId);
@@ -90,8 +88,8 @@ public class CasePrecipitationAppService {
             missingItems.add("缺少评分项，请先在标书编制阶段完成招标文件解析");
         }
 
-        boolean canPrecipitate = projectExists && stageClosed && hasBidFile && hasScoreItems;
-        return new ReadinessResult(canPrecipitate, stageClosed, hasBidFile, hasScoreItems, false, missingItems);
+        boolean canPrecipitate = projectExists && resultConfirmed && hasBidFile && hasScoreItems;
+        return new ReadinessResult(canPrecipitate, resultConfirmed, hasBidFile, hasScoreItems, false, missingItems);
     }
 
     /**
@@ -129,7 +127,7 @@ public class CasePrecipitationAppService {
     /**
      * 案例沉淀前置条件检查结果。
      * @param canPrecipitate 是否满足全部前置条件
-     * @param stageClosed    项目阶段是否已进入 CLOSED
+     * @param resultConfirmed 投标结果是否已登记确认（原 stageClosed 语义升级）
      * @param hasBidFile     是否有标书文件
      * @param hasScoreItems  是否有评分项
      * @param rejected       是否曾因前置条件不足被拒绝（保留字段）
@@ -137,10 +135,14 @@ public class CasePrecipitationAppService {
      */
     public record ReadinessResult(
             boolean canPrecipitate,
-            boolean stageClosed,
+            boolean resultConfirmed,
             boolean hasBidFile,
             boolean hasScoreItems,
             boolean rejected,
             List<String> missingItems) {
+        /** 兼容历史旧命名调用 */
+        public boolean stageClosed() {
+            return resultConfirmed;
+        }
     }
 }

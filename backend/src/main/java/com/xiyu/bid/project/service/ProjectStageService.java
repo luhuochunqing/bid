@@ -5,7 +5,6 @@
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.project.service;
 
-import com.xiyu.bid.casework.application.ProjectClosedEvent;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.notification.application.ProjectClosureNotificationApplicationService;
 import com.xiyu.bid.project.core.ProjectStatusPolicy;
@@ -158,12 +157,6 @@ public class ProjectStageService {
         // CO-324: 发事件由 audit 模块记录「从 XX 推进至 YY」操作日志（含源+目标阶段）。
         // service 不直接注入 IAuditLogService（ArchitectureTest RULE 12），用事件解耦。
         eventPublisher.publishEvent(new ProjectStageTransitionedEvent(projectId, current, target));
-
-        // 蓝图 4.1.1.2.1：项目阶段机进入 CLOSED 之后触发 AI 案例沉淀。
-        // 这里把"已结项"信号发到 ProjectClosedEvent，由 ProjectClosedEventListener 异步处理。
-        if (target == ProjectStage.CLOSED && current != ProjectStage.CLOSED) {
-            eventPublisher.publishEvent(new ProjectClosedEvent(this, projectId, p.getName()));
-        }
 
         // US2: 复盘 → 结项时通知项目负责人提交结项申请。失败不阻塞主流程。
         if (target == ProjectStage.CLOSED && current == ProjectStage.RETROSPECTIVE) {

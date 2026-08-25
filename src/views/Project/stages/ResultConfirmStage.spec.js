@@ -34,6 +34,15 @@ vi.mock('@/api/modules/projectLifecycle.js', () => ({
   },
 }))
 
+const checkPrecipitationReadinessMock = vi.fn()
+const precipitateCasesMock = vi.fn()
+vi.mock('@/api/modules/knowledge.js', () => ({
+  casesApi: {
+    checkPrecipitationReadiness: (...args) => checkPrecipitationReadinessMock(...args),
+    precipitateCases: (...args) => precipitateCasesMock(...args),
+  },
+}))
+
 vi.mock('@/constants/projectStages.js', () => ({ getResultConfirmNextTab: () => 'RETROSPECTIVE' }))
 
 vi.mock('element-plus', async (importOriginal) => {
@@ -91,5 +100,44 @@ describe('ResultConfirmStage CO-408 回填凭证文件名', () => {
     await flushPromises()
     expect(wrapper.findComponent({ name: 'ElUpload' }).props('fileList')).toHaveLength(0)
     expect(getDocumentsMock).not.toHaveBeenCalled()
+  })
+
+  it('结果已登记时：展示 AI 自动生成案例按钮并触发 checkPrecipitationReadiness', async () => {
+    getResultMock.mockImplementation(() => Promise.resolve({
+      data: { resultType: 'WON', registeredAt: '2026-08-25 12:00:00', evidenceFileIds: [] },
+    }))
+    checkPrecipitationReadinessMock.mockResolvedValue({
+      data: { canPrecipitate: true, missingItems: [] },
+    })
+
+    const { default: ResultConfirmStage } = await import('./ResultConfirmStage.vue')
+    const wrapper = mount(ResultConfirmStage, {
+      props: { projectId: 1 },
+      global: { plugins: [ElementPlus] },
+    })
+    await flushPromises()
+
+    expect(checkPrecipitationReadinessMock).toHaveBeenCalledWith(1)
+    expect(wrapper.text()).toContain('AI自动生成案例')
+  })
+
+  it('点击 AI 自动生成案例按钮时调用 casesApi.precipitateCases', async () => {
+    getResultMock.mockImplementation(() => Promise.resolve({
+      data: { resultType: 'WON', registeredAt: '2026-08-25 12:00:00', evidenceFileIds: [] },
+    }))
+    checkPrecipitationReadinessMock.mockResolvedValue({
+      data: { canPrecipitate: true, missingItems: [] },
+    })
+    precipitateCasesMock.mockResolvedValue({ message: '案例沉淀任务已触发' })
+
+    const { default: ResultConfirmStage } = await import('./ResultConfirmStage.vue')
+    const wrapper = mount(ResultConfirmStage, {
+      props: { projectId: 1 },
+      global: { plugins: [ElementPlus] },
+    })
+    await flushPromises()
+
+    await wrapper.vm.triggerPrecipitation()
+    expect(precipitateCasesMock).toHaveBeenCalledWith(1)
   })
 })

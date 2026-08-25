@@ -14,6 +14,7 @@ import com.xiyu.bid.file.application.ObsShareUrlSigner;
 import com.xiyu.bid.file.domain.FileUrlPrefixes;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.project.entity.ProjectResult;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
@@ -69,6 +70,7 @@ class ProjectClosedEventListenerTest {
     private ProjectRepository projectRepository;
     private TenderRepository tenderRepository;
     private BidResultFetchResultRepository bidResultRepository;
+    private com.xiyu.bid.project.repository.ProjectResultRepository projectResultRepository;
     private DocumentTextExtractor docTextExtractor;
     private CaseAiMatcher caseAiMatcher;
     private CasePrecipitationNotifier notifier;
@@ -91,6 +93,7 @@ class ProjectClosedEventListenerTest {
         projectRepository = mock(ProjectRepository.class);
         tenderRepository = mock(TenderRepository.class);
         bidResultRepository = mock(BidResultFetchResultRepository.class);
+        projectResultRepository = mock(com.xiyu.bid.project.repository.ProjectResultRepository.class);
         docTextExtractor = mock(DocumentTextExtractor.class);
         caseAiMatcher = mock(CaseAiMatcher.class);
         notifier = mock(CasePrecipitationNotifier.class);
@@ -106,7 +109,7 @@ class ProjectClosedEventListenerTest {
         listener = new ProjectClosedEventListener(
                 archiveRepository, fileRepository, scoreItemRepository,
                 knowledgeCaseRepository, projectRepository, tenderRepository,
-                bidResultRepository, docTextExtractor, caseAiMatcher, notifier,
+                bidResultRepository, projectResultRepository, docTextExtractor, caseAiMatcher, notifier,
                 obsShareUrlSigner, streamingFetcher, streamTextExtractor,
                 tempBidFileStore, transactionTemplate);
     }
@@ -556,6 +559,71 @@ class ProjectClosedEventListenerTest {
         } finally {
             server.stop(0);
         }
+    }
+
+    @Test
+    @DisplayName("loadProjectContext 优先从 project_result 读取 resultType 并跳过 bidResultRepository 查询")
+    void loadProjectContext_projectResultPresent_usesResultTypeAndSkipsBidResultFetchRepo() {
+        Project project = project(1L, 7L, "测试项目");
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        ProjectArchive archive = new ProjectArchive();
+        archive.setId(99L);
+        when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
+        when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(bidFile(1L, 99L)));
+        when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
+                .thenReturn(List.of(scoreItem(101L, "技术方案", "要求")));
+        when(docTextExtractor.extract(any(), any(), any()))
+                .thenReturn(new ExtractedDocument("## 正文", 1, "text/markdown", "bid.pdf", java.util.Map.of()));
+        when(caseAiMatcher.extractSlicesWithAi(any(), any()))
+                .thenReturn(List.of(slice(101L, "片段", 0.9)));
+        when(caseAiMatcher.extractCategory(any())).thenReturn("技术");
+
+        ProjectResult result = new ProjectResult();
+        result.setProjectId(1L);
+        result.setResultType("WON");
+        when(projectResultRepository.findByProjectId(1L)).thenReturn(Optional.of(result));
+
+        listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "测试项目"));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<KnowledgeCase>> captor = ArgumentCaptor.forClass(List.class);
+        verify(knowledgeCaseRepository, times(1)).saveAll(captor.capture());
+        KnowledgeCase saved = captor.getValue().get(0);
+        assertThat(saved.getBidResult()).isEqualTo("WON");
+        verify(bidResultRepository, never()).findFirstByProjectIdAndStatusOrderByConfirmedAtDescFetchTimeDesc(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("loadProjectContext 当 project_result 不存在时回退到 bidResultRepository")
+    void loadProjectContext_projectResultEmpty_fallsBackToBidResultFetchRepo() {
+        Project project = project(1L, 7L, "测试项目");
+        when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
+        ProjectArchive archive = new ProjectArchive();
+        archive.setId(99L);
+        when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
+        when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(bidFile(1L, 99L)));
+        when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
+                .thenReturn(List.of(scoreItem(101L, "技术方案", "要求")));
+        when(docTextExtractor.extract(any(), any(), any()))
+                .thenReturn(new ExtractedDocument("## 正文", 1, "text/markdown", "bid.pdf", java.util.Map.of()));
+        when(caseAiMatcher.extractSlicesWithAi(any(), any()))
+                .thenReturn(List.of(slice(101L, "片段", 0.9)));
+        when(caseAiMatcher.extractCategory(any())).thenReturn("技术");
+
+        when(projectResultRepository.findByProjectId(1L)).thenReturn(Optional.empty());
+        BidResultFetchResult fetchResult = new BidResultFetchResult();
+        fetchResult.setResult(BidResultFetchResult.Result.LOST);
+        when(bidResultRepository.findFirstByProjectIdAndStatusOrderByConfirmedAtDescFetchTimeDesc(1L, BidResultFetchResult.Status.CONFIRMED))
+                .thenReturn(Optional.of(fetchResult));
+
+        listener.onProjectClosed(new ProjectClosedEvent(this, 1L, "测试项目"));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<KnowledgeCase>> captor = ArgumentCaptor.forClass(List.class);
+        verify(knowledgeCaseRepository, times(1)).saveAll(captor.capture());
+        KnowledgeCase saved = captor.getValue().get(0);
+        assertThat(saved.getBidResult()).isEqualTo("LOST");
+        verify(bidResultRepository, times(1)).findFirstByProjectIdAndStatusOrderByConfirmedAtDescFetchTimeDesc(1L, BidResultFetchResult.Status.CONFIRMED);
     }
 
     private Project project(Long id, Long managerId, String name) {
