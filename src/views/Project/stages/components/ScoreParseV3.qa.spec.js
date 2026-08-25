@@ -100,6 +100,13 @@ describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
     expect(wrapper.vm.statsDangerCount).toBe(1)
     expect(wrapper.vm.statsNeutralCount).toBe(1)
 
+    // 合计区布局守卫：满足状态三项竖排、客观/主观权重各占一行（列对齐布局回归防护）
+    const stackCells = wrapper.findAll('.tfoot-stack-cell')
+    expect(stackCells.length).toBe(2)
+    expect(stackCells[0].findAll('.stat-tag').length).toBe(3)
+    expect(stackCells[1].text()).toContain('客观项权重')
+    expect(stackCells[1].text()).toContain('主观项权重')
+
     // 阶段 1 标书未上传占位符
     expect(wrapper.text()).toContain('尚未上传投标文件')
   })
@@ -128,6 +135,11 @@ describe('QA Test Suite: AI 评分标准解析 V3 全链路验收', () => {
     expect(wrapper.text()).toContain('9')
     expect(wrapper.text()).toContain('客观项权重 11')
     expect(wrapper.text()).toContain('主观项权重 12')
+    // 阶段 2 合计区与阶段 1 同构：共用 ScoreParseTable，竖排列对齐布局一致（对齐需求回归防护）
+    // 限定阶段 2 容器，避免与阶段 1 表格的同类单元格混淆
+    const actualStackCells = wrapper.findAll('.scoring-table-container .tfoot-stack-cell')
+    expect(actualStackCells.length).toBe(2)
+    expect(actualStackCells[0].findAll('.stat-tag').length).toBe(3)
 
     // 底部说明文案
     expect(wrapper.text()).toContain('AI 基于标书内容 + 知识库证书自动判定，计入总分')

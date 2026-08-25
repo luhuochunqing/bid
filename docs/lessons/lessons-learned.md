@@ -2770,3 +2770,17 @@ PR !2399 报价评分截断治理提交后，经严格评审发现 2 个 CRITICA
 - `document-converter-sidecar/converter.py`
 - `document-converter-sidecar/tests/test_merge_split_price_tables.py`
 - `scripts/check-keyword-sync.mjs`（跨语言关键词契约门禁，挂 pre-push §5.6）
+
+---
+
+## 157. `table-layout: fixed` 表格改列对齐布局：按最坏文本宽度预留列宽 + 布局守卫断言要限定容器作用域（2026-08-25）
+
+**背景**：AI 评分标准解析抽屉（`ScoreParseTable.vue`）合计行从 `colspan=8` 横向 flex 条重构为对齐到「满足状态」「评分类别」等列下方的竖排单元格布局。
+
+**踩坑 1：列宽按当前文案算，极端文案溢出**。`table-layout: fixed` 下 `white-space: nowrap` 的超宽内容不会撑开列，而是直接渲染溢出到相邻单元格。「评分类别」列按「客观项权重 12」算 96px 够用，但三位数权重「客观项权重 100」超出内容区 4px；高亮得分框 `min-width: 64px` 大于得分列内容区 60px 同样微溢出。修复：列宽按最坏文案（三位数）预留，评分类别 96→100px、得分列 76→80px。
+
+**踩坑 2：布局守卫断言未限定作用域**。同页两个表格共用 `ScoreParseTable`（阶段 1 v-show 常驻 + 阶段 2 条件渲染），阶段 2 场景下 `findAll('.tfoot-stack-cell')` 会命中 4 个而非 2 个。修复：断言限定到 `.scoring-table-container .tfoot-stack-cell`。
+
+**教训**：
+- fixed 布局表格新增/改列内容时，列宽必须按最坏长度文案（最大位数、最长枚举）核算，内容区 = 列宽 - 左右 padding；`nowrap` 内容溢出是静默视觉缺陷，单测与构建都拦不住，需人工核算或浏览器目检
+- 共享组件在同页多实例渲染时，测试断言选择器必须限定到区分性容器，避免跨实例计数污染

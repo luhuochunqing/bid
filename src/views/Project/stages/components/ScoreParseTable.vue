@@ -13,8 +13,8 @@
           <th>评分项详细要素</th>
           <th style="width: 52px; text-align: center">权重</th>
           <th style="width: 80px">满足状态</th>
-          <th style="width: 76px; text-align: center">评分类别</th>
-          <th style="width: 76px; text-align: center">{{ mode === 'actual' ? '实际得分' : '预计得分' }}</th>
+          <th style="width: 100px; text-align: center">评分类别</th>
+          <th style="width: 80px; text-align: center">{{ mode === 'actual' ? '实际得分' : '预计得分' }}</th>
           <th style="width: 68px; text-align: center">得分依据</th>
         </tr>
       </thead>
@@ -50,25 +50,24 @@
       </tbody>
       <tfoot>
         <tr class="tfoot-row">
-          <td colspan="8" class="tfoot-bar">
-            <div class="tfoot-flex">
-              <span class="tfoot-stats">
-                <span class="stat-tag ok">{{ currentStats.ok }} 满足</span> ·
-                <span class="stat-tag danger">{{ currentStats.danger }} 不满足</span> ·
-                <span class="stat-tag neutral">{{ currentStats.neutral }} 待确认</span>
-              </span>
-              <span class="tfoot-label">
-                合计
-                <span v-if="totalWeight !== 100" class="weight-warning">权重合计与 100 分不符</span>
-              </span>
-              <span class="weight-cell tfoot-weight">{{ totalWeight }}</span>
-              <span class="tfoot-dim-dist">
-                <span class="obj-text">客观项权重 {{ objectiveWeight }}</span> ·
-                <span class="subj-text">主观项权重 {{ subjectiveWeight }}</span>
-              </span>
-              <span class="highlight-score-box">{{ currentHighlightScore }}</span>
-            </div>
+          <td colspan="3" class="tfoot-total-cell">
+            <span class="tfoot-label">合计</span>
+            <span v-if="totalWeight !== 100" class="weight-warning">权重合计与 100 分不符</span>
           </td>
+          <td class="weight-cell tfoot-weight">{{ totalWeight }}</td>
+          <td class="tfoot-stack-cell">
+            <span class="stat-tag ok">{{ currentStats.ok }} 满足</span>
+            <span class="stat-tag danger">{{ currentStats.danger }} 不满足</span>
+            <span class="stat-tag neutral">{{ currentStats.neutral }} 待确认</span>
+          </td>
+          <td class="tfoot-stack-cell">
+            <span class="obj-text">客观项权重 {{ objectiveWeight }}</span>
+            <span class="subj-text">主观项权重 {{ subjectiveWeight }}</span>
+          </td>
+          <td class="tfoot-score-cell">
+            <span class="highlight-score-box">{{ currentHighlightScore }}</span>
+          </td>
+          <td></td>
         </tr>
       </tfoot>
     </table>
@@ -197,7 +196,7 @@ const currentHighlightScore = computed(() => {
 .pill.neutral { background: var(--status-neutral-bg); color: var(--status-neutral-color); }
 .req-cell { line-height: 1.5; color: var(--text-primary-ui); font-size: 12px; }
 .weight-cell { text-align: center; font-weight: 600; font-family: monospace; color: var(--brand-xiyu-logo); font-size: 13px; }
-.weight-warning { font-size: 10px; color: var(--status-danger-color); font-weight: normal; margin-top: 2px; line-height: 1.2; }
+.weight-warning { display: block; font-size: 10px; color: var(--status-danger-color); font-weight: normal; margin-top: 2px; line-height: 1.2; }
 .status-cell { font-size: 12px; font-weight: 500; }
 .status-cell.ok { color: var(--brand-xiyu-logo); }
 .status-cell.danger { color: var(--status-danger-color); }
@@ -213,16 +212,16 @@ const currentHighlightScore = computed(() => {
 .btn-detail { padding: 2px 10px; font-size: 12px; background: none; border: 1px solid var(--border-base); border-radius: var(--radius-sm); color: var(--brand-xiyu-logo); cursor: pointer; transition: all 0.15s; }
 .btn-detail:hover { background: var(--brand-xiyu-logo-light); border-color: var(--brand-xiyu-logo); }
 .tfoot-row { background: var(--bg-muted); font-weight: 600; border-top: 2px solid var(--border-base); }
-.tfoot-bar { padding: 8px; }
-.tfoot-flex { display: flex; align-items: center; justify-content: flex-end; gap: 18px; flex-wrap: wrap; }
+.tfoot-total-cell { text-align: right; }
 .tfoot-label { color: var(--text-primary); font-size: 12px; }
-.tfoot-weight { font-size: 13px; color: var(--brand-xiyu-logo); font-weight: 700; }
-.tfoot-stats { margin-right: auto; font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.tfoot-weight { font-weight: 700; }
+.tfoot-stack-cell { font-size: 12px; white-space: nowrap; }
+.tfoot-stack-cell span { display: block; line-height: 1.6; }
 .stat-tag.ok { color: var(--brand-xiyu-logo); font-weight: 600; }
 .stat-tag.danger { color: var(--status-danger-color); font-weight: 600; }
 .stat-tag.neutral { color: var(--text-muted); font-weight: 600; }
-.tfoot-dim-dist { font-size: 12px; white-space: nowrap; }
-.tfoot-dim-dist .obj-text { color: var(--status-info-color); font-weight: 600; }
-.tfoot-dim-dist .subj-text { color: var(--text-muted); }
+.tfoot-stack-cell .obj-text { color: var(--status-info-color); font-weight: 600; }
+.tfoot-stack-cell .subj-text { color: var(--text-muted); }
+.tfoot-score-cell { text-align: center; }
 .highlight-score-box { display: inline-flex; align-items: center; justify-content: center; min-width: 64px; height: 32px; padding: 0 12px; background: var(--brand-xiyu-logo-light); color: var(--brand-xiyu-logo-active); font-size: 16px; font-weight: 700; border-radius: 4px; }
 </style>
