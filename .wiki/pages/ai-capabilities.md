@@ -127,6 +127,7 @@ backlinks:
 - 阶段 2 实际打分走异步任务：`triggerScoring → pollTask(2s/900次) → getResults`
 - 状态映射：OK/DANGER/PENDING → ok/danger/neutral；OBJECTIVE/SUBJECTIVE → 客观项/主观项
 - 假后端已清除：`biddraftagent` 的 BidScoreEvaluationPolicy/AppService/score-evaluation 端点（关键词硬编码打分）已删除，统一走 spec 041 真 LLM 打分
+- 合计行列对齐布局（2026-08-25）：`ScoreParseTable.vue` tfoot 从 colspan=8 横向 flex 条拆为对齐到表格列的单元格——满足状态三项（满足/不满足/待确认）竖排、客观/主观项权重两行竖排、高亮得分框居得分列；两阶段共用组件天然对齐；抽屉头部留白已压缩（内容上移）
 
 ### 3.3 竞争情报
 
