@@ -18,6 +18,8 @@ Options:
   --touch <path>         Run who-touches preflight check for a planned change path.
   --force-touch-conflict Continue even if who-touches finds active agent branches.
   --push                 Push the new branch to origin after initialization completes.
+  --with-deps            Install node dependencies in the worktree (pnpm install).
+                         Default: skip — keeps non-primary worktrees pure-source.
   --lock-reason <reason> Reason used for all initial locks.
   --lock-days <days>     Lock lifetime in days. Default: 1.
   --dry-run              Print the planned operations without changing files.
@@ -55,6 +57,7 @@ LOCK_SCOPES=()
 TOUCH_PATHS=()
 FORCE_TOUCH_CONFLICT=0
 AUTO_PUSH=0
+WITH_DEPS=0
 
 POSITIONAL_REST=()
 while [[ $# -gt 0 ]]; do
@@ -99,6 +102,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --push)
       AUTO_PUSH=1
+      shift
+      ;;
+    --with-deps)
+      WITH_DEPS=1
       shift
       ;;
     --lock-reason)
@@ -324,6 +331,11 @@ if [[ "$DRY_RUN" == "1" ]]; then
   else
     echo "  - branch will remain local until you push it manually"
   fi
+  if [[ "$WITH_DEPS" == "1" ]]; then
+    echo "  - node dependencies will be installed (--with-deps)"
+  else
+    echo "  - node dependencies will be skipped (pure-source worktree)"
+  fi
   exit 0
 fi
 
@@ -382,9 +394,14 @@ if ! git config alias.commit 2>/dev/null | grep -q 'git-commit-wrapper'; then
 fi
 
 # 增量安装 node 依赖（检查 node_modules 是否存在）
-if [[ -f "$WORKTREE_PATH/package.json" && ! -d "$WORKTREE_PATH/node_modules" ]]; then
-  echo "agent-start-task: package.json detected, running fast offline-first pnpm install..."
-  (cd "$WORKTREE_PATH" && pnpm install --prefer-offline --reporter=silent || pnpm install)
+# 默认跳过以保持非主工作区为纯源码；仅 --with-deps 时安装
+if [[ "$WITH_DEPS" == "1" ]]; then
+  if [[ -f "$WORKTREE_PATH/package.json" && ! -d "$WORKTREE_PATH/node_modules" ]]; then
+    echo "agent-start-task: [--with-deps] package.json detected, running fast offline-first pnpm install..."
+    (cd "$WORKTREE_PATH" && pnpm install --prefer-offline --reporter=silent || pnpm install)
+  fi
+else
+  echo "agent-start-task: skipping node_modules install (pure-source; pass --with-deps to install)"
 fi
 
 if [[ "${#LOCK_PATHS[@]}" -gt 0 ]]; then
@@ -438,6 +455,11 @@ else
 fi
 if [[ "${#LOCK_PATHS[@]}" -gt 0 ]]; then
   echo "  - initial locks registered"
+fi
+if [[ "$WITH_DEPS" == "1" ]]; then
+  echo "  - node dependencies installed (--with-deps)"
+else
+  echo "  - node dependencies skipped (pure-source worktree; develop & verify in trae)"
 fi
 echo
 echo "Next:"

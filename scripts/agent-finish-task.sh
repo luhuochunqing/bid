@@ -410,6 +410,60 @@ else
   info "无 worktree 需要清理"
 fi
 
+# ─── Step 10: 清理孤儿 worktree ────────────────────────────────────────────────
+# 工程背景（2026-08-25）: 多 agent 持久 worktree 长期积累，分支合入 main 后
+#   目录仍残留（.git 元数据失效，git 在 worktree list 中标记 prunable），占大量磁盘。
+#   收尾时自动扫描并回收这些孤儿空壳，配合 git worktree prune 清注册。
+hdr "Step 10: 清理孤儿 worktree"
+
+ORPHAN_PATHS=()
+while IFS= read -r line; do
+  case "$line" in
+    *"prunable"*) ;;
+    *) continue ;;
+  esac
+  p="${line%% *}"
+  if [[ "$p" == "$REPO_ROOT" ]]; then
+    continue
+  fi
+  ORPHAN_PATHS+=("$p")
+done < <(git worktree list 2>/dev/null || echo "")
+
+if [[ "${#ORPHAN_PATHS[@]}" -eq 0 ]]; then
+  info "无孤儿 worktree，跳过"
+else
+  echo "  发现 ${#ORPHAN_PATHS[@]} 个孤儿 worktree（分支已删除，待回收）:"
+  for p in "${ORPHAN_PATHS[@]}"; do
+    echo "    • $p"
+  done
+  echo
+  if [[ "$DRY_RUN" == "1" ]]; then
+    for p in "${ORPHAN_PATHS[@]}"; do
+      echo "  [DRY RUN] rm -rf $p + git worktree prune"
+    done
+  elif [[ "$AUTO_CONFIRM" == "1" ]]; then
+    for p in "${ORPHAN_PATHS[@]}"; do
+      rm -rf "$p"
+      warn "已清理孤儿 worktree: $p"
+    done
+    git worktree prune 2>/dev/null || warn "git worktree prune 失败（跳过）"
+    info "已执行 git worktree prune 清理注册"
+  else
+    read -p "是否删除这些孤儿 worktree？(y/N) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+      for p in "${ORPHAN_PATHS[@]}"; do
+        rm -rf "$p"
+        warn "已清理孤儿 worktree: $p"
+      done
+      git worktree prune 2>/dev/null || warn "git worktree prune 失败（跳过）"
+      info "已执行 git worktree prune 清理注册"
+    else
+      info "跳过孤儿 worktree 清理"
+    fi
+  fi
+fi
+
 # ─── 完成 ───────────────────────────────────────────────────────────────────────
 echo
 echo "╔══════════════════════════════════════════════════════════════╗"
