@@ -74,3 +74,99 @@ Authorization: Bearer {{token}}
 ### 10. 边界：空审计日志日期范围
 GET http://localhost:18081/api/audit?startDate=2099-01-01&endDate=2099-12-31
 Authorization: Bearer {{token}}
+
+### ==========================================
+### 接口六：项目修改（接口规范 v3.12 §3.6，X-API-Key 认证）
+### PUT /api/integration/projects/{sourceSystem}/{sourceId}
+### 语义：按 (sourceSystem, sourceId) 定位标讯关联项目；仅写项目数据，不修改标讯字段；
+###       非 null 字段覆盖、null/未传保留；evaluationCustomerInfos 传入即全量替换。
+### ==========================================
+
+@apiKey = {{crmApiKey}}
+
+### 11. 正常流程：项目全量更新（项目名称 + 投标信息 + GAP 附件 + 客户信息表含 TEL）
+PUT http://localhost:18081/api/integration/projects/CRM/OPP-20260901001
+X-API-Key: {{apiKey}}
+Content-Type: application/json
+
+{
+  "projectName": "某单位 2026 年度办公用品集中采购项目",
+  "evaluationBasic": {
+    "mroOfficeFlowAmount": 1200.5,
+    "customerRevenue": 88,
+    "riskAssessment": "招标文件存在资质门槛风险",
+    "contingencyPlan": "已准备联合体投标兜底方案",
+    "processKnowledge": "熟悉评标全流程，可提前准备澄清材料",
+    "supportNotes": "需要总部提供历史业绩支撑",
+    "projectPlanGapFiles": [
+      { "fileName": "项目方案.pdf", "fileUrl": "https://crm.example.com/files/plan.pdf" }
+    ]
+  },
+  "evaluationCustomerInfos": [
+    {
+      "NAME": "张三",
+      "CONTACT": "13800138000",
+      "TEL": "021-62345678",
+      "POSITION": "采购部主任",
+      "XIYU_CONTACT": "李四",
+      "CONTACTED": "是",
+      "CONTACT_METHOD": "电话",
+      "TENDENCY": "支持",
+      "INFO_TENDENCY_BASIS": "历史合作良好",
+      "GUIDED_BID": "否",
+      "CAN_GET_KEY_INFO": "是",
+      "CAN_REMOVE_ADVERSE": "否",
+      "CAN_SYNC_EVAL": "是",
+      "INFO_CLEAR_WINNER_BID": false,
+      "INFO_WIN_RATE_IMPACT": "30%"
+    }
+  ]
+}
+
+### 12. 正常流程：部分更新（仅改项目名称，其余字段保留）
+PUT http://localhost:18081/api/integration/projects/CRM/OPP-20260901001
+X-API-Key: {{apiKey}}
+Content-Type: application/json
+
+{
+  "projectName": "某单位 2026 年度办公用品集中采购项目（二期）"
+}
+
+### 13. 正常流程：按 projectId 优先定位（备用定位方式）
+PUT http://localhost:18081/api/integration/projects/CRM/OPP-20260901001
+X-API-Key: {{apiKey}}
+Content-Type: application/json
+
+{
+  "projectId": 1,
+  "evaluationBasic": {
+    "riskAssessment": "按项目 ID 定位后更新风险预判"
+  }
+}
+
+### 14. 边界：projectPlanGapFiles 传空数组 = 清空已有 GAP 附件（不传则保留）
+PUT http://localhost:18081/api/integration/projects/CRM/OPP-20260901001
+X-API-Key: {{apiKey}}
+Content-Type: application/json
+
+{
+  "evaluationBasic": {
+    "projectPlanGapFiles": []
+  }
+}
+
+### 15. 边界：sourceId 不存在 → 404（来源系统下未找到该标讯关联的项目）
+PUT http://localhost:18081/api/integration/projects/CRM/NOT-EXIST-999
+X-API-Key: {{apiKey}}
+Content-Type: application/json
+
+{
+  "projectName": "不会生效的更新"
+}
+
+### 16. 边界：非法请求体 → 400（参数非法）
+PUT http://localhost:18081/api/integration/projects/CRM/OPP-20260901001
+X-API-Key: {{apiKey}}
+Content-Type: application/json
+
+{not valid json
