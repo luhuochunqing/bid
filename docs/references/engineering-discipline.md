@@ -55,3 +55,15 @@
 - **合入前硬检查**：合入工具（`scripts/gitee-pr-helper.sh merge`）强制断言 `mergeable=true`；收尾脚本（`agent-finish-task.sh`）对开放 PR 打印冲突预警。
 - **跨语言契约必须自动化**：Java `PriceScoringKeywords` ↔ Python `converter.py` 关键词表由 `scripts/check-keyword-sync.mjs` 校验（pre-push 门禁 §5.6），注释级契约视为违规。
 - 技能落点：`.agents/skills/xiyu-code-review/SKILL.md`（第 0 步状态快照 + §7 结构健康 + §8 交付就绪 + 结论模板分栏）。
+
+## 5. Worktree 三层架构--基准仓库/开发宿主/临时任务隔离（2026-08-25）
+
+**背景**：多 Agent 协同开发中长期积累大量持久 worktree（claude/codex/cursor 等），每个占 1-2GB+，磁盘膨胀严重。早期文档把 `trae` 称为"主工作区"，导致概念混淆--`trae` 实际是 `.git` 基准仓库 `xiyu-bid-poc` 的一个 worktree，而非独立仓库。
+
+**纪律**：
+- **三层结构**：基准仓库（`xiyu-bid-poc`，.git 根，worktree 唯一拉取源）→ 开发宿主（`trae` worktree，唯一常驻，跑 docker/后端/前端/launchd）→ 临时任务 worktree（`xiyu-<agent>-<task>`，纯源码，用完即删）。
+- **临时 worktree 纯源码**：`agent-start-task.sh` 默认不装 `node_modules`（`--with-deps` 可选），临时 worktree 仅做代码编辑 + git 操作，不启动开发环境。
+- **命名约定**：临时 worktree 统一命名为 `xiyu-<agent>-<task>`，`agent-start-task.sh` 和 `agent-finish-task.sh` 的 `WORKTREES_ROOT` 路径必须一致。
+- **收尾自动清理**：`agent-finish-task.sh` Step 8 删临时 worktree + Step 10 扫孤儿 worktree + `git worktree prune`。
+- **`--in-place` 可选**：旧持久 worktree 内联模式保留为 `--in-place` 可选，默认走独立临时 worktree。
+- 文档中"主工作区"口径已废弃，统一用"开发宿主"（trae）+ "基准仓库"（xiyu-bid-poc）。
