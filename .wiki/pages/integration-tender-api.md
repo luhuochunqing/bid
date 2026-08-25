@@ -172,7 +172,7 @@ backlinks:
 | v3.5 | 2026-06-17 | 状态回调 externalId → sourceId，认证改 JWT；结果回调 crmOpportunityId → sourceId；列表 contactInfo 改数组 |
 | v3.7 | 2026-06-17 | 标讯创建接口新增 tenderInfo / projectManagerName / department / creatorName / createDate |
 | v3.8 | 2026-06-17 | 当前版本（文档版本号同步） |
-| — | 2026-08-19 | 代码层新增 contactNature/contactNature2 字段（V1200 迁移）：手动创建/修改路径经 ManualTenderValidation 分组条件必填校验，CRM 集成路径豁免；Excel 导入模板与导出同步扩列 |
+| — | 2026-08-19 | 代码层新增 contactNature/contactNature2 字段（V1201 迁移）：手动创建/修改路径经 ManualTenderValidation 分组条件必填校验，CRM 集成路径豁免；Excel 导入模板与导出同步扩列 |
 
 ## 11. 待确认事项
 

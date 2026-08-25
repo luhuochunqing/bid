@@ -451,3 +451,4 @@
 - 技能落点（本地 `.agents/skills/`，未入库）：`xiyu-code-review` 新增第 0 步状态快照 + §7 结构健康 + §8 交付就绪 + 结论模板分栏（自动化/判断性 + 必填"重新设计建议"）
 - 更新 [[engineering-discipline]]；教训：**同一类问题第二次出现就该变成脚本，而不是第三条纪律文字；审查轮次同质化重复一百遍也只是同一个盲区的第一百次确认**
 - 2026-08-25: 报价评分跨页截断专项评审修复（PR !2399：多信号交集跨页表合并、邻近扩展单跳、按行去重与 detail 6000 字符上界、classifyPipeRow 重构、跨语言关键词同步门禁） -> score-parse-service.md
+- 2026-08-25: PR !2349 合并冲突修复（lessons §140 编号撞号重编号 §159；origin/main 占用 V1200，contactNature 迁移重命名 V1201/U1201 并同步 wiki 引用） -> integration-tender-api.md

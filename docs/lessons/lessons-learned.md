@@ -2808,7 +2808,7 @@ PR !2399 报价评分截断治理提交后，经严格评审发现 2 个 CRITICA
 
 ### 背景
 
-标讯联系人性质（contactNature）全链路实现中，本地迁移脚本最初使用 V1189，后两次撞号：origin/main 先被占用 V1189（analytics 权限迁移），重命名为 V1198 后再次发现 origin/main 已占用 V1198（collation 统一迁移），最终重命名为 V1200（V1199 亦被 origin/main 占用）。首次撞号时启动报 `Found more than one migration with version 1189`。
+标讯联系人性质（contactNature）全链路实现中，本地迁移脚本最初使用 V1189，后两次撞号：origin/main 先被占用 V1189（analytics 权限迁移），重命名为 V1198 后再次发现 origin/main 已占用 V1198（collation 统一迁移），最终重命名为 V1200（V1199 亦被 origin/main 占用）；合并前 origin/main 又占用了 V1200（opportunity-prediction-reminder 迁移），再次重命名为 V1201。首次撞号时启动报 `Found more than one migration with version 1189`。
 
 ### 根因与连锁问题
 
@@ -2818,7 +2818,7 @@ PR !2399 报价评分截断治理提交后，经严格评审发现 2 个 CRITICA
 
 ### 修复动作
 
-- 迁移脚本与回滚脚本同步重命名为更高版本号（V1189/U1189 → V1200/U1200，期间 V1198、V1199 相继被占用），amend 提交。
+- 迁移脚本与回滚脚本同步重命名为更高版本号（V1189/U1189 → V1201/U1201，期间 V1198、V1199、V1200 相继被占用），amend 提交。
 - `mvn clean` 清理 target/classes 残留旧迁移文件。
 - 手动删除 `flyway_schema_history` 中的失败记录与已建的空列，再重新应用迁移。
 
@@ -2832,5 +2832,5 @@ PR !2399 报价评分截断治理提交后，经严格评审发现 2 个 CRITICA
 
 ### 相关文件
 
-- `backend/src/main/resources/db/migration-mysql/V1200__add_contact_nature_to_tenders.sql`
-- `backend/src/main/resources/db/rollback/migration-mysql/U1200__add_contact_nature_to_tenders.sql`
+- `backend/src/main/resources/db/migration-mysql/V1201__add_contact_nature_to_tenders.sql`
+- `backend/src/main/resources/db/rollback/migration-mysql/U1201__add_contact_nature_to_tenders.sql`
