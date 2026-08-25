@@ -166,6 +166,8 @@ src/main/java/com/xiyu/bid/integration/external/TenderIntegrationService.java | 
 src/main/java/com/xiyu/bid/integration/external/TenderIntegrationCommandService.java | 外部标讯集成写入服务（从 TenderIntegrationService 拆分），同属外部系统 API Key 鉴权链（ROLE_EXTERNAL_API），不走项目成员可见性链。
 src/main/java/com/xiyu/bid/integration/external/TenderIntegrationQueryService.java | 外部标讯集成查询服务（从 TenderIntegrationService 拆分），同属外部系统 API Key 鉴权链（ROLE_EXTERNAL_API），不走项目成员可见性链。
 src/main/java/com/xiyu/bid/integration/external/CrmTenderLinkService.java | CRM 标讯自动关联服务，由 TenderIntegrationService 调用，同属外部系统 API Key 鉴权链（ROLE_EXTERNAL_API），不走项目成员可见性链。
+src/main/java/com/xiyu/bid/integration/external/ProjectIntegrationController.java | 外部项目修改控制器（接口规范 v3.12 §3.6），由 X-API-Key/ROLE_EXTERNAL_API 独立鉴权（类级 @PreAuthorize），按 (sourceSystem, sourceId) 定位项目，不走项目成员可见性链。
+src/main/java/com/xiyu/bid/integration/external/ProjectIntegrationCommandService.java | 外部项目修改命令服务（接口规范 v3.12 §3.6），同属外部系统 API Key 鉴权链（ROLE_EXTERNAL_API），仅按外部定位键写项目数据，不走项目成员可见性链。
 src/main/java/com/xiyu/bid/casework/application/CasePrecipitationAppService.java | Case precipitation readiness check and manual trigger; operates on already-CLOSED projects where access guard checks passed during closure workflow. Read-only check + event publish, no project data mutation.
 src/main/java/com/xiyu/bid/resources/service/CaExpiryScanService.java | Scheduler-side CA expiry scan; scans global CA certificate and borrow records (not project-scoped) and generates alerts via AlertHistoryService.
 src/main/java/com/xiyu/bid/platform/service/PlatformAccountBorrowExpiryScanService.java | Scheduler-side account borrow expiry scan; scans global account borrow records (not project-scoped) and generates deadline/overdue/pending notifications.

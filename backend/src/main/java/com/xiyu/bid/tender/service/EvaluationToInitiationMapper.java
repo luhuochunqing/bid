@@ -75,8 +75,13 @@ public final class EvaluationToInitiationMapper {
         return InitiationFieldPolicy.CUSTOMER_TYPE_MAPPING.get(tenderCustomerType.trim());
     }
 
-    /** 评估表客户信息 EAV infoKey → CustomerInfoRow 字段（对齐前端 INFO_KEY_MAP）。 */
-    private static final Map<String, String> INFO_KEY_MAP = Map.ofEntries(
+    /**
+     * 评估表客户信息 EAV infoKey → CustomerInfoRow 字段（对齐前端 INFO_KEY_MAP）。
+     * <p>对外集成项目修改接口 §3.6（{@code ProjectUpdateMapper}）共用本映射，
+     * 键归一（CONTACT→CONTACT_INFO 等）由 {@code TenderEvaluationIntegrationMapper.normalizeCustomerInfoKey} 前置完成；
+     * 新增 info_key 需同批核对前端 INFO_KEY_MAP、Policy 白名单与本映射三处。
+     */
+    public static final Map<String, String> INFO_KEY_MAP = Map.ofEntries(
             Map.entry("NAME", "name"),
             Map.entry("CONTACT_INFO", "contactInfo"),
             Map.entry("TEL", "tel"),
@@ -95,6 +100,26 @@ public final class EvaluationToInitiationMapper {
             Map.entry("TENDENCY", "preference"),
             Map.entry("INFO_CLEAR_WINNER_BID", "canConfirmWin"),
             Map.entry("INFO_WIN_RATE_IMPACT", "winRateImpact"));
+
+    /**
+     * 立项客户信息矩阵 14 行角色的中文标签（按前端表格行顺序），供按行下标回填 role 的调用方共用。
+     * 与 {@link #ROW_ROLES} 保持同源。
+     */
+    public static final List<String> ROLE_LABELS_IN_ORDER = List.of(
+            "项目最高决策人",
+            "物资公司董事长",
+            "物资公司分管电商领导",
+            "电商公司董事长",
+            "电商公司总经理",
+            "电商公司副总经理",
+            "电商公司运营负责人",
+            "招标文件制作人",
+            "其他关键决策人1",
+            "其他关键决策人2",
+            "其他关键决策人3",
+            "专家1",
+            "专家2",
+            "专家3");
 
     /** 立项客户信息矩阵 14 行角色（roleKey → 中文 role），顺序对齐前端 CUST_ROLES。 */
     private static final List<Map.Entry<String, String>> ROW_ROLES = List.of(

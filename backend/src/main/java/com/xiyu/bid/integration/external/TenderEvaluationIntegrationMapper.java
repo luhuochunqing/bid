@@ -94,8 +94,10 @@ public class TenderEvaluationIntegrationMapper {
      * 将 CRM 推送的字段名标准化为前端矩阵使用的 infoKey。
      * <p>EAV / Flat 两种入参格式共用本方法：先 trim + 大写归一，再做别名映射，
      * 保证外部系统传小写键（如 {@code tel}）时与 Policy 白名单（全大写）一致。
+     * <p>静态方法：供标讯评估（本类）与项目修改（ProjectUpdateMapper）共用，
+     * 保证两个接口的键归一口径单一真相源。
      */
-    String normalizeCustomerInfoKey(String infoKey) {
+    static String normalizeCustomerInfoKey(String infoKey) {
         if (infoKey == null) return null;
         String normalized = infoKey.trim().toUpperCase(Locale.ROOT);
         return switch (normalized) {
@@ -108,7 +110,7 @@ public class TenderEvaluationIntegrationMapper {
     /**
      * 按 infoKey 推导客户信息标准值类型。
      */
-    TenderEvaluationCustomerInfo.ValueType expectedCustomerInfoValueType(String infoKey) {
+    static TenderEvaluationCustomerInfo.ValueType expectedCustomerInfoValueType(String infoKey) {
         String expectedType = TenderEvaluationCustomerInfoPolicy.INFO_KEY_VALUE_TYPES.get(infoKey);
         if (expectedType == null || expectedType.isBlank()) return TenderEvaluationCustomerInfo.ValueType.TEXT;
         try {
@@ -134,8 +136,10 @@ public class TenderEvaluationIntegrationMapper {
 
     /**
      * 归一化外部接口传入的是否/开关值。
+     * <p>静态方法：与 {@link #normalizeCustomerInfoKey} 同为对外集成客户信息
+     * 取值口径的单一真相源（标讯修改 §3.3 与项目修改 §3.6 共用）。
      */
-    String normalizeCustomerInfoValue(String infoKey, Object value) {
+    static String normalizeCustomerInfoValue(String infoKey, Object value) {
         if (value == null) return null;
         TenderEvaluationCustomerInfo.ValueType valueType = expectedCustomerInfoValueType(infoKey);
         String text = value.toString();
