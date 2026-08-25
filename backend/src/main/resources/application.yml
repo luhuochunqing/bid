@@ -65,7 +65,10 @@ spring:
         size: ${SPRING_TASK_SCHEDULING_POOL_SIZE:4}
 
 ai:
-  provider: ${AI_PROVIDER:mock}  # Options: mock, openai
+  # 默认留空：ai.provider=mock 仅在显式声明（E2E/演示栈）时生效。
+  # 禁止回退默认 mock——否则生产漏配 AI_PROVIDER 会静默回落 MockAiProvider 返回假数据；
+  # 生产部署预检（scripts/release/preflight.sh）会强制校验 AI_PROVIDER 非空且非 mock。
+  provider: ${AI_PROVIDER:}  # Options: mock, openai, custom, ...
   openai:
     api-key: ${OPENAI_API_KEY:}
     base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}

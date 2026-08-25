@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Input: uploaded release archive path, remote host deployment paths, and service restart configuration
+# Input: uploaded release archive path, remote host deployment paths, service restart configuration, and backend.env AI_PROVIDER guard
 # Output: activated release files, restarted backend service, and remote health verification
 # Pos: scripts/release/ - Release automation and rehearsal helpers
 # 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -99,6 +99,37 @@ tar -xzf "$RELEASE_ARCHIVE" -C "$RELEASE_DIR"
 if [[ -n "$DB_BACKUP_COMMAND" ]]; then
   printf '==> Running backup command\n'
   bash -lc "$DB_BACKUP_COMMAND"
+fi
+
+# ── AI Provider 守卫（任何服务变更之前，失败零影响）──
+# 工程背景（PR !2396 生产风险审计）：ai.provider=mock 时全部 AI 接口静默回落 MockAiProvider
+# 返回假数据；生产必须显式配置真实 AI_PROVIDER（首产记录 AI_PROVIDER=custom）。
+# backend.env 丢失或重配漏项时在这里拦截，禁止"静默假数据"形态上线。
+BACKEND_ENV_FILE="${BACKEND_ENV_FILE:-/etc/xiyu-bid/backend.env}"
+if [[ -f "$BACKEND_ENV_FILE" ]]; then
+  ENV_CONTENT="$(cat "$BACKEND_ENV_FILE" 2>/dev/null || sudo cat "$BACKEND_ENV_FILE" 2>/dev/null || true)"
+  if [[ -n "$ENV_CONTENT" ]]; then
+    DEPLOY_PROFILES="$(printf '%s\n' "$ENV_CONTENT" | sed -n 's/^SPRING_PROFILES_ACTIVE=//p' | tail -n 1)"
+    DEPLOY_AI_PROVIDER="$(printf '%s\n' "$ENV_CONTENT" | sed -n 's/^AI_PROVIDER=//p' | tail -n 1)"
+    if [[ ",$DEPLOY_PROFILES," == *",prod,"* ]]; then
+      if [[ -z "$DEPLOY_AI_PROVIDER" ]]; then
+        printf '\n❌ backend.env 缺少 AI_PROVIDER：prod 下 AI 功能会直接报错。\n' >&2
+        printf '   处置：在 %s 增加 AI_PROVIDER=custom（见 docs/release/interface-integration-record-2026-07-09-1st-prod.md）。\n' "$BACKEND_ENV_FILE" >&2
+        printf '   当前服务未受任何影响，修正后重跑部署。\n\n' >&2
+        exit 1
+      fi
+      if [[ "$DEPLOY_AI_PROVIDER" == "mock" ]]; then
+        printf '\n❌ prod 禁止 AI_PROVIDER=mock：全部 AI 接口会静默返回假数据。\n' >&2
+        printf '   处置：将 %s 中 AI_PROVIDER 改回真实厂商（如 custom）。\n\n' "$BACKEND_ENV_FILE" >&2
+        exit 1
+      fi
+      printf '✅ AI Provider 守卫通过：AI_PROVIDER=%s\n' "$DEPLOY_AI_PROVIDER"
+    fi
+  else
+    printf '⚠️  无法读取 %s（权限受限），跳过 AI Provider 守卫。\n' "$BACKEND_ENV_FILE"
+  fi
+else
+  printf '⚠️  未找到 %s，跳过 AI Provider 守卫。\n' "$BACKEND_ENV_FILE"
 fi
 
 printf '==> Activating frontend assets\n'

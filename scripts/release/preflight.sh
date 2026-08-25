@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Input: release environment variables, MySQL 8.0 database selection, and local tool availability
+# Input: release environment variables, MySQL 8.0 database selection, local tool availability, and prod AI_PROVIDER guard
 # Output: preflight checks for MySQL 8.0 release workflows
 # Pos: scripts/release/ - Release automation and rehearsal helpers
 # 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -57,6 +57,22 @@ case "$DB_ENGINE" in
     exit 1
     ;;
 esac
+
+# AI Provider 守卫：prod 部署必须显式配置真实 AI_PROVIDER（见 docs/release/interface-integration-record-2026-07-09-1st-prod.md）。
+# ai.provider 默认值已改为空串，仅显式 mock 生效；但 prod 漏配时 AI 功能会因设置缺失直接报错，
+# 显式 mock 则会静默返回假数据——两种形态都在部署前拦截。
+if [[ ",$SPRING_PROFILES_ACTIVE," == *",prod,"* ]]; then
+  ai_provider="${AI_PROVIDER:-}"
+  if [[ -z "$ai_provider" ]]; then
+    printf 'prod deployment requires AI_PROVIDER to be set (e.g. custom); AI features fail fast without it\n' >&2
+    exit 1
+  fi
+  if [[ "$ai_provider" == "mock" ]]; then
+    printf 'prod deployment must not use AI_PROVIDER=mock: all AI features would silently return mock data\n' >&2
+    exit 1
+  fi
+  printf 'AI provider: %s\n' "$ai_provider"
+fi
 
 printf 'Node: %s\n' "$(node -v)"
 printf 'NPM: %s\n' "$(npm -v)"

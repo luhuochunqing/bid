@@ -84,6 +84,20 @@ class QualificationAiParserServiceTest {
     }
 
     @Test
+    @DisplayName("ai.provider=mock 时 resolveActiveConfig 返回 null，应抛 BusinessException 引导配置而非 NPE")
+    void extractFromPdf_whenAiProviderInMockMode_shouldThrowBusinessExceptionNotNpe() {
+        MultipartFile file = new MockMultipartFile("file", "cert.pdf", "application/pdf", new byte[]{1});
+        when(documentTextExtractor.extract(anyString(), anyString(), any(byte[].class)))
+                .thenReturn(new ExtractedDocument("一些证书文本", 6, null, null, null));
+        // ai.provider=mock（E2E/演示栈）时 RoutingAiProvider.resolveActiveConfig() 返回 null
+        when(routingAiProvider.resolveActiveConfig()).thenReturn(null);
+
+        assertThatThrownBy(() -> service.extractFromPdf(file))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("mock 模式");
+    }
+
+    @Test
     @DisplayName("AI 调用失败时应抛 BusinessException，不再返回 Mock 假数据")
     void extractFromPdf_whenAiCallFails_shouldThrowBusinessException() {
         MultipartFile file = new MockMultipartFile("file", "cert.pdf", "application/pdf", new byte[]{1});

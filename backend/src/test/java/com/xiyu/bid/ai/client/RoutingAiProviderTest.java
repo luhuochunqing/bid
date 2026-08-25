@@ -109,6 +109,21 @@ class RoutingAiProviderTest {
     }
 
     @Test
+    void embed_WhenProviderForcedToMock_ShouldFallBackToMockEmbeddingNotNpe() {
+        RoutingAiProvider provider = createProvider();
+        when(environment.getProperty("ai.provider", "")).thenReturn("mock");
+        float[] expected = new float[1024];
+        when(mockAiProvider.embed("text")).thenReturn(expected);
+
+        float[] actual = provider.embed("text");
+
+        assertThat(actual).isSameAs(expected);
+        verify(aiConfigService, never()).isAiEnabled();
+        verify(openAiCompatibleEmbeddingClient, never()).embed(any(), any());
+        verify(noopEmbeddingClient, never()).embed(any(), any());
+    }
+
+    @Test
     void analyzeTender_WhenActiveProviderDisabled_ShouldRejectWithoutCallingProvider() {
         RoutingAiProvider provider = createProvider();
         when(aiConfigService.isAiEnabled()).thenReturn(true);

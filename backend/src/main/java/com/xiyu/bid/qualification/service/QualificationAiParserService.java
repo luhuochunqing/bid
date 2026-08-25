@@ -1,3 +1,8 @@
+// Input: 资质证书文件（PDF/图片，经 markItDown Sidecar 提取文本）+ RoutingAiProvider 真实厂商运行时配置
+// Output: QualificationDTO（证书名称/编号/发证机构/持有人/有效期）
+// Pos: qualification 模块 AI 解析链（上传 → sidecar 提取 → LLM 结构化 → DTO 回填）
+// 维护声明: ai.provider=mock 时 resolveActiveConfig 返回 null，本服务明确抛 BusinessException 引导配置，
+//           禁止回落 Mock 模板数据（假解析结果入库比报错更危险）；改 prompt/字段时同步本类失败路径测试。
 package com.xiyu.bid.qualification.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -63,6 +68,11 @@ public class QualificationAiParserService {
         // AI 未启用或未配置时，RoutingAiProvider.resolveActiveConfig() 会抛 IllegalStateException，
         // 由 GlobalExceptionHandler 转成 409 响应提示用户去系统设置启用 AI；这里不再吞异常返回 Mock。
         AiProviderRuntimeConfig config = routingAiProvider.resolveActiveConfig();
+        if (config == null) {
+            // ai.provider=mock（E2E/演示栈）时 resolveActiveConfig 返回 null；本服务直连真实厂商接口，
+            // 不能拿 MockAiProvider 的模板结果当证书元数据入库，明确报错引导配置。
+            throw new BusinessException("AI 当前处于 mock 模式，无法解析资质证书，请联系管理员在系统设置中配置真实 AI 厂商");
+        }
 
         try {
             String prompt = "你是一个专业的投标资质证书提取助手。请从以下资质证书的文本内容中提取证书的关键元数据。\n" +

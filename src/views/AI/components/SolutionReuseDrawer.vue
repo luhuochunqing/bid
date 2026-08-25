@@ -12,11 +12,7 @@
             <el-descriptions-item label="来源项目">{{ solution.projectName }}</el-descriptions-item>
             <el-descriptions-item label="行业">{{ solution.industry }}</el-descriptions-item>
             <el-descriptions-item label="日期">{{ solution.date }}</el-descriptions-item>
-            <el-descriptions-item label="匹配度">
-              <el-tag :type="solution.matchScore >= 80 ? 'success' : solution.matchScore >= 60 ? 'warning' : 'info'" size="small">
-                {{ solution.matchScore }}%
-              </el-tag>
-            </el-descriptions-item>
+            <el-descriptions-item label="复制次数">{{ solution.useCount ?? '—' }}</el-descriptions-item>
           </el-descriptions>
         </div>
 

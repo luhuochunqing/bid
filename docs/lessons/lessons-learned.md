@@ -2697,3 +2697,16 @@ nohup npx vite --port 1323 --host 127.0.0.1 < /dev/null > /tmp/xx.log 2>&1 &
 
 - 无代码改动（运维教训）；受影响命令：本地前端启动（qoder1 worktree，端口 1323）
 
+
+## 153. 配置默认值陷阱：`${VAR:mock}` 让"漏配"伪装成"显式 mock"，生产静默假数据（2026-08-25）
+
+**现象**：PR !2396 给 `RoutingAiProvider.resolveActiveConfig()` 加 `ai.provider=mock → null（回落 MockAiProvider）`分支后，任何未设置 `AI_PROVIDER` 的环境全部 AI 接口静默返回假数据，健康检查 UP(mockMode) 掩盖信号。生产仅因服务器 backend.env 手工配了 `AI_PROVIDER=custom` 才未触发。
+
+**根因**：`application.yml` 写的是 `provider: ${AI_PROVIDER:mock}`——默认值本身就是 mock。**默认值让"未设置"与"显式设置"在代码里不可区分**，作者以为 mock 是 E2E 显式声明，实际是全局缺省。次生根因：共享方法新增 null 返回路径时，5 个接口方法只给 4 个加了 null 回落（漏 `embed()`），且未 grep 全部直接调用方（`QualificationAiParserService` 无 null 检查直接 `config.model()`）。
+
+**修复**：默认值改空串只认显式 mock（e2e 栈在 application-e2e.yml 显式声明不受影响）；补两处 null 防护；preflight.sh + remote-deploy.sh 在 prod profile 下断言 `AI_PROVIDER` 非空且非 mock，违规在任何服务变更前中止部署。
+
+**教训**：
+- 带行为语义的开关（mock/demo/shadow）默认值必须留空，让漏配走 fail-fast 而非静默降级
+- 改共享方法的返回契约（如新增 null 路径），必须 grep 全部调用方逐个核对，接口内每个方法都要过一遍
+- 生产正确性依赖的 env 不能只活在运维手册/服务器配置里，必须进部署预检断言
