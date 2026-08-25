@@ -47,7 +47,6 @@ class CasePrecipitationAppServiceTest {
     private ArchiveFileRepository fileRepository;
     private ScoreItemRepository scoreItemRepository;
     private ProjectRepository projectRepository;
-    private ProjectStageService projectStageService;
     private ProjectResultRepository projectResultRepository;
     private ApplicationEventPublisher eventPublisher;
     private UserRepository userRepository;
@@ -59,13 +58,12 @@ class CasePrecipitationAppServiceTest {
         fileRepository = mock(ArchiveFileRepository.class);
         scoreItemRepository = mock(ScoreItemRepository.class);
         projectRepository = mock(ProjectRepository.class);
-        projectStageService = mock(ProjectStageService.class);
         projectResultRepository = mock(ProjectResultRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         userRepository = mock(UserRepository.class);
         service = new CasePrecipitationAppService(
                 archiveRepository, fileRepository, scoreItemRepository,
-                projectRepository, projectStageService, projectResultRepository,
+                projectRepository, projectResultRepository,
                 eventPublisher, userRepository);
     }
 
@@ -171,7 +169,6 @@ class CasePrecipitationAppServiceTest {
         project.setName("测试项目");
         project.setStage(ProjectStage.RESULT_PENDING.name());
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
-        when(projectStageService.currentStage(1L)).thenReturn(ProjectStage.RETROSPECTIVE);
         com.xiyu.bid.project.entity.ProjectResult result = new com.xiyu.bid.project.entity.ProjectResult();
         result.setId(88L);
         result.setProjectId(1L);

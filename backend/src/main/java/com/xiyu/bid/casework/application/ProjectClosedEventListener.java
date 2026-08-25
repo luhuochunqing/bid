@@ -29,6 +29,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.IOException;
@@ -61,7 +63,7 @@ public class ProjectClosedEventListener {
     private final TransactionTemplate transactionTemplate;
 
     @Async
-    @EventListener
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void onProjectClosed(ProjectClosedEvent event) {
         long startTime = System.currentTimeMillis();
         Long projectId = event.getProjectId();
@@ -211,6 +213,7 @@ public class ProjectClosedEventListener {
     }
 
     private CasePrecipitationContext loadProjectContext(Long projectId) {
+        // 蓝图 4.1.1.2.1 三独立语义：行业←tender.industry(兜底 project.industry)、客户类型←customerType、产品线←sourceModule（勿走 projectType，历史错位根因）
         String projectType = "综合", customerType = "其他", productLine = "综合产品线", bidResult = null;
         Optional<Project> projectOpt = projectRepository.findById(projectId);
         if (projectOpt.isPresent()) {
@@ -252,7 +255,8 @@ public class ProjectClosedEventListener {
                     .filter(s -> s.id().equals(slice.getDraftId()))
                     .findFirst().orElse(null);
             if (scoreItem == null) {
-                log.warn("AI 返回 criteriaId={} 未匹配到任何 score_item，丢弃该片段", slice.getDraftId());
+                log.warn("AI 返回的 criteriaId={} 未匹配到任何 score_item（共 {} 个），丢弃该片段；若为 0 入库请检查 LLM id 回显 / 文档解析",
+                        slice.getDraftId(), scoreItems.size());
                 continue;
             }
             KnowledgeCase kCase = new KnowledgeCase();

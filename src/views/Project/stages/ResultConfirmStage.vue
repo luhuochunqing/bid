@@ -166,7 +166,7 @@
 
 
     <!-- 操作按钮 -->
-    <div v-if="canOperate || resultDone" class="btn-container">
+    <div v-if="hasOperableRole" class="btn-container">
       <template v-if="resultDone">
         <el-button type="primary" size="large" disabled>已登记</el-button>
         <el-tooltip
@@ -213,7 +213,8 @@ const userStore = useUserStore()
 const OPERABLE_ROLES = ['admin', 'bid-administration', 'auditor', '/bidAdmin', 'bid-TeamLeader', 'bid-Team', 'manager', 'bid-projectLeader']
 const currentRoleCode = computed(() => userStore?.currentUser?.roleCode || userStore?.currentUser?.role || '')
 const resultDone = ref(false)
-const canOperate = computed(() => !resultDone.value && OPERABLE_ROLES.includes(currentRoleCode.value))
+const hasOperableRole = computed(() => OPERABLE_ROLES.includes(currentRoleCode.value))
+const canOperate = computed(() => !resultDone.value && hasOperableRole.value)
 
 const resultOptions = [
   { value: 'WON', label: '中标' },

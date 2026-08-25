@@ -4,13 +4,11 @@ import com.xiyu.bid.casework.infrastructure.ArchiveFile;
 import com.xiyu.bid.casework.infrastructure.ArchiveFileRepository;
 import com.xiyu.bid.casework.infrastructure.ProjectArchive;
 import com.xiyu.bid.casework.infrastructure.ProjectArchiveRepository;
+import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.User;
-import com.xiyu.bid.project.core.ProjectStage;
-import com.xiyu.bid.project.service.ProjectStageService;
 import com.xiyu.bid.project.repository.ProjectResultRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
-import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import lombok.RequiredArgsConstructor;
@@ -43,7 +41,6 @@ public class CasePrecipitationAppService {
     private final ArchiveFileRepository fileRepository;
     private final ScoreItemRepository scoreItemRepository;
     private final ProjectRepository projectRepository;
-    private final ProjectStageService projectStageService;
     private final ProjectResultRepository projectResultRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final UserRepository userRepository;
@@ -130,7 +127,7 @@ public class CasePrecipitationAppService {
     /**
      * 案例沉淀前置条件检查结果。
      * @param canPrecipitate 是否满足全部前置条件
-     * @param stageClosed    项目阶段是否已进入 CLOSED
+     * @param resultConfirmed 投标结果是否已登记确认（原 stageClosed 语义升级）
      * @param hasBidFile     是否有标书文件
      * @param hasScoreItems  是否有评分项
      * @param rejected       是否曾因前置条件不足被拒绝（保留字段）
@@ -138,10 +135,14 @@ public class CasePrecipitationAppService {
      */
     public record ReadinessResult(
             boolean canPrecipitate,
-            boolean stageClosed,
+            boolean resultConfirmed,
             boolean hasBidFile,
             boolean hasScoreItems,
             boolean rejected,
             List<String> missingItems) {
+        /** 兼容历史旧命名调用 */
+        public boolean stageClosed() {
+            return resultConfirmed;
+        }
     }
 }
