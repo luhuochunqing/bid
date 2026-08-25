@@ -2785,6 +2785,8 @@ PR !2399 报价评分截断治理提交后，经严格评审发现 2 个 CRITICA
 - fixed 布局表格新增/改列内容时，列宽必须按最坏长度文案（最大位数、最长枚举）核算，内容区 = 列宽 - 左右 padding；`nowrap` 内容溢出是静默视觉缺陷，单测与构建都拦不住，需人工核算或浏览器目检
 - 共享组件在同页多实例渲染时，测试断言选择器必须限定到区分性容器，避免跨实例计数污染
 
+---
+
 ## 158. 评估表草稿保存 503：前端恒发 `recommendation={shouldBid:null}`，后端仅判 `rec==null`，显式插 null 击穿 NOT NULL DEFAULT（2026-08-20）
 
 ### 问题背景
@@ -2803,6 +2805,8 @@ PR !2399 报价评分截断治理提交后，经严格评审发现 2 个 CRITICA
 
 - `backend/src/main/java/com/xiyu/bid/tender/service/TenderEvaluationSubmissionMapper.java`
 - `backend/src/test/java/com/xiyu/bid/tender/service/TenderEvaluationSubmissionServiceTest.java`（回归测试）
+
+---
 
 ## 159. Flyway 迁移版本号被 origin/main 占用：rebase 后本地脚本需重命名更高版本号（2026-08-19，contactNature 全链路）
 
@@ -2834,3 +2838,21 @@ PR !2399 报价评分截断治理提交后，经严格评审发现 2 个 CRITICA
 
 - `backend/src/main/resources/db/migration-mysql/V1201__add_contact_nature_to_tenders.sql`
 - `backend/src/main/resources/db/rollback/migration-mysql/U1201__add_contact_nature_to_tenders.sql`
+
+---
+
+## 160. AI 评分标准解析重构：从“AI摘要概括”转向“标书原文表格保真直抽”与 8 列标准排版（2026-08-25）
+
+**背景**：AI 评分标准解析历史表现不准，根因在于过度依赖大模型对表格单元格做语义总结与提炼，导致长条款被改写、公式参数被丢弃、分值列与要素错位。
+
+**重构解法**：
+1. **8 列标准顺序重排**：`1 编号` ➔ `2 标书原文` ➔ `3 评分项` ➔ `4 权重` ➔ `5 满足状态` ➔ `6 评分类别` ➔ `7 预计/实际得分` ➔ `8 得分依据`。
+2. **标书原文保真展示**：第 2 列主内容采用 `white-space: pre-wrap; word-break: break-word;`，忠实保留原始段落与换行排版。
+3. **Prompt 严格原文约束**：重构 `buildCandidateExtractionPrompt`，明确要求 `detail` 必须为招标文件评分表格/条款中的评审细则逐字原文，绝对禁止任何形式的 AI 摘要、概括、缩写或改写。
+4. **详情弹窗追溯**：弹窗首行文案对齐为「标书原文」，并在存在出处时展示「招标文件位置出处（如 `P47 评分办法表 第3行`）」。
+5. **知识库对标与 100 分闭环无缝兼容**：基于高保真原文进行实体对标，5 大知识库（资质/人员/业绩/仓库/授权）匹配命中率更高，分值闭环与编号连续性校验继续作为机器门禁护航。
+
+**教训**：
+- 严肃招投标业务场景中，“标书原文 1:1 保真”是信任基石，严禁大模型做自作聪明的二次摘要。
+- 底层数据保持结构化与保真文本，上层展示明确列边界，既能满足下游 AI 精准对标算分，又能给业务人员绝对确定感。
+
