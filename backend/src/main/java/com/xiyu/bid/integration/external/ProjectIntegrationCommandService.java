@@ -21,6 +21,7 @@ import com.xiyu.bid.project.service.ProjectStageService;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
+import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.tender.dto.EvaluationBasicDTO;
 import com.xiyu.bid.tender.service.TenderEvaluationDocumentService;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +52,7 @@ public class ProjectIntegrationCommandService {
     private static final DateTimeFormatter RESPONSE_TIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private final TenderIntegrationResolver tenderResolver;
+    private final TenderRepository tenderRepository;
     private final ProjectRepository projectRepository;
     private final ProjectInitiationDetailsRepository initiationRepository;
     private final ProjectInitiationMapper initiationMapper;
@@ -112,11 +114,16 @@ public class ProjectIntegrationCommandService {
     /**
      * 定位项目：{@code projectId} 传入时优先按 ID 定位；否则按 (sourceSystem, sourceId)
      * 定位标讯再取其关联项目。项目与标讯一一对应是文档前提，多关联时取首个并告警。
+     * <p>projectId 与 (sourceSystem, sourceId) 同时传入时做交叉校验（口径对齐
+     * {@link TenderIntegrationResolver#resolveTender} 对 tenderId 的处理）：
+     * 项目关联标讯的 externalId 必须与来源键一致，不一致返回 400。
      */
     private Project resolveProject(String sourceSystem, String sourceId, Long projectId) {
         if (projectId != null) {
-            return projectRepository.findById(projectId)
+            Project project = projectRepository.findById(projectId)
                     .orElseThrow(() -> new ResourceNotFoundException("Project", String.valueOf(projectId)));
+            assertProjectMatchesExternalSource(project, sourceSystem, sourceId);
+            return project;
         }
         Tender tender = tenderResolver.resolveTender(sourceSystem, sourceId, null);
         List<Project> projects = projectRepository.findByTenderId(tender.getId());
@@ -129,6 +136,21 @@ public class ProjectIntegrationCommandService {
                     projects.size(), tender.getId(), projects.get(0).getId());
         }
         return projects.get(0);
+    }
+
+    /** projectId 与来源键交叉校验：项目关联标讯存在 externalId 且与来源键不匹配时拒绝（400）。 */
+    private void assertProjectMatchesExternalSource(Project project, String sourceSystem, String sourceId) {
+        if (!TenderIntegrationMapper.hasExternalSource(sourceSystem, sourceId) || project.getTenderId() == null) {
+            return;
+        }
+        tenderRepository.findById(project.getTenderId()).ifPresent(tender -> {
+            String expectedExternalId = TenderIntegrationMapper.buildExternalId(sourceSystem, sourceId);
+            if (tender.getExternalId() != null && !tender.getExternalId().equals(expectedExternalId)) {
+                throw new IllegalArgumentException(
+                        "projectId=" + project.getId() + " 关联标讯的 externalId=" + tender.getExternalId()
+                                + " 与来源键 " + expectedExternalId + " 不一致");
+            }
+        });
     }
 
     /**

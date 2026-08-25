@@ -1,4 +1,4 @@
-// Input: ProjectIntegrationCommandService（构造注入 6 依赖）
+// Input: ProjectIntegrationCommandService（构造注入 7 依赖）
 // Output: 单测 — 定位链/部分更新语义/客户信息全量替换/TEL 映射/GAP 附件三态/锁与错误码
 // Pos: Test/合约验证 — 接口六 §3.6 编排层
 package com.xiyu.bid.integration.external;
@@ -17,6 +17,7 @@ import com.xiyu.bid.project.service.ProjectStageService;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.repository.ProjectRepository;
+import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.tender.dto.EvaluationBasicDTO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -68,6 +69,7 @@ class ProjectIntegrationCommandServiceTest {
     private static final Long API_USER_ID = 77L;
 
     @Mock private TenderIntegrationResolver tenderResolver;
+    @Mock private TenderRepository tenderRepository;
     @Mock private ProjectRepository projectRepository;
     @Mock private ProjectInitiationDetailsRepository initiationRepository;
     @Mock private ProjectInitiationMapper initiationMapper;
@@ -83,7 +85,7 @@ class ProjectIntegrationCommandServiceTest {
     @BeforeEach
     void setUp() {
         service = new ProjectIntegrationCommandService(
-                tenderResolver, projectRepository, initiationRepository,
+                tenderResolver, tenderRepository, projectRepository, initiationRepository,
                 initiationMapper, projectStageService, projectDocumentRepository);
 
         tender = Tender.builder().id(TENDER_ID).title("某单位采购项目").build();
@@ -179,6 +181,72 @@ class ProjectIntegrationCommandServiceTest {
         assertThatThrownBy(() -> service.updateByExternalId("CRM", "NOPE",
                 baseRequest().build(), API_USER_ID))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    // ========== projectId 与来源键交叉校验 ==========
+
+    @Test
+    @DisplayName("projectId 关联标讯 externalId 与来源键不一致 → 400（IllegalArgumentException）")
+    void projectIdCrossCheckMismatch_throws400() {
+        project.setTenderId(TENDER_ID);
+        Tender linked = Tender.builder().id(TENDER_ID).externalId("CRM:OTHER-999").build();
+        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(linked));
+
+        assertThatThrownBy(() -> service.updateByExternalId("CRM", "OPP-1001",
+                baseRequest().projectId(PROJECT_ID).build(), API_USER_ID))
+                .isInstanceOfSatisfying(IllegalArgumentException.class, ex ->
+                        assertThat(ex.getMessage()).contains("不一致"));
+        verify(initiationRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("projectId 关联标讯 externalId 与来源键一致 → 正常更新")
+    void projectIdCrossCheckMatch_proceeds() {
+        project.setTenderId(TENDER_ID);
+        Tender linked = Tender.builder().id(TENDER_ID).externalId("CRM:OPP-1001").build();
+        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(linked));
+
+        ProjectUpdateResponse resp = service.updateByExternalId("CRM", "OPP-1001",
+                baseRequest().projectId(PROJECT_ID).projectName("新项目名").build(), API_USER_ID);
+
+        assertThat(resp.getProjectId()).isEqualTo(PROJECT_ID);
+    }
+
+    @Test
+    @DisplayName("projectId 关联标讯无 externalId（历史数据）→ 放行不校验")
+    void projectIdCrossCheckNoExternalId_proceeds() {
+        project.setTenderId(TENDER_ID);
+        Tender linked = Tender.builder().id(TENDER_ID).build();
+        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(linked));
+
+        ProjectUpdateResponse resp = service.updateByExternalId("CRM", "OPP-1001",
+                baseRequest().projectId(PROJECT_ID).build(), API_USER_ID);
+
+        assertThat(resp.getProjectId()).isEqualTo(PROJECT_ID);
+    }
+
+    @Test
+    @DisplayName("projectId 未关联标讯（tenderId 为 null）→ 跳过交叉校验")
+    void projectIdWithoutTender_skipsCrossCheck() {
+        project.setTenderId(null);
+
+        ProjectUpdateResponse resp = service.updateByExternalId("CRM", "OPP-1001",
+                baseRequest().projectId(PROJECT_ID).build(), API_USER_ID);
+
+        assertThat(resp.getProjectId()).isEqualTo(PROJECT_ID);
+        verifyNoInteractions(tenderRepository);
+    }
+
+    @Test
+    @DisplayName("来源键为占位符（_）→ 跳过交叉校验")
+    void placeholderSourceKey_skipsCrossCheck() {
+        project.setTenderId(TENDER_ID);
+
+        ProjectUpdateResponse resp = service.updateByExternalId("_", "_",
+                baseRequest().projectId(PROJECT_ID).build(), API_USER_ID);
+
+        assertThat(resp.getProjectId()).isEqualTo(PROJECT_ID);
+        verifyNoInteractions(tenderRepository);
     }
 
     @Test
