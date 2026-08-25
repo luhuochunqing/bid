@@ -260,8 +260,9 @@ class ProjectResultRegistrationServiceTest {
                 .build();
         service.register(1L, req, 7L);
         ArgumentCaptor<ProjectResultConfirmedEvent> captor = ArgumentCaptor.forClass(ProjectResultConfirmedEvent.class);
-        verify(eventPublisher).publishEvent(captor.capture());
+        verify(eventPublisher, times(1)).publishEvent(captor.capture());
         assertEquals("郑蓉蓉（06234）", captor.getValue().operatorName());
+        verify(eventPublisher, times(1)).publishEvent(any(com.xiyu.bid.casework.application.ProjectClosedEvent.class));
     }
 
     @Test
@@ -288,7 +289,7 @@ class ProjectResultRegistrationServiceTest {
                 .build();
         service.register(1L, req, 7L);
         ArgumentCaptor<ProjectResultConfirmedEvent> captor = ArgumentCaptor.forClass(ProjectResultConfirmedEvent.class);
-        verify(eventPublisher).publishEvent(captor.capture());
+        verify(eventPublisher, times(1)).publishEvent(captor.capture());
         assertEquals("郑蓉蓉（06234）", captor.getValue().operatorName());
     }
 

@@ -125,6 +125,11 @@ public class ProjectResultRegistrationService {
                 req.getEvidenceFileIds(),
                 toCompetitorSnapshots(req.getCompetitors()),
                 currentUserId, operatorName, saved.getId()));
+
+        // 结果确认后触发 AI 案例自动沉淀生成（异步执行）
+        eventPublisher.publishEvent(new com.xiyu.bid.casework.application.ProjectClosedEvent(
+                this, projectId, project.getName(), currentUserId));
+
         // §5.4: 结果登记后按结果类型分流推进 RESULT_PENDING → RETROSPECTIVE / CLOSED（幂等跳过）
         // 传入 bidResult 让 ProjectStatusPolicy 正确计算 Project.Status（WON/LOST/FAILED/ABANDONED）
         ProjectStage current = projectStageService.currentStage(projectId);

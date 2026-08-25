@@ -2710,3 +2710,21 @@ nohup npx vite --port 1323 --host 127.0.0.1 < /dev/null > /tmp/xx.log 2>&1 &
 - 带行为语义的开关（mock/demo/shadow）默认值必须留空，让漏配走 fail-fast 而非静默降级
 - 改共享方法的返回契约（如新增 null 路径），必须 grep 全部调用方逐个核对，接口内每个方法都要过一遍
 - 生产正确性依赖的 env 不能只活在运维手册/服务器配置里，必须进部署预检断言
+
+---
+
+## 155. AI 案例沉淀触发时机由结项（CLOSED）提前至结果确认（RESULT_PENDING）：数据就绪度与异步解耦（2026-08-25）
+
+**现象与需求**：原 AI 案例沉淀生成挂在项目第 6 阶段（结项 CLOSED），由于结项审批往往滞后，导致项目复盘（第 5 阶段）无法及时引用已生成的案例，案例库沉淀也严重滞后。
+
+**根因与架构重构**：
+1. **数据就绪度分析**：案例沉淀依赖的标书全文在第 2 阶段（编制）已归档，评分项在第 2 阶段（招标文件解析）已就绪，投标结果（WON/LOST）在第 4 阶段（结果确认）登记完成后即已确定。案例生成核心 Prompt 不依赖复盘总结与保证金退回，数据在第 4 阶段即已 100% 齐备。
+2. **触发源与前置条件迁移**：
+   - 前置校验：`CasePrecipitationAppService.getReadiness` 校验由要求进入 CLOSED 阶段调整为校验结果已确认（`projectResultRepository.findByProjectId.isPresent()`）。
+   - 自动触发：由 `ProjectStageService`（CLOSED 推进）迁移到 `ProjectResultRegistrationService`（结果登记成功后发布异步事件）。
+   - 上下文读取：`ProjectClosedEventListener` 优先从 `project_result` 表获取最新确认的投标结果。
+   - 前端感知：在结果确认阶段已登记状态下提供 `🤖 AI自动生成案例` 手动补发/重新生成按钮及异常 tooltip 场景化提示。
+
+**教训与规范**：
+- 复杂流程中的业务副作用（如沉淀/分析/生成）触发时机应严格由“数据最小充分就绪点”决定，避免机械地绑定到最末尾的流程终态。
+- 异步沉淀任务由领域事件驱动解耦，不阻塞主流程状态推进；落库前保持评分项级别的幂等去重（`uk_source_proj_scoring_point`）。

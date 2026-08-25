@@ -2,6 +2,14 @@
 
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
+
+## [2026-08-25] feature | 案例沉淀触发时机提前至结果确认
+
+- 触发：原 AI 案例沉淀生成挂在项目第 6 阶段（结项 CLOSED），由于结项审批滞后导致第 5 阶段复盘无法及时引用已生成案例；数据就绪度分析表明第 4 阶段（结果确认）登记完成后所有数据已 100% 齐备。
+- 改动：更新页面 `knowledge-base.md` §4.2.1；更新 `docs/lessons/lessons-learned.md` §155；后端 `CasePrecipitationAppService` 前置校验放宽为结果已登记、`ProjectResultRegistrationService` 登记完成后发布 `ProjectClosedEvent`，监听器配置 `AFTER_COMMIT` 事务可见性；前端 `ResultConfirmStage.vue` 增加 `🤖 AI自动生成案例` 按钮与前置条件 Tooltip。
+- 关键结论：业务副作用触发时机由“数据最小充分就绪点”决定；异步事件采用 `@TransactionalEventListener(phase = AFTER_COMMIT, fallbackExecution = true)` 避免主事务未提交时的读不一致。
+- 触发点：任务收尾（§2 触发点 1）—— 跨模块逻辑变更 + 新业务规则回填
+
 ## [2026-08-24] feature | 商机预测提醒链路实现（054）
 
 - 触发：需求补齐商机预测"提醒通知"（原仅列表数据）；4 条预测规则已复用 `OpportunityPredictionPolicy.predict`，本次交付定时扫描 → 判定 → 多渠道通知

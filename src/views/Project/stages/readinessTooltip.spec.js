@@ -38,6 +38,14 @@ describe('readinessToTooltip — 蓝图 4.1.1.2.1 异常处理场景化提示', 
     expect(html).toContain('• 项目结项后才能触发')
   })
 
+  it('场景 D：项目尚未完成结果确认 → 渲染 "完成结果确认后才能触发"', () => {
+    const html = readinessToTooltip([
+      '项目尚未完成结果确认，需先登记投标结果',
+    ])
+    expect(html).toContain('请补齐以下前置条件：')
+    expect(html).toContain('• 完成结果确认后才能触发')
+  })
+
   it('多缺失项并存 → 多行拼接（用 <br/> 分隔）', () => {
     const html = readinessToTooltip([
       '缺少标书文件，请先在标书编制阶段上传标书文件',

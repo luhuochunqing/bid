@@ -1,3 +1,7 @@
+// Input: 项目管理 CRUD、状态统计与归档处理
+// Output: ProjectDTO、项目看板统计与状态变迁
+// Pos: project/service/ - 项目业务编排服务
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.project.service;
 
 import com.xiyu.bid.annotation.Auditable;
@@ -210,7 +214,7 @@ public class ProjectService {
     }
 
     private void publishArchiveEventIfNeeded(Project.Status oldStatus, Project updated) {
-        // AI 案例沉淀（ProjectClosedEvent）已迁移到 ProjectStageService 在 Stage=CLOSED 转换时发布。
+        // AI 案例沉淀（ProjectClosedEvent）已迁移到 ProjectResultRegistrationService 在结果确认登记成功后发布。
         // 这里仅做项目终态归档状态同步，保留位以备未来扩展。
         if (!oldStatus.isTerminal() && updated.getStatus().isTerminal()) {
             log.info("Project terminal status reached project={} status={}", updated.getId(), updated.getStatus());
