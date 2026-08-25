@@ -1,5 +1,6 @@
 // Input: ScoreParsePrompts 四个 prompt 构建方法
-// Output: 模板含字面 % 时格式化不抛 UnknownFormatConversionException（回归：占30%" 线上崩溃）
+// Output: 模板含字面 % 时格式化不抛 UnknownFormatConversionException（回归：占30%" 线上崩溃）；
+//         prompt 与 PriceScoringKeywords 关键参数同步性断言
 // Pos: Test/scoreparse/infrastructure/openai
 
 package com.xiyu.bid.scoreparse.infrastructure.openai;
@@ -25,6 +26,22 @@ class ScoreParsePromptsTest {
         // 模板里写的 "占30%%" 渲染后是单 % + 英文引号；参数里的 "占30%”" 是中文引号，不会误匹配
         assertThat(prompt).contains("占30%\"");
         assertThat(prompt).contains(TRICKY_TEXT);
+    }
+
+    @Test
+    void buildCandidateExtractionPrompt_mustContainCriticalPriceParams() {
+        // PriceScoringKeywords 中心化后，若新增关键参数（如 折让率）未同步到 prompt，
+        // 本测试失败提醒同步 ScoreParsePrompts
+        String prompt = ScoreParsePrompts.buildCandidateExtractionPrompt("test", 1, 1);
+        String[] critical = {"下浮率", "BP%", "HP%", "LP%", "L1", "L2", "RH", "RL", "基准价", "价格分计算", "进入价格", "报价人"};
+        for (String token : critical) {
+            assertThat(prompt)
+                    .as("prompt 需同步包含关键参数 '%s'，若新增请同步更新 ScoreParsePrompts", token)
+                    .contains(token);
+        }
+        // SCORE_EXTENSION 核心也需出现
+        assertThat(prompt).contains("基准价");
+        assertThat(prompt).contains("报价评分");
     }
 
     @Test

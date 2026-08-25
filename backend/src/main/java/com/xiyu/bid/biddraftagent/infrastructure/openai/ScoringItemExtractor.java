@@ -1,11 +1,11 @@
-// Input: 评分标准章节文本（由 ScoringSectionLocator 定位）
-// Output: List<ScoringCriterion> 正则提取的评分项列表
+// Input: 评分标准章节文本（MarkdownScoreSectionLocator 提取的候选区域）
+// Output: 评分项列表 List<ScoringCriterion>（正则兜底通道）
 // Pos: biddraftagent/infrastructure/openai - 评分项正则兜底提取（单一职责）
 package com.xiyu.bid.biddraftagent.infrastructure.openai;
 
+import com.xiyu.bid.biddraftagent.domain.PriceScoringKeywords;
 import com.xiyu.bid.biddraftagent.domain.ScoringCriteriaClassificationPolicy;
 import com.xiyu.bid.biddraftagent.domain.ScoringCriterion;
-import com.xiyu.bid.scoreparse.domain.PriceScoringKeywords;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -14,24 +14,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 评分项正则兜底提取器。
- *
- * <p>设计动机：招标文件中的评分表通常是结构化的（编号+维度+权重），
- * 属于正则可稳定命中的格式。遵循 regex-vs-llm-structured-text 原则：
- * 结构化表格行走正则，AI 做语义补充。
- *
- * <p>对标 {@link PurchaserNameExtractor} 的设计模式：
+ * 评分项正则兜底提取器（spec 041 FR-001 召回二下游）。
+ * <p>从 Markdown 评分标准章节文本中，基于行内正则匹配提取评分项。
+ * 支持四种行格式：
  * <ul>
- *   <li>按行扫描，归一化后正则匹配</li>
- *   <li>提取结构化字段（编号、维度、权重）</li>
- *   <li>复用 {@link ScoringCriteriaClassificationPolicy} 做子类型分类</li>
- * </ul>
- *
- * <p>支持 4 种常见格式：
- * <ul>
- *   <li>格式1：1 价格 30（编号 维度 分值）</li>
- *   <li>格式2：1.1 技术方案 方案完整性 30分（编号 维度 指标 分值）</li>
- *   <li>格式3：A1 技术方案（30分）（编号 维度+括号分值）</li>
+ *   <li>格式1：1 技术方案 商务部分 30分（编号 维度 指标 权重）</li>
+ *   <li>格式2：1 技术方案 30分（编号 维度 权重）</li>
+ *   <li>格式3：A1 技术方案 30分（字母编号 维度 权重）</li>
  *   <li>格式4：价格评分 30分（维度 分值，无编号）</li>
  * </ul>
  */
@@ -64,6 +53,9 @@ public final class ScoringItemExtractor {
     private static final Pattern NO_NUMBER_WEIGHT_PATTERN = Pattern.compile(
             "^(\\S{2,12})\\s*[（(]?\\s*([0-9]+(?:\\.[0-9]+)?)\\s*[%分]\\s*[)）]?\\s*$");
 
+    /** 报价参数行：仅为价格分计算的输入参数，非独立评分项 */
+    private static final Pattern PRICE_PARAM_ROW_PATTERN = PriceScoringKeywords.PRICE_PARAM_ROW;
+
     private ScoringItemExtractor() {
     }
 
@@ -93,9 +85,6 @@ public final class ScoringItemExtractor {
      * 从章节文本中提取原始行数据（不含 subType 分类）。
      * 包级可见以便测试验证中间结果。
      */
-    /** 报价参数行：仅为价格分计算的输入参数，非独立评分项，避免被误拆为权重 80 的评分项 */
-    private static final Pattern PRICE_PARAM_ROW_PATTERN = PriceScoringKeywords.PRICE_PARAM_ROW;
-
     static List<ScoringItemRow> extractRaw(String sectionText) {
         if (sectionText == null || sectionText.isBlank()) {
             return List.of();
@@ -110,24 +99,16 @@ public final class ScoringItemExtractor {
             if (isHeaderOrNoise(normalized)) {
                 continue;
             }
-            // 管道表格行归一化：去掉 | 再匹配，避免整行因含 | 而无法命中权重正则；
-            // 同时报价参数行（下浮率/BP% 等）直接跳过，交由 LLM 将其收敛进报价主项的 detail，避免拆成独立 80 分项。
+            // 管道表格行分类处理（M-3 重构：提取为独立方法降低圈复杂度）
             String effectiveLine = normalized;
             if (normalized.contains("|")) {
                 String pipeStripped = normalizeSpaces(normalized.replace("|", " "));
-                // 参数行跳过
-                if (PRICE_PARAM_ROW_PATTERN.matcher(pipeStripped).find()) {
-                    continue;
+                PipeRowResult result = classifyPipeRow(pipeStripped);
+                switch (result.action) {
+                    case SKIP_PARAM -> { continue; }
+                    case KEEP_AS_ROW -> { rows.add(result.row); continue; }
+                    case USE_STRIPPED_TEXT -> effectiveLine = pipeStripped;
                 }
-                // 尝试用去管道后的文本匹配，若命中则用该行；否则回退原行
-                ScoringItemRow pipeRow = matchScoringLine(pipeStripped);
-                if (pipeRow == null) pipeRow = matchNoNumberLine(pipeStripped);
-                if (pipeRow != null) {
-                    rows.add(pipeRow);
-                    continue;
-                }
-                // 管道行但未命中评分模式，保留原文供 LLM，不生成行内候选
-                effectiveLine = pipeStripped;
             }
             // 章节标题行（如"第二章 评标办法"）同时匹配 NEXT_CHAPTER_PATTERN 和评分别名，
             // 必须先排除评分别名，否则提取器在标题行就 break 了
@@ -145,6 +126,56 @@ public final class ScoringItemExtractor {
             }
         }
         return rows;
+    }
+
+    /** 管道行分类结果 */
+    private enum PipeRowAction { KEEP_AS_ROW, SKIP_PARAM, USE_STRIPPED_TEXT }
+
+    private record PipeRowResult(PipeRowAction action, ScoringItemRow row) {
+        static PipeRowResult skip() { return new PipeRowResult(PipeRowAction.SKIP_PARAM, null); }
+        static PipeRowResult keep(ScoringItemRow row) { return new PipeRowResult(PipeRowAction.KEEP_AS_ROW, row); }
+        static PipeRowResult passthrough() { return new PipeRowResult(PipeRowAction.USE_STRIPPED_TEXT, null); }
+    }
+
+    /**
+     * 管道行分类：去掉 | 后判定行类型。
+     * <p>三道判据（按优先级）：
+     * <ol>
+     *   <li>章节别名守卫：行内含评标办法/评分标准等章节别名且无 % 尾值时保留</li>
+     *   <li>参数行与主项行区分：命中 PRICE_PARAM_ROW 时，若提取出的维度含报价维度词元（报价/价格）
+     *       视为主项行保留（"1 价格分计算方法 30%" 形态）；否则作为纯参数行跳过（"2 BP% 80%"）</li>
+     *   <li>其余命中评分模式的行正常保留；未命中的透传文本供 LLM</li>
+     * </ol>
+     */
+    private static PipeRowResult classifyPipeRow(String pipeStripped) {
+        ScoringItemRow pipeRow = matchScoringLine(pipeStripped);
+        if (pipeRow == null) {
+            pipeRow = matchNoNumberLine(pipeStripped);
+        }
+
+        // ① 章节别名守卫：行内含评标办法/评分标准等章节别名且无 % 尾值时优先保留
+        boolean aliasBacked = containsScoringAlias(pipeStripped) && !pipeStripped.trim().endsWith("%");
+        if (pipeRow != null && aliasBacked) {
+            return PipeRowResult.keep(pipeRow);
+        }
+
+        // ② 参数行判定：命中参数行模式但维度含报价维度词元时视为主项行保留
+        if (PRICE_PARAM_ROW_PATTERN.matcher(pipeStripped).find()) {
+            boolean isPriceMainItem = pipeRow != null && pipeRow.dimension() != null
+                    && PriceScoringKeywords.PRICE_DIM_TOKENS.stream()
+                            .anyMatch(pipeRow.dimension()::contains);
+            if (isPriceMainItem) {
+                return PipeRowResult.keep(pipeRow);
+            }
+            return PipeRowResult.skip();
+        }
+
+        // ③ 其余命中评分模式的行正常保留
+        if (pipeRow != null) {
+            return PipeRowResult.keep(pipeRow);
+        }
+
+        return PipeRowResult.passthrough();
     }
 
     private static ScoringItemRow matchScoringLine(String normalized) {
@@ -192,8 +223,9 @@ public final class ScoringItemExtractor {
 
     private static boolean isHeaderOrNoise(String normalized) {
         // 管道表格行（报价评分价格分长表格）长度常超 100（<br>、| 分隔），需放宽阈值；
-        // 非表格长行仍按 100 截断防噪声。
-        boolean isPipeTableRow = normalized.contains("|");
+        // 非表格长行仍按 100 截断防噪声。判据用 startsWith("|") 而非 contains("|")，
+        // 防止自然语言中的 | 误触发 600 阈值。
+        boolean isPipeTableRow = normalized.trim().startsWith("|");
         if (normalized.length() > (isPipeTableRow ? 600 : 100)) {
             return true;
         }

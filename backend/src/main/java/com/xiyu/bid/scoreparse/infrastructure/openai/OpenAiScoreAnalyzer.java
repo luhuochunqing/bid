@@ -4,6 +4,7 @@
 // 维护声明: 维护者按项目SOP；spec 041 FR-001 四路召回、FR-005 二次回补；候选映射拆至 ScoreCandidateMapper（2026-08-19 满足 300 行预算）
 package com.xiyu.bid.scoreparse.infrastructure.openai;
 
+import com.xiyu.bid.biddraftagent.domain.PriceScoringKeywords;
 import com.xiyu.bid.biddraftagent.domain.ScoringCriterion;
 import com.xiyu.bid.biddraftagent.infrastructure.openai.MultimodalImage;
 import com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiBidAgentConfigurationResolver;
@@ -15,7 +16,6 @@ import com.xiyu.bid.docinsight.domain.DocumentChunk;
 import com.xiyu.bid.docinsight.domain.StructuralDocumentChunker;
 import com.xiyu.bid.scoreparse.application.ScoreDocExcerptExtractor;
 import com.xiyu.bid.scoreparse.domain.DocumentImage;
-import com.xiyu.bid.scoreparse.domain.PriceScoringKeywords;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.infrastructure.structure.MarkdownScoreSectionLocator;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +27,19 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.regex.Pattern;
 
-/** LLM 编排器（spec 041 FR-001 四路召回，FR-005 回补）- 详见类头维护声明 */
+/**
+ * 评分标准解析 LLM 编排器（spec 041 FR-001 四路召回）。
+ *
+ * <p>召回一（正则规则）：复用 {@link ScoringItemExtractor}，输入为召回二定位的候选区域。
+ * <p>召回二（文档结构）：复用 {@link MarkdownScoreSectionLocator} 定位评分表候选区域。
+ * <p>召回三/四（评分规则语义 + LLM 全文语义）：{@link StructuralDocumentChunker} 切片，
+ * 每 chunk 一次 LLM 结构化调用（复用 {@link OpenAiStructuredOutputService}）。
+ *
+ * <p>合并去重由 AppService 编排 {@code ScoreItemMergePolicy} 完成，本类只负责召回。
+ * 所有文档内容过 {@link TenderIntakeTextProcessor#sanitizeUntrusted}（安全契约）。
+ * 单 chunk LLM 失败重试 1 次后跳过不阻断（skippedChunks 计数，spec 046 US3）；
+ * 正则召回始终可用作兜底。
+ */
 @Service
 @Profile("!e2e")
 @Slf4j
@@ -49,7 +61,12 @@ public class OpenAiScoreAnalyzer {
         this.structuralChunker = pStructuralChunker;
     }
 
+    /** 进度回调：(progress 0-100, stage 描述) */
     public interface ProgressReporter extends BiConsumer<Integer, String> {}
+
+    /**
+     * 四路召回，返回合并前的候选池与跳过 chunk 数（spec 046 US3 可见性）。
+     */
     public RecallOutcome recallCandidates(
             String fullText, String structuredMetadata, ProgressReporter progress) {
         report(progress, 5, "召回一/二：关键词正则规则 + 文档结构定位");
@@ -90,8 +107,7 @@ public class OpenAiScoreAnalyzer {
     /** 召回三：评分规则专用语义模式（评审办法、评分细则关键区域）提取 */
     private List<ScoreCandidate> recallLane3ScoreSemanticPatterns(String fullText) {
         List<ScoreCandidate> list = new ArrayList<>();
-        List<String> semanticParagraphs = ScoreDocExcerptExtractor.extractSemanticScoreParagraphs(fullText);
-        for (String paragraph : semanticParagraphs) {
+        for (String paragraph : ScoreDocExcerptExtractor.extractSemanticScoreParagraphs(fullText)) {
             for (ScoringCriterion criterion : ScoringItemExtractor.extract(paragraph)) {
                 list.add(ScoreCandidateMapper.fromCriterion(criterion, null));
             }
@@ -145,35 +161,31 @@ public class OpenAiScoreAnalyzer {
     }
 
     private List<DocumentChunk> filterRelevantChunks(List<DocumentChunk> allChunks) {
-        if (allChunks.size() <= 4) {
-            return allChunks;
-        }
+        if (allChunks.size() <= 4) return allChunks;
         boolean[] isRelevant = new boolean[allChunks.size()];
         int initialRelevant = 0;
         for (int idx = 0; idx < allChunks.size(); idx++) {
             DocumentChunk chunk = allChunks.get(idx);
             boolean pathMatches = chunk.sectionPath() != null && chunk.sectionPath().stream()
                     .anyMatch(p -> p != null && SCORE_CHUNK_KEYWORD_PATTERN.matcher(p).find());
-            boolean textMatches = SCORE_CHUNK_KEYWORD_PATTERN.matcher(chunk.text()).find();
-            boolean priceParam = PRICE_PARAM_PATTERN.matcher(chunk.text()).find();
-            isRelevant[idx] = pathMatches || textMatches || priceParam;
+            isRelevant[idx] = pathMatches || SCORE_CHUNK_KEYWORD_PATTERN.matcher(chunk.text()).find()
+                    || PRICE_PARAM_PATTERN.matcher(chunk.text()).find();
             if (isRelevant[idx]) initialRelevant++;
         }
         if (initialRelevant == allChunks.size() || initialRelevant == 0) return allChunks;
-        // 报价参数孤立块邻近扩展：同一表格跨 chunk 导致参数孤立，若相邻已命中则保留
+        // 报价参数孤立块邻近扩展：仅相对初始命中数组扩张一跳（isRelevant 不回写），防止表格密集文档链式扩散为全量
+        boolean[] expanded = new boolean[allChunks.size()];
         for (int idx = 0; idx < allChunks.size(); idx++) {
             if (isRelevant[idx]) continue;
-            boolean neighborRelevant = (idx > 0 && isRelevant[idx - 1]) || (idx + 1 < allChunks.size() && isRelevant[idx + 1]);
-            if (neighborRelevant) {
-                String txt = allChunks.get(idx).text();
-                if (PRICE_PARAM_PATTERN.matcher(txt).find() || txt.contains("|")) {
-                    isRelevant[idx] = true;
-                }
+            boolean neighbor = (idx > 0 && isRelevant[idx - 1]) || (idx + 1 < allChunks.size() && isRelevant[idx + 1]);
+            String text = allChunks.get(idx).text();
+            if (neighbor && (PRICE_PARAM_PATTERN.matcher(text).find() || text.contains("|"))) {
+                expanded[idx] = true;
             }
         }
         List<DocumentChunk> filtered = new ArrayList<>();
         for (int idx = 0; idx < allChunks.size(); idx++) {
-            if (isRelevant[idx]) filtered.add(allChunks.get(idx));
+            if (isRelevant[idx] || expanded[idx]) filtered.add(allChunks.get(idx));
         }
         if (filtered.size() > initialRelevant) {
             log.info("评分 chunk 过滤邻近扩展: {} -> {} (含报价参数孤立块)", initialRelevant, filtered.size());
@@ -181,14 +193,17 @@ public class OpenAiScoreAnalyzer {
         return filtered;
     }
 
-    /** 对齐成功数（detail 为 chunk 原文子串） */
+    /**
+     * 对齐成功数统计：detail 为 chunk 原文的精确子串（对齐回填后必成立；
+     * LLM 原样输出因空白漂移通常不成立），供解析质量可观测。
+     */
     private static int countAligned(List<ScoreCandidate> chunkCandidates, String chunkText) {
         return (int) chunkCandidates.stream()
                 .filter(candidate -> chunkText.contains(candidate.detail()))
                 .count();
     }
 
-    /** 重试 1 次，两连败返回 null */
+    /** 候选提取调用：RuntimeException 重试恰好 1 次，两连败返回 null（调用方记跳过）。 */
     private ScoreCandidateOutput requestCandidatesWithRetry(
             String prompt, OpenAiBidAgentRequestConfig config) {
         for (int attempt = 1; attempt <= 2; attempt++) {
@@ -203,7 +218,10 @@ public class OpenAiScoreAnalyzer {
         return null;
     }
 
-    /** 完整性回补（FR-005） */
+    /**
+     * 完整性回补扫描（FR-005：WeightSumCheck 合计≠100 或存在未覆盖区域时触发）。
+     * LLM 失败返回空列表（不阻断主流程，仅记录警告）。
+     */
     public List<ScoreCandidate> recheckGaps(
             String fullTextExcerpt, List<ScoreCandidate> knownItems) {
         OpenAiBidAgentRequestConfig config = configurationResolver.resolve(USE_CASE);
@@ -216,9 +234,7 @@ public class OpenAiScoreAnalyzer {
             ScoreGapRecheckOutput output = structuredOutputService.request(
                     prompt, ScoreGapRecheckOutput.class, config,
                     "AI structured response did not include gap recheck result");
-            if (output == null || output.missedItems == null) {
-                return List.of();
-            }
+            if (output == null || output.missedItems == null) return List.of();
             return output.missedItems.stream()
                     .filter(candidate -> candidate != null && candidate.detail != null)
                     .map(candidate -> ScoreCandidateMapper.fromLlmCandidate(candidate, sanitizedExcerpt))
@@ -229,13 +245,17 @@ public class OpenAiScoreAnalyzer {
         }
     }
 
-    /** 阶段 2 客观项打分（契约 §4，守卫由调用方执行） */
+    /**
+     * 阶段 2：客观项对标打分（每评分项一次 LLM 调用，契约 §4）。
+     */
     public ScoreAssessmentOutput assessObjective(
             String scoreItemDetail, java.math.BigDecimal weight, String bidDocExcerpt) {
         return assessObjective(scoreItemDetail, weight, bidDocExcerpt, List.of());
     }
 
-    /** 阶段 2 多模态过载（spec 048 T017） */
+    /**
+     * 阶段 2：客观项对标打分多模态过载（spec 048 T017）。
+     */
     public ScoreAssessmentOutput assessObjective(
             String scoreItemDetail, java.math.BigDecimal weight, String bidDocExcerpt,
             List<DocumentImage> images) {
@@ -243,20 +263,20 @@ public class OpenAiScoreAnalyzer {
         boolean withImages = images != null && !images.isEmpty();
         String prompt = ScoreParsePrompts.buildObjectiveAssessmentPrompt(
                 TenderIntakeTextProcessor.sanitizeUntrusted(scoreItemDetail),
-                weight.doubleValue(),
+                weight == null ? 0.0 : weight.doubleValue(),
                 TenderIntakeTextProcessor.sanitizeUntrusted(bidDocExcerpt),
                 withImages);
         List<MultimodalImage> multimodalImages = withImages
-                ? images.stream()
-                        .map(image -> new MultimodalImage(image.mimeType(), image.base64()))
-                        .toList()
+                ? images.stream().map(image -> new MultimodalImage(image.mimeType(), image.base64())).toList()
                 : List.of();
         return structuredOutputService.request(
                 prompt, multimodalImages, ScoreAssessmentOutput.class, config,
                 "AI structured response did not include score assessment");
     }
 
-    /** 阶段 2 主观项建议（SC-003 零泄漏） */
+    /**
+     * 阶段 2：主观项建议（仅 suggestion，禁止数字得分，SC-003 零泄漏）。
+     */
     public ScoreAssessmentOutput assessSubjective(String scoreItemDetail, String bidDocExcerpt) {
         OpenAiBidAgentRequestConfig config = configurationResolver.resolve(USE_CASE);
         String prompt = ScoreParsePrompts.buildSubjectiveSuggestionPrompt(
@@ -268,8 +288,6 @@ public class OpenAiScoreAnalyzer {
     }
 
     private static void report(ProgressReporter progress, int value, String stage) {
-        if (progress != null) {
-            progress.accept(value, stage);
-        }
+        if (progress != null) progress.accept(value, stage);
     }
 }

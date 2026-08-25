@@ -236,4 +236,27 @@ class OpenAiScoreAnalyzerTest {
     private static ArgumentCaptor<List<MultimodalImage>> multimodalImagesCaptor() {
         return ArgumentCaptor.forClass((Class) List.class);
     }
+
+    @Test
+    void recallCandidates_neighborExpansion_doesNotChainThroughTableChunks() {
+        OpenAiScoreAnalyzer analyzer = new OpenAiScoreAnalyzer(
+                structuredOutputService, configurationResolver, structuralChunker);
+        List<DocumentChunk> chunks = List.of(
+                new DocumentChunk("第一章 招标公告 内容", List.of("第一章")),
+                new DocumentChunk("第三章 评审办法 评分标准：财务状况满分20分", List.of("第三章 评审办法")),
+                new DocumentChunk("| 甲 | 乙 |\n| --- | --- |\n| 1 | 2 |", List.of()),
+                new DocumentChunk("| 丙 | 丁 |\n| --- | --- |\n| 3 | 4 |", List.of()),
+                new DocumentChunk("| 戊 | 己 |\n| --- | --- |\n| 5 | 6 |", List.of()),
+                new DocumentChunk("第五章 技术规范 内容", List.of("第五章"))
+        );
+        when(structuralChunker.chunk(any(), any())).thenReturn(chunks);
+        when(configurationResolver.resolve(anyString())).thenReturn(requestConfig());
+        when(structuredOutputService.request(anyString(), eq(ScoreCandidateOutput.class), any(), anyString()))
+                .thenReturn(llmOutput("财务状况满分20分"));
+
+        analyzer.recallCandidates(NEUTRAL_TEXT, null, null);
+
+        verify(structuredOutputService, times(2))
+                .request(anyString(), eq(ScoreCandidateOutput.class), any(), anyString());
+    }
 }

@@ -428,3 +428,4 @@
 - 关键实现：展示纯核心 `composables/qualityCheckDetail.js`（STATUS_META 单一数据源 + 证据提取纯函数）；SCORING_RESPONSE 项复用评分解析 items/results 汇总客观项得分，未打分静默降级；事件链透传 `{stage:2, autoScore:true}` 打开评分抽屉自动打分；后端零改动
 - 三步审查修复 8 项：formatTime 重复实现、状态映射双份、分组标题硬编码计数与动态计数叠加、defineModel 冗余 emit、死 CSS 钩子/死绑定、平行映射结构合并、重复过滤
 - 更新 [[bid-quality-check-realization]] §5；教训：**状态元信息（图标/标签类型/文案）必须单一数据源，两个组件各写一套 switch 必然漂移**
+- 2026-08-25: 报价评分跨页截断专项评审修复（PR !2399：多信号交集跨页表合并、邻近扩展单跳、按行去重与 detail 6000 字符上界、classifyPipeRow 重构、跨语言关键词同步门禁） -> score-parse-service.md

@@ -151,3 +151,13 @@ trigger（同步<1s，互斥校验+建任务）
 - **spec 047 收敛单测（2026-08-18 C001）**：`OriginalTotalWeightSignalTest` 5 用例锚定 US3 信号链路——`Summary.originalTotalWeight` Jackson 序列化（非 null 值 `:90` / null 键存在且为 null）、`ScoreParseTask` 反射断言 `@Column(name="original_total_weight")` 映射存在、getter 读写闭环 + `getItems` 透出映射语义（latest 非 null 携带值 / null 透传 null）。配 C002 日志重算，Convergence 闭合。
 - **原文保真对齐（2026-08-20）**：`ScoreOriginalTextAlignerTest` 6 用例 + `ScoreCandidateMapperTest` 3 用例 + `ScoreItemMergePolicyTest` 10 用例（新增背书覆盖/无背书保留 2 例）+ `OpenAiScoreAnalyzerTest` 回归 6 用例全绿（25/25）；前端 `ScoreParseV3.qa.spec.js` 8 用例通过、`npm run build`（含全部治理检查）EXIT=0。
 - 架构：ArchitectureTest + FPJavaArchitectureTest + ProjectAccessGuardCoverageTest 通过
+- **报价评分跨页截断治理与评审修复（2026-08-25）**：
+  - **核心痛点**：PDF 转换时跨页报价表格被切开（下浮率/BP%/HP% 等参数散落各页），导致 LLM 提取时仅见前半截截断，或把计算参数误拆为 80 分独立项。
+  - **治理四层协同**：
+    1. `converter.py`：跨页报价表链式合并（多信号交集：报价关键词 ∩ 主体列数一致 ∩ 间隔≤3 空行，支持 3+ 页连续吸收，跨页重复表头去重，短词 `\b` 词边界匹配）；
+    2. `PriceScoringKeywords`：中心化报价领域常量（单一真相源），下沉至 `biddraftagent.domain` 维持干净单向依赖；
+    3. `ScoringItemExtractor`：重构管道行分类器 `classifyPipeRow`，三道判据（章节别名守卫 → 参数行/主项行区分 → 评分行保留），带序号参数行跳过，报价主项行保留；
+    4. `MarkdownScoreSectionLocator`：孤立块兜底收紧为 `countDistinctLongParams >= 2`（嵌套词单次计数），上下文行数差异化（普通 3 行 / 报价 8 行）；
+    5. `OpenAiScoreAnalyzer`：`filterRelevantChunks` 邻近扩展使用独立数组仅扩张一跳，避免链式蔓延；
+    6. `ScoreItemMergePolicy`：报价类跨 chunk 互补拼合，引入 `PRICE_DETAIL_MAX_CHARS = 6000` 上界与行级 trim 去重；
+    7. `scripts/check-price-keywords-sync.sh`：Python/Java 跨语言关键词自动化同步校验。

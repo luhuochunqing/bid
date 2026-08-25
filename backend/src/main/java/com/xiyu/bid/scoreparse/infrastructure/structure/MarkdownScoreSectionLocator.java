@@ -5,7 +5,7 @@
 
 package com.xiyu.bid.scoreparse.infrastructure.structure;
 
-import com.xiyu.bid.scoreparse.domain.PriceScoringKeywords;
+import com.xiyu.bid.biddraftagent.domain.PriceScoringKeywords;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,7 +34,10 @@ public final class MarkdownScoreSectionLocator {
     private static final Pattern PRICE_PARAM_PATTERN = PriceScoringKeywords.PRICE_PARAM_BLOCK;
 
     private static final int CONTEXT_BEFORE_LINES = 2;
-    private static final int CONTEXT_AFTER_LINES = 8;
+    /** 普通评分 section 上下文（保守，减少 token 消耗） */
+    private static final int CONTEXT_AFTER_LINES = 3;
+    /** 报价参数相关 section 上下文（报价参数表常跨页，需更多上下文保留完整性） */
+    private static final int CONTEXT_AFTER_LINES_PRICE = 8;
 
     private MarkdownScoreSectionLocator() {
     }
@@ -71,19 +74,22 @@ public final class MarkdownScoreSectionLocator {
                 String blockText = joinLines(lines, blockStart, blockEnd);
                 boolean isScore = TABLE_SCORE_PATTERN.matcher(blockText).find();
                 boolean isPriceParam = PRICE_PARAM_PATTERN.matcher(blockText).find();
-                // 主评分特征直接收；报价参数块若紧邻已收评分块（≤10 行内）也收，防止 split 导致参数丢失
+                // 主评分特征直接收；报价参数块若紧邻已收评分块（块行距 ≤10）也收，
+                // 防止 split 导致参数丢失；注：间距 < CONTEXT_AFTER_LINES 时相邻 section
+                // 内容会重叠，重复候选由合并期子串判据去重
                 if (isScore) {
-                    sections.add(buildSection(lines, blockStart, blockEnd));
+                    int contextAfter = isPriceParam ? CONTEXT_AFTER_LINES_PRICE : CONTEXT_AFTER_LINES;
+                    sections.add(buildSection(lines, blockStart, blockEnd, contextAfter));
                 } else if (isPriceParam && !sections.isEmpty()) {
                     ScoreSection last = sections.get(sections.size() - 1);
-                    // 解析 last 的起始行号，判断邻近性
                     int lastEnd = parseLocationEnd(last.location());
                     int gap = blockStart - lastEnd;
                     if (gap >= 0 && gap <= 10) {
-                        sections.add(buildSection(lines, blockStart, blockEnd));
-                    } else if (blockText.length() >= 30) {
-                        // 孤立但内容丰富的报价参数块也保留（兜底）
-                        sections.add(buildSection(lines, blockStart, blockEnd));
+                        sections.add(buildSection(lines, blockStart, blockEnd, CONTEXT_AFTER_LINES_PRICE));
+                    } else if (PriceScoringKeywords.countDistinctLongParams(blockText) >= 2) {
+                        // 孤立兜底收紧：≥2 个不同长词参数（嵌套词只计一次）才收，
+                        // 防止仅含 "L1级" 类单一短词噪声的表被误收为评分区
+                        sections.add(buildSection(lines, blockStart, blockEnd, CONTEXT_AFTER_LINES_PRICE));
                     }
                 }
             } else {
@@ -177,9 +183,9 @@ public final class MarkdownScoreSectionLocator {
         return trimmed.startsWith("|");
     }
 
-    private static ScoreSection buildSection(String[] lines, int blockStart, int blockEnd) {
+    private static ScoreSection buildSection(String[] lines, int blockStart, int blockEnd, int contextAfter) {
         int from = Math.max(0, blockStart - CONTEXT_BEFORE_LINES);
-        int to = Math.min(lines.length, blockEnd + CONTEXT_AFTER_LINES);
+        int to = Math.min(lines.length, blockEnd + contextAfter);
         String content = joinLines(lines, from, to);
         String location = "L" + (blockStart + 1) + "-L" + blockEnd;
         return new ScoreSection(content, location, findSectionTitle(lines, blockStart));
