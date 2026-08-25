@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [工程纪律, 根因分析, bug修复, 反复修复, 开发规范, 经验积累, 预防, SOP]
 created: 2026-07-10
-updated: 2026-08-19
-health_checked: 2026-08-19
+updated: 2026-08-25
+health_checked: 2026-08-25
 sources:
   - .wiki/pages/lessons-learned.md
   - .wiki/pages/lessons-learned/CO-361-five-rounds-no-fix.md
@@ -388,6 +388,9 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 | `scripts/audit-existing-429-exposure.mjs` | 存量业务层 ElMessage.error 风险评级（HIGH/MEDIUM/LOW），驱动治理 PR 排序 | spec 035 / 全仓 207 处存量 |
 | `scripts/check-attachment-root-path.mjs` | 新增 `@Value("${*.attachment.root:/...}")` 等文件路径默认值以 `/` 开头（macOS SSV 只读） | 仓库 Word 合订本附件内容丢失 |
 | `scripts/check-lessons-section-conflict.mjs` | 新增 `## N.` 章节编号与 origin/main 冲突（撞号或回退） | PR !2130 vs !2131/!2132 并行归档撞号 |
+| `scripts/check-keyword-sync.mjs` | Java `PriceScoringKeywords` ↔ Python `converter.py` 报价参数关键词表一致性（单边新增也拦） | PR !2399 四轮审查复盘（跨语言契约仅注释约束） |
+| `scripts/pre-push-gate.sh` §5.7 | 根目录产物/笔记文件（`implementation-notes.html` 等）被改动入库 | PR !2399（产物文件持续入库无人拦） |
+| `scripts/gitee-pr-helper.sh merge` | 合入前强制断言 `mergeable=true`（逃生阀 `GITEE_PR_FORCE_MERGE=1`） | PR !2399（四轮未查 mergeable，合入时才发现冲突） |
 
 ---
 
@@ -460,4 +463,5 @@ grep -rn "user.getRoleCode()" backend/src/main/java/
 | 2026-07-12 | 新增"全局 429 提示被业务层覆盖"案例到案例库索引，更新编码规范与 pre-push 拦截脚本索引 |
 | 2026-07-12 | 新增 "Account 详情 429（N+1）" 6 次反复修案例到 §6.3；§5.1 新增"list 端点必须返回完整 DTO"规范；§6.4 新增 2 个 pre-push 脚本（check-list-endpoint-n1 / audit-existing-429-exposure）| spec 035 沉淀 |
 | 2026-07-17 | 新增 "仓库全量导出超时（@Async 自调用）" 案例到 §6.3；根因 6（框架理解偏差）；修复方式：提取 @Async 方法到独立 Bean，参考 `WarehouseExportAsyncExecutor`；同时覆盖 Export/Ledger/Import 三处同源问题 | spec 039 沉淀，PR !2110 |
-| 2026-08-02 | 新增 "后端 OOM（exit 137）" 案例；根因：裸 `mvn spring-boot:run` 时 JVM 默认堆 = 物理内存 1/4，macOS 内存紧张时触发系统级 OOM Killer；规范：禁止裸 mvn 启动、必须显式 -Xmx；§5.1 编码规范新增"分页 size 必须上限保护（MAX_PAGE_SIZE=100）"，补齐 TenderController 遗漏 | OOM 根因修复，PR !2245 |
+| 2026-08-02 | 新增 "后端 OOM（exit 137）" 案例；根因：裸 `mvn spring-boot:run` 时 JVM 默认堆 = 物理内存 1/4，macOS 内存紧张时触发系统级 OOM Killer；规范：禁止 裸 mvn 启动、必须显式 -Xmx；§5.1 编码规范新增"分页 size 必须上限保护（MAX_PAGE_SIZE=100）"，补齐 TenderController 遗漏 | OOM 根因修复，PR !2245 |
+| 2026-08-25 | 新增 Code Review 三透镜纪律（行为正确性/结构健康/交付就绪）：PR !2399 四轮审查全在行为平面，依赖方向/影响面/交付就绪从未进入检查面；工程化落点：`check-keyword-sync.mjs`（跨语言关键词契约）、pre-push §5.7（仓库卫生）、`gitee-pr-helper.sh merge` mergeable 断言、`agent-finish-task.sh` 冲突预警；技能落点：`xiyu-code-review` 新增第 0 步状态快照 + §7 结构健康 + §8 交付就绪（本地 `.agents/skills/`，未入库） | PR !2399 审查复盘 |
