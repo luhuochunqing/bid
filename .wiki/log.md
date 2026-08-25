@@ -423,3 +423,8 @@
 - 修复：yml 默认改空串只认显式 mock；embed()/QualificationAiParser 补 null 防护；preflight.sh + remote-deploy.sh prod 双断言（漏配/mock 中止部署，服务零影响）
 - 顺带：预算告警 catch 补堆栈+Sentry（CO-564 纪律）；e2e seeder tender.entry 对齐 V1167 原文（CASCADER/enabled/limit/accept）；SolutionReuse 行业枚举映射+删除随机 matchScore 假数据
 - 更新 [[ai-provider-configuration]] §8；教训：**带行为语义的配置默认值必须留空，改共享方法返回契约必须 grep 全部调用方**
+## 2026-08-25 feat | 质量核查抽屉 UI 改造：紧凑行 + 居中详情弹窗
+- 触发：产品 5 项需求——删「存在不通过项」标签；重新核查+AI 评分入汇总平铺卡右上（左上投标文件/核查时间）；筛选 tab 改三分类定位（基本信息/分项合规/附件清单，点击展开+平滑滚动，不改状态筛选）；核查项改紧凑行，点击弹 560px 居中详情弹窗（字段对照表：问题定位/原文摘录/四库链接/固定建议文案）
+- 关键实现：展示纯核心 `composables/qualityCheckDetail.js`（STATUS_META 单一数据源 + 证据提取纯函数）；SCORING_RESPONSE 项复用评分解析 items/results 汇总客观项得分，未打分静默降级；事件链透传 `{stage:2, autoScore:true}` 打开评分抽屉自动打分；后端零改动
+- 三步审查修复 8 项：formatTime 重复实现、状态映射双份、分组标题硬编码计数与动态计数叠加、defineModel 冗余 emit、死 CSS 钩子/死绑定、平行映射结构合并、重复过滤
+- 更新 [[bid-quality-check-realization]] §5；教训：**状态元信息（图标/标签类型/文案）必须单一数据源，两个组件各写一套 switch 必然漂移**
