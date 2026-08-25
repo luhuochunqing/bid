@@ -5,7 +5,8 @@
   注：顶部操作栏（阶段标签 + 重新解析 / 导入评分草稿 / 导出报告）已随"导入到评分草稿/导出报告"功能取消而删除（2026-08-17）。
       重新解析按钮保留在「招标文件解析」标题栏。
       两节副标题（规则提取与满足预判 / 标书对标打分与引用建议）与打分范围单选（全部/仅不满足/勾选）
-      已按用户反馈删除，打分固定全量 scope=ALL（2026-08-18）。一旦我被更新，务必更新我的开头注释。
+      已按用户反馈删除，打分固定全量 scope=ALL（2026-08-18）。
+      抽屉头部与内容区顶部留白已压缩，内容整体上移（2026-08-25）。一旦我被更新，务必更新我的开头注释。
 -->
 <template>
   <el-drawer
@@ -191,7 +192,8 @@ defineExpose({ open, runScoring })
 
 <style scoped>
 .score-parse-drawer :deep(.el-drawer__body) { padding: 0; display: flex; flex-direction: column; }
-.drawer-content-wrapper { position: relative; flex: 1; overflow-y: auto; padding: 20px 24px 32px; background: var(--bg-white); }
+.score-parse-drawer :deep(.el-drawer__header) { padding: 16px 24px 8px; }
+.drawer-content-wrapper { position: relative; flex: 1; overflow-y: auto; padding: 8px 24px 24px; background: var(--bg-white); }
 .loading-state, .error-state { text-align: center; padding: 80px 20px; color: var(--text-muted); }
 .loading-icon { font-size: 32px; margin-bottom: 12px; }
 .dots::after { content: '...'; animation: d 1.4s infinite; }
