@@ -10,10 +10,10 @@
 
 ## 仓库路径
 
-- **主工作区（开发环境所在地）**：`/Users/user/xiyu/worktrees/trae`（Trae Agent Worktree）
-- 主目录基准区：`/Users/user/xiyu/xiyu-bid-poc`
+- **基准仓库（.git 仓库根，临时 worktree 拉取源）**：`/Users/user/xiyu/xiyu-bid-poc`
+- **开发环境宿主（唯一常驻 worktree，跑 docker/后端/前端/launchd）**：`/Users/user/xiyu/worktrees/trae`
 - 后端目录：`/Users/user/xiyu/worktrees/trae/backend`
-- **其他 worktree（claude/codex/cursor/gemini/kimi/mimo/qoder/zcode）**：仅用于代码编辑和 git 操作，不启动开发环境
+- **任务隔离 worktree**：`/Users/user/xiyu/worktrees/xiyu-<agent>-<task>`（临时，用完即删，纯源码）
 
 ### 双远程仓库配置（Gitee 主 + GitHub AI 协作入口）
 
@@ -82,14 +82,14 @@ git checkout main && git merge review/ai-xxx && git push origin main
 > 本地跑：`export XIYU_DEV_CONFIRMED=1` 再调用脚本；生产部署不得走这些脚本。
 
 ```bash
-# 推荐：一键联调（仅主工作区 trae）
+# 推荐：一键联调（仅开发宿主 trae）
 cd /Users/user/xiyu/worktrees/trae
 export XIYU_DEV_CONFIRMED=1
 npm run dev:all
 ```
 
 ```bash
-# 手动方式：后端（仅主工作区 trae）
+# 手动方式：后端（仅开发宿主 trae）
 cd /Users/user/xiyu/worktrees/trae/backend
 # 推荐：使用 start.sh（已内置默认环境变量，需 XIYU_DEV_CONFIRMED=1）
 XIYU_DEV_CONFIRMED=1 ./start.sh
@@ -110,7 +110,7 @@ mvn spring-boot:run -Dspring-boot.run.profiles=dev \
 > 生产部署必须通过真实环境注入这些值，**不得依赖上述默认值**。
 
 ```bash
-# 手动方式：前端（真实 API 模式，仅主工作区 trae）
+# 手动方式：前端（真实 API 模式，仅开发宿主 trae）
 cd /Users/user/xiyu/worktrees/trae
 VITE_API_MODE=api VITE_API_BASE_URL=http://127.0.0.1:18089 npm run dev -- --host 127.0.0.1 --port 1323
 ```
@@ -220,11 +220,11 @@ npm run test:e2e
 
 ## 端口约定
 
-> **自 2026-06-21 起，开发环境统一到主工作区 `/Users/user/xiyu/worktrees/trae`。**
-> 其他 worktree 不再分配独立端口和数据库，也不允许启动开发环境
+> **自 2026-06-21 起，开发环境统一到开发宿主 `/Users/user/xiyu/worktrees/trae`。**
+> 临时任务 worktree 纯源码，不启动开发环境
 > （`start-frontend.sh` / `start-backend.sh` / `dev-services.sh` 均有守卫拒绝执行）。
 
-- **主工作区（trae）**：
+- **开发宿主（trae）**：
   - 前端开发与演示统一使用 `1323`
   - 后端 API 统一使用 `18089`
   - Sidecar 统一使用 `8009`
@@ -232,7 +232,7 @@ npm run test:e2e
   - Redis 统一使用 DB `0`
 - 默认访问地址：`http://127.0.0.1:1323`
 - 默认后端健康检查：`http://127.0.0.1:18089/actuator/health`
-- **其他 worktree（claude/codex/cursor/gemini/kimi/mimo/qoder/zcode）**：仅用于代码编辑和 git 操作，不启动开发环境。如需联调，请切换到主工作区。
+- **临时任务 worktree**（`xiyu-<agent>-<task>`）：纯源码，仅做代码编辑和 git 操作，不启动开发环境。如需联调，请切换到开发宿主。
 
 ## 环境坑点
 
@@ -243,7 +243,7 @@ npm run test:e2e
    当前脚本会给后端注入 `SPRING_PROFILES_ACTIVE=dev,mysql`，给前端注入 `VITE_API_MODE=api` 和 `VITE_API_BASE_URL=http://127.0.0.1:18089`。
 
 3. **后端默认端口不是 8080，而是 18089**
-   当前文档、脚本、E2E 和联调路径都以 `18089` 为准（主工作区 trae 统一端口）。
+   当前文档、脚本、E2E 和联调路径都以 `18089` 为准（开发宿主 trae 统一端口）。
 
 4. **Mock 模式已退役（2026-04-30）**
    `src/api/mock.js`、`src/api/mock-adapters/`、`.env.mock` 均已删除；`src/api/config.js` 硬编码 `mode: 'api'`，不再读取 `VITE_API_MODE`。旧文档里的"双模式切换"/`isMockMode()` 路径均为已退役的历史表述，不要再把它们当作现状。
@@ -262,8 +262,8 @@ npm run test:e2e
    本地开发推荐使用 `backend/start.sh`（已内置默认值），或参考“推荐命令 / 手动方式：后端”传入完整环境变量。
    生产部署必须通过真实环境注入，**不得使用 `start.sh` 中的本地默认值**。
 
-9. **launchd 守护进程会在后台自动重启 dev-services（仅主工作区）**
-   自 2026-06-21 起，只有主工作区（trae）注册了 launchd 守护进程：`~/Library/LaunchAgents/com.xiyu.bid.dev-services.main.plist`。它会在登录时自动启动 `scripts/dev-services.sh watch-run`。`pkill` 杀不掉它，launchd 会立即重启。要彻底停掉，用 `launchctl bootout gui/$(id -u)/com.xiyu.bid.dev-services.main`。其他 worktree 不再注册 launchd 守护进程。
+9. **launchd 守护进程会在后台自动重启 dev-services（仅开发宿主）**
+   自 2026-06-21 起，只有开发宿主（trae）注册了 launchd 守护进程：`~/Library/LaunchAgents/com.xiyu.bid.dev-services.main.plist`。它会在登录时自动启动 `scripts/dev-services.sh watch-run`。`pkill` 杀不掉它，launchd 会立即重启。要彻底停掉，用 `launchctl bootout gui/$(id -u)/com.xiyu.bid.dev-services.main`。临时任务 worktree 不注册 launchd 守护进程。
 
 10. **watchdog 后端失败 10 次会进入 STOPPED 状态**
     新版 `scripts/dev-services.sh` 给 backend 重启加了指数退避（30s → 2min → 10min → 30min cap）。连续失败 10 次后写入 `.runtime/dev-services/backend.fail-state` 并停止重试。`scripts/dev-services.sh start` 在 fail-state 存在时会拒绝启动并打印最后的错误行。修复后用 `rm .runtime/dev-services/backend.fail-state && ./scripts/dev-services.sh start` 恢复。
@@ -309,7 +309,14 @@ npm run test:e2e
 ### 🚨 核心指令：进入工作区后的"早操" (必做)
 **在进行任何代码修改前，你必须确保你的代码库是最新的：**
 ```bash
+# 1. 同步环境（在开发宿主或任意持久 worktree 中执行）
 ./scripts/sync-env.sh .
+# 2. 开新任务时，自动从基准仓库拉独立临时 worktree（纯源码，收尾自动删）
+./scripts/agent-start-task.sh <agent名> <task-slug> origin/main
+# -> 创建 /Users/user/xiyu/worktrees/xiyu-<agent>-<task-slug> 临时 worktree
+# -> 创建分支 agent/<agent>/<task-slug>
+# 3. 进入临时 worktree 开发
+cd /Users/user/xiyu/worktrees/xiyu-<agent>-<task-slug>
 ```
 `sync-env.sh` 会自动完成：
 1. 同步 `.env.api` 等环境模板文件
@@ -323,17 +330,18 @@ npm run test:e2e
   - **创建新迁移文件前必须先运行 `scripts/next-migration-version.sh --reserve` 预约版本号**，防止并行开发时多人取了同一版本
 
 ### 1. 快速进入开发状态
-1. **确认路径**：确保你位于 `/Users/user/xiyu/worktrees/[Agent名称]` 或 `/Users/user/xiyu/worktrees/[Agent名称]-[任务名]`。
-2. **同步环境**：在 Worktree 根目录下执行 `./scripts/sync-env.sh .`（包含 main-forward rebase）。
-3. **环境检测**：执行 `source scripts/dev-env.sh`。
+1. **确认路径**：确保你位于开发宿主 `/Users/user/xiyu/worktrees/trae` 或临时任务 worktree `/Users/user/xiyu/worktrees/xiyu-<agent>-<task>`。
+2. **同步环境**：在开发宿主执行 `./scripts/sync-env.sh .`（包含 main-forward rebase）。
+3. **开新任务**：`./scripts/agent-start-task.sh <agent名> <task-slug> origin/main`（自动拉临时 worktree）。
+4. **环境检测**：执行 `source scripts/dev-env.sh`。
 
-### 2. 专属资源映射表（已废弃，统一到主工作区）
+### 2. 专属资源映射表（已废弃，统一到开发宿主）
 
 > **⚠️ 自 2026-06-21 起，此映射表已废弃。**
-> 开发环境（前端/后端/sidecar/数据库/Redis）统一在主工作区 `/Users/user/xiyu/worktrees/trae` 启动。
+> 开发环境（前端/后端/sidecar/数据库/Redis）统一在开发宿主 `/Users/user/xiyu/worktrees/trae` 启动。
 > 其他 worktree 不再分配独立端口和数据库，也不允许启动开发环境。
 >
-> **主工作区（trae）资源配置**：
+> **开发宿主（trae）资源配置**：
 > | 资源 | 值 |
 > | :--- | :--- |
 > | 前端端口 | 1323 |
@@ -353,18 +361,18 @@ npm run test:e2e
 > | Qoder | 1320 | 18086 | xiyu_bid_qoder | 6 |
 > | Kimi | 1321 | 18087 | xiyu_bid_kimi | 7 |
 > | Mimo | 1322 | 18088 | xiyu_bid_mimo | 8 |
-> | Trae（主工作区） | 1323 | 18089 | xiyu_bid_main | 0 |
+> | Trae（开发宿主） | 1323 | 18089 | xiyu_bid_main | 0 |
 
-### 3. 协作启动命令（仅主工作区可用）
+### 3. 协作启动命令（仅开发宿主可用）
 
-> **只有主工作区（trae）允许启动开发环境。** 其他 worktree 的 `start-frontend.sh` / `start-backend.sh` / `dev-services.sh` 有守卫拒绝执行。
+> **只有开发宿主（trae）允许启动开发环境。** 临时任务 worktree 的 `start-frontend.sh` / `start-backend.sh` / `dev-services.sh` 有守卫拒绝执行。
 
-Agent 必须使用包装脚本启动（仅限主工作区）：
+Agent 必须使用包装脚本启动（仅限开发宿主）：
 - **启动前端**：`cd /Users/user/xiyu/worktrees/trae && ./scripts/start-frontend.sh`
 - **启动后端**：`cd /Users/user/xiyu/worktrees/trae && ./scripts/start-backend.sh`
 - **启动全部服务（launchd 守护）**：`cd /Users/user/xiyu/worktrees/trae && XIYU_DEV_CONFIRMED=1 ./scripts/dev-services-launchd.sh install`
 
-其他 worktree 如需联调，请切换到主工作区：
+其他 worktree（临时任务 worktree）如需联调，请切换到开发宿主 `/Users/user/xiyu/worktrees/trae`：
 ```bash
 cd /Users/user/xiyu/worktrees/trae
 source scripts/dev-env.sh
@@ -561,26 +569,30 @@ Bootstrap worktree（`/Users/user/xiyu/worktrees/codex` 等）的用途：
 
 #### 任务分支的生命周期
 
-每个任务用 `scripts/agent-start-task.sh --in-place` 在持久 worktree 内创建分支：
+默认（不加 `--in-place`）从主仓库拉一个**独立临时 worktree**（纯源码，不装依赖），收尾自动删除：
 
 ```bash
-# 在持久 worktree 内创建任务分支（必须使用 --in-place）
-./scripts/agent-start-task.sh codex project-task-breakdown-from-tender origin/main --in-place
-# → worktree: /Users/user/xiyu/worktrees/codex（持久 worktree）
+# 默认：从主仓库拉独立临时 worktree（纯源码，收尾自动删）
+./scripts/agent-start-task.sh codex project-task-breakdown-from-tender origin/main
+# -> worktree: /Users/user/xiyu/worktrees/xiyu-codex-project-task-breakdown-from-tender（临时）
 # → branch:   agent/codex/project-task-breakdown-from-tender
 ```
 
-> **⚠️ 自 2026-06-22 起，不再允许创建独立的临时 worktree。**
-> 所有任务必须在持久 worktree 内以 `--in-place` 模式完成。
+旧持久 worktree 内联模式仍可用，只需显式加 `--in-place`：
+
+```bash
+./scripts/agent-start-task.sh codex quick-fix origin/main --in-place
+```
 
 **生命周期规则：**
-1. 任务分支 PR 合入 `main` 后，该分支**视为终结**
-2. 下次新任务 → 回到锚点分支，再次执行 `agent-start-task.sh --in-place`
-3. **不要在 `*-init` bootstrap 分支上做任务开发**
+1. 任务分支默认在独立临时 worktree 中开发，完成后执行收尾（`scripts/agent-finish-task.sh`）自动删除临时 worktree + 分支
+2. 任务分支 PR 合入 `main` 后，该分支**视为终结**
+3. 下次新任务 → 再拉起一个新的独立临时 worktree
+4. **不要在 `*-init` bootstrap 分支上做任务开发**
 
 这样做的好处：
-- 避免临时 worktree 膨胀
-- 简化资源管理（开发环境统一到主工作区）
+- 每个任务默认隔离，互不污染，用完即删，避免 worktree 长期膨胀
+- 简化资源管理（临时 worktree 纯源码不装依赖）
 - 每个分支天然是 `origin/main` 的最新衍伸，不会积累陈旧
 
 #### 早操 main-forward 的工作原理

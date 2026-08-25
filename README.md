@@ -104,7 +104,7 @@ bash scripts/dev-services.sh status
 ```
 
 说明：
-- `scripts/dev-services.sh start` 统一拉起文档转换 sidecar、后端和前端，适合日常联调和反复重启（仅主工作区 trae）
+- `scripts/dev-services.sh start` 统一拉起文档转换 sidecar、后端和前端，适合日常联调和反复重启（仅开发宿主 trae）
 - `npm run dev:all` 是兼容入口，会先按当前目录加载 `scripts/dev-env.sh`，再转调同一套 `scripts/dev-services.sh` 稳定启动逻辑
 - 主目录默认启动到前端 `127.0.0.1:1314`、后端 `127.0.0.1:18080`、sidecar `127.0.0.1:8000`、数据库 `xiyu_bid_main`
 - 多 Agent worktree 会自动使用专属端口和数据库，例如 Codex worktree 使用前端 `1316`、后端 `18082`、sidecar `8002`、数据库 `xiyu_bid_codex`
@@ -209,7 +209,7 @@ cd /Users/user/xiyu/worktrees/trae
 VITE_API_BASE_URL=http://127.0.0.1:18089 npm run dev -- --host 127.0.0.1 --port 1323
 ```
 
-> **端口说明**：自 2026-06-21 起开发环境统一到主工作区 `/Users/user/xiyu/worktrees/trae`，端口固定为前端 `1323` / 后端 `18089` / sidecar `8009` / MySQL `3306` / Redis `6379`。多项目端口分配规范见 `CLAUDE.md §多项目端口分配`。
+> **端口说明**：自 2026-06-21 起开发环境统一到开发宿主 `/Users/user/xiyu/worktrees/trae`，端口固定为前端 `1323` / 后端 `18089` / sidecar `8009` / MySQL `3306` / Redis `6379`。多项目端口分配规范见 `CLAUDE.md §多项目端口分配`。
 
 ### 访问地址
 

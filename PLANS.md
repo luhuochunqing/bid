@@ -22,37 +22,29 @@
 
 ## 多 Agent 协作（Worktree）
 
-### 单一 Worktree 策略（--in-place 模式）
+### 隔离临时 Worktree 策略（默认模式）
 
-每个 Agent 只有一个持久 worktree（如 `agent/codex-init`），**所有任务都在持久 worktree 内切分支完成**，不再创建独立的临时 worktree。
+每个任务默认**从基准仓库（`xiyu-bid-poc`）拉一个独立临时 worktree**（纯源码，不装依赖），用完即删，任务间物理隔离、互不污染、避免长期膨胀。
 
 ```bash
-# ── 仅首次初始化（已完成）──
-
-# ── 每个新任务（串行） ──
-git checkout agent/<name>-init         # 回到锚点
-git pull origin main                   # 同步最新 main
-git checkout -b agent/<name>/<task>    # 切新分支
+# ── 每个新任务（默认） ──
+scripts/agent-start-task.sh <name> <task> origin/main
+# -> 在 /Users/user/xiyu/worktrees/xiyu-<name>-<task> 建独立临时 worktree + 任务分支
 # 开发、提交、推送、PR
-# PR merged 后：
-git checkout agent/<name>-init
-git pull origin main
-git branch -D agent/<name>/<task>
+# PR merged 后收尾自动删除临时 worktree + 分支：
+scripts/agent-finish-task.sh agent/<name>/<task>
 ```
 
-脚本支持 `--in-place` 模式一键完成上述流程：
+旧持久 worktree 内联模式仍可用，显式加 `--in-place` 即可：
 
 ```bash
 scripts/agent-start-task.sh <name> <task> origin/main --in-place
 ```
 
-> **⚠️ 已废弃二级临时 worktree**：自 2026-06-22 起，不再允许创建独立的临时 worktree。
-> 所有任务必须在持久 worktree 内以 `--in-place` 模式完成。这样可以避免 worktree 膨胀、简化资源管理。
-
 ### 通用原则
 
-- **物理隔离**：各 Agent 在 `/Users/user/xiyu/worktrees/` 下的独立持久 Worktree 工作，严禁在 `main` 基准区修改代码。
-- **资源统一**：**开发环境统一到主工作区（trae）**，前端 1323 / 后端 18089 / Sidecar 8009 / 数据库 xiyu_bid_main / Redis DB 0。其他 worktree 不再分配独立端口和数据库，仅用于代码编辑和 git 操作。
+- **物理隔离**：每个任务从基准仓库（`xiyu-bid-poc`）拉独立临时 worktree（`xiyu-<agent>-<task>`），严禁在 `main` 基准区修改代码。
+- **资源统一**：**开发环境统一到开发宿主（trae）**，前端 1323 / 后端 18089 / Sidecar 8009 / 数据库 xiyu_bid_main / Redis DB 0。临时任务 worktree 纯源码，不分配端口和数据库，仅用于代码编辑和 git 操作。
 - **验证责任**：遵循"谁改代码，谁在自己的 Worktree 跑通验证"原则。报告"任务完成"前，必须提供在 Worktree 内部执行 `npm run build` 和 `mvn test` 的成功证据。
 - **健康诊断**：`npm run agent:health-check` — 跨 worktree 聚合展示 sidecar/backend/frontend 健康状态。
 - **分支命名**：

@@ -279,8 +279,9 @@ if [[ -n "$TASK_NAME" ]]; then
   fi
 fi
 
-# worktree
-WORKTREE_PATH="$HOME/xiyu/worktrees/$AGENT_NAME-$TASK_NAME"
+# worktree（路径约定与 agent-start-task.sh 的 WORKTREES_ROOT 保持一致）
+WORKTREES_ROOT="${WORKTREES_ROOT:-$HOME/xiyu/worktrees}"
+WORKTREE_PATH="$WORKTREES_ROOT/xiyu-$AGENT_NAME-$TASK_NAME"
 if [[ -d "$WORKTREE_PATH" ]] && git worktree list 2>/dev/null | grep -qF "$WORKTREE_PATH"; then
   CLEANUP_LIST+=("Worktree: $WORKTREE_PATH")
 fi
@@ -357,35 +358,16 @@ if git branch --list "$TASK_BRANCH" | grep -q .; then
   if [[ "$DRY_RUN" == "1" ]]; then
     echo "  [DRY RUN] git branch -D $TASK_BRANCH"
   else
-    git branch -D "$TASK_BRANCH"
+    # 分支可能仍被临时 worktree 检出，强制删除即可（worktree 随后由 Step 8 回收）
+    git branch -D "$TASK_BRANCH" 2>/dev/null || true
     info "已删除本地分支: $TASK_BRANCH"
   fi
 else
   info "本地分支 $TASK_BRANCH 不存在（可能已删除）"
 fi
 
-# ─── Step 8: 删除远端任务分支 ───────────────────────────────────────────────────
-hdr "Step 8: 删除远端分支"
-
-if [[ "$REMOTE_BRANCH_EXISTS" == "1" ]]; then
-  if [[ "$INCLUDE_REMOTE" == "1" ]]; then
-    if [[ "$DRY_RUN" == "1" ]]; then
-      echo "  [DRY RUN] git push origin --delete $TASK_BRANCH"
-    else
-      git push origin --delete "$TASK_BRANCH"
-      info "已删除远端分支: origin/$TASK_BRANCH"
-    fi
-  else
-    warn "远端分支存在: origin/$TASK_BRANCH"
-    warn "如需删除，使用 --include-remote 参数"
-    echo "    git push origin --delete $TASK_BRANCH"
-  fi
-else
-  info "无远端分支需要清理"
-fi
-
-# ─── Step 9: 清理 worktree（仅限临时 worktree） ─────────────────────────────────
-hdr "Step 9: 清理 worktree"
+# ─── Step 8: 清理对应临时 worktree（先于分支删除，解除分支占用） ────────────────
+hdr "Step 8: 清理对应 worktree"
 
 if [[ -d "$WORKTREE_PATH" ]] && git worktree list 2>/dev/null | grep -qF "$WORKTREE_PATH"; then
   if [[ "$DRY_RUN" == "1" ]]; then
@@ -408,6 +390,80 @@ if [[ -d "$WORKTREE_PATH" ]] && git worktree list 2>/dev/null | grep -qF "$WORKT
   fi
 else
   info "无 worktree 需要清理"
+fi
+
+# ─── Step 9: 删除远端任务分支 ───────────────────────────────────────────────────
+hdr "Step 9: 删除远端分支"
+
+if [[ "$REMOTE_BRANCH_EXISTS" == "1" ]]; then
+  if [[ "$INCLUDE_REMOTE" == "1" ]]; then
+    if [[ "$DRY_RUN" == "1" ]]; then
+      echo "  [DRY RUN] git push origin --delete $TASK_BRANCH"
+    else
+      git push origin --delete "$TASK_BRANCH"
+      info "已删除远端分支: origin/$TASK_BRANCH"
+    fi
+  else
+    warn "远端分支存在: origin/$TASK_BRANCH"
+    warn "如需删除，使用 --include-remote 参数"
+    echo "    git push origin --delete $TASK_BRANCH"
+  fi
+else
+  info "无远端分支需要清理"
+fi
+
+# ─── Step 10: 清理孤儿 worktree ────────────────────────────────────────────────
+# 工程背景（2026-08-25）: 多 agent 持久 worktree 长期积累，分支合入 main 后
+#   目录仍残留（.git 元数据失效，git 在 worktree list 中标记 prunable），占大量磁盘。
+#   收尾时自动扫描并回收这些孤儿空壳，配合 git worktree prune 清注册。
+hdr "Step 10: 清理孤儿 worktree"
+
+ORPHAN_PATHS=()
+while IFS= read -r line; do
+  case "$line" in
+    *"prunable"*) ;;
+    *) continue ;;
+  esac
+  p="${line%% *}"
+  if [[ "$p" == "$REPO_ROOT" ]]; then
+    continue
+  fi
+  ORPHAN_PATHS+=("$p")
+done < <(git worktree list 2>/dev/null || echo "")
+
+if [[ "${#ORPHAN_PATHS[@]}" -eq 0 ]]; then
+  info "无孤儿 worktree，跳过"
+else
+  echo "  发现 ${#ORPHAN_PATHS[@]} 个孤儿 worktree（分支已删除，待回收）:"
+  for p in "${ORPHAN_PATHS[@]}"; do
+    echo "    • $p"
+  done
+  echo
+  if [[ "$DRY_RUN" == "1" ]]; then
+    for p in "${ORPHAN_PATHS[@]}"; do
+      echo "  [DRY RUN] rm -rf $p + git worktree prune"
+    done
+  elif [[ "$AUTO_CONFIRM" == "1" ]]; then
+    for p in "${ORPHAN_PATHS[@]}"; do
+      rm -rf "$p"
+      warn "已清理孤儿 worktree: $p"
+    done
+    git worktree prune 2>/dev/null || warn "git worktree prune 失败（跳过）"
+    info "已执行 git worktree prune 清理注册"
+  else
+    read -p "是否删除这些孤儿 worktree？(y/N) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+      for p in "${ORPHAN_PATHS[@]}"; do
+        rm -rf "$p"
+        warn "已清理孤儿 worktree: $p"
+      done
+      git worktree prune 2>/dev/null || warn "git worktree prune 失败（跳过）"
+      info "已执行 git worktree prune 清理注册"
+    else
+      info "跳过孤儿 worktree 清理"
+    fi
+  fi
 fi
 
 # ─── 完成 ───────────────────────────────────────────────────────────────────────

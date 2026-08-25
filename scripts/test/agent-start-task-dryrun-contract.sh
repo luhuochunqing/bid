@@ -46,6 +46,16 @@ run_contract_case() {
       assert_contains "$output" "touch:    0 paths" "shows zero touch paths"
       assert_contains "$output" "locks:    0 locks" "shows zero locks"
       ;;
+    temp-worktree-dry-run)
+      # 默认模式（无 --in-place）：应从基准仓库拉独立临时 worktree（纯源码）
+      assert_contains "$output" "Dry run task branch:" "prints dry run header"
+      assert_contains "$output" "mode:     isolated temp worktree (git worktree add, pure-source)" "shows temp-worktree mode"
+      assert_contains "$output" "touch:" "prints touch paths line"
+      assert_contains "$output" "locks:" "prints locks line"
+      assert_contains "$output" "worktree:" "prints worktree path"
+      assert_contains "$output" "xiyu-cursor-demo-task" "shows xiyu prefix in worktree path"
+      assert_contains "$output" "node dependencies will be skipped" "shows pure-source default"
+      ;;
     *)
       echo "Unknown contract case: $case_name" >&2
       exit 1
@@ -64,5 +74,9 @@ run_contract_case \
 run_contract_case \
   minimal-dry-run \
   cursor demo-task origin/main --in-place --dry-run
+
+run_contract_case \
+  temp-worktree-dry-run \
+  cursor demo-task origin/main --dry-run
 
 echo "All agent-start-task dry-run contract checks passed."
