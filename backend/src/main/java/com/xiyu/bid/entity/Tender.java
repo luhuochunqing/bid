@@ -153,6 +153,10 @@ public class Tender {
     @Column(name = "contact_mail", length = 100)
     private String contactMail;
 
+    /* 联系人1性质 */
+    @Column(name = "contact_nature", length = 20)
+    private String contactNature;
+
     /* 联系人2 */
     @Column(name = "contact_name2", length = 100)
     private String contactName2;
@@ -165,6 +169,10 @@ public class Tender {
 
     @Column(name = "contact_mail2", length = 100)
     private String contactMail2;
+
+    /* 联系人2性质 */
+    @Column(name = "contact_nature2", length = 20)
+    private String contactNature2;
 
     /* 项目类型 */
     @Column(name = "project_type", length = 20)

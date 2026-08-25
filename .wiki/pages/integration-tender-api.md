@@ -88,7 +88,7 @@ backlinks:
 | `externalId` | 本平台内部唯一标识，格式 `{sourceSystem}:{sourceId}` |
 | `status` | 标讯业务状态，枚举见 §5.1 |
 | `sourceType` | 来源类型，`EXTERNAL_PLATFORM` 表示外部推送 |
-| `contactInfo` | v3.1+ 联系人数组，每项含 name/phone/tel/mail；同时保留 contactName 等扁平字段向下兼容 |
+| `contactInfo` | v3.1+ 联系人数组，每项含 name/phone/tel/mail/nature；同时保留 contactName 等扁平字段向下兼容。nature 为联系人性质，枚举：客户/代理/标前（2026-08-19 新增，手动路径条件必填，CRM 集成路径豁免字典校验） |
 | `evaluation` | v3.1+ 项目评估嵌套对象，含基础信息段、客户信息矩阵、投标负责人建议三段 |
 | `evaluation.customerInfos` | 客户信息矩阵 EAV 行列表；含 TEL（对接人座机号，TEXT 类型）维度；写入前 infoKey 做归一化（trim + toUpperCase，见 TenderEvaluationIntegrationMapper），大小写/首尾空格差异不影响落库 |
 | `attachments` | v3.2+ 标讯附件数组，每项含 fileName/fileType/fileUrl |
@@ -172,6 +172,7 @@ backlinks:
 | v3.5 | 2026-06-17 | 状态回调 externalId → sourceId，认证改 JWT；结果回调 crmOpportunityId → sourceId；列表 contactInfo 改数组 |
 | v3.7 | 2026-06-17 | 标讯创建接口新增 tenderInfo / projectManagerName / department / creatorName / createDate |
 | v3.8 | 2026-06-17 | 当前版本（文档版本号同步） |
+| — | 2026-08-19 | 代码层新增 contactNature/contactNature2 字段（V1201 迁移）：手动创建/修改路径经 ManualTenderValidation 分组条件必填校验，CRM 集成路径豁免；Excel 导入模板与导出同步扩列 |
 
 ## 11. 待确认事项
 

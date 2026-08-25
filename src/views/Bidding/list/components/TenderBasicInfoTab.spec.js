@@ -155,13 +155,18 @@ describe('TenderBasicInfoTab', () => {
     expect(purchaserItem.attributes('data-required')).toBe('false')
   })
 
-  it('keeps contact 1 group in horizontal 4+6+7+7 colSpan layout', async () => {
+  it('keeps contact 1 group in horizontal 3+3+6+6+6 colSpan layout', async () => {
     const wrapper = mountTab()
     await nextTick()
 
+    const natureItems = wrapper.findAll('.form-item-stub').filter((el) => el.text().startsWith('性质'))
+    expect(natureItems.length).toBeGreaterThanOrEqual(1)
+    // 联系人1 分组的性质字段（第一个）应占 3 列
+    expect(natureItems[0].element.parentElement.getAttribute('data-span')).toBe('3')
+
     const contactItem = wrapper.find('[data-prop="contact"]')
     expect(contactItem.exists()).toBe(true)
-    expect(contactItem.element.parentElement.getAttribute('data-span')).toBe('4')
+    expect(contactItem.element.parentElement.getAttribute('data-span')).toBe('3')
 
     const phoneItem = wrapper.find('[data-prop="phone"]')
     expect(phoneItem.exists()).toBe(true)
@@ -169,11 +174,11 @@ describe('TenderBasicInfoTab', () => {
 
     const landlineItem = wrapper.find('[data-prop="landline"]')
     expect(landlineItem.exists()).toBe(true)
-    expect(landlineItem.element.parentElement.getAttribute('data-span')).toBe('7')
+    expect(landlineItem.element.parentElement.getAttribute('data-span')).toBe('6')
 
     const mailItem = wrapper.find('[data-prop="mail"]')
     expect(mailItem.exists()).toBe(true)
-    expect(mailItem.element.parentElement.getAttribute('data-span')).toBe('7')
+    expect(mailItem.element.parentElement.getAttribute('data-span')).toBe('6')
   })
 
   it('exposes validate method for parent to call', () => {

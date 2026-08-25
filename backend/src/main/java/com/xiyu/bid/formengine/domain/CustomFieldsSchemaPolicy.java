@@ -38,8 +38,8 @@ public final class CustomFieldsSchemaPolicy {
             SCOPE_INITIATION, Set.of(
                     "projectName", "ownerUnit", "createTime", "projectType", "customerType",
                     "priorityLevel", "headquartersLocation", "projectLeaderName", "projectLeaderUserId",
-                    "leaderDepartment", "contactName", "contactPhone", "contactTel", "contactMail",
-                    "contactName2", "contactPhone2", "contactTel2", "contactMail2",
+                    "leaderDepartment", "contactNature", "contactName", "contactPhone", "contactTel", "contactMail",
+                    "contactNature2", "contactName2", "contactPhone2", "contactTel2", "contactMail2",
                     "tenderId", "expectedBidders", "annualEcommerceAmount", "annualRevenue", "customerRevenue",
                     "bidOpenTime", "bidMonth", "biddingPlatform",
                     "needDeposit", "depositAmount", "depositPaymentMethod", "depositDueDate",

@@ -1,7 +1,7 @@
 // Input: 字典枚举（地区/客户类型/优先级）+ 标题列定义
 // Output: 标讯批量导入 .xlsx 模板字节流
 // Pos: service/导入模板生成器
-// 维护声明: 仅负责模板布局/字典/列宽；表头常量与 TenderImportService.HEADERS 共享，修改需同步。
+// 维护声明: 仅负责模板布局/字典/列宽；表头常量与字典值真相源为 {@link TenderExcelParser}，修改需同步。
 
 package com.xiyu.bid.tender.service;
 
@@ -39,10 +39,12 @@ public class TenderImportTemplateBuilder {
             "北京市北京市",
             "2026-12-31 17:00",
             "2026-12-25 09:30",
+            "客户",
             "张三",
             "13800138000",
             "010-12345678",
             "zhangsan@example.com",
+            "代理",
             "李四",
             "13900139000",
             "021-87654321",
@@ -72,7 +74,7 @@ public class TenderImportTemplateBuilder {
         CellStyle optionalStyle = headerStyle(workbook, IndexedColors.GREY_25_PERCENT.getIndex());
 
         Row header = sheet.createRow(0);
-        String[] headers = TenderImportService.HEADERS;
+        String[] headers = TenderExcelParser.HEADERS;
         for (int i = 0; i < headers.length; i++) {
             Cell cell = header.createCell(i);
             cell.setCellValue(headers[i]);
@@ -86,10 +88,12 @@ public class TenderImportTemplateBuilder {
         }
 
         // 与新增表单字段类型一致：含枚举值的列改用下拉框（客户类型/优先级/项目类型）
-        // 选项值来自 TenderImportService 常量，与前端 constants.js / ManualTenderDialog.vue 对齐
-        addEnumDropdown(sheet, "客户类型", TenderImportService.CUSTOMER_TYPES);
-        addEnumDropdown(sheet, "优先级", TenderImportService.PRIORITIES);
-        addEnumDropdown(sheet, "项目类型", TenderImportService.PROJECT_TYPES);
+        // 选项值来自 TenderExcelParser 常量，与前端 constants.js / ManualTenderDialog.vue 对齐
+        addEnumDropdown(sheet, "联系人1性质", TenderExcelParser.CONTACT_NATURES);
+        addEnumDropdown(sheet, "联系人2性质", TenderExcelParser.CONTACT_NATURES);
+        addEnumDropdown(sheet, "客户类型", TenderExcelParser.CUSTOMER_TYPES);
+        addEnumDropdown(sheet, "优先级", TenderExcelParser.PRIORITIES);
+        addEnumDropdown(sheet, "项目类型", TenderExcelParser.PROJECT_TYPES);
     }
 
     private void addEnumDropdown(Sheet sheet, String headerName, List<String> options) {
@@ -101,11 +105,11 @@ public class TenderImportTemplateBuilder {
     }
 
     private int findColumnIndex(String headerName) {
-        String[] headers = TenderImportService.HEADERS;
+        String[] headers = TenderExcelParser.HEADERS;
         // CO-502: HEADERS 必填列带 * 后缀，用 normalizeHeader 对比避免匹配失败
-        String normalized = TenderImportService.normalizeHeader(headerName);
+        String normalized = TenderExcelParser.normalizeHeader(headerName);
         for (int i = 0; i < headers.length; i++) {
-            if (TenderImportService.normalizeHeader(headers[i]).equals(normalized)) {
+            if (TenderExcelParser.normalizeHeader(headers[i]).equals(normalized)) {
                 return i;
             }
         }
@@ -116,7 +120,7 @@ public class TenderImportTemplateBuilder {
         Sheet dict = workbook.createSheet("字典参考");
         CellStyle headerStyle = headerStyle(workbook, IndexedColors.GREY_25_PERCENT.getIndex());
 
-        String[] columns = {"地区（总部所在地：一级+二级，如广东省深圳市、北京市北京市）", "客户类型", "优先级", "项目类型"};
+        String[] columns = {"地区（总部所在地：一级+二级，如广东省深圳市、北京市北京市）", "联系人性质", "客户类型", "优先级", "项目类型"};
         Row header = dict.createRow(0);
         for (int i = 0; i < columns.length; i++) {
             Cell cell = header.createCell(i);
@@ -125,23 +129,25 @@ public class TenderImportTemplateBuilder {
             dict.setColumnWidth(i, 5500);
         }
 
-        List<String> regions = TenderImportService.REGIONS.stream()
+        List<String> regions = TenderExcelParser.REGIONS.stream()
                 // 字典 sheet 只展示推荐的一级+二级格式，过滤掉旧兼容格式（单名、市-市）
                 // 避免 Excel 导入用户困惑该填哪种；TenderRegionCatalog.isValid 仍接受所有格式
                 .filter(r -> !TenderRegionCatalog.PROVINCE_ONLY.contains(r))
                 .filter(r -> !r.matches(".*-.*"))
                 .toList();
-        List<String> customerTypes = TenderImportService.CUSTOMER_TYPES;
-        List<String> priorities = TenderImportService.PRIORITIES;
-        List<String> projectTypes = TenderImportService.PROJECT_TYPES;
+        List<String> contactNatures = TenderExcelParser.CONTACT_NATURES;
+        List<String> customerTypes = TenderExcelParser.CUSTOMER_TYPES;
+        List<String> priorities = TenderExcelParser.PRIORITIES;
+        List<String> projectTypes = TenderExcelParser.PROJECT_TYPES;
         int total = Math.max(regions.size(),
-                Math.max(customerTypes.size(), Math.max(priorities.size(), projectTypes.size())));
+                Math.max(contactNatures.size(), Math.max(customerTypes.size(), Math.max(priorities.size(), projectTypes.size()))));
         for (int r = 0; r < total; r++) {
             Row row = dict.createRow(r + 1);
             if (r < regions.size()) row.createCell(0).setCellValue(regions.get(r));
-            if (r < customerTypes.size()) row.createCell(1).setCellValue(customerTypes.get(r));
-            if (r < priorities.size()) row.createCell(2).setCellValue(priorities.get(r));
-            if (r < projectTypes.size()) row.createCell(3).setCellValue(projectTypes.get(r));
+            if (r < contactNatures.size()) row.createCell(1).setCellValue(contactNatures.get(r));
+            if (r < customerTypes.size()) row.createCell(2).setCellValue(customerTypes.get(r));
+            if (r < priorities.size()) row.createCell(3).setCellValue(priorities.get(r));
+            if (r < projectTypes.size()) row.createCell(4).setCellValue(projectTypes.get(r));
         }
     }
 

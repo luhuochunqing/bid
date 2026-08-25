@@ -16,22 +16,27 @@
           <el-col :span="24">
             <div class="contact-group-title">联系人1</div>
           </el-col>
-          <el-col :span="6">
+          <el-col :span="8">
+            <el-form-item label="联系人性质">
+              <el-input :model-value="tender.contactNature || '-'" readonly />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
             <el-form-item label="姓名">
               <el-input :model-value="tender.contactName || '-'" readonly />
             </el-form-item>
           </el-col>
-          <el-col :span="6">
+          <el-col :span="8">
             <el-form-item label="手机号">
               <el-input :model-value="tender.contactPhone || '-'" readonly />
             </el-form-item>
           </el-col>
-          <el-col :span="6">
+          <el-col :span="12">
             <el-form-item label="座机">
               <el-input :model-value="tender.contactTel || '-'" readonly />
             </el-form-item>
           </el-col>
-          <el-col :span="6">
+          <el-col :span="12">
             <el-form-item label="邮箱">
               <el-input :model-value="tender.contactMail || '-'" readonly />
             </el-form-item>
@@ -39,22 +44,27 @@
           <el-col :span="24">
             <div class="contact-group-title">联系人2</div>
           </el-col>
-          <el-col :span="6">
+          <el-col :span="8">
+            <el-form-item label="联系人性质">
+              <el-input :model-value="tender.contactNature2 || '-'" readonly />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
             <el-form-item label="姓名">
               <el-input :model-value="tender.contactName2 || '-'" readonly />
             </el-form-item>
           </el-col>
-          <el-col :span="6">
+          <el-col :span="8">
             <el-form-item label="手机号">
               <el-input :model-value="tender.contactPhone2 || '-'" readonly />
             </el-form-item>
           </el-col>
-          <el-col :span="6">
+          <el-col :span="12">
             <el-form-item label="座机">
               <el-input :model-value="tender.contactTel2 || '-'" readonly />
             </el-form-item>
           </el-col>
-          <el-col :span="6">
+          <el-col :span="12">
             <el-form-item label="邮箱">
               <el-input :model-value="tender.contactMail2 || '-'" readonly />
             </el-form-item>

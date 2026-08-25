@@ -63,11 +63,11 @@ export const LOCKED_FIELD_KEYS = [
   'customerType', 'projectType', 'pastedText', 'attachments'
 ]
 
-// tender.entry 联系人1/联系人2 固定分组字段 key 列表（8 个）
+// tender.entry 联系人1/联系人2 固定分组字段 key 列表（10 个）
 // 固定分组字段：不可拖拽排序 + key 不可修改（业务页硬编码依赖 key），type 可改，不可删除
 export const FIXED_GROUP_KEYS = [
-  'contact', 'phone', 'landline', 'mail',
-  'contact2', 'phone2', 'landline2', 'mail2'
+  'contactNature', 'contact', 'phone', 'landline', 'mail',
+  'contactNature2', 'contact2', 'phone2', 'landline2', 'mail2'
 ]
 
 // 所有可能需要锁定 key 的字段（LOCKED + FIXED_GROUP）
@@ -96,8 +96,8 @@ export const PROJECT_LOCKED_FIELD_KEYS = {
   'project.initiation': [
     'projectName', 'ownerUnit', 'createTime', 'projectType', 'customerType',
     'priorityLevel', 'headquartersLocation', 'projectLeaderName', 'projectLeaderUserId',
-    'leaderDepartment', 'contactName', 'contactPhone', 'contactTel', 'contactMail',
-    'contactName2', 'contactPhone2', 'contactTel2', 'contactMail2',
+    'leaderDepartment', 'contactNature', 'contactName', 'contactPhone', 'contactTel', 'contactMail',
+    'contactNature2', 'contactName2', 'contactPhone2', 'contactTel2', 'contactMail2',
     'tenderId', 'expectedBidders', 'annualEcommerceAmount', 'annualRevenue', 'customerRevenue',
     'bidOpenTime', 'bidMonth', 'biddingPlatform',
     'needDeposit', 'depositAmount', 'depositPaymentMethod', 'depositDueDate',

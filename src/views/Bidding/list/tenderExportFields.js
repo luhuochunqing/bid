@@ -1,5 +1,5 @@
 // Input: tender row objects from filteredTenders
-// Output: normalized export row with 26 Chinese-header fields per blueprint spec
+// Output: normalized export row with 28 Chinese-header fields per blueprint spec
 // Pos: src/views/Bidding/list/ - Tender export field mapping
 
 import { getTenderStatusText } from '../bidding-utils-status.js'
@@ -39,10 +39,12 @@ const FIELD_MAP = [
   ['客户类型',          (t) => t.customerType],
   ['优先级',            (t) => t.priority ? `${t.priority}级` : '-'],
   ['项目类型',          (t) => t.projectType],
+  ['联系人1性质',       (t) => t.contactNature],
   ['联系人1',           (t) => t.contactName],
   ['联系人1手机号',     (t) => t.contactPhone],
   ['联系人1座机',       (t) => t.contactTel],
   ['联系人1邮箱',       (t) => t.contactMail],
+  ['联系人2性质',       (t) => t.contactNature2],
   ['联系人2',           (t) => t.contactName2],
   ['联系人2手机号',     (t) => t.contactPhone2],
   ['联系人2座机',       (t) => t.contactTel2],

@@ -109,7 +109,7 @@ class TenderImportServiceTest {
 
         // 客户类型不在白名单 -> 校验失败
         String[] row = exampleRow();
-        row[13] = "未知类型";
+        row[15] = "未知类型";
         byte[] bytes = buildWorkbookWithHeaders(TenderImportService.HEADERS, new String[][]{row});
 
         MockMultipartFile file = new MockMultipartFile(
@@ -163,7 +163,7 @@ class TenderImportServiceTest {
 
         // 项目类型不在白名单 -> 校验失败
         String[] row = exampleRow();
-        row[15] = "非法类型";
+        row[17] = "非法类型";
         byte[] bytes = buildWorkbookWithHeaders(TenderImportService.HEADERS, new String[][]{row});
 
         MockMultipartFile file = new MockMultipartFile(
@@ -231,15 +231,20 @@ class TenderImportServiceTest {
     }
 
     @Test
-    @DisplayName("模板表头共 18 列且顺序与蓝图一致")
-    void templateHasEighteenColumns() {
-        assertThat(TenderImportService.HEADERS).hasSize(18);
+    @DisplayName("模板表头共 20 列且顺序与蓝图一致")
+    void templateHasTwentyColumns() {
+        assertThat(TenderImportService.HEADERS).hasSize(20);
         assertThat(TenderImportService.HEADERS[0]).isEqualTo("项目名称*");
+        // 联系人性质列插入在联系人姓名之前
+        assertThat(TenderImportService.HEADERS[5]).isEqualTo("联系人1性质");
+        assertThat(TenderImportService.HEADERS[6]).isEqualTo("联系人1*");
+        assertThat(TenderImportService.HEADERS[10]).isEqualTo("联系人2性质");
+        assertThat(TenderImportService.HEADERS[11]).isEqualTo("联系人2");
         // CO-502: 客户类型/优先级/项目类型 改为必填，表头带 * 后缀
-        assertThat(TenderImportService.HEADERS[13]).isEqualTo("客户类型*");
-        assertThat(TenderImportService.HEADERS[14]).isEqualTo("优先级*");
-        assertThat(TenderImportService.HEADERS[15]).isEqualTo("项目类型*");
-        assertThat(TenderImportService.HEADERS[17]).isEqualTo("标讯描述");
+        assertThat(TenderImportService.HEADERS[15]).isEqualTo("客户类型*");
+        assertThat(TenderImportService.HEADERS[16]).isEqualTo("优先级*");
+        assertThat(TenderImportService.HEADERS[17]).isEqualTo("项目类型*");
+        assertThat(TenderImportService.HEADERS[19]).isEqualTo("标讯描述");
     }
 
     @Test
@@ -248,7 +253,7 @@ class TenderImportServiceTest {
         when(validator.validate(any(TenderRequest.class))).thenReturn(Collections.emptySet());
 
         String[] row = exampleRow();
-        row[13] = null;
+        row[15] = null;
         byte[] bytes = buildWorkbookWithHeaders(TenderImportService.HEADERS, new String[][]{row});
 
         MockMultipartFile file = new MockMultipartFile(
@@ -271,7 +276,7 @@ class TenderImportServiceTest {
         when(validator.validate(any(TenderRequest.class))).thenReturn(Collections.emptySet());
 
         String[] row = exampleRow();
-        row[14] = null;
+        row[16] = null;
         byte[] bytes = buildWorkbookWithHeaders(TenderImportService.HEADERS, new String[][]{row});
 
         MockMultipartFile file = new MockMultipartFile(
@@ -294,7 +299,7 @@ class TenderImportServiceTest {
         when(validator.validate(any(TenderRequest.class))).thenReturn(Collections.emptySet());
 
         String[] row = exampleRow();
-        row[15] = null;
+        row[17] = null;
         byte[] bytes = buildWorkbookWithHeaders(TenderImportService.HEADERS, new String[][]{row});
 
         MockMultipartFile file = new MockMultipartFile(
@@ -306,6 +311,53 @@ class TenderImportServiceTest {
                     TenderImportResultDTO result = ((TenderImportRollbackException) ex).getResult();
                     assertThat(result.getErrors().get(0).field()).isEqualTo("projectType");
                     assertThat(result.getErrors().get(0).message()).contains("不能为空");
+                });
+
+        verify(tenderCommandService, never()).createTender(any(), any());
+    }
+
+    @Test
+    @DisplayName("联系人1性质非法值应当全量回滚")
+    void invalidContactNatureTriggersRollback() throws Exception {
+        when(validator.validate(any(TenderRequest.class))).thenReturn(Collections.emptySet());
+
+        String[] row = exampleRow();
+        row[5] = "不合法性质";
+        byte[] bytes = buildWorkbookWithHeaders(TenderImportService.HEADERS, new String[][]{row});
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "import.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bytes);
+
+        assertThatThrownBy(() -> service.importFromExcel(file, 1L))
+                .isInstanceOf(TenderImportRollbackException.class)
+                .satisfies(ex -> {
+                    TenderImportResultDTO result = ((TenderImportRollbackException) ex).getResult();
+                    assertThat(result.getErrors().stream().map(e -> e.field()))
+                            .contains("contactNature");
+                });
+
+        verify(tenderCommandService, never()).createTender(any(), any());
+    }
+
+    @Test
+    @DisplayName("联系人1有姓名但性质为空应当全量回滚")
+    void missingContactNatureWhenNamePresentTriggersRollback() throws Exception {
+        when(validator.validate(any(TenderRequest.class))).thenReturn(Collections.emptySet());
+
+        String[] row = exampleRow();
+        row[5] = null; // 联系人1性质为空，但 row[6]="张三" 有姓名
+        byte[] bytes = buildWorkbookWithHeaders(TenderImportService.HEADERS, new String[][]{row});
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "import.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bytes);
+
+        assertThatThrownBy(() -> service.importFromExcel(file, 1L))
+                .isInstanceOf(TenderImportRollbackException.class)
+                .satisfies(ex -> {
+                    TenderImportResultDTO result = ((TenderImportRollbackException) ex).getResult();
+                    assertThat(result.getErrors().stream().anyMatch(e ->
+                            "contactNature".equals(e.field()) && e.message().contains("必填"
+                            ))).isTrue();
                 });
 
         verify(tenderCommandService, never()).createTender(any(), any());
@@ -369,8 +421,12 @@ class TenderImportServiceTest {
             Sheet dict = workbook.getSheet("字典参考");
             assertThat(dict).isNotNull();
 
-            List<String> customerTypes = readColumn(dict, 1);
-            List<String> projectTypes = readColumn(dict, 3);
+            List<String> contactNatures = readColumn(dict, 1);
+            List<String> customerTypes = readColumn(dict, 2);
+            List<String> projectTypes = readColumn(dict, 4);
+
+            // 联系人性质对齐前端 constants.js CONTACT_NATURE_OPTIONS
+            assertThat(contactNatures).contains("客户", "代理", "标前");
 
             // 客户类型对齐前端 constants.js CUSTOMER_TYPE_OPTIONS
             assertThat(customerTypes).contains(
@@ -384,23 +440,23 @@ class TenderImportServiceTest {
     }
 
     @Test
-    @DisplayName("导入模板为客户类型/优先级/项目类型三列添加下拉框，与新增表单字段类型一致")
+    @DisplayName("导入模板为客户性质/联系人性质/客户类型/优先级/项目类型五列添加下拉框")
     void templateAddsDropdownsForEnumFields() throws Exception {
         byte[] bytes = service.generateTemplate();
         try (Workbook workbook = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
             Sheet sheet = workbook.getSheet("标讯导入");
             assertThat(sheet).isNotNull();
 
-            // 客户类型(13) / 优先级(14) / 项目类型(15) 三列各一个下拉框
+            // 联系人1性质(5) / 联系人2性质(10) / 客户类型(15) / 优先级(16) / 项目类型(17) 各一个下拉框
             List<? extends DataValidation> validations = sheet.getDataValidations();
-            assertThat(validations).hasSize(3);
+            assertThat(validations).hasSize(5);
 
             // 验证下拉框覆盖的列索引：通过 CellRangeAddressList.getCellRangeAddresses 取列范围
             List<Integer> columns = validations.stream()
                     .map(v -> v.getRegions().getCellRangeAddresses()[0].getFirstColumn())
                     .sorted()
                     .toList();
-            assertThat(columns).containsExactly(13, 14, 15);
+            assertThat(columns).containsExactly(5, 10, 15, 16, 17);
         }
     }
 
@@ -479,10 +535,12 @@ class TenderImportServiceTest {
                 "北京市北京市",
                 "2026-12-31 17:00",
                 "2026-12-25 09:30",
+                "客户",
                 "张三",
                 "13800138000",
                 "010-12345678",
                 "zhangsan@example.com",
+                "代理",
                 "李四",
                 "13900139000",
                 "021-87654321",

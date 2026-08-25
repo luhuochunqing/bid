@@ -26,10 +26,12 @@
       <el-descriptions-item label="投标月份" :span="2">{{ project?.bidMonth }}</el-descriptions-item>
       <el-descriptions-item label="项目负责人">{{ formatUserWithNameAndNumber(project?.projectLeaderName || tf('projectManagerName'), project?.projectLeaderEmployeeNumber) }}</el-descriptions-item>
       <el-descriptions-item label="项目负责人部门">{{ project?.leaderDepartment || tf('department') }}</el-descriptions-item>
+      <el-descriptions-item label="联系人1性质">{{ tf('contactNature') }}</el-descriptions-item>
       <el-descriptions-item label="联系人1">{{ tf('contactName') }}</el-descriptions-item>
       <el-descriptions-item label="联系人1手机号">{{ tf('contactPhone') }}</el-descriptions-item>
       <el-descriptions-item label="联系人1座机">{{ tf('contactTel') }}</el-descriptions-item>
       <el-descriptions-item label="联系人1邮箱">{{ tf('contactMail') }}</el-descriptions-item>
+      <el-descriptions-item label="联系人2性质">{{ tf('contactNature2') }}</el-descriptions-item>
       <el-descriptions-item label="联系人2">{{ tf('contactName2') }}</el-descriptions-item>
       <el-descriptions-item label="联系人2手机号">{{ tf('contactPhone2') }}</el-descriptions-item>
       <el-descriptions-item label="联系人2座机">{{ tf('contactTel2') }}</el-descriptions-item>
