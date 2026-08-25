@@ -10,8 +10,8 @@ sources:
 backlinks:
   - _index
 created: 2026-08-25
-updated: 2026-08-25
-health_checked: 2026-08-25
+updated: 2026-08-26
+health_checked: 2026-08-26
 ---
 # 配置绑定静默失配 - isBound 探针与被动识别回归测试
 
@@ -44,3 +44,39 @@ health_checked: 2026-08-25
 ## 回归验证（第一性原理）
 
 临时把 `tender-event` 缩进错位嵌套到 `organization` 下，测试立即红，报错正是原 bug 前缀 `xiyu.integrations.tender-event.sdk`。还原后全绿。
+
+## 陷阱 II：bean.getName() 返回驼峰名导致 Spring Boot 3.x Binder 拒绝（2026-08-25 线上 crash-loop）
+
+### 事故
+
+测试环境部署后后端 crash-loop，日志报 `Configuration property name 'obsProperties' is not valid`。
+
+### 根因
+
+探针原实现用 `bean.getName()` 作为 `Binder.bind()` 的 key。但 Spring Boot 3.x 的 Binder 要求属性名为 **kebab-case**（如 `xiyu.obs`），而 `bean.getName()` 返回的是 **bean 的 Java 名称**（驼峰，如 `obsProperties`）--它既不是配置前缀，也不符合 kebab-case 规则，Binder 直接拒绝绑定并抛异常。
+
+### 修复
+
+改用 `bean.getAnnotation().prefix()` 获取 `@ConfigurationProperties(prefix = "xiyu.obs")` 注解中声明的真实前缀：
+
+```java
+// Before（错误）：bean.getName() = "obsProperties" -> Binder 拒绝
+if (!isBound(binder, bean.getName())) { ... }
+
+// After（正确）：annotation.prefix() = "xiyu.obs" -> Binder 接受
+String prefix = bean.getAnnotation().prefix();
+if (!isBound(binder, prefix)) { ... }
+```
+
+### 教训
+
+- `ConfigurationPropertiesBean.getName()` 返回的是 **Spring bean 名称**（驼峰），**不是** `@ConfigurationProperties` 的配置前缀
+- Spring Boot 3.x Binder 的 `bind()` 方法对 property name 做 relaxed binding 解析，但不接受驼峰名作为合法属性路径
+- 探针类应使用 `annotation.prefix()`（或 `annotation.value()`）取真实前缀，与 Spring Boot 的绑定逻辑保持一致
+- PR !2410，commit `cf253b39c`
+
+### 关联
+
+- [[spring-pitfalls]] - Spring Boot 3.x 其他陷阱
+- [[deployment]] - 测试环境部署流程
+- [[production-deployment-lessons]] - 部署经验

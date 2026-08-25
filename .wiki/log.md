@@ -3,6 +3,14 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-08-26] bugfix | ConfigurationBindingProbe bean.getName() 驼峰名导致 Spring Boot 3.x crash-loop
+
+- 触发：测试环境部署 05a9c3352 后后端 crash-loop，日志报 `Configuration property name 'obsProperties' is not valid`。
+- 根因：`ConfigurationBindingProbe` 用 `bean.getName()`（返回驼峰 bean 名如 `obsProperties`）作为 `Binder.bind()` 的 key，Spring Boot 3.x Binder 要求 kebab-case 属性名，拒绝驼峰名并抛异常。
+- 修复：改用 `bean.getAnnotation().prefix()` 取 `@ConfigurationProperties(prefix="xiyu.obs")` 注解声明的真实前缀。PR !2410，commit `cf253b39c`。
+- 页面更新：`configuration-binding-silent-failure.md` 追加"陷阱 II"章节。
+- 关键结论：`ConfigurationPropertiesBean.getName()` 返回 Spring bean 名称（驼峰），不是配置前缀；探针类应使用 `annotation.prefix()` 取真实前缀。
+
 ## [2026-08-25] feature | 案例沉淀触发时机提前至结果确认
 
 - 触发：原 AI 案例沉淀生成挂在项目第 6 阶段（结项 CLOSED），由于结项审批滞后导致第 5 阶段复盘无法及时引用已生成案例；数据就绪度分析表明第 4 阶段（结果确认）登记完成后所有数据已 100% 齐备。
