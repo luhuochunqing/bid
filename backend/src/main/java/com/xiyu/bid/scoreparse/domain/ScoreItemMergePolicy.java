@@ -54,6 +54,20 @@ public class ScoreItemMergePolicy {
             String existingDim = normalize(existing.dim());
             String existingDetail = normalize(existing.detail());
 
+            // 0. 报价评分特判：同一报价维度（报价评分/价格评分）且 code 相同或均为报价相关，
+            // 跨 chunk 拆分的细节互补（非子串）应视为同一项，避免价格分只保留前 3 行后截断
+            if (isPriceDim(existingDim) && isPriceDim(targetDim)) {
+                if (!targetCode.isEmpty() && targetCode.equalsIgnoreCase(existingCode)) {
+                    return i;
+                }
+                if (targetCode.isEmpty() || existingCode.isEmpty()) {
+                    // 无编号报价项，按维度相同即视为同一项（跨 chunk 合并）
+                    if (existingDim.equals(targetDim)) {
+                        return i;
+                    }
+                }
+            }
+
             // 1. 编号非空且相同
             if (!targetCode.isEmpty() && targetCode.equalsIgnoreCase(existingCode)) {
                 if (existingDim.equals(targetDim)) {
@@ -78,12 +92,39 @@ public class ScoreItemMergePolicy {
         return -1;
     }
 
+    private boolean isPriceDim(String normalizedDim) {
+        return normalizedDim.contains("报价") || normalizedDim.contains("价格");
+    }
+
     private String normalize(String dim) {
         return dim == null ? "" : dim.trim().replaceAll("\\s+", "");
     }
 
-    /** 以首次出现为基础，补齐后续召回的非空字段（更丰富信息优先） */
+    /** 以首次出现为基础，补齐后续召回的非空字段（更丰富信息优先）；报价类跨 chunk 细节拼合 */
     private ScoreCandidate enrich(ScoreCandidate base, ScoreCandidate later) {
+        // 报价类跨 chunk 互补：两段 detail 非子串但同属报价项，需拼合而非择一
+        boolean isPriceMerge = isPriceDim(normalize(base.dim())) && isPriceDim(normalize(later.dim()))
+                && base.detail() != null && later.detail() != null
+                && !normalize(base.detail()).equals(normalize(later.detail()))
+                && !normalize(later.detail()).contains(normalize(base.detail()))
+                && !normalize(base.detail()).contains(normalize(later.detail()));
+        if (isPriceMerge) {
+            String mergedDetail = base.detail().trim() + "\n" + later.detail().trim();
+            // 去重：若 later 的首句已在 base 末尾出现，取较长者的拼接（简单截断去重）
+            String mergedSource = (base.sourceText() == null ? "" : base.sourceText())
+                    + "\n" + (later.sourceText() == null ? "" : later.sourceText());
+            return new ScoreCandidate(
+                    base.code() != null ? base.code() : later.code(),
+                    base.dim() != null ? base.dim() : later.dim(),
+                    mergedDetail,
+                    base.weight() != null ? base.weight() : later.weight(),
+                    base.scoreTypeGuess() != null ? base.scoreTypeGuess() : later.scoreTypeGuess(),
+                    later.contextNote() != null ? later.contextNote() : base.contextNote(),
+                    mergedSource.trim().isEmpty() ? base.sourceText() : mergedSource.trim(),
+                    later.location() != null ? later.location() : base.location(),
+                    later.semanticPattern() != null ? later.semanticPattern() : base.semanticPattern()
+            );
+        }
         boolean laterDetailPreferred = hasSourceBacking(later)
                 && lengthOf(later.detail()) > lengthOf(base.detail());
         String detail;

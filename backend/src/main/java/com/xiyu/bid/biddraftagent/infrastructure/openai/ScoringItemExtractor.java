@@ -5,6 +5,7 @@ package com.xiyu.bid.biddraftagent.infrastructure.openai;
 
 import com.xiyu.bid.biddraftagent.domain.ScoringCriteriaClassificationPolicy;
 import com.xiyu.bid.biddraftagent.domain.ScoringCriterion;
+import com.xiyu.bid.scoreparse.domain.PriceScoringKeywords;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -92,6 +93,9 @@ public final class ScoringItemExtractor {
      * 从章节文本中提取原始行数据（不含 subType 分类）。
      * 包级可见以便测试验证中间结果。
      */
+    /** 报价参数行：仅为价格分计算的输入参数，非独立评分项，避免被误拆为权重 80 的评分项 */
+    private static final Pattern PRICE_PARAM_ROW_PATTERN = PriceScoringKeywords.PRICE_PARAM_ROW;
+
     static List<ScoringItemRow> extractRaw(String sectionText) {
         if (sectionText == null || sectionText.isBlank()) {
             return List.of();
@@ -106,16 +110,35 @@ public final class ScoringItemExtractor {
             if (isHeaderOrNoise(normalized)) {
                 continue;
             }
+            // 管道表格行归一化：去掉 | 再匹配，避免整行因含 | 而无法命中权重正则；
+            // 同时报价参数行（下浮率/BP% 等）直接跳过，交由 LLM 将其收敛进报价主项的 detail，避免拆成独立 80 分项。
+            String effectiveLine = normalized;
+            if (normalized.contains("|")) {
+                String pipeStripped = normalizeSpaces(normalized.replace("|", " "));
+                // 参数行跳过
+                if (PRICE_PARAM_ROW_PATTERN.matcher(pipeStripped).find()) {
+                    continue;
+                }
+                // 尝试用去管道后的文本匹配，若命中则用该行；否则回退原行
+                ScoringItemRow pipeRow = matchScoringLine(pipeStripped);
+                if (pipeRow == null) pipeRow = matchNoNumberLine(pipeStripped);
+                if (pipeRow != null) {
+                    rows.add(pipeRow);
+                    continue;
+                }
+                // 管道行但未命中评分模式，保留原文供 LLM，不生成行内候选
+                effectiveLine = pipeStripped;
+            }
             // 章节标题行（如"第二章 评标办法"）同时匹配 NEXT_CHAPTER_PATTERN 和评分别名，
             // 必须先排除评分别名，否则提取器在标题行就 break 了
-            if (NEXT_CHAPTER_PATTERN.matcher(normalized).find()
-                    && !containsScoringAlias(normalized)) {
+            if (NEXT_CHAPTER_PATTERN.matcher(effectiveLine).find()
+                    && !containsScoringAlias(effectiveLine)) {
                 break;
             }
 
-            ScoringItemRow row = matchScoringLine(normalized);
+            ScoringItemRow row = matchScoringLine(effectiveLine);
             if (row == null) {
-                row = matchNoNumberLine(normalized);
+                row = matchNoNumberLine(effectiveLine);
             }
             if (row != null) {
                 rows.add(row);
@@ -168,7 +191,10 @@ public final class ScoringItemExtractor {
     }
 
     private static boolean isHeaderOrNoise(String normalized) {
-        if (normalized.length() > 100) {
+        // 管道表格行（报价评分价格分长表格）长度常超 100（<br>、| 分隔），需放宽阈值；
+        // 非表格长行仍按 100 截断防噪声。
+        boolean isPipeTableRow = normalized.contains("|");
+        if (normalized.length() > (isPipeTableRow ? 600 : 100)) {
             return true;
         }
         for (String keyword : HEADER_KEYWORDS) {

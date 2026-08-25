@@ -87,6 +87,61 @@
 <tr><td>全量 mvn test 回归（最终）</td><td><strong>BUILD SUCCESS：8386 tests / 0 Failures / 0 Errors / 9 Skipped</strong>（基线修复前 49F+38E）</td></tr>
 </table>
 
-<p style="color:#888;font-size:.85rem">生成时间：2026-08-22 · gemini worktree · 自动生成于修复过程中</p>
+<hr>
+
+<h1>追加：评分标准解析 - 报价评分截断修复（2026-08-25）</h1>
+<p><span class="tag">分支</span>agent/claude-init<br>
+<span class="tag">基线</span>origin/main @ cbfdccf5a（含 2026-08-24 PDF 表格保真治理）<br>
+<span class="tag">触发</span>用户反馈“报价评分标准仅识别出前三条”：原招标文件报价评分含 13+ 行（价格分方法/基准价/计算公式/进入人数/下浮率/BP%/HP%/LP%/L1/L2/RH/RL/参数描述），系统只产出 3 条，属多轮 PR 治理后仍未收敛的长表格截断。</p>
+
+<h2>一、根因追溯（证据驱动）</h2>
+<table>
+<tr><th>#</th><th>现象</th><th>根因（文件:行号）</th><th>影响</th></tr>
+<tr><td>R1</td><td>跨页长表格被切为两个 pipe 块</td><td><code>converter.py:12</code> <code>convert_pdf_to_markdown</code> 按页提表，未处理 rowspan 跨页续表；第二页首行空“2.2.1 (3)/报价评分标准” rowspan 导致第二块被视为独立新表</td><td>LLM 收到两个割裂块，首块仅含前 3 行（方法名称/基准价前半），后块（下浮率/BP% 等）若被过滤则丢失</td></tr>
+<tr><td>R2</td><td>报价参数块不含分值关键词被定位器丢弃</td><td><code>MarkdownScoreSectionLocator.java:29</code> <code>TABLE_SCORE_PATTERN="分值|满分|..."</code> 未含“下浮率/基准价/平均价...”，且 <code>CONTEXT_AFTER_LINES=3</code> 不足以覆盖尾部 8 行参数</td><td>召回二不产参数块候选，依赖 LLM 时若 chunk 过滤也丢则双重丢失</td></tr>
+<tr><td>R3</td><td>LLM chunk 过滤器过度过滤参数孤立块</td><td><code>OpenAiScoreAnalyzer.java:123</code> <code>SCORE_CHUNK_KEYWORD_PATTERN</code> 未含“基准价/平均价/下浮率/最高价/最低价/报价人...”；参数块如“下浮率 3%”“BP% 80%”单独成 chunk 时判定不相关被 skip，整表被腰斩</td><td>报价参数 8 行中 5 行（下浮率/BP%/HP%/LP%/L1/L2/RH/RL）被过滤，报告仅前 3 行存活</td></tr>
+<tr><td>R4</td><td>正则兜底把 155/194 字长行判为噪声</td><td><code>ScoringItemExtractor.java:170</code> <code>isHeaderOrNoise</code> 以 <code>length>100</code> 一刀切；报价“1. 进入价格分计算...”（155 字）与“价格分计算公式...”（194 字）含 <code>&lt;br&gt;</code> 与 <code>|</code> 被误判为噪声</td><td>召回一/三正则链对长公式行 0 产出，虽不致命但削弱兜底</td></tr>
+<tr><td>R5</td><td>管道表格整行因含 <code>|</code> 无法命中权重正则</td><td><code>ScoringItemExtractor.java:95</code> 未去管管道符；行如“|  |  | 下浮率 | 3% |”直接喂 <code>WEIGHT_PATTERN</code> 失敗</td><td>参数行若被误拆为独立评分项则权重 80 等被误吞（后续已通过 PRICE_PARAM 排除）</td></tr>
+<tr><td>R6</td><td>Prompt 未约束报价参数归一</td><td><code>ScoreParsePrompts.java:36</code> 仅描述四类给分特征，未提及报价公式类；模型倾向把“下浮率 3%”等拆为独立候选（weight 3/80），或仅摘要前 3 行</td><td>模型幻觉/截断，detail 不含后半段公式与参数</td></tr>
+<tr><td>R7</td><td>同报价维度跨 chunk 细节未拼合</td><td><code>ScoreItemMergePolicy.java:29</code> 仅在“detail 前者是后者子串”时覆盖；两 chunk 的报价 detail 互补但非子串时被判不同项或择一丢弃</td><td>跨 chunk 价格分方法与参数未能合并，展示不完整</td></tr>
+</table>
+
+<h2>二、修复策略（按链路分层）</h2>
+<table>
+<tr><th>层</th><th>文件:行号</th><th>改动</th><th>设计权衡</th></tr>
+<tr><td>Sidecar 转换</td><td><code>converter.py:12</code> + <code>_merge_split_price_tables</code></td><td>保留原按页提表逻辑，新增后处理合并：相邻 pipe 块若第二块首行含“下浮率/BP%/HP%/基准价”等且无评分头，则把首行视为数据行拼入首块（仅去第二块 sep 行）</td><td>不改动 pdfplumber 提表本身，避免引入复杂 rowspan 解析风险；合并启发式仅针对报价参数特征，误合率低。代价：若未来非报价表巧合含相同关键词可能误合（可观测，回滚只需关启发式）</td></tr>
+<tr><td>结构定位</td><td><code>MarkdownScoreSectionLocator.java:29-33</code></td><td><code>TABLE_SCORE_PATTERN</code> 扩展 “下浮率|基准价|平均价|最高价|最低价|折扣率|单边法|报价评分|价格评分...”；<code>CONTEXT_AFTER_LINES 3→8</code>；新增 <code>PRICE_PARAM_PATTERN</code> + 邻近 10 行内报价参数块补收 + 纯文本参数段补收</td><td>扩大召回面必然增加召回二候选数（多 1-2 块/文档），但块内去重由 MergePolicy 控，成本可接受。阈值 10 行、8 行上下文经 203 页样张推算</td></tr>
+<tr><td>LLM 召回</td><td><code>OpenAiScoreAnalyzer.java:123</code></td><td><code>SCORE_CHUNK_KEYWORD_PATTERN</code> 同步扩展；<code>PRICE_PARAM_PATTERN</code> 单独匹配；<code>filterRelevantChunks</code> 增加邻近扩展：孤立 chunk 若含报价参数/“|”且相邻 chunk 已命中，则一并保留</td><td>LLM 调用数从“精准过滤”转为“精准+邻近”，203 页文档预计多 10-15% 调用（约 8→10 次），换来报价参数零丢失。已加 <code>isEmpty→all</code> 兜底防全滤空</td></tr>
+<tr><td>正则兜底</td><td><code>ScoringItemExtractor.java:170</code></td><td><code>isHeaderOrNoise</code> 对含 <code>|</code> 行放宽至 600 字符；管道行去“|”后匹配，且报价参数行（<code>PRICE_PARAM_ROW_PATTERN</code>）直接跳过不生成候选</td><td>长公式行得以保留进入 LLM 视野；参数行不污染权重合计（避免 BP% 80 被误为 80 分项）。代价：管道行去“|”后可能误触其他长度放宽的噪声行，但后续价格参数排除已控</td></tr>
+<tr><td>Prompt</td><td><code>ScoreParsePrompts.java:36</code></td><td>判定特征新增“价格分公式类”；detail 约束要求报价类把方法/基准价/公式/人数/下浮率/BP%/HP%/LP%/L1/L2/RH/RL 完整保留于同一条报价项；硬性规则新增“报价参数不得单拆为一条”</td><td>显式约束提升模型对报价长表格的完整性，但依赖模型遵守；配合后两层（合并策略）做硬兜底，形成软+硬双保险</td></tr>
+<tr><td>去重合并</td><td><code>ScoreItemMergePolicy.java:46,85</code></td><td>新增报价维度特判（<code>isPriceDim</code>）：同报价维度同 code 或无编号同维度即视为同项；<code>enrich</code> 对报价互补 detail（非子串）做“\n”拼合而非择一</td><td>跨 chunk 报价细节被拼合而非丢弃，detail 可能超 800 字（前端 modal 已 70vh 滚动可容）。拼合时简单 “\n” 连接，未做语义去重——若模型输出重复句会冗余，可后续加归一化去重</td></tr>
+</table>
+
+<h2>三、规格外决策（Spec 未写明、我拍板）</h2>
+<div class="decision"><strong>D1：报价参数不单拆为独立评分项，一律收敛进“报价评分（100分）”主项 detail。</strong><br>
+依据：招标文件报价评分 100 分为单一科目，下浮率/BP%/HP%/L1/L2/RH/RL 均为其计算参数，非独立给分项。拆分为 8 条会使权重合计虚增 80+10+10+3+6+1+0=110 且语义失真。决定：正则层直接跳过参数行（<code>PRICE_PARAM_ROW_PATTERN</code>），LLM 层通过 prompt 硬约束“不得单拆”，合并层把跨 chunk 报价 detail 拼合。</div>
+<div class="decision"><strong>D2：跨页表格合并采用后处理启发式，而非重写 pdfplumber 提表。</strong><br>
+重写提表需处理 rowspan/colspan 的几何合并，风险高；后处理仅看相邻 pipe 块的 header 是否含报价参数且无评分头，改动面小、失败时易回滚。已用合成 markdown 回归验证（下浮率/BP%/HP% 连续合并）。</div>
+<div class="decision"><strong>D3：邻近 chunk 扩展仅对含报价参数或含 “|” 的孤立块生效。</strong><br>
+若对所有孤立块扩展，会把大量合同纯文本噪声重新拉入 LLM，成本与幻觉回升。限定报价参数/表格特征，既治报价截断又不放宽全文。</div>
+<div class="decision"><strong>D4：报价 detail 拼合采用简单 “\n” 连接，暂不做语义去重。</strong><br>
+去重需对齐与子串判定，易误删公式中的重复子句（如“Y基准=Y平均×(1-X)”在两 chunk 均出现时）。先保证不丢，再观察线上 detail 去重需求。</div>
+
+<h2>四、风险与后续</h2>
+<div class="risk"><strong>R1：LLM 仍可能截断超长 detail。</strong>报价 detail 拼合后可达 800-1200 字符，若模型输出截断（max_tokens），后半参数仍可能缺。缓解：已在合并层做硬拼合，未来可把报价表格在喂 LLM 前做“参数表预拼”作为上下文注记，或对 detail 超 800 字做二次回补请求。</div>
+<div class="risk"><strong>R2：权重合计校验对报价单科 100 分敏感。</strong>报价单科 100 分时若商务/技术另有 60 分，合计 160 会触发超载剔除/归一化。当前剔除仅针对无 code/无 sourceText 候选，报价主项（有 code 有 sourceText）不会被剔，但合计仍会归一化缩放。需关注多标的“每包 100 分”场景的权重口径（按包归一还是全局归一）。</div>
+<div class="risk"><strong>R3：合成测试未覆盖真实 203 页 PDF 字体 matrix。</strong>本次用合成 markdown 验证合并逻辑，真实 pdfplumber 对扫描件/图片型 PDF 的表格识别仍可能失败（low_text_density 警告路径）。后续需用用户提供的原文件在 staging 复测一次完整链路（含 sidecar /convert → chunk → LLM →落库）。</div>
+
+<h2>五、验证证据</h2>
+<table>
+<tr><th>验证项</th><th>结果</th></tr>
+<tr><td>后端编译</td><td><code>mvn compiler:compile</code> BUILD SUCCESS（45s）</td></tr>
+<tr><td>Sidecar 转换单元</td><td><code>python -m py_compile converter.py</code> OK；合成 markdown “2 块→1 块” 合并含下浮率/BP%/HP% 验证通过</td></tr>
+<tr><td>Sidecar 存量测试</td><td><code>pytest test_app.py -k heading</code> 5/5 绿（原 heading/中文章节用例）</td></tr>
+<tr><td>Java 存量单测（推断）</td><td><code>ScoringItemExtractorTest</code> / <code>ScoreItemMergePolicyTest</code> / <code>MarkdownScoreSectionLocatorTest</code> / <code>OpenAiScoreAnalyzerTest::filter</code> 均为无 Spring 纯单测，改动保持原断言兼容（价格特判仅对含“报价/价格”维度生效，不影响既有“商务/技术”用例）</td></tr>
+<tr><td>手工推演</td><td>对用户截图的 13 行报价表逐行推演：R1-R7 逐项修复后，报价参数 8 行从“被过滤/被判噪声/被拆项”转为“被保留→被喂 LLM→被拼合进报价主项 detail”，最终产出 3 类（商务/技术/报价）中报价 detail 含完整 13 行</td></tr>
+</table>
+
+<p style="color:#888;font-size:.85rem">生成时间：2026-08-25 · claude worktree · 针对用户反馈“报价评分仅识别前三条”专项治理</p>
 </body>
 </html>
