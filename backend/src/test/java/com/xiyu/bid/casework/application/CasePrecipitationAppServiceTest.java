@@ -6,6 +6,7 @@ import com.xiyu.bid.casework.infrastructure.ProjectArchive;
 import com.xiyu.bid.casework.infrastructure.ProjectArchiveRepository;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.project.core.ProjectStage;
+import com.xiyu.bid.project.repository.ProjectResultRepository;
 import com.xiyu.bid.project.service.ProjectStageService;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.UserRepository;
@@ -47,6 +48,7 @@ class CasePrecipitationAppServiceTest {
     private ScoreItemRepository scoreItemRepository;
     private ProjectRepository projectRepository;
     private ProjectStageService projectStageService;
+    private ProjectResultRepository projectResultRepository;
     private ApplicationEventPublisher eventPublisher;
     private UserRepository userRepository;
     private CasePrecipitationAppService service;
@@ -58,17 +60,19 @@ class CasePrecipitationAppServiceTest {
         scoreItemRepository = mock(ScoreItemRepository.class);
         projectRepository = mock(ProjectRepository.class);
         projectStageService = mock(ProjectStageService.class);
+        projectResultRepository = mock(ProjectResultRepository.class);
         eventPublisher = mock(ApplicationEventPublisher.class);
         userRepository = mock(UserRepository.class);
         service = new CasePrecipitationAppService(
                 archiveRepository, fileRepository, scoreItemRepository,
-                projectRepository, projectStageService, eventPublisher, userRepository);
+                projectRepository, projectStageService, projectResultRepository,
+                eventPublisher, userRepository);
     }
 
     @Test
-    @DisplayName("前置条件全满足：项目存在 + CLOSED + BID 文件 + score_item 有评分项 → canPrecipitate=true")
+    @DisplayName("前置条件全满足：项目存在 + 结果已确认 + BID 文件 + score_item 有评分项 → canPrecipitate=true")
     void readiness_metWhenBidFileAndScoreItemPresent() {
-        stubProjectStageClosedWithBidFileWithScoreItems();
+        stubProjectResultConfirmedWithBidFileWithScoreItems();
 
         CasePrecipitationAppService.ReadinessResult result = service.getReadiness(1L);
 
@@ -78,9 +82,25 @@ class CasePrecipitationAppServiceTest {
     }
 
     @Test
+    @DisplayName("结果未确认：project_result 为空 → canPrecipitate=false + 提示含'需先登记投标结果'")
+    void readiness_missingResultConfirmation() {
+        stubProjectResultConfirmed();
+        when(projectResultRepository.findByProjectId(1L)).thenReturn(Optional.empty());
+        stubBidFile();
+        when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
+                .thenReturn(List.of(scoreItem(101L)));
+
+        CasePrecipitationAppService.ReadinessResult result = service.getReadiness(1L);
+
+        assertThat(result.canPrecipitate()).isFalse();
+        assertThat(result.stageClosed()).isFalse();
+        assertThat(result.missingItems()).anyMatch(m -> m.contains("需先登记投标结果"));
+    }
+
+    @Test
     @DisplayName("评分项判定数据源：score_item 有数据即通过（不再依赖 project_score_drafts）")
     void readiness_hasScoreItemsFromScoreItemDataSource() {
-        stubProjectStageClosedWithBidFile();
+        stubProjectResultConfirmedWithBidFile();
 
         // 关键：仅当 score_item 返回数据时 hasScoreItems=true
         when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
@@ -96,7 +116,7 @@ class CasePrecipitationAppServiceTest {
     @Test
     @DisplayName("评分项缺失：score_item 为空 → canPrecipitate=false + 提示含'缺少评分项'")
     void readiness_missingScoreItemsWhenScoreItemEmpty() {
-        stubProjectStageClosedWithBidFile();
+        stubProjectResultConfirmedWithBidFile();
         when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of());
 
         CasePrecipitationAppService.ReadinessResult result = service.getReadiness(1L);
@@ -109,7 +129,7 @@ class CasePrecipitationAppServiceTest {
     @Test
     @DisplayName("缺少标书文件 → canPrecipitate=false + 提示含'缺少标书文件'")
     void readiness_missingBidFile() {
-        stubProjectStageClosed();
+        stubProjectResultConfirmed();
         when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.empty());
         when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
                 .thenReturn(List.of(scoreItem(101L)));
@@ -125,7 +145,7 @@ class CasePrecipitationAppServiceTest {
     @DisplayName("手动触发：前置条件不足 → 抛 IllegalArgumentException，不发事件")
     void triggerPrecipitation_rejectsWhenNotReady() {
         // 缺评分项
-        stubProjectStageClosedWithBidFile();
+        stubProjectResultConfirmedWithBidFile();
         when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.triggerPrecipitation(1L))
@@ -138,32 +158,41 @@ class CasePrecipitationAppServiceTest {
     @Test
     @DisplayName("手动触发：前置条件满足 → 发布 ProjectClosedEvent")
     void triggerPrecipitation_publishesEventWhenReady() {
-        stubProjectStageClosedWithBidFileWithScoreItems();
+        stubProjectResultConfirmedWithBidFileWithScoreItems();
 
         service.triggerPrecipitation(1L);
 
         verify(eventPublisher, times(1)).publishEvent(any(ProjectClosedEvent.class));
     }
 
-    private void stubProjectStageClosed() {
+    private void stubProjectResultConfirmed() {
         Project project = new Project();
         project.setId(1L);
         project.setName("测试项目");
-        project.setStage(ProjectStage.CLOSED.name());
+        project.setStage(ProjectStage.RESULT_PENDING.name());
         when(projectRepository.findById(1L)).thenReturn(Optional.of(project));
-        when(projectStageService.currentStage(1L)).thenReturn(ProjectStage.CLOSED);
+        when(projectStageService.currentStage(1L)).thenReturn(ProjectStage.RETROSPECTIVE);
+        com.xiyu.bid.project.entity.ProjectResult result = new com.xiyu.bid.project.entity.ProjectResult();
+        result.setId(88L);
+        result.setProjectId(1L);
+        result.setResultType("WON");
+        when(projectResultRepository.findByProjectId(1L)).thenReturn(Optional.of(result));
     }
 
-    private void stubProjectStageClosedWithBidFile() {
-        stubProjectStageClosed();
+    private void stubBidFile() {
         ProjectArchive archive = new ProjectArchive();
         archive.setId(99L);
         when(archiveRepository.findByProjectId(1L)).thenReturn(Optional.of(archive));
         when(fileRepository.findByArchiveId(99L)).thenReturn(List.of(bidFile(1L, 99L)));
     }
 
-    private void stubProjectStageClosedWithBidFileWithScoreItems() {
-        stubProjectStageClosedWithBidFile();
+    private void stubProjectResultConfirmedWithBidFile() {
+        stubProjectResultConfirmed();
+        stubBidFile();
+    }
+
+    private void stubProjectResultConfirmedWithBidFileWithScoreItems() {
+        stubProjectResultConfirmedWithBidFile();
         when(scoreItemRepository.findByProjectIdOrderByItemIndexAsc(1L))
                 .thenReturn(List.of(scoreItem(101L)));
     }

@@ -22,6 +22,8 @@ export function readinessToTooltip(missingItems) {
       lines.push('• 上传标书后即可触发')
     } else if (/缺少评分项|缺少打分点|招标文件解析/.test(m)) {
       lines.push('• 先在标书编制阶段完成招标文件解析')
+    } else if (/结果确认|结果登记|登记结果/.test(m)) {
+      lines.push('• 完成结果确认后才能触发')
     } else if (/项目阶段未进入|结项|CLOSED/.test(m)) {
       lines.push('• 项目结项后才能触发')
     } else {

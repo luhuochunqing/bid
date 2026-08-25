@@ -69,6 +69,7 @@ class ProjectClosedEventListenerTest {
     private ProjectRepository projectRepository;
     private TenderRepository tenderRepository;
     private BidResultFetchResultRepository bidResultRepository;
+    private com.xiyu.bid.project.repository.ProjectResultRepository projectResultRepository;
     private DocumentTextExtractor docTextExtractor;
     private CaseAiMatcher caseAiMatcher;
     private CasePrecipitationNotifier notifier;
@@ -91,6 +92,7 @@ class ProjectClosedEventListenerTest {
         projectRepository = mock(ProjectRepository.class);
         tenderRepository = mock(TenderRepository.class);
         bidResultRepository = mock(BidResultFetchResultRepository.class);
+        projectResultRepository = mock(com.xiyu.bid.project.repository.ProjectResultRepository.class);
         docTextExtractor = mock(DocumentTextExtractor.class);
         caseAiMatcher = mock(CaseAiMatcher.class);
         notifier = mock(CasePrecipitationNotifier.class);
@@ -106,7 +108,7 @@ class ProjectClosedEventListenerTest {
         listener = new ProjectClosedEventListener(
                 archiveRepository, fileRepository, scoreItemRepository,
                 knowledgeCaseRepository, projectRepository, tenderRepository,
-                bidResultRepository, docTextExtractor, caseAiMatcher, notifier,
+                bidResultRepository, projectResultRepository, docTextExtractor, caseAiMatcher, notifier,
                 obsShareUrlSigner, streamingFetcher, streamTextExtractor,
                 tempBidFileStore, transactionTemplate);
     }

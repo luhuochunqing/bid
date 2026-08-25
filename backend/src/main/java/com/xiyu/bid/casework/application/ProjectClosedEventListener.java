@@ -14,6 +14,8 @@ import com.xiyu.bid.bidresult.entity.BidResultFetchResult;
 import com.xiyu.bid.bidresult.repository.BidResultFetchResultRepository;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.project.entity.ProjectResult;
+import com.xiyu.bid.project.repository.ProjectResultRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
@@ -48,6 +50,7 @@ public class ProjectClosedEventListener {
     private final ProjectRepository projectRepository;
     private final TenderRepository tenderRepository;
     private final BidResultFetchResultRepository bidResultFetchResultRepository;
+    private final ProjectResultRepository projectResultRepository;
     private final DocumentTextExtractor docTextExtractor;
     private final CaseAiMatcher caseAiMatcher;
     private final CasePrecipitationNotifier notifier;
@@ -208,38 +211,27 @@ public class ProjectClosedEventListener {
     }
 
     private CasePrecipitationContext loadProjectContext(Long projectId) {
-        // 蓝图 4.1.1.2.1 三独立语义：行业←tender.industry(兜底 project.industry)、客户类型←customerType、产品线←sourceModule（勿走 projectType，历史错位根因）
-        String projectType = "综合";
-        String customerType = "其他";
-        String productLine = "综合产品线";
-        String bidResult = null;
+        String projectType = "综合", customerType = "其他", productLine = "综合产品线", bidResult = null;
         Optional<Project> projectOpt = projectRepository.findById(projectId);
-
         if (projectOpt.isPresent()) {
             Project proj = projectOpt.get();
-            if (proj.getCustomerType() != null && !proj.getCustomerType().isBlank()) {
-                customerType = proj.getCustomerType();
-            }
-            // 行业：先取 tender.industry，再取 project.industry，最后默认"综合"
+            if (proj.getCustomerType() != null && !proj.getCustomerType().isBlank()) customerType = proj.getCustomerType();
             Optional<Tender> tenderOpt = tenderRepository.findById(proj.getTenderId());
-            if (tenderOpt.isPresent() && tenderOpt.get().getIndustry() != null
-                    && !tenderOpt.get().getIndustry().isBlank()) {
+            if (tenderOpt.isPresent() && tenderOpt.get().getIndustry() != null && !tenderOpt.get().getIndustry().isBlank()) {
                 projectType = tenderOpt.get().getIndustry();
             } else if (proj.getIndustry() != null && !proj.getIndustry().isBlank()) {
                 projectType = proj.getIndustry();
             }
-            // 产品线：project.sourceModule（项目源模块），空时保持默认
-            if (proj.getSourceModule() != null && !proj.getSourceModule().isBlank()) {
-                productLine = proj.getSourceModule();
-            }
-            Optional<BidResultFetchResult> bidResultOpt = bidResultFetchResultRepository
-                    .findFirstByProjectIdAndStatusOrderByConfirmedAtDescFetchTimeDesc(
-                            projectId, BidResultFetchResult.Status.CONFIRMED);
-            if (bidResultOpt.isPresent()) {
-                bidResult = bidResultOpt.get().getResult().name();
+            if (proj.getSourceModule() != null && !proj.getSourceModule().isBlank()) productLine = proj.getSourceModule();
+            Optional<ProjectResult> projectResultOpt = projectResultRepository.findByProjectId(projectId);
+            if (projectResultOpt.isPresent() && projectResultOpt.get().getResultType() != null) {
+                bidResult = projectResultOpt.get().getResultType();
+            } else {
+                Optional<BidResultFetchResult> bidResultOpt = bidResultFetchResultRepository
+                        .findFirstByProjectIdAndStatusOrderByConfirmedAtDescFetchTimeDesc(projectId, BidResultFetchResult.Status.CONFIRMED);
+                if (bidResultOpt.isPresent()) bidResult = bidResultOpt.get().getResult().name();
             }
         }
-
         return new CasePrecipitationContext(projectOpt, projectType, customerType, productLine, bidResult);
     }
 
@@ -255,18 +247,14 @@ public class ProjectClosedEventListener {
                                             CasePrecipitationContext ctx) {
         Long projectId = event.getProjectId();
         List<KnowledgeCase> casesToSave = new ArrayList<>();
-
         for (CaseAiMatcher.AiMatchedSlice slice : matchedSlices) {
             ScoreItemSnapshot scoreItem = scoreItems.stream()
                     .filter(s -> s.id().equals(slice.getDraftId()))
-                    .findFirst()
-                    .orElse(null);
+                    .findFirst().orElse(null);
             if (scoreItem == null) {
-                log.warn("AI 返回的 criteriaId={} 未匹配到任何 score_item（共 {} 个），丢弃该片段；若为 0 入库请检查 LLM id 回显 / 文档解析",
-                        slice.getDraftId(), scoreItems.size());
+                log.warn("AI 返回 criteriaId={} 未匹配到任何 score_item，丢弃该片段", slice.getDraftId());
                 continue;
             }
-
             KnowledgeCase kCase = new KnowledgeCase();
             kCase.setSourceProjectId(projectId);
             kCase.setSourceProjectName(event.getProjectName());

@@ -166,8 +166,25 @@
 
 
     <!-- 操作按钮 -->
-    <div v-if="canOperate" class="btn-container">
-      <el-button v-if="resultDone" type="primary" size="large" disabled>已登记</el-button>
+    <div v-if="canOperate || resultDone" class="btn-container">
+      <template v-if="resultDone">
+        <el-button type="primary" size="large" disabled>已登记</el-button>
+        <el-tooltip
+          :content="precipitateTooltip"
+          :disabled="precipitateReady"
+          raw-content
+          placement="top"
+          effect="dark"
+        >
+          <el-button
+            size="large"
+            type="success"
+            :disabled="!precipitateReady || precipitating"
+            :loading="precipitating"
+            @click="triggerPrecipitation"
+          >🤖 AI自动生成案例</el-button>
+        </el-tooltip>
+      </template>
       <el-button v-else type="primary" size="large" :loading="submitting" @click="submit">登记结果</el-button>
     </div>
   </div>
@@ -178,6 +195,9 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Delete, Plus, UploadFilled } from '@element-plus/icons-vue'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
+import { casesApi } from '@/api/modules/knowledge.js'
+import { readinessToTooltip } from './readinessTooltip.js'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { getResultConfirmNextTab } from '@/constants/projectStages.js'
 import { COMPETITOR_COMPANY_OPTIONS, COMPETITOR_WIN_STATUS_OPTIONS } from '@/constants/competitors.js'
 import { getApiUrl } from '@/api/config.js'
@@ -332,9 +352,40 @@ async function load() {
       if (data.servicePeriodYears != null) form.servicePeriodYears = Number(data.servicePeriodYears)
       if (data.servicePeriodEndDate) form.servicePeriodEndDate = data.servicePeriodEndDate
       // 已登记的结果不可再编辑
-      if (data.registeredAt) resultDone.value = true
+      if (data.registeredAt) {
+        resultDone.value = true
+        if (props.projectId) checkPrecipitationReadiness()
+      }
     }
   } catch (e) { if (e?.response?.status !== 404) console.warn(e) }
+}
+
+const precipitating = ref(false)
+const precipitateReady = ref(false)
+const precipitateTooltip = ref('')
+
+async function checkPrecipitationReadiness() {
+  try {
+    const resp = await casesApi.checkPrecipitationReadiness(props.projectId)
+    const data = resp?.data || resp
+    precipitateReady.value = data.canPrecipitate
+    precipitateTooltip.value = readinessToTooltip(data.missingItems)
+  } catch (e) {
+    precipitateReady.value = false
+    precipitateTooltip.value = '无法检查前置条件，请稍后重试'
+  }
+}
+
+async function triggerPrecipitation() {
+  precipitating.value = true
+  try {
+    const resp = await casesApi.precipitateCases(props.projectId)
+    ElMessage.success(resp?.message || '案例沉淀任务已触发，完成后将通过消息通知')
+  } catch (e) {
+    notifyErrorUnlessRateLimit(e, '触发案例沉淀失败')
+  } finally {
+    precipitating.value = false
+  }
 }
 
 // CO-408: 按 ids 拉取项目文档并回填 evidenceFiles
@@ -378,7 +429,8 @@ async function submit() {
     }
     await projectLifecycleApi.registerResult(props.projectId, payload)
     resultDone.value = true
-    ElMessage.success('结果已登记，已推进至下一阶段')
+    ElMessage.success('结果已登记，AI 案例沉淀任务已在后台自动触发，已推进至下一阶段')
+    checkPrecipitationReadiness()
     emit('registered')
     emit('switch-tab', resultNextTab.value)
   } catch (e) { ElMessage.error(e?.response?.data?.msg || '登记失败') }
@@ -387,7 +439,7 @@ async function submit() {
 
 onMounted(load)
 
-defineExpose({ load })
+defineExpose({ load, checkPrecipitationReadiness, triggerPrecipitation })
 </script>
 
 <style scoped>
