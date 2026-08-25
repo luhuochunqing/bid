@@ -64,6 +64,7 @@ backlinks:
 - [[knowledge-base]] — 4.4 知识库 PRD (产品需求文档)
 - [[lessons-learned]] — 工程经验总结
 - [[backend-test-baseline-green]] — 后端测试基线修复与 mock 用户种子机制（projectScoped 403 / H2-only 守卫 / 契约漂移）
+- [[configuration-binding-silent-failure]] — 配置绑定静默失配定位（isBound 探针 + 被动识别回归测试，堵 YAML 缩进回归）
 - [[lessons-learned/CO-361-five-rounds-no-fix]] — CO-361 五次修复不彻底的教训（反复追症状不追根因的代价）
 - [[case-precipitation-streaming]] — 案例沉淀超大标书完整链路（spec 049：流式 + 摘录化 + 三个验收坑 / SC-001~005 全过）
 - [[lessons-learned/case-precipitation-oversize-oom]] — AI 生成案例超大标书 OOM 导致入库 0 条（整文件读堆 + 二次分配 + OBS 假成功上报）
