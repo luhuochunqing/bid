@@ -212,6 +212,7 @@ describe('InitiationStage — PRD §4.3 4-section layout', () => {
         evaluationCustomerInfos: [
           { roleKey: 'EXPERT_1', infoKey: 'NAME', value: '王专家' },
           { roleKey: 'EXPERT_1', infoKey: 'CONTACT_INFO', value: 'wang@test.com' },
+          { roleKey: 'EXPERT_1', infoKey: 'TEL', value: '010-12345678' },
           { roleKey: 'PROJECT_HIGHEST_DECISION_MAKER', infoKey: 'NAME', value: '张总' },
           { roleKey: 'PROJECT_HIGHEST_DECISION_MAKER', infoKey: 'TENDENCY', value: '1' },
         ],
@@ -226,9 +227,12 @@ describe('InitiationStage — PRD §4.3 4-section layout', () => {
     const expert = wrapper.vm.custFixedRows.find(r => r.role === '专家1')
     expect(expert.name).toBe('王专家')
     expect(expert.contactInfo).toBe('wang@test.com')
+    expect(expert.tel).toBe('010-12345678')
     const dm = wrapper.vm.custFixedRows.find(r => r.role === '项目最高决策人')
     expect(dm.name).toBe('张总')
     expect(dm.preference).toBe('1')
+    // 无 TEL EAV 行时，tel 字段不生成（undefined）
+    expect(dm.tel).toBeUndefined()
   })
 
   // 回归测试：PENDING_REVIEW 状态下字段和操作都必须保持锁定

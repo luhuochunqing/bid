@@ -333,7 +333,7 @@ export function useInitiationStageActions({
           const evalCustomerInfos = evaluation?.evaluationCustomerInfos
           if (Array.isArray(evalCustomerInfos) && evalCustomerInfos.length > 0) {
             const INFO_KEY_MAP = {
-              NAME: 'name', CONTACT_INFO: 'contactInfo', POSITION: 'position', XIYU_CONTACT: 'xiyuContact',
+              NAME: 'name', CONTACT_INFO: 'contactInfo', TEL: 'tel', POSITION: 'position', XIYU_CONTACT: 'xiyuContact',
               CONTACTED: 'reached', CONTACT_METHOD: 'reachMethod',
               TENDENCY: 'preference', INFO_TENDENCY_BASIS: 'preferenceBasis', EVALUATION_BASIS: 'preferenceBasis',
               GUIDED_BID: 'guideBid',

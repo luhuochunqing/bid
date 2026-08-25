@@ -73,7 +73,8 @@ class CrmEvaluationMapper {
 
     /**
      * 将 CRM 对接人列表映射为评估表客户信息 EAV 行列表。
-     * <p>每个对接人产生 14 行（对应 14 个信息维度），roleKey 由 position 映射，
+     * <p>每个对接人最多产生 15 行（14 个基础信息维度 + TEL 座机号维度，TEL 仅在
+     * CRM 返回 fixed_phone 有值时生成），roleKey 由 position 映射，
      * position 不在字典范围时落到 EXTERNAL_ROLE_N（与前端逻辑一致）。
      * <p><b>重复 position 处理（CO-526 Sentry Bug XIYU-X 修复 + 生产反馈）：</b>
      * 同一个 position 的多个对接人：第一个保留标准 roleKey，后续重复者落到 EXTERNAL_ROLE_N
@@ -102,6 +103,10 @@ class CrmEvaluationMapper {
                     c.name() != null ? c.name() : "", "TEXT"));
             addIfHasValue(rows, new EvaluationCustomerInfoDTO(roleKey, "CONTACT_INFO",
                     resolveContactInfo(c), "TEXT"));
+            // TEL ← CRM 对接人座机号 fixed_phone；CRM 未上线时值为 null，addIfHasValue 保证不落行。
+            // SYNC: 必须与前端 useCrmOpportunitySelector.js 的 TEL: c.fixed_phone || '' 保持一致。
+            addIfHasValue(rows, new EvaluationCustomerInfoDTO(roleKey, "TEL",
+                    c.fixedPhone(), "TEXT"));
             addIfHasValue(rows, new EvaluationCustomerInfoDTO(roleKey, "POSITION",
                     isKnownPosition ? position : null, "ENUM14"));
             addIfHasValue(rows, new EvaluationCustomerInfoDTO(roleKey, "XIYU_CONTACT",

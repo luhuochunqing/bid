@@ -350,7 +350,7 @@ class TenderEvaluationCrmSyncServiceTest {
 
     private List<ContactPersonInfoVO> buildContactPersons() {
         return List.of(new ContactPersonInfoVO(
-                1L, "张三", "13800138000", "zhangsan@example.com",
+                1L, "张三", "13800138000", null, "zhangsan@example.com",
                 "1", "西域小李", true, "1", "支持", "依据A",
                 null, true, true, false, true, false, "80%",
                 null, null, null, null, null, null));
@@ -360,12 +360,12 @@ class TenderEvaluationCrmSyncServiceTest {
     private List<ContactPersonInfoVO> buildDuplicatePositionContacts() {
         return List.of(
                 new ContactPersonInfoVO(
-                        1L, "张三", "13800138000", "zhangsan@example.com",
+                        1L, "张三", "13800138000", null, "zhangsan@example.com",
                         "1", "西域小李", true, "1", "支持", "依据A",
                         null, true, true, false, true, false, "80%",
                         null, null, null, null, null, null),
                 new ContactPersonInfoVO(
-                        2L, "李四", "13900139000", "lisi@example.com",
+                        2L, "李四", "13900139000", null, "lisi@example.com",
                         "1", "西域小王", false, "2", "中立", "依据B",
                         null, false, false, true, false, true, "50%",
                         null, null, null, null, null, null));

@@ -307,6 +307,61 @@ describe('useCrmOpportunitySelector', () => {
     }))
   })
 
+  // CRM 对接人接口后续新增 fixed_phone（座机号），映射到评估表 TEL 维度。
+  // SYNC: 与后端 CrmEvaluationMapper 的 TEL ← fixedPhone 映射镜像一致（后端空值不落行，
+  // 前端空串经 buildApiPayload 过滤同样不落行）。
+  it('CRM 未返回 fixed_phone 时 TEL 为空串（防御：CRM 未上线新字段时不报错）', async () => {
+    const chance = { id: 285005, name: '无座机商机', code: 'CC20260820001' }
+    searchOpportunities.mockResolvedValue({ data: { list: [chance], totalCount: 1 } })
+    // CRM 未上线 fixed_phone：响应中完全没有该字段
+    getContactPersons.mockResolvedValue({
+      data: [{ position: '1', name: '张三', phone: '18888888888' }],
+    })
+
+    const props = { tenderer: '', registrationDeadline: '', bidOpeningTime: '', alreadyLinkedName: '' }
+    const emitFn = vi.fn()
+    const wrapper = mount(defineComponent({
+      template: '<div />',
+      setup() { return useCrmOpportunitySelector(props, emitFn) },
+    }))
+    await wrapper.vm.openSearch()
+    await flushPromises()
+
+    wrapper.vm.onSelect(chance)
+    await wrapper.vm.confirmLink()
+    await flushPromises()
+
+    const emitted = emitFn.mock.calls[emitFn.mock.calls.length - 1][1]
+    expect(emitted.evaluationData.customerInfos[0].TEL).toBe('')
+  })
+
+  it('CRM 返回 fixed_phone 有值时映射到 TEL', async () => {
+    const chance = { id: 285006, name: '有座机商机', code: 'CC20260820002' }
+    searchOpportunities.mockResolvedValue({ data: { list: [chance], totalCount: 1 } })
+    getContactPersons.mockResolvedValue({
+      data: [{ position: '1', name: '张三', phone: '18888888888', fixed_phone: '010-12345678' }],
+    })
+
+    const props = { tenderer: '', registrationDeadline: '', bidOpeningTime: '', alreadyLinkedName: '' }
+    const emitFn = vi.fn()
+    const wrapper = mount(defineComponent({
+      template: '<div />',
+      setup() { return useCrmOpportunitySelector(props, emitFn) },
+    }))
+    await wrapper.vm.openSearch()
+    await flushPromises()
+
+    wrapper.vm.onSelect(chance)
+    await wrapper.vm.confirmLink()
+    await flushPromises()
+
+    const emitted = emitFn.mock.calls[emitFn.mock.calls.length - 1][1]
+    expect(emitted.evaluationData.customerInfos[0]).toEqual(expect.objectContaining({
+      CONTACT_INFO: '18888888888',
+      TEL: '010-12345678',
+    }))
+  })
+
   // CO-431: CRM 对接人 position 是数字字符串（生产日志实锤，见 CO-329 PR #1124 评论），
   // 必须 CRM_POSITION_TO_ROLE[c.position] 按 position 映射到对应角色行；
   // 之前 revert 后改成 idx % 14 按数组下标强行分配，导致 position=8（招标文件制作人）

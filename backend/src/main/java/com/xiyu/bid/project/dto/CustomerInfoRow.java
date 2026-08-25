@@ -1,4 +1,4 @@
-// Input: 客户信息表格单行（15 列）
+// Input: 客户信息表格单行（字段集可扩展，展示列以 InitiationStage.vue 为准）
 // Output: 序列化到 customer_info_json 的单元
 // Pos: project/dto/
 package com.xiyu.bid.project.dto;
@@ -10,7 +10,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 客户信息角色表格行（15 列 × 14 行）。
+ * 客户信息角色表格行（每行一个角色；展示列以 InitiationStage.vue 为准，
+ * DTO 字段为全集，含未展示的历史字段）。
  * 对应蓝图 §3.3.1.1 立项表单「客户信息」区。
  * 每行代表一个角色/岗位的客户触达信息。
  * 整表以 JSON 数组形式存入 project_initiation_details.customer_info_json。
@@ -27,6 +28,8 @@ public class CustomerInfoRow {
     private String name;
     /** 联系方式（手机号/电话/邮箱）。 */
     private String contactInfo;
+    /** 对接人座机号。 */
+    private String tel;
     /** 职位。 */
     private String position;
     /** 西域对接人。 */

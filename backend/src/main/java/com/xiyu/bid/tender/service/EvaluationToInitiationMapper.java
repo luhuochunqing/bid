@@ -1,6 +1,7 @@
 // Input: TenderEvaluationBasic + List<TenderEvaluationCustomerInfo>(EAV) + Tender(ownerUnit/customerType)
 // Output: ProjectInitiationDetails 字段映射 + List<CustomerInfoRow>
 // Pos: tender/service/ - CO-323 标讯评估表 → 项目立项映射（纯函数，无 Spring/JPA 依赖）
+// 维护声明: 客户信息 INFO_KEY_MAP 与前端 useInitiationStageActions.js 双写，新增 info_key 需同批修改两处。
 package com.xiyu.bid.tender.service;
 
 import com.xiyu.bid.project.core.InitiationFieldPolicy;
@@ -78,6 +79,7 @@ public final class EvaluationToInitiationMapper {
     private static final Map<String, String> INFO_KEY_MAP = Map.ofEntries(
             Map.entry("NAME", "name"),
             Map.entry("CONTACT_INFO", "contactInfo"),
+            Map.entry("TEL", "tel"),
             Map.entry("POSITION", "position"),
             Map.entry("XIYU_CONTACT", "xiyuContact"),
             Map.entry("CONTACTED", "reached"),
@@ -135,6 +137,8 @@ public final class EvaluationToInitiationMapper {
                     .role(roleLabel)
                     .name(f.getOrDefault("name", ""))
                     .contactInfo(f.getOrDefault("contactInfo", ""))
+                    // TEL 为新增维度，无 EAV 行时保持 null（不用空串兜底）
+                    .tel(f.get("tel"))
                     .position(f.getOrDefault("position", ""))
                     .xiyuContact(f.getOrDefault("xiyuContact", ""))
                     .reached(f.getOrDefault("reached", ""))

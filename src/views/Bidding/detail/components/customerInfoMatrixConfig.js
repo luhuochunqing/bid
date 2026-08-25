@@ -1,6 +1,7 @@
 export const CUSTOMER_INFO_COLUMNS = [
   { key: 'NAME', label: '姓名', width: 140, type: 'text', placeholder: '请输入姓名' },
-  { key: 'CONTACT_INFO', label: '联系方式', width: 160, type: 'text', placeholder: '手机号/电话/邮箱' },
+  { key: 'CONTACT_INFO', label: '对接人手机号', width: 160, type: 'text', placeholder: '手机号' },
+  { key: 'TEL', label: '对接人座机号', width: 160, type: 'text', placeholder: '请输入座机号' },
   { key: 'POSITION', label: '职位', width: 220, type: 'position', placeholder: '请选择' },
   { key: 'XIYU_CONTACT', label: '西域项目负责人', width: 160, type: 'text', placeholder: '请输入负责人' },
   { key: 'CONTACT_METHOD', label: '触达方式', width: 180, type: 'contactMethod', placeholder: '请选择' },

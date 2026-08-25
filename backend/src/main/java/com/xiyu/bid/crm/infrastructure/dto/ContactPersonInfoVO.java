@@ -16,6 +16,8 @@ public record ContactPersonInfoVO(
     @JsonProperty("id") Long id,
     @JsonProperty("name") String name,
     @JsonProperty("phone") String phone,
+    // CRM 对接人座机号，映射到评估表 TEL 维度；CRM 未上线时为 null
+    @JsonProperty("fixed_phone") String fixedPhone,
     @JsonProperty("email") String email,
     @JsonProperty("position") String position,
     @JsonProperty("ehsyProjectManager") String ehsyProjectManager,
