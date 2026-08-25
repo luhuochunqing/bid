@@ -8,36 +8,10 @@
     :close-on-click-modal="false"
     class="quality-check-drawer"
   >
-    <!-- 头部元信息与操作栏 -->
+    <!-- 头部标题栏 -->
     <template #header>
       <div class="drawer-header-content">
-        <div class="header-main">
-          <div class="header-title-row">
-            <span class="header-title">AI 标书质量核查</span>
-            <el-tag :type="overallStatusTag.type" effect="dark" class="overall-status-tag">
-              {{ overallStatusTag.label }}
-            </el-tag>
-          </div>
-          <div class="header-sub-row">
-            <span class="file-name-meta" v-if="report?.bidFileName">
-              <el-icon><Document /></el-icon> {{ report.bidFileName }}
-            </span>
-            <span class="check-time-meta" v-if="report?.checkedAt">
-              <el-icon><Clock /></el-icon> {{ formatTime(report.checkedAt) }}
-            </span>
-          </div>
-        </div>
-        <div class="header-actions">
-          <el-button
-            type="primary"
-            size="small"
-            :loading="polling"
-            :icon="Refresh"
-            @click="handleRecheckConfirm"
-          >
-            重新核查
-          </el-button>
-        </div>
+        <span class="header-title">AI 标书质量核查</span>
       </div>
     </template>
 
@@ -60,7 +34,31 @@
 
     <!-- 报告内容主体 -->
     <div v-else-if="report" class="report-main-content">
-      <!-- 统计指标看板 -->
+      <!-- 汇总平铺卡：左上受检信息，右上操作按钮 -->
+      <div class="summary-card">
+        <div class="summary-left">
+          <div v-if="report.bidFileName" class="summary-meta">
+            <el-icon><Document /></el-icon>
+            <span>投标文件：{{ report.bidFileName }}</span>
+          </div>
+          <div v-if="report.checkedAt" class="summary-meta">
+            <el-icon><Clock /></el-icon>
+            <span>核查时间：{{ formatTime(report.checkedAt) }}</span>
+          </div>
+        </div>
+        <div class="summary-actions">
+          <el-button
+            size="small"
+            :icon="Refresh"
+            @click="handleRecheckConfirm"
+          >
+            重新核查
+          </el-button>
+          <el-button type="primary" size="small" @click="goToScoreParse">AI 评分</el-button>
+        </div>
+      </div>
+
+      <!-- 统计指标看板（点击筛选状态） -->
       <div class="stats-overview-grid">
         <div class="stat-card stat-total" @click="activeStatusFilter = 'ALL'">
           <div class="stat-num">{{ report.totalCount || 25 }}</div>
@@ -88,18 +86,21 @@
           @click="activeStatusFilter = 'MANUAL_REVIEW'"
         >
           <div class="stat-num">{{ report.manualReviewCount || 0 }}</div>
-          <div class="stat-label">◐ 待人工确认</div>
+          <div class="stat-label">◐ 待确认项</div>
         </div>
       </div>
 
-      <!-- 快速状态筛选条 -->
-      <div class="filter-tab-bar">
-        <el-radio-group v-model="activeStatusFilter" size="small">
-          <el-radio-button label="ALL">全部 ({{ report.totalCount || 25 }})</el-radio-button>
-          <el-radio-button label="FAIL">不通过 ({{ report.failedCount || 0 }})</el-radio-button>
-          <el-radio-button label="MANUAL_REVIEW">待确认 ({{ report.manualReviewCount || 0 }})</el-radio-button>
-          <el-radio-button label="PASS">通过 ({{ report.passedCount || 0 }})</el-radio-button>
-        </el-radio-group>
+      <!-- 分类定位条：点击展开并滚动到对应分组 -->
+      <div class="category-tab-bar">
+        <button
+          v-for="tab in categoryTabs"
+          :key="tab.category"
+          type="button"
+          class="category-tab"
+          @click="scrollToCategory(tab.category)"
+        >
+          {{ tab.label }}（{{ tab.count }}）
+        </button>
       </div>
 
       <!-- 3 大分类分组卡片列表 -->
@@ -107,6 +108,7 @@
         <div
           v-for="group in filteredCategories"
           :key="group.category"
+          :ref="(el) => registerCategoryAnchor(group.category, el)"
           class="category-section"
         >
           <div class="category-header" @click="toggleCategory(group.category)">
@@ -129,6 +131,7 @@
               v-for="item in group.items"
               :key="item.itemCode"
               :item="item"
+              @detail="openDetail"
             />
           </div>
         </div>
@@ -144,12 +147,22 @@
       </el-empty>
     </div>
   </el-drawer>
+
+  <!-- 检查项详情弹窗（居中） -->
+  <QualityCheckDetailDialog
+    v-model="detailVisible"
+    :item="detailItem"
+    :objective-score="objectiveScore"
+    @go-to-score-parse="goToScoreParse"
+  />
 </template>
 
 <script setup>
 import { Document, Clock, Refresh, ArrowDown } from '@element-plus/icons-vue'
 import QualityCheckItemCard from './QualityCheckItemCard.vue'
+import QualityCheckDetailDialog from './QualityCheckDetailDialog.vue'
 import { useQualityCheckDrawer } from '../composables/useQualityCheckDrawer.js'
+import { formatTime } from '@/composables/projectDetail/scoreParseTask.js'
 
 const props = defineProps({
   projectId: {
@@ -157,6 +170,8 @@ const props = defineProps({
     required: true
   }
 })
+
+const emit = defineEmits(['go-to-score-parse'])
 
 const {
   visible,
@@ -167,23 +182,20 @@ const {
   report,
   activeStatusFilter,
   collapsedCategories,
-  overallStatusTag,
+  categoryTabs,
   filteredCategories,
+  objectiveScore,
+  detailItem,
+  detailVisible,
   toggleCategory,
+  registerCategoryAnchor,
+  scrollToCategory,
+  openDetail,
   open,
   handleRecheckConfirm,
+  goToScoreParse,
   triggerCheck
-} = useQualityCheckDrawer(props)
-
-function formatTime(timeStr) {
-  if (!timeStr) return ''
-  try {
-    const d = new Date(timeStr)
-    return d.toLocaleString('zh-CN', { hour12: false })
-  } catch {
-    return timeStr
-  }
-}
+} = useQualityCheckDrawer(props, emit)
 
 defineExpose({
   open,

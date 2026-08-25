@@ -1,9 +1,13 @@
-import { ref, reactive, computed, onUnmounted } from 'vue'
+import { ref, reactive, computed, nextTick, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { complianceApi } from '@/api/modules/ai.js'
+import { scoreParseApi } from '@/api/modules/scoreParse.js'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
+import { normalizeScoreItem } from '@/composables/projectDetail/scoreParseTask.js'
+import { mapScoreResults } from '@/composables/projectDetail/scoreParseSpendGuard.js'
+import { sumObjectiveActualScore } from './qualityCheckDetail.js'
 
-export function useQualityCheckDrawer(props) {
+export function useQualityCheckDrawer(props, emit) {
   const visible = ref(false)
   const polling = ref(false)
   const progressPercent = ref(0)
@@ -11,6 +15,11 @@ export function useQualityCheckDrawer(props) {
   const progressStatus = ref('')
   const report = ref(null)
   const activeStatusFilter = ref('ALL')
+  // 客观项实际得分合计（来自 AI 评分标准解析阶段 2），null = 尚未打分，得分链接不展示
+  const objectiveScore = ref(null)
+  // 详情弹窗当前选中项
+  const detailItem = ref(null)
+  const detailVisible = ref(false)
 
   const collapsedCategories = reactive({
     BASIC_INFO: false,
@@ -23,31 +32,28 @@ export function useQualityCheckDrawer(props) {
   const POLL_INTERVAL_MS = 2000
   const MAX_POLL_TIMEOUT_MS = 120000
 
-  const overallStatusTag = computed(() => {
-    if (!report.value) return { label: '未核查', type: 'info' }
-    const failed = report.value.failedCount || 0
-    const manual = report.value.manualReviewCount || 0
-    if (failed > 0) return { label: '存在不通过项', type: 'danger' }
-    if (manual > 0) return { label: '待人工确认', type: 'warning' }
-    return { label: '全部通过', type: 'success' }
-  })
-
   const categoryDefinitions = [
-    { category: 'BASIC_INFO', title: '基本信息检查 (10项)' },
-    { category: 'SUB_ITEM_COMPLIANCE', title: '分项合规检查 (10项)' },
-    { category: 'ATTACHMENT_CHECKLIST', title: '附件清单检查 (5项)' }
+    { category: 'BASIC_INFO', title: '基本信息检查', label: '基本信息' },
+    { category: 'SUB_ITEM_COMPLIANCE', title: '分项合规检查', label: '分项合规' },
+    { category: 'ATTACHMENT_CHECKLIST', title: '附件清单检查', label: '附件清单' }
   ]
+
+  // 分类定位 tab：恒显 3 类，计数取全量（不受状态筛选影响）
+  const categoryTabs = computed(() => categoryDefinitions.map(def => ({
+    category: def.category,
+    label: def.label,
+    count: (report.value?.items || []).filter(i => i.category === def.category).length
+  })))
 
   const filteredCategories = computed(() => {
     if (!report.value?.items) return []
     const items = report.value.items
 
     return categoryDefinitions.map(def => {
-      let catItems = items.filter(i => i.category === def.category)
-      if (activeStatusFilter.value !== 'ALL') {
-        catItems = catItems.filter(i => i.status === activeStatusFilter.value)
-      }
       const allCatItems = items.filter(i => i.category === def.category)
+      const catItems = activeStatusFilter.value === 'ALL'
+        ? allCatItems
+        : allCatItems.filter(i => i.status === activeStatusFilter.value)
       return {
         category: def.category,
         title: def.title,
@@ -63,6 +69,32 @@ export function useQualityCheckDrawer(props) {
     collapsedCategories[cat] = !collapsedCategories[cat]
   }
 
+  // ===== 分类定位（tab 点击 → 展开目标分组并平滑滚动） =====
+  const categoryAnchors = new Map()
+
+  function registerCategoryAnchor(category, el) {
+    if (el) categoryAnchors.set(category, el)
+    else categoryAnchors.delete(category)
+  }
+
+  function scrollToCategory(category) {
+    collapsedCategories[category] = false
+    nextTick(() => {
+      categoryAnchors.get(category)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
+
+  // ===== 详情弹窗 =====
+  function openDetail(item) {
+    detailItem.value = item
+    detailVisible.value = true
+  }
+
+  function closeDetail() {
+    // 仅关闭弹窗，不清空 detailItem：避免关闭动画期间内容闪失，下次打开时覆盖
+    detailVisible.value = false
+  }
+
   async function open() {
     visible.value = true
     await loadLatestReport()
@@ -75,12 +107,32 @@ export function useQualityCheckDrawer(props) {
         report.value = res.data
         if (res.data.status && res.data.status !== 'COMPLETED' && res.data.status !== 'FAILED') {
           startPolling(res.data.taskId)
+        } else {
+          await loadObjectiveScore()
         }
       } else {
         await triggerCheck(false)
       }
     } catch (e) {
       console.error('加载质量核查报告异常:', e)
+    }
+  }
+
+  // 客观项实际得分合计：复用评分标准解析的 items + results，静默降级（失败/未打分 → 不展示得分链接）
+  async function loadObjectiveScore() {
+    objectiveScore.value = null
+    try {
+      const itemsRes = await scoreParseApi.getItems(props.projectId)
+      const apiItems = itemsRes?.data?.items
+      if (!Array.isArray(apiItems) || apiItems.length === 0) return
+      const items = apiItems.map(normalizeScoreItem)
+
+      const resultsRes = await scoreParseApi.getResults(props.projectId)
+      const results = resultsRes?.data?.results
+      if (!Array.isArray(results) || results.length === 0) return
+      objectiveScore.value = sumObjectiveActualScore(items, mapScoreResults(results))
+    } catch {
+      // 未解析/未打分/接口异常均静默降级，得分链接不展示
     }
   }
 
@@ -99,6 +151,13 @@ export function useQualityCheckDrawer(props) {
     } catch (e) {
       // user cancelled
     }
+  }
+
+  // AI 评分：关闭抽屉并通知父级打开评分标准解析（阶段 2 未打分时自动触发打分）
+  function goToScoreParse() {
+    visible.value = false
+    closeDetail()
+    emit('go-to-score-parse', { stage: 2, autoScore: true })
   }
 
   // spec 049 第一步：trigger 同步 4xx（无投标文件/解析失败）→ 提示后端消息且不进入轮询；
@@ -211,12 +270,20 @@ export function useQualityCheckDrawer(props) {
     report,
     activeStatusFilter,
     collapsedCategories,
-    overallStatusTag,
+    categoryTabs,
     filteredCategories,
+    objectiveScore,
+    detailItem,
+    detailVisible,
     toggleCategory,
+    registerCategoryAnchor,
+    scrollToCategory,
+    openDetail,
+    closeDetail,
     open,
     loadLatestReport,
     handleRecheckConfirm,
+    goToScoreParse,
     triggerCheck
   }
 }

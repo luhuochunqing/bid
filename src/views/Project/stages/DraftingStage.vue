@@ -146,7 +146,7 @@
   </el-dialog>
 
   <AiRecommendDrawer v-model="aiDrawerVisible" :project-id="projectId" @go-to-score-parse="handleGoToScoreParse" />
-  <QualityCheckDrawer ref="qualityCheckRef" :project-id="projectId" />
+  <QualityCheckDrawer ref="qualityCheckRef" :project-id="projectId" @go-to-score-parse="handleGoToScoreParse" />
 </template>
 
 <script setup>
@@ -316,8 +316,8 @@ function handleOpenQualityCheck() {
   qualityCheckRef.value?.open()
 }
 
-function handleGoToScoreParse() {
-  emit('go-to-score-parse')
+function handleGoToScoreParse(options) {
+  emit('go-to-score-parse', options)
 }
 
 function beforeBidUpload(file) {
