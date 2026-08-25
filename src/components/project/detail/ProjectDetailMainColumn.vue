@@ -253,8 +253,8 @@ watch(() => route?.params?.stage, (newStage) => {
 }, { immediate: true })
 
 function handleSwitchTab(v) { activeStageTab.value = v }
-function handleGoToScoreParse() {
-  document.querySelector('.task-kanban')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); scoreParseRef.value?.open()
+function handleGoToScoreParse(options) {
+  document.querySelector('.task-kanban')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); scoreParseRef.value?.open(options || {})
 }
 // 纯函数：同步 tab 到时间线快照的真实阶段
 function syncTabToRealStage() {
