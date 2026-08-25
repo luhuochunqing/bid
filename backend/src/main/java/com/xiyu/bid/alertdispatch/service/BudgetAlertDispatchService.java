@@ -1,3 +1,8 @@
+// Input: AlertRule（BUDGET 类型）+ 活跃项目列表/标讯预算/项目费用汇总（批量预加载防 N+1）
+// Output: 预算费用告警历史 + 通知分发（经 AlertNotificationOrchestrator.createAndNotifyIfNew）
+// Pos: alertdispatch 模块预算告警扫描（AlertSchedulerService 每日 09:00 调度入口）
+// 维护声明: 单项目告警创建失败按 P1-7 吞异常续跑整批，但必须带堆栈记日志并上报 Sentry（CO-564 纪律）；
+//           新增告警规则类型在 AlertRuleDispatchService 分发，勿在本类扩 switch。
 package com.xiyu.bid.alertdispatch.service;
 
 import com.xiyu.bid.alerts.dto.AlertHistoryCreateRequest;
@@ -9,6 +14,7 @@ import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.resources.repository.ExpenseRepository;
+import io.sentry.Sentry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -70,8 +76,11 @@ public class BudgetAlertDispatchService {
                 try {
                     createAlert(rule, project, expenseRatio, totalExpense, tender.getBudget());
                 } catch (RuntimeException e) {
-                    // P1-7: 单项目异常不应导致整批通知丢失，记录后继续处理下一个项目
-                    logger.error("项目 {} 费用告警创建失败，已跳过: {}", project.getId(), e.getMessage());
+                    // P1-7: 单项目异常不应导致整批通知丢失，记录后继续处理下一个项目。
+                    // CO-564 同款纪律：吞异常必须带堆栈并上报 Sentry，让运维可主动发现（静默只打 message
+                    // 会让 DB 级故障表现为"当天告警全部消失"而无人知晓）。
+                    logger.error("项目 {} 费用告警创建失败，已跳过", project.getId(), e);
+                    Sentry.captureException(e);
                 }
             }
         }
