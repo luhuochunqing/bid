@@ -2,9 +2,9 @@
 title: AI Provider 配置与陷阱指南
 space: engineering
 category: guide
-tags: [AI, Provider, DeepSeek, Doubao, qwen, activeProvider, 降级策略, Sidecar, textutil]
+tags: [AI, Provider, DeepSeek, Doubao, qwen, activeProvider, 降级策略, Sidecar, textutil, mock, 配置默认值陷阱]
 created: 2026-07-10
-updated: 2026-08-12
+updated: 2026-08-25
 health_checked: 2026-08-20
 sources:
   - backend/src/main/java/com/xiyu/bid/ai/
@@ -272,9 +272,42 @@ Linux 服务器需要安装替代工具：
 
 ---
 
-## 8. AI Provider 配置 Checklist
+## 8. `ai.provider` 默认值陷阱：默认 mock 让"漏配"伪装成"显式 mock"（2026-08-25 修复）
 
-### 8.1 部署前检查
+### 8.1 事故
+
+PR !2396 给 `RoutingAiProvider.resolveActiveConfig()` 加了「`ai.provider=mock` → 返回 null 强制回落 MockAiProvider」的 E2E 分支。
+但 `application.yml` 原写法是 `provider: ${AI_PROVIDER:mock}`——**默认值就是 mock**。
+任何没显式设置 `AI_PROVIDER` 的环境（backend.env 丢失/新机器重配）都会走进 mock 分支：
+全部 AI 接口**静默返回假数据**，健康检查还显示 UP(mockMode)，只有启动日志一行警告。
+生产靠服务器 `/etc/xiyu-bid/backend.env` 里 `AI_PROVIDER=custom`（首产记录 2026-07-09）才没触发。
+
+同批引入的两个 mock 分支 NPE（静态证据）：
+
+- `RoutingAiProvider.embed()` 漏 null 回落 → 案例嵌入批处理标 FAILURE_MARKER / 切片推荐 503
+- `QualificationAiParserService.callAiToParse()` 直接 `config.model()` → 用户 500（而非设计中的 409 引导）
+
+### 8.2 修复（PR 修复分支 agent/zcode/ai-mock-guard）
+
+1. `application.yml` 默认值改空串 `${AI_PROVIDER:}`——**只认显式 mock**（e2e 栈在 application-e2e.yml 显式 `provider: mock`，不受影响）
+2. `RoutingAiProvider.embed()` 补 `if (config == null) return mockAiProvider.embed(text);`
+3. `QualificationAiParserService` 补 null 守卫，抛 `BusinessException("AI 当前处于 mock 模式…")`
+4. 部署双断言：`scripts/release/preflight.sh`（本地部署）+ `scripts/release/remote-deploy.sh`（服务器端，任何服务变更之前读 backend.env）在 prod profile 下强制 `AI_PROVIDER` 非空且非 mock，违规中止部署且服务零影响
+
+### 8.3 教训
+
+- **配置默认值会让"未设置"与"显式设置"不可区分**——带行为语义的开关（如 mock）默认值必须留空，让漏配走 fail-fast 而非静默降级
+- **改共享方法返回契约（新增 null 路径）必须 grep 全部调用方**逐个核对 null 处理，"接口里 5 个方法只改了 4 个"是本次 NPE 的直接根因
+- **生产正确性依赖的环境变量要有部署预检断言**，不能只活在运维手册里
+- mock 模式的健康检查显示 UP(mockMode) 是**掩盖信号**，排查 AI 异常时先查 `ai.provider` 实际值
+
+---
+
+## 9. AI Provider 配置 Checklist
+
+### 9.1 部署前检查
+
+> **prod 部署已由脚本自动断言**（preflight.sh + remote-deploy.sh 会拦 AI_PROVIDER 缺失/mock，见 §8），以下为手工核查路径。
 
 ```bash
 # 1. 确认 activeProvider
@@ -290,9 +323,12 @@ curl -s -o /dev/null -w "%{http_code}" ${CUSTOM_AI_BASE_URL}/models
 # 期望：200 或 401（401 表示地址可达但需认证）
 ```
 
-### 8.2 部署后验证
+### 9.2 部署后验证
 
 ```bash
+# 健康检查不应出现 mockMode（出现即 ai.provider 解析为 mock，立即排查）
+curl -s http://localhost:18080/actuator/health | grep -o '"status": *"[^"]*"'
+
 # 测试 AI 调用
 curl -X POST http://localhost:18080/api/ai/test \
   -H "Authorization: Bearer <token>" \
@@ -303,7 +339,7 @@ curl -X POST http://localhost:18080/api/ai/test \
 
 ---
 
-## 9. 相关文档
+## 10. 相关文档
 
 - [[ai-capabilities]] — AI 能力总览（产品视角）
 - [[docinsight-engine]] — DocInsight 文档智能引擎
@@ -312,8 +348,9 @@ curl -X POST http://localhost:18080/api/ai/test \
 
 ---
 
-## 10. 变更记录
+## 11. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
 | 2026-07-10 | 首次创建，从 8 个工作区历史对话中提取 AI Provider 配置陷阱 |
+| 2026-08-25 | 新增 §8 `ai.provider` 默认值陷阱（PR !2396 审计发现，默认 mock → 静默假数据 + 两处 mock 分支 NPE）；部署 checklist 升级为脚本断言 |

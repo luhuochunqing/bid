@@ -29,7 +29,7 @@ backlinks:
 - [[_index]] — 西域投标管理平台知识库
 - [[agent-sop-quickref]] — Agent 开发 SOP 快速参考
 - [[ai-capabilities]] — AI 能力
-- [[ai-provider-configuration]] — AI Provider 配置与陷阱指南（activeProvider / Doubao / 降级策略 / Sidecar）
+- [[ai-provider-configuration]] — AI Provider 配置与陷阱指南（activeProvider / Doubao / 降级策略 / Sidecar / ai.provider 默认值陷阱）
 - [[score-parse-service]] — AI 评分标准解析后端服务（spec 041：四路召回解析 / 知识库五类匹配 / 阶段化打分 / 超时保护）
 - [[ai-case-recommend-data-source-fix]] — AI 案例推荐数据源修复（score_item 新契约切换 / casework 裸响应禁止二次解包）
 - [[engineering-discipline]] — 工程纪律手册（反复修复根因 / Bug修复SOP / 开发规范 / 经验积累机制）

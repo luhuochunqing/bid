@@ -418,3 +418,8 @@
 - 修复：新增 `TenderEventHttpSender`（infrastructure/sdk）唯一持有 wire 契约；`TenderEventSdkProducer` 构造签名不变委托 sender（4 例 MockRestServiceServer wire 断言原样通过）；`OpportunityPredictionEventPublisher` 缩至约 60 行，仍受 sdk.enabled 开关控制
 - 标讯事件应用层管线（TenderEventPublishService/Port/流水表）零改动；定向 26 测试全绿
 - 更新 [[integration-tender-event-push]]；教训：**新事件发布方复用 TenderEventHttpSender，勿再复制 wire 契约**
+## 2026-08-25 fix | ai.provider 默认 mock 陷阱修复（PR !2396 审计后续）
+- 触发：PR !2396 生产风险审计发现 `${AI_PROVIDER:mock}` 默认值使"漏配"伪装成"显式 mock"，生产全靠 backend.env 手工 `AI_PROVIDER=custom` 兜底；且 mock 分支两处 NPE（embed 无 null 回落、QualificationAiParser 直接解引用）
+- 修复：yml 默认改空串只认显式 mock；embed()/QualificationAiParser 补 null 防护；preflight.sh + remote-deploy.sh prod 双断言（漏配/mock 中止部署，服务零影响）
+- 顺带：预算告警 catch 补堆栈+Sentry（CO-564 纪律）；e2e seeder tender.entry 对齐 V1167 原文（CASCADER/enabled/limit/accept）；SolutionReuse 行业枚举映射+删除随机 matchScore 假数据
+- 更新 [[ai-provider-configuration]] §8；教训：**带行为语义的配置默认值必须留空，改共享方法返回契约必须 grep 全部调用方**
