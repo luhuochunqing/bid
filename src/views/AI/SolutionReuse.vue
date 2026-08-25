@@ -93,6 +93,8 @@ const handleSearch = async () => {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
     })
     const data = await res.json()
+    // 若后端返回 success=false，视为业务错误而非网络错误，避免将错误信息当作搜索结果展示
+    if (data?.success === false) { error.value = data?.message || '搜索异常，请稍后重试'; loading.value = false; return }
     // CaseSearchResultDTO 结构为 { items, total }；兼容旧 Page 结构 { content }
     const payload = data?.data
     const content = Array.isArray(payload?.content) ? payload.content : Array.isArray(payload?.items) ? payload.items : []

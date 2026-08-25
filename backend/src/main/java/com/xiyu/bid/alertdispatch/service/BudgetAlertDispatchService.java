@@ -20,6 +20,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +31,8 @@ public class BudgetAlertDispatchService {
     private final ProjectRepository projectRepository;
     private final TenderRepository tenderRepository;
     private final ExpenseRepository expenseRepository;
+
+    private static final Logger logger = LoggerFactory.getLogger(BudgetAlertDispatchService.class);
 
     public void dispatch(AlertRule rule) {
         List<Project> activeProjects = projectRepository.findActiveProjects();
@@ -63,7 +67,12 @@ public class BudgetAlertDispatchService {
                     .multiply(BigDecimal.valueOf(100));
 
             if (shouldAlert(rule, expenseRatio)) {
-                createAlert(rule, project, expenseRatio, totalExpense, tender.getBudget());
+                try {
+                    createAlert(rule, project, expenseRatio, totalExpense, tender.getBudget());
+                } catch (RuntimeException e) {
+                    // P1-7: 单项目异常不应导致整批通知丢失，记录后继续处理下一个项目
+                    logger.error("项目 {} 费用告警创建失败，已跳过: {}", project.getId(), e.getMessage());
+                }
             }
         }
     }
