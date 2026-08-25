@@ -90,6 +90,18 @@ class TenderEventSdkProducerTest {
     }
 
     @Test
+    @DisplayName("网关返回 code=00000 / result=null → 视为发送成功")
+    void publish_gatewayCode00000_returnsTrue() {
+        server.expect(requestTo(BASE_URL + "/eventbus/publishEvent"))
+                .andRespond(withSuccess("""
+                        {"code":"00000","data":{"result":null},"msg":"响应成功"}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThat(producer.publish(command())).isTrue();
+        server.verify();
+    }
+
+    @Test
     @DisplayName("响应 result=false → 返回 false")
     void publish_responseResultFalse_returnsFalse() {
         server.expect(requestTo(BASE_URL + "/eventbus/publishEvent"))

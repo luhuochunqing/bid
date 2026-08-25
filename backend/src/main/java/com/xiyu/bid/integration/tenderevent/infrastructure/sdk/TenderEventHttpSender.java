@@ -71,13 +71,23 @@ final class TenderEventHttpSender {
                 .body(body)
                 .retrieve()
                 .body(JsonNode.class);
-        return response != null && response.path("data").path("result").asBoolean(false);
+        return isSuccessResponse(response);
     }
 
     private static void applyTraceHeaders(HttpHeaders headers, String traceId, String spanId, String parentId) {
         headers.add("traceId", traceId);
         headers.add("spanId", spanId);
         headers.add("parentId", parentId);
+    }
+
+    private static boolean isSuccessResponse(JsonNode response) {
+        // 真实网关成功信号：外层 code=="00000"（msg=“响应成功”），data.result 为 null。
+        // 兼容历史/测试约定的 data.result==true。
+        if (response == null) {
+            return false;
+        }
+        return "00000".equals(response.path("code").asText(""))
+                || response.path("data").path("result").asBoolean(false);
     }
 
     private static String serializeData(Map<String, Object> data) {
