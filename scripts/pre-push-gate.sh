@@ -385,6 +385,35 @@ if [ -f "$ROOT_DIR/package.json" ]; then
   fi
 fi
 
+# ── 5.6. 跨语言关键词契约同步（PR !2399 防复发） ─────────
+# Java PriceScoringKeywords（LONG/SHORT_PRICE_PARAMS）与 Python converter.py
+# （PRICE_PARAM_LONG/SHORT_KEYWORDS）是同一语义的两份实现，此前仅靠注释约束同步。
+# 仅当本次推送触及契约两侧文件时执行；契约尚未建立（两侧均无）时自动放行。
+echo "── 跨语言关键词契约 ──"
+CONTRACT_CHANGED=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -cE 'PriceScoringKeywords\.java$|document-converter-sidecar/converter\.py$' || true)
+if [ "$CONTRACT_CHANGED" -eq 0 ]; then
+  skip "keyword-sync（未触及契约文件）"
+else
+  if node "$ROOT_DIR/scripts/check-keyword-sync.mjs" 2>&1; then
+    pass "keyword-sync（Java/Python 关键词表一致）"
+  else
+    fail "keyword-sync — Java/Python 报价参数关键词表不一致或单边新增，运行 node scripts/check-keyword-sync.mjs 查看差集"
+  fi
+fi
+
+# ── 5.7. 仓库卫生：根目录产物文件拦截（PR !2399 教训） ────
+# implementation-notes.html / ui_mvp_preview.html 等产物/笔记文件不应持续入库。
+# 历史文件允许继续存在，仅拦截本次推送对它们的新增/修改。
+echo "── 仓库卫生 ──"
+HYGIENE_OFFENDERS=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -E '^(implementation-notes\.html|ui_mvp_preview\.html)$' || true)
+if [ -z "$HYGIENE_OFFENDERS" ]; then
+  pass "仓库卫生（无产物文件改动）"
+elif git log -1 --format='%s %b' 2>/dev/null | grep -q '\[skip repo-hygiene\]'; then
+  skip "仓库卫生：产物文件被改动（已标记 [skip repo-hygiene]）"
+else
+  fail "仓库卫生 — 产物/笔记文件被改动入库: $(echo "$HYGIENE_OFFENDERS" | tr '\n' ' ')。应迁移至 docs/ 或加入 .gitignore（commit message 加 [skip repo-hygiene] 可跳过）"
+fi
+
 # ── 6. 泄露检查 ────────────────────────────────────────
 echo "── 文件泄露检查 ──"
 UNTRACKED=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | wc -l | tr -d ' ')

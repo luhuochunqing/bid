@@ -428,4 +428,10 @@
 - 关键实现：展示纯核心 `composables/qualityCheckDetail.js`（STATUS_META 单一数据源 + 证据提取纯函数）；SCORING_RESPONSE 项复用评分解析 items/results 汇总客观项得分，未打分静默降级；事件链透传 `{stage:2, autoScore:true}` 打开评分抽屉自动打分；后端零改动
 - 三步审查修复 8 项：formatTime 重复实现、状态映射双份、分组标题硬编码计数与动态计数叠加、defineModel 冗余 emit、死 CSS 钩子/死绑定、平行映射结构合并、重复过滤
 - 更新 [[bid-quality-check-realization]] §5；教训：**状态元信息（图标/标签类型/文案）必须单一数据源，两个组件各写一套 switch 必然漂移**
+## 2026-08-25 eng | Code Review 三透镜纪律工程化（PR !2399 四轮审查复盘）
+- 触发：PR !2399 四轮审查全部集中在"行为正确性"平面，依赖方向/全局常量影响面/交付就绪（mergeable 冲突、产物文件入库、跨语言契约无自动化）四轮均未进入检查面，第五轮人工审查才全部发现
+- 机制落点：`docs/references/engineering-discipline.md` §4 三透镜纪律（A 行为正确性 / B 结构健康 / C 交付就绪，独立否决）+ 全量 diff 原则 + 审查独立性契约（子代理禁带修复意图）+ 判据分离（自动化结论 ≠ 判断性结论）
+- 工程化落点：`scripts/check-keyword-sync.mjs`（Java PriceScoringKeywords ↔ Python converter.py 关键词契约，单边新增也拦，挂 pre-push §5.6）；pre-push §5.7 根目录产物文件拦截；`gitee-pr-helper.sh merge` 合入前强制断言 `mergeable=true`；`agent-finish-task.sh` 开放 PR 冲突预警
+- 技能落点（本地 `.agents/skills/`，未入库）：`xiyu-code-review` 新增第 0 步状态快照 + §7 结构健康 + §8 交付就绪 + 结论模板分栏（自动化/判断性 + 必填"重新设计建议"）
+- 更新 [[engineering-discipline]]；教训：**同一类问题第二次出现就该变成脚本，而不是第三条纪律文字；审查轮次同质化重复一百遍也只是同一个盲区的第一百次确认**
 - 2026-08-25: 报价评分跨页截断专项评审修复（PR !2399：多信号交集跨页表合并、邻近扩展单跳、按行去重与 detail 6000 字符上界、classifyPipeRow 重构、跨语言关键词同步门禁） -> score-parse-service.md

@@ -22,6 +22,8 @@
 # 变更历史:
 #   2026-08-09 修复 Gitee API v5 字段名 bug：description → body（原 bug 导致创建 PR 时描述为空）
 #              新增 GIT_PR_TITLE / GIT_PR_BODY 环境变量，与 scripts/pr-create.sh 命名对齐
+#   2026-08-25 merge 子命令新增 mergeable 强制断言（PR !2399 教训：四轮审查未查
+#              mergeable，合入时才发现冲突）。逃生阀：GITEE_PR_FORCE_MERGE=1
 set -euo pipefail
 
 GITEE_OWNER="${GITEE_OWNER:-allinai888}"
@@ -257,6 +259,24 @@ merge_pr() {
   if [[ -z "$pr_num" ]]; then
     echo "[gitee-pr] 错误: 需要 PR 编号" >&2
     usage
+  fi
+
+  # 合入前强制断言 mergeable（PR !2399 教训：冲突在合入时才被发现）
+  if [[ "${GITEE_PR_FORCE_MERGE:-0}" != "1" ]]; then
+    local pr_info mergeable
+    pr_info=$(curl -s -H "Authorization: Bearer ${GITEE_TOKEN}" \
+      "${API}/pulls/${pr_num}" 2>/dev/null)
+    mergeable=$(echo "$pr_info" | python3 -c "import sys,json; d=json.load(sys.stdin); print(str(d.get('mergeable')).lower())" 2>/dev/null || echo "unknown")
+    if [[ "$mergeable" != "true" ]]; then
+      echo "[gitee-pr] ❌ PR #${pr_num} mergeable=${mergeable} — 合入阻断" >&2
+      echo "[gitee-pr] 请先 rebase 解决冲突: git fetch origin && git rebase origin/main" >&2
+      echo "[gitee-pr] 冲突定位: git merge-tree \$(git merge-base origin/main HEAD) origin/main HEAD" >&2
+      echo "[gitee-pr] 逃生阀: GITEE_PR_FORCE_MERGE=1（慎用）" >&2
+      exit 1
+    fi
+    echo "[gitee-pr] mergeable=true 断言通过"
+  else
+    echo "[gitee-pr] ⚠ GITEE_PR_FORCE_MERGE=1 — 跳过 mergeable 断言"
   fi
 
   echo "[gitee-pr] 合并 PR #${pr_num} (squash)..."
