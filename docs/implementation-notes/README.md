@@ -10,6 +10,7 @@ docs/implementation-notes/
 ├── README.md                              ← 你在这里（目录说明）
 ├── CO-212.md                              ← CO-212 实现笔记
 ├── CO-261.md                              ← CO-261 标讯分配/转派通知 + NotificationController 权限修复
+├── PR-2395-e2e-rebase-split.md            ← PR-2395 E2E 分支 rebase（88→43 文件）与两 PR 拆分决策
 ├── ai-score-parse-backend.md              ← AI 评分标准解析后端（spec 041）实现笔记
 ├── project-permission-audit.md            ← 项目权限审计笔记
 ├── role-permission-audit.md               ← 角色权限审计笔记
@@ -25,6 +26,7 @@ docs/implementation-notes/
 |------|------|----------|
 | `CO-212.md` | CO-212 相关实现细节记录 | 低 |
 | `CO-261.md` | CO-261 标讯分配/转派后通知 + NotificationController 读取权限放开 | 低 |
+| `PR-2395-e2e-rebase-split.md` | PR-2395 E2E 分支 rebase（88→43 文件）与两 PR 拆分决策 | 低 |
 | `ai-score-parse-backend.md` | AI 评分标准解析后端（spec 041）实现细节记录 | 低 |
 | `project-permission-audit.md` | 项目权限审计过程记录 | 低 |
 | `role-permission-audit.md` | 角色权限审计过程记录 | 低 |
