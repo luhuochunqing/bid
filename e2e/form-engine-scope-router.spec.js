@@ -40,7 +40,13 @@ test.describe('Scope 路由验证（API 层）', () => {
       headers: { Authorization: `Bearer ${session.token}` },
       data: {
         title: `E2E 测试标讯 ${Date.now()}`,
-        deadline: '2026-12-31',
+        purchaser: `E2E scope 主体_${Date.now()}`,
+        region: '北京市北京市',
+        deadline: '2026-12-31 17:00',
+        bidOpeningTime: '2027-01-05 09:00',
+        customerType: '央企',
+        priority: 'A',
+        projectType: '工业品',
         budget: 50000,
       },
     })

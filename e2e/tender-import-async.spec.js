@@ -164,7 +164,7 @@ test.describe('标讯异步导入全流程 (spec 031 US1)', () => {
 
     const response = await request.post(`${apiBaseUrl}/api/tenders/import`, {
       headers: {
-        'Authorization': `Bearer ${session.accessToken}`,
+        'Authorization': `Bearer ${session.token}`,
         'Idempotency-Key': `e2e-${Date.now()}`
       },
       multipart: {
@@ -196,7 +196,7 @@ test.describe('标讯异步导入全流程 (spec 031 US1)', () => {
     const excelBuffer = generateValidExcel()
     const importResponse = await request.post(`${apiBaseUrl}/api/tenders/import`, {
       headers: {
-        'Authorization': `Bearer ${session.accessToken}`,
+        'Authorization': `Bearer ${session.token}`,
         'Idempotency-Key': `e2e-progress-${Date.now()}`
       },
       multipart: {
@@ -215,7 +215,7 @@ test.describe('标讯异步导入全流程 (spec 031 US1)', () => {
     const progressResponse = await request.get(
       `${apiBaseUrl}/api/tenders/import/${taskId}/progress`,
       {
-        headers: { 'Authorization': `Bearer ${session.accessToken}` }
+        headers: { 'Authorization': `Bearer ${session.token}` }
       }
     )
     expect(progressResponse.status()).toBe(200)

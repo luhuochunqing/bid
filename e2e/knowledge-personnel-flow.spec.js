@@ -64,7 +64,7 @@ test.describe('§4.3 人员证书 - 新增证书 (3 Tab 表单 + 附件上传)',
     await eduItem.locator('.el-form-item:has-text("最高学历") .el-select').first().click()
     await page.getByRole('option', { name: '本科' }).click()
     await eduItem.locator('.el-form-item:has-text("学习形式") .el-select').first().click()
-    await page.getByRole('option', { name: '全日制' }).click()
+    await page.getByRole('option', { name: '全日制', exact: true }).click()
     await eduItem.locator('.el-form-item:has-text("专业") input').first().fill('计算机')
 
     // Tab 3 证书与职称（按蓝图“可暂不填，后续补充” —— 不添加任何证书行）

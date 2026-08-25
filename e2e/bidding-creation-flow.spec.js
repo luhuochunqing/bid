@@ -42,7 +42,7 @@ async function loginAsRole(page, roleProfile) {
     const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
     const session = await ensureApiSession({
       username: `e2e_${roleProfile}_${suffix}`,
-      role: '/bidAdmin',
+      role: roleProfile,
       fullName: `E2E ${roleProfile}`,
     })
     await injectSession(page, session)
@@ -104,11 +104,20 @@ async function injectBiddingAdminSession(page) {
   }
   await injectSession(page, adminSession)
 
+  // H13 路由守卫 restoreSession 会调 /api/auth/me（fake cookie 401 → 踢回登录页），需一并 mock
+  await mockAuthRestore(page, adminSession.user)
+
   await page.route('**/api/bidding**', route => route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({ success: true, data: { list: [], total: 0 } })
   }))
+}
+
+async function mockAuthRestore(page, user) {
+  const sessionBody = JSON.stringify({ success: true, code: 200, data: user })
+  await page.route('**/api/auth/me', route => route.fulfill({ status: 200, contentType: 'application/json', body: sessionBody }))
+  await page.route('**/api/auth/refresh', route => route.fulfill({ status: 200, contentType: 'application/json', body: sessionBody }))
 }
 
 /**
@@ -128,6 +137,8 @@ async function injectBiddingSalesSession(page) {
     }
   }
   await injectSession(page, salesSession)
+
+  await mockAuthRestore(page, salesSession.user)
 
   await page.route('**/api/bidding**', route => route.fulfill({
     status: 200,
@@ -241,72 +252,56 @@ test.describe('§标讯中心-创建 — 创建入口权限矩阵', () => {
 // §标讯中心-创建 — 人工录入（已有部分覆盖，此处补充完整流程 + 异常）
 // ---------------------------------------------------------------------------
 test.describe('§标讯中心-创建 — 人工单条录入', () => {
-  // A1 系列补充：人工单条录入（蓝图基础能力，之前长期空白）
-  // 采用注入模式以应对当前会话 rate limit。
-  // 参考实现：ManualTenderDialog.vue + useManualTenderCreate + AdaptiveFormPage (scope="tender.entry")
-  // 未来干净环境可切换为真实 auth + 更完整的端到端断言。
+  // 创建表单已按 tender.entry schema 重排（同 tender-manual-create.spec.js 的对齐结论）：
+  // 必填=项目名称/招标主体/总部所在地/客户类型/优先级/项目类型/两个时间/联系人；
+  // 日期 fill 后需 Enter；下拉用 label 定位 + :visible 选项。
+
+  async function fillRequiredTenderForm(page, purchaser) {
+    const formItemByLabel = (label) => page.locator('.el-form-item').filter({ has: page.locator('.el-form-item__label').filter({ hasText: label }) })
+    await page.locator('input[placeholder="请输入项目名称"]').first().fill(`E2E-人工单条-${purchaser.slice(-13)}`)
+    await page.locator('input[placeholder="请输入招标主体"]').fill(purchaser)
+    await page.locator('input[placeholder="联系人姓名"]').first().fill('E2E联系人张三')
+    await page.locator('input[placeholder="手机号"]').first().fill('13800138000')
+
+    await formItemByLabel('总部所在地').locator('.el-cascader').click()
+    await page.locator('.el-cascader-panel .el-cascader-menu').nth(0).locator('.el-cascader-node').filter({ hasText: '北京市' }).first().click()
+    await page.locator('.el-cascader-panel .el-cascader-menu').nth(1).locator('.el-cascader-node').filter({ hasText: '北京市' }).first().click()
+
+    await formItemByLabel('客户类型').locator('.el-select').click()
+    await page.locator('.el-select-dropdown:visible .el-select-dropdown__item').filter({ hasText: '央企' }).first().click()
+    await formItemByLabel('优先级').locator('.el-select').click()
+    await page.locator('.el-select-dropdown:visible .el-select-dropdown__item').filter({ hasText: 'A 级' }).first().click()
+    await formItemByLabel('项目类型').locator('.el-select').click()
+    await page.locator('.el-select-dropdown:visible .el-select-dropdown__item').filter({ hasText: '工业品' }).first().click()
+
+    const deadlineInput = page.locator('input[placeholder="选择报名截止时间"]')
+    await deadlineInput.click()
+    await deadlineInput.fill('2026-12-25 17:00')
+    await deadlineInput.press('Enter')
+    const bidOpenInput = page.locator('input[placeholder="选择开标时间"]')
+    await bidOpenInput.click()
+    await bidOpenInput.fill('2026-12-31 09:30')
+    await bidOpenInput.press('Enter')
+  }
 
   test('bid_admin 成功手动录入标讯（必填字段 + 去重）', async ({ page }) => {
-    // 注入有创建权限的 admin 会话（当前会话 rate limit 下的务实做法）
-    await injectBiddingAdminSession(page)
+    await loginAsRole(page, '/bidAdmin')
 
-    // 直接进入新建标讯页面（当前“人工录入”按钮的活路径 = TenderCreatePage）
-    // 注：ManualTenderDialog（含 AdaptiveFormPage + fallback）虽存在但入口未完全连通（见 implementation-notes）
-    // 蓝图要求的“人工单条录入”创建方式 + 表单填写
     await page.goto('/bidding/create')
-    await page.waitForSelector('.el-form, [class*="create"], input[placeholder*="招标"]', { timeout: 12000 }).catch(() => {})
+    await expect(page.locator('.el-form').first()).toBeVisible({ timeout: 15000 })
 
-    // 等待核心表单渲染（兼容硬编码表单与未来可能的动态表单）
-    await expect(page.locator('.el-form').first()).toBeVisible({ timeout: 8000 }).catch(() => {})
+    // 招标主体带时间戳：去重四元组含固定日期，重复运行会撞「已存在」拦截
+    const purchaser = `E2E 测试招标主体_${Date.now()}`
+    await fillRequiredTenderForm(page, purchaser)
 
-    // ========== 表单填写（尽量补实，基于 fallback 常见交互 + AdaptiveFormPage 模式）==========
-    // 采用宽松 label/ placeholder 策略，最大程度覆盖 TenderCreatePage + ManualTenderDialog fallback
-    // 所有填写均容错，注入模式下字段缺失不阻断（真实端到端已在干净环境验证通过）
-    const uniqueTitle = `E2E-人工单条-${Date.now()}`
+    // 提交（真实链路：后端入库 → 成功提示 → 跳转详情）
+    // 注意不要用 .first()：TenderActionBar 渲染桌面/移动两个保存按钮，first 会命中隐藏的那个
+    const saveBtn = page.getByRole('button', { name: '保存' })
+    await expect(saveBtn).toBeEnabled({ timeout: 10000 })
+    await saveBtn.click()
 
-    // 核心必填（标题/招标主体/时间/地区/类型/优先级）
-    await fillTenderFieldSmart(page, ['标讯标题', '项目名称', '标题'], uniqueTitle)
-    await fillTenderFieldSmart(page, ['招标主体', '招标机构', '招标代理'], 'E2E 测试招标主体有限公司')
-    await fillTenderFieldSmart(page, ['总部所在地', '地区'], '北京')
-
-    // 日期（fill 策略，参考 tender-manual-create.spec.js 成功实践）
-    await fillTenderDateSmart(page, ['报名截止时间', '截止时间'], '2026-12-31 17:00:00')
-    await fillTenderDateSmart(page, ['开标时间'], '2026-12-25 09:30:00')
-
-    // 客户类型 / 优先级（select）
-    await selectTenderOptionSmart(page, ['客户类型'], '央企集团')
-    await selectTenderOptionSmart(page, ['优先级'], 'A')
-
-    // 预算（input-number 特殊处理：作用于内部 input）
-    const budgetInput = page.locator('input[placeholder*="预算"], input.el-input__inner').first()
-    await budgetInput.fill('1234567.89').catch(() => {})
-
-    // 联系人全族（补实多字段）
-    await fillTenderFieldSmart(page, ['联系人', '联系人1'], 'E2E联系人张三')
-    await fillTenderFieldSmart(page, ['联系人1手机号', '手机号', '联系方式'], '13800138000')
-    await fillTenderFieldSmart(page, ['联系人1座机'], '010-88888888')
-    await fillTenderFieldSmart(page, ['联系人1邮箱', '邮箱'], 'e2e@example.com')
-
-    await fillTenderFieldSmart(page, ['联系人2'], 'E2E联系人李四')
-    await fillTenderFieldSmart(page, ['联系人2手机号'], '13900139000')
-
-    // 其他可选字段（演示完整性）
-    await fillTenderFieldSmart(page, ['项目描述', '描述'], 'E2E 人工单条录入测试数据 - 包含必填 + 去重前置条件 + 多联系人')
-    await fillTenderFieldSmart(page, ['粘贴识别'], '测试粘贴文本：项目背景...')
-
-    // 项目类型 / 来源平台（若存在）
-    await selectTenderOptionSmart(page, ['项目类型'], '公开招标')
-    await selectTenderOptionSmart(page, ['来源平台'], '人工录入')
-
-    // ========== 提交 ==========
-    const saveBtn = page.getByRole('button', { name: /保存|提交|确定|入库/i }).first()
-    await saveBtn.click().catch(() => {})
-
-    // 核心断言（弱化，适应注入）：成功消息或跳转详情或表单消失
-    // 蓝图 happy path：必填齐全 → 前端通过 → 提交 → 后端入库（真实链路已在干净环境多次跑通）
-    await expect(page.getByText(/保存成功|提交成功|录入成功|成功/i)).toBeVisible({ timeout: 10000 }).catch(() => {})
-    // 额外容错：URL 可能跳转到 /bidding/detail/xxx
-    await expect(page).toHaveURL(/bidding\/(detail|create)/, { timeout: 8000 }).catch(() => {})
+    await expect(page.locator('.el-message--success')).toBeVisible({ timeout: 15000 })
+    await expect(page).toHaveURL(/\/bidding\/\d+$/, { timeout: 10000 })
   })
 
   test('必填字段缺失时前端拦截 + 明确提示', async ({ page }) => {

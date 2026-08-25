@@ -131,10 +131,11 @@ test.describe('commercial main flow', () => {
     await expect(page.getByText('工作台').first()).toBeVisible()
 
     await page.goto('/project')
-    await expect(page.locator('.card-header .title').filter({ hasText: '投标项目列表' })).toBeVisible()
-    await page.getByPlaceholder('请输入项目名称').fill(seeded.projectName)
+    // 搜索区已重构为 ProjectSearchCard（关键词占位符变更）
+    await expect(page.locator('.project-search-form')).toBeVisible()
+    await page.getByPlaceholder('搜索项目名称、招标主体').fill(seeded.projectName)
     await page.getByRole('button', { name: '搜索' }).click()
-    await expect(page.getByText(seeded.projectName).first()).toBeVisible()
+    await expect(page.getByText(seeded.projectName).first()).toBeVisible({ timeout: 10000 })
 
     // 案例数据已通过 seedCommercialData 创建成功 (casePayload?.data?.id 已验证)  // @ui-cover:project,resource,dashboard
     // 验证案例已在 DB 中持久化（GET /api/knowledge/cases 可能因路由缺失返回 500）
@@ -157,7 +158,8 @@ test.describe('commercial main flow', () => {
 
     await page.goto('/analytics/dashboard')
     await expect(page.getByRole('heading', { name: '数据分析' })).toBeVisible()
-    await expect(page.getByText('中标率趋势')).toBeVisible()
+    // M0~M4 重构后的板块锚点
+    await expect(page.getByText('多维度趋势分析')).toBeVisible()
   })
 
   test.fixme('project detail collaboration dialogs open on real project route', async ({ page }) => {

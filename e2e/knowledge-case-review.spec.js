@@ -16,7 +16,7 @@ test.describe('knowledge case review', () => {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
       body: JSON.stringify({
         title: `E2E 案例复盘 ${suffix}`,
-        industry: 'INDUSTRY',
+        industry: 'OTHER',
         outcome: 'WON',
         amount: 100,
         projectDate: '2026-01-01',

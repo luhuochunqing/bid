@@ -27,13 +27,14 @@ test.describe('§4.1.1.1 项目档案 (蓝图一图一验证)', () => {
     await expect(page.getByRole('button', { name: /导出文件包/ })).toBeVisible()
 
     // 筛选维度（蓝图列出的）
-    await expect(page.getByText('项目名称')).toBeVisible()
-    await expect(page.getByText('文档分类')).toBeVisible()
-    await expect(page.getByText('项目负责人')).toBeVisible()
-    await expect(page.getByText('投标负责人')).toBeVisible()
-    await expect(page.getByText('上传时间|结项时间')).toBeVisible()
-    await expect(page.getByText('项目状态')).toBeVisible()
-    await expect(page.getByText('项目类型')).toBeVisible()
+    await expect(page.getByText('项目名称').first()).toBeVisible()
+    await expect(page.getByText('文档分类').first()).toBeVisible()
+    await expect(page.getByText('项目负责人').first()).toBeVisible()
+    await expect(page.getByText('投标负责人').first()).toBeVisible()
+    await expect(page.getByText('上传时间').first()).toBeVisible()
+    await expect(page.getByText('归档时间').first()).toBeVisible()
+    await expect(page.getByText('项目状态').first()).toBeVisible()
+    await expect(page.getByText('项目类型').first()).toBeVisible()
 
     // 文档分类选项应包含蓝图5个（多选）
     const catSelect = page.locator('label:has-text("文档分类") + * .el-select, .el-select:has-text("文档分类")')
@@ -42,10 +43,10 @@ test.describe('§4.1.1.1 项目档案 (蓝图一图一验证)', () => {
     await expect(page.getByRole('option', { name: '开标一览表' })).toBeVisible({ timeout: 5000 }).catch(() => {})
 
     // 列表表头（蓝图展示字段）
-    await expect(page.getByText('项目名称')).toBeVisible()
-    await expect(page.getByText('归档文件数')).toBeVisible()
-    await expect(page.getByText('归档时间')).toBeVisible()
-    await expect(page.getByText('操作')).toBeVisible()
+    await expect(page.getByText('项目名称').first()).toBeVisible()
+    await expect(page.getByText('归档文件数').first()).toBeVisible()
+    await expect(page.getByText('归档时间').first()).toBeVisible()
+    await expect(page.getByText('操作').first()).toBeVisible()
   })
 
   test('项目档案详情抽屉布局与操作日志（只读 + 预览下载）', async ({ page }) => {

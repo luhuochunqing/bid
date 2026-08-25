@@ -35,8 +35,12 @@ async function seedBiddingTender(session, suffix) {
       status: 'TRACKING',
       aiScore: 91,
       riskLevel: 'LOW',
-      region: '华东',
+      region: '北京市北京市',
       industry: '政府',
+      purchaserName: `E2E 主链路主体_${suffix}`,
+      customerType: '央企',
+      priority: 'A',
+      projectType: '工业品',
     }),
   })
 
@@ -78,7 +82,8 @@ test.describe('bidding list detail ai flow', () => {
     await expect(page.getByText("项目部门").first()).toBeVisible()
     // 验证"投标负责人"列已从列表移除（详情页仍保留）
 
-    await page.getByRole('menuitem', { name: '标讯中心' }).click()
+    // 侧边栏无"标讯中心"顶级菜单项（入口在工作台快捷区），直接回列表页
+    await page.goto('/bidding')
     await expect(page).toHaveURL(/\/bidding$/)
 
     const refreshedRow = page.locator('.el-table__row', { hasText: tender.title }).first()

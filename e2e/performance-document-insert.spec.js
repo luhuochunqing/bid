@@ -86,9 +86,10 @@ test.describe('业绩一键插入标书编辑器', () => {
     await page.locator('.el-dialog input[placeholder*="西域对接本项目的负责人"]').fill('王测试')
 
     await page.locator('.el-dialog .el-tabs__item:has-text("附件资料")').click()
-    const ar = page.locator('.el-dialog .attachment-row')
-    await ar.nth(0).locator('input').nth(0).fill('合同.pdf')
-    await ar.nth(0).locator('input').nth(1).fill('http://dummy-oss.com/c.pdf')
+    // CO-442: 附件区为真实上传（el-upload -> /attachments/upload），setInputFiles 注入
+    const contractInput = page.locator('.el-dialog .attachment-row:has-text("合同协议") input[type=file]')
+    await contractInput.setInputFiles({ name: '合同.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 e2e') })
+    await expect(page.locator('.el-dialog .attachment-row:has-text("合同协议") .file-item:has-text("合同.pdf")')).toBeVisible({ timeout: 10000 })
 
     await page.getByRole('button', { name: '保存档案' }).click()
     await expect(page.locator('.el-dialog')).toBeHidden({ timeout: 5000 })

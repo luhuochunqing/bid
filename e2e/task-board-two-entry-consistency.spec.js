@@ -90,13 +90,17 @@ async function createTaskForUser(session, projectId, targetUserId, name) {
 async function loginAsDemoUser(page, username, password = '123456') {
   // CO-361: 用 E2eDemoDataInitializer 提供的 demo 用户登录。
   // demo 账号密码统一 123456（见 CLAUDE.md §默认登录凭据）。
-  const response = await page.request.post(`${apiBaseUrl}/api/auth/login`, {
-    data: { username, password },
+  // H13: access token 走 HttpOnly Set-Cookie（body.token=null）
+  const response = await fetch(`${apiBaseUrl}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
   })
   const payload = await response.json()
   expect(payload?.success, `${username} login should succeed`).toBeTruthy()
-  expect(payload?.data?.token).toBeTruthy()
-  const token = payload.data.token
+  const setCookie = response.headers.get('set-cookie') || ''
+  const token = setCookie.match(/access_token=([^;]+)/)?.[1]
+  expect(token, `${username} login should set access_token cookie`).toBeTruthy()
   const user = payload.data
   await page.context().addCookies([
     { name: 'access_token', value: token, url: apiBaseUrl, httpOnly: true, sameSite: 'Lax' },

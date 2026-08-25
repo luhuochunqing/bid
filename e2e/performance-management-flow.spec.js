@@ -11,6 +11,18 @@ async function loginAs(page, role) {
   await injectSession(page, s); return s
 }
 
+// CO-442: 附件区改为真实上传（el-upload -> POST /attachments/upload），
+// 通过隐藏 input[type=file] 注入内存文件，等待后端返回 fileUrl 并回显到列表
+async function uploadAttachment(page, label, fileName) {
+  const row = page.locator(`.el-dialog .attachment-row:has-text("${label}")`)
+  await row.locator('input[type=file]').setInputFiles({
+    name: fileName,
+    mimeType: fileName.endsWith('.png') ? 'image/png' : 'application/pdf',
+    buffer: Buffer.from(`e2e-dummy-${fileName}`)
+  })
+  await expect(row.locator(`.file-item:has-text("${fileName}")`)).toBeVisible({ timeout: 10000 })
+}
+
 test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
 
   test('全生命周期流程：新增(带联动校验) -> 列表 -> 详情(5-Tab) -> 编辑 -> 删除', async ({ page }) => {
@@ -51,7 +63,9 @@ test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
     
     const dates = page.locator('.el-dialog .el-tab-pane:not([style*="display: none"]) .el-date-editor .el-input__inner')
     await dates.nth(0).fill('2026-01-01')
+    await dates.nth(0).press('Enter')
     await dates.nth(1).fill('2028-12-31')
+    await dates.nth(1).press('Enter')
 
     // ── Tab 3: 客户信息 ──
     await page.locator('.el-dialog .el-tabs__item:has-text("客户信息")').click()
@@ -63,33 +77,28 @@ test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
 
     // ── Tab 4: 附件资料 (验证联动校验) ──
     await page.locator('.el-dialog .el-tabs__item:has-text("附件资料")').click()
-    await expect(page.locator('.el-dialog .attachment-row').first()).toBeVisible({ timeout: 3000 })
-    
+    await expect(page.locator('.el-dialog .attachment-row:has-text("合同协议")')).toBeVisible({ timeout: 3000 })
+
     // 不填入任何附件，点击保存，应被阻断并提示【合同协议】必填
     await page.getByRole('button', { name: '保存档案' }).click()
     await expect(page.locator('.el-message--warning:has-text("合同协议")').first()).toBeVisible({ timeout: 3000 })
 
-    // 录入合同协议链接
-    const attachmentRows = page.locator('.el-dialog .attachment-row')
-    // 第一个 row 是合同协议
-    await attachmentRows.nth(0).locator('input').nth(0).fill('设备买卖合同协议.pdf')
-    await attachmentRows.nth(0).locator('input').nth(1).fill('http://dummy-oss.com/contracts/101.pdf')
+    // 上传合同协议
+    await uploadAttachment(page, '合同协议', '设备买卖合同协议.pdf')
 
-    // 再次保存，因为客户类型是“央企”，会被联动校验阻断，提示【央企名录】与【关系证明】必填
+    // 再次保存，因为客户类型是"央企"，会被联动校验阻断，提示【央企名录】与【关系证明】必填
     await page.getByRole('button', { name: '保存档案' }).click()
     await expect(page.locator('.el-message--warning:has-text("央企名录")').first()).toBeVisible({ timeout: 3000 })
 
-    // 填入央企名录
-    await attachmentRows.nth(2).locator('input').nth(0).fill('国资委央企名录截图.png')
-    await attachmentRows.nth(2).locator('input').nth(1).fill('http://dummy-oss.com/proof/soe_list.png')
+    // 上传央企名录
+    await uploadAttachment(page, '央企名录', '国资委央企名录截图.png')
 
     // 再次保存，仍然会被阻断提示【关系证明】必填
     await page.getByRole('button', { name: '保存档案' }).click()
     await expect(page.locator('.el-message--warning:has-text("关系证明")').first()).toBeVisible({ timeout: 3000 })
 
-    // 填入关系证明
-    await attachmentRows.nth(3).locator('input').nth(0).fill('关系证明.pdf')
-    await attachmentRows.nth(3).locator('input').nth(1).fill('http://dummy-oss.com/proof/rel.pdf')
+    // 上传关系证明
+    await uploadAttachment(page, '关系证明', '关系证明.pdf')
 
     // 保存档案
     await page.getByRole('button', { name: '保存档案' }).click()
@@ -116,12 +125,12 @@ test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
     const detailAttachmentRows = page.locator('.el-drawer .attachment-detail-list .el-table__body tr')
     await expect(detailAttachmentRows).toHaveCount(3, { timeout: 3000 })
 
-    // 验证每行包含下载链接且 href 非空
+    // 验证每行包含可用的下载入口（CO-442 起为点击触发 blob 下载，href 不再承载真实地址）
     const downloadLinks = page.locator('.el-drawer .attachment-detail-list .el-table__body tr a.link-url')
     await expect(downloadLinks).toHaveCount(3)
     for (const link of await downloadLinks.all()) {
-      const href = await link.getAttribute('href')
-      expect(href).toMatch(/^https?:\/\/.+/)
+      await expect(link).toBeVisible()
+      await expect(link).toHaveText('查看/下载附件')
     }
 
     // 验证文件类型标签文本正确
@@ -213,7 +222,7 @@ test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
 
     // 验证导入导出按钮已启用
     const importBtn = page.getByRole('button', { name: '批量导入' })
-    const exportBtn = page.getByRole('button', { name: '导出' })
+    const exportBtn = page.getByRole('button', { name: '导出', exact: true })
     await expect(importBtn).toBeVisible({ timeout: 8000 })
     await expect(exportBtn).toBeVisible()
     await expect(importBtn).toBeEnabled()
@@ -223,13 +232,13 @@ test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
     await importBtn.click()
     await expect(page.locator('.el-dialog:has-text("批量导入业绩")')).toBeVisible({ timeout: 3000 })
 
-    // 验证步骤条
-    await expect(page.locator('.el-dialog .el-steps')).toBeVisible()
+    // 验证导入说明提示（CO-442 起步骤条替换为 alert 提示 + 模板链接）
+    await expect(page.locator('.el-dialog .el-alert__title:has-text("请按模板填写 Excel 上传")')).toBeVisible()
 
-    // 点击下载模板
+    // 点击下载模板（el-link 触发 blob 下载）
     const [download] = await Promise.all([
       page.waitForEvent('download'),
-      page.locator('.el-dialog .el-button:has-text("下载模板")').click()
+      page.locator('.el-dialog .el-link:has-text("下载导入模板")').click()
     ])
     expect(download.suggestedFilename()).toContain('performance_template')
 
@@ -243,13 +252,16 @@ test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
     await expect(page.locator('.el-message--success:has-text("导出成功")')).toBeVisible({ timeout: 8000 })
 
     // 验证 ZIP 导出（含附件）下拉菜单
-    const exportDropdown = page.locator('.export-dropdown')
-    await exportDropdown.locator('.el-dropdown__caret-button').click()
+    const exportCaretBtn = page.locator('.kb-header-actions .el-dropdown .el-dropdown__caret-button')
+    await exportCaretBtn.click()
     await expect(page.locator('.el-dropdown-menu:visible')).toBeVisible({ timeout: 3000 })
     await expect(page.locator('.el-dropdown-menu__item:has-text("导出 ZIP（含附件）")')).toBeVisible()
 
-    // 点击 ZIP 导出
+    // 点击 ZIP 导出 -> 打开配置对话框 -> 确认导出
     await page.locator('.el-dropdown-menu__item:has-text("导出 ZIP（含附件）")').click()
+    const zipDialog = page.locator('.el-dialog:has-text("导出 ZIP 配置")')
+    await expect(zipDialog).toBeVisible({ timeout: 3000 })
+    await zipDialog.locator('.el-button:has-text("确认导出")').click()
     await expect(page.locator('.el-message--success:has-text("ZIP 导出成功")')).toBeVisible({ timeout: 15000 })
   })
 
@@ -274,7 +286,9 @@ test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
     await page.locator('.el-dialog .el-tabs__item:has-text("关键日期")').click()
     const d = page.locator('.el-dialog .el-tab-pane:not([style*="display: none"]) .el-date-editor .el-input__inner')
     await d.nth(0).fill('2026-01-01')
+    await d.nth(0).press('Enter')
     await d.nth(1).fill('2026-12-31')
+    await d.nth(1).press('Enter')
     await page.locator('.el-dialog .el-tabs__item:has-text("客户信息")').click()
     await page.locator('.el-dialog input[placeholder*="姓名（职务）"]').fill('张测试')
     await page.locator('.el-dialog input[placeholder*="手机/座机/邮箱"]').fill('13800000000')
@@ -282,9 +296,7 @@ test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
     await page.locator('.el-dialog input[placeholder*="详细的联系寄送地址"]').fill('天河区测试地址')
     await page.locator('.el-dialog input[placeholder*="西域对接本项目的负责人"]').fill('李测试')
     await page.locator('.el-dialog .el-tabs__item:has-text("附件资料")').click()
-    const ar = page.locator('.el-dialog .attachment-row')
-    await ar.nth(0).locator('input').nth(0).fill('合同.pdf')
-    await ar.nth(0).locator('input').nth(1).fill('http://dummy-oss.com/c.pdf')
+    await uploadAttachment(page, '合同协议', '合同.pdf')
     await page.getByRole('button', { name: '保存档案' }).click()
     await expect(page.locator('.el-dialog')).toBeHidden({ timeout: 5000 })
 
@@ -309,7 +321,7 @@ test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
     // 切换到操作日志 Tab
     await page.locator('.el-drawer .el-tabs__item:has-text("操作日志")').click()
     // 验证操作日志区域渲染（有数据或无数据状态均可）
-    await expect(page.locator('.el-drawer .logs-pane')).toBeVisible({ timeout: 3000 })
+    await expect(page.locator('.el-drawer .perf-log-timeline')).toBeVisible({ timeout: 3000 })
 
     // 关闭抽屉
     await page.locator('.el-drawer__close-btn').click()
@@ -346,7 +358,9 @@ test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
     await page.locator('.el-dialog .el-tabs__item:has-text("关键日期")').click()
     const dates = page.locator('.el-dialog .el-tab-pane:not([style*="display: none"]) .el-date-editor .el-input__inner')
     await dates.nth(0).fill('2026-01-01')
+    await dates.nth(0).press('Enter')
     await dates.nth(1).fill('2026-12-31')
+    await dates.nth(1).press('Enter')
 
     await page.locator('.el-dialog .el-tabs__item:has-text("客户信息")').click()
     await page.locator('.el-dialog input[placeholder*="姓名（职务）"]').fill('张专员')
@@ -356,13 +370,9 @@ test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
     await page.locator('.el-dialog input[placeholder*="西域对接本项目的负责人"]').fill('李项目')
 
     await page.locator('.el-dialog .el-tabs__item:has-text("附件资料")').click()
-    const attachmentRows = page.locator('.el-dialog .attachment-row')
-    await attachmentRows.nth(0).locator('input').nth(0).fill('设备买卖合同协议.pdf')
-    await attachmentRows.nth(0).locator('input').nth(1).fill('http://dummy-oss.com/contracts/101.pdf')
-    await attachmentRows.nth(2).locator('input').nth(0).fill('国资委央企名录截图.png')
-    await attachmentRows.nth(2).locator('input').nth(1).fill('http://dummy-oss.com/proof/soe_list.png')
-    await attachmentRows.nth(3).locator('input').nth(0).fill('关系证明.pdf')
-    await attachmentRows.nth(3).locator('input').nth(1).fill('http://dummy-oss.com/proof/rel.pdf')
+    await uploadAttachment(page, '合同协议', '设备买卖合同协议.pdf')
+    await uploadAttachment(page, '央企名录', '国资委央企名录截图.png')
+    await uploadAttachment(page, '关系证明', '关系证明.pdf')
 
     await page.getByRole('button', { name: '保存档案' }).click()
     await expect(page.locator('.el-dialog')).toBeHidden({ timeout: 5000 })
@@ -381,7 +391,7 @@ test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
     await contractRow.click()
     await page.waitForSelector('.el-drawer', { timeout: 5000 })
     await page.locator('.el-drawer .el-tabs__item:has-text("操作日志")').click()
-    await expect(page.locator('.el-drawer .logs-pane')).toBeVisible({ timeout: 3000 })
+    await expect(page.locator('.el-drawer .perf-log-timeline')).toBeVisible({ timeout: 3000 })
 
     // 4. 验证时间线（审计日志可能有数据也可能为空，两者都是合法状态）
     const timelineItems = page.locator('.el-drawer .el-timeline-item')
@@ -396,7 +406,7 @@ test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
       await expect(firstNode).toBeVisible()
     } else {
       // 审计日志为空时验证 el-empty 组件存在
-      await expect(page.locator('.el-drawer .logs-pane .el-empty')).toBeVisible()
+      await expect(page.locator('.el-drawer .perf-log-timeline .el-empty')).toBeVisible()
     }
 
     // 7. 回收清理
@@ -435,7 +445,9 @@ test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
     await page.locator('.el-dialog .el-tabs__item:has-text("关键日期")').click()
     const dates = page.locator('.el-dialog .el-tab-pane:not([style*="display: none"]) .el-date-editor .el-input__inner')
     await dates.nth(0).fill('2026-01-01')
+    await dates.nth(0).press('Enter')
     await dates.nth(1).fill('2026-12-31') // 正常范围
+    await dates.nth(1).press('Enter')
 
     await page.locator('.el-dialog .el-tabs__item:has-text("客户信息")').click()
     await page.locator('.el-dialog input[placeholder*="姓名（职务）"]').fill('张专员')
@@ -445,13 +457,9 @@ test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
     await page.locator('.el-dialog input[placeholder*="西域对接本项目的负责人"]').fill('李项目')
 
     await page.locator('.el-dialog .el-tabs__item:has-text("附件资料")').click()
-    const attachmentRows = page.locator('.el-dialog .attachment-row')
-    await attachmentRows.nth(0).locator('input').nth(0).fill('设备买卖合同协议.pdf')
-    await attachmentRows.nth(0).locator('input').nth(1).fill('http://dummy-oss.com/contracts/101.pdf')
-    await attachmentRows.nth(2).locator('input').nth(0).fill('国资委央企名录截图.png')
-    await attachmentRows.nth(2).locator('input').nth(1).fill('http://dummy-oss.com/proof/soe_list.png')
-    await attachmentRows.nth(3).locator('input').nth(0).fill('关系证明.pdf')
-    await attachmentRows.nth(3).locator('input').nth(1).fill('http://dummy-oss.com/proof/rel.pdf')
+    await uploadAttachment(page, '合同协议', '设备买卖合同协议.pdf')
+    await uploadAttachment(page, '央企名录', '国资委央企名录截图.png')
+    await uploadAttachment(page, '关系证明', '关系证明.pdf')
 
     await page.getByRole('button', { name: '保存档案' }).click()
     await expect(page.locator('.el-dialog')).toBeHidden({ timeout: 5000 })
@@ -464,11 +472,13 @@ test.describe('§4.5 业绩管理 — 蓝图全功能 E2E 验证', () => {
     // 修改截止日期早于签约日期
     await page.locator('.el-dialog .el-tabs__item:has-text("关键日期")').click()
     await dates.nth(1).fill('2025-12-31') // 早于 2026-01-01
+    await dates.nth(1).press('Enter')
     await page.getByRole('button', { name: '保存档案' }).click()
     await expect(page.locator('.el-message--warning:has-text("截止日期必须晚于签约日期")').first()).toBeVisible({ timeout: 3000 })
 
     // 恢复正常日期范围
     await dates.nth(1).fill('2026-12-31')
+    await dates.nth(1).press('Enter')
 
     // 3. 测试联系方式格式错误拦截
     await page.locator('.el-dialog .el-tabs__item:has-text("客户信息")').click()
