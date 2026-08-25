@@ -66,6 +66,9 @@ public class RoutingAiProvider implements AiProvider {
     @Override
     public float[] embed(String text) {
         AiProviderRuntimeConfig config = resolveActiveConfig();
+        if (config == null) {
+            return mockAiProvider.embed(text);
+        }
         if ("deepseek".equals(config.providerCode())) {
             return noopEmbeddingClient.embed(config, text);
         }
