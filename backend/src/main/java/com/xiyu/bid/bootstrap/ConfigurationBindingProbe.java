@@ -45,8 +45,15 @@ public class ConfigurationBindingProbe implements ApplicationRunner {
         List<String> misaligned = new ArrayList<>();
 
         for (ConfigurationPropertiesBean bean : ConfigurationPropertiesBean.getAll(context).values()) {
-            if (!isBound(binder, bean.getName())) {
-                misaligned.add(bean.getName());
+            String prefix = bean.getAnnotation().prefix();
+            if (prefix.isEmpty()) {
+                prefix = bean.getAnnotation().value();
+            }
+            if (prefix.isEmpty()) {
+                continue;
+            }
+            if (!isBound(binder, prefix)) {
+                misaligned.add(bean.getName() + " (prefix=" + prefix + ")");
             }
         }
 
