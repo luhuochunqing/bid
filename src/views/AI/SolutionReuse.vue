@@ -14,11 +14,7 @@
           <el-form-item label="行业">
             <el-select v-model="searchForm.industry" placeholder="选择行业" clearable style="width: 160px">
               <el-option label="全部" value="" />
-              <el-option label="工业电商" value="INDUSTRY" />
-              <el-option label="政府" value="GOVERNMENT" />
-              <el-option label="医疗" value="MEDICAL" />
-              <el-option label="教育" value="EDUCATION" />
-              <el-option label="金融" value="FINANCE" />
+              <el-option v-for="(label, value) in INDUSTRY_LABELS" :key="value" :label="label" :value="value" />
             </el-select>
           </el-form-item>
           <el-form-item label="项目类型">
@@ -51,7 +47,6 @@
         <el-card v-for="solution in results" :key="solution.id" class="solution-card" @click="openDetail(solution)">
           <div class="solution-header">
             <h3 class="solution-name">{{ solution.name }}</h3>
-            <el-tag :type="solution.matchScore >= 80 ? 'success' : solution.matchScore >= 60 ? 'warning' : 'info'" size="small">匹配 {{ solution.matchScore }}%</el-tag>
           </div>
           <div class="solution-meta">
             <span>来源项目：{{ solution.projectName }}</span>
@@ -81,6 +76,18 @@ const searched = ref(false)
 const drawerVisible = ref(false)
 const selectedSolution = ref(null)
 
+// 与后端 CaseDTO.Industry 枚举一一对应（REAL_ESTATE 等）；
+// 后端序列化枚举名，前端负责展示名映射，筛选值也必须用枚举名（否则 Spring 枚举转换 400）。
+const INDUSTRY_LABELS = {
+  REAL_ESTATE: '房地产',
+  INFRASTRUCTURE: '基础设施',
+  MANUFACTURING: '制造业',
+  ENERGY: '能源',
+  TRANSPORTATION: '交通运输',
+  ENVIRONMENTAL: '环保',
+  OTHER: '其他'
+}
+
 const handleSearch = async () => {
   loading.value = true; error.value = ''; searched.value = true
   try {
@@ -101,12 +108,13 @@ const handleSearch = async () => {
     if (content.length) {
       results.value = content.map(item => ({
         id: item.id, name: item.title || '未命名方案',
-        projectName: item.customerName || '未知项目', industry: item.industry || '未分类',
+        projectName: item.customerName || '未知项目',
+        industry: INDUSTRY_LABELS[item.industry] || item.industry || '未分类',
         date: item.projectDate || item.createdAt || '未知日期',
         description: item.description || item.highlights?.join('; ') || '',
-        matchScore: Math.min(100, Math.floor(Math.random() * 40) + 60),
         content: item.content || item.description || '',
-        sourceProject: item.sourceProject || item.customerName || ''
+        sourceProject: item.sourceProject || item.customerName || '',
+        useCount: item.useCount ?? null
       }))
     } else if (data?.status === 401) { error.value = '请先登录后再搜索' }
     else { results.value = [] }
