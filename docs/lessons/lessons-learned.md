@@ -2728,3 +2728,45 @@ nohup npx vite --port 1323 --host 127.0.0.1 < /dev/null > /tmp/xx.log 2>&1 &
 **教训与规范**：
 - 复杂流程中的业务副作用（如沉淀/分析/生成）触发时机应严格由“数据最小充分就绪点”决定，避免机械地绑定到最末尾的流程终态。
 - 异步沉淀任务由领域事件驱动解耦，不阻塞主流程状态推进；落库前保持评分项级别的幂等去重（`uk_source_proj_scoring_point`）。
+
+---
+
+## 156. 报价评分跨页截断专项评审修复（2026-08-25）
+
+### 问题背景
+
+PR !2399 报价评分截断治理提交后，经严格评审发现 2 个 CRITICAL 和 4 个 MAJOR 问题：
+1. `converter.py` 的跨页表合并启发式过于宽松（"空首格+无评分词即合并"），在全局路径上会把语义无关的表拼接成畸形表，且只支持成对合并导致 3 页以上长表仍截断；
+2. `OpenAiScoreAnalyzer.filterRelevantChunks` 邻近扩展原地修改布尔数组导致链式传播，表格密集文档退化为全量召回；
+3. `ScoreItemMergePolicy` 报价跨 chunk 拼合未做行去重与长度上界防护；
+4. `MarkdownScoreSectionLocator` 孤立块以长度判定过于宽松；
+5. `ScoringItemExtractor` 管道行处理逻辑复杂度过高；
+6. Python/Java 跨语言关键词缺乏自动化 CI 同步校验。
+
+### 根因与修复
+
+1. **跨页合并启发式多信号交集**：删除弱判据，改用「延续块命中报价参数关键词 ∩ 首行管道数=主块主体行众数 ∩ 间隔≤3 空行」多信号交集，并在循环中持续吸收支持跨 3+ 页长表链式合并；
+2. **邻近扩展独立数组**：`filterRelevantChunks` 使用独立 `expanded` 数组，仅相对初始命中扩张一跳，不回写 `isRelevant`；
+3. **按行去重与长度上界**：`ScoreItemMergePolicy` 引入 `PRICE_DETAIL_MAX_CHARS = 6000` 与 `LinkedHashSet` 行级 trim 去重；
+4. **长词计数与上下文差异化**：`MarkdownScoreSectionLocator` 使用 `countDistinctLongParams >= 2`（嵌套词只算一次）收紧孤立块兜底，`CONTEXT_AFTER_LINES` 区分普通项（3 行）与报价项（8 行）；
+5. **管道行分类重构**：`ScoringItemExtractor` 提取 `classifyPipeRow` 降低复杂度，三道判据（别名守卫 → 参数行/主项行区分 → 评分行保留）；
+6. **自动化同步校验**：由 `scripts/check-keyword-sync.mjs`（pre-push §5.6 门禁）保证 Python 与 Java 常量强一致。
+
+### 经验教训
+
+| 问题 | 教训 | 规范 |
+|------|------|------|
+| 全局转换路径上的启发式过于激进 | 影响所有文档解析的通用代码，必须采取保守条件 + 强签名匹配（关键词 + 列数特征），不可用弱假设 | 全局后处理必须有多信号交集与完备的负向用例防护 |
+| 跨模块依赖反转导致循环 slice 违规 | `scoreparse` 已向下依赖 `biddraftagent`，常量下沉至 `biddraftagent.domain` 方可维持单向依赖 | ArchUnit 30 条规则必须在每变前运行验证 |
+| 跨语言代码镜像缺乏自动化门禁 | Python 与 Java 分别维护同名集合极易漂移 | 必须提供自动化比对脚本并在 pre-push 或 CI 中执行 |
+
+### 相关文件
+
+- `backend/src/main/java/com/xiyu/bid/biddraftagent/domain/PriceScoringKeywords.java`
+- `backend/src/main/java/com/xiyu/bid/biddraftagent/infrastructure/openai/ScoringItemExtractor.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreItemMergePolicy.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/structure/MarkdownScoreSectionLocator.java`
+- `backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/openai/OpenAiScoreAnalyzer.java`
+- `document-converter-sidecar/converter.py`
+- `document-converter-sidecar/tests/test_merge_split_price_tables.py`
+- `scripts/check-keyword-sync.mjs`（跨语言关键词契约门禁，挂 pre-push §5.6）

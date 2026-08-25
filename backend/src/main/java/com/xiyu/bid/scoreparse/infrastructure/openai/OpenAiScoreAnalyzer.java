@@ -4,6 +4,7 @@
 // 维护声明: 维护者按项目SOP；spec 041 FR-001 四路召回、FR-005 二次回补；候选映射拆至 ScoreCandidateMapper（2026-08-19 满足 300 行预算）
 package com.xiyu.bid.scoreparse.infrastructure.openai;
 
+import com.xiyu.bid.biddraftagent.domain.PriceScoringKeywords;
 import com.xiyu.bid.biddraftagent.domain.ScoringCriterion;
 import com.xiyu.bid.biddraftagent.infrastructure.openai.MultimodalImage;
 import com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiBidAgentConfigurationResolver;
@@ -61,14 +62,10 @@ public class OpenAiScoreAnalyzer {
     }
 
     /** 进度回调：(progress 0-100, stage 描述) */
-    public interface ProgressReporter extends BiConsumer<Integer, String> {
-    }
+    public interface ProgressReporter extends BiConsumer<Integer, String> {}
 
     /**
      * 四路召回，返回合并前的候选池与跳过 chunk 数（spec 046 US3 可见性）。
-     * @param fullText          招标文件全文
-     * @param structuredMetadata doc-insight 结构化元数据（可为 null）
-     * @param progress          进度回调（可为 null）
      */
     public RecallOutcome recallCandidates(
             String fullText, String structuredMetadata, ProgressReporter progress) {
@@ -110,8 +107,7 @@ public class OpenAiScoreAnalyzer {
     /** 召回三：评分规则专用语义模式（评审办法、评分细则关键区域）提取 */
     private List<ScoreCandidate> recallLane3ScoreSemanticPatterns(String fullText) {
         List<ScoreCandidate> list = new ArrayList<>();
-        List<String> semanticParagraphs = ScoreDocExcerptExtractor.extractSemanticScoreParagraphs(fullText);
-        for (String paragraph : semanticParagraphs) {
+        for (String paragraph : ScoreDocExcerptExtractor.extractSemanticScoreParagraphs(fullText)) {
             for (ScoringCriterion criterion : ScoringItemExtractor.extract(paragraph)) {
                 list.add(ScoreCandidateMapper.fromCriterion(criterion, null));
             }
@@ -121,7 +117,9 @@ public class OpenAiScoreAnalyzer {
     }
 
     private static final Pattern SCORE_CHUNK_KEYWORD_PATTERN = Pattern.compile(
-            "评分|评标|评审|分值|满分|得分|评分项|详细评审|商务标|技术标|综合评估|价格分|商务分|技术分|加分|扣分|分细则");
+            "评分|评标|评审|分值|满分|得分|评分项|详细评审|商务标|技术标|综合评估|价格分|商务分|技术分|加分|扣分|分细则"
+            + "|" + PriceScoringKeywords.SCORE_EXTENSION);
+    private static final Pattern PRICE_PARAM_PATTERN = PriceScoringKeywords.PRICE_PARAM_BLOCK;
 
     /** 召回四：chunk 切片多轮 LLM 全文结构化提取；单 chunk 两连败跳过不阻断 */
     private RecallOutcome recallLane4LlmFullText(
@@ -163,19 +161,36 @@ public class OpenAiScoreAnalyzer {
     }
 
     private List<DocumentChunk> filterRelevantChunks(List<DocumentChunk> allChunks) {
-        if (allChunks.size() <= 4) {
-            return allChunks;
-        }
-        List<DocumentChunk> relevant = new ArrayList<>();
-        for (DocumentChunk chunk : allChunks) {
+        if (allChunks.size() <= 4) return allChunks;
+        boolean[] isRelevant = new boolean[allChunks.size()];
+        int initialRelevant = 0;
+        for (int idx = 0; idx < allChunks.size(); idx++) {
+            DocumentChunk chunk = allChunks.get(idx);
             boolean pathMatches = chunk.sectionPath() != null && chunk.sectionPath().stream()
                     .anyMatch(p -> p != null && SCORE_CHUNK_KEYWORD_PATTERN.matcher(p).find());
-            boolean textMatches = SCORE_CHUNK_KEYWORD_PATTERN.matcher(chunk.text()).find();
-            if (pathMatches || textMatches) {
-                relevant.add(chunk);
+            isRelevant[idx] = pathMatches || SCORE_CHUNK_KEYWORD_PATTERN.matcher(chunk.text()).find()
+                    || PRICE_PARAM_PATTERN.matcher(chunk.text()).find();
+            if (isRelevant[idx]) initialRelevant++;
+        }
+        if (initialRelevant == allChunks.size() || initialRelevant == 0) return allChunks;
+        // 报价参数孤立块邻近扩展：仅相对初始命中数组扩张一跳（isRelevant 不回写），防止表格密集文档链式扩散为全量
+        boolean[] expanded = new boolean[allChunks.size()];
+        for (int idx = 0; idx < allChunks.size(); idx++) {
+            if (isRelevant[idx]) continue;
+            boolean neighbor = (idx > 0 && isRelevant[idx - 1]) || (idx + 1 < allChunks.size() && isRelevant[idx + 1]);
+            String text = allChunks.get(idx).text();
+            if (neighbor && (PRICE_PARAM_PATTERN.matcher(text).find() || text.contains("|"))) {
+                expanded[idx] = true;
             }
         }
-        return relevant.isEmpty() ? allChunks : relevant;
+        List<DocumentChunk> filtered = new ArrayList<>();
+        for (int idx = 0; idx < allChunks.size(); idx++) {
+            if (isRelevant[idx] || expanded[idx]) filtered.add(allChunks.get(idx));
+        }
+        if (filtered.size() > initialRelevant) {
+            log.info("评分 chunk 过滤邻近扩展: {} -> {} (含报价参数孤立块)", initialRelevant, filtered.size());
+        }
+        return filtered;
     }
 
     /**
@@ -219,9 +234,7 @@ public class OpenAiScoreAnalyzer {
             ScoreGapRecheckOutput output = structuredOutputService.request(
                     prompt, ScoreGapRecheckOutput.class, config,
                     "AI structured response did not include gap recheck result");
-            if (output == null || output.missedItems == null) {
-                return List.of();
-            }
+            if (output == null || output.missedItems == null) return List.of();
             return output.missedItems.stream()
                     .filter(candidate -> candidate != null && candidate.detail != null)
                     .map(candidate -> ScoreCandidateMapper.fromLlmCandidate(candidate, sanitizedExcerpt))
@@ -234,13 +247,6 @@ public class OpenAiScoreAnalyzer {
 
     /**
      * 阶段 2：客观项对标打分（每评分项一次 LLM 调用，契约 §4）。
-     * <p>输出数值不经守卫直接返回——由调用方（ScoreScoringAppService）过
-     * {@code ScoreAssessmentGuard}（超区间置空 / quoteMissing 置空）。
-     * 单项调用失败抛 RuntimeException（由编排层决定任务级失败语义）。
-     *
-     * @param scoreItemDetail 评分项详细要素（完整原文）
-     * @param weight          权重满分
-     * @param bidDocExcerpt   投标文件节选（已由调用方截取）
      */
     public ScoreAssessmentOutput assessObjective(
             String scoreItemDetail, java.math.BigDecimal weight, String bidDocExcerpt) {
@@ -249,12 +255,6 @@ public class OpenAiScoreAnalyzer {
 
     /**
      * 阶段 2：客观项对标打分多模态过载（spec 048 T017）。
-     * <p>images 非空时映射为 {@link MultimodalImage} 走 service 多模态过载，
-     * prompt 追加中性图片判定指引；images 为空时行为与旧签名完全一致（委托 service 纯文本路径）。
-     * 图片 part 不被支持等降级语义（BadRequestException / RESPONSES 风格 ISE）由调用层
-     * （ScoreItemAssessor）处理（契约 contracts/transport-multimodal.md 降级矩阵）。
-     *
-     * @param images 已按预算配给的投标文件图片（可为空清单）
      */
     public ScoreAssessmentOutput assessObjective(
             String scoreItemDetail, java.math.BigDecimal weight, String bidDocExcerpt,
@@ -263,13 +263,11 @@ public class OpenAiScoreAnalyzer {
         boolean withImages = images != null && !images.isEmpty();
         String prompt = ScoreParsePrompts.buildObjectiveAssessmentPrompt(
                 TenderIntakeTextProcessor.sanitizeUntrusted(scoreItemDetail),
-                weight.doubleValue(),
+                weight == null ? 0.0 : weight.doubleValue(),
                 TenderIntakeTextProcessor.sanitizeUntrusted(bidDocExcerpt),
                 withImages);
         List<MultimodalImage> multimodalImages = withImages
-                ? images.stream()
-                        .map(image -> new MultimodalImage(image.mimeType(), image.base64()))
-                        .toList()
+                ? images.stream().map(image -> new MultimodalImage(image.mimeType(), image.base64())).toList()
                 : List.of();
         return structuredOutputService.request(
                 prompt, multimodalImages, ScoreAssessmentOutput.class, config,
@@ -278,7 +276,6 @@ public class OpenAiScoreAnalyzer {
 
     /**
      * 阶段 2：主观项建议（仅 suggestion，禁止数字得分，SC-003 零泄漏）。
-     * 模型违规输出数字时由 {@code ScoreAssessmentGuard} 强制丢弃。
      */
     public ScoreAssessmentOutput assessSubjective(String scoreItemDetail, String bidDocExcerpt) {
         OpenAiBidAgentRequestConfig config = configurationResolver.resolve(USE_CASE);
@@ -291,8 +288,6 @@ public class OpenAiScoreAnalyzer {
     }
 
     private static void report(ProgressReporter progress, int value, String stage) {
-        if (progress != null) {
-            progress.accept(value, stage);
-        }
+        if (progress != null) progress.accept(value, stage);
     }
 }

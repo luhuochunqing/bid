@@ -271,4 +271,78 @@ class ScoringItemExtractorTest {
         assertNotNull(result.get(0).indicator());
         assertTrue(result.get(0).indicator().contains("方案完整性"));
     }
+
+    @Test
+    void extract_pipeTableRow_weightExtractedAfterPipeStrip() {
+        String text = """
+                评标办法
+
+                | 1 | 价格分计算方法 | 30 |
+                """;
+        List<ScoringCriterion> result = ScoringItemExtractor.extract(text);
+        assertEquals(1, result.size());
+        assertEquals("1", result.get(0).itemNumber());
+        assertEquals(new java.math.BigDecimal("30"), result.get(0).weight());
+    }
+
+    @Test
+    void extract_pipePriceParamRow_skippedAsCandidate() {
+        String text = """
+                评标办法
+
+                | 下浮率 | 3% |
+                | 基准价 | 平均价 × 0.98 |
+                """;
+        List<ScoringCriterion> result = ScoringItemExtractor.extract(text);
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void extract_pipePriceMainItemRow_withParamKeyword_keptNotSkipped() {
+        String text = """
+                评标办法
+
+                | 1 | 报价评分 | 评标基准价计算方法 | 30 |
+                """;
+        List<ScoringCriterion> result = ScoringItemExtractor.extract(text);
+        assertEquals(1, result.size());
+        assertEquals("1", result.get(0).itemNumber());
+        assertEquals(new java.math.BigDecimal("30"), result.get(0).weight());
+    }
+
+    @Test
+    void extract_pipeParamRow_withNumberPrefix_stillSkipped() {
+        String text = """
+                评标办法
+
+                | 2 | BP% | 80% |
+                """;
+        List<ScoringCriterion> result = ScoringItemExtractor.extract(text);
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void extract_pipePriceMainItemRow_percentWeight_keptByDimGuard() {
+        String text = """
+                评标办法
+
+                | 1 | 价格分计算方法 | 30% |
+                """;
+        List<ScoringCriterion> result = ScoringItemExtractor.extract(text);
+        assertEquals(1, result.size());
+        assertEquals("1", result.get(0).itemNumber());
+        assertEquals(new java.math.BigDecimal("30"), result.get(0).weight());
+    }
+
+    @Test
+    void extract_pipeRow_withChapterAlias_keptOverParamSkip() {
+        String text = """
+                评标办法
+
+                | 下浮率评标办法 | 3分 |
+                """;
+        List<ScoringCriterion> result = ScoringItemExtractor.extract(text);
+        assertEquals(1, result.size());
+        assertEquals(new java.math.BigDecimal("3"), result.get(0).weight());
+    }
 }

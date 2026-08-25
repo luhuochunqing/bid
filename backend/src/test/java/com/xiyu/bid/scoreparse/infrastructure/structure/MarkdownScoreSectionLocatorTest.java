@@ -155,4 +155,61 @@ class MarkdownScoreSectionLocatorTest {
                 MarkdownScoreSectionLocator.locate(markdown);
         assertThat(sections).hasSize(2);
     }
+
+    private static final String ISOLATED_BLOCK_GAP = """
+            过渡文字一。
+            过渡文字二。
+            过渡文字三。
+            过渡文字四。
+            过渡文字五。
+            过渡文字六。
+            过渡文字七。
+            过渡文字八。
+            过渡文字九。
+            过渡文字十。
+            过渡文字十一。
+            """;
+
+    @Test
+    void locate_isolatedPriceParamBlock_withMultipleLongParams_collected() {
+        String markdown = """
+                ## 评分标准
+
+                | 序号 | 评分项 | 分值 |
+                |---|---|
+                | 1 | 技术方案 | 40 |
+                """ + ISOLATED_BLOCK_GAP + """
+
+                | 公式 | 系数 |
+                |---|---|
+                | 价格分计算 F=100- | 基准 |
+                | BP% | 80 |
+                | HP% | 100 |
+                """;
+        List<MarkdownScoreSectionLocator.ScoreSection> sections =
+                MarkdownScoreSectionLocator.locate(markdown);
+        assertThat(sections).hasSize(2);
+        assertThat(sections.get(1).content()).contains("价格分计算").contains("BP%");
+    }
+
+    @Test
+    void locate_isolatedBlock_withOnlyShortToken_notCollected() {
+        String markdown = """
+                ## 评分标准
+
+                | 序号 | 评分项 | 分值 |
+                |---|---|
+                | 1 | 技术方案 | 40 |
+                """ + ISOLATED_BLOCK_GAP + """
+
+                | 等级 | 要求 |
+                |---|---|
+                | L1级 | 资质 |
+                | L1级 | 业绩 |
+                """;
+        List<MarkdownScoreSectionLocator.ScoreSection> sections =
+                MarkdownScoreSectionLocator.locate(markdown);
+        assertThat(sections).hasSize(1);
+        assertThat(sections.get(0).content()).contains("技术方案");
+    }
 }

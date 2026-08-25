@@ -178,4 +178,53 @@ class ScoreItemMergePolicyTest {
         assertThat(merged.get(0).code()).isEqualTo("A2");
         assertThat(merged.get(1).code()).isEqualTo("A1");
     }
+
+    @Test
+    void merge_priceDim_crossChunkComplementaryDetails_concatenated() {
+        List<ScoreCandidate> merged = policy.merge(List.of(
+                candidate(null, "报价评分", "价格分计算方法：以评标基准价为基础", "30"),
+                candidate(null, "报价评分", "下浮率 K=3%，BP%=80", "30")
+        ));
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).detail()).contains("价格分计算方法", "下浮率", "BP%=80");
+    }
+
+    @Test
+    void merge_priceDim_overlappingChunkLines_deduplicated() {
+        List<ScoreCandidate> merged = policy.merge(List.of(
+                candidate(null, "报价评分", "价格分计算方法：以评标基准价为基础\nBP%=80", "30"),
+                candidate(null, "报价评分", "BP%=80\nHP%=100", "30")
+        ));
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).detail())
+                .isEqualTo("价格分计算方法：以评标基准价为基础\nBP%=80\nHP%=100");
+    }
+
+    @Test
+    void merge_priceDim_sameCodeAcrossDimNaming_merged() {
+        List<ScoreCandidate> merged = policy.merge(List.of(
+                candidate("1", "报价评分", "价格分计算方法前半段", "30"),
+                candidate("1", "价格评分", "价格分计算公式后半段", "30")
+        ));
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).detail()).contains("前半段", "后半段");
+    }
+
+    @Test
+    void merge_priceDim_detailCappedAtMaxLength() {
+        StringBuilder baseDetail = new StringBuilder();
+        StringBuilder laterDetail = new StringBuilder();
+        for (int i = 0; i < 100; i++) {
+            baseDetail.append("BASE参数行").append(i).append("：报价评分参数内容填充文本填充文本\n");
+            laterDetail.append("LATER参数行").append(i).append("：报价评分参数内容填充文本填充文本\n");
+        }
+        List<ScoreCandidate> merged = policy.merge(List.of(
+                candidate(null, "报价评分", baseDetail.toString(), "30"),
+                candidate(null, "报价评分", laterDetail.toString(), "30")
+        ));
+        assertThat(merged).hasSize(1);
+        String detail = merged.get(0).detail();
+        assertThat(detail.length()).isLessThanOrEqualTo(ScoreItemMergePolicy.PRICE_DETAIL_MAX_CHARS);
+        assertThat(detail).startsWith("BASE参数行0：");
+    }
 }

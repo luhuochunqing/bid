@@ -5,8 +5,12 @@
 
 package com.xiyu.bid.scoreparse.domain;
 
+import com.xiyu.bid.biddraftagent.domain.PriceScoringKeywords;
+
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 评分项候选池合并去重策略（spec 041 FR-004）。
@@ -14,16 +18,17 @@ import java.util.List;
  * <ul>
  *   <li>同维度同编号重复：合并为一条，以首次出现为基础，补齐后续召回的丰富信息
  *       （contextNote/semanticPattern/location 等非空字段）</li>
- *   <li>跨维度同编号（如商务表 1 vs 技术表 1）：互不包含真不同项，各自独立保留（防误吞）</li>
- *   <li>detail 例外：后续版本有原文背书（sourceText 包含 detail）且更完整时优先，
- *       保证跨行评分条款展示完整原文而非正则召回的残缺行内片段</li>
- *   <li>同编号不同维度补强：两路召回 dim 表述稍有出入（如正则"技术部分" vs LLM"技术方案"）
- *       但 base.detail 是 later.detail 的归一化子串且有原文背书时，按同项补强 detail</li>
- *   <li>名称相同但编号不同：语义相似不误删，两条均保留（交由后续结构化提取甄别）</li>
- *   <li>weight 缺失的候选保留，由 Validation 层丢弃并记日志</li>
+ *   <li>编号相同但维度表述稍有出入（如"商务部分" vs "商务"）：如果是同一评分项的更完整原文召回，合并为一条</li>
+ *   <li>编号相同但维度不同、detail 互不包含的真不同项（如商务项 1 vs 技术项 1）：不合并，各自保留</li>
+ *   <li>无编号但细则高度一致（去空白后相等）：合并为一条</li>
+ *   <li>报价维度跨 chunk 拆分（前半价格分方法 + 后半参数）：同属报价项时拼合 detail，避免截断</li>
+ *   <li>合并结果保持首次出现的相对顺序</li>
  * </ul>
  */
 public class ScoreItemMergePolicy {
+
+    /** 报价项跨 chunk 拼合后 detail 长度上界（字符）：超出部分丢弃，防无界增长 */
+    static final int PRICE_DETAIL_MAX_CHARS = 6000;
 
     /** 合并候选池 */
     public List<ScoreCandidate> merge(List<ScoreCandidate> candidates) {
@@ -54,6 +59,20 @@ public class ScoreItemMergePolicy {
             String existingDim = normalize(existing.dim());
             String existingDetail = normalize(existing.detail());
 
+            // 0. 报价评分特判：同一报价维度（报价评分/价格评分）且 code 相同或均为报价相关，
+            // 跨 chunk 拆分的细节互补（非子串）应视为同一项，避免价格分只保留前 3 行后截断
+            if (isPriceDim(existingDim) && isPriceDim(targetDim)) {
+                if (!targetCode.isEmpty() && targetCode.equalsIgnoreCase(existingCode)) {
+                    return i;
+                }
+                if (targetCode.isEmpty() || existingCode.isEmpty()) {
+                    // 无编号报价项，按维度相同即视为同一项（跨 chunk 合并）
+                    if (existingDim.equals(targetDim)) {
+                        return i;
+                    }
+                }
+            }
+
             // 1. 编号非空且相同
             if (!targetCode.isEmpty() && targetCode.equalsIgnoreCase(existingCode)) {
                 if (existingDim.equals(targetDim)) {
@@ -78,12 +97,67 @@ public class ScoreItemMergePolicy {
         return -1;
     }
 
+    private boolean isPriceDim(String normalizedDim) {
+        // 词元收敛于 PriceScoringKeywords.PRICE_DIM_TOKENS（单一真相源，防各处硬编码漂移）
+        return PriceScoringKeywords.PRICE_DIM_TOKENS.stream().anyMatch(normalizedDim::contains);
+    }
+
     private String normalize(String dim) {
         return dim == null ? "" : dim.trim().replaceAll("\\s+", "");
     }
 
-    /** 以首次出现为基础，补齐后续召回的非空字段（更丰富信息优先） */
+    /** 把 detail 按行拆开（trim、跳过空行）追加到去重集合 */
+    private static void appendLines(Set<String> sink, String detail) {
+        if (detail == null) {
+            return;
+        }
+        for (String line : detail.split("\\R")) {
+            String trimmed = line.trim();
+            if (!trimmed.isEmpty()) {
+                sink.add(trimmed);
+            }
+        }
+    }
+
+    /** 以首次出现为基础，补齐后续召回的非空字段（更丰富信息优先）；报价类跨 chunk 细节拼合 */
     private ScoreCandidate enrich(ScoreCandidate base, ScoreCandidate later) {
+        // 报价类跨 chunk 互补：两段 detail 非子串但同属报价项，需拼合而非择一
+        boolean isPriceMerge = isPriceDim(normalize(base.dim())) && isPriceDim(normalize(later.dim()))
+                && base.detail() != null && later.detail() != null
+                && !normalize(base.detail()).equals(normalize(later.detail()))
+                && !normalize(later.detail()).contains(normalize(base.detail()))
+                && !normalize(base.detail()).contains(normalize(later.detail()));
+        if (isPriceMerge) {
+            // 按行去重拼接：chunk 滑窗重叠召回的重复行不重复进入 detail（行级 trim 精确匹配）
+            Set<String> seenLines = new LinkedHashSet<>();
+            appendLines(seenLines, base.detail());
+            appendLines(seenLines, later.detail());
+            // 长度上界：多 chunk 反复拼合不得无界增长（典型报价参数表远低于此限）
+            StringBuilder detailBuilder = new StringBuilder();
+            for (String line : seenLines) {
+                if (detailBuilder.length() + line.length() + 1 > PRICE_DETAIL_MAX_CHARS) {
+                    break;
+                }
+                if (detailBuilder.length() > 0) {
+                    detailBuilder.append('\n');
+                }
+                detailBuilder.append(line);
+            }
+            String mergedDetail = detailBuilder.toString();
+            String mergedSource = (base.sourceText() == null ? "" : base.sourceText())
+                    + "\n" + (later.sourceText() == null ? "" : later.sourceText());
+            return new ScoreCandidate(
+                    base.code() != null ? base.code() : later.code(),
+                    base.dim() != null ? base.dim() : later.dim(),
+                    mergedDetail,
+                    base.weight() != null ? base.weight() : later.weight(),
+                    base.scoreTypeGuess() != null ? base.scoreTypeGuess() : later.scoreTypeGuess(),
+                    later.contextNote() != null ? later.contextNote() : base.contextNote(),
+                    mergedSource.trim().isEmpty() ? base.sourceText() : mergedSource.trim(),
+                    later.location() != null ? later.location() : base.location(),
+                    later.semanticPattern() != null ? later.semanticPattern() : base.semanticPattern()
+            );
+        }
         boolean laterDetailPreferred = hasSourceBacking(later)
                 && lengthOf(later.detail()) > lengthOf(base.detail());
         String detail;
