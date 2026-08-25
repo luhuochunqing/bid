@@ -2856,3 +2856,25 @@ PR !2399 报价评分截断治理提交后，经严格评审发现 2 个 CRITICA
 - 严肃招投标业务场景中，“标书原文 1:1 保真”是信任基石，严禁大模型做自作聪明的二次摘要。
 - 底层数据保持结构化与保真文本，上层展示明确列边界，既能满足下游 AI 精准对标算分，又能给业务人员绝对确定感。
 
+---
+
+## 161. Flyway 角色权限同步：menu_permissions 追加权限键禁止带字面双引号（2026-08-25）
+
+**背景**：specs/055 新增 `competitor.create`/`competitor.govern` 权限键，需 Flyway 迁移写入 `roles.menu_permissions`。
+
+**陷阱**：历史迁移 V1118/V1121/V1122/V1123 用 `CONCAT(menu_permissions, ',"personnel.manage"')` 把**字面双引号 `"` 也写进了字段值**，导致存储为 `"personnel.manage"`（带引号），前端 `perms.includes('personnel.manage')` 与后端 `hasAuthority('personnel.manage')` 都匹配失败，权限静默失效。V1174 才批量 `REPLACE(menu_permissions, '"', '')` 修复。
+
+**正确写法**（V1189/V1203 模式，权限键**不带引号** + FIND_IN_SET 防重）：
+```sql
+UPDATE roles
+SET menu_permissions = CONCAT(TRIM(BOTH ',' FROM menu_permissions), ',competitor.create'),
+    updated_at = NOW()
+WHERE code IN ('bid-Team', 'bid-TeamLeader', 'bid-projectLeader', '/bidAdmin', 'bid-SystemAdmin')
+  AND menu_permissions IS NOT NULL AND menu_permissions != ''
+  AND FIND_IN_SET('competitor.create', menu_permissions) = 0;
+```
+
+**教训**：
+- 含点号的权限键（`competitor.create`）也**不带引号**存储，`FIND_IN_SET` 才能正确防重。
+- 写权限同步迁移前先 grep 历史迁移，认准 V1174 之后的正确范式（V1189），别照抄 V1121 的带引号写法。
+
