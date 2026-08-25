@@ -1,0 +1,14 @@
+// Input: vitest jsdom 环境（vite.config.js test.setupFiles 引入）
+// Output: 浏览器有而 jsdom 24 缺失的 URL 对象 API 兜底 stub
+// Pos: src/ - 全局测试 setup（每个测试文件运行前执行）
+// 维护声明: 仅补 jsdom 缺失的浏览器 API，禁止放业务 mock（业务 mock 归各 spec 自身）。
+//           新增 stub 前先确认 jsdom 版本确实缺失（升级 jsdom 后可删）。
+
+// 背景：src/utils/download.js 下载后在 setTimeout 里调 URL.revokeObjectURL，
+// jsdom 24 未实现该 API → 未处理异常让 vitest 整批 exit 1（212 文件全绿也被拦）。
+if (typeof URL.createObjectURL !== 'function') {
+  URL.createObjectURL = () => 'blob:mocked-by-test-setup'
+}
+if (typeof URL.revokeObjectURL !== 'function') {
+  URL.revokeObjectURL = () => {}
+}
