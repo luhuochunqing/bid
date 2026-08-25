@@ -15,14 +15,19 @@
   >
     <div class="detail-modal-body">
       <div class="detail-row">
-        <div class="detail-label">详细评分项要素</div>
-        <div class="detail-value">{{ item?.detail || item?.req || '-' }}</div>
+        <div class="detail-label">标书原文</div>
+        <div class="detail-value original-detail-text">{{ item?.detail || item?.req || '-' }}</div>
+      </div>
+
+      <div v-if="item?.location" class="detail-row">
+        <div class="detail-label">招标文件位置出处</div>
+        <div class="detail-value detail-location-text">📄 {{ item.location }}</div>
       </div>
 
       <div class="detail-row">
-        <div class="detail-label">权重 / 评分类别</div>
+        <div class="detail-label">所属评分项 / 权重 / 评分类别</div>
         <div class="detail-value">
-          权重 {{ item?.weight ?? 0 }} 分 ｜
+          <span class="dim-badge">{{ item?.dim || '-' }}</span> ｜ 权重 {{ item?.weight ?? 0 }} 分 ｜
           <span class="pill" :class="item?.scoreType === '客观项' ? 'info' : 'neutral'">{{ item?.scoreType || '客观项' }}</span>
         </div>
       </div>
@@ -170,6 +175,9 @@ const suggestionText = computed(() => {
 .detail-row { margin-bottom: 14px; }
 .detail-label { font-size: 12px; font-weight: 600; color: var(--brand-xiyu-logo-active); margin-bottom: 4px; padding-left: 8px; border-left: 3px solid var(--brand-xiyu-logo); line-height: 1.4; }
 .detail-value { font-size: 13px; color: var(--text-primary-ui); }
+.original-detail-text { white-space: pre-wrap; word-break: break-word; line-height: 1.6; background: var(--bg-muted); padding: 8px 12px; border-radius: 4px; border: 1px solid var(--border-base); }
+.dim-badge { font-weight: 600; color: var(--brand-xiyu-logo-active); }
+.detail-location-text { font-size: 12px; color: var(--text-secondary); }
 .pill { font-size: 11px; padding: 1px 6px; border-radius: 3px; font-weight: 600; display: inline-block; }
 .pill.info { background: var(--status-info-bg); color: var(--status-info-color); }
 .pill.neutral { background: var(--status-neutral-bg); color: var(--status-neutral-color); }

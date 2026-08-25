@@ -161,3 +161,9 @@ trigger（同步<1s，互斥校验+建任务）
     5. `OpenAiScoreAnalyzer`：`filterRelevantChunks` 邻近扩展使用独立数组仅扩张一跳，避免链式蔓延；
     6. `ScoreItemMergePolicy`：报价类跨 chunk 互补拼合，引入 `PRICE_DETAIL_MAX_CHARS = 6000` 上界与行级 trim 去重；
     7. `scripts/check-keyword-sync.mjs`（pre-push §5.6 门禁）：Python/Java 跨语言关键词自动化同步校验。
+- **标书原文保真直抽与 8 列标准排版（2026-08-25）**：
+  - 前端 `ScoreParseTable.vue` 表格列顺序严格重构为：1 编号 (`code`) → 2 标书原文 (`detail`，自适应多行排版并保留换行) → 3 评分项 (`dim`，大类/维度) → 4 权重 (`weight`) → 5 满足状态 (`status`) → 6 评分类别 (`scoreType`) → 7 预计/实际得分 (`estScore`/`actualScore`) → 8 得分依据（详情操作）；
+  - 前端详情弹窗 `ScoreItemDetailModal.vue` 首项文案重命名为「标书原文」，并在存在出处时展示「招标文件位置出处（如 `P47 评分办法表 第3行`）」；
+  - 后端 `ScoreParsePrompts.java` 严格规定 `detail` 必须为招标文件评分表格/条款中的评审细则逐字原文，绝对禁止任何形式的 AI 摘要、概括、缩写或改写，且权重列准确识别数值；
+  - 知识库 5 大库自动对标与 100 分闭环校验完整保留并与新 8 列结构完全兼容。
+

@@ -8,12 +8,12 @@
     <table class="parse-table">
       <thead>
         <tr>
-          <th style="width: 92px">编号</th>
-          <th style="width: 64px">评分项</th>
-          <th>评分项详细要素</th>
+          <th style="width: 72px">编号</th>
+          <th>标书原文</th>
+          <th style="width: 110px">评分项</th>
           <th style="width: 52px; text-align: center">权重</th>
           <th style="width: 80px">满足状态</th>
-          <th style="width: 100px; text-align: center">评分类别</th>
+          <th style="width: 80px; text-align: center">评分类别</th>
           <th style="width: 80px; text-align: center">{{ mode === 'actual' ? '实际得分' : '预计得分' }}</th>
           <th style="width: 68px; text-align: center">得分依据</th>
         </tr>
@@ -21,8 +21,8 @@
       <tbody>
         <tr v-for="item in items" :key="item.code">
           <td class="code-cell">{{ item.code }}</td>
+          <td class="req-cell original-text-cell">{{ item.detail || item.req }}</td>
           <td class="dim-cell">{{ item.dim }}</td>
-          <td class="req-cell">{{ item.req || item.detail }}</td>
           <td class="weight-cell">{{ item.weight }}</td>
           <td>
             <span class="status-cell" :class="getItemStatus(item)">
@@ -190,11 +190,12 @@ const currentHighlightScore = computed(() => {
 .parse-table td { padding: 9px 8px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; color: var(--text-primary-ui); }
 .parse-table tr:hover td { background: var(--bg-muted-2); }
 .code-cell { font-family: monospace; font-size: 12px; font-weight: 600; color: var(--text-primary-ui); word-break: break-all; }
-.dim-cell { font-size: 12px; color: var(--text-primary-ui); }
+.dim-cell { font-size: 12px; color: var(--text-primary-ui); font-weight: 500; word-break: break-word; }
 .pill { font-size: 11px; padding: 1px 6px; border-radius: 3px; font-weight: 500; display: inline-block; }
 .pill.info { background: var(--status-info-bg); color: var(--status-info-color); }
 .pill.neutral { background: var(--status-neutral-bg); color: var(--status-neutral-color); }
-.req-cell { line-height: 1.5; color: var(--text-primary-ui); font-size: 12px; }
+.req-cell { line-height: 1.6; color: var(--text-primary-ui); font-size: 12px; }
+.original-text-cell { white-space: pre-wrap; word-break: break-word; }
 .weight-cell { text-align: center; font-weight: 600; font-family: monospace; color: var(--brand-xiyu-logo); font-size: 13px; }
 .weight-warning { display: block; font-size: 10px; color: var(--status-danger-color); font-weight: normal; margin-top: 2px; line-height: 1.2; }
 .status-cell { font-size: 12px; font-weight: 500; }
