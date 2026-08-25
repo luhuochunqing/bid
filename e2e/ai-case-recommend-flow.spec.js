@@ -99,7 +99,7 @@ test.describe('AI智能案例推荐', () => {
       .locator('.el-select-dropdown__item').count().catch(() => 0)
     expect(optionCount > 0 || await emptyAlert.isVisible()).toBeTruthy()
 
-    const firstCard = drawer.locator('.recommend-case-card').first()
+    const firstCard = drawer.locator('.recommend-grid .case-card').first()
     if (await firstCard.isVisible().catch(() => false)) {
       await expect(firstCard).not.toContainText(/复用\s+\d+\s*次/)
       await expect(firstCard.getByRole('button', { name: /复用/ })).toBeVisible()
@@ -119,8 +119,8 @@ test.describe('AI智能案例推荐', () => {
     if (await firstCard.isVisible().catch(() => false)) {
       // 验证评分项标题存在
       await expect(firstCard.locator('.scoring-title')).toBeVisible()
-      // 验证复用次数存在
-      await expect(firstCard.locator('.reuse-stat')).toBeVisible()
+      // 验证创建时间前缀存在（PRD 精简后卡片不再展示复用次数）
+      await expect(firstCard).toContainText('创建时间：')
       // 验证复用按钮存在
       await expect(firstCard.getByRole('button', { name: /复用/ })).toBeVisible()
     }
