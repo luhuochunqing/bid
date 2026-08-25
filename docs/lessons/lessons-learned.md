@@ -2710,7 +2710,7 @@ nohup npx vite --port 1323 --host 127.0.0.1 < /dev/null > /tmp/xx.log 2>&1 &
 - 带行为语义的开关（mock/demo/shadow）默认值必须留空，让漏配走 fail-fast 而非静默降级
 - 改共享方法的返回契约（如新增 null 路径），必须 grep 全部调用方逐个核对，接口内每个方法都要过一遍
 - 生产正确性依赖的 env 不能只活在运维手册/服务器配置里，必须进部署预检断言
-## 154. 报价评分跨页截断专项评审修复（2026-08-25）
+## 156. 报价评分跨页截断专项评审修复（2026-08-25）
 
 ### 问题背景
 
@@ -2729,7 +2729,7 @@ PR !2399 报价评分截断治理提交后，经严格评审发现 2 个 CRITICA
 3. **按行去重与长度上界**：`ScoreItemMergePolicy` 引入 `PRICE_DETAIL_MAX_CHARS = 6000` 与 `LinkedHashSet` 行级 trim 去重；
 4. **长词计数与上下文差异化**：`MarkdownScoreSectionLocator` 使用 `countDistinctLongParams >= 2`（嵌套词只算一次）收紧孤立块兜底，`CONTEXT_AFTER_LINES` 区分普通项（3 行）与报价项（8 行）；
 5. **管道行分类重构**：`ScoringItemExtractor` 提取 `classifyPipeRow` 降低复杂度，三道判据（别名守卫 → 参数行/主项行区分 → 评分行保留）；
-6. **自动化同步校验**：新增 `scripts/check-price-keywords-sync.sh` 保证 Python 与 Java 常量强一致。
+6. **自动化同步校验**：由 `scripts/check-keyword-sync.mjs`（pre-push §5.6 门禁）保证 Python 与 Java 常量强一致。
 
 ### 经验教训
 
@@ -2748,4 +2748,4 @@ PR !2399 报价评分截断治理提交后，经严格评审发现 2 个 CRITICA
 - `backend/src/main/java/com/xiyu/bid/scoreparse/infrastructure/openai/OpenAiScoreAnalyzer.java`
 - `document-converter-sidecar/converter.py`
 - `document-converter-sidecar/tests/test_merge_split_price_tables.py`
-- `scripts/check-price-keywords-sync.sh`
+- `scripts/check-keyword-sync.mjs`（跨语言关键词契约门禁，挂 pre-push §5.6）

@@ -5,6 +5,8 @@
 
 package com.xiyu.bid.scoreparse.domain;
 
+import com.xiyu.bid.biddraftagent.domain.PriceScoringKeywords;
+
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;

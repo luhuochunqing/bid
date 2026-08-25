@@ -4,7 +4,7 @@ space: engineering
 category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
-updated: 2026-08-24
+updated: 2026-08-25
 health_checked: 2026-08-24
 sources:
   - specs/041-ai-score-parse-backend/spec.md
@@ -160,4 +160,4 @@ trigger（同步<1s，互斥校验+建任务）
     4. `MarkdownScoreSectionLocator`：孤立块兜底收紧为 `countDistinctLongParams >= 2`（嵌套词单次计数），上下文行数差异化（普通 3 行 / 报价 8 行）；
     5. `OpenAiScoreAnalyzer`：`filterRelevantChunks` 邻近扩展使用独立数组仅扩张一跳，避免链式蔓延；
     6. `ScoreItemMergePolicy`：报价类跨 chunk 互补拼合，引入 `PRICE_DETAIL_MAX_CHARS = 6000` 上界与行级 trim 去重；
-    7. `scripts/check-price-keywords-sync.sh`：Python/Java 跨语言关键词自动化同步校验。
+    7. `scripts/check-keyword-sync.mjs`（pre-push §5.6 门禁）：Python/Java 跨语言关键词自动化同步校验。
