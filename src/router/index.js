@@ -135,7 +135,9 @@ const routes = [
       },
       {
         path: 'project/create',
-        redirect: '/project'
+        name: 'ProjectCreate',
+        component: () => import('@/views/Project/Create.vue'),
+        meta: { title: '创建项目', showBack: true }
       },
       {
         path: 'project/:id',
@@ -159,7 +161,8 @@ const routes = [
           // 默认重定向到 qualification（行政人员等小权限用户的唯一可访问子项）。
           // 路由守卫会在 archive/personnel/case 等子项上拦截无权限用户，
           // 但默认重定向必须指向"必然有权限"的目标，否则新登录用户会被踢到 403。
-          { path: '', redirect: 'qualification' },
+          // 注意：必须用绝对路径——相对字符串 'qualification' 会被解析到根级 /qualification（未注册路由，白屏）。
+          { path: '', redirect: '/knowledge/qualification' },
           {
             path: 'archive',
             name: 'ProjectArchive',

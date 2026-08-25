@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { ensureApiSession } from './auth-helpers.js'
 const frontendBaseUrl = process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:1323'
 
 const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || 'http://127.0.0.1:18089'
@@ -14,58 +15,27 @@ async function requestJson(url, options = {}) {
   return payload
 }
 
+// H13 后 access token 走 HttpOnly Set-Cookie（body.token=null），统一复用 auth-helpers 的会话逻辑
 async function ensureSession() {
   const username = process.env.COMMERCIAL_E2E_USERNAME || `eri151_${Date.now()}`
   const password = process.env.COMMERCIAL_E2E_PASSWORD || 'XiyuDemo!2026'
-  const email = `${username}@example.com`
-
-  try {
-    const payload = await requestJson(`${apiBaseUrl}/api/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username,
-        password,
-        email,
-        fullName: 'ERI-151 E2E',
-        role: '/bidAdmin',
-      }),
-    })
-
-    if (payload?.success && payload?.data?.token && payload?.data?.id) {
-      return {
-        token: payload.data.token,
-        user: {
-          id: payload.data.id,
-          name: payload.data.fullName || payload.data.username,
-          username: payload.data.username,
-          email: payload.data.email,
-          role: String(payload.data.role || '').toLowerCase(),
-        },
-      }
-    }
-  } catch (error) {
-    if (!String(error.message).includes('409')) throw error
-  }
-
-  const payload = await requestJson(`${apiBaseUrl}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
+  const session = await ensureApiSession({
+    username,
+    role: '/bidAdmin',
+    fullName: 'ERI-151 E2E',
+    password,
   })
 
-  if (!payload?.success || !payload?.data?.token || !payload?.data?.id) {
-    throw new Error('Backend login response missing token or user identity')
-  }
-
   return {
-    token: payload.data.token,
+    token: session.token,
     user: {
-      id: payload.data.id,
-      name: payload.data.fullName || payload.data.username,
-      username: payload.data.username,
-      email: payload.data.email,
-      role: String(payload.data.role || '').toLowerCase(),
+      id: session.user.id,
+      name: session.user.name,
+      username: session.user.username,
+      email: session.user.email,
+      role: String(session.user.role || '').toLowerCase(),
+      roleCode: session.user.roleCode || session.user.role,
+      menuPermissions: session.user.menuPermissions || [],
     },
   }
 }
@@ -85,7 +55,21 @@ function toLocalDateTimeString(date) {
     .slice(0, 19)
 }
 
-test('dashboard metric projects drill-down renders real rows', async ({ page }) => {
+// H13: token 走 HttpOnly cookie；前端路由守卫/权限依赖 storage 内 user.menuPermissions
+function injectAuth(page, session) {
+  page.context().addCookies([
+    { name: 'access_token', value: session.token, url: apiBaseUrl, httpOnly: true, sameSite: 'Lax' },
+    { name: 'access_token', value: session.token, url: frontendBaseUrl, httpOnly: true, sameSite: 'Lax' },
+  ])
+  page.addInitScript((user) => {
+    sessionStorage.setItem('user', JSON.stringify(user))
+  }, session.user)
+}
+
+// 数据分析页已重构为 M0~M4 模块（b9afae503），旧 ?drilldown= 深链抽屉已下线；
+// 本文件保留"真实业务数据渲染到分析/工作台页面"的验证意图，断言对齐当前 UI。
+
+test('analytics M0 KPI cards render seeded project counts', async ({ page }) => {
   const session = await ensureSession()
   const suffix = Date.now()
 
@@ -119,218 +103,67 @@ test('dashboard metric projects drill-down renders real rows', async ({ page }) 
       sourceCustomerId: `cust-${suffix}`,
       sourceCustomer: '上海城投',
       sourceOpportunityId: `opp-${suffix}`,
-      sourceReasoningSummary: '从评分草稿转入正式项目，验证来源字段与 drill-down 一致性。',
+      sourceReasoningSummary: '从评分草稿转入正式项目，验证来源字段与分析页一致性。',
     }),
   })
 
   expect(projectPayload?.data?.id).toBeTruthy()
 
-  await page.context().addCookies([{ name: "access_token", value: session.token, url: apiBaseUrl, httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: frontendBaseUrl, httpOnly: true, sameSite: "Lax" }])
-  await page.addInitScript(({ token, user }) => {
-    sessionStorage.setItem('token', token)
-    sessionStorage.setItem('user', JSON.stringify(user))
-  }, session)
-
-  await page.goto('/analytics/dashboard?drilldown=projects&status=BIDDING')
+  await injectAuth(page, session)
+  await page.goto('/analytics/dashboard')
   await expect(page.getByRole('heading', { name: '数据分析' })).toBeVisible()
 
-  const drawer = page.locator('.metric-drawer')
-  await expect(drawer).toBeVisible()
-  await expect(page.getByText('进行中项目明细')).toBeVisible()
-  await expect(page.locator('.metric-summary-card .summary-value').first()).toBeVisible()
-  await expect(drawer).toContainText(projectName)
+  // KPI 卡片渲染真实统计值（非加载失败占位"—"）
+  const totalCountCard = page.locator('.kpi-card').filter({ hasText: '投标总数' })
+  await expect(totalCountCard).toBeVisible({ timeout: 15000 })
+  await expect(totalCountCard.locator('.kpi-value')).toHaveText(/^\d+/,)
+
+  const biddingCard = page.locator('.kpi-card').filter({ hasText: '投标中' })
+  await expect(biddingCard.locator('.kpi-value')).toHaveText(/^[1-9]/)
 })
 
-test('dashboard metric win-rate drill-down honors outcome query filters', async ({ page }) => {
+test('analytics M0 win-rate card renders from real outcome stats', async ({ page }) => {
   const session = await ensureSession()
-  const suffix = Date.now()
 
-  const wonTender = await authedJson('/api/tenders', session, {
-    method: 'POST',
-    body: JSON.stringify({
-      title: `ERI-151 中标标讯 ${suffix}`,
-      source: 'ERI-151',
-      budget: 520000,
-      deadline: toLocalDateTimeString(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
-      status: 'BIDDING',
-      aiScore: 89,
-      riskLevel: 'LOW',
-    }),
-  })
-
-  const inProgressTender = await authedJson('/api/tenders', session, {
-    method: 'POST',
-    body: JSON.stringify({
-      title: `ERI-151 跟进标讯 ${suffix}`,
-      source: 'ERI-151',
-      budget: 410000,
-      deadline: toLocalDateTimeString(new Date(Date.now() + 9 * 24 * 60 * 60 * 1000)),
-      status: 'TRACKING',
-      aiScore: 77,
-      riskLevel: 'MEDIUM',
-    }),
-  })
-
-  const wonProjectName = `ERI-151 中标项目 ${suffix}`
-  const inProgressProjectName = `ERI-151 跟进项目 ${suffix}`
-
-  await authedJson('/api/projects', session, {
-    method: 'POST',
-    body: JSON.stringify({
-      name: wonProjectName,
-      tenderId: wonTender.data.id,
-      status: 'BIDDING',
-      managerId: session.user.id,
-      teamMembers: [session.user.id],
-      startDate: toLocalDateTimeString(new Date()),
-      endDate: toLocalDateTimeString(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)),
-      sourceModule: 'score-draft',
-      sourceCustomerId: `won-cust-${suffix}`,
-      sourceCustomer: '上海城投',
-      sourceOpportunityId: `won-opp-${suffix}`,
-      sourceReasoningSummary: '验证 win-rate 路由筛选只展示中标记录。',
-    }),
-  })
-
-  await authedJson('/api/projects', session, {
-    method: 'POST',
-    body: JSON.stringify({
-      name: inProgressProjectName,
-      tenderId: inProgressTender.data.id,
-      status: 'BIDDING',
-      managerId: session.user.id,
-      teamMembers: [session.user.id],
-      startDate: toLocalDateTimeString(new Date()),
-      endDate: toLocalDateTimeString(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)),
-      sourceModule: 'score-draft',
-      sourceCustomerId: `progress-cust-${suffix}`,
-      sourceCustomer: '上海城投',
-      sourceOpportunityId: `progress-opp-${suffix}`,
-      sourceReasoningSummary: '验证 win-rate 路由筛选排除进行中记录。',
-    }),
-  })
-
-  await page.context().addCookies([{ name: "access_token", value: session.token, url: apiBaseUrl, httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: frontendBaseUrl, httpOnly: true, sameSite: "Lax" }])
-  await page.addInitScript(({ token, user }) => {
-    sessionStorage.setItem('token', token)
-    sessionStorage.setItem('user', JSON.stringify(user))
-  }, session)
-
-  // Mock drill-down API — simulates backend filtering by outcome param  // @ui-cover:dashboard
-  // Frontend calls /api/analytics/drilldown/win-rate?outcome=WON
-  await page.route('**/drilldown/win-rate**', async (route) => {
-    const url = new URL(route.request().url())
-    const outcome = url.searchParams.get('outcome')
-
-    // Filter items by outcome like the real backend does
-    let items = [
-      {
-        id: 1, relatedId: 1, title: wonProjectName, subtitle: '中标',
-        status: 'BIDDING', ownerName: session.user.name || '管理员',
-        amount: 520000, score: null, createdAt: '2026-05-15T00:00:00',
-        deadline: null, outcome: 'WON', role: null, count: null,
-        wonCount: null, activeProjectCount: null, managedProjectCount: null,
-        totalTaskCount: null, completedTaskCount: null, overdueTaskCount: null,
-        taskCompletionRate: null, rate: 1, teamSize: null,
-      },
-      {
-        id: 2, relatedId: 2, title: inProgressProjectName, subtitle: '进行中',
-        status: 'BIDDING', ownerName: session.user.name || '管理员',
-        amount: 410000, score: null, createdAt: '2026-05-14T00:00:00',
-        deadline: null, outcome: null, role: null, count: null,
-        wonCount: null, activeProjectCount: null, managedProjectCount: null,
-        totalTaskCount: null, completedTaskCount: null, overdueTaskCount: null,
-        taskCompletionRate: null, rate: 0, teamSize: null,
-      },
-    ]
-
-    if (outcome === 'WON') {
-      items = items.filter((i) => i.outcome === 'WON')
-    } else if (outcome === 'IN_PROGRESS' || outcome === 'LOST') {
-      items = items.filter((i) => i.outcome === outcome)
-    }
-
-    const totalAmount = items.reduce((s, i) => s + Number(i.amount || 0), 0)
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        success: true,
-        data: {
-          metricKey: 'win-rate',
-          metricLabel: '中标率明细',
-          filters: { dimensions: [] },
-          pagination: { page: 1, size: 10, total: items.length, totalPages: 1, hasNext: false },
-          summary: { totalCount: items.length, totalAmount },
-          items,
-        },
-        message: null,
-      }),
-    })
-  })
-
-  await page.goto('/analytics/dashboard?drilldown=win-rate&outcome=WON')
+  await injectAuth(page, session)
+  await page.goto('/analytics/dashboard')
   await expect(page.getByRole('heading', { name: '数据分析' })).toBeVisible()
 
-  const drawer = page.locator('.metric-drawer')
-  await expect(drawer).toBeVisible()
-  await expect(page.getByText('中标率明细')).toBeVisible()
-  await expect(drawer).toContainText(wonProjectName)
-  await expect(drawer).not.toContainText(inProgressProjectName)
+  const wonCard = page.locator('.kpi-card').filter({ has: page.locator('.kpi-label:text-is("中标数")') })
+  await expect(wonCard).toBeVisible({ timeout: 15000 })
+  await expect(wonCard.locator('.kpi-value')).toHaveText(/^\d+/)
+
+  const winRateCard = page.locator('.kpi-card').filter({ has: page.locator('.kpi-label:text-is("中标率")') })
+  await expect(winRateCard.locator('.kpi-value')).toHaveText(/\d+(\.\d+)?%?/)
 })
 
 test('dashboard quick entry routes navigate correctly', async ({ page }) => {
   const session = await ensureSession()
 
-  await page.context().addCookies([{ name: "access_token", value: session.token, url: apiBaseUrl, httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: frontendBaseUrl, httpOnly: true, sameSite: "Lax" }])
-  await page.addInitScript(({ token, user }) => {
-    sessionStorage.setItem('token', token)
-    sessionStorage.setItem('user', JSON.stringify(user))
-  }, session)
-
-  // Mock summary API to avoid backend dependency
-  await page.route('**/api/analytics/summary', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ success: true, data: { totalBudget: 1e6, successRate: 0.75, totalTenders: 10, activeProjects: 3 } }),
-    })
-  })
-
+  await injectAuth(page, session)
   await page.goto('/dashboard')
 
-  // Verify the page loaded with metric cards visible
-  await expect(page.locator('.workbench').first()).toBeVisible({ timeout: 10000 })
-  await expect(page.getByText(/进行中项目|投标数量|中标率/).first()).toBeVisible({ timeout: 5000 })
+  // 工作台已重构：欢迎横幅 + 待办分类卡（任务/标讯/项目/资源）+ 截止面板
+  await expect(page.locator('.workbench').first()).toBeVisible({ timeout: 15000 })
+  await expect(page.getByText('任务·待办').first()).toBeVisible({ timeout: 10000 })
 })
 
 test('knowledge kb-layout tabs navigate correctly', async ({ page }) => {
   const session = await ensureSession()
 
-  await page.context().addCookies([{ name: "access_token", value: session.token, url: apiBaseUrl, httpOnly: true, sameSite: "Lax" }, { name: "access_token", value: session.token, url: frontendBaseUrl, httpOnly: true, sameSite: "Lax" }])
-  await page.addInitScript(({ token, user }) => {
-    sessionStorage.setItem('token', token)
-    sessionStorage.setItem('user', JSON.stringify(user))
-  }, session)
+  await injectAuth(page, session)
 
-  // Mock archive API for the default tab
-  await page.route('**/api/archive', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ success: true, data: { content: [], totalElements: 0 } }),
-    })
-  })
-
+  // /knowledge 默认重定向到 qualification 子页（vue-router 相对 redirect 落在 /qualification）；
+  // 知识库子页入口在侧边栏菜单（KbLayout 已改为纯 router-view 壳）
   await page.goto('/knowledge')
+  await expect(page).toHaveURL(/\/qualification$/, { timeout: 10000 })
+  await expect(page.getByRole('heading', { name: '资质证书' })).toBeVisible({ timeout: 10000 })
 
-  // Verify KbLayout tabs are visible
-  await expect(page.getByText('项目档案')).toBeVisible({ timeout: 10000 })
-  await expect(page.getByText('资质证书')).toBeVisible()
-  await expect(page.getByText('案例库')).toBeVisible()
-  await expect(page.getByText('模板库')).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: '项目档案' })).toBeVisible({ timeout: 10000 })
+  await expect(page.getByRole('menuitem', { name: '案例库' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: '资质证书' })).toBeVisible()
 
-  // Click a tab and verify URL changes
-  await page.getByText('资质证书').click()
+  // 点击侧边栏菜单项并验证 URL 变化
+  await page.getByRole('menuitem', { name: '资质证书' }).click()
   await expect(page).toHaveURL(/\/knowledge\/qualification/)
 })

@@ -60,10 +60,10 @@ public class WarehouseFileService {
         Path dir = Paths.get(rootPath, String.valueOf(warehouseId));
         Path targetPath = dir.resolve(storedFilename);
 
-        // 4. Write file to disk
+        // 4. Write file to disk（transferTo 的相对路径会被解析到 Tomcat 临时目录而非工作目录，必须转绝对路径）
         try {
-            Files.createDirectories(dir);
-            file.transferTo(targetPath.toFile());
+            Files.createDirectories(dir.toAbsolutePath());
+            file.transferTo(targetPath.toAbsolutePath().toFile());
         } catch (IOException ex) {
             throw new IllegalStateException("文件写入失败: " + ex.getMessage(), ex);
         }

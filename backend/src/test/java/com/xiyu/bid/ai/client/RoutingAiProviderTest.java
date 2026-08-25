@@ -69,6 +69,7 @@ class RoutingAiProviderTest {
         when(aiConfigService.isAiEnabled()).thenReturn(true);
         when(aiConfigService.getInternalAiModelConfig()).thenReturn(config("qwen"));
         when(aiConfigService.resolveAiApiKey("qwen")).thenReturn(null);
+        when(environment.getProperty("ai.provider", "")).thenReturn("");
         when(environment.getProperty("DASHSCOPE_API_KEY")).thenReturn("sk-env");
         when(openAiCompatibleClient.analyzeProject(any(AiProviderRuntimeConfig.class), eq(9L), eq(Map.of())))
                 .thenReturn(expected);
@@ -90,6 +91,21 @@ class RoutingAiProviderTest {
 
         verify(openAiCompatibleClient, never()).analyzeTender(any(), any(), any());
         verify(mockAiProvider, never()).analyzeTender(any(), any());
+    }
+
+    @Test
+    void analyzeTender_WhenProviderForcedToMock_ShouldBypassSettingsAndUseMockProvider() {
+        RoutingAiProvider provider = createProvider();
+        when(environment.getProperty("ai.provider", "")).thenReturn("mock");
+        AiAnalysisResponse expected = response(66);
+        when(mockAiProvider.analyzeTender(eq("content"), eq(Map.of()))).thenReturn(expected);
+
+        AiAnalysisResponse actual = provider.analyzeTender("content", Map.of());
+
+        assertThat(actual).isEqualTo(expected);
+        verify(aiConfigService, never()).isAiEnabled();
+        verify(aiConfigService, never()).getInternalAiModelConfig();
+        verify(openAiCompatibleClient, never()).analyzeTender(any(), any(), any());
     }
 
     @Test

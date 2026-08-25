@@ -73,6 +73,11 @@ public class RoutingAiProvider implements AiProvider {
     }
 
     public AiProviderRuntimeConfig resolveActiveConfig() {
+        // E2E/演示模式（--ai.provider=mock）：强制回落 MockAiProvider，
+        // 否则 settings 驱动的真实厂商在无 API key 环境必然 IllegalStateException
+        if ("mock".equalsIgnoreCase(environment.getProperty("ai.provider", ""))) {
+            return null;
+        }
         if (!aiConfigService.isAiEnabled()) {
             throw new IllegalStateException("AI 功能已在系统设置中关闭");
         }

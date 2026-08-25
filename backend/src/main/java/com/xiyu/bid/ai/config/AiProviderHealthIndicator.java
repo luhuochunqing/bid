@@ -40,7 +40,8 @@ public class AiProviderHealthIndicator implements HealthIndicator {
             }
 
             if (config == null) {
-                return Health.down()
+                // --ai.provider=mock 强制回落是合法配置态（E2E/演示栈），不应拉低整体健康
+                return Health.up()
                         .withDetail("status", "mockMode")
                         .withDetail("reason", "AI provider 配置为 mock，未使用真实 AI 服务")
                         .build();

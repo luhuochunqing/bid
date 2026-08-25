@@ -22,15 +22,18 @@
   border-radius: var(--radius-md);
 }
 
-.project-detail-toolbar .el-page-header__left { display: none; }
+/* 注意：EP 将 __content 嵌套在 __left 内，隐藏 __left 会连带清空整个头部内容，只能藏返回图标 */
+.project-detail-toolbar .el-page-header__icon { display: none; }
+.project-detail-toolbar .el-page-header__left { flex: 1; min-width: 0; overflow: hidden; }
+/* left 恒隐藏后 grid 三列会塌缩（content 列落在 auto 轨道得 0 宽），改用 flex 单列布局 */
 .project-detail-toolbar .el-page-header__header {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
   gap: var(--space-4);
 }
 .project-detail-toolbar .el-page-header__content,
 .project-detail-toolbar .el-page-header__extra {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
 }
@@ -183,7 +186,8 @@
 
 @media (max-width: 640px) {
   .project-detail-toolbar .el-page-header__header {
-    grid-template-columns: minmax(0, 1fr);
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .header-title {

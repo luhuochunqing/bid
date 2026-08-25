@@ -69,8 +69,9 @@ const handleBack = () => {
 const breadcrumbItems = computed(() => {
   const items = []
   const pathSegments = route.path.split('/').filter(Boolean)
-  
-  if (pathSegments.length === 0) return items
+
+  // 顶级页面（单层路径）不显示面包屑行，仅多层路由显示
+  if (pathSegments.length < 2) return items
   
   // 定义路由路径映射表（父路径 → 标题）
   const routeMap = {
