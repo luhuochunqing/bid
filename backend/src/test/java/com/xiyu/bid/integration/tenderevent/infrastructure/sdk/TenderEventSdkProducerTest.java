@@ -46,7 +46,7 @@ class TenderEventSdkProducerTest {
     }
 
     @Test
-    @DisplayName("发送成功：消息体结构正确、data 为自定义 map、trace 进 header")
+    @DisplayName("发送成功：消息体结构正确、data 序列化为 JSON 字符串、trace 进 header")
     void publish_success_buildsBodyAndTraceHeaders() {
         server.expect(requestTo(BASE_URL + "/eventbus/publishEvent"))
                 .andExpect(method(HttpMethod.POST))
@@ -56,7 +56,7 @@ class TenderEventSdkProducerTest {
                           "serviceName": "bid",
                           "eventTopic": "BidTenderChange",
                           "eventSource": "bid",
-                          "data": { "tenderId": 123, "externalId": "ext-1" }
+                          "data": "{\\"tenderId\\":123,\\"externalId\\":\\"ext-1\\"}"
                         }
                         """))
                 .andExpect(header("traceId", "trace-1"))
@@ -71,11 +71,11 @@ class TenderEventSdkProducerTest {
     }
 
     @Test
-    @DisplayName("externalId 为空 → data 只含 tenderId")
+    @DisplayName("externalId 为空 → data 字符串只含 tenderId")
     void publish_blankExternalId_omitsField() {
         server.expect(requestTo(BASE_URL + "/eventbus/publishEvent"))
                 .andExpect(content().json("""
-                        { "data": { "tenderId": 123 } }
+                        { "data": "{\\"tenderId\\":123}" }
                         """))
                 .andRespond(withSuccess("{\"data\":{\"result\":true}}", MediaType.APPLICATION_JSON));
 
