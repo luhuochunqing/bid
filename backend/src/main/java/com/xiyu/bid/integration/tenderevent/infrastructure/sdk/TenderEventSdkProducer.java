@@ -1,6 +1,6 @@
 package com.xiyu.bid.integration.tenderevent.infrastructure.sdk;
 
-import com.ehsy.eventlibrary.clientsdk.systeminteraction.service.SystemInteractiveService;
+import com.ehsy.eventlibrary.clientsdk.config.properties.ServiceRegisterProperties;
 import com.xiyu.bid.integration.tenderevent.application.TenderEventPublishCommand;
 import com.xiyu.bid.integration.tenderevent.application.TenderEventPublishPort;
 import java.util.LinkedHashMap;
@@ -28,9 +28,9 @@ public class TenderEventSdkProducer implements TenderEventPublishPort {
     private final TenderEventHttpSender sender;
 
     public TenderEventSdkProducer(TenderEventSdkProperties properties,
-                                  SystemInteractiveService systemInteractiveService) {
+                                  ServiceRegisterProperties registerProperties) {
         this.properties = properties;
-        this.sender = new TenderEventHttpSender(systemInteractiveService);
+        this.sender = new TenderEventHttpSender(registerProperties);
     }
 
     @Override

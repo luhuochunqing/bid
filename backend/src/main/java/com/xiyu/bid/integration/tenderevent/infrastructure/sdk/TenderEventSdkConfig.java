@@ -46,8 +46,8 @@ public class TenderEventSdkConfig {
             havingValue = "true"
     )
     public TenderEventPublishPort tenderEventPublishPort(TenderEventSdkProperties properties,
-                                                         SystemInteractiveService systemInteractiveService) {
-        return new TenderEventSdkProducer(properties, systemInteractiveService);
+                                                         ServiceRegisterProperties registerProperties) {
+        return new TenderEventSdkProducer(properties, registerProperties);
     }
 
     /** 未启用时兜底端口：不发送任何事件。 */

@@ -1,8 +1,11 @@
 package com.xiyu.bid.integration.tenderevent.infrastructure.sdk;
 
+import com.alibaba.fastjson.JSONObject;
+import com.ehsy.eventlibrary.clientsdk.common.enums.HttpInterfaceTypeEnum;
 import com.ehsy.eventlibrary.clientsdk.common.req.EventTrackReq;
-import com.ehsy.eventlibrary.clientsdk.common.resp.SendEventRespDto;
-import com.ehsy.eventlibrary.clientsdk.systeminteraction.service.SystemInteractiveService;
+import com.ehsy.eventlibrary.clientsdk.config.properties.ServiceRegisterProperties;
+import com.ehsy.eventlibrary.clientsdk.systeminteraction.service.impl.SystemInteractiveServiceImpl;
+import com.ehsy.eventlibrary.clientsdk.util.HttpClientUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.integration.tenderevent.domain.TenderEventCode;
@@ -12,20 +15,24 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * 西域事件总线发送器（基础设施层 WithEffect，包内共享）。
  *
- * <p>统一委托 SDK 的 {@link SystemInteractiveService#sendEvent} 上报
- * {@code POST {serverRegisterUrl}/eventbus/publishEvent}：消息体
+ * <p>复刻 SDK {@code SystemInteractiveServiceImpl.sendEvent} 的完整 wire 契约
+ * （{@code POST {serverRegisterUrl}/eventbus/publishEvent}：消息体
  * {@code {serviceName, eventTopic, eventSource, data}} 组装、traceId/spanId/parentId
- * 写入 HTTP Header、HTTP 调用均由 SDK 承担，本类只负责业务载荷序列化与结果解释。
+ * 写入 HTTP Header），但直接调用 SDK 公开的静态工具 {@link HttpClientUtil#httpPost}：
+ * {@code sendEvent} 只透传 {@code data.result} 并丢弃网关外层 {@code code}/{@code msg}
+ * （失败原因所在），联调排查必须拿到完整响应原文落日志（2026-08-26 tenderId=2282
+ * 推送 FAILED 但无响应体可查的事故教训）。
  *
  * <p>结果解释与 SDK 原生语义的差异：真实网关成功时返回外层 {@code code=="00000"}
- * 且 {@code data.result} 为 null（2026-08-25 部署实测），SDK 只透传 {@code data.result}，
- * 故本类将 result=null 视为已受理成功，仅显式 result=false 判为失败。
+ * 且 {@code data.result} 为 null（2026-08-25 部署实测），故 result=null 视为已受理成功，
+ * 仅显式 result=false 判为失败；响应缺失 data 字段或 data 非对象时按失败处理
+ * （SDK 原生路径会抛 NPE/JSONException，经调用方降级后同样是 FAILED，净效果一致）。
  *
- * <p>已知 SDK 行为：其 HTTP 层仅在状态码 200 时解析响应体，网关返回 201 等非 200
- * 状态码时 SDK 内部抛 NPE，由调用方按异常降级记录 FAILED。
+ * <p>已知 SDK HTTP 行为（字节码核实）：仅状态码 200 时解析响应体并返回；非 200
+ * 状态码与 IO 异常均被 {@code HttpClientUtil} 静默吞掉后返回 null（SDK 原生路径
+ * 随后在 {@code sendEvent} 内以 NPE 暴露），本类将 null 直接判为失败，净效果一致。
  *
  * <p>标讯事件与商机预测提醒事件共用同一总线，两者都通过本类发送。
- * 网络异常向上抛，由调用方按上下文记录日志并降级。
  */
 @Slf4j
 final class TenderEventHttpSender {
@@ -33,10 +40,10 @@ final class TenderEventHttpSender {
     /** 事件总线 {@code EventContentReqDto.data} 声明为 String，须将业务载荷序列化为 JSON 字符串上报。 */
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private final SystemInteractiveService sdkService;
+    private final ServiceRegisterProperties registerProperties;
 
-    TenderEventHttpSender(SystemInteractiveService sdkService) {
-        this.sdkService = sdkService;
+    TenderEventHttpSender(ServiceRegisterProperties registerProperties) {
+        this.registerProperties = registerProperties;
     }
 
     /**
@@ -56,9 +63,27 @@ final class TenderEventHttpSender {
         trackReq.setSpanId(spanId);
         trackReq.setParentId(parentId);
 
-        SendEventRespDto resp = sdkService.sendEvent(
-                code.topic(), code.source(), serializeData(data), trackReq);
-        return resp != null && !Boolean.FALSE.equals(resp.getResult());
+        JSONObject body = new JSONObject();
+        body.put("serviceName", registerProperties.getServiceName());
+        body.put("eventTopic", code.topic());
+        body.put("eventSource", code.source());
+        body.put("data", serializeData(data));
+
+        JSONObject resp = HttpClientUtil.httpPost(
+                registerProperties.getServerRegisterUrl() + "/eventbus/publishEvent",
+                body,
+                SystemInteractiveServiceImpl.buildHeaderParamMap(trackReq),
+                HttpInterfaceTypeEnum.HTTP_PUBLISH_EVENT.getValue());
+
+        // 原始响应体落日志：保留网关第一手响应原文，供联调对账与后续契约核对
+        log.info("事件总线原始响应 eventTopic={} response={}", code.topic(), resp);
+
+        return interpretResult(resp);
+    }
+
+    private static boolean interpretResult(JSONObject resp) {
+        return resp != null && resp.get("data") instanceof JSONObject content
+                && !Boolean.FALSE.equals(content.get("result"));
     }
 
     private static String serializeData(Map<String, Object> data) {
