@@ -5,6 +5,7 @@
 
 package com.xiyu.bid.analytics.service;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -79,7 +80,7 @@ public final class TrendDrillDownFilterSupport {
 
     /** 通用 IN 过滤：values 非空时追加 column IN (:paramName)。 */
     public static void appendInFilter(StringBuilder where, Map<String, Object> params,
-                                      String column, String paramName, java.util.List<String> values) {
+                                      String column, String paramName, List<String> values) {
         if (values == null || values.isEmpty()) {
             return;
         }
