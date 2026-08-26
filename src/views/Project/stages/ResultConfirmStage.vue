@@ -200,6 +200,7 @@ import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
 import { casesApi } from '@/api/modules/knowledge.js'
 import { readinessToTooltip } from './readinessTooltip.js'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
+import { hasAnyPermission } from '@/utils/permission.js'
 import { getResultConfirmNextTab } from '@/constants/projectStages.js'
 import { COMPETITOR_WIN_STATUS_OPTIONS } from '@/constants/competitors.js'
 import { competitionIntelApi } from '@/api/modules/competitionIntel.js'
@@ -215,8 +216,9 @@ const userStore = useUserStore()
 
 const OPERABLE_ROLES = ['admin', 'bid-administration', 'auditor', '/bidAdmin', 'bid-TeamLeader', 'bid-Team', 'manager', 'bid-projectLeader']
 const currentRoleCode = computed(() => userStore?.currentUser?.roleCode || userStore?.currentUser?.role || '')
-// 只有持有 competitor.create 权限的投标业务角色才能输入即建新竞品（无权限角色只允许选已有项）
-const canCreateCompetitor = computed(() => (userStore.menuPermissions || []).includes('competitor.create'))
+// 只有持有 competitor.create 权限的投标业务角色才能输入即建新竞品（无权限角色只允许选已有项）；
+// 必须走 hasAnyPermission（admin 经 'all' 短路放行，OSS 用户严格按菜单权限），裸 includes 会误伤 admin
+const canCreateCompetitor = computed(() => hasAnyPermission(userStore.menuPermissions, ['competitor.create']))
 const resultDone = ref(false)
 const hasOperableRole = computed(() => OPERABLE_ROLES.includes(currentRoleCode.value))
 const canOperate = computed(() => !resultDone.value && hasOperableRole.value)
@@ -245,6 +247,8 @@ async function loadCompetitorOptions() {
 }
 // 对录入端新输入的竞品名做幂等 upsert（已存在返回已有，不存在自动入库），不阻断登记主流程
 async function ensureCompetitorNames(names) {
+  // 无创建权限角色不做自动入库（其快照中的历史/停用竞品名原样保留，避免无谓 403 提示）
+  if (!canCreateCompetitor.value) return
   const newNames = [...new Set(names)].filter(n => n && !competitorOptions.value.includes(n))
   if (!newNames.length) return
   for (const name of newNames) {
