@@ -6,7 +6,11 @@
       重新解析按钮保留在「招标文件解析」标题栏。
       两节副标题（规则提取与满足预判 / 标书对标打分与引用建议）与打分范围单选（全部/仅不满足/勾选）
       已按用户反馈删除，打分固定全量 scope=ALL（2026-08-18）。
-      抽屉头部与内容区顶部留白已压缩，内容整体上移（2026-08-25）。一旦我被更新，务必更新我的开头注释。
+      抽屉头部与内容区顶部留白已压缩，内容整体上移（2026-08-25）。
+      el-drawer teleport 到 body 后不带 scoped data-v 属性，:deep(.el-drawer__body/header) 规则失效，
+      导致 body 非 flex 布局、内容区撑满全高、打分遮罩文字落到内容中点而非可视区（2026-08-26 已改为全局规则）。
+      遮罩展示期间锁定内容区滚动（.scroll-locked），避免轮询中用户滚动导致提示文字漂出可视区（2026-08-26）。
+      为 e2e 布局契约用例新增 data-test 钩子：score-parse-content / score-parse-overlay-text / score-parse-reparse（2026-08-26）。一旦我被更新，务必更新我的开头注释。
 -->
 <template>
   <el-drawer
@@ -26,10 +30,10 @@
       <el-button size="small" style="margin-top: 12px" @click="reparse">重试</el-button>
     </div>
 
-    <div v-else class="drawer-content-wrapper">
+    <div v-else class="drawer-content-wrapper" :class="{ 'scroll-locked': scoringOverlayVisible }" data-test="score-parse-content">
       <div class="scoring-overlay" :class="{ show: scoringOverlayVisible }">
         <div class="spinner"></div>
-        <div class="scoring-text">AI 正在对标已上传标书进行实际打分...</div>
+        <div class="scoring-text" data-test="score-parse-overlay-text">AI 正在对标已上传标书进行实际打分...</div>
         <div class="scoring-sub">读取评分项 → 解析标书内容 → 比对知识库资质证书、仓库信息、品牌授权资料 → 计算客观项得分</div>
       </div>
 
@@ -39,7 +43,7 @@
           <span class="section-num">1</span>
           招标文件解析
           <div class="section-actions">
-            <button class="btn-primary-sm" @click="reparse">🔄 重新解析</button>
+            <button class="btn-primary-sm" data-test="score-parse-reparse" @click="reparse">🔄 重新解析</button>
           </div>
         </div>
 
@@ -191,9 +195,8 @@ defineExpose({ open, runScoring })
 </script>
 
 <style scoped>
-.score-parse-drawer :deep(.el-drawer__body) { padding: 0; display: flex; flex-direction: column; }
-.score-parse-drawer :deep(.el-drawer__header) { padding: 16px 24px 8px; }
 .drawer-content-wrapper { position: relative; flex: 1; overflow-y: auto; padding: 8px 24px 24px; background: var(--bg-white); }
+.drawer-content-wrapper.scroll-locked { overflow-y: hidden; }
 .loading-state, .error-state { text-align: center; padding: 80px 20px; color: var(--text-muted); }
 .loading-icon { font-size: 32px; margin-bottom: 12px; }
 .dots::after { content: '...'; animation: d 1.4s infinite; }
@@ -246,4 +249,10 @@ defineExpose({ open, runScoring })
 .status-cell.ok { color: var(--status-success-color); }
 .status-cell.danger { color: var(--status-danger-color); }
 .status-cell.neutral { color: var(--text-muted); }
+</style>
+
+<!-- 全局：el-drawer teleport 后根元素不带 scoped data-v，scoped/:deep 选择器无法命中，必须用类前缀全局规则 -->
+<style>
+.score-parse-drawer .el-drawer__body { padding: 0; display: flex; flex-direction: column; }
+.score-parse-drawer .el-drawer__header { padding: 16px 24px 8px; }
 </style>
