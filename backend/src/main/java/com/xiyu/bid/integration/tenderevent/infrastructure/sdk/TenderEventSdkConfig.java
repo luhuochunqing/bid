@@ -10,6 +10,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 
 /**
  * 标讯事件推送 SDK 装配。
@@ -30,6 +31,7 @@ public class TenderEventSdkConfig {
 
     /** SDK 发送服务依赖的服务注册配置：serviceName 标识业务系统，serverRegisterUrl 指向事件总线。 */
     @Bean
+    @Primary
     public ServiceRegisterProperties serviceRegisterProperties(TenderEventSdkProperties properties) {
         ServiceRegisterProperties registerProperties = new ServiceRegisterProperties();
         registerProperties.setServiceName(properties.serviceName());
