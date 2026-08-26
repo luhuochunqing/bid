@@ -471,3 +471,9 @@
 - 2026-08-25: 接口六项目修改上线回填（PUT /api/integration/projects，v3.12 §3.6：部分更新语义/客户信息全量替换含 TEL/GAP 附件三态/423-422-404-400 错误码；客户信息键映射收敛到 EvaluationToInitiationMapper.INFO_KEY_MAP 单一真相源） -> integration-tender-api.md
 - 2026-08-25: 竞品公司自定义输入与竞争对手库治理（specs/055：竞品下拉动态加载 + allow-create 幂等 upsert；competitors 加 status/name 唯一约束/seed 24 竞品；治理端改名/合并/停用；competitor.create/govern 权限键注册 RoleProfileCatalog + Flyway V1203） -> competitor-library-governance.md
 - 2026-08-26: M1 竞品维度中标数口径修复（PR !2417：图表 computeCompetitorTrend + 下钻 TrendDrillDownService 同源切换 notes「已中标」口径；CompetitorWonStatusSupport 单一来源；投标数不变；lessons §163 复发教训）-> data-analysis-revamp.md
+
+## 2026-08-26 fix | 标讯事件推送原始响应体日志回归（tenderId=2282 排障盲区）
+- 触发：tenderId=2282 推送流水标 FAILED 且 result=false 但零异常堆栈，网关拒收原因不可知；字节码核实 SDK `sendEvent` 只透传 data.result 并丢弃外层 code/msg（拒绝原因所在），`SendEventRespDto` 仅一个 Boolean 字段
+- 修复：TenderEventHttpSender 直调 SDK 公开静态工具 `HttpClientUtil.httpPost`，完整响应原文落 info 日志；构造参数 SystemInteractiveService → ServiceRegisterProperties（SDK 自动配置已有该 bean，serviceName 与旧链路同源）；@Import/@Primary 拓扑不动
+- 契约勘误（字节码实锤）：httpPost 非 200 与 IO 异常均静默返回 null 而非抛异常——旧链路的 NPE 是 sendEvent 解引用 null；wire 测试据此修正（500 → 判失败而非期待抛出）
+- 更新 [[integration-tender-event-push]] §4 + Wire 契约单一源；教训：**集成排障必须在离源头最近的一层留全量响应证据；包装层只透传业务字段会把故障细节藏在调用方看不见的地方**

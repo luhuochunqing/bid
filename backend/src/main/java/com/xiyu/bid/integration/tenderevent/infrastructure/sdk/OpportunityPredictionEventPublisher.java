@@ -1,6 +1,6 @@
 package com.xiyu.bid.integration.tenderevent.infrastructure.sdk;
 
-import com.ehsy.eventlibrary.clientsdk.systeminteraction.service.SystemInteractiveService;
+import com.ehsy.eventlibrary.clientsdk.config.properties.ServiceRegisterProperties;
 import com.xiyu.bid.config.TraceConstants;
 import com.xiyu.bid.integration.tenderevent.domain.OpportunityPredictionEventPayload;
 import com.xiyu.bid.integration.tenderevent.domain.TenderEventCode;
@@ -14,9 +14,9 @@ import org.springframework.stereotype.Component;
 /**
  * 商机预测提醒事件发布器（基础设施层 WithEffect）。
  *
- * <p>复用 {@link TenderEventHttpSender} 经西域事件 SDK 的 {@code sendEvent} 推送事件总线，
+ * <p>复用 {@link TenderEventHttpSender} 推送事件总线，
  * {@code data} 携带商机预测命中的关键标识（projectId/purchaserName/predictedBidDate），
- * 链路追踪头由 SDK 写入 HTTP Header，与标讯事件线上行为一致。
+ * 链路追踪头写入 HTTP Header，与标讯事件线上行为一致。
  *
  * <p>复用 {@code xiyu.integrations.tender-event.sdk.enabled} 开关：关闭时不发送、不抛异常。
  * 独立于标讯事件管线，避免改动 {@link TenderEventSdkProducer} 造成回归。
@@ -29,9 +29,9 @@ public class OpportunityPredictionEventPublisher {
     private final TenderEventHttpSender sender;
 
     public OpportunityPredictionEventPublisher(TenderEventSdkProperties properties,
-                                               SystemInteractiveService systemInteractiveService) {
+                                               ServiceRegisterProperties registerProperties) {
         this.properties = properties;
-        this.sender = new TenderEventHttpSender(systemInteractiveService);
+        this.sender = new TenderEventHttpSender(registerProperties);
     }
 
     /**
