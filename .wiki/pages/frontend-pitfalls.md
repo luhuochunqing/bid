@@ -2,9 +2,9 @@
 title: 前端 Vue3 / Element Plus 陷阱集
 space: engineering
 category: guide
-tags: [前端, Vue3, Element Plus, reactive, ref, v-model, el-upload, el-form, 权限, E2E]
+tags: [前端, Vue3, Element Plus, reactive, ref, v-model, el-upload, el-form, 权限, E2E, scoped, teleport]
 created: 2026-07-10
-updated: 2026-08-17
+updated: 2026-08-26
 health_checked: 2026-08-20
 sources:
   - src/
@@ -772,7 +772,47 @@ const { selectedSet } = tree  // 解构注入字段，模板才可用
 
 ---
 
-## 19. 变更记录
+## 19. scoped `:deep()` 对 teleport 弹层组件静默失效（el-drawer/el-dialog）
+
+### 19.1 事故
+
+项目中心-标书制作阶段，AI 评分标准解析抽屉点「重新解析」后，加载提示「AI 正在对标已上传标书进行实际打分…」出现在内容中点（约 1600px 深处）而非当前浏览位置，用户看不到提示。
+
+### 19.2 根因（真实浏览器实测取证）
+
+组件内写 `<style scoped>` + `.score-parse-drawer :deep(.el-drawer__body) { display: flex; ... }`，但 el-drawer 默认把弹层 **teleport 到 body**，teleport 后的根元素**不携带 scoped 的 data-v 属性** → `:deep` 选择器无法命中 → 规则静默失效（无任何报错）：
+
+- `.el-drawer__body` computed display 为 `block`（期望 `flex`）
+- 内容区 `.drawer-content-wrapper`（`flex: 1` 在 block 父级下无效）被撑到全部内容高度 2992px
+- 打分遮罩 `position: absolute; inset: 0` 覆盖全部滚动内容，flex 居中的文字落在内容中点而非可视区（视口仅 720px）
+
+### 19.3 正确做法（2026-08-26 已落地）
+
+这类规则必须放到**非 scoped** 的 style 块，用组件自定义类前缀限定作用域：
+
+```vue
+<!-- ❌ 失效：teleport 后根元素无 data-v -->
+<style scoped>
+.my-drawer :deep(.el-drawer__body) { padding: 0; display: flex; flex-direction: column; }
+</style>
+
+<!-- ✅ 生效：类前缀全局规则 -->
+<style>
+.my-drawer .el-drawer__body { padding: 0; display: flex; flex-direction: column; }
+</style>
+```
+
+配套防御：遮罩展示期间给内容区加 `.scroll-locked { overflow-y: hidden }`，避免轮询中用户滚动导致提示漂出可视区（遮罩在滚动容器内是内容坐标系定位，会随内容滚走）。项目内先例：`ScoreItemDetailModal.vue` 同样用非 scoped 块。
+
+### 19.4 规范
+
+- 定制 teleport 弹层（el-drawer/el-dialog）内部结构时，**禁止**在 scoped 块用 `:deep`，必须用类前缀全局规则（先查组件版本是否有原生 props，如 el-dialog 的 `body-style`；el-drawer 2.14 无）
+- 此类样式失效**无任何报错**，必须用浏览器实测 computed style 验证，不能只看代码
+- 回归防护：`e2e/score-parse-drawer-layout.spec.js` 固化三条布局契约（body flex 布局 / 遮罩文字在可视区 / 遮罩期滚动锁定）
+
+---
+
+## 20. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
@@ -783,4 +823,5 @@ const { selectedSet } = tree  // 解构注入字段，模板才可用
 | 2026-08-17 | 新增 §16：API getList 默认 size 10000 过剩，对齐后端 MAX_PAGE_SIZE=100 |
 | 2026-08-18 | 新增 §17：全局 ellipsis 把状态列挤成"黑点"（工作台商机预测表格） |
 | 2026-08-19 | 新增 §18：provide/inject 子组件未解构注入字段 → undefined.has 渲染崩溃（数据分析 TreeSelect） |
+| 2026-08-26 | 新增 §19：scoped :deep 对 teleport 弹层静默失效（评分解析抽屉重新解析遮罩漂出可视区） |
 
