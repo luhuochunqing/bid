@@ -244,7 +244,8 @@ export function useCompetitorData(chartRef) {
   }
 
   const resetFilters = () => {
-    selectedCompetitors.value = [...DEFAULT_COMPETITORS]
+    // specs/056：重置目标跟随当前 options 全集（动态口径），options 未加载时即兜底静态名单
+    selectedCompetitors.value = [...competitorOptions.value.map((o) => o.value)]
     selectedEntities.value = []
     selectedProjectName.value = null
     entityActive.value = false
@@ -256,28 +257,25 @@ export function useCompetitorData(chartRef) {
   }
 
   const initOptions = async () => {
-    try {
-      const res = await dashboardApi.getTenderEntities()
-      const list = Array.isArray(res?.data) ? res.data : []
-      entityOptions.value = list.map((e) => {
-        const name = typeof e === 'string' ? e : (e?.name || e?.entityName || '')
-        return { label: name, value: name }
-      }).filter((o) => o.value)
-    } catch (err) {
-      console.warn('M4 tender-entities fetch error (non-fatal):', err)
-      entityOptions.value = []
-    }
-    // specs/056：竞品下拉接入后端并集口径（ACTIVE 字典 ∪ 被引用快照名），
-    // 默认全选跟随动态 options；失败静默保留静态兜底
-    try {
-      const filterRes = await dashboardApi.getFilterOptions()
-      const names = Array.isArray(filterRes?.data?.competitor) ? filterRes.data.competitor : []
-      if (names.length) {
-        competitorOptions.value = names.map((name) => ({ label: name, value: name }))
-        selectedCompetitors.value = [...competitorOptions.value.map((o) => o.value)]
-      }
-    } catch (err) {
-      console.warn('M4 competitor filter-options fetch error (non-fatal):', err)
+    // specs/056：招标主体与竞品两路选项并行加载；rejected 落空值即静默保留兜底
+    const [tenderRes, filterRes] = await Promise.allSettled([
+      dashboardApi.getTenderEntities(),
+      dashboardApi.getFilterOptions()
+    ])
+    if (tenderRes.status === 'rejected') console.warn('M4 tender-entities fetch error (non-fatal):', tenderRes.reason)
+    if (filterRes.status === 'rejected') console.warn('M4 competitor filter-options fetch error (non-fatal):', filterRes.reason)
+
+    const tenderList = Array.isArray(tenderRes.value?.data) ? tenderRes.value.data : []
+    entityOptions.value = tenderList.map((e) => {
+      const name = typeof e === 'string' ? e : (e?.name || e?.entityName || '')
+      return { label: name, value: name }
+    }).filter((o) => o.value)
+
+    // 竞品下拉接入后端并集口径，默认全选跟随动态 options；空响应时保留静态兜底
+    const names = Array.isArray(filterRes.value?.data?.competitor) ? filterRes.value.data.competitor : []
+    if (names.length) {
+      competitorOptions.value = names.map((name) => ({ label: name, value: name }))
+      selectedCompetitors.value = [...competitorOptions.value.map((o) => o.value)]
     }
   }
 
