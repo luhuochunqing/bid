@@ -1,11 +1,12 @@
 // Input: OrganizationDepartmentRepository, EntityManager, ProjectAccessScopeService
-// Output: Filter options, distinct values, and department tree
+// Output: Filter options, distinct values, and department tree（竞品=快照∪ACTIVE字典并集，specs/056）
 // Pos: Query Service/数据查询层
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 package com.xiyu.bid.analytics.service;
 
 import com.xiyu.bid.analytics.dto.AnalyticsDepartmentTreeDTO;
+import com.xiyu.bid.competitionintel.entity.CompetitorStatus;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationDepartmentEntity;
 import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationDepartmentRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
@@ -21,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * PRD §6.2 M1 筛选区下拉选项查询 — 7 个维度的 DISTINCT 值。
@@ -250,14 +252,29 @@ public class FilterOptionsQueryService {
     }
 
     /**
-     * PRD §6.2 M1 筛选区下拉选项 — 竞品公司 DISTINCT（project_result_competitor.name）。
+     * PRD §6.2 M1/M4 筛选区下拉选项 — 竞品公司（specs/056 动态字典口径）。
+     * <p>选项并集 = 结果确认页可选项（competitors 字典 ACTIVE，主数据不做项目 scope）
+     * ∪ 被引用过的快照名（project_result_competitor.name distinct，带项目权限 scope，
+     * 天然覆盖已停用/删除但有数据的竞品——快照只存 name 与字典解耦，见 PR !2414）。
+     * 合并后 Java 端按名称自然序排序，与 DB collation 解耦。</p>
      */
     List<String> fetchDistinctCompetitorNames() {
-        return queryScopedDistinct("""
+        Set<String> names = new TreeSet<>();
+        queryScopedDistinct("""
                 select distinct prc.name from ProjectResultCompetitor prc
                 join ProjectResult pr on pr.id = prc.resultId join Project p on p.id = pr.projectId
                 where (:allAccess = true or p.id in :scopeIds) and prc.name is not null and prc.name <> ''
-                order by prc.name
-                """);
+                """).stream()
+                .filter(name -> name != null && !name.isBlank())
+                .forEach(names::add);
+        entityManager.createQuery(
+                "select c.name from Competitor c"
+                        + " where c.status = :activeStatus and c.name is not null and c.name <> ''",
+                String.class)
+                .setParameter("activeStatus", CompetitorStatus.ACTIVE)
+                .getResultList().stream()
+                .filter(name -> name != null && !name.isBlank())
+                .forEach(names::add);
+        return List.copyOf(names);
     }
 }
