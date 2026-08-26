@@ -24,6 +24,9 @@ public final class RoleProfileCatalog {
     public static final String BIDDING_DELETE_PERMISSION = "bidding.delete";
     public static final String BIDDING_SYNC_PERMISSION = "bidding.sync";
     public static final String WAREHOUSE_MANAGE_PERMISSION = "warehouse.manage";
+    /** 竞品字典权限键（specs/055）：create=投标业务角色输入即建；govern=治理端改名/合并/停用 */
+    public static final String COMPETITOR_CREATE_PERMISSION = "competitor.create";
+    public static final String COMPETITOR_GOVERN_PERMISSION = "competitor.govern";
     public static final String BRAND_AUTH_VIEW_PERMISSION = "brand-auth.view";
     public static final String BRAND_AUTH_CREATE_PERMISSION = "brand-auth.create";
     public static final String BRAND_AUTH_EDIT_PERMISSION = "brand-auth.edit";
@@ -116,6 +119,7 @@ public final class RoleProfileCatalog {
                 List.of("dashboard", "bidding", "project",
                         "project.create", "project.view", "deposit.return.fill",
                         BIDDING_CREATE_PERMISSION,
+                        COMPETITOR_CREATE_PERMISSION,
                         // CO-393: 项目负责人需访问账户管理/CA信息管理（只读简化视图），需追加 resource 父权限及两个子权限
                         "resource", "resource-account", "resource-ca",
                         // CO-403: 项目负责人需只读访问标讯审计日志和人员库用于投标编制
@@ -130,7 +134,7 @@ public final class RoleProfileCatalog {
                         "task.assign", "evaluation.update", "result.register",
                         "retrospective.submit", "closure.request",
                         BIDDING_MANAGE_PERMISSION, BIDDING_CREATE_PERMISSION,
-                        BIDDING_DELETE_PERMISSION,
+                        BIDDING_DELETE_PERMISSION, COMPETITOR_CREATE_PERMISSION, COMPETITOR_GOVERN_PERMISSION,
                         BRAND_AUTH_VIEW_PERMISSION, BRAND_AUTH_CREATE_PERMISSION,
                         BRAND_AUTH_EDIT_PERMISSION, BRAND_AUTH_REVOKE_PERMISSION,
                         "knowledge-brand-auth",
@@ -154,6 +158,7 @@ public final class RoleProfileCatalog {
                         "task.view.own", "task.handle.own", "evaluation.update",
                         "retrospective.submit",
                         BIDDING_CREATE_PERMISSION,
+                        COMPETITOR_CREATE_PERMISSION,
                         BRAND_AUTH_VIEW_PERMISSION, BRAND_AUTH_CREATE_PERMISSION,
                         BRAND_AUTH_EDIT_PERMISSION, "knowledge-brand-auth",
                         TENDER_VIEW_PERMISSION, PERSONNEL_VIEW_PERMISSION, PERSONNEL_MANAGE_PERMISSION,

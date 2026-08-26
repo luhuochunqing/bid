@@ -492,3 +492,43 @@ sidecar 容器在测试环境 20 分钟膨胀至 4.7GB（§143 事故）。根�
 - `docs/lessons/root-cause-analysis-sidecar-mammoth-oom.md` — 完整根因分析
 - `docs/lessons/lessons-learned.md` §143 — 容器限制止血条目 / §144 — 猴补丁陷阱
 - `document-converter-sidecar/app.py` — 决策落地代码
+
+---
+
+## 7. 竞品公司自定义输入采用方案 B1：输入即建 + 治理兜底，快照只存 name，历史不修复
+
+**日期**: 2026-08-25
+**决策者**: codex
+**相关**: specs/055-competitor-custom-input
+
+### 背景
+
+项目详情"结果确认"阶段竞品公司名称下拉是前端硬编码 24 个常量（`COMPETITOR_COMPANY_OPTIONS`），
+新竞品出现需改代码发版，且各模块（结果登记/竞争情报/报表）数据源不统一。后端已有
+`competitors` 全局字典表但缺治理能力、创建接口限 ADMIN/MANAGER。
+
+### 决策
+
+落地《竞品公司自定义输入》文档的 **B1** 方案：
+
+1. **录入端**：竞品下拉从后端 `competitors` 动态加载 + `allow-create`，输入新名即幂等 upsert 入库。
+2. **治理端**：系统设置下新增「竞争对手库」页，改名/合并/停用，仅治理角色可见。
+3. **快照只存 name**：`project_result_competitor` 不加 `competitor_id` 外键，历史快照与字典解耦。
+4. **历史快照不修复**：合并/改名不回溯改写历史 name，理由为审计真实性（文档问题 3 明确"已登记结果不受字典变动影响"），而非技术复杂度。
+
+### 取舍
+
+| 方案 | 说明 | 采纳 |
+|------|------|------|
+| B1 输入即建 + 治理兜底 | 录入零门槛，管理员后台修整 | ✅ |
+| B2 标准库/临时录入双态 | 需"转为标准库"动作，复杂度高 | ❌ |
+| 历史快照随合并改写 | 报表最规范，但破坏审计还原真实性 | ❌ |
+
+### 验证
+
+- 竞品 upsert 幂等（`INSERT ... ON DUPLICATE KEY UPDATE`）+ 合并引用迁移 + 停用过滤单测全绿（8 例）
+- 权限统一：`competitor.create`/`competitor.govern` 注册 `RoleProfileCatalog` + Flyway 同步，Controller 用 `hasAuthority`（Constitution VI）
+
+### 相关文档
+
+- `specs/055-competitor-custom-input/spec.md` — 完整规格

@@ -358,6 +358,12 @@ const routes = [
         meta: { title: '系统集成', permissionKeys: ['settings', 'settings-integration'], showBack: true }
       },
       {
+        path: 'settings/competitors',
+        name: 'CompetitorLibrary',
+        component: () => import('@/views/System/CompetitorLibrary.vue'),
+        meta: { title: '竞争对手库', permissionKeys: ['settings', 'competitor.govern'], showBack: true }
+      },
+      {
         path: 'inbox',
         name: 'Inbox',
         component: () => import('@/views/NotificationInbox.vue'),
