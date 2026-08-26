@@ -3,6 +3,14 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-08-26] bugfix | TenderEventSdkConfig ServiceRegisterProperties bean 冲突导致 crash-loop
+
+- 触发：测试环境部署 4d1f78b25 后后端 crash-loop，日志报 `required a single bean, but 2 were found`。
+- 根因：PR !2416 `@Import(SystemInteractiveServiceImpl.class)` 引入 SDK 服务，SDK 的 `SDKClientConfiguration` 定义了 `serviceRegister` bean（类型 `ServiceRegisterProperties`），与项目 `TenderEventSdkConfig` 的 `serviceRegisterProperties` bean 类型冲突。
+- 修复：`TenderEventSdkConfig.serviceRegisterProperties()` 添加 `@Primary` 注解。commit `97be01c7c`。
+- 教训：容器测试门禁（FlywayMysqlContainerTest）可提前拦截此类 Spring 上下文装配问题，本次因 Docker 未运行跳过导致在服务器暴露。
+- Wiki 页面：[[tenderevent-sdk-bean-conflict]]
+
 ## [2026-08-26] bugfix | ConfigurationBindingProbe bean.getName() 驼峰名导致 Spring Boot 3.x crash-loop
 
 - 触发：测试环境部署 05a9c3352 后后端 crash-loop，日志报 `Configuration property name 'obsProperties' is not valid`。
