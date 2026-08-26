@@ -478,3 +478,8 @@
 - 修复：TenderEventHttpSender 直调 SDK 公开静态工具 `HttpClientUtil.httpPost`，完整响应原文落 info 日志；构造参数 SystemInteractiveService → ServiceRegisterProperties（SDK 自动配置已有该 bean，serviceName 与旧链路同源）；@Import/@Primary 拓扑不动
 - 契约勘误（字节码实锤）：httpPost 非 200 与 IO 异常均静默返回 null 而非抛异常——旧链路的 NPE 是 sendEvent 解引用 null；wire 测试据此修正（500 → 判失败而非期待抛出）
 - 更新 [[integration-tender-event-push]] §4 + Wire 契约单一源；教训：**集成排障必须在离源头最近的一层留全量响应证据；包装层只透传业务字段会把故障细节藏在调用方看不见的地方**
+
+## 2026-08-26 fix | CompetitorStatus varchar/enum 校验冲突（第 144 次部署打包门禁拦截 P0）
+- 触发：package-release.sh 内置 FlywayMysqlContainerTest 报 Schema-validation found [varchar] expecting [enum ('active','disabled')]，定位链：V1202 VARCHAR(20) ↔ Competitor @Enumerated(STRING) 无 columnDefinition ↔ Hibernate 6 MySQL 方言默认期望原生 ENUM ↔ prod/e2e/flyway-mysql 均 validate → 上线即 crash-loop
+- 修复：实体加 `columnDefinition = "varchar(20)"` 单行对齐 DB 真相（已发布迁移不可变）；FlywayMysqlContainerTest 4/4 PASS（真实 MySQL 全量回放 B73~V1203）
+- 新增 [[hibernate-string-enum-varchar-validate]]；lessons-learned.md §165；教训：**Hibernate 6 起 STRING 枚举默认按原生 ENUM 校验，varchar 列必须显式 columnDefinition；容器测试是 crash-loop 最后防线，禁止为赶部署跳过**
