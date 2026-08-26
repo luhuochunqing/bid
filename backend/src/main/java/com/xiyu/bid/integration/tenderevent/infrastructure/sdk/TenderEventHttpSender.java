@@ -1,27 +1,31 @@
 package com.xiyu.bid.integration.tenderevent.infrastructure.sdk;
 
+import com.ehsy.eventlibrary.clientsdk.common.req.EventTrackReq;
+import com.ehsy.eventlibrary.clientsdk.common.resp.SendEventRespDto;
+import com.ehsy.eventlibrary.clientsdk.systeminteraction.service.SystemInteractiveService;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.integration.tenderevent.domain.TenderEventCode;
-import java.time.Duration;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
-import org.springframework.web.client.RestClient;
 
 /**
- * 西域事件总线 HTTP 发送器（基础设施层 WithEffect，包内共享）。
+ * 西域事件总线发送器（基础设施层 WithEffect，包内共享）。
  *
- * <p>统一 {@code POST {serverRegisterUrl}/eventbus/publishEvent} 的直连行为：
- * 消息体 {@code {serviceName, eventTopic, eventSource, data}}、响应 {@code data.result}
- * 解析、链路追踪头（traceId/spanId/parentId）写入 HTTP Header。
+ * <p>统一委托 SDK 的 {@link SystemInteractiveService#sendEvent} 上报
+ * {@code POST {serverRegisterUrl}/eventbus/publishEvent}：消息体
+ * {@code {serviceName, eventTopic, eventSource, data}} 组装、traceId/spanId/parentId
+ * 写入 HTTP Header、HTTP 调用均由 SDK 承担，本类只负责业务载荷序列化与结果解释。
  *
- * <p>标讯事件与商机预测提醒事件共用同一总线，两者都通过本类发送，
- * 避免同一 wire 契约在多处重复。网络异常向上抛，由调用方按上下文记录日志并降级。
+ * <p>结果解释与 SDK 原生语义的差异：真实网关成功时返回外层 {@code code=="00000"}
+ * 且 {@code data.result} 为 null（2026-08-25 部署实测），SDK 只透传 {@code data.result}，
+ * 故本类将 result=null 视为已受理成功，仅显式 result=false 判为失败。
+ *
+ * <p>已知 SDK 行为：其 HTTP 层仅在状态码 200 时解析响应体，网关返回 201 等非 200
+ * 状态码时 SDK 内部抛 NPE，由调用方按异常降级记录 FAILED。
+ *
+ * <p>标讯事件与商机预测提醒事件共用同一总线，两者都通过本类发送。
+ * 网络异常向上抛，由调用方按上下文记录日志并降级。
  */
 @Slf4j
 final class TenderEventHttpSender {
@@ -29,69 +33,32 @@ final class TenderEventHttpSender {
     /** 事件总线 {@code EventContentReqDto.data} 声明为 String，须将业务载荷序列化为 JSON 字符串上报。 */
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private final RestClient restClient;
-    private final TenderEventSdkProperties properties;
+    private final SystemInteractiveService sdkService;
 
-    TenderEventHttpSender(RestClient restClient, TenderEventSdkProperties properties) {
-        this.restClient = restClient;
-        this.properties = properties;
-    }
-
-    /** 默认 RestClient：3s 连接超时 + 5s 读超时，指向事件总线根地址。 */
-    static RestClient defaultRestClient(TenderEventSdkProperties properties) {
-        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofSeconds(3));
-        factory.setReadTimeout(Duration.ofSeconds(5));
-        return RestClient.builder()
-                .baseUrl(properties.serverRegisterUrl())
-                .requestFactory(factory)
-                .build();
+    TenderEventHttpSender(SystemInteractiveService sdkService) {
+        this.sdkService = sdkService;
     }
 
     /**
-     * 发送事件并解析总线返回结果。
+     * 发送事件并解释总线返回结果。
      *
      * @param code     事件类型（topic/source 来自 {@link TenderEventCode}）
      * @param data     业务关键标识载荷
      * @param traceId  链路追踪 traceId
      * @param spanId   链路追踪 spanId
      * @param parentId 链路追踪 parentId
-     * @return 总线返回 {@code data.result=true} 时为 true
+     * @return 总线受理成功（result 非 false）时为 true
      */
     boolean send(TenderEventCode code, Map<String, Object> data,
                  String traceId, String spanId, String parentId) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("serviceName", properties.serviceName());
-        body.put("eventTopic", code.topic());
-        body.put("eventSource", code.source());
-        body.put("data", serializeData(data));
+        EventTrackReq trackReq = new EventTrackReq();
+        trackReq.setTraceId(traceId);
+        trackReq.setSpanId(spanId);
+        trackReq.setParentId(parentId);
 
-        JsonNode response = restClient.post()
-                .uri("/eventbus/publishEvent")
-                .contentType(MediaType.APPLICATION_JSON)
-                .headers(headers -> applyTraceHeaders(headers, traceId, spanId, parentId))
-                .body(body)
-                .retrieve()
-                .body(JsonNode.class);
-        // 原始响应体落日志：保留网关第一手响应原文，供联调对账与后续契约核对
-        log.info("事件总线原始响应 eventTopic={} response={}", code.topic(), response);
-        return isSuccessResponse(response);
-    }
-
-    private static void applyTraceHeaders(HttpHeaders headers, String traceId, String spanId, String parentId) {
-        headers.add("traceId", traceId);
-        headers.add("spanId", spanId);
-        headers.add("parentId", parentId);
-    }
-
-    private static boolean isSuccessResponse(JsonNode response) {
-        // 真实网关成功信号：外层 code=="00000"（msg=“响应成功”），data.result 为 null。
-        // 兼容历史/测试约定的 data.result==true。
-        if (response == null) {
-            return false;
-        }
-        return "00000".equals(response.path("code").asText(""))
-                || response.path("data").path("result").asBoolean(false);
+        SendEventRespDto resp = sdkService.sendEvent(
+                code.topic(), code.source(), serializeData(data), trackReq);
+        return resp != null && !Boolean.FALSE.equals(resp.getResult());
     }
 
     private static String serializeData(Map<String, Object> data) {

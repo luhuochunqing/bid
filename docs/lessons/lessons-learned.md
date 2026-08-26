@@ -2878,3 +2878,18 @@ WHERE code IN ('bid-Team', 'bid-TeamLeader', 'bid-projectLeader', '/bidAdmin', '
 - 含点号的权限键（`competitor.create`）也**不带引号**存储，`FIND_IN_SET` 才能正确防重。
 - 写权限同步迁移前先 grep 历史迁移，认准 V1174 之后的正确范式（V1189），别照抄 V1121 的带引号写法。
 
+
+## 162. 事件总线联调"没打通"：流水表 0 行才是真根因，wire 契约是假嫌疑（2026-08-26，CO 标讯事件推送）
+
+**背景**：标讯创建事件推送西域 CRM 事件总线长期"没打通"，对接方评审把矛头指向"没用 SDK 的 `SystemInteractiveService`、绕过 SDK 直连 HTTP"。
+
+**排查过程**：
+- 反编译 `ClientSDK-release_0.0.2.jar` 字节码核实：`SystemInteractiveServiceImpl.sendEvent` 的 `data` 字段取自 `eventContent` 入参，trace 走 HTTP Header，无签名/协议封装——此前"SDK 把 data 硬编码为 trace"的论断**不成立**，直连与 SDK 的 wire 契约完全一致。
+- 查开发库 `tender_event_logs`：**0 行**。功能开关 `XIYU_TENDER_EVENT_SDK_ENABLED` 从未在任何环境配置（`.env.example`/部署脚本均无），推送链路从未真正执行过。"没打通"与用不用 SDK 无关。
+
+**修复**：`TenderEventHttpSender` 改为委托 SDK `sendEvent`（`@Import` 单类注册 `SystemInteractiveServiceImpl`，不能整包 `@Import SDKClientConfiguration`——会激活 Kafka/ZK/注册等消费侧组件）；`.env.example` 补开关与总线地址变量；新增 MockWebServer wire 契约测试锁定请求格式。
+
+**教训**：
+- 联调"没打通"先查**运行时证据**（流水表行数、发送日志），确认请求是否发出过，再怀疑 wire 契约。0 行流水 = 链路从未执行，方向就错了。
+- 对第三方 SDK 的行为论断（尤其要据此绕过它时）必须**反编译字节码核实**，不能凭文档或印象；本次错误论断还写进了 javadoc 和 wiki，误导后续排查。
+- 系统级 jar（system scope）的传递依赖要显式补齐（fastjson/httpclient），否则运行期 `ClassNotFoundException`，且本地 dev 不加载对应配置时 mvn test 无法暴露（同教训 152 fastjson crash-loop）。
