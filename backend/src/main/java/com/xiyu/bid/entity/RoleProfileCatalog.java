@@ -24,9 +24,8 @@ public final class RoleProfileCatalog {
     public static final String BIDDING_DELETE_PERMISSION = "bidding.delete";
     public static final String BIDDING_SYNC_PERMISSION = "bidding.sync";
     public static final String WAREHOUSE_MANAGE_PERMISSION = "warehouse.manage";
-    /** 竞品创建/upsert 权限键（specs/055）：投标业务角色输入即建竞品 */
+    /** 竞品字典权限键（specs/055）：create=投标业务角色输入即建；govern=治理端改名/合并/停用 */
     public static final String COMPETITOR_CREATE_PERMISSION = "competitor.create";
-    /** 竞品治理权限键（specs/055）：改名/合并/停用 */
     public static final String COMPETITOR_GOVERN_PERMISSION = "competitor.govern";
     public static final String BRAND_AUTH_VIEW_PERMISSION = "brand-auth.view";
     public static final String BRAND_AUTH_CREATE_PERMISSION = "brand-auth.create";
@@ -135,8 +134,7 @@ public final class RoleProfileCatalog {
                         "task.assign", "evaluation.update", "result.register",
                         "retrospective.submit", "closure.request",
                         BIDDING_MANAGE_PERMISSION, BIDDING_CREATE_PERMISSION,
-                        BIDDING_DELETE_PERMISSION,
-                        COMPETITOR_CREATE_PERMISSION, COMPETITOR_GOVERN_PERMISSION,
+                        BIDDING_DELETE_PERMISSION, COMPETITOR_CREATE_PERMISSION, COMPETITOR_GOVERN_PERMISSION,
                         BRAND_AUTH_VIEW_PERMISSION, BRAND_AUTH_CREATE_PERMISSION,
                         BRAND_AUTH_EDIT_PERMISSION, BRAND_AUTH_REVOKE_PERMISSION,
                         "knowledge-brand-auth",

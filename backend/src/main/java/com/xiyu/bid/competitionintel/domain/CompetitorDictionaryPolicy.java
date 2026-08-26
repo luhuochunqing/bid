@@ -14,6 +14,7 @@ public final class CompetitorDictionaryPolicy {
     private CompetitorDictionaryPolicy() {
     }
 
+    // REUSE-OK: backend/src/main/java/com/xiyu/bid/admin/settings/core/DepartmentGraphPolicy.java — 同名 trim 归一化仅 3 行纯函数，跨模块复用将引入 competitionintel→admin.settings 错误依赖方向
     /**
      * 归一化竞品名：去除首尾空白。
      *
