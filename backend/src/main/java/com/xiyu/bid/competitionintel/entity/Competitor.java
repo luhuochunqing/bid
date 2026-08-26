@@ -41,7 +41,7 @@ public class Competitor {
      * 竞品状态（ACTIVE 启用 / DISABLED 停用）
      */
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 20, columnDefinition = "varchar(20)")
     @Builder.Default
     private CompetitorStatus status = CompetitorStatus.ACTIVE;
 
