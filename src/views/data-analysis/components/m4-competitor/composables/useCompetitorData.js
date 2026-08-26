@@ -75,7 +75,8 @@ export function useCompetitorData(chartRef) {
   const tableData = ref(null)
   const tableVisible = ref(false)
 
-  const competitorOptions = computed(() => COMPETITOR_ENUM)
+  // specs/056：竞品选项动态化——初始静态名单兜底，initOptions 覆盖为后端并集口径
+  const competitorOptions = ref(COMPETITOR_ENUM)
 
   const generateTableDisabled = computed(
     () => !projectNameActive.value || !selectedProjectName.value
@@ -265,6 +266,18 @@ export function useCompetitorData(chartRef) {
     } catch (err) {
       console.warn('M4 tender-entities fetch error (non-fatal):', err)
       entityOptions.value = []
+    }
+    // specs/056：竞品下拉接入后端并集口径（ACTIVE 字典 ∪ 被引用快照名），
+    // 默认全选跟随动态 options；失败静默保留静态兜底
+    try {
+      const filterRes = await dashboardApi.getFilterOptions()
+      const names = Array.isArray(filterRes?.data?.competitor) ? filterRes.data.competitor : []
+      if (names.length) {
+        competitorOptions.value = names.map((name) => ({ label: name, value: name }))
+        selectedCompetitors.value = [...competitorOptions.value.map((o) => o.value)]
+      }
+    } catch (err) {
+      console.warn('M4 competitor filter-options fetch error (non-fatal):', err)
     }
   }
 
