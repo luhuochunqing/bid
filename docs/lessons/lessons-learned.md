@@ -2893,3 +2893,15 @@ WHERE code IN ('bid-Team', 'bid-TeamLeader', 'bid-projectLeader', '/bidAdmin', '
 - 联调"没打通"先查**运行时证据**（流水表行数、发送日志），确认请求是否发出过，再怀疑 wire 契约。0 行流水 = 链路从未执行，方向就错了。
 - 对第三方 SDK 的行为论断（尤其要据此绕过它时）必须**反编译字节码核实**，不能凭文档或印象；本次错误论断还写进了 javadoc 和 wiki，误导后续排查。
 - 系统级 jar（system scope）的传递依赖要显式补齐（fastjson/httpclient），否则运行期 `ClassNotFoundException`，且本地 dev 不加载对应配置时 mvn test 无法暴露（同教训 152 fastjson crash-loop）。
+## 163. 语义漂移字段口径修复只落首发模块：同根因消费方必须全量排查（2026-08-26，specs/055）
+
+**背景**：§127（PR !2339）修复了 M4 竞品分析「是否中标」整列误显的口径错配，但同一根因的另一个消费方——M1 多维度趋势分析的竞品维度——未被同步排查。用户在 M1 图表选「竞品公司」时发现中标数恒等于投标数才暴露：图表 `computeDimensionTrend` 对全部维度统一用 `projects.status=WON` 计中标数，下钻 `TrendDrillDownService` 的明细过滤与 summary.totalWins 也是同口径。
+
+**根因**：修"唯一数据源"类 bug 时只改了报告问题的首发链路（M4），没有 grep 该字段与业务词的全量消费方；且图表与其下钻是同一口径的两个出口，改一个没查另一个。
+
+**教训**：
+1. **修语义漂移字段口径先做消费方普查再动手**：grep 字段名（`prc.notes`）+ 业务词（`已中标`）+ 同义推导源（`status.*WON`），列出所有读写点逐个判定是否需同步。
+2. **图表数字与下钻明细必须同源**：任一口径改动必须同时核对计算层、下钻过滤层、下钻汇总层三处，否则产生"图上 3 家点开 5 家"的二次事故。
+3. **口径解析函数提取共享 support 单一来源**：本次把 `parseCompetitorWon` 与「已中标」字面量提取至 `CompetitorWonStatusSupport`，M1/M4 共用，杜绝第三处定义漂移。
+
+**修复**：specs/055（分支 `agent/ox/fix-analytics-competitor-won-notes`）两个原子 commit：①提取共享 support（M4 委托零行为变化）②M1 图表 + 下钻切换 notes 口径。投标数维持不变。

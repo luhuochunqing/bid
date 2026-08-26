@@ -134,6 +134,7 @@ PRD §9.12 步骤 7 + §9.14：竞品公司至少保留 1 个，不允许清空�
 - 项目详情「竞争对手情况」表格的「是否中标」下拉（枚举 `已中标/未中标`，定义于 `src/constants/competitors.js`）写入的是 `project_result_competitor.notes`——该列原名「其他说明」，前端语义漂移复用（`ResultConfirmStage.vue` L208 有注释）。
 - 竞品分析任何按竞品维度取「是否中标」的功能必须读 `prc.notes` 并经 `parseCompetitorWon` 解析（仅「已中标」精确匹配为 true）；**禁止**用 `projects.status`/`ProjectResult.resultType`/`pid.bidResultStatus` 推导——那些是我司（项目级）的中标事实，会整列传染。
 - 历史「其他说明」自由文本（非枚举）按未中标处理，与前端 select 显示为空的行为对齐。
+- **2026-08-26 M1 对齐（specs/055）**：M1 多维度趋势分析竞品维度（图表 `computeCompetitorTrend` + 下钻 `TrendDrillDownService` 中标数过滤与 totalWins 汇总）对齐本口径；判定函数与「已中标」字面量提取至共享 support `CompetitorWonStatusSupport` 单一来源。投标数维持该竞品参与项目数不变，中标率语义=「该竞品对我司的中标率」。
 
 ### 11. 跨表字符集 Collation 与纯函数解耦（2026-08-19）
 

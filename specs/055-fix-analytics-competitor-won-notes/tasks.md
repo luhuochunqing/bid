@@ -40,12 +40,12 @@
       ① notes='已中标' 计入 winCount 且 bidCount 正常；② '未中标'/null/空白/历史自由文本不计入；
       ③ 同项目多竞品各自独立计数；④ 去重后重复行不重复计；⑤ winRate = 已中标/参与项目数（含 0 除保护）；
       ⑥ expectedCategories 补零回归；⑦ 非竞品维度走 computeDimensionTrend 行为回归（既有用例即覆盖，跑全绿确认）。
-- [ ] T010 全量验证：`mvn test -pl backend -Dtest='TrendAnalysis*,CompetitorAnalysis*'` 全绿；
+- [X] T010 全量验证：`mvn test -pl backend -Dtest='TrendAnalysis*,CompetitorAnalysis*'` 全绿；
       grep 对账：主代码「已中标」仅 support 一处；`new DimensionRow(` 仍为 15 处（零改动承诺兑现）。
       通过后提交：`fix(analytics): M1 竞品维度中标数改用结果确认「是否中标」列口径并同步下钻`。
 
 ## Phase 3: 知识回填（随 Commit ② 或独立 docs commit）
 
-- [ ] T011 更新 `.wiki/pages/data-analysis-revamp.md` §10：追加一行「2026-08-26 M1 趋势分析竞品维度对齐该口径（specs/055），下钻链路同步」，不新开小节。
-- [ ] T012 `docs/lessons/lessons-learned.md` 追加复发条目（引用 §127）：根因为「口径修复只落了首发模块，同根因消费方（M1 图表+下钻）未同步排查」；给出检查动作——修语义漂移字段口径时 grep 该字段全部消费方。
-- [ ] T013 更新 analytics 包 `README.md` 文件清单（新增 CompetitorWonStatusSupport 行）+ 各改动类头部 Pos 注释复核。
+- [X] T011 更新 `.wiki/pages/data-analysis-revamp.md` §10：追加一行「2026-08-26 M1 趋势分析竞品维度对齐该口径（specs/055），下钻链路同步」，不新开小节。
+- [X] T012 `docs/lessons/lessons-learned.md` 追加复发条目（引用 §127）：根因为「口径修复只落了首发模块，同根因消费方（M1 图表+下钻）未同步排查」；给出检查动作——修语义漂移字段口径时 grep 该字段全部消费方。
+- [X] T013 更新 analytics 包 `README.md` 文件清单（新增 CompetitorWonStatusSupport 行）+ 各改动类头部 Pos 注释复核。
