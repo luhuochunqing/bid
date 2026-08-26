@@ -104,8 +104,8 @@
               size="small"
               filterable
               clearable
-              allow-create
-              default-first-option
+              :allow-create="canCreateCompetitor"
+              :default-first-option="canCreateCompetitor"
               :disabled="!canOperate"
               class="competitor-cell-select"
             >
@@ -215,6 +215,8 @@ const userStore = useUserStore()
 
 const OPERABLE_ROLES = ['admin', 'bid-administration', 'auditor', '/bidAdmin', 'bid-TeamLeader', 'bid-Team', 'manager', 'bid-projectLeader']
 const currentRoleCode = computed(() => userStore?.currentUser?.roleCode || userStore?.currentUser?.role || '')
+// 只有持有 competitor.create 权限的投标业务角色才能输入即建新竞品（无权限角色只允许选已有项）
+const canCreateCompetitor = computed(() => (userStore.menuPermissions || []).includes('competitor.create'))
 const resultDone = ref(false)
 const hasOperableRole = computed(() => OPERABLE_ROLES.includes(currentRoleCode.value))
 const canOperate = computed(() => !resultDone.value && hasOperableRole.value)

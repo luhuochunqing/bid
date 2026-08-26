@@ -1,6 +1,7 @@
 package com.xiyu.bid.competitionintel.service;
 
 import com.xiyu.bid.competitionintel.dto.CompetitorDTO;
+import com.xiyu.bid.competitionintel.dto.CompetitorUpsertRequest;
 import com.xiyu.bid.competitionintel.entity.Competitor;
 import com.xiyu.bid.competitionintel.entity.CompetitorStatus;
 import com.xiyu.bid.competitionintel.repository.CompetitionAnalysisRepository;
@@ -16,7 +17,6 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -41,17 +41,21 @@ class CompetitorGovernanceServiceTest {
         return Competitor.builder().id(id).name(name).status(status).build();
     }
 
+    private CompetitorUpsertRequest upsertRequest(String name) {
+        return CompetitorUpsertRequest.builder().name(name).build();
+    }
+
     @Test
     void upsertCompetitor_WithExistingName_ReturnsExisting() {
         Competitor existing = competitor(1L, "震坤行", CompetitorStatus.ACTIVE);
         when(competitorRepository.findByName("震坤行")).thenReturn(Optional.of(existing));
 
-        CompetitorDTO result = service.upsertCompetitor(" 震坤行 ");
+        CompetitorDTO result = service.upsertCompetitor(upsertRequest(" 震坤行 "));
 
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getName()).isEqualTo("震坤行");
         // 幂等：始终走原生 upsert（ON DUPLICATE KEY UPDATE no-op），撞唯一约束不报错
-        verify(competitorRepository).insertCompetitorIfAbsent("震坤行");
+        verify(competitorRepository).insertCompetitorIfAbsent("震坤行", null, null, null);
     }
 
     @Test
@@ -59,17 +63,28 @@ class CompetitorGovernanceServiceTest {
         Competitor saved = competitor(2L, "新竞品", CompetitorStatus.ACTIVE);
         when(competitorRepository.findByName("新竞品")).thenReturn(Optional.of(saved));
 
-        CompetitorDTO result = service.upsertCompetitor(" 新竞品 ");
+        CompetitorDTO result = service.upsertCompetitor(upsertRequest(" 新竞品 "));
 
         assertThat(result.getId()).isEqualTo(2L);
-        verify(competitorRepository).insertCompetitorIfAbsent("新竞品");
+        verify(competitorRepository).insertCompetitorIfAbsent("新竞品", null, null, null);
+    }
+
+    @Test
+    void upsertCompetitor_WithOptionalFields_PassesThemToInsert() {
+        Competitor saved = competitor(3L, "新竞企", CompetitorStatus.ACTIVE);
+        when(competitorRepository.findByName("新竞企")).thenReturn(Optional.of(saved));
+
+        service.upsertCompetitor(CompetitorUpsertRequest.builder()
+                .name("新竞企").industry("制造业").strengths("成本低").weaknesses("技术弱").build());
+
+        verify(competitorRepository).insertCompetitorIfAbsent("新竞企", "制造业", "成本低", "技术弱");
     }
 
     @Test
     void upsertCompetitor_WithBlankName_Throws() {
-        assertThatThrownBy(() -> service.upsertCompetitor("   "))
+        assertThatThrownBy(() -> service.upsertCompetitor(upsertRequest("   ")))
                 .isInstanceOf(IllegalArgumentException.class);
-        verify(competitorRepository, never()).insertCompetitorIfAbsent(any());
+        verify(competitorRepository, never()).insertCompetitorIfAbsent(any(), any(), any(), any());
     }
 
     @Test
@@ -82,6 +97,17 @@ class CompetitorGovernanceServiceTest {
 
         assertThat(result.getName()).isEqualTo("新名");
         assertThat(target.getName()).isEqualTo("新名");
+    }
+
+    @Test
+    void renameCompetitor_WithDuplicateName_Throws() {
+        Competitor target = competitor(1L, "旧名", CompetitorStatus.ACTIVE);
+        when(competitorRepository.findById(1L)).thenReturn(Optional.of(target));
+        when(competitorRepository.existsByName("震坤行")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.renameCompetitor(1L, "震坤行"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("合并");
     }
 
     @Test
@@ -111,6 +137,18 @@ class CompetitorGovernanceServiceTest {
     void mergeCompetitor_WithDisabledTarget_Throws() {
         Competitor target = competitor(2L, "震坤行", CompetitorStatus.DISABLED);
         when(competitorRepository.findById(2L)).thenReturn(Optional.of(target));
+
+        assertThatThrownBy(() -> service.mergeCompetitor(1L, 2L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("停用");
+    }
+
+    @Test
+    void mergeCompetitor_WithDisabledSource_Throws() {
+        Competitor source = competitor(1L, "上海震坤行", CompetitorStatus.DISABLED);
+        Competitor target = competitor(2L, "震坤行", CompetitorStatus.ACTIVE);
+        when(competitorRepository.findById(2L)).thenReturn(Optional.of(target));
+        when(competitorRepository.findById(1L)).thenReturn(Optional.of(source));
 
         assertThatThrownBy(() -> service.mergeCompetitor(1L, 2L))
                 .isInstanceOf(IllegalArgumentException.class)

@@ -52,14 +52,14 @@ export const competitionIntelApi = {
       data: (response?.data || []).map(normalizeCompetitor) }
   },
 
-  // 兼容旧调用（传对象取 .name，传字符串直接用），语义现为幂等 upsert（specs/055）
+  // 兼容旧调用（传对象则保留 name/industry/strengths/weaknesses 字段，传字符串只用 name），语义现为幂等 upsert（specs/055）
   async createCompetitor(data) {
-    const name = typeof data === 'string' ? data : data?.name
-    return this.upsertCompetitor(name)
+    return this.upsertCompetitor(data)
   },
 
-  async upsertCompetitor(name) {
-    const response = await httpClient.post('/api/ai/competition/competitors', { name })
+  async upsertCompetitor(payload) {
+    const body = typeof payload === 'string' ? { name: payload } : payload
+    const response = await httpClient.post('/api/ai/competition/competitors', body)
     return { ...response, data: normalizeCompetitor(response?.data) }
   },
 

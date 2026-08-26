@@ -7,6 +7,7 @@ package com.xiyu.bid.competitionintel.service;
 import com.xiyu.bid.annotation.Auditable;
 import com.xiyu.bid.competitionintel.domain.CompetitorDictionaryPolicy;
 import com.xiyu.bid.competitionintel.dto.CompetitorDTO;
+import com.xiyu.bid.competitionintel.dto.CompetitorUpsertRequest;
 import com.xiyu.bid.competitionintel.entity.Competitor;
 import com.xiyu.bid.competitionintel.entity.CompetitorStatus;
 import com.xiyu.bid.competitionintel.repository.CompetitionAnalysisRepository;
@@ -53,14 +54,15 @@ public class CompetitorGovernanceService {
     }
 
     /**
-     * 幂等 upsert：名称已存在则返回已有竞品，不存在则创建。
+     * 幂等 upsert：名称已存在则返回已有竞品，不存在则创建（可选情报字段仅在新建时写入）。
      * <p>并发安全：数据库唯一约束 + 原生 INSERT ... ON DUPLICATE KEY UPDATE。</p>
      */
     @Auditable(action = "UPSERT", entityType = "Competitor", description = "Upsert competitor by name")
     @Transactional
-    public CompetitorDTO upsertCompetitor(String rawName) {
-        String name = requireNormalizedName(rawName);
-        competitorRepository.insertCompetitorIfAbsent(name);
+    public CompetitorDTO upsertCompetitor(CompetitorUpsertRequest request) {
+        String name = requireNormalizedName(request.getName());
+        competitorRepository.insertCompetitorIfAbsent(
+                name, request.getIndustry(), request.getStrengths(), request.getWeaknesses());
         return competitorRepository.findByName(name)
                 .map(this::convertToDTO)
                 .orElseThrow(() -> new IllegalStateException("竞品创建失败: " + name));
@@ -68,12 +70,16 @@ public class CompetitorGovernanceService {
 
     /**
      * 改名竞品（历史快照不受影响，新录入使用新名称）。
+     * <p>改名撞已存在名称时拒绝（提示走合并），避免唯一约束冲突 500。</p>
      */
     @Auditable(action = "RENAME", entityType = "Competitor", description = "Rename competitor")
     @Transactional
     public CompetitorDTO renameCompetitor(Long id, String rawName) {
         String name = requireNormalizedName(rawName);
         Competitor competitor = findCompetitor(id);
+        if (!name.equals(competitor.getName()) && competitorRepository.existsByName(name)) {
+            throw new IllegalArgumentException("竞品名称已存在，请使用合并功能");
+        }
         competitor.setName(name);
         return convertToDTO(competitorRepository.save(competitor));
     }
@@ -94,6 +100,9 @@ public class CompetitorGovernanceService {
             throw new IllegalArgumentException("目标竞品已停用，不能作为合并目标");
         }
         Competitor source = findCompetitor(sourceId);
+        if (source.getStatus() == CompetitorStatus.DISABLED) {
+            throw new IllegalArgumentException("源竞品已停用，无需再次合并");
+        }
         int migrated = analysisRepository.updateCompetitorIdForMerge(sourceId, targetId);
         source.setStatus(CompetitorStatus.DISABLED);
         competitorRepository.save(source);

@@ -66,7 +66,7 @@ public class CompetitionIntelController {
     public ResponseEntity<ApiResponse<CompetitorDTO>> upsertCompetitor(
             @Valid @RequestBody CompetitorUpsertRequest request) {
         log.info("POST /api/ai/competition/competitors - Upserting competitor: {}", request.getName());
-        CompetitorDTO competitor = competitorGovernanceService.upsertCompetitor(request.getName());
+        CompetitorDTO competitor = competitorGovernanceService.upsertCompetitor(request);
         return ResponseEntity.ok(ApiResponse.success("Competitor upserted successfully", competitor));
     }
 
