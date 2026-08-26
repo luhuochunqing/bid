@@ -1,6 +1,7 @@
 // Input: EntityManager, ProjectAccessScopeService, HTTP drilldown requests
 // Output: TrendDrillDownResponse DTO
-// Pos: Service/数据查询与下钻服务层
+// Pos: Service/数据查询与下钻服务层（竞品维度中标数/wins 走「是否中标」列口径，specs/055；
+//       维度过滤条件组装已拆至 TrendDrillDownFilterSupport）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 package com.xiyu.bid.analytics.service;
@@ -68,7 +69,7 @@ public class TrendDrillDownService {
         boolean regionAxis = "region".equals(dimension) && axisValue != null && !axisValue.isBlank();
         boolean customerTypeAxis = "customerType".equals(dimension) && axisValue != null && !axisValue.isBlank();
         if (!regionAxis && !customerTypeAxis) {
-            appendDimensionFilter(where, params, dimension, axisValue);
+            TrendDrillDownFilterSupport.appendDimensionFilter(where, params, dimension, axisValue);
         }
 
         if (startDate != null) {
@@ -80,9 +81,27 @@ public class TrendDrillDownService {
             params.put("endDate", endDate.plusDays(1).atStartOfDay());
         }
 
-        // 系列名过滤：投标数=全部项目（无附加状态条件，与图表口径对齐），中标数=WON
+        // 系列名过滤：投标数=全部项目（无附加状态条件，与图表口径对齐）。
+        // 中标数：非竞品维度=项目级 status=WON；竞品维度（specs/055）=结果确认「是否中标」列已中标
+        // （TRIM(notes) 精确匹配 CompetitorWonStatusSupport.WON_LABEL，与图表 computeCompetitorTrend 同源，
+        // 避免「图上数字与下钻明细对不上」）；axisValue 缺失时回退筛选器竞品名集合，再缺省则不限竞品名。
         if ("中标数".equals(seriesName)) {
-            where.append(" AND p.status = 'WON'");
+            if ("competitor".equals(dimension)) {
+                String wonExists = " AND EXISTS (SELECT 1 FROM project_result prw JOIN project_result_competitor prcw"
+                        + " ON prcw.result_id = prw.id WHERE prw.project_id = p.id";
+                if (axisValue != null && !axisValue.isBlank()) {
+                    where.append(wonExists).append(" AND prcw.name = :wonAxisVal AND TRIM(prcw.notes) = :wonLabel)");
+                    params.put("wonAxisVal", axisValue);
+                } else if (competitorNames != null && !competitorNames.isEmpty()) {
+                    where.append(wonExists).append(" AND prcw.name IN (:competitorNames) AND TRIM(prcw.notes) = :wonLabel)");
+                    params.put("competitorNames", competitorNames);
+                } else {
+                    where.append(wonExists).append(" AND TRIM(prcw.notes) = :wonLabel)");
+                }
+                params.put("wonLabel", CompetitorWonStatusSupport.WON_LABEL);
+            } else {
+                where.append(" AND p.status = 'WON'");
+            }
         }
 
         // 通用筛选：客户类型与分组同口径归一化匹配；axisValue 与 customerTypes 取交集后只算一次
@@ -97,8 +116,8 @@ public class TrendDrillDownService {
             where.append(" AND p.id IN (:customerTypeProjectIds)");
             params.put("customerTypeProjectIds", customerTypeMatchedIds);
         }
-        appendInFilter(where, params, "t.project_type", "projectTypes", projectTypes);
-        appendInFilter(where, params, "p.status", "statuses", statuses);
+        TrendDrillDownFilterSupport.appendInFilter(where, params, "t.project_type", "projectTypes", projectTypes);
+        TrendDrillDownFilterSupport.appendInFilter(where, params, "p.status", "statuses", statuses);
         // 区域过滤：与图表分组同口径的省份归一化匹配（见 AnalyticsRegionFilterSupport）。
         // axisValue（点击柱子省份）与 regions（筛选器省份）取交集后只计算一次，避免重复全表回捞
         if (regionAxis || (regions != null && !regions.isEmpty())) {
@@ -187,8 +206,11 @@ public class TrendDrillDownService {
                     .build());
         }
 
-        // 汇总统计
-        long totalWins = countByStatus(where, params);
+        // 汇总统计（specs/055：竞品维度 totalWins 与图表 winSeries 同源——「是否中标」列口径；
+        // 其余维度沿用项目级 status=WON 汇总）
+        long totalWins = "competitor".equals(dimension)
+                ? countCompetitorWins(where, params, axisValue != null && !axisValue.isBlank() ? axisValue : null)
+                : countByStatus(where, params);
         TrendDrillDownResponse.DrillDownSummary summary = TrendDrillDownResponse.DrillDownSummary.builder()
                 .totalCount(total)
                 .totalBids(total)
@@ -210,6 +232,32 @@ public class TrendDrillDownService {
                 .build();
     }
 
+    /**
+     * 竞品维度下钻汇总：totalWins 按竞品「是否中标」列口径统计（specs/055）。
+     * axisName 非 null 时限定该竞品名——与图表单柱 winCount 完全同源；
+     * null 时统计当前 where 范围内存在任一「已中标」记录的项目数（axisValue 缺失的兜底口径）。
+     * seriesName=中标数时 where 已含同条件，本方法结果自然等于 total（冗余但与既有 WON 双重统计对称，无害）。
+     * 其余维度沿用 {@link #countByStatus}（项目级 status=WON），不受影响。
+     */
+    private long countCompetitorWins(StringBuilder where, Map<String, Object> params, String axisName) {
+        StringBuilder sql = new StringBuilder("SELECT COUNT(DISTINCT p.id) FROM projects p")
+                .append(" LEFT JOIN tenders t ON t.id = p.tender_id")
+                .append(" LEFT JOIN project_initiation_details pid ON pid.project_id = p.id")
+                .append(" LEFT JOIN users u ON u.id = p.manager_id")
+                .append(where)
+                .append(" AND EXISTS (SELECT 1 FROM project_result prw JOIN project_result_competitor prcw")
+                .append(" ON prcw.result_id = prw.id WHERE prw.project_id = p.id");
+        if (axisName != null) {
+            sql.append(" AND prcw.name = :wonSummaryAxisVal");
+            params.put("wonSummaryAxisVal", axisName);
+        }
+        sql.append(" AND TRIM(prcw.notes) = :wonSummaryLabel)");
+        Query q = entityManager.createNativeQuery(sql.toString());
+        params.forEach(q::setParameter);
+        q.setParameter("wonSummaryLabel", CompetitorWonStatusSupport.WON_LABEL);
+        return ((Number) q.getSingleResult()).longValue();
+    }
+
     private long countByStatus(StringBuilder where, Map<String, Object> params) {
         // 已通过 seriesName='中标数' 强制 status='WON' 的查询场景无需重复统计；
         // 此处用于汇总：基于当前 where 条件统计 WON 状态项目数（参数化避免 SQL 注入）
@@ -222,69 +270,6 @@ public class TrendDrillDownService {
         params.forEach(q::setParameter);
         q.setParameter("wonStatus", "WON");
         return ((Number) q.getSingleResult()).longValue();
-    }
-
-    private void appendDimensionFilter(StringBuilder where, Map<String, Object> params,
-                                       String dimension, String axisValue) {
-        if (axisValue == null || axisValue.isBlank()) return;
-        switch (dimension) {
-            case "time" -> {
-                // axisValue 格式判断：日/周/月/年
-                if (axisValue.matches("\\d{4}-\\d{2}-\\d{2}")) {
-                    // 日格式 "2026-03-15"
-                    where.append(" AND DATE_FORMAT(p.created_at, '%Y-%m-%d') = :axisVal");
-                } else if (axisValue.matches("\\d{4}-W\\d+")) {
-                    // 周格式 "2026-W12" → YEARWEEK(p.created_at,1) 返回 YYYYWW
-                    String year = axisValue.substring(0, 4);
-                    String week = String.format("%02d", Integer.parseInt(axisValue.substring(6)));
-                    where.append(" AND YEARWEEK(p.created_at, 1) = :axisWeekVal");
-                    params.put("axisWeekVal", year + week);
-                    return; // 提前返回，避免执行下面的 params.put
-                } else if (axisValue.matches("\\d{4}-\\d{2}")) {
-                    // 月格式 "2026-03"（原逻辑）
-                    where.append(" AND DATE_FORMAT(p.created_at, '%Y-%m') = :axisVal");
-                } else if (axisValue.matches("\\d{4}")) {
-                    // 年格式 "2026"
-                    where.append(" AND YEAR(p.created_at) = :axisVal");
-                } else {
-                    // fallback 月格式
-                    where.append(" AND DATE_FORMAT(p.created_at, '%Y-%m') = :axisVal");
-                }
-                params.put("axisVal", axisValue);
-            }
-            case "dept" -> {
-                where.append(" AND u.department_name = :axisVal");
-                params.put("axisVal", axisValue);
-            }
-            case "person" -> {
-                where.append(" AND u.full_name = :axisVal");
-                params.put("axisVal", axisValue);
-            }
-            case "projectType" -> {
-                where.append(" AND t.project_type = :axisVal");
-                params.put("axisVal", axisValue);
-            }
-            case "projectStatus" -> {
-                where.append(" AND p.status = :axisVal");
-                params.put("axisVal", axisValue);
-            }
-            case "tenderEntity" -> {
-                where.append(" AND t.purchaser_name = :axisVal");
-                params.put("axisVal", axisValue);
-            }
-            case "competitor" -> {
-                where.append(" AND EXISTS (SELECT 1 FROM project_result pr2 JOIN project_result_competitor prc2 ON prc2.result_id = pr2.id WHERE pr2.project_id = p.id AND prc2.name = :axisVal)");
-                params.put("axisVal", axisValue);
-            }
-            default -> {}
-        }
-    }
-
-    private void appendInFilter(StringBuilder where, Map<String, Object> params,
-                                String column, String paramName, List<String> values) {
-        if (values == null || values.isEmpty()) return;
-        where.append(" AND ").append(column).append(" IN (:").append(paramName).append(")");
-        params.put(paramName, values);
     }
 
     private TrendDrillDownResponse emptyResponse(int page, int size) {

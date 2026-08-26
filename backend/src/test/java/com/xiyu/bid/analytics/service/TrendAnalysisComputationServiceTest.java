@@ -135,4 +135,95 @@ class TrendAnalysisComputationServiceTest {
         assertThat(result.categories()).containsExactly("2026-W01", "2026-W02");
         assertThat(result.bidSeries()).containsExactly(1L, 1L);
     }
+
+    //===== specs/055 竞品维度「中标数」= 结果确认「是否中标」列口径 =====
+
+    @Test
+    @DisplayName("specs/055: 竞品 winCount 按「是否中标」列判定，与项目级 status 解耦")
+    void competitorWinCountFollowsNotesNotProjectStatus() {
+        // P1 我司 WON 但该竞品标「未中标」→ 不计；P2 我司 LOST 但该竞品标「已中标」→ 计入；
+        // trim 前后空白对齐 parseCompetitorWon 口径
+        List<DimensionRow> rows = List.of(
+                new DimensionRow("竞品A", 1L, Project.Status.WON, "未中标"),
+                new DimensionRow("竞品A", 2L, Project.Status.LOST, "已中标"),
+                new DimensionRow("竞品A", 3L, Project.Status.WON, "  已中标 "),
+                new DimensionRow("竞品A", 4L, Project.Status.ABANDONED, "已中标")
+        );
+
+        TrendAnalysisComputationService.TrendComputationResult result =
+                service.computeCompetitorTrend(rows, null);
+
+        assertThat(result.categories()).containsExactly("竞品A");
+        assertThat(result.bidSeries()).containsExactly(4L);
+        assertThat(result.winSeries()).containsExactly(3L);
+    }
+
+    @Test
+    @DisplayName("specs/055: null/空白/历史自由文本一律按未中标处理")
+    void competitorWonRejectsNullBlankAndLegacyFreeText() {
+        List<DimensionRow> rows = List.of(
+                new DimensionRow("竞品A", 1L, Project.Status.WON, (String) null),
+                new DimensionRow("竞品A", 2L, Project.Status.LOST, ""),
+                new DimensionRow("竞品A", 3L, Project.Status.WON, "   "),
+                new DimensionRow("竞品A", 4L, Project.Status.WON, "其他说明：报价偏高一轮")
+        );
+
+        TrendAnalysisComputationService.TrendComputationResult result =
+                service.computeCompetitorTrend(rows, null);
+
+        assertThat(result.bidSeries()).containsExactly(4L);
+        assertThat(result.winSeries()).containsExactly(0L);
+        assertThat(result.winRateSeries()).containsExactly(0.0);
+    }
+
+    @Test
+    @DisplayName("specs/055: 同一项目多个竞品各自独立计数互不影响")
+    void competitorsInSameProjectCountIndependently() {
+        List<DimensionRow> rows = List.of(
+                new DimensionRow("竞品A", 1L, Project.Status.WON, "已中标"),
+                new DimensionRow("竞品B", 1L, Project.Status.WON, "未中标"),
+                new DimensionRow("竞品C", 1L, Project.Status.LOST, "已中标")
+        );
+
+        TrendAnalysisComputationService.TrendComputationResult result =
+                service.computeCompetitorTrend(rows, null);
+
+        assertThat(result.categories()).containsExactly("竞品A", "竞品B", "竞品C");
+        assertThat(result.bidSeries()).containsExactly(1L, 1L, 1L);
+        assertThat(result.winSeries()).containsExactly(1L, 0L, 1L);
+    }
+
+    @Test
+    @DisplayName("specs/055: JOIN 扇出重复行去重后不重复计数（脏行冲突取首行）")
+    void competitorDuplicateRowsDeduplicatedBeforeCounting() {
+        List<DimensionRow> rows = List.of(
+                new DimensionRow("竞品A", 1L, Project.Status.WON, "已中标"),
+                new DimensionRow("竞品A", 1L, Project.Status.WON, "未中标"),
+                new DimensionRow("竞品A", 2L, Project.Status.LOST, "未中标")
+        );
+
+        TrendAnalysisComputationService.TrendComputationResult result =
+                service.computeCompetitorTrend(rows, null);
+
+        assertThat(result.bidSeries()).containsExactly(2L);
+        assertThat(result.winSeries()).containsExactly(1L);
+    }
+
+    @Test
+    @DisplayName("specs/055: 中标率=该竞品对我司中标率；期望分类补零且 0 除保护")
+    void competitorWinRateAndExpectedCategoryZeroFill() {
+        List<DimensionRow> rows = List.of(
+                new DimensionRow("竞品A", 1L, Project.Status.WON, "已中标"),
+                new DimensionRow("竞品A", 2L, Project.Status.WON, "未中标"),
+                new DimensionRow("竞品A", 3L, Project.Status.LOST, "未中标")
+        );
+
+        TrendAnalysisComputationService.TrendComputationResult result =
+                service.computeCompetitorTrend(rows, List.of("竞品A", "竞品B"));
+
+        assertThat(result.categories()).containsExactly("竞品A", "竞品B");
+        assertThat(result.bidSeries()).containsExactly(3L, 0L);
+        assertThat(result.winSeries()).containsExactly(1L, 0L);
+        assertThat(result.winRateSeries()).containsExactly(33.3, 0.0);
+    }
 }

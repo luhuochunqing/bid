@@ -26,6 +26,11 @@ import java.util.Set;
  * <p>客户类型口径：分组经 {@link CustomerTypeNormalizer} 归一化为 5 种标准中文分类
  * （立项详情存英文枚举名，不归一化会导致 X 轴显示英文）；筛选经
  * {@link AnalyticsCustomerTypeFilterSupport} 预计算命中项目 ID，与分组同口径。</p>
+ *
+ * <p>竞品维度口径：仅竞品查询经 extraSelect 带出 {@code prc.notes}
+ * （结果确认「是否中标」列的语义漂移存储字段），中标数按竞品级事实解析
+ * （{@link CompetitorWonStatusSupport#parseCompetitorWon}），
+ * 禁止用项目级 status 推导（wiki data-analysis-revamp §10、lessons-learned §127）。</p>
  */
 @Service
 @Transactional(readOnly = true)
@@ -42,7 +47,7 @@ public class TrendAnalysisDimensionQueryService {
         return queryDimension("u.departmentName",
                 "join User u on u.id = p.managerId left join Tender t on t.id = p.tenderId left join ProjectInitiationDetails pid on pid.projectId = p.id left join ProjectResult pr on pr.projectId = p.id left join ProjectResultCompetitor prc on prc.resultId = pr.id",
                 "u.departmentName is not null and u.departmentName <> ''",
-                criteria, null);
+                criteria, null, null);
     }
 
     //=== 人员 ===//
@@ -50,7 +55,7 @@ public class TrendAnalysisDimensionQueryService {
         return queryDimension("u.fullName",
                 "join User u on u.id = p.managerId left join Tender t on t.id = p.tenderId left join ProjectInitiationDetails pid on pid.projectId = p.id left join ProjectResult pr on pr.projectId = p.id left join ProjectResultCompetitor prc on prc.resultId = pr.id",
                 "u.fullName is not null and u.fullName <> ''",
-                criteria, null);
+                criteria, null, null);
     }
 
     //=== 区域 ===//
@@ -146,7 +151,7 @@ public class TrendAnalysisDimensionQueryService {
         List<DimensionRow> rawRows = queryDimension("coalesce(nullif(pid.customerType, ''), p.customerType)",
                 "left join Tender t on t.id = p.tenderId left join User u on u.id = p.managerId left join ProjectInitiationDetails pid on pid.projectId = p.id left join ProjectResult pr on pr.projectId = p.id left join ProjectResultCompetitor prc on prc.resultId = pr.id",
                 "(pid.customerType is not null and pid.customerType <> '') or (p.customerType is not null and p.customerType <> '')",
-                criteria, null);
+                criteria, null, null);
         List<DimensionRow> rows = new ArrayList<>(rawRows.size());
         for (DimensionRow row : rawRows) {
             String normalized = CustomerTypeNormalizer.normalize(row.category());
@@ -163,7 +168,7 @@ public class TrendAnalysisDimensionQueryService {
         return queryDimension("t.projectType",
                 "join Tender t on t.id = p.tenderId left join User u on u.id = p.managerId left join ProjectInitiationDetails pid on pid.projectId = p.id left join ProjectResult pr on pr.projectId = p.id left join ProjectResultCompetitor prc on prc.resultId = pr.id",
                 "t.projectType is not null and t.projectType <> ''",
-                criteria, null);
+                criteria, null, null);
     }
 
     //=== 项目状态 ===//
@@ -171,7 +176,7 @@ public class TrendAnalysisDimensionQueryService {
         return queryDimension("cast(p.status as string)",
                 "left join Tender t on t.id = p.tenderId left join User u on u.id = p.managerId left join ProjectInitiationDetails pid on pid.projectId = p.id left join ProjectResult pr on pr.projectId = p.id left join ProjectResultCompetitor prc on prc.resultId = pr.id",
                 "1=1",
-                criteria, null);
+                criteria, null, null);
     }
 
     //=== 招标主体 ===//
@@ -179,23 +184,34 @@ public class TrendAnalysisDimensionQueryService {
         return queryDimension("t.purchaserName",
                 "join Tender t on t.id = p.tenderId left join User u on u.id = p.managerId left join ProjectInitiationDetails pid on pid.projectId = p.id left join ProjectResult pr on pr.projectId = p.id left join ProjectResultCompetitor prc on prc.resultId = pr.id",
                 "t.purchaserName is not null and t.purchaserName <> ''",
-                criteria, null);
+                criteria, null, null);
     }
 
     //=== 竞品公司 ===//
+    /**
+     * 竞品维度：额外带出 {@code prc.notes}（结果确认「是否中标」列的语义漂移存储字段），
+     * 供 {@link TrendAnalysisComputationService#computeCompetitorTrend} 按竞品级事实
+     * 判定中标数（禁止用项目级 status 推导，见 CompetitorWonStatusSupport）。
+     */
     List<DimensionRow> fetchCompetitorRows(TrendQueryCriteria criteria) {
         return queryDimension("prc.name",
                 "join ProjectResult pr on pr.projectId = p.id join ProjectResultCompetitor prc on prc.resultId = pr.id left join Tender t on t.id = p.tenderId left join User u on u.id = p.managerId left join ProjectInitiationDetails pid on pid.projectId = p.id",
                 "prc.name is not null and prc.name <> ''",
-                criteria, null);
+                criteria, null, "prc.notes");
     }
 
     //=== 共享查询构建器 ===//
 
+    /**
+     * 共享查询构建器。
+     *
+     * @param extraSelect 可选的第 4 个构造器参数（如 {@code "prc.notes"}），仅竞品维度传入；
+     *                    其余维度传 null，模板显式拼 {@code null} 字面量保持 DimensionRow 4 参构造
+     */
     @SuppressWarnings("unchecked")
     private List<DimensionRow> queryDimension(
             String selectExpr, String joinClause, String whereClause,
-            TrendQueryCriteria criteria, List<String> departmentOverride) {
+            TrendQueryCriteria criteria, List<String> departmentOverride, String extraSelect) {
 
         List<String> deptIds = departmentOverride != null ? departmentOverride : criteria.departmentIds();
         // 项目级数据权限：非全局角色仅可见授权范围内项目（防御式兜底）
@@ -211,8 +227,10 @@ public class TrendAnalysisDimensionQueryService {
         List<String> tenderEntities = criteria.tenderEntities();
         List<String> competitorNames = criteria.competitorNames();
 
+        String extraTail = extraSelect != null ? ", " + extraSelect : ", null";
         StringBuilder jpql = new StringBuilder("select new com.xiyu.bid.analytics.service.DimensionRow(")
-                .append(selectExpr).append(", p.id, p.status) from Project p ")
+                .append(selectExpr).append(", p.id, p.status").append(extraTail)
+                .append(") from Project p ")
                 .append(joinClause).append(" where (").append(whereClause)
                 .append(") and (:allAccess = true or p.id in :scopeIds)");
 
