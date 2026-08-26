@@ -102,8 +102,10 @@ public class TrendAnalysisService {
                 yield computationService.computeDimensionTrend(rows, tenderEntities);
             }
             case "competitor" -> {
+                // specs/055：竞品维度走专用计算，中标数按「是否中标」列（prc.notes）判定，
+                // 禁止用项目级 status 推导（wiki data-analysis-revamp §10 / lessons §127）
                 var rows = dimensionQueryService.fetchCompetitorRows(criteria);
-                yield computationService.computeDimensionTrend(rows, competitorNames);
+                yield computationService.computeCompetitorTrend(rows, competitorNames);
             }
             default -> {
                 var rows = queryService.fetchTimeTrendRows(criteria, td);
