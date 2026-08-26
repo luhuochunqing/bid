@@ -37,6 +37,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -75,6 +76,8 @@ class ScoreParseAppServiceTest {
     private ScoreItemPersistenceService itemPersistenceService;
     @Mock
     private InitiationTenderTextResolver initiationTenderTextResolver;
+    @Mock
+    private ScoreGlobalMergeOrchestrator globalMergeOrchestrator;
 
     private ScoreParseAppService service;
 
@@ -84,8 +87,11 @@ class ScoreParseAppServiceTest {
                 taskRepository, itemRepository, resultRepository, projectDocumentRepository,
                 stateService, progressService, snapshotRepository,
                 projectAccessScopeService, scoreAnalyzer, estimatedScoreService,
-                itemPersistenceService, initiationTenderTextResolver);
+                itemPersistenceService, initiationTenderTextResolver, globalMergeOrchestrator);
         ReflectionTestUtils.setField(service, "self", service);
+        // spec 055：归并编排默认透传（fail-open 语义由 ScoreGlobalMergeOrchestratorTest 专项覆盖）
+        lenient().when(globalMergeOrchestrator.applyGlobalMerge(anyList(), anyString()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
@@ -97,6 +103,26 @@ class ScoreParseAppServiceTest {
         // FR-021 覆盖语义委托给 ScoreItemPersistenceService（其测试类覆盖删除细节）
         ArgumentCaptor<List<ScoreCandidate>> candidates = capturedPersistedCandidates();
         assertThat(candidates.getValue()).hasSize(2);
+        verify(stateService).markCompleted(TASK_ID);
+    }
+
+    @Test
+    void parse_persistsGlobalMergeOutcome() {
+        // spec 055：落库候选 = 全局归并输出（重复项归并后 2→1 项；合计 100 避免归一化干扰）
+        mockParseFlowReturning(defaultCandidates());
+        List<ScoreCandidate> mergedOutcome = List.of(
+                candidate("A1", "资质", "具备 CMMI 5 级认证证书", "60"),
+                candidate("A2", "业绩", "近三年类似项目业绩不少于 3 个", "40"));
+        when(globalMergeOrchestrator.applyGlobalMerge(anyList(), anyString()))
+                .thenReturn(mergedOutcome.stream().limit(1).toList());
+
+        service.executeParseAsync(TASK_ID);
+
+        // 归并输出仅 1 项 → 守卫回补语义在 orchestrator 层验证；此处验证落库收到归并结果
+        // （1 项 weight=60 会触发 spec 047 归一化，故断言 code/detail 而非整对象）
+        List<ScoreCandidate> persisted = capturedPersistedCandidates().getValue();
+        assertThat(persisted).hasSize(1);
+        assertThat(persisted.get(0).code()).isEqualTo("A1");
         verify(stateService).markCompleted(TASK_ID);
     }
 

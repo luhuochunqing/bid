@@ -10,6 +10,7 @@ import com.xiyu.bid.scoreparse.domain.GhostCandidateFilter;
 import com.xiyu.bid.scoreparse.domain.ItemCountCheck;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreItemMergePolicy;
+import com.xiyu.bid.scoreparse.domain.ScoreTableRecallLane;
 import com.xiyu.bid.scoreparse.domain.SummaryAggregator;
 import com.xiyu.bid.scoreparse.domain.WeightNormalizationPolicy;
 import com.xiyu.bid.scoreparse.domain.WeightOverloadTrimPolicy;
@@ -64,6 +65,7 @@ public class ScoreParseAppService {
     private final EstimatedScoreService estimatedScoreService;
     private final ScoreItemPersistenceService itemPersistenceService;
     private final InitiationTenderTextResolver initiationTenderTextResolver;
+    private final ScoreGlobalMergeOrchestrator globalMergeOrchestrator;
     private final ScoreItemMergePolicy mergePolicy = new ScoreItemMergePolicy();
     private final WeightSumCheck weightSumCheck = new WeightSumCheck();
     private final ItemCountCheck itemCountCheck = new ItemCountCheck();
@@ -155,25 +157,24 @@ public class ScoreParseAppService {
         task.setFileName(source.fileName());
         task.setFileUrl(source.fileUrl());
         taskRepository.save(task);
-
         updateProgress(taskId, 5, "READ_DOCUMENT", "读取招标文件");
 
         // FR-001 四路召回（召回一/二正则+结构、召回三/四 LLM 语义）；skippedChunks 落库（spec 046 FR-005）
         RecallOutcome outcome = scoreAnalyzer.recallCandidates(
                 source.text(), null,
                 (progress, stage) -> updateProgress(taskId, progress, "RECALL", stage));
-        List<ScoreCandidate> candidates = outcome.candidates();
+        // spec 055 召回五：评分表格行直抽（一行 = 一候选，保真不重复）；拷贝防上游不可变列表
+        List<ScoreCandidate> candidates = new ArrayList<>(outcome.candidates());
+        candidates.addAll(ScoreTableRecallLane.recall(source.text()));
         task.setSkippedChunks(outcome.skippedChunks());
         taskRepository.save(task);
-
-        // FR-004 合并去重 → 幽灵过滤（spec 046 FR-001）→ Validation 丢弃
+        // FR-004 合并去重 → 幽灵过滤（spec 046 FR-001）→ Validation 丢弃 → spec 055 全局归并裁决
         List<ScoreCandidate> merged = mergePolicy.merge(candidates);
         List<ScoreCandidate> ghostFiltered = ghostFilter.filter(merged);
-        if (ghostFiltered.size() < merged.size()) {
-            log.info("幽灵候选过滤（spec 046 FR-001）: taskId={} {}→{}", taskId, merged.size(), ghostFiltered.size());
-        }
+        log.info("幽灵候选过滤（spec 046 FR-001）: taskId={} {}→{}", taskId, merged.size(), ghostFiltered.size());
         List<ScoreCandidate> valid = filterInvalidWeights(ghostFiltered);
-
+        // spec 055 全局归并（fail-open）：LLM 身份裁决消除重复/误并，降级时保持启发式结果
+        valid = globalMergeOrchestrator.applyGlobalMerge(valid, source.text());
         // FR-005/FR-022 权重闭环校验：合计≠100 触发完整性回补
         WeightSumCheck.Result weightResult = weightSumCheck.checkCandidates(valid);
         ItemCountCheck.Result continuityResult = itemCountCheck.checkCandidates(valid);
@@ -217,7 +218,6 @@ public class ScoreParseAppService {
         updateProgress(taskId, 90, "PERSIST", "评分项落库");
         itemPersistenceService.persistItems(task.getProjectId(), task.getId(), valid);
 
-        // US3 阶段 1 预计得分：解析完成后按知识库类别分型匹配回填（FR-011）
         updateProgress(taskId, 95, "ESTIMATE", "阶段 1 预计得分计算");
         estimatedScoreService.estimateForProject(task.getProjectId());
 
@@ -258,15 +258,15 @@ public class ScoreParseAppService {
                                 latestTaskOrNull(projectId, "SCORING")));
     }
 
+    private static final List<String> ANY_STATUS = List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED");
+
     private ScoreParseTask latestTaskOrNull(Long projectId, String taskType) {
-        return taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
-                        projectId, taskType, List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED"))
+        return taskRepository.findByProjectIdAndTaskTypeAndStatusIn(projectId, taskType, ANY_STATUS)
                 .stream().max(java.util.Comparator.comparing(ScoreParseTask::getId)).orElse(null);
     }
 
     private ScoreParseTask latestTask(Long projectId, String taskType) {
-        return taskRepository.findByProjectIdAndTaskTypeAndStatusIn(
-                        projectId, taskType, List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED"))
+        return taskRepository.findByProjectIdAndTaskTypeAndStatusIn(projectId, taskType, ANY_STATUS)
                 .stream().max(java.util.Comparator.comparing(ScoreParseTask::getId))
                 .orElseThrow(() -> new IllegalStateException("项目无解析任务: " + projectId));
     }

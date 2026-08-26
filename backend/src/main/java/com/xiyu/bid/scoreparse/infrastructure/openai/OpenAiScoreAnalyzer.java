@@ -17,6 +17,7 @@ import com.xiyu.bid.docinsight.domain.StructuralDocumentChunker;
 import com.xiyu.bid.scoreparse.application.ScoreDocExcerptExtractor;
 import com.xiyu.bid.scoreparse.domain.DocumentImage;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
+import com.xiyu.bid.scoreparse.domain.ScoreTableAwareChunker;
 import com.xiyu.bid.scoreparse.infrastructure.structure.MarkdownScoreSectionLocator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
@@ -125,7 +126,8 @@ public class OpenAiScoreAnalyzer {
     private RecallOutcome recallLane4LlmFullText(
             String fullText, String structuredMetadata, ProgressReporter progress) {
         List<DocumentChunk> allChunks = structuralChunker.chunk(fullText, structuredMetadata);
-        List<DocumentChunk> chunks = filterRelevantChunks(allChunks);
+        // spec 055 FR-4 表格行安全边界：超长表格 chunk 按行边界重切（边界永不落在行内）
+        List<DocumentChunk> chunks = ScoreTableAwareChunker.rechunk(filterRelevantChunks(allChunks), 4000);
         List<ScoreCandidate> candidates = new ArrayList<>();
         if (chunks.isEmpty()) {
             log.warn("结构化切片为空，跳过 LLM 召回");
