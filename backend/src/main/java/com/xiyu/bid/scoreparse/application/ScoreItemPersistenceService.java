@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -63,15 +64,18 @@ public class ScoreItemPersistenceService {
         for (int i = 0; i < ordered.size(); i++) {
             ScoreCandidate candidate = ordered.get(i);
             String scoreType = classificationPolicy.classify(candidate.detail(), candidate.scoreTypeGuess());
+            String code = resolveCode(candidate.code());
+            String dim = resolveDim(candidate.dim(), candidate.detail());
+            String detail = candidate.detail() == null || candidate.detail().isBlank()
+                    ? "—" : candidate.detail();
             items.add(ScoreItem.builder()
                     .projectId(projectId)
                     .parseTaskId(parseTaskId)
                     .itemIndex(i + 1)
-                    .code(candidate.code() == null || candidate.code().isBlank()
-                            ? "" : candidate.code())
-                    .dim(candidate.dim())
-                    .detail(candidate.detail())
-                    .weight(candidate.weight())
+                    .code(code)
+                    .dim(dim)
+                    .detail(detail)
+                    .weight(candidate.weight() == null ? BigDecimal.ZERO : candidate.weight())
                     .scoreType(scoreType)
                     .statusStage1("PENDING")
                     .contextNote(candidate.contextNote())
@@ -114,8 +118,7 @@ public class ScoreItemPersistenceService {
         for (int i = 0; i < oldItems.size(); i++) {
             ScoreItem old = oldItems.get(i);
             ScoreCandidate candidate = candidates.get(i);
-            String code = candidate.code() == null || candidate.code().isBlank()
-                    ? "" : candidate.code();
+            String code = resolveCode(candidate.code());
             if (!Objects.equals(old.getCode(), code)
                     || !Objects.equals(old.getWeight(), candidate.weight())
                     || !Objects.equals(old.getDetail(), candidate.detail())) {
@@ -136,5 +139,25 @@ public class ScoreItemPersistenceService {
             log.info("评分结构变动，清理旧打分数据: projectId={}, oldItems={}", projectId, oldItems.size());
         }
         itemRepository.deleteByProjectId(projectId);
+    }
+
+    private String resolveCode(String code) {
+        if (code == null || code.isBlank()) {
+            return "";
+        }
+        String trimmed = code.trim();
+        return trimmed.length() > 50 ? trimmed.substring(0, 50) : trimmed;
+    }
+
+    private String resolveDim(String dim, String detail) {
+        if (dim != null && !dim.isBlank()) {
+            String trimmed = dim.trim();
+            return trimmed.length() > 200 ? trimmed.substring(0, 200) : trimmed;
+        }
+        if (detail != null && !detail.isBlank()) {
+            String trimmed = detail.trim();
+            return trimmed.length() > 50 ? trimmed.substring(0, 50) : trimmed;
+        }
+        return "评分项";
     }
 }

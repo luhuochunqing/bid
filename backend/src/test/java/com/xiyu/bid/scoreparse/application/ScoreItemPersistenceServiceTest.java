@@ -140,6 +140,44 @@ class ScoreItemPersistenceServiceTest {
         assertThat(saved.getValue().get(0).getStatusStage1()).isEqualTo("PENDING");
     }
 
+    @Test
+    void nullOrBlankDim_fallsBackToDetailOrPlaceholder_neverNull() {
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID))
+                .thenReturn(List.of());
+
+        service.persistItems(PROJECT_ID, PARSE_TASK_ID, List.of(
+                new ScoreCandidate("1", null, "技术实施方案完整得10分",
+                        new BigDecimal("10"), "OBJECTIVE", null, "原文", "P1", null),
+                new ScoreCandidate("2", "   ", "商务资质证书得20分",
+                        new BigDecimal("20"), "OBJECTIVE", null, "原文", "P2", null),
+                new ScoreCandidate("3", null, null,
+                        new BigDecimal("30"), "OBJECTIVE", null, "原文", "P3", null)));
+
+        ArgumentCaptor<List<ScoreItem>> saved = capturedSavedItems();
+        List<ScoreItem> items = saved.getValue();
+        assertThat(items).hasSize(3);
+        assertThat(items.get(0).getDim()).isEqualTo("技术实施方案完整得10分");
+        assertThat(items.get(1).getDim()).isEqualTo("商务资质证书得20分");
+        assertThat(items.get(2).getDim()).isEqualTo("评分项");
+    }
+
+    @Test
+    void oversizedDimAndCode_truncatedToColumnLimits() {
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID))
+                .thenReturn(List.of());
+
+        String longCode = "C".repeat(70);
+        String longDim = "D".repeat(250);
+        service.persistItems(PROJECT_ID, PARSE_TASK_ID, List.of(
+                new ScoreCandidate(longCode, longDim, "详细要素",
+                        new BigDecimal("10"), "OBJECTIVE", null, "原文", "P1", null)));
+
+        ArgumentCaptor<List<ScoreItem>> saved = capturedSavedItems();
+        ScoreItem item = saved.getValue().get(0);
+        assertThat(item.getCode()).hasSize(50);
+        assertThat(item.getDim()).hasSize(200);
+    }
+
     @SuppressWarnings("unchecked")
     private ArgumentCaptor<List<ScoreItem>> capturedSavedItems() {
         ArgumentCaptor<List<ScoreItem>> captor = ArgumentCaptor.forClass(List.class);

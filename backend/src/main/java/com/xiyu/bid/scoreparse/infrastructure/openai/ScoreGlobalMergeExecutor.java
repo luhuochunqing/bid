@@ -110,11 +110,24 @@ public class ScoreGlobalMergeExecutor {
         return output.items.stream()
                 .filter(item -> item != null && item.detail != null && !item.detail.isBlank())
                 .map(item -> new ScoreCandidate(
-                        item.code, item.dim, item.detail,
+                        item.code == null ? "" : item.code,
+                        resolveDim(item.dim, item.detail),
+                        item.detail,
                         item.weight == null ? null : BigDecimal.valueOf(item.weight),
                         item.scoreTypeGuess, null,
                         item.sourceText == null ? item.detail : item.sourceText,
                         null, "GLOBAL_MERGE"))
                 .toList();
+    }
+
+    private static String resolveDim(String dim, String detail) {
+        if (dim != null && !dim.isBlank()) {
+            return dim.trim();
+        }
+        if (detail != null && !detail.isBlank()) {
+            String trimmed = detail.trim();
+            return trimmed.length() > 50 ? trimmed.substring(0, 50) : trimmed;
+        }
+        return "评分项";
     }
 }

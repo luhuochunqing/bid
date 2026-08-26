@@ -108,6 +108,21 @@ class ScoreGlobalMergeExecutorTest {
     }
 
     @Test
+    void resolve_nullOrBlankDimInOutput_resolvesFallbackDim() {
+        when(configurationResolver.resolve(any())).thenReturn(mock(OpenAiBidAgentRequestConfig.class));
+        ScoreGlobalMergeOutput output = outputWith("具备相关资质证书", 10);
+        output.items.get(0).dim = null;
+        when(structuredOutputService.request(any(), eq(ScoreGlobalMergeOutput.class), any(), any()))
+                .thenReturn(output);
+
+        List<ScoreCandidate> result = executor.resolve(
+                List.of(poolItem("具备相关资质证书", "10"), poolItem("另一项", "20")), "原文：具备相关资质证书");
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).dim()).isNotBlank();
+        assertThat(result.get(0).dim()).isEqualTo("具备相关资质证书");
+    }
+
+    @Test
     void summarizePool_truncatesDetailAndEscapesQuotes() {
         String longDetail = "长".repeat(300) + "\"引号\"";
         String json = ScoreGlobalMergeExecutor.summarizePool(List.of(poolItem(longDetail, "5")));

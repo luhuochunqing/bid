@@ -2944,3 +2944,18 @@ private CompetitorStatus status = CompetitorStatus.ACTIVE;
 - **Hibernate 5→6 升级后存量 STRING 枚举要普查**：grep `@Enumerated(EnumType.STRING)` 逐个核对底层列类型；对应 varchar 列的必须显式 `columnDefinition`，新表则 DDL 与实体口径二选一并全库统一。
 - **类型冲突只能改实体侧**：禁止回改已发布迁移、禁止追加"修正列类型"的新迁移（会导致 e2e/flyway-mysql 回放与线上历史分叉）。
 
+---
+
+## 166. 实体落库层必须对外部/LLM输入做全字段非空与长度防御（2026-08-26，spec 041/047/055）
+
+**背景**：在山焦物资采购项目（6 万字标书）解决 `original_total_weight` 溢出后，重新解析推进到 90%「评分项落库」时抛出 `could not execute statement [Column 'dim' cannot be null] [insert into score_item ...]`，前端轮询最终报"解析超时，请检查文件大小或稍后重试"。
+
+**根因**：
+1. **追症状不追根因**：第一轮修复仅修复了溢出报错的单点，未对数据管道下游实体映射（`score_item` 表的 `NOT NULL` 与长度约束）做全量防御性审计。
+2. **外部输入非受控透传**：`ScoreGlobalMergeExecutor`（全局归并 LLM）输出可能返回 `dim = null`，直接透传给 `ScoreCandidate`，穿透至持久化层。
+3. **单测未覆盖空维度**：单测构造的 candidate 均填写合法维度名称，测试假绿，掩盖了真实 LLM 输出缺少 `dim` 时的 NPE / 数据库完整性约束冲突。
+
+**多层纵深防御治理**：
+1. **LLM 归并映射层（`ScoreGlobalMergeExecutor`）**：`toCandidates` 中对 `item.dim` 增加 `resolveDim` 兜底，若为 null 或空白，回退到 `item.detail` 前 50 字或兜底 `"评分项"`。
+2. **实体落库层（`ScoreItemPersistenceService`）**：持久化构造 `ScoreItem` 实体时对 `code`、`dim`、`detail` 增加非空与长度截断守卫（`code <= 50`，`dim <= 200` 非空，`detail` 非空），保证数据库写入 100% 满足物理 DDL 约束。
+
