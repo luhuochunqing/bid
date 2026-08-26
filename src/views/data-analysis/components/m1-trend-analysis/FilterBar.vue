@@ -53,7 +53,7 @@
     <div class="m8-filter-item">
       <input type="checkbox" class="m9-xaxis-cb" :checked="xAxisDimensions.includes('competitor')" @change="handleXAxisChange('competitor', $event.target.checked)" />
       <label class="m8-filter-label">竞品公司</label>
-      <FilterSelect v-model="filters.competitors" :options="competitorOptions" placeholder="请选择" @search="handleCompetitorSearch" @change="handleFieldChange('competitor')" />
+      <FilterSelect v-model="filters.competitors" :options="competitorOptions" placeholder="请选择" @change="handleFieldChange('competitor')" />
     </div>
 
     <div class="m9-filter-actions">
@@ -64,11 +64,12 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import {
   PROJECT_STATUS_OPTIONS, CUSTOMER_TYPE_OPTIONS,
   PROJECT_TYPE_OPTIONS, COMPETITOR_OPTIONS, REGION_OPTIONS
 } from './filterConstants.js'
+import { dashboardApi } from '@/api'
 import FilterSelect from './FilterSelect.vue'
 import TreeSelectDropdown from '../shared/TreeSelectDropdown.vue'
 
@@ -84,16 +85,30 @@ const props = defineProps({
 const emit = defineEmits([
   'confirm', 'reset', 'search-department', 'search-person', 'search-region',
   'search-customer-type', 'search-project-type', 'search-project-status',
-  'search-tender-subject', 'search-competitor', 'department-change'
+  'search-tender-subject', 'department-change'
 ])
 
 const timeDimensionSelectRef = ref(null)
 const projectStatusOptions = ref(PROJECT_STATUS_OPTIONS)
 const customerTypeOptions = ref(CUSTOMER_TYPE_OPTIONS)
 const projectTypeOptions = ref(PROJECT_TYPE_OPTIONS)
+// specs/056：竞品选项动态化——初始静态名单兜底，onMounted 覆盖为后端并集口径
+// （结果确认 ACTIVE 字典 ∪ 被引用过的快照名，含已停用但有数据的竞品）
 const competitorOptions = ref(COMPETITOR_OPTIONS)
 const regionOptions = ref(REGION_OPTIONS)
 const submitting = ref(false)
+
+onMounted(async () => {
+  try {
+    const res = await dashboardApi.getFilterOptions()
+    const names = Array.isArray(res?.data?.competitor) ? res.data.competitor : []
+    if (names.length) {
+      competitorOptions.value = names.map((name) => ({ label: name, value: name }))
+    }
+  } catch (err) {
+    console.warn('M1 competitor filter-options fetch error (non-fatal):', err)
+  }
+})
 
 const filters = ref({
   timeDimension: 'month', departments: [], persons: [], regions: [],
@@ -176,7 +191,6 @@ const handleCustomerTypeSearch = (q) => emit('search-customer-type', q)
 const handleProjectTypeSearch = (q) => emit('search-project-type', q)
 const handleProjectStatusSearch = (q) => emit('search-project-status', q)
 const handleTenderSubjectSearch = (q) => emit('search-tender-subject', q)
-const handleCompetitorSearch = (q) => emit('search-competitor', q)
 
 const handleConfirm = () => {
   submitting.value = true
