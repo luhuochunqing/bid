@@ -6,13 +6,9 @@ package com.xiyu.bid.competitionintel.service;
 
 import com.xiyu.bid.annotation.Auditable;
 import com.xiyu.bid.competitionintel.dto.AnalysisCreateRequest;
-import com.xiyu.bid.competitionintel.dto.CompetitorCreateRequest;
 import com.xiyu.bid.competitionintel.dto.CompetitionAnalysisDTO;
-import com.xiyu.bid.competitionintel.dto.CompetitorDTO;
 import com.xiyu.bid.competitionintel.entity.CompetitionAnalysis;
-import com.xiyu.bid.competitionintel.entity.Competitor;
 import com.xiyu.bid.competitionintel.repository.CompetitionAnalysisRepository;
-import com.xiyu.bid.competitionintel.repository.CompetitorRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,46 +29,8 @@ import java.util.stream.Collectors;
 @Slf4j
 public class CompetitionIntelService {
 
-    private final CompetitorRepository competitorRepository;
     private final CompetitionAnalysisRepository analysisRepository;
     private final ProjectAccessScopeService projectAccessScopeService;
-    /**
-     * 创建竞争对手
-     */
-    @Auditable(action = "CREATE", entityType = "Competitor", description = "Create new competitor")
-    @Transactional
-    public CompetitorDTO createCompetitor(CompetitorCreateRequest request) {
-        log.info("Creating competitor: {}", request.getName());
-
-        // Validate input
-        validateCompetitorRequest(request);
-
-        Competitor competitor = Competitor.builder()
-                .name(request.getName())
-                .industry(request.getIndustry())
-                .strengths(request.getStrengths())
-                .weaknesses(request.getWeaknesses())
-                .marketShare(request.getMarketShare())
-                .typicalBidRangeMin(request.getTypicalBidRangeMin())
-                .typicalBidRangeMax(request.getTypicalBidRangeMax())
-                .build();
-
-        Competitor savedCompetitor = competitorRepository.save(competitor);
-        log.info("Created competitor with id: {}", savedCompetitor.getId());
-
-        return convertToDTO(savedCompetitor);
-    }
-
-    /**
-     * 获取所有竞争对手
-     */
-    @Transactional(readOnly = true)
-    public List<CompetitorDTO> getAllCompetitors() {
-        log.debug("Fetching all competitors");
-        return competitorRepository.findAll().stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-    }
 
     /**
      * 创建竞争分析
@@ -167,38 +125,6 @@ public class CompetitionIntelService {
     }
 
     /**
-     * 验证竞争对手创建请求
-     */
-    private void validateCompetitorRequest(CompetitorCreateRequest request) {
-        if (request.getName() == null || request.getName().trim().isEmpty()) {
-            throw new IllegalArgumentException("Competitor name is required");
-        }
-
-        if (request.getMarketShare() != null) {
-            if (request.getMarketShare().compareTo(BigDecimal.ZERO) < 0) {
-                throw new IllegalArgumentException("Market share cannot be negative");
-            }
-            if (request.getMarketShare().compareTo(new BigDecimal("100")) > 0) {
-                throw new IllegalArgumentException("Market share cannot exceed 100");
-            }
-        }
-
-        if (request.getTypicalBidRangeMin() != null && request.getTypicalBidRangeMax() != null) {
-            if (request.getTypicalBidRangeMin().compareTo(request.getTypicalBidRangeMax()) > 0) {
-                throw new IllegalArgumentException("Bid range minimum cannot be greater than maximum");
-            }
-        }
-
-        if (request.getTypicalBidRangeMin() != null && request.getTypicalBidRangeMin().compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException("Bid range values cannot be negative");
-        }
-
-        if (request.getTypicalBidRangeMax() != null && request.getTypicalBidRangeMax().compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException("Bid range values cannot be negative");
-        }
-    }
-
-    /**
      * 验证分析创建请求
      */
     private void validateAnalysisRequest(AnalysisCreateRequest request) {
@@ -212,24 +138,6 @@ public class CompetitionIntelService {
                 throw new IllegalArgumentException("Win probability must be between 0 and 100");
             }
         }
-    }
-
-    /**
-     * 转换竞争对手实体为DTO
-     */
-    private CompetitorDTO convertToDTO(Competitor competitor) {
-        return CompetitorDTO.builder()
-                .id(competitor.getId())
-                .name(competitor.getName())
-                .industry(competitor.getIndustry())
-                .strengths(competitor.getStrengths())
-                .weaknesses(competitor.getWeaknesses())
-                .marketShare(competitor.getMarketShare())
-                .typicalBidRangeMin(competitor.getTypicalBidRangeMin())
-                .typicalBidRangeMax(competitor.getTypicalBidRangeMax())
-                .status(competitor.getStatus())
-                .createdAt(competitor.getCreatedAt())
-                .build();
     }
 
     /**

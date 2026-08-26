@@ -52,11 +52,6 @@ export const competitionIntelApi = {
       data: (response?.data || []).map(normalizeCompetitor) }
   },
 
-  async getCompetitor(id) {
-    const response = await httpClient.get(`/api/ai/competition/competitors/${id}`)
-    return { ...response, data: normalizeCompetitor(response?.data) }
-  },
-
   // 兼容旧调用（传对象取 .name，传字符串直接用），语义现为幂等 upsert（specs/055）
   async createCompetitor(data) {
     const name = typeof data === 'string' ? data : data?.name

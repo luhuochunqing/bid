@@ -2,7 +2,7 @@ package com.xiyu.bid.competitionintel.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.competitionintel.dto.AnalysisCreateRequest;
-import com.xiyu.bid.competitionintel.dto.CompetitorCreateRequest;
+import com.xiyu.bid.competitionintel.dto.CompetitorUpsertRequest;
 import com.xiyu.bid.competitionintel.entity.CompetitionAnalysis;
 import com.xiyu.bid.competitionintel.entity.Competitor;
 import com.xiyu.bid.competitionintel.repository.CompetitionAnalysisRepository;
@@ -98,48 +98,25 @@ class CompetitionIntelControllerIntegrationTest {
 
     @Test
     @WithMockUser(roles = {"ADMIN"})
-    void createCompetitor_WithValidData_ShouldReturnCreatedCompetitor() throws Exception {
-        CompetitorCreateRequest request = CompetitorCreateRequest.builder()
+    void upsertCompetitor_WithValidName_ShouldReturnCompetitor() throws Exception {
+        CompetitorUpsertRequest request = CompetitorUpsertRequest.builder()
                 .name("新竞企")
-                .industry("制造业")
-                .strengths("成本控制好")
-                .weaknesses("技术一般")
-                .marketShare(new BigDecimal("15.0"))
-                .typicalBidRangeMin(new BigDecimal("800000"))
-                .typicalBidRangeMax(new BigDecimal("1200000"))
                 .build();
 
         mockMvc.perform(post("/api/ai/competition/competitors")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isCreated())
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.name").value("新竞企"))
-                .andExpect(jsonPath("$.data.industry").value("制造业"))
-                .andExpect(jsonPath("$.data.marketShare").value(15.0))
-                .andExpect(jsonPath("$.msg").value("Competitor created successfully"));
+                .andExpect(jsonPath("$.msg").value("Competitor upserted successfully"));
     }
 
     @Test
     @WithMockUser(roles = {"ADMIN"})
-    void createCompetitor_WithNullName_ShouldReturnBadRequest() throws Exception {
-        CompetitorCreateRequest request = CompetitorCreateRequest.builder()
-                .name(null)
-                .industry("建筑业")
-                .build();
-
-        mockMvc.perform(post("/api/ai/competition/competitors")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    @WithMockUser(roles = {"ADMIN"})
-    void createCompetitor_WithNegativeMarketShare_ShouldReturnBadRequest() throws Exception {
-        CompetitorCreateRequest request = CompetitorCreateRequest.builder()
-                .name("测试竞企")
-                .marketShare(new BigDecimal("-10.0"))
+    void upsertCompetitor_WithBlankName_ShouldReturnBadRequest() throws Exception {
+        CompetitorUpsertRequest request = CompetitorUpsertRequest.builder()
+                .name(" ")
                 .build();
 
         mockMvc.perform(post("/api/ai/competition/competitors")
@@ -260,8 +237,8 @@ class CompetitionIntelControllerIntegrationTest {
 
     @Test
     @WithMockUser(username = "user", roles = {"USER"})
-    void createCompetitor_WithInsufficientPermissions_ShouldReturnForbidden() throws Exception {
-        CompetitorCreateRequest request = CompetitorCreateRequest.builder()
+    void upsertCompetitor_WithInsufficientPermissions_ShouldReturnForbidden() throws Exception {
+        CompetitorUpsertRequest request = CompetitorUpsertRequest.builder()
                 .name("新竞企")
                 .build();
 
