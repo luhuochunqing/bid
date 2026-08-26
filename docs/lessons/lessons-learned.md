@@ -2922,3 +2922,25 @@ WHERE code IN ('bid-Team', 'bid-TeamLeader', 'bid-projectLeader', '/bidAdmin', '
 2. **归一化策略层**：`WeightNormalizationPolicy` 增加原始合计合理上限 `MAX_REASONABLE_TOTAL = 1000`，超 1000 分判定为严重污染，拒绝归一化，`originalTotal` 返回 `null`。
 3. **守卫与持久化层**：`ScoreMergeResultGuard.isHighConfidence` 增加 `weight <= 100` 约束防假项回补；`setOriginalTotalWeight` 强制 `setScale(2, HALF_UP)` 安全持久化。
 
+---
+
+## 165. Hibernate 6 STRING 枚举默认校验为原生 ENUM 列：varchar 迁移列必须显式 columnDefinition 对齐（2026-08-26，第 144 次部署打包门禁拦截）
+
+**背景**：specs/055 V1202 给 competitors 表加 `status VARCHAR(20)`（已应用到测试库，已发布迁移不可变），`Competitor` 实体用 `@Enumerated(EnumType.STRING) @Column(length = 20)` 映射。本地打包门禁 `FlywayMysqlContainerTest` 报 `Schema-validation: wrong column type ... found [varchar], but expecting [enum ('active','disabled')]`，4 errors，部署阻断。
+
+**根因**：
+1. **Hibernate 6.x 行为变更**：MySQL 方言对 `@Enumerated(EnumType.STRING)` 默认生成/校验**原生 ENUM 列类型**（`enum('active','disabled')`），不再是 Hibernate 5 时代的 varchar。
+2. V1202 建的是 `VARCHAR(20)`，实体无 `columnDefinition` → 类型期望不一致。
+3. `application-prod.yml` / `application-e2e.yml` / `application-flyway-mysql.yml` 三处均 `ddl-auto: validate` —— 这个 jar 若直接部署，后端启动即 crash-loop。
+
+**修复**：单行改动，改实体对齐 DB 真相（不动数据库）：
+```java
+@Column(nullable = false, length = 20, columnDefinition = "varchar(20)")
+private CompetitorStatus status = CompetitorStatus.ACTIVE;
+```
+
+**教训**：
+- **打包门禁容器测试是 crash-loop 的最后防线**：本次 P0 被 `package-release.sh` 内置的 FlywayMysqlContainerTest（Testcontainers 真实 MySQL 全量回放 B73~V1203 + validate）在本地拦截，未流到服务器。为赶部署跳过容器测试等于亲手拆掉防线（同 §163 tenderevent bean 冲突教训）。
+- **Hibernate 5→6 升级后存量 STRING 枚举要普查**：grep `@Enumerated(EnumType.STRING)` 逐个核对底层列类型；对应 varchar 列的必须显式 `columnDefinition`，新表则 DDL 与实体口径二选一并全库统一。
+- **类型冲突只能改实体侧**：禁止回改已发布迁移、禁止追加"修正列类型"的新迁移（会导致 e2e/flyway-mysql 回放与线上历史分叉）。
+
