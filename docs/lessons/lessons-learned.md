@@ -2905,3 +2905,20 @@ WHERE code IN ('bid-Team', 'bid-TeamLeader', 'bid-projectLeader', '/bidAdmin', '
 3. **口径解析函数提取共享 support 单一来源**：本次把 `parseCompetitorWon` 与「已中标」字面量提取至 `CompetitorWonStatusSupport`，M1/M4 共用，杜绝第三处定义漂移。
 
 **修复**：specs/055（分支 `agent/ox/fix-analytics-competitor-won-notes`）两个原子 commit：①提取共享 support（M4 委托零行为变化）②M1 图表 + 下钻切换 notes 口径。投标数维持不变。
+
+---
+
+## 164. 评分解析大数击穿数据库字段：分值必须设业务上界与多层纵深防御（2026-08-26，spec 047/055）
+
+**背景**：AI 评分标准解析功能在复杂长文档（山焦物资采购项目 6 万字标书）解析时，抛出 `could not execute statement [Data truncation: Out of range value for column 'original_total_weight' at row 1]` 崩溃。
+
+**根因**：
+1. **测试不测根因**：单测仅用 10/20/60（合计 90）或 50/150（合计 200）等人造合法数据，从未覆盖年份（2024）、金额（100,000,000）、面积（40,000）等非分值大数被误提取为 weight 的脏数据场景。
+2. **业务合理性上界缺失**：`filterInvalidWeights` 只校验 `weight > 0`，无上限拦截；`WeightOverloadTrimPolicy` 只剔除无编号/无原文的嫌疑项，带文本的假项穿透；`WeightNormalizationPolicy` 盲目累加得到超大 `total`。
+3. **环境差异与物理约束脱节**：MySQL RDS 严格模式（`STRICT_TRANS_TABLES`）对 `DECIMAL(10,2)` 溢出（>= 100,000,000）直接报错中断，而 H2/本地宽松模式掩盖了物理字段溢出风险。
+
+**三层纵深防御治理**：
+1. **入参过滤层**：`filterInvalidWeights` 明确单项分值合理上界 `MAX_SINGLE_WEIGHT = 100`，超 100 的非法分值（年份/金额/面积等）直接丢弃。
+2. **归一化策略层**：`WeightNormalizationPolicy` 增加原始合计合理上限 `MAX_REASONABLE_TOTAL = 1000`，超 1000 分判定为严重污染，拒绝归一化，`originalTotal` 返回 `null`。
+3. **守卫与持久化层**：`ScoreMergeResultGuard.isHighConfidence` 增加 `weight <= 100` 约束防假项回补；`setOriginalTotalWeight` 强制 `setScale(2, HALF_UP)` 安全持久化。
+

@@ -4,7 +4,7 @@ space: engineering
 category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
-updated: 2026-08-25
+updated: 2026-08-26
 health_checked: 2026-08-24
 sources:
   - specs/041-ai-score-parse-backend/spec.md
@@ -129,6 +129,7 @@ trigger（同步<1s，互斥校验+建任务）
   - **LLM 网关"成功返回空候选"不触发重试也不计 skip（2026-08-18 测试环境事故）**：ai-tech.ehsy.com 的 qwen3.7-max 自某时刻起对候选提取 prompt 持续返回空 `candidates`（HTTP 200 + 合法 JSON + 空数组），召回四 `count=0, skipped=0` 零异常，三次稳定复现；切 `gemini-3.5-flash` 后同文档恢复 count=10。排查要点：skippedChunks=0 且 count=0 ≠ 代码回归，先换模型对照再查代码；此形态 FR-005 覆盖不到（重试只兜 HTTP/异常失败），只能靠 weightWarning + 完整性回补兜底。
   - **权重合计缺口根治：归一化（spec 047）**：spec 046 只对合计≠100 透 `weightWarning` 提示不修正，用户仍看到 90 缺 10 分。spec 047 改为在超载剔除后、落库前对候选集执行权重归一化——`WeightNormalizationPolicy`（纯核心，10 用例）对 `total>0 且 |total-100|>0.5` 按 `scale=100/total` 逐项缩放 + **最大余数法**确定性分配四舍五入余数（同余按 index 升序，保证可复现），落库合计恒=100 且保持相对比例。归一化发生则把原始合计写 `score_parse_task.original_total_weight`（V1194）并在 items 接口 `summary.originalTotalWeight` 透出（null=未归一化）；`weightWarning` 归一化后恒 false。前端据此可呈现"原合计 X，已补齐到 100"。
   - **ScoreParseAppService 行预算 300 临界**：spec 047 归一并排进编排类，文件卡在 300 行边缘——紧凑化手段（合并 record 参数、去冗余空行、内联单次调用）可过线，勿再往编排类加逻辑，继续拆分到子服务。
+  - **分值业务边界与多层纵深防御（2026-08-26，Data truncation 根治）**：复杂文档误提取年份（2024）或金额（100,000,000）等大数导致原始合计 `total` 击穿数据库 `DECIMAL(10,2)` 上限抛 `Data truncation: Out of range value for column 'original_total_weight'`。三层防御：①`filterInvalidWeights` 约束单项 `0 < weight <= 100`；②`WeightNormalizationPolicy` 约束 `total <= 1000` 超限拒绝归一并返回 null；③`ScoreMergeResultGuard` 防大数假项回补 + `ScoreParseAppService` 强制 `setScale(2, HALF_UP)` 安全入库。详见 lessons-learned §164。
 - **多模态图片：把 data-URI base64 拼进 prompt 文本 → Gemini 报 500 整任务 FAILED（2026-08-19 spec 048 测试环境回归）**：客观项应走「图片独立多模态 content parts 入模」，但打分 prompt 模板样板里把 `scoreItemDetail`/`bidDocExcerpt` 直接 `formatted()`，若其中含 sidecar `/convert` 返回的 `![...](data:image/png;base64,...)` 或截断裸 `data:` 片段，Gemini 解码失败抛"illegal base64 data" 500，整任务 FAILED（日志"打分任务异常终止"）。修复：`ScoreParsePrompts.promptSafe(raw)` 先正则剥离 markdown 内联图片占位符（`![...](...)`）与 `data:image/...;base64,` 裸 URI 段再格式化；`ScoreItemAssessor` 客观分支把 `DocumentImage` 映射为 `MultimodalImage` 走多模态过载，图片不进 prompt 文本以免双写。回归测试 +3 至 9 用例（`ScoreParsePromptsTest`）。
   - **验证基准（测试环境 Gemini-3.5-Flash 真消费完成）**：`/actuator/health` aiProvider=gemini-3.5-flash、apiKeyConfigured=true；修复后 project 224 含图样本打分任务 COMPLETED 100%（15:11→15:13），12 客观项 0.0/DANGER（诚实结果），其中 5 项 evidence 显式引用图片（"文字与图片/附图/资质证书图片 ISO 9001/27001"）——文本内 data-URI 已剥离，模型仍写出"图片"字样，反证图片确实从独立 content parts 入模。多图鉴权：**竞技场图片务必喂满 base64 完整段，截断占位符即是本次 500 根源**。
 - **评分项/详细要素原文保真对齐（2026-08-20 客户验收反馈）**：客户反馈"识别出的评分项与详细要素文字和招标文件评分表原文不一致"。三层根因叠加：

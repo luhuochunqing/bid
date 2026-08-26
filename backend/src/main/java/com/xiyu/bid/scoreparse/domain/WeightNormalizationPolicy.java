@@ -20,6 +20,7 @@ public class WeightNormalizationPolicy {
 
     private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
     private static final BigDecimal TOLERANCE = new BigDecimal("0.5");
+    private static final BigDecimal MAX_REASONABLE_TOTAL = new BigDecimal("1000");
     private static final int SCALE = 10;
 
     /**
@@ -34,7 +35,7 @@ public class WeightNormalizationPolicy {
     /**
      * 对候选集执行权重归一化。
      * <ul>
-     *   <li>total ≤ 0 或 |total − 100| ≤ 0.5 → 原样透传，originalTotal=null</li>
+     *   <li>total ≤ 0 或 total > 1000（异常大数污染）或 |total − 100| ≤ 0.5 → 原样透传，originalTotal=null</li>
      *   <li>否则：scale=100/total，逐项 weight×scale，用最大余数法分配四舍五入余数</li>
      * </ul>
      */
@@ -51,8 +52,9 @@ public class WeightNormalizationPolicy {
             }
         }
 
-        // total ≤ 0 或 |total − 100| ≤ 0.5 → 原样透传，originalTotal=null
+        // total ≤ 0 或 total > 1000（异常大数）或 |total − 100| ≤ 0.5 → 原样透传，originalTotal=null
         if (total.compareTo(BigDecimal.ZERO) <= 0
+                || total.compareTo(MAX_REASONABLE_TOTAL) > 0
                 || total.subtract(ONE_HUNDRED).abs().compareTo(TOLERANCE) <= 0) {
             return new Result(List.copyOf(candidates), null);
         }

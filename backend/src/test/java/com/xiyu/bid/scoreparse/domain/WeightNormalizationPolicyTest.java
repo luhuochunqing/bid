@@ -141,6 +141,17 @@ class WeightNormalizationPolicyTest {
         assertThat(sumWeights(result.normalizedCandidates())).isEqualByComparingTo("100");
     }
 
+    @Test
+    void normalize_extremeTotalOver1000_passthroughNullOriginal() {
+        // 防御：合计超过 1000 分（异常年份/金额污染）→ 拒绝归一化，原样透传，originalTotal=null
+        WeightNormalizationPolicy.Result result = policy.normalize(
+                List.of(candidate("1", "2024"), candidate("2", "50000000")));
+
+        assertThat(result.originalTotal()).isNull();
+        assertThat(result.normalizedCandidates().get(0).weight()).isEqualByComparingTo("2024");
+        assertThat(result.normalizedCandidates().get(1).weight()).isEqualByComparingTo("50000000");
+    }
+
     private BigDecimal ratio(BigDecimal a, BigDecimal b) {
         return a.divide(b, 4, java.math.RoundingMode.HALF_UP);
     }

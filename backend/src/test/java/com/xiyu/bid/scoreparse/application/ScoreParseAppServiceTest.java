@@ -385,4 +385,26 @@ class ScoreParseAppServiceTest {
 
         verify(stateService).createTask(anyString(), eq(PROJECT_ID), eq("PARSE"), isNull(), isNull(), eq("MANUAL"));
     }
+
+    @Test
+    void executeParse_dropsExtremeWeightsOver100_andSucceeds() {
+        // 防御：召回池中混入误识别的年份（2024）或金额（100000000）等异常大数 → filterInvalidWeights 过滤丢弃，正常分值成功解析
+        List<ScoreCandidate> mixed = List.of(
+                new ScoreCandidate("1", "商务", "年份条款", new BigDecimal("2024"), null, null, "2024年成立", "P1", null),
+                new ScoreCandidate("2", "技术", "金额条款", new BigDecimal("100000000"), null, null, "注册资本1亿元", "P2", null),
+                new ScoreCandidate("3", "技术", "实施方案", new BigDecimal("30"), null, null, "方案完整得30分", "P3", null),
+                new ScoreCandidate("4", "商务", "财务审计", new BigDecimal("70"), null, null, "审计报告得70分", "P4", null));
+        mockParseFlowReturning(mixed);
+
+        service.executeParseAsync(TASK_ID);
+
+        verify(stateService).markCompleted(TASK_ID);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<ScoreCandidate>> captor = ArgumentCaptor.forClass(List.class);
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(5L), captor.capture());
+        List<ScoreCandidate> persisted = captor.getValue();
+        assertThat(persisted).hasSize(2);
+        assertThat(persisted.stream().map(ScoreCandidate::weight).toList())
+                .containsExactly(new BigDecimal("30"), new BigDecimal("70"));
+    }
 }
