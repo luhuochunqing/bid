@@ -167,4 +167,38 @@ public final class ScoreParsePrompts {
                 - suggestion: 针对该主观项的投标文件完善建议（一到两句话，指出可补强的方向）
                 """.formatted(promptSafe(scoreItemDetail), promptSafe(bidDocExcerpt));
     }
+
+    /**
+     * 全局归并裁决（spec 055）：候选池身份裁决 + 结构重建，单次调用。
+     * <p>契约见 specs/055-score-parse-global-merge/contracts/llm-global-merge-schema.md §5。
+     */
+    public static String buildGlobalMergePrompt(String candidatesJson, String sectionText) {
+        return """
+                你是招标文件评分标准结构重建专家。多路召回产生了含重复与残缺的评分项候选池，
+                请结合评分章节原文，一次性重建最终评分项清单，输出 JSON。
+
+                候选池（JSON 数组，idx 为池内索引）：
+                %s
+
+                评分章节原文（裁决唯一依据）：
+                %s
+
+                输出字段要求：
+                - items[]: 最终评分项清单
+                  - code: 编号（沿用候选或原文编号）；无则 null
+                  - dim: 大类归属（从候选池已有 dim 词汇中选择或规整表述，如 技术方案/商务部分/价格部分）
+                  - detail: 该项评审细则逐字原文，必须能在"评分章节原文"中逐字找到；禁止摘要、改写、补写
+                  - weight: 该项满分分值（数字）；无法确定输出 null
+                  - scoreTypeGuess: OBJECTIVE（可验证量化条件）或 SUBJECTIVE（需人工评审）
+                  - sourceText: 对应原文片段
+                - summary: {mergedGroupCount: 合并掉的重复候选组数, discardedCandidateCount: 丢弃的非评分项候选数, notes: ≤100字决策说明}
+
+                硬性规则：
+                1. 只允许从候选池与章节原文中选取与重组，禁止发明候选池外的新评分项
+                2. 同一条款的多次召回（含截断残缺版）必须归并为一项，detail 取最完整逐字版本
+                3. 各自包含完整分值裁决（如"得X分""不得分"）的独立条款必须保持独立，禁止合并
+                4. detail 一律逐字摘自章节原文，禁止任何形式的摘要或改写
+                5. 输出 items 必须覆盖候选池中所有真实评分项，不得遗漏；没有评分项时输出 {"items":[],"summary":{...}}
+                """.formatted(candidatesJson, promptSafe(sectionText));
+    }
 }
