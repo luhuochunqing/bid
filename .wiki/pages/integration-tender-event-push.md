@@ -34,7 +34,7 @@ health_checked: 2026-08-26
 
 > **2026-08-26 反编译核实（ClientSDK-release_0.0.2 字节码）**：SDK 的 `sendEvent(eventCode, eventSource, eventContent, eventTrackReq)` 把 `data` 字段取自 `eventContent` 入参，trace 信息经 `buildHeaderParamMap` 写入 HTTP Header，无签名/协议封装。此前「SDK 把 data 硬编码为 trace、无法携带业务关键标识」的判断**不成立**，已回归 SDK 标准发送通道（`@Import` 单类注册 `SystemInteractiveServiceImpl` + 自建 `ServiceRegisterProperties` bean，不能整包 `@Import SDKClientConfiguration`——会连带激活 Kafka/ZK/注册等消费侧组件），消除与 SDK 的 wire 契约漂移风险。
 >
-> **SDK 已知行为**（wire 测试锁定）：HTTP 层仅在状态码 200 时解析响应体，网关返回 201 等非 200 状态码时 SDK 内部抛 NPE，由调用方按异常降级记录 FAILED；`data.result=null`（网关 code=00000 实测形态）视为受理成功，仅显式 `result=false` 判为失败。
+> **SDK 已知行为**（字节码 + wire 测试锁定）：`HttpClientUtil.httpPost` 仅在状态码 200 时解析响应体并返回，**非 200 状态码与 IO 异常均被其静默吞掉后返回 null**（旧链路观察到的"抛 NPE"实为 `sendEvent` 解引用 null 所致，非 HTTP 层主动抛出）；`data.result=null`（网关 code=00000 实测形态）视为受理成功，仅显式 `result=false` 判为失败。
 >
 > **联调最大教训（2026-08-26）**：「一直没打通」期间 `tender_event_logs` 流水表为 **0 行**——功能开关 `XIYU_TENDER_EVENT_SDK_ENABLED` 从未在任何环境启用（`.env.example`/部署脚本均未配置），推送链路从未真正执行过。怀疑 wire 契约前先查流水表/日志确认请求是否发出过。
 
@@ -118,5 +118,12 @@ backend/src/main/java/com/xiyu/bid/integration/tenderevent/
 ### 3. 网关成功信号：外层 `code=="00000"`
 
 - **现象**：网关已返回 `{"code":"00000","data":{"result":null},"msg":"响应成功"}`，但发送器误判失败（流水标 `FAILED`）。
-- **修复**：`TenderEventHttpSender.isSuccessResponse` 判定 `code=="00000"` **或**（兼容历史约定）`data.result==true` 为成功。
-- **教训**：外部网关的"成功"以**最外层状态码**为准，勿默认业务 payload 里的 `result`。
+- **修复**：结果解释兼容 result=null 受理形态，仅显式 `result=false` 判失败。
+- **教训**：外部网关的"成功"语义必须以实测响应为准，勿默认业务 payload 里的 `result` 必为布尔。
+
+### 4. 排障盲区：sendEvent 丢弃外层 code/msg（2026-08-26，tenderId=2282）
+
+- **现象**：测试环境推送流水标 FAILED 且 `result=false`，但无任何异常堆栈——网关为什么拒收完全不可知。
+- **根因**：SDK `sendEvent` 只透传 `data.result` 并丢弃外层 `code`/`msg`，而 `result=false` 时拒绝原因恰在外层（实测样例 `{"code":"B20001","msg":"topic未注册","data":{"result":false}}`）；`SendEventRespDto` 又仅含一个 Boolean 字段，序列化返回值同样无济于事。
+- **修复**：sender 直调 `HttpClientUtil.httpPost`，完整响应原文落 info 日志（`事件总线原始响应 eventTopic=… response=…`），在离源头最近的一层保留第一手证据。
+- **教训**：集成排障必须在**离源头最近的一层**留全量响应证据；只透传业务字段的 SDK 包装层会把故障细节藏在调用方看不见的地方。另注意 `httpPost` 对非 200/IO 异常静默返回 null，null 响应须显式判失败而非等 NPE 暴露。
