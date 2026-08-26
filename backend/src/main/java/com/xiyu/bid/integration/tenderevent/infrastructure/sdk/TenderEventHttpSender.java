@@ -7,6 +7,7 @@ import com.xiyu.bid.integration.tenderevent.domain.TenderEventCode;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -22,6 +23,7 @@ import org.springframework.web.client.RestClient;
  * <p>标讯事件与商机预测提醒事件共用同一总线，两者都通过本类发送，
  * 避免同一 wire 契约在多处重复。网络异常向上抛，由调用方按上下文记录日志并降级。
  */
+@Slf4j
 final class TenderEventHttpSender {
 
     /** 事件总线 {@code EventContentReqDto.data} 声明为 String，须将业务载荷序列化为 JSON 字符串上报。 */
@@ -71,6 +73,8 @@ final class TenderEventHttpSender {
                 .body(body)
                 .retrieve()
                 .body(JsonNode.class);
+        // 原始响应体落日志：保留网关第一手响应原文，供联调对账与后续契约核对
+        log.info("事件总线原始响应 eventTopic={} response={}", code.topic(), response);
         return isSuccessResponse(response);
     }
 
