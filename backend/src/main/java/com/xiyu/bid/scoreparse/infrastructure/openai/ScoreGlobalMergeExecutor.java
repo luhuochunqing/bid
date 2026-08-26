@@ -45,18 +45,29 @@ public class ScoreGlobalMergeExecutor {
             return List.of();
         }
         String prompt = ScoreParsePrompts.buildGlobalMergePrompt(summarizePool(pool), sectionText);
-        OpenAiBidAgentRequestConfig config = configurationResolver.resolve(USE_CASE);
         for (int attempt = 1; attempt <= 2; attempt++) {
             try {
+                // config 解析在 try 内：resolver 缺配置的异常同样走 fail-open（评审 M2）
+                OpenAiBidAgentRequestConfig config = configurationResolver.resolve(USE_CASE);
                 ScoreGlobalMergeOutput output = structuredOutputService.request(
                         prompt, ScoreGlobalMergeOutput.class, config,
                         "AI structured response did not include global merge result");
+                logMergeSummary(output);
                 return toCandidates(output);
             } catch (RuntimeException exception) {
                 log.warn("全局归并 LLM 第 {} 次尝试失败: {}", attempt, exception.getMessage());
             }
         }
         return List.of();
+    }
+
+    /** FR-6：LLM 自报决策摘要落日志（编排层计数之外的过程可观测） */
+    private static void logMergeSummary(ScoreGlobalMergeOutput output) {
+        if (output != null && output.summary != null) {
+            log.info("全局归并 LLM 自报摘要: mergedGroupCount={}, discardedCandidateCount={}, notes={}",
+                    output.summary.mergedGroupCount, output.summary.discardedCandidateCount,
+                    output.summary.notes);
+        }
     }
 
     /** 池摘要 JSON：idx + code/dim/detail(截断)/weight，供 LLM 身份识别 */
@@ -88,7 +99,8 @@ public class ScoreGlobalMergeExecutor {
 
     private static String escape(String text) {
         return text == null ? "" : text.replace("\\", "\\\\").replace("\"", "\\\"")
-                .replace("\n", " ").replace("\r", " ");
+                .replace("\n", " ").replace("\r", " ")
+                .replaceAll("[\\x00-\\x1f]", " ");
     }
 
     private static List<ScoreCandidate> toCandidates(ScoreGlobalMergeOutput output) {

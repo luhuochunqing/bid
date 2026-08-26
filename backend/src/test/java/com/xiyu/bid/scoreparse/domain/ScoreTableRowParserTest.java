@@ -77,6 +77,13 @@ class ScoreTableRowParserTest {
     }
 
     @Test
+    void parse_isolatedShortCellRow_skipped() {
+        // m5：孤立纯数字/超短单元格非评分条款，防假候选穿透守卫
+        assertThat(ScoreTableRowParser.parse("| 10 |")).isEmpty();
+        assertThat(ScoreTableRowParser.parse("| 5分 |")).isEmpty();
+    }
+
+    @Test
     void parse_separatorOrBlankRow_skipped() {
         assertThat(ScoreTableRowParser.parse("| --- | --- | --- |")).isEmpty();
         assertThat(ScoreTableRowParser.parse("|   |   |")).isEmpty();

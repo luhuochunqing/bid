@@ -73,6 +73,21 @@ class ScoreMergeResultGuardTest {
     }
 
     @Test
+    void guard_mergedOutputInternalDuplicates_deduped() {
+        // M3/SC-2：LLM 归并输出自身互相包含（重复未消干净）→ 保留首个，权重不双计
+        String detail = "投标人提供上架商品价格管控方案：重点阐述商品定价策略。优秀得4分。";
+        List<ScoreCandidate> merged = List.of(
+                new ScoreCandidate("", "价格部分", detail,
+                        new BigDecimal("4"), null, null, "原文", "P47", "GLOBAL_MERGE"),
+                new ScoreCandidate("", "价格部分", detail + "未提供不得分。",
+                        new BigDecimal("4"), null, null, "原文", "P47", "GLOBAL_MERGE"));
+        ScoreMergeResultGuard.Outcome outcome = ScoreMergeResultGuard.guard(
+                List.of(), merged, SECTION_TEXT);
+        assertThat(outcome.accepted()).hasSize(1);
+        assertThat(outcome.hallucinationDropped()).isEqualTo(1);
+    }
+
+    @Test
     void guard_nullOrEmptyInputs_handled() {
         assertThat(ScoreMergeResultGuard.guard(null, List.of(), SECTION_TEXT).accepted()).isEmpty();
         assertThat(ScoreMergeResultGuard.guard(List.of(poolItem("x", "1"), poolItem("y", "2")), null, SECTION_TEXT)

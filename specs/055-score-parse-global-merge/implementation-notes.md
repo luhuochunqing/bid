@@ -39,3 +39,17 @@ ScoreCandidateOutput 用 Double，ScoreCandidate 用 BigDecimal。Executor 映�
 - scoreparse 全包 + ArchitectureTest + ResponsibilityArchitectureTest = **406 测试全绿**
 - preflight-domain-purity / java-standards / line-budget / testing-gate 全过
 - 真实文档端到端（项目 1347 重解析验证 SC-1）待部署后在测试环境执行
+
+## 评审修复（独立评审 pass，2026-08-26）
+
+- **C1 e2e 启动崩溃**：Executor @Profile("!e2e") 但 Orchestrator 强注入 → e2e 下 NoSuchBean（spec 048 同款事故复发）。修复：Orchestrator 改 ObjectProvider 懒解析，Bean 缺失时 fail-open 降级 + 回归用例。
+- **M1 rechunk 死代码**：TextChunker 既有 `lastIndexOf('\n')` 行边界回退，chunk 恒 ≤4000 → ScoreTableAwareChunker 永不触发。修复：**删除死代码**（subtract-before-you-add），FR-4 落点改为 TextChunker 上游行为 + 新增 TextChunkerTest 锁定（表格行不被斩断、无内容丢失）。
+- **M2 config 解析在 try 外**：resolver 缺配置异常直穿任务判 FAILED。修复：移入重试 try 块。
+- **M3 守卫未强制 SC-2**：归并输出内部互相包含的重复会双计权重。修复：采纳时内部去重（保留首个）。
+- **m2/m3/m4/m5**：escape 补控制符；sectionText 过 sanitizeUntrusted；LLM 自报 summary 落日志；孤立纯数字单元格行（"| 10 |"）跳过。
+- **教训**：包装层"事后重切"无法愈合上游已切断的行——切片类修复必须落在切分发生点；新 @Profile Bean 的消费方必须检查 e2e 启动路径（项目已两次踩坑）。
+
+## 最终验证证据
+
+- scoreparse 全包 + TextChunkerTest + ArchitectureTest = **412 测试全绿**
+- 评审 verdict：REQUEST_CHANGES（1C+3M）→ 全部修复，无遗留

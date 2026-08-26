@@ -43,6 +43,11 @@ public final class ScoreMergeResultGuard {
                 dropped++;
                 continue;
             }
+            // SC-2 强制：归并输出内部互相包含（LLM 未消干净的重复）→ 保留首个，丢弃后者
+            if (isCovered(item, accepted)) {
+                dropped++;
+                continue;
+            }
             accepted.add(item);
         }
         int restored = 0;

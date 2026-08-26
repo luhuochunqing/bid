@@ -42,6 +42,10 @@ public final class ScoreTableRowParser {
         if (columns.isEmpty()) {
             return Optional.empty();
         }
+        // 孤立纯数字/超短单元格（如 "| 10 |"）非评分条款，防假候选穿透守卫（评审 m5）
+        if (columns.size() == 1 && columns.get(0).length() <= 4) {
+            return Optional.empty();
+        }
         int codeIndex = codeColumnIndex(columns);
         String code = codeIndex >= 0 ? columns.get(codeIndex) : "";
         int weightIndex = pureWeightIndex(columns);

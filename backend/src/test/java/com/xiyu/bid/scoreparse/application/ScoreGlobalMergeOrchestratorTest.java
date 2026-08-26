@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -29,6 +30,9 @@ class ScoreGlobalMergeOrchestratorTest {
     @Mock
     private ScoreGlobalMergeExecutor mergeExecutor;
 
+    @Mock
+    private ObjectProvider<ScoreGlobalMergeExecutor> mergeExecutorProvider;
+
     private ScoreGlobalMergeOrchestrator orchestrator;
 
     private ScoreCandidate poolItem(String detail, String weight) {
@@ -46,7 +50,21 @@ class ScoreGlobalMergeOrchestratorTest {
 
     @BeforeEach
     void setUp() {
-        orchestrator = new ScoreGlobalMergeOrchestrator(mergeExecutor);
+        orchestrator = new ScoreGlobalMergeOrchestrator(mergeExecutorProvider);
+        org.mockito.Mockito.lenient().when(mergeExecutorProvider.getIfAvailable())
+                .thenReturn(mergeExecutor);
+    }
+
+    @Test
+    void apply_executorBeanMissing_e2eProfile_degradesToHeuristicPool() {
+        // C1 修复回归：e2e profile 无 executor Bean → 懒解析 null → fail-open 原池返回
+        when(mergeExecutorProvider.getIfAvailable()).thenReturn(null);
+        List<ScoreCandidate> pool = List.of(
+                poolItem("不平衡报价评审：报价合理得4-5分。", "5"),
+                poolItem("投标人提供上架商品价格管控方案：优秀得4分。", "4"));
+
+        assertThat(orchestrator.applyGlobalMerge(pool, FULL_TEXT)).isSameAs(pool);
+        verify(mergeExecutor, never()).resolve(anyList(), anyString());
     }
 
     @Test
