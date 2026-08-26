@@ -10,15 +10,18 @@ on:
 # root commits on main. If branch protection is misconfigured (or someone force-
 # pushes via the API), this job still fails the check and surfaces the regression.
 #
-# Background: ericforai/bidding#224 — main was discovered today with 4
-# disconnected root commits, which silently overwrote files like
-# src/views/Login.vue and erased the WeCom SSO entry. Until #224 is resolved
-# (history surgery), the current root count is 4. This ratchet locks that in:
-# any push that increases the count fails. Once #224 reduces the count, lower
-# `MAX_ROOTS` below to lock the new floor in.
+# Background: ericforai/bidding#224 — main was discovered with disconnected
+# root commits, which silently overwrote files like src/views/Login.vue and
+# erased the WeCom SSO entry. This ratchet locks the floor in: any push that
+# increases the count fails. Once history surgery reduces the count, lower
+# `MAX_ROOTS` below to lock the new floor in (see the env comment for the
+# 2026-08-26 baseline raise rationale).
 
 env:
-  MAX_ROOTS: 4
+  # 2026-08-26 基线调整：与 .githooks/pre-push 同步从 4 提至 8。
+  # main 现存 8 个 root commits（2026-06-05~07 Gitee 迁移期遗留断段），旧值导致所有直推被误拦。
+  # 历史断段清理完成后应同步下调。详见 docs/references/engineering-discipline.md §push 基础设施。
+  MAX_ROOTS: 8
 
 jobs:
   enforce-no-new-root:

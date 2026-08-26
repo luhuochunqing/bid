@@ -109,8 +109,19 @@ if [ "$BEHIND" != "0" ] && [ "$BEHIND" != "?" ]; then
   echo ""
 fi
 
-# FORCE_PUSH_OK=1: 允许 .githooks/pre-push 的 root-commit ratchet 放行（GitHub 单向镜像本就是经批准的 force 覆盖）
-FORCE_PUSH_OK=1 git push github origin/main:refs/heads/main --force-with-lease
+# ═══ 门禁与传输解耦（2026-08-26 SIGPIPE 根治）═══
+# 根因：git push 的时序是「ssh 连接建立 → pre-push hook 运行 → 传包」。
+# hook 内跑质量门禁（前端测试/构建）耗时数分钟，期间连接空闲，远端会掐断空闲连接；
+# hook 通过后 git 开始传包，写入已死管道 → SIGPIPE(exit 141)，且 stdout 重定向也救不了。
+# 解法：显式先跑同一份 pre-push-gate.sh（强度不变），通过后再推送 —— 连接建立后立即传包，无空闲窗口。
+info "运行推送前质量门禁（与 hook 同一份脚本，强度不变）..."
+if ! bash scripts/pre-push-gate.sh; then
+  die "质量门禁未通过，取消镜像同步。"
+fi
+echo ""
+# PRE_PUSH_GATE=0: 跳过 hook 内联门禁（已在上方独立跑过，此处仅为避免重建空闲窗口）
+# FORCE_PUSH_OK=1: 允许 root-commit ratchet 放行（GitHub 单向镜像本就是经批准的 force 覆盖）
+FORCE_PUSH_OK=1 PRE_PUSH_GATE=0 git push github origin/main:refs/heads/main --force-with-lease
 echo ""
 
 # ─── 4. 验证结果 ───────────────────────────────────────────────────────────

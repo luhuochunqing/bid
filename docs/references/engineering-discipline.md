@@ -67,3 +67,26 @@
 - **收尾自动清理**：`agent-finish-task.sh` Step 8 删临时 worktree + Step 10 扫孤儿 worktree + `git worktree prune`。
 - **`--in-place` 可选**：旧持久 worktree 内联模式保留为 `--in-place` 可选，默认走独立临时 worktree。
 - 文档中"主工作区"口径已废弃，统一用"开发宿主"（trae）+ "基准仓库"（xiyu-bid-poc）。
+
+## 6. push 基础设施--SIGPIPE 根治与 root ratchet 基线调整（2026-08-26）
+
+**事故**：`sync-to-github.sh` 连续两次死于门禁通过后的传输阶段（exit 141 = SIGPIPE）。对照实验锁定方向：同一 HEAD 用文档化开关 `PRE_PUSH_GATE=0` 跳过 gate 后推送瞬间成功——网络、SSH 凭据、本地管道全部排除，问题出在 pre-push gate 执行期间的残留状态。
+
+**根因（两层机制）**：
+
+1. **主机制：git push 时序缺陷**。git push 的实际顺序是「ssh 连接建立 → pre-push hook 运行 → 传包」。hook 能收到远端 refs 即证明连接先于 hook 建立；当 hook 内跑质量门禁（前端测试/构建）耗时数分钟，期间已建立的连接处于空闲状态，远端（Gitee/GitHub 均有此策略，镜像推 GitHub 时尤甚）会掐断空闲连接；hook 通过后 git 开始写包，写入已死管道 → SIGPIPE(141)。stdout 重定向到文件也救不了——死的是网络层传输，不是本地 fd。
+2. **放大器：test-queue exec-trap 缺陷**。`scripts/test-queue.sh` 的 macOS 分支（无 flock）原实现为 `exec npx vitest "$@"`——bash 的 `exec` 会用目标命令替换当前 shell 进程映像，**EXIT trap 随之永久失效**，目录锁 `/tmp/xiyu-vitest.lockdir` 在每轮运行后必然孤儿化（与信号无关）；后续 gate 撞上残留锁会静默空转等待最多 300s，且等待循环结束后无失败检查照样继续。这把"门禁可能超时"放大成"必然超时"，显著提高触发空闲连接被掐的概率。
+
+**修复**：
+
+- **门禁与传输解耦**（`scripts/sync-to-github.sh`）：推送前显式执行同一份 `scripts/pre-push-gate.sh`（强度不变，失败即中止），通过后以 `FORCE_PUSH_OK=1 PRE_PUSH_GATE=0 git push` 完成传输——连接建立后立即传包，不存在空闲窗口。此方案无论远端超时策略如何都成立，优于"猜测并适配各家超时阈值"。
+- **exec-trap 修复**（`scripts/test-queue.sh`）：去掉 `exec`，改为普通调用 + 单引号延迟展开的 EXIT trap，锁目录每轮必被清理。
+
+**root ratchet 基线调整**：main 历史现存 8 个 root commits（2026-06-05~07 Gitee 迁移期遗留断段），旧上限 4 导致自 6 月起所有直推 main 都会被误拦——近期无人察觉是因为大家都走 PR/Web 合并（不触发本地 hook）。两处定义（`.githooks/pre-push` 与 `.github/workflows/branch-history-guard.yml`）同步从 4 提至 8：解封存量直推，新增 root commits 仍会被拦截。历史断段清理属 `git filter-repo` 专项决策（本次不做），完成清理后必须同步下调两个文件中的基值。
+
+**纪律**：
+
+- **pre-push hook 内禁止 `exec` 启动带 trap 清理的子流程**：`exec` 替换进程映像后 trap 全部失效；需要前台阻塞语义就直接调用，靠 `set -euo pipefail` 保证非零退出仍触发清理。
+- **长门禁不得内联在传输关键路径上**：任何「先建连接 → 干重活 → 再传输」的结构都有空闲超时风险；正确形态是「干重活（独立步骤）→ 建连接 → 立即传输」。
+- **ratchet 双处定义必须同步改**：本地 hook 与 CI workflow 是同一约束的两份拷贝，只改一处会造成"本地能过 CI 挂"或反向漂移；调整时必须在注释中写明日期、现存数量、调整原因和下调条件。
+- **验证路径**：Fix B 的活体验证 = 携带本提交直推 origin main 且**不带** `FORCE_PUSH_OK`（8 roots ≤ 上限 8 应天然放行）；Fix A 的活体验证 = 改造后的 `sync-to-github.sh` 以真实增量走新解耦路径推 GitHub 成功。普通 `git push origin main` 的内联 gate 路径本次未改动，如未来在该路径复现 SIGPIPE，套用同一解耦模式即可。

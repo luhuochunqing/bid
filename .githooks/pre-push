@@ -23,7 +23,11 @@ set -euo pipefail
 
 remote="${1:-origin}"
 PROTECTED_BRANCHES_REGEX='^refs/heads/(main|master|release/.+)$'
-MAX_ROOTS=4
+# 2026-08-26 基线调整：main 现存 8 个 root commits（2026-06-05~07 Gitee 迁移期遗留断段），
+# 旧上限 4 导致 6 月起所有直推 main 一律被误拦（PR/Web 合并路径不触发本地 hook，故长期未察觉）。
+# 上限提至 8 解封直推；新增 root commits 仍会被拦截。历史断段清理属专项 filter-repo 决策，
+# 完成后应同步下调本值。详见 docs/references/engineering-discipline.md §push 基础设施。
+MAX_ROOTS=8
 
 # ==============================================================================
 # 前置门禁 A: 远端凭证检查

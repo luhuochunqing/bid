@@ -29,8 +29,10 @@ if ! command -v flock &>/dev/null; then
       sleep 1
     done
   }
-  trap "rmdir '$LOCKDIR' 2>/dev/null || true" EXIT
-  exec npx vitest "$@"
+  # 注意：不能用 exec —— exec 会替换 shell 进程镜像，EXIT trap 随之失效，
+  # 目录锁每轮必孤儿化（2026-08-26 修复：残留锁导致后续 gate 静默空转等 300s）。
+  trap 'rmdir "$LOCKDIR" 2>/dev/null || true' EXIT
+  npx vitest "$@"
 fi
 
 echo "[test-queue] 等待 vitest 锁...（超时 ${MAX_WAIT_SEC}s）"
