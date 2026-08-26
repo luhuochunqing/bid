@@ -30,9 +30,13 @@ health_checked: 2026-08-26
 
 **不覆盖**：存量补推、更新事件。仅创建时推送。
 
-## 传输方式：直连 /eventbus/publishEvent
+## 传输方式：经 SDK SystemInteractiveService 推送
 
-> **关键教训**：`TenderEventSdkProducer` 的 `sendEvent` 方法把 `data` 硬编码为 `EventTrackReq`，无法自定义。因此**绕过 SDK，直连 `POST {baseUrl}/eventbus/publishEvent`**，`data` 才能用自定义 `Map<String,Object>`。
+> **2026-08-26 反编译核实（ClientSDK-release_0.0.2 字节码）**：SDK 的 `sendEvent(eventCode, eventSource, eventContent, eventTrackReq)` 把 `data` 字段取自 `eventContent` 入参，trace 信息经 `buildHeaderParamMap` 写入 HTTP Header，无签名/协议封装。此前「SDK 把 data 硬编码为 trace、无法携带业务关键标识」的判断**不成立**，已回归 SDK 标准发送通道（`@Import` 单类注册 `SystemInteractiveServiceImpl` + 自建 `ServiceRegisterProperties` bean，不能整包 `@Import SDKClientConfiguration`——会连带激活 Kafka/ZK/注册等消费侧组件），消除与 SDK 的 wire 契约漂移风险。
+>
+> **SDK 已知行为**（wire 测试锁定）：HTTP 层仅在状态码 200 时解析响应体，网关返回 201 等非 200 状态码时 SDK 内部抛 NPE，由调用方按异常降级记录 FAILED；`data.result=null`（网关 code=00000 实测形态）视为受理成功，仅显式 `result=false` 判为失败。
+>
+> **联调最大教训（2026-08-26）**：「一直没打通」期间 `tender_event_logs` 流水表为 **0 行**——功能开关 `XIYU_TENDER_EVENT_SDK_ENABLED` 从未在任何环境启用（`.env.example`/部署脚本均未配置），推送链路从未真正执行过。怀疑 wire 契约前先查流水表/日志确认请求是否发出过。
 
 ### 请求结构
 
@@ -45,8 +49,8 @@ health_checked: 2026-08-26
 }
 ```
 
-- `data` 是 **JSON 字符串**（网关 `EventContentReqDto.data` 声明为 String），由 `TenderEventHttpSender.serializeData` 把业务载荷 Map 序列化后上传；只含 `tenderId`（必填）和 `externalId`（有值才入 Map）
-- 链路追踪 `traceId` / `spanId` / `parentId` 进 HTTP Header，不进 body
+- `data` 是 **JSON 字符串**（网关 `EventContentReqDto.data` 声明为 String），由 `TenderEventHttpSender.serializeData` 把业务载荷 Map 序列化后作为 `eventContent` 传给 SDK；只含 `tenderId`（必填）和 `externalId`（有值才入 Map）
+- 链路追踪 `traceId` / `spanId` / `parentId` 经 `EventTrackReq` 由 SDK 写入 HTTP Header，不进 body
 - ⚠️ **契约坑**：若 `data` 传原始对象而非 JSON 字符串，网关返回 `400 Bad Request`（2026-08-25 实战踩坑）
 
 ### 事件编码（`TenderEventCode`）
@@ -86,13 +90,9 @@ backend/src/main/java/com/xiyu/bid/integration/tenderevent/
 
 ## Wire 契约单一源（2026-08-24 去重）
 
-`TenderEventHttpSender`（`infrastructure/sdk/`）是事件总线 wire 契约的**唯一持有者**：body 组装
-（`serviceName/eventTopic/eventSource/data`）、响应 `data.result` 解析、`traceId/spanId/parentId` HTTP Header、
-RestClient 3s/5s 超时。`TenderEventSdkProducer` 与 `OpportunityPredictionEventPublisher` 都委托它发送，
-各自只保留自己的载荷与上下文日志（公开构造/入口不变）。
+`TenderEventHttpSender`（`infrastructure/sdk/`）是事件总线发送的唯一入口：委托 SDK `SystemInteractiveService.sendEvent` 上报，本方只负责 data 载荷 JSON 序列化与结果解释（`!Boolean.FALSE.equals(result)`，兼容网关 result=null 形态）。`TenderEventSdkProducer` 与 `OpportunityPredictionEventPublisher` 都委托它发送，各自只保留自己的载荷与上下文日志（公开构造/入口不变）。
 
 > 新的事件发布方直接复用 `TenderEventHttpSender`，**不要**再复制 body/trace/超时逻辑（本页此前的重复即此类 slop）。
-> 标讯事件应用层管线（`TenderEventPublishService`/Port/流水表）不感知该重构。
 
 ## 关键设计
 
