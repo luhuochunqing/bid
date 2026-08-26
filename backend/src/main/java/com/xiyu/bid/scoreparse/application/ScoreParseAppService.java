@@ -200,7 +200,7 @@ public class ScoreParseAppService {
         var normalized = new WeightNormalizationPolicy().normalize(valid);
         if (normalized.originalTotal() != null) {
             valid = normalized.normalizedCandidates();
-            task.setOriginalTotalWeight(normalized.originalTotal());
+            task.setOriginalTotalWeight(normalized.originalTotal().setScale(2, java.math.RoundingMode.HALF_UP));
             taskRepository.save(task);
         }
         // spec 047 C002：归一后重算，完成日志 totalWeight/weightWarning 反映落库值
@@ -242,8 +242,7 @@ public class ScoreParseAppService {
 
         SummaryAggregator.Result summary = summaryAggregator.aggregate(items.stream()
                 .map(item -> new SummaryAggregator.Item(
-                        item.getWeight(), item.getScoreType(), item.getEstScore(),
-                        item.getStatusStage1()))
+                        item.getWeight(), item.getScoreType(), item.getEstScore(), item.getStatusStage1()))
                 .toList());
         ScoreParseTask latest = latestTaskOrNull(projectId, TASK_TYPE_PARSE);
         return new ScoreParseItemsDTO(itemDTOs, new ScoreParseItemsDTO.Summary(
@@ -254,8 +253,7 @@ public class ScoreParseAppService {
                 new ScoreParseItemsMetaBuilder(initiationTenderTextResolver, snapshotRepository,
                         taskRepository, itemRepository, resultRepository,
                         new ScoreBidDocumentLookup(projectDocumentRepository, null, null, null, null))
-                        .build(projectId, latest,
-                                latestTaskOrNull(projectId, "SCORING")));
+                        .build(projectId, latest, latestTaskOrNull(projectId, "SCORING")));
     }
 
     private static final List<String> ANY_STATUS = List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED");
@@ -271,17 +269,20 @@ public class ScoreParseAppService {
                 .orElseThrow(() -> new IllegalStateException("项目无解析任务: " + projectId));
     }
 
+    private static final BigDecimal MAX_SINGLE_WEIGHT = new BigDecimal("100");
+
     private List<ScoreCandidate> filterInvalidWeights(List<ScoreCandidate> candidates) {
         List<ScoreCandidate> valid = new ArrayList<>();
         int dropped = 0;
         for (ScoreCandidate candidate : candidates) {
-            if (candidate.weight() != null && candidate.weight().compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal w = candidate.weight();
+            if (w != null && w.compareTo(BigDecimal.ZERO) > 0 && w.compareTo(MAX_SINGLE_WEIGHT) <= 0) {
                 valid.add(candidate);
             } else {
                 dropped++;
             }
         }
-        if (dropped > 0) log.warn("丢弃权重无法解析的候选 {} 项（spec Edge Cases）", dropped);
+        if (dropped > 0) log.warn("丢弃权重无效或超界（<=0 或 >100）的候选 {} 项（spec Edge Cases）", dropped);
         return valid;
     }
 
@@ -292,8 +293,7 @@ public class ScoreParseAppService {
     }
 
     private ScoreItemDTO toDTO(ScoreItem item) {
-        return new ScoreItemDTO(
-                item.getId(), item.getCode(), item.getDim(), item.getDetail(),
+        return new ScoreItemDTO(item.getId(), item.getCode(), item.getDim(), item.getDetail(),
                 item.getWeight(), item.getScoreType(), item.getStatusStage1(),
                 item.getEstScore(), item.getEstBasis(), item.getKbHit(), item.getLocation());
     }

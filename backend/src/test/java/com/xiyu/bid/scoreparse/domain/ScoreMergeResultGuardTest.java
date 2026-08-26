@@ -94,4 +94,14 @@ class ScoreMergeResultGuardTest {
                 .accepted()).isEmpty();
         assertThat(ScoreMergeResultGuard.guard(List.of(poolItem("x", "1")), List.of(), null).accepted()).isEmpty();
     }
+
+    @Test
+    void guard_highConfidencePoolItemWithWeightOver100_notRestored() {
+        // 异常大数防护：候选池中有原文背书但 weight > 100（如误提金额/年份）→ 不视为高置信项，不予回补
+        List<ScoreCandidate> pool = List.of(
+                poolItem("技术方案：方案完整可行得10分。注：投标人须自行提供相关承诺。", "2024"));
+        ScoreMergeResultGuard.Outcome outcome = ScoreMergeResultGuard.guard(pool, List.of(), SECTION_TEXT);
+        assertThat(outcome.accepted()).isEmpty();
+        assertThat(outcome.restoredCount()).isZero();
+    }
 }

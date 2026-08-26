@@ -63,12 +63,16 @@ public final class ScoreMergeResultGuard {
         return new Outcome(List.copyOf(accepted), dropped, restored);
     }
 
-    /** 高置信：有原文背书（sourceText ⊇ detail）且 weight 非空 */
+    private static final BigDecimal MAX_SINGLE_WEIGHT = new BigDecimal("100");
+
+    /** 高置信：有原文背书（sourceText ⊇ detail）且 weight 在合理分值区间 (0, 100] */
     private static boolean isHighConfidence(ScoreCandidate candidate) {
         String detail = candidate.detail();
         String sourceText = candidate.sourceText();
         return detail != null && !detail.isBlank()
-                && candidate.weight() != null && candidate.weight().compareTo(BigDecimal.ZERO) > 0
+                && candidate.weight() != null
+                && candidate.weight().compareTo(BigDecimal.ZERO) > 0
+                && candidate.weight().compareTo(MAX_SINGLE_WEIGHT) <= 0
                 && sourceText != null && !sourceText.isBlank()
                 && normalize(sourceText).contains(normalize(detail));
     }
