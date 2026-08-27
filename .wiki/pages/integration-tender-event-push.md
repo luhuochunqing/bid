@@ -222,3 +222,19 @@ backend/src/main/java/com/xiyu/bid/integration/tenderevent/
 - **代码落点**：`TenderEventSdkSender`（原 `TenderEventHttpSender` 更名）直接调 `SystemInteractiveService.sendEvent`；wire 测试改为真实 SDK 通道打 MockWebServer 锁 4 字段契约。
 - **SDK NPE 兜底**：非 200/IO 异常时 `httpPost` 静默返回 null，`sendEvent` 对 null 取 `data` 抛 NPE——`TenderEventSdkSender` 捕获后判失败。
 - **闭环验证待办**：部署后新建标讯推送，请客户在事件库确认收到（此前 2289~2296 均未收到）。
+
+### 9. 装配层大坑：ServiceRegisterProperties 类级绑定覆盖（2026-08-27，result=false 实测）
+
+- **现象**：切回 SDK sendEvent 通道后部署（commit 69802229a），创建标讯 tenderId=2297，网关返回 **`result=false`**（此前直连同 4 字段是 `result:null` 受理成功）。
+- **探针矩阵定位**（curl 直接打网关，Content-Type 已核实为 application/json）：
+  | 探针 | serviceName | 网关响应 |
+  |---|---|---|
+  | A | `bid` | `result:null`（受理成功） |
+  | B | `BidSystemOrgConsumer` | `result:false` |
+  | C | `text/plain`（任何） | 415 Unsupported Media Type |
+  → **bid 是合法注册名**，SDK 实际发出的 serviceName 被替换成了 `BidSystemOrgConsumer`。
+- **根因**：SDK 的 `ServiceRegisterProperties` 自带**类级** `@ConfigurationProperties(prefix="client.register")`。`@Bean` 方法 `setServiceName("bid")` 之后，Spring 的 `ConfigurationPropertiesBindingPostProcessor` 用环境值（组织消费侧 `client.register.service-name=BidSystemOrgConsumer`）**重新绑定覆盖**。这是当年 `64a3fcae8` "规避 client.register 绑定覆盖"踩过的同一个坑——@Bean 注册方案原样重踩。
+- **第二层坑**：即便用反射注入干净配置，SDK 服务类 `SystemInteractiveServiceImpl` 的 `@Autowired clientSdkConfig` 字段只要经过容器（@Bean/@Import），`AutowiredAnnotationBeanPostProcessor` 就会再次注入容器里的 bean（覆盖反射值或直接报无 bean）。
+- **修复**（commit 9aac09ff6）：**SDK 的 ServiceRegisterProperties 与 SystemInteractiveServiceImpl 都不注册为 Spring bean**——SDK 服务在 `TenderEventSdkSender` 构造时手工 `new` + 反射注入配置，藏为私有字段（`TenderEventSdkSender` 无注解字段，容器不触碰其内部）。新增 `TenderEventSdkConfigTest` 模拟 `client.register.*` 环境值，断言 SDK serviceName 仍为 bid、SDK 类型不出现在容器 bean 中。
+- **闭环验证**：部署 9aac09ff6 后创建标讯 tenderId=2298（15:17:32，traceId=deb7fe96fbc74f1987416c5ea699c0c4），SDK 通道返回 **`result=null ok=true`** 受理成功。
+- **教训**：客户 SDK 的属性类若带类级 `@ConfigurationProperties`，手工构造对象必须**完全脱离容器**，不能作为 @Bean 注册（后置处理器会无条件重绑）；带 `@Autowired` 字段的 SDK 服务同理。
