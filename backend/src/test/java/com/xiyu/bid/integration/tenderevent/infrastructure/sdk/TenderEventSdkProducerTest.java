@@ -64,19 +64,20 @@ class TenderEventSdkProducerTest {
         httpClient.verify(() -> HttpClientUtil.httpPost(eq(PUBLISH_URL), bodyCaptor.capture(),
                 headers.capture(), eq("publishEvent")));
         JSONObject body = bodyCaptor.getValue();
-        // SDK 契约 4 字段 + key：serviceName / eventTopic / eventSource / key / data
-        // 消息结构内部字段（eventCode/time/traceId/spanId/parentId）由网关自身填，不可塞 body；
-        // key 为客户手动触发成功样例证实的必填业务主键字段名（BidTenderChange → "tenderId"）
-        assertThat(body.getString("serviceName")).isEqualTo("bid");
+        // 完全复刻客户手动触发成功样例（tenderId=2282）：trace 三元组进 body、data 为对象、
+        // key=业务主键字段名、无 serviceName
+        assertThat(body.getString("traceId")).isEqualTo("trace-1");
+        assertThat(body.getString("spanId")).isEqualTo("span-1");
+        assertThat(body.getString("parentId")).isEqualTo("parent-1");
         assertThat(body.getString("eventTopic")).isEqualTo("BidTenderChange");
         assertThat(body.getString("eventSource")).isEqualTo("bid");
         assertThat(body.getString("key")).isEqualTo("tenderId");
-        assertThat(body.getString("data")).isEqualTo("{\"tenderId\":123,\"externalId\":\"ext-1\"}");
-        assertThat(body.containsKey("eventCode")).as("eventCode 不应在 body").isFalse();
-        assertThat(body.containsKey("time")).as("time 不应在 body").isFalse();
-        assertThat(body.containsKey("traceId")).as("traceId 不应在 body").isFalse();
-        assertThat(body.containsKey("spanId")).as("spanId 不应在 body").isFalse();
-        assertThat(body.containsKey("parentId")).as("parentId 不应在 body").isFalse();
+        assertThat(body.containsKey("serviceName")).as("serviceName 不应在 body（客户样例无此字段）").isFalse();
+        // data 是对象（客户样例形态），非 JSON 字符串
+        JSONObject data = body.getJSONObject("data");
+        assertThat(data).as("data 应为对象形态").isNotNull();
+        assertThat(data.getLong("tenderId")).isEqualTo(123L);
+        assertThat(data.getString("externalId")).isEqualTo("ext-1");
         assertThat(headers.getValue())
                 .containsEntry("traceId", "trace-1")
                 .containsEntry("spanId", "span-1")
@@ -98,7 +99,9 @@ class TenderEventSdkProducerTest {
         ArgumentCaptor<JSONObject> bodyCaptor = ArgumentCaptor.forClass(JSONObject.class);
         httpClient.verify(() -> HttpClientUtil.httpPost(anyString(), bodyCaptor.capture(),
                 any(), anyString()));
-        assertThat(bodyCaptor.getValue().getString("data")).isEqualTo("{\"tenderId\":123}");
+        JSONObject data = bodyCaptor.getValue().getJSONObject("data");
+        assertThat(data).as("data 应为对象形态").isNotNull();
+        assertThat(data.keySet()).as("externalId 为空应只含 tenderId").containsExactly("tenderId");
     }
 
     @Test

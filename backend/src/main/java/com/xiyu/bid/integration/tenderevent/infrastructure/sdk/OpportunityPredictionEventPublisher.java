@@ -29,7 +29,7 @@ public class OpportunityPredictionEventPublisher {
 
     public OpportunityPredictionEventPublisher(TenderEventSdkProperties properties) {
         this.properties = properties;
-        this.sender = new TenderEventHttpSender(properties.serviceName(), properties.serverRegisterUrl());
+        this.sender = new TenderEventHttpSender(properties.serverRegisterUrl());
     }
 
     /**
