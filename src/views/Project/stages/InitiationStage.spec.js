@@ -62,7 +62,7 @@ const stubs = {
         },
       },
     },
-    template: '<input type="number" :disabled="disabled" />',
+    template: '<input type="number" :disabled="disabled" :value="modelValue == null ? \'\' : modelValue" />',
   },
   'el-date-picker': { template: '<input type="datetime-local" />' },
   'el-upload': { template: '<div><slot name="tip" /><slot /></div>' },
@@ -195,6 +195,9 @@ describe('InitiationStage — PRD §4.3 4-section layout', () => {
     expect(wrapper.vm.form.annualEcommerceAmount).toBeNull()
     expect(wrapper.vm.form.annualRevenue).toBeNull()
     expect(wrapper.vm.form.customerRevenue).toBeNull()
+    const biddersInput = wrapper.find('[data-label="计划入围供应商数量"] input')
+    expect(biddersInput.exists()).toBe(true)
+    expect(biddersInput.element.value).toBe('')
   })
 
   it('submits omitted numeric fields as null rather than a fake zero', async () => {

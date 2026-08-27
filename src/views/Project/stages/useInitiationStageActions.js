@@ -155,6 +155,27 @@ export function useInitiationStageActions({
     }
   }
 
+  const EMPTY_NUMERIC_KEYS = ['expectedBidders', 'annualEcommerceAmount', 'annualRevenue', 'customerRevenue']
+
+  function keepPositiveCount(src, fallback) {
+    return src != null && Number(src) > 0 ? src : fallback
+  }
+
+  // Jackson non_null 会省略 null 字段；Object.assign 写不进缺 key。
+  // expectedBidders=0 对 :min="1" 非法，一律当成空，避免 InputNumber clamp 成 1。
+  function normalizeEmptyNumericFields(source) {
+    if (!source) return
+    for (const key of EMPTY_NUMERIC_KEYS) {
+      if (source[key] == null) form[key] = null
+    }
+    if (source.expectedBidders == null || Number(source.expectedBidders) === 0) {
+      form.expectedBidders = null
+    }
+    if (form.customerRevenue == null && form.annualRevenue != null) {
+      form.customerRevenue = form.annualRevenue
+    }
+  }
+
   function buildPayload() {
     const pType = PROJECT_TYPE_SUBMIT_MAP[form.projectType] || form.projectType
     const cType = CUSTOMER_TYPE_SUBMIT_MAP[form.customerType] || form.customerType
@@ -171,7 +192,7 @@ export function useInitiationStageActions({
       projectPlanGap: null,
       projectType: pType && String(pType).trim() ? pType : null,
       customerType: cType && String(cType).trim() ? cType : null,
-      annualRevenue: form.customerRevenue || form.annualRevenue,
+      annualRevenue: form.customerRevenue ?? form.annualRevenue,
       customerInfoRows: custFixedRows.value,
       ...(Object.keys(customFields).length > 0 ? { customFields } : {}),
     }
@@ -183,6 +204,7 @@ export function useInitiationStageActions({
       const data = response?.data || response
       if (!data) return
       Object.assign(form, data)
+      normalizeEmptyNumericFields(data)
       // CO-601: 自定义字段按 scope 摊平回显（预置 key 以 DTO 权威值为准，撞 key 脏数据忽略）
       mergeCustomFieldsIntoModel(form, data.customFields, 'project.initiation', PROJECT_LOCKED_FIELD_KEYS['project.initiation'])
       if (data.tenderDocumentId) {
@@ -318,7 +340,7 @@ export function useInitiationStageActions({
           if (evaluation && evaluation.evaluationBasic) {
             const b = evaluation.evaluationBasic
             Object.assign(form, {
-              expectedBidders: b.plannedShortlistedCount ?? form.expectedBidders,
+              expectedBidders: keepPositiveCount(b.plannedShortlistedCount, form.expectedBidders),
               annualEcommerceAmount: b.mroOfficeFlowAmount ?? form.annualEcommerceAmount,
               customerRevenue: b.customerRevenue ?? form.customerRevenue,
               annualRevenue: b.customerRevenue ?? form.annualRevenue,
@@ -536,5 +558,6 @@ export function useInitiationStageActions({
     submit,
     load,
     buildPayload,
+    normalizeEmptyNumericFields,
   }
 }

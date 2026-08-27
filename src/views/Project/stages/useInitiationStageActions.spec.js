@@ -51,6 +51,8 @@ function setup(formOverrides = {}) {
     updateInitiation: vi.fn().mockResolvedValue({ data: { projectId: 1 } }),
     getInitiation: vi.fn(),
   }
+  const projectsApi = { getDetail: vi.fn(), getDocuments: vi.fn() }
+  const tendersApi = { getDetail: vi.fn(), getEvaluation: vi.fn() }
   const actions = useInitiationStageActions({
     props: { projectId: 1 },
     emit: vi.fn(),
@@ -60,14 +62,14 @@ function setup(formOverrides = {}) {
     planGapFiles: ref([]),
     userStore: { currentUser: { id: 1 }, userName: '张三' },
     projectLifecycleApi,
-    projectsApi: { getDetail: vi.fn(), getDocuments: vi.fn() },
-    tendersApi: { getDetail: vi.fn(), getEvaluation: vi.fn() },
+    projectsApi,
+    tendersApi,
     usersApi: { getByIds: vi.fn() },
     projectsState: createState(),
     leaderOptions: ref([]),
     assistantOptions: ref([]),
   })
-  return { actions, form, projectLifecycleApi }
+  return { actions, form, projectLifecycleApi, projectsApi, tendersApi }
 }
 
 describe('useInitiationStageActions.submit — CO-540 保证金缴纳截止日期校验', () => {
@@ -226,5 +228,61 @@ describe('useInitiationStageActions.buildPayload — 空值保持 null', () => {
     expect(payload.annualEcommerceAmount).toBeNull()
     expect(payload.annualRevenue).toBeNull()
     expect(payload.customerRevenue).toBeNull()
+  })
+
+  it('customerRevenue 为 0 时 annualRevenue 必须落成 0（不得被 || 吞成 null）', () => {
+    const { actions } = setup({
+      customerRevenue: 0,
+      annualRevenue: null,
+    })
+    expect(actions.buildPayload().annualRevenue).toBe(0)
+  })
+})
+
+describe('useInitiationStageActions.load — 缺 key 归一 + 评估表 0 不预填', () => {
+  it('load 省略数值字段时把 form 里已有的假 0 归一成 null', async () => {
+    const { actions, form, projectLifecycleApi } = setup({
+      ownerUnit: '测试单位',
+      expectedBidders: 0,
+      annualEcommerceAmount: 0,
+      annualRevenue: 0,
+      customerRevenue: 0,
+    })
+    projectLifecycleApi.getInitiation.mockResolvedValue({
+      data: { projectId: 1, ownerUnit: '中国石油', reviewStatus: 'DRAFT' },
+    })
+    await actions.load()
+    expect(form.expectedBidders).toBeNull()
+    expect(form.annualEcommerceAmount).toBeNull()
+    expect(form.annualRevenue).toBeNull()
+    expect(form.customerRevenue).toBeNull()
+  })
+
+  it('404 预填 plannedShortlistedCount=0 时 expectedBidders 保持 null（不写入 0 以免 min clamp 成 1）', async () => {
+    const { actions, form, projectLifecycleApi, projectsApi, tendersApi } = setup({
+      expectedBidders: null,
+    })
+    projectLifecycleApi.getInitiation.mockRejectedValue({ response: { status: 404 } })
+    projectsApi.getDetail.mockResolvedValue({ data: { tenderId: 2300 } })
+    tendersApi.getDetail.mockResolvedValue({ data: {} })
+    tendersApi.getEvaluation.mockResolvedValue({
+      data: { evaluationBasic: { plannedShortlistedCount: 0 } },
+    })
+    await actions.load()
+    expect(form.expectedBidders).toBeNull()
+  })
+
+  it('404 预填 plannedShortlistedCount=3 时写入 expectedBidders', async () => {
+    const { actions, form, projectLifecycleApi, projectsApi, tendersApi } = setup({
+      expectedBidders: null,
+    })
+    projectLifecycleApi.getInitiation.mockRejectedValue({ response: { status: 404 } })
+    projectsApi.getDetail.mockResolvedValue({ data: { tenderId: 2300 } })
+    tendersApi.getDetail.mockResolvedValue({ data: {} })
+    tendersApi.getEvaluation.mockResolvedValue({
+      data: { evaluationBasic: { plannedShortlistedCount: 3 } },
+    })
+    await actions.load()
+    expect(form.expectedBidders).toBe(3)
   })
 })

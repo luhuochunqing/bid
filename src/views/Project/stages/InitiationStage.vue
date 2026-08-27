@@ -28,7 +28,7 @@
 </el-form-item>
 <template v-if="form.needDeposit === 'YES'">
   <div class="grid-2">
-    <el-form-item label="保证金金额（元）" required><el-input-number v-model="form.depositAmount" :min="0" :precision="2" /></el-form-item>
+    <el-form-item label="保证金金额（元）" required><el-input-number v-model="form.depositAmount" :min="0" :precision="2" :value-on-clear="null" /></el-form-item>
     <el-form-item label="保证金缴纳方式" required>
       <el-select v-model="form.depositPaymentMethod">
         <el-option label="电汇" value="WIRE" />
@@ -43,11 +43,11 @@
 <!-- 以下字段与标讯评估表「一、基础信息」完全对齐 -->
 <el-divider />
 <div class="grid-2">
-  <el-form-item label="计划入围供应商数量"><el-input-number v-model="form.expectedBidders" :disabled="fieldDisabled && !isApprovalMode" :min="1" :max="255" :precision="0" /></el-form-item>
-  <el-form-item label="客户电商年采购金额（万）"><el-input-number v-model="form.annualEcommerceAmount" :disabled="fieldDisabled" :min="0" :precision="2" /></el-form-item>
+  <el-form-item label="计划入围供应商数量"><el-input-number v-model="form.expectedBidders" :disabled="fieldDisabled && !isApprovalMode" :min="1" :max="255" :precision="0" :value-on-clear="null" /></el-form-item>
+  <el-form-item label="客户电商年采购金额（万）"><el-input-number v-model="form.annualEcommerceAmount" :disabled="fieldDisabled" :min="0" :precision="2" :value-on-clear="null" /></el-form-item>
 </div>
 <div class="grid-2">
-  <el-form-item label="客户年营收（亿）"><el-input-number v-model="form.customerRevenue" :disabled="fieldDisabled" :min="0" :precision="2" /></el-form-item>
+  <el-form-item label="客户年营收（亿）"><el-input-number v-model="form.customerRevenue" :disabled="fieldDisabled" :min="0" :precision="2" :value-on-clear="null" /></el-form-item>
 </div>
 <el-form-item label="招标文件不利项"><el-input v-model="form.tenderAdverseItems" :disabled="fieldDisabled && !isApprovalMode" type="textarea" :rows="3" maxlength="500" show-word-limit /></el-form-item>
 <el-form-item label="风险预判"><el-input v-model="form.riskAssessment" :disabled="fieldDisabled" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
@@ -306,7 +306,7 @@ async function handleBidDocRemove() {
   // ok=false 且 documentId 存在：deleteFn 内部已处理错误 UI
 }
 
-const { handleDocBeforeUpload, handleDownloadBidDoc, onDepositChange, handleApprove, handleReject, saveDraft, submit, load } = useInitiationStageActions({
+const { handleDocBeforeUpload, handleDownloadBidDoc, onDepositChange, handleApprove, handleReject, saveDraft, submit, load, normalizeEmptyNumericFields } = useInitiationStageActions({
   props,
   emit,
   form,
@@ -358,13 +358,17 @@ async function runAIAssessment() {
  */
 function handleDynamicUpdate(value) {
   Object.assign(form, value)
+  normalizeEmptyNumericFields(value)
 }
 
 /**
  * Forward dynamic form submit to the stage's submit handler.
  */
 async function handleDynamicSubmit(formData) {
-  if (formData) Object.assign(form, formData)
+  if (formData) {
+    Object.assign(form, formData)
+    normalizeEmptyNumericFields(formData)
+  }
   await submit()
 }
 
