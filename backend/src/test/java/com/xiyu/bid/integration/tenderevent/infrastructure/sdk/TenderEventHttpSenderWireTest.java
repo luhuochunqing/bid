@@ -74,7 +74,7 @@ class TenderEventHttpSenderWireTest {
         assertThat(body.get("traceId").asText()).isEqualTo("trace-1");
         assertThat(body.get("spanId").asText()).isEqualTo("span-1");
         assertThat(body.get("parentId").asText()).isEqualTo("parent-1");
-        // data 必须是 JSON 字符串（网关 EventContentReqDto.data 为 String，传对象会被 400 拒收）
+        // data 是 JSON 字符串（EventContentReqDto.data 声明为 String）
         JsonNode data = JSON.readTree(body.get("data").asText());
         assertThat(data.get("tenderId").asInt()).isEqualTo(123);
         assertThat(data.get("externalId").asText()).isEqualTo("ext-1");

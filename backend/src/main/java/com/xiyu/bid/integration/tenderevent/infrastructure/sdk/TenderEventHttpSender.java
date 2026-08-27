@@ -77,6 +77,9 @@ final class TenderEventHttpSender {
             body.put("parentId", parentId);
         }
 
+        // 请求体落日志：联调对账用
+        log.info("事件总线请求 eventTopic={} body={}", code.topic(), body);
+
         JSONObject resp = HttpClientUtil.httpPost(
                 registerProperties.getServerRegisterUrl() + "/eventbus/publishEvent",
                 body,
