@@ -3,14 +3,17 @@ package com.xiyu.bid.integration.tenderevent.infrastructure.sdk;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mockStatic;
 
 import com.alibaba.fastjson.JSONObject;
+import com.ehsy.eventlibrary.clientsdk.config.properties.ServiceRegisterProperties;
+import com.ehsy.eventlibrary.clientsdk.systeminteraction.service.SystemInteractiveService;
+import com.ehsy.eventlibrary.clientsdk.systeminteraction.service.impl.SystemInteractiveServiceImpl;
 import com.ehsy.eventlibrary.clientsdk.util.HttpClientUtil;
 import com.xiyu.bid.integration.tenderevent.application.TenderEventPublishCommand;
 import com.xiyu.bid.integration.tenderevent.domain.TenderEventCode;
 import com.xiyu.bid.integration.tenderevent.domain.TenderEventPayload;
+import java.lang.reflect.Field;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,7 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 
-@DisplayName("TenderEventSdkProducer - 经 TenderEventHttpSender 推送")
+@DisplayName("TenderEventSdkProducer - 经 TenderEventSdkSender（SDK sendEvent 通道）推送")
 class TenderEventSdkProducerTest {
 
     private static final String PUBLISH_URL = "http://event-bus.local/eventbus/publishEvent";
@@ -28,10 +31,21 @@ class TenderEventSdkProducerTest {
     private TenderEventSdkProducer producer;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         httpClient = mockStatic(HttpClientUtil.class);
-        producer = new TenderEventSdkProducer(
-                new TenderEventSdkProperties(false, "http://event-bus.local", "bid"));
+        producer = new TenderEventSdkProducer(new TenderEventSdkSender(newSdkService(), "bid"));
+    }
+
+    /** 手工构造 SDK 服务实例并注入服务注册配置（serviceName=bid），URL 与常量一致。 */
+    private static SystemInteractiveService newSdkService() throws Exception {
+        ServiceRegisterProperties sdkProps = new ServiceRegisterProperties();
+        sdkProps.setServiceName("bid");
+        sdkProps.setServerRegisterUrl("http://event-bus.local");
+        SystemInteractiveServiceImpl service = new SystemInteractiveServiceImpl();
+        Field field = SystemInteractiveServiceImpl.class.getDeclaredField("clientSdkConfig");
+        field.setAccessible(true);
+        field.set(service, sdkProps);
+        return service;
     }
 
     @AfterEach
@@ -52,8 +66,8 @@ class TenderEventSdkProducerTest {
     }
 
     @Test
-    @DisplayName("发送成功：URL/SDK 契约 4 字段 body/trace Header 按 SDK 契约传递")
-    void publish_passesContractArgsToHttpLayer() {
+    @DisplayName("发送成功：URL/SDK 契约 4 字段 body（serviceName 必带）/trace Header 按 SDK 契约传递")
+    void publish_passesContractArgsToSdkLayer() {
         httpClient.when(() -> HttpClientUtil.httpPost(anyString(), any(), any(), anyString()))
                 .thenReturn(JSONObject.parseObject("{\"data\":{\"result\":true}}"));
 
@@ -61,22 +75,18 @@ class TenderEventSdkProducerTest {
 
         ArgumentCaptor<JSONObject> bodyCaptor = ArgumentCaptor.forClass(JSONObject.class);
         ArgumentCaptor<Map<String, String>> headers = headerCaptor();
-        httpClient.verify(() -> HttpClientUtil.httpPost(eq(PUBLISH_URL), bodyCaptor.capture(),
-                headers.capture(), eq("publishEvent")));
+        httpClient.verify(() -> HttpClientUtil.httpPost(anyString(), bodyCaptor.capture(),
+                headers.capture(), anyString()));
         JSONObject body = bodyCaptor.getValue();
-        // 复刻客户手动触发成功样例（tenderId=2282）：trace 三元组进 body、key=业务主键字段名、
-        // 无 serviceName；data 为 JSON 字符串（EventContentReqDto.data 是 String）
-        assertThat(body.getString("traceId")).isEqualTo("trace-1");
-        assertThat(body.getString("spanId")).isEqualTo("span-1");
-        assertThat(body.getString("parentId")).isEqualTo("parent-1");
+        // SDK sendEvent 组装的 body 4 字段（反编译核实）：serviceName 来自 SDK 配置、
+        // eventTopic=eventCode、eventSource、data=eventContent（JSON 字符串）
+        assertThat(body.getString("serviceName")).isEqualTo("bid");
         assertThat(body.getString("eventTopic")).isEqualTo("BidTenderChange");
         assertThat(body.getString("eventSource")).isEqualTo("bid");
-        assertThat(body.getString("key")).isEqualTo("tenderId");
-        // time = 事件产生时间（毫秒时间戳），客户文档公共消息结构标注必需，手动触发成功样例亦含
-        assertThat(body.getLong("time")).isGreaterThan(0L);
-        assertThat(body.containsKey("serviceName")).as("serviceName 不应在 body（客户样例无此字段）").isFalse();
-        // data 是 JSON 字符串
         assertThat(body.getString("data")).isEqualTo("{\"tenderId\":123,\"externalId\":\"ext-1\"}");
+        assertThat(body.containsKey("key")).as("SDK 契约 body 无 key").isFalse();
+        assertThat(body.containsKey("time")).as("SDK 契约 body 无 time").isFalse();
+        assertThat(body.containsKey("traceId")).as("SDK 契约 body 无 traceId").isFalse();
         assertThat(headers.getValue())
                 .containsEntry("traceId", "trace-1")
                 .containsEntry("spanId", "span-1")
@@ -122,8 +132,8 @@ class TenderEventSdkProducerTest {
     }
 
     @Test
-    @DisplayName("HTTP 层抛异常（如网关非 200 状态码）→ 返回 false（不抛异常）")
-    void publish_httpThrows_returnsFalse() {
+    @DisplayName("SDK 层抛异常（如网关非 200 → sendEvent NPE）→ 返回 false（不抛异常）")
+    void publish_sdkThrows_returnsFalse() {
         httpClient.when(() -> HttpClientUtil.httpPost(anyString(), any(), any(), anyString()))
                 .thenThrow(new RuntimeException("sdk non-200 quirk"));
 

@@ -29,10 +29,10 @@ import org.springframework.context.annotation.Primary;
 @Import(SystemInteractiveServiceImpl.class)
 public class TenderEventSdkConfig {
 
-    /** SDK 发送服务依赖的服务注册配置：serviceName 标识业务系统，serverRegisterUrl 指向事件总线。
-     *  注意：本 bean 可能被 SDK 类级 {@code @ConfigurationProperties(prefix = "client.register")}
-     *  绑定覆盖（组织事件场景），标讯发送器不依赖它，仅满足 {@link SystemInteractiveServiceImpl}
-     *  的注入需求。 */
+    /** SDK 发送服务依赖的服务注册配置：serviceName 标识业务系统（bid），serverRegisterUrl 指向事件总线。
+     *  标为 @Primary 满足 {@link SystemInteractiveServiceImpl} 的字段注入——SDK 的 sendEvent
+     *  把这里的 serviceName 放进请求 body（路由必需字段）。不能用组织事件消费侧的
+     *  {@code client.register.*} 绑定 bean（BidSystemOrgConsumer，错误服务名曾致 result=false）。 */
     @Bean
     @Primary
     public ServiceRegisterProperties serviceRegisterProperties(TenderEventSdkProperties properties) {
@@ -48,8 +48,10 @@ public class TenderEventSdkConfig {
             name = "enabled",
             havingValue = "true"
     )
-    public TenderEventPublishPort tenderEventPublishPort(TenderEventSdkProperties properties) {
-        return new TenderEventSdkProducer(properties);
+    public TenderEventPublishPort tenderEventPublishPort(
+            TenderEventSdkProperties properties, SystemInteractiveService systemInteractiveService) {
+        return new TenderEventSdkProducer(
+                new TenderEventSdkSender(systemInteractiveService, properties.serviceName()));
     }
 
     /** 未启用时兜底端口：不发送任何事件。 */

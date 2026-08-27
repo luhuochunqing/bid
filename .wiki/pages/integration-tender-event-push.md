@@ -49,8 +49,9 @@ health_checked: 2026-08-26
 }
 ```
 
-- `data` 是 **JSON 字符串**（网关 `EventContentReqDto.data` 声明为 String），由 `TenderEventHttpSender.serializeData` 把业务载荷 Map 序列化后作为 `eventContent` 传给 SDK；只含 `tenderId`（必填）和 `externalId`（有值才入 Map）
-- 链路追踪 `traceId` / `spanId` / `parentId` 经 `EventTrackReq` 由 SDK 写入 HTTP Header，不进 body
+- 这是 **SDK `sendEvent` 组装的标准 wire 形态（4 字段）**，由 `TenderEventSdkSender` 调用 SDK 标准通道发出（2026-08-27 客户明确指示，详见 §8）；`serviceName` 是网关投递路由的必带字段
+- `data` 是 **JSON 字符串**（网关 `EventContentReqDto.data` 声明为 String），由 `TenderEventSdkSender.serializeData` 把业务载荷 Map 序列化后作为 `eventContent` 传给 SDK；只含 `tenderId`（必填）和 `externalId`（有值才入 Map）
+- 链路追踪 `traceId` / `spanId` / `parentId` 经 `EventTrackReq` 由 SDK 写入 HTTP Header，不进 body；`key`/`time` 也不进 body（那是事件库内部存储形态字段，非 SDK wire 契约）
 - ⚠️ **契约坑**：若 `data` 传原始对象而非 JSON 字符串，网关返回 `400 Bad Request`（2026-08-25 实战踩坑）
 
 ### 事件编码（`TenderEventCode`）
@@ -176,7 +177,7 @@ backend/src/main/java/com/xiyu/bid/integration/tenderevent/
 - **补 key 后仍 `data:{}`**（2292 实测），说明 key 非充分条件；剩余差异集中在 **data 形态** 与 **trace 位置**。
 - **待客户补全**：完整未截断的请求 body 原文（确认 serviceName/time/eventCode 是否在 body、data 到底传对象还是字符串、trace 三元组在 body 还是 Header）。
 
-### 7. 最终契约与 fastjson null 丢弃发现（2026-08-27，探针实测）
+### 7. ~~最终契约与 fastjson null 丢弃发现（2026-08-27，探针实测）~~（8 字段契约已被 §8 推翻；fastjson null 丢弃结论仍有效）
 
 - **最终 HTTP body 契约**（8 字段）：
   ```json
@@ -212,3 +213,12 @@ backend/src/main/java/com/xiyu/bid/integration/tenderevent/
   - **闭环验证待办**：请客户在事件库查询 tenderId=2294/2295（或新建标讯）是否收到
 
 - **教训**：跨系统联调中，"日志打印的响应"与"网关原始 HTTP 响应"之间可能存在 JSON 库的序列化行为差异（fastjson 丢弃 null）。排障时不能只看应用日志的 JSON 对象打印，必须在 HTTP 客户端层打印原始响应字符串才能看到真相。
+### 8. SDK sendEvent 4 字段契约回归——serviceName 是投递路由必带字段（2026-08-27，客户指示 + 双重反编译证据）
+
+- **客户明确指示**：不要手工拼 body 直连 `POST /eventbus/publishEvent`，必须走 SDK 标准通道 `SystemInteractiveServiceImpl.sendEvent(eventCode, eventSource, eventContent, eventTrackReq)`。客户同时发来 IDEA 反编译截图（与本仓 ClientSDK-release_0.0.2 字节码逐条吻合）。
+- **SDK sendEvent 的真实 wire 形态（4 字段）**：`{serviceName, eventTopic, eventSource, data}`——serviceName 从 SDK 自身 `ServiceRegisterProperties` 取值放进 body；trace 三元组经 `EventTrackReq` 走 Header；**key/time/traceId 均不进 body**。消息结构文档的 9 字段是事件库内部存储形态，不是 SDK wire 契约（§7 的 8 字段直连方向错误）。
+- **根因论断**：手工 body 省略 serviceName 后，网关 HTTP 层受理成功（`code=00000`）但**事件不进入投递链路**（tenderId=2289~2296 客户事件库均未收到）——serviceName 极可能是网关投递路由的必需字段。此前带 serviceName 失败（`result=false`「topic未注册」）是因为值被 `client.register.*` 绑定覆盖成组织消费侧的 `BidSystemOrgConsumer`，不是 serviceName 本身不该发。
+- **serviceName 供给链**：`TenderEventSdkConfig` 用标讯自己的 `TenderEventSdkProperties.serviceName`（环境变量 `XIYU_TENDER_EVENT_SERVICE_NAME`，测试环境=`bid`）构造 `@Primary ServiceRegisterProperties` 满足 SDK 注入；与组织事件消费侧的 `client.register.*` 配置隔离。
+- **代码落点**：`TenderEventSdkSender`（原 `TenderEventHttpSender` 更名）直接调 `SystemInteractiveService.sendEvent`；wire 测试改为真实 SDK 通道打 MockWebServer 锁 4 字段契约。
+- **SDK NPE 兜底**：非 200/IO 异常时 `httpPost` 静默返回 null，`sendEvent` 对 null 取 `data` 抛 NPE——`TenderEventSdkSender` 捕获后判失败。
+- **闭环验证待办**：部署后新建标讯推送，请客户在事件库确认收到（此前 2289~2296 均未收到）。
