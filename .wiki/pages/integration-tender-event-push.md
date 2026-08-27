@@ -178,7 +178,7 @@ backend/src/main/java/com/xiyu/bid/integration/tenderevent/
 
 ### 7. 最终契约与 fastjson null 丢弃发现（2026-08-27，探针实测）
 
-- **最终 HTTP body 契约**（7 字段）：
+- **最终 HTTP body 契约**（8 字段）：
   ```json
   {
     "traceId": "...",
@@ -187,14 +187,15 @@ backend/src/main/java/com/xiyu/bid/integration/tenderevent/
     "eventTopic": "BidTenderChange",
     "eventSource": "bid",
     "key": "tenderId",
+    "time": 1787810045121,
     "data": "{\"tenderId\":2282}"
   }
   ```
   - `data` 是 **JSON 字符串**（网关 `EventContentReqDto.data` 声明为 String，传对象 HTTP 400）
   - `key` = 业务主键**字段名**（`tenderId`），非主键值
   - `traceId`/`spanId`/`parentId` 同时写入 body 和 HTTP Header（SDK `buildHeaderParamMap` 既有行为）
+  - `time` = 事件产生时间（毫秒时间戳），**客户文档公共消息结构标注必需**——2026-08-27 补齐（commit 35838bf28），缺此字段网关虽受理（HTTP 200）但事件不进入投递链路（客户收不到的修复项）
   - 不发 `serviceName`（客户样例无此字段；SDK `ServiceRegisterProperties` 类级绑定会覆盖）
-  - `time` 字段可选（加与不加网关响应不变）
 
 - **`data:{}` 真相**：网关对所有合规请求均返回原始 HTTP 响应 `{"code":"00000","data":{"result":null},"msg":"响应成功"}`。SDK `HttpClientUtil.httpPost` 内部用 fastjson 1.2.83 的 `JSONObject.parseObject` 解析响应，**fastjson 默认丢弃 null 值**，`result:null` 的键被丢弃，data 变成空对象 `{}`。应用日志打印的 `data:{}` 是 fastjson 序列化结果，**不是网关返回空对象**。
 
