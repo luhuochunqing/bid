@@ -1,5 +1,5 @@
 <template>
-  <el-drawer v-model="visible" title="AI 智能推荐" size="680px" append-to-body @open="handleOpen">
+  <el-drawer v-model="visible" title="AI 智能案例推荐" size="680px" append-to-body @open="handleOpen">
     <div class="ai-recommend-drawer">
       <!-- 评分项为空时的提示 -->
       <el-alert v-if="!scoreItemsLoading && scoreItems.length === 0" type="warning" :closable="false" show-icon>
@@ -123,8 +123,8 @@ function optionTitle(item) {
 }
 
 const filteredCases = computed(() => {
-  // 选中评分项时 handleItemChange 已把关键词传给服务端过滤，客户端不再叠加过滤，避免误杀语义匹配结果
-  if (selectedItemId.value) return cases.value
+  // 选中评分项时，仅展示匹配度 >= 50% 的案例
+  if (selectedItemId.value) return cases.value.filter(c => (c.score ?? 0) >= 50)
   const kw = keywordFilter.value.trim().toLowerCase()
   if (!kw) return cases.value
   return cases.value.filter(c =>
