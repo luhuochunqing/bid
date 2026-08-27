@@ -2983,3 +2983,19 @@ private CompetitorStatus status = CompetitorStatus.ACTIVE;
 - **能用廉价可靠的首行特征判定的内容类别，必须在进入 LLM 候选池之前挡掉**；下游模型自觉是最贵的过滤器。
 - **prompt 硬性规则文字是关键行为契约，必须有测试锚定**（contains 断言），否则误删改静默失效——纵深防御不能一半有测试一半靠纸面。
 
+
+## 168. 新增权限键必须同步 OSS 菜单映射源：架构守卫不在 pre-push 列表等于没有守卫（2026-08-27，specs/055 competitor）
+
+**现象**：ce2b4b939（specs/055 竞品治理）注册了 `competitor.create/govern` 权限键（RoleProfileCatalog + Flyway V1203），但漏了在 `application.yml xiyu.integrations.organization.directory.menu-code-to-permission-key-mappings` 补来源。`PreAuthorizeAuthorityOssMappingCoverageTest` 因此在 main 基线上持续红（2 failures），且未阻塞该 PR 合入——因为该守卫测试不在 pre-push gate 的 mvn 测试清单里，只在全量 CI 才跑，而本仓库无远端 CI。
+
+**根因链**：
+1. **守卫盲区**：`check-test-entry-coverage.sh` 的 guard-pattern 扫描早就把它列进 ⚠ 提示清单（"14 个 guard-pattern 测试不在 pre-push 列表中，不阻断"）——提示型门禁对"main 已带伤"无拦截力；
+2. **合入路径无全量测试**：Gitee 无远端 CI，合入质量靠本地 pre-commit/pre-push 门禁 + 开发者自觉；PR 分支跑定点测试集时天然看不到无关模块的守卫失败；
+3. **权限键是三处联动契约**：RoleProfileCatalog（角色授予）/ Flyway（存量角色回填）/ yml 映射表（OSS 用户 authorities 来源）——改一处漏一处的典型多源头同步缺失。
+
+**修复**（agent/gemini/fix-competitor-oss-mapping）：competitor.create→1003（创建入口在结题阶段项目流程内）、competitor.govern→1010（治理页挂 settings 分区）；同时把 `PreAuthorizeAuthorityOssMappingCoverageTest` 加入 pre-push-gate.sh 的 mvn 清单与逐项判定块。
+
+**教训**：
+- **新增 `@PreAuthorize(hasAuthority('xxx'))` 或 catalog 权限键时的 checklist：Catalog 授予 → Flyway 回填 → yml 映射源，三处缺一即 OSS 用户 403**；
+- **守卫测试只有进入 push/CI 强制路径才算存在**——躺在 ⚠ 提示清单里的守卫等价于纸面防线（同 §167 prompt 硬性规则必须有 contains 锚定的结论一致）；
+- **在无远端 CI 的仓库，一个模块的 PR 也要偶尔跑全量套件**——main 带伤往往正是从"PR 定点绿、基线悄悄红"开始的。

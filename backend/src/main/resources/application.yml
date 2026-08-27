@@ -292,6 +292,11 @@ xiyu:
             - "closure.request"
             - "closure.review"
             - "lead.assign"
+            # specs/055 竞品公司自定义输入（ce2b4b939）：竞品创建入口在结题阶段
+            # （ResultConfirmStage.vue 录入成交竞品），属项目流程子环节，业务语义挂 1003。
+            # V1203 已将此键授予 bid-Team/bid-TeamLeader/bid-projectLeader，OSS 侧均配 1003，映射对齐；
+            # 缺失此映射时 PreAuthorizeAuthorityOssMappingCoverageTest 会失败（main 曾带伤）。
+            - "competitor.create"
           "100301":
             - "project-list"
           "100302":
@@ -362,6 +367,11 @@ xiyu:
             # CO-560: 告警规则子菜单权限键（router/index.js:331,337 + sidebar-menu.js:133,138）
             # 路由 meta 要求 ['settings', 'settings-alerts'] 全部命中（hasAllPermissions）
             - "settings-alerts"
+            # specs/055 竞争对手库治理（ce2b4b939）：治理页路由 /settings/competitors 挂 settings 分区
+            # （sidebar-menu.js CompetitorLibrary permissionKeys=['settings','competitor.govern']），
+            # competitor.govern 授予治理角色（V1203：/bidAdmin /bid-TeamLeader /bid-SystemAdmin），OSS 侧持 1010。
+            # 若 OSS 后续为该页开设专属子菜号码，应迁移至子码段。
+            - "competitor.govern"
           "101001":
             - "settings"
             - "system.admin"
