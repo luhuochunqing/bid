@@ -34,7 +34,19 @@ const splitLineColor = '#F1F5F9'
 const axisLabelColor = '#475569'
 const axisNameColor = '#94A3B8'
 
-// 默认模式：竞品公司为 X 轴，最低/平均/最高三段堆叠（绿色系）
+// 柱顶折扣标签：0 为后端占位值（该维度无数据），不显示标签避免贴轴“0”噪音（PRD §9.8）
+const discountLabelFormatter = (params) => (params.value ? `${params.value}` : '')
+
+// 默认模式三段柱公共配置（仅 name/data/color 不同）
+const DEFAULT_BAR_BASE = {
+  type: 'bar',
+  barWidth: '20%',
+  barGap: '10%',
+  itemStyle: { borderRadius: [4, 4, 0, 0] },
+  label: { show: true, position: 'top', fontSize: 11, color: '#065F46', fontWeight: 600, formatter: discountLabelFormatter }
+}
+
+// 默认模式：竞品公司为 X 轴，最低/平均/最高三段并排（绿色系）
 export function renderDefaultMode(chartInstance, data) {
   const categories = data.categories || []
   if (categories.length === 0) return false
@@ -62,33 +74,33 @@ export function renderDefaultMode(chartInstance, data) {
       axisLabel: { fontSize: 12, color: axisLabelColor, interval: 0, rotate: categories.length > 5 ? 20 : 0 }
     },
     yAxis: [{
-      type: 'value', name: '折扣(%)',
+      type: 'value', name: '折扣(%)', min: 0, max: 100,
       axisLine: { show: false },
       splitLine: { lineStyle: { color: splitLineColor } },
       axisLabel: { color: axisNameColor, formatter: '{value}' }
     }],
     series: [
-      { name: '最低折扣', type: 'bar', stack: 'discount', data: minData, itemStyle: { color: '#A7F3D0' }, barWidth: '30%', barGap: '20%', label: { show: true, position: 'insideTop', fontSize: 11, color: '#065F46', fontWeight: 600 } },
-      { name: '平均折扣', type: 'bar', stack: 'discount', data: avgData, itemStyle: { color: '#6EE7B7' }, barWidth: '30%', label: { show: true, position: 'insideTop', fontSize: 11, color: '#065F46', fontWeight: 600 } },
-      { name: '最高折扣', type: 'bar', stack: 'discount', data: maxData, itemStyle: { color: '#10B981', borderRadius: [4, 4, 0, 0] }, barWidth: '30%', label: { show: true, position: 'insideTop', fontSize: 11, color: '#fff', fontWeight: 600 } }
+      { ...DEFAULT_BAR_BASE, name: '最低折扣', data: minData, itemStyle: { ...DEFAULT_BAR_BASE.itemStyle, color: '#A7F3D0' } },
+      { ...DEFAULT_BAR_BASE, name: '平均折扣', data: avgData, itemStyle: { ...DEFAULT_BAR_BASE.itemStyle, color: '#6EE7B7' } },
+      { ...DEFAULT_BAR_BASE, name: '最高折扣', data: maxData, itemStyle: { ...DEFAULT_BAR_BASE.itemStyle, color: '#10B981' } }
     ]
   }, true)
   return true
 }
 
-// 分组模式：招标主体为 X 轴，每个竞品公司一组堆叠（min/avg/max）+ 整体平均折扣折线
+// 分组模式：招标主体为 X 轴，每个竞品公司一组并排（min/avg/max）+ 整体平均折扣折线
 export function renderGroupedMode(chartInstance, data) {
   const categories = data.categories || []
   const groups = data.groups || []
   if (categories.length === 0 || groups.length === 0) return false
 
   const series = []
+  const barLabel = { show: true, position: 'top', fontSize: 10, color: '#475569', fontWeight: 600, formatter: discountLabelFormatter }
   groups.forEach((group, ci) => {
     const shades = GROUP_COLOR_SHADES[ci % GROUP_COLOR_SHADES.length]
-    const stackName = 'comp_' + ci
-    series.push({ name: group.competitor, type: 'bar', stack: stackName, data: group.minData, itemStyle: { color: shades[0] }, label: { show: false } })
-    series.push({ name: group.competitor, type: 'bar', stack: stackName, data: group.avgData, itemStyle: { color: shades[1] }, label: { show: false } })
-    series.push({ name: group.competitor, type: 'bar', stack: stackName, data: group.maxData, itemStyle: { color: shades[2], borderRadius: [4, 4, 0, 0] }, label: { show: true, position: 'top', fontSize: 10, color: '#475569', fontWeight: 600, formatter: group.competitor } })
+    series.push({ name: group.competitor, type: 'bar', data: group.minData, itemStyle: { color: shades[0], borderRadius: [4, 4, 0, 0] }, barGap: '10%', label: barLabel })
+    series.push({ name: group.competitor, type: 'bar', data: group.avgData, itemStyle: { color: shades[1], borderRadius: [4, 4, 0, 0] }, barGap: '10%', label: barLabel })
+    series.push({ name: group.competitor, type: 'bar', data: group.maxData, itemStyle: { color: shades[2], borderRadius: [4, 4, 0, 0] }, barGap: '10%', label: barLabel })
   })
 
   series.push({
@@ -133,7 +145,7 @@ export function renderGroupedMode(chartInstance, data) {
       axisLabel: { fontSize: 12, color: axisLabelColor, interval: 0, rotate: categories.length > 4 ? 20 : 0 }
     },
     yAxis: [{
-      type: 'value', name: '折扣(%)',
+      type: 'value', name: '折扣(%)', min: 0, max: 100,
       axisLine: { show: false },
       splitLine: { lineStyle: { color: splitLineColor } },
       axisLabel: { color: axisNameColor, formatter: '{value}' }
