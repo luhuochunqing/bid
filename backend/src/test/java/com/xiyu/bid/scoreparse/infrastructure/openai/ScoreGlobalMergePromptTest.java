@@ -1,5 +1,5 @@
 // Input: ScoreParsePrompts.buildGlobalMergePrompt
-// Output: 归并裁决 prompt 关键约束与输入嵌入验证（契约 §5 硬性规则 1-5）
+// Output: 归并裁决 prompt 关键约束与输入嵌入验证（契约 §5 硬性规则 1-6）
 // Pos: Test/scoreparse/infrastructure/openai
 
 package com.xiyu.bid.scoreparse.infrastructure.openai;
@@ -11,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ScoreGlobalMergePromptTest {
 
     @Test
-    void prompt_containsAllFiveHardRules_andInputs() {
+    void prompt_containsAllHardRules_andInputs() {
         String prompt = ScoreParsePrompts.buildGlobalMergePrompt(
                 "[{\"idx\":0,\"code\":\"\",\"dim\":\"价格部分\",\"detail\":\"不平衡报价评审得4-5分\",\"weight\":5}]",
                 "价格部分：\n不平衡报价评审：报价合理得4-5分。");
@@ -20,7 +20,9 @@ class ScoreGlobalMergePromptTest {
                 .contains("必须归并为一项")
                 .contains("必须保持独立，禁止合并")
                 .contains("逐字摘自章节原文")
-                .contains("不得遗漏");
+                .contains("不得遗漏")
+                // 规则6（PR !2427）：程序条款混入候选池时的丢弃裁决
+                .contains("归并时必须丢弃");
         assertThat(prompt).contains("不平衡报价评审得4-5分");
         assertThat(prompt).contains("价格部分：\n不平衡报价评审：报价合理得4-5分。");
     }

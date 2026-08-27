@@ -33,6 +33,11 @@ public final class MarkdownScoreSectionLocator {
     /** 报价参数特征：参数块不含分值但紧邻评分表的报价参数块 */
     private static final Pattern PRICE_PARAM_PATTERN = PriceScoringKeywords.PRICE_PARAM_BLOCK;
 
+    /** 须知前附表专有列名（判定规则见 {@link #isProcedureNoticeTable}） */
+    private static final Pattern PROCEDURE_TABLE_MARKER = Pattern.compile("编列内容");
+    /** 真正评分表的列名标志，用于区分须知前附表与评分标准表 */
+    private static final Pattern SCORE_COLUMN_MARKER = Pattern.compile("评分因素|评分标准");
+
     private static final int CONTEXT_BEFORE_LINES = 2;
     /** 普通评分 section 上下文（保守，减少 token 消耗） */
     private static final int CONTEXT_AFTER_LINES = 3;
@@ -71,6 +76,10 @@ public final class MarkdownScoreSectionLocator {
                     i++;
                 }
                 int blockEnd = i; // exclusive
+                // 须知前附表整体跳过（判定见 isProcedureNoticeTable）：防其"综合评分"字样误触发 TABLE_SCORE_PATTERN
+                if (isProcedureNoticeTable(lines[blockStart])) {
+                    continue;
+                }
                 String blockText = joinLines(lines, blockStart, blockEnd);
                 boolean isScore = TABLE_SCORE_PATTERN.matcher(blockText).find();
                 boolean isPriceParam = PRICE_PARAM_PATTERN.matcher(blockText).find();
@@ -176,6 +185,22 @@ public final class MarkdownScoreSectionLocator {
             }
         }
         return sections;
+    }
+
+    /**
+     * 须知前附表判定：检查表格首行，含"编列内容"且不含评分列名（评分因素/评分标准）时返回 true，
+     * 由 locate() 整体跳过。理由（唯一出处）：前附表是采购程序说明表，无评分规则，但其
+     * "综合评分"/"综合得分"字样会误触发 TABLE_SCORE_PATTERN，将开启程序、履约保证金、
+     * 成交结果公示等程序条款误入候选池。混合表（同时含两类列名）保留不跳过。
+     *
+     * <p>须知前附表表头样例：{@code | 条款号 | 条款内容 | 编列内容 |}
+     * <p>评分标准表表头样例：{@code | 条款号及名称 | 评审因素 | 评分标准 | 评分标准 |}
+     */
+    private static boolean isProcedureNoticeTable(String headerLine) {
+        if (headerLine == null) return false;
+        if (!PROCEDURE_TABLE_MARKER.matcher(headerLine).find()) return false;
+        // 若同时含评分列名，可能是与评分信息混排的混合表，保留不跳过
+        return !SCORE_COLUMN_MARKER.matcher(headerLine).find();
     }
 
     private static boolean isTableLine(String line) {

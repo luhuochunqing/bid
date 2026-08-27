@@ -45,6 +45,19 @@ class ScoreParsePromptsTest {
     }
 
     @Test
+    void buildCandidateExtractionPrompt_procedureNoticeRulesAnchored() {
+        // PR !2427 新增的 3 条防污染禁令：须知前附表程序条款 / 形式资格响应性评审条款 /
+        // 总分构成汇总行。规则文字属关键行为契约，被删改时本测试变红。
+        String prompt = ScoreParsePrompts.buildCandidateExtractionPrompt("test", 1, 1);
+        String[] anchored = {"须知前附表中的程序性条款", "形式评审标准", "总分构成的汇总行"};
+        for (String token : anchored) {
+            assertThat(prompt)
+                    .as("候选提取 prompt 需包含防污染禁令 '%s'，若调整措辞请同步更新本锚定", token)
+                    .contains(token);
+        }
+    }
+
+    @Test
     void buildGapRecheckPrompt_templateLiteralPercentDoesNotThrow() {
         assertThatCode(() -> ScoreParsePrompts.buildGapRecheckPrompt(
                         TRICKY_TEXT, "占比100%\"的区域", "footnotes"))
