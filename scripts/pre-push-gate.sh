@@ -69,7 +69,7 @@ backend_mvn_run() {
     # || true 是必要的：set -euo pipefail 下 mvn 失败会直接退出脚本，
     # || true 让脚本继续到 surefire_failed() 检查（无 XML 报告时返回"失败"）。
     # §0.6 已在前面独立检查 mvn compile，编译失败会给出准确的错误信息。
-    mvn test -Dtest='ArchitectureTest,FlywayRollbackScriptCoverageTest,EntityTableMigrationCoverageTest,ResponsibilityArchitectureTest' -q >/dev/null 2>&1 || true
+    mvn test -Dtest='ArchitectureTest,FlywayRollbackScriptCoverageTest,EntityTableMigrationCoverageTest,ResponsibilityArchitectureTest,PreAuthorizeAuthorityOssMappingCoverageTest' -q >/dev/null 2>&1 || true
     cd "$ROOT_DIR"
     _BACKEND_MVN_RAN=1
   fi
@@ -171,6 +171,24 @@ else
     fail "FlywayRollbackScriptCoverageTest — 新迁移缺回滚脚本或 source header"
   else
     pass "FlywayRollbackScriptCoverageTest"
+  fi
+fi
+
+# ── 2.4 @PreAuthorize 权限键 OSS 映射覆盖（CO-560 防复发守卫，2026-08-27 补入） ──
+# 工程背景：ce2b4b939（specs/055 competitor）注册权限键但漏同步 application.yml 映射源，
+#   main 基线带伤：PreAuthorizeAuthorityOssMappingCoverageTest 在 main 上持续红。
+#   OSS 用户访问缺映射权限键的接口会一律 403。
+echo "── @PreAuthorize 权限键 OSS 映射覆盖 ──"
+if [ ! -d "$ROOT_DIR/backend" ]; then
+  skip "非 Java 项目"
+elif [ "${BACKEND_CHANGED:-0}" -eq 0 ]; then
+  skip "PreAuthorizeAuthorityOssMappingCoverageTest（无 backend/ 变更）"
+else
+  backend_mvn_run
+  if surefire_failed PreAuthorizeAuthorityOssMappingCoverageTest; then
+    fail "PreAuthorizeAuthorityOssMappingCoverageTest — 新增 @PreAuthorize(hasAuthority) 权限键未在 application.yml menu-code-to-permission-key-mappings 配置来源（OSS 用户将 403）"
+  else
+    pass "PreAuthorizeAuthorityOssMappingCoverageTest"
   fi
 fi
 
