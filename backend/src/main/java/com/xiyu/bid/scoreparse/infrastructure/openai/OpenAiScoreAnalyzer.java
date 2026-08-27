@@ -23,6 +23,8 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.regex.Pattern;
@@ -70,15 +72,25 @@ public class OpenAiScoreAnalyzer {
     public RecallOutcome recallCandidates(
             String fullText, String structuredMetadata, ProgressReporter progress) {
         report(progress, 5, "召回一/二：关键词正则规则 + 文档结构定位");
-        List<ScoreCandidate> candidates = new ArrayList<>();
-        candidates.addAll(recallLane1RegexRules(fullText));
-        candidates.addAll(recallLane2DocumentStructure(fullText));
+        List<ScoreCandidate> lane1 = recallLane1RegexRules(fullText);
+        List<ScoreCandidate> lane2 = recallLane2DocumentStructure(fullText);
 
         report(progress, 15, "召回三/四：评分规则语义切片 + LLM 全文语义提取");
-        candidates.addAll(recallLane3ScoreSemanticPatterns(fullText));
+        List<ScoreCandidate> lane3 = recallLane3ScoreSemanticPatterns(fullText);
         RecallOutcome lane4 = recallLane4LlmFullText(fullText, structuredMetadata, progress);
+        List<ScoreCandidate> candidates = new ArrayList<>();
+        candidates.addAll(lane1);
+        candidates.addAll(lane2);
+        candidates.addAll(lane3);
         candidates.addAll(lane4.candidates());
-        return new RecallOutcome(candidates, lane4.skippedChunks());
+        // spec 057 FR-05：lane 贡献度 + 对齐统计 + 模型名随 outcome 上报（run-summary 数据源）
+        Map<String, Integer> lanes = new LinkedHashMap<>();
+        lanes.put("lane1", lane1.size());
+        lanes.put("lane2", lane2.size());
+        lanes.put("lane3", lane3.size());
+        lanes.put("lane4", lane4.candidates().size());
+        return new RecallOutcome(candidates, lane4.skippedChunks(), lanes,
+                lane4.alignedHit(), lane4.candidates().size(), lane4.llmModel());
     }
 
     /** 召回一：关键词与正则规则提取 */
@@ -149,7 +161,7 @@ public class OpenAiScoreAnalyzer {
                         .filter(candidate -> candidate != null && candidate.detail != null)
                         .map(candidate -> ScoreCandidateMapper.fromLlmCandidate(candidate, chunkText))
                         .toList();
-                alignedCount += countAligned(chunkCandidates, chunkText);
+                alignedCount += ScoreCandidateMapper.countAligned(chunkCandidates, chunkText);
                 candidates.addAll(chunkCandidates);
             }
             report(progress, 15 + llmProgressSpan * (i + 1) / chunks.size(),
@@ -157,7 +169,8 @@ public class OpenAiScoreAnalyzer {
         }
         log.info("召回四（LLM 全文语义）完成: chunks={}/{}, count={}, skipped={}, aligned={}/{}",
                 chunks.size(), allChunks.size(), candidates.size(), skipped, alignedCount, candidates.size());
-        return new RecallOutcome(candidates, skipped);
+        return new RecallOutcome(candidates, skipped,
+                Map.of("lane4", candidates.size()), alignedCount, candidates.size(), config.model());
     }
 
     private List<DocumentChunk> filterRelevantChunks(List<DocumentChunk> allChunks) {
@@ -191,16 +204,6 @@ public class OpenAiScoreAnalyzer {
             log.info("评分 chunk 过滤邻近扩展: {} -> {} (含报价参数孤立块)", initialRelevant, filtered.size());
         }
         return filtered;
-    }
-
-    /**
-     * 对齐成功数统计：detail 为 chunk 原文的精确子串（对齐回填后必成立；
-     * LLM 原样输出因空白漂移通常不成立），供解析质量可观测。
-     */
-    private static int countAligned(List<ScoreCandidate> chunkCandidates, String chunkText) {
-        return (int) chunkCandidates.stream()
-                .filter(candidate -> chunkText.contains(candidate.detail()))
-                .count();
     }
 
     /** 候选提取调用：RuntimeException 重试恰好 1 次，两连败返回 null（调用方记跳过）。 */

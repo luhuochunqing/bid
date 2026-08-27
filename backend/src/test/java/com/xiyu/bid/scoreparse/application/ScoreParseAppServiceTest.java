@@ -12,6 +12,7 @@ import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
 import com.xiyu.bid.scoreparse.infrastructure.openai.OpenAiScoreAnalyzer;
 import com.xiyu.bid.scoreparse.infrastructure.openai.RecallOutcome;
+import com.xiyu.bid.scoreparse.infrastructure.openai.ScoreGlobalMergeExecutor;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
@@ -76,22 +78,26 @@ class ScoreParseAppServiceTest {
     private ScoreItemPersistenceService itemPersistenceService;
     @Mock
     private InitiationTenderTextResolver initiationTenderTextResolver;
+    private ScoreCandidatePostProcessor postProcessor;
+
     @Mock
-    private ScoreGlobalMergeOrchestrator globalMergeOrchestrator;
+    private ObjectProvider<ScoreGlobalMergeExecutor> mergeExecutorProvider;
 
     private ScoreParseAppService service;
 
     @BeforeEach
     void setUp() {
+        // spec 057：治理链入 PostProcessor——真实领域策略+真编排器（executor 缺席即 fail-open，
+        // 归并裁决语义由 OrchestratorTest / PostProcessorTest 各自专项覆盖）
+        lenient().when(mergeExecutorProvider.getIfAvailable()).thenReturn(null);
+        postProcessor = new ScoreCandidatePostProcessor(scoreAnalyzer,
+                new ScoreGlobalMergeOrchestrator(mergeExecutorProvider));
         service = new ScoreParseAppService(
                 taskRepository, itemRepository, resultRepository, projectDocumentRepository,
                 stateService, progressService, snapshotRepository,
                 projectAccessScopeService, scoreAnalyzer, estimatedScoreService,
-                itemPersistenceService, initiationTenderTextResolver, globalMergeOrchestrator);
+                itemPersistenceService, initiationTenderTextResolver, postProcessor);
         ReflectionTestUtils.setField(service, "self", service);
-        // spec 055：归并编排默认透传（fail-open 语义由 ScoreGlobalMergeOrchestratorTest 专项覆盖）
-        lenient().when(globalMergeOrchestrator.applyGlobalMerge(anyList(), anyString()))
-                .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
@@ -107,22 +113,14 @@ class ScoreParseAppServiceTest {
     }
 
     @Test
-    void parse_persistsGlobalMergeOutcome() {
-        // spec 055：落库候选 = 全局归并输出（重复项归并后 2→1 项；合计 100 避免归一化干扰）
-        mockParseFlowReturning(defaultCandidates());
-        List<ScoreCandidate> mergedOutcome = List.of(
-                candidate("A1", "资质", "具备 CMMI 5 级认证证书", "60"),
-                candidate("A2", "业绩", "近三年类似项目业绩不少于 3 个", "40"));
-        when(globalMergeOrchestrator.applyGlobalMerge(anyList(), anyString()))
-                .thenReturn(mergedOutcome.stream().limit(1).toList());
+    void parse_persistsRunSummaryOnTask() {
+        // spec 057 FR-04：治理后 run_summary JSON 落库任务实体（lane/aligned/merge 档案可追溯）
+        ScoreParseTask task = mockParseFlowReturning(defaultCandidates(), 0);
 
         service.executeParseAsync(TASK_ID);
 
-        // 归并输出仅 1 项 → 守卫回补语义在 orchestrator 层验证；此处验证落库收到归并结果
-        // （1 项 weight=60 会触发 spec 047 归一化，故断言 code/detail 而非整对象）
-        List<ScoreCandidate> persisted = capturedPersistedCandidates().getValue();
-        assertThat(persisted).hasSize(1);
-        assertThat(persisted.get(0).code()).isEqualTo("A1");
+        assertThat(task.getRunSummary()).isNotBlank();
+        assertThat(task.getRunSummary()).contains("\"lanes\"", "\"tableRows\"");
         verify(stateService).markCompleted(TASK_ID);
     }
 

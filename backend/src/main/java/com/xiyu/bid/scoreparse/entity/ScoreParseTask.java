@@ -90,6 +90,10 @@ public class ScoreParseTask {
     @Column(name = "original_total_weight", precision = 10, scale = 2)
     private BigDecimal originalTotalWeight;
 
+    /** 单次解析运行档案 JSON：lane 贡献/对齐率/guard 计数/模型名（spec 057 FR-04；失败可追溯） */
+    @Column(name = "run_summary", columnDefinition = "TEXT")
+    private String runSummary;
+
     /** 超时扫描 job 标记（超时置 FAILED 时写 1） */
     @Column(name = "timeout_marked", nullable = false)
     @Builder.Default
