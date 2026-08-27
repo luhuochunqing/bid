@@ -497,3 +497,8 @@
 - 触发：产品需求（项目中心-项目详情-AI智能案例推荐详情弹窗）——「查看源项目/标书原文」从底部操作栏上移到「应答片段」标题行右侧并改西域绿（plain+type=primary，主题色即 --brand-xiyu-logo）；标题「应答片段全文」改「应答片段摘要」；底部仅留「复用」
 - 落点：CaseDetailDialog.vue 单文件（模板 + scoped CSS .response-title flex 布局）；后端零改动
 - 教训：**纯源码临时 worktree 提交前必须先 pnpm install（pre-commit 的 vite 类检查依赖 node_modules，agent-start-task 默认跳过装依赖）**
+
+## 2026-08-27 feat | 工作台 AI 商机预测卡片：客户类型/项目类型/时间筛选 + 日期月日间补 —
+- 触发：产品反馈两件事——卡片缺搜索维度（客户类型/项目类型/时间）；三个时间列第二行只显示日数字，月和日之间没有分隔符
+- 落点：OpportunityPredictionCard.vue 加筛选栏（客户端过滤，接口零改动——数据源即全量窗口且分页本就是前端 slice）；表格列整体拆出 OpportunityPredictionTable.vue 子组件（card 295→364 行撞 line-budget 300 门禁后结构化瘦身：主卡片 182 行/子组件 204 行）；DateCell 第二行 `15` → `—15`（用户明确要全角破折号）
+- 教训：**超 line-budget 优先拆组件而非加豁免单（excludeFiles 是历史遗留条款不是新代码逃生门）；el-table 列模板抽子组件后 provide/inject 穿层仍生效，既有 stub 测试断言零改动**
