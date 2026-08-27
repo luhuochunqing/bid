@@ -57,7 +57,7 @@ class AnalyticsCustomerTypeJpqlRegressionTest {
         dimensionQueryService = new TrendAnalysisDimensionQueryService(scope);
         ReflectionTestUtils.setField(dimensionQueryService, "entityManager", entityManager);
 
-        drillDownService = new TrendDrillDownService(scope);
+        drillDownService = new TrendDrillDownService(scope, Mockito.mock(FilterOptionsQueryService.class));
         ReflectionTestUtils.setField(drillDownService, "entityManager", entityManager);
 
         seedData();

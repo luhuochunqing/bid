@@ -59,9 +59,22 @@ public class TrendAnalysisService {
                         .toList()
                 : null;
 
-// 统一构建查询参数，所有维度共用
+// 统一构建查询参数，所有维度共用。
+// 部门两级展示口径：勾选父部门时统计范围展开为自身∪全部后代，
+// 图表分桶按"有二级展示二级"重映射（与下钻 TrendDrillDownService 同口径）。
+        List<AnalyticsDepartmentHierarchySupport.DeptNode> deptNodes =
+                (departmentIds != null && !departmentIds.isEmpty())
+                        ? filterOptionsQueryService.fetchDepartmentNodes()
+                        : List.of();
+        java.util.function.Function<String, String> deptBucketMapper =
+                AnalyticsDepartmentHierarchySupport.bucketMapper(deptNodes, departmentIds);
+        List<String> deptBuckets = new java.util.ArrayList<>(
+                AnalyticsDepartmentHierarchySupport.displayBucketNames(deptNodes, departmentIds));
+        java.util.Set<String> expandedDeptIds = AnalyticsDepartmentHierarchySupport.expandWithDescendants(
+                deptNodes, departmentIds);
+        List<String> effectiveDeptIds = expandedDeptIds == null ? null : List.copyOf(expandedDeptIds);
         TrendQueryCriteria criteria = buildCriteria(startDate, endDate,
-                departmentIds, userIds, regionIds,
+                effectiveDeptIds, userIds, regionIds,
                 customerTypes, projectTypes, statusEnums,
                 tenderEntities, competitorNames);
 
@@ -74,8 +87,14 @@ public class TrendAnalysisService {
                 yield computationService.computeTimeTrend(rows, startDate, endDate, td);
             }
             case "dept" -> {
-                var rows = dimensionQueryService.fetchDeptRows(criteria);
-                yield computationService.computeDimensionTrend(rows, departmentIds);
+                // 分桶重映射：勾选有二级的一级时按二级部门展示（一级不保留汇总柱）；
+                // 直挂父部门的罕见数据回退自身桶，图上合计与筛选范围数目守恒
+                var rows = dimensionQueryService.fetchDeptRows(criteria).stream()
+                        .map(r -> new DimensionRow(
+                                deptBucketMapper.apply(r.category()), r.projectId(), r.status()))
+                        .toList();
+                yield computationService.computeDimensionTrend(rows,
+                        deptNodes.isEmpty() ? departmentIds : deptBuckets);
             }
             case "person" -> {
                 var rows = dimensionQueryService.fetchPersonRows(criteria);

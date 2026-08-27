@@ -101,4 +101,26 @@ class TrendDrillDownFilterSupportTest {
         assertThat(where.toString()).isEqualTo(" AND p.status IN (:statuses)");
         assertThat(params).containsEntry("statuses", List.of("WON"));
     }
+
+    @Test
+    @DisplayName("dept 轴两级口径：分桶标签反解为名称集合 IN 匹配（无选中时退化为等值语义）")
+    void deptAxisBucketReverseResolution() {
+        var org = List.of(
+                new AnalyticsDepartmentHierarchySupport.DeptNode("D01", null, "销售部"),
+                new AnalyticsDepartmentHierarchySupport.DeptNode("D0101", "D01", "销售一部"),
+                new AnalyticsDepartmentHierarchySupport.DeptNode("D02", null, "财务部"));
+
+        // 勾选"销售部"后点击二级桶"销售一部"：反解集合含该名（及映射到同桶的所有部门名）
+        StringBuilder where = new StringBuilder();
+        Map<String, Object> params = new HashMap<>();
+        TrendDrillDownFilterSupport.appendDeptAxisFilter(where, params, org, List.of("销售部"), "销售一部");
+        assertThat(where.toString()).isEqualTo(" AND u.department_name IN (:deptAxisVals)");
+        assertThat(params.get("deptAxisVals")).isEqualTo(java.util.Set.of("销售一部"));
+
+        // 无选中：mapper 恒等 → 仅 axisValue 自身，与旧精确等值语义等价
+        StringBuilder where2 = new StringBuilder();
+        Map<String, Object> params2 = new HashMap<>();
+        TrendDrillDownFilterSupport.appendDeptAxisFilter(where2, params2, org, null, "财务部");
+        assertThat(params2.get("deptAxisVals")).isEqualTo(java.util.Set.of("财务部"));
+    }
 }

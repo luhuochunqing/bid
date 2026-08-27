@@ -7,6 +7,7 @@ package com.xiyu.bid.analytics.service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * M1 趋势分析下钻的维度过滤条件组装器（PRD 6.6）。
@@ -86,5 +87,29 @@ public final class TrendDrillDownFilterSupport {
         }
         where.append(" AND ").append(column).append(" IN (:").append(paramName).append(")");
         params.put(paramName, values);
+    }
+
+    /**
+     * 部门轴两级展示口径（与图表 bucketMapper 同源）：axisValue 是分桶标签
+     * （勾选有二级的一级时为二级部门名），反解回所有映射到该标签的部门名集合做 IN 匹配，
+     * 避免「图上柱子数字 ≠ 下钻明细条数」的口径分裂。仅当同时存在部门筛选选择时由
+     * {@link TrendDrillDownService} 调用；无选中时仍走 appendDimensionFilter 的旧精确等值。
+     */
+    public static void appendDeptAxisFilter(StringBuilder where, Map<String, Object> params,
+                                            List<AnalyticsDepartmentHierarchySupport.DeptNode> deptNodes,
+                                            List<String> selectedDepartments, String axisValue) {
+        java.util.function.Function<String, String> mapper =
+                AnalyticsDepartmentHierarchySupport.bucketMapper(deptNodes, selectedDepartments);
+        Set<String> matchNames = new java.util.LinkedHashSet<>();
+        matchNames.add(axisValue);
+        if (deptNodes != null) {
+            for (AnalyticsDepartmentHierarchySupport.DeptNode node : deptNodes) {
+                if (mapper.apply(node.name()).equals(axisValue)) {
+                    matchNames.add(node.name());
+                }
+            }
+        }
+        where.append(" AND u.department_name IN (:deptAxisVals)");
+        params.put("deptAxisVals", matchNames);
     }
 }

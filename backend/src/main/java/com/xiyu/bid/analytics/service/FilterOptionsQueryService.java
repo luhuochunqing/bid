@@ -126,6 +126,19 @@ public class FilterOptionsQueryService {
     }
 
     /**
+     * 部门两级展示口径（"选了一级只展示一级，只要有二级就展示二级"）的数据源：
+     * 全量组织部门映射为纯 record，供 {@link AnalyticsDepartmentHierarchySupport} 做展开/分桶。
+     */
+    List<AnalyticsDepartmentHierarchySupport.DeptNode> fetchDepartmentNodes() {
+        return organizationDepartmentRepository.findAllByOrderByDepartmentCode()
+                .stream()
+                .map(d -> new AnalyticsDepartmentHierarchySupport.DeptNode(
+                        d.getDepartmentCode(), d.getParentDepartmentCode(), d.getDepartmentName()))
+                .filter(n -> n.name() != null && !n.name().isBlank())
+                .toList();
+    }
+
+    /**
      * PRD §6.2 M1 筛选区下拉选项 — 人员 DISTINCT（users.full_name）。
      * 直接从 User 表查询，不限制必须有项目（无效人员不过滤，全部包含）。
      * 当 departmentNames 为空时返回全量人员；有部门时按部门名称或部门编码匹配。
@@ -143,9 +156,14 @@ public class FilterOptionsQueryService {
                     .getResultList();
         }
 
+        // 部门两级口径：勾选父部门时联动选项须覆盖其全部后代部门人员，
+        // 与图表统计范围（expandWithDescendants）保持一致
+        Set<String> expandedNames = AnalyticsDepartmentHierarchySupport.expandWithDescendants(
+                fetchDepartmentNodes(), departmentNames);
+        List<String> effectiveNames = expandedNames != null ? List.copyOf(expandedNames) : departmentNames;
         // 优化子查询性能：先通过仓库预查匹配的部门编码集合，避免在 SQL 中进行双重关联子查询
         List<OrganizationDepartmentEntity> matchedDepts =
-                organizationDepartmentRepository.findByDepartmentNameIn(departmentNames);
+                organizationDepartmentRepository.findByDepartmentNameIn(effectiveNames);
         java.util.Set<String> targetCodes = new java.util.HashSet<>();
         for (OrganizationDepartmentEntity dept : matchedDepts) {
             if (dept.getDepartmentCode() != null && !dept.getDepartmentCode().isEmpty()) {
@@ -167,7 +185,7 @@ public class FilterOptionsQueryService {
                           )
                         order by u.fullName
                         """, String.class)
-                .setParameter("departmentNames", departmentNames)
+                .setParameter("departmentNames", effectiveNames)
                 .setParameter("hasCodes", !targetCodes.isEmpty())
                 .setParameter("targetCodes", targetCodes.isEmpty() ? java.util.Set.of("") : targetCodes)
                 .getResultList();
