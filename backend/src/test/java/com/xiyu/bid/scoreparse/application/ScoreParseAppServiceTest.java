@@ -7,11 +7,11 @@ import com.xiyu.bid.biddraftagent.entity.BidTenderDocumentSnapshot;
 import com.xiyu.bid.biddraftagent.repository.BidTenderDocumentSnapshotRepository;
 import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
+import com.xiyu.bid.scoreparse.domain.RecallOutcome;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
 import com.xiyu.bid.scoreparse.infrastructure.openai.OpenAiScoreAnalyzer;
-import com.xiyu.bid.scoreparse.infrastructure.openai.RecallOutcome;
 import com.xiyu.bid.scoreparse.infrastructure.openai.ScoreGlobalMergeExecutor;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
@@ -40,6 +40,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -122,6 +123,20 @@ class ScoreParseAppServiceTest {
         assertThat(task.getRunSummary()).isNotBlank();
         assertThat(task.getRunSummary()).contains("\"lanes\"", "\"tableRows\"");
         verify(stateService).markCompleted(TASK_ID);
+    }
+
+    @Test
+    void parse_zeroItemsFailedPath_stillPersistsRunSummary() {
+        // spec 057 xcode-review A-4：0 项失败终态同样落 runSummary——事故复盘需要失败时的 lane/对齐档案
+        ScoreParseTask task = mockParseFlowReturning(List.of(), 3);
+
+        service.executeParseAsync(TASK_ID);
+
+        verify(stateService).failTask(eq(TASK_ID), anyString());
+        verify(stateService, never()).markCompleted(anyString());
+        assertThat(task.getRunSummary()).isNotBlank();
+        assertThat(task.getRunSummary()).contains("\"lanes\"", "\"skippedChunks\":3");
+        verify(itemPersistenceService, never()).persistItems(any(), any(), anyList());
     }
 
     @Test

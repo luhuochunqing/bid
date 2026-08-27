@@ -6,10 +6,10 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.biddraftagent.repository.BidTenderDocumentSnapshotRepository;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
+import com.xiyu.bid.scoreparse.domain.RecallOutcome;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreTableRecallLane;
 import com.xiyu.bid.scoreparse.domain.SummaryAggregator;
-import com.xiyu.bid.scoreparse.infrastructure.openai.RecallOutcome;
 import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
 import com.xiyu.bid.scoreparse.dto.ScoreParseProgressDTO;
 import com.xiyu.bid.scoreparse.dto.ScoreParseTriggerDTO;
@@ -157,6 +157,9 @@ public class ScoreParseAppService {
                 (progress, stageKey) -> updateProgress(taskId, progress, stageKey,
                         "GAP_RECHECK".equals(stageKey) ? "分值或编号连续性异常，触发完整性回补" : stageKey));
         if (processed.failMessage() != null) {
+            // spec 057 FR-04：失败终态同样落 runSummary（事故复盘需要 0 项失败时的 lane/对齐档案）
+            task.setRunSummary(processed.runSummaryJson());
+            taskRepository.save(task);
             stateService.failTask(taskId, processed.failMessage());
             progressService.clearProgress(taskId);
             return;

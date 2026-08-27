@@ -1,9 +1,8 @@
 // Input: 各召回 lane 候选清单 + 跳过 chunk 数
 // Output: 召回遥测载体（spec 046 US3 / spec 057 FR-05 lane 贡献与对齐统计）
-// Pos: scoreparse/infrastructure/openai — 召回结果值对象
-package com.xiyu.bid.scoreparse.infrastructure.openai;
-
-import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
+// Pos: scoreparse/domain — 召回结果值对象（无框架依赖，可被 application/infrastructure 双方引用）
+// 维护声明: 维护者按项目SOP；自 infrastructure.openai 下移以解反向依赖（xcode-review B-7）；修改时保证兼容旧构造器（candidates, skippedChunks）
+package com.xiyu.bid.scoreparse.domain;
 
 import java.util.List;
 import java.util.Map;

@@ -3,8 +3,9 @@
 // Pos: scoreparse/application — 纯函数装配器（spec 057 FR-04/FR-06，无框架依赖可单测）
 package com.xiyu.bid.scoreparse.application;
 
+import com.xiyu.bid.scoreparse.domain.RecallOutcome;
+import com.xiyu.bid.scoreparse.domain.ScoreParseConstants;
 import com.xiyu.bid.scoreparse.domain.WeightSumCheck;
-import com.xiyu.bid.scoreparse.infrastructure.openai.RecallOutcome;
 import com.xiyu.bid.scoreparse.infrastructure.openai.ScoreGlobalMergeExecutor;
 
 import java.util.Map;
@@ -15,10 +16,9 @@ import java.util.Map;
  */
 final class RunSummaryAssembler {
 
-    /** 对齐率地板：低于此值说明模型改写/概括严重（对齐器未命中） */
-    static final double ALIGNED_RATIO_FLOOR = 0.5;
-    /** 幻觉丢弃率天花板：高于此值说明归并裁决质量劣化 */
-    static final double HALLUCINATION_RATIO_CEIL = 0.3;
+    /** 阈值口径移至 {@link ScoreParseConstants}（spec 057 FR-06 唯一出处） */
+    static final double ALIGNED_RATIO_FLOOR = ScoreParseConstants.ALIGNED_RATIO_FLOOR;
+    static final double HALLUCINATION_RATIO_CEIL = ScoreParseConstants.HALLUCINATION_RATIO_CEIL;
 
     record Assembled(String json, boolean warnLowAlignment, boolean warnHighHallucination) {
     }

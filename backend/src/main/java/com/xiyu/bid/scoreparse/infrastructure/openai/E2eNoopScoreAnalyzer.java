@@ -10,6 +10,7 @@
 package com.xiyu.bid.scoreparse.infrastructure.openai;
 
 import com.xiyu.bid.scoreparse.domain.DocumentImage;
+import com.xiyu.bid.scoreparse.domain.RecallOutcome;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;

@@ -60,7 +60,7 @@ class GoldenCasesReplayTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
     private static final String LINE_SEPARATOR = System.lineSeparator();
-    /** 与 ScoreParseAppService#MAX_SINGLE_WEIGHT 对齐（权重有效上界） */
+    /** 与 {@code ScoreParseConstants#MAX_SINGLE_WEIGHT} 对齐（权重有效上界；测试侧固定值防联动漂移） */
     private static final BigDecimal MAX_SINGLE_WEIGHT = new BigDecimal("100");
 
     /** 跨参数化用例收集回放结果，@AfterAll 统一落盘 */

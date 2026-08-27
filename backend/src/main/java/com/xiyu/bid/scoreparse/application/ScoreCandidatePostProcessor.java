@@ -6,13 +6,14 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.scoreparse.domain.GhostCandidateFilter;
 import com.xiyu.bid.scoreparse.domain.ItemCountCheck;
+import com.xiyu.bid.scoreparse.domain.RecallOutcome;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreItemMergePolicy;
+import com.xiyu.bid.scoreparse.domain.ScoreParseConstants;
 import com.xiyu.bid.scoreparse.domain.WeightNormalizationPolicy;
 import com.xiyu.bid.scoreparse.domain.WeightOverloadTrimPolicy;
 import com.xiyu.bid.scoreparse.domain.WeightSumCheck;
 import com.xiyu.bid.scoreparse.infrastructure.openai.OpenAiScoreAnalyzer;
-import com.xiyu.bid.scoreparse.infrastructure.openai.RecallOutcome;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,9 +33,8 @@ import java.util.List;
 @Slf4j
 public class ScoreCandidatePostProcessor {
 
-    /** spec 046 FR-002 超载判定上限（WeightSumCheck 容差 +0.5） */
-    private static final BigDecimal OVERLOAD_LIMIT = new BigDecimal("100.5");
-    private static final BigDecimal MAX_SINGLE_WEIGHT = new BigDecimal("100");
+    private static final BigDecimal OVERLOAD_LIMIT = ScoreParseConstants.OVERLOAD_LIMIT;
+    private static final BigDecimal MAX_SINGLE_WEIGHT = ScoreParseConstants.MAX_SINGLE_WEIGHT;
 
     /** 阶段进度回调：(progress, stageKey) —— 语义与既有 updateProgress 对齐 */
     @FunctionalInterface

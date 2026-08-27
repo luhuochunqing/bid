@@ -92,7 +92,7 @@ public final class ScoreMergeResultGuard {
         return false;
     }
 
-    private static final BigDecimal MAX_SINGLE_WEIGHT = new BigDecimal("100");
+    private static final BigDecimal MAX_SINGLE_WEIGHT = ScoreParseConstants.MAX_SINGLE_WEIGHT;
 
     /** 高置信：有原文背书（sourceText ⊇ detail）且 weight 在合理分值区间 (0, 100] */
     private static boolean isHighConfidence(ScoreCandidate candidate) {

@@ -7,6 +7,7 @@ package com.xiyu.bid.scoreparse.application;
 import com.xiyu.bid.biddraftagent.infrastructure.openai.TenderIntakeTextProcessor;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreMergeResultGuard;
+import com.xiyu.bid.scoreparse.domain.ScoreParseConstants;
 import com.xiyu.bid.scoreparse.infrastructure.openai.ScoreGlobalMergeExecutor;
 import com.xiyu.bid.scoreparse.infrastructure.structure.MarkdownScoreSectionLocator;
 import lombok.extern.slf4j.Slf4j;
@@ -27,9 +28,6 @@ import java.util.List;
 @Slf4j
 public class ScoreGlobalMergeOrchestrator {
 
-    /** 裁决上下文（评分章节拼接）字符上界 */
-    static final int SECTION_TEXT_LIMIT = 12000;
-
     /** 归并结果与遥测投影（run-summary 数据源；candidates 兼容旧语义） */
     public record MergeStats(List<ScoreCandidate> candidates, boolean invoked, String skipReason,
             boolean truncated, int poolBackedKept, int hallucinationDropped, int restored) {
@@ -38,6 +36,7 @@ public class ScoreGlobalMergeOrchestrator {
             return new MergeStats(null, false, reason, false, 0, 0, 0);
         }
 
+        /** 前置检查未通过即跳过；语义区分见 Javadoc（当前实现与 skipped 相同，调用方含义不同） */
         static MergeStats fallback(String reason) {
             return new MergeStats(null, false, reason, false, 0, 0, 0);
         }
@@ -98,7 +97,11 @@ public class ScoreGlobalMergeOrchestrator {
         }
     }
 
-    /** 裁决上下文构建：评分区域定位内容拼接，超 SECTION_TEXT_LIMIT 截断并置 truncated（FR-03） */
+    /**
+     * 裁决上下文构建：评分区域定位内容拼接，超 {@link ScoreParseConstants#SECTION_TEXT_LIMIT}
+     * 截断并置 truncated（FR-03）。截断判定单点：拼接中途达限（stopEarly）或 sanitize 后仍超限
+     * （sanitize 是等长字符替换，此分支为防御性兜底）。
+     */
     private AdjudicationContext resolveSectionText(String fullText) {
         if (fullText == null || fullText.isBlank()) {
             return new AdjudicationContext("", false);
@@ -109,10 +112,10 @@ public class ScoreGlobalMergeOrchestrator {
             return new AdjudicationContext("", false);
         }
         StringBuilder sb = new StringBuilder();
-        boolean brokeEarly = false;
+        boolean stopEarly = false;
         for (MarkdownScoreSectionLocator.ScoreSection section : sections) {
-            if (sb.length() >= SECTION_TEXT_LIMIT) {
-                brokeEarly = true;
+            if (sb.length() >= ScoreParseConstants.SECTION_TEXT_LIMIT) {
+                stopEarly = true;
                 break;
             }
             if (sb.length() > 0) {
@@ -121,11 +124,14 @@ public class ScoreGlobalMergeOrchestrator {
             sb.append(section.content());
         }
         String sanitized = TenderIntakeTextProcessor.sanitizeUntrusted(sb.toString());
-        boolean tailTruncated = sanitized.length() > SECTION_TEXT_LIMIT;
-        return new AdjudicationContext(truncate(sanitized), brokeEarly || tailTruncated);
+        // sanitize 为等长替换，正常不触发；保留防御性判定使截断标记单点收口于下一行
+        boolean truncated = stopEarly || sanitized.length() > ScoreParseConstants.SECTION_TEXT_LIMIT;
+        return new AdjudicationContext(
+                truncate(sanitized), truncated);
     }
 
     private static String truncate(String text) {
-        return text.length() <= SECTION_TEXT_LIMIT ? text : text.substring(0, SECTION_TEXT_LIMIT);
+        return text.length() <= ScoreParseConstants.SECTION_TEXT_LIMIT
+                ? text : text.substring(0, ScoreParseConstants.SECTION_TEXT_LIMIT);
     }
 }

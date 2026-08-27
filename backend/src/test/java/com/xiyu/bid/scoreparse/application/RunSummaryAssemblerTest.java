@@ -4,8 +4,8 @@
 
 package com.xiyu.bid.scoreparse.application;
 
+import com.xiyu.bid.scoreparse.domain.RecallOutcome;
 import com.xiyu.bid.scoreparse.domain.WeightSumCheck;
-import com.xiyu.bid.scoreparse.infrastructure.openai.RecallOutcome;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
