@@ -274,7 +274,7 @@ export function useCompetitorData(chartRef) {
     // 竞品下拉接入后端并集口径，默认全选跟随动态 options；空响应时保留静态兜底
     const names = Array.isArray(filterRes.value?.data?.competitor) ? filterRes.value.data.competitor : []
     if (names.length) {
-      competitorOptions.value = names.map((name) => ({ label: name, value: name }))
+      competitorOptions.value = names.map((dto) => ({ label: dto.label, value: dto.value }))
       selectedCompetitors.value = [...competitorOptions.value.map((o) => o.value)]
     }
   }

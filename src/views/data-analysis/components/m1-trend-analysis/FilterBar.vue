@@ -103,7 +103,7 @@ onMounted(async () => {
     const res = await dashboardApi.getFilterOptions()
     const names = Array.isArray(res?.data?.competitor) ? res.data.competitor : []
     if (names.length) {
-      competitorOptions.value = names.map((name) => ({ label: name, value: name }))
+      competitorOptions.value = names.map((dto) => ({ label: dto.label, value: dto.value }))
     }
   } catch (err) {
     console.warn('M1 competitor filter-options fetch error (non-fatal):', err)
