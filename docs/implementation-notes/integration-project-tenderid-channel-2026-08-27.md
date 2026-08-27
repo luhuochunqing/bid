@@ -65,3 +65,23 @@
 6. 尾部说明块错误码改为"404 标讯不存在（路径 tenderId 未命中）"并补跳过语义句
 7. 文档版本记录追加 v3.17 行
 8. body 表 projectId 说明补"传入时需与路径 tenderId 一致，不一致返回 400"
+
+## 收尾重构（ai-slop-cleaner）：抽取 ApiKeyUserResolver 消除 3 处重复
+
+**背景**：本次接口六改造新增了第三个 controller 内嵌的 `resolveApiKeyUserId()` 私有方法，
+与 `TenderSyncController` / `TenderIntegrationController` 各自的同名私有方法**逐字重复**
+（前两个 hash 相同，第三个仅声明方式用全限定名）。3 份 copy-paste 是典型的 AI-slop 产物。
+
+**决策**：抽取为共享组件 `ApiKeyUserResolver`（`@Component` + 构造注入 ApiKeyService/AuthService），
+三个 controller 的 import/字段/调用点全部收敛到 `apiKeyUserResolver.resolveUserId()`，私有方法删除。
+行为逐行保持：`api-key:` principal 解析 → ApiKeyService 反查属主 → AuthService 解析 userId，
+任一步失败一律返回 null 不阻断主流程；日志 warn 文案原样保留。
+
+**连带改动**：`ProjectIntegrationControllerTest` 用 Mockito `@InjectMocks` 构造 controller，
+改造前 controller 只有一个构造参数，现在变成 2 个，Mockito 找不到 `ApiKeyUserResolver` 的 mock
+会把该参数注入 null → 5 个用例全部 500（NPE）。修复：把测试里已无用的 `@Mock ApiKeyService`/`@Mock AuthService`
+换成 `@Mock ApiKeyUserResolver`，`verifyNoMoreInteractions(apiKeyService, authService)` 改为
+`verify(apiKeyUserResolver).resolveUserId()`（语义等价：断言 controller 不直接触碰 API Key 服务）。
+
+**验证**：对齐 CI 口径子集 56 绿（ArchUnit 11 + CommandService 25 + ControllerTest 7 + Resolver 13）；
+质量门禁 checkstyle/pmd/spotbugs 全过；净减 42 行（+73/−115）。commit `492f80734`。
