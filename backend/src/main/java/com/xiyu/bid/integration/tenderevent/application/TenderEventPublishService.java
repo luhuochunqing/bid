@@ -70,9 +70,10 @@ public class TenderEventPublishService {
 
         TenderEventCode code = TenderEventCode.BID_TENDER_CHANGE;
         TenderEventPayload payload = new TenderEventPayload(tender.getId(), tender.getExternalId());
-        String traceId = currentTraceId();
-        String spanId = UUID.randomUUID().toString().replace("-", "");
-        String parentId = traceId;
+        // 关键修复：客户事件库 trace_id / span_id 字段为 varchar(19)，使用 TenderEventSnowflakeUtil 生成标准 t/s+18位雪花ID
+        String traceId = generateTraceId();
+        String spanId = com.xiyu.bid.integration.tenderevent.infrastructure.sdk.TenderEventSnowflakeUtil.nextSpanId();
+        String parentId = "0";
 
         TenderEventPublishCommand command = new TenderEventPublishCommand(code, payload, traceId, spanId, parentId);
         tenderEventExecutor.execute(() -> sendAndRecord(command));
@@ -115,11 +116,12 @@ public class TenderEventPublishService {
         }
     }
 
-    private static String currentTraceId() {
+    private static String generateTraceId() {
         String traceId = MDC.get(TraceConstants.MDC_TRACE_KEY);
-        return (traceId == null || traceId.isBlank())
-                ? UUID.randomUUID().toString().replace("-", "")
-                : traceId;
+        if (traceId != null && !traceId.isBlank() && traceId.length() <= 19) {
+            return traceId;
+        }
+        return com.xiyu.bid.integration.tenderevent.infrastructure.sdk.TenderEventSnowflakeUtil.nextTraceId();
     }
 
     private static String truncate(String value, int max) {
