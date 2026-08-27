@@ -69,6 +69,8 @@ class TenderEventHttpSenderWireTest {
         assertThat(body.get("eventTopic").asText()).isEqualTo("BidTenderChange");
         assertThat(body.get("eventSource").asText()).isEqualTo("bid");
         assertThat(body.get("key").asText()).isEqualTo("tenderId");
+        // time = 事件产生时间（毫秒时间戳），客户文档公共消息结构标注必需，手动触发成功样例亦含
+        assertThat(body.get("time").asLong()).isGreaterThan(0L);
         assertThat(body.has("serviceName")).as("serviceName 不应在 body（客户样例无此字段）").isFalse();
         // data 是 JSON 字符串（EventContentReqDto.data 声明为 String）
         JsonNode data = JSON.readTree(body.get("data").asText());

@@ -10,7 +10,7 @@ sources:
 backlinks:
   - _index
 created: 2026-08-12
-updated: 2026-08-26
+updated: 2026-08-27
 health_checked: 2026-08-26
 ---
 # 标讯创建事件推送 - 西域 CRM 事件总线
@@ -130,7 +130,9 @@ backend/src/main/java/com/xiyu/bid/integration/tenderevent/
 - **修复（二层）**：按客户文档全字段组装 body：补 `eventCode`/`eventSource`/`eventTopic`/`time`/`key`/`data`/`traceId`/`spanId`/`parentId`（trace 三元组同时保留在 Header）。
 - **教训**：集成排障必须在**离源头最近的一层**留全量响应证据；只透传业务字段的 SDK 包装层会把故障细节藏在调用方看不见的地方。另注意 `httpPost` 对非 200/IO 异常静默返回 null，null 响应须显式判失败而非等 NPE 暴露。**SDK 旧版 body 结构不一定与网关最新接口文档一致，必须以接口文档为准逐字段核对。**
 
-### 5. 注册参数是占位值：bid/BidTenderChange 从未在网关注册（2026-08-27，tenderId=2289/2290/2291）
+### 5. ~~注册参数是占位值：bid/BidTenderChange 从未在网关注册~~（已推翻，详见 §7）
+
+> **2026-08-27 更正**：本节"bid/BidTenderChange 从未在网关注册"的结论已被客户手动触发成功样例（tenderId=2282）与探针实测推翻。`bid`/`BidTenderChange` 注册值正确，`data:{}` 不是"网关静默丢弃"，而是 fastjson 1.2.83 解析时丢弃 null 值的默认行为。本节内容仅保留作为排障历史参考。
 
 - **现象**：客户反馈 tenderId=2289 仍未推送到事件库；网关已回 `code=00000` 但 `data:{}`。
 - **排障过程**：客户提供全量接口文档（`EventInfoReqDTO`/`EventHandleService` 参考实现）后，修正两处契约偏差：
@@ -173,3 +175,39 @@ backend/src/main/java/com/xiyu/bid/integration/tenderevent/
   | time / eventCode | 样例截断未见 | 无 | ❓ 待确认 |
 - **补 key 后仍 `data:{}`**（2292 实测），说明 key 非充分条件；剩余差异集中在 **data 形态** 与 **trace 位置**。
 - **待客户补全**：完整未截断的请求 body 原文（确认 serviceName/time/eventCode 是否在 body、data 到底传对象还是字符串、trace 三元组在 body 还是 Header）。
+
+### 7. 最终契约与 fastjson null 丢弃发现（2026-08-27，探针实测）
+
+- **最终 HTTP body 契约**（7 字段）：
+  ```json
+  {
+    "traceId": "...",
+    "spanId": "...",
+    "parentId": "0",
+    "eventTopic": "BidTenderChange",
+    "eventSource": "bid",
+    "key": "tenderId",
+    "data": "{\"tenderId\":2282}"
+  }
+  ```
+  - `data` 是 **JSON 字符串**（网关 `EventContentReqDto.data` 声明为 String，传对象 HTTP 400）
+  - `key` = 业务主键**字段名**（`tenderId`），非主键值
+  - `traceId`/`spanId`/`parentId` 同时写入 body 和 HTTP Header（SDK `buildHeaderParamMap` 既有行为）
+  - 不发 `serviceName`（客户样例无此字段；SDK `ServiceRegisterProperties` 类级绑定会覆盖）
+  - `time` 字段可选（加与不加网关响应不变）
+
+- **`data:{}` 真相**：网关对所有合规请求均返回原始 HTTP 响应 `{"code":"00000","data":{"result":null},"msg":"响应成功"}`。SDK `HttpClientUtil.httpPost` 内部用 fastjson 1.2.83 的 `JSONObject.parseObject` 解析响应，**fastjson 默认丢弃 null 值**，`result:null` 的键被丢弃，data 变成空对象 `{}`。应用日志打印的 `data:{}` 是 fastjson 序列化结果，**不是网关返回空对象**。
+
+- **探针实证**（同一程序、同一网关、同一 body）：
+  | 路径 | 原始 HTTP 响应 | fastjson 解析后 |
+  |---|---|---|
+  | SDK `HttpClientUtil.httpPost` | 不可见（SDK 内部解析） | `data:{}` |
+  | 直接 Apache HttpClient + `EntityUtils.toString` | `data:{"result":null}` | `data:{}` |
+
+- **结论**：
+  - `interpretResult` 逻辑正确（data 是 JSONObject 且 result 非 false = 成功，空 data 同样判成功）
+  - 应用推送 tenderId=2289/2294/2295 全部**受理成功**（`result:null`）
+  - 客户反馈"2289 未收到"是旧版本问题（serviceName 错误导致 `result:false`），当前版本已修复
+  - **闭环验证待办**：请客户在事件库查询 tenderId=2294/2295（或新建标讯）是否收到
+
+- **教训**：跨系统联调中，"日志打印的响应"与"网关原始 HTTP 响应"之间可能存在 JSON 库的序列化行为差异（fastjson 丢弃 null）。排障时不能只看应用日志的 JSON 对象打印，必须在 HTTP 客户端层打印原始响应字符串才能看到真相。

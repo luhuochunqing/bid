@@ -15,7 +15,7 @@ import lombok.extern.slf4j.Slf4j;
  * 西域事件总线发送器（基础设施层 WithEffect，包内共享）。
  *
  * <p>body 按客户手动触发成功样例（2026-08-27，tenderId=2282）**完全复刻**：
- * <pre>{traceId, spanId, parentId, eventSource, eventTopic, key, data}</pre>
+ * <pre>{traceId, spanId, parentId, eventSource, eventTopic, key, time, data}</pre>
  * 客户成功样例（执行成功）：
  * <pre>
  * {
@@ -24,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
  *   "data": "{\"tenderId\": \"2282\"}",  // JSON 字符串！EventContentReqDto.data 是 String
  *   "eventSource": "bid",
  *   "eventTopic": "BidTenderChange",
+ *   "time": 1787792358513,             // 毫秒时间戳，客户文档标注为必需字段
  *   "key": "tenderId",                 // 业务主键字段名（部门事件=deptId、员工事件=userId）
  *   "parentId": "0"
  * }
@@ -44,7 +45,10 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <p>排障回顾（2026-08-27 多次实测）：
  * <ul>
- *   <li>缺 {@code key} 字段 → 网关静默丢弃（data:{}）；补 key 后仍需验证 trace 位置/data 形态</li>
+ *   <li>缺 {@code key} 字段 -> 曾怀疑网关静默丢弃，但 2026-08-27 探针实测推翻：
+ *       网关对所有合规请求均返回 {@code {"data":{"result":null}}}（成功），
+ *       日志中看到的 {@code data:{}} 是 fastjson 1.2.83 解析时丢弃 null 值的默认行为，
+ *       <b>不是网关返回空对象</b></li>
  *   <li>{@code serviceName} 不发：客户成功样例 body 无此字段；且 SDK 的
  *       {@code ServiceRegisterProperties} 类级 {@code @ConfigurationProperties(prefix="client.register")}
  *       会把环境值（BidSystemOrgConsumer）绑定覆盖到该类型所有 bean，曾导致错误服务名上报（result=false）</li>
@@ -53,9 +57,10 @@ import lombok.extern.slf4j.Slf4j;
  * <p>trace 三元组写入 body（对齐客户样例），HTTP Header 同时保留
  * （SDK {@code buildHeaderParamMap} 既有行为，双写无副作用）。
  *
- * <p>结果解释：真实网关成功时返回外层 {@code code=="00000"} 且 {@code data.result} 非 false
- * （实测形态含 result=null 与 data:{}），仅显式 result=false 判为失败；响应缺失 data 字段
- * 或 data 非对象时按失败处理（SDK 原生路径会抛 NPE/JSONException，经调用方降级后净效果一致）。
+ * <p>结果解释：网关成功返回 {@code {"code":"00000","data":{"result":null},"msg":"响应成功"}}。
+ * SDK 用 fastjson 1.2.83 解析后 {@code result:null} 被丢弃，data 变成空对象 {}。
+ * 本类 {@code interpretResult} 逻辑正确：data 是 JSONObject 且 result 非 false 即成功，
+ * 空 data（result=null 被丢弃后）同样判成功。仅显式 {@code result=false} 判失败。
  *
  * <p>已知 SDK HTTP 行为（字节码核实）：仅状态码 200 时解析响应体并返回；非 200 状态码
  * 与 IO 异常均被 {@code HttpClientUtil} 静默吞掉后返回 null，本类将 null 直接判为失败。
@@ -92,14 +97,17 @@ final class TenderEventHttpSender {
         trackReq.setParentId(parentId);
 
         JSONObject body = new JSONObject();
-        // 完全复刻客户手动触发成功样例（tenderId=2282）：trace 三元组进 body，data 为对象
+        // 完全复刻客户手动触发成功样例（tenderId=2282）：trace 三元组进 body
         body.put("traceId", traceId);
         body.put("spanId", spanId);
         body.put("parentId", parentId);
         body.put("eventTopic", code.topic());
         body.put("eventSource", code.source());
-        // 业务主键字段名（客户样例 key="tenderId"），缺此字段网关静默丢弃（data:{} 实测）
+        // 业务主键字段名（客户样例 key="tenderId"）
         body.put("key", code.dataIdField());
+        // 事件产生时间（毫秒时间戳）：客户技术规格书公共消息结构标注 time 为必需字段，
+        // 客户手动触发成功样例亦含 time，缺此字段网关虽受理（HTTP 200）但事件不进入投递链路
+        body.put("time", System.currentTimeMillis());
         // data 必须是 JSON 字符串（EventContentReqDto.data 是 String，传对象 400 实测）
         body.put("data", serializeData(data));
 
@@ -112,8 +120,11 @@ final class TenderEventHttpSender {
                 SystemInteractiveServiceImpl.buildHeaderParamMap(trackReq),
                 HttpInterfaceTypeEnum.HTTP_PUBLISH_EVENT.getValue());
 
-        // 原始响应体落日志：保留网关第一手响应原文，供联调对账与后续契约核对
-        log.info("事件总线原始响应 eventTopic={} response={}", code.topic(), resp);
+        // 响应落日志。注意：SDK 内部用 fastjson 1.2.83 的 JSONObject.parseObject 解析原始响应，
+        // fastjson 默认丢弃 null 值，所以网关原始 {"data":{"result":null}} 经解析后 data 变成 {}
+        // （result 键因 null 被丢弃）。日志打印的 data:{} 不代表网关返回空对象，而是 fastjson 序列化结果。
+        // 2026-08-27 探针实测证实：同一请求，原始 HTTP 响应=data:{"result":null}，fastjson 解析后=data:{}
+        log.info("事件总线响应 eventTopic={} response={}", code.topic(), resp);
 
         return interpretResult(resp);
     }

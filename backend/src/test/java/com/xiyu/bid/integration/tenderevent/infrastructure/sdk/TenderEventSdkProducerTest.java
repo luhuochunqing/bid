@@ -72,6 +72,8 @@ class TenderEventSdkProducerTest {
         assertThat(body.getString("eventTopic")).isEqualTo("BidTenderChange");
         assertThat(body.getString("eventSource")).isEqualTo("bid");
         assertThat(body.getString("key")).isEqualTo("tenderId");
+        // time = 事件产生时间（毫秒时间戳），客户文档公共消息结构标注必需，手动触发成功样例亦含
+        assertThat(body.getLong("time")).isGreaterThan(0L);
         assertThat(body.containsKey("serviceName")).as("serviceName 不应在 body（客户样例无此字段）").isFalse();
         // data 是 JSON 字符串
         assertThat(body.getString("data")).isEqualTo("{\"tenderId\":123,\"externalId\":\"ext-1\"}");
