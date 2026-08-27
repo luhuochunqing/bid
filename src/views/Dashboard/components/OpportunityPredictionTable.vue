@@ -134,7 +134,7 @@ function handleRowClick(row) {
    只对需要截断的两列（项目名称/招标主体）恢复单行截断；
    项目状态等其余单元格保持 nowrap 但不加 ellipsis——
    否则状态标签被挤压时会渲染出省略号「…」，看起来像黑点。 */
-.el-table :deep(.el-table .op-row) {
+.el-table :deep(.op-row) {
   cursor: pointer;
 }
 .el-table :deep(.el-table__body .cell) {
