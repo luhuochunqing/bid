@@ -28,7 +28,7 @@
 </el-form-item>
 <template v-if="form.needDeposit === 'YES'">
   <div class="grid-2">
-    <el-form-item label="保证金金额（元）" required><el-input-number v-model="form.depositAmount" :min="0" :precision="2" @focus="handleAmountFocus('depositAmount')" @blur="handleAmountBlur('depositAmount')" /></el-form-item>
+    <el-form-item label="保证金金额（元）" required><el-input-number v-model="form.depositAmount" :min="0" :precision="2" /></el-form-item>
     <el-form-item label="保证金缴纳方式" required>
       <el-select v-model="form.depositPaymentMethod">
         <el-option label="电汇" value="WIRE" />
@@ -44,10 +44,10 @@
 <el-divider />
 <div class="grid-2">
   <el-form-item label="计划入围供应商数量"><el-input-number v-model="form.expectedBidders" :disabled="fieldDisabled && !isApprovalMode" :min="1" :max="255" :precision="0" /></el-form-item>
-  <el-form-item label="客户电商年采购金额（万）"><el-input-number v-model="form.annualEcommerceAmount" :disabled="fieldDisabled" :min="0" :precision="2" @focus="handleAmountFocus('annualEcommerceAmount')" @blur="handleAmountBlur('annualEcommerceAmount')" /></el-form-item>
+  <el-form-item label="客户电商年采购金额（万）"><el-input-number v-model="form.annualEcommerceAmount" :disabled="fieldDisabled" :min="0" :precision="2" /></el-form-item>
 </div>
 <div class="grid-2">
-  <el-form-item label="客户年营收（亿）"><el-input-number v-model="form.customerRevenue" :disabled="fieldDisabled" :min="0" :precision="2" @focus="handleAmountFocus('customerRevenue')" @blur="handleAmountBlur('customerRevenue')" /></el-form-item>
+  <el-form-item label="客户年营收（亿）"><el-input-number v-model="form.customerRevenue" :disabled="fieldDisabled" :min="0" :precision="2" /></el-form-item>
 </div>
 <el-form-item label="招标文件不利项"><el-input v-model="form.tenderAdverseItems" :disabled="fieldDisabled && !isApprovalMode" type="textarea" :rows="3" maxlength="500" show-word-limit /></el-form-item>
 <el-form-item label="风险预判"><el-input v-model="form.riskAssessment" :disabled="fieldDisabled" type="textarea" :rows="3" maxlength="5000" /></el-form-item>
@@ -232,7 +232,9 @@ const PROJECT_INITIATION_PRESET_KEYS = PROJECT_LOCKED_FIELD_KEYS['project.initia
 // CO-601: AdaptiveFormPage 加载的 schema 字段登记，供自定义字段收集（buildPayload）
 const customFieldsSchema = ref([])
 function onInitiationSchemaLoaded(fields) { customFieldsSchema.value = Array.isArray(fields) ? fields : [] }
-const form = reactive({ projectName: '', ownerUnit: '', createTime: new Date().toISOString().slice(0, 16).replace('T', ' '), projectType: '', customerType: '', priorityLevel: 'B', headquartersLocation: '', projectLeaderName: '', projectLeaderUserId: null, leaderDepartment: '', contactNature: '', contactName: '', contactPhone: '', contactTel: '', contactMail: '', contactNature2: '', contactName2: '', contactPhone2: '', contactTel2: '', contactMail2: '', tenderId: null, expectedBidders: 0, annualEcommerceAmount: 0, annualRevenue: 0, customerRevenue: 0, bidOpenTime: '', bidMonth: '', biddingPlatform: '', needDeposit: 'NO', depositAmount: 0, depositPaymentMethod: '', depositDueDate: null, tenderAdverseItems: '', riskAssessment: '', riskMitigationPlan: '', pmUnderstandsProcess: '', supportNeeded: '', projectPlanGap: '', projectPlanGapFiles: [], tenderDocumentId: null, aiRiskLevel: null, aiRiskAssessmentNotes: '', biddingLeaderName: '', biddingAssistantName: '' })
+// 数值业务字段空值语义为 null（勿静默回填 0）：库中无值时表单必须显示空，
+// 否则用户会把假 0 当成已保存数据（回归：项目列表"计划入围供应商数量"列 vs 详情显示不一致）
+const form = reactive({ projectName: '', ownerUnit: '', createTime: new Date().toISOString().slice(0, 16).replace('T', ' '), projectType: '', customerType: '', priorityLevel: 'B', headquartersLocation: '', projectLeaderName: '', projectLeaderUserId: null, leaderDepartment: '', contactNature: '', contactName: '', contactPhone: '', contactTel: '', contactMail: '', contactNature2: '', contactName2: '', contactPhone2: '', contactTel2: '', contactMail2: '', tenderId: null, expectedBidders: null, annualEcommerceAmount: null, annualRevenue: null, customerRevenue: null, bidOpenTime: '', bidMonth: '', biddingPlatform: '', needDeposit: 'NO', depositAmount: 0, depositPaymentMethod: '', depositDueDate: null, tenderAdverseItems: '', riskAssessment: '', riskMitigationPlan: '', pmUnderstandsProcess: '', supportNeeded: '', projectPlanGap: '', projectPlanGapFiles: [], tenderDocumentId: null, aiRiskLevel: null, aiRiskAssessmentNotes: '', biddingLeaderName: '', biddingAssistantName: '' })
 // CO-323: 客户信息矩阵由标讯评估表带入，初始 0 行（有数据才显示）
 // 值域 OPTIONS 复用评估表 customerInfoMatrixConfig.js，保证映射一致
 const custFixedRows = ref([]); const bidDocFiles = ref([]); const planGapFiles = ref([]); const existing = ref(false);
@@ -365,8 +367,6 @@ async function handleDynamicSubmit(formData) {
   if (formData) Object.assign(form, formData)
   await submit()
 }
-function handleAmountFocus(field) { if (form[field] === 0) form[field] = null }
-function handleAmountBlur(field) { if (form[field] == null || form[field] === '') form[field] = 0 }
 
 /**
  * CO-519: 判断字段值长度是否超出列宽可视范围，超长则启用 hover Tooltip 展示全量
@@ -379,7 +379,7 @@ function shouldShowOverflowTooltip(value, maxChars = 15) {
 
 onMounted(load)
 
-defineExpose({ load, handleAmountFocus, handleAmountBlur, searchLeader, searchAssistant, leaderOptions, assistantOptions })
+defineExpose({ load, searchLeader, searchAssistant, leaderOptions, assistantOptions })
 </script>
 <style scoped>
 .initiation-stage { display: flex; flex-direction: column; gap: 16px; }

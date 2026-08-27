@@ -301,7 +301,6 @@ export function useInitiationStageActions({
         customerRevenue: src.annualRevenue ?? form.customerRevenue,
         annualRevenue: src.annualRevenue ?? form.annualRevenue,
         annualEcommerceAmount: src.budget ?? form.annualEcommerceAmount,
-        expectedBidders: src.expectedBidders ?? form.expectedBidders,
         riskAssessment: src.riskAssessment || '',
         riskMitigationPlan: src.riskMitigationPlan || '',
         tenderAdverseItems: src.tenderAdverseItems || src.unfavorableItems || '',
