@@ -15,13 +15,13 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * 西域事件总线发送器（基础设施层 WithEffect，包内共享）。
  *
- * <p>复刻 SDK {@code SystemInteractiveServiceImpl.sendEvent} 的完整 wire 契约
- * （{@code POST {serverRegisterUrl}/eventbus/publishEvent}：消息体
- * {@code {serviceName, eventTopic, eventSource, data}} 组装、traceId/spanId/parentId
- * 写入 HTTP Header），但直接调用 SDK 公开的静态工具 {@link HttpClientUtil#httpPost}：
- * {@code sendEvent} 只透传 {@code data.result} 并丢弃网关外层 {@code code}/{@code msg}
- * （失败原因所在），联调排查必须拿到完整响应原文落日志（2026-08-26 tenderId=2282
- * 推送 FAILED 但无响应体可查的事故教训）。
+ * <p>消息体按客户接口文档全字段组装：
+ * <pre>{serviceName, eventCode, eventSource, eventTopic, time, key, data,
+ * traceId, spanId, parentId}</pre>
+ * 其中 traceId/spanId/parentId 同时写入 HTTP Header（SDK {@code buildHeaderParamMap}
+ * 既有行为，保持兼容）。SDK 0.0.2 的 {@code sendEvent} 仅组装
+ * {@code {serviceName, eventTopic, eventSource, data}} --缺少 eventCode/time/key
+ * 等客户文档必需字段，2026-08-26 tenderId=2285 实测 result=false 的根因即此。
  *
  * <p>结果解释与 SDK 原生语义的差异：真实网关成功时返回外层 {@code code=="00000"}
  * 且 {@code data.result} 为 null（2026-08-25 部署实测），故 result=null 视为已受理成功，
@@ -65,9 +65,17 @@ final class TenderEventHttpSender {
 
         JSONObject body = new JSONObject();
         body.put("serviceName", registerProperties.getServiceName());
-        body.put("eventTopic", code.topic());
+        body.put("eventCode", code.topic());
         body.put("eventSource", code.source());
+        body.put("eventTopic", code.topic());
+        body.put("time", System.currentTimeMillis());
+        body.put("key", String.valueOf(data.get(code.dataIdField())));
         body.put("data", serializeData(data));
+        body.put("traceId", traceId);
+        body.put("spanId", spanId);
+        if (parentId != null) {
+            body.put("parentId", parentId);
+        }
 
         JSONObject resp = HttpClientUtil.httpPost(
                 registerProperties.getServerRegisterUrl() + "/eventbus/publishEvent",

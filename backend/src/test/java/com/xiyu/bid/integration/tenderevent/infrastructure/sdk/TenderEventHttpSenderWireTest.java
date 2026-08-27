@@ -52,7 +52,7 @@ class TenderEventHttpSenderWireTest {
     }
 
     @Test
-    @DisplayName("消息体结构 + data 为 JSON 字符串 + trace 进 Header；result=true 成功")
+    @DisplayName("消息体全字段 + data 为 JSON 字符串 + trace 进 Header 与 body；result=true 成功")
     void wire_bodyAndHeaders_matchSdkContract() throws Exception {
         server.enqueue(new MockResponse()
                 .setBody("{\"data\":{\"result\":true}}")
@@ -66,13 +66,20 @@ class TenderEventHttpSenderWireTest {
         RecordedRequest request = takeOnlyRequest();
         JsonNode body = JSON.readTree(request.getBody().readUtf8());
         assertThat(body.get("serviceName").asText()).isEqualTo("bid");
-        assertThat(body.get("eventTopic").asText()).isEqualTo("BidTenderChange");
+        assertThat(body.get("eventCode").asText()).isEqualTo("BidTenderChange");
         assertThat(body.get("eventSource").asText()).isEqualTo("bid");
+        assertThat(body.get("eventTopic").asText()).isEqualTo("BidTenderChange");
+        assertThat(body.get("time").isNumber()).isTrue();
+        assertThat(body.get("key").asText()).isEqualTo("123");
+        assertThat(body.get("traceId").asText()).isEqualTo("trace-1");
+        assertThat(body.get("spanId").asText()).isEqualTo("span-1");
+        assertThat(body.get("parentId").asText()).isEqualTo("parent-1");
         // data 必须是 JSON 字符串（网关 EventContentReqDto.data 为 String，传对象会被 400 拒收）
         JsonNode data = JSON.readTree(body.get("data").asText());
         assertThat(data.get("tenderId").asInt()).isEqualTo(123);
         assertThat(data.get("externalId").asText()).isEqualTo("ext-1");
 
+        // trace 三元组同时写入 Header（SDK buildHeaderParamMap 既有行为）
         assertThat(request.getHeader("traceId")).isEqualTo("trace-1");
         assertThat(request.getHeader("spanId")).isEqualTo("span-1");
         assertThat(request.getHeader("parentId")).isEqualTo("parent-1");

@@ -123,7 +123,9 @@ backend/src/main/java/com/xiyu/bid/integration/tenderevent/
 
 ### 4. 排障盲区：sendEvent 丢弃外层 code/msg（2026-08-26，tenderId=2282）
 
-- **现象**：测试环境推送流水标 FAILED 且 `result=false`，但无任何异常堆栈——网关为什么拒收完全不可知。
-- **根因**：SDK `sendEvent` 只透传 `data.result` 并丢弃外层 `code`/`msg`，而 `result=false` 时拒绝原因恰在外层（实测样例 `{"code":"B20001","msg":"topic未注册","data":{"result":false}}`）；`SendEventRespDto` 又仅含一个 Boolean 字段，序列化返回值同样无济于事。
-- **修复**：sender 直调 `HttpClientUtil.httpPost`，完整响应原文落 info 日志（`事件总线原始响应 eventTopic=… response=…`），在离源头最近的一层保留第一手证据。
-- **教训**：集成排障必须在**离源头最近的一层**留全量响应证据；只透传业务字段的 SDK 包装层会把故障细节藏在调用方看不见的地方。另注意 `httpPost` 对非 200/IO 异常静默返回 null，null 响应须显式判失败而非等 NPE 暴露。
+- **现象**：测试环境推送流水标 FAILED 且 `result=false`，但无任何异常堆栈--网关为什么拒收完全不可知。
+- **根因（一层）**：SDK `sendEvent` 只透传 `data.result` 并丢弃外层 `code`/`msg`，而 `result=false` 时拒绝原因恰在外层（实测样例 `{"code":"B20001","msg":"topic未注册","data":{"result":false}}`）；`SendEventRespDto` 又仅含一个 Boolean 字段，序列化返回值同样无济于事。
+- **修复（一层）**：sender 直调 `HttpClientUtil.httpPost`，完整响应原文落 info 日志（`事件总线原始响应 eventTopic=… response=…`），在离源头最近的一层保留第一手证据。
+- **根因（二层，tenderId=2285）**：拿到原始响应后看到 `code=00000 / msg=响应成功 / data.result=false`--网关协议层正常，业务层拒绝。对照客户接口文档发现 SDK 0.0.2 的 `sendEvent` 组装的 body `{serviceName, eventTopic, eventSource, data}` **缺少 `eventCode`、`time`、`key` 等必需字段**，网关业务层因缺字段无法路由到处理逻辑，直接返回 `result=false`。
+- **修复（二层）**：按客户文档全字段组装 body：补 `eventCode`/`eventSource`/`eventTopic`/`time`/`key`/`data`/`traceId`/`spanId`/`parentId`（trace 三元组同时保留在 Header）。
+- **教训**：集成排障必须在**离源头最近的一层**留全量响应证据；只透传业务字段的 SDK 包装层会把故障细节藏在调用方看不见的地方。另注意 `httpPost` 对非 200/IO 异常静默返回 null，null 响应须显式判失败而非等 NPE 暴露。**SDK 旧版 body 结构不一定与网关最新接口文档一致，必须以接口文档为准逐字段核对。**

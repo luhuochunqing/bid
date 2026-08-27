@@ -57,7 +57,7 @@ class TenderEventSdkProducerTest {
     }
 
     @Test
-    @DisplayName("发送成功：URL/topic/source/data JSON 字符串/trace 三元组按 SDK 契约传递")
+    @DisplayName("发送成功：URL/全字段 body/trace Header 按 SDK 契约传递")
     void publish_passesContractArgsToHttpLayer() {
         httpClient.when(() -> HttpClientUtil.httpPost(anyString(), any(), any(), anyString()))
                 .thenReturn(JSONObject.parseObject("{\"data\":{\"result\":true}}"));
@@ -70,9 +70,15 @@ class TenderEventSdkProducerTest {
                 headers.capture(), eq("publishEvent")));
         JSONObject body = bodyCaptor.getValue();
         assertThat(body.getString("serviceName")).isEqualTo("bid");
-        assertThat(body.getString("eventTopic")).isEqualTo("BidTenderChange");
+        assertThat(body.getString("eventCode")).isEqualTo("BidTenderChange");
         assertThat(body.getString("eventSource")).isEqualTo("bid");
+        assertThat(body.getString("eventTopic")).isEqualTo("BidTenderChange");
+        assertThat(body.getLong("time")).isNotNull();
+        assertThat(body.getString("key")).isEqualTo("123");
         assertThat(body.getString("data")).isEqualTo("{\"tenderId\":123,\"externalId\":\"ext-1\"}");
+        assertThat(body.getString("traceId")).isEqualTo("trace-1");
+        assertThat(body.getString("spanId")).isEqualTo("span-1");
+        assertThat(body.getString("parentId")).isEqualTo("parent-1");
         assertThat(headers.getValue())
                 .containsEntry("traceId", "trace-1")
                 .containsEntry("spanId", "span-1")
