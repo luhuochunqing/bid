@@ -1,6 +1,5 @@
 package com.xiyu.bid.integration.tenderevent.infrastructure.sdk;
 
-import com.ehsy.eventlibrary.clientsdk.config.properties.ServiceRegisterProperties;
 import com.xiyu.bid.integration.tenderevent.application.TenderEventPublishCommand;
 import com.xiyu.bid.integration.tenderevent.application.TenderEventPublishPort;
 import java.util.LinkedHashMap;
@@ -10,11 +9,17 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * 标讯事件发送端口实现（基础设施层 WithEffect）。
  *
- * <p>通过西域事件 SDK 的 {@link SystemInteractiveService#sendEvent} 推送到事件总线
+ * <p>通过西域事件 SDK 的
+ * {@code com.ehsy.eventlibrary.clientsdk.systeminteraction.service.SystemInteractiveService#sendEvent}
+ * 推送到事件总线
  * {@code POST {serverRegisterUrl}/eventbus/publishEvent}，其中 {@code data} 为
  * {@code eventContent} 字符串（只放标讯关键标识 {@code tenderId} / {@code externalId}），
  * 链路追踪 {@code traceId/spanId/parentId} 经 {@code EventTrackReq} 写入 HTTP Header。
  * 发送细节统一由 {@link TenderEventHttpSender} 承担，本类只负责标讯载荷与上下文日志。
+ *
+ * <p>serviceName/serverRegisterUrl 直接取自 {@link TenderEventSdkProperties}，
+ * 不注入 SDK 的 {@code ServiceRegisterProperties} bean（会被 {@code client.register.*}
+ * 配置绑定覆盖，见 {@link TenderEventHttpSender} 类注释）。
  *
  * <p>2026-08-26 反编译核实（ClientSDK-release_0.0.2）：SDK 的 {@code sendEvent} 把
  * {@code data} 字段取自 {@code eventContent} 入参，trace 信息走 HTTP Header，
@@ -27,10 +32,9 @@ public class TenderEventSdkProducer implements TenderEventPublishPort {
     private final TenderEventSdkProperties properties;
     private final TenderEventHttpSender sender;
 
-    public TenderEventSdkProducer(TenderEventSdkProperties properties,
-                                  ServiceRegisterProperties registerProperties) {
+    public TenderEventSdkProducer(TenderEventSdkProperties properties) {
         this.properties = properties;
-        this.sender = new TenderEventHttpSender(registerProperties);
+        this.sender = new TenderEventHttpSender(properties.serviceName(), properties.serverRegisterUrl());
     }
 
     @Override

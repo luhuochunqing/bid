@@ -2,7 +2,6 @@ package com.xiyu.bid.integration.tenderevent.infrastructure.sdk;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.ehsy.eventlibrary.clientsdk.config.properties.ServiceRegisterProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.integration.tenderevent.domain.TenderEventCode;
@@ -33,10 +32,7 @@ class TenderEventHttpSenderWireTest {
     static void startAll() throws IOException {
         server = new MockWebServer();
         server.start();
-        ServiceRegisterProperties registerProperties = new ServiceRegisterProperties();
-        registerProperties.setServiceName("bid");
-        registerProperties.setServerRegisterUrl(server.url("/").toString());
-        sender = new TenderEventHttpSender(registerProperties);
+        sender = new TenderEventHttpSender("bid", server.url("/").toString());
     }
 
     @AfterAll

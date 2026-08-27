@@ -3,7 +3,6 @@ package com.xiyu.bid.integration.tenderevent.infrastructure.sdk;
 import com.alibaba.fastjson.JSONObject;
 import com.ehsy.eventlibrary.clientsdk.common.enums.HttpInterfaceTypeEnum;
 import com.ehsy.eventlibrary.clientsdk.common.req.EventTrackReq;
-import com.ehsy.eventlibrary.clientsdk.config.properties.ServiceRegisterProperties;
 import com.ehsy.eventlibrary.clientsdk.systeminteraction.service.impl.SystemInteractiveServiceImpl;
 import com.ehsy.eventlibrary.clientsdk.util.HttpClientUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -21,6 +20,13 @@ import lombok.extern.slf4j.Slf4j;
  * 客户文档的"消息结构"（含 eventCode/time/key 等字段）是网关**内部消息格式**，
  * 由网关自行填充，不放在 HTTP 请求 body 中。此前误将内部字段塞入 body 导致
  * 网关返回 data:{} 但事件未实际发布（tenderId=2289 实测）。
+ *
+ * <p>serviceName 直接来自 {@link TenderEventSdkProperties}（默认 "bid"），**不**复用
+ * SDK 的 {@code ServiceRegisterProperties} bean：该类类级标注
+ * {@code @ConfigurationProperties(prefix = "client.register")}，Spring Boot 会把
+ * 环境里的 {@code client.register.serviceName}（本环境为 "BidSystemOrgConsumer"）
+ * 绑定覆盖到该类型的所有 bean 上，导致标讯事件以错误的组织事件服务名上报，
+ * 网关返回 result=false 拒绝（2026-08-27 实测）。
  *
  * <p>parentId 须遵循客户文档：无父链路时 parentId="0"
  * （{@code EventHandleService.sendEvent} 参考实现），不是 traceId 的值。
@@ -42,10 +48,12 @@ final class TenderEventHttpSender {
     /** 事件总线 {@code EventContentReqDto.data} 声明为 String，须将业务载荷序列化为 JSON 字符串上报。 */
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private final ServiceRegisterProperties registerProperties;
+    private final String serviceName;
+    private final String serverRegisterUrl;
 
-    TenderEventHttpSender(ServiceRegisterProperties registerProperties) {
-        this.registerProperties = registerProperties;
+    TenderEventHttpSender(String serviceName, String serverRegisterUrl) {
+        this.serviceName = serviceName;
+        this.serverRegisterUrl = serverRegisterUrl;
     }
 
     /**
@@ -66,7 +74,7 @@ final class TenderEventHttpSender {
         trackReq.setParentId(parentId);
 
         JSONObject body = new JSONObject();
-        body.put("serviceName", registerProperties.getServiceName());
+        body.put("serviceName", serviceName);
         body.put("eventTopic", code.topic());
         body.put("eventSource", code.source());
         body.put("data", serializeData(data));
@@ -75,7 +83,7 @@ final class TenderEventHttpSender {
         log.info("事件总线请求 eventTopic={} body={}", code.topic(), body);
 
         JSONObject resp = HttpClientUtil.httpPost(
-                registerProperties.getServerRegisterUrl() + "/eventbus/publishEvent",
+                serverRegisterUrl + "/eventbus/publishEvent",
                 body,
                 SystemInteractiveServiceImpl.buildHeaderParamMap(trackReq),
                 HttpInterfaceTypeEnum.HTTP_PUBLISH_EVENT.getValue());

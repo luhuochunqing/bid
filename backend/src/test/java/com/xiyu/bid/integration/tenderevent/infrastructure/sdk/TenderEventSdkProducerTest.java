@@ -7,7 +7,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mockStatic;
 
 import com.alibaba.fastjson.JSONObject;
-import com.ehsy.eventlibrary.clientsdk.config.properties.ServiceRegisterProperties;
 import com.ehsy.eventlibrary.clientsdk.util.HttpClientUtil;
 import com.xiyu.bid.integration.tenderevent.application.TenderEventPublishCommand;
 import com.xiyu.bid.integration.tenderevent.domain.TenderEventCode;
@@ -31,12 +30,8 @@ class TenderEventSdkProducerTest {
     @BeforeEach
     void setUp() {
         httpClient = mockStatic(HttpClientUtil.class);
-        ServiceRegisterProperties registerProperties = new ServiceRegisterProperties();
-        registerProperties.setServiceName("bid");
-        registerProperties.setServerRegisterUrl("http://event-bus.local");
         producer = new TenderEventSdkProducer(
-                new TenderEventSdkProperties(false, "http://event-bus.local", "bid"),
-                registerProperties);
+                new TenderEventSdkProperties(false, "http://event-bus.local", "bid"));
     }
 
     @AfterEach

@@ -1,6 +1,5 @@
 package com.xiyu.bid.integration.tenderevent.infrastructure.sdk;
 
-import com.ehsy.eventlibrary.clientsdk.config.properties.ServiceRegisterProperties;
 import com.xiyu.bid.config.TraceConstants;
 import com.xiyu.bid.integration.tenderevent.domain.OpportunityPredictionEventPayload;
 import com.xiyu.bid.integration.tenderevent.domain.TenderEventCode;
@@ -28,10 +27,9 @@ public class OpportunityPredictionEventPublisher {
     private final TenderEventSdkProperties properties;
     private final TenderEventHttpSender sender;
 
-    public OpportunityPredictionEventPublisher(TenderEventSdkProperties properties,
-                                               ServiceRegisterProperties registerProperties) {
+    public OpportunityPredictionEventPublisher(TenderEventSdkProperties properties) {
         this.properties = properties;
-        this.sender = new TenderEventHttpSender(registerProperties);
+        this.sender = new TenderEventHttpSender(properties.serviceName(), properties.serverRegisterUrl());
     }
 
     /**
