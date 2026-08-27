@@ -184,3 +184,10 @@ trigger（同步<1s，互斥校验+建任务）
 - **为什么必须在结构层**：前附表正文常见"综合评分/综合得分"字样会命中 TABLE_SCORE_PATTERN 的通用子串，开启程序/履约保证金/成交结果公示等程序条款整表误入候选池——token 浪费且输出污染，LLM 层拦截最不可靠也最贵。
 - **双层 prompt 配套**：候选提取禁令 3 条（前附表程序条款、形式/资格/响应性评审条款、总分构成汇总行）+ 全局归并规则第 6 条（混入必丢弃），均有 contains 锚定测试防静默删改。
 - **已知盲区（技术债）**：空行截断续块失去首行 marker、前附表与真评分表纵向胶连时整块吞掉真实评分行、纯文本通道未覆盖——详见 docs/lessons §167，待后续 spec 消化。
+
+## 金标回放基线与运行遥测（spec 057，2026-08-27）
+
+- **守卫语料完整性（FR-01~03）**：`ScoreGlobalMergeOrchestrator` 定位失败即跳过归并（禁用全文前缀裁决）；截断时与池身份匹配的输出走 `poolBackedKept` 放行——hallucinationDropped 只统计真幻觉。
+- **治理链抽离（FR-07/D5 预案兑现）**：`ScoreCandidatePostProcessor` 承接合并→守卫→裁决→回补→权重链；AppService 300→238 行；`countAligned` 迁 Mapper。
+- **run-summary（FR-04~06）**：`score_parse_task.run_summary` JSON 持久化 lanes/aligned/merge 计数/model，items meta 透出；对齐率<50% 或幻觉比>30% WARN。
+- **金标回放（FR-08~10）**：`GoldenCasesReplayTest` 合成夹具确定性六件套回放进默认套件（pre-push 等效第一层）；scripts/eval-scoreparse 承载标注规范与两层执行说明。首跑 case-dual F1=83.3%（4FP=前附表在 table lane 泄漏，§167 盲区实证）/ case-weight-gap F1=100%。
