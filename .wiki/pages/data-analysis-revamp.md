@@ -5,7 +5,7 @@ category: architecture
 tags: [analytics, data-analysis, m0-m4, competitor, echarts, fp-java]
 created: 2026-08-14
 updated: 2026-08-20
-health_checked: 2026-08-22
+health_checked: 2026-08-27
 sources:
   - .wiki/pages/data-analysis-revamp.md
 backlinks:
@@ -237,6 +237,13 @@ src/views/data-analysis/
 - **教训**：collation/charset 属环境级配置漂移，本地与生产不一致时单测全绿也会线上炸；详见 lessons-learned §128/§129。
 
 ## 2026-08-20 区域筛选与分组口径统一（省份归一化）
+
+## 2026-08-27 竞品下拉 label/value 格式修复（PR #2419 后续）
+- **背景**：M1/M4 竞品公司下拉框从后端 `TrendAnalysisService.getFilterOptions()` 返回的 `TrendFilterOptionsResponseDTO.competitor` 字段（`List<AnalyticsFilterOptionDTO>`，含 `label/value` 字符串）前端映射错误，导致 `names.map((name) => ({ label: name, value: name }))` 中的 `name` 实际上是完整 DTO 对象而非字符串。结果造成 FilterSelect 显示 "label and value" 格式（或 "[object Object]"），并触发 "请求体格式错误"。
+- **改动**：两处同等修正：`src/views/data-analysis/components/m1-trend-analysis/FilterBar.vue:107` 与 `src/views/data-analysis/components/m4-competitor/composables/useCompetitorData.js:282`，将 `names.map((name) => ...)` 改为 `names.map((dto) => ({ label: dto.label, value: dto.value }))`，确保正确提取 DTO 属性。
+- **验证**：前端全量 vitest 1726 用例绿灯，后端 mvn test 39/39 通过，ArchitectureTest 32/32 通过。补测建议：在 `FilterOptionsCompetitorNamesTest` / `TrendAnalysisComputationServiceTest` 中加入映射正确性断言。
+
+**2026-08-27 医疗健康检查更新**：同根因记录、口径边界确认。
 
 - **背景**：多维度趋势分析选定区域筛选后，投标数/中标数 KPI 与图表柱子数量不一致。
 - **根因（三口径分裂）**：①筛选 SQL 用 LIKE 前缀匹配原始文本，分组侧却做省份归一化提取，两端口径不同步；②区域取值空串回退不对称（一侧回退、一侧不回退）；③时间维度查询不消费 regionIds，筛选对时间趋势不生效。
