@@ -10,6 +10,7 @@ import com.xiyu.bid.docinsight.application.exception.UnsupportedProfileException
 import com.openai.errors.UnauthorizedException;
 import com.openai.errors.BadRequestException;
 import com.xiyu.bid.integration.application.WeComApiException;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -472,6 +473,23 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ExceptionLogger.warn(ex, currentHttpRequest(request), 400);
         return ResponseEntity.badRequest()
                 .body(ApiResponse.error(400, "缺少必填参数: " + ex.getParameterName()));
+    }
+
+    /**
+     * 处理路径/查询参数类型转换失败（如接口六 tenderId 收到非数字的来源编号）。
+     * 返回 400 + 标准错误格式，避免落入兜底 Exception handler 变成 500。
+     * CO-529 口径：父类已注册该类型，必须重写方法而非新增 @ExceptionHandler（防 Ambiguous 启动冲突）。
+     * M-03: 不透传参数名与异常细节，统一硬编码消息。
+     */
+    @Override
+    protected ResponseEntity<Object> handleTypeMismatch(
+            TypeMismatchException ex,
+            HttpHeaders headers,
+            HttpStatusCode status,
+            WebRequest request) {
+        ExceptionLogger.warn(ex, currentHttpRequest(request), 400);
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.error(400, "请求参数类型不正确，请检查路径与查询参数格式"));
     }
 
     /**

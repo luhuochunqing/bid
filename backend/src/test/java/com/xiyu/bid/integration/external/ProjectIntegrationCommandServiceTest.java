@@ -1,6 +1,6 @@
-// Input: ProjectIntegrationCommandService（构造注入 7 依赖）
-// Output: 单测 — 定位链/部分更新语义/客户信息全量替换/TEL 映射/GAP 附件三态/锁与错误码
-// Pos: Test/合约验证 — 接口六 §3.6 编排层
+// Input: ProjectIntegrationCommandService（构造注入 6 依赖）
+// Output: 单测 — tenderId 定位链/一致性断言/applied=false 跳过/部分更新/客户信息/GAP 附件/锁与错误码
+// Pos: Test/合约验证 — 接口六 §3.6 编排层（tenderId 定位修正版）
 package com.xiyu.bid.integration.external;
 
 import com.xiyu.bid.entity.Project;
@@ -40,8 +40,6 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -49,14 +47,15 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link ProjectIntegrationCommandService} 单测。
+ * {@link ProjectIntegrationCommandService} 单测（tenderId 定位修正）。
  *
  * <p>覆盖计划要求的每个变更点：
  * <ul>
- *   <li>定位链：(sourceSystem, sourceId) → 标讯 → 项目；projectId 优先；404 语义</li>
+ *   <li>定位链：tenderId → 标讯 → 项目；projectId 优先 + 一致性断言；标讯不存在 404</li>
+ *   <li>来源系统轻量校验：externalId 前缀不匹配 400、手工标讯（null）放行</li>
+ *   <li>applied=false 跳过语义：标讯存在但未立项返回跳过响应而非 404</li>
  *   <li>部分更新：非 null 覆盖、null/未传保留；仅写项目数据，标讯实体不被修改</li>
- *   <li>客户信息传入即全量替换（含 TEL 映射）</li>
- *   <li>projectPlanGapFiles 三态：不传保留 / 空数组清空 / 非空替换</li>
+ *   <li>客户信息传入即全量替换（含 TEL 映射）；projectPlanGapFiles 三态</li>
  *   <li>阶段锁 423、立项字段锁 423、合并校验失败 422、立项缺失 404</li>
  * </ul>
  */
@@ -68,7 +67,6 @@ class ProjectIntegrationCommandServiceTest {
     private static final Long TENDER_ID = 9L;
     private static final Long API_USER_ID = 77L;
 
-    @Mock private TenderIntegrationResolver tenderResolver;
     @Mock private TenderRepository tenderRepository;
     @Mock private ProjectRepository projectRepository;
     @Mock private ProjectInitiationDetailsRepository initiationRepository;
@@ -85,15 +83,16 @@ class ProjectIntegrationCommandServiceTest {
     @BeforeEach
     void setUp() {
         service = new ProjectIntegrationCommandService(
-                tenderResolver, tenderRepository, projectRepository, initiationRepository,
+                tenderRepository, projectRepository, initiationRepository,
                 initiationMapper, projectStageService, projectDocumentRepository);
 
-        tender = Tender.builder().id(TENDER_ID).title("某单位采购项目").build();
+        tender = Tender.builder().id(TENDER_ID).title("某单位采购项目")
+                .externalId("CRM:" + TENDER_ID).build();
         project = Project.builder().id(PROJECT_ID).name("旧项目名").build();
         details = ProjectInitiationDetails.builder()
                 .id(10L).projectId(PROJECT_ID).locked(Boolean.FALSE).build();
 
-        when(tenderResolver.resolveTender(anyString(), anyString(), eq(null))).thenReturn(tender);
+        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(tender));
         when(projectRepository.findByTenderId(TENDER_ID)).thenReturn(List.of(project));
         when(projectRepository.findById(PROJECT_ID)).thenReturn(Optional.of(project));
         when(projectStageService.currentStage(PROJECT_ID)).thenReturn(ProjectStage.INITIATED);
@@ -125,18 +124,32 @@ class ProjectIntegrationCommandServiceTest {
         return ProjectUpdateRequest.builder();
     }
 
-    // ========== 定位链 ==========
+    // ========== tenderId 定位链 ==========
 
     @Test
-    @DisplayName("按 (sourceSystem, sourceId) 定位标讯再定位项目，返回更新响应")
-    void resolveByTenderSource_happyPath() {
-        ProjectUpdateResponse resp = service.updateByExternalId(
-                "CRM", "OPP-1001", baseRequest().projectName("新项目名").build(), API_USER_ID);
+    @DisplayName("按 (sourceSystem, tenderId) 定位标讯再定位项目，applied=true 返回更新响应")
+    void resolveByTenderId_happyPath() {
+        ProjectUpdateResponse resp = service.updateByTenderId(
+                "CRM", TENDER_ID, baseRequest().projectName("新项目名").build(), API_USER_ID);
 
         assertThat(resp.getProjectId()).isEqualTo(PROJECT_ID);
         assertThat(resp.getProjectName()).isEqualTo("新项目名");
         assertThat(resp.getUpdatedAt()).isNotBlank();
+        assertThat(resp.getApplied()).isTrue();
         assertThat(project.getName()).isEqualTo("新项目名");
+    }
+
+    @Test
+    @DisplayName("手工建标讯（externalId=null，无来源键）不被来源校验误伤，正常更新")
+    void manualTenderWithoutExternalId_proceeds() {
+        when(tenderRepository.findById(TENDER_ID))
+                .thenReturn(Optional.of(Tender.builder().id(TENDER_ID).title("手工标讯").build()));
+
+        ProjectUpdateResponse resp = service.updateByTenderId(
+                "CRM", TENDER_ID, baseRequest().projectName("新项目名").build(), API_USER_ID);
+
+        assertThat(resp.getApplied()).isTrue();
+        assertThat(resp.getProjectId()).isEqualTo(PROJECT_ID);
     }
 
     @Test
@@ -145,7 +158,7 @@ class ProjectIntegrationCommandServiceTest {
         String titleBefore = tender.getTitle();
         String externalIdBefore = tender.getExternalId();
 
-        service.updateByExternalId("CRM", "OPP-1001",
+        service.updateByTenderId("CRM", TENDER_ID,
                 baseRequest().projectName("新项目名").build(), API_USER_ID);
 
         assertThat(tender.getTitle()).isEqualTo(titleBefore);
@@ -154,11 +167,11 @@ class ProjectIntegrationCommandServiceTest {
 
     @Test
     @DisplayName("projectId 传入时优先按 ID 定位，不走标讯解析")
-    void projectIdPresent_skipsTenderResolver() {
-        service.updateByExternalId("CRM", "OPP-1001",
+    void projectIdPresent_skipsTenderLookup() {
+        service.updateByTenderId("CRM", TENDER_ID,
                 baseRequest().projectId(PROJECT_ID).build(), API_USER_ID);
 
-        verify(tenderResolver, never()).resolveTender(any(), any(), any());
+        verify(tenderRepository, never()).findById(any());
         verify(projectRepository).findById(PROJECT_ID);
     }
 
@@ -167,32 +180,41 @@ class ProjectIntegrationCommandServiceTest {
     void projectIdNotFound_throws404() {
         when(projectRepository.findById(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.updateByExternalId("CRM", "OPP-1001",
+        assertThatThrownBy(() -> service.updateByTenderId("CRM", TENDER_ID,
                 baseRequest().projectId(999L).build(), API_USER_ID))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test
-    @DisplayName("标讯不存在 → 404（透传 resolver 的 ResourceNotFoundException）")
+    @DisplayName("标讯不存在 → 404，消息含 tenderId 定位细节")
     void tenderNotFound_throws404() {
-        when(tenderResolver.resolveTender(eq("CRM"), eq("NOPE"), eq(null)))
-                .thenThrow(new ResourceNotFoundException("标讯不存在: sourceId=NOPE"));
+        when(tenderRepository.findById(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.updateByExternalId("CRM", "NOPE",
+        assertThatThrownBy(() -> service.updateByTenderId("CRM", 999L,
                 baseRequest().build(), API_USER_ID))
-                .isInstanceOf(ResourceNotFoundException.class);
+                .isInstanceOfSatisfying(ResourceNotFoundException.class, ex ->
+                        assertThat(ex.getMessage()).contains("id=999"));
     }
 
-    // ========== projectId 与来源键交叉校验 ==========
+    // ========== projectId 与路径 tenderId 一致性断言（防越权写） ==========
 
     @Test
-    @DisplayName("projectId 关联标讯 externalId 与来源键不一致 → 400（IllegalArgumentException）")
-    void projectIdCrossCheckMismatch_throws400() {
+    @DisplayName("projectId 关联标讯与路径 tenderId 一致 → 放行更新")
+    void projectIdMatchesTender_proceeds() {
         project.setTenderId(TENDER_ID);
-        Tender linked = Tender.builder().id(TENDER_ID).externalId("CRM:OTHER-999").build();
-        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(linked));
 
-        assertThatThrownBy(() -> service.updateByExternalId("CRM", "OPP-1001",
+        ProjectUpdateResponse resp = service.updateByTenderId("CRM", TENDER_ID,
+                baseRequest().projectId(PROJECT_ID).projectName("新项目名").build(), API_USER_ID);
+
+        assertThat(resp.getProjectId()).isEqualTo(PROJECT_ID);
+    }
+
+    @Test
+    @DisplayName("projectId 关联标讯与路径 tenderId 不一致 → 400（IllegalArgumentException），不写任何数据")
+    void projectIdTenderMismatch_throws400() {
+        project.setTenderId(999L);
+
+        assertThatThrownBy(() -> service.updateByTenderId("CRM", TENDER_ID,
                 baseRequest().projectId(PROJECT_ID).build(), API_USER_ID))
                 .isInstanceOfSatisfying(IllegalArgumentException.class, ex ->
                         assertThat(ex.getMessage()).contains("不一致"));
@@ -200,64 +222,49 @@ class ProjectIntegrationCommandServiceTest {
     }
 
     @Test
-    @DisplayName("projectId 关联标讯 externalId 与来源键一致 → 正常更新")
-    void projectIdCrossCheckMatch_proceeds() {
-        project.setTenderId(TENDER_ID);
-        Tender linked = Tender.builder().id(TENDER_ID).externalId("CRM:OPP-1001").build();
-        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(linked));
-
-        ProjectUpdateResponse resp = service.updateByExternalId("CRM", "OPP-1001",
-                baseRequest().projectId(PROJECT_ID).projectName("新项目名").build(), API_USER_ID);
-
-        assertThat(resp.getProjectId()).isEqualTo(PROJECT_ID);
-    }
-
-    @Test
-    @DisplayName("projectId 关联标讯无 externalId（历史数据）→ 放行不校验")
-    void projectIdCrossCheckNoExternalId_proceeds() {
-        project.setTenderId(TENDER_ID);
-        Tender linked = Tender.builder().id(TENDER_ID).build();
-        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(linked));
-
-        ProjectUpdateResponse resp = service.updateByExternalId("CRM", "OPP-1001",
-                baseRequest().projectId(PROJECT_ID).build(), API_USER_ID);
-
-        assertThat(resp.getProjectId()).isEqualTo(PROJECT_ID);
-    }
-
-    @Test
-    @DisplayName("projectId 未关联标讯（tenderId 为 null）→ 跳过交叉校验")
-    void projectIdWithoutTender_skipsCrossCheck() {
+    @DisplayName("projectId 未关联标讯（tenderId 为 null，手工立项早期数据）→ 跳过一致性断言放行")
+    void projectIdWithoutTender_skipsAssertion() {
         project.setTenderId(null);
 
-        ProjectUpdateResponse resp = service.updateByExternalId("CRM", "OPP-1001",
+        ProjectUpdateResponse resp = service.updateByTenderId("CRM", TENDER_ID,
                 baseRequest().projectId(PROJECT_ID).build(), API_USER_ID);
 
         assertThat(resp.getProjectId()).isEqualTo(PROJECT_ID);
         verifyNoInteractions(tenderRepository);
     }
 
+    // ========== 来源系统轻量校验 ==========
+
     @Test
-    @DisplayName("来源键为占位符（_）→ 跳过交叉校验")
-    void placeholderSourceKey_skipsCrossCheck() {
-        project.setTenderId(TENDER_ID);
+    @DisplayName("标讯来源键前缀与 sourceSystem 不一致（BID:88 ≠ CRM）→ 400")
+    void sourceSystemMismatch_throws400() {
+        Tender otherSystem = Tender.builder().id(TENDER_ID).externalId("BID:88").build();
+        when(tenderRepository.findById(TENDER_ID)).thenReturn(Optional.of(otherSystem));
 
-        ProjectUpdateResponse resp = service.updateByExternalId("_", "_",
-                baseRequest().projectId(PROJECT_ID).build(), API_USER_ID);
-
-        assertThat(resp.getProjectId()).isEqualTo(PROJECT_ID);
-        verifyNoInteractions(tenderRepository);
+        assertThatThrownBy(() -> service.updateByTenderId("CRM", TENDER_ID,
+                baseRequest().projectName("不该生效").build(), API_USER_ID))
+                .isInstanceOfSatisfying(IllegalArgumentException.class, ex ->
+                        assertThat(ex.getMessage()).contains("不一致"));
+        verify(projectRepository, never()).save(any(Project.class));
+        verify(initiationRepository, never()).save(any());
     }
 
+    // ========== applied=false 跳过语义（立项时序差不再 404） ==========
+
     @Test
-    @DisplayName("标讯存在但无关联项目 → 404，消息区分定位失败原因")
-    void noProjectLinked_throws404WithDistinctMessage() {
+    @DisplayName("标讯存在但无关联项目 → 200 applied=false 跳过响应，不触碰阶段锁与立项")
+    void noProjectLinked_returnsSkippedResponse() {
         when(projectRepository.findByTenderId(TENDER_ID)).thenReturn(List.of());
 
-        assertThatThrownBy(() -> service.updateByExternalId("CRM", "OPP-1001",
-                baseRequest().build(), API_USER_ID))
-                .isInstanceOfSatisfying(ResourceNotFoundException.class, ex ->
-                        assertThat(ex.getMessage()).contains("未找到该标讯关联的项目"));
+        ProjectUpdateResponse resp = service.updateByTenderId("CRM", TENDER_ID,
+                baseRequest().projectName("投标中编辑").build(), API_USER_ID);
+
+        assertThat(resp.getApplied()).isFalse();
+        assertThat(resp.getProjectId()).isNull();
+        assertThat(resp.getProjectName()).isNull();
+        verify(projectRepository, never()).save(any(Project.class));
+        verifyNoInteractions(projectStageService);
+        verify(initiationRepository, never()).save(any());
     }
 
     @Test
@@ -266,7 +273,7 @@ class ProjectIntegrationCommandServiceTest {
         Project second = Project.builder().id(2L).name("第二项目").build();
         when(projectRepository.findByTenderId(TENDER_ID)).thenReturn(List.of(project, second));
 
-        ProjectUpdateResponse resp = service.updateByExternalId("CRM", "OPP-1001",
+        ProjectUpdateResponse resp = service.updateByTenderId("CRM", TENDER_ID,
                 baseRequest().build(), API_USER_ID);
 
         assertThat(resp.getProjectId()).isEqualTo(PROJECT_ID);
@@ -277,7 +284,7 @@ class ProjectIntegrationCommandServiceTest {
     @Test
     @DisplayName("projectName 为 null 时不触碰项目实体（保留原值）")
     void nullProjectName_preserved() {
-        service.updateByExternalId("CRM", "OPP-1001", baseRequest().build(), API_USER_ID);
+        service.updateByTenderId("CRM", TENDER_ID, baseRequest().build(), API_USER_ID);
 
         assertThat(project.getName()).isEqualTo("旧项目名");
         verify(projectRepository, never()).save(any(Project.class));
@@ -290,7 +297,7 @@ class ProjectIntegrationCommandServiceTest {
                 null, new BigDecimal("100"), null, "风险", "兜底", "流程", "支持",
                 new BigDecimal("50"), null);
 
-        service.updateByExternalId("CRM", "OPP-1001",
+        service.updateByTenderId("CRM", TENDER_ID,
                 baseRequest().evaluationBasic(basic).build(), API_USER_ID);
 
         ArgumentCaptor<InitiationDto> patchCaptor = ArgumentCaptor.forClass(InitiationDto.class);
@@ -307,7 +314,7 @@ class ProjectIntegrationCommandServiceTest {
     @Test
     @DisplayName("updatedBy 记录 API Key 对应用户")
     void updatedByRecorded() {
-        service.updateByExternalId("CRM", "OPP-1001", baseRequest().build(), API_USER_ID);
+        service.updateByTenderId("CRM", TENDER_ID, baseRequest().build(), API_USER_ID);
 
         assertThat(details.getUpdatedBy()).isEqualTo(API_USER_ID);
     }
@@ -324,7 +331,7 @@ class ProjectIntegrationCommandServiceTest {
                 "CONTACTED", "是",
                 "TENDENCY", "支持");
 
-        service.updateByExternalId("CRM", "OPP-1001",
+        service.updateByTenderId("CRM", TENDER_ID,
                 baseRequest().evaluationCustomerInfos(List.of(row)).build(), API_USER_ID);
 
         ArgumentCaptor<InitiationDto> dtoCaptor = ArgumentCaptor.forClass(InitiationDto.class);
@@ -342,7 +349,7 @@ class ProjectIntegrationCommandServiceTest {
     @Test
     @DisplayName("evaluationCustomerInfos 未传（null）时不替换客户信息表")
     void customerInfosNull_preserved() {
-        service.updateByExternalId("CRM", "OPP-1001", baseRequest().build(), API_USER_ID);
+        service.updateByTenderId("CRM", TENDER_ID, baseRequest().build(), API_USER_ID);
 
         ArgumentCaptor<InitiationDto> dtoCaptor = ArgumentCaptor.forClass(InitiationDto.class);
         verify(initiationMapper).applyInput(eq(details), dtoCaptor.capture());
@@ -354,7 +361,7 @@ class ProjectIntegrationCommandServiceTest {
     @Test
     @DisplayName("evaluationBasic 不传 → GAP 附件保留（不触碰附件表）")
     void gapFilesBasicNull_untouched() {
-        service.updateByExternalId("CRM", "OPP-1001", baseRequest().build(), API_USER_ID);
+        service.updateByTenderId("CRM", TENDER_ID, baseRequest().build(), API_USER_ID);
 
         verifyNoInteractions(projectDocumentRepository);
     }
@@ -365,7 +372,7 @@ class ProjectIntegrationCommandServiceTest {
         EvaluationBasicDTO basic = new EvaluationBasicDTO(
                 null, null, null, "风险", null, null, null, null, null);
 
-        service.updateByExternalId("CRM", "OPP-1001",
+        service.updateByTenderId("CRM", TENDER_ID,
                 baseRequest().evaluationBasic(basic).build(), API_USER_ID);
 
         verifyNoInteractions(projectDocumentRepository);
@@ -376,12 +383,12 @@ class ProjectIntegrationCommandServiceTest {
     void gapFilesEmpty_clearsExisting() {
         ProjectDocument existingDoc = ProjectDocument.builder().id(100L).projectId(PROJECT_ID).build();
         when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
-                eq(PROJECT_ID), anyString(), eq(null), eq(null)))
+                eq(PROJECT_ID), any(String.class), eq(null), eq(null)))
                 .thenReturn(List.of(existingDoc));
         EvaluationBasicDTO basic = new EvaluationBasicDTO(
                 null, null, null, null, null, null, null, null, List.of());
 
-        service.updateByExternalId("CRM", "OPP-1001",
+        service.updateByTenderId("CRM", TENDER_ID,
                 baseRequest().evaluationBasic(basic).build(), API_USER_ID);
 
         verify(projectDocumentRepository).deleteAll(List.of(existingDoc));
@@ -392,14 +399,14 @@ class ProjectIntegrationCommandServiceTest {
     @DisplayName("projectPlanGapFiles 非空 → 全量替换（先删后建，fileUrl 空白行跳过）")
     void gapFilesNonEmpty_replaces() {
         when(projectDocumentRepository.findByProjectIdAndFiltersOrderByCreatedAtDesc(
-                eq(PROJECT_ID), anyString(), eq(null), eq(null)))
+                eq(PROJECT_ID), any(String.class), eq(null), eq(null)))
                 .thenReturn(List.of());
         EvaluationBasicDTO basic = new EvaluationBasicDTO(
                 null, null, null, null, null, null, null, null,
                 List.of(new EvaluationBasicDTO.GapFileRef("方案.pdf", "https://crm.example.com/a.pdf"),
                         new EvaluationBasicDTO.GapFileRef("无URL跳过", "  ")));
 
-        service.updateByExternalId("CRM", "OPP-1001",
+        service.updateByTenderId("CRM", TENDER_ID,
                 baseRequest().evaluationBasic(basic).build(), API_USER_ID);
 
         ArgumentCaptor<ProjectDocument> docCaptor = ArgumentCaptor.forClass(ProjectDocument.class);
@@ -421,7 +428,7 @@ class ProjectIntegrationCommandServiceTest {
     void closedStage_returns423() {
         when(projectStageService.currentStage(PROJECT_ID)).thenReturn(ProjectStage.CLOSED);
 
-        assertThatThrownBy(() -> service.updateByExternalId("CRM", "OPP-1001",
+        assertThatThrownBy(() -> service.updateByTenderId("CRM", TENDER_ID,
                 baseRequest().build(), API_USER_ID))
                 .isInstanceOfSatisfying(ResponseStatusException.class, ex ->
                         assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.LOCKED));
@@ -442,7 +449,7 @@ class ProjectIntegrationCommandServiceTest {
                 null, null, null, null, null, null, null, null, null, null);
         when(initiationMapper.mergeForUpdate(any(), any())).thenReturn(changed);
 
-        assertThatThrownBy(() -> service.updateByExternalId("CRM", "OPP-1001",
+        assertThatThrownBy(() -> service.updateByTenderId("CRM", TENDER_ID,
                 baseRequest().build(), API_USER_ID))
                 .isInstanceOfSatisfying(ResponseStatusException.class, ex ->
                         assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.LOCKED));
@@ -459,7 +466,7 @@ class ProjectIntegrationCommandServiceTest {
                 null, null, null, null, null, null, null, null, null, null);
         when(initiationMapper.mergeForUpdate(any(), any())).thenReturn(missingRequired);
 
-        assertThatThrownBy(() -> service.updateByExternalId("CRM", "OPP-1001",
+        assertThatThrownBy(() -> service.updateByTenderId("CRM", TENDER_ID,
                 baseRequest().build(), API_USER_ID))
                 .isInstanceOfSatisfying(ResponseStatusException.class, ex ->
                         assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY));
@@ -470,7 +477,7 @@ class ProjectIntegrationCommandServiceTest {
     void initiationMissing_throws404() {
         when(initiationRepository.findByProjectId(PROJECT_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.updateByExternalId("CRM", "OPP-1001",
+        assertThatThrownBy(() -> service.updateByTenderId("CRM", TENDER_ID,
                 baseRequest().build(), API_USER_ID))
                 .isInstanceOf(ResourceNotFoundException.class);
         verify(initiationRepository, never()).save(any());

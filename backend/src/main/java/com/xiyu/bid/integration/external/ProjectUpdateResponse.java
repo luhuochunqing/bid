@@ -27,4 +27,11 @@ public class ProjectUpdateResponse {
 
     /** 更新时间，格式 yyyy-MM-dd HH:mm（对齐接口文档示例）。 */
     private String updatedAt;
+
+    /**
+     * 是否实际更新：true=已更新；false=跳过（标讯存在但尚未立项/未关联项目）。
+     * applied=false 时 projectId/projectName/updatedAt 均为 null，
+     * 调用方据此区分"成功更新"与"当前时点无可写项目"，无需重试。
+     */
+    private Boolean applied;
 }
