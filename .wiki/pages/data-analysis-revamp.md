@@ -147,6 +147,12 @@ PRD §9.12 步骤 7 + §9.14：竞品公司至少保留 1 个，不允许清空�
 - 所有客户类型消费方（M1 分组/筛选/下钻/时间维度、M2 饼图）必须经同一纯函数入口 `CustomerTypeNormalizer.normalize()`（英文枚举/中文变体 → 5 标准分类，不匹配返回 null 不计数）；筛选无法下推 SQL 时改用"预计算命中 ID 集"模式（`AnalyticsCustomerTypeFilterSupport`，仿 `AnalyticsRegionFilterSupport`）。
 - **新增任何客户类型消费方时禁止重新实现归一化或直接 SQL 匹配**，grep `CustomerTypeNormalizer` 找既有口径。
 
+### 13. M4 折扣图并排口径与 0 占位值标签抑制（2026-08-27）
+
+- 默认模式与招标主体分组模式的最低/平均/最高折扣柱为**并排**（无 `stack`）展示，y 轴固定 `min:0 max:100`（折扣百分比语义）；分组模式每柱顶置显示折扣数字。
+- 后端 `CompetitorAnalysisAssemblerService` 对「该主体无此竞品数据」以 `0.0` 占位填充，前端标签必须经 `discountLabelFormatter`（0/null 返回空串）抑制贴轴“0”噪音——折扣业务值恒大于 0，0 仅为占位语义。
+- 行为断言固化于 `chartRenderer.spec.js`（无 stack/标签/0 抑制/y 轴边界），后续改图表配置前先跑该 spec。
+
 ## 文件清单
 
 ### 后端（analytics 包）
