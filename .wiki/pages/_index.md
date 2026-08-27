@@ -44,6 +44,7 @@ backlinks:
 - [[business-process]] — 业务流程
 - [[crm-integration-lessons]] — CRM 集成踩坑集（商机状态 / webhook / OAuth / CallerContext）
 - [[competitor-library-governance]] — 竞品公司自定义输入与竞争对手库治理（spec 055：B1 输入即建 + 治理兜底 / 幂等 upsert / 快照只存 name）
+- [[result-registration-immutability]] — 项目结果登记不可变链路与二次确认（409 幂等 + CLOSED 字段锁 + registeredAt 置灰 / 登记前 ElMessageBox 二次确认 / 旧录入弹窗死代码陷阱）
 - [[dashboard-gap-analysis]] — 工作台卡片 vs 标书要求对照
 - [[data-analysis-revamp]] — 数据分析页面重构 — 架构与数据口径（M0~M4 / FP-Java 三层 / 三模式竞品分析）
 - [[data-model]] — 数据模型
