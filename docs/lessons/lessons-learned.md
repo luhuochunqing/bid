@@ -2983,6 +2983,7 @@ private CompetitorStatus status = CompetitorStatus.ACTIVE;
 - **能用廉价可靠的首行特征判定的内容类别，必须在进入 LLM 候选池之前挡掉**；下游模型自觉是最贵的过滤器。
 - **prompt 硬性规则文字是关键行为契约，必须有测试锚定**（contains 断言），否则误删改静默失效——纵深防御不能一半有测试一半靠纸面。
 
+---
 
 ## 168. 新增权限键必须同步 OSS 菜单映射源：架构守卫不在 pre-push 列表等于没有守卫（2026-08-27，specs/055 competitor）
 
@@ -2999,3 +3000,27 @@ private CompetitorStatus status = CompetitorStatus.ACTIVE;
 - **新增 `@PreAuthorize(hasAuthority('xxx'))` 或 catalog 权限键时的 checklist：Catalog 授予 → Flyway 回填 → yml 映射源，三处缺一即 OSS 用户 403**；
 - **守卫测试只有进入 push/CI 强制路径才算存在**——躺在 ⚠ 提示清单里的守卫等价于纸面防线（同 §167 prompt 硬性规则必须有 contains 锚定的结论一致）；
 - **在无远端 CI 的仓库，一个模块的 PR 也要偶尔跑全量套件**——main 带伤往往正是从"PR 定点绿、基线悄悄红"开始的。
+
+---
+
+## 169. 表单数值字段初值 0 + blur 静默补零，让"显示假值"伪装成"列表与详情数据不一致"（2026-08-27，测试环境 /project/1365，PR !2436）
+
+**背景**：用户反馈测试环境项目 1365 列表「计划入围供应商数量」列显示 `-`，但点进详情"有值"，疑似列表查询漏数。实测三层兜底链（ProjectMapper→立项表→评估表）代码正确，1366/1367/1368 反向验证均正常返回。
+
+**根因**：
+1. **数据源真相**：该项目是当天 17:27 测「关联标讯按钮→转立项」生成的半成品——标讯 2300 手动创建后仅预填了立项行（`createdBy=NULL, reviewStatus=DRAFT`），`expected_bidders` 与 `planned_shortlisted_count` 从未持久化过任何值；审计日志无后续保存记录。列表返回 null 显示 `-` 是正确行为。
+2. **显示层造假（金额字段）**：`annualEcommerceAmount` / `customerRevenue` / `depositAmount` 初值写死 `0`，且存在配套 hack `handleAmountBlur：空/null → 强制回填 0`。
+3. **显示层造假（计划入围供应商数量，报障主字段）**：`expectedBidders` **从未绑 blur**。假值来自初值 `0` + `el-input-number :min="1"`：Element Plus `verifyValue` 把 0 clamp 成 1 并 emit。叠加 `application.yml default-property-inclusion: non_null` 会省略 null 字段，`load()` 的 `Object.assign(form, data)` 写不进该 key，初值 0 一直留着被 clamp。**列表和详情读的是同一张表，真正的分裂发生在前端显示层。**
+
+**修复（PR !2436）**：
+1. 数值业务字段初值 `0→null`（expectedBidders/annualEcommerceAmount/annualRevenue/customerRevenue）；删除 focus 清零 / blur 补零这对 hack 及 defineExpose 暴露。
+2. 同步删除 `autoFillFromTender` 中 `src.expectedBidders` 死兜底（tenders 表与 ProjectDTO 均无此字段，永不生效还误导排查）。
+3. `depositAmount` 保持 0 默认：needDeposit='NO' 时输入框 v-if 隐藏不产生误导，且 ON-OFF 切换由 onDepositChange 显式管理。
+
+**教训**：
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| 报障描述≠真实数据流："详情有值"先当 UI 观察、不当 DB 事实 | 表单受控组件把未保存/默认值渲染得和已保存数据一样 | 「列表 vs 详情不一致」类报障第一优先级：API 双端实测 + DB 直查三方对账，再定位层 |
+| 用交互 hack（focus 清零/blur 补零）绕初始值设计缺陷 | 改初值怕影响提交类型校验，选择运行时打补丁 | 初值语义缺陷要在初值上根治（null 即空）；绕行 hack 会叠加出新的显示 bug 并长期潜伏 |
+| 死兜底污染排查方向：`src.expectedBidders ?? ...` 看似有第四数据源 | autofill 映射从模板复制时未核对实体列是否存在 | 写跨实体映射前 grep 目标表列清单；死代码宁可立即删 |
+| 回归只测 404 初值，锁不住生产路径 | Jackson `non_null` 省略字段 + InputNumber min clamp 才是已有立项的显示路径 | 回归必须覆盖「响应省略 key + 真 InputNumber min clamp」；stub 不绑 v-model 等于没测 clamp |

@@ -3,6 +3,13 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-08-27] bugfix | initiation-form-fake-zero-display | PR !2436
+
+- 触发：测试环境 `/project/1365` 列表「计划入围供应商数量」显示 `-`，详情立项表单看似有值。
+- 根因：库中字段为 NULL 是真相；详情 form 初值 0 + `el-input-number :min="1"` clamp 成 1。金额字段另有 blur 补 0。Jackson `non_null` 省略 key 后 `Object.assign` 覆盖不了初值。
+- 修复：数值业务字段初值 `null`；删 focus/blur 补零；`buildPayload` 用 `??` 保留营收 0；`load()` 对缺 key / `expectedBidders=0` 显式归一；评估表仅正数预填 `plannedShortlistedCount`；`:value-on-clear="null"`。
+- 页面更新：[[initiation-form-fake-zero-display]]；`_index.md`；lessons-learned.md §169。
+
 ## [2026-08-27] fix | 须知前附表误入评分候选池（PR !2427：结构层 marker 过滤 + 双层 prompt 禁令）
 
 - 触发：山焦物资 6 万字标书解析产出开启程序、履约保证金、成交结果公示等伪评分项。

@@ -51,6 +51,8 @@ function setup(formOverrides = {}) {
     updateInitiation: vi.fn().mockResolvedValue({ data: { projectId: 1 } }),
     getInitiation: vi.fn(),
   }
+  const projectsApi = { getDetail: vi.fn(), getDocuments: vi.fn() }
+  const tendersApi = { getDetail: vi.fn(), getEvaluation: vi.fn() }
   const actions = useInitiationStageActions({
     props: { projectId: 1 },
     emit: vi.fn(),
@@ -60,14 +62,14 @@ function setup(formOverrides = {}) {
     planGapFiles: ref([]),
     userStore: { currentUser: { id: 1 }, userName: '张三' },
     projectLifecycleApi,
-    projectsApi: { getDetail: vi.fn(), getDocuments: vi.fn() },
-    tendersApi: { getDetail: vi.fn(), getEvaluation: vi.fn() },
+    projectsApi,
+    tendersApi,
     usersApi: { getByIds: vi.fn() },
     projectsState: createState(),
     leaderOptions: ref([]),
     assistantOptions: ref([]),
   })
-  return { actions, form, projectLifecycleApi }
+  return { actions, form, projectLifecycleApi, projectsApi, tendersApi }
 }
 
 describe('useInitiationStageActions.submit — CO-540 保证金缴纳截止日期校验', () => {
@@ -144,11 +146,11 @@ describe('useInitiationStageActions.load — 客户营收字段回填（回归 d
   // 前端 form.customerRevenue 直接消费 data.customerRevenue，无需 hack 映射。
   // 详情见 d1994a3fa 回归教训（lessons §74）。
 
-  it('data.customerRevenue 有值时应直接回填到 form.customerRevenue（覆盖初始 0）', async () => {
+  it('data.customerRevenue 有值时应直接回填到 form.customerRevenue（覆盖初始 null）', async () => {
     const { actions, form, projectLifecycleApi } = setup({
       ownerUnit: '测试单位',
       customerType: 'CENTRAL_SOE',
-      // form 初始值 customerRevenue: 0（与 InitiationStage.vue:225 一致）
+      customerRevenue: null,
     })
     projectLifecycleApi.getInitiation.mockResolvedValue({
       data: {
@@ -162,12 +164,12 @@ describe('useInitiationStageActions.load — 客户营收字段回填（回归 d
 
     await actions.load()
 
-    // 关键回归断言：form.customerRevenue 必须被后端值覆盖，不能停留在初始 0
+    // 关键回归断言：form.customerRevenue 必须被后端值覆盖，不能停留在初始空值
     expect(form.customerRevenue).toBe(12.5)
     expect(form.annualRevenue).toBe(12.5)
   })
 
-  it('data.customerRevenue 为 null 时 form.customerRevenue 回退为 null（覆盖初始 0）', async () => {
+  it('data.customerRevenue 为 null 时 form.customerRevenue 回退为 null（覆盖初始值）', async () => {
     const { actions, form, projectLifecycleApi } = setup({
       ownerUnit: '测试单位',
       customerType: 'CENTRAL_SOE',
@@ -184,7 +186,103 @@ describe('useInitiationStageActions.load — 客户营收字段回填（回归 d
 
     await actions.load()
 
-    // Object.assign 会用 null 覆盖初始 0，符合"无值即空"语义
+    // Object.assign 会用 null 覆盖初始值，符合"无值即空"语义
     expect(form.customerRevenue).toBeNull()
+  })
+
+  it('Jackson 省略 null 字段时 load 不得把 expectedBidders 留成假 0', async () => {
+    const { actions, form, projectLifecycleApi } = setup({
+      ownerUnit: '测试单位',
+      expectedBidders: null,
+      annualEcommerceAmount: null,
+      annualRevenue: null,
+      customerRevenue: null,
+    })
+    projectLifecycleApi.getInitiation.mockResolvedValue({
+      data: {
+        projectId: 1,
+        ownerUnit: '中国石油',
+        reviewStatus: 'DRAFT',
+      },
+    })
+
+    await actions.load()
+
+    expect(form.expectedBidders).toBeNull()
+    expect(form.annualEcommerceAmount).toBeNull()
+    expect(form.annualRevenue).toBeNull()
+    expect(form.customerRevenue).toBeNull()
+  })
+})
+
+describe('useInitiationStageActions.buildPayload — 空值保持 null', () => {
+  it('buildPayload 原样带出 null 数值字段，不回填 0', () => {
+    const { actions } = setup({
+      expectedBidders: null,
+      annualEcommerceAmount: null,
+      annualRevenue: null,
+      customerRevenue: null,
+    })
+    const payload = actions.buildPayload()
+    expect(payload.expectedBidders).toBeNull()
+    expect(payload.annualEcommerceAmount).toBeNull()
+    expect(payload.annualRevenue).toBeNull()
+    expect(payload.customerRevenue).toBeNull()
+  })
+
+  it('customerRevenue 为 0 时 annualRevenue 必须落成 0（不得被 || 吞成 null）', () => {
+    const { actions } = setup({
+      customerRevenue: 0,
+      annualRevenue: null,
+    })
+    expect(actions.buildPayload().annualRevenue).toBe(0)
+  })
+})
+
+describe('useInitiationStageActions.load — 缺 key 归一 + 评估表 0 不预填', () => {
+  it('load 省略数值字段时把 form 里已有的假 0 归一成 null', async () => {
+    const { actions, form, projectLifecycleApi } = setup({
+      ownerUnit: '测试单位',
+      expectedBidders: 0,
+      annualEcommerceAmount: 0,
+      annualRevenue: 0,
+      customerRevenue: 0,
+    })
+    projectLifecycleApi.getInitiation.mockResolvedValue({
+      data: { projectId: 1, ownerUnit: '中国石油', reviewStatus: 'DRAFT' },
+    })
+    await actions.load()
+    expect(form.expectedBidders).toBeNull()
+    expect(form.annualEcommerceAmount).toBeNull()
+    expect(form.annualRevenue).toBeNull()
+    expect(form.customerRevenue).toBeNull()
+  })
+
+  it('404 预填 plannedShortlistedCount=0 时 expectedBidders 保持 null（不写入 0 以免 min clamp 成 1）', async () => {
+    const { actions, form, projectLifecycleApi, projectsApi, tendersApi } = setup({
+      expectedBidders: null,
+    })
+    projectLifecycleApi.getInitiation.mockRejectedValue({ response: { status: 404 } })
+    projectsApi.getDetail.mockResolvedValue({ data: { tenderId: 2300 } })
+    tendersApi.getDetail.mockResolvedValue({ data: {} })
+    tendersApi.getEvaluation.mockResolvedValue({
+      data: { evaluationBasic: { plannedShortlistedCount: 0 } },
+    })
+    await actions.load()
+    expect(form.expectedBidders).toBeNull()
+  })
+
+  it('404 预填 plannedShortlistedCount=3 时写入 expectedBidders', async () => {
+    const { actions, form, projectLifecycleApi, projectsApi, tendersApi } = setup({
+      expectedBidders: null,
+    })
+    projectLifecycleApi.getInitiation.mockRejectedValue({ response: { status: 404 } })
+    projectsApi.getDetail.mockResolvedValue({ data: { tenderId: 2300 } })
+    tendersApi.getDetail.mockResolvedValue({ data: {} })
+    tendersApi.getEvaluation.mockResolvedValue({
+      data: { evaluationBasic: { plannedShortlistedCount: 3 } },
+    })
+    await actions.load()
+    expect(form.expectedBidders).toBe(3)
   })
 })
