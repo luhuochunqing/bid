@@ -52,7 +52,7 @@ class TenderEventHttpSenderWireTest {
     }
 
     @Test
-    @DisplayName("消息体全字段 + data 为 JSON 字符串 + trace 进 Header 与 body；result=true 成功")
+    @DisplayName("消息体仅 SDK 契约 4 字段 + data 为 JSON 字符串 + trace 进 Header；result=true 成功")
     void wire_bodyAndHeaders_matchSdkContract() throws Exception {
         server.enqueue(new MockResponse()
                 .setBody("{\"data\":{\"result\":true}}")
@@ -65,21 +65,24 @@ class TenderEventHttpSenderWireTest {
         assertThat(ok).isTrue();
         RecordedRequest request = takeOnlyRequest();
         JsonNode body = JSON.readTree(request.getBody().readUtf8());
+        // SDK 契约仅 4 字段：serviceName / eventTopic / eventSource / data
+        // eventCode/time/key/traceId/spanId/parentId 是网关"消息结构"内部字段，由网关自身填
+        // 不可由本方塞入 body（已与西域事业部 2026-08-27 文档对齐）
         assertThat(body.get("serviceName").asText()).isEqualTo("bid");
-        assertThat(body.get("eventCode").asText()).isEqualTo("BidTenderChange");
-        assertThat(body.get("eventSource").asText()).isEqualTo("bid");
         assertThat(body.get("eventTopic").asText()).isEqualTo("BidTenderChange");
-        assertThat(body.get("time").isNumber()).isTrue();
-        assertThat(body.get("key").asText()).isEqualTo("123");
-        assertThat(body.get("traceId").asText()).isEqualTo("trace-1");
-        assertThat(body.get("spanId").asText()).isEqualTo("span-1");
-        assertThat(body.get("parentId").asText()).isEqualTo("parent-1");
+        assertThat(body.get("eventSource").asText()).isEqualTo("bid");
+        assertThat(body.has("eventCode")).as("eventCode 不应在 body 中").isFalse();
+        assertThat(body.has("time")).as("time 不应在 body 中").isFalse();
+        assertThat(body.has("key")).as("key 不应在 body 中").isFalse();
+        assertThat(body.has("traceId")).as("traceId 不应在 body 中").isFalse();
+        assertThat(body.has("spanId")).as("spanId 不应在 body 中").isFalse();
+        assertThat(body.has("parentId")).as("parentId 不应在 body 中").isFalse();
         // data 是 JSON 字符串（EventContentReqDto.data 声明为 String）
         JsonNode data = JSON.readTree(body.get("data").asText());
         assertThat(data.get("tenderId").asInt()).isEqualTo(123);
         assertThat(data.get("externalId").asText()).isEqualTo("ext-1");
 
-        // trace 三元组同时写入 Header（SDK buildHeaderParamMap 既有行为）
+        // trace 三元组写入 Header（SDK buildHeaderParamMap 既有行为，customer 文档明确要求）
         assertThat(request.getHeader("traceId")).isEqualTo("trace-1");
         assertThat(request.getHeader("spanId")).isEqualTo("span-1");
         assertThat(request.getHeader("parentId")).isEqualTo("parent-1");

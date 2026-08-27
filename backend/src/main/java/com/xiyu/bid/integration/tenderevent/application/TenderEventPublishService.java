@@ -72,7 +72,7 @@ public class TenderEventPublishService {
         TenderEventPayload payload = new TenderEventPayload(tender.getId(), tender.getExternalId());
         String traceId = currentTraceId();
         String spanId = UUID.randomUUID().toString().replace("-", "");
-        String parentId = traceId;
+        String parentId = "0";
 
         TenderEventPublishCommand command = new TenderEventPublishCommand(code, payload, traceId, spanId, parentId);
         tenderEventExecutor.execute(() -> sendAndRecord(command));

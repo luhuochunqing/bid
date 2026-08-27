@@ -15,13 +15,15 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * 西域事件总线发送器（基础设施层 WithEffect，包内共享）。
  *
- * <p>消息体按客户接口文档全字段组装：
- * <pre>{serviceName, eventCode, eventSource, eventTopic, time, key, data,
- * traceId, spanId, parentId}</pre>
- * 其中 traceId/spanId/parentId 同时写入 HTTP Header（SDK {@code buildHeaderParamMap}
- * 既有行为，保持兼容）。SDK 0.0.2 的 {@code sendEvent} 仅组装
- * {@code {serviceName, eventTopic, eventSource, data}} --缺少 eventCode/time/key
- * 等客户文档必需字段，2026-08-26 tenderId=2285 实测 result=false 的根因即此。
+ * <p>消息体按 SDK {@code sendEvent} 原始契约组装：
+ * <pre>{serviceName, eventTopic, eventSource, data}</pre>
+ * traceId/spanId/parentId 写入 HTTP Header（SDK {@code buildHeaderParamMap} 既有行为）。
+ * 客户文档的"消息结构"（含 eventCode/time/key 等字段）是网关**内部消息格式**，
+ * 由网关自行填充，不放在 HTTP 请求 body 中。此前误将内部字段塞入 body 导致
+ * 网关返回 data:{} 但事件未实际发布（tenderId=2289 实测）。
+ *
+ * <p>parentId 须遵循客户文档：无父链路时 parentId="0"
+ * （{@code EventHandleService.sendEvent} 参考实现），不是 traceId 的值。
  *
  * <p>结果解释与 SDK 原生语义的差异：真实网关成功时返回外层 {@code code=="00000"}
  * 且 {@code data.result} 为 null（2026-08-25 部署实测），故 result=null 视为已受理成功，
@@ -65,17 +67,9 @@ final class TenderEventHttpSender {
 
         JSONObject body = new JSONObject();
         body.put("serviceName", registerProperties.getServiceName());
-        body.put("eventCode", code.topic());
-        body.put("eventSource", code.source());
         body.put("eventTopic", code.topic());
-        body.put("time", System.currentTimeMillis());
-        body.put("key", String.valueOf(data.get(code.dataIdField())));
+        body.put("eventSource", code.source());
         body.put("data", serializeData(data));
-        body.put("traceId", traceId);
-        body.put("spanId", spanId);
-        if (parentId != null) {
-            body.put("parentId", parentId);
-        }
 
         // 请求体落日志：联调对账用
         log.info("事件总线请求 eventTopic={} body={}", code.topic(), body);
