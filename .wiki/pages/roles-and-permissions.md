@@ -518,3 +518,19 @@ const canApprove = computed(() =>
 1. **工作台指标卡片**：当前 `workbench-role-core.js` 仍按 `admin` / `manager` / `staff` 分三支返回不同指标定义。理想情况下应改为基于 `menuPermissions` 动态组装，但因涉及 UI 展示文案和指标含义的语义差异，暂保留角色分支，仅将访问控制与数据权限分离。
 2. **`authNormalizer.js` 的 `legacyRole` 字段**：当前未暴露 `legacyRole`。如未来有外部系统（如飞书/企微连接器）必须接收 Legacy 角色枚举，可在此增加 `legacyRole: RoleProfileCatalog.legacyRoleForCode(roleCode)` 字段，但前端内部不再使用。
 3. **settings.json 缓存同步**：`hasMenuAccessForRole()` 仍读取 settings.json 中的角色权限缓存作为 fallback。长期目标是完全弃用该缓存，全部使用 `userStore.currentUser.menuPermissions` 实时数据。
+
+## 12. 新增权限键的三处联动契约与 OSS 映射源（2026-08-27，lessons §168）
+
+新增一个 `@PreAuthorize(hasAuthority('xxx'))` / catalog 权限键时必须同步三处，缺一则 OSS 用户一律 403：
+
+| 处 | 位置 | 作用 |
+|---|---|---|
+| 1. 角色授予 | `RoleProfileCatalog` | 本地用户权限真相源 |
+| 2. 存量回填 | `db/migration-mysql/V<next>__*.sql` | 已有角色的 menu_permissions 补写 |
+| 3. OSS 映射源 | `application.yml xiyu.integrations.organization.directory.menu-code-to-permission-key-mappings` | OSS 用户 authorities 唯一来源 |
+
+**挂菜单码的业务语义对齐参考**（2026-08-27 competitor 补映射）：操作键挂"该操作实际发生地"对应的 OSS 菜单——
+- `competitor.create` → **1003**（创建入口在结题阶段 ResultConfirmStage，属项目流程子环节；持键角色 bid-Team/bid-TeamLeader/bid-projectLeader 在 OSS 均配 1003）；
+- `competitor.govern` → **1010**（治理页路由 `/settings/competitors` 挂 settings 分区；治理角色持 1010。若 OSS 后续为该页开专属子菜号码应迁移至子码段）。
+
+守卫：`PreAuthorizeAuthorityOssMappingCoverageTest`（已入 pre-push gate §2.4 强制路径）。案例：ce2b4b939 漏第 3 处导致 main 基线带伤（守卫当时不在 pre-push 清单，无拦截力）。
