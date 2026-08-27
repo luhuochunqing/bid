@@ -45,7 +45,25 @@ const stubs = {
   'el-select': { template: '<div><slot /></div>' },
   'el-option': { template: '<div><slot /></div>' },
   'el-input': { props: ['disabled'], template: '<input :disabled="disabled" />' },
-  'el-input-number': { props: ['disabled', 'min', 'precision'], template: '<input type="number" :disabled="disabled" />' },
+  // 模拟 Element Plus InputNumber：非空值低于 :min 时 clamp 并回写。
+  // 这是项目 1365 假值的真实路径——初值 0 + :min="1" 会被纠正成 1 并显示。
+  // null/'' 保持空（isNil），不得 clamp。
+  'el-input-number': {
+    props: ['disabled', 'min', 'precision', 'modelValue'],
+    emits: ['update:modelValue'],
+    watch: {
+      modelValue: {
+        immediate: true,
+        handler(v) {
+          if (v == null || v === '') return
+          if (this.min != null && Number(v) < this.min) {
+            this.$emit('update:modelValue', this.min)
+          }
+        },
+      },
+    },
+    template: '<input type="number" :disabled="disabled" />',
+  },
   'el-date-picker': { template: '<input type="datetime-local" />' },
   'el-upload': { template: '<div><slot name="tip" /><slot /></div>' },
   'el-table-column': { template: '<div />' },
@@ -162,6 +180,37 @@ describe('InitiationStage — PRD §4.3 4-section layout', () => {
     expect(wrapper.vm.handleAmountBlur).toBeUndefined()
     wrapper.vm.form.expectedBidders = null
     expect(wrapper.vm.form.expectedBidders).toBeNull()
+  })
+
+  // 生产路径：application.yml default-property-inclusion=non_null 会省略 null 字段，
+  // load() 的 Object.assign(form, data) 写不进这些 key。初值必须是 null，
+  // 否则 0 会被 el-input-number :min="1" clamp 成 1，详情显示假数字。
+  it('keeps omitted numeric keys as null after loading existing initiation (Jackson non_null)', async () => {
+    projectLifecycleApi.getInitiation.mockResolvedValue({
+      data: { ownerUnit: '中国石油', bidOpenTime: '2026-07-01T10:00:00', reviewStatus: 'DRAFT' },
+    })
+    const wrapper = createWrapper()
+    await flushPromises()
+    expect(wrapper.vm.form.expectedBidders).toBeNull()
+    expect(wrapper.vm.form.annualEcommerceAmount).toBeNull()
+    expect(wrapper.vm.form.annualRevenue).toBeNull()
+    expect(wrapper.vm.form.customerRevenue).toBeNull()
+  })
+
+  it('submits omitted numeric fields as null rather than a fake zero', async () => {
+    projectLifecycleApi.getInitiation.mockRejectedValue({ response: { status: 404 } })
+    projectLifecycleApi.submitInitiation.mockResolvedValue({ data: { projectId: 1 } })
+    const wrapper = createWrapper()
+    await flushPromises()
+    wrapper.vm.form.needDeposit = 'NO'
+    wrapper.vm.form.tenderDocumentId = 1
+    await wrapper.vm.submit()
+    await flushPromises()
+    const payload = projectLifecycleApi.submitInitiation.mock.calls[0][1]
+    expect(payload.expectedBidders).toBeNull()
+    expect(payload.annualEcommerceAmount).toBeNull()
+    expect(payload.annualRevenue).toBeNull()
+    expect(payload.customerRevenue).toBeNull()
   })
 
   it('does not hard-limit bidding leader candidates to sales role', async () => {

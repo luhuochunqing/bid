@@ -144,11 +144,11 @@ describe('useInitiationStageActions.load — 客户营收字段回填（回归 d
   // 前端 form.customerRevenue 直接消费 data.customerRevenue，无需 hack 映射。
   // 详情见 d1994a3fa 回归教训（lessons §74）。
 
-  it('data.customerRevenue 有值时应直接回填到 form.customerRevenue（覆盖初始 0）', async () => {
+  it('data.customerRevenue 有值时应直接回填到 form.customerRevenue（覆盖初始 null）', async () => {
     const { actions, form, projectLifecycleApi } = setup({
       ownerUnit: '测试单位',
       customerType: 'CENTRAL_SOE',
-      // form 初始值 customerRevenue: 0（与 InitiationStage.vue:225 一致）
+      customerRevenue: null,
     })
     projectLifecycleApi.getInitiation.mockResolvedValue({
       data: {
@@ -162,12 +162,12 @@ describe('useInitiationStageActions.load — 客户营收字段回填（回归 d
 
     await actions.load()
 
-    // 关键回归断言：form.customerRevenue 必须被后端值覆盖，不能停留在初始 0
+    // 关键回归断言：form.customerRevenue 必须被后端值覆盖，不能停留在初始空值
     expect(form.customerRevenue).toBe(12.5)
     expect(form.annualRevenue).toBe(12.5)
   })
 
-  it('data.customerRevenue 为 null 时 form.customerRevenue 回退为 null（覆盖初始 0）', async () => {
+  it('data.customerRevenue 为 null 时 form.customerRevenue 回退为 null（覆盖初始值）', async () => {
     const { actions, form, projectLifecycleApi } = setup({
       ownerUnit: '测试单位',
       customerType: 'CENTRAL_SOE',
@@ -184,7 +184,47 @@ describe('useInitiationStageActions.load — 客户营收字段回填（回归 d
 
     await actions.load()
 
-    // Object.assign 会用 null 覆盖初始 0，符合"无值即空"语义
+    // Object.assign 会用 null 覆盖初始值，符合"无值即空"语义
     expect(form.customerRevenue).toBeNull()
+  })
+
+  it('Jackson 省略 null 字段时 load 不得把 expectedBidders 留成假 0', async () => {
+    const { actions, form, projectLifecycleApi } = setup({
+      ownerUnit: '测试单位',
+      expectedBidders: null,
+      annualEcommerceAmount: null,
+      annualRevenue: null,
+      customerRevenue: null,
+    })
+    projectLifecycleApi.getInitiation.mockResolvedValue({
+      data: {
+        projectId: 1,
+        ownerUnit: '中国石油',
+        reviewStatus: 'DRAFT',
+      },
+    })
+
+    await actions.load()
+
+    expect(form.expectedBidders).toBeNull()
+    expect(form.annualEcommerceAmount).toBeNull()
+    expect(form.annualRevenue).toBeNull()
+    expect(form.customerRevenue).toBeNull()
+  })
+})
+
+describe('useInitiationStageActions.buildPayload — 空值保持 null', () => {
+  it('buildPayload 原样带出 null 数值字段，不回填 0', () => {
+    const { actions } = setup({
+      expectedBidders: null,
+      annualEcommerceAmount: null,
+      annualRevenue: null,
+      customerRevenue: null,
+    })
+    const payload = actions.buildPayload()
+    expect(payload.expectedBidders).toBeNull()
+    expect(payload.annualEcommerceAmount).toBeNull()
+    expect(payload.annualRevenue).toBeNull()
+    expect(payload.customerRevenue).toBeNull()
   })
 })
