@@ -145,3 +145,31 @@ backend/src/main/java/com/xiyu/bid/integration/tenderevent/
   - 修复：`TenderEventHttpSender` 不再注入 SDK bean，`serviceName`/`serverRegisterUrl` 直取 `TenderEventSdkProperties`（默认 `bid`）。
 - **当前阻塞**：标讯事件在网关注册的**正式参数**（serviceName / eventTopic / eventSource）需客户提供。`TenderEventCode` 的 topic/source 仍为占位值（类注释已标注"待联调确认"），客户文档 `EventInfoReqEnum` 仅含组织事件。
 - **教训**：外部事件库对接，**服务注册名与事件 topic 必须从客户侧拿正式值**，自造占位值联调只会得到"网关静默接受但不发布"（`data:{}`）的假象，流水表 SENT 与 `code=00000` 都不等于客户真实收到。
+
+### 6. 客户手动触发成功样例逐字段对比（2026-08-27，tenderId=2282）
+
+- **客户成功样例**（手动触发，执行成功）：
+  ```json
+  {
+    "data": {"tenderId": "2282"},   // 对象形态
+    "eventSource": "bid",
+    "eventTopic": "BidTenderChange",
+    "key": "tenderId",              // 业务主键字段名，body 必填
+    "parentId": "0",
+    "traceId": "748104276040151040",
+    "spanId": "s748104276040151041"
+  }
+  ```
+- **重大结论**：`bid`/`BidTenderChange` 注册值**正确**（客户手动触发执行成功），上一节"从未在网关注册"的判断被客户实测推翻；`parentId="0"` 证实我方修改方向正确。
+- **逐字段对比**：
+  | 字段 | 客户成功 | 我方（2292 实测） | 判定 |
+  |---|---|---|---|
+  | eventTopic | BidTenderChange | BidTenderChange | ✅ |
+  | eventSource | bid | bid | ✅ |
+  | key | "tenderId" | "tenderId" | ✅（已补） |
+  | data | 对象 `{"tenderId":"2282"}` | 字符串 `"{\"tenderId\":2292}"` | 🔴 形态存疑 |
+  | traceId/spanId/parentId | 在 body | 在 HTTP Header | 🔴 位置存疑 |
+  | serviceName | 样例截断未见 | bid | ❓ 待确认 |
+  | time / eventCode | 样例截断未见 | 无 | ❓ 待确认 |
+- **补 key 后仍 `data:{}`**（2292 实测），说明 key 非充分条件；剩余差异集中在 **data 形态** 与 **trace 位置**。
+- **待客户补全**：完整未截断的请求 body 原文（确认 serviceName/time/eventCode 是否在 body、data 到底传对象还是字符串、trace 三元组在 body 还是 Header）。
