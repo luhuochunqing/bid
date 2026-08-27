@@ -32,4 +32,17 @@ public final class ApiKeyAuthConstants {
      * 默认查询参数名（用于 URL 生成时附加 api_key=xxx）。
      */
     public static final String DEFAULT_QUERY_PARAM = "api_key";
+
+    /**
+     * API Key 认证成功后在 SecurityContext principal 中使用的前缀：
+     * {@code "api-key:" + apiKeyId}。业务侧（如 {@code ApiKeyUserResolver}）据此识别
+     * API Key 认证并反查属主；前缀格式变更时仅需改此处。
+     */
+    public static final String API_KEY_PRINCIPAL_PREFIX = "api-key:";
+
+    /**
+     * API Key 认证成功后写入 {@code authentication details} 的属主用户名键
+     * （由 {@code ApiKeyAuthenticationFilter} 透传，业务侧零查询读取属主）。
+     */
+    public static final String DETAILS_CREATED_BY_KEY = "apiKeyCreatedBy";
 }

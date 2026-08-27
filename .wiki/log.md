@@ -509,3 +509,7 @@
 - 触发：产品反馈两件事——卡片缺搜索维度（客户类型/项目类型/时间）；三个时间列第二行只显示日数字，月和日之间没有分隔符
 - 落点：OpportunityPredictionCard.vue 加筛选栏（客户端过滤，接口零改动——数据源即全量窗口且分页本就是前端 slice）；表格列整体拆出 OpportunityPredictionTable.vue 子组件（card 295→364 行撞 line-budget 300 门禁后结构化瘦身：主卡片 182 行/子组件 204 行）；DateCell 第二行 `15` → `—15`（用户明确要全角破折号）
 - 教训：**超 line-budget 优先拆组件而非加豁免单（excludeFiles 是历史遗留条款不是新代码逃生门）；el-table 列模板抽子组件后 provide/inject 穿层仍生效，既有 stub 测试断言零改动**
+## 2026-08-27 integration | 接口六契约修正：PUT /api/integration/projects 定位参数 sourceId → tenderId
+- 触发：CRM 联调 27 连 404——调用方以商机编号 CC.../未推送主键作 sourceId，接口六按 external_id 单列定位全部落空；全链路日志排查定位根因=定位键与数据签发方不同源 + 手工建标讯（M 链路）无 external_id 天然不可达 + M-03 脱敏放大盲试
+- 落点：ProjectIntegrationController（路径参数 Long 化，误传编号绑定层 400）+ ProjectIntegrationCommandService.updateByTenderId（projectId 一致性断言替代 externalId 交叉校验；来源键前缀轻校验；未立项 200+applied=false 跳过）+ ProjectUpdateResponse.applied + GlobalExceptionHandler.handleTypeMismatch 重写（防兜底 500）+ 测试 25+7 全绿 + api-tests §3.6 用例换数字示例
+- 教训：**外部对接的定位键必须与数据签发方同源；调用方持有内部主键时优先用主键定位。新增按来源键定位的外部接口前，必须盘点能把该实体带进系统的所有入库链路并逐条验证可达性** -> [[integration-tender-api]]

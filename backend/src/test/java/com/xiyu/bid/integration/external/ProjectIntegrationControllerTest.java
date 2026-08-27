@@ -1,13 +1,11 @@
-// Input: ProjectIntegrationController（构造注入 3 依赖）+ GlobalExceptionHandler
-// Output: MockMvc 测试 — PUT /api/integration/projects/{sourceSystem}/{sourceId} 契约
-// Pos: Test/合约验证 — 接口六 §3.6（200/404/400 + 标讯不被修改）
+// Input: ProjectIntegrationController（构造注入：命令服务 + ApiKeyUserResolver）+ GlobalExceptionHandler
+// Output: MockMvc 测试 — PUT /api/integration/projects/{sourceSystem}/{tenderId} 契约
+// Pos: Test/合约验证 — 接口六 §3.6（tenderId 定位修正版：200/404/400/skip200 + 标讯不被修改）
 package com.xiyu.bid.integration.external;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.xiyu.bid.apikey.application.ApiKeyService;
 import com.xiyu.bid.exception.GlobalExceptionHandler;
 import com.xiyu.bid.exception.ResourceNotFoundException;
-import com.xiyu.bid.service.AuthService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,6 +25,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -36,13 +35,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * {@link ProjectIntegrationController} 的 MockMvc 测试。
+ * {@link ProjectIntegrationController} 的 MockMvc 测试（tenderId 定位修正版）。
  *
- * <p>验证接口六契约（接口规范 v3.12 §3.6）：
+ * <p>验证接口六契约：
  * <ul>
- *   <li>200：返参结构（success/code/msg/data + projectId/projectName/updatedAt）</li>
- *   <li>404：定位失败（标讯或项目不存在）走全局异常处理返回标准错误格式</li>
- *   <li>400：非法请求体（JSON 解析失败）</li>
+ *   <li>200：返参结构（success/code/msg/data + applied/projectId/projectName/updatedAt）</li>
+ *   <li>200 跳过：标讯未立项时 data 仅含 applied=false</li>
+ *   <li>404：标讯不存在走全局异常处理返回标准错误格式</li>
+ *   <li>400：路径 tenderId 非数字（如误传 CRM 商机编号 CC...，类型绑定即拒绝）/ 非法请求体</li>
  *   <li>控制器只委派项目服务，不触碰任何标讯服务（标讯不被修改）</li>
  * </ul>
  *
@@ -52,14 +52,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ExtendWith(MockitoExtension.class)
 class ProjectIntegrationControllerTest {
 
+    private static final Long TENDER_ID = 928L;
+
     @Mock
     private ProjectIntegrationCommandService projectIntegrationCommandService;
 
     @Mock
-    private ApiKeyService apiKeyService;
-
-    @Mock
-    private AuthService authService;
+    private ApiKeyUserResolver apiKeyUserResolver;
 
     @InjectMocks
     private ProjectIntegrationController controller;
@@ -72,17 +71,21 @@ class ProjectIntegrationControllerTest {
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
+        // 默认属主可解析；403 用例单独覆盖"属主不可解析"分支。
+        // lenient：路径绑定/请求体解析失败的用例不进入 controller 方法体，resolveUserId 不会被调用。
+        lenient().when(apiKeyUserResolver.resolveUserId()).thenReturn(100L);
     }
 
     @Test
-    @DisplayName("PUT /api/integration/projects/CRM/{sourceId} 返回 200 + 标准响应结构")
+    @DisplayName("PUT /api/integration/projects/CRM/{tenderId} 返回 200 + 标准响应结构（applied=true）")
     void updateProject_shouldReturn200WithContractShape() throws Exception {
-        when(projectIntegrationCommandService.updateByExternalId(
-                eq("CRM"), eq("OPP-1001"), any(ProjectUpdateRequest.class), any()))
+        when(projectIntegrationCommandService.updateByTenderId(
+                eq("CRM"), eq(TENDER_ID), any(ProjectUpdateRequest.class), any()))
                 .thenReturn(ProjectUpdateResponse.builder()
                         .projectId(1L)
                         .projectName("某单位采购项目")
                         .updatedAt("2026-09-01 10:30")
+                        .applied(true)
                         .build());
 
         ProjectUpdateRequest request = ProjectUpdateRequest.builder()
@@ -95,12 +98,13 @@ class ProjectIntegrationControllerTest {
                         "TENDENCY", "支持")))
                 .build();
 
-        mockMvc.perform(put("/api/integration/projects/CRM/OPP-1001")
+        mockMvc.perform(put("/api/integration/projects/CRM/" + TENDER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request))
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.applied").value(true))
                 .andExpect(jsonPath("$.data.projectId").value(1))
                 .andExpect(jsonPath("$.data.projectName").value("某单位采购项目"))
                 .andExpect(jsonPath("$.data.updatedAt").value("2026-09-01 10:30"));
@@ -109,10 +113,10 @@ class ProjectIntegrationControllerTest {
     @Test
     @DisplayName("请求体按契约字段反序列化并透传给服务层（含 TEL 与 evaluationBasic）")
     void updateProject_requestBodyDeserializedToService() throws Exception {
-        when(projectIntegrationCommandService.updateByExternalId(
+        when(projectIntegrationCommandService.updateByTenderId(
                 any(), any(), any(ProjectUpdateRequest.class), any()))
                 .thenReturn(ProjectUpdateResponse.builder()
-                        .projectId(1L).projectName("P").updatedAt("2026-09-01 10:30").build());
+                        .projectId(1L).projectName("P").updatedAt("2026-09-01 10:30").applied(true).build());
 
         String json = """
                 {
@@ -134,7 +138,7 @@ class ProjectIntegrationControllerTest {
                 }
                 """;
 
-        mockMvc.perform(put("/api/integration/projects/CRM/OPP-1001")
+        mockMvc.perform(put("/api/integration/projects/CRM/" + TENDER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json)
                         .accept(MediaType.APPLICATION_JSON))
@@ -142,7 +146,7 @@ class ProjectIntegrationControllerTest {
 
         ArgumentCaptor<ProjectUpdateRequest> captor = ArgumentCaptor.forClass(ProjectUpdateRequest.class);
         verify(projectIntegrationCommandService)
-                .updateByExternalId(eq("CRM"), eq("OPP-1001"), captor.capture(), any());
+                .updateByTenderId(eq("CRM"), eq(TENDER_ID), captor.capture(), any());
         ProjectUpdateRequest received = captor.getValue();
         assertThat(received.getProjectName()).isEqualTo("某单位采购项目");
         assertThat(received.getEvaluationBasic().mroOfficeFlowAmount())
@@ -152,13 +156,31 @@ class ProjectIntegrationControllerTest {
     }
 
     @Test
-    @DisplayName("定位失败（标讯或项目不存在）返回 404 + 标准错误格式")
-    void updateProject_notFound_shouldReturn404() throws Exception {
-        when(projectIntegrationCommandService.updateByExternalId(
-                eq("CRM"), eq("NOPE"), any(ProjectUpdateRequest.class), any()))
-                .thenThrow(new ResourceNotFoundException("来源系统下未找到该标讯关联的项目"));
+    @DisplayName("标讯存在但未立项 → 200 且 data 仅含 applied=false（跳过语义，不重试不误报）")
+    void updateProject_noProjectLinked_shouldReturn200Skip() throws Exception {
+        when(projectIntegrationCommandService.updateByTenderId(
+                eq("CRM"), eq(TENDER_ID), any(ProjectUpdateRequest.class), any()))
+                .thenReturn(ProjectUpdateResponse.builder().applied(false).build());
 
-        mockMvc.perform(put("/api/integration/projects/CRM/NOPE")
+        mockMvc.perform(put("/api/integration/projects/CRM/" + TENDER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"projectName\":\"投标中编辑\"}")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.applied").value(false))
+                .andExpect(jsonPath("$.data.projectId").doesNotExist())
+                .andExpect(jsonPath("$.data.projectName").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("标讯不存在返回 404 + 标准错误格式")
+    void updateProject_notFound_shouldReturn404() throws Exception {
+        when(projectIntegrationCommandService.updateByTenderId(
+                eq("CRM"), eq(TENDER_ID), any(ProjectUpdateRequest.class), any()))
+                .thenThrow(new ResourceNotFoundException("标讯不存在: id=" + TENDER_ID));
+
+        mockMvc.perform(put("/api/integration/projects/CRM/" + TENDER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}")
                         .accept(MediaType.APPLICATION_JSON))
@@ -168,35 +190,67 @@ class ProjectIntegrationControllerTest {
     }
 
     @Test
+    @DisplayName("API Key 属主用户不可解析 → 403（拒绝无主写入，保护审计溯源）")
+    void updateProject_unresolvableApiKeyOwner_shouldReturn403() throws Exception {
+        when(apiKeyUserResolver.resolveUserId()).thenReturn(null);
+
+        mockMvc.perform(put("/api/integration/projects/CRM/" + TENDER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"projectName\":\"P\"}")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value(403));
+
+        verify(projectIntegrationCommandService, never())
+                .updateByTenderId(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("路径 tenderId 非数字（误传商机编号 CC...）→ 类型绑定阶段直接 400")
+    void updateProject_nonNumericTenderId_shouldReturn400() throws Exception {
+        mockMvc.perform(put("/api/integration/projects/CRM/CC20260827846")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"projectName\":\"P\"}")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value(400));
+
+        verify(projectIntegrationCommandService, never())
+                .updateByTenderId(any(), any(), any(), any());
+    }
+
+    @Test
     @DisplayName("非法请求体（JSON 解析失败）返回 400")
     void updateProject_malformedBody_shouldReturn400() throws Exception {
-        mockMvc.perform(put("/api/integration/projects/CRM/OPP-1001")
+        mockMvc.perform(put("/api/integration/projects/CRM/" + TENDER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{not valid json")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isBadRequest());
 
         verify(projectIntegrationCommandService, never())
-                .updateByExternalId(any(), any(), any(), any());
+                .updateByTenderId(any(), any(), any(), any());
     }
 
     @Test
     @DisplayName("控制器仅委派项目命令服务一次，不触碰任何标讯相关服务（标讯不被修改）")
     void updateProject_onlyDelegatesToProjectService() throws Exception {
-        when(projectIntegrationCommandService.updateByExternalId(
+        when(projectIntegrationCommandService.updateByTenderId(
                 any(), any(), any(ProjectUpdateRequest.class), any()))
                 .thenReturn(ProjectUpdateResponse.builder()
-                        .projectId(1L).projectName("P").updatedAt("2026-09-01 10:30").build());
+                        .projectId(1L).projectName("P").updatedAt("2026-09-01 10:30").applied(true).build());
 
-        mockMvc.perform(put("/api/integration/projects/CRM/OPP-1001")
+        mockMvc.perform(put("/api/integration/projects/CRM/" + TENDER_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"projectName\":\"P\"}")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk());
 
         verify(projectIntegrationCommandService)
-                .updateByExternalId(eq("CRM"), eq("OPP-1001"), any(ProjectUpdateRequest.class), any());
+                .updateByTenderId(eq("CRM"), eq(TENDER_ID), any(ProjectUpdateRequest.class), any());
         verifyNoMoreInteractions(projectIntegrationCommandService);
-        verifyNoMoreInteractions(apiKeyService, authService);
+        verify(apiKeyUserResolver).resolveUserId();
     }
 }

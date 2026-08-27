@@ -77,15 +77,18 @@ Authorization: Bearer {{token}}
 
 ### ==========================================
 ### 接口六：项目修改（接口规范 v3.12 §3.6，X-API-Key 认证）
-### PUT /api/integration/projects/{sourceSystem}/{sourceId}
-### 语义：按 (sourceSystem, sourceId) 定位标讯关联项目；仅写项目数据，不修改标讯字段；
-###       非 null 字段覆盖、null/未传保留；evaluationCustomerInfos 传入即全量替换。
+### PUT /api/integration/projects/{sourceSystem}/{tenderId}
+### 定位键：tenderId = 平台标讯主键（取自"推送标讯"接口响应中的标讯 id），
+###          非数字值（如商机编号 CC...）在路径绑定阶段即被拒绝（400）。
+### 语义：按 (sourceSystem, tenderId) 定位标讯关联项目；仅写项目数据，不修改标讯字段；
+###       非 null 字段覆盖、null/未传保留；evaluationCustomerInfos 传入即全量替换；
+###       标讯尚未立项时返回 200 + applied=false（跳过语义，无需重试）。
 ### ==========================================
 
 @apiKey = {{crmApiKey}}
 
 ### 11. 正常流程：项目全量更新（项目名称 + 投标信息 + GAP 附件 + 客户信息表含 TEL）
-PUT http://localhost:18081/api/integration/projects/CRM/OPP-20260901001
+PUT http://localhost:18081/api/integration/projects/CRM/928
 X-API-Key: {{apiKey}}
 Content-Type: application/json
 
@@ -124,7 +127,7 @@ Content-Type: application/json
 }
 
 ### 12. 正常流程：部分更新（仅改项目名称，其余字段保留）
-PUT http://localhost:18081/api/integration/projects/CRM/OPP-20260901001
+PUT http://localhost:18081/api/integration/projects/CRM/928
 X-API-Key: {{apiKey}}
 Content-Type: application/json
 
@@ -132,8 +135,8 @@ Content-Type: application/json
   "projectName": "某单位 2026 年度办公用品集中采购项目（二期）"
 }
 
-### 13. 正常流程：按 projectId 优先定位（备用定位方式）
-PUT http://localhost:18081/api/integration/projects/CRM/OPP-20260901001
+### 13. 正常流程：按 projectId 优先定位（一致性断言：projectId 关联标讯必须 = 路径 tenderId）
+PUT http://localhost:18081/api/integration/projects/CRM/928
 X-API-Key: {{apiKey}}
 Content-Type: application/json
 
@@ -145,7 +148,7 @@ Content-Type: application/json
 }
 
 ### 14. 边界：projectPlanGapFiles 传空数组 = 清空已有 GAP 附件（不传则保留）
-PUT http://localhost:18081/api/integration/projects/CRM/OPP-20260901001
+PUT http://localhost:18081/api/integration/projects/CRM/928
 X-API-Key: {{apiKey}}
 Content-Type: application/json
 
@@ -155,8 +158,8 @@ Content-Type: application/json
   }
 }
 
-### 15. 边界：sourceId 不存在 → 404（来源系统下未找到该标讯关联的项目）
-PUT http://localhost:18081/api/integration/projects/CRM/NOT-EXIST-999
+### 15. 边界：tenderId 不存在 → 404（标讯不存在）
+PUT http://localhost:18081/api/integration/projects/CRM/999999
 X-API-Key: {{apiKey}}
 Content-Type: application/json
 
@@ -165,8 +168,17 @@ Content-Type: application/json
 }
 
 ### 16. 边界：非法请求体 → 400（参数非法）
-PUT http://localhost:18081/api/integration/projects/CRM/OPP-20260901001
+PUT http://localhost:18081/api/integration/projects/CRM/928
 X-API-Key: {{apiKey}}
 Content-Type: application/json
 
 {not valid json
+
+### 17. 边界：tenderId 误传非数字（如 CRM 商机编号）→ 400（路径绑定阶段拒绝，防 ID 维度混淆）
+PUT http://localhost:18081/api/integration/projects/CRM/CC20260827846
+X-API-Key: {{apiKey}}
+Content-Type: application/json
+
+{
+  "projectName": "不会生效的更新"
+}
