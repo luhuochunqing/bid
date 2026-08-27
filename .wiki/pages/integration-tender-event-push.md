@@ -129,3 +129,19 @@ backend/src/main/java/com/xiyu/bid/integration/tenderevent/
 - **根因（二层，tenderId=2285）**：拿到原始响应后看到 `code=00000 / msg=响应成功 / data.result=false`--网关协议层正常，业务层拒绝。对照客户接口文档发现 SDK 0.0.2 的 `sendEvent` 组装的 body `{serviceName, eventTopic, eventSource, data}` **缺少 `eventCode`、`time`、`key` 等必需字段**，网关业务层因缺字段无法路由到处理逻辑，直接返回 `result=false`。
 - **修复（二层）**：按客户文档全字段组装 body：补 `eventCode`/`eventSource`/`eventTopic`/`time`/`key`/`data`/`traceId`/`spanId`/`parentId`（trace 三元组同时保留在 Header）。
 - **教训**：集成排障必须在**离源头最近的一层**留全量响应证据；只透传业务字段的 SDK 包装层会把故障细节藏在调用方看不见的地方。另注意 `httpPost` 对非 200/IO 异常静默返回 null，null 响应须显式判失败而非等 NPE 暴露。**SDK 旧版 body 结构不一定与网关最新接口文档一致，必须以接口文档为准逐字段核对。**
+
+### 5. 注册参数是占位值：bid/BidTenderChange 从未在网关注册（2026-08-27，tenderId=2289/2290/2291）
+
+- **现象**：客户反馈 tenderId=2289 仍未推送到事件库；网关已回 `code=00000` 但 `data:{}`。
+- **排障过程**：客户提供全量接口文档（`EventInfoReqDTO`/`EventHandleService` 参考实现）后，修正两处契约偏差：
+  - body 回退 SDK 原始 4 字段 `{serviceName, eventTopic, eventSource, data}`：客户文档"消息结构"（eventCode/time/key/traceId/spanId/parentId）是**网关内部消息格式**，由网关自行填充，不放在 HTTP body。此前误塞导致网关返回 `data:{}` 但事件未发布。
+  - `parentId` 从 traceId 值改为 `"0"`（客户参考实现：无父链路时 parentId="0"）。
+- **根因（三层，关键）**：三次实测交叉证明 `serviceName`/`eventTopic` 是**自造占位值，从未在网关注册**：
+  | 实测 | serviceName | eventTopic | 网关响应 | 语义 |
+  |---|---|---|---|---|
+  | 2285/2290 | `BidSystemOrgConsumer`（已注册组织事件服务） | `BidTenderChange` | `data:{result:false}` | 服务认识，**topic 未注册** |
+  | 2291 | `bid`（未注册） | `BidTenderChange` | `data:{}` | **服务不认识，静默丢弃** |
+  - 组织事件 SDK 的 `ServiceRegisterProperties` 类级标注 `@ConfigurationProperties(prefix="client.register")`，Spring Boot 把 `client.register.serviceName`（=`BidSystemOrgConsumer`）绑定覆盖到该类型**所有 bean**，导致标讯发送器拿到错误服务名。
+  - 修复：`TenderEventHttpSender` 不再注入 SDK bean，`serviceName`/`serverRegisterUrl` 直取 `TenderEventSdkProperties`（默认 `bid`）。
+- **当前阻塞**：标讯事件在网关注册的**正式参数**（serviceName / eventTopic / eventSource）需客户提供。`TenderEventCode` 的 topic/source 仍为占位值（类注释已标注"待联调确认"），客户文档 `EventInfoReqEnum` 仅含组织事件。
+- **教训**：外部事件库对接，**服务注册名与事件 topic 必须从客户侧拿正式值**，自造占位值联调只会得到"网关静默接受但不发布"（`data:{}`）的假象，流水表 SENT 与 `code=00000` 都不等于客户真实收到。
