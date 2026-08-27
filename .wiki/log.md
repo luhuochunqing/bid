@@ -3,6 +3,14 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-08-27] fix | 须知前附表误入评分候选池（PR !2427：结构层 marker 过滤 + 双层 prompt 禁令）
+
+- 触发：山焦物资 6 万字标书解析产出开启程序、履约保证金、成交结果公示等伪评分项。
+- 根因：须知前附表（`|条款号|条款内容|编列内容|` 三列表）正文含"综合评分"字样命中 TABLE_SCORE_PATTERN，整表进入 LLM 候选池；此前无结构级排除，仅靠 prompt 不可靠。
+- 修复：`MarkdownScoreSectionLocator.isProcedureNoticeTable` 首行判别（含"编列内容"且无"评分因素/评分标准"→ 整体跳过，混合表头保留）；`ScoreParsePrompts` 候选提取禁令 3 条 + 全局归并规则第 6 条；两类 prompt 补 contains 锚定测试（ScoreParsePromptsTest / ScoreGlobalMergePromptTest）。
+- 回归锁定：locator 用例 skip/mixed/included 三向覆盖（MarkdownScoreSectionLocatorTest 13 例全绿）；遗留盲区（空行截断续块/纵向胶连/纯文本通道）见 lessons §167 技术债项。
+- 页面更新：[[score-parse-service]] 追加「须知前附表过滤」小节；lessons-learned.md §167。
+
 ## [2026-08-26] bugfix | TenderEventSdkConfig ServiceRegisterProperties bean 冲突导致 crash-loop
 
 - 触发：测试环境部署 4d1f78b25 后后端 crash-loop，日志报 `required a single bean, but 2 were found`。

@@ -177,3 +177,10 @@ trigger（同步<1s，互斥校验+建任务）
 - **表格行保真**：`ScoreTableAwareChunker` 包装召回四切片（超长表格 chunk 按行边界重切，边界永不落在行内）；`ScoreTableRecallLane` = `ScoreTableBlockLocator`（评分语义块定位，剔除表头/分隔行）+ `ScoreTableRowParser`（一行=一候选，纯分值列优先/档位取 max/dim 从大类名列提取）。
 - **fail-open**：LLM 两连败/候选<2/守卫全滤 → 保持启发式结果，任务不失败；摘要日志含 pool/merged/accepted/hallucinationDropped/restored 计数。
 - **教训**：合并身份判定不要依赖 LLM 输出的编号/维度（跨 chunk 漂移）；文本相似度 + 原文背书才是可靠信号；LLM 裁决必须配确定性双向防御（幻觉过滤 + 漏项回补）。
+
+## 须知前附表过滤与评分候选防污染（2026-08-27，PR !2427）
+
+- **判定特征**：表格首行含"编列内容"（前附表专有列名）且不含"评分因素/评分标准"→ 认定为须知前附表，整表跳过（`MarkdownScoreSectionLocator.isProcedureNoticeTable`）；混合表头保留不跳过。判定理由唯一出处在该方法 Javadoc。
+- **为什么必须在结构层**：前附表正文常见"综合评分/综合得分"字样会命中 TABLE_SCORE_PATTERN 的通用子串，开启程序/履约保证金/成交结果公示等程序条款整表误入候选池——token 浪费且输出污染，LLM 层拦截最不可靠也最贵。
+- **双层 prompt 配套**：候选提取禁令 3 条（前附表程序条款、形式/资格/响应性评审条款、总分构成汇总行）+ 全局归并规则第 6 条（混入必丢弃），均有 contains 锚定测试防静默删改。
+- **已知盲区（技术债）**：空行截断续块失去首行 marker、前附表与真评分表纵向胶连时整块吞掉真实评分行、纯文本通道未覆盖——详见 docs/lessons §167，待后续 spec 消化。
