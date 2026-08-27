@@ -61,15 +61,16 @@ class TenderEventHttpSenderWireTest {
         assertThat(ok).isTrue();
         RecordedRequest request = takeOnlyRequest();
         JsonNode body = JSON.readTree(request.getBody().readUtf8());
-        // SDK 契约仅 4 字段：serviceName / eventTopic / eventSource / data
-        // eventCode/time/key/traceId/spanId/parentId 是网关"消息结构"内部字段，由网关自身填
-        // 不可由本方塞入 body（已与西域事业部 2026-08-27 文档对齐）
+        // SDK 契约 4 字段 + key：serviceName / eventTopic / eventSource / key / data
+        // eventCode/time/traceId/spanId/parentId 是网关"消息结构"内部字段，由网关自身填
+        // 不可由本方塞入 body（已与西域事业部 2026-08-27 文档对齐）；key 是客户手动触发
+        // 成功样例证实的必填业务主键字段名
         assertThat(body.get("serviceName").asText()).isEqualTo("bid");
         assertThat(body.get("eventTopic").asText()).isEqualTo("BidTenderChange");
         assertThat(body.get("eventSource").asText()).isEqualTo("bid");
+        assertThat(body.get("key").asText()).isEqualTo("tenderId");
         assertThat(body.has("eventCode")).as("eventCode 不应在 body 中").isFalse();
         assertThat(body.has("time")).as("time 不应在 body 中").isFalse();
-        assertThat(body.has("key")).as("key 不应在 body 中").isFalse();
         assertThat(body.has("traceId")).as("traceId 不应在 body 中").isFalse();
         assertThat(body.has("spanId")).as("spanId 不应在 body 中").isFalse();
         assertThat(body.has("parentId")).as("parentId 不应在 body 中").isFalse();

@@ -14,12 +14,16 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * 西域事件总线发送器（基础设施层 WithEffect，包内共享）。
  *
- * <p>消息体按 SDK {@code sendEvent} 原始契约组装：
- * <pre>{serviceName, eventTopic, eventSource, data}</pre>
+ * <p>消息体按 SDK {@code sendEvent} 原始契约组装并补充 {@code key}：
+ * <pre>{serviceName, eventTopic, eventSource, key, data}</pre>
+ * 其中 {@code key} 为业务主键字段名（如标讯事件 {@code "tenderId"}），客户手动触发
+ * 成功样例（2026-08-27，tenderId=2282）证实 body 必须含该字段，网关按 key 路由
+ * 业务处理逻辑，缺失时静默丢弃（网关返回 data:{} 但事件未发布）。
  * traceId/spanId/parentId 写入 HTTP Header（SDK {@code buildHeaderParamMap} 既有行为）。
- * 客户文档的"消息结构"（含 eventCode/time/key 等字段）是网关**内部消息格式**，
- * 由网关自行填充，不放在 HTTP 请求 body 中。此前误将内部字段塞入 body 导致
- * 网关返回 data:{} 但事件未实际发布（tenderId=2289 实测）。
+ * 客户文档的"消息结构"（含 eventCode/time 等字段）是网关**内部消息格式**，
+ * 由网关自行填充，不放在 HTTP 请求 body 中。此前误将 eventCode/time 等内部字段
+ * 塞入 body 导致网关返回 data:{} 但事件未实际发布（tenderId=2289 实测）；
+ * 但 {@code key} 例外——客户手动触发成功样例证实它是必填业务字段（见上）。
  *
  * <p>serviceName 直接来自 {@link TenderEventSdkProperties}（默认 "bid"），**不**复用
  * SDK 的 {@code ServiceRegisterProperties} bean：该类类级标注
@@ -77,6 +81,9 @@ final class TenderEventHttpSender {
         body.put("serviceName", serviceName);
         body.put("eventTopic", code.topic());
         body.put("eventSource", code.source());
+        // 业务主键字段名：客户手动触发成功样例 body 含 key="tenderId"，
+        // 网关按 key 路由业务处理逻辑，缺此字段会静默丢弃（返回 data:{}，2026-08-27 实测）
+        body.put("key", code.dataIdField());
         body.put("data", serializeData(data));
 
         // 请求体落日志：联调对账用

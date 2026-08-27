@@ -64,15 +64,16 @@ class TenderEventSdkProducerTest {
         httpClient.verify(() -> HttpClientUtil.httpPost(eq(PUBLISH_URL), bodyCaptor.capture(),
                 headers.capture(), eq("publishEvent")));
         JSONObject body = bodyCaptor.getValue();
-        // SDK 契约仅 4 字段：serviceName / eventTopic / eventSource / data
-        // 消息结构内部字段（eventCode/time/key/traceId/spanId/parentId）由网关自身填，不可塞 body
+        // SDK 契约 4 字段 + key：serviceName / eventTopic / eventSource / key / data
+        // 消息结构内部字段（eventCode/time/traceId/spanId/parentId）由网关自身填，不可塞 body；
+        // key 为客户手动触发成功样例证实的必填业务主键字段名（BidTenderChange → "tenderId"）
         assertThat(body.getString("serviceName")).isEqualTo("bid");
         assertThat(body.getString("eventTopic")).isEqualTo("BidTenderChange");
         assertThat(body.getString("eventSource")).isEqualTo("bid");
+        assertThat(body.getString("key")).isEqualTo("tenderId");
         assertThat(body.getString("data")).isEqualTo("{\"tenderId\":123,\"externalId\":\"ext-1\"}");
         assertThat(body.containsKey("eventCode")).as("eventCode 不应在 body").isFalse();
         assertThat(body.containsKey("time")).as("time 不应在 body").isFalse();
-        assertThat(body.containsKey("key")).as("key 不应在 body").isFalse();
         assertThat(body.containsKey("traceId")).as("traceId 不应在 body").isFalse();
         assertThat(body.containsKey("spanId")).as("spanId 不应在 body").isFalse();
         assertThat(body.containsKey("parentId")).as("parentId 不应在 body").isFalse();
