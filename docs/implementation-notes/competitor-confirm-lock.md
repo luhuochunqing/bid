@@ -41,10 +41,15 @@
   - mock `ElMessageBox.confirm` 与竞品字典 API
   - 新增 5 个用例：取消不提交 / 文案含竞品数+不可修改警示 / 未填竞品文案 / 确认后正常提交并进入锁定态 / 必填校验失败不弹窗
 
+## 后续 anti-slop 收口（同 PR 追加提交）
+
+- **删除死代码**：`uploadUrl` / `uploadHeaders` 两个 computed 及孤立的 `getApiUrl` 导入。它们是凭证上传从 APISIX multipart 切到 OBS 直传（customUpload）后的遗留，eslint 一直报 unused 但没人删。确认模板无引用后清除，组件 eslint 归零。
+- **单测去重**：三个取消场景各自重复的 `mockRejectedValueOnce(new Error('cancel'))` 桩收敛为 beforeEach 的默认实现；确认场景用 `mockResolvedValueOnce` 覆盖（vitest once 优先于基础实现）。纯测试内部重构，断言不变。
+
 ## 测试证据
 
 ```
-npx vitest run src/views/Project/stages/ResultConfirmStage.spec.js
+
 Test Files  1 passed (1)
      Tests  9 passed (9)   # 4 旧 + 5 新
 ```

@@ -209,7 +209,6 @@ import { hasAnyPermission } from '@/utils/permission.js'
 import { getResultConfirmNextTab } from '@/constants/projectStages.js'
 import { COMPETITOR_WIN_STATUS_OPTIONS } from '@/constants/competitors.js'
 import { competitionIntelApi } from '@/api/modules/competitionIntel.js'
-import { getApiUrl } from '@/api/config.js'
 import { useUserStore } from '@/stores/user.js'
 import { downloadWithFilename } from '@/utils/download.js'
 import { getDocuments } from '@/api/modules/projectDocuments.js'
@@ -293,7 +292,6 @@ const existing = ref(null)
 const submitting = ref(false)
 const resultNextTab = computed(() => getResultConfirmNextTab(form.resultType))
 
-const uploadUrl = computed(() => getApiUrl(`/api/projects/${props.projectId}/documents`))
 const acceptedTypes = '.pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx'
 // OBS 直传：大文件绕过 APISIX 网关直传 OBS，失败回退到 multipart（修复 413）
 const { customUpload } = useObsProjectDocumentUpload(
@@ -317,11 +315,6 @@ const SUMMARY_META = {
 const NON_WON_TYPES = Object.keys(SUMMARY_META)
 const summaryLabel = computed(() => (SUMMARY_META[form.resultType] || {}).label || '原因')
 const summaryPlaceholder = computed(() => (SUMMARY_META[form.resultType] || {}).placeholder || '')
-
-const uploadHeaders = computed(() => {
-  const token = userStore?.token
-  return token ? { Authorization: `Bearer ${token}` } : {}
-})
 
 function beforeUpload(file) {
   if (file.type && !ALLOWED_MIMES.includes(file.type)) {

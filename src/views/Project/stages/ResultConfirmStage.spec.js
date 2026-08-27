@@ -162,6 +162,8 @@ describe('ResultConfirmStage 结果登记二次确认（登记后竞品不可再
     getResultMock.mockReset()
     registerResultMock.mockReset()
     elMessageBoxConfirmMock.mockReset()
+    // 默认桩：用户在弹窗点「返回检查」（取消）。确认场景用 mockResolvedValueOnce 覆盖
+    elMessageBoxConfirmMock.mockRejectedValue(new Error('cancel'))
   })
 
   // 凭证上传链路在 jsdom 中难以模拟，直接写入 form 后点「登记结果」（form 已 defineExpose）
@@ -191,8 +193,6 @@ describe('ResultConfirmStage 结果登记二次确认（登记后竞品不可再
   }
 
   it('点击「登记结果」先弹二次确认；取消时不调用 registerResult', async () => {
-    elMessageBoxConfirmMock.mockRejectedValueOnce(new Error('cancel'))
-
     const wrapper = await mountAndFillForm()
     await findRegisterButton(wrapper).trigger('click')
     await flushPromises()
@@ -202,8 +202,6 @@ describe('ResultConfirmStage 结果登记二次确认（登记后竞品不可再
   })
 
   it('确认弹窗文案包含已填写竞品行数与不可修改警示', async () => {
-    elMessageBoxConfirmMock.mockRejectedValueOnce(new Error('cancel'))
-
     const wrapper = await mountAndFillForm(1)
     await findRegisterButton(wrapper).trigger('click')
     await flushPromises()
@@ -216,8 +214,6 @@ describe('ResultConfirmStage 结果登记二次确认（登记后竞品不可再
   })
 
   it('未填写竞品时确认文案提示「尚未填写」', async () => {
-    elMessageBoxConfirmMock.mockRejectedValueOnce(new Error('cancel'))
-
     const wrapper = await mountAndFillForm(0)
     await findRegisterButton(wrapper).trigger('click')
     await flushPromises()
