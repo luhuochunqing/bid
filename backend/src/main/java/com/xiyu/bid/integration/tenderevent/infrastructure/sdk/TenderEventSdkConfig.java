@@ -31,6 +31,14 @@ import org.springframework.context.annotation.Configuration;
  * 因此 SDK 实例在 {@link TenderEventSdkSender} 构造时手工创建并藏为其私有字段，
  * {@code TenderEventSdkSender} 本身无注解字段、容器不会触碰其内部状态；也不能
  * {@code @Import} SDKClientConfiguration（连带激活 Kafka/ZK/注册等消费侧组件）。
+ *
+ * <p><b>注册+续约生命周期（2026-08-27 根因修复）</b>：事件总线要求生产方先通过
+ * {@code POST /eventbus/register}（body: serviceName/serviceAddress/enableRegister）
+ * 完成服务注册，并持续通过 {@code POST /eventbus/renew} 保持心跳续约，总线才会
+ * 将 publishEvent 路由到订阅方。此前完全跳过了这个生命周期，导致 bid 服务名从未
+ * 在线，网关受理 publishEvent 后直接丢弃事件（code=00000 只代表 HTTP 格式合规）。
+ * 修复方案：手工装配 {@link TenderEventRegistrar}（内含 ClientRegisterComponent +
+ * ServiceRenewalComponent），不引入 SDKClientConfiguration（避免连带激活 Kafka/ZK）。
  */
 @Configuration
 @EnableConfigurationProperties(TenderEventSdkProperties.class)
@@ -55,6 +63,22 @@ public class TenderEventSdkConfig {
             throw new IllegalStateException("无法向 SDK 服务注入服务注册配置", e);
         }
         return service;
+    }
+
+    /**
+     * 注册+续约启动器（根因修复）：Spring 启动后通过 {@code initMethod="register"} 自动触发
+     * {@code POST /eventbus/register}，成功后开始周期性 {@code POST /eventbus/renew} 心跳。
+     *
+     * <p>仅在 SDK 启用时装配（{@code enabled=true}），防止未配置时反射注入失败。
+     */
+    @Bean(initMethod = "register")
+    @ConditionalOnProperty(
+            prefix = "xiyu.integrations.tender-event.sdk",
+            name = "enabled",
+            havingValue = "true"
+    )
+    public TenderEventRegistrar tenderEventRegistrar(TenderEventSdkProperties properties) {
+        return new TenderEventRegistrar(properties);
     }
 
     @Bean
