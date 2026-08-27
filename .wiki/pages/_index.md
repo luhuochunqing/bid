@@ -81,6 +81,7 @@ backlinks:
 - [[requirements]] — 需求追溯
 - [[roles-and-permissions]] — 角色与权限
 - [[root-cause-analysis-ijssgg]] — 立项招标文件上传 Bug 根因分析 (IJSSGG)
+- [[initiation-form-fake-zero-display]] — 立项表单假 0 显示伪装成列表/详情数据不一致（PR !2436）
 - [[spring-pitfalls]] — Spring Boot 陷阱集（@Transactional / @Async / SPRING_CONFIG_IMPORT / 配置优先级）
 - [[team-and-timeline]] — 团队与排期
 - [[testing/_index]] — 功能实现对照 — 测试说明文档索引
