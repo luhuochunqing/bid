@@ -77,7 +77,9 @@
     "check:core-policy-cr": "node scripts/check-core-policy-cr.mjs",
     "check:core-policy-cr:staged": "node scripts/check-core-policy-cr.mjs --staged",
     "check:frontend-api-base": "node scripts/check-frontend-api-base.mjs",
-    "build:check": "node scripts/check-inlined-composables.cjs"
+    "build:check": "node scripts/check-inlined-composables.cjs",
+    "eval:scoreparse:replay": "mvn -f backend/pom.xml test -Dtest='GoldenCasesReplayTest'",
+    "eval:scoreparse:report": "node scripts/eval-scoreparse/report.mjs"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.0",

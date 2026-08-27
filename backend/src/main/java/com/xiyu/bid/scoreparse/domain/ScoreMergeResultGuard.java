@@ -1,7 +1,7 @@
 // Input: 去噪候选池 + LLM 全局归并输出 + 评分章节原文
 // Output: Outcome（采纳清单 + 幻觉丢弃数 + 回补数）
 // Pos: scoreparse/domain — 纯核心，无框架依赖
-// 维护声明: 维护者按项目SOP；spec 055 research R3 双向防御
+// 维护声明: 维护者按项目SOP；spec 055 research R3 双向防御、spec 057 FR-02 池身份旁路
 
 package com.xiyu.bid.scoreparse.domain;
 
@@ -24,46 +24,95 @@ public final class ScoreMergeResultGuard {
     public record Outcome(
             List<ScoreCandidate> accepted,
             int hallucinationDropped,
-            int restoredCount) {
+            int restoredCount,
+            int poolBackedKept) {
+    }
+
+    /** 池项归一化投影：循环外一次算清，替代内层逐次 replaceAll（设计弯路审查 P3） */
+    private record PoolEntry(String normDetail, String normSource) {
     }
 
     public static Outcome guard(
             List<ScoreCandidate> pool, List<ScoreCandidate> mergedItems, String sectionText) {
         if (mergedItems == null || mergedItems.isEmpty()
                 || sectionText == null || sectionText.isBlank()) {
-            return new Outcome(List.of(), 0, 0);
+            return new Outcome(List.of(), 0, 0, 0);
         }
         String normalizedSection = normalize(sectionText);
+        List<PoolEntry> entries = toPoolEntries(pool);
         List<ScoreCandidate> accepted = new ArrayList<>();
+        // 与 accepted 平行的归一化 detail 缓存，isCovered 判定不再重复 normalize
+        List<String> acceptedNormDetails = new ArrayList<>();
         int dropped = 0;
+        int poolBacked = 0;
         for (ScoreCandidate item : mergedItems) {
-            String detail = item.detail();
-            if (detail == null || detail.isBlank()
-                    || !normalizedSection.contains(normalize(detail))) {
+            String normDetail = normalize(item.detail());
+            // spec 057 FR-02：语料外但与池身份匹配的真实项不算幻觉（poolBackedKept 计数）。
+            // 设计口径（xcode P4 收敛）：该旁路<b>常态启用</b>而非仅截断时——非截断场景能命中者
+            // 必源自真实候选池的措辞漂移复述，放行合理且已获 8 项 GuardTest 锁定；
+            // 若 LLM 杂交两个池项产出单向互含的新 detail，其异常 weight 会被下游权重过滤拦截。
+            boolean corpusBacked = !normDetail.isEmpty() && normalizedSection.contains(normDetail);
+            if (!corpusBacked && !poolIdentityMatched(normDetail, entries)) {
                 dropped++;
                 continue;
             }
             // SC-2 强制：归并输出内部互相包含（LLM 未消干净的重复）→ 保留首个，丢弃后者
-            if (isCovered(item, accepted)) {
+            if (coveredBy(normDetail, acceptedNormDetails)) {
                 dropped++;
                 continue;
             }
             accepted.add(item);
+            acceptedNormDetails.add(normDetail);
+            if (!corpusBacked) {
+                poolBacked++;
+            }
         }
         int restored = 0;
         if (pool != null) {
             for (ScoreCandidate candidate : pool) {
-                if (!isHighConfidence(candidate) || isCovered(candidate, accepted)) {
+                String normDetail = normalize(candidate.detail());
+                if (!isHighConfidence(candidate) || coveredBy(normDetail, acceptedNormDetails)) {
                     continue;
                 }
                 accepted.add(candidate);
+                acceptedNormDetails.add(normDetail);
                 restored++;
             }
         }
-        return new Outcome(List.copyOf(accepted), dropped, restored);
+        return new Outcome(List.copyOf(accepted), dropped, restored, poolBacked);
     }
 
-    private static final BigDecimal MAX_SINGLE_WEIGHT = new BigDecimal("100");
+    private static List<PoolEntry> toPoolEntries(List<ScoreCandidate> pool) {
+        if (pool == null || pool.isEmpty()) {
+            return List.of();
+        }
+        List<PoolEntry> entries = new ArrayList<>(pool.size());
+        for (ScoreCandidate candidate : pool) {
+            entries.add(new PoolEntry(
+                    normalize(candidate.detail()), normalize(candidate.sourceText())));
+        }
+        return entries;
+    }
+
+    /** spec 057 FR-02：归并输出与候选池身份匹配（归一化互含 detail，或被池项原文背书包含）→ 非幻觉 */
+    private static boolean poolIdentityMatched(String normItemDetail, List<PoolEntry> entries) {
+        if (normItemDetail.isEmpty() || entries.isEmpty()) {
+            return false;
+        }
+        for (PoolEntry entry : entries) {
+            if (!entry.normDetail().isEmpty()
+                    && (entry.normDetail().contains(normItemDetail)
+                        || normItemDetail.contains(entry.normDetail()))) {
+                return true;
+            }
+            if (!entry.normSource().isEmpty() && entry.normSource().contains(normItemDetail)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static final BigDecimal MAX_SINGLE_WEIGHT = ScoreParseConstants.MAX_SINGLE_WEIGHT;
 
     /** 高置信：有原文背书（sourceText ⊇ detail）且 weight 在合理分值区间 (0, 100] */
     private static boolean isHighConfidence(ScoreCandidate candidate) {
@@ -77,12 +126,10 @@ public final class ScoreMergeResultGuard {
                 && normalize(sourceText).contains(normalize(detail));
     }
 
-    /** 归一化互相包含即视为同一项（归并输出取更完整版本时覆盖池内残缺版本） */
-    private static boolean isCovered(ScoreCandidate candidate, List<ScoreCandidate> accepted) {
-        String detail = normalize(candidate.detail());
-        for (ScoreCandidate item : accepted) {
-            String acceptedDetail = normalize(item.detail());
-            if (acceptedDetail.contains(detail) || detail.contains(acceptedDetail)) {
+    /** 归一化互相包含即视为同一项（归并输出取更完整版本时覆盖池内残缺版本）；空串被任何串包含 → 命中 */
+    private static boolean coveredBy(String normDetail, List<String> acceptedNormDetails) {
+        for (String acceptedDetail : acceptedNormDetails) {
+            if (acceptedDetail.contains(normDetail) || normDetail.contains(acceptedDetail)) {
                 return true;
             }
         }

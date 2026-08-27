@@ -11,6 +11,7 @@ import com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiStructuredOutputSe
 import com.xiyu.bid.docinsight.domain.DocumentChunk;
 import com.xiyu.bid.docinsight.domain.StructuralDocumentChunker;
 import com.xiyu.bid.scoreparse.domain.DocumentImage;
+import com.xiyu.bid.scoreparse.domain.RecallOutcome;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

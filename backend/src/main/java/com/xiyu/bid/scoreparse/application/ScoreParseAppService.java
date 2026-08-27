@@ -6,16 +6,10 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.biddraftagent.repository.BidTenderDocumentSnapshotRepository;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
-import com.xiyu.bid.scoreparse.domain.GhostCandidateFilter;
-import com.xiyu.bid.scoreparse.domain.ItemCountCheck;
+import com.xiyu.bid.scoreparse.domain.RecallOutcome;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
-import com.xiyu.bid.scoreparse.domain.ScoreItemMergePolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreTableRecallLane;
 import com.xiyu.bid.scoreparse.domain.SummaryAggregator;
-import com.xiyu.bid.scoreparse.domain.WeightNormalizationPolicy;
-import com.xiyu.bid.scoreparse.domain.WeightOverloadTrimPolicy;
-import com.xiyu.bid.scoreparse.domain.WeightSumCheck;
-import com.xiyu.bid.scoreparse.infrastructure.openai.RecallOutcome;
 import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
 import com.xiyu.bid.scoreparse.dto.ScoreParseProgressDTO;
 import com.xiyu.bid.scoreparse.dto.ScoreParseTriggerDTO;
@@ -34,8 +28,6 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -50,8 +42,6 @@ public class ScoreParseAppService {
     private static final String TASK_TYPE_PARSE = "PARSE";
     private static final List<String> ACTIVE_STATUSES = List.of("PENDING", "PROCESSING");
     private static final String NO_SNAPSHOT_MESSAGE = InitiationTenderTextResolver.NO_TENDER_MESSAGE;
-    /** spec 046 FR-002 超载判定上限（WeightSumCheck 容差 +0.5） */
-    private static final BigDecimal OVERLOAD_LIMIT = new BigDecimal("100.5");
 
     private final ScoreParseTaskRepository taskRepository;
     private final ScoreItemRepository itemRepository;
@@ -65,13 +55,9 @@ public class ScoreParseAppService {
     private final EstimatedScoreService estimatedScoreService;
     private final ScoreItemPersistenceService itemPersistenceService;
     private final InitiationTenderTextResolver initiationTenderTextResolver;
-    private final ScoreGlobalMergeOrchestrator globalMergeOrchestrator;
-    private final ScoreItemMergePolicy mergePolicy = new ScoreItemMergePolicy();
-    private final WeightSumCheck weightSumCheck = new WeightSumCheck();
-    private final ItemCountCheck itemCountCheck = new ItemCountCheck();
+    /** spec 057 FR-07/D5 预案：治理块抽离后本类保留纯编排职责 */
+    private final ScoreCandidatePostProcessor postProcessor;
     private final SummaryAggregator summaryAggregator = new SummaryAggregator();
-    private final GhostCandidateFilter ghostFilter = new GhostCandidateFilter();
-    private final WeightOverloadTrimPolicy trimPolicy = new WeightOverloadTrimPolicy();
 
     /** 自身代理（解决 @Async 自调用失效）；@Lazy 避免循环依赖 */
     @Lazy
@@ -163,56 +149,27 @@ public class ScoreParseAppService {
         RecallOutcome outcome = scoreAnalyzer.recallCandidates(
                 source.text(), null,
                 (progress, stage) -> updateProgress(taskId, progress, "RECALL", stage));
-        // spec 055 召回五：评分表格行直抽（一行 = 一候选，保真不重复）；拷贝防上游不可变列表
-        List<ScoreCandidate> candidates = new ArrayList<>(outcome.candidates());
-        candidates.addAll(ScoreTableRecallLane.recall(source.text()));
         task.setSkippedChunks(outcome.skippedChunks());
-        taskRepository.save(task);
-        // FR-004 合并去重 → 幽灵过滤（spec 046 FR-001）→ Validation 丢弃 → spec 055 全局归并裁决
-        List<ScoreCandidate> merged = mergePolicy.merge(candidates);
-        List<ScoreCandidate> ghostFiltered = ghostFilter.filter(merged);
-        log.info("幽灵候选过滤（spec 046 FR-001）: taskId={} {}→{}", taskId, merged.size(), ghostFiltered.size());
-        List<ScoreCandidate> valid = filterInvalidWeights(ghostFiltered);
-        // spec 055 全局归并（fail-open）：LLM 身份裁决消除重复/误并，降级时保持启发式结果
-        valid = globalMergeOrchestrator.applyGlobalMerge(valid, source.text());
-        // FR-005/FR-022 权重闭环校验：合计≠100 触发完整性回补
-        WeightSumCheck.Result weightResult = weightSumCheck.checkCandidates(valid);
-        ItemCountCheck.Result continuityResult = itemCountCheck.checkCandidates(valid);
-        if (weightResult.needRecheck() || continuityResult.needRecheck()) {
-            updateProgress(taskId, 80, "GAP_RECHECK", "分值或编号连续性异常，触发完整性回补");
-            List<ScoreCandidate> missed = scoreAnalyzer.recheckGaps(
-                    source.text(), valid);
-            if (!missed.isEmpty()) {
-                log.info("完整性回补发现遗漏项: taskId={}, missed={}", taskId, missed.size());
-                valid = filterInvalidWeights(mergePolicy.merge(
-                        java.util.stream.Stream.concat(valid.stream(), missed.stream()).toList()));
-                weightResult = weightSumCheck.checkCandidates(valid);
-            }
-        }
-        // spec 046 FR-002 超载剔除：合计 > 100.5 两轮剔嫌疑（无code → 无sourceText）
-        if (weightResult.totalWeight().compareTo(OVERLOAD_LIMIT) > 0) {
-            var trimmed = trimPolicy.trim(valid, OVERLOAD_LIMIT);
-            valid = trimmed.remaining();
-            log.warn("权重超载剔除 spec046: removed={}", trimmed.removed().size());
-            weightResult = weightSumCheck.checkCandidates(valid);
-        }
-        // spec 047 FR-001 权重归一化：偏离 100（容差外 >0）收敛 100 并透出 US3 信号
-        var normalized = new WeightNormalizationPolicy().normalize(valid);
-        if (normalized.originalTotal() != null) {
-            valid = normalized.normalizedCandidates();
-            task.setOriginalTotalWeight(normalized.originalTotal().setScale(2, java.math.RoundingMode.HALF_UP));
+        // spec 055 召回五 + 治理链整体委托 PostProcessor（spec 057 抽取：合并/守卫/裁决/回补/权重/run-summary）
+        updateProgress(taskId, 70, "GOVERN", "候选治理、归并裁决与权重收敛");
+        var processed = postProcessor.process(taskId, source.text(), outcome,
+                ScoreTableRecallLane.recall(source.text()),
+                (progress, stageKey) -> updateProgress(taskId, progress, stageKey,
+                        "GAP_RECHECK".equals(stageKey) ? "分值或编号连续性异常，触发完整性回补" : stageKey));
+        if (processed.failMessage() != null) {
+            // spec 057 FR-04：失败终态同样落 runSummary（事故复盘需要 0 项失败时的 lane/对齐档案）
+            task.setRunSummary(processed.runSummaryJson());
             taskRepository.save(task);
-        }
-        // spec 047 C002：归一后重算，完成日志 totalWeight/weightWarning 反映落库值
-        weightResult = weightSumCheck.checkCandidates(valid);
-        // FR-006/FR-007 数量校验：0 项 → 解析失败终态
-        ItemCountCheck.Result countResult = itemCountCheck.check(valid.size());
-        if (countResult.failed()) {
-            log.warn("解析结果为 0 项，判定失败: taskId={}, candidates={}", taskId, candidates.size());
-            stateService.failTask(taskId, countResult.failureMessage());
+            stateService.failTask(taskId, processed.failMessage());
             progressService.clearProgress(taskId);
             return;
         }
+        List<ScoreCandidate> valid = processed.candidates();
+        task.setRunSummary(processed.runSummaryJson());
+        if (processed.originalTotal() != null) {
+            task.setOriginalTotalWeight(processed.originalTotal());
+        }
+        taskRepository.save(task);
 
         // FR-003 客观/主观分类 + 覆盖落库（FR-021）
         updateProgress(taskId, 90, "PERSIST", "评分项落库");
@@ -222,7 +179,8 @@ public class ScoreParseAppService {
         estimatedScoreService.estimateForProject(task.getProjectId());
 
         log.info("解析任务完成: taskId={}, items={}, totalWeight={}, weightWarning={}",
-                taskId, valid.size(), weightResult.totalWeight(), weightResult.weightWarning());
+                taskId, valid.size(), processed.weightResult().totalWeight(),
+                processed.weightResult().weightWarning());
         stateService.markCompleted(taskId);
         progressService.clearProgress(taskId);
     }
@@ -267,23 +225,6 @@ public class ScoreParseAppService {
         return taskRepository.findByProjectIdAndTaskTypeAndStatusIn(projectId, taskType, ANY_STATUS)
                 .stream().max(java.util.Comparator.comparing(ScoreParseTask::getId))
                 .orElseThrow(() -> new IllegalStateException("项目无解析任务: " + projectId));
-    }
-
-    private static final BigDecimal MAX_SINGLE_WEIGHT = new BigDecimal("100");
-
-    private List<ScoreCandidate> filterInvalidWeights(List<ScoreCandidate> candidates) {
-        List<ScoreCandidate> valid = new ArrayList<>();
-        int dropped = 0;
-        for (ScoreCandidate candidate : candidates) {
-            BigDecimal w = candidate.weight();
-            if (w != null && w.compareTo(BigDecimal.ZERO) > 0 && w.compareTo(MAX_SINGLE_WEIGHT) <= 0) {
-                valid.add(candidate);
-            } else {
-                dropped++;
-            }
-        }
-        if (dropped > 0) log.warn("丢弃权重无效或超界（<=0 或 >100）的候选 {} 项（spec Edge Cases）", dropped);
-        return valid;
     }
 
     private void updateProgress(String taskId, int progress, String stageKey, String stageText) {

@@ -118,4 +118,14 @@ final class ScoreCandidateMapper {
         }
         return text.length() <= SOURCE_TEXT_MAX_CHARS ? text : text.substring(0, SOURCE_TEXT_MAX_CHARS);
     }
+
+    /**
+     * 对齐成功数统计：detail 为 chunk 原文的精确子串（对齐回填后必成立；LLM 原样输出因
+     * 空白漂移通常不成立）。自 Analyzer 迁入以守 line-budget（spec 057）。
+     */
+    public static int countAligned(java.util.List<ScoreCandidate> chunkCandidates, String chunkText) {
+        return (int) chunkCandidates.stream()
+                .filter(candidate -> chunkText.contains(candidate.detail()))
+                .count();
+    }
 }
