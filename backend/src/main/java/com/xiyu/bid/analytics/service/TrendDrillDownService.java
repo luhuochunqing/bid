@@ -131,17 +131,18 @@ public class TrendDrillDownService {
             params.put("regionProjectIds", regionMatchedIds);
         }
 
-        // 部门过滤：两级展示口径——勾父展开后代（与图表统计范围一致）；
+        // 部门过滤：两级展示口径——一次 prepare 勾父展开后代（与图表统计范围一致）；
         // dept 轴柱子按同一 bucketMapper 反解标签为名称集合，图数与明细同口径
         if (hasDeptSelection || deptAxis) {
-            var deptNodes = filterOptionsQueryService.fetchDepartmentNodes();
-            Set<String> scopedDepts = AnalyticsDepartmentHierarchySupport.expandWithDescendants(deptNodes, departments);
-            if (scopedDepts != null) {
+            var dept = AnalyticsDepartmentHierarchySupport.prepare(
+                    filterOptionsQueryService.fetchDepartmentNodes(), departments);
+            if (dept.hasSelection()) {
                 where.append(" AND u.department_name IN (:departments)");
-                params.put("departments", scopedDepts);
+                params.put("departments", dept.matchNames());
             }
             if (deptAxis && hasDeptSelection) {
-                TrendDrillDownFilterSupport.appendDeptAxisFilter(where, params, deptNodes, departments, axisValue); } // 反解分桶标签为名称集合
+                TrendDrillDownFilterSupport.appendDeptAxisFilter(where, params, dept, axisValue);
+            }
         }
 
         // 人员过滤（通过 manager_id → users.full_name）

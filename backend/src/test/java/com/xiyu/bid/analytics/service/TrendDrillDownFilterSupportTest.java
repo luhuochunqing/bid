@@ -113,14 +113,16 @@ class TrendDrillDownFilterSupportTest {
         // 勾选"销售部"后点击二级桶"销售一部"：反解集合含该名（及映射到同桶的所有部门名）
         StringBuilder where = new StringBuilder();
         Map<String, Object> params = new HashMap<>();
-        TrendDrillDownFilterSupport.appendDeptAxisFilter(where, params, org, List.of("销售部"), "销售一部");
+        var selected = AnalyticsDepartmentHierarchySupport.prepare(org, List.of("销售部"));
+        TrendDrillDownFilterSupport.appendDeptAxisFilter(where, params, selected, "销售一部");
         assertThat(where.toString()).isEqualTo(" AND u.department_name IN (:deptAxisVals)");
         assertThat(params.get("deptAxisVals")).isEqualTo(java.util.Set.of("销售一部"));
 
         // 无选中：mapper 恒等 → 仅 axisValue 自身，与旧精确等值语义等价
         StringBuilder where2 = new StringBuilder();
         Map<String, Object> params2 = new HashMap<>();
-        TrendDrillDownFilterSupport.appendDeptAxisFilter(where2, params2, org, null, "财务部");
+        var noSelection = AnalyticsDepartmentHierarchySupport.prepare(org, null);
+        TrendDrillDownFilterSupport.appendDeptAxisFilter(where2, params2, noSelection, "财务部");
         assertThat(params2.get("deptAxisVals")).isEqualTo(java.util.Set.of("财务部"));
     }
 }

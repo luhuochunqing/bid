@@ -157,10 +157,9 @@ public class FilterOptionsQueryService {
         }
 
         // 部门两级口径：勾选父部门时联动选项须覆盖其全部后代部门人员，
-        // 与图表统计范围（expandWithDescendants）保持一致
-        Set<String> expandedNames = AnalyticsDepartmentHierarchySupport.expandWithDescendants(
-                fetchDepartmentNodes(), departmentNames);
-        List<String> effectiveNames = expandedNames != null ? List.copyOf(expandedNames) : departmentNames;
+        // 与图表统计范围（prepare.matchNames）保持一致
+        var deptScope = AnalyticsDepartmentHierarchySupport.prepare(fetchDepartmentNodes(), departmentNames);
+        List<String> effectiveNames = deptScope.matchNamesList() != null ? deptScope.matchNamesList() : departmentNames;
         // 优化子查询性能：先通过仓库预查匹配的部门编码集合，避免在 SQL 中进行双重关联子查询
         List<OrganizationDepartmentEntity> matchedDepts =
                 organizationDepartmentRepository.findByDepartmentNameIn(effectiveNames);

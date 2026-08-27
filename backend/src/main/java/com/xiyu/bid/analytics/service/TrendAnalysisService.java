@@ -60,19 +60,14 @@ public class TrendAnalysisService {
                 : null;
 
 // 统一构建查询参数，所有维度共用。
-// 部门两级展示口径：勾选父部门时统计范围展开为自身∪全部后代，
-// 图表分桶按"有二级展示二级"重映射（与下钻 TrendDrillDownService 同口径）。
+// 部门两级展示口径：一次 prepare 展开统计范围并产出展示桶/分桶映射（与下钻同源）。
         List<AnalyticsDepartmentHierarchySupport.DeptNode> deptNodes =
                 (departmentIds != null && !departmentIds.isEmpty())
                         ? filterOptionsQueryService.fetchDepartmentNodes()
                         : List.of();
-        java.util.function.Function<String, String> deptBucketMapper =
-                AnalyticsDepartmentHierarchySupport.bucketMapper(deptNodes, departmentIds);
-        List<String> deptBuckets = new java.util.ArrayList<>(
-                AnalyticsDepartmentHierarchySupport.displayBucketNames(deptNodes, departmentIds));
-        java.util.Set<String> expandedDeptIds = AnalyticsDepartmentHierarchySupport.expandWithDescendants(
-                deptNodes, departmentIds);
-        List<String> effectiveDeptIds = expandedDeptIds == null ? null : List.copyOf(expandedDeptIds);
+        var dept = AnalyticsDepartmentHierarchySupport.prepare(deptNodes, departmentIds);
+        List<String> effectiveDeptIds = dept.matchNamesList();
+        List<String> deptBuckets = List.copyOf(dept.bucketNames());
         TrendQueryCriteria criteria = buildCriteria(startDate, endDate,
                 effectiveDeptIds, userIds, regionIds,
                 customerTypes, projectTypes, statusEnums,
@@ -91,7 +86,7 @@ public class TrendAnalysisService {
                 // 直挂父部门的罕见数据回退自身桶，图上合计与筛选范围数目守恒
                 var rows = dimensionQueryService.fetchDeptRows(criteria).stream()
                         .map(r -> new DimensionRow(
-                                deptBucketMapper.apply(r.category()), r.projectId(), r.status()))
+                                dept.bucketMapper().apply(r.category()), r.projectId(), r.status()))
                         .toList();
                 yield computationService.computeDimensionTrend(rows,
                         deptNodes.isEmpty() ? departmentIds : deptBuckets);

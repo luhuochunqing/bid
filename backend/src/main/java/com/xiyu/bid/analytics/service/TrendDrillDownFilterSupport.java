@@ -96,17 +96,13 @@ public final class TrendDrillDownFilterSupport {
      * {@link TrendDrillDownService} 调用；无选中时仍走 appendDimensionFilter 的旧精确等值。
      */
     public static void appendDeptAxisFilter(StringBuilder where, Map<String, Object> params,
-                                            List<AnalyticsDepartmentHierarchySupport.DeptNode> deptNodes,
-                                            List<String> selectedDepartments, String axisValue) {
-        java.util.function.Function<String, String> mapper =
-                AnalyticsDepartmentHierarchySupport.bucketMapper(deptNodes, selectedDepartments);
+                                            AnalyticsDepartmentHierarchySupport.Prepared dept, String axisValue) {
+        var mapper = dept.bucketMapper();
         Set<String> matchNames = new java.util.LinkedHashSet<>();
         matchNames.add(axisValue);
-        if (deptNodes != null) {
-            for (AnalyticsDepartmentHierarchySupport.DeptNode node : deptNodes) {
-                if (mapper.apply(node.name()).equals(axisValue)) {
-                    matchNames.add(node.name());
-                }
+        for (String orgName : dept.allOrgNames()) {
+            if (mapper.apply(orgName).equals(axisValue)) {
+                matchNames.add(orgName);
             }
         }
         where.append(" AND u.department_name IN (:deptAxisVals)");
