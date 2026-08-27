@@ -6,7 +6,7 @@
       <div class="section-title">评分项详细要素原文</div>
       <div class="content-box requirement-box">{{ caseData.requirementRaw || '暂无要求' }}</div>
 
-      <!-- 2. 应答片段摘要（标注总字数，浅色背景展示区；查看源项目/标书原文放标题行右侧） -->
+      <!-- 2. 应答片段摘要（标注总字数，操作按钮在标题行右侧） -->
       <div class="section-title response-title mt-4">
         <span>应答片段摘要</span>
         <div class="title-actions">
@@ -28,9 +28,9 @@
         <el-descriptions-item label="项目类型"><el-tag size="small" type="primary">{{ getProjectTypeLabel(caseData.projectType) || '-' }}</el-tag></el-descriptions-item>
       </el-descriptions>
 
-      <!-- 底部操作栏：复用靠右 -->
+      <!-- 底部操作栏 -->
       <div class="dialog-actions mt-6">
-        <el-button type="primary" class="reuse-btn" @click="$emit('reuse', caseData)">
+        <el-button type="primary" @click="$emit('reuse', caseData)">
           <el-icon style="vertical-align:-.2em;margin-right:4px"><CopyDocument /></el-icon>复用
         </el-button>
       </div>
@@ -77,8 +77,7 @@ const bidResultType = computed(() => {
 .word-count-hint { font-size: 12px; color: var(--el-text-color-secondary); text-align: right; margin-bottom: 6px; padding-right: 4px; }
 .response-title { display: flex; align-items: center; justify-content: space-between; }
 .response-title .title-actions { display: flex; align-items: center; }
-.dialog-actions { display: flex; gap: 12px; flex-wrap: wrap; }
-.reuse-btn { margin-left: auto; }
+.dialog-actions { display: flex; justify-content: flex-end; }
 .mt-4 { margin-top: 16px; }
 .mt-6 { margin-top: 24px; }
 </style>
