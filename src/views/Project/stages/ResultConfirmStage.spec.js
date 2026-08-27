@@ -27,10 +27,19 @@ vi.mock('@/api/modules/projectDocuments.js', () => ({
 }))
 
 const getResultMock = vi.fn()
+const registerResultMock = vi.fn()
 vi.mock('@/api/modules/projectLifecycle.js', () => ({
   projectLifecycleApi: {
     getResult: (...args) => getResultMock(...args),
-    registerResult: vi.fn(),
+    registerResult: (...args) => registerResultMock(...args),
+  },
+}))
+
+// 竞品下拉走后端全局字典（specs/055），jsdom 中 mock 掉避免真实网络请求
+vi.mock('@/api/modules/competitionIntel.js', () => ({
+  competitionIntelApi: {
+    getCompetitors: vi.fn(() => Promise.resolve({ data: [{ name: '华为' }, { name: '中兴' }] })),
+    upsertCompetitor: vi.fn(() => Promise.resolve({})),
   },
 }))
 
@@ -45,9 +54,14 @@ vi.mock('@/api/modules/knowledge.js', () => ({
 
 vi.mock('@/constants/projectStages.js', () => ({ getResultConfirmNextTab: () => 'RETROSPECTIVE' }))
 
+const elMessageBoxConfirmMock = vi.fn()
 vi.mock('element-plus', async (importOriginal) => {
   const actual = await importOriginal()
-  return { ...actual, ElMessage: { info: vi.fn(), warning: vi.fn(), error: vi.fn(), success: vi.fn() } }
+  return {
+    ...actual,
+    ElMessage: { info: vi.fn(), warning: vi.fn(), error: vi.fn(), success: vi.fn() },
+    ElMessageBox: { confirm: (...args) => elMessageBoxConfirmMock(...args) },
+  }
 })
 
 describe('ResultConfirmStage CO-408 回填凭证文件名', () => {
@@ -139,5 +153,117 @@ describe('ResultConfirmStage CO-408 回填凭证文件名', () => {
 
     await wrapper.vm.triggerPrecipitation()
     expect(precipitateCasesMock).toHaveBeenCalledWith(1)
+  })
+})
+
+describe('ResultConfirmStage 结果登记二次确认（登记后竞品不可再修改）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getResultMock.mockReset()
+    registerResultMock.mockReset()
+    elMessageBoxConfirmMock.mockReset()
+  })
+
+  // 凭证上传链路在 jsdom 中难以模拟，直接写入 form 后点「登记结果」（form 已 defineExpose）
+  async function mountAndFillForm(competitorRows = 1) {
+    getResultMock.mockImplementation(() => Promise.resolve({
+      data: { resultType: 'WON', evidenceFileIds: [], competitors: [] },
+    }))
+    const { default: ResultConfirmStage } = await import('./ResultConfirmStage.vue')
+    const wrapper = mount(ResultConfirmStage, {
+      props: { projectId: 1 },
+      global: { plugins: [ElementPlus] },
+    })
+    await flushPromises()
+
+    const vm = wrapper.vm
+    vm.form.servicePeriodYears = 2
+    vm.form.servicePeriodEndDate = '2026-12-31'
+    vm.form.evidenceFileIds.push(9001)
+    if (competitorRows > 0) vm.form.competitors[0].name = '华为'
+    return wrapper
+  }
+
+  function findRegisterButton(wrapper) {
+    const btn = wrapper.findAll('button').find(b => b.text().includes('登记结果'))
+    expect(btn).toBeTruthy()
+    return btn
+  }
+
+  it('点击「登记结果」先弹二次确认；取消时不调用 registerResult', async () => {
+    elMessageBoxConfirmMock.mockRejectedValueOnce(new Error('cancel'))
+
+    const wrapper = await mountAndFillForm()
+    await findRegisterButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(elMessageBoxConfirmMock).toHaveBeenCalledTimes(1)
+    expect(registerResultMock).not.toHaveBeenCalled()
+  })
+
+  it('确认弹窗文案包含已填写竞品行数与不可修改警示', async () => {
+    elMessageBoxConfirmMock.mockRejectedValueOnce(new Error('cancel'))
+
+    const wrapper = await mountAndFillForm(1)
+    await findRegisterButton(wrapper).trigger('click')
+    await flushPromises()
+
+    const message = elMessageBoxConfirmMock.mock.calls[0][0]
+    expect(message).toContain('1 家竞争对手情况')
+    expect(message).toContain('不可再修改')
+    // 弹窗为警告级别（type 在第 3 参 options 中）
+    expect(elMessageBoxConfirmMock.mock.calls[0][2]).toMatchObject({ type: 'warning' })
+  })
+
+  it('未填写竞品时确认文案提示「尚未填写」', async () => {
+    elMessageBoxConfirmMock.mockRejectedValueOnce(new Error('cancel'))
+
+    const wrapper = await mountAndFillForm(0)
+    await findRegisterButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(elMessageBoxConfirmMock.mock.calls[0][0]).toContain('尚未填写竞争对手情况')
+  })
+
+  it('确认后调用 registerResult 并进入已登记锁定态', async () => {
+    elMessageBoxConfirmMock.mockResolvedValueOnce('confirm')
+    registerResultMock.mockResolvedValueOnce({ data: {} })
+
+    const wrapper = await mountAndFillForm()
+    await findRegisterButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(registerResultMock).toHaveBeenCalledTimes(1)
+    const [projectId, payload] = registerResultMock.mock.calls[0]
+    expect(projectId).toBe(1)
+    expect(payload.resultType).toBe('WON')
+    expect(payload.servicePeriodYears).toBe(2)
+    expect(payload.competitors).toHaveLength(1)
+    expect(payload.competitors[0].name).toBe('华为')
+
+    expect(wrapper.emitted('registered')).toBeTruthy()
+    // 登记后进入锁定态：按钮变「已登记」，竞品卡片出现锁定标识
+    expect(wrapper.text()).toContain('已登记')
+    expect(wrapper.text()).toContain('已登记 · 锁定不可修改')
+  })
+
+  it('必填校验失败时不弹二次确认、不提交', async () => {
+    getResultMock.mockImplementation(() => Promise.resolve({
+      data: { resultType: 'WON', evidenceFileIds: [], competitors: [] },
+    }))
+    const { default: ResultConfirmStage } = await import('./ResultConfirmStage.vue')
+    const wrapper = mount(ResultConfirmStage, {
+      props: { projectId: 1 },
+      global: { plugins: [ElementPlus] },
+    })
+    await flushPromises()
+
+    // 未填服务周期/凭证 → 先被前端必填校验拦下
+    wrapper.vm.form.competitors[0].name = '华为'
+    await findRegisterButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(elMessageBoxConfirmMock).not.toHaveBeenCalled()
+    expect(registerResultMock).not.toHaveBeenCalled()
   })
 })

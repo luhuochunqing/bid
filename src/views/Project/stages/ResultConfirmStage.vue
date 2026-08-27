@@ -94,7 +94,12 @@
 
     <!-- 竞争对手情况 -->
     <el-card shadow="never" class="stage-section">
-      <template #header><span class="section-title">竞争对手情况</span></template>
+      <template #header>
+        <div class="section-header-row">
+          <span class="section-title">竞争对手情况</span>
+          <el-tag v-if="resultDone" size="small" type="info">已登记 · 锁定不可修改</el-tag>
+        </div>
+      </template>
       <el-table :data="form.competitors" border size="small" class="competitor-table">
         <el-table-column prop="name" label="竞品公司名称" min-width="180">
           <template #default="{ row }">
@@ -194,7 +199,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Plus, UploadFilled } from '@element-plus/icons-vue'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
 import { casesApi } from '@/api/modules/knowledge.js'
@@ -454,6 +459,19 @@ async function submit() {
   const competitors = form.competitors.filter(c => c.name?.trim() || c.discount != null || c.paymentTerm != null || c.notes?.trim())
   // 竞品名自动入库（幂等 upsert，失败不阻断登记）
   await ensureCompetitorNames(competitors.map(c => c.name?.trim()).filter(Boolean))
+  // 二次确认：登记后投标结果与竞争对手情况即锁定、不可再修改（后端幂等 409 + 前端置灰双保险）
+  try {
+    const competitorTip = competitors.length
+      ? `已填写 ${competitors.length} 家竞争对手情况`
+      : '尚未填写竞争对手情况'
+    await ElMessageBox.confirm(
+      `${competitorTip}。登记后投标结果与竞争对手情况将被锁定存档、不可再修改，是否确认登记？`,
+      '结果登记二次确认',
+      { type: 'warning', confirmButtonText: '确认登记', cancelButtonText: '返回检查' }
+    )
+  } catch {
+    return // 用户取消登记
+  }
   submitting.value = true
   try {
     const payload = {
@@ -476,7 +494,8 @@ async function submit() {
 
 onMounted(() => { load(); loadCompetitorOptions() })
 
-defineExpose({ load, checkPrecipitationReadiness, triggerPrecipitation })
+// form/submit 暴露给单测：凭证上传链路在 jsdom 中难以模拟，测试直接写入 form 后点「登记结果」
+defineExpose({ load, checkPrecipitationReadiness, triggerPrecipitation, form, submit })
 </script>
 
 <style scoped>
@@ -525,4 +544,7 @@ defineExpose({ load, checkPrecipitationReadiness, triggerPrecipitation })
 
 /* 操作按钮 */
 .btn-container { display: flex; justify-content: flex-end; }
+
+/* 卡片头：标题 + 锁定标识同行 */
+.section-header-row { display: flex; align-items: center; justify-content: space-between; }
 </style>
