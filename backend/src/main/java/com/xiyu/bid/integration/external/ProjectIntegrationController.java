@@ -4,9 +4,12 @@
 package com.xiyu.bid.integration.external;
 
 import com.xiyu.bid.dto.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,9 +17,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * 外部项目修改接口（接口规范 v3.12 §3.6）。
@@ -54,6 +55,12 @@ public class ProjectIntegrationController {
                 request.getEvaluationBasic() != null,
                 request.getEvaluationCustomerInfos() != null);
         Long userId = apiKeyUserResolver.resolveUserId();
+        if (userId == null) {
+            // 审计守卫：API Key 属主用户不可解析（已删除/principal 异常）时拒绝写入，
+            // 避免 updatedBy 落 null 破坏审计溯源；正常调用（属主存在）不受影响。
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "API Key 属主用户不可解析，拒绝写入（请联系平台管理员检查 API Key 配置）");
+        }
         ProjectUpdateResponse updated = projectIntegrationCommandService.updateByTenderId(
                 sourceSystem, tenderId, request, userId);
         return ResponseEntity.ok(ApiResponse.success("项目更新成功", updated));

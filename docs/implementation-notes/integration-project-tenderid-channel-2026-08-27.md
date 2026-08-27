@@ -85,3 +85,42 @@
 
 **验证**：对齐 CI 口径子集 56 绿（ArchUnit 11 + CommandService 25 + ControllerTest 7 + Resolver 13）；
 质量门禁 checkstyle/pmd/spotbugs 全过；净减 42 行（+73/−115）。commit `492f80734`。
+
+## 设计弯路修复（思维链 Review 落地，P1-P4）
+
+> 对本次改动做系统性设计评估（思维链 5 维度）后，落地 3 项修复、核实 1 项已满足。
+> 详见 `.wiki/pages/integration-tender-api.md` 与 lessons 关联；commit `待填`。
+
+### P1 认证上下文透传（消除同请求重复查库）
+
+- **问题**：`ApiKeyAuthenticationFilter` 认证时已拿到完整 `ApiKey`（含 `createdBy`），但只把
+  `"api-key:" + id` 字符串放进 principal；业务侧 `ApiKeyUserResolver` 被迫再 `findById` 反查
+  API Key 表 + `resolveUserIdByUsername` 查 user 表——同一请求 2 次 DB 查询 + Long↔String 往返。
+- **修复**：filter 认证成功时把属主用户名透传到 `authentication.setDetails(...)`；
+  resolver 主路径读 details（零额外查询），details 缺失时回退到旧 principal 反查路径（兼容旧链路/JWT 会话）。
+- **决策**：details 用 `Map`（`ApiKeyAuthConstants.DETAILS_CREATED_BY_KEY`），不用自定义 principal 对象——
+  后者会波及 `JwtAuthenticationFilter.hasApiKeyAuthentication()` 的 `toString().startsWith` 判断，收益相当不值得。
+- **常量归属**：`DETAILS_CREATED_BY_KEY` 与 `API_KEY_PRINCIPAL_PREFIX` 都放 `ApiKeyAuthConstants`（apikey 包），
+  避免 apikey 包反向依赖 integration 包形成循环（初稿曾把常量放 `ApiKeyUserResolver`，已纠正）。
+
+### P2 接口六审计守卫：属主不可解析 → 403
+
+- **问题**：`resolveUserId()` 返回 null（API Key 属主用户被删除等异常管理状态）时，
+  `ProjectIntegrationCommandService:109 setUpdatedBy(userId)` 静默落 null，审计溯源链路断裂。
+  推送侧有 "system" 审计兜底（`TenderIntegrationCommandService:219` 同款），接口六是例外。
+- **修复**：`ProjectIntegrationController` 在 `resolveUserId()` 后立即校验 null → `403`
+  （走 `GlobalExceptionHandler.handleResponseStatusException` 统一格式）。只影响属主被删的异常状态，
+  正常调用零影响。**契约变更**：接口六新增 403 语义，需同步飞书文档（用户手动改的 D6 文案第 9 条补一句）。
+
+### P3 前缀常量收敛
+
+- `"api-key:"` 字面量原散落 3 处（filter 构造 / JwtFilter 判断 / resolver 解析），
+  收敛为 `ApiKeyAuthConstants.API_KEY_PRINCIPAL_PREFIX` 单点（类注释本就声明"不得自己拼写字符串"）。
+
+### P4 已核实无需改
+
+- `ProjectUpdateResponse` 不加 `@JsonInclude(NON_NULL)`——`application.yml` 已全局
+  `default-property-inclusion: non_null`，skip 响应本就只含 `{"applied":false}`（skip 测试 `doesNotExist()` 已断言）。
+
+**验证**：新增 `ApiKeyUserResolverTest`（8 用例：details 优先零查询 / 回退 / 各 null 分支）+ ControllerTest
+新增 403 用例（8 用例）；架构 11 + Resolver 8 + Controller 8 + Command 25 全绿；质量门禁全过。

@@ -18,10 +18,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static com.xiyu.bid.apikey.infrastructure.ApiKeyAuthConstants.API_KEY_HEADERS;
 import static com.xiyu.bid.apikey.infrastructure.ApiKeyAuthConstants.API_KEY_PARAMS;
+import static com.xiyu.bid.apikey.infrastructure.ApiKeyAuthConstants.API_KEY_PRINCIPAL_PREFIX;
+import static com.xiyu.bid.apikey.infrastructure.ApiKeyAuthConstants.DETAILS_CREATED_BY_KEY;
 
 @Slf4j
 @Component
@@ -84,9 +87,12 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
         UsernamePasswordAuthenticationToken auth =
                 new UsernamePasswordAuthenticationToken(
-                        "api-key:" + key.getId(),
+                        API_KEY_PRINCIPAL_PREFIX + key.getId(),
                         List.of(),
                         authorities);
+        // 透传 API Key 属主用户名到 authentication details：业务侧（ApiKeyUserResolver）
+        // 直接读取即可解析 updatedBy/creatorId，避免再从 principal 反查 API Key 表（同一请求重复查询）。
+        auth.setDetails(Map.of(DETAILS_CREATED_BY_KEY, key.getCreatedBy()));
         SecurityContextHolder.getContext().setAuthentication(auth);
         log.info("API Key auth OK: id={} scopes={} uri={}", key.getId(), key.getScopes(), requestUri);
 

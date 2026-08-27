@@ -25,6 +25,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -70,6 +71,9 @@ class ProjectIntegrationControllerTest {
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
+        // 默认属主可解析；403 用例单独覆盖"属主不可解析"分支。
+        // lenient：路径绑定/请求体解析失败的用例不进入 controller 方法体，resolveUserId 不会被调用。
+        lenient().when(apiKeyUserResolver.resolveUserId()).thenReturn(100L);
     }
 
     @Test
@@ -183,6 +187,23 @@ class ProjectIntegrationControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.code").value(404));
+    }
+
+    @Test
+    @DisplayName("API Key 属主用户不可解析 → 403（拒绝无主写入，保护审计溯源）")
+    void updateProject_unresolvableApiKeyOwner_shouldReturn403() throws Exception {
+        when(apiKeyUserResolver.resolveUserId()).thenReturn(null);
+
+        mockMvc.perform(put("/api/integration/projects/CRM/" + TENDER_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"projectName\":\"P\"}")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.code").value(403));
+
+        verify(projectIntegrationCommandService, never())
+                .updateByTenderId(any(), any(), any(), any());
     }
 
     @Test

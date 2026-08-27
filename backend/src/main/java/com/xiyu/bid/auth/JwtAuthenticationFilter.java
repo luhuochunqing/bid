@@ -4,6 +4,7 @@
 // 维护声明: 仅维护令牌解析与过滤逻辑；认证规则变更请同步 AuthService 和 SecurityConfig.
 package com.xiyu.bid.auth;
 
+import com.xiyu.bid.apikey.infrastructure.ApiKeyAuthConstants;
 import com.xiyu.bid.config.TraceConstants;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.repository.UserRepository;
@@ -149,7 +150,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return authentication != null
                 && authentication.isAuthenticated()
                 && authentication.getPrincipal() != null
-                && authentication.getPrincipal().toString().startsWith("api-key:");
+                && authentication.getPrincipal().toString()
+                        .startsWith(ApiKeyAuthConstants.API_KEY_PRINCIPAL_PREFIX);
     }
 
     private String extractJwtFromRequest(HttpServletRequest request) {
