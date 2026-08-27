@@ -23,11 +23,12 @@ import lombok.extern.slf4j.Slf4j;
  * 但事件不进入投递链路（tenderId=2289~2296 客户事件库均未收到），客户亦明确要求改走
  * SDK sendEvent 标准通道。
  *
- * <p>serviceName 供给链：{@link TenderEventSdkConfig} 用标讯自己的
- * {@code TenderEventSdkProperties.serviceName}（测试环境=bid）构造 @Primary
- * {@code ServiceRegisterProperties} 满足 SDK 注入。不能复用组织事件消费侧的
- * {@code client.register.*} 绑定值（BidSystemOrgConsumer）——历史上错误服务名进 body
- * 曾导致网关返回 {@code result=false}「topic未注册」。
+ * <p>serviceName 供给链：{@link TenderEventSdkConfig} 手工构造
+ * {@code ServiceRegisterProperties}（serviceName 取标讯自己的
+ * {@code TenderEventSdkProperties.serviceName}，测试环境=bid）反射注入 SDK 服务——
+ * 不能注册为 Spring bean：该类自带类级 {@code @ConfigurationProperties(prefix="client.register")}，
+ * 容器管理的实例会被组织消费侧环境值（BidSystemOrgConsumer）重新绑定覆盖，
+ * 2026-08-27 实测被覆盖后网关返回 {@code result:false}（bid→受理成功对照证实）。
  *
  * <p>结果解释：网关成功返回 {@code {"code":"00000","data":{"result":null},"msg":"响应成功"}}，
  * SDK 内部 fastjson 解析丢弃 null 值后 {@code SendEventRespDto.result=null}——

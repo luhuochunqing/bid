@@ -4,42 +4,57 @@ import com.ehsy.eventlibrary.clientsdk.config.properties.ServiceRegisterProperti
 import com.ehsy.eventlibrary.clientsdk.systeminteraction.service.SystemInteractiveService;
 import com.ehsy.eventlibrary.clientsdk.systeminteraction.service.impl.SystemInteractiveServiceImpl;
 import com.xiyu.bid.integration.tenderevent.application.TenderEventPublishPort;
+import java.lang.reflect.Field;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 
 /**
  * 标讯事件推送 SDK 装配。
  *
  * <p>启用（{@code xiyu.integrations.tender-event.sdk.enabled=true}）时注册真实生产者
- * {@link TenderEventSdkProducer}，经 SDK 的 {@code SystemInteractiveService} 推送事件总线；
+ * {@link TenderEventSdkProducer}，经 SDK 的 {@code SystemInteractiveService.sendEvent}
+ * 推送事件总线（body 4 字段契约，serviceName 必带，详见 {@link TenderEventSdkSender}）；
  * 未启用时注册 no-op 兜底端口，保证编排服务 {@link TenderEventPublishPort} 始终可注入。
  *
- * <p>{@code SystemInteractiveServiceImpl} 通过 {@code @Import} 单类注册为 bean（其
- * {@code @Autowired} 的 {@link ServiceRegisterProperties} 字段由下方 bean 满足）。
- * 不能 {@code @Import} SDK 的 {@code SDKClientConfiguration}：那会连带激活 Kafka 生产者、
- * ZooKeeper 偏移管理与客户端注册等消费侧组件，发布场景用不到。
+ * <p><b>SDK 的 ServiceRegisterProperties 与 SystemInteractiveServiceImpl 都不能注册为
+ * Spring bean</b>，两者在容器里都会被污染（2026-08-27 实测）：
+ * <ul>
+ *   <li>属性类自带类级 {@code @ConfigurationProperties(prefix="client.register")}，容器管理的
+ *       实例会被组织消费侧环境值（BidSystemOrgConsumer）重新绑定覆盖 setter 设入的 bid，
+ *       SDK 发出错误服务名后网关返回 {@code result:false}（探针对照：bid→受理成功）</li>
+ *   <li>SDK 服务类的 {@code @Autowired} 字段会被 AutowiredAnnotationBeanPostProcessor
+ *       再次注入——容器里存在任何 ServiceRegisterProperties bean 都会顶掉反射注入的干净配置</li>
+ * </ul>
+ * 因此 SDK 实例在 {@link TenderEventSdkSender} 构造时手工创建并藏为其私有字段，
+ * {@code TenderEventSdkSender} 本身无注解字段、容器不会触碰其内部状态；也不能
+ * {@code @Import} SDKClientConfiguration（连带激活 Kafka/ZK/注册等消费侧组件）。
  */
 @Configuration
 @EnableConfigurationProperties(TenderEventSdkProperties.class)
-@Import(SystemInteractiveServiceImpl.class)
 public class TenderEventSdkConfig {
 
-    /** SDK 发送服务依赖的服务注册配置：serviceName 标识业务系统（bid），serverRegisterUrl 指向事件总线。
-     *  标为 @Primary 满足 {@link SystemInteractiveServiceImpl} 的字段注入——SDK 的 sendEvent
-     *  把这里的 serviceName 放进请求 body（路由必需字段）。不能用组织事件消费侧的
-     *  {@code client.register.*} 绑定 bean（BidSystemOrgConsumer，错误服务名曾致 result=false）。 */
     @Bean
-    @Primary
-    public ServiceRegisterProperties serviceRegisterProperties(TenderEventSdkProperties properties) {
-        ServiceRegisterProperties registerProperties = new ServiceRegisterProperties();
-        registerProperties.setServiceName(properties.serviceName());
-        registerProperties.setServerRegisterUrl(properties.serverRegisterUrl());
-        return registerProperties;
+    public TenderEventSdkSender tenderEventSdkSender(TenderEventSdkProperties properties) {
+        return new TenderEventSdkSender(newSdkService(properties), properties.serviceName());
+    }
+
+    /** 手工构造 SDK 服务：配置脱离容器绑定，反射注入私有字段（SDK 无 public setter）。 */
+    static SystemInteractiveService newSdkService(TenderEventSdkProperties properties) {
+        ServiceRegisterProperties sdkProps = new ServiceRegisterProperties();
+        sdkProps.setServiceName(properties.serviceName());
+        sdkProps.setServerRegisterUrl(properties.serverRegisterUrl());
+        SystemInteractiveServiceImpl service = new SystemInteractiveServiceImpl();
+        try {
+            Field field = SystemInteractiveServiceImpl.class.getDeclaredField("clientSdkConfig");
+            field.setAccessible(true);
+            field.set(service, sdkProps);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("无法向 SDK 服务注入服务注册配置", e);
+        }
+        return service;
     }
 
     @Bean
@@ -48,10 +63,8 @@ public class TenderEventSdkConfig {
             name = "enabled",
             havingValue = "true"
     )
-    public TenderEventPublishPort tenderEventPublishPort(
-            TenderEventSdkProperties properties, SystemInteractiveService systemInteractiveService) {
-        return new TenderEventSdkProducer(
-                new TenderEventSdkSender(systemInteractiveService, properties.serviceName()));
+    public TenderEventPublishPort tenderEventPublishPort(TenderEventSdkSender sender) {
+        return new TenderEventSdkProducer(sender);
     }
 
     /** 未启用时兜底端口：不发送任何事件。 */
