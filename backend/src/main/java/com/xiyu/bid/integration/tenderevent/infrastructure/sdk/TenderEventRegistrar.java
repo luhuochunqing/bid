@@ -62,8 +62,14 @@ final class TenderEventRegistrar {
      */
     public void register() {
         log.info("标讯事件总线：开始服务注册（serviceName=bid）...");
-        registerComponent.register();
-        log.info("标讯事件总线：服务注册流程已触发，续约线程由 SDK 自动管理");
+        Thread.ofVirtual().name("tender-event-register").start(() -> {
+            try {
+                registerComponent.register();
+                log.info("标讯事件总线：服务注册流程已触发，续约线程由 SDK 自动管理");
+            } catch (Exception e) {
+                log.error("标讯事件总线：服务注册异常", e);
+            }
+        });
     }
 
     /**

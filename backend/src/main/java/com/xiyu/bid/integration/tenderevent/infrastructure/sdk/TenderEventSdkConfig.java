@@ -46,23 +46,7 @@ public class TenderEventSdkConfig {
 
     @Bean
     public TenderEventSdkSender tenderEventSdkSender(TenderEventSdkProperties properties) {
-        return new TenderEventSdkSender(newSdkService(properties), properties.serviceName());
-    }
-
-    /** 手工构造 SDK 服务：配置脱离容器绑定，反射注入私有字段（SDK 无 public setter）。 */
-    static SystemInteractiveService newSdkService(TenderEventSdkProperties properties) {
-        ServiceRegisterProperties sdkProps = new ServiceRegisterProperties();
-        sdkProps.setServiceName(properties.serviceName());
-        sdkProps.setServerRegisterUrl(properties.serverRegisterUrl());
-        SystemInteractiveServiceImpl service = new SystemInteractiveServiceImpl();
-        try {
-            Field field = SystemInteractiveServiceImpl.class.getDeclaredField("clientSdkConfig");
-            field.setAccessible(true);
-            field.set(service, sdkProps);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("无法向 SDK 服务注入服务注册配置", e);
-        }
-        return service;
+        return new TenderEventSdkSender(properties.serverRegisterUrl(), properties.serviceName());
     }
 
     /**

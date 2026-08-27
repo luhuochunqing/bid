@@ -31,21 +31,9 @@ class TenderEventSdkProducerTest {
     private TenderEventSdkProducer producer;
 
     @BeforeEach
-    void setUp() throws Exception {
+    void setUp() {
         httpClient = mockStatic(HttpClientUtil.class);
-        producer = new TenderEventSdkProducer(new TenderEventSdkSender(newSdkService(), "bid"));
-    }
-
-    /** 手工构造 SDK 服务实例并注入服务注册配置（serviceName=bid），URL 与常量一致。 */
-    private static SystemInteractiveService newSdkService() throws Exception {
-        ServiceRegisterProperties sdkProps = new ServiceRegisterProperties();
-        sdkProps.setServiceName("bid");
-        sdkProps.setServerRegisterUrl("http://event-bus.local");
-        SystemInteractiveServiceImpl service = new SystemInteractiveServiceImpl();
-        Field field = SystemInteractiveServiceImpl.class.getDeclaredField("clientSdkConfig");
-        field.setAccessible(true);
-        field.set(service, sdkProps);
-        return service;
+        producer = new TenderEventSdkProducer(new TenderEventSdkSender("http://event-bus.local", "bid"));
     }
 
     @AfterEach
@@ -84,9 +72,9 @@ class TenderEventSdkProducerTest {
         assertThat(body.getString("eventTopic")).isEqualTo("BidTenderChange");
         assertThat(body.getString("eventSource")).isEqualTo("bid");
         assertThat(body.getString("data")).isEqualTo("{\"tenderId\":123,\"externalId\":\"ext-1\"}");
-        assertThat(body.containsKey("key")).as("SDK 契约 body 无 key").isFalse();
-        assertThat(body.containsKey("time")).as("SDK 契约 body 无 time").isFalse();
-        assertThat(body.containsKey("traceId")).as("SDK 契约 body 无 traceId").isFalse();
+        assertThat(body.getString("key")).as("key 必须为业务字段名 tenderId").isEqualTo("tenderId");
+        assertThat(body.getLong("time")).as("time 为毫秒时间戳").isPositive();
+        assertThat(body.getString("traceId")).isEqualTo("trace-1");
         assertThat(headers.getValue())
                 .containsEntry("traceId", "trace-1")
                 .containsEntry("spanId", "span-1")
