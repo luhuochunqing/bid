@@ -32,12 +32,13 @@ public class ScoreGlobalMergeOrchestrator {
     public record MergeStats(List<ScoreCandidate> candidates, boolean invoked, String skipReason,
             boolean truncated, int poolBackedKept, int hallucinationDropped, int restored) {
 
-        static MergeStats skipped(String reason) {
-            return new MergeStats(null, false, reason, false, 0, 0, 0);
-        }
-
-        /** 前置检查未通过即跳过；语义区分见 Javadoc（当前实现与 skipped 相同，调用方含义不同） */
-        static MergeStats fallback(String reason) {
+        /**
+         * 未裁决的统一工厂（设计弯路审查 P6）：skip（前置未过）与 fallback（执行后降级）的分类学
+         * 完全由 reason 承载——POOL_UNDER_TWO/SECTION_LOCATION_FAILED 为前置跳过，
+         * EXECUTOR_UNAVAILABLE/LLM_UNAVAILABLE/GUARD_FILTERED_ALL 为执行后降级。
+         * 调用方语义一律 fail-open 保持启发式候选池。
+         */
+        static MergeStats notInvoked(String reason) {
             return new MergeStats(null, false, reason, false, 0, 0, 0);
         }
     }
@@ -57,29 +58,29 @@ public class ScoreGlobalMergeOrchestrator {
     /** 完整归并：返回候选清单 + 全量遥测计数（spec 057 run-summary 数据源） */
     public MergeStats applyGlobalMergeDetailed(List<ScoreCandidate> valid, String fullText) {
         if (valid == null || valid.size() < 2) {
-            return MergeStats.skipped("POOL_UNDER_TWO");
+            return MergeStats.notInvoked("POOL_UNDER_TWO");
         }
         ScoreGlobalMergeExecutor mergeExecutor = mergeExecutorProvider.getIfAvailable();
         if (mergeExecutor == null) {
             log.info("全局归并执行器不可用（e2e 桩环境），保持启发式结果: pool={}", valid.size());
-            return MergeStats.fallback("EXECUTOR_UNAVAILABLE");
+            return MergeStats.notInvoked("EXECUTOR_UNAVAILABLE");
         }
         AdjudicationContext ctx = resolveSectionText(fullText);
         if (!ctx.located()) {
             log.info("全局归并跳过：评分章节定位失败，禁用全文前缀裁决（spec 057 FR-01），保持启发式结果: pool={}",
                     valid.size());
-            return MergeStats.skipped("SECTION_LOCATION_FAILED");
+            return MergeStats.notInvoked("SECTION_LOCATION_FAILED");
         }
         List<ScoreCandidate> resolved = mergeExecutor.resolve(valid, ctx.text());
         if (resolved.isEmpty()) {
             log.info("全局归并降级（LLM 不可用或前置不足），保持启发式结果: pool={}", valid.size());
-            return MergeStats.fallback("LLM_UNAVAILABLE");
+            return MergeStats.notInvoked("LLM_UNAVAILABLE");
         }
         ScoreMergeResultGuard.Outcome outcome = ScoreMergeResultGuard.guard(valid, resolved, ctx.text());
         if (outcome.accepted().isEmpty()) {
             log.warn("全局归并输出全部未通过守卫，保持启发式结果: pool={}, hallucinationDropped={}",
                     valid.size(), outcome.hallucinationDropped());
-            return MergeStats.fallback("GUARD_FILTERED_ALL");
+            return MergeStats.notInvoked("GUARD_FILTERED_ALL");
         }
         log.info("全局归并完成: pool={} → merged={} accepted={} hallucinationDropped={} restored={} "
                         + "poolBackedKept={} truncated={}",

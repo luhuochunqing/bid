@@ -55,7 +55,7 @@ class ScoreCandidatePostProcessorTest {
         processor = new ScoreCandidatePostProcessor(scoreAnalyzer, orchestrator);
         // 缺省：归并未裁决（fail-open 保持启发式结果），各用例按需覆盖
         lenient().when(orchestrator.applyGlobalMergeDetailed(anyList(), anyString()))
-                .thenReturn(ScoreGlobalMergeOrchestrator.MergeStats.fallback("POOL_UNDER_TWO"));
+                .thenReturn(ScoreGlobalMergeOrchestrator.MergeStats.notInvoked("POOL_UNDER_TWO"));
     }
 
     @Test
@@ -84,7 +84,7 @@ class ScoreCandidatePostProcessorTest {
     @Test
     void fallbackWhenMergeNotInvoked_keepsHeuristicList() {
         lenient().when(orchestrator.applyGlobalMergeDetailed(anyList(), anyString()))
-                .thenReturn(ScoreGlobalMergeOrchestrator.MergeStats.skipped("SECTION_LOCATION_FAILED"));
+                .thenReturn(ScoreGlobalMergeOrchestrator.MergeStats.notInvoked("SECTION_LOCATION_FAILED"));
         var heuristic = List.of(candidate("H1", "商务", "服务方案针对性强得满分", "100"));
 
         var out = processor.process("t2", "全文", recallOf(heuristic, 0), List.of(), NOOP);

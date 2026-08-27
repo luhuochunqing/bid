@@ -31,7 +31,7 @@
 
 FR：
 - **FR-01**: 定位失败 MUST NOT 以全文前缀作为裁决语料——直接 fail-open 跳过归并并记录原因。
-- **FR-02**: 语料截断时（定位成功但超 SECTION_TEXT_LIMIT），守卫对"与候选池身份匹配（归一化互相包含）"的归并输出项 MUST 放行并计 poolBackedKept。
+- **FR-02**: 守卫对"与候选池身份匹配（归一化互相包含）"的归并输出项 MUST 放行并计 poolBackedKept。该旁路**常态启用**，语料截断（定位成功但超 SECTION_TEXT_LIMIT）是它最需要生效的场景；非截断时能命中者必源自真实候选池的措辞漂移复述（池由同段语料召回），放行不引入新幻觉面。口径收敛依据：docs/reviews/057-design-detour-review.md P4。
 - **FR-03**: Outcome 必须携带 poolBackedKept 计数；编排日志同步透出 truncated 标记。
 
 ### US2: 单次解析一份运行档案 (P1)
