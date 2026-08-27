@@ -104,4 +104,45 @@ class ScoreMergeResultGuardTest {
         assertThat(outcome.accepted()).isEmpty();
         assertThat(outcome.restoredCount()).isZero();
     }
+
+    // ── spec 057 FR-02：语料截断场景，池身份匹配的归并输出放行并计数 ──
+
+    @Test
+    void guard_poolMatchedOutputOutsideCorpus_keptAsPoolBacked() {
+        // 技术项真实存在但评分章节语料截断后不含它 → 不再误判幻觉，放行计 poolBackedKept
+        ScoreCandidate poolTech = new ScoreCandidate("", "技术部分",
+                "技术方案完整性审查：方案须覆盖全部招标需求点。8分",
+                new BigDecimal("8"), null, null,
+                "技术方案完整性审查：方案须覆盖全部招标需求点。8分", "P52", null);
+        List<ScoreCandidate> merged = List.of(
+                new ScoreCandidate("", "技术部分",
+                        "技术方案完整性审查：方案须覆盖全部招标需求点。",
+                        new BigDecimal("8"), null, null, "原文", "P52", null));
+        ScoreMergeResultGuard.Outcome outcome = ScoreMergeResultGuard.guard(
+                List.of(poolItem("不平衡报价评审：评标委员会针对各投标人分项报价中的单项折扣率进行评价，报价合理得4-5分。", "5"),
+                        poolTech),
+                merged, SECTION_TEXT);
+        assertThat(outcome.accepted()).hasSize(2); // 池背书放行1 + 语料内高置信池项回补1
+        assertThat(outcome.accepted()).extracting(ScoreCandidate::detail)
+                .contains("技术方案完整性审查：方案须覆盖全部招标需求点。",
+                        "不平衡报价评审：评标委员会针对各投标人分项报价中的单项折扣率进行评价，报价合理得4-5分。");
+        assertThat(outcome.poolBackedKept()).isEqualTo(1);
+        assertThat(outcome.hallucinationDropped()).isZero();
+        assertThat(outcome.restoredCount()).isEqualTo(1);
+    }
+
+    @Test
+    void guard_poolAbsentDetail_stillHallucination() {
+        List<ScoreCandidate> merged = List.of(
+                new ScoreCandidate("", "价格部分", "AI 编造：宇宙无敌超级条款得9分。",
+                        new BigDecimal("9"), null, null, "原文", "P47", null));
+        ScoreMergeResultGuard.Outcome outcome = ScoreMergeResultGuard.guard(
+                List.of(poolItem("不平衡报价评审：评标委员会针对各投标人分项报价中的单项折扣率进行评价，报价合理得4-5分。", "5")),
+                merged, SECTION_TEXT);
+        // 幻觉被规则1丢弃；语料内高置信池项由规则2合法回补——两者计数互不污染
+        assertThat(outcome.accepted()).hasSize(1);
+        assertThat(outcome.hallucinationDropped()).isEqualTo(1);
+        assertThat(outcome.poolBackedKept()).isZero();
+        assertThat(outcome.restoredCount()).isEqualTo(1);
+    }
 }

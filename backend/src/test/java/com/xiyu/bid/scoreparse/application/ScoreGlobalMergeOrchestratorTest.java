@@ -124,21 +124,35 @@ class ScoreGlobalMergeOrchestratorTest {
     }
 
     @Test
-    void apply_sectionLocatorMisses_fallsBackToFullTextPrefix() {
-        // 全文无评分关键词章节标题时仍能以全文前缀为裁决上下文完成归并
+    void apply_sectionLocatorFails_skipsAdjudication_noLlmCall() {
+        // spec 057 FR-01：无评分章节时禁用全文前缀裁决（旧降级会拿错语料误杀真项+污染幻觉计数）
+        String noSectionText = "不平衡报价评审：报价合理得4-5分。\n投标人提供上架商品价格管控方案：优秀得4分。";
+        List<ScoreCandidate> pool = List.of(
+                poolItem("不平衡报价评审：报价合理得4-5分。", "5"),
+                poolItem("投标人提供上架商品价格管控方案：优秀得4分。", "4"));
+
+        List<ScoreCandidate> result = orchestrator.applyGlobalMerge(pool, noSectionText);
+
+        assertThat(result).isSameAs(pool);
+        verify(mergeExecutor, never()).resolve(anyList(), anyString());
+    }
+
+    @Test
+    void apply_truncatedCorpus_logsTruncatedFlag() {
+        // spec 057 FR-03：定位成功但拼接超限 → truncated 标记进摘要日志（此处仅断言主流程不受影响）
+        StringBuilder big = new StringBuilder("评分办法\n价格部分：\n");
+        while (big.length() < 13_000) {
+            big.append("不平衡报价评审：报价合理得4-5分。\n");
+        }
         List<ScoreCandidate> pool = List.of(
                 poolItem("不平衡报价评审：报价合理得4-5分。", "5"),
                 poolItem("投标人提供上架商品价格管控方案：优秀得4分。", "4"));
         when(mergeExecutor.resolve(anyList(), anyString())).thenReturn(List.of(
                 new ScoreCandidate("", "价格部分", "不平衡报价评审：报价合理得4-5分。",
                         new BigDecimal("5"), null, null, "原文", "P47", "GLOBAL_MERGE")));
-        String noSectionText = "不平衡报价评审：报价合理得4-5分。\n投标人提供上架商品价格管控方案：优秀得4分。";
 
-        List<ScoreCandidate> result = orchestrator.applyGlobalMerge(pool, noSectionText);
+        List<ScoreCandidate> result = orchestrator.applyGlobalMerge(pool, big.toString());
 
-        // 归并输出仅 1 项 → 守卫回补池中高置信漏项"上架商品价格管控方案" → 共 2 项
-        assertThat(result).hasSize(2);
-        assertThat(result).extracting(ScoreCandidate::detail)
-                .contains("投标人提供上架商品价格管控方案：优秀得4分。");
+        assertThat(result).hasSize(2); // 归并采纳1 + 池背书回补1，主流程不因截断改变 fail-open 行为
     }
 }

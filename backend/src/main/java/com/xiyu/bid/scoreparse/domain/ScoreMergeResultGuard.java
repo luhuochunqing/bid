@@ -24,22 +24,26 @@ public final class ScoreMergeResultGuard {
     public record Outcome(
             List<ScoreCandidate> accepted,
             int hallucinationDropped,
-            int restoredCount) {
+            int restoredCount,
+            int poolBackedKept) {
     }
 
     public static Outcome guard(
             List<ScoreCandidate> pool, List<ScoreCandidate> mergedItems, String sectionText) {
         if (mergedItems == null || mergedItems.isEmpty()
                 || sectionText == null || sectionText.isBlank()) {
-            return new Outcome(List.of(), 0, 0);
+            return new Outcome(List.of(), 0, 0, 0);
         }
         String normalizedSection = normalize(sectionText);
         List<ScoreCandidate> accepted = new ArrayList<>();
         int dropped = 0;
+        int poolBacked = 0;
         for (ScoreCandidate item : mergedItems) {
             String detail = item.detail();
-            if (detail == null || detail.isBlank()
-                    || !normalizedSection.contains(normalize(detail))) {
+            // spec 057 FR-02：语料截断时，语料外但与池身份匹配的真实项不算幻觉（poolBackedKept 计数）
+            boolean corpusBacked = detail != null && !detail.isBlank()
+                    && normalizedSection.contains(normalize(detail));
+            if (!corpusBacked && !isPoolIdentityMatched(item, pool)) {
                 dropped++;
                 continue;
             }
@@ -49,6 +53,9 @@ public final class ScoreMergeResultGuard {
                 continue;
             }
             accepted.add(item);
+            if (!corpusBacked) {
+                poolBacked++;
+            }
         }
         int restored = 0;
         if (pool != null) {
@@ -60,7 +67,29 @@ public final class ScoreMergeResultGuard {
                 restored++;
             }
         }
-        return new Outcome(List.copyOf(accepted), dropped, restored);
+        return new Outcome(List.copyOf(accepted), dropped, restored, poolBacked);
+    }
+
+    /** spec 057 FR-02：输出项与候选池身份匹配（归一化互含 detail，或被池项原文背书包含）→ 非幻觉 */
+    private static boolean isPoolIdentityMatched(ScoreCandidate item, List<ScoreCandidate> pool) {
+        if (pool == null || pool.isEmpty()) {
+            return false;
+        }
+        String detail = normalize(item.detail());
+        if (detail.isEmpty()) {
+            return false;
+        }
+        for (ScoreCandidate candidate : pool) {
+            String pooledDetail = normalize(candidate.detail());
+            if (!pooledDetail.isEmpty() && (pooledDetail.contains(detail) || detail.contains(pooledDetail))) {
+                return true;
+            }
+            String sourceText = normalize(candidate.sourceText());
+            if (!sourceText.isEmpty() && sourceText.contains(detail)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static final BigDecimal MAX_SINGLE_WEIGHT = new BigDecimal("100");

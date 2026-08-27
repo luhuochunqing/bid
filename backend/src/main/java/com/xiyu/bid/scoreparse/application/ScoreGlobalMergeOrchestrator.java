@@ -45,37 +45,53 @@ public class ScoreGlobalMergeOrchestrator {
             log.info("全局归并执行器不可用（e2e 桩环境），保持启发式结果: pool={}", valid.size());
             return valid;
         }
-        String sectionText = resolveSectionText(fullText);
-        List<ScoreCandidate> resolved = mergeExecutor.resolve(valid, sectionText);
+        AdjudicationContext ctx = resolveSectionText(fullText);
+        if (!ctx.located()) {
+            log.info("全局归并跳过：评分章节定位失败，禁用全文前缀裁决（spec 057 FR-01），保持启发式结果: pool={}",
+                    valid.size());
+            return valid;
+        }
+        List<ScoreCandidate> resolved = mergeExecutor.resolve(valid, ctx.text());
         if (resolved.isEmpty()) {
             log.info("全局归并降级（LLM 不可用或前置不足），保持启发式结果: pool={}", valid.size());
             return valid;
         }
-        ScoreMergeResultGuard.Outcome outcome = ScoreMergeResultGuard.guard(valid, resolved, sectionText);
+        ScoreMergeResultGuard.Outcome outcome = ScoreMergeResultGuard.guard(valid, resolved, ctx.text());
         if (outcome.accepted().isEmpty()) {
             log.warn("全局归并输出全部未通过守卫，保持启发式结果: pool={}, hallucinationDropped={}",
                     valid.size(), outcome.hallucinationDropped());
             return valid;
         }
-        log.info("全局归并完成: pool={} → merged={} accepted={} hallucinationDropped={} restored={}",
+        log.info("全局归并完成: pool={} → merged={} accepted={} hallucinationDropped={} restored={} "
+                        + "poolBackedKept={} truncated={}",
                 valid.size(), resolved.size(), outcome.accepted().size(),
-                outcome.hallucinationDropped(), outcome.restoredCount());
+                outcome.hallucinationDropped(), outcome.restoredCount(),
+                outcome.poolBackedKept(), ctx.truncated());
         return outcome.accepted();
     }
 
-    /** 裁决上下文：评分区域定位内容拼接；定位失败降级全文前缀（research R1） */
-    private String resolveSectionText(String fullText) {
+    /** 裁决上下文：定位失败 → located=false（057 FR-01 禁止全文前缀降级）；located 时带 truncated 标记 */
+    private record AdjudicationContext(String text, boolean truncated) {
+        boolean located() {
+            return text != null && !text.isBlank();
+        }
+    }
+
+    /** 裁决上下文构建：评分区域定位内容拼接，超 SECTION_TEXT_LIMIT 截断并置 truncated（FR-03） */
+    private AdjudicationContext resolveSectionText(String fullText) {
         if (fullText == null || fullText.isBlank()) {
-            return "";
+            return new AdjudicationContext("", false);
         }
         List<MarkdownScoreSectionLocator.ScoreSection> sections =
                 MarkdownScoreSectionLocator.locate(fullText);
         if (sections.isEmpty()) {
-            return truncate(TenderIntakeTextProcessor.sanitizeUntrusted(fullText));
+            return new AdjudicationContext("", false);
         }
         StringBuilder sb = new StringBuilder();
+        boolean brokeEarly = false;
         for (MarkdownScoreSectionLocator.ScoreSection section : sections) {
             if (sb.length() >= SECTION_TEXT_LIMIT) {
+                brokeEarly = true;
                 break;
             }
             if (sb.length() > 0) {
@@ -83,7 +99,9 @@ public class ScoreGlobalMergeOrchestrator {
             }
             sb.append(section.content());
         }
-        return truncate(TenderIntakeTextProcessor.sanitizeUntrusted(sb.toString()));
+        String sanitized = TenderIntakeTextProcessor.sanitizeUntrusted(sb.toString());
+        boolean tailTruncated = sanitized.length() > SECTION_TEXT_LIMIT;
+        return new AdjudicationContext(truncate(sanitized), brokeEarly || tailTruncated);
     }
 
     private static String truncate(String text) {
