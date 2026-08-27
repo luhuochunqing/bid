@@ -229,6 +229,10 @@ class GoldenCasesReplayTest {
      * 正则候选 → 域对象映射。与生产 {@code ScoreCandidateMapper#fromCriterion}
      * 同语义（该类包级私有不可跨包复用，此处按序镜像：indicator 优先、source 截断500、semanticPattern 固定标记）。
      */
+    // 漂移哨兵/单一真相提示：本文件对候选字段的手工映射是
+    // backend/.../scoreparse/infrastructure/openai/ScoreCandidateMapper#fromCriterion 的测试侧镜像
+    // （indicator 优先 / source 截断 500）。修改 Mapper 字段序或截断策略时 MUST 同步此处，
+    // 否则金标 F1 口径静默漂移。见 spec 057 反 slop 审查 #2。
     private static ScoreCandidate toCandidate(ScoringCriterion criterion,
                                               MarkdownScoreSectionLocator.ScoreSection section) {
         String detail = criterion.indicator() != null && !criterion.indicator().isBlank()
@@ -380,5 +384,18 @@ class GoldenCasesReplayTest {
                 .append(",\"originalTotal\":")
                 .append(row.originalTotal() == null ? "null" : row.originalTotal())
                 .append('}');
+    }
+
+    /** 镜像漂移哨兵：Mapper 口径变更（字段序/截断）若未同步，此固定向量断言会先红 */
+    @org.junit.jupiter.api.Test
+    void mirrorMatchesMapperContract_fixedVector() {
+        var criterion = new com.xiyu.bid.biddraftagent.domain.ScoringCriterion(
+                "2-1", "技术", "方案完整可行得10分", new java.math.BigDecimal("10"), null);
+        ScoreCandidate c = toCandidate(criterion, null);
+        org.junit.jupiter.api.Assertions.assertAll(
+                () -> org.junit.jupiter.api.Assertions.assertEquals("2-1", c.code()),
+                () -> org.junit.jupiter.api.Assertions.assertEquals("技术", c.dim()),
+                () -> org.junit.jupiter.api.Assertions.assertEquals("方案完整可行得10分", c.detail()),
+                () -> org.junit.jupiter.api.Assertions.assertEquals(new java.math.BigDecimal("10"), c.weight()));
     }
 }

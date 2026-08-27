@@ -94,8 +94,4 @@ final class RunSummaryAssembler {
         }
         return sb.append('"').toString();
     }
-
-    static String wrap(MergeView ignored) {
-        return null; // 占位防误用；真实入口是 assemble
-    }
 }
