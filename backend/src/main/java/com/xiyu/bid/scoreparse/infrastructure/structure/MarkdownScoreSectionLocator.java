@@ -33,13 +33,7 @@ public final class MarkdownScoreSectionLocator {
     /** 报价参数特征：参数块不含分值但紧邻评分表的报价参数块 */
     private static final Pattern PRICE_PARAM_PATTERN = PriceScoringKeywords.PRICE_PARAM_BLOCK;
 
-    /**
-     * 须知前附表判定特征：表头含"编列内容"（须知前附表专有列名）。
-     * <p>须知前附表是采购程序说明表，含"综合评分"/"综合得分"字样但无评分规则，
-     * 会误触发 TABLE_SCORE_PATTERN，须在结构层提前过滤。
-     * <p>鉴别方式：检查表格首行，含"编列内容"且不含"评分因素"/"评分标准"列名时，
-     * 认定为须知前附表并跳过。真正的评分标准表首行必含"评分因素"或"评分标准"列名。
-     */
+    /** 须知前附表专有列名（判定规则见 {@link #isProcedureNoticeTable}） */
     private static final Pattern PROCEDURE_TABLE_MARKER = Pattern.compile("编列内容");
     /** 真正评分表的列名标志，用于区分须知前附表与评分标准表 */
     private static final Pattern SCORE_COLUMN_MARKER = Pattern.compile("评分因素|评分标准");
@@ -82,9 +76,7 @@ public final class MarkdownScoreSectionLocator {
                     i++;
                 }
                 int blockEnd = i; // exclusive
-                // 须知前附表过滤：表头含"编列内容"但不含"评分因素/评分标准"列名时，
-                // 认定为采购程序说明表（须知前附表）并跳过，防止其中"综合评分"/"综合得分"
-                // 字样误触发 TABLE_SCORE_PATTERN，将开启程序/保证金/公示等程序条款误入候选池。
+                // 须知前附表整体跳过（判定见 isProcedureNoticeTable）：防其"综合评分"字样误触发 TABLE_SCORE_PATTERN
                 if (isProcedureNoticeTable(lines[blockStart])) {
                     continue;
                 }
@@ -196,8 +188,10 @@ public final class MarkdownScoreSectionLocator {
     }
 
     /**
-     * 须知前附表判定：检查表格首行，含"编列内容"（须知前附表专有列名）
-     * 且不含评分字段名（评分因素/评分标准）时，认定为采购程序说明表并返回 true。
+     * 须知前附表判定：检查表格首行，含"编列内容"且不含评分列名（评分因素/评分标准）时返回 true，
+     * 由 locate() 整体跳过。理由（唯一出处）：前附表是采购程序说明表，无评分规则，但其
+     * "综合评分"/"综合得分"字样会误触发 TABLE_SCORE_PATTERN，将开启程序、履约保证金、
+     * 成交结果公示等程序条款误入候选池。混合表（同时含两类列名）保留不跳过。
      *
      * <p>须知前附表表头样例：{@code | 条款号 | 条款内容 | 编列内容 |}
      * <p>评分标准表表头样例：{@code | 条款号及名称 | 评审因素 | 评分标准 | 评分标准 |}

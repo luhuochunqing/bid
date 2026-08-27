@@ -248,4 +248,19 @@ class MarkdownScoreSectionLocatorTest {
         assertThat(sections.get(0).content()).contains("财务状况");
         assertThat(sections.get(0).content()).contains("得4分");
     }
+
+    @Test
+    void locate_mixedTable_withProcedureAndScoreColumns_isRetained() {
+        // 混合表：表头同时含"编列内容"与"评分标准"列时保留不跳过，防止误杀真评分信息
+        String markdown = """
+                | 条款号 | 条款内容 | 编列内容 | 评分标准 |
+                |---|---|---|---|
+                | 3.1 | 商务评分 | 见附表 | 审计意见连续3年无保留意见，得4分 |
+                """;
+        List<MarkdownScoreSectionLocator.ScoreSection> sections =
+                MarkdownScoreSectionLocator.locate(markdown);
+        // 含评分标准列 → 认定为评分信息混排的混合表，正常召回
+        assertThat(sections).isNotEmpty();
+        assertThat(sections.get(0).content()).contains("得4分");
+    }
 }
