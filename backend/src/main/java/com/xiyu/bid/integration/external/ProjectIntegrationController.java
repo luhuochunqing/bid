@@ -3,15 +3,12 @@
 // Pos: integration/external/ - 对外集成接口六：项目修改（接口规范 v3.12 §3.6，tenderId 定位修正）
 package com.xiyu.bid.integration.external;
 
-import com.xiyu.bid.apikey.application.ApiKeyService;
 import com.xiyu.bid.dto.ApiResponse;
-import com.xiyu.bid.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -40,8 +37,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class ProjectIntegrationController {
 
     private final ProjectIntegrationCommandService projectIntegrationCommandService;
-    private final ApiKeyService apiKeyService;
-    private final AuthService authService;
+    private final ApiKeyUserResolver apiKeyUserResolver;
 
     // ── 接口六：项目修改 ───────────────────────────────────────────────────
 
@@ -57,39 +53,9 @@ public class ProjectIntegrationController {
                 request.getProjectName() != null,
                 request.getEvaluationBasic() != null,
                 request.getEvaluationCustomerInfos() != null);
-        Long userId = resolveApiKeyUserId();
+        Long userId = apiKeyUserResolver.resolveUserId();
         ProjectUpdateResponse updated = projectIntegrationCommandService.updateByTenderId(
                 sourceSystem, tenderId, request, userId);
         return ResponseEntity.ok(ApiResponse.success("项目更新成功", updated));
-    }
-
-    // ── 内部方法 ────────────────────────────────────────────────────────────
-
-    /**
-     * 从 Security Context 中的 principal 解析 API Key 对应的用户 ID。
-     * 与 {@code TenderIntegrationController#resolveApiKeyUserId} 同口径，用于写入 updatedBy。
-     */
-    private Long resolveApiKeyUserId() {
-        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || auth.getPrincipal() == null) return null;
-        String principal = auth.getPrincipal().toString();
-        if (!principal.startsWith("api-key:")) return null;
-        Long apiKeyId;
-        try {
-            apiKeyId = Long.parseLong(principal.substring("api-key:".length()));
-        } catch (NumberFormatException e) {
-            log.warn("Malformed API key principal: {}", principal);
-            return null;
-        }
-        var keyOpt = apiKeyService.findById(apiKeyId);
-        if (keyOpt.isEmpty()) return null;
-        String createdBy = keyOpt.get().getCreatedBy();
-        if (createdBy == null || createdBy.isBlank()) return null;
-        try {
-            return authService.resolveUserIdByUsername(createdBy.trim());
-        } catch (UsernameNotFoundException e) {
-            log.warn("API key user '{}' not found: {}", createdBy, e.getMessage());
-            return null;
-        }
     }
 }

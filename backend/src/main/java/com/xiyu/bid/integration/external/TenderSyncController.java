@@ -1,10 +1,7 @@
 package com.xiyu.bid.integration.external;
 
-import com.xiyu.bid.apikey.application.ApiKeyService;
 import com.xiyu.bid.entity.Tender;
-import com.xiyu.bid.service.AuthService;
 import com.xiyu.bid.dto.ApiResponse;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import com.xiyu.bid.tender.dto.TenderRequest;
 import com.xiyu.bid.tender.service.TenderCommandService;
@@ -48,8 +45,7 @@ public class TenderSyncController {
     private final TenderQueryService tenderQueryService;
     private final TenderCommandService tenderCommandService;
     private final TenderMapper tenderMapper;
-    private final ApiKeyService apiKeyService;
-    private final AuthService authService;
+    private final ApiKeyUserResolver apiKeyUserResolver;
 
     /**
      * 增量拉取标讯列表。SQL 级分页，支持 updatedSince + page/size。
@@ -104,40 +100,10 @@ public class TenderSyncController {
             request.setSource(Tender.SourceType.CRM_OPPORTUNITY.getLabel());
         }
         TenderDTO dto = tenderMapper.toDTO(request);
-        Long userId = resolveApiKeyUserId();
+        Long userId = apiKeyUserResolver.resolveUserId();
         TenderDTO created = tenderCommandService.createTender(dto, userId);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Tender created from CRM opportunity", created));
-    }
-
-    /**
-     * 从 API Key 的创建者用户名解析用户 ID。
-     * 若无法解析（如 API Key 已删除或不匹配），返回 null，
-     * createTender 仍会保存，只是 creatorId 为空。
-     */
-    private Long resolveApiKeyUserId() {
-        org.springframework.security.core.Authentication auth =
-                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || auth.getPrincipal() == null) return null;
-        String principal = auth.getPrincipal().toString();
-        if (!principal.startsWith("api-key:")) return null;
-        Long apiKeyId;
-        try {
-            apiKeyId = Long.parseLong(principal.substring("api-key:".length()));
-        } catch (NumberFormatException e) {
-            log.warn("Malformed API key principal: {}", principal);
-            return null;
-        }
-        var keyOpt = apiKeyService.findById(apiKeyId);
-        if (keyOpt.isEmpty()) return null;
-        String createdBy = keyOpt.get().getCreatedBy();
-        if (createdBy == null || createdBy.isBlank()) return null;
-        try {
-            return authService.resolveUserIdByUsername(createdBy.trim());
-        } catch (UsernameNotFoundException e) {
-            log.warn("API key user '{}' not found: {}", createdBy, e.getMessage());
-            return null;
-        }
     }
 
     private void sanitizeRequest(TenderRequest request) {

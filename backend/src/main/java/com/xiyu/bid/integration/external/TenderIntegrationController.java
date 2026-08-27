@@ -1,10 +1,8 @@
 package com.xiyu.bid.integration.external;
 
-import com.xiyu.bid.apikey.application.ApiKeyService;
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.repository.TenderRepository;
-import com.xiyu.bid.service.AuthService;
 import com.xiyu.bid.tender.dto.TenderDTO;
 import com.xiyu.bid.tender.service.TenderMapper;
 import com.xiyu.bid.tender.service.TenderQueryService;
@@ -19,7 +17,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -58,8 +55,7 @@ public class TenderIntegrationController {
     private final TenderIntegrationService tenderIntegrationService;
     private final TenderMapper tenderMapper;
     private final TenderIntegrationMapper tenderIntegrationMapper;
-    private final ApiKeyService apiKeyService;
-    private final AuthService authService;
+    private final ApiKeyUserResolver apiKeyUserResolver;
     private final TenderRepository tenderRepository;
 
     // ── 接口一：标讯列表查询 ───────────────────────────────────────────────
@@ -116,7 +112,7 @@ public class TenderIntegrationController {
         log.info("INTEGRATION POST /api/integration/tenders/push - sourceSystem={} sourceId={} title={}",
                 request.getSourceSystem(), request.getSourceId(), request.getTitle());
 
-        Long userId = resolveApiKeyUserId();
+        Long userId = apiKeyUserResolver.resolveUserId();
         TenderPushResponse response = tenderIntegrationService.pushTender(request, userId);
 
         String status = response.getStatus();
@@ -150,7 +146,7 @@ public class TenderIntegrationController {
             @Valid @RequestBody TenderUpdateRequest request) {
         log.info("INTEGRATION PUT /api/integration/tenders/{}/{} - fields present",
                 sourceSystem, sourceId);
-        Long userId = resolveApiKeyUserId();
+        Long userId = apiKeyUserResolver.resolveUserId();
         TenderDTO updated = tenderIntegrationService.updateByExternalId(
                 sourceSystem, sourceId, request, userId);
         return ResponseEntity.ok(ApiResponse.success("标讯更新成功", updated));
@@ -197,34 +193,6 @@ public class TenderIntegrationController {
     private void sanitizeCriteria(TenderSearchCriteria criteria) {
         if (criteria.getKeyword() != null) {
             criteria.setKeyword(InputSanitizer.sanitizeString(criteria.getKeyword(), 200));
-        }
-    }
-
-    /**
-     * 从 Security Context 中的 principal 解析 API Key 对应的用户 ID。
-     * 用于创建标讯时写入 creatorId。
-     */
-    private Long resolveApiKeyUserId() {
-        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || auth.getPrincipal() == null) return null;
-        String principal = auth.getPrincipal().toString();
-        if (!principal.startsWith("api-key:")) return null;
-        Long apiKeyId;
-        try {
-            apiKeyId = Long.parseLong(principal.substring("api-key:".length()));
-        } catch (NumberFormatException e) {
-            log.warn("Malformed API key principal: {}", principal);
-            return null;
-        }
-        var keyOpt = apiKeyService.findById(apiKeyId);
-        if (keyOpt.isEmpty()) return null;
-        String createdBy = keyOpt.get().getCreatedBy();
-        if (createdBy == null || createdBy.isBlank()) return null;
-        try {
-            return authService.resolveUserIdByUsername(createdBy.trim());
-        } catch (UsernameNotFoundException e) {
-            log.warn("API key user '{}' not found: {}", createdBy, e.getMessage());
-            return null;
         }
     }
 }

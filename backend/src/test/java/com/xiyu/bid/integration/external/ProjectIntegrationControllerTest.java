@@ -1,13 +1,11 @@
-// Input: ProjectIntegrationController（构造注入 3 依赖）+ GlobalExceptionHandler
+// Input: ProjectIntegrationController（构造注入：命令服务 + ApiKeyUserResolver）+ GlobalExceptionHandler
 // Output: MockMvc 测试 — PUT /api/integration/projects/{sourceSystem}/{tenderId} 契约
 // Pos: Test/合约验证 — 接口六 §3.6（tenderId 定位修正版：200/404/400/skip200 + 标讯不被修改）
 package com.xiyu.bid.integration.external;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.xiyu.bid.apikey.application.ApiKeyService;
 import com.xiyu.bid.exception.GlobalExceptionHandler;
 import com.xiyu.bid.exception.ResourceNotFoundException;
-import com.xiyu.bid.service.AuthService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -59,10 +57,7 @@ class ProjectIntegrationControllerTest {
     private ProjectIntegrationCommandService projectIntegrationCommandService;
 
     @Mock
-    private ApiKeyService apiKeyService;
-
-    @Mock
-    private AuthService authService;
+    private ApiKeyUserResolver apiKeyUserResolver;
 
     @InjectMocks
     private ProjectIntegrationController controller;
@@ -235,6 +230,6 @@ class ProjectIntegrationControllerTest {
         verify(projectIntegrationCommandService)
                 .updateByTenderId(eq("CRM"), eq(TENDER_ID), any(ProjectUpdateRequest.class), any());
         verifyNoMoreInteractions(projectIntegrationCommandService);
-        verifyNoMoreInteractions(apiKeyService, authService);
+        verify(apiKeyUserResolver).resolveUserId();
     }
 }
