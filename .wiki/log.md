@@ -491,3 +491,8 @@
 - 触发：package-release.sh 内置 FlywayMysqlContainerTest 报 Schema-validation found [varchar] expecting [enum ('active','disabled')]，定位链：V1202 VARCHAR(20) ↔ Competitor @Enumerated(STRING) 无 columnDefinition ↔ Hibernate 6 MySQL 方言默认期望原生 ENUM ↔ prod/e2e/flyway-mysql 均 validate → 上线即 crash-loop
 - 修复：实体加 `columnDefinition = "varchar(20)"` 单行对齐 DB 真相（已发布迁移不可变）；FlywayMysqlContainerTest 4/4 PASS（真实 MySQL 全量回放 B73~V1203）
 - 新增 [[hibernate-string-enum-varchar-validate]]；lessons-learned.md §165；教训：**Hibernate 6 起 STRING 枚举默认按原生 ENUM 校验，varchar 列必须显式 columnDefinition；容器测试是 crash-loop 最后防线，禁止为赶部署跳过**
+
+## 2026-08-27 ui | 案例详情弹窗：操作按钮上移标题行 + 西域绿 + 标题改摘要
+- 触发：产品需求（项目中心-项目详情-AI智能案例推荐详情弹窗）——「查看源项目/标书原文」从底部操作栏上移到「应答片段」标题行右侧并改西域绿（plain+type=primary，主题色即 --brand-xiyu-logo）；标题「应答片段全文」改「应答片段摘要」；底部仅留「复用」
+- 落点：CaseDetailDialog.vue 单文件（模板 + scoped CSS .response-title flex 布局）；后端零改动
+- 教训：**纯源码临时 worktree 提交前必须先 pnpm install（pre-commit 的 vite 类检查依赖 node_modules，agent-start-task 默认跳过装依赖）**
