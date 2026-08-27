@@ -64,8 +64,8 @@ class TenderEventSdkProducerTest {
         httpClient.verify(() -> HttpClientUtil.httpPost(eq(PUBLISH_URL), bodyCaptor.capture(),
                 headers.capture(), eq("publishEvent")));
         JSONObject body = bodyCaptor.getValue();
-        // 完全复刻客户手动触发成功样例（tenderId=2282）：trace 三元组进 body、data 为对象、
-        // key=业务主键字段名、无 serviceName
+        // 复刻客户手动触发成功样例（tenderId=2282）：trace 三元组进 body、key=业务主键字段名、
+        // 无 serviceName；data 为 JSON 字符串（EventContentReqDto.data 是 String）
         assertThat(body.getString("traceId")).isEqualTo("trace-1");
         assertThat(body.getString("spanId")).isEqualTo("span-1");
         assertThat(body.getString("parentId")).isEqualTo("parent-1");
@@ -73,11 +73,8 @@ class TenderEventSdkProducerTest {
         assertThat(body.getString("eventSource")).isEqualTo("bid");
         assertThat(body.getString("key")).isEqualTo("tenderId");
         assertThat(body.containsKey("serviceName")).as("serviceName 不应在 body（客户样例无此字段）").isFalse();
-        // data 是对象（客户样例形态），非 JSON 字符串
-        JSONObject data = body.getJSONObject("data");
-        assertThat(data).as("data 应为对象形态").isNotNull();
-        assertThat(data.getLong("tenderId")).isEqualTo(123L);
-        assertThat(data.getString("externalId")).isEqualTo("ext-1");
+        // data 是 JSON 字符串
+        assertThat(body.getString("data")).isEqualTo("{\"tenderId\":123,\"externalId\":\"ext-1\"}");
         assertThat(headers.getValue())
                 .containsEntry("traceId", "trace-1")
                 .containsEntry("spanId", "span-1")
@@ -99,9 +96,7 @@ class TenderEventSdkProducerTest {
         ArgumentCaptor<JSONObject> bodyCaptor = ArgumentCaptor.forClass(JSONObject.class);
         httpClient.verify(() -> HttpClientUtil.httpPost(anyString(), bodyCaptor.capture(),
                 any(), anyString()));
-        JSONObject data = bodyCaptor.getValue().getJSONObject("data");
-        assertThat(data).as("data 应为对象形态").isNotNull();
-        assertThat(data.keySet()).as("externalId 为空应只含 tenderId").containsExactly("tenderId");
+        assertThat(bodyCaptor.getValue().getString("data")).isEqualTo("{\"tenderId\":123}");
     }
 
     @Test

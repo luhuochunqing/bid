@@ -61,8 +61,8 @@ class TenderEventHttpSenderWireTest {
         assertThat(ok).isTrue();
         RecordedRequest request = takeOnlyRequest();
         JsonNode body = JSON.readTree(request.getBody().readUtf8());
-        // 完全复刻客户手动触发成功样例（tenderId=2282）7 字段：
-        // traceId/spanId/parentId 进 body、data 为对象、key=业务主键字段名、无 serviceName
+        // 复刻客户手动触发成功样例（tenderId=2282）：trace 三元组进 body、key=业务主键字段名、
+        // 无 serviceName；data 为 JSON 字符串（EventContentReqDto.data 是 String，传对象 400 实测）
         assertThat(body.get("traceId").asText()).isEqualTo("trace-1");
         assertThat(body.get("spanId").asText()).isEqualTo("span-1");
         assertThat(body.get("parentId").asText()).isEqualTo("parent-1");
@@ -70,9 +70,8 @@ class TenderEventHttpSenderWireTest {
         assertThat(body.get("eventSource").asText()).isEqualTo("bid");
         assertThat(body.get("key").asText()).isEqualTo("tenderId");
         assertThat(body.has("serviceName")).as("serviceName 不应在 body（客户样例无此字段）").isFalse();
-        // data 是对象（客户样例形态），非 JSON 字符串
-        JsonNode data = body.get("data");
-        assertThat(data.isObject()).as("data 应为对象形态").isTrue();
+        // data 是 JSON 字符串（EventContentReqDto.data 声明为 String）
+        JsonNode data = JSON.readTree(body.get("data").asText());
         assertThat(data.get("tenderId").asInt()).isEqualTo(123);
         assertThat(data.get("externalId").asText()).isEqualTo("ext-1");
 

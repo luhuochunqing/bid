@@ -5,6 +5,8 @@ import com.ehsy.eventlibrary.clientsdk.common.enums.HttpInterfaceTypeEnum;
 import com.ehsy.eventlibrary.clientsdk.common.req.EventTrackReq;
 import com.ehsy.eventlibrary.clientsdk.systeminteraction.service.impl.SystemInteractiveServiceImpl;
 import com.ehsy.eventlibrary.clientsdk.util.HttpClientUtil;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.integration.tenderevent.domain.TenderEventCode;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -19,19 +21,23 @@ import lombok.extern.slf4j.Slf4j;
  * {
  *   "traceId": "748104276040151040",
  *   "spanId": "s748104276040151041",
- *   "data": {"tenderId": "2282"},      // 对象形态，非字符串
+ *   "data": "{\"tenderId\": \"2282\"}",  // JSON 字符串！EventContentReqDto.data 是 String
  *   "eventSource": "bid",
  *   "eventTopic": "BidTenderChange",
  *   "key": "tenderId",                 // 业务主键字段名（部门事件=deptId、员工事件=userId）
  *   "parentId": "0"
  * }
  * </pre>
+ * 网关 {@code EventContentReqDto.data} 声明为 String（400 实测证实：传对象报
+ * "Can not deserialize instance of java.lang.String out of START_OBJECT token"），
+ * 必须序列化为 JSON 字符串上报。成功信号实测为 {@code HTTP 200 +
+ * {"code":"00000","data":{"result":null},"msg":"响应成功"}}（2026-08-27 curl 复现）。
  *
  * <p>三篇客户接口文档（事件生产/发送方法/事件库举例）要点：
  * <ul>
  *   <li>消息结构 9 字段：traceId/spanId/parentId/eventCode/eventSource/eventTopic/time/key/data</li>
  *   <li>{@code key} 是业务主键**字段名**（deptId/userId 风格），非主键值</li>
- *   <li>{@code data} 仅含查询用关键标识；SDK 通道序列化为字符串，手动触发样例为对象</li>
+ *   <li>{@code data} 仅含查询用关键标识，序列化为 JSON 字符串（网关 data 字段是 String）</li>
  *   <li>{@code eventCode}（如 BaseOssDept）经 SDK 放入 body 的 {@code eventTopic} 字段</li>
  *   <li>无父链路时 {@code parentId="0"}</li>
  * </ul>
@@ -59,6 +65,9 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 final class TenderEventHttpSender {
 
+    /** 网关 {@code EventContentReqDto.data} 声明为 String，业务载荷须序列化为 JSON 字符串。 */
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     private final String serverRegisterUrl;
 
     TenderEventHttpSender(String serverRegisterUrl) {
@@ -69,7 +78,7 @@ final class TenderEventHttpSender {
      * 发送事件并解释总线返回结果。
      *
      * @param code     事件类型（topic/source 来自 {@link TenderEventCode}）
-     * @param data     业务关键标识载荷（直接作对象发送）
+     * @param data     业务关键标识载荷（将序列化为 JSON 字符串上报）
      * @param traceId  链路追踪 traceId
      * @param spanId   链路追踪 spanId
      * @param parentId 链路追踪 parentId
@@ -91,7 +100,8 @@ final class TenderEventHttpSender {
         body.put("eventSource", code.source());
         // 业务主键字段名（客户样例 key="tenderId"），缺此字段网关静默丢弃（data:{} 实测）
         body.put("key", code.dataIdField());
-        body.put("data", data);
+        // data 必须是 JSON 字符串（EventContentReqDto.data 是 String，传对象 400 实测）
+        body.put("data", serializeData(data));
 
         // 请求体落日志：联调对账用
         log.info("事件总线请求 eventTopic={} body={}", code.topic(), body);
@@ -111,5 +121,13 @@ final class TenderEventHttpSender {
     private static boolean interpretResult(JSONObject resp) {
         return resp != null && resp.get("data") instanceof JSONObject content
                 && !Boolean.FALSE.equals(content.get("result"));
+    }
+
+    private static String serializeData(Map<String, Object> data) {
+        try {
+            return OBJECT_MAPPER.writeValueAsString(data);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("无法序列化事件总线 data 载荷", e);
+        }
     }
 }
