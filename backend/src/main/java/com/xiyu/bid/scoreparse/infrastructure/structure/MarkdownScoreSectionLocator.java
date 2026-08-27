@@ -33,6 +33,17 @@ public final class MarkdownScoreSectionLocator {
     /** 报价参数特征：参数块不含分值但紧邻评分表的报价参数块 */
     private static final Pattern PRICE_PARAM_PATTERN = PriceScoringKeywords.PRICE_PARAM_BLOCK;
 
+    /**
+     * 须知前附表判定特征：表头含"编列内容"（须知前附表专有列名）。
+     * <p>须知前附表是采购程序说明表，含"综合评分"/"综合得分"字样但无评分规则，
+     * 会误触发 TABLE_SCORE_PATTERN，须在结构层提前过滤。
+     * <p>鉴别方式：检查表格首行，含"编列内容"且不含"评分因素"/"评分标准"列名时，
+     * 认定为须知前附表并跳过。真正的评分标准表首行必含"评分因素"或"评分标准"列名。
+     */
+    private static final Pattern PROCEDURE_TABLE_MARKER = Pattern.compile("编列内容");
+    /** 真正评分表的列名标志，用于区分须知前附表与评分标准表 */
+    private static final Pattern SCORE_COLUMN_MARKER = Pattern.compile("评分因素|评分标准");
+
     private static final int CONTEXT_BEFORE_LINES = 2;
     /** 普通评分 section 上下文（保守，减少 token 消耗） */
     private static final int CONTEXT_AFTER_LINES = 3;
@@ -71,6 +82,12 @@ public final class MarkdownScoreSectionLocator {
                     i++;
                 }
                 int blockEnd = i; // exclusive
+                // 须知前附表过滤：表头含"编列内容"但不含"评分因素/评分标准"列名时，
+                // 认定为采购程序说明表（须知前附表）并跳过，防止其中"综合评分"/"综合得分"
+                // 字样误触发 TABLE_SCORE_PATTERN，将开启程序/保证金/公示等程序条款误入候选池。
+                if (isProcedureNoticeTable(lines[blockStart])) {
+                    continue;
+                }
                 String blockText = joinLines(lines, blockStart, blockEnd);
                 boolean isScore = TABLE_SCORE_PATTERN.matcher(blockText).find();
                 boolean isPriceParam = PRICE_PARAM_PATTERN.matcher(blockText).find();
@@ -176,6 +193,20 @@ public final class MarkdownScoreSectionLocator {
             }
         }
         return sections;
+    }
+
+    /**
+     * 须知前附表判定：检查表格首行，含"编列内容"（须知前附表专有列名）
+     * 且不含评分字段名（评分因素/评分标准）时，认定为采购程序说明表并返回 true。
+     *
+     * <p>须知前附表表头样例：{@code | 条款号 | 条款内容 | 编列内容 |}
+     * <p>评分标准表表头样例：{@code | 条款号及名称 | 评审因素 | 评分标准 | 评分标准 |}
+     */
+    private static boolean isProcedureNoticeTable(String headerLine) {
+        if (headerLine == null) return false;
+        if (!PROCEDURE_TABLE_MARKER.matcher(headerLine).find()) return false;
+        // 若同时含评分列名，可能是与评分信息混排的混合表，保留不跳过
+        return !SCORE_COLUMN_MARKER.matcher(headerLine).find();
     }
 
     private static boolean isTableLine(String line) {

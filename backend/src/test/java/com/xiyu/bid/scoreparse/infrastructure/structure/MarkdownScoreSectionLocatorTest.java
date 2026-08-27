@@ -212,4 +212,40 @@ class MarkdownScoreSectionLocatorTest {
         assertThat(sections).hasSize(1);
         assertThat(sections.get(0).content()).contains("技术方案");
     }
+
+    @Test
+    void locate_procedureNoticeTable_withScoreKeyword_isSkipped() {
+        // 须知前附表（表头: 条款号|条款内容|编列内容）即使含"综合评分"/"综合得分"也不应入候选池
+        // 复现场景：山焦物资须知前附表 6.2.2 推荐候选供应商行含"综合评分"触发误召回
+        String markdown = """
+                | 条款号 | 条款内容 | 编列内容 |
+                |---|---|---|
+                | 1.8 | 采购预备会 | 不召开 |
+                | 5.2 | 开启程序 | 本次开启程序采用电子平台进行，工作人员应提前10分钟登陆 |
+                | 6.2.2 | 推荐候选成交供应商的排序及数量 | 本项目根据综合评分，选择综合得分排名前8的投标人 |
+                | 7.3 | 成交结果公示 | 公示媒介：同采购公告发布媒介。公示期限：3日 |
+                | 7.6 | 履约保证金 | 履约金额：人民币100000元整 |
+                """;
+        List<MarkdownScoreSectionLocator.ScoreSection> sections =
+                MarkdownScoreSectionLocator.locate(markdown);
+        // 须知前附表整体应被过滤，不进入评分候选池
+        assertThat(sections).isEmpty();
+    }
+
+    @Test
+    void locate_realScoringTable_withEvalFactorColumn_isIncluded() {
+        // 真正的评分标准表（含"评分因素/评分标准"列）不受须知前附表过滤影响，正常召回
+        String markdown = """
+                | 条款号及名称 | 条款号及名称 | 评审因素 | 评分标准 | 评分标准 |
+                |---|---|---|---|---|
+                | 3.3(1) | 商务评分标准（56分） | 财务状况及抗风险能力（10分） | 审计意见连续3年无保留意见，得4分 | 审计意见连续3年无保留意见，得4分 |
+                | 3.3(1) | 商务评分标准（56分） | 运营能力及业绩（20分） | 平台运营年限得1-20分 | 平台运营年限得1-20分 |
+                """;
+        List<MarkdownScoreSectionLocator.ScoreSection> sections =
+                MarkdownScoreSectionLocator.locate(markdown);
+        // 真正评分表应正常召回
+        assertThat(sections).isNotEmpty();
+        assertThat(sections.get(0).content()).contains("财务状况");
+        assertThat(sections.get(0).content()).contains("得4分");
+    }
 }
