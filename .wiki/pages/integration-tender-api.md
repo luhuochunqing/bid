@@ -34,14 +34,17 @@ backlinks:
 | 4 | 标讯详情 | GET | `/api/integration/tenders/{sourceSystem}/{sourceId}` | `tender:read` | 返回完整标讯 + 评估数据 + 附件 |
 | 5 | 标讯状态变更回调 | POST | 外部系统 webhook | — | 本平台 → 外部系统（标讯提交投标/弃标时） |
 | 6 | 项目结果确认回调 | POST | 外部系统 webhook | — | 本平台 → CRM（结果登记完成后异步推送） |
-| 7 | 项目修改（v3.12） | PUT | `/api/integration/projects/{sourceSystem}/{sourceId}` | `tender:write` | 按来源键定位标讯关联项目（或 projectId 直定，带 externalId 交叉校验）；部分更新项目名/立项投标信息/客户信息表；仅写项目数据不碰标讯 |
+| 7 | 项目修改（v3.12，tenderId 定位修正） | PUT | `/api/integration/projects/{sourceSystem}/{tenderId}` | `tender:write` | 按标讯主键 tenderId 定位关联项目（或 projectId 直定 + 一致性断言）；部分更新项目名/立项投标信息/客户信息表；仅写项目数据不碰标讯；未立项返回 applied=false 跳过 |
 
 ### 1.1 项目修改接口（接口六，v3.12 §3.6）更新语义
 
+- **定位键（2026-08-27 契约修正）**：路径第二参数为 `tenderId`（平台标讯主键 Long，取自推送标讯接口响应），不再是来源系统 sourceId。非数字值（如误传商机编号 CC...）在路径绑定阶段即被拒绝（400），杜绝 ID 维度混淆；与 external_id 幂等键彻底解耦后，手工建标讯（external_id=null 的 M 链路）同样可达
 - 非 null 字段覆盖，null/未传保留；`evaluationCustomerInfos` 传入即全量替换（行下标对齐前端 14 角色行，含 TEL 座机号维度）
 - `projectPlanGapFiles` 三态（CO-262 P1-3）：不传=保留 / 空数组=清空 / 非空=替换
-- 锁语义与前端立项保存同策略：阶段锁 / 立项字段锁 → 423；合并后必填校验失败 → 422；定位失败 → 404；projectId 与来源键不一致 → 400
-- 代码落点：`integration/external/ProjectIntegrationController` + `ProjectIntegrationCommandService`（编排）+ `ProjectUpdateMapper`（纯核心映射，客户信息键映射共用 `EvaluationToInitiationMapper.INFO_KEY_MAP` 单一真相源）
+- 锁语义与前端立项保存同策略：阶段锁 / 立项字段锁 → 423；合并后必填校验失败 → 422；标讯不存在 → 404
+- **跳过语义**：标讯存在但尚未立项 → HTTP 200 + `data.applied=false`（projectId/projectName 为 null），调用方按业务时序感知、无需重试或报障
+- **防越权写**：projectId 与 tenderId 同传时断言一致（项目.tenderId == 路径 tenderId，不等 400）；来源键前缀校验（标讯 externalId 非空时须以 `{sourceSystem}:` 开头，手工标讯跳过）
+- 代码落点：`integration/external/ProjectIntegrationController` + `ProjectIntegrationCommandService`（编排）+ `ProjectUpdateMapper`（纯核心映射，客户信息键映射共用 `EvaluationToInitiationMapper.INFO_KEY_MAP` 单一真相源）；类型转换失败由 `GlobalExceptionHandler.handleTypeMismatch` 统一转 ApiResponse 400
 
 ## 2. 认证与通用约定
 
@@ -182,6 +185,7 @@ backlinks:
 | v3.8 | 2026-06-17 | 当前版本（文档版本号同步） |
 | — | 2026-08-19 | 代码层新增 contactNature/contactNature2 字段（V1201 迁移）：手动创建/修改路径经 ManualTenderValidation 分组条件必填校验，CRM 集成路径豁免；Excel 导入模板与导出同步扩列 |
 | v3.12 | 2026-08-25 | 新增接口六：项目修改 `PUT /api/integration/projects/{sourceSystem}/{sourceId}`（§3.6）；评估表客户信息「对接人手机号」改名并新增 TEL 座机号维度（依赖 !2366） |
+| — | 2026-08-27 | **接口六契约修正（接口未投产，非破坏性）**：定位参数 sourceId → tenderId（平台标讯主键），单通道替换无双通道；新增 applied=false 跳过语义；误传来源编号在绑定层 400。背景：CRM 联调时以商机编号/未推送主键作 sourceId 触发 27 连 404，根因=定位键与数据签发方不同源 + M 链路数据无 external_id 天然不可达 |
 
 ## 11. 待确认事项
 

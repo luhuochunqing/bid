@@ -3024,3 +3024,22 @@ private CompetitorStatus status = CompetitorStatus.ACTIVE;
 | 用交互 hack（focus 清零/blur 补零）绕初始值设计缺陷 | 改初值怕影响提交类型校验，选择运行时打补丁 | 初值语义缺陷要在初值上根治（null 即空）；绕行 hack 会叠加出新的显示 bug 并长期潜伏 |
 | 死兜底污染排查方向：`src.expectedBidders ?? ...` 看似有第四数据源 | autofill 映射从模板复制时未核对实体列是否存在 | 写跨实体映射前 grep 目标表列清单；死代码宁可立即删 |
 | 回归只测 404 初值，锁不住生产路径 | Jackson `non_null` 省略字段 + InputNumber min clamp 才是已有立项的显示路径 | 回归必须覆盖「响应省略 key + 真 InputNumber min clamp」；stub 不绑 v-model 等于没测 clamp |
+
+---
+
+## 170. 外部对接定位键必须与数据签发方同源：先盘点实体入库链路，再定义接口定位语义（2026-08-27，接口六 CRM 联调 27 连 404）
+
+**现象**：CRM 联调 `PUT /api/integration/projects/CRM/{sourceId}`，5 小时内换键盲试 27 次全部 404（试过商机编号 CC20260729796 / CC20260827846、纯数字 943），一次未通。全链路日志（SOP §23 Layer 2）显示认证、路由均正常，内部真实消息是 `标讯不存在: CRM:943`，被 M-03 脱敏策略统一出口为"请求的资源不存在"，调用方零上下文无法自诊断。
+
+**根因链**：
+1. **双链路数据形态不同源**：标讯进入平台有两条合法链路——P 链路（CRM 推送，`source_type=CRM_OPPORTUNITY`，external_id=`CRM:{bidId}`）与 M 链路（平台侧手工建+关联商机，`source_type=MANUAL_SINGLE`，仅写 `crm_opportunity_id` UNIQUE 列、external_id=NULL）。测试库里两群并存；
+2. **接口六只认 external_id 单列**：初版按 `(sourceSystem, sourceId)` 复用推送幂等键定位——该键只有 P 链路数据才有。M 链路的存量数据对外部触达天然不可达；CRM 手里的商机编号更是第三种 ID 维度（bidId/chanceId/code 三轨）；
+3. **契约断层放大故障**：对外正典文档停在 v3.10（无接口六章节），sourceId 定义为"来源系统的数据唯一 ID"，而内部 spec 037 已把推送链路 sourceId 锁定为 bidId——两句话从未调和；M-03 出口脱敏让服务端已知的真实原因（含正确键格式提示位）到不了调用方。
+
+**修复**（agent/qoder/integration-project-tender-channel，对 !2409 的投产前契约修正）：单通道替换定位参数 sourceId → tenderId（平台标讯主键 Long，与幂等键解耦）；projectId 同传时一致性断言替代 externalId 比对；来源键前缀轻校验（手工标讯 externalId=null 跳过不误伤）；标讯存在但未立项改返回 200 + `applied=false` 跳过响应；`GlobalExceptionHandler.handleTypeMismatch` 重写把非数字路径参数拦成统一 400。
+
+**教训**：
+- **新增"按来源键定位"的外部接口前，必须盘点能把该实体带进系统的所有入库链路（API 推送/UI 手工/Excel 导入/迁移回填），逐条验证新接口可达性**——单测全绿只证明自己造的数据能走通，不证明真实半边业务可达（同七大根因"测试不测根因"）；
+- **外部对接定位键优先用调用方手里有的键**：调用方持有内部主键时直接用主键（tenderId），没有主键时用其一等业务标识并保证库内可反查（crm_opportunity_id 带 UNIQUE 即天然安全反查键），禁止要求对方记住一个他们系统里看不到的平台内部字符串拼接格式；
+- **三种以上 ID 并存的集成域必须在 wiki 里维护 ID 字典表**（谁是签发方/落在哪列/谁引用它），对接前发给对方——本次 ID 字典表事后才画出来，是排查成本的主要来源；
+- **对外错误响应与安全脱敏要平衡**：404 全部统一为"请求的资源不存在"时，联调期至少应在文档/wiki 提供 404 分型说明或临时诊断手段（如按 traceId 查询的运维通道），避免把"追症状"制度化给外部团队。
