@@ -42,6 +42,7 @@ backlinks:
 - 非 null 字段覆盖，null/未传保留；`evaluationCustomerInfos` 传入即全量替换（行下标对齐前端 14 角色行，含 TEL 座机号维度）
 - `projectPlanGapFiles` 三态（CO-262 P1-3）：不传=保留 / 空数组=清空 / 非空=替换
 - 锁语义与前端立项保存同策略：阶段锁 / 立项字段锁 → 423；合并后必填校验失败 → 422；标讯不存在 → 404
+- **403（审计守卫，2026-08-27 设计修复）**：API Key 属主用户不可解析（API Key 属主账号被删除等异常管理状态）时拒绝写入，避免 `updatedBy` 落 null 破坏审计溯源；正常调用（属主存在）不受影响
 - **跳过语义**：标讯存在但尚未立项 → HTTP 200 + `data.applied=false`（projectId/projectName 为 null），调用方按业务时序感知、无需重试或报障
 - **防越权写**：projectId 与 tenderId 同传时断言一致（项目.tenderId == 路径 tenderId，不等 400）；来源键前缀校验（标讯 externalId 非空时须以 `{sourceSystem}:` 开头，手工标讯跳过）
 - 代码落点：`integration/external/ProjectIntegrationController` + `ProjectIntegrationCommandService`（编排）+ `ProjectUpdateMapper`（纯核心映射，客户信息键映射共用 `EvaluationToInitiationMapper.INFO_KEY_MAP` 单一真相源）；类型转换失败由 `GlobalExceptionHandler.handleTypeMismatch` 统一转 ApiResponse 400
