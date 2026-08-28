@@ -1,6 +1,7 @@
 import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { tendersApi } from '@/api/modules/tenders.js'
+import { getMissingTenderRequiredFields } from '../tenderRequiredFields.js'
 
 const ACCEPT_FILE_TYPES = '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 const PASTED_TEXT_MAX_LENGTH = 500000
@@ -91,6 +92,10 @@ export function useTenderAiParse(form) {
 
       // AI 成功：正常填充字段
       applyParsedFields(response.data)
+      const missing = getMissingTenderRequiredFields(form.value)
+      if (missing.length) {
+        return `AI 已识别附件内容，但仍缺少必填项：${missing.join('、')}，请补齐后再保存`
+      }
       return 'DeepSeek/AI 已识别附件内容，可继续编辑后保存'
     })
   }
@@ -110,6 +115,10 @@ export function useTenderAiParse(form) {
       }
 
       applyParsedFields(response.data)
+      const missing = getMissingTenderRequiredFields(form.value)
+      if (missing.length) {
+        return `AI 已识别粘贴文本，但仍缺少必填项：${missing.join('、')}，请补齐后再保存`
+      }
       return 'DeepSeek/AI 已识别粘贴文本，可继续编辑后保存'
     })
   }
@@ -119,7 +128,7 @@ export function useTenderAiParse(form) {
     try {
       const msg = await parseFn()
       if (msg) {
-        if (msg.includes('暂不可用') || msg.includes('无法提取')) {
+        if (msg.includes('暂不可用') || msg.includes('无法提取') || msg.includes('请补齐')) {
           ElMessage.warning(msg)
         } else {
           ElMessage.success(msg)
@@ -219,6 +228,9 @@ export function useTenderAiParse(form) {
     target.fileType = target.fileType || targetType
     target.url = fileUrl
     target.fileUrl = fileUrl
+    // el-upload auto-upload=false 时文件对象 status 恒为 ready，必须显式置 success
+    // 才会显示绿色 ✓（否则用户误以为"未上传"，生产案例 2026-08-28）
+    target.status = 'success'
   }
 
   return {

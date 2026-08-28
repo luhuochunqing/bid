@@ -4,11 +4,19 @@
       <div class="action-bar-right">
         <template v-if="isEditMode && createdTenderId">
           <el-button size="large" @click="$emit('cancel-edit')">取消</el-button>
-          <el-button type="primary" size="large" :loading="saving" :disabled="!canSave || parsingDocument" @click="$emit('save')">保存</el-button>
+          <el-tooltip :disabled="!saveDisabledReason" :content="saveDisabledReason" placement="top">
+            <span class="save-button-wrap">
+              <el-button type="primary" size="large" :loading="saving" :disabled="!canSave || parsingDocument" @click="$emit('save')">保存</el-button>
+            </span>
+          </el-tooltip>
         </template>
         <template v-else-if="!createdTenderId">
           <el-button size="large" @click="$emit('cancel')">取消</el-button>
-          <el-button type="primary" size="large" :loading="saving" :disabled="!canSave || parsingDocument" @click="$emit('save')">保存</el-button>
+          <el-tooltip :disabled="!saveDisabledReason" :content="saveDisabledReason" placement="top">
+            <span class="save-button-wrap">
+              <el-button type="primary" size="large" :loading="saving" :disabled="!canSave || parsingDocument" @click="$emit('save')">保存</el-button>
+            </span>
+          </el-tooltip>
         </template>
         <template v-else-if="tenderStatus === 'PENDING_ASSIGNMENT' && isAdminOrLead">
           <el-button size="large" @click="$emit('cancel')">返回列表</el-button>
@@ -41,6 +49,8 @@ defineProps({
   canProceedToNext: Boolean,
   activeTab: String,
   canSave: Boolean,
+  // 保存按钮禁用原因（如"还差必填项：开标时间"）；为空则不显示 tooltip
+  saveDisabledReason: String,
   saving: Boolean,
   parsingDocument: Boolean,
   submittingEval: Boolean,
@@ -52,4 +62,5 @@ defineEmits(['save', 'cancel', 'cancel-edit', 'assign', 'next-step', 'submit-eva
 <style scoped>
 .form-action-bar { position: sticky; bottom: 0; z-index: 10; margin-top: 24px; padding: 20px 24px; background: rgba(255,255,255,0.95); backdrop-filter: blur(8px); border: 1px solid var(--gray-150); border-radius: var(--radius-md); }
 .form-action-bar-inner { display: flex; justify-content: flex-end; align-items: center; gap: 12px; }
+.save-button-wrap { display: inline-flex; margin-left: 12px; }
 </style>

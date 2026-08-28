@@ -68,6 +68,8 @@ function applySourceDocumentMetadata(form, file, result = {}) {
       if (fileUrl) {
         target.url = fileUrl
         target.fileUrl = fileUrl
+        // el-upload auto-upload=false 时 status 恒为 ready，必须显式置 success 才显示绿色 ✓
+        target.status = 'success'
       }
     }
   }
@@ -156,6 +158,8 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
           if (storedDoc.fileUrl) {
             att.url = storedDoc.fileUrl
             att.fileUrl = storedDoc.fileUrl
+            // el-upload auto-upload=false 时 status 恒为 ready，必须显式置 success 才显示绿色 ✓
+            att.status = 'success'
           }
         }
         applySourceDocumentMetadata(manualForm.value, uploadFile, storedDoc)

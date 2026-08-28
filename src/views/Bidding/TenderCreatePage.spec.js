@@ -48,6 +48,15 @@ describe('TenderCreatePage button state machine', () => {
     expect(tenderCreateSource).toContain('if (parsingDocument.value)')
   })
 
+  it('explains why save is disabled instead of silently greying it out', () => {
+    expect(tenderCreateSource).toContain('const saveDisabledReason = computed')
+    expect(tenderCreateSource).toContain(':save-disabled-reason="saveDisabledReason"')
+    expect(tenderCreateSource).toContain('getMissingTenderRequiredFields')
+    expect(tenderCreateSource).toContain('还差必填项：')
+    expect(tenderActionBarSource).toContain('saveDisabledReason: String')
+    expect(tenderActionBarSource).toContain('el-tooltip :disabled="!saveDisabledReason"')
+  })
+
   it('fetches tender detail after successful save', () => {
     expect(tenderCreateSource).toContain('await fetchTenderDetail()')
   })
