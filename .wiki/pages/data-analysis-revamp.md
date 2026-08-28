@@ -153,6 +153,13 @@ PRD §9.12 步骤 7 + §9.14：竞品公司至少保留 1 个，不允许清空�
 - 后端 `CompetitorAnalysisAssemblerService` 对「该主体无此竞品数据」以 `0.0` 占位填充，前端标签必须经 `discountLabelFormatter`（0/null 返回空串）抑制贴轴“0”噪音——折扣业务值恒大于 0，0 仅为占位语义。
 - 行为断言固化于 `chartRenderer.spec.js`（无 stack/标签/0 抑制/y 轴边界），后续改图表配置前先跑该 spec。
 
+### 14. M4 竞品选项排序 = 参与项目数降序，默认选中前 8（2026-08-28）
+
+- `/api/analytics/filter-options` 的 `competitor` 字段排序口径：快照侧按 `count(distinct projectId)` 降序（同数按名称序），字典独占（无参与记录）按名称自然序追加末尾；排名在 SQL `order by` 完成，Java 端不再按名称重排。
+- 前端默认选中 = 选项前 8 个（`DEFAULT_TOP_COMPETITOR_COUNT = 8`），初始/重置/静态兜底三处口径一致；该字段仅 M4 消费（M1 竞品用前端常量），改排序不影响 M1。
+- 排名遵守数据权限 scope（`AnalyticsProjectScopeSupport.scopedProjectIds`），不受日期范围筛选（累计口径）。
+- 行为断言：后端 `FilterOptionsCompetitorNamesTest`（排名/补齐/去重/scope）+ 前端 `useCompetitorData.spec.js`（前 8/重置/不足 8 全选/兜底）。
+
 ## 文件清单
 
 ### 后端（analytics 包）
