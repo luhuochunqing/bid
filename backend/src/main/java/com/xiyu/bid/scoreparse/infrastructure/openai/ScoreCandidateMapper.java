@@ -91,19 +91,29 @@ final class ScoreCandidateMapper {
         return text.length() <= 60 ? text : text.substring(0, 60) + "…";
     }
 
-    /** 已提取项摘要（完整性回补 prompt 输入，FR-005） */
+    /** 已提取项摘要（完整性回补 prompt 输入，含分值对账与缺额诊断，FR-005） */
     static String summarizeKnownItems(List<ScoreCandidate> knownItems) {
         if (knownItems == null || knownItems.isEmpty()) {
-            return "（无已提取项）";
+            return "（无已提取项，当前合计 0 分，缺 100 分）";
         }
         StringBuilder sb = new StringBuilder();
+        java.math.BigDecimal total = java.math.BigDecimal.ZERO;
         for (ScoreCandidate item : knownItems) {
             if (sb.length() > 0) {
                 sb.append('\n');
             }
-            sb.append(safeText(item.code())).append(' ')
-                    .append(safeText(item.dim())).append(' ')
+            sb.append("- ")
+                    .append(safeText(item.code())).append(' ')
+                    .append(safeText(item.dim())).append(": ")
                     .append(item.weight() == null ? "?" : item.weight()).append("分");
+            if (item.weight() != null) {
+                total = total.add(item.weight());
+            }
+        }
+        sb.append("\n【已提取项分值合计】: ").append(total).append(" 分");
+        java.math.BigDecimal diff = java.math.BigDecimal.valueOf(100).subtract(total);
+        if (diff.compareTo(java.math.BigDecimal.ZERO) > 0) {
+            sb.append("（距离 100 分满分仍缺 ").append(diff).append(" 分，请重点复查缺少该分值的并列评分项/方案能力项）");
         }
         return sb.toString();
     }
