@@ -52,11 +52,7 @@ public class FilterOptionsQueryService {
                 .toList();
     }
 
-    /**
-     * PRD §6.2 M1 筛选区下拉选项 — 部门树形结构（只到二级）。
-     * 利用 parentDepartmentCode 构建层级关系，无效部门不过滤。
-     * 返回格式：{ label, value(=departmentName), children }，前端 TreeSelectDropdown 直接使用。
-     */
+    /** PRD §6.2 部门树（只到二级）。value=departmentName。 */
     List<AnalyticsDepartmentTreeDTO> fetchDepartmentTree() {
         List<OrganizationDepartmentEntity> allDepts =
                 organizationDepartmentRepository.findAllByOrderByDepartmentCode();
@@ -109,22 +105,16 @@ public class FilterOptionsQueryService {
             }
         }
 
-        // 只保留一级/二级，并清掉空 children
         pruneFilterTree(roots, 1);
         return roots;
     }
 
-    /** depth=1 为一级。超过二级的子树丢掉；空 children 置 null。 */
+    /** 只留一二级；空 children 置 null。 */
     private static void pruneFilterTree(List<AnalyticsDepartmentTreeDTO> nodes, int depth) {
-        if (nodes == null) {
-            return;
-        }
+        if (nodes == null) return;
         for (AnalyticsDepartmentTreeDTO node : nodes) {
-            if (depth >= 2 || node.getChildren() == null || node.getChildren().isEmpty()) {
-                node.setChildren(null);
-            } else {
-                pruneFilterTree(node.getChildren(), depth + 1);
-            }
+            if (depth >= 2 || node.getChildren() == null || node.getChildren().isEmpty()) node.setChildren(null);
+            else pruneFilterTree(node.getChildren(), depth + 1);
         }
     }
 
