@@ -500,3 +500,27 @@ curl -fsS http://172.16.38.78:8080/actuator/health
 5. 本地 HTTP_PROXY 干扰 curl
 
 完整复盘见 `docs/lessons/lessons-learned.md` §51。
+
+### 10.4 remote-deploy.sh SIGPIPE 静默中断陷阱（2026-08-28 第 148 次部署）
+
+**现象**：remote-deploy.sh 输出停在 `==> Activating frontend assets` 后无任何报错退出；release 已解压但前端未替换、deployed-release.json 仍指向旧版（后端不受影响，仍在跑旧 jar）。
+
+**根因链**：
+1. 部署后"保留旧 assets"步骤（`sudo cp -rn`）会给 `/srv/www/xiyu-bid/assets/` 引入数百个 **root 属主**文件
+2. 下次部署的属主守卫 `NON_OWNED="$(find ... | head -n 5)"` 在非属主条目 > 5 时触发竞态：head 读满 5 行即退出 → find 写入中收到 **SIGPIPE (exit 141)**
+3. 脚本头部 `set -euo pipefail`：pipefail 把 141 放大为管道退出码 → `set -e` **静默杀死脚本**
+4. 脚本自带的 `sudo chown -R` 修复分支在 find 之后，永远执行不到——守卫本身成了死因
+
+**修复**（PR !2451）：find 侧加 `|| true` 吞掉 SIGPIPE：
+```bash
+NON_OWNED="$( { find "$FRONTEND_PUBLIC_DIR" ! -user "$DEPLOY_USER" -print 2>/dev/null || true; } | head -n 5)"
+```
+
+**通用规则**：`set -euo pipefail` 脚本中任何 `cmd | head -n N` 都是隐患（生产者输出超 N 行即可能 SIGPIPE）；要么 `|| true` 保护生产者，要么用 `cmd -printf ... | head` 前置限量。
+
+**关联运维要点**：
+- "保留旧 assets"步骤之后必须 `sudo chown -R jetty:jetty /srv/www/xiyu-bid`，否则给下次部署埋雷
+- 本地 Docker Desktop 守护进程僵死会让 package-release.sh 容器测试门禁（Testcontainers）无限挂起：`docker version` Server 段超时即确诊，处置 = 杀 `com.docker.backend` 残留 + 重开 Docker Desktop
+- 后端健康等待窗口 4 分钟 < Kafka readiness 实测最长 6 分钟（第 147/148 次均 5-6 分钟自愈），脚本会误报 Health check failed
+
+详见 `docs/release/deploy-report-2026-08-28-148th-test.md`。
