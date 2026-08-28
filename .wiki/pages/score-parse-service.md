@@ -204,4 +204,5 @@ trigger（同步<1s，互斥校验+建任务）
 - **LLM 列语义映射（`TableColumnMapping`）**：大模型仅负责分析前几行采样推断列语义属性（`code_col`, `dim_col`, `detail_col`, `weight_col`），不生成任何细则文字，彻底杜绝幻觉与概括篡改。
 - **确定性物理单元格直抽（`CellAnchoredScoreExtractor`）**：直接读取物理单元格原文，100% 逐字保真，天然保持文档物理行出现顺序。
 - **列类型交叉验真守卫（`ColumnTypeCrossVerifier`）**：强制校验权重列有效分值占比（≥40%）与细则列平均字符长度（≥4.0），防止大模型采样错判引发全表列错位。
-- **金标自动化回归套件（`GoldenCasesReplayTest`）**：收录 1347（复合编号+百分比权重）、dual-section（跨维度重号）、weight-gap 等典型真实标书，确保每次改动必须 100% 通过且 F1=1.0，构筑坚实防回退底线。
+- **程序性条款多层拦截守卫**：在 `CellAnchoredScoreExtractor`、`ScoreTableRowParser` 与 `GhostCandidateFilter` 中建立统一的 `NON_SCORE_PROCEDURE_PATTERN` 拦截器，自动过滤 `推荐成交候选|成交候选|定标|保证金|监督` 等非评分程序条款及第 4 节程序条款，防止其作为幽灵分值项破坏权重归一化。
+- **金标自动化回归套件（`GoldenCasesReplayTest`）**：收录 1347（复合编号+百分比权重+程序表防污染）、dual-section（跨维度重号）、weight-gap 等典型真实标书，确保每次改动必须 100% 通过且 F1=1.0，构筑坚实防回退底线。

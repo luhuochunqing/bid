@@ -28,6 +28,9 @@ public final class CellAnchoredScoreExtractor {
     private static final Pattern NUMERIC_WEIGHT_PATTERN = Pattern.compile("^[~≈]?(\\d{1,3}(?:\\.\\d+)?)\\s*(?:分|%)?$");
     private static final Pattern BRACKET_WEIGHT_PATTERN = Pattern.compile("[（(]\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分\\s*[）)]");
     private static final Pattern GRADE_SCORE_PATTERN = Pattern.compile("得\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分");
+    private static final Pattern NON_SCORE_PROCEDURE_PATTERN = Pattern.compile(
+            "推荐成交候选|成交候选|推荐候选|定标|预备会|开启程序|开标程序|递交响应文件|响应文件的递交|响应文件的编制|成交结果公示|履约保证金|投标保证金|失信行为|“码”上监督|监督中心|异议|质疑|答疑|澄清|踏勘|电子响应文件|分包|服务费|采购代理服务费"
+    );
 
     private CellAnchoredScoreExtractor() {
     }
@@ -86,6 +89,14 @@ public final class CellAnchoredScoreExtractor {
                 continue;
             }
 
+            // 过滤非评分程序性条款（如"推荐成交候选供应商 3名"等）
+            String sourceRow = String.join(" | ", rowCells);
+            if (NON_SCORE_PROCEDURE_PATTERN.matcher(detail).find()
+                    || NON_SCORE_PROCEDURE_PATTERN.matcher(finalDim).find()
+                    || NON_SCORE_PROCEDURE_PATTERN.matcher(sourceRow).find()) {
+                continue;
+            }
+
             // 4. 提取编号
             String code = "";
             if (mapping.codeCol() >= 0 && mapping.codeCol() < grid.colCount()) {
@@ -103,7 +114,11 @@ public final class CellAnchoredScoreExtractor {
                 weight = parseWeightFromDetail(detail);
             }
 
-            String sourceRow = String.join(" | ", rowCells);
+            // 4. 编号过滤：如果编号以 4. 开头（如 4.4.1 评审程序条款），跳过
+            if (code != null && code.trim().startsWith("4.")) {
+                continue;
+            }
+
             candidates.add(new ScoreCandidate(
                     code,
                     finalDim.isBlank() ? null : finalDim,
