@@ -16,6 +16,7 @@
 | `manage-agent-locks.mjs` | 管理脚本 | 通过 `agent:lock-acquire` / `agent:lock-release` 命令化登记和释放当前任务分支的文件锁，避免手写锁字段 |
 | `check-line-budgets.mjs` | 门禁脚本 | 对核心源码目录执行 300 行棘轮门禁：默认检查当前工作区；pre-commit 走 staged，CI 走显式 diff 范围 |
 | `check-duplicate-implementations.mjs` | 本地门禁脚本 | 防造轮子：push / 创建 PR / `ci:pre-pr` / `ci:local` 自动跑。不依赖 Gitee CI。PASS=无合理复用对象；FAIL=指出应复用的现有代码。豁免 `// REUSE-OK: <path>`，逃生阀 `DUPLICATE_IMPL_SKIP=1` |
+| `generate-stress-test-data.mjs` | 数据生成脚本 | 压力测试数据批量生成工具：向 MySQL 8.0 批量生成万级标讯、千级项目及知识库案例仿真铺底数据，并附带一键清理脚本 |
 | `check-version-sync.mjs` | 门禁脚本 | 校验根目录 `VERSION`、`package.json` 与 `backend/pom.xml` 是否保持一致 |
 | `agent-finish-task.sh` | 收尾清理脚本 | 安全清理已合入的任务分支：三重合入检查（git branch -r --merged + git cherry + Gitee API）、清理 agent-locks 锁文件、切回锚点分支、删除本地分支、可选删除远端分支（--include-remote）和临时 worktree。支持 --dry-run 预览模式和 --force 跳过合入检查。
 | `agent-start-task.sh` | 工作区初始化脚本 | 为指定 Agent 创建任务分支和本地 `.agent-task-context`（含 `--touch` 预检路径记录）；支持**两种模式**：（1）传统模式：创建独立 worktree 并完整初始化；（2）`--in-place` 模式：在 Agent 持久 worktree 内直接切分支，跳过 worktree 创建（适合串行小任务）。创建前可通过 `--touch` 触发 `who-touches.sh` 预检，自动执行 sync-env、安装 hooks、以离线优先方式安装 node 依赖，并支持通过 `--lock` / `--lock-dir` 批量登记初始文件锁，以及通过 `--push` 自动首推远端分支；无论真实执行还是 `--dry-run`，都会输出基于 touch/lock/push 状态的摘要和下一步提示，避免在默认工作区开发 |
