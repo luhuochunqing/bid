@@ -17,5 +17,6 @@
 | `FeaturePlaceholder.vue` | Component | 功能占位态 |
 | `MentionInput.vue` | Component | 支持 @ 提及同事的输入框，用户候选复用真实用户搜索 API |
 | `TaskBoard.vue` | Component | 任务看板 |
+| `ScoreItemSelect.vue` | Component | 评分项下拉：编号+名称短标签、原文 tooltip、选中后原文预览 |
 | `UserPicker.vue` | Component | 通用用户选择器，支持搜索/候选人模式和姓名工号展示 |
 | `icons.ts` | Utility | 图标映射定义 |

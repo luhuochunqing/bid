@@ -24,6 +24,7 @@
 | `firstNonBlank.js` | 工具模块 | 返回首个非空白值，供用户字段归一化和标签格式化复用 |
 | `keyboardNavMode.js` | 工具模块 | 标记键盘导航输入模式，用于区分 Tab 焦点和鼠标点击焦点 |
 | `notificationHelpers.js` | 工具模块 | 通知图标、类型、payload、@ 提及解析和源实体路由解析；TASK 通知通过 payload.projectId 回到项目任务上下文 |
+| `scoreItemOptionDisplay.js` | 工具模块 | 评分项下拉短标题（编号+评分项）、原文 tooltip、按原文关键词过滤 |
 
 ## 添加新工具
 

@@ -22,8 +22,12 @@ const commonStubs = {
   'el-descriptions': true,
   'el-descriptions-item': true,
   'el-badge': true,
-  'el-select': true,
-  'el-option': true,
+  'el-select': { template: '<div class="el-select-stub"><slot /></div>' },
+  'el-option': { props: ['label', 'value'], template: '<div class="el-option-stub"><slot /></div>' },
+  'el-tooltip': {
+    props: ['content', 'disabled', 'popperClass'],
+    template: '<span class="el-tooltip-mock" :data-content="content"><slot /></span>'
+  },
   'el-input': true,
   'el-button': true,
   'el-dialog': true,
@@ -178,5 +182,33 @@ describe('AICaseRecommendDrawer.vue', () => {
     wrapper.vm.scoreItems = [{ id: 3, code: 'C1', dim: '未知维度', detail: '' }]
     wrapper.vm.selectedScoreItemId = 3
     expect(wrapper.vm.currentDefaultChapter).toBe('')
+  })
+
+  it('shows only serial and score item name in options, original text in tooltip and preview', async () => {
+    const wrapper = mount(AICaseRecommendDrawer, {
+      props: {
+        modelValue: true,
+        projectId: 123
+      },
+      global: {
+        directives: {
+          loading: () => {}
+        },
+        stubs: commonStubs
+      }
+    })
+
+    await flushPromises()
+    wrapper.vm.selectedScoreItemId = 1
+    await wrapper.vm.$nextTick()
+
+    // CSS 宽度规则挂在 .item-score-select .score-item-select 上，DOM 结构回归时在此失败
+    expect(wrapper.find('.item-score-select .score-item-select').exists()).toBe(true)
+
+    const optionItem = wrapper.find('.score-option-line')
+    expect(optionItem.text()).toBe('A1 技术方案')
+    expect(optionItem.text()).not.toContain('系统架构高可用设计')
+    expect(wrapper.find('.el-tooltip-mock').attributes('data-content')).toBe('系统架构高可用设计')
+    expect(wrapper.find('.score-item-detail-preview').text()).toContain('系统架构高可用设计')
   })
 })

@@ -44,27 +44,12 @@
         <div class="filter-row">
           <div class="filter-item item-score-select">
             <span class="filter-label">评分项：</span>
-            <el-select
+            <ScoreItemSelect
               v-model="selectedScoreItemId"
+              :items="scoreItems"
               placeholder="选择关联评分项"
-              clearable
-              filterable
-              class="score-select"
               @change="handleScoreItemChange"
-            >
-              <el-option
-                v-for="item in scoreItems"
-                :key="item.id"
-                :label="`${item.code ? item.code + ' ' : ''}${item.dim || ''} - ${(item.detail || '').substring(0, 24)}...`"
-                :value="item.id"
-              >
-                <div class="score-option-item">
-                  <span class="option-code">{{ item.code || '项' }}</span>
-                  <span class="option-dim">{{ item.dim }}</span>
-                  <span class="option-detail">{{ (item.detail || '').substring(0, 30) }}...</span>
-                </div>
-              </el-option>
-            </el-select>
+            />
           </div>
         </div>
 
@@ -140,6 +125,7 @@ import { caseRecommendationApi } from '@/api/modules/caseRecommendation'
 import AICaseRecommendCard from './AICaseRecommendCard.vue'
 import AICaseDetailModal from './AICaseDetailModal.vue'
 import AICaseReuseSectionModal from './AICaseReuseSectionModal.vue'
+import ScoreItemSelect from '@/components/common/ScoreItemSelect.vue'
 
 const props = defineProps({
   modelValue: {
