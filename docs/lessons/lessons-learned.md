@@ -3144,3 +3144,27 @@ private CompetitorStatus status = CompetitorStatus.ACTIVE;
 | 压测把正常限流当系统崩溃 | 多 VU 共用单个账号 Token 打满单用户 100 req/min 阈值 | 压测必须为每个 VU 分配独立虚拟身份/`X-API-Key`，真实模拟多用户并发 |
 | VU 循环内调用登录被 429 锁死 | 每次迭代都去请求 `/api/auth/login` | 鉴权逻辑收敛到 `setup()` 钩子，循环体内只压测业务 API |
 | 压测造数不合规触发 400 假死 | 忽视了 Bean Validation 对地域等字典字段的严格校验 | 造数前先看 DTO 约束（如 `@HeadquartersRegion`），确保 payload 完全合规 |
+
+## 175. 禁用按钮必须给出原因；"上传成功但没保存"类工单先查请求是否发出（2026-08-28，标讯人工录入"未上传"假象）
+
+**背景**：生产用户 03683 在 `/bidding/create` 人工录入标讯：上传 docx + AI 解析全部成功（后端全程 200），但标讯从未创建。用户感知"没报错但没成功、附件一直显示未上传"，在页面上卡了近 5 小时。三方证据交叉（Nginx access.log 全天无 `POST /api/tenders` + journalctl traceId 后端正常 + MySQL 创建记录为 0）确认浏览器从未发出创建请求。
+
+**根因分析**：
+1. **保存按钮静默禁用**：`:disabled="!canSave || parsingDocument"` 置灰无任何提示。公开谈判采购无开标时间 → AI 按口径留空 → canSave=false → 点击无反馈；
+2. **平行定义漂移**：`canSave` 的必填字段口径（7 项）与 `MANUAL_FORM_RULES`（8 项，多 projectType）不一致——即使补齐 7 项，点保存仍被表单红字拦截，提示口径漏报；
+3. **el-upload 状态假象**：`:auto-upload="false"` 时上传由自定义 handler 完成，但 el-upload 文件对象 `status` 恒为 `ready`，永远不显示绿色 ✓，用户误以为"未上传"；
+4. **文案驱动控制流**：提示级别靠 `msg.includes('暂不可用')` 等关键字匹配决定 warning/success，改文案即静默降级。
+
+**解决方案**：
+1. 禁用按钮包 `el-tooltip` + `<span>`（disabled 按钮不触发鼠标事件必须包 span），展示"还差必填项：开标时间、客户类型"；
+2. 必填口径收口单一模块 `tenderRequiredFields.js`（canSave / tooltip / AI 缺失提示三处共用），并与 `MANUAL_FORM_RULES` 对齐 + 口径契约测试锚定；
+3. 附件回填 fileUrl 时显式置 `status='success'`（EP 源码确认 fileList 同引用深响应，安全）；
+4. parseFn 返回 `{message, level}`，文案与控制流解耦。
+
+**教训**：
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| "没报错但没成功"工单先翻后端日志 | 排障从后端入手浪费 1 小时 | 先查 Nginx access.log 看目标 POST 是否发出，再决定查哪端 |
+| 禁用按钮不给原因 | 用户点了没反应，无从自救 | 禁用必须配 tooltip/文案说明缺什么 |
+| 同一概念两处定义 | canSave 与表单规则各自维护必填集，必然漂移 | 口径收口单一模块 + 契约测试；新增平行定义前先找既有真相源 |
+| 消息文案当控制流开关 | 级别靠关键字匹配，文案一改行为就变 | 返回显式 `{message, level}` 结构 |
