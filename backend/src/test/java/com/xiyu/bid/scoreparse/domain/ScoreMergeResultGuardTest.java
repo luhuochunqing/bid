@@ -145,4 +145,43 @@ class ScoreMergeResultGuardTest {
         assertThat(outcome.poolBackedKept()).isZero();
         assertThat(outcome.restoredCount()).isEqualTo(1);
     }
+
+    @Test
+    void guard_proceduralNoticeCandidates_notRestored() {
+        // 前附表程序性条款（采购预备会、开启程序、履约保证金等）被 LLM 显式丢弃后，守卫坚决不予回补
+        ScoreCandidate proceduralItem = new ScoreCandidate("1.8", "采购预备会",
+                "不召开采购预备会", new BigDecimal("2"), null, null,
+                "| 1.8 | 采购预备会 | 2 | 不召开采购预备会 |", "P10", "TABLE_ROW");
+        ScoreCandidate validItem = new ScoreCandidate("3.3(1)", "商务评分标准",
+                "不平衡报价评审：评标委员会针对各投标人分项报价中的单项折扣率进行评价，报价合理得4-5分。",
+                new BigDecimal("5"), null, null, "原文", "P47", null);
+
+        ScoreMergeResultGuard.Outcome outcome = ScoreMergeResultGuard.guard(
+                List.of(proceduralItem),
+                List.of(validItem),
+                SECTION_TEXT);
+
+        assertThat(outcome.accepted()).hasSize(1);
+        assertThat(outcome.accepted().get(0).dim()).isEqualTo("商务评分标准");
+        assertThat(outcome.restoredCount()).isZero();
+    }
+
+    @Test
+    void guard_summaryRowCandidates_notRestored() {
+        // 分值构成等总览说明行被 LLM 丢弃后，守卫坚决不予回补
+        ScoreCandidate summaryItem = new ScoreCandidate("3.1", "分值构成",
+                "商务评分标准56分，技术评分标准34分，价格10分", new BigDecimal("100"), null, null,
+                "| 3.1 | 分值构成（总分100分） | 商务评分标准56分，技术评分标准34分，价格10分 |", "P12", "TABLE_ROW");
+        ScoreCandidate validItem = new ScoreCandidate("3.3(1)", "商务评分标准",
+                "不平衡报价评审：评标委员会针对各投标人分项报价中的单项折扣率进行评价，报价合理得4-5分。",
+                new BigDecimal("5"), null, null, "原文", "P47", null);
+
+        ScoreMergeResultGuard.Outcome outcome = ScoreMergeResultGuard.guard(
+                List.of(summaryItem),
+                List.of(validItem),
+                SECTION_TEXT);
+
+        assertThat(outcome.accepted()).hasSize(1);
+        assertThat(outcome.restoredCount()).isZero();
+    }
 }

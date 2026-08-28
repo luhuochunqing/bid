@@ -8,6 +8,7 @@ package com.xiyu.bid.scoreparse.domain;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * 归并裁决结果守卫（spec 055 US1 边界情况）。
@@ -112,18 +113,49 @@ public final class ScoreMergeResultGuard {
         return false;
     }
 
+    private static final Pattern NON_SCORE_PROCEDURAL_KEYWORD = Pattern.compile(
+            "预备会|开启程序|开标程序|递交响应文件|响应文件的递交|响应文件的编制|成交结果公示|履约保证金|投标保证金|失信行为|“码”上监督|监督中心|异议|质疑|答疑|澄清|踏勘|电子响应文件"
+    );
+
+    private static final Pattern SCORE_EVIDENCE_PATTERN = Pattern.compile(
+            "得\\s*\\d+(?:\\.\\d+)?\\s*分|扣\\s*\\d+(?:\\.\\d+)?\\s*分|满分\\s*\\d+(?:\\.\\d+)?\\s*分|[（(]\\s*\\d+(?:\\.\\d+)?\\s*分\\s*[）)]|\\d+(?:\\.\\d+)?\\s*分|评分|评审|评分标准|评分细则|分值|打分|加分|扣分"
+    );
+
+    private static final Pattern SUMMARY_ROW_PATTERN = Pattern.compile(
+            "分值构成|总分构成|分值分布|总分100分"
+    );
+
     private static final BigDecimal MAX_SINGLE_WEIGHT = ScoreParseConstants.MAX_SINGLE_WEIGHT;
 
-    /** 高置信：有原文背书（sourceText ⊇ detail）且 weight 在合理分值区间 (0, 100] */
+    /** 高置信：有原文背书（sourceText ⊇ detail）且 weight 在合理分值区间 (0, 100]，具备真实评分语义，且排除程序性非评分条款与总览摘要项 */
     private static boolean isHighConfidence(ScoreCandidate candidate) {
         String detail = candidate.detail();
         String sourceText = candidate.sourceText();
-        return detail != null && !detail.isBlank()
-                && candidate.weight() != null
-                && candidate.weight().compareTo(BigDecimal.ZERO) > 0
-                && candidate.weight().compareTo(MAX_SINGLE_WEIGHT) <= 0
-                && sourceText != null && !sourceText.isBlank()
-                && normalize(sourceText).contains(normalize(detail));
+        String dim = candidate.dim() == null ? "" : candidate.dim();
+        if (detail == null || detail.isBlank()
+                || candidate.weight() == null
+                || candidate.weight().compareTo(BigDecimal.ZERO) <= 0
+                || candidate.weight().compareTo(MAX_SINGLE_WEIGHT) > 0
+                || sourceText == null || sourceText.isBlank()
+                || !normalize(sourceText).contains(normalize(detail))) {
+            return false;
+        }
+        // 排除分值构成等汇总行
+        if (SUMMARY_ROW_PATTERN.matcher(dim).find() || SUMMARY_ROW_PATTERN.matcher(detail).find()) {
+            return false;
+        }
+        // 排除前附表程序性非评分条款（除非具备明确给分细则，如"得X分"）
+        boolean isProcedural = NON_SCORE_PROCEDURAL_KEYWORD.matcher(dim).find()
+                || NON_SCORE_PROCEDURAL_KEYWORD.matcher(detail).find();
+        boolean hasExplicitGradeRule = Pattern.compile("得\\s*\\d+(?:\\.\\d+)?\\s*分|扣\\s*\\d+(?:\\.\\d+)?\\s*分").matcher(detail).find()
+                || Pattern.compile("[（(]\\s*\\d+(?:\\.\\d+)?\\s*分\\s*[）)]").matcher(dim).find();
+        if (isProcedural && !hasExplicitGradeRule) {
+            return false;
+        }
+        // 必须具备评分语义证据
+        return SCORE_EVIDENCE_PATTERN.matcher(dim).find()
+                || SCORE_EVIDENCE_PATTERN.matcher(detail).find()
+                || SCORE_EVIDENCE_PATTERN.matcher(sourceText).find();
     }
 
     /** 归一化互相包含即视为同一项（归并输出取更完整版本时覆盖池内残缺版本）；空串被任何串包含 → 命中 */

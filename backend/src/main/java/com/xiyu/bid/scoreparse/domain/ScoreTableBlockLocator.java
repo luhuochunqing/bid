@@ -23,6 +23,12 @@ public final class ScoreTableBlockLocator {
     private static final Pattern SCORE_SEMANTIC = Pattern.compile(
             "评分|评审|评标|分值|得分|打分|加分|扣分|评审标准|评分标准");
 
+    private static final Pattern PROCEDURE_TABLE_MARKER = Pattern.compile(
+            "编列内容|编列规定|条款内容|前附表|须知前附表");
+
+    private static final Pattern SCORE_COLUMN_MARKER = Pattern.compile(
+            "评分因素|评分标准|评审因素|评审标准|分值|得分");
+
     private ScoreTableBlockLocator() {
     }
 
@@ -48,6 +54,11 @@ public final class ScoreTableBlockLocator {
         if (currentBlock.isEmpty()) {
             return;
         }
+        // 须知前附表表头拦截：前附表为程序性说明表，若表头为前附表特征且不含明确评分列名，直接跳过
+        if (isProcedureNoticeTable(currentBlock.get(0))) {
+            currentBlock.clear();
+            return;
+        }
         // 语义判定基于完整块（含表头）：表头常是唯一语义来源（如"评分项|分值"列头）
         boolean scoreSemantics = currentBlock.stream()
                 .anyMatch(row -> SCORE_SEMANTIC.matcher(row).find());
@@ -66,6 +77,16 @@ public final class ScoreTableBlockLocator {
         if (!dataRows.isEmpty() && scoreSemantics) {
             blocks.add(new TableBlock(List.copyOf(dataRows)));
         }
+    }
+
+    private static boolean isProcedureNoticeTable(String headerLine) {
+        if (headerLine == null) {
+            return false;
+        }
+        if (!PROCEDURE_TABLE_MARKER.matcher(headerLine).find()) {
+            return false;
+        }
+        return !SCORE_COLUMN_MARKER.matcher(headerLine).find();
     }
 
     private static boolean isPipeRow(String line) {

@@ -30,14 +30,21 @@ public final class ScoreTableRowParser {
     private static final Pattern CODE_PATTERN = Pattern.compile("^[A-Za-z]{0,2}\\d+([\\.\\(]\\d+[\\)]?)*$");
     private static final Pattern PURE_WEIGHT_COLUMN = Pattern.compile("^[~≈]?\\d{1,3}(\\.\\d+)?\\s*分?$");
     private static final Pattern GRADE_SCORE = Pattern.compile("得\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分");
-    private static final Pattern BRACKET_WEIGHT = Pattern.compile("（(\\d{1,3}(?:\\.\\d+)?)分）");
+    private static final Pattern BRACKET_WEIGHT = Pattern.compile("[（(]\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分\\s*[）)]");
     private static final Pattern CONTAINS_HAN = Pattern.compile("[\\p{IsHan}]");
+    private static final Pattern SCORE_SEMANTIC = Pattern.compile("评分|评审|评标|分值|得分|打分|加分|扣分|评审标准|评分标准");
+    private static final Pattern NON_SCORE_PROCEDURE_PATTERN = Pattern.compile(
+            "预备会|开启程序|开标程序|递交响应文件|响应文件的递交|响应文件的编制|成交结果公示|履约保证金|投标保证金|失信行为|“码”上监督|监督中心|异议|质疑|答疑|澄清|踏勘|电子响应文件|分包"
+    );
+    private static final Pattern SUMMARY_ROW_PATTERN = Pattern.compile(
+            "分值构成|总分构成|分值分布|总分100分"
+    );
     private static final int DIM_MAX_CHARS = 20;
 
     private ScoreTableRowParser() {
     }
 
-    /** 解析单行；null/空白/分隔行/全空列返回 empty */
+    /** 解析单行；null/空白/分隔行/全空列/非评分程序行返回 empty */
     public static Optional<ScoreCandidate> parse(String row) {
         if (row == null || row.isBlank() || isSeparatorLike(row)) {
             return Optional.empty();
@@ -51,23 +58,35 @@ public final class ScoreTableRowParser {
             return Optional.empty();
         }
         
+        // 汇总说明行（如"3.1 分值构成（总分100分）"）非可打分单项，过滤排除
+        if (SUMMARY_ROW_PATTERN.matcher(row).find() && !GRADE_SCORE.matcher(row).find()) {
+            return Optional.empty();
+        }
+
+        // 前附表程序性非评分行过滤：纯流程条款且无明确给分细则（"得X分"）直接排除
+        boolean isProcedural = NON_SCORE_PROCEDURE_PATTERN.matcher(row).find();
+        boolean hasExplicitGradeScore = GRADE_SCORE.matcher(row).find();
+        if (isProcedural && !hasExplicitGradeScore) {
+            return Optional.empty();
+        }
+        
         int codeIndex = codeColumnIndex(columns);
         String code = codeIndex >= 0 ? columns.get(codeIndex) : "";
         
-        // 2026-08-28 优化：优先从列3提取括号分值（主项分值，如"财务状况（10分）"）
+        // 优先从列2/列3提取括号分值（主项分值，如"财务状况（10分）"）
         BracketWeightResult bracketResult = extractBracketWeight(columns);
         BigDecimal weight = bracketResult.weight();
         String dim = bracketResult.dimFromCol3();
         
-        // 如果列3没有括号分值，回退到原有逻辑
+        // 如果没有括号分值，回退到原有逻辑（纯分值列排除编号列）
+        int weightIndex = pureWeightIndex(columns, codeIndex);
         if (weight == null) {
-            int weightIndex = pureWeightIndex(columns);
             weight = weightIndex >= 0
                     ? new BigDecimal(columns.get(weightIndex).replaceAll("[^0-9.]", ""))
                     : maxGradeScore(row);
         }
         
-        // 2026-08-28 优化：5列表格时，detail取列4+列5拼接（评分要求+评分细则）
+        // 5列表格时，detail取列4+列5拼接（评分要求+评分细则）
         String detail = extractDetail(columns, codeIndex, bracketResult.col3Index());
         if (detail.isBlank()) {
             return Optional.empty();
@@ -75,9 +94,13 @@ public final class ScoreTableRowParser {
         
         // 如果列3没有提供dim，则从剩余列中提取
         if (dim == null || dim.isBlank()) {
-            int weightIndex = pureWeightIndex(columns);
             int detailIndex = detailColumnIndex(columns, codeIndex, weightIndex);
             dim = extractDim(columns, codeIndex, weightIndex, detailIndex);
+        }
+
+        // 若 weight 为空且行内完全无评分语义，不应作为评分候选入池
+        if (weight == null && !SCORE_SEMANTIC.matcher(row).find()) {
+            return Optional.empty();
         }
         
         return Optional.of(new ScoreCandidate(code, dim, detail, weight, null, null,
@@ -105,8 +128,11 @@ public final class ScoreTableRowParser {
         return first.length() <= 8 && CODE_PATTERN.matcher(first).matches() ? 0 : -1;
     }
 
-    private static int pureWeightIndex(List<String> columns) {
+    private static int pureWeightIndex(List<String> columns, int codeIndex) {
         for (int i = columns.size() - 1; i >= 0; i--) {
+            if (i == codeIndex) {
+                continue;
+            }
             String column = columns.get(i);
             if (column.length() <= 10 && PURE_WEIGHT_COLUMN.matcher(column).matches()) {
                 return i;
@@ -159,24 +185,21 @@ public final class ScoreTableRowParser {
     }
 
     /**
-     * 从列3提取括号分值（主项分值）。
+     * 从列2或列3提取括号分值（主项分值）。
      * 常见模式："财务状况及抗风险能力（10分）" → weight=10, dim="财务状况及抗风险能力"
      *
      * @return BracketWeightResult(weight, dimFromCol3, col3Index)
      */
     private static BracketWeightResult extractBracketWeight(List<String> columns) {
-        // 尝试列2和列3（0-based索引1和2），优先列3
-        for (int idx = 2; idx >= 1; idx--) {
-            if (idx >= columns.size()) {
+        for (int idx = Math.min(columns.size() - 1, 3); idx >= 1; idx--) {
+            String col = columns.get(idx);
+            if (SUMMARY_ROW_PATTERN.matcher(col).find()) {
                 continue;
             }
-            String col = columns.get(idx);
             Matcher matcher = BRACKET_WEIGHT.matcher(col);
             if (matcher.find()) {
                 BigDecimal weight = new BigDecimal(matcher.group(1));
-                // dim：列内容去掉括号分值部分
-                String dim = col.replaceAll("（\\d{1,3}(?:\\.\\d+)?分）", "").trim();
-                // 去掉可能的换行符
+                String dim = col.replaceAll("[（(]\\s*\\d{1,3}(?:\\.\\d+)?\\s*分\\s*[）)]", "").trim();
                 dim = dim.replace("\n", " ").replaceAll("\\s+", " ").trim();
                 return new BracketWeightResult(weight, dim.isEmpty() ? null : dim, idx);
             }
@@ -204,7 +227,7 @@ public final class ScoreTableRowParser {
         }
 
         // 回退到原有逻辑：最长文本列
-        int weightIndex = pureWeightIndex(columns);
+        int weightIndex = pureWeightIndex(columns, codeIndex);
         int detailIndex = detailColumnIndex(columns, codeIndex, weightIndex);
         if (detailIndex >= 0) {
             return columns.get(detailIndex);

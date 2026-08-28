@@ -77,4 +77,18 @@ class ScoreTableBlockLocatorTest {
         assertThat(blocks).hasSize(1);
         assertThat(blocks.get(0).rows()).hasSize(1);
     }
+
+    @Test
+    void locate_procedureNoticeTable_skipped() {
+        String procedureTable = """
+                | 条款号 | 条款名称 | 编列内容 |
+                | --- | --- | --- |
+                | 1.8 | 采购预备会 | 不召开 |
+                | 3.1 | 分值构成 | 商务评分标准56分，技术评分标准34分，价格10分 |
+                | 5.2 | 开启程序 | 供应商按要求解密 |
+                """;
+        List<ScoreTableBlockLocator.TableBlock> blocks =
+                ScoreTableBlockLocator.locate(procedureTable);
+        assertThat(blocks).isEmpty();
+    }
 }
