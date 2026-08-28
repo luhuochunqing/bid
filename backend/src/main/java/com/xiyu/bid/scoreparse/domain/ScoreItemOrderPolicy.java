@@ -11,13 +11,20 @@ import java.util.regex.Pattern;
 
 /**
  * 评分项编号排序策略（spec 046 FR-003）。
- * <p>解析键 ^(\d+)(?:[-—.](\d+))?$（如 "4-1" → 主段 4、子段 1）：主段升序、
- * 子段升序（无子段排前，minor 取 -1 视同最小）；不可解析编码（A1/B2/null/空白）
- * 稳定保持相对序排在可解析之后。不改 code 内容，仅重排顺序；itemIndex 由调用方按新序重编。
+ * <p>解析键支持两类：
+ * <ul>
+ *   <li>简单编号 ^(\d+)(?:[-—.](\d+))?$（如 "4-1" → 主段 4、子段 1）：主段升序、子段升序（无子段排前，minor 取 -1 视同最小）</li>
+ *   <li>复合编号 ^(\d+(?:[.\d]+)?)[\((（](\d+)[)）]$（如 "2.2.4(1)" → 首段数值、括号内子段）</li>
+ * </ul>
+ * 不可解析编码（A1/B2/null/空白）稳定保持相对序排在可解析之后。
+ * 不改 code 内容，仅重排顺序；itemIndex 由调用方按新序重编。
  */
 public class ScoreItemOrderPolicy {
 
     private static final Pattern CODE_PATTERN = Pattern.compile("^(\\d+)(?:[-—.](\\d+))?$");
+    /** 支持 "2.2.4(1)" / "3.1（2）" 复合编号：取首段整数 + 括号内子段 */
+    private static final Pattern COMPOUND_CODE_PATTERN =
+            Pattern.compile("^(\\d+(?:\\.\\d+)*)\\s*[（(](\\d+)[）)]$");
 
     /** 按编号数值序排序，返回新列表；入参为 null 时返回空列表 */
     public List<ScoreCandidate> sort(List<ScoreCandidate> candidates) {
@@ -49,17 +56,31 @@ public class ScoreItemOrderPolicy {
         if (code == null) {
             return null;
         }
-        Matcher matcher = CODE_PATTERN.matcher(code.trim());
-        if (!matcher.matches()) {
-            return null;
+        String trimmed = code.trim();
+        // 先尝试简单编号（4 / 4-1 / 4.1）
+        Matcher matcher = CODE_PATTERN.matcher(trimmed);
+        if (matcher.matches()) {
+            try {
+                int major = Integer.parseInt(matcher.group(1));
+                int minor = matcher.group(2) == null ? -1 : Integer.parseInt(matcher.group(2));
+                return new CodeKey(major, minor);
+            } catch (NumberFormatException e) {
+                return null;
+            }
         }
-        try {
-            int major = Integer.parseInt(matcher.group(1));
-            int minor = matcher.group(2) == null ? -1 : Integer.parseInt(matcher.group(2));
-            return new CodeKey(major, minor);
-        } catch (NumberFormatException e) {
-            return null;
+        // 再尝试复合编号（2.2.4(1) / 3.1（2））：取首段整数 + 括号内子段
+        Matcher cm = COMPOUND_CODE_PATTERN.matcher(trimmed);
+        if (cm.matches()) {
+            try {
+                String majorStr = cm.group(1).split("\\.")[0];
+                int major = Integer.parseInt(majorStr);
+                int minor = Integer.parseInt(cm.group(2));
+                return new CodeKey(major, minor);
+            } catch (NumberFormatException e) {
+                return null;
+            }
         }
+        return null;
     }
 
     /**

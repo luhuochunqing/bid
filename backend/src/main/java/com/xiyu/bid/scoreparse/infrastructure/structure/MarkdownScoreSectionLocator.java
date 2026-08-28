@@ -32,6 +32,8 @@ public final class MarkdownScoreSectionLocator {
     private static final int CONTEXT_AFTER_LINES = 3;
     private static final int CONTEXT_AFTER_LINES_PRICE = 8;
     private static final int MAX_CHAPTER_LINES = 800;
+    /** 分档评分语义（A/B/C/D 昱）：评审标准按 A、B、C、D 分框打分，不应被视为非评分行截断 */
+    private static final Pattern GRADING_PATTERN = Pattern.compile("评审标准|分框打分|[ABCD]等|按[ABCD]分|甲乙丙丁|优秀得|[A-D]级|评分等级");
 
     private MarkdownScoreSectionLocator() {
     }
@@ -74,9 +76,10 @@ public final class MarkdownScoreSectionLocator {
                         if (blankCount >= 10) break;
                     } else {
                         blankCount = 0;
-                        if (TABLE_SCORE_PATTERN.matcher(curr).find() || isTableLine(curr) || curr.contains("%")) {
+                        if (TABLE_SCORE_PATTERN.matcher(curr).find() || isTableLine(curr)
+                                || curr.contains("%") || GRADING_PATTERN.matcher(curr).find()) {
                             nonScoreLineCount = 0;
-                        } else if (++nonScoreLineCount >= 10 && end > i + 4) {
+                        } else if (++nonScoreLineCount >= 20 && end > i + 4) {
                             break;
                         }
                         if (end > i + 2) {

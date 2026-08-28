@@ -189,8 +189,9 @@ class MarkdownScoreSectionLocatorTest {
                 """;
         List<MarkdownScoreSectionLocator.ScoreSection> sections =
                 MarkdownScoreSectionLocator.locate(markdown);
-        assertThat(sections).hasSize(2);
-        assertThat(sections.get(1).content()).contains("价格分计算").contains("BP%");
+        assertThat(sections).hasSize(1);
+        // 闾值提高后，11 行过渡文字不再截断，两表合并为 1 段，价格参数内容仍完整保留
+        assertThat(sections.get(0).content()).contains("价格分计算").contains("BP%");
     }
 
     @Test
