@@ -99,15 +99,10 @@ describe('OpportunityPredictionCard', () => {
     expect(text).toContain('央企') // customerType CENTRAL_SOE 翻译
     expect(text).toContain('工业品') // projectType INDUSTRIAL 翻译
     expect(text).toContain('已中标')
-    // 日期统一两行排版：第一行年-月，第二行 —日（月和日之间有破折号）
-    expect(text).toContain('2021-08')
-    expect(text).toContain('2026-08')
-    expect(text).toContain('2026-09')
-    const dayTexts = wrapper.findAll('.op-date-d').map((n) => n.text())
-    expect(dayTexts.length).toBeGreaterThanOrEqual(3)
-    for (const day of dayTexts) {
-      expect(day.startsWith('—')).toBe(true)
-    }
+    // 日期单行排版：显示完整 YYYY-MM-DD
+    expect(text).toContain('2021-08-15')
+    expect(text).toContain('2026-08-14')
+    expect(text).toContain('2026-09-14')
     expect(wrapper.find('.op-near-dot').exists()).toBe(true) // 3 个月内红点
   })
 
