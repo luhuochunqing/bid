@@ -67,4 +67,32 @@ describe('CaseDetailDialog - 案例详情弹窗布局契约', () => {
     expect(wrapper.emitted('open-bid')).toHaveLength(1)
     expect(wrapper.emitted('reuse')).toHaveLength(1)
   })
+
+  it('当提供匹配度数据时渲染匹配分析提示条与命中依据', () => {
+    const wrapper = mountDialog({
+      caseData: {
+        ...caseData,
+        matchScore: 88,
+        matchLabel: '优质',
+        matchReasons: ['评分项条款高度契合', '类别一致', '历史中标案例'],
+        matchedKeywords: ['现场服务', '应急响应']
+      }
+    })
+
+    const banner = wrapper.find('.match-detail-banner')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain('88%')
+    expect(banner.text()).toContain('优质')
+    expect(banner.text()).toContain('评分项条款高度契合')
+    expect(banner.text()).toContain('类别一致')
+    expect(banner.text()).toContain('现场服务')
+  })
+
+  it('未提供匹配度数据时不渲染匹配分析提示条', () => {
+    const wrapper = mountDialog({
+      caseData: { ...caseData, matchScore: null, score: null }
+    })
+    expect(wrapper.find('.match-detail-banner').exists()).toBe(false)
+  })
 })
+

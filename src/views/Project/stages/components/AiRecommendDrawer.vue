@@ -1,7 +1,6 @@
 <template>
   <el-drawer v-model="visible" title="AI 智能案例推荐" size="680px" append-to-body @open="handleOpen">
     <div class="ai-recommend-drawer">
-      <!-- 评分项为空时的提示 -->
       <el-alert v-if="!scoreItemsLoading && scoreItems.length === 0" type="warning" :closable="false" show-icon>
         <template #title>
           <div class="empty-score-alert">
@@ -11,17 +10,11 @@
         </template>
       </el-alert>
 
-      <!-- 评分项筛选（选项来自「AI 评分标准解析」结果，悬停查看完整要素原文） -->
       <div class="drawer-section">
         <label class="section-label">评分项</label>
         <el-select v-model="selectedItemId" placeholder="请选择评分项" clearable filterable style="width: 100%" @change="handleItemChange">
           <el-option-group v-for="group in scoringItemGroups" :key="group.dim" :label="group.dim">
-            <el-option
-              v-for="item in group.items"
-              :key="item.id"
-              :label="optionTitle(item)"
-              :value="item.id"
-            >
+            <el-option v-for="item in group.items" :key="item.id" :label="optionTitle(item)" :value="item.id">
               <el-tooltip :content="optionFullText(item)" placement="right" :show-after="150">
                 <div class="score-option-line">{{ optionFullText(item) }}</div>
               </el-tooltip>
@@ -30,18 +23,32 @@
         </el-select>
       </div>
 
-      <!-- 关键词二次过滤 -->
       <div class="drawer-section">
         <label class="section-label">关键词过滤</label>
         <el-input v-model="keywordFilter" placeholder="输入关键词进一步筛选..." clearable />
       </div>
 
-      <!-- 匹配案例列表（卡片与案例库一致，额外展示匹配度） -->
       <div class="drawer-section">
-        <label class="section-label">
-          匹配案例
-          <el-tag v-if="selectedItemId" size="small" type="info">{{ filteredCases.length }} 个结果</el-tag>
-        </label>
+        <div class="section-label-row">
+          <label class="section-label">
+            匹配案例
+            <el-tag v-if="selectedItemId" size="small" type="info">{{ filteredCases.length }} 个结果</el-tag>
+          </label>
+          <el-tooltip placement="top" :show-after="100">
+            <template #content>
+              <div class="match-rule-tooltip">
+                <div class="tooltip-title">匹配度计算规则（满分 100 分）：</div>
+                <div>• 评分项条款/标题契合：最高 40 分</div>
+                <div>• 评分项类别一致：+20 分</div>
+                <div>• 项目/客户类型一致：各 +15 分</div>
+                <div>• 关键词命中：最高 15 分</div>
+                <div>• 历史中标加成：+5 分</div>
+                <div class="tooltip-sub">评级：≥80% 优质，≥60% 良好，&lt;60% 一般</div>
+              </div>
+            </template>
+            <span class="help-hint"><el-icon><QuestionFilled /></el-icon> 评分依据说明</span>
+          </el-tooltip>
+        </div>
         <div v-loading="loadingCases" class="cases-container">
           <div v-if="filteredCases.length > 0" class="recommend-grid">
             <CaseCard
@@ -60,7 +67,6 @@
       </div>
     </div>
 
-    <!-- 详情弹窗：复用案例库详情组件（居中弹窗），内容保持一致；嵌套于抽屉内必须 append-to-body，否则层级被抽屉压制 -->
     <CaseDetailDialog
       v-model="detailVisible"
       append-to-body
@@ -76,6 +82,7 @@
 <script setup>
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
+import { QuestionFilled } from '@element-plus/icons-vue'
 import { caseRecommendationApi } from '@/api/modules/caseRecommendation'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
@@ -98,10 +105,7 @@ const detailVisible = ref(false)
 const detailLoading = ref(false)
 const detailCase = ref(null)
 
-function handleGoToScoreParse() {
-  visible.value = false
-  emit('go-to-score-parse')
-}
+const handleGoToScoreParse = () => { visible.value = false; emit('go-to-score-parse') }
 
 const scoringItemGroups = computed(() => {
   const groups = {}
@@ -113,17 +117,10 @@ const scoringItemGroups = computed(() => {
   return Object.values(groups)
 })
 
-function optionFullText(item) {
-  return `${item.code ? item.code + ' ' : ''}${item.dim || ''} - ${item.detail || ''}`
-}
-
-function optionTitle(item) {
-  if (item.code) return `${item.code} ${item.dim || ''}`.trim()
-  return item.dim || ''
-}
+const optionFullText = (item) => `${item.code ? item.code + ' ' : ''}${item.dim || ''} - ${item.detail || ''}`
+const optionTitle = (item) => (item.code ? `${item.code} ${item.dim || ''}`.trim() : item.dim || '')
 
 const filteredCases = computed(() => {
-  // 选中评分项时，仅展示匹配度 >= 50% 的案例
   if (selectedItemId.value) return cases.value.filter(c => (c.score ?? 0) >= 50)
   const kw = keywordFilter.value.trim().toLowerCase()
   if (!kw) return cases.value
@@ -156,10 +153,7 @@ async function handleOpen() {
 }
 
 async function loadDefaultProjectCases() {
-  if (defaultCases.value.length > 0) {
-    cases.value = defaultCases.value
-    return
-  }
+  if (defaultCases.value.length > 0) { cases.value = defaultCases.value; return }
   try {
     const res = await caseRecommendationApi.recommendCases(props.projectId, { keyword: '', page: 0, size: 20 })
     defaultCases.value = (res?.items || []).map(normalizeRecommendCase)
@@ -172,11 +166,7 @@ async function loadDefaultProjectCases() {
 
 async function handleItemChange() {
   if (!selectedItemId.value) {
-    if (defaultCases.value.length === 0) {
-      await loadDefaultProjectCases()
-    } else {
-      cases.value = [...defaultCases.value]
-    }
+    cases.value = defaultCases.value.length === 0 ? (await loadDefaultProjectCases(), cases.value) : [...defaultCases.value]
     return
   }
   loadingCases.value = true
@@ -201,14 +191,12 @@ onBeforeUnmount(() => clearTimeout(keywordDebounceTimer))
 watch(keywordFilter, () => {
   if (selectedItemId.value) {
     clearTimeout(keywordDebounceTimer)
-    keywordDebounceTimer = setTimeout(() => {
-      handleItemChange()
-    }, 300)
+    keywordDebounceTimer = setTimeout(() => handleItemChange(), 300)
   }
 })
 
-// 推荐接口条目 → CaseCard 所需字段（详情全文由 getCaseDetail 单独拉取，此处不透传无用字段）
 function normalizeRecommendCase(item) {
+  const matchScore = item.matchScore ?? item.score ?? 0
   return {
     caseId: item.id ?? item.caseId,
     scoringTitle: item.scoringPointTitle || item.scoringTitle,
@@ -216,7 +204,11 @@ function normalizeRecommendCase(item) {
     projectType: item.projectType,
     customerType: item.customerType,
     createdAt: item.createdAt || '',
-    score: item.matchScore ?? item.score ?? 0,
+    score: matchScore,
+    matchScore,
+    matchLabel: item.matchLabel || (matchScore >= 80 ? '优质' : matchScore >= 60 ? '良好' : '一般'),
+    matchReasons: item.matchReasons || [],
+    matchedKeywords: item.matchedKeywords || [],
     responseText: item.responseText || '',
     sourceProjectName: item.sourceProjectName,
   }
@@ -225,10 +217,18 @@ function normalizeRecommendCase(item) {
 async function viewDetail(caseId) {
   detailVisible.value = true
   detailLoading.value = true
-  detailCase.value = null
+  const current = cases.value.find(c => (c.caseId ?? c.id) === caseId)
+  detailCase.value = current ? { ...current } : null
   try {
     const res = await caseRecommendationApi.getCaseDetail(caseId)
-    detailCase.value = res?.data || res
+    const full = res?.data || res
+    detailCase.value = {
+      ...full,
+      matchScore: current?.matchScore ?? current?.score ?? full?.matchScore,
+      matchLabel: current?.matchLabel ?? full?.matchLabel,
+      matchReasons: current?.matchReasons ?? full?.matchReasons,
+      matchedKeywords: current?.matchedKeywords ?? full?.matchedKeywords,
+    }
   } catch (err) {
     notifyErrorUnlessRateLimit(err, '获取案例详情失败')
     detailVisible.value = false
@@ -241,7 +241,7 @@ async function copyAndRecordReuse(caseId, text) {
   try {
     await navigator.clipboard.writeText(text)
   } catch {
-    ElMessage.error('复制失败') // SAFE: 非 API 错误（剪贴板）
+    ElMessage.error('复制失败')
     return
   }
   try {
@@ -253,15 +253,9 @@ async function copyAndRecordReuse(caseId, text) {
   ElMessage.success('已复制到剪贴板')
 }
 
-function handleReuse(item) {
-  return copyAndRecordReuse(item.caseId, item.responseText || item.responseTextSummary || '')
-}
-
-function handleReuseInDetail(d) {
-  return copyAndRecordReuse(d.caseId || d.id, d.responseText || '')
-}
-
-function goToSourceProject(d) {
+const handleReuse = (item) => copyAndRecordReuse(item.caseId, item.responseText || item.responseTextSummary || '')
+const handleReuseInDetail = (d) => copyAndRecordReuse(d.caseId || d.id, d.responseText || '')
+const goToSourceProject = (d) => {
   if (d?.sourceProjectId) window.open(`/bidding/detail/${d.sourceProjectId}`, '_blank')
   else ElMessage.warning('来源项目不可用')
 }
@@ -286,7 +280,13 @@ async function openBidDocument(d) {
 <style scoped>
 .ai-recommend-drawer { display: flex; flex-direction: column; gap: 20px; }
 .drawer-section { display: flex; flex-direction: column; gap: 8px; }
+.section-label-row { display: flex; align-items: center; justify-content: space-between; }
 .section-label { font-size: 14px; font-weight: 600; color: var(--text-secondary-ui); display: flex; align-items: center; gap: 8px; }
+.help-hint { font-size: 12px; color: var(--el-color-primary); cursor: pointer; display: flex; align-items: center; gap: 4px; }
+.help-hint:hover { opacity: 0.8; }
+.match-rule-tooltip { font-size: 12px; line-height: 1.6; padding: 2px 4px; }
+.tooltip-title { font-weight: 600; margin-bottom: 4px; }
+.tooltip-sub { margin-top: 4px; font-size: 11px; color: var(--el-color-warning-light-3, #e6a23c); }
 .cases-container { min-height: 200px; }
 .select-hint { color: var(--text-muted); font-size: 14px; text-align: center; padding: 40px 0; }
 .score-option-line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

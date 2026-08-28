@@ -77,7 +77,8 @@ describe('AiRecommendDrawer.vue', () => {
     'el-select': { template: `<div><slot /></div>` },
     'el-option-group': { props: ['label'], template: `<div><slot /></div>` },
     'el-option': { props: ['label', 'value'], template: `<div class="el-option-mock"><slot /></div>` },
-    'el-tooltip': { props: ['content'], template: `<span class="el-tooltip-mock"><slot /></span>` },
+    'el-tooltip': { props: ['content'], template: `<span class="el-tooltip-mock"><slot /><slot name="content" /></span>` },
+    'el-popover': { template: `<span class="el-popover-mock"><slot name="reference" /><slot /></span>` },
     'el-input': {
       props: ['modelValue'],
       emits: ['update:modelValue'],
@@ -232,4 +233,15 @@ describe('AiRecommendDrawer.vue', () => {
 
     expect(wrapper.find('.el-alert-mock').exists()).toBe(true)
   })
+
+  it('renders scoring rule explanation tooltip trigger and content', async () => {
+    const wrapper = await mockOpenWithCases([recommendItem])
+
+    expect(wrapper.find('.help-hint').exists()).toBe(true)
+    expect(wrapper.text()).toContain('评分依据说明')
+    expect(wrapper.text()).toContain('匹配度计算规则（满分 100 分）')
+    expect(wrapper.text()).toContain('评分项条款/标题契合：最高 40 分')
+    expect(wrapper.text()).toContain('评分项类别一致：+20 分')
+  })
 })
+
