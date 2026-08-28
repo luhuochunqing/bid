@@ -3168,3 +3168,18 @@ private CompetitorStatus status = CompetitorStatus.ACTIVE;
 | 禁用按钮不给原因 | 用户点了没反应，无从自救 | 禁用必须配 tooltip/文案说明缺什么 |
 | 同一概念两处定义 | canSave 与表单规则各自维护必填集，必然漂移 | 口径收口单一模块 + 契约测试；新增平行定义前先找既有真相源 |
 | 消息文案当控制流开关 | 级别靠关键字匹配，文案一改行为就变 | 返回显式 `{message, level}` 结构 |
+
+## 176. 外部接口字段名以实际响应为准：@JsonProperty 契约漂移靠 @JsonAlias 双兼容兜底（2026-08-28，测试环境 tender 4136 座机号丢失）
+
+**背景**：测试环境项目 4136 关联商机 CC20260828857 后，评估表客户信息的 TEL（对接人座机号）始终为空。排查取双证据：journalctl 中 `CrmHttpClient` 响应体日志显示 CRM 实际返回 `"fixedPhone":"021-56478789"`（驼峰），而 DB `tender_evaluation_customer_info` 无 TEL 行。
+
+**根因分析**：`ContactPersonInfoVO` 按接口文档声明 `@JsonProperty("fixed_phone")`（下划线），CRM 实际返回驼峰 `fixedPhone`。VO 上的 `@JsonIgnoreProperties(ignoreUnknown = true)`（CO-329 为容错加的）把驼峰 key 当未知字段静默丢弃 → `fixedPhone` 反序列化为 null → `CrmEvaluationMapper.addIfHasValue` 跳过 TEL 行。容错注解把"字段名不匹配"从显式报错降级成静默丢数据。且单测 mock 一律用下划线 key，掩盖了不匹配。
+
+**解决方案**：`@JsonProperty("fixed_phone")` 旁加 `@JsonAlias("fixedPhone")` 双兼容两种字段名形态。`@JsonAlias` 只作用于反序列化，序列化输出 key 仍为 `fixed_phone`，前端消费契约不变。测试补驼峰（日志实锤形态）+ 下划线（文档契约形态）双用例。
+
+**教训**：
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| 按文档写字段名，不看实际响应 | 文档契约与线上实现漂移无人发现 | 集成类 VO 字段用真实抓包/日志响应写测试，不抄文档 |
+| ignoreUnknown 吞掉字段名不匹配 | 容错注解把显式错误变成静默 null | 外部接口字段丢失类工单，直接翻 `CrmHttpClient` 响应体日志比对 key |
+| 单测 mock 与文档同源 | mock 用下划线 key 恰好绕开不匹配 | 至少一条用例必须来自真实环境日志原文 |
