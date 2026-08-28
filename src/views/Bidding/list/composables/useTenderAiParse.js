@@ -92,11 +92,7 @@ export function useTenderAiParse(form) {
 
       // AI 成功：正常填充字段
       applyParsedFields(response.data)
-      const missing = getMissingTenderRequiredFields(form.value)
-      if (missing.length) {
-        return `AI 已识别附件内容，但仍缺少必填项：${missing.join('、')}，请补齐后再保存`
-      }
-      return 'DeepSeek/AI 已识别附件内容，可继续编辑后保存'
+      return parseResultMessage('附件内容')
     })
   }
 
@@ -115,12 +111,17 @@ export function useTenderAiParse(form) {
       }
 
       applyParsedFields(response.data)
-      const missing = getMissingTenderRequiredFields(form.value)
-      if (missing.length) {
-        return `AI 已识别粘贴文本，但仍缺少必填项：${missing.join('、')}，请补齐后再保存`
-      }
-      return 'DeepSeek/AI 已识别粘贴文本，可继续编辑后保存'
+      return parseResultMessage('粘贴文本')
     })
+  }
+
+  // 解析回填完成后的统一提示：仍缺必填项时列出（含"请补齐"关键字 → runAiParse 按 warning 展示）
+  function parseResultMessage(sourceLabel) {
+    const missing = getMissingTenderRequiredFields(form.value)
+    if (missing.length) {
+      return `AI 已识别${sourceLabel}，但仍缺少必填项：${missing.join('、')}，请补齐后再保存`
+    }
+    return `DeepSeek/AI 已识别${sourceLabel}，可继续编辑后保存`
   }
 
   async function runAiParse(parseFn) {

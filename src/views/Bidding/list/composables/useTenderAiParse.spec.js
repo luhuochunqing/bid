@@ -208,6 +208,23 @@ describe('useTenderAiParse', () => {
     expect(ElMessage.success).not.toHaveBeenCalled()
   })
 
+  it('warns with missing required fields after pasted-text parse', async () => {
+    const form = ref({ attachments: [], pastedText: '国家电网公开谈判采购正文' })
+    const { handlePastedTextParse } = useTenderAiParse(form)
+
+    tendersApi.parseTenderIntakeText.mockResolvedValue(
+      mockParseResponse('doc-insight://TENDER_INTAKE/create-tender/hash-text', {
+        extractedData: { tenderTitle: '国家电网办公类物资框架协议采购' },
+      })
+    )
+
+    await handlePastedTextParse()
+
+    expect(form.value.title).toBe('国家电网办公类物资框架协议采购')
+    expect(ElMessage.warning).toHaveBeenCalledWith(expect.stringContaining('请补齐后再保存'))
+    expect(ElMessage.success).not.toHaveBeenCalled()
+  })
+
   it('keeps the success message when AI parse backfills all required fields', async () => {
     const form = ref({ attachments: [], pastedText: '' })
     const { handleFileChange } = useTenderAiParse(form)
