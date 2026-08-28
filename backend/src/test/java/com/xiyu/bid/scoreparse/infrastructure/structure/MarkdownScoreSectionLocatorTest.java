@@ -12,6 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class MarkdownScoreSectionLocatorTest {
 
+
     @Test
     void locate_headingSectionWithScoreKeyword_found() {
         String markdown = """

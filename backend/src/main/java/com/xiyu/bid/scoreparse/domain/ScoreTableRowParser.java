@@ -85,7 +85,6 @@ public final class ScoreTableRowParser {
         
         // 提取括号分值（如"财务状况（10分）"）
         BracketWeightResult bracketResult = extractBracketWeight(columns);
-        String dim = bracketResult.dimFromCol3();
         
         // 提取 detail（5列表格取列4+列5拼接，其他取最右侧有效文本列）
         String detail = extractDetail(columns, codeIndex, bracketResult.col3Index());
@@ -94,17 +93,24 @@ public final class ScoreTableRowParser {
         }
         
         // 分值提取优先级：
-        // 1. 列2/列3提取的括号分值（如"财务状况（10分）"大项明确声明的分值）
-        // 2. 最右侧纯分值列（如 "5" / "1.5分"）
-        // 3. detail 列内部的"得X分"档位最大值（叶子项实际得分，如"满分1.5分"）
+        // 1. 最右侧纯分值列（叶子项满分，如 "2.5" / "1.5分"）
+        // 2. 列2/列3提取的括号分值（如"财务状况（10分）"）
+        // 3. detail 列内部的"得X分"档位最大值
         // 4. 整行 maxGradeScore
         int weightIndex = pureWeightIndex(columns, codeIndex);
         BigDecimal weight = null;
-        if (bracketResult.weight() != null) {
+        if (weightIndex >= 0) {
+            String val = columns.get(weightIndex).replaceAll("[^0-9.]", "");
+            if (!val.isEmpty()) {
+                try {
+                    weight = new BigDecimal(val);
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        if (weight == null && bracketResult.weight() != null) {
             weight = bracketResult.weight();
-        } else if (weightIndex >= 0) {
-            weight = new BigDecimal(columns.get(weightIndex).replaceAll("[^0-9.]", ""));
-        } else {
+        } else if (weight == null) {
             BigDecimal detailGradeScore = maxGradeScore(detail);
             if (detailGradeScore != null) {
                 weight = detailGradeScore;
@@ -113,7 +119,8 @@ public final class ScoreTableRowParser {
             }
         }
         
-        // 如果未确定 dim，从左侧/剩余列中提取分类路径（继承大类名称）
+        // 提取 dim 分类名称
+        String dim = bracketResult.dimFromCol3();
         if (dim == null || dim.isBlank()) {
             int detailIndex = detailColumnIndex(columns, codeIndex, weightIndex);
             dim = extractDim(columns, codeIndex, weightIndex, detailIndex);
