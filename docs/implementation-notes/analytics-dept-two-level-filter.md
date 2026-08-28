@@ -37,7 +37,7 @@
 - **`appendDeptAxisFilter` 签名收敛**：由 `(deptNodes, selectedDepartments, axisValue)` 改为直接收 `Prepared`；初版内部用 `allOrgNames()` 逐个正向映射回比（O(全组织名) 扫），现直读 `Prepared.namesByBucket` 倒排，正/反映射同源。
 - **树外兜底判断修正**：初版用 `!covered.containsKey(selected)` 判断树外选中名，误把"有子节点的选中父级"也追加进桶（测试暴露：桶里多出"销售部"）。改为 `!byName.containsKey(selected)`——只对组织树外选中名追加桶，树内父级已由其直接子部门成桶。
 - **格式还原**：slop 阶段把 `appendDeptAxisFilter(...); }` 压成同行 `}`，已还原为规范换行。
-- 回归证据：analytics 全量 163 测试（含重构后 AnalyticsDepartmentHierarchySupportTest 12 用例）全部通过，行数门禁 `guarded_changes=9` 通过。
+- 回归证据：analytics 全量 164 测试（含重构后 AnalyticsDepartmentHierarchySupportTest 12 用例）全部通过，行数门禁 `guarded_changes=9` 通过。
 
 ## 审查修复波次（PR !2437 三透镜审查后）
 
@@ -51,10 +51,52 @@
 - **字段正名**：`TrendQueryCriteria.departmentIds` → `departmentMatchNames`（它早已不是 id 也不是原始勾选集），Javadoc 声明"已展开名集，null=未启用"。
 - **去 mock**：两个 JPQL 回归测试不再 `Mockito.mock(FilterOptionsQueryService.class)`，而是用真 repository 构造真实 Gateway；Region 回归新增 `deptAxisBarValueMatchesDrillDownTotalOnRealData` 真库锚定。
 
+## 遗留：同名部门跨分支纳入的核查 SQL（本波次不修）
+
+筛选协议传的是**部门名**（下拉树 value = name），因此同名部门一旦分属不同分支，勾选该名会把多个子树一起纳入——这是协议层面的固有歧义，彻底修复需筛选协议由 name 迁 code（待本 PR 合入后单独开 issue 排期，不在本波次扩散到 users 查询协议）。上线前后用下面三条 SQL 确认量级；结果非空即在 PR/工单里记录条数。
+
+```sql
+-- 1) 同组织源内同名不同 code（名称歧义的候选集；层级索引已按 (source_app, code) 分区，不受影响）
+SELECT source_app, department_name,
+       COUNT(DISTINCT department_code) AS code_variants,
+       GROUP_CONCAT(CONCAT(department_code, '<-', COALESCE(parent_department_code, 'ROOT'))) AS placements
+FROM organization_departments
+WHERE enabled = 1
+GROUP BY source_app, department_name
+HAVING COUNT(DISTINCT department_code) > 1
+ORDER BY source_app, code_variants DESC;
+
+-- 2) 其中真正会跨分支的：同名部门挂在不同的根节点下（MySQL 8.0 WITH RECURSIVE）
+WITH RECURSIVE root_of AS (
+  SELECT source_app, department_code, department_name, parent_department_code,
+         department_code AS root_code
+  FROM organization_departments
+  WHERE enabled = 1 AND (parent_department_code IS NULL OR parent_department_code = '')
+  UNION ALL
+  SELECT d.source_app, d.department_code, d.department_name, d.parent_department_code, r.root_code
+  FROM organization_departments d
+  JOIN root_of r ON d.source_app = r.source_app AND d.parent_department_code = r.department_code
+)
+SELECT source_app, department_name, COUNT(DISTINCT root_code) AS roots,
+       GROUP_CONCAT(DISTINCT root_code) AS root_codes
+FROM root_of
+GROUP BY source_app, department_name
+HAVING COUNT(DISTINCT root_code) > 1;
+
+-- 3) 影响面：上述名字下挂了多少用户（决定优先级；users.department_name 与组织表同为 name 口径）
+SELECT u.department_name, COUNT(*) AS users_cnt
+FROM users u
+WHERE u.department_name IN (/* 第 2 条查出的 department_name */)
+GROUP BY u.department_name
+ORDER BY users_cnt DESC;
+```
+
+第 2 条只覆盖"可从根抵达"的节点；孤儿/成环行不会出现在结果里（`prepare` 侧另有环状脏数据收敛保护，见 `AnalyticsDepartmentHierarchySupportTest#环状脏数据不死循环`），因此第 2 条为空时仍需看第 1 条。
+
 ## 既有行为变化（有意）
 
 - wiki §9 记录过"勾父不级联、精确匹配"是当时的刻意决策；本次需求明确要求勾父包含后代数据，wiki §9 已同步更新。
-- 全量测试证据：analytics 包 163 个测试全部通过（AnalyticsDepartmentHierarchySupportTest 12 用例、TrendDrillDownFilterSupportTest 6 用例、AnalyticsRegionFilterJpqlRegressionTest 13 用例含真库 dept 轴锚定）；`ArchitectureTest` + `ProjectAccessGuardCoverageTest` 同跑全绿。
+- 全量测试证据：analytics 包 164 个测试全部通过（AnalyticsDepartmentHierarchySupportTest 12 用例、TrendDrillDownFilterSupportTest 6 用例、AnalyticsRegionFilterJpqlRegressionTest 13 用例含真库 dept 轴锚定）；`ArchitectureTest` + `ProjectAccessGuardCoverageTest` 同跑全绿。
 - **本 PR 不修的既有缺口**：time 轴（xAxis=time）图表完全不消费部门筛选——`fetchTimeTrendRows` 路径上不取 `departmentMatchNames`，属于与本需求无关的存量不一致，已留待独立 issue。
 
 ## 踩坑记录
