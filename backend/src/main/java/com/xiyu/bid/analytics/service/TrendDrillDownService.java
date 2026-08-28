@@ -1,6 +1,7 @@
-// Input: EntityManager, ProjectAccessScopeService, FilterOptionsQueryService, HTTP drilldown requests
+// Input: EntityManager, ProjectAccessScopeService, AnalyticsDepartmentTreeGateway, HTTP drilldown requests
 // Output: TrendDrillDownResponse DTO
-// Pos: Service/数据查询与下钻服务层（下钻条件组装拆至 TrendDrillDownFilterSupport；部门两级口径与图表同源）
+// Pos: Service/数据查询与下钻服务层（竞品维度中标数/wins 走「是否中标」列口径，specs/055；
+//       维度过滤条件组装已拆至 TrendDrillDownFilterSupport；部门两级口径与图表同源）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 package com.xiyu.bid.analytics.service;
@@ -32,7 +33,7 @@ public class TrendDrillDownService {
     @PersistenceContext
     private EntityManager entityManager;
     private final ProjectAccessScopeService projectAccessScopeService;
-    private final FilterOptionsQueryService filterOptionsQueryService;
+    private final AnalyticsDepartmentTreeGateway departmentTreeGateway;
 
     public TrendDrillDownResponse drillDown(
             String dimension,
@@ -82,8 +83,11 @@ public class TrendDrillDownService {
             where.append(" AND p.created_at <= :endDate");
             params.put("endDate", endDate.plusDays(1).atStartOfDay());
         }
-        // 系列名过滤：投标数=全部项目；中标数：竞品维度（specs/055）=「是否中标」列 TRIM(notes) 匹配同图表同源，
-        // 其余维度=status=WON；axisValue 缺失时回退筛选器竞品名集合，再缺省则不限竞品名。
+
+        // 系列名过滤：投标数=全部项目（无附加状态条件，与图表口径对齐）。
+        // 中标数：非竞品维度=项目级 status=WON；竞品维度（specs/055）=结果确认「是否中标」列已中标
+        // （TRIM(notes) 精确匹配 CompetitorWonStatusSupport.WON_LABEL，与图表 computeCompetitorTrend 同源，
+        // 避免「图上数字与下钻明细对不上」）；axisValue 缺失时回退筛选器竞品名集合，再缺省则不限竞品名。
         if ("中标数".equals(seriesName)) {
             if ("competitor".equals(dimension)) {
                 String wonExists = " AND EXISTS (SELECT 1 FROM project_result prw JOIN project_result_competitor prcw"
@@ -131,16 +135,15 @@ public class TrendDrillDownService {
             params.put("regionProjectIds", regionMatchedIds);
         }
 
-        // 部门过滤：两级展示口径——一次 prepare 勾父展开后代（与图表统计范围一致）；
-        // dept 轴柱子按同一 bucketMapper 反解标签为名称集合，图数与明细同口径
-        if (hasDeptSelection || deptAxis) {
+        // 部门过滤：两级展示口径——勾父展开后代（与图表统计范围一致）；dept 轴柱子按同一
+        // Prepared 的倒排反解为名称集合，图数与明细同口径。无勾选时走上方 appendDimensionFilter
+        // 的精确等值旧路径（口径未启用，不必加载组织树，避免默认路径白读一次全表）
+        if (hasDeptSelection) {
             var dept = AnalyticsDepartmentHierarchySupport.prepare(
-                    filterOptionsQueryService.fetchDepartmentNodes(), departments);
-            if (dept.hasSelection()) {
-                where.append(" AND u.department_name IN (:departments)");
-                params.put("departments", dept.matchNames());
-            }
-            if (deptAxis && hasDeptSelection) {
+                    departmentTreeGateway.loadAll(), departments);
+            where.append(" AND u.department_name IN (:departments)");
+            params.put("departments", dept.matchNamesList());
+            if (deptAxis) {
                 TrendDrillDownFilterSupport.appendDeptAxisFilter(where, params, dept, axisValue);
             }
         }

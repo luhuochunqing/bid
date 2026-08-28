@@ -1,4 +1,4 @@
-// Input: OrganizationDepartmentRepository, EntityManager, ProjectAccessScopeService
+// Input: OrganizationDepartmentRepository, AnalyticsDepartmentTreeGateway, EntityManager, ProjectAccessScopeService
 // Output: Filter options, distinct values, and department tree（竞品=快照∪ACTIVE字典并集，specs/056）
 // Pos: Query Service/数据查询层
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -38,6 +38,7 @@ public class FilterOptionsQueryService {
 
     private final OrganizationDepartmentRepository organizationDepartmentRepository;
     private final ProjectAccessScopeService projectAccessScopeService;
+    private final AnalyticsDepartmentTreeGateway departmentTreeGateway;
 
     /**
      * PRD §6.2 M1 筛选区下拉选项 — 部门（扁平列表，向后兼容）。
@@ -126,19 +127,6 @@ public class FilterOptionsQueryService {
     }
 
     /**
-     * 部门两级展示口径（"选了一级只展示一级，只要有二级就展示二级"）的数据源：
-     * 全量组织部门映射为纯 record，供 {@link AnalyticsDepartmentHierarchySupport} 做展开/分桶。
-     */
-    List<AnalyticsDepartmentHierarchySupport.DeptNode> fetchDepartmentNodes() {
-        return organizationDepartmentRepository.findAllByOrderByDepartmentCode()
-                .stream()
-                .map(d -> new AnalyticsDepartmentHierarchySupport.DeptNode(
-                        d.getDepartmentCode(), d.getParentDepartmentCode(), d.getDepartmentName()))
-                .filter(n -> n.name() != null && !n.name().isBlank())
-                .toList();
-    }
-
-    /**
      * PRD §6.2 M1 筛选区下拉选项 — 人员 DISTINCT（users.full_name）。
      * 直接从 User 表查询，不限制必须有项目（无效人员不过滤，全部包含）。
      * 当 departmentNames 为空时返回全量人员；有部门时按部门名称或部门编码匹配。
@@ -157,13 +145,15 @@ public class FilterOptionsQueryService {
         }
 
         // 部门两级口径：勾选父部门时联动选项须覆盖其全部后代部门人员，
-        // 与图表统计范围（prepare.matchNames）保持一致
-        var deptScope = AnalyticsDepartmentHierarchySupport.prepare(fetchDepartmentNodes(), departmentNames);
-        List<String> effectiveNames = deptScope.matchNamesList() != null ? deptScope.matchNamesList() : departmentNames;
+        // 与图表统计范围（Prepared.matchNames）保持一致；组织树取自与图表/下钻同一网关
+        var deptScope = AnalyticsDepartmentHierarchySupport.prepare(
+                departmentTreeGateway.loadAll(), departmentNames);
+        // 上方已保证 departmentNames 非空，非空选择必得非空 matchNames，无需再回退
+        List<String> effectiveNames = deptScope.matchNamesList();
         // 优化子查询性能：先通过仓库预查匹配的部门编码集合，避免在 SQL 中进行双重关联子查询
         List<OrganizationDepartmentEntity> matchedDepts =
                 organizationDepartmentRepository.findByDepartmentNameIn(effectiveNames);
-        java.util.Set<String> targetCodes = new java.util.HashSet<>();
+        Set<String> targetCodes = new HashSet<>();
         for (OrganizationDepartmentEntity dept : matchedDepts) {
             if (dept.getDepartmentCode() != null && !dept.getDepartmentCode().isEmpty()) {
                 targetCodes.add(dept.getDepartmentCode());
@@ -186,7 +176,7 @@ public class FilterOptionsQueryService {
                         """, String.class)
                 .setParameter("departmentNames", effectiveNames)
                 .setParameter("hasCodes", !targetCodes.isEmpty())
-                .setParameter("targetCodes", targetCodes.isEmpty() ? java.util.Set.of("") : targetCodes)
+                .setParameter("targetCodes", targetCodes.isEmpty() ? Set.of("") : targetCodes)
                 .getResultList();
     }
 
