@@ -1,5 +1,5 @@
 // Input: 组织部门节点与勾选名
-// Output: expand / bucketNames / toBucket 断言（L1-only 按一级成柱，L2-only 按二级，混选忽略一级）
+// Output: expand / bucketNames / toBucket 断言（L1-only 按一级成柱，L2-only 按二级，混选忽略不完整一级；全选/二级勾满视为完整一级）
 // Pos: Test/部门两级筛选与 X 轴口径纯函数
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -76,6 +76,33 @@ class AnalyticsDepartmentHierarchySupportTest {
                 Set.copyOf(AnalyticsDepartmentHierarchySupport.expand(ORG, mixedKeepL2WithL3)));
         assertEquals("销售一部",
                 AnalyticsDepartmentHierarchySupport.toBucket(ORG, mixedKeepL2WithL3, "华东组"));
+    }
+
+    @Test
+    void 全选可见一二级时按一级成柱且含一级直属() {
+        List<String> selectAll = List.of("销售部", "销售一部", "销售二部", "财务部", "财务一部");
+        assertEquals(List.of("销售部", "财务部"),
+                AnalyticsDepartmentHierarchySupport.bucketNames(ORG, selectAll));
+        assertEquals(Set.of("销售部", "销售一部", "华东组", "销售二部", "财务部", "财务一部"),
+                Set.copyOf(AnalyticsDepartmentHierarchySupport.expand(ORG, selectAll)));
+        assertEquals("销售部",
+                AnalyticsDepartmentHierarchySupport.toBucket(ORG, selectAll, "销售部"));
+        assertEquals("销售部",
+                AnalyticsDepartmentHierarchySupport.toBucket(ORG, selectAll, "华东组"));
+    }
+
+    @Test
+    void 一级下全部二级都勾了视为完整一级() {
+        List<String> fullSales = List.of("销售部", "销售一部", "销售二部");
+        assertEquals(List.of("销售部"),
+                AnalyticsDepartmentHierarchySupport.bucketNames(ORG, fullSales));
+        assertEquals(Set.of("销售部", "销售一部", "华东组", "销售二部"),
+                Set.copyOf(AnalyticsDepartmentHierarchySupport.expand(ORG, fullSales)));
+        List<String> fullSalesPlusOtherL2 = List.of("销售部", "销售一部", "销售二部", "财务一部");
+        assertEquals(List.of("销售部", "财务一部"),
+                AnalyticsDepartmentHierarchySupport.bucketNames(ORG, fullSalesPlusOtherL2));
+        assertEquals("销售部",
+                AnalyticsDepartmentHierarchySupport.toBucket(ORG, fullSalesPlusOtherL2, "销售部"));
     }
 
     @Test

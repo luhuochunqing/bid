@@ -1,5 +1,5 @@
 // Input: 组织部门节点（code/parent/name）与勾选部门名
-// Output: expand=有效勾选∪子孙；bucketNames/toBucket=L1-only 按一级、L2-only 按二级、混选忽略一级
+// Output: expand=有效勾选∪子孙；bucketNames/toBucket=L1-only 按一级、L2-only 按二级、混选忽略不完整一级；一级下二级勾满则该一级完整
 // Pos: Support/部门两级筛选与 X 轴口径纯函数（无状态、零框架依赖）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -17,7 +17,7 @@ import java.util.Set;
 /**
  * 数据分析部门两级口径：筛选树只到二级。
  * 只选一级 → X 轴按一级成柱（子孙折进一级）；只选二级 → 按二级成柱；
- * 一级+二级混选 → 忽略一级，只按勾选的二级成柱。
+ * 一级+部分二级 → 忽略该一级；某一级的全部二级都勾了（全选/人员轴勾满）→ 该一级完整，按一级成柱。
  */
 public final class AnalyticsDepartmentHierarchySupport {
 
@@ -44,7 +44,7 @@ public final class AnalyticsDepartmentHierarchySupport {
 
     /**
      * 有效勾选 ∪ 全部子孙部门名。{@code selectedNames} 空/null 返回 null（调用方按"不过滤"处理）。
-     * 有效勾选见 {@link #bucketNames}：混选时一级被忽略。
+     * 有效勾选见 {@link #bucketNames}：不完整混选忽略一级；二级勾满的一级保留。
      */
     public static List<String> expand(List<DeptNode> nodes, Collection<String> selectedNames) {
         if (selectedNames == null || selectedNames.isEmpty()) {
@@ -66,7 +66,8 @@ public final class AnalyticsDepartmentHierarchySupport {
     }
 
     /**
-     * 部门轴展示柱 = 有效勾选：只选一级按一级；只选二级按二级；混选忽略一级。
+     * 部门轴展示柱 = 有效勾选：只选一级按一级；只选二级按二级；
+     * 混选忽略未勾满二级的一级；一级下全部二级都在勾选里则该一级完整。
      */
     public static List<String> bucketNames(List<DeptNode> nodes, Collection<String> selectedNames) {
         if (selectedNames == null || selectedNames.isEmpty()) {
@@ -150,7 +151,38 @@ public final class AnalyticsDepartmentHierarchySupport {
                     level1.add(selected);
                 }
             }
-            return List.copyOf(level2.isEmpty() ? level1 : level2);
+            if (level2.isEmpty()) {
+                return List.copyOf(level1);
+            }
+            LinkedHashSet<String> completeL1 = new LinkedHashSet<>();
+            Set<String> coveredL2 = new HashSet<>();
+            for (String l1 : level1) {
+                Set<String> childNames = l2ChildNames(l1);
+                if (childNames.isEmpty() || level2.containsAll(childNames)) {
+                    completeL1.add(l1);
+                    coveredL2.addAll(childNames);
+                }
+            }
+            LinkedHashSet<String> leftoverL2 = new LinkedHashSet<>(level2);
+            leftoverL2.removeAll(coveredL2);
+            if (leftoverL2.isEmpty()) {
+                return List.copyOf(completeL1);
+            }
+            if (completeL1.isEmpty()) {
+                return List.copyOf(leftoverL2);
+            }
+            completeL1.addAll(leftoverL2);
+            return List.copyOf(completeL1);
+        }
+
+        Set<String> l2ChildNames(String l1Name) {
+            LinkedHashSet<String> names = new LinkedHashSet<>();
+            for (DeptNode node : byName.getOrDefault(l1Name, List.of())) {
+                for (DeptNode child : childrenOf(node)) {
+                    names.add(child.name());
+                }
+            }
+            return names;
         }
 
         int selectionLevel(String name) {

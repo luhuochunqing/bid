@@ -5,9 +5,10 @@
 1. 下拉只展示一级、二级（三级及以下不进树）。后端 `fetchDepartmentTree` 截断，前端 `capDepartmentTreeDepth` 再挡一层。
 2. 只选一级（可多个）→ X 轴按一级成柱；子孙（含三级）折进该一级。
 3. 只选二级（可多个）→ X 轴按二级成柱；三级折进该二级。
-4. 一级+二级混选 → 忽略一级，只按勾选的二级成柱。
+4. 一级+部分二级 → 忽略该一级，只按勾选的二级成柱。
+5. 全选 / 人员轴勾满可见树 / 某一级下全部二级都勾了 → 该一级完整，按一级成柱，一级直属人员计入（不走第 4 条）。
 
-`expand` 跟有效勾选走（混选时一级不进 WHERE / 人员联动 / 下钻范围）。
+`expand` 跟有效勾选走。全选名单仍是前端提交的一级+二级全集，由 `axisNames` 判断「二级是否勾满」后收成一级，不改下拉勾选 UI。
 接线仍是 `TrendAnalysisService` / `TrendDrillDownService` / `FilterOptionsQueryService.fetchDistinctPersons`。
 
 ## 有意不做
