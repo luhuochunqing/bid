@@ -99,4 +99,72 @@ class ScoreTableRowParserTest {
         assertThat(result.get().weight()).isNull();
         assertThat(result.get().detail()).contains("相关承诺");
     }
+
+    @Test
+    void parse_col3BracketWeight_extractsMainWeight() {
+        // 2026-08-28 修复：列3包含括号分值（主项分值），应优先提取
+        // 山焦物资案例：| 3.3(1) | 商务评分标准（56分） | 财务状况及抗风险能力（10分） | 提供2023-2025... | 1、审计意见...得4分... |
+        Optional<ScoreCandidate> result = ScoreTableRowParser.parse(
+                "| 3.3(1) | 商务评分标准（56分） | 财务状况及抗风险能力（10分） | 提供2023-2025年度经会计事务所... | 1、审计意见连续3年无保留意见，得4分；得3分；得2分 |");
+        assertThat(result).isPresent();
+        ScoreCandidate candidate = result.get();
+        
+        // 核心验证：weight应该是10（列3括号），而不是4（列5的maxGradeScore）
+        assertThat(candidate.weight()).isEqualByComparingTo(new BigDecimal("10"));
+        
+        // dim应该是列3去掉括号后的文本
+        assertThat(candidate.dim()).isEqualTo("财务状况及抗风险能力");
+        
+        // detail应该是列4+列5拼接
+        assertThat(candidate.detail()).contains("提供2023-2025年度").contains("审计意见连续3年");
+        
+        // code应该正确提取
+        assertThat(candidate.code()).isEqualTo("3.3(1)");
+    }
+
+    @Test
+    void parse_col3BracketWeight_multipleRows() {
+        // 测试多个不同的评分项
+        
+        // 运营能力及业绩（20分）
+        Optional<ScoreCandidate> result1 = ScoreTableRowParser.parse(
+                "| 3.3(1) | 商务评分标准（56分） | 运营能力及业绩（20分） | 投标人须提供自营电子商城运营方案... | 1、平台运营年限... |");
+        assertThat(result1).isPresent();
+        assertThat(result1.get().weight()).isEqualByComparingTo(new BigDecimal("20"));
+        assertThat(result1.get().dim()).isEqualTo("运营能力及业绩");
+        
+        // 赊销额度能力（2分）
+        Optional<ScoreCandidate> result2 = ScoreTableRowParser.parse(
+                "| 3.3(1) | 商务评分标准（56分） | 赊销额度能力（2分） | 本项目采取账期结算方式... | 1.提供赊销额度不低于2000万元，得2分 |");
+        assertThat(result2).isPresent();
+        assertThat(result2.get().weight()).isEqualByComparingTo(new BigDecimal("2"));
+        assertThat(result2.get().dim()).isEqualTo("赊销额度能力");
+        
+        // 响应文件制作（2分）
+        Optional<ScoreCandidate> result3 = ScoreTableRowParser.parse(
+                "| 3.3(1) | 商务评分标准（56分） | 响应文件制作（2分） | 根据响应文件内容的完整性等进行综合评分 | 响应文件编制应当准确、完整，得2分 |");
+        assertThat(result3).isPresent();
+        assertThat(result3.get().weight()).isEqualByComparingTo(new BigDecimal("2"));
+        assertThat(result3.get().dim()).isEqualTo("响应文件制作");
+    }
+
+    @Test
+    void parse_col3BracketWeightWithNewline_handlesCorrectly() {
+        // 列3包含换行符的情况
+        Optional<ScoreCandidate> result = ScoreTableRowParser.parse(
+                "| 3.3(1) | 商务评分标准（56分） | 财务状况及抗风险能力\n（10分） | 提供审计报告 | 得10分 |");
+        assertThat(result).isPresent();
+        assertThat(result.get().weight()).isEqualByComparingTo(new BigDecimal("10"));
+        assertThat(result.get().dim()).isEqualTo("财务状况及抗风险能力");
+    }
+
+    @Test
+    void parse_noBracketWeightInCol3_fallsBackToOriginalLogic() {
+        // 如果列3没有括号分值，应该回退到原有逻辑（纯分值列或maxGradeScore）
+        Optional<ScoreCandidate> result = ScoreTableRowParser.parse(
+                "| 不平衡报价评审 | 评标委员会针对各投标人分项报价中的单项折扣率进行评价，报价合理得4-5分 | 5 |");
+        assertThat(result).isPresent();
+        // 应该提取纯分值列的5
+        assertThat(result.get().weight()).isEqualByComparingTo(new BigDecimal("5"));
+    }
 }
