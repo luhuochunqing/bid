@@ -191,3 +191,9 @@ trigger（同步<1s，互斥校验+建任务）
 - **治理链抽离（FR-07/D5 预案兑现）**：`ScoreCandidatePostProcessor` 承接合并→守卫→裁决→回补→权重链；AppService 300→238 行；`countAligned` 迁 Mapper。
 - **run-summary（FR-04~06）**：`score_parse_task.run_summary` JSON 持久化 lanes/aligned/merge 计数/model，items meta 透出；对齐率<50% 或幻觉比>30% WARN。
 - **金标回放（FR-08~10）**：`GoldenCasesReplayTest` 合成夹具确定性六件套回放进默认套件（pre-push 等效第一层）；scripts/eval-scoreparse 承载标注规范与两层执行说明。首跑 case-dual F1=83.3%（4FP=前附表在 table lane 泄漏，§167 盲区实证）/ case-weight-gap F1=100%。
+
+## 1347 多标包与复合表格边界修复（2026-08-28，PR !2459 & 修复补丁）
+
+- **复合编号排序保真**：`ScoreItemOrderPolicy` 支持 `COMPOUND_CODE_PATTERN`（如 `2.2.4(1)` / `3.1(2)`），提取首段整数与括号内子段数值，保留文档中自然出现的顺序，防止非标准编号被当成 `unparsed` 稳定沉底到最后一行。
+- **百分比权重列识别**：`ScoreTableRowParser.PURE_WEIGHT_COLUMN` 扩展为 `^[~≈]?\d{1,3}(\.\d+)?\s*(?:分|%)?$`，正确识别 `6%` / `10%` 等以 `%` 结尾的纯分值列，解决三列表格漏项问题。
+- **长文本章节截断防误切**：`MarkdownScoreSectionLocator` 将连续非评分行容忍阈值由 10 提升至 20，并引入 `GRADING_PATTERN`（分档打分/A、B、C、D 级等语义行），防止大段文本表格单元格被转换器切碎时被提前截断。
