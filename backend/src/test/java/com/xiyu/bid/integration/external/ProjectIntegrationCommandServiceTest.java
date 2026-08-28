@@ -56,7 +56,7 @@ import static org.mockito.Mockito.when;
  *   <li>applied=false 跳过语义：标讯存在但未立项返回跳过响应而非 404</li>
  *   <li>部分更新：非 null 覆盖、null/未传保留；仅写项目数据，标讯实体不被修改</li>
  *   <li>客户信息传入即全量替换（含 TEL 映射）；projectPlanGapFiles 三态</li>
- *   <li>阶段锁 423、立项字段锁 423、合并校验失败 422、立项缺失 404</li>
+ *   <li>阶段锁 423、立项字段锁 423、立项缺失 404；半成品立项部分回写 200（不校验请求域外字段，2026-08-28 CRM 首联 422 根因回归）</li>
  * </ul>
  */
 @ExtendWith(MockitoExtension.class)
@@ -456,20 +456,23 @@ class ProjectIntegrationCommandServiceTest {
     }
 
     @Test
-    @DisplayName("合并后必填校验失败 → 422")
-    void mergedInputFailsValidation_returns422() {
-        InitiationFieldPolicy.InitiationInput missingRequired = new InitiationFieldPolicy.InitiationInput(
+    @DisplayName("半成品立项（内部组织字段 NULL）+ 部分回写 → 200 落库（校验不约束请求域外字段）")
+    void incompleteInitiationPartialWrite_succeeds() {
+        // CRM 首联 422 死锁根因回归（lessons §173）：契约不含内部组织字段入口，合并校验不得约束请求域外字段。
+        InitiationFieldPolicy.InitiationInput incomplete = new InitiationFieldPolicy.InitiationInput(
                 null, null, null, null, null,
                 null, null, null, null, null,
                 null, null, null, null,
                 null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null, null);
-        when(initiationMapper.mergeForUpdate(any(), any())).thenReturn(missingRequired);
+        when(initiationMapper.toInput(details)).thenReturn(incomplete);
+        when(initiationMapper.mergeForUpdate(any(), any())).thenReturn(incomplete);
 
-        assertThatThrownBy(() -> service.updateByTenderId("CRM", TENDER_ID,
-                baseRequest().build(), API_USER_ID))
-                .isInstanceOfSatisfying(ResponseStatusException.class, ex ->
-                        assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY));
+        ProjectUpdateResponse resp = service.updateByTenderId("CRM", TENDER_ID,
+                baseRequest().projectName("投标中编辑").build(), API_USER_ID);
+
+        assertThat(resp.getApplied()).isTrue();
+        verify(initiationRepository).save(any(ProjectInitiationDetails.class));
     }
 
     @Test

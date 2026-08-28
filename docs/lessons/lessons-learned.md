@@ -3100,3 +3100,26 @@ private CompetitorStatus status = CompetitorStatus.ACTIVE;
 | 缺乏筛选项集合锁定测试 | 仅测试筛选过滤逻辑，未锁定选项自身集合 | 核心业务枚举筛选项必须有断言数组内容与长度的单测锚定防复发 |
 
 
+
+---
+
+## 173. 外部接口的校验范围必须是契约开放字段集的子集：复用内部全量校验前先裁剪到调用方可控域（2026-08-28，接口六 CRM 首联 6 连 422）
+
+**现象**：接口六（PUT /api/integration/projects/{sourceSystem}/{tenderId}）上测试环境后 CRM 首次对接即 `PUT .../CRM/2300` 6 连 422「缺少必填字段：ownerUserId,departmentSnapshot」，一次未成功。
+
+**排查**（全链路日志排查 SOP §23 Layer 2，一次定位未走弯路）：nginx access.log 按 User-Agent `forest/1.6.3` 锁定调用 → ExceptionLogger WARN（M-03 脱敏前）抓到真实请求体——CRM 只传 `projectName + evaluationBasic（4 评估字段）+ evaluationCustomerInfos（1 行）` → 代码链路确认 `mergeInitiation` 对合并后全量跑 `InitiationFieldPolicy.validate` → DB 末端验证立项 1365（tender 2300 对应）`owner_user_id=NULL, department_snapshot=NULL, review_status=DRAFT, created_by=NULL`（正是 §169 记录过的 M 链路半成品立项）。
+
+**根因链**：
+1. **契约与校验集合错位**：接口六请求体（`ProjectUpdateRequest`/`EvaluationBasicDTO` + `toInitiationPatch`）只开放 6 个评估字段回写，`ownerUserId`/`departmentSnapshot` 等**内部组织字段根本没有传入入口**，patch 恒 null → `mergeForUpdate` 恒保留立项行原值 → 合并后这些字段 = DB 现状，**与调用方行为零相关**；
+2. **复用 UI 全量校验未裁剪**：`mergeInitiation` Javadoc 自述「口径与 UI 立项 doUpdate 一致」，把 UI 全量表单保存的必填 Policy 原样套到外部部分回写（PATCH 语义）上——UI 全量保存要求必填合理，外部回写要求「合并后全量必填」等于要求调用方补齐它无法控制的字段；
+3. **数据形态死锁**：M 链路手工标讯的预填立项行（半成品，§169）内部组织字段天然 NULL → CRM 无论怎么构造请求都必然 422。
+
+**为什么测试没拦住**：25 个 Service 测试全绿，但 fixture 全是**完整态**立项（ownerUserId=5L、departmentSnapshot 有值）——「半成品立项 + 部分回写」这一真实数据形态从未进测试设计（§170「测试不测根因」同款：单测全绿只证明自己造的数据能走通）。
+
+**修复**（方案 A，PR 待合）：`mergeInitiation` 删除合并后全量必填校验（保留 `validateUpdate` 字段锁校验），PATCH 语义贯彻——merge 的 null 保留特性保证回写不可能把完整立项改残缺；立项完整性由平台「提交审核」环节的同一 Policy 把守（链路语义：外部回写只管自己带来的字段，完整性在提交流程收口）。新增根因行为测试 `incompleteInitiationPartialWrite_succeeds`（半成品 fixture：ownerUserId/departmentSnapshot=NULL + 部分回写 → 200 落库）。
+
+**教训**：
+- **外部接口的校验范围必须是契约开放字段集的子集**——校验调用方无法影响的字段 = 制造与调用方行为无关的随机失败（本次 422 只取决于平台侧数据现状）；复用内部全量 Policy 前，先裁剪到契约域，或显式论证字段可得性；
+- **PATCH 语义接口（非 null 覆盖/null 保留）不做合并后全量必填校验**——完整性守门放在「提交/审核」等收口动作上，而非每次部分更新；
+- **fixture 必须覆盖真实数据的残缺形态**——联调环境里真实存在的半成品数据（§169 的 2300/1365）就是最好的测试素材；测试数据全用完整态 = 系统性盲区；
+- **首次对接失败的接口优先怀疑契约自洽性而非调用方**——「校验的字段 vs 契约开放的字段」对照表 5 分钟就能画出来，本次取证后回头看一目了然。

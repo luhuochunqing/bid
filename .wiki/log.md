@@ -513,3 +513,7 @@
 - 触发：CRM 联调 27 连 404——调用方以商机编号 CC.../未推送主键作 sourceId，接口六按 external_id 单列定位全部落空；全链路日志排查定位根因=定位键与数据签发方不同源 + 手工建标讯（M 链路）无 external_id 天然不可达 + M-03 脱敏放大盲试
 - 落点：ProjectIntegrationController（路径参数 Long 化，误传编号绑定层 400）+ ProjectIntegrationCommandService.updateByTenderId（projectId 一致性断言替代 externalId 交叉校验；来源键前缀轻校验；未立项 200+applied=false 跳过）+ ProjectUpdateResponse.applied + GlobalExceptionHandler.handleTypeMismatch 重写（防兜底 500）+ 测试 25+7 全绿 + api-tests §3.6 用例换数字示例
 - 教训：**外部对接的定位键必须与数据签发方同源；调用方持有内部主键时优先用主键定位。新增按来源键定位的外部接口前，必须盘点能把该实体带进系统的所有入库链路并逐条验证可达性** -> [[integration-tender-api]]
+## 2026-08-28 integration | 接口六 CRM 首联 422 死锁修复：合并后全量必填校验移除（校验范围对齐契约字段集）
+- 触发：接口六上测试环境后 CRM 首次对接 PUT /CRM/2300 6 连 422「缺少必填字段：ownerUserId,departmentSnapshot」；全链路日志 SOP Layer 2 一次定位——真实请求体只有评估字段（接口契约无 owner 字段传入入口，patch 恒 null），立项 1365 为 M 链路半成品（内部组织字段 NULL）→ 422 与调用方行为零相关死锁
+- 落点：ProjectIntegrationCommandService.mergeInitiation 删 fullDecision 全量校验（保留字段锁 423，完整性由提交审核环节把关）；Service 测试 422 旧用例替换为根因行为测试 incompleteInitiationPartialWrite_succeeds（半成品 fixture ownerUserId=NULL → 200 落库）；wiki integration-tender-api 422 语义同步移除
+- 教训：**外部接口的校验范围必须是契约开放字段集的子集（校验请求域外字段=制造与调用方行为无关的随机失败）；PATCH 语义接口完整性守门在提交审核而非每次部分回写；fixture 必须覆盖真实残缺数据形态** -> [[integration-tender-api]]
