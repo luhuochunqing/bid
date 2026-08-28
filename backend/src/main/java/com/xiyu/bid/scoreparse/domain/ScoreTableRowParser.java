@@ -158,15 +158,10 @@ public final class ScoreTableRowParser {
         return best;
     }
 
-    /** 合并单元格/单列等列语义失效场景：整行原文降级（不丢行、不编造列语义） */
-    private static String wholeRowFallback(String row) {
-        return row.replace("|", " ").trim();
-    }
-    
     /**
      * 从列3提取括号分值（主项分值）。
      * 常见模式："财务状况及抗风险能力（10分）" → weight=10, dim="财务状况及抗风险能力"
-     * 
+     *
      * @return BracketWeightResult(weight, dimFromCol3, col3Index)
      */
     private static BracketWeightResult extractBracketWeight(List<String> columns) {
@@ -207,14 +202,14 @@ public final class ScoreTableRowParser {
                 return col5;
             }
         }
-        
+
         // 回退到原有逻辑：最长文本列
         int weightIndex = pureWeightIndex(columns);
         int detailIndex = detailColumnIndex(columns, codeIndex, weightIndex);
         if (detailIndex >= 0) {
             return columns.get(detailIndex);
         }
-        
+
         // 最后兜底：整行原文
         return String.join(" ", columns);
     }
