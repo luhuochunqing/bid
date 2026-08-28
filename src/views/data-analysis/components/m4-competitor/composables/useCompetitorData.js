@@ -18,8 +18,7 @@ const DEFAULT_COMPETITORS = COMPETITOR_ENUM.map((c) => c.value).slice(0, DEFAULT
 const DEFAULT_DATE_RANGE = () => {
   const now = new Date()
   const y = now.getFullYear()
-  const m = String(now.getMonth() + 1).padStart(2, '0')
-  const d = String(now.getDate()).padStart(2, '0')
+  const [m, d] = [now.getMonth() + 1, now.getDate()].map((v) => String(v).padStart(2, '0'))
   return [`${y}-01-01`, `${y}-${m}-${d}`]
 }
 
@@ -244,9 +243,11 @@ export function useCompetitorData(chartRef) {
     fetchData()
   }
 
+  // 默认选中 = 选项前 8（后端已按参与项目数降序），初始/重置共用单一口径避免漂移
+  const defaultSelection = () => competitorOptions.value.slice(0, DEFAULT_TOP_COMPETITOR_COUNT).map((o) => o.value)
+
   const resetFilters = () => {
-    // 重置目标 = 初始默认：参与项目数最多的前 8 个（后端选项已按参与数降序），options 未加载时兜底静态名单
-    selectedCompetitors.value = competitorOptions.value.slice(0, DEFAULT_TOP_COMPETITOR_COUNT).map((o) => o.value)
+    selectedCompetitors.value = defaultSelection()
     selectedEntities.value = []
     selectedProjectName.value = null
     entityActive.value = false
@@ -276,7 +277,7 @@ export function useCompetitorData(chartRef) {
     const names = Array.isArray(filterRes.value?.data?.competitor) ? filterRes.value.data.competitor : []
     if (names.length) {
       competitorOptions.value = names.map((dto) => ({ label: dto.label, value: dto.value }))
-      selectedCompetitors.value = competitorOptions.value.slice(0, DEFAULT_TOP_COMPETITOR_COUNT).map((o) => o.value)
+      selectedCompetitors.value = defaultSelection()
     }
   }
 
