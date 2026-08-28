@@ -31,9 +31,20 @@ class TenderEventSdkProducerTest {
     private TenderEventSdkProducer producer;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         httpClient = mockStatic(HttpClientUtil.class);
-        producer = new TenderEventSdkProducer(new TenderEventSdkSender("http://event-bus.local", "bid"));
+        producer = new TenderEventSdkProducer(new TenderEventSdkSender(newSdkService("http://event-bus.local"), "bid"));
+    }
+
+    private static SystemInteractiveService newSdkService(String serverRegisterUrl) throws Exception {
+        ServiceRegisterProperties sdkProps = new ServiceRegisterProperties();
+        sdkProps.setServiceName("bid");
+        sdkProps.setServerRegisterUrl(serverRegisterUrl);
+        SystemInteractiveServiceImpl service = new SystemInteractiveServiceImpl();
+        Field field = SystemInteractiveServiceImpl.class.getDeclaredField("clientSdkConfig");
+        field.setAccessible(true);
+        field.set(service, sdkProps);
+        return service;
     }
 
     @AfterEach
@@ -72,9 +83,6 @@ class TenderEventSdkProducerTest {
         assertThat(body.getString("eventTopic")).isEqualTo("BidTenderChange");
         assertThat(body.getString("eventSource")).isEqualTo("bid");
         assertThat(body.getString("data")).isEqualTo("{\"tenderId\":123,\"externalId\":\"ext-1\"}");
-        assertThat(body.getString("key")).as("key 必须为业务字段名 tenderId").isEqualTo("tenderId");
-        assertThat(body.getLong("time")).as("time 为毫秒时间戳").isPositive();
-        assertThat(body.getString("traceId")).isEqualTo("trace-1");
         assertThat(headers.getValue())
                 .containsEntry("traceId", "trace-1")
                 .containsEntry("spanId", "span-1")

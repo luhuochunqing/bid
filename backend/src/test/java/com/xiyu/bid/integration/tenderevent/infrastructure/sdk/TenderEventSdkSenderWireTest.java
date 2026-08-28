@@ -2,10 +2,14 @@ package com.xiyu.bid.integration.tenderevent.infrastructure.sdk;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.ehsy.eventlibrary.clientsdk.config.properties.ServiceRegisterProperties;
+import com.ehsy.eventlibrary.clientsdk.systeminteraction.service.SystemInteractiveService;
+import com.ehsy.eventlibrary.clientsdk.systeminteraction.service.impl.SystemInteractiveServiceImpl;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.integration.tenderevent.domain.TenderEventCode;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.Map;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -16,9 +20,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * 事件总线 wire 契约测试：验证发送器包含 8 字段完整 body（尤其是 key=tenderId）。
+ * 事件总线 wire 契约测试：验证经 SDK 标准通道 {@code SystemInteractiveService.sendEvent} 发送请求。
  */
-@DisplayName("TenderEventSdkSender wire 契约测试")
+@DisplayName("TenderEventSdkSender wire 契约测试 - SDK sendEvent 标准通道")
 class TenderEventSdkSenderWireTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -30,12 +34,23 @@ class TenderEventSdkSenderWireTest {
     static void startAll() throws Exception {
         server = new MockWebServer();
         server.start();
-        sender = new TenderEventSdkSender(server.url("/").toString().replaceAll("/$", ""), "bid");
+        sender = new TenderEventSdkSender(newSdkService(server.url("/").toString().replaceAll("/$", "")), "bid");
     }
 
     @AfterAll
     static void stopAll() throws IOException {
         server.shutdown();
+    }
+
+    private static SystemInteractiveService newSdkService(String serverRegisterUrl) throws Exception {
+        ServiceRegisterProperties sdkProps = new ServiceRegisterProperties();
+        sdkProps.setServiceName("bid");
+        sdkProps.setServerRegisterUrl(serverRegisterUrl);
+        SystemInteractiveServiceImpl service = new SystemInteractiveServiceImpl();
+        Field field = SystemInteractiveServiceImpl.class.getDeclaredField("clientSdkConfig");
+        field.setAccessible(true);
+        field.set(service, sdkProps);
+        return service;
     }
 
     private static RecordedRequest takeOnlyRequest() throws InterruptedException {
@@ -46,7 +61,7 @@ class TenderEventSdkSenderWireTest {
     }
 
     @Test
-    @DisplayName("8 字段完整 body（key=tenderId、time 为时间戳、data 为 JSON 字符串）")
+    @DisplayName("SDK 契约 4 字段 body（serviceName/eventTopic/eventSource/data）+ trace 进 Header")
     void wire_bodyAndHeaders_matchContract() throws Exception {
         server.enqueue(new MockResponse()
                 .setBody("{\"code\":\"00000\",\"data\":{\"result\":true},\"msg\":\"响应成功\"}")
@@ -62,24 +77,19 @@ class TenderEventSdkSenderWireTest {
         assertThat(body.get("serviceName").asText()).isEqualTo("bid");
         assertThat(body.get("eventTopic").asText()).isEqualTo("BidTenderChange");
         assertThat(body.get("eventSource").asText()).isEqualTo("bid");
-        assertThat(body.get("key").asText()).isEqualTo("tenderId");
-        assertThat(body.get("time").asLong()).isPositive();
-        assertThat(body.get("traceId").asText()).isEqualTo("trace-1");
-        assertThat(body.get("spanId").asText()).isEqualTo("span-1");
-        assertThat(body.get("parentId").asText()).isEqualTo("parent-1");
 
         JsonNode data = JSON.readTree(body.get("data").asText());
         assertThat(data.get("tenderId").asInt()).isEqualTo(123);
         assertThat(data.get("externalId").asText()).isEqualTo("ext-1");
 
-        // trace 三元组同时写 Header
+        // trace 三元组经 EventTrackReq 写入 Header（SDK buildHeaderParamMap）
         assertThat(request.getHeader("traceId")).isEqualTo("trace-1");
         assertThat(request.getHeader("spanId")).isEqualTo("span-1");
         assertThat(request.getHeader("parentId")).isEqualTo("parent-1");
     }
 
     @Test
-    @DisplayName("网关 code=00000 / result=null → 视为成功")
+    @DisplayName("网关 code=00000 / result=null (SDK fastjson 丢弃 null) → 视为成功")
     void wire_gatewayCode00000_nullResult_success() throws Exception {
         server.enqueue(new MockResponse()
                 .setBody("{\"code\":\"00000\",\"data\":{\"result\":null},\"msg\":\"响应成功\"}")

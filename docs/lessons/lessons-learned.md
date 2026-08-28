@@ -3183,3 +3183,25 @@ private CompetitorStatus status = CompetitorStatus.ACTIVE;
 | 按文档写字段名，不看实际响应 | 文档契约与线上实现漂移无人发现 | 集成类 VO 字段用真实抓包/日志响应写测试，不抄文档 |
 | ignoreUnknown 吞掉字段名不匹配 | 容错注解把显式错误变成静默 null | 外部接口字段丢失类工单，直接翻 `CrmHttpClient` 响应体日志比对 key |
 | 单测 mock 与文档同源 | mock 用下划线 key 恰好绕开不匹配 | 至少一条用例必须来自真实环境日志原文 |
+
+## 177. 外部系统对接禁止绕过官方 SDK 手写 HTTP POST 组装私有契约（2026-08-28，西域事件库 BidTenderChange 契约漂移）
+
+**背景**：标讯创建向西域事件总线推送 `BidTenderChange` 事件，服务端已收到请求（网关返回 `code=00000`），但在下游 CRM 消费端日志中，事件载荷 `data` 显示为双重转义字符串 `"{\"tenderId\":2311}"`，导致 CRM 端解析失败。排查代码发现，虽然 `TenderEventSdkProducer` 类注释声明使用 SDK 标准通道 `SystemInteractiveService#sendEvent`，但底层实现 `TenderEventSdkSender` 实际上绕过了 SDK API，手工组装了 8 字段 JSON body 并直接调用底层 `HttpClientUtil.httpPost` 发起请求。
+
+**根因分析**：
+1. **多轮补丁导致契约漂移（元模式：修症状不修根因）**：在历史修复链中，为解决"网关传对象报 400"和"需补 key/time"等表象问题，多次手工修改 HTTP 请求体并绕过 SDK 封装，导致发出的消息格式与西域事件库下游消费端的反序列化契约错位；
+2. **注释与代码实现分离**：Producer 的 JavaDoc 宣称使用了 SDK `sendEvent`，但底层 `Sender` 却手写了 HTTP POST，给后续接手者造成误导；
+3. **code:0 谎言**：网关受理成功（HTTP 200 / `code=00000`）只代表网关收到了请求，并不代表消息能被下游 CRM 正常消费，排查必须溯源到消费端真实日志。
+
+**解决方案**：
+1. 废弃 `TenderEventSdkSender` 中的手写 HTTP POST / 自定义 8 字段拼装逻辑；
+2. 彻底回归使用客户 ClientSDK 官方接口 `SystemInteractiveService.sendEvent(eventCode, eventSource, eventContent, eventTrackReq)`；
+3. 修正 wire 契约测试与单元测试，锁定 SDK 标准 4 字段 body（`serviceName`, `eventTopic`, `eventSource`, `data`）+ Trace Header 规范。
+
+**教训**：
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| 官方 SDK 存在却手写 HTTP POST 拼装请求 | 追逐单点报错打补丁，绕过 SDK 封装 | 凡有官方 SDK 的外部集成，必须使用 SDK 统一入口，禁止私自拼装 HTTP 请求 |
+| 注释宣称使用 SDK，代码实际绕过 | 架构重构不彻底，改动未闭环 | Code Review 严格检查类注释与方法调用的真实实现是否一致 |
+| 看到网关 HTTP 200 即认为修复 | 忽略下游消费链路（code:0 谎言） | 事件类集成必须验证到最终消费者业务 Handler 的执行结果 |
+
