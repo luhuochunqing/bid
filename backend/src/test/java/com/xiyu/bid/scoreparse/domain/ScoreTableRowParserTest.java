@@ -167,4 +167,21 @@ class ScoreTableRowParserTest {
         // 应该提取纯分值列的5
         assertThat(result.get().weight()).isEqualByComparingTo(new BigDecimal("5"));
     }
+
+    @Test
+    void parse_procedureNoticeRows_skipped() {
+        // 前附表程序性条款无给分细则，必须被过滤排除，不能入池
+        assertThat(ScoreTableRowParser.parse("| 1.8 | 采购预备会 | 不召开 |")).isEmpty();
+        assertThat(ScoreTableRowParser.parse("| 1.9 | 分包 | 不允许 |")).isEmpty();
+        assertThat(ScoreTableRowParser.parse("| 5.2 | 开启程序 | 供应商在响应截止时间前解密 |")).isEmpty();
+        assertThat(ScoreTableRowParser.parse("| 7.6 | 履约保证金 | 履约金额：人民币100000元整 |")).isEmpty();
+        assertThat(ScoreTableRowParser.parse("| 10.6 | “码”上监督 | 投标人若对本项目有异议，可通过扫码提出 |")).isEmpty();
+        assertThat(ScoreTableRowParser.parse("| 11 | 详见供应商须知正文第11款相关规定。 | 供应商有下列情形之一的将被认定为失信行为 |")).isEmpty();
+    }
+
+    @Test
+    void parse_summaryRow_skipped() {
+        // 分值构成等总览说明行必须被过滤排除，不能作为评分项入池
+        assertThat(ScoreTableRowParser.parse("| 3.1 | 分值构成（总分100分） | 商务评分标准56分，技术评分标准34分，价格10分 |")).isEmpty();
+    }
 }
