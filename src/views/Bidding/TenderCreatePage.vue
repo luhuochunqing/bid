@@ -43,6 +43,7 @@
       :can-proceed-to-next="canProceedToNext"
       :active-tab="activeTab"
       :can-save="canSave"
+      :save-disabled-reason="saveDisabledReason"
       :saving="saving"
       :parsing-document="parsingDocument"
       :submitting-eval="submittingEval"
@@ -73,6 +74,7 @@ import TenderBasicInfoTab from './list/components/TenderBasicInfoTab.vue'
 import TenderActionBar from './list/components/TenderActionBar.vue'
 import { useTenderCreateForm } from './list/composables/useTenderCreateForm.js'
 import { useTenderAiParse } from './list/composables/useTenderAiParse.js'
+import { buildSaveDisabledReason } from './list/tenderRequiredFields.js'
 
 const ACCEPT_FILE_TYPES = '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
@@ -82,6 +84,12 @@ const userStore = useUserStore()
 
 const { form, rules, regions, customerTypes, projectTypes, priorities, canSave, populateForm, validateBeforeSave } = useTenderCreateForm()
 const { parsingDocument, handleFileChange, handleFileRemove, handlePastedTextParse } = useTenderAiParse(form)
+
+// 保存按钮禁用必须给出原因，否则用户无从自救（生产案例：公开谈判采购无开标时间 → AI 留空 → canSave=false 静默禁用）
+const saveDisabledReason = computed(() => buildSaveDisabledReason({
+  parsingDocument: parsingDocument.value,
+  form: form.value,
+}))
 
 const editTenderId = computed(() => { const id = route.query.edit; return id ? Number(id) : null })
 const isEditMode = computed(() => !!editTenderId.value)

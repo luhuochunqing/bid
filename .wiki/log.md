@@ -522,3 +522,10 @@
 - 触发：第 148 次测试部署中断——remote-deploy.sh 输出停在 Activating frontend assets 后静默退出；根因 set -euo pipefail 下 find|head -n 5 竞态 SIGPIPE(141)，"保留旧 assets"步骤引入的 root 属主文件是放大器，脚本自带 chown 修复分支永远执行不到
 - 落点：`pages/deployment.md` 新增 §10.4（根因链、修复 PR !2451、`cmd | head -n N` 通用规则、保留 assets 后必须 chown、Docker 僵死挂起容器测试门禁、健康窗口 4min < readiness 实测 6min）
 - 教训：**set -euo pipefail 脚本里任何 `cmd | head -n N` 都是定时炸弹（输出超 N 行即 SIGPIPE 静默死）；用 sudo 拷贝保留的旧资源必须随手 chown 回部署用户，否则守卫代码自己会被属主问题炸死** -> [[deployment]]
+
+## 2026-08-28 compound | 标讯人工录入"未上传"假象排障（生产 winbid-01）
+- 触发：用户 03683 /bidding/create 上传+AI 解析全成功但标讯未创建，感知"未上传"
+- 排障：Nginx access.log + journalctl traceId + MySQL 三方证据交叉 → POST /api/tenders 从未发出；根因=canSave 必填字段校验静默禁用保存按钮（公开谈判采购无开标时间；审查后口径对齐 8 字段含 projectType）+ el-upload auto-upload=false 恒 ready 状态假象
+- 回填：[[tender-create-upload-triage]]；同分支修复 3 个 UX 缺陷（禁用原因 tooltip / status=success 标识 / AI 回填后缺失必填项提示）
+- 教训：**"上传完没报错但没成功"类工单，先查 Nginx access.log 看目标 POST 是否发出，再决定查后端；禁用按钮必须给禁用原因，否则用户无从自救**
+

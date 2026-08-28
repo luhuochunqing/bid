@@ -16,10 +16,7 @@ import {
   formatBudgetWan as formatBudgetWanValue,
   safeTenderUrl as safeTenderUrlValue,
 } from '../bidding-utils.js'
-export {
-  normalizeBudgetYuan,
-  normalizeManualTenderParseResult,
-} from './manualTenderParseHelpers.js'
+export { normalizeBudgetYuan, normalizeManualTenderParseResult, markAttachmentUploaded } from './manualTenderParseHelpers.js'
 
 // Legacy Authority (admin/manager/staff) 大写形式需小写化；新 RoleProfile code 保留原样
 const LEGACY_AUTHORITY_RE = /^(role_)?(admin|manager|staff)$/i

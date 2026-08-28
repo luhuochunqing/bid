@@ -1,6 +1,8 @@
 import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { tendersApi } from '@/api/modules/tenders.js'
+import { getMissingTenderRequiredFields } from '../tenderRequiredFields.js'
+import { markAttachmentUploaded } from '../manualTenderParseHelpers.js'
 
 const ACCEPT_FILE_TYPES = '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 const PASTED_TEXT_MAX_LENGTH = 500000
@@ -83,15 +85,15 @@ export function useTenderAiParse(form) {
       applyAttachmentFileUrl(file, uploadFile, response.data, fileIndex)
 
       if (hasScannedDoc) {
-        return '该文件可能是扫描件，无法提取文字。文件已保存，请手动填写标讯信息。'
+        return { message: '该文件可能是扫描件，无法提取文字。文件已保存，请手动填写标讯信息。', level: 'warning' }
       }
       if (hasAiFailure) {
-        return '文件已成功保存（可下载），但 AI 文档分析服务暂不可用，请手动填写标讯信息。'
+        return { message: '文件已成功保存（可下载），但 AI 文档分析服务暂不可用，请手动填写标讯信息。', level: 'warning' }
       }
 
       // AI 成功：正常填充字段
       applyParsedFields(response.data)
-      return 'DeepSeek/AI 已识别附件内容，可继续编辑后保存'
+      return parseResultMessage('附件内容')
     })
   }
 
@@ -106,24 +108,30 @@ export function useTenderAiParse(form) {
       const hasAiFailure = warnings.some(w => String(w).startsWith('AI_DOCUMENT_ANALYSIS_FAILED'))
 
       if (hasAiFailure) {
-        return '文本已保存，但 AI 分析服务暂不可用，请手动填写标讯信息。'
+        return { message: '文本已保存，但 AI 分析服务暂不可用，请手动填写标讯信息。', level: 'warning' }
       }
 
       applyParsedFields(response.data)
-      return 'DeepSeek/AI 已识别粘贴文本，可继续编辑后保存'
+      return parseResultMessage('粘贴文本')
     })
+  }
+
+  // 解析回填完成后的统一提示：仍缺必填项时按 warning 级别列出（级别显式返回，不靠文案关键字驱动控制流）
+  function parseResultMessage(sourceLabel) {
+    const missing = getMissingTenderRequiredFields(form.value)
+    if (missing.length) {
+      return { message: `AI 已识别${sourceLabel}，但仍缺少必填项：${missing.join('、')}，请补齐后再保存`, level: 'warning' }
+    }
+    return { message: `DeepSeek/AI 已识别${sourceLabel}，可继续编辑后保存`, level: 'success' }
   }
 
   async function runAiParse(parseFn) {
     parsingDocument.value = true
     try {
-      const msg = await parseFn()
-      if (msg) {
-        if (msg.includes('暂不可用') || msg.includes('无法提取')) {
-          ElMessage.warning(msg)
-        } else {
-          ElMessage.success(msg)
-        }
+      const result = await parseFn()
+      if (result?.message) {
+        const notify = result.level === 'warning' ? ElMessage.warning : ElMessage.success
+        notify(result.message)
       }
     } catch (error) {
       const status = error?.response?.status
@@ -217,8 +225,7 @@ export function useTenderAiParse(form) {
     target.type = target.type || targetType
     target.fileName = target.fileName || targetName
     target.fileType = target.fileType || targetType
-    target.url = fileUrl
-    target.fileUrl = fileUrl
+    markAttachmentUploaded(target, fileUrl)
   }
 
   return {

@@ -19,6 +19,7 @@ vi.mock('@/api/modules/tenders.js', () => ({
   },
 }))
 
+import { ElMessage } from 'element-plus'
 import { tendersApi } from '@/api/modules/tenders.js'
 
 // 模块级 helper：构造上传文件对象
@@ -167,6 +168,87 @@ describe('useTenderAiParse', () => {
     expect(form.value.attachments[0].fileUrl).toBeUndefined()
     expect(form.value.attachments[1].url).toBe('doc-insight://TENDER_INTAKE/create-tender/hash-second.pdf')
     expect(form.value.attachments[1].fileUrl).toBe('doc-insight://TENDER_INTAKE/create-tender/hash-second.pdf')
+  })
+
+  // 生产案例 2026-08-28：store 成功后 el-upload 仍显示"未上传"（status 恒为 ready）
+  it('marks attachment status as success after store so el-upload shows the green check', async () => {
+    const form = ref({ attachments: [], pastedText: '' })
+    const { handleFileChange } = useTenderAiParse(form)
+    const file = makeUploadFile('tender.pdf', 'application/pdf', 1)
+
+    tendersApi.storeTenderDocument.mockResolvedValue(
+      mockStoreResponse('doc-insight://TENDER_INTAKE/create-tender/hash-tender.pdf')
+    )
+    tendersApi.parseExistingTenderDocument.mockResolvedValue(
+      mockParseResponse('doc-insight://TENDER_INTAKE/create-tender/hash-tender.pdf')
+    )
+
+    await handleFileChange(file, [file])
+
+    expect(form.value.attachments[0].status).toBe('success')
+  })
+
+  // 生产案例 2026-08-28：公开谈判采购无开标时间 → AI 留空 → 用户不知道还缺什么
+  it('warns with missing required fields after AI parse when form still incomplete', async () => {
+    const form = ref({ attachments: [], pastedText: '' })
+    const { handleFileChange } = useTenderAiParse(form)
+    const file = makeUploadFile('tender.pdf', 'application/pdf', 1)
+
+    tendersApi.parseTenderIntakeDocument.mockResolvedValue(
+      mockParseResponse('doc-insight://TENDER_INTAKE/create-tender/hash-tender.pdf', {
+        extractedData: { tenderTitle: '国家电网办公类物资框架协议采购' },
+      })
+    )
+
+    await handleFileChange(file, [file])
+
+    expect(form.value.title).toBe('国家电网办公类物资框架协议采购')
+    expect(ElMessage.warning).toHaveBeenCalledWith(expect.stringContaining('请补齐后再保存'))
+    expect(ElMessage.warning).toHaveBeenCalledWith(expect.stringContaining('开标时间'))
+    expect(ElMessage.success).not.toHaveBeenCalled()
+  })
+
+  it('warns with missing required fields after pasted-text parse', async () => {
+    const form = ref({ attachments: [], pastedText: '国家电网公开谈判采购正文' })
+    const { handlePastedTextParse } = useTenderAiParse(form)
+
+    tendersApi.parseTenderIntakeText.mockResolvedValue(
+      mockParseResponse('doc-insight://TENDER_INTAKE/create-tender/hash-text', {
+        extractedData: { tenderTitle: '国家电网办公类物资框架协议采购' },
+      })
+    )
+
+    await handlePastedTextParse()
+
+    expect(form.value.title).toBe('国家电网办公类物资框架协议采购')
+    expect(ElMessage.warning).toHaveBeenCalledWith(expect.stringContaining('请补齐后再保存'))
+    expect(ElMessage.success).not.toHaveBeenCalled()
+  })
+
+  it('keeps the success message when AI parse backfills all required fields', async () => {
+    const form = ref({ attachments: [], pastedText: '' })
+    const { handleFileChange } = useTenderAiParse(form)
+    const file = makeUploadFile('tender.pdf', 'application/pdf', 1)
+
+    tendersApi.parseTenderIntakeDocument.mockResolvedValue(
+      mockParseResponse('doc-insight://TENDER_INTAKE/create-tender/hash-tender.pdf', {
+        extractedData: {
+          tenderTitle: '国家电网办公类物资框架协议采购',
+          purchaserName: '国家电网有限公司',
+          region: '北京市',
+          deadline: '2026-09-01T17:00:00',
+          bidOpeningTime: '2026-09-03T10:00:00',
+          customerType: '央企集团',
+          priority: 'A',
+          projectType: '物资采购',
+        },
+      })
+    )
+
+    await handleFileChange(file, [file])
+
+    expect(ElMessage.success).toHaveBeenCalledWith('DeepSeek/AI 已识别附件内容，可继续编辑后保存')
+    expect(ElMessage.warning).not.toHaveBeenCalled()
   })
 
   it('removes attachment from form before save via handleFileRemove', () => {

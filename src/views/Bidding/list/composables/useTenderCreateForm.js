@@ -8,6 +8,7 @@ import {
   MANUAL_FORM_RULES,
   MANUAL_SOURCE_LABEL,
 } from '../constants.js'
+import { getMissingTenderRequiredFields } from '../tenderRequiredFields.js'
 
 export function useTenderCreateForm() {
   const form = ref(createForm())
@@ -18,15 +19,8 @@ export function useTenderCreateForm() {
   const priorities = PRIORITY_OPTIONS
   const rules = MANUAL_FORM_RULES
 
-  const canSave = computed(() =>
-    form.value.title?.trim() &&
-    form.value.purchaser?.trim() &&
-    form.value.region?.trim() &&
-    form.value.deadline &&
-    form.value.bidOpeningTime &&
-    form.value.customerType?.trim() &&
-    form.value.priority?.trim()
-  )
+  // 必填字段口径集中在 tenderRequiredFields.js（保存按钮禁用原因 / AI 回填缺失提示共用）
+  const canSave = computed(() => getMissingTenderRequiredFields(form.value).length === 0)
 
   function resetForm() {
     form.value = createForm()

@@ -79,6 +79,8 @@ describe('useManualTenderCreate', () => {
       fileType: 'application/pdf',
       url: 'doc-insight://TENDER_INTAKE/manual-tender/hash-招标文件.pdf',
       fileUrl: 'doc-insight://TENDER_INTAKE/manual-tender/hash-招标文件.pdf',
+      // el-upload auto-upload=false 时必须显式置 success 才显示绿色 ✓
+      status: 'success',
     })
     expect(workflow.manualForm.value.deadline).toEqual(new Date('2026-06-01T17:00:00'))
     expect(workflow.manualForm.value.bidOpeningTime).toEqual(new Date('2026-06-03T10:00:00'))
