@@ -1,10 +1,8 @@
 package com.xiyu.bid.integration.tenderevent.infrastructure.sdk;
 
-import com.alibaba.fastjson.JSONObject;
-import com.ehsy.eventlibrary.clientsdk.common.enums.HttpInterfaceTypeEnum;
 import com.ehsy.eventlibrary.clientsdk.common.req.EventTrackReq;
-import com.ehsy.eventlibrary.clientsdk.systeminteraction.service.impl.SystemInteractiveServiceImpl;
-import com.ehsy.eventlibrary.clientsdk.util.HttpClientUtil;
+import com.ehsy.eventlibrary.clientsdk.common.resp.SendEventRespDto;
+import com.ehsy.eventlibrary.clientsdk.systeminteraction.service.SystemInteractiveService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.integration.tenderevent.domain.TenderEventCode;
@@ -12,32 +10,23 @@ import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 西域事件总线发送器（基础设施层 WithEffect，标讯与商机预测事件共用）。
+ * 西域事件总线 SDK 标准通道发送器（基础设施层 WithEffect，标讯与商机预测事件共用）。
  *
- * <p>body 按客户规范与成功样例完全对齐：
- * <pre>
- * {
- *   "traceId": "...",
- *   "spanId": "...",
- *   "parentId": "0",
- *   "eventTopic": "BidTenderChange",
- *   "eventSource": "bid",
- *   "key": "tenderId",             // 业务主键字段名，非具体数值
- *   "time": 1787825789249,
- *   "data": "{\"tenderId\":2307}" // JSON 字符串
- * }
- * </pre>
+ * <p>直接调用客户 SDK 的
+ * {@code SystemInteractiveService.sendEvent(eventCode, eventSource, eventContent, eventTrackReq)}，
+ * 请求由 SDK 组装：body 固定 4 字段 {@code {serviceName, eventTopic, eventSource, data}}，
+ * trace 三元组经 {@code EventTrackReq} 写入 HTTP Header。
  */
 @Slf4j
 final class TenderEventSdkSender {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private final String serverRegisterUrl;
+    private final SystemInteractiveService service;
     private final String serviceName;
 
-    TenderEventSdkSender(String serverRegisterUrl, String serviceName) {
-        this.serverRegisterUrl = serverRegisterUrl;
+    TenderEventSdkSender(SystemInteractiveService service, String serviceName) {
+        this.service = service;
         this.serviceName = serviceName;
     }
 
@@ -49,48 +38,17 @@ final class TenderEventSdkSender {
         trackReq.setParentId(parentId);
 
         String content = serializeData(data);
-
-        JSONObject body = new JSONObject();
-        body.put("traceId", traceId);
-        body.put("spanId", spanId);
-        body.put("parentId", parentId != null ? parentId : "0");
-        body.put("eventTopic", code.topic());
-        body.put("eventSource", code.source());
-        body.put("serviceName", serviceName);
-        // 关键修复：key 必须是业务主键字段名（如 tenderId），而不是具体值
-        body.put("key", code.dataIdField());
-        body.put("time", System.currentTimeMillis());
-        body.put("data", content);
-
-        log.info("事件总线请求 eventTopic={} body={}", code.topic(), body.toJSONString());
+        log.info("事件总线请求 eventTopic={} serviceName={} data={}", code.topic(), serviceName, content);
 
         try {
-            JSONObject resp = HttpClientUtil.httpPost(
-                    serverRegisterUrl + "/eventbus/publishEvent",
-                    body,
-                    SystemInteractiveServiceImpl.buildHeaderParamMap(trackReq),
-                    HttpInterfaceTypeEnum.HTTP_PUBLISH_EVENT.getValue()
-            );
-            log.info("事件总线响应 eventTopic={} response={}", code.topic(), resp != null ? resp.toJSONString() : "null");
-            return interpretResult(resp);
+            SendEventRespDto resp = service.sendEvent(code.topic(), code.source(), content, trackReq);
+            boolean ok = resp != null && !Boolean.FALSE.equals(resp.getResult());
+            log.info("事件总线响应 eventTopic={} result={} ok={}", code.topic(), resp != null ? resp.getResult() : null, ok);
+            return ok;
         } catch (RuntimeException ex) {
             log.error("事件总线发送异常 eventTopic={}", code.topic(), ex);
             return false;
         }
-    }
-
-    private static boolean interpretResult(JSONObject resp) {
-        if (resp == null) {
-            return false;
-        }
-        if (resp.containsKey("code") && !"00000".equals(resp.getString("code"))) {
-            return false;
-        }
-        Object data = resp.get("data");
-        if (data instanceof JSONObject jsonObject) {
-            return !Boolean.FALSE.equals(jsonObject.getBoolean("result"));
-        }
-        return true;
     }
 
     private static String serializeData(Map<String, Object> data) {

@@ -46,7 +46,22 @@ public class TenderEventSdkConfig {
 
     @Bean
     public TenderEventSdkSender tenderEventSdkSender(TenderEventSdkProperties properties) {
-        return new TenderEventSdkSender(properties.serverRegisterUrl(), properties.serviceName());
+        return new TenderEventSdkSender(newSdkService(properties), properties.serviceName());
+    }
+
+    public static SystemInteractiveService newSdkService(TenderEventSdkProperties properties) {
+        ServiceRegisterProperties sdkProps = new ServiceRegisterProperties();
+        sdkProps.setServiceName(properties.serviceName());
+        sdkProps.setServerRegisterUrl(properties.serverRegisterUrl());
+        SystemInteractiveServiceImpl service = new SystemInteractiveServiceImpl();
+        try {
+            Field field = SystemInteractiveServiceImpl.class.getDeclaredField("clientSdkConfig");
+            field.setAccessible(true);
+            field.set(service, sdkProps);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("无法向 SDK 服务注入服务注册配置", e);
+        }
+        return service;
     }
 
     /**
