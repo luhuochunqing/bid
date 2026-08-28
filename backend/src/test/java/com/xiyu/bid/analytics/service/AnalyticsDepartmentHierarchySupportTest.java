@@ -69,6 +69,13 @@ class AnalyticsDepartmentHierarchySupportTest {
                 AnalyticsDepartmentHierarchySupport.toBucket(ORG, mixed, "销售二部"));
         assertEquals("华东组",
                 AnalyticsDepartmentHierarchySupport.toBucket(ORG, mixed, "华东组"));
+        List<String> mixedKeepL2WithL3 = List.of("销售部", "销售一部");
+        assertEquals(List.of("销售一部"),
+                AnalyticsDepartmentHierarchySupport.bucketNames(ORG, mixedKeepL2WithL3));
+        assertEquals(Set.of("销售一部", "华东组"),
+                Set.copyOf(AnalyticsDepartmentHierarchySupport.expand(ORG, mixedKeepL2WithL3)));
+        assertEquals("销售一部",
+                AnalyticsDepartmentHierarchySupport.toBucket(ORG, mixedKeepL2WithL3, "华东组"));
     }
 
     @Test

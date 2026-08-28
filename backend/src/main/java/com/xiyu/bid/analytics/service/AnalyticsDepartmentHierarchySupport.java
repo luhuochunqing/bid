@@ -47,11 +47,14 @@ public final class AnalyticsDepartmentHierarchySupport {
      * 有效勾选见 {@link #bucketNames}：混选时一级被忽略。
      */
     public static List<String> expand(List<DeptNode> nodes, Collection<String> selectedNames) {
-        List<String> axis = bucketNames(nodes, selectedNames);
-        if (axis.isEmpty()) {
-            return selectedNames == null || selectedNames.isEmpty() ? null : List.copyOf(axis);
+        if (selectedNames == null || selectedNames.isEmpty()) {
+            return null;
         }
         Index idx = Index.of(nodes);
+        List<String> axis = idx.axisNames(selectedNames);
+        if (axis.isEmpty()) {
+            return List.of();
+        }
         LinkedHashSet<String> names = new LinkedHashSet<>();
         for (String selected : axis) {
             names.add(selected);
@@ -69,21 +72,7 @@ public final class AnalyticsDepartmentHierarchySupport {
         if (selectedNames == null || selectedNames.isEmpty()) {
             return List.of();
         }
-        Index idx = Index.of(nodes);
-        LinkedHashSet<String> level1 = new LinkedHashSet<>();
-        LinkedHashSet<String> level2 = new LinkedHashSet<>();
-        for (String selected : selectedNames) {
-            int level = idx.selectionLevel(selected);
-            if (level == 2) {
-                level2.add(selected);
-            } else if (level == 1) {
-                level1.add(selected);
-            }
-        }
-        if (!level2.isEmpty()) {
-            return List.copyOf(level2);
-        }
-        return List.copyOf(level1);
+        return Index.of(nodes).axisNames(selectedNames);
     }
 
     /**
@@ -93,11 +82,11 @@ public final class AnalyticsDepartmentHierarchySupport {
         if (userName == null) {
             return null;
         }
-        List<String> axis = bucketNames(nodes, selectedNames);
+        Index idx = Index.of(nodes);
+        List<String> axis = idx.axisNames(selectedNames);
         if (axis.isEmpty()) {
             return userName;
         }
-        Index idx = Index.of(nodes);
         for (String axisName : axis) {
             for (DeptNode node : idx.byName().getOrDefault(axisName, List.of())) {
                 LinkedHashSet<String> subtree = new LinkedHashSet<>();
@@ -145,6 +134,23 @@ public final class AnalyticsDepartmentHierarchySupport {
 
         List<DeptNode> childrenOf(DeptNode node) {
             return childrenByCode.getOrDefault(node.code(), List.of());
+        }
+
+        List<String> axisNames(Collection<String> selectedNames) {
+            if (selectedNames == null || selectedNames.isEmpty()) {
+                return List.of();
+            }
+            LinkedHashSet<String> level1 = new LinkedHashSet<>();
+            LinkedHashSet<String> level2 = new LinkedHashSet<>();
+            for (String selected : selectedNames) {
+                int level = selectionLevel(selected);
+                if (level == 2) {
+                    level2.add(selected);
+                } else if (level == 1) {
+                    level1.add(selected);
+                }
+            }
+            return List.copyOf(level2.isEmpty() ? level1 : level2);
         }
 
         int selectionLevel(String name) {

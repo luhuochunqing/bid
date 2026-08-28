@@ -14,3 +14,5 @@
 
 - 时间轴图表仍不消费部门筛选（存量缺口）
 - 同名 / 跨 `source_app` 分区
+- 不缓存 `Index`（等于把已删的 Prepared 请回来）
+- 后端截树 + 前端 `capDepartmentTreeDepth` 两层都留：API 回归时下拉仍只到二级

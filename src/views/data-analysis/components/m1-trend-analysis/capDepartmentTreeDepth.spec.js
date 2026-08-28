@@ -24,6 +24,7 @@ describe('capDepartmentTreeDepth', () => {
     expect(capped[0].children.map((n) => n.value)).toEqual(['销售一部', '销售二部'])
     expect(capped[0].children[0].children).toBeUndefined()
     expect(capped[1].children).toBeUndefined()
+    expect(tree[0].children[0].children[0].value).toBe('华东组')
   })
 
   it('空输入返回空数组', () => {
