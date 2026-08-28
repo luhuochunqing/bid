@@ -1,5 +1,5 @@
 // Input: OrganizationDepartmentRepository, EntityManager, ProjectAccessScopeService
-// Output: Filter options, distinct values, and department tree（竞品=快照∪ACTIVE字典并集，specs/056）
+// Output: Filter options, distinct values, and department tree（竞品=参与项目数降序∪ACTIVE字典补齐，specs/056）
 // Pos: Query Service/数据查询层
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -261,21 +261,29 @@ public class FilterOptionsQueryService {
     }
 
     /**
-     * PRD §6.2 M1/M4 筛选区下拉选项 — 竞品公司（specs/056 动态字典口径）。
-     * <p>选项并集 = 结果确认页可选项（competitors 字典 ACTIVE，主数据不做项目 scope）
-     * ∪ 被引用过的快照名（project_result_competitor.name distinct，带项目权限 scope，
-     * 天然覆盖已停用/删除但有数据的竞品——快照只存 name 与字典解耦，见 PR !2414）。
-     * 合并后 Java 端按名称自然序排序，与 DB collation 解耦。</p>
+     * PRD §6.2 M1/M4 筛选区下拉选项 — 竞品公司（specs/056）。
+     * 并集 = 快照引用名（带项目权限 scope）∪ competitors 字典 ACTIVE；排序：快照侧按参与项目数降序、
+     * 同数按名称序，字典独占按名称自然序补末尾（前端据此默认选中前 8），与 DB collation 解耦（见 PR !2414）。
      */
     List<String> fetchDistinctCompetitorNames() {
-        Set<String> names = new TreeSet<>();
-        queryScopedDistinct("""
-                select distinct prc.name from ProjectResultCompetitor prc
+        Set<Long> scopeIds = AnalyticsProjectScopeSupport.scopedProjectIds(projectAccessScopeService);
+        boolean allAccess = scopeIds == null;
+        List<Object[]> ranked = entityManager.createQuery("""
+                select prc.name, count(distinct pr.projectId)
+                from ProjectResultCompetitor prc
                 join ProjectResult pr on pr.id = prc.resultId join Project p on p.id = pr.projectId
                 where (:allAccess = true or p.id in :scopeIds) and prc.name is not null and prc.name <> ''
-                """).stream()
-                .filter(name -> name != null && !name.isBlank())
-                .forEach(names::add);
+                group by prc.name
+                order by count(distinct pr.projectId) desc, prc.name
+                """, Object[].class)
+                .setParameter("allAccess", allAccess).setParameter("scopeIds", allAccess ? Set.of(-1L) : scopeIds)
+                .getResultList();
+        List<String> ordered = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (Object[] row : ranked) {
+            String name = (String) row[0];
+            if (name != null && !name.isBlank() && seen.add(name)) ordered.add(name);
+        }
         entityManager.createQuery(
                 "select c.name from Competitor c"
                         + " where c.status = :activeStatus and c.name is not null and c.name <> ''",
@@ -283,7 +291,8 @@ public class FilterOptionsQueryService {
                 .setParameter("activeStatus", CompetitorStatus.ACTIVE)
                 .getResultList().stream()
                 .filter(name -> name != null && !name.isBlank())
-                .forEach(names::add);
-        return List.copyOf(names);
+                .collect(java.util.stream.Collectors.toCollection(TreeSet::new))
+                .forEach(name -> { if (seen.add(name)) ordered.add(name); });
+        return List.copyOf(ordered);
     }
 }

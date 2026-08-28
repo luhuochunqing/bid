@@ -1,6 +1,6 @@
-// Input: EntityManager mocked JPQL results (snapshot distinct + ACTIVE dictionary), ProjectAccessScopeService
-// Output: fetchDistinctCompetitorNames 并集口径断言（specs/056）
-// Pos: Test/竞品筛选下拉并集单测
+// Input: EntityManager mocked JPQL results (snapshot ranked by participation + ACTIVE dictionary), ProjectAccessScopeService
+// Output: fetchDistinctCompetitorNames 参与项目数降序 ∪ ACTIVE 字典补齐口径断言（specs/056）
+// Pos: Test/竞品筛选下拉排序单测
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 package com.xiyu.bid.analytics.service;
@@ -27,10 +27,11 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("specs/056: M1/M4 竞品下拉选项 = 快照引用 ∪ ACTIVE 字典")
+@DisplayName("specs/056: M1/M4 竞品下拉选项 = 参与项目数降序 ∪ ACTIVE 字典补齐")
 class FilterOptionsCompetitorNamesTest {
 
     @Mock
@@ -40,7 +41,7 @@ class FilterOptionsCompetitorNamesTest {
     private ProjectAccessScopeService projectAccessScopeService;
 
     @Mock
-    private TypedQuery<String> snapshotQuery;
+    private TypedQuery<Object[]> snapshotQuery;
 
     @Mock
     private TypedQuery<String> dictionaryQuery;
@@ -48,11 +49,15 @@ class FilterOptionsCompetitorNamesTest {
     @InjectMocks
     private FilterOptionsQueryService service;
 
+    private static Object[] row(String name, long count) {
+        return new Object[]{name, count};
+    }
+
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(service, "entityManager", entityManager);
-        // 锚点区分两条 JPQL：快照查询含 "ProjectResultCompetitor"，字典查询含 "from Competitor c"
-        lenient().when(entityManager.createQuery(contains("ProjectResultCompetitor"), eq(String.class)))
+        // 锚点区分两条 JPQL：排名查询含 "ProjectResultCompetitor"，字典查询含 "from Competitor c"
+        lenient().when(entityManager.createQuery(contains("ProjectResultCompetitor"), eq(Object[].class)))
                 .thenReturn(snapshotQuery);
         lenient().when(entityManager.createQuery(contains("from Competitor"), eq(String.class)))
                 .thenReturn(dictionaryQuery);
@@ -63,40 +68,56 @@ class FilterOptionsCompetitorNamesTest {
     }
 
     @Test
-    @DisplayName("快照名与 ACTIVE 字典取并集去重，Java 端自然序排序")
-    void unionsSnapshotAndActiveDictionarySorted() {
-        when(snapshotQuery.getResultList()).thenReturn(List.of("京东", "震坤行", "自定义新竞品"));
-        when(dictionaryQuery.getResultList()).thenReturn(List.of("震坤行", "得力", "未引用新竞品"));
+    @DisplayName("快照名按参与项目数降序，同数按名称序，字典独占项按名称序补齐末尾")
+    void ranksByParticipationThenAppendsDictionaryOnly() {
+        // DB 已按 count desc, name 排序返回：京东3项 > 得力2项 > 震坤行2项 > 企事通1项
+        when(snapshotQuery.getResultList()).thenReturn(List.of(
+                row("京东", 3), row("得力", 2), row("震坤行", 2), row("企事通", 1)));
+        // 字典含已引用名（去重）与独占名（补齐，名称自然序）
+        when(dictionaryQuery.getResultList()).thenReturn(List.of("震坤行", "得力", "未引用新竞品", "阿里竞品"));
 
         List<String> result = service.fetchDistinctCompetitorNames();
 
-        // Unicode 码点序：京(4E) < 得(5F) < 未(67) < 自(81) < 震(97)；「震坤行」双源去重只留一个
-        assertThat(result).containsExactly("京东", "得力", "未引用新竞品", "自定义新竞品", "震坤行");
+        // 排名段按参与数降序；字典独占项（阿里竞品/未引用新竞品）按名称自然序补齐：未(672A) < 阿(963F)
+        assertThat(result).containsExactly("京东", "得力", "震坤行", "企事通", "未引用新竞品", "阿里竞品");
+    }
+
+    @Test
+    @DisplayName("字典独占项按名称自然序追加（与快照排名段解耦）")
+    void dictionaryOnlyNamesSortedByName() {
+        when(snapshotQuery.getResultList()).thenReturn(List.<Object[]>of(row("京东", 1)));
+        when(dictionaryQuery.getResultList()).thenReturn(List.of("震坤行", "得力"));
+
+        List<String> result = service.fetchDistinctCompetitorNames();
+
+        // 得(5F97) < 震(9707)：名称自然序
+        assertThat(result).containsExactly("京东", "得力", "震坤行");
     }
 
     @Test
     @DisplayName("null 与空白名两侧均被过滤，不入选项")
     void filtersNullAndBlankNames() {
-        when(snapshotQuery.getResultList()).thenReturn(java.util.Arrays.asList("有效竞品", null, "  "));
+        when(snapshotQuery.getResultList()).thenReturn(java.util.Arrays.<Object[]>asList(
+                row("有效竞品", 2), row(null, 1), row("  ", 1)));
         when(dictionaryQuery.getResultList()).thenReturn(java.util.Arrays.asList("", null, "  得力  "));
 
         List<String> result = service.fetchDistinctCompetitorNames();
 
-        assertThat(result).containsExactly("  得力  ", "有效竞品");
+        assertThat(result).containsExactly("有效竞品", "  得力  ");
     }
 
     @Test
-    @DisplayName("非全局权限时快照查询绑定 scopeIds 参数")
+    @DisplayName("非全局权限时排名查询绑定 scopeIds 参数")
     void bindsScopeParamsForNonGlobalUser() {
         when(projectAccessScopeService.currentUserHasGlobalAccess()).thenReturn(false);
         when(projectAccessScopeService.getAllowedProjectIdsForCurrentUser()).thenReturn(List.of(7L, 8L));
-        when(snapshotQuery.getResultList()).thenReturn(List.of("京东"));
+        when(snapshotQuery.getResultList()).thenReturn(List.<Object[]>of(row("京东", 1)));
         when(dictionaryQuery.getResultList()).thenReturn(List.of());
 
         List<String> result = service.fetchDistinctCompetitorNames();
 
         assertThat(result).containsExactly("京东");
-        org.mockito.Mockito.verify(snapshotQuery).setParameter(eq("allAccess"), eq(false));
-        org.mockito.Mockito.verify(snapshotQuery).setParameter(eq("scopeIds"), eq(Set.of(7L, 8L)));
+        verify(snapshotQuery).setParameter(eq("allAccess"), eq(false));
+        verify(snapshotQuery).setParameter(eq("scopeIds"), eq(Set.of(7L, 8L)));
     }
 }

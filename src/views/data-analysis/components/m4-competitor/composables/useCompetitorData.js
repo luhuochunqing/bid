@@ -12,13 +12,13 @@ const COMPETITOR_ENUM = [
   '诚和致远', '阳采', '德致商成', '全程速达'
 ].map((name) => ({ label: name, value: name }))
 
-// 默认选中全部 24 项
-const DEFAULT_COMPETITORS = COMPETITOR_ENUM.map((c) => c.value)
+// 默认选中参与项目数最多的前 8 项（后端选项已按参与数降序；静态名单无排名信息，取枚举顺序前 8 兜底）
+const DEFAULT_TOP_COMPETITOR_COUNT = 8
+const DEFAULT_COMPETITORS = COMPETITOR_ENUM.map((c) => c.value).slice(0, DEFAULT_TOP_COMPETITOR_COUNT)
 const DEFAULT_DATE_RANGE = () => {
   const now = new Date()
   const y = now.getFullYear()
-  const m = String(now.getMonth() + 1).padStart(2, '0')
-  const d = String(now.getDate()).padStart(2, '0')
+  const [m, d] = [now.getMonth() + 1, now.getDate()].map((v) => String(v).padStart(2, '0'))
   return [`${y}-01-01`, `${y}-${m}-${d}`]
 }
 
@@ -243,9 +243,11 @@ export function useCompetitorData(chartRef) {
     fetchData()
   }
 
+  // 默认选中 = 选项前 8（后端已按参与项目数降序），初始/重置共用单一口径避免漂移
+  const defaultSelection = () => competitorOptions.value.slice(0, DEFAULT_TOP_COMPETITOR_COUNT).map((o) => o.value)
+
   const resetFilters = () => {
-    // specs/056：重置目标跟随当前 options 全集（动态口径），options 未加载时即兜底静态名单
-    selectedCompetitors.value = [...competitorOptions.value.map((o) => o.value)]
+    selectedCompetitors.value = defaultSelection()
     selectedEntities.value = []
     selectedProjectName.value = null
     entityActive.value = false
@@ -271,11 +273,11 @@ export function useCompetitorData(chartRef) {
       return { label: name, value: name }
     }).filter((o) => o.value)
 
-    // 竞品下拉接入后端并集口径，默认全选跟随动态 options；空响应时保留静态兜底
+    // 竞品下拉接入后端并集口径（参与项目数降序），默认选中前 8；空响应时保留静态兜底
     const names = Array.isArray(filterRes.value?.data?.competitor) ? filterRes.value.data.competitor : []
     if (names.length) {
       competitorOptions.value = names.map((dto) => ({ label: dto.label, value: dto.value }))
-      selectedCompetitors.value = [...competitorOptions.value.map((o) => o.value)]
+      selectedCompetitors.value = defaultSelection()
     }
   }
 
