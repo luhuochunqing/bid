@@ -28,7 +28,7 @@ import java.util.regex.Pattern;
 public final class ScoreTableRowParser {
 
     private static final Pattern CODE_PATTERN = Pattern.compile("^[A-Za-z]{0,2}\\d+([\\.\\(]\\d+[\\)]?)*$");
-    private static final Pattern PURE_WEIGHT_COLUMN = Pattern.compile("^[~≈]?\\d{1,3}(\\.\\d+)?\\s*分?$");
+    private static final Pattern PURE_WEIGHT_COLUMN = Pattern.compile("^[~≈]?\\d{1,3}(\\.\\d+)?\\s*(?:分|%)?$");
     private static final Pattern GRADE_SCORE = Pattern.compile("得\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分");
     private static final Pattern BRACKET_WEIGHT = Pattern.compile("[（(]\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分\\s*[）)]");
     private static final Pattern CONTAINS_HAN = Pattern.compile("[\\p{IsHan}]");
