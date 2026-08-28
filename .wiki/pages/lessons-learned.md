@@ -5,7 +5,7 @@ category: guide
 tags: [经验总结, 数据库迁移, PostgreSQL, MySQL, Flyway, 多Agent并行, 工程化护栏, Git历史, ArchUnit, Controller包规范, 错误消息设计, 用户体验]
 created: 2026-05-10
 updated: 2026-08-04
-health_checked: 2026-08-20
+health_checked: 2026-08-28
 sources:
   - CLAUDE.md
   - RULES.md

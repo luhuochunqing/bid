@@ -5,7 +5,7 @@ category: testing
 tags: [testing, 蓝图对照, 知识库, knowledge]
 created: 2026-05-28
 updated: 2026-08-12
-health_checked: 2026-08-20
+health_checked: 2026-08-28
 sources:
   - .wiki/sources/testing/module-04-knowledge-test.md
   - .wiki/sources/testing/module-04-knowledge-test.md

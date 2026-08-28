@@ -13,7 +13,7 @@ backlinks:
   - docinsight-engine
 created: 2026-08-20
 updated: 2026-08-20
-health_checked: 2026-08-20
+health_checked: 2026-08-28
 ---
 
 # AI 生成案例超大标书 OOM 导致入库 0 条

@@ -5,7 +5,7 @@ category: integration
 tags: [integration, wecom, settings, sso, message-push]
 created: 2026-04-25
 updated: 2026-08-12
-health_checked: 2026-08-20
+health_checked: 2026-08-28
 sources:
   - backend/src/main/java/com/xiyu/bid/integration/
   - src/views/System/SystemIntegration.vue

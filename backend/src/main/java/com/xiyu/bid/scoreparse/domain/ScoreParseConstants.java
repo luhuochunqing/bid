@@ -18,8 +18,8 @@ public final class ScoreParseConstants {
     /** 权重超载判定上限（spec 046 FR-002；WeightSumCheck 容差 +0.5） */
     public static final BigDecimal OVERLOAD_LIMIT = new BigDecimal("100.5");
 
-    /** 裁决上下文（评分章节拼接）字符上界（spec 057 FR-03） */
-    public static final int SECTION_TEXT_LIMIT = 12000;
+    /** 裁决上下文（评分章节拼接）字符上界（spec 057 FR-03，扩容支持复杂多标包章节完整性） */
+    public static final int SECTION_TEXT_LIMIT = 24000;
 
     /** 对齐率地板：低于此值说明模型改写/概括严重（对齐器未命中）（spec 057 FR-06） */
     public static final double ALIGNED_RATIO_FLOOR = 0.5;

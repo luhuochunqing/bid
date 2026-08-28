@@ -5,7 +5,7 @@ category: testing
 tags: [testing, 蓝图对照, 集成, CRM, 组织架构, 企业微信]
 created: 2026-05-28
 updated: 2026-08-12
-health_checked: 2026-08-20
+health_checked: 2026-08-28
 sources:
   - .wiki/sources/testing/module-09-integration-test.md
   - .wiki/sources/testing/module-09-integration-test.md
