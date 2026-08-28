@@ -32,6 +32,7 @@ backlinks:
 - [[ai-provider-configuration]] — AI Provider 配置与陷阱指南（activeProvider / Doubao / 降级策略 / Sidecar / ai.provider 默认值陷阱）
 - [[score-parse-service]] — AI 评分标准解析后端服务（spec 041：四路召回解析 / 知识库五类匹配 / 阶段化打分 / 超时保护）
 - [[ai-case-recommend-data-source-fix]] — AI 案例推荐数据源修复（score_item 新契约切换 / casework 裸响应禁止二次解包）
+- [[score-item-select-short-label]] — 评分项下拉短标签（ScoreItemSelect 显示契约 / EP filterable 原文搜索陷阱 / defineExpose 测试专用通道反模式 / 子组件根 class DOM 锁）
 - [[engineering-discipline]] — 工程纪律手册（反复修复根因 / Bug修复SOP / 开发规范 / 经验积累机制）
 - [[duplicate-implementation-gate]] — 重复实现门禁（防造轮子：PR 新增 Component/Hook/Service/API/Utils 对照已有实现）
 - [[api-openapi]] — OpenAPI/Swagger 接口规范
