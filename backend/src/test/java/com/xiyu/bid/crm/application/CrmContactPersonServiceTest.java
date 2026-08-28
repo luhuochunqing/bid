@@ -172,6 +172,29 @@ class CrmContactPersonServiceTest {
     // 本测试验证诊断日志会打印每条对接人的 position 原始值（从 JsonNode 取，绕过 non_null），
     // 部署后关联一次有问题的商机即可确诊 position 真实格式。
 
+    @Test
+    void pageList_logsRawPositionValueForEachContact() {
+        // 含 position 的对接人：日志应打印 position 原始值。
+        String body = "{\"code\":0,\"data\":[{\"id\":1,\"name\":\"张三\",\"position\":\"8\"}]}";
+
+        serviceWith(body).pageList(21045L, "testUser");
+
+        assertThat(logMessages())
+                .anyMatch(m -> m.contains("position=8") && m.contains("name=张三"));
+    }
+
+    @Test
+    void pageList_logsMissingPositionAsMissingMarker() {
+        // position 缺失的对接人：日志应打印 <missing> 标记，而非空值或崩溃。
+        // 这是 dom.chuya F12 抓包看到过的形态（CRM 后台没填职位时 position 字段不返回）。
+        String body = "{\"code\":0,\"data\":[{\"id\":2,\"name\":\"李四\"}]}";
+
+        serviceWith(body).pageList(21045L, "testUser");
+
+        assertThat(logMessages())
+                .anyMatch(m -> m.contains("position=<missing>") && m.contains("name=李四"));
+    }
+
     // ---- fixed_phone 座机号字段名双兼容 ----
     // 2026-08-28 测试环境实锤（tender 4136 / CC20260828857，traceId 5bc4a7f9...）：
     // CRM /contact-person-info/page-list 实际返回驼峰 key "fixedPhone":"021-56478789"，
@@ -201,28 +224,5 @@ class CrmContactPersonServiceTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).fixedPhone()).isEqualTo("010-12345678");
-    }
-
-    @Test
-    void pageList_logsRawPositionValueForEachContact() {
-        // 含 position 的对接人：日志应打印 position 原始值。
-        String body = "{\"code\":0,\"data\":[{\"id\":1,\"name\":\"张三\",\"position\":\"8\"}]}";
-
-        serviceWith(body).pageList(21045L, "testUser");
-
-        assertThat(logMessages())
-                .anyMatch(m -> m.contains("position=8") && m.contains("name=张三"));
-    }
-
-    @Test
-    void pageList_logsMissingPositionAsMissingMarker() {
-        // position 缺失的对接人：日志应打印 <missing> 标记，而非空值或崩溃。
-        // 这是 dom.chuya F12 抓包看到过的形态（CRM 后台没填职位时 position 字段不返回）。
-        String body = "{\"code\":0,\"data\":[{\"id\":2,\"name\":\"李四\"}]}";
-
-        serviceWith(body).pageList(21045L, "testUser");
-
-        assertThat(logMessages())
-                .anyMatch(m -> m.contains("position=<missing>") && m.contains("name=李四"));
     }
 }
