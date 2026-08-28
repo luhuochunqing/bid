@@ -39,12 +39,13 @@ public final class ScoreTableRowParser {
     private static final Pattern SUMMARY_ROW_PATTERN = Pattern.compile(
             "分值构成|总分构成|分值分布|总分100分"
     );
+    private static final Pattern CATEGORY_SUMMARY_ROW_PATTERN = Pattern.compile(
+            "^[^。\n;；]{1,35}?[：:（(]\\s*\\d+(?:\\.\\d+)?\\s*(?:分|%|分值)\\s*[）)]?$"
+    );
     private static final int DIM_MAX_CHARS = 20;
 
     private ScoreTableRowParser() {
     }
-
-    /** 解析单行；null/空白/分隔行/全空列/非评分程序行返回 empty */
     public static Optional<ScoreCandidate> parse(String row) {
         if (row == null || row.isBlank() || isSeparatorLike(row)) {
             return Optional.empty();
@@ -63,6 +64,14 @@ public final class ScoreTableRowParser {
             return Optional.empty();
         }
 
+        // 纯大类总览行（如"| 1 | 详细评审 | 公司财务状况：10分 |"）无具体细则，过滤排除防父大项占坑
+        if (columns.size() <= 3) {
+            String lastCol = columns.get(columns.size() - 1).trim();
+            if (CATEGORY_SUMMARY_ROW_PATTERN.matcher(lastCol).find() && !GRADE_SCORE.matcher(row).find()) {
+                return Optional.empty();
+            }
+        }
+
         // 前附表程序性非评分行过滤：纯流程条款且无明确给分细则（"得X分"）直接排除
         boolean isProcedural = NON_SCORE_PROCEDURE_PATTERN.matcher(row).find();
         boolean hasExplicitGradeScore = GRADE_SCORE.matcher(row).find();
@@ -70,29 +79,41 @@ public final class ScoreTableRowParser {
             return Optional.empty();
         }
         
-        int codeIndex = codeColumnIndex(columns);
+        // 提取叶子编号（多层级表格时优先取最右侧的子编号，如 1.1 优于 1）
+        int codeIndex = leafCodeColumnIndex(columns);
         String code = codeIndex >= 0 ? columns.get(codeIndex) : "";
         
-        // 优先从列2/列3提取括号分值（主项分值，如"财务状况（10分）"）
+        // 提取括号分值（如"财务状况（10分）"）
         BracketWeightResult bracketResult = extractBracketWeight(columns);
-        BigDecimal weight = bracketResult.weight();
         String dim = bracketResult.dimFromCol3();
         
-        // 如果没有括号分值，回退到原有逻辑（纯分值列排除编号列）
-        int weightIndex = pureWeightIndex(columns, codeIndex);
-        if (weight == null) {
-            weight = weightIndex >= 0
-                    ? new BigDecimal(columns.get(weightIndex).replaceAll("[^0-9.]", ""))
-                    : maxGradeScore(row);
-        }
-        
-        // 5列表格时，detail取列4+列5拼接（评分要求+评分细则）
+        // 提取 detail（5列表格取列4+列5拼接，其他取最右侧有效文本列）
         String detail = extractDetail(columns, codeIndex, bracketResult.col3Index());
         if (detail.isBlank()) {
             return Optional.empty();
         }
         
-        // 如果列3没有提供dim，则从剩余列中提取
+        // 分值提取优先级：
+        // 1. 列2/列3提取的括号分值（如"财务状况（10分）"大项明确声明的分值）
+        // 2. 最右侧纯分值列（如 "5" / "1.5分"）
+        // 3. detail 列内部的"得X分"档位最大值（叶子项实际得分，如"满分1.5分"）
+        // 4. 整行 maxGradeScore
+        int weightIndex = pureWeightIndex(columns, codeIndex);
+        BigDecimal weight = null;
+        if (bracketResult.weight() != null) {
+            weight = bracketResult.weight();
+        } else if (weightIndex >= 0) {
+            weight = new BigDecimal(columns.get(weightIndex).replaceAll("[^0-9.]", ""));
+        } else {
+            BigDecimal detailGradeScore = maxGradeScore(detail);
+            if (detailGradeScore != null) {
+                weight = detailGradeScore;
+            } else {
+                weight = maxGradeScore(row);
+            }
+        }
+        
+        // 如果未确定 dim，从左侧/剩余列中提取分类路径（继承大类名称）
         if (dim == null || dim.isBlank()) {
             int detailIndex = detailColumnIndex(columns, codeIndex, weightIndex);
             dim = extractDim(columns, codeIndex, weightIndex, detailIndex);
@@ -123,13 +144,30 @@ public final class ScoreTableRowParser {
         return columns;
     }
 
-    private static int codeColumnIndex(List<String> columns) {
-        String first = columns.get(0);
-        return first.length() <= 8 && CODE_PATTERN.matcher(first).matches() ? 0 : -1;
+    /** 提取叶子编号列索引：多列时排查最右侧纯分值列，优先取更具体的子编号列（如 1.1 优于 1） */
+    private static int leafCodeColumnIndex(List<String> columns) {
+        if (columns.isEmpty()) {
+            return -1;
+        }
+        if (columns.size() <= 2) {
+            String first = columns.get(0);
+            return first.length() <= 8 && CODE_PATTERN.matcher(first).matches() ? 0 : -1;
+        }
+        // 表格列数 >= 3 时，最后一列通常是细则或分值列，编号列仅出现在前 columns.size() - 1 列中
+        int bestIdx = -1;
+        int maxScan = Math.min(columns.size() - 1, 3);
+        for (int i = 0; i < maxScan; i++) {
+            String col = columns.get(i);
+            if (col.length() <= 8 && CODE_PATTERN.matcher(col).matches()) {
+                bestIdx = i;
+            }
+        }
+        return bestIdx;
     }
 
+    /** 纯分值列索引：从右向左扫描（至少在列 1 及以后，列 0 是编号或大项名），排除编号列 */
     private static int pureWeightIndex(List<String> columns, int codeIndex) {
-        for (int i = columns.size() - 1; i >= 0; i--) {
+        for (int i = columns.size() - 1; i >= 1; i--) {
             if (i == codeIndex) {
                 continue;
             }
@@ -168,7 +206,7 @@ public final class ScoreTableRowParser {
         return detailIndex;
     }
 
-    /** dim：剩余列中最长中文短列（评分项名称列）；无中文列返回 null */
+    /** dim：剩余列中最长中文短列（评分项名称列）；自动清洗末尾的分值后缀（如"公司财务状况：10分" → "公司财务状况"） */
     private static String extractDim(List<String> columns, int codeIndex, int weightIndex, int detailIndex) {
         String best = null;
         for (int i = 0; i < columns.size(); i++) {
@@ -181,7 +219,11 @@ public final class ScoreTableRowParser {
                 best = column;
             }
         }
-        return best;
+        if (best != null) {
+            // 清洗大类名称中的分值标识（如"公司财务状况：10分"、"商务标（56分）"）
+            best = best.replaceAll("[：:（(]\\s*\\d+(?:\\.\\d+)?\\s*(?:分|%|分值)\\s*[）)]?", "").trim();
+        }
+        return (best == null || best.isBlank()) ? null : best;
     }
 
     /**
