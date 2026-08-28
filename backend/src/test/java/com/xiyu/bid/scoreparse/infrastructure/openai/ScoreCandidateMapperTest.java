@@ -8,6 +8,7 @@ import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -58,5 +59,16 @@ class ScoreCandidateMapperTest {
                 llmCandidate("商务部分", "商务响应偏离情况", "商务响应偏离情况"), null);
         assertThat(mapped.detail()).isEqualTo("商务响应偏离情况");
         assertThat(mapped.sourceText()).isEmpty();
+    }
+
+    @Test
+    void summarizeKnownItems_includesSubtotalAndGapDiagnostics() {
+        ScoreCandidate item1 = new ScoreCandidate("1", "商务部分", "细则1", BigDecimal.valueOf(20), "OBJECTIVE", "", "", "", "");
+        ScoreCandidate item2 = new ScoreCandidate("2", "报价部分", "细则2", BigDecimal.valueOf(50), "OBJECTIVE", "", "", "", "");
+        ScoreCandidate item3 = new ScoreCandidate("3", "技术部分", "细则3", BigDecimal.valueOf(25), "OBJECTIVE", "", "", "", "");
+
+        String summary = ScoreCandidateMapper.summarizeKnownItems(List.of(item1, item2, item3));
+        assertThat(summary).contains("【已提取项分值合计】: 95 分");
+        assertThat(summary).contains("距离 100 分满分仍缺 5 分");
     }
 }

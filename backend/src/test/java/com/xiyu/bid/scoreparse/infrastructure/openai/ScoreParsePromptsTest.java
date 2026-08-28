@@ -136,4 +136,28 @@ class ScoreParsePromptsTest {
         assertThat(prompt).contains("附图为投标文件中的部分图片");
         assertThat(prompt).doesNotContain("data:");
     }
+
+    @Test
+    void buildCandidateExtractionPrompt_parallelSubItemsRuleAnchored() {
+        String prompt = ScoreParsePrompts.buildCandidateExtractionPrompt("test", 1, 1);
+        assertThat(prompt).contains("并列能力与方案评分项完整提取");
+        assertThat(prompt).contains("运营服务能力");
+        assertThat(prompt).contains("权重与评分项严格对齐");
+    }
+
+    @Test
+    void buildGapRecheckPrompt_parallelSubItemsAndTotalWeightRuleAnchored() {
+        String prompt = ScoreParsePrompts.buildGapRecheckPrompt("test", "known", "zones");
+        assertThat(prompt).contains("大项分值与并列子项完整性复查");
+        assertThat(prompt).contains("运营服务能力");
+        assertThat(prompt).contains("30%");
+    }
+
+    @Test
+    void buildGlobalMergePrompt_parallelSubItemsAndTotalWeightRuleAnchored() {
+        String prompt = ScoreParsePrompts.buildGlobalMergePrompt("[]", "section");
+        assertThat(prompt).contains("并列评价细则与分值闭环完整性");
+        assertThat(prompt).contains("运营服务能力");
+        assertThat(prompt).contains("100%");
+    }
 }
