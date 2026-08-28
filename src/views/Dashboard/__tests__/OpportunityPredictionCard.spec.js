@@ -46,7 +46,7 @@ const stubs = {
     emits: ['update:modelValue'],
     template: '<div class="el-select-stub" :data-value="modelValue || \'\'"><slot /></div>',
   },
-  'el-option': { props: ['label', 'value'], template: '<div class="el-option-stub" />' },
+  'el-option': { props: ['label', 'value'], template: '<div class="el-option-stub" :data-label="label" :data-value="value" />' },
   'el-date-picker': {
     props: ['modelValue', 'type', 'valueFormat', 'rangeSeparator', 'startPlaceholder', 'endPlaceholder', 'size'],
     emits: ['update:modelValue'],
@@ -157,7 +157,7 @@ describe('OpportunityPredictionCard', () => {
     expect(wrapper.find('.el-empty-stub').exists()).toBe(true)
   })
 
-  it('渲染客户类型/项目类型/时间范围三个筛选控件', async () => {
+  it('渲染客户类型/项目类型/时间范围三个筛选控件且客户类型不含“其他”选项', async () => {
     apiMock.getOpportunityPredictions.mockResolvedValue({ success: true, data: [baseRow()] })
 
     const wrapper = mountCard()
@@ -165,6 +165,11 @@ describe('OpportunityPredictionCard', () => {
 
     expect(wrapper.findAll('.op-filter-select').length).toBe(2) // 客户类型 + 项目类型
     expect(wrapper.find('.op-filter-date').exists()).toBe(true)
+
+    const customerSelect = wrapper.findAll('.op-filter-select')[0]
+    const optionLabels = customerSelect.findAll('.el-option-stub').map((o) => o.attributes('data-label'))
+    expect(optionLabels).not.toContain('其他')
+    expect(optionLabels).toEqual(['政府机关/事业单位/高校', '央企', '地方国企', '民企', '港澳台及外企'])
   })
 
   it('按客户类型筛选只显示匹配行', async () => {

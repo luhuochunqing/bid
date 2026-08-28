@@ -26,7 +26,6 @@ export const customerTypeOptions = [
   { value: 'LOCAL_SOE', label: '地方国企' },
   { value: 'PRIVATE', label: '民企' },
   { value: 'FOREIGN', label: '港澳台及外企' },
-  { value: 'OTHER', label: '其他' },
 ]
 
 export const priorityOptions = [
