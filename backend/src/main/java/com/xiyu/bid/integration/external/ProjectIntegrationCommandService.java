@@ -185,9 +185,13 @@ public class ProjectIntegrationCommandService {
     }
 
     /**
-     * 立项字段合并：复用 {@link ProjectInitiationMapper} 的 merge + Policy 校验，
-     * 口径与 {@code ProjectInitiationService.doUpdate} 一致（null 字段保留原值）。
-     * 客户信息表传入即全量替换（空数组 = 清空为空表）。
+     * 立项字段合并：复用 {@link ProjectInitiationMapper} 的 merge + 字段锁校验
+     * （null 字段保留原值）。客户信息表传入即全量替换（空数组 = 清空为空表）。
+     *
+     * <p>不做合并后全量必填校验：本接口契约只开放评估字段回写（ownerUserId/
+     * departmentSnapshot 等内部组织字段不在请求域，patch 恒 null），全量校验会
+     * 因既有立项行残缺而拒绝与调用方行为无关的请求（2026-08-28 CRM 首联 422
+     * 死锁根因）；立项完整性由平台「提交审核」环节的同一 Policy 把关。
      */
     private InitiationDto mergeInitiation(ProjectInitiationDetails existing, ProjectUpdateRequest request) {
         InitiationDto patch = ProjectUpdateMapper.toInitiationPatch(request.getEvaluationBasic());
@@ -199,11 +203,6 @@ public class ProjectIntegrationCommandService {
         if (!lockDecision.allowed()) {
             var deny = (InitiationFieldPolicy.Decision.Deny) lockDecision;
             throw new ResponseStatusException(HttpStatus.LOCKED, deny.reasonText());
-        }
-        var fullDecision = InitiationFieldPolicy.validate(requestedInput);
-        if (!fullDecision.allowed()) {
-            var deny = (InitiationFieldPolicy.Decision.Deny) fullDecision;
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, deny.reasonText());
         }
 
         InitiationDto mergedDto = initiationMapper.toDto(requestedInput);

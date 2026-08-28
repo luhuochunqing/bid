@@ -41,7 +41,7 @@ backlinks:
 - **定位键（2026-08-27 契约修正）**：路径第二参数为 `tenderId`（平台标讯主键 Long，取自推送标讯接口响应），不再是来源系统 sourceId。非数字值（如误传商机编号 CC...）在路径绑定阶段即被拒绝（400），杜绝 ID 维度混淆；与 external_id 幂等键彻底解耦后，手工建标讯（external_id=null 的 M 链路）同样可达
 - 非 null 字段覆盖，null/未传保留；`evaluationCustomerInfos` 传入即全量替换（行下标对齐前端 14 角色行，含 TEL 座机号维度）
 - `projectPlanGapFiles` 三态（CO-262 P1-3）：不传=保留 / 空数组=清空 / 非空=替换
-- 锁语义与前端立项保存同策略：阶段锁 / 立项字段锁 → 423；合并后必填校验失败 → 422；标讯不存在 → 404
+- 锁语义与前端立项保存同策略：阶段锁 / 立项字段锁 → 423；标讯不存在 → 404。**不做合并后全量必填校验（2026-08-28 修正）**：契约只开放评估字段回写（ownerUserId/departmentSnapshot 等内部组织字段不在请求域），既有立项行残缺不拒绝回写，完整性由平台「提交审核」环节把关
 - **403（审计守卫，2026-08-27 设计修复）**：API Key 属主用户不可解析（API Key 属主账号被删除等异常管理状态）时拒绝写入，避免 `updatedBy` 落 null 破坏审计溯源；正常调用（属主存在）不受影响
 - **跳过语义**：标讯存在但尚未立项 → HTTP 200 + `data.applied=false`（projectId/projectName 为 null），调用方按业务时序感知、无需重试或报障
 - **防越权写**：projectId 与 tenderId 同传时断言一致（项目.tenderId == 路径 tenderId，不等 400）；来源键前缀校验（标讯 externalId 非空时须以 `{sourceSystem}:` 开头，手工标讯跳过）
