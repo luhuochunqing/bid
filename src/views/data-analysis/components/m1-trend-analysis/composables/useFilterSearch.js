@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { dashboardApi } from '@/api'
+import { capDepartmentTreeDepth } from '../capDepartmentTreeDepth.js'
 
 /**
  * PRD §6.2 M1 筛选区下拉选项加载。
@@ -42,7 +43,7 @@ export function useFilterSearch() {
       const res = await dashboardApi.getFilterOptions()
       if (res?.success && res.data) {
         const d = res.data
-        departmentOptions.value = mapOptions(d.department)
+        departmentOptions.value = capDepartmentTreeDepth(mapOptions(d.department), 2)
         personOptions.value = mapOptions(d.person)
         tenderSubjectOptions.value = mapOptions(d.tenderEntity)
       }

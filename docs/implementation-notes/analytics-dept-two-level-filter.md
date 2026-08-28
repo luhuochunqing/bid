@@ -1,27 +1,19 @@
-# 部门两级统计口径（精简实现）
+# 部门筛选两级展示与 X 轴口径
 
-UI 仍为 check-strictly。后端只改统计口径，两个纯函数：
+数据分析-多维度趋势分析-筛选区部门字段：
 
-- `expand(selected)` = 勾选 ∪ 子孙（筛选 WHERE / 人员联动 / 下钻范围）
-- `toBucket` / `bucketNames` 仅 `xAxis=dept`：有二级则按直接子部门成柱，三级折进二级
+1. 下拉只展示一级、二级（三级及以下不进树）。后端 `fetchDepartmentTree` 截断，前端 `capDepartmentTreeDepth` 再挡一层。
+2. 只选一级（可多个）→ X 轴按一级成柱；子孙（含三级）折进该一级。
+3. 只选二级（可多个）→ X 轴按二级成柱；三级折进该二级。
+4. 一级+部分二级 → 忽略该一级，只按勾选的二级成柱。
+5. 全选 / 人员轴勾满可见树 / 某一级下全部二级都勾了 → 该一级完整，按一级成柱，一级直属人员计入（不走第 4 条）。
 
-接线三处：`TrendAnalysisService`、`TrendDrillDownService`、`FilterOptionsQueryService.fetchDistinctPersons`。
-组织树按需加载（有勾选才读），不新建 Gateway。
+`expand` 跟有效勾选走。全选名单仍是前端提交的一级+二级全集，由 `axisNames` 判断「二级是否勾满」后收成一级，不改下拉勾选 UI。
+接线仍是 `TrendAnalysisService` / `TrendDrillDownService` / `FilterOptionsQueryService.fetchDistinctPersons`。
 
 ## 有意不做
 
-- 时间轴图表仍不消费部门筛选（存量缺口，另开）
+- 时间轴图表仍不消费部门筛选（存量缺口）
 - 同名 / 跨 `source_app` 分区
-- 父子同时勾选的「深者优先」
-- 一级直挂人员的守恒小柱
-
-下钻部门轴：`IN expand(selected)` 且 `IN expand(柱名)`。一级残留柱若被点到会把子孙算进去，接受。
-
-## anti-slop（相对 472ed0da4）
-
-保留 expand / toBucket / bucketNames 语义，不把已删的 Prepared/Gateway 加回来。
-
-- 下钻树加载与人员联动共用 `FilterOptionsQueryService.loadDepartmentNodes()`，删掉 `TrendDrillDownService` 对 `OrganizationDepartmentRepository` 的重复映射。
-- 删 `TrendAnalysisService.buildCriteria` 一次调用包装，以及未使用的 `DimensionRow` / `TimeDimensionRow` / `Map` import。
-- `Index.of` 在 expand/bucketNames/toBucket 各建一次：组织树很小，缓存会重新引入刚删的 Prepared，有意不收。
-- `FilterOptionsDepartmentTreeTest.loadDepartmentNodesSkipsDirtyRows` 锁 tree 映射跳过脏行（下钻与人员联动共用入口）。
+- 不缓存 `Index`（等于把已删的 Prepared 请回来）
+- 后端截树 + 前端 `capDepartmentTreeDepth` 两层都留：API 回归时下拉仍只到二级

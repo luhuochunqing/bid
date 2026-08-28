@@ -44,7 +44,7 @@ class FilterOptionsDepartmentTreeTest {
     }
 
     @Test
-    @DisplayName("多层级部门正确组装为父子树形结构，叶子节点 children 为 null")
+    @DisplayName("部门筛选树只到二级，三级不出现")
     void shouldAssembleDepartmentTreeCorrectly() {
         OrganizationDepartmentEntity root = new OrganizationDepartmentEntity();
         root.setDepartmentCode("D001");
@@ -84,15 +84,10 @@ class FilterOptionsDepartmentTreeTest {
         assertThat(rootNode.getValue()).isEqualTo("销售总部");
         assertThat(rootNode.getChildren()).hasSize(1);
 
-        // 二级节点
+        // 二级节点；三级（上海办事处）不进入筛选树
         AnalyticsDepartmentTreeDTO childNode = rootNode.getChildren().get(0);
         assertThat(childNode.getLabel()).isEqualTo("华东区");
-        assertThat(childNode.getChildren()).hasSize(1);
-
-        // 三级叶子节点
-        AnalyticsDepartmentTreeDTO leafNode = childNode.getChildren().get(0);
-        assertThat(leafNode.getLabel()).isEqualTo("上海办事处");
-        assertThat(leafNode.getChildren()).isNull(); // 叶子节点 children 清理为 null
+        assertThat(childNode.getChildren()).isNull();
 
         // 根节点 2
         AnalyticsDepartmentTreeDTO standaloneNode = tree.get(1);

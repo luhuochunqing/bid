@@ -39,24 +39,7 @@ public class FilterOptionsQueryService {
     private final OrganizationDepartmentRepository organizationDepartmentRepository;
     private final ProjectAccessScopeService projectAccessScopeService;
 
-    /**
-     * PRD §6.2 M1 筛选区下拉选项 — 部门（扁平列表，向后兼容）。
-     * 从 OSS 组织架构表（organization_departments）获取全量部门，不过滤失效部门。
-     */
-    List<String> fetchDistinctDepartments() {
-        return organizationDepartmentRepository.findAllByOrderByDepartmentCode()
-                .stream()
-                .map(OrganizationDepartmentEntity::getDepartmentName)
-                .filter(name -> name != null && !name.isEmpty())
-                .distinct()
-                .toList();
-    }
-
-    /**
-     * PRD §6.2 M1 筛选区下拉选项 — 部门树形结构。
-     * 利用 parentDepartmentCode 构建层级关系，无效部门不过滤。
-     * 返回格式：{ label, value(=departmentName), children }，前端 el-tree-select 直接使用。
-     */
+    /** PRD §6.2 部门树（只到二级）。value=departmentName。 */
     List<AnalyticsDepartmentTreeDTO> fetchDepartmentTree() {
         List<OrganizationDepartmentEntity> allDepts =
                 organizationDepartmentRepository.findAllByOrderByDepartmentCode();
@@ -109,19 +92,16 @@ public class FilterOptionsQueryService {
             }
         }
 
-        // 清理空 children（设为 null，减少序列化体积）
-        cleanEmptyChildren(roots);
+        pruneFilterTree(roots, 1);
         return roots;
     }
 
-    private static void cleanEmptyChildren(List<AnalyticsDepartmentTreeDTO> nodes) {
+    /** 只留一二级；空 children 置 null。 */
+    private static void pruneFilterTree(List<AnalyticsDepartmentTreeDTO> nodes, int depth) {
         if (nodes == null) return;
         for (AnalyticsDepartmentTreeDTO node : nodes) {
-            if (node.getChildren() != null && node.getChildren().isEmpty()) {
-                node.setChildren(null);
-            } else {
-                cleanEmptyChildren(node.getChildren());
-            }
+            if (depth >= 2 || node.getChildren() == null || node.getChildren().isEmpty()) node.setChildren(null);
+            else pruneFilterTree(node.getChildren(), depth + 1);
         }
     }
 
