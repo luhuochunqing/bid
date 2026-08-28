@@ -1,5 +1,6 @@
 package com.xiyu.bid.crm.infrastructure.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -16,8 +17,11 @@ public record ContactPersonInfoVO(
     @JsonProperty("id") Long id,
     @JsonProperty("name") String name,
     @JsonProperty("phone") String phone,
-    // CRM 对接人座机号，映射到评估表 TEL 维度；CRM 未上线时为 null
-    @JsonProperty("fixed_phone") String fixedPhone,
+    // CRM 对接人座机号，映射到评估表 TEL 维度；CRM 未上线时为 null。
+    // 2026-08-28 测试环境实锤：CRM 实际返回驼峰 key "fixedPhone"（文档契约是下划线 fixed_phone），
+    // 加 @JsonAlias 双兼容两种形态；序列化输出 key 仍为 fixed_phone（前端按此 key 消费）。
+    @JsonProperty("fixed_phone")
+    @JsonAlias("fixedPhone") String fixedPhone,
     @JsonProperty("email") String email,
     @JsonProperty("position") String position,
     @JsonProperty("ehsyProjectManager") String ehsyProjectManager,
