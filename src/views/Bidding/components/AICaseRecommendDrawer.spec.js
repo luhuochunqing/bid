@@ -22,7 +22,11 @@ const commonStubs = {
   'el-descriptions': true,
   'el-descriptions-item': true,
   'el-badge': true,
-  'el-select': { template: '<div class="el-select-stub"><slot /></div>' },
+  'el-select': {
+    props: ['modelValue'],
+    emits: ['update:modelValue'],
+    template: '<div class="el-select-stub"><slot /><button class="select-pick-btn" @click="$emit(\'update:modelValue\', 1)" /></div>'
+  },
   'el-option': { props: ['label', 'value'], template: '<div class="el-option-stub"><slot /></div>' },
   'el-tooltip': {
     props: ['content', 'disabled', 'popperClass'],
@@ -199,8 +203,7 @@ describe('AICaseRecommendDrawer.vue', () => {
     })
 
     await flushPromises()
-    wrapper.vm.selectedScoreItemId = 1
-    await wrapper.vm.$nextTick()
+    await wrapper.find('.select-pick-btn').trigger('click')
 
     // CSS 宽度规则挂在 .item-score-select .score-item-select 上，DOM 结构回归时在此失败
     expect(wrapper.find('.item-score-select .score-item-select').exists()).toBe(true)

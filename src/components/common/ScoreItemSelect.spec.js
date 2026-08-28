@@ -16,6 +16,7 @@ const stubs = {
     template: `<div class="el-select-stub" :data-no-data="noDataText"><slot />
       <input class="select-filter-input" @input="filterMethod && filterMethod($event.target.value)" />
       <button class="select-close-btn" @click="$emit('visible-change', false)" />
+      <button class="select-pick-btn" @click="$emit('update:modelValue', 1); $emit('change', 1)" />
     </div>`
   },
   'el-option': {
@@ -60,6 +61,13 @@ describe('ScoreItemSelect.vue', () => {
     await wrapper.find('.select-close-btn').trigger('click')
     expect(wrapper.findAll('.el-option-stub')).toHaveLength(2)
     expect(wrapper.find('.el-select-stub').attributes('data-no-data')).toBe('暂无评分项')
+  })
+
+  it('forwards inner select change and v-model updates to the parent', async () => {
+    const wrapper = mountSelect({ modelValue: null })
+    await wrapper.find('.select-pick-btn').trigger('click')
+    expect(wrapper.emitted('update:modelValue')).toEqual([[1]])
+    expect(wrapper.emitted('change')).toEqual([[1]])
   })
 
   it('hides preview and disables tooltip when detail is blank', async () => {

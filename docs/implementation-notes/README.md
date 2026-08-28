@@ -17,7 +17,8 @@ docs/implementation-notes/
 ├── prd-acceptance-handoff-2292-2293.md    ← PR #2292+#2293 PRD/原型验收缺口跟踪
 ├── ponytail-safe-cuts.md                  ← 低风险死代码清理（7–11、19）
 ├── cut-npm-aliases.md                     ← 砍 npm script 别名
-└── ai-case-recommend-detail-layout.md     ← AI 智能案例推荐详情三模块布局
+├── ai-case-recommend-detail-layout.md     ← AI 智能案例推荐详情三模块布局
+└── ai-case-recommend-score-item-select.md ← AI 智能案例推荐评分项下拉短标签
 ```
 
 ## 各文件职责
@@ -34,6 +35,7 @@ docs/implementation-notes/
 | `ponytail-safe-cuts.md` | 审计项 7–11、19：死文件/死依赖/`VITE_API_MODE` | 低 |
 | `cut-npm-aliases.md` | 砍 33 条 npm 别名，启动入口改 bash | 低 |
 | `ai-case-recommend-detail-layout.md` | AI 智能案例推荐：去掉复用次数、详情三模块布局 | 低 |
+| `ai-case-recommend-score-item-select.md` | 评分项下拉短标签：规格外拍板决策、审查修复轮、遗留项 | 低 |
 
 ## 维护声明
 
