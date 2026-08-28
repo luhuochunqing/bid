@@ -83,7 +83,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'confirm', 'reset', 'search-department', 'search-person', 'search-region',
+  'confirm', 'reset', 'search-person', 'search-region',
   'search-customer-type', 'search-project-type', 'search-project-status',
   'search-tender-subject', 'department-change'
 ])

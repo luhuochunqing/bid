@@ -39,19 +39,6 @@ public class FilterOptionsQueryService {
     private final OrganizationDepartmentRepository organizationDepartmentRepository;
     private final ProjectAccessScopeService projectAccessScopeService;
 
-    /**
-     * PRD §6.2 M1 筛选区下拉选项 — 部门（扁平列表，向后兼容）。
-     * 从 OSS 组织架构表（organization_departments）获取全量部门，不过滤失效部门。
-     */
-    List<String> fetchDistinctDepartments() {
-        return organizationDepartmentRepository.findAllByOrderByDepartmentCode()
-                .stream()
-                .map(OrganizationDepartmentEntity::getDepartmentName)
-                .filter(name -> name != null && !name.isEmpty())
-                .distinct()
-                .toList();
-    }
-
     /** PRD §6.2 部门树（只到二级）。value=departmentName。 */
     List<AnalyticsDepartmentTreeDTO> fetchDepartmentTree() {
         List<OrganizationDepartmentEntity> allDepts =
