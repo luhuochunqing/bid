@@ -517,3 +517,8 @@
 - 触发：接口六上测试环境后 CRM 首次对接 PUT /CRM/2300 6 连 422「缺少必填字段：ownerUserId,departmentSnapshot」；全链路日志 SOP Layer 2 一次定位——真实请求体只有评估字段（接口契约无 owner 字段传入入口，patch 恒 null），立项 1365 为 M 链路半成品（内部组织字段 NULL）→ 422 与调用方行为零相关死锁
 - 落点：ProjectIntegrationCommandService.mergeInitiation 删 fullDecision 全量校验（保留字段锁 423，完整性由提交审核环节把关）；Service 测试 422 旧用例替换为根因行为测试 incompleteInitiationPartialWrite_succeeds（半成品 fixture ownerUserId=NULL → 200 落库）；wiki integration-tender-api 422 语义同步移除
 - 教训：**外部接口的校验范围必须是契约开放字段集的子集（校验请求域外字段=制造与调用方行为无关的随机失败）；PATCH 语义接口完整性守门在提交审核而非每次部分回写；fixture 必须覆盖真实残缺数据形态** -> [[integration-tender-api]]
+
+## [2026-08-28] build | 部署页新增 remote-deploy.sh SIGPIPE 陷阱小节
+- 触发：第 148 次测试部署中断——remote-deploy.sh 输出停在 Activating frontend assets 后静默退出；根因 set -euo pipefail 下 find|head -n 5 竞态 SIGPIPE(141)，"保留旧 assets"步骤引入的 root 属主文件是放大器，脚本自带 chown 修复分支永远执行不到
+- 落点：`pages/deployment.md` 新增 §10.4（根因链、修复 PR !2451、`cmd | head -n N` 通用规则、保留 assets 后必须 chown、Docker 僵死挂起容器测试门禁、健康窗口 4min < readiness 实测 6min）
+- 教训：**set -euo pipefail 脚本里任何 `cmd | head -n N` 都是定时炸弹（输出超 N 行即 SIGPIPE 静默死）；用 sudo 拷贝保留的旧资源必须随手 chown 回部署用户，否则守卫代码自己会被属主问题炸死** -> [[deployment]]
