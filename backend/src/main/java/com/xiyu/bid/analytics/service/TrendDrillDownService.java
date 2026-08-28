@@ -1,4 +1,4 @@
-// Input: EntityManager, ProjectAccessScopeService, OrganizationDepartmentRepository, HTTP drilldown requests
+// Input: EntityManager, ProjectAccessScopeService, FilterOptionsQueryService, HTTP drilldown requests
 // Output: TrendDrillDownResponse DTO
 // Pos: Service/数据查询与下钻服务层（竞品维度中标数/wins 走「是否中标」列口径，specs/055；
 //       维度过滤条件组装已拆至 TrendDrillDownFilterSupport）
@@ -7,7 +7,6 @@
 package com.xiyu.bid.analytics.service;
 
 import com.xiyu.bid.analytics.dto.TrendDrillDownResponse;
-import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationDepartmentRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -34,7 +33,7 @@ public class TrendDrillDownService {
     @PersistenceContext
     private EntityManager entityManager;
     private final ProjectAccessScopeService projectAccessScopeService;
-    private final OrganizationDepartmentRepository organizationDepartmentRepository;
+    private final FilterOptionsQueryService filterOptionsQueryService;
 
     public TrendDrillDownResponse drillDown(
             String dimension,
@@ -137,11 +136,7 @@ public class TrendDrillDownService {
         }
 
         if (hasDeptSelection) {
-            var nodes = organizationDepartmentRepository.findAllByOrderByDepartmentCode().stream()
-                    .map(d -> AnalyticsDepartmentHierarchySupport.nodeOrNull(
-                            d.getDepartmentCode(), d.getParentDepartmentCode(), d.getDepartmentName()))
-                    .filter(java.util.Objects::nonNull)
-                    .toList();
+            var nodes = filterOptionsQueryService.loadDepartmentNodes();
             where.append(" AND u.department_name IN (:departments)");
             params.put("departments", AnalyticsDepartmentHierarchySupport.expand(nodes, departments));
             if (deptAxis) {

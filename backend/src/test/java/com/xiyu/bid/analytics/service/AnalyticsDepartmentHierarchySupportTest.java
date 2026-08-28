@@ -48,14 +48,29 @@ class AnalyticsDepartmentHierarchySupportTest {
     void 勾选有二级的一级时由二级成桶且一级不保留汇总柱() {
         assertEquals(List.of("销售一部", "销售二部", "财务部"),
                 AnalyticsDepartmentHierarchySupport.bucketNames(ORG, List.of("销售部", "财务部")));
+    }
+
+    @Test
+    void 未勾选时expand返回null表示不过滤() {
         assertNull(AnalyticsDepartmentHierarchySupport.expand(ORG, null));
+        assertNull(AnalyticsDepartmentHierarchySupport.expand(ORG, List.of()));
     }
 
     @Test
     void 二级桶覆盖三级成员且点该柱展开含三级() {
         assertEquals("销售一部",
                 AnalyticsDepartmentHierarchySupport.toBucket(ORG3, List.of("销售部"), "华东组"));
+        assertEquals("销售一部",
+                AnalyticsDepartmentHierarchySupport.toBucket(ORG3, List.of("销售部"), "销售一部"));
         assertEquals(Set.of("销售一部", "华东组"),
                 Set.copyOf(AnalyticsDepartmentHierarchySupport.expand(ORG3, List.of("销售一部"))));
+    }
+
+    @Test
+    void 脏行跳过且叶子勾选toBucket恒等() {
+        assertNull(AnalyticsDepartmentHierarchySupport.nodeOrNull(null, "D01", "销售部"));
+        assertNull(AnalyticsDepartmentHierarchySupport.nodeOrNull("D01", null, " "));
+        assertEquals("财务部",
+                AnalyticsDepartmentHierarchySupport.toBucket(ORG, List.of("财务部"), "财务部"));
     }
 }

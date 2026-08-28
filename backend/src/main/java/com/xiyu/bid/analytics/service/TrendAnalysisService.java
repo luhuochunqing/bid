@@ -10,17 +10,13 @@ import com.xiyu.bid.analytics.dto.EnhancedOverviewResponse;
 import com.xiyu.bid.analytics.dto.TrendAnalysisResponse;
 import com.xiyu.bid.analytics.dto.TrendFilterOptionsResponseDTO;
 import com.xiyu.bid.analytics.service.TrendAnalysisComputationService.TrendComputationResult;
-import com.xiyu.bid.analytics.service.DimensionRow;
 import com.xiyu.bid.analytics.service.TrendAnalysisQueryService.OverviewRow;
-import com.xiyu.bid.analytics.service.TrendAnalysisQueryService.TimeDimensionRow;
 import com.xiyu.bid.entity.Project;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -67,7 +63,7 @@ public class TrendAnalysisService {
         } else {
             deptNodes = List.of();
         }
-        TrendQueryCriteria criteria = buildCriteria(startDate, endDate,
+        TrendQueryCriteria criteria = new TrendQueryCriteria(startDate, endDate,
                 matchNames, userIds, regionIds,
                 customerTypes, projectTypes, statusEnums,
                 tenderEntities, competitorNames);
@@ -196,19 +192,6 @@ public class TrendAnalysisService {
     /** 保留 1 位小数 */
     private static double round1(double val) {
         return Math.round(val * 10.0) / 10.0;
-    }
-
-    /** 构建 TrendQueryCriteria，统一查询参数传递 */
-    private static TrendQueryCriteria buildCriteria(
-            LocalDate startDate, LocalDate endDate,
-            List<String> departmentIds, List<String> userIds, List<String> regionIds,
-            List<String> customerTypes, List<String> projectTypes,
-            List<Project.Status> statuses,
-            List<String> tenderEntities, List<String> competitorNames) {
-        return new TrendQueryCriteria(startDate, endDate,
-                departmentIds, userIds, regionIds,
-                customerTypes, projectTypes, statuses,
-                tenderEntities, competitorNames);
     }
 
     /**

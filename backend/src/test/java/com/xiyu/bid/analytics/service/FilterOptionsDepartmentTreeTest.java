@@ -121,4 +121,27 @@ class FilterOptionsDepartmentTreeTest {
         assertThat(tree.get(1).getValue()).isEqualTo("市场部");
         assertThat(tree.get(1).getChildren()).isNull();
     }
+
+    @Test
+    @DisplayName("loadDepartmentNodes 跳过空白 code/name，合法行变成 DeptNode")
+    void loadDepartmentNodesSkipsDirtyRows() {
+        OrganizationDepartmentEntity ok = new OrganizationDepartmentEntity();
+        ok.setDepartmentCode("D001");
+        ok.setDepartmentName("销售总部");
+
+        OrganizationDepartmentEntity blankName = new OrganizationDepartmentEntity();
+        blankName.setDepartmentCode("D002");
+        blankName.setDepartmentName(" ");
+        blankName.setParentDepartmentCode("D001");
+
+        OrganizationDepartmentEntity blankCode = new OrganizationDepartmentEntity();
+        blankCode.setDepartmentCode("");
+        blankCode.setDepartmentName("幽灵部门");
+
+        when(departmentRepository.findAllByOrderByDepartmentCode())
+                .thenReturn(List.of(ok, blankName, blankCode));
+
+        assertThat(service.loadDepartmentNodes()).containsExactly(
+                new AnalyticsDepartmentHierarchySupport.DeptNode("D001", null, "销售总部"));
+    }
 }
