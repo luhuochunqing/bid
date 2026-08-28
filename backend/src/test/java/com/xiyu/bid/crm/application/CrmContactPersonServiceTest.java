@@ -194,4 +194,35 @@ class CrmContactPersonServiceTest {
         assertThat(logMessages())
                 .anyMatch(m -> m.contains("position=<missing>") && m.contains("name=李四"));
     }
+
+    // ---- fixed_phone 座机号字段名双兼容 ----
+    // 2026-08-28 测试环境实锤（tender 4136 / CC20260828857，traceId 5bc4a7f9...）：
+    // CRM /contact-person-info/page-list 实际返回驼峰 key "fixedPhone":"021-56478789"，
+    // 而 VO 声明的是 @JsonProperty("fixed_phone")（接口文档下划线契约）。
+    // ignoreUnknown=true 把驼峰 key 静默丢弃 → 座机号带不到评估表 TEL 行。
+    // 修复：@JsonAlias("fixedPhone") 双兼容；下划线契约形态也必须继续可用。
+
+    @Test
+    void pageList_parsesCamelCaseFixedPhoneFromCrm() {
+        // 真实 CRM 响应形态（驼峰 key），日志实锤。
+        String body = "{\"code\":\"0\",\"msg\":\"success\",\"data\":[" +
+                "{\"id\":15706,\"name\":\"张三\",\"phone\":\"15688888888\",\"fixedPhone\":\"021-56478789\"}]}";
+
+        List<ContactPersonInfoVO> result = serviceWith(body).pageList(21045L, "testUser");
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).fixedPhone()).isEqualTo("021-56478789");
+    }
+
+    @Test
+    void pageList_parsesSnakeCaseFixedPhoneContract() {
+        // 接口文档契约形态（下划线 key），双兼容不能破坏文档契约。
+        String body = "{\"code\":0,\"data\":[" +
+                "{\"id\":15707,\"name\":\"李四\",\"phone\":\"13800000000\",\"fixed_phone\":\"010-12345678\"}]}";
+
+        List<ContactPersonInfoVO> result = serviceWith(body).pageList(21045L, "testUser");
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).fixedPhone()).isEqualTo("010-12345678");
+    }
 }
