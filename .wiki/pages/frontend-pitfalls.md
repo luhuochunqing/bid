@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [前端, Vue3, Element Plus, reactive, ref, v-model, el-upload, el-form, 权限, E2E, scoped, teleport]
 created: 2026-07-10
-updated: 2026-08-26
-health_checked: 2026-08-20
+updated: 2026-08-28
+health_checked: 2026-08-28
 sources:
   - src/
   - .wiki/pages/lessons-learned.md
@@ -812,7 +812,42 @@ const { selectedSet } = tree  // 解构注入字段，模板才可用
 
 ---
 
-## 20. 变更记录
+---
+
+## 20. Vue 3 `<script setup>` 内联 `h()` 函数式组件导致 Scoped CSS 与作用域样式静默失效
+
+### 20.1 现象
+
+在 `<script setup>` 中定义内联函数式组件（如 `const DateCell = (props, { slots }) => h('span', { class: 'op-date' }, ...)`），并在模板中调用 `<DateCell :value="row.date" />`。
+在 `<style scoped>` 中编写 `.op-date { ... }` 样式时，**样式完全不生效**；
+尝试使用 `.el-table :deep(.op-date)` 或追加无作用域的类名修补，导致样式维护混乱、产生大量 `:deep()` 穿透补丁。
+
+### 20.2 根因
+
+1. Vue 3 SFC 的 Scoped CSS 机制是通过编译期在模板中的元素上注入 `data-v-xxxx` 属性选择器实现的。
+2. 在 `<script setup>` 中直接使用 `h()` 动态构造的 VNode **不会自动继承父 SFC 的 `data-v-xxxx` 作用域属性**。
+3. 因此 `<style scoped>` 编译出的 `.op-date[data-v-xxxx]` 规则永远无法命中 `h()` 创建的 DOM 节点。
+4. 这种在 `<script setup>` 中用 `h()` 封装小组件的做法既破坏了 SFC 的模板表达力，又引入了样式作用域穿透的隐患。
+
+### 20.3 规范对策
+
+- **禁止在 `<script setup>` 中使用 `h()` 构造微型函数式组件替代简单模板**；
+- 简单结构直接使用原生模板插槽表达：
+  ```vue
+  <template>
+    <el-table-column label="开标时间" width="115" align="center">
+      <template #default="{ row }">
+        <span class="op-date">{{ formatDate(row.bidOpenTime) }}</span>
+      </template>
+    </el-table-column>
+  </template>
+  ```
+- 数据格式化抽离为无副作用的纯 JS 辅助函数（如 `formatDate(value)`）。
+- 复杂可复用 UI 应抽离为独立 `.vue` 单文件组件，保留标准 Vue 编译器属性注入与样式作用域。
+
+---
+
+## 21. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
@@ -824,4 +859,5 @@ const { selectedSet } = tree  // 解构注入字段，模板才可用
 | 2026-08-18 | 新增 §17：全局 ellipsis 把状态列挤成"黑点"（工作台商机预测表格） |
 | 2026-08-19 | 新增 §18：provide/inject 子组件未解构注入字段 → undefined.has 渲染崩溃（数据分析 TreeSelect） |
 | 2026-08-26 | 新增 §19：scoped :deep 对 teleport 弹层静默失效（评分解析抽屉重新解析遮罩漂出可视区） |
+| 2026-08-28 | 新增 §20：`<script setup>` 内联 `h()` 函数式组件导致 Scoped CSS 静默失效与过度抽象（工作台商机预测时间单元格） |
 

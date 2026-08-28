@@ -33,31 +33,31 @@
         <span class="op-chip" :class="projectTypeChip(row.projectType)">{{ projectTypeLabel(row.projectType) }}</span>
       </template>
     </el-table-column>
-    <el-table-column label="开标时间" width="110" align="center">
+    <el-table-column label="开标时间" width="115" align="center">
       <template #default="{ row }">
-        <DateCell :value="row.bidOpenTime" />
+        <span class="op-date">{{ formatDate(row.bidOpenTime) }}</span>
       </template>
     </el-table-column>
-    <el-table-column label="项目服务周期（年）" width="130" align="center">
+    <el-table-column label="项目服务周期（年）" width="135" align="center">
       <template #default="{ row }">{{ formatYears(row.servicePeriodYears) }}</template>
     </el-table-column>
-    <el-table-column label="服务周期截止时间" width="120" align="center">
+    <el-table-column label="服务周期截止时间" width="135" align="center">
       <template #default="{ row }">
-        <DateCell :value="row.servicePeriodEndDate" />
+        <span class="op-date">{{ formatDate(row.servicePeriodEndDate) }}</span>
       </template>
     </el-table-column>
-    <el-table-column label="预测招标时间" width="120" align="center">
+    <el-table-column label="预测招标时间" width="130" align="center">
       <template #default="{ row }">
-        <DateCell :value="row.predictedBidDate" emphasized>
-          <span v-if="row.near" class="op-near-dot"></span>
-        </DateCell>
+        <span class="op-date op-date-em">
+          {{ formatDate(row.predictedBidDate) }}
+          <span v-if="row.near && formatDate(row.predictedBidDate) !== '-'" class="op-near-dot"></span>
+        </span>
       </template>
     </el-table-column>
   </el-table>
 </template>
 
 <script setup>
-import { h } from 'vue'
 import { useRouter } from 'vue-router'
 import { navigateToProject } from '@/utils/projectNavigation.js'
 import { customerTypeLabel, projectTypeLabel } from '@/views/Project/utils/projectListFormatters.js'
@@ -72,22 +72,9 @@ defineProps({
 
 const router = useRouter()
 
-function formatDateParts(value) {
-  const normalized = value ? String(value).slice(0, 10) : ''
-  return normalized ? { ym: normalized.slice(0, 7), d: normalized.slice(8) } : null
+function formatDate(value) {
+  return value ? String(value).slice(0, 10) : '-'
 }
-
-// 统一时间单元格：第一行年-月（yyyy-MM），第二行 —日（补上月和日之间的破折号），
-// 三个时间列共用，避免各列日期排版不一致；emphasized 用于预测列绿色强调 + 红点插槽
-const DateCell = (props, { slots }) => {
-  const parts = formatDateParts(props.value)
-  if (!parts) return h('span', { class: 'op-date' }, '-')
-  return h('span', { class: ['op-date', { 'op-date-em': props.emphasized }] }, [
-    h('span', { class: 'op-date-ym' }, parts.ym),
-    h('span', { class: 'op-date-d' }, ['—' + parts.d, slots.default ? slots.default() : null]),
-  ])
-}
-DateCell.props = ['value', 'emphasized']
 
 function formatYears(value) {
   if (value === null || value === undefined || value === '') return '-'
@@ -144,10 +131,6 @@ function handleRowClick(row) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* 日期单元格保持两行排版（第一行年-月、第二行 —日），不受上面 nowrap 影响 */
-.el-table :deep(.op-date) {
-  white-space: normal;
-}
 .op-row-no {
   display: inline-flex;
   align-items: center;
@@ -175,18 +158,16 @@ function handleRowClick(row) {
 .op-chip-industrial { background: #f0f7ff; color: #2e7cd6; }
 .op-chip-office { background: #f4f4f5; color: #6b7794; }
 .op-chip-collective { background: #fdf6ec; color: #b88230; }
-/* DateCell 是函数式组件，内层 span 不继承 scoped 属性，内层样式需 :deep() 命中 */
 .op-date {
   display: inline-flex;
-  flex-direction: column;
   align-items: center;
-  line-height: 1.25;
+  justify-content: center;
   font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  color: var(--text-regular, #606266);
+  white-space: nowrap;
 }
-.el-table :deep(.op-date-ym) { font-size: 0.8rem; }
-.el-table :deep(.op-date-d) { font-size: 0.72rem; color: var(--text-muted); }
 .op-date-em { color: var(--brand-xiyu-logo); font-weight: 600; }
-.el-table :deep(.op-date-em .op-date-d) { color: var(--brand-xiyu-logo); }
 .op-near-dot {
   display: inline-block;
   width: 6px;
@@ -195,6 +176,7 @@ function handleRowClick(row) {
   background: var(--color-danger, #f56c6c);
   margin-left: 4px;
   vertical-align: middle;
+  flex-shrink: 0;
   animation: op-pulse 1.4s ease-in-out infinite;
 }
 @keyframes op-pulse {

@@ -3043,3 +3043,32 @@ private CompetitorStatus status = CompetitorStatus.ACTIVE;
 - **外部对接定位键优先用调用方手里有的键**：调用方持有内部主键时直接用主键（tenderId），没有主键时用其一等业务标识并保证库内可反查（crm_opportunity_id 带 UNIQUE 即天然安全反查键），禁止要求对方记住一个他们系统里看不到的平台内部字符串拼接格式；
 - **三种以上 ID 并存的集成域必须在 wiki 里维护 ID 字典表**（谁是签发方/落在哪列/谁引用它），对接前发给对方——本次 ID 字典表事后才画出来，是排查成本的主要来源；
 - **对外错误响应与安全脱敏要平衡**：404 全部统一为"请求的资源不存在"时，联调期至少应在文档/wiki 提供 404 分型说明或临时诊断手段（如按 traceId 查询的运维通道），避免把"追症状"制度化给外部团队。
+ 
+---
+
+## 171. Vue 3 `<script setup>` 内联 `h()` 函数式组件破坏 Scoped CSS 继承与引入过度封装（2026-08-28，工作台商机预测时间单元格）
+
+**现象**：
+在工作台 AI 商机预测表格中，为了给时间字段添加排版样式，开发者在 `<script setup>` 中编写了内联函数式组件 `const DateCell = (props, { slots }) => h('span', { class: 'op-date' }, ...)` 并在模板中调用 `<DateCell :value="row.bidOpenTime" />`。
+随之产生的问题：
+1. `<style scoped>` 中定义的 `.op-date` 样式完全失效，必须依赖 `:deep()` 或无作用域的类名去穿透修复；
+2. 开发者在函数式组件内部做字符串拆分与拼接（年-月 / —日 分两行显示），造成日期（日）部分字体颜色变灰且字号不一，用户体验劣化；
+3. 增加了不必要的 `h()` 依赖与伪组件 props 注册（`DateCell.props = ['value', 'emphasized']`）。
+
+**根因**：
+- Vue 3 SFC 编译 Scoped CSS 时，仅针对模板内部由编译器解析的 DOM 元素自动附加 `data-v-xxxx` 属性。
+- 由 `<script setup>` 中 `h()` 运行时动态创建的 VNode 节点**无法获得父组件的 scoped 作用域属性**，导致 scoped 样式规则不匹配。
+- 同时，微型内联组件模式属于过度设计（AI Slop），破坏了 Vue SFC 模板的声明式可读性。
+
+**修复**：
+- 彻底移除 `DateCell` 函数式组件，在 template 中直接使用标准插槽语法 `<span class="op-date">{{ formatDate(...) }}</span>`；
+- 数据格式化由简洁纯函数 `formatDate(value)` 提供；
+- Scoped CSS 恢复标准局部作用域规则，移除多余的 `:deep()` 穿透补丁。
+
+**教训与规范**：
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| `<script setup>` 内联 `h()` 组件丢失 Scoped CSS | Vue 3 SFC scoped 属性注入只在模板编译期对模板 AST 生效 | 严禁在 `<script setup>` 中使用 `h()` 封装小组件，简单 UI 直接写 template 插槽 |
+| 样式失效后使用 `:deep()` 或全局类盲目修补 | 未定位 scoped 属性丢失的根因，采用破坏边界的方式打补丁 | 遇到 Scoped CSS 不生效时，先排查元素是否带有 `data-v-xxxx` 属性 |
+| 过度封装微型组件导致排版混乱 | 将格式化逻辑与 DOM 结构强行绑定在复杂组件中 | UI 展示与数据纯函数分离，保持模板简单明了 |
+
