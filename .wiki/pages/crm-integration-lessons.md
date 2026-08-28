@@ -304,6 +304,14 @@ CRM 存储该字符串后 1 小时即永久失效。
 - 测试环境实锤：task 348（08-16，project 225）payload 中 fileUrl 为已过期 OBS 预签名 URL，
   全库带佐证文件的历史回调仅此 1 条
 
+### 9.6 对接人座机号字段名驼峰/下划线不匹配（2026-08-28 修复）
+
+- 现象：测试环境 tender 4136 关联商机 CC20260828857 后，评估表客户信息 TEL（对接人座机号）始终为空
+- 双证据定位：journalctl 里 `CrmHttpClient` 响应体日志显示 CRM 实际返回 `"fixedPhone":"021-56478789"`（驼峰），DB `tender_evaluation_customer_info` 无 TEL 行
+- 根因：`ContactPersonInfoVO` 按接口文档声明 `@JsonProperty("fixed_phone")`（下划线），`@JsonIgnoreProperties(ignoreUnknown=true)` 把驼峰 key 静默丢弃 → `fixedPhone` 反序列化 null → TEL 行不落库。容错注解把字段名不匹配从显式报错降级成静默丢数据
+- 修复：`@JsonAlias("fixedPhone")` 双兼容；`@JsonAlias` 只影响反序列化，序列化输出 key 仍为 `fixed_phone`（前端消费契约不变）
+- 通用对策：集成类 VO 的测试用例必须来自真实环境日志原文（至少一条），不抄接口文档；外部字段丢失类工单先翻 `CrmHttpClient` 响应体日志比对 key，详见 [[lessons-learned]] §176
+
 ---
 
 ## 10. 相关文档
@@ -323,3 +331,4 @@ CRM 存储该字符串后 1 小时即永久失效。
 | 2026-08-18 | 新增 §9：回调下发 OBS 预签名 URL 过期事故与永久端点修复模式 |
 | 2026-08-18 | §9 更新：ObsDirectRedirects 重构收口、404/502 语义精确化、对接契约与安全姿态声明 |
 | 2026-08-19 | 新增 §9.5：历史数据重推运维接口落地（webhook_delivery_tasks.payload 为排查入口） |
+| 2026-08-28 | 新增 §9.6：对接人座机号 fixedPhone 驼峰/下划线字段名不匹配，@JsonAlias 双兼容修复 |
