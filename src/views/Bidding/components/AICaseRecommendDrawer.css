@@ -77,29 +77,14 @@
   flex-shrink: 0;
 }
 
-.score-select {
+.item-score-select {
+  align-items: flex-start;
+}
+
+.item-score-select .score-item-select {
   flex: 1;
-}
-
-.score-option-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12.5px;
-}
-
-.option-code {
-  font-weight: 600;
-  color: var(--brand-xiyu-logo);
-}
-
-.option-dim {
-  color: var(--gray-600);
-}
-
-.option-detail {
-  color: var(--text-lighter);
-  margin-left: auto;
+  min-width: 0;
+  width: auto;
 }
 
 .keyword-input :deep(.el-input-group__append) {

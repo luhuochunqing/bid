@@ -12,15 +12,12 @@
 
       <div class="drawer-section">
         <label class="section-label">评分项</label>
-        <el-select v-model="selectedItemId" placeholder="请选择评分项" clearable filterable style="width: 100%" @change="handleItemChange">
-          <el-option-group v-for="group in scoringItemGroups" :key="group.dim" :label="group.dim">
-            <el-option v-for="item in group.items" :key="item.id" :label="optionTitle(item)" :value="item.id">
-              <el-tooltip :content="optionFullText(item)" placement="right" :show-after="150">
-                <div class="score-option-line">{{ optionFullText(item) }}</div>
-              </el-tooltip>
-            </el-option>
-          </el-option-group>
-        </el-select>
+        <ScoreItemSelect
+          v-model="selectedItemId"
+          :items="scoreItems"
+          placeholder="请选择评分项"
+          @change="handleItemChange"
+        />
       </div>
 
       <div class="drawer-section">
@@ -88,6 +85,7 @@ import { projectLifecycleApi } from '@/api/modules/projectLifecycle'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import CaseCard from '@/views/Knowledge/views/components/CaseCard.vue'
 import CaseDetailDialog from '@/views/Knowledge/views/components/CaseDetailDialog.vue'
+import ScoreItemSelect from '@/components/common/ScoreItemSelect.vue'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
 const emit = defineEmits(['go-to-score-parse'])
@@ -106,19 +104,6 @@ const detailLoading = ref(false)
 const detailCase = ref(null)
 
 const handleGoToScoreParse = () => { visible.value = false; emit('go-to-score-parse') }
-
-const scoringItemGroups = computed(() => {
-  const groups = {}
-  scoreItems.value.forEach(d => {
-    const dim = d.dim || '其他'
-    if (!groups[dim]) groups[dim] = { dim, items: [] }
-    groups[dim].items.push(d)
-  })
-  return Object.values(groups)
-})
-
-const optionFullText = (item) => `${item.code ? item.code + ' ' : ''}${item.dim || ''} - ${item.detail || ''}`
-const optionTitle = (item) => (item.code ? `${item.code} ${item.dim || ''}`.trim() : item.dim || '')
 
 const filteredCases = computed(() => {
   if (selectedItemId.value) return cases.value.filter(c => (c.score ?? 0) >= 50)
@@ -289,7 +274,7 @@ async function openBidDocument(d) {
 .tooltip-sub { margin-top: 4px; font-size: 11px; color: var(--el-color-warning); }
 .cases-container { min-height: 200px; }
 .select-hint { color: var(--text-muted); font-size: 14px; text-align: center; padding: 40px 0; }
-.score-option-line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .recommend-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
 @media (max-width: 720px) { .recommend-grid { grid-template-columns: 1fr; } }
 .empty-score-alert { display: flex; align-items: center; gap: 12px; }

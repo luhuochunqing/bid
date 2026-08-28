@@ -75,9 +75,12 @@ describe('AiRecommendDrawer.vue', () => {
       },
     },
     'el-select': { template: `<div><slot /></div>` },
-    'el-option-group': { props: ['label'], template: `<div><slot /></div>` },
+    'el-option-group': { props: ['label'], template: `<div class="el-option-group-mock"><slot /></div>` },
     'el-option': { props: ['label', 'value'], template: `<div class="el-option-mock"><slot /></div>` },
-    'el-tooltip': { props: ['content'], template: `<span class="el-tooltip-mock"><slot /><slot name="content" /></span>` },
+    'el-tooltip': {
+      props: ['content', 'disabled', 'popperClass'],
+      template: `<span class="el-tooltip-mock" :data-content="content"><slot /><slot name="content" /></span>`,
+    },
     'el-popover': { template: `<span class="el-popover-mock"><slot name="reference" /><slot /></span>` },
     'el-input': {
       props: ['modelValue'],
@@ -126,12 +129,19 @@ describe('AiRecommendDrawer.vue', () => {
     expect(wrapper.text()).toContain('技术方案实施细则')
   })
 
-  it('renders score option full detail text accessible via tooltip', async () => {
+  it('shows only serial and score item name in options, original text in tooltip and preview', async () => {
     const wrapper = await mockOpenWithCases([recommendItem])
 
-    const optionText = wrapper.find('.el-tooltip-mock').text()
-    expect(optionText).toContain(LONG_DETAIL)
-    expect(wrapper.text()).not.toContain(`${LONG_DETAIL.slice(0, 24)}...`)
+    const optionLine = wrapper.find('.score-option-line')
+    expect(optionLine.text()).toBe('3.1 技术评分')
+    expect(optionLine.text()).not.toContain(LONG_DETAIL)
+
+    const optionTooltip = optionLine.element.closest('.el-tooltip-mock')
+    expect(optionTooltip).not.toBeNull()
+    expect(optionTooltip.getAttribute('data-content')).toBe(LONG_DETAIL)
+
+    expect(wrapper.findAll('.el-option-group-mock')).toHaveLength(0)
+    expect(wrapper.find('.score-item-detail-preview').text()).toContain(LONG_DETAIL)
   })
 
   it('renders matched cases as case-library cards with match degree prefix and created time', async () => {
