@@ -74,7 +74,7 @@ import TenderBasicInfoTab from './list/components/TenderBasicInfoTab.vue'
 import TenderActionBar from './list/components/TenderActionBar.vue'
 import { useTenderCreateForm } from './list/composables/useTenderCreateForm.js'
 import { useTenderAiParse } from './list/composables/useTenderAiParse.js'
-import { getMissingTenderRequiredFields } from './list/tenderRequiredFields.js'
+import { buildSaveDisabledReason } from './list/tenderRequiredFields.js'
 
 const ACCEPT_FILE_TYPES = '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
@@ -86,11 +86,10 @@ const { form, rules, regions, customerTypes, projectTypes, priorities, canSave, 
 const { parsingDocument, handleFileChange, handleFileRemove, handlePastedTextParse } = useTenderAiParse(form)
 
 // 保存按钮禁用必须给出原因，否则用户无从自救（生产案例：公开谈判采购无开标时间 → AI 留空 → canSave=false 静默禁用）
-const saveDisabledReason = computed(() => {
-  if (parsingDocument.value) return '标讯附件正在上传或识别中，请稍候'
-  const missing = getMissingTenderRequiredFields(form.value)
-  return missing.length ? `还差必填项：${missing.join('、')}` : ''
-})
+const saveDisabledReason = computed(() => buildSaveDisabledReason({
+  parsingDocument: parsingDocument.value,
+  form: form.value,
+}))
 
 const editTenderId = computed(() => { const id = route.query.edit; return id ? Number(id) : null })
 const isEditMode = computed(() => !!editTenderId.value)

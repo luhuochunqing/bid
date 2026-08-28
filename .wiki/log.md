@@ -525,7 +525,7 @@
 
 ## 2026-08-28 compound | 标讯人工录入"未上传"假象排障（生产 winbid-01）
 - 触发：用户 03683 /bidding/create 上传+AI 解析全成功但标讯未创建，感知"未上传"
-- 排障：Nginx access.log + journalctl traceId + MySQL 三方证据交叉 → POST /api/tenders 从未发出；根因=canSave 七字段校验静默禁用保存按钮（公开谈判采购无开标时间）+ el-upload auto-upload=false 恒 ready 状态假象
+- 排障：Nginx access.log + journalctl traceId + MySQL 三方证据交叉 → POST /api/tenders 从未发出；根因=canSave 必填字段校验静默禁用保存按钮（公开谈判采购无开标时间；审查后口径对齐 8 字段含 projectType）+ el-upload auto-upload=false 恒 ready 状态假象
 - 回填：[[tender-create-upload-triage]]；同分支修复 3 个 UX 缺陷（禁用原因 tooltip / status=success 标识 / AI 回填后缺失必填项提示）
 - 教训：**"上传完没报错但没成功"类工单，先查 Nginx access.log 看目标 POST 是否发出，再决定查后端；禁用按钮必须给禁用原因，否则用户无从自救**
 

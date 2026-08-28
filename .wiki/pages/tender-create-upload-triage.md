@@ -35,8 +35,10 @@ health_checked: 2026-08-28
 ## 根因链（3 个叠加 UX 缺陷）
 
 1. **保存按钮静默禁用**：`TenderActionBar.vue` 保存按钮 `:disabled="!canSave || parsingDocument"`，
-   禁用无任何提示。`canSave` 要求 7 个必填字段全非空（title/purchaser/region/deadline/
-   bidOpeningTime/customerType/priority）。
+   禁用无任何提示。`canSave` 原要求 7 个必填字段全非空（title/purchaser/region/deadline/
+   bidOpeningTime/customerType/priority）。注意 `MANUAL_FORM_RULES` 实际有 8 个 required 字段
+   （多 projectType 项目类型）——修复时口径已对齐 8 项，否则 tooltip/AI 提示漏报、用户点保存
+   仍被表单红字拦截（PR !2450 审查发现，属"平行定义漂移"陷阱）。
 2. **公开谈判采购无开标时间**：后端 `TenderDocumentPrompts` 口径是"只有投标截止时间没有开标时间则
    bidOpeningTime 留空"→ AI 回填后 canSave 恒 false，用户点保存无反馈。
 3. **el-upload auto-upload=false 状态假象**：`:auto-upload="false"` 时上传由自定义
@@ -61,7 +63,7 @@ health_checked: 2026-08-28
 |---|---|
 | 保存禁用无提示 | TenderCreatePage 计算 `saveDisabledReason` 传给 TenderActionBar，el-tooltip 显示"还差必填项：开标时间、客户类型" |
 | 附件无成功标识 | 回填 fileUrl 时设 `target.status = 'success'`（两条链路都改） |
-| AI 回填后不知道缺啥 | 解析成功后用 `getMissingTenderRequiredFields` 计算，ElMessage.warning 列出缺失必填项 |
+| AI 回填后不知道缺啥 | 解析成功后用 `getMissingTenderRequiredFields` 计算（8 项口径，与 MANUAL_FORM_RULES 对齐），ElMessage.warning 列出缺失必填项 |
 
 共享工具：`src/views/Bidding/list/tenderRequiredFields.js`（必填字段 key+label 表 + 缺失计算函数）。
 

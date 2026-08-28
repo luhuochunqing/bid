@@ -106,3 +106,11 @@ export function normalizeManualTenderParseResult(result = {}) {
     tags: normalizeTags(data.tags),
   }
 }
+
+// el-upload auto-upload=false 时文件对象 status 恒为 ready，必须显式置 success 才显示绿色 ✓
+// （两条录入链路共用：useTenderAiParse.applyAttachmentFileUrl / useManualTenderCreate 双回填点）
+export function markAttachmentUploaded(target, fileUrl) {
+  target.url = fileUrl
+  target.fileUrl = fileUrl
+  target.status = 'success'
+}

@@ -240,6 +240,7 @@ describe('useTenderAiParse', () => {
           bidOpeningTime: '2026-09-03T10:00:00',
           customerType: '央企集团',
           priority: 'A',
+          projectType: '物资采购',
         },
       })
     )

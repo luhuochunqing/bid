@@ -6,7 +6,7 @@
 import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { createManualTenderForm } from './constants.js'
-import { buildManualTenderPayload, normalizeManualTenderParseResult } from './helpers.js'
+import { buildManualTenderPayload, normalizeManualTenderParseResult, markAttachmentUploaded } from './helpers.js'
 
 const PASTED_TEXT_MAX_LENGTH = 500000
 // 标讯文件上传走 multipart（APISIX 网关限制 50MB）；不接 OBS，因为后端 doc-insight
@@ -66,10 +66,7 @@ function applySourceDocumentMetadata(form, file, result = {}) {
     if (target) {
       if (fileType) target.fileType = fileType
       if (fileUrl) {
-        target.url = fileUrl
-        target.fileUrl = fileUrl
-        // el-upload auto-upload=false 时 status 恒为 ready，必须显式置 success 才显示绿色 ✓
-        target.status = 'success'
+        markAttachmentUploaded(target, fileUrl)
       }
     }
   }
@@ -156,10 +153,7 @@ export function useManualTenderCreate({ tendersApi, refreshTenderList, canCreate
           const att = manualForm.value.attachments[fileIndex]
           if (uploadFile.type) att.fileType = uploadFile.type
           if (storedDoc.fileUrl) {
-            att.url = storedDoc.fileUrl
-            att.fileUrl = storedDoc.fileUrl
-            // el-upload auto-upload=false 时 status 恒为 ready，必须显式置 success 才显示绿色 ✓
-            att.status = 'success'
+            markAttachmentUploaded(att, storedDoc.fileUrl)
           }
         }
         applySourceDocumentMetadata(manualForm.value, uploadFile, storedDoc)
