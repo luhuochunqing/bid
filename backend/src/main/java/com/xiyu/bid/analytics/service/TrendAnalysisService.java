@@ -10,17 +10,13 @@ import com.xiyu.bid.analytics.dto.EnhancedOverviewResponse;
 import com.xiyu.bid.analytics.dto.TrendAnalysisResponse;
 import com.xiyu.bid.analytics.dto.TrendFilterOptionsResponseDTO;
 import com.xiyu.bid.analytics.service.TrendAnalysisComputationService.TrendComputationResult;
-import com.xiyu.bid.analytics.service.DimensionRow;
 import com.xiyu.bid.analytics.service.TrendAnalysisQueryService.OverviewRow;
-import com.xiyu.bid.analytics.service.TrendAnalysisQueryService.TimeDimensionRow;
 import com.xiyu.bid.entity.Project;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -59,9 +55,16 @@ public class TrendAnalysisService {
                         .toList()
                 : null;
 
-// 统一构建查询参数，所有维度共用
-        TrendQueryCriteria criteria = buildCriteria(startDate, endDate,
-                departmentIds, userIds, regionIds,
+        final List<AnalyticsDepartmentHierarchySupport.DeptNode> deptNodes;
+        List<String> matchNames = departmentIds;
+        if (departmentIds != null && !departmentIds.isEmpty()) {
+            deptNodes = filterOptionsQueryService.loadDepartmentNodes();
+            matchNames = AnalyticsDepartmentHierarchySupport.expand(deptNodes, departmentIds);
+        } else {
+            deptNodes = List.of();
+        }
+        TrendQueryCriteria criteria = new TrendQueryCriteria(startDate, endDate,
+                matchNames, userIds, regionIds,
                 customerTypes, projectTypes, statusEnums,
                 tenderEntities, competitorNames);
 
@@ -75,7 +78,15 @@ public class TrendAnalysisService {
             }
             case "dept" -> {
                 var rows = dimensionQueryService.fetchDeptRows(criteria);
-                yield computationService.computeDimensionTrend(rows, departmentIds);
+                List<String> expected = departmentIds;
+                if (departmentIds != null && !departmentIds.isEmpty()) {
+                    expected = AnalyticsDepartmentHierarchySupport.bucketNames(deptNodes, departmentIds);
+                    rows = rows.stream()
+                            .map(r -> r.withCategory(AnalyticsDepartmentHierarchySupport.toBucket(
+                                    deptNodes, departmentIds, r.category())))
+                            .toList();
+                }
+                yield computationService.computeDimensionTrend(rows, expected);
             }
             case "person" -> {
                 var rows = dimensionQueryService.fetchPersonRows(criteria);
@@ -181,19 +192,6 @@ public class TrendAnalysisService {
     /** 保留 1 位小数 */
     private static double round1(double val) {
         return Math.round(val * 10.0) / 10.0;
-    }
-
-    /** 构建 TrendQueryCriteria，统一查询参数传递 */
-    private static TrendQueryCriteria buildCriteria(
-            LocalDate startDate, LocalDate endDate,
-            List<String> departmentIds, List<String> userIds, List<String> regionIds,
-            List<String> customerTypes, List<String> projectTypes,
-            List<Project.Status> statuses,
-            List<String> tenderEntities, List<String> competitorNames) {
-        return new TrendQueryCriteria(startDate, endDate,
-                departmentIds, userIds, regionIds,
-                customerTypes, projectTypes, statuses,
-                tenderEntities, competitorNames);
     }
 
     /**

@@ -31,4 +31,9 @@ public record DimensionRow(
     public DimensionRow(String category, Long projectId, Project.Status status) {
         this(category, projectId, status, null);
     }
+
+    /** 仅替换展示分类（部门轴两级成柱），其余字段原样保留。 */
+    public DimensionRow withCategory(String category) {
+        return new DimensionRow(category, projectId, status, competitorWonStatus);
+    }
 }

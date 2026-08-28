@@ -1,4 +1,4 @@
-// Input: EntityManager, ProjectAccessScopeService, HTTP drilldown requests
+// Input: EntityManager, ProjectAccessScopeService, FilterOptionsQueryService, HTTP drilldown requests
 // Output: TrendDrillDownResponse DTO
 // Pos: Service/数据查询与下钻服务层（竞品维度中标数/wins 走「是否中标」列口径，specs/055；
 //       维度过滤条件组装已拆至 TrendDrillDownFilterSupport）
@@ -33,6 +33,7 @@ public class TrendDrillDownService {
     @PersistenceContext
     private EntityManager entityManager;
     private final ProjectAccessScopeService projectAccessScopeService;
+    private final FilterOptionsQueryService filterOptionsQueryService;
 
     public TrendDrillDownResponse drillDown(
             String dimension,
@@ -65,10 +66,12 @@ public class TrendDrillDownService {
         params.put("allAccess", allAccess);
         params.put("scopeIds", allAccess ? List.of(-1L) : scopeIds);
 
-        // 维度值过滤（axisValue 对应的维度列）；region/customerType 维度统一走下方归一化过滤
+        // 维度值过滤；dept 轴+有勾选时改走 expand(柱名)，避免精确等值漏掉折进二级柱的三级
         boolean regionAxis = "region".equals(dimension) && axisValue != null && !axisValue.isBlank();
         boolean customerTypeAxis = "customerType".equals(dimension) && axisValue != null && !axisValue.isBlank();
-        if (!regionAxis && !customerTypeAxis) {
+        boolean hasDeptSelection = departments != null && !departments.isEmpty();
+        boolean deptAxis = "dept".equals(dimension) && axisValue != null && !axisValue.isBlank();
+        if (!regionAxis && !customerTypeAxis && !(deptAxis && hasDeptSelection)) {
             TrendDrillDownFilterSupport.appendDimensionFilter(where, params, dimension, axisValue);
         }
 
@@ -132,10 +135,15 @@ public class TrendDrillDownService {
             params.put("regionProjectIds", regionMatchedIds);
         }
 
-        // 部门过滤（通过 manager_id → users.department_name）
-        if (departments != null && !departments.isEmpty()) {
+        if (hasDeptSelection) {
+            var nodes = filterOptionsQueryService.loadDepartmentNodes();
             where.append(" AND u.department_name IN (:departments)");
-            params.put("departments", departments);
+            params.put("departments", AnalyticsDepartmentHierarchySupport.expand(nodes, departments));
+            if (deptAxis) {
+                where.append(" AND u.department_name IN (:deptAxisVals)");
+                params.put("deptAxisVals",
+                        AnalyticsDepartmentHierarchySupport.expand(nodes, List.of(axisValue)));
+            }
         }
 
         // 人员过滤（通过 manager_id → users.full_name）

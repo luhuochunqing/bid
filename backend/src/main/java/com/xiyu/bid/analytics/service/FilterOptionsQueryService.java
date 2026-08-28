@@ -143,9 +143,10 @@ public class FilterOptionsQueryService {
                     .getResultList();
         }
 
-        // 优化子查询性能：先通过仓库预查匹配的部门编码集合，避免在 SQL 中进行双重关联子查询
+        List<String> effectiveNames = AnalyticsDepartmentHierarchySupport.expand(
+                loadDepartmentNodes(), departmentNames);
         List<OrganizationDepartmentEntity> matchedDepts =
-                organizationDepartmentRepository.findByDepartmentNameIn(departmentNames);
+                organizationDepartmentRepository.findByDepartmentNameIn(effectiveNames);
         java.util.Set<String> targetCodes = new java.util.HashSet<>();
         for (OrganizationDepartmentEntity dept : matchedDepts) {
             if (dept.getDepartmentCode() != null && !dept.getDepartmentCode().isEmpty()) {
@@ -167,7 +168,7 @@ public class FilterOptionsQueryService {
                           )
                         order by u.fullName
                         """, String.class)
-                .setParameter("departmentNames", departmentNames)
+                .setParameter("departmentNames", effectiveNames)
                 .setParameter("hasCodes", !targetCodes.isEmpty())
                 .setParameter("targetCodes", targetCodes.isEmpty() ? java.util.Set.of("") : targetCodes)
                 .getResultList();
@@ -227,6 +228,14 @@ public class FilterOptionsQueryService {
             if (t != null && !t.isBlank()) sorted.add(t.trim());
         }
         return new ArrayList<>(sorted);
+    }
+
+    List<AnalyticsDepartmentHierarchySupport.DeptNode> loadDepartmentNodes() {
+        return organizationDepartmentRepository.findAllByOrderByDepartmentCode().stream()
+                .map(d -> AnalyticsDepartmentHierarchySupport.nodeOrNull(
+                        d.getDepartmentCode(), d.getParentDepartmentCode(), d.getDepartmentName()))
+                .filter(java.util.Objects::nonNull)
+                .toList();
     }
 
     /**

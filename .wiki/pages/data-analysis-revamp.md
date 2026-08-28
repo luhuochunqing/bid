@@ -126,7 +126,7 @@ PRD §9.12 步骤 7 + §9.14：竞品公司至少保留 1 个，不允许清空�
 ### 9. 部门树形下拉的交互规范（M1，2026-08-19）
 
 - 部门下拉（`shared/TreeSelectDropdown.vue` + `TreeSelectNode.vue`）必须与 `FilterSelect.vue` 交互一致：trigger 显示"请选择/全部/已选 N 项"+badge、面板含搜索框与全选/清空按钮。
-- 勾选语义为 check-strictly（父子独立）：后端按部门名 `u.departmentName IN (...)` 精确匹配，勾选父部门不会级联选中子部门。
+- 勾选 UI 仍为 check-strictly（父子独立）；统计口径改为勾父含后代，部门轴有二级则按直接子部门成柱（三级折进二级）。纯函数见 `AnalyticsDepartmentHierarchySupport`（`expand` / `toBucket`）。
 - 树节点通过 provide/inject 共享选中集合与展开状态，递归组件 `TreeSelectNode` 无需逐层转发事件。
 
 ### 10. 竞品「是否中标」数据源 = notes 语义漂移字段（M4，2026-08-19）

@@ -65,7 +65,7 @@ class AnalyticsRegionFilterJpqlRegressionTest {
         timeQueryService = new TrendAnalysisQueryService(scope);
         ReflectionTestUtils.setField(timeQueryService, "entityManager", entityManager);
 
-        drillDownService = new TrendDrillDownService(scope);
+        drillDownService = new TrendDrillDownService(scope, null);
         ReflectionTestUtils.setField(drillDownService, "entityManager", entityManager);
 
         seedData();
@@ -249,7 +249,7 @@ class AnalyticsRegionFilterJpqlRegressionTest {
 
         var restrictedDimension = new TrendAnalysisDimensionQueryService(restricted);
         ReflectionTestUtils.setField(restrictedDimension, "entityManager", entityManager);
-        var restrictedDrillDown = new TrendDrillDownService(restricted);
+        var restrictedDrillDown = new TrendDrillDownService(restricted, null);
         ReflectionTestUtils.setField(restrictedDrillDown, "entityManager", entityManager);
 
         // 维度分组共享入口：江苏省命中 A/B/C，但授权范围仅 A 可见

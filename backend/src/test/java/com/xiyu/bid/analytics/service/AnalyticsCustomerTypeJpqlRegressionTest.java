@@ -57,7 +57,7 @@ class AnalyticsCustomerTypeJpqlRegressionTest {
         dimensionQueryService = new TrendAnalysisDimensionQueryService(scope);
         ReflectionTestUtils.setField(dimensionQueryService, "entityManager", entityManager);
 
-        drillDownService = new TrendDrillDownService(scope);
+        drillDownService = new TrendDrillDownService(scope, null);
         ReflectionTestUtils.setField(drillDownService, "entityManager", entityManager);
 
         seedData();
