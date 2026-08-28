@@ -138,9 +138,13 @@ printf '==> Activating frontend assets\n'
 # 工程背景（2026-08-24 第 141 次测试部署）：/srv/www/xiyu-bid/assets/ 子目录属主曾为 nginx:nginx，
 # jetty 用户 rm -rf "$FRONTEND_PUBLIC_DIR" 时 Permission denied，部署中断。
 # 本校验递归检测目录树属主，若存在非当前用户的条目，则 sudo chown -R 修复后再删除激活。
+# SIGPIPE 防护（2026-08-28 第 148 次测试部署）：本脚本 set -euo pipefail，当非属主条目超过 5 个
+# （如上一版部署后 sudo cp -rn 保留旧 assets 引入数百个 root 属主文件）时 head 提前退出，
+# find 收到 SIGPIPE(exit 141) → pipefail → set -e 静默杀死脚本，chown 修复分支永远执行不到。
+# 故 find 侧加 || true 吞掉 SIGPIPE/遍历失败，让下方修复分支正常接手。
 DEPLOY_USER="$(id -un)"
 if [[ -d "$FRONTEND_PUBLIC_DIR" ]]; then
-  NON_OWNED="$(find "$FRONTEND_PUBLIC_DIR" ! -user "$DEPLOY_USER" -print 2>/dev/null | head -n 5)"
+  NON_OWNED="$( { find "$FRONTEND_PUBLIC_DIR" ! -user "$DEPLOY_USER" -print 2>/dev/null || true; } | head -n 5)"
   if [[ -n "$NON_OWNED" ]]; then
     printf '⚠️  前端目录存在非 %s 属主的条目，执行 sudo chown -R 修复：\n' "$DEPLOY_USER"
     printf '    %s\n' "$NON_OWNED"
