@@ -63,7 +63,7 @@
 <script setup>
 import { computed } from 'vue'
 import { CopyDocument } from '@element-plus/icons-vue'
-import { getProjectTypeLabel, getCustomerTypeLabel } from '../caseLabels.js'
+import { getProjectTypeLabel, getCustomerTypeLabel, getMatchLabel, getMatchTagType, parseStringOrArray } from '../caseLabels.js'
 import DateTimeDisplay from '@/components/common/DateTimeDisplay.vue'
 
 const props = defineProps({
@@ -77,17 +77,11 @@ const hasMatchScore = computed(() => props.matchScore !== null && props.matchSco
 const numScore = computed(() => Number(props.matchScore) || 0)
 
 const displayMatchLabel = computed(() => {
-  if (props.caseData?.matchLabel) return props.caseData.matchLabel
-  if (!hasMatchScore.value) return ''
-  return numScore.value >= 80 ? '优质' : numScore.value >= 60 ? '良好' : '一般'
+  if (!hasMatchScore.value && !props.caseData?.matchLabel) return ''
+  return getMatchLabel(props.matchScore, props.caseData?.matchLabel)
 })
 
-const matchLabelTagType = computed(() => {
-  const lbl = displayMatchLabel.value
-  if (lbl === '优质' || numScore.value >= 80) return 'danger'
-  if (lbl === '良好' || numScore.value >= 60) return 'warning'
-  return 'info'
-})
+const matchLabelTagType = computed(() => getMatchTagType(props.matchScore, props.caseData?.matchLabel))
 
 const matchStatClass = computed(() => {
   if (numScore.value >= 80) return 'stat-high'
@@ -95,19 +89,8 @@ const matchStatClass = computed(() => {
   return 'stat-normal'
 })
 
-const matchReasonsList = computed(() => {
-  const r = props.caseData?.matchReasons
-  if (Array.isArray(r)) return r.filter(Boolean)
-  if (typeof r === 'string' && r.trim()) return r.split('、').map(s => s.trim()).filter(Boolean)
-  return []
-})
-
-const matchedKeywordsList = computed(() => {
-  const kw = props.caseData?.matchedKeywords
-  if (Array.isArray(kw)) return kw.filter(Boolean)
-  if (typeof kw === 'string' && kw.trim()) return kw.split(/[,，\s]+/).filter(Boolean)
-  return []
-})
+const matchReasonsList = computed(() => parseStringOrArray(props.caseData?.matchReasons))
+const matchedKeywordsList = computed(() => parseStringOrArray(props.caseData?.matchedKeywords))
 
 const truncatedSummary = computed(() => {
   const text = props.caseData?.responseTextSummary || ''
@@ -125,7 +108,7 @@ const truncatedSummary = computed(() => {
   justify-content: space-between;
   border: 1px solid var(--el-border-color-lighter);
   cursor: pointer;
-  &:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08); }
+  &:hover { transform: translateY(-4px); box-shadow: 0 8px 24px var(--el-color-primary-light-9, rgba(0, 0, 0, 0.08)); }
 }
 .case-card-header { border-bottom: 1px dashed var(--el-border-color-lighter); padding-bottom: 12px; }
 .title-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
@@ -157,7 +140,7 @@ const truncatedSummary = computed(() => {
   font-size: 10px;
   padding: 0 3px;
   border-radius: 2px;
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--el-fill-color);
   line-height: 14px;
 }
 .scoring-title { font-size: 15px; font-weight: 600; color: var(--el-text-color-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

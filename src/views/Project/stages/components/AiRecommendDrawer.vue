@@ -286,7 +286,7 @@ async function openBidDocument(d) {
 .help-hint:hover { opacity: 0.8; }
 .match-rule-tooltip { font-size: 12px; line-height: 1.6; padding: 2px 4px; }
 .tooltip-title { font-weight: 600; margin-bottom: 4px; }
-.tooltip-sub { margin-top: 4px; font-size: 11px; color: var(--el-color-warning-light-3, #e6a23c); }
+.tooltip-sub { margin-top: 4px; font-size: 11px; color: var(--el-color-warning); }
 .cases-container { min-height: 200px; }
 .select-hint { color: var(--text-muted); font-size: 14px; text-align: center; padding: 40px 0; }
 .score-option-line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -63,7 +63,7 @@
 import { computed } from 'vue'
 import { Link, Document, CopyDocument } from '@element-plus/icons-vue'
 import DateTimeDisplay from '@/components/common/DateTimeDisplay.vue'
-import { getProjectTypeLabel, getCustomerTypeLabel } from '../caseLabels.js'
+import { getProjectTypeLabel, getCustomerTypeLabel, getMatchLabel, getMatchTagType, parseStringOrArray } from '../caseLabels.js'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -81,33 +81,14 @@ const displayMatchScore = computed(() => props.caseData?.matchScore ?? props.cas
 const hasMatchInfo = computed(() => displayMatchScore.value !== null && displayMatchScore.value !== undefined)
 
 const displayMatchLabel = computed(() => {
-  if (props.caseData?.matchLabel) return props.caseData.matchLabel
-  if (!hasMatchInfo.value) return ''
-  const num = Number(displayMatchScore.value) || 0
-  return num >= 80 ? '优质' : num >= 60 ? '良好' : '一般'
+  if (!hasMatchInfo.value && !props.caseData?.matchLabel) return ''
+  return getMatchLabel(displayMatchScore.value, props.caseData?.matchLabel)
 })
 
-const matchLabelTagType = computed(() => {
-  const lbl = displayMatchLabel.value
-  const num = Number(displayMatchScore.value) || 0
-  if (lbl === '优质' || num >= 80) return 'danger'
-  if (lbl === '良好' || num >= 60) return 'warning'
-  return 'info'
-})
+const matchLabelTagType = computed(() => getMatchTagType(displayMatchScore.value, props.caseData?.matchLabel))
 
-const matchReasonsList = computed(() => {
-  const r = props.caseData?.matchReasons
-  if (Array.isArray(r)) return r.filter(Boolean)
-  if (typeof r === 'string' && r.trim()) return r.split('、').map(s => s.trim()).filter(Boolean)
-  return []
-})
-
-const matchedKeywordsList = computed(() => {
-  const kw = props.caseData?.matchedKeywords
-  if (Array.isArray(kw)) return kw.filter(Boolean)
-  if (typeof kw === 'string' && kw.trim()) return kw.split(/[,，\s]+/).filter(Boolean)
-  return []
-})
+const matchReasonsList = computed(() => parseStringOrArray(props.caseData?.matchReasons))
+const matchedKeywordsList = computed(() => parseStringOrArray(props.caseData?.matchedKeywords))
 
 const bidResultLabel = computed(() => {
   const r = props.caseData?.bidResult
