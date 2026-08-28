@@ -1,0 +1,91 @@
+// Input: 2D 网格数据（行列表与单元格文本）
+// Output: 结构化 TableGrid 不变实体
+// Pos: scoreparse/domain/grid — 纯核心，无框架依赖
+// 维护声明: 维护者按项目SOP；spec 058 单元格锚定评分解析
+
+package com.xiyu.bid.scoreparse.domain.grid;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * 二维表格网格实体（spec 058）。
+ * <p>表示结构化的 Row x Col 矩阵，保留物理行列坐标与单元格原始文本，
+ * 支持纵向合并补全（Fill-down）与行列切片。
+ */
+public final class TableGrid {
+
+    private final List<List<String>> rows;
+    private final int rowCount;
+    private final int colCount;
+
+    public TableGrid(List<List<String>> rows) {
+        if (rows == null || rows.isEmpty()) {
+            this.rows = List.of();
+            this.rowCount = 0;
+            this.colCount = 0;
+            return;
+        }
+        int maxCols = 0;
+        List<List<String>> copy = new ArrayList<>(rows.size());
+        for (List<String> row : rows) {
+            if (row == null) {
+                copy.add(List.of());
+            } else {
+                List<String> rowCopy = new ArrayList<>(row);
+                maxCols = Math.max(maxCols, rowCopy.size());
+                copy.add(Collections.unmodifiableList(rowCopy));
+            }
+        }
+        this.rows = Collections.unmodifiableList(copy);
+        this.rowCount = this.rows.size();
+        this.colCount = maxCols;
+    }
+
+    public int rowCount() {
+        return rowCount;
+    }
+
+    public int colCount() {
+        return colCount;
+    }
+
+    public boolean isEmpty() {
+        return rowCount == 0 || colCount == 0;
+    }
+
+    public String cell(int row, int col) {
+        if (row < 0 || row >= rowCount || col < 0) {
+            return "";
+        }
+        List<String> r = rows.get(row);
+        if (col >= r.size()) {
+            return "";
+        }
+        String val = r.get(col);
+        return val == null ? "" : val.trim();
+    }
+
+    public List<String> row(int row) {
+        if (row < 0 || row >= rowCount) {
+            return List.of();
+        }
+        return rows.get(row);
+    }
+
+    public List<String> column(int col) {
+        if (col < 0 || col >= colCount) {
+            return List.of();
+        }
+        List<String> colValues = new ArrayList<>(rowCount);
+        for (int r = 0; r < rowCount; r++) {
+            colValues.add(cell(r, col));
+        }
+        return colValues;
+    }
+
+    public List<List<String>> allRows() {
+        return rows;
+    }
+}

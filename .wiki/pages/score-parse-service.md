@@ -197,3 +197,11 @@ trigger（同步<1s，互斥校验+建任务）
 - **复合编号排序保真**：`ScoreItemOrderPolicy` 支持 `COMPOUND_CODE_PATTERN`（如 `2.2.4(1)` / `3.1(2)`），提取首段整数与括号内子段数值，保留文档中自然出现的顺序，防止非标准编号被当成 `unparsed` 稳定沉底到最后一行。
 - **百分比权重列识别**：`ScoreTableRowParser.PURE_WEIGHT_COLUMN` 扩展为 `^[~≈]?\d{1,3}(\.\d+)?\s*(?:分|%)?$`，正确识别 `6%` / `10%` 等以 `%` 结尾的纯分值列，解决三列表格漏项问题。
 - **长文本章节截断防误切**：`MarkdownScoreSectionLocator` 将连续非评分行容忍阈值由 10 提升至 20，并引入 `GRADING_PATTERN`（分档打分/A、B、C、D 级等语义行），防止大段文本表格单元格被转换器切碎时被提前截断。
+
+## 单元格锚定与金标基准防回退引擎（spec 058，2026-08-28）
+
+- **2D 网格实体（`TableGrid`）**：将拍平的 1D 文本流重新封装为结构化的行列网格，支持跨多行/跨页表格抽取与纵向合并单元格自动补全（Fill-down）。
+- **LLM 列语义映射（`TableColumnMapping`）**：大模型仅负责分析前几行采样推断列语义属性（`code_col`, `dim_col`, `detail_col`, `weight_col`），不生成任何细则文字，彻底杜绝幻觉与概括篡改。
+- **确定性物理单元格直抽（`CellAnchoredScoreExtractor`）**：直接读取物理单元格原文，100% 逐字保真，天然保持文档物理行出现顺序。
+- **列类型交叉验真守卫（`ColumnTypeCrossVerifier`）**：强制校验权重列有效分值占比（≥40%）与细则列平均字符长度（≥4.0），防止大模型采样错判引发全表列错位。
+- **金标自动化回归套件（`GoldenCasesReplayTest`）**：收录 1347（复合编号+百分比权重）、dual-section（跨维度重号）、weight-gap 等典型真实标书，确保每次改动必须 100% 通过且 F1=1.0，构筑坚实防回退底线。
