@@ -1,4 +1,4 @@
-// Input: OrganizationDepartmentRepository, AnalyticsDepartmentTreeGateway, EntityManager, ProjectAccessScopeService
+// Input: OrganizationDepartmentRepository, EntityManager, ProjectAccessScopeService
 // Output: Filter options, distinct values, and department tree（竞品=快照∪ACTIVE字典并集，specs/056）
 // Pos: Query Service/数据查询层
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -38,7 +38,6 @@ public class FilterOptionsQueryService {
 
     private final OrganizationDepartmentRepository organizationDepartmentRepository;
     private final ProjectAccessScopeService projectAccessScopeService;
-    private final AnalyticsDepartmentTreeGateway departmentTreeGateway;
 
     /**
      * PRD §6.2 M1 筛选区下拉选项 — 部门（扁平列表，向后兼容）。
@@ -144,16 +143,11 @@ public class FilterOptionsQueryService {
                     .getResultList();
         }
 
-        // 部门两级口径：勾选父部门时联动选项须覆盖其全部后代部门人员，
-        // 与图表统计范围（Prepared.matchNames）保持一致；组织树取自与图表/下钻同一网关
-        var deptScope = AnalyticsDepartmentHierarchySupport.prepare(
-                departmentTreeGateway.loadAll(), departmentNames);
-        // 上方已保证 departmentNames 非空，非空选择必得非空 matchNames，无需再回退
-        List<String> effectiveNames = deptScope.matchNamesList();
-        // 优化子查询性能：先通过仓库预查匹配的部门编码集合，避免在 SQL 中进行双重关联子查询
+        List<String> effectiveNames = AnalyticsDepartmentHierarchySupport.expand(
+                loadDepartmentNodes(), departmentNames);
         List<OrganizationDepartmentEntity> matchedDepts =
                 organizationDepartmentRepository.findByDepartmentNameIn(effectiveNames);
-        Set<String> targetCodes = new HashSet<>();
+        java.util.Set<String> targetCodes = new java.util.HashSet<>();
         for (OrganizationDepartmentEntity dept : matchedDepts) {
             if (dept.getDepartmentCode() != null && !dept.getDepartmentCode().isEmpty()) {
                 targetCodes.add(dept.getDepartmentCode());
@@ -176,7 +170,7 @@ public class FilterOptionsQueryService {
                         """, String.class)
                 .setParameter("departmentNames", effectiveNames)
                 .setParameter("hasCodes", !targetCodes.isEmpty())
-                .setParameter("targetCodes", targetCodes.isEmpty() ? Set.of("") : targetCodes)
+                .setParameter("targetCodes", targetCodes.isEmpty() ? java.util.Set.of("") : targetCodes)
                 .getResultList();
     }
 
@@ -234,6 +228,14 @@ public class FilterOptionsQueryService {
             if (t != null && !t.isBlank()) sorted.add(t.trim());
         }
         return new ArrayList<>(sorted);
+    }
+
+    List<AnalyticsDepartmentHierarchySupport.DeptNode> loadDepartmentNodes() {
+        return organizationDepartmentRepository.findAllByOrderByDepartmentCode().stream()
+                .map(d -> AnalyticsDepartmentHierarchySupport.nodeOrNull(
+                        d.getDepartmentCode(), d.getParentDepartmentCode(), d.getDepartmentName()))
+                .filter(java.util.Objects::nonNull)
+                .toList();
     }
 
     /**

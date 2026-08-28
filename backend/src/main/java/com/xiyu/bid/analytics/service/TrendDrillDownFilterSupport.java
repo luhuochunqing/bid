@@ -87,20 +87,4 @@ public final class TrendDrillDownFilterSupport {
         where.append(" AND ").append(column).append(" IN (:").append(paramName).append(")");
         params.put(paramName, values);
     }
-
-    /**
-     * 部门轴两级展示口径（与图表分桶同源）：axisValue 是分桶标签
-     * （勾选有二级的一级时为二级部门名），反解回所有归属该桶的部门名集合做 IN 匹配，
-     * 避免「图上柱子数字 ≠ 下钻明细条数」的口径分裂。反解直接读 {@link
-     * AnalyticsDepartmentHierarchySupport.Prepared#namesInBucket} 倒排（与正向映射同次构造），
-     * 不再由本方遍历全量组织名反推——那样等于把同一口径写两遍，一侧演进另一侧会静默漂移。
-     *
-     * <p>仅当存在部门筛选选择时由 {@link TrendDrillDownService} 调用；无选中时仍走
-     * {@link #appendDimensionFilter} 的旧精确等值。</p>
-     */
-    public static void appendDeptAxisFilter(StringBuilder where, Map<String, Object> params,
-                                            AnalyticsDepartmentHierarchySupport.Prepared dept, String axisValue) {
-        where.append(" AND u.department_name IN (:deptAxisVals)");
-        params.put("deptAxisVals", dept.namesInBucket(axisValue));
-    }
 }

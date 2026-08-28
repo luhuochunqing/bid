@@ -1,5 +1,5 @@
 // Input: TrendDrillDownFilterSupport 静态组装器的 where/params 与模拟请求参数
-// Output: 断言维度过滤条件拼接与参数注册的正确性（specs/055 搬移等价性回归锁 + dept 轴两级口径反解）
+// Output: 断言维度过滤条件拼接与参数注册的正确性（specs/055 搬移等价性回归锁）
 // Pos: Test/纯静态工具单测（无框架依赖）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -11,7 +11,6 @@ import org.junit.jupiter.api.Test;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -101,28 +100,5 @@ class TrendDrillDownFilterSupportTest {
         TrendDrillDownFilterSupport.appendInFilter(where, params, "p.status", "statuses", List.of("WON"));
         assertThat(where.toString()).isEqualTo(" AND p.status IN (:statuses)");
         assertThat(params).containsEntry("statuses", List.of("WON"));
-    }
-
-    @Test
-    @DisplayName("dept 轴两级口径：二级桶反解含三级成员，父级回退桶只命中直挂名")
-    void deptAxisBucketReverseResolution() {
-        var org3 = List.of(
-                new AnalyticsDepartmentHierarchySupport.DeptNode("oss", "D01", null, "销售部"),
-                new AnalyticsDepartmentHierarchySupport.DeptNode("oss", "D0101", "D01", "销售一部"),
-                new AnalyticsDepartmentHierarchySupport.DeptNode("oss", "D010101", "D0101", "华东组"),
-                new AnalyticsDepartmentHierarchySupport.DeptNode("oss", "D02", null, "财务部"));
-        var selected = AnalyticsDepartmentHierarchySupport.prepare(org3, List.of("销售部"));
-
-        // 点击二级柱"销售一部"：图上该柱含被坍缩的三级成员华东组，下钻集合必须同含，否则图数 > 明细
-        StringBuilder where = new StringBuilder();
-        Map<String, Object> params = new HashMap<>();
-        TrendDrillDownFilterSupport.appendDeptAxisFilter(where, params, selected, "销售一部");
-        assertThat(where.toString()).isEqualTo(" AND u.department_name IN (:deptAxisVals)");
-        assertThat(params.get("deptAxisVals")).isEqualTo(Set.of("销售一部", "华东组"));
-
-        // 直挂被选一级用户的罕见脏数据形同父名柱：只应命中名字等于父部门的人员，不得把整棵子树带出来
-        Map<String, Object> parentBarParams = new HashMap<>();
-        TrendDrillDownFilterSupport.appendDeptAxisFilter(new StringBuilder(), parentBarParams, selected, "销售部");
-        assertThat(parentBarParams.get("deptAxisVals")).isEqualTo(Set.of("销售部"));
     }
 }

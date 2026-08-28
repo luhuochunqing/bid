@@ -1,4 +1,4 @@
-// Input: TrendAnalysisQueryService, TrendAnalysisDimensionQueryService, TrendAnalysisComputationService, FilterOptionsQueryService, AnalyticsDepartmentTreeGateway
+// Input: TrendAnalysisQueryService, TrendAnalysisDimensionQueryService, TrendAnalysisComputationService, FilterOptionsQueryService
 // Output: TrendAnalysisResponse DTO, filter options map
 // Pos: Service/装配服务层
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -10,6 +10,7 @@ import com.xiyu.bid.analytics.dto.EnhancedOverviewResponse;
 import com.xiyu.bid.analytics.dto.TrendAnalysisResponse;
 import com.xiyu.bid.analytics.dto.TrendFilterOptionsResponseDTO;
 import com.xiyu.bid.analytics.service.TrendAnalysisComputationService.TrendComputationResult;
+import com.xiyu.bid.analytics.service.DimensionRow;
 import com.xiyu.bid.analytics.service.TrendAnalysisQueryService.OverviewRow;
 import com.xiyu.bid.analytics.service.TrendAnalysisQueryService.TimeDimensionRow;
 import com.xiyu.bid.entity.Project;
@@ -29,7 +30,6 @@ public class TrendAnalysisService {
     private final TrendAnalysisDimensionQueryService dimensionQueryService;
     private final TrendAnalysisComputationService computationService;
     private final FilterOptionsQueryService filterOptionsQueryService;
-    private final AnalyticsDepartmentTreeGateway departmentTreeGateway;
 
     public TrendAnalysisResponse getEnhancedTrends(
             LocalDate startDate,
@@ -59,12 +59,16 @@ public class TrendAnalysisService {
                         .toList()
                 : null;
 
-        // 统一构建查询参数，所有维度共用。
-        // 部门两级展示口径：一次 prepare 同时产出统计范围展开与展示桶/分桶映射（与下钻同源）。
-        var dept = AnalyticsDepartmentHierarchySupport.prepare(
-                departmentTreeGateway.loadAll(), departmentIds);
+        final List<AnalyticsDepartmentHierarchySupport.DeptNode> deptNodes;
+        List<String> matchNames = departmentIds;
+        if (departmentIds != null && !departmentIds.isEmpty()) {
+            deptNodes = filterOptionsQueryService.loadDepartmentNodes();
+            matchNames = AnalyticsDepartmentHierarchySupport.expand(deptNodes, departmentIds);
+        } else {
+            deptNodes = List.of();
+        }
         TrendQueryCriteria criteria = buildCriteria(startDate, endDate,
-                dept.matchNamesList(), userIds, regionIds,
+                matchNames, userIds, regionIds,
                 customerTypes, projectTypes, statusEnums,
                 tenderEntities, competitorNames);
 
@@ -77,11 +81,16 @@ public class TrendAnalysisService {
                 yield computationService.computeTimeTrend(rows, startDate, endDate, td);
             }
             case "dept" -> {
-                // 展示桶重映射下沉查询层：勾有二级的一级时按二级部门展示（一级不保留汇总柱），
-                // 直挂父部门的罕见数据回退自身桶，图上合计与筛选范围数目守恒
-                var rows = dimensionQueryService.fetchDeptRows(criteria, dept.bucketMapper());
-                yield computationService.computeDimensionTrend(rows,
-                        dept.hasSelection() ? List.copyOf(dept.bucketNames()) : departmentIds);
+                var rows = dimensionQueryService.fetchDeptRows(criteria);
+                List<String> expected = departmentIds;
+                if (departmentIds != null && !departmentIds.isEmpty()) {
+                    expected = AnalyticsDepartmentHierarchySupport.bucketNames(deptNodes, departmentIds);
+                    rows = rows.stream()
+                            .map(r -> r.withCategory(AnalyticsDepartmentHierarchySupport.toBucket(
+                                    deptNodes, departmentIds, r.category())))
+                            .toList();
+                }
+                yield computationService.computeDimensionTrend(rows, expected);
             }
             case "person" -> {
                 var rows = dimensionQueryService.fetchPersonRows(criteria);
@@ -192,12 +201,12 @@ public class TrendAnalysisService {
     /** 构建 TrendQueryCriteria，统一查询参数传递 */
     private static TrendQueryCriteria buildCriteria(
             LocalDate startDate, LocalDate endDate,
-            List<String> departmentMatchNames, List<String> userIds, List<String> regionIds,
+            List<String> departmentIds, List<String> userIds, List<String> regionIds,
             List<String> customerTypes, List<String> projectTypes,
             List<Project.Status> statuses,
             List<String> tenderEntities, List<String> competitorNames) {
         return new TrendQueryCriteria(startDate, endDate,
-                departmentMatchNames, userIds, regionIds,
+                departmentIds, userIds, regionIds,
                 customerTypes, projectTypes, statuses,
                 tenderEntities, competitorNames);
     }

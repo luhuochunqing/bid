@@ -1,4 +1,4 @@
-// Input: 真实 EntityManager（H2）+ 最小项目/立项详情/组织部门数据
+// Input: 真实 EntityManager（H2）+ 最小项目/立项详情数据
 // Output: 客户类型 coalesce 口径 JPQL 与下钻原生 SQL 可解析且取值正确的断言
 // Pos: Test/客户类型双源口径 JPQL 回归（覆盖 mock 测试无法验证的查询字符串）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -6,7 +6,6 @@
 package com.xiyu.bid.analytics.service;
 
 import com.xiyu.bid.entity.Project;
-import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationDepartmentRepository;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import jakarta.persistence.EntityManager;
@@ -39,9 +38,6 @@ class AnalyticsCustomerTypeJpqlRegressionTest {
     @Autowired
     private EntityManager entityManager;
 
-    @Autowired
-    private OrganizationDepartmentRepository departmentRepository;
-
     private FilterOptionsQueryService filterOptionsService;
     private CustomerTypeAnalyticsQueryService customerTypeQueryService;
     private TrendAnalysisDimensionQueryService dimensionQueryService;
@@ -52,8 +48,7 @@ class AnalyticsCustomerTypeJpqlRegressionTest {
         ProjectAccessScopeService scope = Mockito.mock(ProjectAccessScopeService.class);
         when(scope.currentUserHasGlobalAccess()).thenReturn(true);
 
-        filterOptionsService = new FilterOptionsQueryService(departmentRepository, scope,
-                new AnalyticsDepartmentTreeGateway(departmentRepository));
+        filterOptionsService = new FilterOptionsQueryService(null, scope);
         ReflectionTestUtils.setField(filterOptionsService, "entityManager", entityManager);
 
         customerTypeQueryService = new CustomerTypeAnalyticsQueryService(scope);
@@ -62,8 +57,7 @@ class AnalyticsCustomerTypeJpqlRegressionTest {
         dimensionQueryService = new TrendAnalysisDimensionQueryService(scope);
         ReflectionTestUtils.setField(dimensionQueryService, "entityManager", entityManager);
 
-        drillDownService = new TrendDrillDownService(scope,
-                new AnalyticsDepartmentTreeGateway(departmentRepository));
+        drillDownService = new TrendDrillDownService(scope, null);
         ReflectionTestUtils.setField(drillDownService, "entityManager", entityManager);
 
         seedData();

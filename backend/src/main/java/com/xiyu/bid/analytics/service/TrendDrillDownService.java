@@ -1,12 +1,13 @@
-// Input: EntityManager, ProjectAccessScopeService, AnalyticsDepartmentTreeGateway, HTTP drilldown requests
+// Input: EntityManager, ProjectAccessScopeService, OrganizationDepartmentRepository, HTTP drilldown requests
 // Output: TrendDrillDownResponse DTO
 // Pos: Service/数据查询与下钻服务层（竞品维度中标数/wins 走「是否中标」列口径，specs/055；
-//       维度过滤条件组装已拆至 TrendDrillDownFilterSupport；部门两级口径与图表同源）
+//       维度过滤条件组装已拆至 TrendDrillDownFilterSupport）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 package com.xiyu.bid.analytics.service;
 
 import com.xiyu.bid.analytics.dto.TrendDrillDownResponse;
+import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationDepartmentRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -33,7 +34,7 @@ public class TrendDrillDownService {
     @PersistenceContext
     private EntityManager entityManager;
     private final ProjectAccessScopeService projectAccessScopeService;
-    private final AnalyticsDepartmentTreeGateway departmentTreeGateway;
+    private final OrganizationDepartmentRepository organizationDepartmentRepository;
 
     public TrendDrillDownResponse drillDown(
             String dimension,
@@ -66,11 +67,11 @@ public class TrendDrillDownService {
         params.put("allAccess", allAccess);
         params.put("scopeIds", allAccess ? List.of(-1L) : scopeIds);
 
-        // 维度值过滤；region/customerType 走归一化过滤，dept 轴+有选中走下方两级口径反解
+        // 维度值过滤；dept 轴+有勾选时改走 expand(柱名)，避免精确等值漏掉折进二级柱的三级
         boolean regionAxis = "region".equals(dimension) && axisValue != null && !axisValue.isBlank();
         boolean customerTypeAxis = "customerType".equals(dimension) && axisValue != null && !axisValue.isBlank();
-        boolean hasDeptSelection = departments != null && !departments.isEmpty(),
-                deptAxis = "dept".equals(dimension) && axisValue != null && !axisValue.isBlank();
+        boolean hasDeptSelection = departments != null && !departments.isEmpty();
+        boolean deptAxis = "dept".equals(dimension) && axisValue != null && !axisValue.isBlank();
         if (!regionAxis && !customerTypeAxis && !(deptAxis && hasDeptSelection)) {
             TrendDrillDownFilterSupport.appendDimensionFilter(where, params, dimension, axisValue);
         }
@@ -135,16 +136,18 @@ public class TrendDrillDownService {
             params.put("regionProjectIds", regionMatchedIds);
         }
 
-        // 部门过滤：两级展示口径——勾父展开后代（与图表统计范围一致）；dept 轴柱子按同一
-        // Prepared 的倒排反解为名称集合，图数与明细同口径。无勾选时走上方 appendDimensionFilter
-        // 的精确等值旧路径（口径未启用，不必加载组织树，避免默认路径白读一次全表）
         if (hasDeptSelection) {
-            var dept = AnalyticsDepartmentHierarchySupport.prepare(
-                    departmentTreeGateway.loadAll(), departments);
+            var nodes = organizationDepartmentRepository.findAllByOrderByDepartmentCode().stream()
+                    .map(d -> AnalyticsDepartmentHierarchySupport.nodeOrNull(
+                            d.getDepartmentCode(), d.getParentDepartmentCode(), d.getDepartmentName()))
+                    .filter(java.util.Objects::nonNull)
+                    .toList();
             where.append(" AND u.department_name IN (:departments)");
-            params.put("departments", dept.matchNamesList());
+            params.put("departments", AnalyticsDepartmentHierarchySupport.expand(nodes, departments));
             if (deptAxis) {
-                TrendDrillDownFilterSupport.appendDeptAxisFilter(where, params, dept, axisValue);
+                where.append(" AND u.department_name IN (:deptAxisVals)");
+                params.put("deptAxisVals",
+                        AnalyticsDepartmentHierarchySupport.expand(nodes, List.of(axisValue)));
             }
         }
 

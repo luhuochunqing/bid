@@ -17,7 +17,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
  * M1 多维度趋势查询服务 — 按 xAxis 维度分组查询项目数据（非时间维度）。
@@ -44,19 +43,11 @@ public class TrendAnalysisDimensionQueryService {
     private final ProjectAccessScopeService projectAccessScopeService;
 
     //=== 部门 ===//
-    /**
-     * 部门维度查询 + 展示桶重映射（{@code categoryMapper} 传 null 表示恒等）。
-     * "一个用户部门名归哪一根柱" 属于 category 的业务定义，与部门维度取数同生命，
-     * 故重映射下沉在本层，编排层不再改写 {@code DimensionRow}。
-     */
-    List<DimensionRow> fetchDeptRows(TrendQueryCriteria criteria, Function<String, String> categoryMapper) {
-        List<DimensionRow> rows = queryDimension("u.departmentName",
+    List<DimensionRow> fetchDeptRows(TrendQueryCriteria criteria) {
+        return queryDimension("u.departmentName",
                 "join User u on u.id = p.managerId left join Tender t on t.id = p.tenderId left join ProjectInitiationDetails pid on pid.projectId = p.id left join ProjectResult pr on pr.projectId = p.id left join ProjectResultCompetitor prc on prc.resultId = pr.id",
                 "u.departmentName is not null and u.departmentName <> ''",
                 criteria, null, null);
-        if (categoryMapper == null) return rows;
-        return rows.stream().map(r -> new DimensionRow(categoryMapper.apply(r.category()),
-                r.projectId(), r.status(), r.competitorWonStatus())).toList();
     }
 
     //=== 人员 ===//
@@ -80,7 +71,7 @@ public class TrendAnalysisDimensionQueryService {
         List<Project.Status> statuses = criteria.statuses();
         List<String> tenderEntities = criteria.tenderEntities();
         List<String> competitorNames = criteria.competitorNames();
-        List<String> deptIds = criteria.departmentMatchNames();
+        List<String> deptIds = criteria.departmentIds();
 
         StringBuilder jpql = new StringBuilder("""
                 select new com.xiyu.bid.analytics.service.RegionDimensionRawRow(
@@ -222,7 +213,7 @@ public class TrendAnalysisDimensionQueryService {
             String selectExpr, String joinClause, String whereClause,
             TrendQueryCriteria criteria, List<String> departmentOverride, String extraSelect) {
 
-        List<String> deptIds = departmentOverride != null ? departmentOverride : criteria.departmentMatchNames();
+        List<String> deptIds = departmentOverride != null ? departmentOverride : criteria.departmentIds();
         // 项目级数据权限：非全局角色仅可见授权范围内项目（防御式兜底）
         Set<Long> scopeIds = AnalyticsProjectScopeSupport.scopedProjectIds(projectAccessScopeService);
         boolean allAccess = scopeIds == null;

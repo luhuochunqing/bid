@@ -35,7 +35,7 @@ class TrendAnalysisComputationService {
      * 按维度标签分组，计算投标数、中标数、中标率。
      * 投标数 = 全部项目（含进行中状态，与 M0 KPI「投标总数」、状态维度口径对齐；旧 WON+LOST 口径曾致区域维度全 0）。
      * 中标数 = 已中标(WON) 的项目数。按 bidCount 降序排列（PRD 6.5）。
-     * @param expectedCategories 可选，期望在 X 轴出现的分类（数量为 0 也展示，null = 不补零）；需为调用方的<b>展示口径</b>分类（dept 轴 = 两级口径展示桶标签）
+     * @param expectedCategories 可选，期望在 X 轴出现的分类（数量为 0 也展示），仅 xAxis 为 customerType/projectType 时传入
      */
     TrendComputationResult computeDimensionTrend(List<DimensionRow> rows, List<String> expectedCategories) {
         Map<String, MutableTrendBucket> bucketMap = new LinkedHashMap<>();

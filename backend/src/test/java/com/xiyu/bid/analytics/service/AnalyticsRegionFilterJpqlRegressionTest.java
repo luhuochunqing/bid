@@ -1,4 +1,4 @@
-// Input: 真实 EntityManager（H2）+ 多种总部所在地存储格式的项目数据 + 真库组织部门树
+// Input: 真实 EntityManager（H2）+ 多种总部所在地存储格式的项目数据
 // Output: 区域筛选与图表分组/下钻同口径（筛选后数字 = 柱子之和）的断言
 // Pos: Test/区域省份归一化口径 JPQL 回归（覆盖历史短省名/拼接格式混存场景）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -7,9 +7,6 @@ package com.xiyu.bid.analytics.service;
 
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
-import com.xiyu.bid.entity.User;
-import com.xiyu.bid.integration.organization.infrastructure.persistence.entity.OrganizationDepartmentEntity;
-import com.xiyu.bid.integration.organization.infrastructure.persistence.repository.OrganizationDepartmentRepository;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import jakarta.persistence.EntityManager;
@@ -43,13 +40,9 @@ class AnalyticsRegionFilterJpqlRegressionTest {
     @Autowired
     private EntityManager entityManager;
 
-    @Autowired
-    private OrganizationDepartmentRepository departmentRepository;
-
     private TrendAnalysisDimensionQueryService dimensionQueryService;
     private TrendAnalysisQueryService timeQueryService;
     private TrendDrillDownService drillDownService;
-    private AnalyticsDepartmentTreeGateway departmentTreeGateway;
 
     /** 项目 F 的 ID：pid.customerType 空串 + p.customerType='政府'（空串语义裂缝回归种子） */
     private Long projectFId;
@@ -72,10 +65,7 @@ class AnalyticsRegionFilterJpqlRegressionTest {
         timeQueryService = new TrendAnalysisQueryService(scope);
         ReflectionTestUtils.setField(timeQueryService, "entityManager", entityManager);
 
-        // 真库部门树：不 mock，下钻与图表共用同一份 organization_departments 数据
-        departmentTreeGateway = new AnalyticsDepartmentTreeGateway(departmentRepository);
-
-        drillDownService = new TrendDrillDownService(scope, departmentTreeGateway);
+        drillDownService = new TrendDrillDownService(scope, null);
         ReflectionTestUtils.setField(drillDownService, "entityManager", entityManager);
 
         seedData();
@@ -259,7 +249,7 @@ class AnalyticsRegionFilterJpqlRegressionTest {
 
         var restrictedDimension = new TrendAnalysisDimensionQueryService(restricted);
         ReflectionTestUtils.setField(restrictedDimension, "entityManager", entityManager);
-        var restrictedDrillDown = new TrendDrillDownService(restricted, departmentTreeGateway);
+        var restrictedDrillDown = new TrendDrillDownService(restricted, null);
         ReflectionTestUtils.setField(restrictedDrillDown, "entityManager", entityManager);
 
         // 维度分组共享入口：江苏省命中 A/B/C，但授权范围仅 A 可见
@@ -378,68 +368,5 @@ class AnalyticsRegionFilterJpqlRegressionTest {
                 null, null, null, null, List.of("浙江省"), null, null,
                 null, null, null, 1, 10);
         assertThat(miss.getSummary().getTotalCount()).isZero();
-    }
-
-    @Test
-    @DisplayName("dept 轴两级口径真库锚定：图上柱值 = 点该柱下钻 totalCount（含三级坍缩成员）")
-    void deptAxisBarValueMatchesDrillDownTotalOnRealData() {
-        persistDepartment("oss", "D01", null, "销售部");
-        persistDepartment("oss", "D0101", "D01", "销售一部");
-        persistDepartment("oss", "D010101", "D0101", "华东组");
-        persistDepartment("oss", "D02", null, "财务部");
-        persistProjectOwnedBy("张三", "华东组", "项目-三级成员");
-        persistProjectOwnedBy("李四", "销售一部", "项目-二级直挂");
-        persistProjectOwnedBy("王五", "销售部", "项目-一级直挂");
-        persistProjectOwnedBy("赵六", "财务部", "项目-未勾选部门");
-        entityManager.flush();
-
-        var dept = AnalyticsDepartmentHierarchySupport.prepare(
-                departmentTreeGateway.loadAll(), List.of("销售部"));
-        var criteria = new TrendQueryCriteria(null, null, dept.matchNamesList(), null,
-                null, null, null, null, null, null);
-        var chart = new TrendAnalysisComputationService().computeDimensionTrend(
-                dimensionQueryService.fetchDeptRows(criteria, dept.bucketMapper()),
-                List.copyOf(dept.bucketNames()));
-        var drill = drillDownService.drillDown(
-                "dept", "销售一部", "投标数",
-                null, null, List.of("销售部"), null, null, null, null,
-                null, null, null, 1, 10);
-
-        // 挂三级（华东组）的人员被坍缩到二级柱：图上该柱必须含张三+李四，
-        // 且下钻明细同数——旧口径用精确等值反解会退化为只命中李四（图数 > 明细）
-        assertThat(chart.bidSeries().get(chart.categories().indexOf("销售一部"))).isEqualTo(2L);
-        assertThat(drill.getSummary().getTotalCount()).isEqualTo(2L);
-        // 未勾选分支的财务部项目不得出现在任何柱子（展开后的匹配集不含它）
-        assertThat(chart.categories()).doesNotContain("财务部");
-        assertThat(chart.categories()).containsExactlyInAnyOrder("销售一部", "销售部");
-    }
-
-    private void persistDepartment(String sourceApp, String code, String parentCode, String name) {
-        OrganizationDepartmentEntity d = new OrganizationDepartmentEntity();
-        d.setSourceApp(sourceApp);
-        d.setDepartmentCode(code);
-        d.setParentDepartmentCode(parentCode);
-        d.setDepartmentName(name);
-        d.setEnabled(true);
-        entityManager.persist(d);
-    }
-
-    /** 人员→部门名→项目一行链：验证部门口径真正作用于 users.department_name 取数。 */
-    private void persistProjectOwnedBy(String fullName, String departmentName, String projectName) {
-        User owner = entityManager.merge(User.builder()
-                .username(fullName + "-dept-anchor")
-                .password("XiyuDemo!2026")
-                .email(fullName + "-dept-anchor@example.com")
-                .fullName(fullName)
-                .role(User.Role.MANAGER)
-                .enabled(true)
-                .departmentName(departmentName)
-                .build());
-        Project p = new Project();
-        p.setName(projectName);
-        p.setStatus(Project.Status.BIDDING);
-        p.setTenderId(1L);
-        p.setManagerId(owner.getId());
-        entityManager.persist(p);
     }
 }
