@@ -184,4 +184,31 @@ class ScoreTableRowParserTest {
         // 分值构成等总览说明行必须被过滤排除，不能作为评分项入池
         assertThat(ScoreTableRowParser.parse("| 3.1 | 分值构成（总分100分） | 商务评分标准56分，技术评分标准34分，价格10分 |")).isEmpty();
     }
+
+    @Test
+    void parse_multiLevelRow_extractsLeafCodeAndWeight() {
+        // 河南能源案例（4列多层级表格）：| 1 | 公司财务状况：10分 | 1.1 | 净资产＜2000万元，不得分；2000万元≤净资产＜5000万元，得1分；5000万元≤净资产＜1亿元，得1.5分 |
+        Optional<ScoreCandidate> result = ScoreTableRowParser.parse(
+                "| 1 | 公司财务状况：10分 | 1.1 | 净资产＜2000万元，不得分；2000万元≤净资产＜5000万元，得1分；5000万元≤净资产＜1亿元，得1.5分 |");
+        assertThat(result).isPresent();
+        ScoreCandidate candidate = result.get();
+        // 核心验证：code 取叶子编号 1.1 而不是父编号 1
+        assertThat(candidate.code()).isEqualTo("1.1");
+        // weight 取右侧叶子细则的满分 1.5，而不是左侧父大项的 10
+        assertThat(candidate.weight()).isEqualByComparingTo(new BigDecimal("1.5"));
+        // dim 继承左侧大类路径 "公司财务状况"
+        assertThat(candidate.dim()).isEqualTo("公司财务状况");
+        // detail 取右侧细则
+        assertThat(candidate.detail()).contains("净资产＜2000万元");
+    }
+
+    @Test
+    void parse_categoryHeaderRow_skipped() {
+        // 纯大类总览行（如 "| 1 | 详细评审 | 公司财务状况：10分 |"）无具体细则，必须过滤排除，防止父大项入池导致总分翻倍
+        assertThat(ScoreTableRowParser.parse("| 1 | 详细评审 | 公司财务状况：10分 |")).isEmpty();
+        assertThat(ScoreTableRowParser.parse("| 2 | 详细评审 | 体系认证：12分 |")).isEmpty();
+        assertThat(ScoreTableRowParser.parse("| 4 | 详细评审 | 仓储、物流配送及服务：35分 |")).isEmpty();
+        assertThat(ScoreTableRowParser.parse("| 5 | 详细评审 | 供应商管理：5分 |")).isEmpty();
+        assertThat(ScoreTableRowParser.parse("| 6 | 详细评审 | 业绩：15分 |")).isEmpty();
+    }
 }

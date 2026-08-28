@@ -184,4 +184,57 @@ class ScoreMergeResultGuardTest {
         assertThat(outcome.accepted()).hasSize(1);
         assertThat(outcome.restoredCount()).isZero();
     }
+
+    @Test
+    void guard_parentCategorySummaryCandidates_notRestoredWhenChildrenExist() {
+        // 场景：LLM 采纳了子项 1.1, 1.2, 1.3, 1.4，并丢弃了父大项"公司财务状况：10分"
+        // 守卫必须识别到父子关系，禁止将父大项作为漏项回补，杜绝 10分 + 6分 = 16分导致的翻倍与腰斩！
+        ScoreCandidate parentItem = new ScoreCandidate("1", "详细评审",
+                "公司财务状况：10分", new BigDecimal("10"), null, null,
+                "| 1 | 详细评审 | 公司财务状况：10分 |", "P15", "TABLE_ROW");
+        ScoreCandidate child1 = new ScoreCandidate("1.1", "公司财务状况",
+                "净资产＜2000万元，不得分；2000万元≤净资产＜5000万元，得1分；5000万元≤净资产＜1亿元，得1.5分",
+                new BigDecimal("1.5"), null, null, "原文", "P15", "TABLE_ROW");
+        ScoreCandidate child2 = new ScoreCandidate("1.2", "公司财务状况",
+                "对营业收入＜2.5亿元的不得分，2.5亿元≤营业收入＜5亿元，得1分",
+                new BigDecimal("1"), null, null, "原文", "P15", "TABLE_ROW");
+
+        String sectionWithDetails = SECTION_TEXT
+                + " 公司财务状况：10分 "
+                + " 净资产＜2000万元，不得分；2000万元≤净资产＜5000万元，得1分；5000万元≤净资产＜1亿元，得1.5分 "
+                + " 对营业收入＜2.5亿元的不得分，2.5亿元≤营业收入＜5亿元，得1分 ";
+
+        ScoreMergeResultGuard.Outcome outcome = ScoreMergeResultGuard.guard(
+                List.of(parentItem, child1, child2),
+                List.of(child1, child2),
+                sectionWithDetails);
+
+        assertThat(outcome.accepted()).hasSize(2);
+        assertThat(outcome.accepted()).extracting(ScoreCandidate::code).containsExactly("1.1", "1.2");
+        assertThat(outcome.restoredCount()).isZero();
+    }
+
+    @Test
+    void guard_pureCategoryHeaderWithoutSubRules_notRestored() {
+        // 大项汇总标题如"体系认证：12分"、"业绩：15分"等无打分档位细则的纯分类行，当 accepted 已存在该维度项时坚决不回补
+        ScoreCandidate categoryHeader = new ScoreCandidate("2", "详细评审",
+                "体系认证：12分", new BigDecimal("12"), null, null,
+                "| 2 | 详细评审 | 体系认证：12分 |", "P16", "TABLE_ROW");
+        ScoreCandidate validSubItem = new ScoreCandidate("2", "体系认证",
+                "具有有效期内的ISO9001质量管理体系认证得4分，ISO14001得4分，ISO45001得4分",
+                new BigDecimal("12"), null, null, "原文", "P16", null);
+
+        String sectionWithDetails = SECTION_TEXT
+                + " 体系认证：12分 "
+                + " 具有有效期内的ISO9001质量管理体系认证得4分，ISO14001得4分，ISO45001得4分 ";
+
+        ScoreMergeResultGuard.Outcome outcome = ScoreMergeResultGuard.guard(
+                List.of(categoryHeader, validSubItem),
+                List.of(validSubItem),
+                sectionWithDetails);
+
+        assertThat(outcome.accepted()).hasSize(1);
+        assertThat(outcome.accepted().get(0).detail()).contains("ISO9001");
+        assertThat(outcome.restoredCount()).isZero();
+    }
 }

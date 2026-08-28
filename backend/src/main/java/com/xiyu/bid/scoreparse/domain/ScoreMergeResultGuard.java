@@ -75,6 +75,10 @@ public final class ScoreMergeResultGuard {
                 if (!isHighConfidence(candidate) || coveredBy(normDetail, acceptedNormDetails)) {
                     continue;
                 }
+                // 树形守卫规则（Tree-Aware Invariant）：若该候选为父大项或分类汇总行，且其子项/同维度细项已被采纳，禁止回补
+                if (isParentOrSummaryCategory(candidate, accepted)) {
+                    continue;
+                }
                 accepted.add(candidate);
                 acceptedNormDetails.add(normDetail);
                 restored++;
@@ -114,7 +118,7 @@ public final class ScoreMergeResultGuard {
     }
 
     private static final Pattern NON_SCORE_PROCEDURAL_KEYWORD = Pattern.compile(
-            "预备会|开启程序|开标程序|递交响应文件|响应文件的递交|响应文件的编制|成交结果公示|履约保证金|投标保证金|失信行为|“码”上监督|监督中心|异议|质疑|答疑|澄清|踏勘|电子响应文件"
+            "预备会|开启程序|开标程序|递交响应文件|响应文件的递交|响应文件的编制|成交结果公示|履约保证金|投标保证金|失信行为|“码”上监督|监督中心|异议|质疑|答疑|澄清|踏勘|电子响应文件|最低价法"
     );
 
     private static final Pattern SCORE_EVIDENCE_PATTERN = Pattern.compile(
@@ -122,7 +126,12 @@ public final class ScoreMergeResultGuard {
     );
 
     private static final Pattern SUMMARY_ROW_PATTERN = Pattern.compile(
-            "分值构成|总分构成|分值分布|总分100分"
+            "分值构成|总分构成|分值分布|总分100分|评标办法前附表|评审方法前附表"
+    );
+
+    /** 纯大项/分类标题行模式：如 "公司财务状况：10分", "体系认证：12分", "仓储、物流配送及服务：35分", "1. 技术方案 (30分)" */
+    private static final Pattern PURE_CATEGORY_SUMMARY_PATTERN = Pattern.compile(
+            "^[^。\n;；]{1,35}?[：:（(]\\s*\\d+(?:\\.\\d+)?\\s*(?:分|%|分值)\\s*[）)]?$"
     );
 
     private static final BigDecimal MAX_SINGLE_WEIGHT = ScoreParseConstants.MAX_SINGLE_WEIGHT;
@@ -156,6 +165,56 @@ public final class ScoreMergeResultGuard {
         return SCORE_EVIDENCE_PATTERN.matcher(dim).find()
                 || SCORE_EVIDENCE_PATTERN.matcher(detail).find()
                 || SCORE_EVIDENCE_PATTERN.matcher(sourceText).find();
+    }
+
+    /**
+     * 判定候选是否为父大项/分类汇总项（Tree-Aware Invariant）。
+     * <p>若满足以下任一条件，说明该候选是结构树上的父容器或大类总览，而非最小打分项：
+     * <ul>
+     *   <li>编码包含关系：accepted 中已存在子编号项（如 accepted 含 "1.1"，candidate 编号为 "1"）</li>
+     *   <li>维度与分类归属关系：accepted 中已存在同维度/分类细项，且 candidate 是无具体给分细则的纯汇总行</li>
+     *   <li>名称纯标题模式：candidate.detail 仅为大类名称+分值（如"公司财务状况：10分"），且 accepted 已有该领域的评分项</li>
+     * </ul>
+     */
+    private static boolean isParentOrSummaryCategory(
+            ScoreCandidate candidate, List<ScoreCandidate> accepted) {
+        if (accepted == null || accepted.isEmpty() || candidate == null) {
+            return false;
+        }
+        String candCode = candidate.code() == null ? "" : candidate.code().trim();
+        String candDetail = candidate.detail() == null ? "" : candidate.detail().trim();
+        String candDim = candidate.dim() == null ? "" : candidate.dim().trim();
+
+        // 1. 编号父子关系判定：如 candidate 是 "1"，accepted 中存在 "1.1", "1.2" 等
+        if (!candCode.isEmpty()) {
+            String prefixDot = candCode + ".";
+            String prefixBracket = candCode + "(";
+            for (ScoreCandidate acc : accepted) {
+                String accCode = acc.code() == null ? "" : acc.code().trim();
+                if (accCode.startsWith(prefixDot) || accCode.startsWith(prefixBracket)) {
+                    return true;
+                }
+            }
+        }
+
+        // 2. 纯分类标题行判定：detail 仅是 "分类名：X分" 且无具体评分条件语句
+        boolean isPureCategoryTitle = PURE_CATEGORY_SUMMARY_PATTERN.matcher(candDetail).find()
+                || candDim.equals("详细评审") || candDim.equals("商务部分") || candDim.equals("技术部分");
+        if (isPureCategoryTitle) {
+            // 提取核心分类关键词（去掉冒号、括号和分值）
+            String categoryKeyword = candDetail.replaceAll("[：:（(].+$", "").replaceAll("[\\d\\.\\s]+", "").trim();
+            if (categoryKeyword.length() >= 2) {
+                for (ScoreCandidate acc : accepted) {
+                    String accDim = acc.dim() == null ? "" : acc.dim();
+                    String accDetail = acc.detail() == null ? "" : acc.detail();
+                    if (accDim.contains(categoryKeyword) || accDetail.contains(categoryKeyword)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     /** 归一化互相包含即视为同一项（归并输出取更完整版本时覆盖池内残缺版本）；空串被任何串包含 → 命中 */
