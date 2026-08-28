@@ -2,6 +2,26 @@
   <el-dialog v-model="internalVisible" :title="caseData?.scoringPointTitle || caseData?.scoringTitle || '案例详情'" width="640px" align-center destroy-on-close>
     <div class="dialog-container" v-loading="loading">
       <template v-if="caseData">
+      <!-- 0. 匹配度分析提示条（仅在推荐抽屉等带有匹配信息时展示） -->
+      <div v-if="hasMatchInfo" class="match-detail-banner">
+        <div class="match-detail-header">
+          <div class="match-score-text">
+            <span>AI 推荐匹配度</span>
+            <strong class="score-num">{{ displayMatchScore }}%</strong>
+            <el-tag size="small" :type="matchLabelTagType" effect="dark" class="ml-2">{{ displayMatchLabel }}</el-tag>
+          </div>
+          <div v-if="matchReasonsList.length > 0" class="match-reasons-chips">
+            <el-tag v-for="(reason, idx) in matchReasonsList" :key="idx" size="small" type="success" effect="plain" class="reason-tag">
+              ✓ {{ reason }}
+            </el-tag>
+          </div>
+        </div>
+        <div v-if="matchedKeywordsList.length > 0" class="match-keywords-line">
+          <span class="kw-title">命中关键词：</span>
+          <span v-for="(kw, idx) in matchedKeywordsList" :key="idx" class="kw-badge">{{ kw }}</span>
+        </div>
+      </div>
+
       <!-- 1. 评分项详细要素原文（浅色背景展示区） -->
       <div class="section-title">评分项详细要素原文</div>
       <div class="content-box requirement-box">{{ caseData.requirementRaw || '暂无要求' }}</div>
@@ -43,7 +63,7 @@
 import { computed } from 'vue'
 import { Link, Document, CopyDocument } from '@element-plus/icons-vue'
 import DateTimeDisplay from '@/components/common/DateTimeDisplay.vue'
-import { getProjectTypeLabel, getCustomerTypeLabel } from '../caseLabels.js'
+import { getProjectTypeLabel, getCustomerTypeLabel, getMatchLabel, getMatchTagType, parseStringOrArray } from '../caseLabels.js'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -57,6 +77,19 @@ const internalVisible = computed({
   set: (val) => emit('update:modelValue', val)
 })
 
+const displayMatchScore = computed(() => props.caseData?.matchScore ?? props.caseData?.score ?? null)
+const hasMatchInfo = computed(() => displayMatchScore.value !== null && displayMatchScore.value !== undefined)
+
+const displayMatchLabel = computed(() => {
+  if (!hasMatchInfo.value && !props.caseData?.matchLabel) return ''
+  return getMatchLabel(displayMatchScore.value, props.caseData?.matchLabel)
+})
+
+const matchLabelTagType = computed(() => getMatchTagType(displayMatchScore.value, props.caseData?.matchLabel))
+
+const matchReasonsList = computed(() => parseStringOrArray(props.caseData?.matchReasons))
+const matchedKeywordsList = computed(() => parseStringOrArray(props.caseData?.matchedKeywords))
+
 const bidResultLabel = computed(() => {
   const r = props.caseData?.bidResult
   return r === 'WON' ? '已中标' : r === 'LOST' ? '未中标' : '未知'
@@ -69,6 +102,57 @@ const bidResultType = computed(() => {
 
 <style scoped>
 .dialog-container { padding: 0 4px 8px 4px; min-height: 120px; }
+.match-detail-banner {
+  background: var(--el-color-primary-light-9);
+  border: 1px solid var(--el-color-primary-light-7);
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+.match-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.match-score-text {
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  color: var(--el-text-color-primary);
+}
+.score-num {
+  font-size: 16px;
+  color: var(--el-color-primary);
+  margin-left: 6px;
+  font-weight: 700;
+}
+.match-reasons-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.reason-tag { font-size: 11px; }
+.match-keywords-line {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--el-color-primary-light-7);
+  font-size: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.kw-title { color: var(--el-text-color-secondary); font-size: 11px; }
+.kw-badge {
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  padding: 0 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  color: var(--el-color-primary);
+}
 .section-title { font-size: 15px; font-weight: 600; color: var(--el-text-color-primary); margin-bottom: 12px; border-left: 4px solid var(--el-color-primary); padding-left: 8px; }
 .case-desc { margin-bottom: 16px; }
 .content-box { background-color: var(--el-fill-color-light); border-radius: 6px; padding: 12px; font-size: 13px; line-height: 1.6; color: var(--el-text-color-regular); white-space: pre-wrap; border: 1px solid var(--el-border-color-lighter); }
@@ -80,4 +164,5 @@ const bidResultType = computed(() => {
 .dialog-actions { display: flex; justify-content: flex-end; }
 .mt-4 { margin-top: 16px; }
 .mt-6 { margin-top: 24px; }
+.ml-2 { margin-left: 8px; }
 </style>

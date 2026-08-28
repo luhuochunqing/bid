@@ -72,6 +72,28 @@ PRD 1.1/4.2：复用定位弹窗章节树**默认选中当前评分项对应章�
 限制：真实标书章节树 API 属 spec 046 Phase 3，当前弹窗用内置演示树；
 后端 `score_item` 无 targetChapter 字段，映射落地前靠 dim 回退。
 
+## PRD 4.2 案例匹配度计算规则与前端浮层可视化（Popover / Tooltip）
+
+### 1. 6 维度评分机制（满分 100 分）
+后端策略（`KnowledgeCaseMatchPolicy.java`）按 6 维度加权求和，封顶 100 分：
+1. **评分项标题/条款相似度（最高 40 分）**：基于 Jaccard 系数计算分词交并比（中文 Bigram + 英文数字保留 $\ge 2$ 词）。
+2. **评分项类别一致（+20 分）**：技术/商务/服务/资格等完全一致加 20 分。
+3. **项目类型一致（+15 分）**：办公/综合/集采/工业品等一致加 15 分。
+4. **客户类型一致（+15 分）**：央企/地方国企/政府/民企等一致加 15 分。
+5. **关键词命中（最高 15 分）**：评分项条款关键词在案例应答文本中的命中加权。
+6. **历史中标加成（+5 分）**：中标案例额外加 5 分。
+
+### 2. 等级划分与标签
+- $\ge 80\%$：**优质**（Tag: `danger`）
+- $\ge 60\%$：**良好**（Tag: `warning`）
+- $< 60\%$：**一般**（Tag: `info`）
+
+### 3. 前端组件与数据透传链路
+- **全局规则说明 Tooltip**：`AiRecommendDrawer.vue` 标题栏 `(?) 评分依据说明`，悬浮展开 6 维度规则明细。
+- **单卡片命中分析 Popover**：`CaseCard.vue` 左上角匹配度徽标（`el-popover`），悬浮展开综合评级、命中维度列表（`✓ 评分项条款高度契合` 等）与高亮关键词药丸（`kw-pill`）。
+- **详情弹窗匹配度 Banner**：`CaseDetailDialog.vue` 弹窗顶部浅蓝色背景条，展示匹配得分与依据明细。
+- **纯函数解析层**：`caseLabels.js` 导出 `getMatchLabel`、`getMatchTagType`、`parseStringOrArray`，统一管理阈值与数组/逗号/顿号容错解析。
+
 ## 消费方地图（改这个 API 前必读）
 
 - `AiRecommendDrawer.vue`（项目详情抽屉）— 4 个方法全用
@@ -84,4 +106,5 @@ PRD 1.1/4.2：复用定位弹窗章节树**默认选中当前评分项对应章�
 
 - [[score-parse-service]] — spec-041 解析链路（score_item 数据的生产方）
 - [[frontend-pitfalls]] — 前端陷阱集
-- 提交：`agent/qoder/ai-case-recommend-fix`（切源 + 二次解包修复 + E2E 时序加固）
+- 提交：`agent/gemini/ai-recommend-tooltip-popover`（匹配度浮层与规则说明可视化）
+
