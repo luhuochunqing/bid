@@ -5,7 +5,7 @@ category: module
 tags: [解析, Markdown, 证据链, 结构化提取, 基础设施]
 created: 2026-04-26
 updated: 2026-08-12
-health_checked: 2026-08-20
+health_checked: 2026-08-28
 sources:
   - backend/src/main/java/com/xiyu/bid/docinsight/README.md
   - backend/src/main/java/com/xiyu/bid/docinsight/application/DocumentIntelligenceService.java

@@ -12,7 +12,7 @@ backlinks:
   - case-precipitation-oversize-oom
 created: 2026-08-20
 updated: 2026-08-20
-health_checked: 2026-08-20
+health_checked: 2026-08-28
 ---
 
 # 案例沉淀超大标书完整链路（spec 049）

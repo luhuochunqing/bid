@@ -5,7 +5,7 @@ category: testing
 tags: [testing, 索引, 蓝图对照]
 created: 2026-06-13
 updated: 2026-08-12
-health_checked: 2026-08-20
+health_checked: 2026-08-28
 sources:
   - .wiki/pages/testing/_index.md
 backlinks:
