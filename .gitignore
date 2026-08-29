@@ -117,3 +117,8 @@ __pycache__/
 
 # 运行时附件存储目录
 backend/data/
+
+# 业务数据采集表与临时表格文件
+*.xlsx
+*.xls
+

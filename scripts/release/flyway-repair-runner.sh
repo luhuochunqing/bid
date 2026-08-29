@@ -145,6 +145,7 @@ public class FlywayRepairRunner {
             .locations("filesystem:" + loc)
             .baselineOnMigrate(false)
             .validateOnMigrate(true)
+            .ignoreMigrationPatterns("*:pending")
             .load();
 
         switch (action) {
