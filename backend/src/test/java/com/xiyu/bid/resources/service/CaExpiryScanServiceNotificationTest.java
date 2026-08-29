@@ -89,6 +89,8 @@ class CaExpiryScanServiceNotificationTest {
         assertThat(message).contains("关联平台：招标网,公共资源");
         assertThat(message).contains("CA类型：实体CA");
         assertThat(message).contains("张三");
+        assertThat(reqCaptor.getValue().getDedupPolicy())
+                .isEqualTo(com.xiyu.bid.alerts.domain.DedupPolicy.REUSE_UNTIL_RESOLVED);
     }
 
     /**
@@ -159,6 +161,8 @@ class CaExpiryScanServiceNotificationTest {
         assertThat(message).contains("CA类型：实体CA");
         assertThat(message).contains("张三公司");
         assertThat(message).contains("李四");
+        assertThat(reqCaptor.getValue().getDedupPolicy())
+                .isEqualTo(com.xiyu.bid.alerts.domain.DedupPolicy.REUSE_UNTIL_RESOLVED);
     }
 
     /**

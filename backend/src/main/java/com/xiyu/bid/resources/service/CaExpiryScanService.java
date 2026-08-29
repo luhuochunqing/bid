@@ -1,3 +1,7 @@
+// Input: CA 证书及借用记录
+// Output: CA 证书到期及借用逾期告警记录与通知
+// Pos: resources/service - CA 到期与逾期扫描服务
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.resources.service;
 
 import com.xiyu.bid.alerts.domain.AlertMessagePolicy;
@@ -192,8 +196,8 @@ public class CaExpiryScanService {
         req.setLevel(AlertHistory.AlertLevel.valueOf(level));
         req.setRelatedId(relatedId);
         req.setMessage(message);
-        // CO-546: CA 到期预警使用 DAILY_DEDUP 策略，当日去重，次日新建以触发每日通知
-        req.setDedupPolicy(com.xiyu.bid.alerts.domain.DedupPolicy.DAILY_DEDUP);
+        // CA 到期预警使用 REUSE_UNTIL_RESOLVED 策略，未处理告警持续复用，只提醒一次
+        req.setDedupPolicy(com.xiyu.bid.alerts.domain.DedupPolicy.REUSE_UNTIL_RESOLVED);
         return req;
     }
 
