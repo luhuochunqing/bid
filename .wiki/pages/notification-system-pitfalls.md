@@ -306,7 +306,22 @@ Sentry XIYU-F 持续产生 `WeCom notification skipped: user has no employee_num
 
 ---
 
-## 8. 相关文档
+## 8. 定时告警去重策略选择：避免每日重复通知轰炸（REUSE_UNTIL_RESOLVED vs DAILY_DEDUP）
+
+### 8.1 背景与痛点
+
+在定时扫描类告警（如 CA 证书即将到期/逾期扫描）中：
+- 若使用 `DedupPolicy.DAILY_DEDUP`（当日去重）：虽然当天内多次触发可防重，但**次日 09:00 扫描时会新建告警记录并再次触发全量通知推送**。在 30 天的到期预警窗口内，未处理的证书每天都会发送一次企微与站内信，导致严重的通知疲劳与信息骚扰。
+- 若使用 `DedupPolicy.REUSE_UNTIL_RESOLVED`（未处理一直复用）：首次扫描命中到期条件时创建告警并触发 **1 次通知**；后续每日扫描时识别到已有未处理告警记录，自动复用而不新建、**不触发重复通知**。直到人工续期或 resolve 处理后生命周期闭环。
+
+### 8.2 规范
+
+- 除非业务明确要求“每日催办”（如极高频临近截止），否则定时扫描告警应默认使用 `DedupPolicy.REUSE_UNTIL_RESOLVED` 实现“只提醒一次”。
+- 告警触发后，通过前端工作台/告警中心常驻展示待办，而非通过每日企微消息轮询轰炸。
+
+---
+
+## 9. 相关文档
 
 - [[integration-wecom]] — 企微集成规范
 - [[lessons-learned]] §六 — @TransactionalEventListener 静默失效案例
@@ -315,9 +330,10 @@ Sentry XIYU-F 持续产生 `WeCom notification skipped: user has no employee_num
 
 ---
 
-## 9. 变更记录
+## 10. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
 | 2026-07-10 | 首次创建，从 8 个工作区历史对话中提取通知系统陷阱 |
 | 2026-08-04 | 新增 §7：admin 超管误入通知接收人列表导致企微 skip（Sentry XIYU-F） |
+| 2026-08-29 | 新增 §8：定时告警去重策略选择（REUSE_UNTIL_RESOLVED vs DAILY_DEDUP） |
