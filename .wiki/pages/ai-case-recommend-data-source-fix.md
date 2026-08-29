@@ -13,7 +13,7 @@ backlinks:
   - frontend-pitfalls
 created: 2026-08-21
 updated: 2026-08-21
-health_checked: 2026-08-21
+health_checked: 2026-08-29
 ---
 
 # AI 智能案例推荐数据源修复（score_item 新契约 + 裸响应陷阱）
