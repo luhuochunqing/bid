@@ -139,4 +139,62 @@ class FilterOptionsDepartmentTreeTest {
         assertThat(service.loadDepartmentNodes()).containsExactly(
                 new AnalyticsDepartmentHierarchySupport.DeptNode("D001", null, "销售总部"));
     }
+
+    @Test
+    @DisplayName("含组织架构/rootorg虚拟根节点时，自动解包虚拟根并展示业务一二级部门")
+    void shouldUnwrapVirtualRootDepartmentNode() {
+        OrganizationDepartmentEntity virtualRoot = new OrganizationDepartmentEntity();
+        virtualRoot.setDepartmentCode("rootorg");
+        virtualRoot.setDepartmentName("组织架构");
+        virtualRoot.setParentDepartmentCode(null);
+
+        OrganizationDepartmentEntity l1Sales = new OrganizationDepartmentEntity();
+        l1Sales.setDepartmentCode("D001");
+        l1Sales.setDepartmentName("销售总部");
+        l1Sales.setParentDepartmentCode("rootorg");
+
+        OrganizationDepartmentEntity l2East = new OrganizationDepartmentEntity();
+        l2East.setDepartmentCode("D002");
+        l2East.setDepartmentName("华东区");
+        l2East.setParentDepartmentCode("D001");
+
+        OrganizationDepartmentEntity l3Shanghai = new OrganizationDepartmentEntity();
+        l3Shanghai.setDepartmentCode("D003");
+        l3Shanghai.setDepartmentName("上海办事处");
+        l3Shanghai.setParentDepartmentCode("D002");
+
+        OrganizationDepartmentEntity l1Ops = new OrganizationDepartmentEntity();
+        l1Ops.setDepartmentCode("D004");
+        l1Ops.setDepartmentName("运营中心");
+        l1Ops.setParentDepartmentCode("rootorg");
+
+        jakarta.persistence.TypedQuery<String> typedQuery = org.mockito.Mockito.mock(jakarta.persistence.TypedQuery.class);
+        when(entityManager.createQuery(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(String.class)))
+                .thenReturn(typedQuery);
+        when(typedQuery.getResultList()).thenReturn(List.of());
+
+        when(departmentRepository.findAllByOrderByDepartmentCode())
+                .thenReturn(List.of(virtualRoot, l1Sales, l2East, l3Shanghai, l1Ops));
+
+        List<AnalyticsDepartmentTreeDTO> tree = service.fetchDepartmentTree();
+
+        // 顶层应为真实一级部门（销售总部、运营中心），虚拟根组织架构不进入树
+        assertThat(tree).extracting(AnalyticsDepartmentTreeDTO::getLabel)
+                .containsExactly("销售总部", "运营中心");
+
+        // 销售总部的一级子节点为华东区（真实二级部门）
+        assertThat(tree.get(0).getChildren()).hasSize(1);
+        assertThat(tree.get(0).getChildren().get(0).getLabel()).isEqualTo("华东区");
+        // 华东区的三级子节点上海办事处被截断
+        assertThat(tree.get(0).getChildren().get(0).getChildren()).isNull();
+
+        // 验证 loadDepartmentNodes 也正确解包虚拟根
+        List<AnalyticsDepartmentHierarchySupport.DeptNode> nodes = service.loadDepartmentNodes();
+        assertThat(nodes).containsExactly(
+                new AnalyticsDepartmentHierarchySupport.DeptNode("D001", null, "销售总部"),
+                new AnalyticsDepartmentHierarchySupport.DeptNode("D002", "D001", "华东区"),
+                new AnalyticsDepartmentHierarchySupport.DeptNode("D003", "D002", "上海办事处"),
+                new AnalyticsDepartmentHierarchySupport.DeptNode("D004", null, "运营中心")
+        );
+    }
 }
