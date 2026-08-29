@@ -43,30 +43,31 @@ public class FilterOptionsQueryService {
     List<AnalyticsDepartmentTreeDTO> fetchDepartmentTree() {
         List<OrganizationDepartmentEntity> allDepts =
                 organizationDepartmentRepository.findAllByOrderByDepartmentCode();
+        Set<String> virtualRootCodes = findVirtualRootCodes(allDepts);
 
-        // code → DTO 索引
+        // code → DTO 索引（排除虚拟根节点）
         Map<String, AnalyticsDepartmentTreeDTO> codeToDtoMap = new LinkedHashMap<>();
         for (OrganizationDepartmentEntity dept : allDepts) {
+            String code = dept.getDepartmentCode();
+            if (virtualRootCodes.contains(code)) continue;
             String name = dept.getDepartmentName();
-            if (name == null || name.isEmpty()) continue;
-            codeToDtoMap.put(dept.getDepartmentCode(), AnalyticsDepartmentTreeDTO.builder()
-                    .label(name)
-                    .value(name)
-                    .children(new ArrayList<>())
-                    .build());
+            if (name == null || name.isBlank()) continue;
+            codeToDtoMap.put(code, AnalyticsDepartmentTreeDTO.builder()
+                    .label(name).value(name).children(new ArrayList<>()).build());
         }
 
-        // 组装树：将子节点挂到父节点的 children 下
+        // 组装树：将子节点挂到父节点的 children 下（父节点为虚拟根时直接作为根节点）
         List<AnalyticsDepartmentTreeDTO> roots = new ArrayList<>();
         Set<String> presentNames = new HashSet<>();
         for (OrganizationDepartmentEntity dept : allDepts) {
             String code = dept.getDepartmentCode();
+            if (virtualRootCodes.contains(code)) continue;
             AnalyticsDepartmentTreeDTO dto = codeToDtoMap.get(code);
             if (dto == null) continue;
             presentNames.add(dto.getValue());
 
             String parentCode = dept.getParentDepartmentCode();
-            if (parentCode != null && !parentCode.isEmpty() && codeToDtoMap.containsKey(parentCode)) {
+            if (parentCode != null && !parentCode.isBlank() && !virtualRootCodes.contains(parentCode) && codeToDtoMap.containsKey(parentCode)) {
                 codeToDtoMap.get(parentCode).getChildren().add(dto);
             } else {
                 roots.add(dto);
@@ -77,23 +78,37 @@ public class FilterOptionsQueryService {
         List<String> userDepts = entityManager.createQuery("""
                         select distinct u.departmentName
                         from User u
-                        where u.departmentName is not null
-                          and u.departmentName <> ''
+                        where u.departmentName is not null and u.departmentName <> ''
                         order by u.departmentName
-                        """, String.class)
-                .getResultList();
+                        """, String.class).getResultList();
         for (String uDept : userDepts) {
             if (!presentNames.contains(uDept)) {
-                roots.add(AnalyticsDepartmentTreeDTO.builder()
-                        .label(uDept)
-                        .value(uDept)
-                        .build());
+                roots.add(AnalyticsDepartmentTreeDTO.builder().label(uDept).value(uDept).build());
                 presentNames.add(uDept);
             }
         }
 
         pruneFilterTree(roots, 1);
         return roots;
+    }
+
+    static Set<String> findVirtualRootCodes(List<OrganizationDepartmentEntity> allDepts) {
+        Set<String> virtualCodes = new HashSet<>();
+        if (allDepts == null) return virtualCodes;
+        for (OrganizationDepartmentEntity dept : allDepts) {
+            String code = dept.getDepartmentCode();
+            if (code == null || code.isBlank()) continue;
+            String parent = dept.getParentDepartmentCode();
+            if (isVirtualRootCode(code) || ("组织架构".equals(dept.getDepartmentName())
+                    && (parent == null || parent.isBlank() || isVirtualRootCode(parent)))) {
+                virtualCodes.add(code);
+            }
+        }
+        return virtualCodes;
+    }
+
+    private static boolean isVirtualRootCode(String code) {
+        return code != null && (code.equalsIgnoreCase("rootorg") || code.equalsIgnoreCase("root"));
     }
 
     /** 只留一二级；空 children 置 null。 */
@@ -211,9 +226,15 @@ public class FilterOptionsQueryService {
     }
 
     List<AnalyticsDepartmentHierarchySupport.DeptNode> loadDepartmentNodes() {
-        return organizationDepartmentRepository.findAllByOrderByDepartmentCode().stream()
+        List<OrganizationDepartmentEntity> allDepts =
+                organizationDepartmentRepository.findAllByOrderByDepartmentCode();
+        Set<String> virtualCodes = findVirtualRootCodes(allDepts);
+        return allDepts.stream()
+                .filter(d -> d.getDepartmentCode() != null && !virtualCodes.contains(d.getDepartmentCode()))
                 .map(d -> AnalyticsDepartmentHierarchySupport.nodeOrNull(
-                        d.getDepartmentCode(), d.getParentDepartmentCode(), d.getDepartmentName()))
+                        d.getDepartmentCode(),
+                        (d.getParentDepartmentCode() != null && virtualCodes.contains(d.getParentDepartmentCode())) ? null : d.getParentDepartmentCode(),
+                        d.getDepartmentName()))
                 .filter(java.util.Objects::nonNull)
                 .toList();
     }
