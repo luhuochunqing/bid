@@ -161,7 +161,11 @@ public class BidQualityCheckTaskAppService {
         List<QualityCheckItemResult> items = Collections.emptyList();
         if (entity.getCheckDetails() != null && !entity.getCheckDetails().isBlank()) {
             try {
-                items = OBJECT_MAPPER.readValue(entity.getCheckDetails(), new TypeReference<List<QualityCheckItemResult>>() {});
+                // 按 itemCode 回填标准名称与检查项说明：历史快照（旧名称/无 description）展示口径对齐 PRD 2.3
+                items = OBJECT_MAPPER.readValue(entity.getCheckDetails(), new TypeReference<List<QualityCheckItemResult>>() {})
+                        .stream()
+                        .map(QualityCheckItemResult::withCanonicalDefinition)
+                        .toList();
             } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
                 log.warn("反序列化 25 项核查详情异常: {}", e.getMessage());
             }

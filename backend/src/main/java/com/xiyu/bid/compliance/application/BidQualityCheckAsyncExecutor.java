@@ -38,6 +38,10 @@ public class BidQualityCheckAsyncExecutor {
     /** LLM 裁决单项 max_tokens（裁决层只输出小 JSON，不需长响应）. */
     private static final int LLM_ADJUDICATION_MAX_TOKENS = 1024;
 
+    /** 首次响应解析失败时的重试追加强约束（降低模型输出围栏/多余文字的概率）. */
+    private static final String STRICT_JSON_RETRY_SUFFIX =
+            "\n\n重申：仅输出一个 JSON 对象，不得包含任何其他文字、解释或代码块标记。";
+
     private final ComplianceCheckResultRepository resultRepository;
     private final ComplianceTargetLoader targetLoader;
     private final KnowledgeBaseOnDemandLoader kbLoader;
@@ -152,23 +156,29 @@ public class BidQualityCheckAsyncExecutor {
     /**
      * LLM 通道适配（副作用边界）：一切失败在本方法吸收为 {@link LlmVerdict.ChatOutcome} 值——
      * AI 未启用/未配置（IllegalStateException）→ Noop；其余调用异常 → Failure；
-     * 响应 JSON 解析由 {@link LlmVerdictParser} 完成，非法 → Invalid。纯核心无异常流.
+     * 响应 JSON 解析由 {@link LlmVerdictParser} 完成，非法时追加强约束重试 1 次，仍非法 → Invalid。纯核心无异常流.
      */
     private LlmVerdict.LlmChatPort<LlmVerdict> buildLlmPort() {
-        return prompt -> {
-            String response;
-            try {
-                response = aiProvider.chatCompletion(prompt, LLM_ADJUDICATION_MAX_TOKENS);
-            } catch (IllegalStateException e) {
-                log.warn("AI 未启用或未配置，语义项降级为人工确认: {}", e.getMessage());
-                return LlmVerdict.noop();
-            } catch (RuntimeException e) {
-                log.error("LLM 语义裁决调用失败", e);
-                return LlmVerdict.failure(e.getMessage());
-            }
-            return LlmVerdictParser.parse(response)
-                    .map(LlmVerdict::success)
-                    .orElseGet(LlmVerdict::invalid);
-        };
+        // 首次解析失败才重试（附严格 JSON 约束）；Noop/Failure 不重试，仍非法 → Invalid
+        return prompt -> chatAndParse(prompt)
+                .orElseGet(() -> chatAndParse(prompt + STRICT_JSON_RETRY_SUFFIX)
+                        .orElseGet(LlmVerdict::invalid));
+    }
+
+    /**
+     * 单次调用 + 解析：AI 未启用 → Noop；调用异常 → Failure；解析成功为终态；解析失败返回 empty（可重试）.
+     */
+    private Optional<LlmVerdict.ChatOutcome<LlmVerdict>> chatAndParse(final String prompt) {
+        String response;
+        try {
+            response = aiProvider.chatCompletion(prompt, LLM_ADJUDICATION_MAX_TOKENS);
+        } catch (IllegalStateException e) {
+            log.warn("AI 未启用或未配置，语义项降级为人工确认: {}", e.getMessage());
+            return Optional.of(LlmVerdict.noop());
+        } catch (RuntimeException e) {
+            log.error("LLM 语义裁决调用失败", e);
+            return Optional.of(LlmVerdict.failure(e.getMessage()));
+        }
+        return LlmVerdictParser.parse(response).map(LlmVerdict::success);
     }
 }

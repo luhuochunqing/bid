@@ -5,7 +5,7 @@
         <span class="item-icon" :class="statusKey">{{ statusMeta.icon }}</span>
         <span class="item-title">{{ item.title }}</span>
       </div>
-      <div v-if="conclusionText" class="row-conclusion">{{ conclusionText }}</div>
+      <div v-if="conclusionText" class="row-conclusion">检查结论：{{ conclusionText }}</div>
     </div>
     <el-tag size="small" :type="statusMeta.tagType" effect="plain" class="row-status-tag">
       {{ statusMeta.text }}

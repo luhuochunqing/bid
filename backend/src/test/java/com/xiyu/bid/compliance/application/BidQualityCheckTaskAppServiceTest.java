@@ -1,5 +1,7 @@
 package com.xiyu.bid.compliance.application;
 
+import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
+import com.xiyu.bid.compliance.dto.QualityCheckReportDTO;
 import com.xiyu.bid.compliance.dto.QualityCheckTaskDTO;
 import com.xiyu.bid.compliance.entity.ComplianceCheckResult;
 import com.xiyu.bid.compliance.repository.ComplianceCheckResultRepository;
@@ -105,5 +107,32 @@ class BidQualityCheckTaskAppServiceTest {
     void testTriggerQualityCheck_NullProjectId() {
         assertThatThrownBy(() -> taskAppService.triggerQualityCheck(null, false))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("历史快照（旧名称/无 description）读取时按 itemCode 回填标准名称与检查项说明")
+    void testToReportDTO_LegacySnapshot_BackfillsCanonicalDefinition() {
+        // 旧快照：title 为旧名称，无 description 字段（新增字段前的持久化格式）
+        String legacyJson = """
+                [{"itemCode":"AUTHORIZATION_LETTER","category":"BASIC_INFO",
+                  "title":"法定代表人身份证明与授权委托书","status":"PASS","severity":"CRITICAL",
+                  "order":3,"conclusion":"内容完备","suggestion":"","evidences":[]}]
+                """;
+        ComplianceCheckResult entity = ComplianceCheckResult.builder()
+                .id(9L)
+                .projectId(100L)
+                .taskId("legacy_task")
+                .status(ComplianceCheckResult.TaskStatus.COMPLETED)
+                .checkDetails(legacyJson)
+                .build();
+
+        QualityCheckReportDTO report = BidQualityCheckTaskAppService.toReportDTO(entity);
+
+        assertThat(report.getItems()).hasSize(1);
+        assertThat(report.getItems().get(0).title())
+                .isEqualTo(BidQualityCheckItem.AUTHORIZATION_LETTER.getTitle());
+        assertThat(report.getItems().get(0).description())
+                .isEqualTo(BidQualityCheckItem.AUTHORIZATION_LETTER.getDescription());
+        assertThat(report.getItems().get(0).conclusion()).isEqualTo("内容完备");
     }
 }

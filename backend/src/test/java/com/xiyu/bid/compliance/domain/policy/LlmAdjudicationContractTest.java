@@ -81,7 +81,7 @@ class LlmAdjudicationContractTest {
     }
 
     @Test
-    @DisplayName("单项 LLM 失败：通道返回 Failure → 该项 MANUAL + [LOW_CONFIDENCE]，不阻断其他项")
+    @DisplayName("单项 LLM 失败：通道返回 Failure → 该项 MANUAL + [LOW_CONFIDENCE]，结论为用户可读文案，不阻断其他项")
     void testAdjudicate_PortFails_ItemDegradesToManualLowConfidence() {
         LlmAdjudicator adjudicator = new LlmAdjudicator(prompt -> LlmVerdict.failure("LLM 调用超时"));
 
@@ -92,11 +92,13 @@ class LlmAdjudicationContractTest {
         assertThat(outcomes.values()).allSatisfy(result -> {
             assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
             assertThat(result.conclusion()).startsWith("[LOW_CONFIDENCE]");
+            assertThat(result.conclusion()).contains("AI 本次未能自动裁决该条款");
+            assertThat(result.conclusion()).doesNotContain("LLM 调用超时");
         });
     }
 
     @Test
-    @DisplayName("响应不可解析（Invalid）→ MANUAL + [LOW_CONFIDENCE]（reasonCode ∈ PRD §3.5 五值集合）")
+    @DisplayName("响应不可解析（Invalid）→ MANUAL + [LOW_CONFIDENCE] 且结论为用户可读文案（不暴露技术细节）")
     void testAdjudicate_MalformedJson_DegradesToManualLowConfidence() {
         LlmAdjudicator adjudicator = new LlmAdjudicator(prompt -> LlmVerdict.invalid());
 
@@ -106,6 +108,8 @@ class LlmAdjudicationContractTest {
         assertThat(outcomes.values()).allSatisfy(result -> {
             assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
             assertThat(result.conclusion()).startsWith("[LOW_CONFIDENCE]");
+            assertThat(result.conclusion()).contains("AI 本次未能自动裁决该条款");
+            assertThat(result.conclusion()).doesNotContain("响应结构非法");
         });
     }
 
@@ -154,11 +158,43 @@ class LlmAdjudicationContractTest {
     }
 
     @Test
-    @DisplayName("parser 契约：非法 JSON / 缺 status / MANUAL 缺 conclusion 一律 empty")
+    @DisplayName("parser 容错：代码围栏包裹或前后多余文字不影响解析")
+    void testParse_FencedOrWrappedJson_StillParsed() {
+        assertThat(LlmVerdictParser.parse(
+                "```json\n{\"status\":\"PASS\",\"conclusion\":\"通过\"}\n```"))
+                .hasValueSatisfying(v -> assertThat(v.status()).isEqualTo("PASS"));
+        assertThat(LlmVerdictParser.parse(
+                "裁决结果如下：{\"status\":\"FAIL\",\"conclusion\":\"未响应\"}，请知悉。"))
+                .hasValueSatisfying(v -> assertThat(v.status()).isEqualTo("FAIL"));
+    }
+
+    @Test
+    @DisplayName("parser 容错：中文状态同义归一到三值集合")
+    void testParse_ChineseStatus_NormalizedToCanonical() {
+        assertThat(LlmVerdictParser.parse("{\"status\":\"通过\",\"conclusion\":\"齐备\"}"))
+                .hasValueSatisfying(v -> assertThat(v.status()).isEqualTo("PASS"));
+        assertThat(LlmVerdictParser.parse("{\"status\":\"不通过\",\"conclusion\":\"缺失\"}"))
+                .hasValueSatisfying(v -> assertThat(v.status()).isEqualTo("FAIL"));
+        assertThat(LlmVerdictParser.parse("{\"status\":\"待确认\",\"conclusion\":\"含糊\"}"))
+                .hasValueSatisfying(v -> assertThat(v.status()).isEqualTo("MANUAL"));
+    }
+
+    @Test
+    @DisplayName("parser 容错：MANUAL 缺 conclusion 时兜底默认文案，不再整体拒绝")
+    void testParse_ManualWithoutConclusion_FallsBackToDefault() {
+        assertThat(LlmVerdictParser.parse("{\"status\":\"MANUAL\"}"))
+                .hasValueSatisfying(v -> {
+                    assertThat(v.status()).isEqualTo("MANUAL");
+                    assertThat(v.conclusion()).isNotBlank();
+                });
+    }
+
+    @Test
+    @DisplayName("parser 契约：无 JSON 对象 / 缺 status / 未知状态 一律 empty")
     void testParse_InvalidResponses_ReturnEmpty() {
         assertThat(LlmVerdictParser.parse("这不是 JSON")).isEmpty();
         assertThat(LlmVerdictParser.parse("{\"conclusion\":\"无状态\"}")).isEmpty();
-        assertThat(LlmVerdictParser.parse("{\"status\":\"MANUAL\",\"conclusion\":\"\"}")).isEmpty();
+        assertThat(LlmVerdictParser.parse("{\"status\":\"UNKNOWN\",\"conclusion\":\"x\"}")).isEmpty();
         assertThat(LlmVerdictParser.parse(null)).isEmpty();
     }
 }
