@@ -2,6 +2,7 @@ package com.xiyu.bid.compliance.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.ai.client.AiProvider;
+import com.xiyu.bid.common.util.StringUtils;
 import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityCheckStatus;
@@ -157,16 +158,25 @@ public class BidQualityCheckAsyncExecutor {
      * LLM 通道适配（副作用边界）：一切失败在本方法吸收为 {@link LlmVerdict.ChatOutcome} 值——
      * AI 未启用/未配置（IllegalStateException）→ Noop；其余调用异常 → Failure；
      * 响应 JSON 解析由 {@link LlmVerdictParser} 完成，非法时追加强约束重试 1 次，仍非法 → Invalid。纯核心无异常流.
+     *
+     * <p>包级可见：供同包单测直接验证重试契约（{@code BidQualityCheckAsyncExecutorTest}）.
      */
-    private LlmVerdict.LlmChatPort<LlmVerdict> buildLlmPort() {
+    LlmVerdict.LlmChatPort<LlmVerdict> buildLlmPort() {
         // 首次解析失败才重试（附严格 JSON 约束）；Noop/Failure 不重试，仍非法 → Invalid
-        return prompt -> chatAndParse(prompt)
-                .orElseGet(() -> chatAndParse(prompt + STRICT_JSON_RETRY_SUFFIX)
-                        .orElseGet(LlmVerdict::invalid));
+        return prompt -> {
+            Optional<LlmVerdict.ChatOutcome<LlmVerdict>> first = chatAndParse(prompt);
+            if (first.isPresent()) {
+                return first.get();
+            }
+            log.warn("LLM 裁决响应解析失败，追加严格 JSON 约束重试 1 次");
+            return chatAndParse(prompt + STRICT_JSON_RETRY_SUFFIX)
+                    .orElseGet(LlmVerdict::invalid);
+        };
     }
 
     /**
-     * 单次调用 + 解析：AI 未启用 → Noop；调用异常 → Failure；解析成功为终态；解析失败返回 empty（可重试）.
+     * 单次调用 + 解析：AI 未启用 → Noop；调用异常 → Failure；解析成功为终态；
+     * 解析失败记录原始响应（截断）后返回 empty（可重试）.
      */
     private Optional<LlmVerdict.ChatOutcome<LlmVerdict>> chatAndParse(final String prompt) {
         String response;
@@ -179,6 +189,11 @@ public class BidQualityCheckAsyncExecutor {
             log.error("LLM 语义裁决调用失败", e);
             return Optional.of(LlmVerdict.failure(e.getMessage()));
         }
-        return LlmVerdictParser.parse(response).map(LlmVerdict::success);
+        Optional<LlmVerdict> parsed = LlmVerdictParser.parse(response);
+        if (parsed.isEmpty()) {
+            log.warn("LLM 裁决响应解析失败，原始响应(截断 500 字): {}",
+                    response == null ? "(null)" : StringUtils.truncate(response, 500));
+        }
+        return parsed.map(LlmVerdict::success);
     }
 }
