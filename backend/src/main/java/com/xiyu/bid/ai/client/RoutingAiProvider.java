@@ -64,6 +64,15 @@ public class RoutingAiProvider implements AiProvider {
     }
 
     @Override
+    public String chatCompletionJsonObject(String prompt, int maxTokens) {
+        AiProviderRuntimeConfig config = resolveActiveConfig();
+        if (config == null) {
+            return mockAiProvider.chatCompletionJsonObject(prompt, maxTokens);
+        }
+        return openAiCompatibleClient.chatCompletionJsonObject(config, prompt, maxTokens);
+    }
+
+    @Override
     public float[] embed(String text) {
         AiProviderRuntimeConfig config = resolveActiveConfig();
         if (config == null) {

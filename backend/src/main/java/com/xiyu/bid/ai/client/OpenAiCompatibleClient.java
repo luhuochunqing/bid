@@ -22,6 +22,7 @@ import org.springframework.web.client.RestTemplate;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 @Slf4j
@@ -37,6 +38,7 @@ public class OpenAiCompatibleClient {
     private final RetryTemplate retryTemplate;
     private final AiPromptBuilder promptBuilder;
     private final AiResponseParser responseParser;
+    private final AtomicBoolean responseFormatUnsupported = new AtomicBoolean(false);
 
     public OpenAiCompatibleClient(
             RestTemplateBuilder restTemplateBuilder,
@@ -64,7 +66,7 @@ public class OpenAiCompatibleClient {
             String content,
             Map<String, Object> context) {
         String prompt = promptBuilder.buildTenderAnalysisPrompt(content, context);
-        return responseParser.parseAnalysisResponse(callChatCompletion(config, prompt, 2000));
+        return responseParser.parseAnalysisResponse(callChatCompletion(config, prompt, 2000, false));
     }
 
     public AiAnalysisResponse analyzeProject(
@@ -72,18 +74,39 @@ public class OpenAiCompatibleClient {
             Long projectId,
             Map<String, Object> context) {
         String prompt = promptBuilder.buildProjectAnalysisPrompt(projectId, context);
-        return responseParser.parseAnalysisResponse(callChatCompletion(config, prompt, 2000));
+        return responseParser.parseAnalysisResponse(callChatCompletion(config, prompt, 2000, false));
     }
 
     public void testConnection(AiProviderRuntimeConfig config) {
-        callChatCompletion(config, "Return only the word OK.", 16);
+        callChatCompletion(config, "Return only the word OK.", 16, false);
     }
 
     /**
      * 通用 chat completion：返回模型原始文本（结构化 JSON 提取场景，spec 049 US2）.
      */
     public String chatCompletion(AiProviderRuntimeConfig config, String prompt, int maxTokens) {
-        return callChatCompletion(config, prompt, maxTokens);
+        return callChatCompletion(config, prompt, maxTokens, false);
+    }
+
+    /**
+     * 结构化 JSON 补全：注入 response_format: {"type": "json_object"}。
+     * 若网关返回 400 不支持该参数，将记录单向降级标记并透明重试普通 chatCompletion。
+     */
+    public String chatCompletionJsonObject(AiProviderRuntimeConfig config, String prompt, int maxTokens) {
+        if (responseFormatUnsupported.get()) {
+            return callChatCompletion(config, prompt, maxTokens, false);
+        }
+        try {
+            return callChatCompletion(config, prompt, maxTokens, true);
+        } catch (ExternalServiceException e) {
+            if (isResponseFormatUnsupportedError(e)) {
+                log.warn("AI 网关 ({}) 不支持 response_format=json_object 参数，后续请求将直接降级为普通 chatCompletion。错误: {}",
+                        config.providerCode(), e.getMessage());
+                responseFormatUnsupported.set(true);
+                return callChatCompletion(config, prompt, maxTokens, false);
+            }
+            throw e;
+        }
     }
 
     public BidDocumentQualityAiPreviewDTO previewBidDocumentQuality(
@@ -93,7 +116,7 @@ public class OpenAiCompatibleClient {
         String prompt = AiPromptTemplates.BID_PREVIEW_SYSTEM_INSTRUCTION
                 + "\n投标文件：" + doc + "\n招标要求：" + tender + "\n"
                 + AiPromptTemplates.BID_PREVIEW_OUTPUT_FORMAT;
-        return responseParser.parseBidPreview(callChatCompletion(config, prompt, 1500));
+        return responseParser.parseBidPreview(callChatCompletion(config, prompt, 1500, false));
     }
 
     private String truncate(String value, int maxLength) {
@@ -102,7 +125,8 @@ public class OpenAiCompatibleClient {
                 : value.substring(0, maxLength) + "...(已截断)";
     }
 
-    private String callChatCompletion(AiProviderRuntimeConfig config, String prompt, int maxTokens) {
+    private String callChatCompletion(
+            AiProviderRuntimeConfig config, String prompt, int maxTokens, boolean jsonObjectFormat) {
         if (config.apiKey() == null || config.apiKey().isBlank())
             throw new IllegalStateException("AI API key is not configured");
         if (config.baseUrl() == null || config.baseUrl().isBlank())
@@ -116,14 +140,15 @@ public class OpenAiCompatibleClient {
                     log.info("AI provider {} retry attempt {}/{}",
                             config.providerCode(), context.getRetryCount(), MAX_ATTEMPTS);
                 }
-                return doCallChatCompletion(config, prompt, maxTokens);
+                return doCallChatCompletion(config, prompt, maxTokens, jsonObjectFormat);
             });
         } catch (RetryableAiProviderException e) {
             throw e.getWrapped();
         }
     }
 
-    private String doCallChatCompletion(AiProviderRuntimeConfig config, String prompt, int maxTokens) {
+    private String doCallChatCompletion(
+            AiProviderRuntimeConfig config, String prompt, int maxTokens, boolean jsonObjectFormat) {
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("model", config.model());
         requestBody.put("messages", java.util.List.of(
@@ -132,6 +157,9 @@ public class OpenAiCompatibleClient {
         ));
         requestBody.put("temperature", 0.2);
         requestBody.put("max_tokens", maxTokens);
+        if (jsonObjectFormat) {
+            requestBody.put("response_format", Map.of("type", "json_object"));
+        }
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
@@ -155,6 +183,30 @@ public class OpenAiCompatibleClient {
         } catch (RuntimeException exception) {
             throw OpenAiCompatibleErrorHandler.translateNetworkException(config.providerCode(), SERVICE_NAME, exception);
         }
+    }
+
+    private boolean isResponseFormatUnsupportedError(ExternalServiceException exception) {
+        if (exception.getUpstreamStatusCode() != HttpStatus.BAD_REQUEST.value()) {
+            return false;
+        }
+        String raw = exception.getUpstreamRawMessage() != null ? exception.getUpstreamRawMessage().toLowerCase() : "";
+        String msg = exception.getMessage() != null ? exception.getMessage().toLowerCase() : "";
+        String combined = raw + " " + msg;
+        return combined.contains("response_format")
+                || combined.contains("json_object")
+                || combined.contains("unsupported parameter")
+                || combined.contains("invalid parameter")
+                || combined.contains("extra_forbidden")
+                || combined.contains("unknown parameter")
+                || combined.contains("unrecognized field");
+    }
+
+    boolean isResponseFormatUnsupported() {
+        return responseFormatUnsupported.get();
+    }
+
+    void resetResponseFormatUnsupported() {
+        responseFormatUnsupported.set(false);
     }
 
     static class RetryableAiProviderException extends RuntimeException {

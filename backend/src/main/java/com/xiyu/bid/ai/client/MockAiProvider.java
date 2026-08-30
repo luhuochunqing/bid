@@ -20,30 +20,22 @@ import java.util.Map;
 @Slf4j
 public class MockAiProvider implements AiProvider {
 
-    private static final List<String> COMMON_STRENGTHS = Arrays.asList(
-        "技术团队实力雄厚，具备项目核心能力",
-        "报价策略有竞争力，成本控制合理",
-        "项目管理经验丰富，交付能力可靠",
-        "财务状况稳健，履约保障能力强",
-        "行业经验贴合本项目需求",
-        "有类似项目优秀交付案例"
+    private static final List<String> COMMON_STRENGTHS = List.of(
+        "技术团队实力雄厚，具备项目核心能力", "报价策略有竞争力，成本控制合理",
+        "项目管理经验丰富，交付能力可靠", "财务状况稳健，履约保障能力强",
+        "行业经验贴合本项目需求", "有类似项目优秀交付案例"
     );
 
-    private static final List<String> COMMON_WEAKNESSES = Arrays.asList(
-        "缺少同等规模超大型项目的实施经验",
-        "项目周期紧张，资源投入需追加保障",
-        "部分团队成员尚未取得专项资质认证",
-        "距离客户现场较远，驻场成本偏高",
+    private static final List<String> COMMON_WEAKNESSES = List.of(
+        "缺少同等规模超大型项目的实施经验", "项目周期紧张，资源投入需追加保障",
+        "部分团队成员尚未取得专项资质认证", "距离客户现场较远，驻场成本偏高",
         "在该细分行业的项目储备相对有限"
     );
 
-    private static final List<String> COMMON_RECOMMENDATIONS = Arrays.asList(
-        "在标书中突出展示相关行业标杆案例",
-        "准备详细的差异化报价与议价策略",
-        "与本地合作伙伴联合投标以补齐区域覆盖",
-        "投标前完成关键资质认证的补齐",
-        "针对紧张工期追加人力与交付冗余",
-        "强化团队资质与专家履历的呈现"
+    private static final List<String> COMMON_RECOMMENDATIONS = List.of(
+        "在标书中突出展示相关行业标杆案例", "准备详细的差异化报价与议价策略",
+        "与本地合作伙伴联合投标以补齐区域覆盖", "投标前完成关键资质认证的补齐",
+        "针对紧张工期追加人力与交付冗余", "强化团队资质与专家履历的呈现"
     );
 
     @Override
@@ -171,53 +163,18 @@ public class MockAiProvider implements AiProvider {
      * Generate dimension scores for tender analysis
      */
     private List<DimensionScore> generateDimensionScores(int overallScore) {
-        int technicalScore = Math.min(100, overallScore + getRandomVariation());
-        int financialScore = Math.min(100, overallScore + getRandomVariation());
-        int timingScore = Math.min(100, overallScore + getRandomVariation());
-
         return Arrays.asList(
-            DimensionScore.builder()
-                    .dimension("技术")
-                    .score(normalizeScore(technicalScore))
-                    .details("技术能力与专业度综合评估")
-                    .build(),
-            DimensionScore.builder()
-                    .dimension("财务")
-                    .score(normalizeScore(financialScore))
-                    .details("财务健康度与报价竞争力")
-                    .build(),
-            DimensionScore.builder()
-                    .dimension("进度")
-                    .score(normalizeScore(timingScore))
-                    .details("项目周期与交付可行性")
-                    .build()
+            DimensionScore.builder().dimension("技术").score(normalizeScore(overallScore + getRandomVariation())).details("技术能力与专业度综合评估").build(),
+            DimensionScore.builder().dimension("财务").score(normalizeScore(overallScore + getRandomVariation())).details("财务健康度与报价竞争力").build(),
+            DimensionScore.builder().dimension("进度").score(normalizeScore(overallScore + getRandomVariation())).details("项目周期与交付可行性").build()
         );
     }
 
-    /**
-     * Generate dimension scores for project analysis
-     */
     private List<DimensionScore> generateProjectDimensionScores(int overallScore) {
-        int teamScore = Math.min(100, overallScore + getRandomVariation());
-        int resourceScore = Math.min(100, overallScore + getRandomVariation());
-        int riskScore = Math.min(100, overallScore + getRandomVariation());
-
         return Arrays.asList(
-            DimensionScore.builder()
-                    .dimension("团队")
-                    .score(normalizeScore(teamScore))
-                    .details("团队配置与协作能力")
-                    .build(),
-            DimensionScore.builder()
-                    .dimension("资源")
-                    .score(normalizeScore(resourceScore))
-                    .details("资源投入与可用性")
-                    .build(),
-            DimensionScore.builder()
-                    .dimension("风险")
-                    .score(normalizeScore(riskScore))
-                    .details("风险识别与应对策略")
-                    .build()
+            DimensionScore.builder().dimension("团队").score(normalizeScore(overallScore + getRandomVariation())).details("团队配置与协作能力").build(),
+            DimensionScore.builder().dimension("资源").score(normalizeScore(overallScore + getRandomVariation())).details("资源投入与可用性").build(),
+            DimensionScore.builder().dimension("风险").score(normalizeScore(overallScore + getRandomVariation())).details("风险识别与应对策略").build()
         );
     }
 
@@ -228,10 +185,9 @@ public class MockAiProvider implements AiProvider {
         if (items.isEmpty() || count <= 0) {
             return List.of();
         }
-
-        int actualCount = Math.min(count, items.size());
-        java.util.Collections.shuffle(items);
-        return items.subList(0, actualCount);
+        List<String> copy = new java.util.ArrayList<>(items);
+        java.util.Collections.shuffle(copy);
+        return copy.subList(0, Math.min(count, copy.size()));
     }
 
     /**
@@ -277,10 +233,20 @@ public class MockAiProvider implements AiProvider {
     }
 
     @Override
+    public String chatCompletionJsonObject(String prompt, int maxTokens) {
+        log.info("Mock AI provider: chatCompletionJsonObject called - returning mock JSON (AI not configured)");
+        simulateProcessingDelay();
+        if (prompt != null && prompt.contains("scoringItems")) {
+            return "{\"scoringItems\":[],\"mandatoryQualifications\":[],\"vetoClauses\":[],"
+                    + "\"compositionRequirements\":[],\"formatRequirements\":[]}";
+        }
+        return "{\"status\":\"PASS\",\"conclusion\":\"【开发模式】模拟语义比对通过\",\"suggestion\":\"\"}";
+    }
+
+    @Override
     public BidDocumentQualityAiPreviewDTO previewBidDocumentQuality(
             String documentContent, String tenderText) {
-        log.info("Mock AI provider: previewBidDocumentQuality called - "
-                + "returning mock data (AI not configured)");
+        log.info("Mock AI provider: previewBidDocumentQuality called - returning mock data (AI not configured)");
         simulateProcessingDelay();
         boolean ok = documentContent != null && !documentContent.isBlank();
         String prefix = "【开发模式-模拟数据】";
@@ -288,10 +254,8 @@ public class MockAiProvider implements AiProvider {
                 .overallAssessment(prefix + (ok
                         ? "标书整体质量良好，核心要素齐全，建议关注格式一致性和细节完整性。"
                         : "标书内容严重缺失，基本信息不完整，建议重新梳理后再提交。"))
-                .keyRisks(ok ? List.of("注意核对签字盖章页完整性",
-                        "建议检查页码与目录对应关系", "关注特殊条款点对点响应")
-                        : List.of("标书内容为空无法评估", "缺少基本项目信息",
-                                "无资质证明材料"))
+                .keyRisks(ok ? List.of("注意核对签字盖章页完整性", "建议检查页码与目录对应关系", "关注特殊条款点对点响应")
+                        : List.of("标书内容为空无法评估", "缺少基本项目信息", "无资质证明材料"))
                 .build();
     }
 }

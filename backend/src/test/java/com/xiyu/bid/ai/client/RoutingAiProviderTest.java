@@ -17,6 +17,8 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -135,6 +137,48 @@ class RoutingAiProviderTest {
 
         verify(openAiCompatibleClient, never()).analyzeTender(any(), any(), any());
         verify(mockAiProvider, never()).analyzeTender(any(), any());
+    }
+
+    @Test
+    void chatCompletionJsonObject_WhenAiConfigured_ShouldRouteToRealProvider() {
+        RoutingAiProvider provider = createProvider();
+        when(aiConfigService.isAiEnabled()).thenReturn(true);
+        when(aiConfigService.getInternalAiModelConfig()).thenReturn(config("deepseek"));
+        when(aiConfigService.resolveAiApiKey("deepseek")).thenReturn("sk-configured");
+        when(openAiCompatibleClient.chatCompletionJsonObject(any(AiProviderRuntimeConfig.class), eq("prompt"), eq(1024)))
+                .thenReturn("{\"status\":\"PASS\"}");
+
+        String actual = provider.chatCompletionJsonObject("prompt", 1024);
+
+        assertThat(actual).isEqualTo("{\"status\":\"PASS\"}");
+        verify(openAiCompatibleClient).chatCompletionJsonObject(any(AiProviderRuntimeConfig.class), eq("prompt"), eq(1024));
+        verify(mockAiProvider, never()).chatCompletionJsonObject(anyString(), anyInt());
+    }
+
+    @Test
+    void chatCompletionJsonObject_WhenAiDisabled_ShouldThrowIllegalStateException() {
+        RoutingAiProvider provider = createProvider();
+        when(aiConfigService.isAiEnabled()).thenReturn(false);
+
+        assertThatThrownBy(() -> provider.chatCompletionJsonObject("prompt", 1024))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("AI 功能已在系统设置中关闭");
+
+        verify(openAiCompatibleClient, never()).chatCompletionJsonObject(any(), anyString(), anyInt());
+    }
+
+    @Test
+    void chatCompletionJsonObject_WhenProviderForcedToMock_ShouldRouteToMock() {
+        RoutingAiProvider provider = createProvider();
+        when(environment.getProperty("ai.provider", "")).thenReturn("mock");
+        when(mockAiProvider.chatCompletionJsonObject(eq("prompt"), eq(1024)))
+                .thenReturn("{\"status\":\"PASS\"}");
+
+        String actual = provider.chatCompletionJsonObject("prompt", 1024);
+
+        assertThat(actual).isEqualTo("{\"status\":\"PASS\"}");
+        verify(mockAiProvider).chatCompletionJsonObject(eq("prompt"), eq(1024));
+        verify(openAiCompatibleClient, never()).chatCompletionJsonObject(any(), anyString(), anyInt());
     }
 
     private RoutingAiProvider createProvider() {

@@ -2,7 +2,7 @@
 title: 标书质量核查实质化架构（spec 049）
 space: engineering
 category: module
-tags: [质量核查, compliance, LLM 混合裁决, 证据链, FP-Java]
+tags: [质量核查, compliance, LLM 混合裁决, 证据链, FP-Java, 语义RAG, 结构化输出]
 created: 2026-08-20
 updated: 2026-08-30
 health_checked: 2026-08-30
@@ -16,7 +16,11 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckProgressUpdater.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/BidDocumentQualityEngine.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/LlmAdjudicator.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/SemanticPageRetriever.java
   - backend/src/main/java/com/xiyu/bid/compliance/service/KnowledgeBaseOnDemandLoader.java
+  - backend/src/main/java/com/xiyu/bid/compliance/service/LlmVerdictParser.java
+  - backend/src/main/java/com/xiyu/bid/ai/client/AiProvider.java
+  - backend/src/main/java/com/xiyu/bid/ai/client/OpenAiCompatibleClient.java
   - docs/lessons/lessons-learned.md
 backlinks:
   - _index
@@ -37,11 +41,15 @@ spec 049 将标书质量核查从"固定文案证据 + page=1 硬编码"的验�
 | 4 证据定位 | `EvidenceLocator` 关键词真实定位 | 命中=真页码+原文摘录；未命中 page=null+空 quote（**禁止填 1**） |
 | 5 裁决 | `BidDocumentQualityEngine` 编排 | 25 项 PASS/FAIL/MANUAL_REVIEW + reasonCode |
 
-## 2. 混合裁决架构（引擎三路）
+## 2. 混合裁决架构（引擎三路与语义 RAG）
 
 - **确定性 lane**（`DeterministicCheckPolicy`，18 项）：毫秒级规则核查，不依赖 LLM。
 - **语义规则 lane**（`SemanticRulesLane`，7 项）：硬信号先行——资质匹配/否决条款/负偏离等可由规则直接裁决；无硬信号返回 empty 移交 LLM。
-- **LLM 裁决 lane**（`LlmAdjudicator`）：只做语义项裁决层，**不做全量直出**；prompt = 招标要求 + 知识库真实记录 + 投/招标原文摘录，固定 JSON 输出契约。
+- **LLM 裁决 lane 与全标书语义 RAG**（`LlmAdjudicator` + `SemanticPageRetriever`）：只做语义项裁决层，**不做全量直出**；彻底废弃前缀硬截断（6000/4000 字符），改走全标书语义 RAG 检索与结构化输出通道：
+  1. **语义页面检索（SemanticPageRetriever）**：纯领域核心（FP-Java 无依赖）。提取 7 项检查项静态线索（`addStaticItemCues`，如资质证书/偏离表/付款方式/审计报告等）与招标要求动态线索（`addDynamicRequirementsCues`），对 `DocumentContent.pages()` 进行相关性打分（标题匹配 +50、正文关键词 +10、词频 +2/次上限 20）。
+  2. **大预算与全文透传**：投标文件默认预算 60,000 字符（>=60K 红线），招标文件默认预算 30,000 字符。若文档总字符量在预算内，100% 全文无损透传；超预算则选取得分最高的 TOP-N 页面，并按自然页码升序重新排序装配。
+  3. **物理页码元数据保留**：上下文输出强制保留 `--- [第 X 页] ---` 物理页码标识，确保 AI 在生成裁决结论与证据引用时具备真实页码锚点。
+  4. **结构化输出通道（chatCompletionJsonObject）**：通过 `AiProvider.chatCompletionJsonObject` 注入 `response_format: {"type": "json_object"}`，从协议层保证大模型输出标准 JSON 对象；网关不支持时通过 `AtomicBoolean` 单向原子降级并缓存，结合 `LlmVerdictParser` 容错提取与仅针对 `Invalid` 的 1 次追加严格约束重试，构成端到端四层防护。
 
 ## 3. 失败传导纪律（FP-Java 值返回）
 
@@ -50,9 +58,16 @@ spec 049 将标书质量核查从"固定文案证据 + page=1 硬编码"的验�
 | 通道结果 | 语义 | 单项处理 |
 |----------|------|----------|
 | `Success` | 调用成功且响应已解析 | 按 verdict 出 PASS/FAIL/MANUAL |
-| `Invalid` | 响应不可解析 | MANUAL + LOW_CONFIDENCE |
+| `Invalid` | 响应不可解析（经 1 次重试后仍非法） | MANUAL + LOW_CONFIDENCE |
 | `Noop` | AI 未启用（IllegalStateException） | MANUAL + MANUAL_REVIEW_REQUIRED，任务仍 COMPLETED |
 | `Failure` | 调用异常/超时 | MANUAL + LOW_CONFIDENCE，不阻断整体 |
+
+结构化调用通道的多层防御契约：
+- **第一道防线**：`aiProvider.chatCompletionJsonObject`（`response_format: {"type": "json_object"}`），消除大部分格式漂移。
+- **第二道防线**：网关 400 不支持时自动捕获，`responseFormatUnsupported` 原子标记置 true，平滑单向回退到普通 `chatCompletion`。
+- **第三道防线**：`LlmVerdictParser` 在 service 边界层吸收 checked 异常，利用括号配平扫描提取首个 JSON 对象、归一化中英文状态并兜底空结论。
+- **第四道防线**：`buildLlmPort` 仅对解析失败（`Invalid`）追加严格 JSON 约束重试 1 次（`Noop` / `Failure` 不重试），确保瞬态波动可自愈。
+- **终极兜底**：纯核心生成用户可读文案（`FALLBACK_INVALID_CONCLUSION` / `FALLBACK_FAILURE_CONCLUSION`），任何异常路径均不向前端暴露技术堆栈。
 
 reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFIDENCE / REFERENCE_MISSING / MANUAL_REVIEW_REQUIRED；MANUAL 态 conclusion 带 `[CODE] ` 前缀（`ManualReasons` 统一格式化）。知识库单库异常同理：记入 `failedSources` → 依赖该库的检查项 MANUAL + REFERENCE_MISSING。
 
@@ -70,6 +85,8 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
 10. **异步任务中间进度使用独立事务即时提交**：`BidQualityCheckProgressUpdater` 使用 `@Transactional(propagation = Propagation.REQUIRES_NEW)`，避免整个长任务被顶层大事务包裹导致中间进度更新滞留在缓冲区，确保前端轮询秒级感知 20%/60%/80% 真实进度。
 11. **LLM 裁决响应解析三层防御**（2026-08-30）：模型常以 ```json 围栏包裹/JSON 前后加解释文字/返回中文状态（通过/待确认）/MANUAL 缺 conclusion，旧版 `readTree(原始响应)` 直接失败并把"响应结构非法"技术文案暴露给用户。修复分三层：① `LlmVerdictParser` 配平扫描提取首个 JSON 对象 + status 中文同义归一 + MANUAL 空结论兜底；② 边界适配器仅解析失败追加强约束重试 1 次（Noop/Failure 不重试）；③ 纯核心兜底结论用户可读（"AI 本次未能自动裁决该条款…已转人工确认"），任何路径都有有意义的检查结论。历史报告快照在 `toReportDTO` 按 itemCode 回填标准名称/说明（`withCanonicalDefinition`），无需数据迁移。
 12. **LLM 裁决解析失败全链路可观测**（2026-08-30）：#11 的三层防御上线后，Invalid 路径一条日志都没有——解析失败与重试都是静默的，上线后若仍有解析失败将无从排查。补齐：`chatAndParse` 解析失败时 `log.warn` 原始响应（截断 500 字）；`buildLlmPort` 重试前 `log.warn`；重试契约由 `BidQualityCheckAsyncExecutorTest` 四个单测锁定（解析失败重试成功 / 重试后仍非法 Invalid / Noop 不重试 / Failure 不重试）。
+13. **标书硬截断导致中后段关键内容对大模型不可见**（2026-08-30 架构重构）：旧版 `LlmAdjudicator.buildPrompt` 采用前缀硬截断（投标文件截断前 6000 字符、招标文件截断前 4000 字符），导致几十页上百页标书的技术方案、偏离表、项目业绩、财务报表、资质证书等分布在中后段的核心内容完全无法进入大模型上下文，大模型因缺乏依据大量降级为 MANUAL 待人工确认。解法：设计纯核心 `SemanticPageRetriever`，废弃 `substring` 硬截断；采用“大预算（>=60K 字符）+ 预算内全文无损透传 + 超预算 TOP-N 语义打分筛选 + 自然页码重新排序 + 保留 `--- [第 X 页] ---` 物理页码标识”的语义 RAG 机制，既保证长标书关键章节对 AI 100% 可见，又保留真实证据链定位能力。
+14. **网关不支持 response_format=json_object 时的静默 400 与原子降级标记**（2026-08-30 结构化输出演进）：部分 OpenAI 兼容 API 网关或代理服务不支持 `response_format: {"type": "json_object"}` 参数，直接抛出 HTTP 400 Bad Request（如 "unrecognized field", "unsupported parameter response_format"）。若简单捕获重试，会导致每个请求都遭遇 400 失败并产生双倍网络往返延迟。解法：在 `OpenAiCompatibleClient` 中引入 `AtomicBoolean responseFormatUnsupported` 线程安全标记；在 `chatCompletionJsonObject` 捕获到参数不支持的 400 错误时，一次性将标记置为 `true` 并降级为普通 `chatCompletion`；后续所有请求直接走普通调用，彻底消除多余的 400 异常与额外延迟；同时下游保留 `LlmVerdictParser` 的 JSON 括号配平扫描作为兜底解析防线。
 
 ## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
 
@@ -84,5 +101,5 @@ drawer 结构：汇总平铺卡（左上投标文件/核查时间，右上「重
 
 ## 6. 后续任务（Backlog）
 
-- **LLM 裁决切换结构化输出通道（response_format=json_object）**：当前裁决走裸 `AiProvider.chatCompletion` + prompt 约定，陷阱 #11/#12 的三层防御 + 日志均属事后容错；消灭此类解析失败的终态是裁决调用改走结构化输出。仓库已有先例基建：`biddraftagent` 的 `OpenAiSdkStructuredOutputTransport`（json_schema 优先、网关不支持时降级 json_object，一次性降级标记避免双倍调用）与 `OpenAiJsonObjectPayloadReader`。迁移要点：① `AiProvider` 接口新增结构化调用方法（Mock/Routing/OpenAI 兼容客户端同步实现）；② `buildLlmPort` 复用降级策略——部分网关不支持 response_format，必须保留 `LlmVerdictParser` 容错解析作为最后一道防线，不得拆除；③ 跨 ai/compliance 两模块且涉及网关兼容性验证，按 spec 流程立项执行。
-
+- **长文档动态自适应 Token 预算与模型上下文窗口感知**：当前 `SemanticPageRetriever` 采用固定字符预算（标书 60K、招标 30K）。后续可根据配置的模型上下文窗口大小（如 128K/256K tokens）动态自适应上调字符预算，并在 Tokenizer 层进行更精准的 token 计数。
+- **多模态与表格深度语义增强**：对于长文档中的复杂表格（如设备清单、详细报价明细表），可引入 Markdown 表格结构化保留与表格专用切片算法，进一步提升大模型对复杂表格行列交叉关系的理解准确度。

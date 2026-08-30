@@ -1,6 +1,6 @@
 // Input: 固定输入（TenderRequirements + KnowledgeMatch + 投标/招标分页文档）+ 固定 LLM 通道结果（ChatOutcome 四值）
-// Output: 断言语义项裁决结构（PASS/FAIL/MANUAL + reasonCode 前缀 + evidence）、单项失败 LOW_CONFIDENCE、Noop 全 MANUAL、parser 解析契约
-// Pos: compliance/domain/policy/ - LLM 混合裁决契约测试（spec 049 US5 / T045，research.md R6，PRD §3.5）
+// Output: 断言语义项裁决结构（PASS/FAIL/MANUAL + reasonCode 前缀 + evidence）、单项失败 LOW_CONFIDENCE、Noop 全 MANUAL、prompt 包含 --- [第 X 页] --- 物理页码标识
+// Pos: compliance/domain/policy/ - LLM 混合裁决契约测试（spec 049 US5 / T045，research.md R6，PRD §3.5，R1 全标书分析契约）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
 
@@ -12,6 +12,8 @@ import com.xiyu.bid.compliance.service.LlmVerdictParser;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -46,11 +48,85 @@ class LlmAdjudicationContractTest {
                 List.of(), List.of(), List.of(), false);
     }
 
+    // =========================================================================
+    // 1. Prompt 结构与全标书 RAG 契约测试
+    // =========================================================================
+
+    @Test
+    @DisplayName("Prompt 契约：buildPrompt 包含【招标文件相关内容】与【投标文件相关内容】，并包含 --- [第 X 页] --- 物理页码标识")
+    void testBuildPrompt_ContainsPageTags_And_PassesAllDocContentWithinBudget() {
+        String prompt = LlmAdjudicator.buildPrompt(
+                BidQualityCheckItem.SCORING_RESPONSE,
+                bidDoc(),
+                tenderDoc(),
+                requirements(),
+                List.of());
+
+        assertThat(prompt).contains("你是投标文件质量核查专家");
+        assertThat(prompt).contains("【招标要求（LLM 结构化提取）】");
+        assertThat(prompt).contains("【企业知识库真实记录】");
+        assertThat(prompt).contains("【招标文件相关内容】");
+        assertThat(prompt).contains("【投标文件相关内容】");
+
+        // 验证保留了 --- [第 X 页] --- 页码标签
+        assertThat(prompt).contains("--- [第 1 页] ---");
+        assertThat(prompt).contains("--- [第 2 页] ---");
+        assertThat(prompt).contains("--- [第 3 页] ---");
+        assertThat(prompt).contains("技术方案与实施方案详细说明");
+        assertThat(prompt).contains("澄清答疑响应确认函");
+    }
+
+    @Test
+    @DisplayName("Prompt 契约：长标书（超过旧版 6000 字符硬截断限制）的中后段关键内容完整透传至 Prompt")
+    void testBuildPrompt_WithLongDoc_PullsMiddleAndBackPagesIntoPrompt() {
+        // 构造一个包含 20 页、前 5 页超过 6000 字符的标书文档
+        List<DocumentContent.PageContent> pages = new ArrayList<>();
+        pages.add(new DocumentContent.PageContent(1, "封面".repeat(1000), Collections.emptyList()));
+        pages.add(new DocumentContent.PageContent(2, "目录".repeat(1000), Collections.emptyList()));
+        pages.add(new DocumentContent.PageContent(3, "声明".repeat(1000), Collections.emptyList()));
+        pages.add(new DocumentContent.PageContent(10, "技术方案分卷：详述实施组织设计与技术路线", List.of("第十章 技术方案")));
+        pages.add(new DocumentContent.PageContent(20, "澄清文件确认函：承诺无条件响应答疑纪要", List.of("第二十章 澄清确认")));
+
+        DocumentContent longBidDoc = new DocumentContent("long_bid.pdf", "hash_long", "", pages);
+
+        String prompt = LlmAdjudicator.buildPrompt(
+                BidQualityCheckItem.SCORING_RESPONSE,
+                longBidDoc,
+                tenderDoc(),
+                requirements(),
+                List.of());
+
+        // 验证中后段关键内容未被截断丢弃
+        assertThat(prompt).contains("--- [第 10 页] ---");
+        assertThat(prompt).contains("技术方案分卷：详述实施组织设计与技术路线");
+    }
+
+    @Test
+    @DisplayName("Prompt 契约：文档为空时，Prompt 相应部分呈现 '（无内容）'")
+    void testBuildPrompt_WhenDocsEmpty_ContainsNoContentFallback() {
+        String prompt = LlmAdjudicator.buildPrompt(
+                BidQualityCheckItem.QUALIFICATION_MATCH,
+                DocumentContent.empty(),
+                DocumentContent.empty(),
+                TenderRequirements.empty(),
+                List.of());
+
+        assertThat(prompt).contains("【招标文件相关内容】\n（无内容）");
+        assertThat(prompt).contains("【投标文件相关内容】\n（无内容）");
+    }
+
+    // =========================================================================
+    // 2. LLM 裁决与 ChatOutcome 四值状态契约测试
+    // =========================================================================
+
     @Test
     @DisplayName("契约：固定输入 + 固定 PASS 响应 → 语义项 PASS，证据保持真实定位")
     void testAdjudicate_FixedPassResponse_SemanticItemsPass() {
-        LlmAdjudicator adjudicator = new LlmAdjudicator(
-                prompt -> LlmVerdict.success(new LlmVerdict("PASS", "", "语义比对通过，条款响应完整", "")));
+        List<String> capturedPrompts = new ArrayList<>();
+        LlmAdjudicator adjudicator = new LlmAdjudicator(prompt -> {
+            capturedPrompts.add(prompt);
+            return LlmVerdict.success(new LlmVerdict("PASS", "", "语义比对通过，条款响应完整", ""));
+        });
 
         Map<String, QualityCheckItemResult> outcomes = adjudicator.adjudicate(
                 bidDoc(), tenderDoc(), requirements(),
@@ -64,6 +140,10 @@ class LlmAdjudicationContractTest {
         assertThat(scoring.conclusion()).contains("语义比对通过");
         assertThat(scoring.evidences()).allSatisfy(ev ->
                 assertThat(ev.sourceType()).isIn("BID", "TENDER", "KNOWLEDGE_BASE"));
+
+        // 验证传递给 ChatPort 的 Prompt 全部包含 --- [第 X 页] ---
+        assertThat(capturedPrompts).hasSize(SEMANTIC_CODES.size());
+        assertThat(capturedPrompts).allSatisfy(p -> assertThat(p).contains("--- [第 1 页] ---"));
     }
 
     @Test
@@ -133,7 +213,7 @@ class LlmAdjudicationContractTest {
     void testAdjudicate_ProgressReporterInvokedMonotonically() {
         LlmAdjudicator adjudicator = new LlmAdjudicator(
                 prompt -> LlmVerdict.success(new LlmVerdict("PASS", "", "通过", "")));
-        List<Integer> progressTrail = new java.util.ArrayList<>();
+        List<Integer> progressTrail = new ArrayList<>();
 
         adjudicator.adjudicate(bidDoc(), tenderDoc(), requirements(), List.of(), Set.of(),
                 (progress, step) -> progressTrail.add(progress));
@@ -144,6 +224,10 @@ class LlmAdjudicationContractTest {
             assertThat(progressTrail.get(i)).isGreaterThanOrEqualTo(progressTrail.get(i - 1));
         }
     }
+
+    // =========================================================================
+    // 3. Parser 容错与解析契约测试
+    // =========================================================================
 
     @Test
     @DisplayName("parser 契约：合法 JSON 响应 → verdict（status 归一大写，MANUAL 必附 conclusion）")

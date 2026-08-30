@@ -45,6 +45,19 @@ public interface AiProvider {
     String chatCompletion(String prompt, int maxTokens);
 
     /**
+     * Structured JSON chat completion (response_format=json_object mode).
+     * When supported upstream, enforces standard JSON object output;
+     * when unsupported by upstream gateway, automatically degrades to standard chatCompletion.
+     *
+     * @param prompt The prompt to send (should contain "JSON" instruction)
+     * @param maxTokens Maximum tokens for the completion
+     * @return Raw JSON completion text
+     */
+    default String chatCompletionJsonObject(String prompt, int maxTokens) {
+        return chatCompletion(prompt, maxTokens);
+    }
+
+    /**
      * Generate a dense embedding vector for the given text.
      *
      * @param text The text to embed
