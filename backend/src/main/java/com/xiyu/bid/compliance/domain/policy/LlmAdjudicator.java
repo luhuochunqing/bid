@@ -1,5 +1,5 @@
 // Input: 语义检查项 + 投标/招标文件 + TenderRequirements + KnowledgeMatch + LLM 通道（port，值返回）
-// Output: 单项裁决 PASS/FAIL/MANUAL（reasonCode ∈ PRD §3.5）+ 真实定位证据；失败/Noop 降级 MANUAL 不阻断
+// Output: 单项裁决 PASS/FAIL/MANUAL（reasonCode ∈ PRD §3.5）+ 真实定位证据；失败/Noop 降级 MANUAL 不阻断，兜底结论为用户可读文案（不暴露技术细节）
 // Pos: compliance/domain/policy/ - LLM 混合裁决 lane（spec 049 US5 / T047-T049，research.md R6，FP-Java：值返回无异常流）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -22,8 +22,8 @@ import java.util.stream.Collectors;
  * <p>语义项经 {@link LlmVerdict.LlmChatPort} 交由真实 LLM 裁决，LLM 只做裁决层不做全量直出；
  * 通道侧一切失败（AI 未启用 / 调用异常 / 响应非法）由边界适配器吸收为
  * {@link LlmVerdict.ChatOutcome} 值，本 lane 无异常流：
- * 单项失败置 MANUAL + LOW_CONFIDENCE 不阻断整体；AI 未启用（Noop）时
- * 语义项全部 MANUAL 并注明原因，任务保持 COMPLETED（PRD §3.5 / research.md R6）.
+ * 单项失败置 MANUAL + LOW_CONFIDENCE 不阻断整体，兜底结论为用户可读文案（不暴露技术细节）；
+ * AI 未启用（Noop）时语义项全部 MANUAL 并注明原因，任务保持 COMPLETED（PRD §3.5 / research.md R6）.
  */
 public final class LlmAdjudicator {
 
@@ -39,6 +39,13 @@ public final class LlmAdjudicator {
     private static final int MAX_KB_MATCHES_IN_PROMPT = 20;
     /** 单条知识库记录摘要长度上限. */
     private static final int KB_MATCH_TEXT_BUDGET = 120;
+
+    /** 裁决失败兜底结论（用户可读，不暴露技术细节）. */
+    private static final String FALLBACK_INVALID_CONCLUSION =
+            "AI 本次未能自动裁决该条款（返回结果异常），已转人工确认，请对照检查内容人工复核";
+    private static final String FALLBACK_FAILURE_CONCLUSION =
+            "AI 本次未能自动裁决该条款（调用异常），已转人工确认，请对照检查内容人工复核";
+    private static final String FALLBACK_MANUAL_SUGGESTION = "请人工复核该检查项内容后确认";
 
     private final LlmVerdict.LlmChatPort<LlmVerdict> port;
 
@@ -98,14 +105,14 @@ public final class LlmAdjudicator {
                     ManualReasons.MANUAL_REVIEW_REQUIRED, "AI 未启用，语义条款未经 LLM 裁决，请人工确认",
                     "请在系统设置中启用 AI 后重新核查", evidences);
         }
-        if (outcome instanceof LlmVerdict.Failure<LlmVerdict> failure) {
+        if (outcome instanceof LlmVerdict.Failure<LlmVerdict>) {
             return ManualReasons.manual(item,
-                    ManualReasons.LOW_CONFIDENCE, "LLM 语义裁决调用失败：" + failure.message(),
-                    "请人工复核该语义条款", evidences);
+                    ManualReasons.LOW_CONFIDENCE, FALLBACK_FAILURE_CONCLUSION,
+                    FALLBACK_MANUAL_SUGGESTION, evidences);
         }
         return ManualReasons.manual(item,
-                ManualReasons.LOW_CONFIDENCE, "LLM 响应结构非法，无法解析裁决结果",
-                "请人工复核该语义条款", evidences);
+                ManualReasons.LOW_CONFIDENCE, FALLBACK_INVALID_CONCLUSION,
+                FALLBACK_MANUAL_SUGGESTION, evidences);
     }
 
     /**
@@ -115,7 +122,7 @@ public final class LlmAdjudicator {
             final BidQualityCheckItem item, final LlmVerdict verdict, final List<QualityEvidence> evidences) {
         if (verdict == null || verdict.validated().isEmpty()) {
             return ManualReasons.manual(item, ManualReasons.LOW_CONFIDENCE,
-                    "LLM 响应结构非法，无法解析裁决结果", "请人工复核该语义条款", evidences);
+                    FALLBACK_INVALID_CONCLUSION, FALLBACK_MANUAL_SUGGESTION, evidences);
         }
         return switch (verdict.status()) {
             case "PASS" -> QualityCheckItemResult.pass(item, verdict.conclusion(), evidences);

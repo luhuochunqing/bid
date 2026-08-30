@@ -67,7 +67,7 @@ public final class BasicInfoCheckPolicy {
             boolean hasAgent = match.text().contains("受托人") || match.text().contains("委托代理人");
             List<QualityEvidence> evidences = List.of(QualityEvidence.bid("授权书章节", match.pageNumber(), snippet(match.text(), 200)));
             if (hasPrincipal && hasAgent) {
-                return QualityCheckItemResult.pass(item, "法定代表人身份证明与授权委托书内容完备", evidences);
+                return QualityCheckItemResult.pass(item, "授权委托书内容完备，委托人与受托人信息齐全", evidences);
             }
             return QualityCheckItemResult.manualReview(item, "检测到授权委托书，但委托人或受托人信息不完整", "请确保法定代表人身份证明与委托代理人权限清晰明确", evidences);
         }

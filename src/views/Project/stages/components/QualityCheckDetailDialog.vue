@@ -14,10 +14,10 @@
         <el-tag :type="statusTag.type" effect="dark">{{ statusTag.text }}</el-tag>
       </div>
 
-      <!-- 检查项说明（检查项中文名称） -->
+      <!-- 检查项说明（PRD 2.3 检查内容；旧快照无 description 时回退名称） -->
       <div class="dt-row">
         <div class="dt-label">检查项说明</div>
-        <div class="dt-val">{{ item.title }}</div>
+        <div class="dt-val">{{ descriptionText }}</div>
       </div>
 
       <!-- AI 检查结论：评分项响应额外前置客观项得分链接 -->
@@ -98,6 +98,9 @@ const statusTag = computed(() => {
 })
 
 const conclusionText = computed(() => stripReasonCode(props.item?.conclusion))
+
+// 检查项说明优先用检查内容（description），旧快照缺失时回退检查项名称
+const descriptionText = computed(() => props.item?.description || props.item?.title || '')
 
 // pass 项不展示问题定位/原文摘录/联动数据来源
 const showLocationRows = computed(() => props.item?.status !== 'PASS')
