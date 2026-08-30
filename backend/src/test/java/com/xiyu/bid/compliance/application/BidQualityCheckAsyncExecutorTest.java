@@ -1,9 +1,14 @@
+// Input: Mock 各依赖服务（AiProvider, Loaders, ProgressUpdater, Repository）
+// Output: 验证异步任务全流程、缓存命中复用、以及 buildLlmPort 结构化调用与精确重试契约
+// Pos: compliance/application/ - 异步执行器单元测试（包含 5 组 buildLlmPort 契约测试）
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.application;
 
 import com.xiyu.bid.ai.client.AiProvider;
 import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.policy.LlmVerdict;
 import com.xiyu.bid.compliance.domain.policy.KnowledgeQueryOutcome;
+import com.xiyu.bid.compliance.domain.policy.LlmVerdict;
 import com.xiyu.bid.compliance.domain.policy.TenderRequirements;
 import com.xiyu.bid.compliance.entity.ComplianceCheckResult;
 import com.xiyu.bid.compliance.repository.ComplianceCheckResultRepository;
@@ -19,10 +24,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -73,6 +77,10 @@ class BidQualityCheckAsyncExecutorTest {
         );
     }
 
+    // =========================================================================
+    // 1. Pipeline Lifecycle Tests
+    // =========================================================================
+
     @Test
     @DisplayName("投标文件不可解析时置为 FAILED 并终止任务")
     void testExecuteAsync_UnparsableBidDocument() {
@@ -120,7 +128,7 @@ class BidQualityCheckAsyncExecutorTest {
     }
 
     @Test
-    @DisplayName("正常全流程执行并调用 progressUpdater 完成任务")
+    @DisplayName("正常全流程执行并调用 progressUpdater 完成任务（结构化 LLM 通道集成）")
     void testExecuteAsync_SuccessfulExecution() {
         Long resultId = 1L;
         Long projectId = 100L;
@@ -138,6 +146,8 @@ class BidQualityCheckAsyncExecutorTest {
         TenderRequirements reqs = TenderRequirements.empty();
         when(requirementsExtractor.extract(tenderDoc)).thenReturn(reqs);
         when(kbLoader.queryKnowledgeBases(any())).thenReturn(KnowledgeQueryOutcome.empty());
+        when(aiProvider.chatCompletionJsonObject(anyString(), anyInt()))
+                .thenReturn("{\"status\":\"PASS\",\"conclusion\":\"核查通过\"}");
 
         asyncExecutor.executeAsync(resultId, projectId, taskId, false);
 
@@ -146,63 +156,88 @@ class BidQualityCheckAsyncExecutorTest {
         verify(progressUpdater).completeTask(eq(resultId), any(), anyInt(), anyString(), anyInt(), anyInt(), anyInt(), anyInt());
     }
 
+    // =========================================================================
+    // 2. buildLlmPort & Retry Contract Tests
+    // =========================================================================
+
     @Test
-    @DisplayName("buildLlmPort：首次解析失败 → 追加严格 JSON 约束重试 1 次，重试成功返回 Success")
-    void testBuildLlmPort_ParseFailureThenSuccess_RetriesOnceWithStrictSuffix() {
-        when(aiProvider.chatCompletion(anyString(), anyInt()))
-                .thenReturn("裁决结果如下：这不是 JSON")
-                .thenReturn("{\"status\":\"PASS\",\"conclusion\":\"齐备\"}");
+    @DisplayName("buildLlmPort：首次结构化输出成功 → 0 重试，返回 Success 且调用 chatCompletionJsonObject")
+    void testBuildLlmPort_SuccessfulStructuredResponse_ReturnsSuccessWithoutRetry() {
+        when(aiProvider.chatCompletionJsonObject(anyString(), anyInt()))
+                .thenReturn("{\"status\":\"PASS\",\"conclusion\":\"资质完全齐备\"}");
 
         LlmVerdict.ChatOutcome<LlmVerdict> outcome = asyncExecutor.buildLlmPort().chat("裁决 prompt");
 
         assertThat(outcome).isInstanceOf(LlmVerdict.Success.class);
         LlmVerdict verdict = ((LlmVerdict.Success<LlmVerdict>) outcome).verdict();
         assertThat(verdict.status()).isEqualTo("PASS");
-        assertThat(verdict.conclusion()).isEqualTo("齐备");
+        assertThat(verdict.conclusion()).isEqualTo("资质完全齐备");
+
+        verify(aiProvider, times(1)).chatCompletionJsonObject(eq("裁决 prompt"), eq(1024));
+        verify(aiProvider, never()).chatCompletion(anyString(), anyInt());
+    }
+
+    @Test
+    @DisplayName("buildLlmPort：首次解析失败 → 追加严格 JSON 约束重试 1 次，重试成功返回 Success")
+    void testBuildLlmPort_ParseFailureThenSuccess_RetriesOnceWithStrictSuffix() {
+        when(aiProvider.chatCompletionJsonObject(anyString(), anyInt()))
+                .thenReturn("裁决结果如下：这不是合法 JSON 字符串")
+                .thenReturn("{\"status\":\"PASS\",\"conclusion\":\"重试后解析成功\"}");
+
+        LlmVerdict.ChatOutcome<LlmVerdict> outcome = asyncExecutor.buildLlmPort().chat("裁决 prompt");
+
+        assertThat(outcome).isInstanceOf(LlmVerdict.Success.class);
+        LlmVerdict verdict = ((LlmVerdict.Success<LlmVerdict>) outcome).verdict();
+        assertThat(verdict.status()).isEqualTo("PASS");
+        assertThat(verdict.conclusion()).isEqualTo("重试后解析成功");
 
         ArgumentCaptor<String> prompts = ArgumentCaptor.forClass(String.class);
-        verify(aiProvider, times(2)).chatCompletion(prompts.capture(), anyInt());
+        verify(aiProvider, times(2)).chatCompletionJsonObject(prompts.capture(), anyInt());
         assertThat(prompts.getAllValues().get(0)).isEqualTo("裁决 prompt");
         assertThat(prompts.getAllValues().get(1))
                 .startsWith("裁决 prompt")
                 .contains("仅输出一个 JSON 对象");
+        verify(aiProvider, never()).chatCompletion(anyString(), anyInt());
     }
 
     @Test
     @DisplayName("buildLlmPort：重试后仍非法 → Invalid，最多重试 1 次")
     void testBuildLlmPort_StillInvalidAfterRetry_DegradesToInvalid() {
-        when(aiProvider.chatCompletion(anyString(), anyInt()))
+        when(aiProvider.chatCompletionJsonObject(anyString(), anyInt()))
                 .thenReturn("完全不是 JSON")
                 .thenReturn("还是不是 JSON");
 
         LlmVerdict.ChatOutcome<LlmVerdict> outcome = asyncExecutor.buildLlmPort().chat("prompt");
 
         assertThat(outcome).isInstanceOf(LlmVerdict.Invalid.class);
-        verify(aiProvider, times(2)).chatCompletion(anyString(), anyInt());
+        verify(aiProvider, times(2)).chatCompletionJsonObject(anyString(), anyInt());
+        verify(aiProvider, never()).chatCompletion(anyString(), anyInt());
     }
 
     @Test
     @DisplayName("buildLlmPort：AI 未启用（Noop）不重试，仅调用 1 次")
     void testBuildLlmPort_AiDisabled_NoRetry() {
-        when(aiProvider.chatCompletion(anyString(), anyInt()))
+        when(aiProvider.chatCompletionJsonObject(anyString(), anyInt()))
                 .thenThrow(new IllegalStateException("AI 未启用"));
 
         LlmVerdict.ChatOutcome<LlmVerdict> outcome = asyncExecutor.buildLlmPort().chat("prompt");
 
         assertThat(outcome).isInstanceOf(LlmVerdict.Noop.class);
-        verify(aiProvider, times(1)).chatCompletion(anyString(), anyInt());
+        verify(aiProvider, times(1)).chatCompletionJsonObject(anyString(), anyInt());
+        verify(aiProvider, never()).chatCompletion(anyString(), anyInt());
     }
 
     @Test
     @DisplayName("buildLlmPort：调用异常（Failure）不重试，仅调用 1 次")
     void testBuildLlmPort_CallException_NoRetry() {
-        when(aiProvider.chatCompletion(anyString(), anyInt()))
-                .thenThrow(new RuntimeException("网关超时"));
+        when(aiProvider.chatCompletionJsonObject(anyString(), anyInt()))
+                .thenThrow(new RuntimeException("网关超时 504"));
 
         LlmVerdict.ChatOutcome<LlmVerdict> outcome = asyncExecutor.buildLlmPort().chat("prompt");
 
         assertThat(outcome).isInstanceOf(LlmVerdict.Failure.class);
-        assertThat(((LlmVerdict.Failure<LlmVerdict>) outcome).message()).isEqualTo("网关超时");
-        verify(aiProvider, times(1)).chatCompletion(anyString(), anyInt());
+        assertThat(((LlmVerdict.Failure<LlmVerdict>) outcome).message()).isEqualTo("网关超时 504");
+        verify(aiProvider, times(1)).chatCompletionJsonObject(anyString(), anyInt());
+        verify(aiProvider, never()).chatCompletion(anyString(), anyInt());
     }
 }

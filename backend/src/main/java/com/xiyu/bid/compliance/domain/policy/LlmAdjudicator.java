@@ -32,9 +32,6 @@ public final class LlmAdjudicator {
     public interface ProgressReporter extends BiConsumer<Integer, String> {
     }
 
-    /** prompt 内投标/招标原文摘录预算. */
-    private static final int BID_EXCERPT_BUDGET = 6000;
-    private static final int TENDER_EXCERPT_BUDGET = 4000;
     /** prompt 内知识库记录条数上限. */
     private static final int MAX_KB_MATCHES_IN_PROMPT = 20;
     /** 单条知识库记录摘要长度上限. */
@@ -136,9 +133,9 @@ public final class LlmAdjudicator {
     }
 
     /**
-     * 组装裁决 prompt：招标结构化要求 + 知识库真实记录 + 文档原文摘录（固定 JSON 输出契约）.
+     * 组装裁决 prompt：招标结构化要求 + 知识库真实记录 + 文档按语义检索相关页（固定 JSON 输出契约）.
      */
-    static String buildPrompt(
+    public static String buildPrompt(
             final BidQualityCheckItem item,
             final DocumentContent bidDoc,
             final DocumentContent tenderDoc,
@@ -151,16 +148,15 @@ public final class LlmAdjudicator {
                         + "|REFERENCE_MISSING|MANUAL_REVIEW_REQUIRED\"}（status=MANUAL 时 reasonCode 必填）。\n\n");
         sb.append("【招标要求（LLM 结构化提取）】\n").append(summarizeRequirements(requirements)).append("\n\n");
         sb.append("【企业知识库真实记录】\n").append(summarizeKbMatches(kbMatches)).append("\n\n");
-        sb.append("【招标文件摘录】\n").append(excerpt(tenderDoc.fullText(), TENDER_EXCERPT_BUDGET)).append("\n\n");
-        sb.append("【投标文件摘录】\n").append(excerpt(bidDoc.fullText(), BID_EXCERPT_BUDGET)).append("\n");
+        sb.append("【招标文件相关内容】\n")
+                .append(SemanticPageRetriever.retrieveContext(
+                        item, requirements, tenderDoc, SemanticPageRetriever.DEFAULT_TENDER_BUDGET))
+                .append("\n\n");
+        sb.append("【投标文件相关内容】\n")
+                .append(SemanticPageRetriever.retrieveContext(
+                        item, requirements, bidDoc, SemanticPageRetriever.DEFAULT_BID_BUDGET))
+                .append("\n");
         return sb.toString();
-    }
-
-    private static String excerpt(final String text, final int budget) {
-        if (text == null || text.isBlank()) {
-            return "（无内容）";
-        }
-        return text.length() <= budget ? text : text.substring(0, budget) + "……（已截断）";
     }
 
     private static String summarizeRequirements(final TenderRequirements requirements) {

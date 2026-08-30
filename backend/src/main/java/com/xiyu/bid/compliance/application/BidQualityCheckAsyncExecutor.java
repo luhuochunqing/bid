@@ -156,12 +156,13 @@ public class BidQualityCheckAsyncExecutor {
 
     /**
      * LLM 通道适配（副作用边界）：一切失败在本方法吸收为 {@link LlmVerdict.ChatOutcome} 值——
+     * 优先调用结构化输出通道 {@code aiProvider.chatCompletionJsonObject}；
      * AI 未启用/未配置（IllegalStateException）→ Noop；其余调用异常 → Failure；
      * 响应 JSON 解析由 {@link LlmVerdictParser} 完成，非法时追加强约束重试 1 次，仍非法 → Invalid。纯核心无异常流.
      *
-     * <p>包级可见：供同包单测直接验证重试契约（{@code BidQualityCheckAsyncExecutorTest}）.
+     * <p>公开可见：供单测及验收测试直接验证 LLM 契约与重试逻辑.
      */
-    LlmVerdict.LlmChatPort<LlmVerdict> buildLlmPort() {
+    public LlmVerdict.LlmChatPort<LlmVerdict> buildLlmPort() {
         // 首次解析失败才重试（附严格 JSON 约束）；Noop/Failure 不重试，仍非法 → Invalid
         return prompt -> {
             Optional<LlmVerdict.ChatOutcome<LlmVerdict>> first = chatAndParse(prompt);
@@ -175,13 +176,16 @@ public class BidQualityCheckAsyncExecutor {
     }
 
     /**
-     * 单次调用 + 解析：AI 未启用 → Noop；调用异常 → Failure；解析成功为终态；
-     * 解析失败记录原始响应（截断）后返回 empty（可重试）.
+     * 单次结构化调用 + 容错解析：
+     * 1. 调用 aiProvider.chatCompletionJsonObject 走 response_format=json_object 结构化通道；
+     * 2. AI 未启用 → Noop；调用异常 → Failure；
+     * 3. 经 LlmVerdictParser 多层容错解析，成功为终态；
+     * 4. 解析失败记录原始响应（截断）后返回 empty（供 buildLlmPort 触发单次重试）.
      */
     private Optional<LlmVerdict.ChatOutcome<LlmVerdict>> chatAndParse(final String prompt) {
         String response;
         try {
-            response = aiProvider.chatCompletion(prompt, LLM_ADJUDICATION_MAX_TOKENS);
+            response = aiProvider.chatCompletionJsonObject(prompt, LLM_ADJUDICATION_MAX_TOKENS);
         } catch (IllegalStateException e) {
             log.warn("AI 未启用或未配置，语义项降级为人工确认: {}", e.getMessage());
             return Optional.of(LlmVerdict.noop());
