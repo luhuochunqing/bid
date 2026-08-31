@@ -144,6 +144,7 @@ def load_jsonl_slices(jsonl_dir):
                     'docx_label': (rec.get('docx_label') or '').strip()[:50],
                     'title': title[:MAX_TITLE_LEN],
                     'text_preview': preview[:MAX_PREVIEW_LEN],
+                    'text': (rec.get('text') or '').strip(),
                 })
     print(f'JSONL 解析: {len(slices)} 条切片（跳过 {skipped} 条非法行，{len(files)} 个文件）')
     return slices
@@ -367,16 +368,17 @@ def self_test():
     lookup3 = {p2['name']: p2, p3['name']: p3}
     assert match_project('2026.01.20--建设银行项目二期采购', lookup3) is p3
 
-    # 5. 分层抽样：覆盖多项目与多类别，且不超 limit
+    # 5. 分层抽样：覆盖多项目与多类别，且不超 limit；抽样后切片保留 text 全文键
     slices = [
-        {'project': 'A', 'docx_label': '技术', 'title': f'A技{i}', 'text_preview': 'x'} for i in range(5)
+        {'project': 'A', 'docx_label': '技术', 'title': f'A技{i}', 'text_preview': 'x', 'text': '全文A'} for i in range(5)
     ] + [
-        {'project': 'B', 'docx_label': '商务', 'title': f'B商{i}', 'text_preview': 'x'} for i in range(5)
+        {'project': 'B', 'docx_label': '商务', 'title': f'B商{i}', 'text_preview': 'x', 'text': '全文B'} for i in range(5)
     ]
     picked = sample_slices(slices, 6)
     assert len(picked) == 6
     assert {s['project'] for s in picked} == {'A', 'B'}
     assert {s['docx_label'] for s in picked} == {'技术', '商务'}
+    assert all('text' in s for s in picked)  # 抽样不得丢失全文键（CO 修复：曾因此回退到 300 字预览）
     assert len(sample_slices(slices, 100)) == 10
     assert sample_slices([], 10) == []
 
