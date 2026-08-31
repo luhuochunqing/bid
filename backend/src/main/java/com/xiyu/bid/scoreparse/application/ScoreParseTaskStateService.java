@@ -64,7 +64,7 @@ public class ScoreParseTaskStateService {
     public void updateProgress(String taskId, int progress, String stage) {
         taskRepository.findByTaskId(taskId).ifPresent(task -> {
             task.setProgress(Math.max(0, Math.min(100, progress)));
-            task.setStage(stage);
+            task.setStage(stage == null || stage.length() <= 50 ? stage : stage.substring(0, 50));
             taskRepository.save(task);
         });
     }

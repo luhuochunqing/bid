@@ -20,6 +20,9 @@ import java.util.List;
 final class ScoreCandidateMapper {
 
     private static final int SOURCE_TEXT_MAX_CHARS = 500;
+    private static final int LOCATION_MAX_CHARS = 200;
+    private static final int CODE_MAX_CHARS = 50;
+    private static final int DIM_MAX_CHARS = 200;
 
     private ScoreCandidateMapper() {
     }
@@ -31,14 +34,14 @@ final class ScoreCandidateMapper {
                 ? criterion.indicator() : criterion.dimension();
         boolean hasSection = section != null;
         return new ScoreCandidate(
-                safeText(criterion.itemNumber()),
-                safeText(criterion.dimension()),
+                truncate(safeText(criterion.itemNumber()), CODE_MAX_CHARS),
+                truncate(safeText(criterion.dimension()), DIM_MAX_CHARS),
                 detail,
                 criterion.weight(),
                 null,
                 hasSection ? section.sectionTitle() : "",
-                hasSection ? truncate(section.content()) : "",
-                hasSection ? section.location() : "",
+                hasSection ? truncate(section.content(), SOURCE_TEXT_MAX_CHARS) : "",
+                hasSection ? truncate(section.location(), LOCATION_MAX_CHARS) : "",
                 "RECALL_REGEX_STRUCTURE"
         );
     }
@@ -71,14 +74,14 @@ final class ScoreCandidateMapper {
                     safeText(candidate.code), llmDim, head(llmDetail));
         }
         return new ScoreCandidate(
-                safeText(candidate.code),
-                alignedDim != null ? alignedDim : llmDim,
+                truncate(safeText(candidate.code), CODE_MAX_CHARS),
+                truncate(alignedDim != null ? alignedDim : llmDim, DIM_MAX_CHARS),
                 alignedDetail != null ? alignedDetail : llmDetail,
                 candidate.weight == null ? null : java.math.BigDecimal.valueOf(candidate.weight),
                 safeText(candidate.scoreTypeGuess),
                 safeText(candidate.contextNote),
                 alignedSource != null ? alignedSource : "",
-                safeText(candidate.location),
+                truncate(safeText(candidate.location), LOCATION_MAX_CHARS),
                 safeText(candidate.semanticPattern)
         );
     }
@@ -123,10 +126,14 @@ final class ScoreCandidateMapper {
     }
 
     static String truncate(String text) {
+        return truncate(text, SOURCE_TEXT_MAX_CHARS);
+    }
+
+    static String truncate(String text, int maxChars) {
         if (text == null) {
             return "";
         }
-        return text.length() <= SOURCE_TEXT_MAX_CHARS ? text : text.substring(0, SOURCE_TEXT_MAX_CHARS);
+        return text.length() <= maxChars ? text : text.substring(0, maxChars);
     }
 
     /**

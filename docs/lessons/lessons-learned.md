@@ -3382,11 +3382,30 @@ AI 标书质量核查中，长标书（超过十几页、数万字）的语义�
 3. **真实 Fixture 与全链路验收**：
    - 构造 60 页 39,500+ 字符测试夹具 `BidDocumentTestFixtures` 与全链路验收测试 `FullDocumentSemanticRetrievalAcceptanceTest`，逐项断言命中物理偏移量 > 28,000 字符的中后段真实内容。
 
+## 187. AI 评分标准解析大模型长文本输出致数据库字段截断异常：全链路长度安全截断与双层防御加固（2026-08-31）
+
+**现象**：
+Project 36 评分标准解析任务在 90% 评分项落库阶段崩溃失败，错误日志：`Data truncation: Data too long for column 'location' at row 1`，导致任务整批回滚，用户端表现为“一直在转圈/无解析结果”。
+
+**根因分析**：
+1. **大模型输出长度不确定性**：LLM 结构化提取评分项的 `location` 定位字段时，输出了详细的多段解释文字（超过 200 字符）；
+2. **Mapper 边界缺乏防御截断**：`ScoreCandidateMapper.fromLlmCandidate` 仅对 `sourceText` 做了 500 字符截断，对 `location`、`dim`、`code` 未做安全截断；
+3. **数据库字段强约束引发硬报错**：MySQL 严格模式下，`score_item.location VARCHAR(200)` 写入溢出抛出 `DataTruncationException`，使 Spring `@Transactional` 事务标记 rollback-only，最终任务置为 FAILED。
+
+**解决方案**：
+1. **源头映射安全收敛**（`ScoreCandidateMapper`）：
+   - 提取并统一 `LOCATION_MAX_CHARS(200)`、`CODE_MAX_CHARS(50)`、`DIM_MAX_CHARS(200)`、`SOURCE_TEXT_MAX_CHARS(500)` 四大常量；
+   - 纯函数 `truncate(String, int)` 对 `fromLlmCandidate` 与 `fromCriterion` 入参做源头截断；
+2. **持久化层双层防御**（`ScoreItemPersistenceService`）：
+   - 新增 `resolveLocation` 兜底方法，落库前对 `candidate.location()` 二次截断，彻底阻断数据库截断异常；
+3. **任务状态阶段描述保护**（`ScoreParseTaskStateService`）：
+   - `updateProgress` 中对 `stage` 描述增加 50 字符长度限制（`VARCHAR(50)`）。
+
 **教训**：
 | 坑 | 为何发生 | 对策 |
 |---|---|---|
-| 对长文档简单采用 substring 前缀截断 | 早期开发为了防止击穿 Token 预算采用了最简单的截断逻辑，忽视了标书关键内容通常分布在中后段 | 纯核心层实现 RAG 语义分页检索器：预算内全文透传，超预算按检查项语义加权排序并按物理页码重组 |
-| 仅在应用层做 Prompt 格式容错而未启用底层结构化输出 | 依赖后置解析器配平 JSON 属于事后容错，模型仍有概率产生非法输出 | 下游通道升级为 `response_format=json_object` 结构化输出，配合 `AtomicBoolean` 网关原子降级与后置解析器多层防护 |
+| 将 LLM 自由生成的文字直接存入有长度限制的 DB 字段 | 假设了 Prompt 约定的“简要描述”一定不会超长，忽视了模型幻觉和长回复概率 | 所有来自 LLM 的字段映射到定长数据库列时，必须在 Mapper 纯核心与 Persistence 层做双层安全截断 |
+| 仅对主文字字段做截断忽视了元数据字段 | 往往只注意 `sourceText`/`detail` 等大字段，忽视了 `location`/`code`/`dim`/`stage` 等小字段 | 梳理实体所有 `VARCHAR(N)` 字段，全链路对齐长度边界防护 |
 
 
 

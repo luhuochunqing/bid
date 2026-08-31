@@ -71,4 +71,19 @@ class ScoreCandidateMapperTest {
         assertThat(summary).contains("【已提取项分值合计】: 95 分");
         assertThat(summary).contains("距离 100 分满分仍缺 5 分");
     }
+
+    @Test
+    void fromLlmCandidate_oversizedFields_truncatedToColumnLimits() {
+        ScoreCandidateOutput.Candidate candidate = new ScoreCandidateOutput.Candidate();
+        candidate.code = "C".repeat(70);
+        candidate.dim = "D".repeat(250);
+        candidate.detail = "详细说明";
+        candidate.location = "L".repeat(300);
+        candidate.sourceText = "S".repeat(600);
+
+        ScoreCandidate mapped = ScoreCandidateMapper.fromLlmCandidate(candidate, null);
+        assertThat(mapped.code()).hasSize(50);
+        assertThat(mapped.dim()).hasSize(200);
+        assertThat(mapped.location()).hasSize(200);
+    }
 }
