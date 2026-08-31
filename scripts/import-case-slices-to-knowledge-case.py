@@ -144,6 +144,7 @@ def load_jsonl_slices(jsonl_dir):
                     'docx_label': (rec.get('docx_label') or '').strip()[:50],
                     'title': title[:MAX_TITLE_LEN],
                     'text_preview': preview[:MAX_PREVIEW_LEN],
+                    'text': (rec.get('text') or '').strip(),
                 })
     print(f'JSONL 解析: {len(slices)} 条切片（跳过 {skipped} 条非法行，{len(files)} 个文件）')
     return slices
@@ -187,7 +188,7 @@ def build_row(sl, project):
         project['name'],
         title,
         REQUIREMENT_PREFIX + title,
-        sl['text_preview'],
+        sl.get('text') or sl['text_preview'],
         project['customer_type'],
         effective_project_type(project),
         'WON' if project['status'] == 'WON' else None,
@@ -196,8 +197,12 @@ def build_row(sl, project):
 
 
 def effective_project_type(project):
-    """project_type 取值：优先 industry；早期历史项目 industry 为空时回退 customer_type。"""
-    return project['industry'] or project['customer_type']
+    """project_type 取值：仅取 industry；为空则置 None。
+
+    不得回退取 customer_type——两套枚举语义不同（项目类型=办公/综合/集采/工业品/其他，
+    客户类型=LOCAL_SOE 等），混填会导致前台项目类型标签显示原始码。
+    """
+    return project['industry'] or None
 
 
 INSERT_SQL = """
@@ -363,16 +368,17 @@ def self_test():
     lookup3 = {p2['name']: p2, p3['name']: p3}
     assert match_project('2026.01.20--建设银行项目二期采购', lookup3) is p3
 
-    # 5. 分层抽样：覆盖多项目与多类别，且不超 limit
+    # 5. 分层抽样：覆盖多项目与多类别，且不超 limit；抽样后切片保留 text 全文键
     slices = [
-        {'project': 'A', 'docx_label': '技术', 'title': f'A技{i}', 'text_preview': 'x'} for i in range(5)
+        {'project': 'A', 'docx_label': '技术', 'title': f'A技{i}', 'text_preview': 'x', 'text': '全文A'} for i in range(5)
     ] + [
-        {'project': 'B', 'docx_label': '商务', 'title': f'B商{i}', 'text_preview': 'x'} for i in range(5)
+        {'project': 'B', 'docx_label': '商务', 'title': f'B商{i}', 'text_preview': 'x', 'text': '全文B'} for i in range(5)
     ]
     picked = sample_slices(slices, 6)
     assert len(picked) == 6
     assert {s['project'] for s in picked} == {'A', 'B'}
     assert {s['docx_label'] for s in picked} == {'技术', '商务'}
+    assert all('text' in s for s in picked)  # 抽样不得丢失全文键（CO 修复：曾因此回退到 300 字预览）
     assert len(sample_slices(slices, 100)) == 10
     assert sample_slices([], 10) == []
 
@@ -385,7 +391,16 @@ def self_test():
     row2 = build_row(sl, p2)
     assert row2[7] is None  # LOST → bid_result NULL
 
-    print('self-test passed: 6 组断言全部通过')
+    # 7. 全文优先：切片带 text（全文）时 response_text 用全文，缺失时回退 text_preview
+    sl_full = dict(sl, text='承诺7x24小时响应，这是完整正文……')
+    assert build_row(sl_full, p1)[4] == '承诺7x24小时响应，这是完整正文……'
+    assert build_row(sl, p1)[4] == '承诺7x24'
+
+    # 8. project_type 不回退客户类型：industry 为空 → None（避免前台显示 LOCAL_SOE 原始码）
+    assert build_row(sl, p2)[6] is None
+    assert effective_project_type({'industry': None, 'customer_type': 'LOCAL_SOE'}) is None
+
+    print('self-test passed: 8 组断言全部通过')
 
 
 def main():

@@ -195,6 +195,7 @@ def process_project(idx, project_dir, base_path, log):
                     "level": s["level"],
                     "title": s["text"],
                     "text_length": len(s.get("full_text", "")),
+                    "text": s.get("full_text", ""),
                     "text_preview": s.get("text_preview", "")[:300],
                     "para_count": s.get("para_count", 0)
                 }

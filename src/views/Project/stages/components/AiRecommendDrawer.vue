@@ -81,10 +81,10 @@ import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { QuestionFilled } from '@element-plus/icons-vue'
 import { caseRecommendationApi } from '@/api/modules/caseRecommendation'
-import { projectLifecycleApi } from '@/api/modules/projectLifecycle'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import CaseCard from '@/views/Knowledge/views/components/CaseCard.vue'
 import CaseDetailDialog from '@/views/Knowledge/views/components/CaseDetailDialog.vue'
+import { useBidCaseSourceActions } from '@/views/Knowledge/views/useBidCaseSourceActions.js'
 import ScoreItemSelect from '@/components/common/ScoreItemSelect.vue'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
@@ -240,22 +240,12 @@ async function copyAndRecordReuse(caseId, text) {
 
 const handleReuse = (item) => copyAndRecordReuse(item.caseId, item.responseText || item.responseTextSummary || '')
 const handleReuseInDetail = (d) => copyAndRecordReuse(d.caseId || d.id, d.responseText || '')
-const goToSourceProject = (d) => {
-  if (d?.sourceProjectId) window.open(`/bidding/detail/${d.sourceProjectId}`, '_blank')
-  else ElMessage.warning('来源项目不可用')
-}
-
+// 查看源项目 / 标书原文：共享 composable（路由修正 + 未归档预检 + 假 ZIP 防护，详见 useBidCaseSourceActions.js）
+const { goToSourceProject: goToSourceProjectBase, openBidDocument: openBidDocumentBase } = useBidCaseSourceActions()
+const goToSourceProject = goToSourceProjectBase
 async function openBidDocument(d) {
-  if (!d?.sourceProjectId) { ElMessage.warning('标书原文暂不可用'); return }
   try {
-    const res = await projectLifecycleApi.exportProjectArchive(d.sourceProjectId)
-    const url = URL.createObjectURL(res.data)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `标书原文-${d.sourceProjectId}.zip`
-    a.click()
-    URL.revokeObjectURL(url)
-    ElMessage.success('标书原文下载成功')
+    await openBidDocumentBase(d)
   } catch (e) {
     notifyErrorUnlessRateLimit(e, '标书原文下载失败')
   }

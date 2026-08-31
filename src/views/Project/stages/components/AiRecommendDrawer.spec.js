@@ -19,6 +19,7 @@ vi.mock('@/api/error-utils.js', () => ({
 vi.mock('@/api/modules/projectLifecycle', () => ({
   projectLifecycleApi: {
     exportProjectArchive: vi.fn(),
+    getArchiveFiles: vi.fn(),
   },
 }))
 
@@ -197,6 +198,8 @@ describe('AiRecommendDrawer.vue', () => {
 
   it('downloads bid archive zip from the blob payload (res.data), not the raw response', async () => {
     const blobPayload = new Blob(['zip-bytes'], { type: 'application/zip' })
+    // 预检：档案有附件才走导出下载（无附件时应提示“原文未归档”并中止）
+    projectLifecycleApi.getArchiveFiles.mockResolvedValue({ data: { totalElements: 2 } })
     projectLifecycleApi.exportProjectArchive.mockResolvedValue({ data: blobPayload })
     const createObjectURL = vi.fn(() => 'blob:mock-url')
     const revokeObjectURL = vi.fn()
@@ -213,9 +216,34 @@ describe('AiRecommendDrawer.vue', () => {
       await wrapper.find('.mock-open-bid').trigger('click')
       await flushPromises()
 
+      expect(projectLifecycleApi.getArchiveFiles).toHaveBeenCalledWith(55, 1)
       expect(projectLifecycleApi.exportProjectArchive).toHaveBeenCalledWith(55)
-      expect(createObjectURL).toHaveBeenCalledWith(blobPayload)
+      // triggerBlobDownload 会基于 res.data 重新包装 Blob，断言收到 ZIP 类型 Blob 而非原始 AxiosResponse
+      expect(createObjectURL).toHaveBeenCalledTimes(1)
+      const blobArg = createObjectURL.mock.calls[0][0]
+      expect(blobArg).toBeInstanceOf(Blob)
+      expect(blobArg.type).toBe('application/zip')
       expect(document.body.textContent).toContain('标书原文下载成功')
+    } finally {
+      clickSpy.mockRestore()
+    }
+  })
+
+  it('bid archive without files warns 原文未归档 and skips export download', async () => {
+    projectLifecycleApi.getArchiveFiles.mockResolvedValue({ data: { totalElements: 0 } })
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    try {
+      caseRecommendationApi.getCaseDetail.mockResolvedValue(caseDetailResponse)
+      const wrapper = await mockOpenWithCases([recommendItem])
+
+      await wrapper.find('.recommend-grid .case-card').trigger('click')
+      await flushPromises()
+      await wrapper.find('.mock-open-bid').trigger('click')
+      await flushPromises()
+
+      expect(projectLifecycleApi.exportProjectArchive).not.toHaveBeenCalled()
+      expect(clickSpy).not.toHaveBeenCalled()
+      expect(document.body.textContent).toContain('标书原文未归档')
     } finally {
       clickSpy.mockRestore()
     }

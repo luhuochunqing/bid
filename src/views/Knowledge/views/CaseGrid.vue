@@ -53,8 +53,8 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import httpClient from '@/api/client.js'
 import { casesApi } from '@/api/modules/knowledge.js'
+import { useBidCaseSourceActions } from './useBidCaseSourceActions.js'
 import CaseCard from './components/CaseCard.vue'
 import CaseDetailDialog from './components/CaseDetailDialog.vue'
 import { PROJECT_TYPE_LABELS, CUSTOMER_TYPE_OPTIONS } from './caseLabels.js'
@@ -122,15 +122,8 @@ const handleReuseInDialog = async (d) => {
   } catch { ElMessage.error('复制失败') }
 }
 
-const goToSourceProject = (d) => { d.sourceProjectId ? window.open(`/bidding/detail/${d.sourceProjectId}`, '_blank') : ElMessage.warning('来源项目不可用') }
-const openBidDocument = async (d) => {
-  if (!d?.sourceProjectId) { ElMessage.warning('标书原文暂不可用'); return }
-  try {
-    const res = await httpClient.get(`/api/archive/export-zip/${d.sourceProjectId}`, { responseType: 'blob' })
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([res], { type: 'application/zip' })); a.download = `标书原文-${d.sourceProjectId}.zip`; a.click(); URL.revokeObjectURL(a.href)
-    ElMessage.success('标书原文下载成功')
-  } catch (e) { ElMessage.error('标书原文下载失败：' + (e?.response?.data?.msg || e?.message || '未知错误')) }
-}
+// 查看源项目 / 标书原文：共享 composable（路由修正 + 未归档预检 + 假 ZIP 防护，详见 useBidCaseSourceActions.js）
+const { goToSourceProject, openBidDocument } = useBidCaseSourceActions()
 
 const viewDetail = async (id) => {
   dialogVisible.value = true; dialogLoading.value = true; selectedCase.value = null
