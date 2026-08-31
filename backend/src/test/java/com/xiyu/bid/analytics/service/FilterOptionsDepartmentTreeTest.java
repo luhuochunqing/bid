@@ -197,4 +197,118 @@ class FilterOptionsDepartmentTreeTest {
                 new AnalyticsDepartmentHierarchySupport.DeptNode("D004", null, "运营中心")
         );
     }
+
+    @Test
+    @DisplayName("锚定西域集团(0001)子树：一级=其直接子节点(锚定节点)，展示到第三级，其他根分支与User兜底不出现")
+    void shouldAnchorTreeToXiYuGroupSubtree() {
+        OrganizationDepartmentEntity virtualRoot = new OrganizationDepartmentEntity();
+        virtualRoot.setDepartmentCode("rootorg");
+        virtualRoot.setDepartmentName("组织架构");
+        virtualRoot.setParentDepartmentCode(null);
+
+        OrganizationDepartmentEntity group = new OrganizationDepartmentEntity();
+        group.setDepartmentCode("0001");
+        group.setDepartmentName("西域集团");
+        group.setParentDepartmentCode("rootorg");
+
+        OrganizationDepartmentEntity otherBranch = new OrganizationDepartmentEntity();
+        otherBranch.setDepartmentCode("T001");
+        otherBranch.setDepartmentName("测试1");
+        otherBranch.setParentDepartmentCode("rootorg");
+
+        // 锚定节点（展示一级）：西域集团的直接子节点
+        OrganizationDepartmentEntity supply = new OrganizationDepartmentEntity();
+        supply.setDepartmentCode("0002");
+        supply.setDepartmentName("西域智慧供应链（上海）股份公司");
+        supply.setParentDepartmentCode("0001");
+
+        OrganizationDepartmentEntity westin = new OrganizationDepartmentEntity();
+        westin.setDepartmentCode("0003");
+        westin.setDepartmentName("威斯汀爱睿（上海）技术有限公司");
+        westin.setParentDepartmentCode("0001");
+
+        // 展示二级：锚定节点的子节点
+        OrganizationDepartmentEntity bizCenter = new OrganizationDepartmentEntity();
+        bizCenter.setDepartmentCode("0004");
+        bizCenter.setDepartmentName("业务中心");
+        bizCenter.setParentDepartmentCode("0002");
+
+        // 展示三级：锚定节点的孙节点
+        OrganizationDepartmentEntity sales1 = new OrganizationDepartmentEntity();
+        sales1.setDepartmentCode("0005");
+        sales1.setDepartmentName("销售一部");
+        sales1.setParentDepartmentCode("0004");
+
+        // 第四级：必须被截断
+        OrganizationDepartmentEntity team1 = new OrganizationDepartmentEntity();
+        team1.setDepartmentCode("0006");
+        team1.setDepartmentName("一组");
+        team1.setParentDepartmentCode("0005");
+
+        // 锚点命中时不触 User 兜底查询：不 stub entityManager，若实现误调兜底将 NPE 失败
+        when(departmentRepository.findAllByOrderByDepartmentCode())
+                .thenReturn(List.of(virtualRoot, group, otherBranch, supply, westin, bizCenter, sales1, team1));
+
+        List<AnalyticsDepartmentTreeDTO> tree = service.fetchDepartmentTree();
+
+        // 一级 = 锚定节点（西域集团的直接子节点），按编码序
+        assertThat(tree).extracting(AnalyticsDepartmentTreeDTO::getLabel)
+                .containsExactly("西域智慧供应链（上海）股份公司", "威斯汀爱睿（上海）技术有限公司");
+
+        // 西域集团本身、其他根分支一律不出现（锚点命中时不触 User 兜底查询）
+        assertThat(tree).extracting(AnalyticsDepartmentTreeDTO::getLabel)
+                .doesNotContain("西域集团", "测试1", "组织架构");
+
+        // 二级 = 锚定节点的子节点
+        AnalyticsDepartmentTreeDTO supplyNode = tree.get(0);
+        assertThat(supplyNode.getChildren()).extracting(AnalyticsDepartmentTreeDTO::getLabel)
+                .containsExactly("业务中心");
+
+        // 三级 = 锚定节点的孙节点；第四级截断
+        AnalyticsDepartmentTreeDTO bizCenterNode = supplyNode.getChildren().get(0);
+        assertThat(bizCenterNode.getChildren()).extracting(AnalyticsDepartmentTreeDTO::getLabel)
+                .containsExactly("销售一部");
+        assertThat(bizCenterNode.getChildren().get(0).getChildren()).isNull();
+    }
+
+    @Test
+    @DisplayName("锚点0001未命中时回退全树两级 + User兜底（保持现状行为）")
+    void shouldFallbackToFullTwoLevelTreeWhenAnchorMissing() {
+        OrganizationDepartmentEntity virtualRoot = new OrganizationDepartmentEntity();
+        virtualRoot.setDepartmentCode("rootorg");
+        virtualRoot.setDepartmentName("组织架构");
+        virtualRoot.setParentDepartmentCode(null);
+
+        OrganizationDepartmentEntity l1 = new OrganizationDepartmentEntity();
+        l1.setDepartmentCode("D001");
+        l1.setDepartmentName("销售总部");
+        l1.setParentDepartmentCode("rootorg");
+
+        OrganizationDepartmentEntity l2 = new OrganizationDepartmentEntity();
+        l2.setDepartmentCode("D002");
+        l2.setDepartmentName("华东区");
+        l2.setParentDepartmentCode("D001");
+
+        OrganizationDepartmentEntity l3 = new OrganizationDepartmentEntity();
+        l3.setDepartmentCode("D003");
+        l3.setDepartmentName("上海办事处");
+        l3.setParentDepartmentCode("D002");
+
+        jakarta.persistence.TypedQuery<String> typedQuery = org.mockito.Mockito.mock(jakarta.persistence.TypedQuery.class);
+        when(entityManager.createQuery(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(String.class)))
+                .thenReturn(typedQuery);
+        when(typedQuery.getResultList()).thenReturn(List.of("技术部"));
+
+        when(departmentRepository.findAllByOrderByDepartmentCode())
+                .thenReturn(List.of(virtualRoot, l1, l2, l3));
+
+        List<AnalyticsDepartmentTreeDTO> tree = service.fetchDepartmentTree();
+
+        // 回退：全树两级 + User 兜底补根
+        assertThat(tree).extracting(AnalyticsDepartmentTreeDTO::getLabel)
+                .containsExactly("销售总部", "技术部");
+        assertThat(tree.get(0).getChildren()).extracting(AnalyticsDepartmentTreeDTO::getLabel)
+                .containsExactly("华东区");
+        assertThat(tree.get(0).getChildren().get(0).getChildren()).isNull();
+    }
 }
