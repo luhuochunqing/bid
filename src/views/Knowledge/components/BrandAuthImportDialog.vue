@@ -89,7 +89,6 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Download, UploadFilled } from '@element-plus/icons-vue'
 import { brandAuthApi } from '@/api/modules/brandAuth.js'
-import http from '@/api/client.js'
 
 const emit = defineEmits(['close', 'success'])
 
