@@ -209,3 +209,8 @@ trigger（同步<1s，互斥校验+建任务）
 - **权重与细则精准对齐防线**：在抽取与全局归并阶段增加提示词级权重就近对齐与逐项验真规则，防止无表格线多行文本中相邻评分项（如信用评价 5% 与财务状况 6%）发生权重颠倒错位。
 - **并列能力评分项完整提取与分值闭环防线**：在候选提取、完整性复查与全局归并中建立并列能力子项（如技术部分 6 项各 5% 包含运营服务能力等）防穿插遗漏规则，确保大项子项分值闭环，彻底杜绝因漏项触发下游归一化余数拼凑失真。
 - **金标自动化回归套件（`GoldenCasesReplayTest`）**：收录 1347（复合编号+百分比权重+程序表防污染+单项权重精确对齐+全并列项闭环）、dual-section（跨维度重号）、weight-gap 等典型真实标书，确保每次改动必须 100% 通过且 F1=1.0，构筑坚实防回退底线。
+
+## 合同履约考核表过滤与外部系统评分声明诊断（2026-08-31）
+
+- **合同履约考核表拦截**：文末合同附件常见《供应商季度/年度合同履约考核表》（考核项目、考核内容、分值，如周期保证 25 分、质量保证 25 分等，总分 95 分），属于合同履约期管理指标而非评标打分项。在 `ScoreParseConstants` 统一定义 `NON_SCORE_PROCEDURE_PATTERN` 与 `CONTRACT_ASSESSMENT_PATTERN`，并在 `GhostCandidateFilter`、`ScoreTableRowParser`、`CellAnchoredScoreExtractor`、`ScoreTableBlockLocator`、`HeuristicTableColumnMapper` 五层全面拦截，防止非评分项进入候选池破坏 100 分闭环。
+- **外部交易系统评分声明识别与精准诊断**：部分标书（如中国一汽 MRO 标书）正文声明“评分标准详见 ZBJ 格式采购文件或电子交易平台‘评审项目’页签”，正文无评分细则。`MarkdownScoreSectionLocator` 识别该外部声明并在正文处截断扫描；当有效候选数为 0 时，`ScoreCandidatePostProcessor` 精准输出诊断错误文案，防止因归一化强行缩放伪造满分。
