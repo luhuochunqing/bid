@@ -1,5 +1,5 @@
 import { mount, flushPromises } from '@vue/test-utils'
-import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 const stubs = {

@@ -277,7 +277,6 @@
 import { ref, reactive, computed, shallowRef, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { ElMessage } from 'element-plus'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
-import { getApiUrl } from '@/api/config.js'
 import { casesApi } from '@/api/modules/knowledge.js'
 import { useUserStore } from '@/stores/user'
 import { safeHtml } from '@/utils/safeHtml.js'
@@ -330,8 +329,6 @@ async function handleExportDocs() {
   await exportDocumentsAsZip()
 }
 
-// 文件上传配置
-const uploadUrl = computed(() => getApiUrl(`/api/projects/${props.projectId}/documents`))
 const acceptedTypes = '.pdf,.jpg,.jpeg,.png'
 // OBS 直传：大文件绕过 APISIX 网关直传 OBS，失败回退到 multipart（修复 413）
 const { customUpload } = useObsProjectDocumentUpload(
@@ -341,7 +338,6 @@ const { customUpload } = useObsProjectDocumentUpload(
 const MAX_FILE_SIZE_MB = 10
 const ALLOWED_MIMES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png']
 const depositEvidenceFiles = ref([])
-const uploadHeaders = computed(() => { const t = userStore?.token; return t ? { Authorization: 'Bearer ' + t } : {} })
 
 const form = reactive({
   depositReturnStatus: '', depositReturnDate: '', depositReturnEvidenceId: null,

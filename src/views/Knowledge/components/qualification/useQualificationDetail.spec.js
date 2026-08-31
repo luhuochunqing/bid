@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { nextTick } from 'vue'
 
 // Mock API client - 必须在 import useQualificationDetail 之前
 const httpMock = {

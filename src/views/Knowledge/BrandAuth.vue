@@ -155,7 +155,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { Plus, Download, Upload } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import brandAuthApi, { PRODUCT_LINE_OPTIONS, STATUS_OPTIONS } from '@/api/modules/brandAuth.js'

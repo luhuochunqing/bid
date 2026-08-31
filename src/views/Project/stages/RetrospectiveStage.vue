@@ -119,7 +119,6 @@ import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
 import { useUserStore } from '@/stores/user'
 import { isBidManager } from '@/utils/permission'
 import { lossReasonOptions } from './retrospectiveLossReasons.js'
-import { getApiUrl } from '@/api/config.js'
 import { downloadWithFilename } from '@/utils/download.js'
 import { getDocuments } from '@/api/modules/projectDocuments.js'
 import { useObsProjectDocumentUpload } from '@/composables/useObsProjectDocumentUpload.js'
@@ -150,13 +149,11 @@ const reportFiles = ref([])
 const view = ref(null)
 const locked = ref(false)
 const submitting = ref(false)
-const uploadUrl = computed(() => getApiUrl(`/api/projects/${props.projectId}/documents`))
 // OBS 直传：大文件绕过 APISIX 网关直传 OBS，失败回退到 multipart（修复 413）
 const { customUpload } = useObsProjectDocumentUpload(
   () => props.projectId,
   { uploaderId: () => userStore.currentUser?.id, uploaderName: () => userStore.userName }
 )
-const uploadHeaders = computed(() => userStore?.token ? { Authorization: `Bearer ${userStore.token}` } : {})
 const MAX_FILE_MB = 20
 function beforeUpload(file) {
   const valid = [

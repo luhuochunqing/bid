@@ -163,7 +163,6 @@ import { useRetireDialog } from '@/composables/useRetireDialog.js'
 const userStore = useUserStore()
 const currentRoleCode = computed(() => userStore?.currentUser?.roleCode || userStore?.currentUser?.role || userStore?.userRole || '')
 const canManageQualification = computed(() => isBidManager(currentRoleCode.value) || currentRoleCode.value === 'bid-administration' || currentRoleCode.value === 'bid-Team')
-const canViewQualification = computed(() => isBidManager(currentRoleCode.value) || ['bid-administration', 'bid-Team'].includes(currentRoleCode.value))
 const canAdminQualificationAlert = computed(() => isBidAdminOrSenior(currentRoleCode.value))
 
 // 列表 / 筛选 / 分页 / fetch / 状态辅助
