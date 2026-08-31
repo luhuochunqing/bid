@@ -20,7 +20,9 @@
  *   node scripts/check-composable-placement.mjs           # 扫描所有 .vue 文件
  *   node scripts/check-composable-placement.mjs --staged  # 仅扫描暂存区
  *
- * 退出码：0=无问题, 1=有告警
+ * 退出码：0=无问题, 1=有告警或错误
+ *   - ERROR：悬空 import（composable 文件已删除但 .vue 中 import 残留），exit 1
+ *   - WARNING：建议内联，仅提示不阻断
  */
 
 import fs from 'fs'
@@ -150,6 +152,7 @@ function main() {
   const vueFiles = getVueFiles()
   let totalVueFiles = 0
   let totalWarnings = 0
+  let totalErrors = 0
 
   for (const vueFile of vueFiles) {
     const content = fs.readFileSync(vueFile, 'utf-8')
@@ -160,6 +163,20 @@ function main() {
 
     for (const { name, modulePath } of composableImports) {
       const compFile = resolveModulePath(vueFile, modulePath)
+
+      // 悬空 import 守卫：composable 文件已删除但 .vue 的 import 残留。
+      // 此前该场景静默跳过（checkComposable 对不存在文件返回 null）——文件删除前
+      // 脚本报"建议内联"、删除后一言不发，悬空 import 作为编译前兆必须显式报错
+      if (!fs.existsSync(compFile)) {
+        totalErrors++
+        console.log(`  ❌ 悬空 import（ERROR）`)
+        console.log(`     Composable: ${name} → ${path.relative(ROOT, compFile)} 不存在`)
+        console.log(`     引用位置: ${path.relative(ROOT, vueFile)}`)
+        console.log(`     建议: 删除该 import（文件已被删除/内联），或恢复被误删的文件`)
+        console.log()
+        continue
+      }
+
       const result = checkComposable(compFile, name)
 
       if (result && result.shouldInline && result.refCount <= 1) {
@@ -172,6 +189,12 @@ function main() {
         console.log()
       }
     }
+  }
+
+  if (totalErrors > 0) {
+    console.log(`   检查文件数: ${vueFiles.length} 个 .vue 文件`)
+    console.log(`   问题: ❌ ${totalErrors} 个悬空 import（阻断）\n`)
+    process.exit(1)
   }
 
   if (totalWarnings > 0) {
