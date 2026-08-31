@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
 public final class CellAnchoredScoreExtractor {
 
     private static final Pattern NUMERIC_WEIGHT_PATTERN = Pattern.compile("^[~≈]?(\\d{1,3}(?:\\.\\d+)?)\\s*(?:分|%)?$");
-    private static final Pattern BRACKET_WEIGHT_PATTERN = Pattern.compile("[（(]\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分\\s*[）)]");
+    private static final Pattern BRACKET_WEIGHT_PATTERN = ScoreParseConstants.BRACKET_WEIGHT_PATTERN;
     private static final Pattern GRADE_SCORE_PATTERN = Pattern.compile("得\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分");
     private static final Pattern PRICE_SUBITEM_PATTERN = Pattern.compile(
             "[1-9]、\\s*([^\\s。\\n;；，,（(]{2,30}?(?:[（(][^）)]*?[）)])?)\\s*[（(]?\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分\\s*[）)]?"
@@ -132,10 +132,12 @@ public final class CellAnchoredScoreExtractor {
                 continue;
             }
 
-            // 复合价格分细拆处理（如 MRO工业品价格分 = 京东工业品28分 + 自有商城12分）
+            // 复合价格分细拆（如 MRO工业品价格分40 = 京东工业品28 + 自有商城12）：
+            // 仅加法型（子项之和==父行分值，见 extractPriceSubCandidates 门控）才拆分；
+            // "取最高/封顶"型拆分会虚增总权重，自动退回父行整项
             if (weight != null && (finalDim.contains("报价") || finalDim.contains("价格") || detail.contains("价格分"))) {
                 List<ScoreCandidate> subCandidates = extractPriceSubCandidates(
-                        code, finalDim, detail, sourceRow, r + 1);
+                        code, finalDim, detail, weight, sourceRow, r + 1);
                 if (!subCandidates.isEmpty()) {
                     candidates.addAll(subCandidates);
                     continue;
@@ -158,8 +160,16 @@ public final class CellAnchoredScoreExtractor {
         return candidates;
     }
 
+    /**
+     * 复合价格分细拆：detail 中枚举的子项（"1、上架折扣率（京东工业品）（28分）"）各自成候选。
+     * 加法一致性门控：子项分值之和必须等于父行分值（parentWeight）才采纳拆分——
+     * "取最高/封顶"型价格分（子项之和≠父值）拆分会虚增总权重，返回空列表保留父行。
+     * 已知启发式局限（复审 Finding 6，待真实案例再建模）：父行分值若由 detail 内"得X分/
+     * 括号"推导（无显式分值列）且恰好等于最大子项，和校验会误抑制正确拆分；可加子项的
+     * "就高"型（如 20+20 父 20）无法与加法型区分，仍会误拆。
+     */
     private static List<ScoreCandidate> extractPriceSubCandidates(
-            String code, String parentDim, String detail, String sourceRow, int rowNum) {
+            String code, String parentDim, String detail, BigDecimal parentWeight, String sourceRow, int rowNum) {
         String cleanDetail = detail.replaceAll("<[^>]+>", " ");
         Matcher matcher = PRICE_SUBITEM_PATTERN.matcher(cleanDetail);
         List<ScoreCandidate> list = new ArrayList<>();
@@ -175,7 +185,14 @@ public final class CellAnchoredScoreExtractor {
                     sourceRow, "R" + rowNum + "_" + (list.size() + 1), "TABLE_GRID"
             ));
         }
-        return list.size() >= 2 ? list : List.of();
+        if (list.size() < 2) {
+            return List.of();
+        }
+        BigDecimal subWeightSum = BigDecimal.ZERO;
+        for (ScoreCandidate c : list) {
+            subWeightSum = subWeightSum.add(c.weight());
+        }
+        return subWeightSum.compareTo(parentWeight) == 0 ? list : List.of();
     }
 
     private static boolean isAllEmpty(List<String> cells) {
@@ -188,7 +205,7 @@ public final class CellAnchoredScoreExtractor {
     private static String cleanDimName(String raw) {
         if (raw == null) return "";
         return raw.replaceAll("[：:（(]\\s*\\d+(?:\\.\\d+)?\\s*(?:分|%|分值)\\s*[）)]?", "")
-                .replace("<br>", " ")
+                .replaceAll("<br\\s*/?>", " ")
                 .replace("\n", " ").replaceAll("\\s+", " ").trim();
     }
 

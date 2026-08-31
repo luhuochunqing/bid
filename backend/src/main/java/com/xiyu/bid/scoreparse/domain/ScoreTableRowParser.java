@@ -30,7 +30,7 @@ public final class ScoreTableRowParser {
     private static final Pattern CODE_PATTERN = Pattern.compile("^[A-Za-z]{0,2}\\d+([\\.\\(]\\d+[\\)]?)*$");
     private static final Pattern PURE_WEIGHT_COLUMN = Pattern.compile("^[~≈]?\\d{1,3}(\\.\\d+)?\\s*(?:分|%)?$");
     private static final Pattern GRADE_SCORE = Pattern.compile("得\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分");
-    private static final Pattern BRACKET_WEIGHT = Pattern.compile("[（(]\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分\\s*[）)]");
+    private static final Pattern BRACKET_WEIGHT = ScoreParseConstants.BRACKET_WEIGHT_PATTERN;
     private static final Pattern CONTAINS_HAN = Pattern.compile("[\\p{IsHan}]");
     private static final Pattern SCORE_SEMANTIC = Pattern.compile("评分|评审|评标|分值|得分|打分|加分|扣分|评审标准|评分标准");
     private static final Pattern NON_SCORE_PROCEDURE_PATTERN = ScoreParseConstants.NON_SCORE_PROCEDURE_PATTERN;
@@ -93,11 +93,10 @@ public final class ScoreTableRowParser {
             return Optional.empty();
         }
         
-        // 分值提取优先级：
-        // 1. 列2/列3提取的括号分值（主项满分，如"财务状况（10分）"）
-        // 2. 最右侧纯分值列（叶子项满分，如 "2.5" / "1.5分"）
-        // 3. detail 列内部的"得X分"档位最大值
-        // 4. 整行 maxGradeScore
+        // 分值提取优先级（bracket 优先于纯分值列，PR !2481 dd6492143 引入）：
+        // 括号分值是维度名上的显式满分标注（"财务状况（10分）"→10），语义最强；纯分值列次之
+        // （叶子项满分）——两者并存且不一致时以括号标注为准；再退 detail"得X分"档位最大值。
+        // 锚定：parse_bracketWeightTakesPrecedenceOverPureWeightColumn + 金标 testProject21ScoreParsing
         int weightIndex = pureWeightIndex(columns, codeIndex);
         BigDecimal weight = null;
         if (bracketResult.weight() != null) {
@@ -235,13 +234,19 @@ public final class ScoreTableRowParser {
     }
 
     /**
-     * 从列2或列3提取括号分值（主项分值）。
-     * 常见模式："财务状况及抗风险能力（10分）" → weight=10, dim="财务状况及抗风险能力"
+     * 提取括号分值（主项分值）。扫描列 3 → 列 0；多列表（>=3 列）跳过列 0——序号列误含
+     * 括号（如"1（10分）"）会冒充分值；2 列及以下窄表列 0 常是维度名本身（如
+     * "| 供应商业绩（7分） | 细则 |"），必须参与，否则退化为"得X分"档位最大值冒充满分
+     * （复审 jshell 实证：weight 7 → 2 错值）。
      *
      * @return BracketWeightResult(weight, dimFromCol3, col3Index)
      */
     private static BracketWeightResult extractBracketWeight(List<String> columns) {
+        boolean skipFirstColumn = columns.size() >= 3;
         for (int idx = Math.min(columns.size() - 1, 3); idx >= 0; idx--) {
+            if (idx == 0 && skipFirstColumn) {
+                continue;
+            }
             String col = columns.get(idx);
             if (SUMMARY_ROW_PATTERN.matcher(col).find()) {
                 continue;
@@ -249,7 +254,7 @@ public final class ScoreTableRowParser {
             Matcher matcher = BRACKET_WEIGHT.matcher(col);
             if (matcher.find()) {
                 BigDecimal weight = new BigDecimal(matcher.group(1));
-                String dim = col.replaceAll("[（(]\\s*\\d{1,3}(?:\\.\\d+)?\\s*分\\s*[）)]", "").trim();
+                String dim = BRACKET_WEIGHT.matcher(col).replaceAll("").trim();
                 dim = dim.replace("\n", " ").replaceAll("\\s+", " ").trim();
                 return new BracketWeightResult(weight, dim.isEmpty() ? null : dim, idx);
             }

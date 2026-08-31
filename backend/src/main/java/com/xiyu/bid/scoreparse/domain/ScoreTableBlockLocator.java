@@ -85,7 +85,12 @@ public final class ScoreTableBlockLocator {
         if (headerLine == null) {
             return false;
         }
-        if (CONTRACT_ASSESSMENT_HEADER.matcher(headerLine).find()) {
+        // 考核词表命中须让位于评分表头逃生门（严格版，见 ScoreParseConstants.SCORE_HEADER_ESCAPE_PATTERN）：
+        // 真实评分表表头可能含"考核指标/扣分项"等考核词（MRO 案例），整表跳过的损害远大于单行误入
+        //（行级还有 ScoreTableRowParser 的 NON_SCORE 过滤兜底）——与 HeuristicTableColumnMapper
+        // 的 EXPLICIT_BID_SCORE_HEADER 逃生门同构（xcode-review MAJOR：词表放射注入无逃生门）
+        if (CONTRACT_ASSESSMENT_HEADER.matcher(headerLine).find()
+                && !ScoreParseConstants.SCORE_HEADER_ESCAPE_PATTERN.matcher(headerLine).find()) {
             return true;
         }
         if (!PROCEDURE_TABLE_MARKER.matcher(headerLine).find()) {

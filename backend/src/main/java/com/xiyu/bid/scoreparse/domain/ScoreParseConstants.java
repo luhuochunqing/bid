@@ -27,18 +27,45 @@ public final class ScoreParseConstants {
     /** 幻觉丢弃率天花板：高于此值说明归并裁决质量劣化（spec 057 FR-06） */
     public static final double HALLUCINATION_RATIO_CEIL = 0.3;
 
-    /** 须知前附表程序性与合同履约期非评分条款过滤正则（行级/单元格级/幽灵候选共用唯一出处） */
-    public static final java.util.regex.Pattern NON_SCORE_PROCEDURE_PATTERN = java.util.regex.Pattern.compile(
-            "推荐成交候选|成交候选|推荐候选|定标|预备会|开启程序|开标程序|递交响应文件|响应文件的递交|响应文件的编制|成交结果公示|履约保证金|投标保证金|失信行为|“码”上监督|监督中心|异议|质疑|答疑|澄清|踏勘|电子响应文件|分包|服务费|采购代理服务费|"
-                    + "考核项目|考核内容|履约考核|供应商考核|季度考核|年度考核|违约责任|违约金|违规行为判定|违约责任承担|判定依据|扣款细则|履约评价|日常考核|供应商评价|考核细则|扣款标准|"
-                    + "投诉扣分|扣分项|考核指标|时效考核|服务水平评价|配送服务评价|发票开具及时|收款核销|采购需求回复率|妥投信息"
-    );
+    /**
+     * 合同履约考核特征词表（CONTRACT_ASSESSMENT_PATTERN / NON_SCORE_PROCEDURE_PATTERN 共享子表，
+     * 单一出处防双写漂移——两个 pattern 必须同步演化，改动时同步检查三处消费方：
+     * ScoreTableBlockLocator / MarkdownScoreSectionLocator（表头判定，含 SCORE_HEADER_ESCAPE_PATTERN
+     * 逃生门；PROCEDURE 词分支另有宽版 SCORE_COLUMN_MARKER）与 HeuristicTableColumnMapper（表头判定，
+     * 含 EXPLICIT_BID_SCORE_HEADER 逃生门），行级消费方（ScoreTableRowParser / CellAnchoredScoreExtractor
+     * / GhostCandidateFilter）依赖"得X分"/括号分值救生通道兜底误杀）。
+     */
+    private static final String ASSESSMENT_KEYWORDS =
+            "考核项目|考核内容|履约考核|供应商考核|季度考核|年度考核|违约责任|违约金|违规行为判定|违约责任承担|判定依据|扣款细则|供应商评价|"
+                    + "投诉扣分|扣分项|考核指标|时效考核|服务水平评价|配送服务评价|发票开具及时|收款核销|采购需求回复率|妥投信息";
 
     /** 合同履约考核表表头与正文特征（表格块定位/网格列映射/章节截断共用唯一出处） */
     public static final java.util.regex.Pattern CONTRACT_ASSESSMENT_PATTERN = java.util.regex.Pattern.compile(
-            "考核项目|考核内容|履约考核|供应商考核|季度考核|年度考核|违约责任|违约金|违规行为判定|违约责任承担|判定依据|扣款细则|供应商评价|"
-                    + "投诉扣分|扣分项|考核指标|时效考核|服务水平评价|配送服务评价|发票开具及时|收款核销|采购需求回复率|妥投信息"
+            ASSESSMENT_KEYWORDS
     );
+
+    /** 须知前附表程序性非评分条款过滤正则（行级/单元格级/幽灵候选共用唯一出处；词表 = 程序性词 + 考核词表） */
+    public static final java.util.regex.Pattern NON_SCORE_PROCEDURE_PATTERN = java.util.regex.Pattern.compile(
+            "推荐成交候选|成交候选|推荐候选|定标|预备会|开启程序|开标程序|递交响应文件|响应文件的递交|响应文件的编制|成交结果公示|履约保证金|投标保证金|失信行为|“码”上监督|监督中心|异议|质疑|答疑|澄清|踏勘|电子响应文件|分包|服务费|采购代理服务费|"
+                    + "履约评价|日常考核|考核细则|扣款标准|" + ASSESSMENT_KEYWORDS
+    );
+
+    /**
+     * 括号分值正则（"（7分）"/"(7.5分)"，捕获组 1 = 分值数字）。
+     * 表格行解析/网格提取/列验真/列映射四处共用唯一出处，禁止本地再编译同义正则。
+     */
+    public static final java.util.regex.Pattern BRACKET_WEIGHT_PATTERN =
+            java.util.regex.Pattern.compile("[（(]\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分\\s*[）)]");
+
+    /**
+     * 评分表头逃生词（强评分列名版）：考核/程序表判定命中后的白名单出口。
+     * 刻意收窄为"评分因素/评审因素"两类强评分列名——"评分标准/分值/得分"是考核表、计费表
+     * 也会出现的泛词（"考核项目|考核内容|评分标准|分值"是履约考核表真实表头布局），放行会
+     * 泄漏整张考核表（复审 jshell 实证）。已知接受面：表头含考核词且无强评分列名的评分表
+     * 会被跳过，由行级 NON_SCORE 词表兜底（见 ScoreTableBlockLocatorTest 逃生门锚定用例）。
+     */
+    public static final java.util.regex.Pattern SCORE_HEADER_ESCAPE_PATTERN =
+            java.util.regex.Pattern.compile("评分因素|评审因素");
 
     /** 商品目录/分类清单/偏离表/服务费率表等非评分表格特征（网格列映射过滤用） */
     public static final java.util.regex.Pattern NON_SCORE_CATALOG_PATTERN = java.util.regex.Pattern.compile(

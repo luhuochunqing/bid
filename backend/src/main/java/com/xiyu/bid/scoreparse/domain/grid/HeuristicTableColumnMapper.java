@@ -21,7 +21,7 @@ public final class HeuristicTableColumnMapper {
     private static final Pattern DIM_HEADER = Pattern.compile("评分因素|评分项|评审因素|评审项目|维度|项目名称|指标名称");
     private static final Pattern DETAIL_HEADER = Pattern.compile("评分标准|评分细则|评审标准|详细细则|打分细则|打分标准|条款内容");
     private static final Pattern WEIGHT_HEADER = Pattern.compile("分值|权重|满分|最高分|得分|比例");
-    private static final Pattern BRACKET_WEIGHT_PATTERN = Pattern.compile("[（(]\\s*\\d{1,3}(?:\\.\\d+)?\\s*分\\s*[）)]");
+    private static final Pattern BRACKET_WEIGHT_PATTERN = ScoreParseConstants.BRACKET_WEIGHT_PATTERN;
     private static final Pattern CONTRACT_ASSESSMENT_HEADER = ScoreParseConstants.CONTRACT_ASSESSMENT_PATTERN;
     private static final Pattern NON_SCORE_CATALOG_HEADER = ScoreParseConstants.NON_SCORE_CATALOG_PATTERN;
     private static final Pattern EXPLICIT_BID_SCORE_HEADER = Pattern.compile(
@@ -93,7 +93,11 @@ public final class HeuristicTableColumnMapper {
             detailCol = longestCol >= 0 ? longestCol : (colCount > 2 ? 1 : 0);
         }
 
-        // 寻找内嵌括号分值列（如"供应商业绩（7分）"）
+        // 寻找内嵌括号分值列（如"供应商业绩（7分）"）。取首个（最左）命中列锚定。
+        // 命中门槛权衡（xcode-review 实测）：曾试验 count>=2 防单格偶发文本劫持，但 MRO 真实
+        // 标书分页把评分表切成碎片块（首行是上一页细则残行），括号列常仅 1 格命中，门槛会整块
+        // 丢弃正确评分项——损害大于劫持风险，故维持 count>0，单格劫持由 ColumnTypeCrossVerifier
+        // 的权重列密度地板（0.4）兜底拒绝。
         int bracketCol = -1;
         for (int c = 0; c < colCount; c++) {
             if (c == detailCol) continue;
@@ -105,7 +109,7 @@ public final class HeuristicTableColumnMapper {
             }
             if (count > 0) {
                 bracketCol = c;
-                break;  // 取首个（最左）命中列作为括号分值锚定列
+                break;
             }
         }
 
@@ -114,7 +118,10 @@ public final class HeuristicTableColumnMapper {
             if (dimCol == -1 || dimCol == detailCol) {
                 dimCol = bracketCol;
             }
-            if (parentDimCol == -1 && bracketCol >= 1 && bracketCol != codeCol) {
+            // parentDim 推断防御：左侧邻列若恰是细则列或编号列，父维度会读到长细则/编号文本，
+            // 宁缺勿错（复审 Finding 9：codeCol 边界）
+            if (parentDimCol == -1 && bracketCol >= 1 && bracketCol != codeCol
+                    && bracketCol - 1 != detailCol && bracketCol - 1 != codeCol) {
                 parentDimCol = bracketCol - 1;
             }
         }
