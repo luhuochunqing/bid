@@ -1,3 +1,7 @@
+// Input: Mock ComplianceCheckResultRepository
+// Output: 验证进度更新、元数据更新、完成状态与失败标记逻辑
+// Pos: compliance/application/ - 进度更新器单元测试
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.application;
 
 import com.xiyu.bid.compliance.entity.ComplianceCheckResult;

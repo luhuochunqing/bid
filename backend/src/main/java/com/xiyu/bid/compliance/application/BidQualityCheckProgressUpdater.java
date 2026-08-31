@@ -1,3 +1,7 @@
+// Input: 检查结果ID、任务状态、进度、详情与错误信息
+// Output: 独立事务即时持久化进度到数据库，供前端轮询端点秒级感知
+// Pos: compliance/application/ - 标书质量核查任务进度与状态独立事务更新器
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.application;
 
 import com.xiyu.bid.compliance.entity.ComplianceCheckResult;

@@ -1,3 +1,7 @@
+// Input: Mock 依赖（Repository, Loaders, AsyncExecutor）
+// Output: 验证任务流转、毫秒级响应、事务 afterCommit 同步与快照回填
+// Pos: compliance/application/ - 质量核查任务编排服务单元测试
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.application;
 
 import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
@@ -78,6 +82,45 @@ class BidQualityCheckTaskAppServiceTest {
         assertThat(taskDTO).isNotNull();
         assertThat(taskDTO.getTaskId()).isEqualTo("test_task_123");
         verify(asyncExecutor).executeAsync(eq(1L), eq(projectId), any(String.class), eq(false));
+    }
+
+    @Test
+    @DisplayName("活动事务下在 afterCommit 钩子中触发异步执行")
+    void testTriggerQualityCheck_ActiveTransaction_TriggersAfterCommit() {
+        Long projectId = 101L;
+        when(resultRepository.findByProjectIdAndCheckTypeAndStatusIn(eq(projectId), any(), any()))
+                .thenReturn(Collections.emptyList());
+        stubBidDocumentExists(projectId);
+
+        ComplianceCheckResult saved = ComplianceCheckResult.builder()
+                .id(2L)
+                .projectId(projectId)
+                .taskId("tx_task_456")
+                .status(ComplianceCheckResult.TaskStatus.INIT)
+                .progress(0)
+                .build();
+        when(resultRepository.save(any())).thenReturn(saved);
+
+        org.springframework.transaction.support.TransactionSynchronizationManager.initSynchronization();
+        try {
+            QualityCheckTaskDTO taskDTO = taskAppService.triggerQualityCheck(projectId, true);
+            assertThat(taskDTO).isNotNull();
+            assertThat(taskDTO.getTaskId()).isEqualTo("tx_task_456");
+
+            // 提交前尚未触发
+            org.mockito.Mockito.verify(asyncExecutor, org.mockito.Mockito.never())
+                    .executeAsync(any(), any(), any(), org.mockito.ArgumentMatchers.anyBoolean());
+
+            // 模拟事务提交
+            for (org.springframework.transaction.support.TransactionSynchronization syn :
+                    org.springframework.transaction.support.TransactionSynchronizationManager.getSynchronizations()) {
+                syn.afterCommit();
+            }
+
+            verify(asyncExecutor).executeAsync(eq(2L), eq(projectId), any(String.class), eq(true));
+        } finally {
+            org.springframework.transaction.support.TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     @Test

@@ -1,3 +1,7 @@
+// Input: 检查结果ID、项目ID、任务UUID、force参数
+// Output: 异步执行25项质量核查，进度持久化到DB
+// Pos: compliance/application/ - 标书质量核查后台异步执行器
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -59,7 +63,7 @@ public class BidQualityCheckAsyncExecutor {
      * @param taskId 任务UUID
      * @param force 是否强制跳过缓存重新核查
      */
-    @Async
+    @Async("aiTaskExecutor")
     public void executeAsync(final Long resultId, final Long projectId, final String taskId, final boolean force) {
         log.info("Starting async bid quality check task: {} for project: {}, force: {}", taskId, projectId, force);
 

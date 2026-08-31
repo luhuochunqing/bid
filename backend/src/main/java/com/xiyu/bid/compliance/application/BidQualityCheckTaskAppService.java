@@ -1,3 +1,7 @@
+// Input: 项目ID、任务UUID、force参数
+// Output: 质量核查任务DTO与报告DTO，触发异步核查流水线
+// Pos: compliance/application/ - 标书质量核查任务应用编排服务
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.application;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -15,6 +19,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -91,7 +97,17 @@ public class BidQualityCheckTaskAppService {
         ComplianceCheckResult saved = resultRepository.save(taskEntity);
 
         // 4. 触发后台异步执行（大文件下载、瘦身、Sidecar解析、LLM核查等耗时动作全部在后台异步完成）
-        asyncExecutor.executeAsync(saved.getId(), projectId, taskId, force);
+        // 在事务提交后（afterCommit）安全触发，确保后台独立事务进度更新器对记录立即可见
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    asyncExecutor.executeAsync(saved.getId(), projectId, taskId, force);
+                }
+            });
+        } else {
+            asyncExecutor.executeAsync(saved.getId(), projectId, taskId, force);
+        }
 
         log.info("Triggered new async quality check task: {} for project: {}, force: {}", taskId, projectId, force);
         return toTaskDTO(saved);

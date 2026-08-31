@@ -3407,5 +3407,26 @@ Project 36 评分标准解析任务在 90% 评分项落库阶段崩溃失败，�
 | 将 LLM 自由生成的文字直接存入有长度限制的 DB 字段 | 假设了 Prompt 约定的“简要描述”一定不会超长，忽视了模型幻觉和长回复概率 | 所有来自 LLM 的字段映射到定长数据库列时，必须在 Mapper 纯核心与 Persistence 层做双层安全截断 |
 | 仅对主文字字段做截断忽视了元数据字段 | 往往只注意 `sourceText`/`detail` 等大字段，忽视了 `location`/`code`/`dim`/`stage` 等小字段 | 梳理实体所有 `VARCHAR(N)` 字段，全链路对齐长度边界防护 |
 
+---
 
+## 188. AI 标书质量核查异步线程池显式绑定与事务提交解耦加固（2026-08-31）
 
+**现象**：
+西域测试环境用户在项目详情标书编制阶段点击【AI 标书质量核查】时，前端弹出 `请求超时，请检查网络后重试`。
+
+**根因分析**：
+1. **`@Async` 遗漏线程池 Bean 名称**：`BidQualityCheckAsyncExecutor` 仅标注了无参 `@Async`。系统中存在 8 个专用 `TaskExecutor` Bean 且无默认 `taskExecutor`。在某些调度或负载情况下可能出现线程池解析歧义，若发生 `CallerRunsPolicy`，长达 60~180s 的重 I/O 与 LLM 裁决在 Tomcat 主请求线程同步执行，直接击穿前端 Axios 30s 全局超时；
+2. **事务未提交即触发异步执行的竞态**：`triggerQualityCheck` 为 `@Transactional` 方法，在 `save(taskEntity)` 后立即同步调用 `asyncExecutor.executeAsync`。若后台异步线程在主事务尚未提交前启动，并在独立事务（`Propagation.REQUIRES_NEW`）中调用 `updateProgress`，可能读不到尚未提交的主任务实体。
+
+**解决方案**：
+1. **显式绑定专用 AI 线程池**（`BidQualityCheckAsyncExecutor`）：
+   - 将 `@Async` 明确指定为 `@Async("aiTaskExecutor")`，与系统其他 AI 异步服务标准对齐；
+2. **事务提交后安全触发异步执行**（`BidQualityCheckTaskAppService`）：
+   - 使用 `TransactionSynchronizationManager.isSynchronizationActive()` 检查当前事务上下文；
+   - 在活动事务下通过 `registerSynchronization` 的 `afterCommit` 钩子安全触发异步流水线，消除事务可见性竞态；非活动事务下保持直接执行。
+
+**教训**：
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| 多 Executor 容器下使用无参 `@Async` | 默认依赖 Spring 解析，忽视了无 `@Primary` 时的调度歧义与 CallerRuns 阻塞 HTTP 线程风险 | 系统中存在多个线程池时，所有 `@Async` 必须显式指定目标 Executor 名称（如 `@Async("aiTaskExecutor")`） |
+| `@Transactional` 方法内直接触发异步线程 | 异步线程在主事务提交前启动，导致异步线程内的独立事务读不到未提交数据 | 使用 `TransactionSynchronizationManager` 注册 `afterCommit` 钩子，确保数据 100% 物理落库后再触发异步作业 |
