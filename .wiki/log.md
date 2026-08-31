@@ -554,3 +554,8 @@
 - 回填：[[tender-create-upload-triage]]；同分支修复 3 个 UX 缺陷（禁用原因 tooltip / status=success 标识 / AI 回填后缺失必填项提示）
 - 教训：**"上传完没报错但没成功"类工单，先查 Nginx access.log 看目标 POST 是否发出，再决定查后端；禁用按钮必须给禁用原因，否则用户无从自救**
 
+## 2026-08-31 compound | 案例库历史切片三连修：300 字截断 / 源项目路由空白 / 标书原文假 ZIP
+- 触发：测试环境导入 300 条历史切片后用户目检发现三个问题（片段无实战价值 / 查看源项目空白 / 下载坏 ZIP）
+- 排障：数据层实测最大长度恰好 300（JSONL 只出 text_preview）；路由表无 /bidding/detail/{id}；export-zip 带成员校验 403 被 blob 落盘 + 历史项目档案 0 附件
+- 回填：[[case-source-actions-and-import-pitfalls]]；新增共享 composable useBidCaseSourceActions（8 个组件级用例锁定）；切片脚本改出全文、导入脚本修 project_type 枚举混填
+- 教训：**blob 下载必须查 content-type（application/json=错误体）再落盘；跨表灌数字段必须按目标字段枚举校验，禁止跨枚举回退**

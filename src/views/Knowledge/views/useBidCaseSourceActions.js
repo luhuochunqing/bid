@@ -8,6 +8,7 @@
  */
 import { ElMessage } from 'element-plus'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { isJsonErrorBlob, readJsonErrorMessage, triggerBlobDownload } from '@/utils/download'
 
 export function useBidCaseSourceActions() {
@@ -38,7 +39,8 @@ export function useBidCaseSourceActions() {
       triggerBlobDownload(new Blob([blob], { type: 'application/zip' }), `标书原文-${d.sourceProjectId}.zip`)
       ElMessage.success('标书原文下载成功')
     } catch (e) {
-      ElMessage.error('标书原文下载失败：' + (e?.response?.data?.msg || e?.message || '未知错误'))
+      // 429 由全局拦截器统一提示，业务 catch 不重复弹窗（门禁 429 覆盖规则）
+      notifyErrorUnlessRateLimit(e, '标书原文下载失败')
     }
   }
 
