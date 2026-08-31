@@ -6,7 +6,6 @@ package com.xiyu.bid.compliance.application;
 
 import com.xiyu.bid.ai.client.AiProvider;
 import com.xiyu.bid.compliance.domain.DocumentContent;
-import com.xiyu.bid.compliance.domain.policy.LlmVerdict;
 import com.xiyu.bid.compliance.domain.policy.KnowledgeQueryOutcome;
 import com.xiyu.bid.compliance.domain.policy.LlmVerdict;
 import com.xiyu.bid.compliance.domain.policy.TenderRequirements;
@@ -31,7 +30,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
