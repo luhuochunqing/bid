@@ -168,14 +168,16 @@ class ScoreItemPersistenceServiceTest {
 
         String longCode = "C".repeat(70);
         String longDim = "D".repeat(250);
+        String longLocation = "L".repeat(300);
         service.persistItems(PROJECT_ID, PARSE_TASK_ID, List.of(
                 new ScoreCandidate(longCode, longDim, "详细要素",
-                        new BigDecimal("10"), "OBJECTIVE", null, "原文", "P1", null)));
+                        new BigDecimal("10"), "OBJECTIVE", null, "原文", longLocation, null)));
 
         ArgumentCaptor<List<ScoreItem>> saved = capturedSavedItems();
         ScoreItem item = saved.getValue().get(0);
         assertThat(item.getCode()).hasSize(50);
         assertThat(item.getDim()).hasSize(200);
+        assertThat(item.getLocation()).hasSize(200);
     }
 
     @SuppressWarnings("unchecked")

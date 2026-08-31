@@ -68,6 +68,7 @@ public class ScoreItemPersistenceService {
             String dim = resolveDim(candidate.dim(), candidate.detail());
             String detail = candidate.detail() == null || candidate.detail().isBlank()
                     ? "—" : candidate.detail();
+            String location = resolveLocation(candidate.location());
             items.add(ScoreItem.builder()
                     .projectId(projectId)
                     .parseTaskId(parseTaskId)
@@ -80,7 +81,7 @@ public class ScoreItemPersistenceService {
                     .statusStage1("PENDING")
                     .contextNote(candidate.contextNote())
                     .sourceText(candidate.sourceText())
-                    .location(candidate.location())
+                    .location(location)
                     .build());
         }
         List<ScoreItem> savedItems = itemRepository.saveAll(items);
@@ -159,5 +160,13 @@ public class ScoreItemPersistenceService {
             return trimmed.length() > 50 ? trimmed.substring(0, 50) : trimmed;
         }
         return "评分项";
+    }
+
+    private String resolveLocation(String location) {
+        if (location == null || location.isBlank()) {
+            return null;
+        }
+        String trimmed = location.trim();
+        return trimmed.length() > 200 ? trimmed.substring(0, 200) : trimmed;
     }
 }
