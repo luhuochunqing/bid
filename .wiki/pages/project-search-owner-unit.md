@@ -12,6 +12,7 @@ backlinks:
   - score-parse-service
 created: 2026-08-31
 updated: 2026-08-31
+health_checked: 2026-08-31
 ---
 
 # 项目搜索按招标主体（ownerUnit 数据链路与关键词过滤契约）
