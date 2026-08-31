@@ -20,9 +20,7 @@ import java.util.regex.Pattern;
  */
 public class GhostCandidateFilter {
 
-    private static final Pattern NON_SCORE_PROCEDURE_PATTERN = Pattern.compile(
-            "推荐成交候选|成交候选|推荐候选|定标|预备会|开启程序|开标程序|递交响应文件|响应文件的递交|响应文件的编制|成交结果公示|履约保证金|投标保证金|失信行为|“码”上监督|监督中心|异议|质疑|答疑|澄清|踏勘|电子响应文件|分包|服务费|采购代理服务费"
-    );
+    private static final Pattern NON_SCORE_PROCEDURE_PATTERN = ScoreParseConstants.NON_SCORE_PROCEDURE_PATTERN;
 
     /** 过滤幽灵候选，返回新列表；入参为 null 时返回空列表 */
     public List<ScoreCandidate> filter(List<ScoreCandidate> candidates) {

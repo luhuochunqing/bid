@@ -6,6 +6,7 @@
 package com.xiyu.bid.scoreparse.infrastructure.structure;
 
 import com.xiyu.bid.biddraftagent.domain.PriceScoringKeywords;
+import com.xiyu.bid.scoreparse.domain.ScoreParseConstants;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -27,6 +28,8 @@ public final class MarkdownScoreSectionLocator {
     private static final Pattern PRICE_PARAM_PATTERN = PriceScoringKeywords.PRICE_PARAM_BLOCK;
     private static final Pattern PROCEDURE_TABLE_MARKER = Pattern.compile("编列内容");
     private static final Pattern SCORE_COLUMN_MARKER = Pattern.compile("评分因素|评分标准");
+    private static final Pattern CONTRACT_ASSESSMENT_HEADER = ScoreParseConstants.CONTRACT_ASSESSMENT_PATTERN;
+    public static final Pattern EXTERNAL_SOFTWARE_SCORE_PATTERN = ScoreParseConstants.EXTERNAL_SOFTWARE_SCORE_PATTERN;
 
     private static final int CONTEXT_BEFORE_LINES = 2;
     private static final int CONTEXT_AFTER_LINES = 3;
@@ -87,6 +90,9 @@ public final class MarkdownScoreSectionLocator {
                             if (curr.startsWith("#") && SCORE_HEADING_PATTERN.matcher(curr).find()) break;
                             if (CHAPTER_START_PATTERN.matcher(curr).find()
                                     && (curr.contains("标包") || curr.contains("标段") || curr.contains("经评审") || curr.contains("综合评分"))) {
+                                break;
+                            }
+                            if (curr.matches("^(?:第[一二三四五六七八九十百千万\\d]+[章节篇]|[#]{1,3}\\s+|\\|\\s*)?(?:附件|合同附件|供应商考核|履约考核|考核细则|违约责任).*")) {
                                 break;
                             }
                         }
@@ -210,8 +216,16 @@ public final class MarkdownScoreSectionLocator {
         return clean.length() > 60 ? clean.substring(0, 60) : clean;
     }
 
+    public static boolean hasExternalSoftwareScoreDeclaration(String markdown) {
+        if (markdown == null || markdown.isBlank()) {
+            return false;
+        }
+        return EXTERNAL_SOFTWARE_SCORE_PATTERN.matcher(markdown).find();
+    }
+
     private static boolean isProcedureNoticeTable(String headerLine) {
         if (headerLine == null) return false;
+        if (CONTRACT_ASSESSMENT_HEADER.matcher(headerLine).find()) return true;
         if (!PROCEDURE_TABLE_MARKER.matcher(headerLine).find()) return false;
         return !SCORE_COLUMN_MARKER.matcher(headerLine).find();
     }

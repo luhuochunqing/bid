@@ -14,6 +14,7 @@ import com.xiyu.bid.scoreparse.domain.WeightNormalizationPolicy;
 import com.xiyu.bid.scoreparse.domain.WeightOverloadTrimPolicy;
 import com.xiyu.bid.scoreparse.domain.WeightSumCheck;
 import com.xiyu.bid.scoreparse.infrastructure.openai.OpenAiScoreAnalyzer;
+import com.xiyu.bid.scoreparse.infrastructure.structure.MarkdownScoreSectionLocator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -100,11 +101,15 @@ public class ScoreCandidatePostProcessor {
         }
         ItemCountCheck.Result countResult = itemCountCheck.check(valid.size());
         if (countResult.failed()) {
-            log.warn("解析结果为 0 项，判定失败: taskId={}, candidates={}", taskId, candidates.size());
+            String failMsg = countResult.failureMessage();
+            if (MarkdownScoreSectionLocator.hasExternalSoftwareScoreDeclaration(fullText)) {
+                failMsg = "招标文件明确说明评分标准详见 ZBJ 格式采购文件或电子交易平台“评审项目”页签，正文中未包含可解析的评分细则";
+            }
+            log.warn("解析结果为 0 项，判定失败: taskId={}, candidates={}, reason={}", taskId, candidates.size(), failMsg);
             return new Processed(List.of(), null, weightResult,
                     RunSummaryAssembler.assemble(recall, tableRows.size(),
                             toView(stats), weightResult, 0, recall.llmModel()).json(),
-                    countResult.failureMessage());
+                    failMsg);
         }
         var assembled = RunSummaryAssembler.assemble(recall, tableRows.size(),
                 toView(stats), weightResult, valid.size(), recall.llmModel());

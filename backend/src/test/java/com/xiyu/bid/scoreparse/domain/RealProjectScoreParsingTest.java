@@ -59,4 +59,36 @@ class RealProjectScoreParsingTest {
         assertThat(s0).contains("商品品目和商品品种");
         assertThat(s0).contains("仓储、物流配送及服务");
     }
+
+    @Test
+    void testProject36ZbjDeclarationAndContractTableExclusion() {
+        String md = """
+                # 第三章 评审办法
+                2. 评审标准
+                2.1 初步评审标准
+                2.2 详细评审标准
+                2.2.1 分值构成
+                详见ZBJ格式采购文件“评审项目”页签。
+                2.2.2 评审基准价计算
+                评审基准价计算方法：详见ZBJ格式采购文件“评审项目”页签。
+                2.2.3 评分标准
+                （1）客观分部分评分标准：详见ZBJ格式采购文件“评审项目”页签；
+                （2）主观分部分评分标准：详见ZBJ格式采购文件“评审项目”页签；
+                （3）价格部分评分标准：详见ZBJ格式采购文件“评审项目”页签。
+
+                # 合同附件
+                | 序号 | 考核项目 | 考核内容 | 分值 |
+                | --- | --- | --- | --- |
+                | 1 | 周期保证 | 产品或服务满足项目周期要求 | 25 |
+                | 2 | 质量保证 | 产品或服务满足项目技术要求 | 25 |
+                | 3 | 价格水平 | 价格合理 | 15 |
+                | 4 | 问题解决 | 快速解决问题 | 5 |
+                | 5 | 安全环保 | 符合安全环保要求 | 10 |
+                """;
+
+        assertThat(MarkdownScoreSectionLocator.hasExternalSoftwareScoreDeclaration(md)).isTrue();
+
+        List<ScoreCandidate> tableCandidates = ScoreTableRecallLane.recall(md);
+        assertThat(tableCandidates).isEmpty();
+    }
 }

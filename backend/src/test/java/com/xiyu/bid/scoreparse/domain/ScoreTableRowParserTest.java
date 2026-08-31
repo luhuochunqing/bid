@@ -84,6 +84,16 @@ class ScoreTableRowParserTest {
     }
 
     @Test
+    void parse_contractAssessmentRow_skipped() {
+        assertThat(ScoreTableRowParser.parse(
+                "| 1 | 履约考核 | 产品或服务满足项目周期要求；紧急情况对应能力强 | 25 |")).isEmpty();
+        assertThat(ScoreTableRowParser.parse(
+                "| 2 | 供应商考核细则 | 产品或服务满足项目技术要求，风险把控能力强 | 25 |")).isEmpty();
+        assertThat(ScoreTableRowParser.parse(
+                "| 8 | 商品保供 | 90天内无法按中选价格供货 | 单个商品缴纳违约金2000元 | 比价记录 |")).isEmpty();
+    }
+
+    @Test
     void parse_separatorOrBlankRow_skipped() {
         assertThat(ScoreTableRowParser.parse("| --- | --- | --- |")).isEmpty();
         assertThat(ScoreTableRowParser.parse("|   |   |")).isEmpty();

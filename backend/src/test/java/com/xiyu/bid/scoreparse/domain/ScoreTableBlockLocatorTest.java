@@ -91,4 +91,18 @@ class ScoreTableBlockLocatorTest {
                 ScoreTableBlockLocator.locate(procedureTable);
         assertThat(blocks).isEmpty();
     }
+
+    @Test
+    void locate_contractAssessmentTable_skipped() {
+        String contractAssessmentTable = """
+                | 序号 | 考核项目 | 考核内容 | 分值 |
+                | --- | --- | --- | --- |
+                | 1 | 周期保证 | 产品或服务满足项目周期要求 | 25 |
+                | 2 | 质量保证 | 产品或服务满足项目技术要求 | 25 |
+                | 3 | 安全环保 | 符合各项安全环保要求 | 10 |
+                """;
+        List<ScoreTableBlockLocator.TableBlock> blocks =
+                ScoreTableBlockLocator.locate(contractAssessmentTable);
+        assertThat(blocks).isEmpty();
+    }
 }
