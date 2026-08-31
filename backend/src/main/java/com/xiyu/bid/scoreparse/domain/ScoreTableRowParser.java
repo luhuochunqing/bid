@@ -70,10 +70,13 @@ public final class ScoreTableRowParser {
             }
         }
 
-        // 前附表程序性非评分行过滤：纯流程条款且无明确给分细则（"得X分"）直接排除
+        // 前附表程序性非评分行与合同履约考核表过滤
         boolean isProcedural = NON_SCORE_PROCEDURE_PATTERN.matcher(row).find();
+        boolean isContractAssessment = ScoreParseConstants.CONTRACT_ASSESSMENT_PATTERN.matcher(row).find()
+                && !row.contains("评分标准") && !row.contains("评审标准");
         boolean hasExplicitGradeScore = GRADE_SCORE.matcher(row).find();
-        if (isProcedural && !hasExplicitGradeScore) {
+        boolean hasBracketWeight = BRACKET_WEIGHT.matcher(row).find();
+        if ((isProcedural || isContractAssessment) && !hasExplicitGradeScore && !hasBracketWeight) {
             return Optional.empty();
         }
         
@@ -91,13 +94,15 @@ public final class ScoreTableRowParser {
         }
         
         // 分值提取优先级：
-        // 1. 最右侧纯分值列（叶子项满分，如 "2.5" / "1.5分"）
-        // 2. 列2/列3提取的括号分值（如"财务状况（10分）"）
+        // 1. 列2/列3提取的括号分值（主项满分，如"财务状况（10分）"）
+        // 2. 最右侧纯分值列（叶子项满分，如 "2.5" / "1.5分"）
         // 3. detail 列内部的"得X分"档位最大值
         // 4. 整行 maxGradeScore
         int weightIndex = pureWeightIndex(columns, codeIndex);
         BigDecimal weight = null;
-        if (weightIndex >= 0) {
+        if (bracketResult.weight() != null) {
+            weight = bracketResult.weight();
+        } else if (weightIndex >= 0) {
             String val = columns.get(weightIndex).replaceAll("[^0-9.]", "");
             if (!val.isEmpty()) {
                 try {
@@ -106,9 +111,7 @@ public final class ScoreTableRowParser {
                 }
             }
         }
-        if (weight == null && bracketResult.weight() != null) {
-            weight = bracketResult.weight();
-        } else if (weight == null) {
+        if (weight == null) {
             BigDecimal detailGradeScore = maxGradeScore(detail);
             if (detailGradeScore != null) {
                 weight = detailGradeScore;
@@ -238,7 +241,7 @@ public final class ScoreTableRowParser {
      * @return BracketWeightResult(weight, dimFromCol3, col3Index)
      */
     private static BracketWeightResult extractBracketWeight(List<String> columns) {
-        for (int idx = Math.min(columns.size() - 1, 3); idx >= 1; idx--) {
+        for (int idx = Math.min(columns.size() - 1, 3); idx >= 0; idx--) {
             String col = columns.get(idx);
             if (SUMMARY_ROW_PATTERN.matcher(col).find()) {
                 continue;

@@ -29,6 +29,9 @@ public final class CellAnchoredScoreExtractor {
     private static final Pattern NUMERIC_WEIGHT_PATTERN = Pattern.compile("^[~≈]?(\\d{1,3}(?:\\.\\d+)?)\\s*(?:分|%)?$");
     private static final Pattern BRACKET_WEIGHT_PATTERN = Pattern.compile("[（(]\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分\\s*[）)]");
     private static final Pattern GRADE_SCORE_PATTERN = Pattern.compile("得\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分");
+    private static final Pattern PRICE_SUBITEM_PATTERN = Pattern.compile(
+            "[1-9]、\\s*([^\\s。\\n;；，,（(]{2,30}?(?:[（(][^）)]*?[）)])?)\\s*[（(]?\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分\\s*[）)]?"
+    );
     private static final Pattern NON_SCORE_PROCEDURE_PATTERN = ScoreParseConstants.NON_SCORE_PROCEDURE_PATTERN;
 
     private CellAnchoredScoreExtractor() {
@@ -63,15 +66,20 @@ public final class CellAnchoredScoreExtractor {
             if (mapping.parentDimCol() >= 0 && mapping.parentDimCol() < grid.colCount()) {
                 String parentCell = grid.cell(r, mapping.parentDimCol());
                 if (!parentCell.isBlank()) {
-                    currentParentDim = cleanDimName(parentCell);
+                    String newParent = cleanDimName(parentCell);
+                    if (!newParent.equals(currentParentDim)) {
+                        currentParentDim = newParent;
+                        currentDim = "";
+                    }
                 }
             }
 
             // 2. 提取或继承评分维度/项名称
+            String rawDimCell = "";
             if (mapping.dimCol() >= 0 && mapping.dimCol() < grid.colCount()) {
-                String dimCell = grid.cell(r, mapping.dimCol());
-                if (!dimCell.isBlank()) {
-                    currentDim = cleanDimName(dimCell);
+                rawDimCell = grid.cell(r, mapping.dimCol());
+                if (!rawDimCell.isBlank()) {
+                    currentDim = cleanDimName(rawDimCell);
                 }
             }
 
@@ -84,7 +92,6 @@ public final class CellAnchoredScoreExtractor {
                 detail = grid.cell(r, mapping.detailCol());
             }
             if (detail.isBlank()) {
-                // 若细则列为空，尝试用整行非空单元格拼接兜底
                 continue;
             }
 
@@ -108,14 +115,31 @@ public final class CellAnchoredScoreExtractor {
                 String weightCell = grid.cell(r, mapping.weightCol());
                 weight = parseWeight(weightCell);
             }
+            if (weight == null && !rawDimCell.isBlank()) {
+                weight = parseWeight(rawDimCell);
+            }
             if (weight == null) {
-                // 兜底：从 detail 中寻找档位满分或括号分值
                 weight = parseWeightFromDetail(detail);
             }
 
             // 4. 编号过滤：如果编号以 4. 开头（如 4.4.1 评审程序条款），跳过
             if (code != null && code.trim().startsWith("4.")) {
                 continue;
+            }
+
+            // 若无分值且无有效维度名称，视为表头残留或无分值说明行跳过
+            if (weight == null && (finalDim.isBlank() || detail.length() < 8)) {
+                continue;
+            }
+
+            // 复合价格分细拆处理（如 MRO工业品价格分 = 京东工业品28分 + 自有商城12分）
+            if (weight != null && (finalDim.contains("报价") || finalDim.contains("价格") || detail.contains("价格分"))) {
+                List<ScoreCandidate> subCandidates = extractPriceSubCandidates(
+                        code, finalDim, detail, sourceRow, r + 1);
+                if (!subCandidates.isEmpty()) {
+                    candidates.addAll(subCandidates);
+                    continue;
+                }
             }
 
             candidates.add(new ScoreCandidate(
@@ -134,6 +158,26 @@ public final class CellAnchoredScoreExtractor {
         return candidates;
     }
 
+    private static List<ScoreCandidate> extractPriceSubCandidates(
+            String code, String parentDim, String detail, String sourceRow, int rowNum) {
+        String cleanDetail = detail.replaceAll("<[^>]+>", " ");
+        Matcher matcher = PRICE_SUBITEM_PATTERN.matcher(cleanDetail);
+        List<ScoreCandidate> list = new ArrayList<>();
+        while (matcher.find()) {
+            String rawMatch = matcher.group(1).trim();
+            BigDecimal subWeight = new BigDecimal(matcher.group(2));
+            if (rawMatch.contains("价格分") || rawMatch.length() < 3 || rawMatch.equals(parentDim)) {
+                continue;
+            }
+            String subDim = parentDim.isBlank() ? rawMatch : parentDim + "/" + rawMatch;
+            list.add(new ScoreCandidate(
+                    code, subDim, detail, subWeight, null, null,
+                    sourceRow, "R" + rowNum + "_" + (list.size() + 1), "TABLE_GRID"
+            ));
+        }
+        return list.size() >= 2 ? list : List.of();
+    }
+
     private static boolean isAllEmpty(List<String> cells) {
         for (String c : cells) {
             if (c != null && !c.isBlank()) return false;
@@ -144,6 +188,7 @@ public final class CellAnchoredScoreExtractor {
     private static String cleanDimName(String raw) {
         if (raw == null) return "";
         return raw.replaceAll("[：:（(]\\s*\\d+(?:\\.\\d+)?\\s*(?:分|%|分值)\\s*[）)]?", "")
+                .replace("<br>", " ")
                 .replace("\n", " ").replaceAll("\\s+", " ").trim();
     }
 
@@ -172,12 +217,22 @@ public final class CellAnchoredScoreExtractor {
 
     private static BigDecimal parseWeightFromDetail(String detail) {
         if (detail == null || detail.isBlank()) return null;
-        Matcher m = GRADE_SCORE_PATTERN.matcher(detail);
+        String cleaned = detail.replaceAll("<[^>]+>", " ");
+        Matcher m = GRADE_SCORE_PATTERN.matcher(cleaned);
         BigDecimal max = null;
         while (m.find()) {
             BigDecimal v = new BigDecimal(m.group(1));
             if (max == null || v.compareTo(max) > 0) {
                 max = v;
+            }
+        }
+        if (max == null) {
+            Matcher bm = BRACKET_WEIGHT_PATTERN.matcher(cleaned);
+            while (bm.find()) {
+                BigDecimal v = new BigDecimal(bm.group(1));
+                if (max == null || v.compareTo(max) > 0) {
+                    max = v;
+                }
             }
         }
         return max;

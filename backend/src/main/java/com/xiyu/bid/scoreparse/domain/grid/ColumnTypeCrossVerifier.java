@@ -20,6 +20,8 @@ public final class ColumnTypeCrossVerifier {
 
     private static final Pattern NUMERIC_WEIGHT_PATTERN =
             Pattern.compile("^[~≈]?\\d{1,3}(?:\\.\\d+)?\\s*(?:分|%|分值)?$");
+    private static final Pattern BRACKET_WEIGHT_PATTERN =
+            Pattern.compile("[（(]\\s*\\d{1,3}(?:\\.\\d+)?\\s*分\\s*[）)]");
     private static final Pattern GRADE_SCORE_PATTERN =
             Pattern.compile("得\\s*\\d{1,3}(?:\\.\\d+)?\\s*分");
 
@@ -75,15 +77,16 @@ public final class ColumnTypeCrossVerifier {
             String weightCell = grid.cell(r, mapping.weightCol());
             if (!weightCell.isBlank()) {
                 nonEmptyRowCount++;
-                // 权重单元格长度超过 10 字符（如"具备甲级资质得5分"）说明实际上是细则列而非纯分值列
-                if (weightCell.length() <= 10 && isPlausibleWeight(weightCell)) {
+                // 纯分值列长度 <= 10，或维度列内嵌括号分值（如"供应商业绩（7分）"）长度 <= 35
+                if ((weightCell.length() <= 10 && isPlausibleWeight(weightCell))
+                        || (weightCell.length() <= 35 && BRACKET_WEIGHT_PATTERN.matcher(weightCell).find())) {
                     validWeightCount++;
                 }
             }
         }
 
-        // 权重列中非空单元格至少有 40% 具备分值特征（防全表列错位）
-        if (nonEmptyRowCount > 0 && (double) validWeightCount / nonEmptyRowCount < 0.4) {
+        // 权重列必须至少有 1 个有效分值，且非空单元格至少有 35% 具备分值特征（防全表列错位与全空列穿透）
+        if (dataRowCount > 0 && (validWeightCount == 0 || (nonEmptyRowCount > 0 && (double) validWeightCount / nonEmptyRowCount < 0.35))) {
             return ValidationResult.invalid("权重列有效分值占比过低 (" + validWeightCount + "/" + nonEmptyRowCount + ")，列映射不可信");
         }
 
@@ -103,6 +106,7 @@ public final class ColumnTypeCrossVerifier {
     private static boolean isPlausibleWeight(String cell) {
         String trimmed = cell.trim();
         return NUMERIC_WEIGHT_PATTERN.matcher(trimmed).matches()
+                || BRACKET_WEIGHT_PATTERN.matcher(trimmed).find()
                 || GRADE_SCORE_PATTERN.matcher(trimmed).find()
                 || trimmed.contains("分") || trimmed.contains("%");
     }
