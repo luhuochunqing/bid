@@ -6,6 +6,8 @@ sources:
   - docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreTableRowParser.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreTableBlockLocator.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/grid/CellAnchoredScoreExtractor.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/grid/ColumnTypeCrossVerifier.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreMergeResultGuard.java
 updated: 2026-08-31
 health_checked: 2026-08-31
@@ -82,3 +84,14 @@ Project 21（MRO工业品综合采购）13 项评分细则总分 100 分，解�
 - **列类型探测要穷举非标格式**：括号分值（`维度（N分）`）是招标文件高频变体，不能依赖独立 weight 列存在性。
 
 
+## 2026-08-31 PR !2481 审查修复（二轮）
+
+### 审查发现与修正
+
+1. **根因 1 描述勘误**：`HeuristicTableColumnMapper` 的合同考核表过滤在 main 上本就只匹配表头行（`grid.row(0)`），并非"全表文本过滤误伤"。PR !2481 实际变更 = 新增 `NON_SCORE_CATALOG_PATTERN` 计费表词 + `EXPLICIT_BID_SCORE_HEADER` 逃生词扩容（商务评分/技术评分/报价评分）+ `headerRows` 0/1 语义。
+2. **夹具脱敏**：`project21-mro.md` 为真实采购文件，已全量脱敏（人名→联系人甲/乙/丙、电话→010-00000000、邮箱→example.com、银行账号/行号→0、楼宇地址→XX市XX区XX路XX号）。**纪律：真实标书入库前必须脱敏并 grep PII 模式清单；合成样本优先。**
+3. **词表单一出处**：新增 10 考核词原在 `NON_SCORE_PROCEDURE_PATTERN` 与 `CONTRACT_ASSESSMENT_PATTERN` 双写，现提取 `ASSESSMENT_KEYWORDS` 共享子表组合，正则语义严格等价（复审逐词机械验证）。
+4. **locator 逃生门**：`ScoreTableBlockLocator` / `MarkdownScoreSectionLocator` 的 `isProcedureNoticeTable` 原对考核词命中无条件跳过整表——表头含"考核指标/扣分项"的真实评分表会被整表丢弃。现补 `SCORE_HEADER_ESCAPE_PATTERN`（`评分因素|评审因素`）逃生门。**口径经复审实证收窄：`评分标准/分值/得分` 是考核表也有的泛词（"考核项目|考核内容|评分标准|分值"是履约考核表真实表头），放行会泄漏整张考核表。** 已知接受面：表头含考核词且无强评分列名的评分表仍会被跳过，由行级 NON_SCORE 词表兜底（`locate_assessmentKeywordWithStrongScoreHeader_kept` / `locate_assessmentHeaderWithGenericScoreWord_skipped` 双向锚定）。
+5. **价格分加法门控**：`extractPriceSubCandidates` 原仅要求 `size>=2` 即拆分——"取最高/封顶"型会虚增总权重。现要求子项之和==父行分值（`extract_priceSubItems_splitsOnlyWhenSumMatchesParentWeight` / `takesHighestSemantics_keepsParentRow` 双向锚定）。已知局限：父分值由 detail 推导且恰等于最大子项时会误抑制拆分（javadoc 记录）。
+6. **阈值恢复**：权重列密度地板恢复 0.4（0.35 为临时下调，括号分支计入有效数后金标实测仍全绿）；`extractBracketWeight` 恢复扫描列 0 但多列表（≥3 列）跳过——序号劫持防住、窄表（列 0 即维度名）不回归（`parse_narrowTwoColumnTable_bracketWeightInFirstColumn_kept` 锚定）。
+7. **金标测试加固**：classpath 加载 + 夹具缺失硬失败（消除静默 return）；精确 `hasSize(13)`；`BRACKET_WEIGHT_PATTERN` 四处重复定义收敛至 `ScoreParseConstants` 单一出处。
