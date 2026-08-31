@@ -74,6 +74,12 @@ public class FilterOptionsQueryService {
             }
         }
 
+        // 锚定西域集团(0001)子树展示：一级=其直接子节点(锚定节点)，截断到三级；未命中回退全树两级
+        List<AnalyticsDepartmentTreeDTO> anchoredRoots = FilterDepartmentTreeAnchorPolicy.tryAnchorRoots(codeToDtoMap);
+        if (anchoredRoots != null) {
+            return anchoredRoots;
+        }
+
         // 兜底与补齐：查询 User 表中实际存在的部门，若尚未包含在组织树中（例如环境未同步组织表），自动补齐为根节点
         List<String> userDepts = entityManager.createQuery("""
                         select distinct u.departmentName
@@ -88,7 +94,7 @@ public class FilterOptionsQueryService {
             }
         }
 
-        pruneFilterTree(roots, 1);
+        FilterDepartmentTreeAnchorPolicy.pruneFilterTree(roots, 1, 2);
         return roots;
     }
 
@@ -109,15 +115,6 @@ public class FilterOptionsQueryService {
 
     private static boolean isVirtualRootCode(String code) {
         return code != null && (code.equalsIgnoreCase("rootorg") || code.equalsIgnoreCase("root"));
-    }
-
-    /** 只留一二级；空 children 置 null。 */
-    private static void pruneFilterTree(List<AnalyticsDepartmentTreeDTO> nodes, int depth) {
-        if (nodes == null) return;
-        for (AnalyticsDepartmentTreeDTO node : nodes) {
-            if (depth >= 2 || node.getChildren() == null || node.getChildren().isEmpty()) node.setChildren(null);
-            else pruneFilterTree(node.getChildren(), depth + 1);
-        }
     }
 
     /**

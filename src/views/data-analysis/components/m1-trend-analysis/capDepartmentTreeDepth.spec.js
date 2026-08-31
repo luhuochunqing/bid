@@ -27,6 +27,15 @@ describe('capDepartmentTreeDepth', () => {
     expect(tree[0].children[0].children[0].value).toBe('华东组')
   })
 
+  it('锚定子树三级展示：depth=3 保留三级，四级不再出现', () => {
+    const capped = capDepartmentTreeDepth(tree, 3)
+    expect(capped.map((n) => n.value)).toEqual(['销售部', '财务部'])
+    expect(capped[0].children.map((n) => n.value)).toEqual(['销售一部', '销售二部'])
+    expect(capped[0].children[0].children.map((n) => n.value)).toEqual(['华东组'])
+    // 三级节点无 children 字段，即四级被截断
+    expect(capped[0].children[0].children[0].children).toBeUndefined()
+  })
+
   it('空输入返回空数组', () => {
     expect(capDepartmentTreeDepth(null)).toEqual([])
     expect(capDepartmentTreeDepth([])).toEqual([])

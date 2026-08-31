@@ -43,7 +43,8 @@ export function useFilterSearch() {
       const res = await dashboardApi.getFilterOptions()
       if (res?.success && res.data) {
         const d = res.data
-        departmentOptions.value = capDepartmentTreeDepth(mapOptions(d.department), 2)
+        // 部门树由后端锚定西域集团(0001)子树并截断到三级；此处传 3 做前端双保险
+        departmentOptions.value = capDepartmentTreeDepth(mapOptions(d.department), 3)
         personOptions.value = mapOptions(d.person)
         tenderSubjectOptions.value = mapOptions(d.tenderEntity)
       }
