@@ -361,3 +361,60 @@ push 门禁要求 UI 变更须伴随 e2e/ 更新。本次为卡片内增量控�
 
 - chip 配色未扩 GOVERNMENT/FOREIGN/COMPREHENSIVE 等枚举（现状灰底兜底，非本次需求）
 
+---
+
+# 项目关键词搜索支持按招标主体搜索 — 实施笔记
+
+> 日期：2026-08-31 · 分支：`agent/codex/project-search-owner-unit`（worktree `xiyu-codex-project-search-owner-unit`）
+> 任务：项目搜索框 placeholder"搜索项目名称、招标主体"长期超期承诺，补齐 `name` 关键词对招标主体的匹配。
+
+## 根因
+
+`name` 关键词过滤前后端都只匹配项目名（后端 `ProjectController.java:78` 只匹配 name+customer；前端 `useProjectFilter.js:60` 只匹配 name+projectName），招标主体从未纳入。
+
+## 决策记录（spec 之外）
+
+### D1 · "招标主体"匹配范围 = `ownerUnit`（不含代理机构）
+
+数据上招标主体存在 `tenders.purchaser_name`，经 `projects.tender_id` 应用层关联回填到列表 DTO 的 `ownerUnit`（立项后用 `project_initiation_details.owner_unit` 快照）。列表页"招标主体"列展示的就是 `ownerUnit`，按它匹配保证"搜到的 = 看到的"。`tender_agency`（代理机构）未纳入——需求未提及，且纳入会让搜索结果与列展示不一致。
+
+### D2 · 沿用内存过滤架构，不做 DB 级改造
+
+`ProjectController.getAllProjects` 的过滤发生在 DTO enrichment **之后**（ownerUnit 已回填），在 name 过滤条件追加一个 `containsIgnoreCase(p.getOwnerUnit(), name)` 即可，零 SQL 改动。标讯模块的 JPA Specification（`TenderSpecification`）是更规范的范式，但重构项目列表超出本次范围。
+
+### D3 · 导出接口必须同步（注释级契约）
+
+`ProjectExportService` 注释明确要求"与 ProjectController.getAllProjects 过滤逻辑保持一致"，且前端导出传的就是同一个 `name` 参数。不同步会出现"列表搜得到、导出导不出"。
+
+### D4 · 遗留接口 `GET /api/projects/search?name=` 不动
+
+全仓 grep 确认前端无调用方，语义就是"按项目名搜"，保持原样。
+
+### D5 · 不暴露 `ownerUnit` 独立筛选框
+
+`searchForm.ownerUnit` 字段已存在（后端 `ownerUnit` 参数已支持）但 UI 未暴露——那是导出参数的历史遗留。本次需求是关键词搜索，不扩独立筛选。
+
+### D6 · 集成测试独立成类，不扩基类 fixture
+
+`ProjectSearchByOwnerUnitIntegrationTest` 自足造数（Tender.purchaserName + Project.tenderId 关联），不往 `AbstractProjectControllerIntegrationTest` 基类加 Tender 数据，避免影响 6 个子类的数据假设。
+
+## 变更清单
+
+| 文件 | 改动 |
+|---|---|
+| `backend/.../project/controller/ProjectController.java:78-79` | `name` 过滤追加 ownerUnit 匹配 |
+| `backend/.../project/service/ProjectExportService.java:125-131` | 同上（导出契约一致） |
+| `src/views/Project/composables/useProjectFilter.js:60` | `f.name` 匹配追加 `p.ownerUnit` |
+| `backend/.../integration/ProjectSearchByOwnerUnitIntegrationTest.java` | 新增：招标主体命中 + 项目名回归 2 用例 |
+| `backend/.../service/ProjectExportServiceTest.java` | 新增：导出 name 匹配招标主体用例 |
+| `src/views/Project/composables/useProjectFilter.spec.js` | 新增：ownerUnit 命中 + null 安全 2 用例 |
+
+## 验证证据
+
+- 前端 `npx vitest run src/views/Project/composables/useProjectFilter.spec.js` → **6 passed**（原 4 + 新 2）
+- 后端 `mvn test -Dtest=ProjectSearchByOwnerUnitIntegrationTest,ProjectExportServiceTest` → surefire 报告：
+  - `ProjectSearchByOwnerUnitIntegrationTest`: tests=2 errors=0 failures=0
+  - `ProjectExportServiceTest`: tests=8 errors=0 failures=0（原 7 + 新 1）
+  - `ProjectControllerIntegrationTest`（改动前全量跑过）: tests=7 errors=0 failures=0
+- 踩坑记录：测试库（H2）schema 中 `projects.tender_id` 为 NOT NULL，测试造数不能创建无标讯项目——每个项目必须关联 tender，用不同 `purchaserName` 区分正反例。
+

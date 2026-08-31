@@ -57,7 +57,7 @@ export function useProjectFilter(searchForm) {
   const matchedProjects = computed(() => {
     const f = searchForm.value
     return (projectStore.projects || []).filter((p) => {
-      if (f.name && !(p.name || '').includes(f.name) && !(p.projectName || '').includes(f.name)) return false
+      if (f.name && !(p.name || '').includes(f.name) && !(p.projectName || '').includes(f.name) && !(p.ownerUnit || '').includes(f.name)) return false
       if (f.ownerUnit && !(p.ownerUnit || '').includes(f.ownerUnit)) return false
       if (!matchFilter(f.projectType, p.projectType)) return false
       if (!matchFilter(f.customerType, p.customerType)) return false

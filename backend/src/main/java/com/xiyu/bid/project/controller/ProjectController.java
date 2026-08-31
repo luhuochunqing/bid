@@ -75,7 +75,8 @@ public class ProjectController {
             @RequestParam(required = false) @Min(value = 1, message = "size 必须 >= 1") @Max(value = 200, message = "size 必须 <= 200") Integer size) {
         log.info("GET /api/projects - Fetching all projects (page={}, size={})", page, size);
         List<ProjectDTO> projects = projectService.getAllProjects();
-        if (name != null && !name.isBlank()) projects = projects.stream().filter(p -> containsIgnoreCase(p.getName(), name) || containsIgnoreCase(p.getCustomer(), name)).toList();
+        // name 关键词同时匹配项目名、客户名与招标主体（ownerUnit），与前端 placeholder"搜索项目名称、招标主体"一致。
+        if (name != null && !name.isBlank()) projects = projects.stream().filter(p -> containsIgnoreCase(p.getName(), name) || containsIgnoreCase(p.getCustomer(), name) || containsIgnoreCase(p.getOwnerUnit(), name)).toList();
         if (ownerUnit != null && !ownerUnit.isBlank()) projects = projects.stream().filter(p -> containsIgnoreCase(p.getOwnerUnit(), ownerUnit)).toList();
         if (projectType != null && !projectType.isBlank()) projects = projects.stream().filter(p -> projectType.equals(p.getProjectType())).toList();
         if (customerType != null && !customerType.isBlank()) projects = projects.stream().filter(p -> customerType.equals(p.getCustomerType())).toList();

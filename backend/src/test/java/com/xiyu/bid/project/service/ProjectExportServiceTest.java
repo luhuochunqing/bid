@@ -174,6 +174,28 @@ class ProjectExportServiceTest {
     }
 
     @Test
+    void exportProjectsAsExcel_shouldMatchNameKeywordAgainstOwnerUnit() throws Exception {
+        // 导出 name 关键词与列表接口保持一致：除项目名/客户名外，还要匹配招标主体（ownerUnit）
+        ProjectDTO matching = buildSampleDTO();
+        ProjectDTO nonMatching = buildSampleDTO();
+        nonMatching.setId(2L);
+        nonMatching.setName("其他项目");
+        nonMatching.setOwnerUnit("别家公司");
+        when(projectQueryService.getAllProjects()).thenReturn(List.of(matching, nonMatching));
+
+        var result = exportService.exportProjectsAsExcel(
+                null, null, "招标主体", null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null);
+
+        try (var wb = readWorkbook(result)) {
+            XSSFSheet sheet = wb.getSheetAt(0);
+            // header + 1 data row（只有招标主体命中的项目）
+            assertThat(sheet.getLastRowNum()).isEqualTo(1);
+            assertThat(sheet.getRow(1).getCell(0).getStringCellValue()).isEqualTo("测试项目");
+        }
+    }
+
+    @Test
     void exportProjectsAsExcel_shouldFilterByIdsWhenProvided() throws Exception {
         // CO-563: 传入 ids 时仅导出选中项目，忽略其他数据
         ProjectDTO selected = buildSampleDTO();           // id=1L
