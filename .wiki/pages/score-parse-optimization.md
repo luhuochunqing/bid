@@ -8,6 +8,7 @@ sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreTableBlockLocator.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/grid/CellAnchoredScoreExtractor.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/grid/ColumnTypeCrossVerifier.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/grid/HeuristicTableColumnMapper.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreMergeResultGuard.java
 updated: 2026-08-31
 health_checked: 2026-08-31
@@ -95,3 +96,40 @@ Project 21（MRO工业品综合采购）13 项评分细则总分 100 分，解�
 5. **价格分加法门控**：`extractPriceSubCandidates` 原仅要求 `size>=2` 即拆分——"取最高/封顶"型会虚增总权重。现要求子项之和==父行分值（`extract_priceSubItems_splitsOnlyWhenSumMatchesParentWeight` / `takesHighestSemantics_keepsParentRow` 双向锚定）。已知局限：父分值由 detail 推导且恰等于最大子项时会误抑制拆分（javadoc 记录）。
 6. **阈值恢复**：权重列密度地板恢复 0.4（0.35 为临时下调，括号分支计入有效数后金标实测仍全绿）；`extractBracketWeight` 恢复扫描列 0 但多列表（≥3 列）跳过——序号劫持防住、窄表（列 0 即维度名）不回归（`parse_narrowTwoColumnTable_bracketWeightInFirstColumn_kept` 锚定）。
 7. **金标测试加固**：classpath 加载 + 夹具缺失硬失败（消除静默 return）；精确 `hasSize(13)`；`BRACKET_WEIGHT_PATTERN` 四处重复定义收敛至 `ScoreParseConstants` 单一出处。
+
+## 评分表格过滤决策树（2026-08-31，PR !2481 二轮后固化）
+
+> 词表内容以 `ScoreParseConstants` 为唯一出处，本图只画结构。改动任一 pattern / 逃生门前先对照此图枚举消费方。
+
+```
+markdown 输入
+ │
+ ├─ 表头行判定【ScoreTableBlockLocator / MarkdownScoreSectionLocator.isProcedureNoticeTable】
+ │    ├─ CONTRACT_ASSESSMENT_PATTERN 命中？
+ │    │    ├─ 是 → SCORE_HEADER_ESCAPE_PATTERN（强评分列名）命中？
+ │    │    │      ├─ 命中 → 保留（真评分表混入考核词，行级兜底）
+ │    │    │      └─ 未命中 → 跳过整表/整章
+ │    │    └─ 否 → PROCEDURE_TABLE_MARKER 命中？
+ │    │           └─ 是 → SCORE_COLUMN_MARKER（宽版，含"分值/得分"）未命中才跳过
+ │    └─ 块内任一行含 SCORE_SEMANTIC → 产出 TableBlock
+ │
+ ├─ 表头判定【HeuristicTableColumnMapper.infer】
+ │    ├─ CONTRACT_ASSESSMENT / NON_SCORE_CATALOG 命中表头
+ │    │    且 EXPLICIT_BID_SCORE_HEADER 未命中 → 整表拒绝（全 -1 映射）
+ │    ├─ 列映射：CODE/DIM/DETAIL/WEIGHT_HEADER 表头词
+ │    │    └─ WEIGHT 未识别 → bracketCol 扫描（括号分值列劫持 weightCol/dimCol，
+ │    │        count>0 取最左；单格劫持由 verifier 密度地板兜底）
+ │    └─ ColumnTypeCrossVerifier：权重列全空 / 密度 <0.4 / 细则列均长 <4 → 拒绝
+ │
+ └─ 行级过滤【NON_SCORE_PROCEDURE_PATTERN：ScoreTableRowParser /
+       CellAnchoredScoreExtractor / GhostCandidateFilter 三消费方】
+        ├─ 词表命中 且 无"得X分" 且 无括号分值 → 丢弃
+        └─ 词表命中 但 有"得X分"或括号分值 → 救回（行层救生通道）
+```
+
+**双层过滤 + 双重逃生门一览**
+
+- 表头层逃生门：`EXPLICIT_BID_SCORE_HEADER`（mapper，宽词）/ `SCORE_HEADER_ESCAPE_PATTERN`（locator，强评分列名"评分因素|评审因素"）——两版语义不同不可互替。
+- 行层救生通道：`hasExplicitGradeScore`（得X分）/ `hasBracketWeight`（括号分值），仅 `ScoreTableRowParser` 挂接；纯数字分值列 + 考核词的行是**已知误杀面**。
+- 已知接受面：表头含考核词且无强评分列名的评分表会被整表跳过（依赖行级兜底）。
+- 锚定测试：`ScoreTableBlockLocatorTest`（逃生门双向）/ `ScoreTableRowParserTest`（救生通道、优先级）/ `GoldenCasesReplayTest#case-bracket-vs-pure-conflict`（括号优先金标）/ `RealProjectScoreParsingTest#testProject21ScoreParsing`（真实文件金标）。
