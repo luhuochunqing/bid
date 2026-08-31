@@ -91,20 +91,21 @@ class RealProjectScoreParsingTest {
 
     @Test
     void testProject21ScoreParsing() throws Exception {
-        Path fixturePath = Paths.get("src/test/resources/scoreparse-golden/project21-mro.md");
-        if (!Files.exists(fixturePath)) {
-            fixturePath = Paths.get("backend/src/test/resources/scoreparse-golden/project21-mro.md");
+        // 金标防回退：classpath 加载（不依赖工作目录），夹具缺失必须硬失败——
+        // 静默 return 会让金标在路径失效时无声失效，防线归零（xcode-review：silent-return 反模式）
+        String md;
+        try (java.io.InputStream in = getClass().getResourceAsStream("/scoreparse-golden/project21-mro.md")) {
+            org.assertj.core.api.Assertions.assertThat(in)
+                    .as("金标夹具 scoreparse-golden/project21-mro.md 必须存在于 test resources")
+                    .isNotNull();
+            md = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
         }
-        if (!Files.exists(fixturePath)) {
-            return;
-        }
-        String md = Files.readString(fixturePath);
         List<ScoreCandidate> candidates = ScoreTableRecallLane.recall(md);
 
         assertThat(candidates).isNotEmpty();
 
-        // 验证评分项数量在 11 到 13 项之间（含 11 项细则或报价细拆 2 项）
-        assertThat(candidates.size()).isBetween(11, 15);
+        // 精确数量：11 项细则 + 报价细拆 2 子项（京东 28 / 自有商城 12）= 13
+        assertThat(candidates).hasSize(13);
 
         // 验证关键评分项被成功识别
         assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("供应商业绩") && c.weight().intValue() == 7);
@@ -118,6 +119,10 @@ class RealProjectScoreParsingTest {
         assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("服务团队方案") && c.weight().intValue() == 10);
         assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("平台系统对接方案") && c.weight().intValue() == 3);
         assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("增值服务方案") && c.weight().intValue() == 4);
+
+        // 复合价格分细拆：加法型（40 = 28 + 12）才允许拆分
+        assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("京东工业品") && c.weight().intValue() == 28);
+        assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("自有商城") && c.weight().intValue() == 12);
 
         // 验证总分闭环为 100 分
         java.math.BigDecimal totalWeight = candidates.stream()
