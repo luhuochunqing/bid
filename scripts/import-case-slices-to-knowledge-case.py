@@ -187,7 +187,7 @@ def build_row(sl, project):
         project['name'],
         title,
         REQUIREMENT_PREFIX + title,
-        sl['text_preview'],
+        sl.get('text') or sl['text_preview'],
         project['customer_type'],
         effective_project_type(project),
         'WON' if project['status'] == 'WON' else None,
@@ -196,8 +196,12 @@ def build_row(sl, project):
 
 
 def effective_project_type(project):
-    """project_type 取值：优先 industry；早期历史项目 industry 为空时回退 customer_type。"""
-    return project['industry'] or project['customer_type']
+    """project_type 取值：仅取 industry；为空则置 None。
+
+    不得回退取 customer_type——两套枚举语义不同（项目类型=办公/综合/集采/工业品/其他，
+    客户类型=LOCAL_SOE 等），混填会导致前台项目类型标签显示原始码。
+    """
+    return project['industry'] or None
 
 
 INSERT_SQL = """
@@ -385,7 +389,16 @@ def self_test():
     row2 = build_row(sl, p2)
     assert row2[7] is None  # LOST → bid_result NULL
 
-    print('self-test passed: 6 组断言全部通过')
+    # 7. 全文优先：切片带 text（全文）时 response_text 用全文，缺失时回退 text_preview
+    sl_full = dict(sl, text='承诺7x24小时响应，这是完整正文……')
+    assert build_row(sl_full, p1)[4] == '承诺7x24小时响应，这是完整正文……'
+    assert build_row(sl, p1)[4] == '承诺7x24'
+
+    # 8. project_type 不回退客户类型：industry 为空 → None（避免前台显示 LOCAL_SOE 原始码）
+    assert build_row(sl, p2)[6] is None
+    assert effective_project_type({'industry': None, 'customer_type': 'LOCAL_SOE'}) is None
+
+    print('self-test passed: 8 组断言全部通过')
 
 
 def main():
