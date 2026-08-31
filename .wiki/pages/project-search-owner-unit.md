@@ -43,6 +43,17 @@ health_checked: 2026-08-31
 - 大小写不敏感：后端 `containsIgnoreCase`（null 安全）；前端 `.includes`（`|| ''` 兜底）。
 - "招标主体"匹配**不含**代理机构 `tender_agency`——与列表列展示保持一致。
 
+## 已知分歧（前后端契约非严格等价，勿误读上表）
+
+| 维度 | 后端（`name` 参数） | 前端（`f.name`） |
+|---|---|---|
+| 大小写 | 不敏感（`containsIgnoreCase`） | **敏感**（`.includes`） |
+| 匹配字段 | `name` ∪ `customer` ∪ `ownerUnit` | `p.name` ∪ `p.projectName` ∪ `p.ownerUnit`（无 `customer`） |
+
+- `customer` 仅后端匹配 → UI 按客户名搜索列表不命中、但导出命中（导出走后端）。
+- `projectName` 仅前端匹配 → DTO 无此字段，属 List.vue 显示回退的防御性延续。
+- 中文主体名无感；英文/混合主体名大小写行为不一致。收敛决策待另开任务。
+
 ## 陷阱
 
 1. **测试库（H2）`projects.tender_id` NOT NULL**：集成测试造数不能创建无标讯项目，

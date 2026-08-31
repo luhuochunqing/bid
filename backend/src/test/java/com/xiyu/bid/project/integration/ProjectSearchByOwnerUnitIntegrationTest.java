@@ -113,4 +113,17 @@ class ProjectSearchByOwnerUnitIntegrationTest {
                 .andExpect(jsonPath("$.data[*].name").value(hasItem("国家电网配套项目")))
                 .andExpect(jsonPath("$.data[?(@.name=='无关项目')]").isEmpty());
     }
+
+    @Test
+    @WithMockUser(username = "search-admin", roles = {"ADMIN"})
+    void nameKeywordMatchAgainstOwnerUnitShouldIgnoreCase() throws Exception {
+        // 锚定 containsIgnoreCase 语义：小写关键词命中大写招标主体（前端 .includes 大小写敏感，两侧语义不同）
+        Tender tender = saveTender("State Grid Xinjiang Power");
+        saveProject("外文主体项目", tender.getId());
+
+        mockMvc.perform(get("/api/projects").param("name", "state grid"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[*].name").value(hasItem("外文主体项目")));
+    }
 }
