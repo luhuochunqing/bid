@@ -105,4 +105,34 @@ class ScoreTableBlockLocatorTest {
                 ScoreTableBlockLocator.locate(contractAssessmentTable);
         assertThat(blocks).isEmpty();
     }
+
+    @Test
+    void locate_assessmentKeywordWithStrongScoreHeader_kept() {
+        // 逃生门锚定（xcode-review MAJOR）：表头含考核词（"考核指标"）但同时有强评分列名
+        // （评分因素/评审因素，见 SCORE_HEADER_ESCAPE_PATTERN）→ 不得整表跳过；
+        // 行级 NON_SCORE 过滤负责逐行兜底。在 HEAD（无逃生门）上此用例失败，构成真-绿防线
+        String mixedHeaderTable = """
+                | 服务质量考核指标 | 评分因素 | 评分标准 | 分值 |
+                | --- | --- | --- | --- |
+                | 服务方案质量 | 按服务方案质量与响应效率综合评分，优秀得8分 | 详见细则 | 8 |
+                """;
+        List<ScoreTableBlockLocator.TableBlock> blocks =
+                ScoreTableBlockLocator.locate(mixedHeaderTable);
+        assertThat(blocks).isNotEmpty();
+    }
+
+    @Test
+    void locate_assessmentHeaderWithGenericScoreWord_skipped() {
+        // 泄漏面锚定（复审 Finding 2）："考核项目|考核内容|评分标准|分值"是履约考核表真实表头
+        // 布局——"评分标准/分值"是泛词不构成强评分列名，逃生门不得放行整张考核表
+        String contractAssessmentTable = """
+                | 序号 | 考核项目 | 考核内容 | 评分标准 | 分值 |
+                | --- | --- | --- | --- | --- |
+                | 1 | 周期保证 | 产品或服务满足项目周期要求 | 达标 | 25 |
+                | 2 | 质量保证 | 产品或服务满足项目技术要求 | 达标 | 25 |
+                """;
+        List<ScoreTableBlockLocator.TableBlock> blocks =
+                ScoreTableBlockLocator.locate(contractAssessmentTable);
+        assertThat(blocks).isEmpty();
+    }
 }

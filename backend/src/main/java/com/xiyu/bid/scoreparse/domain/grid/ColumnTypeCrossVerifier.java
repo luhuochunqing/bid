@@ -5,13 +5,15 @@
 
 package com.xiyu.bid.scoreparse.domain.grid;
 
+import com.xiyu.bid.scoreparse.domain.ScoreParseConstants;
+
 import java.util.regex.Pattern;
 
 /**
  * 列类型交叉验真守卫（spec 058）。
  * <p>用于交叉验证大模型给出的列映射索引是否真实可靠：
  * <ul>
- *   <li>校验权重列：必须包含至少 50% 合法分值（纯数字/百分比/X分/得X分）；</li>
+ *   <li>校验权重列：非空单元格至少 40% 具备合法分值特征（纯数字/百分比/X分/得X分/括号分值），且不允许全空；</li>
  *   <li>校验细则列：平均字符长度应合理，不能全为短数字或空值；</li>
  *   <li>校验边界：列索引必须处于有效范围 [0, colCount - 1]。</li>
  * </ul>
@@ -20,6 +22,7 @@ public final class ColumnTypeCrossVerifier {
 
     private static final Pattern NUMERIC_WEIGHT_PATTERN =
             Pattern.compile("^[~≈]?\\d{1,3}(?:\\.\\d+)?\\s*(?:分|%|分值)?$");
+    private static final Pattern BRACKET_WEIGHT_PATTERN = ScoreParseConstants.BRACKET_WEIGHT_PATTERN;
     private static final Pattern GRADE_SCORE_PATTERN =
             Pattern.compile("得\\s*\\d{1,3}(?:\\.\\d+)?\\s*分");
 
@@ -75,15 +78,21 @@ public final class ColumnTypeCrossVerifier {
             String weightCell = grid.cell(r, mapping.weightCol());
             if (!weightCell.isBlank()) {
                 nonEmptyRowCount++;
-                // 权重单元格长度超过 10 字符（如"具备甲级资质得5分"）说明实际上是细则列而非纯分值列
-                if (weightCell.length() <= 10 && isPlausibleWeight(weightCell)) {
+                // 纯分值单元格长度 <= 10；内嵌括号分值单元格（如"供应商业绩（7分）"，维度名使
+                // 长度可达 35）单独走括号匹配分支——两分支均要求有分值特征，防细则列误判
+                if ((weightCell.length() <= 10 && isPlausibleWeight(weightCell))
+                        || (weightCell.length() <= 35 && BRACKET_WEIGHT_PATTERN.matcher(weightCell).find())) {
                     validWeightCount++;
                 }
             }
         }
 
-        // 权重列中非空单元格至少有 40% 具备分值特征（防全表列错位）
-        if (nonEmptyRowCount > 0 && (double) validWeightCount / nonEmptyRowCount < 0.4) {
+        // 空列穿透守卫：数据行存在但权重列全空 → 拒绝（防无效表格进入提取阶段）
+        // 密度地板 0.4：dd6492143 曾为 MRO 括号列临时下调 0.35（PR !2481），括号分支计入
+        // validWeightCount 后实测金标仍全绿，无需下调，恢复原地板（复审 Finding 4 口径）
+        boolean hasNoValidWeight = validWeightCount == 0;
+        boolean lowWeightDensity = nonEmptyRowCount > 0 && (double) validWeightCount / nonEmptyRowCount < 0.4;
+        if (dataRowCount > 0 && (hasNoValidWeight || lowWeightDensity)) {
             return ValidationResult.invalid("权重列有效分值占比过低 (" + validWeightCount + "/" + nonEmptyRowCount + ")，列映射不可信");
         }
 
@@ -103,6 +112,7 @@ public final class ColumnTypeCrossVerifier {
     private static boolean isPlausibleWeight(String cell) {
         String trimmed = cell.trim();
         return NUMERIC_WEIGHT_PATTERN.matcher(trimmed).matches()
+                || BRACKET_WEIGHT_PATTERN.matcher(trimmed).find()
                 || GRADE_SCORE_PATTERN.matcher(trimmed).find()
                 || trimmed.contains("分") || trimmed.contains("%");
     }

@@ -1,6 +1,7 @@
 package com.xiyu.bid.scoreparse.domain;
 
 import com.xiyu.bid.scoreparse.infrastructure.structure.MarkdownScoreSectionLocator;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
@@ -12,12 +13,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class RealProjectScoreParsingTest {
 
+    @Disabled("依赖本地绝对路径 fixture，在 CI 上无此文件，需手动在本地运行")
     @Test
     void test1347ScoringChapterLocation() throws Exception {
         Path path = Paths.get("/Users/user/.gemini/antigravity-ide/brain/f248a9e2-27e6-4113-b216-d1c053a01264/scratch/1347.md");
-        if (!Files.exists(path)) {
-            return;
-        }
         String md = Files.readString(path);
         List<MarkdownScoreSectionLocator.ScoreSection> sections = MarkdownScoreSectionLocator.locate(md);
         
@@ -38,12 +37,10 @@ class RealProjectScoreParsingTest {
         assertThat(s0).contains("质量监管能力");
     }
 
+    @Disabled("依赖本地绝对路径 fixture，在 CI 上无此文件，需手动在本地运行")
     @Test
     void test1362DetailedScoringTableLocation() throws Exception {
         Path path = Paths.get("/Users/user/.gemini/antigravity-ide/brain/f248a9e2-27e6-4113-b216-d1c053a01264/scratch/1362.md");
-        if (!Files.exists(path)) {
-            return;
-        }
         String md = Files.readString(path);
         List<MarkdownScoreSectionLocator.ScoreSection> sections = MarkdownScoreSectionLocator.locate(md);
         
@@ -90,5 +87,52 @@ class RealProjectScoreParsingTest {
 
         List<ScoreCandidate> tableCandidates = ScoreTableRecallLane.recall(md);
         assertThat(tableCandidates).isEmpty();
+    }
+
+    @Test
+    void testProject21ScoreParsing() throws Exception {
+        // 金标防回退：classpath 加载（不依赖工作目录），夹具缺失必须硬失败——
+        // 静默 return 会让金标在路径失效时无声失效，防线归零（xcode-review：silent-return 反模式）
+        String md;
+        try (java.io.InputStream in = getClass().getResourceAsStream("/scoreparse-golden/project21-mro.md")) {
+            org.assertj.core.api.Assertions.assertThat(in)
+                    .as("金标夹具 scoreparse-golden/project21-mro.md 必须存在于 test resources")
+                    .isNotNull();
+            md = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        }
+        List<ScoreCandidate> candidates = ScoreTableRecallLane.recall(md);
+
+        assertThat(candidates).isNotEmpty();
+
+        // 精确数量：11 项细则 + 报价细拆 2 子项（京东 28 / 自有商城 12）= 13
+        assertThat(candidates).hasSize(13);
+
+        // 验证关键评分项被成功识别
+        assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("供应商业绩") && c.weight().intValue() == 7);
+        assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("财务状况") && c.weight().intValue() == 3);
+        assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("服务网点及仓储") && c.weight().intValue() == 3);
+        assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("电子商城运营时间") && c.weight().intValue() == 1);
+        assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("授信额度") && c.weight().intValue() == 1);
+        assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("综合服务方案") && c.weight().intValue() == 10);
+        assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("产品质量及价格") && c.weight().intValue() == 10);
+        assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("物流仓储方案") && c.weight().intValue() == 8);
+        assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("服务团队方案") && c.weight().intValue() == 10);
+        assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("平台系统对接方案") && c.weight().intValue() == 3);
+        assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("增值服务方案") && c.weight().intValue() == 4);
+
+        // 复合价格分细拆：加法型（40 = 28 + 12）才允许拆分
+        assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("京东工业品") && c.weight().intValue() == 28);
+        assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("自有商城") && c.weight().intValue() == 12);
+
+        // 验证总分闭环为 100 分
+        java.math.BigDecimal totalWeight = candidates.stream()
+                .map(ScoreCandidate::weight)
+                .filter(java.util.Objects::nonNull)
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+        assertThat(totalWeight).isEqualByComparingTo("100.0");
+
+        // 验证不包含 MRO 分类目录表和合同考核表
+        assertThat(candidates).noneMatch(c -> c.dim() != null && c.dim().contains("呼吸防护"));
+        assertThat(candidates).noneMatch(c -> c.dim() != null && c.dim().contains("妥投信息"));
     }
 }

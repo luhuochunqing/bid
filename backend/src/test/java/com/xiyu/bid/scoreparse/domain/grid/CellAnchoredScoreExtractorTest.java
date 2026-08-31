@@ -115,4 +115,41 @@ class CellAnchoredScoreExtractorTest {
         assertThat(vr.valid()).isFalse();
         assertThat(vr.reason()).contains("细则列平均长度过短");
     }
+
+    @Test
+    void extract_priceSubItems_splitsOnlyWhenSumMatchesParentWeight() {
+        // 加法型价格分（MRO 场景）：40 = 京东 28 + 自有商城 12，子项之和==父行分值 → 拆分
+        String markdown = """
+                | 评分因素 | 评分标准 | 分值 |
+                |---|---|---|
+                | 价格分 | 1、上架折扣率（京东工业品）（28分）。供应商在响应文件中填报上架折扣率；2、上架折扣率（自有商城）（12分）。供应商在响应文件中填报上架折扣率 | 40 |
+                """;
+
+        TableGrid grid = TableGridExtractor.extract(markdown);
+        TableColumnMapping mapping = new TableColumnMapping(-1, -1, 0, 1, 2, 1, false);
+        List<ScoreCandidate> candidates = CellAnchoredScoreExtractor.extract(grid, mapping);
+
+        assertThat(candidates).hasSize(2);
+        assertThat(candidates.get(0).dim()).contains("京东工业品");
+        assertThat(candidates.get(0).weight()).isEqualByComparingTo(new BigDecimal("28"));
+        assertThat(candidates.get(1).dim()).contains("自有商城");
+        assertThat(candidates.get(1).weight()).isEqualByComparingTo(new BigDecimal("12"));
+    }
+
+    @Test
+    void extract_priceSubItems_takesHighestSemantics_keepsParentRow() {
+        // "取最高"型价格分：子项之和 40+35 != 父行 40 → 拆分会虚增总权重，必须保留父行整项
+        String markdown = """
+                | 评分因素 | 评分标准 | 分值 |
+                |---|---|---|
+                | 价格分 | 1、平台A上架折扣率（40分）；2、平台B上架折扣率（35分）。就高原则取最高者计分 | 40 |
+                """;
+
+        TableGrid grid = TableGridExtractor.extract(markdown);
+        TableColumnMapping mapping = new TableColumnMapping(-1, -1, 0, 1, 2, 1, false);
+        List<ScoreCandidate> candidates = CellAnchoredScoreExtractor.extract(grid, mapping);
+
+        assertThat(candidates).hasSize(1);
+        assertThat(candidates.get(0).weight()).isEqualByComparingTo(new BigDecimal("40"));
+    }
 }

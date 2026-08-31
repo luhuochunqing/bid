@@ -221,4 +221,43 @@ class ScoreTableRowParserTest {
         assertThat(ScoreTableRowParser.parse("| 5 | 详细评审 | 供应商管理：5分 |")).isEmpty();
         assertThat(ScoreTableRowParser.parse("| 6 | 详细评审 | 业绩：15分 |")).isEmpty();
     }
+
+    @Test
+    void parse_bracketWeightTakesPrecedenceOverPureWeightColumn() {
+        // 行为锚定（2026-08-31 优先级反转）：括号分值是维度名上的显式满分标注，语义强于纯分值列——
+        // 两者并存且不一致时以括号为准（ScoreTableRowParser 分值提取优先级注释）
+        var candidate = ScoreTableRowParser.parse("| 1 | 财务状况（10分） | 具备相关资质与能力 | 2.5 |").orElseThrow();
+        assertThat(candidate.dim()).isEqualTo("财务状况");
+        assertThat(candidate.weight()).isEqualByComparingTo(new BigDecimal("10"));
+    }
+
+    @Test
+    void parse_assessmentKeywordRowWithBracketWeight_notFiltered() {
+        // 救生通道锚定：真实评分项行文含考核词（"考核指标"）但带括号分值 → 不被 NON_SCORE 词表误杀
+        var candidate = ScoreTableRowParser.parse("| 3 | 服务质量考核指标（8分） | 按服务方案质量与响应效率综合评分 | 8 |").orElseThrow();
+        assertThat(candidate.dim()).isEqualTo("服务质量考核指标");
+        assertThat(candidate.weight()).isEqualByComparingTo(new BigDecimal("8"));
+    }
+
+    @Test
+    void parse_contractAssessmentRowWithoutScore_filtered() {
+        // 合同考核行（MRO"妥投信息"类）：无"得X分"档位、无括号分值 → 行级过滤排除
+        assertThat(ScoreTableRowParser.parse("| 5 | 妥投信息真实 | 每件有效投诉扣2分，得分可为负值 | 不扣分 |")).isEmpty();
+    }
+
+    @Test
+    void parse_bracketWeightInCodeColumn_ignored() {
+        // 列 0 是编号列：多列表（>=3 列）序号误含括号分值不参与主项分值提取
+        var candidate = ScoreTableRowParser.parse("| 1（10分） | 财务状况 | 具备相关资质与能力 | 2.5 |").orElseThrow();
+        assertThat(candidate.weight()).isEqualByComparingTo(new BigDecimal("2.5"));
+    }
+
+    @Test
+    void parse_narrowTwoColumnTable_bracketWeightInFirstColumn_kept() {
+        // 窄表回归锚定（复审 Finding 3）：2 列表列 0 常是维度名本身，括号分值必须参与——
+        // 否则退化为"得X分"档位最大值冒充满分（7 → 2 错值）
+        var candidate = ScoreTableRowParser.parse("| 供应商业绩（7分） | 近三年同类业绩每份得2分，最高得7分 |").orElseThrow();
+        assertThat(candidate.dim()).isEqualTo("供应商业绩");
+        assertThat(candidate.weight()).isEqualByComparingTo(new BigDecimal("7"));
+    }
 }

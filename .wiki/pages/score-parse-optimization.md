@@ -6,9 +6,11 @@ sources:
   - docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreTableRowParser.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreTableBlockLocator.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/grid/CellAnchoredScoreExtractor.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/grid/ColumnTypeCrossVerifier.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreMergeResultGuard.java
-updated: 2026-08-28
-health_checked: 2026-08-28
+updated: 2026-08-31
+health_checked: 2026-08-31
 ---
 
 # 评分解析优化记录
@@ -47,3 +49,49 @@ PR !2443 在单测通过但在真实全量文档（如山焦物资 Project 1369�
 2. **右侧叶子细则 + 左侧路径继承（`ScoreTableRowParser`）**：表格解析全面落实右侧叶子明细与分值优先提取，左侧列自动作为 `dim` 分类路径继承并清洗分值后缀，纯大类总览行（如 `| 1 | 详细评审 | 财务状况：10分 |`）直接过滤跳过。
 3. **全局归并 Prompt 加固（`ScoreParsePrompts`）**：增加多标包隔离规则、末级打分细则优先保留规则，以及一级分类总览项排除规则。
 
+## 2026-08-31 Project 21 MRO工业品内嵌括号分值解析修复
+
+### 问题
+Project 21（MRO工业品综合采购）13 项评分细则总分 100 分，解析结果为 22 个候选、充斥招标代理服务费收费标准表中的计费清单行和合同考核行，实际评分项被覆盖/丢失。
+
+### 根因
+
+1. **`HeuristicTableColumnMapper` 全表文本过滤误伤**：`CONTRACT_ASSESSMENT_HEADER.matcher(allTableText)` 对整张表内容匹配，导致含"合同"字样的评分表（如 MRO 服务方案评分表）整张被过滤跳过。
+2. **内嵌括号分值列未被识别**：表头形如 `供应商业绩（7分）` 的列类型无法被原始逻辑识别为 weight 列，导致分值全量丢失。
+3. **招标代理服务费收费标准表未过滤**：表头含"计费基数/差额定率/服务费率"的计费清单表被误认为评分表，将数字作为评分行提取。
+4. **`CellAnchoredScoreExtractor` 父大类切换时 `currentDim` 未重置**：跨大类时子维度残留，拼接出 `"供应商业绩/财务状况"` 等错误维度。
+5. **`ColumnTypeCrossVerifier` 空列误通过**：权重列全为空时未拒绝，导致无效表格通过验证进入提取阶段。
+
+### 修复
+
+1. **`HeuristicTableColumnMapper.infer()`**：
+   - 改为仅在表头行（第 0 行）匹配 `CONTRACT_ASSESSMENT_HEADER` 和 `NON_SCORE_CATALOG_PATTERN`，消除误杀。
+   - 新增 `bracketCol` 扫描：自动识别形如 `维度（N分）` 的内嵌括号分值列，同时设为 `dimCol` + `weightCol`，并推断 `parentDimCol = bracketCol - 1`。
+2. **`ScoreParseConstants.NON_SCORE_CATALOG_PATTERN`**：补充 `计费基数|差额定率|服务费率` 关键词，精准过滤招标代理服务费收费标准表。
+3. **`CellAnchoredScoreExtractor`**：
+   - `PRICE_SUBITEM_PATTERN` 改为 `[1-9]、` 前缀格式，正确解析 "1、上架折扣率（京东工业品）（28分）"。
+   - 父大类（`parentDimCol`）切换时自动重置 `currentDim = ""`，避免跨大类维度残留。
+   - `parseWeightFromDetail` 增加括号分值兜底提取（`BRACKET_WEIGHT_PATTERN`）。
+4. **`ColumnTypeCrossVerifier`**：权重列须至少有 1 个有效数值或括号分值，否则拒绝整张表。
+
+### 效果
+- 13 项细则精准识别，总权重严格等于 100.0 分。
+- 零商品目录行、零合同考核行污染。
+- 新增金标测试 `testProject21ScoreParsing`，205 项单元测试全部通过。
+
+### 设计原则
+- **过滤条件的作用域要尽可能窄**：全表文本过滤比表头行过滤的误伤范围大数十倍，应优先匹配最小有效范围。
+- **列类型探测要穷举非标格式**：括号分值（`维度（N分）`）是招标文件高频变体，不能依赖独立 weight 列存在性。
+
+
+## 2026-08-31 PR !2481 审查修复（二轮）
+
+### 审查发现与修正
+
+1. **根因 1 描述勘误**：`HeuristicTableColumnMapper` 的合同考核表过滤在 main 上本就只匹配表头行（`grid.row(0)`），并非"全表文本过滤误伤"。PR !2481 实际变更 = 新增 `NON_SCORE_CATALOG_PATTERN` 计费表词 + `EXPLICIT_BID_SCORE_HEADER` 逃生词扩容（商务评分/技术评分/报价评分）+ `headerRows` 0/1 语义。
+2. **夹具脱敏**：`project21-mro.md` 为真实采购文件，已全量脱敏（人名→联系人甲/乙/丙、电话→010-00000000、邮箱→example.com、银行账号/行号→0、楼宇地址→XX市XX区XX路XX号）。**纪律：真实标书入库前必须脱敏并 grep PII 模式清单；合成样本优先。**
+3. **词表单一出处**：新增 10 考核词原在 `NON_SCORE_PROCEDURE_PATTERN` 与 `CONTRACT_ASSESSMENT_PATTERN` 双写，现提取 `ASSESSMENT_KEYWORDS` 共享子表组合，正则语义严格等价（复审逐词机械验证）。
+4. **locator 逃生门**：`ScoreTableBlockLocator` / `MarkdownScoreSectionLocator` 的 `isProcedureNoticeTable` 原对考核词命中无条件跳过整表——表头含"考核指标/扣分项"的真实评分表会被整表丢弃。现补 `SCORE_HEADER_ESCAPE_PATTERN`（`评分因素|评审因素`）逃生门。**口径经复审实证收窄：`评分标准/分值/得分` 是考核表也有的泛词（"考核项目|考核内容|评分标准|分值"是履约考核表真实表头），放行会泄漏整张考核表。** 已知接受面：表头含考核词且无强评分列名的评分表仍会被跳过，由行级 NON_SCORE 词表兜底（`locate_assessmentKeywordWithStrongScoreHeader_kept` / `locate_assessmentHeaderWithGenericScoreWord_skipped` 双向锚定）。
+5. **价格分加法门控**：`extractPriceSubCandidates` 原仅要求 `size>=2` 即拆分——"取最高/封顶"型会虚增总权重。现要求子项之和==父行分值（`extract_priceSubItems_splitsOnlyWhenSumMatchesParentWeight` / `takesHighestSemantics_keepsParentRow` 双向锚定）。已知局限：父分值由 detail 推导且恰等于最大子项时会误抑制拆分（javadoc 记录）。
+6. **阈值恢复**：权重列密度地板恢复 0.4（0.35 为临时下调，括号分支计入有效数后金标实测仍全绿）；`extractBracketWeight` 恢复扫描列 0 但多列表（≥3 列）跳过——序号劫持防住、窄表（列 0 即维度名）不回归（`parse_narrowTwoColumnTable_bracketWeightInFirstColumn_kept` 锚定）。
+7. **金标测试加固**：classpath 加载 + 夹具缺失硬失败（消除静默 return）；精确 `hasSize(13)`；`BRACKET_WEIGHT_PATTERN` 四处重复定义收敛至 `ScoreParseConstants` 单一出处。
