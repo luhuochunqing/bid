@@ -79,7 +79,8 @@ class GoldenCasesReplayTest {
         return Stream.of(
                 Arguments.of("case-dual-section-renumber"),
                 Arguments.of("case-weight-gap-mixed"),
-                Arguments.of("case-1347-compound-percent"));
+                Arguments.of("case-1347-compound-percent"),
+                Arguments.of("case-bracket-vs-pure-conflict"));
     }
 
     @ParameterizedTest(name = "{0}")
