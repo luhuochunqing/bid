@@ -1,6 +1,7 @@
 package com.xiyu.bid.scoreparse.domain;
 
 import com.xiyu.bid.scoreparse.infrastructure.structure.MarkdownScoreSectionLocator;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
@@ -12,12 +13,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class RealProjectScoreParsingTest {
 
+    @Disabled("依赖本地绝对路径 fixture，在 CI 上无此文件，需手动在本地运行")
     @Test
     void test1347ScoringChapterLocation() throws Exception {
         Path path = Paths.get("/Users/user/.gemini/antigravity-ide/brain/f248a9e2-27e6-4113-b216-d1c053a01264/scratch/1347.md");
-        if (!Files.exists(path)) {
-            return;
-        }
         String md = Files.readString(path);
         List<MarkdownScoreSectionLocator.ScoreSection> sections = MarkdownScoreSectionLocator.locate(md);
         
@@ -38,12 +37,10 @@ class RealProjectScoreParsingTest {
         assertThat(s0).contains("质量监管能力");
     }
 
+    @Disabled("依赖本地绝对路径 fixture，在 CI 上无此文件，需手动在本地运行")
     @Test
     void test1362DetailedScoringTableLocation() throws Exception {
         Path path = Paths.get("/Users/user/.gemini/antigravity-ide/brain/f248a9e2-27e6-4113-b216-d1c053a01264/scratch/1362.md");
-        if (!Files.exists(path)) {
-            return;
-        }
         String md = Files.readString(path);
         List<MarkdownScoreSectionLocator.ScoreSection> sections = MarkdownScoreSectionLocator.locate(md);
         

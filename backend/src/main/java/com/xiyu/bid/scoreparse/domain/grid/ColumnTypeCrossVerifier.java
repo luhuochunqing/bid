@@ -86,7 +86,9 @@ public final class ColumnTypeCrossVerifier {
         }
 
         // 权重列必须至少有 1 个有效分值，且非空单元格至少有 35% 具备分值特征（防全表列错位与全空列穿透）
-        if (dataRowCount > 0 && (validWeightCount == 0 || (nonEmptyRowCount > 0 && (double) validWeightCount / nonEmptyRowCount < 0.35))) {
+        boolean hasNoValidWeight = validWeightCount == 0;
+        boolean lowWeightDensity = nonEmptyRowCount > 0 && (double) validWeightCount / nonEmptyRowCount < 0.35;
+        if (dataRowCount > 0 && (hasNoValidWeight || lowWeightDensity)) {
             return ValidationResult.invalid("权重列有效分值占比过低 (" + validWeightCount + "/" + nonEmptyRowCount + ")，列映射不可信");
         }
 

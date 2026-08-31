@@ -105,7 +105,7 @@ public final class HeuristicTableColumnMapper {
             }
             if (count > 0) {
                 bracketCol = c;
-                break;
+                break;  // 取首个（最左）命中列作为括号分值锚定列
             }
         }
 
@@ -142,14 +142,5 @@ public final class HeuristicTableColumnMapper {
         }
 
         return new TableColumnMapping(codeCol, parentDimCol, dimCol, detailCol, weightCol, headerRows, isPercentage);
-    }
-
-    private static String buildTableSampleText(TableGrid grid) {
-        StringBuilder sb = new StringBuilder();
-        int maxRows = Math.min(grid.rowCount(), 10);
-        for (int r = 0; r < maxRows; r++) {
-            sb.append(String.join(" ", grid.row(r))).append(" ");
-        }
-        return sb.toString();
     }
 }

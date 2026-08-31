@@ -122,7 +122,7 @@ public final class CellAnchoredScoreExtractor {
                 weight = parseWeightFromDetail(detail);
             }
 
-            // 4. 编号过滤：如果编号以 4. 开头（如 4.4.1 评审程序条款），跳过
+            // 6. 编号过滤：如果编号以 4. 开头（如 4.4.1 评审程序条款），跳过
             if (code != null && code.trim().startsWith("4.")) {
                 continue;
             }
