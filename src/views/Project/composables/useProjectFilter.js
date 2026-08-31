@@ -2,11 +2,6 @@ import { ref, computed } from 'vue'
 import { useProjectStore } from '@/stores/project'
 import { useProjectPagination } from './useProjectPagination.js'
 
-function byStringField(a, b, field, order) {
-  const va = (a[field] || '').toLowerCase()
-  const vb = (b[field] || '').toLowerCase()
-  return order === 'ascending' ? va.localeCompare(vb) : vb.localeCompare(va)
-}
 function byNumberField(a, b, field, order) {
   const va = Number(a[field]) || 0
   const vb = Number(b[field]) || 0
