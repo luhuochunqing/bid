@@ -77,3 +77,35 @@ describe('useProjectFilter — 投标负责人筛选', () => {
     expect(matchedProjects.value.map((p) => p.id)).toEqual([1])
   })
 })
+
+// 搜索框 placeholder"搜索项目名称、招标主体"的契约：
+// name 关键词必须同时匹配项目名与招标主体（ownerUnit），防止退化为只搜项目名。
+describe('useProjectFilter — name 关键词匹配招标主体', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('关键词命中 ownerUnit（招标主体）时项目应命中', async () => {
+    const store = useProjectStore()
+    store.projects = [
+      makeProject({ id: 1, name: '数据中心建设项目', ownerUnit: '国家电网新疆电力公司' }),
+      makeProject({ id: 2, name: '云计算平台采购', ownerUnit: '某市大数据局' }),
+    ]
+    const searchForm = ref({ name: '国家电网' })
+    const { matchedProjects } = useProjectFilter(searchForm)
+    await nextTick()
+    expect(matchedProjects.value.map((p) => p.id)).toEqual([1])
+  })
+
+  it('ownerUnit 为空的项目不因关键词误命中，项目名匹配仍生效', async () => {
+    const store = useProjectStore()
+    store.projects = [
+      makeProject({ id: 1, name: '国家电网配套项目', ownerUnit: null }),
+      makeProject({ id: 2, name: '无关项目', ownerUnit: '其他单位' }),
+    ]
+    const searchForm = ref({ name: '国家电网' })
+    const { matchedProjects } = useProjectFilter(searchForm)
+    await nextTick()
+    expect(matchedProjects.value.map((p) => p.id)).toEqual([1])
+  })
+})

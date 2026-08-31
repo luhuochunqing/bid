@@ -1,5 +1,7 @@
+// Input: 筛选参数（ids/status/name/ownerUnit 等）+ ProjectQueryService 全量项目 DTO
 // Output: Excel export file data and filename for project list downloads
 // Pos: Service/导出专用
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
 package com.xiyu.bid.project.service;
 
@@ -124,7 +126,8 @@ public class ProjectExportService {
         }
         if (name != null && !name.isBlank()) {
             all = all.stream().filter(p -> containsIgnoreCase(p.getName(), name)
-                    || containsIgnoreCase(p.getCustomer(), name)).toList();
+                    || containsIgnoreCase(p.getCustomer(), name)
+                    || containsIgnoreCase(p.getOwnerUnit(), name)).toList();
         }
         if (ownerUnit != null && !ownerUnit.isBlank()) {
             all = all.stream().filter(p -> containsIgnoreCase(p.getOwnerUnit(), ownerUnit)).toList();
