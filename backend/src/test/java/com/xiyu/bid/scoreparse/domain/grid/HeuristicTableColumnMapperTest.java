@@ -57,4 +57,18 @@ class HeuristicTableColumnMapperTest {
         assertThat(mapping.detailCol()).isEqualTo(2);
         assertThat(mapping.weightCol()).isEqualTo(3);
     }
+
+    @Test
+    void infer_contractAssessmentTable_rejected() {
+        String markdown = """
+                | 序号 | 考核项目 | 考核内容 | 分值 |
+                |---|---|---|---|
+                | 1 | 周期保证 | 满足周期要求 | 25 |
+                | 2 | 质量保证 | 满足质量要求 | 25 |
+                """;
+        TableGrid grid = TableGridExtractor.extract(markdown);
+        TableColumnMapping mapping = HeuristicTableColumnMapper.infer(grid);
+
+        assertThat(mapping.headerRows()).isEqualTo(grid.rowCount());
+    }
 }

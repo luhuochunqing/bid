@@ -106,8 +106,14 @@ class ScoreCandidatePostProcessorTest {
                 candidate("A1", "资质", "具备 CMMI 认证证书", "60"),
                 candidate("A2", "业绩", "近三年业绩合同证明材料齐全有效", "40"));
 
-        processor.process("t4", "全文", recallOf(balanced, 0), List.of(), NOOP);
-
         verify(scoreAnalyzer, never()).recheckGaps(anyString(), anyList());
+    }
+
+    @Test
+    void zeroValidItems_withExternalSoftwareDeclaration_customFailMessage() {
+        String docText = "2.2 详细评审标准\n详见ZBJ格式采购文件“评审项目”页签。\n2.2.3 评分标准：详见ZBJ格式采购文件“评审项目”页签。";
+        var out = processor.process("t5", docText, recallOf(List.of(), 0), List.of(), NOOP);
+        assertThat(out.failMessage()).contains("ZBJ");
+        assertThat(out.candidates()).isEmpty();
     }
 }

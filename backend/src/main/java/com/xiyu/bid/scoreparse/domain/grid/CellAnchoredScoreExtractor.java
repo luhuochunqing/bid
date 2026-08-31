@@ -6,6 +6,7 @@
 package com.xiyu.bid.scoreparse.domain.grid;
 
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
+import com.xiyu.bid.scoreparse.domain.ScoreParseConstants;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -28,9 +29,7 @@ public final class CellAnchoredScoreExtractor {
     private static final Pattern NUMERIC_WEIGHT_PATTERN = Pattern.compile("^[~≈]?(\\d{1,3}(?:\\.\\d+)?)\\s*(?:分|%)?$");
     private static final Pattern BRACKET_WEIGHT_PATTERN = Pattern.compile("[（(]\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分\\s*[）)]");
     private static final Pattern GRADE_SCORE_PATTERN = Pattern.compile("得\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分");
-    private static final Pattern NON_SCORE_PROCEDURE_PATTERN = Pattern.compile(
-            "推荐成交候选|成交候选|推荐候选|定标|预备会|开启程序|开标程序|递交响应文件|响应文件的递交|响应文件的编制|成交结果公示|履约保证金|投标保证金|失信行为|“码”上监督|监督中心|异议|质疑|答疑|澄清|踏勘|电子响应文件|分包|服务费|采购代理服务费"
-    );
+    private static final Pattern NON_SCORE_PROCEDURE_PATTERN = ScoreParseConstants.NON_SCORE_PROCEDURE_PATTERN;
 
     private CellAnchoredScoreExtractor() {
     }

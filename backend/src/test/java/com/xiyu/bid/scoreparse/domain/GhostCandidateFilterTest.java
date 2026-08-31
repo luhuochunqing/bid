@@ -87,6 +87,19 @@ class GhostCandidateFilterTest {
     }
 
     @Test
+    void filter_contractAssessmentItems_filtered() {
+        ScoreCandidate assessment1 = new ScoreCandidate("1", "周期保证", "产品或服务满足项目周期要求", new BigDecimal("25"),
+                null, null, "考核项目：周期保证", "P10", null);
+        ScoreCandidate assessment2 = new ScoreCandidate("2", "质量保证", "违规行为判定：出现质量问题扣款", new BigDecimal("25"),
+                null, null, "违约责任承担：单个商品缴纳违约金2000元", "P11", null);
+        ScoreCandidate real = new ScoreCandidate("1", "技术指标", "满足技术要求得10分", new BigDecimal("10"),
+                null, null, "技术指标要求", "P2", null);
+
+        List<ScoreCandidate> result = filter.filter(List.of(assessment1, assessment2, real));
+        assertThat(result).containsExactly(real);
+    }
+
+    @Test
     void filter_nullInput_returnsEmpty() {
         assertThat(filter.filter(null)).isEmpty();
     }

@@ -33,9 +33,7 @@ public final class ScoreTableRowParser {
     private static final Pattern BRACKET_WEIGHT = Pattern.compile("[（(]\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分\\s*[）)]");
     private static final Pattern CONTAINS_HAN = Pattern.compile("[\\p{IsHan}]");
     private static final Pattern SCORE_SEMANTIC = Pattern.compile("评分|评审|评标|分值|得分|打分|加分|扣分|评审标准|评分标准");
-    private static final Pattern NON_SCORE_PROCEDURE_PATTERN = Pattern.compile(
-            "推荐成交候选|成交候选|推荐候选|定标|预备会|开启程序|开标程序|递交响应文件|响应文件的递交|响应文件的编制|成交结果公示|履约保证金|投标保证金|失信行为|“码”上监督|监督中心|异议|质疑|答疑|澄清|踏勘|电子响应文件|分包|服务费|采购代理服务费"
-    );
+    private static final Pattern NON_SCORE_PROCEDURE_PATTERN = ScoreParseConstants.NON_SCORE_PROCEDURE_PATTERN;
     private static final Pattern SUMMARY_ROW_PATTERN = Pattern.compile(
             "分值构成|总分构成|分值分布|总分100分"
     );

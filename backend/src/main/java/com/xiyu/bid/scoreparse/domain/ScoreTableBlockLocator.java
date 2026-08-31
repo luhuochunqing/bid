@@ -79,9 +79,14 @@ public final class ScoreTableBlockLocator {
         }
     }
 
+    private static final Pattern CONTRACT_ASSESSMENT_HEADER = ScoreParseConstants.CONTRACT_ASSESSMENT_PATTERN;
+
     private static boolean isProcedureNoticeTable(String headerLine) {
         if (headerLine == null) {
             return false;
+        }
+        if (CONTRACT_ASSESSMENT_HEADER.matcher(headerLine).find()) {
+            return true;
         }
         if (!PROCEDURE_TABLE_MARKER.matcher(headerLine).find()) {
             return false;
