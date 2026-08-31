@@ -16,8 +16,9 @@ knowledge_case 案例记录，使前台"AI 案例推荐"（案例库主页 + 投
   禁止指向生产或任何其他环境。
 
 前置条件：
-  目标库已通过 scripts/import-historical-projects.py 导入历史项目
-  （projects.source_module = '人工录入'），切片按项目名挂接到对应历史项目。
+  目标库已通过 scripts/import-historical-projects.py 导入历史项目。
+  识别标记兼容两种 source_module：'人工录入'（新版导入）与 'MANUAL_SINGLE'
+  （早期导入的存量数据）。切片按项目名挂接到对应历史项目。
 
 用法:
   python3 import-case-slices-to-knowledge-case.py [--jsonl-dir=DIR] [--limit=N]
@@ -52,6 +53,10 @@ ALLOWED_DB_HOSTS = {'127.0.0.1', 'localhost', '172.16.38.78'}
 
 # requirement_raw 占位前缀：NOT NULL 占位文本，兼作本批数据可识别标记（--purge 依据）
 REQUIREMENT_PREFIX = '【历史标书切片】'
+
+# 历史项目的 source_module 识别标记：新版导入写'人工录入'，早期导入写'MANUAL_SINGLE'，两者都认。
+# （测试库实际存量即 MANUAL_SINGLE，见 2026-08-31 导入前查证）
+HISTORICAL_SOURCE_MODULES = ('人工录入', 'MANUAL_SINGLE')
 
 # OBS 目录名日期前缀，如 "2026.01.20--中国建设银行..." / "2026年1月2日—某项目"
 DATE_PREFIX_RE = re.compile(r'^\d{4}[.年/-]\d{1,2}[.月/-]\d{1,2}日?[-—]*\s*')
@@ -182,10 +187,15 @@ def build_row(sl, project):
         REQUIREMENT_PREFIX + title,
         sl['text_preview'],
         project['customer_type'],
-        project['industry'],
+        effective_project_type(project),
         'WON' if project['status'] == 'WON' else None,
         sl['docx_label'] or None,
     )
+
+
+def effective_project_type(project):
+    """project_type 取值：优先 industry；早期历史项目 industry 为空时回退 customer_type。"""
+    return project['industry'] or project['customer_type']
 
 
 INSERT_SQL = """
@@ -210,8 +220,8 @@ def load_historical_projects(args):
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT id, name, status, customer_type, industry
-                FROM projects WHERE source_module = '人工录入'
-            """)
+                FROM projects WHERE source_module IN (%s, %s)
+            """, HISTORICAL_SOURCE_MODULES)
             rows = cur.fetchall()
     finally:
         conn.close()
@@ -222,10 +232,11 @@ def load_historical_projects(args):
                               'customer_type': cust_type, 'industry': industry}
     if not projects:
         sys.exit(
-            '目标库未找到历史项目（projects.source_module=\'人工录入\'）。\n'
+            '目标库未找到历史项目（projects.source_module IN '
+            + str(HISTORICAL_SOURCE_MODULES) + '）。\n'
             '请先执行 scripts/import-historical-projects.py 导入历史项目，再运行本脚本。'
         )
-    print(f'历史项目: {len(projects)} 个（source_module=人工录入）')
+    print(f'历史项目: {len(projects)} 个（source_module IN {", ".join(HISTORICAL_SOURCE_MODULES)}）')
     return projects
 
 
