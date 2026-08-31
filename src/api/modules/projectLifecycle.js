@@ -123,6 +123,11 @@ export const projectLifecycleApi = {
     return httpClient.get(`/api/archive/export-zip/${id}`, { responseType: 'blob' })
   },
 
+  // 档案附件文件查询（标书原文下载前预检“原文是否已归档”用）
+  getArchiveFiles(projectId, size = 10) {
+    return httpClient.get('/api/archive/files', { params: { projectId, page: 0, size } })
+  },
+
   // 一键导出项目文档 (返回 JSON 结构)
   exportClosureDocuments(id) {
     return httpClient.post(`/api/projects/${id}/closure/export-documents`)

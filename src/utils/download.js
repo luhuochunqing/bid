@@ -125,3 +125,39 @@ export function triggerBlobDownload(blob, filename) {
   // 延迟释放 blob URL，确保浏览器有足够时间开始下载
   setTimeout(() => URL.revokeObjectURL(url), 100)
 }
+
+/**
+ * 判断 blob 是否实为 JSON 错误响应体。
+ * 场景：HTTP 4xx/5xx 错误被 responseType:'blob' 包成 blob（如 403 无权限），
+ * 若直接落盘会得到无法打开的假文件（如假 ZIP）。
+ *
+ * @param {Blob} blob - 待检测的响应体
+ * @returns {boolean} content-type 为 application/json 时返回 true
+ */
+export function isJsonErrorBlob(blob) {
+  return Boolean(blob && typeof blob.type === 'string' && blob.type.includes('application/json'))
+}
+
+/**
+ * 从 JSON 错误体 blob 中读取错误消息，解析失败时兜底。
+ *
+ * @param {Blob} blob - JSON 错误响应体
+ * @returns {Promise<string>} 错误消息文本
+ */
+export async function readJsonErrorMessage(blob) {
+  try {
+    const text = typeof blob.text === 'function'
+      ? await blob.text()
+      : await new Promise((resolve, reject) => {
+        // 兜底：部分环境（如 happy-dom）Blob.text() 不可用，改走 FileReader
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result)
+        reader.onerror = reject
+        reader.readAsText(blob)
+      })
+    const body = JSON.parse(text)
+    return body?.msg || body?.message || '服务端返回错误'
+  } catch {
+    return '服务端返回错误'
+  }
+}
