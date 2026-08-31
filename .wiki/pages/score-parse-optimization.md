@@ -7,8 +7,8 @@ sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreTableRowParser.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreTableBlockLocator.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreMergeResultGuard.java
-updated: 2026-08-28
-health_checked: 2026-08-28
+updated: 2026-08-31
+health_checked: 2026-08-31
 ---
 
 # 评分解析优化记录
@@ -46,4 +46,39 @@ PR !2443 在单测通过但在真实全量文档（如山焦物资 Project 1369�
 1. **树形守卫不变式（`ScoreMergeResultGuard`）**：引入 `isParentOrSummaryCategory` 判定，当 accepted 清单中已存在子编号项（如 1.1）或同维度细则时，严禁将父大项/分类总览项作为漏项回补，杜绝父子并存与分值翻倍。
 2. **右侧叶子细则 + 左侧路径继承（`ScoreTableRowParser`）**：表格解析全面落实右侧叶子明细与分值优先提取，左侧列自动作为 `dim` 分类路径继承并清洗分值后缀，纯大类总览行（如 `| 1 | 详细评审 | 财务状况：10分 |`）直接过滤跳过。
 3. **全局归并 Prompt 加固（`ScoreParsePrompts`）**：增加多标包隔离规则、末级打分细则优先保留规则，以及一级分类总览项排除规则。
+
+## 2026-08-31 Project 21 MRO工业品内嵌括号分值解析修复
+
+### 问题
+Project 21（MRO工业品综合采购）13 项评分细则总分 100 分，解析结果为 22 个候选、充斥招标代理服务费收费标准表中的计费清单行和合同考核行，实际评分项被覆盖/丢失。
+
+### 根因
+
+1. **`HeuristicTableColumnMapper` 全表文本过滤误伤**：`CONTRACT_ASSESSMENT_HEADER.matcher(allTableText)` 对整张表内容匹配，导致含"合同"字样的评分表（如 MRO 服务方案评分表）整张被过滤跳过。
+2. **内嵌括号分值列未被识别**：表头形如 `供应商业绩（7分）` 的列类型无法被原始逻辑识别为 weight 列，导致分值全量丢失。
+3. **招标代理服务费收费标准表未过滤**：表头含"计费基数/差额定率/服务费率"的计费清单表被误认为评分表，将数字作为评分行提取。
+4. **`CellAnchoredScoreExtractor` 父大类切换时 `currentDim` 未重置**：跨大类时子维度残留，拼接出 `"供应商业绩/财务状况"` 等错误维度。
+5. **`ColumnTypeCrossVerifier` 空列误通过**：权重列全为空时未拒绝，导致无效表格通过验证进入提取阶段。
+
+### 修复
+
+1. **`HeuristicTableColumnMapper.infer()`**：
+   - 改为仅在表头行（第 0 行）匹配 `CONTRACT_ASSESSMENT_HEADER` 和 `NON_SCORE_CATALOG_PATTERN`，消除误杀。
+   - 新增 `bracketCol` 扫描：自动识别形如 `维度（N分）` 的内嵌括号分值列，同时设为 `dimCol` + `weightCol`，并推断 `parentDimCol = bracketCol - 1`。
+2. **`ScoreParseConstants.NON_SCORE_CATALOG_PATTERN`**：补充 `计费基数|差额定率|服务费率` 关键词，精准过滤招标代理服务费收费标准表。
+3. **`CellAnchoredScoreExtractor`**：
+   - `PRICE_SUBITEM_PATTERN` 改为 `[1-9]、` 前缀格式，正确解析 "1、上架折扣率（京东工业品）（28分）"。
+   - 父大类（`parentDimCol`）切换时自动重置 `currentDim = ""`，避免跨大类维度残留。
+   - `parseWeightFromDetail` 增加括号分值兜底提取（`BRACKET_WEIGHT_PATTERN`）。
+4. **`ColumnTypeCrossVerifier`**：权重列须至少有 1 个有效数值或括号分值，否则拒绝整张表。
+
+### 效果
+- 13 项细则精准识别，总权重严格等于 100.0 分。
+- 零商品目录行、零合同考核行污染。
+- 新增金标测试 `testProject21ScoreParsing`，205 项单元测试全部通过。
+
+### 设计原则
+- **过滤条件的作用域要尽可能窄**：全表文本过滤比表头行过滤的误伤范围大数十倍，应优先匹配最小有效范围。
+- **列类型探测要穷举非标格式**：括号分值（`维度（N分）`）是招标文件高频变体，不能依赖独立 weight 列存在性。
+
 
