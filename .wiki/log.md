@@ -3,6 +3,13 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-08-31] feat | 项目关键词搜索按招标主体（ownerUnit 数据链路与三层过滤契约）
+
+- 触发：项目搜索框 placeholder「搜索项目名称、招标主体」长期超期承诺——name 关键词前后端均只匹配项目名（PR !2478）。
+- 链路：招标主体 = `tenders.purchaser_name`，经 `projects.tender_id` 应用层回填 DTO.ownerUnit（立项后用 `project_initiation_details.owner_unit` 快照）；过滤发生在 enrichment 之后，加字段零 SQL 改动。
+- 页面更新：新增 [[project-search-owner-unit]]（三层过滤契约 + 前后端已知分歧：大小写/customer 仅后端/projectName 仅前端）。
+- 教训：**文案承诺的能力要跟实现核对，placeholder 写了不等于实现了；同名契约在三处实现（Controller/ExportService/useProjectFilter）时新增字段必须三处同步；测试库 H2 `projects.tender_id` NOT NULL，造数不能建无标讯项目**。
+
 ## [2026-08-29] fix | 数据分析部门筛选解包虚拟根（rootorg/组织架构）并修复一二级口径
 
 - 触发：部门筛选保留两级展示中，OSS 组织表存在顶层虚拟根容器（`rootorg`/`组织架构`），被错误当成一级部门导致真实二级部门在两级截断时被裁掉。
