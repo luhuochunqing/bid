@@ -1,4 +1,4 @@
-import { ref, reactive, computed, nextTick, onUnmounted } from 'vue'
+import { ref, reactive, computed, nextTick, onUnmounted, getCurrentInstance } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { complianceApi } from '@/api/modules/ai.js'
 import { scoreParseApi } from '@/api/modules/scoreParse.js'
@@ -30,7 +30,7 @@ export function useQualityCheckDrawer(props, emit) {
   let pollTimer = null
   let pollStartTime = 0
   const POLL_INTERVAL_MS = 2000
-  const MAX_POLL_TIMEOUT_MS = 120000
+  const MAX_POLL_TIMEOUT_MS = 600000 // 10分钟超时上限（300 × 2s，与系统 AI 异步长任务标准对齐）
 
   const categoryDefinitions = [
     { category: 'BASIC_INFO', title: '基本信息检查', label: '基本信息' },
@@ -104,10 +104,15 @@ export function useQualityCheckDrawer(props, emit) {
     try {
       const res = await complianceApi.getBidQualityReport(props.projectId)
       if (res?.data) {
-        report.value = res.data
         if (res.data.status && res.data.status !== 'COMPLETED' && res.data.status !== 'FAILED') {
           startPolling(res.data.taskId)
+        } else if (res.data.status === 'COMPLETED') {
+          report.value = res.data
+          await loadObjectiveScore()
+        } else if (res.data.status === 'FAILED') {
+          report.value = null
         } else {
+          report.value = res.data
           await loadObjectiveScore()
         }
       } else {
@@ -177,6 +182,9 @@ export function useQualityCheckDrawer(props, emit) {
 
   async function triggerCheck(force = false) {
     stopPolling()
+    if (force) {
+      report.value = null
+    }
     polling.value = true
     progressPercent.value = 10
     currentStepText.value = '正在初始化核查任务...'
@@ -257,9 +265,11 @@ export function useQualityCheckDrawer(props, emit) {
     }
   }
 
-  onUnmounted(() => {
-    stopPolling()
-  })
+  if (getCurrentInstance()) {
+    onUnmounted(() => {
+      stopPolling()
+    })
+  }
 
   return {
     visible,

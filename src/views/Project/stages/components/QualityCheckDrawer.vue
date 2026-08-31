@@ -28,7 +28,7 @@
           striped-flow
           class="step-progress-bar"
         />
-        <div class="progress-hint">全量解析真实投标文件、提取页码证据并对照 25 项合规矩阵，通常需要 10~30 秒</div>
+        <div class="progress-hint">全量解析真实投标文件、提取页码证据并对照 25 项合规矩阵，通常需要 1~2 分钟</div>
       </div>
     </div>
 
