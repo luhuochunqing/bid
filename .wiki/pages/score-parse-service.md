@@ -4,7 +4,7 @@ space: engineering
 category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
-updated: 2026-08-26
+updated: 2026-08-31
 health_checked: 2026-08-24
 sources:
   - specs/041-ai-score-parse-backend/spec.md
@@ -54,6 +54,7 @@ trigger（同步<1s，互斥校验+建任务）
       → EstimatedScoreService 阶段1预计得分（链尾）
 ```
 
+- **字段长度安全截断与双层防御（2026-08-31）**：大模型结构化抽取评分项时，`location`、`dim`、`code` 字段可能产生多段详细长文本。`ScoreCandidateMapper` 在映射源头做安全长度截断（`code: 50`，`dim/location: 200`，`source_text: 500`），`ScoreItemPersistenceService` 在落库前增加 `resolveLocation` 兜底截断，`ScoreParseTaskStateService` 对 `stage` 描述截断（50 字符），彻底根治 MySQL 严格模式下的 `DataTruncationException`。
 - **Sidecar PDF 转换保真（2026-08-24）**：针对复杂排版 PDF，Sidecar 优先使用 `convert_pdf_to_markdown` 通过 `pdfplumber` 抽取表格为 Markdown 管道表格，单元格内换行转 `<br>`，段落换行 `\n` 严格保真，彻底解决 `markitdown`/`pdfminer` 单行化（0 换行）缺陷。
 - **跨维度去重防碰撞（2026-08-24）**：`ScoreItemMergePolicy` 区分同维度同编号合并与跨维度同编号保留，避免多标的/多部分招标文件（如商务表 1 与技术表 1）因编号相同被误吞。
 - **LLM 全文聚焦切片（2026-08-24）**：`OpenAiScoreAnalyzer` 在多 chunk 时基于 sectionPath 和评分关键词过滤高信号 chunk，避免数十个无关合同 chunk 盲目调用 LLM 稀释信号。
