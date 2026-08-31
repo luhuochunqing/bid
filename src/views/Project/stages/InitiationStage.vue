@@ -261,8 +261,6 @@ async function searchLeader(q) { if (!q || q.length < 1) return; leaderSearching
 async function searchAssistant(q) { if (!q || q.length < 1) return; assistantSearching.value = true; try { const r = await usersApi.search(q, 15); assistantOptions.value = roleOptions(r, BID_ASSISTANT_ROLE) } catch { assistantOptions.value = [] } finally { assistantSearching.value = false } }
 const approvalForm = reactive({ biddingLeaderId: null, biddingLeaderLabel: '', biddingAssistantId: null, biddingAssistantLabel: '' })
 function onLeaderSelect(user) { if (user) { approvalForm.biddingLeaderLabel = user.name || user.fullName || '' } }
-const uploadUrl = '/api/upload'
-const uploadHeaders = computed(() => { const t = userStore?.token; return t ? { Authorization: 'Bearer ' + t } : {} })
 
 // OBS 直传 composable（VITE_OBS_ENABLED=true 时启用大文件直传 OBS）
 const obsUpload = useObsUpload()

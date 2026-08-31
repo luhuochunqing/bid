@@ -140,7 +140,9 @@
 import { ref, reactive, computed, watch } from 'vue'
 import UserPicker from '@/components/common/UserPicker.vue'
 import { View, Hide } from '@element-plus/icons-vue'
-import { useCaPasswordReveal } from '../composables/useCaPasswordReveal'
+import { useUserStore } from '@/stores/user'
+import { isBidManager } from '@/utils/permission'
+import { caApi } from '@/api/modules/ca.js'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -180,8 +182,39 @@ function createDefaultForm() {
 }
 const form = reactive(createDefaultForm())
 
-const { passwordRevealed, passwordLoading, canViewPassword, resetPasswordState, handleRevealPassword } =
-  useCaPasswordReveal(isEdit, computed(() => props.ca), form)
+const passwordRevealed = ref(false)
+const passwordLoading = ref(false)
+const userStore = useUserStore()
+
+const canViewPassword = computed(() => {
+  if (!isEdit.value) return false
+  if (isBidManager(userStore.userRole)) return true
+  const currentId = userStore.currentUser?.id
+  const custodianId = props.ca?.custodianId
+  return currentId != null && custodianId != null && String(currentId) === String(custodianId)
+})
+
+function resetPasswordState() {
+  passwordRevealed.value = false
+}
+
+async function handleRevealPassword() {
+  if (passwordRevealed.value) {
+    passwordRevealed.value = false
+    form.caPassword = ''
+    return
+  }
+  passwordLoading.value = true
+  try {
+    const res = await caApi.getPassword(props.ca.id)
+    if (res?.success && res?.data?.caPassword) {
+      form.caPassword = res.data.caPassword
+      passwordRevealed.value = true
+    }
+  } finally {
+    passwordLoading.value = false
+  }
+}
 
 function onCustodianSelect(user) {
   if (user) {

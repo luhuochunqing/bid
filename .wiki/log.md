@@ -3,6 +3,12 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-08-31] refactor | AI Slop 代码清理与单组件专属小型 Composable 内联收敛
+
+- 触发：全仓库扫描发现多处已废弃死导入/死代码（uploadUrl, uploadHeaders, getApiUrl 等）以及 3 个仅单组件消费的小型 Composable 文件。
+- 修复：按 RULES.md §2.5 规范清理所有无用导入/变量，并将单组件专属的 3 个 Composable（useAccountRowActions / useAccountExport / useCaPasswordReveal）直接内联到对应组件中，删除冗余文件。
+- 页面更新：新增 [[ai-slop-cleanup-and-composable-inlining]]；更新 `_index.md`。
+
 ## [2026-08-31] feat | 项目关键词搜索按招标主体（ownerUnit 数据链路与三层过滤契约）
 
 - 触发：项目搜索框 placeholder「搜索项目名称、招标主体」长期超期承诺——name 关键词前后端均只匹配项目名（PR !2478）。

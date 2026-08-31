@@ -8,7 +8,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
-// Mock caApi.getPassword —— CAFormDialog 通过 useCaPasswordReveal 间接依赖
+// Mock caApi.getPassword —— CAFormDialog 密码 reveal 依赖
 const getPasswordMock = vi.fn()
 vi.mock('@/api/modules/ca.js', () => ({
   caApi: { getPassword: getPasswordMock }

@@ -163,10 +163,10 @@ import { Search, Plus, Platform, Download, Upload } from '@element-plus/icons-vu
 import { resourcesApi } from '@/api'
 import { useUserStore } from '@/stores/user'
 import { useListPagination } from '@/composables/useListPagination'
-import { useAccountRowActions } from './composables/useAccountRowActions.js'
+import { resolveAccountActions, isCurrentUserContactPerson, canRevealPassword, isBorrowerWithinWindow } from './accountActions.js'
 import { usePasswordReveal } from './composables/usePasswordReveal.js'
-import { useAccountExport } from './composables/useAccountExport.js'
 import { useAccountBorrowApplications } from './composables/useAccountBorrowApplications.js'
+import { triggerBlobDownload } from '@/utils/download.js'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import AccountFormDialog from './AccountFormDialog.vue'
 import AccountDetailDialog from './AccountDetailDialog.vue'
@@ -195,7 +195,23 @@ const filteredAccounts = computed(() => {
 })
 
 const { pagination, pageSizes, totalCount, pagedData: pagedAccounts, handleSizeChange, resetPage } = useListPagination(filteredAccounts)
-const { rowActions, canRevealPasswordFor } = useAccountRowActions({ userStore, userRoleCode })
+
+const rowActions = (row) => resolveAccountActions({
+  isManager: userStore.isBidManager,
+  isBidTeam: userRoleCode.value === 'bid-Team',
+  isContactPerson: isCurrentUserContactPerson(row, userStore.currentUser),
+  isApplicant: userRoleCode.value === 'bid-projectLeader' || userRoleCode.value === 'sales',
+  status: row.status
+})
+
+// CO-400 round5 + CO-524: 小眼睛可见 = 管理员 OR (投标专员且为绑定联系人) OR 借用人窗口期内
+const canRevealPasswordFor = (row) => canRevealPassword({
+  isManager: userStore.isBidManager,
+  isBidTeam: userRoleCode.value === 'bid-Team',
+  isContactPerson: isCurrentUserContactPerson(row, userStore.currentUser),
+  isBorrowerWithinWindow: isBorrowerWithinWindow(row, userStore.currentUser)
+})
+
 const password = usePasswordReveal((id) => resourcesApi.accounts.getPassword(id))
 
 const showBorrowDialog = ref(false)
@@ -301,8 +317,29 @@ const onAccountReturned = () => {
   loadAccounts()
 }
 
-const { exporting, handleExport: baseHandleExport } = useAccountExport()
-const handleExport = () => baseHandleExport(selectedRows.value)
+const exporting = ref(false)
+const handleExport = async () => {
+  const params = {}
+  if (selectedRows.value.length > 0) {
+    params.selectedIds = selectedRows.value.map(r => r.id).join(',')
+  }
+  exporting.value = true
+  try {
+    const response = await resourcesApi.accounts.exportAccounts(params)
+    const blob = response?.data
+    if (!blob || !(blob instanceof Blob)) {
+      ElMessage.error('导出失败：未收到文件数据')
+      return
+    }
+    triggerBlobDownload(blob, `平台账户台账_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.xlsx`)
+    ElMessage.success('导出成功')
+  } catch (e) {
+    // 429 已由全局 axios interceptor 展示友好提示，业务层不再重复弹窗
+    notifyErrorUnlessRateLimit(e, '导出失败，请稍后重试')
+  } finally {
+    exporting.value = false
+  }
+}
 
 onMounted(() => { loadAccounts() })
 </script>

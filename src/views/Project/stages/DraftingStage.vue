@@ -151,9 +151,8 @@
 
 <script setup>
 import { DocumentChecked, Loading, Search, UploadFilled } from '@element-plus/icons-vue'
-import { ref, computed, reactive, watch, onMounted } from 'vue'
+import { ref, computed, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getApiUrl } from '@/api/config.js'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
 import { deleteDocument, getDocuments } from '@/api/modules/projectDocuments.js'
 import { STAGE_TRANSITION_MAP } from '@/constants/projectStages.js'
@@ -270,7 +269,6 @@ const currentReviewerDecision = computed(() => {
   const mine = reviewers.value.find(r => String(r.reviewerId) === String(uid))
   return mine?.decision || null
 })
-const uploadHeaders = computed(() => { const t = userStore?.token; return t ? { Authorization: 'Bearer ' + t } : {} })
 // OBS 直传：大文件绕过 APISIX 网关直传 OBS，失败回退到 multipart（修复 413）
 const { customUpload: originalCustomUpload } = useObsProjectDocumentUpload(
   () => props.projectId,
