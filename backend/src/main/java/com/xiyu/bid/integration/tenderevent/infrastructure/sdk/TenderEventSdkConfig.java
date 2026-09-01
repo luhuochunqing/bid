@@ -70,7 +70,7 @@ public class TenderEventSdkConfig {
      *
      * <p>仅在 SDK 启用时装配（{@code enabled=true}），防止未配置时反射注入失败。
      */
-    @Bean(initMethod = "register")
+    @Bean(initMethod = "register", destroyMethod = "close")
     @ConditionalOnProperty(
             prefix = "xiyu.integrations.tender-event.sdk",
             name = "enabled",

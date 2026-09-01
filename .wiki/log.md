@@ -559,3 +559,9 @@
 - 排障：数据层实测最大长度恰好 300（JSONL 只出 text_preview）；路由表无 /bidding/detail/{id}；export-zip 带成员校验 403 被 blob 落盘 + 历史项目档案 0 附件
 - 回填：[[case-source-actions-and-import-pitfalls]]；新增共享 composable useBidCaseSourceActions（8 个组件级用例锁定）；切片脚本改出全文、导入脚本修 project_type 枚举混填
 - 教训：**blob 下载必须查 content-type（application/json=错误体）再落盘；跨表灌数字段必须按目标字段枚举校验，禁止跨枚举回退**
+
+## 2026-09-01 fix | 标讯事件总线注册生命周期与测试挂起修复（mvn -q test 挂起根因）
+- 触发：全量测试时 TenderEventSdkConfigTest 尝试连接不存在的外部域名 event-bus.local，第三方 SDK ClientRegisterComponent.register() 进入无休眠重试死循环，且常驻后台线程在 Spring Context 销毁后未停止，导致 Maven 进程长时间挂起
+- 修复：TenderEventRegistrar 实现 AutoCloseable，在 close() 中反射重置 isRun=false 并中断 registrationThread；TenderEventSdkConfig 设置 destroyMethod="close"；TenderEventSdkConfigTest 使用 MockWebServer 模拟本地响应并补齐 disabled 负向分支；清理 TenderEventSdkProducerTest 中的 event-bus.local 域名引用
+- 回填：更新 [[integration-tender-event-push]] §10；教训：**测试中绝不使用未配置的 .local 假域名，涉及 HTTP 测试一律使用 MockWebServer 监听 127.0.0.1:port；常驻重试线程组件必须实现 AutoCloseable 并在容器销毁时显式终止**
+

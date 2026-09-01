@@ -29,7 +29,7 @@ import lombok.extern.slf4j.Slf4j;
  * 在 Spring 启动后自动触发，无需手动调用。
  */
 @Slf4j
-final class TenderEventRegistrar {
+final class TenderEventRegistrar implements AutoCloseable {
 
     /**
      * 续约初始延迟（秒）：注册成功后等待 10 秒再开始第一次续约，
@@ -49,6 +49,7 @@ final class TenderEventRegistrar {
     private static final long RENEWAL_DURATION_SECONDS = 60L;
 
     private final ClientRegisterComponent registerComponent;
+    private volatile Thread registrationThread;
 
     TenderEventRegistrar(TenderEventSdkProperties properties) {
         this.registerComponent = buildRegisterComponent(properties);
@@ -62,14 +63,29 @@ final class TenderEventRegistrar {
      */
     public void register() {
         log.info("标讯事件总线：开始服务注册（serviceName=bid）...");
-        Thread.ofVirtual().name("tender-event-register").start(() -> {
+        registrationThread = Thread.ofVirtual().name("tender-event-register").start(() -> {
             try {
                 registerComponent.register();
                 log.info("标讯事件总线：服务注册流程已触发，续约线程由 SDK 自动管理");
-            } catch (Exception e) {
+            } catch (RuntimeException e) {
                 log.error("标讯事件总线：服务注册异常", e);
             }
         });
+    }
+
+    /**
+     * 容器销毁或关闭时释放资源：终止 SDK 注册循环并中断注册线程。
+     */
+    @Override
+    public void close() {
+        try {
+            injectField(registerComponent, "isRun", Boolean.FALSE);
+            if (registrationThread != null && registrationThread.isAlive()) {
+                registrationThread.interrupt();
+            }
+        } catch (RuntimeException e) {
+            log.warn("标讯事件总线：停止注册组件异常", e);
+        }
     }
 
     /**
