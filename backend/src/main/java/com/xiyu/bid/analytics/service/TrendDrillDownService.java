@@ -1,5 +1,5 @@
 // Input: EntityManager, ProjectAccessScopeService, FilterOptionsQueryService, HTTP drilldown requests
-// Output: TrendDrillDownResponse DTO
+// Output: TrendDrillDownResponse DTO（部门 expand 零命中 fail-closed 返回空响应）
 // Pos: Service/数据查询与下钻服务层（竞品维度中标数/wins 走「是否中标」列口径，specs/055；
 //       维度过滤条件组装已拆至 TrendDrillDownFilterSupport）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -137,12 +137,20 @@ public class TrendDrillDownService {
 
         if (hasDeptSelection) {
             var nodes = filterOptionsQueryService.loadDepartmentNodes();
+            List<String> expandedDepts = AnalyticsDepartmentHierarchySupport.expand(nodes, departments);
+            // 空列表=零命中 → fail-closed 直接返回空响应，避免拼出空 IN
+            if (expandedDepts == null || expandedDepts.isEmpty()) {
+                return emptyResponse(pageNum, pageSize);
+            }
             where.append(" AND u.department_name IN (:departments)");
-            params.put("departments", AnalyticsDepartmentHierarchySupport.expand(nodes, departments));
+            params.put("departments", expandedDepts);
             if (deptAxis) {
+                List<String> axisVals = AnalyticsDepartmentHierarchySupport.expand(nodes, List.of(axisValue));
+                if (axisVals == null || axisVals.isEmpty()) {
+                    return emptyResponse(pageNum, pageSize);
+                }
                 where.append(" AND u.department_name IN (:deptAxisVals)");
-                params.put("deptAxisVals",
-                        AnalyticsDepartmentHierarchySupport.expand(nodes, List.of(axisValue)));
+                params.put("deptAxisVals", axisVals);
             }
         }
 
