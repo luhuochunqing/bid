@@ -54,7 +54,7 @@ trigger（同步<1s，互斥校验+建任务）
       → EstimatedScoreService 阶段1预计得分（链尾）
 ```
 
-- **整表级一次性 LLM 结构化抽取与主备平滑降级（2026-09-01）**：针对传统行级正则特征工程（`HeuristicTableColumnMapper` + `ScoreTableRowParser`）在跨行合并单元格、括号分值列和考核表混排中的脆弱性，引入 `LlmTableScoreExtractor` 与 `TableScoreExtractionPrompt`。通过单次 Structured Output JSON Schema 同时完成表格分类判定（剔除合同考核表与废标程序表）与多层级评分项抽取，`detail` 逐字复制并经 `ScoreOriginalTextAligner` 消除空白漂移；在 `ScoreParseAppService` 中作为主路径优先调用，超时/异常时平滑降级至既有启发式规则。
+- **确定性优先 + 章节定位约束的整表 LLM 智能抽取（2026-09-01）**：针对传统行级正则特征工程与非标复杂表格的冲突，确立「确定性启发式/网格抽取主路优先 + 评分章节约束下的整表 LLM 智能兜底」架构。对于标准招标表格优先走确定性网格解析（0 网络开销、毫秒级响应、100% 规则保真）；当非标复杂排版（跨行合并单元格、异构列头）未命中时平滑启用 `LlmTableScoreExtractor`。LLM 抽取时强制以 `MarkdownScoreSectionLocator` 章节定位（如第三章 评标办法）为范围边界，并严格拦截 `isProcedureNoticeTable`（前附表）与 `CONTRACT_ASSESSMENT_HEADER`（合同履约考核表），彻底防止非评分表格混入候选池导致总分膨胀与裁决失真。
 - **字段长度安全截断与双层防御（2026-08-31）**：大模型结构化抽取评分项时，`location`、`dim`、`code` 字段可能产生多段详细长文本。`ScoreCandidateMapper` 在映射源头做安全长度截断（`code: 50`，`dim/location: 200`，`source_text: 500`），`ScoreItemPersistenceService` 在落库前增加 `resolveLocation` 兜底截断，`ScoreParseTaskStateService` 对 `stage` 描述截断（50 字符），彻底根治 MySQL 严格模式下的 `DataTruncationException`。
 - **评分细则（detail）保真升级与候选池完整透传（2026-09-01）**：`ScoreGlobalMergeExecutor` 将候选池单项 detail 截断上限提升至 4000 字符，避免大模型全局裁决时复述截断摘要；`ScoreMergeResultGuard` 在采纳项中引入 `upgradeWithLongestPoolDetail` 机制，当候选池中存在更长、更完整的逐字原文版本时自动升级，彻底解决 1/2/3 等多子要点条款被截断丢失的问题。
 - **Sidecar PDF 转换保真（2026-08-24）**：针对复杂排版 PDF，Sidecar 优先使用 `convert_pdf_to_markdown` 通过 `pdfplumber` 抽取表格为 Markdown 管道表格，单元格内换行转 `<br>`，段落换行 `\n` 严格保真，彻底解决 `markitdown`/`pdfminer` 单行化（0 换行）缺陷。
