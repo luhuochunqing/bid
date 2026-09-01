@@ -46,3 +46,16 @@ health_checked: 2026-09-01
 - 重导 300 条，`obs_bid_file_key` 300/300 非空；端点抽测 200/404/409/403 全通
 - 前端三分流契约测试 + 全量 3070 绿；后端定向 28 用例绿（含架构测试）
 - 随部署生效 PR !2485 的档案 ZIP 前端 Blob 修复（zip-verify 一并验证）
+
+## 元数据缺陷修正（2026-09-01 后续）
+
+导入脚本两处写侧缺陷导致 300 条切片案例元数据错配，已修复并原地回填：
+
+| 缺陷 | 根因 | 修复 |
+|---|---|---|
+| 项目状态 174 条显示"未知" | `build_row` 仅写 WON，丢弃 LOST(139)/FAILED(35) | `BID_RESULT_MAP` 全终态映射；前台 `CaseDetailDialog` 补第三态"已流标"（warning） |
+| 项目类型 300 条全 NULL | 误读 `projects.industry`（历史项目全空）；真值在 `tenders.project_type`（中文原值） | 加载来源项目 `LEFT JOIN tenders`，经 `PROJECT_TYPE_MAP` 归一为枚举码（前台标签/筛选值域） |
+
+存量回填走脚本 `--backfill-meta` 模式（白名单守卫 + `--dry-run` 预演）：回填后分布为
+bid_result = WON 126 / LOST 139 / FAILED 35；project_type = COMPREHENSIVE 135 / INDUSTRIAL 121 / OFFICE 44。
+详见 lessons-learned #193。
