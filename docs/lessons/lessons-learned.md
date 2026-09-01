@@ -3514,3 +3514,26 @@ PR !2481（Project 21 MRO 评分解析修复）功能正确、205 项测试全�
 6. **Flyway 迁移必配回滚脚本**：每个 `V*.sql` 必须有 `db/rollback/migration-mysql/U*.sql`（四行头注释含 `-- Input:` 指回源迁移），否则 `FlywayRollbackScriptCoverageTest` 红。
 
 **验证证据**：端点 200/404/409/403 抽测全通；定向 28 用例绿；部署 598f7608c（V1205 生效，health UP）；临时验证账号与服务器临时文件已清理。
+
+## 193. 历史切片案例状态/类型错配：跨表字段真值位置与终态映射完整性（2026-09-01）
+
+**现象**：
+测试环境案例库 300 条历史切片案例中，174 条"项目状态"显示"未知"（项目详情里明明有状态），300 条"项目类型"与项目信息不一致（案例侧为空/对不上）。
+
+**根因**（均在导入脚本 `scripts/import-case-slices-to-knowledge-case.py` 写侧）：
+1. **读错字段**：脚本从 `projects.industry` 取项目类型，但历史项目的"项目类型"真值在 `tenders.project_type`（`import-historical-projects.py` 导入时写入，中文原值：办公/综合/集采/工业品）；`projects.industry` 历史项目全空 → 案例 `project_type` 300 条全 NULL。
+2. **终态映射不完整**：`build_row` 写死 `'WON' if status == 'WON' else None`，把来源项目真实状态 LOST(139)/FAILED(35) 丢弃 → `bid_result` NULL → 前台显示"未知"。
+3. **值域不一致**：`tenders.project_type` 存中文原值，前台案例标签/筛选期望枚举码（OFFICE/COMPREHENSIVE/COLLECTIVE/INDUSTRIAL/OTHER）——修复时必须经映射归一，直接拷中文会使类型筛选失效。
+
+**修复**：
+- 加载来源项目改 `LEFT JOIN tenders` 取真值；新增 `PROJECT_TYPE_MAP`（中文→枚举码）与 `BID_RESULT_MAP`（WON/LOST/FAILED 全终态）。
+- 前台 `CaseDetailDialog` 补第三态：`FAILED` → "已流标"（warning 标签）+ 组件测试锚定三态映射。
+- 存量回填：脚本新增 `--backfill-meta` 模式（复用白名单守卫，范围锚定【历史标书切片】标记 + 历史 source_module，支持 --dry-run）。切片 JSONL 已被清理无法重导，故原地回填；测试库实测回填 174 条状态 + 300 条类型，复核分布与取证完全一致。
+
+**教训**：
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| 想当然按表名猜字段真值位置 | 未核实"项目类型"实际落在 tenders 而非 projects.industry | 导入/同步类脚本取值前，先用 SQL 分布统计核实候选字段的非空率与值域，不凭表结构猜 |
+| 状态映射只写目标分支（"仅 WON 生效"） | 初期只关心中标案例，未考虑其余终态在下游的展示语义 | 枚举映射必须覆盖来源侧全部终态；显式决策"其余值写什么"，不得隐式丢成 NULL |
+| 源表中文值与消费侧枚举码值域不一致 | 两张表由不同脚本在不同时期写入，值域约定未对齐 | 跨表搬运字段时核对消费侧值域（前台标签/筛选的枚举），搬运时归一 |
+| 一次性产物（/tmp 切片 JSONL）被清理后无法重导 | 导入依赖的中间产物未归档 | 一次性导入的中间产物至少保留到数据验收完成；回填能力（--backfill-meta/--purge）随脚本交付 |

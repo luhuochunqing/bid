@@ -32,6 +32,7 @@ knowledge_case 案例记录，使前台"AI 案例推荐"（案例库主页 + 投
   --dry-run     连库匹配并打印统计/样例，不写入
   --offline     不连库：解析 + 抽样 + 打印 INSERT 样例（本地验证脚本逻辑用）
   --purge       按标记删除本脚本写入的数据（回滚手段）
+  --backfill-meta 一次性回填存量切片案例的 bid_result / project_type（配合 --dry-run）
   --self-test   运行纯函数断言后退出
 
 示例:
@@ -58,6 +59,14 @@ REQUIREMENT_PREFIX = '【历史标书切片】'
 # 历史项目的 source_module 识别标记：新版导入写'人工录入'，早期导入写'MANUAL_SINGLE'，两者都认。
 # （测试库实际存量即 MANUAL_SINGLE，见 2026-08-31 导入前查证）
 HISTORICAL_SOURCE_MODULES = ('人工录入', 'MANUAL_SINGLE')
+
+# 项目状态 → knowledge_case.bid_result 全终态映射（前台三态：已中标/未中标/已流标）
+BID_RESULT_MAP = {'WON': 'WON', 'LOST': 'LOST', 'FAILED': 'FAILED'}
+
+# 项目类型中文原值 → 枚举码（与 import-historical-projects.py 的 PROJECT_TYPE 一致）。
+# 历史项目的"项目类型"存在 tenders.project_type（中文原值），前台案例标签/筛选期望枚举码。
+PROJECT_TYPE_MAP = {'办公': 'OFFICE', '综合': 'COMPREHENSIVE', '集采': 'COLLECTIVE',
+                    '工业品': 'INDUSTRIAL', '其他': 'OTHER'}
 
 # OBS 目录名日期前缀，如 "2026.01.20--中国建设银行..." / "2026年1月2日—某项目"
 DATE_PREFIX_RE = re.compile(r'^\d{4}[.年/-]\d{1,2}[.月/-]\d{1,2}日?[-—]*\s*')
@@ -193,19 +202,22 @@ def build_row(sl, project):
         sl.get('text') or sl['text_preview'],
         project['customer_type'],
         effective_project_type(project),
-        'WON' if project['status'] == 'WON' else None,
+        BID_RESULT_MAP.get(project['status']),
         sl['docx_label'] or None,
         sl.get('obs_bid_file_key') or None,
     )
 
 
 def effective_project_type(project):
-    """project_type 取值：仅取 industry；为空则置 None。
+    """project_type 取值：取来源项目的"项目类型"（tenders.project_type 中文原值，
+    加载时已放入 proj_type_cn），经 PROJECT_TYPE_MAP 归一为枚举码（前台标签/筛选值域）。
 
-    不得回退取 customer_type——两套枚举语义不同（项目类型=办公/综合/集采/工业品/其他，
-    客户类型=LOCAL_SOE 等），混填会导致前台项目类型标签显示原始码。
+    不得取 projects.industry（历史项目该列全空），也不得回退取 customer_type——
+    两套枚举语义不同（项目类型=办公/综合/集采/工业品/其他，客户类型=LOCAL_SOE 等），
+    混填会导致前台项目类型标签显示原始码。未匹配/为空 → None。
     """
-    return project['industry'] or None
+    raw = (project.get('proj_type_cn') or '').strip()
+    return PROJECT_TYPE_MAP.get(raw)
 
 
 INSERT_SQL = """
@@ -243,18 +255,21 @@ def load_historical_projects(args):
                            password=args.db_pass, database=args.db_name, charset='utf8mb4')
     try:
         with conn.cursor() as cur:
+            # 项目类型真值在 tenders.project_type（中文原值）；projects.industry 历史项目全空
             cur.execute("""
-                SELECT id, name, status, customer_type, industry
-                FROM projects WHERE source_module IN (%s, %s)
+                SELECT p.id, p.name, p.status, p.customer_type, t.project_type
+                FROM projects p
+                LEFT JOIN tenders t ON p.tender_id = t.id
+                WHERE p.source_module IN (%s, %s)
             """, HISTORICAL_SOURCE_MODULES)
             rows = cur.fetchall()
     finally:
         conn.close()
     projects = {}
-    for pid, name, status, cust_type, industry in rows:
+    for pid, name, status, cust_type, proj_type_cn in rows:
         if name:
             projects[name] = {'id': pid, 'name': name, 'status': status,
-                              'customer_type': cust_type, 'industry': industry}
+                              'customer_type': cust_type, 'proj_type_cn': proj_type_cn}
     if not projects:
         sys.exit(
             '目标库未找到历史项目（projects.source_module IN '
@@ -273,7 +288,7 @@ def build_offline_projects(slices):
         norm = normalize_dir_name(s['project'])
         if norm and norm not in projects:
             projects[norm] = {'id': next_id, 'name': norm, 'status': 'WON',
-                              'customer_type': None, 'industry': None}
+                              'customer_type': None, 'proj_type_cn': None}
             next_id += 1
     print(f'[offline] 构造虚拟项目: {len(projects)} 个')
     return projects
@@ -340,6 +355,51 @@ def do_purge(args):
         conn.close()
 
 
+def do_backfill_meta(args):
+    """一次性回填存量切片案例的 bid_result / project_type（修复 2026-08-31 导入的两处缺陷）：
+      - bid_result：此前仅 WON 写入，LOST/FAILED 被丢 → 按来源项目状态全终态回填
+      - project_type：此前误读 projects.industry（全空）→ 改按 tenders.project_type 归一回填
+    范围锚定：【历史标书切片】标记 且来源项目 source_module 为历史导入。"""
+    import pymysql
+    conn = pymysql.connect(host=args.db_host, port=args.db_port, user=args.db_user,
+                           password=args.db_pass, database=args.db_name, charset='utf8mb4')
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT kc.id, kc.bid_result, kc.project_type, p.status, t.project_type
+                FROM knowledge_case kc
+                JOIN projects p ON kc.source_project_id = p.id
+                LEFT JOIN tenders t ON p.tender_id = t.id
+                WHERE kc.requirement_raw LIKE %s AND p.source_module IN (%s, %s)
+            """, (REQUIREMENT_PREFIX + '%',) + HISTORICAL_SOURCE_MODULES)
+            rows = cur.fetchall()
+        if not rows:
+            print('未找到需回填的切片案例（' + REQUIREMENT_PREFIX + ' 标记）')
+            return
+        bid_updates, type_updates = [], []
+        for kc_id, old_bid, old_type, proj_status, proj_type_cn in rows:
+            new_bid = BID_RESULT_MAP.get(proj_status)
+            if new_bid and new_bid != old_bid:
+                bid_updates.append((new_bid, kc_id))
+            new_type = PROJECT_TYPE_MAP.get((proj_type_cn or '').strip())
+            if new_type and new_type != old_type:
+                type_updates.append((new_type, kc_id))
+        print(f'扫描: {len(rows)} 条切片案例')
+        print(f'待回填 bid_result: {len(bid_updates)} 条（样例: {bid_updates[:5]}）')
+        print(f'待回填 project_type: {len(type_updates)} 条（样例: {type_updates[:5]}）')
+        if args.dry_run:
+            print('[dry-run] 未写库')
+            return
+        with conn.cursor() as cur:
+            cur.executemany('UPDATE knowledge_case SET bid_result=%s WHERE id=%s', bid_updates)
+            cur.executemany('UPDATE knowledge_case SET project_type=%s WHERE id=%s', type_updates)
+        conn.commit()
+        print('回填完成')
+        print("复核: SELECT bid_result, COUNT(*) FROM knowledge_case WHERE requirement_raw LIKE '【历史标书切片】%' GROUP BY bid_result;")
+    finally:
+        conn.close()
+
+
 def do_insert(args, rows):
     """正式写入（INSERT IGNORE，幂等）。"""
     import pymysql
@@ -369,20 +429,20 @@ def self_test():
 
     # 2. 精确匹配
     p1 = {'id': 1, 'name': '中国建设银行龙集采项目', 'status': 'WON',
-          'customer_type': 'CENTRAL_SOE', 'industry': '综合'}
+          'customer_type': 'CENTRAL_SOE', 'proj_type_cn': '综合'}
     lookup = {p1['name']: p1}
     assert match_project('2026.01.20--中国建设银行龙集采项目', lookup) is p1
     assert match_project('不存在的项目', lookup) is None
 
     # 3. 包含兜底（项目名是目录名子串）
     p2 = {'id': 2, 'name': '建设银行项目', 'status': 'LOST',
-          'customer_type': None, 'industry': None}
+          'customer_type': None, 'proj_type_cn': None}
     lookup2 = {p2['name']: p2}
     assert match_project('2026.01.20--建设银行项目标段一', lookup2) is p2
 
     # 4. 多候选取最长名（最具体）
     p3 = {'id': 3, 'name': '建设银行项目二期', 'status': 'WON',
-          'customer_type': None, 'industry': None}
+          'customer_type': None, 'proj_type_cn': '集采'}
     lookup3 = {p2['name']: p2, p3['name']: p3}
     assert match_project('2026.01.20--建设银行项目二期采购', lookup3) is p3
 
@@ -402,25 +462,33 @@ def self_test():
     assert len(sample_slices(slices, 100)) == 10
     assert sample_slices([], 10) == []
 
-    # 6. 行装配：中标项目 → bid_result='WON'；未中标 → NULL
+    # 6. 行装配：全终态映射（WON/LOST/FAILED），项目类型归一为枚举码
     sl = {'project': 'A', 'docx_label': '技术', 'title': '售后服务方案', 'text_preview': '承诺7x24',
           'obs_bid_file_key': OBS_BID_ROOT_PREFIX + '2026.01.20--中国建设银行龙集采项目/技术标.docx'}
     row = build_row(sl, p1)
     assert row == (1, '中国建设银行龙集采项目', '售后服务方案',
                    '【历史标书切片】售后服务方案', '承诺7x24',
-                   'CENTRAL_SOE', '综合', 'WON', '技术',
+                   'CENTRAL_SOE', 'COMPREHENSIVE', 'WON', '技术',
                    OBS_BID_ROOT_PREFIX + '2026.01.20--中国建设银行龙集采项目/技术标.docx')
     row2 = build_row(sl, p2)
-    assert row2[7] is None  # LOST → bid_result NULL
+    assert row2[7] == 'LOST'   # LOST → 未中标（修复：此前误丢为 NULL 致前台显示"未知"）
+    p4 = {'id': 4, 'name': '流标项目', 'status': 'FAILED',
+          'customer_type': None, 'proj_type_cn': '集采'}
+    assert build_row(sl, p4)[7] == 'FAILED'   # FAILED → 已流标
+    assert build_row(sl, p4)[6] == 'COLLECTIVE'
+    assert build_row(sl, p3)[6] == 'COLLECTIVE'
 
     # 7. 全文优先：切片带 text（全文）时 response_text 用全文，缺失时回退 text_preview
     sl_full = dict(sl, text='承诺7x24小时响应，这是完整正文……')
     assert build_row(sl_full, p1)[4] == '承诺7x24小时响应，这是完整正文……'
     assert build_row(sl, p1)[4] == '承诺7x24'
 
-    # 8. project_type 不回退客户类型：industry 为空 → None（避免前台显示 LOCAL_SOE 原始码）
+    # 8. project_type 归一：中文→枚举码；未知中文/为空 → None；不回退客户类型
     assert build_row(sl, p2)[6] is None
-    assert effective_project_type({'industry': None, 'customer_type': 'LOCAL_SOE'}) is None
+    assert effective_project_type({'proj_type_cn': '办公', 'customer_type': 'LOCAL_SOE'}) == 'OFFICE'
+    assert effective_project_type({'proj_type_cn': '工业品', 'customer_type': None}) == 'INDUSTRIAL'
+    assert effective_project_type({'proj_type_cn': '未知类型', 'customer_type': None}) is None
+    assert effective_project_type({'proj_type_cn': None, 'customer_type': 'LOCAL_SOE'}) is None
 
     # 9. obs_bid_file_key 校验：每条记录非空且以桶内根前缀开头（--self-test 契约）
     assert is_valid_obs_bid_key(OBS_BID_ROOT_PREFIX + '某项目/技术标.docx')
@@ -448,6 +516,8 @@ def main():
     ap.add_argument('--dry-run', action='store_true', help='连库匹配并打印统计/样例，不写入')
     ap.add_argument('--offline', action='store_true', help='不连库：解析+抽样+打印 INSERT 样例')
     ap.add_argument('--purge', action='store_true', help='按标记删除本脚本写入的数据')
+    ap.add_argument('--backfill-meta', action='store_true',
+                    help='一次性回填存量切片案例的 bid_result/project_type（配合 --dry-run 预览）')
     ap.add_argument('--self-test', action='store_true', help='运行纯函数断言后退出')
     args = ap.parse_args()
 
@@ -461,6 +531,10 @@ def main():
 
     if args.purge:
         do_purge(args)
+        return
+
+    if args.backfill_meta:
+        do_backfill_meta(args)
         return
 
     slices = load_jsonl_slices(args.jsonl_dir)
