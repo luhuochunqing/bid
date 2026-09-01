@@ -125,8 +125,8 @@ class DeterministicCheckPolicyTest {
     }
 
     @Test
-    @DisplayName("证据定位：关键词未命中窗口兜底为页首摘录（原 snippet 行为）")
-    void evidenceQuote_fallsBackToHead_whenKeywordAbsent() {
+    @DisplayName("证据定位：命中路径 quote 非空且为合法摘录（生产 call site 词表一致，恒走命中路径）")
+    void evidenceQuote_quoteNotBlank_onKeywordHit() {
         String text = "投标函\n致：张家口银行股份有限公司\n我方承诺……".repeat(200);
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash", text);
 
@@ -134,6 +134,34 @@ class DeterministicCheckPolicyTest {
 
         assertThat(result.evidences()).isNotEmpty();
         assertThat(result.evidences().get(0).quote()).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("snippetAround 纯函数：关键词未命中时回退页首摘录（兜底分支锚定）")
+    void snippetAround_fallsBackToHeadSnippet_whenNoKeywordHit() {
+        String text = "这段文本完全不含任何检索关键词，用于验证兜底路径。".repeat(50);
+
+        String fallback = BasicInfoCheckPolicy.snippetAround(text, 30, "不存在的词甲", "不存在的词乙");
+        String head = BasicInfoCheckPolicy.snippet(text, 30);
+
+        assertThat(fallback)
+                .as("未命中任何关键词时行为应与页首 snippet 一致")
+                .isEqualTo(head);
+    }
+
+    @Test
+    @DisplayName("snippetAround 纯函数：命中时窗口内含关键词，且为原文子串（空白压缩前）")
+    void snippetAround_hit_returnsWindowAroundKeyword() {
+        String prefix = "开头填充。".repeat(40);
+        String suffix = "结尾填充。".repeat(40);
+        String text = prefix + "营业执照编号九一三一零零零零零零" + suffix;
+
+        String quote = BasicInfoCheckPolicy.snippetAround(text, 40, "营业执照");
+
+        assertThat(quote).contains("营业执照");
+        // 窗口取自原文：quote 首部字符应在原文（去空白）中重现，而非凭空拼缀
+        String headChars = quote.replace("...", "").replaceAll("\\s+", "").substring(0, 5);
+        assertThat(text.replaceAll("\\s+", "")).contains(headChars);
     }
 
     @Test
@@ -176,6 +204,21 @@ class DeterministicCheckPolicyTest {
 
         assertThat(result.status())
                 .as("超窗的远距大小写对照不应被判为一致")
+                .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+    }
+
+    @Test
+    @DisplayName("报价一致性：「大写：」后无金额时不得折算为 0 误判 FAIL，应转人工")
+    void priceConsistency_emptyChineseAmount_fallsBackToManualReview() {
+        // "大写：" 后紧跟无金额内容，300 字符窗口内出现别处的"小写：100"——不得配成 ¥0 的假 FAIL
+        String page1 = "投标报价说明\n大写：\n（金额见正式报价页）\n" + "填充内容。".repeat(10);
+        String page2 = "分项报价\n小写：100\n（分项单价，非总价）";
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash", page1 + "\f" + page2);
+
+        QualityCheckItemResult result = DeterministicCheckPolicy.checkPriceConsistency(doc);
+
+        assertThat(result.status())
+                .as("空大写金额不构成价格对，应转人工而非 FAIL 折算 ¥0")
                 .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
     }
 }

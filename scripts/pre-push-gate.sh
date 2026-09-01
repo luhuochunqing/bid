@@ -419,6 +419,21 @@ else
   fi
 fi
 
+# ── 5.6.1. /convert 结构化 pages 跨语言契约（PR !2492 防复发） ──
+# Sidecar 响应 pages 字段与 Java adapter 消费是同一契约的两端，漂移会静默降级
+# 到虚拟分页兜底（lessons #198 同源坑）。触及契约任一端文件时执行。
+echo "── pages 契约 ──"
+PAGES_CONTRACT_CHANGED=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -cE 'document-converter-sidecar/(converter\.py|app\.py)$|SidecarStreamDocumentAdapter\.java$' || true)
+if [ "$PAGES_CONTRACT_CHANGED" -eq 0 ]; then
+  skip "pages-contract（未触及契约文件）"
+else
+  if node "$ROOT_DIR/scripts/check-pages-contract.mjs" 2>&1; then
+    pass "pages-contract（/convert pages 字段两端同现）"
+  else
+    fail "pages-contract — /convert pages 字段契约漂移，运行 node scripts/check-pages-contract.mjs 查看缺失端"
+  fi
+fi
+
 # ── 5.7. 仓库卫生：根目录产物文件拦截（PR !2399 教训） ────
 # implementation-notes.html / ui_mvp_preview.html 等产物/笔记文件不应持续入库。
 # 历史文件允许继续存在，仅拦截本次推送对它们的新增/修改。

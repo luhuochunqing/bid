@@ -1,7 +1,9 @@
 """Sidecar HTTP shell that delegates document-to-markdown conversion to markitdown.
 
 Input:  Multipart HTTP upload of an office/PDF document via POST /convert.
-Output: JSON with the converted markdown plus structural metadata (sections, hash, warnings).
+Output: JSON with the converted markdown plus structural metadata (pages, sections, hash, warnings).
+        `pages` is the physical-page slice list (PDF via pdfplumber; empty for docx) consumed by
+        the compliance quality-check pipeline — guarded by scripts/check-pages-contract.mjs.
 Position: Standalone FastAPI process; consumed by the Java backend MarkItDownSidecarTextExtractor.
           The Java caller must pass the shared secret in header X-Sidecar-Key when
           SIDECAR_SHARED_KEY is configured on the sidecar side.

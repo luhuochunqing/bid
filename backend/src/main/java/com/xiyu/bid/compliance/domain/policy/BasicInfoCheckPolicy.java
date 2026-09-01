@@ -240,11 +240,15 @@ public final class BasicInfoCheckPolicy {
                 Pattern.DOTALL));
     }
 
-    /** 执行价格对正则匹配并归一化（金额空白剔除、千分位剔除、小写折算），未命中或数字非法返回 null. */
+    /** 执行价格对正则匹配并归一化（金额空白剔除、千分位剔除、小写折算），未命中、大写金额为空或数字非法返回 null. */
     private static ParsedPrice findPricePair(final String text, final Pattern pattern) {
         Matcher m = pattern.matcher(text);
         if (m.find()) {
             String cn = m.group(1).replaceAll("[\\s整正]", "").trim();
+            if (cn.isEmpty()) {
+                // "大写："后无金额（跨行捕获组吞掉换行）：不构成价格对，落回转人工而非折算 ¥0 误判
+                return null;
+            }
             String numStr = m.group(2).replace(",", "").trim();
             if (numStr.matches("^[0-9]+(\\.[0-9]{1,2})?$")) {
                 BigDecimal num = new BigDecimal(numStr);

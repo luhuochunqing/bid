@@ -20,6 +20,11 @@ public final class SubItemAndAttachmentRules {
             "(转包|违法分包|串通投标|围标|弄虚作假|挂靠资质|以他人名义投标|自愿放弃中标资格|拒绝承担质保责任)"
     );
 
+    /** 开标一览表/报价表识别词表：选页判定与证据摘录必须共用同一份（新增词条只改这里）. */
+    private static final String[] BID_OPENING_TABLE_KEYWORDS = {
+            "开标一览表", "投标报价表", "报价一览表", "投标一览表", "报价明细表", "分项报价表"
+    };
+
     private SubItemAndAttachmentRules() {
     }
 
@@ -79,9 +84,9 @@ public final class SubItemAndAttachmentRules {
 
     public static QualityCheckItemResult checkBidOpeningTable(final DocumentContent bidDoc) {
         BidQualityCheckItem item = BidQualityCheckItem.BID_OPENING_TABLE;
-        BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc, "开标一览表", "投标报价表", "报价一览表", "投标一览表", "报价明细表", "分项报价表");
+        BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc, BID_OPENING_TABLE_KEYWORDS);
         if (match != null) {
-            return QualityCheckItemResult.pass(item, "包含开标一览表或分项报价明细表", List.of(QualityEvidence.bid("开标一览表所在页", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(match.text(), 200, "开标一览表", "投标报价表", "报价一览表", "投标一览表", "报价明细表", "分项报价表"))));
+            return QualityCheckItemResult.pass(item, "包含开标一览表或分项报价明细表", List.of(QualityEvidence.bid("开标一览表所在页", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(match.text(), 200, BID_OPENING_TABLE_KEYWORDS))));
         }
         return QualityCheckItemResult.fail(item, "未检测到开标一览表或分项报价表", "请在投标文件中加入《开标一览表》及分项报价清单", Collections.emptyList());
     }

@@ -1,8 +1,11 @@
-"""Pure conversion helpers: heading extraction and structural analysis.
+"""Conversion helpers: heading extraction, PDF->markdown/pages, price-table merging.
 
-Input:  Raw markdown text as a Python string.
-Output: Structured list of heading dictionaries with level, path, and char offsets.
-Position: Pure-function module; imported by app.py (the HTTP shell). No I/O performed here.
+Input:  Raw markdown text (heading extraction) or a PDF file path (pdfplumber conversion).
+Output: Heading dictionaries with level/path/char offsets; PDF whole-document markdown and
+        per-page slices [{"pageNumber", "text"}] (convert_pdf_document) consumed by the Java
+        compliance pipeline — field contract guarded by scripts/check-pages-contract.mjs.
+Position: Imported by app.py (the HTTP shell). Heading analysis is pure; the PDF conversion
+        functions perform file I/O via pdfplumber and run inside the worker process.
 """
 from __future__ import annotations
 
