@@ -155,4 +155,63 @@ class ScoreItemCaseRecommendAppServiceTest {
         assertThat(item.getCustomerType()).isEqualTo("STATE_OWNED");
         assertThat(item.getProjectType()).isEqualTo("ENERGY");
     }
+
+    @Test
+    @DisplayName("端到端场景验证：编号评分项 2.2.4(3) 商城系统对接能力 成功召回大类为技术方案的历史案例")
+    void testNumberedScoreItemWithBroadCategoryCaseInRecommendService() {
+        Long projectId = 100L;
+        Long scoreItemId = 1L;
+
+        Project currentProject = new Project();
+        currentProject.setId(projectId);
+        currentProject.setCustomerType("央企");
+        currentProject.setIndustry("工业品");
+
+        ScoreItem scoreItem = ScoreItem.builder()
+                .id(scoreItemId)
+                .projectId(projectId)
+                .code("2.2.4(3)")
+                .dim("2.2.4(3) 商城系统对接能力")
+                .detail("对供应商商城系统对接能力进行综合评价，供应商应根据工会规定定义的接口标准进行对接，使商城接口标准向职工商城采购接口服务，包括商品、商品组、订单、售后、对账等")
+                .itemIndex(1)
+                .build();
+
+        KnowledgeCase matchedCase = new KnowledgeCase();
+        matchedCase.setId(201L);
+        matchedCase.setSourceProjectId(502L);
+        matchedCase.setSourceProjectName("某央企工业品采购项目");
+        matchedCase.setScoringPointTitle("技术方案");
+        matchedCase.setScoringCategory("技术方案");
+        matchedCase.setRequirementRaw("对供应商商城系统对接能力进行综合评价");
+        matchedCase.setResponseText("技术方案内容包含但不限于：商城系统对接能力供应商按照“三峡e购”商城定义的接口标准进行对接，依据接口标准向“三峡e购”商城提供接口服务，包括商品、商品组、订单、售后、对账等");
+        matchedCase.setProjectType("工业品");
+        matchedCase.setCustomerType("央企");
+        matchedCase.setBidResult("WON");
+        matchedCase.setStatus("ACTIVE");
+        matchedCase.setCreatedAt(LocalDateTime.of(2026, 9, 1, 10, 0));
+        matchedCase.setReuseCount(3);
+
+        when(projectRepository.findById(eq(projectId))).thenReturn(Optional.of(currentProject));
+        when(scoreItemRepository.findById(eq(scoreItemId))).thenReturn(Optional.of(scoreItem));
+        when(knowledgeCaseQueryPort.findAllActive()).thenReturn(List.of(matchedCase));
+
+        ScoreItemCaseRecommendRequest request = ScoreItemCaseRecommendRequest.builder()
+                .scoreItemId(scoreItemId)
+                .keyword(null)
+                .page(0)
+                .size(20)
+                .build();
+
+        ScoreItemCaseRecommendResponse response = recommendAppService.recommend(projectId, request);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getTotal()).isEqualTo(1);
+        assertThat(response.getItems()).hasSize(1);
+
+        ScoreItemCaseRecommendResponse.Item item = response.getItems().get(0);
+        assertThat(item.getId()).isEqualTo(201L);
+        assertThat(item.getMatchScore()).isGreaterThanOrEqualTo(80);
+        assertThat(item.getMatchLabel()).isEqualTo("优质");
+        assertThat(item.getMatchReasons()).contains("评分点匹配", "评分项条款高度契合", "类别一致");
+    }
 }

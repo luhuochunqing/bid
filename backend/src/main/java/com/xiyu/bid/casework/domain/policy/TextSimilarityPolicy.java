@@ -1,13 +1,15 @@
 package com.xiyu.bid.casework.domain.policy;
 
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
 
 /**
  * 文本相似度计算纯核心策略。
  *
- * <p>统一的分词与相似度计算工具，避免在多个类中重复实现。
+ * <p>统一的分词、前缀剥离与相似度计算工具，避免在多个策略类中重复实现。
  */
 public final class TextSimilarityPolicy {
 
@@ -15,14 +17,6 @@ public final class TextSimilarityPolicy {
 
     /**
      * 对文本进行分词，返回 token 集合。
-     *
-     * <p>策略：
-     * <ul>
-     *   <li>按空白符和中文标点切分</li>
-     *   <li>英文/数字词：保留长度 ≥ 2 的完整词</li>
-     *   <li>中文词：做 bigram（相邻两字）切分</li>
-     *   <li>统一转小写</li>
-     * </ul>
      */
     public static Set<String> tokenize(String text) {
         Set<String> tokens = new HashSet<>();
@@ -47,9 +41,34 @@ public final class TextSimilarityPolicy {
     }
 
     /**
+     * 针对招投标评分条款的增强分词（含编号剥离与 n-gram 抽取）。
+     */
+    public static Set<String> extractTokens(String text) {
+        if (!hasText(text)) {
+            return Collections.emptySet();
+        }
+
+        Set<String> tokens = new LinkedHashSet<>();
+        String[] rawWords = text.replaceAll("[\\p{Punct}\\p{Space}\\u3000-\\u303F\\uFF00-\\uFFEF]+", " ").trim().split("\\s+");
+        for (String word : rawWords) {
+            String cleanWord = cleanTitle(word);
+            if (cleanWord.length() >= 2 && cleanWord.length() <= 8) {
+                tokens.add(cleanWord);
+            }
+            if (cleanWord.matches(".*[\\u4e00-\\u9fa5].*")) {
+                for (int i = 0; i <= cleanWord.length() - 2; i++) {
+                    tokens.add(cleanWord.substring(i, i + 2));
+                }
+                for (int i = 0; i <= cleanWord.length() - 3; i++) {
+                    tokens.add(cleanWord.substring(i, i + 3));
+                }
+            }
+        }
+        return tokens;
+    }
+
+    /**
      * 计算两个 token 集合的 Jaccard 相似度。
-     *
-     * @return 0.0 ~ 1.0 之间的相似度，任一集合为空时返回 0.0
      */
     public static double jaccardSimilarity(Set<String> a, Set<String> b) {
         if (a == null || b == null || a.isEmpty() || b.isEmpty()) {
@@ -90,5 +109,29 @@ public final class TextSimilarityPolicy {
                     || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A
                     || block == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS;
         });
+    }
+
+    /**
+     * 剥离前缀编号（支持多层级数字、中英文章节、带括号序号、罗马数字、特殊序号等），提取纯净业务名称。
+     */
+    public static String cleanTitle(String text) {
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+        String cleaned = text.trim();
+        String prev;
+        int maxIter = 5;
+        do {
+            prev = cleaned;
+            cleaned = cleaned.replaceAll("^(第[0-9一二三四五六七八九十百\\._]+[章节条款项部分节]+|附[件表]+[0-9一二三四五六七八九十\\-_\\.]*|表[0-9\\-_\\.]+)[、\\.\\s:：\\-_]*", "");
+            cleaned = cleaned.replaceAll("^[A-Za-z0-9]+([\\.\\-_][A-Za-z0-9]+)*([\\(（][0-9一二三四五六七八九十a-zA-Z]+[\\)）])?[、\\.\\s:：\\-_]*", "");
+            cleaned = cleaned.replaceAll("^[\\(（\\[【][0-9一二三四五六七八九十a-zA-Z]+[\\)）\\]】][、\\.\\s:：\\-_]*", "");
+            cleaned = cleaned.replaceAll("^[①②③④⑤⑥⑦⑧⑨⑩㈠㈡㈢㈣㈤㈥㈦㈧㈨㈩ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ][、\\.\\s:：\\-_]*", "");
+            cleaned = cleaned.replaceAll("^[一二三四五六七八九十]+[、\\.\\s:：\\-_]+", "");
+            cleaned = cleaned.trim();
+            maxIter--;
+        } while (!cleaned.equals(prev) && !cleaned.isEmpty() && maxIter > 0);
+
+        return cleaned.isEmpty() ? text.trim() : cleaned;
     }
 }

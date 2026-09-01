@@ -170,6 +170,26 @@ class KnowledgeCaseMatchPolicyTest {
     }
 
     @Test
+    @DisplayName("编号与正文匹配：评分项带编号 2.2.4(3) 且案例正文包含商城系统对接能力")
+    void score_NumberedTitleMatchingContent_ShouldReturnHighScore() {
+        KnowledgeCase candidate = createCase(
+                "技术方案", "技术方案", "工业品", "央企", "WON",
+                "技术方案内容包含但不限于：商城系统对接能力供应商按照“三峡e购”商城定义的接口标准进行对接"
+        );
+
+        KnowledgeCaseMatchCriteria criteria = new KnowledgeCaseMatchCriteria(
+                1L, "2.2.4(3) 商城系统对接能力", "技术方案", "工业品", "央企", null, null, null
+        );
+
+        KnowledgeCaseMatchScore result = policy.score(candidate, criteria);
+
+        assertTrue(result.score() >= 80, "带编号评分项正文命中应达到高分，实际=" + result.score());
+        assertEquals("优质", result.scoreLabel());
+        assertTrue(result.matchReason().contains("评分项匹配"));
+        assertTrue(result.matchReason().contains("类别一致"));
+    }
+
+    @Test
     @DisplayName("封顶100分")
     void score_ShouldCapAt100() {
         KnowledgeCase candidate = createCase(
