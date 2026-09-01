@@ -232,6 +232,14 @@ public class ScoreParseAppService {
     }
 
     private List<ScoreCandidate> recallTableCandidates(String fullText) {
+        // 1. 优先使用确定性启发式表格抽取（无网络开销、毫秒级响应，标准招标表格 100% 保真）
+        List<ScoreCandidate> heuristicCandidates = ScoreTableRecallLane.recall(fullText);
+        if (!heuristicCandidates.isEmpty()) {
+            log.info("启发式表格抽取命中候选: count={}", heuristicCandidates.size());
+            return heuristicCandidates;
+        }
+
+        // 2. 启发式未命中（非标复杂排版、跨行合并单元格等），平滑启用整表 LLM 抽取
         LlmTableScoreExtractor extractor = llmTableScoreExtractorProvider != null
                 ? llmTableScoreExtractorProvider.getIfAvailable() : null;
         if (extractor != null) {
@@ -242,10 +250,10 @@ public class ScoreParseAppService {
                     return llmCandidates;
                 }
             } catch (RuntimeException e) {
-                log.warn("LLM 表格抽取异常，安全回退到启发式规则: {}", e.getMessage());
+                log.warn("LLM 表格抽取异常: {}", e.getMessage());
             }
         }
-        return ScoreTableRecallLane.recall(fullText);
+        return List.of();
     }
 
     private void updateProgress(String taskId, int progress, String stageKey, String stageText) {

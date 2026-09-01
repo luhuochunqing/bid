@@ -8,6 +8,8 @@ import com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiBidAgentRequestCon
 import com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiStructuredOutputService;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreOriginalTextAligner;
+import com.xiyu.bid.scoreparse.domain.ScoreParseConstants;
+import com.xiyu.bid.scoreparse.infrastructure.structure.MarkdownScoreSectionLocator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
@@ -20,7 +22,7 @@ import java.util.regex.Pattern;
 
 /**
  * 评分表格整表 LLM 结构化抽取器。
- * <p>替代传统的行级正则特征工程与启发式列推断，直接基于整表空间语义理解输出评分项候选。
+ * <p>当启发式列推断未命中时，在评分章节或合法表格范围内通过整表空间语义结构化抽取评分项。
  */
 @Service
 @Profile("!e2e")
@@ -35,6 +37,9 @@ public class LlmTableScoreExtractor {
     private static final Pattern SCORE_SEMANTIC_FAST_FILTER = Pattern.compile(
             "评分|评审|评标|分值|得分|打分|加分|扣分|标准|细则|权重|比例|分"
     );
+    private static final Pattern CONTRACT_ASSESSMENT_HEADER = ScoreParseConstants.CONTRACT_ASSESSMENT_PATTERN;
+    private static final Pattern PROCEDURE_TABLE_MARKER = Pattern.compile("编列内容|编列规定|条款内容|前附表|须知前附表");
+    private static final Pattern SCORE_COLUMN_MARKER = Pattern.compile("评分因素|评分标准|评审因素|评审标准|分值|得分");
 
     private final OpenAiStructuredOutputService structuredOutputService;
     private final OpenAiBidAgentConfigurationResolver configurationResolver;
@@ -48,19 +53,46 @@ public class LlmTableScoreExtractor {
 
     /**
      * 从 Markdown 全文中定位评分表格块并依次进行 LLM 结构化抽取。
+     * <p>优先在定位到的评分标准章节内抽取，避免混入前附表、合同条款等无关表格。
      */
     public List<ScoreCandidate> extractFromDocument(String markdown) {
         if (markdown == null || markdown.isBlank()) {
             return Collections.emptyList();
         }
-        List<String> rawTables = extractRawTableBlocks(markdown);
-        if (rawTables.isEmpty()) {
-            return Collections.emptyList();
+
+        // 1. 优先定位评分标准章节（如第三章 评标办法），仅抽取章节内的评分表格
+        List<MarkdownScoreSectionLocator.ScoreSection> sections = MarkdownScoreSectionLocator.locate(markdown);
+        if (!sections.isEmpty()) {
+            List<ScoreCandidate> candidates = extractFromSections(sections);
+            if (!candidates.isEmpty()) {
+                return candidates;
+            }
         }
 
+        // 2. 章节定位未命中时，在排除须知前附表和合同考核表后抽取合法表格
+        return extractFromRawMarkdown(markdown);
+    }
+
+    private List<ScoreCandidate> extractFromSections(List<MarkdownScoreSectionLocator.ScoreSection> sections) {
         List<ScoreCandidate> allCandidates = new ArrayList<>();
-        for (String table : rawTables) {
-            if (SCORE_SEMANTIC_FAST_FILTER.matcher(table).find()) {
+        for (MarkdownScoreSectionLocator.ScoreSection section : sections) {
+            for (String table : extractRawTableBlocks(section.content())) {
+                if (isScoreTableCandidate(table)) {
+                    try {
+                        allCandidates.addAll(extractFromTable(table));
+                    } catch (RuntimeException e) {
+                        log.warn("评分章节内表格 LLM 抽取失败，跳过: {}", e.getMessage());
+                    }
+                }
+            }
+        }
+        return allCandidates;
+    }
+
+    private List<ScoreCandidate> extractFromRawMarkdown(String markdown) {
+        List<ScoreCandidate> allCandidates = new ArrayList<>();
+        for (String table : extractRawTableBlocks(markdown)) {
+            if (isScoreTableCandidate(table)) {
                 try {
                     allCandidates.addAll(extractFromTable(table));
                 } catch (RuntimeException e) {
@@ -69,6 +101,21 @@ public class LlmTableScoreExtractor {
             }
         }
         return allCandidates;
+    }
+
+    private static boolean isScoreTableCandidate(String table) {
+        if (table == null || !SCORE_SEMANTIC_FAST_FILTER.matcher(table).find()) {
+            return false;
+        }
+        String firstLine = table.lines().findFirst().orElse("");
+        if (CONTRACT_ASSESSMENT_HEADER.matcher(firstLine).find()
+                && !ScoreParseConstants.SCORE_HEADER_ESCAPE_PATTERN.matcher(firstLine).find()) {
+            return false;
+        }
+        if (PROCEDURE_TABLE_MARKER.matcher(firstLine).find()) {
+            return SCORE_COLUMN_MARKER.matcher(firstLine).find();
+        }
+        return true;
     }
 
     /**
