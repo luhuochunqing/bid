@@ -326,3 +326,59 @@ def test_extract_headings_chinese_tender_structure():
     assert "第三章 评审办法（综合评估法）" in headings
     assert "评审办法前附表" in headings
 
+
+
+# ---------------------------------------------------------------------------
+# CRITICAL (quality-check pagination): /convert response exposes structured pages
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_convert_response_includes_structured_pages(no_key_app):
+    """PDF path (pdfplumber) returns per-page dicts; /convert must surface them as `pages`."""
+    from types import SimpleNamespace
+    import app as sidecar_app
+
+    mock_result = SimpleNamespace(
+        text_content="# 第一章\n\n甲页内容。\n\n# 第二章\n\n乙页内容。",
+        markdown="# 第一章\n\n甲页内容。\n\n# 第二章\n\n乙页内容。",
+        pages=[
+            {"pageNumber": 1, "text": "# 第一章\n\n甲页内容。"},
+            {"pageNumber": 2, "text": "# 第二章\n\n乙页内容。"},
+        ],
+    )
+    with patch.object(sidecar_app, "_convert_document", new=AsyncMock(return_value=mock_result)):
+        async with AsyncClient(
+            transport=ASGITransport(app=no_key_app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                "/convert",
+                files={"file": ("bid.pdf", io.BytesIO(b"data"), "application/pdf")},
+            )
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["pages"]) == 2
+    assert body["pages"][0]["pageNumber"] == 1
+    assert "甲页内容" in body["pages"][0]["text"]
+    assert "乙页内容" in body["pages"][1]["text"]
+    # markdown 字段保持原样（scoreparse 等既有消费方零影响）
+    assert "甲页内容" in body["markdown"]
+
+
+@pytest.mark.asyncio
+async def test_convert_response_pages_defaults_to_empty_list(no_key_app):
+    """markitdown (docx) result has no `pages`; response must degrade to [] without breaking."""
+    import app as sidecar_app
+
+    mock_result = MagicMock()
+    mock_result.text_content = "# Heading\n\nSome docx text long enough for density check."
+    # MagicMock auto-attrs are not lists — the isinstance guard must coerce them to []
+    with patch.object(sidecar_app, "_convert_document", new=AsyncMock(return_value=mock_result)):
+        async with AsyncClient(
+            transport=ASGITransport(app=no_key_app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                "/convert",
+                files={"file": ("bid.docx", io.BytesIO(b"data"), "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+            )
+    assert response.status_code == 200
+    assert response.json()["pages"] == []

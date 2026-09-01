@@ -146,19 +146,30 @@ def _get_convert_pool() -> ProcessPoolExecutor:
 
 
 def _convert_worker(path: str) -> Any:
+    from types import SimpleNamespace
+
     _suppress_docx_image_inlining()
     _suppress_docx_pre_process()
     if path.lower().endswith(".pdf"):
         try:
-            from types import SimpleNamespace
-            from converter import convert_pdf_to_markdown
+            from converter import convert_pdf_document
 
-            pdf_md = convert_pdf_to_markdown(path)
+            pdf_result = convert_pdf_document(path)
+            pdf_md = str(pdf_result["markdown"])
+            pdf_pages = pdf_result["pages"]
             if pdf_md and len(pdf_md.strip()) >= 50:
-                return SimpleNamespace(text_content=pdf_md, markdown=pdf_md)
+                return SimpleNamespace(text_content=pdf_md, markdown=pdf_md, pages=pdf_pages)
         except Exception as e:
             logger.warning("Custom PDF conversion failed, falling back to markitdown: %s", e)
-    return md.convert(path)
+    result = md.convert(path)
+    # Normalize to a payload that always carries a `pages` list (markitdown has none —
+    # docx physical pagination is unobtainable; Java side falls back to virtual pagination).
+    pages = getattr(result, "pages", None)
+    return SimpleNamespace(
+        text_content=result.text_content,
+        markdown=getattr(result, "markdown", None) or result.text_content,
+        pages=pages if isinstance(pages, list) else [],
+    )
 
 
 async def _convert_document(path: str) -> Any:
@@ -255,10 +266,15 @@ async def convert_document(
         if len(markdown_text.strip()) < 100:
             warnings.append("low_text_density")
 
+        # Structured physical pages (PDF via pdfplumber); empty for docx — the Java
+        # compliance pipeline falls back to virtual pagination when absent.
+        result_pages = getattr(result, "pages", None)
+
         return {
             "documentId": file.filename,
             "markdown": markdown_text,
             "sections": sections,
+            "pages": result_pages if isinstance(result_pages, list) else [],
             "tables": [],
             "warnings": warnings,
             "converter": "markitdown",

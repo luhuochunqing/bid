@@ -27,13 +27,18 @@ def _row_has_price_param(row: str) -> bool:
     return any(kw in row for kw in PRICE_PARAM_LONG_KEYWORDS) or bool(_SHORT_TOKEN_PATTERN.search(row))
 
 
-def convert_pdf_to_markdown(pdf_path: str) -> str:
-    """Convert a PDF file to markdown preserving tables and line breaks using pdfplumber."""
+def convert_pdf_to_pages(pdf_path: str) -> list[dict]:
+    """Convert a PDF file to per-page markdown dicts preserving physical page boundaries.
+
+    Output: [{"pageNumber": 1-based int, "text": page markdown}, ...]
+    Consumed by the compliance quality-check pipeline (Java `DocumentContent.pages`);
+    per-page markdown/table extraction is identical to the legacy whole-document path.
+    """
     import pdfplumber
 
-    pages_text: list[str] = []
+    pages: list[dict] = []
     with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
+        for index, page in enumerate(pdf.pages):
             tables = page.extract_tables() or []
             table_markdowns: list[str] = []
             for table in tables:
@@ -71,7 +76,24 @@ def convert_pdf_to_markdown(pdf_path: str) -> str:
                 page_combined = text
 
             if page_combined.strip():
-                pages_text.append(page_combined.strip())
+                pages.append({
+                    "pageNumber": index + 1,
+                    "text": page_combined.strip().replace("\x0c", "\n\n"),
+                })
+    return pages
+
+
+def convert_pdf_document(pdf_path: str) -> dict:
+    """Convert a PDF file once, returning both the merged markdown and per-page slices.
+
+    Output: {"markdown": whole-document markdown (legacy post-processing applied:
+    \\x0c normalization + split price-table merge for the scoreparse consumer),
+    "pages": [{"pageNumber": 1-based int, "text": page markdown}, ...]}
+    The pages are raw physical-page slices WITHOUT cross-page merging — the compliance
+    quality-check pipeline consumes them for physical pagination.
+    """
+    pages = convert_pdf_to_pages(pdf_path)
+    pages_text: list[str] = [str(p["text"]) for p in pages]
 
     full_md = "\n\n".join(pages_text)
     # Normalize form feed \x0c characters to double newlines
@@ -81,7 +103,12 @@ def convert_pdf_to_markdown(pdf_path: str) -> str:
     # (each page is extracted as an independent table). Merging keeps the price
     # scoring methodology coherent for the downstream LLM, which otherwise would
     # see only the first rows and truncate after the page break.
-    return _merge_split_price_tables(full_md)
+    return {"markdown": _merge_split_price_tables(full_md), "pages": pages}
+
+
+def convert_pdf_to_markdown(pdf_path: str) -> str:
+    """Convert a PDF file to markdown preserving tables and line breaks using pdfplumber."""
+    return str(convert_pdf_document(pdf_path)["markdown"])
 
 
 def _merge_split_price_tables(markdown: str) -> str:
