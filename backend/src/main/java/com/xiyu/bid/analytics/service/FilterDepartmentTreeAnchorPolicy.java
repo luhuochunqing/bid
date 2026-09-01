@@ -31,7 +31,9 @@ public final class FilterDepartmentTreeAnchorPolicy {
      */
     static List<AnalyticsDepartmentTreeDTO> tryAnchorRoots(Map<String, AnalyticsDepartmentTreeDTO> codeToDtoMap) {
         AnalyticsDepartmentTreeDTO anchor = codeToDtoMap.get(ANCHOR_CODE);
-        if (anchor == null || anchor.getChildren() == null) {
+        // children 统一初始化为空列表，须连同 isEmpty 一起判（与查询口径 Index.of 的锚定判定一致，
+        // 否则锚点存在但无子节点时下拉返回空树，而查询侧已回退两级，两侧口径错位）
+        if (anchor == null || anchor.getChildren() == null || anchor.getChildren().isEmpty()) {
             return null;
         }
         List<AnalyticsDepartmentTreeDTO> roots = anchor.getChildren();

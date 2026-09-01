@@ -313,6 +313,29 @@ class FilterOptionsDepartmentTreeTest {
     }
 
     @Test
+    @DisplayName("锚点0001存在但无子节点：回退全树两级（与查询口径锚定判定一致，防止下拉空白错位）")
+    void shouldFallbackWhenAnchorHasNoChildren() {
+        jakarta.persistence.TypedQuery<String> typedQuery = org.mockito.Mockito.mock(jakarta.persistence.TypedQuery.class);
+        when(entityManager.createQuery(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(String.class)))
+                .thenReturn(typedQuery);
+        when(typedQuery.getResultList()).thenReturn(List.of());
+
+        when(departmentRepository.findAllByOrderByDepartmentCode())
+                .thenReturn(List.of(dept("rootorg", null, "组织架构"),
+                        dept("0001", "rootorg", "西域集团"),
+                        dept("D001", "rootorg", "销售总部"),
+                        dept("D002", "D001", "华东区")));
+
+        List<AnalyticsDepartmentTreeDTO> tree = service.fetchDepartmentTree();
+
+        // 锚点无子节点 → 不锚定，回退全树两级，而非返回空树（查询侧 Index.of 同条件回退）
+        assertThat(tree).extracting(AnalyticsDepartmentTreeDTO::getLabel)
+                .containsExactly("西域集团", "销售总部");
+        assertThat(tree.get(1).getChildren()).extracting(AnalyticsDepartmentTreeDTO::getLabel)
+                .containsExactly("华东区");
+    }
+
+    @Test
     @DisplayName("部门联动人员：勾选落在显示截断外时零命中 fail-closed 返回空，不发人员查询")
     void fetchDistinctPersonsFailsClosedWhenExpandEmpty() {
         when(departmentRepository.findAllByOrderByDepartmentCode())
