@@ -135,12 +135,16 @@ DEPLOY_CMD="$DEPLOY_CMD BACKEND_SERVICE_NAME='$PROD_SERVICE_NAME'"
 DEPLOY_CMD="$DEPLOY_CMD HEALTHCHECK_URL='$PROD_HEALTHCHECK_URL'"
 DEPLOY_CMD="$DEPLOY_CMD SYSTEMCTL_SUDO=true"
 DEPLOY_CMD="$DEPLOY_CMD SKIP_FLYWAY_VALIDATE=$SKIP_FLYWAY_VALIDATE"
+# 每次部署自动备份数据库（来源：SOP xiyu-server-deploy SKILL.md 模板）。
+# 转义说明：\$(date ...) 与 \${DB_*} 保持字面传给远端，由远端 bash -lc 展开；$RELEASE_ID 在本地展开。
+DB_BACKUP_COMMAND='source /etc/xiyu-bid/backend.env && mysqldump -h"${DB_HOST:-127.0.0.1}" -P"${DB_PORT:-3306}" -u"${DB_USER:-root}" -p"${DB_PASSWORD}" "${DB_NAME:-xiyu_bid_main}" | gzip > /opt/xiyu-bid/db-backups/winbid-'"$RELEASE_ID"'-$(date +%Y%m%d%H%M%S).sql.gz && echo DB backup done'
+DEPLOY_CMD="$DEPLOY_CMD DB_BACKUP_COMMAND='$DB_BACKUP_COMMAND'"
 DEPLOY_CMD="$DEPLOY_CMD bash $PROD_APP_ROOT/incoming/remote-deploy.sh"
 
 # set -euo pipefail 下 ssh 失败会立即退出脚本，导致 Step 6 / L3 OBS 校验无法执行。
 # 用 `|| DEPLOY_EXIT=$?` 捕获退出码（既不让脚本立即退出，也不丢失状态）。
-# 对比 deploy-test.sh L148 的 `|| true`：那里 DEPLOY_EXIT 永远为 0（丢失状态），
-# 但 deploy-test.sh 无 if 判断所以不影响；deploy-prod.sh 有失败诊断分支，必须保留真实退出码。
+# 与 deploy-test.sh 保持同一模式（deploy-test.sh 已修复原 `|| true` 丢失退出码的问题，
+# 现在两个脚本都会在 OBS 校验后 exit $DEPLOY_EXIT）。
 DEPLOY_EXIT=0
 ssh -o StrictHostKeyChecking=no "$PROD_HOST" "$DEPLOY_CMD" || DEPLOY_EXIT=$?
 printf '\n  结束时间：%s\n' "$(date '+%Y-%m-%d %H:%M:%S')"
@@ -150,7 +154,7 @@ if [[ $DEPLOY_EXIT -ne 0 ]]; then
   printf '   可能原因：\n' >&2
   printf '   1. Flyway validate 失败 → 用 SKIP_FLYWAY_VALIDATE=1 重试（不推荐）\n' >&2
   printf '   2. 健康检查超时 → 检查服务状态：ssh %s "sudo systemctl status %s"\n' "$PROD_HOST" "$PROD_SERVICE_NAME" >&2
-  printf '   3. Kafka SDK 启动延迟 → 等待 4 分钟后手动检查健康状态\n' >&2
+  printf '   3. Kafka SDK 启动延迟 → 等待 8 分钟后手动检查健康状态\n' >&2
   printf '\n   ⚠️  部署失败，继续执行 Step 6 校验以收集 OBS 诊断信息\n' >&2
 fi
 
