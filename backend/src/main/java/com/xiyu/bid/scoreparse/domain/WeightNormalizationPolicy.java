@@ -104,10 +104,7 @@ public class WeightNormalizationPolicy {
         for (int i = 0; i < n; i++) {
             ScoreCandidate c = candidates.get(i);
             if (c.weight() != null) {
-                normalized.add(new ScoreCandidate(
-                        c.code(), c.dim(), c.detail(), floors.get(i),
-                        c.scoreTypeGuess(), c.contextNote(), c.sourceText(),
-                        c.location(), c.semanticPattern()));
+                normalized.add(c.withWeight(floors.get(i)));
             } else {
                 normalized.add(c);
             }

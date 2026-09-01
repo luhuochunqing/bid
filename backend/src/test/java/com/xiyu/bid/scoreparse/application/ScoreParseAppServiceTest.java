@@ -14,6 +14,7 @@ import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
 import com.xiyu.bid.scoreparse.infrastructure.openai.LlmTableScoreExtractor;
 import com.xiyu.bid.scoreparse.infrastructure.openai.OpenAiScoreAnalyzer;
 import com.xiyu.bid.scoreparse.infrastructure.openai.ScoreGlobalMergeExecutor;
+import com.xiyu.bid.scoreparse.infrastructure.openai.ScoreTableSchemaMapper;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
@@ -86,6 +87,8 @@ class ScoreParseAppServiceTest {
     private ObjectProvider<ScoreGlobalMergeExecutor> mergeExecutorProvider;
     @Mock
     private ObjectProvider<LlmTableScoreExtractor> llmTableScoreExtractorProvider;
+    @Mock
+    private ObjectProvider<ScoreTableSchemaMapper> schemaMapperProvider;
 
     private ScoreParseAppService service;
 
@@ -95,6 +98,7 @@ class ScoreParseAppServiceTest {
         // 归并裁决语义由 OrchestratorTest / PostProcessorTest 各自专项覆盖）
         lenient().when(mergeExecutorProvider.getIfAvailable()).thenReturn(null);
         lenient().when(llmTableScoreExtractorProvider.getIfAvailable()).thenReturn(null);
+        lenient().when(schemaMapperProvider.getIfAvailable()).thenReturn(null);
         postProcessor = new ScoreCandidatePostProcessor(scoreAnalyzer,
                 new ScoreGlobalMergeOrchestrator(mergeExecutorProvider));
         service = new ScoreParseAppService(
@@ -102,7 +106,7 @@ class ScoreParseAppServiceTest {
                 stateService, progressService, snapshotRepository,
                 projectAccessScopeService, scoreAnalyzer, estimatedScoreService,
                 itemPersistenceService, initiationTenderTextResolver, postProcessor,
-                llmTableScoreExtractorProvider);
+                llmTableScoreExtractorProvider, schemaMapperProvider);
         ReflectionTestUtils.setField(service, "self", service);
     }
 
@@ -424,5 +428,87 @@ class ScoreParseAppServiceTest {
         assertThat(persisted).hasSize(2);
         assertThat(persisted.stream().map(ScoreCandidate::weight).toList())
                 .containsExactly(new BigDecimal("30"), new BigDecimal("70"));
+    }
+
+    @Test
+    void executeParse_withSchemaMapper_usesCustomMapping() {
+        String tableText = """
+                | 序号 | 评分大类 | 评分因素 | 评分标准 | 分值 |
+                | --- | --- | --- | --- | --- |
+                | 1 | 商务部分 | 人员资质 | 具备PMP证书得100分 | 100 |
+                """;
+        mockParseFlowWithText(tableText);
+        ScoreTableSchemaMapper mockMapper = org.mockito.Mockito.mock(ScoreTableSchemaMapper.class);
+        when(schemaMapperProvider.getIfAvailable()).thenReturn(mockMapper);
+        when(mockMapper.mapSchema(any())).thenReturn(
+                new com.xiyu.bid.scoreparse.domain.grid.TableColumnMapping(0, 1, 2, 3, 4, 1, false));
+
+        service.executeParseAsync(TASK_ID);
+
+        verify(stateService).markCompleted(TASK_ID);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<ScoreCandidate>> captor = ArgumentCaptor.forClass(List.class);
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(5L), captor.capture());
+        List<ScoreCandidate> persisted = captor.getValue();
+        assertThat(persisted).hasSize(1);
+        assertThat(persisted.get(0).dim()).isEqualTo("商务部分/人员资质");
+    }
+
+    @Test
+    void executeParse_withoutSchemaMapper_fallsBackToHeuristic() {
+        String tableText = """
+                | 序号 | 评分项目 | 评分标准 | 分值 |
+                | --- | --- | --- | --- |
+                | 1 | 商务部分 | 财务状况良好得30分 | 30 |
+                | 2 | 技术方案 | 方案详细可行得70分 | 70 |
+                """;
+        mockParseFlowWithText(tableText);
+        when(schemaMapperProvider.getIfAvailable()).thenReturn(null);
+
+        service.executeParseAsync(TASK_ID);
+
+        verify(stateService).markCompleted(TASK_ID);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<ScoreCandidate>> captor = ArgumentCaptor.forClass(List.class);
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(5L), captor.capture());
+        List<ScoreCandidate> persisted = captor.getValue();
+        assertThat(persisted).hasSize(2);
+        assertThat(persisted.get(0).weight()).isEqualByComparingTo(new BigDecimal("30"));
+        assertThat(persisted.get(1).weight()).isEqualByComparingTo(new BigDecimal("70"));
+    }
+
+    @Test
+    void executeParse_whenSchemaMapperThrows_fallsBackToHeuristic() {
+        String tableText = """
+                | 序号 | 评分项目 | 评分标准 | 分值 |
+                | --- | --- | --- | --- |
+                | 1 | 商务部分 | 财务状况良好得30分 | 30 |
+                | 2 | 技术方案 | 方案详细可行得70分 | 70 |
+                """;
+        mockParseFlowWithText(tableText);
+        ScoreTableSchemaMapper mockMapper = org.mockito.Mockito.mock(ScoreTableSchemaMapper.class);
+        when(schemaMapperProvider.getIfAvailable()).thenReturn(mockMapper);
+        when(mockMapper.mapSchema(any())).thenThrow(new RuntimeException("LLM network timeout"));
+
+        service.executeParseAsync(TASK_ID);
+
+        verify(stateService).markCompleted(TASK_ID);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<ScoreCandidate>> captor = ArgumentCaptor.forClass(List.class);
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(5L), captor.capture());
+        List<ScoreCandidate> persisted = captor.getValue();
+        assertThat(persisted).hasSize(2);
+        assertThat(persisted.get(0).weight()).isEqualByComparingTo(new BigDecimal("30"));
+        assertThat(persisted.get(1).weight()).isEqualByComparingTo(new BigDecimal("70"));
+    }
+
+    private void mockParseFlowWithText(String fullText) {
+        ScoreParseTask task = ScoreParseTask.builder()
+                .id(5L).taskId(TASK_ID).projectId(PROJECT_ID).taskType("PARSE").status("PENDING").build();
+        when(taskRepository.findByTaskId(TASK_ID)).thenReturn(Optional.of(task));
+        when(initiationTenderTextResolver.resolveIntake(PROJECT_ID))
+                .thenReturn(TenderIntake.found(new TenderTextSource("tender.pdf", "doc-insight://t/1", fullText)));
+        lenient().when(scoreAnalyzer.recallCandidates(anyString(), isNull(), any()))
+                .thenReturn(new RecallOutcome(List.of(), 0));
     }
 }

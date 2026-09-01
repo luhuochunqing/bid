@@ -146,6 +146,10 @@ public class ScoreItemMergePolicy {
             String mergedDetail = detailBuilder.toString();
             String mergedSource = (base.sourceText() == null ? "" : base.sourceText())
                     + "\n" + (later.sourceText() == null ? "" : later.sourceText());
+            String mergedParentDim = base.parentDim() != null && !base.parentDim().isBlank()
+                    ? base.parentDim() : later.parentDim();
+            String mergedDimSource = base.dimSource() != null && !"UNKNOWN".equals(base.dimSource())
+                    ? base.dimSource() : later.dimSource();
             return new ScoreCandidate(
                     base.code() != null ? base.code() : later.code(),
                     base.dim() != null ? base.dim() : later.dim(),
@@ -155,7 +159,9 @@ public class ScoreItemMergePolicy {
                     later.contextNote() != null ? later.contextNote() : base.contextNote(),
                     mergedSource.trim().isEmpty() ? base.sourceText() : mergedSource.trim(),
                     later.location() != null ? later.location() : base.location(),
-                    later.semanticPattern() != null ? later.semanticPattern() : base.semanticPattern()
+                    later.semanticPattern() != null ? later.semanticPattern() : base.semanticPattern(),
+                    mergedParentDim,
+                    mergedDimSource
             );
         }
         boolean laterDetailPreferred = hasSourceBacking(later)
@@ -169,6 +175,10 @@ public class ScoreItemMergePolicy {
             detail = base.detail() != null ? base.detail() : later.detail();
             sourceText = base.sourceText() != null ? base.sourceText() : later.sourceText();
         }
+        String mergedParentDim = base.parentDim() != null && !base.parentDim().isBlank()
+                ? base.parentDim() : later.parentDim();
+        String mergedDimSource = base.dimSource() != null && !"UNKNOWN".equals(base.dimSource())
+                ? base.dimSource() : later.dimSource();
         return new ScoreCandidate(
                 base.code() != null ? base.code() : later.code(),
                 base.dim() != null ? base.dim() : later.dim(),
@@ -178,7 +188,9 @@ public class ScoreItemMergePolicy {
                 later.contextNote() != null ? later.contextNote() : base.contextNote(),
                 sourceText,
                 later.location() != null ? later.location() : base.location(),
-                later.semanticPattern() != null ? later.semanticPattern() : base.semanticPattern()
+                later.semanticPattern() != null ? later.semanticPattern() : base.semanticPattern(),
+                mergedParentDim,
+                mergedDimSource
         );
     }
 

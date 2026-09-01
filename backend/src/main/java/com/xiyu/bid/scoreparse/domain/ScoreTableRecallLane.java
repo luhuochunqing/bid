@@ -5,6 +5,13 @@
 
 package com.xiyu.bid.scoreparse.domain;
 
+import com.xiyu.bid.scoreparse.domain.grid.CellAnchoredScoreExtractor;
+import com.xiyu.bid.scoreparse.domain.grid.ColumnTypeCrossVerifier;
+import com.xiyu.bid.scoreparse.domain.grid.HeuristicTableColumnMapper;
+import com.xiyu.bid.scoreparse.domain.grid.TableColumnMapping;
+import com.xiyu.bid.scoreparse.domain.grid.TableGrid;
+import com.xiyu.bid.scoreparse.domain.grid.TableGridExtractor;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,23 +26,36 @@ public final class ScoreTableRecallLane {
     private ScoreTableRecallLane() {
     }
 
-    /** 全文 → 表格行候选；入参 null/无评分表格返回空列表 */
+    /** 全文 → 表格行候选；入参 null/无评分表格返回空列表（纯启发式） */
     public static List<ScoreCandidate> recall(String markdown) {
+        return recall(markdown, null);
+    }
+
+    /** 全文 + 可选 Schema 映射器 → 表格行候选；若 mapper 为 null 或返回 null 则降级启发式 */
+    public static List<ScoreCandidate> recall(String markdown, java.util.function.Function<TableGrid, TableColumnMapping> schemaMapper) {
         if (markdown == null || markdown.isBlank()) {
             return List.of();
         }
         List<ScoreCandidate> candidates = new ArrayList<>();
 
         // 1. 优先尝试 2D 网格单元格锚定抽取（spec 058）
-        List<com.xiyu.bid.scoreparse.domain.grid.TableGrid> grids =
-                com.xiyu.bid.scoreparse.domain.grid.TableGridExtractor.extractAll(markdown);
-        for (com.xiyu.bid.scoreparse.domain.grid.TableGrid grid : grids) {
+        List<TableGrid> grids = TableGridExtractor.extractAll(markdown);
+        for (TableGrid grid : grids) {
             if (grid.rowCount() >= 2 && grid.colCount() >= 2) {
-                var mapping = com.xiyu.bid.scoreparse.domain.grid.HeuristicTableColumnMapper.infer(grid);
-                var vr = com.xiyu.bid.scoreparse.domain.grid.ColumnTypeCrossVerifier.verify(grid, mapping);
+                TableColumnMapping mapping = null;
+                if (schemaMapper != null) {
+                    try {
+                        mapping = schemaMapper.apply(grid);
+                    } catch (RuntimeException ignored) {
+                        mapping = null;
+                    }
+                }
+                if (mapping == null) {
+                    mapping = HeuristicTableColumnMapper.infer(grid);
+                }
+                var vr = ColumnTypeCrossVerifier.verify(grid, mapping);
                 if (vr.valid()) {
-                    List<ScoreCandidate> gridCandidates =
-                            com.xiyu.bid.scoreparse.domain.grid.CellAnchoredScoreExtractor.extract(grid, mapping);
+                    List<ScoreCandidate> gridCandidates = CellAnchoredScoreExtractor.extract(grid, mapping);
                     candidates.addAll(gridCandidates);
                 }
             }

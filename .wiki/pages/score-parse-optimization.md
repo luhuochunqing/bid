@@ -10,8 +10,8 @@ sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/grid/ColumnTypeCrossVerifier.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/grid/HeuristicTableColumnMapper.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreMergeResultGuard.java
-updated: 2026-08-31
-health_checked: 2026-08-31
+updated: 2026-09-01
+health_checked: 2026-09-01
 ---
 
 # 评分解析优化记录
@@ -133,3 +133,25 @@ markdown 输入
 - 行层救生通道：`hasExplicitGradeScore`（得X分）/ `hasBracketWeight`（括号分值），仅 `ScoreTableRowParser` 挂接；纯数字分值列 + 考核词的行是**已知误杀面**。
 - 已知接受面：表头含考核词且无强评分列名的评分表会被整表跳过（依赖行级兜底）。
 - 锚定测试：`ScoreTableBlockLocatorTest`（逃生门双向）/ `ScoreTableRowParserTest`（救生通道、优先级）/ `GoldenCasesReplayTest#case-bracket-vs-pure-conflict`（括号优先金标）/ `RealProjectScoreParsingTest#testProject21ScoreParsing`（真实文件金标）。
+
+## 2026-09-01 评分项维度质量增强与首行末级标题提取 (score-parse-dim-quality)
+
+### 问题
+1. **维度过宽/缺乏具体细则标题**：部分招标文件表格仅提供父级大类（如"商务部分"）或单一大类，末级子项的具体标题内嵌在 `detail` 评分细则首行（如 `1. 人员配置：...`、`（1）企业资质：...`），直接使用父大类作为维度导致落库维度过宽。
+2. **非评分程序/计算公式行泄漏**：在无分值且无有效单元格维度特征时，若仅依据首行提取出短标题可能会误放行非评分条款（如基准价计算方法四说明行）。
+
+### 根因与设计
+1. **纯核心末级标题提取器 (`ScoreItemTitleExtractor`)**：
+   - 纯函数设计（`extract(String detail) -> Optional<String>`），无 Spring/JPA 依赖（FP-Java）。
+   - 仅提取首行原文冒号前的短标题（`MAX_TITLE_LENGTH <= 40`），自动剔除各种前缀编号（`1.` / `(1)` / `（1）` / `第一条`），拒绝标点句子与空内容，100% 逐字保真无幻觉。
+2. **网格抽取器维度解析 (`CellAnchoredScoreExtractor`)**：
+   - 增加 `resolveParentByRow` 与 `countScoredRows`，按行推断父大类并统计父级对应计分行数。
+   - 结合 `rawDimCell`、`detail` 提取标题与父类计分行数精准推断最终维度与 `dimSource`（`CELL` / `TITLE` / `PARENT_SINGLE` / `UNKNOWN`）。
+   - 强化无分值行过滤：`cleanDimName(rawDimCell).isBlank() && currentParentDim.isBlank()` 时若无分值一律跳过，防止计算说明行泄漏。
+3. **评分项落库维度解析 (`ScoreItemPersistenceService`)**：
+   - 对单一大类候选（`isParentOnlyDim()`）在落库时 fallback 尝试从细则提取末级标题，使落库维度更精细具体。
+   - 指纹计算与历史打分不受影响。
+
+### 效果
+- 全量 464 个评分解析单测全部通过。
+- 真实项目金标测试（`RealProjectScoreParsingTest`）0 回退。

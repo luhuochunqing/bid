@@ -62,4 +62,19 @@ class RunSummaryAssemblerTest {
                         "\"finalTotalWeight\":0")
                 .contains("bad\\\"model\\\\name");
     }
+
+    @Test
+    void jsonCarriesParentOnlyDimCount() {
+        // 0 项纯父级维度
+        String json0 = assemble(recall(2, 4), new RunSummaryAssembler.MergeView(false, false, 0, 0, 0, 0)).json();
+        assertThat(json0).contains("\"parentOnlyDimCount\":0");
+
+        // 1 项纯父级维度
+        String json1 = assemble(recall(2, 4), new RunSummaryAssembler.MergeView(false, false, 0, 0, 0, 1)).json();
+        assertThat(json1).contains("\"parentOnlyDimCount\":1");
+
+        // 多项纯父级维度
+        String json3 = assemble(recall(2, 4), new RunSummaryAssembler.MergeView(true, false, 5, 1, 2, 3)).json();
+        assertThat(json3).contains("\"parentOnlyDimCount\":3");
+    }
 }

@@ -6,11 +6,15 @@
 package com.xiyu.bid.scoreparse.domain.grid;
 
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
+import com.xiyu.bid.scoreparse.domain.ScoreItemTitleExtractor;
 import com.xiyu.bid.scoreparse.domain.ScoreParseConstants;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -52,9 +56,9 @@ public final class CellAnchoredScoreExtractor {
         List<ScoreCandidate> candidates = new ArrayList<>();
         int rowCount = grid.rowCount();
         int headerRows = Math.max(0, mapping.headerRows());
-
-        String currentParentDim = "";
-        String currentDim = "";
+        List<String> parentByRow = resolveParentByRow(grid, mapping, headerRows);
+        Map<String, Integer> scoredRowsByParent = countScoredRows(
+                grid, mapping, headerRows, parentByRow);
 
         for (int r = headerRows; r < rowCount; r++) {
             List<String> rowCells = grid.row(r);
@@ -62,41 +66,20 @@ public final class CellAnchoredScoreExtractor {
                 continue;
             }
 
-            // 1. 提取或继承父大类名称（纵向合并单元格 Fill-down）
-            if (mapping.parentDimCol() >= 0 && mapping.parentDimCol() < grid.colCount()) {
-                String parentCell = grid.cell(r, mapping.parentDimCol());
-                if (!parentCell.isBlank()) {
-                    String newParent = cleanDimName(parentCell);
-                    if (!newParent.equals(currentParentDim)) {
-                        currentParentDim = newParent;
-                        currentDim = "";
-                    }
-                }
-            }
-
-            // 2. 提取或继承评分维度/项名称
-            String rawDimCell = "";
-            if (mapping.dimCol() >= 0 && mapping.dimCol() < grid.colCount()) {
-                rawDimCell = grid.cell(r, mapping.dimCol());
-                if (!rawDimCell.isBlank()) {
-                    currentDim = cleanDimName(rawDimCell);
-                }
-            }
-
-            // 组合维度名称：有父大类则组合（如 "商务部分 / 响应文件的完整性"）
-            String finalDim = buildCombinedDim(currentParentDim, currentDim);
-
-            // 3. 提取标书原文细则（100% 逐字保真）
-            String detail = "";
-            if (mapping.detailCol() >= 0 && mapping.detailCol() < grid.colCount()) {
-                detail = grid.cell(r, mapping.detailCol());
-            }
+            String currentParentDim = parentByRow.get(r);
+            String rawDimCell = mapping.dimCol() >= 0 && mapping.dimCol() < grid.colCount()
+                    ? grid.cell(r, mapping.dimCol()) : "";
+            String detail = mapping.detailCol() >= 0 && mapping.detailCol() < grid.colCount()
+                    ? grid.cell(r, mapping.detailCol()) : "";
             if (detail.isBlank()) {
                 continue;
             }
 
-            // 过滤非评分程序性条款（如"推荐成交候选供应商 3名"等）
             String sourceRow = String.join(" | ", rowCells);
+            String finalDim = resolveDimension(rawDimCell, detail, currentParentDim,
+                    scoredRowsByParent.getOrDefault(currentParentDim, 0));
+
+            // 过滤非评分程序性条款（如"推荐成交候选供应商 3名"等）
             if (NON_SCORE_PROCEDURE_PATTERN.matcher(detail).find()
                     || NON_SCORE_PROCEDURE_PATTERN.matcher(finalDim).find()
                     || NON_SCORE_PROCEDURE_PATTERN.matcher(sourceRow).find()) {
@@ -112,8 +95,7 @@ public final class CellAnchoredScoreExtractor {
             // 5. 提取分值
             BigDecimal weight = null;
             if (mapping.weightCol() >= 0 && mapping.weightCol() < grid.colCount()) {
-                String weightCell = grid.cell(r, mapping.weightCol());
-                weight = parseWeight(weightCell);
+                weight = parseWeight(grid.cell(r, mapping.weightCol()));
             }
             if (weight == null && !rawDimCell.isBlank()) {
                 weight = parseWeight(rawDimCell);
@@ -128,13 +110,11 @@ public final class CellAnchoredScoreExtractor {
             }
 
             // 若无分值且无有效维度名称，视为表头残留或无分值说明行跳过
-            if (weight == null && (finalDim.isBlank() || detail.length() < 8)) {
+            if (weight == null && (cleanDimName(rawDimCell).isBlank() && currentParentDim.isBlank()
+                    || finalDim.isBlank() || detail.length() < 8)) {
                 continue;
             }
 
-            // 复合价格分细拆（如 MRO工业品价格分40 = 京东工业品28 + 自有商城12）：
-            // 仅加法型（子项之和==父行分值，见 extractPriceSubCandidates 门控）才拆分；
-            // "取最高/封顶"型拆分会虚增总权重，自动退回父行整项
             if (weight != null && (finalDim.contains("报价") || finalDim.contains("价格") || detail.contains("价格分"))) {
                 List<ScoreCandidate> subCandidates = extractPriceSubCandidates(
                         code, finalDim, detail, weight, sourceRow, r + 1);
@@ -153,8 +133,9 @@ public final class CellAnchoredScoreExtractor {
                     null,
                     sourceRow,
                     "R" + (r + 1),
-                    "TABLE_GRID"
-            ));
+                    "TABLE_GRID",
+                    currentParentDim.isBlank() ? null : currentParentDim,
+                    dimensionSource(rawDimCell, finalDim, currentParentDim, detail)));
         }
 
         return candidates;
@@ -195,6 +176,63 @@ public final class CellAnchoredScoreExtractor {
         return subWeightSum.compareTo(parentWeight) == 0 ? list : List.of();
     }
 
+    private static List<String> resolveParentByRow(TableGrid grid, TableColumnMapping mapping, int headerRows) {
+        List<String> parents = new ArrayList<>(Collections.nCopies(grid.rowCount(), ""));
+        String current = "";
+        for (int r = headerRows; r < grid.rowCount(); r++) {
+            if (mapping.parentDimCol() >= 0 && mapping.parentDimCol() < grid.colCount()) {
+                String raw = grid.cell(r, mapping.parentDimCol());
+                if (!raw.isBlank()) {
+                    current = cleanDimName(raw);
+                }
+            }
+            parents.set(r, current);
+        }
+        return parents;
+    }
+
+    private static Map<String, Integer> countScoredRows(
+            TableGrid grid, TableColumnMapping mapping, int headerRows, List<String> parents) {
+        Map<String, Integer> counts = new HashMap<>();
+        for (int r = headerRows; r < grid.rowCount(); r++) {
+            String detail = mapping.detailCol() >= 0 && mapping.detailCol() < grid.colCount()
+                    ? grid.cell(r, mapping.detailCol()) : "";
+            if (detail.isBlank()) {
+                continue;
+            }
+            BigDecimal weight = mapping.weightCol() >= 0 && mapping.weightCol() < grid.colCount()
+                    ? parseWeight(grid.cell(r, mapping.weightCol())) : parseWeightFromDetail(detail);
+            if (weight != null && weight.compareTo(BigDecimal.ZERO) > 0) {
+                counts.merge(parents.get(r), 1, Integer::sum);
+            }
+        }
+        return counts;
+    }
+
+    private static String resolveDimension(String rawDimCell, String detail, String parent, int scoredRows) {
+        String child = cleanDimName(rawDimCell);
+        boolean pureParent = !child.isBlank() && !parent.isBlank() && child.equals(parent);
+        String title = ScoreItemTitleExtractor.extract(detail).orElse("");
+        if (!child.isBlank() && !pureParent) {
+            return buildCombinedDim(parent, child);
+        }
+        if (!title.isBlank()) {
+            return buildCombinedDim(parent, title);
+        }
+        return scoredRows == 1 ? parent : "";
+    }
+
+    private static String dimensionSource(String rawDimCell, String finalDim,
+            String parent, String detail) {
+        String child = cleanDimName(rawDimCell);
+        if (!child.isBlank() && !child.equals(parent)) {
+            return "CELL";
+        }
+        if (ScoreItemTitleExtractor.extract(detail).isPresent()) {
+            return "TITLE";
+        }
+        return !parent.isBlank() && parent.equals(finalDim) ? "PARENT_SINGLE" : "UNKNOWN";
+    }
     private static boolean isAllEmpty(List<String> cells) {
         for (String c : cells) {
             if (c != null && !c.isBlank()) return false;

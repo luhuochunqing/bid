@@ -264,4 +264,29 @@ class ScoreMergeResultGuardTest {
         assertThat(accepted.detail()).isEqualTo(fullDetail);
         assertThat(accepted.detail()).contains("3.售后服务方案（含退换货与三包服务）得3分");
     }
+
+    @Test
+    void guard_upgradedDetail_preservesParentDimAndDimSource() {
+        String fullDetail = "1. 人员配置：项目经理具备一级建造师证书得5分；技术负责人具备中级职称得5分。满分10分。";
+        String shortDetail = "1. 人员配置：项目经理具备一级建造师证书得5分";
+
+        ScoreCandidate poolFull = new ScoreCandidate("1", "商务部分",
+                fullDetail, new BigDecimal("10"), "OBJECTIVE", null,
+                fullDetail, "P1", "TABLE_GRID", "商务部分", "PARENT_SINGLE");
+
+        ScoreCandidate mergedShort = new ScoreCandidate("1", "商务部分",
+                shortDetail, new BigDecimal("10"), "OBJECTIVE", null,
+                shortDetail, "P1", "GLOBAL_MERGE");
+
+        String sectionText = SECTION_TEXT + "\n" + fullDetail;
+        ScoreMergeResultGuard.Outcome outcome = ScoreMergeResultGuard.guard(
+                List.of(poolFull), List.of(mergedShort), sectionText);
+
+        assertThat(outcome.accepted()).hasSize(1);
+        ScoreCandidate accepted = outcome.accepted().get(0);
+        assertThat(accepted.detail()).isEqualTo(fullDetail);
+        assertThat(accepted.parentDim()).isEqualTo("商务部分");
+        assertThat(accepted.dimSource()).isEqualTo("PARENT_SINGLE");
+        assertThat(accepted.isParentOnlyDim()).isTrue();
+    }
 }

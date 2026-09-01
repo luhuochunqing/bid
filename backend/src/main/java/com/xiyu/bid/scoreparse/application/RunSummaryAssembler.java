@@ -33,7 +33,11 @@ final class RunSummaryAssembler {
 
     /** 归并统计视图：从 {@link ScoreGlobalMergeExecutor} 编排层解耦的只读投影 */
     record MergeView(boolean invoked, boolean truncated, int poolBackedKept,
-            int hallucinationDropped, int restored) {
+            int hallucinationDropped, int restored, int parentOnlyDimCount) {
+        public MergeView(boolean invoked, boolean truncated, int poolBackedKept,
+                int hallucinationDropped, int restored) {
+            this(invoked, truncated, poolBackedKept, hallucinationDropped, restored, 0);
+        }
     }
 
     private RunSummaryAssembler() {
@@ -61,6 +65,7 @@ final class RunSummaryAssembler {
         mergeOut.put("poolBackedKept", merge.poolBackedKept());
         mergeOut.put("hallucinationDropped", merge.hallucinationDropped());
         mergeOut.put("restored", merge.restored());
+        mergeOut.put("parentOnlyDimCount", merge.parentOnlyDimCount());
 
         Map<String, Object> root = new LinkedHashMap<>();
         root.put("llmModel", llmModel == null ? "" : llmModel);
@@ -69,6 +74,7 @@ final class RunSummaryAssembler {
         root.put("skippedChunks", recall.skippedChunks());
         root.put("aligned", aligned);
         root.put("merge", mergeOut);
+        root.put("parentOnlyDimCount", merge.parentOnlyDimCount());
         root.put("items", itemCount);
         root.put("finalTotalWeight", weight.totalWeight());
         return new Assembled(writeJson(root), warnLowAlignment, warnHighHallucination);

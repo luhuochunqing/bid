@@ -152,6 +152,23 @@ class WeightNormalizationPolicyTest {
         assertThat(result.normalizedCandidates().get(1).weight()).isEqualByComparingTo("50000000");
     }
 
+    @Test
+    void normalize_preservesParentDimAndDimSource() {
+        ScoreCandidate cand1 = new ScoreCandidate("1", "商务部分", "细则1", new BigDecimal("40"),
+                "OBJECTIVE", null, "细则1", "P1", "TABLE_GRID", "商务部分", "PARENT_SINGLE");
+        ScoreCandidate cand2 = new ScoreCandidate("2", "技术部分", "细则2", new BigDecimal("40"),
+                "OBJECTIVE", null, "细则2", "P2", "TABLE_GRID", "技术部分", "CELL");
+
+        WeightNormalizationPolicy.Result result = policy.normalize(List.of(cand1, cand2));
+        List<ScoreCandidate> normalized = result.normalizedCandidates();
+        assertThat(normalized).hasSize(2);
+        assertThat(normalized.get(0).parentDim()).isEqualTo("商务部分");
+        assertThat(normalized.get(0).dimSource()).isEqualTo("PARENT_SINGLE");
+        assertThat(normalized.get(0).isParentOnlyDim()).isTrue();
+        assertThat(normalized.get(1).parentDim()).isEqualTo("技术部分");
+        assertThat(normalized.get(1).dimSource()).isEqualTo("CELL");
+    }
+
     private BigDecimal ratio(BigDecimal a, BigDecimal b) {
         return a.divide(b, 4, java.math.RoundingMode.HALF_UP);
     }
