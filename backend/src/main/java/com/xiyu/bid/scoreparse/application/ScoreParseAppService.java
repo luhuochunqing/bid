@@ -16,8 +16,11 @@ import com.xiyu.bid.scoreparse.dto.ScoreParseTriggerDTO;
 import com.xiyu.bid.scoreparse.dto.ScoreItemDTO;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
+import com.xiyu.bid.scoreparse.domain.grid.TableColumnMapping;
+import com.xiyu.bid.scoreparse.domain.grid.TableGrid;
 import com.xiyu.bid.scoreparse.infrastructure.openai.LlmTableScoreExtractor;
 import com.xiyu.bid.scoreparse.infrastructure.openai.OpenAiScoreAnalyzer;
+import com.xiyu.bid.scoreparse.infrastructure.openai.ScoreTableSchemaMapper;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
@@ -60,6 +63,7 @@ public class ScoreParseAppService {
     /** spec 057 FR-07/D5 预案：治理块抽离后本类保留纯编排职责 */
     private final ScoreCandidatePostProcessor postProcessor;
     private final ObjectProvider<LlmTableScoreExtractor> llmTableScoreExtractorProvider;
+    private final ObjectProvider<ScoreTableSchemaMapper> schemaMapperProvider;
     private final SummaryAggregator summaryAggregator = new SummaryAggregator();
 
     /** 自身代理（解决 @Async 自调用失效）；@Lazy 避免循环依赖 */
@@ -232,11 +236,16 @@ public class ScoreParseAppService {
     }
 
     private List<ScoreCandidate> recallTableCandidates(String fullText) {
-        // 1. 优先使用确定性启发式表格抽取（无网络开销、毫秒级响应，标准招标表格 100% 保真）
-        List<ScoreCandidate> heuristicCandidates = ScoreTableRecallLane.recall(fullText);
-        if (!heuristicCandidates.isEmpty()) {
-            log.info("启发式表格抽取命中候选: count={}", heuristicCandidates.size());
-            return heuristicCandidates;
+        ScoreTableSchemaMapper schemaMapper = schemaMapperProvider != null
+                ? schemaMapperProvider.getIfAvailable() : null;
+        java.util.function.Function<TableGrid, TableColumnMapping> mapperFunc =
+                schemaMapper != null ? schemaMapper::mapSchema : null;
+
+        // 1. 优先使用确定性表格抽取（支持 LLM Schema 识别与启发式验真，无 Bean/失败自动降级启发式）
+        List<ScoreCandidate> tableCandidates = ScoreTableRecallLane.recall(fullText, mapperFunc);
+        if (!tableCandidates.isEmpty()) {
+            log.info("表格抽取命中候选: count={}", tableCandidates.size());
+            return tableCandidates;
         }
 
         // 2. 启发式未命中（非标复杂排版、跨行合并单元格等），平滑启用整表 LLM 抽取

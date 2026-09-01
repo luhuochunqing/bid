@@ -26,8 +26,13 @@ public final class ScoreTableRecallLane {
     private ScoreTableRecallLane() {
     }
 
-    /** 全文 → 表格行候选；入参 null/无评分表格返回空列表 */
+    /** 全文 → 表格行候选；入参 null/无评分表格返回空列表（纯启发式） */
     public static List<ScoreCandidate> recall(String markdown) {
+        return recall(markdown, null);
+    }
+
+    /** 全文 + 可选 Schema 映射器 → 表格行候选；若 mapper 为 null 或返回 null 则降级启发式 */
+    public static List<ScoreCandidate> recall(String markdown, java.util.function.Function<TableGrid, TableColumnMapping> schemaMapper) {
         if (markdown == null || markdown.isBlank()) {
             return List.of();
         }
@@ -37,7 +42,17 @@ public final class ScoreTableRecallLane {
         List<TableGrid> grids = TableGridExtractor.extractAll(markdown);
         for (TableGrid grid : grids) {
             if (grid.rowCount() >= 2 && grid.colCount() >= 2) {
-                TableColumnMapping mapping = HeuristicTableColumnMapper.infer(grid);
+                TableColumnMapping mapping = null;
+                if (schemaMapper != null) {
+                    try {
+                        mapping = schemaMapper.apply(grid);
+                    } catch (RuntimeException ignored) {
+                        mapping = null;
+                    }
+                }
+                if (mapping == null) {
+                    mapping = HeuristicTableColumnMapper.infer(grid);
+                }
                 var vr = ColumnTypeCrossVerifier.verify(grid, mapping);
                 if (vr.valid()) {
                     List<ScoreCandidate> gridCandidates = CellAnchoredScoreExtractor.extract(grid, mapping);

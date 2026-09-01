@@ -200,6 +200,22 @@ class ScoreItemPersistenceServiceTest {
         assertThat(items.get(1).getDim()).isEqualTo("技术部分");
     }
 
+    @Test
+    void parentOnlyDim_withNullDetail_doesNotThrow() {
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID))
+                .thenReturn(List.of());
+
+        service.persistItems(PROJECT_ID, PARSE_TASK_ID, List.of(
+                new ScoreCandidate("1", "商务部分", null,
+                        new BigDecimal("10"), "OBJECTIVE", null, "原文", "P1", "TABLE_GRID",
+                        "商务部分", "PARENT_SINGLE")));
+
+        ArgumentCaptor<List<ScoreItem>> saved = capturedSavedItems();
+        List<ScoreItem> items = saved.getValue();
+        assertThat(items).hasSize(1);
+        assertThat(items.get(0).getDim()).isEqualTo("商务部分");
+    }
+
     @SuppressWarnings("unchecked")
     private ArgumentCaptor<List<ScoreItem>> capturedSavedItems() {
         ArgumentCaptor<List<ScoreItem>> captor = ArgumentCaptor.forClass(List.class);

@@ -154,7 +154,7 @@ public class ScoreItemPersistenceService {
     private String resolveDim(ScoreCandidate candidate) {
         String trimmedDim = candidate.dim() == null ? "" : candidate.dim().trim();
         boolean parentOnly = candidate.isParentOnlyDim();
-        if (parentOnly && !candidate.detail().isBlank()) {
+        if (parentOnly && candidate.detail() != null && !candidate.detail().isBlank()) {
             String title = ScoreItemTitleExtractor.extract(candidate.detail()).orElse("");
             if (!title.isBlank()) {
                 return title.length() > 200 ? title.substring(0, 200) : title;

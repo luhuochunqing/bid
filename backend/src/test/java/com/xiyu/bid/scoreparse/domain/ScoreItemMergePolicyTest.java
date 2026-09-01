@@ -227,4 +227,19 @@ class ScoreItemMergePolicyTest {
         assertThat(detail.length()).isLessThanOrEqualTo(ScoreItemMergePolicy.PRICE_DETAIL_MAX_CHARS);
         assertThat(detail).startsWith("BASE参数行0：");
     }
+
+    @Test
+    void merge_preservesParentDimAndDimSource() {
+        ScoreCandidate tableCandidate = new ScoreCandidate("1", "商务部分", "1. 人员配置：相关经验要求",
+                new BigDecimal("10"), "OBJECTIVE", null, "1. 人员配置：相关经验要求", "P1", "TABLE_GRID",
+                "商务部分", "PARENT_SINGLE");
+        ScoreCandidate llmCandidate = new ScoreCandidate("1", "商务部分", "1. 人员配置：相关经验要求，包含项目经理",
+                new BigDecimal("10"), "OBJECTIVE", null, "1. 人员配置：相关经验要求，包含项目经理", "P1", "GLOBAL_MERGE");
+
+        List<ScoreCandidate> merged = policy.merge(List.of(tableCandidate, llmCandidate));
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).parentDim()).isEqualTo("商务部分");
+        assertThat(merged.get(0).dimSource()).isEqualTo("PARENT_SINGLE");
+        assertThat(merged.get(0).isParentOnlyDim()).isTrue();
+    }
 }

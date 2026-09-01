@@ -261,6 +261,10 @@ public final class ScoreMergeResultGuard {
             if (detailMatch || sourceMatch) {
                 if (cand.detail().length() > maxLen) {
                     maxLen = cand.detail().length();
+                    String parentDim = cand.parentDim() != null && !cand.parentDim().isBlank()
+                            ? cand.parentDim() : item.parentDim();
+                    String dimSource = cand.dimSource() != null && !"UNKNOWN".equals(cand.dimSource())
+                            ? cand.dimSource() : item.dimSource();
                     best = new ScoreCandidate(
                             item.code() != null && !item.code().isBlank() ? item.code() : cand.code(),
                             item.dim() != null && !item.dim().isBlank() ? item.dim() : cand.dim(),
@@ -270,7 +274,9 @@ public final class ScoreMergeResultGuard {
                             item.contextNote() != null ? item.contextNote() : cand.contextNote(),
                             cand.sourceText() != null && !cand.sourceText().isBlank() ? cand.sourceText() : item.sourceText(),
                             cand.location() != null && !cand.location().isBlank() ? cand.location() : item.location(),
-                            item.semanticPattern()
+                            item.semanticPattern(),
+                            parentDim,
+                            dimSource
                     );
                 }
             }

@@ -49,4 +49,9 @@ public record ScoreCandidate(
         return "PARENT_SINGLE".equals(dimSource)
                 || (hasParentDim() && parentDim.equals(dim));
     }
+
+    public ScoreCandidate withWeight(BigDecimal newWeight) {
+        return new ScoreCandidate(code, dim, detail, newWeight, scoreTypeGuess,
+                contextNote, sourceText, location, semanticPattern, parentDim, dimSource);
+    }
 }

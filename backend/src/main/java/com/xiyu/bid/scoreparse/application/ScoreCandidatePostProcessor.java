@@ -99,6 +99,7 @@ public class ScoreCandidatePostProcessor {
             originalTotal = normalized.originalTotal().setScale(2, java.math.RoundingMode.HALF_UP);
             weightResult = weightSumCheck.checkCandidates(valid);
         }
+        int parentOnlyCount = (int) valid.stream().filter(ScoreCandidate::isParentOnlyDim).count();
         ItemCountCheck.Result countResult = itemCountCheck.check(valid.size());
         if (countResult.failed()) {
             String failMsg = countResult.failureMessage();
@@ -108,11 +109,11 @@ public class ScoreCandidatePostProcessor {
             log.warn("解析结果为 0 项，判定失败: taskId={}, candidates={}, reason={}", taskId, candidates.size(), failMsg);
             return new Processed(List.of(), null, weightResult,
                     RunSummaryAssembler.assemble(recall, tableRows.size(),
-                            toView(stats), weightResult, 0, recall.llmModel()).json(),
+                            toView(stats, 0), weightResult, 0, recall.llmModel()).json(),
                     failMsg);
         }
         var assembled = RunSummaryAssembler.assemble(recall, tableRows.size(),
-                toView(stats), weightResult, valid.size(), recall.llmModel());
+                toView(stats, parentOnlyCount), weightResult, valid.size(), recall.llmModel());
         if (assembled.warnLowAlignment()) {
             log.warn("对齐率低于 {}: hit={}, total={} —— 模型概括改写严重，建议换模型对照重解析"
                             + "（spec 057 FR-06）",
@@ -126,9 +127,9 @@ public class ScoreCandidatePostProcessor {
     }
 
     private static RunSummaryAssembler.MergeView toView(
-            ScoreGlobalMergeOrchestrator.MergeStats stats) {
+            ScoreGlobalMergeOrchestrator.MergeStats stats, int parentOnlyCount) {
         return new RunSummaryAssembler.MergeView(stats.invoked(), stats.truncated(),
-                stats.poolBackedKept(), stats.hallucinationDropped(), stats.restored());
+                stats.poolBackedKept(), stats.hallucinationDropped(), stats.restored(), parentOnlyCount);
     }
 
     private List<ScoreCandidate> filterInvalidWeights(List<ScoreCandidate> candidates) {
