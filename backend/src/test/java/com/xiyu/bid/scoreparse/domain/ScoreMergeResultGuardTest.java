@@ -124,7 +124,7 @@ class ScoreMergeResultGuardTest {
                 merged, SECTION_TEXT);
         assertThat(outcome.accepted()).hasSize(2); // 池背书放行1 + 语料内高置信池项回补1
         assertThat(outcome.accepted()).extracting(ScoreCandidate::detail)
-                .contains("技术方案完整性审查：方案须覆盖全部招标需求点。",
+                .contains("技术方案完整性审查：方案须覆盖全部招标需求点。8分",
                         "不平衡报价评审：评标委员会针对各投标人分项报价中的单项折扣率进行评价，报价合理得4-5分。");
         assertThat(outcome.poolBackedKept()).isEqualTo(1);
         assertThat(outcome.hallucinationDropped()).isZero();
@@ -236,5 +236,32 @@ class ScoreMergeResultGuardTest {
         assertThat(outcome.accepted()).hasSize(1);
         assertThat(outcome.accepted().get(0).detail()).contains("ISO9001");
         assertThat(outcome.restoredCount()).isZero();
+    }
+
+    @Test
+    void guard_truncatedMergedItem_upgradesToFullPoolDetail() {
+        // 当 LLM 归并输出由于截断或提纲化输出了短版 detail 时，守卫自动从池中匹配并升级为最完整的逐字细则
+        String fullDetail = "1.售前服务方案完整得3分；2.售中服务方案（含订单状态一致性与出库配送保障）得4分；3.售后服务方案（含退换货与三包服务）得3分。";
+        String truncatedDetail = "1.售前服务方案完整得3分；2.售中服务方案（含订单状态一致性与出库";
+
+        ScoreCandidate poolFull = new ScoreCandidate("3.2.3(2)", "技术评分/综合服务方案",
+                fullDetail, new BigDecimal("10"), "SUBJECTIVE", null,
+                fullDetail, "P30", "TABLE_GRID");
+
+        ScoreCandidate mergedTruncated = new ScoreCandidate("3.2.3(2)", "技术评分/综合服务方案",
+                truncatedDetail, new BigDecimal("10"), "SUBJECTIVE", null,
+                truncatedDetail, "P30", "GLOBAL_MERGE");
+
+        String sectionText = SECTION_TEXT + "\n" + fullDetail;
+
+        ScoreMergeResultGuard.Outcome outcome = ScoreMergeResultGuard.guard(
+                List.of(poolFull),
+                List.of(mergedTruncated),
+                sectionText);
+
+        assertThat(outcome.accepted()).hasSize(1);
+        ScoreCandidate accepted = outcome.accepted().get(0);
+        assertThat(accepted.detail()).isEqualTo(fullDetail);
+        assertThat(accepted.detail()).contains("3.售后服务方案（含退换货与三包服务）得3分");
     }
 }

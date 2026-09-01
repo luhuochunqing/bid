@@ -26,8 +26,8 @@ import java.util.List;
 public class ScoreGlobalMergeExecutor {
 
     private static final String USE_CASE = "score parse analysis";
-    /** 池摘要中单条 detail 截断上界（裁决只需识别身份，全文由章节原文承载） */
-    static final int POOL_DETAIL_TRUNCATE = 200;
+    /** 池摘要中单条 detail 截断上界（防止单条异常超大文本爆炸，正常细则全量保留） */
+    static final int POOL_DETAIL_TRUNCATE = 4000;
 
     private final OpenAiStructuredOutputService structuredOutputService;
     private final OpenAiBidAgentConfigurationResolver configurationResolver;

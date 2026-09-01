@@ -62,8 +62,10 @@ public final class ScoreMergeResultGuard {
                 dropped++;
                 continue;
             }
-            accepted.add(item);
-            acceptedNormDetails.add(normDetail);
+            // 原文细则保真升级：若候选池中存在对应项且 detail 更完整（解决 LLM 复述截断/提纲化缺陷），升级为池中最完整版本
+            ScoreCandidate bestItem = upgradeWithLongestPoolDetail(item, pool);
+            accepted.add(bestItem);
+            acceptedNormDetails.add(normalize(bestItem.detail()));
             if (!corpusBacked) {
                 poolBacked++;
             }
@@ -225,6 +227,55 @@ public final class ScoreMergeResultGuard {
             }
         }
         return false;
+    }
+
+    /**
+     * 原文细则保真升级：若候选池中存在与当前项对应且 detail 明显更完整（长度更长、且包含当前项内容）的真实候选，
+     * 自动采用候选池中的最完整原文细则，防止大模型复述截断/提纲化。
+     */
+    private static ScoreCandidate upgradeWithLongestPoolDetail(ScoreCandidate item, List<ScoreCandidate> pool) {
+        if (pool == null || pool.isEmpty() || item == null || item.detail() == null) {
+            return item;
+        }
+        String normItemDetail = normalize(item.detail());
+        if (normItemDetail.isEmpty()) {
+            return item;
+        }
+        ScoreCandidate best = item;
+        int maxLen = item.detail().length();
+
+        for (ScoreCandidate cand : pool) {
+            if (cand == null || cand.detail() == null || cand.detail().isBlank()) {
+                continue;
+            }
+            // 排除总览行与程序性非评分行
+            if (!isHighConfidence(cand) && cand.weight() == null) {
+                continue;
+            }
+            String normCandDetail = normalize(cand.detail());
+            boolean detailMatch = !normCandDetail.isEmpty()
+                    && (normCandDetail.contains(normItemDetail) || normItemDetail.contains(normCandDetail));
+            boolean sourceMatch = cand.sourceText() != null && !cand.sourceText().isBlank()
+                    && normalize(cand.sourceText()).contains(normItemDetail);
+
+            if (detailMatch || sourceMatch) {
+                if (cand.detail().length() > maxLen) {
+                    maxLen = cand.detail().length();
+                    best = new ScoreCandidate(
+                            item.code() != null && !item.code().isBlank() ? item.code() : cand.code(),
+                            item.dim() != null && !item.dim().isBlank() ? item.dim() : cand.dim(),
+                            cand.detail(),
+                            item.weight() != null ? item.weight() : cand.weight(),
+                            item.scoreTypeGuess() != null ? item.scoreTypeGuess() : cand.scoreTypeGuess(),
+                            item.contextNote() != null ? item.contextNote() : cand.contextNote(),
+                            cand.sourceText() != null && !cand.sourceText().isBlank() ? cand.sourceText() : item.sourceText(),
+                            cand.location() != null && !cand.location().isBlank() ? cand.location() : item.location(),
+                            item.semanticPattern()
+                    );
+                }
+            }
+        }
+        return best;
     }
 
     private static String normalize(String text) {

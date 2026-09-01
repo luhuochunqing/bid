@@ -55,6 +55,7 @@ trigger（同步<1s，互斥校验+建任务）
 ```
 
 - **字段长度安全截断与双层防御（2026-08-31）**：大模型结构化抽取评分项时，`location`、`dim`、`code` 字段可能产生多段详细长文本。`ScoreCandidateMapper` 在映射源头做安全长度截断（`code: 50`，`dim/location: 200`，`source_text: 500`），`ScoreItemPersistenceService` 在落库前增加 `resolveLocation` 兜底截断，`ScoreParseTaskStateService` 对 `stage` 描述截断（50 字符），彻底根治 MySQL 严格模式下的 `DataTruncationException`。
+- **评分细则（detail）保真升级与候选池完整透传（2026-09-01）**：`ScoreGlobalMergeExecutor` 将候选池单项 detail 截断上限提升至 4000 字符，避免大模型全局裁决时复述截断摘要；`ScoreMergeResultGuard` 在采纳项中引入 `upgradeWithLongestPoolDetail` 机制，当候选池中存在更长、更完整的逐字原文版本时自动升级，彻底解决 1/2/3 等多子要点条款被截断丢失的问题。
 - **Sidecar PDF 转换保真（2026-08-24）**：针对复杂排版 PDF，Sidecar 优先使用 `convert_pdf_to_markdown` 通过 `pdfplumber` 抽取表格为 Markdown 管道表格，单元格内换行转 `<br>`，段落换行 `\n` 严格保真，彻底解决 `markitdown`/`pdfminer` 单行化（0 换行）缺陷。
 - **跨维度去重防碰撞（2026-08-24）**：`ScoreItemMergePolicy` 区分同维度同编号合并与跨维度同编号保留，避免多标的/多部分招标文件（如商务表 1 与技术表 1）因编号相同被误吞。
 - **LLM 全文聚焦切片（2026-08-24）**：`OpenAiScoreAnalyzer` 在多 chunk 时基于 sectionPath 和评分关键词过滤高信号 chunk，避免数十个无关合同 chunk 盲目调用 LLM 稀释信号。
