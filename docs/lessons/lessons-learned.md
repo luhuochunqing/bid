@@ -3564,3 +3564,24 @@ PR !2481（Project 21 MRO 评分解析修复）功能正确、205 项测试全�
 | 局部编号全局排序导致跨章节数据穿插 | 假设所有编号都在同一全局序列下，未考虑各子章节的局部编号（1/2）复用 | 排序策略必须以大类/父维度自然出现序为第一关键字，严禁脱离层级做全局扁平数值排序 |
 | 单测仅测提取器未测持久化排序 | 召回层单测直接返回原始行，未走持久化策略导致排序 bug 逃逸 | 涉及排序/持久化的核心业务，集成测试必须覆盖从召回、归并到 OrderPolicy 排序的完整管道 |
 
+
+## 195. 闲置推荐端点候选池恒空：客户类型枚举跨填项目类型过滤位（2026-09-01）
+
+**背景**：验证历史切片案例是否接入 AI 智能案例推荐时，发现闲置端点 `GET /api/cases/recommend/project`（`KnowledgeCaseRecommendAppService`，前端无调用方）对任何项目都返回 0 条。主推荐链路 `POST /api/projects/{id}/cases/recommend` 不受影响（切片案例 126/160 命中）。
+
+**根因分析**：
+1. **跨枚举错填**：`buildCriteria()` 与 `recommendForProject()` 均把 `projects.customer_type`（客户类型枚举：民企/央企…）塞进 `criteria.projectType`；
+2. **过滤位语义错配**：`fetchCandidates()` 在无评分类别时用 `knowledge_case.project_type = criteria.projectType` 过滤——项目类型与客户类型是两套不同枚举（项目类型=综合/工业品/办公…），两值域无交集，候选池恒为空；
+3. **打分侧连带污染**：`KnowledgeCaseMatchPolicy` 第 3 条"项目类型一致 +15 分"拿的也是这个错填值，即使候选池非空也是假匹配。
+
+**解决方案**：
+1. `projects` 表本无项目类型真值字段（实体核查确认），`criteria.projectType` 一律置 `null`；
+2. `fetchCandidates()` 移除跨枚举过滤谓词，仅保留案例自身字段过滤（`status` / `scoringCategory`），与主链路 `findAllActive()` 语义对齐；
+3. 补回归测试 `recommendForProject_ShouldNotFilterCandidatesByMismatchedProjectType`：捕获 Specification 并对 CriteriaBuilder 求值，断言 `root.get("projectType")` 永不被调用。
+
+**教训**：
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| 跨枚举字段顶替（客户类型填进项目类型位） | 两字段都叫"类型"，开发时就近取值顶替 | 与 #193 同源教训：跨字段灌值前必须校验目标字段的值域枚举；无真值时置空，不得跨枚举回退 |
+| 闲置端点缺陷长期潜伏 | 无前端调用方，功能验证永远绕开它 | 接口审计（验证对接链路时顺带全量枚举同域端点）能暴露无流量覆盖的死代码缺陷 |
+| Specification 过滤逻辑无测试 | 过滤谓词藏在 lambda 里，单测直接 mock 掉 repository | 谓词逻辑要用 ArgumentCaptor 捕获 + CriteriaBuilder 求值做行为断言 |

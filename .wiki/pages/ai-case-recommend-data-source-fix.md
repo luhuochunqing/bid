@@ -102,6 +102,18 @@ PRD 1.1/4.2：复用定位弹窗章节树**默认选中当前评分项对应章�
 - `AICaseRecommendDrawer.vue`（Bidding 版抽屉）— 自带双形态兼容写法，
   **当前未被任何页面挂载**（仅 spec 引用），改动不会在生产暴露
 
+## 闲置端点候选池恒空修正（2026-09-01）
+
+- `KnowledgeCaseRecommendAppService`（`GET /api/cases/recommend`、`GET /api/cases/recommend/project`）
+  前端无调用方，但存在跨枚举错配：把 `projects.customer_type`（民企/央企…）填进
+  `criteria.projectType`，再用于过滤 `knowledge_case.project_type`（综合/工业品/办公…），
+  两值域无交集导致候选池恒为空
+- 修复：`criteria.projectType` 一律置空（projects 表无项目类型真值字段），
+  `fetchCandidates` 移除跨枚举谓词，仅按案例自身字段过滤（与主链路 `findAllActive()` 对齐）
+- 回归测试：`KnowledgeCaseRecommendAppServiceTest.recommendForProject_ShouldNotFilterCandidatesByMismatchedProjectType`
+- 主链路 `POST /api/projects/{id}/cases/recommend` 不受此缺陷影响，历史切片案例实测可命中（126/160）
+- 详见 docs/lessons/lessons-learned.md #195
+
 ## 关联
 
 - [[score-parse-service]] — spec-041 解析链路（score_item 数据的生产方）
