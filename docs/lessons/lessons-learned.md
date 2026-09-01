@@ -3647,3 +3647,25 @@ M1 部门筛选树锚定西域集团(0001)子树三级展示（PR !2474）后，
 | 展示层改了、查询口径没改 | 锚定 PR 只改"展示"，未枚举选值的下游消费方（expand / bucketNames / toBucket / 下钻） | 改树层级/截断口径前必须 grep 选值的全部消费方，同步评估口径一致性 |
 | 不识别的层级被静默丢弃 | `axisNames` 白名单式分层，其他层级无 else 分支、无日志 | 选择型口径禁止静默丢值：要么接纳，要么 fail-closed 零命中，并用测试锁定 |
 | 空列表退化为不过滤 | `isNotEmpty` 无法区分"未启用"与"启用但零命中" | 过滤参数用三态语义：null=未启用 / 空列表=零命中 fail-closed（对齐 regionMatchedIds 空集既有模式） |
+
+
+## 198. 质量核查整篇标书退化为 1 页：\f 分页符跨管线无人生产（2026-09-01）
+
+**背景**：测试环境 project/1352（134+ 页 docx 标书）AI 标书质量核查"完全不准"：DOCUMENT_COMPLETENESS 误报"页数少于3页"、所有确定性证据 pageNumber=1 且 quote 恒为封面文本、6/7 语义项 LLM 裁决"返回结果异常"转人工。
+
+**根因分析**（三层连锁，单一根因）：
+1. **隐式契约断裂**：Java `SidecarStreamDocumentAdapter.buildDocumentContent` 仅按 `\f` split 分页，但 Sidecar（markitdown/mammoth docx 路径）从不输出 `\f`（Word 自动分页只存在于渲染层）；pdfplumber PDF 路径页间也是 `\n\n`。分页符的"生产端"根本不存在，"消费端"却按存在设计；
+2. **单页退化三重失效**：`pages().size()=1<3` → 完整性误报 FAIL；`findFirstPageContaining` 恒命中唯一页 + `snippet` 取页首 200 字 → 证据全部错位成封面；`SemanticPageRetriever` 超预算分支 `selected.isEmpty()` 短路——首个页面无条件全量塞入 prompt（60k 预算失效）→ 巨型 prompt 导致 LLM 输出异常，6/7 语义项降级转人工；
+3. **历史变更的副作用盲区**：8-25 PR !2399（scoreparse 报价表跨页合并）在 converter 加了 `full_md.replace("\x0c", "\n\n")`，进一步消灭了 pdfminer 路径可能残留的页分隔——变更时只盘点了 scoreparse 消费方，未发现 compliance 也依赖页边界。
+
+**解决方案**（PR agent/codex/quality-check-pagination）：
+1. Sidecar `/convert` 响应新增结构化 `pages` 字段（PDF 经 `convert_pdf_document` 单次解析同时产出合并 markdown 与逐页切片；docx 物理页不可得，pages 为空数组）；
+2. Java 分页优先级：结构化 pages → `\f` 切分 → `DocumentContent.virtualPages` 虚拟分页兜底（>4k 字符按 markdown 标题切块、行累积断块、单段 6k 硬切）；
+3. `SemanticPageRetriever` 超预算单页硬截断；确定性证据 `snippetAround` 围绕关键词命中位置取窗；BID_OPENING_TABLE 词表补齐现场用词；PRICE_CONSISTENCY 加全文跨行回退（DOTALL + 300 字符窗口）。
+
+**教训**：
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| 跨管线隐式契约（\f 分页符）无生产端也无 golden 测试 | Java 单测用手工拼 `\f` 的 fixture，从未对真实 Sidecar 输出做契约测试 | 跨语言/跨进程数据契约必须有真实端到端 golden 测试锚定；mock 层测试验证不了"上游真的会生产这个格式" |
+| 共享转换管线变更只盘点直接调用方 | PR !2399 为 scoreparse 改 markdown 后处理，compliance 消费同一输出但未被排查 | 改共享输出格式前 grep 全部消费端字段用途；新增/删除输出字段（哪怕是清洗字符）都要过一遍下游 |
+| 单页退化的失败模式不显式报错而是"全都算对但全都没意义" | 页数判断、证据定位、检索预算三个消费方都在"1 页"输入上静默给出错误结论 | 对"退化输入"设计哨兵：单页超阈值文本应显式告警或兜底切块，而非让下游各自 silently wrong |

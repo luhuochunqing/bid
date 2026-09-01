@@ -14,6 +14,7 @@ backlinks:
   - score-parse-service
 created: 2026-09-01
 updated: 2026-09-01
+health_checked: 2026-09-01
 ---
 
 # 标书质量核查分页丢失修复
@@ -65,4 +66,4 @@ SidecarStreamDocumentAdapter 仅按 \f split → 整篇 = 1 页
 
 - 架构：[[bid-quality-check-realization]]（spec 049）
 - scoreparse 兼容：[[score-parse-service]]
-- 教训库：`docs/lessons/lessons-learned.md` #196（跨管线隐式契约无 golden 测试）
+- 教训库：`docs/lessons/lessons-learned.md` #198（跨管线隐式契约无 golden 测试）
