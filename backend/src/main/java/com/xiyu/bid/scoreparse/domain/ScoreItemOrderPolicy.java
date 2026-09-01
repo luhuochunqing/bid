@@ -1,23 +1,25 @@
-// Input: 候选池（code 为评分项编号原文）
-// Output: 编号数值序重排结果（不可解析编码稳定置后）
+// Input: 候选池（code 为评分项编号原文，dim 为评分维度或大类路径）
+// Output: 按章节/大类自然出现序 + 局部编号数值序重排结果（禁止跨大类全局扁平乱排）
 // Pos: scoreparse/domain — 纯核心，无框架依赖
 // 维护声明: 维护者按项目SOP；spec 046 FR-003 / FR-004
 package com.xiyu.bid.scoreparse.domain;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 评分项编号排序策略（spec 046 FR-003）。
- * <p>解析键支持两类：
+ * 评分项编号与层级排序策略（spec 046 FR-003）。
+ * <p>核心纪律：
  * <ul>
- *   <li>简单编号 ^(\d+)(?:[-—.](\d+))?$（如 "4-1" → 主段 4、子段 1）：主段升序、子段升序（无子段排前，minor 取 -1 视同最小）</li>
- *   <li>复合编号 ^(\d+(?:[.\d]+)?)[\((（](\d+)[)）]$（如 "2.2.4(1)" → 首段数值、括号内子段）</li>
+ *   <li>1. 以文档大类/章节出现顺序（如 商务评分 -> 技术评分 -> 报价评分）或表格自然顺序为第一关键字；</li>
+ *   <li>2. 在同一大类/同一父维度内部，按子编号（1, 2...）数值序进行局部重排；</li>
+ *   <li>3. 严禁跨大类/跨维度全局扁平排序（防止不同维度的 1, 2, 3 被强行交叉杂糅）；</li>
+ *   <li>4. 同一组内不可解析编码（A1/B2/null/空白）稳定保持相对输入序，排在该组有编号项之后。</li>
  * </ul>
- * 不可解析编码（A1/B2/null/空白）稳定保持相对序排在可解析之后。
- * 不改 code 内容，仅重排顺序；itemIndex 由调用方按新序重编。
  */
 public class ScoreItemOrderPolicy {
 
@@ -26,30 +28,121 @@ public class ScoreItemOrderPolicy {
     private static final Pattern COMPOUND_CODE_PATTERN =
             Pattern.compile("^(\\d+(?:\\.\\d+)*)\\s*[（(](\\d+)[）)]$");
 
-    /** 按编号数值序排序，返回新列表；入参为 null 时返回空列表 */
+    /** 按章节大类自然序 + 局部编号数值序排序，返回新列表；入参为 null 或空时返回空列表 */
     public List<ScoreCandidate> sort(List<ScoreCandidate> candidates) {
-        if (candidates == null) {
+        if (candidates == null || candidates.isEmpty()) {
             return List.of();
         }
-        List<ScoreCandidate> parsed = new ArrayList<>();
-        List<ScoreCandidate> unparsed = new ArrayList<>();
-        for (ScoreCandidate candidate : candidates) {
-            if (parseKey(candidate.code()) == null) {
-                unparsed.add(candidate);
-            } else {
-                parsed.add(candidate);
-            }
+
+        // 统计各大类与父维度的首次出现位置（保持文档原文的先后自然顺序）
+        Map<String, Integer> topCategoryFirstSeen = new LinkedHashMap<>();
+        Map<String, Integer> parentDimFirstSeen = new LinkedHashMap<>();
+        for (int i = 0; i < candidates.size(); i++) {
+            ScoreCandidate c = candidates.get(i);
+            String topCat = extractTopCategory(c == null ? null : c.dim());
+            String parentDim = extractParentDim(c == null ? null : c.dim());
+            topCategoryFirstSeen.putIfAbsent(topCat, i);
+            parentDimFirstSeen.putIfAbsent(parentDim, i);
         }
-        parsed.sort((a, b) -> {
-            CodeKey keyA = parseKey(a.code());
-            CodeKey keyB = parseKey(b.code());
-            int byMajor = Integer.compare(keyA.major(), keyB.major());
-            return byMajor != 0 ? byMajor : Integer.compare(keyA.minor(), keyB.minor());
+
+        // 包装候选及其原始输入索引与提取的 key
+        record IndexedCandidate(
+                ScoreCandidate candidate,
+                int originalIndex,
+                String topCat,
+                String parentDim,
+                CodeKey codeKey
+        ) {}
+
+        List<IndexedCandidate> list = new ArrayList<>(candidates.size());
+        for (int i = 0; i < candidates.size(); i++) {
+            ScoreCandidate c = candidates.get(i);
+            String topCat = extractTopCategory(c == null ? null : c.dim());
+            String parentDim = extractParentDim(c == null ? null : c.dim());
+            CodeKey key = c == null ? null : parseKey(c.code());
+            list.add(new IndexedCandidate(c, i, topCat, parentDim, key));
+        }
+
+        list.sort((a, b) -> {
+            // 1. 第一关键字：所属大类首次出现顺序（商务 -> 技术 -> 报价 等）
+            int catOrderA = topCategoryFirstSeen.getOrDefault(a.topCat, 0);
+            int catOrderB = topCategoryFirstSeen.getOrDefault(b.topCat, 0);
+            if (catOrderA != catOrderB) {
+                return Integer.compare(catOrderA, catOrderB);
+            }
+
+            // 2. 第二关键字：所属父维度首次出现顺序（财务状况 -> 服务网点 等）
+            int parentOrderA = parentDimFirstSeen.getOrDefault(a.parentDim, 0);
+            int parentOrderB = parentDimFirstSeen.getOrDefault(b.parentDim, 0);
+            if (parentOrderA != parentOrderB) {
+                return Integer.compare(parentOrderA, parentOrderB);
+            }
+
+            // 3. 第三关键字：同父维度内部，按编号数值序（1, 2, 3...）重排
+            if (a.codeKey != null && b.codeKey != null) {
+                int byMajor = Integer.compare(a.codeKey.major(), b.codeKey.major());
+                if (byMajor != 0) {
+                    return byMajor;
+                }
+                int byMinor = Integer.compare(a.codeKey.minor(), b.codeKey.minor());
+                if (byMinor != 0) {
+                    return byMinor;
+                }
+            } else if (a.codeKey != null) {
+                return -1; // 同维度内有编号排在前
+            } else if (b.codeKey != null) {
+                return 1;
+            }
+
+            // 4. 第四关键字：保持原始相对输入序
+            return Integer.compare(a.originalIndex, b.originalIndex);
         });
-        List<ScoreCandidate> ordered = new ArrayList<>(candidates.size());
-        ordered.addAll(parsed);
-        ordered.addAll(unparsed);
-        return ordered;
+
+        return list.stream().map(IndexedCandidate::candidate).toList();
+    }
+
+    private String extractTopCategory(String dim) {
+        if (dim == null || dim.isBlank()) {
+            return "";
+        }
+        String trimmed = dim.trim();
+        String[] parts = trimmed.split("\\s*[/／\\\\]\\s*");
+        if (parts.length > 1) {
+            return normalizeCategoryName(parts[0]);
+        }
+        return normalizeCategoryName(trimmed);
+    }
+
+    private String extractParentDim(String dim) {
+        if (dim == null || dim.isBlank()) {
+            return "";
+        }
+        String trimmed = dim.trim();
+        String[] parts = trimmed.split("\\s*[/／\\\\]\\s*");
+        if (parts.length > 2) {
+            return normalizeCategoryName(parts[0]) + "/" + parts[1].trim();
+        }
+        if (parts.length == 2) {
+            return normalizeCategoryName(parts[0]) + "/" + parts[1].trim();
+        }
+        return normalizeCategoryName(trimmed);
+    }
+
+    private String normalizeCategoryName(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "";
+        }
+        String s = raw.trim();
+        if (s.contains("商务") || s.contains("资信") || s.contains("业绩")) {
+            return "商务评分";
+        }
+        if (s.contains("技术") || s.contains("方案")) {
+            return "技术评分";
+        }
+        if (s.contains("报价") || s.contains("价格")) {
+            return "报价评分";
+        }
+        return s;
     }
 
     private CodeKey parseKey(String code) {

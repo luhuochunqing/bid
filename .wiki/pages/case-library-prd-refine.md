@@ -13,7 +13,7 @@ backlinks:
   - ai-case-recommend-data-source-fix
 created: 2026-08-24
 updated: 2026-08-24
-health_checked: 2026-08-24
+health_checked: 2026-09-01
 ---
 
 # 案例库按 PRD 精简重构

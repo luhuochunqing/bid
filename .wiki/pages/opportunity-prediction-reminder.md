@@ -5,7 +5,7 @@ category: feature
 tags: [商机预测, 提醒, 定时任务, 通知中心, 企微, CRM事件库, opportunity-prediction]
 created: 2026-08-24
 updated: 2026-08-24
-health_checked: 2026-08-24
+health_checked: 2026-09-01
 sources:
   - specs/054-opportunity-prediction-reminder/spec.md
   - specs/054-opportunity-prediction-reminder/data-model.md
