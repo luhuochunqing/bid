@@ -12,6 +12,7 @@ public record KnowledgeCaseResponse(
         Boolean pinned,
         String bidResult,
         String sourceProjectName,
-        String productLine
+        String productLine,
+        String obsBidFileKey
 ) {
 }

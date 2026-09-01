@@ -62,6 +62,10 @@ public class KnowledgeCase implements KnowledgeCaseReadModel {
     @Column(name = "product_line", length = 100)
     private String productLine;
 
+    /** 历史切片原版投标文件的 OBS 对象键（仅导入管道写入，签发端点只读）。 */
+    @Column(name = "obs_bid_file_key", length = 512)
+    private String obsBidFileKey;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

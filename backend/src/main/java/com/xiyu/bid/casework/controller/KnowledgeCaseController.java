@@ -5,6 +5,7 @@
 
 package com.xiyu.bid.casework.controller;
 
+import com.xiyu.bid.casework.application.service.CaseDownloadUrlAppService;
 import com.xiyu.bid.casework.application.service.CaseExportAppService;
 import com.xiyu.bid.casework.application.CaseExportExcelAppService;
 import com.xiyu.bid.casework.application.CasePrecipitationAppService;
@@ -56,6 +57,7 @@ public class KnowledgeCaseController {
     private final CasePrecipitationAppService precipitationAppService;
     private final CaseExportAppService caseExportZipAppService;
     private final CaseExportExcelAppService caseExportExcelAppService;
+    private final CaseDownloadUrlAppService caseDownloadUrlAppService;
     private final ProjectAccessScopeService projectAccessScopeService;
 
     @GetMapping
@@ -129,6 +131,13 @@ public class KnowledgeCaseController {
     @PreAuthorize("hasAuthority('project')")
     public ResponseEntity<Map<String, Object>> unpinCase(@PathVariable Long id) {
         return ResponseEntity.ok(commandAppService.unpinCase(id));
+    }
+
+    /** 历史案例原文下载：签发 OBS 预签名直链（仅库内已登记对象键，不接受外部路径）。 */
+    @GetMapping("/{id}/download-url")
+    @PreAuthorize("hasAuthority('project')")
+    public ResponseEntity<CaseDownloadUrlAppService.DownloadUrlResult> getDownloadUrl(@PathVariable Long id) {
+        return ResponseEntity.ok(caseDownloadUrlAppService.signDownloadUrl(id));
     }
 
     @GetMapping("/precipitation-readiness")

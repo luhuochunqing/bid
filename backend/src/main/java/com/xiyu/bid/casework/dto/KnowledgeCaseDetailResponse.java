@@ -25,6 +25,7 @@ public record KnowledgeCaseDetailResponse(
         String bidResult,
         String scoringCategory,
         String productLine,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        String obsBidFileKey
 ) {
 }
