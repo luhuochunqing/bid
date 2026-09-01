@@ -1,5 +1,5 @@
 // Input: OrganizationDepartmentRepository, EntityManager, ProjectAccessScopeService
-// Output: Filter options, distinct values, and department tree（竞品=参与项目数降序∪ACTIVE字典补齐，specs/056）
+// Output: Filter options, distinct values, and department tree（竞品=参与项目数降序∪ACTIVE字典补齐，specs/056；部门联动人员零命中 fail-closed）
 // Pos: Query Service/数据查询层
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -137,6 +137,10 @@ public class FilterOptionsQueryService {
 
         List<String> effectiveNames = AnalyticsDepartmentHierarchySupport.expand(
                 loadDepartmentNodes(), departmentNames);
+        // 空列表=勾选全部落在显示截断外 → 零命中，fail-closed 直接返回空（禁止空 IN / 退化为全量）
+        if (effectiveNames != null && effectiveNames.isEmpty()) {
+            return List.of();
+        }
         List<OrganizationDepartmentEntity> matchedDepts =
                 organizationDepartmentRepository.findByDepartmentNameIn(effectiveNames);
         java.util.Set<String> targetCodes = new java.util.HashSet<>();

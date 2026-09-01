@@ -37,6 +37,6 @@ Analytics 模块负责项目和标讯的合规性校验、风险评估、看板�
 | `service/CustomerTypeAnalyticsAssemblerService.java` | Service | 客户类型 DTO 组装 |
 | `service/CompetitorWonStatusSupport.java` | Support | 竞品「是否中标」口径唯一来源（WON_LABEL + parseCompetitorWon，M1/M4 共用） |
 | `service/TrendDrillDownFilterSupport.java` | Support | 下钻维度过滤条件无状态组装器 |
-| `service/AnalyticsDepartmentHierarchySupport.java` | Support | 部门两级口径：树只到二级；bucketNames=只选一级按一级、只选二级按二级、混选忽略不完整一级、二级勾满则该一级完整；expand=有效勾选∪子孙 |
+| `service/AnalyticsDepartmentHierarchySupport.java` | Support | 部门显示层级口径（锚定 0001 命中三级/未命中回退全树两级，与下拉树对齐）；bucketNames=只勾某层按该层成柱、可见下级勾满折叠上级、部分勾选忽略上级保留下级；expand=有效勾选∪子孙（空列表=零命中，消费方 fail-closed） |
 | `service/DashboardAnalyticsService.java` | Service | 看板分析门面 |
 | `service/DashboardAnalyticsMetricDrillDownService.java` | Service | 看板指标下钻编排 |

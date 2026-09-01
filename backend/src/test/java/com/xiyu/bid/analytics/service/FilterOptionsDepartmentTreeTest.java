@@ -1,5 +1,5 @@
 // Input: OrganizationDepartmentEntity mocked dataset
-// Output: AnalyticsDepartmentTreeDTO tree structure assertions
+// Output: AnalyticsDepartmentTreeDTO tree structure assertions + 部门联动人员零命中 fail-closed 断言
 // Pos: Test/部门树形结构组装单测
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -310,5 +310,54 @@ class FilterOptionsDepartmentTreeTest {
         assertThat(tree.get(0).getChildren()).extracting(AnalyticsDepartmentTreeDTO::getLabel)
                 .containsExactly("华东区");
         assertThat(tree.get(0).getChildren().get(0).getChildren()).isNull();
+    }
+
+    @Test
+    @DisplayName("锚点0001存在但无子节点：回退全树两级（与查询口径锚定判定一致，防止下拉空白错位）")
+    void shouldFallbackWhenAnchorHasNoChildren() {
+        jakarta.persistence.TypedQuery<String> typedQuery = org.mockito.Mockito.mock(jakarta.persistence.TypedQuery.class);
+        when(entityManager.createQuery(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(String.class)))
+                .thenReturn(typedQuery);
+        when(typedQuery.getResultList()).thenReturn(List.of());
+
+        when(departmentRepository.findAllByOrderByDepartmentCode())
+                .thenReturn(List.of(dept("rootorg", null, "组织架构"),
+                        dept("0001", "rootorg", "西域集团"),
+                        dept("D001", "rootorg", "销售总部"),
+                        dept("D002", "D001", "华东区")));
+
+        List<AnalyticsDepartmentTreeDTO> tree = service.fetchDepartmentTree();
+
+        // 锚点无子节点 → 不锚定，回退全树两级，而非返回空树（查询侧 Index.of 同条件回退）
+        assertThat(tree).extracting(AnalyticsDepartmentTreeDTO::getLabel)
+                .containsExactly("西域集团", "销售总部");
+        assertThat(tree.get(1).getChildren()).extracting(AnalyticsDepartmentTreeDTO::getLabel)
+                .containsExactly("华东区");
+    }
+
+    @Test
+    @DisplayName("部门联动人员：勾选落在显示截断外时零命中 fail-closed 返回空，不发人员查询")
+    void fetchDistinctPersonsFailsClosedWhenExpandEmpty() {
+        when(departmentRepository.findAllByOrderByDepartmentCode())
+                .thenReturn(List.of(dept("D001", null, "销售总部"),
+                        dept("D002", "D001", "华东区"),
+                        dept("D003", "D002", "上海办事处")));
+
+        // 未锚定回退两级口径：物理三级（上海办事处）勾选不入轴 → expand 返回空列表 → 零命中直接返回空，
+        // 不得把空列表当成"不过滤"去查全量人员，也不得拿空列表做 IN 查询
+        List<String> persons = service.fetchDistinctPersons(List.of("上海办事处"));
+
+        assertThat(persons).isEmpty();
+        org.mockito.Mockito.verifyNoInteractions(entityManager);
+        org.mockito.Mockito.verify(departmentRepository, org.mockito.Mockito.never())
+                .findByDepartmentNameIn(org.mockito.ArgumentMatchers.anyList());
+    }
+
+    private static OrganizationDepartmentEntity dept(String code, String parentCode, String name) {
+        OrganizationDepartmentEntity entity = new OrganizationDepartmentEntity();
+        entity.setDepartmentCode(code);
+        entity.setParentDepartmentCode(parentCode);
+        entity.setDepartmentName(name);
+        return entity;
     }
 }

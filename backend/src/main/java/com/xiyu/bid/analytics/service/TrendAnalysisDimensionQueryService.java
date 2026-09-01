@@ -1,5 +1,5 @@
 // Input: EntityManager, ProjectAccessScopeService, TrendQueryCriteria
-// Output: DimensionRow data lists
+// Output: DimensionRow 数据列表（部门筛选三态：null=不过滤 / 空列表=零命中 fail-closed）
 // Pos: Query Service/数据查询层
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -72,6 +72,10 @@ public class TrendAnalysisDimensionQueryService {
         List<String> tenderEntities = criteria.tenderEntities();
         List<String> competitorNames = criteria.competitorNames();
         List<String> deptIds = criteria.departmentIds();
+        // 部门筛选三态与 queryDimension 一致：null=不过滤；空列表=零命中 → fail-closed 直接返回空
+        if (deptIds != null && deptIds.isEmpty()) {
+            return List.of();
+        }
 
         StringBuilder jpql = new StringBuilder("""
                 select new com.xiyu.bid.analytics.service.RegionDimensionRawRow(
@@ -214,6 +218,11 @@ public class TrendAnalysisDimensionQueryService {
             TrendQueryCriteria criteria, List<String> departmentOverride, String extraSelect) {
 
         List<String> deptIds = departmentOverride != null ? departmentOverride : criteria.departmentIds();
+        // 部门筛选三态：null=不过滤；空列表=筛选启用但零命中（勾选全部落在显示截断外）→ fail-closed 直接返回空，
+        // 禁止空列表静默退化为"不过滤"造成越权展示全量数据（对齐 regionMatchedIds 空集语义）
+        if (deptIds != null && deptIds.isEmpty()) {
+            return List.of();
+        }
         // 项目级数据权限：非全局角色仅可见授权范围内项目（防御式兜底）
         Set<Long> scopeIds = AnalyticsProjectScopeSupport.scopedProjectIds(projectAccessScopeService);
         boolean allAccess = scopeIds == null;
