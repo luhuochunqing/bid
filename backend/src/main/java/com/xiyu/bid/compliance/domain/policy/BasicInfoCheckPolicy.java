@@ -216,19 +216,13 @@ public final class BasicInfoCheckPolicy {
         }
     }
 
+    /** 价格对捕获组（中文大写金额 / 阿拉伯小写金额），单行与跨行两个正则共享. */
+    private static final String CN_AMOUNT_GROUP = "([零壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分整正\\s]+)";
+    private static final String NUM_AMOUNT_GROUP = "([0-9,]+(?:\\.[0-9]{1,2})?)";
+
     static ParsedPrice parsePricePair(final String text) {
-        Pattern p = Pattern.compile("(?:大写[：:]\\s*(?:人民币)?([零壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分整正\\s]+)).*?(?:小写[：:]\\s*[¥￥]?([0-9,]+(?:\\.[0-9]{1,2})?))");
-        Matcher m = p.matcher(text);
-        if (m.find()) {
-            String cn = m.group(1).replaceAll("[\\s整正]", "").trim();
-            String numStr = m.group(2).replace(",", "").trim();
-            if (numStr.matches("^[0-9]+(\\.[0-9]{1,2})?$")) {
-                BigDecimal num = new BigDecimal(numStr);
-                BigDecimal converted = ChineseAmountConverter.convertChineseToNumber(cn);
-                return new ParsedPrice(cn, num, converted);
-            }
-        }
-        return null;
+        return findPricePair(text, Pattern.compile(
+                "(?:大写[：:]\\s*(?:人民币)?" + CN_AMOUNT_GROUP + ").*?(?:小写[：:]\\s*[¥￥]?" + NUM_AMOUNT_GROUP + ")"));
     }
 
     /** 跨行大写与小写之间最大距离（字符）：限制无界跨行匹配的误配面. */
@@ -240,11 +234,15 @@ public final class BasicInfoCheckPolicy {
      * 并以 {@link #CROSS_LINE_PAIR_WINDOW} 距离窗口约束，控制远距误配.
      */
     static ParsedPrice parsePricePairCrossLine(final String text) {
-        Pattern p = Pattern.compile(
-                "(?:大写[：:]\\s*(?:人民币)?([零壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分整正\\s]+))"
-                        + ".{0," + CROSS_LINE_PAIR_WINDOW + "}?(?:小写[：:]\\s*[¥￥]?([0-9,]+(?:\\.[0-9]{1,2})?))",
-                Pattern.DOTALL);
-        Matcher m = p.matcher(text);
+        return findPricePair(text, Pattern.compile(
+                "(?:大写[：:]\\s*(?:人民币)?" + CN_AMOUNT_GROUP + ")"
+                        + ".{0," + CROSS_LINE_PAIR_WINDOW + "}?(?:小写[：:]\\s*[¥￥]?" + NUM_AMOUNT_GROUP + ")",
+                Pattern.DOTALL));
+    }
+
+    /** 执行价格对正则匹配并归一化（金额空白剔除、千分位剔除、小写折算），未命中或数字非法返回 null. */
+    private static ParsedPrice findPricePair(final String text, final Pattern pattern) {
+        Matcher m = pattern.matcher(text);
         if (m.find()) {
             String cn = m.group(1).replaceAll("[\\s整正]", "").trim();
             String numStr = m.group(2).replace(",", "").trim();

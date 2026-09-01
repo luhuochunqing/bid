@@ -163,4 +163,19 @@ class DeterministicCheckPolicyTest {
                 .as("跨页大小写对照应经全文回退命中并判定一致")
                 .isEqualTo(QualityCheckStatus.PASS);
     }
+
+    @Test
+    @DisplayName("报价一致性：大写与小写距离超窗时不得远距误配，保持转人工")
+    void priceConsistency_oversizedCrossLineGap_doesNotMismatch() {
+        // 大写与小写之间隔 > 300 字符（跨行窗口外），不得强行配对
+        String page1 = "投标总价 大写：人民币壹佰万元整\n" + "无关填充内容，用于拉开大小写距离。".repeat(30);
+        String page2 = "另一处出现 小写：1000000.00 与本节无关";
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash", page1 + "\f" + page2);
+
+        QualityCheckItemResult result = DeterministicCheckPolicy.checkPriceConsistency(doc);
+
+        assertThat(result.status())
+                .as("超窗的远距大小写对照不应被判为一致")
+                .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+    }
 }

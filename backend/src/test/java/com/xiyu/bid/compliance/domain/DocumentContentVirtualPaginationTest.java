@@ -77,6 +77,31 @@ class DocumentContentVirtualPaginationTest {
             assertThat(pages.get(0).text()).doesNotContain("# 第一章");
             assertThat(pages.get(1).text()).startsWith("# 第一章 投标函");
         }
+
+        @Test
+        @DisplayName("二级/三级标题（##/###）同样切块；#后无空格与7个#不算标题")
+        void multiLevelHeadings_andNonHeadingHashLines_splitCorrectly() {
+            // 多行短段落（单节 < 4k 不触发硬切），保证块边界确定 = 标题行
+            String body = "正文段落内容，用于覆盖虚拟分页触发阈值所需字符量。\n".repeat(50);
+            String text = "# 一级\n" + body
+                    + "## 二级标题\n" + body
+                    + "###三级无空格\n" + body
+                    + "####### 七个井号\n" + body;
+
+            List<DocumentContent.PageContent> pages = DocumentContent.virtualPages(text);
+
+            boolean hasLevel1Block = pages.stream().anyMatch(p -> p.text().startsWith("# 一级"));
+            boolean hasLevel2Block = pages.stream().anyMatch(p -> p.text().startsWith("## 二级标题"));
+            assertThat(hasLevel1Block).as("# 一级标题应开启新块").isTrue();
+            assertThat(hasLevel2Block).as("## 二级标题应开启新块").isTrue();
+            // "###三级无空格" 与 "#######" 不构成标题，各自并入前一块的尾部，不产生以它们开头的新块
+            assertThat(pages.stream().noneMatch(p -> p.text().startsWith("###三级无空格")))
+                    .as("#后无空格不算标题，不应开块")
+                    .isTrue();
+            assertThat(pages.stream().noneMatch(p -> p.text().startsWith("#######")))
+                    .as("7 个 # 不算标题，不应开块")
+                    .isTrue();
+        }
     }
 
     @Nested

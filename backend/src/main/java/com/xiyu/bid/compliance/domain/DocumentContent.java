@@ -4,6 +4,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * 解析后的标书文档结构化内容（含物理分页与全文哈希）.
@@ -138,16 +139,11 @@ public record DocumentContent(
         return blocks;
     }
 
+    /** markdown 标题行：1-6 个 # 后跟空白（与 CommonMark ATX heading 一致）. */
+    private static final Pattern MARKDOWN_HEADING_LINE = Pattern.compile("^#{1,6}\\s.*$");
+
     private static boolean isMarkdownHeadingLine(final String line) {
-        String trimmed = line.trim();
-        if (!trimmed.startsWith("#") || trimmed.length() < 2) {
-            return false;
-        }
-        int hashes = 0;
-        while (hashes < trimmed.length() && trimmed.charAt(hashes) == '#') {
-            hashes++;
-        }
-        return hashes <= 6 && hashes < trimmed.length() && Character.isWhitespace(trimmed.charAt(hashes));
+        return MARKDOWN_HEADING_LINE.matcher(line.trim()).matches();
     }
 
     /** 按行累积切块：累积至 {@link #VIRTUAL_PAGE_MIN_TEXT_LENGTH} 断块；单行超硬上限时硬切. */
