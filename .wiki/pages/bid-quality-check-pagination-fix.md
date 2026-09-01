@@ -66,4 +66,4 @@ SidecarStreamDocumentAdapter 仅按 \f split → 整篇 = 1 页
 
 - 架构：[[bid-quality-check-realization]]（spec 049）
 - scoreparse 兼容：[[score-parse-service]]
-- 教训库：`docs/lessons/lessons-learned.md` #198（跨管线隐式契约无 golden 测试）
+- 教训库：`docs/lessons/lessons-learned.md` #199（跨管线隐式契约无 golden 测试）
