@@ -2,11 +2,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ElMessage } from 'element-plus'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle'
+import { casesApi } from '@/api/modules/knowledge'
 import { triggerBlobDownload } from '@/utils/download'
 import { useBidCaseSourceActions } from '../useBidCaseSourceActions'
 
 vi.mock('element-plus', () => ({
   ElMessage: { warning: vi.fn(), error: vi.fn(), success: vi.fn() }
+}))
+
+vi.mock('@/api/modules/knowledge', () => ({
+  casesApi: { getDownloadUrl: vi.fn() }
 }))
 
 vi.mock('@/api/modules/projectLifecycle', () => ({
@@ -46,12 +51,44 @@ describe('useBidCaseSourceActions', () => {
     expect(ElMessage.warning).toHaveBeenCalledWith('来源项目不可用')
   })
 
-  it('标书原文：无 sourceProjectId 时警告，不做任何请求', async () => {
+  it('标书原文：无 sourceProjectId 时警告，不做任何请求（无原文分支）', async () => {
     const { openBidDocument } = useBidCaseSourceActions()
     await openBidDocument({})
     expect(projectLifecycleApi.getArchiveFiles).not.toHaveBeenCalled()
     expect(projectLifecycleApi.exportProjectArchive).not.toHaveBeenCalled()
+    expect(casesApi.getDownloadUrl).not.toHaveBeenCalled()
     expect(ElMessage.warning).toHaveBeenCalledWith('标书原文暂不可用')
+  })
+
+  it('标书原文（历史直链）：obsBidFileKey 非空 → 签发预签名链接并 window.open，不走档案 ZIP', async () => {
+    casesApi.getDownloadUrl.mockResolvedValue({
+      url: 'https://ehsy-widbid.obs.cn-east-3.myhuaweicloud.com/xxx?Signature=abc',
+      filename: '项目复盘-中广核.docx',
+      expireSeconds: 300
+    })
+    const { openBidDocument } = useBidCaseSourceActions()
+    await openBidDocument({ caseId: 88, obsBidFileKey: '2026年（投标文件）/某项目/技术标.docx' })
+    expect(casesApi.getDownloadUrl).toHaveBeenCalledWith(88)
+    expect(openSpy).toHaveBeenCalledWith(expect.stringContaining('Signature=abc'), '_blank')
+    expect(projectLifecycleApi.getArchiveFiles).not.toHaveBeenCalled()
+    expect(triggerBlobDownload).not.toHaveBeenCalled()
+    expect(ElMessage.success).toHaveBeenCalledWith('标书原文下载已开始：项目复盘-中广核.docx')
+  })
+
+  it('标书原文（历史直链）：签发接口报无原文（409）时透出服务端 msg，不打开任何链接', async () => {
+    casesApi.getDownloadUrl.mockRejectedValue({ response: { status: 409, data: { msg: '该案例暂无原版标书' } } })
+    const { openBidDocument } = useBidCaseSourceActions()
+    await openBidDocument({ caseId: 88, obsBidFileKey: 'k' })
+    expect(openSpy).not.toHaveBeenCalled()
+    expect(ElMessage.error).toHaveBeenCalledWith('该案例暂无原版标书')
+  })
+
+  it('标书原文（分流优先级）：obsBidFileKey 与 sourceProjectId 同时存在 → 走直链不走 ZIP', async () => {
+    casesApi.getDownloadUrl.mockResolvedValue({ url: 'https://signed', filename: 'a.docx', expireSeconds: 300 })
+    const { openBidDocument } = useBidCaseSourceActions()
+    await openBidDocument({ caseId: 9, sourceProjectId: 77, obsBidFileKey: 'k' })
+    expect(casesApi.getDownloadUrl).toHaveBeenCalledWith(9)
+    expect(projectLifecycleApi.getArchiveFiles).not.toHaveBeenCalled()
   })
 
   it('标书原文：档案无附件（原文未归档）时提示并中止，不调导出接口', async () => {

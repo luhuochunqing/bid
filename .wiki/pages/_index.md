@@ -77,6 +77,7 @@ backlinks:
 - [[configuration-binding-silent-failure]] — 配置绑定静默失配定位（isBound 探针 + 被动识别回归测试，堵 YAML 缩进回归）
 - [[lessons-learned/CO-361-five-rounds-no-fix]] — CO-361 五次修复不彻底的教训（反复追症状不追根因的代价）
 - [[case-precipitation-streaming]] — 案例沉淀超大标书完整链路（spec 049：流式 + 摘录化 + 三个验收坑 / SC-001~005 全过）
+- [[historical-case-obs-download]] — 历史案例原文 OBS 直链下载（spec 058：三分流 + 预签名签发 + 中文键编码分工）
 - [[lessons-learned/case-precipitation-oversize-oom]] — AI 生成案例超大标书 OOM 导致入库 0 条（整文件读堆 + 二次分配 + OBS 假成功上报）
 - [[modules]] — 模块目录
 - [[multi-agent-defense-playbook]] — 多 Agent 并行开发防御工程化手册

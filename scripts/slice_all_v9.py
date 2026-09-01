@@ -197,7 +197,8 @@ def process_project(idx, project_dir, base_path, log):
                     "text_length": len(s.get("full_text", "")),
                     "text": s.get("full_text", ""),
                     "text_preview": s.get("text_preview", "")[:300],
-                    "para_count": s.get("para_count", 0)
+                    "para_count": s.get("para_count", 0),
+                    "obs_bid_file_key": u"2026年（投标文件）/" + project_dir + u"/" + fname
                 }
                 jsonl.write(json.dumps(rec, ensure_ascii=False) + u"\n")
         total_kept += len(kept)

@@ -276,6 +276,13 @@ export const casesApi = {
     return response?.data || response
   },
 
+  // 历史切片案例：签发 OBS 原版标书预签名下载链接（058）
+  async getDownloadUrl(id) {
+    if (!isNumericId(id)) return Promise.resolve(invalidIdMessage('case'))
+    const response = await httpClient.get(`/api/cases/${id}/download-url`)
+    return response?.data || response
+  },
+
   async checkPrecipitationReadiness(projectId) {
     const response = await httpClient.get('/api/cases/precipitation-readiness', {
       params: { projectId }

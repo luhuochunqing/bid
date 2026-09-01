@@ -92,7 +92,8 @@ public class KnowledgeCaseQueryAppService {
                 c.getBidResult(),
                 c.getScoringCategory(),
                 c.getProductLine(),
-                c.getCreatedAt()
+                c.getCreatedAt(),
+                c.getObsBidFileKey()
         );
     }
 
@@ -161,7 +162,8 @@ public class KnowledgeCaseQueryAppService {
                 Boolean.TRUE.equals(c.getIsPinned()),
                 c.getBidResult(),
                 c.getSourceProjectName(),
-                c.getProductLine()
+                c.getProductLine(),
+                c.getObsBidFileKey()
         );
     }
 

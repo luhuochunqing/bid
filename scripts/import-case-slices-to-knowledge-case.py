@@ -136,7 +136,8 @@ def load_jsonl_slices(jsonl_dir):
                 title = (rec.get('title') or '').strip()
                 preview = (rec.get('text_preview') or '').strip()
                 project = (rec.get('project') or '').strip()
-                if not title or not preview or not project:
+                obs_key = (rec.get('obs_bid_file_key') or '').strip()
+                if not title or not preview or not project or not is_valid_obs_bid_key(obs_key):
                     skipped += 1
                     continue
                 slices.append({
@@ -145,6 +146,7 @@ def load_jsonl_slices(jsonl_dir):
                     'title': title[:MAX_TITLE_LEN],
                     'text_preview': preview[:MAX_PREVIEW_LEN],
                     'text': (rec.get('text') or '').strip(),
+                    'obs_bid_file_key': obs_key,
                 })
     print(f'JSONL 解析: {len(slices)} 条切片（跳过 {skipped} 条非法行，{len(files)} 个文件）')
     return slices
@@ -180,7 +182,7 @@ def build_row(sl, project):
     列顺序与 INSERT_SQL 占位符一一对应：
       source_project_id, source_project_name, scoring_point_title,
       requirement_raw, response_text, customer_type, project_type,
-      bid_result, scoring_category
+      bid_result, scoring_category, obs_bid_file_key
     """
     title = sl['title']
     return (
@@ -193,6 +195,7 @@ def build_row(sl, project):
         effective_project_type(project),
         'WON' if project['status'] == 'WON' else None,
         sl['docx_label'] or None,
+        sl.get('obs_bid_file_key') or None,
     )
 
 
@@ -210,9 +213,24 @@ INSERT_SQL = """
         source_project_id, source_project_name, scoring_point_title, scoring_point_id,
         requirement_raw, response_text, reuse_count, is_pinned, status,
         customer_type, project_type, bid_result, scoring_category, product_line,
-        created_at
-    ) VALUES (%s,%s,%s,NULL,%s,%s,0,0,'ACTIVE',%s,%s,%s,%s,NULL,NOW())
+        obs_bid_file_key, created_at
+    ) VALUES (%s,%s,%s,NULL,%s,%s,0,0,'ACTIVE',%s,%s,%s,%s,NULL,%s,NOW())
 """
+
+# OBS 桶内历史投标文件根前缀（与后端 ObsObjectKeyPolicy.HISTORICAL_ROOT_PREFIX 一致）
+OBS_BID_ROOT_PREFIX = u'2026年（投标文件）/'
+
+
+def is_valid_obs_bid_key(key):
+    """纯函数：obs_bid_file_key 合法性（非空、桶内根前缀开头、无路径穿越）。"""
+    if not key or not isinstance(key, str):
+        return False
+    key = key.strip()
+    if not key.startswith(OBS_BID_ROOT_PREFIX):
+        return False
+    if key.startswith('/') or '..' in key:
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -370,9 +388,11 @@ def self_test():
 
     # 5. 分层抽样：覆盖多项目与多类别，且不超 limit；抽样后切片保留 text 全文键
     slices = [
-        {'project': 'A', 'docx_label': '技术', 'title': f'A技{i}', 'text_preview': 'x', 'text': '全文A'} for i in range(5)
+        {'project': 'A', 'docx_label': '技术', 'title': f'A技{i}', 'text_preview': 'x', 'text': '全文A',
+         'obs_bid_file_key': OBS_BID_ROOT_PREFIX + 'A/技术标.docx'} for i in range(5)
     ] + [
-        {'project': 'B', 'docx_label': '商务', 'title': f'B商{i}', 'text_preview': 'x', 'text': '全文B'} for i in range(5)
+        {'project': 'B', 'docx_label': '商务', 'title': f'B商{i}', 'text_preview': 'x', 'text': '全文B',
+         'obs_bid_file_key': OBS_BID_ROOT_PREFIX + 'B/商务标.docx'} for i in range(5)
     ]
     picked = sample_slices(slices, 6)
     assert len(picked) == 6
@@ -383,11 +403,13 @@ def self_test():
     assert sample_slices([], 10) == []
 
     # 6. 行装配：中标项目 → bid_result='WON'；未中标 → NULL
-    sl = {'project': 'A', 'docx_label': '技术', 'title': '售后服务方案', 'text_preview': '承诺7x24'}
+    sl = {'project': 'A', 'docx_label': '技术', 'title': '售后服务方案', 'text_preview': '承诺7x24',
+          'obs_bid_file_key': OBS_BID_ROOT_PREFIX + '2026.01.20--中国建设银行龙集采项目/技术标.docx'}
     row = build_row(sl, p1)
     assert row == (1, '中国建设银行龙集采项目', '售后服务方案',
                    '【历史标书切片】售后服务方案', '承诺7x24',
-                   'CENTRAL_SOE', '综合', 'WON', '技术')
+                   'CENTRAL_SOE', '综合', 'WON', '技术',
+                   OBS_BID_ROOT_PREFIX + '2026.01.20--中国建设银行龙集采项目/技术标.docx')
     row2 = build_row(sl, p2)
     assert row2[7] is None  # LOST → bid_result NULL
 
@@ -400,7 +422,18 @@ def self_test():
     assert build_row(sl, p2)[6] is None
     assert effective_project_type({'industry': None, 'customer_type': 'LOCAL_SOE'}) is None
 
-    print('self-test passed: 8 组断言全部通过')
+    # 9. obs_bid_file_key 校验：每条记录非空且以桶内根前缀开头（--self-test 契约）
+    assert is_valid_obs_bid_key(OBS_BID_ROOT_PREFIX + '某项目/技术标.docx')
+    assert not is_valid_obs_bid_key('')
+    assert not is_valid_obs_bid_key(None)
+    assert not is_valid_obs_bid_key('其他桶前缀/文件.docx')
+    assert not is_valid_obs_bid_key('/' + OBS_BID_ROOT_PREFIX + 'x.docx')
+    assert not is_valid_obs_bid_key(OBS_BID_ROOT_PREFIX + '../etc/passwd')
+    assert all(is_valid_obs_bid_key(s['obs_bid_file_key']) for s in slices)
+    assert row[9] == sl['obs_bid_file_key']  # 行装配透出 obs key
+    assert build_row({**sl, 'obs_bid_file_key': None}, p1)[9] is None  # 缺失时 NULL
+
+    print('self-test passed: 9 组断言全部通过')
 
 
 def main():

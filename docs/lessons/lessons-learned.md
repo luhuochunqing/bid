@@ -3499,3 +3499,18 @@ PR !2481（Project 21 MRO 评分解析修复）功能正确、205 项测试全�
 | 金标测试 fixture 缺失静默 pass | 复制旧测试模板，静默 return 反模式代际传染 | 金标夹具用 classpath 加载 + 存在性硬断言；测试加固时先全仓搜同类反模式 |
 | 过滤词表一处编译多处引用 | 词表集中管理被误当成"一处修改全局生效"的优点，忽视各消费方语义不同 | 词表消费方必须有逃生门（强评分列名白名单）；每扩一词枚举全部消费方逐一评估非目标场景 |
 | 文本枚举拆分假设可加性 | MRO 样例是加法型便按加法实现 | 拆分前做数值一致性校验（子项和==父值）；"取最高/封顶"型必须在测试中显式反例锚定 |
+
+## 192. 历史案例 OBS 原文直链下载：中文对象键签发、CNAME 下载链路与六边形合规整改（2026-09-01）
+
+**现象**：
+案例库历史切片案例点击"标书原文"此前只能拿到 ZIP 或无响应；本次打通 OBS 预签名直链下载原版 docx（端点 `GET /api/cases/{caseId}/download-url`，spec 058），测试环境 300/300 条签发抽测全通。
+
+**关键事实与经验**：
+1. **中文对象键的签发编码分工**：桶内对象键在库中（`knowledge_case.obs_bid_file_key`）一律存**明文中文键**，percent-encode 只发生在签发环节（V2 签名 CanonicalizedResource 编码）；纯核心 `ObsObjectKeyPolicy.filenameOf` 因此**不做** URL 解码。若入库侧存编码值、签发侧再编码会双重编码导致 403；
+2. **CNAME 下载链路对中文键可用**：`HuaweiObsDownloadUrlGateway` 双客户端中，CNAME 自定义域名（`widbid-obs.ehsy.com`）下载客户端实测可签发并下载 99.6MB 中文键 docx（zipfile 完整性校验通过），无需降级标准域名；
+3. **签发安全面收敛**：签发端点只接受库内案例 id，对象键只信导入管道写入的库内值（入库侧 `is_valid_obs_bid_key`：非空/根前缀 `2026年（投标文件）/`/无 `..`/非绝对路径），杜绝前端传路径导致的任意对象签发；
+4. **新服务必须走端口/适配器**：`CaseDownloadUrlAppService` 首版直接依赖 `KnowledgeCaseRepository` 被 `BidCaseSliceArchitectureTest` 拦截；正解是新增端口 `CaseObsBidFileReader`（domain/gateway）+ 适配器，而非加 `APPLICATION_INFRASTRUCTURE_EXEMPTIONS` 豁免；
+5. **FP-Java 纯核心的隐蔽违规**：端口接口内嵌的 record 被判定依赖 `.gateway.` 包，模型必须提为 `domain/model` 顶层类型；`filenameOf` 抛异常违反"失败返 Optional"规则；
+6. **Flyway 迁移必配回滚脚本**：每个 `V*.sql` 必须有 `db/rollback/migration-mysql/U*.sql`（四行头注释含 `-- Input:` 指回源迁移），否则 `FlywayRollbackScriptCoverageTest` 红。
+
+**验证证据**：端点 200/404/409/403 抽测全通；定向 28 用例绿；部署 598f7608c（V1205 生效，health UP）；临时验证账号与服务器临时文件已清理。
