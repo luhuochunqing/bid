@@ -1,3 +1,7 @@
+// Input: 评分项/项目推荐请求（projectId + 评分项标题/关键词）
+// Output: 按匹配度降序的案例评分列表（候选池仅按案例自身字段过滤）
+// Pos: casework/application/service/
+// 维护声明: 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.casework.application.service;
 
 import com.xiyu.bid.casework.domain.model.KnowledgeCaseMatchCriteria;
@@ -79,11 +83,12 @@ public class KnowledgeCaseRecommendAppService {
         }
 
         Project project = projectOpt.get();
+        // projects 表无项目类型字段，projectType 恒为 null，避免跨枚举误匹配
         KnowledgeCaseMatchCriteria criteria = new KnowledgeCaseMatchCriteria(
                 projectId,
                 null,
                 null,
-                project.getCustomerType(),
+                null,
                 project.getCustomerType(),
                 project.getIndustry(),
                 project.getRegion(),
@@ -115,7 +120,8 @@ public class KnowledgeCaseRecommendAppService {
 
         if (projectOpt.isPresent()) {
             Project p = projectOpt.get();
-            projectType = p.getCustomerType();
+            // 项目类型与客户类型是两套枚举，项目侧无项目类型真值，不得用客户类型顶替
+            projectType = null;
             customerType = p.getCustomerType();
             industry = p.getIndustry();
             region = p.getRegion();
@@ -143,10 +149,10 @@ public class KnowledgeCaseRecommendAppService {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("status"), "ACTIVE"));
 
+            // 仅按案例自身字段过滤；项目侧无项目类型真值，
+            // 曾用客户类型值过滤 project_type 导致候选池恒空（跨枚举错配）
             if (criteria.scoringCategory() != null) {
                 predicates.add(cb.equal(root.get("scoringCategory"), criteria.scoringCategory()));
-            } else if (criteria.projectType() != null) {
-                predicates.add(cb.equal(root.get("projectType"), criteria.projectType()));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));

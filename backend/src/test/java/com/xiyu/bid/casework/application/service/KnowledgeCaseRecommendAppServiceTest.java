@@ -9,7 +9,6 @@ import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.projectworkflow.entity.ProjectScoreDraft;
 import com.xiyu.bid.projectworkflow.repository.ProjectScoreDraftRepository;
 import com.xiyu.bid.repository.ProjectRepository;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -93,5 +92,37 @@ class KnowledgeCaseRecommendAppServiceTest {
         assertThat(top.projectType()).isEqualTo("IT");
         assertThat(top.bidResult()).isEqualTo("WON");
         assertThat(top.reuseCount()).isEqualTo(5);
+    }
+
+    @Test
+    void recommendForProject_ShouldNotFilterCandidatesByMismatchedProjectType() {
+        Project project = new Project();
+        project.setId(100L);
+        project.setCustomerType("PRIVATE");
+        project.setIndustry("IT");
+
+        when(projectRepository.findById(100L)).thenReturn(Optional.of(project));
+
+        org.mockito.ArgumentCaptor<Specification<KnowledgeCase>> specCaptor =
+                org.mockito.ArgumentCaptor.forClass(Specification.class);
+        when(knowledgeCaseRepository.findAll(specCaptor.capture(), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of()));
+
+        service.recommendForProject(100L, null);
+
+        jakarta.persistence.criteria.CriteriaBuilder cb = org.mockito.Mockito.mock(jakarta.persistence.criteria.CriteriaBuilder.class);
+        jakarta.persistence.criteria.CriteriaQuery<?> query = org.mockito.Mockito.mock(jakarta.persistence.criteria.CriteriaQuery.class);
+        jakarta.persistence.criteria.Root<KnowledgeCase> root = org.mockito.Mockito.mock(jakarta.persistence.criteria.Root.class);
+        jakarta.persistence.criteria.Path<Object> path = org.mockito.Mockito.mock(jakarta.persistence.criteria.Path.class);
+        when(root.get(org.mockito.ArgumentMatchers.<String>any())).thenReturn(path);
+        when(cb.equal(any(jakarta.persistence.criteria.Expression.class), org.mockito.ArgumentMatchers.<Object>any()))
+                .thenReturn(org.mockito.Mockito.mock(jakarta.persistence.criteria.Predicate.class));
+
+        specCaptor.getValue().toPredicate(root, query, cb);
+
+        // 回归断言：候选池过滤只允许案例自身字段（status / scoringCategory），
+        // 绝不允许用客户类型值去匹配 project_type（两套不同枚举，恒空）
+        org.mockito.Mockito.verify(root, org.mockito.Mockito.never()).get("projectType");
+        org.mockito.Mockito.verify(root).get("status");
     }
 }
