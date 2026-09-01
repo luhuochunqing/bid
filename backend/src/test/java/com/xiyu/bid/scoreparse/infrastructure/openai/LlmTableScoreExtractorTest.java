@@ -1,5 +1,5 @@
 // Input: LlmTableScoreExtractor 测试
-// Output: 提取逻辑、分类过滤与对齐断言
+// Output: 提取逻辑、章节定位、分类过滤与对齐断言
 // Pos: scoreparse/infrastructure/openai
 package com.xiyu.bid.scoreparse.infrastructure.openai;
 
@@ -22,6 +22,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -167,11 +169,13 @@ class LlmTableScoreExtractorTest {
     }
 
     @Test
-    void extractFromDocument_skipsNonScoreTables() {
+    void extractFromDocument_skipsNonScoreTablesAndProcedureTables() {
         String doc = """
-                | 联系人 | 电话 |
-                | 张三 | 13800000000 |
+                # 第二章 投标人须知前附表
+                | 条款号 | 条款名称 | 编列内容 |
+                | 3.1 | 评标方法 | 综合评估法，价格30分，技术70分 |
 
+                # 第三章 评标办法
                 | 序号 | 评分因素 | 评分标准 | 分值 |
                 | 1 | 业绩 | 类似业绩得10分 | 10 |
                 """;
@@ -192,5 +196,7 @@ class LlmTableScoreExtractorTest {
         List<ScoreCandidate> candidates = extractor.extractFromDocument(doc);
         assertThat(candidates).hasSize(1);
         assertThat(candidates.get(0).dim()).isEqualTo("业绩");
+        // 验证只请求了评分章节内的评分表（1 次调用），前附表被前置守卫拦截
+        verify(structuredOutputService, times(1)).request(anyString(), eq(TableScoreExtractionOutput.class), any(), anyString());
     }
 }
