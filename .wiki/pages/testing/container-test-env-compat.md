@@ -13,7 +13,7 @@ backlinks:
   - testing/_index
 created: 2026-08-15
 updated: 2026-08-15
-health_checked: 2026-08-24
+health_checked: 2026-09-01
 ---
 # 容器测试环境兼容（Testcontainers / Docker Desktop / MySQL sql_mode）
 

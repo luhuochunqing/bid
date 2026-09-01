@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
-updated: 2026-08-31
-health_checked: 2026-08-24
+updated: 2026-09-01
+health_checked: 2026-09-01
 sources:
   - specs/041-ai-score-parse-backend/spec.md
   - specs/041-ai-score-parse-backend/plan.md
@@ -214,3 +214,13 @@ trigger（同步<1s，互斥校验+建任务）
 
 - **合同履约考核表拦截**：文末合同附件常见《供应商季度/年度合同履约考核表》（考核项目、考核内容、分值，如周期保证 25 分、质量保证 25 分等，总分 95 分），属于合同履约期管理指标而非评标打分项。在 `ScoreParseConstants` 统一定义 `NON_SCORE_PROCEDURE_PATTERN` 与 `CONTRACT_ASSESSMENT_PATTERN`，并在 `GhostCandidateFilter`、`ScoreTableRowParser`、`CellAnchoredScoreExtractor`、`ScoreTableBlockLocator`、`HeuristicTableColumnMapper` 五层全面拦截，防止非评分项进入候选池破坏 100 分闭环。
 - **外部交易系统评分声明识别与精准诊断**：部分标书（如中国一汽 MRO 标书）正文声明“评分标准详见 ZBJ 格式采购文件或电子交易平台‘评审项目’页签”，正文无评分细则。`MarkdownScoreSectionLocator` 识别该外部声明并在正文处截断扫描；当有效候选数为 0 时，`ScoreCandidatePostProcessor` 精准输出诊断错误文案，防止因归一化强行缩放伪造满分。
+
+## 评分项编号排序策略层级隔离（2026-09-01）
+
+- **多大类局部编号防杂糅**：在复杂标书中，不同大类（商务评分、报价评分、技术评分）及各父维度（财务状况、服务网点）下均存在各自局部的子项编号 "1"、"2"。`ScoreItemOrderPolicy` 遵循四层排序纪律：
+  1. 顶级大类（商务评分 -> 技术评分 -> 报价评分）首次出现顺序（自然出现序）；
+  2. 所属父维度（财务状况 -> 服务网点）首次出现顺序；
+  3. 同父维度内部按局部编号（1, 2, 3...）数值序重排；
+  4. 同组内无编号或无法解析项排在该组有编号项之后，并严格保持原始相对输入序。
+- 彻底杜绝脱离层级上下文的跨大类全局扁平拍平排序。
+
