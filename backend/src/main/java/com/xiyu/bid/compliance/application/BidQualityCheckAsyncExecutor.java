@@ -41,14 +41,9 @@ public class BidQualityCheckAsyncExecutor {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     /**
-     * LLM 裁决单项 max_tokens.
-     *
-     * <p>裁决正文实际仅约 200 token，但 thinking 系模型（如 gemini-3.5-flash，经
-     * OpenAI 兼容网关）的内部推理 token 同样计入 max_tokens 预算：1024 会被
-     * thinking 消耗殆尽，正文在约 60 token 处被切断，JSON 不配平 → 全部语义项
-     * LOW_CONFIDENCE（测试环境 2026-09-01 现场：7/7 语义项截断于 44-68 字符；
-     * 对照组 TenderRequirementsExtractor 用 4096 正常）。4096 为 thinking 预留
-     * 足量空间，输出超长风险由 JSON 提取器容错.
+     * LLM 裁决单项 max_tokens（正文约 200 token，余量给 thinking——thinking 系
+     * 模型的内部推理 token 同样计入 max_tokens，给小了正文会被截断致 JSON 不配平，
+     * 1024 时曾致 7/7 语义项转人工，见 lessons #201）.
      */
     private static final int LLM_ADJUDICATION_MAX_TOKENS = 4096;
 
