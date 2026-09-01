@@ -148,4 +148,19 @@ class DeterministicCheckPolicyTest {
         assertThat(result.evidences()).isNotEmpty();
         assertThat(result.evidences().get(0).quote()).contains("投标报价表");
     }
+
+    @Test
+    @DisplayName("报价一致性：大写与小写分处两页时经全文回退仍能比对（跨页报价对）")
+    void priceConsistency_crossPagePair_fallsBackToFullText() {
+        // 页 1 只有投标函大写总价；页 2 只有报价表小写金额——逐页匹配必然失败
+        String page1 = "投标函\n投标总价 大写：人民币壹佰万元整\n特此承诺。";
+        String page2 = "开标一览表\n报价总额：¥1000000.00\n小写：1000000.00";
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash", page1 + "\f" + page2);
+
+        QualityCheckItemResult result = DeterministicCheckPolicy.checkPriceConsistency(doc);
+
+        assertThat(result.status())
+                .as("跨页大小写对照应经全文回退命中并判定一致")
+                .isEqualTo(QualityCheckStatus.PASS);
+    }
 }

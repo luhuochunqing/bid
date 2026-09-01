@@ -96,21 +96,35 @@ public final class BasicInfoCheckPolicy {
                 ParsedPrice price = parsePricePair(text);
                 if (price != null) {
                     List<QualityEvidence> evidences = List.of(QualityEvidence.bid("报价所在页", page.pageNumber(), snippetAround(text, 250, "投标总价", "投标报价", "大写：", "小写：")));
-                    if (price.isConsistent()) {
-                        return QualityCheckItemResult.pass(item, "报价大写与小写金额完全一致 (大写: " + price.chineseText() + ", 小写: ¥" + price.numericAmount() + ")", evidences);
-                    }
-                    return QualityCheckItemResult.fail(item, "报价大写金额与小写金额不一致！大写折算: ¥" + price.convertedFromChinese() + "，小写填写: ¥" + price.numericAmount(), "请立刻核对并修正投标函或开标一览表中的大小写总价", evidences);
+                    return toPriceResult(item, price, evidences);
                 }
             }
         }
+        // 跨页回退：物理页/虚拟块切开后，大写与小写金额可能分处两页（如投标函与报价表），
+        // 逐页未命中时用全文（保留合并后 markdown，与分页前行为等价）做跨行比对
+        String fullText = bidDoc.fullText();
+        ParsedPrice fullPrice = parsePricePairCrossLine(fullText);
+        if (fullPrice != null) {
+            List<QualityEvidence> evidences = List.of(QualityEvidence.bid("报价所在页", null, snippetAround(fullText, 250, "大写：", "小写：", "投标总价", "投标报价")));
+            return toPriceResult(item, fullPrice, evidences);
+        }
         return QualityCheckItemResult.manualReview(item, "未能在同一段落中识别到结构化的大小写总价对照关系", "建议人工复核投标总报价大写与小写数字", Collections.emptyList());
+    }
+
+    /** 报价对一致性裁决：一致 PASS、不一致 FAIL（避免逐页/全文两条路径重复分支）. */
+    private static QualityCheckItemResult toPriceResult(
+            final BidQualityCheckItem item, final ParsedPrice price, final List<QualityEvidence> evidences) {
+        if (price.isConsistent()) {
+            return QualityCheckItemResult.pass(item, "报价大写与小写金额完全一致 (大写: " + price.chineseText() + ", 小写: ¥" + price.numericAmount() + ")", evidences);
+        }
+        return QualityCheckItemResult.fail(item, "报价大写金额与小写金额不一致！大写折算: ¥" + price.convertedFromChinese() + "，小写填写: ¥" + price.numericAmount(), "请立刻核对并修正投标函或开标一览表中的大小写总价", evidences);
     }
 
     public static QualityCheckItemResult checkCurrencyUnit(final DocumentContent bidDoc) {
         BidQualityCheckItem item = BidQualityCheckItem.CURRENCY_UNIT;
         PageMatch match = findFirstPageContaining(bidDoc, "人民币", "RMB", "￥", "元", "万元");
         if (match != null) {
-            return QualityCheckItemResult.pass(item, "计价货币单位规范，符合人民币法定计价标准", List.of(QualityEvidence.bid("报价计价单位", match.pageNumber(), snippetAround(match.text(), 150, "人民币", "RMB", "￥"))));
+            return QualityCheckItemResult.pass(item, "计价货币单位规范，符合人民币法定计价标准", List.of(QualityEvidence.bid("报价计价单位", match.pageNumber(), snippetAround(match.text(), 150, "人民币", "RMB", "￥", "元", "万元"))));
         }
         return QualityCheckItemResult.manualReview(item, "未识别到明确的计价货币单位", "请确认报价表中明确标明货币单位（如：人民币/元）", Collections.emptyList());
     }
@@ -128,7 +142,7 @@ public final class BasicInfoCheckPolicy {
         BidQualityCheckItem item = BidQualityCheckItem.SIGNATURE_SEAL;
         PageMatch match = findFirstPageContaining(bidDoc, "（盖章）", "(盖章)", "盖单位公章", "法定代表人（签字）", "签字或盖章");
         if (match != null) {
-            return QualityCheckItemResult.pass(item, "已检测到签章与落款占位，符合签署规范", List.of(QualityEvidence.bid("签章落款页", match.pageNumber(), snippetAround(match.text(), 200, "（盖章）", "(盖章)", "盖单位公章", "签字或盖章"))));
+            return QualityCheckItemResult.pass(item, "已检测到签章与落款占位，符合签署规范", List.of(QualityEvidence.bid("签章落款页", match.pageNumber(), snippetAround(match.text(), 200, "（盖章）", "(盖章)", "盖单位公章", "法定代表人（签字）", "签字或盖章"))));
         }
         return QualityCheckItemResult.manualReview(item, "未识别到标准签章文本占位或印章标记", "请确保投标函、授权委托书及承诺书均已加盖公章与法定代表人签字", Collections.emptyList());
     }
@@ -204,6 +218,32 @@ public final class BasicInfoCheckPolicy {
 
     static ParsedPrice parsePricePair(final String text) {
         Pattern p = Pattern.compile("(?:大写[：:]\\s*(?:人民币)?([零壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分整正\\s]+)).*?(?:小写[：:]\\s*[¥￥]?([0-9,]+(?:\\.[0-9]{1,2})?))");
+        Matcher m = p.matcher(text);
+        if (m.find()) {
+            String cn = m.group(1).replaceAll("[\\s整正]", "").trim();
+            String numStr = m.group(2).replace(",", "").trim();
+            if (numStr.matches("^[0-9]+(\\.[0-9]{1,2})?$")) {
+                BigDecimal num = new BigDecimal(numStr);
+                BigDecimal converted = ChineseAmountConverter.convertChineseToNumber(cn);
+                return new ParsedPrice(cn, num, converted);
+            }
+        }
+        return null;
+    }
+
+    /** 跨行大写与小写之间最大距离（字符）：限制无界跨行匹配的误配面. */
+    private static final int CROSS_LINE_PAIR_WINDOW = 300;
+
+    /**
+     * 跨行价格对匹配（仅全文回退使用）：{@code .} 默认不跨行，物理页/虚拟块切开后
+     * 大写与小写之间必然隔着换行，逐页与单行正则都无法命中；此版本启用 DOTALL
+     * 并以 {@link #CROSS_LINE_PAIR_WINDOW} 距离窗口约束，控制远距误配.
+     */
+    static ParsedPrice parsePricePairCrossLine(final String text) {
+        Pattern p = Pattern.compile(
+                "(?:大写[：:]\\s*(?:人民币)?([零壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分整正\\s]+))"
+                        + ".{0," + CROSS_LINE_PAIR_WINDOW + "}?(?:小写[：:]\\s*[¥￥]?([0-9,]+(?:\\.[0-9]{1,2})?))",
+                Pattern.DOTALL);
         Matcher m = p.matcher(text);
         if (m.find()) {
             String cn = m.group(1).replaceAll("[\\s整正]", "").trim();

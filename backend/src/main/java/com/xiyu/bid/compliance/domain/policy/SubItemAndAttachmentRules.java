@@ -49,7 +49,8 @@ public final class SubItemAndAttachmentRules {
         for (DocumentContent.PageContent page : bidDoc.pages()) {
             Matcher m = SENSITIVE_VETO_PATTERN.matcher(page.text());
             while (m.find()) {
-                hits.add(QualityEvidence.bid("废标敏感词命中", page.pageNumber(), "命中词: [" + m.group() + "]，上下文: " + BasicInfoCheckPolicy.snippet(page.text(), 150)));
+                hits.add(QualityEvidence.bid("废标敏感词命中", page.pageNumber(),
+                        "命中词: [" + m.group() + "]，上下文: " + BasicInfoCheckPolicy.snippetAround(page.text(), 150, m.group())));
             }
         }
         if (hits.isEmpty()) {

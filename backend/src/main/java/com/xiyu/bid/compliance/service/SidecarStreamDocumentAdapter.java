@@ -202,7 +202,7 @@ public class SidecarStreamDocumentAdapter {
                 if (pageText.isBlank()) {
                     continue;
                 }
-                int pageNumber = pageNode.path("pageNumber").asInt(pages.size() + 1);
+                int pageNumber = Math.max(1, pageNode.path("pageNumber").asInt(pages.size() + 1));
                 pages.add(new DocumentContent.PageContent(pageNumber, pageText, Collections.emptyList()));
             }
             if (!pages.isEmpty()) {

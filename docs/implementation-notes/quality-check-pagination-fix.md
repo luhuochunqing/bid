@@ -38,12 +38,30 @@
 
 ## 变更清单
 
-- Java：`SemanticPageRetriever`（硬截断）、`DocumentContent`（paginate 纯函数）、
+- Java：`SemanticPageRetriever`（硬截断）、`DocumentContent`（virtualPages 纯函数）、
   `SidecarStreamDocumentAdapter`（消费 pages + 兜底虚拟分页）、
   `BasicInfoCheckPolicy` / `SubItemAndAttachmentRules`（snippetAround + 词表）
-- Sidecar：`converter.py`（convert_pdf_to_pages）、`app.py`（响应加 pages 字段，
-  /convert 与 /convert-stream 两处）
-- 测试：Java 5 处新增 Nested/类；sidecar pytest mock 层断言 pages 字段
+- Sidecar：`converter.py`（convert_pdf_document：一次解析同时产出合并 markdown 与逐页 pages）、
+  `app.py`（worker 统一携带 pages；/convert 响应新增 pages 字段——**仅 /convert**，
+  /convert-stream 是纯文本流契约（spec 045）未动）
+- 测试：Java 5 处新增 Nested/类；sidecar pytest 新增 pages 透传断言 +
+  **真 PDF fixture golden 测试**（scoreparse markdown 字节级兼容锚定）
+
+## 独立评审（S6）后的补充决定
+
+1. **PRICE_CONSISTENCY 跨页回退**：分页恢复后，大写/小写金额可能分处两页
+   （物理页或虚拟块），逐页匹配会从（可能正确的）PASS 退化为转人工。
+   已增加全文回退：逐页未命中时用 `fullText()`（保留合并后 markdown，
+   与分页前行为等价）再比对一次；全文命中时证据 pageNumber=null（前端
+   `Number.isInteger` 过滤已有兜底，渲染"未定位"）。
+2. **废标敏感词证据**：`checkVetoKeyword` 上下文同步改用 `snippetAround`，
+   以命中词位置取窗。
+3. **词表对齐**：`snippetAround` 词表与 `findFirstPageContaining` 对齐
+   （货币项补"元/万元"，签章项补"法定代表人（签字）"）。
+4. **pageNumber 防御**：Sidecar pages 中显式非法页号（≤0）钳制为 1。
+5. **已知限制（记录不改码）**：BID_OPENING_TABLE 词表扩充后，`findFirstPageContaining`
+   取首个命中页，"投标报价表"可能命中目录条目而非实体报价表——结论方向正确
+   （PASS），仅证据精度受限；后续可考虑跳过目录块，不在本次范围。
 
 ## 风险与回滚
 
