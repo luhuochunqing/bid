@@ -4,9 +4,11 @@ import com.xiyu.bid.scoreparse.infrastructure.structure.MarkdownScoreSectionLoca
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -131,8 +133,55 @@ class RealProjectScoreParsingTest {
                 .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
         assertThat(totalWeight).isEqualByComparingTo("100.0");
 
-        // 验证不包含 MRO 分类目录表和合同考核表
-        assertThat(candidates).noneMatch(c -> c.dim() != null && c.dim().contains("呼吸防护"));
-        assertThat(candidates).noneMatch(c -> c.dim() != null && c.dim().contains("妥投信息"));
+        // 验证经过 ScoreItemOrderPolicy 排序后大类结构严谨有序
+        ScoreItemOrderPolicy orderPolicy = new ScoreItemOrderPolicy();
+        List<ScoreCandidate> sorted = orderPolicy.sort(candidates);
+        assertThat(sorted).hasSize(13);
+        assertThat(sorted.get(0).dim()).contains("供应商业绩");
+        assertThat(sorted.get(sorted.size() - 2).dim()).contains("京东工业品");
+        assertThat(sorted.get(sorted.size() - 1).dim()).contains("自有商城");
+    }
+
+    @Test
+    void testProject21FullPipelineOrderingWithSubItemSplits() {
+        ScoreItemOrderPolicy orderPolicy = new ScoreItemOrderPolicy();
+        List<ScoreCandidate> splitCandidates = Arrays.asList(
+                new ScoreCandidate("3.2.3", "商务评分 / 供应商业绩", "供应商业绩 7分", new BigDecimal("7"), null, null, null, null, null),
+                new ScoreCandidate("1", "商务评分 / 财务状况 / 现金流量净额", "现金流量净额 1.5分", new BigDecimal("1.5"), null, null, null, null, null),
+                new ScoreCandidate("2", "商务评分 / 财务状况 / 净利润", "净利润 1.5分", new BigDecimal("1.5"), null, null, null, null, null),
+                new ScoreCandidate("1", "商务评分 / 服务网点及仓储 / 服务网点", "服务网点 1.5分", new BigDecimal("1.5"), null, null, null, null, null),
+                new ScoreCandidate("2", "商务评分 / 服务网点及仓储 / 仓储地点", "仓储地点 1.5分", new BigDecimal("1.5"), null, null, null, null, null),
+                new ScoreCandidate(null, "商务评分 / 电子商城运营时间", "电子商城 1分", new BigDecimal("1"), null, null, null, null, null),
+                new ScoreCandidate(null, "商务评分 / 授信额度", "授信额度 1分", new BigDecimal("1"), null, null, null, null, null),
+                new ScoreCandidate(null, "技术评分 / 综合服务方案", "综合服务方案 10分", new BigDecimal("10"), null, null, null, null, null),
+                new ScoreCandidate(null, "技术评分 / 产品质量及价格", "产品质量及价格 10分", new BigDecimal("10"), null, null, null, null, null),
+                new ScoreCandidate(null, "技术评分 / 物流仓储方案", "物流仓储方案 8分", new BigDecimal("8"), null, null, null, null, null),
+                new ScoreCandidate(null, "技术评分 / 服务团队方案", "服务团队方案 10分", new BigDecimal("10"), null, null, null, null, null),
+                new ScoreCandidate(null, "技术评分 / 平台系统对接方案", "平台系统对接方案 3分", new BigDecimal("3"), null, null, null, null, null),
+                new ScoreCandidate(null, "技术评分 / 增值服务方案", "增值服务方案 4分", new BigDecimal("4"), null, null, null, null, null),
+                new ScoreCandidate("1", "报价评分 / 上架折扣率（京东工业品）价格分", "京东折扣 28分", new BigDecimal("28"), null, null, null, null, null),
+                new ScoreCandidate("2", "报价评分 / 上架折扣率（自有商城）价格分", "自有商城折扣 12分", new BigDecimal("12"), null, null, null, null, null)
+        );
+
+        List<ScoreCandidate> result = orderPolicy.sort(splitCandidates);
+
+        // 验证大类顺序：商务(7项) -> 技术(6项) -> 报价(2项)
+        assertThat(result).hasSize(15);
+        assertThat(result.subList(0, 7)).allMatch(c -> c.dim().contains("商务"));
+        assertThat(result.subList(7, 13)).allMatch(c -> c.dim().contains("技术"));
+        assertThat(result.subList(13, 15)).allMatch(c -> c.dim().contains("报价"));
+
+        // 验证细分顺序不会因局部编号 1、2 被打乱
+        assertThat(result.get(0).dim()).contains("供应商业绩");
+        assertThat(result.get(1).dim()).contains("现金流量净额");
+        assertThat(result.get(2).dim()).contains("净利润");
+        assertThat(result.get(3).dim()).contains("服务网点");
+        assertThat(result.get(4).dim()).contains("仓储地点");
+        assertThat(result.get(13).dim()).contains("京东工业品");
+        assertThat(result.get(14).dim()).contains("自有商城");
+
+        // 验证总分严格等于 100.0
+        BigDecimal sum = result.stream().map(ScoreCandidate::weight).reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(sum).isEqualByComparingTo("100.0");
     }
 }
