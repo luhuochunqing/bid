@@ -25,7 +25,7 @@ import org.mockito.MockedStatic;
 @DisplayName("TenderEventSdkProducer - 经 TenderEventSdkSender（SDK sendEvent 通道）推送")
 class TenderEventSdkProducerTest {
 
-    private static final String PUBLISH_URL = "http://event-bus.local/eventbus/publishEvent";
+    private static final String PUBLISH_URL = "http://127.0.0.1:8080/eventbus/publishEvent";
 
     private MockedStatic<HttpClientUtil> httpClient;
     private TenderEventSdkProducer producer;
@@ -33,7 +33,7 @@ class TenderEventSdkProducerTest {
     @BeforeEach
     void setUp() throws Exception {
         httpClient = mockStatic(HttpClientUtil.class);
-        producer = new TenderEventSdkProducer(new TenderEventSdkSender(newSdkService("http://event-bus.local"), "bid"));
+        producer = new TenderEventSdkProducer(new TenderEventSdkSender(newSdkService("http://127.0.0.1:8080"), "bid"));
     }
 
     private static SystemInteractiveService newSdkService(String serverRegisterUrl) throws Exception {

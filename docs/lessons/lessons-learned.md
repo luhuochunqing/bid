@@ -3733,3 +3733,24 @@ M1 部门筛选树锚定西域集团(0001)子树三级展示（PR !2474）后，
 |---|---|---|
 | 标题只对标题比较，忽略大类分类下的正文包含 | 案例库沉淀时常用大类命名（如"技术方案"），而评分项是具体小项（"商城对接"） | 智能匹配必须具备跨层穿透能力：评分项名称命中案例正文/原始需求同样算作高置信度匹配 |
 | 标书解析出的评分项包含序号前缀未清洗 | 招标书天然带有 `2.2.4(3)` 等章节编号 | 文本匹配/检索前必须统一过清洗管道剥离序号 |
+
+## 203. 标讯事件总线注册无退避重试与未关闭线程导致测试挂起（2026-09-01）
+
+**背景**：执行全量单元与集成测试（`mvn -q test`）时，`TenderEventSdkConfigTest` 测试启动了标讯事件总线客户端服务注册逻辑，配置了假域名 `http://event-bus.local`，导致测试过程长时间无法退出，拿不到退出码。
+
+**根因分析**：
+1. **测试用例配置未解析的外部域名**：`TenderEventSdkConfigTest` 在装配测试中硬编码了 `http://event-bus.local`；
+2. **SDK 内置无休眠死循环**：`ClientRegisterComponent.register()` 底层使用 `while (isRun && enableRegister)` 循环发起 HTTP 请求。DNS 解析失败时捕获异常返回 `null`，因返回非成功码，循环立即无休眠重试，持续发起 DNS 阻塞请求；
+3. **缺少生命周期优雅关闭**：`TenderEventRegistrar` 在虚拟线程中运行该死循环，但未实现 `AutoCloseable`，在 Spring Context 销毁后未能将 `ClientRegisterComponent.isRun` 设为 `false` 并中断线程，导致后台线程常驻 JVM 造成 Maven Surefire 无法回收退出。
+
+**解决方案**：
+1. `TenderEventRegistrar` 实现 `AutoCloseable` 并在 `close()` 中反射重置 `isRun = false` 且中断后台线程；
+2. `TenderEventSdkConfig` 声明 `destroyMethod = "close"` 绑定容器生命周期；
+3. `TenderEventSdkConfigTest` 使用 `MockWebServer` 提供本地快速响应，隔离真实网络。
+
+**教训**：
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| 集成/装配测试使用未配置的 `.local` 假域名 | 误以为只要不是生产地址就安全，忽略了 DNS 解析失败与网络调用的阻塞耗时 | 涉及 HTTP 调用的测试一律使用 `MockWebServer` 监听 `127.0.0.1:port`，杜绝使用虚假域名 |
+| 第三方 SDK 注册重试线程不受容器生命周期管控 | 仅关注启动阶段调用，忽略了 Spring 容器销毁时的清理与线程回收 | 任何启动常驻/重试后台线程的组件必须实现 `AutoCloseable`，并在销毁时显式终止内部循环 |
+
