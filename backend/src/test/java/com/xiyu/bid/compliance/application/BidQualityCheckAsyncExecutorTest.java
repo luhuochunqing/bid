@@ -1,9 +1,13 @@
 // Input: Mock 各依赖服务（AiProvider, Loaders, ProgressUpdater, Repository）
-// Output: 验证异步任务全流程、缓存命中复用、以及 buildLlmPort 结构化调用与精确重试契约
+// Output: 验证异步任务全流程、缓存命中复用、buildLlmPort 结构化调用与精确重试契约、解析失败聚告警
 // Pos: compliance/application/ - 异步执行器单元测试（包含 5 组 buildLlmPort 契约测试）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.application;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.xiyu.bid.ai.client.AiProvider;
 import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.policy.KnowledgeQueryOutcome;
@@ -22,8 +26,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -152,6 +159,86 @@ class BidQualityCheckAsyncExecutorTest {
         verify(progressUpdater).updateProgress(eq(resultId), eq(ComplianceCheckResult.TaskStatus.PARSING), eq(20), anyString());
         verify(progressUpdater).updateProgress(eq(resultId), eq(ComplianceCheckResult.TaskStatus.CHECKING), eq(60), anyString());
         verify(progressUpdater).completeTask(eq(resultId), any(), anyInt(), anyString(), anyInt(), anyInt(), anyInt(), anyInt());
+    }
+
+    @Test
+    @DisplayName("聚告警：语义项解析失败达到阈值时输出 ERROR 聚告警（判定配置性问题，lessons #201）")
+    void testExecuteAsync_ParseFailuresAtThreshold_EmitsAggregateAlert() {
+        Long resultId = 1L;
+        Long projectId = 100L;
+        String taskId = "task-alert";
+
+        DocumentContent bidDoc = DocumentContent.fromText("bid.pdf", "hash_alert", "正文包含西域资质");
+        DocumentContent tenderDoc = DocumentContent.fromText("tender.pdf", "hash_tender_alert", "招标要求");
+
+        when(targetLoader.loadBidDocument(projectId)).thenReturn(bidDoc);
+        when(tenderDocumentLoader.loadTenderDocument(projectId)).thenReturn(tenderDoc);
+        when(resultRepository.findTopByBidFileHashAndTenderFileHashAndStatusOrderByCheckedAtDesc(
+                eq("hash_alert"), eq("hash_tender_alert"), eq(ComplianceCheckResult.TaskStatus.COMPLETED)))
+                .thenReturn(Optional.empty());
+        when(requirementsExtractor.extract(tenderDoc)).thenReturn(TenderRequirements.empty());
+        when(kbLoader.queryKnowledgeBases(any())).thenReturn(KnowledgeQueryOutcome.empty());
+        // 全部语义项返回非法 JSON：每项 2 次调用均失败 → 7/7 计入失败计数
+        when(aiProvider.chatCompletionJsonObject(anyString(), anyInt()))
+                .thenReturn("不是合法 JSON 文本");
+
+        Logger executorLogger = (Logger) LoggerFactory.getLogger(BidQualityCheckAsyncExecutor.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        executorLogger.addAppender(appender);
+        try {
+            asyncExecutor.executeAsync(resultId, projectId, taskId, false);
+        } finally {
+            executorLogger.detachAppender(appender);
+        }
+
+        List<ILoggingEvent> alerts = appender.list.stream()
+                .filter(event -> event.getLevel() == Level.ERROR)
+                .filter(event -> event.getFormattedMessage().contains("聚告警"))
+                .toList();
+        assertThat(alerts).as("达到阈值应输出一条 ERROR 聚告警").hasSize(1);
+        assertThat(alerts.get(0).getFormattedMessage()).contains(taskId);
+    }
+
+    @Test
+    @DisplayName("聚告警：失败数低于阈值时不输出 ERROR 聚告警")
+    void testExecuteAsync_ParseFailuresBelowThreshold_NoAlert() {
+        Long resultId = 1L;
+        Long projectId = 100L;
+        String taskId = "task-no-alert";
+
+        DocumentContent bidDoc = DocumentContent.fromText("bid.pdf", "hash_no_alert", "正文包含西域资质");
+        DocumentContent tenderDoc = DocumentContent.fromText("tender.pdf", "hash_tender_no_alert", "招标要求");
+
+        when(targetLoader.loadBidDocument(projectId)).thenReturn(bidDoc);
+        when(tenderDocumentLoader.loadTenderDocument(projectId)).thenReturn(tenderDoc);
+        when(resultRepository.findTopByBidFileHashAndTenderFileHashAndStatusOrderByCheckedAtDesc(
+                eq("hash_no_alert"), eq("hash_tender_no_alert"), eq(ComplianceCheckResult.TaskStatus.COMPLETED)))
+                .thenReturn(Optional.empty());
+        when(requirementsExtractor.extract(tenderDoc)).thenReturn(TenderRequirements.empty());
+        when(kbLoader.queryKnowledgeBases(any())).thenReturn(KnowledgeQueryOutcome.empty());
+        // 前 5 次调用合法（覆盖前 5 个语义项），其后全部非法 → 仅 2 个语义项失败，低于阈值 3
+        String legal = "{\"status\":\"PASS\",\"conclusion\":\"核查通过\"}";
+        when(aiProvider.chatCompletionJsonObject(anyString(), anyInt()))
+                .thenReturn(legal, legal, legal, legal, legal)
+                .thenReturn("不是合法 JSON 文本");
+
+        Logger executorLogger = (Logger) LoggerFactory.getLogger(BidQualityCheckAsyncExecutor.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        executorLogger.addAppender(appender);
+        try {
+            asyncExecutor.executeAsync(resultId, projectId, taskId, false);
+        } finally {
+            executorLogger.detachAppender(appender);
+        }
+
+        assertThat(appender.list.stream()
+                .filter(event -> event.getLevel() == Level.ERROR)
+                .filter(event -> event.getFormattedMessage().contains("聚告警"))
+                .count())
+                .as("低于阈值不应聚告警")
+                .isZero();
     }
 
     // =========================================================================

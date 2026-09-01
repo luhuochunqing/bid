@@ -64,6 +64,16 @@ journald 实证：gemini-3.5-flash（自建网关）响应全部截断于 44-68 
 修复：`LLM_ADJUDICATION_MAX_TOKENS` 1024→4096（对齐 TenderRequirementsExtractor
 的成功对照）。教训：lessons #201。
 
+## 对策落地（2026-09-01）：小预算调用治理 + 解析失败聚告警
+
+lessons #201 对策第 1、2 条落地：
+1. **小预算调用治理**：`testConnection` max_tokens 16→512 并新增空响应校验
+   （thinking 耗尽预算返回空 content 不再被误判为连通成功）；
+   `previewBidDocumentQuality` 1500→4096（当前无生产调用方，防御性对齐）。
+2. **解析失败聚告警**：`BidQualityCheckAsyncExecutor` 任务级聚合计数，
+   语义项最终解析失败 ≥3/7 时输出 ERROR 聚告警（含 taskId），区分
+   "配置性问题"与"内容问题"，供日志平台告警订阅。
+
 ## 已知限制
 
 - docx 证据的"第 X 页"是内容块序号而非 Word 物理页码（物理页不可得，这是上限）。
