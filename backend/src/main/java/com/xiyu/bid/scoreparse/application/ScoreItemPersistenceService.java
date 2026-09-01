@@ -6,6 +6,7 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreItemOrderPolicy;
+import com.xiyu.bid.scoreparse.domain.ScoreItemTitleExtractor;
 import com.xiyu.bid.scoreparse.domain.ScoreTypeClassificationPolicy;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.entity.ScoreResult;
@@ -65,7 +66,7 @@ public class ScoreItemPersistenceService {
             ScoreCandidate candidate = ordered.get(i);
             String scoreType = classificationPolicy.classify(candidate.detail(), candidate.scoreTypeGuess());
             String code = resolveCode(candidate.code());
-            String dim = resolveDim(candidate.dim(), candidate.detail());
+            String dim = resolveDim(candidate);
             String detail = candidate.detail() == null || candidate.detail().isBlank()
                     ? "—" : candidate.detail();
             String location = resolveLocation(candidate.location());
@@ -150,13 +151,20 @@ public class ScoreItemPersistenceService {
         return trimmed.length() > 50 ? trimmed.substring(0, 50) : trimmed;
     }
 
-    private String resolveDim(String dim, String detail) {
-        if (dim != null && !dim.isBlank()) {
-            String trimmed = dim.trim();
-            return trimmed.length() > 200 ? trimmed.substring(0, 200) : trimmed;
+    private String resolveDim(ScoreCandidate candidate) {
+        String trimmedDim = candidate.dim() == null ? "" : candidate.dim().trim();
+        boolean parentOnly = candidate.isParentOnlyDim();
+        if (parentOnly && !candidate.detail().isBlank()) {
+            String title = ScoreItemTitleExtractor.extract(candidate.detail()).orElse("");
+            if (!title.isBlank()) {
+                return title.length() > 200 ? title.substring(0, 200) : title;
+            }
         }
-        if (detail != null && !detail.isBlank()) {
-            String trimmed = detail.trim();
+        if (!trimmedDim.isBlank()) {
+            return trimmedDim.length() > 200 ? trimmedDim.substring(0, 200) : trimmedDim;
+        }
+        if (candidate.detail() != null && !candidate.detail().isBlank()) {
+            String trimmed = candidate.detail().trim();
             return trimmed.length() > 50 ? trimmed.substring(0, 50) : trimmed;
         }
         return "评分项";

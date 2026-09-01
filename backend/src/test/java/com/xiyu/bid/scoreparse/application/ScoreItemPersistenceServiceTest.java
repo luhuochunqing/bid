@@ -180,6 +180,26 @@ class ScoreItemPersistenceServiceTest {
         assertThat(item.getLocation()).hasSize(200);
     }
 
+    @Test
+    void parentOnlyDim_extractsTitleFromDetailWhenAvailable() {
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(PROJECT_ID))
+                .thenReturn(List.of());
+
+        service.persistItems(PROJECT_ID, PARSE_TASK_ID, List.of(
+                new ScoreCandidate("1", "商务部分", "1. 人员配置：具备相关高级工程师证书得10分。",
+                        new BigDecimal("10"), "OBJECTIVE", null, "原文", "P1", "TABLE_GRID",
+                        "商务部分", "PARENT_SINGLE"),
+                new ScoreCandidate("2", "技术部分", "技术部分",
+                        new BigDecimal("20"), "OBJECTIVE", null, "原文", "P2", "TABLE_GRID",
+                        "技术部分", "UNKNOWN")));
+
+        ArgumentCaptor<List<ScoreItem>> saved = capturedSavedItems();
+        List<ScoreItem> items = saved.getValue();
+        assertThat(items).hasSize(2);
+        assertThat(items.get(0).getDim()).isEqualTo("人员配置");
+        assertThat(items.get(1).getDim()).isEqualTo("技术部分");
+    }
+
     @SuppressWarnings("unchecked")
     private ArgumentCaptor<List<ScoreItem>> capturedSavedItems() {
         ArgumentCaptor<List<ScoreItem>> captor = ArgumentCaptor.forClass(List.class);

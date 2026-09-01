@@ -40,7 +40,7 @@ final class ScoreCandidateMapper {
                 criterion.weight(),
                 null,
                 hasSection ? section.sectionTitle() : "",
-                hasSection ? truncate(section.content(), SOURCE_TEXT_MAX_CHARS) : "",
+                hasSection ? safeText(section.content()) : "",
                 hasSection ? truncate(section.location(), LOCATION_MAX_CHARS) : "",
                 "RECALL_REGEX_STRUCTURE"
         );

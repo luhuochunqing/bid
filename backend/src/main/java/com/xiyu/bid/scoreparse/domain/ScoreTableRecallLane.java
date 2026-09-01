@@ -5,6 +5,13 @@
 
 package com.xiyu.bid.scoreparse.domain;
 
+import com.xiyu.bid.scoreparse.domain.grid.CellAnchoredScoreExtractor;
+import com.xiyu.bid.scoreparse.domain.grid.ColumnTypeCrossVerifier;
+import com.xiyu.bid.scoreparse.domain.grid.HeuristicTableColumnMapper;
+import com.xiyu.bid.scoreparse.domain.grid.TableColumnMapping;
+import com.xiyu.bid.scoreparse.domain.grid.TableGrid;
+import com.xiyu.bid.scoreparse.domain.grid.TableGridExtractor;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -27,15 +34,13 @@ public final class ScoreTableRecallLane {
         List<ScoreCandidate> candidates = new ArrayList<>();
 
         // 1. 优先尝试 2D 网格单元格锚定抽取（spec 058）
-        List<com.xiyu.bid.scoreparse.domain.grid.TableGrid> grids =
-                com.xiyu.bid.scoreparse.domain.grid.TableGridExtractor.extractAll(markdown);
-        for (com.xiyu.bid.scoreparse.domain.grid.TableGrid grid : grids) {
+        List<TableGrid> grids = TableGridExtractor.extractAll(markdown);
+        for (TableGrid grid : grids) {
             if (grid.rowCount() >= 2 && grid.colCount() >= 2) {
-                var mapping = com.xiyu.bid.scoreparse.domain.grid.HeuristicTableColumnMapper.infer(grid);
-                var vr = com.xiyu.bid.scoreparse.domain.grid.ColumnTypeCrossVerifier.verify(grid, mapping);
+                TableColumnMapping mapping = HeuristicTableColumnMapper.infer(grid);
+                var vr = ColumnTypeCrossVerifier.verify(grid, mapping);
                 if (vr.valid()) {
-                    List<ScoreCandidate> gridCandidates =
-                            com.xiyu.bid.scoreparse.domain.grid.CellAnchoredScoreExtractor.extract(grid, mapping);
+                    List<ScoreCandidate> gridCandidates = CellAnchoredScoreExtractor.extract(grid, mapping);
                     candidates.addAll(gridCandidates);
                 }
             }

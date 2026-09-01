@@ -17,6 +17,8 @@ import java.math.BigDecimal;
  * @param sourceText     原文依据
  * @param location       页码/位置
  * @param semanticPattern 语义命中模式说明（召回三/四的命中理由，供审计追溯）
+ * @param parentDim       表格父级大类原文；非表格候选为空
+ * @param dimSource       维度来源：CELL、TITLE、PARENT_SINGLE 或 UNKNOWN
  */
 public record ScoreCandidate(
         String code,
@@ -27,6 +29,24 @@ public record ScoreCandidate(
         String contextNote,
         String sourceText,
         String location,
-        String semanticPattern
+        String semanticPattern,
+        String parentDim,
+        String dimSource
 ) {
+    /** Legacy constructor retained for all non-table recall callers. */
+    public ScoreCandidate(String code, String dim, String detail, BigDecimal weight,
+            String scoreTypeGuess, String contextNote, String sourceText,
+            String location, String semanticPattern) {
+        this(code, dim, detail, weight, scoreTypeGuess, contextNote, sourceText,
+                location, semanticPattern, null, "UNKNOWN");
+    }
+
+    public boolean hasParentDim() {
+        return parentDim != null && !parentDim.isBlank();
+    }
+
+    public boolean isParentOnlyDim() {
+        return "PARENT_SINGLE".equals(dimSource)
+                || (hasParentDim() && parentDim.equals(dim));
+    }
 }
