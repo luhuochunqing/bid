@@ -14,6 +14,7 @@ import com.xiyu.bid.compliance.domain.policy.BidDocumentQualityEngine;
 import com.xiyu.bid.compliance.domain.policy.KnowledgeQueryOutcome;
 import com.xiyu.bid.compliance.domain.policy.LlmAdjudicator;
 import com.xiyu.bid.compliance.domain.policy.LlmVerdict;
+import com.xiyu.bid.compliance.domain.policy.SemanticRulesLane;
 import com.xiyu.bid.compliance.domain.policy.TenderRequirements;
 import com.xiyu.bid.compliance.entity.ComplianceCheckResult;
 import com.xiyu.bid.compliance.repository.ComplianceCheckResultRepository;
@@ -29,6 +30,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 标书质量核查后台异步执行器.
@@ -112,9 +114,10 @@ public class BidQualityCheckAsyncExecutor {
                     : KnowledgeQueryOutcome.empty();
 
             // spec 049 第五步：LLM 混合裁决；AI 未启用降级 Noop，单项失败 LOW_CONFIDENCE，不阻断任务
+            AtomicInteger parseFailureCounter = new AtomicInteger();
             List<QualityCheckItemResult> itemResults = BidDocumentQualityEngine.evaluateAll(
                     bidDoc, tenderDoc, kbOutcome.matches(), requirements, kbOutcome.failedSources(),
-                    new LlmAdjudicator(buildLlmPort()),
+                    new LlmAdjudicator(buildLlmPort(parseFailureCounter)),
                     (progress, step) -> progressUpdater.updateProgress(resultId, ComplianceCheckResult.TaskStatus.CHECKING,
                             60 + progress * 30 / 100, "AI 语义裁决 " + progress + "%：" + step));
 
@@ -146,6 +149,13 @@ public class BidQualityCheckAsyncExecutor {
 
             progressUpdater.completeTask(resultId, overallStatus, riskScore, checkDetailsJson, passed, failed, manual, itemResults.size());
 
+            int parseFailures = parseFailureCounter.get();
+            if (parseFailures >= PARSE_FAILURE_ALERT_THRESHOLD) {
+                log.error("LLM 裁决解析失败聚告警: 任务 {} 有 {}/{} 个语义项解析失败——大概率是模型/网关配置问题"
+                        + "（如 thinking 系模型 max_tokens 预算不足，见 lessons #201），而非标书内容问题，请检查 AI 模型配置",
+                        taskId, parseFailures, SemanticRulesLane.SEMANTIC_ITEMS.size());
+            }
+
             log.info("Async bid quality check task completed: {}, status={}, passed={}, failed={}, manual={}",
                     taskId, overallStatus, passed, failed, manual);
 
@@ -171,7 +181,18 @@ public class BidQualityCheckAsyncExecutor {
      * <p>公开可见：供单测及验收测试直接验证 LLM 契约与重试逻辑.
      */
     public LlmVerdict.LlmChatPort<LlmVerdict> buildLlmPort() {
-        // 首次解析失败才重试（附严格 JSON 约束）；Noop/Failure 不重试，仍非法 → Invalid
+        return buildLlmPort(new AtomicInteger());
+    }
+
+    /** 解析失败聚告警阈值：任务内语义项最终解析失败达到该数量即判定配置性问题而非内容问题（lessons #201）. */
+    static final int PARSE_FAILURE_ALERT_THRESHOLD = 3;
+
+    /**
+     * 带解析失败计数的端口构造：计数器由任务级 executeAsync 持有，
+     * 任务完成时达到 {@link #PARSE_FAILURE_ALERT_THRESHOLD} 即输出 ERROR 聚告警.
+     */
+    public LlmVerdict.LlmChatPort<LlmVerdict> buildLlmPort(final AtomicInteger parseFailureCounter) {
+        // 首次解析失败才重试（附严格 JSON 约束）；Noop/Failure 不重试，仍非法 → Invalid 并计数
         return prompt -> {
             Optional<LlmVerdict.ChatOutcome<LlmVerdict>> first = chatAndParse(prompt);
             if (first.isPresent()) {
@@ -179,7 +200,10 @@ public class BidQualityCheckAsyncExecutor {
             }
             log.warn("LLM 裁决响应解析失败，追加严格 JSON 约束重试 1 次");
             return chatAndParse(prompt + STRICT_JSON_RETRY_SUFFIX)
-                    .orElseGet(LlmVerdict::invalid);
+                    .orElseGet(() -> {
+                        parseFailureCounter.incrementAndGet();
+                        return LlmVerdict.invalid();
+                    });
         };
     }
 

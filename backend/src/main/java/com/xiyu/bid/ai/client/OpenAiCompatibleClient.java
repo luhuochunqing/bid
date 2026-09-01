@@ -77,8 +77,17 @@ public class OpenAiCompatibleClient {
         return responseParser.parseAnalysisResponse(callChatCompletion(config, prompt, 2000, false));
     }
 
+    /** 连接测试 max_tokens：需容纳 thinking 系模型的内部推理消耗（lessons #201）. */
+    static final int TEST_CONNECTION_MAX_TOKENS = 512;
+
     public void testConnection(AiProviderRuntimeConfig config) {
-        callChatCompletion(config, "Return only the word OK.", 16, false);
+        String content = callChatCompletion(config, "Return only the word OK.", TEST_CONNECTION_MAX_TOKENS, false);
+        if (content == null || content.isBlank()) {
+            // thinking 系模型可能把过小的预算耗在内部推理上，正文为空——不能当连通成功（lessons #201）
+            throw new RuntimeException(
+                    "AI 返回空内容：max_tokens 预算可能被 thinking 系模型的内部推理消耗（见 lessons #201），"
+                            + "请增大 max_tokens 或在模型侧关闭 thinking 后重试");
+        }
     }
 
     /**
@@ -109,6 +118,9 @@ public class OpenAiCompatibleClient {
         }
     }
 
+    /** 质量预览 max_tokens：与裁决/提取对齐，容纳 thinking 系模型的内部推理消耗（lessons #201）. */
+    static final int PREVIEW_MAX_TOKENS = 4096;
+
     public BidDocumentQualityAiPreviewDTO previewBidDocumentQuality(
             AiProviderRuntimeConfig config, String documentContent, String tenderText) {
         String doc = truncate(documentContent, MAX_BID_PREVIEW_CONTENT);
@@ -116,7 +128,7 @@ public class OpenAiCompatibleClient {
         String prompt = AiPromptTemplates.BID_PREVIEW_SYSTEM_INSTRUCTION
                 + "\n投标文件：" + doc + "\n招标要求：" + tender + "\n"
                 + AiPromptTemplates.BID_PREVIEW_OUTPUT_FORMAT;
-        return responseParser.parseBidPreview(callChatCompletion(config, prompt, 1500, false));
+        return responseParser.parseBidPreview(callChatCompletion(config, prompt, PREVIEW_MAX_TOKENS, false));
     }
 
     private String truncate(String value, int maxLength) {

@@ -69,6 +69,27 @@ class OpenAiCompatibleClientTest {
     }
 
     @Test
+    void testConnection_WhenContentEmpty_ShouldThrowWithThinkingBudgetHint() {
+        // thinking 系模型（lessons #201）：max_tokens 被内部推理耗尽，正文 content 为空串
+        OpenAiCompatibleClient client = createClient();
+        RestTemplate restTemplate = (RestTemplate) ReflectionTestUtils.getField(client, "restTemplate");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(restTemplate).build();
+
+        server.expect(requestTo("https://api.deepseek.com/chat/completions"))
+                .andExpect(method(POST))
+                .andExpect(jsonPath("$.max_tokens").value(512))
+                .andRespond(withSuccess()
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"choices\":[{\"message\":{\"content\":\"\"}}]}"));
+
+        assertThatThrownBy(() -> client.testConnection(testConfig()))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("thinking");
+
+        server.verify();
+    }
+
+    @Test
     void testConnection_WhenArkReturns401WithModelNotFound_ShouldExposeProviderMessage() {
         OpenAiCompatibleClient client = createClient();
         RestTemplate restTemplate = (RestTemplate) ReflectionTestUtils.getField(client, "restTemplate");
