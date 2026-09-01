@@ -4,13 +4,15 @@ space: engineering
 category: architecture
 tags: [analytics, organization, department, filter, data-analysis, anchor]
 created: 2026-08-29
-updated: 2026-08-31
-health_checked: 2026-08-31
+updated: 2026-09-01
+health_checked: 2026-09-01
 sources:
   - docs/implementation-notes/analytics-dept-two-level-filter.md
   - docs/implementation-notes/dashboard-org-root-0002.md
+  - docs/lessons/lessons-learned.md#196
   - backend/src/main/java/com/xiyu/bid/analytics/service/FilterOptionsQueryService.java
   - backend/src/main/java/com/xiyu/bid/analytics/service/FilterDepartmentTreeAnchorPolicy.java
+  - backend/src/main/java/com/xiyu/bid/analytics/service/AnalyticsDepartmentHierarchySupport.java
 backlinks:
   - _index
 ---
@@ -60,7 +62,7 @@ OSS 同步的组织机构表（`organization_departments`）包含顶层虚拟�
 2. **命中即锚定**：组树后以锚点 children 为新根并三级截断（`pruneFilterTree(roots, 1, 3)`），跳过 User 表兜底（否则杂项部门重新出现在顶层）；
 3. **未命中回退**：锚点不存在（如环境未同步组织表）时回退"全树两级 + User 兜底"的旧行为，防止下拉空白；
 4. **前端双保险**：`useFilterSearch.js` 的 `capDepartmentTreeDepth(…, 3)`；
-5. **X 轴口径解耦**：部门维度的查询/展开/分桶（`loadDepartmentNodes → expand/bucketNames`）按选值名称匹配，与下拉展示根无关，未改动。
+5. **X 轴口径**：当时决策"解耦不动"，导致勾选二/三级部门时图表"暂无数据"（选值被两级口径静默丢弃），2026-09-01 已对齐修复，见 §6。
 
 ## 5. 教训沉淀
 
@@ -69,3 +71,11 @@ OSS 同步的组织机构表（`organization_departments`）包含顶层虚拟�
 | 固定两级截断假设"业务部门在浅层" | 集团型组织树前 1~2 层是治理容器，业务部门在深层 | 组织树展示范围应锚定**业务根**（按稳定编码），而非从物理根数层级 |
 | 锚定后 User 兜底污染顶层 | 兜底逻辑无条件补根 | 兜底只在锚点未命中的回退路径生效 |
 | 本地开发库无组织数据 | `organization_departments` 仅测试/生产由 OSS 同步 | 本地验证可用带标记（`source_app=xxx`）的临时数据走生产代码路径，验后清理；真实数据 UI 验收放到测试环境 |
+| 展示层改三级但查询口径仍两级 | 锚定 PR 只改展示，未枚举选值下游消费方（expand / bucketNames / toBucket / 下钻） | 改树层级/截断口径前必须同步评估查询口径消费方（见 §6 与 lessons-learned §197） |
+
+## 6. 演进：查询口径对齐锚定三级（2026-09-01）
+
+§4.5 的"X 轴口径解耦不动"被证实为缺陷：锚定后 UI 二级/三级部门对应物理 3/4 级，而 `AnalyticsDepartmentHierarchySupport.axisNames` 只认物理 1/2 级，勾选被静默丢弃 → `bucketNames`/`expand` 为空 → 图表"暂无数据"，且空列表经 `isNotEmpty` 使部门过滤静默跳过（fail-open）。修复要点：
+1. **显示层级**：`displayLevelOf` 相对锚点计算深度（锚点自身 0、直接子节点一级、其下两级），锚定子树外节点与回退模式继续物理深度，与 `fetchDepartmentTree` 展示根完全对齐；
+2. **折叠规则泛化到三级**：只勾某层按该层成柱（子孙折进）；可见下级勾满折叠上级；部分勾选忽略上级保留下级。两级回退路径语义不变（既有用例原样保持绿）；
+3. **空列表 fail-closed**：勾选全部落在显示截断外时 `expand` 返回空列表，趋势查询（`queryDimension` / `fetchRegionRows`）、人员联动（`fetchDistinctPersons`）、下钻（`drillDown`）四处一律按"零命中"返回空结果，禁止退化为不过滤。
