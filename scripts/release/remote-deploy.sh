@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Input: uploaded release archive path, remote host deployment paths, service restart configuration, and backend.env AI_PROVIDER guard
-# Output: activated release files, restarted backend service, and remote health verification
+# Input: uploaded release archive path, remote host deployment paths, service restart configuration, backend.env AI_PROVIDER guard, and optional DB_BACKUP_COMMAND (pre-activation DB backup)
+# Output: pre-activation DB backup + Flyway validate + atomically activated release files, restarted backend service, and remote health verification
 # Pos: scripts/release/ - Release automation and rehearsal helpers
 # 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 set -euo pipefail
@@ -132,6 +132,34 @@ else
   printf '⚠️  未找到 %s，跳过 AI Provider 守卫。\n' "$BACKEND_ENV_FILE"
 fi
 
+# ── Flyway validate 预检（restart 前置，避免 checksum mismatch 导致启动失败）──
+# 工程背景（2026-06-26）：新 jar 启动时若生产 flyway_schema_history 与代码迁移文件 checksum 不一致，
+# Spring Boot validateOnMigrate 会让后端拒绝启动，remote-deploy 会卡满 8 分钟 health 超时才失败。
+# 本预检在"任何版本切换"之前用当前运行中的 jar 自带 Flyway 跑 validate，失败则停止 rollout，
+# 此时旧 jar 仍在运行、前端也未切换（前后端版本一致），操作者可安全用 flyway-repair-runner.sh 处置。
+# 依赖：flyway-repair-runner.sh 需与 remote-deploy.sh 一同部署到服务器（如 /tmp/ 或 $APP_ROOT/bin/）。
+# 跳过：SKIP_FLYWAY_VALIDATE=1（紧急/离线场景）
+FLYWAY_REPAIR_RUNNER="${FLYWAY_REPAIR_RUNNER:-$(dirname "$0")/flyway-repair-runner.sh}"
+if [[ "${SKIP_FLYWAY_VALIDATE:-0}" != "1" && -x "$FLYWAY_REPAIR_RUNNER" ]]; then
+  printf '==> Flyway validate pre-check (before any version activation)\n'
+  # validate 失败时阻止 rollout；此时旧 jar 未被覆盖、前端未切换，前后端版本一致
+  if ! bash "$FLYWAY_REPAIR_RUNNER" validate; then
+    printf '\n❌ Flyway validate 失败 — 检测到 checksum mismatch 或配置问题。\n' >&2
+    printf '   旧版本仍在运行（前后端未切换），服务未中断。处置方案：\n' >&2
+    printf '   1. 查看失败详情（上面输出），确认哪些版本 mismatch\n' >&2
+    printf '   2. 确认 mismatch 是良性的（仅历史迁移被改），执行 repair：\n' >&2
+    printf '        bash %s repair\n' "$FLYWAY_REPAIR_RUNNER" >&2
+    printf '   3. repair 后重跑 remote-deploy.sh\n' >&2
+    printf '   4. 紧急跳过本预检（不推荐，会让后端启动失败）：SKIP_FLYWAY_VALIDATE=1\n' >&2
+    printf '   详见 docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md §13.5\n\n' >&2
+    exit 1
+  fi
+  printf '✅ Flyway validate 通过（仅 pending 新迁移为预期状态）\n\n'
+elif [[ "${SKIP_FLYWAY_VALIDATE:-0}" != "1" ]]; then
+  printf '⚠️  Flyway validate 预检跳过：flyway-repair-runner.sh 不可用 (%s)\n' "$FLYWAY_REPAIR_RUNNER"
+  printf '   建议将其与 remote-deploy.sh 一起上传，获得 checksum mismatch 前置拦截能力。\n\n'
+fi
+
 printf '==> Activating frontend assets\n'
 
 # ── 前端目录全层级属主校验（rm 前置，避免无权删除导致部署失败）──
@@ -159,34 +187,6 @@ cp -R "$RELEASE_DIR/frontend/." "$PENDING_FRONTEND_DIR/"
 rm -rf "$FRONTEND_PUBLIC_DIR"
 mv "$PENDING_FRONTEND_DIR" "$FRONTEND_PUBLIC_DIR"
 
-# ── Flyway validate 预检（restart 前置，避免 checksum mismatch 导致启动失败）──
-# 工程背景（2026-06-26）：新 jar 启动时若生产 flyway_schema_history 与代码迁移文件 checksum 不一致，
-# Spring Boot validateOnMigrate 会让后端拒绝启动，remote-deploy 会卡满 4 分钟 health 超时才失败。
-# 本预检在"覆盖 jar"之前用当前运行中的 jar 自带 Flyway 跑 validate，失败则停止 rollout，
-# 此时旧 jar 仍在运行（服务不中断），操作者可安全用 flyway-repair-runner.sh 处置。
-# 依赖：flyway-repair-runner.sh 需与 remote-deploy.sh 一同部署到服务器（如 /tmp/ 或 $APP_ROOT/bin/）。
-# 跳过：SKIP_FLYWAY_VALIDATE=1（紧急/离线场景）
-FLYWAY_REPAIR_RUNNER="${FLYWAY_REPAIR_RUNNER:-$(dirname "$0")/flyway-repair-runner.sh}"
-if [[ "${SKIP_FLYWAY_VALIDATE:-0}" != "1" && -x "$FLYWAY_REPAIR_RUNNER" ]]; then
-  printf '==> Flyway validate pre-check (before jar activation)\n'
-  # validate 失败时阻止 rollout；此时旧 jar 未被覆盖，服务仍在线
-  if ! bash "$FLYWAY_REPAIR_RUNNER" validate; then
-    printf '\n❌ Flyway validate 失败 — 检测到 checksum mismatch 或配置问题。\n' >&2
-    printf '   旧 jar 仍在运行，服务未中断。处置方案：\n' >&2
-    printf '   1. 查看失败详情（上面输出），确认哪些版本 mismatch\n' >&2
-    printf '   2. 确认 mismatch 是良性的（仅历史迁移被改），执行 repair：\n' >&2
-    printf '        bash %s repair\n' "$FLYWAY_REPAIR_RUNNER" >&2
-    printf '   3. repair 后重跑 remote-deploy.sh\n' >&2
-    printf '   4. 紧急跳过本预检（不推荐，会让后端启动失败）：SKIP_FLYWAY_VALIDATE=1\n' >&2
-    printf '   详见 docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md §13.5\n\n' >&2
-    exit 1
-  fi
-  printf '✅ Flyway validate 通过（仅 pending 新迁移为预期状态）\n\n'
-elif [[ "${SKIP_FLYWAY_VALIDATE:-0}" != "1" ]]; then
-  printf '⚠️  Flyway validate 预检跳过：flyway-repair-runner.sh 不可用 (%s)\n' "$FLYWAY_REPAIR_RUNNER"
-  printf '   建议将其与 remote-deploy.sh 一起上传，获得 checksum mismatch 前置拦截能力。\n\n'
-fi
-
 # 必须先停服务再替换 jar，再启动服务。
 # 反例：先 cp 替换 jar 再 systemctl restart 会导致旧进程 ShutdownHook
 # 执行时引用已被替换的 jar，触发 NoClassDefFoundError / ClassNotFoundException
@@ -195,8 +195,26 @@ fi
 printf '==> Stopping backend service %s\n' "$BACKEND_SERVICE_NAME"
 run_systemctl stop "$BACKEND_SERVICE_NAME"
 
-printf '==> Updating backend artifact\n'
-cp "$RELEASE_DIR/backend/app.jar" "$BACKEND_JAR_PATH"
+# ── 原子 jar 替换（P2 风险修复）──
+# 原实现直接 cp 覆盖 app.jar：cp 中途失败（磁盘满/权限）会留下半截 jar，
+# set -e 下脚本直接退出，服务停在"已停止"状态且无自动恢复。
+# 修复：先 cp 到同目录 .new 临时文件（同文件系统），再 mv 原子替换；
+#       任一失败则删除 .new、重启旧服务止损，并以非零码退出让调用方感知。
+printf '==> Updating backend artifact (atomic)\n'
+if ! cp "$RELEASE_DIR/backend/app.jar" "$BACKEND_JAR_PATH.new"; then
+  printf '\n❌ 复制新 jar 失败：%s\n' "$BACKEND_JAR_PATH.new" >&2
+  rm -f "$BACKEND_JAR_PATH.new"
+  printf '   回滚：重启旧服务 %s\n' "$BACKEND_SERVICE_NAME" >&2
+  run_systemctl start "$BACKEND_SERVICE_NAME" || true
+  exit 1
+fi
+if ! mv "$BACKEND_JAR_PATH.new" "$BACKEND_JAR_PATH"; then
+  printf '\n❌ 原子替换 jar 失败：%s.new → %s\n' "$BACKEND_JAR_PATH" "$BACKEND_JAR_PATH" >&2
+  rm -f "$BACKEND_JAR_PATH.new"
+  printf '   回滚：重启旧服务 %s\n' "$BACKEND_SERVICE_NAME" >&2
+  run_systemctl start "$BACKEND_SERVICE_NAME" || true
+  exit 1
+fi
 
 printf '==> Writing deployed release record %s\n' "$DEPLOYED_RELEASE_RECORD"
 write_deployed_release_record
@@ -207,8 +225,10 @@ run_systemctl start "$BACKEND_SERVICE_NAME"
 run_systemctl --no-pager --full status "$BACKEND_SERVICE_NAME" || true
 
 printf '==> Waiting for health check %s\n' "$HEALTHCHECK_URL"
-# 部分环境 ApplicationReadyEvent（如 OrganizationEvent SDK 注册/Kafka 启动）耗时超过 2 分钟，
-# 将 health check 等待上限延长至 4 分钟，避免后端已正常启动但脚本提前失败。
+# 部分环境 ApplicationReadyEvent（如 OrganizationEvent SDK 注册/Kafka 启动）耗时超过 2 分钟。
+# 等待上限默认 240 次（8 分钟）：第 147 次测试部署实测 Kafka SDK readiness 最长约 6 分钟才自恢复，
+# 第 152 次约 5 分钟；第 62/69/102/139 次部署均曾撞满 120 次（4 分钟）窗口误报。
+# 240 次 = 6 分钟实测 + 2 分钟余量，避免后端已正常启动但脚本提前失败。
 #
 # 防复发（第 34 次事故）：crash-loop 场景下 systemd 在后端崩溃后立即 restart，
 # restart 间隙后端可能短暂响应 /actuator/health 返回 200（Spring Boot 在 logback
@@ -217,7 +237,7 @@ printf '==> Waiting for health check %s\n' "$HEALTHCHECK_URL"
 HEALTH_CHECK_CONSECUTIVE_REQUIRED="${HEALTH_CHECK_CONSECUTIVE_REQUIRED:-3}"
 HEALTH_CHECK_CONSECUTIVE_SUCCESSES=0
 HEALTH_CHECK_TOTAL_ATTEMPTS=0
-HEALTH_CHECK_MAX_ATTEMPTS="${HEALTH_CHECK_MAX_ATTEMPTS:-120}"
+HEALTH_CHECK_MAX_ATTEMPTS="${HEALTH_CHECK_MAX_ATTEMPTS:-240}"
 
 while [[ $HEALTH_CHECK_TOTAL_ATTEMPTS -lt $HEALTH_CHECK_MAX_ATTEMPTS ]]; do
   HEALTH_CHECK_TOTAL_ATTEMPTS=$((HEALTH_CHECK_TOTAL_ATTEMPTS + 1))

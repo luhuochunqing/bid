@@ -637,7 +637,7 @@ sudo journalctl -u xiyu-bid-backend --since "10 min ago" --no-pager
 
 ### 13.5 Flyway checksum mismatch / 后端启动失败
 
-**症状**：部署后 `remote-deploy.sh` 卡在 `Waiting for health check`，4 分钟后超时退出；服务器日志报：
+**症状**：部署后 `remote-deploy.sh` 卡在 `Waiting for health check`，8 分钟后超时退出；服务器日志报：
 
 ```text
 Migration checksum mismatch for migration version 1096
@@ -691,7 +691,7 @@ sudo systemctl start xiyu-bid-backend
 
 **预防**：本地提交时 `check-flyway-immutable.sh` pre-commit 门禁会拦截"修改 origin/main 已存在的 V*.sql"。如果确实需要紧急修复已发布迁移（极少见），用 `FLYWAY_ALLOW_IMMUTABLE_EDIT=1 git commit`，但必须在部署前跑 repair，并在 PR 描述里说明理由。
 
-**注意**：自 2026-06-26 起，`remote-deploy.sh` 在覆盖后端 jar 之前会自动跑 validate 预检，失败则停止 rollout（旧 jar 仍在运行，服务不中断）。所以 checksum mismatch 通常在部署阶段就被拦下，不会进入"health check 4 分钟超时"的现场。本章节描述的是预检被 `SKIP_FLYWAY_VALIDATE=1` 跳过、或首次启用预检前已部署的存量场景。
+**注意**：自 2026-06-26 起，`remote-deploy.sh` 在覆盖后端 jar 之前会自动跑 validate 预检，失败则停止 rollout（旧 jar 仍在运行，服务不中断）。所以 checksum mismatch 通常在部署阶段就被拦下，不会进入"health check 8 分钟超时"的现场。本章节描述的是预检被 `SKIP_FLYWAY_VALIDATE=1` 跳过、或首次启用预检前已部署的存量场景。
 
 ## 附录：慢链路应急小包路径
 
