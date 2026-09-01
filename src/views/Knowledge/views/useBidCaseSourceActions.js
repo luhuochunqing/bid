@@ -5,8 +5,12 @@
  * 1. 源项目跳转路由 /bidding/detail/{id} 不存在 → 改为投标项目详情 /project/{id}
  * 2. 标书原文下载前预检档案附件：历史项目档案无附件（原文未归档）时明确提示，不再下载空包
  * 3. blob 下载用 res.data 构造文件，并识别错误体（application/json）——修复假 ZIP 落盘
+ *
+ * 058 分流（2026-09）：obsBidFileKey 非空 → OBS 预签名直链下载原版 docx；
+ * 否则有 sourceProjectId → 档案预检 + ZIP；皆无 → 提示"标书原文暂不可用"
  */
 import { ElMessage } from 'element-plus'
+import { casesApi } from '@/api/modules/knowledge'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { isJsonErrorBlob, readJsonErrorMessage, triggerBlobDownload } from '@/utils/download'
@@ -21,6 +25,19 @@ export function useBidCaseSourceActions() {
   }
 
   const openBidDocument = async (d) => {
+    // 分支一（058）：历史切片案例有 OBS 原版对象键 → 预签名直链下载原版 docx
+    if (d?.obsBidFileKey) {
+      try {
+        const { url, filename } = await casesApi.getDownloadUrl(d.caseId || d.id)
+        if (!url) { ElMessage.error('标书原文下载失败：链接生成异常'); return }
+        window.open(url, '_blank')
+        ElMessage.success(`标书原文下载已开始：${filename || ''}`)
+      } catch (e) {
+        notifyErrorUnlessRateLimit(e, '标书原文下载失败')
+      }
+      return
+    }
+    // 分支二：系统生成案例（有源项目档案）→ 未归档预检 + ZIP 导出（原逻辑不动）
     if (!d?.sourceProjectId) { ElMessage.warning('标书原文暂不可用'); return }
     try {
       // 预检：源项目档案无附件文件时，标书原文未归档，提示并中止（避免下到只含台账的空包）
