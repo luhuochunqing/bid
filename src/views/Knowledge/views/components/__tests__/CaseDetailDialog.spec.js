@@ -88,6 +88,14 @@ describe('CaseDetailDialog - 案例详情弹窗布局契约', () => {
     expect(banner.text()).toContain('现场服务')
   })
 
+  it('项目状态标签三态映射：WON=已中标 / LOST=未中标 / FAILED=已流标，缺省显示未知', () => {
+    const labelOf = (bidResult) => mountDialog({ caseData: { ...caseData, bidResult } }).text()
+    expect(labelOf('WON')).toContain('已中标')
+    expect(labelOf('LOST')).toContain('未中标')
+    expect(labelOf('FAILED')).toContain('已流标')
+    expect(labelOf(null)).toContain('未知')
+  })
+
   it('未提供匹配度数据时不渲染匹配分析提示条', () => {
     const wrapper = mountDialog({
       caseData: { ...caseData, matchScore: null, score: null }

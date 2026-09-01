@@ -92,11 +92,11 @@ const matchedKeywordsList = computed(() => parseStringOrArray(props.caseData?.ma
 
 const bidResultLabel = computed(() => {
   const r = props.caseData?.bidResult
-  return r === 'WON' ? '已中标' : r === 'LOST' ? '未中标' : '未知'
+  return r === 'WON' ? '已中标' : r === 'LOST' ? '未中标' : r === 'FAILED' ? '已流标' : '未知'
 })
 const bidResultType = computed(() => {
   const r = props.caseData?.bidResult
-  return r === 'WON' ? 'success' : r === 'LOST' ? 'danger' : 'info'
+  return r === 'WON' ? 'success' : r === 'LOST' ? 'danger' : r === 'FAILED' ? 'warning' : 'info'
 })
 </script>
 
