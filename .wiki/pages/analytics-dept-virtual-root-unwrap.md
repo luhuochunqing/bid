@@ -9,7 +9,7 @@ health_checked: 2026-09-01
 sources:
   - docs/implementation-notes/analytics-dept-two-level-filter.md
   - docs/implementation-notes/dashboard-org-root-0002.md
-  - docs/lessons/lessons-learned.md#196
+  - docs/lessons/lessons-learned.md
   - backend/src/main/java/com/xiyu/bid/analytics/service/FilterOptionsQueryService.java
   - backend/src/main/java/com/xiyu/bid/analytics/service/FilterDepartmentTreeAnchorPolicy.java
   - backend/src/main/java/com/xiyu/bid/analytics/service/AnalyticsDepartmentHierarchySupport.java
