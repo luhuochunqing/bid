@@ -582,4 +582,61 @@ class SemanticPageRetrieverTest {
             assertThat(result).doesNotContain("--- [第 3 页] ---");
         }
     }
+
+    // =========================================================================
+    // 7. 单页超预算硬截断测试（分页丢失场景：整篇文档被解析为 1 页）
+    // =========================================================================
+    @Nested
+    @DisplayName("7. 单页超预算硬截断测试")
+    class SinglePageOverBudgetTruncationTests {
+
+        @Test
+        @DisplayName("单页文档超出预算：仅保留预算内前缀并标注截断，不再全量透传")
+        void testRetrieveContext_SinglePageOverBudget_TruncatesWithMarker() {
+            String hugeText = "投标文件正文内容甲乙丙丁。".repeat(2000); // 12000 字符
+            DocumentContent doc = docOf(page(1, hugeText));
+
+            int budget = 5_000;
+            String result = SemanticPageRetriever.retrieveContext(
+                    BidQualityCheckItem.SCORING_RESPONSE, TenderRequirements.empty(), doc, budget);
+
+            // 输出总量必须受控在预算附近（页头开销 + 截断标注），不允许 12000 字符全量塞入
+            assertThat(result.length())
+                    .as("输出长度应受预算约束")
+                    .isLessThanOrEqualTo(budget + 200);
+            assertThat(result).contains("--- [第 1 页] ---");
+            assertThat(result).contains("……（已截断）");
+        }
+
+        @Test
+        @DisplayName("单页文档预算内：行为不变，全文无损透传（回归保护）")
+        void testRetrieveContext_SinglePageWithinBudget_PassThrough() {
+            String text = "投标总价承诺：人民币壹佰万元整，工期 60 日历天。";
+            DocumentContent doc = docOf(page(1, text));
+
+            String result = SemanticPageRetriever.retrieveContext(
+                    BidQualityCheckItem.SCORING_RESPONSE, TenderRequirements.empty(), doc, 60_000);
+
+            assertThat(result).contains("--- [第 1 页] ---");
+            assertThat(result).contains(text);
+            assertThat(result).doesNotContain("……（已截断）");
+        }
+
+        @Test
+        @DisplayName("多页超预算：最高分页被选中时同样受预算约束，不因首页选中而突破预算")
+        void testRetrieveContext_OversizedTopPage_TruncatedToBudget() {
+            String hugeMatched = "技术方案实施方案。".repeat(3000); // 27000 字符，高相关
+            DocumentContent doc = docOf(
+                    page(1, hugeMatched),
+                    page(2, "无关填充文本。"));
+
+            int budget = 6_000;
+            String result = SemanticPageRetriever.retrieveContext(
+                    BidQualityCheckItem.SCORING_RESPONSE, TenderRequirements.empty(), doc, budget);
+
+            assertThat(result.length()).isLessThanOrEqualTo(budget + 200);
+            assertThat(result).contains("--- [第 1 页] ---");
+            assertThat(result).doesNotContain("--- [第 2 页] ---");
+        }
+    }
 }

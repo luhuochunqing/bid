@@ -81,6 +81,12 @@ Convert a document to Markdown.
       "path": ["Heading"]
     }
   ],
+  "pages": [                            // physical-page slices (PDF via pdfplumber; [] for docx).
+    {                                   // consumed by the compliance quality-check pipeline
+      "pageNumber": 1,                  // (SidecarStreamDocumentAdapter); 1-based, blanks skipped
+      "text": "# Heading\n\nBody of page 1…"
+    }
+  ],
   "tables": [],                         // reserved; table extraction is on the Java side
   "warnings": [],                       // e.g. ["low_text_density"]
   "converter": "markitdown",

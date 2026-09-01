@@ -17,7 +17,8 @@
 | `service/ComplianceIssueFactory.java` | Factory | 统一构造规则失败与执行失败问题 |
 | `service/ComplianceRuleEvaluator.java` | Evaluator | 规则定义解析与项目/标书规则求值 |
 | `domain/policy/BidDocumentQualityEngine.java` | Domain Engine | 标书 25 项规则求值与 AI 混合裁决纯核心引擎 |
-| `domain/policy/SemanticPageRetriever.java` | Domain Service | 60K 预算语义页面智能召回器 |
+| `domain/policy/SemanticPageRetriever.java` | Domain Service | 60K 预算语义页面智能召回器（单页超预算硬截断） |
+| `domain/DocumentContent.java` | Domain Model | 文档结构化内容；分页优先级：Sidecar pages → \f 切分 → virtualPages 虚拟分页兜底（无分页符长文本按标题/段落切块） |
 | `entity/ComplianceRule.java` | Entity | 合规规则实体 |
 | `entity/ComplianceCheckResult.java` | Entity | 合规检查与标书质量核查结果实体 |
 | `repository/ComplianceRuleRepository.java` | Repository | 合规规则数据访问 |
