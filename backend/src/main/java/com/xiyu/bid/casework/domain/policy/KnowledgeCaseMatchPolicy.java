@@ -7,25 +7,14 @@ import com.xiyu.bid.casework.domain.model.KnowledgeCaseReadModel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
+import java.util.Objects;
 
 /**
  * 纯核心：KnowledgeCase 智能匹配评分策略。
  *
  * <p>无 Spring 依赖、无数据库访问、无副作用。
  * 输入候选案例 + 匹配条件，输出结构化评分结果。
- *
- * <p>评分规则（总分 100）：
- * <ul>
- *   <li>评分项标题相似度（Jaccard 系数）：最高 40 分</li>
- *   <li>评分项类别一致：+20 分</li>
- *   <li>项目类型一致：+15 分</li>
- *   <li>客户类型一致：+15 分</li>
- *   <li>关键词命中（标题/需求/应答）：最高 15 分</li>
- *   <li>中标案例加成：+5 分</li>
- * </ul>
  */
-
 public class KnowledgeCaseMatchPolicy {
 
     private static final int MAX_TITLE_SCORE = 40;
@@ -39,26 +28,22 @@ public class KnowledgeCaseMatchPolicy {
 
     /**
      * 对单个候选案例进行匹配评分。
-     *
-     * @param candidate 候选案例
-     * @param criteria  匹配条件
-     * @return 评分结果（包含分数、标签、原因、高亮文本）
      */
     public KnowledgeCaseMatchScore score(KnowledgeCaseReadModel candidate, KnowledgeCaseMatchCriteria criteria) {
         int score = 0;
         List<String> reasons = new ArrayList<>();
 
         // 1. 评分项标题相似度（最高权重）
-        int titleScore = calculateTitleSimilarity(criteria.scoringItemTitle(), candidate.getScoringPointTitle());
+        int titleScore = calculateTitleSimilarity(criteria.scoringItemTitle(), candidate);
         if (titleScore > 0) {
             score += titleScore;
             reasons.add("评分项匹配");
         }
 
         // 2. 评分项类别一致
-        if (TextSimilarityPolicy.hasText(criteria.scoringCategory())
-                && criteria.scoringCategory().equalsIgnoreCase(candidate.getScoringCategory())) {
-            score += CATEGORY_MATCH_SCORE;
+        int categoryScore = calculateCategoryScore(criteria, candidate);
+        if (categoryScore > 0) {
+            score += categoryScore;
             reasons.add("类别一致");
         }
 
@@ -130,12 +115,95 @@ public class KnowledgeCaseMatchPolicy {
     // 私有计算辅助方法
     // ------------------------------------------------------------------
 
-    private int calculateTitleSimilarity(String criteriaTitle, String caseTitle) {
-        if (!TextSimilarityPolicy.hasText(criteriaTitle) || !TextSimilarityPolicy.hasText(caseTitle)) {
+    private int calculateTitleSimilarity(String criteriaTitle, KnowledgeCaseReadModel candidate) {
+        if (!TextSimilarityPolicy.hasText(criteriaTitle)) {
             return 0;
         }
-        double jaccard = TextSimilarityPolicy.jaccardSimilarityOfText(criteriaTitle, caseTitle);
-        return (int) Math.round(jaccard * MAX_TITLE_SCORE);
+        String caseTitle = candidate.getScoringPointTitle();
+        String cleanCriteriaTitle = TextSimilarityPolicy.cleanTitle(criteriaTitle);
+        String candidateText = (Objects.toString(candidate.getRequirementRaw(), "") + " "
+                + Objects.toString(candidate.getResponseText(), "") + " "
+                + Objects.toString(candidate.getScoringPointTitle(), "")).toLowerCase(Locale.ROOT);
+
+        // 1. 直接包含与正文命中
+        if (TextSimilarityPolicy.hasText(cleanCriteriaTitle) && cleanCriteriaTitle.length() >= 2) {
+            String lowerClean = cleanCriteriaTitle.toLowerCase(Locale.ROOT);
+            if (TextSimilarityPolicy.hasText(caseTitle) && (caseTitle.equalsIgnoreCase(cleanCriteriaTitle)
+                    || caseTitle.contains(cleanCriteriaTitle)
+                    || cleanCriteriaTitle.contains(caseTitle))) {
+                return MAX_TITLE_SCORE;
+            }
+            if (candidateText.contains(lowerClean)) {
+                return MAX_TITLE_SCORE;
+            }
+        }
+
+        if (TextSimilarityPolicy.hasText(caseTitle)) {
+            double jaccard = TextSimilarityPolicy.jaccardSimilarityOfText(
+                    cleanCriteriaTitle.isEmpty() ? criteriaTitle : cleanCriteriaTitle, caseTitle
+            );
+            return (int) Math.round(jaccard * MAX_TITLE_SCORE);
+        }
+        return 0;
+    }
+
+    private int calculateCategoryScore(KnowledgeCaseMatchCriteria criteria, KnowledgeCaseReadModel candidate) {
+        String cat = candidate.getScoringCategory();
+        if (!TextSimilarityPolicy.hasText(cat)) {
+            return 0;
+        }
+
+        String criteriaCat = Objects.toString(criteria.scoringCategory(), "").trim();
+        String criteriaTitle = Objects.toString(criteria.scoringItemTitle(), "").trim();
+
+        // 1. 若双方都有明确类别，优先按类别精确/包含匹配
+        if (TextSimilarityPolicy.hasText(criteriaCat)) {
+            if (criteriaCat.equalsIgnoreCase(cat) || criteriaCat.contains(cat) || cat.contains(criteriaCat)) {
+                return CATEGORY_MATCH_SCORE;
+            }
+            return 0;
+        }
+
+        // 2. 当 criteriaCat 为空时，基于纯净标题业务词进行语义推断
+        String combined = TextSimilarityPolicy.cleanTitle(criteriaTitle).toLowerCase(Locale.ROOT);
+        String catLower = cat.trim().toLowerCase(Locale.ROOT);
+
+        if (catLower.contains("技术")) {
+            if (containsAny(combined, "技术", "方案", "系统", "对接", "能力", "运维", "架构", "安全",
+                    "开发", "功能", "接口", "部署", "硬件", "软件", "网络", "测试", "云平台", "数据库", "集成")) {
+                return CATEGORY_MATCH_SCORE;
+            }
+        } else if (catLower.contains("实施") || catLower.contains("服务") || catLower.contains("售后")) {
+            if (containsAny(combined, "实施", "服务", "售后", "响应", "保障", "质保", "应急", "培训", "交付")) {
+                return CATEGORY_MATCH_SCORE;
+            }
+        } else if (catLower.contains("商务") || catLower.contains("报价") || catLower.contains("业绩")) {
+            if (containsAny(combined, "商务", "报价", "价格", "财务", "审计", "业绩", "纳税", "结算", "支付", "合同",
+                    "保证金", "交货期", "付款", "同类", "案例", "开票", "资信")) {
+                return CATEGORY_MATCH_SCORE;
+            }
+        } else if (catLower.contains("资质") || catLower.contains("认证") || catLower.contains("体系")) {
+            if (containsAny(combined, "资质", "证书", "认证", "iso", "许可", "执照", "资信", "等级", "体系", "aaa",
+                    "专利", "软著", "专精特新", "高新")) {
+                return CATEGORY_MATCH_SCORE;
+            }
+        } else if (catLower.contains("人员") || catLower.contains("团队") || catLower.contains("机构")) {
+            if (containsAny(combined, "人员", "团队", "项目经理", "架构师", "职称", "社保", "学历", "履历", "专家",
+                    "工程师", "配置", "投入", "骨干", "成员")) {
+                return CATEGORY_MATCH_SCORE;
+            }
+        }
+
+        return 0;
+    }
+
+    private static boolean containsAny(String text, String... keywords) {
+        for (String kw : keywords) {
+            if (text.contains(kw)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private int calculateKeywordOverlap(String keyword, KnowledgeCaseReadModel candidate) {
