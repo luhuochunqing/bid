@@ -236,7 +236,7 @@ public class FullDocumentSemanticRetrievalAcceptanceTest {
             assertThat(verdict.status()).isEqualTo("PASS");
             assertThat(verdict.conclusion()).isEqualTo("资质完全齐备");
 
-            verify(aiProvider, times(1)).chatCompletionJsonObject(eq("核查 prompt"), eq(1024));
+            verify(aiProvider, times(1)).chatCompletionJsonObject(eq("核查 prompt"), eq(4096));
             verify(aiProvider, never()).chatCompletion(anyString(), anyInt());
         }
 

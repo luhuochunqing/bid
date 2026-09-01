@@ -40,8 +40,12 @@ public class BidQualityCheckAsyncExecutor {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    /** LLM 裁决单项 max_tokens（裁决层只输出小 JSON，不需长响应）. */
-    private static final int LLM_ADJUDICATION_MAX_TOKENS = 1024;
+    /**
+     * LLM 裁决单项 max_tokens（正文约 200 token，余量给 thinking——thinking 系
+     * 模型的内部推理 token 同样计入 max_tokens，给小了正文会被截断致 JSON 不配平，
+     * 1024 时曾致 7/7 语义项转人工，见 lessons #201）.
+     */
+    private static final int LLM_ADJUDICATION_MAX_TOKENS = 4096;
 
     /** 首次响应解析失败时的重试追加强约束（降低模型输出围栏/多余文字的概率）. */
     private static final String STRICT_JSON_RETRY_SUFFIX =

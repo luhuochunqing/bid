@@ -208,7 +208,7 @@ class Milestone2AdversarialChallengeTest {
             assertThat(verdict.conclusion()).isEqualTo("重试后成功");
 
             ArgumentCaptor<String> promptCaptor = ArgumentCaptor.forClass(String.class);
-            verify(mockAiProvider, times(2)).chatCompletionJsonObject(promptCaptor.capture(), eq(1024));
+            verify(mockAiProvider, times(2)).chatCompletionJsonObject(promptCaptor.capture(), eq(4096));
 
             assertThat(promptCaptor.getAllValues().get(0)).isEqualTo("原始裁决 prompt");
             assertThat(promptCaptor.getAllValues().get(1)).isEqualTo("原始裁决 prompt" + STRICT_JSON_RETRY_SUFFIX);

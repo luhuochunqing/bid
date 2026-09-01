@@ -3691,3 +3691,21 @@ M1 部门筛选树锚定西域集团(0001)子树三级展示（PR !2474）后，
 | 对全文所有表格无差别调用 LLM 抽取 | 认为 LLM 能在表格内自行判断，忽略了单表脱离全文语境时极易将前附表或考核表误判为评分表 | LLM 抽取前必须进行文档级章节定位与表格类型守卫过滤，缩小空间范围 |
 | 破坏了原本确定性且准确的存量路径 | 重构时全量切换而非保留高质量确定性主路径 | 重构必须坚持「确定性主路优先 + LLM 智能兜底」原则，避免标准场景被非标解法反噬 |
 
+
+
+## 201. 语义项裁决全线截断于 ~60 token：thinking 系模型的 max_tokens 计入内部推理（2026-09-01）
+
+**背景**：分页修复（#199）合入后测试环境复检，确定性 lane 全部恢复，但 7/7 语义项仍报"AI 返回结果异常"。ssh 测试环境（releaseId 899ebc0a9）抓 journald 实证：LLM（gemini-3.5-flash 经自建网关）响应全部截断于 44-68 字符，正好写完 status/conclusion 在 suggestion 中途断掉。
+
+**根因分析**：
+1. `LLM_ADJUDICATION_MAX_TOKENS = 1024` 的设计假设是"裁决层只输出小 JSON"——在非 thinking 模型上成立；
+2. gemini-3.5-flash 等 thinking 系模型经 OpenAI 兼容网关时，**内部推理（thinking）token 同样计入 max_tokens 输出预算**：1024 被 thinking 消耗殆尽，正文仅剩 ~60 token，JSON 必然不配平 → 解析失败 ×2 → LOW_CONFIDENCE 转人工；
+3. 同文件对照：`TenderRequirementsExtractor.MAX_TOKENS = 4096` 同一网关同一模型正常工作——差异只剩 token 预算。
+
+**解决方案**：`LLM_ADJUDICATION_MAX_TOKENS` 1024 → 4096（与招标要求提取对齐），注释记录 thinking 语义防止回改。
+
+**教训**：
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| max_tokens 按"输出正文大小"估算，忽略 thinking 系模型的内部推理消耗 | 供应商模型从非 thinking 切换到 thinking 系（网关换模型）时，token 语义静默变化 | thinking 系模型下 max_tokens ≥ 正文需求 × 富余系数（≥4×）；换模型后必须对"小输出"调用做冒烟验证 |
+| "返回结果异常"文案掩盖了系统性截断 | 每项失败都归档为 LOW_CONFIDENCE 转人工，无人看原始响应 | LLM 响应解析失败日志（含原始响应截断）应纳入告警视野：同类失败 ≥N 次/任务即为配置问题而非内容问题 |
