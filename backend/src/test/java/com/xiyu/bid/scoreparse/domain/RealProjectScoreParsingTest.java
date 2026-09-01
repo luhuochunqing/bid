@@ -109,18 +109,45 @@ class RealProjectScoreParsingTest {
         // 精确数量：11 项细则 + 报价细拆 2 子项（京东 28 / 自有商城 12）= 13
         assertThat(candidates).hasSize(13);
 
-        // 验证关键评分项被成功识别
+        // 验证关键评分项被成功识别并具备完整子细则（100% 逐字保留 1/2/3 全部子要点）
         assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("供应商业绩") && c.weight().intValue() == 7);
         assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("财务状况") && c.weight().intValue() == 3);
         assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("服务网点及仓储") && c.weight().intValue() == 3);
         assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("电子商城运营时间") && c.weight().intValue() == 1);
         assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("授信额度") && c.weight().intValue() == 1);
-        assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("综合服务方案") && c.weight().intValue() == 10);
+        
+        ScoreCandidate servicePlan = candidates.stream()
+                .filter(c -> c.dim() != null && c.dim().contains("综合服务方案"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(servicePlan.weight().intValue()).isEqualTo(10);
+        assertThat(servicePlan.detail())
+                .contains("1.综合考察供应商售前服务能力")
+                .contains("2.综合考察供应商售中服务能力")
+                .contains("3.综合考察供应商售后服务能力")
+                .contains("出库配送")
+                .contains("退换货响应、三包服务")
+                .contains("售后问题处理周期");
+
         assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("产品质量及价格") && c.weight().intValue() == 10);
         assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("物流仓储方案") && c.weight().intValue() == 8);
         assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("服务团队方案") && c.weight().intValue() == 10);
         assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("平台系统对接方案") && c.weight().intValue() == 3);
         assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("增值服务方案") && c.weight().intValue() == 4);
+
+        // 验证 Guard 层能够保护完整细则不被 LLM 截断输出覆盖
+        ScoreCandidate truncatedMerged = new ScoreCandidate(
+                servicePlan.code(), servicePlan.dim(),
+                "1.综合考察供应商售前服务能力，须提供售前服务方案，包括但不限于商品咨询解答...出库配",
+                servicePlan.weight(), "SUBJECTIVE", null, "原文", "P30", "GLOBAL_MERGE");
+        ScoreMergeResultGuard.Outcome guardedOutcome = ScoreMergeResultGuard.guard(
+                candidates, List.of(truncatedMerged), md);
+        assertThat(guardedOutcome.accepted()).isNotEmpty();
+        ScoreCandidate guardedServicePlan = guardedOutcome.accepted().stream()
+                .filter(c -> c.dim() != null && c.dim().contains("综合服务方案"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(guardedServicePlan.detail()).contains("3.综合考察供应商售后服务能力");
 
         // 复合价格分细拆：加法型（40 = 28 + 12）才允许拆分
         assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("京东工业品") && c.weight().intValue() == 28);

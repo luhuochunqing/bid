@@ -124,10 +124,10 @@ class ScoreGlobalMergeExecutorTest {
 
     @Test
     void summarizePool_truncatesDetailAndEscapesQuotes() {
-        String longDetail = "长".repeat(300) + "\"引号\"";
+        String longDetail = "长".repeat(4500) + "\"引号\"";
         String json = ScoreGlobalMergeExecutor.summarizePool(List.of(poolItem(longDetail, "5")));
         assertThat(json).contains("\"weight\":5");
-        assertThat(json.length()).isLessThan(500);
-        assertThat(json).doesNotContain("引号"); // 截断在 200 字处，引号部分已被截掉且转义安全
+        assertThat(json.length()).isLessThan(5000);
+        assertThat(json).doesNotContain("引号"); // 截断在 4000 字处，超长引号部分已被截掉且转义安全
     }
 }
