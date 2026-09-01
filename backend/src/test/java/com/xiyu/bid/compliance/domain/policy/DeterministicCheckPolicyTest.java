@@ -101,4 +101,51 @@ class DeterministicCheckPolicyTest {
         assertThat(results).hasSize(18);
         assertThat(results.stream().allMatch(r -> r.status() != null)).isTrue();
     }
+
+    @Test
+    @DisplayName("证据定位：单页长文档命中关键词时，quote 取关键词附近上下文而非页首（分页缺失场景）")
+    void evidenceQuote_locatesAroundKeyword_onLongSinglePage() {
+        String cover = "张家口银行 XX 电商平台采购项目 投标文件 投标人：西域智慧供应链（上海）股份公司 2026年6月21日";
+        String filler = "服务承诺与实施方案填充内容，无核查关键词。".repeat(400);
+        String license = "第九章 资格证明文件\n营业执照\n统一社会信用代码：91310000775244192P\n营业期限：长期";
+        String hugeSinglePage = cover + filler + license;
+        DocumentContent doc = DocumentContent.fromText("bid.docx", "hash_1352", hugeSinglePage);
+
+        QualityCheckItemResult result = DeterministicCheckPolicy.checkBusinessLicense(doc);
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(result.evidences()).isNotEmpty();
+        String quote = result.evidences().get(0).quote();
+        assertThat(quote)
+                .as("证据摘录应围绕命中关键词（营业执照），而非整页开头")
+                .contains("营业执照");
+        assertThat(quote)
+                .as("证据摘录不应再是封面页首文本")
+                .doesNotContain("张家口银行");
+    }
+
+    @Test
+    @DisplayName("证据定位：关键词未命中窗口兜底为页首摘录（原 snippet 行为）")
+    void evidenceQuote_fallsBackToHead_whenKeywordAbsent() {
+        String text = "投标函\n致：张家口银行股份有限公司\n我方承诺……".repeat(200);
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash", text);
+
+        QualityCheckItemResult result = DeterministicCheckPolicy.checkBidLetterFormat(doc);
+
+        assertThat(result.evidences()).isNotEmpty();
+        assertThat(result.evidences().get(0).quote()).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("开标一览表：文档使用「投标报价表」表述时也能识别（词表扩充）")
+    void bidOpeningTable_recognizesBidPriceTable() {
+        String page = "二、投标报价表\n投标总价：大写：人民币壹佰万元整 小写：¥1000000.00\n分项报价明细见附录";
+        DocumentContent doc = DocumentContent.fromText("bid.docx", "hash_1352", page);
+
+        QualityCheckItemResult result = DeterministicCheckPolicy.checkBidOpeningTable(doc);
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(result.evidences()).isNotEmpty();
+        assertThat(result.evidences().get(0).quote()).contains("投标报价表");
+    }
 }

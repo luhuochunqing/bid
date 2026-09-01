@@ -62,7 +62,7 @@ public final class SubItemAndAttachmentRules {
         BidQualityCheckItem item = BidQualityCheckItem.COMMITMENT_SEAL;
         BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc, "承诺书", "承诺函", "廉洁承诺", "诚信承诺");
         if (match != null) {
-            return QualityCheckItemResult.pass(item, "包含必要的承诺书签署文件", List.of(QualityEvidence.bid("承诺书章节", match.pageNumber(), BasicInfoCheckPolicy.snippet(match.text(), 200))));
+            return QualityCheckItemResult.pass(item, "包含必要的承诺书签署文件", List.of(QualityEvidence.bid("承诺书章节", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(match.text(), 200, "承诺书", "承诺函", "廉洁承诺", "诚信承诺"))));
         }
         return QualityCheckItemResult.manualReview(item, "未检索到独立的承诺函章节", "请核实招标文件是否要求单独提供廉洁/无行贿承诺书", Collections.emptyList());
     }
@@ -71,16 +71,16 @@ public final class SubItemAndAttachmentRules {
         BidQualityCheckItem item = BidQualityCheckItem.ID_AUTH_LETTER;
         BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc, "身份证", "社保", "社会保险");
         if (match != null) {
-            return QualityCheckItemResult.pass(item, "已附授权委托人身份证明或社保证明文件", List.of(QualityEvidence.bid("身份证/社保附件", match.pageNumber(), BasicInfoCheckPolicy.snippet(match.text(), 200))));
+            return QualityCheckItemResult.pass(item, "已附授权委托人身份证明或社保证明文件", List.of(QualityEvidence.bid("身份证/社保附件", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(match.text(), 200, "身份证", "社保", "社会保险"))));
         }
         return QualityCheckItemResult.fail(item, "缺少授权委托人身份证扫描件或社保证明", "请在附件清单中补充委托代理人身份证复印件及近3个月社保证明", Collections.emptyList());
     }
 
     public static QualityCheckItemResult checkBidOpeningTable(final DocumentContent bidDoc) {
         BidQualityCheckItem item = BidQualityCheckItem.BID_OPENING_TABLE;
-        BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc, "开标一览表", "报价明细表", "分项报价表");
+        BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc, "开标一览表", "投标报价表", "报价一览表", "投标一览表", "报价明细表", "分项报价表");
         if (match != null) {
-            return QualityCheckItemResult.pass(item, "包含开标一览表或分项报价明细表", List.of(QualityEvidence.bid("开标一览表所在页", match.pageNumber(), BasicInfoCheckPolicy.snippet(match.text(), 200))));
+            return QualityCheckItemResult.pass(item, "包含开标一览表或分项报价明细表", List.of(QualityEvidence.bid("开标一览表所在页", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(match.text(), 200, "开标一览表", "投标报价表", "报价一览表", "投标一览表", "报价明细表", "分项报价表"))));
         }
         return QualityCheckItemResult.fail(item, "未检测到开标一览表或分项报价表", "请在投标文件中加入《开标一览表》及分项报价清单", Collections.emptyList());
     }
@@ -89,7 +89,7 @@ public final class SubItemAndAttachmentRules {
         BidQualityCheckItem item = BidQualityCheckItem.DEPOSIT_RECEIPT;
         BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc, "投标保证金", "保函", "汇款凭证", "银行回单");
         if (match != null) {
-            return QualityCheckItemResult.pass(item, "已附投标保证金汇款回单或电子保函凭证", List.of(QualityEvidence.bid("保证金凭证页", match.pageNumber(), BasicInfoCheckPolicy.snippet(match.text(), 200))));
+            return QualityCheckItemResult.pass(item, "已附投标保证金汇款回单或电子保函凭证", List.of(QualityEvidence.bid("保证金凭证页", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(match.text(), 200, "投标保证金", "保函", "汇款凭证", "银行回单"))));
         }
         return QualityCheckItemResult.fail(item, "未检索到投标保证金缴纳凭证或投标保函", "请补充投标保证金转账回执单扫描件或有效保函", Collections.emptyList());
     }
@@ -98,7 +98,7 @@ public final class SubItemAndAttachmentRules {
         BidQualityCheckItem item = BidQualityCheckItem.CA_CERTIFICATE;
         BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc, "CA", "数字证书", "电子签章", "电子印章");
         if (match != null) {
-            return QualityCheckItemResult.pass(item, "包含 CA 电子签章或数字证书有效性标识", List.of(QualityEvidence.bid("CA/签章标识", match.pageNumber(), BasicInfoCheckPolicy.snippet(match.text(), 200))));
+            return QualityCheckItemResult.pass(item, "包含 CA 电子签章或数字证书有效性标识", List.of(QualityEvidence.bid("CA/签章标识", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(match.text(), 200, "CA", "数字证书", "电子签章", "电子印章"))));
         }
         return QualityCheckItemResult.manualReview(item, "未识别到 CA 证书明文字符（如为电子标，请在交易平台客户端核验 CA 锁签名）", "建议使用 CA 客户端校验数字证书有效性", Collections.emptyList());
     }
@@ -107,7 +107,7 @@ public final class SubItemAndAttachmentRules {
         BidQualityCheckItem item = BidQualityCheckItem.DEPOSIT_REFUND;
         BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc, "退还", "开户银行", "银行账号", "基本存款账户");
         if (match != null) {
-            return QualityCheckItemResult.pass(item, "包含保证金退还开户行及银行账户信息", List.of(QualityEvidence.bid("退款账户信息页", match.pageNumber(), BasicInfoCheckPolicy.snippet(match.text(), 200))));
+            return QualityCheckItemResult.pass(item, "包含保证金退还开户行及银行账户信息", List.of(QualityEvidence.bid("退款账户信息页", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(match.text(), 200, "退还", "开户银行", "银行账号", "基本存款账户"))));
         }
         return QualityCheckItemResult.manualReview(item, "未检索到明确的保证金退还账户信息表", "若招标文件要求提供退还账户信息，请在附件中补充基本账户开户证明", Collections.emptyList());
     }
