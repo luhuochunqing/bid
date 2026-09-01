@@ -1,5 +1,5 @@
-// Input: 临时文件路径 + 文件名
-// Output: 结构化 DocumentContent（Markdown、分页、SHA-256 哈希，含安全降级守卫）
+// Input: 临时文件路径 + 文件名（Sidecar 响应：markdown + 可选结构化 pages 物理页）
+// Output: 结构化 DocumentContent（Markdown、分页优先级 pages→\f→虚拟分页、SHA-256 哈希，含安全降级守卫）
 // Pos: compliance/service/ - 标书文档转换 Sidecar 流式适配器
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.service;
@@ -98,12 +98,11 @@ public class SidecarStreamDocumentAdapter {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
                 JsonNode root = objectMapper.readTree(response.body());
-                String markdown = root.path("markdown").asText("");
                 String contentHash = rawContentHash;
                 if (contentHash == null || contentHash.isBlank()) {
                     contentHash = root.path("contentHash").asText("");
                 }
-                return buildDocumentContent(fileName, contentHash, markdown);
+                return documentFromSidecarPayload(fileName, contentHash, root);
             } else {
                 log.warn("Sidecar /convert 返回状态码 {}: {}, 降级使用本地哈希与文本", response.statusCode(), response.body());
             }
@@ -178,7 +177,39 @@ public class SidecarStreamDocumentAdapter {
         if (pages.isEmpty()) {
             pages.add(new DocumentContent.PageContent(1, fullText, Collections.emptyList()));
         }
+        // 分页缺失兜底：markitdown 输出无 \f 时整篇退化为单页，
+        // 长文本按标题/段落虚拟分页，恢复页数判断、证据定位与检索预算的有效性
+        if (pages.size() == 1 && fullText.length() > DocumentContent.VIRTUAL_PAGE_MIN_TEXT_LENGTH) {
+            pages = DocumentContent.virtualPages(fullText);
+        }
         return new DocumentContent(fileName, fileHash, fullText, pages);
+    }
+
+    /**
+     * 解析 Sidecar /convert 响应为 DocumentContent：
+     * 优先消费结构化 pages（PDF 物理页）；缺省时回退 {@link #buildDocumentContent}
+     * 的 \f 切分与虚拟分页兜底.
+     */
+    DocumentContent documentFromSidecarPayload(
+            final String fileName, final String contentHash, final JsonNode payload) {
+        String markdown = payload.path("markdown").asText("");
+        JsonNode pagesNode = payload.path("pages");
+        if (pagesNode.isArray() && pagesNode.size() > 0) {
+            List<DocumentContent.PageContent> pages = new ArrayList<>();
+            for (int i = 0; i < pagesNode.size(); i++) {
+                JsonNode pageNode = pagesNode.get(i);
+                String pageText = pageNode.path("text").asText("");
+                if (pageText.isBlank()) {
+                    continue;
+                }
+                int pageNumber = pageNode.path("pageNumber").asInt(pages.size() + 1);
+                pages.add(new DocumentContent.PageContent(pageNumber, pageText, Collections.emptyList()));
+            }
+            if (!pages.isEmpty()) {
+                return new DocumentContent(fileName, contentHash, markdown, pages);
+            }
+        }
+        return buildDocumentContent(fileName, contentHash, markdown);
     }
 
     public static String computeSha256(final Path path) {

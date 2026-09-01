@@ -1,5 +1,5 @@
 // Input: 检查项 + 招标要求 + 标书文档 + 字符预算
-// Output: 格式化后的相关页面上下文（含真实页码 --- [第 X 页] ---），预算内全文透传，超预算 TOP-N 相关页
+// Output: 格式化后的相关页面上下文（含真实页码 --- [第 X 页] ---），预算内全文透传，超预算 TOP-N 相关页；单页即超预算时硬截断并标注
 // Pos: compliance/domain/policy/ - 标书语义页面检索器（纯核心，spec 049 R1）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -90,6 +90,11 @@ public final class SemanticPageRetriever {
         int accumulatedChars = 0;
         for (ScoredPage sp : scoredPages) {
             int pageLen = sp.page().text() != null ? sp.page().text().length() : 0;
+            if (selected.isEmpty() && pageLen > charBudget) {
+                // 首个（最高分）页自身即超预算：硬截断至预算，防止单页超长文档（分页缺失）撑爆 prompt
+                selected.add(truncatePage(sp.page(), charBudget));
+                break;
+            }
             if (selected.isEmpty() || accumulatedChars + pageLen <= charBudget) {
                 selected.add(sp.page());
                 accumulatedChars += pageLen;
@@ -253,6 +258,17 @@ public final class SemanticPageRetriever {
     private static String formatSinglePage(final int pageNumber, final String text, final int budget) {
         String content = text.length() <= budget ? text : text.substring(0, budget) + "……（已截断）";
         return PAGE_HEADER_PREFIX + pageNumber + PAGE_HEADER_SUFFIX + "\n" + content.trim();
+    }
+
+    /** 单页超预算硬截断：保留页码与标题元数据，正文截断至预算并标注（与 formatSinglePage 文案一致）；非正预算优雅保底不截断. */
+    private static DocumentContent.PageContent truncatePage(
+            final DocumentContent.PageContent page, final int charBudget) {
+        String text = page.text() == null ? "" : page.text();
+        if (charBudget <= 0 || text.length() <= charBudget) {
+            return page;
+        }
+        String truncated = text.substring(0, charBudget) + "……（已截断）";
+        return new DocumentContent.PageContent(page.pageNumber(), truncated, page.headings());
     }
 
     private record ScoredPage(DocumentContent.PageContent page, int score) {

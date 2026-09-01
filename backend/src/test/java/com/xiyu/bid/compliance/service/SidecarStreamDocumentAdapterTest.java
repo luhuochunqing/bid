@@ -3,6 +3,7 @@ package com.xiyu.bid.compliance.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.compliance.domain.DocumentContent;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -84,6 +85,66 @@ class SidecarStreamDocumentAdapterTest {
         assertThat(content).isNotNull();
         assertThat(content.fileName()).isEqualTo("huge_with_media.docx");
         assertThat(content.fileHash()).isNotEmpty();
+    }
+
+    @Nested
+    @DisplayName("Sidecar 响应解析：结构化 pages 与虚拟分页兜底")
+    class PayloadParsingTests {
+
+        private com.fasterxml.jackson.databind.JsonNode payload(final String json) throws IOException {
+            return objectMapper.readTree(json);
+        }
+
+        @Test
+        @DisplayName("响应含结构化 pages：按物理页构建，不再虚拟切块")
+        void payloadWithPages_buildsPhysicalPages() throws IOException {
+            com.fasterxml.jackson.databind.JsonNode root = payload("""
+                    {"markdown": "第一页内容\\f第二页内容",
+                     "pages": [{"pageNumber": 1, "text": "第一页内容"},
+                               {"pageNumber": 2, "text": "第二页内容"}]}
+                    """);
+
+            DocumentContent doc = adapter.documentFromSidecarPayload("bid.pdf", "hash", root);
+
+            assertThat(doc.pages()).hasSize(2);
+            assertThat(doc.pages().get(0).pageNumber()).isEqualTo(1);
+            assertThat(doc.pages().get(1).text()).isEqualTo("第二页内容");
+        }
+
+        @Test
+        @DisplayName("响应无 pages 且文本无 \\f：超阈值长文本虚拟分页，页数恢复有效")
+        void payloadWithoutPages_longText_fallsBackToVirtualPages() throws IOException {
+            String hugeMarkdown = "投标文件正文段落，用于模拟 markitdown 无分页符输出。".repeat(300);
+            com.fasterxml.jackson.databind.JsonNode root = payload(
+                    "{\"markdown\": \"" + hugeMarkdown + "\"}");
+
+            DocumentContent doc = adapter.documentFromSidecarPayload("bid.docx", "hash", root);
+
+            assertThat(doc.pages().size()).as("长文本应被虚拟分页为多块").isGreaterThanOrEqualTo(2);
+            assertThat(doc.pages().get(0).pageNumber()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("响应无 pages 且文本无 \\f：短文本保持单页（回归保护）")
+        void payloadWithoutPages_shortText_singlePage() throws IOException {
+            com.fasterxml.jackson.databind.JsonNode root = payload(
+                    "{\"markdown\": \"短文档内容，无需切块。\"}");
+
+            DocumentContent doc = adapter.documentFromSidecarPayload("bid.docx", "hash", root);
+
+            assertThat(doc.pages()).hasSize(1);
+        }
+
+        @Test
+        @DisplayName("响应无 pages 但文本含 \\f：按物理分页符切分（回归保护）")
+        void payloadWithoutPages_formFeed_physicalSplit() throws IOException {
+            com.fasterxml.jackson.databind.JsonNode root = payload(
+                    "{\"markdown\": \"甲页内容\\f乙页内容\\f丙页内容\"}");
+
+            DocumentContent doc = adapter.documentFromSidecarPayload("bid.pdf", "hash", root);
+
+            assertThat(doc.pages()).hasSize(3);
+        }
     }
 }
 
