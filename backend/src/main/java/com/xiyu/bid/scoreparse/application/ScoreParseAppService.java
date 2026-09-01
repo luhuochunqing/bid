@@ -16,6 +16,7 @@ import com.xiyu.bid.scoreparse.dto.ScoreParseTriggerDTO;
 import com.xiyu.bid.scoreparse.dto.ScoreItemDTO;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
+import com.xiyu.bid.scoreparse.infrastructure.openai.LlmTableScoreExtractor;
 import com.xiyu.bid.scoreparse.infrastructure.openai.OpenAiScoreAnalyzer;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
@@ -23,6 +24,7 @@ import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
@@ -57,6 +59,7 @@ public class ScoreParseAppService {
     private final InitiationTenderTextResolver initiationTenderTextResolver;
     /** spec 057 FR-07/D5 预案：治理块抽离后本类保留纯编排职责 */
     private final ScoreCandidatePostProcessor postProcessor;
+    private final ObjectProvider<LlmTableScoreExtractor> llmTableScoreExtractorProvider;
     private final SummaryAggregator summaryAggregator = new SummaryAggregator();
 
     /** 自身代理（解决 @Async 自调用失效）；@Lazy 避免循环依赖 */
@@ -152,8 +155,9 @@ public class ScoreParseAppService {
         task.setSkippedChunks(outcome.skippedChunks());
         // spec 055 召回五 + 治理链整体委托 PostProcessor（spec 057 抽取：合并/守卫/裁决/回补/权重/run-summary）
         updateProgress(taskId, 70, "GOVERN", "候选治理、归并裁决与权重收敛");
+        List<ScoreCandidate> tableCandidates = recallTableCandidates(source.text());
         var processed = postProcessor.process(taskId, source.text(), outcome,
-                ScoreTableRecallLane.recall(source.text()),
+                tableCandidates,
                 (progress, stageKey) -> updateProgress(taskId, progress, stageKey,
                         "GAP_RECHECK".equals(stageKey) ? "分值或编号连续性异常，触发完整性回补" : stageKey));
         if (processed.failMessage() != null) {
@@ -227,6 +231,23 @@ public class ScoreParseAppService {
                 .orElseThrow(() -> new IllegalStateException("项目无解析任务: " + projectId));
     }
 
+    private List<ScoreCandidate> recallTableCandidates(String fullText) {
+        LlmTableScoreExtractor extractor = llmTableScoreExtractorProvider != null
+                ? llmTableScoreExtractorProvider.getIfAvailable() : null;
+        if (extractor != null) {
+            try {
+                List<ScoreCandidate> llmCandidates = extractor.extractFromDocument(fullText);
+                if (!llmCandidates.isEmpty()) {
+                    log.info("LLM 表格抽取产出候选数: count={}", llmCandidates.size());
+                    return llmCandidates;
+                }
+            } catch (RuntimeException e) {
+                log.warn("LLM 表格抽取异常，安全回退到启发式规则: {}", e.getMessage());
+            }
+        }
+        return ScoreTableRecallLane.recall(fullText);
+    }
+
     private void updateProgress(String taskId, int progress, String stageKey, String stageText) {
         stateService.updateProgress(taskId, progress, stageText);
         progressService.updateProgress(taskId, new ScoreParseProgressDTO(
@@ -239,3 +260,4 @@ public class ScoreParseAppService {
                 item.getEstScore(), item.getEstBasis(), item.getKbHit(), item.getLocation());
     }
 }
+

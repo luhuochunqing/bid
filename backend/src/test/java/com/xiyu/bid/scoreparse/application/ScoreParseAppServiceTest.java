@@ -11,6 +11,7 @@ import com.xiyu.bid.scoreparse.domain.RecallOutcome;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
+import com.xiyu.bid.scoreparse.infrastructure.openai.LlmTableScoreExtractor;
 import com.xiyu.bid.scoreparse.infrastructure.openai.OpenAiScoreAnalyzer;
 import com.xiyu.bid.scoreparse.infrastructure.openai.ScoreGlobalMergeExecutor;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
@@ -83,6 +84,8 @@ class ScoreParseAppServiceTest {
 
     @Mock
     private ObjectProvider<ScoreGlobalMergeExecutor> mergeExecutorProvider;
+    @Mock
+    private ObjectProvider<LlmTableScoreExtractor> llmTableScoreExtractorProvider;
 
     private ScoreParseAppService service;
 
@@ -91,13 +94,15 @@ class ScoreParseAppServiceTest {
         // spec 057：治理链入 PostProcessor——真实领域策略+真编排器（executor 缺席即 fail-open，
         // 归并裁决语义由 OrchestratorTest / PostProcessorTest 各自专项覆盖）
         lenient().when(mergeExecutorProvider.getIfAvailable()).thenReturn(null);
+        lenient().when(llmTableScoreExtractorProvider.getIfAvailable()).thenReturn(null);
         postProcessor = new ScoreCandidatePostProcessor(scoreAnalyzer,
                 new ScoreGlobalMergeOrchestrator(mergeExecutorProvider));
         service = new ScoreParseAppService(
                 taskRepository, itemRepository, resultRepository, projectDocumentRepository,
                 stateService, progressService, snapshotRepository,
                 projectAccessScopeService, scoreAnalyzer, estimatedScoreService,
-                itemPersistenceService, initiationTenderTextResolver, postProcessor);
+                itemPersistenceService, initiationTenderTextResolver, postProcessor,
+                llmTableScoreExtractorProvider);
         ReflectionTestUtils.setField(service, "self", service);
     }
 
