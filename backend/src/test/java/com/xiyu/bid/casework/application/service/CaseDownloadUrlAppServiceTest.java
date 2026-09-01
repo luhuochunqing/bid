@@ -1,8 +1,8 @@
 package com.xiyu.bid.casework.application.service;
 
+import com.xiyu.bid.casework.domain.model.CaseObsBidFile;
+import com.xiyu.bid.casework.domain.gateway.CaseObsBidFileReader;
 import com.xiyu.bid.casework.domain.gateway.HistoricalCaseObsConfig;
-import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
-import com.xiyu.bid.casework.infrastructure.KnowledgeCaseRepository;
 import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.file.domain.gateway.ObsDownloadUrlGateway;
 import com.xiyu.bid.file.domain.model.SignedDownloadUrl;
@@ -14,7 +14,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
 import java.time.Instant;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -27,22 +26,19 @@ class CaseDownloadUrlAppServiceTest {
 
     private static final String OBJECT_KEY = "2026年（投标文件）/2026.01.05-中广核办公/项目复盘-中广核.docx";
 
-    @Mock private KnowledgeCaseRepository knowledgeCaseRepository;
+    @Mock private CaseObsBidFileReader caseObsBidFileReader;
     @Mock private ObsDownloadUrlGateway obsDownloadUrlGateway;
     @Mock private HistoricalCaseObsConfig obsConfig;
 
     @InjectMocks private CaseDownloadUrlAppService service;
 
-    private KnowledgeCase historicalCase(String obsKey) {
-        KnowledgeCase c = new KnowledgeCase();
-        c.setId(1L);
-        c.setObsBidFileKey(obsKey);
-        return c;
+    private CaseObsBidFile historicalCase(String obsKey) {
+        return new CaseObsBidFile(true, obsKey);
     }
 
     @Test
     void signDownloadUrl_returnsSignedUrlFilenameAndExpireSeconds() {
-        when(knowledgeCaseRepository.findById(1L)).thenReturn(Optional.of(historicalCase(OBJECT_KEY)));
+        when(caseObsBidFileReader.findByCaseId(1L)).thenReturn(historicalCase(OBJECT_KEY));
         when(obsConfig.bucket()).thenReturn("ehsy-widbid");
         when(obsConfig.downloadUrlExpireSeconds()).thenReturn(300);
         when(obsDownloadUrlGateway.signDownloadUrl("ehsy-widbid", OBJECT_KEY, 300))
@@ -58,28 +54,28 @@ class CaseDownloadUrlAppServiceTest {
 
     @Test
     void signDownloadUrl_caseNotFound_throws404() {
-        when(knowledgeCaseRepository.findById(404L)).thenReturn(Optional.empty());
+        when(caseObsBidFileReader.findByCaseId(404L)).thenReturn(new CaseObsBidFile(false, null));
         BusinessException ex = assertThrows(BusinessException.class, () -> service.signDownloadUrl(404L));
         assertEquals(HttpStatus.NOT_FOUND, ex.getHttpStatus());
     }
 
     @Test
     void signDownloadUrl_withoutObsKey_throws409() {
-        when(knowledgeCaseRepository.findById(2L)).thenReturn(Optional.of(historicalCase(null)));
+        when(caseObsBidFileReader.findByCaseId(2L)).thenReturn(historicalCase(null));
         BusinessException ex = assertThrows(BusinessException.class, () -> service.signDownloadUrl(2L));
         assertEquals(HttpStatus.CONFLICT, ex.getHttpStatus());
     }
 
     @Test
     void signDownloadUrl_blankObsKey_throws409() {
-        when(knowledgeCaseRepository.findById(3L)).thenReturn(Optional.of(historicalCase("  ")));
+        when(caseObsBidFileReader.findByCaseId(3L)).thenReturn(historicalCase("  "));
         BusinessException ex = assertThrows(BusinessException.class, () -> service.signDownloadUrl(3L));
         assertEquals(HttpStatus.CONFLICT, ex.getHttpStatus());
     }
 
     @Test
     void signDownloadUrl_gatewayFailure_throws502() {
-        when(knowledgeCaseRepository.findById(4L)).thenReturn(Optional.of(historicalCase(OBJECT_KEY)));
+        when(caseObsBidFileReader.findByCaseId(4L)).thenReturn(historicalCase(OBJECT_KEY));
         when(obsConfig.bucket()).thenReturn("ehsy-widbid");
         when(obsConfig.downloadUrlExpireSeconds()).thenReturn(300);
         when(obsDownloadUrlGateway.signDownloadUrl(anyString(), anyString(), anyInt()))

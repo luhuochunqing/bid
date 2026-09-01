@@ -2,6 +2,7 @@ package com.xiyu.bid.casework.controller;
 
 import com.xiyu.bid.casework.application.CaseExportExcelAppService;
 import com.xiyu.bid.casework.application.CasePrecipitationAppService;
+import com.xiyu.bid.casework.application.service.CaseDownloadUrlAppService;
 import com.xiyu.bid.casework.application.service.CaseExportAppService;
 import com.xiyu.bid.casework.application.service.CaseReferenceAppService;
 import com.xiyu.bid.casework.application.service.KnowledgeCaseCommandAppService;
@@ -53,6 +54,7 @@ class KnowledgeCaseControllerExportTest {
     @MockBean private CaseExportAppService caseExportZipAppService;
     @MockBean private CaseExportExcelAppService caseExportExcelAppService;
     @MockBean private ProjectAccessScopeService projectAccessScopeService;
+    @MockBean private CaseDownloadUrlAppService caseDownloadUrlAppService;
 
     // CO-373 回归修复：CurrentUserResolver 现依赖 EffectiveRoleResolver→RoleCodeCachePort，
     // @WebMvcTest 切片不实例化该链；TraceFilter(@Component) 又强依赖 CurrentUserResolver。

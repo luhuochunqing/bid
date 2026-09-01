@@ -109,6 +109,8 @@ class KnowledgeAccessSecurityTest {
     @MockBean
     private KnowledgeCaseQueryAppService queryAppService;
     @MockBean
+    private com.xiyu.bid.casework.application.service.CaseDownloadUrlAppService caseDownloadUrlAppService;
+    @MockBean
     private com.xiyu.bid.casework.application.service.KnowledgeCaseCommandAppService commandAppService;
     @MockBean
     private com.xiyu.bid.casework.application.service.KnowledgeCaseRecommendAppService recommendAppService;

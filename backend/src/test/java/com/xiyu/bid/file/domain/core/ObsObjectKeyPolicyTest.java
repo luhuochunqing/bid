@@ -2,9 +2,10 @@ package com.xiyu.bid.file.domain.core;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.Optional;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ObsObjectKeyPolicyTest {
@@ -27,23 +28,19 @@ class ObsObjectKeyPolicyTest {
 
     @Test
     void filenameOf_extractsBasenameWithChineseSpacesAndParentheses() {
-        assertEquals("2026投标文件(定稿 2).docx", ObsObjectKeyPolicy.filenameOf(
+        assertEquals(Optional.of("2026投标文件(定稿 2).docx"), ObsObjectKeyPolicy.filenameOf(
                 "2026年（投标文件）/项目A/2026投标文件(定稿 2).docx"));
     }
 
     @Test
-    void filenameOf_decodesPercentEncodedBasename() {
-        assertEquals("项目复盘-中广核.docx", ObsObjectKeyPolicy.filenameOf(
-                "2026年（投标文件）/项目A/%E9%A1%B9%E7%9B%AE%E5%A4%8D%E7%9B%98-%E4%B8%AD%E5%B9%BF%E6%A0%B8.docx"));
-    }
-
-    @Test
     void filenameOf_returnsKeyItselfWhenNoSlash() {
-        assertEquals("a.docx", ObsObjectKeyPolicy.filenameOf("a.docx"));
+        assertEquals(Optional.of("a.docx"), ObsObjectKeyPolicy.filenameOf("a.docx"));
     }
 
     @Test
-    void filenameOf_rejectsBlankKey() {
-        assertThrows(IllegalArgumentException.class, () -> ObsObjectKeyPolicy.filenameOf(" "));
+    void filenameOf_blankOrTrailingSlashKeyReturnsEmpty() {
+        assertEquals(Optional.empty(), ObsObjectKeyPolicy.filenameOf(null));
+        assertEquals(Optional.empty(), ObsObjectKeyPolicy.filenameOf(" "));
+        assertEquals(Optional.empty(), ObsObjectKeyPolicy.filenameOf("2026年（投标文件）/项目A/"));
     }
 }

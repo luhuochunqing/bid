@@ -4,9 +4,9 @@
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.casework.application.service;
 
+import com.xiyu.bid.casework.domain.model.CaseObsBidFile;
+import com.xiyu.bid.casework.domain.gateway.CaseObsBidFileReader;
 import com.xiyu.bid.casework.domain.gateway.HistoricalCaseObsConfig;
-import com.xiyu.bid.casework.infrastructure.KnowledgeCase;
-import com.xiyu.bid.casework.infrastructure.KnowledgeCaseRepository;
 import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.file.domain.core.ObsObjectKeyPolicy;
 import com.xiyu.bid.file.domain.gateway.ObsDownloadUrlGateway;
@@ -27,7 +27,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class CaseDownloadUrlAppService {
 
-    private final KnowledgeCaseRepository knowledgeCaseRepository;
+    private final CaseObsBidFileReader caseObsBidFileReader;
     private final ObsDownloadUrlGateway obsDownloadUrlGateway;
     private final HistoricalCaseObsConfig obsConfig;
 
@@ -43,10 +43,12 @@ public class CaseDownloadUrlAppService {
      * @throws BusinessException 404 案例不存在 / 409 无原版标书 / 502 签发失败
      */
     public DownloadUrlResult signDownloadUrl(Long caseId) {
-        KnowledgeCase knowledgeCase = knowledgeCaseRepository.findById(caseId)
-                .orElseThrow(() -> new BusinessException(404, "案例不存在"));
+        CaseObsBidFile ref = caseObsBidFileReader.findByCaseId(caseId);
+        if (!ref.exists()) {
+            throw new BusinessException(404, "案例不存在");
+        }
 
-        String objectKey = knowledgeCase.getObsBidFileKey();
+        String objectKey = ref.obsBidFileKey();
         if (objectKey == null || objectKey.isBlank()) {
             throw new BusinessException(409, "该案例暂无原版标书");
         }
@@ -55,7 +57,8 @@ public class CaseDownloadUrlAppService {
         try {
             SignedDownloadUrl signed = obsDownloadUrlGateway.signDownloadUrl(
                     obsConfig.bucket(), objectKey, expireSeconds);
-            return new DownloadUrlResult(signed.url(), ObsObjectKeyPolicy.filenameOf(objectKey), expireSeconds);
+            String filename = ObsObjectKeyPolicy.filenameOf(objectKey).orElse(objectKey);
+            return new DownloadUrlResult(signed.url(), filename, expireSeconds);
         } catch (RuntimeException e) {
             log.error("历史案例原文签发失败: caseId={} objectKey={}", caseId, objectKey, e);
             throw new BusinessException(502, "下载链接生成失败，请稍后重试", e);

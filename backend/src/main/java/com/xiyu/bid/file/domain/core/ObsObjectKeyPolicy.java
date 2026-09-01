@@ -4,8 +4,7 @@
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.file.domain.core;
 
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 
 /**
  * OBS 对象键策略（纯核心）。
@@ -45,18 +44,20 @@ public final class ObsObjectKeyPolicy {
     }
 
     /**
-     * 从对象键提取下载文件名（最后一个 '/' 之后的部分，URL 解码后）。
+     * 从对象键提取下载文件名（最后一个 '/' 之后的部分）。
      *
-     * @param key 对象键，非空
-     * @return 文件名；键中不含 '/' 时原样返回
-     * @throws IllegalArgumentException key 为空
+     * <p>纯核心约定（FP-Java）：失败以 {@link Optional#empty()} 返回，不抛异常；
+     * 库内对象键为明文中文键（签发时才 percent-encode），此处不做 URL 解码。</p>
+     *
+     * @param key 对象键（桶内相对路径）
+     * @return 文件名；键为空或 basename 为空时返回 empty；键中不含 '/' 时原样返回
      */
-    public static String filenameOf(String key) {
+    public static Optional<String> filenameOf(String key) {
         if (key == null || key.isBlank()) {
-            throw new IllegalArgumentException("对象键不能为空");
+            return Optional.empty();
         }
         int idx = key.lastIndexOf('/');
         String raw = idx >= 0 ? key.substring(idx + 1) : key;
-        return URLDecoder.decode(raw, StandardCharsets.UTF_8);
+        return raw.isBlank() ? Optional.empty() : Optional.of(raw);
     }
 }
