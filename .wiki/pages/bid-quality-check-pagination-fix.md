@@ -55,6 +55,15 @@ SidecarStreamDocumentAdapter 仅按 \f split → 整篇 = 1 页
    词表补齐"投标报价表"等现场用词；`PRICE_CONSISTENCY` 逐页未命中时全文跨行回退
    （DOTALL + 300 字符窗口）。
 
+## 追加根因（2026-09-01 复检）：语义项裁决截断于 ~60 token
+
+分页修复合入后复检：确定性 lane 全部恢复，但 7/7 语义项仍"AI 返回结果异常"。
+journald 实证：gemini-3.5-flash（自建网关）响应全部截断于 44-68 字符。
+根因是 **thinking 系模型的内部推理 token 同样计入 max_tokens 输出预算**——
+1024 被 thinking 消耗殆尽，正文仅剩 ~60 token，JSON 不配平。
+修复：`LLM_ADJUDICATION_MAX_TOKENS` 1024→4096（对齐 TenderRequirementsExtractor
+的成功对照）。教训：lessons #201。
+
 ## 已知限制
 
 - docx 证据的"第 X 页"是内容块序号而非 Word 物理页码（物理页不可得，这是上限）。
