@@ -1,11 +1,12 @@
 // Input: projectId（触发解析）/ taskId（异步执行）
 // Output: ScoreParseTriggerDTO / ScoreParseProgressDTO / ScoreParseItemsDTO
 // Pos: scoreparse/application — 解析编排（spec 041 US1）
-// 维护声明: 维护者按项目SOP；spec 031 异步四件套范式（@Async + DB + Redis + 自代理）
 package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.biddraftagent.repository.BidTenderDocumentSnapshotRepository;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
+import com.xiyu.bid.scoreparse.domain.SidecarTableExtraction;
+import com.xiyu.bid.scoreparse.domain.StructuredTableCandidateExtractor;
 import com.xiyu.bid.scoreparse.domain.RecallOutcome;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreTableRecallLane;
@@ -33,6 +34,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
@@ -47,6 +49,7 @@ public class ScoreParseAppService {
     private static final String TASK_TYPE_PARSE = "PARSE";
     private static final List<String> ACTIVE_STATUSES = List.of("PENDING", "PROCESSING");
     private static final String NO_SNAPSHOT_MESSAGE = InitiationTenderTextResolver.NO_TENDER_MESSAGE;
+    private static final int STRUCTURED_TABLE_MIN_CANDIDATES = 5;
 
     private final ScoreParseTaskRepository taskRepository;
     private final ScoreItemRepository itemRepository;
@@ -60,7 +63,7 @@ public class ScoreParseAppService {
     private final EstimatedScoreService estimatedScoreService;
     private final ScoreItemPersistenceService itemPersistenceService;
     private final InitiationTenderTextResolver initiationTenderTextResolver;
-    /** spec 057 FR-07/D5 预案：治理块抽离后本类保留纯编排职责 */
+    private final SidecarTableExtractor sidecarTableExtractor;
     private final ScoreCandidatePostProcessor postProcessor;
     private final ObjectProvider<LlmTableScoreExtractor> llmTableScoreExtractorProvider;
     private final ObjectProvider<ScoreTableSchemaMapper> schemaMapperProvider;
@@ -71,7 +74,6 @@ public class ScoreParseAppService {
     @Autowired
     private ScoreParseAppService self;
 
-    /** 触发解析。立项招标文件或历史快照至少一份，否则 400。缺省 MANUAL。 */
     public ScoreParseTriggerDTO triggerParse(Long projectId) {
         return triggerParse(projectId, "MANUAL");
     }
@@ -152,20 +154,22 @@ public class ScoreParseAppService {
         taskRepository.save(task);
         updateProgress(taskId, 5, "READ_DOCUMENT", "读取招标文件");
 
-        // FR-001 四路召回（召回一/二正则+结构、召回三/四 LLM 语义）；skippedChunks 落库（spec 046 FR-005）
         RecallOutcome outcome = scoreAnalyzer.recallCandidates(
                 source.text(), null,
                 (progress, stage) -> updateProgress(taskId, progress, "RECALL", stage));
         task.setSkippedChunks(outcome.skippedChunks());
-        // spec 055 召回五 + 治理链整体委托 PostProcessor（spec 057 抽取：合并/守卫/裁决/回补/权重/run-summary）
+        List<ScoreCandidate> tableCandidates = tryStructuredTableExtract(source);
+        if (tableCandidates.size() >= STRUCTURED_TABLE_MIN_CANDIDATES) {
+            log.info("结构化表格提取命中候选: count={}", tableCandidates.size());
+        } else {
+            tableCandidates = recallTableCandidates(source.text());
+        }
         updateProgress(taskId, 70, "GOVERN", "候选治理、归并裁决与权重收敛");
-        List<ScoreCandidate> tableCandidates = recallTableCandidates(source.text());
         var processed = postProcessor.process(taskId, source.text(), outcome,
                 tableCandidates,
                 (progress, stageKey) -> updateProgress(taskId, progress, stageKey,
                         "GAP_RECHECK".equals(stageKey) ? "分值或编号连续性异常，触发完整性回补" : stageKey));
         if (processed.failMessage() != null) {
-            // spec 057 FR-04：失败终态同样落 runSummary（事故复盘需要 0 项失败时的 lane/对齐档案）
             task.setRunSummary(processed.runSummaryJson());
             taskRepository.save(task);
             stateService.failTask(taskId, processed.failMessage());
@@ -179,7 +183,6 @@ public class ScoreParseAppService {
         }
         taskRepository.save(task);
 
-        // FR-003 客观/主观分类 + 覆盖落库（FR-021）
         updateProgress(taskId, 90, "PERSIST", "评分项落库");
         itemPersistenceService.persistItems(task.getProjectId(), task.getId(), valid);
 
@@ -193,14 +196,12 @@ public class ScoreParseAppService {
         progressService.clearProgress(taskId);
     }
 
-    /** 查询解析状态（Redis 优先，DB fallback） */
     public ScoreParseProgressDTO getStatus(Long projectId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         ScoreParseTask task = latestTask(projectId, TASK_TYPE_PARSE);
         return progressService.getProgress(task.getTaskId());
     }
 
-    /** 查询评分项清单 + 汇总统计 + 来源信息栏元数据（FR-017 / FR-022，US3 SummaryAggregator 域核心） */
     public ScoreParseItemsDTO getItems(Long projectId) {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
         List<ScoreItem> items = itemRepository.findByProjectIdOrderByItemIndexAsc(projectId);
@@ -221,9 +222,7 @@ public class ScoreParseAppService {
                         new ScoreBidDocumentLookup(projectDocumentRepository, null, null, null, null))
                         .build(projectId, latest, latestTaskOrNull(projectId, "SCORING")));
     }
-
     private static final List<String> ANY_STATUS = List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED");
-
     private ScoreParseTask latestTaskOrNull(Long projectId, String taskType) {
         return taskRepository.findByProjectIdAndTaskTypeAndStatusIn(projectId, taskType, ANY_STATUS)
                 .stream().max(java.util.Comparator.comparing(ScoreParseTask::getId)).orElse(null);
@@ -241,14 +240,12 @@ public class ScoreParseAppService {
         java.util.function.Function<TableGrid, TableColumnMapping> mapperFunc =
                 schemaMapper != null ? schemaMapper::mapSchema : null;
 
-        // 1. 优先使用确定性表格抽取（支持 LLM Schema 识别与启发式验真，无 Bean/失败自动降级启发式）
         List<ScoreCandidate> tableCandidates = ScoreTableRecallLane.recall(fullText, mapperFunc);
         if (!tableCandidates.isEmpty()) {
             log.info("表格抽取命中候选: count={}", tableCandidates.size());
             return tableCandidates;
         }
 
-        // 2. 启发式未命中（非标复杂排版、跨行合并单元格等），平滑启用整表 LLM 抽取
         LlmTableScoreExtractor extractor = llmTableScoreExtractorProvider != null
                 ? llmTableScoreExtractorProvider.getIfAvailable() : null;
         if (extractor != null) {
@@ -265,6 +262,30 @@ public class ScoreParseAppService {
         return List.of();
     }
 
+    /** Phase 1 结构化表格提取：仅 .docx 生效，失败降级 markdown 路径。 */
+    private List<ScoreCandidate> tryStructuredTableExtract(TenderTextSource source) {
+        String fileName = source.fileName();
+        if (fileName == null || !fileName.toLowerCase().endsWith(".docx")) {
+            return List.of();
+        }
+        try {
+            byte[] content = initiationTenderTextResolver.loadBytes(source.fileUrl());
+            if (content == null || content.length == 0) {
+                return List.of();
+            }
+            SidecarTableExtraction extraction = sidecarTableExtractor.extract(content, fileName);
+            return StructuredTableCandidateExtractor.extract(extraction);
+        } catch (RuntimeException | IOException exception) {
+            log.warn("结构化表格提取失败，降级到 markdown 路径: fileName={}, msg={}",
+                    fileName, exception.getMessage());
+            return List.of();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            log.warn("结构化表格提取被中断: fileName={}", fileName);
+            return List.of();
+        }
+    }
+
     private void updateProgress(String taskId, int progress, String stageKey, String stageText) {
         stateService.updateProgress(taskId, progress, stageText);
         progressService.updateProgress(taskId, new ScoreParseProgressDTO(
@@ -277,4 +298,3 @@ public class ScoreParseAppService {
                 item.getEstScore(), item.getEstBasis(), item.getKbHit(), item.getLocation());
     }
 }
-
