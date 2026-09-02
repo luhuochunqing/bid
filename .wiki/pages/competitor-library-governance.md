@@ -5,7 +5,7 @@ category: module
 tags: [竞品, 竞争对手, 字典治理, 结果确认, 幂等upsert, 权限统一]
 created: 2026-08-25
 updated: 2026-08-25
-health_checked: 2026-08-25
+health_checked: 2026-09-02
 sources:
   - specs/055-competitor-custom-input/spec.md
   - specs/055-competitor-custom-input/plan.md

@@ -75,6 +75,8 @@ public class ScoreItemCaseRecommendAppService {
         projectAccessScopeService.assertCurrentUserCanAccessProject(projectId);
 
         Project project = projectRepository.findById(projectId).orElse(null);
+        String projectName = project != null ? project.getName() : null;
+        String customerName = project != null ? (project.getCustomer() != null ? project.getCustomer() : project.getSourceCustomer()) : null;
         String projectType = project != null ? project.getIndustry() : null;
         String customerType = project != null ? project.getCustomerType() : null;
 
@@ -96,7 +98,9 @@ public class ScoreItemCaseRecommendAppService {
                 scoreItem != null ? scoreItem.getDetail() : null,
                 projectType,
                 customerType,
-                request.getKeyword()
+                request.getKeyword(),
+                projectName,
+                customerName
         );
 
         // 通过端口获取已激活案例（ACTIVE 过滤已下沉至 adapter）

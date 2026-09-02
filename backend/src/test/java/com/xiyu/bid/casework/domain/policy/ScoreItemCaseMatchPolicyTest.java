@@ -253,4 +253,64 @@ class ScoreItemCaseMatchPolicyTest {
         assertThat(result.matchLabel()).isEqualTo("一般");
         assertThat(result.matchReasons()).isEmpty();
     }
+
+    @Test
+    @DisplayName("实体加权断层匹配：三峡项目优先强匹配三峡历史案例，新疆中泰案例得分显著偏低")
+    void testProjectEntityMatching_ThreeGorgesProjectOutranksZhongtai() {
+        StubCandidate threeGorgesCase = new StubCandidate(
+                1L,
+                "三峡e购电商平台对接及运维方案",
+                "技术方案",
+                "对投标人的系统技术方案与三峡e购系统对接、整体部署架构、安全保障措施进行综合评审。",
+                "针对三峡集团需求，我司已完成与三峡e购商城的深度系统对接，提供标准RESTful API接口，涵盖商品组推送、实时库存查询、三峡集团各电站统一电子发票开具及月度自动化对账方案。",
+                "工业品",
+                "央企",
+                "WON"
+        );
+
+        StubCandidate zhongtaiCase = new StubCandidate(
+                2L,
+                "技术方案与系统实施保障",
+                "技术方案",
+                "对投标人的系统技术方案、整体部署架构、安全保障措施、售后服务与应急响应方案进行综合评审，要求具备完善的高可用架构与运维服务团队。",
+                "针对中泰化学工业品采购需求，我司提供完备的技术方案与系统实施保障体系。系统采用云原生微服务高可用部署架构，保障99.99%可用性；设立专职安全保障团队与7x24小时运维服务中心。",
+                "工业品",
+                "国企",
+                "WON"
+        );
+
+        // 模拟项目 1358（三峡项目）上下文
+        ScoreItemCaseMatchPolicy.ScoreItemContext threeGorgesProjectContext = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                1001L,
+                "1.1",
+                "技术方案与实施保障",
+                "对投标人的系统技术方案、整体部署架构、安全保障措施、售后服务与应急响应方案进行综合评审。",
+                "工业品",
+                "央企",
+                null,
+                "中国长江三峡集团2026年办公及工业品电商化采购项目",
+                "中国长江三峡集团有限公司"
+        );
+
+        ScoreItemCaseMatchPolicy.MatchResult threeGorgesResult = policy.evaluate(threeGorgesCase, threeGorgesProjectContext);
+        ScoreItemCaseMatchPolicy.MatchResult zhongtaiResult = policy.evaluate(zhongtaiCase, threeGorgesProjectContext);
+
+        // 三峡案例命中“三峡”核心实体，大幅领先中泰案例
+        assertThat(threeGorgesResult.score()).isGreaterThan(zhongtaiResult.score());
+        assertThat(threeGorgesResult.matchReasons()).anyMatch(r -> r.contains("命中项目专属实体"));
+        assertThat(threeGorgesResult.matchedKeywords()).contains("三峡");
+        assertThat(zhongtaiResult.matchReasons()).noneMatch(r -> r.contains("命中项目专属实体"));
+    }
+
+    @Test
+    @DisplayName("实体分词器测试：正确提取专有名词并过滤通用后缀与停用词")
+    void testExtractEntityTokens() {
+        var entities = TextSimilarityPolicy.extractEntityTokens(
+                "中国长江三峡集团2026年办公及工业品电商化采购项目",
+                "中国长江三峡集团有限公司"
+        );
+
+        assertThat(entities).contains("三峡");
+        assertThat(entities).doesNotContain("有限公司", "集团", "采购项目", "2026年", "项目");
+    }
 }
