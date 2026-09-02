@@ -398,6 +398,7 @@
                 <configuration>
                     <argLine>
                         @{argLine}
+                        -Dnet.bytebuddy.experimental=true
                         --add-opens java.base/java.lang=ALL-UNNAMED
                         --add-opens java.base/java.util=ALL-UNNAMED
                     </argLine>
