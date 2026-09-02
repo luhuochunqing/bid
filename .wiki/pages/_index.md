@@ -44,6 +44,7 @@ backlinks:
 - [[hibernate-string-enum-varchar-validate]] - Hibernate STRING 枚举 vs varchar 列校验陷阱（@Enumerated 默认期望原生 ENUM 列 / columnDefinition 显式对齐 / 容器测试防线）
 - [[bid-quality-check-realization]] — 标书质量核查实质化架构（spec 049：五步真实数据流 / 确定性+规则+LLM 混合裁决 / ChatOutcome 失败传导；2026-08-25 前端紧凑行+详情弹窗改造）
 - [[bid-quality-check-pagination-fix]] — 标书质量核查分页丢失修复（\f 契约断裂 → 整篇退化 1 页 / 结构化 pages + 虚拟分页兜底 + 证据关键词定位；lessons #196）
+- [[bid-quality-multifile-check]] — AI 标书质量核查多册合并（价格/商务/技术分册只查最后一份 → Loader 边界合并单个 DocumentContent / Sidecar 空册静默陷阱 / 聚合哈希缓存 / 删除全类别兜底假查）
 - [[architecture]] — 架构合成
 - [[architecture/effective-role-resolution]] — 有效角色解析规范（Effective Role Resolution）
 - [[business-process]] — 业务流程

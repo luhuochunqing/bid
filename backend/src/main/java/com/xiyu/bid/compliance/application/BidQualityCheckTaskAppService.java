@@ -6,6 +6,7 @@ package com.xiyu.bid.compliance.application;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.dto.QualityCheckReportDTO;
 import com.xiyu.bid.compliance.dto.QualityCheckTaskDTO;
@@ -26,6 +27,7 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * 标书质量核查任务应用编排服务.
@@ -72,10 +74,10 @@ public class BidQualityCheckTaskAppService {
         }
 
         // 2. 同步前置元数据轻量校验（spec 049 第一步，contracts/bid-quality-api.md §1）：
-        // 无 BID 类投标文件记录或无有效 fileUrl → 4xx，不创建任务
-        ProjectDocument bidDocEntity = targetLoader.findLatestBidDocument(projectId);
-        if (bidDocEntity == null || bidDocEntity.getFileUrl() == null
-                || bidDocEntity.getFileUrl().isBlank()) {
+        // 无 BID 类投标文件记录或无有效 fileUrl → 4xx，不创建任务；
+        // 多册投标文件（价格/商务/技术）全部纳入本次核查
+        List<ProjectDocument> bidDocs = targetLoader.findAllBidDocuments(projectId);
+        if (bidDocs.isEmpty()) {
             throw new BusinessException(422, "无法执行核查，请先上传投标文件");
         }
 
@@ -90,7 +92,7 @@ public class BidQualityCheckTaskAppService {
                 .progress(0)
                 .currentStep("初始化质量核查任务...")
                 .riskScore(0)
-                .bidFileName(bidDocEntity.getName())
+                .bidFileName(joinBidFileNames(bidDocs))
                 .checkedAt(LocalDateTime.now())
                 .build();
 
@@ -157,6 +159,19 @@ public class BidQualityCheckTaskAppService {
             result = resultRepository.findById(result.getId()).orElse(result);
         }
         return toReportDTO(result);
+    }
+
+    /**
+     * 多册文件名按上传顺序顿号连接；空名经 {@link DocumentContent#displayFileName}
+     * 单点兜底（与 Loader 解析名同一实现）；超长截断复用 {@link DocumentContent#capMergedFileName}.
+     * 异步 updateFileMetadata 覆写 bid_file_name 时写入的是 merge 产出名（多册已经本函数同款截断；
+     * 单册 identity 依赖 bid_file_name 与 project_document.name 列宽同为 255 天然安全）.
+     */
+    private static String joinBidFileNames(final List<ProjectDocument> bidDocs) {
+        String joined = bidDocs.stream()
+                .map(doc -> DocumentContent.displayFileName(doc.getName()))
+                .collect(Collectors.joining(DocumentContent.MERGED_FILE_NAME_SEPARATOR));
+        return DocumentContent.capMergedFileName(joined, bidDocs.size());
     }
 
     private QualityCheckTaskDTO toTaskDTO(final ComplianceCheckResult entity) {
