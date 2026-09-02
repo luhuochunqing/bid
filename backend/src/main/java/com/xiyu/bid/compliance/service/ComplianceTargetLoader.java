@@ -113,24 +113,22 @@ public class ComplianceTargetLoader {
             // 与 trigger 侧 joinBidFileNames 的兜底规则一致，避免两侧展示口径漂移
             String fileName = bidDoc.getName() != null && !bidDoc.getName().isBlank()
                     ? bidDoc.getName() : "bid_document.pdf";
+            String parseFailMessage = "投标文件解析失败：" + fileName + "，请确认文件可正常打开后重新上传";
             Path physicalFile = storageResolver.resolvePhysicalFile(bidDoc.getFileUrl(), fileName);
+            DocumentContent parsed;
             try {
-                DocumentContent parsed = sidecarAdapter.convertDocument(physicalFile, fileName);
-                // Sidecar 适配器内部吞异常、失败时静默返回空文本册（真实失败形态），
-                // 必须在此显式拦截：空册并入合并文档 = 用 2/3 内容出"合格"报告的假查
-                if (parsed.fullText().isBlank() && parsed.pages().isEmpty()) {
-                    throw new BusinessException(422,
-                            "投标文件解析失败：" + fileName + "，请确认文件可正常打开后重新上传");
-                }
-                parsedDocuments.add(parsed);
-            } catch (BusinessException e) {
-                throw e;
+                parsed = sidecarAdapter.convertDocument(physicalFile, fileName);
             } catch (RuntimeException e) {
-                throw new BusinessException(422,
-                        "投标文件解析失败：" + fileName + "，请确认文件可正常打开后重新上传", e);
+                throw new BusinessException(422, parseFailMessage, e);
             } finally {
                 deleteQuietly(physicalFile);
             }
+            // Sidecar 适配器内部吞异常、失败时静默返回空文本册（真实失败形态），
+            // 必须在此显式拦截：空册并入合并文档 = 用 2/3 内容出"合格"报告的假查
+            if (parsed.fullText().isBlank() && parsed.pages().isEmpty()) {
+                throw new BusinessException(422, parseFailMessage);
+            }
+            parsedDocuments.add(parsed);
         }
         return DocumentContent.merge(parsedDocuments);
     }

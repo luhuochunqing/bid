@@ -1,9 +1,8 @@
 package com.xiyu.bid.compliance.domain;
 
+import com.xiyu.bid.util.DigestUtils;
+
 import java.io.Serializable;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -143,18 +142,7 @@ public record DocumentContent(
         String joined = documents.stream()
                 .map(DocumentContent::fileHash)
                 .collect(Collectors.joining("|"));
-        try {
-            byte[] bytes = MessageDigest.getInstance("SHA-256")
-                    .digest(joined.getBytes(StandardCharsets.UTF_8));
-            StringBuilder hex = new StringBuilder(bytes.length * 2);
-            for (byte b : bytes) {
-                hex.append(Character.forDigit((b >> 4) & 0xF, 16))
-                        .append(Character.forDigit(b & 0xF, 16));
-            }
-            return hex.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 算法不可用", e);
-        }
+        return DigestUtils.sha256(joined);
     }
 
     /**
