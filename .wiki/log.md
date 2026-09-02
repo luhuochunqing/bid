@@ -570,3 +570,9 @@
 - 落点：StructuredTableCandidateExtractor 填 parentDim + ScoreCandidatePostProcessor 感知 STRUCTURED_TABLE 标记；ScoreGlobalMergeOrchestrator 降级为排序/过滤（禁止 LLM 替换结构化结果）；WeightNormalizationPolicy 阈值 0.05 产出 warning → V1206 独立列 → DTO → 前端告警条；ScoreParsePrompts 三个 build 方法清除项目 1358 硬编码维度名；ScoreVocabularyRegistry（global/project 两级 escape-hatch）+ ScoreVocabularyConfiguration 8 条全局词汇；RealProjectScoreParsingTest 去 @Disabled + 入库 case-1347/case-1362。26 files，testing-gate passed（架构 12 + scoreparse 114 + 前端 27）
 - 回填：更新 [[score-parse-service]] 新增「结构化通道补齐与归一化告警显式化（Phase 1-5，2026-09-02）」章节 + 列布局敏感性陷阱表 + 副作用；docs/lessons 沉淀 §204/§205/decisions 条目 8/build-gotchas §6；教训：**清理硬编码 token 必须全文件 grep 该 token 而非按方法逐个改，且要检查是否有测试在正向断言该硬编码存在；给生产方法加参数重载后必须 grep 所有 stub/verify 该方法的测试（strict stubbing 匹配运行时实际调用的重载，本地自选测试类全绿不足以发现回归，应直接跑门禁脚本本体）**
 
+## 2026-09-02 feat | AI 标书质量核查多册合并（价格/商务/技术分册只查最后一份）
+- 触发：用户报告分三册上传投标文件后核查只覆盖最后上传的一份，报告文件名只有一册造成"都查过了"假象
+- 根因：spec 047 设计简化为"最新投标文件"，findLatestBidDocument 取 createdAt 倒序第一条；另发现无 BID 文件时兜底取全类别文档（会把招标文件当投标文件查）
+- 修复：合并在 Loader 边界完成（DocumentContent.merge 纯函数：页码重编号/聚合哈希/文件名顿号拼接），引擎/证据/报告/前端零改动；删除全类别兜底；Sidecar 静默空册显式拦截（指名报错，宁可失败不可假查）
+- 回填：[[bid-quality-multifile-check]]；教训：**SidecarStreamDocumentAdapter 失败时吞异常返回空册而非抛错，上层"失败即中止"设计必须显式校验空文本+空页；mock 该适配器验证失败语义禁止 thenThrow（假绿）**
+
