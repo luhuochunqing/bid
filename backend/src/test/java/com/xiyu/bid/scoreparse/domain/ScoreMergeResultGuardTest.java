@@ -334,4 +334,31 @@ class ScoreMergeResultGuardTest {
         assertThat(accepted.dimSource()).isEqualTo("PARENT_SINGLE");
         assertThat(accepted.isParentOnlyDim()).isTrue();
     }
+
+    @Test
+    void guard_sourceTextOverlapAlone_doesNotTriggerUpgrade() {
+        // sourceMatch 已从 upgradeWithLongestPoolDetail 移除。
+        // 此测试证明：仅 sourceText 重叠不足以触发升级，必须 detail 包含关系成立才升级。
+        String sharedSourceText = "信用评价无不良记录得100分 财务状况速动比率≥1得50分";
+
+        ScoreCandidate poolCredit = new ScoreCandidate("2.2.4(1)", "信用评价",
+                "无不良记录得100分", new BigDecimal("5"), null, null,
+                sharedSourceText, "R2", "TABLE_GRID");
+
+        ScoreCandidate poolFinancial = new ScoreCandidate("2.2.4(2)", "财务状况",
+                "速动比率≥1得50分；0.8≤速动比<1，得40分", new BigDecimal("6"), null, null,
+                sharedSourceText, "R4", "TABLE_GRID");
+
+        List<ScoreCandidate> merged = List.of(
+                new ScoreCandidate("2.2.4(1)", "信用评价",
+                        "无不良记录得100分", new BigDecimal("5"), null, null,
+                        "原文", "P47", "GLOBAL_MERGE"));
+
+        ScoreMergeResultGuard.Outcome outcome = ScoreMergeResultGuard.guard(
+                List.of(poolCredit, poolFinancial), merged, sharedSourceText);
+
+        assertThat(outcome.accepted()).hasSize(1);
+        assertThat(outcome.accepted().get(0).detail()).isEqualTo("无不良记录得100分");
+        assertThat(outcome.accepted().get(0).detail()).doesNotContain("速动比率");
+    }
 }

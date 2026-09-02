@@ -3,10 +3,6 @@
 // Pos: scoreparse/domain — Phase 1 结构化表格提取通道，纯核心无框架依赖
 package com.xiyu.bid.scoreparse.domain;
 
-import com.xiyu.bid.scoreparse.application.SidecarTableExtraction;
-import com.xiyu.bid.scoreparse.application.SidecarTableExtraction.CellPayload;
-import com.xiyu.bid.scoreparse.application.SidecarTableExtraction.TablePayload;
-
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -42,21 +38,21 @@ public final class StructuredTableCandidateExtractor {
             return List.of();
         }
 
-        List<TablePayload> scoreTables = filterScoreTables(extraction.tables());
+        List<SidecarTableExtraction.TablePayload> scoreTables = filterScoreTables(extraction.tables());
         if (scoreTables.isEmpty()) {
             return List.of();
         }
 
         List<ScoreCandidate> candidates = new ArrayList<>();
-        for (TablePayload table : scoreTables) {
+        for (SidecarTableExtraction.TablePayload table : scoreTables) {
             candidates.addAll(extractFromTable(table));
         }
         return candidates;
     }
 
-    private static List<TablePayload> filterScoreTables(List<TablePayload> tables) {
-        List<TablePayload> marked = tables.stream()
-                .filter(TablePayload::isScoreTable)
+    private static List<SidecarTableExtraction.TablePayload> filterScoreTables(List<SidecarTableExtraction.TablePayload> tables) {
+        List<SidecarTableExtraction.TablePayload> marked = tables.stream()
+                .filter(SidecarTableExtraction.TablePayload::isScoreTable)
                 .toList();
         if (!marked.isEmpty()) {
             return marked;
@@ -67,20 +63,20 @@ public final class StructuredTableCandidateExtractor {
                 .toList();
     }
 
-    private static List<ScoreCandidate> extractFromTable(TablePayload table) {
+    private static List<ScoreCandidate> extractFromTable(SidecarTableExtraction.TablePayload table) {
         List<ScoreCandidate> candidates = new ArrayList<>();
-        List<List<CellPayload>> rows = table.rows();
+        List<List<SidecarTableExtraction.CellPayload>> rows = table.rows();
         if (rows == null || rows.isEmpty()) {
             return candidates;
         }
 
         for (int r = 0; r < rows.size(); r++) {
-            List<CellPayload> row = rows.get(r);
+            List<SidecarTableExtraction.CellPayload> row = rows.get(r);
             if (row == null || row.isEmpty()) {
                 continue;
             }
 
-            List<CellPayload> visibleCells = visibleCells(row);
+            List<SidecarTableExtraction.CellPayload> visibleCells = visibleCells(row);
             if (visibleCells.isEmpty()) {
                 continue;
             }
@@ -98,9 +94,9 @@ public final class StructuredTableCandidateExtractor {
     }
 
     /** 提取非合并延续的可见单元格。 */
-    private static List<CellPayload> visibleCells(List<CellPayload> row) {
-        List<CellPayload> result = new ArrayList<>();
-        for (CellPayload cell : row) {
+    private static List<SidecarTableExtraction.CellPayload> visibleCells(List<SidecarTableExtraction.CellPayload> row) {
+        List<SidecarTableExtraction.CellPayload> result = new ArrayList<>();
+        for (SidecarTableExtraction.CellPayload cell : row) {
             if (!cell.isMergedContinue()) {
                 result.add(cell);
             }
@@ -109,11 +105,11 @@ public final class StructuredTableCandidateExtractor {
     }
 
     /** 表头行判定：首行或含表头关键词。 */
-    private static boolean isHeaderRow(List<CellPayload> cells, int rowIndex) {
+    private static boolean isHeaderRow(List<SidecarTableExtraction.CellPayload> cells, int rowIndex) {
         if (rowIndex == 0) {
             return true;
         }
-        for (CellPayload cell : cells) {
+        for (SidecarTableExtraction.CellPayload cell : cells) {
             if (HEADER_ROW.matcher(cell.text()).find()) {
                 return true;
             }
@@ -121,8 +117,8 @@ public final class StructuredTableCandidateExtractor {
         return false;
     }
 
-    private static ScoreCandidate parseRow(List<CellPayload> cells, int rowIndex) {
-        List<String> texts = cells.stream().map(CellPayload::text).toList();
+    private static ScoreCandidate parseRow(List<SidecarTableExtraction.CellPayload> cells, int rowIndex) {
+        List<String> texts = cells.stream().map(SidecarTableExtraction.CellPayload::text).toList();
 
         String code = extractCode(texts);
         BracketWeightResult bracketResult = extractBracketWeight(texts);

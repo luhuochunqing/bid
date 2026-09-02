@@ -4,9 +4,6 @@
 
 package com.xiyu.bid.scoreparse.domain;
 
-import com.xiyu.bid.scoreparse.application.SidecarTableExtraction;
-import com.xiyu.bid.scoreparse.application.SidecarTableExtraction.CellPayload;
-import com.xiyu.bid.scoreparse.application.SidecarTableExtraction.TablePayload;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -28,7 +25,7 @@ class StructuredTableCandidateExtractorTest {
 
     @Test
     void extract_noScoreTablesAndTooFewRows_returnsEmpty() {
-        TablePayload table = new TablePayload(0, List.of(
+        SidecarTableExtraction.TablePayload table = new SidecarTableExtraction.TablePayload(0, List.of(
                 List.of(cell("序号"), cell("评分因素"), cell("分值")),
                 List.of(cell("1"), cell("财务状况"), cell("5"))
         ), false);
@@ -38,7 +35,7 @@ class StructuredTableCandidateExtractorTest {
 
     @Test
     void extract_bracketWeightExtracted() {
-        TablePayload table = new TablePayload(0, List.of(
+        SidecarTableExtraction.TablePayload table = new SidecarTableExtraction.TablePayload(0, List.of(
                 List.of(cell("序号"), cell("评分因素"), cell("评分标准"), cell("分值")),
                 List.of(cell("1"), cell("财务状况（10分）"), cell("提供财务报表"), cell("10")),
                 List.of(cell("2"), cell("技术方案（15分）"), cell("方案完整可行"), cell("15"))
@@ -56,7 +53,7 @@ class StructuredTableCandidateExtractorTest {
 
     @Test
     void extract_gradeScoreFallback() {
-        TablePayload table = new TablePayload(0, List.of(
+        SidecarTableExtraction.TablePayload table = new SidecarTableExtraction.TablePayload(0, List.of(
                 List.of(cell("序号"), cell("评分因素"), cell("评分标准")),
                 List.of(cell("1"), cell("价格方案"),
                         cell("优秀得4分，良好得2-3分，一般得1分"))
@@ -72,7 +69,7 @@ class StructuredTableCandidateExtractorTest {
 
     @Test
     void extract_headerRowSkipped() {
-        TablePayload table = new TablePayload(0, List.of(
+        SidecarTableExtraction.TablePayload table = new SidecarTableExtraction.TablePayload(0, List.of(
                 List.of(cell("评分因素"), cell("评审内容"), cell("分值")),
                 List.of(cell("1"), cell("公司业绩"), cell("5")),
                 List.of(cell("评审内容"), cell("评分标准"), cell("分值")),
@@ -89,10 +86,10 @@ class StructuredTableCandidateExtractorTest {
 
     @Test
     void extract_mergedContinueCellsSkipped() {
-        CellPayload mergeStart = cell("技术方案");
-        CellPayload mergeContinue = new CellPayload("", 1, 1, true);
+        SidecarTableExtraction.CellPayload mergeStart = cell("技术方案");
+        SidecarTableExtraction.CellPayload mergeContinue = new SidecarTableExtraction.CellPayload("", 1, 1, true);
 
-        TablePayload table = new TablePayload(0, List.of(
+        SidecarTableExtraction.TablePayload table = new SidecarTableExtraction.TablePayload(0, List.of(
                 List.of(cell("序号"), cell("评分因素"), cell("评分标准"), cell("分值")),
                 List.of(cell("1"), mergeStart, cell("方案完整得5分"), cell("5")),
                 List.of(cell("2"), mergeContinue, cell("团队资质得3分"), cell("3"))
@@ -107,7 +104,7 @@ class StructuredTableCandidateExtractorTest {
 
     @Test
     void extract_codeExtractedFromFirstColumn() {
-        TablePayload table = new TablePayload(0, List.of(
+        SidecarTableExtraction.TablePayload table = new SidecarTableExtraction.TablePayload(0, List.of(
                 List.of(cell("序号"), cell("评分因素"), cell("评分标准"), cell("分值")),
                 List.of(cell("2.2.1"), cell("自营商城"), cell("横向比较"), cell("6")),
                 List.of(cell("A1"), cell("公司业绩"), cell("近三年业绩"), cell("5"))
@@ -123,7 +120,7 @@ class StructuredTableCandidateExtractorTest {
 
     @Test
     void extract_fiveColumnTable_detailConcatenatesCol4AndCol5() {
-        TablePayload table = new TablePayload(0, List.of(
+        SidecarTableExtraction.TablePayload table = new SidecarTableExtraction.TablePayload(0, List.of(
                 List.of(cell("序号"), cell("评分因素"), cell("评分项名称"), cell("评分要求"), cell("评分细则")),
                 List.of(cell("1"), cell("技术方案"), cell("方案完整性（8分）"),
                         cell("方案完整可行"), cell("每缺一项扣2分"))
@@ -139,7 +136,7 @@ class StructuredTableCandidateExtractorTest {
 
     @Test
     void extract_semanticPatternIsStructuredTable() {
-        TablePayload table = new TablePayload(0, List.of(
+        SidecarTableExtraction.TablePayload table = new SidecarTableExtraction.TablePayload(0, List.of(
                 List.of(cell("序号"), cell("评分因素"), cell("分值")),
                 List.of(cell("1"), cell("财务状况"), cell("5"))
         ), true);
@@ -153,7 +150,7 @@ class StructuredTableCandidateExtractorTest {
 
     @Test
     void extract_fallbackToUnmarkedTablesWithEnoughRows() {
-        TablePayload table = new TablePayload(0, List.of(
+        SidecarTableExtraction.TablePayload table = new SidecarTableExtraction.TablePayload(0, List.of(
                 List.of(cell("序号"), cell("项目"), cell("说明")),
                 List.of(cell("1"), cell("财务状况（10分）"), cell("提供报表")),
                 List.of(cell("2"), cell("技术方案（8分）"), cell("方案描述"))
@@ -169,11 +166,11 @@ class StructuredTableCandidateExtractorTest {
 
     @Test
     void extract_multipleScoreTables_allExtracted() {
-        TablePayload table1 = new TablePayload(0, List.of(
+        SidecarTableExtraction.TablePayload table1 = new SidecarTableExtraction.TablePayload(0, List.of(
                 List.of(cell("序号"), cell("评分因素"), cell("分值")),
                 List.of(cell("1"), cell("商务（5分）"), cell("5"))
         ), true);
-        TablePayload table2 = new TablePayload(1, List.of(
+        SidecarTableExtraction.TablePayload table2 = new SidecarTableExtraction.TablePayload(1, List.of(
                 List.of(cell("序号"), cell("评分因素"), cell("分值")),
                 List.of(cell("1"), cell("技术（10分）"), cell("10"))
         ), true);
@@ -188,7 +185,7 @@ class StructuredTableCandidateExtractorTest {
 
     @Test
     void extract_shanJiaoMaterialScenario() {
-        TablePayload table = new TablePayload(0, List.of(
+        SidecarTableExtraction.TablePayload table = new SidecarTableExtraction.TablePayload(0, List.of(
                 List.of(cell("编号"), cell("评审因素"), cell("评审标准"), cell("分值")),
                 List.of(cell("1"), cell("投标报价（30分）"), cell("最低价得满分"), cell("30")),
                 List.of(cell("2"), cell("公司业绩（10分）"), cell("近三年同类项目业绩"), cell("10")),
@@ -212,7 +209,7 @@ class StructuredTableCandidateExtractorTest {
         });
     }
 
-    private static CellPayload cell(String text) {
-        return new CellPayload(text, 1, 1, false);
+    private static SidecarTableExtraction.CellPayload cell(String text) {
+        return new SidecarTableExtraction.CellPayload(text, 1, 1, false);
     }
 }

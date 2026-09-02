@@ -5,6 +5,7 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.biddraftagent.repository.BidTenderDocumentSnapshotRepository;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
+import com.xiyu.bid.scoreparse.domain.SidecarTableExtraction;
 import com.xiyu.bid.scoreparse.domain.StructuredTableCandidateExtractor;
 import com.xiyu.bid.scoreparse.domain.RecallOutcome;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
@@ -48,6 +49,7 @@ public class ScoreParseAppService {
     private static final String TASK_TYPE_PARSE = "PARSE";
     private static final List<String> ACTIVE_STATUSES = List.of("PENDING", "PROCESSING");
     private static final String NO_SNAPSHOT_MESSAGE = InitiationTenderTextResolver.NO_TENDER_MESSAGE;
+    private static final int STRUCTURED_TABLE_MIN_CANDIDATES = 5;
 
     private final ScoreParseTaskRepository taskRepository;
     private final ScoreItemRepository itemRepository;
@@ -157,7 +159,7 @@ public class ScoreParseAppService {
                 (progress, stage) -> updateProgress(taskId, progress, "RECALL", stage));
         task.setSkippedChunks(outcome.skippedChunks());
         List<ScoreCandidate> tableCandidates = tryStructuredTableExtract(source);
-        if (tableCandidates.size() >= 5) {
+        if (tableCandidates.size() >= STRUCTURED_TABLE_MIN_CANDIDATES) {
             log.info("结构化表格提取命中候选: count={}", tableCandidates.size());
         } else {
             tableCandidates = recallTableCandidates(source.text());
@@ -220,9 +222,7 @@ public class ScoreParseAppService {
                         new ScoreBidDocumentLookup(projectDocumentRepository, null, null, null, null))
                         .build(projectId, latest, latestTaskOrNull(projectId, "SCORING")));
     }
-
     private static final List<String> ANY_STATUS = List.of("PENDING", "PROCESSING", "COMPLETED", "FAILED");
-
     private ScoreParseTask latestTaskOrNull(Long projectId, String taskType) {
         return taskRepository.findByProjectIdAndTaskTypeAndStatusIn(projectId, taskType, ANY_STATUS)
                 .stream().max(java.util.Comparator.comparing(ScoreParseTask::getId)).orElse(null);

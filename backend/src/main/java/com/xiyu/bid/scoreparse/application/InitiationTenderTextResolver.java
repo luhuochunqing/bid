@@ -155,6 +155,7 @@ public class InitiationTenderTextResolver {
         return new TenderTextSource(snapshot.getFileName(), snapshot.getFileUrl(), snapshot.getExtractedText());
     }
 
+    /** 供 {@link ScoreParseAppService} sidecar 提取通道复用，加载招标文件原始字节。 */
     public byte[] loadBytes(String fileUrl) {
         if (fileUrl == null || fileUrl.isBlank()) {
             return null;

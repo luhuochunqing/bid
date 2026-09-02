@@ -1,7 +1,7 @@
 // Input: sidecar /extract-tables 响应 JSON
 // Output: 结构化表格提取结果值对象（表格清单 + 警告）
-// Pos: scoreparse/application — Phase 1 结构化表格提取通道
-package com.xiyu.bid.scoreparse.application;
+// Pos: scoreparse/domain — Phase 1 结构化表格提取通道（纯值对象，零框架依赖）
+package com.xiyu.bid.scoreparse.domain;
 
 import java.util.List;
 
