@@ -29,7 +29,7 @@ import mammoth
 
 from converter import extract_headings
 from image_extractor import extract_images
-from table_extractor import extract_tables
+from table_extractor import extract_tables, extract_tables_artifact, SCHEMA_VERSION
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -420,9 +420,16 @@ async def convert_document_images(
 async def extract_document_tables(
     file: UploadFile,
     x_sidecar_key: str | None = Header(default=None),
+    schema_version: str | None = Header(default=None, alias="X-Schema-Version"),
 ) -> dict[str, Any]:
     """Extract structured tables (with merged-cell info) from an uploaded .docx.
 
+    Default contract (spec 059 Phase 1):
+        schemaVersion = "2.0" — versioned DocumentArtifact with cell IDs,
+        XML paths and merge region coordinates.
+
+    Legacy v1 callers can request the old shape via ``X-Schema-Version: 1.0`` —
+    useful while the Java backend (Phase 5) is rolled over to v2.
     Returns JSON {tables[], warnings}.  Only .docx is supported — other types
     return an empty tables list (caller falls back to markdown recall).
     Auth matches /convert (X-Sidecar-Key / 401).
@@ -449,8 +456,21 @@ async def extract_document_tables(
                     raise HTTPException(status_code=413, detail="请求体过大")
                 tmp.write(chunk)
 
+        # v2 (default) returns DocumentArtifact; v1 (legacy) returns the old
+        # {tables, warnings} shape.  Phase 5 will retire the v1 endpoint once
+        # the Java backend fully adopts CanonicalTableGrid.
+        if schema_version and schema_version.startswith("1."):
+            try:
+                return extract_tables(tmp_path)
+            except ValueError as exc:
+                return JSONResponse(status_code=422, content={"error": str(exc)})
+            except Exception:
+                logger.exception("Table extraction failed for file %s", file.filename)
+                raise HTTPException(status_code=500, detail="表格提取失败")
         try:
-            return extract_tables(tmp_path)
+            artifact = extract_tables_artifact(tmp_path)
+            artifact["schemaVersion"] = SCHEMA_VERSION
+            return artifact
         except ValueError as exc:
             return JSONResponse(status_code=422, content={"error": str(exc)})
         except Exception:

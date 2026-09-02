@@ -1,11 +1,52 @@
-"""Extract structured tables from Word documents (preserving merged-cell info).
+"""Extract structured tables from Word documents into versioned DocumentArtifact.
 
 Pure-function module — no ASGI/HTTP concerns.  Called by app.py /extract-tables.
+
+Output contract (spec 059 Phase 1):
+    {
+      "schemaVersion": "2.0",
+      "artifact": {
+        "documentId": "sha256:<64hex>",
+        "sha256": "<64hex>",
+        "fileType": "DOCX",
+        "extractionVersion": "table-v2"
+      },
+      "tables": [
+        {
+          "tableId": "t-0003",
+          "sourcePage": null | <page number>,
+          "sourceSection": null | <heading text>,
+          "rows": <int>,
+          "columns": <int>,
+          "mergedRegions": [
+            {"startCellId": "...", "rowspan": N, "colspan": M}
+          ],
+          "cells": [
+            {
+              "cellId": "t-0003-r2-c3",
+              "row": 2, "column": 3,
+              "rawText": "...", "normalizedText": "...",
+              "rowspan": 1, "colspan": 1, "isMergedContinue": False,
+              "sourceXmlPath": "/w:document[1]/w:body[1]/w:tbl[3]/w:tr[2]/w:tc[3]"
+            }
+          ],
+          "isScoreTable": True | False
+        }
+      ],
+      "warnings": [...]
+    }
+
+This module exposes both:
+- ``extract_tables_artifact(path)`` — versioned v2 contract.
+- ``extract_tables(path)`` — legacy v1 contract kept for backward compat
+  (delegates to v2 then strips down to the old structure).
 """
 
 from __future__ import annotations
 
+import hashlib
 import logging
+import re
 import zipfile
 from typing import Any
 
@@ -15,137 +56,361 @@ _W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
 _SCORE_TABLE_KEYWORDS = ("评分", "评审", "打分", "得分", "分值", "评分因素", "评审因素")
 
+SCHEMA_VERSION = "2.0"
+EXTRACTION_VERSION = "table-v2"
+
+
+# ---------------------------------------------------------------------------
+# Public entry points
+# ---------------------------------------------------------------------------
 
 def extract_tables(path: str) -> dict[str, Any]:
-    """Return structured table data from a .docx file.
+    """Legacy v1 contract: {tables: [...], warnings: [...]}.
 
-    Each table is a list of rows; each row is a list of cell dicts with:
-      - text: stripped cell text
-      - rowspan: number of rows this cell spans (>=1)
-      - colspan: number of columns this cell spans (>=1)
-      - is_merged_continue: True when this position is covered by a neighbour's
-        merge (vMerge continue or gridSpan extension) — downstream should skip.
+    Delegates to v2 and projects the artifact down to the v1 shape so existing
+    callers continue to work during the Phase 5 cutover.
     """
+    artifact_doc = extract_tables_artifact(path)
+    legacy_tables: list[dict[str, Any]] = []
+    for t in artifact_doc["tables"]:
+        legacy_tables.append({
+            "tableIndex": int(t["tableId"].rsplit("-", 1)[1]) if t["tableId"].startswith("t-") else 0,
+            "rows": _to_legacy_rows(t["cells"], t["rows"], t["columns"]),
+            "isScoreTable": t["isScoreTable"],
+        })
+    return {"tables": legacy_tables, "warnings": artifact_doc["warnings"]}
+
+
+def extract_tables_artifact(path: str) -> dict[str, Any]:
+    """Versioned v2 contract (spec 059 Phase 1).
+
+    Returns the full DocumentArtifact with cell IDs, XML paths and
+    merge region coordinates.  Pure function, no I/O outside the file
+    SHA-256 calculation.
+    """
+    artifact: dict[str, Any] = {
+        "schemaVersion": SCHEMA_VERSION,
+        "artifact": _build_artifact_header(path),
+        "tables": [],
+        "warnings": [],
+    }
     if not zipfile.is_zipfile(path):
-        return {"tables": [], "warnings": ["not a valid docx (not a zip)"]}
+        artifact["warnings"].append("not a valid docx (not a zip)")
+        return artifact
 
     try:
         from docx import Document
     except ImportError:
-        return {"tables": [], "warnings": ["python-docx not installed"]}
+        artifact["warnings"].append("python-docx not installed")
+        return artifact
 
-    warnings: list[str] = []
     try:
         doc = Document(path)
     except Exception as exc:
         log.warning("python-docx failed to open %s: %s", path, exc)
         raise ValueError(f"cannot parse docx: {exc}") from exc
 
-    tables: list[dict[str, Any]] = []
     for idx, table in enumerate(doc.tables):
         try:
-            rows_data = _extract_table_rows(table)
+            tbl_data = _build_table_artifact(table, idx)
         except Exception as exc:
-            warnings.append(f"table {idx}: extraction failed ({exc})")
+            artifact["warnings"].append(f"table {idx}: extraction failed ({exc})")
             continue
-        if not rows_data:
+        if tbl_data is None:
             continue
-        tables.append({
-            "tableIndex": idx,
-            "rows": rows_data,
-            "isScoreTable": _looks_like_score_table(rows_data),
-        })
+        artifact["tables"].append(tbl_data)
 
-    return {"tables": tables, "warnings": warnings}
+    return artifact
 
 
 # ---------------------------------------------------------------------------
-# Row / cell extraction with merge-cell detection
+# Artifact header
 # ---------------------------------------------------------------------------
 
-def _extract_table_rows(table) -> list[list[dict[str, Any]]]:
-    """Build a logical grid from a python-docx Table, expanding merges.
+def _build_artifact_header(path: str) -> dict[str, Any]:
+    sha256 = _file_sha256(path)
+    return {
+        "documentId": f"sha256:{sha256}",
+        "sha256": sha256,
+        "fileType": "DOCX",
+        "extractionVersion": EXTRACTION_VERSION,
+    }
 
-    Works directly with raw XML <w:tc> elements because python-docx's
-    row.cells property collapses vMerge-continuation cells to the same
-    object as the merge-start cell.
+
+def _file_sha256(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(64 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+# ---------------------------------------------------------------------------
+# Table artifact builder
+# ---------------------------------------------------------------------------
+
+def _build_table_artifact(table, idx: int) -> dict[str, Any] | None:
+    """Build the v2 table artifact for a single python-docx Table.
+
+    Returns ``None`` when the table has no rows.  Otherwise produces a dict
+    with logical rows / columns, merged region list, and cells with XML paths.
+
+    Algorithm:
+      1. Compute the logical grid dimensions from <w:tblGrid>.
+      2. Walk each row, mapping every <w:tc> to a logical (row, col, span)
+         coordinate.  vMerge continuations reuse the previous row's column;
+         gridSpan continuations share the row with their origin cell.
+      3. Emit one cell entry per logical origin and one ``isMergedContinue``
+         entry per covered slot, with cell IDs derived from (table, row, col).
+      4. Emit mergedRegions for every origin whose rowspan>1 or colspan>1.
     """
     tbl_elem = table._tbl
     raw_tr_elems = tbl_elem.findall(f"{{{_W_NS}}}tr")
     if not raw_tr_elems:
-        return []
+        return None
 
     num_cols = _grid_width_from_tbl(tbl_elem)
     num_rows = len(raw_tr_elems)
-    # occupied[r][c] = True when a prior merge already covers this slot
-    occupied: list[list[bool]] = [[False] * num_cols for _ in range(num_rows)]
-    # Initialize grid with None placeholders
+    table_id = f"t-{idx:04d}"
+
+    # Logical grid: grid[row][col] = cell descriptor or None.
+    # Descriptor: {"kind": "ORIGIN" | "VMERGE_CONT" | "GRIDSPAN_CONT",
+    #              "tc_elem": element, "tc_pos": int,
+    #              "rowspan": int, "colspan": int, "origin_row": int, "origin_col": int,
+    #              "text": str}
     grid: list[list[dict[str, Any] | None]] = [
         [None] * num_cols for _ in range(num_rows)
     ]
 
     for r_idx, tr_elem in enumerate(raw_tr_elems):
-        tc_elems = tr_elem.findall(f"{{{_W_NS}}}tc")
         c_idx = 0
-        for tc_elem in tc_elems:
-            # vMerge-continuation cells don't occupy a new column slot —
-            # their position is already filled by the merge-start cell's rowspan.
+        tc_elems = tr_elem.findall(f"{{{_W_NS}}}tc")
+        for tc_pos, tc_elem in enumerate(tc_elems):
             if _is_v_merge_continue(tc_elem):
+                # vMerge continuation: column = first un-filled column at
+                # this row (Word semantics — the continuation aligns with the
+                # restart cell's column).  The gridSpan of the restart cell
+                # may exceed 1; we only need to consume ``colspan`` columns
+                # worth of slots for the cursor.  Recover colspan from the
+                # row above's grid[r_idx-1] at this column — if the previous
+                # row's cell at the same c_idx is an ORIGIN with gridSpan,
+                # the vMerge continuation covers the entire origin span.
+                if r_idx == 0:
+                    # Defensive: a vMerge continuation in row 0 with no
+                    # restart above is malformed.  Skip and warn via a
+                    # generic None placement; downstream STRUCTURE_INCOMPLETE
+                    # detection will reject the table.
+                    continue
+                prev_col = c_idx
+                # Find the previous-row ORIGIN whose c-span covers c_idx.
+                above = grid[r_idx - 1][prev_col]
+                while above is None and prev_col > 0:
+                    prev_col -= 1
+                    above = grid[r_idx - 1][prev_col]
+                if above is None:
+                    continue  # orphan continuation
+                colspan_origin = above["colspan"]
+                rowspan_origin = above["rowspan"]
+                # Continuation only valid if the origin truly spans here.
+                if rowspan_origin <= 1:
+                    continue
+                # The continuation occupies exactly the origin's first column
+                # (Word stores one continuation tc per origin column in the
+                # restart's gridSpan).  But for gridSpan>1 there can be
+                # multiple continuation tcs; here we model a single
+                # continuation tc as covering only col==origin_col of the
+                # origin.  Other columns are filled in by GRIDSPAN_CONT below.
+                grid[r_idx][above["origin_col"]] = {
+                    "kind": "VMERGE_CONT",
+                    "tc_elem": tc_elem,
+                    "tc_pos": tc_pos,
+                    "rowspan": 1,
+                    "colspan": 1,
+                    "origin_row": above["origin_row"],
+                    "origin_col": above["origin_col"],
+                    "text": "",
+                }
+                # For gridSpan>1 origins, also need horizontal coverage in
+                # later columns.  Those are emitted as GRIDSPAN_CONT entries
+                # by the row-above origin below; but the row-above origin
+                # only emits them in its own row.  We need an explicit
+                # pass below to copy those continuations downward for any
+                # rows the origin spans.
+                c_idx += colspan_origin
                 continue
 
-            while c_idx < num_cols and occupied[r_idx][c_idx]:
+            colspan = _grid_span_from_tc(tc_elem)
+            rowspan = _v_merge_span_from_tc(tc_elem)
+            text = _tc_text(tc_elem)
+
+            # Skip columns already filled by a previous iteration (defensive).
+            while c_idx < num_cols and grid[r_idx][c_idx] is not None:
                 c_idx += 1
             if c_idx >= num_cols:
                 break
 
-            colspan = _grid_span_from_tc(tc_elem)
-            rowspan = _v_merge_span_from_tc(tc_elem)
-
+            origin = {
+                "kind": "ORIGIN",
+                "tc_elem": tc_elem,
+                "tc_pos": tc_pos,
+                "rowspan": rowspan,
+                "colspan": colspan,
+                "origin_row": r_idx,
+                "origin_col": c_idx,
+                "text": text,
+            }
+            grid[r_idx][c_idx] = origin
+            # Fill origin's rowspan × colspan footprint with this origin /
+            # its continuations.
             for dr in range(rowspan):
                 for dc in range(colspan):
                     rr, cc = r_idx + dr, c_idx + dc
-                    if rr < num_rows and cc < num_cols:
-                        occupied[rr][cc] = True
-
-            text = _tc_text(tc_elem)
-            grid[r_idx][c_idx] = {
-                "text": text,
-                "rowspan": rowspan,
-                "colspan": colspan,
-                "isMergedContinue": False,
-            }
-            for dc in range(1, colspan):
-                if c_idx + dc < num_cols:
-                    grid[r_idx][c_idx + dc] = {
-                        "text": "",
-                        "rowspan": 1,
-                        "colspan": 1,
-                        "isMergedContinue": True,
-                    }
+                    if rr >= num_rows or cc >= num_cols:
+                        continue
+                    if dr == 0 and dc == 0:
+                        # Already set above
+                        continue
+                    if grid[rr][cc] is None:
+                        grid[rr][cc] = {
+                            "kind": "GRIDSPAN_CONT" if dr == 0 else "VMERGE_CONT",
+                            "tc_elem": tc_elem,
+                            "tc_pos": tc_pos,
+                            "rowspan": rowspan,
+                            "colspan": colspan,
+                            "origin_row": r_idx,
+                            "origin_col": c_idx,
+                            "text": "",
+                        }
             c_idx += colspan
 
-    # Fill any remaining None slots with merged-continue placeholders
+    # PASS 2: emit cells + merged regions from the logical grid.
+    cells: list[dict[str, Any]] = []
+    merged_regions: list[dict[str, Any]] = []
+
     for r_idx in range(num_rows):
         for c_idx in range(num_cols):
-            if grid[r_idx][c_idx] is None:
-                grid[r_idx][c_idx] = {
-                    "text": "",
+            cell = grid[r_idx][c_idx]
+            if cell is None:
+                # Defensive: an unfilled slot means the table has structure
+                # holes (e.g. malformed XML).  Emit a placeholder so the
+                # contract stays consistent and downstream validation can
+                # flag STRUCTURE_INCOMPLETE.
+                cells.append({
+                    "cellId": f"{table_id}-r{r_idx}-c{c_idx}",
+                    "row": r_idx,
+                    "column": c_idx,
+                    "rawText": "",
+                    "normalizedText": "",
                     "rowspan": 1,
                     "colspan": 1,
                     "isMergedContinue": True,
-                }
+                    "sourceXmlPath": _build_xml_path(
+                        tbl_elem,
+                        raw_tr_elems[r_idx],
+                        raw_tr_elems[r_idx].findall(f"{{{_W_NS}}}tc")[min(c_idx, len(raw_tr_elems[r_idx].findall(f"{{{_W_NS}}}tc")) - 1)]
+                        if raw_tr_elems[r_idx].findall(f"{{{_W_NS}}}tc") else tbl_elem,
+                        r_idx,
+                        min(c_idx, max(0, len(raw_tr_elems[r_idx].findall(f"{{{_W_NS}}}tc")) - 1)),
+                    ),
+                })
+                continue
 
-    return [row for row in grid]
+            cell_id = f"{table_id}-r{r_idx}-c{c_idx}"
+            xml_path = _build_xml_path(tbl_elem, raw_tr_elems[r_idx], cell["tc_elem"], r_idx, cell["tc_pos"])
+            is_continuation = cell["kind"] != "ORIGIN"
+            cells.append({
+                "cellId": cell_id,
+                "row": r_idx,
+                "column": c_idx,
+                "rawText": cell["text"],
+                "normalizedText": _normalize_text(cell["text"]),
+                "rowspan": cell["rowspan"],
+                "colspan": cell["colspan"],
+                "isMergedContinue": is_continuation,
+                "sourceXmlPath": xml_path,
+            })
 
+            if cell["kind"] == "ORIGIN" and (cell["rowspan"] > 1 or cell["colspan"] > 1):
+                merged_regions.append({
+                    "startCellId": cell_id,
+                    "rowspan": cell["rowspan"],
+                    "colspan": cell["colspan"],
+                })
+
+    return {
+        "tableId": table_id,
+        "sourcePage": None,
+        "sourceSection": None,
+        "rows": num_rows,
+        "columns": num_cols,
+        "mergedRegions": merged_regions,
+        "cells": cells,
+        "isScoreTable": _looks_like_score_table_v2(cells),
+    }
+
+
+def _normalize_text(text: str) -> str:
+    """Collapse internal whitespace, strip surrounding whitespace."""
+    if not text:
+        return ""
+    return re.sub(r"\s+", " ", text).strip()
+
+
+# ---------------------------------------------------------------------------
+# XML path construction
+# ---------------------------------------------------------------------------
+
+def _build_xml_path(tbl_elem, tr_elem, tc_elem, row_index: int, tc_position: int) -> str:
+    """Build an XPath-like locator: /w:document[1]/w:body[1]/w:tbl[N]/w:tr[R]/w:tc[C]."""
+    tbl_pos = _sibling_index(tbl_elem, f"{{{_W_NS}}}tbl") + 1
+    return f"/w:document[1]/w:body[1]/w:tbl[{tbl_pos}]/w:tr[{row_index + 1}]/w:tc[{tc_position + 1}]"
+
+
+def _sibling_index(elem, tag: str) -> int:
+    """Return 0-based index of ``elem`` among siblings matching ``tag``."""
+    idx = 0
+    for child in elem.getparent().iterchildren(tag):
+        if child is elem:
+            return idx
+        idx += 1
+    return idx
+
+
+# ---------------------------------------------------------------------------
+# Legacy rows helper (kept so v1 callers still work)
+# ---------------------------------------------------------------------------
+
+def _to_legacy_rows(cells: list[dict[str, Any]], rows: int, cols: int) -> list[list[dict[str, Any]]]:
+    """Project the v2 cell list back to the v1 nested-row shape."""
+    grid: list[list[dict[str, Any] | None]] = [[None] * cols for _ in range(rows)]
+    for cell in cells:
+        r, c = cell["row"], cell["column"]
+        if grid[r][c] is None:
+            grid[r][c] = {
+                "text": cell["rawText"],
+                "rowspan": cell["rowspan"],
+                "colspan": cell["colspan"],
+                "isMergedContinue": cell["isMergedContinue"],
+            }
+    out: list[list[dict[str, Any]]] = []
+    for row in grid:
+        out.append([
+            cell or {"text": "", "rowspan": 1, "colspan": 1, "isMergedContinue": True}
+            for cell in row
+        ])
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Cell grid helpers
+# ---------------------------------------------------------------------------
 
 def _grid_width_from_tbl(tbl_elem) -> int:
-    """Column count from <w:tblGrid>/<w:gridCol>, with fallback."""
     tbl_grid = tbl_elem.find(f"{{{_W_NS}}}tblGrid")
     if tbl_grid is not None:
         cols = tbl_grid.findall(f"{{{_W_NS}}}gridCol")
         if cols:
             return len(cols)
-    # fallback: max <w:tc> count in any <w:tr>
     return max(
         (len(tr.findall(f"{{{_W_NS}}}tc")) for tr in tbl_elem.findall(f"{{{_W_NS}}}tr")),
         default=0,
@@ -153,7 +418,6 @@ def _grid_width_from_tbl(tbl_elem) -> int:
 
 
 def _grid_span_from_tc(tc_elem) -> int:
-    """Horizontal span from <w:gridSpan w:val="N"/> on a <w:tc>."""
     tc_pr = tc_elem.find(f"{{{_W_NS}}}tcPr")
     if tc_pr is None:
         return 1
@@ -168,7 +432,6 @@ def _grid_span_from_tc(tc_elem) -> int:
 
 
 def _is_v_merge_continue(tc_elem) -> bool:
-    """True if this <w:tc> is a vMerge continuation (not a merge start)."""
     tc_pr = tc_elem.find(f"{{{_W_NS}}}tcPr")
     if tc_pr is None:
         return False
@@ -191,14 +454,23 @@ def _v_merge_span_from_tc(tc_elem) -> int:
     if val != "restart":
         return 1
 
-    # Walk sibling <w:tr> elements after this one
     span = 1
     sibling = tc_elem.getparent().getnext()
     while sibling is not None:
         if sibling.tag != f"{{{_W_NS}}}tr":
             sibling = sibling.getnext()
             continue
-        # Check if any tc in this row has vMerge continue
+        # Check whether this row contains a vMerge continuation cell at the
+        # same column as the restart.  The restart's tc element is a child
+        # of some <w:tr>; to find its column we can iterate tc elems until
+        # we find tc_elem, but a simpler check is: scan every tc in the row
+        # looking for a vMerge continuation that is NOT a restart.  For
+        # gridSpan>1 origins, multiple continuations must exist; we accept
+        # the row if *any* tc has vMerge continuation semantics aligned
+        # with our restart column.
+        # NOTE: we cannot recover column from tc_elem alone here (we would
+        # need the parent grid's column index), so we approximate: require
+        # at least one vMerge continuation in the row to count.
         found_continue = False
         for child_tc in sibling.findall(f"{{{_W_NS}}}tc"):
             child_tc_pr = child_tc.find(f"{{{_W_NS}}}tcPr")
@@ -209,6 +481,8 @@ def _v_merge_span_from_tc(tc_elem) -> int:
                 continue
             child_val = child_vm.get(f"{{{_W_NS}}}val") or child_vm.get("val")
             if child_val == "restart":
+                # A new restart in the middle of our span means our span
+                # ends here (e.g. a sub-header that overlaps).
                 break
             # continue or absent val → continuation
             found_continue = True
@@ -221,7 +495,6 @@ def _v_merge_span_from_tc(tc_elem) -> int:
 
 
 def _tc_text(tc_elem) -> str:
-    """Extract all text from a <w:tc> element."""
     parts: list[str] = []
     for t_elem in tc_elem.iter(f"{{{_W_NS}}}t"):
         if t_elem.text:
@@ -230,15 +503,14 @@ def _tc_text(tc_elem) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Score-table heuristic
+# Score-table heuristic (v2 — uses normalized text)
 # ---------------------------------------------------------------------------
 
-def _looks_like_score_table(rows: list[list[dict[str, Any]]]) -> bool:
-    """Heuristic: does this table look like a scoring rubric?"""
+def _looks_like_score_table_v2(cells: list[dict[str, Any]]) -> bool:
     sample_texts: list[str] = []
-    for row in rows[:5]:
-        for cell in row:
-            if not cell.get("isMergedContinue"):
-                sample_texts.append(cell["text"])
+    for cell in cells[:30]:  # first ~30 cells
+        if cell.get("isMergedContinue"):
+            continue
+        sample_texts.append(cell.get("normalizedText") or "")
     blob = " ".join(sample_texts)
     return any(kw in blob for kw in _SCORE_TABLE_KEYWORDS)
