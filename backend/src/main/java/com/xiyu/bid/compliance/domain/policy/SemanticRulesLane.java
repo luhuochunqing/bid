@@ -63,14 +63,14 @@ public final class SemanticRulesLane {
             final Set<String> failedKnowledgeSources) {
         return switch (item) {
             case QUALIFICATION_MATCH -> guardForComparison(item, requirements, failedKnowledgeSources,
-                    "招标要求不可用，无法比对企业资质与招标硬性要求",
+                    "未在招标文件中提取到明确的硬性资格要求，请对照标书资质证明文件人工复核",
                     "企业资质库查询异常，无法比对企业资质与招标硬性要求");
             case QUALIFICATION_VETO -> guardForComparison(item, requirements, failedKnowledgeSources,
-                    "招标要求不可用，无法核查一票否决与资格前置条件",
+                    "未在招标文件中提取到明确的一票否决与资格前置条件，请人工复核",
                     "企业资质库查询异常，无法核查一票否决与资格前置条件")
                     .or(() -> vetoFirstStage(bidDoc, tenderDoc, requirements, kbEvidences));
             case QUALIFICATION_REVIEW -> guardForComparison(item, requirements, failedKnowledgeSources,
-                    "招标要求不可用，无法核查资格性评审条款响应",
+                    "未在招标文件中提取到资格性评审条款要求，请人工复核",
                     "企业资质库查询异常，无法核查资格性评审条款响应");
             case SCORING_RESPONSE -> requirements.missing()
                     ? Optional.of(referenceMissing(item, "招标要求不可用，无法对照评分标准逐项核查"))

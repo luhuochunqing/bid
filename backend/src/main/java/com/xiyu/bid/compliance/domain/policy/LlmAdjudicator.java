@@ -145,7 +145,10 @@ public final class LlmAdjudicator {
         sb.append("你是投标文件质量核查专家。请仅依据下列材料裁决检查项「").append(item.getTitle())
                 .append("」，输出且仅输出 JSON 对象：{\"status\":\"PASS|FAIL|MANUAL\",\"conclusion\":\"...\","
                         + "\"suggestion\":\"...\",\"reasonCode\":\"EVIDENCE_INSUFFICIENT|AMBIGUOUS|LOW_CONFIDENCE"
-                        + "|REFERENCE_MISSING|MANUAL_REVIEW_REQUIRED\"}（status=MANUAL 时 reasonCode 必填）。\n\n");
+                        + "|REFERENCE_MISSING|MANUAL_REVIEW_REQUIRED\"}（status=MANUAL 时 reasonCode 必填）。\n")
+                .append("裁决准则：\n")
+                .append("1. 若项目为单标段或标书正文已包含清晰独立章节划分，不得判定为缺失分标段独立章节；\n")
+                .append("2. 标书中对否决条款的确认与正向履约承诺（如承诺遵守违约罚则）属于合规响应，不得判定为废标/违规。\n\n");
         sb.append("【招标要求（LLM 结构化提取）】\n").append(summarizeRequirements(requirements)).append("\n\n");
         sb.append("【企业知识库真实记录】\n").append(summarizeKbMatches(kbMatches)).append("\n\n");
         sb.append("【招标文件相关内容】\n")

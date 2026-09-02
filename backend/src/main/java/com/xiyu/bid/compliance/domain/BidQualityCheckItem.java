@@ -40,7 +40,7 @@ public enum BidQualityCheckItem {
             "资质匹配",
             "CRITICAL",
             5,
-            "联动资质库，检查投标文件中是否包含招标文件要求的全部资质证书。匹配条件：证书名称包含要求关键词、等级达标、在有效期内"),
+            "依据招标文件资格要求，对照企业资质库与投标文件逐项比对。核验证书关键词、等级与有效期"),
     PRICE_CONSISTENCY(
             "PRICE_CONSISTENCY",
             QualityCheckCategory.BASIC_INFO,

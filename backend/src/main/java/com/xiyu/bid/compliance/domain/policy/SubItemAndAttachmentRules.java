@@ -25,6 +25,11 @@ public final class SubItemAndAttachmentRules {
             "开标一览表", "投标报价表", "报价一览表", "投标一览表", "报价明细表", "分项报价表"
     };
 
+    private static final List<String> NEGATION_PREFIXES = List.of(
+            "承诺不", "严禁", "不得", "不进行", "不含", "不存在", "没有", "无任何",
+            "杜绝", "防范", "禁止", "坚决抵制", "零", "未", "无", "不"
+    );
+
     private SubItemAndAttachmentRules() {
     }
 
@@ -52,16 +57,36 @@ public final class SubItemAndAttachmentRules {
         BidQualityCheckItem item = BidQualityCheckItem.VETO_KEYWORD;
         List<QualityEvidence> hits = new ArrayList<>();
         for (DocumentContent.PageContent page : bidDoc.pages()) {
-            Matcher m = SENSITIVE_VETO_PATTERN.matcher(page.text());
+            String text = page.text();
+            Matcher m = SENSITIVE_VETO_PATTERN.matcher(text);
             while (m.find()) {
+                if (isNegatedOrCommitment(text, m.start())) {
+                    // 正向承诺或否定语境（如「严禁转包」「承诺不违法分包」「无弄虚作假」），予以豁免
+                    continue;
+                }
                 hits.add(QualityEvidence.bid("废标敏感词命中", page.pageNumber(),
-                        "命中词: [" + m.group() + "]，上下文: " + BasicInfoCheckPolicy.snippetAround(page.text(), 150, m.group())));
+                        "命中词: [" + m.group() + "]，上下文: " + BasicInfoCheckPolicy.snippetAround(text, 150, m.group())));
             }
         }
         if (hits.isEmpty()) {
-            return QualityCheckItemResult.pass(item, "未扫描到任何废标、转包、挂靠等高危违规关键词", Collections.emptyList());
+            return QualityCheckItemResult.pass(item, "未扫描到任何废标、转包、挂靠等高危违规关键词（正向履约承诺已合规核验）", Collections.emptyList());
         }
         return QualityCheckItemResult.fail(item, "在投标文件中扫描到 " + hits.size() + " 处高危/废标敏感词！", "请立刻在标书中排查并删除相关敏感词句", hits);
+    }
+
+    /** 检查匹配命中点是否处于否定/承诺豁免前缀语境（如「严禁转包」「承诺不违法分包」「杜绝弄虚作假与串通投标」）. */
+    private static boolean isNegatedOrCommitment(final String text, final int matchStart) {
+        if (text == null || matchStart <= 0) {
+            return false;
+        }
+        int lookbackStart = Math.max(0, matchStart - 20);
+        String prefix = text.substring(lookbackStart, matchStart);
+        for (String negation : NEGATION_PREFIXES) {
+            if (prefix.contains(negation)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static QualityCheckItemResult checkCommitmentSeal(final DocumentContent bidDoc) {
@@ -92,17 +117,36 @@ public final class SubItemAndAttachmentRules {
     }
 
     public static QualityCheckItemResult checkDepositReceipt(final DocumentContent bidDoc) {
+        return checkDepositReceipt(bidDoc, null);
+    }
+
+    public static QualityCheckItemResult checkDepositReceipt(final DocumentContent bidDoc, final String tenderText) {
         BidQualityCheckItem item = BidQualityCheckItem.DEPOSIT_RECEIPT;
-        BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc, "投标保证金", "保函", "汇款凭证", "银行回单");
+        if (isDepositNotRequired(tenderText)) {
+            return QualityCheckItemResult.pass(item, "招标文件未要求缴纳投标保证金（免收/不涉及）", Collections.emptyList());
+        }
+        BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc,
+                "投标保证金汇款", "保证金转账", "银行汇款回单", "电子保函凭证", "保函", "汇款凭证", "缴纳凭证");
         if (match != null) {
             return QualityCheckItemResult.pass(item, "已附投标保证金汇款回单或电子保函凭证", List.of(QualityEvidence.bid("保证金凭证页", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(match.text(), 200, "投标保证金", "保函", "汇款凭证", "银行回单"))));
+        }
+        if (bidDoc.fullText().contains("不收取投标保证金") || bidDoc.fullText().contains("免收保证金") || bidDoc.fullText().contains("不涉及保证金")) {
+            return QualityCheckItemResult.pass(item, "投标文件中声明不涉及/免收投标保证金", Collections.emptyList());
         }
         return QualityCheckItemResult.fail(item, "未检索到投标保证金缴纳凭证或投标保函", "请补充投标保证金转账回执单扫描件或有效保函", Collections.emptyList());
     }
 
     public static QualityCheckItemResult checkCaCertificate(final DocumentContent bidDoc) {
+        return checkCaCertificate(bidDoc, null);
+    }
+
+    public static QualityCheckItemResult checkCaCertificate(final DocumentContent bidDoc, final String tenderText) {
         BidQualityCheckItem item = BidQualityCheckItem.CA_CERTIFICATE;
-        BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc, "CA", "数字证书", "电子签章", "电子印章");
+        if (isCaNotRequired(tenderText)) {
+            return QualityCheckItemResult.pass(item, "招标文件未要求 CA 电子签章或数字证书（不涉及）", Collections.emptyList());
+        }
+        BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc,
+                "CA数字证书", "CA电子签章", "数字证书认证", "电子印章", "CA证书");
         if (match != null) {
             return QualityCheckItemResult.pass(item, "包含 CA 电子签章或数字证书有效性标识", List.of(QualityEvidence.bid("CA/签章标识", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(match.text(), 200, "CA", "数字证书", "电子签章", "电子印章"))));
         }
@@ -110,11 +154,52 @@ public final class SubItemAndAttachmentRules {
     }
 
     public static QualityCheckItemResult checkDepositRefund(final DocumentContent bidDoc) {
+        return checkDepositRefund(bidDoc, null);
+    }
+
+    public static QualityCheckItemResult checkDepositRefund(final DocumentContent bidDoc, final String tenderText) {
         BidQualityCheckItem item = BidQualityCheckItem.DEPOSIT_REFUND;
-        BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc, "退还", "开户银行", "银行账号", "基本存款账户");
+        if (isDepositNotRequired(tenderText)) {
+            return QualityCheckItemResult.pass(item, "本项目不涉及投标保证金，无需提供退款账户信息", Collections.emptyList());
+        }
+        BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc,
+                "退还保证金", "保证金退还", "退还开户银行", "退还账户", "退保证金");
         if (match != null) {
             return QualityCheckItemResult.pass(item, "包含保证金退还开户行及银行账户信息", List.of(QualityEvidence.bid("退款账户信息页", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(match.text(), 200, "退还", "开户银行", "银行账号", "基本存款账户"))));
         }
         return QualityCheckItemResult.manualReview(item, "未检索到明确的保证金退还账户信息表", "若招标文件要求提供退还账户信息，请在附件中补充基本账户开户证明", Collections.emptyList());
+    }
+
+    private static boolean isDepositNotRequired(final String tenderText) {
+        if (tenderText == null || tenderText.isBlank()) {
+            return false;
+        }
+        return tenderText.contains("免收投标保证金")
+                || tenderText.contains("不收取投标保证金")
+                || tenderText.contains("免交投标保证金")
+                || tenderText.contains("不要求提交投标保证金")
+                || tenderText.contains("免收保证金")
+                || tenderText.contains("无需缴纳保证金")
+                || (!tenderText.contains("保证金") && !tenderText.contains("保函"));
+    }
+
+    private static boolean isCaNotRequired(final String tenderText) {
+        if (tenderText == null || tenderText.isBlank()) {
+            return false;
+        }
+        if ((tenderText.contains("无需") && tenderText.contains("CA"))
+                || (tenderText.contains("不要求") && tenderText.contains("CA"))
+                || tenderText.contains("纸质标")
+                || tenderText.contains("不使用电子签章")) {
+            return true;
+        }
+        boolean tenderRequiresCa = tenderText.contains("电子招投标")
+                || tenderText.contains("CA证书")
+                || tenderText.contains("CA数字证书")
+                || tenderText.contains("电子签章")
+                || tenderText.contains("电子印章")
+                || tenderText.contains("数字证书有效")
+                || tenderText.contains("加密投标文件");
+        return !tenderRequiresCa;
     }
 }

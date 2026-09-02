@@ -67,17 +67,49 @@ class DeterministicCheckPolicyTest {
     }
 
     @Test
-    @DisplayName("敏感词与废标词扫描：命中敏感词断言 FAIL 并定位物理页码")
+    @DisplayName("敏感词与废标词扫描：明确违规词断言 FAIL 并定位物理页码")
     void testVetoKeyword_Hit() {
         String page1 = "第一章 概述\n项目正常实施";
-        String page2 = "第二章 合作模式\n本项目严禁转包，但我方承诺部分技术进行违法分包。";
+        String page2 = "第二章 合作模式\n本项目部分技术将进行违法分包。";
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash1", page1 + "\f" + page2);
 
         QualityCheckItemResult result = DeterministicCheckPolicy.checkVetoKeyword(doc);
         assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
-        assertThat(result.evidences()).hasSize(2);
+        assertThat(result.evidences()).hasSize(1);
         assertThat(result.evidences().get(0).pageNumber()).isEqualTo(2);
-        assertThat(result.evidences().get(0).quote()).contains("转包");
+        assertThat(result.evidences().get(0).quote()).contains("违法分包");
+    }
+
+    @Test
+    @DisplayName("敏感词与废标词扫描：正向合规承诺与否定句式应豁免断言 PASS")
+    void testVetoKeyword_Commitment_Pass() {
+        String page1 = "承诺函\n我方承诺严禁转包，承诺不进行违法分包，杜绝弄虚作假与串通投标。";
+        String page2 = "合同特别声明：因供应商违约严重不达标...买方有权解除合同并追究违约责任。";
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_commit", page1 + "\f" + page2);
+
+        QualityCheckItemResult result = DeterministicCheckPolicy.checkVetoKeyword(doc);
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(result.conclusion()).contains("正向履约承诺已合规核验");
+    }
+
+    @Test
+    @DisplayName("附件清单检查：招标文件免收保证金与不要求 CA 时断言 PASS")
+    void testAttachmentChecks_TenderNotRequired_Pass() {
+        String tenderText = "本项目免收投标保证金，采用纸质标书递交，无需缴纳保证金与电子 CA。";
+        String bidText = "投标文件正文\n投标总价：100万元\n开户银行：招商银行上海分行\n账号：123456789";
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_att", bidText);
+
+        QualityCheckItemResult depositResult = DeterministicCheckPolicy.checkDepositReceipt(doc, tenderText);
+        assertThat(depositResult.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(depositResult.conclusion()).contains("免收/不涉及");
+
+        QualityCheckItemResult caResult = DeterministicCheckPolicy.checkCaCertificate(doc, tenderText);
+        assertThat(caResult.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(caResult.conclusion()).contains("未要求 CA 电子签章");
+
+        QualityCheckItemResult refundResult = DeterministicCheckPolicy.checkDepositRefund(doc, tenderText);
+        assertThat(refundResult.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(refundResult.conclusion()).contains("不涉及投标保证金");
     }
 
     @Test
