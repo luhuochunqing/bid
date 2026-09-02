@@ -4,7 +4,7 @@ space: engineering
 category: feature
 tags: [表单, 动态表单, 自定义, schema, 字段可见性, 跨字段验证, 多租户]
 created: 2026-05-24
-updated: 2026-07-31
+updated: 2026-09-02
 health_checked: 2026-08-28
 sources:
   - backend/src/main/java/com/xiyu/bid/formengine/
