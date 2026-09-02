@@ -155,7 +155,7 @@ public class InitiationTenderTextResolver {
         return new TenderTextSource(snapshot.getFileName(), snapshot.getFileUrl(), snapshot.getExtractedText());
     }
 
-    private byte[] loadBytes(String fileUrl) {
+    public byte[] loadBytes(String fileUrl) {
         if (fileUrl == null || fileUrl.isBlank()) {
             return null;
         }

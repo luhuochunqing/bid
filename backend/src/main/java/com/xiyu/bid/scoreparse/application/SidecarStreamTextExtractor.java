@@ -30,7 +30,6 @@ import java.util.UUID;
 @Slf4j
 public class SidecarStreamTextExtractor {
 
-    private static final String SIDECAR_KEY_HEADER = "X-Sidecar-Key";
     private static final int ERROR_SNIPPET_MAX_CHARS = 512;
 
     private final HttpClient httpClient;
@@ -62,13 +61,13 @@ public class SidecarStreamTextExtractor {
                 .timeout(Duration.ofSeconds(extractTimeoutSeconds))
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary);
         if (!sharedKey.isBlank()) {
-            requestBuilder.header(SIDECAR_KEY_HEADER, sharedKey);
+            requestBuilder.header(SidecarMultipart.SIDECAR_KEY_HEADER, sharedKey);
         }
         HttpRequest request = requestBuilder
                 .POST(HttpRequest.BodyPublishers.concat(
-                        HttpRequest.BodyPublishers.ofByteArray(multipartPrefix(boundary, fileName)),
+                        HttpRequest.BodyPublishers.ofByteArray(SidecarMultipart.prefix(boundary, fileName)),
                         HttpRequest.BodyPublishers.ofFile(file),
-                        HttpRequest.BodyPublishers.ofByteArray(multipartSuffix(boundary))))
+                        HttpRequest.BodyPublishers.ofByteArray(SidecarMultipart.suffix(boundary))))
                 .build();
         HttpResponse<InputStream> response =
                 httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
@@ -82,17 +81,6 @@ public class SidecarStreamTextExtractor {
         try (InputStream body = response.body()) {
             return readTextWithCharLimit(body);
         }
-    }
-
-    private static byte[] multipartPrefix(String boundary, String fileName) {
-        return ("--" + boundary + "\r\n"
-                + "Content-Disposition: form-data; name=\"file\"; filename=\"" + fileName + "\"\r\n"
-                + "Content-Type: application/octet-stream\r\n\r\n")
-                .getBytes(StandardCharsets.UTF_8);
-    }
-
-    private static byte[] multipartSuffix(String boundary) {
-        return ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
     }
 
     /** 流式读响应 + char 计数：累计超限即抛（关闭 body 中止连接），不先缓冲完整文本再判。 */

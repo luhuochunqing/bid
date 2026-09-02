@@ -16,7 +16,6 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -35,8 +34,6 @@ import java.util.UUID;
 @Slf4j
 public class SidecarImageExtractor {
 
-    private static final String SIDECAR_KEY_HEADER = "X-Sidecar-Key";
-    private static final int ERROR_SNIPPET_MAX_CHARS = 512;
     private static final Set<String> SUPPORTED_MIME_TYPES =
             Set.of("image/png", "image/jpeg", "image/gif", "image/webp");
 
@@ -83,23 +80,23 @@ public class SidecarImageExtractor {
                 .timeout(Duration.ofSeconds(extractTimeoutSeconds))
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary);
         if (!sharedKey.isBlank()) {
-            requestBuilder.header(SIDECAR_KEY_HEADER, sharedKey);
+            requestBuilder.header(SidecarMultipart.SIDECAR_KEY_HEADER, sharedKey);
         }
         HttpRequest request = requestBuilder
                 .POST(HttpRequest.BodyPublishers.concat(
-                        HttpRequest.BodyPublishers.ofByteArray(multipartPrefix(boundary, fileName)),
+                        HttpRequest.BodyPublishers.ofByteArray(SidecarMultipart.prefix(boundary, fileName)),
                         fileBody,
-                        HttpRequest.BodyPublishers.ofByteArray(multipartSuffix(boundary))))
+                        HttpRequest.BodyPublishers.ofByteArray(SidecarMultipart.suffix(boundary))))
                 .build();
         HttpResponse<InputStream> response =
                 httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
         int status = response.statusCode();
         if (status == 422) {
-            throw new IllegalStateException("投标文件图片无法解析：" + readErrorSnippet(response.body()));
+            throw new IllegalStateException("投标文件图片无法解析：" + SidecarMultipart.readErrorSnippet(response.body()));
         }
         if (status < 200 || status >= 300) {
             throw new IllegalStateException(
-                    "调用文档图片抽取服务失败 HTTP " + status + "：" + readErrorSnippet(response.body()));
+                    "调用文档图片抽取服务失败 HTTP " + status + "：" + SidecarMultipart.readErrorSnippet(response.body()));
         }
         try (InputStream body = response.body()) {
             return parseResponse(readBodyWithByteLimit(body));
@@ -144,27 +141,6 @@ public class SidecarImageExtractor {
             buffer.write(buf, 0, n);
         }
         return buffer.toByteArray();
-    }
-
-    private static byte[] multipartPrefix(String boundary, String fileName) {
-        return ("--" + boundary + "\r\n"
-                + "Content-Disposition: form-data; name=\"file\"; filename=\"" + fileName + "\"\r\n"
-                + "Content-Type: application/octet-stream\r\n\r\n")
-                .getBytes(StandardCharsets.UTF_8);
-    }
-
-    private static byte[] multipartSuffix(String boundary) {
-        return ("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
-    }
-
-    private static String readErrorSnippet(InputStream body) {
-        try (body) {
-            byte[] buf = new byte[ERROR_SNIPPET_MAX_CHARS];
-            int n = body.read(buf);
-            return n <= 0 ? "" : new String(buf, 0, n, StandardCharsets.UTF_8).trim();
-        } catch (IOException ex) {
-            return "";
-        }
     }
 
     /** sidecar /convert-images 响应 DTO（契约 contracts/sidecar-images-api.md）。 */

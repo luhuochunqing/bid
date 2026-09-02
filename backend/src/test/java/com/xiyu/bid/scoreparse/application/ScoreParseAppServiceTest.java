@@ -81,6 +81,8 @@ class ScoreParseAppServiceTest {
     private ScoreItemPersistenceService itemPersistenceService;
     @Mock
     private InitiationTenderTextResolver initiationTenderTextResolver;
+    @Mock
+    private SidecarTableExtractor sidecarTableExtractor;
     private ScoreCandidatePostProcessor postProcessor;
 
     @Mock
@@ -105,8 +107,8 @@ class ScoreParseAppServiceTest {
                 taskRepository, itemRepository, resultRepository, projectDocumentRepository,
                 stateService, progressService, snapshotRepository,
                 projectAccessScopeService, scoreAnalyzer, estimatedScoreService,
-                itemPersistenceService, initiationTenderTextResolver, postProcessor,
-                llmTableScoreExtractorProvider, schemaMapperProvider);
+                itemPersistenceService, initiationTenderTextResolver, sidecarTableExtractor,
+                postProcessor, llmTableScoreExtractorProvider, schemaMapperProvider);
         ReflectionTestUtils.setField(service, "self", service);
     }
 

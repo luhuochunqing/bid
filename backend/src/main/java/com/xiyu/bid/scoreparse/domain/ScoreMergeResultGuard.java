@@ -255,10 +255,7 @@ public final class ScoreMergeResultGuard {
             String normCandDetail = normalize(cand.detail());
             boolean detailMatch = !normCandDetail.isEmpty()
                     && (normCandDetail.contains(normItemDetail) || normItemDetail.contains(normCandDetail));
-            boolean sourceMatch = cand.sourceText() != null && !cand.sourceText().isBlank()
-                    && normalize(cand.sourceText()).contains(normItemDetail);
-
-            if (detailMatch || sourceMatch) {
+            if (detailMatch) {
                 if (cand.detail().length() > maxLen) {
                     maxLen = cand.detail().length();
                     String parentDim = cand.parentDim() != null && !cand.parentDim().isBlank()

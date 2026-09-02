@@ -239,6 +239,51 @@ class ScoreMergeResultGuardTest {
     }
 
     @Test
+    void guard_financialDetailNotAbsorbedIntoNeighborItem() {
+        // Bug reproduction: lane-4 LLM candidate for 财务状况 carries chunk-level sourceText
+        // that contains every merged item's detail. The old sourceMatch mechanism in
+        // upgradeWithLongestPoolDetail() would graft 财务状况's long detail onto 信用评价
+        // (the longest pool detail wins), then coveredBy() blocks the real 财务状况 from
+        // being restored → 财务状况 completely absent from output.
+        String financialDetail = "（1）速动比率=速动资产/流动负债。速动比≥1，得50分；0.8≤速动比<1，得40分；速动比<0.8，得30分。数据取值来源：①速动资产＜资产负债表>：（流动资产合计-存货）②流动负债=<资产负债表>流动负债合计（2）营业收现比率=经营活动现金流入/营业总收入。营业收现比率≥1，得50分；0.8≤营业收现比率<1，得40分；营业收现比率<0.8，得30分。";
+        String chunkSourceText = "信用评价 2023年1月1日至今，在该网站无不良记录，得100分 " + financialDetail;
+
+        ScoreCandidate poolCredit = new ScoreCandidate("2.2.4(1)", "信用评价",
+                "2023年1月1日至今，在该网站无不良记录，得100分；有处罚记录无罚款，得90分；罚款20万以内，得80分。本项满分100分。",
+                new BigDecimal("5"), null, null,
+                "2023年1月1日至今，在该网站无不良记录，得100分；有处罚记录无罚款，得90分；罚款20万以内，得80分。本项满分100分。",
+                "R2", "TABLE_GRID");
+
+        ScoreCandidate poolFinancial = new ScoreCandidate("2.2.4(1)", "财务状况",
+                financialDetail,
+                new BigDecimal("6"), null, null,
+                chunkSourceText, "R4", "TABLE_GRID");
+
+        List<ScoreCandidate> merged = List.of(
+                new ScoreCandidate("2.2.4(1)", "信用评价",
+                        "2023年1月1日至今，在该网站无不良记录，得100分；有处罚记录无罚款，得90分。",
+                        new BigDecimal("5"), null, null, "原文", "P47", "GLOBAL_MERGE"),
+                new ScoreCandidate("2.2.4(1)", "财务状况",
+                        "速动比率≥1得50分，其余得0分。",
+                        new BigDecimal("6"), null, null, "原文", "P47", "GLOBAL_MERGE"));
+
+        String sectionText = "信用评价 2023年1月1日至今，在该网站无不良记录，得100分；有处罚记录无罚款，得90分；罚款20万以内，得80分。本项满分100分。 "
+                + financialDetail;
+
+        ScoreMergeResultGuard.Outcome outcome = ScoreMergeResultGuard.guard(
+                List.of(poolCredit, poolFinancial), merged, sectionText);
+
+        assertThat(outcome.accepted()).hasSize(2);
+        assertThat(outcome.accepted()).extracting(ScoreCandidate::dim)
+                .containsExactly("信用评价", "财务状况");
+        assertThat(outcome.accepted().get(0).detail())
+                .doesNotContain("速动比率");
+        assertThat(outcome.accepted().get(1).detail())
+                .contains("速动比率")
+                .contains("营业收现比率");
+    }
+
+    @Test
     void guard_truncatedMergedItem_upgradesToFullPoolDetail() {
         // 当 LLM 归并输出由于截断或提纲化输出了短版 detail 时，守卫自动从池中匹配并升级为最完整的逐字细则
         String fullDetail = "1.售前服务方案完整得3分；2.售中服务方案（含订单状态一致性与出库配送保障）得4分；3.售后服务方案（含退换货与三包服务）得3分。";
