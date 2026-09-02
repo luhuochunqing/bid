@@ -1,25 +1,22 @@
 ---
-title: spec 059 评分解析证据化 Phase 0-1 落地结论（运行档案可追溯 + DocumentArtifact v2）
+title: spec 059 评分解析证据化 Phase 0-1 落地结论
 space: engineering
 category: guide
-tags: [score-parse, spec059, 评分解析, DocumentArtifact, CanonicalTableGrid, FP-Java, STRUCTURE_INCOMPLETE]
+updated: 2026-09-02
+health_checked: 2026-09-02
+created: 2026-09-02
+tags: [score-parse, spec059, 评分解析, DocumentArtifact, CanonicalTableGrid]
 sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreParseDecision.java
-  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreParsePipeline.java
-  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/grid/CanonicalTableGrid.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/grid/CanonicalTableGridFactory.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/SidecarDocumentArtifactExtractor.java
   - document-converter-sidecar/table_extractor.py
-  - document-converter-sidecar/app.py
   - docs/lessons/scoreparse-golden-corpus/index.md
 backlinks:
   - _index
   - score-parse-service
   - architecture
   - lessons-learned
-created: 2026-09-02
-updated: 2026-09-02
-health_checked: 2026-09-02
 ---
 
 # spec 059 评分解析证据化 Phase 0-1 落地结论
