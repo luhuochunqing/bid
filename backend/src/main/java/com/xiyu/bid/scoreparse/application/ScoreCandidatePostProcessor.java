@@ -10,6 +10,8 @@ import com.xiyu.bid.scoreparse.domain.RecallOutcome;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreItemMergePolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreParseConstants;
+import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
+import com.xiyu.bid.scoreparse.domain.ScoreParsePipeline;
 import com.xiyu.bid.scoreparse.domain.ScoreVocabularyRegistry;
 import com.xiyu.bid.scoreparse.domain.WeightNormalizationPolicy;
 import com.xiyu.bid.scoreparse.domain.WeightOverloadTrimPolicy;
@@ -45,11 +47,21 @@ public class ScoreCandidatePostProcessor {
     }
 
     /**
-     * 治理产物。failMessage 非空表示数量校验失败（0 项终态），调用方负责 stateService.failTask。
+     * 治理产物（spec 059 Phase 0 增加 pipeline / decision / fallback）。
+     * <p>{@code failMessage} 非空表示数量校验失败（0 项终态），调用方负责 stateService.failTask。
      */
     public record Processed(List<ScoreCandidate> candidates, BigDecimal originalTotal,
             WeightSumCheck.Result weightResult, String runSummaryJson, String failMessage,
-            String normalizationWarning) {
+            String normalizationWarning,
+            String pipelineVersion, ScoreParseDecision decisionStatus, String fallbackReason) {
+
+        public Processed(List<ScoreCandidate> candidates, BigDecimal originalTotal,
+                WeightSumCheck.Result weightResult, String runSummaryJson, String failMessage,
+                String normalizationWarning) {
+            this(candidates, originalTotal, weightResult, runSummaryJson, failMessage,
+                    normalizationWarning, ScoreParsePipeline.LEGACY_FALLBACK,
+                    ScoreParseDecision.PARSE_FAILED, "HISTORIC_OVERLOAD");
+        }
 
         public Processed(List<ScoreCandidate> candidates, BigDecimal originalTotal,
                 WeightSumCheck.Result weightResult, String runSummaryJson, String failMessage) {
@@ -104,7 +116,8 @@ public class ScoreCandidatePostProcessor {
         var normalized = normalizationPolicy.normalize(valid);
         BigDecimal originalTotal = null;
         String normalizationWarning = null;
-        if (normalized.originalTotal() != null) {
+        boolean normalizationApplied = normalized.originalTotal() != null;
+        if (normalizationApplied) {
             valid = normalized.normalizedCandidates();
             originalTotal = normalized.originalTotal().setScale(2, java.math.RoundingMode.HALF_UP);
             normalizationWarning = normalized.warning();
@@ -115,6 +128,25 @@ public class ScoreCandidatePostProcessor {
         }
         int parentOnlyCount = (int) valid.stream().filter(ScoreCandidate::isParentOnlyDim).count();
         ItemCountCheck.Result countResult = itemCountCheck.check(valid.size());
+
+        // spec 059 Phase 0: 决策状态 + 回退原因（沿用现有已落库行为，仅补打标识与字段）
+        ScoreParseDecision decision;
+        String fallbackReason;
+        if (countResult.failed()) {
+            decision = ScoreParseDecision.PARSE_FAILED;
+            fallbackReason = "ZERO_VALID_ITEMS";
+        } else if (normalizationApplied) {
+            decision = ScoreParseDecision.REVIEW_REQUIRED;
+            fallbackReason = "RESORT_TO_NORMALIZATION";
+        } else if (stats.invoked() && (stats.truncated() || stats.hallucinationDropped() > stats.poolBackedKept())) {
+            decision = ScoreParseDecision.REVIEW_REQUIRED;
+            fallbackReason = "RESORT_TO_LLM_MERGE";
+        } else {
+            decision = ScoreParseDecision.AUTO_APPROVED;
+            fallbackReason = null;
+        }
+        String pipelineVersion = ScoreParsePipeline.LEGACY_FALLBACK;
+
         if (countResult.failed()) {
             String failMsg = countResult.failureMessage();
             if (MarkdownScoreSectionLocator.hasExternalSoftwareScoreDeclaration(fullText)) {
@@ -123,11 +155,14 @@ public class ScoreCandidatePostProcessor {
             log.warn("解析结果为 0 项，判定失败: taskId={}, candidates={}, reason={}", taskId, candidates.size(), failMsg);
             return new Processed(List.of(), null, weightResult,
                     RunSummaryAssembler.assemble(recall, tableRows.size(),
-                            toView(stats, 0), weightResult, 0, recall.llmModel()).json(),
-                    failMsg, normalizationWarning);
+                            toView(stats, 0), weightResult, 0, recall.llmModel(),
+                            pipelineVersion, decision.name(), fallbackReason).json(),
+                    failMsg, normalizationWarning,
+                    pipelineVersion, decision, fallbackReason);
         }
         var assembled = RunSummaryAssembler.assemble(recall, tableRows.size(),
-                toView(stats, parentOnlyCount), weightResult, valid.size(), recall.llmModel());
+                toView(stats, parentOnlyCount), weightResult, valid.size(), recall.llmModel(),
+                pipelineVersion, decision.name(), fallbackReason);
         if (assembled.warnLowAlignment()) {
             log.warn("对齐率低于 {}: hit={}, total={} —— 模型概括改写严重，建议换模型对照重解析"
                             + "（spec 057 FR-06）",
@@ -137,7 +172,12 @@ public class ScoreCandidatePostProcessor {
             log.warn("归并幻觉丢弃率超阈（057 FR-06）: dropped={}, poolBackedKept={}, restored={}",
                     stats.hallucinationDropped(), stats.poolBackedKept(), stats.restored());
         }
-        return new Processed(valid, originalTotal, weightResult, assembled.json(), null, normalizationWarning);
+        if (decision == ScoreParseDecision.REVIEW_REQUIRED) {
+            log.info("解析任务决策 REVIEW_REQUIRED（059 Phase 0）: taskId={}, fallback={}",
+                    taskId, fallbackReason);
+        }
+        return new Processed(valid, originalTotal, weightResult, assembled.json(), null,
+                normalizationWarning, pipelineVersion, decision, fallbackReason);
     }
 
     private static RunSummaryAssembler.MergeView toView(

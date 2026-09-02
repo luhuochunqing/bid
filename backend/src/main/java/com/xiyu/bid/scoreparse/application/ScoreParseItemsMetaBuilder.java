@@ -61,7 +61,10 @@ final class ScoreParseItemsMetaBuilder {
                 new ScoreParseAutoPolicy(taskRepository, itemRepository).circuitOpen(projectId),
                 reused,
                 parseTask == null ? null : parseTask.getSkippedChunks(),
-                parseTask == null ? null : parseTask.getRunSummary());
+                parseTask == null ? null : parseTask.getRunSummary(),
+                parseTask == null ? null : parseTask.getPipelineVersion(),
+                parseTask == null ? null : parseTask.getDecisionStatus(),
+                parseTask == null ? null : parseTask.getFallbackReason());
     }
 
     private Integer countReused(Long projectId) {

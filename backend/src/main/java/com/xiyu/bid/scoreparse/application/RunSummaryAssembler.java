@@ -43,8 +43,23 @@ final class RunSummaryAssembler {
     private RunSummaryAssembler() {
     }
 
+    /**
+     * 旧调用入口：保留以维持 spec 057 既有测试与调用方；pipeline 维度键输出为空串，
+     * 表示未记录（与历史任务 NULL 行为一致）。新调用方请使用下方 9 参重载。
+     */
     static Assembled assemble(RecallOutcome recall, int tableRows, MergeView merge,
             WeightSumCheck.Result weight, int itemCount, String llmModel) {
+        return assemble(recall, tableRows, merge, weight, itemCount, llmModel,
+                "", "", "");
+    }
+
+    /**
+     * Phase 0 决策状态装配入口（spec 059 T003）。
+     * <p>新增 {@code pipelineVersion / decisionStatus / fallbackReason} 三键，向后兼容旧字段。
+     */
+    static Assembled assemble(RecallOutcome recall, int tableRows, MergeView merge,
+            WeightSumCheck.Result weight, int itemCount, String llmModel,
+            String pipelineVersion, String decisionStatus, String fallbackReason) {
         double alignedRatio = recall.alignedTotal() > 0
                 ? (double) recall.alignedHit() / recall.alignedTotal() : -1;
         boolean warnLowAlignment = alignedRatio >= 0 && alignedRatio < ALIGNED_RATIO_FLOOR;
@@ -68,6 +83,7 @@ final class RunSummaryAssembler {
         mergeOut.put("parentOnlyDimCount", merge.parentOnlyDimCount());
 
         Map<String, Object> root = new LinkedHashMap<>();
+        // 旧字段保持顺序，避免破坏既有回放/审计断言。
         root.put("llmModel", llmModel == null ? "" : llmModel);
         root.put("lanes", lanes);
         root.put("tableRows", tableRows);
@@ -77,6 +93,10 @@ final class RunSummaryAssembler {
         root.put("parentOnlyDimCount", merge.parentOnlyDimCount());
         root.put("items", itemCount);
         root.put("finalTotalWeight", weight.totalWeight());
+        // spec 059 Phase 0：新链路口径透出，不影响旧字段。
+        root.put("pipelineVersion", pipelineVersion == null ? "" : pipelineVersion);
+        root.put("decisionStatus", decisionStatus == null ? "" : decisionStatus);
+        root.put("fallbackReason", fallbackReason == null ? "" : fallbackReason);
         return new Assembled(writeJson(root), warnLowAlignment, warnHighHallucination);
     }
 
