@@ -57,7 +57,7 @@ class BidQualityCheckTaskAppServiceTest {
         doc.setId(1L);
         doc.setName("bid.pdf");
         doc.setFileUrl("bid-agent://tender-documents/p" + projectId + "/bid.pdf");
-        when(targetLoader.findLatestBidDocument(projectId)).thenReturn(doc);
+        when(targetLoader.findAllBidDocuments(projectId)).thenReturn(List.of(doc));
     }
 
     @Test

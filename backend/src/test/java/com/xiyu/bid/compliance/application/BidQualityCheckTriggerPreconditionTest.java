@@ -1,6 +1,6 @@
-// Input: BidQualityCheckTaskAppService 依赖 mock（有/无投标文件两种场景）
-// Output: 验证 trigger 同步前置校验——无文件 4xx 不落任务，有文件正常建任务
-// Pos: compliance/application/ - trigger 前置校验单测（spec 049 US1 / T018）
+// Input: BidQualityCheckTaskAppService 依赖 mock（无投标文件/单册/多册场景）
+// Output: 验证 trigger 同步前置校验——无文件 4xx 不落任务，有文件正常建任务且 bidFileName 多册拼接
+// Pos: compliance/application/ - trigger 前置校验单测（spec 049 US1 / T018 + 多文件质量核查）
 package com.xiyu.bid.compliance.application;
 
 import com.xiyu.bid.compliance.dto.QualityCheckTaskDTO;
@@ -18,6 +18,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Collections;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -62,7 +63,7 @@ class BidQualityCheckTriggerPreconditionTest {
     void trigger_noBidDocument_throwsAndDoesNotCreateTask() {
         when(resultRepository.findByProjectIdAndCheckTypeAndStatusIn(
                 any(), any(), any())).thenReturn(Collections.emptyList());
-        when(targetLoader.findLatestBidDocument(PROJECT_ID)).thenReturn(null);
+        when(targetLoader.findAllBidDocuments(PROJECT_ID)).thenReturn(Collections.emptyList());
 
         assertThatThrownBy(() -> taskAppService.triggerQualityCheck(PROJECT_ID, false))
                 .isInstanceOf(BusinessException.class)
@@ -73,21 +74,36 @@ class BidQualityCheckTriggerPreconditionTest {
     }
 
     @Test
-    @DisplayName("文档记录存在但 fileUrl 为空时同样拒绝触发")
-    void trigger_bidDocumentWithoutFileUrl_throwsAndDoesNotCreateTask() {
+    @DisplayName("多册投标文件时毫秒级创建任务，任务记录的 bidFileName 按上传顺序顿号连接")
+    void trigger_multipleBidDocuments_bidFileNameJoined() {
         when(resultRepository.findByProjectIdAndCheckTypeAndStatusIn(
                 any(), any(), any())).thenReturn(Collections.emptyList());
-        ProjectDocument doc = new ProjectDocument();
-        doc.setId(7L);
-        doc.setFileUrl("");
-        when(targetLoader.findLatestBidDocument(PROJECT_ID)).thenReturn(doc);
+        ProjectDocument price = new ProjectDocument();
+        price.setId(1L);
+        price.setName("1-价格册.pdf");
+        price.setFileUrl("bid-agent://tender-documents/p200/price.pdf");
+        ProjectDocument biz = new ProjectDocument();
+        biz.setId(2L);
+        biz.setName("2-商务册.pdf");
+        biz.setFileUrl("bid-agent://tender-documents/p200/biz.pdf");
+        when(targetLoader.findAllBidDocuments(PROJECT_ID)).thenReturn(List.of(price, biz));
 
-        assertThatThrownBy(() -> taskAppService.triggerQualityCheck(PROJECT_ID, true))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("请先上传投标文件");
+        ComplianceCheckResult saved = ComplianceCheckResult.builder()
+                .id(1L)
+                .projectId(PROJECT_ID)
+                .taskId("task-002")
+                .status(ComplianceCheckResult.TaskStatus.INIT)
+                .progress(0)
+                .build();
+        when(resultRepository.save(any(ComplianceCheckResult.class))).thenReturn(saved);
 
-        verify(resultRepository, never()).save(any());
-        verify(asyncExecutor, never()).executeAsync(any(), any(), any(), anyBoolean());
+        QualityCheckTaskDTO task = taskAppService.triggerQualityCheck(PROJECT_ID, true);
+
+        assertThat(task.getTaskId()).isEqualTo("task-002");
+        org.mockito.ArgumentCaptor<ComplianceCheckResult> captor =
+                org.mockito.ArgumentCaptor.forClass(ComplianceCheckResult.class);
+        verify(resultRepository).save(captor.capture());
+        assertThat(captor.getValue().getBidFileName()).isEqualTo("1-价格册.pdf、2-商务册.pdf");
     }
 
     @Test
@@ -99,7 +115,7 @@ class BidQualityCheckTriggerPreconditionTest {
         doc.setId(7L);
         doc.setName("投标文件.pdf");
         doc.setFileUrl("bid-agent://tender-documents/p200/bid.pdf");
-        when(targetLoader.findLatestBidDocument(PROJECT_ID)).thenReturn(doc);
+        when(targetLoader.findAllBidDocuments(PROJECT_ID)).thenReturn(List.of(doc));
 
         ComplianceCheckResult saved = ComplianceCheckResult.builder()
                 .id(1L)

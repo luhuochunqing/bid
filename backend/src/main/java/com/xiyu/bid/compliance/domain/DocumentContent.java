@@ -1,10 +1,14 @@
 package com.xiyu.bid.compliance.domain;
 
 import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * 解析后的标书文档结构化内容（含物理分页与全文哈希）.
@@ -61,6 +65,96 @@ public record DocumentContent(
      */
     public static DocumentContent empty() {
         return new DocumentContent("", "", "", Collections.emptyList());
+    }
+
+    /** 多册合并时文件名的连接符（报告 bidFileName 展示口径）. */
+    public static final String MERGED_FILE_NAME_SEPARATOR = "、";
+
+    /**
+     * 合并文件名展示上限：对齐 bid_file_name 列宽 255（实体 @Column 无显式 length 的默认值）.
+     * 截断必须发生在所有最终写点（trigger 落库 + 异步 updateFileMetadata 覆写）共用的本方法，
+     * 否则异步链路会绕过 trigger 侧截断导致 data-too-long.
+     */
+    public static final int MERGED_FILE_NAME_MAX_LENGTH = 255;
+
+    /**
+     * 将多册投标文件（价格册/商务册/技术册等）合并为单个逻辑文档（纯函数）.
+     *
+     * <p>多文件质量核查的最小实现：合并在 Loader 边界完成，25 项引擎、证据链、
+     * 报告链路继续消费单个 DocumentContent，零改动. 合并语义：
+     * <ul>
+     *   <li>页码跨册连续重编号（证据 pageNumber 契约不变，quote 仍是主锚点）；</li>
+     *   <li>全文按册序以空行分隔拼接（不注入文件名，避免文件名误触正则规则）；</li>
+     *   <li>文件名按册序以顿号连接，超长按 {@link #capMergedFileName} 截断；</li>
+     *   <li>fileHash 为各册哈希按册序聚合的 SHA-256——同序确定性保证缓存命中稳定，
+     *       任一册变化（重传/增删）即聚合哈希变化、缓存自然失效；</li>
+     *   <li>单册原样返回（保持既有单文件项目的缓存哈希兼容）；空列表返回空文档.</li>
+     * </ul>
+     *
+     * @param documents 按册序（上传顺序）排列的解析结果列表
+     * @return 合并后的单个逻辑文档
+     */
+    public static DocumentContent merge(final List<DocumentContent> documents) {
+        if (documents == null || documents.isEmpty()) {
+            return empty();
+        }
+        if (documents.size() == 1) {
+            return documents.get(0);
+        }
+        String joinedNames = documents.stream()
+                .map(DocumentContent::fileName)
+                .filter(name -> !name.isBlank())
+                .collect(Collectors.joining(MERGED_FILE_NAME_SEPARATOR));
+        String mergedFullText = documents.stream()
+                .map(DocumentContent::fullText)
+                .collect(Collectors.joining("\n\n"));
+        List<PageContent> mergedPages = new ArrayList<>();
+        for (DocumentContent document : documents) {
+            for (PageContent page : document.pages()) {
+                mergedPages.add(new PageContent(mergedPages.size() + 1, page.text(), page.headings()));
+            }
+        }
+        return new DocumentContent(
+                capMergedFileName(joinedNames, documents.size()),
+                aggregateFileHash(documents), mergedFullText, mergedPages);
+    }
+
+    /**
+     * 合并文件名超长截断（纯函数）：保留前段并追加“等N册”标注总册数.
+     * 按码点边界收尾，避免把代理对（emoji 等）切成孤立代理项落库.
+     */
+    public static String capMergedFileName(final String joinedNames, final int totalCount) {
+        if (joinedNames == null || joinedNames.length() <= MERGED_FILE_NAME_MAX_LENGTH) {
+            return joinedNames == null ? "" : joinedNames;
+        }
+        String suffix = "等" + totalCount + "册";
+        String trimmed = joinedNames.substring(0, MERGED_FILE_NAME_MAX_LENGTH - suffix.length());
+        int last = trimmed.length() - 1;
+        if (Character.isHighSurrogate(trimmed.charAt(last))) {
+            trimmed = trimmed.substring(0, last);
+        }
+        return trimmed + suffix;
+    }
+
+    /**
+     * 聚合哈希：对各册哈希按册序拼接后整体做一次 SHA-256（小写十六进制）.
+     */
+    private static String aggregateFileHash(final List<DocumentContent> documents) {
+        String joined = documents.stream()
+                .map(DocumentContent::fileHash)
+                .collect(Collectors.joining("|"));
+        try {
+            byte[] bytes = MessageDigest.getInstance("SHA-256")
+                    .digest(joined.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(bytes.length * 2);
+            for (byte b : bytes) {
+                hex.append(Character.forDigit((b >> 4) & 0xF, 16))
+                        .append(Character.forDigit(b & 0xF, 16));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 算法不可用", e);
+        }
     }
 
     /**
