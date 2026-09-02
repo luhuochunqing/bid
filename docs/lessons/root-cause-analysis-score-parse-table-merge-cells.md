@@ -452,3 +452,45 @@ private void doExecuteParse(String taskId) {
 **诊断完成时间**: 2026-08-28 11:15  
 **修复完成时间**: 2026-08-28 11:56  
 **状态**: ✅ 已修复并验证
+
+---
+
+## Phase 1 补齐（2026-09-02）：结构化通道对列布局高度敏感，金标夹具必须匹配
+
+上文修复的是 `ScoreTableRowParser`（markdown 表格通道）。Phase 1 新建的 `StructuredTableCandidateExtractor`（Sidecar 结构化通道，直接消费 `SidecarTableExtraction.CellPayload` 的 rowspan/colspan/isMergedContinue）是**另一套列解析逻辑**，对列布局的容错度更低。设计金标夹具时踩到这个坑。
+
+### 症状：5 列布局下 dim 与 weight 双双误判
+
+项目 1358 金标测试首次以 5 列布局 `[编号, 评分类别, 评分因素, 评分标准, 权重]` 构造夹具，`extract_project1358GoldenMergedCellStructure` 失败于 `AssertionError: to match given predicate but none did`。从失败输出打印的实际 `ScoreCandidate` 列表读出两类误判：
+
+| 误判 | 实际结果 | 期望 | 原因 |
+|------|---------|------|------|
+| weight 取自 detail 文本 | 信用评价 weight=100、财务状况 weight=50、价格折扣得分 weight=60 | 5 / 6 / 50 | 权重列是 `4%`/`5%` 百分比格式未被解析，回退到从评分标准文本里抓"得100分/得50分/得60分" |
+| dim 取错列 | 技术 6 项 dim 全部变成"按A、B、C、D分档打分" | 商城系统对接能力 / 运营服务能力 / … | dim 落到了评分标准列而非评分因素列 |
+
+### 根因
+
+`StructuredTableCandidateExtractor` 的列角色判定依赖**固定列序假设 + 括号权重解析**：
+
+- 正确路径是 4 列布局 `[编号, 评分类别(merged), 评分因素（N分）, 评分标准]`——评分因素列自带 `（N分）` 括号，由 `extractBracketWeight()`（正则 `（(\d{1,3}(?:\.\d+)?)分）`）同时取出 dim（去括号）与 weight；
+- 一旦多出一列，列序整体错位，括号解析拿不到权重就回退到文本扫描，于是把 detail 里的"得X分"当成 weight，dim 也顺移一列。
+
+这与上文 `ScoreTableRowParser` 修复第 1 条（"优先从列3提取括号分值"）是同一个设计取向：**括号权重是权威信号，文本扫描只是回退**，而回退路径的误判率很高。
+
+### 对策
+
+1. 金标夹具改用 4 列布局，与已通过的 `extract_parentDimFromMergedContinueText` 测试完全对齐 → 17/17 通过；
+2. 夹具复刻 1358 的真实合并结构：商务 `rowspan=4`、价格单行（无合并，parentDim 应为 null）、技术 `rowspan=6`，合并延续位置用 `isMergedContinue=true` 且文本重复父级文本（python-docx 对 vMerge 延续位置返回同一 cell 对象的语义）；
+3. 断言不止于条数，还验证 `semanticPattern=="STRUCTURED_TABLE"`、分段 parentDim、单项 dim+weight 配对，以及**总分闭环 100**（这条最关键——它是"缺项"的反向证明）。
+
+### 关于 1358 原始文档
+
+1358 原始文档位于工作区外的 scratch 目录，不可访问，因此金标验证采用**合成夹具复刻结构**而非直接回放原文。这不削弱验证效力：本条要证明的是"合并单元格结构能被结构化通道正确展开为带 parentDim 的候选"，该性质只取决于 `CellPayload` 的 rowspan/isMergedContinue 布局，与文档字节无关。真实文档回放由 `RealProjectScoreParsingTest`（Phase 4 去 `@Disabled`，改 classpath 加载）与 `GoldenCasesReplayTest` 覆盖。
+
+### 教训
+
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| 以为新提取器能自动适配任意列数 | 列角色判定基于固定列序假设，非表头语义识别 | 写夹具前先读提取器的列判定逻辑，或直接对齐一个已通过的同类测试的布局 |
+| weight 静默取自 detail 文本 | 括号解析失败后回退路径不报错，产出看似合理的数值 | 金标断言必须校验 dim+weight **配对**与**总分闭环**，只断言条数无法发现取错列 |
+| 两套通道（markdown / 结构化）列逻辑不同却易被当成一套 | 类名相近、都在 scoreparse/domain 下 | 改动或写测试前确认目标是 `ScoreTableRowParser` 还是 `StructuredTableCandidateExtractor`，两者列容错度不同 |

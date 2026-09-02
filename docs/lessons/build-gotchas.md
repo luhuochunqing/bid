@@ -4,6 +4,145 @@
 
 ---
 
+## 7. Maven 测试运行陷阱：`-DforkCount=0` 使 pom argLine 失效产生假 ERROR，`-Dtest='包.**'` 不过滤导致挂起
+
+### 场景
+
+对评分解析 Phase 1-5 补齐分支做生产风险审计时，需要独立复现测试证据（不能只信 pre-commit hook 的结论）。两次自造命令都给出了**误导性结果**：
+
+```bash
+# ❌ 尝试 1：包通配过滤 —— 挂起 86 分钟
+mvn -q test -Dtest='com.xiyu.bid.scoreparse.**' -DfailIfNoSpecifiedTests=false
+# 结果：target/surefire-reports/ 下 1128 个报告（≈全量），进程 elapsed=01:26:00 仍未结束
+
+# ❌ 尝试 2：加 -DforkCount=0 提速 —— 18 个假 ERROR
+mvn test -DforkCount=0 -Dtest="$LIST" -DfailIfNoTests=false -Djacoco.skip=true
+# 结果：InitiationTenderTextResolverTest 10 errors + ScoreBidDocumentLookupTest 8 errors
+# org.mockito.exceptions.base.MockitoException: Mockito cannot mock this class:
+#   class com.xiyu.bid.file.application.ObsShareUrlSigner.   Java : 23
+```
+
+两个类在**同一次审计中 forked 跑法下分别是 12/12、8/8 全绿**，证明 ERROR 与代码无关。
+
+### 根因
+
+1. **`-DforkCount=0` 让测试跑在 Maven 自身 JVM 内，`<argLine>` 不再生效。**
+   `backend/pom.xml:396-404` 的 surefire 配置把 Java 23 兼容开关放在 argLine 里：
+   ```xml
+   <argLine>
+       @{argLine}
+       -Dnet.bytebuddy.experimental=true
+   </argLine>
+   ```
+   argLine 是**传给 fork 出的 JVM** 的启动参数。`forkCount=0` 时没有 fork，ByteBuddy 拿不到 experimental 开关，在 Java 23（`/opt/homebrew/Cellar/openjdk/23.0.2`）上拒绝生成 mock 子类 → `MockitoException`。这与 commit `0158922cc fix(test): 启用 ByteBuddy 实验模式以兼容 Java 23` 修的是同一个问题，只是被 `-DforkCount=0` 绕过了修复。
+
+2. **`-Dtest='包名.**'` 在本仓不起过滤作用。** surefire 的 `-Dtest` 语义是**类名/文件模式**，不是包路径通配；写成包通配时匹配退化为"几乎全量"，于是跑了 1128 个类。全量里含需要外部依赖或长轮询的测试，表现为长时间挂起（参见 `.wiki/log.md` 2026-09-01 条：`mvn -q test` 挂起根因是常驻重试线程）。
+
+### 正确做法
+
+```bash
+# ✅ 先枚举类名，再用逗号列表传给 -Dtest（与 check-testing-standards.sh:39 同构）
+find backend/src/test/java/com/xiyu/bid/scoreparse -name '*Test.java' \
+  -exec basename {} .java \; | sort > /tmp/sp-classes.txt
+LIST=$(paste -sd, /tmp/sp-classes.txt)
+
+# ✅ 不要加 -DforkCount=0：必须让 surefire fork，argLine 才会带上 bytebuddy 开关
+(cd backend && mvn test -Dtest="$LIST" -DfailIfNoTests=false -Djacoco.skip=true)
+```
+
+注意 `scripts/check-testing-standards.sh` 自己**只在架构测试那一行**用了 `-DforkCount=0`（第 17 行，`FPJavaArchitectureTest` 等 ArchUnit 测试不用 Mockito，所以安全）；第 39 行的通用测试列表**没有**用它。照抄门禁时不要把这个 flag 泛化到所有测试。
+
+### 经验教训
+
+- **自造验证命令前先看门禁怎么跑**（`scripts/check-testing-standards.sh`）。门禁命令是"在这个仓库里能跑通"的既证事实，自加 flag 等于自造环境差异。
+- **假 ERROR 的识别信号：同一个类在另一次跑法下全绿。** 遇到 `Mockito cannot mock this class` + `Java : 23`，先怀疑 ByteBuddy/argLine，而不是怀疑被测代码。
+- **审计里最贵的错误是把环境噪音当成 PR 缺陷。** 本次 18 个 ERROR 若直接写进报告，会得出 FAIL 的错误裁决。
+- **`-Dtest` 传包通配是静默失效**（不报错、直接跑全量），比报错更危险：它同时浪费时间并制造"挂起"假象。
+
+### 相关命令
+
+```bash
+# 确认 surefire 是否 fork（forkCount=0 时看不到 surefirebooter 进程）
+pgrep -f surefirebooter
+
+# 确认 pom argLine 里的 Java 23 兼容开关
+grep -nE 'bytebuddy|experimental|forkCount|argLine' backend/pom.xml
+
+# 清理挂起残留的测试 JVM（先 ps 确认是自己的进程再 kill）
+ps -o pid=,etime=,command= -p $(pgrep -f surefirebooter | tr '\n' ',' | sed 's/,$//') | cut -c1-160
+```
+
+### 相关文档
+
+- `docs/lessons/build-gotchas.md` §2（`-DskipTests` 只跳过运行不跳过编译）
+- `docs/lessons/lessons-learned.md` §205（提交前跑完整测试门禁比自选测试类更全）
+- `.wiki/log.md` 2026-09-01（`mvn -q test` 挂起根因：常驻重试线程未随容器销毁终止）
+
+---
+
+## 6. pre-commit 双门禁陷阱：line-budget 行数计数方式与通配符 import 改显式时漏类
+
+### 场景
+
+评分解析 Phase 1-5 补齐提交（26 文件）连续撞两道 pre-commit 门禁，均在 hook 阶段失败、commit 未产生：
+
+```
+line-budget check failed (limit=300):
+- [CROSSED_LIMIT] .../application/ScoreParseAppService.java (300 -> 303 lines)
+- [CROSSED_LIMIT] .../domain/StructuredTableCandidateExtractor.java (253 -> 309 lines)
+
+ERROR: avoid wildcard import in ScoreVocabularyRegistry.java line 8:+import java.util.*;
+```
+
+### 根因
+
+1. **line-budget 按文本行计数，不是 `wc -l`**：`wc -l` 数的是换行符个数，文件无尾换行时会少算 1 行；hook 数的是文本行，无尾换行反而**多算** 1 行。判定条件是 `新行数 > limit`（本次 300 行的基线文件未被标记，303 行才被拦），因此正好卡在 limit 上是安全的，但前提是尾换行存在。
+2. **通配符 import 被 java-standards 硬禁**：`import java.util.*` 直接 fail。改成显式 import 时若靠肉眼列举用到的类，极易漏掉只在嵌套类型里出现的（本次漏 `java.util.Locale`——只在 `Entry` record 内部以 `Locale.ROOT` 形式使用），结果 hook 过了但 `mvn compile` 炸 `cannot find symbol`。
+
+### 正确做法
+
+**line-budget 精简优先序**（从"净收益"到"有损"）：
+
+1. **提升两分支的重复调用**——最高价值，既减行又消除重复。`ScoreParseAppService` 的 fail/success 两个分支各调一次 `setRunSummary(processed.runSummaryJson())` 与 `setNormalizationWarning(processed.normalizationWarning())`，且取值完全相同，提升到 `if` 之前统一调用：-3 行（303→300），顺带修掉了两分支将来漂移的隐患。
+2. **删解释 WHAT 的注释与冗余空行**——`StructuredTableCandidateExtractor` 删掉 `// Track rowspan-based parent for columns 0-2`（代码已自明）+ 3 处空行：-4 行。
+3. **多行 `if` 压单行**（仅限单语句体）——同一文件 parentDim 解析块的 2 个多行 if 压成单行 + 删 2 空行：-7 行。累计 -11（309→299）。
+
+**改显式 import 的可靠流程**：
+
+```bash
+# 不要肉眼列举——grep 出文件内所有大写开头的类型名，再与 import 清单比对
+grep -oE '\b[A-Z][A-Za-z0-9_]*\b' <file>.java | sort -u
+```
+
+改完必须跑 `mvn -q test-compile` 验证，因为 java-standards hook 只检查 import 语句形态，不检查是否漏类。
+
+### 经验教训
+
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| 用 `wc -l` 判断是否超 line-budget | 两者计数口径不同，尾换行有无会导致 ±1 行偏差 | 直接跑 `node scripts/check-line-budgets.mjs` 看真实判定，别用 `wc -l` 代替；同时确认文件有尾换行 |
+| 精简靠删功能代码或删有用注释 | 把"减行"当目标而非副产品 | 优先找重复调用提升、自明注释删除这类**既减行又提质**的改动；不为凑行数牺牲可读性 |
+| 通配符 import 改显式后漏类，hook 过了编译炸 | hook 只校验 import 形态，不校验完整性 | grep 全部大写开头类型名比对 + `mvn -q test-compile` 双验证 |
+| 门禁失败后想 `--no-verify` 绕过 | 赶进度 | 项目纪律明令禁止跳过 hook；门禁失败是真实信号（行数超标/import 不规范），必须靠真实修改达标 |
+
+### 相关命令
+
+```bash
+# 单独跑行数门禁看真实判定
+node scripts/check-line-budgets.mjs
+
+# 确认尾换行存在（0a = 有换行）
+tail -c 1 <file> | xxd -p
+
+# 通配符 import 改显式后必跑
+cd backend && mvn -q test-compile
+
+# 提交前跑完整测试门禁（比自选测试类更全，见 lessons-learned §205）
+bash scripts/check-testing-standards.sh
+```
+
+---
+
 ## 5. Docker 层缓存应急重建：只改 COPY 行等靠后指令时 apt/pip 层全命中
 
 ### 场景

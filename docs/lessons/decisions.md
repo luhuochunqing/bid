@@ -532,3 +532,49 @@ sidecar 容器在测试环境 20 分钟膨胀至 4.7GB（§143 事故）。根�
 ### 相关文档
 
 - `specs/055-competitor-custom-input/spec.md` — 完整规格
+
+## 8. 归一化告警走独立列而非塞进 run_summary：内部遥测与用户可见信号分离
+
+**日期**: 2026-09-02
+**决策者**: trae
+**相关**: specs/057-score-eval-and-guard、docs/reviews/057-design-detour-review.md P5
+
+### 背景
+
+评分解析 Phase 2 要求权重归一化"不再静默洗白"：当评分项合计≠100 触发按比例缩放、且缩放幅度超过 5% 时，必须向用户显式告警（此前缩放静默发生，掩盖了"缺项"这类真实错误）。
+
+告警需要一个落库与透出通道。现成候选是 spec 057 已建的 `score_parse_task.run_summary`（TEXT，JSON），它已持久化 lanes/aligned/merge 计数与 model，并由 `RunSummaryAssembler` 纯函数拼装。塞一个字段进去成本最低。
+
+但 `docs/reviews/057-design-detour-review.md` P5 已对 run_summary 表态：把它透出前端属 YAGNI，代价不在响应体大小，而在**内部遥测 schema 变成事实对外契约**——后续想改字段名就会被潜在前端依赖绑架。
+
+### 决策
+
+`normalization_warning` 走**独立列 + 独立 DTO 字段**，不进 run_summary：
+
+1. **存储**：V1206 新增 `score_parse_task.normalization_warning VARCHAR(255) NULL`，配套 U1206 回滚脚本；
+2. **透传**：`WeightNormalizationPolicy` 产出 warning → `ScoreCandidatePostProcessor.Processed` → `ScoreParseAppService` 落库 → `ScoreParseItemsDTO.Summary` 尾追加字段 → 前端 `useScoreParseDrawer` ref → `ScoreParseDrawer.vue` 告警条；
+3. **run_summary 定位不变**：仍是内部遥测（事故复盘时查库），`RunSummaryAssembler` **无需**包含归一化信息。
+
+判据是**信号的受众**：run_summary 面向开发者事后查库，normalization_warning 面向用户在界面上即时看到"这份解析结果被缩放过、可能缺项"。受众不同则通道不同。
+
+### 取舍
+
+| 方案 | 说明 | 采纳 |
+|------|------|------|
+| 独立列 `normalization_warning` | 用户可见信号有独立契约，可自由演进；遥测 schema 不被绑架 | ✅ |
+| 塞进 run_summary JSON | 省一次迁移，但内部遥测字段即刻变成前端依赖，重演 P5 指出的契约绑架 | ❌ |
+| 只存 run_summary 不透出前端 | 用户看不到告警，Phase 2"不再静默洗白"目标落空 | ❌ |
+| 同时写两处 | 双写必然漂移，且两个真相源无法判定谁权威 | ❌ |
+
+### 验证
+
+- `WeightNormalizationPolicyTest` 12/12：缩放幅度 >5% 产出 warning，≤5% 不产出（阈值 `WARNING_THRESHOLD=0.05`）
+- `ScoreParseAppServiceTest` 20/20：成功与失败两条终态路径均落库 warning（失败路径也保留，便于复盘）
+- 前端 `ScoreParseDrawer.spec.js` 5/5 + `useScoreParseDrawer.spec.js` 22/22：warning 为 null 时告警条不渲染，默认态 DOM 不变
+- testing-gate passed（架构 12 + scoreparse 114 + 前端 27）
+
+### 相关文档
+
+- `docs/reviews/057-design-detour-review.md` — P5 对 run_summary 透出前端的 YAGNI 判定
+- `docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md` — 零号病人：合并单元格结构丢失导致缺项，正是本告警要暴露的上游故障
+- `backend/src/main/java/com/xiyu/bid/scoreparse/domain/WeightNormalizationPolicy.java` — 阈值与 warning 产出
