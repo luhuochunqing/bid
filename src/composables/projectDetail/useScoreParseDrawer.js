@@ -72,7 +72,7 @@ export function useScoreParseDrawer(props, emit) {
       if (data?.sourceFileName) sourceFileName.value = data.sourceFileName
       if (data?.parseTime) parseTime.value = formatTime(data.parseTime) || data.parseTime
       scoreItems.value = Array.isArray(apiItems) && apiItems.length > 0 ? apiItems.map(normalizeScoreItem) : []
-      if (data?.summary?.normalizationWarning) normalizationWarning.value = data.summary.normalizationWarning
+      normalizationWarning.value = data?.summary?.normalizationWarning || ''
       const meta = res?.data?.meta || {}
       if (meta.sourceFileName) sourceFileName.value = meta.sourceFileName
       if (meta.parseTime) parseTime.value = formatTime(meta.parseTime)
