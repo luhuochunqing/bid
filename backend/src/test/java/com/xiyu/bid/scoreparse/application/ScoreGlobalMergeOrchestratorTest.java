@@ -64,7 +64,7 @@ class ScoreGlobalMergeOrchestratorTest {
                 poolItem("投标人提供上架商品价格管控方案：优秀得4分。", "4"));
 
         assertThat(orchestrator.applyGlobalMerge(pool, FULL_TEXT)).isSameAs(pool);
-        verify(mergeExecutor, never()).resolve(anyList(), anyString());
+        verify(mergeExecutor, never()).resolve(anyList(), anyString(), any());
     }
 
     @Test
@@ -72,7 +72,7 @@ class ScoreGlobalMergeOrchestratorTest {
         List<ScoreCandidate> pool = List.of(
                 poolItem("不平衡报价评审：报价合理得4-5分。", "5"),
                 poolItem("投标人提供上架商品价格管控方案：优秀得4分。", "4"));
-        when(mergeExecutor.resolve(anyList(), anyString())).thenReturn(List.of(
+        when(mergeExecutor.resolve(anyList(), anyString(), any())).thenReturn(List.of(
                 new ScoreCandidate("", "价格部分", "不平衡报价评审：报价合理得4-5分。",
                         new BigDecimal("5"), null, null, "原文", "P47", "GLOBAL_MERGE"),
                 new ScoreCandidate("", "价格部分", "投标人提供上架商品价格管控方案：优秀得4分。",
@@ -90,7 +90,7 @@ class ScoreGlobalMergeOrchestratorTest {
         List<ScoreCandidate> pool = List.of(
                 poolItem("不平衡报价评审：报价合理得4-5分。", "5"),
                 poolItem("投标人提供上架商品价格管控方案：优秀得4分。", "4"));
-        when(mergeExecutor.resolve(anyList(), anyString())).thenReturn(List.of());
+        when(mergeExecutor.resolve(anyList(), anyString(), any())).thenReturn(List.of());
 
         assertThat(orchestrator.applyGlobalMerge(pool, FULL_TEXT)).isSameAs(pool);
     }
@@ -102,7 +102,7 @@ class ScoreGlobalMergeOrchestratorTest {
                 poolItem("投标人提供上架商品价格管控方案：优秀得4分。", "4"),
                 new ScoreCandidate("", "价格部分", "低置信无背书项", null, null, null, "", "P47", null));
         // 全是幻觉（章节原文中不存在）→ 守卫丢弃后回补池中高置信项，低置信项不回补
-        when(mergeExecutor.resolve(anyList(), anyString())).thenReturn(List.of(
+        when(mergeExecutor.resolve(anyList(), anyString(), any())).thenReturn(List.of(
                 new ScoreCandidate("", "价格部分", "凭空捏造的评分条款得9分。",
                         new BigDecimal("9"), null, null, "原文", "P47", "GLOBAL_MERGE")));
 
@@ -120,7 +120,7 @@ class ScoreGlobalMergeOrchestratorTest {
 
         assertThat(orchestrator.applyGlobalMerge(pool, FULL_TEXT)).isSameAs(pool);
         assertThat(orchestrator.applyGlobalMerge(null, FULL_TEXT)).isNull();
-        verify(mergeExecutor, never()).resolve(anyList(), anyString());
+        verify(mergeExecutor, never()).resolve(anyList(), anyString(), any());
     }
 
     @Test
@@ -134,7 +134,7 @@ class ScoreGlobalMergeOrchestratorTest {
         List<ScoreCandidate> result = orchestrator.applyGlobalMerge(pool, noSectionText);
 
         assertThat(result).isSameAs(pool);
-        verify(mergeExecutor, never()).resolve(anyList(), anyString());
+        verify(mergeExecutor, never()).resolve(anyList(), anyString(), any());
     }
 
     @Test
@@ -147,7 +147,7 @@ class ScoreGlobalMergeOrchestratorTest {
         List<ScoreCandidate> pool = List.of(
                 poolItem("不平衡报价评审：报价合理得4-5分。", "5"),
                 poolItem("投标人提供上架商品价格管控方案：优秀得4分。", "4"));
-        when(mergeExecutor.resolve(anyList(), anyString())).thenReturn(List.of(
+        when(mergeExecutor.resolve(anyList(), anyString(), any())).thenReturn(List.of(
                 new ScoreCandidate("", "价格部分", "不平衡报价评审：报价合理得4-5分。",
                         new BigDecimal("5"), null, null, "原文", "P47", "GLOBAL_MERGE")));
 

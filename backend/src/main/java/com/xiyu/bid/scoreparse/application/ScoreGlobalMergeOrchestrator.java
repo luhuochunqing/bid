@@ -51,12 +51,24 @@ public class ScoreGlobalMergeOrchestrator {
 
     /** 旧签名兼容入口：未裁决（skip/fallback）时 fail-open 返回原池，裁决时返回守卫采纳清单 */
     public List<ScoreCandidate> applyGlobalMerge(List<ScoreCandidate> valid, String fullText) {
-        MergeStats stats = applyGlobalMergeDetailed(valid, fullText);
+        return applyGlobalMerge(valid, fullText, null);
+    }
+
+    public List<ScoreCandidate> applyGlobalMerge(List<ScoreCandidate> valid, String fullText, String vocabularyExamples) {
+        MergeStats stats = applyGlobalMergeDetailed(valid, fullText, vocabularyExamples);
         return stats.invoked() ? stats.candidates() : valid;
     }
 
     /** 完整归并：返回候选清单 + 全量遥测计数（spec 057 run-summary 数据源） */
     public MergeStats applyGlobalMergeDetailed(List<ScoreCandidate> valid, String fullText) {
+        return applyGlobalMergeDetailed(valid, fullText, null);
+    }
+
+    /**
+     * 完整归并（含词汇注册表 escape-hatch）。
+     * @param vocabularyExamples {@link com.xiyu.bid.scoreparse.domain.ScoreVocabularyRegistry#toPromptExamples} 输出，null 表示不注入
+     */
+    public MergeStats applyGlobalMergeDetailed(List<ScoreCandidate> valid, String fullText, String vocabularyExamples) {
         if (valid == null || valid.size() < 2) {
             return MergeStats.notInvoked("POOL_UNDER_TWO");
         }
@@ -71,7 +83,7 @@ public class ScoreGlobalMergeOrchestrator {
                     valid.size());
             return MergeStats.notInvoked("SECTION_LOCATION_FAILED");
         }
-        List<ScoreCandidate> resolved = mergeExecutor.resolve(valid, ctx.text());
+        List<ScoreCandidate> resolved = mergeExecutor.resolve(valid, ctx.text(), vocabularyExamples);
         if (resolved.isEmpty()) {
             log.info("全局归并降级（LLM 不可用或前置不足），保持启发式结果: pool={}", valid.size());
             return MergeStats.notInvoked("LLM_UNAVAILABLE");
@@ -82,12 +94,30 @@ public class ScoreGlobalMergeOrchestrator {
                     valid.size(), outcome.hallucinationDropped());
             return MergeStats.notInvoked("GUARD_FILTERED_ALL");
         }
+        // Phase 3a: 结构化通道候选（源自 Word XML）不可被 LLM 归并替换；若被丢弃则回注
+        List<ScoreCandidate> accepted = outcome.accepted();
+        List<ScoreCandidate> structuredInPool = valid.stream()
+                .filter(c -> "STRUCTURED_TABLE".equals(c.semanticPattern()))
+                .toList();
+        if (!structuredInPool.isEmpty()) {
+            java.util.Set<String> acceptedKeys = accepted.stream()
+                    .map(c -> normalizeKey(c.dim(), c.detail()))
+                    .collect(java.util.stream.Collectors.toSet());
+            List<ScoreCandidate> restored = structuredInPool.stream()
+                    .filter(c -> !acceptedKeys.contains(normalizeKey(c.dim(), c.detail())))
+                    .toList();
+            if (!restored.isEmpty()) {
+                log.info("全局归并回注结构化候选（LLM 不可替代 Word XML 权威数据）: restored={}", restored.size());
+                accepted = new java.util.ArrayList<>(accepted);
+                accepted.addAll(restored);
+            }
+        }
         log.info("全局归并完成: pool={} → merged={} accepted={} hallucinationDropped={} restored={} "
                         + "poolBackedKept={} truncated={}",
-                valid.size(), resolved.size(), outcome.accepted().size(),
+                valid.size(), resolved.size(), accepted.size(),
                 outcome.hallucinationDropped(), outcome.restoredCount(),
                 outcome.poolBackedKept(), ctx.truncated());
-        return new MergeStats(outcome.accepted(), true, null, ctx.truncated(),
+        return new MergeStats(accepted, true, null, ctx.truncated(),
                 outcome.poolBackedKept(), outcome.hallucinationDropped(), outcome.restoredCount());
     }
 
@@ -134,5 +164,11 @@ public class ScoreGlobalMergeOrchestrator {
     private static String truncate(String text) {
         return text.length() <= ScoreParseConstants.SECTION_TEXT_LIMIT
                 ? text : text.substring(0, ScoreParseConstants.SECTION_TEXT_LIMIT);
+    }
+
+    private static String normalizeKey(String dim, String detail) {
+        String d = dim == null ? "" : dim.replaceAll("\\s+", "").trim();
+        String det = detail == null ? "" : detail.replaceAll("\\s+", "").trim();
+        return d + "|" + det.substring(0, Math.min(det.length(), 50));
     }
 }

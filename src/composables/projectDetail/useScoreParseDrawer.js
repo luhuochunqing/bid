@@ -23,6 +23,7 @@ export function useScoreParseDrawer(props, emit) {
   const scoreTime = ref('—')
   const scoringHint = ref('')
   const circuitHint = ref('')
+  const normalizationWarning = ref('')
 
   const scoreItems = ref([])
   const scoreResults = ref({})
@@ -71,6 +72,7 @@ export function useScoreParseDrawer(props, emit) {
       if (data?.sourceFileName) sourceFileName.value = data.sourceFileName
       if (data?.parseTime) parseTime.value = formatTime(data.parseTime) || data.parseTime
       scoreItems.value = Array.isArray(apiItems) && apiItems.length > 0 ? apiItems.map(normalizeScoreItem) : []
+      if (data?.summary?.normalizationWarning) normalizationWarning.value = data.summary.normalizationWarning
       const meta = res?.data?.meta || {}
       if (meta.sourceFileName) sourceFileName.value = meta.sourceFileName
       if (meta.parseTime) parseTime.value = formatTime(meta.parseTime)
@@ -207,7 +209,7 @@ export function useScoreParseDrawer(props, emit) {
 
   return {
     visible, loading, error, isSection1Expanded, currentStage, scored, scoringOverlayVisible,
-    sourceFileName, parseTime, bidFileName, scoreTime, scoringHint, circuitHint,
+    sourceFileName, parseTime, bidFileName, scoreTime, scoringHint, circuitHint, normalizationWarning,
     scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult,
     totalWeight, objectiveWeight, subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount,
     estTotalScore, actualTotalScore, openDetail, open, runScoring, reparse,

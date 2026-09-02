@@ -10,6 +10,7 @@ import com.xiyu.bid.scoreparse.domain.RecallOutcome;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreItemMergePolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreParseConstants;
+import com.xiyu.bid.scoreparse.domain.ScoreVocabularyRegistry;
 import com.xiyu.bid.scoreparse.domain.WeightNormalizationPolicy;
 import com.xiyu.bid.scoreparse.domain.WeightOverloadTrimPolicy;
 import com.xiyu.bid.scoreparse.domain.WeightSumCheck;
@@ -47,11 +48,18 @@ public class ScoreCandidatePostProcessor {
      * 治理产物。failMessage 非空表示数量校验失败（0 项终态），调用方负责 stateService.failTask。
      */
     public record Processed(List<ScoreCandidate> candidates, BigDecimal originalTotal,
-            WeightSumCheck.Result weightResult, String runSummaryJson, String failMessage) {
+            WeightSumCheck.Result weightResult, String runSummaryJson, String failMessage,
+            String normalizationWarning) {
+
+        public Processed(List<ScoreCandidate> candidates, BigDecimal originalTotal,
+                WeightSumCheck.Result weightResult, String runSummaryJson, String failMessage) {
+            this(candidates, originalTotal, weightResult, runSummaryJson, failMessage, null);
+        }
     }
 
     private final OpenAiScoreAnalyzer scoreAnalyzer;
     private final ScoreGlobalMergeOrchestrator globalMergeOrchestrator;
+    private final ScoreVocabularyRegistry vocabularyRegistry;
 
     private final ScoreItemMergePolicy mergePolicy = new ScoreItemMergePolicy();
     private final GhostCandidateFilter ghostFilter = new GhostCandidateFilter();
@@ -69,7 +77,8 @@ public class ScoreCandidatePostProcessor {
         log.info("幽灵候选过滤（spec 046 FR-001）: taskId={} {}→{}", taskId, merged.size(), ghostFiltered.size());
         List<ScoreCandidate> valid = filterInvalidWeights(ghostFiltered);
 
-        var stats = globalMergeOrchestrator.applyGlobalMergeDetailed(valid, fullText);
+        var stats = globalMergeOrchestrator.applyGlobalMergeDetailed(valid, fullText,
+                vocabularyRegistry.toPromptExamples(null));
         if (stats.invoked()) {
             valid = stats.candidates();
         }
@@ -94,9 +103,14 @@ public class ScoreCandidatePostProcessor {
         }
         var normalized = normalizationPolicy.normalize(valid);
         BigDecimal originalTotal = null;
+        String normalizationWarning = null;
         if (normalized.originalTotal() != null) {
             valid = normalized.normalizedCandidates();
             originalTotal = normalized.originalTotal().setScale(2, java.math.RoundingMode.HALF_UP);
+            normalizationWarning = normalized.warning();
+            if (normalizationWarning != null) {
+                log.warn("评分权重归一化已生效（spec 057 FR-05）: taskId={}, {}", taskId, normalizationWarning);
+            }
             weightResult = weightSumCheck.checkCandidates(valid);
         }
         int parentOnlyCount = (int) valid.stream().filter(ScoreCandidate::isParentOnlyDim).count();
@@ -110,7 +124,7 @@ public class ScoreCandidatePostProcessor {
             return new Processed(List.of(), null, weightResult,
                     RunSummaryAssembler.assemble(recall, tableRows.size(),
                             toView(stats, 0), weightResult, 0, recall.llmModel()).json(),
-                    failMsg);
+                    failMsg, normalizationWarning);
         }
         var assembled = RunSummaryAssembler.assemble(recall, tableRows.size(),
                 toView(stats, parentOnlyCount), weightResult, valid.size(), recall.llmModel());
@@ -123,7 +137,7 @@ public class ScoreCandidatePostProcessor {
             log.warn("归并幻觉丢弃率超阈（057 FR-06）: dropped={}, poolBackedKept={}, restored={}",
                     stats.hallucinationDropped(), stats.poolBackedKept(), stats.restored());
         }
-        return new Processed(valid, originalTotal, weightResult, assembled.json(), null);
+        return new Processed(valid, originalTotal, weightResult, assembled.json(), null, normalizationWarning);
     }
 
     private static RunSummaryAssembler.MergeView toView(

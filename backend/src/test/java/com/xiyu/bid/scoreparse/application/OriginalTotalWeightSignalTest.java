@@ -90,6 +90,6 @@ class OriginalTotalWeightSignalTest {
                 new BigDecimal("100"), null,
                 1, 0, 0,
                 new BigDecimal("60"), new BigDecimal("40"),
-                false, originalTotalWeight);
+                false, originalTotalWeight, null);
     }
 }

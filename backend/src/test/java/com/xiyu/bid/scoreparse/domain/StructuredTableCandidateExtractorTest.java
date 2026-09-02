@@ -209,6 +209,153 @@ class StructuredTableCandidateExtractorTest {
         });
     }
 
+    @Test
+    void extract_parentDimFromMergedContinueText() {
+        // Simulates RCA scenario: column 1 "商务评分标准（56分）" merged across rows
+        SidecarTableExtraction.CellPayload mergeStart =
+                new SidecarTableExtraction.CellPayload("商务评分标准（56分）", 3, 1, false);
+        SidecarTableExtraction.CellPayload mergeContinue1 =
+                new SidecarTableExtraction.CellPayload("商务评分标准（56分）", 1, 1, true);
+        SidecarTableExtraction.CellPayload mergeContinue2 =
+                new SidecarTableExtraction.CellPayload("商务评分标准（56分）", 1, 1, true);
+
+        SidecarTableExtraction.TablePayload table = new SidecarTableExtraction.TablePayload(0, List.of(
+                List.of(cell("编号"), cell("评审因素"), cell("评审标准"), cell("分值")),
+                List.of(cell("3.3(1)"), mergeStart, cell("财务状况（10分）"), cell("提供审计报告")),
+                List.of(cell("3.3(1)"), mergeContinue1, cell("运营能力（20分）"), cell("近三年业绩")),
+                List.of(cell("3.3(1)"), mergeContinue2, cell("服务案例（20分）"), cell("同类项目案例"))
+        ), true);
+
+        List<ScoreCandidate> result = StructuredTableCandidateExtractor.extract(
+                new SidecarTableExtraction(List.of(table), List.of()));
+
+        assertThat(result).hasSize(3);
+        // First row: mergeStart is not a continue, so parentDim comes from rowspan tracking
+        assertThat(result.get(0).parentDim()).isEqualTo("商务评分标准");
+        assertThat(result.get(0).dimSource()).isEqualTo("CELL");
+        // Subsequent rows: merged-continue text provides parentDim
+        assertThat(result.get(1).parentDim()).isEqualTo("商务评分标准");
+        assertThat(result.get(1).dimSource()).isEqualTo("CELL");
+        assertThat(result.get(2).parentDim()).isEqualTo("商务评分标准");
+        assertThat(result.get(2).dim()).isEqualTo("服务案例");
+        assertThat(result.get(2).weight()).isEqualByComparingTo(new BigDecimal("20"));
+    }
+
+    @Test
+    void extract_parentDimFromRowspanTrackingWhenMergedContinueEmpty() {
+        // Fallback: merged-continue cells have empty text, rowspan tracking provides parent
+        SidecarTableExtraction.CellPayload mergeStart =
+                new SidecarTableExtraction.CellPayload("技术部分（30分）", 3, 1, false);
+        SidecarTableExtraction.CellPayload emptyContinue =
+                new SidecarTableExtraction.CellPayload("", 1, 1, true);
+
+        SidecarTableExtraction.TablePayload table = new SidecarTableExtraction.TablePayload(0, List.of(
+                List.of(cell("序号"), cell("评分因素"), cell("评分标准"), cell("分值")),
+                List.of(cell("1"), mergeStart, cell("方案完整性（8分）"), cell("方案描述")),
+                List.of(cell("2"), emptyContinue, cell("团队资质（7分）"), cell("资质证明")),
+                List.of(cell("3"), emptyContinue, cell("售后服务（5分）"), cell("服务承诺"))
+        ), true);
+
+        List<ScoreCandidate> result = StructuredTableCandidateExtractor.extract(
+                new SidecarTableExtraction(List.of(table), List.of()));
+
+        assertThat(result).hasSize(3);
+        assertThat(result.get(0).parentDim()).isEqualTo("技术部分");
+        assertThat(result.get(1).parentDim()).isEqualTo("技术部分");
+        assertThat(result.get(2).parentDim()).isEqualTo("技术部分");
+        assertThat(result).allSatisfy(c -> assertThat(c.dimSource()).isEqualTo("CELL"));
+    }
+
+    @Test
+    void extract_noParentDimWhenNoMerge() {
+        SidecarTableExtraction.TablePayload table = new SidecarTableExtraction.TablePayload(0, List.of(
+                List.of(cell("序号"), cell("评分因素"), cell("分值")),
+                List.of(cell("1"), cell("财务状况（10分）"), cell("10")),
+                List.of(cell("2"), cell("技术方案（15分）"), cell("15"))
+        ), true);
+
+        List<ScoreCandidate> result = StructuredTableCandidateExtractor.extract(
+                new SidecarTableExtraction(List.of(table), List.of()));
+
+        assertThat(result).hasSize(2);
+        assertThat(result).allSatisfy(c -> {
+            assertThat(c.parentDim()).isNull();
+            assertThat(c.dimSource()).isEqualTo("UNKNOWN");
+        });
+    }
+
+    /**
+     * Phase 1 项目 1358 金标验证：合并单元格（rowspan）结构化表格端到端提取。
+     * <p>模拟 1358 评审办法表：商务评分标准(rowspan=4) + 价格评分(单行) + 技术评分标准(rowspan=6)，
+     * 验证 11 项评分细则全部提取、parentDim 正确填充、STRUCTURED_TABLE 标记、总分闭环 100。
+     * <p>列布局与 {@link #extract_parentDimFromMergedContinueText} 对齐：
+     * [编号, 评分类别(merged), 评分因素（N分）, 评分标准]，权重由括号解析。
+     */
+    @Test
+    void extract_project1358GoldenMergedCellStructure() {
+        SidecarTableExtraction.CellPayload bizMergeStart =
+                new SidecarTableExtraction.CellPayload("商务评分标准", 4, 1, false);
+        SidecarTableExtraction.CellPayload bizContinue =
+                new SidecarTableExtraction.CellPayload("商务评分标准", 1, 1, true);
+        SidecarTableExtraction.CellPayload techMergeStart =
+                new SidecarTableExtraction.CellPayload("技术评分标准", 6, 1, false);
+        SidecarTableExtraction.CellPayload techContinue =
+                new SidecarTableExtraction.CellPayload("技术评分标准", 1, 1, true);
+
+        SidecarTableExtraction.TablePayload table = new SidecarTableExtraction.TablePayload(0, List.of(
+                List.of(cell("编号"), cell("评分类别"), cell("评分因素"), cell("评分标准")),
+                // 商务评分标准 rowspan=4
+                List.of(cell("2.2.4(1)"), bizMergeStart, cell("响应文件的完整性（4分）"),
+                        cell("响应文件中若存在漏项每处扣10分，本项满分100分")),
+                List.of(cell("2.2.4(1)"), bizContinue, cell("信用评价（5分）"),
+                        cell("无不良记录得100分，有处罚记录无罚款得90分")),
+                List.of(cell("2.2.4(1)"), bizContinue, cell("供应商业绩（5分）"),
+                        cell("满足资格条件业绩得基础分60分，每增加一个加20分")),
+                List.of(cell("2.2.4(1)"), bizContinue, cell("财务状况（6分）"),
+                        cell("速动比率≥1得50分，营业收现比率≥1得50分")),
+                // 价格评分 单行
+                List.of(cell("2.2.4(2)"), cell("价格评分"), cell("价格折扣得分（50分）"),
+                        cell("最低报价得满分100分，最高报价得60分，线性插入法")),
+                // 技术评分标准 rowspan=6
+                List.of(cell("2.2.4(3)"), techMergeStart, cell("商城系统对接能力（5分）"),
+                        cell("按A、B、C、D分档打分")),
+                List.of(cell("2.2.4(3)"), techContinue, cell("运营服务能力（5分）"),
+                        cell("按A、B、C、D分档打分")),
+                List.of(cell("2.2.4(3)"), techContinue, cell("商品管理能力（5分）"),
+                        cell("按A、B、C、D分档打分")),
+                List.of(cell("2.2.4(3)"), techContinue, cell("供应商管理能力（5分）"),
+                        cell("按A、B、C、D分档打分")),
+                List.of(cell("2.2.4(3)"), techContinue, cell("物流配送及仓储能力（5分）"),
+                        cell("按A、B、C、D分档打分")),
+                List.of(cell("2.2.4(3)"), techContinue, cell("质量监管能力（5分）"),
+                        cell("按A、B、C、D分档打分"))
+        ), true);
+
+        List<ScoreCandidate> result = StructuredTableCandidateExtractor.extract(
+                new SidecarTableExtraction(List.of(table), List.of()));
+
+        assertThat(result).hasSize(11);
+        assertThat(result).allSatisfy(c -> assertThat(c.semanticPattern()).isEqualTo("STRUCTURED_TABLE"));
+
+        // parentDim 验证：商务 4 项 + 技术 6 项有父级，价格 1 项无合并父级
+        assertThat(result.subList(0, 4)).allSatisfy(c -> assertThat(c.parentDim()).isEqualTo("商务评分标准"));
+        assertThat(result.get(4).parentDim()).isNull();
+        assertThat(result.subList(5, 11)).allSatisfy(c -> assertThat(c.parentDim()).isEqualTo("技术评分标准"));
+
+        // 关键评分项 dim + weight 验证
+        assertThat(result).anyMatch(c -> "信用评价".equals(c.dim()) && c.weight().compareTo(new BigDecimal("5")) == 0);
+        assertThat(result).anyMatch(c -> "财务状况".equals(c.dim()) && c.weight().compareTo(new BigDecimal("6")) == 0);
+        assertThat(result).anyMatch(c -> "价格折扣得分".equals(c.dim()) && c.weight().compareTo(new BigDecimal("50")) == 0);
+        assertThat(result).anyMatch(c -> "运营服务能力".equals(c.dim()) && c.weight().compareTo(new BigDecimal("5")) == 0);
+
+        // 总分闭环 100
+        BigDecimal total = result.stream()
+                .map(ScoreCandidate::weight)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(total).isEqualByComparingTo("100");
+    }
+
     private static SidecarTableExtraction.CellPayload cell(String text) {
         return new SidecarTableExtraction.CellPayload(text, 1, 1, false);
     }

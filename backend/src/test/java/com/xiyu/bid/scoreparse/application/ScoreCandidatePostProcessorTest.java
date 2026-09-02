@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
@@ -52,16 +53,17 @@ class ScoreCandidatePostProcessorTest {
 
     @BeforeEach
     void setUp() {
-        processor = new ScoreCandidatePostProcessor(scoreAnalyzer, orchestrator);
+        processor = new ScoreCandidatePostProcessor(scoreAnalyzer, orchestrator,
+                com.xiyu.bid.scoreparse.domain.ScoreVocabularyRegistry.builder().build());
         // 缺省：归并未裁决（fail-open 保持启发式结果），各用例按需覆盖
-        lenient().when(orchestrator.applyGlobalMergeDetailed(anyList(), anyString()))
+        lenient().when(orchestrator.applyGlobalMergeDetailed(anyList(), anyString(), any()))
                 .thenReturn(ScoreGlobalMergeOrchestrator.MergeStats.notInvoked("POOL_UNDER_TWO"));
     }
 
     @Test
     void delegatedMergeOutput_becomesFinalList_withSummaryJson() {
         List<ScoreCandidate> merged = List.of(candidate("M1", "技术", "方案完整可行得10分。注：投标人须自行提供相关承诺。", "10"));
-        lenient().when(orchestrator.applyGlobalMergeDetailed(anyList(), anyString()))
+        lenient().when(orchestrator.applyGlobalMergeDetailed(anyList(), anyString(), any()))
                 .thenReturn(new ScoreGlobalMergeOrchestrator.MergeStats(
                         merged, true, null, true, 1, 0, 2));
         var balanced = List.of(
@@ -83,7 +85,7 @@ class ScoreCandidatePostProcessorTest {
 
     @Test
     void fallbackWhenMergeNotInvoked_keepsHeuristicList() {
-        lenient().when(orchestrator.applyGlobalMergeDetailed(anyList(), anyString()))
+        lenient().when(orchestrator.applyGlobalMergeDetailed(anyList(), anyString(), any()))
                 .thenReturn(ScoreGlobalMergeOrchestrator.MergeStats.notInvoked("SECTION_LOCATION_FAILED"));
         var heuristic = List.of(candidate("H1", "商务", "服务方案针对性强得满分", "100"));
 
