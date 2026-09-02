@@ -107,6 +107,34 @@ class BidQualityCheckTriggerPreconditionTest {
     }
 
     @Test
+    @DisplayName("null 文件名经 displayFileName 单点兜底，落库 bidFileName 为 bid_document.pdf（跨写点契约锚定）")
+    void trigger_nullName_fallsBackToCanonicalName() {
+        when(resultRepository.findByProjectIdAndCheckTypeAndStatusIn(
+                any(), any(), any())).thenReturn(Collections.emptyList());
+        ProjectDocument doc = new ProjectDocument();
+        doc.setId(3L);
+        doc.setName(null);
+        doc.setFileUrl("bid-agent://tender-documents/p200/bid.pdf");
+        when(targetLoader.findAllBidDocuments(PROJECT_ID)).thenReturn(List.of(doc));
+
+        ComplianceCheckResult saved = ComplianceCheckResult.builder()
+                .id(1L)
+                .projectId(PROJECT_ID)
+                .taskId("task-003")
+                .status(ComplianceCheckResult.TaskStatus.INIT)
+                .progress(0)
+                .build();
+        when(resultRepository.save(any(ComplianceCheckResult.class))).thenReturn(saved);
+
+        taskAppService.triggerQualityCheck(PROJECT_ID, false);
+
+        org.mockito.ArgumentCaptor<ComplianceCheckResult> captor =
+                org.mockito.ArgumentCaptor.forClass(ComplianceCheckResult.class);
+        verify(resultRepository).save(captor.capture());
+        assertThat(captor.getValue().getBidFileName()).isEqualTo("bid_document.pdf");
+    }
+
+    @Test
     @DisplayName("文档记录存在且有 fileUrl 时毫秒级创建任务并启动异步执行")
     void trigger_withBidDocument_createsTask() {
         when(resultRepository.findByProjectIdAndCheckTypeAndStatusIn(

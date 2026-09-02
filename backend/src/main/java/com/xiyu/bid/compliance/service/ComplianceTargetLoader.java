@@ -109,10 +109,8 @@ public class ComplianceTargetLoader {
 
         List<DocumentContent> parsedDocuments = new ArrayList<>(bidDocs.size());
         for (ProjectDocument bidDoc : bidDocs) {
-            // 展示名与解析名统一兜底：null/空白名以 bid_document.pdf 口径进入合并文件名，
-            // 与 trigger 侧 joinBidFileNames 的兜底规则一致，避免两侧展示口径漂移
-            String fileName = bidDoc.getName() != null && !bidDoc.getName().isBlank()
-                    ? bidDoc.getName() : "bid_document.pdf";
+            // 解析名走 DocumentContent.displayFileName 单点兜底，与 trigger 落库名口径天然一致
+            String fileName = DocumentContent.displayFileName(bidDoc.getName());
             String parseFailMessage = "投标文件解析失败：" + fileName + "，请确认文件可正常打开后重新上传";
             Path physicalFile = storageResolver.resolvePhysicalFile(bidDoc.getFileUrl(), fileName);
             DocumentContent parsed;

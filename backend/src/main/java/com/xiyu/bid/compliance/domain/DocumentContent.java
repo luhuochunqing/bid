@@ -69,12 +69,19 @@ public record DocumentContent(
     /** 多册合并时文件名的连接符（报告 bidFileName 展示口径）. */
     public static final String MERGED_FILE_NAME_SEPARATOR = "、";
 
-    /**
-     * 合并文件名展示上限：对齐 bid_file_name 列宽 255（实体 @Column 无显式 length 的默认值）.
-     * 截断必须发生在所有最终写点（trigger 落库 + 异步 updateFileMetadata 覆写）共用的本方法，
-     * 否则异步链路会绕过 trigger 侧截断导致 data-too-long.
-     */
+    /** 缺失/空白文件名册的兜底名（Loader 解析名与 trigger 落库名共用的展示口径）. */
+    public static final String FALLBACK_FILE_NAME = "bid_document.pdf";
+
+    /** 合并文件名展示上限：对齐 bid_file_name 列宽（V1196 迁移 VARCHAR(255)，实体默认长度当前恰好同宽）. */
     public static final int MERGED_FILE_NAME_MAX_LENGTH = 255;
+
+    /**
+     * 展示文件名归一化（纯函数）：null/空白名统一兜底为 {@link #FALLBACK_FILE_NAME}.
+     * Loader（解析名）与 trigger（joinBidFileNames）共用本单点实现，杜绝双写口径漂移.
+     */
+    public static String displayFileName(final String raw) {
+        return raw == null || raw.isBlank() ? FALLBACK_FILE_NAME : raw;
+    }
 
     /**
      * 将多册投标文件（价格册/商务册/技术册等）合并为单个逻辑文档（纯函数）.
@@ -89,6 +96,9 @@ public record DocumentContent(
      *       任一册变化（重传/增删）即聚合哈希变化、缓存自然失效；</li>
      *   <li>单册原样返回（保持既有单文件项目的缓存哈希兼容）；空列表返回空文档.</li>
      * </ul>
+     *
+     * <p>元素非空不变量：documents 不得含 null 元素（生产链路由 Sidecar 适配器
+     * 全路径非 null 返回保证）；多元素含 null 时本方法在拼接阶段抛 NPE.
      *
      * @param documents 按册序（上传顺序）排列的解析结果列表
      * @return 合并后的单个逻辑文档

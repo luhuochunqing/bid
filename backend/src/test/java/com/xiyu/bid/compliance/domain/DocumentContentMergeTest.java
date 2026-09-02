@@ -129,6 +129,35 @@ class DocumentContentMergeTest {
     }
 
     @Test
+    @DisplayName("空白文件名的册不参与文件名拼接（正文与页码照常合并）")
+    void merge_blankFileNames_filteredFromJoin() {
+        DocumentContent a = doc("", "hash-a", "A正文",
+                new DocumentContent.PageContent(1, "A第1页", List.of()));
+        DocumentContent b = doc("商务册.pdf", "hash-b", "B正文",
+                new DocumentContent.PageContent(1, "B第1页", List.of()));
+
+        DocumentContent merged = DocumentContent.merge(List.of(a, b));
+
+        assertThat(merged.fileName()).isEqualTo("商务册.pdf");
+        assertThat(merged.pages()).hasSize(2);
+        assertThat(merged.fullText()).contains("A正文", "B正文");
+    }
+
+    @Test
+    @DisplayName("capMergedFileName null 入参返回空串")
+    void capMergedFileName_nullReturnsEmpty() {
+        assertThat(DocumentContent.capMergedFileName(null, 2)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("displayFileName：null/空白名兜底 bid_document.pdf，非空名原样返回")
+    void displayFileName_fallbackContract() {
+        assertThat(DocumentContent.displayFileName(null)).isEqualTo("bid_document.pdf");
+        assertThat(DocumentContent.displayFileName("   ")).isEqualTo("bid_document.pdf");
+        assertThat(DocumentContent.displayFileName("价格册.pdf")).isEqualTo("价格册.pdf");
+    }
+
+    @Test
     @DisplayName("某册哈希为空时不阻断聚合（sidecar 个别场景无哈希）")
     void merge_blankPerFileHash_stillAggregates() {
         DocumentContent a = doc("价格册.pdf", "", "A");

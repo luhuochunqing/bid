@@ -162,14 +162,14 @@ public class BidQualityCheckTaskAppService {
     }
 
     /**
-     * 多册文件名按上传顺序顿号连接；空名与 Loader 侧统一兜底为 bid_document.pdf，
-     * 超长截断复用 {@link DocumentContent#capMergedFileName}（与异步 updateFileMetadata
-     * 覆写 bid_file_name 的口径一致，防止任一写点 data-too-long）.
+     * 多册文件名按上传顺序顿号连接；空名经 {@link DocumentContent#displayFileName}
+     * 单点兜底（与 Loader 解析名同一实现）；超长截断复用 {@link DocumentContent#capMergedFileName}.
+     * 异步 updateFileMetadata 覆写 bid_file_name 时写入的是 merge 产出名（多册已经本函数同款截断；
+     * 单册 identity 依赖 bid_file_name 与 project_document.name 列宽同为 255 天然安全）.
      */
     private static String joinBidFileNames(final List<ProjectDocument> bidDocs) {
         String joined = bidDocs.stream()
-                .map(doc -> doc.getName() == null || doc.getName().isBlank()
-                        ? "bid_document.pdf" : doc.getName())
+                .map(doc -> DocumentContent.displayFileName(doc.getName()))
                 .collect(Collectors.joining(DocumentContent.MERGED_FILE_NAME_SEPARATOR));
         return DocumentContent.capMergedFileName(joined, bidDocs.size());
     }

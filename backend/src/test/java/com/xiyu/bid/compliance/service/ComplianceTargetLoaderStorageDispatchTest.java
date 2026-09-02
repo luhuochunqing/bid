@@ -291,6 +291,20 @@ class ComplianceTargetLoaderStorageDispatchTest {
     }
 
     @Test
+    @DisplayName("null 文件名的册走 displayFileName 单点兜底为 bid_document.pdf（跨写点契约锚定）")
+    void loadBidDocument_nullName_fallsBackToCanonicalName() {
+        stubBidDocuments(bidDoc(1L, null, "bid-agent://tender-documents/p100/price.pdf"));
+        stubFileStorage("bid-agent://tender-documents/p100/price.pdf", "p".getBytes(StandardCharsets.UTF_8));
+        when(sidecarAdapter.convertDocument(any(Path.class), eq("bid_document.pdf")))
+                .thenReturn(DocumentContent.fromText("bid_document.pdf", "hash-price", "价格正文"));
+
+        DocumentContent result = loader.loadBidDocument(PROJECT_ID);
+
+        assertThat(result.fileName()).isEqualTo("bid_document.pdf");
+        verify(sidecarAdapter).convertDocument(any(Path.class), eq("bid_document.pdf"));
+    }
+
+    @Test
     @DisplayName("全部投标文件记录 fileUrl 均为空时返回空文档（trigger 侧 422）")
     void loadBidDocument_allRecordsBlankFileUrl_returnsEmpty() {
         stubBidDocuments(

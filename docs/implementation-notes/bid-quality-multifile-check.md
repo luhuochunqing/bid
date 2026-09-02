@@ -29,7 +29,7 @@ spec 047/049 设定质量核查只读"最新一份"投标文件（`specs/047-ai-
 - `compliance/domain/DocumentContent.java`：新增 `merge(List<DocumentContent>)` 纯函数 + `aggregateFileHash` 私有纯函数（JDK MessageDigest，FP-Java 合规）
 - `compliance/service/ComplianceTargetLoader.java`：`findLatestBidDocument` → `findAllBidDocuments`（id 升序、脏记录过滤、无兜底）；`loadBidDocument` 循环取流解析后 merge，解析失败包文件名抛 BusinessException
 - `compliance/application/BidQualityCheckTaskAppService.java`：trigger 校验改列表判空；`bidFileName` 多册拼接（`joinBidFileNames`）
-- 测试：新增 `DocumentContentMergeTest`（7 例）；`ComplianceTargetLoaderStorageDispatchTest` 增多册合并/顺序/失败语义/脏记录/无兜底 5 例；`BidQualityCheckTriggerPreconditionTest` 改多册 bidFileName 拼接断言；`BidQualityCheckTaskAppServiceTest` 桩更新
+- 测试：新增 `DocumentContentMergeTest`（12 例）；`ComplianceTargetLoaderStorageDispatchTest` 增多册合并/顺序/失败语义/脏记录/无兜底/空名兜底 9 例；`BidQualityCheckTriggerPreconditionTest` 改多册 bidFileName 拼接断言；`BidQualityCheckTaskAppServiceTest` 桩更新
 
 ## 已知取舍（后续如需升级的方向）
 
