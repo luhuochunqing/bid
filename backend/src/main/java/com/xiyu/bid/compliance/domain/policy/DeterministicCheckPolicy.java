@@ -47,9 +47,9 @@ public final class DeterministicCheckPolicy {
         // 附件清单 5 项确定性规则
         results.add(SubItemAndAttachmentRules.checkIdAuthLetter(bidDoc));
         results.add(SubItemAndAttachmentRules.checkBidOpeningTable(bidDoc));
-        results.add(SubItemAndAttachmentRules.checkDepositReceipt(bidDoc));
-        results.add(SubItemAndAttachmentRules.checkCaCertificate(bidDoc));
-        results.add(SubItemAndAttachmentRules.checkDepositRefund(bidDoc));
+        results.add(SubItemAndAttachmentRules.checkDepositReceipt(bidDoc, tenderText));
+        results.add(SubItemAndAttachmentRules.checkCaCertificate(bidDoc, tenderText));
+        results.add(SubItemAndAttachmentRules.checkDepositRefund(bidDoc, tenderText));
 
         return results;
     }
@@ -115,15 +115,27 @@ public final class DeterministicCheckPolicy {
     }
 
     public static QualityCheckItemResult checkDepositReceipt(final DocumentContent bidDoc) {
-        return SubItemAndAttachmentRules.checkDepositReceipt(bidDoc);
+        return SubItemAndAttachmentRules.checkDepositReceipt(bidDoc, null);
+    }
+
+    public static QualityCheckItemResult checkDepositReceipt(final DocumentContent bidDoc, final String tenderText) {
+        return SubItemAndAttachmentRules.checkDepositReceipt(bidDoc, tenderText);
     }
 
     public static QualityCheckItemResult checkCaCertificate(final DocumentContent bidDoc) {
-        return SubItemAndAttachmentRules.checkCaCertificate(bidDoc);
+        return SubItemAndAttachmentRules.checkCaCertificate(bidDoc, null);
+    }
+
+    public static QualityCheckItemResult checkCaCertificate(final DocumentContent bidDoc, final String tenderText) {
+        return SubItemAndAttachmentRules.checkCaCertificate(bidDoc, tenderText);
     }
 
     public static QualityCheckItemResult checkDepositRefund(final DocumentContent bidDoc) {
-        return SubItemAndAttachmentRules.checkDepositRefund(bidDoc);
+        return SubItemAndAttachmentRules.checkDepositRefund(bidDoc, null);
+    }
+
+    public static QualityCheckItemResult checkDepositRefund(final DocumentContent bidDoc, final String tenderText) {
+        return SubItemAndAttachmentRules.checkDepositRefund(bidDoc, tenderText);
     }
 
     public static String convertArabicToChinese(final BigDecimal amount) {

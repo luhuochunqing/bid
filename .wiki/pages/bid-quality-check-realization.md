@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [质量核查, compliance, LLM 混合裁决, 证据链, FP-Java, 语义RAG, 结构化输出]
 created: 2026-08-20
-updated: 2026-08-31
-health_checked: 2026-08-31
+updated: 2026-09-02
+health_checked: 2026-09-02
 sources:
   - specs/049-bid-quality-check-realization/spec.md
   - src/views/Project/stages/components/QualityCheckDrawer.vue
@@ -89,6 +89,7 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
 14. **网关不支持 response_format=json_object 时的静默 400 与原子降级标记**（2026-08-30 结构化输出演进）：部分 OpenAI 兼容 API 网关或代理服务不支持 `response_format: {"type": "json_object"}` 参数，直接抛出 HTTP 400 Bad Request（如 "unrecognized field", "unsupported parameter response_format"）。若简单捕获重试，会导致每个请求都遭遇 400 失败并产生双倍网络往返延迟。解法：在 `OpenAiCompatibleClient` 中引入 `AtomicBoolean responseFormatUnsupported` 线程安全标记；在 `chatCompletionJsonObject` 捕获到参数不支持的 400 错误时，一次性将标记置为 `true` 并降级为普通 `chatCompletion`；后续所有请求直接走普通调用，彻底消除多余的 400 异常与额外延迟；同时下游保留 `LlmVerdictParser` 的 JSON 括号配平扫描作为兜底解析防线。
 15. **异步线程池显式绑定与事务提交时序解耦**（2026-08-31 稳定性加固）：`@Async` 必须显式指定目标线程池 `@Async("aiTaskExecutor")`，杜绝多 Executor 容器下无 `@Primary` 导致的调度歧义以及在 CallerRunsPolicy 下同步占用 Tomcat 主请求线程导致的前端 30s 请求超时；同时 `triggerQualityCheck` 在 `save(taskEntity)` 后必须使用 `TransactionSynchronizationManager` 的 `afterCommit` 钩子安全触发异步流水线，消除主事务与 `BidQualityCheckProgressUpdater` 独立事务（`Propagation.REQUIRES_NEW`）之间的行可见性竞态。
 16. **前端轮询超时放宽与未完成长任务状态隔离**（2026-08-31）：前端长耗时 AI 任务（含多轮 LLM 语义裁决）轮询上限必须 >= 10 分钟（`MAX_POLL_TIMEOUT_MS = 600000`），禁止设为 1~2 分钟导致任务在后台正常完成时前端误报超时；同时抽屉在 `loadLatestReport` 中对 `INIT`/`PARSING`/`CHECKING` 等进行中状态直接进入轮询而不给 `report.value` 赋值，重新核查（`force=true`）显式置空 `report.value = null`，彻底杜绝超时/失败时 UI 状态错乱与旧报告残留。
+17. **正向履约承诺误判与附件免除项假通过治理**（2026-09-02）：废标敏感词扫描必须结合前置窗口识别否定/承诺修饰语境（`isNegatedOrCommitment`），杜绝将正向合规承诺/违约条款确认误判为违规反标；附件核查（保证金/CA/退还账户）必须前置解析招标文件适用性（免收/纸质标），对免除场景准确判定 PASS 并标注“免收/不涉及”，凭证核查必须匹配核心特征组合词，防止单字包含导致虚假通过；资质匹配说明文案对齐三方比对基准，未提取到要求时友好降级提示人工核验。
 
 
 ## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
