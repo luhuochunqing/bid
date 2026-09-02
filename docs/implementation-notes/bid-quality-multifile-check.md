@@ -53,4 +53,3 @@ spec 047/049 设定质量核查只读"最新一份"投标文件（`specs/047-ai-
 - GREEN：4 个目标测试类 25 例全过（修复前基线）
 - 评审修复后全量回归：`mvn test -Dtest='com.xiyu.bid.compliance.**'` → **Tests run: 236, Failures: 0, Errors: 0，BUILD SUCCESS**（较基线净增 6 例：merge 截断×2、loader 空册/防御抛异常/全脏记录×2 等）
 - 静态确认：`findLatestBidDocument` 全仓零残留；`DocumentContent` 无 compliance 模块外引用
-
