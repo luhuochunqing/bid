@@ -51,6 +51,6 @@ health_checked: 2026-09-02
 - `compliance/domain/DocumentContent.java` — `merge` / `capMergedFileName` / `aggregateFileHash` 纯函数
 - `compliance/service/ComplianceTargetLoader.java` — `findAllBidDocuments`（id 升序）/ `loadBidDocument`（逐册取流解析+空册拦截+合并）
 - `compliance/application/BidQualityCheckTaskAppService.java` — trigger 校验列表判空；`joinBidFileNames`
-- 测试：`DocumentContentMergeTest`（9 例）、`ComplianceTargetLoaderStorageDispatchTest`（12 例）
+- 测试：`DocumentContentMergeTest`（12 例）、`ComplianceTargetLoaderStorageDispatchTest`（13 例）
 
 相关：[[bid-quality-check-realization]]（spec 049 落地）、[[bid-quality-check-pagination-fix]]（\f 分页契约）

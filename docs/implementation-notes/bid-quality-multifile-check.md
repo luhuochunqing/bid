@@ -29,7 +29,7 @@ spec 047/049 设定质量核查只读"最新一份"投标文件（`specs/047-ai-
 - `compliance/domain/DocumentContent.java`：新增 `merge(List<DocumentContent>)` 纯函数 + `aggregateFileHash` 私有纯函数（JDK MessageDigest，FP-Java 合规）
 - `compliance/service/ComplianceTargetLoader.java`：`findLatestBidDocument` → `findAllBidDocuments`（id 升序、脏记录过滤、无兜底）；`loadBidDocument` 循环取流解析后 merge，解析失败包文件名抛 BusinessException
 - `compliance/application/BidQualityCheckTaskAppService.java`：trigger 校验改列表判空；`bidFileName` 多册拼接（`joinBidFileNames`）
-- 测试：新增 `DocumentContentMergeTest`（12 例）；`ComplianceTargetLoaderStorageDispatchTest` 增多册合并/顺序/失败语义/脏记录/无兜底/空名兜底 9 例；`BidQualityCheckTriggerPreconditionTest` 改多册 bidFileName 拼接断言；`BidQualityCheckTaskAppServiceTest` 桩更新
+- 测试：新增 `DocumentContentMergeTest`（12 例）；`ComplianceTargetLoaderStorageDispatchTest` 增多册合并/顺序/失败语义/脏记录/无兜底/空名兜底 7 例；`BidQualityCheckTriggerPreconditionTest` 改多册 bidFileName 拼接断言；`BidQualityCheckTaskAppServiceTest` 桩更新
 
 ## 已知取舍（后续如需升级的方向）
 
@@ -52,4 +52,5 @@ spec 047/049 设定质量核查只读"最新一份"投标文件（`specs/047-ai-
 - RED：先写测试，`mvn test -Dtest='...'` 编译失败（merge/findAllBidDocuments 不存在）
 - GREEN：4 个目标测试类 25 例全过（修复前基线）
 - 评审修复后全量回归：`mvn test -Dtest='com.xiyu.bid.compliance.**'` → **Tests run: 236, Failures: 0, Errors: 0，BUILD SUCCESS**（较基线净增 6 例：merge 截断×2、loader 空册/防御抛异常/全脏记录×2 等）
+- 复审轮终态（含评审修复）：**Tests run: 241, Failures: 0, Errors: 0**（独立复跑与自跑一致）
 - 静态确认：`findLatestBidDocument` 全仓零残留；`DocumentContent` 无 compliance 模块外引用
