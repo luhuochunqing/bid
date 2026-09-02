@@ -439,7 +439,7 @@ async def extract_document_tables(
         with tempfile.NamedTemporaryFile(delete=False, suffix=original_suffix) as tmp:
             tmp_path = tmp.name
             total_read: int = 0
-            chunk_size: int = 64 * 1024
+            chunk_size: int = 64 * 1024  # 64 KB
             while True:
                 chunk = await file.read(chunk_size)
                 if not chunk:
@@ -455,7 +455,7 @@ async def extract_document_tables(
             return JSONResponse(status_code=422, content={"error": str(exc)})
         except Exception:
             logger.exception("Table extraction failed for file %s", file.filename)
-            return JSONResponse(status_code=422, content={"error": "文档表格无法解析"})
+            raise HTTPException(status_code=500, detail="表格提取失败")
 
     finally:
         if tmp_path and os.path.exists(tmp_path):
