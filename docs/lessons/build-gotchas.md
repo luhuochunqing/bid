@@ -4,6 +4,91 @@
 
 ---
 
+## 8. Flyway 回滚脚本命名与 header 由测试机械约定，手工"等价核验"必然漏项
+
+### 场景
+
+评分解析 Phase 1-5 分支的生产风险审计中，6 个 `check-flyway-*.sh` 门禁全部 SKIP（脚本检查 git index，而改动已提交）。于是改用手工"等价核验"：确认 V1206/U1206 在 diff 中均为 `A`、版本号唯一、V1202–V1206 每个 V 都有配对 U（按 `U1206__*` 通配计数）、header 与 V1205 逐字段比对。审计据此给出 PASS。
+
+`git push` 时 pre-push 门禁第 2 项直接打回：
+
+```
+── 回滚脚本覆盖 ──
+✗ FlywayRollbackScriptCoverageTest — 新迁移缺回滚脚本或 source header
+
+java.lang.AssertionError:
+[db/rollback/migration-mysql must contain a reviewed rollback script for every SQL file under db/migration-mysql]
+Expecting empty but was: ["U1206__add_score_task_normalization_warning.sql missing"]
+```
+
+我的文件叫 `U1206__drop_score_task_normalization_warning.sql`——**配对计数确实是 1，但文件名不对**。
+
+### 根因
+
+`FlywayRollbackScriptCoverageTest.rollbackFileName()` 的实现是纯机械替换：
+
+```java
+if (migrationFileName.startsWith("B")) return "U" + migrationFileName;
+return migrationFileName.replaceFirst("^V", "U");
+```
+
+由此推出三条我当时全部没验证的硬约定：
+
+1. **U 脚本必须与 V 脚本同名后缀**，只把首字母 `V` 换成 `U`。文件名里的 `add_` 描述的是「被回滚的那个迁移」，不是回滚动作。仓库既有约定一致：rollback 目录 **71 个 `U*__add_*` vs 5 个 `U*__drop_*`**，其中 `U1204__add_score_task_run_summary.sql` 内容正是 `ALTER TABLE score_parse_task DROP COLUMN run_summary`（同表同模式）。
+2. **文件内容必须含 `-- Input:`**，且必须含**完整的正向迁移文件名**（`contains(migrationFileName)`，写 `V1206` 不够）。我自造的 `-- U1206:` / `-- Source:` 两段式 header 不符合 U1205 的 `Input / Output / Pos / 维护声明` 四段式。
+3. **内容必须含至少一个回滚动作或复核标注**：`DROP ` / `ALTER TABLE ` / `UPDATE ` / `Data rollback required` / `Manual rollback required` / `No-op rollback`。
+
+三条里我只碰巧满足了第 3 条。
+
+### 正确做法
+
+不要逆向推断门禁，直接跑门禁本体：
+
+```bash
+cd backend && mvn test -Dtest='Flyway*Test' -DfailIfNoTests=false -Djacoco.skip=true
+```
+
+修复后 `FlywayRollbackScriptCoverageTest` 1/1 绿。**额外收获**：同一次运行里 `FlywayMysqlContainerTest` 4/4 也绿（44s，真实 MySQL 8.0 Testcontainer），而 `src/test/resources/application-flyway-mysql.yml` 用的是 `ddl-auto: validate` + `flyway.locations: classpath:db/migration-mysql`——这等于一次性证明了：
+
+- V1206 在真实 MySQL 8.0 上成功应用（不是静态推断）；
+- `ScoreParseTask.java:99` 的 `@Column(name="normalization_warning", length=255)` 通过 Hibernate schema 校验，Entity↔DDL 名/长/可空性三对齐是**运行时证明**的。
+
+审计里原本要写进"未审计声明"的「未执行真实数据库迁移演练」，被这一条命令直接消除。
+
+### 经验教训
+
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| 门禁 SKIP 就自己手工"等价核验" | 把 SKIP 当成"这项不需要验"，实际是"这项的输入条件不满足"（脚本查 git index，改动已提交） | 门禁 SKIP 时先读脚本判定它检查什么，再跑它背后的测试类本体；不要用通配计数替代精确文件名断言 |
+| 按语义给回滚脚本起名（`drop_`） | 直觉认为文件名应描述脚本动作 | 命名约定以**执行该约定的代码**为唯一真相（`rollbackFileName()` 的 `replaceFirst("^V","U")`），不看语义看实现 |
+| 自造迁移 header 格式 | 参照了 V 脚本的 header 而非 U 脚本的 | 写 U 脚本时参照同目录最近的 `U*` 文件（如 U1205），不是对应的 `V*` 文件 |
+| 以为迁移正确性只能靠上线验证 | 不知道仓库有 Testcontainer 真实 MySQL 迁移测试 | 涉及 Flyway 的改动一律跑 `-Dtest='Flyway*Test'`，它同时覆盖脚本约定 + 真实库应用 + `ddl-auto: validate` 的 Entity 对齐 |
+
+### 相关命令
+
+```bash
+# 门禁本体（含真实 MySQL 容器迁移演练）
+cd backend && mvn test -Dtest='Flyway*Test' -DfailIfNoTests=false -Djacoco.skip=true
+
+# 看 pre-push 门禁到底跑了哪些测试类
+grep -n 'surefire_failed\|backend_mvn_run' scripts/pre-push-gate.sh
+
+# 核对回滚目录既有命名约定
+ls backend/src/main/resources/db/rollback/migration-mysql/ | grep -c '^U[0-9]*__add_'
+ls backend/src/main/resources/db/rollback/migration-mysql/ | grep -c '^U[0-9]*__drop_'
+```
+
+### 相关文档
+
+- `backend/src/test/java/com/xiyu/bid/support/FlywayRollbackScriptCoverageTest.java` — 约定的可执行定义
+- `backend/src/test/java/com/xiyu/bid/support/FlywayMysqlContainerTest.java` — 真实 MySQL 8.0 迁移演练
+- `backend/src/test/resources/application-flyway-mysql.yml` — `ddl-auto: validate` + migration locations
+- `scripts/generate-flyway-rollback-scripts.mjs` — 生成器，与测试同一套命名规则
+- 本文件 §6（pre-commit 双门禁陷阱）、§7（Maven 测试运行陷阱）
+- `lessons-learned.md` §206（自选测试集 ≠ 门禁测试集，提交前跑门禁脚本本体）
+
+---
+
 ## 7. Maven 测试运行陷阱：`-DforkCount=0` 使 pom argLine 失效产生假 ERROR，`-Dtest='包.**'` 不过滤导致挂起
 
 ### 场景

@@ -37,7 +37,7 @@
 | `root-cause-analysis-submit-bid-review-gate.md` | Bug 根因分析 | 提交投标误复用任务完成闸门导致审核通过后仍 409 | 2026-06-21 |
 | `root-cause-analysis-stage-notification-created-by.md` | Bug 根因分析 | 阶段变更通知 created_by 为空导致提交投标 500 | 2026-06-21 |
 | `shell-gotchas.md` | 技术陷阱 | Shell 转义导致 SQL 中 `$` 特殊字符截断，密码值被破坏 | 2026-06-20 |
-| `build-gotchas.md` | 技术陷阱 | git-commit-id-plugin 在 worktree 读取主仓库 HEAD，git.properties 失真；Maven `-DskipTests` 只跳过测试运行不跳过编译；Maven target 目录残留旧 Flyway 迁移文件导致打包后版本冲突；line-budget hook 按文本行计数（无尾换行多算 1 行）与 `wc -l` 口径不一致、通配符 import 改显式时漏 `java.util.Locale` 导致编译失败（条目 6）；`-DforkCount=0` 使 pom argLine 的 ByteBuddy Java 23 开关失效产生 18 个假 Mockito ERROR、`-Dtest='包.**'` 静默不过滤跑全量挂起 86 分钟（条目 7） | 2026-09-02 |
+| `build-gotchas.md` | 技术陷阱 | git-commit-id-plugin 在 worktree 读取主仓库 HEAD，git.properties 失真；Maven `-DskipTests` 只跳过测试运行不跳过编译；Maven target 目录残留旧 Flyway 迁移文件导致打包后版本冲突；line-budget hook 按文本行计数（无尾换行多算 1 行）与 `wc -l` 口径不一致、通配符 import 改显式时漏 `java.util.Locale` 导致编译失败（条目 6）；`-DforkCount=0` 使 pom argLine 的 ByteBuddy Java 23 开关失效产生 18 个假 Mockito ERROR、`-Dtest='包.**'` 静默不过滤跑全量挂起 86 分钟（条目 7）；Flyway 回滚脚本命名/header 由 `FlywayRollbackScriptCoverageTest` 机械约定（U 与 V 同名后缀、须含 `-- Input:` 与完整 V 文件名），门禁 SKIP 时手工"等价核验"必漏项，改跑 `-Dtest='Flyway*Test'` 顺带拿到真实 MySQL 容器迁移演练（条目 8） | 2026-09-02 |
 | `git-gotchas.md` | 技术陷阱 | squash merge 后本地 `git branch -d` 判"未完全合并"失败需用 `-D`；远端分支不会自动删需手动 `git push origin --delete` | 2026-08-18 |
 | `root-cause-analysis-tender-intake-ai-prompt.md` | Bug 根因分析 | 标讯 AI 识别准确率低（零样本 prompt → Few-Shot + CoT + 正则预提取 + markitdown sections 元数据；金额归一化；手机号边界匹配） | 2026-07-15 |
 | `root-cause-analysis-bid-file-upload-issues.md` | Bug 根因分析 | 投标文件上传 4 个问题（进度条不显示 / 列表不刷新 / 上传中允许提交 / 删除状态不同步；emit('change') + ref.loadDocuments() 双向同步） | 2026-07-16 |
