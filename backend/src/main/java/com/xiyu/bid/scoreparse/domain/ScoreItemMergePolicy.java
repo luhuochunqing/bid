@@ -7,6 +7,7 @@ package com.xiyu.bid.scoreparse.domain;
 
 import com.xiyu.bid.biddraftagent.domain.PriceScoringKeywords;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -121,6 +122,12 @@ public class ScoreItemMergePolicy {
 
     /** 以首次出现为基础，补齐后续召回的非空字段（更丰富信息优先）；报价类跨 chunk 细节拼合 */
     private ScoreCandidate enrich(ScoreCandidate base, ScoreCandidate later) {
+        // Phase 1b: 结构化通道候选对 weight/dim 具有权威性（源自 Word XML，非启发式推断）
+        boolean baseIsStructured = isStructuredChannel(base);
+        boolean laterIsStructured = isStructuredChannel(later);
+        BigDecimal mergedWeight = resolveAuthoritativeWeight(base, later, baseIsStructured, laterIsStructured);
+        String mergedDim = resolveAuthoritativeDim(base, later, baseIsStructured, laterIsStructured);
+
         // 报价类跨 chunk 互补：两段 detail 非子串但同属报价项，需拼合而非择一
         boolean isPriceMerge = isPriceDim(normalize(base.dim())) && isPriceDim(normalize(later.dim()))
                 && base.detail() != null && later.detail() != null
@@ -152,9 +159,9 @@ public class ScoreItemMergePolicy {
                     ? base.dimSource() : later.dimSource();
             return new ScoreCandidate(
                     base.code() != null ? base.code() : later.code(),
-                    base.dim() != null ? base.dim() : later.dim(),
+                    mergedDim,
                     mergedDetail,
-                    base.weight() != null ? base.weight() : later.weight(),
+                    mergedWeight,
                     base.scoreTypeGuess() != null ? base.scoreTypeGuess() : later.scoreTypeGuess(),
                     later.contextNote() != null ? later.contextNote() : base.contextNote(),
                     mergedSource.trim().isEmpty() ? base.sourceText() : mergedSource.trim(),
@@ -181,9 +188,9 @@ public class ScoreItemMergePolicy {
                 ? base.dimSource() : later.dimSource();
         return new ScoreCandidate(
                 base.code() != null ? base.code() : later.code(),
-                base.dim() != null ? base.dim() : later.dim(),
+                mergedDim,
                 detail,
-                base.weight() != null ? base.weight() : later.weight(),
+                mergedWeight,
                 base.scoreTypeGuess() != null ? base.scoreTypeGuess() : later.scoreTypeGuess(),
                 later.contextNote() != null ? later.contextNote() : base.contextNote(),
                 sourceText,
@@ -192,6 +199,24 @@ public class ScoreItemMergePolicy {
                 mergedParentDim,
                 mergedDimSource
         );
+    }
+
+    private static boolean isStructuredChannel(ScoreCandidate c) {
+        return "STRUCTURED_TABLE".equals(c.semanticPattern());
+    }
+
+    private static BigDecimal resolveAuthoritativeWeight(ScoreCandidate base, ScoreCandidate later,
+            boolean baseIsStructured, boolean laterIsStructured) {
+        if (baseIsStructured && base.weight() != null) return base.weight();
+        if (laterIsStructured && later.weight() != null) return later.weight();
+        return base.weight() != null ? base.weight() : later.weight();
+    }
+
+    private static String resolveAuthoritativeDim(ScoreCandidate base, ScoreCandidate later,
+            boolean baseIsStructured, boolean laterIsStructured) {
+        if (baseIsStructured && base.dim() != null) return base.dim();
+        if (laterIsStructured && later.dim() != null) return later.dim();
+        return base.dim() != null ? base.dim() : later.dim();
     }
 
     /**

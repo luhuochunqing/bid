@@ -140,7 +140,7 @@ class ScoreParsePromptsTest {
     void buildCandidateExtractionPrompt_parallelSubItemsRuleAnchored() {
         String prompt = ScoreParsePrompts.buildCandidateExtractionPrompt("test", 1, 1);
         assertThat(prompt).contains("并列能力与方案评分项完整提取");
-        assertThat(prompt).contains("运营服务能力");
+        assertThat(prompt).contains("严禁遗漏并列项中的任何一项");
         assertThat(prompt).contains("权重与评分项严格对齐");
     }
 
@@ -148,7 +148,7 @@ class ScoreParsePromptsTest {
     void buildGapRecheckPrompt_parallelSubItemsAndTotalWeightRuleAnchored() {
         String prompt = ScoreParsePrompts.buildGapRecheckPrompt("test", "known", "zones");
         assertThat(prompt).contains("大项分值与并列子项完整性复查");
-        assertThat(prompt).contains("运营服务能力");
+        assertThat(prompt).contains("并列能力子项被遗漏");
         assertThat(prompt).contains("30%");
     }
 
@@ -156,7 +156,20 @@ class ScoreParsePromptsTest {
     void buildGlobalMergePrompt_parallelSubItemsAndTotalWeightRuleAnchored() {
         String prompt = ScoreParsePrompts.buildGlobalMergePrompt("[]", "section");
         assertThat(prompt).contains("并列评价细则与分值闭环完整性");
-        assertThat(prompt).contains("运营服务能力");
+        assertThat(prompt).contains("绝对禁止遗漏任何并列子项");
         assertThat(prompt).contains("100%");
+    }
+
+    /** Phase 3 prompt 治理：项目特定维度名不得硬编码，改由 ScoreVocabularyRegistry 注入 */
+    @Test
+    void prompts_containNoProjectSpecificDimensionNames() {
+        String[] prompts = {
+                ScoreParsePrompts.buildCandidateExtractionPrompt("test", 1, 1),
+                ScoreParsePrompts.buildGapRecheckPrompt("test", "known", "zones"),
+                ScoreParsePrompts.buildGlobalMergePrompt("[]", "section")};
+        for (String prompt : prompts) {
+            assertThat(prompt).doesNotContain(
+                    "运营服务能力", "商品运营方案", "新增商品需求报价响应方案");
+        }
     }
 }

@@ -169,29 +169,28 @@ public class ScoreParseAppService {
                 tableCandidates,
                 (progress, stageKey) -> updateProgress(taskId, progress, stageKey,
                         "GAP_RECHECK".equals(stageKey) ? "分值或编号连续性异常，触发完整性回补" : stageKey));
+        task.setRunSummary(processed.runSummaryJson());
+        task.setNormalizationWarning(processed.normalizationWarning());
         if (processed.failMessage() != null) {
-            task.setRunSummary(processed.runSummaryJson());
             taskRepository.save(task);
             stateService.failTask(taskId, processed.failMessage());
             progressService.clearProgress(taskId);
             return;
         }
         List<ScoreCandidate> valid = processed.candidates();
-        task.setRunSummary(processed.runSummaryJson());
         if (processed.originalTotal() != null) {
             task.setOriginalTotalWeight(processed.originalTotal());
         }
         taskRepository.save(task);
-
         updateProgress(taskId, 90, "PERSIST", "评分项落库");
         itemPersistenceService.persistItems(task.getProjectId(), task.getId(), valid);
 
         updateProgress(taskId, 95, "ESTIMATE", "阶段 1 预计得分计算");
         estimatedScoreService.estimateForProject(task.getProjectId());
 
-        log.info("解析任务完成: taskId={}, items={}, totalWeight={}, weightWarning={}",
+        log.info("解析任务完成: taskId={}, items={}, totalWeight={}, weightWarning={}, normalizationWarning={}",
                 taskId, valid.size(), processed.weightResult().totalWeight(),
-                processed.weightResult().weightWarning());
+                processed.weightResult().weightWarning(), processed.normalizationWarning());
         stateService.markCompleted(taskId);
         progressService.clearProgress(taskId);
     }
@@ -216,7 +215,8 @@ public class ScoreParseAppService {
                 summary.totalWeight(), summary.totalEstScore(),
                 summary.okCount(), summary.dangerCount(), summary.pendingCount(),
                 summary.objectiveWeight(), summary.subjectiveWeight(),
-                summary.weightWarning(), latest == null ? null : latest.getOriginalTotalWeight()),
+                summary.weightWarning(), latest == null ? null : latest.getOriginalTotalWeight(),
+                latest == null ? null : latest.getNormalizationWarning()),
                 new ScoreParseItemsMetaBuilder(initiationTenderTextResolver, snapshotRepository,
                         taskRepository, itemRepository, resultRepository,
                         new ScoreBidDocumentLookup(projectDocumentRepository, null, null, null, null))

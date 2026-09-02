@@ -94,6 +94,10 @@ public class ScoreParseTask {
     @Column(name = "run_summary", columnDefinition = "TEXT")
     private String runSummary;
 
+    /** 权重归一化显式告警（Phase 2 spec 057 FR-05；null 表示未触发或缩放幅度 ≤5%） */
+    @Column(name = "normalization_warning", length = 255)
+    private String normalizationWarning;
+
     /** 超时扫描 job 标记（超时置 FAILED 时写 1） */
     @Column(name = "timeout_marked", nullable = false)
     @Builder.Default

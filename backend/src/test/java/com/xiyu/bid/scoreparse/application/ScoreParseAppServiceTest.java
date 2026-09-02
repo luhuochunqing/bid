@@ -102,7 +102,8 @@ class ScoreParseAppServiceTest {
         lenient().when(llmTableScoreExtractorProvider.getIfAvailable()).thenReturn(null);
         lenient().when(schemaMapperProvider.getIfAvailable()).thenReturn(null);
         postProcessor = new ScoreCandidatePostProcessor(scoreAnalyzer,
-                new ScoreGlobalMergeOrchestrator(mergeExecutorProvider));
+                new ScoreGlobalMergeOrchestrator(mergeExecutorProvider),
+                com.xiyu.bid.scoreparse.domain.ScoreVocabularyRegistry.builder().build());
         service = new ScoreParseAppService(
                 taskRepository, itemRepository, resultRepository, projectDocumentRepository,
                 stateService, progressService, snapshotRepository,

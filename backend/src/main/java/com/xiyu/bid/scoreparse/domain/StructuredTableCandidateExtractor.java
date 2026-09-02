@@ -70,27 +70,66 @@ public final class StructuredTableCandidateExtractor {
             return candidates;
         }
 
+        String activeParentDim = null;
+        int activeParentRowspanRemaining = 0;
         for (int r = 0; r < rows.size(); r++) {
             List<SidecarTableExtraction.CellPayload> row = rows.get(r);
             if (row == null || row.isEmpty()) {
                 continue;
             }
-
+            for (int i = 0; i < Math.min(row.size(), 3); i++) {
+                SidecarTableExtraction.CellPayload cell = row.get(i);
+                if (!cell.isMergedContinue() && cell.rowspan() > 1) {
+                    String text = stripBracketWeight(cell.text());
+                    if (text != null) {
+                        activeParentDim = text;
+                        activeParentRowspanRemaining = cell.rowspan();
+                    }
+                }
+            }
             List<SidecarTableExtraction.CellPayload> visibleCells = visibleCells(row);
             if (visibleCells.isEmpty()) {
+                if (activeParentRowspanRemaining > 0) activeParentRowspanRemaining--;
                 continue;
             }
 
             if (isHeaderRow(visibleCells, r)) {
+                if (activeParentRowspanRemaining > 0) activeParentRowspanRemaining--;
                 continue;
             }
-
-            ScoreCandidate candidate = parseRow(visibleCells, r);
+            String parentDim = extractParentDim(row);
+            if (parentDim == null && activeParentRowspanRemaining > 0) parentDim = activeParentDim;
+            if (activeParentRowspanRemaining > 0) activeParentRowspanRemaining--;
+            ScoreCandidate candidate = parseRow(visibleCells, r, parentDim);
             if (candidate != null) {
                 candidates.add(candidate);
             }
         }
         return candidates;
+    }
+
+    /**
+     * 从完整行（含合并延续单元格）中提取父级维度。
+     * python-docx 对 vMerge 延续位置返回同一 cell 对象，文本即父级文本。
+     * 扫描列 0-2，取最后一个非空合并延续单元格的文本，去除括号分值。
+     */
+    private static String extractParentDim(List<SidecarTableExtraction.CellPayload> fullRow) {
+        String parentText = null;
+        int scanLimit = Math.min(fullRow.size(), 3);
+        for (int i = 0; i < scanLimit; i++) {
+            SidecarTableExtraction.CellPayload cell = fullRow.get(i);
+            if (cell.isMergedContinue() && !cell.text().isBlank()) {
+                parentText = cell.text();
+            }
+        }
+        return parentText == null ? null : stripBracketWeight(parentText);
+    }
+
+    private static String stripBracketWeight(String text) {
+        if (text == null || text.isBlank()) return null;
+        String dim = BRACKET_WEIGHT.matcher(text).replaceAll("").trim();
+        dim = dim.replace("\n", " ").replaceAll("\\s+", " ").trim();
+        return dim.isEmpty() ? null : dim;
     }
 
     /** 提取非合并延续的可见单元格。 */
@@ -104,20 +143,23 @@ public final class StructuredTableCandidateExtractor {
         return result;
     }
 
-    /** 表头行判定：首行或含表头关键词。 */
+    /** 表头行判定：首行，或含 ≥2 个短表头关键词单元格（≤10 字符，防数据行误判）。 */
     private static boolean isHeaderRow(List<SidecarTableExtraction.CellPayload> cells, int rowIndex) {
         if (rowIndex == 0) {
             return true;
         }
+        int headerKeywordCount = 0;
         for (SidecarTableExtraction.CellPayload cell : cells) {
-            if (HEADER_ROW.matcher(cell.text()).find()) {
-                return true;
+            String text = cell.text().trim();
+            if (text.length() <= 10 && HEADER_ROW.matcher(text).find()) {
+                headerKeywordCount++;
             }
         }
-        return false;
+        return headerKeywordCount >= 2;
     }
 
-    private static ScoreCandidate parseRow(List<SidecarTableExtraction.CellPayload> cells, int rowIndex) {
+    private static ScoreCandidate parseRow(List<SidecarTableExtraction.CellPayload> cells,
+            int rowIndex, String parentDim) {
         List<String> texts = cells.stream().map(SidecarTableExtraction.CellPayload::text).toList();
 
         String code = extractCode(texts);
@@ -148,6 +190,8 @@ public final class StructuredTableCandidateExtractor {
                 .reduce((a, b) -> a + " | " + b)
                 .orElse("");
 
+        String dimSource = parentDim != null ? "CELL" : "UNKNOWN";
+
         return new ScoreCandidate(
                 code,
                 dim,
@@ -157,7 +201,9 @@ public final class StructuredTableCandidateExtractor {
                 null,
                 sourceText,
                 "table-row-" + rowIndex,
-                "STRUCTURED_TABLE"
+                "STRUCTURED_TABLE",
+                parentDim,
+                dimSource
         );
     }
 

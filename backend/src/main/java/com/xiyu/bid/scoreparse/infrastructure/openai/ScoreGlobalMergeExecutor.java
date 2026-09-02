@@ -41,10 +41,18 @@ public class ScoreGlobalMergeExecutor {
 
     /** 前置不足或 LLM 两连败返回 empty（编排层视为"保持启发式结果"信号） */
     public List<ScoreCandidate> resolve(List<ScoreCandidate> pool, String sectionText) {
+        return resolve(pool, sectionText, null);
+    }
+
+    /**
+     * 含词汇注册表 escape-hatch 的归并裁决。
+     * @param vocabularyExamples {@link com.xiyu.bid.scoreparse.domain.ScoreVocabularyRegistry#toPromptExamples} 输出，null 表示不注入
+     */
+    public List<ScoreCandidate> resolve(List<ScoreCandidate> pool, String sectionText, String vocabularyExamples) {
         if (pool == null || pool.size() < 2 || sectionText == null || sectionText.isBlank()) {
             return List.of();
         }
-        String prompt = ScoreParsePrompts.buildGlobalMergePrompt(summarizePool(pool), sectionText);
+        String prompt = ScoreParsePrompts.buildGlobalMergePrompt(summarizePool(pool), sectionText, vocabularyExamples);
         for (int attempt = 1; attempt <= 2; attempt++) {
             try {
                 // config 解析在 try 内：resolver 缺配置的异常同样走 fail-open（评审 M2）

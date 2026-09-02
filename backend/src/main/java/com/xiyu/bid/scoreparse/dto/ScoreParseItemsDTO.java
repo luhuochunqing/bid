@@ -24,7 +24,8 @@ public record ScoreParseItemsDTO(
             BigDecimal objectiveWeight,
             BigDecimal subjectiveWeight,
             boolean weightWarning,
-            BigDecimal originalTotalWeight
+            BigDecimal originalTotalWeight,
+            String normalizationWarning
     ) {
     }
 

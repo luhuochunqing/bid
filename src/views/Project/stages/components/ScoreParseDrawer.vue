@@ -108,6 +108,10 @@
             <span class="doc-time">评分时间 {{ scoreTime }}</span>
           </div>
         </div>
+        <div v-if="normalizationWarning" class="normalization-warning">
+          <span class="warning-icon">⚠</span>
+          <span class="warning-text">{{ normalizationWarning }}</span>
+        </div>
         <div v-if="scoreItems.length === 0" class="scoring-placeholder">
           <div class="placeholder-icon">📋</div>
           <div class="placeholder-text">尚未解析到评分标准，无法进行投标文件对标打分</div>
@@ -185,7 +189,7 @@ const emit = defineEmits(['parsed'])
 
 const {
   visible, loading, error, isSection1Expanded, currentStage, scored, scoringOverlayVisible,
-  sourceFileName, parseTime, bidFileName, scoreTime, scoringHint, circuitHint,
+  sourceFileName, parseTime, bidFileName, scoreTime, scoringHint, circuitHint, normalizationWarning,
   scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult, totalWeight, objectiveWeight,
   subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
   openDetail, open, runScoring, reparse,
@@ -212,6 +216,9 @@ defineExpose({ open, runScoring })
 .section-actions { margin-left: auto; display: flex; gap: 6px; align-items: center; }
 .btn-primary-sm { padding: 4px 12px; background: var(--brand-xiyu-logo); border: 1px solid var(--brand-xiyu-logo); border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; cursor: pointer; color: var(--bg-white); transition: all 0.16s ease; display: inline-flex; align-items: center; gap: 4px; }
 .btn-primary-sm:hover:not(:disabled) { background: var(--brand-xiyu-logo-hover); border-color: var(--brand-xiyu-logo-hover); }
+.normalization-warning { display: flex; align-items: center; gap: 6px; padding: 6px 10px; margin-top: 8px; background: var(--status-warning-bg, #fff7e6); border: 1px solid var(--status-warning-color, #fa8c16); border-radius: var(--radius-sm); font-size: 12px; color: var(--status-warning-color, #d46b08); }
+.normalization-warning .warning-icon { font-size: 14px; line-height: 1; }
+.normalization-warning .warning-text { font-weight: 500; }
 .btn-primary-sm:disabled { background: var(--gray-100); border-color: var(--gray-100); color: var(--gray-300); cursor: not-allowed; }
 
 .toolbar { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }

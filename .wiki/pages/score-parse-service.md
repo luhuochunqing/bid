@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
-updated: 2026-09-01
-health_checked: 2026-09-01
+updated: 2026-09-02
+health_checked: 2026-09-02
 sources:
   - specs/041-ai-score-parse-backend/spec.md
   - specs/041-ai-score-parse-backend/plan.md
@@ -15,6 +15,7 @@ sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/
   - docs/implementation-notes/ai-score-parse-backend.md
   - specs/048-score-parse-image-multimodal/spec.md
+  - docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md
 backlinks:
   - _index
   - ai-capabilities
@@ -225,4 +226,35 @@ trigger（同步<1s，互斥校验+建任务）
   3. 同父维度内部按局部编号（1, 2, 3...）数值序重排；
   4. 同组内无编号或无法解析项排在该组有编号项之后，并严格保持原始相对输入序。
 - 彻底杜绝脱离层级上下文的跨大类全局扁平拍平排序。
+
+## 结构化通道补齐与归一化告警显式化（Phase 1-5，2026-09-02）
+
+根因分析（`docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md`）确认零号病人是 markdown 表格转换丢失合并单元格结构。Phase 1a/1b/3a 已随 PR !2505 合入，本轮补齐审计发现的 7 个缺口：
+
+- **结构化通道分层完整（Phase 1）**：`StructuredTableCandidateExtractor` 利用 rowspan 展开后的父级信息填充 `parentDim`，`ScoreCandidatePostProcessor` 感知 `STRUCTURED_TABLE` 标记——结构化通道产出的候选不再被 LLM 通道的后处理逻辑改写。
+- **全局归并降级为排序/过滤（Phase 3）**：`ScoreGlobalMergeOrchestrator` 对结构化通道结果只做排序与过滤，禁止 LLM 替换其字段值，防止归并环节把已保真的结果洗成概括文本。
+- **归一化告警不再静默洗白（Phase 2）**：`WeightNormalizationPolicy.WARNING_THRESHOLD = 0.05`，缩放幅度 >5% 时产出 warning。落库走 `V1206__add_score_task_normalization_warning.sql` **独立列**（非塞进 `run_summary`）→ DTO Summary 字段 → 前端告警条。
+  - **边界决策**：`run_summary` 是内部遥测（开发者查库复盘 lanes/aligned/merge 计数），`normalization_warning` 是用户可见的正确性信号，受众不同故通道不同。`RunSummaryAssembler` 无需改动。依据 `docs/reviews/057-design-detour-review.md` P5。
+- **Prompt 硬编码治理（Phase 3）**：`ScoreParsePrompts` 三个 build 方法（`buildCandidateExtractionPrompt` / `buildGapRecheckPrompt` / `buildGlobalMergePrompt`）清除项目 1358 特定维度名，项目词汇改由注册表注入。回归守卫 `prompts_containNoProjectSpecificDimensionNames` 反向断言三个 prompt 均不含项目特定维度名。
+- **escape-hatch 词汇注册表（Phase 5）**：`ScoreVocabularyRegistry`（Builder + 不可变 `Entry` record，global/project 两级）提供 `matches` / `isWeightInRange` / `getEntries` / `matchesAny` / `findMatch` / `toPromptExamples`；`ScoreVocabularyConfiguration` 注册 8 条全局词汇 Bean。纯核心无框架依赖（FP-Java，受 `preflight-domain-purity` 守卫）。
+- **真实文档金标 CI（Phase 4）**：`RealProjectScoreParsingTest` 去掉 `@Disabled`，入库 case-1347 / case-1362 真实文档，建立回归防御。
+
+### 陷阱：结构化通道对列布局高度敏感
+
+| 列布局 | 结果 |
+|---|---|
+| 4 列 `[编号, 评分类别(merged), 评分因素（N分）, 评分标准]` + 括号权重解析 | ✅ 正确 |
+| 5 列 `[编号, 评分类别, 评分因素, 评分标准, 权重]` | ❌ weight 从 detail 文本的"得100分/得50分"提取（信用评价得 weight=100 而非 5），dim 顺移到评分标准列（技术 6 项 dim 全变成"按A、B、C、D分档打分"） |
+
+金标夹具设计必须匹配此约束——项目 1358 金标首次失败即因此，改布局后 `StructuredTableCandidateExtractorTest` 17/17 通过。
+
+### 副作用（Cross-Module Impact）
+
+- **前端**：`ScoreParseDrawer.vue` + `useScoreParseDrawer.js` 为纯增量（`v-if="normalizationWarning"` 块 + prop 解构 + 3 条 CSS），默认态不渲染、DOM 不变，故 e2e 布局用例无需联动。
+- **数据库**：`V1206` 加列 + `U1206` 回滚脚本成对。
+- **测试签名**：`ScoreGlobalMergeExecutor.resolve` 由 2-arg 变 3-arg（新增 `vocabularyExamples`）。Mockito strict stubbing 下**所有** stub 与 `verify(..., never())` 必须同步迁移到新签名——留在旧签名上的 `never()` 会退化为永真断言，等于删掉防护。参见 `docs/lessons/lessons-learned.md` §205。
+
+### 验证基线
+
+`testing-gate: passed` — 架构测试 12 + scoreparse 114（AppService 20 / PostProcessor 5 / Orchestrator 7 / Prompts 15 / MergeExecutor 6 / ItemMergePolicy 18 / VocabularyRegistry 14 / NormalizationPolicy 12 / StructuredTableExtractor 17）+ 前端 27（useScoreParseDrawer 22 / ScoreParseDrawer 5）。
 

@@ -1,13 +1,9 @@
 package com.xiyu.bid.scoreparse.domain;
 
 import com.xiyu.bid.scoreparse.infrastructure.structure.MarkdownScoreSectionLocator;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 
@@ -15,13 +11,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class RealProjectScoreParsingTest {
 
-    @Disabled("依赖本地绝对路径 fixture，在 CI 上无此文件，需手动在本地运行")
     @Test
     void test1347ScoringChapterLocation() throws Exception {
-        Path path = Paths.get("/Users/user/.gemini/antigravity-ide/brain/f248a9e2-27e6-4113-b216-d1c053a01264/scratch/1347.md");
-        String md = Files.readString(path);
+        String md;
+        try (java.io.InputStream in = getClass().getResourceAsStream("/scoreparse-golden/case-1347-compound-percent.md")) {
+            assertThat(in).as("金标夹具 scoreparse-golden/case-1347-compound-percent.md 必须存在于 test resources").isNotNull();
+            md = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        }
         List<MarkdownScoreSectionLocator.ScoreSection> sections = MarkdownScoreSectionLocator.locate(md);
-        
+
         assertThat(sections).isNotEmpty();
         // Section 0 必须捕获综合评分法全部 11 项细则正文
         String s0 = sections.get(0).content();
@@ -39,13 +37,15 @@ class RealProjectScoreParsingTest {
         assertThat(s0).contains("质量监管能力");
     }
 
-    @Disabled("依赖本地绝对路径 fixture，在 CI 上无此文件，需手动在本地运行")
     @Test
     void test1362DetailedScoringTableLocation() throws Exception {
-        Path path = Paths.get("/Users/user/.gemini/antigravity-ide/brain/f248a9e2-27e6-4113-b216-d1c053a01264/scratch/1362.md");
-        String md = Files.readString(path);
+        String md;
+        try (java.io.InputStream in = getClass().getResourceAsStream("/scoreparse-golden/case-1362-detailed-table.md")) {
+            assertThat(in).as("金标夹具 scoreparse-golden/case-1362-detailed-table.md 必须存在于 test resources").isNotNull();
+            md = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        }
         List<MarkdownScoreSectionLocator.ScoreSection> sections = MarkdownScoreSectionLocator.locate(md);
-        
+
         assertThat(sections).isNotEmpty();
         String s0 = sections.get(0).content();
         assertThat(s0).contains("详细评审表");

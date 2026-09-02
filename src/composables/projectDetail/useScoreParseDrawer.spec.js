@@ -192,6 +192,36 @@ describe('useScoreParseDrawer.js', () => {
     expect(drawer.circuitHint.value).toBe('自动路径已停，请检查文件后手点重新解析或重新打分')
   })
 
+  it('surfaces normalizationWarning from summary (Phase 2 FR-05)', async () => {
+    scoreParseApi.getItems.mockResolvedValue({
+      data: {
+        items: REAL_ITEMS,
+        summary: { normalizationWarning: '评分权重已自动调整（原始合计 86，缩放 116.3%），请人工复核' },
+      },
+    })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1 })
+
+    expect(drawer.normalizationWarning.value).toContain('请人工复核')
+  })
+
+  it('clears stale normalizationWarning when reparse no longer triggers normalization (Phase 2 FR-05)', async () => {
+    scoreParseApi.getItems
+      .mockResolvedValueOnce({
+        data: { items: REAL_ITEMS, summary: { normalizationWarning: '评分权重已自动调整（原始合计 86，缩放 116.3%），请人工复核' } },
+      })
+      .mockResolvedValueOnce({ data: { items: REAL_ITEMS, summary: { normalizationWarning: null } } })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1 })
+    expect(drawer.normalizationWarning.value).toContain('请人工复核')
+
+    await drawer.reparse()
+
+    expect(drawer.normalizationWarning.value).toBe('')
+  })
+
   it('keeps em-dash placeholders when meta is absent (no fake data fallback)', async () => {
     scoreParseApi.getItems.mockResolvedValue({ data: { items: REAL_ITEMS, summary: null } })
     scoreParseApi.getResults.mockResolvedValue({ data: { results: [] } })

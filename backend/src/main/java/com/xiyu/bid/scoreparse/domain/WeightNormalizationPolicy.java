@@ -23,13 +23,22 @@ public class WeightNormalizationPolicy {
     private static final BigDecimal MAX_REASONABLE_TOTAL = new BigDecimal("1000");
     private static final int SCALE = 10;
 
+    private static final BigDecimal WARNING_THRESHOLD = new BigDecimal("0.05");
+
     /**
      * 归一化结果。
      *
      * @param normalizedCandidates 归一化后的候选列表（仅 rewrite weight，其余字段不变）
      * @param originalTotal        归一化前的权重合计；未归一化时为 null
+     * @param scaleRatio           缩放比例（100/total）；未归一化时为 null
+     * @param warning              缩放幅度 > 5% 时的告警消息；正常时为 null
      */
-    public record Result(List<ScoreCandidate> normalizedCandidates, BigDecimal originalTotal) {
+    public record Result(List<ScoreCandidate> normalizedCandidates, BigDecimal originalTotal,
+            BigDecimal scaleRatio, String warning) {
+
+        public Result(List<ScoreCandidate> normalizedCandidates, BigDecimal originalTotal) {
+            this(normalizedCandidates, originalTotal, null, null);
+        }
     }
 
     /**
@@ -110,6 +119,12 @@ public class WeightNormalizationPolicy {
             }
         }
 
-        return new Result(normalized, total);
+        BigDecimal deviation = scale.subtract(BigDecimal.ONE).abs();
+        String warning = deviation.compareTo(WARNING_THRESHOLD) > 0
+                ? String.format("评分权重已自动调整（原始合计 %s，缩放 %.1f%%），请人工复核",
+                        total.toPlainString(), deviation.multiply(new BigDecimal("100")).doubleValue())
+                : null;
+
+        return new Result(normalized, total, scale.setScale(4, RoundingMode.HALF_UP), warning);
     }
 }
