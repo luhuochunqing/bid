@@ -10,6 +10,10 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
+import static com.xiyu.bid.casework.domain.policy.TextSimilarityPolicy.cleanTitle;
+import static com.xiyu.bid.casework.domain.policy.TextSimilarityPolicy.extractTokens;
+import static com.xiyu.bid.casework.domain.policy.TextSimilarityPolicy.hasText;
+
 /**
  * 纯核心：评分项级案例智能匹配策略。
  *
@@ -17,8 +21,10 @@ import java.util.Set;
  */
 public class ScoreItemCaseMatchPolicy {
 
-    private static final int MAX_DETAIL_SIMILARITY_SCORE = 40;
+    private static final int MAX_DETAIL_SIMILARITY_SCORE = 30;
     private static final int MAX_TITLE_SIMILARITY_SCORE = 20;
+    private static final int MAX_ENTITY_MATCH_SCORE = 25;
+    private static final int ENTITY_SINGLE_HIT_SCORE = 15;
     private static final int CATEGORY_MATCH_SCORE = 15;
     private static final int PROJECT_TYPE_MATCH_SCORE = 10;
     private static final int CUSTOMER_TYPE_MATCH_SCORE = 5;
@@ -30,8 +36,16 @@ public class ScoreItemCaseMatchPolicy {
 
     public record ScoreItemContext(
             Long scoreItemId, String code, String dim, String detail,
-            String projectType, String customerType, String keyword
-    ) {}
+            String projectType, String customerType, String keyword,
+            String projectName, String customerName
+    ) {
+        public ScoreItemContext(
+                Long scoreItemId, String code, String dim, String detail,
+                String projectType, String customerType, String keyword
+        ) {
+            this(scoreItemId, code, dim, detail, projectType, customerType, keyword, null, null);
+        }
+    }
 
     public record MatchResult(
             Long caseId, int score, String matchLabel,
@@ -47,7 +61,11 @@ public class ScoreItemCaseMatchPolicy {
         List<String> reasons = new ArrayList<>();
         Set<String> matchedKeywords = new LinkedHashSet<>();
 
-        // 1. 条款重叠度（最高 40 分）
+        // 1. 项目专属核心实体/关键词匹配（最高 25 分，断层式区分同类项目）
+        int entityScore = calculateEntityScore(context, candidate, matchedKeywords, reasons);
+        score += entityScore;
+
+        // 2. 条款重叠度（过滤通用停用词，最高 30 分）
         int detailScore = calculateDetailOverlap(context.detail(), candidate, matchedKeywords);
         if (detailScore >= 15) {
             score += detailScore;
@@ -57,7 +75,7 @@ public class ScoreItemCaseMatchPolicy {
             reasons.add("条款部分契合");
         }
 
-        // 2. 标题/正文跨层相似度（最高 20 分）
+        // 3. 标题/正文跨层相似度（最高 20 分）
         int titleScore = calculateTitleSimilarity(context, candidate);
         if (titleScore >= 15) {
             score += titleScore;
@@ -67,28 +85,30 @@ public class ScoreItemCaseMatchPolicy {
             reasons.add("评分点部分匹配");
         }
 
-        // 3. 类别一致性与推断（最高 15 分）
-        int categoryScore = calculateCategoryScore(context, candidate);
+        // 4. 类别一致性与推断（最高 15 分）
+        int categoryScore = CaseCategoryMatchPolicy.calculateCategoryScore(
+                context.dim(), context.detail(), candidate.getScoringCategory()
+        );
         if (categoryScore > 0) {
             score += categoryScore;
             reasons.add("类别一致");
         }
 
-        // 4. 项目类型一致性（最高 10 分）
+        // 5. 项目类型一致性（最高 10 分）
         if (hasText(context.projectType()) && hasText(candidate.getProjectType())
                 && context.projectType().equalsIgnoreCase(candidate.getProjectType())) {
             score += PROJECT_TYPE_MATCH_SCORE;
             reasons.add("项目类型一致");
         }
 
-        // 5. 客户类型一致性（最高 5 分）
+        // 6. 客户类型一致性（最高 5 分）
         if (hasText(context.customerType()) && hasText(candidate.getCustomerType())
                 && context.customerType().equalsIgnoreCase(candidate.getCustomerType())) {
             score += CUSTOMER_TYPE_MATCH_SCORE;
             reasons.add("客户类型一致");
         }
 
-        // 6. 额外搜索关键词命中（最高 5 分）
+        // 7. 额外搜索关键词命中（最高 5 分）
         if (hasText(context.keyword())) {
             int kwScore = checkKeywordHit(context.keyword(), candidate, matchedKeywords);
             if (kwScore > 0) {
@@ -97,7 +117,7 @@ public class ScoreItemCaseMatchPolicy {
             }
         }
 
-        // 7. 中标案例加成（最高 5 分）
+        // 8. 中标案例加成（最高 5 分）
         if ("WON".equalsIgnoreCase(candidate.getBidResult())) {
             score += WON_BONUS;
             reasons.add("历史中标案例");
@@ -110,12 +130,47 @@ public class ScoreItemCaseMatchPolicy {
         return new MatchResult(candidate.getId(), score, label, reasons, new ArrayList<>(matchedKeywords));
     }
 
+    private int calculateEntityScore(
+            ScoreItemContext context, KnowledgeCaseReadModel candidate,
+            Set<String> matchedKeywords, List<String> reasons) {
+        Set<String> entities = TextSimilarityPolicy.extractEntityTokens(
+                context.projectName(), context.customerName()
+        );
+        if (entities.isEmpty()) {
+            return 0;
+        }
+
+        String candidateText = candidateFullText(candidate);
+        String candidateProjName = Objects.toString(candidate.getSourceProjectName(), "").toLowerCase(Locale.ROOT);
+        int hitCount = 0;
+        List<String> hitEntities = new ArrayList<>();
+
+        for (String entity : entities) {
+            String lowerEntity = entity.toLowerCase(Locale.ROOT);
+            if (candidateText.contains(lowerEntity) || candidateProjName.contains(lowerEntity)) {
+                hitCount++;
+                hitEntities.add(entity);
+                matchedKeywords.add(entity);
+            }
+        }
+
+        if (hitCount > 0) {
+            String hitSummary = String.join("、", hitEntities.stream().limit(2).toList());
+            reasons.add("命中项目专属实体(" + hitSummary + ")");
+            return Math.min(MAX_ENTITY_MATCH_SCORE, hitCount >= 2 ? MAX_ENTITY_MATCH_SCORE : ENTITY_SINGLE_HIT_SCORE);
+        }
+
+        return 0;
+    }
+
     private int calculateDetailOverlap(String detail, KnowledgeCaseReadModel candidate, Set<String> matchedKeywords) {
         if (!hasText(detail)) {
             return 0;
         }
 
-        Set<String> detailTokens = extractTokens(detail);
+        Set<String> detailTokens = extractTokens(detail).stream()
+                .filter(t -> !TextSimilarityPolicy.STOP_WORDS.contains(t.toLowerCase(Locale.ROOT)))
+                .collect(java.util.stream.Collectors.toSet());
         if (detailTokens.isEmpty()) {
             return 0;
         }
@@ -147,6 +202,15 @@ public class ScoreItemCaseMatchPolicy {
         String candidateText = candidateFullText(candidate);
         String cleanDim = cleanTitle(context.dim());
         String cleanCode = cleanTitle(context.code());
+
+        // 若评分项名称为空（项目级推荐模式），尝试对比项目名称与案例来源项目名称
+        if (!hasText(cleanDim) && !hasText(context.dim())) {
+            if (hasText(context.projectName()) && hasText(candidate.getSourceProjectName())) {
+                double jaccard = TextSimilarityPolicy.jaccardSimilarityOfText(context.projectName(), candidate.getSourceProjectName());
+                return (int) Math.round(jaccard * MAX_TITLE_SIMILARITY_SCORE);
+            }
+            return 0;
+        }
 
         // 1. 评分项清洗后的核心名称在候选案例正文/需求/标题中命中
         if (hasText(cleanDim) && cleanDim.length() >= 2) {
@@ -206,58 +270,6 @@ public class ScoreItemCaseMatchPolicy {
         return score;
     }
 
-    private int calculateCategoryScore(ScoreItemContext context, KnowledgeCaseReadModel candidate) {
-        String cat = candidate.getScoringCategory();
-        if (!hasText(cat)) {
-            return 0;
-        }
-
-        String dim = Objects.toString(context.dim(), "");
-        if (dim.equalsIgnoreCase(cat) || dim.contains(cat) || cat.contains(dim)) {
-            return CATEGORY_MATCH_SCORE;
-        }
-
-        String combined = (cleanTitle(dim) + " " + Objects.toString(context.detail(), "")).toLowerCase(Locale.ROOT);
-        String catLower = cat.trim().toLowerCase(Locale.ROOT);
-
-        if (catLower.contains("技术")) {
-            if (containsAny(combined, "技术", "方案", "系统", "对接", "能力", "运维", "架构", "安全",
-                    "开发", "功能", "接口", "部署", "硬件", "软件", "网络", "测试", "云平台", "数据库", "集成")) {
-                return CATEGORY_MATCH_SCORE;
-            }
-        } else if (catLower.contains("实施") || catLower.contains("服务") || catLower.contains("售后")) {
-            if (containsAny(combined, "实施", "服务", "售后", "响应", "保障", "质保", "应急", "培训", "交付")) {
-                return CATEGORY_MATCH_SCORE;
-            }
-        } else if (catLower.contains("商务") || catLower.contains("报价") || catLower.contains("业绩")) {
-            if (containsAny(combined, "商务", "报价", "价格", "财务", "审计", "业绩", "纳税", "结算", "支付", "合同",
-                    "保证金", "交货期", "付款", "同类", "案例", "开票", "资信")) {
-                return CATEGORY_MATCH_SCORE;
-            }
-        } else if (catLower.contains("资质") || catLower.contains("认证") || catLower.contains("体系")) {
-            if (containsAny(combined, "资质", "证书", "认证", "iso", "许可", "执照", "资信", "等级", "体系", "aaa",
-                    "专利", "软著", "专精特新", "高新")) {
-                return CATEGORY_MATCH_SCORE;
-            }
-        } else if (catLower.contains("人员") || catLower.contains("团队") || catLower.contains("机构")) {
-            if (containsAny(combined, "人员", "团队", "项目经理", "架构师", "职称", "社保", "学历", "履历", "专家",
-                    "工程师", "配置", "投入", "骨干", "成员")) {
-                return CATEGORY_MATCH_SCORE;
-            }
-        }
-
-        return 0;
-    }
-
-    private static boolean containsAny(String text, String... keywords) {
-        for (String kw : keywords) {
-            if (text.contains(kw)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private int checkKeywordHit(String keyword, KnowledgeCaseReadModel candidate, Set<String> matchedKeywords) {
         if (!hasText(keyword)) {
             return 0;
@@ -280,13 +292,5 @@ public class ScoreItemCaseMatchPolicy {
         return (Objects.toString(candidate.getRequirementRaw(), "") + " "
                 + Objects.toString(candidate.getResponseText(), "") + " "
                 + Objects.toString(candidate.getScoringPointTitle(), "")).toLowerCase(Locale.ROOT);
-    }
-
-    private Set<String> extractTokens(String text) {
-        return TextSimilarityPolicy.extractTokens(text);
-    }
-
-    private static boolean hasText(String str) {
-        return TextSimilarityPolicy.hasText(str);
     }
 }

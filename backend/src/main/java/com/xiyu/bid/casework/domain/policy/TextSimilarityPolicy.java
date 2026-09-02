@@ -13,6 +13,19 @@ import java.util.Set;
  */
 public final class TextSimilarityPolicy {
 
+    /**
+     * 招投标通用停用词集合（过滤无实质区分度的泛化词汇）。
+     */
+    public static final Set<String> STOP_WORDS = Set.of(
+            "中国", "全国", "全省", "省", "市", "区", "县",
+            "投标人", "招标人", "采购人", "招标文件", "投标文件", "要求", "项目", "提供", "具备",
+            "进行", "根据", "包含", "包括", "满足", "方案", "系统", "服务", "管理", "工作",
+            "综合", "评审", "相关", "以及", "本项", "原则", "规范", "标准", "支持", "保障",
+            "有限公司", "有限责任公司", "股份有限公司", "分公司", "公司", "集团", "采购", "招标", "投标",
+            "年度", "第一", "第二", "第三", "第四", "第五", "响应", "承诺", "材料", "内容",
+            "负责", "落实", "关于", "等", "及", "与", "或"
+    );
+
     private TextSimilarityPolicy() {}
 
     /**
@@ -133,5 +146,45 @@ public final class TextSimilarityPolicy {
         } while (!cleaned.equals(prev) && !cleaned.isEmpty() && maxIter > 0);
 
         return cleaned.isEmpty() ? text.trim() : cleaned;
+    }
+
+    /**
+     * 从项目名称、客户名称等文本中提取具有高辨识度的核心实体词/组织专有名词。
+     */
+    public static Set<String> extractEntityTokens(String... texts) {
+        if (texts == null) {
+            return Collections.emptySet();
+        }
+        Set<String> entities = new LinkedHashSet<>();
+        for (String text : texts) {
+            if (!hasText(text)) {
+                continue;
+            }
+            // 1. 优先提取项目名称中的组织主体前缀（在年份/业务动作词之前的部分）
+            String[] segments = text.split("(?i)[0-9]{4}年?|采购|招标|工程|服务|系统|平台|建设|改造|升级|运维|开发|咨询|实施|电商|工业品|办公|物资|设备|信息化|数字化|数智化");
+            String orgSegment = (segments.length > 0 && hasText(segments[0])) ? segments[0] : text;
+
+            String cleaned = orgSegment
+                    .replaceAll("(有限公司|有限责任公司|股份有限公司|分公司|公司|集团|厂|局|院)", " ")
+                    .replaceAll("[\\p{Punct}\\p{Space}\\u3000-\\u303F\\uFF00-\\uFFEF]+", " ")
+                    .trim();
+
+            for (String part : cleaned.split("\\s+")) {
+                String cleanPart = cleanTitle(part);
+                if (cleanPart.length() >= 2 && !STOP_WORDS.contains(cleanPart)) {
+                    entities.add(cleanPart);
+                    // 对 4 字及以上的复合专有名词，提取 2-3 字核心子词（如 "中国长江三峡" -> "长江三峡", "三峡"）
+                    if (cleanPart.length() >= 4) {
+                        for (int i = 0; i <= cleanPart.length() - 2; i++) {
+                            String sub = cleanPart.substring(i, i + 2);
+                            if (!STOP_WORDS.contains(sub)) {
+                                entities.add(sub);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return entities;
     }
 }
