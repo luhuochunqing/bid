@@ -52,3 +52,10 @@ if [[ ${count} -eq 0 ]]; then
 fi
 
 echo "[eval-scoreparse:nightly] 共规划 ${count} 个语料的采集模板（未执行）。"
+
+ROOT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || echo '')"
+if [[ -f "$ROOT_DIR/backend/target/scoreparse-golden-report.json" ]]; then
+  echo ""
+  echo "[eval-scoreparse:nightly] 渲染最新金标评估指标汇总:"
+  node "$ROOT_DIR/scripts/eval-scoreparse/report.mjs"
+fi

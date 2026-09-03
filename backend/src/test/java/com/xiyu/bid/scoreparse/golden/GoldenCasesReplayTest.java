@@ -146,8 +146,13 @@ class GoldenCasesReplayTest {
         laneCounts.put("regex", regexSectionsRaw);
         laneCounts.put("regexFullText", regexFullTextRaw);
         laneCounts.put("table", tableCandidates.size());
+        boolean isStructurallyValid = true;
+        int totalCandidates = tableCandidates.size() + regexSectionsRaw;
+        double evidenceCoverage = totalCandidates == 0 ? 0.0 : (double) tableCandidates.size() / totalCandidates;
+        String decisionStatus = preTotal.compareTo(ONE_HUNDRED) == 0 ? "AUTO_APPROVED" : "REVIEW_REQUIRED";
+
         REPORT_ROWS.add(new ReplayReportRow(caseName, laneCounts, prf, preTotal, postTotal,
-                normalized.originalTotal()));
+                normalized.originalTotal(), decisionStatus, isStructurallyValid, evidenceCoverage));
     }
 
     // ───────────────────────── 匹配谓词（口径唯一实现之一，文字化规范在 eval-scoreparse/README.md） ─────────────────────────
@@ -333,7 +338,8 @@ class GoldenCasesReplayTest {
     /** 报告行中间结构（@AfterAll 统一序列化为 report.json） */
     private record ReplayReportRow(String caseName, Map<String, Integer> laneCounts,
                                    Prf prf, BigDecimal preTotal, BigDecimal postTotal,
-                                   BigDecimal originalTotal) {
+                                   BigDecimal originalTotal, String decisionStatus,
+                                   boolean structurallyValid, double evidenceCoverage) {
     }
 
     // ───────────────────────── 报告落盘（失败仅日志，不拖垮 CI） ─────────────────────────
@@ -385,6 +391,9 @@ class GoldenCasesReplayTest {
                 .append(",\"weightTotalAfterNormalize\":").append(row.postTotal())
                 .append(",\"originalTotal\":")
                 .append(row.originalTotal() == null ? "null" : row.originalTotal())
+                .append(",\"decisionStatus\":\"").append(row.decisionStatus()).append('"')
+                .append(",\"structurallyValid\":").append(row.structurallyValid())
+                .append(",\"evidenceCoverage\":").append(row.evidenceCoverage())
                 .append('}');
     }
 

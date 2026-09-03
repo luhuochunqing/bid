@@ -144,6 +144,11 @@ public class ScoreItemPersistenceService {
 
         for (com.xiyu.bid.scoreparse.domain.ScoreFact f : facts) {
             if (f == null) continue;
+            if (f.validationStatus() == com.xiyu.bid.scoreparse.domain.ScoreFact.ValidationStatus.AUTO_APPROVED
+                    && (f.sourceCellIds() == null || f.sourceCellIds().isEmpty())
+                    && f.weightEvidence() == null) {
+                throw new IllegalArgumentException("持久化服务拒绝无证据自动通过项: factId=" + f.factId());
+            }
             String cellIdsJson = f.sourceCellIds() == null ? "[]"
                     : "[" + f.sourceCellIds().stream().map(c -> "\"" + c + "\"").collect(Collectors.joining(",")) + "]";
             String evidenceJson = null;

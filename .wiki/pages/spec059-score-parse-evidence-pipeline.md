@@ -178,9 +178,33 @@ spec 059 把链路切到「原始 Word 结构 + 确定性事实 + 原文证据 +
   - 后端回放套件 `ScoreParseDualRunTest.java` + Node.js 评估器 `scripts/eval-scoreparse/dual-run.mjs`。
   - 对比 Legacy 与 Evidence 链路在合成金标夹具上的表现，验证零 P0 缺陷（静默归一化篡改分值被 100% 拦截并转 `REVIEW_REQUIRED`），产出 Markdown 报告 `backend/target/scoreparse-dual-run-report.md`。
 
-## Phase 6 待办（see tasks.md）
+## Phase 6：清理、门禁与交付（落地结论）
 
-- Phase 6：金标收口（跨页页码锚点挂账）+ 架构门禁 + 清理
+- **全链路金标回放套件 (T601)**：
+  - 新增 `ScoreParseEvidencePipelineGoldenReplayTest.java`，端到端覆盖 5 大核心闭环：
+    1. Sidecar 合并语义解析与 `CanonicalTableGrid` 结构校验
+    2. 确定性 `ScoreFact` 提取与单元格证据绑定（包含 vMerge 延续行继承 origin 父项关系）
+    3. LLM 操作白名单安全门禁（严格约束为 `KEEP`/`CLASSIFY`/`LINK_PARENT`/`MARK_DUPLICATE`/`REVIEW_REQUIRED`，拦截伪造 ID、低置信度及越权写）
+    4. 7 维度完整性策略校验（精准拦截权重缺口与父子重复，阻断为 `REVIEW_REQUIRED`）
+    5. 持久化不覆盖保护（非 `AUTO_APPROVED` 严格禁止覆盖已有评分项）
+    6. 人工调整审计实体（`ScoreParseReview`）记录操作人、原始分值、调整后分值与原因
+- **硬性架构门禁测试 (T602)**：
+  - 新增 `ScoreParseArchitectureTest.java`，固化三道工程红线：
+    1. `scoreparse.domain` 为纯领域核心，零 Spring/HTTP/JPA 依赖
+    2. `LLM` 与 `infrastructure` 严禁直接构造 `ScoreFact`（必须由确定性提取器产出）
+    3. `ScoreItemPersistenceService` 拒绝无单元格证据且无分值引用的 `AUTO_APPROVED` 项落库
+- **CI 与 Nightly 指标看板 (T603)**：
+  - 在 `.github/workflows/ci.yml` 与 `scripts/pre-push-gate.sh` 中挂载架构与金标回放测试。
+  - 增强 `GoldenCasesReplayTest` 与 `scripts/eval-scoreparse/report.mjs`，生成包含 4 大关键维度的质量与安全看板：
+    - **Lane 分布**：正则候选 vs 表格候选统计
+    - **复核率 (Review Rate)**：准确统计转人工复核的任务占比
+    - **结构失败率 (Structural Failure Rate)**：统计 Word 表格破损阻断率
+    - **证据覆盖率 (Evidence Coverage Rate)**：统计具备原文单元格/文本锚点的比例
+  - 更新 `scripts/eval-scoreparse/nightly-full.sh`，在跑批完成后自动渲染最新 KPI 看板。
+- **清理与正式交付 (T604)**：
+  - 自动归一化在新管线中彻底绝迹；
+  - 字符串 `TableGrid` 退居启发式映射辅助，新版主入口全量统一到 `CanonicalTableGrid`；
+  - 评分相关全量测试集 511 例全绿，FP-Java 架构契约与代码行预算 100% 达标。
 
 ## 索引
 
