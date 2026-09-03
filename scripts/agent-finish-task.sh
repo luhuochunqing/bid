@@ -160,6 +160,18 @@ if [[ "$MERGED_INTO_MAIN" == "0" ]] && git rev-parse --verify --quiet "$TASK_BRA
 fi
 
 # 检查 C: 通过 Gitee API 查询 PR 状态
+# token 自动兜底（lessons §215）：agent 进程树多为 bash，不读 ~/.zshenv，
+# 此前 GITEE_TOKEN 为空时这里静默跳过，PR 明明开着却报"分支尚未合入"。
+if [[ "$MERGED_INTO_MAIN" == "0" ]] && [[ -z "${GITEE_TOKEN:-}" ]]; then
+  _ft_tok="$(bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gitee-token.sh" 2>/dev/null || true)"
+  if [[ -n "$_ft_tok" ]]; then
+    GITEE_TOKEN="$_ft_tok"
+    export GITEE_TOKEN
+  else
+    warn "未找到 GITEE_TOKEN（解析链: env → ~/.config/xiyu/credentials.env → ~/.zshenv → git credential fill），跳过 Gitee API 的 PR 状态复核"
+    warn "  修复: 写入 ~/.config/xiyu/credentials.env 的 export GITEE_TOKEN='你的令牌' 后重跑"
+  fi
+fi
 if [[ "$MERGED_INTO_MAIN" == "0" ]] && [[ -n "${GITEE_TOKEN:-}" ]]; then
   PR_LIST=$(curl -s -H "Authorization: Bearer ${GITEE_TOKEN}" \
     "https://gitee.com/api/v5/repos/${GITEE_OWNER:-allinai888}/${GITEE_REPO:-bid}/pulls?state=all&head=${TASK_BRANCH//\//%2F}&base=${GITEE_BASE_BRANCH:-main}" 2>/dev/null)

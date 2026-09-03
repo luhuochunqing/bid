@@ -35,29 +35,32 @@ case "$remote_url" in
     fi
     ;;
   *gitee.com*)
-    # Fallback: 如果 bash 环境中 GITEE_TOKEN 未设置，尝试从 zshenv 读取
-    # 背景：用户在 ~/.zshenv 中 export GITEE_TOKEN，但 bash 不读 .zshenv
-    if [[ -z "${GITEE_TOKEN:-}" && -f "${HOME}/.zshenv" ]]; then
-      _zshenv_token="$(grep -E '^export[[:space:]]+GITEE_TOKEN=' "${HOME}/.zshenv" | head -1 | sed 's/^export[[:space:]]*GITEE_TOKEN=//' | tr -d "\"'" )"
-      if [[ -n "$_zshenv_token" ]]; then
-        GITEE_TOKEN="$_zshenv_token"
+    # token 统一走 gitee-token.sh 解析链（env → ~/.config/xiyu/credentials.env →
+    # ~/.zshenv → git credential fill）。背景（lessons §215）：用户在 ~/.zshenv 中
+    # export GITEE_TOKEN，但 bash 不读 .zshenv，agent 进程树经常不带该环境变量。
+    if [[ -z "${GITEE_TOKEN:-}" ]]; then
+      _pt_tok="$(bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/gitee-token.sh" 2>/dev/null || true)"
+      if [[ -n "$_pt_tok" ]]; then
+        GITEE_TOKEN="$_pt_tok"
         export GITEE_TOKEN
       fi
-      unset _zshenv_token
+      unset _pt_tok
     fi
     if [[ -z "${GITEE_TOKEN:-}" ]]; then
       echo ""
       echo "╔══════════════════════════════════════════════════════════════╗"
-      echo "║  ❌ GITEE_TOKEN 未设置                                    ║"
-      echo "║                                                          ║"
-      echo "║  当前远端是 Gitee，必须设置 GITEE_TOKEN 才能创建 PR。     ║"
-      echo "║                                                          ║"
-      echo "║  设置方式:                                                ║"
-      echo "║    export GITEE_TOKEN='your_personal_access_token'        ║"
-      echo "║    或写入 ~/.zshenv:  export GITEE_TOKEN='...'            ║"
-      echo "║    或写入 ~/.bashrc:  export GITEE_TOKEN='...'            ║"
-      echo "║                                                          ║"
-      echo "║  申请 Token: https://gitee.com/profile/personal_tokens    ║"
+      echo "║  ❌ 找不到可用的 GITEE_TOKEN                                ║"
+      echo "║                                                            ║"
+      echo "║  当前远端是 Gitee，必须有 GITEE_TOKEN 才能创建 PR。        ║"
+      echo "║  解析链均未命中: env → ~/.config/xiyu/credentials.env      ║"
+      echo "║                  → ~/.zshenv → git credential fill         ║"
+      echo "║                                                            ║"
+      echo "║  修复方式（推荐 1）:                                       ║"
+      echo "║    1. 写入 ~/.config/xiyu/credentials.env:                 ║"
+      echo "║       export GITEE_TOKEN='your_personal_access_token'      ║"
+      echo "║    2. 或临时注入: export GITEE_TOKEN='...'                 ║"
+      echo "║                                                            ║"
+      echo "║  申请 Token: https://gitee.com/profile/personal_tokens     ║"
       echo "╚══════════════════════════════════════════════════════════════╝"
       echo ""
       exit 1

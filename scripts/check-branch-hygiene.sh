@@ -35,8 +35,15 @@ if command -v gh &>/dev/null; then
 fi
 
 # Fallback: Gitee API via gitee-pr-helper when gh not available or no PR found
-if [[ -z "$PR_NUM" ]] && [[ -n "${GITEE_TOKEN:-}" ]] && [[ -f "$(git rev-parse --show-toplevel 2>/dev/null)/scripts/gitee-pr-helper.sh" ]]; then
-  PR_NUM=$(GITEE_TOKEN="$GITEE_TOKEN" bash "$(git rev-parse --show-toplevel)/scripts/gitee-pr-helper.sh" list "$BRANCH" 2>/dev/null | grep -Eo '#[0-9]+' | head -1 | tr -d '#')
+# token 走 gitee-token.sh 统一解析链（lessons §215：agent 进程树多为 bash，不读 ~/.zshenv）
+_REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
+if [[ -z "$PR_NUM" ]] && [[ -n "$_REPO_ROOT" ]] && [[ -f "${_REPO_ROOT}/scripts/gitee-pr-helper.sh" ]]; then
+  if [[ -z "${GITEE_TOKEN:-}" ]] && [[ -f "${_REPO_ROOT}/scripts/gitee-token.sh" ]]; then
+    GITEE_TOKEN="$(bash "${_REPO_ROOT}/scripts/gitee-token.sh" 2>/dev/null || true)"
+  fi
+  if [[ -n "${GITEE_TOKEN:-}" ]]; then
+    PR_NUM=$(GITEE_TOKEN="$GITEE_TOKEN" bash "${_REPO_ROOT}/scripts/gitee-pr-helper.sh" list "$BRANCH" 2>/dev/null | grep -Eo '#[0-9]+' | head -1 | tr -d '#')
+  fi
 fi
 
 if [[ -z "$PR_NUM" ]]; then
@@ -48,6 +55,7 @@ if [[ -z "$PR_NUM" ]]; then
     echo "[branch-hygiene]   建议: GITEE_TOKEN=xxx ./scripts/gitee-pr-helper.sh create $BRANCH"
   else
     echo "[branch-hygiene] ⚠ 分支 '$BRANCH' 尚未创建 PR"
+    echo "[branch-hygiene]   提示: 未找到 GITEE_TOKEN（修复: 写入 ~/.config/xiyu/credentials.env 的 export GITEE_TOKEN='...'）"
     echo "[branch-hygiene]   建议: git push → Gitee UI 创建 PR"
   fi
   ISSUES=1

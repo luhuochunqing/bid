@@ -13,7 +13,8 @@
 #   GITEE_TOKEN=xxx ./scripts/gitee-pr-helper.sh approve <num> # 查看 PR 审核状态
 #
 # 环境变量:
-#   GITEE_TOKEN     — Gitee 个人访问令牌（必需）
+#   GITEE_TOKEN     — Gitee 个人访问令牌（推荐显式注入；未设置时自动走 gitee-token.sh 解析链:
+#                     env → ~/.config/xiyu/credentials.env → ~/.zshenv → git credential fill）
 #   GITEE_OWNER     — 仓库所有者（默认: allinai888）
 #   GITEE_REPO      — 仓库名（默认: bid）
 #   GITEE_BASE_BRANCH — 目标分支（默认: main）
@@ -32,6 +33,11 @@
 #              非 JSON 响应则静默计 0，把鉴权失败伪装成"无 PR"（假阴性）。
 #              收敛为统一 gitee_get + require_json_response（状态码 + list/object 形状），
 #              401/403 附带 token 提示；新增 GITEE_API_BASE 覆盖供契约测试 mock。
+#   2026-09-03 token 不再要求"必须由环境注入"：GITEE_TOKEN 为空时自动调
+#              gitee-token.sh 统一解析链（env → ~/.config/xiyu/credentials.env →
+#              ~/.zshenv → git credential fill）。根因：agent 进程树多为 bash，
+#              不读 ~/.zshenv，此前直接报"需要 GITEE_TOKEN 环境变量"，各 Agent
+#              建 PR 时反复"找不到 token"（lessons §215）。
 set -euo pipefail
 
 GITEE_OWNER="${GITEE_OWNER:-allinai888}"
@@ -45,10 +51,29 @@ usage() {
   exit 1
 }
 
-check_token() {
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# token 自动兜底：环境未注入时走 gitee-token.sh 统一解析链。
+# 为什么不能只靠环境变量：gitee-pr-helper 由 bash 执行，bash 不读 ~/.zshenv，
+# 而 agent 进程树（bash -c / GUI / 清理过 env 的 harness）经常不带 GITEE_TOKEN。
+resolve_token() {
   if [[ -z "${GITEE_TOKEN:-}" ]]; then
-    echo "[gitee-pr] 错误: 需要 GITEE_TOKEN 环境变量" >&2
-    echo "[gitee-pr] 请先在 https://gitee.com/profile/personal_access_tokens 创建令牌" >&2
+    GITEE_TOKEN="$(bash "${SCRIPT_DIR}/gitee-token.sh" 2>/dev/null || true)"
+    if [[ -n "$GITEE_TOKEN" ]]; then
+      export GITEE_TOKEN
+    fi
+  fi
+}
+
+check_token() {
+  resolve_token
+  if [[ -z "${GITEE_TOKEN:-}" ]]; then
+    echo "[gitee-pr] 错误: 找不到可用的 GITEE_TOKEN（解析链: env → ~/.config/xiyu/credentials.env → ~/.zshenv → git credential fill）" >&2
+    echo "[gitee-pr] 修复方式（推荐 1）:" >&2
+    echo "[gitee-pr]   1. 写入 ~/.config/xiyu/credentials.env:  export GITEE_TOKEN='你的令牌'" >&2
+    echo "[gitee-pr]   2. 或写入 ~/.zshenv:                     export GITEE_TOKEN='你的令牌'" >&2
+    echo "[gitee-pr]   3. 或临时注入: GITEE_TOKEN=xxx $0 ${SUBCOMMAND:-list}" >&2
+    echo "[gitee-pr] 申请令牌: https://gitee.com/profile/personal_access_tokens" >&2
     exit 1
   fi
 }
@@ -79,7 +104,7 @@ require_json_response() {
       echo "[gitee-pr] 响应: ${snippet}" >&2
     fi
     if [[ "$status" == "401" || "$status" == "403" ]]; then
-      echo "[gitee-pr] 提示: GITEE_TOKEN 缺失、无效或已过期——请更新 ~/.zshenv 中的令牌后重试" >&2
+      echo "[gitee-pr] 提示: GITEE_TOKEN 无效或已过期——更新令牌后重试（写入 ~/.config/xiyu/credentials.env 或 ~/.zshenv 的 export GITEE_TOKEN='...'）" >&2
     fi
     rm -f "$body_file"
     exit 1
@@ -251,7 +276,7 @@ print(json.dumps({
     echo "[gitee-pr] ❌ 创建失败 (HTTP ${create_status})" >&2
     head -c 500 "$result_file" 2>/dev/null >&2; echo >&2
     if [[ "$create_status" == "401" || "$create_status" == "403" ]]; then
-      echo "[gitee-pr] 提示: GITEE_TOKEN 缺失、无效或已过期——请更新 ~/.zshenv 中的令牌后重试" >&2
+      echo "[gitee-pr] 提示: GITEE_TOKEN 无效或已过期——更新令牌后重试（写入 ~/.config/xiyu/credentials.env 或 ~/.zshenv 的 export GITEE_TOKEN='...'）" >&2
     fi
     rm -f "$result_file"
     exit 1

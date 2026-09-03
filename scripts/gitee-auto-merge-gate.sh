@@ -32,9 +32,18 @@ API="https://gitee.com/api/v5/repos/${GITEE_OWNER}/${GITEE_REPO}"
 echo "[auto-merge] === Gitee Auto-Merge Gate ==="
 
 # --- Prerequisites ---
+# token 自动兜底：环境未注入时走 gitee-token.sh 统一解析链（lessons §215：
+# agent 进程树多为 bash，不读 ~/.zshenv，此前在这里静默跳过自动合并）
 if [[ -z "${GITEE_TOKEN:-}" ]]; then
-  echo "[auto-merge] ⚠ GITEE_TOKEN 未设置，跳过自动合并"
-  echo "[auto-merge] 设置 GITEE_TOKEN 可启用自动合并"
+  GITEE_TOKEN="$(bash "${SCRIPT_DIR}/gitee-token.sh" 2>/dev/null || true)"
+  if [[ -n "$GITEE_TOKEN" ]]; then
+    export GITEE_TOKEN
+  fi
+fi
+
+if [[ -z "${GITEE_TOKEN:-}" ]]; then
+  echo "[auto-merge] ⚠ 找不到 GITEE_TOKEN（解析链: env → ~/.config/xiyu/credentials.env → ~/.zshenv → git credential fill），跳过自动合并"
+  echo "[auto-merge] 修复: 写入 ~/.config/xiyu/credentials.env 的 export GITEE_TOKEN='你的令牌'"
   exit 0
 fi
 
