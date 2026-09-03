@@ -3915,3 +3915,21 @@ M1 部门筛选树锚定西域集团(0001)子树三级展示（PR !2474）后，
 | 门禁把环境缺失误报为代码问题 | 只看退出码不区分失败形态 | 门禁失败先看**原始报错**再定性；"command not found / 模块缺失"走装依赖路径，不绕门禁 |
 | 临时 worktree 每次收尾都会踩一遍 | worktree 纯源码约定与门禁的 lint/test 步骤天然冲突 | 长期对策（挂账）：门禁对 eslint 缺失给出明确文案或检测 node_modules；短期：收尾前先 `npm install` |
 | `npm ci` 在本仓库不可用 | 仓库从未提交 package-lock.json | 前端依赖一致性靠 install 现算；如需可复现构建应提交 lockfile（另行决策） |
+
+## 212. 外部 API 错误响应被当数据解析：401 字典被计成 1 条记录，鉴权失败被伪装成"无数据"（2026-09-03，gitee-pr-helper.sh list 崩溃）
+
+**背景**：`scripts/gitee-pr-helper.sh list` 对 `curl -s` 响应不做任何校验，直接 `len(data)` 计数再逐条 `pr.get(...)`。token 失效时 Gitee 返回 401 错误字典 `{"message":"..."}`——被 `len()` 数出 1 个键，打印"找到 1 个开放 PR"后在解析循环抛 `AttributeError: 'str' object has no attribute 'get'`；非 JSON 响应（网关 HTML）则让 python 失败、被 `2>/dev/null || echo "0"` 吞成 0，把鉴权失败伪装成"无开放 PR，建议创建"。
+
+**根因分析**：
+1. **错误响应与正常数据同形地流入解析管道**：HTTP 状态码和 JSON 形状（list vs dict）两层校验全部缺失，`len(错误字典)` 与 `len(数据数组)` 在语法上都合法；
+2. **单行管道 + stderr 静默**：`curl | python3 -c ... 2>/dev/null || echo "0"` 把"解析失败"与"空列表"折叠成同一个返回值，假阴性比崩溃更危险——它给出一个看起来正常的错误结论；
+3. **同类坏模式在同一脚本里复制了 4 处**（list / create 已有 PR 检查 / check / mergeable 预断言），而 `approve` 子命令里其实早有正确的 `isinstance(data, list)` 写法——说明修复成本极低，缺的是统一收口。
+
+**解决方案**：统一 `gitee_get`（curl `-w` 取状态码、body 落临时文件）+ `require_json_response`（非 2xx 显式报错、401/403 附带 token 更新提示、list/object 形状断言）；新增 `GITEE_API_BASE` 覆盖供 mock 契约测试；5 场景 18 项断言全绿（scripts/test/gitee-pr-helper-contract.sh）。修复见 commit c5ee9dfce（PR !2513）。
+
+**教训**：
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| 错误字典被当数据计数/遍历 | 只写 happy-path 解析，`dict` 与 `list` 语法上都能被 `len()`/`for` | 调外部 API 一律先验 HTTP 状态码、再验 JSON 形状，两层都过才进业务解析 |
+| 解析失败静默降级为"空结果" | `2>/dev/null \|\| echo "0"` 把异常折叠成正常值 | "失败"与"空"必须可区分；鉴权/网络类失败要带可操作提示（如更新 token） |
+| token 有多套配置（shell 环境变量 vs MCP config.json headers），且 MCP 连接在会话启动时建立 | 改了 `~/.zshenv` 以为全好了；MCP 401 误判成 token 无效 | 认证链路分段验证：先用 curl 直接打 API 确认凭证本身；MCP 报 401 先分辨"配置错"还是"连接未刷新"（改配置必须重启会话） |
