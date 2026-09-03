@@ -24,6 +24,18 @@
         <div class="detail-value detail-location-text">📄 {{ item.location }}</div>
       </div>
 
+      <div v-if="item?.sourceCellIds || item?.extractionMethod" class="detail-row">
+        <div class="detail-label">表格单元格证据</div>
+        <div class="detail-value detail-evidence-text">
+          <span v-if="item.extractionMethod" class="pill info" style="margin-right: 6px;">{{ item.extractionMethod }}</span>
+          <span v-if="item.sourceCellIds" class="doc-tag" style="margin-right: 6px;">单元格 {{ item.sourceCellIds }}</span>
+          <span v-if="item.confidence" class="doc-tag">置信度 {{ item.confidence }}</span>
+          <div v-if="item.weightEvidence" class="weight-evidence-text" style="margin-top: 4px; font-size: 12px; color: var(--text-muted);">
+            权重依据: {{ item.weightEvidence }}
+          </div>
+        </div>
+      </div>
+
       <div class="detail-row">
         <div class="detail-label">所属评分项 / 权重 / 评分类别</div>
         <div class="detail-value">

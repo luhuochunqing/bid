@@ -64,7 +64,9 @@ final class ScoreParseItemsMetaBuilder {
                 parseTask == null ? null : parseTask.getRunSummary(),
                 parseTask == null ? null : parseTask.getPipelineVersion(),
                 parseTask == null ? null : parseTask.getDecisionStatus(),
-                parseTask == null ? null : parseTask.getFallbackReason());
+                parseTask == null ? null : parseTask.getFallbackReason(),
+                parseTask == null ? null : parseTask.getArtifactSha256(),
+                parseTask == null ? null : parseTask.getReviewReason());
     }
 
     private Integer countReused(Long projectId) {

@@ -79,7 +79,8 @@
     "check:frontend-api-base": "node scripts/check-frontend-api-base.mjs",
     "build:check": "node scripts/check-inlined-composables.cjs",
     "eval:scoreparse:replay": "mvn -f backend/pom.xml test -Dtest='GoldenCasesReplayTest'",
-    "eval:scoreparse:report": "node scripts/eval-scoreparse/report.mjs"
+    "eval:scoreparse:report": "node scripts/eval-scoreparse/report.mjs",
+    "eval:scoreparse:dual-run": "node scripts/eval-scoreparse/dual-run.mjs"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.0",

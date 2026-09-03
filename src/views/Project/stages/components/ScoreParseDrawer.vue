@@ -50,6 +50,12 @@
         <div class="toolbar">
           <div class="toolbar-info">
             <span class="doc-tag">📄 招标文件：{{ sourceFileName }}</span>
+            <span v-if="decisionStatus" :class="['doc-tag', 'decision-tag', decisionBadgeType]" data-test="score-parse-decision-status">
+              {{ decisionBadgeText }}
+            </span>
+            <span v-if="reviewReason" class="doc-tag review-reason-tag" :title="reviewReason">
+              理由: {{ reviewReason }}
+            </span>
             <span class="doc-time">解析时间 {{ parseTime }}</span>
           </div>
         </div>
@@ -193,6 +199,7 @@ const {
   scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult, totalWeight, objectiveWeight,
   subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
   openDetail, open, runScoring, reparse,
+  decisionStatus, decisionBadgeType, decisionBadgeText, reviewReason,
 } = useScoreParseDrawer(props, emit)
 
 defineExpose({ open, runScoring })
@@ -256,6 +263,12 @@ defineExpose({ open, runScoring })
 .status-cell.ok { color: var(--status-success-color); }
 .status-cell.danger { color: var(--status-danger-color); }
 .status-cell.neutral { color: var(--text-muted); }
+
+.decision-tag.success { background: var(--status-success-bg); color: var(--status-success-color); border: 1px solid var(--status-success-border); font-weight: 600; }
+.decision-tag.warning { background: var(--status-warning-bg); color: var(--status-warning-color); border: 1px solid var(--status-warning-border); font-weight: 600; }
+.decision-tag.danger { background: var(--status-danger-bg); color: var(--status-danger-color); border: 1px solid var(--status-danger-border); font-weight: 600; }
+.decision-tag.info { background: var(--status-info-bg); color: var(--status-info-color); border: 1px solid var(--status-info-border); }
+.review-reason-tag { background: var(--status-warning-bg-soft); color: var(--status-warning-color); max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
 
 <!-- 全局：el-drawer teleport 后根元素不带 scoped data-v，scoped/:deep 选择器无法命中，必须用类前缀全局规则 -->

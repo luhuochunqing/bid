@@ -33,7 +33,7 @@ public record ScoreParseItemsDTO(
      * 来源信息栏元数据：招标文件名/解析时间来自最新快照与最近 PARSE 任务；
      * 投标文件名/评分时间来自最近 SCORING 任务（fileName 即上传的投标文件名）。
      * lastParseStatus/lastParseError：最近一条 PARSE 任务；无 PARSE 行时均为 null。
-     * <p>spec 059 Phase 0：末尾追加 pipelineVersion / decisionStatus / fallbackReason 三字段，
+     * <p>spec 059 Phase 0 & Phase 5：末尾追加 pipelineVersion / decisionStatus / fallbackReason / artifactSha256 / reviewReason，
      * 全部可空，旧调用方零改动。
      */
     public record Meta(
@@ -51,7 +51,9 @@ public record ScoreParseItemsDTO(
             String runSummary,
             String pipelineVersion,
             String decisionStatus,
-            String fallbackReason
+            String fallbackReason,
+            String artifactSha256,
+            String reviewReason
     ) {
         /** 向后兼容构造器：旧测试/调用方继续可用，新字段默认 null。 */
         public Meta(String sourceFileName, LocalDateTime parseTime, String bidFileName,
@@ -60,7 +62,18 @@ public record ScoreParseItemsDTO(
                 Integer reusedItemCount, Integer skippedChunks, String runSummary) {
             this(sourceFileName, parseTime, bidFileName, scoreTime, lastParseStatus, lastParseError,
                     lastScoringOutcome, lastScoringHint, circuitOpen, reusedItemCount,
-                    skippedChunks, runSummary, null, null, null);
+                    skippedChunks, runSummary, null, null, null, null, null);
+        }
+
+        /** 向后兼容构造器（Phase 0 15 参构造器）。 */
+        public Meta(String sourceFileName, LocalDateTime parseTime, String bidFileName,
+                LocalDateTime scoreTime, String lastParseStatus, String lastParseError,
+                String lastScoringOutcome, String lastScoringHint, Boolean circuitOpen,
+                Integer reusedItemCount, Integer skippedChunks, String runSummary,
+                String pipelineVersion, String decisionStatus, String fallbackReason) {
+            this(sourceFileName, parseTime, bidFileName, scoreTime, lastParseStatus, lastParseError,
+                    lastScoringOutcome, lastScoringHint, circuitOpen, reusedItemCount,
+                    skippedChunks, runSummary, pipelineVersion, decisionStatus, fallbackReason, null, null);
         }
     }
 }
