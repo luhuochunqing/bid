@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Input: uploaded release archive path, remote host deployment paths, service restart configuration, backend.env AI_PROVIDER guard, and optional DB_BACKUP_COMMAND (pre-activation DB backup)
+# Input: uploaded release archive path, remote host deployment paths, service restart configuration, backend.env AI_PROVIDER guard, optional DB_BACKUP_COMMAND (pre-activation DB backup), and optional FLYWAY_REPAIR_RUNNER (defaults to $APP_ROOT/bin/flyway-repair-runner.sh, the authoritative runner location)
 # Output: pre-activation DB backup + Flyway validate + atomically activated release files, restarted backend service, and remote health verification
 # Pos: scripts/release/ - Release automation and rehearsal helpers
 # 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
@@ -137,9 +137,12 @@ fi
 # Spring Boot validateOnMigrate 会让后端拒绝启动，remote-deploy 会卡满 8 分钟 health 超时才失败。
 # 本预检在"任何版本切换"之前用当前运行中的 jar 自带 Flyway 跑 validate，失败则停止 rollout，
 # 此时旧 jar 仍在运行、前端也未切换（前后端版本一致），操作者可安全用 flyway-repair-runner.sh 处置。
-# 依赖：flyway-repair-runner.sh 需与 remote-deploy.sh 一同部署到服务器（如 /tmp/ 或 $APP_ROOT/bin/）。
+# 依赖：flyway-repair-runner.sh 权威位置为 $APP_ROOT/bin/（deploy-test.sh / deploy-prod.sh 每次部署
+# 都会 scp 最新版至此，与 remote-deploy.sh 同步演进）。禁止从 $(dirname $0) 解析：incoming/ 会残留
+# 历史旧版 runner（第 155 次部署事故：旧版缺 ignoreMigrationPatterns("*:pending")，把 pending 新迁移
+# 误报为 validate 失败）；CI 经 bash -s 执行时 dirname 更不可预测。
 # 跳过：SKIP_FLYWAY_VALIDATE=1（紧急/离线场景）
-FLYWAY_REPAIR_RUNNER="${FLYWAY_REPAIR_RUNNER:-$(dirname "$0")/flyway-repair-runner.sh}"
+FLYWAY_REPAIR_RUNNER="${FLYWAY_REPAIR_RUNNER:-$APP_ROOT/bin/flyway-repair-runner.sh}"
 if [[ "${SKIP_FLYWAY_VALIDATE:-0}" != "1" && -x "$FLYWAY_REPAIR_RUNNER" ]]; then
   printf '==> Flyway validate pre-check (before any version activation)\n'
   # validate 失败时阻止 rollout；此时旧 jar 未被覆盖、前端未切换，前后端版本一致
@@ -156,8 +159,8 @@ if [[ "${SKIP_FLYWAY_VALIDATE:-0}" != "1" && -x "$FLYWAY_REPAIR_RUNNER" ]]; then
   fi
   printf '✅ Flyway validate 通过（仅 pending 新迁移为预期状态）\n\n'
 elif [[ "${SKIP_FLYWAY_VALIDATE:-0}" != "1" ]]; then
-  printf '⚠️  Flyway validate 预检跳过：flyway-repair-runner.sh 不可用 (%s)\n' "$FLYWAY_REPAIR_RUNNER"
-  printf '   建议将其与 remote-deploy.sh 一起上传，获得 checksum mismatch 前置拦截能力。\n\n'
+  printf '⚠️  Flyway validate 预检跳过：flyway-repair-runner.sh 不可用 (%s)\n' "$FLYWAY_REPAIR_RUNNER" >&2
+  printf '   权威位置为 %s/bin/（deploy-test.sh / deploy-prod.sh 会自动上传最新版），补齐后重跑部署即可获得 checksum mismatch 前置拦截。\n\n' "$APP_ROOT" >&2
 fi
 
 printf '==> Activating frontend assets\n'
