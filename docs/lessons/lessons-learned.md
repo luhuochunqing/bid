@@ -3971,3 +3971,25 @@ M1 部门筛选树锚定西域集团(0001)子树三级展示（PR !2474）后，
 |---|---|---|
 | 后端算法权重优化，前端解释性 Tooltip 遗漏同步 | 变更只关注了算法类和单测，未将配套的 UI 文案纳入变更清单 | 算法策略重构必须全链路检索前端引用与 Tooltip/Popover 文案，保持 UI 解释性与后端实现同步 |
 | 规则说明文案分值加和超过声明的满分 | 盲目照抄带 min(score, 100) 兜底的后端常量，未做文案层算术验算 | UI 展示的满分规则必须在表面逻辑上自洽，分项分值加和必须与总分严格吻合 |
+
+## 215. Gitee token 多源打架：有效 token 被"看不见"，兜底工具兜回死 token（2026-09-03，各 Agent 提 PR 反复"找不到 token"数月根因）
+
+**背景**：远端迁移 Gitee 后数月，各 Agent 完成任务提交 PR 时反复报"找不到 GITEE_TOKEN"或 401，同机不同时刻结局不同，呈"玄学"。实测定位：同一台机器上 `~/.zshenv` 的 `GITEE_TOKEN` 打 API 是 **200 有效**，而 `scripts/gitee-token.sh`（专门写的解析器）返回的 token 却是 **401 死 token**；`~/.git-credentials` 里积累 3 条历史 gitee 条目；`launchctl`（GUI 应用）环境里 token 为空。
+
+**根因分析**：
+1. **token 可达性取决于进程树的 shell 类型，而非仓库**：`~/.zshenv` 只有 zsh 读（`~/.zshrc` 仅交互式 zsh 读，bash/GUI 全都不读）。从交互终端启动的 agent 能继承 token；bash 子进程、GUI/launchd 启动的应用、清理过 env 的 harness 全部读不到。同一个 `LINEAR_API_KEY` 只写在 `~/.zshrc`，非交互会话实测为空——机制在自家环境就有活体证据。
+2. **脚本防线不一致**：`pr-create.sh` 有人补过 `~/.zshenv` grep 兜底；主路径 `gitee-pr-helper.sh` 无任何兜底（env 空直接报错）；`agent-finish-task.sh` 与 `gitee-auto-merge-gate.sh` 在 token 缺失时**静默跳过**（PR 明明开着却报"分支尚未合入"/"跳过自动合并"）。Agent 走不同链路，结局完全不同。
+3. **兜底工具优先级倒挂**：`gitee-token.sh` 把 `git credential fill` 排在环境变量**前面**，而 `~/.git-credentials` 积累的 3 条历史条目里第一条就是过期 PAT——兜底工具自己兜回 401 死 token。
+4. **报错文案误导**：401 统一提示"请更新 ~/.zshenv 中的令牌"，用户更新后部分链路照旧 401（token 是好的，链路读不到），形成"改了没用"的循环困惑。
+
+**解决方案**：
+1. `scripts/gitee-token.sh` 重写为四级解析链：**env → `~/.config/xiyu/credentials.env`（推荐唯一真相源，chmod 600）→ `~/.zshenv` grep（历史兼容）→ `git credential fill`（最后手段，且 `GIT_TERMINAL_PROMPT=0` 防挂死）**；`GITEE_TOKEN_DEBUG=1` 可打印命中来源（不打印 token 值）。
+2. 五个 Gitee API 脚本统一接线：`gitee-pr-helper.sh` / `pr-create.sh` / `agent-finish-task.sh` / `check-branch-hygiene.sh` / `gitee-auto-merge-gate.sh` 在 token 为空时自动调解析器；"静默跳过"全部改为显式提示 + 修复路径；401 文案改为指向解析链而非单指 `~/.zshenv`。
+3. 契约测试 `scripts/test/gitee-token-contract.sh`：假 HOME 隔离覆盖 4 级优先级、引号写法兼容、调试输出、四级全空报错、helper 集成兜底与 401 提示，14 项断言（存量 helper 契约 18 项回归全绿）。
+
+**教训**：
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| 凭证只放 shell rc 文件，agent 读不到 | 误以为 `~/.zshenv` 是全局的；实际 bash/GUI/非交互进程全不读 | 凭证落盘到 shell 无关的文件（`~/.config/xiyu/credentials.env`，600 权限），脚本侧用解析链兜底，脱离 shell 类型可解析 |
+| 兜底解析器把 `git credential fill` 排第一 | fill"看起来最标准"，未意识到 `~/.git-credentials` 会积累过期条目且 fill 只回第一条 | credential store 类来源永远排解析链最后；优先显式注入的环境变量与显式维护的凭证文件 |
+| token 缺失时脚本静默跳过/统一报"令牌过期" | 降级逻辑只求不崩，没考虑调用方（Agent）会把降级误读为业务结论 | 降级必须显式宣告"为什么跳过 + 去哪修"；报错文案指向修复动作而非猜测原因 |
