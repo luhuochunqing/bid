@@ -24,14 +24,15 @@
         <div class="detail-value detail-location-text">📄 {{ item.location }}</div>
       </div>
 
-      <div v-if="item?.sourceCellIds || item?.extractionMethod" class="detail-row">
+      <div v-if="evidenceCellIds.length || item?.extractionMethod" class="detail-row">
         <div class="detail-label">表格单元格证据</div>
         <div class="detail-value detail-evidence-text">
-          <span v-if="item.extractionMethod" class="pill info" style="margin-right: 6px;">{{ item.extractionMethod }}</span>
-          <span v-if="item.sourceCellIds" class="doc-tag" style="margin-right: 6px;">单元格 {{ item.sourceCellIds }}</span>
-          <span v-if="item.confidence" class="doc-tag">置信度 {{ item.confidence }}</span>
-          <div v-if="item.weightEvidence" class="weight-evidence-text" style="margin-top: 4px; font-size: 12px; color: var(--text-muted);">
-            权重依据: {{ item.weightEvidence }}
+          <span v-if="item?.validationStatus" class="pill" :class="validationStatusClass" style="margin-right: 6px;" :title="validationStatusTitle">{{ validationStatusText }}</span>
+          <span v-if="item?.extractionMethod" class="pill info" style="margin-right: 6px;">{{ item.extractionMethod }}</span>
+          <span v-if="evidenceCellIds.length" class="doc-tag" style="margin-right: 6px;">单元格：{{ evidenceCellIds.join(', ') }}</span>
+          <span v-if="item?.confidence != null" class="doc-tag">置信度 {{ (item.confidence * 100).toFixed(0) }}%</span>
+          <div v-if="weightEvidenceText" class="weight-evidence-text" style="margin-top: 4px; font-size: 12px; color: var(--text-muted);">
+            权重依据：{{ weightEvidenceText }}
           </div>
         </div>
       </div>
@@ -180,6 +181,46 @@ const suggestionText = computed(() => {
   if (currentStatus.value === 'ok') return ''
   return props.result?.suggestion || props.item?.suggestion || ''
 })
+
+// Phase 5 证据字段计算属性
+const evidenceCellIds = computed(() => {
+  const cells = props.item?.sourceCellIds
+  if (Array.isArray(cells)) return cells
+  return []
+})
+
+const weightEvidenceText = computed(() => {
+  const we = props.item?.weightEvidence
+  if (!we) return ''
+  if (typeof we === 'string') return we
+  if (typeof we === 'object') {
+    // 如有 rawText / text / description 字段优先使用文本
+    return we.rawText || we.text || we.description || JSON.stringify(we)
+  }
+  return ''
+})
+
+const VALIDATION_STATUS_MAP = {
+  AUTO_APPROVED: { text: '自动通过', cls: 'success', title: '系统确定性提取，已自动通过' },
+  REVIEW_REQUIRED: { text: '待人工复核', cls: 'warning', title: '需人工确认后方可生效' },
+  STRUCTURE_INCOMPLETE: { text: '结构异常', cls: 'danger', title: '文档结构不完整，无法自动提取' },
+  PARSE_FAILED: { text: '解析失败', cls: 'info', title: '提取失败，建议重新解析' },
+}
+
+const validationStatusClass = computed(() => {
+  const s = VALIDATION_STATUS_MAP[props.item?.validationStatus]
+  return s ? s.cls : ''
+})
+
+const validationStatusText = computed(() => {
+  const s = VALIDATION_STATUS_MAP[props.item?.validationStatus]
+  return s ? s.text : (props.item?.validationStatus || '')
+})
+
+const validationStatusTitle = computed(() => {
+  const s = VALIDATION_STATUS_MAP[props.item?.validationStatus]
+  return s ? s.title : ''
+})
 </script>
 
 <style scoped>
@@ -193,6 +234,9 @@ const suggestionText = computed(() => {
 .pill { font-size: 11px; padding: 1px 6px; border-radius: 3px; font-weight: 600; display: inline-block; }
 .pill.info { background: var(--status-info-bg); color: var(--status-info-color); }
 .pill.neutral { background: var(--status-neutral-bg); color: var(--status-neutral-color); }
+.pill.success { background: var(--status-success-bg); color: var(--status-success-color); border: 1px solid var(--status-success-border); }
+.pill.warning { background: var(--status-warning-bg); color: var(--status-warning-color); border: 1px solid var(--status-warning-border); }
+.pill.danger { background: var(--status-danger-bg); color: var(--status-danger-color); border: 1px solid var(--status-danger-border); }
 .pill.kb-pill { background: #ede9fe; color: #7c3aed; margin-bottom: 4px; font-size: 11px; }
 .kb-hit-badge { margin-bottom: 4px; }
 .status-cell { font-size: 12px; font-weight: 500; }

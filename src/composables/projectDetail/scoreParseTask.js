@@ -32,9 +32,27 @@ export async function pollTask(statusFetcher, taskType = '解析') {
   throw new Error(`${verb}超时，请检查文件大小或稍后重试`)
 }
 
+function safeParseJson(val, fallback) {
+  if (val == null) return fallback
+  if (typeof val === 'object') return val
+  if (typeof val === 'string' && (val.trim().startsWith('[') || val.trim().startsWith('{'))) {
+    try {
+      return JSON.parse(val)
+    } catch {
+      return fallback
+    }
+  }
+  return fallback
+}
+
 export function normalizeScoreItem(s, i) {
   const isSubj = s.scoreType === 'SUBJECTIVE' || s.scoreType === '主观项'
   const status = STATUS_MAP[s.status] || 'neutral'
+  const parsedCells = safeParseJson(s.sourceCellIds, null)
+  const cellList = Array.isArray(s.sourceCellIds)
+    ? s.sourceCellIds
+    : (Array.isArray(parsedCells) ? parsedCells : (s.sourceCellIds ? [String(s.sourceCellIds)] : []))
+
   return {
     id: s.id,
     code: s.code || `S${i + 1}`,
@@ -51,6 +69,12 @@ export function normalizeScoreItem(s, i) {
     sourceText: s.sourceText || s.detail || '',
     contextNote: s.contextNote || '',
     location: s.location || '',
+    sourceCellIds: cellList,
+    weightEvidence: safeParseJson(s.weightEvidence, s.weightEvidence || null),
+    extractionMethod: s.extractionMethod || '',
+    confidence: s.confidence != null ? Number(s.confidence) : null,
+    validationStatus: s.validationStatus || '',
+    parentScoreItemId: s.parentScoreItemId || null,
   }
 }
 
