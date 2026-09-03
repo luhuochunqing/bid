@@ -155,7 +155,7 @@ import { ref, computed, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle.js'
 import { deleteDocument, getDocuments } from '@/api/modules/projectDocuments.js'
-import { STAGE_TRANSITION_MAP } from '@/constants/projectStages.js'
+import { STAGE_TRANSITION_MAP, PROJECT_STAGES } from '@/constants/projectStages.js'
 import { useUserStore } from '@/stores/user'
 import ProjectDocumentTable from './components/ProjectDocumentTable.vue'
 import AiRecommendDrawer from './components/AiRecommendDrawer.vue'
@@ -284,9 +284,15 @@ async function customUpload(options) {
 }
 // 防重复点击守卫：DELETE 请求期间禁用同一 documentId 的二次点击
 const { isDeleting: isBidFileDeleting, safeDelete: safeDeleteBidFile } = useDeleteGuard()
-// CO-381: 投标文件下载守卫——仅当项目仍处于 DRAFTING 阶段（含 submit-review 的 REVIEWING 子状态）
-// 且当前用户有下载权限时允许下载。推进到 EVALUATING/CLOSED 等后续阶段后，文件名可见但下载禁用。
-const canDownloadBidFile = computed(() => perm.canDownloadDocument && props.currentStage === 'DRAFTING')
+function getStageTitle(stageCode) {
+  return PROJECT_STAGES.find(s => s.code === stageCode)?.title || stageCode
+}
+
+// CO-381 / CO-442: 投标文件下载守卫——DRAFTING 阶段（含 submit-review 子状态）和 CLOSED 阶段
+// （结项后知识库积累）允许下载。中间阶段（EVALUATING/RESULT_PENDING/RETROSPECTIVE）只读不可下载。
+const canDownloadBidFile = computed(() =>
+  perm.canDownloadDocument && (props.currentStage === 'DRAFTING' || props.currentStage === 'CLOSED')
+)
 // CO-382: 删除按钮守卫——仅"上传后、提交前"允许删除。
 // 允许删除：reviewState === null（未提交审核）或 'rejected'（被驳回，可修改后重提）。
 // 禁止删除：'reviewing'（审核中）/ 'approved'（已通过，bidDone 会接管）/ bidDone（已投标）。
@@ -303,9 +309,19 @@ function canDeleteThisFile(file) {
   })
 }
 function handleDownloadBidFile(file) {
-  // CO-381: 阶段守卫 + 权限守卫。前端守卫是体验层，后端 ProjectDocumentDownloadService 还有深度防御。
-  if (!canDownloadBidFile.value) return
-  const id = file.response?.data?.id; if (!id) return ElMessage.warning('文件信息缺失，无法下载'); downloadWithFilename(`/api/projects/${props.projectId}/documents/${id}/download`, file.name || '投标文件')
+  // CO-381 / CO-442: 阶段守卫 + 权限守卫。前端提供精准反馈，后端 ProjectDocumentDownloadService 深度防御。
+  if (!perm.canDownloadDocument) {
+    ElMessage.warning('您暂无下载权限')
+    return
+  }
+  if (props.currentStage !== 'DRAFTING' && props.currentStage !== 'CLOSED') {
+    const stageTitle = getStageTitle(props.currentStage)
+    ElMessage.warning(`投标文件已进入「${stageTitle}」阶段，文件只读不可下载`)
+    return
+  }
+  const id = file.response?.data?.id
+  if (!id) return ElMessage.warning('文件信息缺失，无法下载')
+  downloadWithFilename(`/api/projects/${props.projectId}/documents/${id}/download`, file.name || '投标文件')
 }
 const qualityCheckRef = ref(null)
 const projectDocTableRef = ref(null)

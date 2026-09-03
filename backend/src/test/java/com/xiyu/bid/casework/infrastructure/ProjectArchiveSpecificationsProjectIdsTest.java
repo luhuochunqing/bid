@@ -93,6 +93,47 @@ class ProjectArchiveSpecificationsProjectIdsTest {
         assertThat(result).hasSize(2);
     }
 
+    @Test
+    void withFilters_projectId_filtersToSingleProject() {
+        // given: 3 个项目档案
+        persistArchive(100L, "项目 100");
+        persistArchive(200L, "项目 200");
+        persistArchive(300L, "项目 300");
+        entityManager.flush();
+        entityManager.clear();
+
+        // when: 指定单项目 projectId=200
+        ProjectArchiveQuery query = new ProjectArchiveQuery();
+        query.setProjectId(200L);
+
+        List<ProjectArchive> result = archiveRepository.findAll(
+                ProjectArchiveSpecifications.withFilters(query, List.of(), true));
+
+        // then: 仅返回该项目档案
+        assertThat(result)
+                .extracting(ProjectArchive::getProjectId)
+                .containsExactly(200L);
+    }
+
+    @Test
+    void withFilters_projectId_intersectsWithAllowedProjectIdsForNonAdmin() {
+        // given: 2 个项目档案
+        persistArchive(100L, "项目 100");
+        persistArchive(200L, "项目 200");
+        entityManager.flush();
+        entityManager.clear();
+
+        // when: 非 admin 查询未授权的项目
+        ProjectArchiveQuery query = new ProjectArchiveQuery();
+        query.setProjectId(200L);
+
+        List<ProjectArchive> result = archiveRepository.findAll(
+                ProjectArchiveSpecifications.withFilters(query, List.of(100L), false));
+
+        // then: 无权限返回空
+        assertThat(result).isEmpty();
+    }
+
     private void persistArchive(Long projectId, String projectName) {
         ProjectArchive archive = new ProjectArchive();
         archive.setProjectId(projectId);
