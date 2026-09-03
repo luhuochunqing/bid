@@ -183,6 +183,30 @@ class TestCellMetadata:
         finally:
             os.unlink(path)
 
+    def test_nested_paragraph_cell_text_concatenated(self):
+        """单元格内嵌多段落文本必须完整进入证据文本（SYN-NESTED-PARA）。
+
+        评分细则单元格常含多个 <w:p>；_tc_text 必须把所有段落的 <w:t>
+        串联进 rawText，否则证据链断裂。
+        """
+        doc = Document()
+        table = doc.add_table(rows=1, cols=2)
+        cell = table.cell(0, 0)
+        _set_run_text(cell, "优得4分；")
+        cell.add_paragraph("差扣4分")
+        _set_run_text(table.cell(0, 1), "8")
+        path = _write_docx(doc)
+        try:
+            artifact = extract_tables_artifact(path)
+            tbl = artifact["tables"][0]
+            c0 = tbl["cells"][0]
+            assert "优得4分" in c0["rawText"], c0
+            assert "差扣4分" in c0["rawText"], "第二段文本丢失，证据链断裂"
+            assert "优得4分" in c0["normalizedText"]
+            assert "差扣4分" in c0["normalizedText"]
+        finally:
+            os.unlink(path)
+
     def test_raw_and_normalized_text(self):
         doc = Document()
         table = doc.add_table(rows=1, cols=1)
@@ -231,6 +255,49 @@ class TestMergedRegions:
             assert start["rawText"] == "技术方案"
             cont = next(c for c in tbl["cells"] if c["isMergedContinue"] and c["row"] == 2 and c["column"] == 0)
             assert cont["rawText"] == ""
+        finally:
+            os.unlink(path)
+
+    def test_independent_column_merges_do_not_cross_contaminate(self):
+        """两列在不同行各自纵向合并，跨度互不污染（审核 P0 回归）。
+
+        旧实现按"该行存在任一 vMerge continuation"近似推断整行跨度：
+        列 0（行 1-2 合并）的跨度会被列 1 在行 3/4 的 continuation
+        误拉长到 4，随后 Java 端 PASS 4 覆盖校验会把正常表格判成
+        STRUCTURE_INCOMPLETE。修复后按 gridSpan 累加定位到重启列，
+        只认该列自己的 continuation。
+        """
+        doc = Document()
+        table = doc.add_table(rows=5, cols=2)
+        table.cell(0, 0).text = "评分因素"
+        table.cell(0, 1).text = "分值"
+        # 列 0 在行 1-2 合并；行 3、4 是普通行
+        table.cell(1, 0).text = "技术方案"
+        _set_v_merge(table.cell(1, 0), "restart")
+        table.cell(2, 0).text = ""
+        _set_v_merge(table.cell(2, 0))
+        table.cell(3, 0).text = "A1"
+        table.cell(4, 0).text = "A2"
+        # 列 1 在行 3-4 合并；行 1、2 是普通行
+        table.cell(1, 1).text = "10"
+        table.cell(2, 1).text = "10"
+        table.cell(3, 1).text = "商务部分"
+        _set_v_merge(table.cell(3, 1), "restart")
+        table.cell(4, 1).text = ""
+        _set_v_merge(table.cell(4, 1))
+
+        path = _write_docx(doc)
+        try:
+            artifact = extract_tables_artifact(path)
+            tbl = artifact["tables"][0]
+            by_rc = {(c["row"], c["column"]): c for c in tbl["cells"]}
+            # 两处合并各自的跨度都必须恰好为 2
+            assert by_rc[(1, 0)]["rowspan"] == 2, by_rc[(1, 0)]
+            assert by_rc[(3, 1)]["rowspan"] == 2, by_rc[(3, 1)]
+            regions = {r["startCellId"]: r for r in tbl["mergedRegions"]}
+            assert len(regions) == 2, regions
+            assert regions[by_rc[(1, 0)]["cellId"]]["rowspan"] == 2
+            assert regions[by_rc[(3, 1)]["cellId"]]["rowspan"] == 2
         finally:
             os.unlink(path)
 

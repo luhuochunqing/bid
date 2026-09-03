@@ -240,7 +240,6 @@ def _build_table_artifact(table, idx: int) -> dict[str, Any] | None:
                 continue
 
             colspan = _grid_span_from_tc(tc_elem)
-            rowspan = _v_merge_span_from_tc(tc_elem)
             text = _tc_text(tc_elem)
 
             # Skip columns already filled by a previous iteration (defensive).
@@ -248,6 +247,11 @@ def _build_table_artifact(table, idx: int) -> dict[str, Any] | None:
                 c_idx += 1
             if c_idx >= num_cols:
                 break
+
+            # Rowspan needs the restart's exact logical column — resolve the
+            # cursor first, then compute the span with explicit grid
+            # arithmetic (spec 059: 禁止"发现任一 continuation"近似推断).
+            rowspan = _v_merge_span_from_tc(tc_elem, c_idx, colspan)
 
             origin = {
                 "kind": "ORIGIN",
@@ -442,16 +446,35 @@ def _is_v_merge_continue(tc_elem) -> bool:
     return val != "restart"
 
 
-def _v_merge_span_from_tc(tc_elem) -> int:
-    """Vertical span: if this <w:tc> has vMerge restart, count continuations below."""
+def _v_merge_val(tc_elem) -> str | None:
+    """vMerge 状态：``None``=未合并，``"restart"``=重起，``"continue"``=延续。
+
+    Word 允许 ``<w:vMerge/>`` 不带 val 属性，缺省即延续（``_is_v_merge_continue``
+    同样语义）。
+    """
     tc_pr = tc_elem.find(f"{{{_W_NS}}}tcPr")
     if tc_pr is None:
-        return 1
+        return None
     vm = tc_pr.find(f"{{{_W_NS}}}vMerge")
     if vm is None:
-        return 1
+        return None
     val = vm.get(f"{{{_W_NS}}}val") or vm.get("val")
-    if val != "restart":
+    return val if val else "continue"
+
+
+def _v_merge_span_from_tc(tc_elem, logical_col: int, colspan: int) -> int:
+    """Vertical span of a vMerge restart cell, via explicit XML grid arithmetic.
+
+    spec 059 Plan：合并覆盖范围必须用 vMerge/gridSpan 显式列坐标计算，禁止
+    "该行存在任一 vMerge continuation"式的近似推断——多列独立错位合并时，
+    近似推断会把其他列的 continuation 误记到当前列的跨度上（审核 P0 缺陷）。
+
+    Algorithm: for every physical row below the restart, accumulate each
+    <w:tc>'s gridSpan to locate the cell that covers ``logical_col``; the
+    span only grows when THAT cell is a vMerge continuation. A new
+    ``restart`` or an unmerged cell at that column ends the span.
+    """
+    if _v_merge_val(tc_elem) != "restart":
         return 1
 
     span = 1
@@ -460,35 +483,28 @@ def _v_merge_span_from_tc(tc_elem) -> int:
         if sibling.tag != f"{{{_W_NS}}}tr":
             sibling = sibling.getnext()
             continue
-        # Check whether this row contains a vMerge continuation cell at the
-        # same column as the restart.  The restart's tc element is a child
-        # of some <w:tr>; to find its column we can iterate tc elems until
-        # we find tc_elem, but a simpler check is: scan every tc in the row
-        # looking for a vMerge continuation that is NOT a restart.  For
-        # gridSpan>1 origins, multiple continuations must exist; we accept
-        # the row if *any* tc has vMerge continuation semantics aligned
-        # with our restart column.
-        # NOTE: we cannot recover column from tc_elem alone here (we would
-        # need the parent grid's column index), so we approximate: require
-        # at least one vMerge continuation in the row to count.
+        col_cursor = 0
         found_continue = False
         for child_tc in sibling.findall(f"{{{_W_NS}}}tc"):
-            child_tc_pr = child_tc.find(f"{{{_W_NS}}}tcPr")
-            if child_tc_pr is None:
-                continue
-            child_vm = child_tc_pr.find(f"{{{_W_NS}}}vMerge")
-            if child_vm is None:
-                continue
-            child_val = child_vm.get(f"{{{_W_NS}}}val") or child_vm.get("val")
+            child_start = col_cursor
+            col_cursor += _grid_span_from_tc(child_tc)
+            if child_start >= logical_col + colspan:
+                break  # walked past the restart's column range
+            if col_cursor <= logical_col:
+                continue  # cell ends before the restart column starts
+            # This tc covers the restart's logical column.
+            child_val = _v_merge_val(child_tc)
             if child_val == "restart":
                 # A new restart in the middle of our span means our span
                 # ends here (e.g. a sub-header that overlaps).
-                break
-            # continue or absent val → continuation
+                return span
+            if child_val is None:
+                # The column is no longer merged in this row — span ends.
+                return span
             found_continue = True
             break
         if not found_continue:
-            break
+            return span
         span += 1
         sibling = sibling.getnext()
     return span
