@@ -1,33 +1,36 @@
 # Tasks: 059 评分解析证据化
 
+> 进度口径（2026-09-03）：Phase 0-2 代码 + 可执行金标基线已落地并过定向回归（631 例绿）；
+> 评审 P0/P1/P2 五项修复见 `docs/implementation-notes/059-score-parse-evidence-pipeline.md`。
+
 ## Phase 0：冻结 legacy 自动落库扩张 — 运行档案 + 金标基线
 
-- [ ] T001 新增不可变枚举/值对象 `ScoreParseDecision` 与常量 `LEGACY_FALLBACK`、`EVIDENCE_PIPELINE_V1`。
-- [ ] T002 `ScoreParseTask` 实体字段追加：`pipeline_version`、`decision_status`、`fallback_reason`；DTO 同步透出。
-- [ ] T003 `RunSummaryAssembler` 装配 JSON 增 `pipelineVersion`、`decisionStatus`、`fallbackReason` 三键；旧字段保持向后兼容。
-- [ ] T004 `ScoreCandidatePostProcessor.process` 在产物 `Processed` 中携带 `decisionStatus` 与 `fallbackReason`；调用方按 `decisionStatus` 写入任务字段（Phase 0 默认沿用现有行为，落库仍发生，但不再静默）。
-- [ ] T005 `ScoreParseAppService` 在 `markCompleted` 前落地 `pipelineVersion` 与 `decisionStatus`；`run_summary` 由 assembler 装配，仍为 JSON。
-- [ ] T006 MySQL 迁移：`V{auto}__score_parse_task_evidence_pipeline_phase0.sql` 新增三列；提供 `U{auto}` 回滚脚本。
-- [ ] T007 `docs/lessons/scoreparse-golden-corpus/index.md`：登记事故 1347 / 1358 / 1362 脱敏描述 + 5 类合成夹具清单（脱敏来源说明）。
-- [ ] T008 新增单测：`RunSummaryAssemblerEvidencePipelineTest`（覆盖 decision/fallback 序列化与 schema 兼容）。
-- [ ] T009 定向回归：`mvn test -Dtest='RunSummary*,ScoreParseApp*,*PostProcessor*,ArchitectureTest'` 绿；输出命令留证。
+- [x] T001 新增不可变枚举/值对象 `ScoreParseDecision` 与常量 `LEGACY_FALLBACK`、`EVIDENCE_PIPELINE_V1`。
+- [x] T002 `ScoreParseTask` 实体字段追加：`pipeline_version`、`decision_status`、`fallback_reason`；DTO 同步透出。
+- [x] T003 `RunSummaryAssembler` 装配 JSON 增 `pipelineVersion`、`decisionStatus`、`fallbackReason` 三键；旧字段保持向后兼容。
+- [x] T004 `ScoreCandidatePostProcessor.process` 在产物 `Processed` 中携带 `decisionStatus` 与 `fallbackReason`；调用方按 `decisionStatus` 写入任务字段（Phase 0 默认沿用现有行为，落库仍发生，但不再静默）。
+- [x] T005 `ScoreParseAppService` 在 `markCompleted` 前落地 `pipelineVersion` 与 `decisionStatus`；`run_summary` 由 assembler 装配，仍为 JSON。
+- [x] T006 MySQL 迁移：`V1207__add_score_parse_task_pipeline_version.sql` 新增三列；提供 `U1207` 回滚脚本。
+- [x] T007 `docs/lessons/scoreparse-golden-corpus/index.md`：登记事故 1347 / 1358 / 1362 脱敏描述 + 5 类合成夹具清单（脱敏来源说明）。
+- [x] T008 新增单测：`RunSummaryAssemblerEvidencePipelineTest`（覆盖 decision/fallback 序列化与 schema 兼容）。
+- [x] T009 定向回归：`mvn test -Dtest='RunSummary*,ScoreParseApp*,*PostProcessor*,ArchitectureTest'` 绿；输出命令留证。
 
 ## Phase 1：结构契约 — CanonicalTableGrid（独立 Commit）
 
-- [ ] T101 升级 Sidecar `/extract-tables` 响应为版本化 `DocumentArtifact` 契约（schemaVersion=2.0）。
-- [ ] T102 Python 端 `DocumentArtifact` 装配器 + XML 路径、单元格 ID 唯一性、原始/规范化双文本补齐。
-- [ ] T103 新增领域模型 `CanonicalTableGrid`、`CanonicalCell`、`MergedRegion`、`StructureValidationResult`（纯核心，无框架依赖）。
-- [ ] T104 `CanonicalTableGridFactory` 结构校验：合并覆盖范围、行列闭合、ID 唯一。
-- [ ] T105 `STRUCTURE_INCOMPLETE` 返回路径：Sidecar HTTP 状态/解构失败时统一返回；不得降级到旧字符串表格继续自动评分。
-- [ ] T106 单测：`table_extractor_v2_test.py`（DOCX 合成夹具：纵/横/纵横合并、跨页、空合并续、嵌套段落、多评分表、表头跨列）+ Java `CanonicalTableGridTest`。
+- [x] T101 升级 Sidecar `/extract-tables` 响应为版本化 `DocumentArtifact` 契约（schemaVersion=2.0）。
+- [x] T102 Python 端 `DocumentArtifact` 装配器 + XML 路径、单元格 ID 唯一性、原始/规范化双文本补齐。
+- [x] T103 新增领域模型 `CanonicalTableGrid`、`CanonicalCell`、`MergedRegion`、`StructureValidationResult`（纯核心，无框架依赖）。
+- [x] T104 `CanonicalTableGridFactory` 结构校验：合并覆盖范围、行列闭合、ID 唯一。
+- [x] T105 `STRUCTURE_INCOMPLETE` 返回路径：Sidecar HTTP 状态/解构失败时统一返回；不得降级到旧字符串表格继续自动评分。
+- [x] T106 单测：`table_extractor_v2_test.py`（DOCX 合成夹具：纵/横/纵横合并、跨页、空合并续、嵌套段落、多评分表、表头跨列）+ Java `CanonicalTableGridTest`。
 
 ## Phase 2：确定性 ScoreFact（独立 Commit）
 
-- [ ] T201 不可变领域对象：`ScoreFact`、`ScoreEvidence`、`ScoreRule`、`ScoreParseDecision`；纯 record/Java。
-- [ ] T202 `DeterministicScoreFactExtractor`：按分值列/标题括号/满分/公式上限优先级生成 weightEvidence；区分父项/子项。
-- [ ] T203 `ScoreFactValidator`：事实完整性与评分计算完整性分开校验；自动化硬不变量单测。
-- [ ] T204 `ScoreFact → ScoreCandidate` 适配器；仅 `AUTO_APPROVED` 路径写入旧 `score_item`；新事实落 `score_parse_fact`（结构在 Phase 5 增加）。
-- [ ] T205 单测覆盖：1347 / 1358 / 1362 + 5 类合成夹具的末级事实数、权重、父子、source cell。
+- [x] T201 不可变领域对象：`ScoreFact`、`ScoreEvidence`、`ScoreRule`、`ScoreParseDecision`；纯 record/Java。
+- [x] T202 `DeterministicScoreFactExtractor`：按分值列/标题括号/满分/公式上限优先级生成 weightEvidence；区分父项/子项。
+- [x] T203 `ScoreFactValidator`：事实完整性与评分计算完整性分开校验；自动化硬不变量单测。
+- [x] T204 `ScoreFact → ScoreCandidate` 适配器；仅 `AUTO_APPROVED` 路径写入旧 `score_item`；新事实落 `score_parse_fact`（结构在 Phase 5 增加）。（适配器 `toCandidate()` 已就绪；落库接线按计划属 Phase 4/5）
+- [x] T205 单测覆盖：1347 / 1358 / 1362 + 5 类合成夹具的末级事实数、权重、父子、source cell。（`GoldenCorpusBaselineTest` 8 例；跨页/嵌套段落缺口挂账见登记表）
 
 ## Phase 3：限制 LLM 为可审计语义适配器（独立 Commit）
 
