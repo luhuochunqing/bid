@@ -33,6 +33,41 @@
 - **决策**：分支已推送且 PR 已开，**不做历史重写**（仓库纪律禁止 force-push；cherry-pick 可追溯性优先）。选择保留并就地对齐：重命名 + 补齐五操作，`AddObservation` 删除（Plan 无此操作）。顺带把 T302 的"跨文件 cell 引用拒绝"提前实现为 LinkParent 的 `sourceTableId` 一致性校验（确定性、零成本）。
 - **流程教训**：Phase 2 commit 混入 Phase 3 文件是拆分提交时的纪律失误，后续按 Phase 边界 `git add` 指定文件。
 
+## 2026-09-03 Phase 3 实现笔记：限制 LLM 为可审计语义适配器
+
+### 1. 契约重构 (T301)
+- 引入 Wire 传输层 DTO `RawFactOperation`，内置 `weight`、`detail`、`sourceText`、`newFact` 等陷阱字段，用于识别并拦截非法回写与幻觉发明。
+- `LlmFactOp` 密封接口统一暴露 `factId()`、`confidence()`、`reasonCellIds()`，规范支持 5 种合法操作：`KEEP`、`CLASSIFY`、`LINK_PARENT`、`MARK_DUPLICATE`、`REVIEW_REQUIRED`。
+
+### 2. 安全门禁与不回写纪律 (T302)
+- 增加 `LlmFactOperationValidator`：
+  - 拦截未知 `factId`
+  - 拦截非法动作（如 `CREATE_SCORE_FACT`、`UPDATE_WEIGHT`、`DELETE_FACT` 等）
+  - 拦截受保护字段篡改（`weight`、`detail`、`sourceText`、`newFact`）
+  - 拦截跨表 cell 引用与跨表父子挂载（`cellIdBelongsToTable` 与 `sourceTableId` 一致性检查）
+  - 拦截低置信度（< 0.80）语义分类
+  - 违规处理纪律：绝不将脏数据回写事实池，受影响项打标为 `REVIEW_REQUIRED`。
+
+### 3. 编排器与守卫改造 (T303)
+- `ScoreMergeResultGuard`：彻底移除 `poolIdentityMatched` 与 `PoolEntry`，取消历史“池文本互含即放行”规则，未在原文背书的候选项一律作为幻觉丢弃。
+- `ScoreGlobalMergeOrchestrator`：
+  - 增加 `adjudicateFacts(List<ScoreFact>, String fullText)`，仅在既有确定性事实池上运行。
+  - LLM 故障/不可用时 fail-open，确定性链路可稳定复现 `AUTO_APPROVED` 或 `REVIEW_REQUIRED`。
+- `ScoreCandidatePostProcessor`：
+  - 明确限制旧 LLM 召回（`recheckGaps`）仅作为人工复核建议（标记 `REVIEW_REQUIRED` + `RESORT_TO_GAP_RECHECK`），禁止直接合入 candidates 填补确定性事实权重缺口。
+
+### 4. 验收与架构合规 (T304)
+- 新增 `ScoreFactAdjudicationAcceptanceTest`（8 例端到端验收）：
+  1. 发明新事实拦截
+  2. 篡改权重拦截
+  3. 篡改细则与原文拦截
+  4. 跨表单元格引用拦截
+  5. 跨表父子层级挂载拦截
+  6. 低置信度分类拦截
+  7. LLM 不可用时 fail-open 确定性复现
+  8. 合法操作平滑应用层级与去重
+- 所有新增与修改文件严格遵守 FP-Java 规范（纯核心、不抛受检业务异常、返回不可变数据、行预算硬限 300 / 软限 200 行以内）。
+
 ## 环境问题（本轮不修，挂账）
 
 - `GITEE_TOKEN` 过期（Gitee API/MCP 均 401），PR CI 状态暂时查不了；需更新 `~/.zshenv`。
@@ -41,5 +76,12 @@
 
 ## 测试证据
 
-- Java 定向回归（T009 口径 + 全部新增）：`mvn test -Dtest='RunSummary*,ScoreParseApp*,*PostProcessor*,ArchitectureTest,FPJavaArchitectureTest,DeterministicScoreFactExtractorTest,GoldenCorpusBaselineTest,ScoreFactShadowPipelineTest,LlmDecisionValidatorTest,CanonicalTableGridTest,ScoreFactValidator*'` → **631 例，0 失败 0 错误**。
-- Python：`pytest tests/test_extract_tables_v2.py tests/test_extract_tables.py` → 22 passed（3 errors 为既有 fastapi 缺失）。
+- Phase 3 验收与定向回归：
+  - `ScoreFactAdjudicationAcceptanceTest`: 8/8 通过
+  - `ScoreGlobalMergeOrchestratorTest`: 10/10 通过
+  - `ScoreCandidatePostProcessorTest`: 6/6 通过
+  - `LlmFactOperationValidatorTest`: 10/10 通过
+  - `LlmDecisionValidatorTest`: 12/12 通过
+  - `ScoreMergeResultGuardTest`: 16/16 通过
+  - `FPJavaArchitectureTest`: 8/8 通过
+  - 全量评分相关测试集 `mvn test -Dtest='*Score*,*Llm*,*Fact*'`: **499 例全部绿，0 失败 0 错误**。

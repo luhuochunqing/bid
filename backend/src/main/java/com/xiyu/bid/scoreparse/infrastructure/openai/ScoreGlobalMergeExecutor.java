@@ -8,11 +8,15 @@ import com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiBidAgentConfigurat
 import com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiBidAgentRequestConfig;
 import com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiStructuredOutputService;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
+import com.xiyu.bid.scoreparse.domain.ScoreFact;
+import com.xiyu.bid.scoreparse.domain.llm.LlmDecision;
+import com.xiyu.bid.scoreparse.domain.llm.RawFactOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -137,5 +141,66 @@ public class ScoreGlobalMergeExecutor {
             return trimmed.length() > 50 ? trimmed.substring(0, 50) : trimmed;
         }
         return "评分项";
+    }
+
+    /** 事实裁决：返回未经校验的原始 wire 操作，供领域层严格审计（spec 059 Phase 3） */
+    public List<RawFactOperation> resolveRawFacts(List<ScoreFact> facts, String sectionText) {
+        if (facts == null || facts.isEmpty() || sectionText == null || sectionText.isBlank()) {
+            return List.of();
+        }
+        String prompt = ScoreParsePrompts.buildFactAdjudicationPrompt(summarizeFacts(facts), sectionText);
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            try {
+                OpenAiBidAgentRequestConfig config = configurationResolver.resolve(USE_CASE);
+                LlmFactOperationsPayload payload = structuredOutputService.request(
+                        prompt, LlmFactOperationsPayload.class, config,
+                        "AI structured response did not include fact operations");
+                return toRawOps(payload);
+            } catch (RuntimeException exception) {
+                log.warn("全局事实归并 LLM 第 {} 次尝试失败: {}", attempt, exception.getMessage());
+            }
+        }
+        return List.of();
+    }
+
+    public LlmDecision resolveFacts(List<ScoreFact> facts, String sectionText) {
+        List<RawFactOperation> rawOps = resolveRawFacts(facts, sectionText);
+        return RawFactOperation.toDecision(rawOps);
+    }
+
+    private static List<RawFactOperation> toRawOps(LlmFactOperationsPayload payload) {
+        if (payload == null || payload.operations == null) {
+            return List.of();
+        }
+        List<RawFactOperation> out = new ArrayList<>();
+        for (var item : payload.operations) {
+            if (item != null) {
+                out.add(new RawFactOperation(
+                        item.factId, item.action, item.category, item.parentFactId,
+                        item.duplicateFactIds, item.confidence, item.reasonCellIds, item.reason,
+                        item.weight, item.detail, item.sourceText, item.newFact));
+            }
+        }
+        return out;
+    }
+
+    static String summarizeFacts(List<ScoreFact> facts) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < facts.size(); i++) {
+            ScoreFact f = facts.get(i);
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append("{\"factId\":\"").append(escape(f.factId())).append('"')
+                    .append(",\"sourceTableId\":\"").append(escape(f.sourceTableId())).append('"')
+                    .append(",\"code\":\"").append(escape(f.code())).append('"')
+                    .append(",\"dimension\":\"").append(escape(f.dimension())).append('"')
+                    .append(",\"sourceText\":\"").append(escape(truncate(f.sourceText()))).append('"')
+                    .append(",\"weight\":").append(f.weight() == null ? "null" : f.weight().toPlainString())
+                    .append(",\"parentFactId\":\"").append(escape(f.parentFactId())).append('"')
+                    .append(",\"sourceCellIds\":[").append(String.join(",", f.sourceCellIds().stream().map(c -> "\"" + escape(c) + "\"").toList())).append(']')
+                    .append('}');
+        }
+        return sb.append(']').toString();
     }
 }

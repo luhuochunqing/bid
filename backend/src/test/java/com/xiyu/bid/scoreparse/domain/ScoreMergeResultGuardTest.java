@@ -105,30 +105,27 @@ class ScoreMergeResultGuardTest {
         assertThat(outcome.restoredCount()).isZero();
     }
 
-    // ── spec 057 FR-02：语料截断场景，池身份匹配的归并输出放行并计数 ──
+    // ── spec 059 Phase 3：移除"池文本互含即放行"，语料外项即使与池项互含也必须判为幻觉丢弃 ──
 
     @Test
-    void guard_poolMatchedOutputOutsideCorpus_keptAsPoolBacked() {
-        // 技术项真实存在但评分章节语料截断后不含它 → 不再误判幻觉，放行计 poolBackedKept
+    void guard_poolMatchedOutputOutsideCorpus_droppedAsHallucination_noMutualContainmentBypass() {
+        // 技术项真实存在于池中，但 LLM 归并输出项在评分章节原文中找不到 → 坚决判为幻觉丢弃（移除池身份放行）
         ScoreCandidate poolTech = new ScoreCandidate("", "技术部分",
                 "技术方案完整性审查：方案须覆盖全部招标需求点。8分",
                 new BigDecimal("8"), null, null,
                 "技术方案完整性审查：方案须覆盖全部招标需求点。8分", "P52", null);
         List<ScoreCandidate> merged = List.of(
                 new ScoreCandidate("", "技术部分",
-                        "技术方案完整性审查：方案须覆盖全部招标需求点。",
+                "技术方案完整性审查：方案须覆盖全部招标需求点。",
                         new BigDecimal("8"), null, null, "原文", "P52", null));
         ScoreMergeResultGuard.Outcome outcome = ScoreMergeResultGuard.guard(
                 List.of(poolItem("不平衡报价评审：评标委员会针对各投标人分项报价中的单项折扣率进行评价，报价合理得4-5分。", "5"),
                         poolTech),
                 merged, SECTION_TEXT);
-        assertThat(outcome.accepted()).hasSize(2); // 池背书放行1 + 语料内高置信池项回补1
-        assertThat(outcome.accepted()).extracting(ScoreCandidate::detail)
-                .contains("技术方案完整性审查：方案须覆盖全部招标需求点。8分",
-                        "不平衡报价评审：评标委员会针对各投标人分项报价中的单项折扣率进行评价，报价合理得4-5分。");
-        assertThat(outcome.poolBackedKept()).isEqualTo(1);
-        assertThat(outcome.hallucinationDropped()).isZero();
-        assertThat(outcome.restoredCount()).isEqualTo(1);
+        // LLM 输出项由于不在 SECTION_TEXT 被视为幻觉丢弃；池内高置信项由规则 2 兜底回补
+        assertThat(outcome.hallucinationDropped()).isEqualTo(1);
+        assertThat(outcome.poolBackedKept()).isZero();
+        assertThat(outcome.restoredCount()).isEqualTo(2);
     }
 
     @Test

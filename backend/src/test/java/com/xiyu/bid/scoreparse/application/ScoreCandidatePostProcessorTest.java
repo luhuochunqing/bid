@@ -118,4 +118,23 @@ class ScoreCandidatePostProcessorTest {
         assertThat(out.failMessage()).contains("ZBJ");
         assertThat(out.candidates()).isEmpty();
     }
+
+    @Test
+    void gapRecheckItems_actAsReviewSuggestions_doNotFillWeights() {
+        // 总分 80（有缺口），触发 gap recheck
+        var unbalanced = List.of(
+                candidate("A1", "资质", "具备 CMMI 认证证书", "50"),
+                candidate("A2", "业绩", "近三年业绩合同证明材料齐全有效", "30"));
+        // LLM 回补召回了 20 分的项
+        when(scoreAnalyzer.recheckGaps(anyString(), anyList())).thenReturn(List.of(
+                candidate("A3", "技术", "技术方案完整得20分", "20")));
+
+        var out = processor.process("t6", "全文", recallOf(unbalanced, 0), List.of(), NOOP);
+
+        // spec 059 Phase 3：LLM 回补项仅作为复核建议，不填补确定性事实权重缺口，保持触发归一化或复核
+        assertThat(out.decisionStatus()).isEqualTo(com.xiyu.bid.scoreparse.domain.ScoreParseDecision.REVIEW_REQUIRED);
+        assertThat(out.fallbackReason()).isIn("RESORT_TO_NORMALIZATION", "RESORT_TO_GAP_RECHECK");
+        // 确保未直接拼接 A3 成为 100 分直接 AUTO_APPROVED
+        assertThat(out.decisionStatus()).isNotEqualTo(com.xiyu.bid.scoreparse.domain.ScoreParseDecision.AUTO_APPROVED);
+    }
 }

@@ -177,9 +177,9 @@ if [[ "$MERGED_INTO_MAIN" == "0" ]] && [[ -n "${GITEE_TOKEN:-}" ]]; then
       # PR !2399 教训：合入前必须确认无冲突，否则合入时才暴露（list API 带 mergeable 字段）
       PR_MERGEABLE=$(echo "$PR_LIST" | python3 -c "import sys,json; data=json.load(sys.stdin); print(str(data[0].get('mergeable')).lower())" 2>/dev/null || echo "unknown")
       if [[ "$PR_MERGEABLE" == "true" ]]; then
-        info "  PR #$PR_NUM mergeable=true — 可合入（合入工具: bash scripts/gitee-pr-helper.sh merge $PR_NUM）"
+        info "  PR #${PR_NUM} mergeable=true — 可合入（合入工具: bash scripts/gitee-pr-helper.sh merge ${PR_NUM}）"
       else
-        warn "  ⚠ PR #$PR_NUM mergeable=$PR_MERGEABLE — 存在冲突或不可合入！"
+        warn "  ⚠ PR #${PR_NUM} mergeable=$PR_MERGEABLE — 存在冲突或不可合入！"
         warn "    合入前必须先 rebase: git fetch origin && git rebase origin/main"
         warn "    冲突定位: git merge-tree \$(git merge-base origin/main HEAD) origin/main HEAD"
       fi

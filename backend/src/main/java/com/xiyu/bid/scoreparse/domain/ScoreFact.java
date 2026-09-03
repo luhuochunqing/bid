@@ -75,6 +75,20 @@ public record ScoreFact(
                 confidence, validationStatus);
     }
 
+    /** Returns a copy of this fact with {@code dimension} replaced (semantic classification). */
+    public ScoreFact withDimension(String newDimension) {
+        return new ScoreFact(factId, sourceTableId, sourceCellIds, sourceText, code, newDimension,
+                weight, weightEvidence, scoreRule, parentFactId, extractionMethod,
+                confidence, validationStatus);
+    }
+
+    /** Returns a copy of this fact with {@code validationStatus} replaced. */
+    public ScoreFact withValidationStatus(ValidationStatus newStatus) {
+        return new ScoreFact(factId, sourceTableId, sourceCellIds, sourceText, code, dimension,
+                weight, weightEvidence, scoreRule, parentFactId, extractionMethod,
+                confidence, newStatus);
+    }
+
     /**
      * 仅限已通过 {@link ScoreFactValidator#validateScoringSet(List)} 判定为
      * 叶子且 {@code AUTO_APPROVED} 的事实调用；父项（被引用为 parent 的
@@ -92,6 +106,7 @@ public record ScoreFact(
     public enum ValidationStatus {
         AUTO_APPROVED,
         REVIEW_REQUIRED,
-        STRUCTURE_INCOMPLETE
+        STRUCTURE_INCOMPLETE,
+        DUPLICATE
     }
 }

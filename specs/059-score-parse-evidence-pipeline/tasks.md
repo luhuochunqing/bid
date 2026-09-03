@@ -34,10 +34,10 @@
 
 ## Phase 3：限制 LLM 为可审计语义适配器（独立 Commit）
 
-- [ ] T301 LLM 输出契约改为 FactId 操作集合（KEEP / CLASSIFY / LINK_PARENT / MARK_DUPLICATE / REVIEW_REQUIRED）。
-- [ ] T302 `LlmFactOperationValidator` 拒绝未知 factId、违规操作、跨文件 cell 引用、保护字段写入。
-- [ ] T303 `ScoreGlobalMergeOrchestrator` 改造：在 factId 池上运行；禁止 LLM 直接生成 score list；移除"池文本互含即放行"。
-- [ ] T304 LLM mock 单测：所有非法操作必须被拒绝并转 `REVIEW_REQUIRED`。
+- [x] T301 LLM 输出契约改为 FactId 操作集合（KEEP / CLASSIFY / LINK_PARENT / MARK_DUPLICATE / REVIEW_REQUIRED）。
+- [x] T302 `LlmFactOperationValidator` 拒绝未知 factId、违规操作、跨文件 cell 引用、保护字段写入。
+- [x] T303 `ScoreGlobalMergeOrchestrator` 改造：在 factId 池上运行；禁止 LLM 直接生成 score list；移除"池文本互含即放行"。
+- [x] T304 LLM mock 单测：所有非法操作必须被拒绝并转 `REVIEW_REQUIRED`。
 
 ## Phase 4：完整性阻断、人工复核、取消静默归一化（独立 Commit）
 

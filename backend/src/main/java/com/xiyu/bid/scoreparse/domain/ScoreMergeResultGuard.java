@@ -29,10 +29,6 @@ public final class ScoreMergeResultGuard {
             int poolBackedKept) {
     }
 
-    /** 池项归一化投影：循环外一次算清，替代内层逐次 replaceAll（设计弯路审查 P3） */
-    private record PoolEntry(String normDetail, String normSource) {
-    }
-
     public static Outcome guard(
             List<ScoreCandidate> pool, List<ScoreCandidate> mergedItems, String sectionText) {
         if (mergedItems == null || mergedItems.isEmpty()
@@ -40,20 +36,16 @@ public final class ScoreMergeResultGuard {
             return new Outcome(List.of(), 0, 0, 0);
         }
         String normalizedSection = normalize(sectionText);
-        List<PoolEntry> entries = toPoolEntries(pool);
         List<ScoreCandidate> accepted = new ArrayList<>();
         // 与 accepted 平行的归一化 detail 缓存，isCovered 判定不再重复 normalize
         List<String> acceptedNormDetails = new ArrayList<>();
         int dropped = 0;
-        int poolBacked = 0;
         for (ScoreCandidate item : mergedItems) {
             String normDetail = normalize(item.detail());
-            // spec 057 FR-02：语料外但与池身份匹配的真实项不算幻觉（poolBackedKept 计数）。
-            // 设计口径（xcode P4 收敛）：该旁路<b>常态启用</b>而非仅截断时——非截断场景能命中者
-            // 必源自真实候选池的措辞漂移复述，放行合理且已获 8 项 GuardTest 锁定；
-            // 若 LLM 杂交两个池项产出单向互含的新 detail，其异常 weight 会被下游权重过滤拦截。
+            // spec 059 Phase 3：不再采用"池文本互含即放行"的事实背书规则。
+            // 归并项 detail 必须有原文真实背书，否则视为幻觉丢弃。
             boolean corpusBacked = !normDetail.isEmpty() && normalizedSection.contains(normDetail);
-            if (!corpusBacked && !poolIdentityMatched(normDetail, entries)) {
+            if (!corpusBacked) {
                 dropped++;
                 continue;
             }
@@ -66,9 +58,6 @@ public final class ScoreMergeResultGuard {
             ScoreCandidate bestItem = upgradeWithLongestPoolDetail(item, pool);
             accepted.add(bestItem);
             acceptedNormDetails.add(normalize(bestItem.detail()));
-            if (!corpusBacked) {
-                poolBacked++;
-            }
         }
         int restored = 0;
         if (pool != null) {
@@ -86,37 +75,7 @@ public final class ScoreMergeResultGuard {
                 restored++;
             }
         }
-        return new Outcome(List.copyOf(accepted), dropped, restored, poolBacked);
-    }
-
-    private static List<PoolEntry> toPoolEntries(List<ScoreCandidate> pool) {
-        if (pool == null || pool.isEmpty()) {
-            return List.of();
-        }
-        List<PoolEntry> entries = new ArrayList<>(pool.size());
-        for (ScoreCandidate candidate : pool) {
-            entries.add(new PoolEntry(
-                    normalize(candidate.detail()), normalize(candidate.sourceText())));
-        }
-        return entries;
-    }
-
-    /** spec 057 FR-02：归并输出与候选池身份匹配（归一化互含 detail，或被池项原文背书包含）→ 非幻觉 */
-    private static boolean poolIdentityMatched(String normItemDetail, List<PoolEntry> entries) {
-        if (normItemDetail.isEmpty() || entries.isEmpty()) {
-            return false;
-        }
-        for (PoolEntry entry : entries) {
-            if (!entry.normDetail().isEmpty()
-                    && (entry.normDetail().contains(normItemDetail)
-                        || normItemDetail.contains(entry.normDetail()))) {
-                return true;
-            }
-            if (!entry.normSource().isEmpty() && entry.normSource().contains(normItemDetail)) {
-                return true;
-            }
-        }
-        return false;
+        return new Outcome(List.copyOf(accepted), dropped, restored, 0);
     }
 
     private static final Pattern NON_SCORE_PROCEDURAL_KEYWORD = Pattern.compile(

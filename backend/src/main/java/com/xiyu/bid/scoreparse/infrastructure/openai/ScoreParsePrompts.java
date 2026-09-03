@@ -228,4 +228,35 @@ public final class ScoreParsePrompts {
                 11. 并列评价细则与分值闭环完整性：对于包含多个并列评价因素的大项，归并时必须确保所有并列评分因素全部保留且分值正确，绝对禁止遗漏任何并列子项，确保总分精准闭环为 100%%，防止下游因缺项触发权重比例重新分配与拼凑变形
                 %s""".formatted(candidatesJson, promptSafe(sectionText), vocabularyBlock);
     }
+
+    /**
+     * 事实裁决（spec 059 Phase 3）：仅对已存在的 factId 输出受限操作（KEEP / CLASSIFY / LINK_PARENT / MARK_DUPLICATE / REVIEW_REQUIRED）。
+     */
+    public static String buildFactAdjudicationPrompt(String factsJson, String sectionText) {
+        return """
+                你是招标文件评分事实语义适配专家。已有底层确定性解析产出的评分事实池（ScoreFact），
+                你只能针对已有的 factId 执行受限操作，绝对禁止生成新事实，禁止修改权重分值（weight）与细则文本（detail/sourceText）。
+
+                既有事实池（JSON 数组）：
+                %s
+
+                评分章节原文（参考背景）：
+                %s
+
+                允许的操作类型（action）：
+                - KEEP: 确认保留该事实为最终打分项（需提供 confidence 与 reasonCellIds）
+                - CLASSIFY: 补充语义维度分类（填写 category，confidence 须 ≥ 0.80）
+                - LINK_PARENT: 建立同表层级关联（必须填写 parentFactId，两者必须同表）
+                - MARK_DUPLICATE: 将重复事实折叠到权威事实（填写 duplicateFactIds，被折叠项将被弃用）
+                - REVIEW_REQUIRED: 标记该事实存疑需要人工复核（填写 reason）
+
+                硬性禁令（违规将被安全拦截并判定为违规）：
+                1. 严禁输出任何不存在于事实池的 factId
+                2. 严禁创建新事实（禁止 CREATE_SCORE_FACT）
+                3. 严禁修改权重（禁止 UPDATE_WEIGHT，禁止输出 weight 字段）
+                4. 严禁删除事实（禁止 DELETE_FACT）
+                5. 严禁跨表链接父子关系（LINK_PARENT 双方必须来自同一表格）
+                6. 严禁输出 detail、sourceText、weight、newFact 字段
+                """.formatted(factsJson, promptSafe(sectionText));
+    }
 }
