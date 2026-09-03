@@ -37,6 +37,7 @@ backlinks:
 - [[project-search-owner-unit]] — 项目搜索按招标主体（ownerUnit 数据链路 tender_id→purchaser_name / name 关键词三层过滤契约 / H2 tender_id NOT NULL 陷阱）
 - [[score-item-select-short-label]] — 评分项下拉短标签（ScoreItemSelect 显示契约 / EP filterable 原文搜索陷阱 / defineExpose 测试专用通道反模式 / 子组件根 class DOM 锁）
 - [[engineering-discipline]] — 工程纪律手册（反复修复根因 / Bug修复SOP / 开发规范 / 经验积累机制）
+- [[gitee-token-resolution]] — Gitee token 多源可见性与统一解析链（Agent 提 PR 找不到 token 根因 / credentials.env 唯一真相源 / 四级解析链 / git-credentials 死 token 陷阱）
 - [[duplicate-implementation-gate]] — 重复实现门禁（防造轮子：PR 新增 Component/Hook/Service/API/Utils 对照已有实现）
 - [[api-openapi]] — OpenAPI/Swagger 接口规范
 - [[audit-whitelist-pitfalls]] - 审计白名单陷阱（@Auditable action 命名必须对齐 AuditActionPolicy，不命中即静默丢弃）

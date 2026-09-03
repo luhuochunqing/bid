@@ -576,3 +576,9 @@
 - 修复：合并在 Loader 边界完成（DocumentContent.merge 纯函数：页码重编号/聚合哈希/文件名顿号拼接），引擎/证据/报告/前端零改动；删除全类别兜底；Sidecar 静默空册显式拦截（指名报错，宁可失败不可假查）
 - 回填：[[bid-quality-multifile-check]]；教训：**SidecarStreamDocumentAdapter 失败时吞异常返回空册而非抛错，上层"失败即中止"设计必须显式校验空文本+空页；mock 该适配器验证失败语义禁止 thenThrow（假绿）**
 
+
+## 2026-09-03 fix | Gitee token 多源可见性与统一解析链（Agent 提 PR 反复"找不到 token"数月根因）
+- 触发：各 Agent 完成任务提交 PR 时反复找不到 GITEE_TOKEN 或 401，同机不同时刻结局不同
+- 根因：token 可见性取决于进程树 shell 类型——~/.zshenv 只有 zsh 读，bash/GUI/非交互进程全读不到；旧 gitee-token.sh 把 git credential fill 排第一，~/.git-credentials 积累过期 401 死 token 兜死底；5 条 API 链路防线不一致（两处静默跳过把鉴权失败伪装成"无 PR"）
+- 修复：gitee-token.sh 四级解析链（env → ~/.config/xiyu/credentials.env → ~/.zshenv grep → credential fill 末位防挂死），五脚本统一接线；credentials.env 为唯一真相源（600 权限）；契约测试 14/14 + 回归 18/18；PR !2521
+- 回填：[[gitee-token-resolution]]；教训：同一 token 分放多个 rc 文件会漂移（zshenv 与 zshrc 是两个不同值都有效）；`>>` 追加命令重跑会累积重复行；MCP config.json 是另一套 token 需重启会话
