@@ -9,9 +9,11 @@ package com.xiyu.bid.scoreparse.domain;
  * 评分解析任务级决策（spec 059 Phase 0）。
  *
  * <ul>
- *   <li>{@link #AUTO_APPROVED}：自动通过；可覆盖当前生效 score_item。</li>
- *   <li>{@link #REVIEW_REQUIRED}：等待人工复核；不得覆盖 score_item。</li>
- *   <li>{@link #STRUCTURE_INCOMPLETE}：原文/表格结构损坏，结构化提取失败；不进入裁决。</li>
+ *   <li>{@link #AUTO_APPROVED}：自动通过；覆盖当前生效 score_item。</li>
+ *   <li>{@link #REVIEW_REQUIRED}：解析产出有效项但触发复核信号（权重缺口/大类声明不符等）；
+ *       仍落库覆盖 score_item 并在任务上保留复核标记供前端提示，<b>不得静默丢弃整批结果</b>
+ *       （历史 all-or-nothing 不落库曾导致成功解析被丢弃，详见 lessons-learned §217）。</li>
+ *   <li>{@link #STRUCTURE_INCOMPLETE}：原文/表格结构损坏，结构化提取失败；保留现有 score_item 不覆盖。</li>
  *   <li>{@link #PARSE_FAILED}：链路异常终止；0 项或后处理失败。</li>
  * </ul>
  *

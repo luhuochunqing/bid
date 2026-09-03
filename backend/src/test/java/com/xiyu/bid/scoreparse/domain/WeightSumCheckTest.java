@@ -120,4 +120,26 @@ class WeightSumCheckTest {
         assertThat(result.declaredWeights()).containsEntry("技术", new BigDecimal("30"));
         assertThat(result.declaredWeights()).containsEntry("商务", new BigDecimal("70"));
     }
+
+    @Test
+    void checkCandidates_declaredFamilyWithoutMembers_noFalseRecheck() {
+        // 回归：项目 1358 漏识别事故根因。总分闭环 100，但子项 dim 不含大类关键字，
+        // 大类声明值（商务…56分）只出现在子项 contextNote 里 → familySums 无"商务"成员。
+        // 旧逻辑 getOrDefault(商务,0)=0 与声明 56 比对必然假阳性触发 needRecheck，
+        // 被完整性门禁整批阻断落库。修复后：无成员的大类跳过交叉校验，不得否决闭环解析。
+        ScoreCandidate c1 = new ScoreCandidate("A1", "财务状况及抗风险能力", "审计报告无保留意见",
+                new BigDecimal("30"), "OBJECTIVE", "商务评分标准（56分）", null, null, null);
+        ScoreCandidate c2 = new ScoreCandidate("A2", "商城系统对接能力", "具备商城对接方案",
+                new BigDecimal("26"), "OBJECTIVE", "商务评分标准（56分）", null, null, null);
+        ScoreCandidate c3 = new ScoreCandidate("B1", "实施方案", "技术方案完整可行",
+                new BigDecimal("44"), "SUBJECTIVE", null, null, null, null);
+
+        WeightSumCheck.Result result = check.checkCandidates(List.of(c1, c2, c3));
+
+        assertThat(result.totalWeight()).isEqualByComparingTo("100");
+        assertThat(result.weightWarning()).isFalse();
+        assertThat(result.needRecheck()).isFalse();
+        // 声明值仍作为诊断信息保留，只是不再用于否决闭环解析
+        assertThat(result.declaredWeights()).containsEntry("商务", new BigDecimal("56"));
+    }
 }

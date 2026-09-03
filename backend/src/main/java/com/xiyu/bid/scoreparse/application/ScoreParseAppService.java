@@ -183,13 +183,14 @@ public class ScoreParseAppService {
             task.setOriginalTotalWeight(processed.originalTotal());
         }
         taskRepository.save(task);
-        if (processed.decisionStatus() == ScoreParseDecision.AUTO_APPROVED) {
+        // REVIEW_REQUIRED 也落库（复核标记留在 task 上供前端提示），仅 STRUCTURE_INCOMPLETE 保留现有项；详见 lessons §217。
+        if (!valid.isEmpty() && processed.decisionStatus() != ScoreParseDecision.STRUCTURE_INCOMPLETE) {
             updateProgress(taskId, 90, "PERSIST", "评分项落库");
             itemPersistenceService.persistItems(task.getProjectId(), task.getId(), valid);
             updateProgress(taskId, 95, "ESTIMATE", "阶段 1 预计得分计算");
             estimatedScoreService.estimateForProject(task.getProjectId());
         } else {
-            log.warn("解析未达自动通过标准，保留现有评分项不覆盖: taskId={}, decision={}", taskId, processed.decisionStatus());
+            log.warn("解析结构损坏或无有效项，保留现有评分项不覆盖: taskId={}, decision={}", taskId, processed.decisionStatus());
         }
         log.info("解析任务完成: taskId={}, items={}, totalWeight={}, decision={}",
                 taskId, valid.size(), processed.weightResult().totalWeight(), processed.decisionStatus());
