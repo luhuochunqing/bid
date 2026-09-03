@@ -35,11 +35,12 @@
             <template #content>
               <div class="match-rule-tooltip">
                 <div class="tooltip-title">匹配度计算规则（满分 100 分）：</div>
-                <div>• 评分项条款/标题契合：最高 40 分</div>
-                <div>• 评分项类别一致：+20 分</div>
-                <div>• 项目/客户类型一致：各 +15 分</div>
-                <div>• 关键词命中：最高 15 分</div>
-                <div>• 历史中标加成：+5 分</div>
+                <div>• 专属客户/项目实体：最高 25 分</div>
+                <div>• 评分条款深度契合：最高 30 分</div>
+                <div>• 评分项标题匹配：最高 20 分</div>
+                <div>• 评分项类别一致：+15 分</div>
+                <div>• 项目/客户类型一致：+10 分 / +5 分</div>
+                <div>• 搜索词/中标加成：各 +5 分</div>
                 <div class="tooltip-sub">评级：≥80% 优质，≥60% 良好，&lt;60% 一般</div>
               </div>
             </template>
@@ -241,8 +242,7 @@ async function copyAndRecordReuse(caseId, text) {
 const handleReuse = (item) => copyAndRecordReuse(item.caseId, item.responseText || item.responseTextSummary || '')
 const handleReuseInDetail = (d) => copyAndRecordReuse(d.caseId || d.id, d.responseText || '')
 // 查看源项目 / 标书原文：共享 composable（路由修正 + 未归档预检 + 假 ZIP 防护，详见 useBidCaseSourceActions.js）
-const { goToSourceProject: goToSourceProjectBase, openBidDocument: openBidDocumentBase } = useBidCaseSourceActions()
-const goToSourceProject = goToSourceProjectBase
+const { goToSourceProject, openBidDocument: openBidDocumentBase } = useBidCaseSourceActions()
 async function openBidDocument(d) {
   try {
     await openBidDocumentBase(d)
