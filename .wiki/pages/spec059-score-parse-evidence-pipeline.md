@@ -15,6 +15,8 @@ sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/SidecarDocumentArtifactExtractor.java
   - document-converter-sidecar/table_extractor.py
   - docs/lessons/scoreparse-golden-corpus/index.md
+  - backend/src/test/java/com/xiyu/bid/scoreparse/application/ScoreCompletenessAcceptanceTest.java
+  - backend/src/test/java/com/xiyu/bid/scoreparse/application/Incident1358RealCorpusGoldenTest.java
 backlinks:
   - _index
   - score-parse-service
@@ -229,8 +231,11 @@ spec 059 把链路切到「原始 Word 结构 + 确定性事实 + 原文证据 +
 ### 回归证据
 `mvn -o test -Dtest='com.xiyu.bid.scoreparse.**,!StreamingBidFileFetcherTest'`（排除预存在网络挂起用例 `StreamingBidFileFetcherTest`，该用例与本修复无关）：**627 tests, 0 failures, 0 errors**。其中 `ScoreParseAppServiceTest` 22、`ScoreCompletenessAcceptanceTest` 4、`WeightSumCheckTest` 11、`GoldenReplayTest` 4 全绿；`ScoreParseAppService.java` 行数收敛到 300（行预算硬限）。
 
-### 仍挂账（未纳入本 PR）
-- **Fix C — 真实 1358 数据端到端金标**：当前回归锚点仍是单元/验收级合成夹具。根治"循环验证"需要把脱敏后的真实 1358 标书结构固化为可执行金标（`XIYU_EVAL_CORPUS_DIR` 本地路径），属独立任务。
+### Fix C 已落地（2026-09-03，闭环"循环验证"挂账）
+Fix A+B 的回归锚点仍是单元/验收级合成夹具，无法证明真实 1358 形态跑通生产链。Fix C 补两层可执行端到端金标，直接驱动 `executeParseAsync → ScoreCandidatePostProcessor → WeightSumCheck → persistItems` 真实生产链：
+- **脱敏金标（CI 常驻）**：`ScoreCompletenessAcceptanceTest#incident1358_closedLoopWithDeclaredFamilyLackingMembers_persistsAllItems_autoApproved`。11 项满分闭环（商务组 56 分声明在 `contextNote`、`dim` 不含大类词 → `familySums` 无"商务"成员；技术组 44 分自洽），断言 `AUTO_APPROVED` + `fallbackReason==null` + `persistItems` 捕获 11 项无一被静默丢弃。还原 Fix B（去掉 `familySums.containsKey` 守卫）会使本测试转红 = 1358 漏识别症状 → 真回归守卫，非循环验证。
+- **真实数据金标（语料门控，CI 跳过）**：`Incident1358RealCorpusGoldenTest`，`@EnabledIfEnvironmentVariable(named="XIYU_EVAL_CORPUS_DIR")`；从 `${XIYU_EVAL_CORPUS_DIR}/incident-1358/candidates.json` 读取离线录制的真实 1358 候选快照跑同一生产链。真实客户文档禁止入仓，代码只出现"事故编号"约定路径。
+- **登记 / 证据**：金标登记见 `docs/lessons/scoreparse-golden-corpus/index.md`（1358 新增"权重闭环/落库"行，与既有"证据可定位性"框架并列）。回归切片 `com.xiyu.bid.scoreparse.**`（排除 `StreamingBidFileFetcherTest`）：**629 tests, 0 failures, 1 skipped**（Part B 跳过）。
 
 ## 索引
 

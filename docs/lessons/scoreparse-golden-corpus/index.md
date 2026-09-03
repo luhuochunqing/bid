@@ -12,9 +12,12 @@
 |---|---|---|---|---|
 | 1347 | 山焦物资办公用品服务平台招标文件摘录（脱敏） | 商务部分父项重复计分 + 总分被静默归一化 | 1 父 + 1 子共 2 条事实；父项被引用 → 拦截出自动评分集；只允许末级合计 | `GoldenCorpusBaselineTest#incident_1347_parent_and_children_never_scored_together` |
 | 1358 | 某省级政采办公耗材评审表（脱敏） | LLM 复述导致 detail 失去原文引用、对齐失败被误丢 | 每条事实必须携带 ≥1 个可定位 source cell + 可定位 weight evidence，否则 REVIEW_REQUIRED | `GoldenCorpusBaselineTest#incident_1358_every_fact_keeps_locatable_evidence` |
+| 1358（权重闭环/落库） | 某省级政采办公耗材评审表（脱敏） | 满分恰好 100 闭环，但声明大类（商务 56）在 familySums 无成员 → 大类交叉校验假阳性 REVIEW_REQUIRED → Phase 4 all-or-nothing 门禁静默丢弃整批 11 项（漏识别） | 11 项满分 100 闭环 → AUTO_APPROVED、无复核标记、11 项全部落库、触发阶段 1 预计得分 | `ScoreCompletenessAcceptanceTest#incident1358_closedLoopWithDeclaredFamilyLackingMembers_persistsAllItems_autoApproved`（脱敏，CI 常驻）；`Incident1358RealCorpusGoldenTest#realCorpus1358_parsesToAutoApproved_andPersistsEveryItem`（真实数据，`XIYU_EVAL_CORPUS_DIR` 门控，CI 跳过） |
 | 1362 | 某医院信息化项目评分细则（脱敏） | 大类 20 分与子项 5/5/10 被当成 4 个平级子项各自建项 | 3 条事实（1 父 + 2 叶）；自动评分只算末级合计 15；父项 20 不得与子项相加；15≠20 的缺口由 Phase 4 完整性策略兜底 REVIEW_REQUIRED | `GoldenCorpusBaselineTest#incident_1362_category_weight_not_summed_with_children` |
 
 > 脱敏锚点说明：上表"来源描述"仅保留行业 + 文档类型；事故原文只允许存于 `XIYU_EVAL_CORPUS_DIR` 本地语料目录，禁止入仓。
+>
+> 1358 的**两个框架**（互补，不可相互替代）：①**证据链/可定位性**（`incident_1358_every_fact_keeps_locatable_evidence`）走 DocumentArtifact→ScoreFact 证据影子链，针对 LLM 复述丢原文引用；②**权重闭环/落库**（`incident1358_*` + `Incident1358RealCorpusGoldenTest`）走生产链 ScoreCandidate→ScoreCandidatePostProcessor→WeightSumCheck→ScoreParseAppService.persistItems，针对大类交叉校验假阳性 + all-or-nothing 落库门禁（Fix A+B 回归，详见 [lessons-learned §217](../lessons-learned.md)）。框架②才是 1358「漏识别」用户可见症状的根治金标。
 
 ## 合成夹具（可执行基线已落地）
 
@@ -48,6 +51,7 @@
 1. **双轨回放脚本**（`scripts/scoreparse-dual-replay.sh`）属 Phase 5 T505，落地前"只读回放"由上述单测基线代行。
 2. **SYN-CROSS-PAGE 页码锚点**：等真实脱敏语料标定 `sourcePage` 后补齐（Phase 6 T601）。
 3. **真实语料 nightly 评估**：Phase 6 T603 CI/nightly 接入后才有 lane/复核率报告。
+4. **1358 真实数据金标 green 路径**：`Incident1358RealCorpusGoldenTest` 已落地，但仅在本地 `XIYU_EVAL_CORPUS_DIR/incident-1358/candidates.json`（离线录制的真实候选快照）存在时运行；CI / 纯源码 worktree 自动跳过，green 路径需有真实语料的开发机验证。录制 `candidates.json` 的工具列为后续项；脱敏框架②（`incident1358_*`）已 CI 常驻兜底。
 
 ## 状态
 
