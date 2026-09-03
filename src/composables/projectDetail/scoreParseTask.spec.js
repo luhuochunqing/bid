@@ -70,6 +70,48 @@ describe('scoreParseTask — spec 041 状态映射与任务轮询纯函数', () 
     })
   })
 
+  describe('normalizeScoreItem — Phase 5 证据字段透传', () => {
+    it('sourceCellIds 为 JSON 数组字符串时正确解析为数组', () => {
+      const item = normalizeScoreItem({ code: 'D1', dim: '资质', detail: '证书', weight: 5, scoreType: 'OBJECTIVE', status: 'OK', sourceCellIds: '["R2C1","R2C2"]' }, 0)
+      expect(item.sourceCellIds).toEqual(['R2C1', 'R2C2'])
+    })
+
+    it('sourceCellIds 已为数组时原样透传', () => {
+      const item = normalizeScoreItem({ code: 'D1', dim: '资质', detail: '证书', weight: 5, scoreType: 'OBJECTIVE', status: 'OK', sourceCellIds: ['R2C1', 'R2C2'] }, 0)
+      expect(item.sourceCellIds).toEqual(['R2C1', 'R2C2'])
+    })
+
+    it('sourceCellIds 为 null 时返回空数组', () => {
+      const item = normalizeScoreItem({ code: 'D1', dim: '资质', detail: '证书', weight: 5, scoreType: 'OBJECTIVE', status: 'OK' }, 0)
+      expect(item.sourceCellIds).toEqual([])
+    })
+
+    it('extractionMethod / confidence / validationStatus 正常透传', () => {
+      const item = normalizeScoreItem({
+        code: 'D1', dim: '资质', detail: '证书', weight: 5, scoreType: 'OBJECTIVE', status: 'OK',
+        extractionMethod: 'TABLE_CELL', confidence: 0.95, validationStatus: 'AUTO_APPROVED',
+      }, 0)
+      expect(item.extractionMethod).toBe('TABLE_CELL')
+      expect(item.confidence).toBe(0.95)
+      expect(item.validationStatus).toBe('AUTO_APPROVED')
+    })
+
+    it('weightEvidence 为对象时原样透传', () => {
+      const evidence = { type: 'EXPLICIT', rawText: '5分' }
+      const item = normalizeScoreItem({ code: 'D1', dim: '资质', detail: '证书', weight: 5, scoreType: 'OBJECTIVE', status: 'OK', weightEvidence: evidence }, 0)
+      expect(item.weightEvidence).toEqual(evidence)
+    })
+
+    it('缺失证据字段时提供合理兜底值', () => {
+      const item = normalizeScoreItem({ code: 'D1', dim: '资质', detail: '证书', weight: 5, scoreType: 'OBJECTIVE', status: 'OK' }, 0)
+      expect(item.sourceCellIds).toEqual([])
+      expect(item.weightEvidence).toBeNull()
+      expect(item.extractionMethod).toBe('')
+      expect(item.confidence).toBeNull()
+      expect(item.validationStatus).toBe('')
+    })
+  })
+
   describe('normalizeScoreResult — spec 044 回归', () => {
     it('客观项部分得分：数值化且状态映射', () => {
       const r = normalizeScoreResult({ code: 'D2', scoreType: 'OBJECTIVE', status: 'PENDING', actualScore: 3, matchRatio: 60, evidence: '补充说明', quote: '第 7 章' })
