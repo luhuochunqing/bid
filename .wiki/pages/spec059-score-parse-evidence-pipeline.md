@@ -1,5 +1,5 @@
 ---
-title: spec 059 评分解析证据化 Phase 0-2 落地结论 + 合入前评审修复
+title: spec 059 评分解析证据化 Phase 0-3 落地结论 + 合入前评审与去噪重构
 space: engineering
 category: guide
 updated: 2026-09-03
@@ -100,9 +100,34 @@ spec 059 把链路切到「原始 Word 结构 + 确定性事实 + 原文证据 +
 
 回归：Java 定向 631 例 0 失败（T009 口径 + 全部新增）；Sidecar pytest 22 passed。
 
-## Phase 3-6 待办（see tasks.md）
+回归：Java 定向 631 例 0 失败（T009 口径 + 全部新增）；Sidecar pytest 22 passed。
 
-- Phase 3：LLM 受限为可审计语义适配器——契约已就绪（LlmFactOp 五操作 + LlmDecisionValidator，含跨表拒绝），编排层 ScoreGlobalMergeOrchestrator 改造未动
+## Phase 3：限制 LLM 为可审计语义适配器 + 去噪重构（落地结论）
+
+- **契约重构 (T301)**：
+  - 传输层 Wire DTO `RawFactOperation` 显式内置 `weight`、`detail`、`sourceText`、`newFact` 陷阱字段，任何造项或改分企图均被拦截。
+  - `LlmFactOp` 密封接口统一要求 `factId()`、`confidence()`、`reasonCellIds()`，严格限制为 5 项受限操作：`KEEP`、`CLASSIFY`、`LINK_PARENT`、`MARK_DUPLICATE`、`REVIEW_REQUIRED`。
+  - 统一映射：在 `RawFactOperation.toDecision` 中收拢全局映射，消除编排器与执行器间的映射样板代码。
+- **安全门禁与不回写纪律 (T302)**：
+  - 纯核心校验器 `LlmFactOperationValidator` 严格执行 6 道门禁：
+    1. 拒绝未知 `factId`
+    2. 拒绝非法动作（`CREATE_SCORE_FACT` / `UPDATE_WEIGHT` / `DELETE_FACT`）
+    3. 拒绝受保护字段篡改
+    4. 拒绝跨表 cell 引用（`cellIdBelongsToTable`）
+    5. 拒绝跨表父子挂载（同表 `sourceTableId` 校验）
+    6. 拒绝置信度不足（< 0.80）语义分类
+  - 违规处理纪律：绝不将脏数据回写事实池，受影响事实一律打标为 `REVIEW_REQUIRED`。
+- **编排器与守卫去假背书 (T303)**：
+  - `ScoreMergeResultGuard`：彻底删除 `poolIdentityMatched` 与 `PoolEntry`，废止“池文本互含即放行”规则，无原文包含的候选直接作为幻觉丢弃。
+  - `ScoreGlobalMergeOrchestrator`：新增 `adjudicateFacts(List<ScoreFact>, String fullText)`，仅在既有确定性事实池上运行；LLM 故障或不可用时 fail-open，确定性事实与 `AUTO_APPROVED` / `REVIEW_REQUIRED` 状态完全稳定可复现。
+  - `ScoreCandidatePostProcessor`：明确限制旧 LLM 召回（`recheckGaps`）仅作为人工复核建议（标 `REVIEW_REQUIRED` + `RESORT_TO_GAP_RECHECK`），禁止直接填补确定性事实的权重缺口。
+- **验收与质量证据 (T304)**：
+  - `ScoreFactAdjudicationAcceptanceTest` 8 例端到端验收全部通过。
+  - 全量评分相关测试集 499 例全部绿（0 失败 0 错误）。
+  - FP-Java 8 项架构合规全部通过，所有类行预算均低于 300 行硬限。
+
+## Phase 4-6 待办（see tasks.md）
+
 - Phase 4：完整性阻断、人工复核、移除 WeightNormalizationPolicy 自动调用
 - Phase 5：DB/API/前端迁移 + 双写 + 灰度（双轨回放脚本 T505）
 - Phase 6：金标收口（跨页页码锚点挂账）+ 架构门禁 + 清理
