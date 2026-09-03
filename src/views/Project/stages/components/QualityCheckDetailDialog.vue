@@ -199,32 +199,32 @@ function goKnowledge(route) {
 <style scoped>
 .detail-content { padding: 0 4px; }
 .dt-row { margin-bottom: 14px; }
-.dt-label { font-size: 11px; color: #909399; font-weight: 600; margin-bottom: 4px; letter-spacing: 0.5px; }
-.dt-val { font-size: 13px; color: #303133; line-height: 1.6; }
-.dt-quote { background: #fafbfc; border-left: 3px solid #dc2626; padding: 8px 12px; border-radius: 4px; font-size: 12px; color: #606266; line-height: 1.6; }
-.dt-location { display: inline-flex; align-items: center; gap: 4px; background: #fef9f9; border: 1px solid #fbc4c4; color: #991b1b; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+.dt-label { font-size: 11px; color: var(--gray-350); font-weight: 600; margin-bottom: 4px; letter-spacing: 0.5px; }
+.dt-val { font-size: 13px; color: var(--text-primary-ui); line-height: 1.6; }
+.dt-quote { background: var(--gray-50); border-left: 3px solid var(--color-danger); padding: 8px 12px; border-radius: 4px; font-size: 12px; color: var(--text-secondary-ui); line-height: 1.6; }
+.dt-location { display: inline-flex; align-items: center; gap: 4px; background: var(--color-danger-bg); border: 1px solid var(--color-danger-dark); color: var(--color-danger-dark); padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 500; }
 .dt-source-list { display: flex; flex-wrap: wrap; gap: 8px; }
-.dt-source { display: inline-flex; align-items: center; gap: 4px; background: #f0f7f4; color: #2E7659; padding: 4px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: 500; border: 1px solid #c8e0d5; transition: background-color 0.16s; }
-.dt-source:hover { background: #e0efe7; }
-.suggestion-fail { color: #991b1b; font-weight: 600; }
-.suggestion-manual { color: #92400e; }
-.score-link { display: inline-flex; align-items: center; gap: 2px; color: #2E7659; font-weight: 600; cursor: pointer; border-bottom: 1px dashed #2E7659; padding-bottom: 1px; margin-right: 8px; }
-.score-link:hover { color: #23785d; border-bottom-color: #23785d; }
+.dt-source { display: inline-flex; align-items: center; gap: 4px; background: var(--brand-xiyu-logo-light); color: var(--brand-xiyu-logo); padding: 4px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: 500; border: 1px solid var(--brand-xiyu-logo-soft); transition: background-color 0.16s; }
+.dt-source:hover { background: var(--brand-xiyu-logo-soft); }
+.suggestion-fail { color: var(--color-danger-dark); font-weight: 600; }
+.suggestion-manual { color: var(--color-warning); }
+.score-link { display: inline-flex; align-items: center; gap: 2px; color: var(--brand-xiyu-logo); font-weight: 600; cursor: pointer; border-bottom: 1px dashed var(--brand-xiyu-logo); padding-bottom: 1px; margin-right: 8px; }
+.score-link:hover { color: var(--brand-xiyu-logo-hover); border-bottom-color: var(--brand-xiyu-logo-hover); }
 .dt-section { margin-bottom: 16px; }
 .dt-section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.dt-section-count { font-size: 12px; color: #909399; }
-.qual-table-wrapper { border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; }
+.dt-section-count { font-size: 12px; color: var(--gray-350); }
+.qual-table-wrapper { border: 1px solid var(--gray-150); border-radius: 6px; overflow: hidden; }
 .qual-compare-table { width: 100%; border-collapse: collapse; font-size: 12px; line-height: 1.5; }
-.qual-compare-table th { background: #f8fafc; color: #475569; font-weight: 600; text-align: left; padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
-.qual-compare-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+.qual-compare-table th { background: var(--gray-50); color: var(--text-secondary-ui); font-weight: 600; text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--gray-150); }
+.qual-compare-table td { padding: 8px 10px; border-bottom: 1px solid var(--gray-100); vertical-align: top; }
 .qual-row:last-child td { border-bottom: none; }
-.qual-row:hover { background: #fafbfc; }
-.qual-req-text { color: #1e293b; font-weight: 500; word-break: break-word; }
-.qual-cert-name { color: #0f172a; font-weight: 500; margin-bottom: 2px; word-break: break-word; }
-.qual-cert-empty { color: #94a3b8; font-style: italic; }
-.qual-days-tag { display: inline-block; font-size: 11px; color: #2E7659; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 3px; padding: 1px 6px; margin-top: 2px; }
-.qual-days-tag.days-warning { color: #c2410c; background: #fff7ed; border-color: #fed7aa; }
-.qual-page-badge { display: inline-block; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 3px; padding: 2px 6px; font-size: 11px; font-weight: 500; }
-.qual-page-none { color: #94a3b8; font-size: 11px; }
-.qual-remark { font-size: 11px; color: #64748b; margin-top: 4px; line-height: 1.4; }
+.qual-row:hover { background: var(--gray-50); }
+.qual-req-text { color: var(--text-primary-ui); font-weight: 500; word-break: break-word; }
+.qual-cert-name { color: var(--text-primary); font-weight: 500; margin-bottom: 2px; word-break: break-word; }
+.qual-cert-empty { color: var(--text-placeholder); font-style: italic; }
+.qual-days-tag { display: inline-block; font-size: 11px; color: var(--brand-xiyu-logo); background: var(--color-success-bg); border: 1px solid var(--brand-xiyu-logo-soft); border-radius: 3px; padding: 1px 6px; margin-top: 2px; }
+.qual-days-tag.days-warning { color: var(--color-warning); background: var(--color-warning-bg); border-color: var(--color-warning); }
+.qual-page-badge { display: inline-block; background: var(--brand-xiyu-logo-light); color: var(--brand-xiyu-logo); border: 1px solid var(--brand-xiyu-logo-soft); border-radius: 3px; padding: 2px 6px; font-size: 11px; font-weight: 500; }
+.qual-page-none { color: var(--text-placeholder); font-size: 11px; }
+.qual-remark { font-size: 11px; color: var(--text-secondary-ui); margin-top: 4px; line-height: 1.4; }
 </style>

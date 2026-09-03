@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -157,7 +158,7 @@ public class TenderDocumentLoader {
         if (name == null || name.isBlank()) {
             return false;
         }
-        String lower = name.toLowerCase();
+        String lower = name.toLowerCase(Locale.ROOT);
         if (lower.contains("投标文件") || lower.contains("投标书") || lower.contains("报价") || lower.contains("开标")) {
             return false;
         }

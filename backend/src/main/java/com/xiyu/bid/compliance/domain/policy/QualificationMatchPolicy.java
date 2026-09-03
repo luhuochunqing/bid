@@ -186,14 +186,21 @@ public final class QualificationMatchPolicy {
         matched.sort(Comparator.comparing(
                 (Qualification q) -> q.getExpiryDate() == null ? LocalDate.MAX : q.getExpiryDate())
                 .reversed());
-        return matched.get(0);
+        return matched.getFirst();
     }
 
     private static Optional<EvidenceHit> locateInBid(final DocumentContent bidDoc, final List<String> cues) {
-        if (bidDoc == null || bidDoc.pages() == null || bidDoc.pages().isEmpty()) {
+        if (bidDoc == null || bidDoc.pages() == null || bidDoc.pages().isEmpty() || cues == null) {
             return Optional.empty();
         }
-        return EvidenceLocator.locate(bidDoc.pages(), cues);
+        List<String> cleanCues = cues.stream()
+                .filter(c -> c != null && !c.isBlank())
+                .distinct()
+                .toList();
+        if (cleanCues.isEmpty()) {
+            return Optional.empty();
+        }
+        return EvidenceLocator.locate(bidDoc.pages(), cleanCues);
     }
 
     private static Integer computeRemainingDays(final LocalDate expiryDate, final LocalDate today) {
@@ -212,6 +219,9 @@ public final class QualificationMatchPolicy {
     }
 
     private static List<String> extractStandardCodes(final String text) {
+        if (text == null || text.isBlank()) {
+            return Collections.emptyList();
+        }
         List<String> codes = new ArrayList<>();
         Matcher m = STANDARD_CODE_RE.matcher(text);
         while (m.find()) {
