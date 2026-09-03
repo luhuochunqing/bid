@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [质量核查, compliance, LLM 混合裁决, 证据链, FP-Java, 语义RAG, 结构化输出]
 created: 2026-08-20
-updated: 2026-09-02
-health_checked: 2026-09-02
+updated: 2026-09-03
+health_checked: 2026-09-03
 sources:
   - specs/049-bid-quality-check-realization/spec.md
   - src/views/Project/stages/components/QualityCheckDrawer.vue
@@ -15,6 +15,7 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckTaskAppService.java
   - backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckProgressUpdater.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/BidDocumentQualityEngine.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/BasicInfoCheckPolicy.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/LlmAdjudicator.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/SemanticPageRetriever.java
   - backend/src/main/java/com/xiyu/bid/compliance/service/KnowledgeBaseOnDemandLoader.java
@@ -23,6 +24,72 @@ sources:
   - backend/src/main/java/com/xiyu/bid/ai/client/OpenAiCompatibleClient.java
   - docs/lessons/lessons-learned.md
 backlinks:
+  - _index.md
+---
+
+# 标书质量核查实质化架构（spec 049）
+
+> spec 049 将标书质量核查从"固定文案证据 + page=1 硬编码"的验收失真状态实质化为全真实链路：真实投标文件 → 真实招标要求 → 四知识库真实查询 → 真实页码/原文定位 → LLM 混合裁决。旧同步链路已删除，唯一主线为异步任务链（trigger → 轮询 → 报告）。
+> 核心目标：构建可溯源证据链（页码+原文切片）、严格区分系统判定与人工复核，杜绝假通过与假不通过。
+
+## 1. 25 项检查项架构布局与数据流
+
+25 项标准检查项（PRD 2.3）按核查实现手段划分为两条车道：
+- **确定性 lane**（`DeterministicCheckPolicy`，18 项）：毫秒级规则核查，不依赖 LLM。
+  - 基本信息（9 项）：封面要素（项目名/投标人/日期）、投标函格式规范（含《报价函》/《响应函》/公文称谓）、授权委托书（法定代表人+受托人）、营业执照（三证合一/统一代码）、报价一致性（大写转数值与小写绝对比对）、计价货币单位（人民币/元）、工期响应、签署盖章占位、联系人信息（含有效电话校验）。
+  - 分项合规（4 项）：文件完整性（多册合并总页数 >= 3）、模板格式规范（DOCX/PDF 格式合规）、废标敏感词扫描（含否定词/承诺修饰语义反转识别）、承诺书签章规范。
+  - 附件清单（5 项）：法定代表人身份证明、开标一览表、投标保证金凭证（免收标免除）、CA 证书有效性（非网标免除）、保证金退还账户信息（免收标免除）。
+- **语义/知识库 lane**（`SemanticRulesLane`，7 项）：大模型语义比对 + 四知识库检索。
+  - 四知识库联动：资质要求审查（对齐资质库三方比对基准）、业绩要求响应（案例库业绩特征提取与加权比对）、财务指标审查（财务数据提取）、实质性条款响应（负偏离判定）、服务方案与技术响应（方案契合度）、人员配置合规性（项目经理/技术负责人证书比对）、评分标准逐条应答（PRD 2.3 评分点提取与响应度打分）。
+
+## 2. 真实数据流五步闭环
+
+```mermaid
+sequenceDiagram
+    participant User as 前端 (QualityCheckDrawer)
+    participant AppService as BidQualityCheckTaskAppService
+    participant Executor as BidQualityCheckAsyncExecutor
+    participant Engine as BidDocumentQualityEngine
+    participant Storage as OSS / MinIO
+    participant Sidecar as DocumentConverterSidecar
+    participant DB as MySQL
+
+    User->>AppService: POST /projects/{id}/compliance/tasks (trigger)
+    AppService->>DB: INSERT task(status=INIT)
+    AppService-->>User: 200 {taskId, status: INIT}
+    AppService->>Executor: executeTaskAsync(taskId)
+    Executor->>Storage: 下载投标文件与招标文件
+    Executor->>Sidecar: POST /convert 转换多文档
+    Sidecar-->>Executor: {fullText, pages, pageCount}
+    Executor->>Engine: executeChecks(bidDoc, tenderDoc, projectContext)
+    Engine->>Engine: 确定性 Lane (18 项)
+    Engine->>Engine: 语义/知识库 Lane (7 项)
+    Engine-->>Executor: List<QualityCheckItemResult>
+    Executor->>DB: INSERT compliance_check_results
+    Executor->>DB: UPDATE task(status=COMPLETED)
+    User->>AppService: GET /projects/{id}/compliance/latest
+    AppService-->>User: 200 QualityCheckReportDTO
+```
+
+## 3. 证据链规范（QualityEvidence）
+
+每一个检查项结果必须携带 `List<QualityEvidence>`，严禁空证据假判定：
+- `BID_DOCUMENT`：标书原文证据，包含 sourceTitle（如"报价函章节"）、pageNumber（物理页码或虚拟块页码）、quote（原文摘录上下文）。
+- `TENDER_REQUIREMENT`：招标文件条款证据，摘录招标方原始要求。
+- `KNOWLEDGE_BASE`：企业知识库参考证据，包含 entityType（QUALIFICATION/CASE/FINANCIAL/STAFF）及 referenceId，支持前端一键跳转。
+
+## 4. 关键陷阱与架构演进教训
+
+1. **多文件合并与 Loader 边界**（2026-08-20）：真实项目投标文件分多册（价格/商务/技术）。多文件在 Loader 边界合并为单个逻辑 `DocumentContent`，页码采用全局连续编号，核查引擎零感知文件分裂。
+2. **Sidecar 分页缺失与虚拟分页兜底**（2026-08-22）：Sidecar 对长 docx/pdf 转换的 markdown 经常缺失物理分页符 `\f`，整篇文本退化为单页导致页数判断与证据定位失真。引入 `DocumentContent.virtualPages` 标题与字符预算混合分块机制，恢复页码有效性。
+3. **废标词反向修饰与正向承诺语境识别**（2026-08-25）：标书中常包含“我方承诺不发生任何串通投标、行贿等违法违规行为”，若直接正则匹配“串通投标”会造成假阳性误报。引入 `isNegatedOrCommitment` 窗口探测，消除误判。
+4. **附件免收场景自适应通过**（2026-09-02）：招标文件若明确“免收投标保证金”或为线下纸质标无需 CA 锁，保证金与 CA 检查项自适应判定为 PASS 并提示“免收/不涉及”，防止机械阻断。
+5. **异步任务中间进度独立事务即时提交**（2026-08-30）：长任务采用独立事务更新进度，避免顶层事务包裹导致前端轮询卡死。
+6. **LLM 结构化输出解析三层防御**（2026-08-30）：JSON 括号配平提取 + 中文状态归一化 + 空结论兜底，消灭网关异常与解析报错暴露给用户。
+7. **大模型语义 RAG 全文无损透传与自然页码重排**（2026-08-30）：废弃前缀硬截断，超预算采用 Top-N 语义打分筛选与页码顺序重排，保证中后段关键资质与方案对大模型可见。
+8. **网关不支持 response_format 的原子降级标记**（2026-08-30）：`AtomicBoolean` 标记网关兼容性，首遇 400 立即降级并持久化状态，杜绝重复 400 网络惩罚。
+9. **前端轮询超时放宽至 10 分钟与进行中状态隔离**（2026-08-31）：前端轮询超时放宽至 600s，抽屉在核查进行中不渲染旧报告，杜绝状态漂移与旧报告残留。
+10. **谈判/非招采购场景《报价函》与公文称谓支持及抗目录干扰**（2026-09-03）：基本信息类核查「投标函格式规范」原先硬编码仅检索《投标函》与字面「致：」，在竞争性谈判、竞争性磋商、询价等法定使用《报价函》/《响应函》的采购场景中发生假阴性误报；同时关键词命中首页目录（TOC）超链接时，因目录页缺少实质称谓和正文承诺导致误判。修复扩充识别词表为包含投标函/报价函/响应函等多文书类型的 `BID_LETTER_KEYWORDS`，选页逻辑优先匹配同时具备称谓与承诺要素的实质正文章节页（跳过目录链接），称谓判定扩充支持 `（采购人名称）：` 等标准公文抬头与占位符规范。
   - _index
   - docinsight-engine
   - ai-provider-configuration

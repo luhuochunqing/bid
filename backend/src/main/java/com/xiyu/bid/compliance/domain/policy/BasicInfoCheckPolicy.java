@@ -45,18 +45,66 @@ public final class BasicInfoCheckPolicy {
         return QualityCheckItemResult.fail(item, "封面缺少必要关键要素: " + String.join("、", missing), "请在封面第一页补全" + String.join("、", missing), evidences);
     }
 
+    /** 投标函/报价函/响应函识别词表：选页判定与证据摘录必须共用同一份. */
+    static final String[] BID_LETTER_KEYWORDS = {
+            "投标函", "报价函", "响应函", "投标响应函", "谈判响应函", "磋商响应函",
+            "采购响应函", "投 标 函", "报 价 函", "响 应 函", "投标承诺函", "报价承诺函", "投标申请函"
+    };
+
+    /** 称谓抬头匹配模式：支持致：、法定采购人/招标人占位符、以及机构名称加冒号抬头. */
+    private static final Pattern SALUTATION_PATTERN = Pattern.compile(
+            "(?:致[：:\\s]|（(?:采购人|招标人|采购代理|招标代理).*?）|\\((?:采购人|招标人|采购代理|招标代理).*?\\)|"
+                    + "(?:采购人|招标人|采购代理|招标代理).*?[：:]|[\\u4e00-\\u9fa5]{2,30}(?:公司|集团|中心|局|处|院|指挥部|委员会|学校|医院|银行|部)\\s*(?:（[^）]+）|\\([^)]+\\))?\\s*[：:])"
+    );
+
     public static QualityCheckItemResult checkBidLetterFormat(final DocumentContent bidDoc) {
         BidQualityCheckItem item = BidQualityCheckItem.BID_LETTER_FORMAT;
-        PageMatch match = findFirstPageContaining(bidDoc, "投标函");
+        PageMatch match = findBestBidLetterPage(bidDoc);
         if (match != null) {
-            boolean hasSalutation = match.text().contains("致：") || match.text().contains("致:");
-            List<QualityEvidence> evidences = List.of(QualityEvidence.bid("投标函章节", match.pageNumber(), snippetAround(match.text(), 200, "投标函")));
+            boolean hasSalutation = isSalutationPresent(match.text());
+            String title = resolveEvidenceTitle(match.text());
+            List<QualityEvidence> evidences = List.of(QualityEvidence.bid(
+                    title, match.pageNumber(), snippetAround(match.text(), 200, BID_LETTER_KEYWORDS)));
             if (hasSalutation) {
-                return QualityCheckItemResult.pass(item, "投标函格式规范，包含致招标人称谓与承诺段落", evidences);
+                return QualityCheckItemResult.pass(item, "投标函/报价函格式规范，包含致招标人/采购人称谓与承诺段落", evidences);
             }
-            return QualityCheckItemResult.manualReview(item, "已找到投标函，但未检测到标准'致：'称谓，建议复核", "请确认投标函抬头致招标人称谓是否准确", evidences);
+            return QualityCheckItemResult.manualReview(item, "已找到投标函/报价函，但未检测到标准致招标人或采购人称谓，建议复核", "请确认投标函/报价函抬头致招标人或采购人称谓是否准确", evidences);
         }
-        return QualityCheckItemResult.fail(item, "未检索到投标函独立章节", "请在投标文件中添加标准格式的《投标函》", Collections.emptyList());
+        return QualityCheckItemResult.fail(item, "未检索到投标函或报价函独立章节", "请在投标文件中添加标准格式的《投标函》或《报价函》", Collections.emptyList());
+    }
+
+    /** 择优挑选实质函件页：优先匹配同时具备称谓与承诺的正文页，防止停留在目录页（TOC）. */
+    static PageMatch findBestBidLetterPage(final DocumentContent bidDoc) {
+        PageMatch firstMatch = null;
+        PageMatch bestMatch = null;
+        for (DocumentContent.PageContent page : bidDoc.pages()) {
+            String text = page.text();
+            if (containsAnyKeyword(text, BID_LETTER_KEYWORDS)) {
+                PageMatch current = new PageMatch(page.pageNumber(), text);
+                if (firstMatch == null) firstMatch = current;
+                boolean salutation = isSalutationPresent(text);
+                boolean commitment = isCommitmentPresent(text);
+                if (salutation && commitment) return current;
+                if (salutation && bestMatch == null) bestMatch = current;
+            }
+        }
+        return bestMatch != null ? bestMatch : firstMatch;
+    }
+
+    static boolean isSalutationPresent(final String text) {
+        return text != null && !text.isBlank() && SALUTATION_PATTERN.matcher(text).find();
+    }
+
+    static boolean isCommitmentPresent(final String text) {
+        if (text == null || text.isBlank()) return false;
+        return text.contains("承诺") || text.contains("我方") || text.contains("仔细研究") || text.contains("保证")
+                || text.contains("遵照") || text.contains("交付") || text.contains("有效期") || text.contains("撤销");
+    }
+
+    private static String resolveEvidenceTitle(final String text) {
+        if (text != null && (text.contains("报价函") || text.contains("报 价 函"))) return "报价函章节";
+        if (text != null && (text.contains("响应函") || text.contains("响 应 函"))) return "响应函章节";
+        return "投标函章节";
     }
 
     public static QualityCheckItemResult checkAuthorizationLetter(final DocumentContent bidDoc) {
@@ -165,13 +213,17 @@ public final class BasicInfoCheckPolicy {
 
     static PageMatch findFirstPageContaining(final DocumentContent bidDoc, final String... keywords) {
         for (DocumentContent.PageContent page : bidDoc.pages()) {
-            for (String kw : keywords) {
-                if (page.text().contains(kw)) {
-                    return new PageMatch(page.pageNumber(), page.text());
-                }
-            }
+            if (containsAnyKeyword(page.text(), keywords)) return new PageMatch(page.pageNumber(), page.text());
         }
         return null;
+    }
+
+    static boolean containsAnyKeyword(final String text, final String... keywords) {
+        if (text == null) return false;
+        for (String kw : keywords) {
+            if (text.contains(kw)) return true;
+        }
+        return false;
     }
 
     static String snippet(final String text, final int maxChars) {
@@ -180,30 +232,19 @@ public final class BasicInfoCheckPolicy {
         return clean.length() <= maxChars ? clean : clean.substring(0, maxChars) + "...";
     }
 
-    /**
-     * 围绕关键词命中位置摘录证据上下文.
-     *
-     * <p>分页缺失时整篇文档退化为单页，页首摘录会恒定指向封面文本，证据失去定位意义；
-     * 本方法取最早命中的关键词位置为中心截取窗口，保证为原文子串（压缩空白后截断至 maxChars），
-     * 未命中任何关键词时回退 {@link #snippet(String, int)} 页首行为。
-     */
+    /** 围绕关键词命中位置摘录证据上下文. */
     static String snippetAround(final String text, final int maxChars, final String... keywords) {
         if (text == null) return "";
-        int bestIdx = -1;
-        int bestLen = 0;
+        int bestIdx = -1, bestLen = 0;
         for (String kw : keywords) {
-            if (kw == null || kw.isBlank()) {
-                continue;
-            }
+            if (kw == null || kw.isBlank()) continue;
             int idx = text.indexOf(kw);
             if (idx >= 0 && (bestIdx < 0 || idx < bestIdx)) {
                 bestIdx = idx;
                 bestLen = kw.length();
             }
         }
-        if (bestIdx < 0) {
-            return snippet(text, maxChars);
-        }
+        if (bestIdx < 0) return snippet(text, maxChars);
         int before = Math.max(0, (maxChars - bestLen) / 2);
         int start = Math.max(0, bestIdx - before);
         int end = Math.min(text.length(), start + maxChars * 2);
@@ -219,25 +260,16 @@ public final class BasicInfoCheckPolicy {
     /** 价格对捕获组（中文大写金额 / 阿拉伯小写金额），单行与跨行两个正则共享. */
     private static final String CN_AMOUNT_GROUP = "([零壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分整正\\s]+)";
     private static final String NUM_AMOUNT_GROUP = "([0-9,]+(?:\\.[0-9]{1,2})?)";
+    private static final int CROSS_LINE_PAIR_WINDOW = 300;
 
     static ParsedPrice parsePricePair(final String text) {
         return findPricePair(text, Pattern.compile(
                 "(?:大写[：:]\\s*(?:人民币)?" + CN_AMOUNT_GROUP + ").*?(?:小写[：:]\\s*[¥￥]?" + NUM_AMOUNT_GROUP + ")"));
     }
 
-    /** 跨行大写与小写之间最大距离（字符）：限制无界跨行匹配的误配面. */
-    private static final int CROSS_LINE_PAIR_WINDOW = 300;
-
-    /**
-     * 跨行价格对匹配（仅全文回退使用）：{@code .} 默认不跨行，物理页/虚拟块切开后
-     * 大写与小写之间必然隔着换行，逐页与单行正则都无法命中；此版本启用 DOTALL
-     * 并以 {@link #CROSS_LINE_PAIR_WINDOW} 距离窗口约束，控制远距误配.
-     */
     static ParsedPrice parsePricePairCrossLine(final String text) {
         return findPricePair(text, Pattern.compile(
-                "(?:大写[：:]\\s*(?:人民币)?" + CN_AMOUNT_GROUP + ")"
-                        + ".{0," + CROSS_LINE_PAIR_WINDOW + "}?(?:小写[：:]\\s*[¥￥]?" + NUM_AMOUNT_GROUP + ")",
-                Pattern.DOTALL));
+                "(?:大写[：:]\\s*(?:人民币)?" + CN_AMOUNT_GROUP + ").{0," + CROSS_LINE_PAIR_WINDOW + "}?(?:小写[：:]\\s*[¥￥]?" + NUM_AMOUNT_GROUP + ")", Pattern.DOTALL));
     }
 
     /** 执行价格对正则匹配并归一化（金额空白剔除、千分位剔除、小写折算），未命中、大写金额为空或数字非法返回 null. */
@@ -245,15 +277,10 @@ public final class BasicInfoCheckPolicy {
         Matcher m = pattern.matcher(text);
         if (m.find()) {
             String cn = m.group(1).replaceAll("[\\s整正]", "").trim();
-            if (cn.isEmpty()) {
-                // "大写："后无金额（跨行捕获组吞掉换行）：不构成价格对，落回转人工而非折算 ¥0 误判
-                return null;
-            }
+            if (cn.isEmpty()) return null;
             String numStr = m.group(2).replace(",", "").trim();
             if (numStr.matches("^[0-9]+(\\.[0-9]{1,2})?$")) {
-                BigDecimal num = new BigDecimal(numStr);
-                BigDecimal converted = ChineseAmountConverter.convertChineseToNumber(cn);
-                return new ParsedPrice(cn, num, converted);
+                return new ParsedPrice(cn, new BigDecimal(numStr), ChineseAmountConverter.convertChineseToNumber(cn));
             }
         }
         return null;
