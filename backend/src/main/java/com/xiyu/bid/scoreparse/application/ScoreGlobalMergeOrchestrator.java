@@ -12,7 +12,6 @@ import com.xiyu.bid.scoreparse.domain.ScoreMergeResultGuard;
 import com.xiyu.bid.scoreparse.domain.ScoreParseConstants;
 import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.llm.LlmDecision;
-import com.xiyu.bid.scoreparse.domain.llm.LlmFactOp;
 import com.xiyu.bid.scoreparse.domain.llm.LlmFactOperationValidator;
 import com.xiyu.bid.scoreparse.domain.llm.RawFactOperation;
 import com.xiyu.bid.scoreparse.infrastructure.openai.ScoreGlobalMergeExecutor;
@@ -21,7 +20,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -230,30 +228,12 @@ public class ScoreGlobalMergeOrchestrator {
             return new FactMergeOutcome(reviewFacts, true, null, validation.violations(),
                     ScoreParseDecision.REVIEW_REQUIRED, "RESORT_TO_LLM_MERGE");
         }
-        LlmDecision decision = toDecisionSafe(rawOps);
+        LlmDecision decision = RawFactOperation.toDecision(rawOps);
         List<ScoreFact> applied = LlmFactOperationValidator.apply(facts, decision);
         var scoringValidation = ScoreFactValidator.validateScoringSet(applied);
         ScoreParseDecision decisionStatus = scoringValidation.scoringComplete()
                 ? ScoreParseDecision.AUTO_APPROVED : ScoreParseDecision.REVIEW_REQUIRED;
         String fallback = scoringValidation.scoringComplete() ? null : "WEIGHT_GAP_OR_STRUCTURE_DEFECT";
         return new FactMergeOutcome(applied, true, null, List.of(), decisionStatus, fallback);
-    }
-
-    private static LlmDecision toDecisionSafe(List<RawFactOperation> rawOps) {
-        List<LlmFactOp> ops = new ArrayList<>();
-        for (RawFactOperation raw : rawOps) {
-            if ("KEEP".equals(raw.action())) {
-                ops.add(new LlmFactOp.Keep(raw.factId(), raw.confidence(), raw.reasonCellIds()));
-            } else if ("CLASSIFY".equals(raw.action())) {
-                ops.add(new LlmFactOp.Classify(raw.factId(), raw.category(), raw.confidence(), raw.reasonCellIds()));
-            } else if ("LINK_PARENT".equals(raw.action())) {
-                ops.add(new LlmFactOp.LinkParent(raw.factId(), raw.parentFactId(), raw.confidence(), raw.reasonCellIds()));
-            } else if ("MARK_DUPLICATE".equals(raw.action())) {
-                ops.add(new LlmFactOp.MarkDuplicate(raw.factId(), raw.duplicateFactIds(), raw.confidence(), raw.reasonCellIds()));
-            } else if ("REVIEW_REQUIRED".equals(raw.action())) {
-                ops.add(new LlmFactOp.MarkReviewRequired(raw.factId(), raw.reason(), raw.confidence(), raw.reasonCellIds()));
-            }
-        }
-        return new LlmDecision(ops);
     }
 }

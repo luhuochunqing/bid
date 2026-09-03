@@ -232,25 +232,16 @@ public final class LlmFactOperationValidator {
 
     /** 违规时保持原事实不修改字段，将违规 op 涉及的 fact 置为 REVIEW_REQUIRED。 */
     public static List<ScoreFact> markViolatedFacts(List<ScoreFact> pool, List<RawFactOperation> rawOps) {
-        if (pool == null) {
-            return List.of();
-        }
-        Map<String, ScoreFact> current = new LinkedHashMap<>();
-        for (ScoreFact f : pool) {
-            current.put(f.factId(), f);
-        }
-        if (rawOps != null) {
-            for (RawFactOperation raw : rawOps) {
-                if (raw != null && current.containsKey(raw.factId())) {
-                    ScoreFact f = current.get(raw.factId());
-                    current.put(f.factId(), f.withValidationStatus(ScoreFact.ValidationStatus.REVIEW_REQUIRED));
-                }
-            }
-        }
-        return List.copyOf(current.values());
+        return markFactIdsAsReviewRequired(pool,
+                rawOps == null ? List.of() : rawOps.stream().map(RawFactOperation::factId).toList());
     }
 
     public static List<ScoreFact> markViolatedFacts(List<ScoreFact> pool, LlmDecision decision, ValidationResult val) {
+        return markFactIdsAsReviewRequired(pool,
+                decision == null ? List.of() : decision.ops().stream().map(LlmFactOp::factId).toList());
+    }
+
+    private static List<ScoreFact> markFactIdsAsReviewRequired(List<ScoreFact> pool, Iterable<String> factIds) {
         if (pool == null) {
             return List.of();
         }
@@ -258,11 +249,11 @@ public final class LlmFactOperationValidator {
         for (ScoreFact f : pool) {
             current.put(f.factId(), f);
         }
-        if (decision != null) {
-            for (LlmFactOp op : decision.ops()) {
-                if (op != null && current.containsKey(op.factId())) {
-                    ScoreFact f = current.get(op.factId());
-                    current.put(f.factId(), f.withValidationStatus(ScoreFact.ValidationStatus.REVIEW_REQUIRED));
+        if (factIds != null) {
+            for (String id : factIds) {
+                if (id != null && current.containsKey(id)) {
+                    ScoreFact f = current.get(id);
+                    current.put(id, f.withValidationStatus(ScoreFact.ValidationStatus.REVIEW_REQUIRED));
                 }
             }
         }

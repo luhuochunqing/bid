@@ -10,7 +10,6 @@ import com.xiyu.bid.biddraftagent.infrastructure.openai.OpenAiStructuredOutputSe
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
 import com.xiyu.bid.scoreparse.domain.llm.LlmDecision;
-import com.xiyu.bid.scoreparse.domain.llm.LlmFactOp;
 import com.xiyu.bid.scoreparse.domain.llm.RawFactOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
@@ -166,7 +165,7 @@ public class ScoreGlobalMergeExecutor {
 
     public LlmDecision resolveFacts(List<ScoreFact> facts, String sectionText) {
         List<RawFactOperation> rawOps = resolveRawFacts(facts, sectionText);
-        return toFactDecision(rawOps);
+        return RawFactOperation.toDecision(rawOps);
     }
 
     private static List<RawFactOperation> toRawOps(LlmFactOperationsPayload payload) {
@@ -183,27 +182,6 @@ public class ScoreGlobalMergeExecutor {
             }
         }
         return out;
-    }
-
-    private static LlmDecision toFactDecision(List<RawFactOperation> rawOps) {
-        if (rawOps == null || rawOps.isEmpty()) {
-            return new LlmDecision(List.of());
-        }
-        List<LlmFactOp> ops = new ArrayList<>();
-        for (RawFactOperation raw : rawOps) {
-            if ("KEEP".equals(raw.action())) {
-                ops.add(new LlmFactOp.Keep(raw.factId(), raw.confidence(), raw.reasonCellIds()));
-            } else if ("CLASSIFY".equals(raw.action())) {
-                ops.add(new LlmFactOp.Classify(raw.factId(), raw.category(), raw.confidence(), raw.reasonCellIds()));
-            } else if ("LINK_PARENT".equals(raw.action())) {
-                ops.add(new LlmFactOp.LinkParent(raw.factId(), raw.parentFactId(), raw.confidence(), raw.reasonCellIds()));
-            } else if ("MARK_DUPLICATE".equals(raw.action())) {
-                ops.add(new LlmFactOp.MarkDuplicate(raw.factId(), raw.duplicateFactIds(), raw.confidence(), raw.reasonCellIds()));
-            } else if ("REVIEW_REQUIRED".equals(raw.action())) {
-                ops.add(new LlmFactOp.MarkReviewRequired(raw.factId(), raw.reason(), raw.confidence(), raw.reasonCellIds()));
-            }
-        }
-        return new LlmDecision(ops);
     }
 
     static String summarizeFacts(List<ScoreFact> facts) {

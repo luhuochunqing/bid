@@ -3,6 +3,7 @@
 // Pos: scoreparse/domain/llm — pure domain DTO (spec 059 Phase 3)
 package com.xiyu.bid.scoreparse.domain.llm;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -40,5 +41,27 @@ public record RawFactOperation(
                                       Double confidence, List<String> reasonCellIds, String reason) {
         return new RawFactOperation(factId, action, category, parentFactId, duplicateFactIds,
                 confidence, reasonCellIds, reason, null, null, null, null);
+    }
+
+    /** 将已审计/待处理的原始 Wire 操作统一映射为领域不可变操作对象 */
+    public static LlmDecision toDecision(List<RawFactOperation> rawOps) {
+        if (rawOps == null || rawOps.isEmpty()) {
+            return new LlmDecision(List.of());
+        }
+        List<LlmFactOp> ops = new ArrayList<>();
+        for (RawFactOperation raw : rawOps) {
+            if (raw == null) {
+                continue;
+            }
+            switch (raw.action()) {
+                case "KEEP" -> ops.add(new LlmFactOp.Keep(raw.factId(), raw.confidence(), raw.reasonCellIds()));
+                case "CLASSIFY" -> ops.add(new LlmFactOp.Classify(raw.factId(), raw.category(), raw.confidence(), raw.reasonCellIds()));
+                case "LINK_PARENT" -> ops.add(new LlmFactOp.LinkParent(raw.factId(), raw.parentFactId(), raw.confidence(), raw.reasonCellIds()));
+                case "MARK_DUPLICATE" -> ops.add(new LlmFactOp.MarkDuplicate(raw.factId(), raw.duplicateFactIds(), raw.confidence(), raw.reasonCellIds()));
+                case "REVIEW_REQUIRED" -> ops.add(new LlmFactOp.MarkReviewRequired(raw.factId(), raw.reason(), raw.confidence(), raw.reasonCellIds()));
+                default -> {}
+            }
+        }
+        return new LlmDecision(ops);
     }
 }
