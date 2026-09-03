@@ -13,6 +13,7 @@ import com.xiyu.bid.compliance.domain.QualificationDetail;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityCheckStatus;
 import com.xiyu.bid.compliance.domain.policy.BidDocumentQualityEngine;
+import com.xiyu.bid.compliance.domain.policy.DeterministicQualificationExtractor;
 import com.xiyu.bid.compliance.domain.policy.KnowledgeQueryOutcome;
 import com.xiyu.bid.compliance.domain.policy.LlmAdjudicator;
 import com.xiyu.bid.compliance.domain.policy.LlmVerdict;
@@ -107,6 +108,12 @@ public class BidQualityCheckAsyncExecutor {
 
             // spec 049 第二步：招标要求 LLM 结构化提取（全部失败场景降级 missing 哨兵，不阻断任务）
             TenderRequirements requirements = requirementsExtractor.extract(tenderDoc);
+
+            // 双轨融合：纯核心确定性规则提取（100% 规则锚定招标文件资格与资质条款，杜绝漏识别）
+            List<String> deterministicQuals = DeterministicQualificationExtractor.extract(tenderDoc.fullText());
+            if (!deterministicQuals.isEmpty()) {
+                requirements = requirements.withMergedQualifications(deterministicQuals);
+            }
 
             // Step 2: 知识库检索与 25 项规则核查 (progress: 60)
             progressUpdater.updateProgress(resultId, ComplianceCheckResult.TaskStatus.CHECKING, 60, "正在对照企业知识库并执行25项质量核查...");

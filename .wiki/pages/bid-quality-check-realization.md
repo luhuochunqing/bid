@@ -164,6 +164,12 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **反向包含假阴性消除**：`KnowledgeBaseOnDemandLoader` 旧版使用 `q.getName().contains(kw)`，将短证书名反向包含大模型提取的长句导致恒为 false（资质库 0 匹配）。重构为纯核心 `QualificationMatchPolicy`，实现双向包含、标准代号提取（`ISO9001/ISO27001/CMMI/ITSS` 等）、专有资质等级对齐与 LCS 判定，并在资质库与人员库统一复用。
     - **招标文件三级优雅回退**：`TenderDocumentLoader` 支持一级查 `project_documents` 标准 `TENDER` 分类；二级按文件名启发式识别项目文档；三级向上穿透回退到 `project -> tender.source_document_file_url`，彻底打通仅在标讯带入文件的立项场景。
     - **结构化比对清单透传与弹窗呈现**：新增 `QualificationDetail` 领域模型并集成到 `QualityCheckItemResult` 与报表 DTO，前端在 `QualityCheckDetailDialog.vue` 中渲染结构化比对表格（招标资质要求 vs 我司持有证书 vs 标书位置 vs 核查说明），并 100% 接入全局设计系统令牌。
+19. **招标资格与资质要求"漏识别"根因与双轨融合架构**（2026-09-03）：
+    - **公文强规范与常识性必然存在**：依据《招标投标法》第 18 条，任何招标文件必然包含资格要求章节。系统提示"未在招标文件中提取到明确的硬性资格要求"纯属系统提取缺陷，不可向用户暴露虚假的不存在。
+    - **`TenderRequirementsParser` 代码块围栏容错**：大模型常用 ````json` 围栏包裹或附加前后说明文字，旧版 `OBJECT_MAPPER.readTree` 直接抛 checked 异常降级为 `missingSentinel`。通过引入 `extractJsonObject` 括号配平扫描，成功剥离围栏与对话文字，杜绝格式噪声引发的降级。
+    - **确定性规则提取器（`DeterministicQualificationExtractor`）**：建立纯核心正则章节锚定与标号切分策略，自动识别专用资质（增值电信业务许可证、等保三级、ISO、安全生产等）与通用资格（法人资格、失信限制），过滤占位符（如 `人员要求：/`）。
+    - **质检流水线双轨融合**：`BidQualityCheckAsyncExecutor` 将规则提取的确定性资格与 LLM 提取的资格并集去重（`withMergedQualifications`）。只要规则提取出资质，即可解除 `missing` 标记，确保资质比对与结构化清单 100% 稳定生成。
+
 
 ## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
 

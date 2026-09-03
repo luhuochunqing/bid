@@ -325,4 +325,53 @@ class BidQualityCheckAsyncExecutorTest {
         verify(aiProvider, times(1)).chatCompletionJsonObject(anyString(), anyInt());
         verify(aiProvider, never()).chatCompletion(anyString(), anyInt());
     }
+
+    @Test
+    @DisplayName("双轨融合 1358 实战：即使 LLM 提取降级为 missingSentinel，确定性规则依然捕获增值电信与等保三级并执行知识库比对")
+    void testExecuteAsync_DualTrack_Incident1358_ExtractsQualificationsEvenWhenLlmReturnsMissing() {
+        Long resultId = 2L;
+        Long projectId = 1358L;
+        String taskId = "task-1358";
+
+        String text1358 = """
+                3.供应商资格要求
+                3.1 通用资格条件
+                3.1.1 供应商须为中华人民共和国境内合法注册的独立法人或其他组织，具有独立承担民事责任能力，具有独立订立合同的权利。
+                3.2 专用资格条件
+                3.2.1 资质要求：供应商应具有以下证书：
+                ①增值电信业务经营许可证，业务种类及覆盖范围需包括信息服务业务（互联网信息服务）及在线数据处理与交易业务（经营类电子商务）；
+                ②公安部信息系统安全等级保护备案证明第三级或第三级以上证书。
+                3.2.3 人员要求：/
+                3.2.4 财务要求：/
+                """;
+
+        DocumentContent bidDoc = DocumentContent.fromText("bid-1358.pdf", "hash_bid_1358", "正文第42页包含增值电信业务经营许可证，第45页包含公安部等保三级证明");
+        DocumentContent tenderDoc = DocumentContent.fromText("tender-1358.pdf", "hash_tender_1358", text1358);
+
+        when(targetLoader.loadBidDocument(projectId)).thenReturn(bidDoc);
+        when(tenderDocumentLoader.loadTenderDocument(projectId)).thenReturn(tenderDoc);
+        when(resultRepository.findTopByBidFileHashAndTenderFileHashAndStatusOrderByCheckedAtDesc(
+                eq("hash_bid_1358"), eq("hash_tender_1358"), eq(ComplianceCheckResult.TaskStatus.COMPLETED)))
+                .thenReturn(Optional.empty());
+
+        // 模拟 LLM 提取降级为 missingSentinel
+        when(requirementsExtractor.extract(tenderDoc)).thenReturn(TenderRequirements.missingSentinel());
+        when(kbLoader.queryKnowledgeBases(any())).thenReturn(KnowledgeQueryOutcome.empty());
+        when(aiProvider.chatCompletionJsonObject(anyString(), anyInt()))
+                .thenReturn("{\"status\":\"PASS\",\"conclusion\":\"资质匹配\"}");
+
+        asyncExecutor.executeAsync(resultId, projectId, taskId, false);
+
+        // 验证：双轨提取生效，知识库查询接收到了确定性提取的增值电信与等保三级证书要求
+        org.mockito.ArgumentCaptor<List<String>> certsCaptor = org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(kbLoader).queryKnowledgeBases(certsCaptor.capture());
+        List<String> queriedCerts = certsCaptor.getValue();
+
+        assertThat(queriedCerts).isNotEmpty();
+        assertThat(queriedCerts).anyMatch(c -> c.contains("增值电信业务经营许可证"));
+        assertThat(queriedCerts).anyMatch(c -> c.contains("公安部信息系统安全等级保护备案证明"));
+
+        // 验证任务顺利推进并完成
+        verify(progressUpdater).completeTask(eq(resultId), any(), anyInt(), anyString(), anyInt(), anyInt(), anyInt(), anyInt());
+    }
 }

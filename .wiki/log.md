@@ -3,7 +3,15 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-03] fix | 招标文件资格与资质漏识别根治（确定性提取器+代码块围栏容错+双轨融合）
+
+- 触发：第 156 次部署后，测试环境 1358 项目仍报"未在招标文件中提取到明确的硬性资格要求"。用户指出常识：任何招标文件必然包含资格要求。
+- 根因：`TenderRequirementsParser` 遇到大模型输出代码围栏（```json）直接抛 checked 异常降级为 missingSentinel；全篇 30000 字符超大窗口导致 LLM 注意力稀释，且缺乏针对中国招投标公文规范的确定性提取规则。
+- 修复：编写纯核心 `DeterministicQualificationExtractor` 策略，正则锚定资格要求章节并分条解析专用资质与通用资格；修复 `TenderRequirementsParser` 添加首个配平 JSON 提取 `extractJsonObject`；质检主流水线 `BidQualityCheckAsyncExecutor` 实现双轨融合（`withMergedQualifications`），确保资格 100% 稳定识别。
+- 页面更新：更新 [[bid-quality-check-realization]] §4.19；更新 lessons-learned.md §219。
+
 ## [2026-09-03] fix | 标书质量核查资质匹配0匹配修复与三级穿透及结构化比对
+
 
 - 触发：用户反馈 AI 标书质量核查资质匹配"无数据"，排查确认短串反向包含长句导致资质库 0 匹配，以及无物理 TENDER 文件时未回退 tender.source_document_file_url 导致空文档熔断。
 - 修复：设计 FP-Java 纯核心 `QualificationMatchPolicy`，实现双向包含、标准代号提取、等级对齐与有效 LCS 匹配；`TenderDocumentLoader` 建立三级优雅穿透（TENDER 分类 -> 启发式文件名 -> 标讯 URL）；下发 `QualificationDetail` 结构化比对清单，前端表格呈现并 100% 接入设计系统令牌。
