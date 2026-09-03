@@ -125,13 +125,28 @@ public final class SubItemAndAttachmentRules {
         if (isDepositNotRequired(tenderText)) {
             return QualityCheckItemResult.pass(item, "招标文件未要求缴纳投标保证金（免收/不涉及）", Collections.emptyList());
         }
-        BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc,
-                "投标保证金汇款", "保证金转账", "银行汇款回单", "电子保函凭证", "保函", "汇款凭证", "缴纳凭证");
-        if (match != null) {
-            return QualityCheckItemResult.pass(item, "已附投标保证金汇款回单或电子保函凭证", List.of(QualityEvidence.bid("保证金凭证页", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(match.text(), 200, "投标保证金", "保函", "汇款凭证", "银行回单"))));
+        BasicInfoCheckPolicy.PageMatch strongMatch = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc,
+                "投标保证金汇款", "保证金转账", "银行汇款回单", "电子保函凭证", "汇款凭证", "缴纳凭证");
+        if (strongMatch != null) {
+            return QualityCheckItemResult.pass(item, "已附投标保证金汇款回单或电子保函凭证",
+                    List.of(QualityEvidence.bid("保证金凭证页", strongMatch.pageNumber(),
+                            BasicInfoCheckPolicy.snippetAround(strongMatch.text(), 200,
+                                    "投标保证金", "汇款凭证", "银行回单"))));
+        }
+        BasicInfoCheckPolicy.PageMatch guaranteeMatch = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc,
+                "投标保函", "银行保函", "电子保函", "保函凭证", "保函原件");
+        if (guaranteeMatch != null && isActualGuaranteePage(guaranteeMatch.text())) {
+            return QualityCheckItemResult.pass(item, "已附投标保证金汇款回单或电子保函凭证",
+                    List.of(QualityEvidence.bid("保证金凭证页", guaranteeMatch.pageNumber(),
+                            BasicInfoCheckPolicy.snippetAround(guaranteeMatch.text(), 200,
+                                    "保函", "投标保证金"))));
         }
         if (bidDoc.fullText().contains("不收取投标保证金") || bidDoc.fullText().contains("免收保证金") || bidDoc.fullText().contains("不涉及保证金")) {
             return QualityCheckItemResult.pass(item, "投标文件中声明不涉及/免收投标保证金", Collections.emptyList());
+        }
+        if (guaranteeMatch != null) {
+            return QualityCheckItemResult.manualReview(item, "检索到保函相关表述，但无法确认为实际保函凭证（可能为格式要求或附件清单引用）",
+                    "请人工核实投标文件是否附有正式保函原件或电子保函凭证", Collections.emptyList());
         }
         return QualityCheckItemResult.fail(item, "未检索到投标保证金缴纳凭证或投标保函", "请补充投标保证金转账回执单扫描件或有效保函", Collections.emptyList());
     }
@@ -181,6 +196,32 @@ public final class SubItemAndAttachmentRules {
                 || tenderText.contains("免收保证金")
                 || tenderText.contains("无需缴纳保证金")
                 || (!tenderText.contains("保证金") && !tenderText.contains("保函"));
+    }
+
+    /**
+     * 二次验证：命中保函关键词的页面是否为实际保函凭证，而非格式要求/附件清单/合规声明中的引用.
+     *
+     * <p>正面指标（保函凭证页特征）：保函编号、出具机构、保函金额、受益人等.
+     * <p>负面指标（格式/要求/清单引用特征）：格式、范本、模板、须附、应当提供、要求等.
+     */
+    static boolean isActualGuaranteePage(final String pageText) {
+        if (pageText == null || pageText.isBlank()) {
+            return false;
+        }
+        boolean hasPositive = pageText.contains("保函编号") || pageText.contains("保函金额")
+                || pageText.contains("出具机构") || pageText.contains("担保机构")
+                || pageText.contains("保函号") || pageText.contains("担保金额")
+                || pageText.contains("受益人") || pageText.contains("保函有效期")
+                || pageText.contains("保函正本") || pageText.contains("保函复印件");
+        if (hasPositive) {
+            return true;
+        }
+        boolean hasRequirementContext = pageText.contains("格式") || pageText.contains("范本")
+                || pageText.contains("模板") || pageText.contains("须附") || pageText.contains("须提交")
+                || pageText.contains("应当提供") || pageText.contains("要求提供")
+                || pageText.contains("附件清单") || pageText.contains("组成文件")
+                || pageText.contains("包括但不限于") || pageText.contains("应当包括");
+        return !hasRequirementContext;
     }
 
     private static boolean isCaNotRequired(final String tenderText) {
