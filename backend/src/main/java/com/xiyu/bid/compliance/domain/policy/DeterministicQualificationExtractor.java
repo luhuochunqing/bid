@@ -60,6 +60,11 @@ public final class DeterministicQualificationExtractor {
             "人员要求", "财务要求", "业绩要求", "其他要求"
     );
 
+    /** 核心证书许可关键字（用于从人员/业绩等要求中挽救包含证书的条款）. */
+    private static final List<String> CERTIFICATE_CORE_KEYWORDS = List.of(
+            "许可证", "证书", "资质", "备案证明", "认证"
+    );
+
     private static final String BULLET_DELIMITER = "\u0001\u0002";
 
     private DeterministicQualificationExtractor() {
@@ -90,7 +95,7 @@ public final class DeterministicQualificationExtractor {
                 }
 
                 String clean = cleanItem(item);
-                if (isValidQualification(clean) && !extracted.contains(clean)) {
+                if (isValidQualification(clean)) {
                     extracted.add(clean);
                 }
             }
@@ -152,15 +157,10 @@ public final class DeterministicQualificationExtractor {
         }
         // 排除纯人员/财务/业绩要求（未含证书许可关键字时）
         boolean isIgnoredPrefix = IGNORE_PREFIXES.stream().anyMatch(clean::startsWith);
-        if (isIgnoredPrefix && !containsCertificateKeyword(clean)) {
+        if (isIgnoredPrefix && CERTIFICATE_CORE_KEYWORDS.stream().noneMatch(clean::contains)) {
             return false;
         }
 
         return QUALIFICATION_KEYWORDS.stream().anyMatch(clean::contains);
-    }
-
-    private static boolean containsCertificateKeyword(final String text) {
-        return text.contains("许可证") || text.contains("证书") || text.contains("资质")
-                || text.contains("备案证明") || text.contains("认证");
     }
 }
