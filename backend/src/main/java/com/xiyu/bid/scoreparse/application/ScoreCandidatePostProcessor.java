@@ -78,7 +78,6 @@ public class ScoreCandidatePostProcessor {
     private final WeightSumCheck weightSumCheck = new WeightSumCheck();
     private final ItemCountCheck itemCountCheck = new ItemCountCheck();
     private final WeightOverloadTrimPolicy trimPolicy = new WeightOverloadTrimPolicy();
-    private final WeightNormalizationPolicy normalizationPolicy = new WeightNormalizationPolicy();
 
     public Processed process(String taskId, String fullText, RecallOutcome recall,
             List<ScoreCandidate> tableRows, StageReporter reporter) {
@@ -113,34 +112,33 @@ public class ScoreCandidatePostProcessor {
             log.warn("权重超载剔除 spec046: removed={}", trimmed.removed().size());
             weightResult = weightSumCheck.checkCandidates(valid);
         }
-        var normalized = normalizationPolicy.normalize(valid);
-        BigDecimal originalTotal = null;
+        BigDecimal originalTotal = weightResult.totalWeight().setScale(2, java.math.RoundingMode.HALF_UP);
+        boolean weightMismatch = weightResult.needRecheck()
+                || originalTotal.compareTo(BigDecimal.valueOf(100)) != 0;
         String normalizationWarning = null;
-        boolean normalizationApplied = normalized.originalTotal() != null;
-        if (normalizationApplied) {
-            valid = normalized.normalizedCandidates();
-            originalTotal = normalized.originalTotal().setScale(2, java.math.RoundingMode.HALF_UP);
-            normalizationWarning = normalized.warning();
-            if (normalizationWarning != null) {
-                log.warn("评分权重归一化已生效（spec 057 FR-05）: taskId={}, {}", taskId, normalizationWarning);
-            }
-            weightResult = weightSumCheck.checkCandidates(valid);
+        if (weightMismatch) {
+            normalizationWarning = String.format(
+                    "评分权重合计为 %s分，不符合100分预期（已取消自动归一化，保留原始权重待人工复核）",
+                    originalTotal.stripTrailingZeros().toPlainString());
+            log.warn("评分权重合计不符预期（spec 059 Phase 4 阻断自动归一化）: taskId={}, {}", taskId, normalizationWarning);
+        } else {
+            originalTotal = null;
         }
         int parentOnlyCount = (int) valid.stream().filter(ScoreCandidate::isParentOnlyDim).count();
         ItemCountCheck.Result countResult = itemCountCheck.check(valid.size());
 
-        // spec 059 Phase 0/3: 决策状态 + 回退原因
+        // spec 059 Phase 4: 完整性判定与决策状态
         ScoreParseDecision decision;
         String fallbackReason;
         if (countResult.failed()) {
             decision = ScoreParseDecision.PARSE_FAILED;
             fallbackReason = "ZERO_VALID_ITEMS";
-        } else if (normalizationApplied) {
-            decision = ScoreParseDecision.REVIEW_REQUIRED;
-            fallbackReason = "RESORT_TO_NORMALIZATION";
         } else if (gapRecheckTriggered) {
             decision = ScoreParseDecision.REVIEW_REQUIRED;
             fallbackReason = "RESORT_TO_GAP_RECHECK";
+        } else if (weightMismatch) {
+            decision = ScoreParseDecision.REVIEW_REQUIRED;
+            fallbackReason = "WEIGHT_SUM_MISMATCH";
         } else if (stats.invoked() && (stats.truncated() || stats.hallucinationDropped() > stats.poolBackedKept())) {
             decision = ScoreParseDecision.REVIEW_REQUIRED;
             fallbackReason = "RESORT_TO_LLM_MERGE";

@@ -165,11 +165,11 @@ class ScoreParseAppServiceTest {
     @Test
     void parse_filtersGhostCandidates() {
         // spec 046 FR-001：表头回声幽灵项（dim=detail="得分"≤4字、无code/sourceText）；
-        // 权重合计 30+30+40=100 不触发 FR-002，确保断言仅依赖幽灵过滤
+        // 过滤幽灵项后有效项权重 60+40=100，达到 AUTO_APPROVED 触发 persist
         mockParseFlowReturning(List.of(
-                candidate("A1", "资质", "具备 CMMI 5 级认证证书", "30"),
+                candidate("A1", "资质", "具备 CMMI 5 级认证证书", "60"),
                 ghostHeaderEcho("40"),
-                candidate("A2", "业绩", "近三年类似项目业绩不少于 3 个", "30")));
+                candidate("A2", "业绩", "近三年类似项目业绩不少于 3 个", "40")));
 
         service.executeParseAsync(TASK_ID);
 
@@ -204,6 +204,23 @@ class ScoreParseAppServiceTest {
 
         assertThat(task.getSkippedChunks()).isEqualTo(2);
         verify(stateService).markCompleted(TASK_ID);
+    }
+
+    @Test
+    void parse_reviewRequired_doesNotPersistScoreItems_preservesExisting() {
+        // spec 059 Phase 4: 权重合计 50+30=80 不符 100 分，决策为 REVIEW_REQUIRED
+        // 任务状态正常 markCompleted，但绝对禁止调用 persistItems 覆盖已有评分项
+        ScoreParseTask task = mockParseFlowReturning(List.of(
+                candidate("A1", "资质", "具备 CMMI 认证", "50"),
+                candidate("A2", "业绩", "近三年业绩", "30")));
+
+        service.executeParseAsync(TASK_ID);
+
+        verify(stateService).markCompleted(TASK_ID);
+        verify(itemPersistenceService, never()).persistItems(any(), any(), anyList());
+        verify(estimatedScoreService, never()).estimateForProject(any());
+        assertThat(task.getDecisionStatus()).isEqualTo("REVIEW_REQUIRED");
+        assertThat(task.getFallbackReason()).isEqualTo("WEIGHT_SUM_MISMATCH");
     }
 
     private List<ScoreCandidate> defaultCandidates() {

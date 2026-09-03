@@ -10,7 +10,7 @@ backlinks:
   - .wiki/pages/_index.md
 created: 2026-08-26
 updated: 2026-08-26
-health_checked: 2026-08-26
+health_checked: 2026-09-03
 ---
 
 # Hibernate STRING 枚举 vs varchar 列校验陷阱

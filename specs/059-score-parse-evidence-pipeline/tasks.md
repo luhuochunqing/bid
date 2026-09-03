@@ -41,11 +41,11 @@
 
 ## Phase 4：完整性阻断、人工复核、取消静默归一化（独立 Commit）
 
-- [ ] T401 `ScoreCompletenessPolicy`：覆盖声明总分、末级权重、父子重复、大类声明、候选数、缺失证据、结构状态。
-- [ ] T402 删除新版链路对 `WeightNormalizationPolicy.normalize` 的自动调用；保留仅供显式人工调整。
-- [ ] T403 复核工作流：保存事实快照、校验失败项、原始总分；前端抽屉新增"自动通过 / 待复核 / 结构异常"状态与原文证据展开（雏形）。
-- [ ] T404 任务决策 ≠ 落库决策：`COMPLETED + REVIEW_REQUIRED` 不覆盖现有 `score_item`；只有 `AUTO_APPROVED` 可写。
-- [ ] T405 完整不变量单测：所有失败模式必须保留旧 `score_item`，不得先删后写。
+- [x] T401 `ScoreCompletenessPolicy`：覆盖声明总分、末级权重、父子重复、大类声明、候选数、缺失证据、结构状态。
+- [x] T402 删除新版链路对 `WeightNormalizationPolicy.normalize` 的自动调用；保留仅供显式人工调整。
+- [x] T403 复核工作流：保存事实快照、校验失败项、原始总分；前端抽屉新增"自动通过 / 待复核 / 结构异常"状态与原文证据展开（雏形）。
+- [x] T404 任务决策 ≠ 落库决策：`COMPLETED + REVIEW_REQUIRED` 不覆盖现有 `score_item`；只有 `AUTO_APPROVED` 可写。
+- [x] T405 完整不变量单测：所有失败模式必须保留旧 `score_item`，不得先删后写。
 
 ## Phase 5：数据库 / 接口 / 前端迁移（独立 Commit）
 

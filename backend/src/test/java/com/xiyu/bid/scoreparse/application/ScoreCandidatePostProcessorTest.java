@@ -6,6 +6,7 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.scoreparse.domain.RecallOutcome;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
+import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.infrastructure.openai.OpenAiScoreAnalyzer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -75,9 +76,12 @@ class ScoreCandidatePostProcessorTest {
                 ), NOOP);
 
         assertThat(out.failMessage()).isNull();
-        // 归并输出 1 项触发 spec047 归一化 → 清单被放大副本替换（weight 10→100），code 保持
+        // spec 059 Phase 4: 取消自动归一化，保留原始权重 10，决策为 REVIEW_REQUIRED
         assertThat(out.candidates()).extracting(ScoreCandidate::code).containsExactly("M1");
+        assertThat(out.candidates()).extracting(ScoreCandidate::weight).containsExactly(new BigDecimal("10"));
         assertThat(out.originalTotal()).isEqualByComparingTo("10");
+        assertThat(out.decisionStatus()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
+        assertThat(out.fallbackReason()).isEqualTo("WEIGHT_SUM_MISMATCH");
         assertThat(out.runSummaryJson())
                 .contains("\"invoked\":true", "\"truncated\":true",
                         "\"poolBackedKept\":1", "\"restored\":2", "\"llmModel\":\"test-model\"");
@@ -131,10 +135,10 @@ class ScoreCandidatePostProcessorTest {
 
         var out = processor.process("t6", "全文", recallOf(unbalanced, 0), List.of(), NOOP);
 
-        // spec 059 Phase 3：LLM 回补项仅作为复核建议，不填补确定性事实权重缺口，保持触发归一化或复核
-        assertThat(out.decisionStatus()).isEqualTo(com.xiyu.bid.scoreparse.domain.ScoreParseDecision.REVIEW_REQUIRED);
-        assertThat(out.fallbackReason()).isIn("RESORT_TO_NORMALIZATION", "RESORT_TO_GAP_RECHECK");
+        // spec 059 Phase 3/4：LLM 回补项仅作为复核建议，不填补确定性事实权重缺口，保持触发复核
+        assertThat(out.decisionStatus()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
+        assertThat(out.fallbackReason()).isIn("RESORT_TO_GAP_RECHECK", "WEIGHT_SUM_MISMATCH");
         // 确保未直接拼接 A3 成为 100 分直接 AUTO_APPROVED
-        assertThat(out.decisionStatus()).isNotEqualTo(com.xiyu.bid.scoreparse.domain.ScoreParseDecision.AUTO_APPROVED);
+        assertThat(out.decisionStatus()).isNotEqualTo(ScoreParseDecision.AUTO_APPROVED);
     }
 }

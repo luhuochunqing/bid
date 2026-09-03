@@ -9,6 +9,7 @@ import com.xiyu.bid.scoreparse.domain.SidecarTableExtraction;
 import com.xiyu.bid.scoreparse.domain.StructuredTableCandidateExtractor;
 import com.xiyu.bid.scoreparse.domain.RecallOutcome;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
+import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.ScoreTableRecallLane;
 import com.xiyu.bid.scoreparse.domain.SummaryAggregator;
 import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
@@ -182,14 +183,16 @@ public class ScoreParseAppService {
             task.setOriginalTotalWeight(processed.originalTotal());
         }
         taskRepository.save(task);
-        updateProgress(taskId, 90, "PERSIST", "评分项落库");
-        itemPersistenceService.persistItems(task.getProjectId(), task.getId(), valid);
-
-        updateProgress(taskId, 95, "ESTIMATE", "阶段 1 预计得分计算");
-        estimatedScoreService.estimateForProject(task.getProjectId());
-
-        log.info("解析任务完成: taskId={}, items={}, totalWeight={}, weightWarning={}, normalizationWarning={}",
-                taskId, valid.size(), processed.weightResult().totalWeight(), processed.weightResult().weightWarning(), processed.normalizationWarning());
+        if (processed.decisionStatus() == ScoreParseDecision.AUTO_APPROVED) {
+            updateProgress(taskId, 90, "PERSIST", "评分项落库");
+            itemPersistenceService.persistItems(task.getProjectId(), task.getId(), valid);
+            updateProgress(taskId, 95, "ESTIMATE", "阶段 1 预计得分计算");
+            estimatedScoreService.estimateForProject(task.getProjectId());
+        } else {
+            log.warn("解析未达自动通过标准，保留现有评分项不覆盖: taskId={}, decision={}", taskId, processed.decisionStatus());
+        }
+        log.info("解析任务完成: taskId={}, items={}, totalWeight={}, decision={}",
+                taskId, valid.size(), processed.weightResult().totalWeight(), processed.decisionStatus());
         stateService.markCompleted(taskId);
         progressService.clearProgress(taskId);
     }
@@ -234,8 +237,7 @@ public class ScoreParseAppService {
     }
 
     private List<ScoreCandidate> recallTableCandidates(String fullText) {
-        ScoreTableSchemaMapper schemaMapper = schemaMapperProvider != null
-                ? schemaMapperProvider.getIfAvailable() : null;
+        var schemaMapper = schemaMapperProvider != null ? schemaMapperProvider.getIfAvailable() : null;
         java.util.function.Function<TableGrid, TableColumnMapping> mapperFunc =
                 schemaMapper != null ? schemaMapper::mapSchema : null;
 
@@ -245,8 +247,7 @@ public class ScoreParseAppService {
             return tableCandidates;
         }
 
-        LlmTableScoreExtractor extractor = llmTableScoreExtractorProvider != null
-                ? llmTableScoreExtractorProvider.getIfAvailable() : null;
+        var extractor = llmTableScoreExtractorProvider != null ? llmTableScoreExtractorProvider.getIfAvailable() : null;
         if (extractor != null) {
             try {
                 List<ScoreCandidate> llmCandidates = extractor.extractFromDocument(fullText);
@@ -275,12 +276,11 @@ public class ScoreParseAppService {
             SidecarTableExtraction extraction = sidecarTableExtractor.extract(content, fileName);
             return StructuredTableCandidateExtractor.extract(extraction);
         } catch (RuntimeException | IOException exception) {
-            log.warn("结构化表格提取失败，降级到 markdown 路径: fileName={}, msg={}",
-                    fileName, exception.getMessage());
+            log.warn("结构化表格提取失败，降级到 markdown: file={}, msg={}", fileName, exception.getMessage());
             return List.of();
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            log.warn("结构化表格提取被中断: fileName={}", fileName);
+            log.warn("结构化表格提取被中断: file={}", fileName);
             return List.of();
         }
     }

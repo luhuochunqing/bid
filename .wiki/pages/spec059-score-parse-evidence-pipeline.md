@@ -1,5 +1,5 @@
 ---
-title: spec 059 评分解析证据化 Phase 0-3 落地结论 + 合入前评审与去噪重构
+title: spec 059 评分解析证据化 Phase 0-4 落地结论 + 合入前评审与去噪重构
 space: engineering
 category: guide
 updated: 2026-09-03
@@ -126,9 +126,36 @@ spec 059 把链路切到「原始 Word 结构 + 确定性事实 + 原文证据 +
   - 全量评分相关测试集 499 例全部绿（0 失败 0 错误）。
   - FP-Java 8 项架构合规全部通过，所有类行预算均低于 300 行硬限。
 
-## Phase 4-6 待办（see tasks.md）
+## Phase 4：完整性阻断、人工复核与取消静默归一化（落地结论）
 
-- Phase 4：完整性阻断、人工复核、移除 WeightNormalizationPolicy 自动调用
+- **7 大维度完整性策略 (T401)**：
+  - 新增纯核心领域策略 `ScoreCompletenessPolicy`，落库前执行 7 大硬不变量校验：
+    1. 声明总分：从标书正文中精准提取显式分值声明（如“总分100分”、“满分120分”），默认 100
+    2. 末级权重合计：以集合语义提取末级叶子事实（`ScoreFact.isLeaf`），其权重合计必须精确等于声明总分，否则阻断为 `WEIGHT_SUM_MISMATCH`
+    3. 父子重复拦截：被引用的父项严禁作为末级项计分，防止 1347 重复计分事故
+    4. 大类分值自洽：父项声明的分值必须精确等于其直接子项权重之和，否则阻断为 `CATEGORY_SUM_MISMATCH`
+    5. 异常低候选数拦截：末级项数极少（<3 项）但正文字数较长时拦截为 `ABNORMALLY_LOW_COUNT`
+    6. 缺失证据拦截：事实缺失单元格引用或权重证据无法在原文精确定位时阻断为 `MISSING_EVIDENCE`
+    7. 文档表格结构破损拦截：网格破损直接阻断为 `STRUCTURE_INCOMPLETE` + `STRUCTURE_DEFECT`
+- **彻底剥离静默自动归一化 (T402)**：
+  - 从 `ScoreCandidatePostProcessor` 中彻底删除 `normalizationPolicy.normalize` 对候选集权重的篡改调用。
+  - 权重不符预期时保留原始权重不修改，记录原始总分与告警，决策置为 `REVIEW_REQUIRED` + `WEIGHT_SUM_MISMATCH`。
+  - `WeightNormalizationPolicy` 保留仅供历史结果展示和显式人工“调整权重”命令使用。
+- **复核工作流数据快照 (T403)**：
+  - 新增 `ScoreParseReviewSnapshot`，结构化沉淀待复核事实快照、失败项、原始总分与待确认差异，为 Phase 5 前端抽屉展开原文证据提供完整数据契约。
+- **任务状态与决策生效分离 & 持久化保护 (T404 & T405)**：
+  - 解析任务状态（`task.status`）与决策状态（`task.decisionStatus`）解耦：任务可正常标记 `COMPLETED`，但其决策为 `REVIEW_REQUIRED`。
+  - **持久化门禁**：`ScoreParseAppService` 严格限制**只有 `decisionStatus == AUTO_APPROVED`** 才能调用 `persistItems` 覆盖当前生效 `score_item`。
+  - 任何 `REVIEW_REQUIRED`、`STRUCTURE_INCOMPLETE` 或 `PARSE_FAILED` 状态下，已有 `score_item` 集合与评分结果原封不动保留，严禁先删后写。
+- **验收与质量证据**：
+  - `ScoreCompletenessPolicyTest` 8 例测试绿。
+  - `ScoreCompletenessAcceptanceTest` 4 项核心不变量验收绿。
+  - `ScoreCandidatePostProcessorTest` 6 例绿。
+  - `ScoreParseAppServiceTest` 21 例绿。
+  - 全量评分测试套件 429 例全绿，FP-Java 架构测试 8/8 绿，所有类行数严格低于 300 行上限。
+
+## Phase 5-6 待办（see tasks.md）
+
 - Phase 5：DB/API/前端迁移 + 双写 + 灰度（双轨回放脚本 T505）
 - Phase 6：金标收口（跨页页码锚点挂账）+ 架构门禁 + 清理
 
