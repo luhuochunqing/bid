@@ -49,11 +49,11 @@
 
 ## Phase 5：数据库 / 接口 / 前端迁移（独立 Commit）
 
-- [ ] T501 迁移：`V{auto}__score_parse_task_evidence_pipeline_schema.sql` + 新表 `score_parse_fact` / `score_parse_evidence` / `score_parse_review`；`score_item` 追加单元格证据列（可空）。
-- [ ] T502 双写：新链路写事实/证据/兼容 score_item；旧链路仅写 legacy run-summary，禁止 AUTO_APPROVED 决策。
-- [ ] T503 API 增量：`ScoreParseItemsDTO.Meta` 增 `evidenceDecision` / `fallbackReason` / `pipelineVersion`；DTO 兼容性单测。
-- [ ] T504 前端 `useScoreParseDrawer` / `ScoreParseDrawer.vue`：状态角标 + 原文证据展开；用户未确认的评分值不修改。
-- [ ] T505 双轨回放工具：`scripts/scoreparse-dual-replay.sh`（脱敏输入，差异报告）。
+- [x] T501 迁移：`V1208__score_parse_evidence_pipeline_phase5.sql` + 新表 `score_parse_fact` / `score_parse_evidence` / `score_parse_review`；`score_item` 追加单元格证据列（可空）。
+- [x] T502 双写：新链路写事实/证据/兼容 score_item；旧链路仅写 legacy run-summary，禁止 AUTO_APPROVED 决策。
+- [x] T503 API 增量：`ScoreParseItemsDTO.Meta` 增 `decisionStatus` / `fallbackReason` / `pipelineVersion` / `artifactSha256` / `reviewReason`；DTO 兼容性单测。
+- [x] T504 前端 `useScoreParseDrawer` / `ScoreParseDrawer.vue`：状态角标 + 原文证据展开；用户未确认的评分值不修改。
+- [x] T505 双轨回放工具：`scripts/eval-scoreparse/dual-run.mjs` + `ScoreParseDualRunTest.java`（脱敏输入，差异报告）。
 
 ## Phase 6：清理、门禁、交付（独立 Commit）
 

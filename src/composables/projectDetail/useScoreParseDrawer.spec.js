@@ -417,4 +417,28 @@ describe('useScoreParseDrawer.js', () => {
     expect(drawer.scoringHint.value).toBe('文件未变化')
     expect(drawer.scored.value).toBe(true)
   })
+
+  it('exposes decisionStatus, badge, reviewReason and artifactSha256 from meta', async () => {
+    scoreParseApi.getItems.mockResolvedValue({
+      data: {
+        items: [{ id: 1, code: '1.1', dim: '技术', weight: 10, scoreType: '客观项', status: 'ok' }],
+        meta: {
+          decisionStatus: 'REVIEW_REQUIRED',
+          reviewReason: '权重合计80分不符合100分预期',
+          fallbackReason: 'WEIGHT_SUM_MISMATCH',
+          pipelineVersion: 'EVIDENCE_PIPELINE_V1',
+          artifactSha256: 'sha256-test-1234',
+        },
+      },
+    })
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1, autoScore: false, autoParse: false })
+
+    expect(drawer.decisionStatus.value).toBe('REVIEW_REQUIRED')
+    expect(drawer.decisionBadgeType.value).toBe('warning')
+    expect(drawer.decisionBadgeText.value).toBe('待人工复核')
+    expect(drawer.reviewReason.value).toBe('权重合计80分不符合100分预期')
+    expect(drawer.pipelineVersion.value).toBe('EVIDENCE_PIPELINE_V1')
+    expect(drawer.artifactSha256.value).toBe('sha256-test-1234')
+  })
 })

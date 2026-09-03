@@ -32,14 +32,31 @@ import java.util.stream.Collectors;
  * <p>R025：评分类别以 LLM scoreTypeGuess 优先，报价类强制主观。
  */
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class ScoreItemPersistenceService {
 
     private final ScoreItemRepository itemRepository;
     private final ScoreResultRepository resultRepository;
+    private final com.xiyu.bid.scoreparse.repository.ScoreParseFactRepository factRepository;
+    private final com.xiyu.bid.scoreparse.repository.ScoreParseEvidenceRepository evidenceRepository;
     private final ScoreTypeClassificationPolicy classificationPolicy = new ScoreTypeClassificationPolicy();
     private final ScoreItemOrderPolicy orderPolicy = new ScoreItemOrderPolicy();
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ScoreItemPersistenceService(
+            ScoreItemRepository itemRepository,
+            ScoreResultRepository resultRepository,
+            com.xiyu.bid.scoreparse.repository.ScoreParseFactRepository factRepository,
+            com.xiyu.bid.scoreparse.repository.ScoreParseEvidenceRepository evidenceRepository) {
+        this.itemRepository = itemRepository;
+        this.resultRepository = resultRepository;
+        this.factRepository = factRepository;
+        this.evidenceRepository = evidenceRepository;
+    }
+
+    public ScoreItemPersistenceService(ScoreItemRepository itemRepository, ScoreResultRepository resultRepository) {
+        this(itemRepository, resultRepository, null, null);
+    }
 
     /** 候选覆盖落库：比对指纹，结构变化时清理旧打分，未变化时保留旧打分并重挂 */
     @Transactional
@@ -83,6 +100,9 @@ public class ScoreItemPersistenceService {
                     .contextNote(candidate.contextNote())
                     .sourceText(candidate.sourceText())
                     .location(location)
+                    .extractionMethod("EVIDENCE_PIPELINE".equals(candidate.semanticPattern()) ? candidate.location() : "LEGACY_FALLBACK")
+                    .confidence(BigDecimal.ONE)
+                    .validationStatus("AUTO_APPROVED")
                     .build());
         }
         List<ScoreItem> savedItems = itemRepository.saveAll(items);
@@ -109,6 +129,66 @@ public class ScoreItemPersistenceService {
                 resultRepository.saveAll(preservedResults);
                 log.info("重新解析指纹未变，已保留 {} 条历史打分结果: projectId={}",
                         preservedResults.size(), projectId);
+            }
+        }
+    }
+
+    /** 双写持久化不可变事实与单元格证据（spec 059 Phase 5） */
+    @Transactional
+    public void persistFactsAndEvidence(Long projectId, Long parseTaskId, List<com.xiyu.bid.scoreparse.domain.ScoreFact> facts) {
+        if (facts == null || facts.isEmpty()) {
+            return;
+        }
+        List<com.xiyu.bid.scoreparse.entity.ScoreParseFact> factEntities = new ArrayList<>();
+        List<com.xiyu.bid.scoreparse.entity.ScoreParseEvidence> evidenceEntities = new ArrayList<>();
+
+        for (com.xiyu.bid.scoreparse.domain.ScoreFact f : facts) {
+            if (f == null) continue;
+            String cellIdsJson = f.sourceCellIds() == null ? "[]"
+                    : "[" + f.sourceCellIds().stream().map(c -> "\"" + c + "\"").collect(Collectors.joining(",")) + "]";
+            String evidenceJson = null;
+            if (f.weightEvidence() != null) {
+                var ev = f.weightEvidence();
+                evidenceJson = String.format("{\"kind\":\"%s\",\"quotedText\":\"%s\",\"cellId\":\"%s\"}",
+                        ev.kind().name(),
+                        ev.quotedText() == null ? "" : ev.quotedText().replace("\"", "\\\""),
+                        ev.cellId() == null ? "" : ev.cellId());
+                evidenceEntities.add(com.xiyu.bid.scoreparse.entity.ScoreParseEvidence.builder()
+                        .factId(f.factId())
+                        .parseTaskId(parseTaskId)
+                        .cellId(ev.cellId())
+                        .kind(ev.kind().name())
+                        .quotedText(ev.quotedText())
+                        .startOffset(ev.startOffset())
+                        .endOffset(ev.endOffset())
+                        .explanation(ev.explanation())
+                        .build());
+            }
+            factEntities.add(com.xiyu.bid.scoreparse.entity.ScoreParseFact.builder()
+                    .projectId(projectId)
+                    .parseTaskId(parseTaskId)
+                    .factId(f.factId())
+                    .sourceTableId(f.sourceTableId())
+                    .sourceCellIds(cellIdsJson)
+                    .sourceText(f.sourceText() == null ? "" : f.sourceText())
+                    .code(f.code())
+                    .dimension(f.dimension() == null ? "" : f.dimension())
+                    .weight(f.weight() == null ? BigDecimal.ZERO : f.weight())
+                    .weightEvidence(evidenceJson)
+                    .parentFactId(f.parentFactId())
+                    .extractionMethod(f.extractionMethod() == null ? "DETERMINISTIC" : f.extractionMethod())
+                    .confidence(BigDecimal.valueOf(f.confidence()))
+                    .validationStatus(f.validationStatus() == null ? "AUTO_APPROVED" : f.validationStatus().name())
+                    .build());
+        }
+        if (factRepository != null) {
+            factRepository.deleteByProjectId(projectId);
+            factRepository.saveAll(factEntities);
+        }
+        if (evidenceRepository != null) {
+            evidenceRepository.deleteByParseTaskId(parseTaskId);
+            if (!evidenceEntities.isEmpty()) {
+                evidenceRepository.saveAll(evidenceEntities);
             }
         }
     }

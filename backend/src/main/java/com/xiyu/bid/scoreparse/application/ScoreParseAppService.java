@@ -237,9 +237,8 @@ public class ScoreParseAppService {
     }
 
     private List<ScoreCandidate> recallTableCandidates(String fullText) {
-        var schemaMapper = schemaMapperProvider != null ? schemaMapperProvider.getIfAvailable() : null;
-        java.util.function.Function<TableGrid, TableColumnMapping> mapperFunc =
-                schemaMapper != null ? schemaMapper::mapSchema : null;
+        var sm = schemaMapperProvider != null ? schemaMapperProvider.getIfAvailable() : null;
+        java.util.function.Function<TableGrid, TableColumnMapping> mapperFunc = sm != null ? sm::mapSchema : null;
 
         List<ScoreCandidate> tableCandidates = ScoreTableRecallLane.recall(fullText, mapperFunc);
         if (!tableCandidates.isEmpty()) {
@@ -293,7 +292,8 @@ public class ScoreParseAppService {
 
     private ScoreItemDTO toDTO(ScoreItem item) {
         return new ScoreItemDTO(item.getId(), item.getCode(), item.getDim(), item.getDetail(),
-                item.getWeight(), item.getScoreType(), item.getStatusStage1(),
-                item.getEstScore(), item.getEstBasis(), item.getKbHit(), item.getLocation());
+                item.getWeight(), item.getScoreType(), item.getStatusStage1(), item.getEstScore(),
+                item.getEstBasis(), item.getKbHit(), item.getLocation(), item.getSourceCellIds(),
+                item.getWeightEvidence(), item.getExtractionMethod(), item.getConfidence(), item.getValidationStatus(), item.getParentScoreItemId());
     }
 }

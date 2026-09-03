@@ -94,6 +94,30 @@ public class ScoreItem {
     @Column(length = 200)
     private String location;
 
+    /** spec 059 Phase 5：来源单元格编号列表（JSON） */
+    @Column(name = "source_cell_ids", columnDefinition = "JSON")
+    private String sourceCellIds;
+
+    /** spec 059 Phase 5：权重确定性证据（JSON） */
+    @Column(name = "weight_evidence", columnDefinition = "JSON")
+    private String weightEvidence;
+
+    /** spec 059 Phase 5：提取方法 */
+    @Column(name = "extraction_method", length = 64)
+    private String extractionMethod;
+
+    /** spec 059 Phase 5：置信度 */
+    @Column(precision = 5, scale = 4)
+    private BigDecimal confidence;
+
+    /** spec 059 Phase 5：校验状态 */
+    @Column(name = "validation_status", length = 32)
+    private String validationStatus;
+
+    /** spec 059 Phase 5：父级评分项 ID */
+    @Column(name = "parent_score_item_id")
+    private Long parentScoreItemId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

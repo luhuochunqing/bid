@@ -24,6 +24,31 @@ export function useScoreParseDrawer(props, emit) {
   const scoringHint = ref('')
   const circuitHint = ref('')
   const normalizationWarning = ref('')
+  const decisionStatus = ref('')
+  const reviewReason = ref('')
+  const fallbackReason = ref('')
+  const pipelineVersion = ref('')
+  const artifactSha256 = ref('')
+
+  const decisionBadgeType = computed(() => {
+    switch (decisionStatus.value) {
+      case 'AUTO_APPROVED': return 'success'
+      case 'REVIEW_REQUIRED': return 'warning'
+      case 'STRUCTURE_INCOMPLETE': return 'danger'
+      case 'PARSE_FAILED': return 'info'
+      default: return ''
+    }
+  })
+
+  const decisionBadgeText = computed(() => {
+    switch (decisionStatus.value) {
+      case 'AUTO_APPROVED': return '自动通过'
+      case 'REVIEW_REQUIRED': return '待人工复核'
+      case 'STRUCTURE_INCOMPLETE': return '结构异常'
+      case 'PARSE_FAILED': return '解析失败'
+      default: return ''
+    }
+  })
 
   const scoreItems = ref([])
   const scoreResults = ref({})
@@ -79,6 +104,11 @@ export function useScoreParseDrawer(props, emit) {
       if (meta.bidFileName) bidFileName.value = meta.bidFileName
       if (meta.scoreTime) scoreTime.value = formatTime(meta.scoreTime)
       if (meta.lastScoringHint) scoringHint.value = meta.lastScoringHint
+      if (meta.decisionStatus) decisionStatus.value = meta.decisionStatus
+      if (meta.reviewReason) reviewReason.value = meta.reviewReason
+      if (meta.fallbackReason) fallbackReason.value = meta.fallbackReason
+      if (meta.pipelineVersion) pipelineVersion.value = meta.pipelineVersion
+      if (meta.artifactSha256) artifactSha256.value = meta.artifactSha256
       circuitHint.value = circuitHintFromMeta(meta)
       emit('parsed', { dangerCount: statsDangerCount.value, warnCount: statsNeutralCount.value })
 
@@ -213,5 +243,6 @@ export function useScoreParseDrawer(props, emit) {
     scoreItems, scoreResults, detailModalVisible, detailMode, selectedItem, selectedResult,
     totalWeight, objectiveWeight, subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount,
     estTotalScore, actualTotalScore, openDetail, open, runScoring, reparse,
+    decisionStatus, decisionBadgeType, decisionBadgeText, reviewReason, fallbackReason, pipelineVersion, artifactSha256,
   }
 }

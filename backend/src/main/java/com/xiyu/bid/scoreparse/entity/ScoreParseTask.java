@@ -110,6 +110,14 @@ public class ScoreParseTask {
     @Column(name = "normalization_warning", length = 255)
     private String normalizationWarning;
 
+    /** spec 059 Phase 5：文档 artifact sha256 摘要 */
+    @Column(name = "artifact_sha256", length = 64)
+    private String artifactSha256;
+
+    /** spec 059 Phase 5：人工复核理由或降级原因 */
+    @Column(name = "review_reason", length = 256)
+    private String reviewReason;
+
     /** 超时扫描 job 标记（超时置 FAILED 时写 1） */
     @Column(name = "timeout_marked", nullable = false)
     @Builder.Default

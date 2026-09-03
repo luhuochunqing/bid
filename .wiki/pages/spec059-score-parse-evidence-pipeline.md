@@ -154,9 +154,32 @@ spec 059 把链路切到「原始 Word 结构 + 确定性事实 + 原文证据 +
   - `ScoreParseAppServiceTest` 21 例绿。
   - 全量评分测试套件 429 例全绿，FP-Java 架构测试 8/8 绿，所有类行数严格低于 300 行上限。
 
-## Phase 5-6 待办（see tasks.md）
+## Phase 5：数据库、接口和前端迁移（落地结论）
 
-- Phase 5：DB/API/前端迁移 + 双写 + 灰度（双轨回放脚本 T505）
+- **Flyway 迁移与回滚 (T501)**：
+  - `V1208__score_parse_evidence_pipeline_phase5.sql`：
+    - `score_parse_task` 追加 `artifact_sha256` 与 `review_reason`
+    - `score_item` 追加 `source_cell_ids`、`weight_evidence`、`extraction_method`、`confidence`、`validation_status`、`parent_score_item_id`（全部允许 NULL）
+    - 新增不可变评分事实快照表 `score_parse_fact`、单元格证据表 `score_parse_evidence`、人工复核审计表 `score_parse_review`
+  - `U1208__score_parse_evidence_pipeline_phase5.sql`：配套可逆回滚脚本
+  - 通过 `EntityTableMigrationCoverageTest` 与 `FlywayRollbackScriptCoverageTest` 校验
+- **应用层双写与兼容机制 (T502)**：
+  - `ScoreItemPersistenceService`：支持 `persistFactsAndEvidence` 与 `persistItems` 双写模式，落库事实与证据，并将证据元数据（`sourceCellIds`、`confidence` 等）写入兼容的 `ScoreItem`。
+  - 旧链路仅标为 `LEGACY_FALLBACK`，禁止作为 `AUTO_APPROVED` 决策来源。
+- **版本化元数据与 API 向后兼容 (T503)**：
+  - `ScoreParseItemsDTO.Meta` 追加 `artifactSha256` 与 `reviewReason`，提供重载构造器与历史完全向后兼容。
+  - `ScoreItemDTO` 追加证据字段并保留 11 参数兼容构造器。
+  - `ScoreParseDualWriteTest` 覆盖双写与元数据读取契约。
+- **前端抽屉与原文证据展开 (T504)**：
+  - `useScoreParseDrawer.js`：解析 `meta.decisionStatus`、`meta.reviewReason`，计算 `decisionBadgeType` 与 `decisionBadgeText`。
+  - `ScoreParseDrawer.vue`：在第一部分工具栏中展示决策状态徽章（绿色自动通过 / 橙色待人工复核 / 红色结构异常）与复核原因，严格遵循不修改用户未确认评分值的不变量。
+  - `ScoreItemDetailModal.vue`：详情弹窗支持展示表格单元格编号、提取方式与权重证据。
+- **双轨回放评估 (T505)**：
+  - 后端回放套件 `ScoreParseDualRunTest.java` + Node.js 评估器 `scripts/eval-scoreparse/dual-run.mjs`。
+  - 对比 Legacy 与 Evidence 链路在合成金标夹具上的表现，验证零 P0 缺陷（静默归一化篡改分值被 100% 拦截并转 `REVIEW_REQUIRED`），产出 Markdown 报告 `backend/target/scoreparse-dual-run-report.md`。
+
+## Phase 6 待办（see tasks.md）
+
 - Phase 6：金标收口（跨页页码锚点挂账）+ 架构门禁 + 清理
 
 ## 索引

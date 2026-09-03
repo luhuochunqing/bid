@@ -166,4 +166,32 @@ describe('ScoreParseDrawer.vue', () => {
     expect(btn.attributes('disabled')).toBeUndefined()
     expect(btn.text()).toBe('⚡ 重新打分')
   })
+
+  it('renders decision status badge and review reason when present in meta', async () => {
+    scoreParseApi.getItems.mockResolvedValue({
+      data: {
+        items: itemsFixture,
+        meta: {
+          decisionStatus: 'REVIEW_REQUIRED',
+          reviewReason: '权重合计不符合预期',
+        },
+      },
+    })
+    const wrapper = mount(ScoreParseDrawer, {
+      props: { projectId: 123 },
+      global: {
+        stubs: {
+          'el-drawer': { template: '<div class="el-drawer-mock" v-if="modelValue"><slot /></div>', props: ['modelValue'] },
+          'el-dialog': true,
+          'el-button': true,
+        },
+      },
+    })
+
+    await wrapper.vm.open({ autoScore: false })
+    const badge = wrapper.find('[data-test="score-parse-decision-status"]')
+    expect(badge.exists()).toBe(true)
+    expect(badge.text()).toBe('待人工复核')
+    expect(wrapper.text()).toContain('理由: 权重合计不符合预期')
+  })
 })
