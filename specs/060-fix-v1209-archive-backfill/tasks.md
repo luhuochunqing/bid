@@ -29,5 +29,5 @@
 ### Task 5 - 清理 fail-state 并重启后端验证
 **依赖**: Task 4
 **描述**: 合入后，在开发宿主 trae 移除 `.runtime/dev-services/backend.fail-state`（如存在），重启 launchd/dev-services，确认 V1210 成功执行、后端 /actuator/health UP。
-**验收**: 后端启动成功，flyway_schema_history 新增 V1210 success=1，V1209 success=0 保留。
+**验收**: 后端启动成功。`flyway_schema_history` 中 V1209 失败记录已被 repair 为 `success=1`（人工 `UPDATE flyway_schema_history SET success=1 WHERE version='1209'`），且新增 `V1210 success=1`。V1209 的 `success=0` 不能保留——否则 Flyway 永远被 failed-migration 阻塞、后端无法启动；V1209 从未写入数据，回填完全由 V1210 承载。
 **状态**: TODO

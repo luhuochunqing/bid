@@ -6,6 +6,8 @@
 
 > **2026-09-03 更新（第 155 次部署后修复）**：`remote-deploy.sh` 的 `FLYWAY_REPAIR_RUNNER` 默认值收敛到 `$APP_ROOT/bin/flyway-repair-runner.sh`（bin/ 为唯一权威位置，deploy-test.sh / deploy-prod.sh 每次部署均上传至此）。§8 上传示例与 §9 激活命令同步更新：runner 不再传 `/tmp`，激活命令不再显式传 `FLYWAY_REPAIR_RUNNER`（上述 2026-06-26 注记第 (4)(5) 条中的 /tmp 路径与显式传参做法已过期）。根因：第 155 次测试部署中 incoming/ 残留旧版 runner（缺 `ignoreMigrationPatterns("*:pending")`）被 `$(dirname $0)` 误命中，把 pending 新迁移误报为 validate 失败。
 
+> **2026-09-03 更新（CO-606 V1209 失败迁移解锁）**：新增 §13.6「失败迁移（success=0）解锁 repair」。补充生产场景下 failed migration 的处理：V1209 因漏写 `updated_at` 在事务内失败、`flyway_schema_history` 留 `success=0` 阻塞后端启动。该场景仅新增更高版本（V1210）**无法解锁**（Flyway 9.x 对任意 `success=0` 无条件抛 `Schema contains a failed migration ... !`），必须先 `UPDATE flyway_schema_history SET success=1 WHERE version='1209'` 解锁，再部署含 V1210 新 jar 自动回填数据。澄清与 §13.5（checksum mismatch，`flyway repair` 改校验元数据）的场景边界。
+
 > 不要把 Jumpserver、数据库、smoke 账号密码写入本文或提交到仓库。密码只允许从安全渠道获取，并通过交互输入或临时环境变量使用。
 
 ## 1. 环境事实
@@ -694,6 +696,44 @@ sudo systemctl start xiyu-bid-backend
 **预防**：本地提交时 `check-flyway-immutable.sh` pre-commit 门禁会拦截"修改 origin/main 已存在的 V*.sql"。如果确实需要紧急修复已发布迁移（极少见），用 `FLYWAY_ALLOW_IMMUTABLE_EDIT=1 git commit`，但必须在部署前跑 repair，并在 PR 描述里说明理由。
 
 **注意**：自 2026-06-26 起，`remote-deploy.sh` 在覆盖后端 jar 之前会自动跑 validate 预检，失败则停止 rollout（旧 jar 仍在运行，服务不中断）。所以 checksum mismatch 通常在部署阶段就被拦下，不会进入"health check 8 分钟超时"的现场。本章节描述的是预检被 `SKIP_FLYWAY_VALIDATE=1` 跳过、或首次启用预检前已部署的存量场景。
+
+### 13.6 失败迁移（success=0）解锁 repair（V1209 事故，CO-606）
+
+**症状**：后端启动日志立即报 `Schema contains a failed migration to version XXXX !`，`entityManagerFactory` Bean 无法创建，Tomcat 启动失败、反复 crash。`remote-deploy.sh` 的 `Waiting for health check` 必然超时。
+
+**根因**：某迁移（如 V1209 数据回填漏写 `updated_at`）在事务内执行失败，Flyway 整事务回滚后在 `flyway_schema_history` 留下 `success=0` 记录。Flyway 9.x 对任意 `success=0` 迁移**无条件**抛 `Schema contains a failed migration ... !`——即便已存在比它更高的修复版本（如 V1210）。仅靠新增更高版本**无法解锁**，必须先标记这条失败记录为成功。
+
+**修复（解锁 + 数据迁移，两步）**：
+
+```bash
+# Step 1 —— 解锁 Flyway 硬性阻塞：把 V1209 失败记录标记为成功
+# 直接从生产 DB 执行（V1209 迁移执行时整体事务回滚，该版本从未写入任何业务数据，
+# 标记成功不会造成"半套数据"问题；数据回填完全由后续 V1210 承载）
+mysql -h <DB_HOST> -u <DB_USER> -p<DB_PASS> <DB_NAME> <<'SQL'
+UPDATE flyway_schema_history SET success=1 WHERE version='1209';
+SQL
+# 确认只有 V1209 一条被改（勿误改其它 success=0 记录）
+# SELECT version, success FROM flyway_schema_history WHERE success=0;   -- 应返回空
+
+# Step 2 —— 部署新 jar（内含 V1210 修复迁移），重启后 Flyway 自动 migrate 执行 V1210
+bash remote-deploy.sh  # 或对应 deploy 脚本，正常进入 health check 阶段
+```
+
+**校验**：
+
+```bash
+# V1209 已 repair 为 success=1，且 V1210 新增 success=1，无任何 success=0 残留
+SELECT version, description, success FROM flyway_schema_history WHERE version IN ('1209','1210') ORDER BY version;
+#  1209  ...  1
+#  1210  ...  1
+```
+
+**注意**：
+- **不能用 `flyway repair` / `DELETE` 去"重跑"失败迁移**（`flyway repair` 只处理 checksum mismatch/删除缺失迁移，不处理 success=0 的失败迁移；`DELETE` 会破坏审计可追溯性）。必须用 `UPDATE ... SET success=1` 精准修复元数据。
+- **固定原则**：数据修复用 V1210 新版本、阻塞解锁用 repair 失败记录，两条腿缺一不可。
+- 通用化：把 `WHERE version='1209'` 换成实际失败版本号即可复用本节流程。
+
+> 与 §13.5 的关系：§13.5 处理 checksum mismatch（repair 改 checksum/description 元数据），本节处理 failed migration `success=0`（UPDATE 标成功解锁）。两者都是 `flyway_schema_history` 的元数据修复，都不动业务表。
 
 ## 附录：慢链路应急小包路径
 

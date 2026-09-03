@@ -74,8 +74,9 @@
 - **FR-003**: V1210 step2 复用 V1209 的 `archive_file` 回填逻辑，并补 `updated_at = NOW()`，保持去重条件不变。
 - **FR-004**: V1210 对所有可能超长或为 NULL 的字段做防御性处理（`LEFT` 截断 + `COALESCE` 兜底），保证在 STRICT_TRANS_TABLES 模式下不报错。
 - **FR-005**: V1210 必须幂等：重复执行（或后续重新 migrate）不产生重复行。
-- **FR-006**: 不回改 `V1209.sql` 本身（Flyway 不重跑已失败迁移，且保留历史失败记录用于审计）；修复通过新版本号落地。
+- **FR-006**: 不回改 `V1209.sql` 本身（已发布迁移不可变，遵守 `check-flyway-immutable` 门禁）；但 V1209 在 `flyway_schema_history` 的失败记录（`success=0`）**必须 repair 置为 `success=1`**（`UPDATE flyway_schema_history SET success=1 WHERE version='1209'`），否则 Flyway 永远被该失败记录阻塞。
 - **FR-007**: `archive_status` 枚举值使用 V1209 原值 `'ACTIVE'`，与既有 543 条归档头的 status 语意一致。
+- **FR-008**: V1210 **单靠自身无法解锁** Flyway 的 failed-migration 硬性阻塞。Flyway 9.x 对 `flyway_schema_history` 中任意 `success=0` 迁移**无条件**抛 `Schema contains a failed migration to version 1209 !`（即便存在更高的 V1210）。必须先手动将 V1209 失败记录 `UPDATE ... SET success=1`（V1209 从未写入任何数据——迁移整事务回滚，数据回填完全由 V1210 承载），重启后 Flyway 才跳过 1209 并执行 V1210。
 
 ### Key Entities *(include if feature involves data)*
 
@@ -88,7 +89,7 @@
 
 ### Measurable Outcomes
 
-- **SC-001**: `flyway_schema_history` 新增 `V1210 success=1` 记录，`V1209 success=0` 记录保留（审计可追溯）。
+- **SC-001**: `flyway_schema_history` 中 `V1209` 失败记录被 repair 为 `success=1`（见 FR-008），`V1210` 新增 `success=1`。V1209 的 `success=0` 必须被标记成功才能解锁 Flyway 启动（否则后端永远无法启动）。
 - **SC-002**: 后端 `mvn spring-boot:run` 启动成功，`/actuator/health` 返回 UP，无 Flyway 异常。
 - **SC-003**: project_id 10、11 各有 1 条 `project_archive`（归档头），`updated_at` 非空。
 - **SC-004**: 每个拥有 `project_documents` 的项目都有 `project_archive`，无孤儿归档头/文档。

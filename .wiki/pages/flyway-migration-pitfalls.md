@@ -452,13 +452,13 @@ String v1092Script = loadMigrationScript("db/migration-mysql/V1092__migrate_lega
 
 ## 15. 失败迁移阻塞启动：NOT NULL 字段缺默认值（V1209 事故，CO-606）
 
-### 17.1 现象
+### 15.1 现象
 
 `V1209__backfill_missing_project_archive_files.sql` 执行失败后，后端每次启动都被
 `Schema contains a failed migration to version 1209` 阻塞，`entityManagerFactory` Bean
 无法创建，Tomcat 启动失败。
 
-### 17.2 根因
+### 15.2 根因
 
 V1209 step1 向 `project_archive` 插入时**漏写了 `updated_at` 字段**，而：
 - `project_archive.updated_at datetime(6) NOT NULL` **无默认值**
@@ -468,20 +468,26 @@ V1209 step1 向 `project_archive` 插入时**漏写了 `updated_at` 字段**，�
 Flyway 单个迁移在**一个事务**内执行，任一条 INSERT 失败 → 整个迁移回滚 →
 `flyway_schema_history` 记录 `success=0`。此后**每次启动都被该失败记录挡住**。
 
-### 17.3 核心教训
+### 15.3 核心教训
 
 1. **写数据回填迁移前，先 `SHOW COLUMNS` 核对该表每个 NOT NULL 字段**，确认 INSERT 列清单
    完整覆盖（尤其无默认值的 `created_at`/`updated_at`）。推测表结构 → 漏字段 → 1364 → 失败迁移阻塞全系统。
 2. **Flyway 不会重跑已失败的迁移**（`success=0`），即使你把 V1209 文件改对也不会生效，
-   且改动已发布迁移文件会触发 checksum mismatch。**修复必须用更高版本号（V1210）复刻逻辑**，
-   保留失败记录供审计。
-3. **不能用 `DELET[/REPAIR]` 手动重跑失败迁移**——会污染 `flyway_schema_history` 状态，
-   破坏审计可追溯性。新版本号是唯一标准路径。
+   且改动已发布迁移文件会触发 checksum mismatch。**数据修复必须用更高版本号（V1210）复刻逻辑**；
+   但 V1209 在 `flyway_schema_history` 的失败记录（`success=0`）**不能保留**——必须
+   `UPDATE flyway_schema_history SET success=1 WHERE version='1209'` 置为成功，否则 Flyway 永远
+   被 failed-migration 硬性阻塞、后端无法启动。
+3. **区分两件事**：数据修复用 V1210（新版本号），阻塞解锁必须 repair 失败记录。
+   **不能用 `flyway repair` / `DELETE` 去“重跑”失败迁移**（会污染 schema_history 状态），
+   但必须把失败记录标为 `success=1`（`UPDATE flyway_schema_history SET success=1 WHERE version='1209'`）。
+   V1210 单靠自身**无法解锁** failed-migration 阻塞——Flyway 9.x 对任意 `success=0` 迁移无条件抛
+   `Schema contains a failed migration to version 1209 !`，即便已存在更高版本。先 repair 失败记录，
+   重启后 Flyway 才跳过 1209 并执行 V1210。
 4. **迁移中任一子语句失败 = 全事务回滚**，所以回填脚本里每条 INSERT 都要防御性覆盖
    所有 NOT NULL 字段（`COALESCE` 兜 NULL + `LEFT(...,255)` 防 Data too long）单测验证幂等
    （事务内二次执行无增量）。
 
-### 17.4 修复模板（V1210）
+### 15.4 修复模板（V1210）
 
 ```sql
 -- 规则：SELECT 里每个目标表 NOT NULL 列都必须有值来源
@@ -496,7 +502,7 @@ LEFT JOIN project_archive pa ON pa.project_id = p.id
 WHERE pa.id IS NULL;  -- LEFT JOIN + IS NULL 幂等
 ```
 
-### 17.5 真实数据规模（CO-606 验证）
+### 15.5 真实数据规模（CO-606 验证）
 
 - `project_archive` 543→545（+2：project 10、11 有文档缺归档头）
 - `archive_file` 13→19（+6文件）
@@ -524,3 +530,4 @@ WHERE pa.id IS NULL;  -- LEFT JOIN + IS NULL 幂等
 | 2026-08-17 | 新增 §12 ADD COLUMN 必须幂等 — V145 列冲突事故（V1188 vs V145 contract_amount，commit 30b2de723）；原 §12~§14 顺延为 §13~§15 |
 | 2026-08-20 | 新增 §13 已发布迁移的测试重放 collation 冲突（V1198 CONVERT 全表 collation 破坏 V1092 重放，commit 2c90a6f85）；原 §13~§15 顺延为 §14~§16 |
 | 2026-09-03 | 新增 §15 失败迁移阻塞启动（V1209 漏写 updated_at → 1364 → success=0 阻塞后端，CO-606，V1210 修复）；原 §15~§17 顺延为 §16~§17 |
+| 2026-09-03 | 修正 §15 核心教训：#2/#3 由“保留失败记录”“不能用 repair”改为“V1209 失败记录必须 UPDATE success=1 才能解锁 Flyway 启动，仅新增 V1210 无法解锁”；子章节 17.x 改为 15.x |
