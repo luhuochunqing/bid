@@ -100,6 +100,27 @@ class KnowledgeBaseRealQueryTest {
     }
 
     @Test
+    @DisplayName("大模型提取长句要求匹配：投标人须具备有效的ISO27001信息安全管理体系认证证书")
+    void testQueryKnowledgeBases_LongSentenceExtractedByLlm_MatchesShortDbName() {
+        when(qualificationRepository.findAll()).thenReturn(List.of(
+                Qualification.builder().id(11L).name("ISO27001信息安全认证")
+                        .level("甲级").expiryDate(LocalDate.of(2028, 1, 1)).build()));
+        when(brandAuthorizationRepository.findAll()).thenReturn(Collections.emptyList());
+        when(personnelRepository.findAll(any())).thenReturn(Collections.emptyList());
+        when(performanceEvidencePort.findPerformanceMatches(anyInt())).thenReturn(Collections.emptyList());
+
+        String llmExtractedRequirement = "投标人须具备有效的质量与信息安全管理体系认证（ISO27001）证书且在有效期内";
+        KnowledgeQueryOutcome outcome = loader.queryKnowledgeBases(List.of(llmExtractedRequirement));
+
+        assertThat(outcome.failedSources()).isEmpty();
+        assertThat(outcome.matches()).hasSize(1);
+        KnowledgeMatch match = outcome.matches().get(0);
+        assertThat(match.knowledgeSource()).isEqualTo("qualification");
+        assertThat(match.recordId()).isEqualTo("11");
+        assertThat(match.content()).contains("ISO27001信息安全认证");
+    }
+
+    @Test
     @DisplayName("空库：matches 为空且证据链零固定文案残留")
     void testQueryKnowledgeBases_EmptyLibraries_NoFixedTextEvidences() {
         when(qualificationRepository.findAll()).thenReturn(Collections.emptyList());

@@ -10,6 +10,7 @@ import com.xiyu.bid.brandauth.domain.valueobject.AuthorizationStatus;
 import com.xiyu.bid.compliance.domain.policy.KnowledgeMatch;
 import com.xiyu.bid.compliance.domain.policy.KnowledgeQueryOutcome;
 import com.xiyu.bid.compliance.domain.policy.PerformanceEvidencePort;
+import com.xiyu.bid.compliance.domain.policy.QualificationMatchPolicy;
 import com.xiyu.bid.entity.Qualification;
 import com.xiyu.bid.personnel.application.command.PersonnelListCriteria;
 import com.xiyu.bid.personnel.domain.model.Personnel;
@@ -117,7 +118,7 @@ public class KnowledgeBaseOnDemandLoader {
                 continue;
             }
             for (Qualification q : all) {
-                if (q.getName() != null && q.getName().contains(kw)) {
+                if (q.getName() != null && QualificationMatchPolicy.isQualificationMatch(kw, q.getName())) {
                     matches.add(new KnowledgeMatch(
                             KnowledgeMatch.SOURCE_QUALIFICATION,
                             String.valueOf(q.getId()), describe(q), true));
@@ -126,6 +127,21 @@ public class KnowledgeBaseOnDemandLoader {
             }
         }
         return matches;
+    }
+
+    /**
+     * 查询企业资质库全部资质记录（供核查比对清单组装）.
+     */
+    public List<Qualification> findAllQualifications() {
+        if (qualificationRepository == null) {
+            return List.of();
+        }
+        try {
+            return qualificationRepository.findAll();
+        } catch (RuntimeException e) {
+            log.warn("获取企业资质库列表异常: {}", e.getMessage());
+            return List.of();
+        }
     }
 
     /**
@@ -169,7 +185,7 @@ public class KnowledgeBaseOnDemandLoader {
                 continue;
             }
             for (Certificate cert : p.certificates()) {
-                if (cert.name() == null || !containsAnyKeyword(cert.name(), requiredCerts)) {
+                if (cert.name() == null || !matchesAnyRequirement(cert.name(), requiredCerts)) {
                     continue;
                 }
                 matches.add(new KnowledgeMatch(
@@ -195,9 +211,12 @@ public class KnowledgeBaseOnDemandLoader {
         return performanceEvidencePort.findPerformanceMatches(MAX_PERFORMANCE_MATCHES);
     }
 
-    private static boolean containsAnyKeyword(final String text, final List<String> keywords) {
-        for (String kw : keywords) {
-            if (kw != null && !kw.isBlank() && text.contains(kw)) {
+    private static boolean matchesAnyRequirement(final String certName, final List<String> requiredCerts) {
+        if (certName == null || requiredCerts == null) {
+            return false;
+        }
+        for (String req : requiredCerts) {
+            if (QualificationMatchPolicy.isQualificationMatch(req, certName)) {
                 return true;
             }
         }

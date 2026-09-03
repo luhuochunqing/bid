@@ -7,13 +7,16 @@ package com.xiyu.bid.compliance.application;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.ai.client.AiProvider;
 import com.xiyu.bid.common.util.StringUtils;
+import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
 import com.xiyu.bid.compliance.domain.DocumentContent;
+import com.xiyu.bid.compliance.domain.QualificationDetail;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityCheckStatus;
 import com.xiyu.bid.compliance.domain.policy.BidDocumentQualityEngine;
 import com.xiyu.bid.compliance.domain.policy.KnowledgeQueryOutcome;
 import com.xiyu.bid.compliance.domain.policy.LlmAdjudicator;
 import com.xiyu.bid.compliance.domain.policy.LlmVerdict;
+import com.xiyu.bid.compliance.domain.policy.QualificationMatchPolicy;
 import com.xiyu.bid.compliance.domain.policy.SemanticRulesLane;
 import com.xiyu.bid.compliance.domain.policy.TenderRequirements;
 import com.xiyu.bid.compliance.entity.ComplianceCheckResult;
@@ -28,6 +31,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -120,6 +124,20 @@ public class BidQualityCheckAsyncExecutor {
                     new LlmAdjudicator(buildLlmPort(parseFailureCounter)),
                     (progress, step) -> progressUpdater.updateProgress(resultId, ComplianceCheckResult.TaskStatus.CHECKING,
                             60 + progress * 30 / 100, "AI 语义裁决 " + progress + "%：" + step));
+
+            // 组装资质比对结构化清单（招标要求 vs 我司证书 vs 标书页码）
+            List<QualificationDetail> qualDetails = QualificationMatchPolicy.buildDetails(
+                    requirements.mandatoryQualifications(),
+                    kbLoader != null ? kbLoader.findAllQualifications() : List.of(),
+                    bidDoc,
+                    LocalDate.now());
+            if (!qualDetails.isEmpty()) {
+                itemResults = itemResults.stream()
+                        .map(r -> BidQualityCheckItem.QUALIFICATION_MATCH.getCode().equals(r.itemCode())
+                                ? r.withDetails(qualDetails)
+                                : r)
+                        .toList();
+            }
 
             // Step 3: 汇总指标并持久化 (progress: 100)
             int passed = 0;

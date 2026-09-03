@@ -177,5 +177,36 @@ class BidQualityCheckTaskAppServiceTest {
         assertThat(report.getItems().get(0).description())
                 .isEqualTo(BidQualityCheckItem.AUTHORIZATION_LETTER.getDescription());
         assertThat(report.getItems().get(0).conclusion()).isEqualTo("内容完备");
+        assertThat(report.getItems().get(0).details()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("结构化资质比对详情反序列化与下发")
+    void testToReportDTO_WithStructuredQualificationDetails() {
+        String jsonWithDetails = """
+                [{"itemCode":"QUALIFICATION_MATCH","category":"BASIC_INFO",
+                  "title":"资质与证书有效性","description":"检查投标资质","status":"PASS","severity":"CRITICAL",
+                  "order":4,"conclusion":"全部匹配","suggestion":"","evidences":[],
+                  "details":[{"requirement":"ISO9001","matchedCertName":"ISO9001质量认证","status":"MATCHED",
+                             "bidPageNumber":15,"bidQuote":"第15页证明","remainingDays":300,"remark":"证书有效"}]}]
+                """;
+        ComplianceCheckResult entity = ComplianceCheckResult.builder()
+                .id(10L)
+                .projectId(100L)
+                .taskId("task_with_details")
+                .status(ComplianceCheckResult.TaskStatus.COMPLETED)
+                .checkDetails(jsonWithDetails)
+                .build();
+
+        QualityCheckReportDTO report = BidQualityCheckTaskAppService.toReportDTO(entity);
+
+        assertThat(report.getItems()).hasSize(1);
+        assertThat(report.getItems().get(0).details()).hasSize(1);
+        var detail = report.getItems().get(0).details().get(0);
+        assertThat(detail.requirement()).isEqualTo("ISO9001");
+        assertThat(detail.matchedCertName()).isEqualTo("ISO9001质量认证");
+        assertThat(detail.status()).isEqualTo("MATCHED");
+        assertThat(detail.bidPageNumber()).isEqualTo(15);
+        assertThat(detail.remainingDays()).isEqualTo(300);
     }
 }

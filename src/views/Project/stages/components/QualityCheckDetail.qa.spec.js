@@ -12,7 +12,9 @@ import {
   extractKbLinks,
   sumObjectiveActualScore,
   getStatusMeta,
-  formatStatus
+  formatStatus,
+  getQualDetailStatusMeta,
+  isQualificationMatchItem
 } from '../composables/qualityCheckDetail.js'
 
 const pushMock = vi.fn()
@@ -108,6 +110,20 @@ describe('质量核查详情纯函数', () => {
     expect(sumObjectiveActualScore([], {})).toBeNull()
     // 真实零分计入合计（区别于无得分）
     expect(sumObjectiveActualScore(items, { D1: { actualScore: 0 }, D2: {} })).toBe(0)
+  })
+
+  it('getQualDetailStatusMeta / isQualificationMatchItem：资质比对状态与检查项识别', () => {
+    expect(getQualDetailStatusMeta('MATCHED')).toEqual({ text: '已满足', tagType: 'success' })
+    expect(getQualDetailStatusMeta('ATTENTION')).toEqual({ text: '需关注', tagType: 'warning' })
+    expect(getQualDetailStatusMeta('EXPIRED')).toEqual({ text: '已过期', tagType: 'danger' })
+    expect(getQualDetailStatusMeta('UNMATCHED')).toEqual({ text: '未匹配', tagType: 'danger' })
+    expect(getQualDetailStatusMeta('OTHER')).toEqual({ text: '待确认', tagType: 'info' })
+
+    expect(isQualificationMatchItem('QUALIFICATION_MATCH')).toBe(true)
+    expect(isQualificationMatchItem('qualification_match')).toBe(true)
+    expect(isQualificationMatchItem('QUALIFICATION_VETO')).toBe(true)
+    expect(isQualificationMatchItem('cover_info')).toBe(false)
+    expect(isQualificationMatchItem(null)).toBe(false)
   })
 })
 
@@ -213,6 +229,69 @@ describe('质量核查详情弹窗字段对照表', () => {
     })
     await wrapper.find('.dt-source').trigger('click')
     expect(pushMock).toHaveBeenCalledWith('/knowledge/performance')
+  })
+
+  it('qualification_match 项携带 details 时渲染结构化资质比对清单', () => {
+    const wrapper = mountDialog({
+      item: {
+        itemCode: 'qualification_match',
+        status: 'MANUAL_REVIEW',
+        title: '资质与证书有效性',
+        conclusion: '部分资质需复核。',
+        details: [
+          {
+            requirement: '投标人须具备有效的质量管理体系认证（ISO9001）',
+            matchedCertName: 'ISO9001质量管理体系认证',
+            status: 'MATCHED',
+            bidPageNumber: 28,
+            remainingDays: 120,
+            remark: '已匹配企业资质库有效证书'
+          },
+          {
+            requirement: '具有有效的安全生产许可证',
+            matchedCertName: '安全生产许可证',
+            status: 'ATTENTION',
+            bidPageNumber: null,
+            remainingDays: 15,
+            remark: '证书即将到期（剩余 15 天）'
+          },
+          {
+            requirement: '电力工程施工总承包特级资质',
+            matchedCertName: '',
+            status: 'UNMATCHED',
+            bidPageNumber: null,
+            remainingDays: null,
+            remark: '企业资质库及投标文件中均未检索到'
+          }
+        ]
+      }
+    })
+    const text = wrapper.text()
+    expect(text).toContain('资质比对清单')
+    expect(text).toContain('共 3 项')
+    expect(text).toContain('招标资质要求')
+    expect(text).toContain('我司持有资质')
+    expect(text).toContain('标书位置')
+    expect(text).toContain('核查说明')
+    expect(text).toContain('ISO9001质量管理体系认证')
+    expect(text).toContain('第 28 页')
+    expect(text).toContain('剩余 120 天')
+    expect(text).toContain('剩余 15 天')
+    expect(text).toContain('（资质库未匹配）')
+    expect(text).toContain('未定位')
+  })
+
+  it('qualification_match 项 details 为空时不渲染资质比对清单', () => {
+    const wrapper = mountDialog({
+      item: {
+        itemCode: 'qualification_match',
+        status: 'PASS',
+        title: '资质与证书有效性',
+        conclusion: '全部通过。',
+        details: []
+      }
+    })
+    expect(wrapper.find('.qual-compare-table').exists()).toBe(false)
   })
 })
 

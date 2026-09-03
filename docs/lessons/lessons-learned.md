@@ -4040,3 +4040,23 @@ M1 部门筛选树锚定西域集团(0001)子树三级展示（PR !2474）后，
 - **脱敏金标（CI 常驻）** `ScoreCompletenessAcceptanceTest#incident1358_closedLoopWithDeclaredFamilyLackingMembers_persistsAllItems_autoApproved`：用结构忠实复现 1358 触发形态的 11 项 / 满分恰好 100 闭环夹具（商务组 `dim` 不含大类词、`contextNote` 声明「商务评分标准（56分）」→ `declaredFamilyWeights={商务:56}` 在 `familySums` 无成员），跑通**真实生产链** `executeParseAsync → ScoreCandidatePostProcessor → WeightSumCheck → persistItems`，断言 `AUTO_APPROVED` + 无复核标记 + 11 项全部落库；还原 Fix B 守卫即转红，证明它真能抓回归而非自证。
 - **真实数据金标（语料门控，CI 跳过）** `Incident1358RealCorpusGoldenTest`：`@EnabledIfEnvironmentVariable(XIYU_EVAL_CORPUS_DIR)`，本地放置离线录制的真实候选快照 `incident-1358/candidates.json` 后，用真实数据跑同一条生产链断言相同金标。真实文档仍**禁止入仓**（合规），green 路径需有语料的开发机验证。
 - 登记见 `docs/lessons/scoreparse-golden-corpus/index.md`「1358（权重闭环/落库）」行；回归切片 629 tests / 0 failures / 1 skipped（Part B 门控跳过）。
+
+## 218. AI 标书质量核查资质匹配"0 匹配"与无文件解析根因及三层穿透（2026-09-03）
+
+**背景**：
+用户反馈 AI 标书质量核查中的资质匹配完全没有核查效果，核查几个项目都是"无数据"或报"未在招标文件中提取到明确的硬性资格要求"。排查发现三大根因：
+1. **短串反向包含长串导致 0 匹配**：`KnowledgeBaseOnDemandLoader.matchQualifications` 使用 `q.getName().contains(kw)`，将短证书名（如"ISO9001质量管理体系认证"）反向包含大模型提取的完整长句（如"投标人须具备有效的质量管理体系认证（ISO9001）证书且在有效期内"），导致生产环境下匹配恒为 false，资质库 0 匹配。而旧单测因使用人工简写 `"ISO27001"` 掩盖了该缺陷。
+2. **招标文件未穿透回退引发空文档熔断**：`TenderDocumentLoader` 仅查 `project_documents` 的 `TENDER`/`TENDER_FILE` 分类。若项目立项时仅在标讯带入 `Tender.source_document_file_url`，而未实体化落盘 project_documents，直接返回空文档，进而触发 `requirements.missing() = true` 熔断。
+3. **核查结果缺乏结构化条目**：前端详情弹窗只有单段文本，缺少逐项"招标要求 vs 我司证书 vs 标书页码"的结构化对照。
+
+**解决方案**：
+1. **纯核心智能匹配策略（`QualificationMatchPolicy`）**：建立 FP-Java 纯函数算法，支持标点空格归一化、双向包含、标准体系代号（ISO9001/ISO27001/CMMI/ITSS等）精准正则提取、行业领域词识别、有效 LCS 判定及临期预警，并在 `KnowledgeBaseOnDemandLoader`（资质库与人员库）全面应用。
+2. **招标文件三级穿透加载（`TenderDocumentLoader`）**：一级查 `project_documents` 标准 TENDER 分类；二级按文件名启发式（"招标/标书/采购文件"等）识别项目文档；三级向上穿透回退到 `project -> tender.source_document_file_url`，彻底打通招标文件来源。
+3. **结构化比对清单下发与弹窗呈现**：新增 `QualificationDetail` 领域模型并集成到 `QualityCheckItemResult` 与报表 DTO，前端在 `QualityCheckDetailDialog.vue` 中渲染结构化比对表格，清晰展示招标要求、我司持有证书、剩余天数、标书页码与核查说明。
+
+**教训**：
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| `dbShortName.contains(llmLongSentence)` 反向包含假阴性 | 单元测试使用人工简写字符串（"ISO27001"），掩盖了生产中大模型提取长自然语言句子的事实 | 关键词匹配必须支持双向模糊匹配、标准代号提取与归一化，单测必须使用大模型真实长文本作为测试用例 |
+| 跨模块数据未打通回退路径导致空文档熔断 | 模块各自为政，假定所有项目在立项后都已在 project_documents 实体化落盘 TENDER 文档 | 关键资源加载器应具备三级优雅回退机制（显式分类 -> 启发式文件名 -> 溯源实体 URL） |
+| 核查依据仅以非结构化字符串展示 | 忽略了用户需要逐条对照资质、证书到期日、投标文件页码的直观交互需求 | 核心质检项必须在领域模型中下发结构化比对明细，提供直观的对照表格/卡片 |
