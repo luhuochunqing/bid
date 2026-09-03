@@ -94,6 +94,18 @@ public class ScoreParseTask {
     @Column(name = "run_summary", columnDefinition = "TEXT")
     private String runSummary;
 
+    /** spec 059 Phase 0：解析 pipeline 标识（LEGACY_FALLBACK / EVIDENCE_PIPELINE_V1） */
+    @Column(name = "pipeline_version", length = 32)
+    private String pipelineVersion;
+
+    /** spec 059 Phase 0：单次任务决策状态（AUTO_APPROVED / REVIEW_REQUIRED / STRUCTURE_INCOMPLETE / PARSE_FAILED） */
+    @Column(name = "decision_status", length = 32)
+    private String decisionStatus;
+
+    /** spec 059 Phase 0：旧链路降级原因（RESORT_TO_NORMALIZATION / RESORT_TO_LLM_MERGE / ZERO_VALID_ITEMS 等） */
+    @Column(name = "fallback_reason", length = 128)
+    private String fallbackReason;
+
     /** 权重归一化显式告警（Phase 2 spec 057 FR-05；null 表示未触发或缩放幅度 ≤5%） */
     @Column(name = "normalization_warning", length = 255)
     private String normalizationWarning;

@@ -139,7 +139,6 @@ public class ScoreParseAppService {
         stateService.markProcessing(taskId);
         ScoreParseTask task = taskRepository.findByTaskId(taskId)
                 .orElseThrow(() -> new IllegalStateException("任务不存在: " + taskId));
-
         TenderIntake intake = initiationTenderTextResolver.resolveIntake(task.getProjectId());
         if (intake.source().isEmpty()) {
             String reason = intake.emptyReason() == null ? NO_SNAPSHOT_MESSAGE : intake.emptyReason();
@@ -154,8 +153,7 @@ public class ScoreParseAppService {
         taskRepository.save(task);
         updateProgress(taskId, 5, "READ_DOCUMENT", "读取招标文件");
 
-        RecallOutcome outcome = scoreAnalyzer.recallCandidates(
-                source.text(), null,
+        RecallOutcome outcome = scoreAnalyzer.recallCandidates(source.text(), null,
                 (progress, stage) -> updateProgress(taskId, progress, "RECALL", stage));
         task.setSkippedChunks(outcome.skippedChunks());
         List<ScoreCandidate> tableCandidates = tryStructuredTableExtract(source);
@@ -165,12 +163,14 @@ public class ScoreParseAppService {
             tableCandidates = recallTableCandidates(source.text());
         }
         updateProgress(taskId, 70, "GOVERN", "候选治理、归并裁决与权重收敛");
-        var processed = postProcessor.process(taskId, source.text(), outcome,
-                tableCandidates,
+        var processed = postProcessor.process(taskId, source.text(), outcome, tableCandidates,
                 (progress, stageKey) -> updateProgress(taskId, progress, stageKey,
                         "GAP_RECHECK".equals(stageKey) ? "分值或编号连续性异常，触发完整性回补" : stageKey));
         task.setRunSummary(processed.runSummaryJson());
         task.setNormalizationWarning(processed.normalizationWarning());
+        task.setPipelineVersion(processed.pipelineVersion());
+        task.setDecisionStatus(processed.decisionStatus() == null ? null : processed.decisionStatus().name());
+        task.setFallbackReason(processed.fallbackReason());
         if (processed.failMessage() != null) {
             taskRepository.save(task);
             stateService.failTask(taskId, processed.failMessage());
@@ -189,8 +189,7 @@ public class ScoreParseAppService {
         estimatedScoreService.estimateForProject(task.getProjectId());
 
         log.info("解析任务完成: taskId={}, items={}, totalWeight={}, weightWarning={}, normalizationWarning={}",
-                taskId, valid.size(), processed.weightResult().totalWeight(),
-                processed.weightResult().weightWarning(), processed.normalizationWarning());
+                taskId, valid.size(), processed.weightResult().totalWeight(), processed.weightResult().weightWarning(), processed.normalizationWarning());
         stateService.markCompleted(taskId);
         progressService.clearProgress(taskId);
     }
