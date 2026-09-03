@@ -169,6 +169,96 @@ class DeterministicCheckPolicyTest {
     }
 
     @Test
+    @DisplayName("投标函核查：识别谈判采购《报价函》与（采购人名称）：称谓，判定通过")
+    void checkBidLetterFormat_quotationLetterWithBuyerSalutation_passes() {
+        String text = """
+                文件二  报价函
+                中国雅江集团物资设备有限公司   （采购人名称）：
+                我方已仔细研究了中国雅江集团电子商城工业用品平台供应商引入采购文件的全部内容，愿意以折扣交付货物。
+                我方承诺在采购文件规定的响应文件有效期内不修改、撤销响应文件。
+                如我方成交：我方承诺在收到成交通知书后30天内与采购人签订合同。
+                供应商：西域智慧供应链（上海）股份公司（盖单位章）
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.docx", "hash_quotation", text);
+
+        QualityCheckItemResult result = DeterministicCheckPolicy.checkBidLetterFormat(doc);
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(result.conclusion()).contains("报价函格式规范");
+        assertThat(result.evidences()).isNotEmpty();
+        assertThat(result.evidences().get(0).sourceTitle()).isEqualTo("报价函章节");
+        assertThat(result.evidences().get(0).quote()).contains("报价函");
+    }
+
+    @Test
+    @DisplayName("投标函核查：第1页目录含报价函但无称谓，正文第2页含完整报价函，择优选取第2页正文")
+    void checkBidLetterFormat_tableOfContentsFollowedByQuotationLetter_picksBodyPage() {
+        String page1Toc = """
+                目录
+                一、 文件一  保密承诺书 1
+                二、 文件二  报价函 3
+                三、 文件三  授权委托书 4
+                """;
+        String page2Body = """
+                文件二  报价函
+                中国雅江集团物资设备有限公司 （采购人名称）：
+                我方已仔细研究了采购文件全部内容。
+                我方承诺在响应文件有效期内不修改、撤销响应文件。
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.docx", "hash_toc", page1Toc + "\f" + page2Body);
+
+        QualityCheckItemResult result = DeterministicCheckPolicy.checkBidLetterFormat(doc);
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(result.evidences()).isNotEmpty();
+        assertThat(result.evidences().get(0).pageNumber()).isEqualTo(2);
+        assertThat(result.evidences().get(0).quote()).contains("中国雅江集团物资设备有限公司");
+    }
+
+    @Test
+    @DisplayName("投标函核查：识别《谈判响应函》与致称谓，判定通过且证据标题为响应函章节")
+    void checkBidLetterFormat_negotiationResponseLetter_passes() {
+        String text = """
+                谈判响应函
+                致：某央企物资设备有限公司
+                我方仔细研究了谈判文件的全部规定，我方承诺……
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.docx", "hash_resp", text);
+
+        QualityCheckItemResult result = DeterministicCheckPolicy.checkBidLetterFormat(doc);
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(result.evidences().get(0).sourceTitle()).isEqualTo("响应函章节");
+    }
+
+    @Test
+    @DisplayName("投标函核查：存在报价函但缺失标准称谓抬头，转入人工复核")
+    void checkBidLetterFormat_quotationLetterWithoutSalutation_returnsManualReview() {
+        String text = """
+                报价函
+                我方承诺在响应文件有效期内不修改、撤销响应文件。
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.docx", "hash_manual", text);
+
+        QualityCheckItemResult result = DeterministicCheckPolicy.checkBidLetterFormat(doc);
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.suggestion()).contains("抬头致招标人或采购人称谓是否准确");
+    }
+
+    @Test
+    @DisplayName("投标函核查：全文未检索到任何投标函/报价函/响应函，判定失败")
+    void checkBidLetterFormat_noBidLetter_fails() {
+        String text = "这里仅包含普通技术规范描述与人员简历，无任何函件章节。";
+        DocumentContent doc = DocumentContent.fromText("bid.docx", "hash_fail", text);
+
+        QualityCheckItemResult result = DeterministicCheckPolicy.checkBidLetterFormat(doc);
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(result.conclusion()).contains("未检索到投标函或报价函独立章节");
+    }
+
+    @Test
     @DisplayName("snippetAround 纯函数：关键词未命中时回退页首摘录（兜底分支锚定）")
     void snippetAround_fallsBackToHeadSnippet_whenNoKeywordHit() {
         String text = "这段文本完全不含任何检索关键词，用于验证兜底路径。".repeat(50);
