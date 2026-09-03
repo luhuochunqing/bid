@@ -6,8 +6,9 @@ package com.xiyu.bid.scoreparse.domain.llm;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
 
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -35,8 +36,13 @@ public final class LlmDecisionValidator {
 
     /**
      * 校验 LLM 决策：每个 op 引用的 factId 都必须在 {@code pool} 中存在。
-     * <p>对于 {@link LlmFactOp.MergeDuplicates}，{@code keepFactId} 与
-     * {@code removeFactIds} 列表中每个 id 都必须存在于池内。
+     * <p>除池内存在性外，还有两条硬规则：
+     * <ul>
+     *   <li>{@link LlmFactOp.LinkParent}：child ≠ parent，且两者不得来自不同
+     *       表（跨文件/跨表 cell 引用违反证据边界，spec 059 T302）。</li>
+     *   <li>{@link LlmFactOp.MarkDuplicate}：{@code keepFactId} 不得出现在
+     *       {@code duplicateFactIds} 中。</li>
+     * </ul>
      *
      * @return ValidationResult；{@code valid} 为 true 表示决策可应用（无违规）
      */
@@ -47,10 +53,10 @@ public final class LlmDecisionValidator {
         if (decision == null) {
             return new ValidationResult(false, List.of("decision is null"));
         }
-        Set<String> poolIds = new HashSet<>();
+        Map<String, ScoreFact> poolById = new LinkedHashMap<>();
         for (ScoreFact fact : pool) {
             if (fact != null && fact.factId() != null && !fact.factId().isBlank()) {
-                poolIds.add(fact.factId());
+                poolById.put(fact.factId(), fact);
             }
         }
         List<String> violations = new ArrayList<>();
@@ -61,42 +67,59 @@ public final class LlmDecisionValidator {
                 violations.add("op[" + i + "] is null");
                 continue;
             }
-            violations = collectViolations(op, i, poolIds, violations);
+            violations = collectViolations(op, i, poolById, violations);
         }
         return new ValidationResult(violations.isEmpty(), List.copyOf(violations));
     }
 
     /**
-     * Returns the list of violations introduced by {@code op} against {@code poolIds}.
+     * Returns the list of violations introduced by {@code op} against {@code poolById}.
      * <p>Returns a fresh list rather than mutating a passed-in accumulator so the
      * caller's data flow stays value-oriented (FP-Java: methods should return values).
      */
     private static List<String> collectViolations(LlmFactOp op, int index,
-                                                  Set<String> poolIds, List<String> existing) {
+                                                  Map<String, ScoreFact> poolById,
+                                                  List<String> existing) {
         List<String> out = new ArrayList<>(existing);
         String opName = op.getClass().getSimpleName();
-        if (op instanceof LlmFactOp.SelectFact select) {
-            out = appendPoolViolation(out, opName, index, "factId", select.factId(), poolIds);
-        } else if (op instanceof LlmFactOp.MergeDuplicates merge) {
-            out = appendPoolViolation(out, opName, index, "keepFactId", merge.keepFactId(), poolIds);
-            List<String> removes = merge.removeFactIds();
-            if (removes == null || removes.isEmpty()) {
-                out.add("op[" + index + "] (" + opName + "): removeFactIds is empty");
+        if (op instanceof LlmFactOp.Keep keep) {
+            out = appendPoolViolation(out, opName, index, "factId", keep.factId(), poolById.keySet());
+        } else if (op instanceof LlmFactOp.Classify classify) {
+            out = appendPoolViolation(out, opName, index, "factId", classify.factId(), poolById.keySet());
+            if (classify.category() == null || classify.category().isBlank()) {
+                out.add("op[" + index + "] (" + opName + "): category is blank");
+            }
+        } else if (op instanceof LlmFactOp.LinkParent link) {
+            out = appendPoolViolation(out, opName, index, "childFactId", link.childFactId(), poolById.keySet());
+            out = appendPoolViolation(out, opName, index, "parentFactId", link.parentFactId(), poolById.keySet());
+            if (!link.childFactId().isBlank() && link.childFactId().equals(link.parentFactId())) {
+                out.add("op[" + index + "] (" + opName + "): childFactId must differ from parentFactId");
+            }
+            ScoreFact child = poolById.get(link.childFactId());
+            ScoreFact parent = poolById.get(link.parentFactId());
+            if (child != null && parent != null
+                    && !child.sourceTableId().equals(parent.sourceTableId())) {
+                out.add("op[" + index + "] (" + opName + "): cross-table link rejected (child '"
+                        + child.sourceTableId() + "' vs parent '" + parent.sourceTableId() + "')");
+            }
+        } else if (op instanceof LlmFactOp.MarkDuplicate merge) {
+            out = appendPoolViolation(out, opName, index, "keepFactId", merge.keepFactId(), poolById.keySet());
+            List<String> duplicates = merge.duplicateFactIds();
+            if (duplicates == null || duplicates.isEmpty()) {
+                out.add("op[" + index + "] (" + opName + "): duplicateFactIds is empty");
                 return out;
             }
-            for (int j = 0; j < removes.size(); j++) {
+            for (int j = 0; j < duplicates.size(); j++) {
                 out = appendPoolViolation(out, opName, index,
-                        "removeFactIds[" + j + "]", removes.get(j), poolIds);
+                        "duplicateFactIds[" + j + "]", duplicates.get(j), poolById.keySet());
             }
-            // Defensive: keepFactId must not appear in removeFactIds.
-            if (removes.contains(merge.keepFactId())) {
+            // Defensive: keepFactId must not appear in duplicateFactIds.
+            if (duplicates.contains(merge.keepFactId())) {
                 out.add("op[" + index + "] (" + opName
-                        + "): keepFactId must not appear in removeFactIds");
+                        + "): keepFactId must not appear in duplicateFactIds");
             }
         } else if (op instanceof LlmFactOp.MarkReviewRequired mark) {
-            out = appendPoolViolation(out, opName, index, "factId", mark.factId(), poolIds);
-        } else if (op instanceof LlmFactOp.AddObservation obs) {
-            out = appendPoolViolation(out, opName, index, "factId", obs.factId(), poolIds);
+            out = appendPoolViolation(out, opName, index, "factId", mark.factId(), poolById.keySet());
         }
         // No other permitted types: sealed interface + exhaustive instanceof covers all cases.
         return out;
