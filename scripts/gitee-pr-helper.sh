@@ -3,6 +3,7 @@
 # Output: PR info or merge result
 # Pos: scripts/ — Gitee PR 操作辅助工具
 # 维护声明: 依赖 curl + GITEE_TOKEN 环境变量。Gitee API v5。
+#           契约测试: scripts/test/gitee-pr-helper-contract.sh（mock API，无需真实 token）
 #
 # 用法:
 #   GITEE_TOKEN=xxx ./scripts/gitee-pr-helper.sh list          # 列出当前分支的 PR
@@ -16,6 +17,7 @@
 #   GITEE_OWNER     — 仓库所有者（默认: allinai888）
 #   GITEE_REPO      — 仓库名（默认: bid）
 #   GITEE_BASE_BRANCH — 目标分支（默认: main）
+#   GITEE_API_BASE  — API 前缀（默认: https://gitee.com/api/v5；仅测试/mock 覆盖）
 #   GIT_PR_TITLE    — 可选，覆盖默认从 commit message 提取的 PR 标题（与 pr-create.sh 命名对齐）
 #   GIT_PR_BODY     — 可选，覆盖默认从 commit body 提取的 PR 描述（与 pr-create.sh 命名对齐）
 #
@@ -24,12 +26,19 @@
 #              新增 GIT_PR_TITLE / GIT_PR_BODY 环境变量，与 scripts/pr-create.sh 命名对齐
 #   2026-08-25 merge 子命令新增 mergeable 强制断言（PR !2399 教训：四轮审查未查
 #              mergeable，合入时才发现冲突）。逃生阀：GITEE_PR_FORCE_MERGE=1
+#   2026-09-03 修复 list 解析 bug：curl 响应此前不做 HTTP 状态码与 JSON 形状校验，
+#              401 错误字典 {"message":...} 被 len() 计成"1 个开放 PR"（假阳性）后
+#              在解析循环崩溃（AttributeError: 'str' object has no attribute 'get'）；
+#              非 JSON 响应则静默计 0，把鉴权失败伪装成"无 PR"（假阴性）。
+#              收敛为统一 gitee_get + require_json_response（状态码 + list/object 形状），
+#              401/403 附带 token 提示；新增 GITEE_API_BASE 覆盖供契约测试 mock。
 set -euo pipefail
 
 GITEE_OWNER="${GITEE_OWNER:-allinai888}"
 GITEE_REPO="${GITEE_REPO:-bid}"
 GITEE_BASE="${GITEE_BASE_BRANCH:-main}"
-API="https://gitee.com/api/v5/repos/${GITEE_OWNER}/${GITEE_REPO}"
+API_BASE="${GITEE_API_BASE:-https://gitee.com/api/v5}"
+API="${API_BASE}/repos/${GITEE_OWNER}/${GITEE_REPO}"
 
 usage() {
   echo "用法: $0 {list|create|check|merge|approve} [pr_number]"
@@ -48,6 +57,56 @@ get_current_branch() {
   git branch --show-current 2>/dev/null || echo ""
 }
 
+# 统一 GET：stdout 输出 HTTP 状态码，响应体落到 $2 指定的文件。
+# 为什么走文件：多行/引号密集的 body 经 shell 变量接力再进 python 容易碎，
+# 文件路径传参让 python 自己 json.load，形状校验收敛到 require_json_response。
+gitee_get() {
+  local url="$1" body_file="$2"
+  curl -s -o "$body_file" -w "%{http_code}" \
+    -H "Authorization: Bearer ${GITEE_TOKEN}" "$url" 2>/dev/null
+}
+
+# 校验响应：$1=状态码 $2=body 文件 $3=期望形状(list|object) $4=动作名（用于报错）。
+# 非 2xx 或形状不符 → 输出可读错误并 exit 1；401/403 附带 token 提示。
+# （根因背景：2026-09-03 修复前，401 错误字典被当成 1 条记录解析后崩溃。）
+require_json_response() {
+  local status="$1" body_file="$2" expect="$3" action="$4"
+  if [[ ! "$status" =~ ^2 ]]; then
+    echo "[gitee-pr] ❌ ${action} 失败 (HTTP ${status})" >&2
+    local snippet
+    snippet=$(head -c 300 "$body_file" 2>/dev/null || true)
+    if [[ -n "$snippet" ]]; then
+      echo "[gitee-pr] 响应: ${snippet}" >&2
+    fi
+    if [[ "$status" == "401" || "$status" == "403" ]]; then
+      echo "[gitee-pr] 提示: GITEE_TOKEN 缺失、无效或已过期——请更新 ~/.zshenv 中的令牌后重试" >&2
+    fi
+    rm -f "$body_file"
+    exit 1
+  fi
+  if ! python3 - "$body_file" "$expect" "$action" <<'PY'
+import json, sys
+path, expect, action = sys.argv[1], sys.argv[2], sys.argv[3]
+try:
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+except Exception:
+    print(f"[gitee-pr] ❌ {action} 失败: 响应不是合法 JSON", file=sys.stderr)
+    sys.exit(1)
+ok = isinstance(data, list) if expect == "list" else isinstance(data, dict)
+if not ok:
+    shape = "JSON 数组" if expect == "list" else "JSON 对象"
+    print(f"[gitee-pr] ❌ {action} 失败: 响应为 {type(data).__name__}，期望{shape}", file=sys.stderr)
+    if isinstance(data, dict) and data.get("message"):
+        print(f"[gitee-pr] API 消息: {data['message']}", file=sys.stderr)
+    sys.exit(1)
+PY
+  then
+    rm -f "$body_file"
+    exit 1
+  fi
+}
+
 list_prs() {
   check_token
   local branch="${1:-$(get_current_branch)}"
@@ -57,31 +116,34 @@ list_prs() {
   fi
 
   echo "[gitee-pr] 查询 PR (head: ${branch}, base: ${GITEE_BASE})..."
-  local result
-  result=$(curl -s -H "Authorization: Bearer ${GITEE_TOKEN}" \
-    "${API}/pulls?state=open&head=${branch//\//%2F}&base=${GITEE_BASE}" 2>/dev/null)
+  local body_file status
+  body_file=$(mktemp)
+  status=$(gitee_get "${API}/pulls?state=open&head=${branch//\//%2F}&base=${GITEE_BASE}" "$body_file" || echo "000")
+  require_json_response "$status" "$body_file" list "查询 PR"
 
   local count
-  count=$(echo "$result" | python3 -c "import sys,json; data=json.load(sys.stdin); print(len(data))" 2>/dev/null || echo "0")
+  count=$(python3 -c "import json,sys; print(len(json.load(open(sys.argv[1]))))" "$body_file")
 
   if [[ "$count" == "0" ]]; then
     echo "[gitee-pr] 未找到开放 PR，建议创建: $0 create"
+    rm -f "$body_file"
     return 0
   fi
 
   echo "[gitee-pr] 找到 ${count} 个开放 PR:"
-  echo "$result" | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-for pr in data:
-    num = pr.get('number', '?')
-    title = pr.get('title', '?')
-    state = pr.get('state', '?')
-    mergeable = pr.get('mergeable', '?')
-    html_url = pr.get('html_url', '?')
-    print(f'  #{num} [{state}] {title}')
-    print(f'        mergeable={mergeable} URL={html_url}')
-"
+  python3 - "$body_file" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as f:
+    for pr in json.load(f):
+        num = pr.get('number', '?')
+        title = pr.get('title', '?')
+        state = pr.get('state', '?')
+        mergeable = pr.get('mergeable', '?')
+        html_url = pr.get('html_url', '?')
+        print(f'  #{num} [{state}] {title}')
+        print(f'        mergeable={mergeable} URL={html_url}')
+PY
+  rm -f "$body_file"
 }
 
 create_pr() {
@@ -115,20 +177,24 @@ create_pr() {
     exit 1
   fi
 
-  # 检查是否已有开放 PR
-  local existing
-  existing=$(curl -s -H "Authorization: Bearer ${GITEE_TOKEN}" \
-    "${API}/pulls?state=open&head=${branch//\//%2F}&base=${GITEE_BASE}" 2>/dev/null)
+  # 检查是否已有开放 PR（与 list 相同的形状校验：401 字典曾把"鉴权失败"伪装成
+  # "已存在 PR #"，诱导跳过创建）
+  local existing_file status
+  existing_file=$(mktemp)
+  status=$(gitee_get "${API}/pulls?state=open&head=${branch//\//%2F}&base=${GITEE_BASE}" "$existing_file" || echo "000")
+  require_json_response "$status" "$existing_file" list "查询已有 PR"
 
   local count
-  count=$(echo "$existing" | python3 -c "import sys,json; data=json.load(sys.stdin); print(len(data))" 2>/dev/null || echo "0")
+  count=$(python3 -c "import json,sys; print(len(json.load(open(sys.argv[1]))))" "$existing_file")
 
   if [[ "$count" != "0" ]]; then
     local pr_num
-    pr_num=$(echo "$existing" | python3 -c "import sys,json; data=json.load(sys.stdin); print(data[0]['number'])" 2>/dev/null)
+    pr_num=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))[0]['number'])" "$existing_file")
     echo "[gitee-pr] ⚠ 已存在 PR #${pr_num}，跳过创建" >&2
+    rm -f "$existing_file"
     return 0
   fi
+  rm -f "$existing_file"
 
   echo "[gitee-pr] 创建 PR: ${branch} → ${GITEE_BASE}..."
 
@@ -174,24 +240,28 @@ print(json.dumps({
 }, ensure_ascii=False))
 " "$pr_title" "$commit_body" "$branch" "$GITEE_BASE")
 
-  local http_payload="$payload"
-
-  local result
-  result=$(curl -s -X POST -H "Authorization: Bearer ${GITEE_TOKEN}" \
+  local result_file create_status
+  result_file=$(mktemp)
+  create_status=$(curl -s -o "$result_file" -w "%{http_code}" -X POST \
+    -H "Authorization: Bearer ${GITEE_TOKEN}" \
     -H "Content-Type: application/json" \
-    -d "$http_payload" "${API}/pulls" 2>/dev/null)
+    -d "$payload" "${API}/pulls" 2>/dev/null || echo "000")
 
-  local pr_num
-  pr_num=$(echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('number','?'))" 2>/dev/null || echo "?")
-
-  if [[ "$pr_num" != "?" ]]; then
-    echo "[gitee-pr] ✅ PR #${pr_num} 创建成功"
-    echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'  URL: {d.get(\"html_url\",\"?\")}')"
-  else
-    echo "[gitee-pr] ❌ 创建失败:" >&2
-    echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps(d, indent=2, ensure_ascii=False))" 2>/dev/null || echo "$result" >&2
+  if [[ ! "$create_status" =~ ^20[01]$ ]]; then
+    echo "[gitee-pr] ❌ 创建失败 (HTTP ${create_status})" >&2
+    head -c 500 "$result_file" 2>/dev/null >&2; echo >&2
+    if [[ "$create_status" == "401" || "$create_status" == "403" ]]; then
+      echo "[gitee-pr] 提示: GITEE_TOKEN 缺失、无效或已过期——请更新 ~/.zshenv 中的令牌后重试" >&2
+    fi
+    rm -f "$result_file"
     exit 1
   fi
+
+  local pr_num
+  pr_num=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('number','?'))" "$result_file")
+  echo "[gitee-pr] ✅ PR #${pr_num} 创建成功"
+  python3 -c "import json,sys; print(f\"  URL: {json.load(open(sys.argv[1])).get('html_url','?')}\")" "$result_file"
+  rm -f "$result_file"
 }
 
 check_pr() {
@@ -203,21 +273,24 @@ check_pr() {
   fi
 
   echo "[gitee-pr] 检查 PR #${pr_num} 状态..."
-  local result
-  result=$(curl -s -H "Authorization: Bearer ${GITEE_TOKEN}" \
-    "${API}/pulls/${pr_num}" 2>/dev/null)
+  local body_file status
+  body_file=$(mktemp)
+  status=$(gitee_get "${API}/pulls/${pr_num}" "$body_file" || echo "000")
+  require_json_response "$status" "$body_file" object "检查 PR #${pr_num}"
 
-  echo "$result" | python3 -c "
-import sys, json
-d = json.load(sys.stdin)
-print(f'  Title:     {d.get(\"title\",\"?\")}')
-print(f'  State:     {d.get(\"state\",\"?\")}')
-print(f'  Mergeable: {d.get(\"mergeable\",\"?\")}')
-print(f'  Head:      {d.get(\"head\",{}).get(\"label\",\"?\")}')
-print(f'  Base:      {d.get(\"base\",{}).get(\"label\",\"?\")}')
-print(f'  Comments:  {d.get(\"comments\",0)}')
-print(f'  URL:       {d.get(\"html_url\",\"?\")}')
-"
+  python3 - "$body_file" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as f:
+    d = json.load(f)
+print(f'  Title:     {d.get("title","?")}')
+print(f'  State:     {d.get("state","?")}')
+print(f'  Mergeable: {d.get("mergeable","?")}')
+print(f'  Head:      {d.get("head",{}).get("label","?")}')
+print(f'  Base:      {d.get("base",{}).get("label","?")}')
+print(f'  Comments:  {d.get("comments",0)}')
+print(f'  URL:       {d.get("html_url","?")}')
+PY
+  rm -f "$body_file"
 }
 
 check_approve() {
@@ -229,28 +302,24 @@ check_approve() {
   fi
 
   echo "[gitee-pr] 检查 PR #${pr_num} 审核状态..."
-  local result
-  result=$(curl -s -H "Authorization: Bearer ${GITEE_TOKEN}" \
-    "${API}/pulls/${pr_num}/reviews" 2>/dev/null)
+  local body_file status
+  body_file=$(mktemp)
+  status=$(gitee_get "${API}/pulls/${pr_num}/reviews" "$body_file" || echo "000")
+  require_json_response "$status" "$body_file" list "检查 PR #${pr_num} 审核状态"
 
-  local reviews
-  reviews=$(echo "$result" | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-if isinstance(data, list):
-    for r in data:
-        user = r.get('user', {}).get('login', '?')
-        state = r.get('state', '?')
-        submitted = r.get('submitted_at', '?')
-        print(f'  {user}: {state} ({submitted})')
-    total_approved = sum(1 for r in data if r.get('state') == 'approved')
-    print(f'  ---')
-    print(f'  Approved: {total_approved}')
-else:
-    print(f'  (no reviews)')
-" 2>/dev/null || echo "  (failed to parse review data)")
-
-  echo "$reviews"
+  python3 - "$body_file" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as f:
+    data = json.load(f)
+for r in data:
+    user = r.get('user', {}).get('login', '?')
+    state = r.get('state', '?')
+    submitted = r.get('submitted_at', '?')
+    print(f'  {user}: {state} ({submitted})')
+print('  ---')
+print(f'  Approved: {sum(1 for r in data if r.get("state") == "approved")}')
+PY
+  rm -f "$body_file"
 }
 
 merge_pr() {
@@ -263,10 +332,12 @@ merge_pr() {
 
   # 合入前强制断言 mergeable（PR !2399 教训：冲突在合入时才被发现）
   if [[ "${GITEE_PR_FORCE_MERGE:-0}" != "1" ]]; then
-    local pr_info mergeable
-    pr_info=$(curl -s -H "Authorization: Bearer ${GITEE_TOKEN}" \
-      "${API}/pulls/${pr_num}" 2>/dev/null)
-    mergeable=$(echo "$pr_info" | python3 -c "import sys,json; d=json.load(sys.stdin); print(str(d.get('mergeable')).lower())" 2>/dev/null || echo "unknown")
+    local pr_file status mergeable
+    pr_file=$(mktemp)
+    status=$(gitee_get "${API}/pulls/${pr_num}" "$pr_file" || echo "000")
+    require_json_response "$status" "$pr_file" object "检查 PR #${pr_num} 可合入状态"
+    mergeable=$(python3 -c "import json,sys; print(str(json.load(open(sys.argv[1])).get('mergeable')).lower())" "$pr_file")
+    rm -f "$pr_file"
     if [[ "$mergeable" != "true" ]]; then
       echo "[gitee-pr] ❌ PR #${pr_num} mergeable=${mergeable} — 合入阻断" >&2
       echo "[gitee-pr] 请先 rebase 解决冲突: git fetch origin && git rebase origin/main" >&2
@@ -285,22 +356,25 @@ merge_pr() {
   # merge_type: 'merge' | 'squash' | 'rebase'
   local body='{"merge_type":"squash","remove_source_branch":true,"title":"auto-merge by gitee-pr-helper.sh"}'
 
-  local result
-  result=$(curl -s -X PUT -H "Authorization: Bearer ${GITEE_TOKEN}" \
+  local result_file merge_status
+  result_file=$(mktemp)
+  merge_status=$(curl -s -o "$result_file" -w "%{http_code}" -X PUT \
+    -H "Authorization: Bearer ${GITEE_TOKEN}" \
     -H "Content-Type: application/json" \
-    -d "$body" "${API}/pulls/${pr_num}/merge" 2>/dev/null)
+    -d "$body" "${API}/pulls/${pr_num}/merge" 2>/dev/null || echo "000")
 
-  local status
-  status=$(echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('title','?'))" 2>/dev/null || echo "error")
-
-  if [[ "$status" != "error" ]]; then
-    echo "[gitee-pr] ✅ PR #${pr_num} 合并成功"
-    echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps(d, indent=2, ensure_ascii=False))" 2>/dev/null
-  else
-    echo "[gitee-pr] ❌ 合并失败:" >&2
-    echo "$result" | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps(d, indent=2, ensure_ascii=False))" 2>/dev/null || echo "$result" >&2
+  if [[ ! "$merge_status" =~ ^2 ]]; then
+    echo "[gitee-pr] ❌ 合并失败 (HTTP ${merge_status})" >&2
+    head -c 500 "$result_file" 2>/dev/null >&2; echo >&2
+    rm -f "$result_file"
     exit 1
   fi
+
+  echo "[gitee-pr] ✅ PR #${pr_num} 合并成功"
+  if [[ -s "$result_file" ]]; then
+    python3 -c "import json,sys; print(json.dumps(json.load(open(sys.argv[1])), indent=2, ensure_ascii=False))" "$result_file" 2>/dev/null || true
+  fi
+  rm -f "$result_file"
 }
 
 # --- main ---
