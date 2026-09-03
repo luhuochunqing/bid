@@ -1,14 +1,15 @@
 ---
-title: spec 059 评分解析证据化 Phase 0-1 落地结论
+title: spec 059 评分解析证据化 Phase 0-2 落地结论 + 合入前评审修复
 space: engineering
 category: guide
-updated: 2026-09-02
-health_checked: 2026-09-02
+updated: 2026-09-03
+health_checked: 2026-09-03
 created: 2026-09-02
-tags: [score-parse, spec059, 评分解析, DocumentArtifact, CanonicalTableGrid]
+tags: [score-parse, spec059, 评分解析, DocumentArtifact, CanonicalTableGrid, ScoreFact]
 sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreParseDecision.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/grid/CanonicalTableGridFactory.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreFact.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/SidecarDocumentArtifactExtractor.java
   - document-converter-sidecar/table_extractor.py
   - docs/lessons/scoreparse-golden-corpus/index.md
@@ -19,7 +20,7 @@ backlinks:
   - lessons-learned
 ---
 
-# spec 059 评分解析证据化 Phase 0-1 落地结论
+# spec 059 评分解析证据化 Phase 0-2 落地结论 + 合入前评审修复
 
 ## 背景
 
@@ -55,7 +56,7 @@ spec 059 把链路切到「原始 Word 结构 + 确定性事实 + 原文证据 +
 
 ### Sidecar 端（Python）
 - extract_tables_artifact() 返回 schemaVersion=2.0 契约：artifact header 携带 sha256/fileType/extractionVersion；每个 cell 携带 cellId + rawText/normalizedText + rowspan/colspan/isMergedContinue + sourceXmlPath（XPath-like Word XML 锚点）+ mergedRegions 列表
-- 合并覆盖使用 vMerge 严格遍历（不再用「发现任一 continuation 推断整行」的简化逻辑）
+- 合并覆盖使用 vMerge 严格遍历（Phase 1 提交时该说法尚未完全成立——`_v_merge_span_from_tc` 仍是「发现任一 continuation 推断整行」的近似逻辑，2026-09-03 评审修复才真正实现严格遍历，见下文评审修复 P0-2）
 - extract_tables() 作为 v1 兼容入口保留，内部委托 v2 投影回旧 shape
 - app.py 新增 X-Schema-Version header：默认 v2，显式 1.x 走旧路径
 - test_extract_tables_v2.py 14 例：cellId 唯一性、XML 路径、双文本、vMerge/gridSpan/combined-VH 合并、多表、v1 兼容、边缘案例
@@ -78,13 +79,33 @@ spec 059 把链路切到「原始 Word 结构 + 确定性事实 + 原文证据 +
 
 76/76 绿（RunSummary* + ScoreParseApp* + PostProcessor* + ArchitectureTest + FPJavaArchitectureTest + MaintainabilityArchitectureTest + CanonicalTableGridTest）。
 
-## Phase 2-6 待办（see tasks.md）
+## Phase 2：确定性 ScoreFact + 合入前评审修复（commit 1d880e5ac → 7b63f98de）
 
-- Phase 2：确定性 ScoreFact 提取与 ScoreEvidence 绑定
-- Phase 3：LLM 受限为可审计语义适配器（CLASSIFY / LINK_PARENT / MARK_DUPLICATE / REVIEW_REQUIRED）
+- 不可变领域对象：ScoreFact / ScoreEvidence / ScoreRule / ScoreFactValidator（domain，纯核心）
+- DeterministicScoreFactExtractor：显式分值列 > 标题括号分值 优先级生成 weightEvidence；vMerge origin 行 ↔ 延续行自动挂父子
+- ScoreFact → ScoreCandidate 适配器 `toCandidate()`（落库接线按计划属 Phase 4/5）
+- 影子组装管道 ScoreFactShadowPipeline：Artifact → CanonicalTableGrid → ScoreFact 只读端到端验证器；SidecarDocumentArtifactExtractor 补 @Component 进容器（生产主链路切换仍属 Phase 3/4）
+
+### 合入前评审修复（5 项，2026-09-03）
+
+| # | 问题 | 修复 |
+|---|---|---|
+| P0-1 | `isLeaf()` 把 parentFactId 为空（根）当叶子，父项放行/子项被拦，单测反向断言钉死 | 叶子改为集合属性：`ScoreFact.isLeaf(fact, facts)` + `parentIds(facts)`，未被引用才是叶子；成对断言重写 |
+| P0-2 | `_v_merge_span_from_tc` 按"任一 continuation"近似计数，多列错位合并互相污染跨度 → 正常表被误判 STRUCTURE_INCOMPLETE | 传入 (logical_col, colspan)，按 gridSpan 累加定位覆盖列，只认该列自己的 continuation；新增错位双列回归测试 |
+| P1-3 | 金标语料登记表为空模板，Phase 0 验收未闭环 | 登记表补齐事故 1347/1358/1362 + 5+2 类夹具全部预期；GoldenCorpusBaselineTest 8 例为可执行基线；跨页页码锚点/nightly 评估诚实挂账 |
+| P1-4 | Phase 1/2 新类零调用零测试（孤岛） | 影子管道 + Bean 接线 + 4 例端到端测试；生产切换仍按计划 Phase 3/4 |
+| P2-5 | Phase 3 LLM 契约提前混入 Phase 2 提交且操作集与 Plan 不符 | 不重写历史（分支已推送 + PR 已开），就地对齐 Plan 五操作 KEEP/CLASSIFY/LINK_PARENT/MARK_DUPLICATE/REVIEW_REQUIRED；删 AddObservation；LinkParent 补跨表拒绝（提前实现 T302） |
+
+核心语义（后续 Phase 必须知道）：**叶子是集合属性，父项=被子项引用**。合并大类 origin 行即使自带细则分值，也会被延续行引用成父项——保留在快照但被 validateScoringSet 拦截出自动评分集，宁可漏进人工不可静默错分；权重差额由 Phase 4 完整性策略兜底 REVIEW_REQUIRED。
+
+回归：Java 定向 631 例 0 失败（T009 口径 + 全部新增）；Sidecar pytest 22 passed。
+
+## Phase 3-6 待办（see tasks.md）
+
+- Phase 3：LLM 受限为可审计语义适配器——契约已就绪（LlmFactOp 五操作 + LlmDecisionValidator，含跨表拒绝），编排层 ScoreGlobalMergeOrchestrator 改造未动
 - Phase 4：完整性阻断、人工复核、移除 WeightNormalizationPolicy 自动调用
-- Phase 5：DB/API/前端迁移 + 双写 + 灰度
-- Phase 6：金标 + 架构门禁 + 清理
+- Phase 5：DB/API/前端迁移 + 双写 + 灰度（双轨回放脚本 T505）
+- Phase 6：金标收口（跨页页码锚点挂账）+ 架构门禁 + 清理
 
 ## 索引
 
