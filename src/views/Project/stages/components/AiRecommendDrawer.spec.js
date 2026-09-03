@@ -23,6 +23,11 @@ vi.mock('@/api/modules/projectLifecycle', () => ({
   },
 }))
 
+vi.mock('@/api/modules/projectDocuments', () => ({
+  getDocuments: vi.fn().mockResolvedValue({ data: [] }),
+  getDocumentDownloadUrl: vi.fn(),
+}))
+
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle'
 
 const LONG_DETAIL = '技术方案实施方案完整可行，包含架构设计、部署方案与应急预案等关键要素'
@@ -61,6 +66,7 @@ const caseDetailResponse = {
 describe('AiRecommendDrawer.vue', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    document.body.innerHTML = ''
     navigator.clipboard = {
       writeText: vi.fn().mockResolvedValue(undefined),
     }

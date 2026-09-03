@@ -2,7 +2,7 @@
 title: 标书质量核查实质化架构（spec 049）
 space: engineering
 category: module
-tags: [质量核查, compliance, LLM 混合裁决, 证据链, FP-Java, 语义RAG, 结构化输出]
+tags: [质量核查, compliance, LLM 混合裁决, 证据链, FP-Java, 语义RAG, 结构化输出, 资质智能匹配, 三级穿透]
 created: 2026-08-20
 updated: 2026-09-03
 health_checked: 2026-09-03
@@ -14,10 +14,13 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckAsyncExecutor.java
   - backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckTaskAppService.java
   - backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckProgressUpdater.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/QualificationDetail.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/QualificationMatchPolicy.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/BidDocumentQualityEngine.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/BasicInfoCheckPolicy.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/LlmAdjudicator.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/SemanticPageRetriever.java
+  - backend/src/main/java/com/xiyu/bid/compliance/service/TenderDocumentLoader.java
   - backend/src/main/java/com/xiyu/bid/compliance/service/KnowledgeBaseOnDemandLoader.java
   - backend/src/main/java/com/xiyu/bid/compliance/service/LlmVerdictParser.java
   - backend/src/main/java/com/xiyu/bid/ai/client/AiProvider.java
@@ -157,7 +160,10 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
 15. **异步线程池显式绑定与事务提交时序解耦**（2026-08-31 稳定性加固）：`@Async` 必须显式指定目标线程池 `@Async("aiTaskExecutor")`，杜绝多 Executor 容器下无 `@Primary` 导致的调度歧义以及在 CallerRunsPolicy 下同步占用 Tomcat 主请求线程导致的前端 30s 请求超时；同时 `triggerQualityCheck` 在 `save(taskEntity)` 后必须使用 `TransactionSynchronizationManager` 的 `afterCommit` 钩子安全触发异步流水线，消除主事务与 `BidQualityCheckProgressUpdater` 独立事务（`Propagation.REQUIRES_NEW`）之间的行可见性竞态。
 16. **前端轮询超时放宽与未完成长任务状态隔离**（2026-08-31）：前端长耗时 AI 任务（含多轮 LLM 语义裁决）轮询上限必须 >= 10 分钟（`MAX_POLL_TIMEOUT_MS = 600000`），禁止设为 1~2 分钟导致任务在后台正常完成时前端误报超时；同时抽屉在 `loadLatestReport` 中对 `INIT`/`PARSING`/`CHECKING` 等进行中状态直接进入轮询而不给 `report.value` 赋值，重新核查（`force=true`）显式置空 `report.value = null`，彻底杜绝超时/失败时 UI 状态错乱与旧报告残留。
 17. **正向履约承诺误判与附件免除项假通过治理**（2026-09-02）：废标敏感词扫描必须结合前置窗口识别否定/承诺修饰语境（`isNegatedOrCommitment`），杜绝将正向合规承诺/违约条款确认误判为违规反标；附件核查（保证金/CA/退还账户）必须前置解析招标文件适用性（免收/纸质标），对免除场景准确判定 PASS 并标注“免收/不涉及”，凭证核查必须匹配核心特征组合词，防止单字包含导致虚假通过；资质匹配说明文案对齐三方比对基准，未提取到要求时友好降级提示人工核验。
-
+18. **资质匹配"0 匹配"根因与三级穿透及结构化比对清单**（2026-09-03）：
+    - **反向包含假阴性消除**：`KnowledgeBaseOnDemandLoader` 旧版使用 `q.getName().contains(kw)`，将短证书名反向包含大模型提取的长句导致恒为 false（资质库 0 匹配）。重构为纯核心 `QualificationMatchPolicy`，实现双向包含、标准代号提取（`ISO9001/ISO27001/CMMI/ITSS` 等）、专有资质等级对齐与 LCS 判定，并在资质库与人员库统一复用。
+    - **招标文件三级优雅回退**：`TenderDocumentLoader` 支持一级查 `project_documents` 标准 `TENDER` 分类；二级按文件名启发式识别项目文档；三级向上穿透回退到 `project -> tender.source_document_file_url`，彻底打通仅在标讯带入文件的立项场景。
+    - **结构化比对清单透传与弹窗呈现**：新增 `QualificationDetail` 领域模型并集成到 `QualityCheckItemResult` 与报表 DTO，前端在 `QualityCheckDetailDialog.vue` 中渲染结构化比对表格（招标资质要求 vs 我司持有证书 vs 标书位置 vs 核查说明），并 100% 接入全局设计系统令牌。
 
 ## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
 

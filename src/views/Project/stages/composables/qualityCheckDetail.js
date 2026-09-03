@@ -83,3 +83,23 @@ export function sumObjectiveActualScore(items, resultMap) {
   }
   return hasScore ? total : null
 }
+
+/** 资质比对状态 → 标签与中文文案. */
+export const QUAL_DETAIL_STATUS_META = {
+  MATCHED: { text: '已满足', tagType: 'success' },
+  ATTENTION: { text: '需关注', tagType: 'warning' },
+  EXPIRED: { text: '已过期', tagType: 'danger' },
+  UNMATCHED: { text: '未匹配', tagType: 'danger' }
+}
+
+export const DEFAULT_QUAL_STATUS_META = { text: '待确认', tagType: 'info' }
+
+export function getQualDetailStatusMeta(status) {
+  return QUAL_DETAIL_STATUS_META[status] || DEFAULT_QUAL_STATUS_META
+}
+
+export function isQualificationMatchItem(itemCode) {
+  if (!itemCode) return false
+  const lower = String(itemCode).toLowerCase()
+  return lower === 'qualification_match' || lower === 'qualification_veto' || lower === 'qualification_review'
+}

@@ -3,6 +3,12 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-03] fix | 标书质量核查资质匹配0匹配修复与三级穿透及结构化比对
+
+- 触发：用户反馈 AI 标书质量核查资质匹配"无数据"，排查确认短串反向包含长句导致资质库 0 匹配，以及无物理 TENDER 文件时未回退 tender.source_document_file_url 导致空文档熔断。
+- 修复：设计 FP-Java 纯核心 `QualificationMatchPolicy`，实现双向包含、标准代号提取、等级对齐与有效 LCS 匹配；`TenderDocumentLoader` 建立三级优雅穿透（TENDER 分类 -> 启发式文件名 -> 标讯 URL）；下发 `QualificationDetail` 结构化比对清单，前端表格呈现并 100% 接入设计系统令牌。
+- 页面更新：更新 [[bid-quality-check-realization]] §4.18；更新 lessons-learned.md §218。
+
 ## [2026-08-31] refactor | AI Slop 代码清理与单组件专属小型 Composable 内联收敛
 
 - 触发：全仓库扫描发现多处已废弃死导入/死代码（uploadUrl, uploadHeaders, getApiUrl 等）以及 3 个仅单组件消费的小型 Composable 文件。

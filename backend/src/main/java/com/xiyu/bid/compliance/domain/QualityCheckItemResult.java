@@ -21,7 +21,8 @@ public record QualityCheckItemResult(
         int order,
         String conclusion,
         String suggestion,
-        List<QualityEvidence> evidences
+        List<QualityEvidence> evidences,
+        List<QualificationDetail> details
 ) implements Serializable {
 
     public QualityCheckItemResult {
@@ -30,6 +31,30 @@ public record QualityCheckItemResult(
         } else {
             evidences = Collections.unmodifiableList(new ArrayList<>(evidences));
         }
+        if (details == null) {
+            details = Collections.emptyList();
+        } else {
+            details = Collections.unmodifiableList(new ArrayList<>(details));
+        }
+    }
+
+    public QualityCheckItemResult(
+            final String itemCode,
+            final QualityCheckCategory category,
+            final String title,
+            final String description,
+            final QualityCheckStatus status,
+            final String severity,
+            final int order,
+            final String conclusion,
+            final String suggestion,
+            final List<QualityEvidence> evidences) {
+        this(itemCode, category, title, description, status, severity, order, conclusion, suggestion, evidences, Collections.emptyList());
+    }
+
+    public QualityCheckItemResult withDetails(final List<QualificationDetail> newDetails) {
+        return new QualityCheckItemResult(
+                itemCode, category, title, description, status, severity, order, conclusion, suggestion, evidences, newDetails);
     }
 
     public static QualityCheckItemResult pass(
@@ -102,7 +127,8 @@ public record QualityCheckItemResult(
                         order,
                         conclusion,
                         suggestion,
-                        evidences);
+                        evidences,
+                        details);
             }
         }
         return this;
