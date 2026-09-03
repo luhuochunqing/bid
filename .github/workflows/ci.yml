@@ -176,7 +176,7 @@ jobs:
 
       - name: Run backend architecture tests
         if: needs.quality-scope.outputs.backend_changed == 'true'
-        run: mvn -DforkCount=0 -Dtest=FPJavaArchitectureTest,MaintainabilityArchitectureTest test
+        run: mvn -DforkCount=0 -Dtest=FPJavaArchitectureTest,MaintainabilityArchitectureTest,ScoreParseArchitectureTest,GoldenCasesReplayTest,ScoreParseEvidencePipelineGoldenReplayTest test
         env:
           PLATFORM_ENCRYPTION_KEY: ci-test-key-2026
 

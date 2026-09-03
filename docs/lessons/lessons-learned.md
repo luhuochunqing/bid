@@ -3933,3 +3933,23 @@ M1 部门筛选树锚定西域集团(0001)子树三级展示（PR !2474）后，
 | 错误字典被当数据计数/遍历 | 只写 happy-path 解析，`dict` 与 `list` 语法上都能被 `len()`/`for` | 调外部 API 一律先验 HTTP 状态码、再验 JSON 形状，两层都过才进业务解析 |
 | 解析失败静默降级为"空结果" | `2>/dev/null \|\| echo "0"` 把异常折叠成正常值 | "失败"与"空"必须可区分；鉴权/网络类失败要带可操作提示（如更新 token） |
 | token 有多套配置（shell 环境变量 vs MCP config.json headers），且 MCP 连接在会话启动时建立 | 改了 `~/.zshenv` 以为全好了；MCP 401 误判成 token 无效 | 认证链路分段验证：先用 curl 直接打 API 确认凭证本身；MCP 报 401 先分辨"配置错"还是"连接未刷新"（改配置必须重启会话） |
+
+## 213. 阶段性切换 Worktree/分支感知漂移与重复修改不可变迁移陷阱（2026-09-03）
+
+**背景**：在连续推进 Phase 5 合入后开启 Phase 6 时，本地 worktree 的 HEAD 曾被外部工具检出到旧分支 `review/pr-2515`（基线停留在 Phase 2，缺失后续提交），导致在查看代码时误以为 `score_parse_task` 缺失 `pipeline_version` 和 `decision_status` 字段，险些触发对已合入 main 的 `V1208` 迁移进行重写。
+
+**根因分析**：
+1. **多阶段流转中的分支感知盲区**：在分支频繁切换时，如果未在操作前用 `git status` / `git log -1` 确认 HEAD 与 `origin/main` 的对齐关系，很容易基于过期快照做出误判；
+2. **直觉驱动的破坏性补救冲动**：面对"缺失字段"的第一反应若是不查历史、直接改写已发布 migration，将严重违反 Flyway 不可变性铁律（`check-flyway-immutable.sh`），导致生产环境 checksum mismatch 崩溃；
+3. **真相源核验意识**：数据库变更的唯一真相源是 `origin/main` 上的 migration 序列（`V1207` 实际早已合入上述字段并建有索引）。
+
+**解决方案**：
+1. 立即切回目标分支 `agent/codex/score-evidence-phase6` 并 rebase 到 `origin/main`；
+2. 坚守 Flyway 不可变性纪律，禁止对已合入 main 的 `V1208` 进行任何篡改；
+3. 将全链路架构测试（`ScoreParseArchitectureTest`）与金标回放测试（`ScoreParseEvidencePipelineGoldenReplayTest`）纳入门禁与 CI。
+
+**教训**：
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| 过期分支代码引发假阳性"字段缺失" | HEAD 停留在历史 PR review 分支，缺少主干最新 commit | 开工三部曲必看 `git status` + `git log -1`，确保本地基于最新 `origin/main` |
+| 试图修改已合并的 Flyway 迁移 | 误以为新增需求可以通过修改前序迁移解决 | 已合入 main 的 `V*.sql` 具有永久不可变性，任何新增字段必须开辟下一版本迁移号 |

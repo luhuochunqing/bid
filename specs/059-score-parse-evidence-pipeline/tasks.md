@@ -57,7 +57,7 @@
 
 ## Phase 6：清理、门禁、交付（独立 Commit）
 
-- [ ] T601 金标覆盖：合并语义/结构校验/fact 提取/LLM 操作/完整性/持久化保护/人工审计。
-- [ ] T602 架构测试新增：`scoreparse.domain` 不依赖 Spring/HTTP/JPA；LLM/infrastructure 不得构造 `ScoreFact`。
-- [ ] T603 CI 默认运行确定性金标；nightly 执行脱敏真实语料评估并出报告（lane/复核率/结构失败/证据覆盖率）。
-- [ ] T604 删除自动归一化在生产链路调用；保留 legacy 只读适配器至存量任务迁移完成。
+- [x] T601 金标覆盖：合并语义/结构校验/fact 提取/LLM 操作/完整性/持久化保护/人工审计。
+- [x] T602 架构测试新增：`scoreparse.domain` 不依赖 Spring/HTTP/JPA；LLM/infrastructure 不得构造 `ScoreFact`。
+- [x] T603 CI 默认运行确定性金标；nightly 执行脱敏真实语料评估并出报告（lane/复核率/结构失败/证据覆盖率）。
+- [x] T604 删除自动归一化在生产链路调用；保留 legacy 只读适配器至存量任务迁移完成。

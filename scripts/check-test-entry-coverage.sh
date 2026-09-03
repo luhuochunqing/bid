@@ -110,8 +110,8 @@ GUARD_PATTERN_TESTS=$(find "$TEST_DIR" -type f \( \
 if [ -z "$GUARD_PATTERN_TESTS" ]; then
   echo "  no guard-pattern tests found, skipping."
 else
-  GUARD_EXEMPTIONS="FPJavaArchitectureTest MaintainabilityArchitectureTest"
-  # 注意：FPJavaArchitectureTest 和 MaintainabilityArchitectureTest 是 ArchUnit 导入测试，
+  GUARD_EXEMPTIONS="FPJavaArchitectureTest MaintainabilityArchitectureTest ScoreParseArchitectureTest"
+  # 注意：FPJavaArchitectureTest、MaintainabilityArchitectureTest 和 ScoreParseArchitectureTest 是 ArchUnit 导入测试，
   # 已在 CI 完整 mvn test 中运行但不在 pre-push 中，属合理豁免。
 
   while IFS= read -r test_path; do

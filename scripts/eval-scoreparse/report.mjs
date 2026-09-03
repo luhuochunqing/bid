@@ -59,3 +59,40 @@ const precision = totalTp + totalFp === 0 ? 0 : totalTp / (totalTp + totalFp);
 const recall = totalTp + totalFn === 0 ? 0 : totalTp / (totalTp + totalFn);
 const f1 = precision + recall === 0 ? 0 : (2 * precision * recall) / (precision + recall);
 console.log(`| **合计** | — | — | ${totalTp} | ${totalFp} | ${totalFn} | ${pct(precision)} | ${pct(recall)} | ${pct(f1)} | — |`);
+
+let totalRegex = 0;
+let totalTable = 0;
+let totalCases = cases.length;
+let reviewRequiredCount = 0;
+let structuralFailureCount = 0;
+let totalEvidenceSum = 0;
+let validEvidenceCount = 0;
+
+for (const item of cases) {
+  const lanes = item.laneCounts ?? {};
+  totalRegex += Number(lanes.regex ?? 0) + Number(lanes.regexFullText ?? 0);
+  totalTable += Number(lanes.table ?? 0);
+  if (item.decisionStatus === 'REVIEW_REQUIRED' || item.decisionStatus === 'STRUCTURE_INCOMPLETE') {
+    reviewRequiredCount += 1;
+  }
+  if (item.structurallyValid === false) {
+    structuralFailureCount += 1;
+  }
+  if (typeof item.evidenceCoverage === 'number') {
+    totalEvidenceSum += item.evidenceCoverage;
+    validEvidenceCount += 1;
+  }
+}
+
+const reviewRate = totalCases === 0 ? 0 : reviewRequiredCount / totalCases;
+const structFailureRate = totalCases === 0 ? 0 : structuralFailureCount / totalCases;
+const avgEvidenceCoverage = validEvidenceCount === 0 ? 0 : totalEvidenceSum / validEvidenceCount;
+
+console.log('');
+console.log('## 关键质量与安全看板 (Phase 6 KPI)');
+console.log('');
+console.log(`- **Lane 分布**: 正则候选 ${totalRegex} 项 / 表格候选 ${totalTable} 项`);
+console.log(`- **复核率**: ${pct(reviewRate)} (${reviewRequiredCount}/${totalCases})`);
+console.log(`- **结构失败率**: ${pct(structFailureRate)} (${structuralFailureCount}/${totalCases})`);
+console.log(`- **证据覆盖率**: ${pct(avgEvidenceCoverage)}`);
+console.log(`- **F1 综合指标**: ${pct(f1)}`);
