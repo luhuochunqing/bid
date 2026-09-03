@@ -169,6 +169,8 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **`TenderRequirementsParser` 代码块围栏容错**：大模型常用 ````json` 围栏包裹或附加前后说明文字，旧版 `OBJECT_MAPPER.readTree` 直接抛 checked 异常降级为 `missingSentinel`。通过引入 `extractJsonObject` 括号配平扫描，成功剥离围栏与对话文字，杜绝格式噪声引发的降级。
     - **确定性规则提取器（`DeterministicQualificationExtractor`）**：建立纯核心正则章节锚定与标号切分策略，自动识别专用资质（增值电信业务许可证、等保三级、ISO、安全生产等）与通用资格（法人资格、失信限制），过滤占位符（如 `人员要求：/`）。
     - **质检流水线双轨融合**：`BidQualityCheckAsyncExecutor` 将规则提取的确定性资格与 LLM 提取的资格并集去重（`withMergedQualifications`）。只要规则提取出资质，即可解除 `missing` 标记，确保资质比对与结构化清单 100% 稳定生成。
+    - **代码去重与常数收敛（Anti-Slop 治理）**：`TenderRequirementsParser` 统一复用同包 `LlmVerdictParser.extractJsonObject` 配平扫描，消除 35 行重复实现；`DeterministicQualificationExtractor` 移除 `LinkedHashSet.add` 前多余的 `contains` 检查，并将证书特征词抽为不可变常量 `CERTIFICATE_CORE_KEYWORDS`；前端弹窗移除空包装函数 `qualStatusBadge`。
+
 
 
 ## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
