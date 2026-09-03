@@ -5,6 +5,10 @@
 package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
+import com.xiyu.bid.scoreparse.domain.ScoreEvidence;
+import com.xiyu.bid.scoreparse.domain.ScoreFact;
+import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
+import com.xiyu.bid.scoreparse.domain.llm.RawFactOperation;
 import com.xiyu.bid.scoreparse.infrastructure.openai.ScoreGlobalMergeExecutor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -153,6 +157,68 @@ class ScoreGlobalMergeOrchestratorTest {
 
         List<ScoreCandidate> result = orchestrator.applyGlobalMerge(pool, big.toString());
 
-        assertThat(result).hasSize(2); // 归并采纳1 + 池背书回补1，主流程不因截断改变 fail-open 行为
+        assertThat(result).hasSize(2); // 归并采纳1 + 语料回补1，主流程不因截断改变 fail-open 行为
+    }
+
+    @Test
+    void adjudicateFacts_whenLlmUnavailable_failOpenPreservesDeterministicFacts() {
+        // LLM 不可用时：fail-open，确定性事实集原样返回，状态可复现
+        ScoreFact factAuto = new ScoreFact("f1", "t0", List.of("t0-r1-c1"), "商务 10分", "1.1", "商务",
+                new BigDecimal("10"), new ScoreEvidence(ScoreEvidence.Kind.EXPLICIT_WEIGHT_COLUMN, "10", "t0-r1-c1", 0, 2, "10分"),
+                null, null, "TABLE", 1.0, ScoreFact.ValidationStatus.AUTO_APPROVED);
+        when(mergeExecutor.resolveRawFacts(anyList(), anyString())).thenReturn(List.of());
+
+        var outcomeAuto = orchestrator.adjudicateFacts(List.of(factAuto), FULL_TEXT);
+        assertThat(outcomeAuto.invoked()).isFalse();
+        assertThat(outcomeAuto.skipReason()).isEqualTo("LLM_UNAVAILABLE");
+        assertThat(outcomeAuto.facts()).hasSize(1);
+        assertThat(outcomeAuto.decisionStatus()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+
+        // 若确定性事实本身需要复核，fail-open 同样可复现产生 REVIEW_REQUIRED
+        ScoreFact factReview = factAuto.withValidationStatus(ScoreFact.ValidationStatus.REVIEW_REQUIRED);
+        var outcomeReview = orchestrator.adjudicateFacts(List.of(factReview), FULL_TEXT);
+        assertThat(outcomeReview.decisionStatus()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
+    }
+
+    @Test
+    void adjudicateFacts_whenLlmAttemptsIllegalAction_doesNotMutateFacts_marksReviewRequired() {
+        // LLM 企图发明新事实或修改权重：安全拦截，不回写事实，转入人工复核
+        ScoreFact fact1 = new ScoreFact("f1", "t0", List.of("t0-r1-c1"), "商务 10分", "1.1", "商务",
+                new BigDecimal("10"), new ScoreEvidence(ScoreEvidence.Kind.EXPLICIT_WEIGHT_COLUMN, "10", "t0-r1-c1", 0, 2, "10分"),
+                null, null, "TABLE", 1.0, ScoreFact.ValidationStatus.AUTO_APPROVED);
+
+        RawFactOperation illegalOp = new RawFactOperation("f1", "UPDATE_WEIGHT", null, null, null,
+                1.0, List.of(), "恶意改分", 99.0, null, null, null);
+        when(mergeExecutor.resolveRawFacts(anyList(), anyString())).thenReturn(List.of(illegalOp));
+
+        var outcome = orchestrator.adjudicateFacts(List.of(fact1), FULL_TEXT);
+
+        assertThat(outcome.invoked()).isTrue();
+        assertThat(outcome.violations()).isNotEmpty();
+        assertThat(outcome.decisionStatus()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
+        // 事实权重绝未被篡改为 99，但已被标记为 REVIEW_REQUIRED
+        assertThat(outcome.facts().get(0).weight()).isEqualByComparingTo("10");
+        assertThat(outcome.facts().get(0).validationStatus()).isEqualTo(ScoreFact.ValidationStatus.REVIEW_REQUIRED);
+    }
+
+    @Test
+    void adjudicateFacts_success_appliesHierarchyAndDuplicates() {
+        ScoreFact parent = new ScoreFact("f-parent", "t0", List.of("t0-r0-c0"), "商务部分 10分", "1", "商务",
+                new BigDecimal("10"), new ScoreEvidence(ScoreEvidence.Kind.DIMENSION_TITLE_MAX_SCORE, "10", "t0-r0-c0", 0, 2, "10分"),
+                null, null, "TABLE", 1.0, ScoreFact.ValidationStatus.AUTO_APPROVED);
+        ScoreFact child = new ScoreFact("f-child", "t0", List.of("t0-r1-c1"), "付款方式 10分", "1.1", "商务",
+                new BigDecimal("10"), new ScoreEvidence(ScoreEvidence.Kind.EXPLICIT_WEIGHT_COLUMN, "10", "t0-r1-c1", 0, 2, "10分"),
+                null, null, "TABLE", 1.0, ScoreFact.ValidationStatus.AUTO_APPROVED);
+
+        RawFactOperation linkOp = RawFactOperation.of("f-child", "LINK_PARENT", null, "f-parent",
+                null, 1.0, List.of("t0-r1-c1"), "层级关联");
+        when(mergeExecutor.resolveRawFacts(anyList(), anyString())).thenReturn(List.of(linkOp));
+
+        var outcome = orchestrator.adjudicateFacts(List.of(parent, child), FULL_TEXT);
+
+        assertThat(outcome.invoked()).isTrue();
+        assertThat(outcome.violations()).isEmpty();
+        ScoreFact linkedChild = outcome.facts().stream().filter(f -> f.factId().equals("f-child")).findFirst().orElseThrow();
+        assertThat(linkedChild.parentFactId()).isEqualTo("f-parent");
     }
 }

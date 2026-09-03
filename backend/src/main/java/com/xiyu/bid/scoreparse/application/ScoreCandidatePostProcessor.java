@@ -97,14 +97,14 @@ public class ScoreCandidatePostProcessor {
 
         WeightSumCheck.Result weightResult = weightSumCheck.checkCandidates(valid);
         ItemCountCheck.Result continuityResult = itemCountCheck.checkCandidates(valid);
+        boolean gapRecheckTriggered = false;
         if (weightResult.needRecheck() || continuityResult.needRecheck()) {
             reporter.report(80, "GAP_RECHECK");
             List<ScoreCandidate> missed = scoreAnalyzer.recheckGaps(fullText, valid);
             if (!missed.isEmpty()) {
-                log.info("完整性回补发现遗漏项: taskId={}, missed={}", taskId, missed.size());
-                valid = filterInvalidWeights(mergePolicy.merge(
-                        java.util.stream.Stream.concat(valid.stream(), missed.stream()).toList()));
-                weightResult = weightSumCheck.checkCandidates(valid);
+                // spec 059 Phase 3：旧 LLM 召回仅作为人工复核建议，不能填补确定性事实的权重缺口
+                log.info("完整性回补发现遗漏项（仅作为人工复核建议，禁止填补权重缺口）: taskId={}, missed={}", taskId, missed.size());
+                gapRecheckTriggered = true;
             }
         }
         if (weightResult.totalWeight().compareTo(OVERLOAD_LIMIT) > 0) {
@@ -129,7 +129,7 @@ public class ScoreCandidatePostProcessor {
         int parentOnlyCount = (int) valid.stream().filter(ScoreCandidate::isParentOnlyDim).count();
         ItemCountCheck.Result countResult = itemCountCheck.check(valid.size());
 
-        // spec 059 Phase 0: 决策状态 + 回退原因（沿用现有已落库行为，仅补打标识与字段）
+        // spec 059 Phase 0/3: 决策状态 + 回退原因
         ScoreParseDecision decision;
         String fallbackReason;
         if (countResult.failed()) {
@@ -138,6 +138,9 @@ public class ScoreCandidatePostProcessor {
         } else if (normalizationApplied) {
             decision = ScoreParseDecision.REVIEW_REQUIRED;
             fallbackReason = "RESORT_TO_NORMALIZATION";
+        } else if (gapRecheckTriggered) {
+            decision = ScoreParseDecision.REVIEW_REQUIRED;
+            fallbackReason = "RESORT_TO_GAP_RECHECK";
         } else if (stats.invoked() && (stats.truncated() || stats.hallucinationDropped() > stats.poolBackedKept())) {
             decision = ScoreParseDecision.REVIEW_REQUIRED;
             fallbackReason = "RESORT_TO_LLM_MERGE";

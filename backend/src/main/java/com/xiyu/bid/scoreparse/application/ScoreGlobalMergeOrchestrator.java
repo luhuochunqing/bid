@@ -6,14 +6,22 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.biddraftagent.infrastructure.openai.TenderIntakeTextProcessor;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
+import com.xiyu.bid.scoreparse.domain.ScoreFact;
+import com.xiyu.bid.scoreparse.domain.ScoreFactValidator;
 import com.xiyu.bid.scoreparse.domain.ScoreMergeResultGuard;
 import com.xiyu.bid.scoreparse.domain.ScoreParseConstants;
+import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
+import com.xiyu.bid.scoreparse.domain.llm.LlmDecision;
+import com.xiyu.bid.scoreparse.domain.llm.LlmFactOp;
+import com.xiyu.bid.scoreparse.domain.llm.LlmFactOperationValidator;
+import com.xiyu.bid.scoreparse.domain.llm.RawFactOperation;
 import com.xiyu.bid.scoreparse.infrastructure.openai.ScoreGlobalMergeExecutor;
 import com.xiyu.bid.scoreparse.infrastructure.structure.MarkdownScoreSectionLocator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -40,6 +48,22 @@ public class ScoreGlobalMergeOrchestrator {
          */
         static MergeStats notInvoked(String reason) {
             return new MergeStats(null, false, reason, false, 0, 0, 0);
+        }
+    }
+
+    /** 事实裁决结果与决策状态（spec 059 Phase 3） */
+    public record FactMergeOutcome(
+            List<ScoreFact> facts,
+            boolean invoked,
+            String skipReason,
+            List<String> violations,
+            ScoreParseDecision decisionStatus,
+            String fallbackReason
+    ) {
+        public static FactMergeOutcome notInvoked(List<ScoreFact> facts, String skipReason, String fallbackReason) {
+            ScoreParseDecision dec = ScoreFactValidator.validateScoringSet(facts).scoringComplete()
+                    ? ScoreParseDecision.AUTO_APPROVED : ScoreParseDecision.REVIEW_REQUIRED;
+            return new FactMergeOutcome(facts, false, skipReason, List.of(), dec, fallbackReason);
         }
     }
 
@@ -170,5 +194,66 @@ public class ScoreGlobalMergeOrchestrator {
         String d = dim == null ? "" : dim.replaceAll("\\s+", "").trim();
         String det = detail == null ? "" : detail.replaceAll("\\s+", "").trim();
         return d + "|" + det.substring(0, Math.min(det.length(), 50));
+    }
+
+    /**
+     * 针对事实池的语义裁决编排（spec 059 Phase 3：T303）。
+     * <p>仅在确定性事实池上运行；禁止 LLM 生成评分项清单；
+     * 当 LLM 不可用或跳过时，fail-open 保持确定性事实，保持 AUTO_APPROVED 或 REVIEW_REQUIRED 且可复现；
+     * 当 LLM 违规时，不回写事实，受影响项转 REVIEW_REQUIRED。
+     */
+    public FactMergeOutcome adjudicateFacts(List<ScoreFact> facts, String fullText) {
+        if (facts == null || facts.isEmpty()) {
+            return FactMergeOutcome.notInvoked(List.of(), "EMPTY_FACTS", "ZERO_VALID_ITEMS");
+        }
+        ScoreGlobalMergeExecutor mergeExecutor = mergeExecutorProvider.getIfAvailable();
+        if (mergeExecutor == null) {
+            log.info("全局归并执行器不可用（桩环境），保持确定性事实: count={}", facts.size());
+            return FactMergeOutcome.notInvoked(facts, "EXECUTOR_UNAVAILABLE", null);
+        }
+        AdjudicationContext ctx = resolveSectionText(fullText);
+        if (!ctx.located()) {
+            log.info("评分章节定位失败，保持确定性事实: count={}", facts.size());
+            return FactMergeOutcome.notInvoked(facts, "SECTION_LOCATION_FAILED", "RESORT_TO_MARKDOWN");
+        }
+        List<RawFactOperation> rawOps = mergeExecutor.resolveRawFacts(facts, ctx.text());
+        if (rawOps.isEmpty()) {
+            log.info("LLM 未返回事实操作或调用失败，保持确定性事实: count={}", facts.size());
+            return FactMergeOutcome.notInvoked(facts, "LLM_UNAVAILABLE", null);
+        }
+        LlmFactOperationValidator.ValidationResult validation =
+                LlmFactOperationValidator.validateRaw(facts, rawOps);
+        if (validation.hasViolations()) {
+            log.warn("LLM 事实操作校验未通过，转人工复核不回写: count={}, violations={}",
+                    facts.size(), validation.violations());
+            List<ScoreFact> reviewFacts = LlmFactOperationValidator.markViolatedFacts(facts, rawOps);
+            return new FactMergeOutcome(reviewFacts, true, null, validation.violations(),
+                    ScoreParseDecision.REVIEW_REQUIRED, "RESORT_TO_LLM_MERGE");
+        }
+        LlmDecision decision = toDecisionSafe(rawOps);
+        List<ScoreFact> applied = LlmFactOperationValidator.apply(facts, decision);
+        var scoringValidation = ScoreFactValidator.validateScoringSet(applied);
+        ScoreParseDecision decisionStatus = scoringValidation.scoringComplete()
+                ? ScoreParseDecision.AUTO_APPROVED : ScoreParseDecision.REVIEW_REQUIRED;
+        String fallback = scoringValidation.scoringComplete() ? null : "WEIGHT_GAP_OR_STRUCTURE_DEFECT";
+        return new FactMergeOutcome(applied, true, null, List.of(), decisionStatus, fallback);
+    }
+
+    private static LlmDecision toDecisionSafe(List<RawFactOperation> rawOps) {
+        List<LlmFactOp> ops = new ArrayList<>();
+        for (RawFactOperation raw : rawOps) {
+            if ("KEEP".equals(raw.action())) {
+                ops.add(new LlmFactOp.Keep(raw.factId(), raw.confidence(), raw.reasonCellIds()));
+            } else if ("CLASSIFY".equals(raw.action())) {
+                ops.add(new LlmFactOp.Classify(raw.factId(), raw.category(), raw.confidence(), raw.reasonCellIds()));
+            } else if ("LINK_PARENT".equals(raw.action())) {
+                ops.add(new LlmFactOp.LinkParent(raw.factId(), raw.parentFactId(), raw.confidence(), raw.reasonCellIds()));
+            } else if ("MARK_DUPLICATE".equals(raw.action())) {
+                ops.add(new LlmFactOp.MarkDuplicate(raw.factId(), raw.duplicateFactIds(), raw.confidence(), raw.reasonCellIds()));
+            } else if ("REVIEW_REQUIRED".equals(raw.action())) {
+                ops.add(new LlmFactOp.MarkReviewRequired(raw.factId(), raw.reason(), raw.confidence(), raw.reasonCellIds()));
+            }
+        }
+        return new LlmDecision(ops);
     }
 }
