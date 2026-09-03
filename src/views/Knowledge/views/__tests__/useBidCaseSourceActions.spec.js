@@ -3,7 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ElMessage } from 'element-plus'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle'
 import { casesApi } from '@/api/modules/knowledge'
-import { triggerBlobDownload } from '@/utils/download'
+import { triggerBlobDownload, downloadWithFilename } from '@/utils/download'
+import { getDocuments } from '@/api/modules/projectDocuments'
 import { useBidCaseSourceActions } from '../useBidCaseSourceActions'
 
 vi.mock('element-plus', () => ({
@@ -21,9 +22,14 @@ vi.mock('@/api/modules/projectLifecycle', () => ({
   }
 }))
 
+vi.mock('@/api/modules/projectDocuments', () => ({
+  getDocuments: vi.fn(() => Promise.resolve({ data: [] })),
+  getDocumentDownloadUrl: vi.fn((projectId, docId) => `/api/projects/${projectId}/documents/${docId}/download`),
+}))
+
 vi.mock('@/utils/download', async (importOriginal) => {
   const actual = await importOriginal()
-  return { ...actual, triggerBlobDownload: vi.fn() }
+  return { ...actual, triggerBlobDownload: vi.fn(), downloadWithFilename: vi.fn() }
 })
 
 describe('useBidCaseSourceActions', () => {
@@ -32,6 +38,7 @@ describe('useBidCaseSourceActions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
+    getDocuments.mockResolvedValue({ data: [] })
   })
 
   afterEach(() => {
@@ -91,7 +98,7 @@ describe('useBidCaseSourceActions', () => {
     expect(projectLifecycleApi.getArchiveFiles).not.toHaveBeenCalled()
   })
 
-  it('标书原文：档案无附件（原文未归档）时提示并中止，不调导出接口', async () => {
+  it('标书原文：档案无附件（原文未归档）且无投标文件时提示并中止，不调导出接口', async () => {
     projectLifecycleApi.getArchiveFiles.mockResolvedValue({ data: { totalElements: 0 } })
     const { openBidDocument } = useBidCaseSourceActions()
     await openBidDocument({ sourceProjectId: 5 })
@@ -99,6 +106,19 @@ describe('useBidCaseSourceActions', () => {
     expect(projectLifecycleApi.exportProjectArchive).not.toHaveBeenCalled()
     expect(triggerBlobDownload).not.toHaveBeenCalled()
     expect(ElMessage.warning).toHaveBeenCalledWith('标书原文未归档：该项目暂无档案附件')
+  })
+
+  it('标书原文：档案无附件但项目有 BID 投标文件时，兜底直接下载该投标文件', async () => {
+    projectLifecycleApi.getArchiveFiles.mockResolvedValue({ data: { totalElements: 0 } })
+    getDocuments.mockResolvedValue({
+      data: [{ id: 9001, name: '项目投标文件.docx', documentCategory: 'BID' }]
+    })
+    const { openBidDocument } = useBidCaseSourceActions()
+    await openBidDocument({ sourceProjectId: 5 })
+    expect(projectLifecycleApi.getArchiveFiles).toHaveBeenCalledWith(5, 1)
+    expect(getDocuments).toHaveBeenCalledWith(5, { documentCategory: 'BID' })
+    expect(downloadWithFilename).toHaveBeenCalledWith('/api/projects/5/documents/9001/download', '项目投标文件.docx')
+    expect(ElMessage.success).toHaveBeenCalledWith('标书原文下载成功：项目投标文件.docx')
   })
 
   it('标书原文：错误体（application/json blob）报失败并提示原因，不落盘', async () => {

@@ -53,7 +53,13 @@ vi.mock('@/api/config.js', async (importOriginal) => {
     getApiUrl: (path) => `http://test${path}`,
   }
 })
-vi.mock('@/constants/projectStages.js', () => ({ STAGE_TRANSITION_MAP: { DRAFTING: 'EVALUATING' } }))
+vi.mock('@/constants/projectStages.js', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    STAGE_TRANSITION_MAP: { DRAFTING: 'EVALUATING' },
+  }
+})
 vi.mock('element-plus', () => ({ ElMessage: { info: vi.fn(), warning: vi.fn(), error: vi.fn(), success: vi.fn() } }))
 import { ElMessage } from 'element-plus'
 vi.mock('@element-plus/icons-vue', () => ({
@@ -207,6 +213,40 @@ describe('DraftingStage bidFiles 持久化与下载阶段守卫 - CO-381', () =>
     // 但点击不触发下载
     await link.trigger('click')
     expect(downloadWithFilenameMock).not.toHaveBeenCalled()
+  })
+
+  it('CLOSED 阶段 + 有下载权限：点击文件名触发下载（CO-442 结项后知识积累）', async () => {
+    getDocumentsMock.mockImplementation(() => Promise.resolve({
+      data: [{ id: 3001, name: '投标文件.pdf', documentCategory: 'BID' }],
+    }))
+
+    const wrapper = await mountDraftingStage({ currentStage: 'CLOSED' })
+
+    const link = wrapper.find('.upload-file-link')
+    expect(link.exists()).toBe(true)
+    expect(link.classes()).not.toContain('is-readonly')
+    await link.trigger('click')
+
+    expect(downloadWithFilenameMock).toHaveBeenCalledTimes(1)
+    const [url, fallbackName] = downloadWithFilenameMock.mock.calls[0]
+    expect(url).toContain('/documents/3001/download')
+    expect(fallbackName).toBe('投标文件.pdf')
+  })
+
+  it('RETROSPECTIVE 阶段：点击文件名提示阶段只读不可下载', async () => {
+    getDocumentsMock.mockImplementation(() => Promise.resolve({
+      data: [{ id: 3001, name: '投标文件.pdf', documentCategory: 'BID' }],
+    }))
+
+    const wrapper = await mountDraftingStage({ currentStage: 'RETROSPECTIVE' })
+
+    const link = wrapper.find('.upload-file-link')
+    expect(link.exists()).toBe(true)
+    expect(link.classes()).toContain('is-readonly')
+    await link.trigger('click')
+
+    expect(downloadWithFilenameMock).not.toHaveBeenCalled()
+    expect(ElMessage.warning).toHaveBeenCalledWith(expect.stringContaining('项目复盘'))
   })
 
   it('DRAFTING 阶段 + 无下载权限（bid-administration 角色）：点击文件名不触发下载', async () => {

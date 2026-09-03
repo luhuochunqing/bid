@@ -15,8 +15,8 @@ backlinks:
   - ai-case-recommend-data-source-fix
   - case-precipitation-streaming
 created: 2026-08-31
-updated: 2026-08-31
-health_checked: 2026-08-31
+updated: 2026-09-03
+health_checked: 2026-09-03
 ---
 
 # 案例详情"查看源项目 / 标书原文"操作契约与导入数据陷阱
@@ -25,18 +25,18 @@ health_checked: 2026-08-31
 > （CaseGrid 与 AiRecommendDrawer 复用）；本页同时记录历史切片导入的两个数据陷阱
 > （300 字截断 / 枚举混填），防止重导数据时复发。
 
-## 操作契约（2026-08-31 修复后事实）
+## 操作契约（2026-09-03 修复后事实）
 
 ### 1. 查看源项目
 - 跳转路由是 **`/project/{sourceProjectId}`**（投标项目详情）。
 - 旧实现跳 `/bidding/detail/{id}`——该路由不存在，打开必空白；且 `bidding/:id`
   是标讯详情，语义也不对（源项目是投标项目不是标讯）。
 
-### 2. 标书原文下载（三段防护）
-1. **预检未归档**：先 `GET /api/archive/files?projectId={id}&size=1`，
-   `totalElements === 0` → 提示"标书原文未归档：该项目暂无档案附件"并中止。
-   历史项目（Excel 台账导入）只有空壳 `project_archive` 记录、0 附件，
-   不预检会下到只含台账 Excel 的"空包"。
+### 2. 标书原文下载（三段防护 + 单标书兜底）
+1. **预检未归档与原版单标书兜底**：先 `GET /api/archive/files?projectId={id}&size=1`，
+   若 `totalElements > 0` 则走项目归档 ZIP 导出；
+   若 `totalElements === 0`，兜底查询项目原始文件（`GET /api/projects/{id}/documents?documentCategory=BID`），
+   若存在已上传的投标文件则直接下载单标书文件；皆无才提示"标书原文未归档：该项目暂无档案附件"。
 2. **错误体识别**：`export-zip/{id}` 带项目成员校验（403/404），
    `responseType:'blob'` 会把错误 JSON 体也包成 blob。下载前用
    `isJsonErrorBlob()`（content-type 含 application/json）拦截并解析错误消息，
@@ -44,6 +44,11 @@ health_checked: 2026-08-31
 3. **`res.data` 构造**：blob 下载必须用 `res.data`，`new Blob([res])` 会把
    整个 AxiosResponse 序列化成 `[object Object]`（CO-429 同款，
    ArchiveDetailDrawer 先修过，`ProjectArchive.spec.js` 有锁定用例）。
+
+### 3. 项目阶段标书下载守卫（CO-442 对齐）
+- 标书制作页（`DraftingStage.vue`）对齐后端 `ProjectDocumentDownloadService`：
+  允许 `DRAFTING`（含审核子状态）与 `CLOSED`（结项后知识积累）下载；
+  中间阶段（`EVALUATING` / `RESULT_PENDING` / `RETROSPECTIVE`）给出明确的“阶段只读不可下载”提示。
 
 ## 导入数据陷阱（重跑切片导入前必读）
 

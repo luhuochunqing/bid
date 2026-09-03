@@ -12,8 +12,9 @@
 import { ElMessage } from 'element-plus'
 import { casesApi } from '@/api/modules/knowledge'
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle'
+import { getDocuments, getDocumentDownloadUrl } from '@/api/modules/projectDocuments'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
-import { isJsonErrorBlob, readJsonErrorMessage, triggerBlobDownload } from '@/utils/download'
+import { isJsonErrorBlob, readJsonErrorMessage, triggerBlobDownload, downloadWithFilename } from '@/utils/download'
 
 export function useBidCaseSourceActions() {
   const goToSourceProject = (d) => {
@@ -37,24 +38,42 @@ export function useBidCaseSourceActions() {
       }
       return
     }
-    // 分支二：系统生成案例（有源项目档案）→ 未归档预检 + ZIP 导出（原逻辑不动）
+    // 分支二：系统生成案例（有源项目档案）→ 优先项目档案 ZIP 导出；档案为空时兜底下载项目投标文件
     if (!d?.sourceProjectId) { ElMessage.warning('标书原文暂不可用'); return }
     try {
-      // 预检：源项目档案无附件文件时，标书原文未归档，提示并中止（避免下到只含台账的空包）
+      // 预检：源项目档案附件
       const files = await projectLifecycleApi.getArchiveFiles(d.sourceProjectId, 1)
       const fileTotal = files?.data?.totalElements ?? 0
-      if (!fileTotal) {
-        ElMessage.warning('标书原文未归档：该项目暂无档案附件')
+      if (fileTotal > 0) {
+        const res = await projectLifecycleApi.exportProjectArchive(d.sourceProjectId)
+        const blob = res?.data
+        if (isJsonErrorBlob(blob)) {
+          ElMessage.error('标书原文下载失败：' + await readJsonErrorMessage(blob))
+          return
+        }
+        triggerBlobDownload(new Blob([blob], { type: 'application/zip' }), `标书原文-${d.sourceProjectId}.zip`)
+        ElMessage.success('标书原文下载成功')
         return
       }
-      const res = await projectLifecycleApi.exportProjectArchive(d.sourceProjectId)
-      const blob = res?.data
-      if (isJsonErrorBlob(blob)) {
-        ElMessage.error('标书原文下载失败：' + await readJsonErrorMessage(blob))
-        return
+
+      // 兜底：档案无附件时，若项目本身有已上传的投标文件（BID），直接下载单标书文件
+      try {
+        const docResp = await getDocuments(d.sourceProjectId, { documentCategory: 'BID' })
+        const bidDocs = Array.isArray(docResp?.data) ? docResp.data : []
+        if (bidDocs.length > 0) {
+          const primaryDoc = bidDocs[0]
+          const downloadUrl = getDocumentDownloadUrl(d.sourceProjectId, primaryDoc.id)
+          if (downloadUrl) {
+            await downloadWithFilename(downloadUrl, primaryDoc.name || '投标文件')
+            ElMessage.success(`标书原文下载成功：${primaryDoc.name || '投标文件'}`)
+            return
+          }
+        }
+      } catch {
+        // 兜底失败继续走无附件提示
       }
-      triggerBlobDownload(new Blob([blob], { type: 'application/zip' }), `标书原文-${d.sourceProjectId}.zip`)
-      ElMessage.success('标书原文下载成功')
+
+      ElMessage.warning('标书原文未归档：该项目暂无档案附件')
     } catch (e) {
       // 429 由全局拦截器统一提示，业务 catch 不重复弹窗（门禁 429 覆盖规则）
       notifyErrorUnlessRateLimit(e, '标书原文下载失败')
