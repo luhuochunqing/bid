@@ -14,6 +14,7 @@
     "agent:lock-renew": "node scripts/agent-lock-renew.mjs",
     "agent:health-check": "node scripts/agent-health-check.mjs",
     "test:agent-start-task-contract": "bash scripts/test/agent-start-task-dryrun-contract.sh",
+    "test:remote-deploy-contract": "bash scripts/test/remote-deploy-runner-path-contract.sh",
     "agent:lock-cleanup": "node scripts/check-agent-locks.mjs --clean-stale",
     "dev:mode": "bash ./scripts/dev-current-mode.sh",
     "ci:local": "bash scripts/local-ci.sh full",

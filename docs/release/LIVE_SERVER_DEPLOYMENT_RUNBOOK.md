@@ -4,6 +4,8 @@
 
 > **2026-06-26 更新（第 3 次部署）**：补充 6 处实战经验——(1) §4 前端生产构建强制同源 baseURL=""（`rg` 检查会误判）；(2) §5 一次性 key 缺失时复用既有部署密钥的应急路径；(3) §7 MariaDB 客户端不认 `--set-gtid-purged`、DB 密码引号须 source 解析；(4) §8 必须同步上传 `flyway-repair-runner.sh`；(5) §9 显式传入 `FLYWAY_REPAIR_RUNNER` 环境变量；(6) §10 smoke 检测位置局限 + webhook 类改动验证方法；(7) §13.4 shutdown 异常根因（jar 被 cp 覆盖后旧 class loader 失效）。
 
+> **2026-09-03 更新（第 155 次部署后修复）**：`remote-deploy.sh` 的 `FLYWAY_REPAIR_RUNNER` 默认值收敛到 `$APP_ROOT/bin/flyway-repair-runner.sh`（bin/ 为唯一权威位置，deploy-test.sh / deploy-prod.sh 每次部署均上传至此）。§8 上传示例与 §9 激活命令同步更新：runner 不再传 `/tmp`，激活命令不再显式传 `FLYWAY_REPAIR_RUNNER`（上述 2026-06-26 注记第 (4)(5) 条中的 /tmp 路径与显式传参做法已过期）。根因：第 155 次测试部署中 incoming/ 残留旧版 runner（缺 `ignoreMigrationPatterns("*:pending")`）被 `$(dirname $0)` 误命中，把 pending 新迁移误报为 validate 失败。
+
 > 不要把 Jumpserver、数据库、smoke 账号密码写入本文或提交到仓库。密码只允许从安全渠道获取，并通过交互输入或临时环境变量使用。
 
 ## 1. 环境事实
@@ -379,11 +381,12 @@ scp -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" \
   scripts/release/remote-deploy.sh \
   jetty@172.16.38.78:"/opt/xiyu-bid/incoming/remote-deploy-${RELEASE_ID}.sh"
 
-# validate 预检依赖（自 2026-06-26）：必须同步上传 repair-runner，否则 remote-deploy.sh 的 FLYWAY_REPAIR_RUNNER 路径找不到
+# validate 预检依赖（自 2026-06-26）：必须同步上传 repair-runner 到 $APP_ROOT/bin/（权威位置，remote-deploy.sh 默认从该路径解析）
+# ⚠️ 不要上传到 /tmp 或依赖 incoming/ 残留副本（2026-09-03 第 155 次部署事故：incoming/ 旧版 runner 误报 validate 失败）
 scp -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" \
   scripts/release/flyway-repair-runner.sh \
-  jetty@172.16.38.78:"/tmp/flyway-repair-runner.sh"
-ssh -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" jetty@172.16.38.78 'chmod +x /tmp/flyway-repair-runner.sh'
+  jetty@172.16.38.78:"/opt/xiyu-bid/bin/flyway-repair-runner.sh"
+ssh -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" jetty@172.16.38.78 'chmod +x /opt/xiyu-bid/bin/flyway-repair-runner.sh'
 ```
 
 如果直连网络抖动，优先尝试：
@@ -416,7 +419,6 @@ ssh -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" jetty@172.16.38.78 "
   DEPLOYED_RELEASE_RECORD=/opt/xiyu-bid/deployed-release.json \
   HEALTHCHECK_URL=http://127.0.0.1:18080/actuator/health \
   SYSTEMCTL_SUDO=true \
-  FLYWAY_REPAIR_RUNNER=/tmp/flyway-repair-runner.sh \
   bash /opt/xiyu-bid/incoming/remote-deploy-${RELEASE_ID}.sh
 "
 ```
@@ -431,7 +433,7 @@ ssh -i "/tmp/xiyu-prod-deploy-${RELEASE_ID}" jetty@172.16.38.78 "
 - 重启 `xiyu-bid-backend`
 - 等待健康检查通过
 
-> **预检依赖**：validate 预检需要 `flyway-repair-runner.sh` 与 `remote-deploy.sh` 一同上传到服务器。`SKIP_FLYWAY_VALIDATE=1` 可跳过（紧急/离线），但会让 checksum mismatch 拖到后端启动阶段才暴露。
+> **预检依赖**：validate 预检需要 `flyway-repair-runner.sh` 上传到 `$APP_ROOT/bin/`（唯一权威位置，`remote-deploy.sh` 默认从该路径解析，与 deploy-test.sh / deploy-prod.sh 的上传路径一致）。勿依赖脚本同目录（incoming/）的残留副本——第 155 次部署曾因旧版 runner 被误命中而误报失败。`SKIP_FLYWAY_VALIDATE=1` 可跳过（紧急/离线），但会让 checksum mismatch 拖到后端启动阶段才暴露。
 
 ## 10. 发布后验证
 
