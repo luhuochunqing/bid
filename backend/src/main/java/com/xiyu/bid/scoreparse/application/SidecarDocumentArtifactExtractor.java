@@ -7,6 +7,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import com.xiyu.bid.scoreparse.domain.grid.StructureValidationResult;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,8 +31,11 @@ import java.util.UUID;
  *   <li>Sidecar HTTP 错误或解析失败时，本类向上抛出 {@link DocumentArtifactUnavailable}，
  *       调用方按 {@link StructureValidationResult.Status#STRUCTURE_INCOMPLETE} 处理。</li>
  * </ul>
+ * <p>影子链路现状（审核修复）：本 Bean 已进容器，生产切换在 Phase 3/4 进行；
+ * 当前消费方为 {@link ScoreFactShadowPipeline}（只读影子执行）。
  */
 @Slf4j
+@Component
 public class SidecarDocumentArtifactExtractor {
 
     private final HttpClient httpClient;
@@ -40,9 +45,9 @@ public class SidecarDocumentArtifactExtractor {
     private final ObjectMapper objectMapper;
 
     public SidecarDocumentArtifactExtractor(
-            String sidecarUrl,
-            String sharedKey,
-            long extractTimeoutSeconds,
+            @Value("${app.score-parse.sidecar-url:http://localhost:8000}") String sidecarUrl,
+            @Value("${app.score-parse.sidecar-shared-key:${SIDECAR_SHARED_KEY:}}") String sharedKey,
+            @Value("${app.score-parse.bid-file.extract-timeout-seconds:600}") long extractTimeoutSeconds,
             ObjectMapper objectMapper) {
         this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
         this.sidecarUrl = sidecarUrl.endsWith("/")
