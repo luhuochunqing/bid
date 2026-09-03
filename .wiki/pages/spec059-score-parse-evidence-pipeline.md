@@ -8,6 +8,8 @@ created: 2026-09-02
 tags: [score-parse, spec059, 评分解析, DocumentArtifact, CanonicalTableGrid, ScoreFact]
 sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreParseDecision.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreParseAppService.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/WeightSumCheck.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/grid/CanonicalTableGridFactory.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreFact.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/SidecarDocumentArtifactExtractor.java
@@ -145,8 +147,8 @@ spec 059 把链路切到「原始 Word 结构 + 确定性事实 + 原文证据 +
   - 新增 `ScoreParseReviewSnapshot`，结构化沉淀待复核事实快照、失败项、原始总分与待确认差异，为 Phase 5 前端抽屉展开原文证据提供完整数据契约。
 - **任务状态与决策生效分离 & 持久化保护 (T404 & T405)**：
   - 解析任务状态（`task.status`）与决策状态（`task.decisionStatus`）解耦：任务可正常标记 `COMPLETED`，但其决策为 `REVIEW_REQUIRED`。
-  - **持久化门禁**：`ScoreParseAppService` 严格限制**只有 `decisionStatus == AUTO_APPROVED`** 才能调用 `persistItems` 覆盖当前生效 `score_item`。
-  - 任何 `REVIEW_REQUIRED`、`STRUCTURE_INCOMPLETE` 或 `PARSE_FAILED` 状态下，已有 `score_item` 集合与评分结果原封不动保留，严禁先删后写。
+  - **持久化门禁**：`ScoreParseAppService` 严格限制**只有 `decisionStatus == AUTO_APPROVED`** 才能调用 `persistItems` 覆盖当前生效 `score_item`。〔2026-09-03 更正：此旧契约已被 1358 热修复 Fix A 修订——`REVIEW_REQUIRED` 现在也落库展示并保留复核标记，仅 `STRUCTURE_INCOMPLETE` 保留现有项不覆盖，见下文「1358 漏识别热修复」〕
+  - 任何 `REVIEW_REQUIRED`、`STRUCTURE_INCOMPLETE` 或 `PARSE_FAILED` 状态下，已有 `score_item` 集合与评分结果原封不动保留，严禁先删后写。〔同上更正：`REVIEW_REQUIRED` 不再整批静默丢弃；`PARSE_FAILED` 在更早的 failMessage 分支即终止，不进入落库门禁〕
 - **验收与质量证据**：
   - `ScoreCompletenessPolicyTest` 8 例测试绿。
   - `ScoreCompletenessAcceptanceTest` 4 项核心不变量验收绿。
@@ -186,7 +188,7 @@ spec 059 把链路切到「原始 Word 结构 + 确定性事实 + 原文证据 +
     2. 确定性 `ScoreFact` 提取与单元格证据绑定（包含 vMerge 延续行继承 origin 父项关系）
     3. LLM 操作白名单安全门禁（严格约束为 `KEEP`/`CLASSIFY`/`LINK_PARENT`/`MARK_DUPLICATE`/`REVIEW_REQUIRED`，拦截伪造 ID、低置信度及越权写）
     4. 7 维度完整性策略校验（精准拦截权重缺口与父子重复，阻断为 `REVIEW_REQUIRED`）
-    5. 持久化不覆盖保护（非 `AUTO_APPROVED` 严格禁止覆盖已有评分项）
+    5. 持久化不覆盖保护（非 `AUTO_APPROVED` 严格禁止覆盖已有评分项）〔2026-09-03 更正：契约已改为仅 `STRUCTURE_INCOMPLETE` 不覆盖；对应金标环 `testPersistenceProtection_onlyAutoApprovedCanOverwrite` 是空断言循环验证，已删除，真实门禁证据移交 `ScoreCompletenessAcceptanceTest#invariant3`，见下文「1358 漏识别热修复」〕
     6. 人工调整审计实体（`ScoreParseReview`）记录操作人、原始分值、调整后分值与原因
 - **硬性架构门禁测试 (T602)**：
   - 新增 `ScoreParseArchitectureTest.java`，固化三道工程红线：
@@ -205,6 +207,30 @@ spec 059 把链路切到「原始 Word 结构 + 确定性事实 + 原文证据 +
   - 自动归一化在新管线中彻底绝迹；
   - 字符串 `TableGrid` 退居启发式映射辅助，新版主入口全量统一到 `CanonicalTableGrid`；
   - 评分相关全量测试集 511 例全绿，FP-Java 架构契约与代码行预算 100% 达标。
+
+## 1358 漏识别热修复（2026-09-03，Fix A + Fix B，commit ce57e505b）
+
+### 现象
+项目 1358 评分解析实际成功（11 项 / 100 分闭环），前端却表现为"评分项漏识别 / AI 越改越错"。
+
+### 根因（两层缺陷叠加）
+1. **Fix B 触发面 — WeightSumCheck 假阳性**：大类声明值（如"商务…56分"）只出现在子项 `contextNote`，子项 `dim` 不含大类关键字 → `familySums` 无"商务"成员。旧逻辑 `getOrDefault(商务, 0)` 与声明 56 比对必然不等 → 假阳性 `needRecheck` → 决策被推成 `REVIEW_REQUIRED` + `WEIGHT_SUM_MISMATCH`，尽管总分已闭环 100。
+2. **Fix A 放大面 — all-or-nothing 落库门禁**：Phase 4 T405 的持久化门禁规定"只有 `AUTO_APPROVED` 才落库"，于是上一步误判的 `REVIEW_REQUIRED` 让整批 11 项成功解析被**静默丢弃**，任务仍标记 `COMPLETED` → 前端拿到空结果。
+
+### 修复
+- **Fix A（`ScoreParseAppService`）**：落库门禁由「仅 `AUTO_APPROVED`」改为「有有效项且非 `STRUCTURE_INCOMPLETE`」（`!valid.isEmpty() && decisionStatus != STRUCTURE_INCOMPLETE`）。`REVIEW_REQUIRED` 也落库展示，复核标记保留在 `task.decisionStatus` / `fallbackReason` 上供前端徽章提示；仅 `STRUCTURE_INCOMPLETE`（结构损坏）保留现有项不覆盖。**这修订了 Phase 4 T404/T405 与 Phase 6 T601 第 5 条的旧契约**（见上文对应小节的更正标注）。
+- **Fix B（`WeightSumCheck.checkCandidates`）**：遍历 `declaredFamilyWeights` 时，若该大类在 `familySums` 中**无成员**（`!containsKey`），跳过交叉校验——声明值来自子项 `contextNote`、分桶口径不一致时比对无意义。有成员的大类仍正常校验，守卫不废掉合法的"分布不符"复核（对照用例 `checkCandidates_declaredFamilyWithMembers_stillRechecks`）。
+
+### 反模式教训（详见 `docs/lessons/lessons-learned.md §217`）
+- **失败要响、失败要安全**：成功解析绝不能被静默丢弃；阻断落库必须同时阻断"任务完成"假象，或显式落库 + 标记复核。
+- **循环验证**：原 GoldenReplay 第 4 环 `testPersistenceProtection_onlyAutoApprovedCanOverwrite` 是空断言（局部常量 + 永真 `if` + 对从未触碰的 mock `verify(never())`），既没跑生产代码、DisplayName 还钉死旧契约 → 已删除。真实门禁证据由 `ScoreCompletenessAcceptanceTest#invariant3_reviewRequired_stillPersistsWithReviewFlag`（改写为新契约）承载。
+- **合成夹具自证**：1358 回归锚点是 `WeightSumCheckTest#checkCandidates_declaredFamilyWithoutMembers_noFalseRecheck`，用真实事故的分桶形态（`dim` 不含大类词、声明值在 `contextNote`）构造，而非对齐测试自身假设。
+
+### 回归证据
+`mvn -o test -Dtest='com.xiyu.bid.scoreparse.**,!StreamingBidFileFetcherTest'`（排除预存在网络挂起用例 `StreamingBidFileFetcherTest`，该用例与本修复无关）：**627 tests, 0 failures, 0 errors**。其中 `ScoreParseAppServiceTest` 22、`ScoreCompletenessAcceptanceTest` 4、`WeightSumCheckTest` 11、`GoldenReplayTest` 4 全绿；`ScoreParseAppService.java` 行数收敛到 300（行预算硬限）。
+
+### 仍挂账（未纳入本 PR）
+- **Fix C — 真实 1358 数据端到端金标**：当前回归锚点仍是单元/验收级合成夹具。根治"循环验证"需要把脱敏后的真实 1358 标书结构固化为可执行金标（`XIYU_EVAL_CORPUS_DIR` 本地路径），属独立任务。
 
 ## 索引
 
