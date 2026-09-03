@@ -56,6 +56,27 @@ public record TenderRequirements(
         return new TenderRequirements(List.of(), List.of(), List.of(), List.of(), List.of(), true);
     }
 
+    /**
+     * 双轨融合：将规则提取的确定性资格要求与现有要求合并（并集去重保序）.
+     * 若本对象原为 missingSentinel，但在注入确定性资质后，将解除 missing 标记，确保后续资质比对正常执行.
+     */
+    public TenderRequirements withMergedQualifications(final List<String> extraQualifications) {
+        if (extraQualifications == null || extraQualifications.isEmpty()) {
+            return this;
+        }
+        LinkedHashSet<String> merged = new LinkedHashSet<>(extraQualifications);
+        merged.addAll(this.mandatoryQualifications);
+        return new TenderRequirements(
+                scoringItems,
+                List.copyOf(merged),
+                vetoClauses,
+                compositionRequirements,
+                formatRequirements,
+                false
+        );
+    }
+
+
     /** 合并多段提取结果（长文档分段送入时）；任一段为哨兵不影响其他段，全空则哨兵. */
     public static TenderRequirements merge(final List<TenderRequirements> parts) {
         List<ScoringItem> scoringItems = new ArrayList<>();
