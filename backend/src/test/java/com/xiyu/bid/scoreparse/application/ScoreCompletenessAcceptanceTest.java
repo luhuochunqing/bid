@@ -19,6 +19,7 @@ import com.xiyu.bid.service.ProjectAccessScopeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
@@ -110,6 +111,12 @@ class ScoreCompletenessAcceptanceTest {
                 factId, "t1", List.of("c1"), "item " + factId, "1.1", dim,
                 BigDecimal.valueOf(weight), ev, null, parentId,
                 "STRUCTURED_TABLE_DETERMINISTIC", 1.0, ScoreFact.ValidationStatus.AUTO_APPROVED);
+    }
+
+    /** 9 参 legacy ctor 构建生产链候选：contextNote 为第 6 参（承载大类声明分值）。 */
+    private static ScoreCandidate cand(String code, String dim, String detail, int weight, String contextNote) {
+        return new ScoreCandidate(code, dim, detail, BigDecimal.valueOf(weight), "OBJECTIVE",
+                contextNote, null, null, null);
     }
 
     @Test
@@ -208,5 +215,56 @@ class ScoreCompletenessAcceptanceTest {
         verify(stateService).markCompleted(TASK_ID);
         assertThat(task.getDecisionStatus()).isEqualTo("AUTO_APPROVED");
         assertThat(task.getFallbackReason()).isNull();
+    }
+
+    /**
+     * Fix C 端到端金标（事故 1358「漏识别」根治，脱敏但结构忠实复现）。
+     * <p>11 项、满分恰好 100 闭环；商务组 8 项 dim 均不含 family 关键字，但 contextNote 声明
+     * 「商务评分标准（56分）」，使 {@code declaredFamilyWeights={商务:56}} 在 {@code familySums} 中**无成员**
+     * ——正是 1358 触发 {@link com.xiyu.bid.scoreparse.domain.WeightSumCheck} 大类交叉校验假阳性的形态。
+     * <p>本测试跑通**真实生产链** {@code executeParseAsync → ScoreCandidatePostProcessor → WeightSumCheck → persistItems}，
+     * 断言 1358 漏识别症状的反面：AUTO_APPROVED、无复核标记、11 项全部落库、触发预计得分。
+     * <p>反循环验证保证：还原 Fix B（去掉 {@code WeightSumCheck} 的 {@code familySums.containsKey} 跳过守卫）
+     * 会使本测试转红（NPE→failTask 或假阳性 REVIEW_REQUIRED + 整批被静默丢弃），即金标真能抓回归（详见 lessons §217）。
+     */
+    @Test
+    void incident1358_closedLoopWithDeclaredFamilyLackingMembers_persistsAllItems_autoApproved() {
+        ScoreParseTask task = ScoreParseTask.builder()
+                .id(12L).taskId(TASK_ID).projectId(PROJECT_ID)
+                .taskType("PARSE").status("PENDING").build();
+        when(taskRepository.findByTaskId(TASK_ID)).thenReturn(Optional.of(task));
+        when(initiationTenderTextResolver.resolveIntake(PROJECT_ID))
+                .thenReturn(TenderIntake.found(new TenderTextSource(
+                        "tender.docx", "doc-insight://t/1", "评分办法：总分100分。")));
+        when(scoreAnalyzer.recallCandidates(anyString(), isNull(), any()))
+                .thenReturn(new RecallOutcome(List.of(
+                        // 商务组（56 分）：dim 不含 family 关键字，contextNote 声明大类总分
+                        cand("A1", "财务状况及抗风险能力", "提供近三年经审计财务报表，无重大亏损及不良记录", 8, "商务评分标准（56分）"),
+                        cand("A2", "商城系统对接能力", "具备与采购方商城系统的数据对接与联调方案", 8, "商务评分标准（56分）"),
+                        cand("A3", "供货及安装方案", "供货周期、安装组织与进度保障措施完整可行", 7, "商务评分标准（56分）"),
+                        cand("A4", "售后保障及维修承诺", "质保期内维修、备件供应及故障处理承诺", 7, "商务评分标准（56分）"),
+                        cand("A5", "业绩案例", "提供近三年同类项目业绩合同关键页复印件", 6, "商务评分标准（56分）"),
+                        cand("A6", "项目团队配置", "项目负责人及核心团队成员资历与分工明确", 6, "商务评分标准（56分）"),
+                        cand("A7", "供货能力及信用记录", "提供供货能力证明及无重大违法记录声明函", 7, "商务评分标准（56分）"),
+                        cand("A8", "质保期及故障处理时效", "质保期时长与故障到达现场处理时效承诺", 7, "商务评分标准（56分）"),
+                        // 技术组（44 分）：dim 含「技术」→ familySums[技术]=44，自洽无声明
+                        cand("B1", "技术实施方案", "技术路线、实施步骤与质量控制措施科学合理", 18, null),
+                        cand("B2", "技术架构与功能满足度", "系统架构先进性及对采购需求的功能覆盖程度", 16, null),
+                        cand("B3", "技术培训与知识转移", "培训计划、课时安排与知识转移交付物", 10, null)
+                ), 0));
+
+        appService.executeParseAsync(TASK_ID);
+
+        // 1358 漏识别症状的反面：满分闭环的成功解析必须 AUTO_APPROVED、无复核标记
+        verify(stateService).markCompleted(TASK_ID);
+        assertThat(task.getDecisionStatus()).isEqualTo("AUTO_APPROVED");
+        assertThat(task.getFallbackReason()).isNull();
+
+        // 11 项无一被静默丢弃，全部落库并触发阶段 1 预计得分
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<ScoreCandidate>> persisted = ArgumentCaptor.forClass(List.class);
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(12L), persisted.capture());
+        assertThat(persisted.getValue()).hasSize(11);
+        verify(estimatedScoreService).estimateForProject(PROJECT_ID);
     }
 }

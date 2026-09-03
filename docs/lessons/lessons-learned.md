@@ -4035,3 +4035,8 @@ M1 部门筛选树锚定西域集团(0001)子树三级展示（PR !2474）后，
 | 启发式交叉校验对「无成员大类」假阳性 | 只校验「声明值 vs 实际和」，没先确认该大类在实际分桶里有没有成员 | 任何 A vs B 交叉校验，先确认 B 侧非空再比较；空集不是「不符」，是「无从比较」 |
 | 用合成夹具「对齐已通过的测试布局」做验证 | 真实 1358 文档不可访问，遂用合成夹具复刻猜测布局，测过即认为修对——典型循环验证 | 验证必须锚定**真实失败文档**端到端（含 LLM/落库断言）；合成夹具只能钉确定性单元行为，不能替代真实回归（根治项 Fix C：用真实 1358 建可执行金标，本轮未做） |
 | 「不断加门禁」被当成「不断优化」 | 每加一道启发式/门禁都局部合理，但叠加后假阳性面积指数增长，且无端到端真实回归兜底 | 解析类链路每加一道否决门禁，必须配一条「该门禁不会误杀已知成功样本」的真实回归断言 |
+
+**Fix C 后续落地（2026-09-03，闭环本挂账）**：已建可执行端到端金标根治循环验证——
+- **脱敏金标（CI 常驻）** `ScoreCompletenessAcceptanceTest#incident1358_closedLoopWithDeclaredFamilyLackingMembers_persistsAllItems_autoApproved`：用结构忠实复现 1358 触发形态的 11 项 / 满分恰好 100 闭环夹具（商务组 `dim` 不含大类词、`contextNote` 声明「商务评分标准（56分）」→ `declaredFamilyWeights={商务:56}` 在 `familySums` 无成员），跑通**真实生产链** `executeParseAsync → ScoreCandidatePostProcessor → WeightSumCheck → persistItems`，断言 `AUTO_APPROVED` + 无复核标记 + 11 项全部落库；还原 Fix B 守卫即转红，证明它真能抓回归而非自证。
+- **真实数据金标（语料门控，CI 跳过）** `Incident1358RealCorpusGoldenTest`：`@EnabledIfEnvironmentVariable(XIYU_EVAL_CORPUS_DIR)`，本地放置离线录制的真实候选快照 `incident-1358/candidates.json` 后，用真实数据跑同一条生产链断言相同金标。真实文档仍**禁止入仓**（合规），green 路径需有语料的开发机验证。
+- 登记见 `docs/lessons/scoreparse-golden-corpus/index.md`「1358（权重闭环/落库）」行；回归切片 629 tests / 0 failures / 1 skipped（Part B 门控跳过）。
