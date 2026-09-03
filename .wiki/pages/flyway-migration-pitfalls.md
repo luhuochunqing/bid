@@ -2,9 +2,9 @@
 title: Flyway 迁移陷阱集
 space: engineering
 category: guide
-tags: [Flyway, 数据库迁移, MySQL, collation, 版本号冲突, baseline-on-migrate, 回滚脚本]
+tags: [Flyway, 数据库迁移, MySQL, collation, 版本号冲突, baseline-on-migrate, 回滚脚本, 失败迁移, 事务回滚]
 created: 2026-07-10
-updated: 2026-08-20
+updated: 2026-09-03
 health_checked: 2026-08-28
 sources:
   - backend/src/main/resources/db/migration-mysql/
@@ -448,7 +448,64 @@ String v1092Script = loadMigrationScript("db/migration-mysql/V1092__migrate_lega
 
 ---
 
-## 15. 相关文档
+---
+
+## 15. 失败迁移阻塞启动：NOT NULL 字段缺默认值（V1209 事故，CO-606）
+
+### 17.1 现象
+
+`V1209__backfill_missing_project_archive_files.sql` 执行失败后，后端每次启动都被
+`Schema contains a failed migration to version 1209` 阻塞，`entityManagerFactory` Bean
+无法创建，Tomcat 启动失败。
+
+### 17.2 根因
+
+V1209 step1 向 `project_archive` 插入时**漏写了 `updated_at` 字段**，而：
+- `project_archive.updated_at datetime(6) NOT NULL` **无默认值**
+- MySQL 8.0 `STRICT_TRANS_TABLES` 模式下，NOT NULL 字段缺省 INSERT 直接报
+  `ERROR 1364 (HY000): Field 'updated_at' doesn't have a default value`
+
+Flyway 单个迁移在**一个事务**内执行，任一条 INSERT 失败 → 整个迁移回滚 →
+`flyway_schema_history` 记录 `success=0`。此后**每次启动都被该失败记录挡住**。
+
+### 17.3 核心教训
+
+1. **写数据回填迁移前，先 `SHOW COLUMNS` 核对该表每个 NOT NULL 字段**，确认 INSERT 列清单
+   完整覆盖（尤其无默认值的 `created_at`/`updated_at`）。推测表结构 → 漏字段 → 1364 → 失败迁移阻塞全系统。
+2. **Flyway 不会重跑已失败的迁移**（`success=0`），即使你把 V1209 文件改对也不会生效，
+   且改动已发布迁移文件会触发 checksum mismatch。**修复必须用更高版本号（V1210）复刻逻辑**，
+   保留失败记录供审计。
+3. **不能用 `DELET[/REPAIR]` 手动重跑失败迁移**——会污染 `flyway_schema_history` 状态，
+   破坏审计可追溯性。新版本号是唯一标准路径。
+4. **迁移中任一子语句失败 = 全事务回滚**，所以回填脚本里每条 INSERT 都要防御性覆盖
+   所有 NOT NULL 字段（`COALESCE` 兜 NULL + `LEFT(...,255)` 防 Data too long）单测验证幂等
+   （事务内二次执行无增量）。
+
+### 17.4 修复模板（V1210）
+
+```sql
+-- 规则：SELECT 里每个目标表 NOT NULL 列都必须有值来源
+INSERT INTO project_archive (
+    project_id, project_name, archive_status, created_at, updated_at  -- ★ 勿漏 updated_at
+)
+SELECT DISTINCT
+    p.id, LEFT(p.name,255), 'ACTIVE', NOW(), NOW()   -- LEFT 防 Data too long
+FROM projects p
+INNER JOIN project_documents pd ON pd.project_id = p.id
+LEFT JOIN project_archive pa ON pa.project_id = p.id
+WHERE pa.id IS NULL;  -- LEFT JOIN + IS NULL 幂等
+```
+
+### 17.5 真实数据规模（CO-606 验证）
+
+- `project_archive` 543→545（+2：project 10、11 有文档缺归档头）
+- `archive_file` 13→19（+6文件）
+- 幂等：事务内二次执行无增量（545/19 保持不变）
+
+> 相关：失败迁移处理与回滚纪律见 [[lessons-learned]] 与 [[production-deployment-lessons]]，本页 §16 baseline-on-migrate。
+
+
+## 16. 相关文档
 
 - [[lessons-learned]] §一 §二 — 数据库迁移目录清理、CI 配置对齐
 - [[production-deployment-lessons]] §1 — collation 冲突案例
@@ -458,7 +515,7 @@ String v1092Script = loadMigrationScript("db/migration-mysql/V1092__migrate_lega
 
 ---
 
-## 16. 变更记录
+## 17. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
@@ -466,3 +523,4 @@ String v1092Script = loadMigrationScript("db/migration-mysql/V1092__migrate_lega
 | 2026-07-31 | 新增 §11 INSERT IGNORE + NULL 唯一键不幂等（U1182 回滚脚本事故，PR !2229）；原 §11~§13 顺延为 §12~§14 |
 | 2026-08-17 | 新增 §12 ADD COLUMN 必须幂等 — V145 列冲突事故（V1188 vs V145 contract_amount，commit 30b2de723）；原 §12~§14 顺延为 §13~§15 |
 | 2026-08-20 | 新增 §13 已发布迁移的测试重放 collation 冲突（V1198 CONVERT 全表 collation 破坏 V1092 重放，commit 2c90a6f85）；原 §13~§15 顺延为 §14~§16 |
+| 2026-09-03 | 新增 §15 失败迁移阻塞启动（V1209 漏写 updated_at → 1364 → success=0 阻塞后端，CO-606，V1210 修复）；原 §15~§17 顺延为 §16~§17 |
