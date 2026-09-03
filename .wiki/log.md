@@ -3,6 +3,12 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-04] refactor | 标书质量核查与资质提取模块 AI Slop 清理与代码去重
+
+- 触发：/ai-slop-cleaner 扫描发现 `TenderRequirementsParser` 与 `LlmVerdictParser` 重复实现 35 行 `extractJsonObject`，且存在多余包装函数与冗余判重。
+- 修复：统一复用 `LlmVerdictParser.extractJsonObject`；`DeterministicQualificationExtractor` 移除多余 contains 检查并抽取 `CERTIFICATE_CORE_KEYWORDS`；`QualityCheckDetailDialog.vue` 移除透传包装函数 `qualStatusBadge`。净减少 44 行代码。
+- 页面更新：更新 [[bid-quality-check-realization]] §4.19。
+
 ## [2026-09-03] fix | 招标文件资格与资质漏识别根治（确定性提取器+代码块围栏容错+双轨融合）
 
 - 触发：第 156 次部署后，测试环境 1358 项目仍报"未在招标文件中提取到明确的硬性资格要求"。用户指出常识：任何招标文件必然包含资格要求。

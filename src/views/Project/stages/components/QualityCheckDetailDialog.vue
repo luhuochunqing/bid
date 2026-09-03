@@ -70,8 +70,8 @@
                   <span v-else class="qual-page-none">未定位</span>
                 </td>
                 <td class="col-status">
-                  <el-tag size="small" :type="qualStatusBadge(detail.status).tagType" effect="plain">
-                    {{ qualStatusBadge(detail.status).text }}
+                  <el-tag size="small" :type="getQualDetailStatusMeta(detail.status).tagType" effect="plain">
+                    {{ getQualDetailStatusMeta(detail.status).text }}
                   </el-tag>
                   <div v-if="detail.remark" class="qual-remark">{{ detail.remark }}</div>
                 </td>
@@ -152,10 +152,6 @@ const isQualificationMatch = computed(() => isQualificationMatchItem(props.item?
 const qualificationDetails = computed(() => {
   return Array.isArray(props.item?.details) ? props.item.details : []
 })
-
-function qualStatusBadge(status) {
-  return getQualDetailStatusMeta(status)
-}
 
 const dialogWidth = computed(() =>
   isQualificationMatch.value && qualificationDetails.value.length > 0 ? '720px' : '560px'

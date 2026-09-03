@@ -41,7 +41,7 @@ public final class TenderRequirementsParser {
         if (llmJson == null || llmJson.isBlank()) {
             return TenderRequirements.missingSentinel();
         }
-        String json = extractJsonObject(llmJson);
+        String json = LlmVerdictParser.extractJsonObject(llmJson);
         if (json == null) {
             return TenderRequirements.missingSentinel();
         }
@@ -97,42 +97,5 @@ public final class TenderRequirementsParser {
     private static String textAt(final JsonNode node, final String key) {
         JsonNode value = node.path(key);
         return value.isTextual() ? value.asText().trim() : "";
-    }
-
-    /**
-     * 从响应中提取首个配平的 JSON 对象子串（容忍代码围栏与前后缀文字）；不存在返回 null.
-     */
-    static String extractJsonObject(final String text) {
-        int start = text.indexOf('{');
-        while (start >= 0) {
-            int depth = 0;
-            boolean inString = false;
-            boolean escaped = false;
-            for (int i = start; i < text.length(); i++) {
-                char c = text.charAt(i);
-                if (inString) {
-                    if (escaped) {
-                        escaped = false;
-                    } else if (c == '\\') {
-                        escaped = true;
-                    } else if (c == '"') {
-                        inString = false;
-                    }
-                    continue;
-                }
-                if (c == '"') {
-                    inString = true;
-                } else if (c == '{') {
-                    depth++;
-                } else if (c == '}') {
-                    depth--;
-                    if (depth == 0) {
-                        return text.substring(start, i + 1);
-                    }
-                }
-            }
-            start = text.indexOf('{', start + 1);
-        }
-        return null;
     }
 }
