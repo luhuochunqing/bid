@@ -1,10 +1,9 @@
 // Input: scoreparse-golden/ 夹具 + DocumentArtifact v2
-// Output: 全闭环金标回放（Grid验证 → 事实抽取 → LLM白名单 → 完整性判定 → 持久化保护 → 复核审计）
+// Output: 全闭环金标回放（Grid验证 → 事实抽取 → LLM白名单 → 完整性判定 → 复核审计）
 // Pos: scoreparse/golden — 端到端金标验证（spec 059 Phase 6 T601）
 
 package com.xiyu.bid.scoreparse.golden;
 
-import com.xiyu.bid.scoreparse.application.ScoreItemPersistenceService;
 import com.xiyu.bid.scoreparse.domain.DeterministicScoreFactExtractor;
 import com.xiyu.bid.scoreparse.domain.ScoreCompletenessPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
@@ -18,12 +17,7 @@ import com.xiyu.bid.scoreparse.domain.grid.TableGrid;
 import com.xiyu.bid.scoreparse.domain.llm.LlmDecision;
 import com.xiyu.bid.scoreparse.domain.llm.LlmFactOp;
 import com.xiyu.bid.scoreparse.domain.llm.LlmFactOperationValidator;
-import com.xiyu.bid.scoreparse.entity.ScoreItem;
 import com.xiyu.bid.scoreparse.entity.ScoreParseReview;
-import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
-import com.xiyu.bid.scoreparse.repository.ScoreParseEvidenceRepository;
-import com.xiyu.bid.scoreparse.repository.ScoreParseFactRepository;
-import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -32,7 +26,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 /**
@@ -42,8 +35,11 @@ import static org.mockito.Mockito.*;
  * 2. 确定性 ScoreFact 提取与单元格证据绑定
  * 3. LLM 操作白名单校验（未知 ID / 字段篡改一律拦截）
  * 4. 7 维度评分完整性校验与决策判定
- * 5. 持久化不覆盖门禁保护
- * 6. 人工调整审计快照
+ * 5. 人工调整审计快照
+ *
+ * <p>持久化落库门禁（spec 059 Fix A 后 REVIEW_REQUIRED 也落库）由
+ * {@code ScoreCompletenessAcceptanceTest#invariant3} 与 {@code ScoreParseAppServiceTest} 驱动真实
+ * AppService 覆盖，本文件不再重复。
  */
 class ScoreParseEvidencePipelineGoldenReplayTest {
 
@@ -126,30 +122,7 @@ class ScoreParseEvidencePipelineGoldenReplayTest {
     }
 
     @Test
-    @DisplayName("端到端闭环 4: 持久化门禁保护——非 AUTO_APPROVED 严禁覆盖已有评分项")
-    void testPersistenceProtection_onlyAutoApprovedCanOverwrite() {
-        ScoreItemRepository itemRepo = mock(ScoreItemRepository.class);
-        ScoreResultRepository resRepo = mock(ScoreResultRepository.class);
-        ScoreParseFactRepository factRepo = mock(ScoreParseFactRepository.class);
-        ScoreParseEvidenceRepository evRepo = mock(ScoreParseEvidenceRepository.class);
-
-        new ScoreItemPersistenceService(itemRepo, resRepo, factRepo, evRepo);
-
-        // 已有 2 条评分项
-        ScoreItem existing1 = ScoreItem.builder().id(1L).code("1.1").detail("已有项1").weight(BigDecimal.TEN).build();
-        when(itemRepo.findByProjectIdOrderByItemIndexAsc(101L)).thenReturn(List.of(existing1));
-
-        // 模拟解析决策为 REVIEW_REQUIRED，上层应用服务拦截落库
-        ScoreParseDecision decision = ScoreParseDecision.REVIEW_REQUIRED;
-        if (decision != ScoreParseDecision.AUTO_APPROVED) {
-            // 守卫契约生效：不调用 persistItems
-            verify(itemRepo, never()).saveAll(any());
-            verify(itemRepo, never()).deleteAll(any());
-        }
-    }
-
-    @Test
-    @DisplayName("端到端闭环 5: 人工复核与调整审计实体一致性")
+    @DisplayName("端到端闭环 4: 人工复核与调整审计实体一致性")
     void testHumanReviewAuditTrail() {
         ScoreParseReview review = ScoreParseReview.builder()
                 .projectId(101L)

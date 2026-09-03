@@ -9,6 +9,8 @@ import com.xiyu.bid.projectworkflow.entity.ProjectDocument;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
 import com.xiyu.bid.scoreparse.domain.RecallOutcome;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
+import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
+import com.xiyu.bid.scoreparse.domain.WeightSumCheck;
 import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
 import com.xiyu.bid.scoreparse.infrastructure.openai.LlmTableScoreExtractor;
@@ -42,6 +44,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -207,9 +210,10 @@ class ScoreParseAppServiceTest {
     }
 
     @Test
-    void parse_reviewRequired_doesNotPersistScoreItems_preservesExisting() {
-        // spec 059 Phase 4: 权重合计 50+30=80 不符 100 分，决策为 REVIEW_REQUIRED
-        // 任务状态正常 markCompleted，但绝对禁止调用 persistItems 覆盖已有评分项
+    void parse_reviewRequired_stillPersistsItemsWithReviewFlag() {
+        // spec 059 修复：REVIEW_REQUIRED 不再 all-or-nothing 丢弃整批结果。
+        // 权重合计 50+30=80 不符 100 → 决策 REVIEW_REQUIRED，但解析产出的有效项仍须落库展示，
+        // 复核标记保留在 task 上供前端提示；禁止静默丢弃（1358 漏识别事故根因）。
         ScoreParseTask task = mockParseFlowReturning(List.of(
                 candidate("A1", "资质", "具备 CMMI 认证", "50"),
                 candidate("A2", "业绩", "近三年业绩", "30")));
@@ -217,10 +221,44 @@ class ScoreParseAppServiceTest {
         service.executeParseAsync(TASK_ID);
 
         verify(stateService).markCompleted(TASK_ID);
-        verify(itemPersistenceService, never()).persistItems(any(), any(), anyList());
-        verify(estimatedScoreService, never()).estimateForProject(any());
+        assertThat(capturedPersistedCandidates().getValue())
+                .extracting(ScoreCandidate::code)
+                .containsExactly("A1", "A2");
+        verify(estimatedScoreService).estimateForProject(PROJECT_ID);
         assertThat(task.getDecisionStatus()).isEqualTo("REVIEW_REQUIRED");
         assertThat(task.getFallbackReason()).isEqualTo("WEIGHT_SUM_MISMATCH");
+    }
+
+    @Test
+    void parse_structureIncomplete_preservesExistingItems_doesNotPersist() {
+        // Fix A 守卫锚定：STRUCTURE_INCOMPLETE（结构损坏）保留现有 score_item 不覆盖，但任务仍 markCompleted。
+        // 当前 PostProcessor 主链路不产出该决策（仅 spec059 证据管道产出），故 mock PostProcessor 直接钉死
+        // AppService 持久化分支，防证据管道并入主链路后回归。
+        ScoreCandidatePostProcessor mockPostProcessor = mock(ScoreCandidatePostProcessor.class);
+        ScoreParseAppService structureService = new ScoreParseAppService(
+                taskRepository, itemRepository, resultRepository, projectDocumentRepository,
+                stateService, progressService, snapshotRepository,
+                projectAccessScopeService, scoreAnalyzer, estimatedScoreService,
+                itemPersistenceService, initiationTenderTextResolver, sidecarTableExtractor,
+                mockPostProcessor, llmTableScoreExtractorProvider, schemaMapperProvider);
+        ReflectionTestUtils.setField(structureService, "self", structureService);
+
+        ScoreParseTask task = mockParseFlowReturning(defaultCandidates());
+        var weightResult = new WeightSumCheck.Result(new BigDecimal("100"), false, false,
+                java.util.Map.of(), java.util.Map.of());
+        var processed = new ScoreCandidatePostProcessor.Processed(
+                List.of(candidate("A1", "资质", "具备 CMMI 认证", "100")), null, weightResult,
+                "{}", null, null, "LEGACY",
+                ScoreParseDecision.STRUCTURE_INCOMPLETE, "STRUCTURE_DEFECT");
+        when(mockPostProcessor.process(anyString(), anyString(), any(), anyList(), any()))
+                .thenReturn(processed);
+
+        structureService.executeParseAsync(TASK_ID);
+
+        verify(itemPersistenceService, never()).persistItems(any(), any(), anyList());
+        verify(estimatedScoreService, never()).estimateForProject(any());
+        verify(stateService).markCompleted(TASK_ID);
+        assertThat(task.getDecisionStatus()).isEqualTo("STRUCTURE_INCOMPLETE");
     }
 
     private List<ScoreCandidate> defaultCandidates() {

@@ -35,7 +35,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -157,7 +156,7 @@ class ScoreCompletenessAcceptanceTest {
     }
 
     @Test
-    void invariant3_persistenceProtection_reviewRequired_neverOverwritesScoreItems() {
+    void invariant3_reviewRequired_stillPersistsWithReviewFlag() {
         // 模拟解析产出合计 80 分（不满足 100 分）
         ScoreParseTask task = ScoreParseTask.builder()
                 .id(10L).taskId(TASK_ID).projectId(PROJECT_ID)
@@ -174,14 +173,15 @@ class ScoreCompletenessAcceptanceTest {
 
         appService.executeParseAsync(TASK_ID);
 
-        // 任务状态为 COMPLETED，但决策状态为 REVIEW_REQUIRED
+        // 任务状态为 COMPLETED，决策状态为 REVIEW_REQUIRED，复核标记保留在 task 上
         verify(stateService).markCompleted(TASK_ID);
         assertThat(task.getDecisionStatus()).isEqualTo("REVIEW_REQUIRED");
         assertThat(task.getFallbackReason()).isEqualTo("WEIGHT_SUM_MISMATCH");
 
-        // 绝对禁止调用 persistItems，已有生效评分项不被覆盖
-        verify(itemPersistenceService, never()).persistItems(any(), any(), anyList());
-        verify(estimatedScoreService, never()).estimateForProject(any());
+        // spec 059 Fix A：REVIEW_REQUIRED 不再 all-or-nothing 丢弃整批结果——有效项仍落库展示，
+        // 复核标记留在 task 上供前端提示，禁止静默丢弃成功解析（详见 lessons-learned §217）。
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(10L), anyList());
+        verify(estimatedScoreService).estimateForProject(PROJECT_ID);
     }
 
     @Test

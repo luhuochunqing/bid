@@ -64,8 +64,13 @@ public class WeightSumCheck {
 
         boolean declaredMismatch = false;
         for (Map.Entry<String, BigDecimal> entry : declaredFamilyWeights.entrySet()) {
+            // 该大类在 familySums 中无成员（声明值来自子项 contextNote，分桶口径不一致）→ 交叉校验无意义，
+            // 跳过；否则总分已闭环仍会假阳性触发 needRecheck（详见 lessons-learned §217）。
+            if (!familySums.containsKey(entry.getKey())) {
+                continue;
+            }
             BigDecimal declared = entry.getValue();
-            BigDecimal actualSum = familySums.getOrDefault(entry.getKey(), BigDecimal.ZERO);
+            BigDecimal actualSum = familySums.get(entry.getKey());
             if (actualSum.subtract(declared).abs().compareTo(TOLERANCE) > 0) {
                 declaredMismatch = true;
                 break;
