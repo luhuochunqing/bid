@@ -11,9 +11,9 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 /**
- * 权重归一化策略（spec 047 US1/US2）。
- * <p>对合计偏离 100（容差 ±0.5 外、且 &gt;0）的候选集执行
- * "按比例缩放 + 最大余数法确定性分配"，使落库合计恒=100。
+ * 权重归一化策略（spec 047 / spec 059 Phase 4）。
+ * <p><b>重要纪律（spec 059 Phase 4）</b>：本策略已从自动解析主管道中彻底解绑，
+ * 没有任何自动调用路径；保留仅供历史结果展示和显式人工“调整权重”命令使用。
  * <p>纯核心，无框架依赖。
  */
 public class WeightNormalizationPolicy {

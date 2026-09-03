@@ -11,7 +11,7 @@ backlinks:
   - docs/release/deploy-report-2026-08-26-143rd-test.md
 created: 2026-08-26
 updated: 2026-08-26
-health_checked: 2026-08-26
+health_checked: 2026-09-03
 ---
 
 # TenderEvent SDK Bean 冲突陷阱

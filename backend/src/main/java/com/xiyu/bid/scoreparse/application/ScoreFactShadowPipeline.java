@@ -4,6 +4,7 @@
 package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.scoreparse.domain.DeterministicScoreFactExtractor;
+import com.xiyu.bid.scoreparse.domain.ScoreCompletenessPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
 import com.xiyu.bid.scoreparse.domain.ScoreFactValidator;
 import com.xiyu.bid.scoreparse.domain.grid.CanonicalTableGrid;
@@ -42,7 +43,8 @@ public final class ScoreFactShadowPipeline {
     public static ShadowResult run(DocumentArtifact artifact) {
         if (artifact == null) {
             return new ShadowResult(List.of(), 0,
-                    new ScoreFactValidator.ValidationResult(false, false, List.of("artifact is null")));
+                    new ScoreFactValidator.ValidationResult(false, false, List.of("artifact is null")),
+                    ScoreCompletenessPolicy.evaluateCompleteness(List.of(), null, false));
         }
         List<TableOutcome> outcomes = new ArrayList<>();
         int skipped = 0;
@@ -61,8 +63,10 @@ public final class ScoreFactShadowPipeline {
         List<ScoreFact> allFacts = outcomes.stream()
                 .flatMap(outcome -> outcome.facts().stream())
                 .toList();
+        boolean allValid = outcomes.stream().allMatch(TableOutcome::structurallyValid);
         return new ShadowResult(List.copyOf(outcomes), skipped,
-                ScoreFactValidator.validateScoringSet(allFacts));
+                ScoreFactValidator.validateScoringSet(allFacts),
+                ScoreCompletenessPolicy.evaluateCompleteness(allFacts, null, allValid));
     }
 
     /**
@@ -104,10 +108,21 @@ public final class ScoreFactShadowPipeline {
      * @param tables        每个评分表的影子执行结果
      * @param skippedTables 非评分表数量
      * @param scoring       全量事实池的自动评分集校验
+     * @param completeness  完整性校验与 7 大维度判定结果
      */
     public record ShadowResult(
             List<TableOutcome> tables,
             int skippedTables,
-            ScoreFactValidator.ValidationResult scoring) {
+            ScoreFactValidator.ValidationResult scoring,
+            ScoreCompletenessPolicy.ScoreCompletenessResult completeness) {
+
+        public ShadowResult(
+                List<TableOutcome> tables,
+                int skippedTables,
+                ScoreFactValidator.ValidationResult scoring) {
+            this(tables, skippedTables, scoring, ScoreCompletenessPolicy.evaluateCompleteness(
+                    tables.stream().flatMap(t -> t.facts().stream()).toList(), null,
+                    tables.stream().allMatch(TableOutcome::structurallyValid)));
+        }
     }
 }
