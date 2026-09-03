@@ -103,4 +103,3 @@ export function isQualificationMatchItem(itemCode) {
   const lower = String(itemCode).toLowerCase()
   return lower === 'qualification_match' || lower === 'qualification_veto' || lower === 'qualification_review'
 }
-

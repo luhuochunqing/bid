@@ -254,6 +254,9 @@ public final class QualificationMatchPolicy {
     }
 
     private static boolean isStopword(final String text) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
         for (String sw : STOP_WORDS) {
             if (sw.contains(text) || text.contains(sw)) {
                 return true;
@@ -263,6 +266,9 @@ public final class QualificationMatchPolicy {
     }
 
     private static String longestCommonSubstring(final String s1, final String s2) {
+        if (s1 == null || s2 == null || s1.isEmpty() || s2.isEmpty()) {
+            return "";
+        }
         int m = s1.length();
         int n = s2.length();
         int maxLen = 0;
