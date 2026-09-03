@@ -6,6 +6,7 @@ package com.xiyu.bid.scoreparse.domain;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /** Validates evidence and separates fact validity from scoring completeness. */
 public final class ScoreFactValidator {
@@ -48,8 +49,9 @@ public final class ScoreFactValidator {
     }
 
     /**
-     * Validates the set used for automatic scoring. Parent facts are retained
-     * in the fact snapshot but must not be counted alongside their leaves.
+     * Validates the set used for automatic scoring. Parent facts (referenced
+     * as {@code parentFactId} by any fact in the set) are retained in the
+     * snapshot but must not be counted alongside their leaves.
      */
     public static ValidationResult validateScoringSet(List<ScoreFact> facts) {
         ValidationResult factResult = validateFacts(facts);
@@ -57,11 +59,12 @@ public final class ScoreFactValidator {
         if (facts == null) {
             return new ValidationResult(false, false, violations);
         }
+        Set<String> parentIds = ScoreFact.parentIds(facts);
         for (ScoreFact fact : facts) {
             if (fact == null || !fact.isAutoApprovable()) {
                 continue;
             }
-            if (!fact.isLeaf()) {
+            if (parentIds.contains(fact.factId())) {
                 violations.add(fact.factId() + ": parent fact cannot be auto-scored");
             }
         }

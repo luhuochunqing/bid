@@ -173,19 +173,56 @@ class DeterministicScoreFactExtractorTest {
     }
 
     @Test
-    void validator_rejects_parent_from_auto_scoring_set() {
+    void validator_rejects_referenced_parent_from_auto_scoring_set() {
+        // 父项 = 被子项 parentFactId 引用的 fact；它即使标了 AUTO_APPROVED
+        // 也不得进入自动评分集（叶子 = 未被引用）。
         ScoreFact parent = new ScoreFact(
                 "fact-parent", "t-1", List.of("t-1-r0-c0"), "商务部分（20分）", "", "商务部分",
                 new BigDecimal("20"),
                 new ScoreEvidence(ScoreEvidence.Kind.DIMENSION_TITLE_MAX_SCORE, "（20分）", "t-1-r0-c0", 4, 9, "title"),
-                ScoreRule.MAX_SCORE, "fact-root", "STRUCTURED_TABLE_DETERMINISTIC", 1.0,
+                ScoreRule.MAX_SCORE, "", "STRUCTURED_TABLE_DETERMINISTIC", 1.0,
+                ScoreFact.ValidationStatus.AUTO_APPROVED);
+        ScoreFact child = new ScoreFact(
+                "fact-child", "t-1", List.of("t-1-r1-c0"), "条款1得5分", "B1", "条款1",
+                new BigDecimal("10"),
+                new ScoreEvidence(ScoreEvidence.Kind.EXPLICIT_WEIGHT_COLUMN, "10", "t-1-r1-c0", 0, 2, "column"),
+                ScoreRule.MAX_SCORE, "fact-parent", "STRUCTURED_TABLE_DETERMINISTIC", 1.0,
                 ScoreFact.ValidationStatus.AUTO_APPROVED);
 
-        ScoreFactValidator.ValidationResult result = ScoreFactValidator.validateScoringSet(List.of(parent));
+        ScoreFactValidator.ValidationResult result = ScoreFactValidator.validateScoringSet(List.of(parent, child));
 
         assertFalse(result.factsValid());
         assertFalse(result.scoringComplete());
-        assertTrue(result.violations().stream().anyMatch(v -> v.contains("parent fact")));
+        assertTrue(result.violations().stream()
+                .anyMatch(v -> v.contains("fact-parent") && v.contains("parent fact")),
+                "被引用的父项必须被拦截: " + result.violations());
+        assertFalse(result.violations().stream().anyMatch(v -> v.contains("fact-child")),
+                "叶子子项必须放行: " + result.violations());
+    }
+
+    @Test
+    void validator_allows_leaf_child_and_non_auto_parent_in_scoring_set() {
+        // 父项转 REVIEW_REQUIRED 保留快照；叶子子项 AUTO_APPROVED 可自动评分。
+        ScoreFact parent = new ScoreFact(
+                "fact-parent", "t-1", List.of("t-1-r0-c0"), "商务部分（20分）", "", "商务部分",
+                new BigDecimal("20"),
+                new ScoreEvidence(ScoreEvidence.Kind.DIMENSION_TITLE_MAX_SCORE, "（20分）", "t-1-r0-c0", 4, 9, "title"),
+                ScoreRule.MAX_SCORE, "", "STRUCTURED_TABLE_DETERMINISTIC", 1.0,
+                ScoreFact.ValidationStatus.REVIEW_REQUIRED);
+        ScoreFact child = new ScoreFact(
+                "fact-child", "t-1", List.of("t-1-r1-c0"), "条款1得5分", "B1", "条款1",
+                new BigDecimal("10"),
+                new ScoreEvidence(ScoreEvidence.Kind.EXPLICIT_WEIGHT_COLUMN, "10", "t-1-r1-c0", 0, 2, "column"),
+                ScoreRule.MAX_SCORE, "fact-parent", "STRUCTURED_TABLE_DETERMINISTIC", 1.0,
+                ScoreFact.ValidationStatus.AUTO_APPROVED);
+
+        ScoreFactValidator.ValidationResult result = ScoreFactValidator.validateScoringSet(List.of(parent, child));
+
+        assertTrue(result.factsValid());
+        assertTrue(result.scoringComplete());
+        assertTrue(result.violations().isEmpty());
+        assertTrue(ScoreFact.isLeaf(child, List.of(parent, child)));
+        assertFalse(ScoreFact.isLeaf(parent, List.of(parent, child)));
     }
 
     // ------------------------------------------------------------------
@@ -223,12 +260,13 @@ class DeterministicScoreFactExtractorTest {
 
         ScoreFact originFact = facts.get(0);
         ScoreFact childFact = facts.get(1);
-        // Origin row: dim cell has rowspan=2, so parentFactId stays empty.
+        // Origin row: dim cell has rowspan=2, so parentFactId stays empty —
+        // but the child references it, so the origin is a PARENT, not a leaf.
         assertEquals("", originFact.parentFactId());
-        assertTrue(originFact.isLeaf());
+        assertFalse(ScoreFact.isLeaf(originFact, facts));
         // Child row: dim cell is a merge continuation; must reference the origin row's factId.
         assertEquals(originFact.factId(), childFact.parentFactId());
-        assertFalse(childFact.isLeaf());
+        assertTrue(ScoreFact.isLeaf(childFact, facts));
     }
 
     @Test
@@ -256,7 +294,8 @@ class DeterministicScoreFactExtractorTest {
         assertEquals(1, facts.size(),
                 "only the origin row should produce a fact; continuation row is filtered for blank sourceText");
         assertEquals("", facts.get(0).parentFactId());
-        assertTrue(facts.get(0).isLeaf());
+        // 唯一 fact、无任何引用 → 叶子。
+        assertTrue(ScoreFact.isLeaf(facts.get(0), facts));
     }
 
     @Test
@@ -286,7 +325,7 @@ class DeterministicScoreFactExtractorTest {
         assertEquals(3, facts.size());
         for (ScoreFact fact : facts) {
             assertEquals("", fact.parentFactId(), "no-merge fact should have empty parentFactId");
-            assertTrue(fact.isLeaf());
+            assertTrue(ScoreFact.isLeaf(fact, facts));
         }
     }
 }

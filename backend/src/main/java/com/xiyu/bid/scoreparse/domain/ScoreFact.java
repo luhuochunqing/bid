@@ -4,8 +4,10 @@
 package com.xiyu.bid.scoreparse.domain;
 
 import java.math.BigDecimal;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /** A score fact whose value can be traced back to source cells and text. */
 public record ScoreFact(
@@ -35,8 +37,31 @@ public record ScoreFact(
         validationStatus = validationStatus == null ? ValidationStatus.REVIEW_REQUIRED : validationStatus;
     }
 
-    public boolean isLeaf() {
-        return parentFactId == null || parentFactId.isBlank();
+    /**
+     * {@code true} 当 {@code fact} 在 {@code facts} 集合中是叶子（末级）。
+     * <p>叶子是<b>集合属性</b>：没有兄弟 fact 把 {@code fact.factId()} 引用为
+     * {@code parentFactId}。空 {@code parentFactId} 只表示根节点（无父），
+     * 与是否叶子无关——被引用的必然是父项，未被引用的才是叶子。
+     */
+    public static boolean isLeaf(ScoreFact fact, List<ScoreFact> facts) {
+        if (fact == null) {
+            return false;
+        }
+        return !parentIds(facts).contains(fact.factId());
+    }
+
+    /** 集合中作为 {@code parentFactId} 出现过的全部 factId（空值剔除）。 */
+    public static Set<String> parentIds(List<ScoreFact> facts) {
+        if (facts == null) {
+            return Set.of();
+        }
+        Set<String> ids = new HashSet<>();
+        for (ScoreFact fact : facts) {
+            if (fact != null && fact.parentFactId() != null && !fact.parentFactId().isBlank()) {
+                ids.add(fact.parentFactId());
+            }
+        }
+        return Set.copyOf(ids);
     }
 
     public boolean isAutoApprovable() {
@@ -50,6 +75,11 @@ public record ScoreFact(
                 confidence, validationStatus);
     }
 
+    /**
+     * 仅限已通过 {@link ScoreFactValidator#validateScoringSet(List)} 判定为
+     * 叶子且 {@code AUTO_APPROVED} 的事实调用；父项（被引用为 parent 的
+     * fact）调用本方法绕过了"父项不得计入总权重"底线，由调用方负责。
+     */
     public Optional<ScoreCandidate> toCandidate() {
         if (!isAutoApprovable()) {
             return Optional.empty();
