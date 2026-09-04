@@ -3,6 +3,12 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-04] fix | 移除标讯中心顶栏客户商机中心入口与清理死代码
+
+- 触发：用户要求移除 `/bidding` 页面顶部的「客户商机中心」入口按钮；执行 `/ai-slop-cleaner` 扫描清理死代码。
+- 修复：移除 `BiddingPageHeader.vue` 中的客户商机中心按钮、`UserFilled` 图标、未派发的 `open-manual-add` 事件声明及 `customerOpportunityEnabled` 属性；精简 `List.vue` 与 `useTenderListPage.js` 对应孤立方法与无用导入。
+- 页面更新：更新 [[overview]] §5。
+
 ## [2026-09-04] feat | 案例详情应答片段按 markdown 安全渲染表格
 
 - 触发：`/knowledge/case` 案例详情「应答片段摘要」纯文本展示，投标文件里的表格排版乱；图片/架构图此前被 DualPane XSS（H14）和沉淀剥图（spec 049）拿掉。

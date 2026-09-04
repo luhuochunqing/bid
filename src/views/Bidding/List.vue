@@ -1,12 +1,10 @@
 <template>
   <div class="bidding-list-page">
     <BiddingPageHeader
-      :customer-opportunity-enabled="customerOpportunityCenterEnabled"
       :can-create-tender="canCreateTender"
       :can-bulk-import="canBulkImport"
       :can-sync-external-source="canSyncExternalSource"
       :fetching-tenders="sourceConfig.fetchingTenders.value"
-      @open-customer-opportunities="handleOpenCustomerOpportunityCenter"
       @open-source-config="openSourceConfig"
       @sync-external="sourceConfig.syncExternalTenders"
       @open-bulk-import="bulkImport.openBulkImport"
@@ -192,24 +190,23 @@ import { useTenderListPage } from './list/useTenderListPage.js'
 import { tendersApi } from '@/api/modules/tenders'
 import { useBiddingStore } from '@/stores/bidding'
 import { ElMessage } from 'element-plus'
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive } from 'vue'
 import UserPicker from '@/components/common/UserPicker.vue'
 import './list/styles/list-page.css'
 import './list/styles/table.css'
 import './list/styles/mobile-page.css'
-import { formatUserLabel } from '@/utils/formatUserLabel.js'
 
 const {
   searchForm, viewMode, isMobile, loading, currentPage, pageSize,
   filteredTenders, filteredRecommendTenders, displayTenders, statusCounts,
   canManageTenders, canCreateTender, canBulkImport, canDeleteTenders, canSyncExternalSource,
-  customerOpportunityCenterEnabled, showTenderAiEntry,
+  showTenderAiEntry,
   showParsingDialog, parseProgress,
   selection, sourceConfig, manualCreate, bulkImport, marketInsight,
   batchActions, distribution,
   handleSearch, handleReset, handleExport,
   handleViewDetail, handleParticipate, handleViewAllRecommend,
-  handleOpenCustomerOpportunityCenter, openManualAdd, openSourceConfig,
+  openSourceConfig,
   handleAIAnalysis, isAdmin, handleEvaluate,
   handleSortChange,
 } = useTenderListPage()
