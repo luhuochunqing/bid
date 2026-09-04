@@ -3,6 +3,12 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-04] feat | 案例详情应答片段按 markdown 安全渲染表格
+
+- 触发：`/knowledge/case` 案例详情「应答片段摘要」纯文本展示，投标文件里的表格排版乱；图片/架构图此前被 DualPane XSS（H14）和沉淀剥图（spec 049）拿掉。
+- 结论：Phase 1 只改 `CaseDetailDialog`，`responseText` 走 `renderSafeMarkdown`（允许 table，不允许 img）。复用仍复制原文。真图不在本任务。
+- 页面更新：更新 [[knowledge-base]] §4.2.3 / §4.2.4。
+
 ## [2026-09-04] refactor | 标书质量核查与资质提取模块 AI Slop 清理与代码去重
 
 - 触发：/ai-slop-cleaner 扫描发现 `TenderRequirementsParser` 与 `LlmVerdictParser` 重复实现 35 行 `extractJsonObject`，且存在多余包装函数与冗余判重。

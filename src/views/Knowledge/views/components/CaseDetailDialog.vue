@@ -35,7 +35,8 @@
         </div>
       </div>
       <div class="word-count-hint">共 {{ (caseData?.responseText || '').length }} 字</div>
-      <div class="content-box response-box">{{ caseData.responseText || '暂无应答内容' }}</div>
+      <div v-if="hasResponseText" class="content-box response-box" v-html="responseHtml"></div>
+      <div v-else class="content-box response-box">暂无应答内容</div>
 
       <!-- 3. 案例元信息（双列网格布局展示） -->
       <div class="section-title mt-4">案例元信息</div>
@@ -63,6 +64,7 @@
 import { computed } from 'vue'
 import { Link, Document, CopyDocument } from '@element-plus/icons-vue'
 import DateTimeDisplay from '@/components/common/DateTimeDisplay.vue'
+import { renderSafeMarkdown } from '@/components/common/doc-insight/markdownSanitizer.js'
 import { getProjectTypeLabel, getCustomerTypeLabel, getMatchLabel, getMatchTagType, parseStringOrArray } from '../caseLabels.js'
 
 const props = defineProps({
@@ -89,6 +91,16 @@ const matchLabelTagType = computed(() => getMatchTagType(displayMatchScore.value
 
 const matchReasonsList = computed(() => parseStringOrArray(props.caseData?.matchReasons))
 const matchedKeywordsList = computed(() => parseStringOrArray(props.caseData?.matchedKeywords))
+
+const hasResponseText = computed(() => {
+  const raw = props.caseData?.responseText
+  return typeof raw === 'string' && raw.trim().length > 0
+})
+
+const responseHtml = computed(() => {
+  if (!hasResponseText.value) return ''
+  return renderSafeMarkdown(props.caseData.responseText)
+})
 
 const bidResultLabel = computed(() => {
   const r = props.caseData?.bidResult
@@ -157,7 +169,11 @@ const bidResultType = computed(() => {
 .case-desc { margin-bottom: 16px; }
 .content-box { background-color: var(--el-fill-color-light); border-radius: 6px; padding: 12px; font-size: 13px; line-height: 1.6; color: var(--el-text-color-regular); white-space: pre-wrap; border: 1px solid var(--el-border-color-lighter); }
 .requirement-box { max-height: 150px; overflow-y: auto; font-family: 'Courier New', Courier, monospace; }
-.response-box { max-height: 240px; overflow-y: auto; }
+.response-box { max-height: 240px; overflow: auto; }
+.response-box :deep(table) { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 12px; white-space: normal; }
+.response-box :deep(th),
+.response-box :deep(td) { border: 1px solid var(--el-border-color); padding: 6px 8px; text-align: left; }
+.response-box :deep(th) { background: var(--el-fill-color); font-weight: 600; }
 .word-count-hint { font-size: 12px; color: var(--el-text-color-secondary); text-align: right; margin-bottom: 6px; padding-right: 4px; }
 .response-title { display: flex; align-items: center; justify-content: space-between; }
 .response-title .title-actions { display: flex; align-items: center; }
