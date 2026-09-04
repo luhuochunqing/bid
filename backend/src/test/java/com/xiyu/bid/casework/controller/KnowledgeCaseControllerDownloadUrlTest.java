@@ -117,4 +117,21 @@ class KnowledgeCaseControllerDownloadUrlTest {
 
         verify(caseDownloadUrlAppService, never()).signDownloadUrl(anyLong());
     }
+
+    @Test
+    @WithMockUser(authorities = "project")
+    void downloadUrl_nonSalesRole_returns200AndSigns() throws Exception {
+        // 正向锚定：非销售角色（bid-Team）显式解析后仍可下载，防止闸门误伤所有角色
+        when(currentUserResolver.getCurrentRoleCode()).thenReturn("bid-Team");
+        when(caseDownloadUrlAppService.signDownloadUrl(1L)).thenReturn(
+                new CaseDownloadUrlAppService.DownloadUrlResult(
+                        "https://ehsy-widbid.obs.cn-east-3.myhuaweicloud.com/x?Signature=s",
+                        "项目复盘-中广核.docx", 300));
+
+        mockMvc.perform(get("/api/cases/1/download-url"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.url").value("https://ehsy-widbid.obs.cn-east-3.myhuaweicloud.com/x?Signature=s"));
+
+        verify(caseDownloadUrlAppService).signDownloadUrl(1L);
+    }
 }
