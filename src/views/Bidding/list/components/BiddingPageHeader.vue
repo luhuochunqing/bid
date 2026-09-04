@@ -5,10 +5,6 @@
       <p class="page-subtitle">AI智能匹配，发现优质商机</p>
     </div>
     <div class="header-actions">
-      <el-button v-if="customerOpportunityEnabled" @click="$emit('open-customer-opportunities')">
-        <el-icon><UserFilled /></el-icon>
-        客户商机中心
-      </el-button>
       <el-button v-if="canSyncExternalSource" type="primary" @click="$emit('open-source-config')">
         <el-icon><Setting /></el-icon>
         标讯源配置
@@ -36,10 +32,9 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
-import { Download, Plus, Setting, Upload, UserFilled } from '@element-plus/icons-vue'
+import { Download, Plus, Setting, Upload } from '@element-plus/icons-vue'
 
 defineProps({
-  customerOpportunityEnabled: { type: Boolean, default: true },
   canCreateTender: { type: Boolean, default: false },
   canSyncExternalSource: { type: Boolean, default: false },
   canBulkImport: { type: Boolean, default: false },
@@ -47,10 +42,8 @@ defineProps({
 })
 
 defineEmits([
-  'open-customer-opportunities',
   'open-source-config',
   'sync-external',
-  'open-manual-add',
   'open-bulk-import'
 ])
 

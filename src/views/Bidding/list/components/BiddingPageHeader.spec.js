@@ -11,7 +11,6 @@ vi.mock('vue-router', () => ({
 function mountHeader(props = {}) {
   return shallowMount(BiddingPageHeader, {
     props: {
-      customerOpportunityEnabled: true,
       canCreateTender: false,
       canSyncExternalSource: false,
       fetchingTenders: false,
@@ -30,7 +29,7 @@ describe('BiddingPageHeader permissions', () => {
   it('shows manual create but keeps source sync hidden for bid_specialist users', () => {
     const wrapper = mountHeader({ canCreateTender: true })
 
-    expect(wrapper.text()).toContain('客户商机中心')
+    expect(wrapper.text()).not.toContain('客户商机中心')
     expect(wrapper.text()).not.toContain('标讯源配置')
     expect(wrapper.text()).not.toContain('一键获取标讯')
     expect(wrapper.text()).toContain('人工录入')

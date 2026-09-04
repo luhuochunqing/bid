@@ -55,7 +55,6 @@ export function useTenderListPage() {
   const canBulkImport = computed(() => permissions.value.canCreateTender && userRole.value !== 'bid-projectLeader')
   const canDeleteTenders = computed(() => permissions.value.canDeleteTenders)
   const canSyncExternalSource = computed(() => permissions.value.canSyncExternalSource)
-  const customerOpportunityCenterEnabled = computed(() => isAdmin.value)
   const showTenderAiEntry = computed(() => true)
   const currentUserId = computed(() => userStore.currentUser?.id)
   const tenders = computed(() => biddingStore.tenders || [])
@@ -217,15 +216,6 @@ export function useTenderListPage() {
     viewMode.value = 'all'
   }
 
-  const handleOpenCustomerOpportunityCenter = () => {
-    router.push('/bidding/customer-opportunities')
-  }
-
-  const openManualAdd = () => {
-    if (!canCreateTender.value) return ElMessage.error('当前账号无权人工录入标讯')
-    manualCreate.showManualAdd.value = true
-  }
-
   const openSourceConfig = () => {
     if (!canSyncExternalSource.value) return ElMessage.error('当前账号无权配置标讯源')
     sourceConfig.showSourceConfig.value = true
@@ -279,7 +269,6 @@ export function useTenderListPage() {
     canBulkImport,
     canDeleteTenders,
     canSyncExternalSource,
-    customerOpportunityCenterEnabled,
     currentUserId,
     showTenderAiEntry,
     showParsingDialog,
@@ -298,8 +287,6 @@ export function useTenderListPage() {
     handleParticipate,
     handleEvaluate,
     handleViewAllRecommend,
-    handleOpenCustomerOpportunityCenter,
-    openManualAdd,
     openSourceConfig,
     handleAIAnalysis,
     handleSortChange,
