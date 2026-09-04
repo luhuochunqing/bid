@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
-updated: 2026-09-02
-health_checked: 2026-09-02
+updated: 2026-09-04
+health_checked: 2026-09-04
 sources:
   - specs/041-ai-score-parse-backend/spec.md
   - specs/041-ai-score-parse-backend/plan.md
@@ -79,6 +79,9 @@ trigger（同步<1s，互斥校验+建任务）
 
 - 返回语义：`tier`（NONE/PARTIAL/FULL）+ `ratio`（0~1）
 - tier 规则：0 命中=NONE；存在标记项/降级匹配/比例<100%=PARTIAL；100%=FULL
+- **类别只看因素名 `dim`，不扫细则 `detail`（1371）**：细则里的「人员配置 / 品牌覆盖 / 授权」不得把财务项送进人员库、把技术方案送进品牌库。`KnowledgeCategoryPolicy.categorize` 对空白 `dim` 返回 OTHER。
+- **仓库估计不以招标长句 LIKE 仓名，也不按「有在用仓」打满分（1371）**：`EstimatedScoreService` 不把细则切词当 `nameKeywords`；只有 `extractMinArea` 抽到正数才调 `WarehouseMatchService`。抽不到面积 → PENDING，禁止存在性 FULL。覆盖：`EstimatedScoreServiceTest`（无约束不调 match；5000㎡ 锁 `minArea`）。HTTP `/warehouse/match` 仍接受调用方自己的名称/面积。`Project1371ColumnInvariantsTest` 只锁召回权重/分类/物理序，不锁仓库估计。
+- **前端行身份用 `item.id`**：局部编号 `1/2` 会跨组重复，`ScoreParseTable` 禁止 `:key="item.code"`；打分结果 `lookupScoreResult` 优先 `scoreItemId`。
 
 ## 5. 阶段化打分（US3/US4）
 

@@ -5,7 +5,6 @@ import {
   CIRCUIT_MESSAGE,
   circuitHintFromMeta,
   scoringSkipHint,
-  mapScoreResults,
   hasMeaningfulResults,
 } from './scoreParseSpendGuard.js'
 
@@ -40,12 +39,5 @@ describe('scoreParseSpendGuard — spec 044 花费守卫纯函数', () => {
     expect(hasMeaningfulResults([{ status: 'PENDING', actualScore: null }])).toBe(false)
     expect(hasMeaningfulResults([{ actualScore: 6 }])).toBe(true)
     expect(hasMeaningfulResults([{ quote: '第 3 章' }])).toBe(true)
-  })
-
-  it('mapScoreResults 按 code 建表', () => {
-    const map = mapScoreResults([
-      { code: 'D1', scoreType: 'OBJECTIVE', actualScore: 6, status: 'OK' },
-    ])
-    expect(map.D1.actualScore).toBe(6)
   })
 })

@@ -104,6 +104,21 @@ class WarehouseMatchServiceTest {
     }
 
     @Test
+    @DisplayName("匹配服务：调用方未给名称/面积时按在用仓匹配 → FULL（估计层不得发无约束请求）")
+    void noNameKeywords_inUseWarehouse_full() {
+        when(repository.findAll(any(Specification.class))).thenReturn(List.of(
+                warehouse(1L, "上海仓", "华东", "3000", "在用")));
+        WarehouseMatchRequest request = new WarehouseMatchRequest(null, null, null, null);
+
+        KnowledgeMatchResult result = service.match(request);
+
+        assertThat(result.tier()).isEqualTo("FULL");
+        assertThat(result.matchRatio()).isEqualTo(100);
+        assertThat(result.matched()).hasSize(1);
+        assertThat(result.matchDetail()).contains("仓库");
+    }
+
+    @Test
     @DisplayName("空结果 → NONE/0 不抛错（FR-024）")
     void noMatch_empty() {
         when(repository.findAll(any(Specification.class))).thenReturn(List.of());

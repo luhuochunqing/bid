@@ -4240,5 +4240,33 @@ if (cleanPart.length() >= 4) {
 | 试图用机械滑窗（n-gram）提高召回率 | 为了让子串能被模糊匹配到，粗暴切出全部 2-gram 字符，导致无语义碎片污染展示词与匹配原因 | 实体抽取必须走语义规则与层级前缀剥离，展示词绝对禁止暴露机械滑动切片产物 |
 | 单测全绿但线上依然存在 bug（测试不测根因） | 测试只测了新改的局部分词函数，未针对线上真实的完整数据链路（真实项目名称输入）编写回归用例 | 针对复现的 bug 必须编写包含真实生产/测试样本的端到端策略测试，并确保红转绿 |
 
+---
+
+## 224. 评分解析四列契约：分类扫细则、仓库无约束满分、行身份用局部编号（PR !2547 / 2026-09-04）
+
+**背景**：
+winbid-test 项目 1371（Project 21 MRO）评分标准四列反复错：财务权重被档位分顶替、财务项匹配成人员、库里有仓仍显示不满足、局部编号 `1/2` 跨组插队。约 100 次 prompt/正则修补不粘。PR !2547 把四列钉成金标后，审查发现仓库列被修成「有一座在用仓即 FULL」。
+
+**根因**：
+1. **分类扫 `dim+detail`**：细则里的「人员配置 / 品牌覆盖 / 授权」决定知识库类别，财务/技术方案被送进人员库/品牌库。
+2. **仓库 `nameKeywords` 来自细则切词**：招标长句 `LIKE` 仓名，空匹配 → 假阴性「不满足」。纠偏时把 `nameKeywords` 置空，匹配层只滤在用仓，`MatchTierPolicy` 要求数 null 当分母 1 → 有仓即 FULL（假阳性满分）。
+3. **行 `:key` / 结果表用局部 `code`**：商务/技术复用 `1/2`，财务行渲染成人员行满足状态。
+4. **测试锁 helper 不锁生产链**：金标只跑 `recall()+sort()+categorize()`，仓库「禁止 LIKE」写在测试名里，却 `findAll(any(Specification))` 或 mock FULL。
+
+**修复（PR !2547）**：
+- 分类只看因素名 `dim`；因素名含「方案」→ OTHER。
+- 仓库估计：抽到正数面积才调 `WarehouseMatchService`；抽不到 → PENDING，禁止存在性满分。面积正则覆盖千分位/小数，`≤0` 当抽取失败。
+- 前端 `lookupScoreResult` 按 `id:` 查找，有 id 不回退 code；表格 `:key` 用 `item.id`。
+- 父维编号重复时 `ScoreItemOrderPolicy` 保持物理行序。
+
+**教训**：
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| 用存在性满分修假阴性 LIKE | 看到「库里有仓却不满足」就关掉名称过滤 | 抽不到可执行约束（面积/覆盖/点名仓）必须 PENDING，不得 `WarehouseMatchRequest(null,null,null,null)` |
+| 金标 DisplayName 夸大覆盖 | 测试名写「禁止 LIKE / 局部 1/2」，夹具 code 为空、match 被 mock | 用户可见列必须走到 `estimateForProject`；用 ArgumentCaptor 锁 `minArea`/`nameKeywords`，禁止 `any(Specification)` 冒充无 LIKE |
+| 局部编号当行身份 | Vue `:key="item.code"` + `results[code]` | 落库后身份是 `item.id`；lookup 有 id 时 fail-closed，不得回退 code |
+
+**相关**：`docs/implementation-notes/scoreparse-1371-column-invariants.md`；`.wiki/pages/score-parse-service.md`；§194（排序层级，本条补仓库/分类/行身份）。
+
 
 

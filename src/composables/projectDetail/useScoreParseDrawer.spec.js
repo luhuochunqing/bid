@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useScoreParseDrawer } from './useScoreParseDrawer.js'
+import { lookupScoreResult } from './scoreParseTask.js'
 import { scoreParseApi } from '@/api/modules/scoreParse.js'
 import { ElMessage } from 'element-plus'
 
@@ -256,9 +257,9 @@ describe('useScoreParseDrawer.js', () => {
     expect(scoreParseApi.getScoringStatus).toHaveBeenCalledWith(99)
     expect(scoreParseApi.getResults).toHaveBeenCalledWith(99)
     expect(drawer.scored.value).toBe(true)
-    expect(drawer.scoreResults.value['D1'].score).toBe(6)
-    expect(drawer.scoreResults.value['D1'].basis).toBe('标书第 3 章提供系统集成证书复印件')
-    expect(drawer.scoreResults.value['A1'].evalText).toBe('待确认')
+    expect(lookupScoreResult(drawer.scoreResults.value, { id: 2, code: 'D1' }).score).toBe(6)
+    expect(lookupScoreResult(drawer.scoreResults.value, { id: 2, code: 'D1' }).basis).toBe('标书第 3 章提供系统集成证书复印件')
+    expect(lookupScoreResult(drawer.scoreResults.value, { id: 1, code: 'A1' }).evalText).toBe('待确认')
     expect(drawer.actualTotalScore.value).toBe(6)
   })
 
@@ -319,8 +320,8 @@ describe('useScoreParseDrawer.js', () => {
     await drawer.open({ stage: 2, autoScore: true })
 
     expect(drawer.scored.value).toBe(true)
-    expect(drawer.scoreResults.value['A1'].evalText).toBe('待确认')
-    expect(drawer.scoreResults.value['A1'].missedReason).toContain('投标文件解析失败')
+    expect(lookupScoreResult(drawer.scoreResults.value, { id: 1, code: 'A1' }).evalText).toBe('待确认')
+    expect(lookupScoreResult(drawer.scoreResults.value, { id: 1, code: 'A1' }).missedReason).toContain('投标文件解析失败')
   })
 
   it('reparse triggers real parse task and refreshes items (FR-021)', async () => {

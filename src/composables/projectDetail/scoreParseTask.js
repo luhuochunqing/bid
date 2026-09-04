@@ -1,6 +1,7 @@
 // Input: statusFetcher（返回 { data: { status, errorMessage, completedAt } } 的函数）
 // Output: pollTask / formatTime / STATUS_MAP / TYPE_MAP — spec 041 状态映射与任务轮询纯函数
 //         normalizeScoreItem：客观项空 estScore 保留 null（展示层渲染"待确认"，spec 044 FR-001）
+//         mapScoreResults / lookupScoreResult：按 scoreItemId 建表，有 id 时不得回退 code
 // Pos: src/composables/projectDetail/ - 无状态辅助模块
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -76,6 +77,31 @@ export function normalizeScoreItem(s, i) {
     validationStatus: s.validationStatus || '',
     parentScoreItemId: s.parentScoreItemId || null,
   }
+}
+
+export function mapScoreResults(results) {
+  const resultMap = Object.create(null)
+  for (const row of results || []) {
+    const normalized = normalizeScoreResult(row)
+    if (row.scoreItemId != null) {
+      resultMap[`id:${row.scoreItemId}`] = normalized
+    }
+    if (row.code != null && resultMap[`code:${row.code}`] == null) {
+      resultMap[`code:${row.code}`] = normalized
+    }
+  }
+  return resultMap
+}
+
+export function lookupScoreResult(results, item) {
+  if (!results || !item) return null
+  if (item.id != null) {
+    return results[`id:${item.id}`] ?? null
+  }
+  if (item.code != null) {
+    return results[`code:${item.code}`] ?? results[item.code] ?? null
+  }
+  return null
 }
 
 export function normalizeScoreResult(r) {

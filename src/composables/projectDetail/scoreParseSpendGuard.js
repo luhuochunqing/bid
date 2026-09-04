@@ -1,8 +1,6 @@
 // Input: drawer silent/scope flags
 // Output: parse/scoring request body and skip hint helpers (spec 044)
 
-import { normalizeScoreResult } from './scoreParseTask.js'
-
 export function parseTriggerSource(silent) {
   return silent ? 'AUTO' : 'MANUAL'
 }
@@ -27,14 +25,6 @@ export function scoringSkipHint(data) {
     return data.hint || '文件未变化'
   }
   return data?.hint || ''
-}
-
-export function mapScoreResults(results) {
-  const resultMap = {}
-  for (const row of results || []) {
-    resultMap[row.code] = normalizeScoreResult(row)
-  }
-  return resultMap
 }
 
 export function hasMeaningfulResults(results) {

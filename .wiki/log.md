@@ -3,6 +3,12 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-04] fix | 1371 评分解析四列契约：分类只看 dim、仓库无约束不得满分、行身份用 item.id
+
+- 触发：winbid-test `/project/1371` 四列反复错（权重/分类/仓库满足/顺序）；审查否决「有在用仓即 FULL」。
+- 结论：分类只扫因素名；仓库估计抽不到正数面积则 PENDING；前端 lookup/` :key` 走 `item.id`。金标 `Project1371ColumnInvariantsTest` 只锁召回权重/分类/物理序，仓库估计锁在 `EstimatedScoreServiceTest`。
+- 页面更新：更新 [[score-parse-service]] §4；lessons-learned.md §224。
+
 ## [2026-09-04] fix | 移除标讯中心顶栏客户商机中心入口与清理死代码
 
 - 触发：用户要求移除 `/bidding` 页面顶部的「客户商机中心」入口按钮；执行 `/ai-slop-cleaner` 扫描清理死代码。

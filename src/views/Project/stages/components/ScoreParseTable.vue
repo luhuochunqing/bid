@@ -19,7 +19,7 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="item in items" :key="item.code">
+        <tr v-for="(item, index) in items" :key="item.id != null ? 'id-' + item.id : 'row-' + index" :data-item-id="item.id">
           <td class="code-cell">{{ item.code }}</td>
           <td class="req-cell original-text-cell">{{ item.detail || item.req }}</td>
           <td class="dim-cell">{{ item.dim }}</td>
@@ -39,10 +39,10 @@
           </td>
           <td class="score-cell" :class="getScoreClass(item)">
             {{ getScoreText(item) }}
-            <span v-if="mode === 'actual' && results[item.code]?.reuseKind === 'REUSED'" class="pill neutral">沿用</span>
+            <span v-if="mode === 'actual' && resultOf(item)?.reuseKind === 'REUSED'" class="pill neutral">沿用</span>
           </td>
           <td style="text-align: center">
-            <button class="btn-detail" @click="$emit('open-detail', item, results[item.code] || null, mode)">
+            <button type="button" class="btn-detail" :aria-label="'查看' + (item.dim || item.code || '') + '得分依据'" @click="$emit('open-detail', item, resultOf(item), mode)">
               详情
             </button>
           </td>
@@ -76,6 +76,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { lookupScoreResult } from '@/composables/projectDetail/scoreParseTask.js'
 
 const props = defineProps({
   items: { type: Array, required: true },
@@ -92,9 +93,13 @@ const props = defineProps({
 
 defineEmits(['open-detail'])
 
+function resultOf(item) {
+  return lookupScoreResult(props.results, item)
+}
+
 function getItemStatus(item) {
   if (props.mode === 'actual') {
-    const res = props.results[item.code]
+    const res = resultOf(item)
     return res?.status || 'neutral'
   }
   return item.status || 'neutral'
@@ -109,7 +114,7 @@ function getItemStatusText(item) {
 
 function getScoreText(item) {
   if (props.mode === 'actual') {
-    const res = props.results[item.code]
+    const res = resultOf(item)
     if (!res) return '—'
     const actual = res.actualScore ?? res.score
     if (res.status === 'subjective' || item.scoreType === '主观项' || actual === null || actual === undefined) return '待确认'
@@ -124,7 +129,7 @@ function getScoreText(item) {
 
 function getScoreClass(item) {
   if (props.mode === 'actual') {
-    const res = props.results[item.code]
+    const res = resultOf(item)
     if (!res) return 'na'
     const actual = res.actualScore ?? res.score
     if (res.status === 'subjective' || item.scoreType === '主观项' || actual === null || actual === undefined) return 'subjective'
@@ -161,7 +166,7 @@ const currentHighlightScore = computed(() => {
     let score = 0
     for (const item of props.items) {
       if (item.scoreType === '客观项') {
-        const res = props.results[item.code]
+        const res = resultOf(item)
         const val = res?.actualScore ?? res?.score
         if (typeof val === 'number') {
           score += val

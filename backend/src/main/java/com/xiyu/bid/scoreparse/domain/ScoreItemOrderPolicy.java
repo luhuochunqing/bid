@@ -5,9 +5,12 @@
 package com.xiyu.bid.scoreparse.domain;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -16,7 +19,7 @@ import java.util.regex.Pattern;
  * <p>核心纪律：
  * <ul>
  *   <li>1. 以文档大类/章节出现顺序（如 商务评分 -> 技术评分 -> 报价评分）或表格自然顺序为第一关键字；</li>
- *   <li>2. 在同一大类/同一父维度内部，按子编号（1, 2...）数值序进行局部重排；</li>
+ *   <li>2. 同一父维度内编号唯一时，按子编号（1, 2...）数值序局部重排；编号重复则保持表格物理行序；</li>
  *   <li>3. 严禁跨大类/跨维度全局扁平排序（防止不同维度的 1, 2, 3 被强行交叉杂糅）；</li>
  *   <li>4. 同一组内不可解析编码（A1/B2/null/空白）稳定保持相对输入序，排在该组有编号项之后。</li>
  * </ul>
@@ -34,18 +37,6 @@ public class ScoreItemOrderPolicy {
             return List.of();
         }
 
-        // 统计各大类与父维度的首次出现位置（保持文档原文的先后自然顺序）
-        Map<String, Integer> topCategoryFirstSeen = new LinkedHashMap<>();
-        Map<String, Integer> parentDimFirstSeen = new LinkedHashMap<>();
-        for (int i = 0; i < candidates.size(); i++) {
-            ScoreCandidate c = candidates.get(i);
-            String topCat = extractTopCategory(c == null ? null : c.dim());
-            String parentDim = extractParentDim(c == null ? null : c.dim());
-            topCategoryFirstSeen.putIfAbsent(topCat, i);
-            parentDimFirstSeen.putIfAbsent(parentDim, i);
-        }
-
-        // 包装候选及其原始输入索引与提取的 key
         record IndexedCandidate(
                 ScoreCandidate candidate,
                 int originalIndex,
@@ -54,13 +45,33 @@ public class ScoreItemOrderPolicy {
                 CodeKey codeKey
         ) {}
 
+        Map<String, Integer> topCategoryFirstSeen = new LinkedHashMap<>();
+        Map<String, Integer> parentDimFirstSeen = new LinkedHashMap<>();
         List<IndexedCandidate> list = new ArrayList<>(candidates.size());
         for (int i = 0; i < candidates.size(); i++) {
             ScoreCandidate c = candidates.get(i);
             String topCat = extractTopCategory(c == null ? null : c.dim());
             String parentDim = extractParentDim(c == null ? null : c.dim());
-            CodeKey key = c == null ? null : parseKey(c.code());
-            list.add(new IndexedCandidate(c, i, topCat, parentDim, key));
+            topCategoryFirstSeen.putIfAbsent(topCat, i);
+            parentDimFirstSeen.putIfAbsent(parentDim, i);
+            list.add(new IndexedCandidate(c, i, topCat, parentDim,
+                    c == null ? null : parseKey(c.code())));
+        }
+
+        Map<String, Set<String>> seenByParent = new HashMap<>();
+        Set<String> parentsWithDuplicateCodes = new HashSet<>();
+        for (IndexedCandidate item : list) {
+            if (item.codeKey == null || item.candidate == null || item.candidate.code() == null) {
+                continue;
+            }
+            String code = item.candidate.code().trim();
+            if (code.isEmpty()) {
+                continue;
+            }
+            Set<String> seen = seenByParent.computeIfAbsent(item.parentDim, key -> new HashSet<>());
+            if (!seen.add(code)) {
+                parentsWithDuplicateCodes.add(item.parentDim);
+            }
         }
 
         list.sort((a, b) -> {
@@ -78,7 +89,12 @@ public class ScoreItemOrderPolicy {
                 return Integer.compare(parentOrderA, parentOrderB);
             }
 
-            // 3. 第三关键字：同父维度内部，按编号数值序（1, 2, 3...）重排
+            // 3. 同一父格内编号重复（财务 1 与网点 1 被塌成同一父维度）时保持表格物理行序
+            if (parentsWithDuplicateCodes.contains(a.parentDim)) {
+                return Integer.compare(a.originalIndex, b.originalIndex);
+            }
+
+            // 4. 同父维度且编号唯一：按局部编号数值序
             if (a.codeKey != null && b.codeKey != null) {
                 int byMajor = Integer.compare(a.codeKey.major(), b.codeKey.major());
                 if (byMajor != 0) {
@@ -89,43 +105,38 @@ public class ScoreItemOrderPolicy {
                     return byMinor;
                 }
             } else if (a.codeKey != null) {
-                return -1; // 同维度内有编号排在前
+                return -1;
             } else if (b.codeKey != null) {
                 return 1;
             }
 
-            // 4. 第四关键字：保持原始相对输入序
             return Integer.compare(a.originalIndex, b.originalIndex);
         });
 
         return list.stream().map(IndexedCandidate::candidate).toList();
     }
 
-    private String extractTopCategory(String dim) {
+    private String[] splitDim(String dim) {
         if (dim == null || dim.isBlank()) {
-            return "";
+            return new String[0];
         }
-        String trimmed = dim.trim();
-        String[] parts = trimmed.split("\\s*[/／\\\\]\\s*");
-        if (parts.length > 1) {
-            return normalizeCategoryName(parts[0]);
-        }
-        return normalizeCategoryName(trimmed);
+        return dim.trim().split("\\s*[/／\\\\]\\s*");
+    }
+
+    private String extractTopCategory(String dim) {
+        String[] parts = splitDim(dim);
+        return parts.length == 0 ? "" : normalizeCategoryName(parts[0]);
     }
 
     private String extractParentDim(String dim) {
-        if (dim == null || dim.isBlank()) {
+        String[] parts = splitDim(dim);
+        if (parts.length == 0) {
             return "";
         }
-        String trimmed = dim.trim();
-        String[] parts = trimmed.split("\\s*[/／\\\\]\\s*");
-        if (parts.length > 2) {
+        if (parts.length >= 2) {
             return normalizeCategoryName(parts[0]) + "/" + parts[1].trim();
         }
-        if (parts.length == 2) {
-            return normalizeCategoryName(parts[0]) + "/" + parts[1].trim();
-        }
-        return normalizeCategoryName(trimmed);
+        return normalizeCategoryName(parts[0]);
     }
 
     private String normalizeCategoryName(String raw) {
