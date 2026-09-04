@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { STATUS_MAP, TYPE_MAP, formatTime, pollTask, normalizeScoreItem, normalizeScoreResult } from './scoreParseTask.js'
+import { STATUS_MAP, TYPE_MAP, formatTime, pollTask, normalizeScoreItem, normalizeScoreResult, mapScoreResults, lookupScoreResult } from './scoreParseTask.js'
 
 describe('scoreParseTask — spec 041 状态映射与任务轮询纯函数', () => {
   beforeEach(() => {
@@ -124,6 +124,25 @@ describe('scoreParseTask — spec 041 状态映射与任务轮询纯函数', () 
       const r = normalizeScoreResult({ code: 'B1', scoreType: 'OBJECTIVE', status: 'PENDING', actualScore: null, missedReason: '投标文件解析失败' })
       expect(r.actualScore).toBeNull()
       expect(r.evalText).toBe('待确认')
+    })
+  })
+
+  describe('mapScoreResults / lookupScoreResult', () => {
+    it('mapScoreResults 按 code 建表', () => {
+      const map = mapScoreResults([
+        { code: 'D1', scoreType: 'OBJECTIVE', actualScore: 6, status: 'OK' },
+      ])
+      expect(lookupScoreResult(map, { code: 'D1' }).actualScore).toBe(6)
+    })
+
+    it('有 id 时不得回退 code：重复编号互不串行', () => {
+      const map = mapScoreResults([
+        { scoreItemId: 101, code: '1', actualScore: null, status: 'PENDING' },
+        { scoreItemId: 102, code: '1', actualScore: 10, status: 'OK' },
+      ])
+      expect(lookupScoreResult(map, { id: 102, code: '1' }).actualScore).toBe(10)
+      expect(lookupScoreResult(map, { id: 101, code: '1' }).status).toBe('neutral')
+      expect(lookupScoreResult(map, { id: 999, code: '1' })).toBeNull()
     })
   })
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useScoreParseDrawer } from './useScoreParseDrawer.js'
-import { lookupScoreResult } from './scoreParseSpendGuard.js'
+import { lookupScoreResult } from './scoreParseTask.js'
 import { scoreParseApi } from '@/api/modules/scoreParse.js'
 import { ElMessage } from 'element-plus'
 

@@ -5,8 +5,6 @@ import {
   CIRCUIT_MESSAGE,
   circuitHintFromMeta,
   scoringSkipHint,
-  mapScoreResults,
-  lookupScoreResult,
   hasMeaningfulResults,
 } from './scoreParseSpendGuard.js'
 
@@ -41,22 +39,5 @@ describe('scoreParseSpendGuard — spec 044 花费守卫纯函数', () => {
     expect(hasMeaningfulResults([{ status: 'PENDING', actualScore: null }])).toBe(false)
     expect(hasMeaningfulResults([{ actualScore: 6 }])).toBe(true)
     expect(hasMeaningfulResults([{ quote: '第 3 章' }])).toBe(true)
-  })
-
-  it('mapScoreResults 按 code 建表', () => {
-    const map = mapScoreResults([
-      { code: 'D1', scoreType: 'OBJECTIVE', actualScore: 6, status: 'OK' },
-    ])
-    expect(lookupScoreResult(map, { code: 'D1' }).actualScore).toBe(6)
-  })
-
-  it('有 id 时不得回退 code：重复编号互不串行', () => {
-    const map = mapScoreResults([
-      { scoreItemId: 101, code: '1', actualScore: null, status: 'PENDING' },
-      { scoreItemId: 102, code: '1', actualScore: 10, status: 'OK' },
-    ])
-    expect(lookupScoreResult(map, { id: 102, code: '1' }).actualScore).toBe(10)
-    expect(lookupScoreResult(map, { id: 101, code: '1' }).status).toBe('neutral')
-    expect(lookupScoreResult(map, { id: 999, code: '1' })).toBeNull()
   })
 })

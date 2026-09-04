@@ -6,8 +6,8 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { scoreParseApi } from '@/api/modules/scoreParse.js'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
-import { formatTime, pollTask, normalizeScoreItem } from './scoreParseTask.js'
-import { parseTriggerSource, scoringBody, scoringSkipHint, mapScoreResults, lookupScoreResult, hasMeaningfulResults, circuitHintFromMeta } from './scoreParseSpendGuard.js'
+import { formatTime, pollTask, normalizeScoreItem, mapScoreResults, lookupScoreResult } from './scoreParseTask.js'
+import { parseTriggerSource, scoringBody, scoringSkipHint, hasMeaningfulResults, circuitHintFromMeta } from './scoreParseSpendGuard.js'
 
 export function useScoreParseDrawer(props, emit) {
   const visible = ref(false)

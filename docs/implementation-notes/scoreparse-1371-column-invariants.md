@@ -28,8 +28,9 @@ mvn test -Dtest=Project1371ColumnInvariantsTest,KnowledgeCategoryPolicyTest,Esti
 # 全绿
 
 npx vitest run src/views/Project/stages/components/ScoreParseTable.spec.js \
+  src/composables/projectDetail/scoreParseTask.spec.js \
   src/composables/projectDetail/scoreParseSpendGuard.spec.js
-# 10 passed
+# ScoreParseTable + task mapping + spendGuard 花费守卫全绿
 ```
 
 存量 `score_item` 不会自动纠正，1371 需在测试环境重新解析后验收。

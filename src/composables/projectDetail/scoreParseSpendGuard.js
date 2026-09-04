@@ -1,8 +1,6 @@
 // Input: drawer silent/scope flags
 // Output: parse/scoring request body and skip hint helpers (spec 044)
 
-export { mapScoreResults, lookupScoreResult } from './scoreParseTask.js'
-
 export function parseTriggerSource(silent) {
   return silent ? 'AUTO' : 'MANUAL'
 }

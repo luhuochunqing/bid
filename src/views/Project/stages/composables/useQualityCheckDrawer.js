@@ -3,8 +3,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { complianceApi } from '@/api/modules/ai.js'
 import { scoreParseApi } from '@/api/modules/scoreParse.js'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
-import { normalizeScoreItem } from '@/composables/projectDetail/scoreParseTask.js'
-import { mapScoreResults } from '@/composables/projectDetail/scoreParseSpendGuard.js'
+import { normalizeScoreItem, mapScoreResults } from '@/composables/projectDetail/scoreParseTask.js'
 import { sumObjectiveActualScore } from './qualityCheckDetail.js'
 
 export function useQualityCheckDrawer(props, emit) {
