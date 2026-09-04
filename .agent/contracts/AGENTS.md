@@ -74,21 +74,18 @@
 
 ## 协作暗号
 
-- **"早操SOP"** → `git fetch origin && git rebase origin/main && bash scripts/sync-env.sh .`（自动检测 GitHub 镜像状态；如需同步加 `SYNC_TO_GITHUB=1`，仅开发宿主生效）
-- **"早操SOP + 同步 GitHub"** → `SYNC_TO_GITHUB=1 bash scripts/sync-env.sh .`（开发宿主专用，顺便把 Gitee main 推到 GitHub 保持镜像最新）
+- **"早操SOP"** → `git fetch origin && git rebase origin/main && bash scripts/sync-env.sh .`
 - **"开个任务/开个分支 XX"** -> `scripts/agent-start-task.sh <当前agent名> <XX> origin/main`（默认从基准仓库拉独立临时 worktree，纯源码，收尾自动删）
 - **"早操SOP + 开个分支 XX"** -> 先 `sync-env.sh` 同步基线，再 `agent-start-task.sh` 拉临时 worktree
 - **"收个任务/收尾"** → 见下方"收尾流程"小节（主路径：`scripts/agent-finish-task.sh`；手动 fallback：五步流程）
 - **"健康检查"** → `npm run agent:health-check`（聚合开发宿主 sidecar/backend/frontend 健康状态；临时 worktree 不启动开发环境）
 - **"启动开发环境"** → 仅开发宿主（`/Users/user/xiyu/worktrees/trae`）允许执行 `./scripts/start-frontend.sh` / `./scripts/start-backend.sh` / `./scripts/dev-services.sh`；临时 worktree 由脚本守卫拒绝执行
-- **"推 GitHub 镜像"** → `bash scripts/sync-to-github.sh`（Gitee main → GitHub main 单向镜像，含安全检查，禁止反向覆盖）
-- **"同步 GitHub 改动"** → `bash scripts/sync-from-github.sh <commit-or-branch>`（GitHub → Gitee 增量 cherry-pick，禁止 merge/覆盖）
 
 ### 收尾流程
 
 > **"收个任务/收尾"暗号的展开。**
 > **主路径**：直接 `scripts/agent-finish-task.sh`（三重合入检查 + 锁清理 + 切回锚点 + 可选删除远端分支，支持 `--dry-run` 预览）。本节五步流程仅在需要手动逐步处理或排查脚本失败时使用。
-> **主仓库为 Gitee（`origin`）**，禁止使用 `gh pr` / GitHub auto-merge 工作流（自 2026-06 迁移到 Gitee 后已过期，详见 `CLAUDE.md §自动合并`）。
+> **主仓库为 Gitee（`origin`）**，PR 合并走 Gitee 原生流程（人工点击或 Gitee API）；本项目无远程 CI，验证门禁全部在本地跑（`pre-push-gate.sh` + `mvn`/`npm`）。
 
 #### 第 1 步：知识沉淀 + Wiki 更新（在合并 PR 之前）
 
@@ -114,7 +111,7 @@
 - 检查当前任务分支是否有打开的 PR（Gitee）：
   - 优先：通过 Gitee MCP（`mcp_gitee` 的 `list_repo_pulls`）查询
   - 或：`bash scripts/gitee-pr-helper.sh status <当前分支>`
-- 若有打开的 PR，确认 CI 通过后合并：
+- 若有打开的 PR，确认本地验证门禁通过后合并（本项目无远程 CI，验证在本地跑）：
   - 优先：在 Gitee Web UI 点击合并按钮
   - 或：通过 Gitee MCP 的 `merge_pull` 合并
 - 若 PR 有冲突，先告知用户解决冲突再合并（**禁止** `git push --force` 绕过门禁）
@@ -221,7 +218,7 @@
 │
 ├── scripts/               ← 工具脚本（见下）
 │   ├── agent-start-task.sh / agent-finish-task.sh / agent-worktree-guard.sh
-│   ├── sync-env.sh / sync-to-github.sh / sync-from-github.sh
+│   ├── sync-env.sh（早操基线同步：fetch + rebase origin/main）
 │   ├── dev-services.sh / dev-services-launchd.sh / start-frontend.sh / start-backend.sh
 │   ├── pre-commit.sh / pre-push-gate.sh / gitee-pr-helper.sh / pr-create.sh
 │   ├── new-migration.sh / next-migration-version.sh / generate-db-schema.mjs
@@ -231,7 +228,7 @@
 │   └── lib/               ← 共享 lib（agent-lock-store.mjs / doc-governance-checker.mjs）
 │
 ├── .githooks/             ← Git 钩子（pre-commit / pre-push / post-checkout）
-├── .github/workflows/     ← CI workflows（ci.yml / main-release.yml / staging-gate.yml）
+├── .github/workflows/     ← 遗留 workflow 文件（dormant：本项目无远程 CI，不在 Gitee 流程中执行）
 ├── .specify/              ← Spec Kit 配置（templates/ + memory/constitution.md）
 ├── .agent/                ← Multi-Agent 契约（contracts/ + workflows/）
 ├── .agents/skills/        ← 本地 skills（lark-* / xiyu-deploy）
