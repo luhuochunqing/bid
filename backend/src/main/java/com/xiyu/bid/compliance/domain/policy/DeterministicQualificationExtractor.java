@@ -132,30 +132,59 @@ public final class DeterministicQualificationExtractor {
         return WHITESPACE_PATTERN.matcher(noLinebreak).replaceAll(" ").trim();
     }
 
-    private static String cleanItem(final String text) {
-        String clean = LEADING_BULLET_PATTERN.matcher(text).replaceFirst("").trim();
+    static String cleanItem(final String text) {
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+        String clean = text.trim();
+        while (!clean.isEmpty() && isLeadingPunctuation(clean.charAt(0))) {
+            clean = clean.substring(1).trim();
+        }
+        clean = LEADING_BULLET_PATTERN.matcher(clean).replaceFirst("").trim();
+        while (!clean.isEmpty() && isLeadingPunctuation(clean.charAt(0))) {
+            clean = clean.substring(1).trim();
+        }
         clean = LEADING_PREFIX_PATTERN.matcher(clean).replaceFirst("").trim();
-        // 去除尾部多余标点
         while (!clean.isEmpty() && isTrailingPunctuation(clean.charAt(clean.length() - 1))) {
             clean = clean.substring(0, clean.length() - 1).trim();
         }
         return clean;
     }
 
+    private static boolean isLeadingPunctuation(final char c) {
+        return c == '；' || c == ';' || c == '。' || c == '，' || c == ',' || c == '、' || c == '：' || c == ':';
+    }
+
     private static boolean isTrailingPunctuation(final char c) {
         return c == '；' || c == ';' || c == '。' || c == '，' || c == ',' || c == '：' || c == ':';
     }
 
-    private static boolean isValidQualification(final String clean) {
-        if (clean.length() < 4) {
+    static boolean isIntroductoryHeading(final String text) {
+        if (text == null || text.isBlank()) {
+            return true;
+        }
+        String clean = text.trim();
+        if (clean.matches(".*(?:应具有|须具备|应具备|具备|具有|满足|符合)?(?:以下|下列)\\s*(?:证书|资质|条件|要求|证明材料|证明).*")) {
+            return true;
+        }
+        if (clean.matches("^(?:[\\d一二三四五六七八九十.、\\s（\\)]*)"
+                + "(?:供应商|投标人|申请人)?(?:资格要求|资质要求|通用资格条件|专用资格条件|资格条件|资质条件|资质及能力要求)[：:]?$")) {
+            return true;
+        }
+        return clean.endsWith("：") || clean.endsWith(":");
+    }
+
+    static boolean isValidQualification(final String clean) {
+        if (clean == null || clean.length() < 4) {
             return false;
         }
-        // 占位符与无要求过滤
+        if (isIntroductoryHeading(clean)) {
+            return false;
+        }
         if ("/".equals(clean) || "无".equals(clean) || "不适用".equals(clean) || "不要求".equals(clean)
                 || clean.endsWith("：/") || clean.endsWith(":/")) {
             return false;
         }
-        // 排除纯人员/财务/业绩要求（未含证书许可关键字时）
         boolean isIgnoredPrefix = IGNORE_PREFIXES.stream().anyMatch(clean::startsWith);
         if (isIgnoredPrefix && CERTIFICATE_CORE_KEYWORDS.stream().noneMatch(clean::contains)) {
             return false;

@@ -12,7 +12,6 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -37,9 +36,12 @@ public final class QualificationMatchPolicy {
     private static final Pattern STANDARD_CODE_RE = Pattern.compile(
             "(?:iso|gb|iec|cmmi|itss|ccrc|cissp|cisp)[a-z0-9]*");
 
-    /** 常见通用停用词（排除在 LCS 有效重叠外）. */
+    /** 常见通用停用词（排除在 LCS 有效重叠外，严禁仅凭通用证件后缀或行政国字头触发错配）. */
     private static final List<String> STOP_WORDS = List.of(
-            "投标人须具备", "具有有效", "有效期内", "资质证书", "资格证明", "相关资质", "国家认证", "原件复印件");
+            "中华人民共和国", "全国", "中国", "国家", "经营许可证", "许可证", "业务经营许可证", "生产许可证",
+            "资质证书", "资格证书", "资格证明", "资质证明", "认证证书", "备案证明", "登记证书",
+            "管理体系认证", "服务体系认证", "服务认证", "系统认证", "投标人须具备", "供应商须具备",
+            "具有有效", "有效期内", "相关资质", "国家认证", "原件复印件", "独立法人", "民事责任能力", "合法注册");
 
     /** 常见行政/国家级前缀正则（用于归一化剥离，以便核心资质名穿透包含）. */
     private static final Pattern GOV_PREFIX_RE = Pattern.compile("^(?:中华人民共和国|全国|中国|国家)+");
@@ -59,24 +61,31 @@ public final class QualificationMatchPolicy {
      * 智能判定招标要求与资质证书是否匹配（双向模糊匹配）.
      */
     public static boolean isQualificationMatch(final String req, final String certName) {
+        return calculateMatchScore(req, certName) > 0;
+    }
+
+    /**
+     * 计算招标要求与资质证书的相关度打分（分数越高代表匹配度越精确）.
+     */
+    static int calculateMatchScore(final String req, final String certName) {
         if (req == null || req.isBlank() || certName == null || certName.isBlank()) {
-            return false;
+            return 0;
         }
         String normReq = normalize(req);
         String normCert = normalize(certName);
         if (normReq.isEmpty() || normCert.isEmpty()) {
-            return false;
+            return 0;
         }
-
-        // 1. 双向直接包含（长串包含短串，支持剥离中华人民共和国等前缀修饰）
         String strippedReq = stripGovPrefix(normReq);
         String strippedCert = stripGovPrefix(normCert);
+
+        // 1. 双向直接包含（最高优先级：核心证书名穿透包含）
         if (normReq.contains(normCert) || normCert.contains(normReq)
                 || (!strippedCert.isBlank() && normReq.contains(strippedCert))
                 || (!strippedReq.isBlank() && normCert.contains(strippedReq))
                 || (!strippedReq.isBlank() && !strippedCert.isBlank()
                         && (strippedReq.contains(strippedCert) || strippedCert.contains(strippedReq)))) {
-            return true;
+            return 1000 + (strippedCert.isBlank() ? normCert.length() : strippedCert.length()) * 10;
         }
 
         // 2. 标准代号精确重合（如 ISO9001, ISO27001, CMMI3 等）
@@ -84,25 +93,25 @@ public final class QualificationMatchPolicy {
         List<String> certCodes = extractStandardCodes(normCert);
         for (String rc : reqCodes) {
             if (certCodes.contains(rc)) {
-                return true;
+                return 500 + rc.length() * 10;
             }
         }
 
         // 3. 行业专有领域词重合
         for (String term : DOMAIN_TERMS) {
             String normTerm = normalize(term);
-            if (normReq.contains(normTerm) && normCert.contains(normTerm)) {
-                return checkLevelCompatibility(normReq, normCert);
+            if (normReq.contains(normTerm) && normCert.contains(normTerm) && checkLevelCompatibility(normReq, normCert)) {
+                return 200 + normTerm.length() * 10;
             }
         }
 
-        // 4. 最长公共子串 (LCS) 判定：有效重叠 >= 4 字符且非停用词
+        // 4. 最长公共子串 (LCS) 判定：有效重叠 >= 4 字符且非通用停用词
         String lcs = longestCommonSubstring(normReq, normCert);
-        if (lcs.length() >= 4 && !isStopword(lcs)) {
-            return checkLevelCompatibility(normReq, normCert);
+        if (lcs.length() >= 4 && !isStopword(lcs) && checkLevelCompatibility(normReq, normCert)) {
+            return 100 + lcs.length();
         }
 
-        return false;
+        return 0;
     }
 
     /**
@@ -168,70 +177,57 @@ public final class QualificationMatchPolicy {
 
         // 资质库未匹配：检查标书中是否包含证明文本
         List<String> cues = List.of(req, normalize(req));
-        Optional<EvidenceHit> hit = locateInBid(bidDoc, cues);
-        if (hit.isPresent()) {
-            EvidenceHit h = hit.orElseThrow();
-            return new QualificationDetail(
-                    req, "", "ATTENTION", h.pageNumber(), h.quote(), null,
-                    "资质库未维护该证书，但在标书第 " + h.pageNumber() + " 页检索到证明材料，请人工核查有效性");
-        }
-
-        return new QualificationDetail(
-                req, "", "UNMATCHED", null, "", null,
-                "企业资质库及投标文件中均未检索到对应资质证明材料，存在偏离或废标风险");
+        return locateInBid(bidDoc, cues).map(h -> new QualificationDetail(
+                req, "", "ATTENTION", h.pageNumber(), h.quote(), null,
+                "资质库未维护该证书，但在标书第 " + h.pageNumber() + " 页检索到证明材料，请人工核查有效性"))
+                .orElseGet(() -> new QualificationDetail(
+                        req, "", "UNMATCHED", null, "", null,
+                        "企业资质库及投标文件中均未检索到对应资质证明材料，存在偏离或废标风险"));
     }
 
     private static Qualification findBestMatchingCert(final String req, final List<Qualification> certs) {
-        List<Qualification> matched = new ArrayList<>();
+        Qualification best = null;
+        int maxScore = 0;
+        LocalDate latestExpiry = null;
         for (Qualification q : certs) {
-            if (q != null && q.getName() != null && isQualificationMatch(req, q.getName())) {
-                matched.add(q);
+            if (q == null || q.getName() == null) {
+                continue;
+            }
+            int score = calculateMatchScore(req, q.getName());
+            if (score <= 0) {
+                continue;
+            }
+            LocalDate expiry = q.getExpiryDate() == null ? LocalDate.MAX : q.getExpiryDate();
+            if (best == null || score > maxScore || (score == maxScore && expiry.isAfter(latestExpiry))) {
+                best = q;
+                maxScore = score;
+                latestExpiry = expiry;
             }
         }
-        if (matched.isEmpty()) {
-            return null;
-        }
-        // 优先未过期、有效期最长
-        matched.sort(Comparator.comparing(
-                (Qualification q) -> q.getExpiryDate() == null ? LocalDate.MAX : q.getExpiryDate())
-                .reversed());
-        return matched.getFirst();
+        return best;
     }
 
     private static Optional<EvidenceHit> locateInBid(final DocumentContent bidDoc, final List<String> cues) {
         if (bidDoc == null || bidDoc.pages() == null || bidDoc.pages().isEmpty() || cues == null) {
             return Optional.empty();
         }
-        List<String> cleanCues = cues.stream()
-                .filter(c -> c != null && !c.isBlank())
-                .distinct()
-                .toList();
-        if (cleanCues.isEmpty()) {
-            return Optional.empty();
-        }
-        return EvidenceLocator.locate(bidDoc.pages(), cleanCues);
+        List<String> cleanCues = cues.stream().filter(c -> c != null && !c.isBlank()).distinct().toList();
+        return cleanCues.isEmpty() ? Optional.empty() : EvidenceLocator.locate(bidDoc.pages(), cleanCues);
     }
 
     private static Integer computeRemainingDays(final LocalDate expiryDate, final LocalDate today) {
         if (expiryDate == null) {
             return null;
         }
-        long days = ChronoUnit.DAYS.between(today, expiryDate);
-        return (int) days;
+        return (int) ChronoUnit.DAYS.between(today, expiryDate);
     }
 
     private static String normalize(final String text) {
-        if (text == null) {
-            return "";
-        }
-        return NORMALIZE_RE.matcher(text.toLowerCase(Locale.ROOT)).replaceAll("");
+        return text == null ? "" : NORMALIZE_RE.matcher(text.toLowerCase(Locale.ROOT)).replaceAll("");
     }
 
     private static String stripGovPrefix(final String normText) {
-        if (normText == null || normText.isBlank()) {
-            return "";
-        }
-        return GOV_PREFIX_RE.matcher(normText).replaceFirst("");
+        return normText == null || normText.isBlank() ? "" : GOV_PREFIX_RE.matcher(normText).replaceFirst("");
     }
 
     private static List<String> extractStandardCodes(final String text) {
@@ -248,8 +244,7 @@ public final class QualificationMatchPolicy {
 
     private static boolean checkLevelCompatibility(final String req, final String cert) {
         String[] levels = {"特级", "一级", "二级", "三级", "甲级", "乙级", "丙级"};
-        String reqLevel = null;
-        String certLevel = null;
+        String reqLevel = null, certLevel = null;
         for (String lvl : levels) {
             if (reqLevel == null && req.contains(lvl)) {
                 reqLevel = lvl;
@@ -263,10 +258,15 @@ public final class QualificationMatchPolicy {
 
     private static boolean isStopword(final String text) {
         if (text == null || text.isBlank()) {
-            return false;
+            return true;
+        }
+        for (String term : DOMAIN_TERMS) {
+            if (text.contains(normalize(term))) {
+                return false;
+            }
         }
         for (String sw : STOP_WORDS) {
-            if (sw.contains(text) || text.contains(sw)) {
+            if (sw.equals(text) || sw.contains(text)) {
                 return true;
             }
         }

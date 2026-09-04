@@ -40,10 +40,29 @@ public record TenderRequirements(
 
     public TenderRequirements {
         scoringItems = scoringItems == null ? List.of() : List.copyOf(scoringItems);
-        mandatoryQualifications = mandatoryQualifications == null ? List.of() : List.copyOf(mandatoryQualifications);
+        mandatoryQualifications = sanitizeQualifications(mandatoryQualifications);
         vetoClauses = vetoClauses == null ? List.of() : List.copyOf(vetoClauses);
         compositionRequirements = compositionRequirements == null ? List.of() : List.copyOf(compositionRequirements);
         formatRequirements = formatRequirements == null ? List.of() : List.copyOf(formatRequirements);
+    }
+
+    private static List<String> sanitizeQualifications(final List<String> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<String> cleaned = new LinkedHashSet<>();
+        for (String s : raw) {
+            if (s == null || s.isBlank()) {
+                continue;
+            }
+            String item = DeterministicQualificationExtractor.cleanItem(s);
+            if (item.isBlank() || DeterministicQualificationExtractor.isIntroductoryHeading(item)
+                    || "/".equals(item) || "无".equals(item) || "不适用".equals(item)) {
+                continue;
+            }
+            cleaned.add(item);
+        }
+        return List.copyOf(cleaned);
     }
 
     /** 无提取结果的空集（非哨兵）. */
