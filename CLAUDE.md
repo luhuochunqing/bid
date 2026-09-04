@@ -15,42 +15,24 @@
 - 后端目录：`/Users/user/xiyu/worktrees/trae/backend`
 - **任务隔离 worktree**：`/Users/user/xiyu/worktrees/xiyu-<agent>-<task>`（临时，用完即删，纯源码）
 
-### 双远程仓库配置（Gitee 主 + GitHub AI 协作入口）
+### 远程仓库配置（Gitee 唯一主仓库）
 
-> 自 2026-06-24 起启用双远程仓库。**Gitee 为主仓库**，GitHub 作为 AI Coding 工具（Cursor/Codex/Claude 等）的远端协作入口 + 镜像备份。同步流程详见 skill `github-sync`。
+> **Gitee（`origin`）是唯一主仓库**：所有 PR / 合并 / Code Review 走 Gitee，验证门禁全部在本地跑（无远程 CI runner）。
+> git config 中可能残留一个 dormant 的 `github` remote（历史 AI 协作镜像），**不属于 PR / 合并 / 验证流程**——不要向它推送来"触发 CI"，也不要用它走 PR。
 
 | Remote 名 | URL | 用途 |
 |---|---|---|
-| `origin` | `git@gitee.com:allinai888/bid.git` | **主仓库**：PR / CI / 协作走这里 |
-| `github` | `git@github-allinai:allinai0506/bid.git` | **AI 协作入口 + 镜像**：AI 工具改代码，本地同步回 Gitee |
+| `origin` | `git@gitee.com:allinai888/bid.git` | **唯一主仓库**：PR / 合并 / 协作走这里 |
 
 **日常推送命令**：
 ```bash
-git push origin main    # → Gitee（主仓库，PR/CI 走这里）
-git push github main    # → GitHub（供 AI 工具拉取 + 镜像备份）
+git push origin main    # → Gitee（唯一主仓库）
 ```
-
-**从 GitHub 拉取 AI 改动**：
-```bash
-git fetch github                    # 拉取 GitHub 远端
-git branch -r | grep github/        # 查看 AI 工具创建的分支
-git checkout -b review/ai-xxx github/<branch>  # 审查 AI 改动
-# 审查 OK 后合入 main，推回 Gitee
-git checkout main && git merge review/ai-xxx && git push origin main
-```
-
-**SSH 配置**：
-- Gitee：`~/.ssh/id_ed25519`（默认 key）
-- GitHub：`~/.ssh/id_ed25519_allinai` + `~/.ssh/config` 中的 `Host github-allinai`（`IdentitiesOnly yes`）
-- GitHub 账户：`allinai0506`
 
 **重要约定**：
 - **Gitee 是唯一 source of truth**：所有最终代码以 Gitee main 为准
-- **GitHub 改动必须审查**：AI 工具的改动不能直接合入，必须本地审查
-- 所有 PR / Code Review / CI 仍走 Gitee，GitHub 不走 Gitee CI
-- 推送前门禁（`pre-push-gate.sh` 等）对两个 remote 都生效
-- 旧 GitHub 账户 `ericforai`、`yzcynk5vtp-ship-it`、`luhuochunqing` 均已下线，当前账户为 `allinai0506`
-- 完整同步流程详见 skill `github-sync`
+- 所有 PR / Code Review 走 Gitee；**验证在本地跑**（`pre-push-gate.sh` + `mvn`/`npm`），本项目无远程 CI
+- 推送前门禁（`pre-push-gate.sh` 等）在本地生效
 
 ## 当前项目口径
 
@@ -136,7 +118,7 @@ npm run test:e2e
 ```bash
 cd /Users/user/xiyu/worktrees/trae/backend
 mvn test -Dtest=<相关测试类>
-# 架构边界测试（CI 实际运行下列三类）：
+# 架构边界测试（本地门禁实际运行下列三类）：
 mvn test -Dtest=ArchitectureTest
 mvn test -Dtest=FPJavaArchitectureTest,MaintainabilityArchitectureTest
 mvn test
@@ -451,65 +433,10 @@ source scripts/dev-env.sh
 
 永远优先修复导致门禁失败的根本问题，而不是绕过。使用绝对路径 `/usr/bin/git` 绕过同样属于违规。
 
-### 6. 自动合并 + 解除 CI/人工 merge 堵塞（⚠️ 已过期，仅作历史参考）
+### 6. 自动合并（已废弃）
 
-> **⚠️ 已过期（2026-06 迁移到 Gitee 后失效）**
-> 本节描述的 auto-merge workflow (`.github/workflows/auto-enable-merge-on-approved.yml`) 依赖 GitHub CLI (`gh`) 和 GitHub Token。
-> 项目主远程仓库为 **Gitee**（`gitee.com/allinai888/bid`，remote 名 `origin`）；另设有 GitHub 远程（`github` remote，作为 AI 协作入口 + 镜像备份）。详见上方"双远程仓库配置"小节。Gitee 不支持 GitHub Actions 的 auto-merge 功能。
-> 该 workflow 文件首行已标注 `[STALE for Gitee]`，**不会在 Gitee CI 中执行**。
-> 本节内容仅保留作为历史设计参考；当前 PR 合并请走 Gitee 原生流程（人工点击合并或通过 Gitee API）。
-
-**历史背景**（曾用于 GitHub 远程时期）：
-
-**问题**：agent 任务多 → PR 多 → CI 队列 + 人工最后 "点一下合并" 成为瓶颈，严重影响并行开发效率。同时必须 100% 保留所有门禁（agent-locks、line-budget、架构、frontend/backend/e2e + strict up-to-date）。
-
-**历史解法**（不弱化任何门禁，仅在 GitHub 远程时期生效）：
-
-1. **审核通过后自动 enable auto-merge**（核心）
-   - 新 workflow: `.github/workflows/auto-enable-merge-on-approved.yml`
-   - 触发：`pull_request_review` + state=approved（即"新人审核通过"）。
-   - 动作：对该 PR 执行 `gh pr merge --auto --squash --delete-branch`（如果尚未开启）。
-   - GitHub **只会**在所有 branch protection 条件满足时才真正合并：
-     - 1 个 required review（已满足）
-     - required_status_checks 全绿（agent-locks, line-budget, frontend, backend, e2e）
-     - strict: true（分支基于最新 main）
-   - 效果：审核者批准后，**不需要再手动点合并按钮**。PR 会自动进入"待合并"状态，条件满足即合。
-   - 失败/阻塞时仍需人工介入（与之前一致）。
-
-2. **CI 速度优化（减少队列等待）**
-   - `ci.yml` 中 backend / frontend job 现在依赖 quality-scope 的变更检测。
-   - 无 backend 变更时："backend" required check 秒级 fast-succeed（保持名称不变，保护规则不破）。
-   - 无 UI 变更时：frontend 同理 fast-succeed。
-   - E2E（P0 核心 7 个 flow）仍正常运行（作为集成烟雾很有价值），但整体无关 PR 不再拖慢 runner 池。
-   - 加上已有的 `concurrency: cancel-in-progress: true` + git wrapper 禁止 --no-verify，确保只有高质量推送进入远程 CI。
-   - **强烈建议**：每次 push 前必须本地 `npm run ci:local:quick` + `bash scripts/check-git-wrapper.sh` + `npm run agent:lock-check:changed` + `npm run build`。只有本地全绿才 push，远程只做"确认"而非"发现问题"。
-
-3. **"自动跑下一个线"（持续循环）**
-   - PR 自动合入 main 后：
-     - `agent-branch-cleanup.yml` 自动删除任务分支（agent/*-init 保护分支除外）。
-     - `main-release.yml` 触发（post-merge gate + staging rehearsal + 打包）。
-     - 其他 agent 在下次**早操**时：
-       ```bash
-       source scripts/dev-env.sh
-       ./scripts/sync-env.sh .
-       ```
-       自动 rebase 到新 main，who-touches.sh 能看到更新，自己的待办 PR 可继续 review / 自动合并流程。
-   - 形成：开发（本地全门禁）→ push → CI → 人工 review 批准 → 自动 enable auto-merge → GitHub 守卫满足后自动合并 → main 触发 release 线 + 其他 agent 自动感知下一轮。
-   - 这就是"依次循环不断的自动执行"，同时所有门禁都在关键路径上。
-
-**如何手动干预 / 观察**
-- `gh pr view 599 --json autoMergeRequest,reviewDecision,statusCheckRollup`
-- 某个 PR 想立即合（已批准且绿）：`gh pr merge 599 --auto --squash`
-- 想暂时关闭自动：PR 页面点 "Disable auto-merge"。
-- 合并冲突或 gate 漂移：按正常人工处理 + 补说明。
-
-**与 Merge Queue 的关系**（进阶选项）
-- 当前使用 "auto-merge + required checks strict" 实现 80% 目标，实施成本低。
-- 如未来 PR 量更大、冲突更频繁，可在 branch protection 里开启 **Require merge queue**（GitHub 会为队列中的 PR 创建临时 merge commit 跑 CI，按顺序合并）。那时 "下一个线" 会更显式（有队列 UI）。目前先用 auto-merge 方案，已能显著解除手动点击瓶颈。
-
-**实施证据**
-- 所有变更仍通过本地 `npm run build`、agent checks、以及将来的 CI。
-- 新 workflow 只做 "enable"，不做实际合并决策（决策权仍在 GitHub protection + 门禁脚本）。
+> **已废弃（2026-06 迁移到 Gitee 后失效）**：历史上曾用 GitHub Actions auto-merge workflow（审核通过后 `gh pr merge --auto`），依赖 GitHub CLI/Token 与 GitHub branch protection。迁移到 Gitee 后该机制不再生效，相关 workflow 文件已标注 `[STALE for Gitee]` 且不会执行。
+> **当前 PR 合并**：走 Gitee 原生流程（人工点击合并或通过 Gitee API，见 `scripts/gitee-pr-helper.sh`）；本项目无远程 CI，合并前的验证门禁全部在本地跑（`pre-push-gate.sh` + `mvn`/`npm`）。GitHub 实现细节已从本规范文档移除，需要时查 git 历史。
 
 ### 5. 任务启动协议 (Lease + Auto-Detect)
 不画静态目录所有权表 — 任务推进就过时。改用 **git 事实** 当主信号，文件锁仅用于 hot-paths 前置预订。
@@ -593,7 +520,7 @@ grep -h "\[~\]" conductor/tracks/*/plan.md | grep gemini
 
 | 分支类型 | 示例 | 用途 | 可否直接 commit |
 |---|---|---|---|
-| 基线分支 | `main` | 唯一真值，所有任务分支的最终合入点 | 否（受 GitHub 保护） |
+| 基线分支 | `main` | 唯一真值，所有任务分支的最终合入点 | 否（受 Gitee 分支保护） |
 | Bootstrap 种子分支 | `agent/codex-init`, `agent/cursor-init` 等 | 仅承载初始化配置（环境文件、钩子安装） | 否（`agent-worktree-guard.sh` 禁止） |
 | 任务分支 | `agent/codex/project-task-breakdown-from-tender` | 每个原子任务一个独立分支 | 是 |
 
