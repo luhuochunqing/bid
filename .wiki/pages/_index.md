@@ -31,7 +31,7 @@ backlinks:
 - [[ai-capabilities]] — AI 能力
 - [[ai-slop-cleanup-and-composable-inlining]] — AI Slop 代码清理与单组件专属小型 Composable 内联收敛
 - [[ai-provider-configuration]] — AI Provider 配置与陷阱指南（activeProvider / Doubao / 降级策略 / Sidecar / ai.provider 默认值陷阱）
-- [[score-parse-service]] — AI 评分标准解析后端服务（spec 041：四路召回解析 / 知识库五类匹配 / 阶段化打分 / 超时保护；结构化表格通道保真 / 归一化告警显式化 / 词汇注册表 escape-hatch）
+- [[score-parse-service]] — AI 评分标准解析后端服务（spec 041：四路召回解析 / 知识库五类匹配 / 阶段化打分 / 超时保护；1371 四列：分类只看 dim、仓库无约束不得满分、行身份用 item.id）
 - [[ai-case-recommend-data-source-fix]] — AI 案例推荐数据源修复（score_item 新契约切换 / casework 裸响应禁止二次解包）
 - [[case-source-actions-and-import-pitfalls]] — 案例详情源项目/标书原文操作契约（路由修正 / 未归档预检 / 假 ZIP 防护）+ 导入数据陷阱（300 字截断 / 枚举混填）
 - [[project-search-owner-unit]] — 项目搜索按招标主体（ownerUnit 数据链路 tender_id→purchaser_name / name 关键词三层过滤契约 / H2 tender_id NOT NULL 陷阱）
