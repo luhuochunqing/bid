@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [质量核查, compliance, LLM 混合裁决, 证据链, FP-Java, 语义RAG, 结构化输出, 资质智能匹配, 三级穿透]
 created: 2026-08-20
-updated: 2026-09-03
-health_checked: 2026-09-03
+updated: 2026-09-04
+health_checked: 2026-09-04
 sources:
   - specs/049-bid-quality-check-realization/spec.md
   - src/views/Project/stages/components/QualityCheckDrawer.vue
@@ -170,8 +170,13 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **确定性规则提取器（`DeterministicQualificationExtractor`）**：建立纯核心正则章节锚定与标号切分策略，自动识别专用资质（增值电信业务许可证、等保三级、ISO、安全生产等）与通用资格（法人资格、失信限制），过滤占位符（如 `人员要求：/`）。
     - **质检流水线双轨融合**：`BidQualityCheckAsyncExecutor` 将规则提取的确定性资格与 LLM 提取的资格并集去重（`withMergedQualifications`）。只要规则提取出资质，即可解除 `missing` 标记，确保资质比对与结构化清单 100% 稳定生成。
     - **代码去重与常数收敛（Anti-Slop 治理）**：`TenderRequirementsParser` 统一复用同包 `LlmVerdictParser.extractJsonObject` 配平扫描，消除 35 行重复实现；`DeterministicQualificationExtractor` 移除 `LinkedHashSet.add` 前多余的 `contains` 检查，并将证书特征词抽为不可变常量 `CERTIFICATE_CORE_KEYWORDS`；前端弹窗移除空包装函数 `qualStatusBadge`。
-
-
+20. **企业资质库底层表纠偏与国字头前缀剥离穿透**（2026-09-04）：
+    - **数据源对齐**：将 `KnowledgeBaseOnDemandLoader` 对接真实业务资质库 `BusinessQualificationRepository`（读取 `business_qualifications` 物理表 62 条有效资质，状态为 `IN_STOCK` 且 `retired = false`），彻底消除读取历史单数 `qualifications` 废弃空表导致的“资质库未维护该证书”虚假误报；
+    - **行政前缀剥离**：在 `QualificationMatchPolicy` 建立 `GOV_PREFIX_RE` 正则（剥离“中华人民共和国/全国/中国/国家”等行政修饰前缀），支持核心法定证书名穿透包含，并扩充电信业务与互联网信息服务专有领域词表；标书页码检索 cues 同步引入核心证书名，实现标书页码精准定位。
+21. **LCS 停用词收紧与多候选打分优先排序及章节导语清洗**（2026-09-04）：
+    - **LCS 通用停用词阻断**：扩充 `STOP_WORDS`（纳入“经营许可证”、“许可证”、“业务经营许可证”、“生产许可证”、“中华人民共和国”、“管理体系认证”等），`isStopword` 优先保护 `DOMAIN_TERMS` 核心专有名词，对其余通用词严格拦截，彻底阻断仅因共享通用证件后缀而引发的跨类别错配（如增值电信错配医疗器械）；
+    - **打分第一主键原则（Relevance-First）**：`findBestMatchingCert` 建立 `calculateMatchScore` 多级相关度打分（包含1000+ > 标准代码500+ > 行业专有名词200+ > LCS100+），匹配打分作为绝对第一排序键，有效期仅作为相同打分梯队内的决胜依据（Tie-breaker），杜绝有效期长的弱相关证书反超核心资质；
+    - **章节导语与噪点过滤**：在 `DeterministicQualificationExtractor` 与 `TenderRequirements` 中引入 `isIntroductoryHeading` 结构化判断（过滤以冒号结尾或含“以下证书/下列条件”的导语段落，如 `2.1 资质要求：供应商应具有以下证书`），并强化前导 `;` 等标点符号清洗，确保比对清单 100% 纯净。
 
 ## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
 
