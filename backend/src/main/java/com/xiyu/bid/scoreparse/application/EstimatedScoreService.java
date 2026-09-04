@@ -98,6 +98,14 @@ public class EstimatedScoreService {
             item.setEstBasis("未识别到知识库匹配类别，待人工确认预计得分");
             return;
         }
+        if (KnowledgeCategoryPolicy.CATEGORY_WAREHOUSE.equals(category)
+                && categoryPolicy.extractMinArea(item.getDetail()) == null) {
+            item.setEstScore(null);
+            item.setKbHit(false);
+            item.setStatusStage1(ScoreStatusPolicy.PENDING);
+            item.setEstBasis("未抽取到可执行的仓库匹配约束（面积），禁止按在用仓存在性给满分，待人工确认预计得分");
+            return;
+        }
 
         KnowledgeMatchResult match = dispatchMatch(category, item);
         boolean flagged = hasFlaggedItems(match.matched());

@@ -42,6 +42,10 @@ public class KnowledgeCategoryPolicy {
             "不低于", "以上", "以下", "单个", "其中", "有效", "期内", "且在", "并附",
             "万元", "平米", "平方米", "平方", "具备", "承诺", "服务", "证明", "需要");
 
+    private static final Pattern AREA_PATTERN = Pattern.compile(
+            "([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\\.[0-9]+)?)\\s*(万)?\\s*(㎡|平方米|平米|平方|m²|m2)",
+            Pattern.CASE_INSENSITIVE);
+
     /**
      * 知识库类别判定：只看评分因素名 {@code dim}，不扫细则 {@code detail}。
      * <p>细则里的「人员配置 / 品牌覆盖 / 授权」是打分说明，不能决定匹配哪张知识库。
@@ -63,10 +67,29 @@ public class KnowledgeCategoryPolicy {
         return CATEGORY_OTHER;
     }
 
-    /** 提取面积门槛：如 "不少于 5000 平方米"。 */
+    /** 提取面积门槛：如 "不少于 5000 平方米"。抽失败或 ≤0 返回 null，禁止当成无门槛。 */
     public BigDecimal extractMinArea(String text) {
-        Integer value = extractCount(text, "㎡|平方米|平米");
-        return value == null ? null : BigDecimal.valueOf(value.longValue());
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        Matcher matcher = AREA_PATTERN.matcher(text);
+        if (!matcher.find()) {
+            return null;
+        }
+        String number = matcher.group(1).replace(",", "");
+        BigDecimal value;
+        try {
+            value = new BigDecimal(number);
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+        if ("万".equals(matcher.group(2))) {
+            value = value.multiply(new BigDecimal("10000"));
+        }
+        if (value.compareTo(BigDecimal.ZERO) <= 0) {
+            return null;
+        }
+        return value;
     }
 
     /** 提取要求资质等级：如 "甲级" / "一级" / "CMMI 3" / "特级"。 */

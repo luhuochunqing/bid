@@ -61,7 +61,7 @@ class Project1371ColumnInvariantsTest {
     }
 
     @Test
-    @DisplayName("1371 顺序按表格物理行：商务因素在技术之前，技术在报价之前，局部 1/2 不跨组插队")
+    @DisplayName("1371 金标召回顺序：商务因素在技术之前，技术在报价之前（本夹具 code 为空，不测局部编号插队）")
     void orderFollowsTablePhysicalRows() throws Exception {
         List<ScoreCandidate> items = recallAndSort();
         List<String> dims = items.stream().map(ScoreCandidate::dim).toList();

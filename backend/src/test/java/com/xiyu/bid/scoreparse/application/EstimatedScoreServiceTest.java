@@ -209,8 +209,14 @@ class EstimatedScoreServiceTest {
 
         service.estimateForProject(1L);
 
-        verify(warehouseMatchService).match(any(WarehouseMatchRequest.class));
+        ArgumentCaptor<WarehouseMatchRequest> captor = ArgumentCaptor.forClass(WarehouseMatchRequest.class);
+        verify(warehouseMatchService).match(captor.capture());
+        WarehouseMatchRequest request = captor.getValue();
+        assertThat(request.minArea()).isEqualByComparingTo("5000");
+        assertThat(request.nameKeywords() == null || request.nameKeywords().isEmpty()).isTrue();
+        assertThat(request.region()).isNull();
         assertThat(warehouse.getStatusStage1()).isEqualTo("OK");
+        assertThat(warehouse.getEstScore()).isEqualByComparingTo("5");
     }
 
     @Test
@@ -280,23 +286,20 @@ class EstimatedScoreServiceTest {
     }
 
     @Test
-    void warehouseItem_doesNotPassTenderSentenceAsNameKeywords_andFullWhenKbHits() {
+    void warehouseItem_withoutAreaConstraint_staysPending_doesNotCallMatch() {
         ScoreItem warehouse = item("服务网点及仓储",
                 "供应商须在全国所有省份（含直辖市）中均设有仓储地点的得1.5分。"
                         + "须提供全国各省仓储地点的统计表，仓库面积、类型等信息",
                 "3", "OBJECTIVE");
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(warehouse));
-        when(warehouseMatchService.match(any(WarehouseMatchRequest.class)))
-                .thenReturn(new KnowledgeMatchResult("FULL", 100, List.of(), "命中 1 个在用仓库"));
 
         service.estimateForProject(1L);
 
-        ArgumentCaptor<WarehouseMatchRequest> captor = ArgumentCaptor.forClass(WarehouseMatchRequest.class);
-        verify(warehouseMatchService).match(captor.capture());
-        WarehouseMatchRequest request = captor.getValue();
-        assertThat(request.nameKeywords() == null || request.nameKeywords().isEmpty()).isTrue();
-        assertThat(warehouse.getStatusStage1()).isEqualTo("OK");
-        assertThat(warehouse.getEstScore()).isEqualByComparingTo("3");
-        assertThat(warehouse.getEstBasis()).contains("仓库");
+        verify(warehouseMatchService, never()).match(any(WarehouseMatchRequest.class));
+        assertThat(warehouse.getEstScore()).isNull();
+        assertThat(warehouse.getKbHit()).isFalse();
+        assertThat(warehouse.getStatusStage1()).isEqualTo("PENDING");
+        assertThat(warehouse.getEstBasis()).contains("约束");
+        assertThat(warehouse.getEstBasis()).doesNotContain("tier=FULL");
     }
 }

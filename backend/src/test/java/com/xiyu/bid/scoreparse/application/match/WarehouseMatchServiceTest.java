@@ -104,7 +104,7 @@ class WarehouseMatchServiceTest {
     }
 
     @Test
-    @DisplayName("无名称关键词时仍按在用状态匹配：资料库有仓 → FULL，禁止 name LIKE 招标长句")
+    @DisplayName("匹配服务：调用方未给名称/面积时按在用仓匹配 → FULL（估计层不得发无约束请求）")
     void noNameKeywords_inUseWarehouse_full() {
         when(repository.findAll(any(Specification.class))).thenReturn(List.of(
                 warehouse(1L, "上海仓", "华东", "3000", "在用")));

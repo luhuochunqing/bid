@@ -111,6 +111,22 @@ class KnowledgeCategoryPolicyTest {
     }
 
     @Test
+    @DisplayName("面积门槛：千分位与小数不得咬成 0 或假门槛")
+    void extractMinArea_thousandSeparatorAndDecimals() {
+        assertThat(policy.extractMinArea("自有仓储面积不少于 5,000 平方米"))
+                .isEqualByComparingTo("5000");
+        assertThat(policy.extractMinArea("仓储面积 5000.00平方米"))
+                .isEqualByComparingTo("5000.00");
+        assertThat(policy.extractMinArea("面积 5000.5平方米"))
+                .isEqualByComparingTo("5000.5");
+        assertThat(policy.extractMinArea("面积 0 平方米")).isNull();
+        assertThat(policy.extractMinArea(
+                "供应商须在全国所有省份（含直辖市）中均设有仓储地点的得1.5分。"
+                        + "须提供全国各省仓储地点的统计表，仓库面积、类型等信息"))
+                .isNull();
+    }
+
+    @Test
     @DisplayName("1371 财务状况：即使细则提到人员/报表，因素名不是人员 → OTHER")
     void categorize_financeFactor_ignoresPersonnelWordsInDetail() {
         assertThat(policy.categorize("财务状况（3分）",
