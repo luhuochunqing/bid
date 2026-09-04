@@ -8,6 +8,10 @@ import com.xiyu.bid.brandauth.domain.model.BrandAuthorization;
 import com.xiyu.bid.brandauth.domain.port.BrandAuthorizationRepository;
 import com.xiyu.bid.brandauth.domain.valueobject.AuthorizationScope;
 import com.xiyu.bid.brandauth.domain.valueobject.AuthorizationStatus;
+import com.xiyu.bid.businessqualification.application.command.QualificationListCriteria;
+import com.xiyu.bid.businessqualification.domain.model.BusinessQualification;
+import com.xiyu.bid.businessqualification.domain.port.BusinessQualificationRepository;
+import com.xiyu.bid.businessqualification.domain.valueobject.ValidityPeriod;
 import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
 import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
@@ -180,5 +184,39 @@ class KnowledgeBaseRealQueryTest {
         assertThat(outcome.matches()).isEmpty();
         assertThat(outcome.failedSources()).containsExactlyInAnyOrder(
                 "qualification", "brand-authorization", "personnel", "performance");
+    }
+
+    @Test
+    @DisplayName("优先真实业务企业资质库 BusinessQualificationRepository：加载非注销资质并成功匹配")
+    void testQueryKnowledgeBases_PrefersBusinessQualificationRepository() {
+        BusinessQualificationRepository bqRepo = mock(BusinessQualificationRepository.class);
+        BusinessQualification bq = BusinessQualification.create(
+                46L, "中华人民共和国增值电信业务经营许可证", "国家级",
+                null, null, "B2-20200001", "工信部", null, null,
+                "信息服务业务", null, "西域",
+                new ValidityPeriod(LocalDate.of(2025, 3, 28), LocalDate.of(2030, 3, 28)),
+                null, "http://file", null, null, List.of()
+        );
+        when(bqRepo.findAll(any(QualificationListCriteria.class))).thenReturn(List.of(bq));
+
+        KnowledgeBaseOnDemandLoader customLoader = new KnowledgeBaseOnDemandLoader(
+                qualificationRepository, bqRepo, personnelRepository,
+                brandAuthorizationRepository, performanceEvidencePort);
+
+        KnowledgeQueryOutcome outcome = customLoader.queryKnowledgeBases(
+                List.of("增值电信业务经营许可证，业务种类及覆盖范围需包括信息服务业务（互联网信息服务）"));
+
+        assertThat(outcome.failedSources()).isEmpty();
+        assertThat(outcome.matches()).anyMatch(m ->
+                m.knowledgeSource().equals("qualification")
+                        && m.recordId().equals("46")
+                        && m.content().contains("中华人民共和国增值电信业务经营许可证")
+                        && m.content().contains("2030-03-28"));
+
+        List<Qualification> all = customLoader.findAllQualifications();
+        assertThat(all).hasSize(1);
+        assertThat(all.getFirst().getId()).isEqualTo(46L);
+        assertThat(all.getFirst().getName()).isEqualTo("中华人民共和国增值电信业务经营许可证");
+        assertThat(all.getFirst().getExpiryDate()).isEqualTo(LocalDate.of(2030, 3, 28));
     }
 }
