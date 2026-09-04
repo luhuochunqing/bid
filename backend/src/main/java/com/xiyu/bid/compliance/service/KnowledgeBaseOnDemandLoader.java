@@ -1,12 +1,15 @@
 // Input: 招标硬性要求关键词（LLM 结构化提取产物）
 // Output: KnowledgeQueryOutcome（四库真实匹配记录 KnowledgeMatch + 查询失败源集合）
-// Pos: compliance/service/ - 四知识库按需真实检索（spec 049 US3 T033-T037，research.md R4；业绩库经 PerformanceEvidencePort 依赖倒置）
+// Pos: compliance/service/ - 四知识库按需真实检索（spec 049 US3 T033-T037，research.md R4；优先对接 BusinessQualificationRepository 真实企业资质库；业绩库经 PerformanceEvidencePort 依赖倒置）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.service;
 
 import com.xiyu.bid.brandauth.domain.model.BrandAuthorization;
 import com.xiyu.bid.brandauth.domain.port.BrandAuthorizationRepository;
 import com.xiyu.bid.brandauth.domain.valueobject.AuthorizationStatus;
+import com.xiyu.bid.businessqualification.application.command.QualificationListCriteria;
+import com.xiyu.bid.businessqualification.domain.model.BusinessQualification;
+import com.xiyu.bid.businessqualification.domain.port.BusinessQualificationRepository;
 import com.xiyu.bid.compliance.domain.policy.KnowledgeMatch;
 import com.xiyu.bid.compliance.domain.policy.KnowledgeQueryOutcome;
 import com.xiyu.bid.compliance.domain.policy.PerformanceEvidencePort;
@@ -21,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -45,6 +49,7 @@ public class KnowledgeBaseOnDemandLoader {
     static final int MAX_PERFORMANCE_MATCHES = 10;
 
     private final QualificationRepository qualificationRepository;
+    private final BusinessQualificationRepository businessQualificationRepository;
     private final PersonnelRepository personnelRepository;
     private final BrandAuthorizationRepository brandAuthorizationRepository;
     private final PerformanceEvidencePort performanceEvidencePort;
@@ -52,17 +57,25 @@ public class KnowledgeBaseOnDemandLoader {
     @Autowired(required = false)
     public KnowledgeBaseOnDemandLoader(
             final QualificationRepository qualificationRepository,
+            final BusinessQualificationRepository businessQualificationRepository,
             final PersonnelRepository personnelRepository,
             final BrandAuthorizationRepository brandAuthorizationRepository,
             final PerformanceEvidencePort performanceEvidencePort) {
         this.qualificationRepository = qualificationRepository;
+        this.businessQualificationRepository = businessQualificationRepository;
         this.personnelRepository = personnelRepository;
         this.brandAuthorizationRepository = brandAuthorizationRepository;
         this.performanceEvidencePort = performanceEvidencePort;
     }
 
+    public KnowledgeBaseOnDemandLoader(
+            final QualificationRepository qr, final PersonnelRepository pr,
+            final BrandAuthorizationRepository bar, final PerformanceEvidencePort pep) {
+        this(qr, null, pr, bar, pep);
+    }
+
     public KnowledgeBaseOnDemandLoader() {
-        this(null, null, null, null);
+        this(null, null, null, null, null);
     }
 
     /**
@@ -102,16 +115,16 @@ public class KnowledgeBaseOnDemandLoader {
     }
 
     /**
-     * 资质库：按招标硬性要求关键词定向匹配资质证书（保留 name contains 真查询）.
+     * 资质库：按招标硬性要求关键词定向匹配资质证书（优先使用业务企业资质库）.
      */
     List<KnowledgeMatch> matchQualifications(final List<String> requiredCerts) {
-        if (qualificationRepository == null) {
+        if (qualificationRepository == null && businessQualificationRepository == null) {
             throw new IllegalStateException("企业资质库仓储不可用");
         }
         if (requiredCerts == null || requiredCerts.isEmpty()) {
             return List.of();
         }
-        List<Qualification> all = qualificationRepository.findAll();
+        List<Qualification> all = queryAllQualificationsDirectly();
         List<KnowledgeMatch> matches = new ArrayList<>();
         for (String kw : requiredCerts) {
             if (kw == null || kw.isBlank()) {
@@ -131,17 +144,37 @@ public class KnowledgeBaseOnDemandLoader {
 
     /**
      * 查询企业资质库全部资质记录（供核查比对清单组装）.
+     * 优先查询真实业务资质库 BusinessQualificationRepository（business_qualifications 表，未注销资质），
+     * 若为空或仓储不可用则回退兼容历史单数 qualifications 表.
      */
     public List<Qualification> findAllQualifications() {
-        if (qualificationRepository == null) {
-            return List.of();
-        }
         try {
-            return qualificationRepository.findAll();
+            return queryAllQualificationsDirectly();
         } catch (RuntimeException e) {
-            log.warn("获取企业资质库列表异常: {}", e.getMessage());
+            log.warn("获取企业资质库列表异常: {}", e.getMessage(), e);
             return List.of();
         }
+    }
+
+    private List<Qualification> queryAllQualificationsDirectly() {
+        if (businessQualificationRepository != null) {
+            List<BusinessQualification> bqList = businessQualificationRepository.findAll(
+                    QualificationListCriteria.builder().build());
+            if (bqList != null && !bqList.isEmpty()) {
+                return bqList.stream()
+                        .filter(bq -> !bq.retired())
+                        .map(KnowledgeBaseOnDemandLoader::toLegacyQualification)
+                        .toList();
+            }
+        }
+        return qualificationRepository != null ? qualificationRepository.findAll() : List.of();
+    }
+
+    private static Qualification toLegacyQualification(final BusinessQualification bq) {
+        LocalDate issue = bq.validityPeriod() != null ? bq.validityPeriod().issueDate() : null;
+        LocalDate expiry = bq.validityPeriod() != null ? bq.validityPeriod().expiryDate() : null;
+        return Qualification.builder().id(bq.id()).name(bq.name()).level(bq.level())
+                .issueDate(issue).expiryDate(expiry).fileUrl(bq.fileUrl()).build();
     }
 
     /**
@@ -215,24 +248,14 @@ public class KnowledgeBaseOnDemandLoader {
         if (certName == null || requiredCerts == null) {
             return false;
         }
-        for (String req : requiredCerts) {
-            if (QualificationMatchPolicy.isQualificationMatch(req, certName)) {
-                return true;
-            }
-        }
-        return false;
+        return requiredCerts.stream().anyMatch(req -> QualificationMatchPolicy.isQualificationMatch(req, certName));
     }
 
     /** 资质记录摘要（DB 字段拼接，禁止常量文案）. */
     private static String describe(final Qualification q) {
-        StringBuilder sb = new StringBuilder("资质证书: ").append(q.getName());
-        if (q.getLevel() != null) {
-            sb.append("（等级: ").append(q.getLevel()).append("）");
-        }
-        if (q.getExpiryDate() != null) {
-            sb.append("，有效期至 ").append(q.getExpiryDate());
-        }
-        return sb.toString();
+        String level = q.getLevel() != null ? "（等级: " + q.getLevel() + "）" : "";
+        String expiry = q.getExpiryDate() != null ? "，有效期至 " + q.getExpiryDate() : "";
+        return "资质证书: " + q.getName() + level + expiry;
     }
 
     /** 品牌授权记录摘要（品牌、期限、范围）. */

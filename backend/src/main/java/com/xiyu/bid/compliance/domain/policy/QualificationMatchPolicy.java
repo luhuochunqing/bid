@@ -41,13 +41,16 @@ public final class QualificationMatchPolicy {
     private static final List<String> STOP_WORDS = List.of(
             "投标人须具备", "具有有效", "有效期内", "资质证书", "资格证明", "相关资质", "国家认证", "原件复印件");
 
+    /** 常见行政/国家级前缀正则（用于归一化剥离，以便核心资质名穿透包含）. */
+    private static final Pattern GOV_PREFIX_RE = Pattern.compile("^(?:中华人民共和国|全国|中国|国家)+");
+
     /** 行业核心专业资质关键词. */
     private static final List<String> DOMAIN_TERMS = List.of(
             "质量管理体系", "环境管理体系", "职业健康安全", "信息安全管理", "信息技术服务", "信息系统建设",
             "建筑工程", "机电安装", "机电工程", "电力工程", "市政公用", "消防设施", "建筑装修装饰", "防水防腐", "钢结构",
             "安全生产许可", "营业执照", "一般纳税人", "高新技术企业", "专精特新", "重合同守信用",
-            "一级建造师", "二级建造师", "造价工程师", "监理工程师", "特种作业"
-    );
+            "一级建造师", "二级建造师", "造价工程师", "监理工程师", "特种作业", "增值电信", "电信业务",
+            "互联网信息服务", "在线数据处理与交易", "信息安全等级保护", "等保", "等保三级");
 
     private QualificationMatchPolicy() {
     }
@@ -65,8 +68,14 @@ public final class QualificationMatchPolicy {
             return false;
         }
 
-        // 1. 双向直接包含（长串包含短串）
-        if (normReq.contains(normCert) || normCert.contains(normReq)) {
+        // 1. 双向直接包含（长串包含短串，支持剥离中华人民共和国等前缀修饰）
+        String strippedReq = stripGovPrefix(normReq);
+        String strippedCert = stripGovPrefix(normCert);
+        if (normReq.contains(normCert) || normCert.contains(normReq)
+                || (!strippedCert.isBlank() && normReq.contains(strippedCert))
+                || (!strippedReq.isBlank() && normCert.contains(strippedReq))
+                || (!strippedReq.isBlank() && !strippedCert.isBlank()
+                        && (strippedReq.contains(strippedCert) || strippedCert.contains(strippedReq)))) {
             return true;
         }
 
@@ -145,8 +154,8 @@ public final class QualificationMatchPolicy {
                         + (bestCert.getExpiryDate() != null ? "（有效期至 " + bestCert.getExpiryDate() + "）" : "");
             }
 
-            // 检索标书页码
-            List<String> cues = List.of(certName, normalize(certName), req);
+            // 检索标书页码（包含证书原名、剥离国字头名称、归一化名称及招标要求）
+            List<String> cues = List.of(certName, stripGovPrefix(normalize(certName)), normalize(certName), req);
             Optional<EvidenceHit> hit = locateInBid(bidDoc, cues);
             Integer bidPage = hit.map(EvidenceHit::pageNumber).orElse(null);
             String bidQuote = hit.map(EvidenceHit::quote).orElse("");
@@ -218,6 +227,13 @@ public final class QualificationMatchPolicy {
         return NORMALIZE_RE.matcher(text.toLowerCase(Locale.ROOT)).replaceAll("");
     }
 
+    private static String stripGovPrefix(final String normText) {
+        if (normText == null || normText.isBlank()) {
+            return "";
+        }
+        return GOV_PREFIX_RE.matcher(normText).replaceFirst("");
+    }
+
     private static List<String> extractStandardCodes(final String text) {
         if (text == null || text.isBlank()) {
             return Collections.emptyList();
@@ -231,26 +247,18 @@ public final class QualificationMatchPolicy {
     }
 
     private static boolean checkLevelCompatibility(final String req, final String cert) {
-        // 如果两者都明确包含等级词，等级不得冲突
         String[] levels = {"特级", "一级", "二级", "三级", "甲级", "乙级", "丙级"};
         String reqLevel = null;
         String certLevel = null;
         for (String lvl : levels) {
-            if (req.contains(lvl)) {
+            if (reqLevel == null && req.contains(lvl)) {
                 reqLevel = lvl;
-                break;
             }
-        }
-        for (String lvl : levels) {
-            if (cert.contains(lvl)) {
+            if (certLevel == null && cert.contains(lvl)) {
                 certLevel = lvl;
-                break;
             }
         }
-        if (reqLevel != null && certLevel != null) {
-            return reqLevel.equals(certLevel);
-        }
-        return true;
+        return reqLevel == null || certLevel == null || reqLevel.equals(certLevel);
     }
 
     private static boolean isStopword(final String text) {
@@ -269,12 +277,8 @@ public final class QualificationMatchPolicy {
         if (s1 == null || s2 == null || s1.isEmpty() || s2.isEmpty()) {
             return "";
         }
-        int m = s1.length();
-        int n = s2.length();
-        int maxLen = 0;
-        int endIndex = 0;
+        int m = s1.length(), n = s2.length(), maxLen = 0, endIndex = 0;
         int[][] dp = new int[m + 1][n + 1];
-
         for (int i = 1; i <= m; i++) {
             for (int j = 1; j <= n; j++) {
                 if (s1.charAt(i - 1) == s2.charAt(j - 1)) {
