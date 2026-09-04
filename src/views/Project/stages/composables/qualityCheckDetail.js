@@ -2,6 +2,8 @@
 // Output: 详情弹窗展示用纯函数（结论前缀剥离、页码聚合、摘录提取、四库链接映射、客观项得分汇总）
 // Pos: src/views/Project/stages/composables/ - 质量核查详情展示纯核心（可单测，不依赖组件状态）
 
+import { lookupScoreResult } from '@/composables/projectDetail/scoreParseSpendGuard.js'
+
 /** MANUAL 态结论 [REASON_CODE] 前缀（spec 049 ManualReasons 约定），展示时剥离. */
 const REASON_CODE_PREFIX_RE = /^\s*\[[A-Z_]+\]\s*/
 
@@ -74,7 +76,7 @@ export function sumObjectiveActualScore(items, resultMap) {
   let hasScore = false
   for (const item of items || []) {
     if (item.scoreType !== '客观项') continue
-    const res = (resultMap || {})[item.code]
+    const res = lookupScoreResult(resultMap, item)
     const val = res?.actualScore ?? res?.score
     if (typeof val === 'number') {
       total += val

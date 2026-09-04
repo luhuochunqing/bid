@@ -108,6 +108,22 @@ class ScoreItemOrderPolicyTest {
     }
 
     @Test
+    void sort_duplicateLocalCodesSameCategory_keepsDocumentOrder() {
+        // 1371：商务大类下财务/网点各自复用 1、2。禁止按编号全局插队成 1,1,2,2
+        List<ScoreCandidate> input = List.of(
+                candidate("1", "商务评分", "财务现金流 1.5分", "1.5"),
+                candidate("2", "商务评分", "财务净利润 1.5分", "1.5"),
+                candidate("1", "商务评分", "服务网点 1.5分", "1.5"),
+                candidate("2", "商务评分", "仓储地点 1.5分", "1.5")
+        );
+
+        List<ScoreCandidate> result = policy.sort(input);
+
+        assertThat(result).extracting(ScoreCandidate::detail)
+                .containsExactly("财务现金流 1.5分", "财务净利润 1.5分", "服务网点 1.5分", "仓储地点 1.5分");
+    }
+
+    @Test
     void sort_sameParentDim_localReorder() {
         // 同一父维度内子项编号出现倒序（如 2 出现在 1 之前）时，自动纠正为 1、2
         List<ScoreCandidate> input = List.of(

@@ -5,6 +5,7 @@
 
 package com.xiyu.bid.scoreparse.domain;
 
+import java.math.BigDecimal;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -41,15 +42,31 @@ public class KnowledgeCategoryPolicy {
             "不低于", "以上", "以下", "单个", "其中", "有效", "期内", "且在", "并附",
             "万元", "平米", "平方米", "平方", "具备", "承诺", "服务", "证明", "需要");
 
-    /** 知识库类别判定：dim + detail 联合匹配，命中优先级最高的规则。 */
+    /**
+     * 知识库类别判定：只看评分因素名 {@code dim}，不扫细则 {@code detail}。
+     * <p>细则里的「人员配置 / 品牌覆盖 / 授权」是打分说明，不能决定匹配哪张知识库。
+     */
     public String categorize(String dim, String detail) {
-        String text = (dim == null ? "" : dim) + " " + (detail == null ? "" : detail);
+        String factor = dim == null ? "" : dim;
+        if (factor.isBlank()) {
+            return CATEGORY_OTHER;
+        }
+        // 「物流仓储方案 / 服务团队方案」是技术评分方案，不是仓库/人员硬门槛
+        if (factor.contains("方案")) {
+            return CATEGORY_OTHER;
+        }
         for (CategoryRule rule : RULES) {
-            if (rule.pattern().matcher(text).find()) {
+            if (rule.pattern().matcher(factor).find()) {
                 return rule.category();
             }
         }
         return CATEGORY_OTHER;
+    }
+
+    /** 提取面积门槛：如 "不少于 5000 平方米"。 */
+    public BigDecimal extractMinArea(String text) {
+        Integer value = extractCount(text, "㎡|平方米|平米");
+        return value == null ? null : BigDecimal.valueOf(value.longValue());
     }
 
     /** 提取要求资质等级：如 "甲级" / "一级" / "CMMI 3" / "特级"。 */

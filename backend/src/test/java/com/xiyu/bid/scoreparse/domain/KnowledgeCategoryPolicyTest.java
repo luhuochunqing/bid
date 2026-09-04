@@ -101,4 +101,46 @@ class KnowledgeCategoryPolicyTest {
     void extractKeywords_blank_empty() {
         assertThat(policy.extractKeywords("  ", 6)).isEmpty();
     }
+
+    @Test
+    @DisplayName("1371 财务状况：即使细则提到人员/报表，因素名不是人员 → OTHER")
+    void categorize_financeFactor_ignoresPersonnelWordsInDetail() {
+        assertThat(policy.categorize("财务状况（3分）",
+                "1.人员配置方面：项目经理花名册。现金流量净额连续三年为正的得1.5分。"
+                        + "须提供经会计师事务所审计的财务报表"))
+                .isEqualTo("OTHER");
+    }
+
+    @Test
+    @DisplayName("1371 综合服务方案：细则含品牌覆盖，因素名是方案 → OTHER 不进品牌库")
+    void categorize_servicePlan_ignoresBrandWordsInDetail() {
+        assertThat(policy.categorize("针对MRO工业品综合服务方案（10分）",
+                "商品上架管理品类及主流品牌覆盖管理、厂家授权"))
+                .isEqualTo("OTHER");
+    }
+
+    @Test
+    @DisplayName("1371 产品质量及价格：细则含授权，因素名是方案 → OTHER")
+    void categorize_qualityPricePlan_ignoresAuthorizationInDetail() {
+        assertThat(policy.categorize("针对MRO工业品产品质量及价格管控方案（10分）",
+                "原厂商品合法销售授权管控；商品授权情况"))
+                .isEqualTo("OTHER");
+    }
+
+    @Test
+    @DisplayName("1371 服务网点及仓储：因素名含仓储 → WAREHOUSE")
+    void categorize_warehouseFactor_byDim() {
+        assertThat(policy.categorize("服务网点及仓储（3分）",
+                "须提供全国各省仓储地点的统计表，包含仓库面积"))
+                .isEqualTo("WAREHOUSE");
+    }
+
+    @Test
+    @DisplayName("1371 物流仓储方案 / 服务团队方案是技术评分方案 → OTHER")
+    void categorize_schemeFactors_areOther_notWarehouseOrPerson() {
+        assertThat(policy.categorize("针对MRO工业品物流仓储方案（8分）", "仓储方案须涵盖省市区"))
+                .isEqualTo("OTHER");
+        assertThat(policy.categorize("针对MRO工业品服务团队方案（10分）", "人员配置方面：项目经理"))
+                .isEqualTo("OTHER");
+    }
 }

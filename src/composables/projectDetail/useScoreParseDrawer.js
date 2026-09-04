@@ -7,7 +7,7 @@ import { ElMessage } from 'element-plus'
 import { scoreParseApi } from '@/api/modules/scoreParse.js'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { formatTime, pollTask, normalizeScoreItem } from './scoreParseTask.js'
-import { parseTriggerSource, scoringBody, scoringSkipHint, mapScoreResults, hasMeaningfulResults, circuitHintFromMeta } from './scoreParseSpendGuard.js'
+import { parseTriggerSource, scoringBody, scoringSkipHint, mapScoreResults, lookupScoreResult, hasMeaningfulResults, circuitHintFromMeta } from './scoreParseSpendGuard.js'
 
 export function useScoreParseDrawer(props, emit) {
   const visible = ref(false)
@@ -69,14 +69,14 @@ export function useScoreParseDrawer(props, emit) {
   const estTotalScore = computed(() => scoreItems.value.reduce((sum, i) => sum + (i.scoreType === '客观项' && typeof i.estScore === 'number' ? i.estScore : 0), 0))
   const actualTotalScore = computed(() => scoreItems.value.reduce((sum, i) => {
     if (i.scoreType !== '客观项') return sum
-    const res = scoreResults.value[i.code]
+    const res = lookupScoreResult(scoreResults.value, i)
     const val = res?.actualScore ?? res?.score
     return sum + (typeof val === 'number' ? val : 0)
   }, 0))
 
   function openDetail(item, result, mode = 'est') {
     selectedItem.value = item
-    selectedResult.value = result || scoreResults.value[item.code] || null
+    selectedResult.value = result || lookupScoreResult(scoreResults.value, item)
     detailMode.value = mode
     detailModalVisible.value = true
   }

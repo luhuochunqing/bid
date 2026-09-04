@@ -234,4 +234,69 @@ class EstimatedScoreServiceTest {
 
         verify(itemRepository).saveAll(List.of());
     }
+
+    @Test
+    void financeItem_doesNotCallPersonMatch_evenIfDetailMentionsStaff() {
+        ScoreItem finance = item("财务状况",
+                "1.人员配置方面：项目经理、技术人员花名册。"
+                        + "现金流量净额连续三年为正的得1.5分。须提供财务报表",
+                "3", "OBJECTIVE");
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(finance));
+
+        service.estimateForProject(1L);
+
+        verify(personMatchService, never()).match(any());
+        verify(brandMatchService, never()).match(any());
+        verify(warehouseMatchService, never()).match(any());
+        assertThat(finance.getEstScore()).isNull();
+        assertThat(finance.getStatusStage1()).isEqualTo("PENDING");
+        assertThat(finance.getEstBasis()).doesNotContain("人员");
+    }
+
+    @Test
+    void servicePlan_doesNotCallBrandMatch_whenFactorIsScheme() {
+        ScoreItem plan = item("针对MRO工业品综合服务方案",
+                "商品上架管理品类及主流品牌覆盖管理、厂家授权",
+                "10", "OBJECTIVE");
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(plan));
+
+        service.estimateForProject(1L);
+
+        verify(brandMatchService, never()).match(any());
+        assertThat(plan.getStatusStage1()).isEqualTo("PENDING");
+    }
+
+    @Test
+    void logisticsScheme_doesNotCallWarehouseMatch() {
+        ScoreItem scheme = item("针对MRO工业品物流仓储方案",
+                "仓储方案须涵盖省、市、区（县）各层级详细内容",
+                "8", "OBJECTIVE");
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(scheme));
+
+        service.estimateForProject(1L);
+
+        verify(warehouseMatchService, never()).match(any());
+        assertThat(scheme.getStatusStage1()).isEqualTo("PENDING");
+    }
+
+    @Test
+    void warehouseItem_doesNotPassTenderSentenceAsNameKeywords_andFullWhenKbHits() {
+        ScoreItem warehouse = item("服务网点及仓储",
+                "供应商须在全国所有省份（含直辖市）中均设有仓储地点的得1.5分。"
+                        + "须提供全国各省仓储地点的统计表，仓库面积、类型等信息",
+                "3", "OBJECTIVE");
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(warehouse));
+        when(warehouseMatchService.match(any(WarehouseMatchRequest.class)))
+                .thenReturn(new KnowledgeMatchResult("FULL", 100, List.of(), "命中 1 个在用仓库"));
+
+        service.estimateForProject(1L);
+
+        ArgumentCaptor<WarehouseMatchRequest> captor = ArgumentCaptor.forClass(WarehouseMatchRequest.class);
+        verify(warehouseMatchService).match(captor.capture());
+        WarehouseMatchRequest request = captor.getValue();
+        assertThat(request.nameKeywords() == null || request.nameKeywords().isEmpty()).isTrue();
+        assertThat(warehouse.getStatusStage1()).isEqualTo("OK");
+        assertThat(warehouse.getEstScore()).isEqualByComparingTo("3");
+        assertThat(warehouse.getEstBasis()).contains("仓库");
+    }
 }

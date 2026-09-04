@@ -128,7 +128,7 @@ public class EstimatedScoreService {
             case KnowledgeCategoryPolicy.CATEGORY_PROJECT -> projectMatchService.match(new ProjectMatchRequest(
                     keywords, null, null, categoryPolicy.extractCount(detail, "个|项|份")));
             case KnowledgeCategoryPolicy.CATEGORY_WAREHOUSE -> warehouseMatchService.match(
-                    new WarehouseMatchRequest(keywords, null, null, null));
+                    new WarehouseMatchRequest(null, null, categoryPolicy.extractMinArea(detail), null));
             case KnowledgeCategoryPolicy.CATEGORY_BRAND -> brandMatchService.match(new BrandMatchRequest(
                     keywords, null, null, today));
             default -> KnowledgeMatchResult.empty("未支持的知识库类别");

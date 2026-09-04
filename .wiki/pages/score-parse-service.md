@@ -79,6 +79,9 @@ trigger（同步<1s，互斥校验+建任务）
 
 - 返回语义：`tier`（NONE/PARTIAL/FULL）+ `ratio`（0~1）
 - tier 规则：0 命中=NONE；存在标记项/降级匹配/比例<100%=PARTIAL；100%=FULL
+- **类别只看因素名 `dim`，不扫细则 `detail`（1371）**：细则里的「人员配置 / 品牌覆盖 / 授权」不得把财务项送进人员库、把技术方案送进品牌库。`KnowledgeCategoryPolicy.categorize` 对空白 `dim` 返回 OTHER。
+- **仓库匹配不以招标长句 LIKE 仓库名称（1371）**：`EstimatedScoreService` 不再把细则切词当作 `nameKeywords`；在用仓 + 可选面积门槛。金标：`Project1371ColumnInvariantsTest`。
+- **前端行身份用 `item.id`**：局部编号 `1/2` 会跨组重复，`ScoreParseTable` 禁止 `:key="item.code"`；打分结果 `lookupScoreResult` 优先 `scoreItemId`。
 
 ## 5. 阶段化打分（US3/US4）
 

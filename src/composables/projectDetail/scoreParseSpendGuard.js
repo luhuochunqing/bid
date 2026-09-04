@@ -30,11 +30,28 @@ export function scoringSkipHint(data) {
 }
 
 export function mapScoreResults(results) {
-  const resultMap = {}
+  const resultMap = Object.create(null)
   for (const row of results || []) {
-    resultMap[row.code] = normalizeScoreResult(row)
+    const normalized = normalizeScoreResult(row)
+    if (row.scoreItemId != null) {
+      resultMap[`id:${row.scoreItemId}`] = normalized
+    }
+    if (row.code != null && resultMap[`code:${row.code}`] == null) {
+      resultMap[`code:${row.code}`] = normalized
+    }
   }
   return resultMap
+}
+
+export function lookupScoreResult(results, item) {
+  if (!results || !item) return null
+  if (item.id != null) {
+    return results[`id:${item.id}`] ?? null
+  }
+  if (item.code != null) {
+    return results[`code:${item.code}`] ?? results[item.code] ?? null
+  }
+  return null
 }
 
 export function hasMeaningfulResults(results) {
