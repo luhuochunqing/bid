@@ -164,9 +164,14 @@ class ScoreItemCaseMatchPolicyTest {
             "'第2.1节 (2) 培训与技术支持', '培训与技术支持'",
             "'1-1-1 履约保函与保证金', '履约保函与保证金'",
             "'表3.2 业绩证明材料', '业绩证明材料'",
-            "'纯业务名称无编号', '纯业务名称无编号'"
+            "'纯业务名称无编号', '纯业务名称无编号'",
+            "'ISO9001 质量管理体系认证', 'ISO9001 质量管理体系认证'",
+            "'CMMI 软件成熟度认证', 'CMMI 软件成熟度认证'",
+            "'B2B 电商交易平台', 'B2B 电商交易平台'",
+            "'ERP 系统对接方案', 'ERP 系统对接方案'",
+            "'AI 智能算法开发', 'AI 智能算法开发'"
     })
-    @DisplayName("编号清洗器全面测试：支持各种真实标书编号前缀剥离")
+    @DisplayName("编号清洗器全面测试：支持各种真实标书编号前缀剥离并完整保留英文缩写与品牌名")
     void testCleanTitle_ComprehensivePrefixes(String rawTitle, String expectedClean) {
         String actual = ScoreItemCaseMatchPolicy.cleanTitle(rawTitle);
         assertThat(actual).isEqualTo(expectedClean);
@@ -174,12 +179,12 @@ class ScoreItemCaseMatchPolicyTest {
 
     @ParameterizedTest
     @CsvSource({
-            "'第一章 (1) 财务审计报告与三年纳税证明', '商务要求', '商务', '我方提供经审计的财务报表及三年完税证明材料', '商务要求'",
-            "'【资质】 A-1.2 ISO27001信息安全体系认证', '资质认证', '资质', '我方已取得ISO27001信息安全管理体系认证证书', '资质要求'",
-            "'附表1-1 ① 项目经理及核心技术团队配置', '人员团队', '人员', '配置具备高级职称的项目经理及专业团队成员', '项目团队'"
+            "'第一章 (1) 财务审计报告与三年纳税证明', '商务要求', '我方提供经审计的财务报表及三年完税证明材料', '商务要求'",
+            "'【资质】 A-1.2 ISO27001信息安全体系认证', '资质认证', '我方已取得ISO27001信息安全管理体系认证证书', '资质要求'",
+            "'附表1-1 ① 项目经理及核心技术团队配置', '人员团队', '配置具备高级职称的项目经理及专业团队成员', '项目团队'"
     })
     @DisplayName("多类别覆盖测试：商务/资质/人员等不同类别与前缀均能精准识别召回")
-    void testVariousCategoriesAndPrefixes(String itemDim, String caseCategory, String itemCategory, String caseResponse, String caseTitle) {
+    void testVariousCategoriesAndPrefixes(String itemDim, String caseCategory, String caseResponse, String caseTitle) {
         StubCandidate candidate = new StubCandidate(
                 50L,
                 caseTitle,
@@ -255,6 +260,23 @@ class ScoreItemCaseMatchPolicyTest {
     }
 
     @Test
+    @DisplayName("边界测试：null context 防御，避免 NPE")
+    void testNullContext_DefensiveCheck() {
+        StubCandidate candidate = new StubCandidate(
+                99L, "技术方案", "技术方案", "需求", "响应", "IT", "央企", "WON"
+        );
+        ScoreItemCaseMatchPolicy.MatchResult result = policy.evaluate(candidate, null);
+        assertThat(result.caseId()).isEqualTo(99L);
+        assertThat(result.score()).isEqualTo(0);
+        assertThat(result.matchLabel()).isEqualTo("一般");
+        assertThat(result.matchReasons()).isEmpty();
+
+        ScoreItemCaseMatchPolicy.MatchResult nullBoth = policy.evaluate(null, null);
+        assertThat(nullBoth.caseId()).isNull();
+        assertThat(nullBoth.score()).isEqualTo(0);
+    }
+
+    @Test
     @DisplayName("实体加权断层匹配：三峡项目优先强匹配三峡历史案例，新疆中泰案例得分显著偏低")
     void testProjectEntityMatching_ThreeGorgesProjectOutranksZhongtai() {
         StubCandidate threeGorgesCase = new StubCandidate(
@@ -312,5 +334,353 @@ class ScoreItemCaseMatchPolicyTest {
 
         assertThat(entities).contains("三峡");
         assertThat(entities).doesNotContain("有限公司", "集团", "采购项目", "2026年", "项目");
+    }
+
+    @Test
+    @DisplayName("大类冲突一票否决：技术评分项 vs 商务财务案例，一票否决为0分且客户/项目加分绝不穿透")
+    void testCategoryHardConflict_TechnicalItemVsCommercialCase_VetoedWithZeroScore() {
+        // 候选案例为商务类（财务审计），但携带三峡项目名称与中标状态
+        StubCandidate commercialCaseWithBonus = new StubCandidate(
+                88L,
+                "财务审计报告与资产负债率说明",
+                "商务要求",
+                "投标人须提供经会计师事务所审计的财务审计报告，资产负债率不高于70%",
+                "三峡集团项目历史财务审计证明，经审计资产负债率为55%，完税证明齐全",
+                "工业品",
+                "央企",
+                "WON"
+        );
+
+        // 评分项为纯技术方案
+        ScoreItemCaseMatchPolicy.ScoreItemContext technicalContext = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                501L,
+                "1.1",
+                "技术方案与实施保障",
+                "对投标人的系统技术方案、整体部署架构、安全保障措施进行综合评审",
+                "工业品",
+                "央企",
+                null,
+                "中国长江三峡集团2026年办公及工业品电商化采购项目",
+                "中国长江三峡集团有限公司"
+        );
+
+        ScoreItemCaseMatchPolicy.MatchResult result = policy.evaluate(commercialCaseWithBonus, technicalContext);
+
+        // 即使客户类型一致(+5)、项目类型一致(+10)、中标案例(+5)、三峡实体命中(+25)，也必须被一票否决，得分为0！
+        assertThat(result.score()).isEqualTo(0);
+        assertThat(result.matchLabel()).isEqualTo("一般");
+        assertThat(result.matchReasons()).contains("大类冲突一票否决");
+        assertThat(result.matchedKeywords()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("大类冲突一票否决：商务财务评分项 vs 技术方案案例，一票否决为0分")
+    void testCategoryHardConflict_CommercialItemVsTechnicalCase_VetoedWithZeroScore() {
+        StubCandidate technicalCase = new StubCandidate(
+                89L,
+                "微服务部署架构与接口开发方案",
+                "技术方案",
+                "提供高可用微服务架构",
+                "微服务部署架构满足高可用要求",
+                "工业品",
+                "央企",
+                "WON"
+        );
+
+        ScoreItemCaseMatchPolicy.ScoreItemContext commercialContext = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                502L,
+                "3.1",
+                "3.1 财务审计与资产负债率要求",
+                "投标人须提供经会计师事务所审计的财务审计报告",
+                "工业品",
+                "央企",
+                null
+        );
+
+        ScoreItemCaseMatchPolicy.MatchResult result = policy.evaluate(technicalCase, commercialContext);
+
+        assertThat(result.score()).isEqualTo(0);
+        assertThat(result.matchLabel()).isEqualTo("一般");
+        assertThat(result.matchReasons()).contains("大类冲突一票否决");
+        assertThat(result.matchedKeywords()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("大类兼容性测试：技术方案评分项 vs 资质认证案例，大类兼容不否决")
+    void testCategoryCompatibility_TechnicalItemVsQualificationCase_NotVetoed() {
+        StubCandidate qualificationCase = new StubCandidate(
+                90L,
+                "ISO27001信息安全管理体系认证证书",
+                "资质认证",
+                "提供ISO27001认证体系",
+                "已获得信息安全管理体系认证证书",
+                "工业品",
+                "央企",
+                "WON"
+        );
+
+        ScoreItemCaseMatchPolicy.ScoreItemContext technicalContext = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                503L,
+                "2.1",
+                "系统架构高可用设计",
+                "系统架构高可用设计，支持双活容灾与动态扩容能力",
+                "工业品",
+                "央企",
+                null
+        );
+
+        ScoreItemCaseMatchPolicy.MatchResult result = policy.evaluate(qualificationCase, technicalContext);
+
+        assertThat(result.matchReasons()).doesNotContain("大类冲突一票否决");
+    }
+
+    @Test
+    @DisplayName("大类兼容性测试：商务同类业绩评分项 vs 技术方案案例，商务业绩与技术兼容不否决")
+    void testCategoryCompatibility_PerformanceItemVsTechnicalCase_NotVetoed() {
+        StubCandidate technicalCase = new StubCandidate(
+                92L,
+                "微服务架构高可用实施方案",
+                "技术方案",
+                "微服务部署架构满足高可用要求",
+                "我司具备大型微服务实施案例与同类电商平台建设经验，提供微服务高可用方案",
+                "工业品",
+                "央企",
+                "WON"
+        );
+
+        ScoreItemCaseMatchPolicy.ScoreItemContext performanceContext = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                508L,
+                "2.1",
+                "商务-同类业绩",
+                "投标人须提供近三年承担过同类信息化项目的有效合同业绩",
+                "工业品",
+                "央企",
+                null
+        );
+
+        ScoreItemCaseMatchPolicy.MatchResult result = policy.evaluate(technicalCase, performanceContext);
+
+        assertThat(result.score()).isGreaterThan(0);
+        assertThat(result.matchReasons()).doesNotContain("大类冲突一票否决");
+    }
+
+    @Test
+    @DisplayName("类别分类与兼容：技术项包含实施案例、配置方案、在线支付、等级保护不被误判与否决")
+    void testTechnicalItems_WithCaseConfigPayment_NotMisclassifiedNorVetoed() {
+        assertThat(CaseCategoryMatchPolicy.classifyText("微服务实施案例"))
+                .isEqualTo(CaseCategoryMatchPolicy.MacroCategory.TECHNICAL);
+        assertThat(CaseCategoryMatchPolicy.classifyText("双活容灾配置方案"))
+                .isEqualTo(CaseCategoryMatchPolicy.MacroCategory.TECHNICAL);
+        assertThat(CaseCategoryMatchPolicy.classifyText("在线支付对接"))
+                .isEqualTo(CaseCategoryMatchPolicy.MacroCategory.TECHNICAL);
+        assertThat(CaseCategoryMatchPolicy.classifyText("网络安全等级保护"))
+                .isEqualTo(CaseCategoryMatchPolicy.MacroCategory.TECHNICAL);
+
+        StubCandidate technicalCase = new StubCandidate(
+                95L,
+                "微服务实施案例与接口开发方案",
+                "技术方案",
+                "微服务实施案例对接要求",
+                "成功完成微服务实施案例与在线支付对接，提供双活容灾配置方案及网络安全等级保护",
+                "工业品",
+                "央企",
+                "WON"
+        );
+        ScoreItemCaseMatchPolicy.ScoreItemContext technicalContext = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                505L,
+                "2.1",
+                "双活容灾配置方案与在线支付对接",
+                "要求提供双活容灾配置方案，支持在线支付对接与微服务实施案例",
+                "工业品",
+                "央企",
+                "在线支付"
+        );
+
+        ScoreItemCaseMatchPolicy.MatchResult result = policy.evaluate(technicalCase, technicalContext);
+        assertThat(result.score()).isGreaterThanOrEqualTo(60);
+        assertThat(result.matchReasons()).doesNotContain("大类冲突一票否决");
+        assertThat(result.matchReasons()).contains("类别一致");
+    }
+
+    @Test
+    @DisplayName("顿号分层解析与展示关键词优先级：纯净标题与顿号实体优先入选，绝无碎片切词污染")
+    void testPrioritizedKeywords_CleanTitleAndPunctuationEntitiesWithoutFragments() {
+        StubCandidate candidate = new StubCandidate(
+                91L,
+                "技术方案",
+                "技术方案",
+                "商城系统对接能力综合评价",
+                "技术方案内容：商城系统对接能力全面满足，包括商品、商品组、订单、售后、对账等，具备双活容灾标准化能力",
+                "工业品",
+                "央企",
+                "WON"
+        );
+
+        ScoreItemCaseMatchPolicy.ScoreItemContext context = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                504L,
+                "2.2.4(3)",
+                "2.2.4(3) 商城系统对接能力",
+                "对供应商商城系统对接能力进行综合评价，向职工商城采购接口服务，包括商品、商品组、订单、售后、对账等，具备双活容灾标准化能力",
+                "工业品",
+                "央企",
+                null
+        );
+
+        ScoreItemCaseMatchPolicy.MatchResult result = policy.evaluate(candidate, context);
+
+        assertThat(result.score()).isGreaterThanOrEqualTo(80);
+        // 核心纯净标题与顿号提取的高质量实体优先展示
+        assertThat(result.matchedKeywords()).contains("商城系统对接能力", "商品", "商品组", "订单", "售后", "对账");
+        // 绝不包含任何滑动切词碎末
+        assertThat(result.matchedKeywords()).noneMatch(kw ->
+                kw.equals("双的") || kw.equals("的标") || kw.equals("可编") || kw.startsWith("的") || kw.endsWith("的")
+        );
+    }
+
+    @Test
+    @DisplayName("大类策略纯核心单测：互斥判定仅限纯技术与纯商务，其他相互兼容，OTHER类别安全兼容")
+    void testCaseCategoryMatchPolicy_MutuallyExclusive() {
+        assertThat(CaseCategoryMatchPolicy.isMutuallyExclusive(
+                CaseCategoryMatchPolicy.MacroCategory.TECHNICAL,
+                CaseCategoryMatchPolicy.MacroCategory.COMMERCIAL)).isTrue();
+        assertThat(CaseCategoryMatchPolicy.isMutuallyExclusive(
+                CaseCategoryMatchPolicy.MacroCategory.COMMERCIAL,
+                CaseCategoryMatchPolicy.MacroCategory.TECHNICAL)).isTrue();
+        assertThat(CaseCategoryMatchPolicy.isMutuallyExclusive(
+                CaseCategoryMatchPolicy.MacroCategory.TECHNICAL,
+                CaseCategoryMatchPolicy.MacroCategory.PERFORMANCE)).isFalse();
+        assertThat(CaseCategoryMatchPolicy.isMutuallyExclusive(
+                CaseCategoryMatchPolicy.MacroCategory.PERFORMANCE,
+                CaseCategoryMatchPolicy.MacroCategory.TECHNICAL)).isFalse();
+        assertThat(CaseCategoryMatchPolicy.isMutuallyExclusive(
+                CaseCategoryMatchPolicy.MacroCategory.PERFORMANCE,
+                CaseCategoryMatchPolicy.MacroCategory.COMMERCIAL)).isFalse();
+        assertThat(CaseCategoryMatchPolicy.isMutuallyExclusive(
+                CaseCategoryMatchPolicy.MacroCategory.TECHNICAL,
+                CaseCategoryMatchPolicy.MacroCategory.TECHNICAL)).isFalse();
+        assertThat(CaseCategoryMatchPolicy.isMutuallyExclusive(
+                CaseCategoryMatchPolicy.MacroCategory.TECHNICAL,
+                CaseCategoryMatchPolicy.MacroCategory.QUALIFICATION)).isFalse();
+        assertThat(CaseCategoryMatchPolicy.isMutuallyExclusive(
+                CaseCategoryMatchPolicy.MacroCategory.QUALIFICATION,
+                CaseCategoryMatchPolicy.MacroCategory.COMMERCIAL)).isFalse();
+        assertThat(CaseCategoryMatchPolicy.isMutuallyExclusive(
+                CaseCategoryMatchPolicy.MacroCategory.PERSONNEL,
+                CaseCategoryMatchPolicy.MacroCategory.COMMERCIAL)).isFalse();
+        assertThat(CaseCategoryMatchPolicy.isMutuallyExclusive(
+                CaseCategoryMatchPolicy.MacroCategory.PERSONNEL,
+                CaseCategoryMatchPolicy.MacroCategory.TECHNICAL)).isFalse();
+        assertThat(CaseCategoryMatchPolicy.isMutuallyExclusive(
+                CaseCategoryMatchPolicy.MacroCategory.OTHER,
+                CaseCategoryMatchPolicy.MacroCategory.TECHNICAL)).isFalse();
+        assertThat(CaseCategoryMatchPolicy.isMutuallyExclusive(null, null)).isFalse();
+    }
+
+    @Test
+    @DisplayName("大类策略纯核心单测：维度/详情分层分类与精炼关键词解析")
+    void testCaseCategoryMatchPolicy_Classification() {
+        assertThat(CaseCategoryMatchPolicy.classifyText("")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.OTHER);
+        assertThat(CaseCategoryMatchPolicy.classifyText(null)).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.OTHER);
+        assertThat(CaseCategoryMatchPolicy.classifyText("项目经理及人员配置")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.PERSONNEL);
+        assertThat(CaseCategoryMatchPolicy.classifyText("项目经理及团队投入")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.PERSONNEL);
+        assertThat(CaseCategoryMatchPolicy.classifyText("分支机构与专业技术服务")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.PERSONNEL);
+        assertThat(CaseCategoryMatchPolicy.classifyText("ISO27001认证体系及资质等级证书")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.QUALIFICATION);
+        assertThat(CaseCategoryMatchPolicy.classifyText("三年财务审计报告与报价")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.COMMERCIAL);
+        assertThat(CaseCategoryMatchPolicy.classifyText("货款支付与结算条款")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.COMMERCIAL);
+        assertThat(CaseCategoryMatchPolicy.classifyText("近三年同类项目业绩")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.PERFORMANCE);
+        assertThat(CaseCategoryMatchPolicy.classifyText("同类业绩证明材料")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.PERFORMANCE);
+        assertThat(CaseCategoryMatchPolicy.classifyText("商务-同类业绩")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.PERFORMANCE);
+        assertThat(CaseCategoryMatchPolicy.classifyText("微服务架构高可用实施方案")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.TECHNICAL);
+        assertThat(CaseCategoryMatchPolicy.classifyText("微服务实施案例")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.TECHNICAL);
+        assertThat(CaseCategoryMatchPolicy.classifyText("双活容灾配置方案")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.TECHNICAL);
+        assertThat(CaseCategoryMatchPolicy.classifyText("在线支付对接")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.TECHNICAL);
+        assertThat(CaseCategoryMatchPolicy.classifyText("网络安全等级保护")).isEqualTo(CaseCategoryMatchPolicy.MacroCategory.TECHNICAL);
+
+        // 标题为OTHER时，从详情中推断大类
+        assertThat(CaseCategoryMatchPolicy.classifyMacroCategory("条款1.1", "要求提供项目经理及人员配置"))
+                .isEqualTo(CaseCategoryMatchPolicy.MacroCategory.PERSONNEL);
+        // 标题为泛化商务时，从详情中精准推断为业绩大类
+        assertThat(CaseCategoryMatchPolicy.classifyMacroCategory("商务要求", "近三年同类项目业绩合同"))
+                .isEqualTo(CaseCategoryMatchPolicy.MacroCategory.PERFORMANCE);
+    }
+
+    @Test
+    @DisplayName("大类策略纯核心单测：null或空白dim绝不能因为空串包含而误得满分")
+    void testCalculateCategoryScore_DefensiveAgainstNullAndBlankDim() {
+        // 当 dim 为 null 或空白，且 detail 为空或不匹配时，绝不能返回 15 分
+        assertThat(CaseCategoryMatchPolicy.calculateCategoryScore(null, null, "技术方案")).isEqualTo(0);
+        assertThat(CaseCategoryMatchPolicy.calculateCategoryScore("", "", "技术方案")).isEqualTo(0);
+        assertThat(CaseCategoryMatchPolicy.calculateCategoryScore("   ", "不相关文本", "技术方案")).isEqualTo(0);
+
+        // 当 dim 为 null，但 detail 明确为技术方案时，应根据 detail 识别大类得分
+        assertThat(CaseCategoryMatchPolicy.calculateCategoryScore(null, "系统技术架构与微服务部署方案", "技术方案"))
+                .isEqualTo(CaseCategoryMatchPolicy.CATEGORY_MATCH_SCORE);
+
+        // 当 candidateCategory 为 null 或空时，得分为 0
+        assertThat(CaseCategoryMatchPolicy.calculateCategoryScore("技术方案", "系统设计", null)).isEqualTo(0);
+        assertThat(CaseCategoryMatchPolicy.calculateCategoryScore("技术方案", "系统设计", "")).isEqualTo(0);
+
+        // 正常匹配场景
+        assertThat(CaseCategoryMatchPolicy.calculateCategoryScore("技术方案", "系统架构", "技术方案"))
+                .isEqualTo(CaseCategoryMatchPolicy.CATEGORY_MATCH_SCORE);
+    }
+
+    @Test
+    @DisplayName("关键词提取优先级与8个上限截断测试：专属实体 > 维度名称 > 详情顿号实体 > 搜索词，最多严格保留8个")
+    void testAssemblePrioritizedKeywords_MaxKeywordsCountLimit() {
+        StubCandidate candidate = new StubCandidate(
+                99L,
+                "技术方案",
+                "技术方案",
+                "项目三峡与华为联合研发，包含微服务架构、高可用设计、双活容灾、动态扩容、在线支付、应急响应、需求分析等核心能力，性能优异",
+                "三峡与华为技术方案交付",
+                "IT",
+                "央企",
+                "WON"
+        );
+
+        ScoreItemCaseMatchPolicy.ScoreItemContext context = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                200L,
+                "B1",
+                "技术方案",
+                "包括微服务架构、高可用设计、双活容灾、动态扩容、在线支付、应急响应、需求分析等",
+                "IT",
+                "央企",
+                "性能",
+                "三峡项目",
+                "华为公司"
+        );
+
+        ScoreItemCaseMatchPolicy.MatchResult result = policy.evaluate(candidate, context);
+
+        // 验证关键词严格截断为 8 个
+        assertThat(result.matchedKeywords()).hasSize(8);
+        // 项目专属实体优先
+        assertThat(result.matchedKeywords().get(0)).isIn("三峡", "华为");
+        assertThat(result.matchedKeywords().get(1)).isIn("三峡", "华为");
+        // 维度优先
+        assertThat(result.matchedKeywords().get(2)).isEqualTo("技术方案");
+        // 详情标点实体按顺序填满
+        assertThat(result.matchedKeywords().subList(3, 8))
+                .containsExactly("微服务架构", "高可用设计", "双活容灾", "动态扩容", "在线支付");
+        // 超出 8 个的详情实体与后续搜索词（应急响应、需求分析、性能）被截断
+        assertThat(result.matchedKeywords()).doesNotContain("应急响应", "需求分析", "性能");
+    }
+
+    @Test
+    @DisplayName("防御性测试：Candidate与Context字段全为null时安全返回，不抛出NPE")
+    void testEvaluate_NullFieldsDefensive() {
+        StubCandidate candidate = new StubCandidate(null, null, null, null, null, null, null, null);
+        ScoreItemCaseMatchPolicy.ScoreItemContext context = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                null, null, null, null, null, null, null, null, null
+        );
+
+        ScoreItemCaseMatchPolicy.MatchResult result = policy.evaluate(candidate, context);
+
+        assertThat(result).isNotNull();
+        assertThat(result.score()).isEqualTo(0);
+        assertThat(result.matchLabel()).isEqualTo("一般");
+        assertThat(result.matchReasons()).isEmpty();
+        assertThat(result.matchedKeywords()).isEmpty();
     }
 }
