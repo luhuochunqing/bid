@@ -67,8 +67,10 @@ class DeterministicQualificationExtractorTest {
         assertThat(quals).anyMatch(q -> q.contains("公安部信息系统安全等级保护备案证明")
                 && (q.contains("第三级") || q.contains("三级")));
 
-        // 通用资格断言
-        assertThat(quals).anyMatch(q -> q.contains("独立法人") && q.contains("民事责任能力"));
+        // 方案 A 核心断言：通用资格（独立法人、民事责任、信用中国、失信被执行人）严禁作为资质证书提取，杜绝资质库错配
+        assertThat(quals).hasSize(2);
+        assertThat(quals).noneMatch(q -> q.contains("独立法人") || q.contains("民事责任") || q.contains("信用中国")
+                || q.contains("严重违法失信") || q.contains("经营异常名录"));
 
         // 占位符与非资质要求排除断言（不得提取 /、人员要求：/ 等脏数据）
         assertThat(quals).noneMatch(q -> q.contains("人员要求") && q.contains("/"));
@@ -79,6 +81,51 @@ class DeterministicQualificationExtractorTest {
         // 导语与章节标题排除断言（彻底排除 3.2.1 资质要求：供应商应具有以下证书 等导语）
         assertThat(quals).noneMatch(q -> q.contains("应具有以下证书") || q.contains("满足下列条件") || q.contains("专用资格条件"));
         assertThat(quals).noneMatch(q -> q.startsWith(";") || q.startsWith("；"));
+    }
+
+    @Test
+    @DisplayName("金标 1358 通用资格条件提取：成功提取独立法人与信用合规，不混淆专用资质证书")
+    void extractGeneralCapacities_incident1358_extractsGeneralConditionsCleanly() {
+        List<String> generals = DeterministicQualificationExtractor.extractGeneralCapacities(TEXT_INCIDENT_1358);
+
+        assertThat(generals).isNotEmpty();
+        assertThat(generals).anyMatch(q -> q.contains("独立法人") && q.contains("民事责任能力"));
+        assertThat(generals).anyMatch(q -> q.contains("信用中国") && q.contains("失信被执行人"));
+        assertThat(generals).anyMatch(q -> q.contains("严重违法失信企业名单") || q.contains("经营异常名录"));
+
+        // 专用资质证书严禁混入通用资格列表
+        assertThat(generals).noneMatch(q -> q.contains("增值电信业务经营许可证"));
+        assertThat(generals).noneMatch(q -> q.contains("等级保护备案证明"));
+    }
+
+    @Test
+    @DisplayName("条款属性智能分类：精准识别专用行业资质 vs 通用主体资格条件")
+    void isSpecificCertificate_and_isGeneralCapacity_classification() {
+        // 专用资质证书示例
+        assertThat(DeterministicQualificationExtractor.isSpecificCertificate("增值电信业务经营许可证")).isTrue();
+        assertThat(DeterministicQualificationExtractor.isGeneralCapacity("增值电信业务经营许可证")).isFalse();
+
+        assertThat(DeterministicQualificationExtractor.isSpecificCertificate("公安部信息系统安全等级保护备案证明第三级")).isTrue();
+        assertThat(DeterministicQualificationExtractor.isGeneralCapacity("公安部信息系统安全等级保护备案证明第三级")).isFalse();
+
+        assertThat(DeterministicQualificationExtractor.isSpecificCertificate("建筑工程施工总承包一级资质证书")).isTrue();
+        assertThat(DeterministicQualificationExtractor.isGeneralCapacity("建筑工程施工总承包一级资质证书")).isFalse();
+
+        assertThat(DeterministicQualificationExtractor.isSpecificCertificate("ISO9001 质量管理体系认证证书")).isTrue();
+        assertThat(DeterministicQualificationExtractor.isGeneralCapacity("ISO9001 质量管理体系认证证书")).isFalse();
+
+        // 通用主体资格条件示例
+        String legalEntity = "1.1 供应商须为中华人民共和国境内合法注册的独立法人或其他组织，具有独立承担民事责任能力，具有独立订立合同的权利";
+        assertThat(DeterministicQualificationExtractor.isSpecificCertificate(legalEntity)).isFalse();
+        assertThat(DeterministicQualificationExtractor.isGeneralCapacity(legalEntity)).isTrue();
+
+        String creditChina = "未在“信用中国”网站和中国执行信息公开网中被列入失信被执行人名单";
+        assertThat(DeterministicQualificationExtractor.isSpecificCertificate(creditChina)).isFalse();
+        assertThat(DeterministicQualificationExtractor.isGeneralCapacity(creditChina)).isTrue();
+
+        String businessLicenseOnly = "供应商须具有独立法人资格，并提供有效营业执照复印件";
+        assertThat(DeterministicQualificationExtractor.isSpecificCertificate(businessLicenseOnly)).isFalse();
+        assertThat(DeterministicQualificationExtractor.isGeneralCapacity(businessLicenseOnly)).isTrue();
     }
 
     @Test

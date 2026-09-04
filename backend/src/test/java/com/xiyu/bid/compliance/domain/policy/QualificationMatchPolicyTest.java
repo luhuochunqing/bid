@@ -218,4 +218,38 @@ class QualificationMatchPolicyTest {
         assertThat(d.bidPageNumber()).isEqualTo(167);
         assertThat(d.remark()).doesNotContain("医疗器械");
     }
+
+    @Test
+    @DisplayName("方案 A 纵深防御：buildDetails 自动过滤通用主体资格条款，不进入资质比对清单")
+    void testBuildDetails_GeneralCapacityClauses_FilteredOutFromComparisonList() {
+        LocalDate today = LocalDate.of(2026, 9, 4);
+        List<Qualification> certs = List.of(
+                Qualification.builder()
+                        .id(46L)
+                        .name("中华人民共和国增值电信业务经营许可证")
+                        .expiryDate(LocalDate.of(2030, 3, 28))
+                        .build()
+        );
+
+        List<DocumentContent.PageContent> pages = List.of(
+                new DocumentContent.PageContent(4, "企业法人营业执照", List.of()),
+                new DocumentContent.PageContent(167, "增值电信业务经营许可证", List.of())
+        );
+        DocumentContent bidDoc = new DocumentContent("bid.pdf", "hash", "企业法人营业执照 增值电信业务经营许可证", pages);
+
+        // 混入了通用主体资格条款与专用资质证书
+        List<String> mixedRequirements = List.of(
+                "1.1 供应商须为中华人民共和国境内合法注册的独立法人或其他组织，具有独立承担民事责任能力，具有独立订立合同的权利",
+                "未在“信用中国”网站和中国执行信息公开网中被列入失信被执行人名单",
+                "增值电信业务经营许可证，业务种类及覆盖范围需包括信息服务业务（互联网信息服务）及在线数据处理与交易业务（经营类电子商务）"
+        );
+
+        List<QualificationDetail> details = QualificationMatchPolicy.buildDetails(mixedRequirements, certs, bidDoc, today);
+
+        // 只有增值电信业务经营许可证进入比对清单，通用资格条款被干净利落过滤
+        assertThat(details).hasSize(1);
+        assertThat(details.get(0).requirement()).contains("增值电信业务经营许可证");
+        assertThat(details.get(0).matchedCertName()).isEqualTo("中华人民共和国增值电信业务经营许可证");
+        assertThat(details.get(0).status()).isEqualTo("MATCHED");
+    }
 }

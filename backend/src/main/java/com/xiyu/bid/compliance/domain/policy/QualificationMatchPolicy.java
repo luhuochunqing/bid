@@ -130,7 +130,7 @@ public final class QualificationMatchPolicy {
         List<QualificationDetail> details = new ArrayList<>();
 
         for (String req : requirements) {
-            if (req == null || req.isBlank()) {
+            if (req == null || req.isBlank() || !DeterministicQualificationExtractor.isSpecificCertificate(req.trim())) {
                 continue;
             }
             details.add(buildSingleDetail(req.trim(), certs, bidDoc, refDate));
