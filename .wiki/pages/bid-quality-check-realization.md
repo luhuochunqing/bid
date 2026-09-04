@@ -177,6 +177,10 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **LCS 通用停用词阻断**：扩充 `STOP_WORDS`（纳入“经营许可证”、“许可证”、“业务经营许可证”、“生产许可证”、“中华人民共和国”、“管理体系认证”等），`isStopword` 优先保护 `DOMAIN_TERMS` 核心专有名词，对其余通用词严格拦截，彻底阻断仅因共享通用证件后缀而引发的跨类别错配（如增值电信错配医疗器械）；
     - **打分第一主键原则（Relevance-First）**：`findBestMatchingCert` 建立 `calculateMatchScore` 多级相关度打分（包含1000+ > 标准代码500+ > 行业专有名词200+ > LCS100+），匹配打分作为绝对第一排序键，有效期仅作为相同打分梯队内的决胜依据（Tie-breaker），杜绝有效期长的弱相关证书反超核心资质；
     - **章节导语与噪点过滤**：在 `DeterministicQualificationExtractor` 与 `TenderRequirements` 中引入 `isIntroductoryHeading` 结构化判断（过滤以冒号结尾或含“以下证书/下列条件”的导语段落，如 `2.1 资质要求：供应商应具有以下证书`），并强化前导 `;` 等标点符号清洗，确保比对清单 100% 纯净。
+22. **专用资质证书与通用主体资格边界厘清与分流治理（方案 A）**（2026-09-04）：
+    - **法理与业务本质划界**：基于《招标投标法》第 18 条与《政府采购法》第 22 条，区分“通用主体资格条件”（独立法人、民事责任能力、财务会计制度、无违法失信等）与“专用行业资质许可”（增值电信、安全生产、等保三级、ISO 认证等）；企业通用主体资格由《营业执照》及承诺函证明，由 Rule 4（营业执照审查）等确定性规则闭环；企业资质库（`business_qualifications`）仅维护专业许可证，无营业执照实体。
+    - **提取端分类归一（`DeterministicQualificationExtractor`）**：建立 `SPECIFIC_CERTIFICATE_KEYWORDS` 与 `GENERAL_CAPACITY_KEYWORDS` 双轨识别体系；`extract` 仅返回专用行业资质证书，彻底过滤法人及信用等通用条款；同时提供 `extractGeneralCapacities` 供通用规则复用；
+    - **领域模型与匹配策略纵深防御**：`TenderRequirements.sanitizeQualifications` 与 `QualificationMatchPolicy.buildDetails` 双重校验 `isSpecificCertificate`，即使大模型提取误包含法人条款，在进入领域模型与比对清单时即被净化过滤；从根源上杜绝了“用增值电信业务许可证证明企业是独立法人”的荒谬错配，以及通用条款因资质库未维护而误报废标风险的问题。
 
 ## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
 
