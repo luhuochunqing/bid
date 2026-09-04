@@ -117,9 +117,24 @@ public final class PunctuationEntityExtractor {
         cleaned = TRAILING_PUNCT_PATTERN.matcher(cleaned).replaceAll("");
         cleaned = LEADING_NOISE_PATTERN.matcher(cleaned).replaceAll("");
         cleaned = TRAILING_NOISE_PATTERN.matcher(cleaned).replaceAll("");
+        cleaned = stripParticles(cleaned);
         cleaned = LEADING_PUNCT_PATTERN.matcher(cleaned).replaceAll("");
         cleaned = TRAILING_PUNCT_PATTERN.matcher(cleaned).replaceAll("");
         return cleaned.trim();
+    }
+
+    public static String stripParticles(String s) {
+        if (s == null || s.isBlank()) {
+            return "";
+        }
+        String res = s.trim();
+        while (res.length() > 1 && isLeadingParticle(res.charAt(0)) && !isValidSpecialEntity(res)) {
+            res = res.substring(1).trim();
+        }
+        while (res.length() > 1 && isTrailingParticle(res.charAt(res.length() - 1))) {
+            res = res.substring(0, res.length() - 1).trim();
+        }
+        return res;
     }
 
     /**

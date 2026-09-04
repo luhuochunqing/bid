@@ -151,4 +151,22 @@ class TextSimilarityPolicyTest {
         assertThat(TextSimilarityPolicy.isQualityEntity("高可用；微服务")).isFalse();
         assertThat(TextSimilarityPolicy.isQualityEntity("容灾。双活")).isFalse();
     }
+
+    @Test
+    @DisplayName("根因复现与防回归测试：项目名称与客户名称提取专属实体时，严禁暴力 2-gram 机械滑窗切词")
+    void testExtractEntityTokens_NoMechanicalTwoGramSlicing() {
+        Set<String> entities = TextSimilarityPolicy.extractEntityTokens(
+                "朱双双的标讯不可编辑",
+                "苏州胶囊有限公司"
+        );
+
+        // 核心实体提取正确
+        assertThat(entities).contains("朱双双", "苏州胶囊");
+
+        // 绝不包含 2-gram 机械切片碎片或噪音
+        assertThat(entities).doesNotContain(
+                "朱双", "双双", "双的", "的标", "标讯", "讯不", "不可", "编辑", "不可编辑", "州胶", "公司", "有限公司"
+        );
+    }
 }
+
