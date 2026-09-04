@@ -1,5 +1,5 @@
 // Input: 招标文件解析后的文本内容（String）
-// Output: 确定性提取的硬性资质与资格要求列表（List<String>），用于双轨融合与规则兜底
+// Output: 确定性提取的专用行业资质与证书要求列表（List<String>）/ 通用主体资格条件列表（List<String>）
 // Pos: compliance/domain/policy/ - 招标资质与资格确定性提取纯核心策略（FP-Java 无外部依赖）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -13,10 +13,11 @@ import java.util.regex.Pattern;
 /**
  * 招标资质与资格要求确定性提取策略（纯核心纯函数，无 Spring 依赖）.
  *
- * <p>基于中国招投标法律法规与标准公文规范（《招标投标法》第 18 条），任何合规招标文件
- * 必然包含供应商资格要求章节（通用资格 + 专用资质证书）。本策略通过确定性章节锚定、
- * 标号分条提取与关键词特征匹配，毫秒级提取硬性资格要求，与 LLM 提取形成双轨互补，
- * 彻底杜绝大模型因注意力稀释、JSON 格式破坏或超时引发的漏识别与 0 匹配。
+ * <p>基于中国招投标法律法规与标准公文规范（《招标投标法》第 18 条），供应商资格条件分为两大维度：
+ * 1. 通用主体资格条件（独立法人/民事责任/财务信誉/违法失信等）：由《营业执照》及承诺函证明，由 Rule 4（营业执照）等规则闭环；
+ * 2. 专用行业资质许可（增值电信/安全生产/建筑施工/等保/ISO 认证等）：由专业证书证明，由 Rule 5（资质比对清单）闭环。
+ *
+ * <p>本策略对条款做确定性分类与过滤，仅将专用行业资质证书送入资质比对清单，杜绝通用法人条款误入资质库导致错配或未维护误报。
  */
 public final class DeterministicQualificationExtractor {
 
@@ -47,12 +48,20 @@ public final class DeterministicQualificationExtractor {
     private static final Pattern LEADING_PREFIX_PATTERN = Pattern.compile(
             "^(?:(?:资质要求|资格要求|通用资格条件|专用资格条件)[：:]|(?:供应商|投标人|申请人)(?:应具有以下证书|须具备以下(?:资质|资格|证书))[：:])[\\s]*");
 
-    /** 资质核心特征关键词库. */
-    private static final List<String> QUALIFICATION_KEYWORDS = List.of(
-            "许可证", "证书", "资质", "等级", "备案证明", "认证",
-            "ISO", "CMMI", "ITSS", "CSBM", "等保", "安全生产",
-            "总承包", "专业承包", "营业执照", "独立法人", "独立承担民事责任",
-            "民事责任能力", "信用中国", "失信被执行人", "增值电信"
+    /** 专用资质证书核心特征关键词（特定行业行政许可、体系认证、工程资质、等级评定等，需由资质库证书或专业批文证明）. */
+    private static final List<String> SPECIFIC_CERTIFICATE_KEYWORDS = List.of(
+            "许可证", "认证", "ISO", "CMMI", "ITSS", "CSBM", "CCRC", "CISSP", "CISP",
+            "等保", "等级保护", "备案证明", "总承包", "专业承包", "施工劳务", "施工资质", "设计资质", "勘察资质",
+            "增值电信", "互联网信息服务", "安全生产", "资质证书", "资格证书", "等级证书", "能力证书",
+            "高新技术企业", "专精特新", "系统集成", "测绘资质", "经营许可"
+    );
+
+    /** 通用主体与法定义务资格条件特征词（民事主体/财务信誉/违法失信等，由营业执照及承诺函证明，非专用资质库证书）. */
+    private static final List<String> GENERAL_CAPACITY_KEYWORDS = List.of(
+            "独立法人", "民事责任", "民事责任能力", "订立合同", "合法注册", "营业执照",
+            "信用中国", "失信被执行人", "经营异常名录", "严重违法失信", "中国执行信息公开网",
+            "停产", "停业", "破产", "财务状况", "依法缴纳税收", "社会保障资金", "财务会计制度",
+            "重大违法记录", "行贿犯罪", "联合体", "代理商", "单位负责人为同一人", "控股、管理关系"
     );
 
     /** 非资质条目排除前缀（无具体证书时排除人员/财务/业绩说明）. */
@@ -71,12 +80,32 @@ public final class DeterministicQualificationExtractor {
     }
 
     /**
-     * 确定性提取招标文件文本中的资格与资质要求.
-     *
-     * @param tenderText 招标文件全文解析文本
-     * @return 提取出的硬性资质条款列表（去重、保序、不可变）
+     * 确定性提取招标文件中的专用行业资质与证书要求（供资质比对与一票否决使用）.
+     * 自动过滤通用主体资格条款（如独立法人、财务信誉），杜绝资质库错配.
      */
     public static List<String> extract(final String tenderText) {
+        return extractCertificates(tenderText);
+    }
+
+    /**
+     * 专用行业资质证书提取（与 {@link #extract(String)} 等价）.
+     */
+    public static List<String> extractCertificates(final String tenderText) {
+        return extractChunks(tenderText).stream()
+                .filter(DeterministicQualificationExtractor::isSpecificCertificate)
+                .toList();
+    }
+
+    /**
+     * 确定性提取通用主体资格条件（独立法人、民事责任能力、信用合规等）.
+     */
+    public static List<String> extractGeneralCapacities(final String tenderText) {
+        return extractChunks(tenderText).stream()
+                .filter(DeterministicQualificationExtractor::isGeneralCapacity)
+                .toList();
+    }
+
+    private static List<String> extractChunks(final String tenderText) {
         if (tenderText == null || tenderText.isBlank()) {
             return List.of();
         }
@@ -95,7 +124,7 @@ public final class DeterministicQualificationExtractor {
                 }
 
                 String clean = cleanItem(item);
-                if (isValidQualification(clean)) {
+                if (isValidText(clean)) {
                     extracted.add(clean);
                 }
             }
@@ -174,7 +203,32 @@ public final class DeterministicQualificationExtractor {
         return clean.endsWith("：") || clean.endsWith(":");
     }
 
+    /**
+     * 判定条款是否为专用行业资质证书要求（增值电信、安全生产、等保、ISO 认证、总承包等）.
+     */
+    public static boolean isSpecificCertificate(final String clean) {
+        if (!isValidText(clean) || isIntroductoryHeading(clean)) {
+            return false;
+        }
+        return SPECIFIC_CERTIFICATE_KEYWORDS.stream().anyMatch(clean::contains);
+    }
+
+    /**
+     * 判定条款是否为通用主体资格条件（独立法人、民事责任、财务信誉、信用失信等）.
+     */
+    public static boolean isGeneralCapacity(final String clean) {
+        if (!isValidText(clean) || isIntroductoryHeading(clean)) {
+            return false;
+        }
+        boolean hasGeneral = GENERAL_CAPACITY_KEYWORDS.stream().anyMatch(clean::contains);
+        return hasGeneral && SPECIFIC_CERTIFICATE_KEYWORDS.stream().noneMatch(clean::contains);
+    }
+
     static boolean isValidQualification(final String clean) {
+        return isSpecificCertificate(clean);
+    }
+
+    private static boolean isValidText(final String clean) {
         if (clean == null || clean.length() < 4) {
             return false;
         }
@@ -189,7 +243,6 @@ public final class DeterministicQualificationExtractor {
         if (isIgnoredPrefix && CERTIFICATE_CORE_KEYWORDS.stream().noneMatch(clean::contains)) {
             return false;
         }
-
-        return QUALIFICATION_KEYWORDS.stream().anyMatch(clean::contains);
+        return true;
     }
 }

@@ -1,5 +1,5 @@
-// Input: LLM 结构化提取后的五类招标要求列表（contracts/tender-requirements-extraction.md §2）
-// Output: 招标要求纯核心模型（评分项/硬性要求/否决条款/组成要求/格式要求）+ missing 哨兵
+// Input: LLM 结构化提取或规则提取的五类招标要求列表（contracts/tender-requirements-extraction.md §2）
+// Output: 招标要求纯核心模型（评分项/专用资质证书/否决条款/组成要求/格式要求）+ missing 哨兵
 // Pos: compliance/domain/policy/ - 招标要求领域模型（spec 049 US2，data-model.md §3.1）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -57,7 +57,8 @@ public record TenderRequirements(
             }
             String item = DeterministicQualificationExtractor.cleanItem(s);
             if (item.isBlank() || DeterministicQualificationExtractor.isIntroductoryHeading(item)
-                    || "/".equals(item) || "无".equals(item) || "不适用".equals(item)) {
+                    || "/".equals(item) || "无".equals(item) || "不适用".equals(item)
+                    || !DeterministicQualificationExtractor.isSpecificCertificate(item)) {
                 continue;
             }
             cleaned.add(item);
