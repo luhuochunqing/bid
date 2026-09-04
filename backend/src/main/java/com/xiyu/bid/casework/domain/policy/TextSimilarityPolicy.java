@@ -5,6 +5,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * 文本相似度计算纯核心策略。
@@ -23,21 +24,37 @@ public final class TextSimilarityPolicy {
             "综合", "评审", "相关", "以及", "本项", "原则", "规范", "标准", "支持", "保障",
             "有限公司", "有限责任公司", "股份有限公司", "分公司", "公司", "集团", "采购", "招标", "投标",
             "年度", "第一", "第二", "第三", "第四", "第五", "响应", "承诺", "材料", "内容",
-            "负责", "落实", "关于", "等", "及", "与", "或"
+            "负责", "落实", "关于", "等", "及", "与", "或",
+            "的", "了", "在", "是", "为", "以", "由", "于", "之", "向", "从", "把", "被", "且", "等等", "可编"
     );
+
+    // 通用分词与空白模式
+    private static final Pattern PUNCT_SPACE_PATTERN = Pattern.compile("[\\p{Punct}\\p{Space}\\u3000-\\u303F\\uFF00-\\uFFEF]+");
+    private static final Pattern WHITESPACE_PATTERN = Pattern.compile("\\s+");
+    private static final Pattern TOKENIZE_SPLIT_PATTERN = Pattern.compile("\\s+|[，。、；：！？\"'（）【】]");
+
+    // 标题编号前缀剥离模式（精确保留 ISO9001/CMMI/B2B/ERP/AI 等英文缩写与品牌名）
+    private static final Pattern[] TITLE_PREFIX_PATTERNS = {
+            Pattern.compile("^(第[0-9一二三四五六七八九十百\\._]+[章节条款项部分节]+|附[件表]+[0-9一二三四五六七八九十\\-_\\.]*|表[0-9\\-_\\.]+)[、\\.\\s:：\\-_]*"),
+            Pattern.compile("^(([0-9]+([\\.\\-_][0-9]+)+|[A-Za-z]{1,2}[\\-_][0-9]+([\\.\\-_][0-9]+)*)([\\(（][0-9一二三四五六七八九十a-zA-Z]+[\\)）])?|[0-9]+[\\(（][0-9一二三四五六七八九十a-zA-Z]+[\\)）]|([0-9]{1,3}|[A-Za-z]{1,2}|[A-Za-z][0-9]{1,2})[、\\.:：])[、\\.\\s:：\\-_]*"),
+            Pattern.compile("^[\\(（\\[【][0-9一二三四五六七八九十a-zA-Z]+[\\)）\\]】][、\\.\\s:：\\-_]*"),
+            Pattern.compile("^[①②③④⑤⑥⑦⑧⑨⑩㈠㈡㈢㈣㈤㈥㈦㈧㈨㈩ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ][、\\.\\s:：\\-_]*"),
+            Pattern.compile("^[一二三四五六七八九十]+[、\\.\\s:：\\-_]+")
+    };
+
+    // 组织专有名词提取模式
+    private static final Pattern ORG_DELIMITER_PATTERN = Pattern.compile("(?i)[0-9]{4}年?|采购|招标|工程|服务|系统|平台|建设|改造|升级|运维|开发|咨询|实施|电商|工业品|办公|物资|设备|信息化|数字化|数智化");
+    private static final Pattern ORG_SUFFIX_PATTERN = Pattern.compile("有限公司|有限责任公司|股份有限公司|分公司|公司|集团|厂|局|院");
 
     private TextSimilarityPolicy() {}
 
-    /**
-     * 对文本进行分词，返回 token 集合。
-     */
     public static Set<String> tokenize(String text) {
-        Set<String> tokens = new HashSet<>();
-        if (text == null || text.isBlank()) {
-            return tokens;
+        if (!hasText(text)) {
+            return Collections.emptySet();
         }
+        Set<String> tokens = new HashSet<>();
         String normalized = text.toLowerCase(Locale.ROOT);
-        for (String segment : normalized.split("\\s+|[，。、；：！？\"'（）【】]")) {
+        for (String segment : TOKENIZE_SPLIT_PATTERN.split(normalized)) {
             String trimmed = segment.trim();
             if (trimmed.isEmpty()) {
                 continue;
@@ -53,68 +70,70 @@ public final class TextSimilarityPolicy {
         return tokens;
     }
 
-    /**
-     * 针对招投标评分条款的增强分词（含编号剥离与 n-gram 抽取）。
-     */
+    public static Set<String> extractPunctuationEntities(String... texts) {
+        return PunctuationEntityExtractor.extractPunctuationEntities(texts);
+    }
+
+    public static String cleanEntityToken(String token) {
+        return PunctuationEntityExtractor.cleanEntityToken(token);
+    }
+
+    public static boolean isQualityEntity(String token) {
+        return PunctuationEntityExtractor.isQualityEntity(token);
+    }
+
+    public static boolean isParticle(char ch) {
+        return PunctuationEntityExtractor.isParticle(ch);
+    }
+
     public static Set<String> extractTokens(String text) {
         if (!hasText(text)) {
             return Collections.emptySet();
         }
-
-        Set<String> tokens = new LinkedHashSet<>();
-        String[] rawWords = text.replaceAll("[\\p{Punct}\\p{Space}\\u3000-\\u303F\\uFF00-\\uFFEF]+", " ").trim().split("\\s+");
-        for (String word : rawWords) {
-            String cleanWord = cleanTitle(word);
-            if (cleanWord.length() >= 2 && cleanWord.length() <= 8) {
-                tokens.add(cleanWord);
-            }
-            if (cleanWord.matches(".*[\\u4e00-\\u9fa5].*")) {
-                for (int i = 0; i <= cleanWord.length() - 2; i++) {
-                    tokens.add(cleanWord.substring(i, i + 2));
+        Set<String> tokens = new LinkedHashSet<>(PunctuationEntityExtractor.extractPunctuationEntities(text));
+        String stripped = PUNCT_SPACE_PATTERN.matcher(text).replaceAll(" ").trim();
+        if (!stripped.isEmpty()) {
+            for (String word : WHITESPACE_PATTERN.split(stripped)) {
+                String cleanWord = cleanTitle(word);
+                int len = cleanWord.length();
+                if (len >= 2 && len <= 20) {
+                    tokens.add(cleanWord);
                 }
-                for (int i = 0; i <= cleanWord.length() - 3; i++) {
-                    tokens.add(cleanWord.substring(i, i + 3));
+                if (containsCjk(cleanWord)) {
+                    for (int i = 0; i <= len - 2; i++) {
+                        tokens.add(cleanWord.substring(i, i + 2));
+                    }
+                    for (int i = 0; i <= len - 3; i++) {
+                        tokens.add(cleanWord.substring(i, i + 3));
+                    }
                 }
             }
         }
         return tokens;
     }
 
-    /**
-     * 计算两个 token 集合的 Jaccard 相似度。
-     */
     public static double jaccardSimilarity(Set<String> a, Set<String> b) {
         if (a == null || b == null || a.isEmpty() || b.isEmpty()) {
             return 0.0;
         }
         Set<String> intersection = new HashSet<>(a);
         intersection.retainAll(b);
-        int intersectionSize = intersection.size();
-        if (intersectionSize == 0) {
+        if (intersection.isEmpty()) {
             return 0.0;
         }
         Set<String> union = new HashSet<>(a);
         union.addAll(b);
-        return (double) intersectionSize / union.size();
+        return (double) intersection.size() / union.size();
     }
 
-    /**
-     * 计算两个文本的 Jaccard 相似度（自动分词）。
-     */
     public static double jaccardSimilarityOfText(String textA, String textB) {
         return jaccardSimilarity(tokenize(textA), tokenize(textB));
     }
 
-    /**
-     * 判断字符串是否有实际文本内容（非 null 且非空白）。
-     */
     public static boolean hasText(String s) {
         return s != null && !s.isBlank();
     }
 
-    /**
-     * 判断文本是否包含中日韩统一表意文字。
-     */
     public static boolean containsCjk(String text) {
         return text.codePoints().anyMatch(cp -> {
             Character.UnicodeBlock block = Character.UnicodeBlock.of(cp);
@@ -125,7 +144,7 @@ public final class TextSimilarityPolicy {
     }
 
     /**
-     * 剥离前缀编号（支持多层级数字、中英文章节、带括号序号、罗马数字、特殊序号等），提取纯净业务名称。
+     * 剥离前缀编号，提取纯净业务名称。
      */
     public static String cleanTitle(String text) {
         if (text == null || text.isBlank()) {
@@ -136,11 +155,9 @@ public final class TextSimilarityPolicy {
         int maxIter = 5;
         do {
             prev = cleaned;
-            cleaned = cleaned.replaceAll("^(第[0-9一二三四五六七八九十百\\._]+[章节条款项部分节]+|附[件表]+[0-9一二三四五六七八九十\\-_\\.]*|表[0-9\\-_\\.]+)[、\\.\\s:：\\-_]*", "");
-            cleaned = cleaned.replaceAll("^[A-Za-z0-9]+([\\.\\-_][A-Za-z0-9]+)*([\\(（][0-9一二三四五六七八九十a-zA-Z]+[\\)）])?[、\\.\\s:：\\-_]*", "");
-            cleaned = cleaned.replaceAll("^[\\(（\\[【][0-9一二三四五六七八九十a-zA-Z]+[\\)）\\]】][、\\.\\s:：\\-_]*", "");
-            cleaned = cleaned.replaceAll("^[①②③④⑤⑥⑦⑧⑨⑩㈠㈡㈢㈣㈤㈥㈦㈧㈨㈩ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ][、\\.\\s:：\\-_]*", "");
-            cleaned = cleaned.replaceAll("^[一二三四五六七八九十]+[、\\.\\s:：\\-_]+", "");
+            for (Pattern p : TITLE_PREFIX_PATTERNS) {
+                cleaned = p.matcher(cleaned).replaceAll("");
+            }
             cleaned = cleaned.trim();
             maxIter--;
         } while (!cleaned.equals(prev) && !cleaned.isEmpty() && maxIter > 0);
@@ -148,9 +165,6 @@ public final class TextSimilarityPolicy {
         return cleaned.isEmpty() ? text.trim() : cleaned;
     }
 
-    /**
-     * 从项目名称、客户名称等文本中提取具有高辨识度的核心实体词/组织专有名词。
-     */
     public static Set<String> extractEntityTokens(String... texts) {
         if (texts == null) {
             return Collections.emptySet();
@@ -160,20 +174,14 @@ public final class TextSimilarityPolicy {
             if (!hasText(text)) {
                 continue;
             }
-            // 1. 优先提取项目名称中的组织主体前缀（在年份/业务动作词之前的部分）
-            String[] segments = text.split("(?i)[0-9]{4}年?|采购|招标|工程|服务|系统|平台|建设|改造|升级|运维|开发|咨询|实施|电商|工业品|办公|物资|设备|信息化|数字化|数智化");
+            String[] segments = ORG_DELIMITER_PATTERN.split(text);
             String orgSegment = (segments.length > 0 && hasText(segments[0])) ? segments[0] : text;
-
-            String cleaned = orgSegment
-                    .replaceAll("(有限公司|有限责任公司|股份有限公司|分公司|公司|集团|厂|局|院)", " ")
-                    .replaceAll("[\\p{Punct}\\p{Space}\\u3000-\\u303F\\uFF00-\\uFFEF]+", " ")
-                    .trim();
-
-            for (String part : cleaned.split("\\s+")) {
+            String cleanedWithoutSuffix = ORG_SUFFIX_PATTERN.matcher(orgSegment).replaceAll(" ");
+            String cleaned = PUNCT_SPACE_PATTERN.matcher(cleanedWithoutSuffix).replaceAll(" ").trim();
+            for (String part : WHITESPACE_PATTERN.split(cleaned)) {
                 String cleanPart = cleanTitle(part);
                 if (cleanPart.length() >= 2 && !STOP_WORDS.contains(cleanPart)) {
                     entities.add(cleanPart);
-                    // 对 4 字及以上的复合专有名词，提取 2-3 字核心子词（如 "中国长江三峡" -> "长江三峡", "三峡"）
                     if (cleanPart.length() >= 4) {
                         for (int i = 0; i <= cleanPart.length() - 2; i++) {
                             String sub = cleanPart.substring(i, i + 2);
