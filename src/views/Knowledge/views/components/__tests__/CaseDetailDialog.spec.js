@@ -104,3 +104,91 @@ describe('CaseDetailDialog - 案例详情弹窗布局契约', () => {
   })
 })
 
+describe('CaseDetailDialog - 应答片段 markdown 安全渲染', () => {
+  const tableMarkdown = [
+    '| 指标 | 数值 |',
+    '| --- | --- |',
+    '| 可用性 | 99.9% |'
+  ].join('\n')
+
+  it('GFM 表格渲染为 HTML table，字数仍按原文长度', () => {
+    const wrapper = mountDialog({
+      caseData: { ...caseData, responseText: tableMarkdown }
+    })
+    const box = wrapper.find('.response-box')
+    const table = box.find('table')
+    expect(table.exists()).toBe(true)
+    expect(table.find('th').exists()).toBe(true)
+    expect(table.find('td').exists()).toBe(true)
+    expect(table.text()).toContain('指标')
+    expect(table.text()).toContain('99.9%')
+    expect(wrapper.find('.word-count-hint').text()).toBe(`共 ${tableMarkdown.length} 字`)
+  })
+
+  it('应答片段中的 script / onerror 不以可执行标签落地', () => {
+    const wrapper = mountDialog({
+      caseData: {
+        ...caseData,
+        responseText: '<script>alert(1)</script>\n<img src=x onerror=alert(1)>'
+      }
+    })
+    const box = wrapper.find('.response-box')
+    expect(box.find('script').exists()).toBe(false)
+    const withOnerror = box.findAll('*').filter((el) => el.attributes('onerror') !== undefined)
+    expect(withOnerror).toHaveLength(0)
+  })
+
+  it('应答片段为空、空白或非字符串时展示「暂无应答内容」', () => {
+    for (const responseText of ['', '   ', null, undefined, 12]) {
+      const wrapper = mountDialog({
+        caseData: { ...caseData, responseText }
+      })
+      expect(wrapper.find('.response-box').text()).toContain('暂无应答内容')
+      expect(wrapper.find('.response-box').find('p').exists()).toBe(false)
+    }
+  })
+
+  it('markdown javascript: 链接不保留可执行 href', () => {
+    const wrapper = mountDialog({
+      caseData: { ...caseData, responseText: '[点击](javascript:alert(1))' }
+    })
+    const html = wrapper.find('.response-box').html().toLowerCase()
+    expect(html).not.toContain('javascript:')
+    const link = wrapper.find('.response-box a')
+    if (link.exists()) {
+      expect(link.attributes('href') || '').not.toMatch(/javascript:/i)
+    }
+  })
+
+  it('markdown 图片与裸 img 均不渲染为 img 标签', () => {
+    const wrapper = mountDialog({
+      caseData: {
+        ...caseData,
+        responseText: '架构见图：![logo](https://evil.example/track.png)\n<img src="https://evil.example/x.png">'
+      }
+    })
+    expect(wrapper.find('.response-box').find('img').exists()).toBe(false)
+  })
+
+  it('无表格的多行应答在 HTML 中保留换行，不折叠成一行', () => {
+    const prose = '联系人：张三\n电话：138xxxx\n地址：上海市'
+    const wrapper = mountDialog({
+      caseData: { ...caseData, responseText: prose }
+    })
+    const paragraph = wrapper.find('.response-box p')
+    expect(paragraph.exists()).toBe(true)
+    expect(paragraph.element.textContent).toMatch(/张三/)
+    expect(paragraph.element.textContent).toMatch(/电话/)
+    expect(paragraph.element.textContent).toContain('\n')
+  })
+
+  it('复用事件携带原始 responseText，不是渲染后的 HTML', async () => {
+    const wrapper = mountDialog({
+      caseData: { ...caseData, responseText: tableMarkdown }
+    })
+    await findButtonByText(wrapper, '复用').trigger('click')
+    expect(wrapper.emitted('reuse')[0][0].responseText).toBe(tableMarkdown)
+    expect(wrapper.emitted('reuse')[0][0].responseText).not.toContain('<table')
+  })
+})
+
