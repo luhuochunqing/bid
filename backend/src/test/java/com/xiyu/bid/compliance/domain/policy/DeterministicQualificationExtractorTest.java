@@ -75,6 +75,29 @@ class DeterministicQualificationExtractorTest {
         assertThat(quals).noneMatch(q -> q.contains("财务要求") && q.contains("/"));
         assertThat(quals).noneMatch(q -> q.contains("其他要求") && q.contains("/"));
         assertThat(quals).noneMatch(q -> q.equals("/") || q.equals("无") || q.isBlank());
+
+        // 导语与章节标题排除断言（彻底排除 3.2.1 资质要求：供应商应具有以下证书 等导语）
+        assertThat(quals).noneMatch(q -> q.contains("应具有以下证书") || q.contains("满足下列条件") || q.contains("专用资格条件"));
+        assertThat(quals).noneMatch(q -> q.startsWith(";") || q.startsWith("；"));
+    }
+
+    @Test
+    @DisplayName("导语与章节标题过滤：彻底排除如 2.1 资质要求：供应商应具有以下证书 等纯引导语")
+    void extract_introductoryHeadings_filteredOut() {
+        String text = """
+                3. 供应商资格要求
+                3.1 通用资格条件
+                3.1.1 供应商财务、信誉等方面应满足下列条件：
+                （1）未在“信用中国”网站中被列入失信被执行人名单；
+                3.2 专用资格条件
+                2.1 资质要求：供应商应具有以下证书：
+                ① 增值电信业务经营许可证；
+                """;
+        List<String> quals = DeterministicQualificationExtractor.extract(text);
+        assertThat(quals).noneMatch(DeterministicQualificationExtractor::isIntroductoryHeading);
+        assertThat(quals).noneMatch(q -> q.contains("应具有以下证书") || q.contains("资质要求：供应商应具有以下证书"));
+        assertThat(quals).noneMatch(q -> q.contains("满足下列条件"));
+        assertThat(quals).anyMatch(q -> q.contains("增值电信业务经营许可证"));
     }
 
     @Test

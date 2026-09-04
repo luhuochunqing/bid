@@ -162,4 +162,60 @@ class QualificationMatchPolicyTest {
         assertThat(d.remark()).contains("已匹配企业资质库有效证书「中华人民共和国增值电信业务经营许可证」");
         assertThat(d.remark()).doesNotContain("未维护");
     }
+
+    @Test
+    @DisplayName("通用停用词防错配：增值电信业务许可证绝不匹配医疗器械经营许可证（杜绝经营许可证通配）")
+    void testMatch_TelecomVsMedicalDeviceLicense_ReturnsFalse() {
+        String req = "增值电信业务经营许可证，业务种类及覆盖范围需包括信息服务业务（互联网信息服务）及在线数据处理与交易业务（经营类电子商务）";
+        String cert = "医疗器械经营许可证";
+
+        boolean matched = QualificationMatchPolicy.isQualificationMatch(req, cert);
+        assertThat(matched).isFalse();
+    }
+
+    @Test
+    @DisplayName("通用停用词防错配：独立法人通用资格绝不匹配增值电信业务经营许可证（杜绝中华人民共和国通配）")
+    void testMatch_LegalEntityVsTelecomLicense_ReturnsFalse() {
+        String req = "1.1 供应商须为中华人民共和国境内合法注册的独立法人或其他组织，具有独立承担民事责任能力，具有独立订立合同的权利";
+        String cert = "中华人民共和国增值电信业务经营许可证";
+
+        boolean matched = QualificationMatchPolicy.isQualificationMatch(req, cert);
+        assertThat(matched).isFalse();
+    }
+
+    @Test
+    @DisplayName("事故 1358 权重优先：即使医疗器械许可证有效期更长，增值电信也必须优先匹配中华人民共和国增值电信业务经营许可证")
+    void testBuildDetails_Incident1358_TelecomMatchesExactCertEvenWhenMedicalHasLongerExpiry() {
+        LocalDate today = LocalDate.of(2026, 9, 4);
+        List<Qualification> certs = List.of(
+                Qualification.builder()
+                        .id(46L)
+                        .name("中华人民共和国增值电信业务经营许可证")
+                        .expiryDate(LocalDate.of(2030, 3, 28))
+                        .build(),
+                Qualification.builder()
+                        .id(99L)
+                        .name("医疗器械经营许可证")
+                        .expiryDate(LocalDate.of(2030, 8, 13))
+                        .build()
+        );
+
+        List<DocumentContent.PageContent> pages = List.of(
+                new DocumentContent.PageContent(167, "证明材料 附件三：增值电信业务经营许可证复印件", List.of())
+        );
+        DocumentContent bidDoc = new DocumentContent("bid.pdf", "hash", "增值电信业务经营许可证", pages);
+
+        List<String> requirements = List.of(
+                "增值电信业务经营许可证，业务种类及覆盖范围需包括信息服务业务（互联网信息服务）及在线数据处理与交易业务（经营类电子商务）"
+        );
+
+        List<QualificationDetail> details = QualificationMatchPolicy.buildDetails(requirements, certs, bidDoc, today);
+
+        assertThat(details).hasSize(1);
+        QualificationDetail d = details.get(0);
+        assertThat(d.status()).isEqualTo("MATCHED");
+        assertThat(d.matchedCertName()).isEqualTo("中华人民共和国增值电信业务经营许可证");
+        assertThat(d.bidPageNumber()).isEqualTo(167);
+        assertThat(d.remark()).doesNotContain("医疗器械");
+    }
 }
