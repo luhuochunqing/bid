@@ -32,11 +32,18 @@ vi.mock('@/utils/download', async (importOriginal) => {
   return { ...actual, triggerBlobDownload: vi.fn(), downloadWithFilename: vi.fn() }
 })
 
+// 当前用户角色（角色闸门用）：默认非 sales，保证既有下载用例不受闸门影响
+const { mockUserState } = vi.hoisted(() => ({ mockUserState: { currentUser: { roleCode: 'bid-Team' } } }))
+vi.mock('@/stores/user', () => ({
+  useUserStore: () => mockUserState
+}))
+
 describe('useBidCaseSourceActions', () => {
   let openSpy
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockUserState.currentUser = { roleCode: 'bid-Team' }
     openSpy = vi.spyOn(window, 'open').mockImplementation(() => null)
     getDocuments.mockResolvedValue({ data: [] })
   })
@@ -145,5 +152,26 @@ describe('useBidCaseSourceActions', () => {
     expect(blobArg.type).toBe('application/zip')
     expect(filename).toBe('标书原文-5.zip')
     expect(ElMessage.success).toHaveBeenCalledWith('标书原文下载成功')
+  })
+
+  it('角色闸门：投标项目负责人(bid-projectLeader)点标书原文（直链分支）→ 提示无权限下载，不调任何接口', async () => {
+    mockUserState.currentUser = { roleCode: 'bid-projectLeader' }
+    const { openBidDocument } = useBidCaseSourceActions()
+    await openBidDocument({ caseId: 88, obsBidFileKey: 'k' })
+    expect(ElMessage.error).toHaveBeenCalledWith('无权限下载')
+    expect(casesApi.getDownloadUrl).not.toHaveBeenCalled()
+    expect(openSpy).not.toHaveBeenCalled()
+    expect(triggerBlobDownload).not.toHaveBeenCalled()
+  })
+
+  it('角色闸门：投标项目负责人(bid-projectLeader)点标书原文（档案分支）→ 提示无权限下载，不调任何接口', async () => {
+    mockUserState.currentUser = { roleCode: 'bid-projectLeader' }
+    const { openBidDocument } = useBidCaseSourceActions()
+    await openBidDocument({ sourceProjectId: 5 })
+    expect(ElMessage.error).toHaveBeenCalledWith('无权限下载')
+    expect(projectLifecycleApi.getArchiveFiles).not.toHaveBeenCalled()
+    expect(projectLifecycleApi.exportProjectArchive).not.toHaveBeenCalled()
+    expect(getDocuments).not.toHaveBeenCalled()
+    expect(triggerBlobDownload).not.toHaveBeenCalled()
   })
 })

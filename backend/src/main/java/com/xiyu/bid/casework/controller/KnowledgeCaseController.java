@@ -18,6 +18,9 @@ import com.xiyu.bid.casework.dto.CaseExportQuery;
 import com.xiyu.bid.casework.dto.CaseReferenceRecordDTO;
 import com.xiyu.bid.casework.dto.KnowledgeCaseResponse;
 import com.xiyu.bid.casework.dto.KnowledgeCaseDetailResponse;
+import com.xiyu.bid.entity.RoleProfileCatalog;
+import com.xiyu.bid.exception.BusinessException;
+import com.xiyu.bid.security.CurrentUserResolver;
 import com.xiyu.bid.service.ProjectAccessScopeService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -59,6 +62,7 @@ public class KnowledgeCaseController {
     private final CaseExportExcelAppService caseExportExcelAppService;
     private final CaseDownloadUrlAppService caseDownloadUrlAppService;
     private final ProjectAccessScopeService projectAccessScopeService;
+    private final CurrentUserResolver currentUserResolver;
 
     @GetMapping
     @PreAuthorize("hasAuthority('project')")
@@ -137,6 +141,14 @@ public class KnowledgeCaseController {
     @GetMapping("/{id}/download-url")
     @PreAuthorize("hasAuthority('project')")
     public ResponseEntity<CaseDownloadUrlAppService.DownloadUrlResult> getDownloadUrl(@PathVariable Long id) {
+        // 角色闸门：投标项目负责人(bid-projectLeader/sales)不得下载标书原文。
+        // 本端点为案例专属分支一，后端在此做权威 403 防绕过；分支二/三走通用共享端点，
+        // 被多个合法消费者共用，刻意不做后端角色闸门（避免 over-block），由前端 UX 层拦截。
+        // 前端锚点见 useBidCaseSourceActions.js#openBidDocument（覆盖三条分支）。
+        String roleCode = currentUserResolver.getCurrentRoleCode();
+        if (RoleProfileCatalog.SALES_CODE.equalsIgnoreCase(roleCode)) {
+            throw new BusinessException(403, "无权限下载");
+        }
         return ResponseEntity.ok(caseDownloadUrlAppService.signDownloadUrl(id));
     }
 

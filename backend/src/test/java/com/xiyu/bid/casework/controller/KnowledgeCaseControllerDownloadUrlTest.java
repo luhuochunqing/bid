@@ -22,6 +22,9 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -100,5 +103,18 @@ class KnowledgeCaseControllerDownloadUrlTest {
 
         mockMvc.perform(get("/api/cases/3/download-url"))
                 .andExpect(status().isBadGateway());
+    }
+
+    @Test
+    @WithMockUser(authorities = "project")
+    void downloadUrl_salesRole_returns403() throws Exception {
+        // 投标项目负责人(bid-projectLeader/sales)不得下载标书原文：闸门在签发前拦截
+        when(currentUserResolver.getCurrentRoleCode()).thenReturn("bid-projectLeader");
+
+        mockMvc.perform(get("/api/cases/1/download-url"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.msg").value("无权限下载"));
+
+        verify(caseDownloadUrlAppService, never()).signDownloadUrl(anyLong());
     }
 }
