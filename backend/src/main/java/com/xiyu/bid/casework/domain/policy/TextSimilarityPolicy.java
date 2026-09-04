@@ -5,6 +5,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -25,7 +26,8 @@ public final class TextSimilarityPolicy {
             "有限公司", "有限责任公司", "股份有限公司", "分公司", "公司", "集团", "采购", "招标", "投标",
             "年度", "第一", "第二", "第三", "第四", "第五", "响应", "承诺", "材料", "内容",
             "负责", "落实", "关于", "等", "及", "与", "或",
-            "的", "了", "在", "是", "为", "以", "由", "于", "之", "向", "从", "把", "被", "且", "等等", "可编"
+            "的", "了", "在", "是", "为", "以", "由", "于", "之", "向", "从", "把", "被", "且", "等等",
+            "不可", "编辑", "不可编辑", "可编辑", "可编", "标讯", "标包", "标段", "测试"
     );
 
     // 通用分词与空白模式
@@ -43,8 +45,13 @@ public final class TextSimilarityPolicy {
     };
 
     // 组织专有名词提取模式
-    private static final Pattern ORG_DELIMITER_PATTERN = Pattern.compile("(?i)[0-9]{4}年?|采购|招标|工程|服务|系统|平台|建设|改造|升级|运维|开发|咨询|实施|电商|工业品|办公|物资|设备|信息化|数字化|数智化");
+    private static final Pattern ORG_DELIMITER_PATTERN = Pattern.compile(
+            "(?i)[0-9]{4}年?|采购|招标|项目|工程|服务|系统|平台|建设|改造|升级|运维|开发|咨询|实施|电商|工业品|办公|物资|设备|信息化|数字化|数智化|不可编辑|可编辑|标讯|标包|标段|测试"
+    );
     private static final Pattern ORG_SUFFIX_PATTERN = Pattern.compile("有限公司|有限责任公司|股份有限公司|分公司|公司|集团|厂|局|院");
+    private static final Pattern ORG_GEO_PREFIX_PATTERN = Pattern.compile(
+            "^(中国|中央|国家|全国|全省|华东|华北|华南|华中|西南|西北|东北|长江|黄河|珠江|[\\u4e00-\\u9fa5]{2,4}(?:省|市|自治区|特区))"
+    );
 
     private TextSimilarityPolicy() {}
 
@@ -179,20 +186,31 @@ public final class TextSimilarityPolicy {
             String cleanedWithoutSuffix = ORG_SUFFIX_PATTERN.matcher(orgSegment).replaceAll(" ");
             String cleaned = PUNCT_SPACE_PATTERN.matcher(cleanedWithoutSuffix).replaceAll(" ").trim();
             for (String part : WHITESPACE_PATTERN.split(cleaned)) {
-                String cleanPart = cleanTitle(part);
-                if (cleanPart.length() >= 2 && !STOP_WORDS.contains(cleanPart)) {
-                    entities.add(cleanPart);
-                    if (cleanPart.length() >= 4) {
-                        for (int i = 0; i <= cleanPart.length() - 2; i++) {
-                            String sub = cleanPart.substring(i, i + 2);
-                            if (!STOP_WORDS.contains(sub)) {
-                                entities.add(sub);
-                            }
-                        }
-                    }
+                String cleanPart = cleanEntityToken(part);
+                if (cleanPart.length() >= 2 && !STOP_WORDS.contains(cleanPart) && isQualityEntity(cleanPart)) {
+                    entities.addAll(extractHierarchicalEntities(cleanPart));
                 }
             }
         }
         return entities;
+    }
+
+    private static Set<String> extractHierarchicalEntities(String rawEntity) {
+        Set<String> result = new LinkedHashSet<>();
+        String current = rawEntity;
+        while (current.length() >= 2 && !STOP_WORDS.contains(current) && isQualityEntity(current)) {
+            result.add(current);
+            Matcher matcher = ORG_GEO_PREFIX_PATTERN.matcher(current);
+            if (matcher.find()) {
+                String matchedPrefix = matcher.group(1);
+                String remainder = cleanEntityToken(current.substring(matchedPrefix.length()));
+                if (!remainder.equals(current) && remainder.length() >= 2) {
+                    current = remainder;
+                    continue;
+                }
+            }
+            break;
+        }
+        return result;
     }
 }

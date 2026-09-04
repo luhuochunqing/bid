@@ -683,4 +683,46 @@ class ScoreItemCaseMatchPolicyTest {
         assertThat(result.matchReasons()).isEmpty();
         assertThat(result.matchedKeywords()).isEmpty();
     }
+
+    @Test
+    @DisplayName("防回归测试：真实项目名称“朱双双的标讯不可编辑”，严禁提取双字滑窗碎片进入匹配原因与展示词")
+    void testProjectEntityMatch_NoTwoGramFragmentsInReasonsOrKeywords() {
+        StubCandidate candidateWithProjectName = new StubCandidate(
+                999L,
+                "技术方案与实施保障",
+                "技术要求",
+                "投标人应具备系统设计与实施保障方案，满足技术要求。",
+                "朱双双的历史投标响应案例详情，包含技术架构与交付方案",
+                "工业品",
+                "央企",
+                "WON"
+        );
+
+        ScoreItemCaseMatchPolicy.ScoreItemContext context = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                1358L,
+                "1.1",
+                "技术方案与实施保障",
+                "对投标人的系统技术方案、整体部署架构进行综合评审",
+                "工业品",
+                "央企",
+                null,
+                "朱双双的标讯不可编辑",
+                null
+        );
+
+        ScoreItemCaseMatchPolicy.MatchResult result = policy.evaluate(candidateWithProjectName, context);
+
+        // 绝不能在匹配原因中出现类似“命中项目专属实体(的标、不可)”等荒谬碎片
+        assertThat(result.matchReasons()).noneMatch(r -> r.contains("的标") || r.contains("不可") || r.contains("双的") || r.contains("讯不"));
+
+        // 关键词展示中，绝不能包含 2-gram 机械碎片或超长整句
+        assertThat(result.matchedKeywords()).doesNotContain(
+                "朱双", "双双", "双的", "的标", "标讯", "讯不", "不可", "编辑", "不可编辑", "朱双双的标讯不可编辑"
+        );
+        // 如果命中实体，应当是清晰干净的“朱双双”
+        if (result.matchReasons().stream().anyMatch(r -> r.contains("命中项目专属实体"))) {
+            assertThat(result.matchReasons()).anyMatch(r -> r.contains("朱双双"));
+            assertThat(result.matchedKeywords()).contains("朱双双");
+        }
+    }
 }

@@ -162,4 +162,20 @@ PRD 1.1/4.2：复用定位弹窗章节树**默认选中当前评分项对应章�
 - 提交：`agent/gemini/ai-recommend-tooltip-popover`（匹配度浮层与规则说明可视化）
 - 提交：`agent/gemini/fix-case-mismatch`（评分项编号前缀清洗与正文穿透匹配）
 - 提交：`agent/gemini/ai-case-recommend-punctuation-refactor`（标点分层抽取与大类一票否决重构）
+- 提交：`agent/gemini/fix-entity-tokens-ngram-leak`（拔除 2-gram 滑窗遗留与项目专名层级提炼）
+
+## 拔除 2-gram 机械滑窗与项目专名层级提炼（2026-09-04 二次复发根治）
+
+### 1. 真实日志排查与根因
+测试环境部署后针对项目 1358（`朱双双的标讯不可编辑`）回放：
+- 推荐无缓存：`recommend` 接口为全内存无状态动态打分（单次 80~170ms），无缓存滞留；
+- 真实零号病人：`TextSimilarityPolicy.extractEntityTokens` 对 `>= 4` 字符子句强制执行 `substring(i, i + 2)` 机械 2-gram 滑窗，导致项目名称被切碎成“朱双、双双、双的、的标、标讯、讯不、不可、编辑”；
+- 碎片外溢扩散：`calculateEntityScore` 将切片识别为专属实体，`assemblePrioritizedKeywords` 赋予最高展示优先级，且 `reasons` 显示“命中项目专属实体(的标、不可)”。
+
+### 2. 根治策略
+1. **物理删除 2-gram 滑窗**：彻底废弃字符滑动切片，严禁产生跨词碎片；
+2. **层级前缀剥离（`ORG_GEO_PREFIX_PATTERN`）**：对“中国长江三峡”按地域/央企前缀递归提取“长江三峡”、“三峡”，保留专名主体而不产生“国长”、“江三”等碎词；
+3. **噪音与停用词强化**：`ORG_DELIMITER_PATTERN` 纳入 `不可编辑|可编辑|标讯|标包|标段|测试|项目`，`PunctuationEntityExtractor.cleanEntityToken` 剥离首尾助词（“朱双双的” → “朱双双”）；
+4. **双重防守门禁**：`calculateEntityScore` 强制 `isQualityEntity` 检验；`assemblePrioritizedKeywords` 限制实体长度 `<= 10`。
+
 

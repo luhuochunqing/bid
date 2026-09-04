@@ -146,7 +146,7 @@ public class ScoreItemCaseMatchPolicy {
         if (projectEntityHits != null) {
             for (String entity : projectEntityHits) {
                 if (result.size() >= MAX_KEYWORDS_COUNT) break;
-                if (PunctuationEntityExtractor.isQualityEntity(entity)) result.add(entity);
+                if (entity.length() <= 10 && PunctuationEntityExtractor.isQualityEntity(entity)) result.add(entity);
             }
         }
         if (result.size() < MAX_KEYWORDS_COUNT) {
@@ -191,6 +191,7 @@ public class ScoreItemCaseMatchPolicy {
         String candText = candidateText != null ? candidateText : "";
         List<String> hitEntities = new ArrayList<>();
         for (String entity : entities) {
+            if (!PunctuationEntityExtractor.isQualityEntity(entity)) continue;
             String lowerEntity = entity.toLowerCase(Locale.ROOT);
             if (candText.contains(lowerEntity) || candidateProjName.contains(lowerEntity)) {
                 hitEntities.add(entity);
