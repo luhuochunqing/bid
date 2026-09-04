@@ -29,8 +29,10 @@
 
 **合法逃生路径（按优先级）**：
 1. 从 `agent/*` 分支开发推送（自动跳过环境性检查）
-2. `bash scripts/pre-push-gate.sh --skip-tests` 手动验证其余门禁全绿后，`PRE_PUSH_GATE=0 git push`（仅限失败项已确认为环境性、与改动无关的场景，并在汇报中显式声明）
-3. 禁止把环境性失败当作"修测试"的理由去改这两个 spec——它们的环境断言本身是设计意图
+2. **pre-commit vitest 门禁**：`.githooks/pre-commit` 的 testing-gate（`scripts/check-testing-standards.sh`）对暂存前端文件跑 vitest；纯源码 worktree 无 `node_modules` 时 `npx vitest` 会因 `vite.config.js` 加载失败（`Cannot find package 'vite'`）中止 commit。逃生阀 `SKIP_TESTING_GATE=1 git commit`（脚本第 50-52 行专为"无完整 node_modules 的 worktree 环境"设；后端 arch 门禁仍照常跑，不受影响）
+3. `bash scripts/pre-push-gate.sh --skip-tests` 手动验证其余门禁全绿后，`PRE_PUSH_GATE=0 git push`（仅限失败项已确认为环境性、与改动无关的场景，并在汇报中显式声明）。注意：`--skip-tests` 只跳 test:unit + build，**不跳第 13 步 eslint（`pre-push-gate.sh:669` 无 SKIP_TESTS 守卫）**；无 `node_modules` 时 eslint 仍会 command-not-found 失败，此时直接 `PRE_PUSH_GATE=0 git push`
+4. 禁止把环境性失败当作"修测试"的理由去改这两个 spec——它们的环境断言本身是设计意图
+5. 以上逃生阀仅针对环境性失败；**禁止 `--no-verify`**（会一并跳过 Flyway/锁/行预算/架构等核心门禁）
 
 ## 3. PR 合并前 CI 必须绿（含后端编译）——自验收结论必须可复现（2026-08-16）
 

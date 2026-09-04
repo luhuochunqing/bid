@@ -28,6 +28,12 @@ vi.mock('@/api/modules/projectDocuments', () => ({
   getDocumentDownloadUrl: vi.fn(),
 }))
 
+// 当前用户角色（标书原文角色闸门用）：默认非 sales，保证既有下载用例不受影响
+const { mockUserState } = vi.hoisted(() => ({ mockUserState: { currentUser: { roleCode: 'bid-Team' } } }))
+vi.mock('@/stores/user', () => ({
+  useUserStore: () => mockUserState,
+}))
+
 import { projectLifecycleApi } from '@/api/modules/projectLifecycle'
 
 const LONG_DETAIL = '技术方案实施方案完整可行，包含架构设计、部署方案与应急预案等关键要素'
@@ -66,6 +72,7 @@ const caseDetailResponse = {
 describe('AiRecommendDrawer.vue', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockUserState.currentUser = { roleCode: 'bid-Team' }
     document.body.innerHTML = ''
     navigator.clipboard = {
       writeText: vi.fn().mockResolvedValue(undefined),
@@ -250,6 +257,27 @@ describe('AiRecommendDrawer.vue', () => {
       expect(projectLifecycleApi.exportProjectArchive).not.toHaveBeenCalled()
       expect(clickSpy).not.toHaveBeenCalled()
       expect(document.body.textContent).toContain('标书原文未归档')
+    } finally {
+      clickSpy.mockRestore()
+    }
+  })
+
+  it('blocks bid-projectLeader from downloading bid source: shows 无权限下载 and calls no download API', async () => {
+    mockUserState.currentUser = { roleCode: 'bid-projectLeader' }
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    try {
+      caseRecommendationApi.getCaseDetail.mockResolvedValue(caseDetailResponse)
+      const wrapper = await mockOpenWithCases([recommendItem])
+
+      await wrapper.find('.recommend-grid .case-card').trigger('click')
+      await flushPromises()
+      await wrapper.find('.mock-open-bid').trigger('click')
+      await flushPromises()
+
+      expect(projectLifecycleApi.getArchiveFiles).not.toHaveBeenCalled()
+      expect(projectLifecycleApi.exportProjectArchive).not.toHaveBeenCalled()
+      expect(clickSpy).not.toHaveBeenCalled()
+      expect(document.body.textContent).toContain('无权限下载')
     } finally {
       clickSpy.mockRestore()
     }

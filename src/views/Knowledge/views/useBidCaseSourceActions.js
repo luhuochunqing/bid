@@ -8,6 +8,12 @@
  *
  * 058 分流（2026-09）：obsBidFileKey 非空 → OBS 预签名直链下载原版 docx；
  * 否则有 sourceProjectId → 档案预检 + ZIP；皆无 → 提示"标书原文暂不可用"
+ *
+ * 角色闸门（2026-09）：投标项目负责人(bid-projectLeader/sales)不得下载标书原文，
+ * 点击直接提示"无权限下载"并中止——覆盖三条分支，弹窗(AiRecommendDrawer)与知识库(CaseGrid)共用本逻辑同时生效。
+ * 前后端闸门有意不对称：前端拦全部三条分支（UX 层）；后端仅对分支一（案例专属 /api/cases/{id}/download-url）
+ * 做权威 403 防绕过。分支二/三走通用共享端点（archive/export-zip、projects/{id}/documents/{docId}/download），
+ * 被 13+ 合法消费者共用，后端不做角色闸门以免 over-block，请勿"补闸"。后端锚点见 KnowledgeCaseController#getDownloadUrl。
  */
 import { ElMessage } from 'element-plus'
 import { casesApi } from '@/api/modules/knowledge'
@@ -15,6 +21,8 @@ import { projectLifecycleApi } from '@/api/modules/projectLifecycle'
 import { getDocuments, getDocumentDownloadUrl } from '@/api/modules/projectDocuments'
 import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { isJsonErrorBlob, readJsonErrorMessage, triggerBlobDownload, downloadWithFilename } from '@/utils/download'
+import { useUserStore } from '@/stores/user'
+import { isSalesRole } from '@/constants/roleCodes.js'
 
 export function useBidCaseSourceActions() {
   const goToSourceProject = (d) => {
@@ -26,6 +34,13 @@ export function useBidCaseSourceActions() {
   }
 
   const openBidDocument = async (d) => {
+    // 角色闸门：投标项目负责人(bid-projectLeader/sales)不得下载标书原文，提示后中止（覆盖下方三条分支）
+    const userStore = useUserStore()
+    const roleCode = userStore.currentUser?.roleCode || userStore.currentUser?.role
+    if (isSalesRole(roleCode)) {
+      ElMessage.error('无权限下载')
+      return
+    }
     // 分支一（058）：历史切片案例有 OBS 原版对象键 → 预签名直链下载原版 docx
     if (d?.obsBidFileKey) {
       try {
