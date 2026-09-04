@@ -78,6 +78,31 @@ export function normalizeScoreItem(s, i) {
   }
 }
 
+export function mapScoreResults(results) {
+  const resultMap = Object.create(null)
+  for (const row of results || []) {
+    const normalized = normalizeScoreResult(row)
+    if (row.scoreItemId != null) {
+      resultMap[`id:${row.scoreItemId}`] = normalized
+    }
+    if (row.code != null && resultMap[`code:${row.code}`] == null) {
+      resultMap[`code:${row.code}`] = normalized
+    }
+  }
+  return resultMap
+}
+
+export function lookupScoreResult(results, item) {
+  if (!results || !item) return null
+  if (item.id != null) {
+    return results[`id:${item.id}`] ?? null
+  }
+  if (item.code != null) {
+    return results[`code:${item.code}`] ?? results[item.code] ?? null
+  }
+  return null
+}
+
 export function normalizeScoreResult(r) {
   const isSubj = r.scoreType === 'SUBJECTIVE' || r.scoreType === '主观项'
   const isPending = r.status === 'PENDING' || r.statusStage2 === 'PENDING' || Boolean(r.missedReason)

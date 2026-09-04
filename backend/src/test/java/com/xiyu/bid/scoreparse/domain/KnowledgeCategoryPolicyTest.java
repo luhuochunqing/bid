@@ -103,6 +103,14 @@ class KnowledgeCategoryPolicyTest {
     }
 
     @Test
+    @DisplayName("面积门槛：不少于 5000 平方米")
+    void extractMinArea_squareMeters() {
+        assertThat(policy.extractMinArea("自有仓储面积不少于 5000 平方米"))
+                .isEqualByComparingTo("5000");
+        assertThat(policy.extractMinArea("无面积要求")).isNull();
+    }
+
+    @Test
     @DisplayName("1371 财务状况：即使细则提到人员/报表，因素名不是人员 → OTHER")
     void categorize_financeFactor_ignoresPersonnelWordsInDetail() {
         assertThat(policy.categorize("财务状况（3分）",

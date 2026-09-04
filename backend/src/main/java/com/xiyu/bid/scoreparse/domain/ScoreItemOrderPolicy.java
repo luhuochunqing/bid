@@ -37,18 +37,6 @@ public class ScoreItemOrderPolicy {
             return List.of();
         }
 
-        // 统计各大类与父维度的首次出现位置（保持文档原文的先后自然顺序）
-        Map<String, Integer> topCategoryFirstSeen = new LinkedHashMap<>();
-        Map<String, Integer> parentDimFirstSeen = new LinkedHashMap<>();
-        for (int i = 0; i < candidates.size(); i++) {
-            ScoreCandidate c = candidates.get(i);
-            String topCat = extractTopCategory(c == null ? null : c.dim());
-            String parentDim = extractParentDim(c == null ? null : c.dim());
-            topCategoryFirstSeen.putIfAbsent(topCat, i);
-            parentDimFirstSeen.putIfAbsent(parentDim, i);
-        }
-
-        // 包装候选及其原始输入索引与提取的 key
         record IndexedCandidate(
                 ScoreCandidate candidate,
                 int originalIndex,
@@ -57,13 +45,17 @@ public class ScoreItemOrderPolicy {
                 CodeKey codeKey
         ) {}
 
+        Map<String, Integer> topCategoryFirstSeen = new LinkedHashMap<>();
+        Map<String, Integer> parentDimFirstSeen = new LinkedHashMap<>();
         List<IndexedCandidate> list = new ArrayList<>(candidates.size());
         for (int i = 0; i < candidates.size(); i++) {
             ScoreCandidate c = candidates.get(i);
             String topCat = extractTopCategory(c == null ? null : c.dim());
             String parentDim = extractParentDim(c == null ? null : c.dim());
-            CodeKey key = c == null ? null : parseKey(c.code());
-            list.add(new IndexedCandidate(c, i, topCat, parentDim, key));
+            topCategoryFirstSeen.putIfAbsent(topCat, i);
+            parentDimFirstSeen.putIfAbsent(parentDim, i);
+            list.add(new IndexedCandidate(c, i, topCat, parentDim,
+                    c == null ? null : parseKey(c.code())));
         }
 
         Map<String, Set<String>> seenByParent = new HashMap<>();
@@ -124,31 +116,27 @@ public class ScoreItemOrderPolicy {
         return list.stream().map(IndexedCandidate::candidate).toList();
     }
 
-    private String extractTopCategory(String dim) {
+    private String[] splitDim(String dim) {
         if (dim == null || dim.isBlank()) {
-            return "";
+            return new String[0];
         }
-        String trimmed = dim.trim();
-        String[] parts = trimmed.split("\\s*[/／\\\\]\\s*");
-        if (parts.length > 1) {
-            return normalizeCategoryName(parts[0]);
-        }
-        return normalizeCategoryName(trimmed);
+        return dim.trim().split("\\s*[/／\\\\]\\s*");
+    }
+
+    private String extractTopCategory(String dim) {
+        String[] parts = splitDim(dim);
+        return parts.length == 0 ? "" : normalizeCategoryName(parts[0]);
     }
 
     private String extractParentDim(String dim) {
-        if (dim == null || dim.isBlank()) {
+        String[] parts = splitDim(dim);
+        if (parts.length == 0) {
             return "";
         }
-        String trimmed = dim.trim();
-        String[] parts = trimmed.split("\\s*[/／\\\\]\\s*");
-        if (parts.length > 2) {
+        if (parts.length >= 2) {
             return normalizeCategoryName(parts[0]) + "/" + parts[1].trim();
         }
-        if (parts.length == 2) {
-            return normalizeCategoryName(parts[0]) + "/" + parts[1].trim();
-        }
-        return normalizeCategoryName(trimmed);
+        return normalizeCategoryName(parts[0]);
     }
 
     private String normalizeCategoryName(String raw) {

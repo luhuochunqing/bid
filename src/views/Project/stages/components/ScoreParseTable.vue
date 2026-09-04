@@ -76,7 +76,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { lookupScoreResult } from '@/composables/projectDetail/scoreParseSpendGuard.js'
+import { lookupScoreResult } from '@/composables/projectDetail/scoreParseTask.js'
 
 const props = defineProps({
   items: { type: Array, required: true },

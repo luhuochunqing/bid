@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import ScoreParseTable from './ScoreParseTable.vue'
+import { mapScoreResults } from '@/composables/projectDetail/scoreParseTask.js'
 
 describe('ScoreParseTable.vue', () => {
   const mockItems = [
@@ -87,10 +88,6 @@ describe('ScoreParseTable.vue', () => {
             estScore: 10,
           },
         ],
-        results: {
-          101: { actualScore: null, status: 'neutral' },
-          102: { actualScore: 10, status: 'ok' },
-        },
         mode: 'est',
         totalWeight: 13,
         statsOkCount: 1,
@@ -112,8 +109,7 @@ describe('ScoreParseTable.vue', () => {
     expect(rows[1].attributes('data-item-id')).toBe('102')
   })
 
-  it('actual mode: duplicate codes resolve results by item.id only', async () => {
-    const { mapScoreResults } = await import('@/composables/projectDetail/scoreParseSpendGuard.js')
+  it('actual mode: duplicate codes resolve results by item.id only', () => {
     const wrapper = mount(ScoreParseTable, {
       props: {
         items: [

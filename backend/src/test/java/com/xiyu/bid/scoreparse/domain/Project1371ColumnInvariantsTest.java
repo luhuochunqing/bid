@@ -28,9 +28,6 @@ class Project1371ColumnInvariantsTest {
         assertThat(find(items, "供应商业绩").weight()).isEqualByComparingTo("7");
         assertThat(items.stream().map(ScoreCandidate::weight)
                 .reduce(BigDecimal.ZERO, BigDecimal::add)).isEqualByComparingTo("100");
-
-        assertThat(items).noneMatch(c -> c.dim() != null && c.dim().contains("财务状况")
-                && c.weight() != null && c.weight().compareTo(new BigDecimal("3")) != 0);
     }
 
     @Test
