@@ -30,11 +30,18 @@ class ScoreCodeSanitizerTest {
         assertThat(ScoreCodeSanitizer.clean("NULL.1")).isEqualTo("1");
         assertThat(ScoreCodeSanitizer.clean("null-1")).isEqualTo("1");
         assertThat(ScoreCodeSanitizer.clean("null_1")).isEqualTo("1");
+        assertThat(ScoreCodeSanitizer.clean("null/1")).isEqualTo("1");
         assertThat(ScoreCodeSanitizer.clean("1.null")).isEqualTo("1");
         assertThat(ScoreCodeSanitizer.clean("1.null.2")).isEqualTo("1.2");
         assertThat(ScoreCodeSanitizer.clean("null.1.2")).isEqualTo("1.2");
         assertThat(ScoreCodeSanitizer.clean("undefined.3")).isEqualTo("3");
         assertThat(ScoreCodeSanitizer.clean("1.")).isEqualTo("1");
+        // 边缘字符：全角 ｎｕｌｌ、零宽字符、(null)1、null.(null)
+        assertThat(ScoreCodeSanitizer.clean("ｎｕｌｌ.1")).isEqualTo("1");
+        assertThat(ScoreCodeSanitizer.clean("(null)1")).isEqualTo("1");
+        assertThat(ScoreCodeSanitizer.clean("（null）2")).isEqualTo("2");
+        assertThat(ScoreCodeSanitizer.clean("null.\u200B1")).isEqualTo("1");
+        assertThat(ScoreCodeSanitizer.clean("null.(null)")).isEmpty();
     }
 
     @Test

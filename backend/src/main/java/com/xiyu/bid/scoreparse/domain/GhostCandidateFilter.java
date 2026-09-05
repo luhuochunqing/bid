@@ -22,7 +22,7 @@ public class GhostCandidateFilter {
 
     private static final Pattern NON_SCORE_PROCEDURE_PATTERN = ScoreParseConstants.NON_SCORE_PROCEDURE_PATTERN;
     private static final Pattern EXPLICIT_SCORE_RULE_PATTERN =
-            Pattern.compile("得\\s*\\d+(?:\\.\\d+)?\\s*分|扣\\s*\\d+(?:\\.\\d+)?\\s*分|不扣分");
+            Pattern.compile("得\\s*\\d+(?:\\.\\d+)?\\s*分|扣\\s*\\d+(?:\\.\\d+)?(?:分)?|不扣(?:分)?|扣减|扣除");
 
     /** 过滤幽灵候选，返回新列表；入参为 null 时返回空列表 */
     public List<ScoreCandidate> filter(List<ScoreCandidate> candidates) {
@@ -56,7 +56,9 @@ public class GhostCandidateFilter {
                 || NON_SCORE_PROCEDURE_PATTERN.matcher(detail).find()
                 || NON_SCORE_PROCEDURE_PATTERN.matcher(source).find();
         if (matchesProcedural) {
-            boolean hasExplicitRule = EXPLICIT_SCORE_RULE_PATTERN.matcher(detail).find()
+            boolean isCredit = dim.contains("诚信") || dim.contains("信用") || detail.contains("诚信") || detail.contains("信用");
+            boolean hasExplicitRule = isCredit
+                    || EXPLICIT_SCORE_RULE_PATTERN.matcher(detail).find()
                     || EXPLICIT_SCORE_RULE_PATTERN.matcher(dim).find()
                     || ScoreParseConstants.BRACKET_WEIGHT_PATTERN.matcher(dim).find()
                     || ScoreParseConstants.BRACKET_WEIGHT_PATTERN.matcher(detail).find();

@@ -148,8 +148,24 @@ class CellAnchoredScoreExtractorTest {
         TableGrid grid = TableGridExtractor.extract(markdown);
         TableColumnMapping mapping = new TableColumnMapping(-1, -1, 0, 1, 2, 1, false);
         List<ScoreCandidate> candidates = CellAnchoredScoreExtractor.extract(grid, mapping);
-
         assertThat(candidates).hasSize(1);
         assertThat(candidates.get(0).weight()).isEqualByComparingTo(new BigDecimal("40"));
+    }
+
+    @Test
+    void extract_creditEvaluationWithDiscreditRulesWithoutFenChar_preserved() {
+        String markdown = """
+                | 评审项目 | 评审内容 | 分值 |
+                |---|---|---|
+                | 诚信评价 | 不存在重大违法记录及失信行为的不扣，近三年存在失信行为的每起扣减2 | 0 |
+                """;
+
+        TableGrid grid = TableGridExtractor.extract(markdown);
+        TableColumnMapping mapping = new TableColumnMapping(-1, -1, 0, 1, 2, 1, false);
+        List<ScoreCandidate> candidates = CellAnchoredScoreExtractor.extract(grid, mapping);
+
+        assertThat(candidates).hasSize(1);
+        assertThat(candidates.get(0).dim()).isEqualTo("诚信评价");
+        assertThat(candidates.get(0).weight()).isEqualByComparingTo(BigDecimal.ZERO);
     }
 }

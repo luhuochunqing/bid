@@ -21,6 +21,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -114,6 +116,28 @@ class WarehouseMatchServiceTest {
         assertThat(result.matchRatio()).isEqualTo(0);
         assertThat(result.matched()).isEmpty();
         assertThat(result.matchDetail()).contains("未抽取到可执行的仓库匹配约束");
+        verify(repository, never()).findAll(any(Specification.class));
+    }
+
+    @Test
+    @DisplayName("全部为通用干扰词时走 match() 拦截并禁止全表查询")
+    void allGenericKeywords_returnsNoneAndNeverCallsRepository() {
+        WarehouseMatchRequest request = new WarehouseMatchRequest(
+                List.of("根据应答人全国各地自有或租赁仓库数量排序情况进行评分", "优秀得2分"),
+                null, null, null);
+        KnowledgeMatchResult result = service.match(request);
+        assertThat(result.tier()).isEqualTo("NONE");
+        assertThat(result.matched()).isEmpty();
+        verify(repository, never()).findAll(any(Specification.class));
+    }
+
+    @Test
+    @DisplayName("匹配服务：入参为 null 时优雅返回空匹配并阻断全表查询")
+    void match_nullRequest_returnsEmptyAndNeverCallsRepository() {
+        KnowledgeMatchResult result = service.match(null);
+        assertThat(result.tier()).isEqualTo("NONE");
+        assertThat(result.matched()).isEmpty();
+        verify(repository, never()).findAll(any(Specification.class));
     }
 
     @Test

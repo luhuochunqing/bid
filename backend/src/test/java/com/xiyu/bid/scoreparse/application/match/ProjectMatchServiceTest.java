@@ -22,6 +22,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -133,6 +135,16 @@ class ProjectMatchServiceTest {
         assertThat(result.matchRatio()).isEqualTo(0);
         assertThat(result.matched()).isEmpty();
         assertThat(result.matchDetail()).contains("未抽取到可执行的业绩匹配约束");
+        verify(repository, never()).findAll(any(Specification.class));
+    }
+
+    @Test
+    @DisplayName("匹配服务：入参为 null 时优雅返回空匹配并阻断全表查询")
+    void match_nullRequest_returnsEmptyAndNeverCallsRepository() {
+        KnowledgeMatchResult result = service.match(null);
+        assertThat(result.tier()).isEqualTo("NONE");
+        assertThat(result.matched()).isEmpty();
+        verify(repository, never()).findAll(any(Specification.class));
     }
 
     @Test

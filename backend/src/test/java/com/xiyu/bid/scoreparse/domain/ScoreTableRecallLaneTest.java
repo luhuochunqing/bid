@@ -86,6 +86,14 @@ class ScoreTableRecallLaneTest {
 
         List<ScoreCandidate> candidates = ScoreTableRecallLane.recall(md);
 
+        // 强断言：精准锁定 13 项提取结果与 96 分权重总和（消灭多提/少提/错位盲区）
+        assertThat(candidates).hasSize(13);
+        BigDecimal totalWeight = candidates.stream()
+                .map(ScoreCandidate::weight)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(totalWeight).isEqualByComparingTo(new BigDecimal("96"));
+
         // 验证诚信评价 0 分扣分项被提取
         assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("公共信用") && c.weight() != null && c.weight().compareTo(BigDecimal.ZERO) == 0);
         assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("负面事件") && c.weight() != null && c.weight().compareTo(BigDecimal.ZERO) == 0);
@@ -107,7 +115,14 @@ class ScoreTableRecallLaneTest {
             String md = new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
             List<ScoreCandidate> list = ScoreTableRecallLane.recall(md);
 
-            assertThat(list).isNotEmpty();
+            // 强断言：真实 1359 完整两张表（商务表 13项 100分 + 技术表 25项 100分）提取 38 项且权重和精准为 200
+            assertThat(list).hasSize(38);
+            BigDecimal totalWeight = list.stream()
+                    .map(ScoreCandidate::weight)
+                    .filter(java.util.Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            assertThat(totalWeight).isEqualByComparingTo(new BigDecimal("200"));
+
             // 验证真实 1359 标书提取：报价质量 15分 与 品类覆盖率 8分 必须成功召回
             assertThat(list).anyMatch(c -> ((c.dim() != null && c.dim().contains("报价质量")) || (c.detail() != null && c.detail().contains("报价质量")))
                     && c.weight() != null && c.weight().compareTo(new BigDecimal("15")) == 0);

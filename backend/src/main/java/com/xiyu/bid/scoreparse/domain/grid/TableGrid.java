@@ -63,8 +63,11 @@ public final class TableGrid {
             return false;
         }
         String first = row.get(0).trim();
-        // 若第一列本身已具备编号特征，说明首列未发生合并缺失，禁止左补空
-        if (first.matches("^\\d+(?:[-—.]\\d+)*$") || first.matches("^[A-Za-z]\\d+$")) {
+        // 若第一列本身已具备编号特征（纯数字、字母编号、中文数字章节如一/二、顿号或括号标号），禁止左补空
+        if (first.matches("^\\d+(?:[-—.]\\d+)*[、.．]?$")
+                || first.matches("^[A-Za-z]\\d+$")
+                || first.matches("^[一二三四五六七八九十百]+[、.．]?$")
+                || first.matches("^[（(][\\d一二三四五六七八九十]+[)）]$")) {
             return false;
         }
         String last = row.get(row.size() - 1).trim();

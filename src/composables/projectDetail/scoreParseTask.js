@@ -49,14 +49,18 @@ function safeParseJson(val, fallback) {
 export function sanitizeCode(raw) {
   if (raw == null) return ''
   let s = String(raw).trim()
-  if (!s || /^(null|undefined|none|n\/?a|\(null\)|（null）|null\.0)$/i.test(s)) {
+  // 剥除零宽字符与全角转半角（如全角 ｎｕｌｌ -> null）
+  s = s.replace(/[\u200B-\u200D\uFEFF]/g, '')
+  s = s.replace(/[\uFF01-\uFF5E]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+  if (!s || /^(?:null|undefined|none|n\/?a|\(null\)|null\.0)$/i.test(s)) {
     return ''
   }
-  s = s.replace(/(?:^|(?<=[._\-\s]))(?:null|undefined|none|n\/?a)(?:(?=[._\-\s])|$)/gi, '')
-  s = s.replace(/[._\-\s]{2,}/g, '.')
-  s = s.replace(/^[._\-\s]+/, '')
-  s = s.replace(/[._\-\s]+$/, '')
-  if (!s || /^(null|undefined|none|n\/?a)$/i.test(s)) {
+  s = s.replace(/\(null\)/gi, '')
+  s = s.replace(/(?:^|(?<=[._/\\\-\s]))(?:null|undefined|none|n\/?a)(?:(?=[._/\\\-\s])|$)/gi, '')
+  s = s.replace(/[._/\\\-\s]{2,}/g, '.')
+  s = s.replace(/^[._/\\\-\s]+/, '')
+  s = s.replace(/[._/\\\-\s]+$/, '')
+  if (!s || /^(?:null|undefined|none|n\/?a|\(null\))$/i.test(s)) {
     return ''
   }
   return s
@@ -105,11 +109,18 @@ export function mapScoreResults(results) {
       resultMap[`id:${row.scoreItemId}`] = normalized
     }
     if (row.code != null) {
+      const cleanCode = sanitizeCode(row.code)
       if (resultMap[`code:${row.code}`] == null) {
         resultMap[`code:${row.code}`] = normalized
       }
+      if (cleanCode && resultMap[`code:${cleanCode}`] == null) {
+        resultMap[`code:${cleanCode}`] = normalized
+      }
       if (resultMap[row.code] == null) {
         resultMap[row.code] = normalized
+      }
+      if (cleanCode && resultMap[cleanCode] == null) {
+        resultMap[cleanCode] = normalized
       }
     }
   }
@@ -122,7 +133,12 @@ export function lookupScoreResult(results, item) {
     return results[`id:${item.id}`] ?? null
   }
   if (item.code != null) {
-    return results[`code:${item.code}`] ?? results[item.code] ?? null
+    const cleanCode = sanitizeCode(item.code)
+    return results[`code:${item.code}`]
+      ?? (cleanCode ? results[`code:${cleanCode}`] : null)
+      ?? results[item.code]
+      ?? (cleanCode ? results[cleanCode] : null)
+      ?? null
   }
   return null
 }

@@ -39,12 +39,18 @@ public final class ScoreCodeSanitizer {
             return "";
         }
         String s = raw.trim();
+        // 剥除零宽字符与全角字符归一化（如 ｎｕｌｌ -> null，（null） -> (null)）
+        s = s.replaceAll("[\\u200B-\\u200D\\uFEFF]", "");
+        s = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFKC).trim();
         if (s.isEmpty() || NULL_EXACT_PATTERN.matcher(s).matches()) {
             return "";
         }
 
+        // 清除括号包裹的 null，如 "(null)1" -> "1"
+        s = s.replaceAll("(?i)\\([\\s]*null[\\s]*\\)", "");
+
         // 逐段清洗：将连接符周围的 null/undefined 剔除
-        // 例如 "null.1" -> ".1" -> "1", "1.null" -> "1.", "1.null.2" -> "1..2"
+        // 例如 "null.1" -> ".1" -> "1", "1.null" -> "1.", "1.null.2" -> "1..2", "null/1" -> "1"
         String cleaned = NULL_SEGMENT_CLEAN.matcher(s).replaceAll("");
 
         // 清理多余的前导、尾随或重复分隔符，如 "..", "--", 首尾点

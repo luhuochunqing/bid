@@ -59,6 +59,7 @@ public final class StructuredTableCandidateExtractor {
         for (int r = 0; r < rows.size(); r++) {
             List<SidecarTableExtraction.CellPayload> row = rows.get(r);
             if (row == null || row.isEmpty()) {
+                decrementRemaining(colRemainingRowspan, colParentDim);
                 continue;
             }
             int scanLimit = Math.min(row.size(), MAX_PARENT_DIM_COLS);

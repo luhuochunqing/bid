@@ -33,7 +33,8 @@ public final class CellAnchoredScoreExtractor {
     private static final Pattern NUMERIC_WEIGHT_PATTERN = Pattern.compile("^[~≈]?(\\d{1,3}(?:\\.\\d+)?)\\s*(?:分|%)?$");
     private static final Pattern BRACKET_WEIGHT_PATTERN = ScoreParseConstants.BRACKET_WEIGHT_PATTERN;
     private static final Pattern GRADE_SCORE_PATTERN = Pattern.compile("得\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分");
-    private static final Pattern EXPLICIT_RULE_PATTERN = Pattern.compile("得\\s*\\d+(?:\\.\\d+)?\\s*分|扣\\s*\\d+(?:\\.\\d+)?\\s*分|不扣分");
+    private static final Pattern EXPLICIT_RULE_PATTERN =
+            Pattern.compile("得\\s*\\d+(?:\\.\\d+)?\\s*分|扣\\s*\\d+(?:\\.\\d+)?(?:分)?|不扣(?:分)?|扣减|扣除");
     private static final Pattern PRICE_SUBITEM_PATTERN = Pattern.compile(
             "[1-9]、\\s*([^\\s。\\n;；，,（(]{2,30}?(?:[（(][^）)]*?[）)])?)\\s*[（(]?\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分\\s*[）)]?"
     );
@@ -58,12 +59,11 @@ public final class CellAnchoredScoreExtractor {
         int rowCount = grid.rowCount();
         int headerRows = Math.max(0, mapping.headerRows());
         List<String> parentByRow = resolveParentByRow(grid, mapping, headerRows);
-        Map<String, Integer> scoredRowsByParent = countScoredRows(
-                grid, mapping, headerRows, parentByRow);
+        Map<String, Integer> scoredRowsByParent = countScoredRows(grid, mapping, headerRows, parentByRow);
 
         for (int r = headerRows; r < rowCount; r++) {
             List<String> rowCells = grid.row(r);
-            if (rowCells.isEmpty() || isAllEmpty(rowCells)) {
+            if (isAllEmpty(rowCells)) {
                 continue;
             }
 
@@ -80,11 +80,13 @@ public final class CellAnchoredScoreExtractor {
             String finalDim = resolveDimension(rawDimCell, detail, currentParentDim,
                     scoredRowsByParent.getOrDefault(currentParentDim, 0));
 
-            // 过滤非评分程序性条款（如"推荐成交候选供应商 3名"等，保留具明确给分/扣分规则项）
+            // 过滤非评分程序性条款（保留具明确给分/扣分规则项或诚信评价项）
             boolean procedural = NON_SCORE_PROCEDURE_PATTERN.matcher(detail).find()
                     || NON_SCORE_PROCEDURE_PATTERN.matcher(finalDim).find()
                     || NON_SCORE_PROCEDURE_PATTERN.matcher(sourceRow).find();
-            if (procedural && !EXPLICIT_RULE_PATTERN.matcher(detail).find()
+            boolean isCredit = finalDim.contains("诚信") || finalDim.contains("信用")
+                    || currentParentDim.contains("诚信") || currentParentDim.contains("信用");
+            if (procedural && !isCredit && !EXPLICIT_RULE_PATTERN.matcher(detail).find()
                     && !BRACKET_WEIGHT_PATTERN.matcher(finalDim).find()
                     && !BRACKET_WEIGHT_PATTERN.matcher(detail).find()) {
                 continue;
@@ -238,10 +240,7 @@ public final class CellAnchoredScoreExtractor {
         return !parent.isBlank() && parent.equals(finalDim) ? "PARENT_SINGLE" : "UNKNOWN";
     }
     private static boolean isAllEmpty(List<String> cells) {
-        for (String c : cells) {
-            if (c != null && !c.isBlank()) return false;
-        }
-        return true;
+        return cells.stream().allMatch(c -> c == null || c.isBlank());
     }
 
     private static String cleanDimName(String raw) {
