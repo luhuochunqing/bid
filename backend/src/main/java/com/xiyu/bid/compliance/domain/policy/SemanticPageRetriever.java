@@ -192,6 +192,8 @@ public final class SemanticPageRetriever {
                     "退保证金", "开户许可证");
             case BID_LETTER_FORMAT -> addCues(cues, "投标函", "报价函", "响应函", "投标书", "致招标人", "致采购人",
                     "投标总价", "投标有效期", "法人或授权代表", "投标人盖章", "法定代表人签字");
+            case AUTHORIZATION_LETTER -> addCues(cues, "授权委托书", "法定代表人身份证明", "法定代表人授权书",
+                    "委托代理人", "被授权人", "授权代表", "授权范围", "授权期限", "法定代表人证明书");
             default -> { }
         }
         return cues;
@@ -213,15 +215,13 @@ public final class SemanticPageRetriever {
             addCue(cues, req.depositRequirement().description());
         }
         if (req.bidLetterRequirement() != null) {
-            if (req.bidLetterRequirement().letterType() != null) {
-                addCue(cues, req.bidLetterRequirement().letterType());
-            }
-            if (req.bidLetterRequirement().recipientName() != null) {
-                addCue(cues, req.bidLetterRequirement().recipientName());
-            }
-            if (req.bidLetterRequirement().description() != null) {
-                addDescriptionCues(cues, req.bidLetterRequirement().description());
-            }
+            if (req.bidLetterRequirement().letterType() != null) addCue(cues, req.bidLetterRequirement().letterType());
+            if (req.bidLetterRequirement().recipientName() != null) addCue(cues, req.bidLetterRequirement().recipientName());
+            if (req.bidLetterRequirement().description() != null) addDescriptionCues(cues, req.bidLetterRequirement().description());
+        }
+        if (req.authorizationRequirement() != null) {
+            if (req.authorizationRequirement().templateTitle() != null) addCue(cues, req.authorizationRequirement().templateTitle());
+            if (req.authorizationRequirement().description() != null) addDescriptionCues(cues, req.authorizationRequirement().description());
         }
         return cues;
     }

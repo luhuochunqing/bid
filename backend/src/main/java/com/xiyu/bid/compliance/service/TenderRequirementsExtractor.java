@@ -139,6 +139,12 @@ public class TenderRequirementsExtractor {
                     "recipientName": "招标文件要求的致招标人/采购人称谓全称或null",
                     "validityDays": 投标有效期天数整数或null,
                     "description": "招标文件关于投标函格式、致采购人称谓、有效期等具体要求的原文条款摘录或null"
+                  },
+                  "authorizationRequirement": {
+                    "required": true或false或null,
+                    "allowLegalRepresentativeOnly": true或false或null,
+                    "templateTitle": "招标文件指定的授权书模板标题或null",
+                    "description": "招标文件关于授权委托书与法定代表人身份证明的具体要求条款摘录或null"
                   }
                 }
                 顶层键必须全部存在。

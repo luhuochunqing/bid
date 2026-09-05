@@ -7,6 +7,7 @@ package com.xiyu.bid.compliance.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.compliance.domain.policy.AuthorizationRequirement;
 import com.xiyu.bid.compliance.domain.policy.TenderRequirements;
 
 import java.util.ArrayList;
@@ -69,6 +70,7 @@ public final class TenderRequirementsParser {
             }
             TenderRequirements.DepositRequirement depositRequirement = parseDepositRequirement(root.path("depositRequirement"));
             TenderRequirements.BidLetterRequirement bidLetterRequirement = parseBidLetterRequirement(root.path("bidLetterRequirement"));
+            AuthorizationRequirement authorizationRequirement = parseAuthorizationRequirement(root.path("authorizationRequirement"));
             return new TenderRequirements(
                     scoringItems,
                     stringListAt(root, "mandatoryQualifications"),
@@ -77,10 +79,34 @@ public final class TenderRequirementsParser {
                     stringListAt(root, "formatRequirements"),
                     depositRequirement,
                     bidLetterRequirement,
+                    authorizationRequirement,
                     false);
         } catch (JsonProcessingException e) {
             return TenderRequirements.missingSentinel();
         }
+    }
+
+    private static AuthorizationRequirement parseAuthorizationRequirement(final JsonNode node) {
+        if (node == null || !node.isObject()) {
+            return null;
+        }
+        Boolean required = node.has("required") && !node.get("required").isNull()
+                ? node.get("required").asBoolean()
+                : null;
+        Boolean allowLegalRepOnly = node.has("allowLegalRepresentativeOnly") && !node.get("allowLegalRepresentativeOnly").isNull()
+                ? node.get("allowLegalRepresentativeOnly").asBoolean()
+                : null;
+        String templateTitle = textAt(node, "templateTitle");
+        String description = textAt(node, "description");
+        if (required == null && allowLegalRepOnly == null && templateTitle.isBlank() && description.isBlank()) {
+            return null;
+        }
+        return new AuthorizationRequirement(
+                required,
+                allowLegalRepOnly,
+                templateTitle.isBlank() ? null : templateTitle,
+                description.isBlank() ? null : description
+        );
     }
 
     private static TenderRequirements.BidLetterRequirement parseBidLetterRequirement(final JsonNode node) {

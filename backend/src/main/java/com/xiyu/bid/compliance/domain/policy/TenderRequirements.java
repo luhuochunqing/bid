@@ -22,6 +22,7 @@ public record TenderRequirements(
         List<String> formatRequirements,
         DepositRequirement depositRequirement,
         BidLetterRequirement bidLetterRequirement,
+        AuthorizationRequirement authorizationRequirement,
         boolean missing) {
 
     /** 投标保证金要求. required 为 false 表示明确免收/不涉及；true 为需缴纳；null 为未明确. */
@@ -141,7 +142,7 @@ public record TenderRequirements(
             final List<String> compositionRequirements,
             final List<String> formatRequirements,
             final boolean missing) {
-        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, null, null, missing);
+        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, null, null, null, missing);
     }
 
     /** 兼容历史签名的 7 参数构造方法（含 depositRequirement）. */
@@ -153,7 +154,20 @@ public record TenderRequirements(
             final List<String> formatRequirements,
             final DepositRequirement depositRequirement,
             final boolean missing) {
-        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, null, missing);
+        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, null, null, missing);
+    }
+
+    /** 兼容历史签名的 8 参数构造方法（含 bidLetterRequirement）. */
+    public TenderRequirements(
+            final List<ScoringItem> scoringItems,
+            final List<String> mandatoryQualifications,
+            final List<VetoClause> vetoClauses,
+            final List<String> compositionRequirements,
+            final List<String> formatRequirements,
+            final DepositRequirement depositRequirement,
+            final BidLetterRequirement bidLetterRequirement,
+            final boolean missing) {
+        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, null, missing);
     }
 
     /** 评分项. maxScore 允许 null（文本未标分值时），负值归一为 null. */
@@ -202,12 +216,12 @@ public record TenderRequirements(
 
     /** 无提取结果的空集（非哨兵）. */
     public static TenderRequirements empty() {
-        return new TenderRequirements(List.of(), List.of(), List.of(), List.of(), List.of(), null, null, false);
+        return new TenderRequirements(List.of(), List.of(), List.of(), List.of(), List.of(), null, null, null, false);
     }
 
     /** 提取失败/未启用哨兵值：比对项 MANUAL + REFERENCE_MISSING，独立项照常. */
     public static TenderRequirements missingSentinel() {
-        return new TenderRequirements(List.of(), List.of(), List.of(), List.of(), List.of(), null, null, true);
+        return new TenderRequirements(List.of(), List.of(), List.of(), List.of(), List.of(), null, null, null, true);
     }
 
     /**
@@ -220,28 +234,26 @@ public record TenderRequirements(
         }
         LinkedHashSet<String> merged = new LinkedHashSet<>(extraQualifications);
         merged.addAll(this.mandatoryQualifications);
-        return new TenderRequirements(
-                scoringItems,
-                sanitizeQualifications(List.copyOf(merged)),
-                vetoClauses,
-                compositionRequirements,
-                formatRequirements,
-                depositRequirement,
-                bidLetterRequirement,
-                false
-        );
+        return new TenderRequirements(scoringItems, sanitizeQualifications(List.copyOf(merged)), vetoClauses,
+                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, false);
     }
 
     /** 注入保证金要求. */
     public TenderRequirements withDepositRequirement(final DepositRequirement depositRequirement) {
         return new TenderRequirements(scoringItems, mandatoryQualifications, vetoClauses,
-                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, missing);
+                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, missing);
     }
 
     /** 注入投标函格式要求. */
     public TenderRequirements withBidLetterRequirement(final BidLetterRequirement bidLetterRequirement) {
         return new TenderRequirements(scoringItems, mandatoryQualifications, vetoClauses,
-                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, missing);
+                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, missing);
+    }
+
+    /** 注入授权委托书要求. */
+    public TenderRequirements withAuthorizationRequirement(final AuthorizationRequirement authorizationRequirement) {
+        return new TenderRequirements(scoringItems, mandatoryQualifications, vetoClauses,
+                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, missing);
     }
 
     /** 合并多段提取结果（长文档分段送入时）；任一段为哨兵不影响其他段，全空则哨兵. */
@@ -253,6 +265,7 @@ public record TenderRequirements(
         LinkedHashSet<String> format = new LinkedHashSet<>();
         DepositRequirement mergedDeposit = null;
         BidLetterRequirement mergedBidLetter = null;
+        AuthorizationRequirement mergedAuth = null;
         for (TenderRequirements part : parts) {
             if (part == null || part.missing()) {
                 continue;
@@ -268,9 +281,12 @@ public record TenderRequirements(
             if (part.bidLetterRequirement() != null) {
                 mergedBidLetter = BidLetterRequirement.fuse(mergedBidLetter, part.bidLetterRequirement());
             }
+            if (part.authorizationRequirement() != null) {
+                mergedAuth = AuthorizationRequirement.fuse(mergedAuth, part.authorizationRequirement());
+            }
         }
         boolean allMissing = parts.isEmpty() || parts.stream().allMatch(p -> p == null || p.missing());
         return new TenderRequirements(scoringItems, List.copyOf(qualifications), vetoClauses,
-                List.copyOf(composition), List.copyOf(format), mergedDeposit, mergedBidLetter, allMissing);
+                List.copyOf(composition), List.copyOf(format), mergedDeposit, mergedBidLetter, mergedAuth, allMissing);
     }
 }

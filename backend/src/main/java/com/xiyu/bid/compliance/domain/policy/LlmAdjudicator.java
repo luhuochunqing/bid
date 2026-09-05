@@ -150,7 +150,8 @@ public final class LlmAdjudicator {
                 .append("1. 若项目为单标段或标书正文已包含清晰独立章节划分，不得判定为缺失分标段独立章节；\n")
                 .append("2. 标书中对否决条款的确认与正向履约承诺（如承诺遵守违约罚则）属于合规响应，不得判定为废标/违规；\n")
                 .append("3. 若检查项为【投标保证金回单】：若招标文件明确免收/不涉及保证金，必须判定为 PASS；若要求缴纳，必须核查标书是否包含真实有效的银行汇款回单或电子保函凭证（具银行/机构、金额、流水号或保函编号等事实要素）；若仅在目录中列出标题、仅在附件清单中列出占位条目、或仅为合规声明而无实际凭证内容，绝对不得判定为 PASS，必须判定为 FAIL！\n")
-                .append("4. 若检查项为【投标函/报价函格式规范】：必须核查标书是否包含实质性投标函/报价函正文章节（具备正文承诺内容、致采购人称谓与落款签章）；若招标文件指定了特定函件名称（如报价函、响应函）或明确要求了致采购人抬头称谓、投标有效期，标书必须实质性响应；若仅在目录页列出标题、仅为占位模板（如括号占位符未填）或无实际正文，绝对不得判定为 PASS！\n\n");
+                .append("4. 若检查项为【投标函/报价函格式规范】：必须核查标书是否包含实质性投标函/报价函正文章节（具备正文承诺内容、致采购人称谓与落款签章）；若招标文件指定了特定函件名称（如报价函、响应函）或明确要求了致采购人抬头称谓、投标有效期，标书必须实质性响应；若仅在目录页列出标题、仅为占位模板（如括号占位符未填）或无实际正文，绝对不得判定为 PASS！\n")
+                .append("5. 若检查项为【法定代表人授权委托书】：必须核查标书是否包含真实完备的法定代表人证明书及授权委托书正文（具备委托人与受托人姓名、身份证号、明确授权权限与有效期限，且包含签字盖章要素）；若招标文件允许法定代表人亲自参加仅提供身份证明且标书符合，可判定为 PASS；若仅在目录页列出条目、仅为占位模板未填（如【被授权人姓名】、下划线留白）或无实际正文，绝对不得判定为 PASS！\n\n");
         sb.append("【招标要求（LLM 结构化提取）】\n").append(summarizeRequirements(requirements)).append("\n\n");
         sb.append("【企业知识库真实记录】\n").append(summarizeKbMatches(kbMatches)).append("\n\n");
         sb.append("【招标文件相关内容】\n")
@@ -187,6 +188,14 @@ public final class LlmAdjudicator {
                     : "类型: " + requirements.bidLetterRequirement().letterType()
                             + ", 抬头: " + requirements.bidLetterRequirement().recipientName()
                             + ", 有效期: " + requirements.bidLetterRequirement().validityDays() + "天").append('\n');
+        }
+        if (requirements.authorizationRequirement() != null) {
+            String desc = requirements.authorizationRequirement().description();
+            sb.append("授权书要求: ").append(desc != null && !desc.isBlank()
+                    ? desc
+                    : (Boolean.TRUE.equals(requirements.authorizationRequirement().allowLegalRepresentativeOnly())
+                            ? "需提供法定代表人证明书；法定代表人亲自参加免授权书"
+                            : "需提供法定代表人证明书及授权委托书")).append('\n');
         }
         return sb.toString();
     }

@@ -3,6 +3,16 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-05] feat | 标书质检「法定代表人授权书」（AUTHORIZATION_LETTER）语义契约与要素反假重构
+
+- 触发：按路线图推进 25 项质检项语义化演进之第 3 项「法定代表人授权委托书」（AUTHORIZATION_LETTER）。
+- 方案：
+  - 招标端契约：新建 `AuthorizationRequirement` 契约与纯核心确定性提取器 `DeterministicAuthorizationExtractor`，支持模板要求与法人亲签豁免条款提取及双轨融合；
+  - 标书端反假：新建 `AuthorizationLetterCheckPolicy`，彻底拦截目录点线页（`isCatalogOrOutlinePage`）与未填模板占位符（`UNFILLED_PLACEHOLDER_PATTERN`），核查委托人/受托人/身份证号/授权权限与期限等双角色法律要素；
+  - 引擎协同：`BidDocumentQualityEngine` 落实确定性强凭证直通 PASS，存疑场景接通 `LlmAdjudicator` 准则 5 深度裁决与 `SemanticPageRetriever` 候选页检索。
+- 结果：落地 5 个专属单测套件，新增及修改 11 个文件，单文件行预算均安全控制在 300 行内，37 项单元与架构测试全绿。
+- 页面更新：更新 [[bid-quality-check-realization]] §4.25 与 sources；lessons-learned.md §230。
+
 ## [2026-09-05] refactor | 标书质检纯核心反 AI 异味（Anti-Slop）与代码消歧重构
 
 - 触发：执行 `/ai-slop-cleaner` 技能，治理标书质检领域纯核心（`compliance`）在快速迭代中积累的 AI 异味与冗余样板代码。
