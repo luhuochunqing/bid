@@ -35,14 +35,14 @@
             <template #content>
               <div class="match-rule-tooltip">
                 <div class="tooltip-title">匹配度计算规则（满分 100 分）：</div>
-                <div>• 专属客户/项目实体：最高 25 分</div>
                 <div>• 业务子主题深度对齐：最高 25 分</div>
-                <div>• 评分条款深度契合：最高 30 分</div>
-                <div>• 评分项标题匹配：最高 20 分</div>
-                <div>• 评分项类别一致：+10 分</div>
-                <div>• 项目/客户类型一致：+10 分 / +5 分</div>
-                <div>• 搜索词/中标/质量加成：各 +5 分</div>
-                <div class="tooltip-sub">评级：≥80% 优质，≥60% 良好，&lt;60% 一般（大类冲突一票否决）</div>
+                <div>• 评分条款深度契合：最高 25 分</div>
+                <div>• 专属客户/项目实体：最高 20 分</div>
+                <div>• 评分项标题核心匹配：最高 20 分</div>
+                <div>• 评分项类别一致：最高 10 分</div>
+                <div class="tooltip-bonus">• 项目/客户类型一致加成：最高 5 分 / 3 分（额外加分）</div>
+                <div class="tooltip-bonus">• 搜索词/历史中标/质量加成：各 +5 分（额外加分）</div>
+                <div class="tooltip-sub">综合得分封顶 100 分；评级：≥80% 优质，≥60% 良好，&lt;60% 一般（大类冲突一票否决）</div>
               </div>
             </template>
             <span class="help-hint"><el-icon><QuestionFilled /></el-icon> 评分依据说明</span>

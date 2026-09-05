@@ -21,12 +21,12 @@ import static com.xiyu.bid.casework.domain.policy.TextSimilarityPolicy.hasText;
  */
 public class ScoreItemCaseMatchPolicy {
 
-    private static final int MAX_DETAIL_SIMILARITY_SCORE = 30;
+    private static final int MAX_DETAIL_SIMILARITY_SCORE = 25;
     private static final int MAX_TITLE_SIMILARITY_SCORE = 20;
-    private static final int MAX_ENTITY_MATCH_SCORE = 25;
-    private static final int ENTITY_SINGLE_HIT_SCORE = 15;
-    private static final int PROJECT_TYPE_MATCH_SCORE = 10;
-    private static final int CUSTOMER_TYPE_MATCH_SCORE = 5;
+    private static final int MAX_ENTITY_MATCH_SCORE = 20;
+    private static final int ENTITY_SINGLE_HIT_SCORE = 12;
+    private static final int PROJECT_TYPE_MATCH_SCORE = 5;
+    private static final int CUSTOMER_TYPE_MATCH_SCORE = 3;
     private static final int WON_BONUS = 5;
     private static final int QUALITY_SCORE_BONUS = 5;
     private static final int KEYWORD_HIT_BONUS = 5;
@@ -68,7 +68,7 @@ public class ScoreItemCaseMatchPolicy {
         List<String> reasons = new ArrayList<>();
         Set<String> projectEntityHits = new LinkedHashSet<>();
 
-        // 1. 项目专属核心实体匹配（最高 25 分）
+        // 1. 项目专属核心实体匹配（最高 20 分）
         EntityMatchResult entityResult = calculateEntityScore(context, candidate, candidateText);
         score += entityResult.score();
         if (!entityResult.hitEntities().isEmpty()) {
@@ -91,7 +91,7 @@ public class ScoreItemCaseMatchPolicy {
         int detailScore = calculateDetailOverlap(context.detail(), candidateText);
         if (detailScore > 0) {
             score += detailScore;
-            reasons.add(detailScore >= 15 ? "评分项条款高度契合" : "条款部分契合");
+            reasons.add(detailScore >= 12 ? "评分项条款高度契合" : "条款部分契合");
         }
 
         // 4. 标题/正文跨层相似度
