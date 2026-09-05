@@ -86,8 +86,18 @@ public final class EvidenceAssembler {
                 evidences.add(locateBid(bidDoc, "技术方案章节", List.of("技术方案", "实施方案")));
             }
             case CLARIFICATION_RESPONSE -> evidences.add(locateBid(bidDoc, "澄清响应章节", List.of("澄清", "答疑", "补遗")));
+            case DEPOSIT_RECEIPT -> {
+                evidences.add(locateBid(bidDoc, "投标保证金凭证", List.of("投标保证金", "银行回单", "电子保函", "转账凭证")));
+            }
+            case BID_LETTER_FORMAT -> {
+                if (requirements != null && requirements.bidLetterRequirement() != null
+                        && requirements.bidLetterRequirement().description() != null) {
+                    evidences.add(locateTender(tenderDoc, "招标投标函要求", List.of("投标函", "报价函", "响应函", "致采购人", "致招标人")));
+                }
+                evidences.add(locateBid(bidDoc, "投标函/报价函正文", List.of("投标函", "报价函", "响应函", "致：", "致:")));
+            }
             default -> {
-                // 非语义项不组装证据
+                // 其余项未特化证据
             }
         }
         return evidences;

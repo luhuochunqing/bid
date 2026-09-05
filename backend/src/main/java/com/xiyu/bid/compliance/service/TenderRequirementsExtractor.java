@@ -133,6 +133,12 @@ public class TenderRequirementsExtractor {
                     "amount": "保证金金额或null",
                     "forms": "保证金形式或null",
                     "description": "招标文件关于投标保证金要求的原文章节或前附表条款摘录（若明确免收、不收取、不涉及、无保证金、不适用或为0元，必须记录原文并将required设为false）"
+                  },
+                  "bidLetterRequirement": {
+                    "letterType": "投标函或报价函或响应函等指定名称或null",
+                    "recipientName": "招标文件要求的致招标人/采购人称谓全称或null",
+                    "validityDays": 投标有效期天数整数或null,
+                    "description": "招标文件关于投标函格式、致采购人称谓、有效期等具体要求的原文条款摘录或null"
                   }
                 }
                 顶层键必须全部存在。

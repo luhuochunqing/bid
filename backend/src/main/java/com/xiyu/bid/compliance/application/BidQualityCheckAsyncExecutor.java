@@ -13,6 +13,7 @@ import com.xiyu.bid.compliance.domain.QualificationDetail;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityCheckStatus;
 import com.xiyu.bid.compliance.domain.policy.BidDocumentQualityEngine;
+import com.xiyu.bid.compliance.domain.policy.DeterministicBidLetterExtractor;
 import com.xiyu.bid.compliance.domain.policy.DeterministicDepositExtractor;
 import com.xiyu.bid.compliance.domain.policy.DeterministicQualificationExtractor;
 import com.xiyu.bid.compliance.domain.policy.KnowledgeQueryOutcome;
@@ -122,6 +123,13 @@ public class BidQualityCheckAsyncExecutor {
                 TenderRequirements.DepositRequirement fused = TenderRequirements.DepositRequirement.fuseWithDeterministic(
                         requirements.depositRequirement(), detDeposit);
                 requirements = requirements.withDepositRequirement(fused);
+            }
+
+            TenderRequirements.BidLetterRequirement detBidLetter = DeterministicBidLetterExtractor.extract(tenderDoc.fullText());
+            if (detBidLetter != null) {
+                TenderRequirements.BidLetterRequirement fused = TenderRequirements.BidLetterRequirement.fuseWithDeterministic(
+                        requirements.bidLetterRequirement(), detBidLetter);
+                requirements = requirements.withBidLetterRequirement(fused);
             }
 
             // Step 2: 知识库检索与 25 项规则核查 (progress: 60)

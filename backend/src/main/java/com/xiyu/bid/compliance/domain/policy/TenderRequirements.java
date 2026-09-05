@@ -21,6 +21,7 @@ public record TenderRequirements(
         List<String> compositionRequirements,
         List<String> formatRequirements,
         DepositRequirement depositRequirement,
+        BidLetterRequirement bidLetterRequirement,
         boolean missing) {
 
     /** 投标保证金要求. required 为 false 表示明确免收/不涉及；true 为需缴纳；null 为未明确. */
@@ -98,6 +99,44 @@ public record TenderRequirements(
         }
     }
 
+    /** 投标函/报价函/响应函格式与内容要求契约. */
+    public record BidLetterRequirement(
+            String letterType,
+            String recipientName,
+            Integer validityDays,
+            String description) {
+
+        public static BidLetterRequirement standard(final String letterType, final String recipientName, final Integer validityDays) {
+            return new BidLetterRequirement(letterType, recipientName, validityDays, null);
+        }
+
+        /**
+         * 交叉校验与融合两条投标函要求提取结果（硬事实优先）.
+         */
+        public static BidLetterRequirement fuse(final BidLetterRequirement a, final BidLetterRequirement b) {
+            if (a == null) return b;
+            if (b == null) return a;
+            String type = a.letterType() != null && !a.letterType().isBlank() ? a.letterType() : b.letterType();
+            String recipient = a.recipientName() != null && !a.recipientName().isBlank() ? a.recipientName() : b.recipientName();
+            Integer days = a.validityDays() != null ? a.validityDays() : b.validityDays();
+            String desc = a.description() != null && !a.description().isBlank() ? a.description() : b.description();
+            return new BidLetterRequirement(type, recipient, days, desc);
+        }
+
+        /**
+         * 双轨融合：以确定性提取结果校准 LLM 提取结果（硬事实数字天数与确定性公司全称优先）.
+         */
+        public static BidLetterRequirement fuseWithDeterministic(final BidLetterRequirement llmReq, final BidLetterRequirement detReq) {
+            if (detReq == null) return llmReq;
+            if (llmReq == null) return detReq;
+            Integer days = detReq.validityDays() != null ? detReq.validityDays() : llmReq.validityDays();
+            String type = detReq.letterType() != null && !detReq.letterType().isBlank() ? detReq.letterType() : llmReq.letterType();
+            String recipient = detReq.recipientName() != null && !detReq.recipientName().isBlank() ? detReq.recipientName() : llmReq.recipientName();
+            String desc = llmReq.description() != null && !llmReq.description().isBlank() ? llmReq.description() : detReq.description();
+            return new BidLetterRequirement(type, recipient, days, desc);
+        }
+    }
+
     /** 兼容历史签名的 6 参数构造方法. */
     public TenderRequirements(
             final List<ScoringItem> scoringItems,
@@ -106,7 +145,19 @@ public record TenderRequirements(
             final List<String> compositionRequirements,
             final List<String> formatRequirements,
             final boolean missing) {
-        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, null, missing);
+        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, null, null, missing);
+    }
+
+    /** 兼容历史签名的 7 参数构造方法（含 depositRequirement）. */
+    public TenderRequirements(
+            final List<ScoringItem> scoringItems,
+            final List<String> mandatoryQualifications,
+            final List<VetoClause> vetoClauses,
+            final List<String> compositionRequirements,
+            final List<String> formatRequirements,
+            final DepositRequirement depositRequirement,
+            final boolean missing) {
+        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, null, missing);
     }
 
     /** 评分项. maxScore 允许 null（文本未标分值时），负值归一为 null. */
@@ -155,12 +206,12 @@ public record TenderRequirements(
 
     /** 无提取结果的空集（非哨兵）. */
     public static TenderRequirements empty() {
-        return new TenderRequirements(List.of(), List.of(), List.of(), List.of(), List.of(), null, false);
+        return new TenderRequirements(List.of(), List.of(), List.of(), List.of(), List.of(), null, null, false);
     }
 
     /** 提取失败/未启用哨兵值：比对项 MANUAL + REFERENCE_MISSING，独立项照常. */
     public static TenderRequirements missingSentinel() {
-        return new TenderRequirements(List.of(), List.of(), List.of(), List.of(), List.of(), null, true);
+        return new TenderRequirements(List.of(), List.of(), List.of(), List.of(), List.of(), null, null, true);
     }
 
     /**
@@ -175,11 +226,12 @@ public record TenderRequirements(
         merged.addAll(this.mandatoryQualifications);
         return new TenderRequirements(
                 scoringItems,
-                List.copyOf(merged),
+                sanitizeQualifications(List.copyOf(merged)),
                 vetoClauses,
                 compositionRequirements,
                 formatRequirements,
                 depositRequirement,
+                bidLetterRequirement,
                 false
         );
     }
@@ -193,6 +245,21 @@ public record TenderRequirements(
                 compositionRequirements,
                 formatRequirements,
                 depositRequirement,
+                bidLetterRequirement,
+                missing
+        );
+    }
+
+    /** 注入投标函格式要求. */
+    public TenderRequirements withBidLetterRequirement(final BidLetterRequirement bidLetterRequirement) {
+        return new TenderRequirements(
+                scoringItems,
+                mandatoryQualifications,
+                vetoClauses,
+                compositionRequirements,
+                formatRequirements,
+                depositRequirement,
+                bidLetterRequirement,
                 missing
         );
     }
@@ -205,6 +272,7 @@ public record TenderRequirements(
         LinkedHashSet<String> composition = new LinkedHashSet<>();
         LinkedHashSet<String> format = new LinkedHashSet<>();
         DepositRequirement mergedDeposit = null;
+        BidLetterRequirement mergedBidLetter = null;
         for (TenderRequirements part : parts) {
             if (part == null || part.missing()) {
                 continue;
@@ -217,9 +285,12 @@ public record TenderRequirements(
             if (part.depositRequirement() != null) {
                 mergedDeposit = DepositRequirement.fuse(mergedDeposit, part.depositRequirement());
             }
+            if (part.bidLetterRequirement() != null) {
+                mergedBidLetter = BidLetterRequirement.fuse(mergedBidLetter, part.bidLetterRequirement());
+            }
         }
         boolean allMissing = parts.isEmpty() || parts.stream().allMatch(p -> p == null || p.missing());
         return new TenderRequirements(scoringItems, List.copyOf(qualifications), vetoClauses,
-                List.copyOf(composition), List.copyOf(format), mergedDeposit, allMissing);
+                List.copyOf(composition), List.copyOf(format), mergedDeposit, mergedBidLetter, allMissing);
     }
 }

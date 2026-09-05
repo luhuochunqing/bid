@@ -1,5 +1,5 @@
 // Input: 投标/招标文件分页内容 + 知识库匹配 + 招标要求 + 失败知识库源 + 可选 LLM lane
-// Output: 25 项标准化核查结果（确定性 lane 毫秒级 + 语义项混合裁决，证据经 EvidenceLocator 真实定位）
+// Output: 25 项标准化核查结果（确定性 lane 毫秒级 + 投标函/保证金强凭证直通与存疑深度裁决 + 语义项混合裁决，证据经 EvidenceLocator 真实定位）
 // Pos: compliance/domain/policy/ - 25 项聚合裁决编排器（spec 049 US5 / T046：规则 lane + LLM lane 拆分）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -79,6 +79,10 @@ public final class BidDocumentQualityEngine {
         for (QualityCheckItemResult r : DeterministicCheckPolicy.executeChecks(bidDoc, effectiveTender.fullText())) {
             resultMap.put(r.itemCode(), r);
         }
+        if (effective.bidLetterRequirement() != null) {
+            resultMap.put(BidQualityCheckItem.BID_LETTER_FORMAT.getCode(),
+                    BasicInfoCheckPolicy.checkBidLetterFormat(bidDoc, effective.bidLetterRequirement()));
+        }
 
         // 2. 语义 lane：规则硬信号优先，其次 LLM 裁决，lane 缺省则 MANUAL 降级
         List<BidQualityCheckItem> semanticItems = SemanticRulesLane.SEMANTIC_ITEMS;
@@ -133,7 +137,21 @@ public final class BidDocumentQualityEngine {
             }
         }
 
-        // 4. 严格按 25 项标准序号排序输出
+        // 4. 投标函格式要求联动与标书端 LLM 深度语义裁决接通
+        QualityCheckItemResult existingBidLetter = resultMap.get(BidQualityCheckItem.BID_LETTER_FORMAT.getCode());
+        boolean hasStrongBidLetterPass = existingBidLetter != null
+                && existingBidLetter.status() == QualityCheckStatus.PASS
+                && !existingBidLetter.evidences().isEmpty();
+        if (hasStrongBidLetterPass) {
+            // 确定性强凭证直通：标书已包含规范投标函/报价函正文、致采购人称谓及承诺落款，无需重复调 LLM，降本抗抖动
+        } else if (llm != null) {
+            // 可疑场景（仅有目录行被拦截、未检测到标准抬头、占位符未填或未检索到）：接通 LLM 深度语义裁决
+            QualityCheckItemResult letterVerdict = llm.adjudicateItem(
+                    BidQualityCheckItem.BID_LETTER_FORMAT, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
+            resultMap.put(BidQualityCheckItem.BID_LETTER_FORMAT.getCode(), letterVerdict);
+        }
+
+        // 5. 严格按 25 项标准序号排序输出
         List<QualityCheckItemResult> sorted = new ArrayList<>(resultMap.values());
         sorted.sort(Comparator.comparingInt(QualityCheckItemResult::order));
         return sorted;
