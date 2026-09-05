@@ -3,6 +3,9 @@ title: AI Slop 代码清理与单组件专属小型 Composable 内联收敛
 space: engineering
 category: refactoring
 tags: [refactoring, ai-slop, dead-code, composable, code-health]
+created: 2026-08-31
+updated: 2026-08-31
+health_checked: 2026-09-05
 sources:
   - src/views/Project/stages/DraftingStage.vue
   - src/views/Project/stages/InitiationStage.vue
@@ -14,9 +17,6 @@ sources:
   - src/views/Resource/components/CAFormDialog.vue
 backlinks:
   - _index
-created: 2026-08-31
-updated: 2026-08-31
-health_checked: 2026-09-05
 ---
 # AI Slop 代码清理与单组件专属小型 Composable 内联收敛
 

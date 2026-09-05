@@ -3,6 +3,9 @@ title: 商机预测提醒
 space: engineering
 category: feature
 tags: [商机预测, 提醒, 定时任务, 通知中心, 企微, CRM事件库, opportunity-prediction]
+created: 2026-08-24
+updated: 2026-08-24
+health_checked: 2026-09-05
 sources:
   - specs/054-opportunity-prediction-reminder/spec.md
   - specs/054-opportunity-prediction-reminder/data-model.md
@@ -10,9 +13,6 @@ sources:
   - backend/src/main/java/com/xiyu/bid/workbench/service/OpportunityPredictionReminderService.java
 backlinks:
   - _index
-created: 2026-08-24
-updated: 2026-08-24
-health_checked: 2026-09-05
 ---
 # 商机预测提醒
 

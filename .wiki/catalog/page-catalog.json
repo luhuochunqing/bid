@@ -12,7 +12,7 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-09-02",
+    "updated": "2026-09-05",
     "health_checked": "2026-09-05",
     "path": ".wiki/pages/_index.md"
   },
@@ -364,7 +364,9 @@
       "src/views/Knowledge/views/components/CaseDetailDialog.vue",
       "backend/src/main/java/com/xiyu/bid/casework/application/service/KnowledgeCaseQueryAppService.java"
     ],
-    "backlinks": [],
+    "backlinks": [
+      "_index"
+    ],
     "updated": "2026-08-24",
     "health_checked": "2026-09-05",
     "path": ".wiki/pages/case-library-prd-refine.md"
@@ -1650,7 +1652,9 @@
       "backend/src/main/java/com/xiyu/bid/scoreparse/domain/grid/HeuristicTableColumnMapper.java",
       "backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreMergeResultGuard.java"
     ],
-    "backlinks": [],
+    "backlinks": [
+      "_index"
+    ],
     "updated": "2026-09-01",
     "health_checked": "2026-09-05",
     "path": ".wiki/pages/score-parse-optimization.md"
@@ -1699,7 +1703,9 @@
       "backend/src/test/java/com/xiyu/bid/scoreparse/application/ScoreCompletenessAcceptanceTest.java",
       "backend/src/test/java/com/xiyu/bid/scoreparse/application/Incident1358RealCorpusGoldenTest.java"
     ],
-    "backlinks": [],
+    "backlinks": [
+      "_index"
+    ],
     "updated": "2026-09-03",
     "health_checked": "2026-09-05",
     "path": ".wiki/pages/spec059-score-parse-evidence-pipeline.md"

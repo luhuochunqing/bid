@@ -3,6 +3,9 @@ title: AI 标书质量核查多册合并（价格/商务/技术分册 + Loader �
 space: engineering
 category: guide
 tags: [质量核查, 多文件, DocumentContent, sidecar, 合并, spec047]
+created: 2026-09-02
+updated: 2026-09-02
+health_checked: 2026-09-05
 sources:
   - backend/src/main/java/com/xiyu/bid/compliance/service/ComplianceTargetLoader.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/DocumentContent.java
@@ -10,9 +13,6 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/service/SidecarStreamDocumentAdapter.java
 backlinks:
   - _index
-created: 2026-09-02
-updated: 2026-09-02
-health_checked: 2026-09-05
 ---
 # AI 标书质量核查多册合并
 

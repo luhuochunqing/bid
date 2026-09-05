@@ -3,13 +3,13 @@ title: 数据分析页面重构 — 架构与数据口径
 space: engineering
 category: architecture
 tags: [analytics, data-analysis, m0-m4, competitor, echarts, fp-java]
+created: 2026-08-14
+updated: 2026-08-28
+health_checked: 2026-09-05
 sources:
   - .wiki/pages/data-analysis-revamp.md
 backlinks:
   - _index
-created: 2026-08-14
-updated: 2026-08-28
-health_checked: 2026-09-05
 ---
 # 数据分析页面重构 — 架构与数据口径
 

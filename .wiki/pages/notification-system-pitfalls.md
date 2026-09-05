@@ -3,15 +3,15 @@ title: 通知系统陷阱集
 space: engineering
 category: guide
 tags: [通知, Notification, 企微, WeCom, targetUrl, SYSTEM_USER_ID, AlertNotificationOrchestrator]
+created: 2026-07-10
+updated: 2026-09-04
+health_checked: 2026-09-05
 sources:
   - backend/src/main/java/com/xiyu/bid/notification/
   - .wiki/pages/integration-wecom.md
 backlinks:
   - _index
   - engineering-discipline
-created: 2026-07-10
-updated: 2026-09-04
-health_checked: 2026-09-05
 ---
 # 通知系统陷阱集
 

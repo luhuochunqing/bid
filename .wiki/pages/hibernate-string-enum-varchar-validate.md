@@ -3,14 +3,14 @@ title: Hibernate STRING 枚举 vs varchar 列校验陷阱
 space: engineering
 category: pitfall
 tags: [hibernate, jpa, enum, flyway, schema-validation, mysql]
+created: 2026-08-26
+updated: 2026-08-26
+health_checked: 2026-09-05
 sources:
   - backend/src/main/java/com/xiyu/bid/competitionintel/entity/Competitor.java
   - backend/src/main/resources/db/migration-mysql/V1202__competitor_status_unique_seed.sql
 backlinks:
   - _index
-created: 2026-08-26
-updated: 2026-08-26
-health_checked: 2026-09-05
 ---
 # Hibernate STRING 枚举 vs varchar 列校验陷阱
 

@@ -3,6 +3,9 @@ title: 标书质量核查实质化架构（spec 049）
 space: engineering
 category: module
 tags: [质量核查, compliance, LLM 混合裁决, 证据链, FP-Java, 语义RAG, 结构化输出, 资质智能匹配, 三级穿透]
+created: 2026-08-20
+updated: 2026-09-05
+health_checked: 2026-09-05
 sources:
   - specs/049-bid-quality-check-realization/spec.md
   - src/views/Project/stages/components/QualityCheckDrawer.vue
@@ -27,9 +30,6 @@ backlinks:
   - _index
   - bid-quality-check-pagination-fix
   - bid-quality-multifile-check
-created: 2026-08-20
-updated: 2026-09-05
-health_checked: 2026-09-05
 ---
 # 标书质量核查实质化架构（spec 049）
 

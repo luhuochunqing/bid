@@ -3,14 +3,15 @@ title: 案例库按 PRD 精简重构（筛选区三字段 / 排序固定 / 详�
 space: engineering
 category: guide
 tags: [案例库, casework, PRD, 筛选区, 招标主体, ownerUnit, sortBy死参数]
+created: 2026-08-24
+updated: 2026-08-24
+health_checked: 2026-09-05
 sources:
   - src/views/Knowledge/views/CaseGrid.vue
   - src/views/Knowledge/views/components/CaseDetailDialog.vue
   - backend/src/main/java/com/xiyu/bid/casework/application/service/KnowledgeCaseQueryAppService.java
 backlinks:
-created: 2026-08-24
-updated: 2026-08-24
-health_checked: 2026-09-05
+  - _index
 ---
 # 案例库按 PRD 精简重构
 

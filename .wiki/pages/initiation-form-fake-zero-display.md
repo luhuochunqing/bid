@@ -3,15 +3,15 @@ title: 立项表单假0显示伪装成列表/详情数据不一致（PR !2436）
 space: engineering
 category: analysis
 tags: [bug, 根因分析, 立项表单, 数值字段, 列表一致性]
+created: 2026-08-27
+updated: 2026-09-05
+health_checked: 2026-09-05
 sources:
   - src/views/Project/stages/InitiationStage.vue
   - src/views/Project/stages/useInitiationStageActions.js
   - docs/lessons/lessons-learned.md
 backlinks:
   - _index
-created: 2026-08-27
-updated: 2026-09-05
-health_checked: 2026-09-05
 ---
 # 立项表单假 0 显示伪装成列表/详情数据不一致
 

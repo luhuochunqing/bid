@@ -3,6 +3,9 @@ title: 设计系统基线
 space: engineering
 category: decision
 tags: [design-system, ui, token, frontend]
+created: 2026-04-22
+updated: 2026-08-12
+health_checked: 2026-09-05
 sources:
   - docs/design-system/MASTER.md
   - CLAUDE.md
@@ -14,9 +17,6 @@ backlinks:
   - _index
   - frontend-pitfalls
   - overview
-created: 2026-04-22
-updated: 2026-08-12
-health_checked: 2026-09-05
 ---
 # 设计系统基线
 

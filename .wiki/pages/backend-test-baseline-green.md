@@ -3,6 +3,9 @@ title: 后端测试基线修复与 mock 用户种子机制
 space: engineering
 category: reference
 tags: [测试, 集成测试, SpringSecurityTest, Testcontainers, projectScoped, 回归基线]
+created: 2026-08-22
+updated: 2026-09-05
+health_checked: 2026-09-05
 sources:
   - docs/lessons/lessons-learned.md
   - backend/src/test/java/com/xiyu/bid/testsupport/integration/IntegrationMockUserSeeder.java
@@ -10,9 +13,6 @@ sources:
   - backend/src/main/java/com/xiyu/bid/service/ProjectAccessScopeService.java
 backlinks:
   - _index
-created: 2026-08-22
-updated: 2026-09-05
-health_checked: 2026-09-05
 ---
 # 后端测试基线修复与 mock 用户种子机制
 

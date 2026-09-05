@@ -3,6 +3,9 @@ title: 标书质量核查分页丢失修复（\f 契约断裂 + 虚拟分页兜�
 space: engineering
 category: guide
 tags: [质量核查, 分页, sidecar, 虚拟分页, 证据定位, spec049]
+created: 2026-09-01
+updated: 2026-09-01
+health_checked: 2026-09-05
 sources:
   - backend/src/main/java/com/xiyu/bid/compliance/service/SidecarStreamDocumentAdapter.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/DocumentContent.java
@@ -11,9 +14,6 @@ sources:
 backlinks:
   - _index
   - bid-quality-multifile-check
-created: 2026-09-01
-updated: 2026-09-01
-health_checked: 2026-09-05
 ---
 # 标书质量核查分页丢失修复
 

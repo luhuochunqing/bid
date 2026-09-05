@@ -3,14 +3,14 @@ title: 西域投标管理平台知识库
 space: engineering
 category: guide
 tags: [首页, 导航, wiki]
+created: 2026-09-05
+updated: 2026-09-05
+health_checked: 2026-09-05
 sources:
   - docs/specs/WIKI.md
   - .wiki/INDEX.md
   - .wiki/PAGE_INDEX.md
 backlinks:
-created: 2026-09-05
-updated: 2026-09-05
-health_checked: 2026-09-05
 ---
 # 西域投标管理平台知识库
 

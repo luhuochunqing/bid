@@ -3,6 +3,9 @@ title: AI 生成案例超大标书 OOM 导致入库 0 条 — 整文件读堆 + 
 space: engineering
 category: pitfalls
 tags: [教训, OOM, docinsight, 案例沉淀, case, OBS, 超大文件, 大小防护, 根因, 修A破B]
+created: 2026-08-20
+updated: 2026-09-05
+health_checked: 2026-09-05
 sources:
   - docs/lessons/lessons-learned.md
   - backend/src/main/java/com/xiyu/bid/docinsight/infrastructure/extractor/MarkItDownSidecarExtractor.java
@@ -10,9 +13,6 @@ sources:
 backlinks:
   - _index
   - case-precipitation-streaming
-created: 2026-08-20
-updated: 2026-09-05
-health_checked: 2026-09-05
 ---
 # AI 生成案例超大标书 OOM 导致入库 0 条
 

@@ -3,6 +3,9 @@ title: 工程纪律手册 — 反复修复的根因、根治与预防
 space: engineering
 category: guide
 tags: [工程纪律, 根因分析, bug修复, 反复修复, 开发规范, 经验积累, 预防, SOP]
+created: 2026-07-10
+updated: 2026-09-05
+health_checked: 2026-09-05
 sources:
   - .wiki/pages/lessons-learned.md
   - .wiki/pages/lessons-learned/CO-361-five-rounds-no-fix.md
@@ -12,9 +15,6 @@ sources:
 backlinks:
   - _index
   - frontend-pitfalls
-created: 2026-07-10
-updated: 2026-09-05
-health_checked: 2026-09-05
 ---
 # 工程纪律手册 — 反复修复的根因、根治与预防
 

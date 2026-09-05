@@ -3,6 +3,9 @@ title: 数据分析部门筛选虚拟根组织架构解包与业务根锚定机�
 space: engineering
 category: architecture
 tags: [analytics, organization, department, filter, data-analysis, anchor]
+created: 2026-08-29
+updated: 2026-09-05
+health_checked: 2026-09-05
 sources:
   - docs/implementation-notes/analytics-dept-two-level-filter.md
   - docs/implementation-notes/dashboard-org-root-0002.md
@@ -12,9 +15,6 @@ sources:
   - backend/src/main/java/com/xiyu/bid/analytics/service/AnalyticsDepartmentHierarchySupport.java
 backlinks:
   - _index
-created: 2026-08-29
-updated: 2026-09-05
-health_checked: 2026-09-05
 ---
 # 数据分析部门筛选虚拟根组织架构解包与业务根锚定机制
 

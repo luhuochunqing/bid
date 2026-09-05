@@ -56,14 +56,14 @@
 
 | slug | title | sources | updated | backlinks |
 |---|---|---:|---|---:|
-| [_index](pages/_index.md) | 西域投标管理平台知识库 | 3 | 2026-09-02 | 1 |
+| [_index](pages/_index.md) | 西域投标管理平台知识库 | 3 | 2026-09-05 | 1 |
 | [agent-sop-quickref](pages/agent-sop-quickref.md) | Agent 开发 SOP 快速参考 | 3 | 2026-08-12 | 2 |
 | [ai-case-recommend-data-source-fix](pages/ai-case-recommend-data-source-fix.md) | AI 智能案例推荐数据源修复（score_item 新契约切换 + casework 裸响应陷阱） | 3 | 2026-09-05 | 1 |
 | [ai-provider-configuration](pages/ai-provider-configuration.md) | AI Provider 配置与陷阱指南 | 3 | 2026-08-25 | 2 |
 | [audit-whitelist-pitfalls](pages/audit-whitelist-pitfalls.md) | 审计白名单陷阱——@Auditable action 命名必须对齐 AuditActionPolicy | 3 | 2026-09-05 | 1 |
 | [bid-quality-check-pagination-fix](pages/bid-quality-check-pagination-fix.md) | 标书质量核查分页丢失修复（\f 契约断裂 + 虚拟分页兜底 + 证据定位治理） | 4 | 2026-09-01 | 2 |
 | [bid-quality-multifile-check](pages/bid-quality-multifile-check.md) | AI 标书质量核查多册合并（价格/商务/技术分册 + Loader 边界合并 + Sidecar 空册陷阱） | 4 | 2026-09-02 | 1 |
-| [case-library-prd-refine](pages/case-library-prd-refine.md) | 案例库按 PRD 精简重构（筛选区三字段 / 排序固定 / 详情返回招标主体） | 3 | 2026-08-24 | 0 |
+| [case-library-prd-refine](pages/case-library-prd-refine.md) | 案例库按 PRD 精简重构（筛选区三字段 / 排序固定 / 详情返回招标主体） | 3 | 2026-08-24 | 1 |
 | [case-precipitation-streaming](pages/case-precipitation-streaming.md) | 案例沉淀超大标书完整链路（spec 049：流式 + 摘录化 + 三个验收坑） | 3 | 2026-09-05 | 1 |
 | [case-source-actions-and-import-pitfalls](pages/case-source-actions-and-import-pitfalls.md) | 案例详情"查看源项目 / 标书原文"操作契约与导入数据陷阱 | 6 | 2026-09-03 | 1 |
 | [crm-integration-lessons](pages/crm-integration-lessons.md) | CRM 集成踩坑集 | 3 | 2026-08-18 | 4 |
@@ -83,7 +83,7 @@
 | [production-deployment-lessons](pages/production-deployment-lessons.md) | 生产环境首次部署实战教训 | 4 | 2026-09-05 | 5 |
 | [project-search-owner-unit](pages/project-search-owner-unit.md) | 项目搜索按招标主体（ownerUnit 数据链路与关键词过滤契约） | 3 | 2026-08-31 | 1 |
 | [score-item-select-short-label](pages/score-item-select-short-label.md) | 评分项下拉短标签（ScoreItemSelect：短标签契约 / filterable 原文搜索陷阱 / 测试 stub 反模式） | 4 | 2026-08-28 | 1 |
-| [spec059-score-parse-evidence-pipeline](pages/spec059-score-parse-evidence-pipeline.md) | spec 059 评分解析证据化 Phase 0-4 落地结论 + 合入前评审与去噪重构 | 10 | 2026-09-03 | 0 |
+| [spec059-score-parse-evidence-pipeline](pages/spec059-score-parse-evidence-pipeline.md) | spec 059 评分解析证据化 Phase 0-4 落地结论 + 合入前评审与去噪重构 | 10 | 2026-09-03 | 1 |
 | [spring-pitfalls](pages/spring-pitfalls.md) | Spring Boot 陷阱集 | 3 | 2026-08-17 | 5 |
 | [team-and-timeline](pages/team-and-timeline.md) | 团队与排期 | 4 | 2026-08-12 | 10 |
 
@@ -110,7 +110,7 @@
 
 | slug | title | sources | updated | backlinks |
 |---|---|---:|---|---:|
-| [score-parse-optimization](pages/score-parse-optimization.md) | 评分解析优化记录 | 7 | 2026-09-01 | 0 |
+| [score-parse-optimization](pages/score-parse-optimization.md) | 评分解析优化记录 | 7 | 2026-09-01 | 1 |
 
 ### module
 

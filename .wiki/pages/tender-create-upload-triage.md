@@ -3,6 +3,9 @@ title: 标讯人工录入"未上传"假象排障与 UX 缺陷修复
 space: engineering
 category: pitfalls
 tags: [标讯, 人工录入, el-upload, canSave, UX, 生产排障]
+created: 2026-08-28
+updated: 2026-08-28
+health_checked: 2026-09-05
 sources:
   - src/views/Bidding/list/composables/useTenderAiParse.js
   - src/views/Bidding/list/composables/useTenderCreateForm.js
@@ -10,9 +13,6 @@ sources:
   - src/views/Bidding/list/components/TenderBasicInfoTab.vue
 backlinks:
   - _index
-created: 2026-08-28
-updated: 2026-08-28
-health_checked: 2026-09-05
 ---
 # 标讯人工录入"未上传"假象排障与 UX 缺陷修复
 

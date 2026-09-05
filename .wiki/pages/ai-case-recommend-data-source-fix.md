@@ -3,15 +3,15 @@ title: AI 智能案例推荐数据源修复（score_item 新契约切换 + casew
 space: engineering
 category: guide
 tags: [案例推荐, score_item, spec041, 裸响应, 二次解包, caseRecommendationApi]
+created: 2026-08-21
+updated: 2026-09-05
+health_checked: 2026-09-05
 sources:
   - src/api/modules/caseRecommendation.js
   - src/views/Project/stages/components/AiRecommendDrawer.vue
   - backend/src/main/java/com/xiyu/bid/casework/controller/ScoreItemCaseRecommendController.java
 backlinks:
   - _index
-created: 2026-08-21
-updated: 2026-09-05
-health_checked: 2026-09-05
 ---
 # AI 智能案例推荐数据源修复（score_item 新契约 + 裸响应陷阱）
 

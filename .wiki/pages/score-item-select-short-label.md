@@ -3,6 +3,9 @@ title: 评分项下拉短标签（ScoreItemSelect：短标签契约 / filterable
 space: engineering
 category: guide
 tags: [评分项, ScoreItemSelect, 短标签, tooltip, element-plus, 前端测试]
+created: 2026-08-28
+updated: 2026-08-28
+health_checked: 2026-09-05
 sources:
   - src/components/common/ScoreItemSelect.vue
   - src/utils/scoreItemOptionDisplay.js
@@ -10,9 +13,6 @@ sources:
   - src/views/Bidding/components/AICaseRecommendDrawer.vue
 backlinks:
   - _index
-created: 2026-08-28
-updated: 2026-08-28
-health_checked: 2026-09-05
 ---
 # 评分项下拉短标签（ScoreItemSelect）
 
