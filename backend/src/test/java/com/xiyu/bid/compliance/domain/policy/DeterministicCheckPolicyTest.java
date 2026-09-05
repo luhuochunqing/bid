@@ -452,4 +452,28 @@ class DeterministicCheckPolicyTest {
         assertThat(result.conclusion()).contains("已附投标保证金汇款回单或电子保函凭证");
         assertThat(result.evidences()).isNotEmpty();
     }
+
+    @Test
+    @DisplayName("防假通过反例3（深度压测）：标书命中强关键词（银行汇款回单/投标保证金汇款）但无流水号/印章等事实要素，经 isActualDepositVoucherPage 拦截，转人工核实绝不放行通过")
+    void checkDepositReceipt_whenRequired_hitKeywordsWithoutVoucherFacts_mustNotPass() {
+        String tenderText = "投标保证金：人民币50000元。";
+        // 标书正文包含强关键词“投标保证金汇款”与“银行汇款回单”，能成功命中 strongMatch 并进入 isActualDepositVoucherPage 严格核查，
+        // 但正文仅为口头声明与说明，缺乏流水号、交易号、转账成功、电子印章等真实交易数据要素
+        String bidText = """
+                关于投标保证金汇款回单的说明
+                致招标人：
+                我单位已按照招标文件要求足额办理了投标保证金汇款，附上银行汇款回单相关说明。
+                我方郑重承诺已按期缴存，特此声明。
+                投标人：西域智慧供应链（上海）股份公司
+                """;
+        DocumentContent bidDoc = DocumentContent.fromText("bid.pdf", "hash_bid", bidText);
+
+        QualityCheckItemResult result = SubItemAndAttachmentRules.checkDepositReceipt(bidDoc, tenderText);
+
+        assertThat(result.status())
+                .as("命中强关键词但无真实交易要素（无流水号/印章）时，由 isActualDepositVoucherPage 拦截，绝不误判为 PASS")
+                .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.conclusion())
+                .contains("无法确认为实际凭证");
+    }
 }

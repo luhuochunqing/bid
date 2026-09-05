@@ -7,6 +7,7 @@ package com.xiyu.bid.compliance.domain.policy;
 import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
 import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
+import com.xiyu.bid.compliance.domain.QualityCheckStatus;
 import com.xiyu.bid.compliance.domain.QualityEvidence;
 
 import java.util.ArrayList;
@@ -116,11 +117,20 @@ public final class BidDocumentQualityEngine {
             resultMap.put(BidQualityCheckItem.DEPOSIT_REFUND.getCode(),
                     QualityCheckItemResult.pass(BidQualityCheckItem.DEPOSIT_REFUND,
                             "本项目不涉及投标保证金，无需提供退款账户信息", Collections.emptyList()));
-        } else if (llm != null) {
-            // 招标要求缴纳（或未明确免收）：标书端接通 LLM 深度语义裁决与真实凭证事实要素核查
-            QualityCheckItemResult depositVerdict = llm.adjudicateItem(
-                    BidQualityCheckItem.DEPOSIT_RECEIPT, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
-            resultMap.put(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode(), depositVerdict);
+        } else {
+            // 招标要求缴纳（或未明确免收）：
+            QualityCheckItemResult existingDeposit = resultMap.get(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode());
+            boolean hasStrongVoucherPass = existingDeposit != null
+                    && existingDeposit.status() == QualityCheckStatus.PASS
+                    && !existingDeposit.evidences().isEmpty();
+            if (hasStrongVoucherPass) {
+                // 确定性强凭证直通：标书已包含真实银行电子回单/保函硬事实，无需重复调 LLM，降本抗抖动
+            } else if (llm != null) {
+                // 可疑场景（无凭证、疑似目录/占位符 MANUAL_REVIEW、或未检索到 FAIL）：接通 LLM 深度语义裁决
+                QualityCheckItemResult depositVerdict = llm.adjudicateItem(
+                        BidQualityCheckItem.DEPOSIT_RECEIPT, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
+                resultMap.put(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode(), depositVerdict);
+            }
         }
 
         // 4. 严格按 25 项标准序号排序输出

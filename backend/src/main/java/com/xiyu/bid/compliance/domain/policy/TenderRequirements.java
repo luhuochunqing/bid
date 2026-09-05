@@ -72,6 +72,30 @@ public record TenderRequirements(
             // 绝不无脑偏向免收！保持审慎合规原则，保留要求缴纳并附带冲突说明
             return new DepositRequirement(true, null, null, "提取结果存在分歧（条款与前附表表述不一致），按审慎合规原则提示缴纳并建议人工复核");
         }
+
+        /**
+         * 双轨融合：以确定性提取结果校准 LLM 提取结果.
+         * 1. 强事实优先：若双方均提取出明确金额（双有数），坚决以确定性规则从原文正则提取的精准金额为准，防止 LLM 幻觉或改写覆盖原文；
+         * 2. 丰富描述：若双方结论一致，保留 LLM 提取的更丰富形式与详细描述；
+         * 3. 其余场景（单方有数、单方免收、条款冲突等）：遵循 fuse 审慎融合策略.
+         */
+        public static DepositRequirement fuseWithDeterministic(final DepositRequirement llmReq, final DepositRequirement detReq) {
+            if (detReq == null) {
+                return llmReq;
+            }
+            if (llmReq == null) {
+                return detReq;
+            }
+            boolean detHasAmount = detReq.amount() != null && !detReq.amount().isBlank();
+            boolean llmHasAmount = llmReq.amount() != null && !llmReq.amount().isBlank();
+            if (detHasAmount && llmHasAmount) {
+                // 双有数：以确定性原文金额为准，防止大模型改写原文金额
+                String forms = llmReq.forms() != null ? llmReq.forms() : detReq.forms();
+                String desc = llmReq.description() != null ? llmReq.description() : detReq.description();
+                return new DepositRequirement(true, detReq.amount(), forms, desc);
+            }
+            return fuse(llmReq, detReq);
+        }
     }
 
     /** 兼容历史签名的 6 参数构造方法. */

@@ -112,4 +112,30 @@ class DeterministicDepositExtractorTest {
         assertThat(fused.required()).isTrue();
         assertThat(fused.description()).contains("分歧");
     }
+
+    @Test
+    @DisplayName("双轨融合 fuseWithDeterministic：双方均有金额时坚决以确定性原文金额为准，防止 LLM 改写覆盖原文")
+    void testFuseWithDeterministic_WhenBothHaveAmount_DeterministicAmountWins() {
+        // LLM 提取时发生缩略或改写（如 5万元，附带丰富说明与形式）
+        TenderRequirements.DepositRequirement llmReq = TenderRequirements.DepositRequirement.required(
+                "5万元", "银行保函/网银转账", "投标人应提供银行保函或网银电汇凭证");
+        // 确定性规则从原文正则精准提取（如 50,000元）
+        TenderRequirements.DepositRequirement detReq = TenderRequirements.DepositRequirement.required(
+                "50,000元", null, "招标文件条款规定：投标保证金：50,000元");
+
+        TenderRequirements.DepositRequirement fused = TenderRequirements.DepositRequirement.fuseWithDeterministic(
+                llmReq, detReq);
+
+        assertThat(fused).isNotNull();
+        assertThat(fused.required()).isTrue();
+        assertThat(fused.amount())
+                .as("双有数时坚决以确定性规则从原文提取的金额为准")
+                .isEqualTo("50,000元");
+        assertThat(fused.forms())
+                .as("保留 LLM 提取的更丰富形式")
+                .isEqualTo("银行保函/网银转账");
+        assertThat(fused.description())
+                .as("保留 LLM 提取的更丰富描述")
+                .isEqualTo("投标人应提供银行保函或网银电汇凭证");
+    }
 }

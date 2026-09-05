@@ -116,10 +116,10 @@ public class BidQualityCheckAsyncExecutor {
                 requirements = requirements.withMergedQualifications(deterministicQuals);
             }
 
-            // 双轨交叉融合：结合确定性规则与 LLM 提取，硬事实金额优先，消除 LLM 幻觉免收风险
+            // 双轨交叉融合：结合确定性规则与 LLM 提取，硬事实金额优先（双有数时以确定性原文为准），消除 LLM 幻觉风险
             TenderRequirements.DepositRequirement detDeposit = DeterministicDepositExtractor.extract(tenderDoc.fullText());
             if (detDeposit != null) {
-                TenderRequirements.DepositRequirement fused = TenderRequirements.DepositRequirement.fuse(
+                TenderRequirements.DepositRequirement fused = TenderRequirements.DepositRequirement.fuseWithDeterministic(
                         requirements.depositRequirement(), detDeposit);
                 requirements = requirements.withDepositRequirement(fused);
             }
