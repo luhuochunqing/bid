@@ -141,9 +141,14 @@ public final class SubItemAndAttachmentRules {
                             BasicInfoCheckPolicy.snippetAround(guaranteeMatch.text(), 200,
                                     "保函", "投标保证金"))));
         }
+        // 若标书中声明免收/不涉及，仅当招标文件未明确要求缴纳保证金时，才认可该声明
         if (bidDoc.fullText().contains("不收取投标保证金") || bidDoc.fullText().contains("免收保证金")
-                || bidDoc.fullText().contains("不涉及保证金") || bidDoc.fullText().contains("免交投标保证金")) {
-            return QualityCheckItemResult.pass(item, "投标文件中声明不涉及/免收投标保证金", Collections.emptyList());
+                || bidDoc.fullText().contains("不涉及保证金") || bidDoc.fullText().contains("免交投标保证金")
+                || bidDoc.fullText().contains("免收投标担保") || bidDoc.fullText().contains("不涉及投标担保")) {
+            TenderRequirements.DepositRequirement tenderReq = DeterministicDepositExtractor.extract(tenderText);
+            if (tenderReq == null || Boolean.FALSE.equals(tenderReq.required())) {
+                return QualityCheckItemResult.pass(item, "投标文件中声明不涉及/免收投标保证金", Collections.emptyList());
+            }
         }
         if (strongMatch != null || guaranteeMatch != null) {
             return QualityCheckItemResult.manualReview(item, "检索到保证金或保函相关表述，但无法确认为实际凭证（可能为目录、格式模板或清单占位符）",
@@ -191,53 +196,75 @@ public final class SubItemAndAttachmentRules {
     }
 
     /**
-     * 二次验证：命中保证金回单关键词的页面是否为实际回单凭证，而非目录/格式要求/清单占位符.
+     * 二次验证：命中保证金回单关键词的页面是否为实际回单凭证，而非目录/格式要求/清单占位符/纯文字合规声明.
+     *
+     * <p>凭证事实要素原则：页面必须包含真实凭证的具体事实要素（凭证类型标志 + 交易事实特征），
+     * 缺一不可；坚决排除目录点线（......）、占位声明与无凭证正文.
      */
     static boolean isActualDepositVoucherPage(final String pageText) {
         if (pageText == null || pageText.isBlank()) {
             return false;
         }
-        boolean hasVoucherFeature = pageText.contains("回单编号") || pageText.contains("业务凭证")
-                || pageText.contains("电子回单") || pageText.contains("银行回执") || pageText.contains("转账凭据")
-                || pageText.contains("交易流水号") || pageText.contains("流水号") || pageText.contains("转账成功")
-                || pageText.contains("付款人账号") || pageText.contains("收款人账号") || pageText.contains("汇款金额")
-                || pageText.contains("业务回单") || pageText.contains("网银电子回单") || pageText.contains("电子保函凭证");
-        if (hasVoucherFeature) {
-            return true;
+        // 1. 结构化特征识别：目录页排除（目录点线、TOC 标题、仅列出页码等）
+        if (pageText.contains("......") || pageText.contains("……")
+                || pageText.contains("目录") || pageText.contains("目 录")) {
+            if (!pageText.contains("电子回单") && !pageText.contains("业务凭证") && !pageText.contains("回执单")) {
+                return false;
+            }
         }
-        boolean hasRequirementOrToc = pageText.contains("格式") || pageText.contains("范本")
-                || pageText.contains("模板") || pageText.contains("须附") || pageText.contains("须提交")
-                || pageText.contains("附件清单") || pageText.contains("组成文件")
-                || pageText.contains("目录") || pageText.contains("目 录")
+
+        // 2. 占位与模板排除
+        boolean isPlaceholderOrRequirement = pageText.contains("格式范本") || pageText.contains("参考模板")
                 || pageText.contains("（如有）") || pageText.contains("（不涉及）")
-                || pageText.contains("如不涉及");
-        return !hasRequirementOrToc;
+                || pageText.contains("此处粘贴") || pageText.contains("附后")
+                || pageText.contains("须附") || pageText.contains("应当提供");
+        if (isPlaceholderOrRequirement && !pageText.contains("流水号") && !pageText.contains("交易号")) {
+            return false;
+        }
+
+        // 3. 强制事实要素（必须同时满足：凭证类型标志 + 交易事实数据特征）
+        boolean hasVoucherType = pageText.contains("电子回单") || pageText.contains("银行回单")
+                || pageText.contains("业务凭证") || pageText.contains("回执单")
+                || pageText.contains("转账凭据") || pageText.contains("业务回单")
+                || pageText.contains("网银电子回单") || pageText.contains("转账凭证")
+                || pageText.contains("电子保函凭证") || pageText.contains("缴费凭条");
+
+        boolean hasTransactionDetail = pageText.contains("流水号") || pageText.contains("交易号")
+                || pageText.contains("凭证号") || pageText.contains("回单号")
+                || pageText.contains("付款人") || pageText.contains("收款人")
+                || pageText.contains("转账成功") || pageText.contains("交易金额")
+                || pageText.contains("汇款金额") || pageText.contains("电子印章")
+                || pageText.contains("回单专用章") || pageText.contains("业务验证码");
+
+        // 强制事实约束：必须同时具备凭证类型与具体交易要素
+        return hasVoucherType && hasTransactionDetail;
     }
 
     /**
      * 二次验证：命中保函关键词的页面是否为实际保函凭证，而非格式要求/附件清单/合规声明中的引用.
-     *
-     * <p>正面指标（保函凭证页特征）：保函编号、出具机构、保函金额、受益人等.
-     * <p>负面指标（格式/要求/清单引用特征）：格式、范本、模板、须附、应当提供、要求等.
+     * 必须具备保函事实要素（保函编号/保函金额/出具机构等）且排除格式模板.
      */
     static boolean isActualGuaranteePage(final String pageText) {
         if (pageText == null || pageText.isBlank()) {
             return false;
         }
-        boolean hasPositive = pageText.contains("保函编号") || pageText.contains("保函金额")
+        if (pageText.contains("......") || pageText.contains("……")
+                || pageText.contains("目录") || pageText.contains("目 录")) {
+            if (!pageText.contains("保函编号") && !pageText.contains("保函号")) {
+                return false;
+            }
+        }
+        boolean hasGuaranteeDetail = pageText.contains("保函编号") || pageText.contains("保函金额")
                 || pageText.contains("出具机构") || pageText.contains("担保机构")
                 || pageText.contains("保函号") || pageText.contains("担保金额")
-                || pageText.contains("受益人") || pageText.contains("保函有效期")
-                || pageText.contains("保函正本") || pageText.contains("保函复印件");
-        if (hasPositive) {
-            return true;
-        }
-        boolean hasRequirementContext = pageText.contains("格式") || pageText.contains("范本")
-                || pageText.contains("模板") || pageText.contains("须附") || pageText.contains("须提交")
-                || pageText.contains("应当提供") || pageText.contains("要求提供")
-                || pageText.contains("附件清单") || pageText.contains("组成文件")
-                || pageText.contains("包括但不限于") || pageText.contains("应当包括");
-        return !hasRequirementContext;
+                || pageText.contains("保函有效期") || pageText.contains("不可撤销")
+                || (pageText.contains("受益人") && pageText.contains("保证人"));
+
+        boolean isTemplateOrFormat = pageText.contains("格式范本") || pageText.contains("参考模板")
+                || pageText.contains("保函格式") || pageText.contains("须提交保函")
+                || pageText.contains("此处粘贴");
+
+        return hasGuaranteeDetail && !isTemplateOrFormat;
     }
 
     private static boolean isCaNotRequired(final String tenderText) {

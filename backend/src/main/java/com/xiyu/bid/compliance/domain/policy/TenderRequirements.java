@@ -37,6 +37,41 @@ public record TenderRequirements(
         public static DepositRequirement required(final String amount, final String forms, final String description) {
             return new DepositRequirement(true, amount, forms, description);
         }
+
+        /**
+         * 交叉校验与融合两条保证金要求提取结果（硬事实优先，杜绝偏向免收放大幻觉）.
+         */
+        public static DepositRequirement fuse(final DepositRequirement a, final DepositRequirement b) {
+            if (a == null) {
+                return b;
+            }
+            if (b == null) {
+                return a;
+            }
+            // 1. 若一方具备明确金额（硬事实），优先以具备金额的要求为准
+            boolean aHasAmount = a.amount() != null && !a.amount().isBlank();
+            boolean bHasAmount = b.amount() != null && !b.amount().isBlank();
+            if (aHasAmount && !bHasAmount) {
+                return a;
+            }
+            if (bHasAmount && !aHasAmount) {
+                return b;
+            }
+
+            // 2. 若双方结论一致，保留更详细的描述与形式
+            if (Boolean.TRUE.equals(a.required()) && Boolean.TRUE.equals(b.required())) {
+                String forms = a.forms() != null ? a.forms() : b.forms();
+                String amount = a.amount() != null ? a.amount() : b.amount();
+                return new DepositRequirement(true, amount, forms, a.description() != null ? a.description() : b.description());
+            }
+            if (Boolean.FALSE.equals(a.required()) && Boolean.FALSE.equals(b.required())) {
+                return new DepositRequirement(false, null, null, a.description() != null ? a.description() : b.description());
+            }
+
+            // 3. 冲突防御：一方声称需缴纳（但无明确金额），另一方声称免收
+            // 绝不无脑偏向免收！保持审慎合规原则，保留要求缴纳并附带冲突说明
+            return new DepositRequirement(true, null, null, "提取结果存在分歧（条款与前附表表述不一致），按审慎合规原则提示缴纳并建议人工复核");
+        }
     }
 
     /** 兼容历史签名的 6 参数构造方法. */
@@ -156,12 +191,7 @@ public record TenderRequirements(
             composition.addAll(part.compositionRequirements());
             format.addAll(part.formatRequirements());
             if (part.depositRequirement() != null) {
-                if (mergedDeposit == null) {
-                    mergedDeposit = part.depositRequirement();
-                } else if (Boolean.FALSE.equals(part.depositRequirement().required())) {
-                    // 只要有任何段落提取出明确免收，以免收为准
-                    mergedDeposit = part.depositRequirement();
-                }
+                mergedDeposit = DepositRequirement.fuse(mergedDeposit, part.depositRequirement());
             }
         }
         boolean allMissing = parts.isEmpty() || parts.stream().allMatch(p -> p == null || p.missing());

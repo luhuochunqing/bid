@@ -116,12 +116,12 @@ public class BidQualityCheckAsyncExecutor {
                 requirements = requirements.withMergedQualifications(deterministicQuals);
             }
 
-            // 双轨融合：纯核心确定性保证金要求提取（若 LLM 未明确提取，使用确定性规则补全）
-            if (requirements.depositRequirement() == null || requirements.depositRequirement().required() == null) {
-                TenderRequirements.DepositRequirement detDeposit = DeterministicDepositExtractor.extract(tenderDoc.fullText());
-                if (detDeposit != null) {
-                    requirements = requirements.withDepositRequirement(detDeposit);
-                }
+            // 双轨交叉融合：结合确定性规则与 LLM 提取，硬事实金额优先，消除 LLM 幻觉免收风险
+            TenderRequirements.DepositRequirement detDeposit = DeterministicDepositExtractor.extract(tenderDoc.fullText());
+            if (detDeposit != null) {
+                TenderRequirements.DepositRequirement fused = TenderRequirements.DepositRequirement.fuse(
+                        requirements.depositRequirement(), detDeposit);
+                requirements = requirements.withDepositRequirement(fused);
             }
 
             // Step 2: 知识库检索与 25 项规则核查 (progress: 60)

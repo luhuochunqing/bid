@@ -105,8 +105,9 @@ public final class BidDocumentQualityEngine {
                     Collections.emptyList()));
         }
 
-        // 3. 若招标明确免收保证金，联动确保保证金回单与退款信息表项均免除通过
+        // 3. 保证金要求联动与标书端 LLM 深度语义裁决接通
         if (effective.depositRequirement() != null && Boolean.FALSE.equals(effective.depositRequirement().required())) {
+            // 招标明确免收：直出 PASS，附带免收说明并联动退款信息项免除
             String desc = effective.depositRequirement().description();
             String detail = (desc != null && !desc.isBlank() && !desc.contains("免收/不涉及")) ? "：" + desc : "";
             resultMap.put(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode(),
@@ -115,6 +116,11 @@ public final class BidDocumentQualityEngine {
             resultMap.put(BidQualityCheckItem.DEPOSIT_REFUND.getCode(),
                     QualityCheckItemResult.pass(BidQualityCheckItem.DEPOSIT_REFUND,
                             "本项目不涉及投标保证金，无需提供退款账户信息", Collections.emptyList()));
+        } else if (llm != null) {
+            // 招标要求缴纳（或未明确免收）：标书端接通 LLM 深度语义裁决与真实凭证事实要素核查
+            QualityCheckItemResult depositVerdict = llm.adjudicateItem(
+                    BidQualityCheckItem.DEPOSIT_RECEIPT, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
+            resultMap.put(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode(), depositVerdict);
         }
 
         // 4. 严格按 25 项标准序号排序输出
