@@ -118,4 +118,61 @@ class AuthorizationLetterCheckPolicyTest {
         assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
         assertThat(result.conclusion()).contains("未检测到法定代表人身份证明或授权委托书");
     }
+
+    @Test
+    @DisplayName("弱声明拦截：仅含角色词加签署投标但无身份证与强授权要素时不得 PASS")
+    void testCheck_WeakDeclarationWithoutFacts_ManualReview() {
+        DocumentContent bidDoc = new DocumentContent("bid.pdf", "hash_weak", "", List.of(
+                new DocumentContent.PageContent(2, """
+                        法定代表人授权委托书
+                        本公司法定代表人委托本公司委托代理人代表我方签署投标文件。
+                        法定代表人：张三
+                        委托代理人：李四
+                        """, List.of())
+        ));
+
+        QualityCheckItemResult result = AuthorizationLetterCheckPolicy.check(bidDoc);
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+    }
+
+    @Test
+    @DisplayName("掩码身份证兼容：脱敏身份证号仍计入事实要素并判定 PASS")
+    void testCheck_MaskedIdCard_Pass() {
+        DocumentContent bidDoc = new DocumentContent("bid.pdf", "hash_masked", "", List.of(
+                new DocumentContent.PageContent(2, """
+                        法定代表人授权委托书
+                        本公司法定代表人张三授权委托代理人李四（身份证号：110101****1234）为我方代理人。
+                        代理人全权代表我方处理本项目投标事宜。
+                        法定代表人（签字）：张三
+                        委托代理人（签字）：李四
+                        """, List.of())
+        ));
+
+        QualityCheckItemResult result = AuthorizationLetterCheckPolicy.check(bidDoc);
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+    }
+
+    @Test
+    @DisplayName("目录误判回归：含项目记录字样加单点线不得误判目录页")
+    void testCheck_ProjectRecordWithSingleDot_NotCatalog() {
+        DocumentContent bidDoc = new DocumentContent("bid.pdf", "hash_record", "", List.of(
+                new DocumentContent.PageContent(2, """
+                        法定代表人授权委托书
+                        本项目记录如下：授权事项明确。
+                        本公司法定代表人张三（身份证号：110101198001011234）授权委托代理人李四为我方代理人。
+                        代理人全权代表我方处理本项目投标事宜，授权期限至投标有效期结束。
+                        法定代表人（签字）：张三
+                        委托代理人（签字）：李四
+                        备注线 .................
+                        """, List.of())
+        ));
+
+        assertThat(AuthorizationLetterCheckPolicy.isCatalogOrOutlinePage(
+                bidDoc.pages().get(0).text())).isFalse();
+        QualityCheckItemResult result = AuthorizationLetterCheckPolicy.check(bidDoc);
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+    }
 }

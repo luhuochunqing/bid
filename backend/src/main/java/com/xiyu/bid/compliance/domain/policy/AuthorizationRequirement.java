@@ -16,16 +16,8 @@ public record AuthorizationRequirement(
         String templateTitle,
         String description) {
 
-    public static AuthorizationRequirement standard() {
-        return new AuthorizationRequirement(true, true, "法定代表人身份证明及授权委托书", "需提供法定代表人身份证明及有效授权委托书");
-    }
-
-    public static AuthorizationRequirement legalRepresentativeOnlyAllowed(final String description) {
-        return new AuthorizationRequirement(true, true, "法定代表人身份证明", description);
-    }
-
     /**
-     * 交叉校验与融合两条授权委托书要求提取结果（硬事实优先）.
+     * 交叉校验与融合两条授权委托书要求提取结果（分段合并用，首个非空优先）.
      */
     public static AuthorizationRequirement fuse(final AuthorizationRequirement a, final AuthorizationRequirement b) {
         if (a == null) return b;

@@ -30,7 +30,7 @@ public final class DeterministicAuthorizationExtractor {
 
     /** 明确无需授权委托书声明（如自然人直接响应）. */
     private static final Pattern NOT_REQUIRED_PATTERN = Pattern.compile(
-            "(?:自然人投标|自然人响应)[^。\\n]{0,30}(?:无需|不需|不用|不涉及)(?:授权委托书|授权书)"
+            "(?:自然人(?:投标|响应)?)[^。\\n]{0,30}(?:无需|不需|不用|不涉及|可不提供|免于?提供)(?:授权委托书|授权书)"
     );
 
     private DeterministicAuthorizationExtractor() {
