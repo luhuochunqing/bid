@@ -36,6 +36,7 @@ docs/implementation-notes/
 | `cut-npm-aliases.md` | 砍 33 条 npm 别名，启动入口改 bash | 低 |
 | `ai-case-recommend-detail-layout.md` | AI 智能案例推荐：去掉复用次数、详情三模块布局 | 低 |
 | `ai-case-recommend-score-item-select.md` | 评分项下拉短标签：规格外拍板决策、审查修复轮、遗留项 | 低 |
+| `followup-iscredit-sanitizer.md` | PR !2549 follow-up：isCredit 收窄/反斜杠分隔符/前端 NFKC 对齐决策 | 低 |
 
 ## 维护声明
 

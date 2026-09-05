@@ -168,4 +168,38 @@ class CellAnchoredScoreExtractorTest {
         assertThat(candidates.get(0).dim()).isEqualTo("诚信评价");
         assertThat(candidates.get(0).weight()).isEqualByComparingTo(BigDecimal.ZERO);
     }
+
+    @Test
+    void extract_creditRescueWithoutAnyExplicitKeyword_preserved() {
+        // 纯 isCredit 救援回归锁：无"不扣/扣减/扣除/得X分/扣X分/括号分值"。
+        // 删掉救援即变红；收窄语义（旧宽口径同样保留本例）由反向用例锁定。
+        String markdown = """
+                | 评审项目 | 评审内容 | 分值 |
+                |---|---|---|
+                | 诚信评价 | 供应商存在失信行为记录的按信用评价办法处理 | 0 |
+                """;
+
+        TableGrid grid = TableGridExtractor.extract(markdown);
+        TableColumnMapping mapping = new TableColumnMapping(-1, -1, 0, 1, 2, 1, false);
+        List<ScoreCandidate> candidates = CellAnchoredScoreExtractor.extract(grid, mapping);
+
+        assertThat(candidates).hasSize(1);
+        assertThat(candidates.get(0).dim()).isEqualTo("诚信评价");
+    }
+
+    @Test
+    void extract_bareCreditProceduralRow_filtered() {
+        // 反向 FP 锁：含信用词但无失信语义的真程序性行必须被滤除
+        String markdown = """
+                | 评审项目 | 评审内容 | 分值 |
+                |---|---|---|
+                | 信用评价程序 | 推荐成交候选供应商三名信用评价程序按规定执行 | 5 |
+                """;
+
+        TableGrid grid = TableGridExtractor.extract(markdown);
+        TableColumnMapping mapping = new TableColumnMapping(-1, -1, 0, 1, 2, 1, false);
+        List<ScoreCandidate> candidates = CellAnchoredScoreExtractor.extract(grid, mapping);
+
+        assertThat(candidates).isEmpty();
+    }
 }

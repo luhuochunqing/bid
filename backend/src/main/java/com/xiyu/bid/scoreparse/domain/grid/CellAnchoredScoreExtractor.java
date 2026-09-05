@@ -5,6 +5,7 @@
 
 package com.xiyu.bid.scoreparse.domain.grid;
 
+import com.xiyu.bid.scoreparse.domain.DeductionItemPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreItemTitleExtractor;
 import com.xiyu.bid.scoreparse.domain.ScoreParseConstants;
@@ -33,8 +34,6 @@ public final class CellAnchoredScoreExtractor {
     private static final Pattern NUMERIC_WEIGHT_PATTERN = Pattern.compile("^[~≈]?(\\d{1,3}(?:\\.\\d+)?)\\s*(?:分|%)?$");
     private static final Pattern BRACKET_WEIGHT_PATTERN = ScoreParseConstants.BRACKET_WEIGHT_PATTERN;
     private static final Pattern GRADE_SCORE_PATTERN = Pattern.compile("得\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分");
-    private static final Pattern EXPLICIT_RULE_PATTERN =
-            Pattern.compile("得\\s*\\d+(?:\\.\\d+)?\\s*分|扣\\s*\\d+(?:\\.\\d+)?(?:分)?|不扣(?:分)?|扣减|扣除");
     private static final Pattern PRICE_SUBITEM_PATTERN = Pattern.compile(
             "[1-9]、\\s*([^\\s。\\n;；，,（(]{2,30}?(?:[（(][^）)]*?[）)])?)\\s*[（(]?\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分\\s*[）)]?"
     );
@@ -80,13 +79,12 @@ public final class CellAnchoredScoreExtractor {
             String finalDim = resolveDimension(rawDimCell, detail, currentParentDim,
                     scoredRowsByParent.getOrDefault(currentParentDim, 0));
 
-            // 过滤非评分程序性条款（保留具明确给分/扣分规则项或诚信评价项）
+            // 过滤非评分程序性条款（保留具明确给分/扣分规则项或失信语义信用评价项）
             boolean procedural = NON_SCORE_PROCEDURE_PATTERN.matcher(detail).find()
                     || NON_SCORE_PROCEDURE_PATTERN.matcher(finalDim).find()
                     || NON_SCORE_PROCEDURE_PATTERN.matcher(sourceRow).find();
-            boolean isCredit = finalDim.contains("诚信") || finalDim.contains("信用")
-                    || currentParentDim.contains("诚信") || currentParentDim.contains("信用");
-            if (procedural && !isCredit && !EXPLICIT_RULE_PATTERN.matcher(detail).find()
+            boolean creditRescue = DeductionItemPolicy.isCreditRescue(finalDim, currentParentDim, detail, sourceRow);
+            if (procedural && !creditRescue && !DeductionItemPolicy.hasExplicitScoreRule(detail)
                     && !BRACKET_WEIGHT_PATTERN.matcher(finalDim).find()
                     && !BRACKET_WEIGHT_PATTERN.matcher(detail).find()) {
                 continue;
@@ -111,6 +109,7 @@ public final class CellAnchoredScoreExtractor {
             }
 
             // 6. 编号过滤：如果编号以 4. 开头（如 4.4.1 评审程序条款），跳过
+            // 注：该规则优先于一切救援，既有行为，刻意保留。
             if (code != null && code.trim().startsWith("4.")) {
                 continue;
             }

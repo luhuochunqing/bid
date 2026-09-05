@@ -40,4 +40,32 @@ class DeductionItemPolicyTest {
         assertThat(DeductionItemPolicy.isDeductionText("")).isFalse();
         assertThat(DeductionItemPolicy.isDeduction(null)).isFalse();
     }
+
+    @Test
+    void isCreditRescue_requiresBothSubjectAndTrigger() {
+        // 主体词（诚信/信用）+ 失信触发词同时存在才救援
+        assertThat(DeductionItemPolicy.isCreditRescue(
+                "诚信评价", "供应商存在失信行为记录的按信用评价办法处理")).isTrue();
+        // 裸信用词（无失信语义）不救援——真程序性行不得泄漏
+        assertThat(DeductionItemPolicy.isCreditRescue(
+                "信用评价程序", "推荐成交候选供应商三名信用评价程序按规定执行")).isFalse();
+        // 仅主体词、无失信语义不救援
+        assertThat(DeductionItemPolicy.isCreditRescue("诚信评价", "供应商信用等级优良")).isFalse();
+        // 仅触发词、无主体词不救援
+        assertThat(DeductionItemPolicy.isCreditRescue("保证金管理", "失信企业不予退还投标保证金")).isFalse();
+        assertThat(DeductionItemPolicy.isCreditRescue()).isFalse();
+        assertThat(DeductionItemPolicy.isCreditRescue(null, "  ")).isFalse();
+    }
+
+    @Test
+    void hasExplicitScoreRule_matchesGradeAndDeductionRules() {
+        assertThat(DeductionItemPolicy.hasExplicitScoreRule("优秀得7分")).isTrue();
+        assertThat(DeductionItemPolicy.hasExplicitScoreRule("出现失信行为扣2分")).isTrue();
+        assertThat(DeductionItemPolicy.hasExplicitScoreRule("扣5 分")).isTrue();
+        assertThat(DeductionItemPolicy.hasExplicitScoreRule("不存在失信行为不扣")).isTrue();
+        assertThat(DeductionItemPolicy.hasExplicitScoreRule("每起扣减2")).isTrue();
+        assertThat(DeductionItemPolicy.hasExplicitScoreRule("供应商信用等级优良")).isFalse();
+        assertThat(DeductionItemPolicy.hasExplicitScoreRule()).isFalse();
+        assertThat(DeductionItemPolicy.hasExplicitScoreRule(null, "")).isFalse();
+    }
 }

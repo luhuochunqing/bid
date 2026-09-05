@@ -21,8 +21,6 @@ import java.util.regex.Pattern;
 public class GhostCandidateFilter {
 
     private static final Pattern NON_SCORE_PROCEDURE_PATTERN = ScoreParseConstants.NON_SCORE_PROCEDURE_PATTERN;
-    private static final Pattern EXPLICIT_SCORE_RULE_PATTERN =
-            Pattern.compile("得\\s*\\d+(?:\\.\\d+)?\\s*分|扣\\s*\\d+(?:\\.\\d+)?(?:分)?|不扣(?:分)?|扣减|扣除");
 
     /** 过滤幽灵候选，返回新列表；入参为 null 时返回空列表 */
     public List<ScoreCandidate> filter(List<ScoreCandidate> candidates) {
@@ -47,6 +45,7 @@ public class GhostCandidateFilter {
             return true;
         }
         // 规则 3：非评分程序性条款（如 4.4.1 推荐成交候选供应商）
+        // 注：4. 编号规则优先于一切救援（含信用救援与显式规则），既有行为，刻意保留。
         if (candidate.code() != null && candidate.code().trim().startsWith("4.")) {
             return true;
         }
@@ -56,10 +55,9 @@ public class GhostCandidateFilter {
                 || NON_SCORE_PROCEDURE_PATTERN.matcher(detail).find()
                 || NON_SCORE_PROCEDURE_PATTERN.matcher(source).find();
         if (matchesProcedural) {
-            boolean isCredit = dim.contains("诚信") || dim.contains("信用") || detail.contains("诚信") || detail.contains("信用");
-            boolean hasExplicitRule = isCredit
-                    || EXPLICIT_SCORE_RULE_PATTERN.matcher(detail).find()
-                    || EXPLICIT_SCORE_RULE_PATTERN.matcher(dim).find()
+            boolean creditRescue = DeductionItemPolicy.isCreditRescue(dim, detail, source);
+            boolean hasExplicitRule = creditRescue
+                    || DeductionItemPolicy.hasExplicitScoreRule(detail, dim)
                     || ScoreParseConstants.BRACKET_WEIGHT_PATTERN.matcher(dim).find()
                     || ScoreParseConstants.BRACKET_WEIGHT_PATTERN.matcher(detail).find();
             if (!hasExplicitRule) {

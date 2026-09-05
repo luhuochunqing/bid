@@ -49,13 +49,15 @@ function safeParseJson(val, fallback) {
 export function sanitizeCode(raw) {
   if (raw == null) return ''
   let s = String(raw).trim()
-  // 剥除零宽字符与全角转半角（如全角 ｎｕｌｌ -> null）
+  // 剥除零宽字符（NFKC 不处理 U+200B-200D/FEFF，需显式清除）
   s = s.replace(/[\u200B-\u200D\uFEFF]/g, '')
-  s = s.replace(/[\uFF01-\uFF5E]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+  // 与后端 ScoreCodeSanitizer 对齐：标准 NFKC 归一（全角 ｎｕｌｌ->null，全角括号/标点->半角，①->1）。
+  // 差集说明：U+3001 、不受 NFKC 影响（中文编号"一、"保留）；后端另有 50 字符截断，前端展示码不落库故不截断。
+  s = s.normalize('NFKC').trim()
   if (!s || /^(?:null|undefined|none|n\/?a|\(null\)|null\.0)$/i.test(s)) {
     return ''
   }
-  s = s.replace(/\(null\)/gi, '')
+  s = s.replace(/\(\s*null\s*\)/gi, '')
   s = s.replace(/(?:^|(?<=[._/\\\-\s]))(?:null|undefined|none|n\/?a)(?:(?=[._/\\\-\s])|$)/gi, '')
   s = s.replace(/[._/\\\-\s]{2,}/g, '.')
   s = s.replace(/^[._/\\\-\s]+/, '')
@@ -108,7 +110,8 @@ export function mapScoreResults(results) {
     if (row.scoreItemId != null) {
       resultMap[`id:${row.scoreItemId}`] = normalized
     }
-    if (row.code != null) {
+    // 冲突策略：首写获胜（同一清洗码多结果并存时保留首行，无告警，展示映射可接受）
+    if (row.code) {
       const cleanCode = sanitizeCode(row.code)
       if (resultMap[`code:${row.code}`] == null) {
         resultMap[`code:${row.code}`] = normalized

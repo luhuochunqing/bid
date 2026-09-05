@@ -51,6 +51,15 @@ public final class ScoreParseConstants {
     );
 
     /**
+     * 显式给分/扣分规则正则（"得X分/扣X分/不扣/扣减/扣除"，行级程序性过滤救生通道唯一出处；
+     * GhostCandidateFilter / CellAnchoredScoreExtractor / ScoreTableRowParser 共用，禁止本地再编译同义正则）。
+     * <p>注：扣分分支含数字后 `\s*`（"扣5 分"亦命中），系有意的空格容忍，非纯收敛搬运。
+     */
+    public static final java.util.regex.Pattern EXPLICIT_SCORE_RULE_PATTERN = java.util.regex.Pattern.compile(
+            "得\\s*\\d+(?:\\.\\d+)?\\s*分|扣\\s*\\d+(?:\\.\\d+)?\\s*(?:分)?|不扣(?:分)?|扣减|扣除"
+    );
+
+    /**
      * 括号分值正则（"（7分）"/"(7.5分)"，捕获组 1 = 分值数字）。
      * 表格行解析/网格提取/列验真/列映射四处共用唯一出处，禁止本地再编译同义正则。
      */

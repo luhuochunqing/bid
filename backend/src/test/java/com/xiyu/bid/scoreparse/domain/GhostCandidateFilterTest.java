@@ -124,6 +124,32 @@ class GhostCandidateFilterTest {
     }
 
     @Test
+    void filter_creditRescueWithoutAnyExplicitKeyword_kept() {
+        // 纯 isCredit 救援回归锁：无"不扣/扣减/扣除/得X分/扣X分/括号分值"中任何一个。
+        // 删掉救援即变红；收窄语义（旧宽口径同样保留本例）由反向用例锁定。
+        ScoreCandidate rescued = new ScoreCandidate(
+                "2", "诚信评价",
+                "供应商存在失信行为记录的按信用评价办法处理",
+                BigDecimal.ZERO, null, null, "整行文本", "R2", null
+        );
+
+        List<ScoreCandidate> result = filter.filter(List.of(rescued));
+        assertThat(result).containsExactly(rescued);
+    }
+
+    @Test
+    void filter_bareCreditProceduralRow_filtered() {
+        // 反向 FP 锁：含信用词但无失信语义的真程序性行必须被滤除（裸 isCredit 不得泄漏）
+        ScoreCandidate procedural = new ScoreCandidate(
+                "3", "信用评价程序",
+                "推荐成交候选供应商三名信用评价程序按规定执行",
+                new BigDecimal("5"), null, null, "整行文本", "R2", null
+        );
+
+        assertThat(filter.filter(List.of(procedural))).isEmpty();
+    }
+
+    @Test
     void filter_nullInput_returnsEmpty() {
         assertThat(filter.filter(null)).isEmpty();
     }

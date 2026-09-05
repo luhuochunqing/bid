@@ -4,7 +4,6 @@
 // 维护声明: 维护者按项目SOP；spec 046 / spec 058 编号收口防线
 package com.xiyu.bid.scoreparse.domain;
 
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -25,7 +24,7 @@ public final class ScoreCodeSanitizer {
     );
 
     private static final Pattern NULL_SEGMENT_CLEAN = Pattern.compile(
-            "(?i)(?:^|(?<=[._/\\-\\s]))(?:null|undefined|none|n/?a)(?:(?=[._/\\-\\s])|$)"
+            "(?i)(?:^|(?<=[._/\\\\\\-\\s]))(?:null|undefined|none|n/?a)(?:(?=[._/\\\\\\-\\s])|$)"
     );
 
     private ScoreCodeSanitizer() {
@@ -33,6 +32,14 @@ public final class ScoreCodeSanitizer {
 
     /**
      * 清洗编号，返回纯净的编号字符串；若无有效编号则返回空字符串 ""。
+     * <p>归一化说明（行为变更备忘）：
+     * <ul>
+     *   <li>NFKC 将全角/兼容字符转为半角：ｎｕｌｌ→null，（null）→(null)，．／→./，①→1，２→2；</li>
+     *   <li>圈号/上标/连字同样归一（⑩→10，²→2，ﬁ→fi）——编号若真用此类字符区分会被改写，
+     *   当前按"招标编号不用圈号/上标区分"接受，改动需同步更新本注释与单测；</li>
+     *   <li>CJK 表意字不受 NFKC 影响（一/一、/二、/一百原样保留）；U+3001 、非空格不参与切分；</li>
+     *   <li>零宽字符（U+200B-200D/FEFF）在 NFKC 之前显式剥除；长度截断 50 字符。</li>
+     * </ul>
      */
     public static String clean(String raw) {
         if (raw == null) {
@@ -54,9 +61,10 @@ public final class ScoreCodeSanitizer {
         String cleaned = NULL_SEGMENT_CLEAN.matcher(s).replaceAll("");
 
         // 清理多余的前导、尾随或重复分隔符，如 "..", "--", 首尾点
-        cleaned = cleaned.replaceAll("[._/\\-\\s]{2,}", ".");
-        cleaned = cleaned.replaceAll("^[._/\\-\\s]+", "");
-        cleaned = cleaned.replaceAll("[._/\\-\\s]+$", "");
+        // 分隔符集含反斜杠（"null\1" -> "1"，与前端 sanitizeCode 对齐）
+        cleaned = cleaned.replaceAll("[._/\\\\\\-\\s]{2,}", ".");
+        cleaned = cleaned.replaceAll("^[._/\\\\\\-\\s]+", "");
+        cleaned = cleaned.replaceAll("[._/\\\\\\-\\s]+$", "");
 
         if (cleaned.isEmpty() || NULL_EXACT_PATTERN.matcher(cleaned).matches()) {
             return "";
