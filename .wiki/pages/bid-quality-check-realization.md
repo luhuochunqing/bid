@@ -26,6 +26,9 @@ sources:
   - backend/src/main/java/com/xiyu/bid/ai/client/AiProvider.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicDepositExtractor.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicBidLetterExtractor.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicAuthorizationExtractor.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/AuthorizationLetterCheckPolicy.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/AuthorizationRequirement.java
   - docs/lessons/lessons-learned.md
 backlinks:
   - _index
@@ -195,6 +198,11 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **消除空 if 分支占位**：消除 `BidDocumentQualityEngine` 中两个空 `if` 占位块（`if (hasStrong...) { } else if (...)`），合并为 `if (!hasStrong... && llm != null)`，避免无意图分支增加圈复杂度；
     - **死代码清理与行预算防爆**：删除 `TenderRequirements.BidLetterRequirement.standard` 零引用的死工厂方法，紧凑化 `with` 方法行格式，使 `TenderRequirements.java` 安全控制在 277 行（远离 300 行硬门禁）；
     - **正则静态预编译**：`BidLetterCheckPolicy` 预编译 `MULTI_DOT_PATTERN` 与 `CATALOG_DOT_LINE_PATTERN`，避免高频逐行判定时反复编译正则，保障纯核心高吞吐。
+25. **法定代表人授权委托书(AUTHORIZATION_LETTER)两阶段结构化契约与要素反假重构**（2026-09-05）：
+    - **两阶段结构化契约**：在 `TenderRequirements` 接入 `AuthorizationRequirement` 契约（是否必须提供、法定代表人亲自参加是否免除、指定模板标题、要求说明），并建立纯核心 `DeterministicAuthorizationExtractor` 提取豁免条款与模板要求；
+    - **目录点线拦截与未填模板占位符反假**：标书端 `AuthorizationLetterCheckPolicy` 严格排除目录点线页（`MULTI_DOT_PATTERN`、`CATALOG_DOT_LINE_PATTERN`，`isCatalogOrOutlinePage`），并拦截未填写的占位符模板（【委托代理人姓名】、下划线留白等）；
+    - **双角色要素正向检验与法人亲签豁免**：核查委托人（法定代表人）、受托人（委托代理人）、身份证号、授权权限与期限等事实要素。若招标文件明确法人亲自参加免除授权书，标书附法定代表人身份证明与法人亲笔签署时直通 PASS；
+    - **强事实直通与存疑裁决接通**：强凭证齐全直通 PASS（LLM 0 调用防抖动），存疑或仅有占位符时接通 `LlmAdjudicator` 准则 5 深度裁决并调用 `SemanticPageRetriever` 候选页定位。
 
 ## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
 

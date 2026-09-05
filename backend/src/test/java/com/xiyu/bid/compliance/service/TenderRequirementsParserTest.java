@@ -128,6 +128,35 @@ class TenderRequirementsParserTest {
     }
 
     @Test
+    @DisplayName("包含 authorizationRequirement 节点：成功解析授权委托书要求")
+    void parse_withAuthorizationRequirement_parsesCorrectly() {
+        String llmResponse = """
+                {
+                  "scoringItems": [],
+                  "mandatoryQualifications": [],
+                  "vetoClauses": [],
+                  "compositionRequirements": [],
+                  "formatRequirements": [],
+                  "authorizationRequirement": {
+                    "required": true,
+                    "allowLegalRepresentativeOnly": true,
+                    "templateTitle": "法定代表人身份证明及授权委托书",
+                    "description": "法定代表人亲自参加免授权委托书"
+                  }
+                }
+                """;
+
+        TenderRequirements req = TenderRequirementsParser.parse(llmResponse);
+
+        assertThat(req.missing()).isFalse();
+        assertThat(req.authorizationRequirement()).isNotNull();
+        assertThat(req.authorizationRequirement().required()).isTrue();
+        assertThat(req.authorizationRequirement().allowLegalRepresentativeOnly()).isTrue();
+        assertThat(req.authorizationRequirement().templateTitle()).isEqualTo("法定代表人身份证明及授权委托书");
+        assertThat(req.authorizationRequirement().description()).isEqualTo("法定代表人亲自参加免授权委托书");
+    }
+
+    @Test
     @DisplayName("非法 JSON 或纯文本：安全返回 missingSentinel，不抛出异常")
     void parse_invalidJson_returnsMissingSentinel() {
         assertThat(TenderRequirementsParser.parse("这是一段纯文本，没有任何 JSON 结构").missing()).isTrue();

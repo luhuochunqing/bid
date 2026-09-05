@@ -55,19 +55,14 @@ public final class BasicInfoCheckPolicy {
     }
 
     public static QualityCheckItemResult checkAuthorizationLetter(final DocumentContent bidDoc) {
-        BidQualityCheckItem item = BidQualityCheckItem.AUTHORIZATION_LETTER;
-        PageMatch match = findFirstPageContaining(bidDoc, "授权委托书", "法定代表人身份证明");
-        if (match != null) {
-            boolean hasPrincipal = match.text().contains("法定代表人") || match.text().contains("委托人");
-            boolean hasAgent = match.text().contains("受托人") || match.text().contains("委托代理人");
-            List<QualityEvidence> evidences = List.of(QualityEvidence.bid("授权书章节", match.pageNumber(), snippetAround(match.text(), 200, "授权委托书", "法定代表人身份证明")));
-            if (hasPrincipal && hasAgent) {
-                return QualityCheckItemResult.pass(item, "授权委托书内容完备，委托人与受托人信息齐全", evidences);
-            }
-            return QualityCheckItemResult.manualReview(item, "检测到授权委托书，但委托人或受托人信息不完整", "请确保法定代表人身份证明与委托代理人权限清晰明确", evidences);
-        }
-        return QualityCheckItemResult.fail(item, "未检测到法定代表人身份证明或授权委托书", "请补充法定代表人证明书及有效授权委托书", Collections.emptyList());
+        return AuthorizationLetterCheckPolicy.check(bidDoc);
     }
+
+    public static QualityCheckItemResult checkAuthorizationLetter(
+            final DocumentContent bidDoc, final AuthorizationRequirement requirement) {
+        return AuthorizationLetterCheckPolicy.check(bidDoc, requirement);
+    }
+
 
     public static QualityCheckItemResult checkBusinessLicense(final DocumentContent bidDoc) {
         BidQualityCheckItem item = BidQualityCheckItem.BUSINESS_LICENSE;

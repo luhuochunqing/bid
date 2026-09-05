@@ -327,4 +327,73 @@ class BidDocumentQualityEngineTest {
         assertThat(bidLetter.status()).isEqualTo(QualityCheckStatus.FAIL);
         assertThat(bidLetter.conclusion()).contains("经大模型语义核查");
     }
+
+    @Test
+    @DisplayName("授权委托书强凭证直通测试：标书具备要素齐全的真实授权委托书正文时，直通 PASS 坚决不调用 LLM")
+    void testEvaluateAll_WhenAuthLetterPass_BypassesLlmAdjudication() {
+        String authPage = """
+                法定代表人授权委托书
+                本授权委托书声明：上海西域机电系统有限公司法定代表人张三，授权本公司员工李四（身份证号：110101199001015678）为委托代理人。
+                代理人全权代表本公司签署投标文件，处理一切与某某采购项目投标有关事务。
+                授权期限：自签署之日起至投标有效期结束。
+                
+                法定代表人（签字）：张三
+                委托代理人（签字）：李四
+                上海西域机电系统有限公司（盖章）
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_auth", authPage);
+
+        java.util.concurrent.atomic.AtomicInteger llmAuthCallCount = new java.util.concurrent.atomic.AtomicInteger();
+        LlmAdjudicator llm = new LlmAdjudicator(prompt -> {
+            if (prompt.contains("裁决检查项「" + BidQualityCheckItem.AUTHORIZATION_LETTER.getTitle() + "」")) {
+                llmAuthCallCount.incrementAndGet();
+            }
+            return LlmVerdict.success(new LlmVerdict("PASS", "", "通过", ""));
+        });
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), TenderRequirements.empty(), Set.of(), llm, (p, s) -> { });
+
+        QualityCheckItemResult authLetter = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.AUTHORIZATION_LETTER.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(llmAuthCallCount.get())
+                .as("标书已包含要素齐全的真实授权委托书正文时，坚决不调 LLM，防止抖动与浪费")
+                .isEqualTo(0);
+        assertThat(authLetter.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(authLetter.conclusion()).contains("已提供法定代表人授权委托书");
+        assertThat(authLetter.evidences()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("授权委托书存疑裁决接通测试：标书仅在目录页出现条目被拦截时，成功接通 LLM 深度语义裁决")
+    void testEvaluateAll_WhenAuthLetterSuspicious_CallsLlmAdjudication() {
+        String tocPage = """
+                目录
+                第一章 投标函及投标函附录 ................. 1
+                第二章 法定代表人身份证明及授权委托书 ..... 5
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_toc", tocPage);
+
+        LlmAdjudicator mockLlm = new LlmAdjudicator(prompt -> {
+            if (prompt.contains("裁决检查项「" + BidQualityCheckItem.AUTHORIZATION_LETTER.getTitle() + "」")) {
+                return LlmVerdict.success(
+                        new LlmVerdict("FAIL", "", "经大模型语义核查，授权委托书仅存在于目录索引中，正文缺失实际授权书", "请在投标文件中补充授权委托书正文"));
+            }
+            return LlmVerdict.success(new LlmVerdict("PASS", "", "通过", ""));
+        });
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), TenderRequirements.empty(), Set.of(), mockLlm, (p, s) -> { });
+
+        QualityCheckItemResult authLetter = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.AUTHORIZATION_LETTER.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(authLetter.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(authLetter.conclusion()).contains("经大模型语义核查");
+    }
 }

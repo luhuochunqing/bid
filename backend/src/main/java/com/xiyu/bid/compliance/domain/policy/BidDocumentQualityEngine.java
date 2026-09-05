@@ -83,6 +83,10 @@ public final class BidDocumentQualityEngine {
             resultMap.put(BidQualityCheckItem.BID_LETTER_FORMAT.getCode(),
                     BasicInfoCheckPolicy.checkBidLetterFormat(bidDoc, effective.bidLetterRequirement()));
         }
+        if (effective.authorizationRequirement() != null) {
+            resultMap.put(BidQualityCheckItem.AUTHORIZATION_LETTER.getCode(),
+                    BasicInfoCheckPolicy.checkAuthorizationLetter(bidDoc, effective.authorizationRequirement()));
+        }
 
         // 2. 语义 lane：规则硬信号优先，其次 LLM 裁决，lane 缺省则 MANUAL 降级
         List<BidQualityCheckItem> semanticItems = SemanticRulesLane.SEMANTIC_ITEMS;
@@ -145,7 +149,18 @@ public final class BidDocumentQualityEngine {
             resultMap.put(BidQualityCheckItem.BID_LETTER_FORMAT.getCode(), letterVerdict);
         }
 
-        // 5. 严格按 25 项标准序号排序输出
+        // 5. 授权委托书要求联动与标书端 LLM 深度语义裁决接通（规范正文强凭证直通，存疑或未命中接通 LLM）
+        QualityCheckItemResult existingAuthLetter = resultMap.get(BidQualityCheckItem.AUTHORIZATION_LETTER.getCode());
+        boolean hasStrongAuthLetterPass = existingAuthLetter != null
+                && existingAuthLetter.status() == QualityCheckStatus.PASS
+                && !existingAuthLetter.evidences().isEmpty();
+        if (!hasStrongAuthLetterPass && llm != null) {
+            QualityCheckItemResult authVerdict = llm.adjudicateItem(
+                    BidQualityCheckItem.AUTHORIZATION_LETTER, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
+            resultMap.put(BidQualityCheckItem.AUTHORIZATION_LETTER.getCode(), authVerdict);
+        }
+
+        // 6. 严格按 25 项标准序号排序输出
         List<QualityCheckItemResult> sorted = new ArrayList<>(resultMap.values());
         sorted.sort(Comparator.comparingInt(QualityCheckItemResult::order));
         return sorted;
