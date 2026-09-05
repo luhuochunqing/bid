@@ -46,6 +46,26 @@ function safeParseJson(val, fallback) {
   return fallback
 }
 
+export function sanitizeCode(raw) {
+  if (raw == null) return ''
+  let s = String(raw).trim()
+  // 剥除零宽字符与全角转半角（如全角 ｎｕｌｌ -> null）
+  s = s.replace(/[\u200B-\u200D\uFEFF]/g, '')
+  s = s.replace(/[\uFF01-\uFF5E]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+  if (!s || /^(?:null|undefined|none|n\/?a|\(null\)|null\.0)$/i.test(s)) {
+    return ''
+  }
+  s = s.replace(/\(null\)/gi, '')
+  s = s.replace(/(?:^|(?<=[._/\\\-\s]))(?:null|undefined|none|n\/?a)(?:(?=[._/\\\-\s])|$)/gi, '')
+  s = s.replace(/[._/\\\-\s]{2,}/g, '.')
+  s = s.replace(/^[._/\\\-\s]+/, '')
+  s = s.replace(/[._/\\\-\s]+$/, '')
+  if (!s || /^(?:null|undefined|none|n\/?a|\(null\))$/i.test(s)) {
+    return ''
+  }
+  return s
+}
+
 export function normalizeScoreItem(s, i) {
   const isSubj = s.scoreType === 'SUBJECTIVE' || s.scoreType === '主观项'
   const status = STATUS_MAP[s.status] || 'neutral'
@@ -54,9 +74,11 @@ export function normalizeScoreItem(s, i) {
     ? s.sourceCellIds
     : (Array.isArray(parsedCells) ? parsedCells : (s.sourceCellIds ? [String(s.sourceCellIds)] : []))
 
+  const displayCode = sanitizeCode(s.code) || `S${i + 1}`
+
   return {
     id: s.id,
-    code: s.code || `S${i + 1}`,
+    code: displayCode,
     dim: s.dim || '评分项',
     detail: s.detail || '',
     weight: s.weight != null ? Number(s.weight) : 0,
@@ -86,8 +108,20 @@ export function mapScoreResults(results) {
     if (row.scoreItemId != null) {
       resultMap[`id:${row.scoreItemId}`] = normalized
     }
-    if (row.code != null && resultMap[`code:${row.code}`] == null) {
-      resultMap[`code:${row.code}`] = normalized
+    if (row.code != null) {
+      const cleanCode = sanitizeCode(row.code)
+      if (resultMap[`code:${row.code}`] == null) {
+        resultMap[`code:${row.code}`] = normalized
+      }
+      if (cleanCode && resultMap[`code:${cleanCode}`] == null) {
+        resultMap[`code:${cleanCode}`] = normalized
+      }
+      if (resultMap[row.code] == null) {
+        resultMap[row.code] = normalized
+      }
+      if (cleanCode && resultMap[cleanCode] == null) {
+        resultMap[cleanCode] = normalized
+      }
     }
   }
   return resultMap
@@ -99,7 +133,12 @@ export function lookupScoreResult(results, item) {
     return results[`id:${item.id}`] ?? null
   }
   if (item.code != null) {
-    return results[`code:${item.code}`] ?? results[item.code] ?? null
+    const cleanCode = sanitizeCode(item.code)
+    return results[`code:${item.code}`]
+      ?? (cleanCode ? results[`code:${cleanCode}`] : null)
+      ?? results[item.code]
+      ?? (cleanCode ? results[cleanCode] : null)
+      ?? null
   }
   return null
 }

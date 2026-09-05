@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { STATUS_MAP, TYPE_MAP, formatTime, pollTask, normalizeScoreItem, normalizeScoreResult, mapScoreResults, lookupScoreResult } from './scoreParseTask.js'
+import { STATUS_MAP, TYPE_MAP, formatTime, pollTask, normalizeScoreItem, normalizeScoreResult, mapScoreResults, lookupScoreResult, sanitizeCode } from './scoreParseTask.js'
 
 describe('scoreParseTask — spec 041 状态映射与任务轮询纯函数', () => {
   beforeEach(() => {
@@ -8,6 +8,44 @@ describe('scoreParseTask — spec 041 状态映射与任务轮询纯函数', () 
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  describe('sanitizeCode — 编号清洗与防线', () => {
+    it('清洗复合 null/undefined 脏编号', () => {
+      expect(sanitizeCode('null.1')).toBe('1')
+      expect(sanitizeCode('null-2')).toBe('2')
+      expect(sanitizeCode('null_3')).toBe('3')
+      expect(sanitizeCode('null/4')).toBe('4')
+      expect(sanitizeCode('1.null')).toBe('1')
+      expect(sanitizeCode('1.null.2')).toBe('1.2')
+      expect(sanitizeCode('undefined.3')).toBe('3')
+    })
+
+    it('清洗边缘字符：全角 ｎｕｌｌ、零宽字符、(null)', () => {
+      expect(sanitizeCode('ｎｕｌｌ.1')).toBe('1')
+      expect(sanitizeCode('(null)1')).toBe('1')
+      expect(sanitizeCode('（null）2')).toBe('2')
+      expect(sanitizeCode('null.\u200B1')).toBe('1')
+      expect(sanitizeCode('null.(null)')).toBe('')
+    })
+
+    it('纯占位符统一置空', () => {
+      expect(sanitizeCode(null)).toBe('')
+      expect(sanitizeCode(undefined)).toBe('')
+      expect(sanitizeCode('null')).toBe('')
+      expect(sanitizeCode('NULL')).toBe('')
+      expect(sanitizeCode('(null)')).toBe('')
+      expect(sanitizeCode('null.0')).toBe('')
+      expect(sanitizeCode('n/a')).toBe('')
+      expect(sanitizeCode('none')).toBe('')
+    })
+
+    it('严格保留合法的中文数字章节与普通标号', () => {
+      expect(sanitizeCode('一、')).toBe('一、')
+      expect(sanitizeCode('四、综合评价')).toBe('四、综合评价')
+      expect(sanitizeCode('A1')).toBe('A1')
+      expect(sanitizeCode('1.2.3')).toBe('1.2.3')
+    })
   })
 
   describe('STATUS_MAP / TYPE_MAP', () => {
@@ -133,6 +171,16 @@ describe('scoreParseTask — spec 041 状态映射与任务轮询纯函数', () 
         { code: 'D1', scoreType: 'OBJECTIVE', actualScore: 6, status: 'OK' },
       ])
       expect(lookupScoreResult(map, { code: 'D1' }).actualScore).toBe(6)
+    })
+
+    it('支持 raw+sanitized 双键索引：脏 null.1 建键时干净 1 能命中，且 raw null.1 查键不 miss', () => {
+      const map = mapScoreResults([
+        { code: 'null.1', scoreType: 'OBJECTIVE', actualScore: 8, status: 'OK' },
+      ])
+      // 干净 code 查键命中
+      expect(lookupScoreResult(map, { code: '1' })?.actualScore).toBe(8)
+      // 原始 code 查键命中
+      expect(lookupScoreResult(map, { code: 'null.1' })?.actualScore).toBe(8)
     })
 
     it('有 id 时不得回退 code：重复编号互不串行', () => {

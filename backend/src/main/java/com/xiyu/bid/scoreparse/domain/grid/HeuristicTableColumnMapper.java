@@ -17,13 +17,14 @@ import java.util.regex.Pattern;
 public final class HeuristicTableColumnMapper {
 
     private static final Pattern CODE_HEADER = Pattern.compile("序号|条款号|编号|编码|条目|条号");
-    private static final Pattern PARENT_DIM_HEADER = Pattern.compile("评审大类|大类|评审类别|标包|分包");
-    private static final Pattern DIM_HEADER = Pattern.compile("评分因素|评分项|评审因素|评审项目|维度|项目名称|指标名称");
-    private static final Pattern DETAIL_HEADER = Pattern.compile("评分标准|评分细则|评审标准|详细细则|打分细则|打分标准|条款内容");
+    private static final Pattern PARENT_DIM_HEADER = Pattern.compile("评审大类|大类|评审类别|标包|分包|^项目$|评审大项");
+    private static final Pattern DIM_HEADER = Pattern.compile("评分因素|评分项|评审因素|评审项目|评审要素|维度|项目名称|指标名称");
+    private static final Pattern DETAIL_HEADER = Pattern.compile("评分标准|评分细则|评审标准|详细细则|打分细则|打分标准|条款内容|评审内容|评分内容");
     private static final Pattern WEIGHT_HEADER = Pattern.compile("分值|权重|满分|最高分|得分|比例");
     private static final Pattern BRACKET_WEIGHT_PATTERN = ScoreParseConstants.BRACKET_WEIGHT_PATTERN;
     private static final Pattern CONTRACT_ASSESSMENT_HEADER = ScoreParseConstants.CONTRACT_ASSESSMENT_PATTERN;
     private static final Pattern NON_SCORE_CATALOG_HEADER = ScoreParseConstants.NON_SCORE_CATALOG_PATTERN;
+    private static final Pattern PACKAGE_LOT_HEADER = Pattern.compile("分标名称|分标编号|包名称|标包划分|标段划分");
     private static final Pattern EXPLICIT_BID_SCORE_HEADER = Pattern.compile(
             "评分因素|评分标准|评审因素|评审标准|评标办法|分值构成|商务评分|技术评分|报价评分"
     );
@@ -38,10 +39,13 @@ public final class HeuristicTableColumnMapper {
 
         List<String> headerRow = grid.row(0);
         String allHeaders = String.join(" ", headerRow);
-        if ((CONTRACT_ASSESSMENT_HEADER.matcher(allHeaders).find()
-                || NON_SCORE_CATALOG_HEADER.matcher(allHeaders).find())
-                && !EXPLICIT_BID_SCORE_HEADER.matcher(allHeaders).find()) {
-            return new TableColumnMapping(-1, -1, -1, -1, -1, grid.rowCount(), false);
+        boolean isExplicitScoreTable = EXPLICIT_BID_SCORE_HEADER.matcher(allHeaders).find();
+        if (!isExplicitScoreTable) {
+            if (CONTRACT_ASSESSMENT_HEADER.matcher(allHeaders).find()
+                    || NON_SCORE_CATALOG_HEADER.matcher(allHeaders).find()
+                    || PACKAGE_LOT_HEADER.matcher(allHeaders).find()) {
+                return new TableColumnMapping(-1, -1, -1, -1, -1, grid.rowCount(), false);
+            }
         }
 
         boolean isGenuineHeader = CODE_HEADER.matcher(allHeaders).find()
@@ -114,7 +118,9 @@ public final class HeuristicTableColumnMapper {
         }
 
         if (bracketCol >= 0) {
-            weightCol = bracketCol;
+            if (weightCol == -1) {
+                weightCol = bracketCol;
+            }
             if (dimCol == -1 || dimCol == detailCol) {
                 dimCol = bracketCol;
             }

@@ -21,6 +21,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -104,18 +106,38 @@ class WarehouseMatchServiceTest {
     }
 
     @Test
-    @DisplayName("匹配服务：调用方未给名称/面积时按在用仓匹配 → FULL（估计层不得发无约束请求）")
-    void noNameKeywords_inUseWarehouse_full() {
-        when(repository.findAll(any(Specification.class))).thenReturn(List.of(
-                warehouse(1L, "上海仓", "华东", "3000", "在用")));
+    @DisplayName("匹配服务：无约束请求（名称/地区/面积全空）严禁全量匹配返回 FULL，应返回 NONE 待人工确认")
+    void noConstraints_returnsNoneRatherThanFull() {
         WarehouseMatchRequest request = new WarehouseMatchRequest(null, null, null, null);
 
         KnowledgeMatchResult result = service.match(request);
 
-        assertThat(result.tier()).isEqualTo("FULL");
-        assertThat(result.matchRatio()).isEqualTo(100);
-        assertThat(result.matched()).hasSize(1);
-        assertThat(result.matchDetail()).contains("仓库");
+        assertThat(result.tier()).isEqualTo("NONE");
+        assertThat(result.matchRatio()).isEqualTo(0);
+        assertThat(result.matched()).isEmpty();
+        assertThat(result.matchDetail()).contains("未抽取到可执行的仓库匹配约束");
+        verify(repository, never()).findAll(any(Specification.class));
+    }
+
+    @Test
+    @DisplayName("全部为通用干扰词时走 match() 拦截并禁止全表查询")
+    void allGenericKeywords_returnsNoneAndNeverCallsRepository() {
+        WarehouseMatchRequest request = new WarehouseMatchRequest(
+                List.of("根据应答人全国各地自有或租赁仓库数量排序情况进行评分", "优秀得2分"),
+                null, null, null);
+        KnowledgeMatchResult result = service.match(request);
+        assertThat(result.tier()).isEqualTo("NONE");
+        assertThat(result.matched()).isEmpty();
+        verify(repository, never()).findAll(any(Specification.class));
+    }
+
+    @Test
+    @DisplayName("匹配服务：入参为 null 时优雅返回空匹配并阻断全表查询")
+    void match_nullRequest_returnsEmptyAndNeverCallsRepository() {
+        KnowledgeMatchResult result = service.match(null);
+        assertThat(result.tier()).isEqualTo("NONE");
+        assertThat(result.matched()).isEmpty();
+        verify(repository, never()).findAll(any(Specification.class));
     }
 
     @Test
@@ -128,5 +150,21 @@ class WarehouseMatchServiceTest {
 
         assertThat(result.tier()).isEqualTo("NONE");
         assertThat(((List<WarehouseMatchedItem>) result.matched())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("过滤通用评分短语与长分句，防止长子句污染仓库名称匹配，同时保留合法业务词")
+    void filterGenericKeywords_filtersClauseText() {
+        List<String> raw = List.of(
+                "根据应答人全国各地自有或租赁仓库数量排序情况进行评分",
+                "自有或租赁仓库数量",
+                "优秀得2分",
+                "平湖仓",
+                "冷链物流",
+                "配送中心"
+        );
+        List<String> filtered = WarehouseMatchService.filterSpecificWarehouseKeywords(raw);
+        assertThat(filtered).contains("平湖仓", "冷链物流", "配送中心");
+        assertThat(filtered).doesNotContain("自有或租赁仓库数量", "优秀得2分");
     }
 }

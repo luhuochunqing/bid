@@ -71,4 +71,65 @@ class HeuristicTableColumnMapperTest {
 
         assertThat(mapping.headerRows()).isEqualTo(grid.rowCount());
     }
+
+    @Test
+    void infer_project1359Table2Schema_mappedCorrectly() {
+        String markdown = """
+                | 项目 | 评审要素 | 评审内容 | 最低分 | 最高分 |
+                |---|---|---|---|---|
+                | 一、诚信评价 | 公共信用信息报告（0分） | 不存在失信行为不扣分 | -10 | 0 |
+                | 二、财务状况（25分） | 财务综合评价（25） | 优良 | 15 | 25 |
+                """;
+        TableGrid grid = TableGridExtractor.extract(markdown);
+        TableColumnMapping mapping = HeuristicTableColumnMapper.infer(grid);
+
+        assertThat(mapping.parentDimCol()).isEqualTo(0);
+        assertThat(mapping.dimCol()).isEqualTo(1);
+        assertThat(mapping.detailCol()).isEqualTo(2);
+        assertThat(mapping.weightCol()).isEqualTo(4);
+    }
+
+    @Test
+    void infer_project1359Table3Schema_bracketNotOverwritingExplicitWeight() {
+        String markdown = """
+                | 评审项目 | 评审内容 | 最低分 | 最高分 |
+                |---|---|---|---|
+                | 应答人交易平台与履约交易平台对接方案（6分） | 对应答人对接方案进行评价 | 2 | 6 |
+                | 供货业绩（22分） | 对应答人供货业绩进行评价 | 3 | 7 |
+                """;
+        TableGrid grid = TableGridExtractor.extract(markdown);
+        TableColumnMapping mapping = HeuristicTableColumnMapper.infer(grid);
+
+        assertThat(mapping.dimCol()).isEqualTo(0);
+        assertThat(mapping.detailCol()).isEqualTo(1);
+        assertThat(mapping.weightCol()).isEqualTo(3);
+    }
+
+    @Test
+    void infer_packageLotWithExplicitScore_notRejected() {
+        String markdown = """
+                | 标段划分 | 评分因素 | 评分标准 | 分值 |
+                |---|---|---|---|
+                | 包1 | 业绩能力 | 业绩满分得10分 | 10 |
+                """;
+        TableGrid grid = TableGridExtractor.extract(markdown);
+        TableColumnMapping mapping = HeuristicTableColumnMapper.infer(grid);
+
+        assertThat(mapping.headerRows()).isEqualTo(1);
+        assertThat(mapping.weightCol()).isEqualTo(3);
+    }
+
+    @Test
+    void infer_packageLotWithoutExplicitScore_rejected() {
+        String markdown = """
+                | 标段划分 | 包名称 | 采购范围 |
+                |---|---|---|
+                | 标包1 | 办公耗材 | 采购A类物资 |
+                """;
+        TableGrid grid = TableGridExtractor.extract(markdown);
+        TableColumnMapping mapping = HeuristicTableColumnMapper.infer(grid);
+
+        assertThat(mapping.headerRows()).isEqualTo(grid.rowCount());
+    }
 }
+

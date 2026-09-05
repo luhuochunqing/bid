@@ -22,6 +22,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -120,5 +122,45 @@ class ProjectMatchServiceTest {
         assertThat(result.tier()).isEqualTo("NONE");
         assertThat(result.matchRatio()).isEqualTo(0);
         assertThat(result.matched()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("匹配服务：无约束请求（关键词全被过滤或为空且无时间约束）严禁全量匹配返回 FULL，应返回 NONE 待人工确认")
+    void noConstraints_returnsNoneRatherThanFull() {
+        ProjectMatchRequest request = new ProjectMatchRequest(List.of("优秀得7分", "情况"), null, null, 1);
+
+        KnowledgeMatchResult result = service.match(request);
+
+        assertThat(result.tier()).isEqualTo("NONE");
+        assertThat(result.matchRatio()).isEqualTo(0);
+        assertThat(result.matched()).isEmpty();
+        assertThat(result.matchDetail()).contains("未抽取到可执行的业绩匹配约束");
+        verify(repository, never()).findAll(any(Specification.class));
+    }
+
+    @Test
+    @DisplayName("匹配服务：入参为 null 时优雅返回空匹配并阻断全表查询")
+    void match_nullRequest_returnsEmptyAndNeverCallsRepository() {
+        KnowledgeMatchResult result = service.match(null);
+        assertThat(result.tier()).isEqualTo("NONE");
+        assertThat(result.matched()).isEmpty();
+        verify(repository, never()).findAll(any(Specification.class));
+    }
+
+    @Test
+    @DisplayName("过滤通用评分短语与长分句，防止长子句污染业绩行业匹配，同时保留合法业务词")
+    void filterGenericKeywords_filtersClauseText() {
+        List<String> raw = List.of(
+                "对应答人在2023年1月1日至2025年12月31日",
+                "为央企二级单位及以上或省级及以上政府机关所提供的与本项目类似采购供货服务数量进行评价",
+                "优秀得7分",
+                "电力",
+                "电商",
+                "电力供应情况",
+                "一般纳税人"
+        );
+        List<String> filtered = ProjectMatchService.filterSpecificProjectKeywords(raw);
+        assertThat(filtered).contains("电力", "电商", "电力供应情况", "一般纳税人");
+        assertThat(filtered).doesNotContain("优秀得7分");
     }
 }

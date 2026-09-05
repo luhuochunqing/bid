@@ -122,7 +122,7 @@ public class ScoreGlobalMergeExecutor {
         return output.items.stream()
                 .filter(item -> item != null && item.detail != null && !item.detail.isBlank())
                 .map(item -> new ScoreCandidate(
-                        item.code == null ? "" : item.code,
+                        cleanCode(item.code),
                         resolveDim(item.dim, item.detail),
                         item.detail,
                         item.weight == null ? null : BigDecimal.valueOf(item.weight),
@@ -130,6 +130,10 @@ public class ScoreGlobalMergeExecutor {
                         item.sourceText == null ? "" : item.sourceText,
                         null, "GLOBAL_MERGE"))
                 .toList();
+    }
+
+    private static String cleanCode(String code) {
+        return com.xiyu.bid.scoreparse.domain.ScoreCodeSanitizer.clean(code);
     }
 
     private static String resolveDim(String dim, String detail) {

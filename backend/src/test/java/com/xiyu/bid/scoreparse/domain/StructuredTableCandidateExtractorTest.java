@@ -356,6 +356,76 @@ class StructuredTableCandidateExtractorTest {
         assertThat(total).isEqualByComparingTo("100");
     }
 
+    @Test
+    void extract_real1359TablesJson_extractsAllCandidatesCleanly() throws Exception {
+        try (var is = getClass().getResourceAsStream("/scoreparse-golden/1359_tables_v1.json")) {
+            assertThat(is).as("1359 tables json fixture must exist in test resources").isNotNull();
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(is);
+            com.fasterxml.jackson.databind.JsonNode tablesNode = root.get("tables");
+            List<SidecarTableExtraction.TablePayload> tables = new java.util.ArrayList<>();
+            if (tablesNode != null && tablesNode.isArray()) {
+                for (com.fasterxml.jackson.databind.JsonNode t : tablesNode) {
+                    int tableIndex = t.get("tableIndex").asInt();
+                    boolean isScore = t.has("isScoreTable") && t.get("isScoreTable").asBoolean();
+                    List<List<SidecarTableExtraction.CellPayload>> rows = new java.util.ArrayList<>();
+                    if (t.has("rows") && t.get("rows").isArray()) {
+                        for (com.fasterxml.jackson.databind.JsonNode r : t.get("rows")) {
+                            List<SidecarTableExtraction.CellPayload> row = new java.util.ArrayList<>();
+                            for (com.fasterxml.jackson.databind.JsonNode c : r) {
+                                String text = c.has("text") ? c.get("text").asText() : "";
+                                int rowspan = c.has("rowspan") ? c.get("rowspan").asInt() : 1;
+                                int colspan = c.has("colspan") ? c.get("colspan").asInt() : 1;
+                                boolean isMergedContinue = c.has("isMergedContinue") && c.get("isMergedContinue").asBoolean();
+                                row.add(new SidecarTableExtraction.CellPayload(text, rowspan, colspan, isMergedContinue));
+                            }
+                            rows.add(row);
+                        }
+                    }
+                    tables.add(new SidecarTableExtraction.TablePayload(tableIndex, rows, isScore));
+                }
+            }
+            SidecarTableExtraction extraction = new SidecarTableExtraction(tables, List.of());
+            List<ScoreCandidate> candidates = StructuredTableCandidateExtractor.extract(extraction);
+
+            assertThat(candidates).isNotEmpty();
+            // 验证 parentDim 绝无分值列/最高分等污染
+            assertThat(candidates).noneMatch(c -> c.parentDim() != null && (c.parentDim().contains("最高分") || c.parentDim().contains("最低分")));
+            // 验证真实 1359 提取出供货业绩
+            assertThat(candidates).anyMatch(c -> (c.dim() != null && c.dim().contains("供货业绩")) || (c.detail() != null && c.detail().contains("供货业绩")));
+        }
+    }
+
+    @Test
+    void extract_raggedRowsWithRowspan_decrementsCorrectlyWithoutLeaking() {
+        // 第0行: 表头
+        // 第1行: 大类(rowspan=2), 项目A, 细则A(10分)
+        // 第2行(参差行，仅2格): 细则A2(5分) - 仅2格，比上一行短
+        // 第3行: 独立项, 独立细则(10分) - rowspan已结束，不应继承大类
+        List<List<SidecarTableExtraction.CellPayload>> rows = List.of(
+                List.of(new SidecarTableExtraction.CellPayload("大类", 1, 1, false),
+                        new SidecarTableExtraction.CellPayload("项目", 1, 1, false),
+                        new SidecarTableExtraction.CellPayload("细则", 1, 1, false)),
+                List.of(new SidecarTableExtraction.CellPayload("商务大类", 2, 1, false),
+                        new SidecarTableExtraction.CellPayload("项目A", 1, 1, false),
+                        new SidecarTableExtraction.CellPayload("细则A（10分）", 1, 1, false)),
+                List.of(new SidecarTableExtraction.CellPayload("商务大类", 1, 1, true),
+                        new SidecarTableExtraction.CellPayload("细则A2（5分）", 1, 1, false)),
+                List.of(new SidecarTableExtraction.CellPayload("独立项", 1, 1, false),
+                        new SidecarTableExtraction.CellPayload("独立细则（10分）", 1, 1, false))
+        );
+        SidecarTableExtraction.TablePayload table = new SidecarTableExtraction.TablePayload(1, rows, true);
+        List<ScoreCandidate> candidates = StructuredTableCandidateExtractor.extract(new SidecarTableExtraction(List.of(table), List.of()));
+
+        assertThat(candidates).hasSize(3);
+        // 第1行有 parentDim 商务大类
+        assertThat(candidates.get(0).parentDim()).isEqualTo("商务大类");
+        // 第2行有 parentDim 商务大类 (rowspan=2延续)
+        assertThat(candidates.get(1).parentDim()).isEqualTo("商务大类");
+        // 第3行是独立项，绝不能泄漏前一行的大类
+        assertThat(candidates.get(2).parentDim()).isNull();
+    }
+
     private static SidecarTableExtraction.CellPayload cell(String text) {
         return new SidecarTableExtraction.CellPayload(text, 1, 1, false);
     }

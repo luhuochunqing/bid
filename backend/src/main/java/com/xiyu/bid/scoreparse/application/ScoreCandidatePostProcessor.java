@@ -4,6 +4,7 @@
 // 维护声明: 纯编排：合并去噪→守卫→归并裁决→完整性回补→权重治理→run-summary 装配；落库仍归 AppService
 package com.xiyu.bid.scoreparse.application;
 
+import com.xiyu.bid.scoreparse.domain.DeductionItemPolicy;
 import com.xiyu.bid.scoreparse.domain.GhostCandidateFilter;
 import com.xiyu.bid.scoreparse.domain.ItemCountCheck;
 import com.xiyu.bid.scoreparse.domain.RecallOutcome;
@@ -192,7 +193,11 @@ public class ScoreCandidatePostProcessor {
         int dropped = 0;
         for (ScoreCandidate candidate : candidates) {
             BigDecimal w = candidate.weight();
-            if (w != null && w.compareTo(BigDecimal.ZERO) > 0 && w.compareTo(MAX_SINGLE_WEIGHT) <= 0) {
+            boolean isDeduction = isDeductionItem(candidate);
+            boolean validWeight = w != null && ((w.compareTo(BigDecimal.ZERO) > 0)
+                    || (w.compareTo(BigDecimal.ZERO) == 0 && isDeduction))
+                    && w.compareTo(MAX_SINGLE_WEIGHT) <= 0;
+            if (validWeight) {
                 valid.add(candidate);
             } else {
                 dropped++;
@@ -202,5 +207,9 @@ public class ScoreCandidatePostProcessor {
             log.warn("丢弃权重无效或超界（<=0 或 >100）的候选 {} 项（spec Edge Cases）", dropped);
         }
         return valid;
+    }
+
+    private static boolean isDeductionItem(ScoreCandidate candidate) {
+        return DeductionItemPolicy.isDeduction(candidate);
     }
 }

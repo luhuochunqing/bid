@@ -100,6 +100,30 @@ class GhostCandidateFilterTest {
     }
 
     @Test
+    void filter_deductionItemWithExplicitRules_kept() {
+        ScoreCandidate deduction = new ScoreCandidate(
+                "", "公共信用信息报告（0分）",
+                "不存在失信行为，情节轻微【不扣分】/存在质量、诚信以外失信行为【扣5分】/存在失信行为【扣10分】",
+                BigDecimal.ZERO, null, null, "整行文本", "R2", null
+        );
+
+        List<ScoreCandidate> result = filter.filter(List.of(deduction));
+        assertThat(result).containsExactly(deduction);
+    }
+
+    @Test
+    void filter_pureCreditItemWithoutFenChar_kept() {
+        ScoreCandidate pureCredit = new ScoreCandidate(
+                "1", "诚信评价",
+                "不存在失信行为记录的不扣，近三年存在严重失信行为的每项扣减2",
+                BigDecimal.ZERO, null, null, "整行文本", "R2", null
+        );
+
+        List<ScoreCandidate> result = filter.filter(List.of(pureCredit));
+        assertThat(result).containsExactly(pureCredit);
+    }
+
+    @Test
     void filter_nullInput_returnsEmpty() {
         assertThat(filter.filter(null)).isEmpty();
     }

@@ -4270,3 +4270,34 @@ winbid-test 项目 1371（Project 21 MRO）评分标准四列反复错：财务�
 
 
 
+
+---
+
+## 225. 评分标准解析编号乱码、权重错位与缺项乱序（项目 1359 / 2026-09-05）
+
+**背景**：
+winbid-test 项目 1359（AI 评分标准解析）存在 4 个顽固问题：
+1. **编号乱码**：编号出现字符串 `"null"`（如 `"null.1"`）；
+2. **比分权重错误**：Markdown 参差行坐标映射错位，且最高分列被单元格括号分值覆写；
+3. **评分项缺项与乱序**：商务评分中诚信评价（扣分项）被程序性条款正则过滤；综合评价小项在抽取合并后顺序错乱；
+4. **业绩与仓储满足状态**：停用词过多导致满足状态判定为不满足。
+
+**根因**：
+1. LLM/OCR 抽取的 `code` 偶尔为字面量 `"null"` / `"NULL"`，后端未做全链路清洗，前端未过滤无效占位符直接拼接；
+2. Markdown 表格参差行（ragged rows）缺少右对齐左补空，列头映射器在识别到显式分值列时被后续单元格括号提取的叶子分值冲刷；
+3. 诚信评价条款包含扣分或程序性前附表排他词，被程序性条款正则误杀；综合评价子项合并时未保留输入物理行顺序；
+4. 业绩与仓储匹配时过度分词引入宽泛停用词导致匹配评分失败。
+
+**修复**：
+- `ScoreCandidateMapper` 与 `ScoreCandidatePostProcessor` 全链路清洗 `"null"` / `"NULL"` / `"undefined"`；前端 `scoreParseTask.js` 过滤无效 code 为安全占位符；
+- `TableGrid` 支持 Markdown 参差行对齐，`HeuristicTableColumnMapper` 与 `CellAnchoredScoreExtractor` 建立最高分列防覆写保护与扣分项救生通道；
+- `ScoreItemOrderPolicy` 和 `ScoreMergeResultGuard` 锁定表格物理行序与父维度优先；
+- `ProjectMatchService` 与 `WarehouseMatchService` 优化停用词与满足状态判定。
+
+**教训**：
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| 字符串字面量 "null" 泄漏到 UI | 序列化与上游提示词返回了 "null" 字符串而非空值，仅做 `!= null` 判断漏防 | 统一做 `isInvalidCode` / 字符串全链路清洗正则过滤 `^(null|undefined|none|n/a)$` |
+| 表格解析参差行导致列索引位移 | Markdown 表格单元格数与表头不一致时按左对齐填充，破坏列映射关系 | 参差行按右对齐左补空，严格按物理表头对齐 |
+| 扣分项被误当成程序性条款过滤 | 扣分/诚信条款常含扣除、违规等强特征词，被统一黑名单拦截 | 增设扣分与给分条款救生白名单（whitelisting） |
+

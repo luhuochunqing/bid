@@ -116,20 +116,24 @@ public class ScoreGlobalMergeOrchestrator {
                     valid.size(), outcome.hallucinationDropped());
             return MergeStats.notInvoked("GUARD_FILTERED_ALL");
         }
-        // Phase 3a: 结构化通道候选（源自 Word XML）不可被 LLM 归并替换；若被丢弃则回注
+        // Phase 3a: 结构化通道候选（源自 Word XML 原生结构化表格）不可被 LLM 丢弃；若被遗漏则安全回注
         List<ScoreCandidate> accepted = outcome.accepted();
-        List<ScoreCandidate> structuredInPool = valid.stream()
+        List<ScoreCandidate> structuredTableCandidates = valid.stream()
                 .filter(c -> "STRUCTURED_TABLE".equals(c.semanticPattern()))
                 .toList();
-        if (!structuredInPool.isEmpty()) {
+        if (!structuredTableCandidates.isEmpty()) {
             java.util.Set<String> acceptedKeys = accepted.stream()
-                    .map(c -> normalizeKey(c.dim(), c.detail()))
+                    .map(ScoreGlobalMergeOrchestrator::makeDeduplicationKey)
+                    .filter(k -> !k.equals("|"))
                     .collect(java.util.stream.Collectors.toSet());
-            List<ScoreCandidate> restored = structuredInPool.stream()
-                    .filter(c -> !acceptedKeys.contains(normalizeKey(c.dim(), c.detail())))
+            List<ScoreCandidate> restored = structuredTableCandidates.stream()
+                    .filter(c -> {
+                        String key = makeDeduplicationKey(c);
+                        return !key.equals("|") && !acceptedKeys.contains(key);
+                    })
                     .toList();
             if (!restored.isEmpty()) {
-                log.info("全局归并回注结构化候选（LLM 不可替代 Word XML 权威数据）: restored={}", restored.size());
+                log.info("全局归并回注结构化表格候选（STRUCTURED_TABLE 原生权威）: restored={}", restored.size());
                 accepted = new java.util.ArrayList<>(accepted);
                 accepted.addAll(restored);
             }
@@ -188,10 +192,16 @@ public class ScoreGlobalMergeOrchestrator {
                 ? text : text.substring(0, ScoreParseConstants.SECTION_TEXT_LIMIT);
     }
 
-    private static String normalizeKey(String dim, String detail) {
-        String d = dim == null ? "" : dim.replaceAll("\\s+", "").trim();
-        String det = detail == null ? "" : detail.replaceAll("\\s+", "").trim();
-        return d + "|" + det.substring(0, Math.min(det.length(), 50));
+    private static String normalizeText(String text) {
+        return text == null ? "" : text.replaceAll("\\s+", "");
+    }
+
+    private static String makeDeduplicationKey(ScoreCandidate c) {
+        if (c == null) return "|";
+        String dim = c.dim() == null ? "" : normalizeText(c.dim());
+        String detail = c.detail() == null ? "" : normalizeText(c.detail());
+        String shortDetail = detail.length() > 50 ? detail.substring(0, 50) : detail;
+        return dim + "|" + shortDetail;
     }
 
     /**

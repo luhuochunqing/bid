@@ -28,19 +28,66 @@ public final class TableGrid {
             return;
         }
         int maxCols = 0;
+        for (List<String> row : rows) {
+            if (row != null) {
+                maxCols = Math.max(maxCols, row.size());
+            }
+        }
         List<List<String>> copy = new ArrayList<>(rows.size());
         for (List<String> row : rows) {
             if (row == null) {
                 copy.add(List.of());
+            } else if (row.size() < maxCols && isRightAlignedRow(row)) {
+                List<String> padded = new ArrayList<>(maxCols);
+                int padCount = maxCols - row.size();
+                for (int i = 0; i < padCount; i++) {
+                    padded.add("");
+                }
+                padded.addAll(row);
+                copy.add(Collections.unmodifiableList(padded));
             } else {
                 List<String> rowCopy = new ArrayList<>(row);
-                maxCols = Math.max(maxCols, rowCopy.size());
+                while (rowCopy.size() < maxCols) {
+                    rowCopy.add("");
+                }
                 copy.add(Collections.unmodifiableList(rowCopy));
             }
         }
         this.rows = Collections.unmodifiableList(copy);
         this.rowCount = this.rows.size();
         this.colCount = maxCols;
+    }
+
+    private static boolean isRightAlignedRow(List<String> row) {
+        if (row.isEmpty()) {
+            return false;
+        }
+        String first = row.get(0).trim();
+        // 若第一列本身已具备编号特征（纯数字、字母编号、中文数字章节如一/二、顿号或括号标号），禁止左补空
+        if (first.matches("^\\d+(?:[-—.]\\d+)*[、.．]?$")
+                || first.matches("^[A-Za-z]\\d+$")
+                || first.matches("^[一二三四五六七八九十百]+[、.．]?$")
+                || first.matches("^[（(][\\d一二三四五六七八九十]+[)）]$")) {
+            return false;
+        }
+        String last = row.get(row.size() - 1).trim();
+        // 尾列必须为合法的非负分值权重（0-100），排除负数扣分（如 -10）及非分值文本
+        if (!last.matches("^[~≈]?\\d{1,3}(?:\\.\\d+)?\\s*(?:分|%)?$")) {
+            return false;
+        }
+        String numStr = last.replaceAll("[^0-9.]", "");
+        if (numStr.isEmpty()) {
+            return false;
+        }
+        int dotIdx = numStr.indexOf('.');
+        String intPart = dotIdx >= 0 ? numStr.substring(0, dotIdx) : numStr;
+        if (intPart.length() > 3 || (intPart.length() == 3 && !intPart.equals("100"))) {
+            return false;
+        }
+        if (intPart.length() == 3 && dotIdx >= 0 && !numStr.substring(dotIdx + 1).matches("^0+$")) {
+            return false;
+        }
+        return true;
     }
 
     public int rowCount() {

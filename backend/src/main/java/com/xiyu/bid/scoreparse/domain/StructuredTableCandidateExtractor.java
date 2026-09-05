@@ -34,34 +34,18 @@ public final class StructuredTableCandidateExtractor {
     }
 
     public static List<ScoreCandidate> extract(SidecarTableExtraction extraction) {
-        if (extraction == null || extraction.tables().isEmpty()) {
-            return List.of();
-        }
-
+        if (extraction == null || extraction.tables().isEmpty()) return List.of();
         List<SidecarTableExtraction.TablePayload> scoreTables = filterScoreTables(extraction.tables());
-        if (scoreTables.isEmpty()) {
-            return List.of();
-        }
-
-        List<ScoreCandidate> candidates = new ArrayList<>();
-        for (SidecarTableExtraction.TablePayload table : scoreTables) {
-            candidates.addAll(extractFromTable(table));
-        }
-        return candidates;
+        return scoreTables.stream().flatMap(t -> extractFromTable(t).stream()).toList();
     }
 
     private static List<SidecarTableExtraction.TablePayload> filterScoreTables(List<SidecarTableExtraction.TablePayload> tables) {
-        List<SidecarTableExtraction.TablePayload> marked = tables.stream()
-                .filter(SidecarTableExtraction.TablePayload::isScoreTable)
-                .toList();
-        if (!marked.isEmpty()) {
-            return marked;
-        }
-        // 无评分标记时，回退到所有含足够行数的表格（至少3行：表头+2行数据）
-        return tables.stream()
-                .filter(t -> t.rows() != null && t.rows().size() >= 3)
-                .toList();
+        List<SidecarTableExtraction.TablePayload> marked = tables.stream().filter(SidecarTableExtraction.TablePayload::isScoreTable).toList();
+        return !marked.isEmpty() ? marked : tables.stream().filter(t -> t.rows() != null && t.rows().size() >= 3).toList();
     }
+
+    private static final int MAX_PARENT_DIM_COLS = 3;
+    private static final Pattern NON_DIM_TEXT = Pattern.compile("^(?:\\d+(?:\\.\\d+)?(?:分|%)?|最低分|最高分|分值|满分|权重|得分)$");
 
     private static List<ScoreCandidate> extractFromTable(SidecarTableExtraction.TablePayload table) {
         List<ScoreCandidate> candidates = new ArrayList<>();
@@ -70,66 +54,75 @@ public final class StructuredTableCandidateExtractor {
             return candidates;
         }
 
-        String activeParentDim = null;
-        int activeParentRowspanRemaining = 0;
+        String[] colParentDim = new String[MAX_PARENT_DIM_COLS];
+        int[] colRemainingRowspan = new int[MAX_PARENT_DIM_COLS];
         for (int r = 0; r < rows.size(); r++) {
             List<SidecarTableExtraction.CellPayload> row = rows.get(r);
             if (row == null || row.isEmpty()) {
+                decrementRemaining(colRemainingRowspan, colParentDim);
                 continue;
             }
-            for (int i = 0; i < Math.min(row.size(), 3); i++) {
+            int scanLimit = Math.min(row.size(), MAX_PARENT_DIM_COLS);
+            for (int i = 0; i < scanLimit; i++) {
                 SidecarTableExtraction.CellPayload cell = row.get(i);
                 if (!cell.isMergedContinue() && cell.rowspan() > 1) {
                     String text = stripBracketWeight(cell.text());
-                    if (text != null) {
-                        activeParentDim = text;
-                        activeParentRowspanRemaining = cell.rowspan();
+                    if (text != null && !NON_DIM_TEXT.matcher(text.trim()).find()) {
+                        colParentDim[i] = text;
+                        colRemainingRowspan[i] = cell.rowspan();
                     }
                 }
             }
             List<SidecarTableExtraction.CellPayload> visibleCells = visibleCells(row);
-            if (visibleCells.isEmpty()) {
-                if (activeParentRowspanRemaining > 0) activeParentRowspanRemaining--;
-                continue;
-            }
-
-            if (isHeaderRow(visibleCells, r)) {
-                if (activeParentRowspanRemaining > 0) activeParentRowspanRemaining--;
+            if (visibleCells.isEmpty() || isHeaderRow(visibleCells, r)) {
+                decrementRemaining(colRemainingRowspan, colParentDim);
                 continue;
             }
             String parentDim = extractParentDim(row);
-            if (parentDim == null && activeParentRowspanRemaining > 0) parentDim = activeParentDim;
-            if (activeParentRowspanRemaining > 0) activeParentRowspanRemaining--;
-            ScoreCandidate candidate = parseRow(visibleCells, r, parentDim);
-            if (candidate != null) {
-                candidates.add(candidate);
+            if (parentDim == null) {
+                String topParent = colRemainingRowspan[0] > 0 ? colParentDim[0] : null;
+                String subParent = null;
+                for (int i = scanLimit - 1; i >= 1; i--) {
+                    if (colRemainingRowspan[i] > 0 && colParentDim[i] != null) {
+                        subParent = colParentDim[i];
+                        break;
+                    }
+                }
+                parentDim = topParent != null && subParent != null && !topParent.equals(subParent)
+                        ? topParent + " / " + subParent : (subParent != null ? subParent : topParent);
             }
+            decrementRemaining(colRemainingRowspan, colParentDim);
+            ScoreCandidate candidate = parseRow(visibleCells, r, parentDim);
+            if (candidate != null) candidates.add(candidate);
         }
         return candidates;
     }
 
-    /**
-     * 从完整行（含合并延续单元格）中提取父级维度。
-     * python-docx 对 vMerge 延续位置返回同一 cell 对象，文本即父级文本。
-     * 扫描列 0-2，取最后一个非空合并延续单元格的文本，去除括号分值。
-     */
     private static String extractParentDim(List<SidecarTableExtraction.CellPayload> fullRow) {
         String parentText = null;
-        int scanLimit = Math.min(fullRow.size(), 3);
+        int scanLimit = Math.min(fullRow.size(), MAX_PARENT_DIM_COLS);
         for (int i = 0; i < scanLimit; i++) {
             SidecarTableExtraction.CellPayload cell = fullRow.get(i);
             if (cell.isMergedContinue() && !cell.text().isBlank()) {
-                parentText = cell.text();
+                String stripped = stripBracketWeight(cell.text());
+                if (stripped != null && !NON_DIM_TEXT.matcher(stripped.trim()).find()) {
+                    parentText = stripped;
+                }
             }
         }
-        return parentText == null ? null : stripBracketWeight(parentText);
+        return parentText;
     }
 
     private static String stripBracketWeight(String text) {
         if (text == null || text.isBlank()) return null;
-        String dim = BRACKET_WEIGHT.matcher(text).replaceAll("").trim();
-        dim = dim.replace("\n", " ").replaceAll("\\s+", " ").trim();
+        String dim = BRACKET_WEIGHT.matcher(text).replaceAll("").replace("\n", " ").replaceAll("\\s+", " ").trim();
         return dim.isEmpty() ? null : dim;
+    }
+
+    private static void decrementRemaining(int[] remaining, String[] dims) {
+        for (int i = 0; i < remaining.length; i++) {
+            if (remaining[i] > 0 && --remaining[i] == 0) dims[i] = null;
+        }
     }
 
     /** 提取非合并延续的可见单元格。 */
@@ -255,27 +248,19 @@ public final class StructuredTableCandidateExtractor {
         int bestLen = 0;
         for (int i = 0; i < texts.size(); i++) {
             String t = texts.get(i).trim();
-            if (t.isEmpty()) continue;
-            if (i == 0 && CODE_PATTERN.matcher(t).matches()) continue;
-            if (t.length() > bestLen) {
-                bestLen = t.length();
-                best = t;
-            }
+            if (t.isEmpty() || (i == 0 && CODE_PATTERN.matcher(t).matches())) continue;
+            if (t.length() > bestLen) { bestLen = t.length(); best = t; }
         }
         return best != null ? best : "";
     }
 
     private static String extractDim(List<String> texts) {
-        // 剩余列中最长中文短列
         String best = null;
         for (int i = 0; i < texts.size(); i++) {
             String t = texts.get(i).trim();
-            if (t.isEmpty()) continue;
-            if (i == 0 && CODE_PATTERN.matcher(t).matches()) continue;
+            if (t.isEmpty() || (i == 0 && CODE_PATTERN.matcher(t).matches())) continue;
             if (t.length() <= DIM_MAX_CHARS && CONTAINS_HAN.matcher(t).find()) {
-                if (best == null || t.length() > best.length()) {
-                    best = t;
-                }
+                if (best == null || t.length() > best.length()) best = t;
             }
         }
         if (best != null) {
