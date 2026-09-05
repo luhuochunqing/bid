@@ -4,8 +4,8 @@ space: engineering
 category: integration
 tags: [integration, tender, event-bus, event-sdk, crm, push]
 created: 2026-08-12
-updated: 2026-08-28
-health_checked: 2026-09-05
+updated: 2026-09-06
+health_checked: 2026-09-06
 sources:
   - backend/src/main/java/com/xiyu/bid/integration/tenderevent/
   - backend/src/main/resources/db/migration-mysql/V1185__create_tender_event_logs.sql
@@ -18,7 +18,7 @@ backlinks:
 
 ## 结论
 
-标讯创建后，平台向西域 CRM 事件总线推送一条"事件通知消息"，`data` 只放关键标识（`tenderId`/`externalId`），由 CRM 通过已有接口回查详情。**不是传输完整业务数据**。
+标讯创建后，平台向西域 CRM 事件总线推送一条"事件通知消息"。**2026-09 演进：`data` 从"只放关键标识（`tenderId`/`externalId`）由 CRM 回查详情"改为直接携带标讯详情页全量展示字段（20 字段），供 CRM 直接消费、不再回查**（应客户全量字段推送要求，字段清单与链路 ID 约束详见 §11）。推送触发时机、策略、开关、线程池、流水编码均不变。
 
 ## 触发时机
 
@@ -51,7 +51,7 @@ backlinks:
 ```
 
 - 这是 **SDK `sendEvent` 组装的标准 wire 形态（4 字段）**，由 `TenderEventSdkSender` 调用 SDK 标准通道发出（2026-08-27 客户明确指示，详见 §8）；`serviceName` 是网关投递路由的必带字段
-- `data` 是 **JSON 字符串**（网关 `EventContentReqDto.data` 声明为 String），由 `TenderEventSdkSender.serializeData` 把业务载荷 Map 序列化后作为 `eventContent` 传给 SDK；只含 `tenderId`（必填）和 `externalId`（有值才入 Map）
+- `data` 是 **JSON 字符串**（网关 `EventContentReqDto.data` 声明为 String），由 `TenderEventSdkSender.serializeData` 把业务载荷 Map 序列化后作为 `eventContent` 传给 SDK；**2026-09 起含标讯全量 20 字段（清单见 §11），null 字段省略**（此前只含 `tenderId`/`externalId`）
 - 链路追踪 `traceId` / `spanId` / `parentId` 经 `EventTrackReq` 由 SDK 写入 HTTP Header，不进 body；`key`/`time` 也不进 body（那是事件库内部存储形态字段，非 SDK wire 契约）
 - ⚠️ **契约坑**：若 `data` 传原始对象而非 JSON 字符串，网关返回 `400 Bad Request`（2026-08-25 实战踩坑）
 
@@ -253,4 +253,12 @@ backend/src/main/java/com/xiyu/bid/integration/tenderevent/
 - **教训**：
   - 测试中绝不使用未配置的 `.local` 假域名，涉及 HTTP 的测试一律使用 `MockWebServer` 监听 `127.0.0.1:port`；
   - 任何包含重试/常驻后台线程的组件必须实现 `AutoCloseable` 并在容器销毁时显式终止内部循环。
+
+### 11. 全量字段推送演进 + 链路 ID varchar(19) 雪花约束（2026-09-06）
+
+- **演进背景**：应 CRM 客户要求，事件推送从"轻量标识 + CRM 回查"改为"直接携带全量业务字段"，CRM 无需回查即可消费。推送触发/策略/开关/线程池/流水编码均不变，仅扩充 `data` 字段（最小加法）。
+- **标讯 data 全量字段（20 个，`TenderEventPayload`）**：`tenderId` / `externalId` / `title`(项目名称) / `purchaserName`(招标主体) / `region`(总部所在地) / `registrationDeadline`(报名截止) / `bidOpeningTime`(开标时间) / `customerType` / `priority` / `projectType`（三者存后端枚举码，`TenderEventPayloadMapper.toData` 序列化时转中文标签）/ 联系人1（`contactName`/`contactPhone`/`contactTel`/`contactMail`/`contactNature`）/ 联系人2（`contactName2`/`contactPhone2`/`contactTel2`/`contactMail2`/`contactNature2`）。
+- **商机 data 全量字段（10 个，`OpportunityPredictionEventPayload`）**：见 [[opportunity-prediction-reminder]]。
+- **⚠️ 链路 ID varchar(19) 陷阱（高价值）**：客户事件库 `trace_id`/`span_id` 列宽为 **varchar(19)**。`TenderEventSnowflakeUtil` 生成 "t"/"s" 前缀 + 18 位雪花 ID = 恰好 19 字符；**UUID 去横线后 32 字符会超长写入失败**。标讯侧早已用雪花 ID，商机侧 `OpportunityPredictionEventPublisher` 曾遗漏仍用 UUID（2026-09-06 修复：`spanId` 改 `nextSpanId()`，`currentTraceId()` 加 ≤19 校验 + 回退 `nextTraceId()`）。复用上游 MDC traceId 时同样必须校验 ≤19。
+- **枚举中文映射同源**：`customerType`/`priority`/`projectType`/`resultType` 的中文标签与 `ProjectExportService`、前端 `projectListFormatters.js` 同源，未知值 fallback 原值。三处映射表当前重复（技术债，`duplicate-implementations` 门禁不检测常量表，待单独任务收敛）。
 
