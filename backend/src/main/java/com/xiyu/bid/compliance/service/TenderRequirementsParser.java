@@ -68,6 +68,7 @@ public final class TenderRequirementsParser {
                 vetoClauses.add(new TenderRequirements.VetoClause(clause, stringListAt(node, "keywords")));
             }
             TenderRequirements.DepositRequirement depositRequirement = parseDepositRequirement(root.path("depositRequirement"));
+            TenderRequirements.BidLetterRequirement bidLetterRequirement = parseBidLetterRequirement(root.path("bidLetterRequirement"));
             return new TenderRequirements(
                     scoringItems,
                     stringListAt(root, "mandatoryQualifications"),
@@ -75,10 +76,30 @@ public final class TenderRequirementsParser {
                     stringListAt(root, "compositionRequirements"),
                     stringListAt(root, "formatRequirements"),
                     depositRequirement,
+                    bidLetterRequirement,
                     false);
         } catch (JsonProcessingException e) {
             return TenderRequirements.missingSentinel();
         }
+    }
+
+    private static TenderRequirements.BidLetterRequirement parseBidLetterRequirement(final JsonNode node) {
+        if (node == null || !node.isObject()) {
+            return null;
+        }
+        String letterType = textAt(node, "letterType");
+        String recipientName = textAt(node, "recipientName");
+        Integer validityDays = node.path("validityDays").isNumber() ? node.path("validityDays").asInt() : null;
+        String description = textAt(node, "description");
+        if (letterType.isBlank() && recipientName.isBlank() && validityDays == null && description.isBlank()) {
+            return null;
+        }
+        return new TenderRequirements.BidLetterRequirement(
+                letterType.isBlank() ? null : letterType,
+                recipientName.isBlank() ? null : recipientName,
+                validityDays,
+                description.isBlank() ? null : description
+        );
     }
 
     private static TenderRequirements.DepositRequirement parseDepositRequirement(final JsonNode node) {

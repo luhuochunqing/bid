@@ -45,66 +45,13 @@ public final class BasicInfoCheckPolicy {
         return QualityCheckItemResult.fail(item, "封面缺少必要关键要素: " + String.join("、", missing), "请在封面第一页补全" + String.join("、", missing), evidences);
     }
 
-    /** 投标函/报价函/响应函识别词表：选页判定与证据摘录必须共用同一份. */
-    static final String[] BID_LETTER_KEYWORDS = {
-            "投标函", "报价函", "响应函", "投标响应函", "谈判响应函", "磋商响应函",
-            "采购响应函", "投 标 函", "报 价 函", "响 应 函", "投标承诺函", "报价承诺函", "投标申请函"
-    };
-
-    /** 称谓抬头匹配模式：支持致：、法定采购人/招标人占位符、以及机构名称加冒号抬头. */
-    private static final Pattern SALUTATION_PATTERN = Pattern.compile(
-            "(?:致[：:\\s]|（(?:采购人|招标人|采购代理|招标代理).*?）|\\((?:采购人|招标人|采购代理|招标代理).*?\\)|"
-                    + "(?:采购人|招标人|采购代理|招标代理).*?[：:]|[\\u4e00-\\u9fa5]{2,30}(?:公司|集团|中心|局|处|院|指挥部|委员会|学校|医院|银行|部)\\s*(?:（[^）]+）|\\([^)]+\\))?\\s*[：:])"
-    );
-
     public static QualityCheckItemResult checkBidLetterFormat(final DocumentContent bidDoc) {
-        BidQualityCheckItem item = BidQualityCheckItem.BID_LETTER_FORMAT;
-        PageMatch match = findBestBidLetterPage(bidDoc);
-        if (match != null) {
-            boolean hasSalutation = isSalutationPresent(match.text());
-            String title = resolveEvidenceTitle(match.text());
-            List<QualityEvidence> evidences = List.of(QualityEvidence.bid(
-                    title, match.pageNumber(), snippetAround(match.text(), 200, BID_LETTER_KEYWORDS)));
-            if (hasSalutation) {
-                return QualityCheckItemResult.pass(item, "投标函/报价函格式规范，包含致招标人/采购人称谓与承诺段落", evidences);
-            }
-            return QualityCheckItemResult.manualReview(item, "已找到投标函/报价函，但未检测到标准致招标人或采购人称谓，建议复核", "请确认投标函/报价函抬头致招标人或采购人称谓是否准确", evidences);
-        }
-        return QualityCheckItemResult.fail(item, "未检索到投标函或报价函独立章节", "请在投标文件中添加标准格式的《投标函》或《报价函》", Collections.emptyList());
+        return BidLetterCheckPolicy.check(bidDoc);
     }
 
-    /** 择优挑选实质函件页：优先匹配同时具备称谓与承诺的正文页，防止停留在目录页（TOC）. */
-    static PageMatch findBestBidLetterPage(final DocumentContent bidDoc) {
-        PageMatch firstMatch = null;
-        PageMatch bestMatch = null;
-        for (DocumentContent.PageContent page : bidDoc.pages()) {
-            String text = page.text();
-            if (containsAnyKeyword(text, BID_LETTER_KEYWORDS)) {
-                PageMatch current = new PageMatch(page.pageNumber(), text);
-                if (firstMatch == null) firstMatch = current;
-                boolean salutation = isSalutationPresent(text);
-                boolean commitment = isCommitmentPresent(text);
-                if (salutation && commitment) return current;
-                if (salutation && bestMatch == null) bestMatch = current;
-            }
-        }
-        return bestMatch != null ? bestMatch : firstMatch;
-    }
-
-    static boolean isSalutationPresent(final String text) {
-        return text != null && !text.isBlank() && SALUTATION_PATTERN.matcher(text).find();
-    }
-
-    static boolean isCommitmentPresent(final String text) {
-        if (text == null || text.isBlank()) return false;
-        return text.contains("承诺") || text.contains("我方") || text.contains("仔细研究") || text.contains("保证")
-                || text.contains("遵照") || text.contains("交付") || text.contains("有效期") || text.contains("撤销");
-    }
-
-    private static String resolveEvidenceTitle(final String text) {
-        if (text != null && (text.contains("报价函") || text.contains("报 价 函"))) return "报价函章节";
-        if (text != null && (text.contains("响应函") || text.contains("响 应 函"))) return "响应函章节";
-        return "投标函章节";
+    public static QualityCheckItemResult checkBidLetterFormat(
+            final DocumentContent bidDoc, final TenderRequirements.BidLetterRequirement requirement) {
+        return BidLetterCheckPolicy.check(bidDoc, requirement);
     }
 
     public static QualityCheckItemResult checkAuthorizationLetter(final DocumentContent bidDoc) {

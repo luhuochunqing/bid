@@ -217,10 +217,10 @@ class BidQualityCheckAsyncExecutorTest {
                 .thenReturn(Optional.empty());
         when(requirementsExtractor.extract(tenderDoc)).thenReturn(TenderRequirements.empty());
         when(kbLoader.queryKnowledgeBases(any())).thenReturn(KnowledgeQueryOutcome.empty());
-        // 前 6 次调用合法，其后全部非法 → 仅 2 个项失败，低于阈值 3
+        // 前 7 次调用合法，其后全部非法 → 仅 2 个项失败，低于阈值 3
         String legal = "{\"status\":\"PASS\",\"conclusion\":\"核查通过\"}";
         when(aiProvider.chatCompletionJsonObject(anyString(), anyInt()))
-                .thenReturn(legal, legal, legal, legal, legal, legal)
+                .thenReturn(legal, legal, legal, legal, legal, legal, legal)
                 .thenReturn("不是合法 JSON 文本");
 
         Logger executorLogger = (Logger) LoggerFactory.getLogger(BidQualityCheckAsyncExecutor.class);

@@ -190,6 +190,8 @@ public final class SemanticPageRetriever {
                     "汇款回执", "保证金转账", "保证金缴纳", "转账凭证", "担保凭证", "保函原件", "基本账户");
             case DEPOSIT_REFUND -> addCues(cues, "退款信息表", "保证金退还", "退还账户", "退款开户行", "基本存款账户",
                     "退保证金", "开户许可证");
+            case BID_LETTER_FORMAT -> addCues(cues, "投标函", "报价函", "响应函", "投标书", "致招标人", "致采购人",
+                    "投标总价", "投标有效期", "法人或授权代表", "投标人盖章", "法定代表人签字");
             default -> { }
         }
         return cues;
@@ -209,6 +211,17 @@ public final class SemanticPageRetriever {
         req.formatRequirements().forEach(fmt -> addCue(cues, fmt));
         if (req.depositRequirement() != null && req.depositRequirement().description() != null) {
             addCue(cues, req.depositRequirement().description());
+        }
+        if (req.bidLetterRequirement() != null) {
+            if (req.bidLetterRequirement().letterType() != null) {
+                addCue(cues, req.bidLetterRequirement().letterType());
+            }
+            if (req.bidLetterRequirement().recipientName() != null) {
+                addCue(cues, req.bidLetterRequirement().recipientName());
+            }
+            if (req.bidLetterRequirement().description() != null) {
+                addDescriptionCues(cues, req.bidLetterRequirement().description());
+            }
         }
         return cues;
     }

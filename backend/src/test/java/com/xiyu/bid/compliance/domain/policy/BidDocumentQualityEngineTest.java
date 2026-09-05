@@ -247,4 +247,84 @@ class BidDocumentQualityEngineTest {
         assertThat(depositReceipt.conclusion()).contains("已附投标保证金汇款回单或电子保函凭证");
         assertThat(depositReceipt.evidences()).isNotEmpty();
     }
+
+    @Test
+    @DisplayName("投标函强凭证直通测试：标书已包含规范投标函正文与要素时，确定性强通过直通，无需调用 LLM，降低成本与抗抖动")
+    void testEvaluateAll_WhenStrongBidLetterPresent_PassesThroughWithoutLlmOverriding() {
+        String tenderText = "前附表：提交投标文件包括投标函，投标有效期为90日历天。";
+        DocumentContent tenderDoc = DocumentContent.fromText("tender.pdf", "hash_t", tenderText);
+
+        String bidPage = """
+                投标文件 文件二  报价函
+                致：上海西域机电系统有限公司：
+                我方已仔细研究了贵司招标文件的全部条款，愿意遵照招标文件要求交付全部货物。
+                我方承诺在招标文件规定的投标有效期90日历天内不修改、不撤销投标文件。
+                供应商：西域智慧供应链（上海）股份公司（盖公章）
+                法定代表人或授权代表（签字）：王五
+                日期：2026年09月05日
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid", bidPage);
+
+        TenderRequirements requirements = TenderRequirements.empty()
+                .withBidLetterRequirement(new TenderRequirements.BidLetterRequirement(
+                        "报价函", "上海西域机电系统有限公司", 90, "格式为报价函，有效期90天"));
+
+        java.util.concurrent.atomic.AtomicInteger llmBidLetterCallCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        LlmAdjudicator llm = new LlmAdjudicator(prompt -> {
+            if (prompt.contains("裁决检查项「" + BidQualityCheckItem.BID_LETTER_FORMAT.getTitle() + "」")) {
+                llmBidLetterCallCount.incrementAndGet();
+                return LlmVerdict.success(new LlmVerdict("FAIL", "", "LLM误判覆盖", ""));
+            }
+            return LlmVerdict.success(new LlmVerdict("PASS", "", "通过", ""));
+        });
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, tenderDoc, Collections.emptyList(), requirements, Set.of(), llm, (p, s) -> { });
+
+        QualityCheckItemResult bidLetter = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.BID_LETTER_FORMAT.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(llmBidLetterCallCount.get())
+                .as("标书已包含规范完备的投标函正文时，坚决不调 LLM，防止抖动与成本浪费")
+                .isEqualTo(0);
+        assertThat(bidLetter.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(bidLetter.conclusion()).contains("投标函/报价函格式规范，要素完备");
+        assertThat(bidLetter.evidences()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("投标函存疑裁决接通测试：标书仅在目录页出现投标函被拦截时，成功接通 LLM 深度语义裁决")
+    void testEvaluateAll_WhenBidLetterSuspicious_CallsLlmAdjudication() {
+        String tocPage = """
+                目录
+                一、投标函及投标函附录 ................................. 1
+                二、法定代表人身份证明 ................................. 5
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_toc", tocPage);
+
+        TenderRequirements requirements = TenderRequirements.empty()
+                .withBidLetterRequirement(new TenderRequirements.BidLetterRequirement(
+                        "投标函", "上海西域机电系统有限公司", 90, "要求投标函"));
+
+        LlmAdjudicator mockLlm = new LlmAdjudicator(prompt -> {
+            if (prompt.contains("裁决检查项「" + BidQualityCheckItem.BID_LETTER_FORMAT.getTitle() + "」")) {
+                return LlmVerdict.success(
+                        new LlmVerdict("FAIL", "", "经大模型语义核查，标书中仅在目录索引中出现投标函，缺失实质正文章节", "请在投标文件中补充标准格式的投标函正文"));
+            }
+            return LlmVerdict.success(new LlmVerdict("PASS", "", "通过", ""));
+        });
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), requirements, Set.of(), mockLlm, (p, s) -> { });
+
+        QualityCheckItemResult bidLetter = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.BID_LETTER_FORMAT.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(bidLetter.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(bidLetter.conclusion()).contains("经大模型语义核查");
+    }
 }

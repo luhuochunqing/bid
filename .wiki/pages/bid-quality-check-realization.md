@@ -25,6 +25,7 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/service/LlmVerdictParser.java
   - backend/src/main/java/com/xiyu/bid/ai/client/AiProvider.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicDepositExtractor.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicBidLetterExtractor.java
   - docs/lessons/lessons-learned.md
 backlinks:
   - _index
@@ -95,6 +96,7 @@ sequenceDiagram
 9. **前端轮询超时放宽至 10 分钟与进行中状态隔离**（2026-08-31）：前端轮询超时放宽至 600s，抽屉在核查进行中不渲染旧报告，杜绝状态漂移与旧报告残留。
 10. **谈判/非招采购场景《报价函》与公文称谓支持及抗目录干扰**（2026-09-03）：基本信息类核查「投标函格式规范」原先硬编码仅检索《投标函》与字面「致：」，在竞争性谈判、竞争性磋商、询价等法定使用《报价函》/《响应函》的采购场景中发生假阴性误报；同时关键词命中首页目录（TOC）超链接时，因目录页缺少实质称谓和正文承诺导致误判。修复扩充识别词表为包含投标函/报价函/响应函等多文书类型的 `BID_LETTER_KEYWORDS`，选页逻辑优先匹配同时具备称谓与承诺要素的实质正文章节页（跳过目录链接），称谓判定扩充支持 `（采购人名称）：` 等标准公文抬头与占位符规范。
 11. **投标保证金两阶段结构化契约抽取与凭证事实要素校验**（2026-09-05）：旧判定在招标文件采用前附表 Markdown 表格形式免除保证金时失效，且标书首页目录（TOC）命中宽泛词“汇款凭证”造成假通过。重构为两阶段契约抽取：阶段一在招标文件提取结构化 `depositRequirement`（是否免收/金额/形式/依据），配合 `DeterministicDepositExtractor`（支持投标担保与中文大写金额）做硬事实交叉检验，防止 LLM 幻觉免收放大；若明确免收则硬信号直出 PASS 并联动第 25 项豁免；若需缴纳，标书端接通 `LlmAdjudicator` 深度裁决与 `SemanticPageRetriever` 候选页检索，且确定性初筛强制要求具备凭证类型与交易事实要素（银行流水号/收款人/印章等），坚决剔除目录点线与无要素口头声明。
+12. **投标函格式规范结构化契约抽取与要素反假**（2026-09-05）：旧逻辑在仅命中目录页点线索引时，因回退逻辑缺陷退回返回目录页并误判为 MANUAL（‘已找到投标函，仅称谓不规范’），且无法对抗未填写的占位符模板（如【采购人名称】、下划线留白）及承诺有效期不足的合规风险。重构为：招标端扩展 `BidLetterRequirement` 契约（函件类型/采购人全称/有效期天数/原文章节），建立 `DeterministicBidLetterExtractor` 双轨融合；标书端 `findBestBidLetterPage` 与 `isActualBidLetterPage` 正向事实要素检验（严格拦截目录点线 `......` 与未填写占位符），并比对采购人称谓一致性与有效期天数；引擎落实规范正文强凭证直通 PASS（不调 LLM，防抖动与降本），未检索到或存疑场景接通 `LlmAdjudicator` 深度裁决。
   - _index
   - docinsight-engine
   - ai-provider-configuration

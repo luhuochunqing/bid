@@ -99,6 +99,35 @@ class TenderRequirementsParserTest {
     }
 
     @Test
+    @DisplayName("包含 bidLetterRequirement 节点：成功解析投标函格式、称谓与有效期")
+    void parse_withBidLetterRequirement_parsesCorrectly() {
+        String llmResponse = """
+                {
+                  "scoringItems": [],
+                  "mandatoryQualifications": [],
+                  "vetoClauses": [],
+                  "compositionRequirements": [],
+                  "formatRequirements": [],
+                  "bidLetterRequirement": {
+                    "letterType": "报价函",
+                    "recipientName": "上海西域机电系统有限公司",
+                    "validityDays": 90,
+                    "description": "格式应符合第三章投标文件格式要求之报价函，致上海西域机电系统有限公司，有效期90天"
+                  }
+                }
+                """;
+
+        TenderRequirements req = TenderRequirementsParser.parse(llmResponse);
+
+        assertThat(req.missing()).isFalse();
+        assertThat(req.bidLetterRequirement()).isNotNull();
+        assertThat(req.bidLetterRequirement().letterType()).isEqualTo("报价函");
+        assertThat(req.bidLetterRequirement().recipientName()).isEqualTo("上海西域机电系统有限公司");
+        assertThat(req.bidLetterRequirement().validityDays()).isEqualTo(90);
+        assertThat(req.bidLetterRequirement().description()).contains("有效期90天");
+    }
+
+    @Test
     @DisplayName("非法 JSON 或纯文本：安全返回 missingSentinel，不抛出异常")
     void parse_invalidJson_returnsMissingSentinel() {
         assertThat(TenderRequirementsParser.parse("这是一段纯文本，没有任何 JSON 结构").missing()).isTrue();
