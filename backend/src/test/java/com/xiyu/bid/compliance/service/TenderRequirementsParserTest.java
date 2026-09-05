@@ -72,6 +72,33 @@ class TenderRequirementsParserTest {
     }
 
     @Test
+    @DisplayName("包含 depositRequirement 节点：成功解析免收与需缴纳结构")
+    void parse_withDepositRequirement_parsesCorrectly() {
+        String llmResponse = """
+                {
+                  "scoringItems": [],
+                  "mandatoryQualifications": [],
+                  "vetoClauses": [],
+                  "compositionRequirements": [],
+                  "formatRequirements": [],
+                  "depositRequirement": {
+                    "required": false,
+                    "amount": null,
+                    "forms": null,
+                    "description": "招标文件前附表第3.4条明确免收投标保证金"
+                  }
+                }
+                """;
+
+        TenderRequirements req = TenderRequirementsParser.parse(llmResponse);
+
+        assertThat(req.missing()).isFalse();
+        assertThat(req.depositRequirement()).isNotNull();
+        assertThat(req.depositRequirement().required()).isFalse();
+        assertThat(req.depositRequirement().description()).contains("明确免收投标保证金");
+    }
+
+    @Test
     @DisplayName("非法 JSON 或纯文本：安全返回 missingSentinel，不抛出异常")
     void parse_invalidJson_returnsMissingSentinel() {
         assertThat(TenderRequirementsParser.parse("这是一段纯文本，没有任何 JSON 结构").missing()).isTrue();

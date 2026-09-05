@@ -13,6 +13,7 @@ import com.xiyu.bid.compliance.domain.QualificationDetail;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityCheckStatus;
 import com.xiyu.bid.compliance.domain.policy.BidDocumentQualityEngine;
+import com.xiyu.bid.compliance.domain.policy.DeterministicDepositExtractor;
 import com.xiyu.bid.compliance.domain.policy.DeterministicQualificationExtractor;
 import com.xiyu.bid.compliance.domain.policy.KnowledgeQueryOutcome;
 import com.xiyu.bid.compliance.domain.policy.LlmAdjudicator;
@@ -113,6 +114,14 @@ public class BidQualityCheckAsyncExecutor {
             List<String> deterministicQuals = DeterministicQualificationExtractor.extract(tenderDoc.fullText());
             if (!deterministicQuals.isEmpty()) {
                 requirements = requirements.withMergedQualifications(deterministicQuals);
+            }
+
+            // 双轨交叉融合：结合确定性规则与 LLM 提取，硬事实金额优先（双有数时以确定性原文为准），消除 LLM 幻觉风险
+            TenderRequirements.DepositRequirement detDeposit = DeterministicDepositExtractor.extract(tenderDoc.fullText());
+            if (detDeposit != null) {
+                TenderRequirements.DepositRequirement fused = TenderRequirements.DepositRequirement.fuseWithDeterministic(
+                        requirements.depositRequirement(), detDeposit);
+                requirements = requirements.withDepositRequirement(fused);
             }
 
             // Step 2: 知识库检索与 25 项规则核查 (progress: 60)

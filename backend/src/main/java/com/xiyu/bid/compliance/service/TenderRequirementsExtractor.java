@@ -120,16 +120,22 @@ public class TenderRequirementsExtractor {
     private static String buildPrompt(final String chunkText) {
         return """
                 你是招投标领域的招标文件分析专家。请仅从下面给定的招标文件文本中提取结构化要求，\
-                禁止臆造任何文本中不存在的内容；无法确定的类别一律返回空数组。
+                禁止臆造任何文本中不存在的内容；无法确定的类别一律返回空数组或null。
                 输出必须是严格 JSON（不要包含 Markdown 代码块或解释文字），结构如下：
                 {
                   "scoringItems": [ { "name": "评分项名称", "maxScore": 数值或null, "criteria": "评分标准描述" } ],
                   "mandatoryQualifications": [ "硬性资格要求/资质要求原文表述" ],
                   "vetoClauses": [ { "clause": "否决条款原文", "keywords": ["否决关键词"] } ],
                   "compositionRequirements": [ "投标文件组成要求条目" ],
-                  "formatRequirements": [ "格式要求条目" ]
+                  "formatRequirements": [ "格式要求条目" ],
+                  "depositRequirement": {
+                    "required": true或false或null,
+                    "amount": "保证金金额或null",
+                    "forms": "保证金形式或null",
+                    "description": "招标文件关于投标保证金要求的原文章节或前附表条款摘录（若明确免收、不收取、不涉及、无保证金、不适用或为0元，必须记录原文并将required设为false）"
+                  }
                 }
-                五个顶层键必须全部存在（允许空数组）。
+                顶层键必须全部存在。
 
                 招标文件文本：
                 """ + chunkText;

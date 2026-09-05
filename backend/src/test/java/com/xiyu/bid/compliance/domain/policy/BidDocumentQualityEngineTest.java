@@ -141,4 +141,110 @@ class BidDocumentQualityEngineTest {
         assertThat(respResult.status()).isNotEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         assertThat(respResult.conclusion()).doesNotContain("[REFERENCE_MISSING]");
     }
+
+    @Test
+    @DisplayName("保证金自适应测试：招标结构化抽取明确免收时，回单与退款信息项均自动判定 PASS（项目1358场景）")
+    void testEvaluateAll_WhenDepositNotRequired_DepositItemsPassAutomatically() {
+        String bidContent = "项目名称：测试采购\n投标人：西域\n2026年\n投标总价：100万元";
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid", bidContent);
+
+        TenderRequirements requirements = TenderRequirements.empty()
+                .withDepositRequirement(TenderRequirements.DepositRequirement.notRequired("前附表明确说明免收保证金"));
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), requirements, Set.of());
+
+        assertThat(results).hasSize(25);
+
+        QualityCheckItemResult depositReceipt = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(depositReceipt.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(depositReceipt.conclusion()).contains("免收/不涉及");
+
+        QualityCheckItemResult depositRefund = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.DEPOSIT_REFUND.getCode()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(depositRefund.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(depositRefund.conclusion()).contains("不涉及投标保证金");
+    }
+
+    @Test
+    @DisplayName("标书端语义接通测试：招标要求缴纳且启用 LLM 时，Engine 必须调用 LLM 对 DEPOSIT_RECEIPT 执行语义裁决")
+    void testEvaluateAll_WhenDepositRequired_InvokesLlmAdjudication() {
+        String bidContent = "项目名称：测试采购\n投标人：西域\n2026年\n投标总价：100万元";
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid", bidContent);
+
+        TenderRequirements requirements = TenderRequirements.empty()
+                .withDepositRequirement(TenderRequirements.DepositRequirement.required("50000元", null, "前附表要求50000元"));
+
+        // 模拟 LLM 裁决通道
+        LlmAdjudicator mockLlm = new LlmAdjudicator(prompt -> {
+            if (prompt.contains("裁决检查项「" + BidQualityCheckItem.DEPOSIT_RECEIPT.getTitle() + "」")) {
+                return LlmVerdict.success(
+                        new LlmVerdict("FAIL", "", "经大模型核查，标书中未附带银行回单事实凭证", "请补充上传回执单"));
+            }
+            return LlmVerdict.success(
+                    new LlmVerdict("PASS", "", "比对通过", ""));
+        });
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), requirements, Set.of(), mockLlm, (p, s) -> { });
+
+        QualityCheckItemResult depositReceipt = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        // 验证 LLM 裁决生效
+        assertThat(depositReceipt.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(depositReceipt.conclusion()).contains("经大模型核查");
+    }
+
+    @Test
+    @DisplayName("强凭证直通测试：标书已附真实银行电子回单时，确定性强通过直通，无需调用 LLM，降低成本与抗抖动")
+    void testEvaluateAll_WhenStrongVoucherPresent_PassesThroughWithoutLlmOverriding() {
+        String tenderText = "前附表：投标保证金为人民币50000元。";
+        DocumentContent tenderDoc = DocumentContent.fromText("tender.pdf", "hash_t", tenderText);
+
+        String bidVoucherPage = """
+                中国工商银行电子回单
+                业务流水号：2026090510293847
+                交易类型：跨行转账汇款   转账成功
+                付款人户名：西域智慧供应链（上海）股份公司
+                收款人户名：某某项目招标代理中心
+                转账金额：人民币伍万元整（¥50,000.00）
+                回单专用章：[电子印章 91310000]
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid", bidVoucherPage);
+
+        TenderRequirements requirements = TenderRequirements.empty()
+                .withDepositRequirement(TenderRequirements.DepositRequirement.required("50000元", null, "要求50000元"));
+
+        java.util.concurrent.atomic.AtomicInteger llmDepositCallCount = new java.util.concurrent.atomic.AtomicInteger(0);
+        LlmAdjudicator llm = new LlmAdjudicator(prompt -> {
+            if (prompt.contains("裁决检查项「" + BidQualityCheckItem.DEPOSIT_RECEIPT.getTitle() + "」")) {
+                llmDepositCallCount.incrementAndGet();
+                return LlmVerdict.success(new LlmVerdict("FAIL", "", "LLM误判覆盖", ""));
+            }
+            return LlmVerdict.success(new LlmVerdict("PASS", "", "通过", ""));
+        });
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, tenderDoc, Collections.emptyList(), requirements, Set.of(), llm, (p, s) -> { });
+
+        QualityCheckItemResult depositReceipt = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(llmDepositCallCount.get())
+                .as("标书已包含确定性真实凭证时，坚决不调 LLM，防止抖动与成本浪费")
+                .isEqualTo(0);
+        assertThat(depositReceipt.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(depositReceipt.conclusion()).contains("已附投标保证金汇款回单或电子保函凭证");
+        assertThat(depositReceipt.evidences()).isNotEmpty();
+    }
 }

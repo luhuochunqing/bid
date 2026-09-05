@@ -113,6 +113,47 @@ class DeterministicCheckPolicyTest {
     }
 
     @Test
+    @DisplayName("附件清单检查：招标文件前附表表格式免收（项目1358形态）断言 PASS")
+    void testAttachmentChecks_Project1358TableFormat_Pass() {
+        String tenderText = "投标人须知前附表：\n| 3.4.1 | 投标保证金 | 不适用 | 本项目不要求提交保证金 |";
+        String bidText = "投标文件正文\n投标报价：100万元";
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_1358", bidText);
+
+        QualityCheckItemResult depositResult = DeterministicCheckPolicy.checkDepositReceipt(doc, tenderText);
+        assertThat(depositResult.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(depositResult.conclusion()).contains("免收/不涉及");
+
+        QualityCheckItemResult refundResult = DeterministicCheckPolicy.checkDepositRefund(doc, tenderText);
+        assertThat(refundResult.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(refundResult.conclusion()).contains("不涉及投标保证金");
+    }
+
+    @Test
+    @DisplayName("附件清单检查：招标要求缴纳时，标书纯目录/附件清单占位符不得误判 PASS（杜绝假通过）")
+    void testAttachmentChecks_TocPlaceholder_DoesNotPass() {
+        String tenderText = "前附表：投标保证金金额为人民币 50,000 元整。";
+        String bidText = "目 录\n第一章 投标函\n第二章 报价明细\n附件七 投标保证金汇款凭证（如有）\n第 15 页";
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_toc", bidText);
+
+        QualityCheckItemResult depositResult = DeterministicCheckPolicy.checkDepositReceipt(doc, tenderText);
+        assertThat(depositResult.status()).isNotEqualTo(QualityCheckStatus.PASS);
+        assertThat(depositResult.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(depositResult.conclusion()).contains("无法确认为实际凭证");
+    }
+
+    @Test
+    @DisplayName("附件清单检查：标书含真实银行回执流水要素断言 PASS")
+    void testAttachmentChecks_RealVoucher_Pass() {
+        String tenderText = "前附表：投标保证金金额为人民币 50,000 元整。";
+        String bidText = "附件七 投标保证金缴纳凭证\n中国招商银行电子回单\n业务凭证号：202609051234567\n付款人账号：622588889999\n转账金额：50000.00元\n交易流水号：TRX99887766\n转账成功";
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_real", bidText);
+
+        QualityCheckItemResult depositResult = DeterministicCheckPolicy.checkDepositReceipt(doc, tenderText);
+        assertThat(depositResult.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(depositResult.conclusion()).contains("已附投标保证金汇款回单");
+    }
+
+    @Test
     @DisplayName("营业执照与主体资格：识别 18 位统一社会信用代码")
     void testBusinessLicense_WithUSCC() {
         String page = "企业资质证明\n营业执照\n统一社会信用代码：91310000775244192P\n西域供应链";
@@ -342,5 +383,97 @@ class DeterministicCheckPolicyTest {
         assertThat(result.status())
                 .as("空大写金额不构成价格对，应转人工而非 FAIL 折算 ¥0")
                 .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+    }
+
+    @Test
+    @DisplayName("项目1358真实场景回归：招标文件前附表免收时，标书无论是否附回单均判定通过")
+    void checkDepositReceipt_project1358TableExemption_passes() {
+        String tenderText = """
+                | 序号 | 条款名称 | 编列内容 |
+                | 7.1 | 投标保证金 | 不适用 |
+                """;
+        String bidText = "目录\n附件一 投标函\n附件七 投标保证金汇款凭证 ...... 18";
+        DocumentContent bidDoc = DocumentContent.fromText("bid.pdf", "hash_bid", bidText);
+
+        QualityCheckItemResult result = SubItemAndAttachmentRules.checkDepositReceipt(bidDoc, tenderText);
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(result.conclusion()).contains("免收/不涉及");
+    }
+
+    @Test
+    @DisplayName("防假通过反例1：招标要求缴纳时，标书目录点线超前命中坚决判定未附凭证，杜绝假通过")
+    void checkDepositReceipt_whenRequired_tocPageMustNotPass() {
+        String tenderText = "投标保证金：人民币50000元，截标前电汇至指定账户。";
+        // 标书第 1 页仅为目录点线结构，第 2 页为正文，未附任何真实回单
+        String page1Toc = "目录\n第一章 投标函 ...... 1\n第七章 投标保证金汇款回单 ...... 25\n第八章 授权委托书 ...... 26";
+        String page2Body = "投标正文：我方对本项目深表重视。";
+        DocumentContent bidDoc = DocumentContent.fromText("bid.pdf", "hash_bid", page1Toc + "\f" + page2Body);
+
+        QualityCheckItemResult result = SubItemAndAttachmentRules.checkDepositReceipt(bidDoc, tenderText);
+
+        assertThat(result.status())
+                .as("标书仅有目录条目时，坚决不能误判通过")
+                .isNotEqualTo(QualityCheckStatus.PASS);
+    }
+
+    @Test
+    @DisplayName("防假通过反例2：招标要求缴纳时，标书正文单方口头声明已缴纳但无回单，坚决判定未附凭证")
+    void checkDepositReceipt_whenRequired_oralDeclarationMustNotPass() {
+        String tenderText = "3.4 投标担保：本项目要求提交投标担保，金额为人民币50,000元。";
+        String bidText = "我方声明：我方已按照招标文件规定足额缴纳了投标保证金与投标担保，特此声明。";
+        DocumentContent bidDoc = DocumentContent.fromText("bid.pdf", "hash_bid", bidText);
+
+        QualityCheckItemResult result = SubItemAndAttachmentRules.checkDepositReceipt(bidDoc, tenderText);
+
+        assertThat(result.status())
+                .as("纯口头声明无凭证事实要素时，绝不能判定通过")
+                .isNotEqualTo(QualityCheckStatus.PASS);
+    }
+
+    @Test
+    @DisplayName("正向凭证要素测试：标书包含真实银行电子回单（凭证类型+交易流水号+收款人），判定通过")
+    void checkDepositReceipt_whenRequired_actualVoucherPasses() {
+        String tenderText = "投标保证金金额：50000元。";
+        String bidVoucherPage = """
+                中国工商银行电子回单
+                业务流水号：2026090510293847
+                交易类型：跨行转账汇款   转账成功
+                付款人户名：西域智慧供应链（上海）股份公司
+                收款人户名：某某项目招标代理中心
+                转账金额：人民币伍万元整（¥50,000.00）
+                回单专用章：[电子印章 91310000]
+                """;
+        DocumentContent bidDoc = DocumentContent.fromText("bid.pdf", "hash_bid", bidVoucherPage);
+
+        QualityCheckItemResult result = SubItemAndAttachmentRules.checkDepositReceipt(bidDoc, tenderText);
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(result.conclusion()).contains("已附投标保证金汇款回单或电子保函凭证");
+        assertThat(result.evidences()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("防假通过反例3（深度压测）：标书命中强关键词（银行汇款回单/投标保证金汇款）但无流水号/印章等事实要素，经 isActualDepositVoucherPage 拦截，转人工核实绝不放行通过")
+    void checkDepositReceipt_whenRequired_hitKeywordsWithoutVoucherFacts_mustNotPass() {
+        String tenderText = "投标保证金：人民币50000元。";
+        // 标书正文包含强关键词“投标保证金汇款”与“银行汇款回单”，能成功命中 strongMatch 并进入 isActualDepositVoucherPage 严格核查，
+        // 但正文仅为口头声明与说明，缺乏流水号、交易号、转账成功、电子印章等真实交易数据要素
+        String bidText = """
+                关于投标保证金汇款回单的说明
+                致招标人：
+                我单位已按照招标文件要求足额办理了投标保证金汇款，附上银行汇款回单相关说明。
+                我方郑重承诺已按期缴存，特此声明。
+                投标人：西域智慧供应链（上海）股份公司
+                """;
+        DocumentContent bidDoc = DocumentContent.fromText("bid.pdf", "hash_bid", bidText);
+
+        QualityCheckItemResult result = SubItemAndAttachmentRules.checkDepositReceipt(bidDoc, tenderText);
+
+        assertThat(result.status())
+                .as("命中强关键词但无真实交易要素（无流水号/印章）时，由 isActualDepositVoucherPage 拦截，绝不误判为 PASS")
+                .isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.conclusion())
+                .contains("无法确认为实际凭证");
     }
 }
