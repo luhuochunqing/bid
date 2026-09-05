@@ -121,4 +121,17 @@ class ProjectMatchServiceTest {
         assertThat(result.matchRatio()).isEqualTo(0);
         assertThat(result.matched()).isEmpty();
     }
+
+    @Test
+    @DisplayName("过滤通用评分短语与长分句，防止长子句污染业绩行业匹配")
+    void filterGenericKeywords_filtersClauseText() {
+        List<String> raw = List.of(
+                "对应答人在2023年1月1日至2025年12月31日",
+                "为央企二级单位及以上或省级及以上政府机关所提供的与本项目类似采购供货服务数量进行评价",
+                "优秀得7分",
+                "电力"
+        );
+        List<String> filtered = ProjectMatchService.filterSpecificProjectKeywords(raw);
+        assertThat(filtered).containsExactly("电力");
+    }
 }

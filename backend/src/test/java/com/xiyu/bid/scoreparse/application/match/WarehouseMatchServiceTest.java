@@ -129,4 +129,17 @@ class WarehouseMatchServiceTest {
         assertThat(result.tier()).isEqualTo("NONE");
         assertThat(((List<WarehouseMatchedItem>) result.matched())).isEmpty();
     }
+
+    @Test
+    @DisplayName("过滤通用评分短语与长分句，防止长子句污染仓库名称匹配")
+    void filterGenericKeywords_filtersClauseText() {
+        List<String> raw = List.of(
+                "根据应答人全国各地自有或租赁仓库数量排序情况进行评分",
+                "自有或租赁仓库数量",
+                "优秀得2分",
+                "平湖仓"
+        );
+        List<String> filtered = WarehouseMatchService.filterSpecificWarehouseKeywords(raw);
+        assertThat(filtered).containsExactly("平湖仓");
+    }
 }

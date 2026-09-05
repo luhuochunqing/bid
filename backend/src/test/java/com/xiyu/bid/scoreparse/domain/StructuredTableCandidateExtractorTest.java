@@ -356,6 +356,45 @@ class StructuredTableCandidateExtractorTest {
         assertThat(total).isEqualByComparingTo("100");
     }
 
+    @Test
+    void extract_real1359TablesJson_printsCandidates() throws Exception {
+        java.nio.file.Path path = java.nio.file.Path.of("/tmp/1359_tables_v1.json");
+        if (!java.nio.file.Files.exists(path)) return;
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(path.toFile());
+        com.fasterxml.jackson.databind.JsonNode tablesNode = root.get("tables");
+        List<SidecarTableExtraction.TablePayload> tables = new java.util.ArrayList<>();
+        if (tablesNode != null && tablesNode.isArray()) {
+            for (com.fasterxml.jackson.databind.JsonNode t : tablesNode) {
+                int tableIndex = t.get("tableIndex").asInt();
+                boolean isScore = t.has("isScoreTable") && t.get("isScoreTable").asBoolean();
+                List<List<SidecarTableExtraction.CellPayload>> rows = new java.util.ArrayList<>();
+                if (t.has("rows") && t.get("rows").isArray()) {
+                    for (com.fasterxml.jackson.databind.JsonNode r : t.get("rows")) {
+                        List<SidecarTableExtraction.CellPayload> row = new java.util.ArrayList<>();
+                        for (com.fasterxml.jackson.databind.JsonNode c : r) {
+                            String text = c.has("text") ? c.get("text").asText() : "";
+                            int rowspan = c.has("rowspan") ? c.get("rowspan").asInt() : 1;
+                            int colspan = c.has("colspan") ? c.get("colspan").asInt() : 1;
+                            boolean isMergedContinue = c.has("isMergedContinue") && c.get("isMergedContinue").asBoolean();
+                            row.add(new SidecarTableExtraction.CellPayload(text, rowspan, colspan, isMergedContinue));
+                        }
+                        rows.add(row);
+                    }
+                }
+                tables.add(new SidecarTableExtraction.TablePayload(tableIndex, rows, isScore));
+            }
+        }
+        SidecarTableExtraction extraction = new SidecarTableExtraction(tables, List.of());
+        List<ScoreCandidate> candidates = StructuredTableCandidateExtractor.extract(extraction);
+        System.out.println("=== 1359 STRUCTURED CANDIDATES COUNT: " + candidates.size() + " ===");
+        for (int i = 0; i < candidates.size(); i++) {
+            ScoreCandidate c = candidates.get(i);
+            System.out.println(String.format("STRUCT [%02d] code=%s, dim=%s, weight=%s, parentDim=%s, detail=%s",
+                    i, c.code(), c.dim(), c.weight(), c.parentDim(), c.detail().substring(0, Math.min(40, c.detail().length()))));
+        }
+    }
+
     private static SidecarTableExtraction.CellPayload cell(String text) {
         return new SidecarTableExtraction.CellPayload(text, 1, 1, false);
     }

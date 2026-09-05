@@ -233,6 +233,11 @@ public class ScoreItemPersistenceService {
             return "";
         }
         String trimmed = code.trim();
+        if ("null".equalsIgnoreCase(trimmed) || "undefined".equalsIgnoreCase(trimmed)
+                || "none".equalsIgnoreCase(trimmed) || "n/a".equalsIgnoreCase(trimmed)
+                || trimmed.matches("^[一二三四五六七八九十百]+[、.]?$")) {
+            return "";
+        }
         return trimmed.length() > 50 ? trimmed.substring(0, 50) : trimmed;
     }
 

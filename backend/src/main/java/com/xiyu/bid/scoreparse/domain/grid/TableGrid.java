@@ -28,19 +28,42 @@ public final class TableGrid {
             return;
         }
         int maxCols = 0;
+        for (List<String> row : rows) {
+            if (row != null) {
+                maxCols = Math.max(maxCols, row.size());
+            }
+        }
         List<List<String>> copy = new ArrayList<>(rows.size());
         for (List<String> row : rows) {
             if (row == null) {
                 copy.add(List.of());
+            } else if (row.size() < maxCols && isRightAlignedRow(row)) {
+                List<String> padded = new ArrayList<>(maxCols);
+                int padCount = maxCols - row.size();
+                for (int i = 0; i < padCount; i++) {
+                    padded.add("");
+                }
+                padded.addAll(row);
+                copy.add(Collections.unmodifiableList(padded));
             } else {
                 List<String> rowCopy = new ArrayList<>(row);
-                maxCols = Math.max(maxCols, rowCopy.size());
+                while (rowCopy.size() < maxCols) {
+                    rowCopy.add("");
+                }
                 copy.add(Collections.unmodifiableList(rowCopy));
             }
         }
         this.rows = Collections.unmodifiableList(copy);
         this.rowCount = this.rows.size();
         this.colCount = maxCols;
+    }
+
+    private static boolean isRightAlignedRow(List<String> row) {
+        if (row.isEmpty()) {
+            return false;
+        }
+        String last = row.get(row.size() - 1).trim();
+        return last.matches("^[~≈]?-?\\d{1,3}(?:\\.\\d+)?\\s*(?:分|%)?$");
     }
 
     public int rowCount() {

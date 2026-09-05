@@ -50,8 +50,8 @@ public class ScoreItemOrderPolicy {
         List<IndexedCandidate> list = new ArrayList<>(candidates.size());
         for (int i = 0; i < candidates.size(); i++) {
             ScoreCandidate c = candidates.get(i);
-            String topCat = extractTopCategory(c == null ? null : c.dim());
-            String parentDim = extractParentDim(c == null ? null : c.dim());
+            String topCat = extractTopCategory(c);
+            String parentDim = extractParentDim(c);
             topCategoryFirstSeen.putIfAbsent(topCat, i);
             parentDimFirstSeen.putIfAbsent(parentDim, i);
             list.add(new IndexedCandidate(c, i, topCat, parentDim,
@@ -116,27 +116,58 @@ public class ScoreItemOrderPolicy {
         return list.stream().map(IndexedCandidate::candidate).toList();
     }
 
-    private String[] splitDim(String dim) {
-        if (dim == null || dim.isBlank()) {
-            return new String[0];
+    private String extractTopCategory(ScoreCandidate c) {
+        if (c == null) {
+            return "";
         }
-        return dim.trim().split("\\s*[/／\\\\]\\s*");
+        String parent = c.parentDim() == null ? "" : c.parentDim().trim();
+        String fromParent = extractTopCategory(parent);
+        if (!fromParent.isEmpty()) {
+            return fromParent;
+        }
+        return extractTopCategory(c.dim());
     }
 
     private String extractTopCategory(String dim) {
-        String[] parts = splitDim(dim);
-        return parts.length == 0 ? "" : normalizeCategoryName(parts[0]);
+        if (dim == null || dim.isBlank()) {
+            return "";
+        }
+        String trimmed = dim.trim();
+        String[] parts = trimmed.split("\\s*[/／\\\\]\\s*");
+        if (parts.length > 1) {
+            return normalizeCategoryName(parts[0]);
+        }
+        return isExplicitCategory(trimmed) ? normalizeCategoryName(trimmed) : "";
+    }
+
+    private String extractParentDim(ScoreCandidate c) {
+        if (c == null) {
+            return "";
+        }
+        String parent = c.parentDim() == null ? "" : c.parentDim().trim();
+        if (!parent.isEmpty()) {
+            String[] parts = parent.split("\\s*[/／\\\\]\\s*");
+            return parts[0].trim();
+        }
+        return extractParentDim(c.dim());
     }
 
     private String extractParentDim(String dim) {
-        String[] parts = splitDim(dim);
-        if (parts.length == 0) {
+        if (dim == null || dim.isBlank()) {
             return "";
         }
+        String trimmed = dim.trim();
+        String[] parts = trimmed.split("\\s*[/／\\\\]\\s*");
         if (parts.length >= 2) {
             return normalizeCategoryName(parts[0]) + "/" + parts[1].trim();
         }
-        return normalizeCategoryName(parts[0]);
+        return isExplicitCategory(trimmed) ? normalizeCategoryName(trimmed) : trimmed;
+    }
+
+    private static boolean isExplicitCategory(String s) {
+        return s.contains("商务") || s.contains("技术") || s.contains("报价")
+                || s.contains("价格") || s.contains("资信") || s.contains("经济")
+                || s.contains("业绩") || s.contains("方案");
     }
 
     private String normalizeCategoryName(String raw) {
@@ -144,7 +175,7 @@ public class ScoreItemOrderPolicy {
             return "";
         }
         String s = raw.trim();
-        if (s.contains("商务") || s.contains("资信") || s.contains("业绩")) {
+        if (s.contains("商务") || s.contains("资信") || s.contains("经济") || s.contains("业绩")) {
             return "商务评分";
         }
         if (s.contains("技术") || s.contains("方案")) {
@@ -189,7 +220,7 @@ public class ScoreItemOrderPolicy {
 
     /**
      * @param major 主段数值
-     * @param minor 子段数值（无子段为 -1，排序时视同最小）
+     * @param minor 子段数值（无子段为 -1，排序时视同纯数值最小）
      */
     private record CodeKey(int major, int minor) {
     }

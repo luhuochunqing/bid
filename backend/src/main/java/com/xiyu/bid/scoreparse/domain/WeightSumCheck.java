@@ -7,8 +7,10 @@ package com.xiyu.bid.scoreparse.domain;
 import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -48,11 +50,15 @@ public class WeightSumCheck {
         Map<String, BigDecimal> familySums = new HashMap<>();
         Map<String, BigDecimal> declaredFamilyWeights = new HashMap<>();
 
+        Set<String> deductionDims = new HashSet<>();
         for (ScoreCandidate candidate : candidates) {
             BigDecimal w = candidate.weight() == null ? BigDecimal.ZERO : candidate.weight();
             total = total.add(w);
             String dim = candidate.dim() == null || candidate.dim().isBlank() ? "其他" : candidate.dim().trim();
             dimSums.put(dim, dimSums.getOrDefault(dim, BigDecimal.ZERO).add(w));
+            if (isDeductionCandidate(candidate)) {
+                deductionDims.add(dim);
+            }
 
             String family = extractFamily(dim);
             familySums.put(family, familySums.getOrDefault(family, BigDecimal.ZERO).add(w));
@@ -60,7 +66,9 @@ public class WeightSumCheck {
             extractAndRecordDeclared(dim, candidate.contextNote(), declaredFamilyWeights);
         }
         boolean totalWarning = total.subtract(BigDecimal.valueOf(100)).abs().compareTo(TOLERANCE) > 0;
-        boolean dimAnomaly = dimSums.values().stream().anyMatch(w -> w.compareTo(BigDecimal.ZERO) <= 0);
+        boolean dimAnomaly = dimSums.entrySet().stream()
+                .filter(e -> !isDeductionDim(e.getKey()) && !deductionDims.contains(e.getKey()))
+                .anyMatch(e -> e.getValue().compareTo(BigDecimal.ZERO) <= 0);
 
         boolean declaredMismatch = false;
         for (Map.Entry<String, BigDecimal> entry : declaredFamilyWeights.entrySet()) {
@@ -112,6 +120,20 @@ public class WeightSumCheck {
     private boolean isRuleSentence(String text) {
         return text.contains("每提供") || text.contains("每具备") || text.contains("扣完为止")
                 || text.contains("最多得") || text.contains("最高得") || text.contains("每个得");
+    }
+
+    private static boolean isDeductionDim(String dim) {
+        if (dim == null) return false;
+        return dim.contains("扣") || dim.contains("诚信") || dim.contains("信用")
+                || dim.contains("负面") || dim.contains("违约") || dim.contains("失信");
+    }
+
+    private static boolean isDeductionCandidate(ScoreCandidate candidate) {
+        if (candidate == null) return false;
+        String text = (candidate.dim() == null ? "" : candidate.dim()) + " "
+                + (candidate.parentDim() == null ? "" : candidate.parentDim()) + " "
+                + (candidate.detail() == null ? "" : candidate.detail());
+        return isDeductionDim(text);
     }
 
     /**

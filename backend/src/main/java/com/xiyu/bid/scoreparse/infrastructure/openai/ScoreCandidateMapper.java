@@ -34,7 +34,7 @@ final class ScoreCandidateMapper {
                 ? criterion.indicator() : criterion.dimension();
         boolean hasSection = section != null;
         return new ScoreCandidate(
-                truncate(safeText(criterion.itemNumber()), CODE_MAX_CHARS),
+                truncate(safeCode(criterion.itemNumber()), CODE_MAX_CHARS),
                 truncate(safeText(criterion.dimension()), DIM_MAX_CHARS),
                 detail,
                 criterion.weight(),
@@ -74,7 +74,7 @@ final class ScoreCandidateMapper {
                     safeText(candidate.code), llmDim, head(llmDetail));
         }
         return new ScoreCandidate(
-                truncate(safeText(candidate.code), CODE_MAX_CHARS),
+                truncate(safeCode(candidate.code), CODE_MAX_CHARS),
                 truncate(alignedDim != null ? alignedDim : llmDim, DIM_MAX_CHARS),
                 alignedDetail != null ? alignedDetail : llmDetail,
                 candidate.weight == null ? null : java.math.BigDecimal.valueOf(candidate.weight),
@@ -119,6 +119,18 @@ final class ScoreCandidateMapper {
             sb.append("（距离 100 分满分仍缺 ").append(diff).append(" 分，请重点复查缺少该分值的并列评分项/方案能力项）");
         }
         return sb.toString();
+    }
+
+    static String safeCode(String value) {
+        if (value == null) {
+            return "";
+        }
+        String trimmed = value.trim();
+        if ("null".equalsIgnoreCase(trimmed) || "undefined".equalsIgnoreCase(trimmed)
+                || "none".equalsIgnoreCase(trimmed) || "n/a".equalsIgnoreCase(trimmed)) {
+            return "";
+        }
+        return trimmed;
     }
 
     static String safeText(String value) {

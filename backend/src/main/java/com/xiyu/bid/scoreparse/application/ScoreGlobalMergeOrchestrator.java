@@ -118,18 +118,22 @@ public class ScoreGlobalMergeOrchestrator {
         }
         // Phase 3a: 结构化通道候选（源自 Word XML）不可被 LLM 归并替换；若被丢弃则回注
         List<ScoreCandidate> accepted = outcome.accepted();
-        List<ScoreCandidate> structuredInPool = valid.stream()
-                .filter(c -> "STRUCTURED_TABLE".equals(c.semanticPattern()))
+        List<ScoreCandidate> tableCandidates = valid.stream()
+                .filter(c -> "STRUCTURED_TABLE".equals(c.semanticPattern()) || "TABLE_GRID".equals(c.semanticPattern()))
                 .toList();
-        if (!structuredInPool.isEmpty()) {
-            java.util.Set<String> acceptedKeys = accepted.stream()
-                    .map(c -> normalizeKey(c.dim(), c.detail()))
-                    .collect(java.util.stream.Collectors.toSet());
-            List<ScoreCandidate> restored = structuredInPool.stream()
-                    .filter(c -> !acceptedKeys.contains(normalizeKey(c.dim(), c.detail())))
+        if (!tableCandidates.isEmpty()) {
+            List<String> acceptedNorm = accepted.stream()
+                    .map(c -> normalizeText(c.detail()))
+                    .filter(s -> !s.isEmpty())
+                    .toList();
+            List<ScoreCandidate> restored = tableCandidates.stream()
+                    .filter(c -> {
+                        String nd = normalizeText(c.detail());
+                        return !nd.isEmpty() && acceptedNorm.stream().noneMatch(a -> a.contains(nd) || nd.contains(a));
+                    })
                     .toList();
             if (!restored.isEmpty()) {
-                log.info("全局归并回注结构化候选（LLM 不可替代 Word XML 权威数据）: restored={}", restored.size());
+                log.info("全局归并回注表格候选（LLM 不可替代表格权威数据）: restored={}", restored.size());
                 accepted = new java.util.ArrayList<>(accepted);
                 accepted.addAll(restored);
             }
@@ -188,10 +192,8 @@ public class ScoreGlobalMergeOrchestrator {
                 ? text : text.substring(0, ScoreParseConstants.SECTION_TEXT_LIMIT);
     }
 
-    private static String normalizeKey(String dim, String detail) {
-        String d = dim == null ? "" : dim.replaceAll("\\s+", "").trim();
-        String det = detail == null ? "" : detail.replaceAll("\\s+", "").trim();
-        return d + "|" + det.substring(0, Math.min(det.length(), 50));
+    private static String normalizeText(String text) {
+        return text == null ? "" : text.replaceAll("\\s+", "");
     }
 
     /**

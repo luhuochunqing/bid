@@ -100,6 +100,18 @@ class GhostCandidateFilterTest {
     }
 
     @Test
+    void filter_deductionItemWithExplicitRules_kept() {
+        ScoreCandidate deduction = new ScoreCandidate(
+                "", "公共信用信息报告（0分）",
+                "不存在失信行为，情节轻微【不扣分】/存在质量、诚信以外失信行为【扣5分】/存在失信行为【扣10分】",
+                BigDecimal.ZERO, null, null, "整行文本", "R2", null
+        );
+
+        List<ScoreCandidate> result = filter.filter(List.of(deduction));
+        assertThat(result).containsExactly(deduction);
+    }
+
+    @Test
     void filter_nullInput_returnsEmpty() {
         assertThat(filter.filter(null)).isEmpty();
     }

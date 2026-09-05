@@ -43,14 +43,33 @@ public class WarehouseMatchService {
                 buildDetail(matched.size(), degraded));
     }
 
+    private static final java.util.Set<String> GENERIC_WAREHOUSE_KEYWORDS = java.util.Set.of(
+            "仓库", "仓储", "自有", "租赁", "数量", "面积", "排序", "全国", "各地", "情况",
+            "评分", "优秀", "良好", "一般", "满分", "分值", "根据", "应答人", "承诺", "要求",
+            "物流", "配送", "网点", "设施", "满足", "条件"
+    );
+
+    static List<String> filterSpecificWarehouseKeywords(List<String> rawKeywords) {
+        if (rawKeywords == null || rawKeywords.isEmpty()) {
+            return List.of();
+        }
+        return rawKeywords.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .filter(k -> k.length() <= 8)
+                .filter(k -> !GENERIC_WAREHOUSE_KEYWORDS.contains(k))
+                .filter(k -> !k.matches(".*(\\d+分|排序|评分|评价|评审|优秀|良好|一般|万元|亿元|以上|以下|情况|要求).*"))
+                .toList();
+    }
+
     private Specification<WarehouseEntity> specificationOf(WarehouseMatchRequest request) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(root.get("status").in(WarehouseStatus.IN_USE, WarehouseStatus.EXPIRING));
-            if (request.nameKeywords() != null && !request.nameKeywords().isEmpty()) {
-                List<Predicate> likes = request.nameKeywords().stream()
-                        .filter(StringUtils::hasText)
-                        .map(keyword -> cb.like(root.get("name"), "%" + keyword.trim() + "%"))
+            List<String> cleanKeywords = filterSpecificWarehouseKeywords(request.nameKeywords());
+            if (!cleanKeywords.isEmpty()) {
+                List<Predicate> likes = cleanKeywords.stream()
+                        .map(keyword -> cb.like(root.get("name"), "%" + keyword + "%"))
                         .toList();
                 predicates.add(cb.or(likes.toArray(new Predicate[0])));
             }

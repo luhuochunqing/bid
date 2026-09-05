@@ -21,6 +21,8 @@ import java.util.regex.Pattern;
 public class GhostCandidateFilter {
 
     private static final Pattern NON_SCORE_PROCEDURE_PATTERN = ScoreParseConstants.NON_SCORE_PROCEDURE_PATTERN;
+    private static final Pattern EXPLICIT_SCORE_RULE_PATTERN =
+            Pattern.compile("得\\s*\\d+(?:\\.\\d+)?\\s*分|扣\\s*\\d+(?:\\.\\d+)?\\s*分|不扣分");
 
     /** 过滤幽灵候选，返回新列表；入参为 null 时返回空列表 */
     public List<ScoreCandidate> filter(List<ScoreCandidate> candidates) {
@@ -50,9 +52,19 @@ public class GhostCandidateFilter {
         }
         String detail = candidate.detail() == null ? "" : candidate.detail();
         String source = candidate.sourceText() == null ? "" : candidate.sourceText();
-        return NON_SCORE_PROCEDURE_PATTERN.matcher(dim).find()
+        boolean matchesProcedural = NON_SCORE_PROCEDURE_PATTERN.matcher(dim).find()
                 || NON_SCORE_PROCEDURE_PATTERN.matcher(detail).find()
                 || NON_SCORE_PROCEDURE_PATTERN.matcher(source).find();
+        if (matchesProcedural) {
+            boolean hasExplicitRule = EXPLICIT_SCORE_RULE_PATTERN.matcher(detail).find()
+                    || EXPLICIT_SCORE_RULE_PATTERN.matcher(dim).find()
+                    || ScoreParseConstants.BRACKET_WEIGHT_PATTERN.matcher(dim).find()
+                    || ScoreParseConstants.BRACKET_WEIGHT_PATTERN.matcher(detail).find();
+            if (!hasExplicitRule) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String normalize(String text) {

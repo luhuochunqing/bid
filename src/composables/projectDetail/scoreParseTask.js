@@ -54,9 +54,14 @@ export function normalizeScoreItem(s, i) {
     ? s.sourceCellIds
     : (Array.isArray(parsedCells) ? parsedCells : (s.sourceCellIds ? [String(s.sourceCellIds)] : []))
 
+  const rawCode = (s.code != null ? String(s.code) : '').trim()
+  // Preserve original code if it is a valid non‑null identifier; otherwise generate a placeholder like "S{i+1}"
+  const isInvalidCode = !rawCode || /^(null|undefined|none|n\/?a)$/i.test(rawCode);
+  const displayCode = (!isInvalidCode && rawCode) ? rawCode : `S${i + 1}`;
+
   return {
     id: s.id,
-    code: s.code || `S${i + 1}`,
+    code: displayCode,
     dim: s.dim || '评分项',
     detail: s.detail || '',
     weight: s.weight != null ? Number(s.weight) : 0,

@@ -117,7 +117,7 @@ public class KnowledgeCategoryPolicy {
         }
         Set<String> keywords = new LinkedHashSet<>();
         for (String token : text.split("[^\\p{IsHan}a-zA-Z0-9]+")) {
-            if (token.length() < 2 || token.matches("\\d+") || STOP_WORDS.contains(token)) {
+            if (token.length() < 2 || token.matches("\\d+") || token.matches(".*\\d+分.*") || STOP_WORDS.contains(token)) {
                 continue;
             }
             keywords.add(token);

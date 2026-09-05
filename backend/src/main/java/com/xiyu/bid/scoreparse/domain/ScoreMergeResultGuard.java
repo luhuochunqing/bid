@@ -102,10 +102,13 @@ public final class ScoreMergeResultGuard {
         String detail = candidate.detail();
         String sourceText = candidate.sourceText();
         String dim = candidate.dim() == null ? "" : candidate.dim();
+        BigDecimal w = candidate.weight();
+        boolean isDeduction = isDeductionItem(candidate);
+        boolean validWeight = w != null && ((w.compareTo(BigDecimal.ZERO) > 0)
+                || (w.compareTo(BigDecimal.ZERO) == 0 && isDeduction))
+                && w.compareTo(MAX_SINGLE_WEIGHT) <= 0;
         if (detail == null || detail.isBlank()
-                || candidate.weight() == null
-                || candidate.weight().compareTo(BigDecimal.ZERO) <= 0
-                || candidate.weight().compareTo(MAX_SINGLE_WEIGHT) > 0
+                || !validWeight
                 || sourceText == null || sourceText.isBlank()
                 || !normalize(sourceText).contains(normalize(detail))) {
             return false;
@@ -242,5 +245,12 @@ public final class ScoreMergeResultGuard {
 
     private static String normalize(String text) {
         return text == null ? "" : text.replaceAll("\\s+", "");
+    }
+
+    private static boolean isDeductionItem(ScoreCandidate candidate) {
+        if (candidate == null) return false;
+        String text = (candidate.dim() == null ? "" : candidate.dim()) + " "
+                + (candidate.detail() == null ? "" : candidate.detail());
+        return text.contains("扣") || text.contains("诚信") || text.contains("信用") || text.contains("负面事件");
     }
 }

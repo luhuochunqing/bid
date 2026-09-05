@@ -45,15 +45,34 @@ public class ProjectMatchService {
                         : "命中业绩 " + matched.size() + "/" + effectiveRequired(request.requiredCount()));
     }
 
+    private static final java.util.Set<String> GENERIC_PROJECT_KEYWORDS = java.util.Set.of(
+            "业绩", "供货", "类似", "采购", "服务", "数量", "评价", "排序", "规模",
+            "企业", "用户", "交易", "合同", "案例", "时间", "要求", "项目", "情况",
+            "电商", "总体", "注册", "协议", "单位", "提供", "评审", "应答人", "承诺"
+    );
+
+    static List<String> filterSpecificProjectKeywords(List<String> rawKeywords) {
+        if (rawKeywords == null || rawKeywords.isEmpty()) {
+            return List.of();
+        }
+        return rawKeywords.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .filter(k -> k.length() <= 8)
+                .filter(k -> !GENERIC_PROJECT_KEYWORDS.contains(k))
+                .filter(k -> !k.matches(".*(\\d+分|排序|评价|评审|评分|优秀|良好|一般|万元|亿元|以上|以下|情况|要求).*"))
+                .toList();
+    }
+
     private Specification<PerformanceRecordEntity> specificationOf(ProjectMatchRequest request) {
         List<String> keywords = request.projectTypeKeywords() == null ? List.of() : request.projectTypeKeywords();
         List<ProjectType> enumHits = keywords.stream()
                 .map(ProjectMatchService::parseProjectType)
                 .filter(Objects::nonNull)
                 .toList();
-        List<String> textKeywords = keywords.stream()
-                .filter(keyword -> parseProjectType(keyword) == null)
-                .toList();
+        List<String> textKeywords = filterSpecificProjectKeywords(
+                keywords.stream().filter(keyword -> parseProjectType(keyword) == null).toList()
+        );
         return (root, query, cb) -> {
             List<Predicate> typePredicates = new ArrayList<>();
             if (!enumHits.isEmpty()) {

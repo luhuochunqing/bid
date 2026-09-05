@@ -138,6 +138,48 @@ class ScoreItemOrderPolicyTest {
         assertThat(result.get(1).detail()).contains("净利润");
     }
 
+    @Test
+    void sort_businessAndTechnicalOrderNotScrambledByLeafNames() {
+        // Table 2 items and Table 3 items: leaf containing "方案" must not be grouped into Table 3
+        List<ScoreCandidate> input = List.of(
+                candidate("1", "四、综合评价 / 库存评价", "库存评价 5分", "5"),
+                candidate("2", "四、综合评价 / 供货保障解决方案", "供货保障解决方案 5分", "5"),
+                candidate("3", "四、综合评价 / 紧急需求应急响应", "紧急需求应急响应 15分", "15"),
+                candidate("4", "应答人交易平台与履约交易平台对接方案", "对接方案 6分", "6")
+        );
+
+        List<ScoreCandidate> result = policy.sort(input);
+        assertThat(result.get(0).dim()).contains("库存评价");
+        assertThat(result.get(1).dim()).contains("供货保障解决方案");
+        assertThat(result.get(2).dim()).contains("紧急需求应急响应");
+        assertThat(result.get(3).dim()).contains("对接方案");
+    }
+
+    @Test
+    void sort_project1359Items_naturalDocumentOrderPreservedWithoutInterleaving() {
+        List<ScoreCandidate> input = List.of(
+                candidate(null, "一、诚信评价 / 公共信用信息报告", "公共信用 0分", "0"),
+                candidate(null, "二、财务状况 / 财务综合评价", "财务状况 25分", "25"),
+                candidate(null, "三、绿色数智评价 / 绿色发展规划", "绿色规划 4分", "4"),
+                candidate(null, "四、综合评价 / 库存评价", "库存充足性 5分", "5"),
+                candidate(null, "四、综合评价 / 库存评价", "供货保障解决方案 5分", "5"),
+                candidate(null, "四、综合评价 / 紧急需求应急响应", "紧急需求应急响应 15分", "15"),
+                candidate(null, "四、综合评价 / 应急保障能力", "应急保障能力 10分", "10"),
+                candidate(null, "四、综合评价 / 应答响应", "应答响应 15分", "15"),
+                candidate(null, "四、综合评价 / 报价质量", "报价质量 15分", "15"),
+                candidate(null, "应答人交易平台与履约交易平台对接方案", "对接方案 6分", "6"),
+                candidate(null, "供货业绩", "供货业绩 7分", "7")
+        );
+
+        List<ScoreCandidate> result = policy.sort(input);
+        assertThat(result).extracting(ScoreCandidate::detail).containsExactly(
+                "公共信用 0分", "财务状况 25分", "绿色规划 4分",
+                "库存充足性 5分", "供货保障解决方案 5分", "紧急需求应急响应 15分",
+                "应急保障能力 10分", "应答响应 15分", "报价质量 15分",
+                "对接方案 6分", "供货业绩 7分"
+        );
+    }
+
     private List<ScoreCandidate> candidates(String... codes) {
         List<ScoreCandidate> list = new ArrayList<>();
         for (String code : codes) {
