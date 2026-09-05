@@ -185,6 +185,16 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **法理与业务本质划界**：基于《招标投标法》第 18 条与《政府采购法》第 22 条，区分“通用主体资格条件”（独立法人、民事责任能力、财务会计制度、无违法失信等）与“专用行业资质许可”（增值电信、安全生产、等保三级、ISO 认证等）；企业通用主体资格由《营业执照》及承诺函证明，由 Rule 4（营业执照审查）等确定性规则闭环；企业资质库（`business_qualifications`）仅维护专业许可证，无营业执照实体。
     - **提取端分类归一（`DeterministicQualificationExtractor`）**：建立 `SPECIFIC_CERTIFICATE_KEYWORDS` 与 `GENERAL_CAPACITY_KEYWORDS` 双轨识别体系；`extract` 仅返回专用行业资质证书，彻底过滤法人及信用等通用条款；同时提供 `extractGeneralCapacities` 供通用规则复用；
     - **领域模型与匹配策略纵深防御**：`TenderRequirements.sanitizeQualifications` 与 `QualificationMatchPolicy.buildDetails` 双重校验 `isSpecificCertificate`，即使大模型提取误包含法人条款，在进入领域模型与比对清单时即被净化过滤；从根源上杜绝了“用增值电信业务许可证证明企业是独立法人”的荒谬错配，以及通用条款因资质库未维护而误报废标风险的问题。
+23. **投标函格式规范(BID_LETTER_FORMAT)两阶段结构化契约与要素反假重构**（2026-09-05）：
+    - **两阶段结构化契约**：在 `TenderRequirements` 与 `BidQualityCheckItem` 中建立投标函格式专属检查契约，覆盖格式规范、金额、工期与质量标准的一致性；
+    - **目录行与虚假占位模板拦截**：在 `BidLetterCheckPolicy` 建立点线目录扫描与虚假模板拦截，杜绝仅有目录或占位声明的虚假通过；
+    - **确定性与 LLM 协同**：在非免除且缺乏确定性强凭证事实时，由 `BidDocumentQualityEngine` 调用 LLM 裁决并保留完整比对事实链。
+24. **质检领域纯核心反 AI 异味（Anti-Slop）治理与代码消歧微重构**（2026-09-05）：
+    - **逻辑去重与抽取**：`DeterministicBidLetterExtractor.parseDigitsSafely` 提为包级方法，`BidLetterCheckPolicy` 直接复用，彻底删除策略类内部 15 行重复解析数字逻辑；
+    - **冗余子串条件折叠**：消除带书名号及后缀的冗余条件（如 `contains("《谈判响应函》") || contains("谈判响应函")` 统一折叠为 `contains("谈判响应函")`），简化规则维护复杂度；
+    - **消除空 if 分支占位**：消除 `BidDocumentQualityEngine` 中两个空 `if` 占位块（`if (hasStrong...) { } else if (...)`），合并为 `if (!hasStrong... && llm != null)`，避免无意图分支增加圈复杂度；
+    - **死代码清理与行预算防爆**：删除 `TenderRequirements.BidLetterRequirement.standard` 零引用的死工厂方法，紧凑化 `with` 方法行格式，使 `TenderRequirements.java` 安全控制在 277 行（远离 300 行硬门禁）；
+    - **正则静态预编译**：`BidLetterCheckPolicy` 预编译 `MULTI_DOT_PATTERN` 与 `CATALOG_DOT_LINE_PATTERN`，避免高频逐行判定时反复编译正则，保障纯核心高吞吐。
 
 ## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
 
