@@ -74,7 +74,7 @@ const props = defineProps({
 })
 defineEmits(['view-detail', 'reuse'])
 
-const subTopicLabel = computed(() => getSubTopicLabel(props.caseData.subTopic))
+const subTopicLabel = computed(() => getSubTopicLabel(props.caseData?.subTopic))
 
 const hasMatchScore = computed(() => props.matchScore !== null && props.matchScore !== undefined)
 const numScore = computed(() => Number(props.matchScore) || 0)

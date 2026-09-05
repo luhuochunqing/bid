@@ -14,14 +14,14 @@
 
 ## Technical Context
 
-**Language/Version**: Java 21 (Spring Boot 3.2), Python 3.10+, Vue 3 + Vite 5  
-**Primary Dependencies**: JPA/Hibernate, Jackson, Element Plus  
-**Storage**: MySQL 8.0 (表 `knowledge_case`, `projects`, `tenders`)  
-**Testing**: JUnit 5, Mockito, Python unittest/assert  
-**Target Platform**: Linux server (x86_64, CentOS/EulerOS, 西域测试环境 172.16.38.78)  
-**Project Type**: Web service + Offline data pipeline  
-**Performance Goals**: 单次推荐接口响应时间 P95 $< 300$ms（纯内存算分，无外部慢调用）  
-**Constraints**: 
+**Language/Version**: Java 21 (Spring Boot 3.2), Python 3.10+, Vue 3 + Vite 5
+**Primary Dependencies**: JPA/Hibernate, Jackson, Element Plus
+**Storage**: MySQL 8.0 (表 `knowledge_case`, `projects`, `tenders`)
+**Testing**: JUnit 5, Mockito, Python unittest/assert
+**Target Platform**: Linux server (x86_64, CentOS/EulerOS, 西域测试环境 172.16.38.78)
+**Project Type**: Web service + Offline data pipeline
+**Performance Goals**: 单次推荐接口响应时间 P95 $< 300$ms（纯内存算分，无外部慢调用）
+**Constraints**:
 - 严格遵循 FP-Java 契约：纯核心策略类不依赖 Spring、入参对象不可变、无副作用；
 - 真实数据唯一源，严禁 Mock；
 - 数据库脚本遵循 Flyway 严格自增与 U 回滚配对规范；

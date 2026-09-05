@@ -844,4 +844,3 @@ class ScoreItemCaseMatchPolicyTest {
         assertThat(result.matchReasons()).contains("大类冲突一票否决");
     }
 }
-
