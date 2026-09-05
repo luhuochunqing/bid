@@ -87,6 +87,7 @@ import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import CaseCard from '@/views/Knowledge/views/components/CaseCard.vue'
 import CaseDetailDialog from '@/views/Knowledge/views/components/CaseDetailDialog.vue'
 import { useBidCaseSourceActions } from '@/views/Knowledge/views/useBidCaseSourceActions.js'
+import { getMatchLabel } from '@/views/Knowledge/views/caseLabels.js'
 import ScoreItemSelect from '@/components/common/ScoreItemSelect.vue'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
@@ -193,7 +194,7 @@ function normalizeRecommendCase(item) {
     createdAt: item.createdAt || '',
     score: matchScore,
     matchScore,
-    matchLabel: item.matchLabel || (matchScore >= 80 ? '优质' : matchScore >= 60 ? '良好' : '一般'),
+    matchLabel: getMatchLabel(matchScore, item.matchLabel),
     matchReasons: item.matchReasons || [],
     matchedKeywords: item.matchedKeywords || [],
     responseText: item.responseText || '',

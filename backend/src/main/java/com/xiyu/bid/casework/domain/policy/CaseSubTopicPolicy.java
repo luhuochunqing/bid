@@ -77,6 +77,10 @@ public final class CaseSubTopicPolicy {
 
     public record SubTopicMatchResult(int score, String reason, SubTopic inferredTopic) {}
 
+    private static final SubTopic[] ACTIVE_TOPICS = java.util.Arrays.stream(SubTopic.values())
+            .filter(t -> t != SubTopic.OTHER)
+            .toArray(SubTopic[]::new);
+
     private CaseSubTopicPolicy() {}
 
     /**
@@ -88,8 +92,7 @@ public final class CaseSubTopicPolicy {
 
         // 1. 优先通过标题/维度推断（最高信源优先级）
         if (hasText(dimText)) {
-            for (SubTopic topic : SubTopic.values()) {
-                if (topic == SubTopic.OTHER) continue;
+            for (SubTopic topic : ACTIVE_TOPICS) {
                 for (String kw : topic.getKeywords()) {
                     if (dimText.contains(kw)) {
                         return topic;
@@ -102,8 +105,7 @@ public final class CaseSubTopicPolicy {
         if (hasText(detailText)) {
             SubTopic bestTopic = SubTopic.OTHER;
             int maxHits = 0;
-            for (SubTopic topic : SubTopic.values()) {
-                if (topic == SubTopic.OTHER) continue;
+            for (SubTopic topic : ACTIVE_TOPICS) {
                 int hits = 0;
                 for (String kw : topic.getKeywords()) {
                     if (detailText.contains(kw)) {

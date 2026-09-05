@@ -79,10 +79,7 @@ const subTopicLabel = computed(() => getSubTopicLabel(props.caseData.subTopic))
 const hasMatchScore = computed(() => props.matchScore !== null && props.matchScore !== undefined)
 const numScore = computed(() => Number(props.matchScore) || 0)
 
-const displayMatchLabel = computed(() => {
-  if (!hasMatchScore.value && !props.caseData?.matchLabel) return ''
-  return getMatchLabel(props.matchScore, props.caseData?.matchLabel)
-})
+const displayMatchLabel = computed(() => getMatchLabel(props.matchScore, props.caseData?.matchLabel))
 
 const matchLabelTagType = computed(() => getMatchTagType(props.matchScore, props.caseData?.matchLabel))
 

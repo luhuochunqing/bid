@@ -89,22 +89,16 @@ public class ScoreItemCaseMatchPolicy {
 
         // 3. 条款重叠度
         int detailScore = calculateDetailOverlap(context.detail(), candidateText);
-        if (detailScore >= 15) {
+        if (detailScore > 0) {
             score += detailScore;
-            reasons.add("评分项条款高度契合");
-        } else if (detailScore > 0) {
-            score += detailScore;
-            reasons.add("条款部分契合");
+            reasons.add(detailScore >= 15 ? "评分项条款高度契合" : "条款部分契合");
         }
 
         // 4. 标题/正文跨层相似度
         int titleScore = calculateTitleSimilarity(context, candidate, candidateText);
-        if (titleScore >= 15) {
+        if (titleScore > 0) {
             score += titleScore;
-            reasons.add("评分点匹配");
-        } else if (titleScore > 0) {
-            score += titleScore;
-            reasons.add("评分点部分匹配");
+            reasons.add(titleScore >= 15 ? "评分点匹配" : "评分点部分匹配");
         }
 
         // 5. 类别一致性与推断
@@ -165,10 +159,7 @@ public class ScoreItemCaseMatchPolicy {
         }
         List<String> toCheck = new ArrayList<>();
         if (hasText(cleanTitle(context.dim()))) toCheck.add(cleanTitle(context.dim()));
-        toCheck.addAll(PunctuationEntityExtractor.extractPunctuationEntities(context.detail()));
-        if (hasText(context.dim()) && (context.dim().contains("、") || context.dim().contains("；") || context.dim().contains("“"))) {
-            toCheck.addAll(PunctuationEntityExtractor.extractPunctuationEntities(context.dim()));
-        }
+        toCheck.addAll(PunctuationEntityExtractor.extractPunctuationEntities(context.detail(), context.dim()));
         if (hasText(context.keyword())) toCheck.add(context.keyword());
         for (String word : toCheck) {
             if (result.size() >= MAX_KEYWORDS_COUNT) break;
