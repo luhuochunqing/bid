@@ -3,6 +3,22 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-05] review-fix | PR !2550 审查返工：救援谓词收敛、恒过测试诚实化、前端空格容忍
+
+- 触发：`xiyu-code-review` 三透镜审出 4 Major（纯测试恒过×2、RowParser 扣分行缺口、豁免析取三处手写）+ 10 Minor。
+- 修复：`hasExplicitScoreRule` 并入 Policy 并删别名层；RowParser EXPLICIT 仅救程序性侧；
+  纯用例注释修正 + NFKC 补 ①/² 真增量断言；前端 `( null )` 空格容忍 + 空 code 跳过。
+- 回填：[[score-parse-service]] 追记「审查返工」节。
+
+## [2026-09-05] fix | PR !2549 follow-up：isCredit 收窄为失信语义行、三处救援口径拉齐、编号反斜杠与前端 NFKC 对齐
+
+- 触发：PR !2549 第三轮复审残留——isCredit 裸子串 FP（推荐候选 + 信用被泄漏）、后端分隔符缺反斜杠、
+  前端手写全角映射只是 NFKC 子集。
+- 修复：`DeductionItemPolicy.isCreditRescue`（诚信|信用 且 失信）；Ghost/Cell/RowParser 同调一处；
+  EXPLICIT 恢复 `扣\s*\d+\s*分`；正反单测锁；`ScoreCodeSanitizer` 补字面反斜杠 + NFKC 注释；
+  前端换 `normalize('NFKC')`；Project 补长分句走 match() 用例。
+- 回填：[[score-parse-service]] 新增「isCredit 救援收窄与编号分隔符补齐（follow-up，2026-09-05）」章节。
+
 ## [2026-09-04] fix | 1371 评分解析四列契约：分类只看 dim、仓库无约束不得满分、行身份用 item.id
 
 - 触发：winbid-test `/project/1371` 四列反复错（权重/分类/仓库满足/顺序）；审查否决「有在用仓即 FULL」。

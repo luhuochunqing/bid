@@ -70,13 +70,14 @@ public final class ScoreTableRowParser {
             }
         }
 
-        // 前附表程序性非评分行与合同履约考核表过滤
+        // 前附表程序性非评分行与合同履约考核表过滤。
+        // EXPLICIT 救援仅作用于程序性侧；考核表行即使含扣分措辞仍过滤（锁定单测见下）。
         boolean isProcedural = NON_SCORE_PROCEDURE_PATTERN.matcher(row).find();
         boolean isContractAssessment = ScoreParseConstants.CONTRACT_ASSESSMENT_PATTERN.matcher(row).find()
                 && !row.contains("评分标准") && !row.contains("评审标准");
-        boolean hasExplicitGradeScore = GRADE_SCORE.matcher(row).find();
-        boolean hasBracketWeight = BRACKET_WEIGHT.matcher(row).find();
-        if ((isProcedural || isContractAssessment) && !hasExplicitGradeScore && !hasBracketWeight) {
+        if (((isProcedural && !DeductionItemPolicy.hasExplicitScoreRule(row)) || isContractAssessment)
+                && !GRADE_SCORE.matcher(row).find() && !BRACKET_WEIGHT.matcher(row).find()
+                && !DeductionItemPolicy.isCreditRescue(row)) {
             return Optional.empty();
         }
         

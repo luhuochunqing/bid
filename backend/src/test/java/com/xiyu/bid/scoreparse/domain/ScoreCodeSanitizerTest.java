@@ -42,6 +42,9 @@ class ScoreCodeSanitizerTest {
         assertThat(ScoreCodeSanitizer.clean("（null）2")).isEqualTo("2");
         assertThat(ScoreCodeSanitizer.clean("null.\u200B1")).isEqualTo("1");
         assertThat(ScoreCodeSanitizer.clean("null.(null)")).isEmpty();
+        // 反斜杠分隔符（与前端 sanitizeCode 对齐）
+        assertThat(ScoreCodeSanitizer.clean("null\\1")).isEqualTo("1");
+        assertThat(ScoreCodeSanitizer.clean("1\\null")).isEqualTo("1");
     }
 
     @Test
@@ -59,5 +62,8 @@ class ScoreCodeSanitizerTest {
         assertThat(ScoreCodeSanitizer.clean("1.2.3")).isEqualTo("1.2.3");
         assertThat(ScoreCodeSanitizer.clean("4-1")).isEqualTo("4-1");
         assertThat(ScoreCodeSanitizer.clean("S1")).isEqualTo("S1");
+        // NFKC 归一行为锁：圈号/上标同样归一（与前端 sanitizeCode 对齐）
+        assertThat(ScoreCodeSanitizer.clean("①")).isEqualTo("1");
+        assertThat(ScoreCodeSanitizer.clean("²")).isEqualTo("2");
     }
 }

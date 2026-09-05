@@ -148,6 +148,20 @@ class ProjectMatchServiceTest {
     }
 
     @Test
+    @DisplayName("匹配服务：长分句关键词走 match() 全被过滤 → NONE 且不查表（Warehouse 全通用词用例的对等项）")
+    void longClauseKeywords_returnsNoneAndNeverCallsRepository() {
+        ProjectMatchRequest request = new ProjectMatchRequest(List.of(
+                "为央企二级单位及以上或省级及以上政府机关所提供的与本项目类似采购供货服务数量进行评价"), null, null, 1);
+
+        KnowledgeMatchResult result = service.match(request);
+
+        assertThat(result.tier()).isEqualTo("NONE");
+        assertThat(result.matchRatio()).isEqualTo(0);
+        assertThat(result.matched()).isEmpty();
+        verify(repository, never()).findAll(any(Specification.class));
+    }
+
+    @Test
     @DisplayName("过滤通用评分短语与长分句，防止长子句污染业绩行业匹配，同时保留合法业务词")
     void filterGenericKeywords_filtersClauseText() {
         List<String> raw = List.of(

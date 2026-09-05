@@ -190,6 +190,29 @@ class ScoreTableRowParserTest {
     }
 
     @Test
+    void parse_creditRescueRowWithoutAnyExplicitScore_kept() {
+        // 三处救援口径拉齐：RowParser 同 Ghost/Cell，纯"诚信/信用 + 失信"语义保留
+        // （无"不扣/扣减/扣除/得X分/扣X分/括号分值"中任何一个）
+        assertThat(ScoreTableRowParser.parse(
+                "| 诚信评价 | 供应商存在失信行为记录的按信用评价办法处理 | 0 |")).isPresent();
+    }
+
+    @Test
+    void parse_proceduralRowWithExplicitDeduction_kept() {
+        // EXPLICIT 救援作用于程序性侧：履约评价行含"扣2分"不再被当纯程序性行丢弃；
+        // 合同履约考核侧仍过滤（parse_contractAssessmentRowWithoutScore_filtered 锁定）。
+        assertThat(ScoreTableRowParser.parse(
+                "| 履约评价 | 出现失信行为扣2分 | 5 |")).isPresent();
+    }
+
+    @Test
+    void parse_bareCreditProceduralRow_filtered() {
+        // 反向 FP 锁：含信用词但无失信语义的真程序性行必须被滤除
+        assertThat(ScoreTableRowParser.parse(
+                "| 信用评价程序 | 推荐成交候选供应商三名信用评价程序按规定执行 | 5 |")).isEmpty();
+    }
+
+    @Test
     void parse_summaryRow_skipped() {
         // 分值构成等总览说明行必须被过滤排除，不能作为评分项入池
         assertThat(ScoreTableRowParser.parse("| 3.1 | 分值构成（总分100分） | 商务评分标准56分，技术评分标准34分，价格10分 |")).isEmpty();

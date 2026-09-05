@@ -261,3 +261,25 @@ trigger（同步<1s，互斥校验+建任务）
 
 `testing-gate: passed` — 架构测试 12 + scoreparse 114（AppService 20 / PostProcessor 5 / Orchestrator 7 / Prompts 15 / MergeExecutor 6 / ItemMergePolicy 18 / VocabularyRegistry 14 / NormalizationPolicy 12 / StructuredTableExtractor 17）+ 前端 27（useScoreParseDrawer 22 / ScoreParseDrawer 5）。
 
+
+## isCredit 救援收窄与编号分隔符补齐（follow-up，2026-09-05）
+
+- **isCredit 从裸子串收窄为"主体词 + 失信"**：`DeductionItemPolicy.isCreditRescue(texts)` 要求同时含
+  `诚信|信用` 与 `失信` 才豁免程序性过滤。否决"信用 + 评价/评分"交集方案的原因：
+  反向例"推荐成交候选供应商三名信用评价程序按规定执行"同时含信用与评价，交集照样泄漏。
+  `GhostCandidateFilter` / `CellAnchoredScoreExtractor` / `ScoreTableRowParser` 三处同调一处
+ （RowParser 为新增救援口径）；两处 EXPLICIT 恢复 `扣\s*\d+\s*分` 空格容忍。
+- **正反单测锁**：纯 isCredit 正向用例刻意不含不扣/扣减/扣除/得分/扣分/数字/括号；
+  反向用例在旧裸 isCredit 逻辑下必红。
+- **编号分隔符反斜杠**：Java 字符类源码中 `\\-` 只是转义连字符，类内本无字面反斜杠
+  （字面反斜杠在 Java 字符串需写成 `\\\\`），已补上（`null\1`→`1` 单测钉死）；
+  前端本就支持（JS 正则字面量 `\\` 即字面反斜杠）。
+- **前端 NFKC 对齐**：手写 `FF01-FF5E` 映射换成标准 `normalize('NFKC')`，与后端
+  `java.text.Normalizer` 对齐；U+3001 、不受影响（中文编号保留），零宽仍需显式剥除。
+
+## 审查返工：救援谓词收敛与测试诚实化（2026-09-05）
+- `hasExplicitScoreRule` 并入 `DeductionItemPolicy`，Ghost/Cell 去本地别名层；
+  RowParser 的 EXPLICIT 救援仅作用于程序性侧（考核表侧仍过滤，
+  `parse_contractAssessmentRowWithoutScore_filtered` 锁定）。
+- 纯救援正向用例注释修正：只证"删掉救援即变红"，收窄语义由反向用例锁定；
+  NFKC 用例补真增量（圈号/上标），旧三断言标注为回归锁。

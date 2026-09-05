@@ -29,6 +29,21 @@ describe('scoreParseTask — spec 041 状态映射与任务轮询纯函数', () 
       expect(sanitizeCode('null.(null)')).toBe('')
     })
 
+    it('NFKC 与后端对齐：全角分隔符、表意空格归一', () => {
+      expect(sanitizeCode('ｎｕｌｌ／1')).toBe('1')
+      expect(sanitizeCode('　1　')).toBe('1')
+      expect(sanitizeCode('null\\1')).toBe('1')
+    })
+
+    it('NFKC 真增量：圈号/上标归一（旧手写映射下恒为原样）', () => {
+      expect(sanitizeCode('①')).toBe('1')
+      expect(sanitizeCode('²')).toBe('2')
+    })
+
+    it('括号空格容忍：( null ) 与后端对齐', () => {
+      expect(sanitizeCode('( null )1')).toBe('1')
+    })
+
     it('纯占位符统一置空', () => {
       expect(sanitizeCode(null)).toBe('')
       expect(sanitizeCode(undefined)).toBe('')
