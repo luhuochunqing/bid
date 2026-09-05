@@ -122,30 +122,24 @@ public final class BidDocumentQualityEngine {
                     QualityCheckItemResult.pass(BidQualityCheckItem.DEPOSIT_REFUND,
                             "本项目不涉及投标保证金，无需提供退款账户信息", Collections.emptyList()));
         } else {
-            // 招标要求缴纳（或未明确免收）：
+            // 招标要求缴纳（或未明确免收）：若已有确定性强凭证直通则无需重调 LLM，可疑场景接通 LLM
             QualityCheckItemResult existingDeposit = resultMap.get(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode());
             boolean hasStrongVoucherPass = existingDeposit != null
                     && existingDeposit.status() == QualityCheckStatus.PASS
                     && !existingDeposit.evidences().isEmpty();
-            if (hasStrongVoucherPass) {
-                // 确定性强凭证直通：标书已包含真实银行电子回单/保函硬事实，无需重复调 LLM，降本抗抖动
-            } else if (llm != null) {
-                // 可疑场景（无凭证、疑似目录/占位符 MANUAL_REVIEW、或未检索到 FAIL）：接通 LLM 深度语义裁决
+            if (!hasStrongVoucherPass && llm != null) {
                 QualityCheckItemResult depositVerdict = llm.adjudicateItem(
                         BidQualityCheckItem.DEPOSIT_RECEIPT, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
                 resultMap.put(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode(), depositVerdict);
             }
         }
 
-        // 4. 投标函格式要求联动与标书端 LLM 深度语义裁决接通
+        // 4. 投标函格式要求联动与标书端 LLM 深度语义裁决接通（规范正文强凭证直通，存疑场景接通 LLM）
         QualityCheckItemResult existingBidLetter = resultMap.get(BidQualityCheckItem.BID_LETTER_FORMAT.getCode());
         boolean hasStrongBidLetterPass = existingBidLetter != null
                 && existingBidLetter.status() == QualityCheckStatus.PASS
                 && !existingBidLetter.evidences().isEmpty();
-        if (hasStrongBidLetterPass) {
-            // 确定性强凭证直通：标书已包含规范投标函/报价函正文、致采购人称谓及承诺落款，无需重复调 LLM，降本抗抖动
-        } else if (llm != null) {
-            // 可疑场景（仅有目录行被拦截、未检测到标准抬头、占位符未填或未检索到）：接通 LLM 深度语义裁决
+        if (!hasStrongBidLetterPass && llm != null) {
             QualityCheckItemResult letterVerdict = llm.adjudicateItem(
                     BidQualityCheckItem.BID_LETTER_FORMAT, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
             resultMap.put(BidQualityCheckItem.BID_LETTER_FORMAT.getCode(), letterVerdict);

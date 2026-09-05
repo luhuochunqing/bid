@@ -3,6 +3,18 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-05] refactor | 标书质检纯核心反 AI 异味（Anti-Slop）与代码消歧重构
+
+- 触发：执行 `/ai-slop-cleaner` 技能，治理标书质检领域纯核心（`compliance`）在快速迭代中积累的 AI 异味与冗余样板代码。
+- 修复：
+  - 去重抽取：`DeterministicBidLetterExtractor.parseDigitsSafely` 升为包级可见，`BidLetterCheckPolicy` 直接复用，彻底删除策略内部 15 行重复解析实现；
+  - 条件折叠：消除带书名号及后缀的冗余条件（如 `contains("《谈判响应函》") || contains("谈判响应函")` 统一折叠为 `contains("谈判响应函")`）；
+  - 分支净化：消除 `BidDocumentQualityEngine` 中两个空 `if` 占位块（`if (hasStrong...) { } else if (...)`），合并为 `if (!hasStrong... && llm != null)`，避免空分支增加圈复杂度；
+  - 死代码清理与行预算防爆：删除 `TenderRequirements.BidLetterRequirement.standard` 零引用的死工厂方法；紧凑化 `with` 方法格式，使 `TenderRequirements.java` 安全降至 277 行（远离 300 行硬门禁）；
+  - 预编译正则：`BidLetterCheckPolicy` 预编译 `MULTI_DOT_PATTERN` 与 `CATALOG_DOT_LINE_PATTERN`，消除逐行判定时的动态编译开销。
+- 结果：净删除 38 行代码（+21, -59），63 项单元与 FP-Java 架构测试全绿。
+- 页面更新：更新 [[bid-quality-check-realization]] §4.23、§4.24。
+
 ## [2026-09-05] review-fix | PR !2550 审查返工：救援谓词收敛、恒过测试诚实化、前端空格容忍
 
 - 触发：`xiyu-code-review` 三透镜审出 4 Major（纯测试恒过×2、RowParser 扣分行缺口、豁免析取三处手写）+ 10 Minor。

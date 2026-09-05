@@ -106,10 +106,6 @@ public record TenderRequirements(
             Integer validityDays,
             String description) {
 
-        public static BidLetterRequirement standard(final String letterType, final String recipientName, final Integer validityDays) {
-            return new BidLetterRequirement(letterType, recipientName, validityDays, null);
-        }
-
         /**
          * 交叉校验与融合两条投标函要求提取结果（硬事实优先）.
          */
@@ -238,30 +234,14 @@ public record TenderRequirements(
 
     /** 注入保证金要求. */
     public TenderRequirements withDepositRequirement(final DepositRequirement depositRequirement) {
-        return new TenderRequirements(
-                scoringItems,
-                mandatoryQualifications,
-                vetoClauses,
-                compositionRequirements,
-                formatRequirements,
-                depositRequirement,
-                bidLetterRequirement,
-                missing
-        );
+        return new TenderRequirements(scoringItems, mandatoryQualifications, vetoClauses,
+                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, missing);
     }
 
     /** 注入投标函格式要求. */
     public TenderRequirements withBidLetterRequirement(final BidLetterRequirement bidLetterRequirement) {
-        return new TenderRequirements(
-                scoringItems,
-                mandatoryQualifications,
-                vetoClauses,
-                compositionRequirements,
-                formatRequirements,
-                depositRequirement,
-                bidLetterRequirement,
-                missing
-        );
+        return new TenderRequirements(scoringItems, mandatoryQualifications, vetoClauses,
+                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, missing);
     }
 
     /** 合并多段提取结果（长文档分段送入时）；任一段为哨兵不影响其他段，全空则哨兵. */

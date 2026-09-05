@@ -63,16 +63,15 @@ public final class DeterministicBidLetterExtractor {
 
         // 3. 识别函件类型（默认为投标函，若为谈判/磋商采购且明确要求报价函则为报价函）
         String letterType = null;
-        if (QUOTATION_LETTER_PATTERN.matcher(tenderText).find() || tenderText.contains("《报价函》")
-                || (tenderText.contains("竞争性谈判") && tenderText.contains("报价函"))) {
+        if (QUOTATION_LETTER_PATTERN.matcher(tenderText).find() || tenderText.contains("报价函")) {
             letterType = "报价函";
-        } else if (tenderText.contains("《谈判响应函》") || tenderText.contains("谈判响应函")) {
+        } else if (tenderText.contains("谈判响应函")) {
             letterType = "谈判响应函";
-        } else if (tenderText.contains("《磋商响应函》") || tenderText.contains("磋商响应函")) {
+        } else if (tenderText.contains("磋商响应函")) {
             letterType = "磋商响应函";
-        } else if (tenderText.contains("《投标响应函》") || tenderText.contains("投标响应函")) {
+        } else if (tenderText.contains("投标响应函")) {
             letterType = "投标响应函";
-        } else if (tenderText.contains("《投标函》") || tenderText.contains("投标函格式") || tenderText.contains("投标函")) {
+        } else if (tenderText.contains("投标函")) {
             letterType = "投标函";
         }
 
@@ -89,7 +88,7 @@ public final class DeterministicBidLetterExtractor {
         return new TenderRequirements.BidLetterRequirement(letterType, recipientName, validityDays, description);
     }
 
-    private static Integer parseDigitsSafely(final String digits) {
+    static Integer parseDigitsSafely(final String digits) {
         if (digits == null || digits.isEmpty()) {
             return null;
         }

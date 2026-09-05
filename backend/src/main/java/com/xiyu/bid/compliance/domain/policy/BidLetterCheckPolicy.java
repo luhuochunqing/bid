@@ -42,6 +42,10 @@ public final class BidLetterCheckPolicy {
             "(?:投标有效期|响应有效期|报价有效期)[^0-9\\n]{0,20}(\\d{2,3})\\s*(?:日历天|天|日)"
     );
 
+    private static final Pattern MULTI_DOT_PATTERN = Pattern.compile("\\.{4,}|……");
+
+    private static final Pattern CATALOG_DOT_LINE_PATTERN = Pattern.compile("[\\.·…]{3,}.*\\d+");
+
     private BidLetterCheckPolicy() {
     }
 
@@ -150,13 +154,13 @@ public final class BidLetterCheckPolicy {
             return false;
         }
         boolean hasCatalogTitle = text.contains("目录") || text.contains("目 录") || text.contains("TABLE OF CONTENTS");
-        boolean hasDots = text.contains("......") || text.contains("……") || text.matches("(?s).*\\.{4,}.*");
+        boolean hasDots = MULTI_DOT_PATTERN.matcher(text).find();
         if (hasCatalogTitle && hasDots) {
             return true;
         }
         int dotLineCount = 0;
         for (String line : text.split("\\r?\\n")) {
-            if (line.matches(".*[\\.·…]{3,}.*\\d+.*")) {
+            if (CATALOG_DOT_LINE_PATTERN.matcher(line).find()) {
                 dotLineCount++;
             }
         }
@@ -194,24 +198,9 @@ public final class BidLetterCheckPolicy {
         }
         Matcher m = VALIDITY_PATTERN.matcher(text);
         if (m.find()) {
-            return parseDigitsSafely(m.group(1));
+            return DeterministicBidLetterExtractor.parseDigitsSafely(m.group(1));
         }
         return null;
-    }
-
-    private static Integer parseDigitsSafely(final String digits) {
-        if (digits == null || digits.isEmpty()) {
-            return null;
-        }
-        int val = 0;
-        for (int i = 0; i < digits.length(); i++) {
-            char c = digits.charAt(i);
-            if (c < '0' || c > '9') {
-                return null;
-            }
-            val = val * 10 + (c - '0');
-        }
-        return val;
     }
 
     private static String resolveEvidenceTitle(final String text) {
