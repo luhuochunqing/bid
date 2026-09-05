@@ -9,7 +9,7 @@ import static com.xiyu.bid.casework.domain.policy.TextSimilarityPolicy.hasText;
  */
 public final class CaseCategoryMatchPolicy {
 
-    public static final int CATEGORY_MATCH_SCORE = 15;
+    public static final int CATEGORY_MATCH_SCORE = 10;
 
     public enum MacroCategory {
         TECHNICAL,
