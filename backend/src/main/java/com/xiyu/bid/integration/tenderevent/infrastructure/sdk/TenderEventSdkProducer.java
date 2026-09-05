@@ -1,8 +1,8 @@
 package com.xiyu.bid.integration.tenderevent.infrastructure.sdk;
 
+import com.xiyu.bid.integration.tenderevent.application.TenderEventPayloadMapper;
 import com.xiyu.bid.integration.tenderevent.application.TenderEventPublishCommand;
 import com.xiyu.bid.integration.tenderevent.application.TenderEventPublishPort;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 
@@ -39,11 +39,7 @@ public class TenderEventSdkProducer implements TenderEventPublishPort {
     }
 
     private Map<String, Object> buildData(TenderEventPublishCommand command) {
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("tenderId", command.payload().tenderId());
-        if (command.payload().externalId() != null && !command.payload().externalId().isBlank()) {
-            data.put("externalId", command.payload().externalId());
-        }
-        return data;
+        // 复用 TenderEventPayloadMapper.toData（唯一数据源），保证实际发送字段与流水留痕完全一致
+        return TenderEventPayloadMapper.toData(command.payload());
     }
 }

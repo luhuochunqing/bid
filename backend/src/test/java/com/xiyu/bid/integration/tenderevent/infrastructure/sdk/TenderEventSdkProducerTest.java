@@ -52,10 +52,16 @@ class TenderEventSdkProducerTest {
         httpClient.close();
     }
 
+    /** 仅 tenderId + externalId 非空的载荷（其余 18 字段 null，data 中省略）。 */
+    private static TenderEventPayload payload(String externalId) {
+        return new TenderEventPayload(123L, externalId, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null);
+    }
+
     private TenderEventPublishCommand command() {
         return new TenderEventPublishCommand(
                 TenderEventCode.BID_TENDER_CHANGE,
-                new TenderEventPayload(123L, "ext-1"),
+                payload("ext-1"),
                 "trace-1", "span-1", "parent-1");
     }
 
@@ -97,7 +103,7 @@ class TenderEventSdkProducerTest {
 
         TenderEventPublishCommand cmd = new TenderEventPublishCommand(
                 TenderEventCode.BID_TENDER_CHANGE,
-                new TenderEventPayload(123L, "  "),
+                payload("  "),
                 "t", "s", "p");
 
         assertThat(producer.publish(cmd)).isTrue();

@@ -14,7 +14,9 @@ import com.xiyu.bid.notification.core.NotificationType;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
 import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.notification.service.NotificationRecipientResolver;
+import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.project.entity.ProjectResult;
+import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.project.repository.ProjectResultRepository;
 import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
@@ -59,6 +61,7 @@ class OpportunityPredictionReminderServiceTest {
 
     @Mock private ProjectRepository projectRepository;
     @Mock private ProjectResultRepository projectResultRepository;
+    @Mock private ProjectInitiationDetailsRepository projectInitiationDetailsRepository;
     @Mock private TenderRepository tenderRepository;
     @Mock private UserRepository userRepository;
     @Mock private NotificationRecipientResolver recipientResolver;
@@ -72,7 +75,8 @@ class OpportunityPredictionReminderServiceTest {
     @BeforeEach
     void setUp() {
         service = new OpportunityPredictionReminderService(
-                projectRepository, projectResultRepository, tenderRepository, userRepository,
+                projectRepository, projectResultRepository, projectInitiationDetailsRepository,
+                tenderRepository, userRepository,
                 recipientResolver, notificationApplicationService, reminderLogRepository,
                 eventPublisher, systemActorResolver);
         lenient().when(systemActorResolver.resolveCached()).thenReturn(SYSTEM_ACTOR);
@@ -114,6 +118,8 @@ class OpportunityPredictionReminderServiceTest {
 
         when(projectRepository.findAll()).thenReturn(List.of(project));
         when(projectResultRepository.findByProjectIdIn(List.of(1L))).thenReturn(List.of(result));
+        when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(1L))).thenReturn(List.of(
+                ProjectInitiationDetails.builder().projectId(1L).projectLeaderName("王五").build()));
         when(tenderRepository.findAllById(Set.of(100L))).thenReturn(List.of(tender));
         when(userRepository.findByIdIn(Set.of(50L))).thenReturn(List.of(manager));
         when(reminderLogRepository.findByProjectId(1L)).thenReturn(Optional.empty());
@@ -143,9 +149,59 @@ class OpportunityPredictionReminderServiceTest {
         ArgumentCaptor<OpportunityPredictionEventPayload> evtCaptor =
                 ArgumentCaptor.forClass(OpportunityPredictionEventPayload.class);
         verify(eventPublisher).publish(evtCaptor.capture());
-        assertEquals(1L, evtCaptor.getValue().projectId());
-        assertEquals("招标主体X", evtCaptor.getValue().purchaserName());
-        assertEquals(LocalDate.of(2026, 3, 1), evtCaptor.getValue().predictedBidDate());
+        OpportunityPredictionEventPayload evt = evtCaptor.getValue();
+        assertEquals(1L, evt.projectId());
+        assertEquals("测试项目1", evt.projectName());
+        assertEquals("WON", evt.resultType());               // 后端码，publisher 序列化时转中文
+        assertEquals("客户1", evt.customer());                // 招标主体取项目客户
+        assertEquals("王五", evt.projectLeaderName());        // 来自 project_initiation_details
+        assertEquals("LOCAL_SOE", evt.customerType());        // 后端码，publisher 序列化时转中文
+        assertEquals("2025-08-15", evt.bidOpenTime());        // tender.bidOpeningTime → yyyy-MM-dd
+        assertEquals(new BigDecimal("3"), evt.servicePeriodYears());
+        assertEquals(LocalDate.of(2026, 6, 1), evt.servicePeriodEndDate());
+        assertEquals(LocalDate.of(2026, 3, 1), evt.predictedBidDate());
+    }
+
+    @Test
+    @DisplayName("招标主体回退：Project.customer 为空时取关联标讯采购人（对齐表格 ownerUnit 列）")
+    void shouldFallbackToTenderPurchaserWhenCustomerBlank() {
+        Project project = Project.builder()
+                .id(5L)
+                .name("测试项目5")
+                .tenderId(500L)
+                .customerType("LOCAL_SOE")
+                .customer(null)                       // 项目客户为空 → 触发回退
+                .managerId(80L)
+                .status(Project.Status.WON)
+                .build();
+        ProjectResult result = ProjectResult.builder()
+                .projectId(5L)
+                .resultType("WON")
+                .servicePeriodEndDate(LocalDate.of(2026, 6, 1)) // 预测 = 2026-03-01 < 今天
+                .servicePeriodYears(new BigDecimal("3"))
+                .build();
+        Tender tender = Tender.builder()
+                .id(500L)
+                .purchaserName("回退采购人Y")
+                .bidOpeningTime(LocalDateTime.of(2025, 8, 15, 9, 0))
+                .build();
+
+        when(projectRepository.findAll()).thenReturn(List.of(project));
+        when(projectResultRepository.findByProjectIdIn(List.of(5L))).thenReturn(List.of(result));
+        when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(5L))).thenReturn(List.of());
+        when(tenderRepository.findAllById(Set.of(500L))).thenReturn(List.of(tender));
+        when(userRepository.findByIdIn(Set.of(80L)))
+                .thenReturn(List.of(User.builder().id(80L).enabled(true).build()));
+        when(reminderLogRepository.findByProjectId(5L)).thenReturn(Optional.empty());
+
+        var outcome = service.runScan(TODAY);
+
+        assertEquals(1, outcome.notified());
+        ArgumentCaptor<OpportunityPredictionEventPayload> evtCaptor =
+                ArgumentCaptor.forClass(OpportunityPredictionEventPayload.class);
+        verify(eventPublisher).publish(evtCaptor.capture());
+        // customer 为空 → 回退关联标讯采购人，与表格 ownerUnit 列一致
+        assertEquals("回退采购人Y", evtCaptor.getValue().customer());
     }
 
     @Test

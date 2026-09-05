@@ -19,7 +19,7 @@ import org.springframework.stereotype.Service;
  * <p>在标讯创建后触发，职责：
  * <ol>
  *   <li>按策略判断该标讯是否需要推送（排除 CRM 回发的标讯，避免回发循环）；</li>
- *   <li>构造只含关键标识的消息体 {@link TenderEventPayload}；</li>
+ *   <li>构造携带标讯详情展示字段的消息体 {@link TenderEventPayload}；</li>
  *   <li>通过独立线程池异步发送，不阻塞主创建链路；</li>
  *   <li>记录事件流水（成功 {@code SENT} / 失败 {@code FAILED}），用于问题定位。</li>
  * </ol>
@@ -69,7 +69,27 @@ public class TenderEventPublishService {
         }
 
         TenderEventCode code = TenderEventCode.BID_TENDER_CHANGE;
-        TenderEventPayload payload = new TenderEventPayload(tender.getId(), tender.getExternalId());
+        TenderEventPayload payload = new TenderEventPayload(
+                tender.getId(),
+                tender.getExternalId(),
+                tender.getTitle(),
+                tender.getPurchaserName(),
+                tender.getRegion(),
+                tender.getRegistrationDeadline(),
+                tender.getBidOpeningTime(),
+                tender.getCustomerType(),
+                tender.getPriority(),
+                tender.getProjectType(),
+                tender.getContactName(),
+                tender.getContactPhone(),
+                tender.getContactTel(),
+                tender.getContactMail(),
+                tender.getContactNature(),
+                tender.getContactName2(),
+                tender.getContactPhone2(),
+                tender.getContactTel2(),
+                tender.getContactMail2(),
+                tender.getContactNature2());
         // 关键修复：客户事件库 trace_id / span_id 字段为 varchar(19)，使用 TenderEventSnowflakeUtil 生成标准 t/s+18位雪花ID
         String traceId = generateTraceId();
         String spanId = com.xiyu.bid.integration.tenderevent.infrastructure.sdk.TenderEventSnowflakeUtil.nextSpanId();
