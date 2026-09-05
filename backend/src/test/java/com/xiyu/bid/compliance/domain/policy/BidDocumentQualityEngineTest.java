@@ -396,4 +396,74 @@ class BidDocumentQualityEngineTest {
         assertThat(authLetter.status()).isEqualTo(QualityCheckStatus.FAIL);
         assertThat(authLetter.conclusion()).contains("经大模型语义核查");
     }
+
+    @Test
+    @DisplayName("营业执照强凭证直通测试：标书具备包含18位代码与主体要素的营业执照正文时，直通 PASS 坚决不调用 LLM")
+    void testEvaluateAll_WhenBusinessLicensePass_BypassesLlmAdjudication() {
+        String licensePage = """
+                资质证明文件
+                营业执照（副本复印件）
+                统一社会信用代码：91310115MA1K4B9X8Y
+                名称：上海西域数智供应链有限公司
+                类型：有限责任公司
+                法定代表人：叶永清
+                经营范围：工业品销售、数智化供应链管理系统开发及技术咨询
+                营业期限：2015年03月12日至长期
+                登记机关：上海市浦东新区市场监督管理局
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_license", licensePage);
+
+        java.util.concurrent.atomic.AtomicInteger llmLicenseCallCount = new java.util.concurrent.atomic.AtomicInteger();
+        LlmAdjudicator llm = new LlmAdjudicator(prompt -> {
+            if (prompt.contains("裁决检查项「" + BidQualityCheckItem.BUSINESS_LICENSE.getTitle() + "」")) {
+                llmLicenseCallCount.incrementAndGet();
+            }
+            return LlmVerdict.success(new LlmVerdict("PASS", "", "通过", ""));
+        });
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), TenderRequirements.empty(), Set.of(), llm, (p, s) -> { });
+
+        QualityCheckItemResult licenseResult = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.BUSINESS_LICENSE.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(llmLicenseCallCount.get())
+                .as("标书已包含要素齐全的真实营业执照正文时，坚决不调 LLM，防止抖动与浪费")
+                .isEqualTo(0);
+        assertThat(licenseResult.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(licenseResult.conclusion()).contains("已包含营业执照");
+        assertThat(licenseResult.evidences()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("营业执照存疑裁决接通测试：标书仅在目录页出现条目被拦截时，成功接通 LLM 深度语义裁决")
+    void testEvaluateAll_WhenBusinessLicenseSuspicious_CallsLlmAdjudication() {
+        String tocPage = """
+                目录
+                第一章 投标函及投标函附录 ................. 1
+                第二章 营业执照及资质证书 ................. 5
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_toc", tocPage);
+
+        LlmAdjudicator mockLlm = new LlmAdjudicator(prompt -> {
+            if (prompt.contains("裁决检查项「" + BidQualityCheckItem.BUSINESS_LICENSE.getTitle() + "」")) {
+                return LlmVerdict.success(
+                        new LlmVerdict("FAIL", "", "经大模型语义核查，营业执照仅存在于目录索引中，正文缺失实际证照扫描件", "请在投标文件中补充营业执照扫描件"));
+            }
+            return LlmVerdict.success(new LlmVerdict("PASS", "", "通过", ""));
+        });
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), TenderRequirements.empty(), Set.of(), mockLlm, (p, s) -> { });
+
+        QualityCheckItemResult licenseResult = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.BUSINESS_LICENSE.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(licenseResult.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(licenseResult.conclusion()).contains("经大模型语义核查");
+    }
 }

@@ -29,6 +29,9 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicAuthorizationExtractor.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/AuthorizationLetterCheckPolicy.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/AuthorizationRequirement.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicBusinessLicenseExtractor.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/BusinessLicenseCheckPolicy.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/BusinessLicenseRequirement.java
   - docs/lessons/lessons-learned.md
 backlinks:
   - _index
@@ -203,6 +206,11 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **目录点线拦截与未填模板占位符反假**：标书端 `AuthorizationLetterCheckPolicy` 严格排除目录点线页（`MULTI_DOT_PATTERN`、`CATALOG_DOT_LINE_PATTERN`，`isCatalogOrOutlinePage`），并拦截未填写的占位符模板（【委托代理人姓名】、下划线留白等）；
     - **双角色要素正向检验与法人亲签豁免**：核查委托人（法定代表人）、受托人（委托代理人）、身份证号、授权权限与期限等事实要素。若招标文件明确法人亲自参加免除授权书，标书附法定代表人身份证明与法人亲笔签署时直通 PASS；
     - **强事实直通与存疑裁决接通**：强凭证齐全直通 PASS（LLM 0 调用防抖动），存疑或仅有占位符时接通 `LlmAdjudicator` 准则 5 深度裁决并调用 `SemanticPageRetriever` 候选页定位。
+26. **营业执照有效性(BUSINESS_LICENSE)两阶段结构化契约与要素反假重构**（2026-09-05）：
+    - **两阶段结构化契约**：在 `TenderRequirements` 接入 `BusinessLicenseRequirement` 契约（是否必须提供、允许的主体证照类型清单、原件/复印件/公章要求、要求说明），并建立纯核心 `DeterministicBusinessLicenseExtractor` 提取证照类型与公章要求；
+    - **目录点线拦截与未填模板占位符反假**：标书端 `BusinessLicenseCheckPolicy` 物理排除目录点线页（`MULTI_DOT_PATTERN`、`CATALOG_DOT_LINE_PATTERN`，`isCatalogOrOutlinePage`），并拦截未填写的占位符模板（【此处粘贴营业执照】、下划线留白等）；
+    - **GB 32100-2015 18位标准代码与登记要素校验**：严格校验 18 位统一社会信用代码（剔除易混淆字母），综合核验法定代表人、经营范围、营业期限、登记机关/公章等登记事实要素；正向兼容事业单位法人证书等替代证照；
+    - **强事实直通与存疑裁决接通**：真实 18 位代码与登记事实齐全直通 PASS（LLM 0 次调用防抖动），存疑或仅命中目录/占位符时接通 `LlmAdjudicator` 准则 6 深度裁决并调用 `SemanticPageRetriever` 候选页定位。
 
 ## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
 
