@@ -194,6 +194,8 @@ public final class SemanticPageRetriever {
                     "投标总价", "投标有效期", "法人或授权代表", "投标人盖章", "法定代表人签字");
             case AUTHORIZATION_LETTER -> addCues(cues, "授权委托书", "法定代表人身份证明", "法定代表人授权书",
                     "委托代理人", "被授权人", "授权代表", "授权范围", "授权期限", "法定代表人证明书");
+            case BUSINESS_LICENSE -> addCues(cues, "营业执照", "统一社会信用代码", "市场监督管理", "登记机关",
+                    "事业单位法人证书", "社会团体法人登记证书", "民办非企业单位登记证书", "执业许可证");
             default -> { }
         }
         return cues;
@@ -223,52 +225,38 @@ public final class SemanticPageRetriever {
             if (req.authorizationRequirement().templateTitle() != null) addCue(cues, req.authorizationRequirement().templateTitle());
             if (req.authorizationRequirement().description() != null) addDescriptionCues(cues, req.authorizationRequirement().description());
         }
+        if (req.businessLicenseRequirement() != null) {
+            req.businessLicenseRequirement().allowCertificates().forEach(cert -> addCue(cues, cert));
+            if (req.businessLicenseRequirement().description() != null) addDescriptionCues(cues, req.businessLicenseRequirement().description());
+        }
         return cues;
     }
 
     private static Set<String> addDescriptionCues(final Set<String> cues, final String description) {
-        if (description == null || description.isBlank()) {
-            return cues;
-        }
-        String[] parts = description.split("[,，。、；;：:]+");
-        for (String part : parts) {
+        if (description == null || description.isBlank()) return cues;
+        for (String part : description.split("[,，。、；;：:]+")) {
             String trimmed = part.trim();
-            if (trimmed.length() >= 2 && trimmed.length() <= 12) {
-                cues.add(trimmed);
-            }
+            if (trimmed.length() >= 2 && trimmed.length() <= 12) cues.add(trimmed);
         }
         return cues;
     }
 
     private static Set<String> addCues(final Set<String> cues, final String... items) {
-        for (String item : items) {
-            addCue(cues, item);
-        }
+        for (String item : items) addCue(cues, item);
         return cues;
     }
 
     private static Set<String> addCue(final Set<String> cues, final String cue) {
-        if (cue != null) {
-            String trimmed = cue.trim();
-            if (!trimmed.isEmpty()) {
-                cues.add(trimmed);
-            }
-        }
+        if (cue != null && !cue.trim().isEmpty()) cues.add(cue.trim());
         return cues;
     }
 
     private static String formatPages(final List<DocumentContent.PageContent> pages) {
-        if (pages == null || pages.isEmpty()) {
-            return NO_CONTENT;
-        }
+        if (pages == null || pages.isEmpty()) return NO_CONTENT;
         StringBuilder sb = new StringBuilder();
         for (DocumentContent.PageContent page : pages) {
-            if (page.text() == null || page.text().isBlank()) {
-                continue;
-            }
-            if (sb.length() > 0) {
-                sb.append("\n\n");
-            }
+            if (page.text() == null || page.text().isBlank()) continue;
+            if (sb.length() > 0) sb.append("\n\n");
             sb.append(PAGE_HEADER_PREFIX).append(page.pageNumber()).append(PAGE_HEADER_SUFFIX)
                     .append('\n').append(page.text().trim());
         }
@@ -276,19 +264,16 @@ public final class SemanticPageRetriever {
     }
 
     private static String formatSinglePage(final int pageNumber, final String text, final int budget) {
-        String content = text.length() <= budget ? text : text.substring(0, budget) + "……（已截断）";
-        return PAGE_HEADER_PREFIX + pageNumber + PAGE_HEADER_SUFFIX + "\n" + content.trim();
+        return PAGE_HEADER_PREFIX + pageNumber + PAGE_HEADER_SUFFIX + "\n"
+                + (text.length() <= budget ? text : text.substring(0, budget) + "……（已截断）").trim();
     }
 
-    /** 单页超预算硬截断：保留页码与标题元数据，正文截断至预算并标注（与 formatSinglePage 文案一致）；非正预算优雅保底不截断. */
+    /** 单页超预算硬截断：保留页码与标题元数据，正文截断至预算并标注；非正预算优雅保底不截断. */
     private static DocumentContent.PageContent truncatePage(
             final DocumentContent.PageContent page, final int charBudget) {
         String text = page.text() == null ? "" : page.text();
-        if (charBudget <= 0 || text.length() <= charBudget) {
-            return page;
-        }
-        String truncated = text.substring(0, charBudget) + "……（已截断）";
-        return new DocumentContent.PageContent(page.pageNumber(), truncated, page.headings());
+        if (charBudget <= 0 || text.length() <= charBudget) return page;
+        return new DocumentContent.PageContent(page.pageNumber(), text.substring(0, charBudget) + "……（已截断）", page.headings());
     }
 
     private record ScoredPage(DocumentContent.PageContent page, int score) {

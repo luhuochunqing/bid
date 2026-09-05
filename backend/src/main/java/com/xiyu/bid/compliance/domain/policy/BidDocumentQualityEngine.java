@@ -87,6 +87,10 @@ public final class BidDocumentQualityEngine {
             resultMap.put(BidQualityCheckItem.AUTHORIZATION_LETTER.getCode(),
                     BasicInfoCheckPolicy.checkAuthorizationLetter(bidDoc, effective.authorizationRequirement()));
         }
+        if (effective.businessLicenseRequirement() != null) {
+            resultMap.put(BidQualityCheckItem.BUSINESS_LICENSE.getCode(),
+                    BasicInfoCheckPolicy.checkBusinessLicense(bidDoc, effective.businessLicenseRequirement()));
+        }
 
         // 2. 语义 lane：规则硬信号优先，其次 LLM 裁决，lane 缺省则 MANUAL 降级
         List<BidQualityCheckItem> semanticItems = SemanticRulesLane.SEMANTIC_ITEMS;
@@ -160,7 +164,18 @@ public final class BidDocumentQualityEngine {
             resultMap.put(BidQualityCheckItem.AUTHORIZATION_LETTER.getCode(), authVerdict);
         }
 
-        // 6. 严格按 25 项标准序号排序输出
+        // 6. 营业执照要求联动与标书端 LLM 深度语义裁决接通（规范证照强凭证直通，存疑或未命中接通 LLM）
+        QualityCheckItemResult existingLicense = resultMap.get(BidQualityCheckItem.BUSINESS_LICENSE.getCode());
+        boolean hasStrongLicensePass = existingLicense != null
+                && existingLicense.status() == QualityCheckStatus.PASS
+                && !existingLicense.evidences().isEmpty();
+        if (!hasStrongLicensePass && llm != null) {
+            QualityCheckItemResult licenseVerdict = llm.adjudicateItem(
+                    BidQualityCheckItem.BUSINESS_LICENSE, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
+            resultMap.put(BidQualityCheckItem.BUSINESS_LICENSE.getCode(), licenseVerdict);
+        }
+
+        // 7. 严格按 25 项标准序号排序输出
         List<QualityCheckItemResult> sorted = new ArrayList<>(resultMap.values());
         sorted.sort(Comparator.comparingInt(QualityCheckItemResult::order));
         return sorted;

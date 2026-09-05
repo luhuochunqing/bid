@@ -3,6 +3,16 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-05] feat | 标书质检「营业执照有效性」（BUSINESS_LICENSE）语义契约与要素反假重构
+
+- 触发：按路线图推进 25 项质检项语义化演进之第 4 项「营业执照有效性」（BUSINESS_LICENSE，PRD 2.3 第 4 项，级别 CRITICAL）。
+- 方案：
+  - 招标端契约：新建 `BusinessLicenseRequirement` 契约与纯核心确定性提取器 `DeterministicBusinessLicenseExtractor`，支持原件/复印件要求、加盖公章与事业单位法人证书等替代主体证照提取及双轨融合；
+  - 标书端反假：新建 `BusinessLicenseCheckPolicy`，严格排除目录点线页（`isCatalogOrOutlinePage`）与未填模板占位符（`UNFILLED_PLACEHOLDER_PATTERN`），校验 GB 32100-2015 18 位统一社会信用代码与主体登记要素（法定代表人/经营范围/营业期限/登记机关/公章）；正向兼容事业单位法人证书等合法替代主体凭证；
+  - 引擎协同：`BidDocumentQualityEngine` 落实确定性强凭证直通 PASS（LLM 0 次调用防抖动），存疑场景接通 `LlmAdjudicator` 准则 6 深度裁决与 `SemanticPageRetriever` 候选页检索。
+- 结果：落地 5 个专属单测套件，新增及修改 12 个文件，单文件行预算严格控制在 300 行内，51 项单元与架构测试全绿。
+- 页面更新：更新 [[bid-quality-check-realization]] §4.26 与 sources；lessons-learned.md §231。
+
 ## [2026-09-05] feat | 标书质检「法定代表人授权书」（AUTHORIZATION_LETTER）语义契约与要素反假重构
 
 - 触发：按路线图推进 25 项质检项语义化演进之第 3 项「法定代表人授权委托书」（AUTHORIZATION_LETTER）。

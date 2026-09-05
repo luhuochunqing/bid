@@ -145,6 +145,12 @@ public class TenderRequirementsExtractor {
                     "allowLegalRepresentativeOnly": true或false或null,
                     "templateTitle": "招标文件指定的授权书模板标题或null",
                     "description": "招标文件关于授权委托书与法定代表人身份证明的具体要求条款摘录或null"
+                  },
+                  "businessLicenseRequirement": {
+                    "required": true或false或null,
+                    "allowCertificates": [ "允许的证书类型列表，如营业执照、事业单位法人证书等" ],
+                    "requireOriginalOrCopy": "原件扫描件或复印件加盖公章等要求或null",
+                    "description": "招标文件关于营业执照及主体资格证明的具体要求条款摘录或null"
                   }
                 }
                 顶层键必须全部存在。

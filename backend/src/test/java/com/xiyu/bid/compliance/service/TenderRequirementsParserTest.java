@@ -157,6 +157,35 @@ class TenderRequirementsParserTest {
     }
 
     @Test
+    @DisplayName("包含 businessLicenseRequirement 节点：成功解析营业执照资质要求")
+    void parse_withBusinessLicenseRequirement_parsesCorrectly() {
+        String llmResponse = """
+                {
+                  "scoringItems": [],
+                  "mandatoryQualifications": [],
+                  "vetoClauses": [],
+                  "compositionRequirements": [],
+                  "formatRequirements": [],
+                  "businessLicenseRequirement": {
+                    "required": true,
+                    "allowCertificates": ["营业执照", "事业单位法人证书"],
+                    "requireOriginalOrCopy": "复印件",
+                    "description": "投标人须提供合法有效的营业执照副本复印件（加盖公章），事业单位可提供事业单位法人证书"
+                  }
+                }
+                """;
+
+        TenderRequirements req = TenderRequirementsParser.parse(llmResponse);
+
+        assertThat(req.missing()).isFalse();
+        assertThat(req.businessLicenseRequirement()).isNotNull();
+        assertThat(req.businessLicenseRequirement().required()).isTrue();
+        assertThat(req.businessLicenseRequirement().allowCertificates()).contains("营业执照", "事业单位法人证书");
+        assertThat(req.businessLicenseRequirement().requireOriginalOrCopy()).contains("复印件");
+        assertThat(req.businessLicenseRequirement().description()).contains("营业执照副本复印件");
+    }
+
+    @Test
     @DisplayName("非法 JSON 或纯文本：安全返回 missingSentinel，不抛出异常")
     void parse_invalidJson_returnsMissingSentinel() {
         assertThat(TenderRequirementsParser.parse("这是一段纯文本，没有任何 JSON 结构").missing()).isTrue();

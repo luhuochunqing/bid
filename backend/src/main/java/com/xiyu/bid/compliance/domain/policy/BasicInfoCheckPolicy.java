@@ -17,7 +17,6 @@ import java.util.regex.Pattern;
  */
 public final class BasicInfoCheckPolicy {
 
-    private static final Pattern USCC_PATTERN = Pattern.compile("[0-9A-HJ-NPQRTUWXY]{2}[0-9]{6}[0-9A-HJ-NPQRTUWXY]{10}");
     private static final Pattern PHONE_PATTERN = Pattern.compile("(1[3-9]\\d{9}|0\\d{2,3}-?\\d{7,8})");
 
     private BasicInfoCheckPolicy() {
@@ -65,17 +64,12 @@ public final class BasicInfoCheckPolicy {
 
 
     public static QualityCheckItemResult checkBusinessLicense(final DocumentContent bidDoc) {
-        BidQualityCheckItem item = BidQualityCheckItem.BUSINESS_LICENSE;
-        PageMatch match = findFirstPageContaining(bidDoc, "营业执照", "统一社会信用代码");
-        if (match != null) {
-            Matcher m = USCC_PATTERN.matcher(match.text());
-            List<QualityEvidence> evidences = List.of(QualityEvidence.bid("营业执照部分", match.pageNumber(), snippetAround(match.text(), 200, "营业执照", "统一社会信用代码")));
-            if (m.find()) {
-                return QualityCheckItemResult.pass(item, "已包含营业执照且识别到有效统一社会信用代码: " + m.group(), evidences);
-            }
-            return QualityCheckItemResult.pass(item, "已包含营业执照相关证明文件", evidences);
-        }
-        return QualityCheckItemResult.fail(item, "未检索到营业执照或主体资格证明文件", "请在商务资质分卷中补充营业执照清晰扫描件", Collections.emptyList());
+        return BusinessLicenseCheckPolicy.check(bidDoc);
+    }
+
+    public static QualityCheckItemResult checkBusinessLicense(
+            final DocumentContent bidDoc, final BusinessLicenseRequirement requirement) {
+        return BusinessLicenseCheckPolicy.check(bidDoc, requirement);
     }
 
     public static QualityCheckItemResult checkPriceConsistency(final DocumentContent bidDoc) {

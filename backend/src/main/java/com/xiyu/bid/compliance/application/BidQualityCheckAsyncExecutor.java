@@ -14,8 +14,10 @@ import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityCheckStatus;
 import com.xiyu.bid.compliance.domain.policy.AuthorizationRequirement;
 import com.xiyu.bid.compliance.domain.policy.BidDocumentQualityEngine;
+import com.xiyu.bid.compliance.domain.policy.BusinessLicenseRequirement;
 import com.xiyu.bid.compliance.domain.policy.DeterministicAuthorizationExtractor;
 import com.xiyu.bid.compliance.domain.policy.DeterministicBidLetterExtractor;
+import com.xiyu.bid.compliance.domain.policy.DeterministicBusinessLicenseExtractor;
 import com.xiyu.bid.compliance.domain.policy.DeterministicDepositExtractor;
 import com.xiyu.bid.compliance.domain.policy.DeterministicQualificationExtractor;
 import com.xiyu.bid.compliance.domain.policy.KnowledgeQueryOutcome;
@@ -138,6 +140,11 @@ public class BidQualityCheckAsyncExecutor {
             if (detAuth != null) {
                 requirements = requirements.withAuthorizationRequirement(
                         AuthorizationRequirement.fuseWithDeterministic(requirements.authorizationRequirement(), detAuth));
+            }
+            BusinessLicenseRequirement detLicense = DeterministicBusinessLicenseExtractor.extract(tenderDoc.fullText());
+            if (detLicense != null) {
+                requirements = requirements.withBusinessLicenseRequirement(
+                        BusinessLicenseRequirement.fuseWithDeterministic(requirements.businessLicenseRequirement(), detLicense));
             }
 
             // Step 2: 知识库检索与 25 项规则核查 (progress: 60)

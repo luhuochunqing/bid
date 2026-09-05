@@ -8,6 +8,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.compliance.domain.policy.AuthorizationRequirement;
+import com.xiyu.bid.compliance.domain.policy.BusinessLicenseRequirement;
 import com.xiyu.bid.compliance.domain.policy.TenderRequirements;
 
 import java.util.ArrayList;
@@ -71,6 +72,7 @@ public final class TenderRequirementsParser {
             TenderRequirements.DepositRequirement depositRequirement = parseDepositRequirement(root.path("depositRequirement"));
             TenderRequirements.BidLetterRequirement bidLetterRequirement = parseBidLetterRequirement(root.path("bidLetterRequirement"));
             AuthorizationRequirement authorizationRequirement = parseAuthorizationRequirement(root.path("authorizationRequirement"));
+            BusinessLicenseRequirement businessLicenseRequirement = parseBusinessLicenseRequirement(root.path("businessLicenseRequirement"));
             return new TenderRequirements(
                     scoringItems,
                     stringListAt(root, "mandatoryQualifications"),
@@ -80,10 +82,30 @@ public final class TenderRequirementsParser {
                     depositRequirement,
                     bidLetterRequirement,
                     authorizationRequirement,
+                    businessLicenseRequirement,
                     false);
         } catch (JsonProcessingException e) {
             return TenderRequirements.missingSentinel();
         }
+    }
+
+    private static BusinessLicenseRequirement parseBusinessLicenseRequirement(final JsonNode node) {
+        if (node == null || !node.isObject()) {
+            return null;
+        }
+        boolean required = !node.has("required") || node.get("required").isNull() || node.get("required").asBoolean();
+        List<String> allowCertificates = stringListAt(node, "allowCertificates");
+        String requireOriginalOrCopy = textAt(node, "requireOriginalOrCopy");
+        String description = textAt(node, "description");
+        if (allowCertificates.isEmpty() && requireOriginalOrCopy.isBlank() && description.isBlank()) {
+            return null;
+        }
+        return new BusinessLicenseRequirement(
+                required,
+                allowCertificates,
+                requireOriginalOrCopy.isBlank() ? null : requireOriginalOrCopy,
+                description.isBlank() ? null : description
+        );
     }
 
     private static AuthorizationRequirement parseAuthorizationRequirement(final JsonNode node) {
