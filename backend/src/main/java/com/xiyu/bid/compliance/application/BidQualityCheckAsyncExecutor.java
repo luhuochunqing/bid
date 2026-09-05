@@ -19,7 +19,9 @@ import com.xiyu.bid.compliance.domain.policy.DeterministicAuthorizationExtractor
 import com.xiyu.bid.compliance.domain.policy.DeterministicBidLetterExtractor;
 import com.xiyu.bid.compliance.domain.policy.DeterministicBusinessLicenseExtractor;
 import com.xiyu.bid.compliance.domain.policy.DeterministicDepositExtractor;
+import com.xiyu.bid.compliance.domain.policy.DeterministicIdAuthLetterExtractor;
 import com.xiyu.bid.compliance.domain.policy.DeterministicQualificationExtractor;
+import com.xiyu.bid.compliance.domain.policy.IdAuthLetterRequirement;
 import com.xiyu.bid.compliance.domain.policy.KnowledgeQueryOutcome;
 import com.xiyu.bid.compliance.domain.policy.LlmAdjudicator;
 import com.xiyu.bid.compliance.domain.policy.LlmVerdict;
@@ -121,30 +123,26 @@ public class BidQualityCheckAsyncExecutor {
                 requirements = requirements.withMergedQualifications(deterministicQuals);
             }
 
-            // 双轨交叉融合：结合确定性规则与 LLM 提取，硬事实金额优先（双有数时以确定性原文为准），消除 LLM 幻觉风险
             TenderRequirements.DepositRequirement detDeposit = DeterministicDepositExtractor.extract(tenderDoc.fullText());
             if (detDeposit != null) {
-                TenderRequirements.DepositRequirement fused = TenderRequirements.DepositRequirement.fuseWithDeterministic(
-                        requirements.depositRequirement(), detDeposit);
-                requirements = requirements.withDepositRequirement(fused);
+                requirements = requirements.withDepositRequirement(
+                        TenderRequirements.DepositRequirement.fuseWithDeterministic(requirements.depositRequirement(), detDeposit));
             }
-
             TenderRequirements.BidLetterRequirement detBidLetter = DeterministicBidLetterExtractor.extract(tenderDoc.fullText());
             if (detBidLetter != null) {
-                TenderRequirements.BidLetterRequirement fused = TenderRequirements.BidLetterRequirement.fuseWithDeterministic(
-                        requirements.bidLetterRequirement(), detBidLetter);
-                requirements = requirements.withBidLetterRequirement(fused);
+                requirements = requirements.withBidLetterRequirement(TenderRequirements.BidLetterRequirement.fuseWithDeterministic(requirements.bidLetterRequirement(), detBidLetter));
             }
-
             AuthorizationRequirement detAuth = DeterministicAuthorizationExtractor.extract(tenderDoc.fullText());
             if (detAuth != null) {
-                requirements = requirements.withAuthorizationRequirement(
-                        AuthorizationRequirement.fuseWithDeterministic(requirements.authorizationRequirement(), detAuth));
+                requirements = requirements.withAuthorizationRequirement(AuthorizationRequirement.fuseWithDeterministic(requirements.authorizationRequirement(), detAuth));
             }
             BusinessLicenseRequirement detLicense = DeterministicBusinessLicenseExtractor.extract(tenderDoc.fullText());
             if (detLicense != null) {
-                requirements = requirements.withBusinessLicenseRequirement(
-                        BusinessLicenseRequirement.fuseWithDeterministic(requirements.businessLicenseRequirement(), detLicense));
+                requirements = requirements.withBusinessLicenseRequirement(BusinessLicenseRequirement.fuseWithDeterministic(requirements.businessLicenseRequirement(), detLicense));
+            }
+            IdAuthLetterRequirement detIdAuth = DeterministicIdAuthLetterExtractor.extract(tenderDoc.fullText());
+            if (detIdAuth != null) {
+                requirements = requirements.withIdAuthLetterRequirement(IdAuthLetterRequirement.fuse(requirements.idAuthLetterRequirement(), detIdAuth));
             }
 
             // Step 2: 知识库检索与 25 项规则核查 (progress: 60)

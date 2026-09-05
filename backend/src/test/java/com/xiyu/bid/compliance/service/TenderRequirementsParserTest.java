@@ -186,6 +186,37 @@ class TenderRequirementsParserTest {
     }
 
     @Test
+    @DisplayName("包含 idAuthLetterRequirement 节点：成功解析身份证明要求")
+    void parse_withIdAuthLetterRequirement_parsesCorrectly() {
+        String llmResponse = """
+                {
+                  "scoringItems": [],
+                  "mandatoryQualifications": [],
+                  "vetoClauses": [],
+                  "compositionRequirements": [],
+                  "formatRequirements": [],
+                  "idAuthLetterRequirement": {
+                    "required": true,
+                    "requireFrontAndBack": true,
+                    "requireSocialSecurity": true,
+                    "requireOriginalOrCopy": "复印件加盖公章",
+                    "description": "法定代表人及委托代理人身份证正反面复印件，附近3个月社保证明"
+                  }
+                }
+                """;
+
+        TenderRequirements req = TenderRequirementsParser.parse(llmResponse);
+
+        assertThat(req.missing()).isFalse();
+        assertThat(req.idAuthLetterRequirement()).isNotNull();
+        assertThat(req.idAuthLetterRequirement().required()).isTrue();
+        assertThat(req.idAuthLetterRequirement().requireFrontAndBack()).isTrue();
+        assertThat(req.idAuthLetterRequirement().requireSocialSecurity()).isTrue();
+        assertThat(req.idAuthLetterRequirement().requireOriginalOrCopy()).isEqualTo("复印件加盖公章");
+        assertThat(req.idAuthLetterRequirement().description()).contains("身份证正反面复印件");
+    }
+
+    @Test
     @DisplayName("非法 JSON 或纯文本：安全返回 missingSentinel，不抛出异常")
     void parse_invalidJson_returnsMissingSentinel() {
         assertThat(TenderRequirementsParser.parse("这是一段纯文本，没有任何 JSON 结构").missing()).isTrue();

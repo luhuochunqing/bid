@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.compliance.domain.policy.AuthorizationRequirement;
 import com.xiyu.bid.compliance.domain.policy.BusinessLicenseRequirement;
+import com.xiyu.bid.compliance.domain.policy.IdAuthLetterRequirement;
 import com.xiyu.bid.compliance.domain.policy.TenderRequirements;
 
 import java.util.ArrayList;
@@ -73,6 +74,7 @@ public final class TenderRequirementsParser {
             TenderRequirements.BidLetterRequirement bidLetterRequirement = parseBidLetterRequirement(root.path("bidLetterRequirement"));
             AuthorizationRequirement authorizationRequirement = parseAuthorizationRequirement(root.path("authorizationRequirement"));
             BusinessLicenseRequirement businessLicenseRequirement = parseBusinessLicenseRequirement(root.path("businessLicenseRequirement"));
+            IdAuthLetterRequirement idAuthLetterRequirement = parseIdAuthLetterRequirement(root.path("idAuthLetterRequirement"));
             return new TenderRequirements(
                     scoringItems,
                     stringListAt(root, "mandatoryQualifications"),
@@ -83,10 +85,33 @@ public final class TenderRequirementsParser {
                     bidLetterRequirement,
                     authorizationRequirement,
                     businessLicenseRequirement,
+                    idAuthLetterRequirement,
                     false);
         } catch (JsonProcessingException e) {
             return TenderRequirements.missingSentinel();
         }
+    }
+
+    private static IdAuthLetterRequirement parseIdAuthLetterRequirement(final JsonNode node) {
+        if (node == null || !node.isObject()) {
+            return null;
+        }
+        boolean required = !node.has("required") || node.get("required").isNull() || node.get("required").asBoolean();
+        boolean requireFrontAndBack = node.path("requireFrontAndBack").asBoolean(true);
+        boolean requireSocialSec = node.path("requireSocialSecurity").asBoolean(false);
+        String requireOriginalOrCopy = textAt(node, "requireOriginalOrCopy");
+        String description = textAt(node, "description");
+        if (!node.has("requireFrontAndBack") && !node.has("requireSocialSecurity")
+                && requireOriginalOrCopy.isBlank() && description.isBlank()) {
+            return null;
+        }
+        return new IdAuthLetterRequirement(
+                required,
+                requireFrontAndBack,
+                requireSocialSec,
+                requireOriginalOrCopy.isBlank() ? null : requireOriginalOrCopy,
+                description.isBlank() ? null : description
+        );
     }
 
     private static BusinessLicenseRequirement parseBusinessLicenseRequirement(final JsonNode node) {

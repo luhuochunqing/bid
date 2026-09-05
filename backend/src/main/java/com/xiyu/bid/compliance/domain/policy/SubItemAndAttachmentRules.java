@@ -99,12 +99,12 @@ public final class SubItemAndAttachmentRules {
     }
 
     public static QualityCheckItemResult checkIdAuthLetter(final DocumentContent bidDoc) {
-        BidQualityCheckItem item = BidQualityCheckItem.ID_AUTH_LETTER;
-        BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc, "身份证", "社保", "社会保险");
-        if (match != null) {
-            return QualityCheckItemResult.pass(item, "已附授权委托人身份证明或社保证明文件", List.of(QualityEvidence.bid("身份证/社保附件", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(match.text(), 200, "身份证", "社保", "社会保险"))));
-        }
-        return QualityCheckItemResult.fail(item, "缺少授权委托人身份证扫描件或社保证明", "请在附件清单中补充委托代理人身份证复印件及近3个月社保证明", Collections.emptyList());
+        return checkIdAuthLetter(bidDoc, IdAuthLetterRequirement.standard());
+    }
+
+    public static QualityCheckItemResult checkIdAuthLetter(
+            final DocumentContent bidDoc, final IdAuthLetterRequirement requirement) {
+        return IdAuthLetterCheckPolicy.check(bidDoc, requirement);
     }
 
     public static QualityCheckItemResult checkBidOpeningTable(final DocumentContent bidDoc) {
