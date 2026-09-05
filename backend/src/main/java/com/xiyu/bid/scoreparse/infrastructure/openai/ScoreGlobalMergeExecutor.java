@@ -133,15 +133,7 @@ public class ScoreGlobalMergeExecutor {
     }
 
     private static String cleanCode(String code) {
-        if (code == null || code.isBlank()) {
-            return "";
-        }
-        String trimmed = code.trim();
-        if ("null".equalsIgnoreCase(trimmed) || "undefined".equalsIgnoreCase(trimmed)
-                || "none".equalsIgnoreCase(trimmed) || "n/a".equalsIgnoreCase(trimmed)) {
-            return "";
-        }
-        return trimmed;
+        return com.xiyu.bid.scoreparse.domain.ScoreCodeSanitizer.clean(code);
     }
 
     private static String resolveDim(String dim, String detail) {

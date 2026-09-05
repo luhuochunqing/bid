@@ -40,7 +40,9 @@ public class KnowledgeCategoryPolicy {
     private static final Set<String> STOP_WORDS = Set.of(
             "具有", "提供", "要求", "投标", "满足", "相关", "以及", "包括", "不少于",
             "不低于", "以上", "以下", "单个", "其中", "有效", "期内", "且在", "并附",
-            "万元", "平米", "平方米", "平方", "具备", "承诺", "服务", "证明", "需要");
+            "万元", "平米", "平方米", "平方", "具备", "承诺", "服务", "证明", "需要",
+            "根据", "评价", "评分", "评审", "情况", "排序", "按照", "对应", "分值", "满分",
+            "优秀", "良好", "一般", "合格", "业绩", "供货", "合同", "案例", "仓库", "仓储");
 
     private static final Pattern AREA_PATTERN = Pattern.compile(
             "([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\\.[0-9]+)?)\\s*(万)?\\s*(㎡|平方米|平米|平方|m²|m2)",
@@ -117,7 +119,7 @@ public class KnowledgeCategoryPolicy {
         }
         Set<String> keywords = new LinkedHashSet<>();
         for (String token : text.split("[^\\p{IsHan}a-zA-Z0-9]+")) {
-            if (token.length() < 2 || token.matches("\\d+") || token.matches(".*\\d+分.*") || STOP_WORDS.contains(token)) {
+            if (token.length() < 2 || token.matches("\\d+") || token.matches("\\d+(?:\\.\\d+)?分") || STOP_WORDS.contains(token)) {
                 continue;
             }
             keywords.add(token);

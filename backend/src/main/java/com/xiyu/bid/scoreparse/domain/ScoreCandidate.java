@@ -33,6 +33,10 @@ public record ScoreCandidate(
         String parentDim,
         String dimSource
 ) {
+    public ScoreCandidate {
+        code = ScoreCodeSanitizer.clean(code);
+    }
+
     /** Legacy constructor retained for all non-table recall callers. */
     public ScoreCandidate(String code, String dim, String detail, BigDecimal weight,
             String scoreTypeGuess, String contextNote, String sourceText,

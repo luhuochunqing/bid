@@ -62,8 +62,29 @@ public final class TableGrid {
         if (row.isEmpty()) {
             return false;
         }
+        String first = row.get(0).trim();
+        // 若第一列本身已具备编号特征，说明首列未发生合并缺失，禁止左补空
+        if (first.matches("^\\d+(?:[-—.]\\d+)*$") || first.matches("^[A-Za-z]\\d+$")) {
+            return false;
+        }
         String last = row.get(row.size() - 1).trim();
-        return last.matches("^[~≈]?-?\\d{1,3}(?:\\.\\d+)?\\s*(?:分|%)?$");
+        // 尾列必须为合法的非负分值权重（0-100），排除负数扣分（如 -10）及非分值文本
+        if (!last.matches("^[~≈]?\\d{1,3}(?:\\.\\d+)?\\s*(?:分|%)?$")) {
+            return false;
+        }
+        String numStr = last.replaceAll("[^0-9.]", "");
+        if (numStr.isEmpty()) {
+            return false;
+        }
+        int dotIdx = numStr.indexOf('.');
+        String intPart = dotIdx >= 0 ? numStr.substring(0, dotIdx) : numStr;
+        if (intPart.length() > 3 || (intPart.length() == 3 && !intPart.equals("100"))) {
+            return false;
+        }
+        if (intPart.length() == 3 && dotIdx >= 0 && !numStr.substring(dotIdx + 1).matches("^0+$")) {
+            return false;
+        }
+        return true;
     }
 
     public int rowCount() {

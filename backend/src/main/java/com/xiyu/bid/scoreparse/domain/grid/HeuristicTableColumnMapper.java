@@ -39,12 +39,13 @@ public final class HeuristicTableColumnMapper {
 
         List<String> headerRow = grid.row(0);
         String allHeaders = String.join(" ", headerRow);
-        if (((CONTRACT_ASSESSMENT_HEADER.matcher(allHeaders).find()
-                || NON_SCORE_CATALOG_HEADER.matcher(allHeaders).find()
-                || PACKAGE_LOT_HEADER.matcher(allHeaders).find())
-                && !EXPLICIT_BID_SCORE_HEADER.matcher(allHeaders).find())
-                || (PACKAGE_LOT_HEADER.matcher(allHeaders).find() && !DETAIL_HEADER.matcher(allHeaders).find())) {
-            return new TableColumnMapping(-1, -1, -1, -1, -1, grid.rowCount(), false);
+        boolean isExplicitScoreTable = EXPLICIT_BID_SCORE_HEADER.matcher(allHeaders).find();
+        if (!isExplicitScoreTable) {
+            if (CONTRACT_ASSESSMENT_HEADER.matcher(allHeaders).find()
+                    || NON_SCORE_CATALOG_HEADER.matcher(allHeaders).find()
+                    || PACKAGE_LOT_HEADER.matcher(allHeaders).find()) {
+                return new TableColumnMapping(-1, -1, -1, -1, -1, grid.rowCount(), false);
+            }
         }
 
         boolean isGenuineHeader = CODE_HEADER.matcher(allHeaders).find()
@@ -117,7 +118,7 @@ public final class HeuristicTableColumnMapper {
         }
 
         if (bracketCol >= 0) {
-            if (weightCol == -1 || !isGenuineHeader) {
+            if (weightCol == -1) {
                 weightCol = bracketCol;
             }
             if (dimCol == -1 || dimCol == detailCol) {

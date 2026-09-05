@@ -123,17 +123,11 @@ public class WeightSumCheck {
     }
 
     private static boolean isDeductionDim(String dim) {
-        if (dim == null) return false;
-        return dim.contains("扣") || dim.contains("诚信") || dim.contains("信用")
-                || dim.contains("负面") || dim.contains("违约") || dim.contains("失信");
+        return DeductionItemPolicy.isDeductionText(dim);
     }
 
     private static boolean isDeductionCandidate(ScoreCandidate candidate) {
-        if (candidate == null) return false;
-        String text = (candidate.dim() == null ? "" : candidate.dim()) + " "
-                + (candidate.parentDim() == null ? "" : candidate.parentDim()) + " "
-                + (candidate.detail() == null ? "" : candidate.detail());
-        return isDeductionDim(text);
+        return DeductionItemPolicy.isDeduction(candidate);
     }
 
     /**

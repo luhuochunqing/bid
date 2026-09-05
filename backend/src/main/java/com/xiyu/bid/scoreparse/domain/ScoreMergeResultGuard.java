@@ -248,9 +248,6 @@ public final class ScoreMergeResultGuard {
     }
 
     private static boolean isDeductionItem(ScoreCandidate candidate) {
-        if (candidate == null) return false;
-        String text = (candidate.dim() == null ? "" : candidate.dim()) + " "
-                + (candidate.detail() == null ? "" : candidate.detail());
-        return text.contains("扣") || text.contains("诚信") || text.contains("信用") || text.contains("负面事件");
+        return DeductionItemPolicy.isDeduction(candidate);
     }
 }

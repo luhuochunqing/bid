@@ -36,16 +36,9 @@ public class WeightOverloadTrimPolicy {
         if (sumWeights(remaining).compareTo(limit) <= 0) {
             return new TrimResult(remaining, removed);
         }
-        trimByPredicate(remaining, removed, limit, candidate -> isBlank(candidate.code()) && !isTableCandidate(candidate));
-        trimByPredicate(remaining, removed, limit, candidate -> isBlank(candidate.sourceText()));
         trimByPredicate(remaining, removed, limit, candidate -> isBlank(candidate.code()));
+        trimByPredicate(remaining, removed, limit, candidate -> isBlank(candidate.sourceText()));
         return new TrimResult(remaining, removed);
-    }
-
-    private static boolean isTableCandidate(ScoreCandidate candidate) {
-        if (candidate == null) return false;
-        String p = candidate.semanticPattern();
-        return "STRUCTURED_TABLE".equals(p) || "TABLE_GRID".equals(p);
     }
 
     private void trimByPredicate(List<ScoreCandidate> remaining, List<ScoreCandidate> removed,

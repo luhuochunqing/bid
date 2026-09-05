@@ -4,6 +4,7 @@
 // 维护声明: 纯编排：合并去噪→守卫→归并裁决→完整性回补→权重治理→run-summary 装配；落库仍归 AppService
 package com.xiyu.bid.scoreparse.application;
 
+import com.xiyu.bid.scoreparse.domain.DeductionItemPolicy;
 import com.xiyu.bid.scoreparse.domain.GhostCandidateFilter;
 import com.xiyu.bid.scoreparse.domain.ItemCountCheck;
 import com.xiyu.bid.scoreparse.domain.RecallOutcome;
@@ -209,9 +210,6 @@ public class ScoreCandidatePostProcessor {
     }
 
     private static boolean isDeductionItem(ScoreCandidate candidate) {
-        if (candidate == null) return false;
-        String text = (candidate.dim() == null ? "" : candidate.dim()) + " "
-                + (candidate.detail() == null ? "" : candidate.detail());
-        return text.contains("扣") || text.contains("诚信") || text.contains("信用") || text.contains("负面事件");
+        return DeductionItemPolicy.isDeduction(candidate);
     }
 }

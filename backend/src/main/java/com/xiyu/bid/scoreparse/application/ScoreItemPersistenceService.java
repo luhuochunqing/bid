@@ -176,7 +176,7 @@ public class ScoreItemPersistenceService {
                     .sourceTableId(f.sourceTableId())
                     .sourceCellIds(cellIdsJson)
                     .sourceText(f.sourceText() == null ? "" : f.sourceText())
-                    .code(f.code())
+                    .code(com.xiyu.bid.scoreparse.domain.ScoreCodeSanitizer.clean(f.code()))
                     .dimension(f.dimension() == null ? "" : f.dimension())
                     .weight(f.weight() == null ? BigDecimal.ZERO : f.weight())
                     .weightEvidence(evidenceJson)
@@ -229,16 +229,7 @@ public class ScoreItemPersistenceService {
     }
 
     private String resolveCode(String code) {
-        if (code == null || code.isBlank()) {
-            return "";
-        }
-        String trimmed = code.trim();
-        if ("null".equalsIgnoreCase(trimmed) || "undefined".equalsIgnoreCase(trimmed)
-                || "none".equalsIgnoreCase(trimmed) || "n/a".equalsIgnoreCase(trimmed)
-                || trimmed.matches("^[一二三四五六七八九十百]+[、.]?$")) {
-            return "";
-        }
-        return trimmed.length() > 50 ? trimmed.substring(0, 50) : trimmed;
+        return com.xiyu.bid.scoreparse.domain.ScoreCodeSanitizer.clean(code);
     }
 
     private String resolveDim(ScoreCandidate candidate) {

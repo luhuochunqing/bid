@@ -123,15 +123,32 @@ class ProjectMatchServiceTest {
     }
 
     @Test
-    @DisplayName("过滤通用评分短语与长分句，防止长子句污染业绩行业匹配")
+    @DisplayName("匹配服务：无约束请求（关键词全被过滤或为空且无时间约束）严禁全量匹配返回 FULL，应返回 NONE 待人工确认")
+    void noConstraints_returnsNoneRatherThanFull() {
+        ProjectMatchRequest request = new ProjectMatchRequest(List.of("优秀得7分", "情况"), null, null, 1);
+
+        KnowledgeMatchResult result = service.match(request);
+
+        assertThat(result.tier()).isEqualTo("NONE");
+        assertThat(result.matchRatio()).isEqualTo(0);
+        assertThat(result.matched()).isEmpty();
+        assertThat(result.matchDetail()).contains("未抽取到可执行的业绩匹配约束");
+    }
+
+    @Test
+    @DisplayName("过滤通用评分短语与长分句，防止长子句污染业绩行业匹配，同时保留合法业务词")
     void filterGenericKeywords_filtersClauseText() {
         List<String> raw = List.of(
                 "对应答人在2023年1月1日至2025年12月31日",
                 "为央企二级单位及以上或省级及以上政府机关所提供的与本项目类似采购供货服务数量进行评价",
                 "优秀得7分",
-                "电力"
+                "电力",
+                "电商",
+                "电力供应情况",
+                "一般纳税人"
         );
         List<String> filtered = ProjectMatchService.filterSpecificProjectKeywords(raw);
-        assertThat(filtered).containsExactly("电力");
+        assertThat(filtered).contains("电力", "电商", "电力供应情况", "一般纳税人");
+        assertThat(filtered).doesNotContain("优秀得7分");
     }
 }

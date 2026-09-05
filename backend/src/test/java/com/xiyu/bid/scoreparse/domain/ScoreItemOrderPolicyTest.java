@@ -49,7 +49,7 @@ class ScoreItemOrderPolicyTest {
         List<ScoreCandidate> result = policy.sort(candidates(null, "2", "  "));
 
         assertThat(result).extracting(ScoreCandidate::code)
-                .containsExactly("2", null, "  ");
+                .containsExactly("2", "", "");
     }
 
     @Test
@@ -156,27 +156,42 @@ class ScoreItemOrderPolicyTest {
     }
 
     @Test
-    void sort_project1359Items_naturalDocumentOrderPreservedWithoutInterleaving() {
-        List<ScoreCandidate> input = List.of(
-                candidate(null, "一、诚信评价 / 公共信用信息报告", "公共信用 0分", "0"),
-                candidate(null, "二、财务状况 / 财务综合评价", "财务状况 25分", "25"),
-                candidate(null, "三、绿色数智评价 / 绿色发展规划", "绿色规划 4分", "4"),
-                candidate(null, "四、综合评价 / 库存评价", "库存充足性 5分", "5"),
-                candidate(null, "四、综合评价 / 库存评价", "供货保障解决方案 5分", "5"),
-                candidate(null, "四、综合评价 / 紧急需求应急响应", "紧急需求应急响应 15分", "15"),
-                candidate(null, "四、综合评价 / 应急保障能力", "应急保障能力 10分", "10"),
-                candidate(null, "四、综合评价 / 应答响应", "应答响应 15分", "15"),
-                candidate(null, "四、综合评价 / 报价质量", "报价质量 15分", "15"),
-                candidate(null, "应答人交易平台与履约交易平台对接方案", "对接方案 6分", "6"),
-                candidate(null, "供货业绩", "供货业绩 7分", "7")
+    void sort_project1359Items_shuffledInputRestoredToNaturalDocumentAndNumericOrder() {
+        // 真实 1359 场景：故意打乱中文大类和综合评价子点顺序（第四点综合评价小点乱序传入）
+        // 排序策略必须通过中文章节序号（一、二、三、四）和局部数值序（1..6）将乱序恢复为规范顺序
+        ScoreCandidate item1 = candidate("1", "一、诚信评价 / 公共信用信息报告", "公共信用 0分", "0");
+        ScoreCandidate item2 = candidate("1", "二、财务状况 / 财务综合评价", "财务状况 25分", "25");
+        ScoreCandidate item3 = candidate("1", "三、绿色数智评价 / 绿色发展规划", "绿色规划 4分", "4");
+        ScoreCandidate item4_1 = candidate("1", "四、综合评价 / 库存充足性", "库存充足性 5分", "5");
+        ScoreCandidate item4_2 = candidate("2", "四、综合评价 / 供货保障解决方案", "供货保障解决方案 5分", "5");
+        ScoreCandidate item4_3 = candidate("3", "四、综合评价 / 紧急需求应急响应", "紧急需求应急响应 15分", "15");
+        ScoreCandidate item4_4 = candidate("4", "四、综合评价 / 应急保障能力", "应急保障能力 10分", "10");
+        ScoreCandidate item4_5 = candidate("5", "四、综合评价 / 应答响应", "应答响应 15分", "15");
+        ScoreCandidate item4_6 = candidate("6", "四、综合评价 / 报价质量", "报价质量 15分", "15");
+        ScoreCandidate itemTable3_1 = candidate(null, "应答人交易平台与履约交易平台对接方案", "对接方案 6分", "6");
+        ScoreCandidate itemTable3_2 = candidate(null, "供货业绩", "供货业绩 7分", "7");
+
+        // 故意深度打乱输入顺序：四(乱序) -> 二 -> 一 -> 三 -> 外部项
+        List<ScoreCandidate> shuffled = List.of(
+                item4_3, item4_1, item2, item4_6, item1, item4_2, item3, item4_5, item4_4,
+                itemTable3_1, itemTable3_2
         );
 
-        List<ScoreCandidate> result = policy.sort(input);
+        List<ScoreCandidate> result = policy.sort(shuffled);
+
+        // 验证彻底恢复：一、诚信评价 -> 二、财务状况 -> 三、绿色数智评价 -> 四、综合评价 (1,2,3,4,5,6) -> 后续无章节项
         assertThat(result).extracting(ScoreCandidate::detail).containsExactly(
-                "公共信用 0分", "财务状况 25分", "绿色规划 4分",
-                "库存充足性 5分", "供货保障解决方案 5分", "紧急需求应急响应 15分",
-                "应急保障能力 10分", "应答响应 15分", "报价质量 15分",
-                "对接方案 6分", "供货业绩 7分"
+                "公共信用 0分",
+                "财务状况 25分",
+                "绿色规划 4分",
+                "库存充足性 5分",
+                "供货保障解决方案 5分",
+                "紧急需求应急响应 15分",
+                "应急保障能力 10分",
+                "应答响应 15分",
+                "报价质量 15分",
+                "对接方案 6分",
+                "供货业绩 7分"
         );
     }
 

@@ -99,6 +99,25 @@ class WeightOverloadTrimPolicyTest {
     }
 
     @Test
+    void trim_tableCandidateWithoutCodeOverload_notExemptedAndTrimmed() {
+        // 表格候选（STRUCTURED_TABLE）如果缺少 code 且导致超载（如父汇总项），不可被盲目豁免，必须在第一轮被剔除
+        ScoreCandidate tableParentSummary = new ScoreCandidate(null, "商务部分", "商务评分汇总 50分",
+                new BigDecimal("50"), null, null, "原文", "P1", "STRUCTURED_TABLE");
+        ScoreCandidate child1 = new ScoreCandidate("1.1", "财务能力", "财务 30分",
+                new BigDecimal("30"), null, null, "原文", "P1", "STRUCTURED_TABLE");
+        ScoreCandidate child2 = new ScoreCandidate("1.2", "供应商业绩", "业绩 30分",
+                new BigDecimal("30"), null, null, "原文", "P1", "STRUCTURED_TABLE");
+        ScoreCandidate normalOther = candidate("2", "40", true);
+        // total: 50 + 30 + 30 + 40 = 150 > 100.5
+        // 第一轮剔除无 code 的 tableParentSummary 50分 -> 剩余 100 <= 100.5 达标即停！
+        WeightOverloadTrimPolicy.TrimResult result =
+                policy.trim(List.of(tableParentSummary, child1, child2, normalOther), LIMIT);
+
+        assertThat(result.removed()).containsExactly(tableParentSummary);
+        assertThat(result.remaining()).containsExactly(child1, child2, normalOther);
+    }
+
+    @Test
     void trim_nullWeight_skippedInSumButStillTrimmable() {
         // total = Σ 非 null weight：null 权重不计入合计，但无 code 候选仍可剔
         ScoreCandidate real = candidate("1", "110", true);

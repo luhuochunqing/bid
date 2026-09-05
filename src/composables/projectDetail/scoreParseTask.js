@@ -46,6 +46,22 @@ function safeParseJson(val, fallback) {
   return fallback
 }
 
+export function sanitizeCode(raw) {
+  if (raw == null) return ''
+  let s = String(raw).trim()
+  if (!s || /^(null|undefined|none|n\/?a|\(null\)|（null）|null\.0)$/i.test(s)) {
+    return ''
+  }
+  s = s.replace(/(?:^|(?<=[._\-\s]))(?:null|undefined|none|n\/?a)(?:(?=[._\-\s])|$)/gi, '')
+  s = s.replace(/[._\-\s]{2,}/g, '.')
+  s = s.replace(/^[._\-\s]+/, '')
+  s = s.replace(/[._\-\s]+$/, '')
+  if (!s || /^(null|undefined|none|n\/?a)$/i.test(s)) {
+    return ''
+  }
+  return s
+}
+
 export function normalizeScoreItem(s, i) {
   const isSubj = s.scoreType === 'SUBJECTIVE' || s.scoreType === '主观项'
   const status = STATUS_MAP[s.status] || 'neutral'
@@ -54,10 +70,7 @@ export function normalizeScoreItem(s, i) {
     ? s.sourceCellIds
     : (Array.isArray(parsedCells) ? parsedCells : (s.sourceCellIds ? [String(s.sourceCellIds)] : []))
 
-  const rawCode = (s.code != null ? String(s.code) : '').trim()
-  // Preserve original code if it is a valid non‑null identifier; otherwise generate a placeholder like "S{i+1}"
-  const isInvalidCode = !rawCode || /^(null|undefined|none|n\/?a)$/i.test(rawCode);
-  const displayCode = (!isInvalidCode && rawCode) ? rawCode : `S${i + 1}`;
+  const displayCode = sanitizeCode(s.code) || `S${i + 1}`
 
   return {
     id: s.id,
@@ -91,8 +104,13 @@ export function mapScoreResults(results) {
     if (row.scoreItemId != null) {
       resultMap[`id:${row.scoreItemId}`] = normalized
     }
-    if (row.code != null && resultMap[`code:${row.code}`] == null) {
-      resultMap[`code:${row.code}`] = normalized
+    if (row.code != null) {
+      if (resultMap[`code:${row.code}`] == null) {
+        resultMap[`code:${row.code}`] = normalized
+      }
+      if (resultMap[row.code] == null) {
+        resultMap[row.code] = normalized
+      }
     }
   }
   return resultMap

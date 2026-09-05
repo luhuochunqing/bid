@@ -102,23 +102,17 @@ class ScoreTableRecallLaneTest {
 
     @Test
     void recall_real1359Document_extractsBothTablesCleanly() throws Exception {
-        java.nio.file.Path path = java.nio.file.Path.of("/tmp/1359_sidecar.md");
-        if (!java.nio.file.Files.exists(path)) {
-            return;
-        }
-        String md = java.nio.file.Files.readString(path);
-        List<ScoreCandidate> list = ScoreTableRecallLane.recall(md);
-        System.out.println("=== 1359 CANDIDATES COUNT: " + list.size() + " ===");
-        for (int i = 0; i < list.size(); i++) {
-            ScoreCandidate c = list.get(i);
-            System.out.println(String.format("[%02d] code=%s, dim=%s, weight=%s, parentDim=%s, detail=%s",
-                    i, c.code(), c.dim(), c.weight(), c.parentDim(), c.detail().substring(0, Math.min(40, c.detail().length()))));
-        }
+        try (var is = getClass().getResourceAsStream("/scoreparse-golden/1359_sidecar.md")) {
+            assertThat(is).as("1359 sidecar fixture must exist in test resources").isNotNull();
+            String md = new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            List<ScoreCandidate> list = ScoreTableRecallLane.recall(md);
 
-        // 验证真实 1359 标书提取：报价质量 15分 与 品类覆盖率 8分 必须成功召回
-        assertThat(list).anyMatch(c -> ((c.dim() != null && c.dim().contains("报价质量")) || (c.detail() != null && c.detail().contains("报价质量")))
-                && c.weight() != null && c.weight().compareTo(new BigDecimal("15")) == 0);
-        assertThat(list).anyMatch(c -> ((c.dim() != null && c.dim().contains("品类覆盖率")) || (c.detail() != null && c.detail().contains("品类覆盖率")))
-                && c.weight() != null && c.weight().compareTo(new BigDecimal("8")) == 0);
+            assertThat(list).isNotEmpty();
+            // 验证真实 1359 标书提取：报价质量 15分 与 品类覆盖率 8分 必须成功召回
+            assertThat(list).anyMatch(c -> ((c.dim() != null && c.dim().contains("报价质量")) || (c.detail() != null && c.detail().contains("报价质量")))
+                    && c.weight() != null && c.weight().compareTo(new BigDecimal("15")) == 0);
+            assertThat(list).anyMatch(c -> ((c.dim() != null && c.dim().contains("品类覆盖率")) || (c.detail() != null && c.detail().contains("品类覆盖率")))
+                    && c.weight() != null && c.weight().compareTo(new BigDecimal("8")) == 0);
+        }
     }
 }

@@ -104,4 +104,32 @@ class HeuristicTableColumnMapperTest {
         assertThat(mapping.detailCol()).isEqualTo(1);
         assertThat(mapping.weightCol()).isEqualTo(3);
     }
+
+    @Test
+    void infer_packageLotWithExplicitScore_notRejected() {
+        String markdown = """
+                | 标段划分 | 评分因素 | 评分标准 | 分值 |
+                |---|---|---|---|
+                | 包1 | 业绩能力 | 业绩满分得10分 | 10 |
+                """;
+        TableGrid grid = TableGridExtractor.extract(markdown);
+        TableColumnMapping mapping = HeuristicTableColumnMapper.infer(grid);
+
+        assertThat(mapping.headerRows()).isEqualTo(1);
+        assertThat(mapping.weightCol()).isEqualTo(3);
+    }
+
+    @Test
+    void infer_packageLotWithoutExplicitScore_rejected() {
+        String markdown = """
+                | 标段划分 | 包名称 | 采购范围 |
+                |---|---|---|
+                | 标包1 | 办公耗材 | 采购A类物资 |
+                """;
+        TableGrid grid = TableGridExtractor.extract(markdown);
+        TableColumnMapping mapping = HeuristicTableColumnMapper.infer(grid);
+
+        assertThat(mapping.headerRows()).isEqualTo(grid.rowCount());
+    }
 }
+

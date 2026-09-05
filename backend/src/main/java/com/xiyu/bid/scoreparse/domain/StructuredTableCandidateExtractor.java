@@ -34,34 +34,18 @@ public final class StructuredTableCandidateExtractor {
     }
 
     public static List<ScoreCandidate> extract(SidecarTableExtraction extraction) {
-        if (extraction == null || extraction.tables().isEmpty()) {
-            return List.of();
-        }
-
+        if (extraction == null || extraction.tables().isEmpty()) return List.of();
         List<SidecarTableExtraction.TablePayload> scoreTables = filterScoreTables(extraction.tables());
-        if (scoreTables.isEmpty()) {
-            return List.of();
-        }
-
-        List<ScoreCandidate> candidates = new ArrayList<>();
-        for (SidecarTableExtraction.TablePayload table : scoreTables) {
-            candidates.addAll(extractFromTable(table));
-        }
-        return candidates;
+        return scoreTables.stream().flatMap(t -> extractFromTable(t).stream()).toList();
     }
 
     private static List<SidecarTableExtraction.TablePayload> filterScoreTables(List<SidecarTableExtraction.TablePayload> tables) {
-        List<SidecarTableExtraction.TablePayload> marked = tables.stream()
-                .filter(SidecarTableExtraction.TablePayload::isScoreTable)
-                .toList();
-        if (!marked.isEmpty()) {
-            return marked;
-        }
-        // 无评分标记时，回退到所有含足够行数的表格（至少3行：表头+2行数据）
-        return tables.stream()
-                .filter(t -> t.rows() != null && t.rows().size() >= 3)
-                .toList();
+        List<SidecarTableExtraction.TablePayload> marked = tables.stream().filter(SidecarTableExtraction.TablePayload::isScoreTable).toList();
+        return !marked.isEmpty() ? marked : tables.stream().filter(t -> t.rows() != null && t.rows().size() >= 3).toList();
     }
+
+    private static final int MAX_PARENT_DIM_COLS = 3;
+    private static final Pattern NON_DIM_TEXT = Pattern.compile("^(?:\\d+(?:\\.\\d+)?(?:分|%)?|最低分|最高分|分值|满分|权重|得分)$");
 
     private static List<ScoreCandidate> extractFromTable(SidecarTableExtraction.TablePayload table) {
         List<ScoreCandidate> candidates = new ArrayList<>();
@@ -70,24 +54,27 @@ public final class StructuredTableCandidateExtractor {
             return candidates;
         }
 
-        String[] colParentDim = new String[4];
-        int[] colRemainingRowspan = new int[4];
+        String[] colParentDim = new String[MAX_PARENT_DIM_COLS];
+        int[] colRemainingRowspan = new int[MAX_PARENT_DIM_COLS];
         for (int r = 0; r < rows.size(); r++) {
             List<SidecarTableExtraction.CellPayload> row = rows.get(r);
             if (row == null || row.isEmpty()) {
                 continue;
             }
-            int scanLimit = Math.min(row.size(), 4);
+            int scanLimit = Math.min(row.size(), MAX_PARENT_DIM_COLS);
             for (int i = 0; i < scanLimit; i++) {
                 SidecarTableExtraction.CellPayload cell = row.get(i);
                 if (!cell.isMergedContinue() && cell.rowspan() > 1) {
                     String text = stripBracketWeight(cell.text());
-                    if (text != null) { colParentDim[i] = text; colRemainingRowspan[i] = cell.rowspan(); }
+                    if (text != null && !NON_DIM_TEXT.matcher(text.trim()).find()) {
+                        colParentDim[i] = text;
+                        colRemainingRowspan[i] = cell.rowspan();
+                    }
                 }
             }
             List<SidecarTableExtraction.CellPayload> visibleCells = visibleCells(row);
             if (visibleCells.isEmpty() || isHeaderRow(visibleCells, r)) {
-                decrementRemaining(colRemainingRowspan, colParentDim, scanLimit);
+                decrementRemaining(colRemainingRowspan, colParentDim);
                 continue;
             }
             String parentDim = extractParentDim(row);
@@ -103,7 +90,7 @@ public final class StructuredTableCandidateExtractor {
                 parentDim = topParent != null && subParent != null && !topParent.equals(subParent)
                         ? topParent + " / " + subParent : (subParent != null ? subParent : topParent);
             }
-            decrementRemaining(colRemainingRowspan, colParentDim, scanLimit);
+            decrementRemaining(colRemainingRowspan, colParentDim);
             ScoreCandidate candidate = parseRow(visibleCells, r, parentDim);
             if (candidate != null) candidates.add(candidate);
         }
@@ -112,12 +99,17 @@ public final class StructuredTableCandidateExtractor {
 
     private static String extractParentDim(List<SidecarTableExtraction.CellPayload> fullRow) {
         String parentText = null;
-        int scanLimit = Math.min(fullRow.size(), 3);
+        int scanLimit = Math.min(fullRow.size(), MAX_PARENT_DIM_COLS);
         for (int i = 0; i < scanLimit; i++) {
             SidecarTableExtraction.CellPayload cell = fullRow.get(i);
-            if (cell.isMergedContinue() && !cell.text().isBlank()) parentText = cell.text();
+            if (cell.isMergedContinue() && !cell.text().isBlank()) {
+                String stripped = stripBracketWeight(cell.text());
+                if (stripped != null && !NON_DIM_TEXT.matcher(stripped.trim()).find()) {
+                    parentText = stripped;
+                }
+            }
         }
-        return parentText == null ? null : stripBracketWeight(parentText);
+        return parentText;
     }
 
     private static String stripBracketWeight(String text) {
@@ -126,8 +118,8 @@ public final class StructuredTableCandidateExtractor {
         return dim.isEmpty() ? null : dim;
     }
 
-    private static void decrementRemaining(int[] remaining, String[] dims, int limit) {
-        for (int i = 0; i < limit; i++) {
+    private static void decrementRemaining(int[] remaining, String[] dims) {
+        for (int i = 0; i < remaining.length; i++) {
             if (remaining[i] > 0 && --remaining[i] == 0) dims[i] = null;
         }
     }

@@ -122,15 +122,7 @@ final class ScoreCandidateMapper {
     }
 
     static String safeCode(String value) {
-        if (value == null) {
-            return "";
-        }
-        String trimmed = value.trim();
-        if ("null".equalsIgnoreCase(trimmed) || "undefined".equalsIgnoreCase(trimmed)
-                || "none".equalsIgnoreCase(trimmed) || "n/a".equalsIgnoreCase(trimmed)) {
-            return "";
-        }
-        return trimmed;
+        return com.xiyu.bid.scoreparse.domain.ScoreCodeSanitizer.clean(value);
     }
 
     static String safeText(String value) {
