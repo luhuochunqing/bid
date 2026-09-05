@@ -151,6 +151,13 @@ public class TenderRequirementsExtractor {
                     "allowCertificates": [ "允许的证书类型列表，如营业执照、事业单位法人证书等" ],
                     "requireOriginalOrCopy": "原件扫描件或复印件加盖公章等要求或null",
                     "description": "招标文件关于营业执照及主体资格证明的具体要求条款摘录或null"
+                  },
+                  "idAuthLetterRequirement": {
+                    "required": true或false或null,
+                    "requireFrontAndBack": true或false或null,
+                    "requireSocialSecurity": true或false或null,
+                    "requireOriginalOrCopy": "原件或加盖公章的复印件等要求或null",
+                    "description": "招标文件关于法定代表人及委托代理人身份证正反面、社保证明等具体要求条款摘录或null"
                   }
                 }
                 顶层键必须全部存在。

@@ -24,6 +24,7 @@ public record TenderRequirements(
         BidLetterRequirement bidLetterRequirement,
         AuthorizationRequirement authorizationRequirement,
         BusinessLicenseRequirement businessLicenseRequirement,
+        IdAuthLetterRequirement idAuthLetterRequirement,
         boolean missing) {
 
     /** 投标保证金要求. required 为 false 表示明确免收/不涉及；true 为需缴纳；null 为未明确. */
@@ -108,9 +109,6 @@ public record TenderRequirements(
             Integer validityDays,
             String description) {
 
-        /**
-         * 交叉校验与融合两条投标函要求提取结果（硬事实优先）.
-         */
         public static BidLetterRequirement fuse(final BidLetterRequirement a, final BidLetterRequirement b) {
             if (a == null) return b;
             if (b == null) return a;
@@ -121,9 +119,6 @@ public record TenderRequirements(
             return new BidLetterRequirement(type, recipient, days, desc);
         }
 
-        /**
-         * 双轨融合：以确定性提取结果校准 LLM 提取结果（硬事实数字天数与确定性公司全称优先）.
-         */
         public static BidLetterRequirement fuseWithDeterministic(final BidLetterRequirement llmReq, final BidLetterRequirement detReq) {
             if (detReq == null) return llmReq;
             if (llmReq == null) return detReq;
@@ -135,32 +130,37 @@ public record TenderRequirements(
         }
     }
 
-    /** 兼容历史签名的构造重载. */
     public TenderRequirements(final List<ScoringItem> scoringItems, final List<String> mandatoryQualifications,
             final List<VetoClause> vetoClauses, final List<String> compositionRequirements, final List<String> formatRequirements, final boolean missing) {
-        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, null, null, null, null, missing);
+        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, null, null, null, null, null, missing);
     }
 
     public TenderRequirements(final List<ScoringItem> scoringItems, final List<String> mandatoryQualifications,
             final List<VetoClause> vetoClauses, final List<String> compositionRequirements, final List<String> formatRequirements,
             final DepositRequirement depositRequirement, final boolean missing) {
-        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, null, null, null, missing);
+        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, null, null, null, null, missing);
     }
 
     public TenderRequirements(final List<ScoringItem> scoringItems, final List<String> mandatoryQualifications,
             final List<VetoClause> vetoClauses, final List<String> compositionRequirements, final List<String> formatRequirements,
             final DepositRequirement depositRequirement, final BidLetterRequirement bidLetterRequirement, final boolean missing) {
-        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, null, null, missing);
+        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, null, null, null, missing);
     }
 
     public TenderRequirements(final List<ScoringItem> scoringItems, final List<String> mandatoryQualifications,
             final List<VetoClause> vetoClauses, final List<String> compositionRequirements, final List<String> formatRequirements,
             final DepositRequirement depositRequirement, final BidLetterRequirement bidLetterRequirement,
             final AuthorizationRequirement authorizationRequirement, final boolean missing) {
-        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, null, missing);
+        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, null, null, missing);
     }
 
-    /** 评分项. maxScore 允许 null（文本未标分值时），负值归一为 null. */
+    public TenderRequirements(final List<ScoringItem> scoringItems, final List<String> mandatoryQualifications,
+            final List<VetoClause> vetoClauses, final List<String> compositionRequirements, final List<String> formatRequirements,
+            final DepositRequirement depositRequirement, final BidLetterRequirement bidLetterRequirement,
+            final AuthorizationRequirement authorizationRequirement, final BusinessLicenseRequirement businessLicenseRequirement, final boolean missing) {
+        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, null, missing);
+    }
+
     public record ScoringItem(String name, Double maxScore, String criteria) {
         public ScoringItem {
             if (maxScore != null && maxScore < 0) {
@@ -169,7 +169,6 @@ public record TenderRequirements(
         }
     }
 
-    /** 否决条款（keywords 为否决关键词语义判断的候选词）. */
     public record VetoClause(String clause, List<String> keywords) {
         public VetoClause {
             keywords = keywords == null ? List.of() : List.copyOf(keywords);
@@ -204,20 +203,14 @@ public record TenderRequirements(
         return List.copyOf(cleaned);
     }
 
-    /** 无提取结果的空集（非哨兵）. */
     public static TenderRequirements empty() {
-        return new TenderRequirements(List.of(), List.of(), List.of(), List.of(), List.of(), null, null, null, null, false);
+        return new TenderRequirements(List.of(), List.of(), List.of(), List.of(), List.of(), null, null, null, null, null, false);
     }
 
-    /** 提取失败/未启用哨兵值：比对项 MANUAL + REFERENCE_MISSING，独立项照常. */
     public static TenderRequirements missingSentinel() {
-        return new TenderRequirements(List.of(), List.of(), List.of(), List.of(), List.of(), null, null, null, null, true);
+        return new TenderRequirements(List.of(), List.of(), List.of(), List.of(), List.of(), null, null, null, null, null, true);
     }
 
-    /**
-     * 双轨融合：将规则提取的确定性资格要求与现有要求合并（并集去重保序）.
-     * 若本对象原为 missingSentinel，但在注入确定性资质后，将解除 missing 标记，确保后续资质比对正常执行.
-     */
     public TenderRequirements withMergedQualifications(final List<String> extraQualifications) {
         if (extraQualifications == null || extraQualifications.isEmpty()) {
             return this;
@@ -225,34 +218,34 @@ public record TenderRequirements(
         LinkedHashSet<String> merged = new LinkedHashSet<>(extraQualifications);
         merged.addAll(this.mandatoryQualifications);
         return new TenderRequirements(scoringItems, sanitizeQualifications(List.copyOf(merged)), vetoClauses,
-                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, false);
+                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, false);
     }
 
-    /** 注入保证金要求. */
     public TenderRequirements withDepositRequirement(final DepositRequirement depositRequirement) {
         return new TenderRequirements(scoringItems, mandatoryQualifications, vetoClauses,
-                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, missing);
+                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, missing);
     }
 
-    /** 注入投标函格式要求. */
     public TenderRequirements withBidLetterRequirement(final BidLetterRequirement bidLetterRequirement) {
         return new TenderRequirements(scoringItems, mandatoryQualifications, vetoClauses,
-                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, missing);
+                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, missing);
     }
 
-    /** 注入授权委托书要求. */
     public TenderRequirements withAuthorizationRequirement(final AuthorizationRequirement authorizationRequirement) {
         return new TenderRequirements(scoringItems, mandatoryQualifications, vetoClauses,
-                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, missing);
+                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, missing);
     }
 
-    /** 注入营业执照要求. */
     public TenderRequirements withBusinessLicenseRequirement(final BusinessLicenseRequirement businessLicenseRequirement) {
         return new TenderRequirements(scoringItems, mandatoryQualifications, vetoClauses,
-                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, missing);
+                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, missing);
     }
 
-    /** 合并多段提取结果（长文档分段送入时）；任一段为哨兵不影响其他段，全空则哨兵. */
+    public TenderRequirements withIdAuthLetterRequirement(final IdAuthLetterRequirement idAuthLetterRequirement) {
+        return new TenderRequirements(scoringItems, mandatoryQualifications, vetoClauses,
+                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, missing);
+    }
+
     public static TenderRequirements merge(final List<TenderRequirements> parts) {
         List<ScoringItem> scoringItems = new ArrayList<>();
         LinkedHashSet<String> qualifications = new LinkedHashSet<>();
@@ -263,6 +256,7 @@ public record TenderRequirements(
         BidLetterRequirement mergedBidLetter = null;
         AuthorizationRequirement mergedAuth = null;
         BusinessLicenseRequirement mergedLicense = null;
+        IdAuthLetterRequirement mergedIdAuth = null;
         for (TenderRequirements part : parts) {
             if (part == null || part.missing()) {
                 continue;
@@ -284,9 +278,12 @@ public record TenderRequirements(
             if (part.businessLicenseRequirement() != null) {
                 mergedLicense = BusinessLicenseRequirement.fuse(mergedLicense, part.businessLicenseRequirement());
             }
+            if (part.idAuthLetterRequirement() != null) {
+                mergedIdAuth = IdAuthLetterRequirement.fuse(mergedIdAuth, part.idAuthLetterRequirement());
+            }
         }
         boolean allMissing = parts.isEmpty() || parts.stream().allMatch(p -> p == null || p.missing());
         return new TenderRequirements(scoringItems, List.copyOf(qualifications), vetoClauses,
-                List.copyOf(composition), List.copyOf(format), mergedDeposit, mergedBidLetter, mergedAuth, mergedLicense, allMissing);
+                List.copyOf(composition), List.copyOf(format), mergedDeposit, mergedBidLetter, mergedAuth, mergedLicense, mergedIdAuth, allMissing);
     }
 }

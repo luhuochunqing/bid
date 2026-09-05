@@ -196,6 +196,8 @@ public final class SemanticPageRetriever {
                     "委托代理人", "被授权人", "授权代表", "授权范围", "授权期限", "法定代表人证明书");
             case BUSINESS_LICENSE -> addCues(cues, "营业执照", "统一社会信用代码", "市场监督管理", "登记机关",
                     "事业单位法人证书", "社会团体法人登记证书", "民办非企业单位登记证书", "执业许可证");
+            case ID_AUTH_LETTER -> addCues(cues, "身份证", "身份证明", "居民身份证", "公民身份号码",
+                    "法定代表人身份证明", "委托代理人身份证", "受托人身份证", "社保证明", "社会保险", "人像面", "国徽面");
             default -> { }
         }
         return cues;
@@ -228,6 +230,10 @@ public final class SemanticPageRetriever {
         if (req.businessLicenseRequirement() != null) {
             req.businessLicenseRequirement().allowCertificates().forEach(cert -> addCue(cues, cert));
             if (req.businessLicenseRequirement().description() != null) addDescriptionCues(cues, req.businessLicenseRequirement().description());
+        }
+        if (req.idAuthLetterRequirement() != null) {
+            if (req.idAuthLetterRequirement().requireOriginalOrCopy() != null) addCue(cues, req.idAuthLetterRequirement().requireOriginalOrCopy());
+            if (req.idAuthLetterRequirement().description() != null) addDescriptionCues(cues, req.idAuthLetterRequirement().description());
         }
         return cues;
     }
