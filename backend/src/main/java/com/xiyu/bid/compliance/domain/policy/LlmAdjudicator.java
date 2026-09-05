@@ -148,7 +148,8 @@ public final class LlmAdjudicator {
                         + "|REFERENCE_MISSING|MANUAL_REVIEW_REQUIRED\"}（status=MANUAL 时 reasonCode 必填）。\n")
                 .append("裁决准则：\n")
                 .append("1. 若项目为单标段或标书正文已包含清晰独立章节划分，不得判定为缺失分标段独立章节；\n")
-                .append("2. 标书中对否决条款的确认与正向履约承诺（如承诺遵守违约罚则）属于合规响应，不得判定为废标/违规。\n\n");
+                .append("2. 标书中对否决条款的确认与正向履约承诺（如承诺遵守违约罚则）属于合规响应，不得判定为废标/违规；\n")
+                .append("3. 若检查项为【投标保证金回单】：若招标文件明确免收/不涉及保证金，必须判定为 PASS；若要求缴纳，必须核查标书是否包含真实有效的银行汇款回单或电子保函凭证（具银行/机构、金额、流水号或保函编号等事实要素）；若仅在目录中列出标题、仅在附件清单中列出占位条目、或仅为合规声明而无实际凭证内容，绝对不得判定为 PASS，必须判定为 FAIL！\n\n");
         sb.append("【招标要求（LLM 结构化提取）】\n").append(summarizeRequirements(requirements)).append("\n\n");
         sb.append("【企业知识库真实记录】\n").append(summarizeKbMatches(kbMatches)).append("\n\n");
         sb.append("【招标文件相关内容】\n")
@@ -171,7 +172,13 @@ public final class LlmAdjudicator {
         sb.append("评分项: ").append(requirements.scoringItems().stream()
                 .map(TenderRequirements.ScoringItem::name).collect(Collectors.joining("；"))).append('\n');
         sb.append("否决条款: ").append(requirements.vetoClauses().stream()
-                .map(TenderRequirements.VetoClause::clause).collect(Collectors.joining("；")));
+                .map(TenderRequirements.VetoClause::clause).collect(Collectors.joining("；"))).append('\n');
+        if (requirements.depositRequirement() != null) {
+            String desc = requirements.depositRequirement().description();
+            sb.append("保证金要求: ").append(desc != null && !desc.isBlank()
+                    ? desc
+                    : (Boolean.FALSE.equals(requirements.depositRequirement().required()) ? "免收/不涉及" : "需缴纳"));
+        }
         return sb.toString();
     }
 

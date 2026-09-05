@@ -141,4 +141,33 @@ class BidDocumentQualityEngineTest {
         assertThat(respResult.status()).isNotEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         assertThat(respResult.conclusion()).doesNotContain("[REFERENCE_MISSING]");
     }
+
+    @Test
+    @DisplayName("保证金自适应测试：招标结构化抽取明确免收时，回单与退款信息项均自动判定 PASS（项目1358场景）")
+    void testEvaluateAll_WhenDepositNotRequired_DepositItemsPassAutomatically() {
+        String bidContent = "项目名称：测试采购\n投标人：西域\n2026年\n投标总价：100万元";
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid", bidContent);
+
+        TenderRequirements requirements = TenderRequirements.empty()
+                .withDepositRequirement(TenderRequirements.DepositRequirement.notRequired("前附表明确说明免收保证金"));
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), requirements, Set.of());
+
+        assertThat(results).hasSize(25);
+
+        QualityCheckItemResult depositReceipt = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(depositReceipt.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(depositReceipt.conclusion()).contains("免收/不涉及");
+
+        QualityCheckItemResult depositRefund = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.DEPOSIT_REFUND.getCode()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(depositRefund.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(depositRefund.conclusion()).contains("不涉及投标保证金");
+    }
 }

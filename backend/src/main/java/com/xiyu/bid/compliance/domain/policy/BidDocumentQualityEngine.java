@@ -96,12 +96,28 @@ public final class BidDocumentQualityEngine {
                 progress.accept(adjudicated * 100 / semanticItems.size(), item.getTitle());
                 continue;
             }
+            if (resultMap.containsKey(item.getCode())) {
+                // 已有确定性策略初筛结果（如 DEPOSIT_RECEIPT），在 AI 未启用时保留初筛结果
+                continue;
+            }
             resultMap.put(item.getCode(), ManualReasons.manual(item, ManualReasons.MANUAL_REVIEW_REQUIRED,
                     "AI 未启用，语义条款未经 LLM 裁决，请人工确认", "请在系统设置中启用 AI 后重新核查",
                     Collections.emptyList()));
         }
 
-        // 3. 严格按 25 项标准序号排序输出
+        // 3. 若招标明确免收保证金，联动确保保证金回单与退款信息表项均免除通过
+        if (effective.depositRequirement() != null && Boolean.FALSE.equals(effective.depositRequirement().required())) {
+            String desc = effective.depositRequirement().description();
+            String detail = (desc != null && !desc.isBlank() && !desc.contains("免收/不涉及")) ? "：" + desc : "";
+            resultMap.put(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode(),
+                    QualityCheckItemResult.pass(BidQualityCheckItem.DEPOSIT_RECEIPT,
+                            "招标文件未要求缴纳投标保证金（免收/不涉及" + detail + "）", Collections.emptyList()));
+            resultMap.put(BidQualityCheckItem.DEPOSIT_REFUND.getCode(),
+                    QualityCheckItemResult.pass(BidQualityCheckItem.DEPOSIT_REFUND,
+                            "本项目不涉及投标保证金，无需提供退款账户信息", Collections.emptyList()));
+        }
+
+        // 4. 严格按 25 项标准序号排序输出
         List<QualityCheckItemResult> sorted = new ArrayList<>(resultMap.values());
         sorted.sort(Comparator.comparingInt(QualityCheckItemResult::order));
         return sorted;

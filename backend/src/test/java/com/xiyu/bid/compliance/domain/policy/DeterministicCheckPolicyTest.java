@@ -113,6 +113,47 @@ class DeterministicCheckPolicyTest {
     }
 
     @Test
+    @DisplayName("附件清单检查：招标文件前附表表格式免收（项目1358形态）断言 PASS")
+    void testAttachmentChecks_Project1358TableFormat_Pass() {
+        String tenderText = "投标人须知前附表：\n| 3.4.1 | 投标保证金 | 不适用 | 本项目不要求提交保证金 |";
+        String bidText = "投标文件正文\n投标报价：100万元";
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_1358", bidText);
+
+        QualityCheckItemResult depositResult = DeterministicCheckPolicy.checkDepositReceipt(doc, tenderText);
+        assertThat(depositResult.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(depositResult.conclusion()).contains("免收/不涉及");
+
+        QualityCheckItemResult refundResult = DeterministicCheckPolicy.checkDepositRefund(doc, tenderText);
+        assertThat(refundResult.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(refundResult.conclusion()).contains("不涉及投标保证金");
+    }
+
+    @Test
+    @DisplayName("附件清单检查：招标要求缴纳时，标书纯目录/附件清单占位符不得误判 PASS（杜绝假通过）")
+    void testAttachmentChecks_TocPlaceholder_DoesNotPass() {
+        String tenderText = "前附表：投标保证金金额为人民币 50,000 元整。";
+        String bidText = "目 录\n第一章 投标函\n第二章 报价明细\n附件七 投标保证金汇款凭证（如有）\n第 15 页";
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_toc", bidText);
+
+        QualityCheckItemResult depositResult = DeterministicCheckPolicy.checkDepositReceipt(doc, tenderText);
+        assertThat(depositResult.status()).isNotEqualTo(QualityCheckStatus.PASS);
+        assertThat(depositResult.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(depositResult.conclusion()).contains("无法确认为实际凭证");
+    }
+
+    @Test
+    @DisplayName("附件清单检查：标书含真实银行回执流水要素断言 PASS")
+    void testAttachmentChecks_RealVoucher_Pass() {
+        String tenderText = "前附表：投标保证金金额为人民币 50,000 元整。";
+        String bidText = "附件七 投标保证金缴纳凭证\n中国招商银行电子回单\n业务凭证号：202609051234567\n付款人账号：622588889999\n转账金额：50000.00元\n交易流水号：TRX99887766\n转账成功";
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_real", bidText);
+
+        QualityCheckItemResult depositResult = DeterministicCheckPolicy.checkDepositReceipt(doc, tenderText);
+        assertThat(depositResult.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(depositResult.conclusion()).contains("已附投标保证金汇款回单");
+    }
+
+    @Test
     @DisplayName("营业执照与主体资格：识别 18 位统一社会信用代码")
     void testBusinessLicense_WithUSCC() {
         String page = "企业资质证明\n营业执照\n统一社会信用代码：91310000775244192P\n西域供应链";

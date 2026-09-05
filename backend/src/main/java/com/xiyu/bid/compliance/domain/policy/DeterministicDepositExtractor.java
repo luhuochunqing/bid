@@ -1,0 +1,103 @@
+// Input: 招标文件解析后的文本内容（String）
+// Output: 确定性提取的投标保证金要求模型（TenderRequirements.DepositRequirement）
+// Pos: compliance/domain/policy/ - 招标保证金要求确定性提取纯核心策略（FP-Java 无外部依赖）
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
+package com.xiyu.bid.compliance.domain.policy;
+
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * 招标投标保证金要求确定性提取策略（纯核心纯函数，无 Spring 依赖）.
+ *
+ * <p>基于中国招投标法律法规与标准招标文件规范（前附表、投标人须知）：
+ * 1. 识别免收/不涉及保证金的显式特征（前附表格单元格、标准自然语言声明）；
+ * 2. 识别需缴纳保证金的金额与形式；
+ * 3. 全文未出现保证金及保函时确定性免收；
+ * 4. 作为 LLM 招标要求抽取的确定性双轨融合与基准兜底，彻底替代零散脆弱的纯正则硬编码.
+ */
+public final class DeterministicDepositExtractor {
+
+    /** 明确免收/不涉及自然语言短语列表. */
+    private static final List<String> EXPLICIT_NOT_REQUIRED_PHRASES = List.of(
+            "免收投标保证金",
+            "不收取投标保证金",
+            "免交投标保证金",
+            "不要求提交投标保证金",
+            "免收保证金",
+            "无需缴纳保证金",
+            "无需缴纳投标保证金",
+            "不收取保证金",
+            "免缴纳投标保证金",
+            "免缴纳保证金",
+            "不涉及投标保证金",
+            "不涉及保证金",
+            "本项目免收保证金",
+            "本项目不收取投标保证金",
+            "本项目不要求缴纳投标保证金"
+    );
+
+    /** 前附表或条目式免收正则（如：投标保证金：无 / 投标保证金：不适用 / 投标保证金：免收 / 投标保证金 | 0元）. */
+    private static final Pattern NOT_REQUIRED_CELL_PATTERN = Pattern.compile(
+            "(?:投标保证金|保证金|保函)[\\s:：|丨]*(?:[（(]?[\\u4e00-\\u9fa5a-zA-Z0-9]*[)）]?[\\s:：|丨]*)?"
+                    + "(?:无|不适用|免收|不收取|免交|不需要|无需|0元|0|零元|不涉及|未要求|0\\.00元|0.00)"
+                    + "(?:[\\s,，。；;）)]|$)"
+    );
+
+    /** 需缴纳保证金匹配正则（提取明确金额）. */
+    private static final Pattern REQUIRED_AMOUNT_PATTERN = Pattern.compile(
+            "(?:投标保证金|保证金金额|缴纳金额)[\\s:：为是|丨]*(?:人民币|¥|￥)?\\s*([0-9,.]+\\s*(?:万?元|%))"
+    );
+
+    private DeterministicDepositExtractor() {
+    }
+
+    /**
+     * 从招标文件全文中提取保证金要求.
+     *
+     * @param tenderText 招标文件文本内容
+     * @return 提取到的保证金要求，若无法确定则返回 null（交由 LLM 或上层策略裁决）
+     */
+    public static TenderRequirements.DepositRequirement extract(final String tenderText) {
+        if (tenderText == null || tenderText.isBlank()) {
+            return null;
+        }
+
+        // 1. 全文完全未出现“保证金”与“保函”，确定性不涉及
+        if (!tenderText.contains("保证金") && !tenderText.contains("保函")) {
+            return TenderRequirements.DepositRequirement.notRequired("招标文件全文未提及投标保证金或保函要求（免收/不涉及）");
+        }
+
+        // 2. 命中显式免收自然语言短语
+        for (String phrase : EXPLICIT_NOT_REQUIRED_PHRASES) {
+            if (tenderText.contains(phrase)) {
+                return TenderRequirements.DepositRequirement.notRequired("招标文件明确说明：" + phrase);
+            }
+        }
+
+        // 3. 命中前附表格/清单式免收表达式（如 投标保证金：无、投标保证金：不适用）
+        Matcher cellMatcher = NOT_REQUIRED_CELL_PATTERN.matcher(tenderText);
+        if (cellMatcher.find()) {
+            String match = cellMatcher.group().replaceAll("\\s+", " ").trim();
+            return TenderRequirements.DepositRequirement.notRequired("招标文件条款规定：" + match);
+        }
+
+        // 4. 命中明确要求缴纳的金额
+        Matcher amountMatcher = REQUIRED_AMOUNT_PATTERN.matcher(tenderText);
+        if (amountMatcher.find()) {
+            String amount = amountMatcher.group(1).trim();
+            return TenderRequirements.DepositRequirement.required(amount, null, "招标文件要求缴纳投标保证金：" + amount);
+        }
+
+        return null;
+    }
+
+    /**
+     * 判断招标文件是否明确未要求缴纳保证金（免收/不涉及）.
+     */
+    public static boolean isDepositNotRequired(final String tenderText) {
+        TenderRequirements.DepositRequirement req = extract(tenderText);
+        return req != null && Boolean.FALSE.equals(req.required());
+    }
+}

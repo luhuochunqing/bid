@@ -117,7 +117,7 @@ public final class SubItemAndAttachmentRules {
     }
 
     public static QualityCheckItemResult checkDepositReceipt(final DocumentContent bidDoc) {
-        return checkDepositReceipt(bidDoc, null);
+        return checkDepositReceipt(bidDoc, (String) null);
     }
 
     public static QualityCheckItemResult checkDepositReceipt(final DocumentContent bidDoc, final String tenderText) {
@@ -126,12 +126,12 @@ public final class SubItemAndAttachmentRules {
             return QualityCheckItemResult.pass(item, "招标文件未要求缴纳投标保证金（免收/不涉及）", Collections.emptyList());
         }
         BasicInfoCheckPolicy.PageMatch strongMatch = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc,
-                "投标保证金汇款", "保证金转账", "银行汇款回单", "电子保函凭证", "汇款凭证", "缴纳凭证");
-        if (strongMatch != null) {
+                "投标保证金汇款", "保证金转账", "银行汇款回单", "电子保函凭证", "银行电子回单", "保证金缴纳凭证");
+        if (strongMatch != null && isActualDepositVoucherPage(strongMatch.text())) {
             return QualityCheckItemResult.pass(item, "已附投标保证金汇款回单或电子保函凭证",
                     List.of(QualityEvidence.bid("保证金凭证页", strongMatch.pageNumber(),
                             BasicInfoCheckPolicy.snippetAround(strongMatch.text(), 200,
-                                    "投标保证金", "汇款凭证", "银行回单"))));
+                                    "投标保证金", "银行回单", "转账"))));
         }
         BasicInfoCheckPolicy.PageMatch guaranteeMatch = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc,
                 "投标保函", "银行保函", "电子保函", "保函凭证", "保函原件");
@@ -141,12 +141,13 @@ public final class SubItemAndAttachmentRules {
                             BasicInfoCheckPolicy.snippetAround(guaranteeMatch.text(), 200,
                                     "保函", "投标保证金"))));
         }
-        if (bidDoc.fullText().contains("不收取投标保证金") || bidDoc.fullText().contains("免收保证金") || bidDoc.fullText().contains("不涉及保证金")) {
+        if (bidDoc.fullText().contains("不收取投标保证金") || bidDoc.fullText().contains("免收保证金")
+                || bidDoc.fullText().contains("不涉及保证金") || bidDoc.fullText().contains("免交投标保证金")) {
             return QualityCheckItemResult.pass(item, "投标文件中声明不涉及/免收投标保证金", Collections.emptyList());
         }
-        if (guaranteeMatch != null) {
-            return QualityCheckItemResult.manualReview(item, "检索到保函相关表述，但无法确认为实际保函凭证（可能为格式要求或附件清单引用）",
-                    "请人工核实投标文件是否附有正式保函原件或电子保函凭证", Collections.emptyList());
+        if (strongMatch != null || guaranteeMatch != null) {
+            return QualityCheckItemResult.manualReview(item, "检索到保证金或保函相关表述，但无法确认为实际凭证（可能为目录、格式模板或清单占位符）",
+                    "请人工核实投标文件是否附有正式银行汇款回单或电子保函凭证", Collections.emptyList());
         }
         return QualityCheckItemResult.fail(item, "未检索到投标保证金缴纳凭证或投标保函", "请补充投标保证金转账回执单扫描件或有效保函", Collections.emptyList());
     }
@@ -186,16 +187,31 @@ public final class SubItemAndAttachmentRules {
     }
 
     private static boolean isDepositNotRequired(final String tenderText) {
-        if (tenderText == null || tenderText.isBlank()) {
+        return DeterministicDepositExtractor.isDepositNotRequired(tenderText);
+    }
+
+    /**
+     * 二次验证：命中保证金回单关键词的页面是否为实际回单凭证，而非目录/格式要求/清单占位符.
+     */
+    static boolean isActualDepositVoucherPage(final String pageText) {
+        if (pageText == null || pageText.isBlank()) {
             return false;
         }
-        return tenderText.contains("免收投标保证金")
-                || tenderText.contains("不收取投标保证金")
-                || tenderText.contains("免交投标保证金")
-                || tenderText.contains("不要求提交投标保证金")
-                || tenderText.contains("免收保证金")
-                || tenderText.contains("无需缴纳保证金")
-                || (!tenderText.contains("保证金") && !tenderText.contains("保函"));
+        boolean hasVoucherFeature = pageText.contains("回单编号") || pageText.contains("业务凭证")
+                || pageText.contains("电子回单") || pageText.contains("银行回执") || pageText.contains("转账凭据")
+                || pageText.contains("交易流水号") || pageText.contains("流水号") || pageText.contains("转账成功")
+                || pageText.contains("付款人账号") || pageText.contains("收款人账号") || pageText.contains("汇款金额")
+                || pageText.contains("业务回单") || pageText.contains("网银电子回单") || pageText.contains("电子保函凭证");
+        if (hasVoucherFeature) {
+            return true;
+        }
+        boolean hasRequirementOrToc = pageText.contains("格式") || pageText.contains("范本")
+                || pageText.contains("模板") || pageText.contains("须附") || pageText.contains("须提交")
+                || pageText.contains("附件清单") || pageText.contains("组成文件")
+                || pageText.contains("目录") || pageText.contains("目 录")
+                || pageText.contains("（如有）") || pageText.contains("（不涉及）")
+                || pageText.contains("如不涉及");
+        return !hasRequirementOrToc;
     }
 
     /**

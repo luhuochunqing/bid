@@ -67,16 +67,36 @@ public final class TenderRequirementsParser {
                 }
                 vetoClauses.add(new TenderRequirements.VetoClause(clause, stringListAt(node, "keywords")));
             }
+            TenderRequirements.DepositRequirement depositRequirement = parseDepositRequirement(root.path("depositRequirement"));
             return new TenderRequirements(
                     scoringItems,
                     stringListAt(root, "mandatoryQualifications"),
                     vetoClauses,
                     stringListAt(root, "compositionRequirements"),
                     stringListAt(root, "formatRequirements"),
+                    depositRequirement,
                     false);
         } catch (JsonProcessingException e) {
             return TenderRequirements.missingSentinel();
         }
+    }
+
+    private static TenderRequirements.DepositRequirement parseDepositRequirement(final JsonNode node) {
+        if (node == null || !node.isObject()) {
+            return null;
+        }
+        Boolean required = node.has("required") && !node.get("required").isNull()
+                ? node.get("required").asBoolean()
+                : null;
+        String amount = textAt(node, "amount");
+        String forms = textAt(node, "forms");
+        String description = textAt(node, "description");
+        return new TenderRequirements.DepositRequirement(
+                required,
+                amount.isBlank() ? null : amount,
+                forms.isBlank() ? null : forms,
+                description.isBlank() ? null : description
+        );
     }
 
     private static Iterable<JsonNode> arrayAt(final JsonNode root, final String key) {

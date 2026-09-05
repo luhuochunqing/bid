@@ -24,7 +24,7 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/service/KnowledgeBaseOnDemandLoader.java
   - backend/src/main/java/com/xiyu/bid/compliance/service/LlmVerdictParser.java
   - backend/src/main/java/com/xiyu/bid/ai/client/AiProvider.java
-  - backend/src/main/java/com/xiyu/bid/ai/client/OpenAiCompatibleClient.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicDepositExtractor.java
   - docs/lessons/lessons-learned.md
 backlinks:
   - _index
@@ -94,6 +94,7 @@ sequenceDiagram
 8. **网关不支持 response_format 的原子降级标记**（2026-08-30）：`AtomicBoolean` 标记网关兼容性，首遇 400 立即降级并持久化状态，杜绝重复 400 网络惩罚。
 9. **前端轮询超时放宽至 10 分钟与进行中状态隔离**（2026-08-31）：前端轮询超时放宽至 600s，抽屉在核查进行中不渲染旧报告，杜绝状态漂移与旧报告残留。
 10. **谈判/非招采购场景《报价函》与公文称谓支持及抗目录干扰**（2026-09-03）：基本信息类核查「投标函格式规范」原先硬编码仅检索《投标函》与字面「致：」，在竞争性谈判、竞争性磋商、询价等法定使用《报价函》/《响应函》的采购场景中发生假阴性误报；同时关键词命中首页目录（TOC）超链接时，因目录页缺少实质称谓和正文承诺导致误判。修复扩充识别词表为包含投标函/报价函/响应函等多文书类型的 `BID_LETTER_KEYWORDS`，选页逻辑优先匹配同时具备称谓与承诺要素的实质正文章节页（跳过目录链接），称谓判定扩充支持 `（采购人名称）：` 等标准公文抬头与占位符规范。
+11. **投标保证金两阶段结构化契约抽取与凭证事实要素校验**（2026-09-05）：旧判定在招标文件采用前附表 Markdown 表格形式免除保证金时失效，且标书首页目录（TOC）命中宽泛词“汇款凭证”造成假通过。重构为两阶段契约抽取：阶段一在招标文件提取结构化 `depositRequirement`（是否免收/金额/形式/依据），配合 `DeterministicDepositExtractor` 表格双轨兜底；若免收则硬信号直出 PASS 并联动第 25 项豁免；若需缴纳，进入 `LlmAdjudicator` 事实凭证校验，且确定性初筛严格校验 `isActualDepositVoucherPage` 剔除目录页。
   - _index
   - docinsight-engine
   - ai-provider-configuration

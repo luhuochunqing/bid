@@ -186,6 +186,10 @@ public final class SemanticPageRetriever {
                     "项目实施组织设计", "质量保证措施", "售后服务方案", "服务体系", "进度计划", "培训方案", "应急预案", "技术要求");
             case CLARIFICATION_RESPONSE -> addCues(cues, "澄清文件", "答疑纪要", "补遗书", "澄清公告",
                     "答疑文件", "变更通知", "澄清响应", "答疑响应", "确认函", "补遗响应说明");
+            case DEPOSIT_RECEIPT -> addCues(cues, "投标保证金", "保证金回单", "银行回单", "电子保函", "保函凭证",
+                    "汇款回执", "保证金转账", "保证金缴纳", "转账凭证", "担保凭证", "保函原件", "基本账户");
+            case DEPOSIT_REFUND -> addCues(cues, "退款信息表", "保证金退还", "退还账户", "退款开户行", "基本存款账户",
+                    "退保证金", "开户许可证");
             default -> { }
         }
         return cues;
@@ -203,6 +207,9 @@ public final class SemanticPageRetriever {
         });
         req.compositionRequirements().forEach(comp -> addCue(cues, comp));
         req.formatRequirements().forEach(fmt -> addCue(cues, fmt));
+        if (req.depositRequirement() != null && req.depositRequirement().description() != null) {
+            addCue(cues, req.depositRequirement().description());
+        }
         return cues;
     }
 
