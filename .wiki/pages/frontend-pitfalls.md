@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [前端, Vue3, Element Plus, reactive, ref, v-model, el-upload, el-form, 权限, E2E, scoped, teleport]
 created: 2026-07-10
-updated: 2026-08-28
-health_checked: 2026-08-28
+updated: 2026-09-05
+health_checked: 2026-09-05
 sources:
   - src/
   - .wiki/pages/lessons-learned.md
@@ -867,7 +867,32 @@ const { selectedSet } = tree  // 解构注入字段，模板才可用
 
 ---
 
-## 22. 变更记录
+---
+
+## 22. 全局注册 Element Plus 插件与样式导致 Vitest / JSDOM 测试崩溃与假死
+
+### 22.1 现象
+
+为了消除 Vitest 运行中输出的 `[Vue warn]: Failed to resolve component: el-*` 和指令警告，在 `src/test-setup.js` 中全局注册 `ElementPlus` 插件并引入全量样式（`import 'element-plus/dist/index.css'`），导致：
+1. `shallowMount` 的组件因 VTU 默认 `renderStubDefaultSlot: false`，Element Plus 内部插槽内容消失（如 `ElUpload` 内文案断言失败）；
+2. `ElDrawer` 等包含复杂 DOM 事件绑定的组件在 JSDOM 中触发 `el.addEventListener is not a function` 崩溃；
+3. `ElMessageBox`、Loading、动画定时器在 JSDOM 中造成异步 handle 残留，Vitest 进程卡死不退出；
+4. 全量 370+ 测试套件执行时间由几分钟膨胀至数十分钟。
+
+### 22.2 根因
+
+1. **违背 test-setup 纯净性定位**：`src/test-setup.js` 开头明确声明「仅补 jsdom 缺失的浏览器 API，禁止放业务 mock / 全局装业务库插件」；
+2. **JSDOM 环境与 Element Plus 深度绑定 DOM 的矛盾**：真实 Element Plus 组件依赖真实浏览器布局、样式计算与完整 DOM API，在单测 jsdom 中全量挂载极易产生副作用与未清理 timer。
+
+### 22.3 规范对策
+
+- **严禁在 test-setup.js 中全局加载 ElementPlus 插件与 CSS**：单元测试应保持轻量纯净。
+- **通过 console.warn 过滤警告噪音**：在 `src/test-setup.js` 中重写 `console.warn`，精准过滤 `Failed to resolve component: el-` 与 `Failed to resolve directive:`，既保持测试输出清洁，又绝不改变组件运行时生命周期。
+- **单个 spec 按需 stub/mount**：确需测试 Element Plus 交互的 spec，在当前测试文件局部引入或按需 stub。
+
+---
+
+## 23. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
@@ -881,5 +906,7 @@ const { selectedSet } = tree  // 解构注入字段，模板才可用
 | 2026-08-26 | 新增 §19：scoped :deep 对 teleport 弹层静默失效（评分解析抽屉重新解析遮罩漂出可视区） |
 | 2026-08-28 | 新增 §20：`<script setup>` 内联 `h()` 函数式组件导致 Scoped CSS 静默失效与过度抽象（工作台商机预测时间单元格） |
 | 2026-08-28 | 新增 §21：选项模板复制导致非标准伪枚举渗透（商机预测与项目列表客户类型筛选区） |
+| 2026-09-05 | 新增 §22：全局注册 Element Plus 插件与样式导致 Vitest / JSDOM 测试崩溃与假死 |
+
 
 

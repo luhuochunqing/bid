@@ -12,3 +12,17 @@ if (typeof URL.createObjectURL !== 'function') {
 if (typeof URL.revokeObjectURL !== 'function') {
   URL.revokeObjectURL = () => {}
 }
+
+// 过滤测试中 Element Plus 未解析组件与指令产生的 Vue warn 噪音（组件在各 spec 自行 stub 或挂载）
+const originalWarn = console.warn
+console.warn = (...args) => {
+  const msg = typeof args[0] === 'string' ? args[0] : ''
+  if (
+    msg.includes('Failed to resolve component: el-') ||
+    msg.includes('Failed to resolve directive:')
+  ) {
+    return
+  }
+  originalWarn.apply(console, args)
+}
+
