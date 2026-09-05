@@ -9,13 +9,11 @@ sources:
   - backend/src/main/java/com/xiyu/bid/casework/application/ProjectClosedEventListener.java
 backlinks:
   - _index
-  - lessons-learned
-  - docinsight-engine
+  - case-precipitation-streaming
 created: 2026-08-20
-updated: 2026-08-20
-health_checked: 2026-08-28
+updated: 2026-09-05
+health_checked: 2026-09-05
 ---
-
 # AI 生成案例超大标书 OOM 导致入库 0 条
 
 > **症状**：项目结项后点【AI 自动生成案例】，收到通知"AI 生成案例已完成，入库 0 条案例"。

@@ -12,8 +12,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-09-02",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/_index.md"
   },
   {
@@ -30,8 +30,8 @@
       "_index",
       "lessons-learned"
     ],
-    "updated": "2026-06-07",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/agent-sop-quickref.md"
   },
   {
@@ -52,6 +52,7 @@
     ],
     "backlinks": [
       "_index",
+      "ai-provider-configuration",
       "business-process",
       "contract-constraints",
       "implementation/attachment4-gap-matrix",
@@ -60,9 +61,86 @@
       "modules",
       "requirements"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-21",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/ai-capabilities.md"
+  },
+  {
+    "slug": "ai-case-recommend-data-source-fix",
+    "title": "AI 智能案例推荐数据源修复（score_item 新契约切换 + casework 裸响应陷阱）",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "src/api/modules/caseRecommendation.js",
+      "src/views/Project/stages/components/AiRecommendDrawer.vue",
+      "backend/src/main/java/com/xiyu/bid/casework/controller/ScoreItemCaseRecommendController.java"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-09-05",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/ai-case-recommend-data-source-fix.md"
+  },
+  {
+    "slug": "ai-provider-configuration",
+    "title": "AI Provider 配置与陷阱指南",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "backend/src/main/java/com/xiyu/bid/ai/",
+      "backend/src/main/resources/application.yml",
+      ".wiki/pages/ai-capabilities.md"
+    ],
+    "backlinks": [
+      "_index",
+      "engineering-discipline"
+    ],
+    "updated": "2026-08-25",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/ai-provider-configuration.md"
+  },
+  {
+    "slug": "ai-slop-cleanup-and-composable-inlining",
+    "title": "AI Slop 代码清理与单组件专属小型 Composable 内联收敛",
+    "space": "engineering",
+    "category": "refactoring",
+    "sources": [
+      "src/views/Project/stages/DraftingStage.vue",
+      "src/views/Project/stages/InitiationStage.vue",
+      "src/views/Project/stages/ClosureStage.vue",
+      "src/views/Project/stages/RetrospectiveStage.vue",
+      "src/views/Knowledge/BrandAuth.vue",
+      "src/views/Knowledge/Qualification.vue",
+      "src/views/Resource/Account.vue",
+      "src/views/Resource/components/CAFormDialog.vue"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-08-31",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/ai-slop-cleanup-and-composable-inlining.md"
+  },
+  {
+    "slug": "analytics-dept-virtual-root-unwrap",
+    "title": "数据分析部门筛选虚拟根组织架构解包与业务根锚定机制",
+    "space": "engineering",
+    "category": "architecture",
+    "sources": [
+      "docs/implementation-notes/analytics-dept-two-level-filter.md",
+      "docs/implementation-notes/dashboard-org-root-0002.md",
+      "docs/lessons/lessons-learned.md",
+      "backend/src/main/java/com/xiyu/bid/analytics/service/FilterOptionsQueryService.java",
+      "backend/src/main/java/com/xiyu/bid/analytics/service/FilterDepartmentTreeAnchorPolicy.java",
+      "backend/src/main/java/com/xiyu/bid/analytics/service/AnalyticsDepartmentHierarchySupport.java"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-09-05",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/analytics-dept-virtual-root-unwrap.md"
   },
   {
     "slug": "api-openapi",
@@ -83,8 +161,8 @@
       "integration-wecom",
       "workflow-form-center"
     ],
-    "updated": "2026-05-27",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/api-openapi.md"
   },
   {
@@ -118,11 +196,135 @@
       "overview",
       "requirements",
       "roles-and-permissions",
+      "spring-pitfalls",
       "team-and-timeline"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/architecture.md"
+  },
+  {
+    "slug": "architecture/effective-role-resolution",
+    "title": "有效角色解析（Effective Role Resolution）规范",
+    "space": "engineering",
+    "category": "spec",
+    "sources": [
+      "backend/src/main/java/com/xiyu/bid/security/EffectiveRoleResolver.java",
+      "CLAUDE.md"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/architecture/effective-role-resolution.md"
+  },
+  {
+    "slug": "audit-whitelist-pitfalls",
+    "title": "审计白名单陷阱——@Auditable action 命名必须对齐 AuditActionPolicy",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "backend/src/main/java/com/xiyu/bid/audit/core/AuditActionPolicy.java",
+      "backend/src/main/java/com/xiyu/bid/aspect/AuditableAspect.java",
+      "docs/lessons/lessons-learned.md"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-09-05",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/audit-whitelist-pitfalls.md"
+  },
+  {
+    "slug": "backend-test-baseline-green",
+    "title": "后端测试基线修复与 mock 用户种子机制",
+    "space": "engineering",
+    "category": "reference",
+    "sources": [
+      "docs/lessons/lessons-learned.md",
+      "backend/src/test/java/com/xiyu/bid/testsupport/integration/IntegrationMockUserSeeder.java",
+      "backend/src/test/java/com/xiyu/bid/testsupport/integration/MockAuthSeedTestExecutionListener.java",
+      "backend/src/main/java/com/xiyu/bid/service/ProjectAccessScopeService.java"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-09-05",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/backend-test-baseline-green.md"
+  },
+  {
+    "slug": "bid-quality-check-pagination-fix",
+    "title": "标书质量核查分页丢失修复（\\f 契约断裂 + 虚拟分页兜底 + 证据定位治理）",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "backend/src/main/java/com/xiyu/bid/compliance/service/SidecarStreamDocumentAdapter.java",
+      "backend/src/main/java/com/xiyu/bid/compliance/domain/DocumentContent.java",
+      "backend/src/main/java/com/xiyu/bid/compliance/domain/policy/SemanticPageRetriever.java",
+      "document-converter-sidecar/converter.py"
+    ],
+    "backlinks": [
+      "_index",
+      "bid-quality-multifile-check"
+    ],
+    "updated": "2026-09-01",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/bid-quality-check-pagination-fix.md"
+  },
+  {
+    "slug": "bid-quality-check-realization",
+    "title": "标书质量核查实质化架构（spec 049）",
+    "space": "engineering",
+    "category": "module",
+    "sources": [
+      "specs/049-bid-quality-check-realization/spec.md",
+      "src/views/Project/stages/components/QualityCheckDrawer.vue",
+      "src/views/Project/stages/components/QualityCheckDetailDialog.vue",
+      "src/views/Project/stages/composables/qualityCheckDetail.js",
+      "backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckAsyncExecutor.java",
+      "backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckTaskAppService.java",
+      "backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckProgressUpdater.java",
+      "backend/src/main/java/com/xiyu/bid/compliance/domain/QualificationDetail.java",
+      "backend/src/main/java/com/xiyu/bid/compliance/domain/policy/QualificationMatchPolicy.java",
+      "backend/src/main/java/com/xiyu/bid/compliance/domain/policy/BidDocumentQualityEngine.java",
+      "backend/src/main/java/com/xiyu/bid/compliance/domain/policy/BasicInfoCheckPolicy.java",
+      "backend/src/main/java/com/xiyu/bid/compliance/domain/policy/LlmAdjudicator.java",
+      "backend/src/main/java/com/xiyu/bid/compliance/domain/policy/SemanticPageRetriever.java",
+      "backend/src/main/java/com/xiyu/bid/compliance/service/TenderDocumentLoader.java",
+      "backend/src/main/java/com/xiyu/bid/compliance/service/KnowledgeBaseOnDemandLoader.java",
+      "backend/src/main/java/com/xiyu/bid/compliance/service/LlmVerdictParser.java",
+      "backend/src/main/java/com/xiyu/bid/ai/client/AiProvider.java",
+      "backend/src/main/java/com/xiyu/bid/ai/client/OpenAiCompatibleClient.java",
+      "docs/lessons/lessons-learned.md"
+    ],
+    "backlinks": [
+      "_index",
+      "bid-quality-check-pagination-fix",
+      "bid-quality-multifile-check"
+    ],
+    "updated": "2026-09-05",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/bid-quality-check-realization.md"
+  },
+  {
+    "slug": "bid-quality-multifile-check",
+    "title": "AI 标书质量核查多册合并（价格/商务/技术分册 + Loader 边界合并 + Sidecar 空册陷阱）",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "backend/src/main/java/com/xiyu/bid/compliance/service/ComplianceTargetLoader.java",
+      "backend/src/main/java/com/xiyu/bid/compliance/domain/DocumentContent.java",
+      "backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckTaskAppService.java",
+      "backend/src/main/java/com/xiyu/bid/compliance/service/SidecarStreamDocumentAdapter.java"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-09-02",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/bid-quality-multifile-check.md"
   },
   {
     "slug": "business-process",
@@ -148,9 +350,98 @@
       "team-and-timeline",
       "workflow-form-center"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/business-process.md"
+  },
+  {
+    "slug": "case-library-prd-refine",
+    "title": "案例库按 PRD 精简重构（筛选区三字段 / 排序固定 / 详情返回招标主体）",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "src/views/Knowledge/views/CaseGrid.vue",
+      "src/views/Knowledge/views/components/CaseDetailDialog.vue",
+      "backend/src/main/java/com/xiyu/bid/casework/application/service/KnowledgeCaseQueryAppService.java"
+    ],
+    "backlinks": [],
+    "updated": "2026-08-24",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/case-library-prd-refine.md"
+  },
+  {
+    "slug": "case-precipitation-streaming",
+    "title": "案例沉淀超大标书完整链路（spec 049：流式 + 摘录化 + 三个验收坑）",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "specs/049-case-precipitation-streaming/",
+      "docs/implementation-notes/case-precipitation-spec049.md",
+      "docs/lessons/lessons-learned.md"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-09-05",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/case-precipitation-streaming.md"
+  },
+  {
+    "slug": "case-source-actions-and-import-pitfalls",
+    "title": "案例详情\"查看源项目 / 标书原文\"操作契约与导入数据陷阱",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "src/views/Knowledge/views/useBidCaseSourceActions.js",
+      "src/views/Knowledge/views/CaseGrid.vue",
+      "src/views/Project/stages/components/AiRecommendDrawer.vue",
+      "src/utils/download.js",
+      "scripts/slice_all_v9.py",
+      "scripts/import-case-slices-to-knowledge-case.py"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-09-03",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/case-source-actions-and-import-pitfalls.md"
+  },
+  {
+    "slug": "competitor-library-governance",
+    "title": "竞品公司自定义输入与竞争对手库治理",
+    "space": "engineering",
+    "category": "module",
+    "sources": [
+      "specs/055-competitor-custom-input/spec.md",
+      "specs/055-competitor-custom-input/plan.md",
+      "specs/055-competitor-custom-input/contracts/competitor-api.md",
+      "backend/src/main/java/com/xiyu/bid/competitionintel/",
+      "src/views/System/CompetitorLibrary.vue"
+    ],
+    "backlinks": [
+      "_index",
+      "result-registration-immutability"
+    ],
+    "updated": "2026-08-25",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/competitor-library-governance.md"
+  },
+  {
+    "slug": "configuration-binding-silent-failure",
+    "title": "配置绑定静默失配 - isBound 探针与被动识别回归测试",
+    "space": "engineering",
+    "category": "engineering",
+    "sources": [
+      "backend/src/main/java/com/xiyu/bid/bootstrap/ConfigurationBindingProbe.java",
+      "backend/src/test/java/com/xiyu/bid/bootstrap/ConfigurationBindingProbeTest.java",
+      "backend/src/main/resources/application.yml"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-08-26",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/configuration-binding-silent-failure.md"
   },
   {
     "slug": "contract-constraints",
@@ -177,9 +468,29 @@
       "requirements",
       "team-and-timeline"
     ],
-    "updated": "2026-06-20",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/contract-constraints.md"
+  },
+  {
+    "slug": "crm-integration-lessons",
+    "title": "CRM 集成踩坑集",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "backend/src/main/java/com/xiyu/bid/integration/external/TenderIntegrationCommandService.java",
+      ".wiki/pages/integration-oa-crm.md",
+      ".wiki/pages/lessons-learned.md"
+    ],
+    "backlinks": [
+      "_index",
+      "engineering-discipline",
+      "evaluation-form-field-adjustments",
+      "spring-pitfalls"
+    ],
+    "updated": "2026-08-18",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/crm-integration-lessons.md"
   },
   {
     "slug": "dashboard-gap-analysis",
@@ -194,9 +505,24 @@
       "_index",
       "design-system"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/dashboard-gap-analysis.md"
+  },
+  {
+    "slug": "data-analysis-revamp",
+    "title": "数据分析页面重构 — 架构与数据口径",
+    "space": "engineering",
+    "category": "architecture",
+    "sources": [
+      ".wiki/pages/data-analysis-revamp.md"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-08-28",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/data-analysis-revamp.md"
   },
   {
     "slug": "data-model",
@@ -215,8 +541,8 @@
       "implementation/attachment4-gap-matrix",
       "implementation/attachment4-requirement-task-book"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/data-model.md"
   },
   {
@@ -236,8 +562,8 @@
       "roles-and-permissions",
       "workflow-form-center"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/data-permission-hardening.md"
   },
   {
@@ -260,7 +586,9 @@
       "_index",
       "api-openapi",
       "architecture",
+      "configuration-binding-silent-failure",
       "contract-constraints",
+      "flyway-migration-pitfalls",
       "implementation/acceptance-and-closure",
       "implementation/attachment4-gap-matrix",
       "implementation/attachment4-requirement-task-book",
@@ -270,11 +598,13 @@
       "implementation/risk-register",
       "implementation/sow-2026-v1-4",
       "implementation/weekly-status",
+      "oss-organization-sync-playbook",
+      "production-deployment-lessons",
       "requirements",
       "team-and-timeline"
     ],
-    "updated": "2026-06-27",
-    "health_checked": "2026-06-27",
+    "updated": "2026-09-05",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/deployment.md"
   },
   {
@@ -292,10 +622,11 @@
     ],
     "backlinks": [
       "_index",
+      "frontend-pitfalls",
       "overview"
     ],
-    "updated": "2026-06-19",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/design-system.md"
   },
   {
@@ -310,11 +641,29 @@
       "src/components/common/doc-insight/DocVerificationWorkbench.vue"
     ],
     "backlinks": [
+      "_index",
+      "ai-provider-configuration"
+    ],
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/docinsight-engine.md"
+  },
+  {
+    "slug": "duplicate-implementation-gate",
+    "title": "重复实现门禁（防造轮子）",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "scripts/check-duplicate-implementations.mjs",
+      "RELIABILITY.md",
+      "docs/implementation-notes/duplicate-implementation-gate.md"
+    ],
+    "backlinks": [
       "_index"
     ],
-    "updated": "2026-05-31",
-    "health_checked": "2026-06-27",
-    "path": ".wiki/pages/docinsight-engine.md"
+    "updated": "2026-08-21",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/duplicate-implementation-gate.md"
   },
   {
     "slug": "dynamic-form-engine",
@@ -327,15 +676,115 @@
       "backend/src/main/resources/db/migration-mysql/V141__cross_field_validation.sql",
       "backend/src/main/resources/db/migration-mysql/V142__tenant_form_override.sql",
       "backend/src/main/resources/db/migration-mysql/V143__form_submission_audit.sql",
+      "backend/src/main/resources/db/migration-mysql/V1183__add_custom_fields_to_project_tables.sql",
+      "backend/src/main/java/com/xiyu/bid/project/service/CustomFieldsCodec.java",
+      "backend/src/main/java/com/xiyu/bid/formengine/domain/CustomFieldsSchemaPolicy.java",
+      "src/components/common/AdaptiveFormPage.vue",
+      "src/composables/useCustomFields.js",
+      "src/views/System/workflow-form-designer/workflowFormDesignerCore.js",
       "docs/artifacts/dynamic-form-engine-v1-20260524.html",
-      "docs/testing/form-engine-uat.md"
+      "docs/testing/form-engine-uat.md",
+      "specs/040-project-form-custom-fields/"
     ],
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-09-02",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/dynamic-form-engine.md"
+  },
+  {
+    "slug": "engineering-discipline",
+    "title": "工程纪律手册 — 反复修复的根因、根治与预防",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      ".wiki/pages/lessons-learned.md",
+      ".wiki/pages/lessons-learned/CO-361-five-rounds-no-fix.md",
+      "docs/lessons/lessons-learned.md",
+      ".wiki/pages/spring-pitfalls.md",
+      ".wiki/pages/flyway-migration-pitfalls.md"
+    ],
+    "backlinks": [
+      "_index",
+      "frontend-pitfalls"
+    ],
+    "updated": "2026-09-05",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/engineering-discipline.md"
+  },
+  {
+    "slug": "evaluation-form-field-adjustments",
+    "title": "评估表字段文案调整与 GAP 文本框下线",
+    "space": "engineering",
+    "category": "business-rules",
+    "sources": [
+      "docs/prd-简报-评估表字段与联系人调整-2026-08-16.md"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-08-17",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/evaluation-form-field-adjustments.md"
+  },
+  {
+    "slug": "flyway-migration-pitfalls",
+    "title": "Flyway 迁移陷阱集",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "backend/src/main/resources/db/migration-mysql/",
+      "backend/src/main/resources/application-mysql.yml",
+      ".wiki/pages/lessons-learned.md",
+      ".wiki/pages/production-deployment-lessons.md"
+    ],
+    "backlinks": [
+      "_index",
+      "engineering-discipline",
+      "evaluation-form-field-adjustments"
+    ],
+    "updated": "2026-09-03",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/flyway-migration-pitfalls.md"
+  },
+  {
+    "slug": "frontend-pitfalls",
+    "title": "前端 Vue3 / Element Plus 陷阱集",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "src/",
+      ".wiki/pages/lessons-learned.md"
+    ],
+    "backlinks": [
+      "_index",
+      "ai-case-recommend-data-source-fix",
+      "engineering-discipline"
+    ],
+    "updated": "2026-09-05",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/frontend-pitfalls.md"
+  },
+  {
+    "slug": "gitee-token-resolution",
+    "title": "Gitee token 多源可见性与统一解析链（Agent 提 PR 找不到 token 的根因与唯一真相源规范）",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "scripts/gitee-token.sh",
+      "scripts/gitee-pr-helper.sh",
+      "scripts/pr-create.sh",
+      "scripts/agent-finish-task.sh",
+      "scripts/check-branch-hygiene.sh",
+      "scripts/gitee-auto-merge-gate.sh"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-09-03",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/gitee-token-resolution.md"
   },
   {
     "slug": "glossary",
@@ -351,9 +800,43 @@
       "_index",
       "data-model"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/glossary.md"
+  },
+  {
+    "slug": "hibernate-string-enum-varchar-validate",
+    "title": "Hibernate STRING 枚举 vs varchar 列校验陷阱",
+    "space": "engineering",
+    "category": "pitfall",
+    "sources": [
+      "backend/src/main/java/com/xiyu/bid/competitionintel/entity/Competitor.java",
+      "backend/src/main/resources/db/migration-mysql/V1202__competitor_status_unique_seed.sql"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-08-26",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/hibernate-string-enum-varchar-validate.md"
+  },
+  {
+    "slug": "historical-case-obs-download",
+    "title": "历史案例原文 OBS 直链下载（spec 058：三分流 + 预签名签发 + 中文键编码分工）",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "specs/058-historical-case-obs-download/spec.md",
+      "backend/src/main/java/com/xiyu/bid/casework/application/service/CaseDownloadUrlAppService.java",
+      "backend/src/main/java/com/xiyu/bid/file/domain/core/ObsObjectKeyPolicy.java",
+      "src/views/Knowledge/views/useBidCaseSourceActions.js"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-09-01",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/historical-case-obs-download.md"
   },
   {
     "slug": "implementation/acceptance-and-closure",
@@ -378,8 +861,8 @@
       "implementation/risk-register",
       "implementation/sow-2026-v1-4"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/implementation/acceptance-and-closure.md"
   },
   {
@@ -404,8 +887,8 @@
       "implementation/attachment6-function-list-trace",
       "implementation/document-delivery-ledger"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/implementation/attachment4-gap-matrix.md"
   },
   {
@@ -423,8 +906,8 @@
       "implementation/xiyu-pending-confirmations",
       "requirements"
     ],
-    "updated": "2026-05-27",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/implementation/attachment4-requirement-task-book.md"
   },
   {
@@ -446,8 +929,8 @@
       "implementation/delivery-playbook",
       "implementation/document-delivery-ledger"
     ],
-    "updated": "2026-05-27",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/implementation/attachment6-function-list-trace.md"
   },
   {
@@ -467,8 +950,8 @@
       "implementation/sow-2026-v1-4",
       "implementation/xiyu-pending-confirmations"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/implementation/delivery-playbook.md"
   },
   {
@@ -484,8 +967,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-05-27",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/implementation/development-sprint-2026-05-23.md"
   },
   {
@@ -504,8 +987,8 @@
       "implementation/attachment6-function-list-trace",
       "implementation/delivery-playbook"
     ],
-    "updated": "2026-05-28",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/implementation/document-delivery-ledger.md"
   },
   {
@@ -525,8 +1008,8 @@
       "implementation/development-sprint-2026-05-23",
       "implementation/sow-2026-v1-4"
     ],
-    "updated": "2026-06-20",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/implementation/milestones.md"
   },
   {
@@ -540,8 +1023,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-05-28",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/implementation/org-sdk-deployment-handoff.md"
   },
   {
@@ -564,8 +1047,8 @@
       "implementation/weekly-status",
       "implementation/xiyu-pending-confirmations"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/implementation/risk-register.md"
   },
   {
@@ -591,8 +1074,8 @@
       "requirements",
       "team-and-timeline"
     ],
-    "updated": "2026-06-20",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/implementation/sow-2026-v1-4.md"
   },
   {
@@ -613,8 +1096,8 @@
       "implementation/risk-register",
       "implementation/xiyu-pending-confirmations"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/implementation/weekly-status.md"
   },
   {
@@ -629,9 +1112,26 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-05-28",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/implementation/xiyu-pending-confirmations.md"
+  },
+  {
+    "slug": "initiation-form-fake-zero-display",
+    "title": "立项表单假0显示伪装成列表/详情数据不一致（PR !2436）",
+    "space": "engineering",
+    "category": "analysis",
+    "sources": [
+      "src/views/Project/stages/InitiationStage.vue",
+      "src/views/Project/stages/useInitiationStageActions.js",
+      "docs/lessons/lessons-learned.md"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-09-05",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/initiation-form-fake-zero-display.md"
   },
   {
     "slug": "integration-boran-permission-api",
@@ -649,8 +1149,8 @@
       "_index",
       "roles-and-permissions"
     ],
-    "updated": "2026-06-27",
-    "health_checked": "2026-06-27",
+    "updated": "2026-09-05",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/integration-boran-permission-api.md"
   },
   {
@@ -664,12 +1164,13 @@
     ],
     "backlinks": [
       "_index",
+      "crm-integration-lessons",
       "implementation/xiyu-pending-confirmations",
       "integration-organization-event-sdk",
       "integration-tender-api"
     ],
-    "updated": "2026-06-20",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/integration-oa-crm.md"
   },
   {
@@ -688,10 +1189,11 @@
     "backlinks": [
       "_index",
       "implementation/xiyu-pending-confirmations",
-      "integration-oa-crm"
+      "integration-oa-crm",
+      "oss-organization-sync-playbook"
     ],
-    "updated": "2026-06-20",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/integration-organization-event-sdk.md"
   },
   {
@@ -711,9 +1213,27 @@
       "api-openapi",
       "integration-oa-crm"
     ],
-    "updated": "2026-06-27",
-    "health_checked": "2026-06-27",
+    "updated": "2026-09-05",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/integration-tender-api.md"
+  },
+  {
+    "slug": "integration-tender-event-push",
+    "title": "标讯创建事件推送 - 西域 CRM 事件总线",
+    "space": "engineering",
+    "category": "integration",
+    "sources": [
+      "backend/src/main/java/com/xiyu/bid/integration/tenderevent/",
+      "backend/src/main/resources/db/migration-mysql/V1185__create_tender_event_logs.sql",
+      "backend/src/main/resources/application.yml"
+    ],
+    "backlinks": [
+      "_index",
+      "configuration-binding-silent-failure"
+    ],
+    "updated": "2026-08-28",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/integration-tender-event-push.md"
   },
   {
     "slug": "integration-wecom",
@@ -730,10 +1250,11 @@
       "_index",
       "implementation/attachment4-gap-matrix",
       "implementation/attachment6-function-list-trace",
+      "notification-system-pitfalls",
       "workflow-form-center"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/integration-wecom.md"
   },
   {
@@ -747,8 +1268,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-09-04",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/knowledge-base.md"
   },
   {
@@ -763,11 +1284,53 @@
     ],
     "backlinks": [
       "_index",
-      "multi-agent-defense-playbook"
+      "crm-integration-lessons",
+      "engineering-discipline",
+      "flyway-migration-pitfalls",
+      "frontend-pitfalls",
+      "multi-agent-defense-playbook",
+      "notification-system-pitfalls",
+      "production-deployment-lessons",
+      "spring-pitfalls"
     ],
-    "updated": "2026-06-22",
-    "health_checked": "2026-06-27",
+    "updated": "2026-09-04",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/lessons-learned.md"
+  },
+  {
+    "slug": "lessons-learned/case-precipitation-oversize-oom",
+    "title": "AI 生成案例超大标书 OOM 导致入库 0 条 — 整文件读堆 + 二次分配与\"假成功\"上报",
+    "space": "engineering",
+    "category": "pitfalls",
+    "sources": [
+      "docs/lessons/lessons-learned.md",
+      "backend/src/main/java/com/xiyu/bid/docinsight/infrastructure/extractor/MarkItDownSidecarExtractor.java",
+      "backend/src/main/java/com/xiyu/bid/casework/application/ProjectClosedEventListener.java"
+    ],
+    "backlinks": [
+      "_index",
+      "case-precipitation-streaming"
+    ],
+    "updated": "2026-09-05",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/lessons-learned/case-precipitation-oversize-oom.md"
+  },
+  {
+    "slug": "lessons-learned/CO-361-five-rounds-no-fix",
+    "title": "CO-361 五次修复不彻底的教训 — 反复追症状不追根因的代价",
+    "space": "engineering",
+    "category": "lesson",
+    "sources": [
+      "docs/lessons/lessons-learned.md",
+      "backend/src/main/java/com/xiyu/bid/entity/User.java"
+    ],
+    "backlinks": [
+      "_index",
+      "engineering-discipline"
+    ],
+    "updated": "2026-09-05",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/lessons-learned/CO-361-five-rounds-no-fix.md"
   },
   {
     "slug": "modules",
@@ -804,8 +1367,8 @@
       "team-and-timeline",
       "workflow-form-center"
     ],
-    "updated": "2026-05-31",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/modules.md"
   },
   {
@@ -828,9 +1391,26 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-06-20",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/multi-agent-defense-playbook.md"
+  },
+  {
+    "slug": "notification-system-pitfalls",
+    "title": "通知系统陷阱集",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "backend/src/main/java/com/xiyu/bid/notification/",
+      ".wiki/pages/integration-wecom.md"
+    ],
+    "backlinks": [
+      "_index",
+      "engineering-discipline"
+    ],
+    "updated": "2026-09-04",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/notification-system-pitfalls.md"
   },
   {
     "slug": "operations/logging-bug-investigation-guide",
@@ -843,9 +1423,49 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-06-27",
-    "health_checked": "2026-06-27",
+    "updated": "2026-09-05",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/operations/logging-bug-investigation-guide.md"
+  },
+  {
+    "slug": "opportunity-prediction-reminder",
+    "title": "商机预测提醒",
+    "space": "engineering",
+    "category": "feature",
+    "sources": [
+      "specs/054-opportunity-prediction-reminder/spec.md",
+      "specs/054-opportunity-prediction-reminder/data-model.md",
+      "docs/implementation-notes/CO-商机预测提醒.md",
+      "backend/src/main/java/com/xiyu/bid/workbench/service/OpportunityPredictionReminderService.java"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-08-24",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/opportunity-prediction-reminder.md"
+  },
+  {
+    "slug": "oss-organization-sync-playbook",
+    "title": "OSS 组织架构同步实战手册",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "backend/src/main/java/com/xiyu/bid/integration/organization/application/OrganizationUserSyncWriter.java",
+      "backend/src/main/java/com/xiyu/bid/integration/organization/application/OrganizationIntegrationProperties.java",
+      "backend/src/main/java/com/xiyu/bid/security/domain/LoginRoleWhitelist.java",
+      "backend/src/main/java/com/xiyu/bid/integration/organization/domain/OrganizationSyncPolicy.java",
+      "backend/src/main/java/com/xiyu/bid/auth/UserDetailsServiceImpl.java",
+      "backend/src/main/resources/application.yml"
+    ],
+    "backlinks": [
+      "_index",
+      "crm-integration-lessons",
+      "flyway-migration-pitfalls"
+    ],
+    "updated": "2026-09-04",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/oss-organization-sync-playbook.md"
   },
   {
     "slug": "overview",
@@ -866,9 +1486,48 @@
       "implementation/sow-2026-v1-4",
       "team-and-timeline"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-09-04",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/overview.md"
+  },
+  {
+    "slug": "production-deployment-lessons",
+    "title": "生产环境首次部署实战教训",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "docs/release/deploy-report-2026-07-09-1st-prod.md",
+      "docs/release/postmortem-2026-07-09-1st-prod.md",
+      "docs/release/LIVE_SERVER_DEPLOYMENT_RUNBOOK.md",
+      "docs/lessons/lessons-learned.md"
+    ],
+    "backlinks": [
+      "_index",
+      "configuration-binding-silent-failure",
+      "flyway-migration-pitfalls",
+      "oss-organization-sync-playbook",
+      "spring-pitfalls"
+    ],
+    "updated": "2026-09-05",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/production-deployment-lessons.md"
+  },
+  {
+    "slug": "project-search-owner-unit",
+    "title": "项目搜索按招标主体（ownerUnit 数据链路与关键词过滤契约）",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "backend/src/main/java/com/xiyu/bid/project/controller/ProjectController.java",
+      "backend/src/main/java/com/xiyu/bid/project/service/ProjectListEnrichmentSupport.java",
+      "src/views/Project/composables/useProjectFilter.js"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-08-31",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/project-search-owner-unit.md"
   },
   {
     "slug": "requirements",
@@ -896,9 +1555,27 @@
       "implementation/risk-register",
       "implementation/sow-2026-v1-4"
     ],
-    "updated": "2026-06-20",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/requirements.md"
+  },
+  {
+    "slug": "result-registration-immutability",
+    "title": "项目结果登记不可变链路与二次确认",
+    "space": "engineering",
+    "category": "module",
+    "sources": [
+      "src/views/Project/stages/ResultConfirmStage.vue",
+      "backend/src/main/java/com/xiyu/bid/project/service/ProjectResultRegistrationService.java",
+      "backend/src/main/java/com/xiyu/bid/project/core/ProjectFieldLockPolicy.java",
+      "docs/implementation-notes/competitor-confirm-lock.md"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-08-27",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/result-registration-immutability.md"
   },
   {
     "slug": "roles-and-permissions",
@@ -918,10 +1595,11 @@
       "implementation/attachment4-gap-matrix",
       "implementation/attachment4-requirement-task-book",
       "implementation/attachment6-function-list-trace",
+      "oss-organization-sync-playbook",
       "overview"
     ],
-    "updated": "2026-06-20",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-17",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/roles-and-permissions.md"
   },
   {
@@ -936,9 +1614,116 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-06-06",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/root-cause-analysis-ijssgg.md"
+  },
+  {
+    "slug": "score-item-select-short-label",
+    "title": "评分项下拉短标签（ScoreItemSelect：短标签契约 / filterable 原文搜索陷阱 / 测试 stub 反模式）",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "src/components/common/ScoreItemSelect.vue",
+      "src/utils/scoreItemOptionDisplay.js",
+      "src/views/Project/stages/components/AiRecommendDrawer.vue",
+      "src/views/Bidding/components/AICaseRecommendDrawer.vue"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-08-28",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/score-item-select-short-label.md"
+  },
+  {
+    "slug": "score-parse-optimization",
+    "title": "评分解析优化记录",
+    "space": "engineering",
+    "category": "lessons-learned",
+    "sources": [
+      "docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md",
+      "backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreTableRowParser.java",
+      "backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreTableBlockLocator.java",
+      "backend/src/main/java/com/xiyu/bid/scoreparse/domain/grid/CellAnchoredScoreExtractor.java",
+      "backend/src/main/java/com/xiyu/bid/scoreparse/domain/grid/ColumnTypeCrossVerifier.java",
+      "backend/src/main/java/com/xiyu/bid/scoreparse/domain/grid/HeuristicTableColumnMapper.java",
+      "backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreMergeResultGuard.java"
+    ],
+    "backlinks": [],
+    "updated": "2026-09-01",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/score-parse-optimization.md"
+  },
+  {
+    "slug": "score-parse-service",
+    "title": "AI 评分标准解析后端服务",
+    "space": "engineering",
+    "category": "module",
+    "sources": [
+      "specs/041-ai-score-parse-backend/spec.md",
+      "specs/041-ai-score-parse-backend/plan.md",
+      "specs/045-bid-file-streaming-scoring/spec.md",
+      "specs/046-fix-score-parse-ghost/spec.md",
+      "specs/047-fix-score-weight-gap/spec.md",
+      "backend/src/main/java/com/xiyu/bid/scoreparse/",
+      "docs/implementation-notes/ai-score-parse-backend.md",
+      "specs/048-score-parse-image-multimodal/spec.md",
+      "docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md"
+    ],
+    "backlinks": [
+      "_index",
+      "ai-case-recommend-data-source-fix",
+      "bid-quality-check-pagination-fix",
+      "case-precipitation-streaming",
+      "spring-pitfalls"
+    ],
+    "updated": "2026-09-05",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/score-parse-service.md"
+  },
+  {
+    "slug": "spec059-score-parse-evidence-pipeline",
+    "title": "spec 059 评分解析证据化 Phase 0-4 落地结论 + 合入前评审与去噪重构",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreParseDecision.java",
+      "backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreParseAppService.java",
+      "backend/src/main/java/com/xiyu/bid/scoreparse/domain/WeightSumCheck.java",
+      "backend/src/main/java/com/xiyu/bid/scoreparse/domain/grid/CanonicalTableGridFactory.java",
+      "backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreFact.java",
+      "backend/src/main/java/com/xiyu/bid/scoreparse/application/SidecarDocumentArtifactExtractor.java",
+      "document-converter-sidecar/table_extractor.py",
+      "docs/lessons/scoreparse-golden-corpus/index.md",
+      "backend/src/test/java/com/xiyu/bid/scoreparse/application/ScoreCompletenessAcceptanceTest.java",
+      "backend/src/test/java/com/xiyu/bid/scoreparse/application/Incident1358RealCorpusGoldenTest.java"
+    ],
+    "backlinks": [],
+    "updated": "2026-09-03",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/spec059-score-parse-evidence-pipeline.md"
+  },
+  {
+    "slug": "spring-pitfalls",
+    "title": "Spring Boot 陷阱集",
+    "space": "engineering",
+    "category": "guide",
+    "sources": [
+      "backend/src/main/java/com/xiyu/bid/",
+      "backend/src/main/resources/application.yml",
+      ".wiki/pages/lessons-learned.md"
+    ],
+    "backlinks": [
+      "_index",
+      "ai-provider-configuration",
+      "configuration-binding-silent-failure",
+      "engineering-discipline",
+      "notification-system-pitfalls"
+    ],
+    "updated": "2026-08-17",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/spring-pitfalls.md"
   },
   {
     "slug": "team-and-timeline",
@@ -963,9 +1748,44 @@
       "overview",
       "requirements"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/team-and-timeline.md"
+  },
+  {
+    "slug": "tender-create-upload-triage",
+    "title": "标讯人工录入\"未上传\"假象排障与 UX 缺陷修复",
+    "space": "engineering",
+    "category": "pitfalls",
+    "sources": [
+      "src/views/Bidding/list/composables/useTenderAiParse.js",
+      "src/views/Bidding/list/composables/useTenderCreateForm.js",
+      "src/views/Bidding/list/components/TenderActionBar.vue",
+      "src/views/Bidding/list/components/TenderBasicInfoTab.vue"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-08-28",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/tender-create-upload-triage.md"
+  },
+  {
+    "slug": "tenderevent-sdk-bean-conflict",
+    "title": "TenderEvent SDK Bean 冲突陷阱",
+    "space": "engineering",
+    "category": "pitfall",
+    "sources": [
+      "backend/src/main/java/com/xiyu/bid/integration/tenderevent/infrastructure/sdk/TenderEventSdkConfig.java",
+      "docs/release/deploy-report-2026-08-26-143rd-test.md"
+    ],
+    "backlinks": [
+      "_index",
+      "hibernate-string-enum-varchar-validate"
+    ],
+    "updated": "2026-08-26",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/tenderevent-sdk-bean-conflict.md"
   },
   {
     "slug": "testing/_index",
@@ -978,9 +1798,27 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-05-28",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/testing/_index.md"
+  },
+  {
+    "slug": "testing/container-test-env-compat",
+    "title": "容器测试环境兼容（Testcontainers / Docker Desktop / MySQL sql_mode）",
+    "space": "engineering",
+    "category": "pitfalls",
+    "sources": [
+      "backend/pom.xml",
+      "backend/src/test/java/com/xiyu/bid/support/AbstractMysqlIntegrationTest.java",
+      "backend/src/test/java/com/xiyu/bid/support/FlywayMysqlContainerTest.java",
+      "backend/src/main/resources/db/migration-mysql/V1186__fix_tender_event_logs_status_enum.sql"
+    ],
+    "backlinks": [
+      "_index"
+    ],
+    "updated": "2026-08-15",
+    "health_checked": "2026-09-05",
+    "path": ".wiki/pages/testing/container-test-env-compat.md"
   },
   {
     "slug": "testing/module-01-workbench",
@@ -994,8 +1832,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-15",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/testing/module-01-workbench.md"
   },
   {
@@ -1010,8 +1848,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/testing/module-02-bidding.md"
   },
   {
@@ -1026,8 +1864,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/testing/module-03-project.md"
   },
   {
@@ -1042,8 +1880,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/testing/module-04-knowledge.md"
   },
   {
@@ -1058,8 +1896,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/testing/module-05-resource.md"
   },
   {
@@ -1074,8 +1912,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/testing/module-06-analytics.md"
   },
   {
@@ -1090,8 +1928,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/testing/module-07-settings.md"
   },
   {
@@ -1106,8 +1944,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/testing/module-08-ai.md"
   },
   {
@@ -1122,8 +1960,8 @@
     "backlinks": [
       "_index"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/testing/module-09-integration.md"
   },
   {
@@ -1143,8 +1981,8 @@
       "integration-wecom",
       "modules"
     ],
-    "updated": "2026-06-21",
-    "health_checked": "2026-06-27",
+    "updated": "2026-08-12",
+    "health_checked": "2026-09-05",
     "path": ".wiki/pages/workflow-form-center.md"
   }
 ]

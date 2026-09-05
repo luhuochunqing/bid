@@ -8,14 +8,10 @@ sources:
   - src/views/Knowledge/views/components/CaseDetailDialog.vue
   - backend/src/main/java/com/xiyu/bid/casework/application/service/KnowledgeCaseQueryAppService.java
 backlinks:
-  - _index
-  - case-precipitation-streaming
-  - ai-case-recommend-data-source-fix
 created: 2026-08-24
 updated: 2026-08-24
-health_checked: 2026-09-01
+health_checked: 2026-09-05
 ---
-
 # 案例库按 PRD 精简重构
 
 > **结论**：案例库页面/详情按飞书 PRD（BQvZdb6lDowPpyxdgeDczpcWnCg §2.1/2.3/5.4）精简，列表排序语义与详情接口契约发生变化，后续改动须遵守以下约束。

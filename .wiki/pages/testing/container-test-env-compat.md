@@ -10,10 +10,9 @@ sources:
   - backend/src/main/resources/db/migration-mysql/V1186__fix_tender_event_logs_status_enum.sql
 backlinks:
   - _index
-  - testing/_index
 created: 2026-08-15
 updated: 2026-08-15
-health_checked: 2026-09-01
+health_checked: 2026-09-05
 ---
 # 容器测试环境兼容（Testcontainers / Docker Desktop / MySQL sql_mode）
 

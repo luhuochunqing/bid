@@ -10,11 +10,9 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/service/SidecarStreamDocumentAdapter.java
 backlinks:
   - _index
-  - bid-quality-check-realization
-  - bid-quality-check-pagination-fix
 created: 2026-09-02
 updated: 2026-09-02
-health_checked: 2026-09-02
+health_checked: 2026-09-05
 ---
 # AI 标书质量核查多册合并
 

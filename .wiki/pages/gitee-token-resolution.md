@@ -12,11 +12,9 @@ sources:
   - scripts/gitee-auto-merge-gate.sh
 backlinks:
   - _index
-  - engineering-discipline
-  - agent-sop-quickref
 created: 2026-09-03
 updated: 2026-09-03
-health_checked: 2026-09-03
+health_checked: 2026-09-05
 ---
 # Gitee token 多源可见性与统一解析链
 

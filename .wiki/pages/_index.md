@@ -3,14 +3,14 @@ title: 西域投标管理平台知识库
 space: engineering
 category: guide
 tags: [首页, 导航, wiki]
-created: 2026-06-27
-updated: 2026-09-02
-health_checked: 2026-09-02
 sources:
   - docs/specs/WIKI.md
   - .wiki/INDEX.md
   - .wiki/PAGE_INDEX.md
 backlinks:
+created: 2026-09-05
+updated: 2026-09-05
+health_checked: 2026-09-05
 ---
 # 西域投标管理平台知识库
 
@@ -29,45 +29,43 @@ backlinks:
 - [[_index]] — 西域投标管理平台知识库
 - [[agent-sop-quickref]] — Agent 开发 SOP 快速参考
 - [[ai-capabilities]] — AI 能力
+- [[ai-case-recommend-data-source-fix]] — AI 智能案例推荐数据源修复（score_item 新契约切换 + casework 裸响应陷阱）
+- [[ai-provider-configuration]] — AI Provider 配置与陷阱指南
 - [[ai-slop-cleanup-and-composable-inlining]] — AI Slop 代码清理与单组件专属小型 Composable 内联收敛
-- [[ai-provider-configuration]] — AI Provider 配置与陷阱指南（activeProvider / Doubao / 降级策略 / Sidecar / ai.provider 默认值陷阱）
-- [[score-parse-service]] — AI 评分标准解析后端服务（spec 041：四路召回解析 / 知识库五类匹配 / 阶段化打分 / 超时保护；1371 四列：分类只看 dim、仓库无约束不得满分、行身份用 item.id）
-- [[ai-case-recommend-data-source-fix]] — AI 案例推荐数据源修复（score_item 新契约切换 / casework 裸响应禁止二次解包）
-- [[case-source-actions-and-import-pitfalls]] — 案例详情源项目/标书原文操作契约（路由修正 / 未归档预检 / 假 ZIP 防护）+ 导入数据陷阱（300 字截断 / 枚举混填）
-- [[project-search-owner-unit]] — 项目搜索按招标主体（ownerUnit 数据链路 tender_id→purchaser_name / name 关键词三层过滤契约 / H2 tender_id NOT NULL 陷阱）
-- [[score-item-select-short-label]] — 评分项下拉短标签（ScoreItemSelect 显示契约 / EP filterable 原文搜索陷阱 / defineExpose 测试专用通道反模式 / 子组件根 class DOM 锁）
-- [[engineering-discipline]] — 工程纪律手册（反复修复根因 / Bug修复SOP / 开发规范 / 经验积累机制）
-- [[gitee-token-resolution]] — Gitee token 多源可见性与统一解析链（Agent 提 PR 找不到 token 根因 / credentials.env 唯一真相源 / 四级解析链 / git-credentials 死 token 陷阱）
-- [[duplicate-implementation-gate]] — 重复实现门禁（防造轮子：PR 新增 Component/Hook/Service/API/Utils 对照已有实现）
+- [[analytics-dept-virtual-root-unwrap]] — 数据分析部门筛选虚拟根组织架构解包与业务根锚定机制
 - [[api-openapi]] — OpenAPI/Swagger 接口规范
-- [[audit-whitelist-pitfalls]] - 审计白名单陷阱（@Auditable action 命名必须对齐 AuditActionPolicy，不命中即静默丢弃）
-- [[tenderevent-sdk-bean-conflict]] - TenderEvent SDK Bean 冲突陷阱（@Import SDK 类导致 ServiceRegisterProperties 重复 bean / @Primary 修复 / 容器测试防线）
-- [[hibernate-string-enum-varchar-validate]] - Hibernate STRING 枚举 vs varchar 列校验陷阱（@Enumerated 默认期望原生 ENUM 列 / columnDefinition 显式对齐 / 容器测试防线）
-- [[bid-quality-check-realization]] — 标书质量核查实质化架构（spec 049：五步真实数据流 / 确定性+规则+LLM 混合裁决 / ChatOutcome 失败传导；2026-08-25 前端紧凑行+详情弹窗改造）
-- [[bid-quality-check-pagination-fix]] — 标书质量核查分页丢失修复（\f 契约断裂 → 整篇退化 1 页 / 结构化 pages + 虚拟分页兜底 + 证据关键词定位；lessons #196）
-- [[bid-quality-multifile-check]] — AI 标书质量核查多册合并（价格/商务/技术分册只查最后一份 → Loader 边界合并单个 DocumentContent / Sidecar 空册静默陷阱 / 聚合哈希缓存 / 删除全类别兜底假查）
 - [[architecture]] — 架构合成
-- [[architecture/effective-role-resolution]] — 有效角色解析规范（Effective Role Resolution）
+- [[architecture/effective-role-resolution]] — 有效角色解析（Effective Role Resolution）规范
+- [[audit-whitelist-pitfalls]] — 审计白名单陷阱——@Auditable action 命名必须对齐 AuditActionPolicy
+- [[backend-test-baseline-green]] — 后端测试基线修复与 mock 用户种子机制
+- [[bid-quality-check-pagination-fix]] — 标书质量核查分页丢失修复（\f 契约断裂 + 虚拟分页兜底 + 证据定位治理）
+- [[bid-quality-check-realization]] — 标书质量核查实质化架构（spec 049）
+- [[bid-quality-multifile-check]] — AI 标书质量核查多册合并（价格/商务/技术分册 + Loader 边界合并 + Sidecar 空册陷阱）
 - [[business-process]] — 业务流程
-- [[crm-integration-lessons]] — CRM 集成踩坑集（商机状态 / webhook / OAuth / CallerContext）
-- [[competitor-library-governance]] — 竞品公司自定义输入与竞争对手库治理（spec 055：B1 输入即建 + 治理兜底 / 幂等 upsert / 快照只存 name）
-- [[result-registration-immutability]] — 项目结果登记不可变链路与二次确认（409 幂等 + CLOSED 字段锁 + registeredAt 置灰 / 登记前 ElMessageBox 二次确认 / 旧录入弹窗死代码陷阱）
+- [[case-library-prd-refine]] — 案例库按 PRD 精简重构（筛选区三字段 / 排序固定 / 详情返回招标主体）
+- [[case-precipitation-streaming]] — 案例沉淀超大标书完整链路（spec 049：流式 + 摘录化 + 三个验收坑）
+- [[case-source-actions-and-import-pitfalls]] — 案例详情"查看源项目 / 标书原文"操作契约与导入数据陷阱
+- [[competitor-library-governance]] — 竞品公司自定义输入与竞争对手库治理
+- [[configuration-binding-silent-failure]] — 配置绑定静默失配 - isBound 探针与被动识别回归测试
+- [[crm-integration-lessons]] — CRM 集成踩坑集
 - [[dashboard-gap-analysis]] — 工作台卡片 vs 标书要求对照
-- [[data-analysis-revamp]] — 数据分析页面重构 — 架构与数据口径（M0~M4 / FP-Java 三层 / 三模式竞品分析）
-- [[analytics-dept-virtual-root-unwrap]] — 数据分析部门筛选虚拟根解包与业务根锚定机制（rootorg 解包 / 锚定 0001 子树三级展示）
+- [[data-analysis-revamp]] — 数据分析页面重构 — 架构与数据口径
 - [[data-model]] — 数据模型
 - [[data-permission-hardening]] — 项目数据权限修复收口
 - [[deployment]] — 部署与上线
-- [[production-deployment-lessons]] — 生产环境首次部署实战教训（2026-07-09 首次上线）
-- [[oss-organization-sync-playbook]] — OSS 组织架构同步实战手册（skipUnmappedUsers / LoginRoleWhitelist / Kafka）
 - [[design-system]] — 设计系统基线
 - [[docinsight-engine]] — DocInsight 文档智能引擎
+- [[duplicate-implementation-gate]] — 重复实现门禁（防造轮子）
 - [[dynamic-form-engine]] — 动态表单自定义引擎
-- [[evaluation-form-field-adjustments]] — 评估表字段文案调整与 GAP 文本框下线（2026-08-17 客户需求批次 / V1191）
-- [[flyway-migration-pitfalls]] — Flyway 迁移陷阱集（collation / 版本号冲突 / baseline-on-migrate / 回滚脚本）
-- [[frontend-pitfalls]] — 前端 Vue3 / Element Plus 陷阱集（reactive / el-upload / el-form / 权限 / E2E）
-- [[tender-create-upload-triage]] — 标讯人工录入"未上传"假象排障与 UX 缺陷修复（保存按钮静默禁用 / el-upload ready 假象 / 三方证据排障法）
+- [[engineering-discipline]] — 工程纪律手册 — 反复修复的根因、根治与预防
+- [[evaluation-form-field-adjustments]] — 评估表字段文案调整与 GAP 文本框下线
+- [[flyway-migration-pitfalls]] — Flyway 迁移陷阱集
+- [[frontend-pitfalls]] — 前端 Vue3 / Element Plus 陷阱集
+- [[gitee-token-resolution]] — Gitee token 多源可见性与统一解析链（Agent 提 PR 找不到 token 的根因与唯一真相源规范）
 - [[glossary]] — 术语表
+- [[hibernate-string-enum-varchar-validate]] — Hibernate STRING 枚举 vs varchar 列校验陷阱
+- [[historical-case-obs-download]] — 历史案例原文 OBS 直链下载（spec 058：三分流 + 预签名签发 + 中文键编码分工）
+- [[initiation-form-fake-zero-display]] — 立项表单假0显示伪装成列表/详情数据不一致（PR !2436）
 - [[integration-boran-permission-api]] — 西域给泊冉权限接口
 - [[integration-oa-crm]] — CRM 对接规范
 - [[integration-organization-event-sdk]] — 组织架构对接 - 客户事件库 SDK 方案
@@ -76,24 +74,29 @@ backlinks:
 - [[integration-wecom]] — 系统集成中心 - 企业微信
 - [[knowledge-base]] — 4.4 知识库 PRD (产品需求文档)
 - [[lessons-learned]] — 工程经验总结
-- [[backend-test-baseline-green]] — 后端测试基线修复与 mock 用户种子机制（projectScoped 403 / H2-only 守卫 / 契约漂移）
-- [[configuration-binding-silent-failure]] — 配置绑定静默失配定位（isBound 探针 + 被动识别回归测试，堵 YAML 缩进回归）
-- [[lessons-learned/CO-361-five-rounds-no-fix]] — CO-361 五次修复不彻底的教训（反复追症状不追根因的代价）
-- [[case-precipitation-streaming]] — 案例沉淀超大标书完整链路（spec 049：流式 + 摘录化 + 三个验收坑 / SC-001~005 全过）
-- [[historical-case-obs-download]] — 历史案例原文 OBS 直链下载（spec 058：三分流 + 预签名签发 + 中文键编码分工）
-- [[lessons-learned/case-precipitation-oversize-oom]] — AI 生成案例超大标书 OOM 导致入库 0 条（整文件读堆 + 二次分配 + OBS 假成功上报）
+- [[lessons-learned/case-precipitation-oversize-oom]] — AI 生成案例超大标书 OOM 导致入库 0 条 — 整文件读堆 + 二次分配与"假成功"上报
+- [[lessons-learned/CO-361-five-rounds-no-fix]] — CO-361 五次修复不彻底的教训 — 反复追症状不追根因的代价
 - [[modules]] — 模块目录
 - [[multi-agent-defense-playbook]] — 多 Agent 并行开发防御工程化手册
-- [[notification-system-pitfalls]] — 通知系统陷阱集（targetUrl / SYSTEM_USER_ID / @TransactionalEventListener / 静默吞异常）
-- [[opportunity-prediction-reminder]] — 商机预测提醒（定时扫描 → 判定 → 站内信/企微/事件库多渠道通知，每项目一次）
+- [[notification-system-pitfalls]] — 通知系统陷阱集
 - [[operations/logging-bug-investigation-guide]] — 日志系统查 Bug 手册
+- [[opportunity-prediction-reminder]] — 商机预测提醒
+- [[oss-organization-sync-playbook]] — OSS 组织架构同步实战手册
 - [[overview]] — 项目综述
+- [[production-deployment-lessons]] — 生产环境首次部署实战教训
+- [[project-search-owner-unit]] — 项目搜索按招标主体（ownerUnit 数据链路与关键词过滤契约）
 - [[requirements]] — 需求追溯
+- [[result-registration-immutability]] — 项目结果登记不可变链路与二次确认
 - [[roles-and-permissions]] — 角色与权限
 - [[root-cause-analysis-ijssgg]] — 立项招标文件上传 Bug 根因分析 (IJSSGG)
-- [[initiation-form-fake-zero-display]] — 立项表单假 0 显示伪装成列表/详情数据不一致（PR !2436）
-- [[spring-pitfalls]] — Spring Boot 陷阱集（@Transactional / @Async / SPRING_CONFIG_IMPORT / 配置优先级）
+- [[score-item-select-short-label]] — 评分项下拉短标签（ScoreItemSelect：短标签契约 / filterable 原文搜索陷阱 / 测试 stub 反模式）
+- [[score-parse-optimization]] — 评分解析优化记录
+- [[score-parse-service]] — AI 评分标准解析后端服务
+- [[spec059-score-parse-evidence-pipeline]] — spec 059 评分解析证据化 Phase 0-4 落地结论 + 合入前评审与去噪重构
+- [[spring-pitfalls]] — Spring Boot 陷阱集
 - [[team-and-timeline]] — 团队与排期
+- [[tender-create-upload-triage]] — 标讯人工录入"未上传"假象排障与 UX 缺陷修复
+- [[tenderevent-sdk-bean-conflict]] — TenderEvent SDK Bean 冲突陷阱
 - [[testing/_index]] — 功能实现对照 — 测试说明文档索引
 - [[testing/container-test-env-compat]] — 容器测试环境兼容（Testcontainers / Docker Desktop / MySQL sql_mode）
 - [[testing/module-01-workbench]] — 工作台 — 蓝图功能实现对照

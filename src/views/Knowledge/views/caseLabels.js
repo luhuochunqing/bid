@@ -25,6 +25,22 @@ export const CUSTOMER_TYPE_OPTIONS = Object.entries(CUSTOMER_TYPE_LABELS)
 export const getProjectTypeLabel = (val) => PROJECT_TYPE_LABELS[val] || val || '常规项目'
 export const getCustomerTypeLabel = (val) => CUSTOMER_TYPE_LABELS[val] || val || '通用客户'
 
+export const SUB_TOPIC_LABELS = {
+  SLA_SERVICE: '售后SLA',
+  EMERGENCY_PLAN: '应急预案',
+  INTEGRATION: '系统对接',
+  SECURITY_COMPLIANCE: '网络安全',
+  LOGISTICS_WAREHOUSE: '仓储物流',
+  QUALITY_CONTROL: '质量保证',
+  DELIVERY_PROGRESS: '项目进度',
+  SYS_ARCH: '系统架构',
+  ORG_STAFF: '人员配置',
+  COMMERCIAL_TERMS: '商务响应',
+  OTHER: '其他方案'
+}
+
+export const getSubTopicLabel = (val) => SUB_TOPIC_LABELS[val] || val || ''
+
 /**
  * 计算匹配度等级标签（优质/良好/一般）
  */

@@ -3,9 +3,6 @@ title: 项目结果登记不可变链路与二次确认
 space: engineering
 category: module
 tags: [结果确认, 竞争对手, 二次确认, 不可变性, 幂等, ResultConfirmStage]
-created: 2026-08-27
-updated: 2026-08-27
-health_checked: 2026-09-04
 sources:
   - src/views/Project/stages/ResultConfirmStage.vue
   - backend/src/main/java/com/xiyu/bid/project/service/ProjectResultRegistrationService.java
@@ -13,7 +10,9 @@ sources:
   - docs/implementation-notes/competitor-confirm-lock.md
 backlinks:
   - _index
-  - competitor-library-governance
+created: 2026-08-27
+updated: 2026-08-27
+health_checked: 2026-09-05
 ---
 # 项目结果登记不可变链路与二次确认
 

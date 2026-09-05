@@ -3,9 +3,6 @@ title: 标书质量核查实质化架构（spec 049）
 space: engineering
 category: module
 tags: [质量核查, compliance, LLM 混合裁决, 证据链, FP-Java, 语义RAG, 结构化输出, 资质智能匹配, 三级穿透]
-created: 2026-08-20
-updated: 2026-09-04
-health_checked: 2026-09-04
 sources:
   - specs/049-bid-quality-check-realization/spec.md
   - src/views/Project/stages/components/QualityCheckDrawer.vue
@@ -27,9 +24,13 @@ sources:
   - backend/src/main/java/com/xiyu/bid/ai/client/OpenAiCompatibleClient.java
   - docs/lessons/lessons-learned.md
 backlinks:
-  - _index.md
+  - _index
+  - bid-quality-check-pagination-fix
+  - bid-quality-multifile-check
+created: 2026-08-20
+updated: 2026-09-05
+health_checked: 2026-09-05
 ---
-
 # 标书质量核查实质化架构（spec 049）
 
 > spec 049 将标书质量核查从"固定文案证据 + page=1 硬编码"的验收失真状态实质化为全真实链路：真实投标文件 → 真实招标要求 → 四知识库真实查询 → 真实页码/原文定位 → LLM 混合裁决。旧同步链路已删除，唯一主线为异步任务链（trigger → 轮询 → 报告）。

@@ -3,9 +3,6 @@ title: OSS 组织架构同步实战手册
 space: engineering
 category: guide
 tags: [OSS, 组织架构, 人员同步, skipUnmappedUsers, LoginRoleWhitelist, OssPermissionCache, Kafka]
-created: 2026-07-09
-updated: 2026-09-04
-health_checked: 2026-08-28
 sources:
   - backend/src/main/java/com/xiyu/bid/integration/organization/application/OrganizationUserSyncWriter.java
   - backend/src/main/java/com/xiyu/bid/integration/organization/application/OrganizationIntegrationProperties.java
@@ -15,10 +12,11 @@ sources:
   - backend/src/main/resources/application.yml
 backlinks:
   - _index
-  - deployment
-  - integration-organization-event-sdk
-  - roles-and-permissions
-  - production-deployment-lessons
+  - crm-integration-lessons
+  - flyway-migration-pitfalls
+created: 2026-07-09
+updated: 2026-09-04
+health_checked: 2026-09-05
 ---
 # OSS 组织架构同步实战手册
 

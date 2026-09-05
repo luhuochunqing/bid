@@ -2,9 +2,6 @@
 title: spec 059 评分解析证据化 Phase 0-4 落地结论 + 合入前评审与去噪重构
 space: engineering
 category: guide
-updated: 2026-09-03
-health_checked: 2026-09-03
-created: 2026-09-02
 tags: [score-parse, spec059, 评分解析, DocumentArtifact, CanonicalTableGrid, ScoreFact]
 sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreParseDecision.java
@@ -18,12 +15,10 @@ sources:
   - backend/src/test/java/com/xiyu/bid/scoreparse/application/ScoreCompletenessAcceptanceTest.java
   - backend/src/test/java/com/xiyu/bid/scoreparse/application/Incident1358RealCorpusGoldenTest.java
 backlinks:
-  - _index
-  - score-parse-service
-  - architecture
-  - lessons-learned
+created: 2026-09-02
+updated: 2026-09-03
+health_checked: 2026-09-05
 ---
-
 # spec 059 评分解析证据化 Phase 0-2 落地结论 + 合入前评审修复
 
 ## 背景

@@ -23,6 +23,8 @@ class ScoreItemCaseMatchPolicyTest {
         private final String projectType;
         private final String customerType;
         private final String bidResult;
+        private String subTopic;
+        private Integer qualityScore;
 
         StubCandidate(Long id, String scoringPointTitle, String scoringCategory,
                       String requirementRaw, String responseText,
@@ -35,6 +37,15 @@ class ScoreItemCaseMatchPolicyTest {
             this.projectType = projectType;
             this.customerType = customerType;
             this.bidResult = bidResult;
+        }
+
+        StubCandidate(Long id, String scoringPointTitle, String scoringCategory,
+                      String requirementRaw, String responseText,
+                      String projectType, String customerType, String bidResult,
+                      String subTopic, Integer qualityScore) {
+            this(id, scoringPointTitle, scoringCategory, requirementRaw, responseText, projectType, customerType, bidResult);
+            this.subTopic = subTopic;
+            this.qualityScore = qualityScore;
         }
 
         @Override public Long getId() { return id; }
@@ -52,6 +63,8 @@ class ScoreItemCaseMatchPolicyTest {
         @Override public String getProjectType() { return projectType; }
         @Override public String getBidResult() { return bidResult; }
         @Override public String getProductLine() { return "IT"; }
+        @Override public String getSubTopic() { return subTopic; }
+        @Override public Integer getQualityScore() { return qualityScore; }
         @Override public java.time.LocalDateTime getCreatedAt() { return java.time.LocalDateTime.now(); }
     }
 
@@ -725,4 +738,110 @@ class ScoreItemCaseMatchPolicyTest {
             assertThat(result.matchedKeywords()).contains("朱双双");
         }
     }
+
+    @Test
+    @DisplayName("业务子主题精确匹配断层优先：同等条件下，子主题精准对齐案例大幅领先")
+    void testSubTopicExactMatchOutranksOtherTopic() {
+        // 候选案例A：子主题为系统对接与数据集成（INTEGRATION）
+        StubCandidate caseIntegration = new StubCandidate(
+                1001L, "技术对接规范", "技术方案",
+                "商城接口与ERP系统规范要求", "提供完整的接口调用机制与系统集成能力",
+                "IT", "央企", "WON", "INTEGRATION", 75
+        );
+        // 候选案例B：子主题为售后服务（SLA_SERVICE）
+        StubCandidate caseSla = new StubCandidate(
+                1002L, "技术对接规范", "技术方案",
+                "商城接口与ERP系统规范要求", "提供完整的接口调用机制与系统集成能力",
+                "IT", "央企", "WON", "SLA_SERVICE", 75
+        );
+
+        ScoreItemCaseMatchPolicy.ScoreItemContext context = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                888L, "T-1", "系统对接与数据集成方案",
+                "要求投标人制定详尽的ERP对接与接口联调实施方案",
+                "IT", "央企", null, null, null
+        );
+
+        ScoreItemCaseMatchPolicy.MatchResult resultA = policy.evaluate(caseIntegration, context);
+        ScoreItemCaseMatchPolicy.MatchResult resultB = policy.evaluate(caseSla, context);
+
+        assertThat(resultA.score()).isGreaterThan(resultB.score());
+        assertThat(resultA.score() - resultB.score()).isEqualTo(CaseSubTopicPolicy.SUB_TOPIC_EXACT_MATCH_SCORE);
+        assertThat(resultA.matchReasons()).contains("同类业务子主题(系统对接与数据集成)");
+    }
+
+    @Test
+    @DisplayName("清洗质量分加成：质量分>=80获得额外加分")
+    void testQualityScoreBonus() {
+        StubCandidate highQualityCase = new StubCandidate(
+                1003L, "技术方案", "技术方案",
+                "技术规范要求说明", "技术响应详细正文",
+                "IT", "央企", "WON", "OTHER", 90
+        );
+        StubCandidate lowQualityCase = new StubCandidate(
+                1004L, "技术方案", "技术方案",
+                "技术规范要求说明", "技术响应详细正文",
+                "IT", "央企", "WON", "OTHER", 50
+        );
+
+        ScoreItemCaseMatchPolicy.ScoreItemContext context = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                889L, "T-2", "技术方案", "技术规范要求说明",
+                "IT", "央企", null, null, null
+        );
+
+        ScoreItemCaseMatchPolicy.MatchResult resHigh = policy.evaluate(highQualityCase, context);
+        ScoreItemCaseMatchPolicy.MatchResult resLow = policy.evaluate(lowQualityCase, context);
+
+        assertThat(resHigh.score() - resLow.score()).isEqualTo(5);
+    }
+
+    @Test
+    @DisplayName("项目专属核心实体断层优先：命中客户核心实体（如三峡）获得专属加成")
+    void testExclusiveClientEntityBoost() {
+        StubCandidate threeGorgesCase = new StubCandidate(
+                1005L, "电商化采购平台技术实施方案", "技术方案",
+                "三峡集团电商采购对接要求", "中国长江三峡集团专用电商化采购技术规范应答正文",
+                "IT", "央企", "WON", "INTEGRATION", 85
+        );
+        StubCandidate genericCase = new StubCandidate(
+                1006L, "电商化采购平台技术实施方案", "技术方案",
+                "通用电商采购对接要求", "通用企业电商化采购技术规范应答正文",
+                "IT", "央企", "WON", "INTEGRATION", 85
+        );
+
+        ScoreItemCaseMatchPolicy.ScoreItemContext context = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                890L, "T-3", "电商化采购平台技术实施方案",
+                "满足三峡集团电商采购接口与服务要求",
+                "IT", "央企", null,
+                "中国长江三峡集团2026年办公及工业品采购项目", "三峡集团"
+        );
+
+        ScoreItemCaseMatchPolicy.MatchResult resTg = policy.evaluate(threeGorgesCase, context);
+        ScoreItemCaseMatchPolicy.MatchResult resGen = policy.evaluate(genericCase, context);
+
+        assertThat(resTg.score()).isGreaterThan(resGen.score());
+        assertThat(resTg.matchReasons()).anyMatch(r -> r.contains("命中项目专属实体"));
+    }
+
+    @Test
+    @DisplayName("大类冲突一票否决：纯技术评分项与纯商务案例互斥，评分为0且一票否决")
+    void testMacroCategoryConflictVetoZeroScore() {
+        StubCandidate commercialCase = new StubCandidate(
+                1007L, "财务审计报告与资产证明", "商务要求",
+                "提供近三年财务审计报告", "我方财务状况良好，提供经审计的财务审计报告",
+                "IT", "央企", "WON", "COMMERCIAL_TERMS", 90
+        );
+
+        ScoreItemCaseMatchPolicy.ScoreItemContext technicalContext = new ScoreItemCaseMatchPolicy.ScoreItemContext(
+                891L, "T-4", "系统高可用架构与技术方案",
+                "投标人须提供双活容灾与微服务技术方案",
+                "IT", "央企", null, null, null
+        );
+
+        ScoreItemCaseMatchPolicy.MatchResult result = policy.evaluate(commercialCase, technicalContext);
+
+        assertThat(result.score()).isEqualTo(0);
+        assertThat(result.matchLabel()).isEqualTo("一般");
+        assertThat(result.matchReasons()).contains("大类冲突一票否决");
+    }
 }
+

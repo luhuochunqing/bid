@@ -12,13 +12,10 @@ sources:
   - scripts/import-case-slices-to-knowledge-case.py
 backlinks:
   - _index
-  - ai-case-recommend-data-source-fix
-  - case-precipitation-streaming
 created: 2026-08-31
 updated: 2026-09-03
-health_checked: 2026-09-03
+health_checked: 2026-09-05
 ---
-
 # 案例详情"查看源项目 / 标书原文"操作契约与导入数据陷阱
 
 > **一句话**：案例详情两个操作按钮的共享契约收敛在 `useBidCaseSourceActions.js`

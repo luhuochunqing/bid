@@ -11,7 +11,7 @@ backlinks:
   - _index
 created: 2026-08-25
 updated: 2026-08-26
-health_checked: 2026-09-03
+health_checked: 2026-09-05
 ---
 # 配置绑定静默失配 - isBound 探针与被动识别回归测试
 

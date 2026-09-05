@@ -9,12 +9,10 @@ sources:
   - docs/lessons/lessons-learned.md
 backlinks:
   - _index
-  - case-precipitation-oversize-oom
 created: 2026-08-20
-updated: 2026-08-20
-health_checked: 2026-08-28
+updated: 2026-09-05
+health_checked: 2026-09-05
 ---
-
 # 案例沉淀超大标书完整链路（spec 049）
 
 > **目标**：让几百 MB～2GB 的真实标书成功沉淀案例（knowledge_case 入库 >0），无 OOM、<10min、无 30MB 拦截。

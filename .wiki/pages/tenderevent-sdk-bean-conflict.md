@@ -7,13 +7,12 @@ sources:
   - backend/src/main/java/com/xiyu/bid/integration/tenderevent/infrastructure/sdk/TenderEventSdkConfig.java
   - docs/release/deploy-report-2026-08-26-143rd-test.md
 backlinks:
-  - .wiki/pages/_index.md
-  - docs/release/deploy-report-2026-08-26-143rd-test.md
+  - _index
+  - hibernate-string-enum-varchar-validate
 created: 2026-08-26
 updated: 2026-08-26
-health_checked: 2026-09-03
+health_checked: 2026-09-05
 ---
-
 # TenderEvent SDK Bean 冲突陷阱
 
 > PR !2416 引入 `@Import(SystemInteractiveServiceImpl.class)` 后，SDK 的 `SDKClientConfiguration` 被扫描注册了 `serviceRegister` bean，与项目 `TenderEventSdkConfig` 的 `serviceRegisterProperties` bean 类型冲突，导致后端 crash-loop。

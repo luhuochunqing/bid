@@ -40,5 +40,13 @@ public interface KnowledgeCaseReadModel {
 
     String getProductLine();
 
+    default String getSubTopic() {
+        return null;
+    }
+
+    default Integer getQualityScore() {
+        return 60;
+    }
+
     LocalDateTime getCreatedAt();
 }

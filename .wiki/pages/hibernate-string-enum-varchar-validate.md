@@ -7,12 +7,11 @@ sources:
   - backend/src/main/java/com/xiyu/bid/competitionintel/entity/Competitor.java
   - backend/src/main/resources/db/migration-mysql/V1202__competitor_status_unique_seed.sql
 backlinks:
-  - .wiki/pages/_index.md
+  - _index
 created: 2026-08-26
 updated: 2026-08-26
-health_checked: 2026-09-03
+health_checked: 2026-09-05
 ---
-
 # Hibernate STRING 枚举 vs varchar 列校验陷阱
 
 > Hibernate 6.x MySQL 方言对 `@Enumerated(EnumType.STRING)` 默认期望**原生 ENUM 列**（`enum('active','disabled')`）。若 Flyway 建的是 `VARCHAR(n)` 且实体未显式声明 `columnDefinition`，`ddl-auto: validate` 下启动即炸：`Schema-validation: wrong column type encountered ... found [varchar], but expecting [enum]`。

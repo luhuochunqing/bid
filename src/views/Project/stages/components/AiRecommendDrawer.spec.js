@@ -313,8 +313,9 @@ describe('AiRecommendDrawer.vue', () => {
     expect(wrapper.text()).toContain('评分依据说明')
     expect(wrapper.text()).toContain('匹配度计算规则（满分 100 分）')
     expect(wrapper.text()).toContain('专属客户/项目实体：最高 25 分')
+    expect(wrapper.text()).toContain('业务子主题深度对齐：最高 25 分')
     expect(wrapper.text()).toContain('评分条款深度契合：最高 30 分')
-    expect(wrapper.text()).toContain('评分项类别一致：+15 分')
+    expect(wrapper.text()).toContain('评分项类别一致：+10 分')
   })
 })
 

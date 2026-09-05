@@ -3,9 +3,6 @@ title: 组织架构对接 - 客户事件库 SDK 方案
 space: engineering
 category: integration
 tags: [integration, organization, event-sdk, event-bus, data-scope]
-created: 2026-04-28
-updated: 2026-08-12
-health_checked: 2026-08-28
 sources:
   - .wiki/sources/customer/事件库SDK接入说明方案.doc
   - .wiki/sources/technical/泊冉投标系统与西域对接技术相关内容.md
@@ -17,6 +14,10 @@ backlinks:
   - _index
   - implementation/xiyu-pending-confirmations
   - integration-oa-crm
+  - oss-organization-sync-playbook
+created: 2026-04-28
+updated: 2026-08-12
+health_checked: 2026-09-05
 ---
 # 组织架构对接 - 客户事件库 SDK 方案
 

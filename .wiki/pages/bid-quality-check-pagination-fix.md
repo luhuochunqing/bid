@@ -10,13 +10,11 @@ sources:
   - document-converter-sidecar/converter.py
 backlinks:
   - _index
-  - bid-quality-check-realization
-  - score-parse-service
+  - bid-quality-multifile-check
 created: 2026-09-01
 updated: 2026-09-01
-health_checked: 2026-09-01
+health_checked: 2026-09-05
 ---
-
 # 标书质量核查分页丢失修复
 
 > **一句话**：核查引擎按"物理分页"设计，但 Sidecar 输出的 markdown 从来不含 `\f`

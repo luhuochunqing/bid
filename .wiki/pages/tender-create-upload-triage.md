@@ -9,13 +9,11 @@ sources:
   - src/views/Bidding/list/components/TenderActionBar.vue
   - src/views/Bidding/list/components/TenderBasicInfoTab.vue
 backlinks:
-  - .wiki/pages/_index.md
-  - .wiki/pages/frontend-pitfalls.md
+  - _index
 created: 2026-08-28
 updated: 2026-08-28
-health_checked: 2026-08-28
+health_checked: 2026-09-05
 ---
-
 # 标讯人工录入"未上传"假象排障与 UX 缺陷修复
 
 > 生产案例（2026-08-28，winbid-01 / release 8f568d5cc）：用户 03683 在 `/bidding/create`

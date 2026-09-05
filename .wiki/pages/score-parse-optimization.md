@@ -2,6 +2,7 @@
 title: 评分解析优化记录
 space: engineering
 category: lessons-learned
+tags: []
 sources:
   - docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreTableRowParser.java
@@ -10,10 +11,11 @@ sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/grid/ColumnTypeCrossVerifier.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/grid/HeuristicTableColumnMapper.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreMergeResultGuard.java
+backlinks:
+created: 2026-09-05
 updated: 2026-09-01
-health_checked: 2026-09-01
+health_checked: 2026-09-05
 ---
-
 # 评分解析优化记录
 
 ## 2026-08-28 评分表格准入与守卫回补根治修复

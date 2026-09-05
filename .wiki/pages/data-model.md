@@ -3,9 +3,6 @@ title: 数据模型
 space: engineering
 category: reference
 tags: [数据模型, 实体, JPA, 数据库, 真实API]
-created: 2026-04-15
-updated: 2026-08-12
-health_checked: 2026-08-28
 sources:
   - .wiki/sources/implementation/西域数智化投标管理平台实施计划书SOW2026V1.4(格式校准).docx
   - backend/src/main/java/com/xiyu/bid/entity/README.md
@@ -16,6 +13,9 @@ backlinks:
   - architecture
   - implementation/attachment4-gap-matrix
   - implementation/attachment4-requirement-task-book
+created: 2026-04-15
+updated: 2026-08-12
+health_checked: 2026-09-05
 ---
 # 数据模型
 

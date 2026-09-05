@@ -9,9 +9,10 @@ sources:
   - backend/src/main/resources/application.yml
 backlinks:
   - _index
+  - configuration-binding-silent-failure
 created: 2026-08-12
 updated: 2026-08-28
-health_checked: 2026-08-28
+health_checked: 2026-09-05
 ---
 # 标讯创建事件推送 - 西域 CRM 事件总线
 

@@ -3,17 +3,18 @@ title: CRM 对接规范
 space: engineering
 category: integration
 tags: [integration, crm, api]
-created: 2026-05-07
-updated: 2026-08-12
-health_checked: 2026-08-28
 sources:
   - .wiki/sources/technical/泊冉投标系统与西域对接技术相关内容.md
   - .wiki/extracts/technical__泊冉投标系统与西域对接技术相关内容.md.md
 backlinks:
   - _index
+  - crm-integration-lessons
   - implementation/xiyu-pending-confirmations
   - integration-organization-event-sdk
   - integration-tender-api
+created: 2026-05-07
+updated: 2026-08-12
+health_checked: 2026-09-05
 ---
 # CRM 对接规范
 

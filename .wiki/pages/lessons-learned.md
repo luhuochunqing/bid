@@ -3,17 +3,23 @@ title: 工程经验总结
 space: engineering
 category: guide
 tags: [经验总结, 数据库迁移, PostgreSQL, MySQL, Flyway, 多Agent并行, 工程化护栏, Git历史, ArchUnit, Controller包规范, 错误消息设计, 用户体验]
-created: 2026-05-10
-updated: 2026-09-04
-health_checked: 2026-08-28
 sources:
   - CLAUDE.md
   - RULES.md
   - conductor/tracks/tender_source_tag_20260509/index.md
 backlinks:
   - _index
+  - crm-integration-lessons
+  - engineering-discipline
+  - flyway-migration-pitfalls
+  - frontend-pitfalls
   - multi-agent-defense-playbook
-archive: true
+  - notification-system-pitfalls
+  - production-deployment-lessons
+  - spring-pitfalls
+created: 2026-05-10
+updated: 2026-09-04
+health_checked: 2026-09-05
 ---
 # 工程经验总结
 

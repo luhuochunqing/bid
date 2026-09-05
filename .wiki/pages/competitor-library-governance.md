@@ -3,9 +3,6 @@ title: 竞品公司自定义输入与竞争对手库治理
 space: engineering
 category: module
 tags: [竞品, 竞争对手, 字典治理, 结果确认, 幂等upsert, 权限统一]
-created: 2026-08-25
-updated: 2026-08-25
-health_checked: 2026-09-02
 sources:
   - specs/055-competitor-custom-input/spec.md
   - specs/055-competitor-custom-input/plan.md
@@ -14,9 +11,10 @@ sources:
   - src/views/System/CompetitorLibrary.vue
 backlinks:
   - _index
-  - modules
-  - roles-and-permissions
-  - flyway-migration-pitfalls
+  - result-registration-immutability
+created: 2026-08-25
+updated: 2026-08-25
+health_checked: 2026-09-05
 ---
 # 竞品公司自定义输入与竞争对手库治理
 
