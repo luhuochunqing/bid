@@ -5,7 +5,7 @@ category: module
 tags: [AI, 智能, 大模型, 合规, 评分, 竞争情报, 智能装配, 案例库]
 created: 2026-04-15
 updated: 2026-08-21
-health_checked: 2026-09-04
+health_checked: 2026-09-05
 sources:
   - src/config/ai-prompts.js
   - backend/AI_MODULE_SUMMARY.md
@@ -18,6 +18,7 @@ sources:
   - docs/architecture/技术架构方案.md
 backlinks:
   - _index
+  - ai-provider-configuration
   - business-process
   - contract-constraints
   - implementation/attachment4-gap-matrix

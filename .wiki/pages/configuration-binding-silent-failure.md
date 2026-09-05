@@ -3,15 +3,15 @@ title: 配置绑定静默失配 - isBound 探针与被动识别回归测试
 space: engineering
 category: engineering
 tags: [spring, configuration, yaml, configuration-properties, regression, probe]
+created: 2026-08-25
+updated: 2026-08-26
+health_checked: 2026-09-05
 sources:
   - backend/src/main/java/com/xiyu/bid/bootstrap/ConfigurationBindingProbe.java
   - backend/src/test/java/com/xiyu/bid/bootstrap/ConfigurationBindingProbeTest.java
   - backend/src/main/resources/application.yml
 backlinks:
   - _index
-created: 2026-08-25
-updated: 2026-08-26
-health_checked: 2026-09-03
 ---
 # 配置绑定静默失配 - isBound 探针与被动识别回归测试
 

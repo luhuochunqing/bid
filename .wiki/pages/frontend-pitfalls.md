@@ -11,8 +11,8 @@ sources:
   - .wiki/pages/lessons-learned.md
 backlinks:
   - _index
-  - lessons-learned
-  - design-system
+  - ai-case-recommend-data-source-fix
+  - engineering-discipline
 ---
 # 前端 Vue3 / Element Plus 陷阱集
 

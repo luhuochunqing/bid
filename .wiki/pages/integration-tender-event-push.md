@@ -3,15 +3,16 @@ title: 标讯创建事件推送 - 西域 CRM 事件总线
 space: engineering
 category: integration
 tags: [integration, tender, event-bus, event-sdk, crm, push]
+created: 2026-08-12
+updated: 2026-08-28
+health_checked: 2026-09-05
 sources:
   - backend/src/main/java/com/xiyu/bid/integration/tenderevent/
   - backend/src/main/resources/db/migration-mysql/V1185__create_tender_event_logs.sql
   - backend/src/main/resources/application.yml
 backlinks:
   - _index
-created: 2026-08-12
-updated: 2026-08-28
-health_checked: 2026-08-28
+  - configuration-binding-silent-failure
 ---
 # 标讯创建事件推送 - 西域 CRM 事件总线
 

@@ -3,6 +3,9 @@ title: 标书质量核查分页丢失修复（\f 契约断裂 + 虚拟分页兜�
 space: engineering
 category: guide
 tags: [质量核查, 分页, sidecar, 虚拟分页, 证据定位, spec049]
+created: 2026-09-01
+updated: 2026-09-01
+health_checked: 2026-09-05
 sources:
   - backend/src/main/java/com/xiyu/bid/compliance/service/SidecarStreamDocumentAdapter.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/DocumentContent.java
@@ -10,13 +13,8 @@ sources:
   - document-converter-sidecar/converter.py
 backlinks:
   - _index
-  - bid-quality-check-realization
-  - score-parse-service
-created: 2026-09-01
-updated: 2026-09-01
-health_checked: 2026-09-01
+  - bid-quality-multifile-check
 ---
-
 # 标书质量核查分页丢失修复
 
 > **一句话**：核查引擎按"物理分页"设计，但 Sidecar 输出的 markdown 从来不含 `\f`

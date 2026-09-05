@@ -3,18 +3,16 @@ title: 项目搜索按招标主体（ownerUnit 数据链路与关键词过滤契
 space: engineering
 category: guide
 tags: [项目搜索, 招标主体, ownerUnit, purchaser_name, 内存过滤, useProjectFilter]
+created: 2026-08-31
+updated: 2026-08-31
+health_checked: 2026-09-05
 sources:
   - backend/src/main/java/com/xiyu/bid/project/controller/ProjectController.java
   - backend/src/main/java/com/xiyu/bid/project/service/ProjectListEnrichmentSupport.java
   - src/views/Project/composables/useProjectFilter.js
 backlinks:
   - _index
-  - score-parse-service
-created: 2026-08-31
-updated: 2026-08-31
-health_checked: 2026-08-31
 ---
-
 # 项目搜索按招标主体（ownerUnit 数据链路与关键词过滤契约）
 
 > **一句话**：项目搜索框 placeholder"搜索项目名称、招标主体"长期只匹配项目名（文案超期承诺），

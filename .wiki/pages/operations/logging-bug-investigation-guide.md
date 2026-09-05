@@ -3,13 +3,13 @@ title: 日志系统查 Bug 手册
 space: engineering
 category: guide
 tags: [日志, 可观测性, 排查, traceId, MDC]
+created: 2026-06-27
+updated: 2026-09-05
+health_checked: 2026-09-05
 sources:
   - docs/operations/logging-bug-investigation-guide.md
 backlinks:
   - _index
-created: 2026-06-27
-updated: 2026-08-10
-health_checked: 2026-09-03
 ---
 # 日志系统查 Bug 手册
 

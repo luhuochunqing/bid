@@ -5,15 +5,17 @@ category: guide
 tags: [Spring Boot, 事务, @Transactional, @Async, @ConditionalOnBean, 配置优先级, SPRING_CONFIG_IMPORT, 代理失效, 构造函数注入, @Autowired]
 created: 2026-07-10
 updated: 2026-08-17
-health_checked: 2026-09-02
+health_checked: 2026-09-05
 sources:
   - backend/src/main/java/com/xiyu/bid/
   - backend/src/main/resources/application.yml
   - .wiki/pages/lessons-learned.md
 backlinks:
   - _index
-  - lessons-learned
-  - architecture
+  - ai-provider-configuration
+  - configuration-binding-silent-failure
+  - engineering-discipline
+  - notification-system-pitfalls
 ---
 # Spring Boot 陷阱集
 

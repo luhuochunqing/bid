@@ -5,7 +5,7 @@ category: reference
 tags: [附件4, 需求任务书, 交付基线, 验收, 非功能, 文档清单]
 created: 2026-04-25
 updated: 2026-08-12
-health_checked: 2026-08-28
+health_checked: 2026-09-05
 sources:
   - README.md
 backlinks:
@@ -14,7 +14,6 @@ backlinks:
   - implementation/attachment4-gap-matrix
   - implementation/xiyu-pending-confirmations
   - requirements
-archive: true
 ---
 # 附件4需求任务书交付基线
 

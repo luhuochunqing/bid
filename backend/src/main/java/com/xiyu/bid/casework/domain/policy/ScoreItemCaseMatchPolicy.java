@@ -28,6 +28,7 @@ public class ScoreItemCaseMatchPolicy {
     private static final int PROJECT_TYPE_MATCH_SCORE = 10;
     private static final int CUSTOMER_TYPE_MATCH_SCORE = 5;
     private static final int WON_BONUS = 5;
+    private static final int QUALITY_SCORE_BONUS = 5;
     private static final int KEYWORD_HIT_BONUS = 5;
     private static final int HIGH_QUALITY_THRESHOLD = 80;
     private static final int GOOD_THRESHOLD = 60;
@@ -38,10 +39,7 @@ public class ScoreItemCaseMatchPolicy {
             String projectType, String customerType, String keyword,
             String projectName, String customerName
     ) {
-        public ScoreItemContext(
-                Long scoreItemId, String code, String dim, String detail,
-                String projectType, String customerType, String keyword
-        ) {
+        public ScoreItemContext(Long scoreItemId, String code, String dim, String detail, String projectType, String customerType, String keyword) {
             this(scoreItemId, code, dim, detail, projectType, customerType, keyword, null, null);
         }
     }
@@ -70,7 +68,7 @@ public class ScoreItemCaseMatchPolicy {
         List<String> reasons = new ArrayList<>();
         Set<String> projectEntityHits = new LinkedHashSet<>();
 
-        // 1. 项目专属核心实体匹配
+        // 1. 项目专属核心实体匹配（最高 25 分）
         EntityMatchResult entityResult = calculateEntityScore(context, candidate, candidateText);
         score += entityResult.score();
         if (!entityResult.hitEntities().isEmpty()) {
@@ -78,27 +76,32 @@ public class ScoreItemCaseMatchPolicy {
             reasons.add("命中项目专属实体(" + String.join("、", entityResult.hitEntities().stream().limit(2).toList()) + ")");
         }
 
-        // 2. 条款重叠度
+        // 2. 业务子主题对齐匹配（最高 25 分）
+        CaseSubTopicPolicy.SubTopic inferredTopic = CaseSubTopicPolicy.inferSubTopic(context.dim(), context.detail());
+        CaseSubTopicPolicy.SubTopicMatchResult subTopicResult = CaseSubTopicPolicy.calculateSubTopicScore(
+                inferredTopic, candidate.getSubTopic(), candidateText);
+        if (subTopicResult.score() > 0) {
+            score += subTopicResult.score();
+            if (subTopicResult.reason() != null) {
+                reasons.add(subTopicResult.reason());
+            }
+        }
+
+        // 3. 条款重叠度
         int detailScore = calculateDetailOverlap(context.detail(), candidateText);
-        if (detailScore >= 15) {
+        if (detailScore > 0) {
             score += detailScore;
-            reasons.add("评分项条款高度契合");
-        } else if (detailScore > 0) {
-            score += detailScore;
-            reasons.add("条款部分契合");
+            reasons.add(detailScore >= 15 ? "评分项条款高度契合" : "条款部分契合");
         }
 
-        // 3. 标题/正文跨层相似度
+        // 4. 标题/正文跨层相似度
         int titleScore = calculateTitleSimilarity(context, candidate, candidateText);
-        if (titleScore >= 15) {
+        if (titleScore > 0) {
             score += titleScore;
-            reasons.add("评分点匹配");
-        } else if (titleScore > 0) {
-            score += titleScore;
-            reasons.add("评分点部分匹配");
+            reasons.add(titleScore >= 15 ? "评分点匹配" : "评分点部分匹配");
         }
 
-        // 4. 类别一致性与推断
+        // 5. 类别一致性与推断
         int categoryScore = CaseCategoryMatchPolicy.calculateCategoryScore(
                 context.dim(), context.detail(), candidate.getScoringCategory());
         if (categoryScore > 0) {
@@ -106,33 +109,38 @@ public class ScoreItemCaseMatchPolicy {
             reasons.add("类别一致");
         }
 
-        // 5. 项目类型一致性
+        // 6. 项目类型一致性
         if (hasText(context.projectType()) && hasText(candidate.getProjectType())
                 && context.projectType().equalsIgnoreCase(candidate.getProjectType())) {
             score += PROJECT_TYPE_MATCH_SCORE;
             reasons.add("项目类型一致");
         }
 
-        // 6. 客户类型一致性
+        // 7. 客户类型一致性
         if (hasText(context.customerType()) && hasText(candidate.getCustomerType())
                 && context.customerType().equalsIgnoreCase(candidate.getCustomerType())) {
             score += CUSTOMER_TYPE_MATCH_SCORE;
             reasons.add("客户类型一致");
         }
 
-        // 7. 搜索词命中
+        // 8. 搜索词命中
         if (hasText(context.keyword()) && candidateText.contains(context.keyword().trim().toLowerCase(Locale.ROOT))) {
             score += KEYWORD_HIT_BONUS;
             reasons.add("搜索词命中");
         }
 
-        // 8. 中标案例加成
+        // 9. 中标案例加成
         if ("WON".equalsIgnoreCase(candidate.getBidResult())) {
             score += WON_BONUS;
             reasons.add("历史中标案例");
         }
 
-        // 9. 优先级重排与精炼展示关键词
+        // 10. 案例文本质量加成
+        if (candidate.getQualityScore() != null && candidate.getQualityScore() >= 80) {
+            score += QUALITY_SCORE_BONUS;
+        }
+
+        // 11. 优先级重排与精炼展示关键词
         List<String> prioritizedKeywords = assemblePrioritizedKeywords(context, candidateText, projectEntityHits);
         score = Math.min(score, 100);
         String label = score >= HIGH_QUALITY_THRESHOLD ? "优质" : (score >= GOOD_THRESHOLD ? "良好" : "一般");
@@ -149,22 +157,13 @@ public class ScoreItemCaseMatchPolicy {
                 if (entity.length() <= 10 && PunctuationEntityExtractor.isQualityEntity(entity)) result.add(entity);
             }
         }
-        if (result.size() < MAX_KEYWORDS_COUNT) {
-            extractMatchedKeyword(cleanTitle(context.dim()), candidateText).ifPresent(result::add);
-        }
-        for (String entity : PunctuationEntityExtractor.extractPunctuationEntities(context.detail())) {
+        List<String> toCheck = new ArrayList<>();
+        if (hasText(cleanTitle(context.dim()))) toCheck.add(cleanTitle(context.dim()));
+        toCheck.addAll(PunctuationEntityExtractor.extractPunctuationEntities(context.detail(), context.dim()));
+        if (hasText(context.keyword())) toCheck.add(context.keyword());
+        for (String word : toCheck) {
             if (result.size() >= MAX_KEYWORDS_COUNT) break;
-            extractMatchedKeyword(entity, candidateText).ifPresent(result::add);
-        }
-        if (hasText(context.dim()) && (context.dim().contains("、") || context.dim().contains("；")
-                || context.dim().contains("“") || context.dim().contains("\""))) {
-            for (String entity : PunctuationEntityExtractor.extractPunctuationEntities(context.dim())) {
-                if (result.size() >= MAX_KEYWORDS_COUNT) break;
-                extractMatchedKeyword(entity, candidateText).ifPresent(result::add);
-            }
-        }
-        if (result.size() < MAX_KEYWORDS_COUNT) {
-            extractMatchedKeyword(context.keyword(), candidateText).ifPresent(result::add);
+            extractMatchedKeyword(word, candidateText).ifPresent(result::add);
         }
         return new ArrayList<>(result);
     }

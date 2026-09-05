@@ -5,13 +5,12 @@ category: guide
 tags: [implementation, delivery, 待确认, 阻塞项, 客户沟通]
 created: 2026-05-28
 updated: 2026-08-12
-health_checked: 2026-08-28
+health_checked: 2026-09-05
 sources:
   - .wiki/pages/integration-oa-crm.md
   - .wiki/pages/integration-organization-event-sdk.md
 backlinks:
   - _index
-archive: true
 ---
 # 西域待确认项清单
 

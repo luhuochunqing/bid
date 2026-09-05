@@ -5,7 +5,7 @@ category: reference
 tags: [数据权限, 项目隔离, 安全, 审计, RBAC]
 created: 2026-04-25
 updated: 2026-08-12
-health_checked: 2026-08-28
+health_checked: 2026-09-05
 sources:
   - docs/reports/data-permission-coverage-audit.md
   - backend/src/main/java/com/xiyu/bid/service/ProjectAccessScopeService.java

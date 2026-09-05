@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [生产部署, 首次上线, 端口, collation, 排障, HTTP_PROXY, 配置漂移]
 created: 2026-07-09
-updated: 2026-08-12
-health_checked: 2026-08-28
+updated: 2026-09-05
+health_checked: 2026-09-05
 sources:
   - docs/release/deploy-report-2026-07-09-1st-prod.md
   - docs/release/postmortem-2026-07-09-1st-prod.md
@@ -13,8 +13,10 @@ sources:
   - docs/lessons/lessons-learned.md
 backlinks:
   - _index
-  - deployment
-  - lessons-learned
+  - configuration-binding-silent-failure
+  - flyway-migration-pitfalls
+  - oss-organization-sync-playbook
+  - spring-pitfalls
 ---
 # 生产环境首次部署实战教训
 

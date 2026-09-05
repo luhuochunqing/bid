@@ -3,18 +3,16 @@ title: 案例沉淀超大标书完整链路（spec 049：流式 + 摘录化 + �
 space: engineering
 category: guide
 tags: [案例沉淀, 超大文件, 流式, 摘录化, LLM, choices包装, 唯一键, spec049]
+created: 2026-08-20
+updated: 2026-09-05
+health_checked: 2026-09-05
 sources:
   - specs/049-case-precipitation-streaming/
   - docs/implementation-notes/case-precipitation-spec049.md
   - docs/lessons/lessons-learned.md
 backlinks:
   - _index
-  - case-precipitation-oversize-oom
-created: 2026-08-20
-updated: 2026-08-20
-health_checked: 2026-08-28
 ---
-
 # 案例沉淀超大标书完整链路（spec 049）
 
 > **目标**：让几百 MB～2GB 的真实标书成功沉淀案例（knowledge_case 入库 >0），无 OOM、<10min、无 30MB 拦截。

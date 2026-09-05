@@ -156,6 +156,8 @@ def load_jsonl_slices(jsonl_dir):
                     'text_preview': preview[:MAX_PREVIEW_LEN],
                     'text': (rec.get('text') or '').strip(),
                     'obs_bid_file_key': obs_key,
+                    'sub_topic': (rec.get('sub_topic') or '').strip() or None,
+                    'quality_score': int(rec.get('quality_score') or 60),
                 })
     print(f'JSONL 解析: {len(slices)} 条切片（跳过 {skipped} 条非法行，{len(files)} 个文件）')
     return slices
@@ -191,7 +193,7 @@ def build_row(sl, project):
     列顺序与 INSERT_SQL 占位符一一对应：
       source_project_id, source_project_name, scoring_point_title,
       requirement_raw, response_text, customer_type, project_type,
-      bid_result, scoring_category, obs_bid_file_key
+      bid_result, scoring_category, obs_bid_file_key, sub_topic, quality_score
     """
     title = sl['title']
     return (
@@ -205,6 +207,8 @@ def build_row(sl, project):
         BID_RESULT_MAP.get(project['status']),
         sl['docx_label'] or None,
         sl.get('obs_bid_file_key') or None,
+        sl.get('sub_topic') or None,
+        int(sl.get('quality_score') or 60),
     )
 
 
@@ -225,8 +229,8 @@ INSERT_SQL = """
         source_project_id, source_project_name, scoring_point_title, scoring_point_id,
         requirement_raw, response_text, reuse_count, is_pinned, status,
         customer_type, project_type, bid_result, scoring_category, product_line,
-        obs_bid_file_key, created_at
-    ) VALUES (%s,%s,%s,NULL,%s,%s,0,0,'ACTIVE',%s,%s,%s,%s,NULL,%s,NOW())
+        obs_bid_file_key, sub_topic, quality_score, created_at
+    ) VALUES (%s,%s,%s,NULL,%s,%s,0,0,'ACTIVE',%s,%s,%s,%s,NULL,%s,%s,%s,NOW())
 """
 
 # OBS 桶内历史投标文件根前缀（与后端 ObsObjectKeyPolicy.HISTORICAL_ROOT_PREFIX 一致）
@@ -462,14 +466,16 @@ def self_test():
     assert len(sample_slices(slices, 100)) == 10
     assert sample_slices([], 10) == []
 
-    # 6. 行装配：全终态映射（WON/LOST/FAILED），项目类型归一为枚举码
+    # 6. 行装配：全终态映射（WON/LOST/FAILED），项目类型归一为枚举码，透出 sub_topic 与 quality_score
     sl = {'project': 'A', 'docx_label': '技术', 'title': '售后服务方案', 'text_preview': '承诺7x24',
-          'obs_bid_file_key': OBS_BID_ROOT_PREFIX + '2026.01.20--中国建设银行龙集采项目/技术标.docx'}
+          'obs_bid_file_key': OBS_BID_ROOT_PREFIX + '2026.01.20--中国建设银行龙集采项目/技术标.docx',
+          'sub_topic': 'SLA_SERVICE', 'quality_score': 85}
     row = build_row(sl, p1)
     assert row == (1, '中国建设银行龙集采项目', '售后服务方案',
                    '【历史标书切片】售后服务方案', '承诺7x24',
                    'CENTRAL_SOE', 'COMPREHENSIVE', 'WON', '技术',
-                   OBS_BID_ROOT_PREFIX + '2026.01.20--中国建设银行龙集采项目/技术标.docx')
+                   OBS_BID_ROOT_PREFIX + '2026.01.20--中国建设银行龙集采项目/技术标.docx',
+                   'SLA_SERVICE', 85)
     row2 = build_row(sl, p2)
     assert row2[7] == 'LOST'   # LOST → 未中标（修复：此前误丢为 NULL 致前台显示"未知"）
     p4 = {'id': 4, 'name': '流标项目', 'status': 'FAILED',

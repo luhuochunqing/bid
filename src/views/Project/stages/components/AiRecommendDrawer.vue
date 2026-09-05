@@ -36,12 +36,13 @@
               <div class="match-rule-tooltip">
                 <div class="tooltip-title">匹配度计算规则（满分 100 分）：</div>
                 <div>• 专属客户/项目实体：最高 25 分</div>
+                <div>• 业务子主题深度对齐：最高 25 分</div>
                 <div>• 评分条款深度契合：最高 30 分</div>
                 <div>• 评分项标题匹配：最高 20 分</div>
-                <div>• 评分项类别一致：+15 分</div>
+                <div>• 评分项类别一致：+10 分</div>
                 <div>• 项目/客户类型一致：+10 分 / +5 分</div>
-                <div>• 搜索词/中标加成：各 +5 分</div>
-                <div class="tooltip-sub">评级：≥80% 优质，≥60% 良好，&lt;60% 一般</div>
+                <div>• 搜索词/中标/质量加成：各 +5 分</div>
+                <div class="tooltip-sub">评级：≥80% 优质，≥60% 良好，&lt;60% 一般（大类冲突一票否决）</div>
               </div>
             </template>
             <span class="help-hint"><el-icon><QuestionFilled /></el-icon> 评分依据说明</span>
@@ -86,6 +87,7 @@ import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import CaseCard from '@/views/Knowledge/views/components/CaseCard.vue'
 import CaseDetailDialog from '@/views/Knowledge/views/components/CaseDetailDialog.vue'
 import { useBidCaseSourceActions } from '@/views/Knowledge/views/useBidCaseSourceActions.js'
+import { getMatchLabel } from '@/views/Knowledge/views/caseLabels.js'
 import ScoreItemSelect from '@/components/common/ScoreItemSelect.vue'
 
 const props = defineProps({ projectId: { type: [String, Number], required: true } })
@@ -192,11 +194,13 @@ function normalizeRecommendCase(item) {
     createdAt: item.createdAt || '',
     score: matchScore,
     matchScore,
-    matchLabel: item.matchLabel || (matchScore >= 80 ? '优质' : matchScore >= 60 ? '良好' : '一般'),
+    matchLabel: getMatchLabel(matchScore, item.matchLabel),
     matchReasons: item.matchReasons || [],
     matchedKeywords: item.matchedKeywords || [],
     responseText: item.responseText || '',
     sourceProjectName: item.sourceProjectName,
+    subTopic: item.subTopic,
+    qualityScore: item.qualityScore,
   }
 }
 

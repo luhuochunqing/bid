@@ -3,6 +3,9 @@ title: 历史案例原文 OBS 直链下载（spec 058：三分流 + 预签名签
 space: engineering
 category: guide
 tags: [案例库, OBS, 预签名, spec058, obs_bid_file_key, 六边形架构, FP-Java]
+created: 2026-09-01
+updated: 2026-09-01
+health_checked: 2026-09-05
 sources:
   - specs/058-historical-case-obs-download/spec.md
   - backend/src/main/java/com/xiyu/bid/casework/application/service/CaseDownloadUrlAppService.java
@@ -10,12 +13,7 @@ sources:
   - src/views/Knowledge/views/useBidCaseSourceActions.js
 backlinks:
   - _index
-  - case-precipitation-streaming
-created: 2026-09-01
-updated: 2026-09-01
-health_checked: 2026-09-01
 ---
-
 # 历史案例原文 OBS 直链下载（spec 058）
 
 > **一句话**：案例库"标书原文"按钮按数据来源三分流——历史切片案例走 OBS 预签名直链下载原版 docx，

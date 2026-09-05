@@ -5,14 +5,13 @@ category: guide
 tags: [门禁, PR, 重复实现, 复用, 治理]
 created: 2026-08-21
 updated: 2026-08-21
-health_checked: 2026-08-29
+health_checked: 2026-09-05
 sources:
   - scripts/check-duplicate-implementations.mjs
   - RELIABILITY.md
   - docs/implementation-notes/duplicate-implementation-gate.md
 backlinks:
   - _index
-  - engineering-discipline
 ---
 # 重复实现门禁（防造轮子）
 

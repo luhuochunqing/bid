@@ -3,19 +3,16 @@ title: AI 智能案例推荐数据源修复（score_item 新契约切换 + casew
 space: engineering
 category: guide
 tags: [案例推荐, score_item, spec041, 裸响应, 二次解包, caseRecommendationApi]
+created: 2026-08-21
+updated: 2026-09-05
+health_checked: 2026-09-05
 sources:
   - src/api/modules/caseRecommendation.js
   - src/views/Project/stages/components/AiRecommendDrawer.vue
   - backend/src/main/java/com/xiyu/bid/casework/controller/ScoreItemCaseRecommendController.java
 backlinks:
   - _index
-  - score-parse-service
-  - frontend-pitfalls
-created: 2026-08-21
-updated: 2026-09-04
-health_checked: 2026-09-04
 ---
-
 # AI 智能案例推荐数据源修复（score_item 新契约 + 裸响应陷阱）
 
 > **一句话**：项目详情页「AI 智能案例推荐」抽屉不显示评分项，根因是数据源错配（读旧表）
@@ -178,4 +175,17 @@ PRD 1.1/4.2：复用定位弹窗章节树**默认选中当前评分项对应章�
 3. **噪音与停用词强化**：`ORG_DELIMITER_PATTERN` 纳入 `不可编辑|可编辑|标讯|标包|标段|测试|项目`，`PunctuationEntityExtractor.cleanEntityToken` 剥离首尾助词（“朱双双的” → “朱双双”）；
 4. **双重防守门禁**：`calculateEntityScore` 强制 `isQualityEntity` 检验；`assemblePrioritizedKeywords` 限制实体长度 `<= 10`。
 
+---
 
+## Feature 061: 基于真实数据底座的历史案例精准推荐（2026-09-05）
+
+### 1. 真实数据底座沉淀
+- **数据源与特征抽取脚本**：新增 `scripts/extract-historical-case-features.py`，从服务器 70 个历史项目 8144+ 切片中提取企业专名、10 大招投标核心业务子主题（Sub-Topic，如 `SLA_SERVICE`、`EMERGENCY_PLAN`、`INTEGRATION`）及质量评分（`quality_score`），过滤发票清单、盖章声明等样板段落；
+- **数据库扩展**：Flyway `V1211__add_sub_topic_to_knowledge_case.sql` 与 `U1211` 回滚脚本在 `knowledge_case` 表增加 `sub_topic` 与 `quality_score` 字段及索引；
+- **数据导入同步**：`scripts/import-case-slices-to-knowledge-case.py` 拓展新字段批量导入。
+
+### 2. FP-Java 算分加权第一性原理
+- **业务子主题精准加权**：新增 `CaseSubTopicPolicy` 纯核心推断，结构化子主题完全对齐 +25 分，正文补偿 +15 分；
+- **大类冲突一票否决**：`ScoreItemCaseMatchPolicy` 维持技术项遇纯财务案例强制 0 分；
+- **专属客户断层优先**：重点客户（三峡、建行）命中企业专名最高加 25 分；
+- **算分归一**：满分 100 分，采用累加后封顶在 100 分的机制，既保障专属客户与子主题的断层领先，又保证通用高质量案例正常评定为“优质”。

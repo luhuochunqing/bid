@@ -66,6 +66,14 @@ public class KnowledgeCase implements KnowledgeCaseReadModel {
     @Column(name = "obs_bid_file_key", length = 512)
     private String obsBidFileKey;
 
+    /** 业务子主题（如 SLA_SERVICE, SYS_ARCH, LOGISTICS_WAREHOUSE 等）。 */
+    @Column(name = "sub_topic", length = 50)
+    private String subTopic;
+
+    /** 案例文本质量与充实度评分（0-100）。 */
+    @Column(name = "quality_score", nullable = false)
+    private Integer qualityScore = 60;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

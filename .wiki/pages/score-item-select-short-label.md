@@ -3,6 +3,9 @@ title: 评分项下拉短标签（ScoreItemSelect：短标签契约 / filterable
 space: engineering
 category: guide
 tags: [评分项, ScoreItemSelect, 短标签, tooltip, element-plus, 前端测试]
+created: 2026-08-28
+updated: 2026-08-28
+health_checked: 2026-09-05
 sources:
   - src/components/common/ScoreItemSelect.vue
   - src/utils/scoreItemOptionDisplay.js
@@ -10,13 +13,7 @@ sources:
   - src/views/Bidding/components/AICaseRecommendDrawer.vue
 backlinks:
   - _index
-  - ai-case-recommend-data-source-fix
-  - frontend-pitfalls
-created: 2026-08-28
-updated: 2026-08-28
-health_checked: 2026-08-28
 ---
-
 # 评分项下拉短标签（ScoreItemSelect）
 
 > **一句话**：两处 AI 案例推荐入口共用 `ScoreItemSelect`——选项只显示 `code + dim` 短标签，

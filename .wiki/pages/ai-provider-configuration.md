@@ -5,15 +5,14 @@ category: guide
 tags: [AI, Provider, DeepSeek, Doubao, qwen, activeProvider, 降级策略, Sidecar, textutil, mock, 配置默认值陷阱]
 created: 2026-07-10
 updated: 2026-08-25
-health_checked: 2026-08-28
+health_checked: 2026-09-05
 sources:
   - backend/src/main/java/com/xiyu/bid/ai/
   - backend/src/main/resources/application.yml
   - .wiki/pages/ai-capabilities.md
 backlinks:
   - _index
-  - ai-capabilities
-  - docinsight-engine
+  - engineering-discipline
 ---
 # AI Provider 配置与陷阱指南
 

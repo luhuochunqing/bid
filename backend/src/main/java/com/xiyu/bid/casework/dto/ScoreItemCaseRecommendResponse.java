@@ -42,5 +42,7 @@ public class ScoreItemCaseRecommendResponse {
         private String createdAt;
         private String bidEntity;
         private String projectStatus;
+        private String subTopic;
+        private Integer qualityScore;
     }
 }

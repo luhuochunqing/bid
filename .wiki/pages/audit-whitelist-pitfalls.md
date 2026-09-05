@@ -4,15 +4,14 @@ space: engineering
 category: guide
 tags: [审计, Auditable, AuditActionPolicy, 白名单, audit_logs]
 created: 2026-08-04
-updated: 2026-09-04
-health_checked: 2026-08-28
+updated: 2026-09-05
+health_checked: 2026-09-05
 sources:
   - backend/src/main/java/com/xiyu/bid/audit/core/AuditActionPolicy.java
   - backend/src/main/java/com/xiyu/bid/aspect/AuditableAspect.java
   - docs/lessons/lessons-learned.md
 backlinks:
   - _index
-  - lessons-learned
 ---
 # 审计白名单陷阱
 

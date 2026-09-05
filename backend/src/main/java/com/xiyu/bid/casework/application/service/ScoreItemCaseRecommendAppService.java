@@ -188,6 +188,8 @@ public class ScoreItemCaseRecommendAppService {
                 .createdAt(candidate.getCreatedAt() == null ? null : candidate.getCreatedAt().format(CREATED_AT_FORMAT))
                 .bidEntity(sourceMeta == null ? null : sourceMeta.bidEntity())
                 .projectStatus(sourceMeta == null ? null : sourceMeta.projectStatus())
+                .subTopic(candidate.getSubTopic())
+                .qualityScore(candidate.getQualityScore())
                 .build();
     }
 }

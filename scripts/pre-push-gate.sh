@@ -750,11 +750,11 @@ else
     if [ -n "$WIKI_PAGES_CHANGED" ]; then
       while IFS= read -r wiki_file; do
         if [ -f "$ROOT_DIR/$wiki_file" ]; then
-          if ! head -20 "$ROOT_DIR/$wiki_file" | grep -q 'health_checked:'; then
+          if ! head -60 "$ROOT_DIR/$wiki_file" | grep -q 'health_checked:'; then
             echo "    ⚠ $wiki_file 缺少 health_checked 字段"
             WIKI_VIOLATIONS=$((WIKI_VIOLATIONS + 1))
           fi
-          if ! head -20 "$ROOT_DIR/$wiki_file" | grep -q 'updated:'; then
+          if ! head -60 "$ROOT_DIR/$wiki_file" | grep -q 'updated:'; then
             echo "    ⚠ $wiki_file 缺少 updated 字段"
             WIKI_VIOLATIONS=$((WIKI_VIOLATIONS + 1))
           fi

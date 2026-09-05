@@ -248,11 +248,11 @@ export function buildFrontmatter(frontmatter, body) {
     'space',
     'category',
     'tags',
-    'sources',
-    'backlinks',
     'created',
     'updated',
     'health_checked',
+    'sources',
+    'backlinks',
   ]
 
   const remaining = Object.keys(frontmatter).filter((key) => !orderedKeys.includes(key))

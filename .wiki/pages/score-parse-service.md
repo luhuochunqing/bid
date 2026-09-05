@@ -18,9 +18,9 @@ sources:
   - docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md
 backlinks:
   - _index
-  - ai-capabilities
-  - architecture
-  - data-model
+  - ai-case-recommend-data-source-fix
+  - bid-quality-check-pagination-fix
+  - case-precipitation-streaming
   - spring-pitfalls
 ---
 # AI 评分标准解析后端服务

@@ -44,6 +44,7 @@
       <div class="tag-row mt-2">
         <el-tag size="small" type="primary" effect="plain">{{ getProjectTypeLabel(caseData.projectType) }}</el-tag>
         <el-tag size="small" type="success" effect="plain" class="ml-1">{{ getCustomerTypeLabel(caseData.customerType) }}</el-tag>
+        <el-tag v-if="subTopicLabel" size="small" type="warning" effect="plain" class="ml-1">{{ subTopicLabel }}</el-tag>
       </div>
     </div>
     <div class="case-card-body">
@@ -63,7 +64,7 @@
 <script setup>
 import { computed } from 'vue'
 import { CopyDocument } from '@element-plus/icons-vue'
-import { getProjectTypeLabel, getCustomerTypeLabel, getMatchLabel, getMatchTagType, parseStringOrArray } from '../caseLabels.js'
+import { getProjectTypeLabel, getCustomerTypeLabel, getSubTopicLabel, getMatchLabel, getMatchTagType, parseStringOrArray } from '../caseLabels.js'
 import DateTimeDisplay from '@/components/common/DateTimeDisplay.vue'
 
 const props = defineProps({
@@ -73,13 +74,12 @@ const props = defineProps({
 })
 defineEmits(['view-detail', 'reuse'])
 
+const subTopicLabel = computed(() => getSubTopicLabel(props.caseData?.subTopic))
+
 const hasMatchScore = computed(() => props.matchScore !== null && props.matchScore !== undefined)
 const numScore = computed(() => Number(props.matchScore) || 0)
 
-const displayMatchLabel = computed(() => {
-  if (!hasMatchScore.value && !props.caseData?.matchLabel) return ''
-  return getMatchLabel(props.matchScore, props.caseData?.matchLabel)
-})
+const displayMatchLabel = computed(() => getMatchLabel(props.matchScore, props.caseData?.matchLabel))
 
 const matchLabelTagType = computed(() => getMatchTagType(props.matchScore, props.caseData?.matchLabel))
 

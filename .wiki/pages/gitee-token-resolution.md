@@ -3,6 +3,9 @@ title: Gitee token 多源可见性与统一解析链（Agent 提 PR 找不到 to
 space: engineering
 category: guide
 tags: [gitee, token, PAT, 凭证, 环境变量, zshenv, git-credentials, PR, agent]
+created: 2026-09-03
+updated: 2026-09-03
+health_checked: 2026-09-05
 sources:
   - scripts/gitee-token.sh
   - scripts/gitee-pr-helper.sh
@@ -12,11 +15,6 @@ sources:
   - scripts/gitee-auto-merge-gate.sh
 backlinks:
   - _index
-  - engineering-discipline
-  - agent-sop-quickref
-created: 2026-09-03
-updated: 2026-09-03
-health_checked: 2026-09-03
 ---
 # Gitee token 多源可见性与统一解析链
 
