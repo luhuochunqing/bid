@@ -740,3 +740,10 @@
 - 根因修复：商机 OpportunityPredictionEventPublisher 的 traceId/spanId 用 UUID(去横线 32 字符) 超客户事件库 varchar(19) 列宽，标讯侧早用雪花 ID 而商机侧遗漏，改用 TenderEventSnowflakeUtil（t/s+18 位）
 - 验证：三步 Review（思维链/google-code-review/xiyu-code-review）全过；ArchUnit 32 + tenderevent/workbench 135 tests + line-budget + duplicate + doc-governance 门禁全绿
 - 回填：更新 [[integration-tender-event-push]] §11（修正"data 只放标识"旧结论 + 全量字段清单 + varchar(19) 约束）+ [[opportunity-prediction-reminder]]（customer 口径决策 + 10 字段 + Support 抽取）；教训：**客户事件库 trace_id/span_id 为 varchar(19)，链路 ID 必须用雪花 ID，UUID 去横线 32 字符会超长写入失败；同一约束标讯/商机两侧必须同步，新增事件发布方要复用 TenderEventSnowflakeUtil；编排服务超 300 行时抽静态纯函数到同包 Support 类是过 line-budget 的标准手法**
+
+## 2026-09-06 fix | 商机事件推送 projectLeaderName/customerType 补标讯兜底（PR#2560 review 后续）
+- 触发：PR #2560 合入后 review 发现商机事件推送的 projectLeaderName/customerType 与预测表格口径不一致（表格经 enrich 链有标讯兜底，事件推送只取立项详情/Project 实体）
+- 落点：OpportunityPredictionReminderSupport 加 resolveProjectLeaderName（立项详情→Tender.projectManagerName 兜底，isBlank 语义与表格等价）+ resolveCustomerType（Project.customerType 严格 null 判空→Tender.customerType 兜底并经 InitiationFieldPolicy.normalizeCustomerType 归一化），逐条对齐真实 enrich 方法 ProjectListEnrichmentSupport.populateFromTender；Service processProject 算好 resolved 值传 publishEvent
+- 预测对齐：policy input 的 customerType 改用 resolvedCustomerType（兜底后），预测提前月数规则（央企6月/其他3月）与表格完全一致；经用户确认预测逻辑一起对齐（Project.customerType 空但标讯有值的项目，提醒触发时点随兜底客户类型变化属预期）
+- 验证：OpportunityPredictionReminderServiceTest 7 tests（新增兜底用例）+ compile + line-budget（Service 267 行）
+- 回填：更新 [[opportunity-prediction-reminder]] 决策5/6 + 全量字段节 + 预测逻辑口径注记；教训：**“对齐表格”须对齐表格的完整 enrich 链（表格消费 getAllProjects 的 enrich 后 DTO，含标讯兜底），而非只对齐单一数据源；且必须 grep 验证兜底方法真实调用点——本次一度误引用死代码 ProjectTenderPopulator，真实 enrich 是 ProjectListEnrichmentSupport.populateFromTender，其 customerType 兜底用 == null 判空（非 isBlank）且经 normalizeCustomerType 归一化，判空条件与值语义都需逐条比对才能做到 100% 一致**

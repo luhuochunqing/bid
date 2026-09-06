@@ -35,8 +35,8 @@ backlinks:
 2. **文案兜底**：无服务周期截止日期时省略"服务周期将于…截止"句，只保留"预测下次招标时间为…，请到CRM创建商机。"
 3. **事件发布隔离**：事件库失败只记日志，不阻断站内信/企微主链路。
 4. **结果类型回退**：`ProjectResult.resultType` 优先，缺失回退 `Project.status.name()`。
-5. **事件推送招标主体口径对齐表格（2026-09-06）**：`customer` = `Project.customer` 优先，为空回退关联标讯 `Tender.purchaserName`，与商机预测表格 `WorkbenchOpportunityQueryService.toDto` 的 ownerUnit 列 **100% 一致**。**注意与站内信 `resolvePurchaserName`（tender 采购人优先、customer 兜底）方向相反**——事件推送对齐表格展示口径，站内信对齐提醒文案口径，用途不同不可互换。
-6. **项目负责人来源**：取 `project_initiation_details.projectLeaderName`（`Project` 实体无此字段），`runScan` 用 `findByProjectIdIn` 批量加载避免 N+1。
+5. **事件推送字段口径对齐表格 enrich 链（2026-09-06）**：商机预测表格 `WorkbenchOpportunityQueryService.toDto` 消费 `ProjectQueryService.getAllProjects()` 的 enrich 后 `ProjectDTO`，故事件推送三字段须对齐同一 enrich 链——`customer`=`Project.customer` 优先→`Tender.purchaserName` 兜底（ownerUnit 列）；`projectLeaderName`=立项详情优先→`Tender.projectManagerName` 兜底（`ProjectListEnrichmentSupport`）；`customerType`=`Project.customerType` 优先（严格 null 判空）→`Tender.customerType` 兜底并经 `InitiationFieldPolicy.normalizeCustomerType` 归一化为枚举名（中文/别名→枚举，归一化失败保留原值），逐条对齐 `ProjectListEnrichmentSupport.populateFromTender`（**注意：项目内 `ProjectTenderPopulator` 为死代码，勿再引用**），且该兜底值**同时驱动预测规则**（央企提前 6 月/其他 3 月），预测逻辑与表格完全一致。**注意 `customer` 与站内信 `resolvePurchaserName`（tender 优先）方向相反**——事件推送对齐表格展示口径，站内信对齐提醒文案口径，不可互换。
+6. **项目负责人来源**：取 `project_initiation_details.projectLeaderName`（`Project` 实体无此字段），`runScan` 用 `findByProjectIdIn` 批量加载避免 N+1；立项详情缺失时回退 `Tender.projectManagerName`（见决策5）。
 7. **事件全量字段**：应 CRM 要求，商机事件 `data` 从轻量标识扩展为 10 字段（见下节），推送触发/策略/开关/线程池/流水编码均不变。
 
 ## 通知链路复用
@@ -48,10 +48,11 @@ backlinks:
 
 ## 事件推送 data 全量字段（2026-09-06）
 
-商机事件 `OpportunityPredictionEventPayload`（10 字段，经 `OpportunityPredictionEventPublisher` → `TenderEventSdkSender` → SDK `sendEvent`）：`projectId` / `projectName` / `resultType`(中文) / `customer`(招标主体，口径见关键决策5) / `projectLeaderName` / `customerType`(中文) / `bidOpenTime` / `servicePeriodYears` / `servicePeriodEndDate` / `predictedBidDate`。null 字段省略。
+商机事件 `OpportunityPredictionEventPayload`（10 字段，经 `OpportunityPredictionEventPublisher` → `TenderEventSdkSender` → SDK `sendEvent`）：`projectId` / `projectName` / `resultType`(中文) / `customer`(招标主体，口径见关键决策5) / `projectLeaderName`(立项详情→标讯兜底，见决策5/6) / `customerType`(中文，Project→标讯兜底，见决策5) / `bidOpenTime` / `servicePeriodYears` / `servicePeriodEndDate` / `predictedBidDate`。null 字段省略。
 
 - **⚠️ traceId/spanId varchar(19)**：商机侧曾用 UUID(32 字符) 超事件库列宽，2026-09-06 改用 `TenderEventSnowflakeUtil` 雪花 ID（"t"/"s"+18 位）。约束与修复细节详见 [[integration-tender-event-push]] §11。
-- **纯派生下沉 Support**：`resolveResultType`/`resolvePurchaserName`/`resolveCustomer`/`buildPayload` 抽到同包 `OpportunityPredictionReminderSupport`（`final` + 私有构造 + 静态方法，对齐 `ProjectListEnrichmentSupport`），编排服务从 315 行降回 263 行，满足 line-budget 300 硬门禁。
+- **纯派生下沉 Support**：`resolveResultType`/`resolvePurchaserName`/`resolveCustomer`/`resolveProjectLeaderName`/`resolveCustomerType`/`buildPayload` 抽到同包 `OpportunityPredictionReminderSupport`（`final` + 私有构造 + 静态方法，对齐 `ProjectListEnrichmentSupport`），编排服务从 315 行降回 267 行，满足 line-budget 300 硬门禁。
+- **预测逻辑口径（已对齐表格）**：`OpportunityPredictionPolicy` 的 input 与事件推送共用 `resolvedCustomerType`（`Project.customerType` 优先→`Tender.customerType` 兜底），预测提前月数规则（央企 6 月/其他 3 月）与表格完全一致。`Project.customerType` 空但标讯有值的项目，提醒触发时点随兜底后客户类型变化（如按央企提前 6 月），属对齐表格的预期行为（2026-09-06 review 后续确认预测逻辑一起对齐）。
 - **副作用**：事件发布失败只记 warn 日志，不阻断站内信/企微主链路（见关键决策3）。
 
 ## 数据模型

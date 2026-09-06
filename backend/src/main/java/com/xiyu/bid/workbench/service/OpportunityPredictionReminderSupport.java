@@ -1,14 +1,16 @@
 // Input: Project / ProjectResult / Tender 实体
-// Output: 派生字段（结果类型、招标主体）+ 站内信 payload Map
+// Output: 派生字段（结果类型、招标主体、项目负责人、客户类型）+ 站内信 payload Map
 // Pos: Service/业务层 - workbench 商机预测提醒纯派生辅助（无副作用、无依赖注入）
 // 维护声明:
 //   - 纯函数集中于此，编排逻辑留在 OpportunityPredictionReminderService；
-//   - customer 口径对齐商机预测表格 WorkbenchOpportunityQueryService.toDto；
+//   - customer/projectLeaderName/customerType 口径对齐商机预测表格 enrich 链
+//     （WorkbenchOpportunityQueryService.toDto 消费 ProjectQueryService.getAllProjects 的 enrich 结果）；
 //   - 与 ProjectListEnrichmentSupport 同构（final + 私有构造 + 静态方法）。
 package com.xiyu.bid.workbench.service;
 
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.project.core.InitiationFieldPolicy;
 import com.xiyu.bid.project.entity.ProjectResult;
 import org.springframework.util.StringUtils;
 
@@ -63,6 +65,36 @@ final class OpportunityPredictionReminderSupport {
         }
         return tender != null && StringUtils.hasText(tender.getPurchaserName())
                 ? tender.getPurchaserName() : null;
+    }
+
+    /**
+     * 项目负责人：立项详情（{@code project_initiation_details.projectLeaderName}）优先，
+     * 缺失回退关联标讯项目经理（{@code Tender.projectManagerName}）。对齐商机预测表格
+     * enrich 链（ProjectQueryService 立项详情 → ProjectListEnrichmentSupport 标讯兜底）。
+     */
+    static String resolveProjectLeaderName(String initiationLeaderName, Tender tender) {
+        if (StringUtils.hasText(initiationLeaderName)) {
+            return initiationLeaderName;
+        }
+        return tender != null && StringUtils.hasText(tender.getProjectManagerName())
+                ? tender.getProjectManagerName() : null;
+    }
+
+    /**
+     * 客户类型：{@code Project.customerType} 优先，缺失（严格 null）回退关联标讯
+     * （{@code Tender.customerType}），并复用 {@link InitiationFieldPolicy#normalizeCustomerType}
+     * 将中文/别名归一化为后端枚举名（归一化失败保留原值）。逐条对齐商机预测表格 enrich 链
+     * {@code ProjectListEnrichmentSupport.populateFromTender}——保证推送值/预测规则与表格同源同口径。
+     */
+    static String resolveCustomerType(Project project, Tender tender) {
+        if (project.getCustomerType() != null) {
+            return project.getCustomerType();
+        }
+        if (tender == null || tender.getCustomerType() == null) {
+            return null;
+        }
+        String normalized = InitiationFieldPolicy.normalizeCustomerType(tender.getCustomerType());
+        return normalized != null ? normalized : tender.getCustomerType();
     }
 
     /** 站内信 payload：保序组装项目标识 + 招标主体 + 服务期止 + 预测招标日 + 深链。 */
