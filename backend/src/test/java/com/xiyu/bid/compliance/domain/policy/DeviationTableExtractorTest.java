@@ -172,4 +172,85 @@ class DeviationTableExtractorTest {
 
         assertThat(result.tables()).isEmpty();
     }
+
+    @Test
+    @DisplayName("对抗测试：长距离修饰否定词（'并未对该条款作出负偏离'）精准判定否定，不误报负偏离")
+    void testExtract_WhenLongDistanceNegation_DoesNotReportNegative() {
+        String text = """
+                ### 商务偏离表
+                | 序号 | 条款 | 招标要求 | 投标响应 | 偏离情况说明 |
+                | 1 | 条款1 | 付款方式 | 响应 | 本公司在此声明并未对该条款作出负偏离 |
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "adv1", text);
+        var result = DeviationTableExtractor.extract(doc);
+
+        assertThat(result.tables()).hasSize(1);
+        var table = result.tables().get(0);
+        assertThat(table.hasNegativeDeviation()).isFalse();
+        assertThat(result.negativeRows()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("对抗测试：子句标点边界隔离，跨句标点否定不击穿（'无任何正偏离。本条款负偏离'）")
+    void testExtract_WhenPunctuationSeparatesNegation_CapturesRealNegative() {
+        String text = """
+                ### 技术偏离表
+                | 序号 | 条款 | 招标要求 | 投标响应 | 偏离情况 | 说明 |
+                | 1 | 内存要求 | 64GB | 32GB | 负偏离 | 无任何正偏离。本条款负偏离 |
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "adv2", text);
+        var result = DeviationTableExtractor.extract(doc);
+
+        assertThat(result.tables()).hasSize(1);
+        assertThat(result.negativeRows()).hasSize(1);
+        assertThat(result.negativeRows().get(0).clause()).contains("内存要求");
+    }
+
+    @Test
+    @DisplayName("对抗测试：制表符 Tab 格式表格自动归一化解析")
+    void testExtract_WhenTabDelimitedTable_NormalizesAndParses() {
+        String text = "### 商务偏离表\n"
+                + "序号\t商务条款\t招标要求\t投标响应\t偏离情况\t说明\n"
+                + "1\t工期条款\t180天\t180天\t完全响应\t满足要求\n";
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "adv3", text);
+        var result = DeviationTableExtractor.extract(doc);
+
+        assertThat(result.tables()).hasSize(1);
+        assertThat(result.tables().get(0).rows()).hasSize(1);
+        assertThat(result.tables().get(0).allNoneOrPositive()).isTrue();
+    }
+
+    @Test
+    @DisplayName("对抗测试：复合与非标表头列识别（'采购需求'、'差异情况'、'偏离情况说明'）")
+    void testExtract_WhenAlternativeHeaderNames_ExtractsAccurately() {
+        String text = """
+                ### 商务偏离表
+                | 序号 | 采购需求 | 实际供货 | 差异情况 | 备注 |
+                | 1 | 质保3年 | 质保3年 | 无偏离 | / |
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "adv4", text);
+        var result = DeviationTableExtractor.extract(doc);
+
+        assertThat(result.tables()).hasSize(1);
+        var row = result.tables().get(0).rows().get(0);
+        assertThat(row.tenderRequirement()).contains("质保3年");
+        assertThat(row.type()).isEqualTo(DeviationTableExtractor.DeviationType.NONE);
+    }
+
+    @Test
+    @DisplayName("对抗审讯回归：远距离单字'未'（'未达到招标文件要求属负偏离'）不被误判为否定，精准拦截负偏离")
+    void testExtract_WhenClauseContainsUnfulfilledKeyword_DoesNotBypassNegative() {
+        String text = """
+                ### 商务偏离表
+                | 序号 | 商务条款 | 实际供货 | 偏离情况 | 说明 |
+                | 1 | 供货期 | 60天 | 负偏离 | 未达到招标文件要求属负偏离 |
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "adv5", text);
+        var result = DeviationTableExtractor.extract(doc);
+
+        assertThat(result.tables()).hasSize(1);
+        assertThat(result.negativeRows()).hasSize(1);
+        assertThat(result.negativeRows().get(0).clause()).contains("供货期");
+        assertThat(result.negativeRows().get(0).type()).isEqualTo(DeviationTableExtractor.DeviationType.NEGATIVE);
+    }
 }

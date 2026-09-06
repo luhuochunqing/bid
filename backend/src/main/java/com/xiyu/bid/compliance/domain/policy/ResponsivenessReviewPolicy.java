@@ -25,9 +25,6 @@ public final class ResponsivenessReviewPolicy {
             "商务偏离表", "技术偏离表", "商务规格偏离表", "技术规格偏离表",
             "条款偏离表", "商务及技术偏离表", "偏离表");
 
-    private static final List<String> NEGATION_TERMS = List.of(
-            "无任何", "不存在", "没有", "不含", "无", "未", "零");
-
     private static final Pattern UNDERLINE_BLANK_PATTERN = Pattern.compile("_{3,}");
     private static final Pattern BRACKET_PLACEHOLDER_PATTERN = Pattern.compile(
             "【(?:请|在此|在此处|填写|输入|插入|待填|说明)[^】]{0,30}】|\\[(?:请|在此|填写|待填|说明)[^\\]]{0,30}\\]");
@@ -118,20 +115,17 @@ public final class ResponsivenessReviewPolicy {
             }
         }
 
-        // 7. 结构化偏离表全部为无偏离或正偏离直通 PASS；存在未分类行（UNKNOWN）时直接存疑交 LLM
+        // 7. 结构化偏离表：严格全表无偏离（纯 NONE）直通 PASS；存在自述正偏离或 UNKNOWN 行存疑交 LLM 深度核验
         if (!extraction.tables().isEmpty()) {
-            if (extraction.tables().stream().allMatch(DeviationTableExtractor.DeviationTable::allNoneOrPositive)) {
+            if (extraction.positiveRows().isEmpty()
+                    && extraction.tables().stream().allMatch(DeviationTableExtractor.DeviationTable::allNoneOrPositive)) {
                 QualityEvidence evidence = EvidenceAssembler.locateBid(bidDoc, "偏离表正文", DEVIATION_KEYWORDS);
-                String conclusion = "商务与技术条款全面响应，偏离表声明无实质性负偏离";
-                if (!extraction.positiveRows().isEmpty()) {
-                    conclusion += "（包含 " + extraction.positiveRows().size() + " 项优于招标要求的正偏离项）";
-                }
                 return QualityCheckItemResult.pass(
                         BidQualityCheckItem.RESPONSIVENESS_REVIEW,
-                        conclusion,
+                        "商务与技术条款全面响应，偏离表声明无实质性负偏离",
                         List.of(evidence));
             }
-            // 包含 UNKNOWN 行，绝不放行自述 PASS，直接移交 LLM
+            // 包含投标人自述正偏离（防假阳性免审漏洞）或 UNKNOWN 行，存疑移交 LLM/专家复核
             return null;
         }
 
@@ -214,9 +208,21 @@ public final class ResponsivenessReviewPolicy {
     }
 
     private static boolean hasNegationPrefix(final String text, final int idx) {
-        int start = Math.max(0, idx - 4);
-        String prefix = text.substring(start, idx);
-        for (String negation : NEGATION_TERMS) {
+        int start = Math.max(0, idx - 18);
+        for (int i = idx - 1; i >= start; i--) {
+            char c = text.charAt(i);
+            if (c == '，' || c == '。' || c == '；' || c == '、' || c == '\n' || c == '|' || c == ',' || c == ';' || c == '.') {
+                start = i + 1;
+                break;
+            }
+        }
+        String prefix = text.substring(start, idx).trim();
+        for (String negation : DeviationTableExtractor.COMPOSITE_NEGATIONS) {
+            if (prefix.contains(negation)) {
+                return true;
+            }
+        }
+        for (String negation : DeviationTableExtractor.SHORT_NEGATIONS) {
             if (prefix.endsWith(negation)) {
                 return true;
             }
