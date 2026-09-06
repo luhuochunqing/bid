@@ -133,7 +133,7 @@ public final class DeterministicCheckPolicy {
     }
 
     public static QualityCheckItemResult checkCaCertificate(final DocumentContent bidDoc) {
-        return SubItemAndAttachmentRules.checkCaCertificate(bidDoc, null);
+        return SubItemAndAttachmentRules.checkCaCertificate(bidDoc);
     }
 
     public static QualityCheckItemResult checkCaCertificate(final DocumentContent bidDoc, final String tenderText) {

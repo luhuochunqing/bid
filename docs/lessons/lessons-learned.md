@@ -4612,6 +4612,44 @@ winbid-test 项目 1359（AI 评分标准解析）存在 4 个顽固问题：
 | DocumentContent fullText 跨页回退为空 | 转换器或单测构建 DocumentContent 时第三参数 fullText 可能为空字符串 | 跨页回退查找前必须优先 `combinePages(bidDoc)` 将各页拼接，防止被空字符串阻断 |
 | 纯核心业务流使用 try-catch | 为了容错捕获 NumberFormatException，在 pure-core 中随手写了 try-catch | FP-Java 门禁严查 pure-core 中的 try-catch 块，数字解析前必须前置正则格式校验，杜绝以异常驱动控制流 |
 
+---
+
+## 235. 标书质检「电子标 CA 证书与签章有效性」两阶段契约与反假重构：纸质标免收直通 + 真实证书强凭证直通 + 目录点线与未填模板拦截 + 阶段 1 文书附件凭证类 100% 全面大收官（2026-09-06）
+
+**背景**：
+在标书质量核查体系中，第 24 项「电子标 CA 证书」（CA_CERTIFICATE）属于电子投标关键响应项。以往核查存在四大痛点：
+1. **纸质标/线下标虚假拦截**：招标文件明确为纸质标、线下开标或无需电子签章时，原系统依然盲目核查 CA 证书，产生严重误报；
+2. **目录页点线索引欺骗假通过**：标书仅在目录中包含 `五、CA数字证书及签章有效性证明......58`，被弱包含规则误判为已提供真实证书；
+3. **未填占位符模板放行**：标书正文直接粘贴 `【此处粘贴CA数字证书】` 或下划线留白，无实际证书却假通过；
+4. **规范标书重复耗时调用 LLM**：标书已提供完备真实的 CFCA/沃通/契约锁/北京CA 证书序列号与有效期，却仍走大模型，增加延迟与抖动。
+
+**根因**：
+1. **契约未闭环**：招标端未独立建立 `CaCertificateRequirement`，无法精准表达交易平台名称、免收信号（纸质标/线下标）与电子签章要求；
+2. **反假与要素核查缺失**：未剔除目录点线页，未拦截模板占位符，未强约束真实颁发机构与证书序列号/有效期等事实特征；
+3. **双层裁决未贯通**：缺乏免收直通与真实强凭证直通，存疑场景未注入准则 11 深度裁决。
+
+**修复方案（标准 6 步门禁）**：
+1. **招标端结构化契约（`CaCertificateRequirement`）**：独立顶层不可变 Record 契约，支持交易平台名称、证书复印件/有效性证明要求、电子签章要求，提供双轨优先融合 `fuseWithDeterministic`；
+2. **双轨确定性提取（`DeterministicCaCertificateExtractor`）**：纯核心正则识别纸质标/线下标等免收信号，提取政采云/公共资源交易平台等指定平台，支持 DocumentContent 与 String 双重重载；
+3. **电子标 CA 证书反假核验策略（`CaCertificateCheckPolicy`）**：
+   - 物理剔除目录点线页（`isCatalogOrOutlinePage`）；
+   - 拦截未替换模板占位符（`UNFILLED_PLACEHOLDER_PATTERN`），未填占位符直接判定 FAIL 反假拦截；
+   - 强凭证事实要素核验（权威 CA 机构如 CFCA/沃通/契约锁/天威诚信/北京CA等，以及证书序列号、算法、有效期等事实特征）；
+4. **引擎全链路集成与阶段 1 全面大收官**：
+   - 纸质标/免收 CA 确定性直出 PASS（0 次 LLM 耗时抗抖动）；
+   - 规范真实证书强凭证直通 PASS（0 次 LLM 耗时）；
+   - 存疑或未附带凭证场景流转至大模型，注入准则 11 深度裁决；
+   - 阶段 1（6 项文书附件凭证类）100% 全部高质量收官达成；
+5. **测试矩阵与架构闭环**：落地 58 个测试用例，全套 ArchitectureTest 架构守卫测试 100% 绿灯，严格保持单文件 `<= 300` 行与 FP-Java 契约。
+
+**教训**：
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| 单方法重载参数为 null 引发歧义 | 调用 `SubItemAndAttachmentRules.checkCaCertificate(bidDoc, null)` 时，因同时存在 `(DocumentContent, String)` 和 `(DocumentContent, CaCertificateRequirement)` 重载导致编译歧义 | 在单一参数重载中明确委托无参调用 `checkCaCertificate(bidDoc)` 或强制显式转型强类型，杜绝模糊 null 传递 |
+| 状态机与任务单测 mock 次数联动 | 引入新质检项走 LLM 兜底时，全量异步任务执行器的总调用数发生变化 | 任务级集成单测中若测试“解析失败阈值告警”，mock 次数需随参与大模型裁决的检查项总数同步递增维护 |
+| 双重重载支持纯文本与分页文档 | Extractor 内部可能面对拼接纯文本 fullText 亦可能面对 PageContent 分页结构 | 提取器应同时提供 `extract(DocumentContent)` 与 `extract(String)`，兼顾性能与各层调用便利 |
+
+
 
 
 

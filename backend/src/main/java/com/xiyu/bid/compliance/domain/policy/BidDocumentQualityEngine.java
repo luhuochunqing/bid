@@ -1,5 +1,5 @@
 // Input: 投标/招标文件分页内容 + 知识库匹配 + 招标要求 + 失败知识库源 + 可选 LLM lane
-// Output: 25 项标准化核查结果（确定性 lane 毫秒级 + 投标函/保证金强凭证直通与存疑深度裁决 + 语义项混合裁决，证据经 EvidenceLocator 真实定位）
+// Output: 25 项标准化核查结果（确定性 lane 毫秒级 + 投标函/保证金/CA证书强凭证直通与存疑深度裁决 + 语义项混合裁决，证据经 EvidenceLocator 真实定位）
 // Pos: compliance/domain/policy/ - 25 项聚合裁决编排器（spec 049 US5 / T046：规则 lane + LLM lane 拆分）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
@@ -98,6 +98,10 @@ public final class BidDocumentQualityEngine {
         if (effective.priceRequirement() != null) {
             resultMap.put(BidQualityCheckItem.PRICE_CONSISTENCY.getCode(),
                     BasicInfoCheckPolicy.checkPriceConsistency(bidDoc, effective.priceRequirement()));
+        }
+        if (effective.caCertificateRequirement() != null) {
+            resultMap.put(BidQualityCheckItem.CA_CERTIFICATE.getCode(),
+                    SubItemAndAttachmentRules.checkCaCertificate(bidDoc, effective.caCertificateRequirement()));
         }
 
         // 2. 语义 lane：规则硬信号优先，其次 LLM 裁决，lane 缺省则 MANUAL 降级
@@ -225,7 +229,26 @@ public final class BidDocumentQualityEngine {
             resultMap.put(BidQualityCheckItem.BID_OPENING_TABLE.getCode(), tableVerdict);
         }
 
-        // 10. 严格按 25 项标准序号排序输出
+        // 10. 电子标 CA 证书与签章有效性要求联动与标书端 LLM 深度语义裁决接通（免收直通，强凭证直通，占位未填 FAIL 保留，存疑或未检出接通 LLM）
+        QualityCheckItemResult existingCa = resultMap.get(BidQualityCheckItem.CA_CERTIFICATE.getCode());
+        boolean caNotRequired = effective.caCertificateRequirement() != null
+                && !effective.caCertificateRequirement().required();
+        if (!caNotRequired) {
+            boolean hasStrongCaPass = existingCa != null
+                    && existingCa.status() == QualityCheckStatus.PASS
+                    && !existingCa.evidences().isEmpty();
+            boolean isCaPlaceholderFail = existingCa != null
+                    && existingCa.status() == QualityCheckStatus.FAIL
+                    && existingCa.conclusion() != null
+                    && existingCa.conclusion().contains("占位");
+            if (!hasStrongCaPass && !isCaPlaceholderFail && llm != null) {
+                QualityCheckItemResult caVerdict = llm.adjudicateItem(
+                        BidQualityCheckItem.CA_CERTIFICATE, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
+                resultMap.put(BidQualityCheckItem.CA_CERTIFICATE.getCode(), caVerdict);
+            }
+        }
+
+        // 11. 严格按 25 项标准序号排序输出
         List<QualityCheckItemResult> sorted = new ArrayList<>(resultMap.values());
         sorted.sort(Comparator.comparingInt(QualityCheckItemResult::order));
         return sorted;

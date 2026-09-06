@@ -16,10 +16,12 @@ import com.xiyu.bid.compliance.domain.policy.AuthorizationRequirement;
 import com.xiyu.bid.compliance.domain.policy.BidDocumentQualityEngine;
 import com.xiyu.bid.compliance.domain.policy.BidLetterRequirement;
 import com.xiyu.bid.compliance.domain.policy.BusinessLicenseRequirement;
+import com.xiyu.bid.compliance.domain.policy.CaCertificateRequirement;
 import com.xiyu.bid.compliance.domain.policy.DepositRequirement;
 import com.xiyu.bid.compliance.domain.policy.DeterministicAuthorizationExtractor;
 import com.xiyu.bid.compliance.domain.policy.DeterministicBidLetterExtractor;
 import com.xiyu.bid.compliance.domain.policy.DeterministicBusinessLicenseExtractor;
+import com.xiyu.bid.compliance.domain.policy.DeterministicCaCertificateExtractor;
 import com.xiyu.bid.compliance.domain.policy.DeterministicDepositExtractor;
 import com.xiyu.bid.compliance.domain.policy.DeterministicFinancialExtractor;
 import com.xiyu.bid.compliance.domain.policy.DeterministicIdAuthLetterExtractor;
@@ -157,6 +159,10 @@ public class BidQualityCheckAsyncExecutor {
             if (detPrice != null) {
                 requirements = requirements.withPriceRequirement(PriceRequirement.fuseWithDeterministic(requirements.priceRequirement(), detPrice));
             }
+            CaCertificateRequirement detCa = DeterministicCaCertificateExtractor.extract(tenderDoc.fullText());
+            if (detCa != null) {
+                requirements = requirements.withCaCertificateRequirement(CaCertificateRequirement.fuseWithDeterministic(requirements.caCertificateRequirement(), detCa));
+            }
 
             // Step 2: 知识库检索与 25 项规则核查 (progress: 60)
             progressUpdater.updateProgress(resultId, ComplianceCheckResult.TaskStatus.CHECKING, 60, "正在对照企业知识库并执行25项质量核查...");
@@ -196,14 +202,8 @@ public class BidQualityCheckAsyncExecutor {
                 else manual++;
             }
 
-            ComplianceCheckResult.Status overallStatus;
-            if (failed > 0) {
-                overallStatus = ComplianceCheckResult.Status.NON_COMPLIANT;
-            } else if (manual > 0) {
-                overallStatus = ComplianceCheckResult.Status.PARTIAL_COMPLIANT;
-            } else {
-                overallStatus = ComplianceCheckResult.Status.COMPLIANT;
-            }
+            ComplianceCheckResult.Status overallStatus = failed > 0 ? ComplianceCheckResult.Status.NON_COMPLIANT
+                    : manual > 0 ? ComplianceCheckResult.Status.PARTIAL_COMPLIANT : ComplianceCheckResult.Status.COMPLIANT;
 
             int riskScore = Math.min(100, failed * 20 + manual * 5);
             String checkDetailsJson = OBJECT_MAPPER.writeValueAsString(itemResults);

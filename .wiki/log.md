@@ -3,6 +3,16 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-06] feat | 标书质检「电子标 CA 证书与签章有效性」（CA_CERTIFICATE）两阶段契约与反假重构暨阶段 1 文书附件凭证类 100% 全面大收官
+
+- 触发：推进 25 项质检项语义化演进之第 24 项「电子标 CA 证书」（CA_CERTIFICATE，PRD 2.3 第 24 项，级别 HIGH），实现阶段 1（6 项文书附件凭证类）100% 全面大收官。
+- 方案：
+  - 招标端契约：新建独立顶层 Record `CaCertificateRequirement` 与纯核心确定性提取器 `DeterministicCaCertificateExtractor`（支持 DocumentContent 与 String 双重重载），提取指定交易平台名称、证书复印件要求、电子签章要求，识别纸质标/线下标等免收信号并实现双轨融合；
+  - 标书端反假与要素核查：`CaCertificateCheckPolicy` 物理剔除目录点线页（`isCatalogOrOutlinePage`），拦截未填模板占位符（【此处粘贴CA数字证书】等直接 FAIL 拦截），严格核验权威 CA 机构（CFCA/沃通/契约锁/北京CA/天威诚信等）与证书序列号、国密算法、有效期至等真实证书事实特征；
+  - 引擎协同与双层裁决：`BidDocumentQualityEngine` 落实纸质标/免收 CA 场景确定性直出 PASS（LLM 0 次调用防抖动），规范真实证书强凭证直通 PASS（LLM 0 次调用），未附带凭证或存疑场景流转至大模型准则 11 深度裁决与 `SemanticPageRetriever` 候选页检索；
+- 结果：落地 5 个专属单测套件，单文件行预算均严格控制在 300 行内，58 项单元与 FP-Java 架构测试全绿。阶段 1 涉及的 6 项文书附件凭证全部 100% 达成。
+- 页面更新：更新 [[bid-quality-check-realization]] §4.30 与 sources；lessons-learned.md §235；更新 active 语义路线图标记阶段 1 达成。
+
 ## [2026-09-06] feat | 标书质检「报价一致性」（PRICE_CONSISTENCY）与「开标一览表」（BID_OPENING_TABLE）两阶段契约与反假重构
 
 - 触发：推进 25 项质检项语义化演进之核心项「报价一致性」（PRICE_CONSISTENCY，PRD 2.3 第 6 项）与「开标一览表/报价表」（BID_OPENING_TABLE，PRD 2.3 第 22 项，均属 CRITICAL 级别）。

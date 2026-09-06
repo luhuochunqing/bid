@@ -735,4 +735,89 @@ class BidDocumentQualityEngineTest {
         assertThat(tableResult.status()).isEqualTo(QualityCheckStatus.FAIL);
         assertThat(tableResult.conclusion()).contains("占位模板");
     }
+
+    @Test
+    @DisplayName("电子标CA证书：招标文件明确免除或纸质标时，直接直出 PASS")
+    void testEvaluateAll_WhenCaCertificateNotRequired_PassesWithoutLlm() {
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_ca_doc", "正文内容");
+        TenderRequirements req = new TenderRequirements(
+                List.of(), List.of(), List.of(), List.of(), List.of(),
+                null, null, null, null, null, null, null,
+                new CaCertificateRequirement(false, null, false, false, "纸质标免除CA数字证书要求"),
+                false);
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), req, Set.of());
+
+        QualityCheckItemResult caResult = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.CA_CERTIFICATE.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(caResult.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(caResult.conclusion()).contains("未要求 CA 电子签章或数字证书");
+    }
+
+    @Test
+    @DisplayName("电子标CA证书反假：规范标书附真实CA证书及序列号时，强凭证直通 PASS")
+    void testEvaluateAll_WhenCaCertificateRealCredentials_PassesDirectly() {
+        String caPage = """
+                五、CA数字证书及签章有效性证明
+                颁发机构：CFCA中国金融认证中心
+                证书序列号：2026-CA-99882211A
+                证书持有主体：西域数智技术有限公司
+                算法：SM2/SM3 国密算法
+                有效期至：2027-12-31
+                电子签章有效性状态：有效，时间戳验证通过
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_ca_real", caPage);
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), TenderRequirements.empty(), Set.of());
+
+        QualityCheckItemResult caResult = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.CA_CERTIFICATE.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(caResult.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(caResult.conclusion()).contains("真实有效");
+        assertThat(caResult.evidences()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("电子标CA证书反假：目录点线不被误认为有效凭据，判定为 FAIL")
+    void testEvaluateAll_WhenCaCertificateOnlyCatalog_Fails() {
+        String catalogPage = "目录\n五、CA数字证书及签章有效性证明........................58";
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_ca_cat", catalogPage);
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), TenderRequirements.empty(), Set.of());
+
+        QualityCheckItemResult caResult = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.CA_CERTIFICATE.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(caResult.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(caResult.conclusion()).contains("目录");
+    }
+
+    @Test
+    @DisplayName("电子标CA证书反假：检测到未填写占位符模板时，直接 FAIL 拦截")
+    void testEvaluateAll_WhenCaCertificatePlaceholder_FailsDirectly() {
+        String placeholderPage = "CA数字证书及签章\n【此处粘贴CA数字证书及电子签章有效性证明】";
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_ca_placeholder", placeholderPage);
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), TenderRequirements.empty(), Set.of());
+
+        QualityCheckItemResult caResult = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.CA_CERTIFICATE.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(caResult.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(caResult.conclusion()).contains("占位模板");
+    }
 }

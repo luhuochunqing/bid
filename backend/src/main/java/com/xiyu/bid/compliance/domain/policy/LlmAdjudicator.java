@@ -156,7 +156,8 @@ public final class LlmAdjudicator {
                 .append("7. 若检查项为【委托人身份证原件 + 授权委托书/法定代表人身份证明】：必须核查标书是否包含真实清晰的身份证扫描件或复印件正反面；核查是否包含有效 18 位公民身份号码及人像面/国徽面要素；若招标文件明确要求社保证明，必须核验是否包含社保缴纳凭据；若仅在目录页列出条目、仅为占位模板未填（如【此处粘贴身份证正反面】、下划线留白）或未附实际证件，绝对不得判定为 PASS！\n")
                 .append("8. 若检查项为【资格性评审条款响应 / 财务状况证明与财务审计报告】：必须核查标书是否包含真实完备的财务会计报表（资产负债表、利润表、现金流量表）及会计师事务所出具的审计报告（包含无保留审计意见、会计师事务所印章及注册会计师签章）；若招标文件指定了具体年份要求，必须核验标书报表年份是否完全覆盖；若仅在目录页列出索引条目、仅为占位模板未填（如【此处插入审计报告】、下划线留白）或未附实际财务报表正文，绝对不得判定为 PASS！\n")
                 .append("9. 若检查项为【开标一览表/报价表】：必须核查标书是否包含真实完备的开标一览表或报价表正文（具备规范表头如序号、名称、规格型号、数量、单价、合价、投标总价等及实际填报数据）；若仅在目录页列出索引条目（含省略号/点线）、仅为占位模板未填（如【此处粘贴开标一览表】、下划线留白）或未附实际表格正文，绝对不得判定为 PASS！\n")
-                .append("10. 若检查项为【报价一致性】：必须核查投标总报价大写金额与小写阿拉伯数字是否相符；若招标文件设定了最高投标限价/招标控制价/采购预算，投标报价高于最高限价属于法定废标红线，绝对不得判定为 PASS，必须判定为 FAIL！若开标一览表总价与投标函总价不一致，必须判定为 FAIL！\n\n");
+                .append("10. 若检查项为【报价一致性】：必须核查投标总报价大写金额与小写阿拉伯数字是否相符；若招标文件设定了最高投标限价/招标控制价/采购预算，投标报价高于最高限价属于法定废标红线，绝对不得判定为 PASS，必须判定为 FAIL！若开标一览表总价与投标函总价不一致，必须判定为 FAIL！\n")
+                .append("11. 若检查项为【电子标 CA 证书与签章有效性】：若招标文件明确免除 CA/未要求电子签章或为纸质标/线下标，必须判定为 PASS；若要求提供 CA 证书，必须核查标书是否包含真实有效的 CA 数字证书有效性证明或电子签章信息（具颁发机构如 CFCA/沃通/契约锁/北京CA/天威诚信等、证书序列号、算法、有效期等事实要素）；若仅在目录页列出索引条目（含省略号/点线）、仅为占位模板未填（如【此处粘贴CA数字证书】、下划线留白）或未附实际凭证，绝对不得判定为 PASS，必须判定为 FAIL！\n\n");
         sb.append("【招标要求（LLM 结构化提取）】\n").append(summarizeRequirements(requirements)).append("\n\n");
         sb.append("【企业知识库真实记录】\n").append(summarizeKbMatches(kbMatches)).append("\n\n");
         sb.append("【招标文件相关内容】\n")
@@ -230,6 +231,14 @@ public final class LlmAdjudicator {
                             : (requirements.priceRequirement().maxPriceRawText() != null
                                     ? "最高限价: " + requirements.priceRequirement().maxPriceRawText()
                                     : "按规定填报报价"))).append('\n');
+        }
+        if (requirements.caCertificateRequirement() != null) {
+            String desc = requirements.caCertificateRequirement().description();
+            sb.append("CA证书要求: ").append(desc != null && !desc.isBlank()
+                    ? desc
+                    : (Boolean.FALSE.equals(requirements.caCertificateRequirement().required())
+                            ? "免收/不涉及CA证书"
+                            : "电子交易平台: " + (requirements.caCertificateRequirement().platformName() != null ? requirements.caCertificateRequirement().platformName() : "指定平台") + "，须完成CA数字证书办理及有效性验证")).append('\n');
         }
         return sb.toString();
     }

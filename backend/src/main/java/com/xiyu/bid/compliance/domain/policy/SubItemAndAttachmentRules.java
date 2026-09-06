@@ -150,20 +150,18 @@ public final class SubItemAndAttachmentRules {
     }
 
     public static QualityCheckItemResult checkCaCertificate(final DocumentContent bidDoc) {
-        return checkCaCertificate(bidDoc, null);
+        return checkCaCertificate(bidDoc, (CaCertificateRequirement) null);
     }
 
     public static QualityCheckItemResult checkCaCertificate(final DocumentContent bidDoc, final String tenderText) {
-        BidQualityCheckItem item = BidQualityCheckItem.CA_CERTIFICATE;
-        if (isCaNotRequired(tenderText)) {
-            return QualityCheckItemResult.pass(item, "招标文件未要求 CA 电子签章或数字证书（不涉及）", Collections.emptyList());
-        }
-        BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc,
-                "CA数字证书", "CA电子签章", "数字证书认证", "电子印章", "CA证书");
-        if (match != null) {
-            return QualityCheckItemResult.pass(item, "包含 CA 电子签章或数字证书有效性标识", List.of(QualityEvidence.bid("CA/签章标识", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(match.text(), 200, "CA", "数字证书", "电子签章", "电子印章"))));
-        }
-        return QualityCheckItemResult.manualReview(item, "未识别到 CA 证书明文字符（如为电子标，请在交易平台客户端核验 CA 锁签名）", "建议使用 CA 客户端校验数字证书有效性", Collections.emptyList());
+        CaCertificateRequirement req = tenderText != null
+                ? DeterministicCaCertificateExtractor.extract(DocumentContent.fromText("tender.txt", "hash", tenderText))
+                : null;
+        return checkCaCertificate(bidDoc, req);
+    }
+
+    public static QualityCheckItemResult checkCaCertificate(final DocumentContent bidDoc, final CaCertificateRequirement requirement) {
+        return CaCertificateCheckPolicy.check(bidDoc, requirement);
     }
 
     public static QualityCheckItemResult checkDepositRefund(final DocumentContent bidDoc) {
@@ -257,25 +255,5 @@ public final class SubItemAndAttachmentRules {
                 || pageText.contains("此处粘贴");
 
         return hasGuaranteeDetail && !isTemplateOrFormat;
-    }
-
-    private static boolean isCaNotRequired(final String tenderText) {
-        if (tenderText == null || tenderText.isBlank()) {
-            return false;
-        }
-        if ((tenderText.contains("无需") && tenderText.contains("CA"))
-                || (tenderText.contains("不要求") && tenderText.contains("CA"))
-                || tenderText.contains("纸质标")
-                || tenderText.contains("不使用电子签章")) {
-            return true;
-        }
-        boolean tenderRequiresCa = tenderText.contains("电子招投标")
-                || tenderText.contains("CA证书")
-                || tenderText.contains("CA数字证书")
-                || tenderText.contains("电子签章")
-                || tenderText.contains("电子印章")
-                || tenderText.contains("数字证书有效")
-                || tenderText.contains("加密投标文件");
-        return !tenderRequiresCa;
     }
 }

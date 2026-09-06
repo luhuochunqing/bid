@@ -31,11 +31,11 @@
 | 序号 | 代码 (`code`) | 名称 (`title`) | 类别 | 严重度 | 现状底座 | 演进归宿与策略 | 规划批次 |
 |---|---|---|---|---|---|---|---|
 | 1 | `COVER_INFO` | 封面信息完整性 | 基本信息 | HIGH | 确定性正则 | 实体抽取（项目名/编号/日期）比对 | 第三批次 |
-| 2 | `BID_LETTER_FORMAT` | 投标函格式规范 | 基本信息 | HIGH | 确定性正则 | 文书契约 + 称谓/落款事实核查 + 强凭证直通 | **第一批次** |
-| 3 | `AUTHORIZATION_LETTER` | 授权委托书 | 基本信息 | CRITICAL | 确定性正则 | 文书契约 + 授权期限/公章事实要素 | **第一批次** |
-| 4 | `BUSINESS_LICENSE` | 营业执照 | 基本信息 | CRITICAL | 确定性正则 | 证照契约 + 统一社会信用代码/印章要素 | **第一批次** |
+| 2 | `BID_LETTER_FORMAT` | 投标函格式规范 | 基本信息 | HIGH | 两阶段双轨 | **已闭环**（文书契约 + 称谓/落款事实核查 + 强凭证直通，PR #2555） | **已完成** |
+| 3 | `AUTHORIZATION_LETTER` | 授权委托书 | 基本信息 | CRITICAL | 两阶段双轨 | **已闭环**（文书契约 + 授权期限/公章事实要素，PR #2556） | **已完成** |
+| 4 | `BUSINESS_LICENSE` | 营业执照 | 基本信息 | CRITICAL | 两阶段双轨 | **已闭环**（证照契约 + 统一社会信用代码/印章要素，PR #2557） | **已完成** |
 | 5 | `QUALIFICATION_MATCH` | 资质匹配 | 基本信息 | CRITICAL | LLM 语义 | 资质库知识比对深化，保持 LLM | 第二批次 |
-| 6 | `PRICE_CONSISTENCY` | 报价一致性 | 基本信息 | CRITICAL | 确定性正则 | 中文大写金额转换 + 算术比对 | 第三批次 |
+| 6 | `PRICE_CONSISTENCY` | 报价一致性 | 基本信息 | CRITICAL | 两阶段双轨 | **已闭环**（最高限价硬核验 + 表函总价一致性比对，PR #2563） | **已完成** |
 | 7 | `CURRENCY_UNIT` | 货币单位 | 基本信息 | MEDIUM | 确定性正则 | 物理层正则，零 Token 消耗保持 | 第四批次（保留） |
 | 8 | `SCHEDULE_RESPONSE` | 工期响应 | 基本信息 | HIGH | 确定性正则 | 实体抽取（天数/日历天）+ 逻辑计算 | 第三批次 |
 | 9 | `SIGNATURE_SEAL` | 签章完整性 | 基本信息 | CRITICAL | 确定性正则 | 印章视觉/文本特征多模态核验 | 第三批次 |
@@ -43,17 +43,17 @@
 | 11 | `QUALIFICATION_VETO` | 资格条件一票否决 | 分项合规 | CRITICAL | LLM 语义 | 硬资格一票否决，深化 Fact Schema | 第二批次 |
 | 12 | `FRONT_TABLE_RESPONSE`| 前附表关键条款填写完整性 | 分项合规 | CRITICAL | LLM 语义 | 前附表条款级对齐 Schema 升级 | 第二批次 |
 | 13 | `RESPONSIVENESS_REVIEW`| 响应性评审条款 | 分项合规 | CRITICAL | LLM 语义 | 偏离表深度比对，保持 LLM 语义 | 第二批次 |
-| 14 | `QUALIFICATION_REVIEW` | 资格性评审条款响应 | 分项合规 | HIGH | LLM 语义 | 资格条款全面响应度分析 | 第二批次 |
+| 14 | `QUALIFICATION_REVIEW` | 资格性评审条款响应 | 分项合规 | HIGH | 两阶段双轨 | **部分已闭环**（财务三表与审计报告核验已闭环，PR #2560） | 第二批次 |
 | 15 | `SCORING_RESPONSE` | 评分项响应（按满分标准） | 分项合规 | HIGH | LLM 语义 | 评分维度与知识库联动打分 | 第二批次 |
 | 16 | `DOCUMENT_COMPLETENESS`| 投标文件组成完整性 | 分项合规 | HIGH | 确定性正则 | 目录章节与招标文件组成清单比对 | 第三批次 |
 | 17 | `TEMPLATE_FORMAT` | 格式模板符合性 | 分项合规 | MEDIUM | 确定性正则 | 排版字号物理指标，零 Token 保持 | 第四批次（保留） |
 | 18 | `VETO_KEYWORD` | 投标否决项关键字扫描 | 分项合规 | CRITICAL | 混合通道 | 废标词上下文语义否定消除（反向词）| 第三批次 |
 | 19 | `CLARIFICATION_RESPONSE`| 澄清文件响应 | 分项合规 | HIGH | LLM 语义 | 澄清问答与标书修改点比对 | 第二批次 |
 | 20 | `COMMITMENT_SEAL` | 承诺类文件盖章检查 | 分项合规 | HIGH | 确定性正则 | 承诺函段落印章标记 | 第四批次（保留） |
-| 21 | `ID_AUTH_LETTER` | 委托人身份证原件 + 授权委托书 | 附件清单 | HIGH | 确定性正则 | 证件契约 + 身份证号/社保特征要素 | **第一批次** |
-| 22 | `BID_OPENING_TABLE` | 开标一览表/报价表 | 附件清单 | CRITICAL | 确定性正则 | 表格契约 + 表格结构与金额要素 | **第一批次** |
+| 21 | `ID_AUTH_LETTER` | 委托人身份证原件 + 授权委托书 | 附件清单 | HIGH | 两阶段双轨 | **已闭环**（证件契约 + 身份证号/社保特征要素，PR #2558） | **已完成** |
+| 22 | `BID_OPENING_TABLE` | 开标一览表/报价表 | 附件清单 | CRITICAL | 两阶段双轨 | **已闭环**（表格契约 + 表格结构与金额提取，PR #2563） | **已完成** |
 | 23 | `DEPOSIT_RECEIPT` | 投标保证金回单 | 附件清单 | CRITICAL | 两阶段双轨 | **已闭环**（标杆范例，PR #2553） | **已完成** |
-| 24 | `CA_CERTIFICATE` | 电子标 CA 证书 | 附件清单 | HIGH | 确定性正则 | 电子标契约 + CA 锁/数字证书标识 | **第一批次** |
+| 24 | `CA_CERTIFICATE` | 电子标 CA 证书 | 附件清单 | HIGH | 两阶段双轨 | **已闭环**（电子标契约 + CA机构与序列号/免收直通） | **已完成** |
 | 25 | `DEPOSIT_REFUND` | 保证金退款信息表 / 收据 | 附件清单 | MEDIUM | 确定性联动 | **已闭环**（与第 23 项联动免除） | **已完成** |
 
 ---
@@ -70,19 +70,20 @@
   - 强凭证确定性直通，可疑/未命中调用 `LlmAdjudicator` 深度裁决；
   - 138 项自动化测试矩阵覆盖，0 失败。
 
-### 阶段 1：攻坚 6 项文书附件凭证类（当前任务批次，预计 3~4 人天）
+### 阶段 1：攻坚 6 项文书附件凭证类（100% 全面大收官！）
 - **攻坚清单**：
-  1. `BID_LETTER_FORMAT`（投标函格式规范）
-  2. `AUTHORIZATION_LETTER`（授权委托书）
-  3. `BUSINESS_LICENSE`（营业执照）
-  4. `ID_AUTH_LETTER`（身份证与社保证明）
-  5. `BID_OPENING_TABLE`（开标一览表/报价表）
-  6. `CA_CERTIFICATE`（电子标 CA 证书）
-- **核心模式**：
-  - 针对每个检查项立独立契约 record；
-  - 建立强凭证要素排除目录点线（`......`）与占位符；
-  - 实行强凭证直通，可疑时引入大模型事实裁决；
-  - 编写靶向防假单测（必须包含强关键词无流水号/要素反例）。
+  1. `BID_LETTER_FORMAT`（投标函格式规范）—— **已完成**（PR #2555）
+  2. `AUTHORIZATION_LETTER`（授权委托书）—— **已完成**（PR #2556）
+  3. `BUSINESS_LICENSE`（营业执照）—— **已完成**（PR #2557）
+  4. `ID_AUTH_LETTER`（身份证与社保证明）—— **已完成**（PR #2558）
+  5. `BID_OPENING_TABLE`（开标一览表/报价表）—— **已完成**（PR #2563）
+  6. `CA_CERTIFICATE`（电子标 CA 证书）—— **已完成**（当前 PR）
+- **核心成果**：
+  - 阶段 1 涉及的 6 项文书附件凭证全部完成专属顶层不可变 Record 契约与确定性双轨提取器；
+  - 物理剔除目录点线页（`......`）及未填占位模板（`【此处粘贴...】`、下划线留白），彻底杜绝目录假通过；
+  - 规范标书真实凭证（CFCA/沃通/契约锁/北京CA、序列号、算法、有效期等）强凭证直通 PASS（0 次 LLM 耗时抗抖动）；
+  - 纸质标/线下标/免收 CA 场景确定性直出 PASS，存疑或未附带凭证调用大模型深度裁决（准则 11）；
+  - 单文件 <= 300 行预算与 FP-Java 契约 100% 达标。
 
 ### 阶段 2：深化 7 项深度语义项（预计 4~5 人天）
 - **覆盖清单**：`QUALIFICATION_MATCH`、`QUALIFICATION_VETO`、`FRONT_TABLE_RESPONSE`、`RESPONSIVENESS_REVIEW`、`QUALIFICATION_REVIEW`、`SCORING_RESPONSE`、`CLARIFICATION_RESPONSE`；

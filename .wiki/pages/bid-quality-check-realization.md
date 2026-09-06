@@ -43,6 +43,9 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicPriceExtractor.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/PriceConsistencyCheckPolicy.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/BidOpeningTableCheckPolicy.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/CaCertificateRequirement.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicCaCertificateExtractor.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/CaCertificateCheckPolicy.java
   - docs/lessons/lessons-learned.md
 backlinks:
   - _index
@@ -239,6 +242,12 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **开标一览表反假与总价提取**：标书端 `BidOpeningTableCheckPolicy` 物理排除目录点线页（`isCatalogOrOutlinePage`），并拦截未替换模板占位符（【此处粘贴开标一览表】等直接 FAIL 拦截），严格核验序号、名称、规格型号、单价、合价等表头实质结构，提取表格总报价供跨表勾稽；
     - **报价一致性与限价核验策略**：`PriceConsistencyCheckPolicy` 支持公文带括号格式，大写折算数字与小写阿拉伯数字核验；**最高限价超限硬核验**（高于最高限价立即判定法定废标 FAIL）；**表函总价一致性核验**（开标一览表总价与投标函总价冲突立即 FAIL）；逐页未命中时自动跨页全文回退；
     - **强事实直通与存疑双层裁决**：规范标书大写小写一致且未超限价强凭证直通 PASS（LLM 0 次调用防抖动）；硬性超限价、表函冲突或占位符未填直接 FAIL 阻断，禁止大模型覆盖；存疑或未提取场景接通大模型准则 9（开标一览表反假）与准则 10（限价超限与报价一致性）深度裁决并调用 `SemanticPageRetriever` 候选页检索。
+30. **电子标 CA 证书(CA_CERTIFICATE)两阶段结构化契约与反假重构暨阶段 1 全面大收官**（2026-09-06）：
+    - **两阶段结构化契约**：在 `TenderRequirements` 接入 `CaCertificateRequirement` 独立顶层 Record 契约（是否必须提供、交易平台名称、是否要求证书复印件/有效性证明、是否要求电子签章、要求说明），并建立纯核心 `DeterministicCaCertificateExtractor` 正则识别纸质标/线下标等免收信号，提取政采云/公共资源交易平台等指定平台，支持 DocumentContent 与 String 双重重载；
+    - **目录点线拦截与未填模板占位符反假**：标书端 `CaCertificateCheckPolicy` 物理排除目录点线页（`isCatalogOrOutlinePage`），并拦截未替换模板占位符（【此处粘贴CA数字证书】等直接 FAIL 反假拦截）；
+    - **权威机构与证书序列号/有效期事实核验**：严格核验 CFCA/沃通/契约锁/北京CA/天威诚信等权威认证机构，以及证书序列号、国密/公钥算法、有效期至等真实证书事实特征；
+    - **强事实直通与双层裁决闭环**：招标文件明确免除或纸质标时直接直出 PASS（0 次 LLM 耗时抗抖动）；标书附真实完备证书时强凭证直通 PASS（0 次 LLM 耗时）；未附带凭证或存疑场景流转至大模型准则 11 深度裁决并调用 `SemanticPageRetriever` 候选页检索；
+    - **阶段 1（6 项文书附件凭证类）100% 全面大收官**：至此，投标函、授权书、营业执照、身份证件、开标一览表、电子标 CA 证书全部完成两阶段双轨重构，全面摆脱脆弱纯正则与目录占位假通过。
 
 ## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
 
