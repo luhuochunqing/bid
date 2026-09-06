@@ -57,7 +57,8 @@ public final class SemanticRulesLane {
         return switch (item) {
             case QUALIFICATION_MATCH -> guardForComparison(item, requirements, failedKnowledgeSources,
                     "未在招标文件中提取到明确的硬性资格要求，请对照标书资质证明文件人工复核",
-                    "企业资质库查询异常，无法比对企业资质与招标硬性要求");
+                    "企业资质库查询异常，无法比对企业资质与招标硬性要求")
+                    .or(() -> QualificationMatchPolicy.checkFirstStage(bidDoc, requirements));
             case QUALIFICATION_VETO -> guardForComparison(item, requirements, failedKnowledgeSources,
                     "未在招标文件中提取到明确的一票否决与资格前置条件，请人工复核",
                     "企业资质库查询异常，无法核查一票否决与资格前置条件")
