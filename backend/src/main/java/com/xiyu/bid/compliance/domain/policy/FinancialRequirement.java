@@ -4,7 +4,6 @@
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
 
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 
@@ -41,7 +40,7 @@ public record FinancialRequirement(
     public static FinancialRequirement fuse(final FinancialRequirement a, final FinancialRequirement b) {
         if (a == null) return b;
         if (b == null) return a;
-        Boolean req = a.required() != null ? a.required() : b.required();
+        Boolean req = resolveRequired(a.required(), b.required());
         Boolean audit = Boolean.TRUE.equals(a.auditReportRequired()) || Boolean.TRUE.equals(b.auditReportRequired());
         Boolean cpa = Boolean.TRUE.equals(a.requireCpaSeal()) || Boolean.TRUE.equals(b.requireCpaSeal());
 
@@ -51,7 +50,7 @@ public record FinancialRequirement(
         LinkedHashSet<String> stmts = new LinkedHashSet<>(a.requiredStatements());
         stmts.addAll(b.requiredStatements());
 
-        String desc = a.description() != null && !a.description().isBlank() ? a.description() : b.description();
+        String desc = pickDescription(req, a, b);
         return new FinancialRequirement(req, audit, List.copyOf(years), List.copyOf(stmts), cpa, desc);
     }
 
@@ -59,22 +58,43 @@ public record FinancialRequirement(
         if (detReq == null) return llmReq;
         if (llmReq == null) return detReq;
 
-        Boolean req = detReq.required() != null ? detReq.required() : llmReq.required();
+        Boolean req = resolveRequired(detReq.required(), llmReq.required());
         Boolean audit = Boolean.TRUE.equals(detReq.auditReportRequired()) || Boolean.TRUE.equals(llmReq.auditReportRequired());
         Boolean cpa = Boolean.TRUE.equals(detReq.requireCpaSeal()) || Boolean.TRUE.equals(llmReq.requireCpaSeal());
 
         LinkedHashSet<String> years = new LinkedHashSet<>(detReq.requiredYears());
-        if (years.isEmpty()) {
-            years.addAll(llmReq.requiredYears());
-        }
+        years.addAll(llmReq.requiredYears());
 
         LinkedHashSet<String> stmts = new LinkedHashSet<>(detReq.requiredStatements());
-        if (stmts.isEmpty()) {
-            stmts.addAll(llmReq.requiredStatements());
-        }
+        stmts.addAll(llmReq.requiredStatements());
 
-        String desc = llmReq.description() != null && !llmReq.description().isBlank()
-                ? llmReq.description() : detReq.description();
+        String desc = pickDescription(req, llmReq, detReq);
         return new FinancialRequirement(req, audit, List.copyOf(years), List.copyOf(stmts), cpa, desc);
+    }
+
+    /** 免/要冲突时按审慎合规保留必须提供，与保证金 fuse 对齐. */
+    static Boolean resolveRequired(final Boolean a, final Boolean b) {
+        if (Boolean.TRUE.equals(a) || Boolean.TRUE.equals(b)) {
+            return true;
+        }
+        if (a != null) {
+            return a;
+        }
+        return b;
+    }
+
+    static String pickDescription(final Boolean required, final FinancialRequirement a, final FinancialRequirement b) {
+        if (Boolean.TRUE.equals(required)) {
+            if (Boolean.TRUE.equals(a.required()) && a.description() != null && !a.description().isBlank()) {
+                return a.description();
+            }
+            if (Boolean.TRUE.equals(b.required()) && b.description() != null && !b.description().isBlank()) {
+                return b.description();
+            }
+        }
+        if (a.description() != null && !a.description().isBlank()) {
+            return a.description();
+        }
+        return b.description();
     }
 }

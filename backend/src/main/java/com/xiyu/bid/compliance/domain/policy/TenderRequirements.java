@@ -109,12 +109,15 @@ public record TenderRequirements(
         if (raw == null || raw.isEmpty()) {
             return List.of();
         }
-        List<String> cleaned = new ArrayList<>(raw.size());
-        for (String item : raw) {
-            if (item == null || item.isBlank()) {
+        LinkedHashSet<String> cleaned = new LinkedHashSet<>();
+        for (String s : raw) {
+            if (s == null || s.isBlank()) {
                 continue;
             }
-            if (!DeterministicQualificationExtractor.isSpecificCertificate(item)) {
+            String item = DeterministicQualificationExtractor.cleanItem(s);
+            if (item.isBlank() || DeterministicQualificationExtractor.isIntroductoryHeading(item)
+                    || "/".equals(item) || "无".equals(item) || "不适用".equals(item)
+                    || !DeterministicQualificationExtractor.isSpecificCertificate(item)) {
                 continue;
             }
             cleaned.add(item);
