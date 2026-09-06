@@ -314,14 +314,17 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **业务层穿透与准则 20 升级**：`FinancialStatementCheckPolicy` 接入 `FinancialStatementAccuracyCalculator` 实现三表齐全时的穿透勾稽；`BasicInfoCheckPolicy.checkScheduleResponse` 串联商务条款与进度计划逻辑；`AdjudicationGuidelines` 追加《准则 20：财务三表平衡勾稽与进度计划合理性核验准则》；
     - **FP-Java 零异常纯核心保证**：严格遵守无 `try-catch` 纯算术逻辑，100% 通过 `FPJavaArchitectureTest` 与单文件行预算守卫。
 
-38. **偏离表结构化提取与条款响应性深度核验(DEVIATION_EXTRACT + RESPONSIVENESS_REVIEW)（阶段 3 攻坚）**（2026-09-06）：
-    - **偏离表结构化提取器（`DeviationTableExtractor`，240 行）**：纯领域无异常 Markdown 表格解析器，精准区分《商务偏离表》（`COMMERCIAL`）与《技术偏离表》（`TECHNICAL`）；逐行提取条款、招标要求、响应与说明，分类判定 `NONE`（无偏离/完全响应/斜杠规范填报）、`POSITIVE`（正偏离/优于招标要求）、`NEGATIVE`（负偏离/不满足/部分响应）、`UNKNOWN`；严格遵循 FP-Java，私有辅助方法均返回不可变集合；
-    - **响应性评审策略重构（`ResponsivenessReviewPolicy`，226 行）**：行级精准定位实质性负偏离行（直接 FAIL，精准输出违规条款与偏离原因）；过滤目录点线页（仅目录列出拦截 FAIL）；模板占位符未填反假拦截 FAIL；修复表头包含选项说明（如“正偏离/负偏离/无偏离”）导致的假阳性误报；全表无负偏离或包含正偏离直通 PASS 并附带亮点提示；
-    - **准则 21 落地**：`AdjudicationGuidelines` 扩充《准则 21：商务与技术偏离表提取与响应性核验准则》，保持 LLM 语义回退双轨一致。
+39. **质检结果长详情持久化扩容(MEDIUMTEXT)与前端失败态兜底（2026-09-06）**：
+    - **数据库与实体层扩容**：`compliance_check_results.check_details` 字段由 `TEXT`（最大 64KB）正式迁移至 `MEDIUMTEXT`（最大 16MB，Flyway `V1212` + 回滚 `U1212`），实体类 `ComplianceCheckResult.java` 同步将 `@Column(columnDefinition = "TEXT")` 修改为 `MEDIUMTEXT`，彻底解决大标书在 25 项深度比对后 JSON 详情超长导致的 `Data truncation: Data too long for column 'check_details'` 写入崩溃；
+    - **前端失败态持久化与交互兜底**：`useQualityCheckDrawer.js` 新增并维护 `errorMessage` 响应式变量，在轮询遇到 `FAILED`、超时或报告拉取失败时保留错误，杜绝 3 秒全局 Toast 一闪而过；`QualityCheckDrawer.vue` 新增基于 `el-result` 的持久化错误卡片（`v-else-if="errorMessage"`），内嵌可滚动错误详情代码框，并提供「重新核查（跳过缓存）」和「尝试恢复（检查缓存）」明确操作入口，杜绝失败态回退为空白态导致无法重试的问题。
 
-## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
+## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗；2026-09-06 失败卡片持久化）
 
-drawer 结构：汇总平铺卡（左上投标文件/核查时间，右上「重新核查」二次确认 + 「AI 评分」）→ 4 统计卡（点击筛选状态，「待确认项」）→ 三分类定位条（基本信息/分项合规/附件清单，点击展开分组并平滑滚动，**不**改状态筛选）→ 分组紧凑行。
+drawer 结构：
+- **运行中**：异步轮询进度条（`polling`）
+- **失败态**：持久化错误状态卡片（`errorMessage`），展示错误详情代码框、重新核查（跳过缓存）与尝试恢复按钮，杜绝仅靠 3 秒 Toast 导致用户误判为超时的假象；
+- **成功态**：汇总平铺卡（左上投标文件/核查时间，右上「重新核查」二次确认 + 「AI 评分」）→ 4 统计卡（点击筛选状态，「待确认项」）→ 三分类定位条（基本信息/分项合规/附件清单，点击展开分组并平滑滚动，**不**改状态筛选）→ 分组紧凑行；
+- **空白态**：尚未执行标书质量核查时展示空状态与立即核查按钮。
 
 - **紧凑行**（`QualityCheckItemCard`）：状态图标 + 检查项 + 结论（2 行省略，已剥离 reasonCode 前缀，前置"检查结论："）+ 右侧状态标签；整行可点击，不再平铺证据。
 - **详情弹窗**（`QualityCheckDetailDialog`，560px 居中）字段对照表：检查状态/检查项说明（优先 `description` 即 PRD 2.3 检查内容，旧快照缺失时回退名称）/AI 检查结论恒显；问题定位（BID 证据页码去重「第 12 / 56 页」）/原文摘录（BID quote，不高亮）/联动数据来源（KNOWLEDGE_BASE 证据→四库链接，点击 `router.push /knowledge/*`）仅非 PASS 显示；建议操作按状态固定文案。

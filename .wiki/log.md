@@ -3,6 +3,16 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-06] fix | 标书质检结果详情 MEDIUMTEXT 扩容与前端失败态持久卡片兜底
+
+- 触发：测试环境项目 1358 标书质量核查大文件时因 `check_details` 字段为 TEXT（64KB）导致 Data truncation 入库失败，前端 3 秒 Toast 一闪而过误判为超时。
+- 方案：
+  - 数据库与实体层：Flyway V1212 / U1212 将 `compliance_check_results.check_details` 扩容为 MEDIUMTEXT（16MB），实体类同步更新；测试数据库先行应用 DDL；
+  - 前端交互与兜底：`useQualityCheckDrawer.js` 维护 `errorMessage` 并在失败时持久保留；`QualityCheckDrawer.vue` 增加持久化错误状态卡片，内嵌错误详情代码框与重新核查入口；
+  - 知识沉淀：lessons-learned.md 追加 §246。
+- 结果：FlywayRollbackScriptCoverageTest、BidQualityCheckTaskAppServiceTest、useQualityCheckDrawer.spec.js 全数通过，pre-commit 门禁全绿。
+- 页面更新：更新 [[bid-quality-check-realization]] §39 与 §5。
+
 ## [2026-09-06] fix | PR !2570 复审跟进：评分/澄清占位正则三漏检修复（PR !2574）
 
 - 触发：PR !2570（评分 SCORING_RESPONSE / 澄清 CLARIFICATION_RESPONSE 两阶段穿透）事后复审发现三处漏检。
