@@ -3,6 +3,18 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-06] fix | PR !2570 复审跟进：评分/澄清占位正则三漏检修复（PR !2574）
+
+- 触发：PR !2570（评分 SCORING_RESPONSE / 澄清 CLARIFICATION_RESPONSE 两阶段穿透）事后复审发现三处漏检。
+- 方案：
+  - 占位正则增补 `此处|粘贴`（`【此处填写/粘贴…】`不再逃逸，`ScoringResponsePolicy` + `ClarificationResponsePolicy`）；
+  - 澄清编号留白分支允许前缀（`【确认收到第__号澄清】`可拦截，保留澄清文件/盖章旧匹配，不放宽 `_{3,}`）；
+  - 澄清直通 PASS 仅认强签署信号（盖章/签署/公章/法定代表人/授权代表/电子签章），删裸投标人/日期与通用词`无异议`；
+  - 新增 `EvidenceLocator.locateSkippingCatalog` + `EvidenceAssembler.locateBidSkippingCatalog`，展示证据穿透正文页（“仅目录列出”FAIL 证据保留原定位）。
+- 结果：新增 7 回归测试（修前 5 运行红 +2 编译红），修后 24/24 绿；policy 包 + 架构门禁 373/373 全绿；wiki:check 97 页全绿。
+- 页面更新：更新 [[bid-quality-check-realization]] §34（跟进修复条目）；lessons-learned.md §242；教训：占位类 PR 须把描述示例写成单测断言，反假测试优先单占位单页。
+- 备注：rebase 时与 main 的 `### Lesson 241`（签章/表格）尾部撞号，本任务 lesson 改记 242，对方内容逐字节保留（零删行校验）。
+
 ## [2026-09-06] feat | 标书质检「电子标 CA 证书与签章有效性」（CA_CERTIFICATE）两阶段契约与反假重构暨阶段 1 文书附件凭证类 100% 全面大收官
 
 - 触发：推进 25 项质检项语义化演进之第 24 项「电子标 CA 证书」（CA_CERTIFICATE，PRD 2.3 第 24 项，级别 HIGH），实现阶段 1（6 项文书附件凭证类）100% 全面大收官。
