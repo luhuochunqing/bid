@@ -156,7 +156,7 @@ class DeterministicCheckPolicyTest {
     @Test
     @DisplayName("营业执照与主体资格：识别 18 位统一社会信用代码")
     void testBusinessLicense_WithUSCC() {
-        String page = "企业资质证明\n营业执照\n统一社会信用代码：91310000775244192P\n西域供应链";
+        String page = "企业资质证明\n营业执照\n统一社会信用代码：91310000775244192P\n法定代表人：张三\n登记机关：上海市市场监督管理局\n西域供应链";
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash1", page);
 
         QualityCheckItemResult result = DeterministicCheckPolicy.checkBusinessLicense(doc);
@@ -180,7 +180,7 @@ class DeterministicCheckPolicyTest {
     void evidenceQuote_locatesAroundKeyword_onLongSinglePage() {
         String cover = "张家口银行 XX 电商平台采购项目 投标文件 投标人：西域智慧供应链（上海）股份公司 2026年6月21日";
         String filler = "服务承诺与实施方案填充内容，无核查关键词。".repeat(400);
-        String license = "第九章 资格证明文件\n营业执照\n统一社会信用代码：91310000775244192P\n营业期限：长期";
+        String license = "第九章 资格证明文件\n营业执照\n统一社会信用代码：91310000775244192P\n法定代表人：张三\n营业期限：长期";
         String hugeSinglePage = cover + filler + license;
         DocumentContent doc = DocumentContent.fromText("bid.docx", "hash_1352", hugeSinglePage);
 

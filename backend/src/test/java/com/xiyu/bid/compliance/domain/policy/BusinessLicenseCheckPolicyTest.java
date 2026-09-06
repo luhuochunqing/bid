@@ -129,4 +129,126 @@ class BusinessLicenseCheckPolicyTest {
         assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
         assertThat(result.conclusion()).contains("未检索到营业执照");
     }
+
+    @Test
+    @DisplayName("招标明确不要求证照时直接PASS，不再要求标书举证")
+    void check_WhenRequirementNotRequired_ReturnsPass() {
+        var pages = List.of(
+            new DocumentContent.PageContent(1, "投标报价表 总价：100万元整", List.of())
+        );
+        var bidDoc = new DocumentContent("投标书.pdf", "hash_not_required", "", pages);
+        var req = new BusinessLicenseRequirement(false, List.of(), null, "本项目不涉及主体资格证明");
+
+        QualityCheckItemResult result = BusinessLicenseCheckPolicy.check(bidDoc, req);
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(result.conclusion()).contains("未要求");
+    }
+
+    @Test
+    @DisplayName("招标仅允营业执照时，事业单位证书页不得直通PASS")
+    void check_WhenAllowedCertsExcludePageType_DoesNotPass() {
+        var pages = List.of(
+            new DocumentContent.PageContent(3, """
+                资质证明文件
+                事业单位法人证书
+                统一社会信用代码：12100000400001234X
+                名称：国家工业信息安全发展研究中心
+                宗旨和业务范围：开展工业信息安全技术研究与服务...
+                法定代表人：尹丽波
+                举办单位：工业和信息化部
+                """, List.of())
+        );
+        var bidDoc = new DocumentContent("投标书.pdf", "hash_cert_excluded", "", pages);
+        var req = new BusinessLicenseRequirement(true, List.of("营业执照"), "复印件", "仅接受企业营业执照");
+
+        QualityCheckItemResult result = BusinessLicenseCheckPolicy.check(bidDoc, req);
+
+        assertThat(result.status()).isNotEqualTo(QualityCheckStatus.PASS);
+    }
+
+    @Test
+    @DisplayName("业绩合同页仅含对方统一社会信用代码时不得直通PASS")
+    void check_WhenContractPageHasCounterpartyUsccOnly_DoesNotPass() {
+        var pages = List.of(
+            new DocumentContent.PageContent(6, """
+                第三章 類似业绩证明材料
+                工业品供货合同（节选）
+                甲方统一社会信用代码：91310115MA1K4B9X8Y
+                甲方法定代表人：李四
+                甲方联系地址：上海市浦东新区张江路88号
+                双方建立长期合作关系，合同长期有效期内持续供货……
+                """, List.of())
+        );
+        var bidDoc = new DocumentContent("投标书.pdf", "hash_contract", "", pages);
+        var req = new BusinessLicenseRequirement(true, List.of("营业执照"), "复印件", "需提供有效营业执照复印件");
+
+        QualityCheckItemResult result = BusinessLicenseCheckPolicy.check(bidDoc, req);
+
+        assertThat(result.status()).isNotEqualTo(QualityCheckStatus.PASS);
+    }
+
+    @Test
+    @DisplayName("仅含【此处粘贴营业执照】占位符时拦截转人工复核")
+    void check_WhenBarePastePlaceholder_ReturnsManualReview() {
+        var pages = List.of(
+            new DocumentContent.PageContent(5, """
+                附件：投标人证照资料
+                【此处粘贴营业执照】
+                （请将证照扫描件附于此处）
+                """, List.of())
+        );
+        var bidDoc = new DocumentContent("投标书.pdf", "hash_bare_placeholder", "", pages);
+        var req = new BusinessLicenseRequirement(true, List.of("营业执照"), "复印件", "提供营业执照");
+
+        QualityCheckItemResult result = BusinessLicenseCheckPolicy.check(bidDoc, req);
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.conclusion()).contains("占位模板");
+    }
+
+    @Test
+    @DisplayName("真实证照页含两处省略号时不被误判为目录页")
+    void check_WhenLicensePageHasEllipses_StillPasses() {
+        var pages = List.of(
+            new DocumentContent.PageContent(2, """
+                第三章 资格审查资料
+                一、营业执照正本复印件
+                统一社会信用代码：91310115MA1K4B9X8Y
+                名称：上海西域数智供应链有限公司
+                类型：有限责任公司……（详见登记附页）
+                法定代表人：叶永清
+                经营范围：工业品销售、数智化供应链管理系统开发及技术咨询……
+                营业期限：2015年03月12日至长期
+                登记机关：上海市浦东新区市场监督管理局
+                """, List.of())
+        );
+        var bidDoc = new DocumentContent("投标书.pdf", "hash_license_ellipsis", "", pages);
+        var req = new BusinessLicenseRequirement(true, List.of("营业执照"), "复印件", "需提供有效营业执照复印件");
+
+        QualityCheckItemResult result = BusinessLicenseCheckPolicy.check(bidDoc, req);
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(result.conclusion()).contains("91310115MA1K4B9X8Y");
+    }
+
+    @Test
+    @DisplayName("弱信号页（仅联系地址与长期合作）不计入登记要素，不得直通PASS")
+    void check_WhenOnlyWeakSignals_DoesNotPass() {
+        var pages = List.of(
+            new DocumentContent.PageContent(4, """
+                营业执照相关说明
+                统一社会信用代码：91310115MA1K4B9X8Y
+                法定代表人：叶永清
+                联系地址：上海市浦东新区张江路88号
+                我司与客户保持长期合作关系
+                """, List.of())
+        );
+        var bidDoc = new DocumentContent("投标书.pdf", "hash_weak", "", pages);
+        var req = new BusinessLicenseRequirement(true, List.of("营业执照"), "复印件", "需提供有效营业执照复印件");
+
+        QualityCheckItemResult result = BusinessLicenseCheckPolicy.check(bidDoc, req);
+
+        assertThat(result.status()).isNotEqualTo(QualityCheckStatus.PASS);
+    }
 }
