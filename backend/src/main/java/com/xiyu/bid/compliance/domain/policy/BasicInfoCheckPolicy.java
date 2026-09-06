@@ -5,11 +5,9 @@ import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityEvidence;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -73,36 +71,14 @@ public final class BasicInfoCheckPolicy {
     }
 
     public static QualityCheckItemResult checkPriceConsistency(final DocumentContent bidDoc) {
-        BidQualityCheckItem item = BidQualityCheckItem.PRICE_CONSISTENCY;
-        for (DocumentContent.PageContent page : bidDoc.pages()) {
-            String text = page.text();
-            if (text.contains("投标总价") || text.contains("投标报价") || text.contains("大写：") || text.contains("小写：")) {
-                ParsedPrice price = parsePricePair(text);
-                if (price != null) {
-                    List<QualityEvidence> evidences = List.of(QualityEvidence.bid("报价所在页", page.pageNumber(), snippetAround(text, 250, "投标总价", "投标报价", "大写：", "小写：")));
-                    return toPriceResult(item, price, evidences);
-                }
-            }
-        }
-        // 跨页回退：物理页/虚拟块切开后，大写与小写金额可能分处两页（如投标函与报价表），
-        // 逐页未命中时用全文（保留合并后 markdown，与分页前行为等价）做跨行比对
-        String fullText = bidDoc.fullText();
-        ParsedPrice fullPrice = parsePricePairCrossLine(fullText);
-        if (fullPrice != null) {
-            List<QualityEvidence> evidences = List.of(QualityEvidence.bid("报价所在页", null, snippetAround(fullText, 250, "大写：", "小写：", "投标总价", "投标报价")));
-            return toPriceResult(item, fullPrice, evidences);
-        }
-        return QualityCheckItemResult.manualReview(item, "未能在同一段落中识别到结构化的大小写总价对照关系", "建议人工复核投标总报价大写与小写数字", Collections.emptyList());
+        return PriceConsistencyCheckPolicy.check(bidDoc);
     }
 
-    /** 报价对一致性裁决：一致 PASS、不一致 FAIL（避免逐页/全文两条路径重复分支）. */
-    private static QualityCheckItemResult toPriceResult(
-            final BidQualityCheckItem item, final ParsedPrice price, final List<QualityEvidence> evidences) {
-        if (price.isConsistent()) {
-            return QualityCheckItemResult.pass(item, "报价大写与小写金额完全一致 (大写: " + price.chineseText() + ", 小写: ¥" + price.numericAmount() + ")", evidences);
-        }
-        return QualityCheckItemResult.fail(item, "报价大写金额与小写金额不一致！大写折算: ¥" + price.convertedFromChinese() + "，小写填写: ¥" + price.numericAmount(), "请立刻核对并修正投标函或开标一览表中的大小写总价", evidences);
+    public static QualityCheckItemResult checkPriceConsistency(
+            final DocumentContent bidDoc, final PriceRequirement requirement) {
+        return PriceConsistencyCheckPolicy.check(bidDoc, requirement);
     }
+
 
     public static QualityCheckItemResult checkCurrencyUnit(final DocumentContent bidDoc) {
         BidQualityCheckItem item = BidQualityCheckItem.CURRENCY_UNIT;
@@ -185,40 +161,5 @@ public final class BasicInfoCheckPolicy {
         int start = Math.max(0, bestIdx - before);
         int end = Math.min(text.length(), start + maxChars * 2);
         return snippet(text.substring(start, end), maxChars);
-    }
-
-    record ParsedPrice(String chineseText, BigDecimal numericAmount, BigDecimal convertedFromChinese) {
-        public boolean isConsistent() {
-            return numericAmount != null && convertedFromChinese != null && numericAmount.compareTo(convertedFromChinese) == 0;
-        }
-    }
-
-    /** 价格对捕获组（中文大写金额 / 阿拉伯小写金额），单行与跨行两个正则共享. */
-    private static final String CN_AMOUNT_GROUP = "([零壹贰叁肆伍陆柒捌玖拾佰仟万亿元角分整正\\s]+)";
-    private static final String NUM_AMOUNT_GROUP = "([0-9,]+(?:\\.[0-9]{1,2})?)";
-    private static final int CROSS_LINE_PAIR_WINDOW = 300;
-
-    static ParsedPrice parsePricePair(final String text) {
-        return findPricePair(text, Pattern.compile(
-                "(?:大写[：:]\\s*(?:人民币)?" + CN_AMOUNT_GROUP + ").*?(?:小写[：:]\\s*[¥￥]?" + NUM_AMOUNT_GROUP + ")"));
-    }
-
-    static ParsedPrice parsePricePairCrossLine(final String text) {
-        return findPricePair(text, Pattern.compile(
-                "(?:大写[：:]\\s*(?:人民币)?" + CN_AMOUNT_GROUP + ").{0," + CROSS_LINE_PAIR_WINDOW + "}?(?:小写[：:]\\s*[¥￥]?" + NUM_AMOUNT_GROUP + ")", Pattern.DOTALL));
-    }
-
-    /** 执行价格对正则匹配并归一化（金额空白剔除、千分位剔除、小写折算），未命中、大写金额为空或数字非法返回 null. */
-    private static ParsedPrice findPricePair(final String text, final Pattern pattern) {
-        Matcher m = pattern.matcher(text);
-        if (m.find()) {
-            String cn = m.group(1).replaceAll("[\\s整正]", "").trim();
-            if (cn.isEmpty()) return null;
-            String numStr = m.group(2).replace(",", "").trim();
-            if (numStr.matches("^[0-9]+(\\.[0-9]{1,2})?$")) {
-                return new ParsedPrice(cn, new BigDecimal(numStr), ChineseAmountConverter.convertChineseToNumber(cn));
-            }
-        }
-        return null;
     }
 }

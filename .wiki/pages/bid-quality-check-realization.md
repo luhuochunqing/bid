@@ -38,8 +38,11 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicIdAuthLetterExtractor.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/IdAuthLetterCheckPolicy.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/IdAuthLetterRequirement.java
-  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicFinancialExtractor.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/FinancialStatementCheckPolicy.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/PriceRequirement.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicPriceExtractor.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/PriceConsistencyCheckPolicy.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/BidOpeningTableCheckPolicy.java
   - docs/lessons/lessons-learned.md
 backlinks:
   - _index
@@ -231,6 +234,11 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **目录点线拦截与未填模板占位符反假**：标书端 `FinancialStatementCheckPolicy` 物理排除目录点线页（`isCatalogOrOutlinePage`），并拦截未填写的占位符模板（【此处粘贴经会计师事务所审计的财务审计报告】、留白下划线等），发现占位符立即判定 FAIL 反假拦截；
     - **财务三表与审计意见印章事实核验**：严格核查资产负债表、利润表（损益表）、现金流量表及会计师事务所审计意见与印章，支持报表年份覆盖度校验；
     - **资格审查第一阶段直通与存疑裁决接通**：将 `FinancialStatementCheckPolicy` 挂载为 `QUALIFICATION_REVIEW` 第一阶段硬信号，真实三表与印章齐全直通 PASS（LLM 0 次调用防抖动），占位模板直接 FAIL 拦截；部分报表或存疑场景流转至大模型准则 8 深度裁决并调用 `SemanticPageRetriever` 候选页检索。
+29. **报价一致性(PRICE_CONSISTENCY)与开标一览表(BID_OPENING_TABLE)两阶段结构化契约与反假重构**（2026-09-06）：
+    - **两阶段结构化契约**：在 `TenderRequirements` 接入 `PriceRequirement` 独立顶层 Record 契约（最高限价金额、限价原文、报价方式、明细表/一览表要求、要求说明），并建立纯核心 `DeterministicPriceExtractor` 正则提取最高投标限价/控制价/采购预算（支持万元折算、纯数字及中文大写），与 LLM 提取双轨融合；
+    - **开标一览表反假与总价提取**：标书端 `BidOpeningTableCheckPolicy` 物理排除目录点线页（`isCatalogOrOutlinePage`），并拦截未替换模板占位符（【此处粘贴开标一览表】等直接 FAIL 拦截），严格核验序号、名称、规格型号、单价、合价等表头实质结构，提取表格总报价供跨表勾稽；
+    - **报价一致性与限价核验策略**：`PriceConsistencyCheckPolicy` 支持公文带括号格式，大写折算数字与小写阿拉伯数字核验；**最高限价超限硬核验**（高于最高限价立即判定法定废标 FAIL）；**表函总价一致性核验**（开标一览表总价与投标函总价冲突立即 FAIL）；逐页未命中时自动跨页全文回退；
+    - **强事实直通与存疑双层裁决**：规范标书大写小写一致且未超限价强凭证直通 PASS（LLM 0 次调用防抖动）；硬性超限价、表函冲突或占位符未填直接 FAIL 阻断，禁止大模型覆盖；存疑或未提取场景接通大模型准则 9（开标一览表反假）与准则 10（限价超限与报价一致性）深度裁决并调用 `SemanticPageRetriever` 候选页检索。
 
 ## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
 

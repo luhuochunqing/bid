@@ -96,6 +96,16 @@ public final class EvidenceAssembler {
                 }
                 evidences.add(locateBid(bidDoc, "投标函/报价函正文", List.of("投标函", "报价函", "响应函", "致：", "致:")));
             }
+            case BID_OPENING_TABLE -> {
+                evidences.add(locateBid(bidDoc, "开标一览表/报价表正文", List.of("开标一览表", "报价一览表", "分项报价表", "报价明细表", "投标总价")));
+            }
+            case PRICE_CONSISTENCY -> {
+                if (requirements != null && requirements.priceRequirement() != null
+                        && (requirements.priceRequirement().maxPrice() != null || requirements.priceRequirement().maxPriceRawText() != null)) {
+                    evidences.add(locateTender(tenderDoc, "招标最高限价条款", List.of("最高投标限价", "招标控制价", "最高限价", "采购预算")));
+                }
+                evidences.add(locateBid(bidDoc, "投标报价与大小写明细", List.of("投标总价", "投标报价", "大写", "小写", "开标一览表")));
+            }
             default -> {
                 // 其余项未特化证据
             }

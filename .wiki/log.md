@@ -3,6 +3,18 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-06] feat | 标书质检「报价一致性」（PRICE_CONSISTENCY）与「开标一览表」（BID_OPENING_TABLE）两阶段契约与反假重构
+
+- 触发：推进 25 项质检项语义化演进之核心项「报价一致性」（PRICE_CONSISTENCY，PRD 2.3 第 6 项）与「开标一览表/报价表」（BID_OPENING_TABLE，PRD 2.3 第 22 项，均属 CRITICAL 级别）。
+- 方案：
+  - 招标端契约：新建独立顶层 Record `PriceRequirement` 与纯核心确定性提取器 `DeterministicPriceExtractor`，支持最高投标限价/招标控制价/采购预算（万元折算、纯数字与大写金额）、报价方式（总价/单价/费率）、明细表与开标一览表要求的提取与双轨融合；
+  - 标书端反假与表函总价闭环：
+    - `BidOpeningTableCheckPolicy`：物理剔除目录点线页（`isCatalogOrOutlinePage`），拦截未填模板占位符（【此处粘贴开标一览表】等直接 FAIL 拦截），核查表头实质结构（序号/名称/规格/数量/单价/合价等），提取表格总报价；
+    - `PriceConsistencyCheckPolicy`：支持公文带括号格式，核验大写与小写阿拉伯数字；**最高限价超限硬核验**（高于最高限价立即判定法定废标 FAIL）；**表函总价一致性比对**（开标一览表总价与投标函总价冲突立即判定 FAIL）；逐页未命中自动跨页全文回退；
+  - 引擎协同：`BidDocumentQualityEngine` 落实规范标书强凭证直通 PASS（LLM 0 次调用防抖动），硬性违背（超限价/表函冲突/占位符未填）直接 FAIL 阻断（禁止模型覆盖）；存疑或未提取场景流转至大模型准则 9 与准则 10 深度裁决与 `SemanticPageRetriever` 候选页检索；
+- 结果：落地 5 个专属单测套件，单文件行预算严格控制在 300 行内，55 项单元与 FP-Java 架构测试全绿。
+- 页面更新：更新 [[bid-quality-check-realization]] §4.29 与 sources；lessons-learned.md §234。
+
 ## [2026-09-06] feat | 标书质检「财务状况证明/财务审计报告」（FINANCIAL_STATEMENT）两阶段契约与反假重构
 
 - 触发：推进 25 项质检项语义化演进之重点项「财务状况证明 / 财务审计报告」（FINANCIAL_STATEMENT，PRD 2.3 第 18 项，隶属于资格性审查核心条款 QUALIFICATION_REVIEW，涵盖资产负债表、利润表、现金流量表、会计师事务所审计印章真实性与年份要求）。

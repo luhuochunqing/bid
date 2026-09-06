@@ -23,10 +23,12 @@ import com.xiyu.bid.compliance.domain.policy.DeterministicBusinessLicenseExtract
 import com.xiyu.bid.compliance.domain.policy.DeterministicDepositExtractor;
 import com.xiyu.bid.compliance.domain.policy.DeterministicFinancialExtractor;
 import com.xiyu.bid.compliance.domain.policy.DeterministicIdAuthLetterExtractor;
+import com.xiyu.bid.compliance.domain.policy.DeterministicPriceExtractor;
 import com.xiyu.bid.compliance.domain.policy.DeterministicQualificationExtractor;
 import com.xiyu.bid.compliance.domain.policy.FinancialRequirement;
 import com.xiyu.bid.compliance.domain.policy.IdAuthLetterRequirement;
 import com.xiyu.bid.compliance.domain.policy.KnowledgeQueryOutcome;
+import com.xiyu.bid.compliance.domain.policy.PriceRequirement;
 import com.xiyu.bid.compliance.domain.policy.LlmAdjudicator;
 import com.xiyu.bid.compliance.domain.policy.LlmVerdict;
 import com.xiyu.bid.compliance.domain.policy.QualificationMatchPolicy;
@@ -151,6 +153,10 @@ public class BidQualityCheckAsyncExecutor {
             if (detFinancial != null) {
                 requirements = requirements.withFinancialRequirement(FinancialRequirement.fuseWithDeterministic(requirements.financialRequirement(), detFinancial));
             }
+            PriceRequirement detPrice = DeterministicPriceExtractor.extract(tenderDoc.fullText());
+            if (detPrice != null) {
+                requirements = requirements.withPriceRequirement(PriceRequirement.fuseWithDeterministic(requirements.priceRequirement(), detPrice));
+            }
 
             // Step 2: 知识库检索与 25 项规则核查 (progress: 60)
             progressUpdater.updateProgress(resultId, ComplianceCheckResult.TaskStatus.CHECKING, 60, "正在对照企业知识库并执行25项质量核查...");
@@ -201,7 +207,6 @@ public class BidQualityCheckAsyncExecutor {
 
             int riskScore = Math.min(100, failed * 20 + manual * 5);
             String checkDetailsJson = OBJECT_MAPPER.writeValueAsString(itemResults);
-
             progressUpdater.completeTask(resultId, overallStatus, riskScore, checkDetailsJson, passed, failed, manual, itemResults.size());
 
             int parseFailures = parseFailureCounter.get();
@@ -210,7 +215,6 @@ public class BidQualityCheckAsyncExecutor {
                         + "（如 thinking 系模型 max_tokens 预算不足，见 lessons #201），而非标书内容问题，请检查 AI 模型配置",
                         taskId, parseFailures, SemanticRulesLane.SEMANTIC_ITEMS.size());
             }
-
             log.info("Async bid quality check task completed: {}, status={}, passed={}, failed={}, manual={}",
                     taskId, overallStatus, passed, failed, manual);
 
