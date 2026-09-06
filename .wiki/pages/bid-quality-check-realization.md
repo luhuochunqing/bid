@@ -329,11 +329,12 @@ drawer 结构：
 - **紧凑行**（`QualityCheckItemCard`）：状态图标 + 检查项 + 结论（2 行省略，已剥离 reasonCode 前缀，前置"检查结论："）+ 右侧状态标签；整行可点击，不再平铺证据。
 - **详情弹窗**（`QualityCheckDetailDialog`，560px 居中）字段对照表：检查状态/检查项说明（优先 `description` 即 PRD 2.3 检查内容，旧快照缺失时回退名称）/AI 检查结论恒显；问题定位（BID 证据页码去重「第 12 / 56 页」）/原文摘录（BID quote，不高亮）/联动数据来源（KNOWLEDGE_BASE 证据→四库链接，点击 `router.push /knowledge/*`）仅非 PASS 显示；建议操作按状态固定文案。
 - **SCORING_RESPONSE 项**：客观项得分合计非空时结论前置「客观项得分：XX分 ↗」链接（复用 `scoreParseApi.getItems/getResults` + `normalizeScoreItem`/`mapScoreResults`；静默降级，未打分不展示）；点击经事件链 QualityCheckDrawer → DraftingStage → ProjectDetailMainColumn 透传 `{stage:2, autoScore:true}` 打开评分抽屉并自动打分。
-- **展示纯核心**：`composables/qualityCheckDetail.js` 单一数据源（`STATUS_META`/`stripReasonCode`/`extractBidPages`/`extractBidQuote`/`extractKbLinks`/`sumObjectiveActualScore`），紧凑行与弹窗共用，禁止在组件内各写一套状态映射。
+- **展示纯核心**：`composables/qualityCheckDetail.js` 单一数据源（`STATUS_META`/`NOT_APPLICABLE_STATUS_META`/`isNotApplicableItem`/`stripReasonCode`/`extractBidPages`/`extractBidQuote`/`extractKbLinks`/`sumObjectiveActualScore`），紧凑行与弹窗共用，支持在 status 为 PASS 且结论标明免收/不涉及时自适应渲染专属的【不涉及】状态标签。
 - **保留纪律**：trigger 同步 4xx（无投标文件）提示后端消息且不进入轮询；429 走全局友好提示（catch 体内禁用 ElMessage.error）。
 - **展示文案单一数据源**（2026-08-30）：25 项检查项名称与检查项说明（检查内容）以 `BidQualityCheckItem` 枚举为唯一源（对齐 PRD 2.3，`BidQualityCheckItemDefinitionTest` 防漂移）；报告读取侧 `toReportDTO` 按 itemCode 回填，历史快照展示口径自动对齐。
 
 40. **政采与非招标“响应担保”同义词盲区与【不涉及】结论前缀规范**（2026-09-06）：竞争性谈判、询价等采购模式法定使用“响应担保/响应保证金”（如“不要求递交响应担保”）；`DeterministicDepositExtractor` 遗漏该词表导致确定性免收识别失效、第 24 项退款信息表因缺乏联动误报待确认。解法：词表扩充“响应担保/不要求递交”，全链路免收项统一输出 `【不涉及】` 结论前缀，消解用户对未附回单为何通过的困惑。
+41. **质检引擎保留大模型深度条款证据链与前端自适应【不涉及】标签**（2026-09-06）：大模型对免收项的深度裁决具有不可替代的证据价值（精确提取招标文件第3.4款与标书文件五“本项目不适用”对应关系）。严禁用生硬确定性模板覆盖大模型输出；后端保留完整证据并冠以统一 `【不涉及】` 前缀，前端通过 `isNotApplicableItem` 自适应将标签渲染为 `不涉及`（info tag），彻底消解“未附回单却显示通过”的用户误解。
 
 ## 6. 后续任务（Backlog）
 
