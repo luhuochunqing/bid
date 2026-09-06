@@ -3,6 +3,7 @@ package com.xiyu.bid.integration.tenderevent.infrastructure.sdk;
 import com.xiyu.bid.config.TraceConstants;
 import com.xiyu.bid.integration.tenderevent.domain.OpportunityPredictionEventPayload;
 import com.xiyu.bid.integration.tenderevent.domain.TenderEventCode;
+import com.xiyu.bid.integration.tenderevent.domain.TenderEventEnumLabels;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -23,29 +24,6 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public class OpportunityPredictionEventPublisher {
-
-    // ── 枚举中文映射（与 ProjectExportService / 前端 projectListFormatters.js 同源）──
-    // 未知值 fallback 原值，避免历史/未知数据丢失。
-
-    /** 项目状态 resultType → 中文。 */
-    private static final Map<String, String> BID_STATUS_LABELS = Map.of(
-            "PENDING_INITIATION", "待立项",
-            "INITIATED", "已立项",
-            "BIDDING", "投标中",
-            "EVALUATING", "评标中",
-            "WON", "已中标",
-            "LOST", "未中标",
-            "FAILED", "已流标",
-            "ABANDONED", "已放弃");
-
-    /** 客户类型 customerType → 中文。 */
-    private static final Map<String, String> CUSTOMER_TYPE_LABELS = Map.of(
-            "GOVERNMENT", "政府机关/事业单位/高校",
-            "CENTRAL_SOE", "央企",
-            "LOCAL_SOE", "地方国企",
-            "PRIVATE", "民企",
-            "FOREIGN", "港澳台及外企",
-            "OTHER", "其他");
 
     private final TenderEventSdkProperties properties;
     private final TenderEventSdkSender sender;
@@ -84,10 +62,10 @@ public class OpportunityPredictionEventPublisher {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("projectId", payload.projectId());
         putIfPresent(data, "projectName", payload.projectName());
-        putIfPresent(data, "resultType", mapLabel(BID_STATUS_LABELS, payload.resultType()));
+        putIfPresent(data, "resultType", TenderEventEnumLabels.bidStatusLabel(payload.resultType()));
         putIfPresent(data, "customer", payload.customer());
         putIfPresent(data, "projectLeaderName", payload.projectLeaderName());
-        putIfPresent(data, "customerType", mapLabel(CUSTOMER_TYPE_LABELS, payload.customerType()));
+        putIfPresent(data, "customerType", TenderEventEnumLabels.customerTypeLabel(payload.customerType()));
         putIfPresent(data, "bidOpenTime", payload.bidOpenTime());
         if (payload.servicePeriodYears() != null) {
             data.put("servicePeriodYears", payload.servicePeriodYears());
@@ -106,14 +84,6 @@ public class OpportunityPredictionEventPublisher {
         if (value != null && !value.isBlank()) {
             data.put(key, value);
         }
-    }
-
-    /** 枚举值 → 中文；null/空白返回 null（由调用方省略），未知值 fallback 原值。 */
-    private static String mapLabel(final Map<String, String> labels, final String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        return labels.getOrDefault(value, value);
     }
 
     /**

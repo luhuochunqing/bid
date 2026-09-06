@@ -228,7 +228,8 @@ public class OpportunityPredictionReminderService {
     /**
      * 事件库发布：失败只记日志，不拖垮通知主流程。
      *
-     * <p>招标主体（customer）由 processProject 经 {@link #resolveCustomer} 算好传入，
+     * <p>招标主体（customer）由 processProject 经
+     * {@link OpportunityPredictionReminderSupport#resolveCustomer} 算好传入，
      * 与商机预测表格 100% 一致（Project.customer 优先，为空回退关联标讯采购人）；
      * 项目负责人取 {@code project_initiation_details.projectLeaderName}（runScan 已批量加载）。
      * 复用 processProject 已算好的 resultType/bidOpenTime/servicePeriodYears，不重复查询。

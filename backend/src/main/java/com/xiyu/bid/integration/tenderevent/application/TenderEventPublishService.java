@@ -6,7 +6,7 @@ import com.xiyu.bid.integration.tenderevent.domain.TenderEventCode;
 import com.xiyu.bid.integration.tenderevent.domain.TenderEventPayload;
 import com.xiyu.bid.integration.tenderevent.domain.TenderEventPolicy;
 import com.xiyu.bid.integration.tenderevent.domain.TenderEventStatus;
-import java.util.UUID;
+import com.xiyu.bid.integration.tenderevent.infrastructure.sdk.TenderEventSnowflakeUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -92,7 +92,7 @@ public class TenderEventPublishService {
                 tender.getContactNature2());
         // 关键修复：客户事件库 trace_id / span_id 字段为 varchar(19)，使用 TenderEventSnowflakeUtil 生成标准 t/s+18位雪花ID
         String traceId = generateTraceId();
-        String spanId = com.xiyu.bid.integration.tenderevent.infrastructure.sdk.TenderEventSnowflakeUtil.nextSpanId();
+        String spanId = TenderEventSnowflakeUtil.nextSpanId();
         String parentId = "0";
 
         TenderEventPublishCommand command = new TenderEventPublishCommand(code, payload, traceId, spanId, parentId);
@@ -141,7 +141,7 @@ public class TenderEventPublishService {
         if (traceId != null && !traceId.isBlank() && traceId.length() <= 19) {
             return traceId;
         }
-        return com.xiyu.bid.integration.tenderevent.infrastructure.sdk.TenderEventSnowflakeUtil.nextTraceId();
+        return TenderEventSnowflakeUtil.nextTraceId();
     }
 
     private static String truncate(String value, int max) {

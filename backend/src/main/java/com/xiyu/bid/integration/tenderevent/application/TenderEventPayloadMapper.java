@@ -2,6 +2,7 @@ package com.xiyu.bid.integration.tenderevent.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.integration.tenderevent.domain.TenderEventEnumLabels;
 import com.xiyu.bid.integration.tenderevent.domain.TenderEventPayload;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -18,9 +19,8 @@ import org.springframework.stereotype.Service;
  * {@link #toJson} 再序列化为 JSON 字符串写入 {@code tender_event_logs.event_content}。
  *
  * <p>字段规则：{@code tenderId} 必填；其余字段为 null/空白时省略，避免传脏数据；
- * {@code customerType/priority/projectType} 转中文标签（与 {@code ProjectExportService}、
- * 前端 {@code projectListFormatters.js} 同源，未知值 fallback 原值）；时间字段格式化为
- * {@code yyyy-MM-dd HH:mm}。
+ * {@code customerType/priority/projectType} 经 {@link TenderEventEnumLabels} 转中文标签；
+ * 时间字段格式化为 {@code yyyy-MM-dd HH:mm}。
  */
 @Service
 @RequiredArgsConstructor
@@ -29,33 +29,6 @@ public final class TenderEventPayloadMapper {
     /** 时间字段推送格式（与标讯详情页展示一致）。 */
     private static final DateTimeFormatter DATE_TIME_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-
-    // ── 枚举中文映射（与 ProjectExportService / 前端 projectListFormatters.js 同源）──
-    // 未知值 fallback 原值，避免历史/未知数据丢失（与前端 map[v] || v 行为一致）。
-
-    /** 客户类型 customerType → 中文。 */
-    private static final Map<String, String> CUSTOMER_TYPE_LABELS = Map.of(
-            "GOVERNMENT", "政府机关/事业单位/高校",
-            "CENTRAL_SOE", "央企",
-            "LOCAL_SOE", "地方国企",
-            "PRIVATE", "民企",
-            "FOREIGN", "港澳台及外企",
-            "OTHER", "其他");
-
-    /** 项目类型 projectType → 中文。 */
-    private static final Map<String, String> PROJECT_TYPE_LABELS = Map.of(
-            "OFFICE", "办公",
-            "COMPREHENSIVE", "综合",
-            "COLLECTIVE", "集采",
-            "INDUSTRIAL", "工业品",
-            "OTHER", "其他");
-
-    /** 优先级 priority → 中文（后端已归一化为 S/A/B/C）。 */
-    private static final Map<String, String> PRIORITY_LABELS = Map.of(
-            "S", "S级",
-            "A", "A级",
-            "B", "B级",
-            "C", "C级");
 
     private final ObjectMapper objectMapper;
 
@@ -91,9 +64,9 @@ public final class TenderEventPayloadMapper {
         putIfPresent(data, "region", payload.region());
         putDateTimeIfPresent(data, "registrationDeadline", payload.registrationDeadline());
         putDateTimeIfPresent(data, "bidOpeningTime", payload.bidOpeningTime());
-        putIfPresent(data, "customerType", mapLabel(CUSTOMER_TYPE_LABELS, payload.customerType()));
-        putIfPresent(data, "priority", mapLabel(PRIORITY_LABELS, payload.priority()));
-        putIfPresent(data, "projectType", mapLabel(PROJECT_TYPE_LABELS, payload.projectType()));
+        putIfPresent(data, "customerType", TenderEventEnumLabels.customerTypeLabel(payload.customerType()));
+        putIfPresent(data, "priority", TenderEventEnumLabels.priorityLabel(payload.priority()));
+        putIfPresent(data, "projectType", TenderEventEnumLabels.projectTypeLabel(payload.projectType()));
         putIfPresent(data, "contactName", payload.contactName());
         putIfPresent(data, "contactPhone", payload.contactPhone());
         putIfPresent(data, "contactTel", payload.contactTel());
@@ -119,13 +92,5 @@ public final class TenderEventPayloadMapper {
         if (value != null) {
             data.put(key, value.format(DATE_TIME_FORMATTER));
         }
-    }
-
-    /** 枚举值 → 中文；null/空白返回 null（由调用方省略），未知值 fallback 原值。 */
-    private static String mapLabel(Map<String, String> labels, String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        return labels.getOrDefault(value, value);
     }
 }
