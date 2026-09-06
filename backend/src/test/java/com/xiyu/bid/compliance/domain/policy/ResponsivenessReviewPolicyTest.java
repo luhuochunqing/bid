@@ -129,8 +129,8 @@ class ResponsivenessReviewPolicyTest {
     }
 
     @Test
-    @DisplayName("正偏离亮点放行：仅存在正偏离且无任何负偏离时放行 PASS 并输出亮点提示")
-    void testCheck_WhenPositiveDeviationPresent_PassesWithHighlight() {
+    @DisplayName("对抗测试：正偏离审慎机制（自述'正偏离'防假阳性免审，不直接 PASS，安全移交专家/LLM 复核）")
+    void testCheck_WhenPositiveDeviationPresent_ReturnsNullForExpertReview() {
         String text = """
                 ### 技术规格偏离表
                 | 序号 | 规格条款 | 招标要求 | 投标响应 | 偏离情况 | 偏离说明 |
@@ -140,9 +140,24 @@ class ResponsivenessReviewPolicyTest {
 
         QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
 
+        // 真正的正偏离需经指标对比核验，不能单凭投标人自称免审放行，应移交 LLM/专家
+        assertThat(result).isNull();
+    }
+
+    @Test
+    @DisplayName("对抗测试：正文中长距离否定修饰（'我方郑重声明绝不具有任何负偏离'）不被全文扫描误拦截 FAIL")
+    void testCheck_WhenLongDistanceNegationInDeclaration_DoesNotTriggerFail() {
+        String text = """
+                商务及技术偏离表总体说明：
+                我方在此郑重声明绝不具有任何负偏离。
+                全体承诺完全响应招标文件全部要求。
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash8_adv", text);
+
+        QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
+
         assertThat(result).isNotNull();
         assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
-        assertThat(result.conclusion()).contains("正偏离");
     }
 
     @Test

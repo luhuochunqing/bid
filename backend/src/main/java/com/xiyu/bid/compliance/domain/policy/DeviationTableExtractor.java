@@ -40,7 +40,10 @@ public final class DeviationTableExtractor {
     private static final Pattern BRACKET_PATTERN = Pattern.compile(
             "【(?:请|在此|在此处|填写|输入|插入|待填|说明)[^】]{0,30}】|\\[(?:请|在此|填写|待填|说明)[^\\]]{0,30}\\]");
 
-    public static final List<String> NEGATIONS = List.of("无任何", "不存在", "没有", "不含", "无", "未", "零");
+    public static final List<String> NEGATIONS = List.of(
+            "无任何", "绝无", "绝不包含", "并不存在", "不存在", "没有", "不含",
+            "绝不具有", "并不具有", "我方未作", "未作出", "未发生", "不构成", "未", "无", "零"
+    );
     public static final List<String> NEGATIVES = List.of("负偏离", "不满足", "负偏差", "未满足", "部分响应", "部分满足", "低于");
     public static final List<String> POSITIVES = List.of("正偏离", "优于", "高于", "超过招标要求");
 
@@ -97,6 +100,9 @@ public final class DeviationTableExtractor {
                 curCat = classifyCategory(line);
                 continue;
             }
+            if (!line.contains("|") && line.contains("\t") && line.split("\t+").length >= 2) {
+                line = "| " + String.join(" | ", line.split("\t+")) + " |";
+            }
             if (line.contains("|") && splitCells(line).size() >= 2) {
                 curLines.add(line);
             } else if (!curLines.isEmpty()) {
@@ -123,11 +129,11 @@ public final class DeviationTableExtractor {
             List<String> cols = splitCells(lines.get(i));
             for (int c = 0; c < cols.size(); c++) {
                 String col = cols.get(c);
-                if (col.contains("条款") || col.contains("章节") || col.contains("条目") || col.contains("名称")) clauseCol = c;
-                else if (col.contains("招标") || col.contains("要求") || col.contains("标准")) reqCol = c;
-                else if (col.contains("投标") || col.contains("响应") || col.contains("承诺")) respCol = c;
-                else if ((col.contains("偏离") && !col.contains("说明")) || col.contains("类型") || col.contains("情况")) typeCol = c;
-                else if (col.contains("说明") || col.contains("备注")) descCol = c;
+                if (col.contains("条款") || col.contains("章节") || col.contains("条目") || col.contains("需求项")) clauseCol = c;
+                else if (col.contains("招标") || col.contains("采购") || col.contains("要求") || col.contains("标准") || col.contains("规范")) reqCol = c;
+                else if (col.contains("投标") || col.contains("实际") || col.contains("应答") || col.contains("承诺") || (col.contains("响应") && !col.contains("差异") && !col.contains("偏离"))) respCol = c;
+                else if (col.contains("说明") || col.contains("备注") || col.contains("原因")) descCol = c;
+                else if (col.contains("偏离") || col.contains("差异") || col.contains("类型") || col.contains("情况") || col.contains("偏差")) typeCol = c;
             }
             if (clauseCol >= 0 || typeCol >= 0 || descCol >= 0) {
                 headerIdx = i;
@@ -162,7 +168,9 @@ public final class DeviationTableExtractor {
     private static final List<String> NONE_KEYWORDS = List.of(
             "无偏离", "完全响应", "全面响应", "全部响应", "完全满足", "全面满足",
             "全部满足", "满足要求", "符合要求", "遵照执行", "严格遵从", "无负偏离",
-            "不存在负偏离", "无任何负偏离", "无负偏差"
+            "不存在负偏离", "无任何负偏离", "无负偏差", "符合招标文件要求",
+            "满足技术参数要求", "符合规范要求", "响应招标文件", "满足招标要求",
+            "完全符合", "执行招标要求", "出具检验合格报告", "提供检测报告", "已获原厂授权"
     );
 
     private static DeviationType resolveDeviationType(final String typeText, final String descText) {
@@ -189,10 +197,17 @@ public final class DeviationTableExtractor {
     }
 
     private static boolean hasNegationPrefix(final String text, final int idx) {
-        int start = Math.max(0, idx - 4);
-        String prefix = text.substring(start, idx);
+        int start = Math.max(0, idx - 18);
+        for (int i = idx - 1; i >= start; i--) {
+            char c = text.charAt(i);
+            if (c == '，' || c == '。' || c == '；' || c == '、' || c == '\n' || c == '|' || c == ',' || c == ';' || c == '.') {
+                start = i + 1;
+                break;
+            }
+        }
+        String prefix = text.substring(start, idx).trim();
         for (String negation : NEGATIONS) {
-            if (prefix.endsWith(negation)) return true;
+            if (prefix.contains(negation)) return true;
         }
         return false;
     }
