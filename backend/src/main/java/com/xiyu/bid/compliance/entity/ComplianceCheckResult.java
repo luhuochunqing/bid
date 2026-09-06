@@ -62,7 +62,7 @@ public class ComplianceCheckResult {
      * 检查详情（JSON格式）
      * 存储具体的检查结果和问题列表
      */
-    @Column(columnDefinition = "TEXT")
+    @Column(columnDefinition = "MEDIUMTEXT")
     private String checkDetails;
 
     /**

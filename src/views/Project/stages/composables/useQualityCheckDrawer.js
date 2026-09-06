@@ -14,6 +14,7 @@ export function useQualityCheckDrawer(props, emit) {
   const progressStatus = ref('')
   const report = ref(null)
   const activeStatusFilter = ref('ALL')
+  const errorMessage = ref('')
   // 客观项实际得分合计（来自 AI 评分标准解析阶段 2），null = 尚未打分，得分链接不展示
   const objectiveScore = ref(null)
   // 详情弹窗当前选中项
@@ -21,9 +22,7 @@ export function useQualityCheckDrawer(props, emit) {
   const detailVisible = ref(false)
 
   const collapsedCategories = reactive({
-    BASIC_INFO: false,
-    SUB_ITEM_COMPLIANCE: false,
-    ATTACHMENT_CHECKLIST: false
+    BASIC_INFO: false, SUB_ITEM_COMPLIANCE: false, ATTACHMENT_CHECKLIST: false
   })
 
   let pollTimer = null
@@ -39,8 +38,7 @@ export function useQualityCheckDrawer(props, emit) {
 
   // 分类定位 tab：恒显 3 类，计数取全量（不受状态筛选影响）
   const categoryTabs = computed(() => categoryDefinitions.map(def => ({
-    category: def.category,
-    label: def.label,
+    category: def.category, label: def.label,
     count: (report.value?.items || []).filter(i => i.category === def.category).length
   })))
 
@@ -54,9 +52,7 @@ export function useQualityCheckDrawer(props, emit) {
         ? allCatItems
         : allCatItems.filter(i => i.status === activeStatusFilter.value)
       return {
-        category: def.category,
-        title: def.title,
-        items: catItems,
+        category: def.category, title: def.title, items: catItems,
         failCount: allCatItems.filter(i => i.status === 'FAIL').length,
         manualCount: allCatItems.filter(i => i.status === 'MANUAL_REVIEW').length,
         passCount: allCatItems.filter(i => i.status === 'PASS').length
@@ -90,7 +86,6 @@ export function useQualityCheckDrawer(props, emit) {
   }
 
   function closeDetail() {
-    // 仅关闭弹窗，不清空 detailItem：避免关闭动画期间内容闪失，下次打开时覆盖
     detailVisible.value = false
   }
 
@@ -104,17 +99,22 @@ export function useQualityCheckDrawer(props, emit) {
       const res = await complianceApi.getBidQualityReport(props.projectId)
       if (res?.data) {
         if (res.data.status && res.data.status !== 'COMPLETED' && res.data.status !== 'FAILED') {
+          errorMessage.value = ''
           startPolling(res.data.taskId)
         } else if (res.data.status === 'COMPLETED') {
+          errorMessage.value = ''
           report.value = res.data
           await loadObjectiveScore()
         } else if (res.data.status === 'FAILED') {
           report.value = null
+          errorMessage.value = res.data.errorMessage || 'AI 标书质量核查失败，请重试'
         } else {
+          errorMessage.value = ''
           report.value = res.data
           await loadObjectiveScore()
         }
       } else {
+        errorMessage.value = ''
         await triggerCheck(false)
       }
     } catch (e) {
@@ -145,33 +145,27 @@ export function useQualityCheckDrawer(props, emit) {
       await ElMessageBox.confirm(
         '重新核查将跳过缓存，基于最新的标书与招标文件重新执行 25 项深度比对，是否继续？',
         '重新核查确认',
-        {
-          confirmButtonText: '确定核查',
-          cancelButtonText: '取消',
-          type: 'warning'
-        }
+        { confirmButtonText: '确定核查', cancelButtonText: '取消', type: 'warning' }
       )
       await triggerCheck(true)
-    } catch (e) {
+    } catch {
       // user cancelled
     }
   }
 
-  // AI 评分：关闭抽屉并通知父级打开评分标准解析（阶段 2 未打分时自动触发打分）
   function goToScoreParse() {
     visible.value = false
     closeDetail()
     emit('go-to-score-parse', { stage: 2, autoScore: true })
   }
 
-  // spec 049 第一步：trigger 同步 4xx（无投标文件/解析失败）→ 提示后端消息且不进入轮询；
-  // 独立于 catch 块以便 429 限流仍走全局友好提示（429 治理：catch 体内不出现 ElMessage.error）
   function markTriggerRejected(e) {
     polling.value = false
     progressPercent.value = 0
     progressStatus.value = 'exception'
-    const msg = e.response.data?.msg || e.response.data?.message
-    ElMessage.error(msg || '无法执行核查，请先上传投标文件')
+    const msg = e.response?.data?.msg || e.response?.data?.message
+    errorMessage.value = msg || '无法执行核查，请先上传投标文件'
+    ElMessage.error(errorMessage.value)
   }
 
   function isClientRejection(e) {
@@ -181,9 +175,8 @@ export function useQualityCheckDrawer(props, emit) {
 
   async function triggerCheck(force = false) {
     stopPolling()
-    if (force) {
-      report.value = null
-    }
+    errorMessage.value = ''
+    if (force) report.value = null
     polling.value = true
     progressPercent.value = 10
     currentStepText.value = '正在初始化核查任务...'
@@ -194,7 +187,8 @@ export function useQualityCheckDrawer(props, emit) {
       const task = res?.data
       if (!task) {
         polling.value = false
-        ElMessage.error(res?.message || '触发质量核查失败')
+        errorMessage.value = res?.message || '触发质量核查失败'
+        ElMessage.error(errorMessage.value)
         return
       }
 
@@ -213,6 +207,7 @@ export function useQualityCheckDrawer(props, emit) {
         markTriggerRejected(e)
         return
       }
+      errorMessage.value = e?.message || '触发质量核查异常'
       notifyErrorUnlessRateLimit(e, '触发质量核查异常')
     }
   }
@@ -227,7 +222,8 @@ export function useQualityCheckDrawer(props, emit) {
         stopPolling()
         polling.value = false
         progressStatus.value = 'exception'
-        ElMessage.error('核查任务超时，请稍后刷新重试')
+        errorMessage.value = '核查任务超时，请稍后刷新重试'
+        ElMessage.error(errorMessage.value)
         return
       }
 
@@ -243,13 +239,15 @@ export function useQualityCheckDrawer(props, emit) {
           stopPolling()
           polling.value = false
           progressPercent.value = 100
+          errorMessage.value = ''
           await loadLatestReport()
           ElMessage.success('AI 标书质量核查已完成！')
         } else if (task.status === 'FAILED') {
           stopPolling()
           polling.value = false
           progressStatus.value = 'exception'
-          ElMessage.error(task.errorMessage || '核查任务执行失败')
+          errorMessage.value = task.errorMessage || '核查任务执行失败'
+          ElMessage.error(errorMessage.value)
         }
       } catch (e) {
         console.warn('轮询任务进度异常:', e)
@@ -271,28 +269,10 @@ export function useQualityCheckDrawer(props, emit) {
   }
 
   return {
-    visible,
-    polling,
-    progressPercent,
-    currentStepText,
-    progressStatus,
-    report,
-    activeStatusFilter,
-    collapsedCategories,
-    categoryTabs,
-    filteredCategories,
-    objectiveScore,
-    detailItem,
-    detailVisible,
-    toggleCategory,
-    registerCategoryAnchor,
-    scrollToCategory,
-    openDetail,
-    closeDetail,
-    open,
-    loadLatestReport,
-    handleRecheckConfirm,
-    goToScoreParse,
-    triggerCheck
+    visible, polling, errorMessage, progressPercent, currentStepText, progressStatus,
+    report, activeStatusFilter, collapsedCategories, categoryTabs, filteredCategories,
+    objectiveScore, detailItem, detailVisible, toggleCategory, registerCategoryAnchor,
+    scrollToCategory, openDetail, closeDetail, open, loadLatestReport,
+    handleRecheckConfirm, goToScoreParse, triggerCheck
   }
 }

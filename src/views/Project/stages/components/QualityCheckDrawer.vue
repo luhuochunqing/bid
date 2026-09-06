@@ -138,6 +138,41 @@
       </div>
     </div>
 
+    <!-- 失败/异常状态卡片 -->
+    <div v-else-if="errorMessage" class="error-state-container">
+      <el-result
+        icon="error"
+        title="AI 标书质量核查未完成"
+        sub-title="核查任务执行异常，未生成有效核查报告"
+      >
+        <template #extra>
+          <div class="error-details-box">
+            <div class="error-details-header">
+              <el-icon><WarningFilled /></el-icon>
+              <span>错误详情</span>
+            </div>
+            <div class="error-details-text">{{ errorMessage }}</div>
+          </div>
+          <div class="error-action-buttons">
+            <el-button
+              type="primary"
+              :icon="Refresh"
+              :loading="polling"
+              @click="handleRecheckConfirm"
+            >
+              重新核查（跳过缓存）
+            </el-button>
+            <el-button
+              :loading="polling"
+              @click="triggerCheck(false)"
+            >
+              尝试恢复（检查缓存）
+            </el-button>
+          </div>
+        </template>
+      </el-result>
+    </div>
+
     <!-- 空白状态 -->
     <div v-else class="empty-state-container">
       <el-empty description="当前项目尚未执行标书质量核查">
@@ -158,7 +193,7 @@
 </template>
 
 <script setup>
-import { Document, Clock, Refresh, ArrowDown } from '@element-plus/icons-vue'
+import { Document, Clock, Refresh, ArrowDown, WarningFilled } from '@element-plus/icons-vue'
 import QualityCheckItemCard from './QualityCheckItemCard.vue'
 import QualityCheckDetailDialog from './QualityCheckDetailDialog.vue'
 import { useQualityCheckDrawer } from '../composables/useQualityCheckDrawer.js'
@@ -176,6 +211,7 @@ const emit = defineEmits(['go-to-score-parse'])
 const {
   visible,
   polling,
+  errorMessage,
   progressPercent,
   currentStepText,
   progressStatus,

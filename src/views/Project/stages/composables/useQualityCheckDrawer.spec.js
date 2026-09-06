@@ -145,6 +145,49 @@ describe('useQualityCheckDrawer', () => {
     // 快进到满 10 分钟（600000ms）
     await vi.advanceTimersByTimeAsync(482000)
     expect(drawer.polling.value).toBe(false)
+    expect(drawer.errorMessage.value).toBe('核查任务超时，请稍后刷新重试')
     expect(ElMessage.error).toHaveBeenCalledWith('核查任务超时，请稍后刷新重试')
   })
+
+  it('拉取到 FAILED 状态报告时记录 errorMessage 且 report 为 null', async () => {
+    const failedReport = {
+      id: 1,
+      taskId: 'task_failed_001',
+      status: 'FAILED',
+      errorMessage: 'Data too long for column check_details'
+    }
+    vi.mocked(complianceApi.getBidQualityReport).mockResolvedValueOnce({ data: failedReport })
+
+    const drawer = useQualityCheckDrawer(props, emit)
+    await drawer.open()
+
+    expect(drawer.report.value).toBeNull()
+    expect(drawer.errorMessage.value).toBe('Data too long for column check_details')
+    expect(drawer.polling.value).toBe(false)
+  })
+
+  it('轮询过程中遇到 FAILED 状态时记录 errorMessage 并终止轮询', async () => {
+    const runningTask = {
+      id: 1,
+      taskId: 'task_fail_poll',
+      status: 'CHECKING',
+      progress: 30
+    }
+    vi.mocked(complianceApi.getBidQualityReport).mockResolvedValueOnce({ data: runningTask })
+    vi.mocked(complianceApi.getBidQualityProgress).mockResolvedValueOnce({
+      data: { taskId: 'task_fail_poll', status: 'FAILED', errorMessage: '后台比对异常' }
+    })
+
+    const drawer = useQualityCheckDrawer(props, emit)
+    await drawer.open()
+
+    expect(drawer.polling.value).toBe(true)
+
+    await vi.advanceTimersByTimeAsync(2000)
+
+    expect(drawer.polling.value).toBe(false)
+    expect(drawer.errorMessage.value).toBe('后台比对异常')
+    expect(ElMessage.error).toHaveBeenCalledWith('后台比对异常')
+  })
 })
+
