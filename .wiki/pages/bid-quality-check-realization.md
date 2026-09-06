@@ -50,6 +50,7 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicFrontTableExtractor.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/FrontTableResponsePolicy.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/ResponsivenessReviewPolicy.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeviationTableExtractor.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicRequirementsFuser.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/AdjudicationGuidelines.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicVetoExtractor.java
@@ -312,6 +313,11 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **进度计划逻辑合理性独立策略（`TimelineReasonablenessPolicy`，198 行）**：构建纯核心无异常进度合理性判定，识别开竣工倒挂（直接 FAIL）、自述工期超出招标最大工期限制（直接 FAIL）、横道图/甘特图模板未填占位符（直接 FAIL 反假）；采用无异常纯整数公历日历算法计算纪元跨度天数，对比自述工期（差额超 10 天触发人工复核预警）；
     - **业务层穿透与准则 20 升级**：`FinancialStatementCheckPolicy` 接入 `FinancialStatementAccuracyCalculator` 实现三表齐全时的穿透勾稽；`BasicInfoCheckPolicy.checkScheduleResponse` 串联商务条款与进度计划逻辑；`AdjudicationGuidelines` 追加《准则 20：财务三表平衡勾稽与进度计划合理性核验准则》；
     - **FP-Java 零异常纯核心保证**：严格遵守无 `try-catch` 纯算术逻辑，100% 通过 `FPJavaArchitectureTest` 与单文件行预算守卫。
+
+38. **偏离表结构化提取与条款响应性深度核验(DEVIATION_EXTRACT + RESPONSIVENESS_REVIEW)（阶段 3 攻坚）**（2026-09-06）：
+    - **偏离表结构化提取器（`DeviationTableExtractor`，240 行）**：纯领域无异常 Markdown 表格解析器，精准区分《商务偏离表》（`COMMERCIAL`）与《技术偏离表》（`TECHNICAL`）；逐行提取条款、招标要求、响应与说明，分类判定 `NONE`（无偏离/完全响应/斜杠规范填报）、`POSITIVE`（正偏离/优于招标要求）、`NEGATIVE`（负偏离/不满足/部分响应）、`UNKNOWN`；严格遵循 FP-Java，私有辅助方法均返回不可变集合；
+    - **响应性评审策略重构（`ResponsivenessReviewPolicy`，226 行）**：行级精准定位实质性负偏离行（直接 FAIL，精准输出违规条款与偏离原因）；过滤目录点线页（仅目录列出拦截 FAIL）；模板占位符未填反假拦截 FAIL；修复表头包含选项说明（如“正偏离/负偏离/无偏离”）导致的假阳性误报；全表无负偏离或包含正偏离直通 PASS 并附带亮点提示；
+    - **准则 21 落地**：`AdjudicationGuidelines` 扩充《准则 21：商务与技术偏离表提取与响应性核验准则》，保持 LLM 语义回退双轨一致。
 
 ## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
 
