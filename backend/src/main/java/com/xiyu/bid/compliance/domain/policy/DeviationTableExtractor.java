@@ -159,16 +159,18 @@ public final class DeviationTableExtractor {
         return new DeviationTable(cat, title, pageNum, List.copyOf(rows), List.copyOf(placeholders), hasNeg, hasPos, allGood);
     }
 
+    private static final List<String> NONE_KEYWORDS = List.of(
+            "无偏离", "完全响应", "全面响应", "全部响应", "完全满足", "全面满足",
+            "全部满足", "满足要求", "符合要求", "遵照执行", "严格遵从", "无负偏离",
+            "不存在负偏离", "无任何负偏离", "无负偏差"
+    );
+
     private static DeviationType resolveDeviationType(final String typeText, final String descText) {
         String combined = (typeText + " " + descText).trim();
         if (combined.isBlank()) return DeviationType.UNKNOWN;
         if (containsNonNegatedKeyword(combined, NEGATIVES)) return DeviationType.NEGATIVE;
         if (containsNonNegatedKeyword(combined, POSITIVES)) return DeviationType.POSITIVE;
-        if (combined.contains("无偏离") || combined.contains("完全响应") || combined.contains("全面响应")
-                || combined.contains("全部响应") || combined.contains("完全满足") || combined.contains("全面满足")
-                || combined.contains("全部满足") || combined.contains("满足要求") || combined.contains("符合要求")
-                || combined.contains("遵照执行") || combined.contains("严格遵从") || combined.contains("无负偏离")
-                || combined.contains("不存在负偏离") || combined.contains("无任何负偏离") || combined.contains("无负偏差")
+        if (NONE_KEYWORDS.stream().anyMatch(combined::contains)
                 || combined.equals("/") || combined.equals("-") || combined.equals("无")) {
             return DeviationType.NONE;
         }
@@ -191,13 +193,6 @@ public final class DeviationTableExtractor {
         String prefix = text.substring(start, idx);
         for (String negation : NEGATIONS) {
             if (prefix.endsWith(negation)) return true;
-        }
-        return false;
-    }
-
-    private static boolean containsKeyword(final String text, final List<String> keywords) {
-        for (String kw : keywords) {
-            if (text.contains(kw)) return true;
         }
         return false;
     }

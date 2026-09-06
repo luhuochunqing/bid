@@ -118,21 +118,20 @@ public final class ResponsivenessReviewPolicy {
             }
         }
 
-        // 7. 结构化偏离表全部为无偏离或正偏离直通 PASS
-        if (!extraction.tables().isEmpty() && extraction.tables().stream().allMatch(DeviationTableExtractor.DeviationTable::allNoneOrPositive)) {
-            QualityEvidence evidence = EvidenceAssembler.locateBid(bidDoc, "偏离表正文", DEVIATION_KEYWORDS);
-            String conclusion = "商务与技术条款全面响应，偏离表声明无实质性负偏离";
-            if (!extraction.positiveRows().isEmpty()) {
-                conclusion += "（包含 " + extraction.positiveRows().size() + " 项优于招标要求的正偏离项）";
+        // 7. 结构化偏离表全部为无偏离或正偏离直通 PASS；存在未分类行（UNKNOWN）时直接存疑交 LLM
+        if (!extraction.tables().isEmpty()) {
+            if (extraction.tables().stream().allMatch(DeviationTableExtractor.DeviationTable::allNoneOrPositive)) {
+                QualityEvidence evidence = EvidenceAssembler.locateBid(bidDoc, "偏离表正文", DEVIATION_KEYWORDS);
+                String conclusion = "商务与技术条款全面响应，偏离表声明无实质性负偏离";
+                if (!extraction.positiveRows().isEmpty()) {
+                    conclusion += "（包含 " + extraction.positiveRows().size() + " 项优于招标要求的正偏离项）";
+                }
+                return QualityCheckItemResult.pass(
+                        BidQualityCheckItem.RESPONSIVENESS_REVIEW,
+                        conclusion,
+                        List.of(evidence));
             }
-            return QualityCheckItemResult.pass(
-                    BidQualityCheckItem.RESPONSIVENESS_REVIEW,
-                    conclusion,
-                    List.of(evidence));
-        }
-
-        // Major 1 守卫：若存在偏离表但包含 UNKNOWN 行（未能确定为 NONE/POSITIVE），绝不能由自述兜底放行，必须存疑移交 LLM
-        if (!extraction.tables().isEmpty() && !extraction.tables().stream().allMatch(DeviationTableExtractor.DeviationTable::allNoneOrPositive)) {
+            // 包含 UNKNOWN 行，绝不放行自述 PASS，直接移交 LLM
             return null;
         }
 
