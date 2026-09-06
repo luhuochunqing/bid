@@ -231,4 +231,20 @@ class ResponsivenessReviewPolicyTest {
         assertThat(result.conclusion()).contains("实质性负偏离");
         assertThat(result.conclusion()).contains("部分满足");
     }
+
+    @Test
+    @DisplayName("对抗审讯回归：正文'因自身原因未达到要求属负偏离'不被长距离'未'错误洗白，精准判定 FAIL")
+    void testCheck_WhenUnfulfilledLeadingToNegativeDeviation_FailsAccurately() {
+        String text = """
+                第二章 商务偏离表说明：
+                我方因自身产能排期限制未达到招标文件要求属负偏离。
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash13", text);
+
+        QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
+
+        assertThat(result).isNotNull();
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(result.conclusion()).contains("实质性负偏离");
+    }
 }

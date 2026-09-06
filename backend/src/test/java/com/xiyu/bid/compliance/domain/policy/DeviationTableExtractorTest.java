@@ -236,4 +236,21 @@ class DeviationTableExtractorTest {
         assertThat(row.tenderRequirement()).contains("质保3年");
         assertThat(row.type()).isEqualTo(DeviationTableExtractor.DeviationType.NONE);
     }
+
+    @Test
+    @DisplayName("对抗审讯回归：远距离单字'未'（'未达到招标文件要求属负偏离'）不被误判为否定，精准拦截负偏离")
+    void testExtract_WhenClauseContainsUnfulfilledKeyword_DoesNotBypassNegative() {
+        String text = """
+                ### 商务偏离表
+                | 序号 | 商务条款 | 实际供货 | 偏离情况 | 说明 |
+                | 1 | 供货期 | 60天 | 负偏离 | 未达到招标文件要求属负偏离 |
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "adv5", text);
+        var result = DeviationTableExtractor.extract(doc);
+
+        assertThat(result.tables()).hasSize(1);
+        assertThat(result.negativeRows()).hasSize(1);
+        assertThat(result.negativeRows().get(0).clause()).contains("供货期");
+        assertThat(result.negativeRows().get(0).type()).isEqualTo(DeviationTableExtractor.DeviationType.NEGATIVE);
+    }
 }

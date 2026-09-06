@@ -217,8 +217,13 @@ public final class ResponsivenessReviewPolicy {
             }
         }
         String prefix = text.substring(start, idx).trim();
-        for (String negation : DeviationTableExtractor.NEGATIONS) {
+        for (String negation : DeviationTableExtractor.COMPOSITE_NEGATIONS) {
             if (prefix.contains(negation)) {
+                return true;
+            }
+        }
+        for (String negation : DeviationTableExtractor.SHORT_NEGATIONS) {
+            if (prefix.endsWith(negation)) {
                 return true;
             }
         }

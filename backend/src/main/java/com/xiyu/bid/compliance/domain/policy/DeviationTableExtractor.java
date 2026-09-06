@@ -40,10 +40,11 @@ public final class DeviationTableExtractor {
     private static final Pattern BRACKET_PATTERN = Pattern.compile(
             "【(?:请|在此|在此处|填写|输入|插入|待填|说明)[^】]{0,30}】|\\[(?:请|在此|填写|待填|说明)[^\\]]{0,30}\\]");
 
-    public static final List<String> NEGATIONS = List.of(
+    public static final List<String> COMPOSITE_NEGATIONS = List.of(
             "无任何", "绝无", "绝不包含", "并不存在", "不存在", "没有", "不含",
-            "绝不具有", "并不具有", "我方未作", "未作出", "未发生", "不构成", "未", "无", "零"
+            "绝不具有", "并不具有", "我方未作", "未作出", "未发生", "不构成", "并未对", "并无", "未曾", "绝不"
     );
+    public static final List<String> SHORT_NEGATIONS = List.of("未", "无", "零");
     public static final List<String> NEGATIVES = List.of("负偏离", "不满足", "负偏差", "未满足", "部分响应", "部分满足", "低于");
     public static final List<String> POSITIVES = List.of("正偏离", "优于", "高于", "超过招标要求");
 
@@ -206,8 +207,11 @@ public final class DeviationTableExtractor {
             }
         }
         String prefix = text.substring(start, idx).trim();
-        for (String negation : NEGATIONS) {
+        for (String negation : COMPOSITE_NEGATIONS) {
             if (prefix.contains(negation)) return true;
+        }
+        for (String negation : SHORT_NEGATIONS) {
+            if (prefix.endsWith(negation)) return true;
         }
         return false;
     }
