@@ -27,7 +27,7 @@ public final class ScoringResponsePolicy {
 
     private static final Pattern UNDERLINE_BLANK_PATTERN = Pattern.compile("_{3,}");
     private static final Pattern BRACKET_PLACEHOLDER_PATTERN = Pattern.compile(
-            "【(?:请|在此|在此处|填写|输入|插入|待填|说明)[^】]{0,30}】|\\[(?:请|在此|填写|待填|说明)[^\\]]{0,30}\\]|【(?:技术方案|实施方案|团队人员|服务方案)[^】]{0,15}】");
+            "【(?:请|在此|在此处|此处|填写|输入|插入|粘贴|待填|说明)[^】]{0,30}】|\\[(?:请|在此|此处|填写|粘贴|待填|说明)[^\\]]{0,30}\\]|【(?:技术方案|实施方案|团队人员|服务方案)[^】]{0,15}】");
 
     private ScoringResponsePolicy() {
     }
@@ -68,7 +68,7 @@ public final class ScoringResponsePolicy {
             }
             String placeholder = findPlaceholder(page.text());
             if (placeholder != null) {
-                QualityEvidence evidence = EvidenceAssembler.locateBid(bidDoc, "技术方案占位留白", List.of(placeholder));
+                QualityEvidence evidence = EvidenceAssembler.locateBidSkippingCatalog(bidDoc, "技术方案占位留白", List.of(placeholder));
                 return Optional.of(QualityCheckItemResult.fail(
                         BidQualityCheckItem.SCORING_RESPONSE,
                         "评分项或技术方案正文中存在未填写的占位符或下划线留白（" + placeholder + "）",
