@@ -26,8 +26,13 @@ const props = defineProps({
 
 const emit = defineEmits(['detail'])
 
-const statusMeta = computed(() => getStatusMeta(props.item.status))
-const statusKey = computed(() => props.item.status?.toLowerCase() || '')
+const statusMeta = computed(() => getStatusMeta(props.item.status, props.item.conclusion))
+const statusKey = computed(() => {
+  if (props.item.status === 'PASS' && statusMeta.value.text === '不涉及') {
+    return 'not-applicable'
+  }
+  return props.item.status?.toLowerCase() || ''
+})
 
 const conclusionText = computed(() => stripReasonCode(props.item.conclusion))
 </script>

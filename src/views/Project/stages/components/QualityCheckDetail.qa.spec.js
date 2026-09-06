@@ -14,7 +14,8 @@ import {
   getStatusMeta,
   formatStatus,
   getQualDetailStatusMeta,
-  isQualificationMatchItem
+  isQualificationMatchItem,
+  isNotApplicableItem
 } from '../composables/qualityCheckDetail.js'
 
 const pushMock = vi.fn()
@@ -24,17 +25,27 @@ vi.mock('vue-router', () => ({
 
 const globalStubs = {
   'el-dialog': {
-    template: '<div class="el-dialog-mock" v-if="modelValue"><slot /></div>',
-    props: ['modelValue', 'title']
+    template: '<div v-if="modelValue" class="el-dialog-stub"><slot /></div>',
+    props: ['modelValue']
   },
   'el-tag': {
-    template: '<span class="el-tag-mock"><slot /></span>'
+    template: '<span class="el-tag-stub" :class="type"><slot /></span>',
+    props: ['type', 'effect']
   }
 }
 
 function mountDialog(props = {}) {
   return mount(QualityCheckDetailDialog, {
-    props: { modelValue: true, item: null, objectiveScore: null, ...props },
+    props: {
+      modelValue: true,
+      item: {
+        itemCode: 'test_item',
+        status: 'MANUAL_REVIEW',
+        title: '测试检查项',
+        conclusion: '需要人工复核。'
+      },
+      ...props
+    },
     global: { stubs: globalStubs }
   })
 }
@@ -49,6 +60,20 @@ describe('质量核查详情纯函数', () => {
     expect(formatStatus('MANUAL_REVIEW')).toBe('待确认')
     expect(formatStatus('WEIRD')).toBe('WEIRD')
     expect(formatStatus(null)).toBe('未知')
+  })
+
+  it('getStatusMeta/isNotApplicableItem：PASS且结论标明免收/不涉及/不适用时自适应识别为【不涉及】', () => {
+    expect(isNotApplicableItem('PASS', '【不涉及】招标文件明确免收投标保证金')).toBe(true)
+    expect(isNotApplicableItem('PASS', '招标文件第3.4款规定不要求递交响应担保')).toBe(true)
+    expect(isNotApplicableItem('PASS', '本项目不适用')).toBe(true)
+    expect(isNotApplicableItem('FAIL', '【不涉及】xxx')).toBe(false)
+    expect(isNotApplicableItem('PASS', '已附投标保证金转账回单')).toBe(false)
+
+    expect(getStatusMeta('PASS', '【不涉及】招标文件未要求缴纳保证金')).toEqual({
+      icon: '✓', tagType: 'info', text: '不涉及'
+    })
+    expect(formatStatus('PASS', '【不涉及】招标文件未要求缴纳保证金')).toBe('不涉及')
+    expect(formatStatus('PASS', '正常通过')).toBe('通过')
   })
 
   it('stripReasonCode：剥离 MANUAL 结论 [REASON_CODE] 前缀', () => {
@@ -322,12 +347,20 @@ describe('质量核查紧凑行', () => {
     expect(wrapper.emitted('detail')).toBeTruthy()
   })
 
-  it('状态图标与标签三态映射', () => {
+  it('状态图标与标签状态映射（含不涉及自适应）', () => {
     const pass = mountRow({ itemCode: 'a', status: 'PASS', title: 'A', conclusion: '' })
     const fail = mountRow({ itemCode: 'b', status: 'FAIL', title: 'B', conclusion: '' })
+    const notApplicable = mountRow({
+      itemCode: 'DEPOSIT_RECEIPT',
+      status: 'PASS',
+      title: '投标保证金回单',
+      conclusion: '【不涉及】招标文件未要求缴纳保证金'
+    })
     expect(pass.find('.item-icon').text()).toBe('✓')
     expect(pass.text()).toContain('通过')
     expect(fail.find('.item-icon').text()).toBe('✗')
     expect(fail.text()).toContain('不通过')
+    expect(notApplicable.find('.item-icon').text()).toBe('✓')
+    expect(notApplicable.text()).toContain('不涉及')
   })
 })

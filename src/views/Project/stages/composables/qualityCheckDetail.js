@@ -14,14 +14,32 @@ export const STATUS_META = {
   MANUAL_REVIEW: { icon: '⚠', tagType: 'warning', text: '待确认' }
 }
 
+export const NOT_APPLICABLE_STATUS_META = { icon: '✓', tagType: 'info', text: '不涉及' }
 export const DEFAULT_STATUS_META = { icon: '·', tagType: 'info', text: '未知' }
 
-export function getStatusMeta(status) {
+/**
+ * 判断核查项是否属于“免收/不涉及/不适用”业务状态.
+ * 仅在 status 为 PASS 时生效，避免误伤 FAIL 或 MANUAL 待确认项.
+ */
+export function isNotApplicableItem(status, conclusion = '') {
+  if (status !== 'PASS') return false
+  if (!conclusion) return false
+  const c = String(conclusion).trim()
+  return c.startsWith('【不涉及】') || /免收|不涉及|不适用|不要求递交|免于递交/.test(c)
+}
+
+export function getStatusMeta(status, conclusion = '') {
+  if (status === 'PASS' && isNotApplicableItem(status, conclusion)) {
+    return NOT_APPLICABLE_STATUS_META
+  }
   return STATUS_META[status] || DEFAULT_STATUS_META
 }
 
 /** 状态中文文案；未知状态回退原始值. */
-export function formatStatus(status) {
+export function formatStatus(status, conclusion = '') {
+  if (status === 'PASS' && isNotApplicableItem(status, conclusion)) {
+    return NOT_APPLICABLE_STATUS_META.text
+  }
   return STATUS_META[status]?.text || status || '未知'
 }
 
