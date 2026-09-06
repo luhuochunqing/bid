@@ -57,6 +57,8 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/QualificationVetoPolicy.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/QualificationReviewPolicy.java
   - backend/src/main/java/com/xiyu/bid/compliance/service/RequirementSectionParser.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/ScoringResponsePolicy.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/ClarificationResponsePolicy.java
   - docs/lessons/lessons-learned.md
 backlinks:
   - _index
@@ -277,6 +279,12 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **标书真实页码穿透与目录过滤**：在 `locateInBid` 中先经 `BidLetterCheckPolicy.isCatalogOrOutlinePage` 过滤点线目录页，确保页码穿透至真实证书正文页，杜绝目录页欺骗；
     - **第一阶段确定性反假核验（`checkFirstStage`）**：在标书资质证书章节扫描未填模板留白（`【此处粘贴...】`、`_{3,}`），直接硬阻断输出 FAIL；正常内容平滑移交 LLM lane；`SemanticRulesLane` 正式接通；
     - **准则 15 与证据链升级**：`AdjudicationGuidelines` 新增《准则 15：资质匹配核验准则》；`EvidenceAssembler` 增强招标具体资质条款与标书证明正文的真实定位。
+34. **评分项响应(SCORING_RESPONSE)与补遗澄清响应(CLARIFICATION_RESPONSE)深度穿透升级（阶段 2 胜利收官）**（2026-09-06）：
+    - **独立评分响应策略（`ScoringResponsePolicy`，128 行）**：构建纯核心核验策略，定位评分标准对应表、技术方案、实施组织设计、管理机构等核心章节；前置执行目录点线过滤（`isCatalogOrOutlinePage`）与占位留白反假（`_{3,}`、`【请填写...】` 直接 FAIL 拦截）；无硬伤平滑移交 LLM 语义裁决深层打分；
+    - **独立补遗澄清响应策略（`ClarificationResponsePolicy`，161 行）**：识别确认函（`澄清文件确认函`、`答疑纪要确认函`、`补遗书确认函`）与招标澄清发布状态；目录点线与未填模板硬拦截 FAIL；真实签署确认函直接直通 PASS；若招标文件未发布澄清答疑，自动免除并直通 PASS；若招标有澄清但标书无独立确认函，移交 LLM 语义核验技术/商务是否吸收答疑参数；
+    - **规则 Lane 与证据链集成**：`SemanticRulesLane` 接通两项的第一阶段确定性核验；`EvidenceAssembler` 增强招标评分办法与澄清要求、标书对应正文真实页码定位，过滤目录页干扰；
+    - **准则库修复与准则 16/17 追加（`AdjudicationGuidelines`，42 行）**：移除重复方法定义，追加准则 16（评分细则逐项对应与支撑材料）与准则 17（补遗/澄清文件响应）；
+    - **阶段 2 宣告完成**：7 项深度语义项（`QUALIFICATION_MATCH`、`QUALIFICATION_VETO`、`FRONT_TABLE_RESPONSE`、`RESPONSIVENESS_REVIEW`、`QUALIFICATION_REVIEW`、`SCORING_RESPONSE`、`CLARIFICATION_RESPONSE`）全部完成两阶段穿透与反假重构。
 
 ## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
 
