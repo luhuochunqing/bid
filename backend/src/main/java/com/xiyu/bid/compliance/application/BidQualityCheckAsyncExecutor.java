@@ -12,23 +12,8 @@ import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.QualificationDetail;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityCheckStatus;
-import com.xiyu.bid.compliance.domain.policy.AuthorizationRequirement;
 import com.xiyu.bid.compliance.domain.policy.BidDocumentQualityEngine;
-import com.xiyu.bid.compliance.domain.policy.BidLetterRequirement;
-import com.xiyu.bid.compliance.domain.policy.BusinessLicenseRequirement;
-import com.xiyu.bid.compliance.domain.policy.CaCertificateRequirement;
-import com.xiyu.bid.compliance.domain.policy.DepositRequirement;
-import com.xiyu.bid.compliance.domain.policy.DeterministicAuthorizationExtractor;
-import com.xiyu.bid.compliance.domain.policy.DeterministicBidLetterExtractor;
-import com.xiyu.bid.compliance.domain.policy.DeterministicBusinessLicenseExtractor;
-import com.xiyu.bid.compliance.domain.policy.DeterministicCaCertificateExtractor;
-import com.xiyu.bid.compliance.domain.policy.DeterministicDepositExtractor;
-import com.xiyu.bid.compliance.domain.policy.DeterministicFinancialExtractor;
-import com.xiyu.bid.compliance.domain.policy.DeterministicIdAuthLetterExtractor;
-import com.xiyu.bid.compliance.domain.policy.DeterministicPriceExtractor;
-import com.xiyu.bid.compliance.domain.policy.DeterministicQualificationExtractor;
-import com.xiyu.bid.compliance.domain.policy.FinancialRequirement;
-import com.xiyu.bid.compliance.domain.policy.IdAuthLetterRequirement;
+import com.xiyu.bid.compliance.domain.policy.DeterministicRequirementsFuser;
 import com.xiyu.bid.compliance.domain.policy.KnowledgeQueryOutcome;
 import com.xiyu.bid.compliance.domain.policy.PriceRequirement;
 import com.xiyu.bid.compliance.domain.policy.LlmAdjudicator;
@@ -125,44 +110,8 @@ public class BidQualityCheckAsyncExecutor {
             // spec 049 第二步：招标要求 LLM 结构化提取（全部失败场景降级 missing 哨兵，不阻断任务）
             TenderRequirements requirements = requirementsExtractor.extract(tenderDoc);
 
-            // 双轨融合：纯核心确定性规则提取（100% 规则锚定招标文件资格与资质条款，杜绝漏识别）
-            List<String> deterministicQuals = DeterministicQualificationExtractor.extract(tenderDoc.fullText());
-            if (!deterministicQuals.isEmpty()) {
-                requirements = requirements.withMergedQualifications(deterministicQuals);
-            }
-
-            DepositRequirement detDeposit = DeterministicDepositExtractor.extract(tenderDoc.fullText());
-            if (detDeposit != null) {
-                requirements = requirements.withDepositRequirement(DepositRequirement.fuseWithDeterministic(requirements.depositRequirement(), detDeposit));
-            }
-            BidLetterRequirement detBidLetter = DeterministicBidLetterExtractor.extract(tenderDoc.fullText());
-            if (detBidLetter != null) {
-                requirements = requirements.withBidLetterRequirement(BidLetterRequirement.fuseWithDeterministic(requirements.bidLetterRequirement(), detBidLetter));
-            }
-            AuthorizationRequirement detAuth = DeterministicAuthorizationExtractor.extract(tenderDoc.fullText());
-            if (detAuth != null) {
-                requirements = requirements.withAuthorizationRequirement(AuthorizationRequirement.fuseWithDeterministic(requirements.authorizationRequirement(), detAuth));
-            }
-            BusinessLicenseRequirement detLicense = DeterministicBusinessLicenseExtractor.extract(tenderDoc.fullText());
-            if (detLicense != null) {
-                requirements = requirements.withBusinessLicenseRequirement(BusinessLicenseRequirement.fuseWithDeterministic(requirements.businessLicenseRequirement(), detLicense));
-            }
-            IdAuthLetterRequirement detIdAuth = DeterministicIdAuthLetterExtractor.extract(tenderDoc.fullText());
-            if (detIdAuth != null) {
-                requirements = requirements.withIdAuthLetterRequirement(IdAuthLetterRequirement.fuse(requirements.idAuthLetterRequirement(), detIdAuth));
-            }
-            FinancialRequirement detFinancial = DeterministicFinancialExtractor.extract(tenderDoc.fullText());
-            if (detFinancial != null) {
-                requirements = requirements.withFinancialRequirement(FinancialRequirement.fuseWithDeterministic(requirements.financialRequirement(), detFinancial));
-            }
-            PriceRequirement detPrice = DeterministicPriceExtractor.extract(tenderDoc.fullText());
-            if (detPrice != null) {
-                requirements = requirements.withPriceRequirement(PriceRequirement.fuseWithDeterministic(requirements.priceRequirement(), detPrice));
-            }
-            CaCertificateRequirement detCa = DeterministicCaCertificateExtractor.extract(tenderDoc.fullText());
-            if (detCa != null) {
-                requirements = requirements.withCaCertificateRequirement(CaCertificateRequirement.fuseWithDeterministic(requirements.caCertificateRequirement(), detCa));
-            }
+            // 双轨融合：纯核心确定性规则提取硬事实（原文确定性事实优先，防大模型幻觉）
+            requirements = DeterministicRequirementsFuser.fuseAll(requirements, tenderDoc);
 
             // Step 2: 知识库检索与 25 项规则核查 (progress: 60)
             progressUpdater.updateProgress(resultId, ComplianceCheckResult.TaskStatus.CHECKING, 60, "正在对照企业知识库并执行25项质量核查...");

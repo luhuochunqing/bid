@@ -73,8 +73,8 @@ public final class EvidenceAssembler {
                 evidences.add(locateBid(bidDoc, "实质性响应条款", List.of("资格审查", "实质性响应")));
                 appendKnowledgeEvidences(evidences, kbEvidences);
             }
-            case FRONT_TABLE_RESPONSE -> evidences.add(locateBid(bidDoc, "前附表/偏离表", List.of("前附表", "偏离表")));
-            case RESPONSIVENESS_REVIEW -> evidences.add(locateBid(bidDoc, "偏离表章节", List.of("负偏离", "不满足")));
+            case FRONT_TABLE_RESPONSE -> evidences.add(locateBid(bidDoc, "前附表关键条款响应", List.of("前附表", "关键条款", "条款响应")));
+            case RESPONSIVENESS_REVIEW -> evidences.add(locateBid(bidDoc, "偏离表章节", List.of("商务偏离表", "技术偏离表", "偏离表", "负偏离", "不满足")));
             case QUALIFICATION_REVIEW -> {
                 evidences.add(locateBid(bidDoc, "企业信誉与业绩", List.of("信誉", "业绩", "履约")));
                 appendKnowledgeEvidences(evidences, kbEvidences);
