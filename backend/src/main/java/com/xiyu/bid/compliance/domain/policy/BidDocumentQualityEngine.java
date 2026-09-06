@@ -103,6 +103,10 @@ public final class BidDocumentQualityEngine {
             resultMap.put(BidQualityCheckItem.CA_CERTIFICATE.getCode(),
                     SubItemAndAttachmentRules.checkCaCertificate(bidDoc, effective.caCertificateRequirement()));
         }
+        if (effective.businessTermsRequirement() != null) {
+            resultMap.put(BidQualityCheckItem.SCHEDULE_RESPONSE.getCode(),
+                    BasicInfoCheckPolicy.checkScheduleResponse(bidDoc, effective.businessTermsRequirement()));
+        }
 
         // 2. 语义 lane：规则硬信号优先，其次 LLM 裁决，lane 缺省则 MANUAL 降级
         List<BidQualityCheckItem> semanticItems = SemanticRulesLane.SEMANTIC_ITEMS;

@@ -90,12 +90,15 @@ public final class BasicInfoCheckPolicy {
     }
 
     public static QualityCheckItemResult checkScheduleResponse(final DocumentContent bidDoc, final String tenderText) {
-        BidQualityCheckItem item = BidQualityCheckItem.SCHEDULE_RESPONSE;
-        PageMatch match = findFirstPageContaining(bidDoc, "工期", "交货期", "日历天");
-        if (match != null) {
-            return QualityCheckItemResult.pass(item, "已做出明确的工期或交货期承诺响应", List.of(QualityEvidence.bid("工期响应章节", match.pageNumber(), snippetAround(match.text(), 200, "工期", "交货期", "日历天"))));
-        }
-        return QualityCheckItemResult.fail(item, "未检测到明确的工期或交货期承诺条款", "请在投标函中补充工期/交货期承诺", Collections.emptyList());
+        BusinessTermsRequirement req = tenderText != null
+                ? DeterministicTermsExtractor.extract(tenderText)
+                : null;
+        return checkScheduleResponse(bidDoc, req);
+    }
+
+    public static QualityCheckItemResult checkScheduleResponse(
+            final DocumentContent bidDoc, final BusinessTermsRequirement requirement) {
+        return TermConsistencyCheckPolicy.check(bidDoc, requirement);
     }
 
     public static QualityCheckItemResult checkSignatureSeal(final DocumentContent bidDoc) {

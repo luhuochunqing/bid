@@ -59,6 +59,10 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/service/RequirementSectionParser.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/ScoringResponsePolicy.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/ClarificationResponsePolicy.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/BusinessTermsRequirement.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicTermsExtractor.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/ItemizedPriceCalculator.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/TermConsistencyCheckPolicy.java
   - docs/lessons/lessons-learned.md
 backlinks:
   - _index
@@ -285,6 +289,13 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **规则 Lane 与证据链集成**：`SemanticRulesLane` 接通两项的第一阶段确定性核验；`EvidenceAssembler` 增强招标评分办法与澄清要求、标书对应正文真实页码定位，过滤目录页干扰；
     - **准则库修复与准则 16/17 追加（`AdjudicationGuidelines`，42 行）**：移除重复方法定义，追加准则 16（评分细则逐项对应与支撑材料）与准则 17（补遗/澄清文件响应）；
     - **阶段 2 宣告完成**：7 项深度语义项（`QUALIFICATION_MATCH`、`QUALIFICATION_VETO`、`FRONT_TABLE_RESPONSE`、`RESPONSIVENESS_REVIEW`、`QUALIFICATION_REVIEW`、`SCORING_RESPONSE`、`CLARIFICATION_RESPONSE`）全部完成两阶段穿透与反假重构。
+35. **报价一致性(PRICE_CONSISTENCY)分项算术与商务条款一致性(TERM_CONSISTENCY)深度重构（阶段 3 启动）**（2026-09-06）：
+    - **商务条款结构化契约与确定性提取**：定义顶层 `BusinessTermsRequirement` 纯核心 Record 契约（工期上限日历天 `maxScheduleDays`、质保期下限月数 `minWarrantyMonths`、投标有效期天数 `bidValidityDays`、付款方式、履约担保比例等）；建立纯核心 `DeterministicTermsExtractor` 正则抽取招标文件商务要求，并接入 `DeterministicRequirementsFuser` 统一融合；
+    - **分项报价计算与多表交叉校验（`ItemizedPriceCalculator`）**：支持逐行抽取分项明细（序号、名称、数量、单价、合价），进行行级算术核验（$数量 \times 单价 = 合价$）与表内分项合价累加总和核对（$\sum 合价 = 表内合计$），拦截下划线与【待报价】留白占位；
+    - **报价一致性策略联动升级（`PriceConsistencyCheckPolicy`）**：在既有大小写一致性与最高限价超限硬核验基础上，联动分项报价表未填占位拦截、行内乘积错误拦截、以及分项总和与开标一览表/投标函总报价跨表一致性勾稽核验；
+    - **商务条款一致性策略独立构建（`TermConsistencyCheckPolicy`）**：物理过滤目录点线页（`isCatalogOrOutlinePage`）；拦截工期与质保未填占位留白（直接 FAIL）；严格数值比对：标书工期承诺大于招标文件上限判定 FAIL、质保期短于招标下限判定 FAIL、投标有效期短于招标要求判定 FAIL；规范承诺且满足上限强事实直通 PASS；
+    - **FP-Java 纯核心无异常控制流严格落地**：提取器与计算器全面废除 `try-catch` 解析异常控制流，采用 `parseSafeInt` 与 `parseSafeDecimal` 纯函数无异常校验解析，100% 满足 `FPJavaArchitectureTest.pure_core_must_not_use_exceptions_for_business_flow`；
+    - **准则 18 落地**：`AdjudicationGuidelines` 追加《准则 18：报价分项与商务条款一致性核验准则》。
 
 ## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
 
