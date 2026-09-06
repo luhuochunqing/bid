@@ -76,4 +76,26 @@ class EvidenceLocatorTest {
         assertThat(longText).contains(hit.get().quote());
         assertThat(hit.get().quote()).contains("澄清响应确认函");
     }
+
+    @Test
+    @DisplayName("跳过目录页定位：目录页命中时穿透至正文页")
+    void testLocateSkippingCatalog_CatalogHit_SkipsToBodyPage() {
+        List<DocumentContent.PageContent> pages = List.of(
+                page(1, "目 录\n第五章 澄清答疑与补遗文件确认函.......................... 56"),
+                page(7, "第五章 澄清答疑确认函正文：我方已收悉第1号澄清文件并盖章确认。"));
+
+        Optional<EvidenceHit> hit = EvidenceLocator.locateSkippingCatalog(pages, List.of("澄清答疑确认函"));
+
+        assertThat(hit).isPresent();
+        assertThat(hit.get().pageNumber()).isEqualTo(7);
+    }
+
+    @Test
+    @DisplayName("跳过目录页定位：仅目录页命中时返回 empty（诚实未定位）")
+    void testLocateSkippingCatalog_OnlyCatalogHit_ReturnsEmpty() {
+        List<DocumentContent.PageContent> pages = List.of(
+                page(1, "目 录\n第五章 澄清答疑与补遗文件确认函.......................... 56"));
+
+        assertThat(EvidenceLocator.locateSkippingCatalog(pages, List.of("澄清答疑确认函"))).isEmpty();
+    }
 }

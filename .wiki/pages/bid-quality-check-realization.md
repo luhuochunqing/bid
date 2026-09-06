@@ -291,6 +291,7 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **独立补遗澄清响应策略（`ClarificationResponsePolicy`，161 行）**：识别确认函（`澄清文件确认函`、`答疑纪要确认函`、`补遗书确认函`）与招标澄清发布状态；目录点线与未填模板硬拦截 FAIL；真实签署确认函直接直通 PASS；若招标文件未发布澄清答疑，自动免除并直通 PASS；若招标有澄清但标书无独立确认函，移交 LLM 语义核验技术/商务是否吸收答疑参数；
     - **规则 Lane 与证据链集成**：`SemanticRulesLane` 接通两项的第一阶段确定性核验；`EvidenceAssembler` 增强招标评分办法与澄清要求、标书对应正文真实页码定位，过滤目录页干扰；
     - **准则库修复与准则 16/17 追加（`AdjudicationGuidelines`，42 行）**：移除重复方法定义，追加准则 16（评分细则逐项对应与支撑材料）与准则 17（补遗/澄清文件响应）；
+    - **跟进修复（2026-09-06，Lesson 242）**：占位正则增补 `此处|粘贴`（`【此处填写/粘贴…】` 不再逃逸）；澄清编号留白分支允许前缀（`【确认收到第__号澄清】` 可拦截）；确认函直通 PASS 仅认强签署信号（盖章/签署/公章/法定代表人/授权代表/电子签章，删裸投标人/日期与 `无异议`）；展示证据经 `locateSkippingCatalog` 穿透正文页；
     - **阶段 2 宣告完成**：7 项深度语义项（`QUALIFICATION_MATCH`、`QUALIFICATION_VETO`、`FRONT_TABLE_RESPONSE`、`RESPONSIVENESS_REVIEW`、`QUALIFICATION_REVIEW`、`SCORING_RESPONSE`、`CLARIFICATION_RESPONSE`）全部完成两阶段穿透与反假重构。
 35. **报价一致性(PRICE_CONSISTENCY)分项算术与商务条款一致性(TERM_CONSISTENCY)深度重构（阶段 3 启动）**（2026-09-06）：
     - **商务条款结构化契约与确定性提取**：定义顶层 `BusinessTermsRequirement` 纯核心 Record 契约（工期上限日历天 `maxScheduleDays`、质保期下限月数 `minWarrantyMonths`、投标有效期天数 `bidValidityDays`、付款方式、履约担保比例等）；建立纯核心 `DeterministicTermsExtractor` 正则抽取招标文件商务要求，并接入 `DeterministicRequirementsFuser` 统一融合；

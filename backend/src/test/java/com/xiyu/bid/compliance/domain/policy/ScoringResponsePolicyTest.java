@@ -102,4 +102,38 @@ class ScoringResponsePolicyTest {
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash5", "简要说明文档正文");
         assertThat(ScoringResponsePolicy.checkFirstStage(doc, TenderRequirements.empty())).isEmpty();
     }
+
+    @Test
+    @DisplayName("评分项响应：技术方案中存在【此处填写…】占位时判定 FAIL（此处家族）")
+    void testCheckFirstStage_WhenChuChuPlaceholderPresent_Fails() {
+        DocumentContent doc = new DocumentContent("bid.pdf", "hash6", "full", List.of(
+                new DocumentContent.PageContent(1, "目 录\n第一章 总体方案...... 1", List.of()),
+                new DocumentContent.PageContent(2, """
+                        第三章 技术方案与项目实施组织设计
+                        一、总体设计思路
+                        【此处填写实施方案】
+                        二、进度计划安排
+                        满足招标全部进度要求。
+                        """, List.of())
+        ));
+
+        Optional<QualityCheckItemResult> result = ScoringResponsePolicy.checkFirstStage(doc, TenderRequirements.empty());
+
+        assertThat(result).isPresent();
+        assertThat(result.get().status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(result.get().conclusion()).contains("占位符或下划线留白");
+    }
+
+    @Test
+    @DisplayName("评分项响应：技术方案中存在【此处粘贴…】占位时判定 FAIL")
+    void testCheckFirstStage_WhenChuChuPastePlaceholderPresent_Fails() {
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash7",
+                "第二章 项目管理机构及团队配置\n技术方案详见【此处粘贴实施方案详图】，团队配置齐全。");
+
+        Optional<QualityCheckItemResult> result = ScoringResponsePolicy.checkFirstStage(doc, TenderRequirements.empty());
+
+        assertThat(result).isPresent();
+        assertThat(result.get().status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(result.get().conclusion()).contains("占位符或下划线留白");
+    }
 }

@@ -29,7 +29,7 @@ public final class ClarificationResponsePolicy {
 
     private static final Pattern UNDERLINE_BLANK_PATTERN = Pattern.compile("_{3,}");
     private static final Pattern BRACKET_PLACEHOLDER_PATTERN = Pattern.compile(
-            "【(?:请|在此|在此处|填写|输入|插入|待填|说明)[^】]{0,30}】|\\[(?:请|在此|填写|待填|说明)[^\\]]{0,30}\\]|【(?:第.*号澄清|澄清文件|盖章)[^】]{0,15}】");
+            "【(?:请|在此|在此处|此处|填写|输入|插入|粘贴|待填|说明)[^】]{0,30}】|\\[(?:请|在此|此处|填写|粘贴|待填|说明)[^\\]]{0,30}\\]|【[^】]{0,15}(?:第.{0,10}号澄清|澄清文件|盖章)[^】]{0,15}】");
 
     private ClarificationResponsePolicy() {
     }
@@ -69,7 +69,7 @@ public final class ClarificationResponsePolicy {
                 }
                 String placeholder = findPlaceholder(page.text());
                 if (placeholder != null) {
-                    QualityEvidence evidence = EvidenceAssembler.locateBid(bidDoc, "澄清确认函占位留白", List.of(placeholder));
+                    QualityEvidence evidence = EvidenceAssembler.locateBidSkippingCatalog(bidDoc, "澄清确认函占位留白", List.of(placeholder));
                     return Optional.of(QualityCheckItemResult.fail(
                             BidQualityCheckItem.CLARIFICATION_RESPONSE,
                             "澄清/答疑确认函正文中存在未填写的占位符或下划线留白（" + placeholder + "）",
@@ -86,10 +86,13 @@ public final class ClarificationResponsePolicy {
                 String text = page.text();
                 boolean hasClarificationCue = text.contains("澄清") || text.contains("答疑") || text.contains("补遗");
                 boolean hasReceiptConfirmation = text.contains("确认收到") || text.contains("已收到") || text.contains("收悉")
-                        || text.contains("悉知并遵守") || text.contains("无异议") || text.contains("全部吸收") || text.contains("遵守相关答疑");
-                boolean hasSignOrSeal = text.contains("盖章") || text.contains("签署") || text.contains("投标人") || text.contains("日期");
+                        || text.contains("悉知并遵守") || text.contains("全部吸收") || text.contains("遵守相关答疑");
+                // 强签署信号：裸“投标人/日期”不足以证明真实签署（招标要求抄文亦含这两词），
+                // 必须含盖章/签署类动作词，否则移交 LLM（防抄文误放 PASS）
+                boolean hasSignOrSeal = text.contains("盖章") || text.contains("签署") || text.contains("公章")
+                        || text.contains("法定代表人") || text.contains("授权代表") || text.contains("电子签章");
                 if (hasClarificationCue && hasReceiptConfirmation && hasSignOrSeal) {
-                    QualityEvidence evidence = EvidenceAssembler.locateBid(bidDoc, "澄清答疑确认函正文", CLARIFICATION_KEYWORDS);
+                    QualityEvidence evidence = EvidenceAssembler.locateBidSkippingCatalog(bidDoc, "澄清答疑确认函正文", CLARIFICATION_KEYWORDS);
                     return Optional.of(QualityCheckItemResult.pass(
                             BidQualityCheckItem.CLARIFICATION_RESPONSE,
                             "投标文件包含真实完备的澄清答疑/补遗文件确认函，已实质性确认并响应答疑事项",

@@ -35,6 +35,19 @@ public final class EvidenceAssembler {
     }
 
     /**
+     * 投标文件正文页证据定位（跳过目录索引页）：命中正文页返回真实页码 + 原文摘录，
+     * 仅目录页命中或未命中时 page=null、quote 为空（诚实未定位，防目录页假定位）.
+     */
+    public static QualityEvidence locateBidSkippingCatalog(final DocumentContent doc, final String title, final List<String> keywords) {
+        if (doc == null || doc.pages() == null) {
+            return QualityEvidence.bid(title, null, "");
+        }
+        return EvidenceLocator.locateSkippingCatalog(doc.pages(), keywords)
+                .map(hit -> QualityEvidence.bid(title, hit.pageNumber(), hit.quote()))
+                .orElseGet(() -> QualityEvidence.bid(title, null, ""));
+    }
+
+    /**
      * 招标文件证据真实定位：命中返回真实页码 + 原文摘录，未命中 page=null、quote 为空.
      */
     public static QualityEvidence locateTender(final DocumentContent doc, final String title, final List<String> keywords) {
@@ -98,11 +111,11 @@ public final class EvidenceAssembler {
                         evidences.add(locateTender(tenderDoc, "招标评分办法", List.of(scoringItem.name())));
                     }
                 }
-                evidences.add(locateBid(bidDoc, "技术方案与评分标准对应", List.of("评分标准对应表", "评分细则", "技术方案", "实施方案", "项目管理机构", "服务方案")));
+                evidences.add(locateBidSkippingCatalog(bidDoc, "技术方案与评分标准对应", List.of("评分标准对应表", "评分细则", "技术方案", "实施方案", "项目管理机构", "服务方案")));
             }
             case CLARIFICATION_RESPONSE -> {
                 evidences.add(locateTender(tenderDoc, "招标澄清答疑要求", List.of("澄清", "答疑", "补遗")));
-                evidences.add(locateBid(bidDoc, "澄清答疑确认函/响应章节", List.of("澄清文件确认函", "答疑纪要确认函", "补遗书确认函", "澄清确认函", "答疑纪要", "补遗书", "澄清")));
+                evidences.add(locateBidSkippingCatalog(bidDoc, "澄清答疑确认函/响应章节", List.of("澄清文件确认函", "答疑纪要确认函", "补遗书确认函", "澄清确认函", "答疑纪要", "补遗书", "澄清")));
             }
             case DEPOSIT_RECEIPT -> {
                 evidences.add(locateBid(bidDoc, "投标保证金凭证", List.of("投标保证金", "银行回单", "电子保函", "转账凭证")));

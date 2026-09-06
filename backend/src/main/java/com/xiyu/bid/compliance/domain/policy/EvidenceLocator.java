@@ -6,6 +6,7 @@ package com.xiyu.bid.compliance.domain.policy;
 
 import com.xiyu.bid.compliance.domain.DocumentContent;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -53,6 +54,33 @@ public final class EvidenceLocator {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * 在分页文档中定位首个命中关键词的非目录正文页.
+     *
+     * <p>目录索引页（含点线/大纲）优先命中会造成证据假定位：裁决逻辑已在各 policy 内过滤目录页，
+     * 展示用证据也须穿透至同一正文页；若仅目录页命中则返回 {@link Optional#empty()}（诚实未定位）.
+     *
+     * @param pages 文档分页内容（可为 null/空）
+     * @param keywords 关键词/章节线索（可为 null/空；空词跳过）
+     * @return 正文页命中结果；无正文页命中返回 empty
+     */
+    public static Optional<EvidenceHit> locateSkippingCatalog(
+            final List<DocumentContent.PageContent> pages,
+            final List<String> keywords) {
+        if (pages == null || pages.isEmpty() || keywords == null || keywords.isEmpty()) {
+            return Optional.empty();
+        }
+        List<DocumentContent.PageContent> bodyPages = new ArrayList<>();
+        for (DocumentContent.PageContent page : pages) {
+            if (page.text() == null || page.text().isEmpty()
+                    || BidLetterCheckPolicy.isCatalogOrOutlinePage(page.text())) {
+                continue;
+            }
+            bodyPages.add(page);
+        }
+        return locate(bodyPages, keywords);
     }
 
     /**

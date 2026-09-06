@@ -111,4 +111,54 @@ class ClarificationResponsePolicyTest {
     void testCheckFirstStage_WhenDocEmpty_ReturnsEmpty() {
         assertThat(ClarificationResponsePolicy.checkFirstStage(null, null, TenderRequirements.empty())).isEmpty();
     }
+
+    @Test
+    @DisplayName("澄清响应：确认函中存在【确认收到第__号澄清】留白时判定 FAIL")
+    void testCheckFirstStage_WhenConfirmReceiptNumberBlank_Fails() {
+        DocumentContent tenderDoc = DocumentContent.fromText("tender.pdf", "thash6", "招标文件发布第1号澄清文件");
+        DocumentContent bidDoc = new DocumentContent("bid.pdf", "bhash6", "full", List.of(
+                new DocumentContent.PageContent(1, "目 录\n澄清答疑确认函...... 1", List.of()),
+                new DocumentContent.PageContent(2, """
+                        关于招标文件的澄清确认函
+                        致采购人：
+                        我司【确认收到第__号澄清】文件，并全面遵守相关答疑要求。
+                        投标人（盖章）：
+                        日期：
+                        """, List.of())
+        ));
+
+        Optional<QualityCheckItemResult> result = ClarificationResponsePolicy.checkFirstStage(
+                bidDoc, tenderDoc, TenderRequirements.empty());
+
+        assertThat(result).isPresent();
+        assertThat(result.get().status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(result.get().conclusion()).contains("占位符或下划线留白");
+    }
+
+    @Test
+    @DisplayName("澄清响应：仅抄招标要求、无签署盖章的确认段落不直通 PASS，移交 LLM")
+    void testCheckFirstStage_WhenCopiedRequirementWithoutSeal_HandsOverToLlm() {
+        DocumentContent tenderDoc = DocumentContent.fromText("tender.pdf", "thash7", "招标文件发布第1号澄清文件");
+        DocumentContent bidDoc = DocumentContent.fromText("bid.pdf", "bhash7",
+                "澄清文件确认函说明：投标人已确认收到澄清文件，投标人将按日期要求递交响应文件。");
+
+        Optional<QualityCheckItemResult> result = ClarificationResponsePolicy.checkFirstStage(
+                bidDoc, tenderDoc, TenderRequirements.empty());
+
+        // 无盖章/签署等强签署信号，不得直通 PASS
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("澄清响应：仅凭无异议、无强确认措辞不直通 PASS，移交 LLM")
+    void testCheckFirstStage_WhenOnlyNoObjectionWithoutStrongConfirmation_HandsOverToLlm() {
+        DocumentContent tenderDoc = DocumentContent.fromText("tender.pdf", "thash8", "招标文件发布第1号答疑文件");
+        DocumentContent bidDoc = DocumentContent.fromText("bid.pdf", "bhash8",
+                "答疑纪要确认函说明：我方对本次答疑内容无异议，投标人：某某公司，日期：2026年9月6日。");
+
+        Optional<QualityCheckItemResult> result = ClarificationResponsePolicy.checkFirstStage(
+                bidDoc, tenderDoc, TenderRequirements.empty());
+
+        assertThat(result).isEmpty();
+    }
 }
