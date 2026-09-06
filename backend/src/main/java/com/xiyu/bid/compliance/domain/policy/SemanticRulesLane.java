@@ -39,10 +39,6 @@ public final class SemanticRulesLane {
             BidQualityCheckItem.SCORING_RESPONSE,
             BidQualityCheckItem.CLARIFICATION_RESPONSE);
 
-    /** 负偏离/不满足声明的否定修饰词（紧邻关键词前出现时豁免 FAIL），按长度降序避免前缀误匹配. */
-    private static final List<String> NEGATION_TERMS = List.of(
-            "无任何", "不存在", "没有", "不含", "无", "未", "零");
-
     /** 资格/关键词匹配归一化：剔除空白（含全角空格）与全部 Unicode 标点，降低 LLM 提取表述与标书写法的差异. */
     private static final Pattern NORMALIZE_PATTERN = Pattern.compile("[\\s\\u3000\\p{P}]");
 
@@ -76,7 +72,9 @@ public final class SemanticRulesLane {
             case SCORING_RESPONSE -> requirements.missing()
                     ? Optional.of(referenceMissing(item, "招标要求不可用，无法对照评分标准逐项核查"))
                     : Optional.empty();
-            case RESPONSIVENESS_REVIEW -> declaredDeviation(bidDoc);
+            case FRONT_TABLE_RESPONSE -> Optional.ofNullable(
+                    FrontTableResponsePolicy.check(bidDoc, requirements != null ? requirements.frontTableRequirement() : null));
+            case RESPONSIVENESS_REVIEW -> Optional.ofNullable(ResponsivenessReviewPolicy.check(bidDoc));
             default -> Optional.empty();
         };
     }
@@ -133,56 +131,7 @@ public final class SemanticRulesLane {
     }
 
     /**
-     * 实质性响应：标书自述存在负偏离/不满足 → FAIL（确定性硬信号）；
-     * 提及偏离但全部为否定表述（"无负偏离"/"无不满足"）→ PASS（自述无偏离）；
-     * 未提及 → empty 交 LLM lane.
-     */
-    private static Optional<QualityCheckItemResult> declaredDeviation(final DocumentContent bidDoc) {
-        String text = bidDoc.fullText();
-        boolean declared = containsNonNegated(text, "负偏离") || containsNonNegated(text, "不满足");
-        if (declared) {
-            List<QualityEvidence> evidences = List.of(
-                    EvidenceAssembler.locateBid(bidDoc, "偏离表章节", List.of("负偏离", "不满足")));
-            return Optional.of(QualityCheckItemResult.fail(
-                    BidQualityCheckItem.RESPONSIVENESS_REVIEW,
-                    "商务或技术条款中存在实质性负偏离！",
-                    "请核减负偏离项或补充合理解释",
-                    evidences));
-        }
-        if (text.contains("负偏离") || text.contains("不满足")) {
-            List<QualityEvidence> evidences = List.of(
-                    EvidenceAssembler.locateBid(bidDoc, "偏离表章节", List.of("负偏离", "不满足")));
-            return Optional.of(QualityCheckItemResult.pass(
-                    BidQualityCheckItem.RESPONSIVENESS_REVIEW,
-                    "投标文件未声明实质性负偏离", evidences));
-        }
-        return Optional.empty();
-    }
 
-    /** 文本中是否存在未被否定修饰的指定关键词出现（如"无负偏离"中的"负偏离"不计数）. */
-    private static boolean containsNonNegated(final String text, final String keyword) {
-        int from = 0;
-        int idx;
-        while ((idx = text.indexOf(keyword, from)) >= 0) {
-            if (!hasNegationPrefix(text, idx)) {
-                return true;
-            }
-            from = idx + keyword.length();
-        }
-        return false;
-    }
-
-    /** 关键词紧邻前缀（最多 4 字符）是否以否定修饰词结尾. */
-    private static boolean hasNegationPrefix(final String text, final int idx) {
-        int start = Math.max(0, idx - 4);
-        String prefix = text.substring(start, idx);
-        for (String negation : NEGATION_TERMS) {
-            if (prefix.endsWith(negation)) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     /** 匹配归一化：去空白（含全角空格）与全部标点. */
     private static String normalize(final String text) {

@@ -4649,6 +4649,53 @@ winbid-test 项目 1359（AI 评分标准解析）存在 4 个顽固问题：
 | 状态机与任务单测 mock 次数联动 | 引入新质检项走 LLM 兜底时，全量异步任务执行器的总调用数发生变化 | 任务级集成单测中若测试“解析失败阈值告警”，mock 次数需随参与大模型裁决的检查项总数同步递增维护 |
 | 双重重载支持纯文本与分页文档 | Extractor 内部可能面对拼接纯文本 fullText 亦可能面对 PageContent 分页结构 | 提取器应同时提供 `extract(DocumentContent)` 与 `extract(String)`，兼顾性能与各层调用便利 |
 
+---
+
+## 236. 标书质检「前附表关键条款与偏离表响应」两阶段契约与反假重构：下划线留白/括号未填拦截 + 偏离表负偏离阻断/无偏离直通 + 提取器聚合解耦防爆行数 + 阶段 2 深度语义项首战告捷（2026-09-06）
+
+**背景**：
+在标书质量核查阶段 2「深度语义项」体系中，前附表关键条款响应（`FRONT_TABLE_RESPONSE`）与偏离表响应（`RESPONSIVENESS_REVIEW`）是评审专家否决投标与扣分的重灾区。以往核查存在五大痛点：
+1. **模板留白伪造欺骗**：标书直接复用模板，包含下划线未填留白（`工期：______日历天`）或括号占位符（`交货期：【请填写】`），无实质内容却逃逸；
+2. **目录页点线索引欺骗假通过**：标书仅在目录页出现 `三、投标人须知前附表响应承诺......15` 或 `商务偏离表......26`，被弱包含规则误判为已有完整响应；
+3. **偏离表负偏离放行与无偏离抖动**：偏离表中存在负偏离（“有偏离”、“负偏离”、“部分满足”、“无法满足”）未被硬性阻断；而规范全项“无偏离/完全响应”的标书却仍走大模型耗时且带来裁决抖动；
+4. **多提取器直接堆叠导致外壳层行数超标**：各确定性提取器（`Deterministic*Extractor`）在异步执行器直接手工融合，导致 `BidQualityCheckAsyncExecutor` 逼近 300 行红线；
+5. **Prompt 准则文本在测试断言中发生文字重叠**：Prompt 模板注入裁决准则后，若单测粗粒度断言包含项名，会与全局准则文本重叠误判。
+
+**根因**：
+1. **契约未闭环**：招标端缺少前附表结构化契约 `FrontTableRequirement`（工期、质保、交货地点、付款等），无法表达核心条款与确定性融合；
+2. **反假核验缺失**：规则层未剔除目录点线页，未拦截下划线留白与模板占位符，未强约束负偏离即阻断；
+3. **缺乏确定性融合器**：异步执行器层承担了过多提取器组装职责，缺少纯核心层 `DeterministicRequirementsFuser` 统一编排；
+4. **测试断言粒度过粗**：单元测试断言直通时直接搜索 item title，受全局 Prompt 准则污染。
+
+**修复方案（标准 6 步门禁）**：
+1. **招标端结构化契约（`FrontTableRequirement`）**：独立顶层不可变 Record 契约，支持工期、质保期、交货地点、付款方式等条款定义与不可变合并 `fuseWithDeterministic`；
+2. **双轨确定性提取与统一融合（`DeterministicFrontTableExtractor` + `DeterministicRequirementsFuser`）**：
+   - 提取器支持正则抓取前附表工期/质保/有效期/交货/付款事实；
+   - 抽象 `DeterministicRequirementsFuser` 统一融合 7 大确定性提取器，将 `BidQualityCheckAsyncExecutor` 行数从 295 降至 243 行，彻底消解行数风险；
+3. **前附表响应反假核验策略（`FrontTableResponsePolicy`）**：
+   - 严格剔除目录点线页（`isCatalogOrOutlinePage`）；
+   - 正则拦截下划线留白（`______`）与括号占位符（`【待填】`），直接硬拦截 FAIL；
+   - 针对核心条款与强响应词匹配实现强事实直通 PASS（0 次 LLM 耗时）；
+4. **偏离表响应核验策略（`ResponsivenessReviewPolicy`）**：
+   - 结构核验偏离表章节与列头；
+   - 检测到明确负偏离词汇直接硬性 FAIL 阻断；
+   - 规范标书全项“无偏离/完全响应”强事实直通 PASS；
+5. **解耦拆分与 FP-Java 纪律遵守**：
+   - 拆分 `RequirementSectionParser`（`TenderRequirementsParser` 降至 108 行）；
+   - 拆分 `AdjudicationGuidelines`，遵循 FP-Java 纯值返回 `String allGuidelines()`，消除 void 变更方法；
+6. **测试矩阵与架构闭环**：
+   - 新增 6 组单测套件共 20+ 个测试用例，覆盖空留白拦截、负偏离阻断、强事实直通、融合器与端到端集成；
+   - 修复测试断言边界，使用项专属判定文本杜绝 Prompt 准则误判；
+   - 严格遵循单文件 `<= 300` 行与 FP-Java 架构约束。
+
+**教训**：
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| FP-Java 纯核心禁止 void 业务方法 | 抽取 `AdjudicationGuidelines` 时最初写了 `void appendAllGuidelines(StringBuilder)` | FP-Java 严禁在纯核心定义 void 业务方法修改入参；重构为纯函数返回不可变 `String` |
+| Prompt 全局准则污染单测断言 | 全局 Prompt 中含有准则 12/13 标题与内容，直接断言 `prompt.contains(item.getTitle())` 会误匹配为包含该项的裁决调用 | 测试断言必须精准匹配结构化裁决上下文，如 `prompt.contains("裁决检查项「" + item.getTitle() + "」")` |
+| 异步执行器累积融合逻辑导致行数超标 | 每增加一个确定性提取器，外壳层新增 10~15 行调用与对象构建，使执行器接近 300 行上限 | 提取纯核心域 `DeterministicRequirementsFuser`，聚合所有提取器与融合逻辑，外壳执行器仅保留一行调用 |
+
+
 
 
 

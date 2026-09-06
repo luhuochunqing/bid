@@ -46,6 +46,13 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/CaCertificateRequirement.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicCaCertificateExtractor.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/CaCertificateCheckPolicy.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/FrontTableRequirement.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicFrontTableExtractor.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/FrontTableResponsePolicy.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/ResponsivenessReviewPolicy.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicRequirementsFuser.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/AdjudicationGuidelines.java
+  - backend/src/main/java/com/xiyu/bid/compliance/service/RequirementSectionParser.java
   - docs/lessons/lessons-learned.md
 backlinks:
   - _index
@@ -248,6 +255,13 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **权威机构与证书序列号/有效期事实核验**：严格核验 CFCA/沃通/契约锁/北京CA/天威诚信等权威认证机构，以及证书序列号、国密/公钥算法、有效期至等真实证书事实特征；
     - **强事实直通与双层裁决闭环**：招标文件明确免除或纸质标时直接直出 PASS（0 次 LLM 耗时抗抖动）；标书附真实完备证书时强凭证直通 PASS（0 次 LLM 耗时）；未附带凭证或存疑场景流转至大模型准则 11 深度裁决并调用 `SemanticPageRetriever` 候选页检索；
     - **阶段 1（6 项文书附件凭证类）100% 全面大收官**：至此，投标函、授权书、营业执照、身份证件、开标一览表、电子标 CA 证书全部完成两阶段双轨重构，全面摆脱脆弱纯正则与目录占位假通过。
+31. **前附表关键条款(FRONT_TABLE_RESPONSE)与偏离表响应(RESPONSIVENESS_REVIEW)两阶段契约与反假重构（阶段 2 启动）**（2026-09-06）：
+    - **前附表结构化契约与提取**：在 `TenderRequirements` 接入 `FrontTableRequirement` 独立顶层 Record 契约（工期、质保期、投标文件有效期、交货/服务地点、付款方式等条款定义与说明），并建立纯核心 `DeterministicFrontTableExtractor` 正则提取核心事实，双轨融合；
+    - **全量确定性融合器解耦（`DeterministicRequirementsFuser`）**：将分散在 `BidQualityCheckAsyncExecutor` 的 7 大提取器及合并逻辑解耦收敛至纯核心融合器，消除执行器 50+ 行胶水代码，行数从 295 行降至 243 行；
+    - **目录点线拦截与未填模板占位符反假**：标书端 `FrontTableResponsePolicy` 物理剔除目录点线页（`isCatalogOrOutlinePage`），正则拦截下划线未填留白（如 `工期：______日历天`）与括号占位符（如 `【请填写】`），直接 FAIL 反假拦截；规范标书具备实质条款与强响应词直通 PASS；
+    - **偏离表响应反假与负偏离硬拦截**：标书端 `ResponsivenessReviewPolicy` 检验章节与表头结构；检测到负偏离关键词（“有偏离/负偏离/部分满足/无法满足”）直接判定 FAIL 阻断废标风险；全项“无偏离/完全响应”强事实直通 PASS；
+    - **准则解耦与解析器拆分**：将准则 1~13 提取为 `AdjudicationGuidelines` 纯值接口，满足 FP-Java 纪律；拆分 `RequirementSectionParser` 守护 `TenderRequirementsParser` 108 行安全水位；
+    - **双层裁决接通**：未提取到前附表要求或偏离表存疑场景流转至大模型准则 12（前附表）与准则 13（偏离表）深度裁决并调用 `SemanticPageRetriever` 候选页检索。
 
 ## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
 

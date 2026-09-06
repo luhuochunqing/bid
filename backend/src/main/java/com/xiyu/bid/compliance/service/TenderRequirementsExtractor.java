@@ -182,6 +182,19 @@ public class TenderRequirementsExtractor {
                     "requireCertificateCopy": true或false或null,
                     "requireElectronicSeal": true或false或null,
                     "description": "招标文件关于电子标 CA 数字证书、电子签章等具体要求或免收说明的条款摘录或null"
+                  },
+                  "frontTableRequirement": {
+                    "required": true或false或null,
+                    "projectName": "招标项目名称或null",
+                    "tenderProjectNo": "招标编号或null",
+                    "deliveryPeriod": "工期/交货期要求或null",
+                    "warrantyPeriod": "质保期要求或null",
+                    "validityPeriod": "投标有效期要求或null",
+                    "deliveryLocation": "交货/实施地点或null",
+                    "paymentTerms": "付款方式/结算要求或null",
+                    "qualityStandard": "质量标准或null",
+                    "keyClauses": { "其他关键条款名": "条款内容" },
+                    "description": "招标文件投标人须知前附表关于各项关键条款要求的原文摘录或null"
                   }
                 }
                 顶层键必须全部存在。
