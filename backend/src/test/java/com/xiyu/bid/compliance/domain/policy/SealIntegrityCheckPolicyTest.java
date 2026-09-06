@@ -92,7 +92,27 @@ class SealIntegrityCheckPolicyTest {
         QualityCheckItemResult res = SealIntegrityCheckPolicy.check(doc);
 
         assertThat(res.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
-        assertThat(res.conclusion()).contains("已检测到单位公章落款，但未能明确识别法定代表人个人印章或签字");
+        assertThat(res.conclusion()).contains("已检测到单位公章落款文本，但未识别到已填写的法定代表人签署人姓名");
+    }
+
+    @Test
+    @DisplayName("纯模板落款说明文字（未填姓名）不再直通PASS，降级人工复核")
+    void testInstructionOnlyTemplateTextDowngradesToManualReview() {
+        DocumentContent.PageContent p1 = new DocumentContent.PageContent(
+                1,
+                """
+                投标函（模板）
+                投标人：（盖章）
+                法定代表人（签字）：
+                日期：年月日
+                """,
+                List.of()
+        );
+        DocumentContent doc = new DocumentContent("bid.pdf", "h1", "", List.of(p1));
+        QualityCheckItemResult res = SealIntegrityCheckPolicy.check(doc);
+
+        assertThat(res.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(res.conclusion()).contains("文本层无法确认实际签署");
     }
 
     @Test

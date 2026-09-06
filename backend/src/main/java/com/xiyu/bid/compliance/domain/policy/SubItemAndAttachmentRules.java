@@ -89,23 +89,33 @@ public final class SubItemAndAttachmentRules {
         return false;
     }
 
+    // 已填签署人/单位名称（须以汉字开头，避免把「（盖章）」说明文字误判为已填名称；冒号后仅允许同行空白）
+    private static final Pattern FILLED_SIGNATORY_PATTERN = Pattern.compile(
+            "(?:法定代表人|承诺人|承诺单位|授权代表|受托人)[：:][ \\t]{0,4}[\\u4e00-\\u9fa5][\\u4e00-\\u9fa5（）()]{1,19}"
+    );
+
+    private static final Pattern COMMITMENT_SEAL_MARK_PATTERN = Pattern.compile(
+            "（公章）|\\(公章\\)|（盖章）|\\(盖章\\)|盖单位公章|加盖公章|公章|签字"
+    );
+
     public static QualityCheckItemResult checkCommitmentSeal(final DocumentContent bidDoc) {
         BidQualityCheckItem item = BidQualityCheckItem.COMMITMENT_SEAL;
         BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc, "承诺书", "承诺函", "廉洁承诺", "诚信承诺");
         if (match != null) {
             String text = match.text();
-            boolean hasPlaceholder = text.contains("____") || text.contains("【请盖章】") || text.contains("【此处盖章】")
-                    || text.contains("【盖章】") || text.contains("【签字】");
-            boolean hasSignOrSeal = text.contains("（公章）") || text.contains("（盖章）") || text.contains("(盖章)")
-                    || text.contains("电子印章") || text.contains("电子签章") || text.contains("数字签名")
-                    || text.contains("已盖章") || text.contains("已签署") || text.contains("[公章]")
-                    || text.contains("[法人印章]") || text.contains("公章");
-            if (hasPlaceholder && !text.contains("电子签章") && !text.contains("数字签名") && !text.contains("已盖章") && !text.contains("已签署") && !text.contains("[公章]")) {
+            boolean hasPlaceholder = SealIntegrityCheckPolicy.hasUnfilledSealPlaceholder(text);
+            boolean hasPositiveEvidence = SealIntegrityCheckPolicy.hasPositiveSealEvidence(text);
+            boolean hasFilledSignatory = FILLED_SIGNATORY_PATTERN.matcher(text).find();
+            boolean hasSealMark = COMMITMENT_SEAL_MARK_PATTERN.matcher(text).find();
+            if (hasPlaceholder && !hasPositiveEvidence) {
                 return QualityCheckItemResult.fail(item, "承诺书包含未填写的空白占位或未盖章模板标记", "请在承诺书落款处加盖真实公章及法定代表人签字，不得保留下划线或模板占位符",
                         List.of(QualityEvidence.bid("承诺书占位留白", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(text, 150, "承诺书", "承诺函", "____", "【"))));
             }
-            if (hasSignOrSeal) {
+            if (hasPositiveEvidence || (hasFilledSignatory && hasSealMark)) {
                 return QualityCheckItemResult.pass(item, "包含合规承诺书且签章要素齐全", List.of(QualityEvidence.bid("承诺书签署", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(text, 200, "承诺书", "承诺函", "公章", "盖章", "签字"))));
+            }
+            if (hasSealMark) {
+                return QualityCheckItemResult.manualReview(item, "已检索到承诺书，但落款处仅有签章格式说明文字且未识别到已填签署人，文本层无法确认实际盖章", "请人工复核承诺书落款处是否已完成盖章与签署（落款「（盖章）」等说明文字不代表已实际盖章）", List.of(QualityEvidence.bid("承诺书章节", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(text, 200, "承诺书", "承诺函"))));
             }
             return QualityCheckItemResult.manualReview(item, "已检索到承诺书，但落款处未识别到明确的公章或签字标记", "请人工复核承诺书落款处是否已完成盖章与签署", List.of(QualityEvidence.bid("承诺书章节", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(text, 200, "承诺书", "承诺函"))));
         }
