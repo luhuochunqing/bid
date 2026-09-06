@@ -70,13 +70,18 @@ public final class EvidenceAssembler {
                         evidences.add(locateTender(tenderDoc, "招标文件资质要求", List.of(qualification)));
                     }
                 }
-                evidences.add(locateBid(bidDoc, "实质性响应条款", List.of("资格审查", "实质性响应")));
+                for (TenderRequirements.VetoClause veto : requirements.vetoClauses()) {
+                    if (!veto.keywords().isEmpty()) {
+                        evidences.add(locateTender(tenderDoc, "招标一票否决条款", veto.keywords()));
+                    }
+                }
+                evidences.add(locateBid(bidDoc, "一票否决与实质性响应条款", List.of("一票否决", "否决投标", "废标", "转包", "分包", "资格审查", "实质性响应")));
                 appendKnowledgeEvidences(evidences, kbEvidences);
             }
             case FRONT_TABLE_RESPONSE -> evidences.add(locateBid(bidDoc, "前附表关键条款响应", List.of("前附表", "关键条款", "条款响应")));
             case RESPONSIVENESS_REVIEW -> evidences.add(locateBid(bidDoc, "偏离表章节", List.of("商务偏离表", "技术偏离表", "偏离表", "负偏离", "不满足")));
             case QUALIFICATION_REVIEW -> {
-                evidences.add(locateBid(bidDoc, "企业信誉与业绩", List.of("信誉", "业绩", "履约")));
+                evidences.add(locateBid(bidDoc, "企业信誉、纳税社保与类似业绩", List.of("信用中国", "纳税", "社保", "信誉", "业绩", "履约", "审计报告")));
                 appendKnowledgeEvidences(evidences, kbEvidences);
             }
             case SCORING_RESPONSE -> {
