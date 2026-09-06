@@ -12,7 +12,19 @@
   - 标书端反假：新建 `FinancialStatementCheckPolicy`，严格排除目录点线页（`isCatalogOrOutlinePage`）与未填模板占位符（`UNFILLED_PLACEHOLDER_PATTERN`），校验资产负债表、利润表、现金流量表及会计师事务所审计意见与印章真实性，校验年份覆盖度；
   - 引擎协同：将 `FinancialStatementCheckPolicy` 挂载为 `QUALIFICATION_REVIEW` 第一阶段硬信号，真实财务三表与审计印章齐全直通 PASS（LLM 0 次调用防抖动降本），未填占位模板直接 FAIL 反假拦截；存疑场景流转至大模型准则 8 深度裁决与 `SemanticPageRetriever` 候选页检索。
 - 结果：落地 5 个专属单测套件，新增及修改 14 个文件，单文件行预算严格控制在 300 行内，全部单元与架构测试全绿。
-- 页面更新：更新 [[bid-quality-check-realization]] §4.28 与 sources；lessons-learned.md §233。
+ - 页面更新：更新 [[bid-quality-check-realization]] §4.28 与 sources；lessons-learned.md §233。
+
+## [2026-09-06] fix | 营业执照核查契约消费与反假收紧返工
+
+- 触发：PR 2557 审查返工（3 Major + 4 Minor）。
+- 修复：
+  - `check` 落实 `required`/`allowCertificates` 消费，`required=false` 直接 PASS 且引擎步骤 6 跳过 LLM；
+  - PASS 新增同页证照关键词必要条件，占位符正则补 `此处粘贴` 变体；
+  - 目录散点判据遇 USCC 豁免，登记要素去掉裸 `长期`/`地址` 弱信号；
+  - 修正 lessons §231（纯数字 18 位仍可命中 USCC 正则，防线为三重 AND）；
+  - 同步修复 !2557 遗留的 2 个 DeterministicCheckPolicyTest 红测（旧断言页缺登记要素）。
+- 结果：compliance 全包 376/376，ArchitectureTest 32/32。
+- 页面更新：更新 [[bid-quality-check-realization]] §4.26。
 
 ## [2026-09-06] fix | 授权委托书目录误判与放行过松返工
 

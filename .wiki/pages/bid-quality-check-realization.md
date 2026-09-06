@@ -220,6 +220,7 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **目录点线拦截与未填模板占位符反假**：标书端 `BusinessLicenseCheckPolicy` 物理排除目录点线页（`MULTI_DOT_PATTERN`、`CATALOG_DOT_LINE_PATTERN`，`isCatalogOrOutlinePage`），并拦截未填写的占位符模板（【此处粘贴营业执照】、下划线留白等）；
     - **GB 32100-2015 18位标准代码与登记要素校验**：严格校验 18 位统一社会信用代码（剔除易混淆字母），综合核验法定代表人、经营范围、营业期限、登记机关/公章等登记事实要素；正向兼容事业单位法人证书等替代证照；
     - **强事实直通与存疑裁决接通**：真实 18 位代码与登记事实齐全直通 PASS（LLM 0 次调用防抖动），存疑或仅命中目录/占位符时接通 `LlmAdjudicator` 准则 6 深度裁决并调用 `SemanticPageRetriever` 候选页定位。
+    - **Follow-up 返工（2026-09-06，Code Review !2557）**：`check` 落实契约消费（`required=false` 直接 PASS 且引擎跳过 LLM；`allowCertificates` 非空时过滤直通页）；PASS 新增同页证照关键词必要条件（堵业绩合同页仅凭对方 USCC 直通）；占位符补 `此处粘贴` 变体与 `91…X` 空白容忍；目录散点判据遇 USCC 豁免；登记要素去掉裸 `长期`/`地址` 弱信号；纯数字 18 位串仍可命中 USCC 正则，防线为三重 AND（已同步修正 lessons §231 表述）。
 27. **法定代表人及代理人身份证明(ID_AUTH_LETTER)两阶段结构化契约与要素反假重构**（2026-09-05）：
     - **两阶段结构化契约**：在 `TenderRequirements` 接入 `IdAuthLetterRequirement` 契约（是否必须提供、是否要求正反面、是否要求社保证明、原件/复印件/公章要求、要求说明），并建立纯核心 `DeterministicIdAuthLetterExtractor` 正则提取身份证正反面与社保证明要求；
     - **目录点线拦截与未填模板占位符反假**：标书端 `IdAuthLetterCheckPolicy` 物理排除目录点线页（`MULTI_DOT_PATTERN`、`CATALOG_DOT_LINE_PATTERN`，`isCatalogOrOutlinePage`），并拦截未填写的占位符模板（【此处粘贴委托代理人身份证】、下划线留白等）；
