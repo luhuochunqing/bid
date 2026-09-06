@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.compliance.domain.policy.AuthorizationRequirement;
 import com.xiyu.bid.compliance.domain.policy.BidLetterRequirement;
 import com.xiyu.bid.compliance.domain.policy.BusinessLicenseRequirement;
+import com.xiyu.bid.compliance.domain.policy.CaCertificateRequirement;
 import com.xiyu.bid.compliance.domain.policy.DepositRequirement;
 import com.xiyu.bid.compliance.domain.policy.FinancialRequirement;
 import com.xiyu.bid.compliance.domain.policy.IdAuthLetterRequirement;
@@ -82,6 +83,7 @@ public final class TenderRequirementsParser {
             IdAuthLetterRequirement idAuthLetterRequirement = parseIdAuthLetterRequirement(root.path("idAuthLetterRequirement"));
             FinancialRequirement financialRequirement = parseFinancialRequirement(root.path("financialRequirement"));
             PriceRequirement priceRequirement = parsePriceRequirement(root.path("priceRequirement"));
+            CaCertificateRequirement caCertificateRequirement = parseCaCertificateRequirement(root.path("caCertificateRequirement"));
             return new TenderRequirements(
                     scoringItems,
                     stringListAt(root, "mandatoryQualifications"),
@@ -95,6 +97,7 @@ public final class TenderRequirementsParser {
                     idAuthLetterRequirement,
                     financialRequirement,
                     priceRequirement,
+                    caCertificateRequirement,
                     false);
         } catch (JsonProcessingException e) {
             return TenderRequirements.missingSentinel();
@@ -206,15 +209,9 @@ public final class TenderRequirementsParser {
         if (node == null || !node.isObject()) {
             return null;
         }
-        Boolean required = node.has("required") && !node.get("required").isNull()
-                ? node.get("required").asBoolean()
-                : null;
-        Boolean auditReportRequired = node.has("auditReportRequired") && !node.get("auditReportRequired").isNull()
-                ? node.get("auditReportRequired").asBoolean()
-                : null;
-        Boolean requireCpaSeal = node.has("requireCpaSeal") && !node.get("requireCpaSeal").isNull()
-                ? node.get("requireCpaSeal").asBoolean()
-                : null;
+        Boolean required = node.has("required") && !node.get("required").isNull() ? node.get("required").asBoolean() : null;
+        Boolean auditReportRequired = node.has("auditReportRequired") && !node.get("auditReportRequired").isNull() ? node.get("auditReportRequired").asBoolean() : null;
+        Boolean requireCpaSeal = node.has("requireCpaSeal") && !node.get("requireCpaSeal").isNull() ? node.get("requireCpaSeal").asBoolean() : null;
         List<String> requiredYears = stringListAt(node, "requiredYears");
         List<String> requiredStatements = stringListAt(node, "requiredStatements");
         String description = textAt(node, "description");
@@ -236,21 +233,12 @@ public final class TenderRequirementsParser {
         if (node == null || !node.isObject()) {
             return null;
         }
-        Boolean required = node.has("required") && !node.get("required").isNull()
-                ? node.get("required").asBoolean()
-                : null;
-        BigDecimal maxPrice = null;
-        if (node.has("maxPrice") && node.get("maxPrice").isNumber()) {
-            maxPrice = BigDecimal.valueOf(node.get("maxPrice").asDouble());
-        }
+        Boolean required = node.has("required") && !node.get("required").isNull() ? node.get("required").asBoolean() : null;
+        BigDecimal maxPrice = (node.has("maxPrice") && node.get("maxPrice").isNumber()) ? BigDecimal.valueOf(node.get("maxPrice").asDouble()) : null;
         String maxPriceRawText = textAt(node, "maxPriceRawText");
         String pricingMethod = textAt(node, "pricingMethod");
-        Boolean requireItemizedList = node.has("requireItemizedList") && !node.get("requireItemizedList").isNull()
-                ? node.get("requireItemizedList").asBoolean()
-                : null;
-        Boolean requireBidOpeningTable = node.has("requireBidOpeningTable") && !node.get("requireBidOpeningTable").isNull()
-                ? node.get("requireBidOpeningTable").asBoolean()
-                : null;
+        Boolean requireItemizedList = node.has("requireItemizedList") && !node.get("requireItemizedList").isNull() ? node.get("requireItemizedList").asBoolean() : null;
+        Boolean requireBidOpeningTable = node.has("requireBidOpeningTable") && !node.get("requireBidOpeningTable").isNull() ? node.get("requireBidOpeningTable").asBoolean() : null;
         String description = textAt(node, "description");
         if (required == null && maxPrice == null && maxPriceRawText.isBlank() && pricingMethod.isBlank()
                 && requireItemizedList == null && requireBidOpeningTable == null && description.isBlank()) {
@@ -264,6 +252,20 @@ public final class TenderRequirementsParser {
                 requireItemizedList,
                 requireBidOpeningTable,
                 description.isBlank() ? null : description
+        );
+    }
+
+    private static CaCertificateRequirement parseCaCertificateRequirement(final JsonNode node) {
+        if (node == null || !node.isObject()) return null;
+        Boolean required = node.has("required") && !node.get("required").isNull() ? node.get("required").asBoolean() : null;
+        String platform = textAt(node, "platformName");
+        Boolean copy = node.has("requireCertificateCopy") && !node.get("requireCertificateCopy").isNull() ? node.get("requireCertificateCopy").asBoolean() : null;
+        Boolean seal = node.has("requireElectronicSeal") && !node.get("requireElectronicSeal").isNull() ? node.get("requireElectronicSeal").asBoolean() : null;
+        String desc = textAt(node, "description");
+        if (required == null && platform.isBlank() && copy == null && seal == null && desc.isBlank()) return null;
+        return new CaCertificateRequirement(
+                required == null || required, platform.isBlank() ? null : platform,
+                Boolean.TRUE.equals(copy), Boolean.TRUE.equals(seal), desc.isBlank() ? null : desc
         );
     }
 

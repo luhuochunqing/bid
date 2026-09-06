@@ -175,6 +175,13 @@ public class TenderRequirementsExtractor {
                     "requireItemizedList": true或false或null,
                     "requireBidOpeningTable": true或false或null,
                     "description": "招标文件关于最高投标限价、开标一览表、报价明细表等具体要求的条款摘录或null"
+                  },
+                  "caCertificateRequirement": {
+                    "required": true或false或null,
+                    "platformName": "招标文件指定的电子招投标交易平台名称或null",
+                    "requireCertificateCopy": true或false或null,
+                    "requireElectronicSeal": true或false或null,
+                    "description": "招标文件关于电子标 CA 数字证书、电子签章等具体要求或免收说明的条款摘录或null"
                   }
                 }
                 顶层键必须全部存在。

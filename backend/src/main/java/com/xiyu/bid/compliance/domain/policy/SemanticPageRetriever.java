@@ -111,14 +111,10 @@ public final class SemanticPageRetriever {
 
     /** 单页相关性打分算法. */
     private static int scorePage(final DocumentContent.PageContent page, final Set<String> cues) {
-        if (page == null) {
-            return 0;
-        }
+        if (page == null) return 0;
         String text = page.text() == null ? "" : page.text();
         List<String> headings = page.headings() == null ? List.of() : page.headings();
-        if (text.isBlank() && headings.isEmpty()) {
-            return 0;
-        }
+        if (text.isBlank() && headings.isEmpty()) return 0;
 
         int score = 0;
         for (String heading : headings) {
@@ -144,11 +140,8 @@ public final class SemanticPageRetriever {
 
     /** 快速字串出现频次统计 (O(N) 纯扫描，零异常流). */
     private static int countOccurrences(final String text, final String sub) {
-        if (text == null || sub == null || sub.isEmpty()) {
-            return 0;
-        }
-        int count = 0;
-        int idx = 0;
+        if (text == null || sub == null || sub.isEmpty()) return 0;
+        int count = 0, idx = 0;
         while ((idx = text.indexOf(sub, idx)) != -1) {
             count++;
             idx += sub.length();
@@ -202,6 +195,8 @@ public final class SemanticPageRetriever {
                     "投标报价表", "投标总价", "合价", "分项明细");
             case PRICE_CONSISTENCY -> addCues(cues, "投标总价", "投标报价", "大写", "小写", "最高限价",
                     "控制价", "采购预算", "最高投标限价", "开标一览表");
+            case CA_CERTIFICATE -> addCues(cues, "CA证书", "数字证书", "电子签章", "有效性证明",
+                    "证书序列号", "CFCA", "契约锁", "沃通", "CA锁", "电子标");
             default -> { }
         }
         return cues;
@@ -221,12 +216,12 @@ public final class SemanticPageRetriever {
         req.formatRequirements().forEach(fmt -> addCue(cues, fmt));
         if (req.depositRequirement() != null) addDescriptionCues(cues, req.depositRequirement().description());
         if (req.bidLetterRequirement() != null) {
-            if (req.bidLetterRequirement().letterType() != null) addCue(cues, req.bidLetterRequirement().letterType());
-            if (req.bidLetterRequirement().recipientName() != null) addCue(cues, req.bidLetterRequirement().recipientName());
+            addCue(cues, req.bidLetterRequirement().letterType());
+            addCue(cues, req.bidLetterRequirement().recipientName());
             addDescriptionCues(cues, req.bidLetterRequirement().description());
         }
         if (req.authorizationRequirement() != null) {
-            if (req.authorizationRequirement().templateTitle() != null) addCue(cues, req.authorizationRequirement().templateTitle());
+            addCue(cues, req.authorizationRequirement().templateTitle());
             addDescriptionCues(cues, req.authorizationRequirement().description());
         }
         if (req.businessLicenseRequirement() != null) {
@@ -234,7 +229,7 @@ public final class SemanticPageRetriever {
             addDescriptionCues(cues, req.businessLicenseRequirement().description());
         }
         if (req.idAuthLetterRequirement() != null) {
-            if (req.idAuthLetterRequirement().requireOriginalOrCopy() != null) addCue(cues, req.idAuthLetterRequirement().requireOriginalOrCopy());
+            addCue(cues, req.idAuthLetterRequirement().requireOriginalOrCopy());
             addDescriptionCues(cues, req.idAuthLetterRequirement().description());
         }
         if (req.financialRequirement() != null) {
@@ -243,9 +238,13 @@ public final class SemanticPageRetriever {
             addDescriptionCues(cues, req.financialRequirement().description());
         }
         if (req.priceRequirement() != null) {
-            if (req.priceRequirement().pricingMethod() != null) addCue(cues, req.priceRequirement().pricingMethod());
-            if (req.priceRequirement().maxPriceRawText() != null) addCue(cues, req.priceRequirement().maxPriceRawText());
+            addCue(cues, req.priceRequirement().pricingMethod());
+            addCue(cues, req.priceRequirement().maxPriceRawText());
             addDescriptionCues(cues, req.priceRequirement().description());
+        }
+        if (req.caCertificateRequirement() != null) {
+            addCue(cues, req.caCertificateRequirement().platformName());
+            addDescriptionCues(cues, req.caCertificateRequirement().description());
         }
         return cues;
     }

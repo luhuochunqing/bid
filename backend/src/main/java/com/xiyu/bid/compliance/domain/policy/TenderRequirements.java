@@ -24,37 +24,38 @@ public record TenderRequirements(
         IdAuthLetterRequirement idAuthLetterRequirement,
         FinancialRequirement financialRequirement,
         PriceRequirement priceRequirement,
+        CaCertificateRequirement caCertificateRequirement,
         boolean missing) {
 
     public TenderRequirements(final List<ScoringItem> scoringItems, final List<String> mandatoryQualifications,
             final List<VetoClause> vetoClauses, final List<String> compositionRequirements, final List<String> formatRequirements, final boolean missing) {
-        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, null, null, null, null, null, null, null, missing);
+        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, null, null, null, null, null, null, null, null, missing);
     }
 
     public TenderRequirements(final List<ScoringItem> scoringItems, final List<String> mandatoryQualifications,
             final List<VetoClause> vetoClauses, final List<String> compositionRequirements, final List<String> formatRequirements,
             final DepositRequirement depositRequirement, final boolean missing) {
-        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, null, null, null, null, null, null, missing);
+        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, null, null, null, null, null, null, null, missing);
     }
 
     public TenderRequirements(final List<ScoringItem> scoringItems, final List<String> mandatoryQualifications,
             final List<VetoClause> vetoClauses, final List<String> compositionRequirements, final List<String> formatRequirements,
             final DepositRequirement depositRequirement, final BidLetterRequirement bidLetterRequirement, final boolean missing) {
-        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, null, null, null, null, null, missing);
+        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, null, null, null, null, null, null, missing);
     }
 
     public TenderRequirements(final List<ScoringItem> scoringItems, final List<String> mandatoryQualifications,
             final List<VetoClause> vetoClauses, final List<String> compositionRequirements, final List<String> formatRequirements,
             final DepositRequirement depositRequirement, final BidLetterRequirement bidLetterRequirement,
             final AuthorizationRequirement authorizationRequirement, final boolean missing) {
-        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, null, null, null, null, missing);
+        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, null, null, null, null, null, missing);
     }
 
     public TenderRequirements(final List<ScoringItem> scoringItems, final List<String> mandatoryQualifications,
             final List<VetoClause> vetoClauses, final List<String> compositionRequirements, final List<String> formatRequirements,
             final DepositRequirement depositRequirement, final BidLetterRequirement bidLetterRequirement,
             final AuthorizationRequirement authorizationRequirement, final BusinessLicenseRequirement businessLicenseRequirement, final boolean missing) {
-        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, null, null, null, missing);
+        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, null, null, null, null, missing);
     }
 
     public TenderRequirements(final List<ScoringItem> scoringItems, final List<String> mandatoryQualifications,
@@ -62,7 +63,7 @@ public record TenderRequirements(
             final DepositRequirement depositRequirement, final BidLetterRequirement bidLetterRequirement,
             final AuthorizationRequirement authorizationRequirement, final BusinessLicenseRequirement businessLicenseRequirement,
             final IdAuthLetterRequirement idAuthLetterRequirement, final boolean missing) {
-        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, null, null, missing);
+        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, null, null, null, missing);
     }
 
     public TenderRequirements(final List<ScoringItem> scoringItems, final List<String> mandatoryQualifications,
@@ -70,7 +71,16 @@ public record TenderRequirements(
             final DepositRequirement depositRequirement, final BidLetterRequirement bidLetterRequirement,
             final AuthorizationRequirement authorizationRequirement, final BusinessLicenseRequirement businessLicenseRequirement,
             final IdAuthLetterRequirement idAuthLetterRequirement, final FinancialRequirement financialRequirement, final boolean missing) {
-        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, financialRequirement, null, missing);
+        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, financialRequirement, null, null, missing);
+    }
+
+    public TenderRequirements(final List<ScoringItem> scoringItems, final List<String> mandatoryQualifications,
+            final List<VetoClause> vetoClauses, final List<String> compositionRequirements, final List<String> formatRequirements,
+            final DepositRequirement depositRequirement, final BidLetterRequirement bidLetterRequirement,
+            final AuthorizationRequirement authorizationRequirement, final BusinessLicenseRequirement businessLicenseRequirement,
+            final IdAuthLetterRequirement idAuthLetterRequirement, final FinancialRequirement financialRequirement,
+            final PriceRequirement priceRequirement, final boolean missing) {
+        this(scoringItems, mandatoryQualifications, vetoClauses, compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, financialRequirement, priceRequirement, null, missing);
     }
 
     public record ScoringItem(String name, Double maxScore, String criteria) {
@@ -113,11 +123,11 @@ public record TenderRequirements(
     }
 
     public static TenderRequirements empty() {
-        return new TenderRequirements(List.of(), List.of(), List.of(), List.of(), List.of(), null, null, null, null, null, null, null, false);
+        return new TenderRequirements(List.of(), List.of(), List.of(), List.of(), List.of(), null, null, null, null, null, null, null, null, false);
     }
 
     public static TenderRequirements missingSentinel() {
-        return new TenderRequirements(List.of(), List.of(), List.of(), List.of(), List.of(), null, null, null, null, null, null, null, true);
+        return new TenderRequirements(List.of(), List.of(), List.of(), List.of(), List.of(), null, null, null, null, null, null, null, null, true);
     }
 
     public TenderRequirements withMergedQualifications(final List<String> extraQualifications) {
@@ -127,42 +137,47 @@ public record TenderRequirements(
         LinkedHashSet<String> merged = new LinkedHashSet<>(extraQualifications);
         merged.addAll(this.mandatoryQualifications);
         return new TenderRequirements(scoringItems, sanitizeQualifications(List.copyOf(merged)), vetoClauses,
-                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, financialRequirement, priceRequirement, false);
+                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, financialRequirement, priceRequirement, caCertificateRequirement, false);
     }
 
     public TenderRequirements withDepositRequirement(final DepositRequirement depositRequirement) {
         return new TenderRequirements(scoringItems, mandatoryQualifications, vetoClauses,
-                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, financialRequirement, priceRequirement, missing);
+                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, financialRequirement, priceRequirement, caCertificateRequirement, missing);
     }
 
     public TenderRequirements withBidLetterRequirement(final BidLetterRequirement bidLetterRequirement) {
         return new TenderRequirements(scoringItems, mandatoryQualifications, vetoClauses,
-                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, financialRequirement, priceRequirement, missing);
+                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, financialRequirement, priceRequirement, caCertificateRequirement, missing);
     }
 
     public TenderRequirements withAuthorizationRequirement(final AuthorizationRequirement authorizationRequirement) {
         return new TenderRequirements(scoringItems, mandatoryQualifications, vetoClauses,
-                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, financialRequirement, priceRequirement, missing);
+                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, financialRequirement, priceRequirement, caCertificateRequirement, missing);
     }
 
     public TenderRequirements withBusinessLicenseRequirement(final BusinessLicenseRequirement businessLicenseRequirement) {
         return new TenderRequirements(scoringItems, mandatoryQualifications, vetoClauses,
-                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, financialRequirement, priceRequirement, missing);
+                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, financialRequirement, priceRequirement, caCertificateRequirement, missing);
     }
 
     public TenderRequirements withIdAuthLetterRequirement(final IdAuthLetterRequirement idAuthLetterRequirement) {
         return new TenderRequirements(scoringItems, mandatoryQualifications, vetoClauses,
-                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, financialRequirement, priceRequirement, missing);
+                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, financialRequirement, priceRequirement, caCertificateRequirement, missing);
     }
 
     public TenderRequirements withFinancialRequirement(final FinancialRequirement financialRequirement) {
         return new TenderRequirements(scoringItems, mandatoryQualifications, vetoClauses,
-                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, financialRequirement, priceRequirement, missing);
+                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, financialRequirement, priceRequirement, caCertificateRequirement, missing);
     }
 
     public TenderRequirements withPriceRequirement(final PriceRequirement priceRequirement) {
         return new TenderRequirements(scoringItems, mandatoryQualifications, vetoClauses,
-                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, financialRequirement, priceRequirement, missing);
+                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, financialRequirement, priceRequirement, caCertificateRequirement, missing);
+    }
+
+    public TenderRequirements withCaCertificateRequirement(final CaCertificateRequirement caCertificateRequirement) {
+        return new TenderRequirements(scoringItems, mandatoryQualifications, vetoClauses,
+                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement, businessLicenseRequirement, idAuthLetterRequirement, financialRequirement, priceRequirement, caCertificateRequirement, missing);
     }
 
     public static TenderRequirements merge(final List<TenderRequirements> parts) {
@@ -178,6 +193,7 @@ public record TenderRequirements(
         IdAuthLetterRequirement mergedIdAuth = null;
         FinancialRequirement mergedFinancial = null;
         PriceRequirement mergedPrice = null;
+        CaCertificateRequirement mergedCa = null;
         for (TenderRequirements part : parts) {
             if (part == null || part.missing()) {
                 continue;
@@ -208,9 +224,12 @@ public record TenderRequirements(
             if (part.priceRequirement() != null) {
                 mergedPrice = PriceRequirement.fuse(mergedPrice, part.priceRequirement());
             }
+            if (part.caCertificateRequirement() != null) {
+                mergedCa = CaCertificateRequirement.fuse(mergedCa, part.caCertificateRequirement());
+            }
         }
         boolean allMissing = parts.isEmpty() || parts.stream().allMatch(p -> p == null || p.missing());
         return new TenderRequirements(scoringItems, List.copyOf(qualifications), vetoClauses,
-                List.copyOf(composition), List.copyOf(format), mergedDeposit, mergedBidLetter, mergedAuth, mergedLicense, mergedIdAuth, mergedFinancial, mergedPrice, allMissing);
+                List.copyOf(composition), List.copyOf(format), mergedDeposit, mergedBidLetter, mergedAuth, mergedLicense, mergedIdAuth, mergedFinancial, mergedPrice, mergedCa, allMissing);
     }
 }

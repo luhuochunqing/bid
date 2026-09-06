@@ -106,6 +106,13 @@ public final class EvidenceAssembler {
                 }
                 evidences.add(locateBid(bidDoc, "投标报价与大小写明细", List.of("投标总价", "投标报价", "大写", "小写", "开标一览表")));
             }
+            case CA_CERTIFICATE -> {
+                if (requirements != null && requirements.caCertificateRequirement() != null
+                        && requirements.caCertificateRequirement().description() != null) {
+                    evidences.add(locateTender(tenderDoc, "招标CA数字证书要求", List.of("CA", "数字证书", "电子签章", "电子交易")));
+                }
+                evidences.add(locateBid(bidDoc, "CA数字证书及签章凭据", List.of("CA证书", "数字证书", "电子签章", "有效性证明", "证书序列号", "CFCA")));
+            }
             default -> {
                 // 其余项未特化证据
             }
