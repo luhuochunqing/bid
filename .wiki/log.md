@@ -688,3 +688,10 @@
 - 根因：token 可见性取决于进程树 shell 类型——~/.zshenv 只有 zsh 读，bash/GUI/非交互进程全读不到；旧 gitee-token.sh 把 git credential fill 排第一，~/.git-credentials 积累过期 401 死 token 兜死底；5 条 API 链路防线不一致（两处静默跳过把鉴权失败伪装成"无 PR"）
 - 修复：gitee-token.sh 四级解析链（env → ~/.config/xiyu/credentials.env → ~/.zshenv grep → credential fill 末位防挂死），五脚本统一接线；credentials.env 为唯一真相源（600 权限）；契约测试 14/14 + 回归 18/18；PR !2521
 - 回填：[[gitee-token-resolution]]；教训：同一 token 分放多个 rc 文件会漂移（zshenv 与 zshrc 是两个不同值都有效）；`>>` 追加命令重跑会累积重复行；MCP config.json 是另一套 token 需重启会话
+
+## 2026-09-06 feat | CRM 事件推送全量字段改造（标讯 20 + 商机 10）+ varchar(19) 雪花 ID 修复
+- 触发：应 CRM 客户要求，标讯/商机事件推送从"轻量标识 + CRM 回查"改为直接携带全量业务字段供 CRM 直接消费
+- 落点：TenderEventPayload 扩 20 字段 + Mapper 枚举转中文标签；OpportunityPredictionEventPayload 扩 10 字段；商机 customer 对齐预测表格 toDto（Project.customer 优先，空回退 Tender.purchaserName）；抽取 OpportunityPredictionReminderSupport 静态纯函数使编排服务降回 263 行过 line-budget 300 硬门禁
+- 根因修复：商机 OpportunityPredictionEventPublisher 的 traceId/spanId 用 UUID(去横线 32 字符) 超客户事件库 varchar(19) 列宽，标讯侧早用雪花 ID 而商机侧遗漏，改用 TenderEventSnowflakeUtil（t/s+18 位）
+- 验证：三步 Review（思维链/google-code-review/xiyu-code-review）全过；ArchUnit 32 + tenderevent/workbench 135 tests + line-budget + duplicate + doc-governance 门禁全绿
+- 回填：更新 [[integration-tender-event-push]] §11（修正"data 只放标识"旧结论 + 全量字段清单 + varchar(19) 约束）+ [[opportunity-prediction-reminder]]（customer 口径决策 + 10 字段 + Support 抽取）；教训：**客户事件库 trace_id/span_id 为 varchar(19)，链路 ID 必须用雪花 ID，UUID 去横线 32 字符会超长写入失败；同一约束标讯/商机两侧必须同步，新增事件发布方要复用 TenderEventSnowflakeUtil；编排服务超 300 行时抽静态纯函数到同包 Support 类是过 line-budget 的标准手法**

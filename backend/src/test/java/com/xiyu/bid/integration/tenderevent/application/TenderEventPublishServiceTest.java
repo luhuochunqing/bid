@@ -3,6 +3,7 @@ package com.xiyu.bid.integration.tenderevent.application;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.integration.tenderevent.domain.TenderEventPayload;
 import com.xiyu.bid.integration.tenderevent.domain.TenderEventStatus;
+import java.time.LocalDateTime;
 import java.util.concurrent.Executor;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,24 @@ class TenderEventPublishServiceTest {
         t.setId(id);
         t.setSourceType(source);
         t.setExternalId("ext-" + id);
+        t.setTitle("测试标讯" + id);
+        t.setPurchaserName("招标主体X");
+        t.setRegion("上海");
+        t.setRegistrationDeadline(LocalDateTime.of(2026, 9, 10, 17, 0));
+        t.setBidOpeningTime(LocalDateTime.of(2026, 9, 15, 9, 30));
+        t.setCustomerType("LOCAL_SOE");
+        t.setPriority("A");
+        t.setProjectType("OFFICE");
+        t.setContactName("张三");
+        t.setContactPhone("13800000000");
+        t.setContactTel("021-12345678");
+        t.setContactMail("zhangsan@example.com");
+        t.setContactNature("客户");
+        t.setContactName2("李四");
+        t.setContactPhone2("13900000000");
+        t.setContactTel2("021-87654321");
+        t.setContactMail2("lisi@example.com");
+        t.setContactNature2("代理");
         return t;
     }
 
@@ -84,7 +103,22 @@ class TenderEventPublishServiceTest {
 
         ArgumentCaptor<TenderEventPublishCommand> cmd = ArgumentCaptor.forClass(TenderEventPublishCommand.class);
         verify(publisher).publish(cmd.capture());
-        assertThat(cmd.getValue().payload()).isEqualTo(new TenderEventPayload(1L, "ext-1"));
+        TenderEventPayload payload = cmd.getValue().payload();
+        assertThat(payload.tenderId()).isEqualTo(1L);
+        assertThat(payload.externalId()).isEqualTo("ext-1");
+        assertThat(payload.title()).isEqualTo("测试标讯1");
+        assertThat(payload.purchaserName()).isEqualTo("招标主体X");
+        assertThat(payload.region()).isEqualTo("上海");
+        // payload 存后端枚举码，中文映射发生在序列化层（TenderEventPayloadMapper.toData）
+        assertThat(payload.customerType()).isEqualTo("LOCAL_SOE");
+        assertThat(payload.priority()).isEqualTo("A");
+        assertThat(payload.projectType()).isEqualTo("OFFICE");
+        assertThat(payload.contactName()).isEqualTo("张三");
+        assertThat(payload.contactNature()).isEqualTo("客户");
+        assertThat(payload.contactName2()).isEqualTo("李四");
+        assertThat(payload.contactNature2()).isEqualTo("代理");
+        assertThat(payload.registrationDeadline()).isEqualTo(LocalDateTime.of(2026, 9, 10, 17, 0));
+        assertThat(payload.bidOpeningTime()).isEqualTo(LocalDateTime.of(2026, 9, 15, 9, 30));
 
         ArgumentCaptor<TenderEventLogRecord> log = ArgumentCaptor.forClass(TenderEventLogRecord.class);
         verify(eventLog).record(log.capture());
