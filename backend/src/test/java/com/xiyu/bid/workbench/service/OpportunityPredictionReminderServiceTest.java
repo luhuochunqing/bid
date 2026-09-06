@@ -205,6 +205,55 @@ class OpportunityPredictionReminderServiceTest {
     }
 
     @Test
+    @DisplayName("项目负责人/客户类型回退：立项详情缺失且 Project.customerType 为空时取关联标讯（对齐表格 enrich 链）")
+    void shouldFallbackToTenderForLeaderNameAndCustomerType() {
+        Project project = Project.builder()
+                .id(6L)
+                .name("测试项目6")
+                .tenderId(600L)
+                .customerType(null)                    // 项目客户类型为空 → 触发 customerType 回退
+                .customer("客户6")
+                .managerId(90L)
+                .status(Project.Status.WON)
+                .build();
+        ProjectResult result = ProjectResult.builder()
+                .projectId(6L)
+                .resultType("WON")
+                .servicePeriodEndDate(LocalDate.of(2026, 6, 1)) // 央企规则预测 = 2025-12-01 < 今天（customerType 兜底为 CENTRAL_SOE，提前 6 月）
+                .servicePeriodYears(new BigDecimal("3"))
+                .build();
+        Tender tender = Tender.builder()
+                .id(600L)
+                .purchaserName("采购人Z")
+                .projectManagerName("标讯项目经理赵六")   // 立项详情缺失时项目负责人回退源
+                .customerType("央企")                   // Project.customerType 空时客户类型回退源（中文别名，验证归一化为 CENTRAL_SOE）
+                .bidOpeningTime(LocalDateTime.of(2025, 8, 15, 9, 0))
+                .build();
+
+        when(projectRepository.findAll()).thenReturn(List.of(project));
+        when(projectResultRepository.findByProjectIdIn(List.of(6L))).thenReturn(List.of(result));
+        when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(6L))).thenReturn(List.of()); // 立项详情缺失
+        when(tenderRepository.findAllById(Set.of(600L))).thenReturn(List.of(tender));
+        when(userRepository.findByIdIn(Set.of(90L)))
+                .thenReturn(List.of(User.builder().id(90L).enabled(true).build()));
+        when(reminderLogRepository.findByProjectId(6L)).thenReturn(Optional.empty());
+
+        var outcome = service.runScan(TODAY);
+
+        assertEquals(1, outcome.notified());
+        ArgumentCaptor<OpportunityPredictionEventPayload> evtCaptor =
+                ArgumentCaptor.forClass(OpportunityPredictionEventPayload.class);
+        verify(eventPublisher).publish(evtCaptor.capture());
+        OpportunityPredictionEventPayload evt = evtCaptor.getValue();
+        // 立项详情缺失 → 项目负责人回退标讯项目经理（对齐表格 ProjectListEnrichmentSupport 兜底）
+        assertEquals("标讯项目经理赵六", evt.projectLeaderName());
+        // Project.customerType 为 null → 客户类型回退标讯并经 normalizeCustomerType 归一化（央企→CENTRAL_SOE，对齐表格 populateFromTender）
+        assertEquals("CENTRAL_SOE", evt.customerType());
+        // 预测逻辑同样用兜底 customerType：央企规则提前 6 月（2026-06-01 → 2025-12-01），而非默认 3 月
+        assertEquals(LocalDate.of(2025, 12, 1), evt.predictedBidDate());
+    }
+
+    @Test
     @DisplayName("已提醒过：不重复通知、不落日志、不发事件")
     void shouldSkipWhenAlreadyNotified() {
         Project project = reachedProject(2L, 200L, 60L);

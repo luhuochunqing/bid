@@ -156,8 +156,10 @@ public class OpportunityPredictionReminderService {
                 : null;
         LocalDate servicePeriodEndDate = result != null ? result.getServicePeriodEndDate() : null;
         BigDecimal servicePeriodYears = result != null ? result.getServicePeriodYears() : null;
+        // 客户类型对齐表格 enrich 链（Project 优先→标讯兜底），同时驱动预测规则（央企提前6月/其他3月）与事件推送
+        String resolvedCustomerType = OpportunityPredictionReminderSupport.resolveCustomerType(project, tender);
         var input = new OpportunityPredictionPolicy.Input(
-                resultType, project.getCustomerType(), bidOpenTime, servicePeriodYears, servicePeriodEndDate);
+                resultType, resolvedCustomerType, bidOpenTime, servicePeriodYears, servicePeriodEndDate);
         LocalDate predicted = OpportunityPredictionPolicy.predict(input).orElse(null);
 
         LocalDateTime lastNotifiedAt = reminderLogRepository.findByProjectId(project.getId())
@@ -168,8 +170,10 @@ public class OpportunityPredictionReminderService {
         }
 
         String purchaserName = OpportunityPredictionReminderSupport.resolvePurchaserName(project, tender);
-        // 事件推送招标主体：对齐商机预测表格（Project.customer 优先，为空回退关联标讯采购人）
+        // 事件推送字段对齐商机预测表格 enrich 链：Project/立项详情优先，缺失回退关联标讯
         String customer = OpportunityPredictionReminderSupport.resolveCustomer(project, tender);
+        String resolvedLeaderName = OpportunityPredictionReminderSupport
+                .resolveProjectLeaderName(projectLeaderName, tender);
         List<Long> recipients = resolveRecipients(project, roleRecipients, enabledManagerById);
         if (recipients.isEmpty()) {
             log.warn("[商机预测提醒] no recipients for project id={}, skip", project.getId());
@@ -197,8 +201,8 @@ public class OpportunityPredictionReminderService {
                 .notifiedAt(LocalDateTime.now())
                 .build());
 
-        publishEvent(project, resultType, projectLeaderName, customer, bidOpenTime, servicePeriodYears,
-                servicePeriodEndDate, predicted);
+        publishEvent(project, resultType, resolvedLeaderName, customer, resolvedCustomerType,
+                bidOpenTime, servicePeriodYears, servicePeriodEndDate, predicted);
         return true;
     }
 
@@ -228,14 +232,13 @@ public class OpportunityPredictionReminderService {
     /**
      * 事件库发布：失败只记日志，不拖垮通知主流程。
      *
-     * <p>招标主体（customer）由 processProject 经
-     * {@link OpportunityPredictionReminderSupport#resolveCustomer} 算好传入，
-     * 与商机预测表格 100% 一致（Project.customer 优先，为空回退关联标讯采购人）；
-     * 项目负责人取 {@code project_initiation_details.projectLeaderName}（runScan 已批量加载）。
+     * <p>招标主体（customer）/项目负责人（projectLeaderName）/客户类型（customerType）
+     * 均由 processProject 经 {@link OpportunityPredictionReminderSupport} 算好传入，
+     * 与商机预测表格 enrich 链一致（Project/立项详情优先，缺失回退关联标讯）；
      * 复用 processProject 已算好的 resultType/bidOpenTime/servicePeriodYears，不重复查询。
      */
     private void publishEvent(Project project, String resultType, String projectLeaderName, String customer,
-                              LocalDate bidOpenTime, BigDecimal servicePeriodYears,
+                              String customerType, LocalDate bidOpenTime, BigDecimal servicePeriodYears,
                               LocalDate servicePeriodEndDate, LocalDate predicted) {
         try {
             eventPublisher.publish(new OpportunityPredictionEventPayload(
@@ -244,7 +247,7 @@ public class OpportunityPredictionReminderService {
                     resultType,
                     customer,
                     projectLeaderName,
-                    project.getCustomerType(),
+                    customerType,
                     bidOpenTime != null ? bidOpenTime.toString() : null,
                     servicePeriodYears,
                     servicePeriodEndDate,
