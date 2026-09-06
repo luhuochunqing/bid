@@ -164,4 +164,56 @@ class ResponsivenessReviewPolicyTest {
         assertThat(result).isNotNull();
         assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
     }
+
+    @Test
+    @DisplayName("Major 1 回归：偏离表中存在 UNKNOWN 存疑行时，绝不能被文末自述无偏离绕过误 PASS")
+    void testCheck_WhenUnknownRowWithDeclaration_ReturnsNull() {
+        String text = """
+                ### 商务偏离表
+                | 序号 | 条款 | 招标要求 | 投标响应 | 偏离情况 | 说明 |
+                | 1 | 质保金 | 5% | 约定待定 | 需进一步确认协商 | 商务待定事项 |
+                | 2 | 工期 | 180天 | 响应 | 无偏离 | 满足 |
+                本公司郑重声明：我司完全响应招标文件全部商务与技术条款，无任何负偏离。
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash10", text);
+
+        QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
+
+        // 存疑行不应直接 PASS，应交由 LLM 语义核验
+        assertThat(result).isNull();
+    }
+
+    @Test
+    @DisplayName("Major 2 回归：偏离表全空数据行不应判定为 NONE 导致误 PASS")
+    void testCheck_WhenEmptyCellsRow_DoesNotPass() {
+        String text = """
+                ### 商务偏离表
+                | 序号 | 招标文件条款 | 招标文件要求 | 投标文件响应 | 偏离情况 | 偏离说明 |
+                | 1 | 条款A | 要求A | | | |
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash11", text);
+
+        QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
+
+        // 空行不代表无偏离，不应直接 PASS
+        assertThat(result == null || result.status() != QualityCheckStatus.PASS).isTrue();
+    }
+
+    @Test
+    @DisplayName("Major 3 回归：全量 NEGATIVES 词表覆盖（'部分满足'即使无外围管道符也应硬拦截 FAIL）")
+    void testCheck_WhenSubItemPartiallySatisfiedWithoutPipes_Fails() {
+        String text = """
+                商务偏离说明：
+                关于第三条交货期要求，我方因产能排期实际为部分满足。
+                本公司郑重声明无任何负偏离。
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash12", text);
+
+        QualityCheckItemResult result = ResponsivenessReviewPolicy.check(doc);
+
+        assertThat(result).isNotNull();
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(result.conclusion()).contains("实质性负偏离");
+        assertThat(result.conclusion()).contains("部分满足");
+    }
 }

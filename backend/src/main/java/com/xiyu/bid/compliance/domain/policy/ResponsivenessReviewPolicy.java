@@ -19,6 +19,8 @@ import java.util.regex.Pattern;
  */
 public final class ResponsivenessReviewPolicy {
 
+    private static final int HEADER_CONTEXT_RADIUS = 15;
+
     private static final List<String> DEVIATION_KEYWORDS = List.of(
             "商务偏离表", "技术偏离表", "商务规格偏离表", "技术规格偏离表",
             "条款偏离表", "商务及技术偏离表", "偏离表");
@@ -59,7 +61,7 @@ public final class ResponsivenessReviewPolicy {
         // 3. 结构化负偏离行精准拦截（硬 FAIL）
         if (!extraction.negativeRows().isEmpty()) {
             DeviationTableExtractor.DeviationRow neg = extraction.negativeRows().get(0);
-            String detail = (neg.clause() != null && !neg.clause().isBlank())
+            String detail = (!neg.clause().isBlank())
                     ? "条款 " + neg.clause() + "（" + neg.description() + "）"
                     : neg.description();
             QualityEvidence evidence = EvidenceAssembler.locateBid(
@@ -71,15 +73,17 @@ public final class ResponsivenessReviewPolicy {
                     List.of(evidence));
         }
 
-        // 4. 非表格形式明确自述实质性负偏离拦截（排除表头与选项说明干扰）
+        // 4. 非表格形式明确自述实质性负偏离拦截（对齐全量 NEGATIVES 词表，排除表头选项说明）
         String fullText = bidDoc.fullText();
-        if (containsDeclaredNegative(fullText, "负偏离") || containsDeclaredNegative(fullText, "不满足")) {
-            QualityEvidence evidence = EvidenceAssembler.locateBid(bidDoc, "偏离表负偏离条款", List.of("负偏离", "不满足"));
-            return QualityCheckItemResult.fail(
-                    BidQualityCheckItem.RESPONSIVENESS_REVIEW,
-                    "商务或技术条款中存在实质性负偏离！",
-                    "请核减负偏离项或补充合理解释，避免触发招标文件实质性偏离否决条款",
-                    List.of(evidence));
+        for (String negKw : DeviationTableExtractor.NEGATIVES) {
+            if (containsDeclaredNegative(fullText, negKw)) {
+                QualityEvidence evidence = EvidenceAssembler.locateBid(bidDoc, "偏离表负偏离条款", List.of(negKw));
+                return QualityCheckItemResult.fail(
+                        BidQualityCheckItem.RESPONSIVENESS_REVIEW,
+                        "商务或技术条款中存在实质性负偏离（" + negKw + "）！",
+                        "请核减负偏离项或补充合理解释，避免触发招标文件实质性偏离否决条款",
+                        List.of(evidence));
+            }
         }
 
         List<DocumentContent.PageContent> candidatePages = findCandidatePages(bidDoc);
@@ -125,6 +129,11 @@ public final class ResponsivenessReviewPolicy {
                     BidQualityCheckItem.RESPONSIVENESS_REVIEW,
                     conclusion,
                     List.of(evidence));
+        }
+
+        // Major 1 守卫：若存在偏离表但包含 UNKNOWN 行（未能确定为 NONE/POSITIVE），绝不能由自述兜底放行，必须存疑移交 LLM
+        if (!extraction.tables().isEmpty() && !extraction.tables().stream().allMatch(DeviationTableExtractor.DeviationTable::allNoneOrPositive)) {
+            return null;
         }
 
         // 8. 非表格形式自述无偏离/全部响应直通 PASS
@@ -217,8 +226,8 @@ public final class ResponsivenessReviewPolicy {
     }
 
     private static boolean isHeaderChoiceOption(final String text, final int idx, final String keyword) {
-        int start = Math.max(0, idx - 15);
-        int end = Math.min(text.length(), idx + keyword.length() + 15);
+        int start = Math.max(0, idx - HEADER_CONTEXT_RADIUS);
+        int end = Math.min(text.length(), idx + keyword.length() + HEADER_CONTEXT_RADIUS);
         String context = text.substring(start, end);
         return context.contains("正偏离/负偏离") || context.contains("/负偏离/")
                 || context.contains("正偏离、负偏离") || context.contains("正偏离或负偏离");

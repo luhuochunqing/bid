@@ -40,9 +40,9 @@ public final class DeviationTableExtractor {
     private static final Pattern BRACKET_PATTERN = Pattern.compile(
             "【(?:请|在此|在此处|填写|输入|插入|待填|说明)[^】]{0,30}】|\\[(?:请|在此|填写|待填|说明)[^\\]]{0,30}\\]");
 
-    private static final List<String> NEGATIONS = List.of("无任何", "不存在", "没有", "不含", "无", "未", "零");
-    private static final List<String> NEGATIVES = List.of("负偏离", "不满足", "负偏差", "未满足", "部分响应", "部分满足", "低于");
-    private static final List<String> POSITIVES = List.of("正偏离", "优于", "高于", "超过招标要求");
+    public static final List<String> NEGATIONS = List.of("无任何", "不存在", "没有", "不含", "无", "未", "零");
+    public static final List<String> NEGATIVES = List.of("负偏离", "不满足", "负偏差", "未满足", "部分响应", "部分满足", "低于");
+    public static final List<String> POSITIVES = List.of("正偏离", "优于", "高于", "超过招标要求");
 
     private DeviationTableExtractor() {
     }
@@ -97,7 +97,7 @@ public final class DeviationTableExtractor {
                 curCat = classifyCategory(line);
                 continue;
             }
-            if (line.contains("|") && (line.startsWith("|") || line.endsWith("|"))) {
+            if (line.contains("|") && splitCells(line).size() >= 2) {
                 curLines.add(line);
             } else if (!curLines.isEmpty()) {
                 DeviationTable t = buildTable(curCat, curTitle, page.pageNumber(), curLines);
@@ -161,14 +161,15 @@ public final class DeviationTableExtractor {
 
     private static DeviationType resolveDeviationType(final String typeText, final String descText) {
         String combined = (typeText + " " + descText).trim();
+        if (combined.isBlank()) return DeviationType.UNKNOWN;
         if (containsNonNegatedKeyword(combined, NEGATIVES)) return DeviationType.NEGATIVE;
-        if (containsKeyword(combined, POSITIVES)) return DeviationType.POSITIVE;
+        if (containsNonNegatedKeyword(combined, POSITIVES)) return DeviationType.POSITIVE;
         if (combined.contains("无偏离") || combined.contains("完全响应") || combined.contains("全面响应")
-                || combined.contains("全部满足") || combined.contains("完全满足") || combined.contains("满足")
-                || combined.contains("符合") || combined.contains("响应") || combined.contains("遵照")
-                || combined.contains("遵从") || combined.contains("执行") || combined.contains("无负偏离")
+                || combined.contains("全部响应") || combined.contains("完全满足") || combined.contains("全面满足")
+                || combined.contains("全部满足") || combined.contains("满足要求") || combined.contains("符合要求")
+                || combined.contains("遵照执行") || combined.contains("严格遵从") || combined.contains("无负偏离")
                 || combined.contains("不存在负偏离") || combined.contains("无任何负偏离") || combined.contains("无负偏差")
-                || combined.equals("/") || combined.equals("-") || combined.equals("无") || combined.isBlank()) {
+                || combined.equals("/") || combined.equals("-") || combined.equals("无")) {
             return DeviationType.NONE;
         }
         return DeviationType.UNKNOWN;
