@@ -13,7 +13,7 @@ class DeterministicDepositExtractorTest {
     @DisplayName("全文无任何保证金/担保字样时：审慎返回 null，交由 LLM 或人工复核，绝不武断断言免收")
     void testExtract_WhenNoDepositMentioned_ReturnsNull() {
         String text = "第一章 采购公告\n项目名称：办公设备采购\n服务周期：1年\n交付地点：上海市";
-        TenderRequirements.DepositRequirement req = DeterministicDepositExtractor.extract(text);
+        DepositRequirement req = DeterministicDepositExtractor.extract(text);
 
         assertThat(req).isNull();
         assertThat(DeterministicDepositExtractor.isDepositNotRequired(text)).isFalse();
@@ -33,7 +33,7 @@ class DeterministicDepositExtractorTest {
     })
     @DisplayName("自然语言显式免收短语（含投标担保）：精准识别为免收")
     void testExtract_WhenExplicitPhrases_ReturnsNotRequired(String tenderText) {
-        TenderRequirements.DepositRequirement req = DeterministicDepositExtractor.extract(tenderText);
+        DepositRequirement req = DeterministicDepositExtractor.extract(tenderText);
 
         assertThat(req).isNotNull();
         assertThat(req.required()).isFalse();
@@ -56,7 +56,7 @@ class DeterministicDepositExtractorTest {
     })
     @DisplayName("前附表及条目式表格免收表达（项目1358真实前附表场景）：精准识别为免收")
     void testExtract_WhenTableFormat_ReturnsNotRequired(String tenderText) {
-        TenderRequirements.DepositRequirement req = DeterministicDepositExtractor.extract(tenderText);
+        DepositRequirement req = DeterministicDepositExtractor.extract(tenderText);
 
         assertThat(req).isNotNull();
         assertThat(req.required()).isFalse();
@@ -67,7 +67,7 @@ class DeterministicDepositExtractorTest {
     @DisplayName("阿拉伯数字金额：精准提取金额与 required=true")
     void testExtract_WhenRequiredAmount_ReturnsRequired() {
         String text = "前附表：\n投标保证金金额：人民币50000元，汇入指定银行基本账户。";
-        TenderRequirements.DepositRequirement req = DeterministicDepositExtractor.extract(text);
+        DepositRequirement req = DeterministicDepositExtractor.extract(text);
 
         assertThat(req).isNotNull();
         assertThat(req.required()).isTrue();
@@ -79,7 +79,7 @@ class DeterministicDepositExtractorTest {
     @DisplayName("投标担保与中文大写金额：精准识别需缴纳与中文大写金额")
     void testExtract_WhenChineseAmountAndTenderGuarantee_ReturnsRequired() {
         String text = "3.4 投标担保：本项目要求提交投标担保，投标担保金额为人民币壹拾万元整，应在截标前到达指定账户。";
-        TenderRequirements.DepositRequirement req = DeterministicDepositExtractor.extract(text);
+        DepositRequirement req = DeterministicDepositExtractor.extract(text);
 
         assertThat(req).isNotNull();
         assertThat(req.required()).isTrue();
@@ -90,10 +90,10 @@ class DeterministicDepositExtractorTest {
     @Test
     @DisplayName("交叉验证 fuse：确定性提取到明确金额 vs LLM 幻觉免收时，硬事实金额优先，消除幻觉")
     void testFuse_WhenAmountVsLlmExemption_AmountWins() {
-        TenderRequirements.DepositRequirement llmExemption = TenderRequirements.DepositRequirement.notRequired("LLM 幻觉认为免收");
-        TenderRequirements.DepositRequirement detAmount = TenderRequirements.DepositRequirement.required("10万元", null, "前附表明文要求10万元");
+        DepositRequirement llmExemption = DepositRequirement.notRequired("LLM 幻觉认为免收");
+        DepositRequirement detAmount = DepositRequirement.required("10万元", null, "前附表明文要求10万元");
 
-        TenderRequirements.DepositRequirement fused = TenderRequirements.DepositRequirement.fuse(llmExemption, detAmount);
+        DepositRequirement fused = DepositRequirement.fuse(llmExemption, detAmount);
 
         assertThat(fused).isNotNull();
         assertThat(fused.required()).isTrue();
@@ -103,10 +103,10 @@ class DeterministicDepositExtractorTest {
     @Test
     @DisplayName("交叉验证 fuse：冲突且均无具体金额时，审慎合规判需缴纳，绝不盲目偏向免收")
     void testFuse_WhenConflictWithoutAmount_ConservativeWins() {
-        TenderRequirements.DepositRequirement a = TenderRequirements.DepositRequirement.notRequired("免收");
-        TenderRequirements.DepositRequirement b = new TenderRequirements.DepositRequirement(true, null, null, "要求缴纳");
+        DepositRequirement a = DepositRequirement.notRequired("免收");
+        DepositRequirement b = new DepositRequirement(true, null, null, "要求缴纳");
 
-        TenderRequirements.DepositRequirement fused = TenderRequirements.DepositRequirement.fuse(a, b);
+        DepositRequirement fused = DepositRequirement.fuse(a, b);
 
         assertThat(fused).isNotNull();
         assertThat(fused.required()).isTrue();
@@ -117,13 +117,13 @@ class DeterministicDepositExtractorTest {
     @DisplayName("双轨融合 fuseWithDeterministic：双方均有金额时坚决以确定性原文金额为准，防止 LLM 改写覆盖原文")
     void testFuseWithDeterministic_WhenBothHaveAmount_DeterministicAmountWins() {
         // LLM 提取时发生缩略或改写（如 5万元，附带丰富说明与形式）
-        TenderRequirements.DepositRequirement llmReq = TenderRequirements.DepositRequirement.required(
+        DepositRequirement llmReq = DepositRequirement.required(
                 "5万元", "银行保函/网银转账", "投标人应提供银行保函或网银电汇凭证");
         // 确定性规则从原文正则精准提取（如 50,000元）
-        TenderRequirements.DepositRequirement detReq = TenderRequirements.DepositRequirement.required(
+        DepositRequirement detReq = DepositRequirement.required(
                 "50,000元", null, "招标文件条款规定：投标保证金：50,000元");
 
-        TenderRequirements.DepositRequirement fused = TenderRequirements.DepositRequirement.fuseWithDeterministic(
+        DepositRequirement fused = DepositRequirement.fuseWithDeterministic(
                 llmReq, detReq);
 
         assertThat(fused).isNotNull();

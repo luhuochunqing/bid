@@ -19,7 +19,7 @@ class DeterministicBidLetterExtractorTest {
                 | 3.3.2 | 投标有效期 | 90日历天，自投标截止之日起算 |
                 """;
 
-        TenderRequirements.BidLetterRequirement req = DeterministicBidLetterExtractor.extract(tenderText);
+        BidLetterRequirement req = DeterministicBidLetterExtractor.extract(tenderText);
 
         assertThat(req).isNotNull();
         assertThat(req.letterType()).isEqualTo("投标函");
@@ -38,7 +38,7 @@ class DeterministicBidLetterExtractorTest {
                 3.2 响应文件有效期为 60 天。
                 """;
 
-        TenderRequirements.BidLetterRequirement req = DeterministicBidLetterExtractor.extract(tenderText);
+        BidLetterRequirement req = DeterministicBidLetterExtractor.extract(tenderText);
 
         assertThat(req).isNotNull();
         assertThat(req.letterType()).isEqualTo("报价函");
@@ -51,7 +51,7 @@ class DeterministicBidLetterExtractorTest {
     void testExtract_WhenNoRequirements_ReturnsNull() {
         String tenderText = "项目技术规格书：关于服务器与网络设备技术要求。";
 
-        TenderRequirements.BidLetterRequirement req = DeterministicBidLetterExtractor.extract(tenderText);
+        BidLetterRequirement req = DeterministicBidLetterExtractor.extract(tenderText);
 
         assertThat(req).isNull();
     }
@@ -59,12 +59,12 @@ class DeterministicBidLetterExtractorTest {
     @Test
     @DisplayName("双轨融合 fuseWithDeterministic：天数与称谓双有数时，以确定性正则提取的原文为准，保留 LLM 丰富描述")
     void testFuseWithDeterministic_DeterministicWinsOnHardFacts() {
-        TenderRequirements.BidLetterRequirement llmReq = new TenderRequirements.BidLetterRequirement(
+        BidLetterRequirement llmReq = new BidLetterRequirement(
                 "投标函", "张家口银行", 90, "投标人应按照招标文件格式编制投标函并盖公章");
-        TenderRequirements.BidLetterRequirement detReq = new TenderRequirements.BidLetterRequirement(
+        BidLetterRequirement detReq = new BidLetterRequirement(
                 "投标函", "张家口银行股份有限公司", 90, "招标文件条款提取：张家口银行股份有限公司");
 
-        TenderRequirements.BidLetterRequirement fused = TenderRequirements.BidLetterRequirement.fuseWithDeterministic(
+        BidLetterRequirement fused = BidLetterRequirement.fuseWithDeterministic(
                 llmReq, detReq);
 
         assertThat(fused).isNotNull();

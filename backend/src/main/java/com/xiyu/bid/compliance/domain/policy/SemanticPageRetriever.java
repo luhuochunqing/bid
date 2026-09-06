@@ -215,25 +215,28 @@ public final class SemanticPageRetriever {
         });
         req.compositionRequirements().forEach(comp -> addCue(cues, comp));
         req.formatRequirements().forEach(fmt -> addCue(cues, fmt));
-        if (req.depositRequirement() != null && req.depositRequirement().description() != null) {
-            addCue(cues, req.depositRequirement().description());
-        }
+        if (req.depositRequirement() != null) addDescriptionCues(cues, req.depositRequirement().description());
         if (req.bidLetterRequirement() != null) {
             if (req.bidLetterRequirement().letterType() != null) addCue(cues, req.bidLetterRequirement().letterType());
             if (req.bidLetterRequirement().recipientName() != null) addCue(cues, req.bidLetterRequirement().recipientName());
-            if (req.bidLetterRequirement().description() != null) addDescriptionCues(cues, req.bidLetterRequirement().description());
+            addDescriptionCues(cues, req.bidLetterRequirement().description());
         }
         if (req.authorizationRequirement() != null) {
             if (req.authorizationRequirement().templateTitle() != null) addCue(cues, req.authorizationRequirement().templateTitle());
-            if (req.authorizationRequirement().description() != null) addDescriptionCues(cues, req.authorizationRequirement().description());
+            addDescriptionCues(cues, req.authorizationRequirement().description());
         }
         if (req.businessLicenseRequirement() != null) {
             req.businessLicenseRequirement().allowCertificates().forEach(cert -> addCue(cues, cert));
-            if (req.businessLicenseRequirement().description() != null) addDescriptionCues(cues, req.businessLicenseRequirement().description());
+            addDescriptionCues(cues, req.businessLicenseRequirement().description());
         }
         if (req.idAuthLetterRequirement() != null) {
             if (req.idAuthLetterRequirement().requireOriginalOrCopy() != null) addCue(cues, req.idAuthLetterRequirement().requireOriginalOrCopy());
-            if (req.idAuthLetterRequirement().description() != null) addDescriptionCues(cues, req.idAuthLetterRequirement().description());
+            addDescriptionCues(cues, req.idAuthLetterRequirement().description());
+        }
+        if (req.financialRequirement() != null) {
+            req.financialRequirement().requiredStatements().forEach(stmt -> addCue(cues, stmt));
+            req.financialRequirement().requiredYears().forEach(year -> addCue(cues, year));
+            addDescriptionCues(cues, req.financialRequirement().description());
         }
         return cues;
     }

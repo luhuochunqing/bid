@@ -149,7 +149,7 @@ class BidDocumentQualityEngineTest {
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid", bidContent);
 
         TenderRequirements requirements = TenderRequirements.empty()
-                .withDepositRequirement(TenderRequirements.DepositRequirement.notRequired("前附表明确说明免收保证金"));
+                .withDepositRequirement(DepositRequirement.notRequired("前附表明确说明免收保证金"));
 
         List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
                 doc, DocumentContent.empty(), Collections.emptyList(), requirements, Set.of());
@@ -178,7 +178,7 @@ class BidDocumentQualityEngineTest {
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid", bidContent);
 
         TenderRequirements requirements = TenderRequirements.empty()
-                .withDepositRequirement(TenderRequirements.DepositRequirement.required("50000元", null, "前附表要求50000元"));
+                .withDepositRequirement(DepositRequirement.required("50000元", null, "前附表要求50000元"));
 
         // 模拟 LLM 裁决通道
         LlmAdjudicator mockLlm = new LlmAdjudicator(prompt -> {
@@ -221,7 +221,7 @@ class BidDocumentQualityEngineTest {
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid", bidVoucherPage);
 
         TenderRequirements requirements = TenderRequirements.empty()
-                .withDepositRequirement(TenderRequirements.DepositRequirement.required("50000元", null, "要求50000元"));
+                .withDepositRequirement(DepositRequirement.required("50000元", null, "要求50000元"));
 
         java.util.concurrent.atomic.AtomicInteger llmDepositCallCount = new java.util.concurrent.atomic.AtomicInteger(0);
         LlmAdjudicator llm = new LlmAdjudicator(prompt -> {
@@ -266,7 +266,7 @@ class BidDocumentQualityEngineTest {
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid", bidPage);
 
         TenderRequirements requirements = TenderRequirements.empty()
-                .withBidLetterRequirement(new TenderRequirements.BidLetterRequirement(
+                .withBidLetterRequirement(new BidLetterRequirement(
                         "报价函", "上海西域机电系统有限公司", 90, "格式为报价函，有效期90天"));
 
         java.util.concurrent.atomic.AtomicInteger llmBidLetterCallCount = new java.util.concurrent.atomic.AtomicInteger(0);
@@ -305,7 +305,7 @@ class BidDocumentQualityEngineTest {
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_toc", tocPage);
 
         TenderRequirements requirements = TenderRequirements.empty()
-                .withBidLetterRequirement(new TenderRequirements.BidLetterRequirement(
+                .withBidLetterRequirement(new BidLetterRequirement(
                         "投标函", "上海西域机电系统有限公司", 90, "要求投标函"));
 
         LlmAdjudicator mockLlm = new LlmAdjudicator(prompt -> {
@@ -539,5 +539,81 @@ class BidDocumentQualityEngineTest {
 
         assertThat(idResult.status()).isEqualTo(QualityCheckStatus.FAIL);
         assertThat(idResult.conclusion()).contains("经大模型语义核查");
+    }
+
+    @Test
+    @DisplayName("资格审查第一阶段财务直通测试：标书具备完整财务三表及审计印章时，QUALIFICATION_REVIEW 直通 PASS 且不调用 LLM")
+    void testEvaluateAll_WhenFinancialStatementCompliant_QualificationReviewPassesWithoutLlm() {
+        String finPage = """
+                上海西域供应链管理股份有限公司
+                2024年度财务报表及审计报告
+                一、审计意见：我们审计了后附的财务报表，包括2024年12月31日的资产负债表，
+                2024年度的利润表、现金流量表以及相关财务报表附注。
+                我们认为，后附的财务报表在所有重大方面按照企业会计准则的规定编制。
+                普华永道中天会计师事务所（特殊普通合伙）
+                （会计师事务所盖章）
+                注册会计师：张审计、李复核
+                二、资产负债表
+                流动资产合计：100,000,000元，负债合计：50,000,000元，所有者权益合计：50,000,000元
+                三、利润表
+                营业收入：200,000,000元，净利润：20,000,000元
+                四、现金流量表
+                经营活动产生的现金流量净额：18,000,000元
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_fin", finPage);
+        TenderRequirements req = new TenderRequirements(
+                List.of(), List.of(), List.of(), List.of(), List.of(),
+                null, null, null, null, null,
+                new FinancialRequirement(true, true, List.of("2024"), List.of("资产负债表", "利润表", "现金流量表"), true, "提供2024年度经审计的财务报告"),
+                false);
+
+        java.util.concurrent.atomic.AtomicInteger llmCallCount = new java.util.concurrent.atomic.AtomicInteger();
+        LlmAdjudicator llm = new LlmAdjudicator(prompt -> {
+            if (prompt.contains("裁决检查项「" + BidQualityCheckItem.QUALIFICATION_REVIEW.getTitle() + "」")) {
+                llmCallCount.incrementAndGet();
+            }
+            return LlmVerdict.success(new LlmVerdict("PASS", "", "通过", ""));
+        });
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), req, Set.of(), llm, (p, s) -> { });
+
+        QualityCheckItemResult qualResult = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_REVIEW.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(llmCallCount.get())
+                .as("标书具备完整财务三表及审计印章强事实时，QUALIFICATION_REVIEW 坚决不调 LLM，防止抖动与浪费")
+                .isEqualTo(0);
+        assertThat(qualResult.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(qualResult.conclusion()).contains("已提供完整的财务会计报告");
+        assertThat(qualResult.evidences()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("资格审查第一阶段财务占位符反假拦截：标书存在未填占位符模板时，直接 FAIL 拦截")
+    void testEvaluateAll_WhenFinancialStatementPlaceholder_QualificationReviewFailsDirectly() {
+        String finPage = """
+                财务状况证明材料
+                【此处粘贴2024年度财务审计报告及资产负债表】
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_placeholder", finPage);
+        TenderRequirements req = new TenderRequirements(
+                List.of(), List.of(), List.of(), List.of(), List.of(),
+                null, null, null, null, null,
+                new FinancialRequirement(true, true, List.of("2024"), List.of("资产负债表", "利润表", "现金流量表"), true, "提供2024年度经审计的财务报告"),
+                false);
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), req, Set.of());
+
+        QualityCheckItemResult qualResult = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_REVIEW.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(qualResult.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(qualResult.conclusion()).contains("占位模板");
     }
 }

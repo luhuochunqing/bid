@@ -66,7 +66,7 @@ class BidLetterCheckPolicyTest {
                 日期：2026年09月01日
                 """;
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid", bidPage);
-        TenderRequirements.BidLetterRequirement req = new TenderRequirements.BidLetterRequirement(
+        BidLetterRequirement req = new BidLetterRequirement(
                 "投标函", "上海西域机电系统有限公司", 90, "投标有效期90天");
 
         QualityCheckItemResult result = BasicInfoCheckPolicy.checkBidLetterFormat(doc, req);
@@ -88,7 +88,7 @@ class BidLetterCheckPolicyTest {
                 日期：2026年09月01日
                 """;
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid", bidPage);
-        TenderRequirements.BidLetterRequirement req = new TenderRequirements.BidLetterRequirement(
+        BidLetterRequirement req = new BidLetterRequirement(
                 "投标函", "上海西域机电系统有限公司", 90, "致上海西域机电系统有限公司");
 
         QualityCheckItemResult result = BasicInfoCheckPolicy.checkBidLetterFormat(doc, req);
@@ -110,7 +110,7 @@ class BidLetterCheckPolicyTest {
                 日期：2026年09月05日
                 """;
         DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid", bidPage);
-        TenderRequirements.BidLetterRequirement req = new TenderRequirements.BidLetterRequirement(
+        BidLetterRequirement req = new BidLetterRequirement(
                 "报价函", "上海西域机电系统有限公司", 90, "格式为报价函，有效期90天");
 
         QualityCheckItemResult result = BasicInfoCheckPolicy.checkBidLetterFormat(doc, req);
