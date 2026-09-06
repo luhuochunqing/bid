@@ -229,11 +229,11 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **目录点线拦截与未填模板占位符反假**：标书端 `IdAuthLetterCheckPolicy` 物理排除目录点线页（`MULTI_DOT_PATTERN`、`CATALOG_DOT_LINE_PATTERN`，`isCatalogOrOutlinePage`），并拦截未填写的占位符模板（【此处粘贴委托代理人身份证】、下划线留白等）；
     - **GB 11643-1999 18位标准身份证号与人像/国徽面要素核验**：严格校验 18 位公民身份号码并进行号码脱敏；综合核验有效期限、签发机关、人像面/国徽面等真实版面要素；招标明确要求社保时联动核验社保证明，缺失时降级人工复核；
     - **强事实直通与存疑裁决接通**：真实 18 位身份证号与身份要素齐全直通 PASS（LLM 0 次调用防抖动），存疑或仅命中目录/未填模板时接通 `LlmAdjudicator` 准则 7 深度裁决并调用 `SemanticPageRetriever` 候选页定位。
-28. **财务状况证明与审计报告(FINANCIAL_STATEMENT)两阶段结构化契约与要素反假重构**（2026-09-06）：
+28. **财务状况证明与审计报告(FINANCIAL_STATEMENT)两阶段结构化契约与要素反假重构**（2026-09-06，!2561 follow-up 收紧）：
     - **两阶段结构化契约与顶层 Record 解耦**：在 `TenderRequirements` 接入 `FinancialRequirement` 契约（是否必须提供、是否要求审计报告、所需年份列表、所需报表清单、是否要求事务所印章及说明），同时将累积的内部类 `DepositRequirement`、`BidLetterRequirement` 连同 `FinancialRequirement` 彻底解耦为同包顶层 Record，守护 300 行红线；建立纯核心 `DeterministicFinancialExtractor` 正则提取年份、三表与审计印章要求；
-    - **目录点线拦截与未填模板占位符反假**：标书端 `FinancialStatementCheckPolicy` 物理排除目录点线页（`isCatalogOrOutlinePage`），并拦截未填写的占位符模板（【此处粘贴经会计师事务所审计的财务审计报告】、留白下划线等），发现占位符立即判定 FAIL 反假拦截；
-    - **财务三表与审计意见印章事实核验**：严格核查资产负债表、利润表（损益表）、现金流量表及会计师事务所审计意见与印章，支持报表年份覆盖度校验；
-    - **资格审查第一阶段直通与存疑裁决接通**：将 `FinancialStatementCheckPolicy` 挂载为 `QUALIFICATION_REVIEW` 第一阶段硬信号，真实三表与印章齐全直通 PASS（LLM 0 次调用防抖动），占位模板直接 FAIL 拦截；部分报表或存疑场景流转至大模型准则 8 深度裁决并调用 `SemanticPageRetriever` 候选页检索。
+    - **目录点线拦截与未填模板占位符反假**：标书端 `FinancialStatementCheckPolicy` 物理排除目录点线页（`isCatalogOrOutlinePage`）；仅当「有占位且无任何有效报表/审计页」时以 `[UNFILLED_PLACEHOLDER]` 硬 FAIL；占位页与真报表并存降级 MANUAL，不因残留模板一票否决；
+    - **财务三表与年份覆盖**：报表识别为标题 ∧ 表内要素；绝对年份必须全部命中，抽不到年份不得真空通过，相对年份（近三年）不在规则层直通 PASS；
+    - **资格审查第一阶段只 FAIL 不 PASS**：财务三表齐全或招标免除不得结束 `QUALIFICATION_REVIEW`（spec 047 本项是企业信誉与类似业绩门槛）。造假硬信号上浮后，其余场景交 LLM 准则 8（必须覆盖业绩/信誉，不得只查财务报表）。
 29. **报价一致性(PRICE_CONSISTENCY)与开标一览表(BID_OPENING_TABLE)两阶段结构化契约与反假重构**（2026-09-06）：
     - **两阶段结构化契约**：在 `TenderRequirements` 接入 `PriceRequirement` 独立顶层 Record 契约（最高限价金额、限价原文、报价方式、明细表/一览表要求、要求说明），并建立纯核心 `DeterministicPriceExtractor` 正则提取最高投标限价/控制价/采购预算（支持万元折算、纯数字及中文大写），与 LLM 提取双轨融合；
     - **开标一览表反假与总价提取**：标书端 `BidOpeningTableCheckPolicy` 物理排除目录点线页（`isCatalogOrOutlinePage`），并拦截未替换模板占位符（【此处粘贴开标一览表】等直接 FAIL 拦截），严格核验序号、名称、规格型号、单价、合价等表头实质结构，提取表格总报价供跨表勾稽；

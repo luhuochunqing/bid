@@ -4,7 +4,6 @@
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
 
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -29,8 +28,8 @@ public final class DeterministicFinancialExtractor {
             return null;
         }
 
-        // 1. 豁免/免除判定
-        if (isFinancialNotRequired(tenderText)) {
+        // 1. 豁免/免除判定（与正向「须提供审计/三表」冲突时不免除）
+        if (isFinancialNotRequired(tenderText) && !hasPositiveFinancialDemand(tenderText)) {
             return FinancialRequirement.notRequired("招标文件明确无需或免除提供财务状况证明/审计报告");
         }
 
@@ -44,7 +43,6 @@ public final class DeterministicFinancialExtractor {
         LinkedHashSet<String> statements = new LinkedHashSet<>();
         boolean auditRequired = false;
         boolean cpaSealRequired = false;
-        String bestDescription = null;
 
         String[] lines = tenderText.split("\r?\n");
         for (String line : lines) {
@@ -89,18 +87,6 @@ public final class DeterministicFinancialExtractor {
             if (trimmed.contains("财务报表附注") || trimmed.contains("报表附注")) {
                 statements.add("财务报表附注");
             }
-
-            if (bestDescription == null || trimmed.length() > bestDescription.length()) {
-                if (trimmed.length() <= 120) {
-                    bestDescription = trimmed;
-                }
-            }
-        }
-
-        if (statements.isEmpty()) {
-            statements.add("资产负债表");
-            statements.add("利润表");
-            statements.add("现金流量表");
         }
 
         StringBuilder desc = new StringBuilder("须提供");
@@ -112,7 +98,9 @@ public final class DeterministicFinancialExtractor {
         if (!years.isEmpty()) {
             desc.append("（涵盖 ").append(String.join("、", years)).append("）");
         }
-        desc.append("，包含").append(String.join("、", statements));
+        if (!statements.isEmpty()) {
+            desc.append("，包含").append(String.join("、", statements));
+        }
         if (cpaSealRequired) {
             desc.append("并附会计师事务所印章");
         }
@@ -136,17 +124,33 @@ public final class DeterministicFinancialExtractor {
                 || text.contains("免除财务状况证明") || text.contains("免于提供财务报表");
     }
 
+    static boolean hasPositiveFinancialDemand(final String text) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+        boolean demanded = text.contains("须提供") || text.contains("应提供")
+                || text.contains("必须提供") || text.contains("应当提交")
+                || text.contains("应附") || text.contains("须附")
+                || text.contains("要求提供");
+        boolean financial = text.contains("财务审计") || text.contains("财务报表")
+                || text.contains("财务会计报表") || text.contains("资产负债表")
+                || text.contains("审计报告") || text.contains("财务报告");
+        return demanded && financial;
+    }
+
     private static boolean hasFinancialKeywords(final String text) {
         return text.contains("财务状况") || text.contains("财务审计报告")
-                || text.contains("财务报表") || text.contains("审计报告")
-                || text.contains("资产负债表") || text.contains("利润表")
-                || text.contains("现金流量表") || text.contains("健全的财务会计制度")
-                || text.contains("财务报告") || text.contains("会计师事务所");
+                || text.contains("财务报表") || text.contains("财务会计报表")
+                || text.contains("审计报告") || text.contains("资产负债表")
+                || text.contains("利润表") || text.contains("现金流量表")
+                || text.contains("财务报告");
     }
 
     private static boolean hasLineFinancialKeyword(final String line) {
-        return line.contains("财务") || line.contains("审计")
-                || line.contains("资产负债") || line.contains("利润")
-                || line.contains("现金流量") || line.contains("损益");
+        return line.contains("财务状况") || line.contains("财务报表")
+                || line.contains("财务审计") || line.contains("财务会计报表")
+                || line.contains("财务报告") || line.contains("资产负债表")
+                || line.contains("利润表") || line.contains("损益表")
+                || line.contains("现金流量表") || line.contains("审计报告");
     }
 }

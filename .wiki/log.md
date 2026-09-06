@@ -15,6 +15,16 @@
 - 结果：落地 5 个专属单测套件，单文件行预算严格控制在 300 行内，55 项单元与 FP-Java 架构测试全绿。
 - 页面更新：更新 [[bid-quality-check-realization]] §4.29 与 sources；lessons-learned.md §234。
 
+## [2026-09-06] fix | PR !2561 follow-up：财务核查不得短路资格性评审
+
+- 触发：!2561 合入后审查。`QUALIFICATION_REVIEW` 被财务三表关键词直通 PASS，与 spec 047「企业信誉、类似项目业绩门槛」冲突。
+- 修复：
+  - 第一阶段只上浮 `[UNFILLED_PLACEHOLDER]` 硬 FAIL，财务 PASS/免除不再结束第 14 项；
+  - 报表识别改为标题 ∧ 表内要素；绝对年份必须全覆盖；相对年份不直通；
+  - 免除与「须提供审计/三表」冲突时按必须提供；政府采购套话不再单独启动提取；
+  - 恢复 `sanitizeQualifications` 的 `cleanItem` + 去重；执照门槛交给 `pr2557-followup`。
+- 页面更新：更新 [[bid-quality-check-realization]] §4.28。
+
 ## [2026-09-06] feat | 标书质检「财务状况证明/财务审计报告」（FINANCIAL_STATEMENT）两阶段契约与反假重构
 
 - 触发：推进 25 项质检项语义化演进之重点项「财务状况证明 / 财务审计报告」（FINANCIAL_STATEMENT，PRD 2.3 第 18 项，隶属于资格性审查核心条款 QUALIFICATION_REVIEW，涵盖资产负债表、利润表、现金流量表、会计师事务所审计印章真实性与年份要求）。

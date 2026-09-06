@@ -7,6 +7,7 @@ package com.xiyu.bid.compliance.domain.policy;
 import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
 import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
+import com.xiyu.bid.compliance.domain.QualityCheckStatus;
 import com.xiyu.bid.compliance.domain.QualityEvidence;
 
 import java.util.ArrayList;
@@ -22,27 +23,34 @@ import java.util.regex.Pattern;
  */
 public final class FinancialStatementCheckPolicy {
 
+    static final String UNFILLED_PLACEHOLDER_PREFIX = "[UNFILLED_PLACEHOLDER]";
+
     private static final Pattern UNFILLED_PLACEHOLDER_PATTERN = Pattern.compile(
             "【此处(?:粘贴|插入|附).*?(?:财务|审计|报表).*?】|【财务.*?附后】|______年度|（格式范本）|（参考模板）"
     );
 
-    private static final Pattern YEAR_PATTERN = Pattern.compile("20[12][0-9]年?");
+    private static final Pattern YEAR_PATTERN = Pattern.compile("20[12][0-9]年");
+    private static final Pattern ABSOLUTE_YEAR = Pattern.compile("20[12][0-9]");
 
     private FinancialStatementCheckPolicy() {
     }
 
-    // REUSE-OK: * — 质检财务状况核查入口，业务域独立
+    public static boolean isHardAntiFakeFail(final QualityCheckItemResult result) {
+        return result != null
+                && result.status() == QualityCheckStatus.FAIL
+                && result.conclusion() != null
+                && result.conclusion().startsWith(UNFILLED_PLACEHOLDER_PREFIX);
+    }
+
     public static QualityCheckItemResult check(final DocumentContent bidDoc) {
         return check(bidDoc, FinancialRequirement.standard());
     }
 
-    // REUSE-OK: * — 质检财务状况带契约核查入口，业务域独立
     public static QualityCheckItemResult check(
             final DocumentContent bidDoc, final FinancialRequirement requirement) {
         BidQualityCheckItem item = BidQualityCheckItem.QUALIFICATION_REVIEW;
         FinancialRequirement req = requirement == null ? FinancialRequirement.standard() : requirement;
 
-        // 1. 招标明确免除/不涉及财务状况
         if (Boolean.FALSE.equals(req.required())) {
             return QualityCheckItemResult.pass(item, "招标文件未要求提供财务状况证明或财务审计报告（免除/不涉及）", Collections.emptyList());
         }
@@ -55,7 +63,6 @@ public final class FinancialStatementCheckPolicy {
         List<QualityEvidence> evidences = new ArrayList<>();
         List<QualityEvidence> placeholderEvidences = new ArrayList<>();
         LinkedHashSet<String> yearsFound = new LinkedHashSet<>();
-
         DocumentContent.PageContent balanceSheetPage = null;
         DocumentContent.PageContent profitPage = null;
         DocumentContent.PageContent cashFlowPage = null;
@@ -66,46 +73,32 @@ public final class FinancialStatementCheckPolicy {
                 continue;
             }
             String text = page.text();
-
-            // 过滤目录页
             if (isCatalogOrOutlinePage(text)) {
                 continue;
             }
-
-            // 探测未填模板占位符
             Matcher placeholderMatcher = UNFILLED_PLACEHOLDER_PATTERN.matcher(text);
             if (placeholderMatcher.find()) {
                 placeholderEvidences.add(QualityEvidence.bid("财务报告未填占位符", page.pageNumber(),
                         BasicInfoCheckPolicy.snippetAround(text, 150, placeholderMatcher.group())));
                 continue;
             }
-
             boolean isFinancialPage = false;
-
-            // 审计报告正文要素
             if (auditReportPage == null && isSubstantiveAuditReport(text)) {
                 auditReportPage = page;
                 isFinancialPage = true;
             }
-
-            // 资产负债表要素
             if (balanceSheetPage == null && isBalanceSheet(text)) {
                 balanceSheetPage = page;
                 isFinancialPage = true;
             }
-
-            // 利润表 / 损益表要素
             if (profitPage == null && isProfitStatement(text)) {
                 profitPage = page;
                 isFinancialPage = true;
             }
-
-            // 现金流量表要素
             if (cashFlowPage == null && isCashFlowStatement(text)) {
                 cashFlowPage = page;
                 isFinancialPage = true;
             }
-
             if (isFinancialPage) {
                 Matcher ym = YEAR_PATTERN.matcher(text);
                 while (ym.find()) {
@@ -114,7 +107,6 @@ public final class FinancialStatementCheckPolicy {
             }
         }
 
-        // 收集有效证据链
         if (auditReportPage != null) {
             evidences.add(QualityEvidence.bid("财务审计报告页", auditReportPage.pageNumber(),
                     BasicInfoCheckPolicy.snippetAround(auditReportPage.text(), 200, "审计报告", "会计师事务所", "无保留意见", "注册会计师")));
@@ -132,58 +124,95 @@ public final class FinancialStatementCheckPolicy {
                     BasicInfoCheckPolicy.snippetAround(cashFlowPage.text(), 200, "现金流量表", "经营活动产生的现金流量")));
         }
 
-        // 2. 若存在未填占位符或全无实际报表
-        if (!placeholderEvidences.isEmpty()) {
-            return QualityCheckItemResult.fail(item, "检测到财务审计报告占位模板但未填写实际报表内容（存在留白或占位符）",
+        boolean noRealPages = balanceSheetPage == null && profitPage == null && cashFlowPage == null && auditReportPage == null;
+        if (!placeholderEvidences.isEmpty() && noRealPages) {
+            return QualityCheckItemResult.fail(item,
+                    UNFILLED_PLACEHOLDER_PREFIX + " 检测到财务审计报告占位模板但未填写实际报表内容（存在留白或占位符）",
                     "请在标书中替换占位模板并附上真实经审计的财务会计报告", placeholderEvidences);
         }
-        if (balanceSheetPage == null && profitPage == null && cashFlowPage == null && auditReportPage == null) {
+        if (noRealPages) {
             return QualityCheckItemResult.fail(item, "未在投标文件中检索到财务状况证明、财务报表或审计报告",
                     "请补充经会计师事务所审计的财务审计报告及资产负债表、利润表、现金流量表", Collections.emptyList());
         }
 
-        // 3. 强事实直通 PASS：具备资产负债表且具备利润表/现金流量表
         boolean hasAudit = auditReportPage != null;
         boolean hasFullThreeStatements = balanceSheetPage != null && profitPage != null && cashFlowPage != null;
-        boolean hasCoreTwoStatements = balanceSheetPage != null && (profitPage != null || cashFlowPage != null);
+        boolean sealOk = !Boolean.TRUE.equals(req.requireCpaSeal())
+                || (auditReportPage != null && hasSealMarks(auditReportPage.text()));
+        boolean yearMatches = yearsFullyCovered(req.requiredYears(), yearsFound);
+        boolean auditOk = hasAudit || !Boolean.TRUE.equals(req.auditReportRequired());
 
-        // 年份覆盖度判定
-        boolean yearMatches = true;
-        if (!req.requiredYears().isEmpty() && !yearsFound.isEmpty()) {
-            boolean anyMatch = false;
-            for (String ry : req.requiredYears()) {
-                if (yearsFound.contains(ry) || ry.contains("近") || ry.contains("前")) {
-                    anyMatch = true;
-                    break;
-                }
+        if (hasFullThreeStatements && auditOk && sealOk && yearMatches) {
+            if (!placeholderEvidences.isEmpty()) {
+                return QualityCheckItemResult.manualReview(item,
+                        "已附财务报表，但同时检测到未填占位模板，建议人工核验是否已替换",
+                        "请核对占位页是否仍需删除，并确认报表年份与招标要求一致", evidences);
             }
-            yearMatches = anyMatch;
+            String yearNote = yearsFound.isEmpty() ? "" : "，报表年份涵盖 " + String.join("、", yearsFound);
+            return QualityCheckItemResult.pass(item,
+                    "已提供完整的财务会计报告（包含资产负债表、利润表、现金流量表"
+                            + (hasAudit ? "及会计师事务所审计意见与印章" : "") + yearNote + "）",
+                    evidences);
         }
 
-        if (hasFullThreeStatements && (hasAudit || !Boolean.TRUE.equals(req.auditReportRequired()))) {
-            if (yearMatches) {
-                String yearNote = yearsFound.isEmpty() ? "" : "，报表年份涵盖 " + String.join("、", yearsFound);
-                return QualityCheckItemResult.pass(item,
-                        "已提供完整的财务会计报告（包含资产负债表、利润表、现金流量表"
-                                + (hasAudit ? "及会计师事务所审计意见与印章" : "") + yearNote + "）",
-                        evidences);
-            }
-        }
-
-        // 4. 部分报表或缺失审计印章 -> 待人工复核 (MANUAL)
         List<String> missingItems = new ArrayList<>();
-        if (balanceSheetPage == null) missingItems.add("资产负债表");
-        if (profitPage == null) missingItems.add("利润表");
-        if (cashFlowPage == null) missingItems.add("现金流量表");
+        if (balanceSheetPage == null) {
+            missingItems.add("资产负债表");
+        }
+        if (profitPage == null) {
+            missingItems.add("利润表");
+        }
+        if (cashFlowPage == null) {
+            missingItems.add("现金流量表");
+        }
         if (Boolean.TRUE.equals(req.auditReportRequired()) && !hasAudit) {
             missingItems.add("会计师事务所审计报告及印章");
         }
-
+        if (Boolean.TRUE.equals(req.requireCpaSeal()) && !sealOk) {
+            missingItems.add("会计师事务所印章");
+        }
         String warning = missingItems.isEmpty() ? "报表年份覆盖度存疑" : "未见完整的 " + String.join("、", missingItems);
         return QualityCheckItemResult.manualReview(item,
                 "已附部分财务报表（" + warning + "），建议人工核验完整性",
                 "请人工核对投标文件是否包含招标文件要求年份的全部三张财务报表及审计机构印章",
                 evidences);
+    }
+
+    static boolean yearsFullyCovered(final List<String> requiredYears, final Set<String> yearsFound) {
+        if (requiredYears == null || requiredYears.isEmpty()) {
+            return true;
+        }
+        List<String> absolute = new ArrayList<>();
+        boolean hasRelative = false;
+        for (String year : requiredYears) {
+            if (year == null || year.isBlank()) {
+                continue;
+            }
+            List<String> extracted = extractAbsoluteYears(year);
+            if (extracted.isEmpty()) {
+                hasRelative = true;
+            } else {
+                absolute.addAll(extracted);
+            }
+        }
+        if (!absolute.isEmpty()) {
+            return yearsFound != null && !yearsFound.isEmpty() && yearsFound.containsAll(absolute);
+        }
+        // 仅「近三年」等相对要求：规则层不直通 PASS，交给 LLM
+        return !hasRelative;
+    }
+
+    private static List<String> extractAbsoluteYears(final String token) {
+        List<String> years = new ArrayList<>();
+        Matcher matcher = ABSOLUTE_YEAR.matcher(token.replace("年度", "年"));
+        while (matcher.find()) {
+            years.add(matcher.group());
+        }
+        return years;
+    }
+
+    private static boolean hasSealMarks(final String text) {
+        return text.contains("盖章") || text.contains("印章") || text.contains("签字");
     }
 
     private static boolean isCatalogOrOutlinePage(final String text) {
@@ -214,13 +243,14 @@ public final class FinancialStatementCheckPolicy {
         boolean hasTitle = text.contains("资产负债表");
         boolean hasElements = (text.contains("流动资产") || text.contains("非流动资产") || text.contains("资产总计"))
                 && (text.contains("流动负债") || text.contains("负债合计") || text.contains("所有者权益"));
-        return hasTitle || hasElements;
+        return hasTitle && hasElements;
     }
 
     private static boolean isProfitStatement(final String text) {
         boolean hasTitle = text.contains("利润表") || text.contains("损益表");
-        boolean hasElements = text.contains("营业收入") && (text.contains("营业利润") || text.contains("净利润") || text.contains("营业成本"));
-        return hasTitle || hasElements;
+        boolean hasElements = text.contains("营业收入")
+                && (text.contains("营业利润") || text.contains("净利润") || text.contains("营业成本"));
+        return hasTitle && hasElements;
     }
 
     private static boolean isCashFlowStatement(final String text) {
@@ -228,6 +258,6 @@ public final class FinancialStatementCheckPolicy {
         boolean hasElements = text.contains("经营活动产生的现金流量")
                 || text.contains("投资活动产生的现金流量")
                 || text.contains("现金及现金等价物净增加额");
-        return hasTitle || hasElements;
+        return hasTitle && hasElements;
     }
 }

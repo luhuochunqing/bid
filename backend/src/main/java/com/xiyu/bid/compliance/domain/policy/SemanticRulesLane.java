@@ -7,7 +7,6 @@ package com.xiyu.bid.compliance.domain.policy;
 import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
 import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
-import com.xiyu.bid.compliance.domain.QualityCheckStatus;
 import com.xiyu.bid.compliance.domain.QualityEvidence;
 
 import java.util.ArrayList;
@@ -201,7 +200,8 @@ public final class SemanticRulesLane {
     }
 
     /**
-     * 资格性评审条款响应第一阶段：若提取到财务要求，执行确定性反假与三表核验；强事实直接裁决.
+     * 资格性评审第一阶段只拦截「有占位、无真报表」的造假硬信号.
+     * 财务三表 PASS / 免除不得结束整项（spec 047：本项是信誉与类似业绩门槛）.
      */
     private static Optional<QualityCheckItemResult> qualificationReviewFirstStage(
             final DocumentContent bidDoc,
@@ -210,15 +210,9 @@ public final class SemanticRulesLane {
             return Optional.empty();
         }
         QualityCheckItemResult result = FinancialStatementCheckPolicy.check(bidDoc, requirements.financialRequirement());
-        if (result.status() == QualityCheckStatus.PASS) {
-            // 完整三表与审计印章强事实直通 PASS
+        if (FinancialStatementCheckPolicy.isHardAntiFakeFail(result)) {
             return Optional.of(result);
         }
-        if (result.conclusion() != null && result.conclusion().contains("占位模板")) {
-            // 未填模板直接 FAIL 反假拦截
-            return Optional.of(result);
-        }
-        // 其余情况（如部分报表或无财务证据）留交 LLM lane 结合全标书综合裁决
         return Optional.empty();
     }
 }

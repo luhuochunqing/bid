@@ -543,8 +543,8 @@ class BidDocumentQualityEngineTest {
     }
 
     @Test
-    @DisplayName("资格审查第一阶段财务直通测试：标书具备完整财务三表及审计印章时，QUALIFICATION_REVIEW 直通 PASS 且不调用 LLM")
-    void testEvaluateAll_WhenFinancialStatementCompliant_QualificationReviewPassesWithoutLlm() {
+    @DisplayName("财务三表齐全不得短路资格性评审：QUALIFICATION_REVIEW 仍须交 LLM（覆盖业绩/信誉）")
+    void testEvaluateAll_WhenFinancialStatementCompliant_QualificationReviewStillGoesToLlm() {
         String finPage = """
                 上海西域供应链管理股份有限公司
                 2024年度财务报表及审计报告
@@ -572,8 +572,9 @@ class BidDocumentQualityEngineTest {
         LlmAdjudicator llm = new LlmAdjudicator(prompt -> {
             if (prompt.contains("裁决检查项「" + BidQualityCheckItem.QUALIFICATION_REVIEW.getTitle() + "」")) {
                 llmCallCount.incrementAndGet();
+                assertThat(prompt).contains("企业信誉").contains("类似项目业绩");
             }
-            return LlmVerdict.success(new LlmVerdict("PASS", "", "通过", ""));
+            return LlmVerdict.success(new LlmVerdict("PASS", "", "经大模型语义核查通过", ""));
         });
 
         List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
@@ -585,11 +586,11 @@ class BidDocumentQualityEngineTest {
                 .orElseThrow();
 
         assertThat(llmCallCount.get())
-                .as("标书具备完整财务三表及审计印章强事实时，QUALIFICATION_REVIEW 坚决不调 LLM，防止抖动与浪费")
-                .isEqualTo(0);
+                .as("财务三表不能代替资格性评审整项裁决，必须把 QUALIFICATION_REVIEW 交给 LLM")
+                .isEqualTo(1);
         assertThat(qualResult.status()).isEqualTo(QualityCheckStatus.PASS);
-        assertThat(qualResult.conclusion()).contains("已提供完整的财务会计报告");
-        assertThat(qualResult.evidences()).isNotEmpty();
+        assertThat(qualResult.conclusion()).contains("经大模型语义核查通过");
+        assertThat(qualResult.conclusion()).doesNotContain("已提供完整的财务会计报告");
     }
 
     @Test
@@ -616,6 +617,83 @@ class BidDocumentQualityEngineTest {
 
         assertThat(qualResult.status()).isEqualTo(QualityCheckStatus.FAIL);
         assertThat(qualResult.conclusion()).contains("占位模板");
+        assertThat(FinancialStatementCheckPolicy.isHardAntiFakeFail(qualResult)).isTrue();
+    }
+
+    @Test
+    @DisplayName("占位模板页与真实三表并存：不得因残留模板把 QUALIFICATION_REVIEW 一票否决")
+    void testEvaluateAll_WhenPlaceholderAndRealStatements_DoesNotFailQualificationReview() {
+        DocumentContent doc = new DocumentContent("bid.pdf", "hash_mix", "", List.of(
+                new DocumentContent.PageContent(10,
+                        "第七章 财务状况证明\n【此处粘贴经会计师事务所审计的财务审计报告】",
+                        List.of("财务状况证明")),
+                new DocumentContent.PageContent(16,
+                        "资产负债表\n编制单位：测试企业 2024年12月31日\n流动资产：100万\n资产总计：500万\n流动负债：50万\n负债合计：200万\n所有者权益：300万",
+                        List.of("资产负债表")),
+                new DocumentContent.PageContent(17,
+                        "利润表\n2024年度\n营业收入：800万\n营业成本：500万\n营业利润：150万\n净利润：120万",
+                        List.of("利润表")),
+                new DocumentContent.PageContent(18,
+                        "现金流量表\n2024年度\n经营活动产生的现金流量：80万\n投资活动产生的现金流量：-10万\n现金及现金等价物净增加额：20万",
+                        List.of("现金流量表")),
+                new DocumentContent.PageContent(15,
+                        "审计报告\n立信会计师事务所\n审计意见：无保留意见。注册会计师签字盖章。",
+                        List.of("审计报告"))
+        ));
+        TenderRequirements req = new TenderRequirements(
+                List.of(), List.of(), List.of(), List.of(), List.of(),
+                null, null, null, null, null,
+                new FinancialRequirement(true, true, List.of("2024"), List.of("资产负债表", "利润表", "现金流量表"), true, "提供2024年度经审计的财务报告"),
+                false);
+
+        java.util.concurrent.atomic.AtomicInteger llmCallCount = new java.util.concurrent.atomic.AtomicInteger();
+        LlmAdjudicator llm = new LlmAdjudicator(prompt -> {
+            if (prompt.contains("裁决检查项「" + BidQualityCheckItem.QUALIFICATION_REVIEW.getTitle() + "」")) {
+                llmCallCount.incrementAndGet();
+            }
+            return LlmVerdict.success(new LlmVerdict("MANUAL", "AMBIGUOUS", "需人工核验残留模板与报表正文", ""));
+        });
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), req, Set.of(), llm, (p, s) -> { });
+
+        QualityCheckItemResult qualResult = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_REVIEW.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(qualResult.status()).isNotEqualTo(QualityCheckStatus.FAIL);
+        assertThat(llmCallCount.get()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("招标免除财务要求：不得把 QUALIFICATION_REVIEW 整项标 PASS")
+    void testEvaluateAll_WhenFinancialExempt_QualificationReviewStillGoesToLlm() {
+        TenderRequirements req = new TenderRequirements(
+                List.of(), List.of(), List.of(), List.of(), List.of(),
+                null, null, null, null, null,
+                FinancialRequirement.notRequired("小额采购免除财务审计报告"),
+                false);
+
+        java.util.concurrent.atomic.AtomicInteger llmCallCount = new java.util.concurrent.atomic.AtomicInteger();
+        LlmAdjudicator llm = new LlmAdjudicator(prompt -> {
+            if (prompt.contains("裁决检查项「" + BidQualityCheckItem.QUALIFICATION_REVIEW.getTitle() + "」")) {
+                llmCallCount.incrementAndGet();
+            }
+            return LlmVerdict.success(new LlmVerdict("MANUAL", "AMBIGUOUS", "请人工核验业绩与信誉条款", ""));
+        });
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                DocumentContent.fromText("bid.pdf", "hash_empty", "类似业绩合同：2023年供货"),
+                DocumentContent.empty(), Collections.emptyList(), req, Set.of(), llm, (p, s) -> { });
+
+        QualityCheckItemResult qualResult = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.QUALIFICATION_REVIEW.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(llmCallCount.get()).isEqualTo(1);
+        assertThat(qualResult.conclusion()).doesNotContain("免除/不涉及");
     }
 
     @Test

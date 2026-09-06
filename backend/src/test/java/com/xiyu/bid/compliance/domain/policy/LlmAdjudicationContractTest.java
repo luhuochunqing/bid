@@ -281,4 +281,20 @@ class LlmAdjudicationContractTest {
         assertThat(LlmVerdictParser.parse("{\"status\":\"UNKNOWN\",\"conclusion\":\"x\"}")).isEmpty();
         assertThat(LlmVerdictParser.parse(null)).isEmpty();
     }
+
+    @Test
+    @DisplayName("准则 8 不得把资格性评审改写成只查财务报表，必须保留业绩与信誉")
+    void testBuildPrompt_QualificationReviewCriterionCoversPerformanceAndReputation() {
+        String prompt = LlmAdjudicator.buildPrompt(
+                BidQualityCheckItem.QUALIFICATION_REVIEW,
+                bidDoc(),
+                tenderDoc(),
+                requirements(),
+                List.of());
+
+        assertThat(prompt).contains("资格性评审条款响应");
+        assertThat(prompt).contains("企业信誉");
+        assertThat(prompt).contains("类似项目业绩");
+        assertThat(prompt).contains("不得仅因财务报表齐全就忽略业绩、信誉、纳税等");
+    }
 }
