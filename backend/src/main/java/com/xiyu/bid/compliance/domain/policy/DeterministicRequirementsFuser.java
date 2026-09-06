@@ -1,6 +1,6 @@
 // Input: LLM 提取的 TenderRequirements + 招标文件 DocumentContent
 // Output: 融合确定性规则硬事实后的 TenderRequirements（原文确定性事实优先）
-// Pos: compliance/domain/policy/ - 确定性招标要求融合器（纯核心策略）
+// Pos: compliance/domain/policy/ - 确定性招标要求融合器（纯核心策略，严格 <= 300 行）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
 
@@ -12,7 +12,7 @@ import java.util.List;
  * 确定性招标要求融合器（纯核心策略）.
  *
  * <p>将大模型提取的招标要求与纯核心确定性规则提取的硬事实（资质、保证金、投标函、
- * 授权书、执照、身份证、财务、报价、CA、前附表等）进行确定性优先融合，
+ * 授权书、执照、身份证、财务、报价、CA、前附表、商务条款等）进行确定性优先融合，
  * 防大模型幻觉与格式漂移.
  */
 public final class DeterministicRequirementsFuser {
@@ -69,6 +69,10 @@ public final class DeterministicRequirementsFuser {
         FrontTableRequirement detFrontTable = DeterministicFrontTableExtractor.extract(tenderDoc);
         if (detFrontTable != null) {
             req = req.withFrontTableRequirement(FrontTableRequirement.fuse(req.frontTableRequirement(), detFrontTable));
+        }
+        BusinessTermsRequirement detTerms = DeterministicTermsExtractor.extract(text);
+        if (detTerms != null) {
+            req = req.withBusinessTermsRequirement(BusinessTermsRequirement.fuseWithDeterministic(req.businessTermsRequirement(), detTerms));
         }
         List<TenderRequirements.VetoClause> detVetoClauses = DeterministicVetoExtractor.extract(text);
         if (!detVetoClauses.isEmpty()) {

@@ -92,6 +92,11 @@ public final class DeterministicCheckPolicy {
         return BasicInfoCheckPolicy.checkScheduleResponse(bidDoc, tenderText);
     }
 
+    public static QualityCheckItemResult checkScheduleResponse(
+            final DocumentContent bidDoc, final BusinessTermsRequirement requirement) {
+        return BasicInfoCheckPolicy.checkScheduleResponse(bidDoc, requirement);
+    }
+
     public static QualityCheckItemResult checkSignatureSeal(final DocumentContent bidDoc) {
         return BasicInfoCheckPolicy.checkSignatureSeal(bidDoc);
     }

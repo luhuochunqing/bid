@@ -1,6 +1,6 @@
 // Input: 投标文件分页内容 (DocumentContent) + 招标报价与最高限价要求 (PriceRequirement)
-// Output: 报价一致性与最高限价核查结果 (QualityCheckItemResult: PASS / FAIL / MANUAL_REVIEW)
-// Pos: compliance/domain/policy/ - 报价一致性与限价核验策略（纯核心 FP-Java）
+// Output: 报价一致性、分项算术与最高限价核查结果 (QualityCheckItemResult: PASS / FAIL / MANUAL_REVIEW)
+// Pos: compliance/domain/policy/ - 报价一致性与限价核验策略（纯核心 FP-Java，严格 <= 300 行）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
 
@@ -10,13 +10,14 @@ import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityEvidence;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 标书报价一致性与最高投标限价核查策略 (FP-Java 纯核心).
+ * 标书报价一致性、分项算术与最高投标限价核查策略 (FP-Java 纯核心).
  */
 public final class PriceConsistencyCheckPolicy {
 
@@ -30,12 +31,10 @@ public final class PriceConsistencyCheckPolicy {
     private PriceConsistencyCheckPolicy() {
     }
 
-    // REUSE-OK: * — 质检报价一致性核查入口，业务域独立
     public static QualityCheckItemResult check(final DocumentContent bidDoc) {
         return check(bidDoc, null);
     }
 
-    // REUSE-OK: * — 质检报价一致性带契约核查入口，业务域独立
     public static QualityCheckItemResult check(final DocumentContent bidDoc, final PriceRequirement requirement) {
         BidQualityCheckItem item = BidQualityCheckItem.PRICE_CONSISTENCY;
         if (bidDoc == null || bidDoc.pages().isEmpty()) {
@@ -51,8 +50,8 @@ public final class PriceConsistencyCheckPolicy {
                     Collections.emptyList());
         }
 
-        List<QualityEvidence> evidences = List.of(QualityEvidence.bid(
-                "报价所在页", pricePair.pageNumber(), pricePair.snippet()));
+        List<QualityEvidence> evidences = new ArrayList<>();
+        evidences.add(QualityEvidence.bid("报价总价页", pricePair.pageNumber(), pricePair.snippet()));
 
         // 1. 大写与小写数字一致性校验
         if (!pricePair.isConsistent()) {
@@ -63,8 +62,9 @@ public final class PriceConsistencyCheckPolicy {
                     evidences);
         }
 
-        // 2. 最高投标限价超限废标一票否决判定
         BigDecimal bidPrice = pricePair.numericAmount();
+
+        // 2. 最高投标限价超限废标一票否决判定
         if (requirement != null && requirement.maxPrice() != null && bidPrice != null) {
             BigDecimal maxPrice = requirement.maxPrice();
             if (bidPrice.compareTo(maxPrice) > 0) {
@@ -86,18 +86,62 @@ public final class PriceConsistencyCheckPolicy {
                     evidences);
         }
 
-        // 4. 强事实全部满足，直通 PASS
+        // 4. 分项报价明细表深度算术核验与占位符拦截
+        ItemizedPriceCalculator.ItemizedParseResult itemized = ItemizedPriceCalculator.parseAndValidate(bidDoc);
+        if (itemized.hasUnfilledPlaceholder()) {
+            evidences.add(QualityEvidence.bid("分项报价占位留白", itemized.pageNumber(), itemized.placeholderSnippet()));
+            return QualityCheckItemResult.fail(
+                    item,
+                    "分项报价明细表中检测到未填写的模板占位符或空白留白！",
+                    "请在分项报价明细表中补齐所有项目单价、合价与金额明细，严禁保留模板空白",
+                    evidences);
+        }
+
+        if (!itemized.arithmeticErrors().isEmpty()) {
+            evidences.add(QualityEvidence.bid("分项报价算术错误", itemized.pageNumber(), String.join("; ", itemized.arithmeticErrors())));
+            return QualityCheckItemResult.fail(
+                    item,
+                    "分项报价明细表存在算术计算错误！" + String.join("；", itemized.arithmeticErrors()),
+                    "请修正分项单价、数量与合价的乘积或累加和，确保算术绝对准确",
+                    evidences);
+        }
+
+        if (itemized.hasItemizedData() && itemized.calculatedTotal() != null && bidPrice != null) {
+            if (itemized.calculatedTotal().compareTo(bidPrice) != 0) {
+                evidences.add(QualityEvidence.bid("分项报价累加页", itemized.pageNumber(), "分项累加合计: ¥" + itemized.calculatedTotal()));
+                return QualityCheckItemResult.fail(
+                        item,
+                        "分项报价累加总和（¥" + itemized.calculatedTotal() + "）与投标总报价（¥" + bidPrice + "）不一致！差额: ¥"
+                                + itemized.calculatedTotal().subtract(bidPrice).abs(),
+                        "请核对并统一分项报价明细表与投标总价，消除表间矛盾",
+                        evidences);
+            }
+            if (itemized.statedTotal() != null && itemized.statedTotal().compareTo(bidPrice) != 0) {
+                evidences.add(QualityEvidence.bid("分项标明合计页", itemized.pageNumber(), "分项标明合计: ¥" + itemized.statedTotal()));
+                return QualityCheckItemResult.fail(
+                        item,
+                        "分项报价表标明合计（¥" + itemized.statedTotal() + "）与投标总报价（¥" + bidPrice + "）不一致！",
+                        "请统一分项合计金额与投标函总价",
+                        evidences);
+            }
+            evidences.add(QualityEvidence.bid("分项报价明细", itemized.pageNumber(), "分项条目数: " + itemized.rows().size()
+                    + "，累加总计: ¥" + itemized.calculatedTotal()));
+        }
+
+        // 5. 强事实全部满足，直通 PASS
         String maxPriceNotice = (requirement != null && requirement.maxPrice() != null)
                 ? "，且未超过招标文件最高投标限价（限价: ¥" + requirement.maxPrice() + "）"
                 : "";
+        String itemizedNotice = itemized.hasItemizedData()
+                ? "，且分项报价表 " + itemized.rows().size() + " 项算术核验完全正确（分项合计 ¥" + itemized.calculatedTotal() + " 与总报价一致）"
+                : "";
         return QualityCheckItemResult.pass(
                 item,
-                "报价大写与小写金额完全一致 (大写: " + pricePair.chineseText() + ", 小写: ¥" + bidPrice + ")" + maxPriceNotice,
+                "报价大写与小写金额完全一致 (大写: " + pricePair.chineseText() + ", 小写: ¥" + bidPrice + ")" + maxPriceNotice + itemizedNotice,
                 evidences);
     }
 
     private static ParsedPricePair findBestPricePair(final DocumentContent bidDoc) {
-        // 逐页优先匹配
         for (DocumentContent.PageContent page : bidDoc.pages()) {
             String text = page.text();
             if (BidLetterCheckPolicy.isCatalogOrOutlinePage(text)) {
@@ -110,7 +154,6 @@ public final class PriceConsistencyCheckPolicy {
                 }
             }
         }
-        // 跨页回退：合并全文
         String fullText = !bidDoc.fullText().isBlank() ? bidDoc.fullText() : combinePages(bidDoc);
         return matchPrice(fullText, PRICE_PAIR_PATTERN, null);
     }
