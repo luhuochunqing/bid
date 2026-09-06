@@ -13,8 +13,10 @@ import com.xiyu.bid.compliance.domain.policy.BusinessLicenseRequirement;
 import com.xiyu.bid.compliance.domain.policy.DepositRequirement;
 import com.xiyu.bid.compliance.domain.policy.FinancialRequirement;
 import com.xiyu.bid.compliance.domain.policy.IdAuthLetterRequirement;
+import com.xiyu.bid.compliance.domain.policy.PriceRequirement;
 import com.xiyu.bid.compliance.domain.policy.TenderRequirements;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -79,6 +81,7 @@ public final class TenderRequirementsParser {
             BusinessLicenseRequirement businessLicenseRequirement = parseBusinessLicenseRequirement(root.path("businessLicenseRequirement"));
             IdAuthLetterRequirement idAuthLetterRequirement = parseIdAuthLetterRequirement(root.path("idAuthLetterRequirement"));
             FinancialRequirement financialRequirement = parseFinancialRequirement(root.path("financialRequirement"));
+            PriceRequirement priceRequirement = parsePriceRequirement(root.path("priceRequirement"));
             return new TenderRequirements(
                     scoringItems,
                     stringListAt(root, "mandatoryQualifications"),
@@ -91,6 +94,7 @@ public final class TenderRequirementsParser {
                     businessLicenseRequirement,
                     idAuthLetterRequirement,
                     financialRequirement,
+                    priceRequirement,
                     false);
         } catch (JsonProcessingException e) {
             return TenderRequirements.missingSentinel();
@@ -224,6 +228,41 @@ public final class TenderRequirementsParser {
                 requiredYears,
                 requiredStatements,
                 requireCpaSeal,
+                description.isBlank() ? null : description
+        );
+    }
+
+    private static PriceRequirement parsePriceRequirement(final JsonNode node) {
+        if (node == null || !node.isObject()) {
+            return null;
+        }
+        Boolean required = node.has("required") && !node.get("required").isNull()
+                ? node.get("required").asBoolean()
+                : null;
+        BigDecimal maxPrice = null;
+        if (node.has("maxPrice") && node.get("maxPrice").isNumber()) {
+            maxPrice = BigDecimal.valueOf(node.get("maxPrice").asDouble());
+        }
+        String maxPriceRawText = textAt(node, "maxPriceRawText");
+        String pricingMethod = textAt(node, "pricingMethod");
+        Boolean requireItemizedList = node.has("requireItemizedList") && !node.get("requireItemizedList").isNull()
+                ? node.get("requireItemizedList").asBoolean()
+                : null;
+        Boolean requireBidOpeningTable = node.has("requireBidOpeningTable") && !node.get("requireBidOpeningTable").isNull()
+                ? node.get("requireBidOpeningTable").asBoolean()
+                : null;
+        String description = textAt(node, "description");
+        if (required == null && maxPrice == null && maxPriceRawText.isBlank() && pricingMethod.isBlank()
+                && requireItemizedList == null && requireBidOpeningTable == null && description.isBlank()) {
+            return null;
+        }
+        return new PriceRequirement(
+                required,
+                maxPrice,
+                maxPriceRawText.isBlank() ? null : maxPriceRawText,
+                pricingMethod.isBlank() ? null : pricingMethod,
+                requireItemizedList,
+                requireBidOpeningTable,
                 description.isBlank() ? null : description
         );
     }

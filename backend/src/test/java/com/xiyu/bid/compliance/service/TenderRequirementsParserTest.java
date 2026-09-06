@@ -8,6 +8,8 @@ import com.xiyu.bid.compliance.domain.policy.TenderRequirements;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -247,6 +249,38 @@ class TenderRequirementsParserTest {
         assertThat(req.financialRequirement().requiredStatements()).containsExactly("资产负债表", "利润表", "现金流量表");
         assertThat(req.financialRequirement().requiredYears()).containsExactly("2023", "2024");
         assertThat(req.financialRequirement().description()).contains("第三方会计师事务所审计");
+    }
+
+    @Test
+    @DisplayName("包含 priceRequirement 节点：成功解析最高限价与报价表要求")
+    void parse_withPriceRequirement_parsesCorrectly() {
+        String llmResponse = """
+                {
+                  "scoringItems": [],
+                  "mandatoryQualifications": [],
+                  "vetoClauses": [],
+                  "compositionRequirements": [],
+                  "formatRequirements": [],
+                  "priceRequirement": {
+                    "required": true,
+                    "maxPrice": 5000000.0,
+                    "maxPriceRawText": "最高限价为人民币500万元整",
+                    "pricingMethod": "总价",
+                    "requireItemizedList": true,
+                    "requireBidOpeningTable": true,
+                    "description": "最高投标限价500万元，超过最高限价废标"
+                  }
+                }
+                """;
+
+        TenderRequirements req = TenderRequirementsParser.parse(llmResponse);
+
+        assertThat(req.missing()).isFalse();
+        assertThat(req.priceRequirement()).isNotNull();
+        assertThat(req.priceRequirement().required()).isTrue();
+        assertThat(req.priceRequirement().maxPrice()).isEqualByComparingTo(new BigDecimal("5000000.0"));
+        assertThat(req.priceRequirement().maxPriceRawText()).isEqualTo("最高限价为人民币500万元整");
+        assertThat(req.priceRequirement().requireBidOpeningTable()).isTrue();
     }
 
     @Test

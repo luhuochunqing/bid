@@ -166,6 +166,15 @@ public class TenderRequirementsExtractor {
                     "requiredStatements": [ "要求的报表，如资产负债表、利润表、现金流量表、附注等" ],
                     "requireCpaSeal": true或false或null,
                     "description": "招标文件关于财务状况证明、经审计的财务会计报告、三表及审计印章等具体要求条款摘录或null"
+                  },
+                  "priceRequirement": {
+                    "required": true或false或null,
+                    "maxPrice": 最高限价/招标控制价/采购预算的数字金额（元，不含汉字单位）或null,
+                    "maxPriceRawText": "最高投标限价/招标控制价/采购预算原文表述或null",
+                    "pricingMethod": "总价或单价或费率等报价方式或null",
+                    "requireItemizedList": true或false或null,
+                    "requireBidOpeningTable": true或false或null,
+                    "description": "招标文件关于最高投标限价、开标一览表、报价明细表等具体要求的条款摘录或null"
                   }
                 }
                 顶层键必须全部存在。

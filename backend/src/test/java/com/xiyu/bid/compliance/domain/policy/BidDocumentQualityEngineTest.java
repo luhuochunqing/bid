@@ -7,6 +7,7 @@ import com.xiyu.bid.compliance.domain.QualityCheckStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -645,5 +646,93 @@ class BidDocumentQualityEngineTest {
                 .isEqualTo(0);
         assertThat(licenseResult.status()).isEqualTo(QualityCheckStatus.PASS);
         assertThat(licenseResult.conclusion()).contains("未要求");
+    }
+
+    @Test
+    @DisplayName("报价一致性测试：投标报价超过最高投标限价时，直接判定 FAIL 废标风险")
+    void testEvaluateAll_WhenPriceExceedsMaxPrice_FailsDirectly() {
+        String bidContent = """
+                投标总价（大写）：人民币伍佰贰拾万元整
+                投标总价（小写）：¥5,200,000.00
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_price", bidContent);
+        TenderRequirements req = new TenderRequirements(
+                List.of(), List.of(), List.of(), List.of(), List.of(),
+                null, null, null, null, null, null,
+                new PriceRequirement(true, new BigDecimal("5000000.00"), "最高限价500万元", "总价", true, true, "最高投标限价500万元整"),
+                false);
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), req, Set.of());
+
+        QualityCheckItemResult priceResult = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.PRICE_CONSISTENCY.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(priceResult.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(priceResult.conclusion()).contains("超过招标文件最高投标限价");
+    }
+
+    @Test
+    @DisplayName("报价一致性测试：大写小写完全相符且未超最高限价，判定 PASS")
+    void testEvaluateAll_WhenPriceConsistentAndWithinLimit_Passes() {
+        String bidContent = """
+                投标总价（大写）：人民币肆佰捌拾万元整
+                投标总价（小写）：¥4,800,000.00
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_price_pass", bidContent);
+        TenderRequirements req = new TenderRequirements(
+                List.of(), List.of(), List.of(), List.of(), List.of(),
+                null, null, null, null, null, null,
+                new PriceRequirement(true, new BigDecimal("5000000.00"), "最高限价500万元", "总价", true, true, "最高投标限价500万元整"),
+                false);
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), req, Set.of());
+
+        QualityCheckItemResult priceResult = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.PRICE_CONSISTENCY.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(priceResult.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(priceResult.conclusion()).contains("未超过招标文件最高投标限价");
+    }
+
+    @Test
+    @DisplayName("开标一览表反假测试：目录点线不被误认为有效正文，未提供实际表格判定 FAIL")
+    void testEvaluateAll_WhenBidOpeningTableOnlyInCatalogDots_Fails() {
+        String catalogPage = "目录\n三、开标一览表........................45\n四、分项报价表........................48";
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_cat", catalogPage);
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), TenderRequirements.empty(), Set.of());
+
+        QualityCheckItemResult tableResult = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.BID_OPENING_TABLE.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(tableResult.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(tableResult.conclusion()).contains("仅在目录中检索到开标一览表条目");
+    }
+
+    @Test
+    @DisplayName("开标一览表反假测试：检测到未填写占位符模板时，直接 FAIL 拦截")
+    void testEvaluateAll_WhenBidOpeningTablePlaceholder_FailsDirectly() {
+        String placeholderPage = "开标一览表\n【此处粘贴开标一览表及分项报价清单】";
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_table_placeholder", placeholderPage);
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), TenderRequirements.empty(), Set.of());
+
+        QualityCheckItemResult tableResult = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.BID_OPENING_TABLE.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(tableResult.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(tableResult.conclusion()).contains("占位模板");
     }
 }

@@ -198,6 +198,10 @@ public final class SemanticPageRetriever {
                     "事业单位法人证书", "社会团体法人登记证书", "民办非企业单位登记证书", "执业许可证");
             case ID_AUTH_LETTER -> addCues(cues, "身份证", "身份证明", "居民身份证", "公民身份号码",
                     "法定代表人身份证明", "委托代理人身份证", "受托人身份证", "社保证明", "社会保险", "人像面", "国徽面");
+            case BID_OPENING_TABLE -> addCues(cues, "开标一览表", "报价一览表", "分项报价表", "报价明细表",
+                    "投标报价表", "投标总价", "合价", "分项明细");
+            case PRICE_CONSISTENCY -> addCues(cues, "投标总价", "投标报价", "大写", "小写", "最高限价",
+                    "控制价", "采购预算", "最高投标限价", "开标一览表");
             default -> { }
         }
         return cues;
@@ -238,6 +242,11 @@ public final class SemanticPageRetriever {
             req.financialRequirement().requiredYears().forEach(year -> addCue(cues, year));
             addDescriptionCues(cues, req.financialRequirement().description());
         }
+        if (req.priceRequirement() != null) {
+            if (req.priceRequirement().pricingMethod() != null) addCue(cues, req.priceRequirement().pricingMethod());
+            if (req.priceRequirement().maxPriceRawText() != null) addCue(cues, req.priceRequirement().maxPriceRawText());
+            addDescriptionCues(cues, req.priceRequirement().description());
+        }
         return cues;
     }
 
@@ -266,8 +275,7 @@ public final class SemanticPageRetriever {
         for (DocumentContent.PageContent page : pages) {
             if (page.text() == null || page.text().isBlank()) continue;
             if (sb.length() > 0) sb.append("\n\n");
-            sb.append(PAGE_HEADER_PREFIX).append(page.pageNumber()).append(PAGE_HEADER_SUFFIX)
-                    .append('\n').append(page.text().trim());
+            sb.append(PAGE_HEADER_PREFIX).append(page.pageNumber()).append(PAGE_HEADER_SUFFIX).append('\n').append(page.text().trim());
         }
         return sb.length() == 0 ? NO_CONTENT : sb.toString();
     }
@@ -285,6 +293,5 @@ public final class SemanticPageRetriever {
         return new DocumentContent.PageContent(page.pageNumber(), text.substring(0, charBudget) + "……（已截断）", page.headings());
     }
 
-    private record ScoredPage(DocumentContent.PageContent page, int score) {
-    }
+    private record ScoredPage(DocumentContent.PageContent page, int score) {}
 }

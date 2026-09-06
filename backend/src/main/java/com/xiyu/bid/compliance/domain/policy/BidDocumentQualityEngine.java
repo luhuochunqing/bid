@@ -95,6 +95,10 @@ public final class BidDocumentQualityEngine {
             resultMap.put(BidQualityCheckItem.ID_AUTH_LETTER.getCode(),
                     SubItemAndAttachmentRules.checkIdAuthLetter(bidDoc, effective.idAuthLetterRequirement()));
         }
+        if (effective.priceRequirement() != null) {
+            resultMap.put(BidQualityCheckItem.PRICE_CONSISTENCY.getCode(),
+                    BasicInfoCheckPolicy.checkPriceConsistency(bidDoc, effective.priceRequirement()));
+        }
 
         // 2. 语义 lane：规则硬信号优先，其次 LLM 裁决，lane 缺省则 MANUAL 降级
         List<BidQualityCheckItem> semanticItems = SemanticRulesLane.SEMANTIC_ITEMS;
@@ -193,7 +197,35 @@ public final class BidDocumentQualityEngine {
             resultMap.put(BidQualityCheckItem.ID_AUTH_LETTER.getCode(), idVerdict);
         }
 
-        // 8. 严格按 25 项标准序号排序输出
+        // 8. 报价一致性与限价要求联动与标书端 LLM 深度语义裁决接通（规范报价强凭证直通，硬性超限/不符 FAIL 保留，存疑人工项接通 LLM）
+        QualityCheckItemResult existingPrice = resultMap.get(BidQualityCheckItem.PRICE_CONSISTENCY.getCode());
+        boolean hasStrongPricePass = existingPrice != null
+                && existingPrice.status() == QualityCheckStatus.PASS
+                && !existingPrice.evidences().isEmpty();
+        boolean hasHardPriceFail = existingPrice != null
+                && existingPrice.status() == QualityCheckStatus.FAIL;
+        if (!hasStrongPricePass && !hasHardPriceFail && llm != null) {
+            QualityCheckItemResult priceVerdict = llm.adjudicateItem(
+                    BidQualityCheckItem.PRICE_CONSISTENCY, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
+            resultMap.put(BidQualityCheckItem.PRICE_CONSISTENCY.getCode(), priceVerdict);
+        }
+
+        // 9. 开标一览表/报价表要求联动与标书端 LLM 深度语义裁决接通（规范表格强凭证直通，占位未填 FAIL 保留，存疑或未检出接通 LLM）
+        QualityCheckItemResult existingTable = resultMap.get(BidQualityCheckItem.BID_OPENING_TABLE.getCode());
+        boolean hasStrongTablePass = existingTable != null
+                && existingTable.status() == QualityCheckStatus.PASS
+                && !existingTable.evidences().isEmpty();
+        boolean isPlaceholderFail = existingTable != null
+                && existingTable.status() == QualityCheckStatus.FAIL
+                && existingTable.conclusion() != null
+                && existingTable.conclusion().contains("占位");
+        if (!hasStrongTablePass && !isPlaceholderFail && llm != null) {
+            QualityCheckItemResult tableVerdict = llm.adjudicateItem(
+                    BidQualityCheckItem.BID_OPENING_TABLE, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
+            resultMap.put(BidQualityCheckItem.BID_OPENING_TABLE.getCode(), tableVerdict);
+        }
+
+        // 10. 严格按 25 项标准序号排序输出
         List<QualityCheckItemResult> sorted = new ArrayList<>(resultMap.values());
         sorted.sort(Comparator.comparingInt(QualityCheckItemResult::order));
         return sorted;

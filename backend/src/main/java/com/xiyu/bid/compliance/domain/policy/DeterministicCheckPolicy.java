@@ -79,6 +79,11 @@ public final class DeterministicCheckPolicy {
         return BasicInfoCheckPolicy.checkPriceConsistency(bidDoc);
     }
 
+    public static QualityCheckItemResult checkPriceConsistency(
+            final DocumentContent bidDoc, final PriceRequirement requirement) {
+        return BasicInfoCheckPolicy.checkPriceConsistency(bidDoc, requirement);
+    }
+
     public static QualityCheckItemResult checkCurrencyUnit(final DocumentContent bidDoc) {
         return BasicInfoCheckPolicy.checkCurrencyUnit(bidDoc);
     }
