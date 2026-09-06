@@ -466,4 +466,78 @@ class BidDocumentQualityEngineTest {
         assertThat(licenseResult.status()).isEqualTo(QualityCheckStatus.FAIL);
         assertThat(licenseResult.conclusion()).contains("经大模型语义核查");
     }
+
+    @Test
+    @DisplayName("身份证明强凭证直通测试：标书具备包含18位身份证号与有效期限等要素的真实证明时，直通 PASS 坚决不调用 LLM")
+    void testEvaluateAll_WhenIdAuthPass_BypassesLlmAdjudication() {
+        String idPage = """
+                法定代表人身份证明
+                投标人名称：上海西域数智供应链有限公司
+                单位性质：有限责任公司
+                成立时间：2015年03月12日
+                经营期限：长期
+                姓名：叶永清  性别：男  年龄：45岁  职务：总经理
+                系上海西域数智供应链有限公司的法定代表人。
+                公民身份号码：110101199003072345
+                有效期限：2020.03.07-2040.03.07
+                签发机关：上海市公安局浦东分局
+                特此证明。
+                投标人：上海西域数智供应链有限公司（盖章）
+                2026年09月05日
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_id", idPage);
+
+        java.util.concurrent.atomic.AtomicInteger llmIdCallCount = new java.util.concurrent.atomic.AtomicInteger();
+        LlmAdjudicator llm = new LlmAdjudicator(prompt -> {
+            if (prompt.contains("裁决检查项「" + BidQualityCheckItem.ID_AUTH_LETTER.getTitle() + "」")) {
+                llmIdCallCount.incrementAndGet();
+            }
+            return LlmVerdict.success(new LlmVerdict("PASS", "", "通过", ""));
+        });
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), TenderRequirements.empty(), Set.of(), llm, (p, s) -> { });
+
+        QualityCheckItemResult idResult = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.ID_AUTH_LETTER.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(llmIdCallCount.get())
+                .as("标书已包含要素齐全的真实身份证明与有效身份证件时，坚决不调 LLM，防止抖动与浪费")
+                .isEqualTo(0);
+        assertThat(idResult.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(idResult.conclusion()).contains("已包含有效身份证明与身份证扫描件");
+        assertThat(idResult.evidences()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("身份证明存疑裁决接通测试：标书仅在目录页出现条目被拦截时，成功接通 LLM 深度语义裁决")
+    void testEvaluateAll_WhenIdAuthSuspicious_CallsLlmAdjudication() {
+        String tocPage = """
+                目录
+                第一章 投标函及投标函附录 ................. 1
+                第二章 法定代表人身份证明 ................. 5
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_toc", tocPage);
+
+        LlmAdjudicator mockLlm = new LlmAdjudicator(prompt -> {
+            if (prompt.contains("裁决检查项「" + BidQualityCheckItem.ID_AUTH_LETTER.getTitle() + "」")) {
+                return LlmVerdict.success(
+                        new LlmVerdict("FAIL", "", "经大模型语义核查，身份证明仅存在于目录索引中，正文缺失实际身份证明及证件复印件", "请在投标文件中补充身份证明及身份证扫描件"));
+            }
+            return LlmVerdict.success(new LlmVerdict("PASS", "", "通过", ""));
+        });
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), TenderRequirements.empty(), Set.of(), mockLlm, (p, s) -> { });
+
+        QualityCheckItemResult idResult = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.ID_AUTH_LETTER.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(idResult.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(idResult.conclusion()).contains("经大模型语义核查");
+    }
 }

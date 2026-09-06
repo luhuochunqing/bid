@@ -13,6 +13,15 @@
   - 新增弱声明拦截与掩码身份证及目录误判回归单测。
 - 结果：授权书与提取器及引擎与解析单测全绿。架构测试全绿。
 - 页面更新：更新 [[bid-quality-check-realization]] §4.25。
+## [2026-09-05] feat | 标书质检「法定代表人及代理人身份证明」（ID_AUTH_LETTER）语义契约与要素反假重构
+
+- 触发：按路线图推进 25 项质检项语义化演进之第 21 项「法定代表人及委托代理人身份证明」（ID_AUTH_LETTER，PRD 2.3 第 21 项，级别 HIGH/CRITICAL）。
+- 方案：
+  - 招标端契约：新建 `IdAuthLetterRequirement` 契约与纯核心确定性提取器 `DeterministicIdAuthLetterExtractor`，支持身份证正反面、近月社保证明、加盖公章与原件要求提取及双轨融合；
+  - 标书端反假：新建 `IdAuthLetterCheckPolicy`，严格排除目录点线页（`isCatalogOrOutlinePage`）与未填模板占位符（`UNFILLED_PLACEHOLDER_PATTERN`），校验 GB 11643-1999 18 位公民身份号码（含隐私脱敏）与版面真实要素（人像面/国徽面/有效期限/签发机关）；若招标明确要求社保则联动核验社保证明凭据，缺失时降级 MANUAL_REVIEW；
+  - 引擎协同：`BidDocumentQualityEngine` 落实确定性强凭证直通 PASS（LLM 0 次调用防抖动），存疑场景接通 `LlmAdjudicator` 准则 7 深度裁决与 `SemanticPageRetriever` 候选页检索。
+- 结果：落地 5 个专属单测套件，新增及修改 12 个文件，单文件行预算严格控制在 300 行内，57 项单元与架构测试全绿。
+- 页面更新：更新 [[bid-quality-check-realization]] §4.27 与 sources；lessons-learned.md §232。
 
 ## [2026-09-05] feat | 标书质检「营业执照有效性」（BUSINESS_LICENSE）语义契约与要素反假重构
 

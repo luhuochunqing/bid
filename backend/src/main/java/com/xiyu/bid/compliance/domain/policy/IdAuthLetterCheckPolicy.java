@@ -1,0 +1,189 @@
+package com.xiyu.bid.compliance.domain.policy;
+
+import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
+import com.xiyu.bid.compliance.domain.DocumentContent;
+import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
+import com.xiyu.bid.compliance.domain.QualityEvidence;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * 标书法定代表人及委托代理人身份证明/身份证附件核查策略（FP-Java纯核心，无Spring/无IO/无异常）.
+ * 严格防范目录点线超前命中假通过与未填占位模板放行.
+ */
+public final class IdAuthLetterCheckPolicy {
+
+    private static final Pattern MULTI_DOT_PATTERN = Pattern.compile("(?:\\.{4,}|…{2,}|·{4,})");
+    private static final Pattern CATALOG_DOT_LINE_PATTERN = Pattern.compile(
+            "(?m)^\\s*(?:[第（(]?[0-9一二三四五六七八九十]+[、.)）]|(?:一|二|三|四|五|六|七|八|九|十|\\d+)[.、]).*(?:\\.{3,}|…{2,}|·{3,})\\s*\\d+\\s*$");
+
+    private static final Pattern UNFILLED_PLACEHOLDER_PATTERN = Pattern.compile(
+            "(?i)(?:【(?:此处粘贴(?:法定代表人|委托代理人|受托人)?身份证|身份证(?:正反面|正面|反面|扫描件|复印件)|身份证粘贴处)[^】]*】|"
+                    + "\\[(?:此处粘贴|身份证|粘贴处)[^\\]]*\\]|"
+                    + "身份证(?:号|号码)?[：:\\s]*_{3,}|"
+                    + "公民身份号码[：:\\s]*_{3,})");
+
+    /** GB 11643-1999 18位公民身份号码标准正则. */
+    private static final Pattern ID_CARD_PATTERN = Pattern.compile(
+            "[1-9]\\d{5}(?:18|19|20)\\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\\d|3[01])\\d{3}[\\dXx]");
+
+    private IdAuthLetterCheckPolicy() {
+    }
+
+    // REUSE-OK: * — 质检身份证明附件核查入口策略，业务域独立
+    public static QualityCheckItemResult check(final DocumentContent bidDoc) {
+        return check(bidDoc, IdAuthLetterRequirement.standard());
+    }
+
+    // REUSE-OK: * — 质检身份证明带契约核查入口，业务域独立
+    public static QualityCheckItemResult check(
+            final DocumentContent bidDoc, final IdAuthLetterRequirement requirement) {
+        BidQualityCheckItem item = BidQualityCheckItem.ID_AUTH_LETTER;
+        if (bidDoc == null || bidDoc.pages() == null || bidDoc.pages().isEmpty()) {
+            return QualityCheckItemResult.fail(item, "未检索到投标文件正文", "请上传完整的投标文件后重新核查", Collections.emptyList());
+        }
+
+        IdAuthLetterRequirement req = requirement != null ? requirement : IdAuthLetterRequirement.standard();
+        DocumentContent.PageContent catalogMatchPage = null;
+        DocumentContent.PageContent placeholderMatchPage = null;
+
+        for (DocumentContent.PageContent page : bidDoc.pages()) {
+            String text = page.text();
+            if (text == null || text.isBlank()) {
+                continue;
+            }
+
+            boolean mentionsIdOrProof = isIdOrProofMentioned(text);
+            if (!mentionsIdOrProof) {
+                continue;
+            }
+
+            if (isCatalogOrOutlinePage(text, page.headings())) {
+                if (catalogMatchPage == null) {
+                    catalogMatchPage = page;
+                }
+                continue;
+            }
+
+            if (UNFILLED_PLACEHOLDER_PATTERN.matcher(text).find()) {
+                if (placeholderMatchPage == null) {
+                    placeholderMatchPage = page;
+                }
+                continue;
+            }
+
+            // 正向事实要素检验：具备真实 18 位身份证号码与身份证明要素
+            Matcher idMatcher = ID_CARD_PATTERN.matcher(text);
+            boolean hasIdNumber = idMatcher.find();
+            String idCardNumber = hasIdNumber ? idMatcher.group() : null;
+
+            boolean hasIdScanFeatures = hasIdScanFeatures(text);
+            boolean hasLegalRepProof = text.contains("法定代表人身份证明") || text.contains("法定代表人证明书");
+
+            if (hasIdNumber && (hasIdScanFeatures || hasLegalRepProof)) {
+                // 若招标明确要求社保证明，核查标书中是否具备社保要素
+                if (req.requireSocialSecurity() && !hasSocialSecurityFeatures(bidDoc)) {
+                    String snippet = extractSnippet(text, idCardNumber != null ? idCardNumber : "身份证", 200);
+                    return QualityCheckItemResult.manualReview(item,
+                            "已附身份证扫描件(号码: " + maskId(idCardNumber) + ")，但未检测到招标要求的委托代理人社保证明，需人工复核",
+                            "请核实标书中是否在其他附件中提供了受托人近期的社保缴纳证明",
+                            List.of(QualityEvidence.bid("身份证附件页", page.pageNumber(), snippet)));
+                }
+
+                String snippet = extractSnippet(text, idCardNumber != null ? idCardNumber : "身份证", 200);
+                String conclusion = "已包含有效身份证明与身份证扫描件，识别到公民身份号码: " + maskId(idCardNumber);
+                return QualityCheckItemResult.pass(item, conclusion,
+                        List.of(QualityEvidence.bid("身份证明/身份证正文", page.pageNumber(), snippet)));
+            }
+        }
+
+        if (placeholderMatchPage != null) {
+            String snippet = extractSnippet(placeholderMatchPage.text(), "身份证", 150);
+            return QualityCheckItemResult.manualReview(item,
+                    "检测到身份证明/身份证章节包含未填占位符模板，疑似未实际附扫描件",
+                    "请检查标书第 " + placeholderMatchPage.pageNumber() + " 页是否按要求粘贴清晰有效的身份证扫描件",
+                    List.of(QualityEvidence.bid("占位符模板疑似页", placeholderMatchPage.pageNumber(), snippet)));
+        }
+
+        if (catalogMatchPage != null) {
+            String snippet = extractSnippet(catalogMatchPage.text(), "身份证", 150);
+            return QualityCheckItemResult.manualReview(item,
+                    "仅在目录页检测到身份证明/身份证索引，正文中未检索到有效身份证扫描件或号码",
+                    "请核实投标文件正文中是否遗漏了法定代表人或委托代理人身份证复印件",
+                    List.of(QualityEvidence.bid("目录索引", catalogMatchPage.pageNumber(), snippet)));
+        }
+
+        return QualityCheckItemResult.fail(item, "未检索到法定代表人或委托代理人身份证件证明", "请在标书附件中补充清晰有效的身份证扫描件", Collections.emptyList());
+    }
+
+    private static boolean isIdOrProofMentioned(final String text) {
+        return text.contains("身份证")
+                || text.contains("身份证明")
+                || text.contains("居民身份证")
+                || text.contains("公民身份号码");
+    }
+
+    private static boolean hasIdScanFeatures(final String text) {
+        boolean hasFaceSide = text.contains("姓名") && (text.contains("性别") || text.contains("民族")
+                || text.contains("出生") || text.contains("住址") || text.contains("公民身份号码"));
+        boolean hasBackSide = text.contains("中华人民共和国居民身份证")
+                || text.contains("签发机关")
+                || text.contains("有效期限");
+        return hasFaceSide || hasBackSide || text.contains("身份证复印件") || text.contains("身份证扫描件");
+    }
+
+    private static boolean hasSocialSecurityFeatures(final DocumentContent bidDoc) {
+        if (bidDoc == null || bidDoc.pages() == null) {
+            return false;
+        }
+        for (DocumentContent.PageContent page : bidDoc.pages()) {
+            String text = page.text();
+            if (text != null && (text.contains("社保证明") || text.contains("社会保险缴纳")
+                    || text.contains("参保证明") || text.contains("养老保险"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isCatalogOrOutlinePage(final String text, final List<String> headings) {
+        if (headings != null && headings.stream().anyMatch(h -> h.contains("目录") || h.contains("目  录"))) {
+            return true;
+        }
+        if (CATALOG_DOT_LINE_PATTERN.matcher(text).find()) {
+            return true;
+        }
+        Matcher matcher = MULTI_DOT_PATTERN.matcher(text);
+        int count = 0;
+        while (matcher.find()) {
+            count++;
+            if (count >= 3) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String maskId(final String id) {
+        if (id == null || id.length() < 18) {
+            return id;
+        }
+        return id.substring(0, 6) + "********" + id.substring(14);
+    }
+
+    private static String extractSnippet(final String text, final String anchor, final int radius) {
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+        int index = text.indexOf(anchor);
+        if (index < 0) {
+            return text.length() <= radius * 2 ? text : text.substring(0, radius * 2);
+        }
+        int start = Math.max(0, index - radius);
+        int end = Math.min(text.length(), index + anchor.length() + radius);
+        return text.substring(start, end).replace("\n", " ").trim();
+    }
+}
