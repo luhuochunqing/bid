@@ -304,6 +304,7 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **签章完备性独立策略（`SealIntegrityCheckPolicy`，168 行）**：全面识别法定代表人印章/签名、企业公章、防伪验签标记（国密SM2/CA数字证书）与骑缝章；对未替换占位模板（`法定代表人：______`、`【此处盖公章】` 等）实施硬核反假拦截 FAIL；具备防伪验签或双要素齐全直通 PASS；
     - **业务层三路联动**：`BasicInfoCheckPolicy.checkSignatureSeal` 委托至 `SealIntegrityCheckPolicy`；`FrontTableResponsePolicy` 接入 `TableCellIntegrityCalculator` 实现表格填写缺陷行级拦截；`SubItemAndAttachmentRules.checkCommitmentSeal` 接入真实签章反假与完备性校验；
     - **准则 19 落地**：`AdjudicationGuidelines` 扩充《准则 19：签章完备性与表格填写完整性核验准则》，保持 LLM fallback 规则双轨一致。
+    - **审查跟进收紧（2026-09-06）**：纯模板落款说明文字（如「法定代表人（签字）」「（盖章）」未填姓名）不再计入签章证据直通 PASS，降级 MANUAL_REVIEW 并在提示语中说明文本层边界；承诺书反假复用 `SealIntegrityCheckPolicy` 共享占位/强证据判定（消除两套关键词不一致）；前附表表格缺陷 conclusion 携带违规总数并逐条输出证据；无分隔行 Markdown 表格首行不再被误判为表头漏检。
 
 ## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
 

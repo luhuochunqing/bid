@@ -100,4 +100,22 @@ class BasicInfoAndAttachmentRulesTest {
         assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
         assertThat(result.conclusion()).contains("未识别到明确的公章或签字标记");
     }
+
+    @Test
+    @DisplayName("承诺书反假：落款仅有格式说明文字且未填签署人时降级人工复核而非PASS")
+    void testCommitmentSeal_WhenInstructionOnlyText_RequiresManualReview() {
+        String bidText = """
+                廉洁投标承诺书（模板）
+                本单位郑重承诺遵守招投标法律法规。
+                投标人（盖章）：
+                法定代表人（签字）：
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "h6", bidText);
+
+        QualityCheckItemResult result = SubItemAndAttachmentRules.checkCommitmentSeal(doc);
+
+        assertThat(result).isNotNull();
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.MANUAL_REVIEW);
+        assertThat(result.conclusion()).contains("文本层无法确认实际盖章");
+    }
 }

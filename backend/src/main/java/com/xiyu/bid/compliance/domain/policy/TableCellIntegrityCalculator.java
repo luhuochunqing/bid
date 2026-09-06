@@ -102,13 +102,22 @@ public final class TableCellIntegrityCalculator {
         List<String> currentHeaders = new ArrayList<>();
         boolean inTable = false;
         int rowIdx = 0;
+        // 无分隔行时首行身份待定：可能是表头，也可能是数据行（文本转换可能丢失 |---| 分隔行）
+        String pendingHeaderRaw = null;
+        List<String> pendingHeaderCells = null;
 
         for (String line : lines) {
             String trimmed = line.trim();
             if (isTableRow(trimmed)) {
                 if (isSeparatorRow(trimmed)) {
-                    // 分隔行直接跳过，表明前一行是有效表头
+                    // 分隔行确认其前一行是表头
+                    if (pendingHeaderCells != null) {
+                        currentHeaders = pendingHeaderCells;
+                        pendingHeaderCells = null;
+                        pendingHeaderRaw = null;
+                    }
                     inTable = true;
+                    rowIdx = 0;
                     continue;
                 }
 
@@ -118,21 +127,43 @@ public final class TableCellIntegrityCalculator {
                 }
 
                 if (!inTable) {
-                    // 表头行
-                    currentHeaders = cells;
-                    inTable = true;
-                    rowIdx = 0;
+                    if (pendingHeaderCells == null) {
+                        // 表格首行身份待定：等分隔行或下一行判定
+                        pendingHeaderCells = cells;
+                        pendingHeaderRaw = trimmed;
+                    } else {
+                        // 无分隔行的表格：待定首行实际是数据行，按通用列名补检
+                        rowIdx++;
+                        violations.addAll(checkDataRow(pageNumber, rowIdx, pendingHeaderCells, currentHeaders, pendingHeaderRaw));
+                        pendingHeaderCells = null;
+                        pendingHeaderRaw = null;
+                        rowIdx++;
+                        violations.addAll(checkDataRow(pageNumber, rowIdx, cells, currentHeaders, trimmed));
+                        inTable = true;
+                    }
                 } else {
                     // 数据行
                     rowIdx++;
                     violations.addAll(checkDataRow(pageNumber, rowIdx, cells, currentHeaders, trimmed));
                 }
             } else {
-                // 表格中断
+                // 表格中断：待定首行未获分隔行确认，按数据行补检
+                if (pendingHeaderCells != null) {
+                    rowIdx++;
+                    violations.addAll(checkDataRow(pageNumber, rowIdx, pendingHeaderCells, currentHeaders, pendingHeaderRaw));
+                }
+                pendingHeaderCells = null;
+                pendingHeaderRaw = null;
                 inTable = false;
                 currentHeaders = new ArrayList<>();
                 rowIdx = 0;
             }
+        }
+
+        // 文本结束时仍待定的首行，按数据行补检
+        if (pendingHeaderCells != null) {
+            rowIdx++;
+            violations.addAll(checkDataRow(pageNumber, rowIdx, pendingHeaderCells, currentHeaders, pendingHeaderRaw));
         }
 
         return TableIntegrityResult.ofViolations(violations);

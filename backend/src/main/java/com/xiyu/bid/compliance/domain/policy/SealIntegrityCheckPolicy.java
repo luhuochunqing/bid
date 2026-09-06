@@ -20,10 +20,16 @@ import java.util.regex.Pattern;
  */
 public final class SealIntegrityCheckPolicy {
 
-    private static final Pattern LEGAL_REP_PATTERN = Pattern.compile(
+    // 已填签署人姓名才算真实签署证据（如「法定代表人：张三」「法定代表人（签字或盖章）：李四」）。
+    // 注意：冒号后仅允许同行空白，避免 \s 跨行吞掉下一行标签（如「法定代表人（签字）：」后跟「日期：」）。
+    private static final Pattern LEGAL_REP_FILLED_PATTERN = Pattern.compile(
+            "法定代表人(?:或其委托代理人|（[^）]{0,10}）|\\([^)]{0,10}\\))?[：:][ \\t]{0,4}[\\u4e00-\\u9fa5]{2,4}"
+                    + "|(?:签字人|授权代表|受托人)[：:][ \\t]{0,4}[\\u4e00-\\u9fa5]{2,4}"
+    );
+
+    // 纯落款说明文字（如「法定代表人（签字）」），仅证明格式存在、无法证明已实际签署
+    private static final Pattern LEGAL_REP_INSTRUCTION_PATTERN = Pattern.compile(
             "法定代表人(?:或其委托代理人)?[：:\\s]*[（\\(]?(?:签字|盖章|签字或盖章|印章|印鉴)[）\\)]?"
-                    + "|法定代表人[：:\\s]+[\\u4e00-\\u9fa5]{2,4}"
-                    + "|(?:签字人|授权代表|受托人)[：:\\s]+[\\u4e00-\\u9fa5]{2,4}"
     );
 
     private static final Pattern COMPANY_SEAL_PATTERN = Pattern.compile(
@@ -46,7 +52,27 @@ public final class SealIntegrityCheckPolicy {
                     + "|【(?:法定代表人签字|单位公章)】|（待签字）|（待盖章）"
     );
 
+    // 共享反假判定：下划线留白或未替换的盖章/签字模板占位符（供承诺书等策略复用）
+    private static final Pattern GENERIC_SEAL_PLACEHOLDER = Pattern.compile(
+            "_{3,}|【(?:此处|请)?(?:盖章|盖公章|签字)】|【(?:法定代表人签字|单位公章)】|（待签字）|（待盖章）"
+    );
+
+    // 共享反假判定：能佐证实际完成签署/盖章的强证据文本
+    private static final Pattern POSITIVE_SEAL_EVIDENCE = Pattern.compile(
+            "电子印章|电子签章|数字签名|已盖章|已签署|已加盖|\\[公章\\]|\\[法人印章\\]|验签有效"
+    );
+
     private SealIntegrityCheckPolicy() {
+    }
+
+    /** 共享反假判定：文本中是否存在未替换的签章留白占位符（下划线/【待盖章】等）. */
+    static boolean hasUnfilledSealPlaceholder(final String text) {
+        return text != null && GENERIC_SEAL_PLACEHOLDER.matcher(text).find();
+    }
+
+    /** 共享反假判定：文本中是否存在可佐证实际签署/盖章的强证据（电子签章、已盖章等）. */
+    static boolean hasPositiveSealEvidence(final String text) {
+        return text != null && POSITIVE_SEAL_EVIDENCE.matcher(text).find();
     }
 
     public record SealEvidenceSummary(
@@ -93,12 +119,13 @@ public final class SealIntegrityCheckPolicy {
                     summary.evidences());
         }
 
-        // 3. 部分签章缺失场景
+        // 3. 部分签章缺失场景：仅命中落款格式说明文字（如「（盖章）」占位）时，
+        //    文本层无法确认实际盖章，降级人工复核而非直接 PASS
         if (summary.hasCompanySeal() && !summary.hasLegalRepSign()) {
             return QualityCheckItemResult.manualReview(
                     item,
-                    "已检测到单位公章落款，但未能明确识别法定代表人个人印章或签字",
-                    "请核对投标函与授权书是否已签署法定代表人个人签字或印章",
+                    "已检测到单位公章落款文本，但未识别到已填写的法定代表人签署人姓名，文本层无法确认实际签署",
+                    "请核对投标函与授权书是否已签署法定代表人个人签字或印章（注意：落款处「（盖章）」等说明文字不代表已实际盖章）",
                     summary.evidences());
         }
 
@@ -147,11 +174,17 @@ public final class SealIntegrityCheckPolicy {
                         BasicInfoCheckPolicy.snippetAround(text, 150, esMatcher.group())));
             }
 
-            Matcher lrMatcher = LEGAL_REP_PATTERN.matcher(text);
+            Matcher lrMatcher = LEGAL_REP_FILLED_PATTERN.matcher(text);
             if (lrMatcher.find()) {
                 hasLegalRep = true;
-                evidences.add(QualityEvidence.bid("法定代表人签署", page.pageNumber(),
+                evidences.add(QualityEvidence.bid("法定代表人签署（已填姓名）", page.pageNumber(),
                         BasicInfoCheckPolicy.snippetAround(text, 150, lrMatcher.group())));
+            } else {
+                Matcher lriMatcher = LEGAL_REP_INSTRUCTION_PATTERN.matcher(text);
+                if (lriMatcher.find()) {
+                    evidences.add(QualityEvidence.bid("法定代表人落款格式文本（未填姓名）", page.pageNumber(),
+                            BasicInfoCheckPolicy.snippetAround(text, 150, lriMatcher.group())));
+                }
             }
 
             Matcher csMatcher = COMPANY_SEAL_PATTERN.matcher(text);

@@ -74,18 +74,23 @@ public final class FrontTableResponsePolicy {
             TableCellIntegrityCalculator.TableIntegrityResult tableResult =
                     TableCellIntegrityCalculator.validateText(page.pageNumber(), page.text());
             if (tableResult.hasViolation()) {
-                TableCellIntegrityCalculator.CellViolation first = tableResult.violations().getFirst();
-                QualityEvidence evidence = QualityEvidence.bid(
-                        "前附表表格填写缺陷",
-                        page.pageNumber(),
-                        "第" + first.rowNumber() + "行" + (first.colHeader().isBlank() ? "" : "「" + first.colHeader() + "」列")
-                                + "存在填写缺陷: " + first.violationType() + " (原单元格内容: " + first.cellContent() + ")"
-                );
+                List<TableCellIntegrityCalculator.CellViolation> violations = tableResult.violations();
+                TableCellIntegrityCalculator.CellViolation first = violations.getFirst();
+                List<QualityEvidence> evidences = new ArrayList<>();
+                for (TableCellIntegrityCalculator.CellViolation v : violations) {
+                    evidences.add(QualityEvidence.bid(
+                            "前附表表格填写缺陷",
+                            v.pageNumber(),
+                            "第" + v.rowNumber() + "行" + (v.colHeader().isBlank() ? "" : "「" + v.colHeader() + "」列")
+                                    + "存在填写缺陷: " + v.violationType() + " (原单元格内容: " + v.cellContent() + ")"
+                    ));
+                }
                 return QualityCheckItemResult.fail(
                         BidQualityCheckItem.FRONT_TABLE_RESPONSE,
-                        "前附表响应表格中存在填写不完整单元格（" + first.violationType() + "）",
+                        "前附表响应表格中存在 " + violations.size() + " 处填写不完整单元格（首处：第" + first.rowNumber() + "行"
+                                + (first.colHeader().isBlank() ? "" : "「" + first.colHeader() + "」列") + " " + first.violationType() + "）",
                         "请检查前附表响应表格中的留白、斜杠及占位符，务必如实填写具体响应参数与承诺",
-                        List.of(evidence));
+                        evidences);
             }
         }
 

@@ -104,6 +104,23 @@ class TableCellIntegrityCalculatorTest {
     }
 
     @Test
+    @DisplayName("无分隔行表格：首行不再被误判为表头而漏检")
+    void testNoSeparatorTableFirstRowChecked() {
+        String tableText = """
+                报价明细
+                | 1 | 工期 | 60天 | / |
+                | 2 | 质保 | 2年 |  |
+                """;
+        TableCellIntegrityCalculator.TableIntegrityResult result =
+                TableCellIntegrityCalculator.validateText(2, tableText);
+
+        assertThat(result.hasViolation()).isTrue();
+        assertThat(result.violations()).hasSize(2);
+        assertThat(result.violations().get(0).violationType()).isEqualTo("无效斜杠/横杠留白");
+        assertThat(result.violations().get(1).violationType()).isEqualTo("空单元格未填写");
+    }
+
+    @Test
     @DisplayName("validateDocument 排除目录点线页干扰")
     void testValidateDocumentSkipsCatalog() {
         DocumentContent.PageContent catalogPage = new DocumentContent.PageContent(
