@@ -65,7 +65,8 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/TermConsistencyCheckPolicy.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/TableCellIntegrityCalculator.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/SealIntegrityCheckPolicy.java
-  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/SubItemAndAttachmentRules.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/FinancialStatementAccuracyCalculator.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/TimelineReasonablenessPolicy.java
   - docs/lessons/lessons-learned.md
 backlinks:
   - _index
@@ -306,6 +307,11 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **业务层三路联动**：`BasicInfoCheckPolicy.checkSignatureSeal` 委托至 `SealIntegrityCheckPolicy`；`FrontTableResponsePolicy` 接入 `TableCellIntegrityCalculator` 实现表格填写缺陷行级拦截；`SubItemAndAttachmentRules.checkCommitmentSeal` 接入真实签章反假与完备性校验；
     - **准则 19 落地**：`AdjudicationGuidelines` 扩充《准则 19：签章完备性与表格填写完整性核验准则》，保持 LLM fallback 规则双轨一致。
     - **审查跟进收紧（2026-09-06）**：纯模板落款说明文字（如「法定代表人（签字）」「（盖章）」未填姓名）不再计入签章证据直通 PASS，降级 MANUAL_REVIEW 并在提示语中说明文本层边界；承诺书反假复用 `SealIntegrityCheckPolicy` 共享占位/强证据判定（消除两套关键词不一致）；前附表表格缺陷 conclusion 携带违规总数并逐条输出证据；无分隔行 Markdown 表格首行不再被误判为表头漏检。
+37. **财务三表平衡勾稽(FINANCIAL_STATEMENT_ACCURACY)与进度计划逻辑合理性(TIMELINE_REASONABLENESS)深度重构（阶段 3 攻坚）**（2026-09-06）：
+    - **财务三表平衡勾稽助手（`FinancialStatementAccuracyCalculator`，243 行）**：构建纯核心无异常会计恒等式校验器，覆盖资产负债平衡式（资产总计 = 负债合计 + 所有者权益合计）、利润平衡式（营业利润 $\le$ 营业收入 - 营业成本）、净利润合理性、现金流量期末余额非负及大额净流出预警；引入双重自适应容差（绝对差 $\le 1.0$ 元或相对差 $\le 1\%$），精准隔离四舍五入尾差与严重失衡；
+    - **进度计划逻辑合理性独立策略（`TimelineReasonablenessPolicy`，198 行）**：构建纯核心无异常进度合理性判定，识别开竣工倒挂（直接 FAIL）、自述工期超出招标最大工期限制（直接 FAIL）、横道图/甘特图模板未填占位符（直接 FAIL 反假）；采用无异常纯整数公历日历算法计算纪元跨度天数，对比自述工期（差额超 10 天触发人工复核预警）；
+    - **业务层穿透与准则 20 升级**：`FinancialStatementCheckPolicy` 接入 `FinancialStatementAccuracyCalculator` 实现三表齐全时的穿透勾稽；`BasicInfoCheckPolicy.checkScheduleResponse` 串联商务条款与进度计划逻辑；`AdjudicationGuidelines` 追加《准则 20：财务三表平衡勾稽与进度计划合理性核验准则》；
+    - **FP-Java 零异常纯核心保证**：严格遵守无 `try-catch` 纯算术逻辑，100% 通过 `FPJavaArchitectureTest` 与单文件行预算守卫。
 
 ## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
 

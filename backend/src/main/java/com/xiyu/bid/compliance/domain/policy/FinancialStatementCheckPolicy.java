@@ -1,6 +1,7 @@
 // Input: 投标文件分页内容 DocumentContent + 招标财务要求 FinancialRequirement
-// Output: 财务状况与财务审计报告核查结果（防目录点线假通过、防未填模板占位符、财务三表核验与年份覆盖度校验）
-// Pos: compliance/domain/policy/ - 标书端财务状况与审计报告核验策略（FP-Java，无框架依赖，行预算严格 <= 300）
+// Output: 财务状况与财务审计报告核查结果（防目录点线假通过、防未填模板占位符、财务三表平衡勾稽穿透校验与年份覆盖度校验）
+// Pos: compliance/domain/policy/ - 标书端财务状况与审计报告核验策略（FP-Java，无框架依赖，行预算严格 <= 320）
+// 依赖: FinancialStatementAccuracyCalculator（三表平衡勾稽穿透校验助手）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
 
@@ -148,10 +149,36 @@ public final class FinancialStatementCheckPolicy {
                         "已附财务报表，但同时检测到未填占位模板，建议人工核验是否已替换",
                         "请核对占位页是否仍需删除，并确认报表年份与招标要求一致", evidences);
             }
+            // ---- 三表平衡勾稽穿透校验 ----
+            FinancialStatementAccuracyCalculator.BalanceCheckResult balanceResult =
+                    FinancialStatementAccuracyCalculator.check(
+                            balanceSheetPage.text(), profitPage.text(), cashFlowPage.text());
+            if (balanceResult.hasViolations()) {
+                List<QualityEvidence> balanceEvidences = new ArrayList<>(evidences);
+                for (String violation : balanceResult.violations()) {
+                    balanceEvidences.add(QualityEvidence.bid("财务勾稽异常", 0, violation));
+                }
+                return QualityCheckItemResult.fail(item,
+                        "财务报表三表平衡勾稽核验不通过：" + balanceResult.violations().get(0),
+                        "请核实财务报表数字，确保资产负债表平衡等式成立、利润表与现金流量表数据合理",
+                        balanceEvidences);
+            }
+            if (balanceResult.hasWarnings()) {
+                List<QualityEvidence> warnEvidences = new ArrayList<>(evidences);
+                for (String warning : balanceResult.warnings()) {
+                    warnEvidences.add(QualityEvidence.bid("财务勾稽预警", 0, warning));
+                }
+                String yearNote = yearsFound.isEmpty() ? "" : "，报表年份涵盖 " + String.join("、", yearsFound);
+                return QualityCheckItemResult.manualReview(item,
+                        "财务报表已提供但存在勾稽预警，建议人工复核：" + balanceResult.warnings().get(0) + yearNote,
+                        "请人工核实财务报表数字正确性并确认勾稽关系",
+                        warnEvidences);
+            }
+            // ---- 勾稽校验通过，最终 PASS ----
             String yearNote = yearsFound.isEmpty() ? "" : "，报表年份涵盖 " + String.join("、", yearsFound);
             return QualityCheckItemResult.pass(item,
-                    "已提供完整的财务会计报告（包含资产负债表、利润表、现金流量表"
-                            + (hasAudit ? "及会计师事务所审计意见与印章" : "") + yearNote + "）",
+                    "已提供完整的财务会计报告（资产负债表、利润表、现金流量表三表平衡勾稽校验通过"
+                            + (hasAudit ? "，含会计师事务所审计意见与印章" : "") + yearNote + "）",
                     evidences);
         }
 
