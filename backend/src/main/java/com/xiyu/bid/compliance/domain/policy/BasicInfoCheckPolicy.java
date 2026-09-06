@@ -102,7 +102,14 @@ public final class BasicInfoCheckPolicy {
 
     public static QualityCheckItemResult checkScheduleResponse(
             final DocumentContent bidDoc, final BusinessTermsRequirement requirement) {
-        return TermConsistencyCheckPolicy.check(bidDoc, requirement);
+        // 第一段：商务条款一致性核验（工期天数、质保期、占位拦截）
+        QualityCheckItemResult termsResult = TermConsistencyCheckPolicy.check(bidDoc, requirement);
+        if (termsResult != null) {
+            return termsResult;
+        }
+        // 第二段：进度计划逻辑合理性核验（开竞工日期倒挂、横道图占位模板、工期推算差异）
+        Integer maxDays = requirement != null ? requirement.maxScheduleDays() : null;
+        return TimelineReasonablenessPolicy.checkTimeline(bidDoc, maxDays);
     }
 
     public static QualityCheckItemResult checkSignatureSeal(final DocumentContent bidDoc) {
