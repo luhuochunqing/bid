@@ -97,4 +97,63 @@ class FrontTableResponsePolicyTest {
 
         assertThat(result).isNull();
     }
+
+    @Test
+    @DisplayName("前附表表格完整性：前附表响应表格存在空单元格时判定 FAIL 拦截")
+    void testCheck_WhenTableCellEmpty_Fails() {
+        String bidText = """
+                第一节 投标人须知前附表关键条款响应表
+                | 序号 | 关键条款 | 招标要求 | 响应情况 | 偏离说明 |
+                |---|---|---|---|---|
+                | 1 | 工期 | 60日历天 | 响应60天 | / |
+                | 2 | 质保期 | 36个月 |  | 无偏离 |
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash6", bidText);
+
+        QualityCheckItemResult result = FrontTableResponsePolicy.check(doc, FrontTableRequirement.empty());
+
+        assertThat(result).isNotNull();
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(result.conclusion()).contains("填写不完整");
+        assertThat(result.evidences()).isNotEmpty();
+        assertThat(result.evidences().getFirst().quote()).contains("第2行").contains("响应情况");
+    }
+
+    @Test
+    @DisplayName("前附表表格完整性：前附表响应表格在非偏离列存在斜杠留白时判定 FAIL 拦截")
+    void testCheck_WhenTableCellSlashBlank_Fails() {
+        String bidText = """
+                第一节 投标人须知前附表关键条款响应表
+                | 序号 | 关键条款 | 招标要求 | 响应情况 |
+                |---|---|---|---|
+                | 1 | 工期 | 60日历天 | / |
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash7", bidText);
+
+        QualityCheckItemResult result = FrontTableResponsePolicy.check(doc, FrontTableRequirement.empty());
+
+        assertThat(result).isNotNull();
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
+        assertThat(result.conclusion()).contains("填写不完整");
+        assertThat(result.evidences().getFirst().quote()).contains("斜杠");
+    }
+
+    @Test
+    @DisplayName("前附表表格完整性：表格完整填报且偏离列允许斜杠时直通 PASS")
+    void testCheck_WhenTableWellFilledWithDeviationExemption_Passes() {
+        String bidText = """
+                第一节 投标人须知前附表关键条款响应表
+                | 序号 | 关键条款 | 招标要求 | 响应情况 | 偏离说明 |
+                |---|---|---|---|---|
+                | 1 | 工期 | 60日历天 | 响应60日历天完工 | / |
+                | 2 | 质保期 | 36个月 | 承诺36个月免费保修 | 无 |
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash8", bidText);
+
+        QualityCheckItemResult result = FrontTableResponsePolicy.check(doc, FrontTableRequirement.empty());
+
+        assertThat(result).isNotNull();
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(result.conclusion()).contains("前附表关键条款填写完整");
+    }
 }

@@ -1,6 +1,6 @@
 // Input: 投标文件 DocumentContent + 招标前附表要求 FrontTableRequirement
 // Output: QualityCheckItemResult（PASS / FAIL）或 null（存疑移交 LLM lane）
-// Pos: compliance/domain/policy/ - 前附表关键条款填写完整性核验策略（纯核心）
+// Pos: compliance/domain/policy/ - 前附表关键条款填写完整性与表格留白反假核验策略（纯核心）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
 
@@ -68,6 +68,23 @@ public final class FrontTableResponsePolicy {
                         BidQualityCheckItem.FRONT_TABLE_RESPONSE,
                         "前附表关键条款中存在未填写的占位符或下划线留白（" + placeholder + "）",
                         "请在标书前附表响应中补全具体应答内容，不得保留空白下划线或模板占位符",
+                        List.of(evidence));
+            }
+
+            TableCellIntegrityCalculator.TableIntegrityResult tableResult =
+                    TableCellIntegrityCalculator.validateText(page.pageNumber(), page.text());
+            if (tableResult.hasViolation()) {
+                TableCellIntegrityCalculator.CellViolation first = tableResult.violations().getFirst();
+                QualityEvidence evidence = QualityEvidence.bid(
+                        "前附表表格填写缺陷",
+                        page.pageNumber(),
+                        "第" + first.rowNumber() + "行" + (first.colHeader().isBlank() ? "" : "「" + first.colHeader() + "」列")
+                                + "存在填写缺陷: " + first.violationType() + " (原单元格内容: " + first.cellContent() + ")"
+                );
+                return QualityCheckItemResult.fail(
+                        BidQualityCheckItem.FRONT_TABLE_RESPONSE,
+                        "前附表响应表格中存在填写不完整单元格（" + first.violationType() + "）",
+                        "请检查前附表响应表格中的留白、斜杠及占位符，务必如实填写具体响应参数与承诺",
                         List.of(evidence));
             }
         }

@@ -4859,3 +4859,42 @@ winbid-test 项目 1359（AI 评分标准解析）存在 4 个顽固问题：
 | 正则表达式未覆盖中文系词助词 | 中文标书中经常出现“服务工期为：180天”，若正则仅允许冒号或空白字符（`[：:\\s]`），会由于“为”字导致匹配失败，漏提取工期数值 | 商务条款数值正则统一扩充系词与助词允许集（`[：:\\s为]{1,10}`），确保鲁棒性 |
 | 回退检索页码污染证据链 | 当多页比对中未在正文页直接提取到全部参数时，若回退到通用关键词检索，必须严格跳过目录点线页，否则会将目录页索引行当作有效证据页码 | 在任何页码挑选或证据摘录方法中，前置执行 `BidLetterCheckPolicy.isCatalogOrOutlinePage` 过滤 |
 | 算术核算单文件超标风险 | 报价核验包含大写小写、最高限价、开标一览表以及分项明细的复杂算术解析，放在一个类中极易突破 300 行硬上限 | 按照 FP-Java 原则将分项表格算术解析抽离至独立的纯核心计算助手 `ItemizedPriceCalculator`，主策略保持简洁编排 |
+
+### Lesson 241: 签章完备性(SEAL_INTEGRITY)与表格填写完整性(TABLE_CELL_INTEGRITY)深度重构与反假
+
+**背景**：
+在 `/unified-dev-flow` 阶段 3（重构 7 项逻辑一致性与计算核验类）的 Sub-task 3.2 攻坚中，针对两项普遍存在的形式与响应性痛点：
+1. **未填签署模板与假签章蒙混**：部分投标文件直接使用模板，落款保留 `法定代表人：______`、`投标人：______`、`【此处盖公章】`，既无真实签字也无企业公章或 CA 电子防伪签章，旧逻辑仅按简单关键词检索容易造成假通过；
+2. **表格空单元格与无意义斜杠留白**：响应表格（前附表响应表、规格参数表等）出现空单元格未填、或随意使用 `/`、`\`、`--`、`——` 留白逃避实质性响应，缺乏确定性表格结构化检验；
+3. **偏离说明列无偏离正常表述的误伤风险**：在偏离情况或说明列，投标人填写 `/` 或 `无` 代表“无偏离/完全响应”，若不加语义区分一刀切拦截会导致严重误判。
+
+**根因**：
+1. `BasicInfoCheckPolicy.checkSignatureSeal` 与 `SubItemAndAttachmentRules.checkCommitmentSeal` 原仅做了简单的文本关键词查找（如包含“（盖章）”或“承诺书”），缺少真实签章要素（法人印章、单位公章、国密SM2/CA验签、骑缝章）与模板未填留白的反假断言；
+2. 标书表格填写校验此前未建立确定性 Markdown 表格逐行解析器，无法捕获具体行、列的空值与无效留白。
+
+**修复方案（标准 6 步门禁）**：
+1. **表格填写完整性助手（`TableCellIntegrityCalculator.java`，纯核心，192 行）**：
+   - 解析 Markdown 规范表格行与单元格，跳过表头分隔行；
+   - 过滤目录点线页，识别空单元格、无效斜杠横杠留白及模板占位符；
+   - 建立语义列豁免机制（对“偏离说明”、“偏离情况”、“备注”、“说明”等列豁免斜杠与留白）；
+   - 输出结构化 `CellViolation`（包含真实页码、行号、列头名称、问题类型与原始文本）；
+2. **签章完备性核验策略（`SealIntegrityCheckPolicy.java`，纯核心，168 行）**：
+   - 覆盖法定代表人签字/印章、企业公章、防伪验签标记（CA数字签名/国密SM2）与骑缝章覆盖标记；
+   - 对未替换占位符（`_{3,}`、`【此处盖公章】` 等）进行反假拦截，若无真实签章直接判定 FAIL；
+   - 强事实直通：防伪验签或双要素齐全直通 PASS，单要素或存疑移交人工复核；
+3. **业务层联动集成**：
+   - `BasicInfoCheckPolicy.checkSignatureSeal` 委托至 `SealIntegrityCheckPolicy.check`；
+   - `FrontTableResponsePolicy` 接入 `TableCellIntegrityCalculator.validateText`，表格填写缺陷直接输出带行列明细的 FAIL 拦截；
+   - `SubItemAndAttachmentRules.checkCommitmentSeal` 接入真实签章与反假校验；
+   - `AdjudicationGuidelines` 扩充《准则 19：签章完备性与表格填写完整性核验准则》；
+4. **单元测试与架构验证**：
+   - `SealIntegrityCheckPolicyTest`、`TableCellIntegrityCalculatorTest`、`FrontTableResponsePolicyTest`、`BasicInfoAndAttachmentRulesTest` 全部全绿；
+   - 严格通过 `MaintainabilityArchitectureTest`（单文件 `<= 300` 行）与 `FPJavaArchitectureTest`（纯值返回、零异常控制流）。
+
+**教训**：
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| 表格偏离列斜杠留白语义混淆 | 在商务/技术偏离表中，投标人填写 `/` 常代表“无偏离”，若作为通用表格留白拦截会引发假阳性误报 | 必须引入列头语义识别与豁免规则（`isExemptColumn`），对偏离说明、备注列放行无偏离表述 |
+| Record 访问器命名习惯与标准 JavaBean 混淆 | 自定义 Record 自动生成的方法名直接为字段名（如 `rowNumber()`、`violationType()`），跨类调用时若凭习惯写成 `row()` 或 `issueDescription()` 会在编译期或反射运行时引发编译错误 | 严格核对 Record 定义中声明的字段名称，使用标准 record accessor |
+| 跨策略联动防假需兼顾人工复核兜底 | 线下纸质标盖章扫描件由 OCR 转为纯文本时可能丢失红色印章信息，若无明确占位留白直接误判 FAIL 会阻断正常标书 | 明确区分“未填占位符（直接 FAIL 反假）”与“未识别到印章文本（MANUAL_REVIEW 提示人工核验）”，保障业务鲁棒性 |
+
