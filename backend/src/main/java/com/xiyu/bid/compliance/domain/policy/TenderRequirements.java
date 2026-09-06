@@ -1,5 +1,5 @@
-// Input: LLM 结构化提取或规则提取的五类招标要求列表（contracts/tender-requirements-extraction.md §2）+ 保证金要求
-// Output: 招标要求纯核心模型（评分项/专用资质证书/否决条款/组成要求/格式要求/保证金要求）+ missing 哨兵
+// Input: LLM 结构化提取或规则提取的招标要求（评分/资质/否决/组成/格式 + 保证金/投标函/授权/执照契约）
+// Output: 招标要求纯核心模型（含各专项契约）+ missing 哨兵
 // Pos: compliance/domain/policy/ - 招标要求领域模型（spec 049 US2，data-model.md §3.1）
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;

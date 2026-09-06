@@ -70,6 +70,17 @@ class DeterministicAuthorizationExtractorTest {
     }
 
     @Test
+    @DisplayName("自然人变体免除：自然人可不提供授权委托书亦判定免除")
+    void testExtract_NaturalPersonVariant_NotRequired() {
+        String tenderText = "投标人须知：自然人可不提供授权委托书。";
+
+        AuthorizationRequirement req = DeterministicAuthorizationExtractor.extract(tenderText);
+
+        assertThat(req).isNotNull();
+        assertThat(req.required()).isFalse();
+    }
+
+    @Test
     @DisplayName("双轨融合 fuseWithDeterministic：确定性豁免条款与模板优先，融合 LLM 描述")
     void testFuseWithDeterministic() {
         AuthorizationRequirement llmReq = new AuthorizationRequirement(

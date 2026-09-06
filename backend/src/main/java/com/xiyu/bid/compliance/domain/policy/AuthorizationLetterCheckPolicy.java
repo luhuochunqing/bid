@@ -31,9 +31,6 @@ public final class AuthorizationLetterCheckPolicy {
             "法定代表人身份证明", "法定代表人证明书", "法定代表人声明"
     };
 
-    private static final Pattern MULTI_DOT_PATTERN = Pattern.compile("\\.{4,}|……|[·•]{4,}");
-    private static final Pattern CATALOG_DOT_LINE_PATTERN = Pattern.compile("[\\.·…•]{3,}.*\\d+");
-
     private static final Pattern UNFILLED_PLACEHOLDER_PATTERN = Pattern.compile(
             "【(?:被授权人|受托人|委托代理人|姓名|身份证号|职务|授权期限|授权单位)[^】]*】|"
                     + "\\[(?:被授权人|受托人|委托代理人|姓名|身份证号|职务|授权期限|授权单位)[^\\]]*\\]|"
@@ -44,6 +41,8 @@ public final class AuthorizationLetterCheckPolicy {
 
     private static final Pattern ID_CARD_PATTERN = Pattern.compile(
             "[1-9]\\d{5}(?:18|19|20)\\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\\d|3[01])\\d{3}[\\dXx]"
+                    + "|[1-9]\\d{5}\\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\\d|3[01])\\d{3}"
+                    + "|[1-9]\\d{5}[*×＊Xx]{4,8}\\d{3,4}[Xx\\d]?"
     );
 
     private static final Pattern AGENT_NAME_PATTERN = Pattern.compile(
@@ -117,11 +116,12 @@ public final class AuthorizationLetterCheckPolicy {
                 || PRINCIPAL_NAME_PATTERN.matcher(text).find();
         boolean hasAgent = text.contains("受托人") || text.contains("委托代理人")
                 || text.contains("被授权人") || AGENT_NAME_PATTERN.matcher(text).find();
-        boolean hasScopeOrTerm = text.contains("授权范围") || text.contains("全权代表")
-                || text.contains("授权期限") || text.contains("签署") || text.contains("投标");
+        boolean hasStrongScope = text.contains("授权范围") || text.contains("全权代表")
+                || text.contains("授权期限") || text.contains("授权事项") || text.contains("代理权限")
+                || text.contains("委托事项") || text.contains("委托权限");
         boolean hasIdCard = ID_CARD_PATTERN.matcher(text).find();
 
-        if (hasPrincipal && hasAgent && (hasScopeOrTerm || hasIdCard)) {
+        if (hasPrincipal && hasAgent && (hasStrongScope || hasIdCard)) {
             return QualityCheckItemResult.pass(item,
                     "已提供法定代表人授权委托书，委托人与受托人授权关系清晰明确，要素齐全", evidences);
         }
@@ -173,20 +173,6 @@ public final class AuthorizationLetterCheckPolicy {
     }
 
     static boolean isCatalogOrOutlinePage(final String pageText) {
-        if (pageText == null || pageText.isBlank()) {
-            return false;
-        }
-        int dotLineCount = 0;
-        String[] lines = pageText.split("\\r?\\n");
-        for (String line : lines) {
-            String trimmed = line.trim();
-            if (trimmed.isEmpty()) {
-                continue;
-            }
-            if (CATALOG_DOT_LINE_PATTERN.matcher(trimmed).find() || MULTI_DOT_PATTERN.matcher(trimmed).find()) {
-                dotLineCount++;
-            }
-        }
-        return dotLineCount >= 2 || (pageText.contains("目") && pageText.contains("录") && dotLineCount >= 1);
+        return BidLetterCheckPolicy.isCatalogOrOutlinePage(pageText);
     }
 }
