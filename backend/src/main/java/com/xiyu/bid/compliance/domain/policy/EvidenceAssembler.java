@@ -93,12 +93,17 @@ public final class EvidenceAssembler {
                 appendKnowledgeEvidences(evidences, kbEvidences);
             }
             case SCORING_RESPONSE -> {
-                for (TenderRequirements.ScoringItem scoringItem : requirements.scoringItems()) {
-                    evidences.add(locateTender(tenderDoc, "招标评分办法", List.of(scoringItem.name())));
+                if (requirements != null && requirements.scoringItems() != null) {
+                    for (TenderRequirements.ScoringItem scoringItem : requirements.scoringItems()) {
+                        evidences.add(locateTender(tenderDoc, "招标评分办法", List.of(scoringItem.name())));
+                    }
                 }
-                evidences.add(locateBid(bidDoc, "技术方案章节", List.of("技术方案", "实施方案")));
+                evidences.add(locateBid(bidDoc, "技术方案与评分标准对应", List.of("评分标准对应表", "评分细则", "技术方案", "实施方案", "项目管理机构", "服务方案")));
             }
-            case CLARIFICATION_RESPONSE -> evidences.add(locateBid(bidDoc, "澄清响应章节", List.of("澄清", "答疑", "补遗")));
+            case CLARIFICATION_RESPONSE -> {
+                evidences.add(locateTender(tenderDoc, "招标澄清答疑要求", List.of("澄清", "答疑", "补遗")));
+                evidences.add(locateBid(bidDoc, "澄清答疑确认函/响应章节", List.of("澄清文件确认函", "答疑纪要确认函", "补遗书确认函", "澄清确认函", "答疑纪要", "补遗书", "澄清")));
+            }
             case DEPOSIT_RECEIPT -> {
                 evidences.add(locateBid(bidDoc, "投标保证金凭证", List.of("投标保证金", "银行回单", "电子保函", "转账凭证")));
             }

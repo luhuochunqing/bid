@@ -67,12 +67,13 @@ public final class SemanticRulesLane {
                     "未在招标文件中提取到资格性评审条款要求，请人工复核",
                     "企业资质库查询异常，无法核查资格性评审条款响应")
                     .or(() -> QualificationReviewPolicy.checkFirstStage(bidDoc, requirements));
-            case SCORING_RESPONSE -> requirements.missing()
+            case SCORING_RESPONSE -> (requirements != null && requirements.missing())
                     ? Optional.of(referenceMissing(item, "招标要求不可用，无法对照评分标准逐项核查"))
-                    : Optional.empty();
+                    : ScoringResponsePolicy.checkFirstStage(bidDoc, requirements);
             case FRONT_TABLE_RESPONSE -> Optional.ofNullable(
                     FrontTableResponsePolicy.check(bidDoc, requirements != null ? requirements.frontTableRequirement() : null));
             case RESPONSIVENESS_REVIEW -> Optional.ofNullable(ResponsivenessReviewPolicy.check(bidDoc));
+            case CLARIFICATION_RESPONSE -> ClarificationResponsePolicy.checkFirstStage(bidDoc, tenderDoc, requirements);
             default -> Optional.empty();
         };
     }

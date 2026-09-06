@@ -4782,6 +4782,46 @@ winbid-test 项目 1359（AI 评分标准解析）存在 4 个顽固问题：
 | 标书证据定位未过滤目录页造成假定位 | 目录页包含章节标题和页码，字符串搜索会优先命中目录页 | 标书定位必须先经 `BidLetterCheckPolicy.isCatalogOrOutlinePage` 过滤点线目录页，仅在有效正文页检索 |
 | 单文件 300 行硬门禁约束 | 资质匹配算法原有逻辑已达 296 行，若将等级层级判定全部堆叠将严重超标 | 将等级层级判定抽取为纯核心策略类 `QualificationGradePolicy`，各自保持在 150~290 行单一职责 |
 
+## 239. 标书质检「评分项响应（SCORING_RESPONSE）」与「澄清文件响应（CLARIFICATION_RESPONSE）」两阶段确定性穿透与反假升级（2026-09-06）
+
+**背景**：
+作为 `/unified-dev-flow` 阶段 2 七项深度语义项的收官项，`SCORING_RESPONSE`（评分标准逐项对应与支撑材料）与 `CLARIFICATION_RESPONSE`（补遗/澄清文件响应）负责保障投标文件在技术方案深度、评分细则对标以及最新答疑澄清吸收等核心维度上的全面合规。以往实现存在以下关键痛点：
+1. **评分技术方案占位留白与假响应**：投标文件在技术方案、项目实施、项目管理机构章节中可能保留模板占位（如 `【请填写技术方案】`、`_{3,}`），但以往规则 lane 缺乏前置硬拦截，直接放行给大模型存在误判或漏判风险；
+2. **目录点线假定位欺骗**：标书仅在目录页列出“评分细则对应表”或“澄清确认函”条目，正文无实质性章节，单纯关键字检索容易把目录索引行当成证明页；
+3. **澄清答疑免除场景误判**：招标文件若未发布任何澄清答疑文件，标书未包含独立确认函属于正常合规事实，系统应能自动识别免除而不能机械判定缺失；若标书包含真实签署的澄清答疑确认函，应在第一阶段确定性直通；
+4. **编译期注解处理灾难防范**：当类中存在重复方法定义等编译阻断错误时，JDK 21 javac 会中断注解处理器（Lombok），导致后续数千个依赖 `@Data` / `@Getter` 的类级联报错（如 `cannot find symbol: method getId()` / `variable log`），排查极具迷惑性。
+
+**根因**：
+1. 缺乏专职的评分标准与澄清答疑核验策略类（`ScoringResponsePolicy`、`ClarificationResponsePolicy`）；
+2. 语义规则 lane（`SemanticRulesLane`）中 `SCORING_RESPONSE` 仅做了缺失 guard，`CLARIFICATION_RESPONSE` 完全走 default empty，未接入第一阶段确定性反假；
+3. 大模型裁决准则库缺少评分逐项对标与澄清吸收的专属准则（准则 16 与准则 17）；
+4. `AdjudicationGuidelines.java` 中此前意外残留重复的 `allGuidelines()` 方法定义。
+
+**修复方案（标准 6 步门禁）**：
+1. **独立评分响应策略（`ScoringResponsePolicy.java`，128 行，纯核心）**：
+   - 检索评分响应核心章节（`评分标准对应表`、`评分细则响应表`、`得分点对应表`、`技术方案`、`施工组织设计`、`项目管理机构`）；
+   - 第一阶段确定性门禁：全目录点线页硬拦截 FAIL，正文检测到占位留白硬拦截 FAIL；无硬伤平滑移交 LLM 进行技术方案深度与得分点匹配度评估；
+2. **独立澄清答疑响应策略（`ClarificationResponsePolicy.java`，161 行，纯核心）**：
+   - 识别确认函（`澄清文件确认函`、`答疑纪要确认函`、`补遗书确认函`）与招标澄清发布状态；
+   - 目录点线与模板占位硬拦截 FAIL；真实签署确认函直接直通 PASS；若招标文件未发布澄清答疑，自动免除并直通 PASS；若招标有澄清但标书无独立确认函，移交 LLM 语义核验技术/商务是否吸收答疑参数；
+3. **语义规则 Lane 与证据链集成（`SemanticRulesLane.java` & `EvidenceAssembler.java`）**：
+   - `SemanticRulesLane` 分别接通 `ScoringResponsePolicy` 与 `ClarificationResponsePolicy` 的第一阶段核验；
+   - `EvidenceAssembler` 增强招标评分办法与澄清要求、标书对应正文真实页码定位，过滤目录页干扰；
+4. **准则库修复与准则 16/17 追加（`AdjudicationGuidelines.java`，42 行）**：
+   - 移除重复的 `allGuidelines()` 声明，彻底杜绝 Lombok 处理器连锁失效隐患；
+   - 追加《准则 16：评分标准逐项对应核验准则》与《准则 17：澄清与答疑文件响应核验准则》；
+5. **单元测试与全链路回归**：
+   - `ScoringResponsePolicyTest`（5/5）、`ClarificationResponsePolicyTest`（6/6）、`ScoringAndClarificationIntegrationTest`（2/2）；
+   - 架构门禁（`MaintainabilityArchitectureTest` 3/3、`FPJavaArchitectureTest` 8/8、`BidDocumentQualityEngineTest` 30/30、`LlmAdjudicationContractTest` 15/15）全部通过。
+
+**教训**：
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| Java 语法错误引发 Lombok 处理器级联雪崩 | javac 在源码存在严重语法错误（如方法重复定义）时，会终止后续注解处理器执行，导致上千个原本正确的 Lombok 实体类报找不到 getter/setter/log 错误，极具迷惑性 | 遇到大面积 Lombok 符号缺失报错时，首先用 `mvn compile` 翻到最顶部查找首个非 Lombok 引起的直接语法或类定义错误 |
+| 澄清响应未区分项目发布澄清状态 | 多数正常招标项目根本没有答疑澄清，若要求无条件提供确认函会导致大量假错报 | 检查招标文档是否存在答疑发布，未发布且标书未提及澄清时明确判定免除响应并直通 PASS |
+| 评分项响应的深浅两阶段分工 | 评分涉及大量主观技术深度与人员业绩，无法纯靠正则定性 | 第一阶段专职防假（严打未填模板与仅目录列出），无硬伤则移交 LLM 配合准则 16 进行全维度深入打分，保持两阶段契约清晰 |
+
+
 
 
 
