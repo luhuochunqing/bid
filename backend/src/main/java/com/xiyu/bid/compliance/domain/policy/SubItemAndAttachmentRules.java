@@ -1,3 +1,7 @@
+// Input: 投标文件 DocumentContent
+// Output: QualityCheckItemResult（各项分项合规结果）
+// Pos: compliance/domain/policy/ - 分项合规与附件清单规则策略（纯核心，含承诺书签章反假）
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
 
 import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
@@ -89,7 +93,21 @@ public final class SubItemAndAttachmentRules {
         BidQualityCheckItem item = BidQualityCheckItem.COMMITMENT_SEAL;
         BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc, "承诺书", "承诺函", "廉洁承诺", "诚信承诺");
         if (match != null) {
-            return QualityCheckItemResult.pass(item, "包含必要的承诺书签署文件", List.of(QualityEvidence.bid("承诺书章节", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(match.text(), 200, "承诺书", "承诺函", "廉洁承诺", "诚信承诺"))));
+            String text = match.text();
+            boolean hasPlaceholder = text.contains("____") || text.contains("【请盖章】") || text.contains("【此处盖章】")
+                    || text.contains("【盖章】") || text.contains("【签字】");
+            boolean hasSignOrSeal = text.contains("（公章）") || text.contains("（盖章）") || text.contains("(盖章)")
+                    || text.contains("电子印章") || text.contains("电子签章") || text.contains("数字签名")
+                    || text.contains("已盖章") || text.contains("已签署") || text.contains("[公章]")
+                    || text.contains("[法人印章]") || text.contains("公章");
+            if (hasPlaceholder && !text.contains("电子签章") && !text.contains("数字签名") && !text.contains("已盖章") && !text.contains("已签署") && !text.contains("[公章]")) {
+                return QualityCheckItemResult.fail(item, "承诺书包含未填写的空白占位或未盖章模板标记", "请在承诺书落款处加盖真实公章及法定代表人签字，不得保留下划线或模板占位符",
+                        List.of(QualityEvidence.bid("承诺书占位留白", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(text, 150, "承诺书", "承诺函", "____", "【"))));
+            }
+            if (hasSignOrSeal) {
+                return QualityCheckItemResult.pass(item, "包含合规承诺书且签章要素齐全", List.of(QualityEvidence.bid("承诺书签署", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(text, 200, "承诺书", "承诺函", "公章", "盖章", "签字"))));
+            }
+            return QualityCheckItemResult.manualReview(item, "已检索到承诺书，但落款处未识别到明确的公章或签字标记", "请人工复核承诺书落款处是否已完成盖章与签署", List.of(QualityEvidence.bid("承诺书章节", match.pageNumber(), BasicInfoCheckPolicy.snippetAround(text, 200, "承诺书", "承诺函"))));
         }
         return QualityCheckItemResult.manualReview(item, "未检索到独立的承诺函章节", "请核实招标文件是否要求单独提供廉洁/无行贿承诺书", Collections.emptyList());
     }

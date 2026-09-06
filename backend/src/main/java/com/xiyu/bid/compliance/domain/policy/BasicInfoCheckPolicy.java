@@ -1,3 +1,7 @@
+// Input: 投标文件 DocumentContent
+// Output: QualityCheckItemResult（各项基本信息合规结果）
+// Pos: compliance/domain/policy/ - 基本信息与形式规范核验策略（纯核心，集成签章完备性核验）
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
 
 import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
@@ -102,12 +106,7 @@ public final class BasicInfoCheckPolicy {
     }
 
     public static QualityCheckItemResult checkSignatureSeal(final DocumentContent bidDoc) {
-        BidQualityCheckItem item = BidQualityCheckItem.SIGNATURE_SEAL;
-        PageMatch match = findFirstPageContaining(bidDoc, "（盖章）", "(盖章)", "盖单位公章", "法定代表人（签字）", "签字或盖章");
-        if (match != null) {
-            return QualityCheckItemResult.pass(item, "已检测到签章与落款占位，符合签署规范", List.of(QualityEvidence.bid("签章落款页", match.pageNumber(), snippetAround(match.text(), 200, "（盖章）", "(盖章)", "盖单位公章", "法定代表人（签字）", "签字或盖章"))));
-        }
-        return QualityCheckItemResult.manualReview(item, "未识别到标准签章文本占位或印章标记", "请确保投标函、授权委托书及承诺书均已加盖公章与法定代表人签字", Collections.emptyList());
+        return SealIntegrityCheckPolicy.check(bidDoc);
     }
 
     public static QualityCheckItemResult checkContactInfo(final DocumentContent bidDoc) {

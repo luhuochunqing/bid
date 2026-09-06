@@ -63,6 +63,9 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicTermsExtractor.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/ItemizedPriceCalculator.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/TermConsistencyCheckPolicy.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/TableCellIntegrityCalculator.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/SealIntegrityCheckPolicy.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/SubItemAndAttachmentRules.java
   - docs/lessons/lessons-learned.md
 backlinks:
   - _index
@@ -296,6 +299,11 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **商务条款一致性策略独立构建（`TermConsistencyCheckPolicy`）**：物理过滤目录点线页（`isCatalogOrOutlinePage`）；拦截工期与质保未填占位留白（直接 FAIL）；严格数值比对：标书工期承诺大于招标文件上限判定 FAIL、质保期短于招标下限判定 FAIL、投标有效期短于招标要求判定 FAIL；规范承诺且满足上限强事实直通 PASS；
     - **FP-Java 纯核心无异常控制流严格落地**：提取器与计算器全面废除 `try-catch` 解析异常控制流，采用 `parseSafeInt` 与 `parseSafeDecimal` 纯函数无异常校验解析，100% 满足 `FPJavaArchitectureTest.pure_core_must_not_use_exceptions_for_business_flow`；
     - **准则 18 落地**：`AdjudicationGuidelines` 追加《准则 18：报价分项与商务条款一致性核验准则》。
+36. **签章完备性(SEAL_INTEGRITY)与表格填写完整性(TABLE_CELL_INTEGRITY)深度重构与反假（阶段 3 推进）**（2026-09-06）：
+    - **表格填写完整性助手（`TableCellIntegrityCalculator`，192 行）**：构建纯领域 Markdown 表格逐行解析器，精准识别空单元格、无效斜杠/横杠留白（`/`、`\`、`--`、`——`）及模板未填占位符；创新引入语义列豁免机制（对“偏离说明”、“偏离情况”、“备注”、“说明”等列放行正常无偏离表述）；结构化输出页码、行号、列名与缺陷原因；
+    - **签章完备性独立策略（`SealIntegrityCheckPolicy`，168 行）**：全面识别法定代表人印章/签名、企业公章、防伪验签标记（国密SM2/CA数字证书）与骑缝章；对未替换占位模板（`法定代表人：______`、`【此处盖公章】` 等）实施硬核反假拦截 FAIL；具备防伪验签或双要素齐全直通 PASS；
+    - **业务层三路联动**：`BasicInfoCheckPolicy.checkSignatureSeal` 委托至 `SealIntegrityCheckPolicy`；`FrontTableResponsePolicy` 接入 `TableCellIntegrityCalculator` 实现表格填写缺陷行级拦截；`SubItemAndAttachmentRules.checkCommitmentSeal` 接入真实签章反假与完备性校验；
+    - **准则 19 落地**：`AdjudicationGuidelines` 扩充《准则 19：签章完备性与表格填写完整性核验准则》，保持 LLM fallback 规则双轨一致。
 
 ## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
 
