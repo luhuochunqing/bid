@@ -3,6 +3,17 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-06] fix | 标书质检确定性提取扩充政采“响应担保”与【不涉及】结论前缀规范
+
+- 触发：测试环境项目 1358 标书质检中，政采招标文件“不要求递交响应担保”，因确定性提取器遗漏“响应担保”导致免收识别失效、第 24 项退款信息表连带误报待确认。
+- 方案：
+  - 确定性提取：`DeterministicDepositExtractor` 扩充 24 组“响应担保/响应保证金”同义词及“不要求递交/不要求提交/无需递交”模式；
+  - 联动与文案规范：`BidDocumentQualityEngine` 与 `SubItemAndAttachmentRules` 免收判定统一冠以 `【不涉及】` 前缀；
+  - 语义检索：`SemanticPageRetriever` 补齐响应担保与免收 cues；
+  - 知识沉淀：lessons-learned.md 追加 §247。
+- 结果：单测 35/35 通过，Engine 联动测试通过，compliance 模块 589/589 全绿。
+- 页面更新：更新 [[bid-quality-check-realization]] §40。
+
 ## [2026-09-06] fix | 标书质检结果详情 MEDIUMTEXT 扩容与前端失败态持久卡片兜底
 
 - 触发：测试环境项目 1358 标书质量核查大文件时因 `check_details` 字段为 TEXT（64KB）导致 Data truncation 入库失败，前端 3 秒 Toast 一闪而过误判为超时。

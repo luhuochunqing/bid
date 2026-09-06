@@ -143,7 +143,7 @@ public final class SubItemAndAttachmentRules {
     public static QualityCheckItemResult checkDepositReceipt(final DocumentContent bidDoc, final String tenderText) {
         BidQualityCheckItem item = BidQualityCheckItem.DEPOSIT_RECEIPT;
         if (isDepositNotRequired(tenderText)) {
-            return QualityCheckItemResult.pass(item, "招标文件未要求缴纳投标保证金（免收/不涉及）", Collections.emptyList());
+            return QualityCheckItemResult.pass(item, "【不涉及】招标文件未要求缴纳投标保证金/响应担保（免收/不涉及）", Collections.emptyList());
         }
         BasicInfoCheckPolicy.PageMatch strongMatch = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc,
                 "投标保证金汇款", "保证金转账", "银行汇款回单", "电子保函凭证", "银行电子回单", "保证金缴纳凭证");
@@ -164,10 +164,12 @@ public final class SubItemAndAttachmentRules {
         // 若标书中声明免收/不涉及，仅当招标文件未明确要求缴纳保证金时，才认可该声明
         if (bidDoc.fullText().contains("不收取投标保证金") || bidDoc.fullText().contains("免收保证金")
                 || bidDoc.fullText().contains("不涉及保证金") || bidDoc.fullText().contains("免交投标保证金")
-                || bidDoc.fullText().contains("免收投标担保") || bidDoc.fullText().contains("不涉及投标担保")) {
+                || bidDoc.fullText().contains("免收投标担保") || bidDoc.fullText().contains("不涉及投标担保")
+                || bidDoc.fullText().contains("免收响应担保") || bidDoc.fullText().contains("不涉及响应担保")
+                || bidDoc.fullText().contains("不要求递交响应担保") || bidDoc.fullText().contains("不要求提交响应担保")) {
             DepositRequirement tenderReq = DeterministicDepositExtractor.extract(tenderText);
             if (tenderReq == null || Boolean.FALSE.equals(tenderReq.required())) {
-                return QualityCheckItemResult.pass(item, "投标文件中声明不涉及/免收投标保证金", Collections.emptyList());
+                return QualityCheckItemResult.pass(item, "【不涉及】投标文件中声明不涉及/免收投标保证金/响应担保", Collections.emptyList());
             }
         }
         if (strongMatch != null || guaranteeMatch != null) {
@@ -199,7 +201,7 @@ public final class SubItemAndAttachmentRules {
     public static QualityCheckItemResult checkDepositRefund(final DocumentContent bidDoc, final String tenderText) {
         BidQualityCheckItem item = BidQualityCheckItem.DEPOSIT_REFUND;
         if (isDepositNotRequired(tenderText)) {
-            return QualityCheckItemResult.pass(item, "本项目不涉及投标保证金，无需提供退款账户信息", Collections.emptyList());
+            return QualityCheckItemResult.pass(item, "【不涉及】本项目不涉及投标保证金/响应担保，无需提供退款账户信息", Collections.emptyList());
         }
         BasicInfoCheckPolicy.PageMatch match = BasicInfoCheckPolicy.findFirstPageContaining(bidDoc,
                 "退还保证金", "保证金退还", "退还开户银行", "退还账户", "退保证金");

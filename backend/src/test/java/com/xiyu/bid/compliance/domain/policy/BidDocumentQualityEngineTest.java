@@ -162,6 +162,7 @@ class BidDocumentQualityEngineTest {
                 .findFirst()
                 .orElseThrow();
         assertThat(depositReceipt.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(depositReceipt.conclusion()).startsWith("【不涉及】");
         assertThat(depositReceipt.conclusion()).contains("免收/不涉及");
 
         QualityCheckItemResult depositRefund = results.stream()
@@ -169,7 +170,40 @@ class BidDocumentQualityEngineTest {
                 .findFirst()
                 .orElseThrow();
         assertThat(depositRefund.status()).isEqualTo(QualityCheckStatus.PASS);
-        assertThat(depositRefund.conclusion()).contains("不涉及投标保证金");
+        assertThat(depositRefund.conclusion()).startsWith("【不涉及】");
+        assertThat(depositRefund.conclusion()).contains("不涉及投标保证金/响应担保");
+    }
+
+    @Test
+    @DisplayName("政采响应担保免收场景：招标文件包含'不要求递交响应担保'时，融合与Engine联动自动识别为【不涉及】直出PASS并免除退款信息表")
+    void testDeposit_WhenGovernmentResponseGuaranteeNotRequired_PassesWithNotApplicablePrefix() {
+        String tenderText = "第二章 供应商须知前附表\n| 3.4 | 响应担保 | 不要求递交响应担保 |\n| 3.5 | 响应有效期 | 90天 |";
+        DocumentContent tenderDoc = DocumentContent.fromText("tender.pdf", "hash_tender", tenderText);
+        DocumentContent bidDoc = DocumentContent.fromText("bid.docx", "hash_bid", "第五章 响应担保\n本项目不适用");
+
+        // 经 DeterministicRequirementsFuser 融合后的招标要求
+        TenderRequirements requirements = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(), tenderDoc);
+        assertThat(requirements.depositRequirement()).isNotNull();
+        assertThat(requirements.depositRequirement().required()).isFalse();
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                bidDoc, tenderDoc, Collections.emptyList(), requirements, Set.of());
+
+        QualityCheckItemResult depositReceipt = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(depositReceipt.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(depositReceipt.conclusion()).startsWith("【不涉及】");
+        assertThat(depositReceipt.conclusion()).contains("响应担保");
+
+        QualityCheckItemResult depositRefund = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.DEPOSIT_REFUND.getCode()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(depositRefund.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(depositRefund.conclusion()).startsWith("【不涉及】");
+        assertThat(depositRefund.conclusion()).contains("不涉及投标保证金/响应担保");
     }
 
     @Test

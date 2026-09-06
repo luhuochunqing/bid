@@ -141,10 +141,10 @@ public final class BidDocumentQualityEngine {
             String detail = (desc != null && !desc.isBlank() && !desc.contains("免收/不涉及")) ? "：" + desc : "";
             resultMap.put(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode(),
                     QualityCheckItemResult.pass(BidQualityCheckItem.DEPOSIT_RECEIPT,
-                            "招标文件未要求缴纳投标保证金（免收/不涉及" + detail + "）", Collections.emptyList()));
+                            "【不涉及】招标文件未要求缴纳投标保证金/响应担保（免收/不涉及" + detail + "）", Collections.emptyList()));
             resultMap.put(BidQualityCheckItem.DEPOSIT_REFUND.getCode(),
                     QualityCheckItemResult.pass(BidQualityCheckItem.DEPOSIT_REFUND,
-                            "本项目不涉及投标保证金，无需提供退款账户信息", Collections.emptyList()));
+                            "【不涉及】本项目不涉及投标保证金/响应担保，无需提供退款账户信息", Collections.emptyList()));
         } else {
             // 招标要求缴纳（或未明确免收）：若已有确定性强凭证直通则无需重调 LLM，可疑场景接通 LLM
             QualityCheckItemResult existingDeposit = resultMap.get(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode());
