@@ -29,9 +29,14 @@ class DeterministicDepositExtractorTest {
             "本项目不要求缴纳投标保证金，仅需提供投标承诺函。",
             "投标保证金及交付：免缴纳保证金。",
             "本项目免收投标担保，无需提供保函。",
-            "采购文件特别规定：不收取投标担保。"
+            "采购文件特别规定：不收取投标担保。",
+            "供应商须知前附表第3.4款明确规定：不要求递交响应担保。",
+            "本项目免收响应担保，供应商无需递交响应担保凭证。",
+            "采购人明确说明：不要求提交响应担保。",
+            "本项目不涉及响应担保，也不收取任何形式的投标保证金。",
+            "不要求递交投标保证金，符合政采优化营商环境政策。"
     })
-    @DisplayName("自然语言显式免收短语（含投标担保）：精准识别为免收")
+    @DisplayName("自然语言显式免收短语（含政采响应担保与不要求递交）：精准识别为免收")
     void testExtract_WhenExplicitPhrases_ReturnsNotRequired(String tenderText) {
         DepositRequirement req = DeterministicDepositExtractor.extract(tenderText);
 
@@ -47,14 +52,18 @@ class DeterministicDepositExtractorTest {
             "| 7.1 | 投标担保 | 免收 |",
             "| 7.1 | 投标保证金 | 0元 |",
             "前附表第 3.4 条：投标保证金：不适用。",
+            "前附表第 3.4 条：响应担保：不要求递交。",
+            "| 3.4 | 响应担保 | 不要求递交 | 详见竞争性谈判文件 |",
             "关键要素表：\n投标保证金：免收\n投标有效期：90天",
             "投标保证金（元）：0元",
             "投标保证金: 0.00元",
             "投标保证金 | 0 |",
             "投标保证金：未要求",
-            "投标担保：不采用"
+            "投标担保：不采用",
+            "响应担保：不适用",
+            "响应保证金：免收"
     })
-    @DisplayName("前附表及条目式表格免收表达（项目1358真实前附表场景）：精准识别为免收")
+    @DisplayName("前附表及条目式表格免收表达（含项目1358响应担保场景）：精准识别为免收")
     void testExtract_WhenTableFormat_ReturnsNotRequired(String tenderText) {
         DepositRequirement req = DeterministicDepositExtractor.extract(tenderText);
 
