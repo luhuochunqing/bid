@@ -217,6 +217,39 @@ class TenderRequirementsParserTest {
     }
 
     @Test
+    @DisplayName("包含 financialRequirement 节点：成功解析财务状况与审计报告要求")
+    void parse_withFinancialRequirement_parsesCorrectly() {
+        String llmResponse = """
+                {
+                  "scoringItems": [],
+                  "mandatoryQualifications": [],
+                  "vetoClauses": [],
+                  "compositionRequirements": [],
+                  "formatRequirements": [],
+                  "financialRequirement": {
+                    "required": true,
+                    "auditReportRequired": true,
+                    "requireCpaSeal": true,
+                    "requiredStatements": ["资产负债表", "利润表", "现金流量表"],
+                    "requiredYears": ["2023", "2024"],
+                    "description": "提供2023年度和2024年度经第三方会计师事务所审计的财务审计报告（含资产负债表、利润表、现金流量表及公章）"
+                  }
+                }
+                """;
+
+        TenderRequirements req = TenderRequirementsParser.parse(llmResponse);
+
+        assertThat(req.missing()).isFalse();
+        assertThat(req.financialRequirement()).isNotNull();
+        assertThat(req.financialRequirement().required()).isTrue();
+        assertThat(req.financialRequirement().auditReportRequired()).isTrue();
+        assertThat(req.financialRequirement().requireCpaSeal()).isTrue();
+        assertThat(req.financialRequirement().requiredStatements()).containsExactly("资产负债表", "利润表", "现金流量表");
+        assertThat(req.financialRequirement().requiredYears()).containsExactly("2023", "2024");
+        assertThat(req.financialRequirement().description()).contains("第三方会计师事务所审计");
+    }
+
+    @Test
     @DisplayName("非法 JSON 或纯文本：安全返回 missingSentinel，不抛出异常")
     void parse_invalidJson_returnsMissingSentinel() {
         assertThat(TenderRequirementsParser.parse("这是一段纯文本，没有任何 JSON 结构").missing()).isTrue();

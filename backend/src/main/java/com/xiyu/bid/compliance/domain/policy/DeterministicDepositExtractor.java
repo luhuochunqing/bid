@@ -71,7 +71,7 @@ public final class DeterministicDepositExtractor {
      * @param tenderText 招标文件文本内容
      * @return 提取到的保证金要求，若无法确定则返回 null（交由 LLM 或上层策略裁决，绝不武断断言免收）
      */
-    public static TenderRequirements.DepositRequirement extract(final String tenderText) {
+    public static DepositRequirement extract(final String tenderText) {
         if (tenderText == null || tenderText.isBlank()) {
             return null;
         }
@@ -82,14 +82,14 @@ public final class DeterministicDepositExtractor {
             String amount = amountMatcher.group(1).trim();
             // 排除匹配到 0元、零元 等误判
             if (!amount.equals("0元") && !amount.equals("0") && !amount.equals("零元") && !amount.equals("0.00元")) {
-                return TenderRequirements.DepositRequirement.required(amount, null, "招标文件要求缴纳投标保证金/担保：" + amount);
+                return DepositRequirement.required(amount, null, "招标文件要求缴纳投标保证金/担保：" + amount);
             }
         }
 
         // 2. 命中显式免收自然语言短语（高置信度）
         for (String phrase : EXPLICIT_NOT_REQUIRED_PHRASES) {
             if (tenderText.contains(phrase)) {
-                return TenderRequirements.DepositRequirement.notRequired("招标文件明确说明：" + phrase);
+                return DepositRequirement.notRequired("招标文件明确说明：" + phrase);
             }
         }
 
@@ -97,7 +97,7 @@ public final class DeterministicDepositExtractor {
         Matcher cellMatcher = NOT_REQUIRED_CELL_PATTERN.matcher(tenderText);
         if (cellMatcher.find()) {
             String match = cellMatcher.group().replaceAll("\\s+", " ").trim();
-            return TenderRequirements.DepositRequirement.notRequired("招标文件条款规定：" + match);
+            return DepositRequirement.notRequired("招标文件条款规定：" + match);
         }
 
         // 4. 若无确凿证据（无论全文是否包含保证金/担保字眼），坚决返回 null，交由 LLM 或人工复核，杜绝无词直接判免收的危险假设
@@ -108,7 +108,7 @@ public final class DeterministicDepositExtractor {
      * 判断招标文件是否明确未要求缴纳保证金（免收/不涉及）.
      */
     public static boolean isDepositNotRequired(final String tenderText) {
-        TenderRequirements.DepositRequirement req = extract(tenderText);
+        DepositRequirement req = extract(tenderText);
         return req != null && Boolean.FALSE.equals(req.required());
     }
 }

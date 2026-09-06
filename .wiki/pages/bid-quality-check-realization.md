@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [质量核查, compliance, LLM 混合裁决, 证据链, FP-Java, 语义RAG, 结构化输出, 资质智能匹配, 三级穿透]
 created: 2026-08-20
-updated: 2026-09-05
-health_checked: 2026-09-05
+updated: 2026-09-06
+health_checked: 2026-09-06
 sources:
   - specs/049-bid-quality-check-realization/spec.md
   - src/views/Project/stages/components/QualityCheckDrawer.vue
@@ -24,6 +24,9 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/service/KnowledgeBaseOnDemandLoader.java
   - backend/src/main/java/com/xiyu/bid/compliance/service/LlmVerdictParser.java
   - backend/src/main/java/com/xiyu/bid/ai/client/AiProvider.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DepositRequirement.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/BidLetterRequirement.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/FinancialRequirement.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicDepositExtractor.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicBidLetterExtractor.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicAuthorizationExtractor.java
@@ -35,6 +38,8 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicIdAuthLetterExtractor.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/IdAuthLetterCheckPolicy.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/IdAuthLetterRequirement.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicFinancialExtractor.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/FinancialStatementCheckPolicy.java
   - docs/lessons/lessons-learned.md
 backlinks:
   - _index
@@ -220,6 +225,11 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **目录点线拦截与未填模板占位符反假**：标书端 `IdAuthLetterCheckPolicy` 物理排除目录点线页（`MULTI_DOT_PATTERN`、`CATALOG_DOT_LINE_PATTERN`，`isCatalogOrOutlinePage`），并拦截未填写的占位符模板（【此处粘贴委托代理人身份证】、下划线留白等）；
     - **GB 11643-1999 18位标准身份证号与人像/国徽面要素核验**：严格校验 18 位公民身份号码并进行号码脱敏；综合核验有效期限、签发机关、人像面/国徽面等真实版面要素；招标明确要求社保时联动核验社保证明，缺失时降级人工复核；
     - **强事实直通与存疑裁决接通**：真实 18 位身份证号与身份要素齐全直通 PASS（LLM 0 次调用防抖动），存疑或仅命中目录/未填模板时接通 `LlmAdjudicator` 准则 7 深度裁决并调用 `SemanticPageRetriever` 候选页定位。
+28. **财务状况证明与审计报告(FINANCIAL_STATEMENT)两阶段结构化契约与要素反假重构**（2026-09-06）：
+    - **两阶段结构化契约与顶层 Record 解耦**：在 `TenderRequirements` 接入 `FinancialRequirement` 契约（是否必须提供、是否要求审计报告、所需年份列表、所需报表清单、是否要求事务所印章及说明），同时将累积的内部类 `DepositRequirement`、`BidLetterRequirement` 连同 `FinancialRequirement` 彻底解耦为同包顶层 Record，守护 300 行红线；建立纯核心 `DeterministicFinancialExtractor` 正则提取年份、三表与审计印章要求；
+    - **目录点线拦截与未填模板占位符反假**：标书端 `FinancialStatementCheckPolicy` 物理排除目录点线页（`isCatalogOrOutlinePage`），并拦截未填写的占位符模板（【此处粘贴经会计师事务所审计的财务审计报告】、留白下划线等），发现占位符立即判定 FAIL 反假拦截；
+    - **财务三表与审计意见印章事实核验**：严格核查资产负债表、利润表（损益表）、现金流量表及会计师事务所审计意见与印章，支持报表年份覆盖度校验；
+    - **资格审查第一阶段直通与存疑裁决接通**：将 `FinancialStatementCheckPolicy` 挂载为 `QUALIFICATION_REVIEW` 第一阶段硬信号，真实三表与印章齐全直通 PASS（LLM 0 次调用防抖动），占位模板直接 FAIL 拦截；部分报表或存疑场景流转至大模型准则 8 深度裁决并调用 `SemanticPageRetriever` 候选页检索。
 
 ## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
 

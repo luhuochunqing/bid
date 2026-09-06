@@ -42,7 +42,7 @@ public final class DeterministicBidLetterExtractor {
      * @param tenderText 招标文件文本内容
      * @return 提取到的函件要求，若无法确定则返回 null（交由 LLM 或标书默认公文格式核验，绝不武断臆造）
      */
-    public static TenderRequirements.BidLetterRequirement extract(final String tenderText) {
+    public static BidLetterRequirement extract(final String tenderText) {
         if (tenderText == null || tenderText.isBlank()) {
             return null;
         }
@@ -85,7 +85,7 @@ public final class DeterministicBidLetterExtractor {
                 + (recipientName != null ? "抬头称谓=" + recipientName + "；" : "")
                 + (validityDays != null ? "有效期=" + validityDays + "天" : "");
 
-        return new TenderRequirements.BidLetterRequirement(letterType, recipientName, validityDays, description);
+        return new BidLetterRequirement(letterType, recipientName, validityDays, description);
     }
 
     static Integer parseDigitsSafely(final String digits) {

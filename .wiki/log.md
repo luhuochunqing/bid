@@ -3,6 +3,17 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-06] feat | 标书质检「财务状况证明/财务审计报告」（FINANCIAL_STATEMENT）两阶段契约与反假重构
+
+- 触发：推进 25 项质检项语义化演进之重点项「财务状况证明 / 财务审计报告」（FINANCIAL_STATEMENT，PRD 2.3 第 18 项，隶属于资格性审查核心条款 QUALIFICATION_REVIEW，涵盖资产负债表、利润表、现金流量表、会计师事务所审计印章真实性与年份要求）。
+- 方案：
+  - 契约解耦与行预算防爆：新建独立顶层 Record `FinancialRequirement`，并将原累积在 `TenderRequirements` 内部的 `DepositRequirement`、`BidLetterRequirement` 独立抽取为顶层 Record，彻底解除 300 行预算风险（`TenderRequirements` 降至 198 行）；
+  - 招标端契约：新建纯核心确定性提取器 `DeterministicFinancialExtractor`，支持财务三表、审计报告、会计师事务所公章、年份覆盖度提取与双轨融合，支持显式免除判定；
+  - 标书端反假：新建 `FinancialStatementCheckPolicy`，严格排除目录点线页（`isCatalogOrOutlinePage`）与未填模板占位符（`UNFILLED_PLACEHOLDER_PATTERN`），校验资产负债表、利润表、现金流量表及会计师事务所审计意见与印章真实性，校验年份覆盖度；
+  - 引擎协同：将 `FinancialStatementCheckPolicy` 挂载为 `QUALIFICATION_REVIEW` 第一阶段硬信号，真实财务三表与审计印章齐全直通 PASS（LLM 0 次调用防抖动降本），未填占位模板直接 FAIL 反假拦截；存疑场景流转至大模型准则 8 深度裁决与 `SemanticPageRetriever` 候选页检索。
+- 结果：落地 5 个专属单测套件，新增及修改 14 个文件，单文件行预算严格控制在 300 行内，全部单元与架构测试全绿。
+- 页面更新：更新 [[bid-quality-check-realization]] §4.28 与 sources；lessons-learned.md §233。
+
 ## [2026-09-06] fix | 授权委托书目录误判与放行过松返工
 
 - 触发：PR 2556 审查返工。目录判定单字误判。放行门槛含签署投标弱词。死工厂回潮。

@@ -63,7 +63,7 @@ public final class DeterministicCheckPolicy {
     }
 
     public static QualityCheckItemResult checkBidLetterFormat(
-            final DocumentContent bidDoc, final TenderRequirements.BidLetterRequirement requirement) {
+            final DocumentContent bidDoc, final BidLetterRequirement requirement) {
         return BasicInfoCheckPolicy.checkBidLetterFormat(bidDoc, requirement);
     }
 

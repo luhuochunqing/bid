@@ -8,7 +8,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.compliance.domain.policy.AuthorizationRequirement;
+import com.xiyu.bid.compliance.domain.policy.BidLetterRequirement;
 import com.xiyu.bid.compliance.domain.policy.BusinessLicenseRequirement;
+import com.xiyu.bid.compliance.domain.policy.DepositRequirement;
+import com.xiyu.bid.compliance.domain.policy.FinancialRequirement;
 import com.xiyu.bid.compliance.domain.policy.IdAuthLetterRequirement;
 import com.xiyu.bid.compliance.domain.policy.TenderRequirements;
 
@@ -70,11 +73,12 @@ public final class TenderRequirementsParser {
                 }
                 vetoClauses.add(new TenderRequirements.VetoClause(clause, stringListAt(node, "keywords")));
             }
-            TenderRequirements.DepositRequirement depositRequirement = parseDepositRequirement(root.path("depositRequirement"));
-            TenderRequirements.BidLetterRequirement bidLetterRequirement = parseBidLetterRequirement(root.path("bidLetterRequirement"));
+            DepositRequirement depositRequirement = parseDepositRequirement(root.path("depositRequirement"));
+            BidLetterRequirement bidLetterRequirement = parseBidLetterRequirement(root.path("bidLetterRequirement"));
             AuthorizationRequirement authorizationRequirement = parseAuthorizationRequirement(root.path("authorizationRequirement"));
             BusinessLicenseRequirement businessLicenseRequirement = parseBusinessLicenseRequirement(root.path("businessLicenseRequirement"));
             IdAuthLetterRequirement idAuthLetterRequirement = parseIdAuthLetterRequirement(root.path("idAuthLetterRequirement"));
+            FinancialRequirement financialRequirement = parseFinancialRequirement(root.path("financialRequirement"));
             return new TenderRequirements(
                     scoringItems,
                     stringListAt(root, "mandatoryQualifications"),
@@ -86,6 +90,7 @@ public final class TenderRequirementsParser {
                     authorizationRequirement,
                     businessLicenseRequirement,
                     idAuthLetterRequirement,
+                    financialRequirement,
                     false);
         } catch (JsonProcessingException e) {
             return TenderRequirements.missingSentinel();
@@ -156,7 +161,7 @@ public final class TenderRequirementsParser {
         );
     }
 
-    private static TenderRequirements.BidLetterRequirement parseBidLetterRequirement(final JsonNode node) {
+    private static BidLetterRequirement parseBidLetterRequirement(final JsonNode node) {
         if (node == null || !node.isObject()) {
             return null;
         }
@@ -167,7 +172,7 @@ public final class TenderRequirementsParser {
         if (letterType.isBlank() && recipientName.isBlank() && validityDays == null && description.isBlank()) {
             return null;
         }
-        return new TenderRequirements.BidLetterRequirement(
+        return new BidLetterRequirement(
                 letterType.isBlank() ? null : letterType,
                 recipientName.isBlank() ? null : recipientName,
                 validityDays,
@@ -175,7 +180,7 @@ public final class TenderRequirementsParser {
         );
     }
 
-    private static TenderRequirements.DepositRequirement parseDepositRequirement(final JsonNode node) {
+    private static DepositRequirement parseDepositRequirement(final JsonNode node) {
         if (node == null || !node.isObject()) {
             return null;
         }
@@ -185,10 +190,40 @@ public final class TenderRequirementsParser {
         String amount = textAt(node, "amount");
         String forms = textAt(node, "forms");
         String description = textAt(node, "description");
-        return new TenderRequirements.DepositRequirement(
+        return new DepositRequirement(
                 required,
                 amount.isBlank() ? null : amount,
                 forms.isBlank() ? null : forms,
+                description.isBlank() ? null : description
+        );
+    }
+
+    private static FinancialRequirement parseFinancialRequirement(final JsonNode node) {
+        if (node == null || !node.isObject()) {
+            return null;
+        }
+        Boolean required = node.has("required") && !node.get("required").isNull()
+                ? node.get("required").asBoolean()
+                : null;
+        Boolean auditReportRequired = node.has("auditReportRequired") && !node.get("auditReportRequired").isNull()
+                ? node.get("auditReportRequired").asBoolean()
+                : null;
+        Boolean requireCpaSeal = node.has("requireCpaSeal") && !node.get("requireCpaSeal").isNull()
+                ? node.get("requireCpaSeal").asBoolean()
+                : null;
+        List<String> requiredYears = stringListAt(node, "requiredYears");
+        List<String> requiredStatements = stringListAt(node, "requiredStatements");
+        String description = textAt(node, "description");
+        if (required == null && auditReportRequired == null && requireCpaSeal == null
+                && requiredYears.isEmpty() && requiredStatements.isEmpty() && description.isBlank()) {
+            return null;
+        }
+        return new FinancialRequirement(
+                required,
+                auditReportRequired,
+                requiredYears,
+                requiredStatements,
+                requireCpaSeal,
                 description.isBlank() ? null : description
         );
     }

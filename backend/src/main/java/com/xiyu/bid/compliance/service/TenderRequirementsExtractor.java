@@ -158,6 +158,14 @@ public class TenderRequirementsExtractor {
                     "requireSocialSecurity": true或false或null,
                     "requireOriginalOrCopy": "原件或加盖公章的复印件等要求或null",
                     "description": "招标文件关于法定代表人及委托代理人身份证正反面、社保证明等具体要求条款摘录或null"
+                  },
+                  "financialRequirement": {
+                    "required": true或false或null,
+                    "auditReportRequired": true或false或null,
+                    "requiredYears": [ "招标文件要求的审计或报表年份，如2021、2022、2023或近三年等" ],
+                    "requiredStatements": [ "要求的报表，如资产负债表、利润表、现金流量表、附注等" ],
+                    "requireCpaSeal": true或false或null,
+                    "description": "招标文件关于财务状况证明、经审计的财务会计报告、三表及审计印章等具体要求条款摘录或null"
                   }
                 }
                 顶层键必须全部存在。

@@ -56,7 +56,7 @@ public final class BidLetterCheckPolicy {
 
     // REUSE-OK: * — 质检投标函格式独立核查入口策略，业务域独立
     public static QualityCheckItemResult check(
-            final DocumentContent bidDoc, final TenderRequirements.BidLetterRequirement requirement) {
+            final DocumentContent bidDoc, final BidLetterRequirement requirement) {
         BidQualityCheckItem item = BidQualityCheckItem.BID_LETTER_FORMAT;
         PageMatch match = findBestBidLetterPage(bidDoc);
         if (match == null) {

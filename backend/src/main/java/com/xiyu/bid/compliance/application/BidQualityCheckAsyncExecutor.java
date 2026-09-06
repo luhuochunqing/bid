@@ -14,13 +14,17 @@ import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
 import com.xiyu.bid.compliance.domain.QualityCheckStatus;
 import com.xiyu.bid.compliance.domain.policy.AuthorizationRequirement;
 import com.xiyu.bid.compliance.domain.policy.BidDocumentQualityEngine;
+import com.xiyu.bid.compliance.domain.policy.BidLetterRequirement;
 import com.xiyu.bid.compliance.domain.policy.BusinessLicenseRequirement;
+import com.xiyu.bid.compliance.domain.policy.DepositRequirement;
 import com.xiyu.bid.compliance.domain.policy.DeterministicAuthorizationExtractor;
 import com.xiyu.bid.compliance.domain.policy.DeterministicBidLetterExtractor;
 import com.xiyu.bid.compliance.domain.policy.DeterministicBusinessLicenseExtractor;
 import com.xiyu.bid.compliance.domain.policy.DeterministicDepositExtractor;
+import com.xiyu.bid.compliance.domain.policy.DeterministicFinancialExtractor;
 import com.xiyu.bid.compliance.domain.policy.DeterministicIdAuthLetterExtractor;
 import com.xiyu.bid.compliance.domain.policy.DeterministicQualificationExtractor;
+import com.xiyu.bid.compliance.domain.policy.FinancialRequirement;
 import com.xiyu.bid.compliance.domain.policy.IdAuthLetterRequirement;
 import com.xiyu.bid.compliance.domain.policy.KnowledgeQueryOutcome;
 import com.xiyu.bid.compliance.domain.policy.LlmAdjudicator;
@@ -123,14 +127,13 @@ public class BidQualityCheckAsyncExecutor {
                 requirements = requirements.withMergedQualifications(deterministicQuals);
             }
 
-            TenderRequirements.DepositRequirement detDeposit = DeterministicDepositExtractor.extract(tenderDoc.fullText());
+            DepositRequirement detDeposit = DeterministicDepositExtractor.extract(tenderDoc.fullText());
             if (detDeposit != null) {
-                requirements = requirements.withDepositRequirement(
-                        TenderRequirements.DepositRequirement.fuseWithDeterministic(requirements.depositRequirement(), detDeposit));
+                requirements = requirements.withDepositRequirement(DepositRequirement.fuseWithDeterministic(requirements.depositRequirement(), detDeposit));
             }
-            TenderRequirements.BidLetterRequirement detBidLetter = DeterministicBidLetterExtractor.extract(tenderDoc.fullText());
+            BidLetterRequirement detBidLetter = DeterministicBidLetterExtractor.extract(tenderDoc.fullText());
             if (detBidLetter != null) {
-                requirements = requirements.withBidLetterRequirement(TenderRequirements.BidLetterRequirement.fuseWithDeterministic(requirements.bidLetterRequirement(), detBidLetter));
+                requirements = requirements.withBidLetterRequirement(BidLetterRequirement.fuseWithDeterministic(requirements.bidLetterRequirement(), detBidLetter));
             }
             AuthorizationRequirement detAuth = DeterministicAuthorizationExtractor.extract(tenderDoc.fullText());
             if (detAuth != null) {
@@ -143,6 +146,10 @@ public class BidQualityCheckAsyncExecutor {
             IdAuthLetterRequirement detIdAuth = DeterministicIdAuthLetterExtractor.extract(tenderDoc.fullText());
             if (detIdAuth != null) {
                 requirements = requirements.withIdAuthLetterRequirement(IdAuthLetterRequirement.fuse(requirements.idAuthLetterRequirement(), detIdAuth));
+            }
+            FinancialRequirement detFinancial = DeterministicFinancialExtractor.extract(tenderDoc.fullText());
+            if (detFinancial != null) {
+                requirements = requirements.withFinancialRequirement(FinancialRequirement.fuseWithDeterministic(requirements.financialRequirement(), detFinancial));
             }
 
             // Step 2: 知识库检索与 25 项规则核查 (progress: 60)
@@ -176,18 +183,11 @@ public class BidQualityCheckAsyncExecutor {
                         .toList();
             }
 
-            // Step 3: 汇总指标并持久化 (progress: 100)
-            int passed = 0;
-            int failed = 0;
-            int manual = 0;
+            int passed = 0, failed = 0, manual = 0;
             for (QualityCheckItemResult r : itemResults) {
-                if (r.status() == QualityCheckStatus.PASS) {
-                    passed++;
-                } else if (r.status() == QualityCheckStatus.FAIL) {
-                    failed++;
-                } else {
-                    manual++;
-                }
+                if (r.status() == QualityCheckStatus.PASS) passed++;
+                else if (r.status() == QualityCheckStatus.FAIL) failed++;
+                else manual++;
             }
 
             ComplianceCheckResult.Status overallStatus;

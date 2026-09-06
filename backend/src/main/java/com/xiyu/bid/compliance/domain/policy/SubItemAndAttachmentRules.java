@@ -145,7 +145,7 @@ public final class SubItemAndAttachmentRules {
         if (bidDoc.fullText().contains("不收取投标保证金") || bidDoc.fullText().contains("免收保证金")
                 || bidDoc.fullText().contains("不涉及保证金") || bidDoc.fullText().contains("免交投标保证金")
                 || bidDoc.fullText().contains("免收投标担保") || bidDoc.fullText().contains("不涉及投标担保")) {
-            TenderRequirements.DepositRequirement tenderReq = DeterministicDepositExtractor.extract(tenderText);
+            DepositRequirement tenderReq = DeterministicDepositExtractor.extract(tenderText);
             if (tenderReq == null || Boolean.FALSE.equals(tenderReq.required())) {
                 return QualityCheckItemResult.pass(item, "投标文件中声明不涉及/免收投标保证金", Collections.emptyList());
             }

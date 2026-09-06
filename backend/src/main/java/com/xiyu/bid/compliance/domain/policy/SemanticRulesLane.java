@@ -7,6 +7,7 @@ package com.xiyu.bid.compliance.domain.policy;
 import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
 import com.xiyu.bid.compliance.domain.DocumentContent;
 import com.xiyu.bid.compliance.domain.QualityCheckItemResult;
+import com.xiyu.bid.compliance.domain.QualityCheckStatus;
 import com.xiyu.bid.compliance.domain.QualityEvidence;
 
 import java.util.ArrayList;
@@ -71,7 +72,8 @@ public final class SemanticRulesLane {
                     .or(() -> vetoFirstStage(bidDoc, tenderDoc, requirements, kbEvidences));
             case QUALIFICATION_REVIEW -> guardForComparison(item, requirements, failedKnowledgeSources,
                     "未在招标文件中提取到资格性评审条款要求，请人工复核",
-                    "企业资质库查询异常，无法核查资格性评审条款响应");
+                    "企业资质库查询异常，无法核查资格性评审条款响应")
+                    .or(() -> qualificationReviewFirstStage(bidDoc, requirements));
             case SCORING_RESPONSE -> requirements.missing()
                     ? Optional.of(referenceMissing(item, "招标要求不可用，无法对照评分标准逐项核查"))
                     : Optional.empty();
@@ -196,5 +198,27 @@ public final class SemanticRulesLane {
     private static QualityCheckItemResult knowledgeBaseUnavailable(final BidQualityCheckItem item, final String detail) {
         return ManualReasons.manual(item, ManualReasons.EVIDENCE_INSUFFICIENT, detail,
                 "知识库查询异常，请在知识库恢复后人工复核对应证明材料", Collections.emptyList());
+    }
+
+    /**
+     * 资格性评审条款响应第一阶段：若提取到财务要求，执行确定性反假与三表核验；强事实直接裁决.
+     */
+    private static Optional<QualityCheckItemResult> qualificationReviewFirstStage(
+            final DocumentContent bidDoc,
+            final TenderRequirements requirements) {
+        if (requirements == null || requirements.financialRequirement() == null) {
+            return Optional.empty();
+        }
+        QualityCheckItemResult result = FinancialStatementCheckPolicy.check(bidDoc, requirements.financialRequirement());
+        if (result.status() == QualityCheckStatus.PASS) {
+            // 完整三表与审计印章强事实直通 PASS
+            return Optional.of(result);
+        }
+        if (result.conclusion() != null && result.conclusion().contains("占位模板")) {
+            // 未填模板直接 FAIL 反假拦截
+            return Optional.of(result);
+        }
+        // 其余情况（如部分报表或无财务证据）留交 LLM lane 结合全标书综合裁决
+        return Optional.empty();
     }
 }

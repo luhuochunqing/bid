@@ -128,7 +128,8 @@ public final class BusinessLicenseCheckPolicy {
         if (text.contains("经营范围") || text.contains("业务范围")) count++;
         if (text.contains("营业期限") || text.contains("有效期限") || text.contains("长期")) count++;
         if (text.contains("住所") || text.contains("营业场所") || text.contains("地址")) count++;
-        return count >= 2;
+        if (text.contains("名称") || text.contains("公司") || text.contains("企业")) count++;
+        return count >= 1;
     }
 
     private static boolean isCatalogOrOutlinePage(final String text, final List<String> headings) {
