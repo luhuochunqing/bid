@@ -173,7 +173,10 @@ public final class BidDocumentQualityEngine {
         boolean hasStrongLicensePass = existingLicense != null
                 && existingLicense.status() == QualityCheckStatus.PASS
                 && !existingLicense.evidences().isEmpty();
-        if (!hasStrongLicensePass && llm != null) {
+        // 招标明确不要求证照：保留步骤 1 的直接 PASS，不再接通 LLM（防 LLM 覆盖为 FAIL/MANUAL）
+        boolean licenseNotRequired = effective.businessLicenseRequirement() != null
+                && !effective.businessLicenseRequirement().required();
+        if (!licenseNotRequired && !hasStrongLicensePass && llm != null) {
             QualityCheckItemResult licenseVerdict = llm.adjudicateItem(
                     BidQualityCheckItem.BUSINESS_LICENSE, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
             resultMap.put(BidQualityCheckItem.BUSINESS_LICENSE.getCode(), licenseVerdict);

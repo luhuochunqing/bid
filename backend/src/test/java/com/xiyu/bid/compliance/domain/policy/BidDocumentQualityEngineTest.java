@@ -616,4 +616,34 @@ class BidDocumentQualityEngineTest {
         assertThat(qualResult.status()).isEqualTo(QualityCheckStatus.FAIL);
         assertThat(qualResult.conclusion()).contains("占位模板");
     }
+
+    @Test
+    @DisplayName("营业执照免收测试：招标不要求证照时直接PASS且不接通LLM")
+    void testEvaluateAll_WhenBusinessLicenseNotRequired_PassesWithoutLlm() {
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_nolicense", "投标报价表 总价：100万元整");
+        TenderRequirements requirements = TenderRequirements.empty().withBusinessLicenseRequirement(
+                new BusinessLicenseRequirement(false, List.of(), null, "本项目不涉及主体资格证明"));
+
+        java.util.concurrent.atomic.AtomicInteger llmLicenseCallCount = new java.util.concurrent.atomic.AtomicInteger();
+        LlmAdjudicator llm = new LlmAdjudicator(prompt -> {
+            if (prompt.contains("裁决检查项「" + BidQualityCheckItem.BUSINESS_LICENSE.getTitle() + "」")) {
+                llmLicenseCallCount.incrementAndGet();
+            }
+            return LlmVerdict.success(new LlmVerdict("PASS", "", "通过", ""));
+        });
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, DocumentContent.empty(), Collections.emptyList(), requirements, Set.of(), llm, (p, s) -> { });
+
+        QualityCheckItemResult licenseResult = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.BUSINESS_LICENSE.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(llmLicenseCallCount.get())
+                .as("招标明确不要求营业执照时，不得再接通 LLM 覆盖直接 PASS")
+                .isEqualTo(0);
+        assertThat(licenseResult.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(licenseResult.conclusion()).contains("未要求");
+    }
 }

@@ -21,7 +21,7 @@ public final class BusinessLicenseCheckPolicy {
             "(?m)^\\s*(?:[第（(]?[0-9一二三四五六七八九十]+[、.)）]|(?:一|二|三|四|五|六|七|八|九|十|\\d+)[.、]).*(?:\\.{3,}|…{2,}|·{3,})\\s*\\d+\\s*$");
 
     private static final Pattern UNFILLED_PLACEHOLDER_PATTERN = Pattern.compile(
-            "(?i)(?:【(?:统一社会信用代码|请粘贴营业执照|营业执照复印件|法定代表人|公司名称)[^】]*】|\\[(?:统一社会信用代码|营业执照)[^\\]]*\\]|统一社会信用代码[：:\\s]*_{3,}|91[0-9A-Z]{6}X{6,})");
+            "(?i)(?:【(?:统一社会信用代码|(?:请|此处)?粘贴营业执照|营业执照(?:副本)?(?:复印件|扫描件)|法定代表人|公司名称)[^】]*】|\\[(?:统一社会信用代码|营业执照)[^\\]]*\\]|统一社会信用代码[：:\\s]*_{3,}|91[0-9A-Z]{6}\\s*X{6,})");
 
     /** GB 32100-2015 18位统一社会信用代码标准正则（剔除易混淆字母 I, O, Z, S, V）. */
     private static final Pattern USCC_PATTERN = Pattern.compile(
@@ -42,6 +42,13 @@ public final class BusinessLicenseCheckPolicy {
         if (bidDoc == null || bidDoc.pages() == null || bidDoc.pages().isEmpty()) {
             return QualityCheckItemResult.fail(item, "未检索到投标文件正文", "请上传完整的投标文件后重新核查", Collections.emptyList());
         }
+        BusinessLicenseRequirement effective = requirement != null ? requirement : BusinessLicenseRequirement.standard();
+        if (!effective.required()) {
+            return QualityCheckItemResult.pass(item, "招标文件未要求提供营业执照或主体资格证明，本项直接通过",
+                    Collections.emptyList());
+        }
+        List<String> allowedCerts = effective.allowCertificates() == null
+                ? List.of() : effective.allowCertificates();
 
         DocumentContent.PageContent catalogMatchPage = null;
         DocumentContent.PageContent placeholderMatchPage = null;
@@ -71,7 +78,7 @@ public final class BusinessLicenseCheckPolicy {
                 continue;
             }
 
-            // 正向事实要素检验：必须具备统一社会信用代码以及法律主体登记要素
+            // 正向事实要素检验：必须具备统一社会信用代码、同页证照关键词以及法律主体登记要素
             Matcher usccMatcher = USCC_PATTERN.matcher(text);
             boolean hasUscc = usccMatcher.find();
             String usccCode = hasUscc ? usccMatcher.group() : null;
@@ -79,9 +86,15 @@ public final class BusinessLicenseCheckPolicy {
             boolean hasRegistrationFacts = hasRegistrationFacts(text);
             boolean hasAuthorityOrSeal = text.contains("登记机关") || text.contains("市场监督")
                     || text.contains("行政审批") || text.contains("公章") || text.contains("盖章");
+            // 同页必须出现证照本体关键词：仅提统一社会信用代码的业绩合同/往来函件页不得直通
+            boolean hasLicenseKeyword = text.contains("营业执照") || text.contains("法人证书")
+                    || text.contains("登记证书") || text.contains("执业许可证");
+            String matchedCert = matchAllowedCertificate(text, allowedCerts);
 
-            if (hasUscc && (hasRegistrationFacts || hasAuthorityOrSeal)) {
-                String docType = text.contains("事业单位法人证书") ? "事业单位法人证书" : "营业执照";
+            if (hasUscc && hasLicenseKeyword && (hasRegistrationFacts || hasAuthorityOrSeal)
+                    && (allowedCerts.isEmpty() || matchedCert != null)) {
+                String docType = matchedCert != null ? matchedCert
+                        : (text.contains("事业单位法人证书") ? "事业单位法人证书" : "营业执照");
                 String snippet = extractSnippet(text, usccCode != null ? usccCode : docType, 200);
                 String conclusion = "已包含" + docType + "且识别到有效统一社会信用代码: " + usccCode + "，主体资格要素齐备";
                 return QualityCheckItemResult.pass(item, conclusion,
@@ -89,7 +102,8 @@ public final class BusinessLicenseCheckPolicy {
             }
 
             // 事业单位法人证书或未提取到标准USCC但包含明确法人登记号的特例
-            if (text.contains("事业单位法人证书") && (text.contains("事证第") || text.contains("统一社会信用代码") || hasRegistrationFacts)) {
+            if (text.contains("事业单位法人证书") && (allowedCerts.isEmpty() || allowedCerts.contains("事业单位法人证书"))
+                    && (text.contains("事证第") || text.contains("统一社会信用代码") || hasRegistrationFacts)) {
                 String snippet = extractSnippet(text, "事业单位法人证书", 200);
                 return QualityCheckItemResult.pass(item, "已包含事业单位法人证书，符合主体资格要求",
                         List.of(QualityEvidence.bid("事业单位法人证书", page.pageNumber(), snippet)));
@@ -126,10 +140,26 @@ public final class BusinessLicenseCheckPolicy {
         if (text.contains("法定代表人") || text.contains("负责人")) count++;
         if (text.contains("注册资本") || text.contains("开办资金")) count++;
         if (text.contains("经营范围") || text.contains("业务范围")) count++;
-        if (text.contains("营业期限") || text.contains("有效期限") || text.contains("长期")) count++;
-        if (text.contains("住所") || text.contains("营业场所") || text.contains("地址")) count++;
-        if (text.contains("名称") || text.contains("公司") || text.contains("企业")) count++;
-        return count >= 1;
+        if (text.contains("营业期限") || text.contains("有效期限") || text.contains("有效期至")
+                || text.contains("长期有效") || text.contains("至长期")) count++;
+        if (text.contains("住所") || text.contains("营业场所") || text.contains("注册地址")) count++;
+        return count >= 2;
+    }
+
+    /**
+     * 在招标允许证照清单中匹配本页实际出现的证照类型；清单为空表示不过滤.
+     * 返回命中的证照名，未命中返回 null（调用方决定跳过本页直通）.
+     */
+    private static String matchAllowedCertificate(final String text, final List<String> allowedCerts) {
+        if (allowedCerts == null || allowedCerts.isEmpty()) {
+            return null;
+        }
+        for (String cert : allowedCerts) {
+            if (cert != null && !cert.isBlank() && text.contains(cert)) {
+                return cert;
+            }
+        }
+        return null;
     }
 
     private static boolean isCatalogOrOutlinePage(final String text, final List<String> headings) {
@@ -142,6 +172,11 @@ public final class BusinessLicenseCheckPolicy {
         }
         if (CATALOG_DOT_LINE_PATTERN.matcher(text).find()) {
             return true;
+        }
+        // 点线散点仅为弱信号：含统一社会信用代码的页面视为实质内容页，不判目录，
+        // 避免真实证照页因两处省略号被降级为 MANUAL（目录点线行已有上式强判据覆盖）
+        if (USCC_PATTERN.matcher(text).find()) {
+            return false;
         }
         Matcher dotMatcher = MULTI_DOT_PATTERN.matcher(text);
         int dotCount = 0;
