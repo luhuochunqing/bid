@@ -239,6 +239,51 @@ class BidDocumentQualityEngineTest {
     }
 
     @Test
+    @DisplayName("大模型详尽证据保留测试：LLM比对出免收条款与不适用声明时，保留详细章节证据并冠以【不涉及】前缀，退款信息表联动免除")
+    void testEvaluateAll_WhenLlmAdjudicatesNotApplicable_PreservesDetailedClausesAndPrefixesNotApplicable() {
+        String bidContent = "文件五 响应担保（如有）\n本项目不适用";
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid", bidContent);
+
+        String tenderText = "第二章 供应商须知前附表\n3.4 响应担保：不要求递交响应担保";
+        DocumentContent tenderDoc = DocumentContent.fromText("tender.pdf", "hash_tender", tenderText);
+        TenderRequirements requirements = DeterministicRequirementsFuser.fuseAll(TenderRequirements.empty(), tenderDoc);
+
+        String detailedLlmConclusion = "招标文件第二章“供应商须知前附表”第3.4款明确规定“不要求递交响应担保”（即免收投标保证金）。投标文件在“文件五 响应担保（如有）”章节中明确标注“本项目不适用”，符合招标文件免收保证金的要求，故判定为通过。";
+
+        LlmAdjudicator mockLlm = new LlmAdjudicator(prompt -> {
+            if (prompt.contains("裁决检查项「" + BidQualityCheckItem.DEPOSIT_RECEIPT.getTitle() + "」")) {
+                return LlmVerdict.success(
+                        new LlmVerdict("PASS", "", detailedLlmConclusion, ""));
+            }
+            return LlmVerdict.success(
+                    new LlmVerdict("PASS", "", "比对通过", ""));
+        });
+
+        List<QualityCheckItemResult> results = BidDocumentQualityEngine.evaluateAll(
+                doc, tenderDoc, Collections.emptyList(), requirements, Set.of(), mockLlm, (p, s) -> { });
+
+        QualityCheckItemResult depositReceipt = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(depositReceipt.status()).isEqualTo(QualityCheckStatus.PASS);
+        // 验证保留了完整详实依据，且规范化加上了【不涉及】前缀
+        assertThat(depositReceipt.conclusion()).startsWith("【不涉及】");
+        assertThat(depositReceipt.conclusion()).contains("第3.4款明确规定“不要求递交响应担保”");
+        assertThat(depositReceipt.conclusion()).contains("“文件五 响应担保（如有）”章节中明确标注“本项目不适用”");
+
+        // 验证退款信息表联动免除
+        QualityCheckItemResult depositRefund = results.stream()
+                .filter(r -> r.itemCode().equals(BidQualityCheckItem.DEPOSIT_REFUND.getCode()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(depositRefund.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(depositRefund.conclusion()).startsWith("【不涉及】");
+        assertThat(depositRefund.conclusion()).contains("不涉及投标保证金/响应担保");
+    }
+
+    @Test
     @DisplayName("强凭证直通测试：标书已附真实银行电子回单时，确定性强通过直通，无需调用 LLM，降低成本与抗抖动")
     void testEvaluateAll_WhenStrongVoucherPresent_PassesThroughWithoutLlmOverriding() {
         String tenderText = "前附表：投标保证金为人民币50000元。";

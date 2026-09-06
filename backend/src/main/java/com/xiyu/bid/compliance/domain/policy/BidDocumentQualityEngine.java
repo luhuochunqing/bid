@@ -134,28 +134,55 @@ public final class BidDocumentQualityEngine {
                     Collections.emptyList()));
         }
 
-        // 3. 保证金要求联动与标书端 LLM 深度语义裁决接通
-        if (effective.depositRequirement() != null && Boolean.FALSE.equals(effective.depositRequirement().required())) {
-            // 招标明确免收：直出 PASS，附带免收说明并联动退款信息项免除
+        // 3. 保证金要求联动与标书端 LLM 深度语义裁决接通（保留 LLM 深度条款比对依据）
+        boolean tenderDepositExplicitlyNotRequired = effective.depositRequirement() != null
+                && Boolean.FALSE.equals(effective.depositRequirement().required());
+
+        QualityCheckItemResult existingDeposit = resultMap.get(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode());
+        boolean hasStrongVoucherPass = existingDeposit != null
+                && existingDeposit.status() == QualityCheckStatus.PASS
+                && !existingDeposit.evidences().isEmpty()
+                && !tenderDepositExplicitlyNotRequired;
+
+        if (!hasStrongVoucherPass && llm != null) {
+            // 优先接通 LLM 进行全面语义裁决：大模型能精准比对招标文件（如第3.4款）与投标文件（如文件五声明不适用）
+            QualityCheckItemResult depositVerdict = llm.adjudicateItem(
+                    BidQualityCheckItem.DEPOSIT_RECEIPT, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
+            if (depositVerdict != null && depositVerdict.status() == QualityCheckStatus.PASS) {
+                String c = depositVerdict.conclusion() != null ? depositVerdict.conclusion().trim() : "";
+                boolean isNotApplicable = tenderDepositExplicitlyNotRequired
+                        || c.contains("免收") || c.contains("不要求") || c.contains("不涉及") || c.contains("不适用");
+                if (isNotApplicable && !c.startsWith("【不涉及】")) {
+                    depositVerdict = QualityCheckItemResult.pass(
+                            BidQualityCheckItem.DEPOSIT_RECEIPT,
+                            "【不涉及】" + c,
+                            depositVerdict.evidences()
+                    );
+                }
+            }
+            resultMap.put(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode(), depositVerdict);
+        } else if (tenderDepositExplicitlyNotRequired) {
+            // LLM 未启用（或不可用）且招标明确免收时的确定性覆盖策略
             String desc = effective.depositRequirement().description();
             String detail = (desc != null && !desc.isBlank() && !desc.contains("免收/不涉及")) ? "：" + desc : "";
             resultMap.put(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode(),
                     QualityCheckItemResult.pass(BidQualityCheckItem.DEPOSIT_RECEIPT,
                             "【不涉及】招标文件未要求缴纳投标保证金/响应担保（免收/不涉及" + detail + "）", Collections.emptyList()));
+        }
+
+        // 保证金退款信息表联动：若保证金回单判定为免收/不涉及，退款信息表联动免除，避免未附退款表误报
+        QualityCheckItemResult finalDeposit = resultMap.get(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode());
+        boolean depositNotApplicable = tenderDepositExplicitlyNotRequired
+                || (finalDeposit != null && finalDeposit.status() == QualityCheckStatus.PASS
+                    && finalDeposit.conclusion() != null
+                    && (finalDeposit.conclusion().contains("【不涉及】")
+                        || finalDeposit.conclusion().contains("免收")
+                        || finalDeposit.conclusion().contains("不要求")
+                        || finalDeposit.conclusion().contains("不适用")));
+        if (depositNotApplicable) {
             resultMap.put(BidQualityCheckItem.DEPOSIT_REFUND.getCode(),
                     QualityCheckItemResult.pass(BidQualityCheckItem.DEPOSIT_REFUND,
                             "【不涉及】本项目不涉及投标保证金/响应担保，无需提供退款账户信息", Collections.emptyList()));
-        } else {
-            // 招标要求缴纳（或未明确免收）：若已有确定性强凭证直通则无需重调 LLM，可疑场景接通 LLM
-            QualityCheckItemResult existingDeposit = resultMap.get(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode());
-            boolean hasStrongVoucherPass = existingDeposit != null
-                    && existingDeposit.status() == QualityCheckStatus.PASS
-                    && !existingDeposit.evidences().isEmpty();
-            if (!hasStrongVoucherPass && llm != null) {
-                QualityCheckItemResult depositVerdict = llm.adjudicateItem(
-                        BidQualityCheckItem.DEPOSIT_RECEIPT, bidDoc, effectiveTender, effective, effectiveMatches, kbEvidences);
-                resultMap.put(BidQualityCheckItem.DEPOSIT_RECEIPT.getCode(), depositVerdict);
-            }
         }
 
         // 4. 投标函格式要求联动与标书端 LLM 深度语义裁决接通（规范正文强凭证直通，存疑场景接通 LLM）

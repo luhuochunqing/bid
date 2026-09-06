@@ -158,7 +158,7 @@ const dialogWidth = computed(() =>
 )
 
 const statusTag = computed(() => {
-  const meta = getStatusMeta(props.item?.status)
+  const meta = getStatusMeta(props.item?.status, props.item?.conclusion)
   const prefix = props.item?.status ? meta.icon : ''
   return { type: meta.tagType, text: prefix ? `${prefix} ${meta.text}` : meta.text }
 })
