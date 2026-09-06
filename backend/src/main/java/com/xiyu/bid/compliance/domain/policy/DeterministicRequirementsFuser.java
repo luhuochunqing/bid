@@ -70,6 +70,10 @@ public final class DeterministicRequirementsFuser {
         if (detFrontTable != null) {
             req = req.withFrontTableRequirement(FrontTableRequirement.fuse(req.frontTableRequirement(), detFrontTable));
         }
+        List<TenderRequirements.VetoClause> detVetoClauses = DeterministicVetoExtractor.extract(text);
+        if (!detVetoClauses.isEmpty()) {
+            req = req.withMergedVetoClauses(detVetoClauses);
+        }
         return req;
     }
 }

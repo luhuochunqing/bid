@@ -39,9 +39,6 @@ public final class SemanticRulesLane {
             BidQualityCheckItem.SCORING_RESPONSE,
             BidQualityCheckItem.CLARIFICATION_RESPONSE);
 
-    /** 资格/关键词匹配归一化：剔除空白（含全角空格）与全部 Unicode 标点，降低 LLM 提取表述与标书写法的差异. */
-    private static final Pattern NORMALIZE_PATTERN = Pattern.compile("[\\s\\u3000\\p{P}]");
-
     private SemanticRulesLane() {
     }
 
@@ -64,11 +61,11 @@ public final class SemanticRulesLane {
             case QUALIFICATION_VETO -> guardForComparison(item, requirements, failedKnowledgeSources,
                     "未在招标文件中提取到明确的一票否决与资格前置条件，请人工复核",
                     "企业资质库查询异常，无法核查一票否决与资格前置条件")
-                    .or(() -> vetoFirstStage(bidDoc, tenderDoc, requirements, kbEvidences));
+                    .or(() -> QualificationVetoPolicy.checkFirstStage(bidDoc, tenderDoc, requirements, kbEvidences));
             case QUALIFICATION_REVIEW -> guardForComparison(item, requirements, failedKnowledgeSources,
                     "未在招标文件中提取到资格性评审条款要求，请人工复核",
                     "企业资质库查询异常，无法核查资格性评审条款响应")
-                    .or(() -> qualificationReviewFirstStage(bidDoc, requirements));
+                    .or(() -> QualificationReviewPolicy.checkFirstStage(bidDoc, requirements));
             case SCORING_RESPONSE -> requirements.missing()
                     ? Optional.of(referenceMissing(item, "招标要求不可用，无法对照评分标准逐项核查"))
                     : Optional.empty();
@@ -97,47 +94,6 @@ public final class SemanticRulesLane {
         return Optional.empty();
     }
 
-    /**
-     * 一票否决第一阶段：标书缺失招标硬性资格要求即 FAIL（veto_keyword 关键词阶段）.
-     *
-     * <p>匹配前对投标全文与资格表述做归一化（去空白/标点），
-     * 避免 LLM 提取表述（如 "ISO27001 信息安全认证"）与标书写法（"ISO 27001"）因
-     * 空白/全半角差异而误判缺失.
-     */
-    private static Optional<QualityCheckItemResult> vetoFirstStage(
-            final DocumentContent bidDoc,
-            final DocumentContent tenderDoc,
-            final TenderRequirements requirements,
-            final List<QualityEvidence> kbEvidences) {
-        String bidText = normalize(bidDoc.fullText());
-        List<QualityEvidence> evidences = new ArrayList<>();
-        for (String qualification : requirements.mandatoryQualifications()) {
-            if (qualification.isBlank()) {
-                continue;
-            }
-            evidences.add(EvidenceAssembler.locateTender(tenderDoc, "招标文件资质要求", List.of(qualification)));
-            if (!bidText.contains(normalize(qualification))) {
-                if (kbEvidences != null) {
-                    evidences.addAll(kbEvidences);
-                }
-                return Optional.of(QualityCheckItemResult.fail(
-                        BidQualityCheckItem.QUALIFICATION_VETO,
-                        "未满足招标文件硬性要求（一票否决项）：" + qualification,
-                        "请在投标文件中补充对应证明材料或在企业知识库中维护有效记录",
-                        evidences));
-            }
-        }
-        return Optional.empty();
-    }
-
-    /**
-
-
-    /** 匹配归一化：去空白（含全角空格）与全部标点. */
-    private static String normalize(final String text) {
-        return text == null ? "" : NORMALIZE_PATTERN.matcher(text).replaceAll("");
-    }
-
     private static QualityCheckItemResult referenceMissing(final BidQualityCheckItem item, final String detail) {
         return ManualReasons.manual(item, ManualReasons.REFERENCE_MISSING, detail,
                 "请先上传招标文件并确认 AI 能力已启用后重新核查", Collections.emptyList());
@@ -146,22 +102,5 @@ public final class SemanticRulesLane {
     private static QualityCheckItemResult knowledgeBaseUnavailable(final BidQualityCheckItem item, final String detail) {
         return ManualReasons.manual(item, ManualReasons.EVIDENCE_INSUFFICIENT, detail,
                 "知识库查询异常，请在知识库恢复后人工复核对应证明材料", Collections.emptyList());
-    }
-
-    /**
-     * 资格性评审第一阶段只拦截「有占位、无真报表」的造假硬信号.
-     * 财务三表 PASS / 免除不得结束整项（spec 047：本项是信誉与类似业绩门槛）.
-     */
-    private static Optional<QualityCheckItemResult> qualificationReviewFirstStage(
-            final DocumentContent bidDoc,
-            final TenderRequirements requirements) {
-        if (requirements == null || requirements.financialRequirement() == null) {
-            return Optional.empty();
-        }
-        QualityCheckItemResult result = FinancialStatementCheckPolicy.check(bidDoc, requirements.financialRequirement());
-        if (FinancialStatementCheckPolicy.isHardAntiFakeFail(result)) {
-            return Optional.of(result);
-        }
-        return Optional.empty();
     }
 }

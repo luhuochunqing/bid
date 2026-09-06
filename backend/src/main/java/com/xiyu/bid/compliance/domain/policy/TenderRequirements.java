@@ -131,6 +131,23 @@ public record TenderRequirements(
                 frontTableRequirement, false);
     }
 
+    public TenderRequirements withMergedVetoClauses(final List<VetoClause> extraClauses) {
+        if (extraClauses == null || extraClauses.isEmpty()) {
+            return this;
+        }
+        List<VetoClause> merged = new ArrayList<>(this.vetoClauses);
+        for (VetoClause extra : extraClauses) {
+            if (extra != null && extra.clause() != null && !extra.clause().isBlank()
+                    && merged.stream().noneMatch(existing -> existing.clause().equals(extra.clause()))) {
+                merged.add(extra);
+            }
+        }
+        return new TenderRequirements(scoringItems, mandatoryQualifications, List.copyOf(merged),
+                compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement,
+                businessLicenseRequirement, idAuthLetterRequirement, financialRequirement, priceRequirement, caCertificateRequirement,
+                frontTableRequirement, missing);
+    }
+
     public TenderRequirements withDepositRequirement(final DepositRequirement depositRequirement) {
         return new TenderRequirements(scoringItems, mandatoryQualifications, vetoClauses,
                 compositionRequirements, formatRequirements, depositRequirement, bidLetterRequirement, authorizationRequirement,

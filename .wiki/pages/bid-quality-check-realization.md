@@ -52,6 +52,9 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/ResponsivenessReviewPolicy.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicRequirementsFuser.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/AdjudicationGuidelines.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicVetoExtractor.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/QualificationVetoPolicy.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/QualificationReviewPolicy.java
   - backend/src/main/java/com/xiyu/bid/compliance/service/RequirementSectionParser.java
   - docs/lessons/lessons-learned.md
 backlinks:
@@ -262,6 +265,11 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **偏离表响应反假与负偏离硬拦截**：标书端 `ResponsivenessReviewPolicy` 检验章节与表头结构；检测到负偏离关键词（“有偏离/负偏离/部分满足/无法满足”）直接判定 FAIL 阻断废标风险；全项“无偏离/完全响应”强事实直通 PASS；
     - **准则解耦与解析器拆分**：将准则 1~13 提取为 `AdjudicationGuidelines` 纯值接口，满足 FP-Java 纪律；拆分 `RequirementSectionParser` 守护 `TenderRequirementsParser` 108 行安全水位；
     - **双层裁决接通**：未提取到前附表要求或偏离表存疑场景流转至大模型准则 12（前附表）与准则 13（偏离表）深度裁决并调用 `SemanticPageRetriever` 候选页检索。
+32. **一票否决(QUALIFICATION_VETO)与资格性评审(QUALIFICATION_REVIEW)两阶段深度穿透与反假重构（阶段 2 深入推进）**（2026-09-06）：
+    - **废标专章确定性提取（`DeterministicVetoExtractor`）与融合**：建立纯核心提取器，支持从招标文件中定位否决投标/废标条款专章与行内具有否决后果的条款，提取核心场景关键词（分包、转包、串通投标、弄虚作假、最高限价、签章等），并在 `DeterministicRequirementsFuser` 统一融合；
+    - **一票否决反假与合规承诺保护策略（`QualificationVetoPolicy`）**：物理剔除目录点线页（`isCatalogOrOutlinePage`）；拦截资格声明或否决条款响应中的未填占位符（`_{3,}`、`【请填写】` 直接 FAIL）；精准区分正向合规承诺（“承诺不转包”等放行）与实质性违规（“拟将主体工程分包”等硬阻断 FAIL）；专用资质正文缺失核验；无硬信号移交 LLM lane；
+    - **资格评审反假与反短路策略（`QualificationReviewPolicy`）**：继承财务审计报告硬造假拦截；覆盖依法缴纳税收、社保清单、信用中国等资格证明页占位符与空白留白反假拦截；严格执行准则 8「反短路」硬约束，无硬造假信号一律返回 empty 移交 LLM lane 穿透核验信誉、业绩、税收、社保等全部条款；
+    - **外壳减重与大模型准则升级**：`SemanticRulesLane` 行数从 168 降至 106 行；`AdjudicationGuidelines` 增加准则 14（一票否决合规承诺保护与违规硬阻断）并强化准则 8；`EvidenceAssembler` 增强废标条款与资格材料证据检索。
 
 ## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
 
