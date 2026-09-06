@@ -61,7 +61,15 @@ public final class EvidenceAssembler {
         List<QualityEvidence> evidences = new ArrayList<>();
         switch (item) {
             case QUALIFICATION_MATCH -> {
-                evidences.add(locateBid(bidDoc, "资质证书分卷", List.of("资质", "证书", "ISO")));
+                if (requirements != null && requirements.mandatoryQualifications() != null) {
+                    for (String qual : requirements.mandatoryQualifications()) {
+                        if (qual != null && !qual.isBlank() && DeterministicQualificationExtractor.isSpecificCertificate(qual)) {
+                            evidences.add(locateTender(tenderDoc, "招标文件资质要求", List.of(qual)));
+                            evidences.add(locateBid(bidDoc, "资质证明材料正文", List.of(qual)));
+                        }
+                    }
+                }
+                evidences.add(locateBid(bidDoc, "资质证书分卷", List.of("资质证书", "企业资质", "认证证书", "许可证", "ISO")));
                 appendKnowledgeEvidences(evidences, kbEvidences);
             }
             case QUALIFICATION_VETO -> {

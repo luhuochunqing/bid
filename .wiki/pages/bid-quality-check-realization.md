@@ -53,6 +53,7 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicRequirementsFuser.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/AdjudicationGuidelines.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicVetoExtractor.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/QualificationGradePolicy.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/QualificationVetoPolicy.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/QualificationReviewPolicy.java
   - backend/src/main/java/com/xiyu/bid/compliance/service/RequirementSectionParser.java
@@ -270,6 +271,12 @@ reasonCode 五值（PRD §3.5）：EVIDENCE_INSUFFICIENT / AMBIGUOUS / LOW_CONFI
     - **一票否决反假与合规承诺保护策略（`QualificationVetoPolicy`）**：物理剔除目录点线页（`isCatalogOrOutlinePage`）；拦截资格声明或否决条款响应中的未填占位符（`_{3,}`、`【请填写】` 直接 FAIL）；精准区分正向合规承诺（“承诺不转包”等放行）与实质性违规（“拟将主体工程分包”等硬阻断 FAIL）；专用资质正文缺失核验；无硬信号移交 LLM lane；
     - **资格评审反假与反短路策略（`QualificationReviewPolicy`）**：继承财务审计报告硬造假拦截；覆盖依法缴纳税收、社保清单、信用中国等资格证明页占位符与空白留白反假拦截；严格执行准则 8「反短路」硬约束，无硬造假信号一律返回 empty 移交 LLM lane 穿透核验信誉、业绩、税收、社保等全部条款；
     - **外壳减重与大模型准则升级**：`SemanticRulesLane` 行数从 168 降至 106 行；`AdjudicationGuidelines` 增加准则 14（一票否决合规承诺保护与违规硬阻断）并强化准则 8；`EvidenceAssembler` 增强废标条款与资格材料证据检索。
+33. **资质要求智能匹配(QUALIFICATION_MATCH)多维升级与穿透核验（阶段 2 持续深化）**（2026-09-06）：
+    - **独立资质等级层级判定策略（`QualificationGradePolicy`，157 行）**：建立四大主流资质等级层级体系（工程施工承包特级>一级>二级>三级、设计/咨询综合甲级>甲级>乙级>丙级、等保四级>三级>二级、CMMI5>4>3）；支持等级向下兼容覆盖（高等级满足低等级要求，低等级明确判定等级不足）；
+    - **跨专业领域词冲突防护与 LCS 停用词优化**：在 `QualificationMatchPolicy`（290 行）扩充承包类别词（“施工总承包”、“专业承包”、“承包一级”等纳入 `STOP_WORDS`），并引入 `hasConflictingDomainTerms` 机制：当招标要求与证书分属不同专业（如机电安装 vs 电力工程）时严格阻断 LCS 错配；
+    - **标书真实页码穿透与目录过滤**：在 `locateInBid` 中先经 `BidLetterCheckPolicy.isCatalogOrOutlinePage` 过滤点线目录页，确保页码穿透至真实证书正文页，杜绝目录页欺骗；
+    - **第一阶段确定性反假核验（`checkFirstStage`）**：在标书资质证书章节扫描未填模板留白（`【此处粘贴...】`、`_{3,}`），直接硬阻断输出 FAIL；正常内容平滑移交 LLM lane；`SemanticRulesLane` 正式接通；
+    - **准则 15 与证据链升级**：`AdjudicationGuidelines` 新增《准则 15：资质匹配核验准则》；`EvidenceAssembler` 增强招标具体资质条款与标书证明正文的真实定位。
 
 ## 5. 前端契约（2026-08-25 UI 改造：紧凑行 + 居中详情弹窗）
 
