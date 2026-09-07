@@ -195,6 +195,18 @@ else
   printf '     历史：第 8 次生产部署（df9adabad, 2026-07-12）漏传导致 OBS 直传失效\n' >&2
 fi
 
+# Sidecar /extract-tables 接口可用性校验（防静默降级门禁）
+printf '  Sidecar /extract-tables 校验：'
+SIDECAR_STATUS=$(ssh -o StrictHostKeyChecking=no "$PROD_HOST" 'curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:8000/extract-tables 2>/dev/null || echo "DOWN"')
+if [[ "$SIDECAR_STATUS" == "404" || "$SIDECAR_STATUS" == "DOWN" || "$SIDECAR_STATUS" == "000" ]]; then
+  printf '❌ 失败（HTTP %s）\n' "$SIDECAR_STATUS" >&2
+  printf '     根因：Sidecar 容器缺少 /extract-tables 端点或未启动，会导致评分表格解析全量降级到 Markdown！\n' >&2
+  printf '     修复：检查 document-converter-sidecar/Dockerfile.cn 是否包含 table_extractor.py 并重启容器\n' >&2
+  DEPLOY_EXIT=1
+else
+  printf '✅ 正常（HTTP %s，接口存活）\n' "$SIDECAR_STATUS"
+fi
+
 # 部署失败时退出（放在 L3 OBS 校验之后，确保诊断信息已收集后再退出）
 if [[ $DEPLOY_EXIT -ne 0 ]]; then
   exit $DEPLOY_EXIT

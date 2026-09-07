@@ -91,10 +91,22 @@ if [[ -n "$DUPLICATE_VERSIONS" ]]; then
 fi
 printf '✅ jar 内 Flyway 迁移版本无重复\n'
 
-rm -rf "$OUTPUT_DIR/frontend" "$OUTPUT_DIR/backend"
-mkdir -p "$OUTPUT_DIR/frontend" "$OUTPUT_DIR/backend"
+rm -rf "$OUTPUT_DIR/frontend" "$OUTPUT_DIR/backend" "$OUTPUT_DIR/sidecar"
+mkdir -p "$OUTPUT_DIR/frontend" "$OUTPUT_DIR/backend" "$OUTPUT_DIR/sidecar"
 cp -R "$ROOT_DIR/dist/." "$OUTPUT_DIR/frontend/"
 cp "$JAR_PATH" "$OUTPUT_DIR/backend/app.jar"
+
+printf '\n==> Packaging document-converter-sidecar\n'
+COPYFILE_DISABLE=1 tar -C "$ROOT_DIR/document-converter-sidecar" \
+  --exclude='__pycache__' \
+  --exclude='.pytest_cache' \
+  --exclude='tests' \
+  --exclude='._*' \
+  --exclude='*.pyc' \
+  --exclude='.backup' \
+  -czf "$OUTPUT_DIR/sidecar/sidecar.tar.gz" .
+SIDECAR_SHA256="$(shasum -a 256 "$OUTPUT_DIR/sidecar/sidecar.tar.gz" 2>/dev/null | cut -d' ' -f1 || sha256sum "$OUTPUT_DIR/sidecar/sidecar.tar.gz" | cut -d' ' -f1)"
+printf '✅ sidecar 打包完成（SHA-256: %s）\n' "$SIDECAR_SHA256"
 
 # OBS 直传启用校验（第 84 次部署漏传 VITE_OBS_ENABLED=true 事故的硬门禁）
 # 当 VITE_OBS_ENABLED=true 时，Detail chunk 中 .upload( 调用数应 >=2；
@@ -131,6 +143,7 @@ cat > "$OUTPUT_DIR/release-metadata.json" <<EOF
   "apiBaseUrl": "$API_BASE_URL",
   "jarName": "$(basename "$JAR_PATH")",
   "builtAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "sidecarSha256": "$SIDECAR_SHA256",
   "sentryEnabled": $([ -n "${VITE_SENTRY_DSN:-}" ] && echo 'true' || echo 'false'),
   "obsEnabled": $([ "${VITE_OBS_ENABLED:-true}" == "true" ] && echo 'true' || echo 'false')
 }

@@ -358,8 +358,66 @@ class StructuredTableCandidateExtractorTest {
 
     @Test
     void extract_real1359TablesJson_extractsAllCandidatesCleanly() throws Exception {
-        try (var is = getClass().getResourceAsStream("/scoreparse-golden/1359_tables_v1.json")) {
-            assertThat(is).as("1359 tables json fixture must exist in test resources").isNotNull();
+        SidecarTableExtraction extraction = loadExtractionFromResource("/scoreparse-golden/1359_tables_v1.json");
+        List<ScoreCandidate> candidates = StructuredTableCandidateExtractor.extract(extraction);
+
+        assertThat(candidates).isNotEmpty();
+        // 验证 parentDim 绝无分值列/最高分等污染
+        assertThat(candidates).noneMatch(c -> c.parentDim() != null && (c.parentDim().contains("最高分") || c.parentDim().contains("最低分")));
+        // 验证真实 1359 提取出供货业绩
+        assertThat(candidates).anyMatch(c -> (c.dim() != null && c.dim().contains("供货业绩")) || (c.detail() != null && c.detail().contains("供货业绩")));
+    }
+
+    @Test
+    void extract_real1371TablesJson_extractsClean100Points() throws Exception {
+        SidecarTableExtraction extraction = loadExtractionFromResource("/scoreparse-golden/1371_tables_v1.json");
+        List<ScoreCandidate> candidates = StructuredTableCandidateExtractor.extract(extraction);
+
+        // 验证提取出 16 项
+        assertThat(candidates).hasSize(16);
+
+        // 验证无 3.3(1) 或 3.3(2) 编号泄漏到 parentDim
+        assertThat(candidates).noneMatch(c -> c.parentDim() != null && c.parentDim().contains("3.3"));
+
+        // 验证技术标核心项（品牌及货源渠道管控及佐证材料 20分）存在
+        assertThat(candidates).anyMatch(c -> "品牌及货源渠道管控及佐证材料".equals(c.dim())
+                && c.weight().compareTo(new BigDecimal("20")) == 0
+                && "技术评分标准".equals(c.parentDim()));
+
+        // 验证资源实力 3 个子细则全部提取，各 2 分，父级为技术评分标准
+        List<ScoreCandidate> resourceItems = candidates.stream()
+                .filter(c -> "资源实力".equals(c.dim()))
+                .toList();
+        assertThat(resourceItems).hasSize(3);
+        assertThat(resourceItems).allSatisfy(c -> {
+            assertThat(c.parentDim()).isEqualTo("技术评分标准");
+            assertThat(c.weight()).isEqualByComparingTo(new BigDecimal("2"));
+        });
+
+        // 验证商务标 56 分闭环
+        BigDecimal bizSum = candidates.stream()
+                .filter(c -> "商务评分标准".equals(c.parentDim()))
+                .map(ScoreCandidate::weight)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(bizSum).isEqualByComparingTo(new BigDecimal("56"));
+
+        // 验证技术标 44 分闭环（消除 6+2+2=10 的 4分膨胀）
+        BigDecimal techSum = candidates.stream()
+                .filter(c -> "技术评分标准".equals(c.parentDim()))
+                .map(ScoreCandidate::weight)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(techSum).isEqualByComparingTo(new BigDecimal("44"));
+
+        // 验证全表总分严格 100.0 分
+        BigDecimal total = candidates.stream()
+                .map(ScoreCandidate::weight)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(total).isEqualByComparingTo(new BigDecimal("100"));
+    }
+
+    private SidecarTableExtraction loadExtractionFromResource(String resourcePath) throws Exception {
+        try (var is = getClass().getResourceAsStream(resourcePath)) {
+            assertThat(is).as(resourcePath + " fixture must exist in test resources").isNotNull();
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
             com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(is);
             com.fasterxml.jackson.databind.JsonNode tablesNode = root.get("tables");
@@ -385,14 +443,7 @@ class StructuredTableCandidateExtractorTest {
                     tables.add(new SidecarTableExtraction.TablePayload(tableIndex, rows, isScore));
                 }
             }
-            SidecarTableExtraction extraction = new SidecarTableExtraction(tables, List.of());
-            List<ScoreCandidate> candidates = StructuredTableCandidateExtractor.extract(extraction);
-
-            assertThat(candidates).isNotEmpty();
-            // 验证 parentDim 绝无分值列/最高分等污染
-            assertThat(candidates).noneMatch(c -> c.parentDim() != null && (c.parentDim().contains("最高分") || c.parentDim().contains("最低分")));
-            // 验证真实 1359 提取出供货业绩
-            assertThat(candidates).anyMatch(c -> (c.dim() != null && c.dim().contains("供货业绩")) || (c.detail() != null && c.detail().contains("供货业绩")));
+            return new SidecarTableExtraction(tables, List.of());
         }
     }
 
@@ -424,6 +475,60 @@ class StructuredTableCandidateExtractorTest {
         assertThat(candidates.get(1).parentDim()).isEqualTo("商务大类");
         // 第3行是独立项，绝不能泄漏前一行的大类
         assertThat(candidates.get(2).parentDim()).isNull();
+    }
+
+    @Test
+    void extract_rowspanParentWithChildGradeScores_deduplicatesParentWeight() {
+        SidecarTableExtraction.CellPayload techMergeStart =
+                new SidecarTableExtraction.CellPayload("技术评分标准", 4, 1, false);
+        SidecarTableExtraction.CellPayload techContinue1 =
+                new SidecarTableExtraction.CellPayload("技术评分标准", 1, 1, true);
+        SidecarTableExtraction.CellPayload techContinue2 =
+                new SidecarTableExtraction.CellPayload("技术评分标准", 1, 1, true);
+        SidecarTableExtraction.CellPayload techContinue3 =
+                new SidecarTableExtraction.CellPayload("技术评分标准", 1, 1, true);
+
+        SidecarTableExtraction.CellPayload resourceMergeStart =
+                new SidecarTableExtraction.CellPayload("资源实力（6分）", 3, 1, false);
+        SidecarTableExtraction.CellPayload resourceContinue1 =
+                new SidecarTableExtraction.CellPayload("资源实力（6分）", 1, 1, true);
+        SidecarTableExtraction.CellPayload resourceContinue2 =
+                new SidecarTableExtraction.CellPayload("资源实力（6分）", 1, 1, true);
+
+        SidecarTableExtraction.TablePayload table = new SidecarTableExtraction.TablePayload(0, List.of(
+                List.of(cell("编号"), cell("评分类别"), cell("评分因素"), cell("评审内容"), cell("评分标准")),
+                List.of(cell("3.3(2)"), techMergeStart, resourceMergeStart,
+                        cell("高新技术企业证书要求"), cell("具有国家高新技术企业证书，得2分，没有不得分。")),
+                List.of(cell("3.3(2)"), techContinue1, resourceContinue1,
+                        cell("行业标准制定要求"), cell("企业参与制定行业及以上标准1项，得2分；企标得1分。")),
+                List.of(cell("3.3(2)"), techContinue2, resourceContinue2,
+                        cell("科技奖励要求"), cell("省部级及以上科技奖励，得2分；其他得1分。")),
+                List.of(cell("3.3(2)"), techContinue3, cell("服务能力（2分）"),
+                        cell("项目团队配置要求"), cell("提供社保和工作证明得2分。"))
+        ), true);
+
+        List<ScoreCandidate> result = StructuredTableCandidateExtractor.extract(
+                new SidecarTableExtraction(List.of(table), List.of()));
+
+        assertThat(result).hasSize(4);
+        // 验证 3 个资源实力子项各得 2 分，不膨胀为 6 + 2 + 2 = 10 分
+        List<ScoreCandidate> resourceItems = result.subList(0, 3);
+        assertThat(resourceItems).allSatisfy(c -> {
+            assertThat(c.dim()).isEqualTo("资源实力");
+            assertThat(c.parentDim()).isEqualTo("技术评分标准");
+            assertThat(c.weight()).isEqualByComparingTo(new BigDecimal("2"));
+        });
+
+        // 验证服务能力独立项
+        assertThat(result.get(3).dim()).isEqualTo("服务能力");
+        assertThat(result.get(3).weight()).isEqualByComparingTo(new BigDecimal("2"));
+        assertThat(result.get(3).parentDim()).isEqualTo("技术评分标准");
+
+        // 总分闭环：2 + 2 + 2 + 2 = 8
+        BigDecimal total = result.stream()
+                .map(ScoreCandidate::weight)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(total).isEqualByComparingTo("8");
     }
 
     private static SidecarTableExtraction.CellPayload cell(String text) {
