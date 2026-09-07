@@ -49,8 +49,8 @@ public class ScoreItemMergePolicy {
         return merged;
     }
 
-    private static final java.util.regex.Pattern BRACKET_CONTENT =
-            java.util.regex.Pattern.compile("[（(][^）)]*[）)]|[\\[【][^\\]】]*[\\]】]");
+    private static final java.util.regex.Pattern BRACKET_CONTENT = ScoreParseConstants.BRACKET_CONTENT_PATTERN;
+    private static final java.util.regex.Pattern SECTION_HEADING = ScoreParseConstants.CHINESE_SECTION_HEADING;
 
     private int findMatchingIndex(List<ScoreCandidate> list, ScoreCandidate target) {
         String targetCode = target.code() == null ? "" : target.code().trim();
@@ -172,6 +172,8 @@ public class ScoreItemMergePolicy {
                 && !normalizePunctuation(base.detail()).equals(normalizePunctuation(later.detail()))
                 && !normalizePunctuation(later.detail()).contains(normalizePunctuation(base.detail()))
                 && !normalizePunctuation(base.detail()).contains(normalizePunctuation(later.detail()));
+        String detail;
+        String sourceText;
         if (isPriceMerge) {
             Set<String> seenLines = new LinkedHashSet<>();
             appendLines(seenLines, base.detail());
@@ -182,25 +184,16 @@ public class ScoreItemMergePolicy {
                 if (detailBuilder.length() > 0) detailBuilder.append('\n');
                 detailBuilder.append(line);
             }
-            String mergedDetail = detailBuilder.toString();
+            detail = detailBuilder.toString();
             String mergedSource = (base.sourceText() == null ? "" : base.sourceText())
                     + "\n" + (later.sourceText() == null ? "" : later.sourceText());
-            String mergedParentDim = base.parentDim() != null && !base.parentDim().isBlank()
-                    ? base.parentDim() : later.parentDim();
-            String mergedDimSource = base.dimSource() != null && !"UNKNOWN".equals(base.dimSource())
-                    ? base.dimSource() : later.dimSource();
-            return new ScoreCandidate(base.code() != null ? base.code() : later.code(), mergedDim,
-                    mergedDetail, mergedWeight, base.scoreTypeGuess() != null ? base.scoreTypeGuess() : later.scoreTypeGuess(),
-                    later.contextNote() != null ? later.contextNote() : base.contextNote(),
-                    mergedSource.trim().isEmpty() ? base.sourceText() : mergedSource.trim(),
-                    later.location() != null ? later.location() : base.location(),
-                    later.semanticPattern() != null ? later.semanticPattern() : base.semanticPattern(),
-                    mergedParentDim, mergedDimSource);
+            sourceText = mergedSource.trim().isEmpty() ? base.sourceText() : mergedSource.trim();
+        } else {
+            boolean laterDetailPreferred = hasSourceBacking(later)
+                    && lengthOf(later.detail()) > lengthOf(base.detail());
+            detail = laterDetailPreferred ? later.detail() : (base.detail() != null ? base.detail() : later.detail());
+            sourceText = laterDetailPreferred ? later.sourceText() : (base.sourceText() != null ? base.sourceText() : later.sourceText());
         }
-        boolean laterDetailPreferred = hasSourceBacking(later)
-                && lengthOf(later.detail()) > lengthOf(base.detail());
-        String detail = laterDetailPreferred ? later.detail() : (base.detail() != null ? base.detail() : later.detail());
-        String sourceText = laterDetailPreferred ? later.sourceText() : (base.sourceText() != null ? base.sourceText() : later.sourceText());
         String mergedParentDim = base.parentDim() != null && !base.parentDim().isBlank()
                 ? base.parentDim() : later.parentDim();
         String mergedDimSource = base.dimSource() != null && !"UNKNOWN".equals(base.dimSource())
@@ -230,8 +223,8 @@ public class ScoreItemMergePolicy {
         String laterDim = later.dim();
         if (baseDim == null) return laterDim;
         if (laterDim == null) return baseDim;
-        boolean baseIsSection = baseDim.matches("^[一二三四五六七八九十]+、.*");
-        boolean laterIsSection = laterDim.matches("^[一二三四五六七八九十]+、.*");
+        boolean baseIsSection = SECTION_HEADING.matcher(baseDim).matches();
+        boolean laterIsSection = SECTION_HEADING.matcher(laterDim).matches();
         if (baseIsSection && !laterIsSection) return laterDim;
         if (laterIsSection && !baseIsSection) return baseDim;
         if (baseDim.length() > 25 && laterDim.length() <= 25) return laterDim;

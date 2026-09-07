@@ -229,3 +229,10 @@ markdown 输入
    - LLM 归并输出项 detail 与表格池项长度相等时，旧守卫未继承 `parentDim` 与 `CELL` 权威来源。
    - 修复：`ScoreMergeResultGuard.upgradeWithLongestPoolDetail` 对相同细则无条件继承 `parentDim`、`dimSource` 与 `code`；`WeightOverloadTrimPolicy` 增加 `sourceText.contains(detail)` 原文包含保护，防止真实项在超载清洗时被误杀。
 
+### 后续（2026-09-07）：代码去重与预编译正则收敛 (ai-slop-cleaner)
+
+- **常量集中化**：在 `ScoreParseConstants` 中统一定义 `CHINESE_SECTION_HEADING`（`^[一二三四五六七八九十]+、.*`）与 `BRACKET_CONTENT_PATTERN`，彻底替代多处在循环中调用的 `matches(...)` 和 `replaceAll(...)` 动态编译。
+- **构造逻辑收敛**：`ScoreItemMergePolicy.enrich` 合并了原来在价格合并与常规合并中重复出现的 11 参数 `ScoreCandidate` 实例化代码，消除重复样板。
+- **代码行预算管控**：`StructuredTableCandidateExtractor` (297)、`ScoreItemMergePolicy` (273)、`ScoreGlobalMergeOrchestrator` (277) 均严格严守 300 行硬上限。
+
+

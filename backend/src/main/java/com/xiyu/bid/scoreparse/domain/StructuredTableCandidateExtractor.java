@@ -17,6 +17,7 @@ public final class StructuredTableCandidateExtractor {
 
     private static final Pattern CODE_PATTERN = Pattern.compile("^[A-Za-z]{0,2}\\d+([\\.\\(]\\d+[\\)]?)*$");
     private static final Pattern BRACKET_WEIGHT = ScoreParseConstants.BRACKET_WEIGHT_PATTERN;
+    private static final Pattern SECTION_HEADING = ScoreParseConstants.CHINESE_SECTION_HEADING;
     private static final Pattern GRADE_SCORE = Pattern.compile("得\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分");
     private static final Pattern HEADER_ROW = Pattern.compile(
             "评分因素|评审因素|评分项|评审项|序号|编号|条款号|条款内容|编列内容|评审内容|评分标准|分值$");
@@ -26,8 +27,7 @@ public final class StructuredTableCandidateExtractor {
     private static final int DIM_MAX_CHARS = 20;
     private static final int MAX_PARENT_DIM_COLS = 3;
 
-    private StructuredTableCandidateExtractor() {
-    }
+    private StructuredTableCandidateExtractor() {}
 
     public static List<ScoreCandidate> extract(SidecarTableExtraction extraction) {
         return extractWithSectionReport(extraction).candidates();
@@ -96,7 +96,7 @@ public final class StructuredTableCandidateExtractor {
             for (int i = 0; i < MAX_PARENT_DIM_COLS; i++) {
                 if (colRemainingRowspan[i] > 0 && colParentDim[i] != null) activeParents.add(colParentDim[i]);
             }
-            if (visibleCells.size() >= 3 && visibleCells.get(0).text().trim().matches("^[一二三四五六七八九十]+、.*")) {
+            if (visibleCells.size() >= 3 && SECTION_HEADING.matcher(visibleCells.get(0).text().trim()).matches()) {
                 String p = cleanParentText(visibleCells.get(0).text());
                 if (p != null && !activeParents.contains(p)) activeParents.add(p);
             }
@@ -132,7 +132,7 @@ public final class StructuredTableCandidateExtractor {
 
     private static String cleanParentText(String raw) {
         if (raw == null || raw.isBlank()) return null;
-        String stripped = BRACKET_WEIGHT.matcher(raw).replaceAll("").replace("\n", " ").replaceAll("\\s+", " ").trim();
+        String stripped = cleanWhitespace(BRACKET_WEIGHT.matcher(raw).replaceAll(""));
         return (stripped.isEmpty() || NON_DIM_TEXT.matcher(stripped).find() || CODE_PATTERN.matcher(stripped).matches()) ? null : stripped;
     }
 
@@ -147,8 +147,8 @@ public final class StructuredTableCandidateExtractor {
     }
 
     private static boolean isHeaderRow(List<SidecarTableExtraction.CellPayload> cells, int rowIndex) {
-        if (rowIndex == 0) return true;
-        return cells.stream().map(c -> c.text().trim()).filter(t -> t.length() <= 10 && HEADER_ROW.matcher(t).find()).count() >= 2;
+        return rowIndex == 0 || cells.stream().map(c -> c.text().trim())
+                .filter(t -> t.length() <= 10 && HEADER_ROW.matcher(t).find()).count() >= 2;
     }
 
     private static ScoreCandidate parseRow(List<SidecarTableExtraction.CellPayload> cells,
@@ -187,9 +187,7 @@ public final class StructuredTableCandidateExtractor {
         }
         if (sectionDim != null && !sectionDim.isBlank()) {
             if (parentDim == null) parentDim = sectionDim;
-            else if (!parentDim.contains("商务") && !parentDim.contains("技术") && !parentDim.contains("报价") && !parentDim.contains("价格")) {
-                parentDim = sectionDim + " / " + parentDim;
-            }
+            else if (!parentDim.contains("商务") && !parentDim.contains("技术") && !parentDim.contains("报价") && !parentDim.contains("价格")) parentDim = sectionDim + " / " + parentDim;
         }
 
         String sourceText = cells.stream().map(c -> c.text().trim()).filter(t -> !t.isEmpty()).reduce((a, b) -> a + " | " + b).orElse("");
@@ -200,27 +198,27 @@ public final class StructuredTableCandidateExtractor {
     private static String extractCode(List<String> texts) {
         if (texts.isEmpty()) return "";
         String first = texts.get(0).trim();
-        return (first.length() <= 8 && CODE_PATTERN.matcher(first).matches()) ? first : "";
+        return first.length() <= 8 && CODE_PATTERN.matcher(first).matches() ? first : "";
     }
 
     private static final Pattern BRACKET_NUM = Pattern.compile("([\\p{IsHan}]{2,})[（(]\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*[）)]");
 
     private static BracketWeightResult extractBracketWeight(List<String> texts) {
         String first = texts.isEmpty() ? "" : texts.get(0).trim();
-        boolean skipFirst = texts.size() >= 3 && (CODE_PATTERN.matcher(first).matches() || first.matches("^[一二三四五六七八九十]+、.*"));
+        boolean skipFirst = texts.size() >= 3 && (CODE_PATTERN.matcher(first).matches() || SECTION_HEADING.matcher(first).matches());
         for (int idx = Math.min(texts.size() - 1, 3); idx >= 0; idx--) {
             if (idx == 0 && skipFirst) continue;
             String col = texts.get(idx);
             Matcher matcher = BRACKET_WEIGHT.matcher(col);
             if (matcher.find()) {
                 BigDecimal weight = new BigDecimal(matcher.group(1));
-                String dim = col.substring(0, matcher.start()).replace("\n", " ").replaceAll("\\s+", " ").trim();
+                String dim = cleanWhitespace(col.substring(0, matcher.start()));
                 int evalIdx = Math.max(dim.lastIndexOf("进行评分"), dim.lastIndexOf("进行评价"));
                 if (evalIdx >= 0 && evalIdx + 4 < dim.length()) {
                     String factor = dim.substring(evalIdx + 4).trim();
                     if (!factor.isEmpty() && factor.length() <= DIM_MAX_CHARS) dim = factor;
                 }
-                if (dim.isEmpty()) dim = BRACKET_WEIGHT.matcher(col).replaceAll("").replace("\n", " ").replaceAll("\\s+", " ").trim();
+                if (dim.isEmpty()) dim = cleanWhitespace(BRACKET_WEIGHT.matcher(col).replaceAll(""));
                 return new BracketWeightResult(weight, dim.isEmpty() ? null : dim, idx);
             }
             Matcher numMatcher = BRACKET_NUM.matcher(col);
@@ -273,7 +271,7 @@ public final class StructuredTableCandidateExtractor {
         String best = null;
         for (int i = 0; i < texts.size(); i++) {
             String t = texts.get(i).trim();
-            if (t.isEmpty() || (i == 0 && (CODE_PATTERN.matcher(t).matches() || t.matches("^[一二三四五六七八九十]+、.*")))
+            if (t.isEmpty() || (i == 0 && (CODE_PATTERN.matcher(t).matches() || SECTION_HEADING.matcher(t).matches()))
                     || GRADE_SCORE.matcher(t).find()) continue;
             if (t.length() <= DIM_MAX_CHARS && CONTAINS_HAN.matcher(t).find()) {
                 if (best == null || t.length() > best.length()) best = t;
@@ -284,14 +282,16 @@ public final class StructuredTableCandidateExtractor {
     }
 
     private static BigDecimal maxGradeScore(String text) {
-        Matcher matcher = GRADE_SCORE.matcher(text);
+        Matcher m = GRADE_SCORE.matcher(text);
         BigDecimal max = null;
-        while (matcher.find()) {
-            BigDecimal value = new BigDecimal(matcher.group(1));
-            max = max == null || value.compareTo(max) > 0 ? value : max;
+        while (m.find()) {
+            BigDecimal val = new BigDecimal(m.group(1));
+            if (max == null || val.compareTo(max) > 0) max = val;
         }
         return max;
     }
+
+    private static String cleanWhitespace(String t) { return t == null ? "" : t.replace("\n", " ").replaceAll("\\s+", " ").trim(); }
 
     private record BracketWeightResult(BigDecimal weight, String dimFromCol3, int col3Index) {}
 }
