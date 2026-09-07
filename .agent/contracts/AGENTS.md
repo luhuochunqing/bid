@@ -246,3 +246,10 @@
 - **本地启动必须**：`export XIYU_DEV_CONFIRMED=1`（生产部署不得使用本地脚本）
 - **开发环境统一**：自 2026-06-21 起，所有开发资源（前端 1323 / 后端 18089 / Sidecar 8009 / 数据库 xiyu_bid_main / Redis DB 0）统一到开发宿主 `/Users/user/xiyu/worktrees/trae`。临时任务 worktree（`xiyu-<agent>-<task>`）纯源码，仅做代码编辑和 git 操作，不启动开发环境。详见 `CLAUDE.md §多 Agent 执行手册`
 - **开场约定**：AI 代理开启新任务时，先声明当前环境（worktree 名称、当前分支、协作模式、是否开发宿主）
+
+## 长期记忆检索（MemU 本地索引）
+动手前用一句话检索长期记忆，score < 0.5 的结果丢弃：
+```bash
+env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u http_proxy -u https_proxy -u all_proxy memu retrieve "<任务一句话>"
+```
+记忆库只是索引，仓库内文档（`ARCHITECTURE.md`/`PLANS.md`/`.wiki/`）才是 source of truth；重要新知识走 wiki 回填纪律，定期 `memu commit` 入库。
