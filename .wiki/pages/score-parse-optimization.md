@@ -4,7 +4,7 @@ space: engineering
 category: lessons-learned
 tags: []
 created: 2026-09-05
-updated: 2026-09-01
+updated: 2026-09-07
 health_checked: 2026-09-05
 sources:
   - docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md
@@ -158,3 +158,38 @@ markdown 输入
 ### 效果
 - 全量 464 个评分解析单测全部通过。
 - 真实项目金标测试（`RealProjectScoreParsingTest`）0 回退。
+
+## 2026-09-07 Task1 评分项全量保全白名单、价格公式兜底与超载误杀切断
+
+### 问题
+项目 1359（中海油标讯，商务 Table2 + 技术 Table3 + 报价 Table4 独立分表结构）解析后：
+- 商务表 13 项全部消失——被 `WeightOverloadTrimPolicy` 以"无编号弱项"理由清洗；
+- 价格公式表（无显式分值，仅含评审公式）被判定为无效行丢弃，报价评分项完全缺失；
+- Sidecar 调用缺少 `X-Schema-Version: 1.0` 请求头，协议版本升级时面临静默 Markdown 降级风险。
+
+### 根因
+1. **识别与归一严重耦合**：`WeightOverloadTrimPolicy` 试图用"删项"凑 100 分，导致格式无数字编号的商务表 13 项全部被误判为噪音删除——根本原因是将"全量识别（Task 1）"和"比重归一化（Task 2）"混在一个阶段完成。
+2. **价格公式识别缺失**：提取器未识别"报价/价格/公式"特殊计算行，无分值时直接返回 `null` 被后续链路丢弃。
+3. **维度推导未区分独立分表与混合单表**：对 1359 这类多表独立结构，提取器未自动为商务项注入 `商务` 大类、技术项注入 `技术` 大类，导致跨表维度层级缺失。
+
+### 修复
+1. **`SidecarTableExtractor`**：补齐 `.header("X-Schema-Version", "1.0")`，根治协议版本升级时的静默降级风险。
+2. **`StructuredTableCandidateExtractor`**（严守 300 行硬上限）：
+   - `isSummaryRow`：过滤 `合计/总计/汇总/总分/小计` 表尾汇总行；
+   - `inferSectionDimension`：扫描表格前 15 行，精准推导独立分表大类（`商务/技术/报价`）；混合单表（同时含商务+技术）返回 `null` 不污染；
+   - `isPriceFormula`：识别报价公式行，`weight` 兜底 `BigDecimal.ZERO`，完整公式文本保留为 `detail`；
+   - `sectionDim` 注入：无 `parentDim` 时直接注入章节大类；已有大类关键词时不重复前缀。
+3. **`WeightOverloadTrimPolicy`**：`isProtectedRealItem` 保护屏障——带 `parentDim` 或 `dimSource != UNKNOWN` 的结构化真实项免疫超载剔除。
+4. **`ScoreCandidatePostProcessor`**：`filterInvalidWeights` 放行价格公式项（0 分兜底），避免被零分过滤丢弃。
+
+### 决策：零分兜底边界
+不能将所有 `weight == null` 统一兜底为 0，否则 1371 等混合单表的资格审查行（如"营业执照一致"）也会变成 0 分评分项（1371 会从 16 项膨胀至 44 项）。必须通过 `isPriceFormula` 精准识别，仅对符合价格/公式计算特征的行兜底。
+
+### 效果
+- `StructuredTableCandidateExtractorTest`：21 个测试全绿，含 1359 金标（39 项：商务 13 + 技术 25 + 报价 1）和 1371 回归（16 项 / 严格等于 100.0 分）；
+- `WeightOverloadTrimPolicyTest`：10 个测试全绿（含结构化候选无编号不被剔除）；
+- `ScoreCandidatePostProcessorTest`：7 个测试全绿（含价格公式项通过治理链）；
+- `FPJavaArchitectureTest`：8 条架构规则全绿，零框架依赖。
+
+### 关键 Pattern：解耦识别与归一
+> 评分项全量识别（Task 1）必须零漏项；分值比重归一化（Task 2）必须解耦，禁止通过剔除真实业务项来凑分。超载剔除（Overload Trim）只能对"弱置信度噪音"动刀，结构化表格真实项一律豁免。
