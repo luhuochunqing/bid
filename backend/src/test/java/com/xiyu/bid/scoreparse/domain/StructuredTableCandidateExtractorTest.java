@@ -434,6 +434,65 @@ class StructuredTableCandidateExtractorTest {
                 .map(ScoreCandidate::weight)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         assertThat(total).isEqualByComparingTo(new BigDecimal("100"));
+
+        // Task1 决策边界锚定：1371 无价格公式表，零分兜底不得泄漏任何资格审查行；
+        // 若未来出现零分项，说明"仅价格公式行可兜底"边界被击穿（16 项会向 44 项膨胀）
+        assertThat(candidates).noneMatch(c -> c.weight() != null && c.weight().compareTo(BigDecimal.ZERO) == 0);
+    }
+
+    @Test
+    void extractWithSectionReport_golden1359_noMiss() throws Exception {
+        // 已知措辞多表：商务/技术/报价三表均推导出章节，不误报 miss
+        SidecarTableExtraction extraction = loadExtractionFromResource("/scoreparse-golden/1359_tables_v1.json");
+        var report = StructuredTableCandidateExtractor.extractWithSectionReport(extraction);
+
+        assertThat(report.candidates()).hasSize(39);
+        assertThat(report.sectionDimMissTables()).isEmpty();
+        assertThat(report.candidates()).isEqualTo(StructuredTableCandidateExtractor.extract(extraction));
+    }
+
+    @Test
+    void extractWithSectionReport_golden1371SingleTable_noMissByDesign() throws Exception {
+        // 单表 null 属混合单表设计行为，不上报 miss
+        SidecarTableExtraction extraction = loadExtractionFromResource("/scoreparse-golden/1371_tables_v1.json");
+        var report = StructuredTableCandidateExtractor.extractWithSectionReport(extraction);
+
+        assertThat(report.candidates()).hasSize(16);
+        assertThat(report.sectionDimMissTables()).isEmpty();
+    }
+
+    @Test
+    void extractWithSectionReport_multiTableUnknownVocab_reportsMissTables() {
+        // 多表 + 未知措辞：章节保护降级为旧逻辑，必须上报 miss 表索引供人工复核
+        SidecarTableExtraction.TablePayload tableA = new SidecarTableExtraction.TablePayload(0, List.of(
+                List.of(cell("序号"), cell("评价要素"), cell("分值")),
+                List.of(cell("1"), cell("Alpha服务能力"), cell("5"))
+        ), true);
+        SidecarTableExtraction.TablePayload tableB = new SidecarTableExtraction.TablePayload(7, List.of(
+                List.of(cell("序号"), cell("评价要素"), cell("分值")),
+                List.of(cell("1"), cell("Beta交付能力"), cell("8"))
+        ), true);
+
+        var report = StructuredTableCandidateExtractor.extractWithSectionReport(
+                new SidecarTableExtraction(List.of(tableA, tableB), List.of()));
+
+        assertThat(report.candidates()).hasSize(2);
+        assertThat(report.sectionDimMissTables()).containsExactly(0, 7);
+    }
+
+    @Test
+    void extractWithSectionReport_singleMixedTable_noMiss() {
+        // 单表即使混合（商务+技术）也不上报：null 是混合单表设计行为而非缺失
+        SidecarTableExtraction.TablePayload table = new SidecarTableExtraction.TablePayload(0, List.of(
+                List.of(cell("商务评分标准"), cell("技术评分标准"), cell("分值")),
+                List.of(cell("1"), cell("财务状况"), cell("5"))
+        ), true);
+
+        var report = StructuredTableCandidateExtractor.extractWithSectionReport(
+                new SidecarTableExtraction(List.of(table), List.of()));
+
+        assertThat(report.candidates()).hasSize(1);
+        assertThat(report.sectionDimMissTables()).isEmpty();
     }
 
     private SidecarTableExtraction loadExtractionFromResource(String resourcePath) throws Exception {

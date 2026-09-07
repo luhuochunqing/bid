@@ -193,3 +193,13 @@ markdown 输入
 
 ### 关键 Pattern：解耦识别与归一
 > 评分项全量识别（Task 1）必须零漏项；分值比重归一化（Task 2）必须解耦，禁止通过剔除真实业务项来凑分。超载剔除（Overload Trim）只能对"弱置信度噪音"动刀，结构化表格真实项一律豁免。
+
+### 后续（2026-09-07）：miss 可观测性与词表收敛
+
+- `ScoreTableSectionPolicy`：8 组关键词逐字收敛为单一真相源，行文本侧
+  （Extractor）与候选字段侧（PostProcessor）共享，互指注释锁定，改词表必须双边同步测试。
+- miss 上报：纯核心禁日志，`extractWithSectionReport` 只上报数据
+  （`sectionDimMissTables`，口径 = 多表且推导为 null；单表 null 属混合单表设计不上报），
+  `ScoreParseAppService` 对非空 miss 打 warn。
+- 1371 反膨胀锚定：`noneMatch(weight == 0)`。fixture 中无"营业执照"行，字面断言恒真；
+  零分项断言直接锁定"仅价格公式行可兜底"边界。

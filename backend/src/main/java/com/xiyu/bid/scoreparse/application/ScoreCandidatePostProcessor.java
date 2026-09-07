@@ -13,6 +13,7 @@ import com.xiyu.bid.scoreparse.domain.ScoreItemMergePolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreParseConstants;
 import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.ScoreParsePipeline;
+import com.xiyu.bid.scoreparse.domain.ScoreTableSectionPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreVocabularyRegistry;
 import com.xiyu.bid.scoreparse.domain.WeightNormalizationPolicy;
 import com.xiyu.bid.scoreparse.domain.WeightOverloadTrimPolicy;
@@ -215,16 +216,15 @@ public class ScoreCandidatePostProcessor {
     }
 
     private static boolean isPriceFormulaItem(ScoreCandidate candidate) {
+        // 放行侧判定（候选字段侧）：创建侧见 ScoreTableSectionPolicy#isPriceFormula（行文本零分兜底），
+        // 词表唯一真相源见 ScoreTableSectionPolicy#PRICE_PARENT_DIM 等；改任一侧词表必须同步另一侧锚定测试。
         if (candidate == null) return false;
-        String parentDim = candidate.parentDim();
-        if (parentDim != null && (parentDim.contains("报价") || parentDim.contains("价格"))) {
+        if (ScoreTableSectionPolicy.containsAny(candidate.parentDim(), ScoreTableSectionPolicy.PRICE_PARENT_DIM)) {
             return true;
         }
-        String dim = candidate.dim();
-        if (dim != null && (dim.contains("折扣率") || dim.contains("报价") || dim.contains("价格得分") || dim.contains("基准价"))) {
+        if (ScoreTableSectionPolicy.containsAny(candidate.dim(), ScoreTableSectionPolicy.PRICE_DIM)) {
             return true;
         }
-        String detail = candidate.detail();
-        return detail != null && (detail.contains("算术平均值") || detail.contains("评审价格得分") || detail.contains("加权折扣率"));
+        return ScoreTableSectionPolicy.containsAny(candidate.detail(), ScoreTableSectionPolicy.PRICE_DETAIL);
     }
 }
