@@ -203,3 +203,29 @@ markdown 输入
   `ScoreParseAppService` 对非空 miss 打 warn。
 - 1371 反膨胀锚定：`noneMatch(weight == 0)`。fixture 中无"营业执照"行，字面断言恒真；
   零分项断言直接锁定"仅价格公式行可兜底"边界。
+
+## 2026-09-07 评分项跨通道归并消重、报价细则去重与超载保护继承（项目 1359 深度优化）
+
+### 问题
+项目 1359（https://winbid-test.ehsy.com/project/1359）在 AI 评分标准解析中暴露 6 大缺陷：
+1. “财务综合评价（25）”出现两次（条目重复）；
+2. 序号 S5 “报价质量（15分）”细则内容整段重复两次；
+3. 序号 S9 与 S23 重复（自有配送人员数量，2分），需删除 S9 保留精炼 S23；
+4. 序号 S8 与 S22 重复（自有物流配送车辆数量，2分），需删除 S8 保留精炼 S22；
+5. 缺失“品牌丰富度（4分）”；
+6. 缺失“个性化需求响应度（3分）”。
+
+### 根因与修复
+1. **细则等价强制归并与权威维度优选**：
+   - 表格提取的首列分类（`二、财务状况`）与 LLM 提取的要素名（`财务综合评价`）异名，旧消重依赖维度重叠，导致漏消重；`ScoreGlobalMergeOrchestrator` 又因维度不同误判为遗漏而强行回注。
+   - 修复：`ScoreItemMergePolicy.findMatchingIndex` 对标点归一化后长度 >= 15 的相同细则强制归并；`resolveAuthoritativeDim` 淘汰罗马数字章节标题和冗长句子，优先采纳精炼评分因素；`ScoreGlobalMergeOrchestrator` 增加 `isCoveredByAccepted` 覆盖检查，杜绝向结果集中二次回注已存在的表格项。
+2. **定性评分隔离与标点容错去重**：
+   - “报价质量”因命中价格词元触发价格跨 chunk 拼接逻辑，两路细则仅差句号/小数点标点，旧行去重失效导致整段文字拼接两次。
+   - 修复：`ScoreItemMergePolicy` 显式隔离定性评分项（含“质量/合理性/方案”）；拼接前与行去重时执行 `normalizePunctuation` 标点归一化。
+3. **单元格内嵌分值解析与前缀剥离**：
+   - 表格单元格原文字为“根据应答人自有物流配送车辆数量进行评分自有物流配送车辆数量（2分） 优秀得2分...”。
+   - 修复：`StructuredTableCandidateExtractor` 支持 `BRACKET_NUM`（如 `财务综合评价（25）`），自动剥离“进行评分/进行评价”前缀长句，提取后置文本作为细则。
+4. **属性无条件补齐与原文背书免疫**：
+   - LLM 归并输出项 detail 与表格池项长度相等时，旧守卫未继承 `parentDim` 与 `CELL` 权威来源。
+   - 修复：`ScoreMergeResultGuard.upgradeWithLongestPoolDetail` 对相同细则无条件继承 `parentDim`、`dimSource` 与 `code`；`WeightOverloadTrimPolicy` 增加 `sourceText.contains(detail)` 原文包含保护，防止真实项在超载清洗时被误杀。
+
