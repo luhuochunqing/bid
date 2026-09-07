@@ -3,6 +3,15 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-07] fix | 项目 1371 评分项解析精度根治、Sidecar 发布闭环与跨行分值重叠消重
+
+- 触发：用户在项目 1371（通用技术MRO项目）中反馈 AI 评分项标准解析不准（缺失为 82 分或膨胀为 104 分）。
+- 方案：
+  - 发布闭环：`package-release.sh` 打包 `document-converter-sidecar/` 为 `sidecar.tar.gz`；`remote-deploy.sh` 对比 sha256 自动重构镜像平滑重启容器；`deploy-test.sh` / `deploy-prod.sh` Step 6 增加 `POST /extract-tables` 探活强阻断（杜绝仅测 `/health` 200 而核心能力 404 静默降级）；
+  - 算法消重：`StructuredTableCandidateExtractor` 识别跨行大项（`rowspan > 1`）与细则得分包含关系，细则分优先消除 6+2+2=10 的父子分值累加膨胀；清洗形如 `3.3(1)` 的条款编号并规范多级维度继承；精简代码满足 300 行门禁；
+  - 验证保障：测试环境实机重新 build 容器验证；新增 1371 全表金标测试（16项 56分商务+44分技术=100分严格收敛）；单测 21/21 全绿，scoreparse 692/692 全绿。
+- 页面更新：更新 [[score-parse-service]] §10；lessons-learned.md §341；engineering-discipline.md §7。
+
 ## [2026-09-06] fix | 标书质检确定性提取扩充政采“响应担保”与【不涉及】结论前缀规范
 
 - 触发：测试环境项目 1358 标书质检中，政采招标文件“不要求递交响应担保”，因确定性提取器遗漏“响应担保”导致免收识别失效、第 24 项退款信息表连带误报待确认。

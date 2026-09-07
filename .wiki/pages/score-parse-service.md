@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
-updated: 2026-09-05
-health_checked: 2026-09-05
+updated: 2026-09-07
+health_checked: 2026-09-07
 sources:
   - specs/041-ai-score-parse-backend/spec.md
   - specs/041-ai-score-parse-backend/plan.md
@@ -283,3 +283,22 @@ trigger（同步<1s，互斥校验+建任务）
   `parse_contractAssessmentRowWithoutScore_filtered` 锁定）。
 - 纯救援正向用例注释修正：只证"删掉救援即变红"，收窄语义由反向用例锁定；
   NFKC 用例补真增量（圈号/上标），旧三断言标注为回归锁。
+
+## 10. Sidecar 容器发布闭环与原生结构化表格跨行分值消重（2026-09-07）
+
+### 背景与根因
+用户在项目 1371（通用技术MRO项目）中反馈 AI 评分项标准解析不准（82 分缺失或 104 分膨胀）：
+1. **Sidecar 独立容器发布断链**：`package-release.sh` 历史脚本遗漏了 `document-converter-sidecar/` 打包；部署脚本健康检查仅探测通用 `/health`（返回 200 即放行），而业务层新增的 `/extract-tables` 接口报 404，导致系统静默降级为 lossy 的 Markdown 解析，表格合并结构全失、评分细则丢失（总分仅 82 分）；
+2. **跨行合并单元格（`rowspan > 1`）分值重复累计**：“资源实力（6分）”跨 3 行合并单元格，内含 3 个 2 分子规则。提取器在首行提取括号大项分 6 分，后两行提取子项各 2 分，导致 6+2+2=10 分，总分膨胀为 104 分。
+
+### 根治措施
+1. **发布流程闭环**：
+   - `package-release.sh` 自动归档 `document-converter-sidecar/` 为 `sidecar.tar.gz` 并记录 `sidecarSha256`；
+   - `remote-deploy.sh` 对比远端 sha256，变更时自动执行 `docker build -f Dockerfile.cn` 并重启 `xiyu-sidecar` 容器；
+   - `deploy-test.sh` / `deploy-prod.sh` Step 6 增加 `POST http://127.0.0.1:8000/extract-tables` 探活强阻断，遇 404 直接阻断部署。
+2. **`StructuredTableCandidateExtractor` 算法消重与规范化**：
+   - **细则分优先消重**：检测跨行单元格（`rowspan > 1`），当提取到的 `bracketWeight` 属于该跨行大项且行内存在细则得分（`maxGradeScore < bracketWeight`）时，单项优先取 `maxGradeScore`（2分），消除 6+2+2 膨胀；
+   - **条款编号过滤**：清洗形如 `3.3(1)` 等非语义条款编号，防止污染父维度；
+   - **维度防自包含**：将最内层跨行父级（如“资源实力”）作为该行 `dim`，上级分类作为 `parentDim`，消除自引用；
+   - **金标测试保障**：固化真实 14 张表格入参为金标 `1371_tables_v1.json`，全表提取严格 16 项（商务 56 分 + 技术 44 分 = 100.0 分严格收敛）。
+

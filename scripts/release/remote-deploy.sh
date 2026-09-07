@@ -101,6 +101,40 @@ if [[ -n "$DB_BACKUP_COMMAND" ]]; then
   bash -lc "$DB_BACKUP_COMMAND"
 fi
 
+# ── Sidecar 容器增量自动升级（闭环自动化，消除技术债）──
+SIDECAR_ARCHIVE="$RELEASE_DIR/sidecar/sidecar.tar.gz"
+if [[ -f "$SIDECAR_ARCHIVE" ]]; then
+  SIDECAR_DIR="$APP_ROOT/sidecar"
+  mkdir -p "$SIDECAR_DIR"
+  NEW_SIDECAR_HASH="$(sha256sum "$SIDECAR_ARCHIVE" 2>/dev/null | cut -d' ' -f1 || shasum -a 256 "$SIDECAR_ARCHIVE" | cut -d' ' -f1)"
+  OLD_SIDECAR_HASH="$(cat "$SIDECAR_DIR/.deployed_sha256" 2>/dev/null || echo "")"
+  if [[ "$NEW_SIDECAR_HASH" != "$OLD_SIDECAR_HASH" ]]; then
+    printf '==> Sidecar 源码有变动（%s → %s），更新并重启容器\n' "${OLD_SIDECAR_HASH:-初始}" "$NEW_SIDECAR_HASH"
+    tar -xzf "$SIDECAR_ARCHIVE" -C "$SIDECAR_DIR"
+    find "$SIDECAR_DIR" -name "._*" -delete 2>/dev/null || true
+    DOCKER_BIN="docker"
+    if ! docker ps >/dev/null 2>&1 && sudo docker ps >/dev/null 2>&1; then
+      DOCKER_BIN="sudo docker"
+    fi
+    if $DOCKER_BIN info >/dev/null 2>&1; then
+      printf '==> 重新构建 document-converter-sidecar 镜像...\n'
+      $DOCKER_BIN build --progress=plain -f "$SIDECAR_DIR/Dockerfile.cn" -t document-converter-sidecar:latest "$SIDECAR_DIR"
+      printf '==> 重新启动 xiyu-sidecar 容器...\n'
+      $DOCKER_BIN rm -f xiyu-sidecar 2>/dev/null || true
+      $DOCKER_BIN run -d --name xiyu-sidecar --restart=always -p 8000:8000 \
+        --memory=1g --memory-swap=1g \
+        -e SIDECAR_HOST=0.0.0.0 -e SIDECAR_PORT=8000 -e SIDECAR_MAX_UPLOAD_MB=3072 \
+        document-converter-sidecar:latest
+      printf '%s\n' "$NEW_SIDECAR_HASH" > "$SIDECAR_DIR/.deployed_sha256"
+      printf '✅ Sidecar 容器升级完成\n'
+    else
+      printf '⚠️  未检测到可用 Docker 守护进程，跳过容器自动构建\n' >&2
+    fi
+  else
+    printf '==> Sidecar 源码无变动（SHA-256: %s），跳过容器构建\n' "$NEW_SIDECAR_HASH"
+  fi
+fi
+
 # ── AI Provider 守卫（任何服务变更之前，失败零影响）──
 # 工程背景（PR !2396 生产风险审计）：ai.provider=mock 时全部 AI 接口静默回落 MockAiProvider
 # 返回假数据；生产必须显式配置真实 AI_PROVIDER（首产记录 AI_PROVIDER=custom）。

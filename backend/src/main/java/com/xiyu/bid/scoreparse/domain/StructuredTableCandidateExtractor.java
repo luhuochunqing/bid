@@ -12,13 +12,6 @@ import java.util.regex.Pattern;
 /**
  * 结构化表格 → ScoreCandidate 列表。
  * <p>从 sidecar 提取的合并单元格感知表格数据中，识别评分表并提取评分项候选。
- * 列对齐策略复用 {@link ScoreTableRowParser} 的优先级：
- * <ul>
- *   <li>code：首列匹配短编号模式</li>
- *   <li>weight：优先括号分值（"财务状况（10分）" → 10）；兜底"得X分"最大值</li>
- *   <li>dim：列3去括号分值后文本</li>
- *   <li>detail：列3+列4拼接，或最长非编号非分值列</li>
- * </ul>
  */
 public final class StructuredTableCandidateExtractor {
 
@@ -26,9 +19,12 @@ public final class StructuredTableCandidateExtractor {
     private static final Pattern BRACKET_WEIGHT = ScoreParseConstants.BRACKET_WEIGHT_PATTERN;
     private static final Pattern GRADE_SCORE = Pattern.compile("得\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*分");
     private static final Pattern HEADER_ROW = Pattern.compile(
-            "评分因素|评审因素|评分项|评审项|序号|编号|评审内容|评分标准|分值$");
+            "评分因素|评审因素|评分项|评审项|序号|编号|条款号|条款内容|编列内容|评审内容|评分标准|分值$");
+    private static final Pattern PURE_WEIGHT_PATTERN = Pattern.compile("^(\\d+(?:\\.\\d+)?)\\s*(?:分|%)?$");
+    private static final Pattern NON_DIM_TEXT = Pattern.compile("^(?:\\d+(?:\\.\\d+)?(?:分|%)?|最低分|最高分|分值|满分|权重|得分|/|／|-)$");
     private static final Pattern CONTAINS_HAN = Pattern.compile("[\\p{IsHan}]");
     private static final int DIM_MAX_CHARS = 20;
+    private static final int MAX_PARENT_DIM_COLS = 3;
 
     private StructuredTableCandidateExtractor() {
     }
@@ -44,15 +40,10 @@ public final class StructuredTableCandidateExtractor {
         return !marked.isEmpty() ? marked : tables.stream().filter(t -> t.rows() != null && t.rows().size() >= 3).toList();
     }
 
-    private static final int MAX_PARENT_DIM_COLS = 3;
-    private static final Pattern NON_DIM_TEXT = Pattern.compile("^(?:\\d+(?:\\.\\d+)?(?:分|%)?|最低分|最高分|分值|满分|权重|得分)$");
-
     private static List<ScoreCandidate> extractFromTable(SidecarTableExtraction.TablePayload table) {
         List<ScoreCandidate> candidates = new ArrayList<>();
         List<List<SidecarTableExtraction.CellPayload>> rows = table.rows();
-        if (rows == null || rows.isEmpty()) {
-            return candidates;
-        }
+        if (rows == null || rows.isEmpty()) return candidates;
 
         String[] colParentDim = new String[MAX_PARENT_DIM_COLS];
         int[] colRemainingRowspan = new int[MAX_PARENT_DIM_COLS];
@@ -66,8 +57,8 @@ public final class StructuredTableCandidateExtractor {
             for (int i = 0; i < scanLimit; i++) {
                 SidecarTableExtraction.CellPayload cell = row.get(i);
                 if (!cell.isMergedContinue() && cell.rowspan() > 1) {
-                    String text = stripBracketWeight(cell.text());
-                    if (text != null && !NON_DIM_TEXT.matcher(text.trim()).find()) {
+                    String text = cleanParentText(cell.text());
+                    if (text != null) {
                         colParentDim[i] = text;
                         colRemainingRowspan[i] = cell.rowspan();
                     }
@@ -78,45 +69,44 @@ public final class StructuredTableCandidateExtractor {
                 decrementRemaining(colRemainingRowspan, colParentDim);
                 continue;
             }
-            String parentDim = extractParentDim(row);
-            if (parentDim == null) {
-                String topParent = colRemainingRowspan[0] > 0 ? colParentDim[0] : null;
-                String subParent = null;
-                for (int i = scanLimit - 1; i >= 1; i--) {
-                    if (colRemainingRowspan[i] > 0 && colParentDim[i] != null) {
-                        subParent = colParentDim[i];
-                        break;
-                    }
+
+            List<String> activeParents = new ArrayList<>();
+            for (int i = 0; i < MAX_PARENT_DIM_COLS; i++) {
+                if (colRemainingRowspan[i] > 0 && colParentDim[i] != null) {
+                    activeParents.add(colParentDim[i]);
                 }
-                parentDim = topParent != null && subParent != null && !topParent.equals(subParent)
-                        ? topParent + " / " + subParent : (subParent != null ? subParent : topParent);
+            }
+            for (String mp : extractMergedParents(row)) {
+                if (!activeParents.contains(mp)) activeParents.add(mp);
             }
             decrementRemaining(colRemainingRowspan, colParentDim);
-            ScoreCandidate candidate = parseRow(visibleCells, r, parentDim);
+
+            ScoreCandidate candidate = parseRow(visibleCells, r, activeParents);
             if (candidate != null) candidates.add(candidate);
         }
         return candidates;
     }
 
-    private static String extractParentDim(List<SidecarTableExtraction.CellPayload> fullRow) {
-        String parentText = null;
+    private static List<String> extractMergedParents(List<SidecarTableExtraction.CellPayload> fullRow) {
+        List<String> parents = new ArrayList<>();
         int scanLimit = Math.min(fullRow.size(), MAX_PARENT_DIM_COLS);
         for (int i = 0; i < scanLimit; i++) {
             SidecarTableExtraction.CellPayload cell = fullRow.get(i);
             if (cell.isMergedContinue() && !cell.text().isBlank()) {
-                String stripped = stripBracketWeight(cell.text());
-                if (stripped != null && !NON_DIM_TEXT.matcher(stripped.trim()).find()) {
-                    parentText = stripped;
-                }
+                String cleaned = cleanParentText(cell.text());
+                if (cleaned != null) parents.add(cleaned);
             }
         }
-        return parentText;
+        return parents;
     }
 
-    private static String stripBracketWeight(String text) {
-        if (text == null || text.isBlank()) return null;
-        String dim = BRACKET_WEIGHT.matcher(text).replaceAll("").replace("\n", " ").replaceAll("\\s+", " ").trim();
-        return dim.isEmpty() ? null : dim;
+    private static String cleanParentText(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String stripped = BRACKET_WEIGHT.matcher(raw).replaceAll("").replace("\n", " ").replaceAll("\\s+", " ").trim();
+        if (stripped.isEmpty() || NON_DIM_TEXT.matcher(stripped).find() || CODE_PATTERN.matcher(stripped).matches()) {
+            return null;
+        }
+        return stripped;
     }
 
     private static void decrementRemaining(int[] remaining, String[] dims) {
@@ -125,125 +115,108 @@ public final class StructuredTableCandidateExtractor {
         }
     }
 
-    /** 提取非合并延续的可见单元格。 */
     private static List<SidecarTableExtraction.CellPayload> visibleCells(List<SidecarTableExtraction.CellPayload> row) {
-        List<SidecarTableExtraction.CellPayload> result = new ArrayList<>();
-        for (SidecarTableExtraction.CellPayload cell : row) {
-            if (!cell.isMergedContinue()) {
-                result.add(cell);
-            }
-        }
-        return result;
+        return row.stream().filter(c -> !c.isMergedContinue()).toList();
     }
 
-    /** 表头行判定：首行，或含 ≥2 个短表头关键词单元格（≤10 字符，防数据行误判）。 */
     private static boolean isHeaderRow(List<SidecarTableExtraction.CellPayload> cells, int rowIndex) {
-        if (rowIndex == 0) {
-            return true;
-        }
-        int headerKeywordCount = 0;
-        for (SidecarTableExtraction.CellPayload cell : cells) {
-            String text = cell.text().trim();
-            if (text.length() <= 10 && HEADER_ROW.matcher(text).find()) {
-                headerKeywordCount++;
-            }
-        }
-        return headerKeywordCount >= 2;
+        if (rowIndex == 0) return true;
+        long count = cells.stream().map(c -> c.text().trim())
+                .filter(t -> t.length() <= 10 && HEADER_ROW.matcher(t).find()).count();
+        return count >= 2;
     }
 
     private static ScoreCandidate parseRow(List<SidecarTableExtraction.CellPayload> cells,
-            int rowIndex, String parentDim) {
+            int rowIndex, List<String> activeParents) {
         List<String> texts = cells.stream().map(SidecarTableExtraction.CellPayload::text).toList();
-
         String code = extractCode(texts);
         BracketWeightResult bracketResult = extractBracketWeight(texts);
 
-        String detail = extractDetail(texts, bracketResult.col3Index());
-        if (detail.isBlank()) {
-            return null;
-        }
-
         BigDecimal weight = bracketResult.weight();
-        if (weight == null) {
-            weight = maxGradeScore(detail);
-        }
-        if (weight == null) {
-            String fullRow = String.join(" ", texts);
-            weight = maxGradeScore(fullRow);
-        }
-
         String dim = bracketResult.dimFromCol3();
-        if (dim == null || dim.isBlank()) {
-            dim = extractDim(texts);
+        if ((dim == null || dim.isBlank()) && activeParents != null && !activeParents.isEmpty()) {
+            dim = activeParents.get(activeParents.size() - 1);
+        }
+        if (dim == null || dim.isBlank()) dim = extractDim(texts);
+
+        String detail = extractDetail(texts, bracketResult.col3Index(), code, dim);
+        if (detail.isBlank() || detail.replaceAll("[/／\\-\\s]", "").isEmpty()) return null;
+
+        BigDecimal gradeScore = maxGradeScore(detail);
+        if (gradeScore == null) gradeScore = maxGradeScore(String.join(" ", texts));
+
+        boolean isSpanningCell = bracketResult.col3Index() >= 0
+                && cells.get(bracketResult.col3Index()).rowspan() > 1;
+
+        if (isSpanningCell && weight != null && gradeScore != null && gradeScore.compareTo(weight) < 0) {
+            weight = gradeScore;
+        }
+        if (weight == null) weight = extractPureWeight(texts, code);
+        if (weight == null) weight = gradeScore;
+        if (weight == null) return null;
+
+        String parentDim = null;
+        if (activeParents != null && !activeParents.isEmpty()) {
+            final String finalDim = dim;
+            List<String> outer = activeParents.stream().filter(p -> finalDim == null || !p.equals(finalDim)).toList();
+            if (!outer.isEmpty()) parentDim = String.join(" / ", outer);
         }
 
-        String sourceText = cells.stream()
-                .map(c -> c.text().trim())
-                .filter(t -> !t.isEmpty())
-                .reduce((a, b) -> a + " | " + b)
-                .orElse("");
-
+        String sourceText = cells.stream().map(c -> c.text().trim())
+                .filter(t -> !t.isEmpty()).reduce((a, b) -> a + " | " + b).orElse("");
         String dimSource = parentDim != null ? "CELL" : "UNKNOWN";
 
-        return new ScoreCandidate(
-                code,
-                dim,
-                detail,
-                weight,
-                null,
-                null,
-                sourceText,
-                "table-row-" + rowIndex,
-                "STRUCTURED_TABLE",
-                parentDim,
-                dimSource
-        );
+        return new ScoreCandidate(code, dim, detail, weight, null, null,
+                sourceText, "table-row-" + rowIndex, "STRUCTURED_TABLE", parentDim, dimSource);
     }
 
     private static String extractCode(List<String> texts) {
-        if (texts.isEmpty()) {
-            return "";
-        }
+        if (texts.isEmpty()) return "";
         String first = texts.get(0).trim();
-        if (first.length() <= 8 && CODE_PATTERN.matcher(first).matches()) {
-            return first;
-        }
-        return "";
+        return (first.length() <= 8 && CODE_PATTERN.matcher(first).matches()) ? first : "";
     }
 
     private static BracketWeightResult extractBracketWeight(List<String> texts) {
-        // 从列3向列0扫描（跳过列0如果是编号列）
         boolean skipFirstColumn = texts.size() >= 3 && CODE_PATTERN.matcher(texts.get(0).trim()).matches();
         for (int idx = Math.min(texts.size() - 1, 3); idx >= 0; idx--) {
-            if (idx == 0 && skipFirstColumn) {
-                continue;
-            }
+            if (idx == 0 && skipFirstColumn) continue;
             String col = texts.get(idx);
             Matcher matcher = BRACKET_WEIGHT.matcher(col);
             if (matcher.find()) {
                 BigDecimal weight = new BigDecimal(matcher.group(1));
-                String dim = BRACKET_WEIGHT.matcher(col).replaceAll("").trim();
-                dim = dim.replace("\n", " ").replaceAll("\\s+", " ").trim();
+                String dim = BRACKET_WEIGHT.matcher(col).replaceAll("").replace("\n", " ").replaceAll("\\s+", " ").trim();
                 return new BracketWeightResult(weight, dim.isEmpty() ? null : dim, idx);
             }
         }
         return new BracketWeightResult(null, null, -1);
     }
 
-    private static String extractDetail(List<String> texts, int col3Index) {
-        if (texts.size() >= 5 && col3Index == 2) {
-            String col4 = texts.get(3).trim();
-            String col5 = texts.get(4).trim();
-            if (!col4.isEmpty() && !col5.isEmpty()) {
-                return col4 + " " + col5;
-            } else if (!col4.isEmpty()) {
-                return col4;
-            } else if (!col5.isEmpty()) {
-                return col5;
+    private static BigDecimal extractPureWeight(List<String> texts, String code) {
+        for (int i = texts.size() - 1; i >= 0; i--) {
+            String t = texts.get(i).trim();
+            if (code != null && !code.isBlank() && t.equals(code)) continue;
+            Matcher m = PURE_WEIGHT_PATTERN.matcher(t);
+            if (m.matches()) {
+                try {
+                    return new BigDecimal(m.group(1));
+                } catch (NumberFormatException ignored) {
+                }
             }
         }
+        return null;
+    }
 
-        // 回退：最长非编号非纯分值列
+    private static String extractDetail(List<String> texts, int col3Index, String code, String dim) {
+        int start = col3Index >= 0 ? col3Index + 1 : (code != null && !code.isBlank() ? 1 : 0);
+        List<String> parts = new ArrayList<>();
+        for (int i = start; i < texts.size(); i++) {
+            String t = texts.get(i).trim();
+            if (t.isEmpty() || NON_DIM_TEXT.matcher(t).matches()) continue;
+            if (col3Index < 0 && dim != null && t.equals(dim)) continue;
+            parts.add(t);
+        }
+        if (!parts.isEmpty()) return String.join(" ", parts);
+
         String best = null;
         int bestLen = 0;
         for (int i = 0; i < texts.size(); i++) {
@@ -258,7 +231,7 @@ public final class StructuredTableCandidateExtractor {
         String best = null;
         for (int i = 0; i < texts.size(); i++) {
             String t = texts.get(i).trim();
-            if (t.isEmpty() || (i == 0 && CODE_PATTERN.matcher(t).matches())) continue;
+            if (t.isEmpty() || (i == 0 && CODE_PATTERN.matcher(t).matches()) || GRADE_SCORE.matcher(t).find()) continue;
             if (t.length() <= DIM_MAX_CHARS && CONTAINS_HAN.matcher(t).find()) {
                 if (best == null || t.length() > best.length()) best = t;
             }
