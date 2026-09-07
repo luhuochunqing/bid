@@ -47,7 +47,9 @@ public class WeightOverloadTrimPolicy {
         //   legacy 9-arg 构造器固定传 "UNKNOWN"，正常路径 dimSource != null，
         //   显式加 != null 防止日后扩展引入 null 时逻辑退化（!"UNKNOWN".equals(null)=true 会误保护）
         return candidate.hasParentDim()
-                || (candidate.dimSource() != null && !"UNKNOWN".equals(candidate.dimSource()));
+                || (candidate.dimSource() != null && !"UNKNOWN".equals(candidate.dimSource()))
+                || (candidate.sourceText() != null && candidate.detail() != null
+                    && !candidate.detail().isBlank() && candidate.sourceText().contains(candidate.detail()));
     }
 
     private void trimByPredicate(List<ScoreCandidate> remaining, List<ScoreCandidate> removed,

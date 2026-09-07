@@ -358,4 +358,25 @@ class ScoreMergeResultGuardTest {
         assertThat(outcome.accepted().get(0).detail()).isEqualTo("无不良记录得100分");
         assertThat(outcome.accepted().get(0).detail()).doesNotContain("速动比率");
     }
+
+    @Test
+    void guard_poolCandidateEqualLengthDetail_inheritsParentDimAndDimSource() {
+        // 真实 1359 场景：LLM 归并保留了完整细则（长度与池项完全一致），原实现漏掉继承 parentDim 与 dimSource
+        String detail = "对应答人提供的品牌丰富度进行评价。品牌丰富优秀得4分；良好得2分；一般及以下得1分。";
+        ScoreCandidate poolItem = new ScoreCandidate(null, "品牌丰富度", detail,
+                new BigDecimal("4"), "OBJECTIVE", null, detail, "R6", "STRUCTURED_TABLE",
+                "技术评分标准", "CELL");
+
+        ScoreCandidate merged = new ScoreCandidate(null, "品牌丰富度", detail,
+                new BigDecimal("4"), "OBJECTIVE", null, detail, "P1", "GLOBAL_MERGE",
+                null, "UNKNOWN");
+
+        ScoreMergeResultGuard.Outcome outcome = ScoreMergeResultGuard.guard(
+                List.of(poolItem), List.of(merged), detail);
+
+        assertThat(outcome.accepted()).hasSize(1);
+        ScoreCandidate accepted = outcome.accepted().get(0);
+        assertThat(accepted.parentDim()).isEqualTo("技术评分标准");
+        assertThat(accepted.dimSource()).isEqualTo("CELL");
+    }
 }

@@ -49,57 +49,83 @@ public class ScoreItemMergePolicy {
         return merged;
     }
 
+    private static final java.util.regex.Pattern BRACKET_CONTENT =
+            java.util.regex.Pattern.compile("[（(][^）)]*[）)]|[\\[【][^\\]】]*[\\]】]");
+
     private int findMatchingIndex(List<ScoreCandidate> list, ScoreCandidate target) {
         String targetCode = target.code() == null ? "" : target.code().trim();
         String targetDim = normalize(target.dim());
+        String targetCoreDim = normalizeCoreDim(target.dim());
         String targetDetail = normalize(target.detail());
+        String puncTargetDetail = normalizePunctuation(target.detail());
 
         for (int i = 0; i < list.size(); i++) {
             ScoreCandidate existing = list.get(i);
             String existingCode = existing.code() == null ? "" : existing.code().trim();
             String existingDim = normalize(existing.dim());
+            String existingCoreDim = normalizeCoreDim(existing.dim());
             String existingDetail = normalize(existing.detail());
+            String puncExistingDetail = normalizePunctuation(existing.detail());
 
-            // 0. 报价评分特判：同一报价维度（报价评分/价格评分）且 code 相同或均为报价相关，
-            // 跨 chunk 拆分的细节互补（非子串）应视为同一项，避免价格分只保留前 3 行后截断
+            // 0. 报价评分特判：同一报价维度（报价评分/价格评分）且 code 相同或均为报价相关
             if (isPriceDim(existingDim) && isPriceDim(targetDim)) {
-                if (!targetCode.isEmpty() && targetCode.equalsIgnoreCase(existingCode)) {
+                if (!targetCode.isEmpty() && targetCode.equalsIgnoreCase(existingCode)) return i;
+                if ((targetCode.isEmpty() || existingCode.isEmpty())
+                        && (existingDim.equals(targetDim) || (!existingCoreDim.isEmpty() && existingCoreDim.equals(targetCoreDim)))) {
                     return i;
                 }
-                if (targetCode.isEmpty() || existingCode.isEmpty()) {
-                    // 无编号报价项，按维度相同即视为同一项（跨 chunk 合并）
-                    if (existingDim.equals(targetDim)) {
+            }
+
+            // 1. 细则高度一致（去空白/标点后相等）：两路召回同一条款，消重核心防线
+            boolean codeCompatible = targetCode.isEmpty() || existingCode.isEmpty()
+                    || targetCode.equalsIgnoreCase(existingCode);
+            if (codeCompatible && !puncTargetDetail.isEmpty() && puncTargetDetail.equals(puncExistingDetail)) {
+                if (puncTargetDetail.length() >= 15 || existingDim.equals(targetDim)
+                        || (!existingCoreDim.isEmpty() && existingCoreDim.equals(targetCoreDim))
+                        || (!existingCoreDim.isEmpty() && targetCoreDim.contains(existingCoreDim))
+                        || (!targetCoreDim.isEmpty() && existingCoreDim.contains(targetCoreDim))
+                        || existingDim.isEmpty() || targetDim.isEmpty()) {
+                    return i;
+                }
+            }
+
+            // 2. 编号非空且相同
+            if (!targetCode.isEmpty() && targetCode.equalsIgnoreCase(existingCode)) {
+                if (existingDim.equals(targetDim)
+                        || (!existingCoreDim.isEmpty() && existingCoreDim.equals(targetCoreDim))) {
+                    return i;
+                }
+                if (isMoreCompleteRecallOfSameItem(existing, target) || isMoreCompleteRecallOfSameItem(target, existing)) {
+                    return i;
+                }
+            }
+
+            // 3. 碎片子项包含消重（例如局部召回细则纯属另一完整大项的前缀或子集）
+            boolean dimOverlap = !targetCoreDim.isEmpty() && !existingCoreDim.isEmpty()
+                    && (targetCoreDim.equals(existingCoreDim) || targetCoreDim.contains(existingCoreDim) || existingCoreDim.contains(targetCoreDim));
+            if (codeCompatible && dimOverlap && !targetDetail.isEmpty() && !existingDetail.isEmpty()) {
+                String cleanTarget = normalize(stripLeadingIndex(target.detail()));
+                String cleanExisting = normalize(stripLeadingIndex(existing.detail()));
+                if (!cleanTarget.isEmpty() && !cleanExisting.isEmpty()) {
+                    if (existingDetail.contains(cleanTarget) || targetDetail.contains(cleanExisting)
+                            || cleanExisting.contains(cleanTarget) || cleanTarget.contains(cleanExisting)) {
                         return i;
                     }
-                }
-            }
-
-            // 1. 编号非空且相同
-            if (!targetCode.isEmpty() && targetCode.equalsIgnoreCase(existingCode)) {
-                if (existingDim.equals(targetDim)) {
-                    return i;
-                }
-                // 编号相同但维度表述稍有出入，如果是同一评分项的更完整原文召回，仍判定匹配
-                if (isMoreCompleteRecallOfSameItem(existing, target)
-                        || isMoreCompleteRecallOfSameItem(target, existing)) {
-                    return i;
-                }
-                // 编号相同但维度不同、detail 互不包含的真不同项（如商务项 1 vs 技术项 1）：不匹配，各自保留
-            }
-
-            // 2. 编号至少一方缺失，但维度和细则高度一致
-            if ((targetCode.isEmpty() || existingCode.isEmpty())
-                    && !targetDetail.isEmpty() && targetDetail.equals(existingDetail)) {
-                if (existingDim.equals(targetDim) || targetDim.isEmpty() || existingDim.isEmpty()) {
-                    return i;
                 }
             }
         }
         return -1;
     }
 
+    private static final java.util.regex.Pattern LEADING_INDEX =
+            java.util.regex.Pattern.compile("^(?:[\\d一二三四五六七八九十]+[\\.、\\s\\)]+|[\\(（][\\d一二三四五六七八九十]+[\\)）]\\s*)");
+
+    private static String stripLeadingIndex(String text) {
+        if (text == null) return "";
+        return LEADING_INDEX.matcher(text.trim()).replaceFirst("").trim();
+    }
+
     private boolean isPriceDim(String normalizedDim) {
-        // 词元收敛于 PriceScoringKeywords.PRICE_DIM_TOKENS（单一真相源，防各处硬编码漂移）
         return PriceScoringKeywords.PRICE_DIM_TOKENS.stream().anyMatch(normalizedDim::contains);
     }
 
@@ -107,47 +133,53 @@ public class ScoreItemMergePolicy {
         return dim == null ? "" : dim.trim().replaceAll("\\s+", "");
     }
 
-    /** 把 detail 按行拆开（trim、跳过空行）追加到去重集合 */
+    private static String normalizePunctuation(String s) {
+        return s == null ? "" : s.replaceAll("[\\s\\p{Punct}\\p{IsPunctuation}]+", "");
+    }
+
+    private String normalizeCoreDim(String dim) {
+        if (dim == null) return "";
+        String stripped = BRACKET_CONTENT.matcher(dim).replaceAll("");
+        return normalize(stripped);
+    }
+
+    /** 把 detail 按行拆开（trim、跳过空行）追加到去重集合，标点容错 */
     private static void appendLines(Set<String> sink, String detail) {
-        if (detail == null) {
-            return;
-        }
+        if (detail == null) return;
         for (String line : detail.split("\\R")) {
             String trimmed = line.trim();
-            if (!trimmed.isEmpty()) {
-                sink.add(trimmed);
-            }
+            if (trimmed.isEmpty()) continue;
+            String norm = normalizePunctuation(trimmed);
+            if (sink.stream().noneMatch(s -> normalizePunctuation(s).equals(norm))) sink.add(trimmed);
         }
+    }
+
+    private static boolean isQualitativeScoring(ScoreCandidate c) {
+        return c.dim() != null && (c.dim().contains("质量") || c.dim().contains("合理性") || c.dim().contains("方案"));
     }
 
     /** 以首次出现为基础，补齐后续召回的非空字段（更丰富信息优先）；报价类跨 chunk 细节拼合 */
     private ScoreCandidate enrich(ScoreCandidate base, ScoreCandidate later) {
-        // Phase 1b: 结构化通道候选对 weight/dim 具有权威性（源自 Word XML，非启发式推断）
         boolean baseIsStructured = isStructuredChannel(base);
         boolean laterIsStructured = isStructuredChannel(later);
         BigDecimal mergedWeight = resolveAuthoritativeWeight(base, later, baseIsStructured, laterIsStructured);
         String mergedDim = resolveAuthoritativeDim(base, later, baseIsStructured, laterIsStructured);
 
-        // 报价类跨 chunk 互补：两段 detail 非子串但同属报价项，需拼合而非择一
+        // 报价类跨 chunk 互补：定性评审项（如报价质量）禁止跨 chunk 行级反复追加
         boolean isPriceMerge = isPriceDim(normalize(base.dim())) && isPriceDim(normalize(later.dim()))
+                && !isQualitativeScoring(base) && !isQualitativeScoring(later)
                 && base.detail() != null && later.detail() != null
-                && !normalize(base.detail()).equals(normalize(later.detail()))
-                && !normalize(later.detail()).contains(normalize(base.detail()))
-                && !normalize(base.detail()).contains(normalize(later.detail()));
+                && !normalizePunctuation(base.detail()).equals(normalizePunctuation(later.detail()))
+                && !normalizePunctuation(later.detail()).contains(normalizePunctuation(base.detail()))
+                && !normalizePunctuation(base.detail()).contains(normalizePunctuation(later.detail()));
         if (isPriceMerge) {
-            // 按行去重拼接：chunk 滑窗重叠召回的重复行不重复进入 detail（行级 trim 精确匹配）
             Set<String> seenLines = new LinkedHashSet<>();
             appendLines(seenLines, base.detail());
             appendLines(seenLines, later.detail());
-            // 长度上界：多 chunk 反复拼合不得无界增长（典型报价参数表远低于此限）
             StringBuilder detailBuilder = new StringBuilder();
             for (String line : seenLines) {
-                if (detailBuilder.length() + line.length() + 1 > PRICE_DETAIL_MAX_CHARS) {
-                    break;
-                }
-                if (detailBuilder.length() > 0) {
-                    detailBuilder.append('\n');
-                }
+                if (detailBuilder.length() + line.length() + 1 > PRICE_DETAIL_MAX_CHARS) break;
+                if (detailBuilder.length() > 0) detailBuilder.append('\n');
                 detailBuilder.append(line);
             }
             String mergedDetail = detailBuilder.toString();
@@ -157,48 +189,28 @@ public class ScoreItemMergePolicy {
                     ? base.parentDim() : later.parentDim();
             String mergedDimSource = base.dimSource() != null && !"UNKNOWN".equals(base.dimSource())
                     ? base.dimSource() : later.dimSource();
-            return new ScoreCandidate(
-                    base.code() != null ? base.code() : later.code(),
-                    mergedDim,
-                    mergedDetail,
-                    mergedWeight,
-                    base.scoreTypeGuess() != null ? base.scoreTypeGuess() : later.scoreTypeGuess(),
+            return new ScoreCandidate(base.code() != null ? base.code() : later.code(), mergedDim,
+                    mergedDetail, mergedWeight, base.scoreTypeGuess() != null ? base.scoreTypeGuess() : later.scoreTypeGuess(),
                     later.contextNote() != null ? later.contextNote() : base.contextNote(),
                     mergedSource.trim().isEmpty() ? base.sourceText() : mergedSource.trim(),
                     later.location() != null ? later.location() : base.location(),
                     later.semanticPattern() != null ? later.semanticPattern() : base.semanticPattern(),
-                    mergedParentDim,
-                    mergedDimSource
-            );
+                    mergedParentDim, mergedDimSource);
         }
         boolean laterDetailPreferred = hasSourceBacking(later)
                 && lengthOf(later.detail()) > lengthOf(base.detail());
-        String detail;
-        String sourceText;
-        if (laterDetailPreferred) {
-            detail = later.detail();
-            sourceText = later.sourceText();
-        } else {
-            detail = base.detail() != null ? base.detail() : later.detail();
-            sourceText = base.sourceText() != null ? base.sourceText() : later.sourceText();
-        }
+        String detail = laterDetailPreferred ? later.detail() : (base.detail() != null ? base.detail() : later.detail());
+        String sourceText = laterDetailPreferred ? later.sourceText() : (base.sourceText() != null ? base.sourceText() : later.sourceText());
         String mergedParentDim = base.parentDim() != null && !base.parentDim().isBlank()
                 ? base.parentDim() : later.parentDim();
         String mergedDimSource = base.dimSource() != null && !"UNKNOWN".equals(base.dimSource())
                 ? base.dimSource() : later.dimSource();
-        return new ScoreCandidate(
-                base.code() != null ? base.code() : later.code(),
-                mergedDim,
-                detail,
-                mergedWeight,
-                base.scoreTypeGuess() != null ? base.scoreTypeGuess() : later.scoreTypeGuess(),
+        return new ScoreCandidate(base.code() != null ? base.code() : later.code(), mergedDim,
+                detail, mergedWeight, base.scoreTypeGuess() != null ? base.scoreTypeGuess() : later.scoreTypeGuess(),
                 later.contextNote() != null ? later.contextNote() : base.contextNote(),
-                sourceText,
-                later.location() != null ? later.location() : base.location(),
+                sourceText, later.location() != null ? later.location() : base.location(),
                 later.semanticPattern() != null ? later.semanticPattern() : base.semanticPattern(),
-                mergedParentDim,
-                mergedDimSource
-        );
+                mergedParentDim, mergedDimSource);
     }
 
     private static boolean isStructuredChannel(ScoreCandidate c) {
@@ -214,9 +226,19 @@ public class ScoreItemMergePolicy {
 
     private static String resolveAuthoritativeDim(ScoreCandidate base, ScoreCandidate later,
             boolean baseIsStructured, boolean laterIsStructured) {
-        if (baseIsStructured && base.dim() != null) return base.dim();
-        if (laterIsStructured && later.dim() != null) return later.dim();
-        return base.dim() != null ? base.dim() : later.dim();
+        String baseDim = base.dim();
+        String laterDim = later.dim();
+        if (baseDim == null) return laterDim;
+        if (laterDim == null) return baseDim;
+        boolean baseIsSection = baseDim.matches("^[一二三四五六七八九十]+、.*");
+        boolean laterIsSection = laterDim.matches("^[一二三四五六七八九十]+、.*");
+        if (baseIsSection && !laterIsSection) return laterDim;
+        if (laterIsSection && !baseIsSection) return baseDim;
+        if (baseDim.length() > 25 && laterDim.length() <= 25) return laterDim;
+        if (laterDim.length() > 25 && baseDim.length() <= 25) return baseDim;
+        if (baseIsStructured) return baseDim;
+        if (laterIsStructured) return laterDim;
+        return baseDim;
     }
 
     /**
@@ -240,9 +262,16 @@ public class ScoreItemMergePolicy {
      * 维持"保留首次出现"的丢弃语义。
      */
     private boolean isMoreCompleteRecallOfSameItem(ScoreCandidate base, ScoreCandidate later) {
-        return hasSourceBacking(later)
-                && lengthOf(later.detail()) > lengthOf(base.detail())
-                && normalize(later.detail()).contains(normalize(base.detail()));
+        if (!hasSourceBacking(later)) return false;
+        String baseDetail = normalize(base.detail());
+        String laterDetail = normalize(later.detail());
+        if (baseDetail.equals(laterDetail)) {
+            String baseCore = normalizeCoreDim(base.dim());
+            String laterCore = normalizeCoreDim(later.dim());
+            return baseCore.equals(laterCore) || baseCore.contains(laterCore) || laterCore.contains(baseCore);
+        }
+        return lengthOf(later.detail()) > lengthOf(base.detail())
+                && laterDetail.contains(baseDetail);
     }
 
     private int lengthOf(String text) {
