@@ -86,6 +86,16 @@ public final class ScoreParseConstants {
             "(?:详见|参见|见)[^。\n;；]{0,30}?(?:ZBJ|zbj|电子交易平台|电子招投标系统|评审项目|系统软件|平台页签|采购系统)[^。\n;；]{0,10}?(?:页签|系统|平台|文件|中)"
     );
 
+    /** 中文大写数字章节标题（"一、"、"二、"等，表格行过滤与章节大类仲裁共用） */
+    public static final java.util.regex.Pattern CHINESE_SECTION_HEADING = java.util.regex.Pattern.compile(
+            "^[一二三四五六七八九十]+、.*"
+    );
+
+    /** 括号包裹的内容（中文圆括号/半角圆括号/方括号/六角括号等，用于清洗维度提取核心词） */
+    public static final java.util.regex.Pattern BRACKET_CONTENT_PATTERN = java.util.regex.Pattern.compile(
+            "[（(][^）)]*[）)]|[\\[【][^\\]】]*[\\]】]"
+    );
+
     private ScoreParseConstants() {
     }
 }

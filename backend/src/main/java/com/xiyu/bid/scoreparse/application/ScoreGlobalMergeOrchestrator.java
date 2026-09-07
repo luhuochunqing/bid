@@ -200,7 +200,7 @@ public class ScoreGlobalMergeOrchestrator {
 
     private static String extractCoreDim(String dim) {
         if (dim == null) return "";
-        String s = dim.replaceAll("[（(][^）)]*[）)]|[\\[【][^\\]】]*[\\]】]", "");
+        String s = ScoreParseConstants.BRACKET_CONTENT_PATTERN.matcher(dim).replaceAll("");
         return normalizeText(s);
     }
 
