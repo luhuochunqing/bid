@@ -133,6 +133,23 @@ class WeightOverloadTrimPolicyTest {
     }
 
     @Test
+    void trim_structuredCandidatesWithoutCode_neverTrimmed() {
+        // 结构化表格候选（如 1359 商务表项），即使无 code 且总分超 100，也绝不被剔除
+        ScoreCandidate structured1 = new ScoreCandidate(null, "财务综合评价", "要素",
+                new BigDecimal("50"), null, null, "原文", "P1", "STRUCTURED_TABLE", "商务", "CELL");
+        ScoreCandidate structured2 = new ScoreCandidate(null, "绿色发展规划", "要素",
+                new BigDecimal("60"), null, null, "原文", "P2", "STRUCTURED_TABLE", "商务", "CELL");
+        ScoreCandidate ghost = candidate(null, "10", true); // LLM 幽灵候选
+
+        WeightOverloadTrimPolicy.TrimResult result =
+                policy.trim(List.of(structured1, structured2, ghost), LIMIT);
+
+        // ghost 被剔除，structured1 和 structured2 虽无 code 且合计 110 > 100.5，但作为真实结构项完整保留
+        assertThat(result.remaining()).containsExactly(structured1, structured2);
+        assertThat(result.removed()).containsExactly(ghost);
+    }
+
+    @Test
     void trim_inputNotModified() {
         ScoreCandidate real = candidate("1", "60", true);
         ScoreCandidate ghost = candidate(null, "100", true);

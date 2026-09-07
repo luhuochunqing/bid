@@ -141,4 +141,17 @@ class ScoreCandidatePostProcessorTest {
         // 确保未直接拼接 A3 成为 100 分直接 AUTO_APPROVED
         assertThat(out.decisionStatus()).isNotEqualTo(ScoreParseDecision.AUTO_APPROVED);
     }
+
+    @Test
+    void priceFormulaCandidate_withZeroWeight_notDroppedByFilterInvalidWeights() {
+        ScoreCandidate formulaItem = new ScoreCandidate("", "折扣率评价",
+                "算术平均值法：评审价格得分=100–100×n×|应答人评审价格-基准价|/基准价",
+                BigDecimal.ZERO, "OBJECTIVE", null, "折扣率评价 原文", "table-row-1",
+                "STRUCTURED_TABLE", "报价", "CELL");
+
+        var out = processor.process("t7", "全文", recallOf(List.of(), 0), List.of(formulaItem), NOOP);
+
+        assertThat(out.failMessage()).isNull();
+        assertThat(out.candidates()).containsExactly(formulaItem);
+    }
 }

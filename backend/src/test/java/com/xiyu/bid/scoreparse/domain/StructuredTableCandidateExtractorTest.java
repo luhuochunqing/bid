@@ -361,7 +361,28 @@ class StructuredTableCandidateExtractorTest {
         SidecarTableExtraction extraction = loadExtractionFromResource("/scoreparse-golden/1359_tables_v1.json");
         List<ScoreCandidate> candidates = StructuredTableCandidateExtractor.extract(extraction);
 
-        assertThat(candidates).isNotEmpty();
+        // 验证全量 39 项保全（13 商务 + 25 技术 + 1 报价），零行丢弃
+        assertThat(candidates).hasSize(39);
+
+        // 验证商务 13 项均继承商务父维度
+        assertThat(candidates.subList(0, 13)).allSatisfy(c ->
+                assertThat(c.parentDim()).isNotNull().startsWith("商务"));
+
+        // 验证技术 25 项均继承技术父维度
+        assertThat(candidates.subList(13, 38)).allSatisfy(c ->
+                assertThat(c.parentDim()).isNotNull().startsWith("技术"));
+
+        // 验证报价 1 项继承报价父维度，完整保留公式，分值兜底为 0
+        ScoreCandidate priceItem = candidates.get(38);
+        assertThat(priceItem.dim()).isEqualTo("折扣率评价");
+        assertThat(priceItem.parentDim()).isEqualTo("报价");
+        assertThat(priceItem.detail()).contains("算术平均值法：评审价格得分=100");
+        assertThat(priceItem.weight()).isEqualByComparingTo(BigDecimal.ZERO);
+
+        // 验证无合计汇总行泄漏
+        assertThat(candidates).noneMatch(c -> "合计".equals(c.dim())
+                || (c.detail() != null && c.detail().startsWith("合计")));
+
         // 验证 parentDim 绝无分值列/最高分等污染
         assertThat(candidates).noneMatch(c -> c.parentDim() != null && (c.parentDim().contains("最高分") || c.parentDim().contains("最低分")));
         // 验证真实 1359 提取出供货业绩

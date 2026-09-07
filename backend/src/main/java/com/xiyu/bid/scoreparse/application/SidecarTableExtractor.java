@@ -69,7 +69,8 @@ public class SidecarTableExtractor {
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(sidecarUrl + "/extract-tables"))
                 .timeout(Duration.ofSeconds(extractTimeoutSeconds))
-                .header("Content-Type", "multipart/form-data; boundary=" + boundary);
+                .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                .header("X-Schema-Version", "1.0");
         if (!sharedKey.isBlank()) {
             requestBuilder.header(SidecarMultipart.SIDECAR_KEY_HEADER, sharedKey);
         }

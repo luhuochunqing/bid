@@ -194,8 +194,9 @@ public class ScoreCandidatePostProcessor {
         for (ScoreCandidate candidate : candidates) {
             BigDecimal w = candidate.weight();
             boolean isDeduction = isDeductionItem(candidate);
+            boolean isPriceFormula = isPriceFormulaItem(candidate);
             boolean validWeight = w != null && ((w.compareTo(BigDecimal.ZERO) > 0)
-                    || (w.compareTo(BigDecimal.ZERO) == 0 && isDeduction))
+                    || (w.compareTo(BigDecimal.ZERO) == 0 && (isDeduction || isPriceFormula)))
                     && w.compareTo(MAX_SINGLE_WEIGHT) <= 0;
             if (validWeight) {
                 valid.add(candidate);
@@ -211,5 +212,19 @@ public class ScoreCandidatePostProcessor {
 
     private static boolean isDeductionItem(ScoreCandidate candidate) {
         return DeductionItemPolicy.isDeduction(candidate);
+    }
+
+    private static boolean isPriceFormulaItem(ScoreCandidate candidate) {
+        if (candidate == null) return false;
+        String parentDim = candidate.parentDim();
+        if (parentDim != null && (parentDim.contains("报价") || parentDim.contains("价格"))) {
+            return true;
+        }
+        String dim = candidate.dim();
+        if (dim != null && (dim.contains("折扣率") || dim.contains("报价") || dim.contains("价格得分") || dim.contains("基准价"))) {
+            return true;
+        }
+        String detail = candidate.detail();
+        return detail != null && (detail.contains("算术平均值") || detail.contains("评审价格得分") || detail.contains("加权折扣率"));
     }
 }

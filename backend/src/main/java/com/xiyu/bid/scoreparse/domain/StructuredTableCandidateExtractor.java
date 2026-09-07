@@ -45,6 +45,7 @@ public final class StructuredTableCandidateExtractor {
         List<List<SidecarTableExtraction.CellPayload>> rows = table.rows();
         if (rows == null || rows.isEmpty()) return candidates;
 
+        String sectionDim = inferSectionDimension(rows);
         String[] colParentDim = new String[MAX_PARENT_DIM_COLS];
         int[] colRemainingRowspan = new int[MAX_PARENT_DIM_COLS];
         for (int r = 0; r < rows.size(); r++) {
@@ -65,7 +66,7 @@ public final class StructuredTableCandidateExtractor {
                 }
             }
             List<SidecarTableExtraction.CellPayload> visibleCells = visibleCells(row);
-            if (visibleCells.isEmpty() || isHeaderRow(visibleCells, r)) {
+            if (visibleCells.isEmpty() || isHeaderRow(visibleCells, r) || isSummaryRow(visibleCells)) {
                 decrementRemaining(colRemainingRowspan, colParentDim);
                 continue;
             }
@@ -81,10 +82,41 @@ public final class StructuredTableCandidateExtractor {
             }
             decrementRemaining(colRemainingRowspan, colParentDim);
 
-            ScoreCandidate candidate = parseRow(visibleCells, r, activeParents);
+            ScoreCandidate candidate = parseRow(visibleCells, r, activeParents, sectionDim);
             if (candidate != null) candidates.add(candidate);
         }
         return candidates;
+    }
+
+    private static boolean isSummaryRow(List<SidecarTableExtraction.CellPayload> cells) {
+        if (cells == null || cells.isEmpty()) return false;
+        String first = cells.get(0).text().trim();
+        return first.startsWith("合计") || first.startsWith("总计") || first.startsWith("汇总")
+                || first.equals("总分") || first.equals("小计");
+    }
+
+    private static String inferSectionDimension(List<List<SidecarTableExtraction.CellPayload>> rows) {
+        if (rows == null || rows.isEmpty()) return null;
+        StringBuilder sb = new StringBuilder();
+        int limit = Math.min(rows.size(), 15);
+        for (int i = 0; i < limit; i++) {
+            for (SidecarTableExtraction.CellPayload c : rows.get(i)) sb.append(c.text()).append(' ');
+        }
+        String text = sb.toString();
+        boolean hasPrice = (text.contains("价格评审") || text.contains("折扣率") || text.contains("评审价格") || text.contains("基准价"))
+                && (text.contains("公式") || text.contains("算术平均") || text.contains("价格得分"));
+        boolean hasBiz = text.contains("商务评审") || text.contains("商务评分") || text.contains("商务应答") || (text.contains("财务状况") && text.contains("信用评价"));
+        boolean hasTech = text.contains("技术评审") || text.contains("技术评分") || text.contains("技术应答") || text.contains("对接方案") || (text.contains("供货业绩") && text.contains("配送能力"));
+        if (hasPrice && !hasBiz && !hasTech) return "报价";
+        if (hasBiz && !hasTech) return "商务";
+        if (hasTech && !hasBiz) return "技术";
+        return null;
+    }
+
+    private static boolean isPriceFormula(List<String> texts) {
+        String all = String.join(" ", texts);
+        return (all.contains("折扣率") || all.contains("基准价") || all.contains("价格得分") || all.contains("评审价格") || all.contains("报价得分"))
+                && (all.contains("公式") || all.contains("算术平均") || all.contains("得分=") || all.contains("得分 =") || all.contains("计算") || all.contains("评价"));
     }
 
     private static List<String> extractMergedParents(List<SidecarTableExtraction.CellPayload> fullRow) {
@@ -127,7 +159,7 @@ public final class StructuredTableCandidateExtractor {
     }
 
     private static ScoreCandidate parseRow(List<SidecarTableExtraction.CellPayload> cells,
-            int rowIndex, List<String> activeParents) {
+            int rowIndex, List<String> activeParents, String sectionDim) {
         List<String> texts = cells.stream().map(SidecarTableExtraction.CellPayload::text).toList();
         String code = extractCode(texts);
         BracketWeightResult bracketResult = extractBracketWeight(texts);
@@ -153,6 +185,9 @@ public final class StructuredTableCandidateExtractor {
         }
         if (weight == null) weight = extractPureWeight(texts, code);
         if (weight == null) weight = gradeScore;
+        if (weight == null && isPriceFormula(texts)) {
+            weight = BigDecimal.ZERO;
+        }
         if (weight == null) return null;
 
         String parentDim = null;
@@ -160,6 +195,14 @@ public final class StructuredTableCandidateExtractor {
             final String finalDim = dim;
             List<String> outer = activeParents.stream().filter(p -> finalDim == null || !p.equals(finalDim)).toList();
             if (!outer.isEmpty()) parentDim = String.join(" / ", outer);
+        }
+        if (sectionDim != null && !sectionDim.isBlank()) {
+            if (parentDim == null) {
+                parentDim = sectionDim; // 独立分表（1359商务/技术/报价），无跨行父维度
+            } else if (!parentDim.contains("商务") && !parentDim.contains("技术")
+                    && !parentDim.contains("报价") && !parentDim.contains("价格")) {
+                parentDim = sectionDim + " / " + parentDim; // 前缀章节大类；含大类关键词时不重复注入
+            }
         }
 
         String sourceText = cells.stream().map(c -> c.text().trim())

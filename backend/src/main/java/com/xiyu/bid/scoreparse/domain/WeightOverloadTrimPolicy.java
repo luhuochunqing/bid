@@ -36,9 +36,18 @@ public class WeightOverloadTrimPolicy {
         if (sumWeights(remaining).compareTo(limit) <= 0) {
             return new TrimResult(remaining, removed);
         }
-        trimByPredicate(remaining, removed, limit, candidate -> isBlank(candidate.code()));
-        trimByPredicate(remaining, removed, limit, candidate -> isBlank(candidate.sourceText()));
+        trimByPredicate(remaining, removed, limit, candidate -> !isProtectedRealItem(candidate) && isBlank(candidate.code()));
+        trimByPredicate(remaining, removed, limit, candidate -> !isProtectedRealItem(candidate) && isBlank(candidate.sourceText()));
         return new TrimResult(remaining, removed);
+    }
+
+    private boolean isProtectedRealItem(ScoreCandidate candidate) {
+        // hasParentDim: 结构化表格路径赋予 parentDim 的真实项（1359 商务/技术表）
+        // dimSource: 非 UNKNOWN 表示来源明确（CELL/TITLE/PARENT_SINGLE）；
+        //   legacy 9-arg 构造器固定传 "UNKNOWN"，正常路径 dimSource != null，
+        //   显式加 != null 防止日后扩展引入 null 时逻辑退化（!"UNKNOWN".equals(null)=true 会误保护）
+        return candidate.hasParentDim()
+                || (candidate.dimSource() != null && !"UNKNOWN".equals(candidate.dimSource()));
     }
 
     private void trimByPredicate(List<ScoreCandidate> remaining, List<ScoreCandidate> removed,
