@@ -126,10 +126,12 @@ public class ScoreGlobalMergeOrchestrator {
                     .map(ScoreGlobalMergeOrchestrator::makeDeduplicationKey)
                     .filter(k -> !k.equals("|"))
                     .collect(java.util.stream.Collectors.toSet());
+            final List<ScoreCandidate> currentAccepted = accepted;
             List<ScoreCandidate> restored = structuredTableCandidates.stream()
                     .filter(c -> {
                         String key = makeDeduplicationKey(c);
-                        return !key.equals("|") && !acceptedKeys.contains(key);
+                        if (key.equals("|") || acceptedKeys.contains(key)) return false;
+                        return !isCoveredByAccepted(c, currentAccepted);
                     })
                     .toList();
             if (!restored.isEmpty()) {
@@ -196,12 +198,38 @@ public class ScoreGlobalMergeOrchestrator {
         return text == null ? "" : text.replaceAll("\\s+", "");
     }
 
+    private static String extractCoreDim(String dim) {
+        if (dim == null) return "";
+        String s = dim.replaceAll("[（(][^）)]*[）)]|[\\[【][^\\]】]*[\\]】]", "");
+        return normalizeText(s);
+    }
+
     private static String makeDeduplicationKey(ScoreCandidate c) {
         if (c == null) return "|";
-        String dim = c.dim() == null ? "" : normalizeText(c.dim());
+        String dim = c.dim() == null ? "" : extractCoreDim(c.dim());
         String detail = c.detail() == null ? "" : normalizeText(c.detail());
         String shortDetail = detail.length() > 50 ? detail.substring(0, 50) : detail;
         return dim + "|" + shortDetail;
+    }
+
+    private static boolean isCoveredByAccepted(ScoreCandidate structCandidate, List<ScoreCandidate> accepted) {
+        if (structCandidate == null || structCandidate.detail() == null || structCandidate.detail().isBlank()) {
+            return false;
+        }
+        String structDetail = normalizeText(structCandidate.detail());
+        String structCoreDim = extractCoreDim(structCandidate.dim());
+
+        for (ScoreCandidate acc : accepted) {
+            if (acc == null || acc.detail() == null) continue;
+            String accDetail = normalizeText(acc.detail());
+            String accCoreDim = extractCoreDim(acc.dim());
+
+            if (structDetail.equals(accDetail)) return true;
+            if (!structCoreDim.isEmpty() && structCoreDim.equals(accCoreDim)) {
+                if (accDetail.contains(structDetail) || structDetail.contains(accDetail)) return true;
+            }
+        }
+        return false;
     }
 
     /**

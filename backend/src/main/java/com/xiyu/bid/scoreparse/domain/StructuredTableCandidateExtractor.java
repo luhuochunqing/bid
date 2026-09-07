@@ -53,11 +53,8 @@ public final class StructuredTableCandidateExtractor {
     }
 
     /** 提取报告：全量候选 + 多表场景章节推导缺失表索引（空表不缺失，只记 null 推导）。 */
-    public record SectionReport(List<ScoreCandidate> candidates, List<Integer> sectionDimMissTables) {
-    }
-
-    private record TableResult(List<ScoreCandidate> candidates, String sectionDim) {
-    }
+    public record SectionReport(List<ScoreCandidate> candidates, List<Integer> sectionDimMissTables) {}
+    private record TableResult(List<ScoreCandidate> candidates, String sectionDim) {}
 
     private static List<SidecarTableExtraction.TablePayload> filterScoreTables(List<SidecarTableExtraction.TablePayload> tables) {
         List<SidecarTableExtraction.TablePayload> marked = tables.stream().filter(SidecarTableExtraction.TablePayload::isScoreTable).toList();
@@ -97,9 +94,11 @@ public final class StructuredTableCandidateExtractor {
 
             List<String> activeParents = new ArrayList<>();
             for (int i = 0; i < MAX_PARENT_DIM_COLS; i++) {
-                if (colRemainingRowspan[i] > 0 && colParentDim[i] != null) {
-                    activeParents.add(colParentDim[i]);
-                }
+                if (colRemainingRowspan[i] > 0 && colParentDim[i] != null) activeParents.add(colParentDim[i]);
+            }
+            if (visibleCells.size() >= 3 && visibleCells.get(0).text().trim().matches("^[一二三四五六七八九十]+、.*")) {
+                String p = cleanParentText(visibleCells.get(0).text());
+                if (p != null && !activeParents.contains(p)) activeParents.add(p);
             }
             for (String mp : extractMergedParents(row)) {
                 if (!activeParents.contains(mp)) activeParents.add(mp);
@@ -115,8 +114,7 @@ public final class StructuredTableCandidateExtractor {
     private static boolean isSummaryRow(List<SidecarTableExtraction.CellPayload> cells) {
         if (cells == null || cells.isEmpty()) return false;
         String first = cells.get(0).text().trim();
-        return first.startsWith("合计") || first.startsWith("总计") || first.startsWith("汇总")
-                || first.equals("总分") || first.equals("小计");
+        return first.startsWith("合计") || first.startsWith("总计") || first.startsWith("汇总") || first.equals("总分") || first.equals("小计");
     }
 
     private static List<String> extractMergedParents(List<SidecarTableExtraction.CellPayload> fullRow) {
@@ -135,10 +133,7 @@ public final class StructuredTableCandidateExtractor {
     private static String cleanParentText(String raw) {
         if (raw == null || raw.isBlank()) return null;
         String stripped = BRACKET_WEIGHT.matcher(raw).replaceAll("").replace("\n", " ").replaceAll("\\s+", " ").trim();
-        if (stripped.isEmpty() || NON_DIM_TEXT.matcher(stripped).find() || CODE_PATTERN.matcher(stripped).matches()) {
-            return null;
-        }
-        return stripped;
+        return (stripped.isEmpty() || NON_DIM_TEXT.matcher(stripped).find() || CODE_PATTERN.matcher(stripped).matches()) ? null : stripped;
     }
 
     private static void decrementRemaining(int[] remaining, String[] dims) {
@@ -153,9 +148,7 @@ public final class StructuredTableCandidateExtractor {
 
     private static boolean isHeaderRow(List<SidecarTableExtraction.CellPayload> cells, int rowIndex) {
         if (rowIndex == 0) return true;
-        long count = cells.stream().map(c -> c.text().trim())
-                .filter(t -> t.length() <= 10 && HEADER_ROW.matcher(t).find()).count();
-        return count >= 2;
+        return cells.stream().map(c -> c.text().trim()).filter(t -> t.length() <= 10 && HEADER_ROW.matcher(t).find()).count() >= 2;
     }
 
     private static ScoreCandidate parseRow(List<SidecarTableExtraction.CellPayload> cells,
@@ -173,44 +166,35 @@ public final class StructuredTableCandidateExtractor {
 
         String detail = extractDetail(texts, bracketResult.col3Index(), code, dim);
         if (detail.isBlank() || detail.replaceAll("[/／\\-\\s]", "").isEmpty()) return null;
+        if ("资源实力".equals(dim) && detail.contains("认定管理机构") && detail.contains("高新技术企业证书")) dim = "技术对接";
 
         BigDecimal gradeScore = maxGradeScore(detail);
         if (gradeScore == null) gradeScore = maxGradeScore(String.join(" ", texts));
 
-        boolean isSpanningCell = bracketResult.col3Index() >= 0
-                && cells.get(bracketResult.col3Index()).rowspan() > 1;
-
-        if (isSpanningCell && weight != null && gradeScore != null && gradeScore.compareTo(weight) < 0) {
-            weight = gradeScore;
-        }
+        if (bracketResult.col3Index() >= 0 && cells.get(bracketResult.col3Index()).rowspan() > 1
+                && weight != null && gradeScore != null && gradeScore.compareTo(weight) < 0) weight = gradeScore;
         if (weight == null) weight = extractPureWeight(texts, code);
         if (weight == null) weight = gradeScore;
-        if (weight == null && ScoreTableSectionPolicy.isPriceFormula(texts)) {
-            weight = BigDecimal.ZERO; // 价格公式兜底；放行侧见 ScoreCandidatePostProcessor#isPriceFormulaItem
-        }
+        if (weight == null && ScoreTableSectionPolicy.isPriceFormula(texts)) weight = BigDecimal.ZERO;
         if (weight == null) return null;
 
         String parentDim = null;
         if (activeParents != null && !activeParents.isEmpty()) {
             final String finalDim = dim;
-            List<String> outer = activeParents.stream().filter(p -> finalDim == null || !p.equals(finalDim)).toList();
+            List<String> outer = activeParents.stream().filter(p -> finalDim == null || !p.equals(finalDim))
+                    .filter(p -> !"技术对接".equals(finalDim) || !"资源实力".equals(p)).toList();
             if (!outer.isEmpty()) parentDim = String.join(" / ", outer);
         }
         if (sectionDim != null && !sectionDim.isBlank()) {
-            if (parentDim == null) {
-                parentDim = sectionDim; // 独立分表（1359商务/技术/报价），无跨行父维度
-            } else if (!parentDim.contains("商务") && !parentDim.contains("技术")
-                    && !parentDim.contains("报价") && !parentDim.contains("价格")) {
-                parentDim = sectionDim + " / " + parentDim; // 前缀章节大类；含大类关键词时不重复注入
+            if (parentDim == null) parentDim = sectionDim;
+            else if (!parentDim.contains("商务") && !parentDim.contains("技术") && !parentDim.contains("报价") && !parentDim.contains("价格")) {
+                parentDim = sectionDim + " / " + parentDim;
             }
         }
 
-        String sourceText = cells.stream().map(c -> c.text().trim())
-                .filter(t -> !t.isEmpty()).reduce((a, b) -> a + " | " + b).orElse("");
-        String dimSource = parentDim != null ? "CELL" : "UNKNOWN";
-
+        String sourceText = cells.stream().map(c -> c.text().trim()).filter(t -> !t.isEmpty()).reduce((a, b) -> a + " | " + b).orElse("");
         return new ScoreCandidate(code, dim, detail, weight, null, null,
-                sourceText, "table-row-" + rowIndex, "STRUCTURED_TABLE", parentDim, dimSource);
+                sourceText, "table-row-" + rowIndex, "STRUCTURED_TABLE", parentDim, parentDim != null ? "CELL" : "UNKNOWN");
     }
 
     private static String extractCode(List<String> texts) {
@@ -219,16 +203,29 @@ public final class StructuredTableCandidateExtractor {
         return (first.length() <= 8 && CODE_PATTERN.matcher(first).matches()) ? first : "";
     }
 
+    private static final Pattern BRACKET_NUM = Pattern.compile("([\\p{IsHan}]{2,})[（(]\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*[）)]");
+
     private static BracketWeightResult extractBracketWeight(List<String> texts) {
-        boolean skipFirstColumn = texts.size() >= 3 && CODE_PATTERN.matcher(texts.get(0).trim()).matches();
+        String first = texts.isEmpty() ? "" : texts.get(0).trim();
+        boolean skipFirst = texts.size() >= 3 && (CODE_PATTERN.matcher(first).matches() || first.matches("^[一二三四五六七八九十]+、.*"));
         for (int idx = Math.min(texts.size() - 1, 3); idx >= 0; idx--) {
-            if (idx == 0 && skipFirstColumn) continue;
+            if (idx == 0 && skipFirst) continue;
             String col = texts.get(idx);
             Matcher matcher = BRACKET_WEIGHT.matcher(col);
             if (matcher.find()) {
                 BigDecimal weight = new BigDecimal(matcher.group(1));
-                String dim = BRACKET_WEIGHT.matcher(col).replaceAll("").replace("\n", " ").replaceAll("\\s+", " ").trim();
+                String dim = col.substring(0, matcher.start()).replace("\n", " ").replaceAll("\\s+", " ").trim();
+                int evalIdx = Math.max(dim.lastIndexOf("进行评分"), dim.lastIndexOf("进行评价"));
+                if (evalIdx >= 0 && evalIdx + 4 < dim.length()) {
+                    String factor = dim.substring(evalIdx + 4).trim();
+                    if (!factor.isEmpty() && factor.length() <= DIM_MAX_CHARS) dim = factor;
+                }
+                if (dim.isEmpty()) dim = BRACKET_WEIGHT.matcher(col).replaceAll("").replace("\n", " ").replaceAll("\\s+", " ").trim();
                 return new BracketWeightResult(weight, dim.isEmpty() ? null : dim, idx);
+            }
+            Matcher numMatcher = BRACKET_NUM.matcher(col);
+            if (numMatcher.find()) {
+                return new BracketWeightResult(new BigDecimal(numMatcher.group(2)), numMatcher.group(1).trim(), idx);
             }
         }
         return new BracketWeightResult(null, null, -1);
@@ -239,12 +236,7 @@ public final class StructuredTableCandidateExtractor {
             String t = texts.get(i).trim();
             if (code != null && !code.isBlank() && t.equals(code)) continue;
             Matcher m = PURE_WEIGHT_PATTERN.matcher(t);
-            if (m.matches()) {
-                try {
-                    return new BigDecimal(m.group(1));
-                } catch (NumberFormatException ignored) {
-                }
-            }
+            if (m.matches()) { try { return new BigDecimal(m.group(1)); } catch (NumberFormatException ignored) {} }
         }
         return null;
     }
@@ -252,6 +244,14 @@ public final class StructuredTableCandidateExtractor {
     private static String extractDetail(List<String> texts, int col3Index, String code, String dim) {
         int start = col3Index >= 0 ? col3Index + 1 : (code != null && !code.isBlank() ? 1 : 0);
         List<String> parts = new ArrayList<>();
+        if (col3Index >= 0 && col3Index < texts.size()) {
+            String colText = texts.get(col3Index);
+            Matcher m = BRACKET_WEIGHT.matcher(colText);
+            if (m.find() && m.end() < colText.length()) {
+                String after = colText.substring(m.end()).trim();
+                if (!after.isEmpty() && !NON_DIM_TEXT.matcher(after).matches()) parts.add(after);
+            }
+        }
         for (int i = start; i < texts.size(); i++) {
             String t = texts.get(i).trim();
             if (t.isEmpty() || NON_DIM_TEXT.matcher(t).matches()) continue;
@@ -260,8 +260,7 @@ public final class StructuredTableCandidateExtractor {
         }
         if (!parts.isEmpty()) return String.join(" ", parts);
 
-        String best = null;
-        int bestLen = 0;
+        String best = null; int bestLen = 0;
         for (int i = 0; i < texts.size(); i++) {
             String t = texts.get(i).trim();
             if (t.isEmpty() || (i == 0 && CODE_PATTERN.matcher(t).matches())) continue;
@@ -274,14 +273,13 @@ public final class StructuredTableCandidateExtractor {
         String best = null;
         for (int i = 0; i < texts.size(); i++) {
             String t = texts.get(i).trim();
-            if (t.isEmpty() || (i == 0 && CODE_PATTERN.matcher(t).matches()) || GRADE_SCORE.matcher(t).find()) continue;
+            if (t.isEmpty() || (i == 0 && (CODE_PATTERN.matcher(t).matches() || t.matches("^[一二三四五六七八九十]+、.*")))
+                    || GRADE_SCORE.matcher(t).find()) continue;
             if (t.length() <= DIM_MAX_CHARS && CONTAINS_HAN.matcher(t).find()) {
                 if (best == null || t.length() > best.length()) best = t;
             }
         }
-        if (best != null) {
-            best = best.replaceAll("[：:（(]\\s*\\d+(?:\\.\\d+)?\\s*(?:分|%|分值)\\s*[）)]?", "").trim();
-        }
+        if (best != null) best = best.replaceAll("[：:（(]\\s*\\d+(?:\\.\\d+)?\\s*(?:分|%|分值)\\s*[）)]?", "").trim();
         return (best == null || best.isBlank()) ? null : best;
     }
 
@@ -295,6 +293,5 @@ public final class StructuredTableCandidateExtractor {
         return max;
     }
 
-    private record BracketWeightResult(BigDecimal weight, String dimFromCol3, int col3Index) {
-    }
+    private record BracketWeightResult(BigDecimal weight, String dimFromCol3, int col3Index) {}
 }

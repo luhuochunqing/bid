@@ -242,4 +242,97 @@ class ScoreItemMergePolicyTest {
         assertThat(merged.get(0).dimSource()).isEqualTo("PARENT_SINGLE");
         assertThat(merged.get(0).isParentOnlyDim()).isTrue();
     }
+
+    @Test
+    void merge_sameDetailDifferentDimBrackets_mergedToOne() {
+        // 真实场景：同一条款在两路召回中 detail 完全相同，但一路带子项/分值括号（财务状况及抗风险能力（经营活动现金流量净额） vs 财务状况及抗风险能力）
+        String auditDetail = "提供2023-2025年度经会计事务所或审计机构出具的审计报告。1、审计意见得4分；2、现金流得3分；3、净资产收益率得3分。";
+        ScoreCandidate tableCandidate = new ScoreCandidate("3.3(1)", "财务状况及抗风险能力", auditDetail,
+                new BigDecimal("10"), "OBJECTIVE", null, auditDetail, "P1", "STRUCTURED_TABLE");
+        ScoreCandidate llmCandidate = new ScoreCandidate("3.3(1)", "财务状况及抗风险能力（经营活动现金流量净额）", auditDetail,
+                new BigDecimal("3"), "OBJECTIVE", null, auditDetail, "P1", "LLM");
+
+        List<ScoreCandidate> merged = policy.merge(List.of(tableCandidate, llmCandidate));
+        assertThat(merged).hasSize(1);
+        // 优先保留结构化表格的权威维度与权威权重 10 分
+        assertThat(merged.get(0).dim()).isEqualTo("财务状况及抗风险能力");
+        assertThat(merged.get(0).weight()).isEqualByComparingTo("10");
+    }
+
+    @Test
+    void merge_sameDetailOneHasNoCode_mergedToOne() {
+        // 真实场景：技术对接成熟案例细则完全相同，一路有编号 3.3(2)，一路无编号，核心维度一致
+        String techDetail = "1.根据投标人与央国企能源领域电商平台已完成对接的成熟案例进行评分。对接模式应采用 API方式。";
+        ScoreCandidate tableCandidate = new ScoreCandidate(null, "技术对接", techDetail,
+                new BigDecimal("5"), "OBJECTIVE", null, techDetail, "P2", "STRUCTURED_TABLE");
+        ScoreCandidate llmCandidate = new ScoreCandidate("3.3(2)", "技术对接（团队实施机制）", techDetail,
+                new BigDecimal("1"), "SUBJECTIVE", null, techDetail, "P2", "LLM");
+
+        List<ScoreCandidate> merged = policy.merge(List.of(tableCandidate, llmCandidate));
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).weight()).isEqualByComparingTo("5");
+    }
+
+    @Test
+    void merge_subItemDetailContainedInCompleteItem_absorbed() {
+        // 真实场景：大项包含 1、2、3、4 点细则，某路召回仅提取了第 1 点碎片细则，同属运营能力，应被吸收合并
+        String fullDetail = "投标人须提供自营电子商城运营方案及业绩。平台运营年限满5年得5分；（提供电子商城平台运行时间相关证明材料）2. 商品SKU数量排序最高得5分；3. 注册用户数量排序得5分；4. 总成交量排序得5分。";
+        String fragmentDetail = "1. 平台运营年限满5年得5分；（提供电子商城平台运行时间相关证明材料）";
+        ScoreCandidate fullCandidate = new ScoreCandidate(null, "运营能力及业绩", fullDetail,
+                new BigDecimal("20"), "OBJECTIVE", null, fullDetail, "P3", "STRUCTURED_TABLE");
+        ScoreCandidate fragmentCandidate = new ScoreCandidate("3.3(1)", "运营能力及业绩（平台运营年限）", fragmentDetail,
+                new BigDecimal("5"), "OBJECTIVE", null, fragmentDetail, "P3", "LLM");
+
+        List<ScoreCandidate> merged = policy.merge(List.of(fullCandidate, fragmentCandidate));
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).dim()).isEqualTo("运营能力及业绩");
+        assertThat(merged.get(0).weight()).isEqualByComparingTo("20");
+        assertThat(merged.get(0).detail()).isEqualTo(fullDetail);
+    }
+
+    @Test
+    void merge_sectionHeadingAndConciseFactor_deduplicatedAndPrefersConciseFactor() {
+        // 真实 1359 场景：一路由表格按大类提取为"二、财务状况（25分）"，一路由大模型精炼为"财务综合评价"，细则相同
+        String detail = "根据所提供的企业纳税等级资格、最近一期企业所得税申报表、近年经审计的的财务报表（资产负债表、现金流量表、损益表等）对应答人的资产规模、营业收入、盈利能力、偿债能力等方面进行综合评审，由高到低分三档，优、良、一般。优：25-23分；良：22-19分；一般：18-15分。";
+        ScoreCandidate tableCandidate = new ScoreCandidate(null, "二、财务状况（25分）", detail,
+                new BigDecimal("25"), "OBJECTIVE", null, detail, "P1", "STRUCTURED_TABLE");
+        ScoreCandidate llmCandidate = new ScoreCandidate(null, "财务综合评价", detail,
+                new BigDecimal("25"), "OBJECTIVE", null, detail, "P1", "LLM");
+
+        List<ScoreCandidate> merged = policy.merge(List.of(tableCandidate, llmCandidate));
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).dim()).isEqualTo("财务综合评价");
+        assertThat(merged.get(0).weight()).isEqualByComparingTo("25");
+    }
+
+    @Test
+    void merge_priceQualityPunctuationDifference_notDuplicated() {
+        // 真实 1359 场景：报价质量属定性评分，两路召回细则仅标点微调（.15分 vs 。15分），禁止跨 chunk 反复拼接重复段落
+        String detail1 = "对应答报价完整性、合理性进行评审。优：按照采购文件要求进行报价，且报价完整、合理、清晰情况优良.15分。良：按照采购文件要求进行报价，且报价完整、合理、清晰情况较好。12-14分。一般：未按照采购文件要求进行报价，或报价完整、合理、清晰情况一般。9-11分。";
+        String detail2 = "对应答报价完整性、合理性进行评审。优：按照采购文件要求进行报价，且报价完整、合理、清晰情况优良。15分。良：按照采购文件要求进行报价，且报价完整、合理、清晰情况较好。12-14分。一般：未按照采购文件要求进行报价，或报价完整、合理、清晰情况一般。9-11分。";
+        ScoreCandidate base = new ScoreCandidate("S5", "报价质量（15分）", detail1,
+                new BigDecimal("15"), "SUBJECTIVE", null, detail1, "P1", "STRUCTURED_TABLE");
+        ScoreCandidate later = new ScoreCandidate("S5", "报价质量", detail2,
+                new BigDecimal("15"), "SUBJECTIVE", null, detail2, "P1", "LLM");
+
+        List<ScoreCandidate> merged = policy.merge(List.of(base, later));
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).detail()).doesNotContain("\n");
+        assertThat(merged.get(0).detail()).isEqualTo(detail1);
+    }
+
+    @Test
+    void merge_verboseDimAndConciseDim_deduplicatedAndPrefersConciseDim() {
+        // 真实 1359 场景：表格未完全剥离句子前缀（如"根据应答人自有物流配送车辆数量进行评分自有物流配送车辆数量"），与精炼项合并
+        String detail = "优秀得2分；一般及以下得1分";
+        ScoreCandidate verbose = new ScoreCandidate(null, "根据应答人自有物流配送车辆数量进行评分自有物流配送车辆数量", detail,
+                new BigDecimal("2"), "OBJECTIVE", null, detail, "P2", "STRUCTURED_TABLE");
+        ScoreCandidate concise = new ScoreCandidate(null, "自有物流配送车辆数量", detail,
+                new BigDecimal("2"), "OBJECTIVE", null, detail, "P2", "LLM");
+
+        List<ScoreCandidate> merged = policy.merge(List.of(verbose, concise));
+        assertThat(merged).hasSize(1);
+        assertThat(merged.get(0).dim()).isEqualTo("自有物流配送车辆数量");
+        assertThat(merged.get(0).weight()).isEqualByComparingTo("2");
+    }
 }

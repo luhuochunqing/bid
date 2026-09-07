@@ -218,25 +218,31 @@ public final class ScoreMergeResultGuard {
             boolean detailMatch = !normCandDetail.isEmpty()
                     && (normCandDetail.contains(normItemDetail) || normItemDetail.contains(normCandDetail));
             if (detailMatch) {
+                String parentDim = (best.parentDim() != null && !best.parentDim().isBlank())
+                        ? best.parentDim() : cand.parentDim();
+                String dimSource = (best.dimSource() != null && !"UNKNOWN".equals(best.dimSource()))
+                        ? best.dimSource() : cand.dimSource();
+                String code = (best.code() != null && !best.code().isBlank())
+                        ? best.code() : cand.code();
+                String sourceText = (best.sourceText() != null && !best.sourceText().isBlank())
+                        ? best.sourceText() : cand.sourceText();
+                BigDecimal weight = best.weight() != null ? best.weight() : cand.weight();
+
                 if (cand.detail().length() > maxLen) {
                     maxLen = cand.detail().length();
-                    String parentDim = cand.parentDim() != null && !cand.parentDim().isBlank()
-                            ? cand.parentDim() : item.parentDim();
-                    String dimSource = cand.dimSource() != null && !"UNKNOWN".equals(cand.dimSource())
-                            ? cand.dimSource() : item.dimSource();
-                    best = new ScoreCandidate(
-                            item.code() != null && !item.code().isBlank() ? item.code() : cand.code(),
-                            item.dim() != null && !item.dim().isBlank() ? item.dim() : cand.dim(),
-                            cand.detail(),
-                            item.weight() != null ? item.weight() : cand.weight(),
-                            item.scoreTypeGuess() != null ? item.scoreTypeGuess() : cand.scoreTypeGuess(),
-                            item.contextNote() != null ? item.contextNote() : cand.contextNote(),
-                            cand.sourceText() != null && !cand.sourceText().isBlank() ? cand.sourceText() : item.sourceText(),
-                            cand.location() != null && !cand.location().isBlank() ? cand.location() : item.location(),
-                            item.semanticPattern(),
-                            parentDim,
-                            dimSource
-                    );
+                    best = new ScoreCandidate(code,
+                            best.dim() != null && !best.dim().isBlank() ? best.dim() : cand.dim(),
+                            cand.detail(), weight,
+                            best.scoreTypeGuess() != null ? best.scoreTypeGuess() : cand.scoreTypeGuess(),
+                            best.contextNote() != null ? best.contextNote() : cand.contextNote(),
+                            cand.sourceText() != null && !cand.sourceText().isBlank() ? cand.sourceText() : sourceText,
+                            cand.location() != null && !cand.location().isBlank() ? cand.location() : best.location(),
+                            best.semanticPattern(), parentDim, dimSource);
+                } else if (((best.parentDim() == null || best.parentDim().isBlank()) && parentDim != null)
+                        || ("UNKNOWN".equals(best.dimSource()) && !"UNKNOWN".equals(dimSource))) {
+                    best = new ScoreCandidate(code, best.dim(), best.detail(), weight,
+                            best.scoreTypeGuess(), best.contextNote(), sourceText,
+                            best.location(), best.semanticPattern(), parentDim, dimSource);
                 }
             }
         }

@@ -387,6 +387,23 @@ class StructuredTableCandidateExtractorTest {
         assertThat(candidates).noneMatch(c -> c.parentDim() != null && (c.parentDim().contains("最高分") || c.parentDim().contains("最低分")));
         // 验证真实 1359 提取出供货业绩
         assertThat(candidates).anyMatch(c -> (c.dim() != null && c.dim().contains("供货业绩")) || (c.detail() != null && c.detail().contains("供货业绩")));
+
+        // 验证财务综合评价精炼提取：dim 为财务综合评价而非大类标题，分值 25，父维度包含财务状况
+        assertThat(candidates).anyMatch(c -> "财务综合评价".equals(c.dim())
+                && c.weight() != null && c.weight().compareTo(new BigDecimal("25")) == 0
+                && c.parentDim() != null && c.parentDim().contains("财务状况"));
+
+        // 验证自有物流配送车辆数量与自有配送人员数量精炼提取（剔除冗余评分前缀）
+        assertThat(candidates).anyMatch(c -> "自有物流配送车辆数量".equals(c.dim())
+                && c.weight() != null && c.weight().compareTo(new BigDecimal("2")) == 0);
+        assertThat(candidates).anyMatch(c -> c.dim() != null && c.dim().contains("配送人员数量")
+                && c.weight() != null && c.weight().compareTo(new BigDecimal("2")) == 0);
+
+        // 验证品牌丰富度 (4分) 与个性化需求响应度 (3分) 完整保全
+        assertThat(candidates).anyMatch(c -> "品牌丰富度".equals(c.dim())
+                && c.weight() != null && c.weight().compareTo(new BigDecimal("4")) == 0);
+        assertThat(candidates).anyMatch(c -> "个性化需求响应度".equals(c.dim())
+                && c.weight() != null && c.weight().compareTo(new BigDecimal("3")) == 0);
     }
 
     @Test
@@ -405,11 +422,20 @@ class StructuredTableCandidateExtractorTest {
                 && c.weight().compareTo(new BigDecimal("20")) == 0
                 && "技术评分标准".equals(c.parentDim()));
 
-        // 验证资源实力 3 个子细则全部提取，各 2 分，父级为技术评分标准
+        // 验证高新技术企业证书跨页纠偏归入技术对接（2分），技术对接项合计 2 项（5分案例及团队 + 2分高新证书）
+        List<ScoreCandidate> techDockingItems = candidates.stream()
+                .filter(c -> "技术对接".equals(c.dim()))
+                .toList();
+        assertThat(techDockingItems).hasSize(2);
+        assertThat(techDockingItems).anyMatch(c -> c.detail().contains("高新技术企业证书")
+                && c.weight().compareTo(new BigDecimal("2")) == 0
+                && "技术评分标准".equals(c.parentDim()));
+
+        // 验证资源实力剩余 2 个子细则（行业标准与科技奖励），各 2 分，父级为技术评分标准
         List<ScoreCandidate> resourceItems = candidates.stream()
                 .filter(c -> "资源实力".equals(c.dim()))
                 .toList();
-        assertThat(resourceItems).hasSize(3);
+        assertThat(resourceItems).hasSize(2);
         assertThat(resourceItems).allSatisfy(c -> {
             assertThat(c.parentDim()).isEqualTo("技术评分标准");
             assertThat(c.weight()).isEqualByComparingTo(new BigDecimal("2"));
