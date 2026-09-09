@@ -1,107 +1,49 @@
 package com.xiyu.bid.integration.tenderevent.infrastructure.sdk;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
+import com.ehsy.eventlibrary.clientsdk.util.SnowflakeIdUtil;
+import java.math.BigInteger;
+import java.security.SecureRandom;
 
 /**
- * 标讯事件链路追踪 Snowflake ID 生成器（纯工具类，无外部环境依赖）。
+ * 标讯事件链路 ID 长度适配器。
  *
- * <p>生成规则对齐西域 SDK 规范（客户成功样例：traceId 为 18 位数字，无字符前缀）：
+ * <p>生产 Pod 存在 {@code HOSTNAME} 时由客户 SDK {@link SnowflakeIdUtil#generateId()} 生成底层 ID，
+ * 本类不维护 worker、datacenter 或时钟状态。完整 long 使用无损 base36 编码：
  * <ul>
- *   <li>{@code traceId}: {@code 18位数字}（总长度不超过 18 位）</li>
- *   <li>{@code spanId}: {@code 18位数字}（总长度不超过 18 位）</li>
+ *   <li>{@code traceId}: {@code t + base36(sdkSnowflake)}（最长 14 位）</li>
+ *   <li>{@code spanId}: {@code s + base36(sdkSnowflake)}（最长 14 位）</li>
  * </ul>
- * 客户事件库 trace_id / span_id 字段为 18 位字段，禁止附加字符前缀（历史正误：t/s+18位=19字符 超长被拒）。
+ * 无 {@code HOSTNAME} 的本地环境使用 87 位 {@link SecureRandom} 随机值兜底，避免触发当前 SDK
+ * 静态初始化的空指针；随机值转 base36 后最长 17 位，加类型前缀后仍不超过 18 位。
  */
 public final class TenderEventSnowflakeUtil {
 
-    private static final long START_EPOCH = 1609430400000L; // 2021-01-01 00:00:00 UTC
-    private static final long WORKER_ID_BITS = 5L;
-    private static final long DATACENTER_ID_BITS = 5L;
-    private static final long SEQUENCE_BITS = 12L;
-
-    private static final long MAX_WORKER_ID = ~(-1L << WORKER_ID_BITS);
-    private static final long MAX_DATACENTER_ID = ~(-1L << DATACENTER_ID_BITS);
-    private static final long SEQUENCE_MASK = ~(-1L << SEQUENCE_BITS);
-
-    private static final long WORKER_ID_SHIFT = SEQUENCE_BITS;
-    private static final long DATACENTER_ID_SHIFT = SEQUENCE_BITS + WORKER_ID_BITS;
-    private static final long TIMESTAMP_LEFT_SHIFT = SEQUENCE_BITS + WORKER_ID_BITS + DATACENTER_ID_BITS;
-
-    private final long workerId;
-    private final long datacenterId;
-    private long sequence = 0L;
-    private long lastTimestamp = -1L;
-
-    private static final TenderEventSnowflakeUtil INSTANCE = new TenderEventSnowflakeUtil();
+    private static final int RANDOM_BYTES = 11;
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private TenderEventSnowflakeUtil() {
-        this.workerId = initWorkerId();
-        this.datacenterId = initDatacenterId();
     }
 
-    public static synchronized String nextTraceId() {
-        return String.valueOf(INSTANCE.nextId());
+    public static String nextTraceId() {
+        return "t" + nextEncodedId();
     }
 
-    public static synchronized String nextSpanId() {
-        return String.valueOf(INSTANCE.nextId());
+    public static String nextSpanId() {
+        return "s" + nextEncodedId();
     }
 
-    public synchronized long nextId() {
-        long timestamp = System.currentTimeMillis();
+    static String encode(long id) {
+        return Long.toUnsignedString(id, 36);
+    }
 
-        if (timestamp < lastTimestamp) {
-            timestamp = lastTimestamp; // 容忍小幅时钟回拨
+    private static String nextEncodedId() {
+        String hostname = System.getenv("HOSTNAME");
+        if (hostname != null && !hostname.isBlank()) {
+            return encode(SnowflakeIdUtil.generateId());
         }
-
-        if (lastTimestamp == timestamp) {
-            sequence = (sequence + 1) & SEQUENCE_MASK;
-            if (sequence == 0) {
-                timestamp = tilNextMillis(lastTimestamp);
-            }
-        } else {
-            sequence = 0L;
-        }
-
-        lastTimestamp = timestamp;
-
-        return ((timestamp - START_EPOCH) << TIMESTAMP_LEFT_SHIFT)
-                | (datacenterId << DATACENTER_ID_SHIFT)
-                | (workerId << WORKER_ID_SHIFT)
-                | sequence;
-    }
-
-    private long tilNextMillis(long lastTimestamp) {
-        long timestamp = System.currentTimeMillis();
-        while (timestamp <= lastTimestamp) {
-            timestamp = System.currentTimeMillis();
-        }
-        return timestamp;
-    }
-
-    private static long initWorkerId() {
-        try {
-            byte[] ip = InetAddress.getLocalHost().getAddress();
-            return (ip[ip.length - 1] & 0xFF) % (MAX_WORKER_ID + 1);
-        } catch (UnknownHostException | SecurityException e) {
-            return 1L;
-        }
-    }
-
-    private static long initDatacenterId() {
-        try {
-            String host = InetAddress.getLocalHost().getHostName();
-            if (host == null || host.isBlank()) {
-                return 1L;
-            }
-            int sum = 0;
-            for (char c : host.toCharArray()) {
-                sum += c;
-            }
-            return (sum & 0x7FFFFFFF) % (MAX_DATACENTER_ID + 1);
-        } catch (UnknownHostException | SecurityException e) {
-            return 1L;
-        }
+        byte[] bytes = new byte[RANDOM_BYTES];
+        SECURE_RANDOM.nextBytes(bytes);
+        bytes[0] &= 0x7F;
+        return new BigInteger(1, bytes).toString(36);
     }
 }

@@ -13,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.slf4j.MDC;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -126,6 +127,25 @@ class TenderEventPublishServiceTest {
         assertThat(log.getValue().tenderId()).isEqualTo(1L);
         assertThat(log.getValue().eventCode()).isEqualTo("BID_TENDER_CHANGE");
         assertThat(log.getValue().eventContent()).isEqualTo("{\"tenderId\":1}");
+    }
+
+    @Test
+    @DisplayName("不超过18位的非空 MDC traceId 原样复用")
+    void shortMdcTrace_isReused() {
+        when(payloadMapper.toJson(any())).thenReturn("{\"tenderId\":1}");
+        when(publisher.publish(any())).thenReturn(true);
+        MDC.put("traceId", "trace-123");
+        try {
+            buildService(true).publishOnCreate(tender(1L, Tender.SourceType.MANUAL_SINGLE));
+        } finally {
+            MDC.clear();
+        }
+
+        ArgumentCaptor<TenderEventPublishCommand> command = ArgumentCaptor.forClass(TenderEventPublishCommand.class);
+        verify(publisher).publish(command.capture());
+        assertThat(command.getValue().traceId()).isEqualTo("trace-123");
+        assertThat(command.getValue().spanId()).matches("^s[0-9a-z]+$");
+        assertThat(command.getValue().parentId()).isEqualTo("0");
     }
 
     @Test

@@ -50,8 +50,8 @@ backlinks:
 }
 ```
 
-- 这是 **SDK `sendEvent` 组装的标准 wire 形态（4 字段）**，由 `TenderEventSdkSender` 调用 SDK 标准通道发出（2026-08-27 客户明确指示，详见 §8）；`serviceName` 是网关投递路由的必带字段
-- `data` 是 **JSON 字符串**（网关 `EventContentReqDto.data` 声明为 String），由 `TenderEventSdkSender.serializeData` 把业务载荷 Map 序列化后作为 `eventContent` 传给 SDK；**2026-09 起含标讯全量 20 字段（清单见 §11），null 字段省略**（此前只含 `tenderId`/`externalId`）
+- 这是 **SDK `sendEvent` 组装的标准 wire 形态（4 字段）**，由两个事件发布器直接调用 SDK 标准通道发出（2026-08-27 客户明确指示，详见 §8）；`serviceName` 是网关投递路由的必带字段
+- `data` 是 **JSON 字符串**（网关 `EventContentReqDto.data` 声明为 String），由发布器把业务载荷 Map 序列化后作为 `eventContent` 传给 SDK；**2026-09 起含标讯全量 20 字段（清单见 §11），null 字段省略**（此前只含 `tenderId`/`externalId`）
 - 链路追踪 `traceId` / `spanId` / `parentId` 经 `EventTrackReq` 由 SDK 写入 HTTP Header，不进 body；`key`/`time` 也不进 body（那是事件库内部存储形态字段，非 SDK wire 契约）
 - ⚠️ **契约坑**：若 `data` 传原始对象而非 JSON 字符串，网关返回 `400 Bad Request`（2026-08-25 实战踩坑）
 
@@ -87,14 +87,14 @@ backend/src/main/java/com/xiyu/bid/integration/tenderevent/
 ├── application/     # 编排：端口(发布/流水)、payload mapper、发布服务
 └── infrastructure/
     ├── persistence/ # 事件流水表实体/仓库
-    └── sdk/         # 直连 HTTP 生产者 + 配置（TenderEventHttpSender 持有 wire 契约）
+    └── sdk/         # ClientSDK 发布器与隔离配置
 ```
 
-## Wire 契约单一源（2026-08-24 去重）
+## SDK 发送边界（2026-09-09）
 
-`TenderEventHttpSender`（`infrastructure/sdk/`）是事件总线发送的唯一入口：委托 SDK `SystemInteractiveService.sendEvent` 上报，本方只负责 data 载荷 JSON 序列化与结果解释（`!Boolean.FALSE.equals(result)`，兼容网关 result=null 形态）。`TenderEventSdkProducer` 与 `OpportunityPredictionEventPublisher` 都委托它发送，各自只保留自己的载荷与上下文日志（公开构造/入口不变）。
+`TenderEventSdkProducer` 与 `OpportunityPredictionEventPublisher` 分别直接调用客户 SDK 的 `SystemInteractiveService.sendEvent`。发布器负责 data 载荷 JSON 序列化、`EventTrackReq` 组装和结果解释（`!Boolean.FALSE.equals(result)`，兼容 SDK 返回 `result=null` 的受理成功形态）。`TenderEventSdkConfig` 为两个发布器分别传入隔离的 SDK 实例，避免 Spring 的 `client.register` 配置重新绑定客户地址。
 
-> 新的事件发布方直接复用 `TenderEventHttpSender`，**不要**再复制 body/trace/超时逻辑（本页此前的重复即此类 slop）。
+> 新的事件发布方应调用 SDK 高层 `sendEvent` 接口，不再通过 `HttpClientUtil` 手工拼装事件总线 HTTP 请求体。
 
 ## 关键设计
 
@@ -220,8 +220,8 @@ backend/src/main/java/com/xiyu/bid/integration/tenderevent/
 - **SDK sendEvent 的真实 wire 形态（4 字段）**：`{serviceName, eventTopic, eventSource, data}`——serviceName 从 SDK 自身 `ServiceRegisterProperties` 取值放进 body；trace 三元组经 `EventTrackReq` 走 Header；**key/time/traceId 均不进 body**。消息结构文档的 9 字段是事件库内部存储形态，不是 SDK wire 契约（§7 的 8 字段直连方向错误）。
 - **根因论断**：手工 body 省略 serviceName 后，网关 HTTP 层受理成功（`code=00000`）但**事件不进入投递链路**（tenderId=2289~2296 客户事件库均未收到）——serviceName 极可能是网关投递路由的必需字段。此前带 serviceName 失败（`result=false`「topic未注册」）是因为值被 `client.register.*` 绑定覆盖成组织消费侧的 `BidSystemOrgConsumer`，不是 serviceName 本身不该发。
 - **serviceName 供给链**：`TenderEventSdkConfig` 用标讯自己的 `TenderEventSdkProperties.serviceName`（环境变量 `XIYU_TENDER_EVENT_SERVICE_NAME`，测试环境=`bid`）构造 `@Primary ServiceRegisterProperties` 满足 SDK 注入；与组织事件消费侧的 `client.register.*` 配置隔离。
-- **代码落点**：`TenderEventSdkSender`（原 `TenderEventHttpSender` 更名）直接调 `SystemInteractiveService.sendEvent`；wire 测试改为真实 SDK 通道打 MockWebServer 锁 4 字段契约。
-- **SDK NPE 兜底**：非 200/IO 异常时 `httpPost` 静默返回 null，`sendEvent` 对 null 取 `data` 抛 NPE——`TenderEventSdkSender` 捕获后判失败。
+- **当前代码落点**：`TenderEventSdkProducer` 与 `OpportunityPredictionEventPublisher` 分别直接调用 `SystemInteractiveService.sendEvent`，并在发布器边界用单元测试锁定 SDK 参数与返回值语义；中间 Sender 已于 2026-09-09 删除。
+- **SDK NPE 兜底**：非 200/IO 异常时 SDK 可能抛出运行时异常；两个发布器均捕获异常并将本次发布判为失败。
 - **闭环验证待办**：部署后新建标讯推送，请客户在事件库确认收到（此前 2289~2296 均未收到）。
 
 ### 9. 装配层大坑：ServiceRegisterProperties 类级绑定覆盖（2026-08-27，result=false 实测）
@@ -260,6 +260,5 @@ backend/src/main/java/com/xiyu/bid/integration/tenderevent/
 - **标讯 data 全量字段（20 个，`TenderEventPayload`）**：`tenderId` / `externalId` / `title`(项目名称) / `purchaserName`(招标主体) / `region`(总部所在地) / `registrationDeadline`(报名截止) / `bidOpeningTime`(开标时间) / `customerType` / `priority` / `projectType`（三者存后端枚举码，`TenderEventPayloadMapper.toData` 序列化时转中文标签）/ 联系人1（`contactName`/`contactPhone`/`contactTel`/`contactMail`/`contactNature`）/ 联系人2（`contactName2`/`contactPhone2`/`contactTel2`/`contactMail2`/`contactNature2`）。
 - **商机 data 全量字段（10 个，`OpportunityPredictionEventPayload`）**：见 [[opportunity-prediction-reminder]]。
 - **⚠️ 链路 ID varchar(19) 陷阱（高价值）**：客户事件库 `trace_id`/`span_id` 列宽为 **varchar(19)**。`TenderEventSnowflakeUtil` 生成 "t"/"s" 前缀 + 18 位雪花 ID = 恰好 19 字符；**UUID 去横线后 32 字符会超长写入失败**。标讯侧早已用雪花 ID，商机侧 `OpportunityPredictionEventPublisher` 曾遗漏仍用 UUID（2026-09-06 修复：`spanId` 改 `nextSpanId()`，`currentTraceId()` 加 ≤19 校验 + 回退 `nextTraceId()`）。复用上游 MDC traceId 时同样必须校验 ≤19。
-- **⚠️ 18 位纯数字更正（2026-09-09，tenderId=4160 实测 result=false 根因）**：上一条"t/s+18位=19字符恰好"的判断是**旧结论**。客户事件库 `trace_id`/`span_id` 实际是 **18 位数字字段**，SDK 发送 trace 三元组经 HTTP Header 带 `t`/`s` 前缀的 19 字符值会被网关**判定非法而拒绝**（`result=false`，探针：纯 18 位数字 → 受理成功）。修复：`TenderEventSnowflakeUtil.nextTraceId()/nextSpanId()` 去掉 `t`/`s` 前缀返回纯 18 位数字；`TenderEventPublishService.generateTraceId()` 的 MDC 复用守卫从 `≤19` 收紧为 `≤18`；新增 `TenderEventSnowflakeUtilTest` 护栏验证纯数字 + 长度 ≤18 + 唯一性。**结论：链路 ID 必须为纯 18 位数字，任何字符前缀都会触发 result=false，排查时以 gateway 实际受理为准，勿再套用 varchar(19) 旧口径。**
+- **⚠️ 18 位长度约束最终实现（2026-09-09）**：用户确认链路 ID **不超过 18 位**，并未要求纯数字。生产 Pod 有 `HOSTNAME` 时调用客户 SDK `SnowflakeIdUtil.generateId()`，完整 long 无损转 base36 并恢复 `t`/`s` 前缀，最长 14 位；本地不再自建 worker/datacenter。ClientSDK 0.0.2 在缺少 `HOSTNAME` 时会静态初始化空指针，因此无该环境变量的本地环境使用 87 位 `SecureRandom` 兜底，base36 加前缀后最长 18 位。MDC 中非空且长度不超过 18 的上游 traceId 可直接复用。
 - **枚举中文映射同源**：`customerType`/`priority`/`projectType`/`resultType` 的中文标签与 `ProjectExportService`、前端 `projectListFormatters.js` 同源，未知值 fallback 原值。事件侧标签已收敛到 `TenderEventEnumLabels` 单一来源（标讯 Mapper 与商机 Publisher 共用，2026-09-06 deslop）；与 `ProjectExportService`/前端的跨模块字面量重复仍是技术债（`duplicate-implementations` 门禁不检测常量表，待单独任务收敛）。
-

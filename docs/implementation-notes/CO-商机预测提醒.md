@@ -45,17 +45,14 @@
 
 ### 5. CRM 事件库 = 西域统一事件库，复用标讯事件发布模式
 
-用户确认"CRM 事件库"指西域统一事件库。复用 `TenderEventSdkProducer` 的模式
-（`POST /eventbus/publishEvent`、`serviceName/eventTopic/eventSource/data` 消息体、trace 头写 HTTP Header），
-但**新增独立轻量 `OpportunityPredictionEventPublisher`**，不改动既有标讯事件管线（避免回归）。
+用户确认"CRM 事件库"指西域统一事件库。`OpportunityPredictionEventPublisher` 与
+`TenderEventSdkProducer` 分别直接调用客户 `SystemInteractiveService.sendEvent`，由 SDK 负责
+`/eventbus/publishEvent` 的请求协议与 trace Header。
 事件类型 `OPPORTUNITY_PREDICTION` 加入 `TenderEventCode`。
 
-> **后续去重（ai-slop-cleaner）**：同一事件总线的 wire 契约（body 组装、`data.result` 解析、
-> trace 头、RestClient 3s/5s 超时）在 `TenderEventSdkProducer` 与新 publisher 中重复约 30 行。
-> 已抽为包内共享 `TenderEventHttpSender`（`infrastructure/sdk`），两者都委托它发送：
-> `TenderEventSdkProducer` 仅保留标讯载荷与上下文日志（构造签名不变，`TenderEventSdkProducerTest`
-> 原样通过）；`OpportunityPredictionEventPublisher` 缩至约 60 行。**标讯事件应用层管线
-> （`TenderEventPublishService`/Port/事件流水）未改动**，仍满足"避免回归"初衷。
+为避免 Spring 对 SDK 内部 `client.register` 配置二次绑定污染，装配层分别构造隔离的
+`SystemInteractiveService` 实例并通过构造器传入两个发布器，不把 SDK 服务注册为共享 Bean。
+已删除历史共享 `TenderEventHttpSender` / `TenderEventSdkSender` 协议层。
 
 ### 6. 定时任务无登录态 → repository 全量直查
 
