@@ -8,6 +8,10 @@ import com.ehsy.eventlibrary.clientsdk.service.component.ServiceRenewalComponent
 import java.lang.reflect.Field;
 import java.util.concurrent.ScheduledExecutorService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.core.env.Environment;
 
 /**
@@ -27,8 +31,9 @@ import org.springframework.core.env.Environment;
  * {@code {serviceName, serviceAddress, enableRegister}}。
  * 注册成功（{@code code=00000}）后自动启动 ServiceRenewalComponent.start()。
  *
- * <p>由 {@link TenderEventSdkConfig#tenderEventRegistrar} 通过 {@code initMethod="register"}
- * 在 Spring 启动后自动触发，无需手动调用。
+ * <p>由 {@link #onApplicationReady()} 监听 {@link ApplicationReadyEvent} 触发。EventBus 注册时会
+ * 同步回调本服务的 {@code /api/task/startTask}，因此必须等嵌入式 Web 服务完成启动后再注册；
+ * Bean 初始化阶段触发会让回调命中尚未监听的端口并返回 502。
  */
 @Slf4j
 final class TenderEventRegistrar implements AutoCloseable {
@@ -60,7 +65,19 @@ final class TenderEventRegistrar implements AutoCloseable {
     }
 
     /**
-     * 触发服务注册。由 Spring {@code initMethod} 调用，在容器启动后执行。
+     * 应用完全就绪后触发服务注册。
+     *
+     * <p>EventBus 注册接口会同步回调对外宣告地址。使用最低优先级处理
+     * {@link ApplicationReadyEvent}，确保嵌入式 Web 服务已经可以接收回调。
+     */
+    @EventListener(ApplicationReadyEvent.class)
+    @Order(Ordered.LOWEST_PRECEDENCE)
+    public void onApplicationReady() {
+        register();
+    }
+
+    /**
+     * 触发服务注册。
      *
      * <p>内部循环直到注册成功（{@code code=00000}）再启动续约，符合 SDK
      * {@code ClientRegisterComponent.register()} 的原始实现逻辑（字节码核实）。

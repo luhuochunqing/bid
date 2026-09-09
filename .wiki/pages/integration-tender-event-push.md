@@ -272,3 +272,25 @@ backend/src/main/java/com/xiyu/bid/integration/tenderevent/
 - **完整根因**：一是旧实现宣告 Java 监听端口 `18080`，事件库跨网段无法直达，而应宣告事件库可达的 Nginx 对外代理端口 `8080`；二是客户正式续约参数为 `initialDelay=3` 秒、`period=3` 秒、`renewalDuration=3000` 毫秒，旧实现使用 10 秒、30 秒、60，并把 `renewalDuration` 解释为秒。SDK 实际只对前两项使用 `TimeUnit.SECONDS`，第三项原样写入续约请求，因此旧的“60 秒有效期”解释错误，错误地址与错误续约参数共同导致服务不能稳定在线，单改续约单位不足以解决问题。
 - **修复口径**：advertised host/port 使用标讯专用配置，缺省回退组织事件 SDK 配置；注册后 3 秒首次续约，此后每 3 秒续约一次，请求携带 `renewalDuration=3000`。常量名必须显式标明 seconds/millis，禁止把三个参数视为同一单位。
 - **证据边界**：`4172` 的 `result=true` 与 `SENT` 只证明手工注册有效时应用经 SDK 获得网关受理；目前不能据此声称 CRM 已消费。部署后仍须用同一 trace 核对持续 renew、事件库入库、Kafka 发布及 CRM 消费。
+
+
+### 13. 注册必须等待 ApplicationReadyEvent（2026-09-10，PR !2601 部署验证）
+
+- **部署版本**：`452dae98b`（PR !2601 合并版本）。
+- **启动时序证据**：07:03:05.096 开始注册，07:03:05.478 SDK 已认为注册流程成功；
+  `Started XiyuBidApplication` 到 07:03:05.965 才出现。
+- **同步回调证据**：EventBus 在注册过程中回调 advertised 地址的
+  `POST /api/task/startTask`；Nginx 在 07:03:05 返回 502，因为 Java `18080` 尚未监听。
+- **状态后果**：EventBus 注册接口仍返回 `code=00000`，SDK 因此启动 renew；但该实例保持
+  `DOWN/WAIT`，renew 成功响应不能把无效实例激活。
+- **对照实验**：应用就绪后只手工 register 一次，实例立即变成 `UP/ACTIVE`；停止手工续约后
+  观察 24 秒，SDK 的 `lastRenewalTime` 仍约每 3 秒更新。这证明 !2601 的 advertised 地址和
+  3/3/3000 续约参数正确，剩余根因只有注册早于 Web 服务就绪。
+- **代码约束**：`TenderEventRegistrar` 监听 `ApplicationReadyEvent`，使用
+  `@Order(Ordered.LOWEST_PRECEDENCE)` 后再调用 SDK 注册；`TenderEventSdkConfig` 禁止使用
+  `initMethod="register"`。
+- **回归测试**：Spring Context 创建后 300 ms 内不得出现 `/eventbus/register`；发布
+  `ApplicationReadyEvent` 后才允许依次出现 `/eventbus/register` 与 `/eventbus/renew`。
+  临时恢复旧 `initMethod` 时该测试会稳定失败并捕获提前注册。
+- **验收边界**：重新部署后不得手工 register；需确认回调无 502、`bid:8080` 持续
+  `UP/ACTIVE`、约每 3 秒续约，再以新 tenderId 核对 SDK、事件流水、事件库、Kafka 与 CRM。
