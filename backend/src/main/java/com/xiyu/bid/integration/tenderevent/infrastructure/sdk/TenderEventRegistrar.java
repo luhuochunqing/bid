@@ -6,7 +6,9 @@ import com.ehsy.eventlibrary.clientsdk.config.properties.ServerConfig;
 import com.ehsy.eventlibrary.clientsdk.service.component.ClientRegisterComponent;
 import com.ehsy.eventlibrary.clientsdk.service.component.ServiceRenewalComponent;
 import java.lang.reflect.Field;
+import java.util.concurrent.ScheduledExecutorService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.env.Environment;
 
 /**
  * 标讯事件总线注册+续约启动器（WithEffect，基础设施层）。
@@ -32,27 +34,29 @@ import lombok.extern.slf4j.Slf4j;
 final class TenderEventRegistrar implements AutoCloseable {
 
     /**
-     * 续约初始延迟（秒）：注册成功后等待 10 秒再开始第一次续约，
-     * 给网关时间处理注册请求。
+     * 续约初始延迟（秒）。SDK 调度器以 {@code TimeUnit.SECONDS} 解释该值。
      */
-    private static final long RENEWAL_INITIAL_DELAY_SECONDS = 10L;
+    private static final long RENEWAL_INITIAL_DELAY_SECONDS = 3L;
 
     /**
-     * 续约周期（秒）：每 30 秒心跳一次。
+     * 续约周期（秒）：每 3 秒心跳一次。
      * SDK 的 scheduleAtFixedRate 单位为秒（字节码 TimeUnit.SECONDS 核实）。
      */
-    private static final long RENEWAL_PERIOD_SECONDS = 30L;
+    private static final long RENEWAL_PERIOD_SECONDS = 3L;
 
     /**
-     * 续约时长（秒）：告知网关本次续约有效期，60 秒内无续约则视为离线。
+     * 续约有效期（毫秒）：SDK 将该值原样写入续约请求的 renewalDuration 字段。
      */
-    private static final long RENEWAL_DURATION_SECONDS = 60L;
+    private static final long RENEWAL_DURATION_MILLIS = 3000L;
 
     private final ClientRegisterComponent registerComponent;
+    private final ServiceRenewalComponent renewalComponent;
     private volatile Thread registrationThread;
 
-    TenderEventRegistrar(TenderEventSdkProperties properties) {
-        this.registerComponent = buildRegisterComponent(properties);
+    TenderEventRegistrar(TenderEventSdkProperties properties, Environment environment) {
+        Components components = buildComponents(properties, environment);
+        this.registerComponent = components.registerComponent();
+        this.renewalComponent = components.renewalComponent();
     }
 
     /**
@@ -83,6 +87,9 @@ final class TenderEventRegistrar implements AutoCloseable {
             if (registrationThread != null && registrationThread.isAlive()) {
                 registrationThread.interrupt();
             }
+            ScheduledExecutorService scheduler =
+                    (ScheduledExecutorService) readField(renewalComponent, "scheduledService");
+            scheduler.shutdownNow();
         } catch (RuntimeException e) {
             log.warn("标讯事件总线：停止注册组件异常", e);
         }
@@ -98,7 +105,7 @@ final class TenderEventRegistrar implements AutoCloseable {
      * 均不注册为 Spring bean，避免 {@code @ConfigurationProperties} / {@code @Autowired}
      * 造成容器污染（与 SystemInteractiveServiceImpl 的反射隔离策略一致）。
      */
-    private static ClientRegisterComponent buildRegisterComponent(TenderEventSdkProperties props) {
+    private static Components buildComponents(TenderEventSdkProperties props, Environment environment) {
         // 1. 服务注册属性
         ServiceRegisterProperties regProps = new ServiceRegisterProperties();
         regProps.setServiceName(props.serviceName());
@@ -109,12 +116,12 @@ final class TenderEventRegistrar implements AutoCloseable {
         ServiceRenewalProperties renewalProps = new ServiceRenewalProperties();
         renewalProps.setInitialDelay(RENEWAL_INITIAL_DELAY_SECONDS);
         renewalProps.setPeriod(RENEWAL_PERIOD_SECONDS);
-        renewalProps.setRenewalDuration(RENEWAL_DURATION_SECONDS);
+        renewalProps.setRenewalDuration(RENEWAL_DURATION_MILLIS);
 
         // 3. ServerConfig（提供 hostAndPort 给注册/续约 body 的 serviceAddress 字段）
-        //    SDK 构造器依赖 Environment 读 server.port；此处直接设默认值 18080
-        //    （与 backend.env SERVER_PORT 一致，serviceAddress 仅供总线内部路由参考）
-        ServerConfig serverConfig = buildServerConfig();
+        //    SDK 构造器仍从 Environment 读取 server.port；对外宣告地址优先使用标讯专用配置，
+        //    缺省复用组织 SDK 已配置的 advertised host/port。
+        ServerConfig serverConfig = buildServerConfig(props, environment);
 
         // 4. ServiceRenewalComponent（注册成功后由 ClientRegisterComponent.register() 触发 start()）
         ServiceRenewalComponent renewalComponent = new ServiceRenewalComponent();
@@ -129,34 +136,37 @@ final class TenderEventRegistrar implements AutoCloseable {
         injectField(registerComponent, "serviceRenewalComponent", renewalComponent);
         injectField(registerComponent, "isRun", Boolean.TRUE);
 
-        return registerComponent;
+        return new Components(registerComponent, renewalComponent);
     }
 
     /**
-     * 构造 ServerConfig 并注入 serverPort。
+     * 基于 Spring Environment 构造 ServerConfig，并覆盖对外宣告的 host/port。
      *
-     * <p>SDK 的 {@code getHostAndPort()} 返回 {@code localHost:serverPort}，
-     * 用于注册/续约 body 的 {@code serviceAddress} 字段。此值仅供总线内部路由参考，
-     * 不影响 publishEvent 的事件路由。
+     * <p>SDK 的 {@code getHostAndPort()} 用于注册/续约 body 的 {@code serviceAddress} 字段。
+     * EventBus 会同步回连该地址（当前回调为 {@code POST /api/task/startTask}），因此必须宣告
+     * EventBus 所在网段可达的 host/port；容器内部端口或不可达地址会让注册与续约长时间阻塞。
      */
-    private static ServerConfig buildServerConfig() {
-        // ServerConfig 的唯一构造器需要 Environment，此处用反射绕过
-        // 直接构造空对象再设 serverPort 字段
-        try {
-            ServerConfig cfg = (ServerConfig)
-                    sun.misc.Unsafe.class.getDeclaredMethod("allocateInstance", Class.class)
-                            .invoke(getUnsafe(), ServerConfig.class);
-            injectField(cfg, "serverPort", 18080);
-            return cfg;
-        } catch (ReflectiveOperationException | IllegalAccessError e) {
-            throw new IllegalStateException("无法构造 SDK ServerConfig", e);
+    private static ServerConfig buildServerConfig(
+            TenderEventSdkProperties properties,
+            Environment environment) {
+        // host 与 port 独立选择，允许标讯只覆盖其中一个字段，另一个字段继续沿组织配置回退。
+        String advertisedHost = firstNonBlank(
+                properties.advertisedHost(),
+                firstNonBlank(
+                        environment.getProperty(
+                                "xiyu.integrations.organization.event-sdk.advertised-host", ""),
+                        environment.getProperty("xiyu.org.event.advertised-host", "")));
+        int advertisedPort = firstPositive(
+                properties.advertisedPort(),
+                firstPositive(
+                        environment.getProperty(
+                                "xiyu.integrations.organization.event-sdk.advertised-port", int.class, 0),
+                        environment.getProperty("xiyu.org.event.advertised-port", int.class, 0)));
+        if (advertisedHost == null || advertisedHost.isBlank() || advertisedPort <= 0) {
+            log.warn("标讯事件总线 advertised host/port 未完整配置，将回退本机地址或内部 server.port；"
+                    + "EventBus 同步回连可能失败或超时");
         }
-    }
-
-    private static Object getUnsafe() throws ReflectiveOperationException {
-        Field f = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
-        f.setAccessible(true);
-        return f.get(null);
+        return new AdvertisedServerConfig(environment, advertisedHost, advertisedPort);
     }
 
     private static void injectField(Object target, String fieldName, Object value) {
@@ -172,6 +182,56 @@ final class TenderEventRegistrar implements AutoCloseable {
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException(
                     "无法向 " + target.getClass().getSimpleName() + " 注入字段 " + fieldName, e);
+        }
+    }
+
+    private static Object readField(Object target, String fieldName) {
+        try {
+            Field field = findField(target.getClass(), fieldName);
+            field.setAccessible(true);
+            return field.get(target);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(
+                    "无法从 " + target.getClass().getSimpleName() + " 读取字段 " + fieldName, e);
+        }
+    }
+
+    private record Components(
+            ClientRegisterComponent registerComponent,
+            ServiceRenewalComponent renewalComponent) {
+    }
+
+    private static String firstNonBlank(String preferred, String fallback) {
+        return preferred == null || preferred.isBlank() ? fallback : preferred;
+    }
+
+    private static int firstPositive(int preferred, int fallback) {
+        return preferred > 0 ? preferred : fallback;
+    }
+
+    private static final class AdvertisedServerConfig extends ServerConfig {
+        private final String advertisedHost;
+        private final int advertisedPort;
+
+        private AdvertisedServerConfig(
+                Environment environment,
+                String advertisedHost,
+                int advertisedPort) {
+            super(environment);
+            this.advertisedHost = advertisedHost == null ? "" : advertisedHost.trim();
+            this.advertisedPort = advertisedPort;
+        }
+
+        @Override
+        public String getHostAndPort() {
+            String host = advertisedHost.isBlank() ? super.getHost() : advertisedHost;
+            int port = advertisedPort > 0 ? advertisedPort : getServerPort();
+            return "http://" + host + ":" + port;
+        }
+
+        @Override
+        public String getHost() {
+            return advertisedHost.isBlank() ? super.getHost() : advertisedHost;
         }
     }
 

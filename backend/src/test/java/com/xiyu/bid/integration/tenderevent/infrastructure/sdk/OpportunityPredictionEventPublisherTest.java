@@ -38,7 +38,8 @@ class OpportunityPredictionEventPublisherTest {
     }
 
     private OpportunityPredictionEventPublisher publisher(boolean enabled) {
-        TenderEventSdkProperties props = new TenderEventSdkProperties(enabled, "http://127.0.0.1:8080", "bid");
+        TenderEventSdkProperties props = new TenderEventSdkProperties(
+                enabled, "http://127.0.0.1:8080", "bid", "", 0);
         return new OpportunityPredictionEventPublisher(props, interactiveService);
     }
 

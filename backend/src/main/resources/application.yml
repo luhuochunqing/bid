@@ -422,6 +422,9 @@ xiyu:
         server-register-url: ${XIYU_TENDER_EVENT_SERVER_REGISTER_URL:}
         # 服务注册名，默认 bid
         service-name: ${XIYU_TENDER_EVENT_SERVICE_NAME:bid}
+        # 注册/续约向事件总线宣告的对外地址；标讯专用配置优先，缺省复用组织 SDK 配置
+        advertised-host: ${XIYU_TENDER_EVENT_ADVERTISED_HOST:${XIYU_INTEGRATIONS_ORGANIZATION_EVENT_SDK_ADVERTISED_HOST:${XIYU_ORG_EVENT_ADVERTISED_HOST:}}}
+        advertised-port: ${XIYU_TENDER_EVENT_ADVERTISED_PORT:${XIYU_INTEGRATIONS_ORGANIZATION_EVENT_SDK_ADVERTISED_PORT:${XIYU_ORG_EVENT_ADVERTISED_PORT:0}}}
 
 server:
   port: 8080
