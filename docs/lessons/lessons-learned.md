@@ -5237,3 +5237,35 @@ PR !2570 合入后复审发现三处漏检：`【此处填写…】`/`【此处�
 | 两路召回消重过度依赖维度文本字面匹配 | 忽略了不同通道提取的粒度不同（大类标题 vs 细项名称） | 细则全文是条款唯一性的最坚固凭证；当细则高度一致时，应基于细则完成归并，并通过权威策略选择最优质维度。 |
 | 属性继承仅在细则更长时触发 | 误将“细则文本更长”作为继承元数据的充要条件 | 元数据（`parentDim`、`dimSource`）反映的是信息源的置信度，与细则字符长短无关，匹配即应无条件继承。 |
 
+---
+
+## 344. 项目 1364 孤儿招标文件 404 删除死锁与通用更新接口状态篡改防御（2026-09-09）
+
+**背景**：
+在测试环境项目 1364（`https://winbid-test.ehsy.com/project/1364`）排查中发现：
+1. 处于立项阶段的项目，招标文件在前端点击下载和删除均报 404，且点击删除报错后前端卡死无法恢复。
+2. 该项目在前端动态中显示此前已通过立项审批并推进到“标书制作”阶段，但数据库状态为待立项（`PENDING_INITIATION`），且没有找到退回立项的日志记录。
+
+**根因分析**：
+1. **孤儿外键引用与级联缺失**：
+   - 招标文件上传后其 ID（1053）被记录在 `project_initiation_details.tender_document_id` 中。当文件在后续阶段被用户从文件管理表格删除时，`ProjectDocumentWorkflowService.deleteProjectDocument` 仅处理了评标附件的解绑，遗漏了对 `project_initiation_details.tender_document_id` 的级联清理。
+   - `project_documents` 中的记录已物理删除，但立项详情依然指向 1053。前端在加载时根据残留 ID 尝试渲染，点击下载与删除时后端均抛出 404；前端在捕获删除 404 错误后直接弹窗中断，未重置本地表单和组件状态，导致用户陷入“无法下载、无法删除、无法重传”的界面死锁。
+2. **状态逆向覆写与审计缺失**：
+   - 项目生命周期阶段是单向有限状态机（`ProjectStageTransitionPolicy`），业务上不存在倒退回立项阶段的接口。
+   - 但通用的项目基本信息更新接口 `PUT /api/projects/{id}`（`ProjectService.updateProject`）既没有 `@Auditable` 注解记录审计日志，又未对状态逆向变更做拦截。若前端表单默认传值或外部脚本调用该接口带上了默认的 `status: "PENDING_INITIATION"`，会静默将已立项项目倒退回待立项。
+
+**解决方案**：
+1. **后端级联解绑**：在 `ProjectDocumentWorkflowService.deleteProjectDocument` 中注入 `ProjectInitiationDetailsRepository`，删除文档时若匹配到当前立项的 `tenderDocumentId`，自动将其清空并保存。
+2. **后端状态防倒退与审计补齐**：为 `ProjectService.updateProject` 补充 `@Auditable(action = "UPDATE_PROJECT", entityType = "Project", description = "更新项目基本信息", projectScoped = true)` 注解，并在状态更新中强制校验：一旦项目离开初始状态（`existingProject.getStatus() != PENDING_INITIATION`），禁止通过通用更新接口重设为 `PENDING_INITIATION`。
+3. **前端 404 容错与回显保护**：
+   - `InitiationStage.vue` 中调用文档删除接口捕获到 404 错误时，视作后端已清理，直接静默同步清除本地的 `form.tenderDocumentId` 与 `bidDocFiles`，解除界面死锁。
+   - `useInitiationStageActions.js` 中优化招标文件回显，仅在未通过列表接口获取到真实文档时才做兜底展示，避免覆盖真实的文档名称和上传人。
+
+**教训与规范**：
+| 坑 | 为何发生 | 对策 |
+|---|---|---|
+| 主表外键引用在子表物理删除时未级联清理 | 仅关注了当前模块主流程的删除操作，忽略了跨表或跨阶段的单向字段引用 | 凡存在跨表单向 ID 引用字段（如 `tenderDocumentId`），在被引用对象物理删除时必须执行级联解绑检查或软删除守卫 |
+| 前端删除接口失败时直接中断流程未清理悬挂状态 | 默认假设服务端“永远存在该数据”，未针对 404（资源已不存在）做降级容错 | 前端删除资源遇 404 应当作幂等成功，自动清理本地悬挂状态并允许用户重新输入或上传，防止前端状态死锁 |
+| 通用更新接口缺失审计与状态机流转守卫 | 通用 CRUD 接口直接接收全量 DTO，未限制生命周期状态字段的随意修改 | 核心业务状态机的状态迁移必须收拢在专门的动作接口中；通用更新接口必须有审计日志，并严格禁止逆向倒退关键状态 |
+
+

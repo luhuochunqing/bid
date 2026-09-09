@@ -85,6 +85,7 @@ public class ProjectService {
         return projectImportService.importProject(request);
     }
 
+    @Auditable(action = "UPDATE_PROJECT", entityType = "Project", description = "更新项目基本信息", projectScoped = true)
     public ProjectDTO updateProject(Long id, ProjectDTO projectDTO) {
         rejectDemoEntityMutation(id);
         projectAccessScopeService.assertCurrentUserCanAccessProject(id);
@@ -98,6 +99,9 @@ public class ProjectService {
             }
             if (status.isTerminal() && !"CLOSED".equals(existingProject.getStage())) {
                 throw new IllegalArgumentException("Cannot set terminal status unless project stage is CLOSED");
+            }
+            if (existingProject.getStatus() != Project.Status.PENDING_INITIATION && status == Project.Status.PENDING_INITIATION) {
+                throw new IllegalArgumentException("Cannot revert project status to PENDING_INITIATION once initiated");
             }
             existingProject.setStatus(status);
         });

@@ -53,12 +53,13 @@ function setup(formOverrides = {}) {
   }
   const projectsApi = { getDetail: vi.fn(), getDocuments: vi.fn() }
   const tendersApi = { getDetail: vi.fn(), getEvaluation: vi.fn() }
+  const bidDocFiles = ref([])
   const actions = useInitiationStageActions({
     props: { projectId: 1 },
     emit: vi.fn(),
     form,
     custFixedRows: ref([]),
-    bidDocFiles: ref([]),
+    bidDocFiles,
     planGapFiles: ref([]),
     userStore: { currentUser: { id: 1 }, userName: '张三' },
     projectLifecycleApi,
@@ -69,7 +70,7 @@ function setup(formOverrides = {}) {
     leaderOptions: ref([]),
     assistantOptions: ref([]),
   })
-  return { actions, form, projectLifecycleApi, projectsApi, tendersApi }
+  return { actions, form, bidDocFiles, projectLifecycleApi, projectsApi, tendersApi }
 }
 
 describe('useInitiationStageActions.submit — CO-540 保证金缴纳截止日期校验', () => {
@@ -286,3 +287,34 @@ describe('useInitiationStageActions.load — 缺 key 归一 + 评估表 0 不预
     expect(form.expectedBidders).toBe(3)
   })
 })
+
+describe('useInitiationStageActions.load — 招标文件回显保护', () => {
+  it('当 projectsApi.getDocuments 返回真实文档时，保留真实文件名和上传人，不被兜底逻辑覆盖', async () => {
+    const { actions, bidDocFiles, projectLifecycleApi, projectsApi } = setup()
+    projectLifecycleApi.getInitiation.mockResolvedValue({
+      data: { projectId: 1, tenderDocumentId: 1053, ownerUnit: '中国能源', reviewStatus: 'DRAFT' },
+    })
+    projectsApi.getDocuments.mockResolvedValue({
+      data: [{ id: 1053, name: '招标文件正式版.pdf', fileUrl: 'http://example.com/doc.pdf', uploader: '袁思琪' }],
+    })
+    await actions.load()
+    expect(bidDocFiles.value).toHaveLength(1)
+    expect(bidDocFiles.value[0].name).toBe('招标文件正式版.pdf')
+    expect(bidDocFiles.value[0].uploader).toBe('袁思琪')
+  })
+
+  it('当 projectsApi.getDocuments 未查到文档时，使用兜底信息展示', async () => {
+    const { actions, bidDocFiles, projectLifecycleApi, projectsApi } = setup()
+    projectLifecycleApi.getInitiation.mockResolvedValue({
+      data: { projectId: 1, tenderDocumentId: 1053, ownerUnit: '中国能源', reviewStatus: 'DRAFT' },
+    })
+    projectsApi.getDocuments.mockResolvedValue({
+      data: [],
+    })
+    await actions.load()
+    expect(bidDocFiles.value).toHaveLength(1)
+    expect(bidDocFiles.value[0].name).toBe('招标文件')
+    expect(bidDocFiles.value[0].uid).toBe(1053)
+  })
+})
+

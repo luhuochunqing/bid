@@ -1,3 +1,7 @@
+// Input: 项目文档上传、下载、查询与删除请求
+// Output: ProjectDocumentDTO、文档操作事件与实体持久化
+// Pos: projectworkflow/service/ - 项目文档生命周期工作流服务
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.projectworkflow.service;
 
 import com.xiyu.bid.casework.application.ProjectArchiveWorkflowService;
@@ -5,6 +9,7 @@ import com.xiyu.bid.common.domain.AuthorizationDecision;
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.exception.BusinessException;
 import com.xiyu.bid.project.repository.BidDocumentReviewRepository;
+import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.project.core.BidReviewStatus;
 import com.xiyu.bid.projectworkflow.core.DocumentCategoryNormalizer;
 import com.xiyu.bid.projectworkflow.core.ProjectDocumentWorkflowPolicy;
@@ -47,6 +52,7 @@ class ProjectDocumentWorkflowService {
     private final BidDocumentReviewRepository bidDocumentReviewRepository;
     // spec 039: 归档逻辑上提到 createProjectDocument 末尾统一触发，覆盖 OBS 直传 JSON 路径
     private final ProjectArchiveWorkflowService projectArchiveWorkflowService;
+    private final ProjectInitiationDetailsRepository projectInitiationDetailsRepository;
 
     List<ProjectDocumentDTO> getProjectDocuments(Long projectId) {
         return getProjectDocuments(projectId, null, null, null);
@@ -198,6 +204,20 @@ class ProjectDocumentWorkflowService {
         } catch (ObjectOptimisticLockingFailureException e) {
             // 文档已被另一事务删除，幂等成功，无需再触发 onDocumentDeleted（已触发过）
         }
+
+        cleanUpInitiationTenderDocumentIfMatched(projectId, documentId);
+    }
+
+    private void cleanUpInitiationTenderDocumentIfMatched(Long projectId, Long documentId) {
+        if (projectInitiationDetailsRepository == null) {
+            return;
+        }
+        projectInitiationDetailsRepository.findByProjectId(projectId).ifPresent(details -> {
+            if (documentId != null && documentId.equals(details.getTenderDocumentId())) {
+                details.setTenderDocumentId(null);
+                projectInitiationDetailsRepository.save(details);
+            }
+        });
     }
 
     private void assertCanUploadProjectDocument() {

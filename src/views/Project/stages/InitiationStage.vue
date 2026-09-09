@@ -220,6 +220,7 @@ import { useObsUpload } from '@/composables/useObsUpload.js'
 import { useObsProjectDocumentUpload } from '@/composables/useObsProjectDocumentUpload.js'
 import { useDeleteGuard } from '@/composables/useDeleteGuard.js'
 import { useInitiationStageActions } from './useInitiationStageActions.js'
+import { notifyErrorUnlessRateLimit } from '@/api/error-utils.js'
 import { PROJECT_LOCKED_FIELD_KEYS } from '@/views/System/workflow-form-designer/workflowFormDesignerCore.js'
 import { POSITION_OPTIONS, CONTACT_METHOD_OPTIONS, TENDENCY_OPTIONS, IMPACT_OPTIONS } from '@/views/Bidding/detail/components/customerInfoMatrixConfig.js'
 
@@ -289,8 +290,14 @@ async function handleBidDocRemove() {
       try {
         await projectsApi.deleteDocument(props.projectId, documentId)
       } catch (error) {
-        ElMessage.error(error?.message || '删除招标文件失败')
-        throw error
+        const status = error?.response?.status || error?.status
+        const code = error?.response?.data?.code
+        if (status === 404 || code === 404) {
+          console.warn('[InitiationStage] Document already deleted on backend (404), clearing local dangling reference')
+        } else {
+          notifyErrorUnlessRateLimit(error, '删除招标文件失败')
+          throw error
+        }
       }
     }
     form.tenderDocumentId = null

@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [前端, Vue3, Element Plus, reactive, ref, v-model, el-upload, el-form, 权限, E2E, scoped, teleport]
 created: 2026-07-10
-updated: 2026-09-05
-health_checked: 2026-09-05
+updated: 2026-09-09
+health_checked: 2026-09-09
 sources:
   - src/
   - .wiki/pages/lessons-learned.md
@@ -892,7 +892,28 @@ const { selectedSet } = tree  // 解构注入字段，模板才可用
 
 ---
 
-## 23. 变更记录
+## 23. 文件删除接口 404 导致前端状态死锁与错误提示覆盖全局 429
+
+### 23.1 现象
+
+立项阶段招标文件或其他关联文件在后端已被物理删除或悬挂失效时，前端点击删除按钮调用后端 API 返回 404 Not Found：
+1. 错误捕获未识别 404，抛出异常阻断了前端本地响应式状态（如 `form.tenderDocumentId = null`、`bidDocFiles = []`）的清理；
+2. 用户无法通过再次点击删除清空该文件引用，也无法通过保存表单解除死锁，导致立项流程卡死；
+3. catch 块直接使用 `ElMessage.error(error?.message || '删除招标文件失败')`，绕过了全局 429 限流友好提示（`notifyErrorUnlessRateLimit`）。
+
+### 23.2 根因
+
+1. **资源删除幂等性与悬挂引用失步**：当远程资源已不存在（404）时，业务实质上已经达到“资源不存在”的期望目标状态，但调用方将其视为不可恢复的硬错误阻断状态同步；
+2. **缺乏 429 提示守卫**：直接硬编码 `ElMessage.error` 违反系统限流防护规范，覆盖了全局防抖与 429 降级处理。
+
+### 23.3 规范对策
+
+- **删除接口 404 容错降级**：捕获 404 状态码时打印 warn 日志并视为删除成功，清空本地状态与引用，解除死锁。
+- **统一使用 `notifyErrorUnlessRateLimit`**：业务 catch 中的错误提示必须走统一工具函数，防范 429 穿透。
+
+---
+
+## 24. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
@@ -907,6 +928,8 @@ const { selectedSet } = tree  // 解构注入字段，模板才可用
 | 2026-08-28 | 新增 §20：`<script setup>` 内联 `h()` 函数式组件导致 Scoped CSS 静默失效与过度抽象（工作台商机预测时间单元格） |
 | 2026-08-28 | 新增 §21：选项模板复制导致非标准伪枚举渗透（商机预测与项目列表客户类型筛选区） |
 | 2026-09-05 | 新增 §22：全局注册 Element Plus 插件与样式导致 Vitest / JSDOM 测试崩溃与假死 |
+| 2026-09-09 | 新增 §23：文件删除接口 404 导致前端状态死锁与错误提示覆盖全局 429 |
+
 
 
 
