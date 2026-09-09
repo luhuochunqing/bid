@@ -16,7 +16,7 @@ import org.springframework.context.annotation.Configuration;
  *
  * <p>启用（{@code xiyu.integrations.tender-event.sdk.enabled=true}）时注册真实生产者
  * {@link TenderEventSdkProducer}，经 SDK 的 {@code SystemInteractiveService.sendEvent}
- * 推送事件总线（body 4 字段契约，serviceName 必带，详见 {@link TenderEventSdkSender}）；
+ * 推送事件总线；
  * 未启用时注册 no-op 兜底端口，保证编排服务 {@link TenderEventPublishPort} 始终可注入。
  *
  * <p><b>SDK 的 ServiceRegisterProperties 与 SystemInteractiveServiceImpl 都不能注册为
@@ -28,8 +28,7 @@ import org.springframework.context.annotation.Configuration;
  *   <li>SDK 服务类的 {@code @Autowired} 字段会被 AutowiredAnnotationBeanPostProcessor
  *       再次注入——容器里存在任何 ServiceRegisterProperties bean 都会顶掉反射注入的干净配置</li>
  * </ul>
- * 因此 SDK 实例在 {@link TenderEventSdkSender} 构造时手工创建并藏为其私有字段，
- * {@code TenderEventSdkSender} 本身无注解字段、容器不会触碰其内部状态；也不能
+ * 因此 SDK 实例由本配置类手工创建后直接通过构造器交给发布器，不注册成 Spring bean；也不能
  * {@code @Import} SDKClientConfiguration（连带激活 Kafka/ZK/注册等消费侧组件）。
  *
  * <p><b>注册+续约生命周期（2026-08-27 根因修复）</b>：事件总线要求生产方先通过
@@ -43,11 +42,6 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @EnableConfigurationProperties(TenderEventSdkProperties.class)
 public class TenderEventSdkConfig {
-
-    @Bean
-    public TenderEventSdkSender tenderEventSdkSender(TenderEventSdkProperties properties) {
-        return new TenderEventSdkSender(newSdkService(properties), properties.serviceName());
-    }
 
     public static SystemInteractiveService newSdkService(TenderEventSdkProperties properties) {
         ServiceRegisterProperties sdkProps = new ServiceRegisterProperties();
@@ -86,8 +80,14 @@ public class TenderEventSdkConfig {
             name = "enabled",
             havingValue = "true"
     )
-    public TenderEventPublishPort tenderEventPublishPort(TenderEventSdkSender sender) {
-        return new TenderEventSdkProducer(sender);
+    public TenderEventPublishPort tenderEventPublishPort(TenderEventSdkProperties properties) {
+        return new TenderEventSdkProducer(newSdkService(properties));
+    }
+
+    @Bean
+    public OpportunityPredictionEventPublisher opportunityPredictionEventPublisher(
+            TenderEventSdkProperties properties) {
+        return new OpportunityPredictionEventPublisher(properties, newSdkService(properties));
     }
 
     /** 未启用时兜底端口：不发送任何事件。 */

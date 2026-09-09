@@ -14,7 +14,7 @@ import org.springframework.boot.context.annotation.UserConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 /**
- * SDK 装配隔离测试：容器正常创建 Sender/Producer 与 Registrar bean。
+ * SDK 装配隔离测试：两个发布器各自持有隔离 SDK 实例，不暴露 SDK bean。
  */
 @DisplayName("TenderEventSdkConfig - SDK 容器装配测试")
 class TenderEventSdkConfigTest {
@@ -37,8 +37,8 @@ class TenderEventSdkConfigTest {
     }
 
     @Test
-    @DisplayName("容器装配（启用）：Sender/Producer/Registrar bean 正常创建")
-    void context_wiresSenderAndProducer_whenEnabled() {
+    @DisplayName("容器装配（启用）：两个发布器与 Registrar 正常创建，不暴露共享 SDK bean")
+    void context_wiresIsolatedPublishers_whenEnabled() {
         new ApplicationContextRunner()
                 .withConfiguration(UserConfigurations.of(TenderEventSdkConfig.class))
                 .withPropertyValues(
@@ -46,9 +46,11 @@ class TenderEventSdkConfigTest {
                         "xiyu.integrations.tender-event.sdk.serverRegisterUrl=" + mockWebServer.url("/").toString().replaceAll("/$", ""),
                         "xiyu.integrations.tender-event.sdk.serviceName=bid")
                 .run(context -> {
-                    assertThat(context).hasSingleBean(TenderEventSdkSender.class);
                     assertThat(context).hasSingleBean(TenderEventPublishPort.class);
+                    assertThat(context).hasSingleBean(OpportunityPredictionEventPublisher.class);
                     assertThat(context).hasSingleBean(TenderEventRegistrar.class);
+                    assertThat(context).doesNotHaveBean(
+                            com.ehsy.eventlibrary.clientsdk.systeminteraction.service.SystemInteractiveService.class);
                 });
     }
 

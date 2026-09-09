@@ -799,3 +799,5 @@
 - 预测对齐：policy input 的 customerType 改用 resolvedCustomerType（兜底后），预测提前月数规则（央企6月/其他3月）与表格完全一致；经用户确认预测逻辑一起对齐（Project.customerType 空但标讯有值的项目，提醒触发时点随兜底客户类型变化属预期）
 - 验证：OpportunityPredictionReminderServiceTest 7 tests（新增兜底用例）+ compile + line-budget（Service 267 行）
 - 回填：更新 [[opportunity-prediction-reminder]] 决策5/6 + 全量字段节 + 预测逻辑口径注记；教训：**“对齐表格”须对齐表格的完整 enrich 链（表格消费 getAllProjects 的 enrich 后 DTO，含标讯兜底），而非只对齐单一数据源；且必须 grep 验证兜底方法真实调用点——本次一度误引用死代码 ProjectTenderPopulator，真实 enrich 是 ProjectListEnrichmentSupport.populateFromTender，其 customerType 兜底用 == null 判空（非 isBlank）且经 normalizeCustomerType 归一化，判空条件与值语义都需逐条比对才能做到 100% 一致**
+
+## [2026-09-09] compound | tender-event-pr2598-contract-review 契约分层与响应误判复合查询回填

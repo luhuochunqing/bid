@@ -133,3 +133,5 @@ backlinks:
 2. `npm run wiki:build`
 3. `npm run wiki:check`
 
+
+- [[tender-event-pr2598-contract-review]] — PR2598 标讯事件契约分层、响应误判与闭环验证审查
