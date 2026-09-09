@@ -768,6 +768,13 @@
 - 修复：TenderEventRegistrar 实现 AutoCloseable，在 close() 中反射重置 isRun=false 并中断 registrationThread；TenderEventSdkConfig 设置 destroyMethod="close"；TenderEventSdkConfigTest 使用 MockWebServer 模拟本地响应并补齐 disabled 负向分支；清理 TenderEventSdkProducerTest 中的 event-bus.local 域名引用
 - 回填：更新 [[integration-tender-event-push]] §10；教训：**测试中绝不使用未配置的 .local 假域名，涉及 HTTP 测试一律使用 MockWebServer 监听 127.0.0.1:port；常驻重试线程组件必须实现 AutoCloseable 并在容器销毁时显式终止**
 
+## 2026-09-09 fix | 标讯事件注册地址与续约参数修复
+- 触发：测试标讯 4170/4171（流水 1880/1881）通过 SDK 与相同四字段直连均返回 result=false；手工 register 后相同请求返回 true
+- 根因：客户正式值为 initialDelay=3 秒、period=3 秒、renewalDuration=3000 毫秒；旧实现 10/30/60 并误把 renewalDuration 解释为秒
+- 地址对照：Java 监听 18080，Nginx 对外 8080 并反代到 127.0.0.1:18080；事件库跨网段无法直达 18080，宣告该端口时 register/renew 均约 128 秒，短暂 publish=true 后仍无法按 3 秒持续续约。宣告事件库可达的对外代理端口 8080 时分别约 66 ms/56 ms，按 ≤3 秒节奏续约 24 秒后 getActiveService 显示 bid:8080 为 UP/ACTIVE，标准 publish 返回 true
+- 修复：除 3/3/3000 参数外，增加 advertised host/port，标讯专用配置优先、缺省回退组织事件 SDK 配置
+- 回填：更新 [[integration-tender-event-push]] §12，并新增 `docs/implementation-notes/tender-event-renewal-2026-09-09.md`；4172 仅证明应用经 SDK 到网关受理，CRM 消费仍待部署后同 trace 验证
+
 ## 2026-09-02 feature | 评分解析管道 Phase 1-5 补齐（结构化分层 / 归一化告警 / prompt 治理 / 金标 CI / 词汇注册表）
 - 触发：PR !2505 合入 Phase 1a/1b/3a 后审计发现 7 个缺口未补齐；根因分析已定位零号病人为 markdown 表格转换丢失合并单元格结构
 - 落点：StructuredTableCandidateExtractor 填 parentDim + ScoreCandidatePostProcessor 感知 STRUCTURED_TABLE 标记；ScoreGlobalMergeOrchestrator 降级为排序/过滤（禁止 LLM 替换结构化结果）；WeightNormalizationPolicy 阈值 0.05 产出 warning → V1206 独立列 → DTO → 前端告警条；ScoreParsePrompts 三个 build 方法清除项目 1358 硬编码维度名；ScoreVocabularyRegistry（global/project 两级 escape-hatch）+ ScoreVocabularyConfiguration 8 条全局词汇；RealProjectScoreParsingTest 去 @Disabled + 入库 case-1347/case-1362。26 files，testing-gate passed（架构 12 + scoreparse 114 + 前端 27）

@@ -10,6 +10,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
 /**
  * 标讯事件推送 SDK 装配。
@@ -70,8 +71,10 @@ public class TenderEventSdkConfig {
             name = "enabled",
             havingValue = "true"
     )
-    public TenderEventRegistrar tenderEventRegistrar(TenderEventSdkProperties properties) {
-        return new TenderEventRegistrar(properties);
+    public TenderEventRegistrar tenderEventRegistrar(
+            TenderEventSdkProperties properties,
+            Environment environment) {
+        return new TenderEventRegistrar(properties, environment);
     }
 
     @Bean

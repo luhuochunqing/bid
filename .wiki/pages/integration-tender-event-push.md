@@ -262,3 +262,13 @@ backend/src/main/java/com/xiyu/bid/integration/tenderevent/
 - **⚠️ 链路 ID varchar(19) 陷阱（高价值）**：客户事件库 `trace_id`/`span_id` 列宽为 **varchar(19)**。`TenderEventSnowflakeUtil` 生成 "t"/"s" 前缀 + 18 位雪花 ID = 恰好 19 字符；**UUID 去横线后 32 字符会超长写入失败**。标讯侧早已用雪花 ID，商机侧 `OpportunityPredictionEventPublisher` 曾遗漏仍用 UUID（2026-09-06 修复：`spanId` 改 `nextSpanId()`，`currentTraceId()` 加 ≤19 校验 + 回退 `nextTraceId()`）。复用上游 MDC traceId 时同样必须校验 ≤19。
 - **⚠️ 18 位长度约束最终实现（2026-09-09）**：用户确认链路 ID **不超过 18 位**，并未要求纯数字。生产 Pod 有 `HOSTNAME` 时调用客户 SDK `SnowflakeIdUtil.generateId()`，完整 long 无损转 base36 并恢复 `t`/`s` 前缀，最长 14 位；本地不再自建 worker/datacenter。ClientSDK 0.0.2 在缺少 `HOSTNAME` 时会静态初始化空指针，因此无该环境变量的本地环境使用 87 位 `SecureRandom` 兜底，base36 加前缀后最长 18 位。MDC 中非空且长度不超过 18 的上游 traceId 可直接复用。
 - **枚举中文映射同源**：`customerType`/`priority`/`projectType`/`resultType` 的中文标签与 `ProjectExportService`、前端 `projectListFormatters.js` 同源，未知值 fallback 原值。事件侧标签已收敛到 `TenderEventEnumLabels` 单一来源（标讯 Mapper 与商机 Publisher 共用，2026-09-06 deslop）；与 `ProjectExportService`/前端的跨模块字面量重复仍是技术债（`duplicate-implementations` 门禁不检测常量表，待单独任务收敛）。
+
+### 12. 注册地址与续约参数修复（2026-09-09，tenderId=4170/4171/4172）
+
+- **真实现象**：测试标讯 `4170`、`4171` 对应失败流水 `1880`、`1881`；SDK 发布和相同四字段直连请求均返回 `result=false`。手工调用 `/eventbus/register` 注册 `bid` 后，相同四字段请求返回 `result=true`。
+- **advertised 地址对照**：实际拓扑是 Java 进程监听 `18080`，Nginx 对外监听 `8080` 并反向代理到 `127.0.0.1:18080`。事件库跨网段无法直达 `18080`；宣告该端口时 register/renew 均约需 128 秒，注册完成后的短暂窗口虽可能 publish 返回 `true`，但续约阻塞无法维持 3 秒节奏，服务不能稳定在线。改为事件库可达的对外代理端口 `8080` 后，register/renew 分别约 66 ms、56 ms；连续 24 秒按不超过 3 秒的节奏续约后，`getActiveService` 显示 `bid:8080` 为 `UP/ACTIVE`，标准四字段 publish 返回 `result=true`。因此 serviceAddress 是服务活跃状态的关键输入，不能视为与发布链路无关。
+- **应用正向对照**：在同一手工注册有效窗口内，真实 `POST /api/tenders` 创建标讯 `4172`；`TenderEventSdkProducer` 返回 `result=true`，流水 `1882` 为 `SENT`。其 `traceId=t8k9399gtu15a4mybv`、`spanId=sbbh1mkc5ch3vzc2tr` 均为 18 位，`parentId=0`，证明“应用 → SDK → 网关受理”已走通。
+- **已排除项**：本轮 traceId/spanId 均不超过 18 位，不能再把这两次失败归因于链路 ID 长度。
+- **完整根因**：一是旧实现宣告 Java 监听端口 `18080`，事件库跨网段无法直达，而应宣告事件库可达的 Nginx 对外代理端口 `8080`；二是客户正式续约参数为 `initialDelay=3` 秒、`period=3` 秒、`renewalDuration=3000` 毫秒，旧实现使用 10 秒、30 秒、60，并把 `renewalDuration` 解释为秒。SDK 实际只对前两项使用 `TimeUnit.SECONDS`，第三项原样写入续约请求，因此旧的“60 秒有效期”解释错误，错误地址与错误续约参数共同导致服务不能稳定在线，单改续约单位不足以解决问题。
+- **修复口径**：advertised host/port 使用标讯专用配置，缺省回退组织事件 SDK 配置；注册后 3 秒首次续约，此后每 3 秒续约一次，请求携带 `renewalDuration=3000`。常量名必须显式标明 seconds/millis，禁止把三个参数视为同一单位。
+- **证据边界**：`4172` 的 `result=true` 与 `SENT` 只证明手工注册有效时应用经 SDK 获得网关受理；目前不能据此声称 CRM 已消费。部署后仍须用同一 trace 核对持续 renew、事件库入库、Kafka 发布及 CRM 消费。

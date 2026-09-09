@@ -11,12 +11,16 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param enabled          是否启用标讯事件推送
  * @param serverRegisterUrl 事件总线服务注册地址（形如 {@code http://eventbus:8080}）
  * @param serviceName      业务系统标识（消息体 {@code serviceName} 字段）
+ * @param advertisedHost   注册/续约时向事件总线宣告的对外主机
+ * @param advertisedPort   注册/续约时向事件总线宣告的对外端口
  */
 @ConfigurationProperties(prefix = "xiyu.integrations.tender-event.sdk")
 public record TenderEventSdkProperties(
         boolean enabled,
         String serverRegisterUrl,
-        String serviceName
+        String serviceName,
+        String advertisedHost,
+        int advertisedPort
 ) {
 
     public TenderEventSdkProperties {
