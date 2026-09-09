@@ -60,12 +60,14 @@ public class TenderEventSdkConfig {
     }
 
     /**
-     * 注册+续约启动器（根因修复）：Spring 启动后通过 {@code initMethod="register"} 自动触发
-     * {@code POST /eventbus/register}，成功后开始周期性 {@code POST /eventbus/renew} 心跳。
+     * 注册+续约启动器（根因修复）：由 {@link TenderEventRegistrar} 在
+     * {@code ApplicationReadyEvent} 后触发 {@code POST /eventbus/register}，避免 EventBus
+     * 同步回调命中尚未就绪的 Web 端口；注册成功后开始周期性
+     * {@code POST /eventbus/renew} 心跳。
      *
      * <p>仅在 SDK 启用时装配（{@code enabled=true}），防止未配置时反射注入失败。
      */
-    @Bean(initMethod = "register", destroyMethod = "close")
+    @Bean(destroyMethod = "close")
     @ConditionalOnProperty(
             prefix = "xiyu.integrations.tender-event.sdk",
             name = "enabled",

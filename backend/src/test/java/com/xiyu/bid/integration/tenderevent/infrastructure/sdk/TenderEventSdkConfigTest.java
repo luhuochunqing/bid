@@ -9,6 +9,7 @@ import com.ehsy.eventlibrary.clientsdk.service.component.ClientRegisterComponent
 import com.ehsy.eventlibrary.clientsdk.service.component.ServiceRenewalComponent;
 import com.xiyu.bid.integration.tenderevent.application.TenderEventPublishPort;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -17,7 +18,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.SpringApplication;
 import org.springframework.boot.context.annotation.UserConfigurations;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.mock.env.MockEnvironment;
@@ -42,7 +45,7 @@ class TenderEventSdkConfigTest {
     }
 
     @Test
-    @DisplayName("容器装配（启用）：两个发布器与 Registrar 正常创建，不暴露共享 SDK bean")
+    @DisplayName("容器装配（启用）：应用就绪前不注册，就绪后启动注册和续约")
     void context_wiresIsolatedPublishers_whenEnabled() {
         mockWebServer.enqueue(jsonResponse(
                 "{\"code\":\"00000\",\"data\":{\"result\":true},\"msg\":\"OK\"}"));
@@ -75,6 +78,13 @@ class TenderEventSdkConfigTest {
                     assertThat(renewalProperties.getInitialDelay()).isEqualTo(3L);
                     assertThat(renewalProperties.getPeriod()).isEqualTo(3L);
                     assertThat(renewalProperties.getRenewalDuration()).isEqualTo(3000L);
+
+                    assertNoRequest(300, TimeUnit.MILLISECONDS);
+                    context.publishEvent(new ApplicationReadyEvent(
+                            new SpringApplication(TenderEventSdkConfig.class),
+                            new String[0],
+                            context,
+                            Duration.ZERO));
 
                     RecordedRequest registerRequest = takeRequest(5);
                     assertThat(registerRequest.getPath()).isEqualTo("/eventbus/register");
@@ -165,6 +175,17 @@ class TenderEventSdkConfigTest {
         ServerConfig serverConfig = (ServerConfig)
                 ReflectionTestUtils.getField(registerComponent, "serverConfig");
         return serverConfig.getHostAndPort();
+    }
+
+    private void assertNoRequest(long timeout, TimeUnit unit) {
+        try {
+            assertThat(mockWebServer.takeRequest(timeout, unit))
+                    .as("SDK does not register before ApplicationReadyEvent")
+                    .isNull();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("Interrupted while checking for an early SDK request", e);
+        }
     }
 
     private RecordedRequest takeRequest(long timeoutSeconds) {

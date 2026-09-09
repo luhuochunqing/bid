@@ -808,3 +808,10 @@
 - 回填：更新 [[opportunity-prediction-reminder]] 决策5/6 + 全量字段节 + 预测逻辑口径注记；教训：**“对齐表格”须对齐表格的完整 enrich 链（表格消费 getAllProjects 的 enrich 后 DTO，含标讯兜底），而非只对齐单一数据源；且必须 grep 验证兜底方法真实调用点——本次一度误引用死代码 ProjectTenderPopulator，真实 enrich 是 ProjectListEnrichmentSupport.populateFromTender，其 customerType 兜底用 == null 判空（非 isBlank）且经 normalizeCustomerType 归一化，判空条件与值语义都需逐条比对才能做到 100% 一致**
 
 ## [2026-09-09] compound | tender-event-pr2598-contract-review 契约分层与响应误判复合查询回填
+
+
+## [2026-09-10] compound | 标讯事件 SDK 注册时序复合查询回填
+- 触发：PR !2601 部署后 bid:8080 仍为 DOWN/WAIT，自动 renew 无法恢复
+- 根因：Bean initMethod 在 Spring Boot Web 服务就绪前注册；EventBus 同步回调 `/api/task/startTask` 得到 Nginx 502，但注册接口仍返回 code=00000
+- 对照：应用就绪后只 register 一次即 UP/ACTIVE，停止手工续约后 SDK 仍约每 3 秒更新 lastRenewalTime，排除地址和续约参数
+- 回填：更新 [[integration-tender-event-push]] `13、实现笔记与 lessons `346；注册改由最低优先级 ApplicationReadyEvent 触发

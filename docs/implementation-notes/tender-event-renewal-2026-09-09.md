@@ -40,3 +40,25 @@ SDK 调度器只把 `initialDelay` 和 `period` 按 `TimeUnit.SECONDS` 解释；
 - SDK 续约方法不检查响应业务码，也没有成功响应日志；仅看到“续约线程启动”不能证明服务持续在线。
 - 部署后必须确认 `/eventbus/register` 宣告的是事件库实际可达的 host 与 Nginx 对外代理端口 `8080`，返回 HTTP 200 且 `code=00000`；随后每约 3 秒出现一次 `/eventbus/renew`，请求中的 `renewalDuration=3000`，并通过 `getActiveService` 确认实例保持 `UP/ACTIVE`。
 - 新建一个未使用过的人工标讯，确认应用响应不是 `result=false`，并使用同一 trace 核对事件库入库、Kafka 发布和 CRM 消费。只有完整链路均有证据时，才能判定功能最终打通。
+
+
+## 部署后验证补充（2026-09-10）
+
+PR !2601 合并并部署后，测试环境仍未自动形成有效注册。部署版本为 `452dae98b`，应用日志在
+07:03:05.096 记录“开始服务注册”、07:03:05.478 记录“注册流程已触发”，而 Spring Boot
+直到 07:03:05.965 才记录 `Started XiyuBidApplication`。同一秒的 Nginx access log 显示
+EventBus 回调 `POST /api/task/startTask` 返回 502。注册请求虽然得到 `code=00000`，EventBus
+实例却保持 `DOWN/WAIT`，后续 renew 也不能把这个无效实例激活。
+
+应用完全就绪后手工调用一次相同 `/eventbus/register` 作为对照，回调不再是 502，实例立即变为
+`UP/ACTIVE`。停止所有手工续约后继续观察 24 秒，SDK 自身 `lastRenewalTime` 仍约每 3 秒递增。
+该实验分别证明：
+
+- `http://172.16.38.78:8080` advertised 地址正确且 EventBus 可回连；
+- `initialDelay=3`、`period=3`、`renewalDuration=3000` 已生效；
+- 自动启动失败只剩注册时机：Bean `initMethod` 早于 Web 服务可接收同步回调。
+
+最终决策：移除 `@Bean(initMethod = "register")`，由 `TenderEventRegistrar` 监听
+`ApplicationReadyEvent` 并以最低优先级触发注册。部署后验收必须在不执行手工注册的前提下，
+确认启动回调不再出现 502、实例持续 `UP/ACTIVE`、续约时间约每 3 秒递增，再创建新标讯核对
+SDK `result`、本地流水和客户侧事件链路。
