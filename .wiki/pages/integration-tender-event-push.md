@@ -4,8 +4,8 @@ space: engineering
 category: integration
 tags: [integration, tender, event-bus, event-sdk, crm, push]
 created: 2026-08-12
-updated: 2026-09-06
-health_checked: 2026-09-06
+updated: 2026-09-09
+health_checked: 2026-09-09
 sources:
   - backend/src/main/java/com/xiyu/bid/integration/tenderevent/
   - backend/src/main/resources/db/migration-mysql/V1185__create_tender_event_logs.sql
@@ -260,5 +260,6 @@ backend/src/main/java/com/xiyu/bid/integration/tenderevent/
 - **标讯 data 全量字段（20 个，`TenderEventPayload`）**：`tenderId` / `externalId` / `title`(项目名称) / `purchaserName`(招标主体) / `region`(总部所在地) / `registrationDeadline`(报名截止) / `bidOpeningTime`(开标时间) / `customerType` / `priority` / `projectType`（三者存后端枚举码，`TenderEventPayloadMapper.toData` 序列化时转中文标签）/ 联系人1（`contactName`/`contactPhone`/`contactTel`/`contactMail`/`contactNature`）/ 联系人2（`contactName2`/`contactPhone2`/`contactTel2`/`contactMail2`/`contactNature2`）。
 - **商机 data 全量字段（10 个，`OpportunityPredictionEventPayload`）**：见 [[opportunity-prediction-reminder]]。
 - **⚠️ 链路 ID varchar(19) 陷阱（高价值）**：客户事件库 `trace_id`/`span_id` 列宽为 **varchar(19)**。`TenderEventSnowflakeUtil` 生成 "t"/"s" 前缀 + 18 位雪花 ID = 恰好 19 字符；**UUID 去横线后 32 字符会超长写入失败**。标讯侧早已用雪花 ID，商机侧 `OpportunityPredictionEventPublisher` 曾遗漏仍用 UUID（2026-09-06 修复：`spanId` 改 `nextSpanId()`，`currentTraceId()` 加 ≤19 校验 + 回退 `nextTraceId()`）。复用上游 MDC traceId 时同样必须校验 ≤19。
+- **⚠️ 18 位纯数字更正（2026-09-09，tenderId=4160 实测 result=false 根因）**：上一条"t/s+18位=19字符恰好"的判断是**旧结论**。客户事件库 `trace_id`/`span_id` 实际是 **18 位数字字段**，SDK 发送 trace 三元组经 HTTP Header 带 `t`/`s` 前缀的 19 字符值会被网关**判定非法而拒绝**（`result=false`，探针：纯 18 位数字 → 受理成功）。修复：`TenderEventSnowflakeUtil.nextTraceId()/nextSpanId()` 去掉 `t`/`s` 前缀返回纯 18 位数字；`TenderEventPublishService.generateTraceId()` 的 MDC 复用守卫从 `≤19` 收紧为 `≤18`；新增 `TenderEventSnowflakeUtilTest` 护栏验证纯数字 + 长度 ≤18 + 唯一性。**结论：链路 ID 必须为纯 18 位数字，任何字符前缀都会触发 result=false，排查时以 gateway 实际受理为准，勿再套用 varchar(19) 旧口径。**
 - **枚举中文映射同源**：`customerType`/`priority`/`projectType`/`resultType` 的中文标签与 `ProjectExportService`、前端 `projectListFormatters.js` 同源，未知值 fallback 原值。事件侧标签已收敛到 `TenderEventEnumLabels` 单一来源（标讯 Mapper 与商机 Publisher 共用，2026-09-06 deslop）；与 `ProjectExportService`/前端的跨模块字面量重复仍是技术债（`duplicate-implementations` 门禁不检测常量表，待单独任务收敛）。
 

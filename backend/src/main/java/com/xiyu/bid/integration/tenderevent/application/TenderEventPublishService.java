@@ -90,7 +90,8 @@ public class TenderEventPublishService {
                 tender.getContactTel2(),
                 tender.getContactMail2(),
                 tender.getContactNature2());
-        // 关键修复：客户事件库 trace_id / span_id 字段为 varchar(19)，使用 TenderEventSnowflakeUtil 生成标准 t/s+18位雪花ID
+        // 关键修复：客户事件库 trace_id / span_id 字段限 18 位数字（含前缀 19 字符会被拒），
+        // 用 TenderEventSnowflakeUtil 生成纯 18 位数字雪花ID（无 t/s 前缀）
         String traceId = generateTraceId();
         String spanId = TenderEventSnowflakeUtil.nextSpanId();
         String parentId = "0";
@@ -138,7 +139,7 @@ public class TenderEventPublishService {
 
     private static String generateTraceId() {
         String traceId = MDC.get(TraceConstants.MDC_TRACE_KEY);
-        if (traceId != null && !traceId.isBlank() && traceId.length() <= 19) {
+        if (traceId != null && !traceId.isBlank() && traceId.length() <= 18) {
             return traceId;
         }
         return TenderEventSnowflakeUtil.nextTraceId();
