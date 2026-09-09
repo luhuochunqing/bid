@@ -6,12 +6,12 @@ import java.net.UnknownHostException;
 /**
  * 标讯事件链路追踪 Snowflake ID 生成器（纯工具类，无外部环境依赖）。
  *
- * <p>生成规则完全对齐西域 SDK 规范：
+ * <p>生成规则对齐西域 SDK 规范（客户成功样例：traceId 为 18 位数字，无字符前缀）：
  * <ul>
- *   <li>{@code traceId}: {@code "t" + 18位数字}（总长度不超过 19 位）</li>
- *   <li>{@code spanId}: {@code "s" + 18位数字}（总长度不超过 19 位）</li>
+ *   <li>{@code traceId}: {@code 18位数字}（总长度不超过 18 位）</li>
+ *   <li>{@code spanId}: {@code 18位数字}（总长度不超过 18 位）</li>
  * </ul>
- * 客户事件库 trace_id / span_id 字段为 varchar(19)。
+ * 客户事件库 trace_id / span_id 字段为 18 位字段，禁止附加字符前缀（历史正误：t/s+18位=19字符 超长被拒）。
  */
 public final class TenderEventSnowflakeUtil {
 
@@ -41,11 +41,11 @@ public final class TenderEventSnowflakeUtil {
     }
 
     public static synchronized String nextTraceId() {
-        return "t" + INSTANCE.nextId();
+        return String.valueOf(INSTANCE.nextId());
     }
 
     public static synchronized String nextSpanId() {
-        return "s" + INSTANCE.nextId();
+        return String.valueOf(INSTANCE.nextId());
     }
 
     public synchronized long nextId() {
