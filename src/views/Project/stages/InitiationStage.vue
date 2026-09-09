@@ -289,8 +289,14 @@ async function handleBidDocRemove() {
       try {
         await projectsApi.deleteDocument(props.projectId, documentId)
       } catch (error) {
-        ElMessage.error(error?.message || '删除招标文件失败')
-        throw error
+        const status = error?.response?.status || error?.status
+        const code = error?.response?.data?.code
+        if (status === 404 || code === 404) {
+          console.warn('[InitiationStage] Document already deleted on backend (404), clearing local dangling reference')
+        } else {
+          ElMessage.error(error?.message || '删除招标文件失败')
+          throw error
+        }
       }
     }
     form.tenderDocumentId = null

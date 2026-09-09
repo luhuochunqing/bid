@@ -7,7 +7,9 @@ import com.xiyu.bid.project.entity.BidDocumentReviewEntity;
 import com.xiyu.bid.project.notification.DocumentChangeNotificationService;
 import com.xiyu.bid.project.notification.DocumentOperationType;
 import com.xiyu.bid.project.core.ProjectStage;
+import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.project.repository.BidDocumentReviewRepository;
+import com.xiyu.bid.project.repository.ProjectInitiationDetailsRepository;
 import com.xiyu.bid.project.service.ProjectStageService;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentCreateRequest;
 import com.xiyu.bid.projectworkflow.dto.ProjectDocumentDTO;
@@ -54,6 +56,7 @@ class ProjectDocumentWorkflowServiceTest {
     private DocumentChangeNotificationService documentChangeNotificationService;
     private BidDocumentReviewRepository bidDocumentReviewRepository;
     private ProjectArchiveWorkflowService projectArchiveWorkflowService;
+    private ProjectInitiationDetailsRepository projectInitiationDetailsRepository;
 
     @BeforeEach
     void setUp() {
@@ -71,6 +74,7 @@ class ProjectDocumentWorkflowServiceTest {
         bidDocumentReviewRepository = mock(BidDocumentReviewRepository.class);
         // spec 039: 归档依赖上提到 createProjectDocument，测试中 mock 该依赖验证调用
         projectArchiveWorkflowService = mock(ProjectArchiveWorkflowService.class);
+        projectInitiationDetailsRepository = mock(ProjectInitiationDetailsRepository.class);
 
         ProjectWorkflowGuardService guardService = new ProjectWorkflowGuardService(
                 projectRepository,
@@ -90,7 +94,8 @@ class ProjectDocumentWorkflowServiceTest {
                 currentUserResolver,
                 documentChangeNotificationService,
                 bidDocumentReviewRepository,
-                projectArchiveWorkflowService
+                projectArchiveWorkflowService,
+                projectInitiationDetailsRepository
         );
         downloadService = new ProjectDocumentDownloadService(guardService, fileStorage, projectStageService,
                 mock(com.xiyu.bid.file.application.ObsShareUrlSigner.class));
@@ -287,6 +292,48 @@ class ProjectDocumentWorkflowServiceTest {
         verify(bindingGateway).onDocumentDeleted(doc);
 
         org.springframework.security.core.context.SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void deleteProjectDocument_shouldClearInitiationTenderDocumentId_whenMatched() {
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(9001L)
+                .projectId(1001L)
+                .name("tender.pdf")
+                .build();
+        when(projectDocumentRepository.findById(9001L)).thenReturn(Optional.of(doc));
+
+        ProjectInitiationDetails initiationDetails = ProjectInitiationDetails.builder()
+                .projectId(1001L)
+                .tenderDocumentId(9001L)
+                .build();
+        when(projectInitiationDetailsRepository.findByProjectId(1001L)).thenReturn(Optional.of(initiationDetails));
+
+        service.deleteProjectDocument(1001L, 9001L);
+
+        assertThat(initiationDetails.getTenderDocumentId()).isNull();
+        verify(projectInitiationDetailsRepository).save(initiationDetails);
+    }
+
+    @Test
+    void deleteProjectDocument_shouldNotTouchInitiation_whenNotMatched() {
+        ProjectDocument doc = ProjectDocument.builder()
+                .id(9001L)
+                .projectId(1001L)
+                .name("other.pdf")
+                .build();
+        when(projectDocumentRepository.findById(9001L)).thenReturn(Optional.of(doc));
+
+        ProjectInitiationDetails initiationDetails = ProjectInitiationDetails.builder()
+                .projectId(1001L)
+                .tenderDocumentId(9999L)
+                .build();
+        when(projectInitiationDetailsRepository.findByProjectId(1001L)).thenReturn(Optional.of(initiationDetails));
+
+        service.deleteProjectDocument(1001L, 9001L);
+
+        assertThat(initiationDetails.getTenderDocumentId()).isEqualTo(9999L);
+        verify(projectInitiationDetailsRepository, org.mockito.Mockito.never()).save(any());
     }
 
     @Test

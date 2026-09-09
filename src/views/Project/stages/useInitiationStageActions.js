@@ -240,14 +240,16 @@ export function useInitiationStageActions({
           // ignore malformed JSON
         }
       }
-      // 修复：从 API 恢复招标文件列表，避免回切 tab 后上传组件显示为空
+      // 修复：从 API 恢复招标文件列表，避免回切 tab 后上传组件显示为空（若上方已查到真实文档则保留）
       if (data.tenderDocumentId) {
-        bidDocFiles.value = [{
-          uid: data.tenderDocumentId,
-          name: data.tenderDocumentName || data.tenderDocFileName || '招标文件',
-          url: data.tenderDocumentUrl || data.tenderDocFileUrl || '',
-          status: 'success',
-        }]
+        if (!bidDocFiles.value || bidDocFiles.value.length === 0) {
+          bidDocFiles.value = [{
+            uid: data.tenderDocumentId,
+            name: data.tenderDocumentName || data.tenderDocFileName || '招标文件',
+            url: data.tenderDocumentUrl || data.tenderDocFileUrl || '',
+            status: 'success',
+          }]
+        }
       } else {
         bidDocFiles.value = []
       }
