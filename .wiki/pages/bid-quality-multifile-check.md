@@ -4,7 +4,7 @@ space: engineering
 category: guide
 tags: [质量核查, 多文件, DocumentContent, sidecar, 合并, spec047]
 created: 2026-09-02
-updated: 2026-09-02
+updated: 2026-09-10
 health_checked: 2026-09-05
 sources:
   - backend/src/main/java/com/xiyu/bid/compliance/service/ComplianceTargetLoader.java
@@ -50,5 +50,11 @@ backlinks:
 - `compliance/service/ComplianceTargetLoader.java` — `findAllBidDocuments`（id 升序）/ `loadBidDocument`（逐册取流解析+空册拦截+合并）
 - `compliance/application/BidQualityCheckTaskAppService.java` — trigger 校验列表判空；`joinBidFileNames`
 - 测试：`DocumentContentMergeTest`（12 例）、`ComplianceTargetLoaderStorageDispatchTest`（13 例）
+
+## 5. 续篇：PDF 大文件空册的根因是 OOM 不是坏文件（项目 1373，2026-09-10）
+
+§2 的空册拦截上线后，428MB 投标 PDF 触发指名 422——文件可下载查看，但三次核查全败。查证为空册的另一条生产路径：`converter.py` 的 pdfplumber 单次 open 全量解析，内存膨胀约 7 倍，以 ~2.98GB RSS 撞 3GB 容器上限被 OOM-kill（dmesg 实证）；Java 侧 60s 超时先撞墙，重试再撞 503。
+
+根治三件套（输出字节零变化）：Sidecar 按 10 页分块重开（`SIDECAR_PDF_CHUNK_PAGES`，峰值 O(块)，100 页 fixture 189MB→74MB）→ Java 超时按 >50MB 分档 300s（`resolveTimeoutSeconds` 纯函数，永不抛契约不变）→ 容器 3g→4g（双宿主余量已测算，见 `remote-deploy.sh` 注释）。教训：小 fixture 全绿≠大文件安全，解析库必须配峰值基准测试（`test_pdf_memory_guard.py`）。
 
 相关：[[bid-quality-check-realization]]（spec 049 落地）、[[bid-quality-check-pagination-fix]]（\f 分页契约）
