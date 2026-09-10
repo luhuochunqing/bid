@@ -844,3 +844,11 @@
 - 口径：ProjectInitiationDetails.projectType 优先，缺失时回退 Tender.projectType 并经 InitiationFieldPolicy.normalizeProjectType 归一化，publisher 统一转中文标签
 - 验证：全字段与项目 983 空值 JSON 精确断言，提醒服务覆盖立项详情值和 Tender 中文值回退
 - 回填：更新 [[opportunity-prediction-reminder]]
+
+## [2026-09-10] fix | 项目 1373 大文件 PDF 解析 OOM 根治（pdfplumber 分块 + 超时分档 + sidecar 4g）
+
+- 触发：项目 1373 投标文件 `湖北中烟工业品标书.pdf`（428MB）三次核查全败，指名 422“确认可打开重传”，但文件可下载查看。
+- 根因：`convert_pdf_to_pages` 单次 open 全量解析，内存膨胀约 7 倍，以 ~2.98GB RSS 撞 3g 上限被 OOM-kill（dmesg 实证）；Java 60s 超时先撞墙、重试再撞 503。
+- 修复：Sidecar 按 10 页分块重开（`SIDECAR_PDF_CHUNK_PAGES`，峰值 O(块)，189MB→74MB，输出字节一致）；Java 超时按 >50MB 分档 ×5（`resolveTimeoutSeconds` 纯函数）；容器 3g→4g（双宿主余量已测算）。
+- 验证：pytest 83 passed；mvn 定向 12/12 + Loader 13/13 + ArchitectureTest 32/32 全绿；checkstyle 零新增违规。
+- 回填：更新 [[bid-quality-multifile-check]] §5；lessons-learned.md §352。
