@@ -5297,3 +5297,36 @@ SDK 自身仍每约 3 秒更新 `lastRenewalTime`。这排除了 advertised 地�
 晚于嵌入式服务器启动的生命周期事件。注册 API 的 HTTP 200 或业务成功码只证明请求被接受，
 验收还要核对回调状态和服务端的 `UP/ACTIVE` 状态；对照测试应同时断言“就绪前无请求”和
 “就绪后注册、续约”，并用旧实现反证测试确认门禁能捕获故障。
+
+---
+
+## 347. 超大文件场景下的流式处理与内存边界约束（2026-09-10）
+
+### 问题背景
+
+测试环境项目 1374 投标文件（1.95GB docx，内含 3,025 张图片与 33.4MB `word/document.xml`、32,651 个正文段落、39.1 万字）在进行标书质量核查时失败，投标文件在前端界面中也下载失败。
+
+### 根因分析
+
+1. **Sidecar 容器内存硬限制与 DOM 树膨胀（核查失败根因）**：
+   测试环境 `xiyu-sidecar` Docker 容器的 `--memory` 被硬性限制为 `1g`，而环境变量配置了 `SIDECAR_MAX_UPLOAD_MB=3072`。Python 转换服务使用 `markitdown` / `mammoth` 解析 docx 时，会将 33.4MB 的 `word/document.xml` 全量构建为 DOM / AST 树（包含每个段落、样式、运行块的对象模型），解析过程瞬时内存峰值突破 1GB，触发内核 cgroup OOM Killer（容器退出码 137，上游返回 HTTP 503）。Java 端 `ComplianceTargetLoader` 获取到空文本后拦截并抛错。
+2. **前端下载将大文件全量载入 JS 堆内存（下载失败根因）**：
+   前端 `downloadWithFilename` 统一走 Axios `httpClient.get(apiUrl, { responseType: 'blob', timeout: 120000 })`。当文件高达 1.95GB 时，Axios 会尝试在浏览器 V8 堆内存中分配 2GB+ 的连续 ArrayBuffer / Blob，超出 Chrome 堆内存限制或在 120s 内因网络传输超时而失败。
+
+### 解决方案
+
+1. **Sidecar 流式 SAX 解析容灾与容器规格提升**：
+   - 部署层面：修改 `scripts/release/remote-deploy.sh`，将 `xiyu-sidecar` 容器内存上限从 1GB 提升至 3GB，与 `SIDECAR_MAX_UPLOAD_MB=3072` 保持一致。
+   - 解析层面：在 `document-converter-sidecar/app.py` 中增加 `_is_large_docx`（检查 `word/document.xml` 解压大小是否 > 10MB）及 `_extract_docx_streaming_sax` 流式 SAX 提取器。基于 `xml.etree.ElementTree.iterparse` 逐段流式提取标题、段落与表格，并在处理后立即执行 `elem.clear()` 释放内存。实测提取 116.3 万字仅消耗 13.58MB 内存，耗时 3 秒，内存降低 98.7%，彻底免疫 OOM。
+2. **前端下载改造为原生流式落盘**：
+   - 工具函数：在 `src/utils/download.js` 增加 `triggerNativeDownload(url, filename)`，并在 `downloadWithFilename` 中增加 `options.native` 分支。
+   - 界面组件：在 `ProjectDocumentTable.vue` 和 `DraftingStage.vue` 中调用 `downloadWithFilename(downloadUrl, filename, { native: true })`。后端通过 302 重定向至 OBS 签名直链后，由浏览器原生下载引擎接管流式写入本地磁盘并支持断点续传，零 JS 堆内存开销。
+
+### 经验教训与规范
+
+| 维度 | 常见陷阱 | 规范与对策 |
+|---|---|---|
+| **容器内存** | 环境变量允许 3GB 上传，但 Docker 容器仅分配 1GB 内存，参数矛盾 | 容器资源配额必须与应用配置的最大处理能力严格对齐，禁止小内存容器承载大配额任务 |
+| **文档解析** | 全量 DOM/AST 解析大文档引发内存爆炸 | 对超大 XML/文档必须提供流式 SAX/StAX 纯文本提取兜底，处理完即清理节点引用 |
+| **文件下载** | 前端统一用 `responseType: 'blob'` 下载，导致大文件打爆浏览器内存 | 文档与交付物等用户上传的大文件下载必须使用原生 `<a>` 标签，交由浏览器内核流式落盘 |
+

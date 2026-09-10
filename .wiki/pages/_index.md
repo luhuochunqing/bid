@@ -74,6 +74,7 @@ backlinks:
 - [[integration-tender-event-push]] — 标讯创建事件推送 - 西域 CRM 事件总线
 - [[integration-wecom]] — 系统集成中心 - 企业微信
 - [[knowledge-base]] — 4.4 知识库 PRD (产品需求文档)
+- [[large-file-streaming-and-memory-discipline]] — 超大标书流式解析与前端原生下载治理（2GB+ 内存防爆与 SAX 容灾）
 - [[lessons-learned]] — 工程经验总结
 - [[lessons-learned/case-precipitation-oversize-oom]] — AI 生成案例超大标书 OOM 导致入库 0 条 — 整文件读堆 + 二次分配与"假成功"上报
 - [[lessons-learned/CO-361-five-rounds-no-fix]] — CO-361 五次修复不彻底的教训 — 反复追症状不追根因的代价
