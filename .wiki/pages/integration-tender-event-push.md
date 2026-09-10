@@ -54,7 +54,7 @@ backlinks:
 ```
 
 - 这是 **SDK `sendEvent` 组装的标准 wire 形态（4 字段）**，由两个事件发布器直接调用 SDK 标准通道发出（2026-08-27 客户明确指示，详见 §8）；`serviceName` 是网关投递路由的必带字段
-- `data` 是 **JSON 字符串**（网关 `EventContentReqDto.data` 声明为 String），由发布器把业务载荷 Map 序列化后作为 `eventContent` 传给 SDK；**2026-09 起含标讯全量 20 字段（清单见 §11），null 字段省略**（此前只含 `tenderId`/`externalId`）
+- `data` 是 **JSON 字符串**（网关 `EventContentReqDto.data` 声明为 String），由发布器把业务载荷 Map 序列化后作为 `eventContent` 传给 SDK；**2026-09 起固定包含标讯全量 20 字段（清单见 §11），null/空白字段传空字符串**（此前只含 `tenderId`/`externalId`，一度错误省略空字段）
 - 链路追踪 `traceId` / `spanId` / `parentId` 经 `EventTrackReq` 由 SDK 写入 HTTP Header，不进 body；`key`/`time` 也不进 body（那是事件库内部存储形态字段，非 SDK wire 契约）
 - ⚠️ **契约坑**：若 `data` 传原始对象而非 JSON 字符串，网关返回 `400 Bad Request`（2026-08-25 实战踩坑）
 
@@ -297,3 +297,11 @@ backend/src/main/java/com/xiyu/bid/integration/tenderevent/
   临时恢复旧 `initMethod` 时该测试会稳定失败并捕获提前注册。
 - **验收边界**：重新部署后不得手工 register；需确认回调无 502、`bid:8080` 持续
   `UP/ACTIVE`、约每 3 秒续约，再以新 tenderId 核对 SDK、事件流水、事件库、Kafka 与 CRM。
+
+### 14. 全量字段必须保留空值键（2026-09-10，tenderId=4173）
+
+- **客户反馈**：真实联调事件 `traceId=tb7u2qaaihsgx0u7s8`、`tenderId=4173`、`topic=BidTenderChange` 已返回 `result=true` 并进入事件库，但 `data` 只包含 `tenderId`、`externalId`、`title` 三个非空字段。
+- **补充契约**：20 个标讯字段必须保持固定结构；除必填数字 `tenderId` 外，其余字段无值时传空字符串，不能省略 key。
+- **根因**：`TenderEventPayloadMapper.toData` 使用 `putIfPresent`/`putDateTimeIfPresent` 主动省略 null 和空白字段。SDK 与事件库链路工作正常，问题发生在 SDK 调用前的业务 data 映射层。
+- **修复**：映射层固定写入 20 个字段，字符串/枚举/时间的 null 或空白值统一为 `""`；流水 JSON 与 SDK `eventContent` 继续共用该映射结果。
+- **回归证据**：用 4173 的三字段样本断言输出 Map 恰好 20 个 key，剩余 17 个字段均存在且为空字符串；SDK 生产器测试同时断言传给 `sendEvent` 的 JSON 满足相同结构。

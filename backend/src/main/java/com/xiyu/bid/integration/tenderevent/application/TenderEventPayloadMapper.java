@@ -15,10 +15,11 @@ import org.springframework.stereotype.Service;
  * 标讯事件消息体 data 序列化（label: 纯映射，无业务决策）。
  *
  * <p>把纯核心的 {@link TenderEventPayload}（record）投影为事件总线要求的 data 结构：
- * {@link #toData} 产出有序 Map（唯一数据源，供流水留痕与实际发送共用，避免两处字段漂移），
+ * {@link #toData} 产出有序 Map（唯一数据源，供流水留痕与实际发送共用，
+ * 避免两处字段漂移），
  * {@link #toJson} 再序列化为 JSON 字符串写入 {@code tender_event_logs.event_content}。
  *
- * <p>字段规则：{@code tenderId} 必填；其余字段为 null/空白时省略，避免传脏数据；
+ * <p>字段规则：{@code tenderId} 必填；其余约定字段始终输出，null/空白统一写为空字符串；
  * {@code customerType/priority/projectType} 经 {@link TenderEventEnumLabels} 转中文标签；
  * 时间字段格式化为 {@code yyyy-MM-dd HH:mm}。
  */
@@ -53,44 +54,40 @@ public final class TenderEventPayloadMapper {
      * 保证两者字段集与中文映射完全一致，不会因分别维护而漂移。
      *
      * @param payload 标讯事件消息体
-     * @return 有序 data Map；null/空白字段已省略，枚举字段已转中文，时间字段已格式化
+     * @return 有序 data Map；null/空白字段为空字符串，枚举字段已转中文，时间字段已格式化
      */
     public static Map<String, Object> toData(TenderEventPayload payload) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("tenderId", payload.tenderId());
-        putIfPresent(data, "externalId", payload.externalId());
-        putIfPresent(data, "title", payload.title());
-        putIfPresent(data, "purchaserName", payload.purchaserName());
-        putIfPresent(data, "region", payload.region());
-        putDateTimeIfPresent(data, "registrationDeadline", payload.registrationDeadline());
-        putDateTimeIfPresent(data, "bidOpeningTime", payload.bidOpeningTime());
-        putIfPresent(data, "customerType", TenderEventEnumLabels.customerTypeLabel(payload.customerType()));
-        putIfPresent(data, "priority", TenderEventEnumLabels.priorityLabel(payload.priority()));
-        putIfPresent(data, "projectType", TenderEventEnumLabels.projectTypeLabel(payload.projectType()));
-        putIfPresent(data, "contactName", payload.contactName());
-        putIfPresent(data, "contactPhone", payload.contactPhone());
-        putIfPresent(data, "contactTel", payload.contactTel());
-        putIfPresent(data, "contactMail", payload.contactMail());
-        putIfPresent(data, "contactNature", payload.contactNature());
-        putIfPresent(data, "contactName2", payload.contactName2());
-        putIfPresent(data, "contactPhone2", payload.contactPhone2());
-        putIfPresent(data, "contactTel2", payload.contactTel2());
-        putIfPresent(data, "contactMail2", payload.contactMail2());
-        putIfPresent(data, "contactNature2", payload.contactNature2());
+        data.put("externalId", emptyIfBlank(payload.externalId()));
+        data.put("title", emptyIfBlank(payload.title()));
+        data.put("purchaserName", emptyIfBlank(payload.purchaserName()));
+        data.put("region", emptyIfBlank(payload.region()));
+        data.put("registrationDeadline", formatOrEmpty(payload.registrationDeadline()));
+        data.put("bidOpeningTime", formatOrEmpty(payload.bidOpeningTime()));
+        data.put("customerType", emptyIfBlank(TenderEventEnumLabels.customerTypeLabel(payload.customerType())));
+        data.put("priority", emptyIfBlank(TenderEventEnumLabels.priorityLabel(payload.priority())));
+        data.put("projectType", emptyIfBlank(TenderEventEnumLabels.projectTypeLabel(payload.projectType())));
+        data.put("contactName", emptyIfBlank(payload.contactName()));
+        data.put("contactPhone", emptyIfBlank(payload.contactPhone()));
+        data.put("contactTel", emptyIfBlank(payload.contactTel()));
+        data.put("contactMail", emptyIfBlank(payload.contactMail()));
+        data.put("contactNature", emptyIfBlank(payload.contactNature()));
+        data.put("contactName2", emptyIfBlank(payload.contactName2()));
+        data.put("contactPhone2", emptyIfBlank(payload.contactPhone2()));
+        data.put("contactTel2", emptyIfBlank(payload.contactTel2()));
+        data.put("contactMail2", emptyIfBlank(payload.contactMail2()));
+        data.put("contactNature2", emptyIfBlank(payload.contactNature2()));
         return data;
     }
 
-    /** 字符串字段：null/空白省略。 */
-    private static void putIfPresent(Map<String, Object> data, String key, String value) {
-        if (value != null && !value.isBlank()) {
-            data.put(key, value);
-        }
+    /** 客户契约要求字段不缺省：null/空白统一为空字符串。 */
+    private static String emptyIfBlank(String value) {
+        return value == null || value.isBlank() ? "" : value;
     }
 
-    /** 时间字段：null 省略，否则格式化为 {@code yyyy-MM-dd HH:mm}。 */
-    private static void putDateTimeIfPresent(Map<String, Object> data, String key, LocalDateTime value) {
-        if (value != null) {
-            data.put(key, value.format(DATE_TIME_FORMATTER));
-        }
+    /** 时间字段：null 为空字符串，否则格式化为 {@code yyyy-MM-dd HH:mm}。 */
+    private static String formatOrEmpty(LocalDateTime value) {
+        return value == null ? "" : value.format(DATE_TIME_FORMATTER);
     }
 }

@@ -414,7 +414,7 @@ xiyu:
 
     tender-event:
       # 标讯创建事件推送 SDK（推送标讯到西域 CRM 事件总线）
-      # data 只放关键标识（tenderId/externalId），trace 进 HTTP Header
+      # data 固定输出全量 20 字段，业务空值按客户契约传空字符串
       # 默认 disabled（安全默认），生产环境通过 XIYU_TENDER_EVENT_SDK_ENABLED=true 启用
       sdk:
         enabled: ${XIYU_TENDER_EVENT_SDK_ENABLED:false}
