@@ -10,9 +10,12 @@ import static org.mockito.Mockito.when;
 import com.ehsy.eventlibrary.clientsdk.common.req.EventTrackReq;
 import com.ehsy.eventlibrary.clientsdk.common.resp.SendEventRespDto;
 import com.ehsy.eventlibrary.clientsdk.systeminteraction.service.SystemInteractiveService;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.integration.tenderevent.application.TenderEventPublishCommand;
 import com.xiyu.bid.integration.tenderevent.domain.TenderEventCode;
 import com.xiyu.bid.integration.tenderevent.domain.TenderEventPayload;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,7 +44,7 @@ class TenderEventSdkProducerTest {
 
     @Test
     @DisplayName("发送成功：topic/source/data/track 按客户 SDK 契约传递")
-    void publish_passesContractArgsDirectlyToSdk() {
+    void publish_passesContractArgsDirectlyToSdk() throws Exception {
         when(interactiveService.sendEvent(eq("BidTenderChange"), eq("bid"), any(), any()))
                 .thenReturn(new SendEventRespDto(true));
         assertThat(producer.publish(command())).isTrue();
@@ -49,7 +52,15 @@ class TenderEventSdkProducerTest {
         ArgumentCaptor<String> data = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<EventTrackReq> track = ArgumentCaptor.forClass(EventTrackReq.class);
         verify(interactiveService).sendEvent(eq("BidTenderChange"), eq("bid"), data.capture(), track.capture());
-        assertThat(data.getValue()).isEqualTo("{\"tenderId\":123,\"externalId\":\"ext-1\"}");
+        Map<String, Object> sentData = new ObjectMapper().readValue(
+                data.getValue(), new TypeReference<>() {});
+        assertThat(sentData).hasSize(20)
+                .containsEntry("tenderId", 123)
+                .containsEntry("externalId", "ext-1")
+                .containsEntry("title", "")
+                .containsEntry("purchaserName", "")
+                .containsEntry("registrationDeadline", "")
+                .containsEntry("contactNature2", "");
         assertThat(track.getValue().getTraceId()).isEqualTo("123456789012345678");
         assertThat(track.getValue().getSpanId()).isEqualTo("223456789012345678");
         assertThat(track.getValue().getParentId()).isEqualTo("0");

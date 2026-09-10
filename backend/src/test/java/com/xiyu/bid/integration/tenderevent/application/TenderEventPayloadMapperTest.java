@@ -1,8 +1,10 @@
 package com.xiyu.bid.integration.tenderevent.application;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.integration.tenderevent.domain.TenderEventPayload;
 import java.time.LocalDateTime;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -19,9 +21,10 @@ class TenderEventPayloadMapperTest {
         mapper = new TenderEventPayloadMapper(new ObjectMapper());
     }
 
-    /** 仅 tenderId + externalId 非空，其余 18 字段 null（验证 null 省略）。 */
+    /** 复现 tenderId=4173：仅 tenderId、externalId、title 有值。 */
     private TenderEventPayload minimal(String externalId) {
-        return new TenderEventPayload(123L, externalId, null, null, null, null, null, null, null, null,
+        return new TenderEventPayload(4173L, externalId, "SDK事件联调-PR2603-自动注册-20260910T083236",
+                null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null, null);
     }
 
@@ -37,22 +40,48 @@ class TenderEventPayloadMapperTest {
     }
 
     @Test
-    @DisplayName("有 externalId、其余字段 null → data 只含 tenderId 和 externalId")
-    void toJson_minimal() {
-        assertThat(mapper.toJson(minimal("ext-1")))
-                .isEqualTo("{\"tenderId\":123,\"externalId\":\"ext-1\"}");
+    @DisplayName("4173 样本其余字段 null → 20 个约定字段齐全且空值为空字符串")
+    void toJson_minimal_includesAllContractFields() throws Exception {
+        String json = mapper.toJson(minimal("E2E-PR2603-AUTO-20260910T083236"));
+
+        Map<String, Object> data = new ObjectMapper().readValue(json, new TypeReference<>() {});
+        assertThat(data).hasSize(20)
+                .containsEntry("tenderId", 4173)
+                .containsEntry("externalId", "E2E-PR2603-AUTO-20260910T083236")
+                .containsEntry("title", "SDK事件联调-PR2603-自动注册-20260910T083236")
+                .containsEntry("purchaserName", "")
+                .containsEntry("region", "")
+                .containsEntry("registrationDeadline", "")
+                .containsEntry("bidOpeningTime", "")
+                .containsEntry("customerType", "")
+                .containsEntry("priority", "")
+                .containsEntry("projectType", "")
+                .containsEntry("contactName", "")
+                .containsEntry("contactPhone", "")
+                .containsEntry("contactTel", "")
+                .containsEntry("contactMail", "")
+                .containsEntry("contactNature", "")
+                .containsEntry("contactName2", "")
+                .containsEntry("contactPhone2", "")
+                .containsEntry("contactTel2", "")
+                .containsEntry("contactMail2", "")
+                .containsEntry("contactNature2", "");
     }
 
     @Test
-    @DisplayName("externalId 为 null → data 只含 tenderId")
-    void toJson_nullExternalId_omits() {
-        assertThat(mapper.toJson(minimal(null))).isEqualTo("{\"tenderId\":123}");
+    @DisplayName("externalId 为 null → 字段保留并输出空字符串")
+    void toJson_nullExternalId_becomesEmptyString() throws Exception {
+        Map<String, Object> data = new ObjectMapper().readValue(
+                mapper.toJson(minimal(null)), new TypeReference<>() {});
+        assertThat(data).containsEntry("externalId", "");
     }
 
     @Test
-    @DisplayName("externalId 为空白 → data 只含 tenderId")
-    void toJson_blankExternalId_omits() {
-        assertThat(mapper.toJson(minimal("  "))).isEqualTo("{\"tenderId\":123}");
+    @DisplayName("externalId 为空白 → 字段保留并规范为空字符串")
+    void toJson_blankExternalId_becomesEmptyString() throws Exception {
+        Map<String, Object> data = new ObjectMapper().readValue(
+                mapper.toJson(minimal("  ")), new TypeReference<>() {});
+        assertThat(data).containsEntry("externalId", "");
     }
 
     @Test

@@ -822,3 +822,9 @@
 - 结论：事件库是带注册、反向回调、租约、订阅和运行时装配的有状态协议；我方长期按普通 HTTP 接口理解并以局部成功替代端到端成功是主因，客户文档分层不清和 SDK 黑盒行为是重要诱因
 - 证据：无手工注册下 `bid:8080` 持续 `UP/ACTIVE`，真实 tenderId 4173 的 SDK result=true、我方流水 1883 与客户流水 97776 使用同一 18 位 traceId
 - 回填：新增 [[event-library-integration-rca]]，沉淀五层契约、五个为什么、组织/标讯共同机制和统一验收门禁
+
+## [2026-09-10] compound | 标讯事件全量字段空字符串契约回填
+- 触发：真实联调 `tenderId=4173` 已入事件库，但 data 仅包含三个有值字段；客户确认空字段也必须传空字符串
+- 根因：`TenderEventPayloadMapper.toData` 主动省略 null/空白字段，使全量 20 字段要求退化为稀疏 JSON
+- 修复：固定输出 20 个字段，除数字 tenderId 外，字符串、枚举和时间空值统一为 `""`；流水与 SDK sendEvent 继续复用同一映射
+- 验证：4173 三字段样本断言 20 个 key 和 17 个空字符串，SDK producer 契约测试同步覆盖；回填 [[integration-tender-event-push]] §14

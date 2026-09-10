@@ -50,22 +50,22 @@ public final class TenderEventEnumLabels {
     private TenderEventEnumLabels() {
     }
 
-    /** 项目状态标签；null/空白返回 null（由调用方省略），未知值 fallback 原值。 */
+    /** 项目状态标签；null/空白返回 null（由调用方决定输出策略），未知值 fallback 原值。 */
     public static String bidStatusLabel(String value) {
         return mapLabel(BID_STATUS_LABELS, value);
     }
 
-    /** 客户类型标签；null/空白返回 null（由调用方省略），未知值 fallback 原值。 */
+    /** 客户类型标签；null/空白返回 null（由调用方决定输出策略），未知值 fallback 原值。 */
     public static String customerTypeLabel(String value) {
         return mapLabel(CUSTOMER_TYPE_LABELS, value);
     }
 
-    /** 项目类型标签；null/空白返回 null（由调用方省略），未知值 fallback 原值。 */
+    /** 项目类型标签；null/空白返回 null（由调用方决定输出策略），未知值 fallback 原值。 */
     public static String projectTypeLabel(String value) {
         return mapLabel(PROJECT_TYPE_LABELS, value);
     }
 
-    /** 优先级标签；null/空白返回 null（由调用方省略），未知值 fallback 原值。 */
+    /** 优先级标签；null/空白返回 null（由调用方决定输出策略），未知值 fallback 原值。 */
     public static String priorityLabel(String value) {
         return mapLabel(PRIORITY_LABELS, value);
     }
