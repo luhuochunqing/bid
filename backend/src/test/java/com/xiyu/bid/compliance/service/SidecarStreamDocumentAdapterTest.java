@@ -88,6 +88,37 @@ class SidecarStreamDocumentAdapterTest {
     }
 
     @Nested
+    @DisplayName("大文件超时分档（1373 根治：428MB 标书 60s 内转不完）")
+    class LargeFileTimeoutTests {
+
+        @Test
+        @DisplayName("小文件走基准档")
+        void smallFile_usesBaseTimeout() {
+            assertThat(adapter.resolveTimeoutSeconds(10 * 1024 * 1024)).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("阈值边界（恰好 50MB）仍走基准档")
+        void thresholdBoundary_usesBaseTimeout() {
+            assertThat(adapter.resolveTimeoutSeconds(50 * 1024 * 1024)).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("超阈值文件走大文件档（基准档 × 5）")
+        void largeFile_usesLargeTimeout() {
+            assertThat(adapter.resolveTimeoutSeconds(51 * 1024 * 1024)).isEqualTo(5);
+            assertThat(adapter.resolveTimeoutSeconds(448688453L)).isEqualTo(5);
+        }
+
+        @Test
+        @DisplayName("未知大小（0/负数）回落基准档")
+        void unknownSize_fallsBackToBaseTimeout() {
+            assertThat(adapter.resolveTimeoutSeconds(0)).isEqualTo(1);
+            assertThat(adapter.resolveTimeoutSeconds(-1)).isEqualTo(1);
+        }
+    }
+
+    @Nested
     @DisplayName("Sidecar 响应解析：结构化 pages 与虚拟分页兜底")
     class PayloadParsingTests {
 

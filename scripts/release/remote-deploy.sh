@@ -121,8 +121,10 @@ if [[ -f "$SIDECAR_ARCHIVE" ]]; then
       $DOCKER_BIN build --progress=plain -f "$SIDECAR_DIR/Dockerfile.cn" -t document-converter-sidecar:latest "$SIDECAR_DIR"
       printf '==> 重新启动 xiyu-sidecar 容器...\n'
       $DOCKER_BIN rm -f xiyu-sidecar 2>/dev/null || true
+      # 内存 4g（1373 根治：428MB PDF 全量解析曾以 ~2.98GB RSS 撞 3g 上限被 OOM-kill；
+      # 测试服 7.4GB/可用 4.5GB、生产 15GB/可用 11GB，4g 双环境均安全；5g+ 无 swap 下有宿主 OOM 风险）
       $DOCKER_BIN run -d --name xiyu-sidecar --restart=always -p 8000:8000 \
-        --memory=3g --memory-swap=3g \
+        --memory=4g --memory-swap=4g \
         -e SIDECAR_HOST=0.0.0.0 -e SIDECAR_PORT=8000 -e SIDECAR_MAX_UPLOAD_MB=3072 \
         document-converter-sidecar:latest
       printf '%s\n' "$NEW_SIDECAR_HASH" > "$SIDECAR_DIR/.deployed_sha256"

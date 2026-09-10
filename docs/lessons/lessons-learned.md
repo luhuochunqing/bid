@@ -5421,4 +5421,36 @@ SDK 自身仍每约 3 秒更新 `lastRenewalTime`。这排除了 advertised 地�
 2. **双通道输出一致性收敛**：确保普通 docx（mammoth/markitdown 转换后清洗）与超大 docx（流式 SAX 解析）均能一致产出 `【已附图片】` 纯文本标记，无缝覆盖规则引擎正则 `IMAGE_EVIDENCE_PATTERN` 与大模型语义裁决上下文。
 3. **回归测试闭环**：在 `test_docx_streaming_sax.py` 中新增表格内 DrawingML blip 图片与 VML imagedata 图片的双重单元测试，防止多解析器分流时的行为不一致。
 
+## 352. PDF 全量解析 OOM：pdfplumber 常驻结构必须按块重开释放（2026-09-10，项目 1373 根治）
+
+### 问题背景
+
+测试环境项目 1373 投标文件 `湖北中烟工业品标书.pdf`（448,688,453 字节，约 428MB）触发 AI 标书质量核查，三次全部失败：`投标文件解析失败：湖北中烟工业品标书.pdf，请确认文件可正常打开后重新上传`。文件可正常下载查看（OBS 302 字节透传，不经过解析）。
+
+### 根因分析
+
+1. **pdfplumber 整文件常驻（零号病人）**：`document-converter-sidecar/converter.py` 的 `convert_pdf_to_pages` 单次 `open` 后遍历全页，每页 `extract_text + extract_tables` 构建的 chars/edges/tables 对象在整个转换期间常驻，峰值约 7 倍文件大小。428MB 文件以 ~2.98GB RSS 撞 3GB cgroup 上限被 OOM-killer 处决（dmesg 实证，容器 `OOMKilled=true`）。docx 在 #145~148 已获流式 SAX/去媒体三层保护，PDF 路径裸奔——典型的修 A 漏 B。
+2. **60s 超时必然撞墙**：Java `SidecarStreamDocumentAdapter` 超时固定 60s，428MB 文件必然转不完；重试撞上已死的 worker 取到 503。三次日志：62s 超时 → 27s 后 503（正中 worker 死亡点）→ 62s 超时。
+3. **容器配额与Chunk缺失叠加**：`SIDECAR_MAX_UPLOAD_MB=3072` 放行，但 3GB 内存扛不住 7 倍膨胀；`--memory` 在 `remote-deploy.sh` 写死，测试服 7.4GB/可用 4.5GB、生产 15GB/可用 11GB，4GB 双环境均安全，5GB+ 无 swap 下有宿主 OOM 风险。
+
+### 修复方案
+
+1. **Sidecar PDF 分块重开**：`convert_pdf_to_pages` 先取页数，再每 10 页（`SIDECAR_PDF_CHUNK_PAGES` 可调）open/提取/close，块内引用随函数返回释放，峰值从 O（全文）降为 O（块）。同 100 页表格 fixture 实测 189MB → 74MB，输出字节一致（`test_pdf_chunked_output_matches_whole`），耗时无回归。
+2. **Java 超时分档**：`resolveTimeoutSeconds` 纯函数，>50MB 走 300s（`large-file-timeout-seconds`），未知大小回落基准档；永不抛异常契约不变（#208），仅丰富降级日志的文件名/超时档。
+3. **容器 3g→4g**：`remote-deploy.sh` 一行，注释写明双宿主余量测算。
+
+### 经验教训与规范
+
+| 维度 | 常见陷阱 | 规范与对策 |
+|---|---|---|
+| **解析库内存模型** | 以为 pdfplumber 是流式的（实际全量建模），小 fixture 全绿掩盖大文件爆炸 | 接入文档解析库必须用合成大文件做峰值基准（tracemalloc + 断言上限，参照 `test_pdf_memory_guard.py`），禁止只用 KB 级 mock 测流程（#146 同类） |
+| **超时配置** | 全局固定超时，大文件必然撞墙后被误报为“文件损坏” | 面向用户上传的转换调用必须按文件大小分档超时；降级日志必须带文件名与生效档位，否则 422 文案永远指向错误方向 |
+| **容器配额** | 配额只对齐上传上限，不对齐“膨胀倍数×最大文件” | 加内存前先算宿主余量（无 swap 时双峰值叠加会挤爆宿主）；配额变更注释必须写明测算依据与上限理由 |
+
+### 相关文件
+
+- `document-converter-sidecar/converter.py`（`_convert_pdf_chunk` / `_pdf_chunk_pages`）
+- `document-converter-sidecar/tests/test_pdf_memory_guard.py`
+- `backend/src/main/java/com/xiyu/bid/compliance/service/SidecarStreamDocumentAdapter.java`（`resolveTimeoutSeconds`）
+- `scripts/release/remote-deploy.sh`（`--memory=4g`）
 
