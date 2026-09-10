@@ -4,7 +4,7 @@ space: engineering
 category: integration
 tags: [integration, api, tender, crm, callback, x-api-key]
 created: 2026-06-21
-updated: 2026-09-05
+updated: 2026-09-10
 health_checked: 2026-09-05
 sources:
   - docs/integration/标讯集成接口文档-v3.8.md
@@ -56,6 +56,16 @@ backlinks:
   - `tender:read` — 只读，适用于接口 1、4
   - `tender:write` — 读写，适用于接口 1、2、3、4
 - 生产环境必须启用 HTTPS
+
+**权限范围更新（2026-09-10）**：为外部对接追加权限（如新增 `ca:read`）**不再需要改生产库**。由平台系统管理员调用：
+```
+PATCH /api/admin/api-keys/{id}
+Content-Type: application/json
+Body: {"name":"可选，空/缺省保留原名","scopes":["tender:read","ca:read"]}
+```
+- 认证走平台 JWT + `system.admin` 权限（非 `X-API-Key`）
+- `scopes` 必填、**全量替换**（去重保序）；`id` 不存在 → 404
+- 属主 `*:read`/`*:write` 管理端点由平台侧统一保管，不在本公开接口文档暴露 scope 全量
 
 ### 2.2 JWT Bearer Token 认证（出站回调 5-6）
 
