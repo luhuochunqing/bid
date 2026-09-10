@@ -207,7 +207,7 @@ public class ScoreGlobalMergeOrchestrator {
     private static String makeDeduplicationKey(ScoreCandidate c) {
         if (c == null) return "|";
         String dim = c.dim() == null ? "" : extractCoreDim(c.dim());
-        String detail = c.detail() == null ? "" : normalizeText(c.detail());
+        String detail = c.detail() == null ? "" : cleanForComparison(c.detail());
         String shortDetail = detail.length() > 50 ? detail.substring(0, 50) : detail;
         return dim + "|" + shortDetail;
     }
@@ -216,20 +216,39 @@ public class ScoreGlobalMergeOrchestrator {
         if (structCandidate == null || structCandidate.detail() == null || structCandidate.detail().isBlank()) {
             return false;
         }
-        String structDetail = normalizeText(structCandidate.detail());
+        String structDetail = cleanForComparison(structCandidate.detail());
         String structCoreDim = extractCoreDim(structCandidate.dim());
 
         for (ScoreCandidate acc : accepted) {
             if (acc == null || acc.detail() == null) continue;
-            String accDetail = normalizeText(acc.detail());
+            String accDetail = cleanForComparison(acc.detail());
             String accCoreDim = extractCoreDim(acc.dim());
 
-            if (structDetail.equals(accDetail)) return true;
+            if (!structDetail.isEmpty() && structDetail.equals(accDetail)) return true;
             if (!structCoreDim.isEmpty() && structCoreDim.equals(accCoreDim)) {
                 if (accDetail.contains(structDetail) || structDetail.contains(accDetail)) return true;
             }
+            // 价格或公式类包含判断：当文本长度充足（>=20字），且属于价格/商务大项或具有完全子串关系时，视为已覆盖
+            if (structDetail.length() >= 20 && (accDetail.contains(structDetail) || structDetail.contains(accDetail))) {
+                if (isPriceOrFormulaDim(structCandidate.dim()) || isPriceOrFormulaDim(acc.dim())) {
+                    return true;
+                }
+            }
         }
         return false;
+    }
+
+    private static boolean isPriceOrFormulaDim(String dim) {
+        if (dim == null) return false;
+        return dim.contains("价格") || dim.contains("报价") || dim.contains("商务") || dim.contains("基准价")
+                || dim.contains("折扣率") || dim.contains("计算");
+    }
+
+    private static String cleanForComparison(String text) {
+        if (text == null) return "";
+        // 剥离 Markdown 强调标记（** / __ / * / _ / ` / #）以及空格和各类中英文标点与符号
+        String s = text.replaceAll("[*_`#~]+", "");
+        return s.replaceAll("[\\s\\p{P}\\p{S}]+", "");
     }
 
     /**

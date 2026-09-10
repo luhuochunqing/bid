@@ -170,6 +170,27 @@ class EstimatedScoreServiceTest {
     }
 
     @Test
+    void centralSOEProjectItem_extractsKeywordsAndSignedAfter_andEstimatesScore() {
+        String detail = "在满足资格条件的基础上，每增加1个有效业绩得1分，最高得5分（如多个业绩合同方为同一家公司，则算1个有效业绩）。提供业绩合同关键页复印件。 注：业绩合同内容为：中央企业（集团）全系统范围或中央金融企业的MRO工业品类交易服务。时间为2022年1月至今。";
+        ScoreItem project = item("央企案例", detail, "5", "OBJECTIVE");
+        when(itemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(project));
+        when(projectMatchService.match(any(ProjectMatchRequest.class)))
+                .thenReturn(new KnowledgeMatchResult("FULL", 100, List.of(), "命中业绩 20/5"));
+
+        service.estimateForProject(1L);
+
+        ArgumentCaptor<ProjectMatchRequest> captor = ArgumentCaptor.forClass(ProjectMatchRequest.class);
+        verify(projectMatchService).match(captor.capture());
+        ProjectMatchRequest captured = captor.getValue();
+        assertThat(captured.projectTypeKeywords()).contains("中央企业", "央企", "MRO");
+        assertThat(captured.signedAfter()).isEqualTo(LocalDate.of(2022, 1, 1));
+        assertThat(captured.requiredCount()).isEqualTo(5);
+        assertThat(project.getEstScore()).isEqualByComparingTo("5");
+        assertThat(project.getStatusStage1()).isEqualTo("OK");
+        assertThat(project.getKbHit()).isTrue();
+    }
+
+    @Test
     void subjectiveItem_forcedNull_noMatchCalls() {
         ScoreItem subjective = item("技术方案", "技术方案科学合理", "10", "SUBJECTIVE");
         when(itemRepository.findByProjectIdOrderByItemIndexAsc(1L)).thenReturn(List.of(subjective));

@@ -6,6 +6,7 @@
 package com.xiyu.bid.scoreparse.domain;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -110,6 +111,115 @@ public class KnowledgeCategoryPolicy {
         }
         Matcher matcher = Pattern.compile("(\\d+)\\s*(?:" + unitPattern + ")").matcher(text);
         return matcher.find() ? Integer.valueOf(matcher.group(1)) : null;
+    }
+
+    private static final List<String> HIGH_PRIORITY_DOMAIN_TERMS = List.of(
+            "中央企业", "央企", "地方国企", "国有企业", "国企", "中央金融企业",
+            "MRO", "工业品", "办公用品", "劳保", "备品备件", "电商", "电子商城"
+    );
+
+    private static final Pattern DATE_RANGE_PATTERN = Pattern.compile(
+            "(\\d{4})\\s*年(?:\\s*(\\d{1,2})\\s*月)?(?:\\s*(\\d{1,2})\\s*日)?\\s*(?:起|至|至今|以[后来]|及以后|及之后|~|-|—)");
+    private static final Pattern NEAR_YEARS_PATTERN = Pattern.compile(
+            "近\\s*([一二三两四五12345])\\s*年");
+
+    /**
+     * 结合评分维度与细则提取业务关键词，优先提取领域专有词汇（如央企、国企、MRO、工业品等）。
+     */
+    public List<String> extractKeywords(String dim, String text, int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+        Set<String> keywords = new LinkedHashSet<>();
+        String combined = (dim == null ? "" : dim) + " " + (text == null ? "" : text);
+        for (String term : HIGH_PRIORITY_DOMAIN_TERMS) {
+            if (combined.contains(term)) {
+                keywords.add(term);
+                if (keywords.size() >= limit) {
+                    return List.copyOf(keywords);
+                }
+            }
+        }
+        if (dim != null && !dim.isBlank()) {
+            for (String kw : extractKeywords(dim, limit)) {
+                keywords.add(kw);
+                if (keywords.size() >= limit) {
+                    return List.copyOf(keywords);
+                }
+            }
+        }
+        if (text != null && !text.isBlank()) {
+            for (String kw : extractKeywords(text, limit)) {
+                keywords.add(kw);
+                if (keywords.size() >= limit) {
+                    return List.copyOf(keywords);
+                }
+            }
+        }
+        return List.copyOf(keywords);
+    }
+
+    /** 提取业绩签约时间下限：如 "时间为2022年1月至今" 或 "近三年"。 */
+    public LocalDate extractSignedAfter(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        Matcher matcher = DATE_RANGE_PATTERN.matcher(text);
+        if (matcher.find()) {
+            try {
+                int year = Integer.parseInt(matcher.group(1));
+                int month = matcher.group(2) != null ? Integer.parseInt(matcher.group(2)) : 1;
+                int day = matcher.group(3) != null ? Integer.parseInt(matcher.group(3)) : 1;
+                return LocalDate.of(year, month, day);
+            } catch (NumberFormatException | java.time.DateTimeException ignored) {
+            }
+        }
+        Matcher nearMatcher = NEAR_YEARS_PATTERN.matcher(text);
+        if (nearMatcher.find()) {
+            String numStr = nearMatcher.group(1);
+            int years = switch (numStr) {
+                case "一", "1" -> 1;
+                case "二", "两", "2" -> 2;
+                case "三", "3" -> 3;
+                case "四", "4" -> 4;
+                case "五", "5" -> 5;
+                default -> 3;
+            };
+            return LocalDate.now().minusYears(years);
+        }
+        return null;
+    }
+
+    /**
+     * 提取业绩所需数量：优先匹配 "每增加/提供1个...得X分，最高得Y分" 计算满分所需份数，
+     * 其次匹配 "不少于X个/份/项"，最后降级为首次出现的数字+单位。
+     */
+    public Integer extractProjectRequiredCount(String text, BigDecimal weight) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        // 模式 1: "每增加/提供/具备 1 个...得 X 分，最高/满分得 Y 分"
+        Matcher perMatch = Pattern.compile("每(?:增加|提供|具备)?\\s*(\\d+)\\s*(?:个|项|份)[^，。；;\\n]*?得\\s*(\\d+(?:\\.\\d+)?)\\s*分(?:[^，。；;\\n]*?(?:最高|满分|最多)[^，。；;\\n]*?得?\\s*(\\d+(?:\\.\\d+)?)\\s*分)?").matcher(text);
+        if (perMatch.find()) {
+            try {
+                int unitCount = Integer.parseInt(perMatch.group(1));
+                BigDecimal perScore = new BigDecimal(perMatch.group(2));
+                String maxScoreStr = perMatch.group(3);
+                BigDecimal maxScore = (maxScoreStr != null) ? new BigDecimal(maxScoreStr) : weight;
+                if (perScore.compareTo(BigDecimal.ZERO) > 0 && maxScore != null && maxScore.compareTo(BigDecimal.ZERO) > 0) {
+                    int calcCount = maxScore.divide(perScore, 0, java.math.RoundingMode.CEILING).intValue() * unitCount;
+                    if (calcCount > 0) return calcCount;
+                }
+            } catch (NumberFormatException | ArithmeticException ignored) {
+            }
+        }
+        // 模式 2: "不少于/提供/具备 X 个/项/份"
+        Matcher minMatch = Pattern.compile("(?:不少于|提供|具备|具有|完成)\\s*(\\d+)\\s*(?:个|项|份)").matcher(text);
+        if (minMatch.find()) {
+            return Integer.valueOf(minMatch.group(1));
+        }
+        // 模式 3: 通用 extractCount
+        return extractCount(text, "个|项|份");
     }
 
     /** 提取业务关键词：按非字母数字汉字切分，过滤停用词/短 token/纯数字，去重保序。 */

@@ -167,4 +167,35 @@ class KnowledgeCategoryPolicyTest {
         assertThat(policy.categorize("针对MRO工业品服务团队方案（10分）", "人员配置方面：项目经理"))
                 .isEqualTo("OTHER");
     }
+
+    @Test
+    @DisplayName("1374 央企案例：从 dim 和 detail 中提取央企/中央企业/MRO/工业品等领域专有词")
+    void extractKeywords_dimAndDetail_priorityDomainTerms() {
+        String dim = "央企案例";
+        String detail = "在满足资格条件的基础上，每增加1个有效业绩得1分，最高得5分。注：业绩合同内容为：中央企业（集团）全系统范围或中央金融企业的MRO工业品类交易服务。时间为2022年1月至今。";
+        List<String> keywords = policy.extractKeywords(dim, detail, 6);
+        assertThat(keywords).contains("中央企业", "央企", "MRO", "工业品");
+    }
+
+    @Test
+    @DisplayName("1374 提取签约时间：时间为2022年1月至今 / 近三年")
+    void extractSignedAfter_variousFormats() {
+        assertThat(policy.extractSignedAfter("时间为2022年1月至今"))
+                .isEqualTo(java.time.LocalDate.of(2022, 1, 1));
+        assertThat(policy.extractSignedAfter("2022年1月1日至今"))
+                .isEqualTo(java.time.LocalDate.of(2022, 1, 1));
+        assertThat(policy.extractSignedAfter("近三年类似业绩"))
+                .isEqualTo(java.time.LocalDate.now().minusYears(3));
+        assertThat(policy.extractSignedAfter("无时间要求")).isNull();
+    }
+
+    @Test
+    @DisplayName("1374 提取业绩所需份数：每增加1个得1分最高得5分 → 5份")
+    void extractProjectRequiredCount_perItemAndMaxScore() {
+        String detail = "在满足资格条件的基础上，每增加1个有效业绩得1分，最高得5分（如多个业绩合同方为同一家公司，则算1个有效业绩）。";
+        assertThat(policy.extractProjectRequiredCount(detail, new java.math.BigDecimal("5")))
+                .isEqualTo(5);
+        assertThat(policy.extractProjectRequiredCount("类似项目业绩不少于 3 个", new java.math.BigDecimal("6")))
+                .isEqualTo(3);
+    }
 }

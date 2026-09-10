@@ -5330,3 +5330,39 @@ SDK 自身仍每约 3 秒更新 `lastRenewalTime`。这排除了 advertised 地�
 | **文档解析** | 全量 DOM/AST 解析大文档引发内存爆炸 | 对超大 XML/文档必须提供流式 SAX/StAX 纯文本提取兜底，处理完即清理节点引用 |
 | **文件下载** | 前端统一用 `responseType: 'blob'` 下载，导致大文件打爆浏览器内存 | 文档与交付物等用户上传的大文件下载必须使用原生 `<a>` 标签，交由浏览器内核流式落盘 |
 
+---
+
+## 348. 评分标准解析中的冗余公式项过滤、客观业绩匹配与证据弹窗展示治理（2026-09-10）
+
+### 问题背景
+
+项目 1374（中核集团大标，总分 100 分）在"AI 评分标准解析"中暴露出三个典型问题：
+1. **最后一项“评标基准价为”多余且推高总分**：最后一项为 1 分的“评标基准价为”，其细则与上一项 30 分的“价格部分”内容完全重复，使权重和达到 101 分触发 `WEIGHT_SUM_MISMATCH` 与 `REVIEW_REQUIRED` 警告。
+2. **客观项“央企案例”有案例却判不满足（DANGER / 0 分）**：业绩库中实际有 113 条签约日期在 2022 年 1 月之后、其中 20 条为 MRO 工业品的央企长协合同，但评分项因未匹配到而判定为不满足（0分）。
+3. **详情弹窗中“表格单元格证据”千篇一律**：所有评分项弹窗中均显示 `[自动通过] [LEGACY_FALLBACK] [置信度 100%]`，缺乏真实的单元格定位证据，产生误导。
+
+### 根因分析
+
+1. **表格结构化提取与全局归并去重盲区**：
+   - 提取侧：表格单元格中包含“评标基准价为：...”等公式说明文字，`StructuredTableCandidateExtractor` 的 `NON_DIM_TEXT` 未过滤公式说明短语，将其误判为独立评分项；
+   - 归并侧：LLM 输出的 detail 包含 Markdown 强调符号（`**投标报价折扣率：**`），而表格候选为纯文本。`ScoreGlobalMergeOrchestrator` 在计算覆盖关系时未剥离 Markdown 符号，导致字符串包含判定失败，未被覆盖而重新回注，导致项数 +1、权重变 101。
+2. **客观业绩匹配条件与数据建模脱节**：
+   - 关键词提取缺乏维度感知与中文长句切词缺陷：`extractKeywords` 仅扫描 `detail` 并按标点粗切取前 6 项，因首段是通用长句说明，在提取到“中央企业”和“MRO”前就被截断。且 `dim`（"央企案例"）未参与提取。
+   - 客户类型枚举与检索字段缺失：业绩库将央企建模在 `customer_type` 枚举（`CENTRAL_SOE`），而原 `ProjectMatchService` 仅模糊匹配 `industry`（行业），未识别 `CustomerType`，也未检索 `contract_name`（MRO 工业品大多在合同名称中）。同时 `EstimatedScoreService` 传递的 `signedAfter` 为 null，未从“时间为2022年1月至今”提取签约起始时间。
+3. **前端证据卡片无差别展示旧流水线兜底状态**：
+   - 历史回退数据（`LEGACY_FALLBACK`）的 `evidenceCellIds` 为空，前端没有条件守卫，机械渲染固定的 mock 标签，且未映射为易懂的中文。
+
+### 修复方案
+
+1. **多重防御过滤价格公式与归并去重**：
+   - 在 `StructuredTableCandidateExtractor` 中将“评标基准价”、“基准折扣率”、“分值计算”等公式短语加入 `NON_DIM_TEXT` 排除规则；
+   - 在 `ScoreGlobalMergeOrchestrator` 中引入 `cleanForComparison`，清洗 Markdown 语法（`**`等）、标点与空格，并在价格大项/公式项中增加互含与覆盖防护。
+2. **知识库客观业绩匹配全流程增强**：
+   - `KnowledgeCategoryPolicy` 增加领域高优先级专有词（央企、中央企业、国企、地方国企、MRO、工业品等），结合 `dim` 和 `detail` 联合提取业务关键词；
+   - 增加 `extractSignedAfter` 提取签约日期约束（支持“2022年1月至今”等范围）；增加 `extractProjectRequiredCount` 基于“每增加1个得1分，最高得5分”推导满分所需业绩份数（5份）；
+   - `ProjectMatchService` 引入 `CustomerType` 枚举识别与解析，在 JPA Specification 中加入 `customerType` 强过滤，并将文本关键词从单一的 `industry` 扩展为 `industry / contractName / groupCompany` 联合检索。
+3. **前端证据展示体验治理**：
+   - 在 `ScoreItemDetailModal.vue` 中，当 `evidenceCellIds` 为空且无权重单元格证据时（尤其是 `LEGACY_FALLBACK`），安全隐藏“表格单元格证据”卡片；
+   - 增加 `extractionMethodDisplay` 字典，将 `STRUCTURED_TABLE` 等内部标识转换为友好的中文“表格结构化提取”。
+
+

@@ -221,4 +221,25 @@ class ScoreGlobalMergeOrchestratorTest {
         ScoreFact linkedChild = outcome.facts().stream().filter(f -> f.factId().equals("f-child")).findFirst().orElseThrow();
         assertThat(linkedChild.parentFactId()).isEqualTo("f-parent");
     }
+
+    @Test
+    void apply_structuredTableCandidate_coveredByMarkdownAcceptedCandidate_notRestored() {
+        String detailWithMarkdown = "1.计算价格得分的**投标报价折扣率：**供应商七个类目投标报价折扣率的平均值。2.**评标基准价为**基准价说明。3.分值计算：每个供应商的投标价格得分。";
+        String sectionText = "评分办法\n价格部分（30分）：\n" + detailWithMarkdown;
+        ScoreCandidate llmCandidate = new ScoreCandidate("3.2.1(3)", "价格部分",
+                detailWithMarkdown,
+                new BigDecimal("30"), null, null, sectionText, "P1", "GLOBAL_MERGE");
+        ScoreCandidate tableCandidate = new ScoreCandidate("3.2.1(3)", "评标基准价为",
+                "1.计算价格得分的投标报价折扣率：供应商七个类目投标报价折扣率的平均值。2.评标基准价为基准价说明。3.分值计算：每个供应商的投标价格得分。",
+                new BigDecimal("1"), null, null, sectionText, "table-row-19", "STRUCTURED_TABLE");
+
+        List<ScoreCandidate> pool = List.of(llmCandidate, tableCandidate);
+        when(mergeExecutor.resolve(anyList(), anyString(), any())).thenReturn(List.of(llmCandidate));
+
+        List<ScoreCandidate> result = orchestrator.applyGlobalMerge(pool, sectionText);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).dim()).isEqualTo("价格部分");
+        assertThat(result.get(0).weight()).isEqualByComparingTo("30");
+    }
 }

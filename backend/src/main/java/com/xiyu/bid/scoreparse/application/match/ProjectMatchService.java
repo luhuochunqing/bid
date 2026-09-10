@@ -1,5 +1,6 @@
 package com.xiyu.bid.scoreparse.application.match;
 
+import com.xiyu.bid.performance.domain.valueobject.CustomerType;
 import com.xiyu.bid.performance.domain.valueobject.ProjectType;
 import com.xiyu.bid.performance.infrastructure.persistence.entity.PerformanceRecordEntity;
 import com.xiyu.bid.performance.infrastructure.persistence.repository.PerformanceRecordJpaRepository;
@@ -42,17 +43,24 @@ public class ProjectMatchService {
                 .map(ProjectMatchService::parseProjectType)
                 .filter(Objects::nonNull)
                 .toList();
+        List<CustomerType> customerTypeHits = keywords.stream()
+                .map(ProjectMatchService::parseCustomerType)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
         List<String> textKeywords = filterSpecificProjectKeywords(
-                keywords.stream().filter(keyword -> parseProjectType(keyword) == null).toList()
+                keywords.stream()
+                        .filter(keyword -> parseProjectType(keyword) == null && parseCustomerType(keyword) == null)
+                        .toList()
         );
 
         // 关键门禁：若没有任何可执行的业务过滤约束，严禁裸查全表导致假阳性满分！
-        if (enumHits.isEmpty() && textKeywords.isEmpty() && request.signedAfter() == null) {
-            log.warn("业绩匹配缺乏有效约束（行业关键词/项目类型/签约时间均未提供或被过滤），禁止按全量存在性满分: request={}", request);
-            return KnowledgeMatchResult.empty("未抽取到可执行的业绩匹配约束（行业/类型/签约时间），禁止全表匹配，待人工确认");
+        if (enumHits.isEmpty() && customerTypeHits.isEmpty() && textKeywords.isEmpty() && request.signedAfter() == null) {
+            log.warn("业绩匹配缺乏有效约束（行业关键词/项目类型/客户类型/签约时间均未提供或被过滤），禁止按全量存在性满分: request={}", request);
+            return KnowledgeMatchResult.empty("未抽取到可执行的业绩匹配约束（行业/类型/客户类型/签约时间），禁止全表匹配，待人工确认");
         }
 
-        Specification<PerformanceRecordEntity> spec = specificationOf(enumHits, textKeywords, request.signedAfter());
+        Specification<PerformanceRecordEntity> spec = specificationOf(enumHits, customerTypeHits, textKeywords, request.signedAfter());
         List<ProjectMatchedItem> matched = repository.findAll(spec).stream()
                 .filter(row -> amountMatches(row.getContractAmount(), request.minContractAmount()))
                 .map(row -> new ProjectMatchedItem(row.getId(), row.getContractName(),
@@ -68,7 +76,8 @@ public class ProjectMatchService {
     private static final java.util.Set<String> GENERIC_PROJECT_KEYWORDS = java.util.Set.of(
             "业绩", "供货", "类似", "采购", "服务", "数量", "评价", "排序", "规模",
             "合同", "案例", "时间", "要求", "项目", "情况",
-            "总体", "注册", "协议", "单位", "提供", "评审", "应答人", "承诺"
+            "总体", "注册", "协议", "单位", "提供", "评审", "应答人", "承诺",
+            "基础", "条件", "资格条件", "交易服务", "交易", "全系统", "范围", "母公司", "子公司"
     );
 
     static List<String> filterSpecificProjectKeywords(List<String> rawKeywords) {
@@ -87,19 +96,29 @@ public class ProjectMatchService {
     }
 
     private Specification<PerformanceRecordEntity> specificationOf(
-            List<ProjectType> enumHits, List<String> textKeywords, LocalDate signedAfter) {
+            List<ProjectType> enumHits, List<CustomerType> customerTypeHits,
+            List<String> textKeywords, LocalDate signedAfter) {
         return (root, query, cb) -> {
-            List<Predicate> typePredicates = new ArrayList<>();
+            List<Predicate> predicates = new ArrayList<>();
+            if (!customerTypeHits.isEmpty()) {
+                predicates.add(root.get("customerType").in(customerTypeHits));
+            }
+            List<Predicate> contentPredicates = new ArrayList<>();
             if (!enumHits.isEmpty()) {
-                typePredicates.add(root.get("projectType").in(enumHits));
+                contentPredicates.add(root.get("projectType").in(enumHits));
             }
             textKeywords.stream()
                     .filter(StringUtils::hasText)
-                    .forEach(keyword -> typePredicates.add(
-                            cb.like(root.get("industry"), "%" + keyword.trim() + "%")));
-            List<Predicate> predicates = new ArrayList<>();
-            if (!typePredicates.isEmpty()) {
-                predicates.add(cb.or(typePredicates.toArray(new Predicate[0])));
+                    .forEach(keyword -> {
+                        String pattern = "%" + keyword.trim() + "%";
+                        contentPredicates.add(cb.or(
+                                cb.like(root.get("industry"), pattern),
+                                cb.like(root.get("contractName"), pattern),
+                                cb.like(root.get("groupCompany"), pattern)
+                        ));
+                    });
+            if (!contentPredicates.isEmpty()) {
+                predicates.add(cb.or(contentPredicates.toArray(new Predicate[0])));
             }
             if (signedAfter != null) {
                 predicates.add(cb.greaterThanOrEqualTo(root.get("signingDate"), signedAfter));
@@ -112,6 +131,39 @@ public class ProjectMatchService {
     private static boolean amountMatches(BigDecimal contractAmount, BigDecimal minContractAmount) {
         return minContractAmount == null || contractAmount == null
                 || contractAmount.compareTo(minContractAmount) >= 0;
+    }
+
+    private static final java.util.Set<String> CENTRAL_SOE_TERMS = java.util.Set.of("央企", "中央企业", "中央金融企业");
+    private static final java.util.Set<String> LOCAL_SOE_TERMS = java.util.Set.of("地方国企", "国企", "国有企业");
+    private static final java.util.Set<String> GOV_TERMS = java.util.Set.of("政府机关", "政府", "事业单位", "高校");
+    private static final java.util.Set<String> PRIVATE_TERMS = java.util.Set.of("民企", "民营企业", "民营");
+
+    static CustomerType parseCustomerType(String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return null;
+        }
+        String trimmed = keyword.trim();
+        if (trimmed.length() > 10) {
+            return null;
+        }
+        for (CustomerType type : CustomerType.values()) {
+            if (type.name().equalsIgnoreCase(trimmed) || type.displayName().equals(trimmed)) {
+                return type;
+            }
+        }
+        if (CENTRAL_SOE_TERMS.contains(trimmed)) {
+            return CustomerType.CENTRAL_SOE;
+        }
+        if (LOCAL_SOE_TERMS.contains(trimmed)) {
+            return CustomerType.LOCAL_SOE;
+        }
+        if (GOV_TERMS.contains(trimmed)) {
+            return CustomerType.GOVERNMENT_INSTITUTION;
+        }
+        if (PRIVATE_TERMS.contains(trimmed)) {
+            return CustomerType.PRIVATE_ENTERPRISE;
+        }
+        return null;
     }
 
     private static ProjectType parseProjectType(String keyword) {
