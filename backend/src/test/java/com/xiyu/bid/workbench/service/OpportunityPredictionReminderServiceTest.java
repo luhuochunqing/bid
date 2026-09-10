@@ -9,10 +9,8 @@ import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
 import com.xiyu.bid.integration.tenderevent.domain.OpportunityPredictionEventPayload;
 import com.xiyu.bid.integration.tenderevent.infrastructure.sdk.OpportunityPredictionEventPublisher;
-import com.xiyu.bid.notification.core.DispatchResult;
 import com.xiyu.bid.notification.core.NotificationType;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
-import com.xiyu.bid.notification.service.NotificationApplicationService;
 import com.xiyu.bid.notification.service.NotificationRecipientResolver;
 import com.xiyu.bid.project.entity.ProjectInitiationDetails;
 import com.xiyu.bid.project.entity.ProjectResult;
@@ -22,7 +20,6 @@ import com.xiyu.bid.repository.ProjectRepository;
 import com.xiyu.bid.repository.TenderRepository;
 import com.xiyu.bid.repository.UserRepository;
 import com.xiyu.bid.workbench.entity.OpportunityPredictionReminderLog;
-import com.xiyu.bid.workbench.repository.OpportunityPredictionReminderLogRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -65,8 +62,7 @@ class OpportunityPredictionReminderServiceTest {
     @Mock private TenderRepository tenderRepository;
     @Mock private UserRepository userRepository;
     @Mock private NotificationRecipientResolver recipientResolver;
-    @Mock private NotificationApplicationService notificationApplicationService;
-    @Mock private OpportunityPredictionReminderLogRepository reminderLogRepository;
+    @Mock private OpportunityPredictionReminderTransactionService transactionService;
     @Mock private OpportunityPredictionEventPublisher eventPublisher;
     @Mock private SystemActorResolver systemActorResolver;
 
@@ -76,13 +72,11 @@ class OpportunityPredictionReminderServiceTest {
     void setUp() {
         service = new OpportunityPredictionReminderService(
                 projectRepository, projectResultRepository, projectInitiationDetailsRepository,
-                tenderRepository, userRepository,
-                recipientResolver, notificationApplicationService, reminderLogRepository,
+                tenderRepository, userRepository, recipientResolver, transactionService,
                 eventPublisher, systemActorResolver);
         lenient().when(systemActorResolver.resolveCached()).thenReturn(SYSTEM_ACTOR);
         lenient().when(recipientResolver.getUserIdsByRoleCodes(any())).thenReturn(ROLE_RECIPIENTS);
-        lenient().when(notificationApplicationService.createNotification(any(), any()))
-                .thenReturn(DispatchResult.valid());
+        lenient().when(transactionService.completeEventPublish(any(), any(), any())).thenReturn(true);
         lenient().when(eventPublisher.publish(any())).thenReturn(true);
     }
 
@@ -122,7 +116,7 @@ class OpportunityPredictionReminderServiceTest {
                 ProjectInitiationDetails.builder().projectId(1L).projectLeaderName("王五").build()));
         when(tenderRepository.findAllById(Set.of(100L))).thenReturn(List.of(tender));
         when(userRepository.findByIdIn(Set.of(50L))).thenReturn(List.of(manager));
-        when(reminderLogRepository.findByProjectId(1L)).thenReturn(Optional.empty());
+        when(transactionService.findState(1L)).thenReturn(Optional.empty());
 
         var outcome = service.runScan(TODAY);
 
@@ -130,7 +124,10 @@ class OpportunityPredictionReminderServiceTest {
         assertEquals(0, outcome.skipped());
 
         ArgumentCaptor<CreateNotificationRequest> reqCaptor = ArgumentCaptor.forClass(CreateNotificationRequest.class);
-        verify(notificationApplicationService).createNotification(reqCaptor.capture(), eq(SYSTEM_ACTOR));
+        ArgumentCaptor<OpportunityPredictionReminderLog> logCaptor =
+                ArgumentCaptor.forClass(OpportunityPredictionReminderLog.class);
+        verify(transactionService).createNotificationAndClaim(
+                logCaptor.capture(), reqCaptor.capture(), eq(SYSTEM_ACTOR), any(), any());
         CreateNotificationRequest req = reqCaptor.getValue();
         assertEquals(NotificationType.OPPORTUNITY_PREDICTION.name(), req.type());
         assertEquals("Project", req.sourceEntityType());
@@ -140,11 +137,9 @@ class OpportunityPredictionReminderServiceTest {
         assertEquals(Set.of(10L, 11L, 50L), Set.copyOf(req.recipientUserIds()));
         assertEquals("/bidding/customer-opportunities", req.payload().get("targetUrl"));
 
-        ArgumentCaptor<OpportunityPredictionReminderLog> logCaptor =
-                ArgumentCaptor.forClass(OpportunityPredictionReminderLog.class);
-        verify(reminderLogRepository).save(logCaptor.capture());
         assertEquals(1L, logCaptor.getValue().getProjectId());
         assertEquals(LocalDate.of(2026, 3, 1), logCaptor.getValue().getPredictedBidDate());
+        verify(transactionService).completeEventPublish(eq(1L), any(), any());
 
         ArgumentCaptor<OpportunityPredictionEventPayload> evtCaptor =
                 ArgumentCaptor.forClass(OpportunityPredictionEventPayload.class);
@@ -192,7 +187,7 @@ class OpportunityPredictionReminderServiceTest {
         when(tenderRepository.findAllById(Set.of(500L))).thenReturn(List.of(tender));
         when(userRepository.findByIdIn(Set.of(80L)))
                 .thenReturn(List.of(User.builder().id(80L).enabled(true).build()));
-        when(reminderLogRepository.findByProjectId(5L)).thenReturn(Optional.empty());
+        when(transactionService.findState(5L)).thenReturn(Optional.empty());
 
         var outcome = service.runScan(TODAY);
 
@@ -236,7 +231,7 @@ class OpportunityPredictionReminderServiceTest {
         when(tenderRepository.findAllById(Set.of(600L))).thenReturn(List.of(tender));
         when(userRepository.findByIdIn(Set.of(90L)))
                 .thenReturn(List.of(User.builder().id(90L).enabled(true).build()));
-        when(reminderLogRepository.findByProjectId(6L)).thenReturn(Optional.empty());
+        when(transactionService.findState(6L)).thenReturn(Optional.empty());
 
         var outcome = service.runScan(TODAY);
 
@@ -266,19 +261,15 @@ class OpportunityPredictionReminderServiceTest {
         when(projectResultRepository.findByProjectIdIn(List.of(2L))).thenReturn(List.of(result));
         when(tenderRepository.findAllById(Set.of(200L))).thenReturn(List.of());
         when(userRepository.findByIdIn(Set.of(60L))).thenReturn(List.of(User.builder().id(60L).enabled(true).build()));
-        when(reminderLogRepository.findByProjectId(2L)).thenReturn(Optional.of(
-                OpportunityPredictionReminderLog.builder()
-                        .projectId(2L)
-                        .predictedBidDate(LocalDate.of(2026, 3, 1))
-                        .notifiedAt(LocalDateTime.of(2026, 8, 20, 9, 0))
-                        .build()));
+        when(transactionService.findState(2L)).thenReturn(Optional.of(
+                new OpportunityPredictionReminderTransactionService.ReminderState(
+                        LocalDate.of(2026, 3, 1), LocalDateTime.of(2026, 8, 20, 9, 0))));
 
         var outcome = service.runScan(TODAY);
 
         assertEquals(1, outcome.skipped());
         assertEquals(0, outcome.notified());
-        verify(notificationApplicationService, never()).createNotification(any(), any());
-        verify(reminderLogRepository, never()).save(any());
+        verify(transactionService, never()).createNotificationAndClaim(any(), any(), any(), any(), any());
         verify(eventPublisher, never()).publish(any());
     }
 
@@ -299,8 +290,7 @@ class OpportunityPredictionReminderServiceTest {
 
         assertEquals(1, outcome.skipped());
         assertEquals(0, outcome.notified());
-        verify(notificationApplicationService, never()).createNotification(any(), any());
-        verify(reminderLogRepository, never()).save(any());
+        verify(transactionService, never()).createNotificationAndClaim(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -316,14 +306,13 @@ class OpportunityPredictionReminderServiceTest {
         when(projectResultRepository.findByProjectIdIn(List.of(4L))).thenReturn(List.of(result));
         when(recipientResolver.getUserIdsByRoleCodes(any())).thenReturn(List.of());
         when(userRepository.findByIdIn(Set.of(80L))).thenReturn(List.of(User.builder().id(80L).enabled(false).build()));
-        when(reminderLogRepository.findByProjectId(4L)).thenReturn(Optional.empty());
+        when(transactionService.findState(4L)).thenReturn(Optional.empty());
 
         var outcome = service.runScan(TODAY);
 
         assertEquals(1, outcome.skipped());
         assertEquals(0, outcome.notified());
-        verify(notificationApplicationService, never()).createNotification(any(), any());
-        verify(reminderLogRepository, never()).save(any());
+        verify(transactionService, never()).createNotificationAndClaim(any(), any(), any(), any(), any());
     }
 
     @Test

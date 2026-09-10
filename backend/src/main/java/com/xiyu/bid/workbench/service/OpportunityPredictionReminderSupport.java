@@ -10,6 +10,7 @@ package com.xiyu.bid.workbench.service;
 
 import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.integration.tenderevent.domain.OpportunityPredictionEventPayload;
 import com.xiyu.bid.project.core.InitiationFieldPolicy;
 import com.xiyu.bid.project.entity.ProjectResult;
 import org.springframework.util.StringUtils;
@@ -111,4 +112,16 @@ final class OpportunityPredictionReminderSupport {
         payload.put("targetUrl", OPPORTUNITY_CENTER_PATH);
         return payload;
     }
+
+    /** 组装事件库 10 字段载荷，序列化与中文映射由 publisher 负责。 */
+    static OpportunityPredictionEventPayload buildEventPayload(
+            Project project, String resultType, String projectLeaderName, String customer,
+            String customerType, LocalDate bidOpenTime, java.math.BigDecimal servicePeriodYears,
+            LocalDate servicePeriodEndDate, LocalDate predicted) {
+        return new OpportunityPredictionEventPayload(
+                project.getId(), project.getName(), resultType, customer, projectLeaderName, customerType,
+                bidOpenTime != null ? bidOpenTime.toString() : null,
+                servicePeriodYears, servicePeriodEndDate, predicted);
+    }
+
 }

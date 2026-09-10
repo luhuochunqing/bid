@@ -31,11 +31,13 @@
 （见 `TenderCommandService.applyAssignmentResult`）。本项目直接读 `Project.managerId`
 即等价于"用 CRM 查得的项目经理"。对 managerId 缺失项目，接收人只剩两个角色，不额外兜底。
 
-### 3. 去重：每项目只提醒一次，独立表 + project_id 唯一键
+### 3. 去重：站内提醒与事件库受理状态分离
 
 用户确认"每项目只提醒一次"。为避免依赖可能被清理的 `notification` 表，
-新增独立表 `opportunity_prediction_reminder_log`（`project_id` 唯一），发送成功后落表，
-从数据库层兜底防并发双发。
+新增独立表 `opportunity_prediction_reminder_log`（`project_id` 唯一），站内通知创建成功后落表，
+从数据库层兜底防并发双发。2026-09-10 补充 `event_published_at`：NULL 表示事件待重试，
+非空表示 SDK 已受理。后续扫描只重推待处理事件，不再创建站内信或企微任务。
+为避免多 Pod 同时补发，`event_publish_claim_token/event_publish_claimed_at` 通过条件 UPDATE 原子领取；领取超过 10 分钟可恢复。
 
 ### 4. 文案兜底：无服务周期截止日期时省略"服务周期将于…截止"句
 
@@ -65,9 +67,12 @@
 
 ### 8. 容错与隔离
 
-- 单项目通知失败：try-catch 隔离，不拖垮整个扫描；
+- 扫描本身无事务；通知及日志、事件领取、确认与释放均为 `REQUIRES_NEW` 短事务，单项目失败不回滚其他项目；
 - 无接收人（角色空且经理未启用）：跳过该项目的通知与落日志；
-- 事件库发布失败：只记日志，不阻断站内信/企微主链路。
+- system actor 暂不可用时只跳过新通知，已有待重试事件仍继续领取和补发；
+- `createNotification()` 返回无效结果：不写提醒日志、不发事件；
+- SDK 在事务外调用；发布失败保留 `event_published_at=NULL` 并释放领取，后续每日扫描只重推事件；
+- 历史提醒日志迁移时按 `event_published_at=notified_at` 回填，避免一次性重放。
 
 ### 9. ProjectAccessGuardCoverageTest 门禁基线
 
@@ -77,16 +82,31 @@
 故按既有调度服务模式（`TaskDueReminderService` / `CaExpiryScanService` / `PlatformAccountBorrowExpiryScanService`）
 加入基线并写明理由：全量扫描预测到期并推送通知，非任何用户请求入口，接收人按角色码 + 落库 managerId 解析，无项目级数据访问决策。
 
+### 10. 已知失败项目 983 的部署后验收
+
+迁移会把所有历史记录视为事件已完成，因此不能把测试项目 ID 硬编码进通用迁移。测试环境部署后，
+先执行 `UPDATE opportunity_prediction_reminder_log SET event_published_at=NULL, event_publish_claim_token=NULL, event_publish_claimed_at=NULL WHERE project_id=983;`，
+再触发扫描。验收条件：站内信/企微不新增，SDK 日志显示 10 字段事件受理成功，
+该行 `event_published_at` 被补写，扫描结果 `eventRetried=1`。
+
+### 11. 商机事件固定 10 字段
+
+`OpportunityPredictionEventPublisher.buildData` 固定按接口文档顺序输出 10 个 key。除必填数字
+`projectId` 外，字符串、数值和日期无值时均输出空字符串，不能省略字段。该规则由
+`publish_emptyOptionalFields_keepsTenFieldContract` 使用项目 983 空值样本锁定。
+
 ## 文件变更
 
 **新增（后端）**
 - `workbench/domain/OpportunityPredictionReminderPolicy.java` — 提醒判定纯核心
 - `workbench/domain/OpportunityPredictionAlertMessage.java` — 文案模板纯核心
-- `workbench/service/OpportunityPredictionReminderService.java` — 编排（扫描→判定→通知→落日志→发事件）
+- `workbench/service/OpportunityPredictionReminderService.java` — 无事务扫描与 SDK 编排
+- `workbench/service/OpportunityPredictionReminderTransactionService.java` — 通知日志、领取、确认、释放的独立短事务
 - `workbench/job/OpportunityPredictionReminderScanTask.java` — 每日 09:00 定时任务
 - `workbench/entity/OpportunityPredictionReminderLog.java` + `workbench/repository/OpportunityPredictionReminderLogRepository.java`
 - `integration/tenderevent/domain/OpportunityPredictionEventPayload.java` + `.../sdk/OpportunityPredictionEventPublisher.java`
 - `resources/db/migration-mysql/V1200__add_opportunity_prediction_reminder_log.sql` + 回滚 `db/rollback/migration-mysql/U1200__add_opportunity_prediction_reminder_log.sql`
+- `resources/db/migration-mysql/V1214__track_opportunity_event_publish.sql` + 回滚 `db/rollback/migration-mysql/U1214__track_opportunity_event_publish.sql`
 - 测试：`workbench/domain/*ReminderPolicyTest`、`*AlertMessageTest`、`workbench/service/OpportunityPredictionReminderServiceTest`
 - `src/test/resources/project-access-guard-baseline.txt` — 新增本服务门禁基线条目（见决策 9）
 
@@ -104,7 +124,8 @@
 - 企微按工号推送，无工号用户只收站内信（既有机制）；
 - 事件库开关 `xiyu.integrations.tender-event.sdk.enabled` 默认 false，需配置为 true 才生效；
 - 定时任务 `@Scheduled` 需应用启用调度（项目既有调度已启用，参考 `WarehouseExpiryScanTask`）；
-- `OpportunityPredictionReminderLog` 落库与通知在同一事务（`@Transactional`），事件发布在事务内且失败不阻断。
+- `OpportunityPredictionReminderLog` 与通知在同一短事务提交，SDK 不持有数据库事务；
+- 投递语义为至少一次：SDK 已受理但成功状态提交前进程退出时，10 分钟租约到期后可能再次推送，消费端仍需按 `projectId` 业务键幂等。
 
 ## 测试证据
 
@@ -112,4 +133,8 @@
 - `OpportunityPredictionReminderPolicyTest` 6 例（判定四分支）
 - `OpportunityPredictionAlertMessageTest` 4 例（有/无截止句 + 空值兜底）
 - `OpportunityPredictionReminderServiceTest` 5 例（命中通知 / 已提醒去重 / 未来跳过 / 无接收人跳过 / 空扫描）
-- 全量后端回归：8403 例，1 失败（`ProjectAccessGuardCoverageTest` 新服务未进基线）→ 加基线条目后复跑通过；Flyway 迁移目录修复后 45 个 context 加载错误全部消除
+- `OpportunityPredictionEventRetryTest` 5 例（首次失败释放 / 待重试成功 / 连续失败不重复通知 / 多实例领取互斥 / system actor 缺失时仍重试）
+- `OpportunityPredictionReminderTransactionBoundaryTest` 5 例（真实 Spring/JPA 提交、通知失败回滚、领取互斥、失败/超时恢复、后续项目失败不回滚前项）
+- `OpportunityPredictionEventPublisherTest` 增加空值样本，断言固定 10 个字段且无值传空字符串
+- 本次专项与架构门禁：`mvn clean -Dtest=ProjectAccessGuardCoverageTest,OpportunityPredictionEventPublisherTest,OpportunityPredictionEventRetryTest,OpportunityPredictionReminderServiceTest,OpportunityPredictionReminderTransactionBoundaryTest,ArchitectureTest,FlywayRollbackScriptCoverageTest,EntityTableMigrationCoverageTest,ResponsibilityArchitectureTest test` 通过（退出码 0）
+- 全量后端回归执行 9577 例：发现并修复本次新增事务类缺少后台任务权限基线；其余失败为本地 MySQL 容器在套件中途断开（60 errors）以及既有无关用例 `CompetitionIntelControllerIntegrationTest`、`GoldenCasesReplayTest`，不作为本次通过证据

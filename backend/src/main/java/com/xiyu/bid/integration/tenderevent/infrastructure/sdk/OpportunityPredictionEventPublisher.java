@@ -71,29 +71,24 @@ public class OpportunityPredictionEventPublisher {
     private Map<String, Object> buildData(final OpportunityPredictionEventPayload payload) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("projectId", payload.projectId());
-        putIfPresent(data, "projectName", payload.projectName());
-        putIfPresent(data, "resultType", TenderEventEnumLabels.bidStatusLabel(payload.resultType()));
-        putIfPresent(data, "customer", payload.customer());
-        putIfPresent(data, "projectLeaderName", payload.projectLeaderName());
-        putIfPresent(data, "customerType", TenderEventEnumLabels.customerTypeLabel(payload.customerType()));
-        putIfPresent(data, "bidOpenTime", payload.bidOpenTime());
-        if (payload.servicePeriodYears() != null) {
-            data.put("servicePeriodYears", payload.servicePeriodYears());
-        }
-        if (payload.servicePeriodEndDate() != null) {
-            data.put("servicePeriodEndDate", payload.servicePeriodEndDate().toString());
-        }
-        if (payload.predictedBidDate() != null) {
-            data.put("predictedBidDate", payload.predictedBidDate().toString());
-        }
+        data.put("projectName", valueOrEmpty(payload.projectName()));
+        data.put("resultType", valueOrEmpty(TenderEventEnumLabels.bidStatusLabel(payload.resultType())));
+        data.put("customer", valueOrEmpty(payload.customer()));
+        data.put("projectLeaderName", valueOrEmpty(payload.projectLeaderName()));
+        data.put("customerType", valueOrEmpty(TenderEventEnumLabels.customerTypeLabel(payload.customerType())));
+        data.put("bidOpenTime", valueOrEmpty(payload.bidOpenTime()));
+        data.put("servicePeriodYears",
+                payload.servicePeriodYears() != null ? payload.servicePeriodYears() : "");
+        data.put("servicePeriodEndDate",
+                payload.servicePeriodEndDate() != null ? payload.servicePeriodEndDate().toString() : "");
+        data.put("predictedBidDate",
+                payload.predictedBidDate() != null ? payload.predictedBidDate().toString() : "");
         return data;
     }
 
-    /** 字符串字段：null/空白省略。 */
-    private static void putIfPresent(final Map<String, Object> data, final String key, final String value) {
-        if (value != null && !value.isBlank()) {
-            data.put(key, value);
-        }
+    /** 客户契约要求固定字段结构，无值字符串统一输出空字符串。 */
+    private static String valueOrEmpty(final String value) {
+        return value == null || value.isBlank() ? "" : value;
     }
 
     private static String serializeData(Map<String, Object> data) {

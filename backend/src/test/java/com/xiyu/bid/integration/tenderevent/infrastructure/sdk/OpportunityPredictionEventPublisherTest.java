@@ -64,6 +64,24 @@ class OpportunityPredictionEventPublisherTest {
     }
 
     @Test
+    @DisplayName("空字段仍固定输出10个key并传空字符串")
+    void publish_emptyOptionalFields_keepsTenFieldContract() {
+        when(interactiveService.sendEvent(any(), any(), any(), any())).thenReturn(new SendEventRespDto(true));
+        OpportunityPredictionEventPayload payload = new OpportunityPredictionEventPayload(
+                983L, null, null, "测试客户", null, null, null, null, null, null);
+
+        assertThat(publisher(true).publish(payload)).isTrue();
+
+        ArgumentCaptor<String> data = ArgumentCaptor.forClass(String.class);
+        verify(interactiveService).sendEvent(eq("OpportunityPrediction"), eq("bid"), data.capture(), any());
+        assertThat(data.getValue()).isEqualTo(
+                "{\"projectId\":983,\"projectName\":\"\",\"resultType\":\"\",\"customer\":\"测试客户\","
+                        + "\"projectLeaderName\":\"\",\"customerType\":\"\",\"bidOpenTime\":\"\","
+                        + "\"servicePeriodYears\":\"\",\"servicePeriodEndDate\":\"\","
+                        + "\"predictedBidDate\":\"\"}");
+    }
+
+    @Test
     @DisplayName("复用不超过18位的非空 MDC traceId")
     void publish_reusesMdcTraceWithin18Characters() {
         when(interactiveService.sendEvent(any(), any(), any(), any())).thenReturn(new SendEventRespDto(true));
