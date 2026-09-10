@@ -31,8 +31,8 @@ public class OpportunityPredictionReminderScanTask {
         try {
             OpportunityPredictionReminderService.ScanOutcome outcome =
                     reminderService.runScan(LocalDate.now());
-            log.info("[商机预测提醒] scheduled scan done: scanned={} notified={} skipped={}",
-                    outcome.scanned(), outcome.notified(), outcome.skipped());
+            log.info("[商机预测提醒] scheduled scan done: scanned={} notified={} eventRetried={} skipped={}",
+                    outcome.scanned(), outcome.notified(), outcome.eventRetried(), outcome.skipped());
         } catch (RuntimeException ex) {
             log.error("[商机预测提醒] scheduled scan failed: {}", ex.getMessage(), ex);
         }

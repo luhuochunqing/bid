@@ -828,3 +828,19 @@
 - 根因：`TenderEventPayloadMapper.toData` 主动省略 null/空白字段，使全量 20 字段要求退化为稀疏 JSON
 - 修复：固定输出 20 个字段，除数字 tenderId 外，字符串、枚举和时间空值统一为 `""`；流水与 SDK sendEvent 继续复用同一映射
 - 验证：4173 三字段样本断言 20 个 key 和 17 个空字符串，SDK producer 契约测试同步覆盖；回填 [[integration-tender-event-push]] §14
+
+## [2026-09-10] fix | 商机预测事件失败补偿与通知去重
+- 触发：项目 983 的事件库推送失败，但提醒日志已写入，后续每日扫描因“已提醒”直接跳过
+- 根因：一个 `notified_at` 同时代表站内提醒和事件投递完成，且编排层忽略 `publish=false`
+- 修复：新增 `event_published_at` 独立状态；扫描移除长事务，通知日志/领取/确认/释放使用独立短事务，SDK 在事务外调用；首次失败后只重推事件
+- 并发：领取令牌由条件 UPDATE 原子竞争，同一时刻仅一个 Pod 调用 SDK；失败释放，进程中断 10 分钟后可恢复
+- 契约：商机事件固定输出客户最新确认的 11 个 key（新增 projectType），无值字段传空字符串
+- 迁移：历史记录按 `notified_at` 回填避免批量重放，项目 983 在测试环境按项目单独置空验收
+- 回填：更新 [[opportunity-prediction-reminder]]
+
+## [2026-09-10] fix | 商机预测事件增加项目类型
+- 触发：客户在原 10 字段基础上要求增加“项目类型”
+- 契约：`projectType` 放在 `customerType` 后，固定 11 个 key；空值传 `""`
+- 口径：ProjectInitiationDetails.projectType 优先，缺失时回退 Tender.projectType 并经 InitiationFieldPolicy.normalizeProjectType 归一化，publisher 统一转中文标签
+- 验证：全字段与项目 983 空值 JSON 精确断言，提醒服务覆盖立项详情值和 Tender 中文值回退
+- 回填：更新 [[opportunity-prediction-reminder]]

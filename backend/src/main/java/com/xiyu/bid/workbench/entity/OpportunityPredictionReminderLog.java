@@ -20,7 +20,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * 商机预测提醒日志：记录已提醒过的项目，保证"每项目只提醒一次"。
+ * 商机预测提醒日志：分别记录站内提醒完成和 CRM 事件库受理状态。
  *
  * <p>{@code project_id} 唯一：同一项目至多一条记录，提供幂等去重。
  */
@@ -53,6 +53,18 @@ public class OpportunityPredictionReminderLog {
     /** 提醒发送时间。 */
     @Column(name = "notified_at", nullable = false)
     private LocalDateTime notifiedAt;
+
+    /** CRM 事件库受理时间；为空表示后续扫描只需重试事件。 */
+    @Column(name = "event_published_at")
+    private LocalDateTime eventPublishedAt;
+
+    /** 当前事件投递领取令牌；为空表示没有实例正在投递。 */
+    @Column(name = "event_publish_claim_token", length = 36)
+    private String eventPublishClaimToken;
+
+    /** 当前事件投递领取时间；超时领取可由后续扫描恢复。 */
+    @Column(name = "event_publish_claimed_at")
+    private LocalDateTime eventPublishClaimedAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
