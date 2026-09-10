@@ -4,8 +4,8 @@ space: engineering
 category: integration
 tags: [integration, tender, event-bus, event-sdk, crm, push]
 created: 2026-08-12
-updated: 2026-09-09
-health_checked: 2026-09-09
+updated: 2026-09-10
+health_checked: 2026-09-10
 sources:
   - backend/src/main/java/com/xiyu/bid/integration/tenderevent/
   - backend/src/main/resources/db/migration-mysql/V1185__create_tender_event_logs.sql
@@ -13,8 +13,11 @@ sources:
 backlinks:
   - _index
   - configuration-binding-silent-failure
+  - event-library-integration-rca
 ---
 # 标讯创建事件推送 - 西域 CRM 事件总线
+
+> 两次事件库集成的共同根因、文档责任与统一验收门禁见 [[event-library-integration-rca]]。
 
 ## 结论
 

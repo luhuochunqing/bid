@@ -815,3 +815,10 @@
 - 根因：Bean initMethod 在 Spring Boot Web 服务就绪前注册；EventBus 同步回调 `/api/task/startTask` 得到 Nginx 502，但注册接口仍返回 code=00000
 - 对照：应用就绪后只 register 一次即 UP/ACTIVE，停止手工续约后 SDK 仍约每 3 秒更新 lastRenewalTime，排除地址和续约参数
 - 回填：更新 [[integration-tender-event-push]] `13、实现笔记与 lessons `346；注册改由最低优先级 ApplicationReadyEvent 触发
+
+
+## [2026-09-10] compound | 事件库两次集成反复失败根因复盘
+- 触发：标讯事件经历 17 个代码/集成 PR 与 32 个目录提交后才形成真实 EventBus 入库闭环，需要对照组织架构消费事件历史解释反复原因
+- 结论：事件库是带注册、反向回调、租约、订阅和运行时装配的有状态协议；我方长期按普通 HTTP 接口理解并以局部成功替代端到端成功是主因，客户文档分层不清和 SDK 黑盒行为是重要诱因
+- 证据：无手工注册下 `bid:8080` 持续 `UP/ACTIVE`，真实 tenderId 4173 的 SDK result=true、我方流水 1883 与客户流水 97776 使用同一 18 位 traceId
+- 回填：新增 [[event-library-integration-rca]]，沉淀五层契约、五个为什么、组织/标讯共同机制和统一验收门禁
