@@ -14,6 +14,7 @@ import asyncio
 import hashlib
 import logging
 import os
+import re
 import secrets
 import subprocess
 import tempfile
@@ -30,6 +31,11 @@ import mammoth
 from converter import extract_headings
 from image_extractor import extract_images
 from table_extractor import extract_tables, extract_tables_artifact, SCHEMA_VERSION
+
+# Compiled once — replaces markdown image tokens with 【已附图片】 in extracted text so the
+# LLM compliance reviewer reads plain-text evidence markers rather than broken image links.
+_MD_IMG_PATTERN = re.compile(r"!\[[^\]]*\]\([^)]*\)")
+
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -304,11 +310,19 @@ def _convert_worker(path: str) -> Any:
     # Normalize to a payload that always carries a `pages` list (markitdown has none —
     # docx physical pagination is unobtainable; Java side falls back to virtual pagination).
     pages = getattr(result, "pages", None)
+    # Replace markdown image tokens with a plain-text evidence marker so the LLM compliance
+    # reviewer correctly interprets embedded images as attached evidence rather than broken
+    # links.  Pattern: ![any alt text](any src) → 【已附图片】
+    # The Java IMAGE_EVIDENCE_PATTERN also matches "已附图片" as a literal substring,
+    # so rule-based checks continue to work.
+    normalised_text = _MD_IMG_PATTERN.sub("【已附图片】", result.text_content)
     return SimpleNamespace(
-        text_content=result.text_content,
+        text_content=normalised_text,
         markdown=getattr(result, "markdown", None) or result.text_content,
         pages=pages if isinstance(pages, list) else [],
     )
+
+
 
 
 async def _convert_document(path: str) -> Any:
