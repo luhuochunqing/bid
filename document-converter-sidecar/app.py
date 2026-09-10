@@ -89,10 +89,12 @@ def _suppress_docx_image_inlining() -> None:
     if _MAMMOTH_PATCHED:
         return
     # mammoth.images.inline is a decorator factory (img_element); a valid
-    # convert_image must return [html.element(...)]. Keep alt text and placeholder src so
-    # embedded images are preserved as markdown tokens instead of vanishing into empty cells.
+    # convert_image must return [html.element(...)]. Keep src stub + alt text
+    # so markitdown preserves "已附图片" in table cells — compliance policies
+    # use this marker to detect embedded image evidence (e.g. ID card scans,
+    # business-license photos) without needing to read the image data itself.
     placeholder = mammoth.images.img_element(
-        lambda image: {"src": "embedded-image", "alt": getattr(image, "alt_text", None) or "已附图片"}
+        lambda image: {"src": "embedded-image", "alt": "已附图片"}
     )
     original = mammoth.convert_to_html
 
