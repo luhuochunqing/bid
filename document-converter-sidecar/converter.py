@@ -9,6 +9,7 @@ Position: Imported by app.py (the HTTP shell). Heading analysis is pure; the PDF
 """
 from __future__ import annotations
 
+import os
 import re
 from collections import Counter
 
@@ -30,18 +31,28 @@ def _row_has_price_param(row: str) -> bool:
     return any(kw in row for kw in PRICE_PARAM_LONG_KEYWORDS) or bool(_SHORT_TOKEN_PATTERN.search(row))
 
 
-def convert_pdf_to_pages(pdf_path: str) -> list[dict]:
-    """Convert a PDF file to per-page markdown dicts preserving physical page boundaries.
+def _pdf_chunk_pages() -> int:
+    """Pages per open/close chunk (env-overridable for tests/ops tuning)."""
+    try:
+        return max(1, int(os.environ.get("SIDECAR_PDF_CHUNK_PAGES", "10")))
+    except (TypeError, ValueError):
+        return 10
 
-    Output: [{"pageNumber": 1-based int, "text": page markdown}, ...]
-    Consumed by the compliance quality-check pipeline (Java `DocumentContent.pages`);
-    per-page markdown/table extraction is identical to the legacy whole-document path.
+
+def _convert_pdf_chunk(pdf_path: str, start: int, end: int) -> list[dict]:
+    """Extract pages [start, end) with all pdfplumber structures freed on return.
+
+    Root-cause fix for project 1373 (428MB bid PDF OOM-killed the 3GB worker
+    at ~2.98GB RSS): the legacy single-open loop held every page's parsed
+    structures (chars/edges/tables) for the whole document. Scoping one chunk
+    per open/close bounds the peak to O(chunk) plus accumulated strings.
     """
     import pdfplumber
 
-    pages: list[dict] = []
+    chunk: list[dict] = []
     with pdfplumber.open(pdf_path) as pdf:
-        for index, page in enumerate(pdf.pages):
+        for index in range(start, end):
+            page = pdf.pages[index]
             tables = page.extract_tables() or []
             table_markdowns: list[str] = []
             for table in tables:
@@ -79,10 +90,28 @@ def convert_pdf_to_pages(pdf_path: str) -> list[dict]:
                 page_combined = text
 
             if page_combined.strip():
-                pages.append({
+                chunk.append({
                     "pageNumber": index + 1,
                     "text": page_combined.strip().replace("\x0c", "\n\n"),
                 })
+    return chunk
+
+
+def convert_pdf_to_pages(pdf_path: str) -> list[dict]:
+    """Convert a PDF file to per-page markdown dicts preserving physical page boundaries.
+
+    Output: [{"pageNumber": 1-based int, "text": page markdown}, ...]
+    Consumed by the compliance quality-check pipeline (Java `DocumentContent.pages`);
+    per-page markdown/table extraction is identical to the legacy whole-document path.
+    """
+    import pdfplumber
+
+    with pdfplumber.open(pdf_path) as pdf:
+        total = len(pdf.pages)
+    chunk_size = _pdf_chunk_pages()
+    pages: list[dict] = []
+    for start in range(0, total, chunk_size):
+        pages.extend(_convert_pdf_chunk(pdf_path, start, min(start + chunk_size, total)))
     return pages
 
 

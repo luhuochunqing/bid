@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -37,6 +38,11 @@ public class SidecarStreamDocumentAdapter {
 
     private static final String SIDECAR_KEY_HEADER = "X-Sidecar-Key";
 
+    /** 大文件阈值（字节）：超过此大小的上传走大文件超时档（静态常量，不占 collaborator 预算）. */
+    private static final long LARGE_FILE_THRESHOLD_BYTES = 50L * 1024 * 1024;
+    /** 大文件超时倍数：428MB 级标书 60s 内必然转不完（1373 根治），大文件档 = 基准档 × 5. */
+    private static final long LARGE_FILE_TIMEOUT_MULTIPLIER = 5L;
+
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final String sidecarUrl;
@@ -55,6 +61,27 @@ public class SidecarStreamDocumentAdapter {
                 : sidecarUrl;
         this.sharedKey = sharedKey == null ? "" : sharedKey.trim();
         this.timeoutSeconds = timeoutSeconds;
+    }
+
+    /**
+     * 按文件大小分档的 Sidecar 超时（纯函数）：超过大文件阈值走大文件档，否则走基准档.
+     *
+     * @param fileSizeBytes 待上传文件字节数；未知（负数）时回落基准档
+     * @return 生效的超时秒数
+     */
+    final long resolveTimeoutSeconds(final long fileSizeBytes) {
+        if (fileSizeBytes > 0 && fileSizeBytes > LARGE_FILE_THRESHOLD_BYTES) {
+            return timeoutSeconds * LARGE_FILE_TIMEOUT_MULTIPLIER;
+        }
+        return timeoutSeconds;
+    }
+
+    private static long fileSizeOf(final Path path) {
+        try {
+            return Files.size(path);
+        } catch (IOException | RuntimeException t) {
+            return -1L;
+        }
     }
 
     /**
@@ -79,9 +106,10 @@ public class SidecarStreamDocumentAdapter {
             }
 
             String boundary = "xiyu-compliance-" + UUID.randomUUID().toString().replace("-", "");
+            long effectiveTimeoutSeconds = resolveTimeoutSeconds(fileSizeOf(uploadFilePath));
             HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                     .uri(URI.create(sidecarUrl + "/convert"))
-                    .timeout(Duration.ofSeconds(timeoutSeconds))
+                    .timeout(Duration.ofSeconds(effectiveTimeoutSeconds))
                     .header("Content-Type", "multipart/form-data; boundary=" + boundary);
 
             if (!sharedKey.isBlank()) {
@@ -104,10 +132,12 @@ public class SidecarStreamDocumentAdapter {
                 }
                 return documentFromSidecarPayload(fileName, contentHash, root);
             } else {
-                log.warn("Sidecar /convert 返回状态码 {}: {}, 降级使用本地哈希与文本", response.statusCode(), response.body());
+                log.warn("Sidecar /convert 返回状态码 {}（文件 {}，超时档 {}s）: {}, 降级使用本地哈希与文本",
+                        response.statusCode(), fileName, effectiveTimeoutSeconds, response.body());
             }
         } catch (Throwable t) {
-            log.warn("调用文档转换 Sidecar 异常，采用本地降级解析: {}", t.getMessage());
+            log.warn("调用文档转换 Sidecar 异常（文件 {}），采用本地降级解析: {}",
+                    fileName, t.getMessage());
         } finally {
             if (needsCleanup && uploadFilePath != null) {
                 try {
