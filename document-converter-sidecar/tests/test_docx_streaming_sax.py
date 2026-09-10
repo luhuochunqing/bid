@@ -160,3 +160,86 @@ def test_extract_docx_streaming_sax_headings(tmp_path):
     assert "## 施工组织设计" in text
     assert "正文段落内容" in text
 
+
+def test_extract_docx_streaming_sax_images_in_table(tmp_path):
+    """Verify that images in tables (e.g. ID card scans) produce 【已附图片】 markers."""
+    from app import _extract_docx_streaming_sax
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as z:
+        z.writestr(
+            "[Content_Types].xml",
+            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>""",
+        )
+        doc_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+            xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    <w:tbl>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>身份证（人像页）</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>身份证（国徽页）</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc><w:p><w:r><w:drawing><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rId1"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></w:drawing></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:drawing><a:graphic><a:graphicData><pic:pic><pic:blipFill><a:blip r:embed="rId2"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></w:drawing></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>"""
+        z.writestr("word/document.xml", doc_xml)
+
+    file_path = str(tmp_path / "id_card_table.docx")
+    with open(file_path, "wb") as f:
+        f.write(buf.getvalue())
+
+    text = _extract_docx_streaming_sax(file_path)
+    assert "| 身份证（人像页） | 身份证（国徽页） |" in text
+    assert "| 【已附图片】 | 【已附图片】 |" in text
+
+
+def test_extract_docx_streaming_sax_vml_image(tmp_path):
+    """Verify that VML imagedata elements also produce 【已附图片】 markers."""
+    from app import _extract_docx_streaming_sax
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as z:
+        z.writestr(
+            "[Content_Types].xml",
+            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>""",
+        )
+        doc_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            xmlns:v="urn:schemas-microsoft-com:vml"
+            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:body>
+    <w:p>
+      <w:r><w:t>法定代表人身份证明：</w:t></w:r>
+      <w:r>
+        <w:pict>
+          <v:shape><v:imagedata r:id="rId1"/></v:shape>
+        </w:pict>
+      </w:r>
+    </w:p>
+  </w:body>
+</w:document>"""
+        z.writestr("word/document.xml", doc_xml)
+
+    file_path = str(tmp_path / "vml_image.docx")
+    with open(file_path, "wb") as f:
+        f.write(buf.getvalue())
+
+    text = _extract_docx_streaming_sax(file_path)
+    assert "法定代表人身份证明：【已附图片】" in text
+
+

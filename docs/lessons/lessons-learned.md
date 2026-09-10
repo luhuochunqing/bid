@@ -5401,3 +5401,24 @@ SDK 自身仍每约 3 秒更新 `lastRenewalTime`。这排除了 advertised 地�
 3. **LLM 评审基线规范对齐**：更新 `AdjudicationGuidelines` 规则 4、5、6、7、19，明确已附图片表格单元格不得判定为空留白。
 4. **集成百度 PaddleOCR-VL 客户端**：新增 `BaiduPaddleVlClient`，支持将文档/图片提交至百度 PaddleOCR-VL 进行高精版面分析与结构化 Markdown 提取，并支持平滑降级。
 
+---
+
+## 351. 超大 docx 流式 SAX 解析通道图片节点遗漏致质检误判（2026-09-10）
+
+### 问题背景
+在 350 节针对 mammoth / markitdown 链路完成 `alt="已附图片"` 与 LLM 准则更新后，项目 1374 的法人授权委托书与身份证图片核查仍然被 AI 判定为 FAIL：“且身份证复印件部分仅有‘| 身份证（人像页） | 身份证（国徽页） |’的表格占位，未附带任何实际身份证扫描件图片或‘已附图片’凭证”。
+
+### 根因分析（5 Whys）
+1. **为什么 LLM 与规则引擎仍未收到“已附图片”？**
+   Sidecar 实际返回的文本中，身份证单元格下完全没有任何标记，仍为纯文本空表格。
+2. **为什么 350 节的 mammoth 补丁与 markitdown 替换均未生效？**
+   项目 1374 的 docx 解压后 `word/document.xml` 大小超过 10MB，触发了 `_is_large_docx` 判断，被直接路由到 `_extract_docx_streaming_sax` 流式 SAX 解析器，根本没有走 mammoth 或 markitdown！
+3. **为什么 `_extract_docx_streaming_sax` 会丢失图片？**
+   `_extract_docx_streaming_sax` 最初设计用于超大文件的轻量化防 OOM 文本提取，其 `iterparse` 循环仅捕获了 `<w:t>`、`<w:tab>`、`<w:br>` 纯文本节点，对 OpenXML 中的 `<a:blip>` (DrawingML) 与 `<v:imagedata>` (VML) 等图片节点完全未做处理，直接将图片视为空元素略过。因此当身份证图片作为独立单元格或嵌入表格单元格时，单元格文本为空，下游彻底失去图片凭据。
+
+### 落地解决方案
+1. **流式 SAX 解析器补齐图片节点感知**：在 `_extract_docx_streaming_sax` 的 XML 解析事件中，对 `tag in ("blip", "imagedata")` 或以 `blip` 结尾的节点进行捕获，向当前段落 `current_p` 添加 `【已附图片】` 证据标记，并做邻近去重保护。
+2. **双通道输出一致性收敛**：确保普通 docx（mammoth/markitdown 转换后清洗）与超大 docx（流式 SAX 解析）均能一致产出 `【已附图片】` 纯文本标记，无缝覆盖规则引擎正则 `IMAGE_EVIDENCE_PATTERN` 与大模型语义裁决上下文。
+3. **回归测试闭环**：在 `test_docx_streaming_sax.py` 中新增表格内 DrawingML blip 图片与 VML imagedata 图片的双重单元测试，防止多解析器分流时的行为不一致。
+
+

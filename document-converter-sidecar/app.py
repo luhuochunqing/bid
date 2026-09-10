@@ -226,6 +226,9 @@ def _extract_docx_streaming_sax(docx_path: str) -> str:
                     elif event == "end":
                         if tag == "t" and elem.text:
                             current_p.append(elem.text)
+                        elif tag in ("blip", "imagedata") or tag.lower().endswith("blip"):
+                            if not current_p or current_p[-1] != "【已附图片】":
+                                current_p.append("【已附图片】")
                         elif tag == "tab":
                             current_p.append("\t")
                         elif tag == "br":
