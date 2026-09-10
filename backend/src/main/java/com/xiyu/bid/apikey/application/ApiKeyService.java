@@ -3,6 +3,7 @@ package com.xiyu.bid.apikey.application;
 import com.xiyu.bid.apikey.entity.ApiKey;
 import com.xiyu.bid.apikey.entity.ApiKeyStatus;
 import com.xiyu.bid.apikey.infrastructure.ApiKeyRepository;
+import com.xiyu.bid.exception.ResourceNotFoundException;
 import com.xiyu.bid.util.DigestUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,9 +11,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
-import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 
@@ -85,6 +86,26 @@ public class ApiKeyService {
         log.info("Deleted API Key id={}", id);
     }
 
+    /**
+     * 全量替换指定 API Key 的 scopes，并可选更新 name。
+     * scopes 会去重并保留首个出现顺序；id 不存在时抛 {@link ResourceNotFoundException}（映射 404）。
+     */
+    public UpdateResult updateScopes(Long id, String name, List<String> scopes) {
+        ApiKey key = repository.findById(id)
+                .orElseThrow(() -> ResourceNotFoundException.withMessage("API Key not found: " + id));
+        if (name != null && !name.isBlank()) {
+            key.setName(name);
+        }
+        List<String> deduped = scopes.stream()
+                .distinct() // 保留首个出现顺序
+                .toList();
+        key.setScopes(String.join(",", deduped));
+        ApiKey updated = repository.save(key);
+        log.info("Updated API Key id={} scopes={}", id, updated.getScopes());
+        return new UpdateResult(updated.getId(), updated.getName(),
+                List.of(updated.getScopes().split(",")), updated.getExpiresAt());
+    }
+
     private boolean isActive(ApiKey key) {
         if (key.getStatus() != ApiKeyStatus.ACTIVE) return false;
         if (key.getExpiresAt() != null && key.getExpiresAt().isBefore(LocalDateTime.now())) {
@@ -106,4 +127,6 @@ public class ApiKeyService {
     }
 
     public record CreateResult(Long id, String secret, String name, List<String> scopes, LocalDateTime expiresAt) {}
+
+    public record UpdateResult(Long id, String name, List<String> scopes, LocalDateTime expiresAt) {}
 }

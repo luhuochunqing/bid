@@ -4,6 +4,8 @@ import com.xiyu.bid.apikey.application.ApiKeyService;
 import com.xiyu.bid.apikey.dto.ApiKeyResponse;
 import com.xiyu.bid.apikey.dto.CreateApiKeyRequest;
 import com.xiyu.bid.apikey.dto.CreateApiKeyResponse;
+import com.xiyu.bid.apikey.dto.UpdateApiKeyRequest;
+import com.xiyu.bid.apikey.dto.UpdateApiKeyResponse;
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import jakarta.validation.Valid;
@@ -15,6 +17,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -54,6 +57,17 @@ public class ApiKeyAdminController {
                 "请立即保存此 Secret，关闭后无法再次获取");
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("API Key created", resp));
+    }
+
+    @PatchMapping("/{id}")
+    public ResponseEntity<ApiResponse<UpdateApiKeyResponse>> updateScopes(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateApiKeyRequest request) {
+        ApiKeyService.UpdateResult result = apiKeyService.updateScopes(
+                id, request.name(), request.scopes());
+        UpdateApiKeyResponse resp = new UpdateApiKeyResponse(
+                result.id(), result.name(), result.scopes(), result.expiresAt());
+        return ResponseEntity.ok(ApiResponse.success("API Key scopes updated", resp));
     }
 
     @PostMapping("/{id}/disable")
