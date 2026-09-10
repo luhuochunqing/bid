@@ -321,7 +321,7 @@ function handleDownloadBidFile(file) {
   }
   const id = file.response?.data?.id
   if (!id) return ElMessage.warning('文件信息缺失，无法下载')
-  downloadWithFilename(`/api/projects/${props.projectId}/documents/${id}/download`, file.name || '投标文件')
+  downloadWithFilename(`/api/projects/${props.projectId}/documents/${id}/download`, file.name || '投标文件', { native: true })
 }
 const qualityCheckRef = ref(null)
 const projectDocTableRef = ref(null)

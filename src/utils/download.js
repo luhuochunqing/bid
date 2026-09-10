@@ -32,17 +32,47 @@ export function parseFilenameFromDisposition(disposition, fallbackName) {
 }
 
 /**
+ * 通过隐藏的原生 <a> 标签触发浏览器原生流式下载
+ *
+ * 适用场景：大文件（>100MB 乃至 2GB+）下载、重定向至对象存储（如 OBS / S3 直链）的接口。
+ * 优势：由浏览器原生下载引擎接管流式写入磁盘，支持断点续传，零 JS 内存开销，避免 Axios responseType: 'blob' 导致的内存暴涨崩溃及超时。
+ *
+ * @param {string} url - 下载地址
+ * @param {string} [filename] - 期望的文件名（当响应头未提供 filename 时浏览器回退使用）
+ */
+export function triggerNativeDownload(url, filename) {
+  if (!url || typeof window === 'undefined') return
+  const a = document.createElement('a')
+  a.href = url
+  if (filename) {
+    a.download = filename
+  }
+  a.style.display = 'none'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
+/**
  * 通过 fetch + blob 方式下载文件，支持从响应头获取文件名
  *
  * 适用场景：需要从 Content-Disposition 头读取真实文件名的下载。
- * 不适用场景：大文件（>100MB）下载，因为会将整个文件加载到内存。
+ * 不适用场景：大文件（>100MB）下载，因为会将整个文件加载到内存。大文件请传入 options: { native: true }。
  *
  * @param {string} url - 下载地址
  * @param {string} fallbackName - 无法从响应头获取文件名时的备用名称
+ * @param {Object} [options] - 下载配置项
+ * @param {boolean} [options.native] - 是否使用原生 <a> 标签触发流式下载（推荐用于大文件）
  * @returns {Promise<void>}
  */
-export async function downloadWithFilename(url, fallbackName) {
+export async function downloadWithFilename(url, fallbackName, options = {}) {
   if (!url) return
+
+  if (options?.native) {
+    triggerNativeDownload(url, fallbackName)
+    return
+  }
+
   const apiUrl = normalizeApiDownloadUrl(url)
 
   if (apiUrl) {

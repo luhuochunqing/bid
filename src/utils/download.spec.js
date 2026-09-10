@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
 import { ElMessage } from 'element-plus'
 import httpClient from '../api/client.js'
-import { parseFilenameFromDisposition, triggerBlobDownload, downloadWithFilename, normalizeApiDownloadUrl, showApiDownloadError } from './download.js'
+import { parseFilenameFromDisposition, triggerBlobDownload, triggerNativeDownload, downloadWithFilename, normalizeApiDownloadUrl, showApiDownloadError } from './download.js'
 
 vi.mock('element-plus', () => ({
   ElMessage: {
@@ -95,6 +95,60 @@ describe('triggerBlobDownload', () => {
 
     triggerBlobDownload(null, 'test.txt')
     expect(clickSpy).not.toHaveBeenCalled()
+  })
+})
+
+describe('triggerNativeDownload', () => {
+  it('应创建隐藏 <a> 标签设置 href 与 download 并触发点击与移除', () => {
+    const clickSpy = vi.fn()
+    const appendSpy = vi.spyOn(document.body, 'appendChild').mockImplementation(() => {})
+    const removeSpy = vi.spyOn(document.body, 'removeChild').mockImplementation(() => {})
+
+    const mockAnchor = { href: '', download: '', style: {}, click: clickSpy }
+    const originalCreateElement = document.createElement.bind(document)
+    vi.spyOn(document, 'createElement').mockImplementation((tag) => {
+      if (tag === 'a') return mockAnchor
+      return originalCreateElement(tag)
+    })
+
+    triggerNativeDownload('/api/projects/1/documents/2/download', 'test.docx')
+
+    expect(mockAnchor.href).toBe('/api/projects/1/documents/2/download')
+    expect(mockAnchor.download).toBe('test.docx')
+    expect(mockAnchor.style.display).toBe('none')
+    expect(appendSpy).toHaveBeenCalledWith(mockAnchor)
+    expect(clickSpy).toHaveBeenCalled()
+    expect(removeSpy).toHaveBeenCalledWith(mockAnchor)
+  })
+
+  it('当 url 为空时不应创建标签或触发点击', () => {
+    const clickSpy = vi.fn()
+    const createSpy = vi.spyOn(document, 'createElement')
+
+    triggerNativeDownload('', 'test.docx')
+    triggerNativeDownload(null, 'test.docx')
+
+    expect(createSpy).not.toHaveBeenCalled()
+    expect(clickSpy).not.toHaveBeenCalled()
+  })
+
+  it('未传 filename 时不设置 download 属性', () => {
+    const clickSpy = vi.fn()
+    vi.spyOn(document.body, 'appendChild').mockImplementation(() => {})
+    vi.spyOn(document.body, 'removeChild').mockImplementation(() => {})
+
+    const mockAnchor = { href: '', style: {}, click: clickSpy }
+    const originalCreateElement = document.createElement.bind(document)
+    vi.spyOn(document, 'createElement').mockImplementation((tag) => {
+      if (tag === 'a') return mockAnchor
+      return originalCreateElement(tag)
+    })
+
+    triggerNativeDownload('https://example.com/file.pdf')
+
+    expect(mockAnchor.href).toBe('https://example.com/file.pdf')
+    expect(mockAnchor.download).toBeUndefined()
+    expect(clickSpy).toHaveBeenCalled()
   })
 })
 
@@ -222,6 +276,30 @@ describe('downloadWithFilename', () => {
 
     expect(openSpy).not.toHaveBeenCalled()
     expect(ElMessage.error).toHaveBeenCalledWith('登录已过期或访问入口不一致，请刷新页面并重新登录后下载')
+  })
+
+  it('当 options.native 为 true 时应走原生 <a> 标签下载，避免 blob 占用内存', async () => {
+    const clickSpy = vi.fn()
+    const appendSpy = vi.spyOn(document.body, 'appendChild').mockImplementation(() => {})
+    const removeSpy = vi.spyOn(document.body, 'removeChild').mockImplementation(() => {})
+
+    const mockAnchor = { href: '', download: '', style: {}, click: clickSpy }
+    vi.spyOn(document, 'createElement').mockImplementation((tag) => {
+      if (tag === 'a') return mockAnchor
+      return document.createElement(tag)
+    })
+
+    const fetchSpy = vi.spyOn(global, 'fetch')
+
+    await downloadWithFilename('/api/projects/1374/documents/100/download', 'big_tender.docx', { native: true })
+
+    expect(mockAnchor.href).toBe('/api/projects/1374/documents/100/download')
+    expect(mockAnchor.download).toBe('big_tender.docx')
+    expect(clickSpy).toHaveBeenCalled()
+    expect(appendSpy).toHaveBeenCalledWith(mockAnchor)
+    expect(removeSpy).toHaveBeenCalledWith(mockAnchor)
+    expect(httpClient.get).not.toHaveBeenCalled()
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 })
 
