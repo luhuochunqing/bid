@@ -301,6 +301,37 @@ describe('downloadWithFilename', () => {
     expect(httpClient.get).not.toHaveBeenCalled()
     expect(fetchSpy).not.toHaveBeenCalled()
   })
+
+  it('当 options.native 为 false 或未指定时应走标准 API 下载流程', async () => {
+    const blob = new Blob(['test'], { type: 'text/plain' })
+    vi.mocked(httpClient.get).mockResolvedValue({
+      data: blob,
+      headers: {}
+    })
+
+    vi.spyOn(document, 'createElement').mockReturnValue({
+      href: '', download: '', click: vi.fn()
+    })
+    vi.spyOn(document.body, 'appendChild').mockImplementation(() => {})
+    vi.spyOn(document.body, 'removeChild').mockImplementation(() => {})
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock')
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
+
+    await downloadWithFilename('/api/doc-insight/download?fileUrl=x', 'test.pdf', { native: false })
+    expect(httpClient.get).toHaveBeenCalledWith(
+      '/api/doc-insight/download?fileUrl=x',
+      expect.objectContaining({ responseType: 'blob' })
+    )
+
+    await downloadWithFilename('/api/doc-insight/download?fileUrl=x', 'test.pdf', null)
+    expect(httpClient.get).toHaveBeenCalledTimes(2)
+  })
+
+  it('当 url 为空且 options.native 为 true 时应安全快速返回', async () => {
+    const createSpy = vi.spyOn(document, 'createElement')
+    await downloadWithFilename('', 'test.docx', { native: true })
+    expect(createSpy).not.toHaveBeenCalled()
+  })
 })
 
 describe('showApiDownloadError', () => {

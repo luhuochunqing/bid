@@ -271,4 +271,34 @@ describe('ProjectDocumentTable — download handling', () => {
       { native: true }
     )
   })
+
+  it('当下载地址为空时提示文件地址不可用且不发起下载', async () => {
+    const { projectsApi } = await import('@/api/modules/projects.js')
+    const { ElMessage } = await import('element-plus')
+    vi.mocked(projectsApi.getDocumentDownloadUrl).mockReturnValueOnce('')
+
+    const wrapper = mountTable({ canDownload: true })
+    await flushPromises()
+
+    const downloadButton = wrapper.findAll('.el-button').find((btn) => btn.text().includes('下载'))
+    await downloadButton.trigger('click')
+    await flushPromises()
+
+    expect(ElMessage.info).toHaveBeenCalledWith('文件地址不可用')
+    expect(downloadWithFilenameMock).not.toHaveBeenCalled()
+  })
+
+  it('当下载发生异常时提示文件下载失败', async () => {
+    const { ElMessage } = await import('element-plus')
+    downloadWithFilenameMock.mockRejectedValueOnce(new Error('Network failure'))
+
+    const wrapper = mountTable({ canDownload: true })
+    await flushPromises()
+
+    const downloadButton = wrapper.findAll('.el-button').find((btn) => btn.text().includes('下载'))
+    await downloadButton.trigger('click')
+    await flushPromises()
+
+    expect(ElMessage.error).toHaveBeenCalledWith('文件下载失败')
+  })
 })

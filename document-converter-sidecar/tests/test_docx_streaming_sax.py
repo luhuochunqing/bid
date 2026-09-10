@@ -107,3 +107,56 @@ def test_convert_worker_large_docx_routing(tmp_path):
     result = _convert_worker(file_path)
     assert result.text_content
     assert "投标书长文本内容" in result.text_content
+
+
+def test_extract_docx_streaming_sax_corrupted_file(tmp_path):
+    from app import _extract_docx_streaming_sax
+
+    corrupt_file = str(tmp_path / "corrupt.docx")
+    with open(corrupt_file, "wb") as f:
+        f.write(b"not a valid zip file content")
+
+    text = _extract_docx_streaming_sax(corrupt_file)
+    assert text == ""
+
+
+def test_extract_docx_streaming_sax_headings(tmp_path):
+    from app import _extract_docx_streaming_sax
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as z:
+        z.writestr(
+            "[Content_Types].xml",
+            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>""",
+        )
+        doc_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:pPr><w:pStyle w:val="heading 1"/></w:pPr>
+      <w:r><w:t>工程概况</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:pPr><w:pStyle w:val="heading 2"/></w:pPr>
+      <w:r><w:t>施工组织设计</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t>正文段落内容</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>"""
+        z.writestr("word/document.xml", doc_xml)
+
+    file_path = str(tmp_path / "headings.docx")
+    with open(file_path, "wb") as f:
+        f.write(buf.getvalue())
+
+    text = _extract_docx_streaming_sax(file_path)
+    assert "# 工程概况" in text
+    assert "## 施工组织设计" in text
+    assert "正文段落内容" in text
+
