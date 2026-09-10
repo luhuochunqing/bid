@@ -235,4 +235,22 @@ markdown 输入
 - **构造逻辑收敛**：`ScoreItemMergePolicy.enrich` 合并了原来在价格合并与常规合并中重复出现的 11 参数 `ScoreCandidate` 实例化代码，消除重复样板。
 - **代码行预算管控**：`StructuredTableCandidateExtractor` (297)、`ScoreItemMergePolicy` (273)、`ScoreGlobalMergeOrchestrator` (277) 均严格严守 300 行硬上限。
 
+## 2026-09-10 评分解析公式项去重、客观业绩精准匹配与证据展示治理（项目 1374）
+
+### 问题
+项目 1374（中核集团综合采购，总分 100 分）：
+1. 最后一项多出 1 分的“评标基准价为”，其细则与上一项 30 分“价格部分”内容完全重复，使权重和达 101 分触发 `WEIGHT_SUM_MISMATCH`；
+2. 客观项“央企案例”有案例却显示不满足（DANGER / 0 分）；
+3. 详情弹窗中“表格单元格证据”千篇一律显示 `[自动通过] [LEGACY_FALLBACK] [置信度 100%]`。
+
+### 根因与修复
+1. **多重防御过滤价格公式与去重**：
+   - 提取侧：`StructuredTableCandidateExtractor` 的 `NON_DIM_TEXT` 增加对“评标基准价/基准折扣率/分值计算”等公式短语的排除；
+   - 归并侧：`ScoreGlobalMergeOrchestrator` 增加 `cleanForComparison` 剥离 Markdown 强调符号（`**`等）、标点与空格，并在价格大项与公式项增加跨通道覆盖判断，杜绝向结果集回注多余项。
+2. **知识库客观业绩匹配全流程增强**：
+   - `KnowledgeCategoryPolicy` 引入高优先级专有词（央企、中央企业、国企、MRO、工业品等），联合 `dim` 和 `detail` 提取业务关键词；增加 `extractSignedAfter` 提取签约起始日期（“2022年1月至今” -> 2022-01-01）；增加 `extractProjectRequiredCount` 推导所需份数；
+   - `ProjectMatchService` 增加 `CustomerType` 枚举解析（央企 -> `CENTRAL_SOE`）与强过滤，并将文本关键词扩展至 `industry / contractName / groupCompany` 联合检索，命中业绩库中 20 条央企 MRO 业绩并评出满分（5.00分 / OK）。
+3. **前端证据展示体验治理**：
+   - `ScoreItemDetailModal.vue` 在无真实单元格证据且为旧流水线兜底时隐藏证据卡片；增加 `extractionMethodDisplay` 字典映射中文名称。
+
 
