@@ -96,11 +96,16 @@ public final class BidLetterCheckPolicy {
         if (requirement != null) {
             if (requirement.recipientName() != null && !requirement.recipientName().isBlank()) {
                 if (!match.text().contains(requirement.recipientName())) {
-                    return QualityCheckItemResult.manualReview(
-                            item,
-                            "投标函致采购人称谓与招标文件要求的【" + requirement.recipientName() + "】不一致，建议复核",
-                            "请确认投标函抬头致采购人称谓是否完全符合招标文件要求",
-                            evidences);
+                    boolean hasGenericTemplateSalutation = match.text().contains("采购人或采购代理机构")
+                            || match.text().contains("采购人或招标代理机构")
+                            || match.text().contains("招标人或招标代理机构");
+                    if (!hasGenericTemplateSalutation) {
+                        return QualityCheckItemResult.manualReview(
+                                item,
+                                "投标函致采购人称谓与招标文件要求的【" + requirement.recipientName() + "】不一致，建议复核",
+                                "请确认投标函抬头致采购人称谓是否完全符合招标文件要求",
+                                evidences);
+                    }
                 }
             }
             if (requirement.validityDays() != null) {

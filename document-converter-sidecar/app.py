@@ -89,8 +89,11 @@ def _suppress_docx_image_inlining() -> None:
     if _MAMMOTH_PATCHED:
         return
     # mammoth.images.inline is a decorator factory (img_element); a valid
-    # convert_image must return [html.element(...)]. Keep alt text, drop src.
-    placeholder = mammoth.images.img_element(lambda image: {"src": ""})
+    # convert_image must return [html.element(...)]. Keep alt text and placeholder src so
+    # embedded images are preserved as markdown tokens instead of vanishing into empty cells.
+    placeholder = mammoth.images.img_element(
+        lambda image: {"src": "embedded-image", "alt": getattr(image, "alt_text", None) or "已附图片"}
+    )
     original = mammoth.convert_to_html
 
     def convert_to_html_without_images(fileobj, **kwargs):

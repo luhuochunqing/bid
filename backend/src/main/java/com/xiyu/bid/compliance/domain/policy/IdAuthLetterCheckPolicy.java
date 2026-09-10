@@ -1,3 +1,7 @@
+// Input: 投标文件 DocumentContent + 可选契约 IdAuthLetterRequirement
+// Output: 身份证明/身份证核查结果 QualityCheckItemResult（PASS/FAIL/MANUAL）及证据
+// Pos: compliance/domain/policy/ - 标书法定代表人及委托代理人身份证明/身份证核查策略 (FP-Java)
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
 
 import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
@@ -12,7 +16,7 @@ import java.util.regex.Pattern;
 
 /**
  * 标书法定代表人及委托代理人身份证明/身份证附件核查策略（FP-Java纯核心，无Spring/无IO/无异常）.
- * 严格防范目录点线超前命中假通过与未填占位模板放行.
+ * 严格防范目录点线超前命中假通过与未填占位模板放行，支持已粘贴图片凭据放行.
  */
 public final class IdAuthLetterCheckPolicy {
 
@@ -29,6 +33,11 @@ public final class IdAuthLetterCheckPolicy {
     /** GB 11643-1999 18位公民身份号码标准正则. */
     private static final Pattern ID_CARD_PATTERN = Pattern.compile(
             "[1-9]\\d{5}(?:18|19|20)\\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\\d|3[01])\\d{3}[\\dXx]");
+
+    /** 图片证据标识正则：Markdown 图片、HTML img 标签、或转义出的 [已附图片] / 已附图片 标记. */
+    static final Pattern IMAGE_EVIDENCE_PATTERN = Pattern.compile(
+            "!\\[[^\\]]*\\]\\([^)]+\\)|<img[^>]+>|\\[已附图片\\]|已附图片|\\[图片[^\\]]*\\]"
+    );
 
     private IdAuthLetterCheckPolicy() {
     }
@@ -75,26 +84,32 @@ public final class IdAuthLetterCheckPolicy {
                 continue;
             }
 
-            // 正向事实要素检验：具备真实 18 位身份证号码与身份证明要素
+            // 正向事实要素检验：具备真实 18 位身份证号码或已附图片凭证，与身份证明要素
             Matcher idMatcher = ID_CARD_PATTERN.matcher(text);
             boolean hasIdNumber = idMatcher.find();
             String idCardNumber = hasIdNumber ? idMatcher.group() : null;
 
+            boolean hasImageEvidence = IMAGE_EVIDENCE_PATTERN.matcher(text).find();
             boolean hasIdScanFeatures = hasIdScanFeatures(text);
             boolean hasLegalRepProof = text.contains("法定代表人身份证明") || text.contains("法定代表人证明书");
 
-            if (hasIdNumber && (hasIdScanFeatures || hasLegalRepProof)) {
+            if ((hasIdNumber || hasImageEvidence) && (hasIdScanFeatures || hasLegalRepProof || text.contains("身份证"))) {
                 // 若招标明确要求社保证明，核查标书中是否具备社保要素
                 if (req.requireSocialSecurity() && !hasSocialSecurityFeatures(bidDoc)) {
-                    String snippet = extractSnippet(text, idCardNumber != null ? idCardNumber : "身份证", 200);
+                    String anchor = idCardNumber != null ? idCardNumber : (hasImageEvidence ? "已附图片" : "身份证");
+                    String snippet = extractSnippet(text, anchor, 200);
                     return QualityCheckItemResult.manualReview(item,
-                            "已附身份证扫描件(号码: " + maskId(idCardNumber) + ")，但未检测到招标要求的委托代理人社保证明，需人工复核",
+                            "已附身份证件凭证" + (idCardNumber != null ? "(号码: " + maskId(idCardNumber) + ")" : "")
+                                    + "，但未检测到招标要求的委托代理人社保证明，需人工复核",
                             "请核实标书中是否在其他附件中提供了受托人近期的社保缴纳证明",
                             List.of(QualityEvidence.bid("身份证附件页", page.pageNumber(), snippet)));
                 }
 
-                String snippet = extractSnippet(text, idCardNumber != null ? idCardNumber : "身份证", 200);
-                String conclusion = "已包含有效身份证明与身份证扫描件，识别到公民身份号码: " + maskId(idCardNumber);
+                String anchor = idCardNumber != null ? idCardNumber : (hasImageEvidence ? "已附图片" : "身份证");
+                String snippet = extractSnippet(text, anchor, 200);
+                String conclusion = idCardNumber != null
+                        ? "已包含有效身份证明与身份证扫描件，识别到公民身份号码: " + maskId(idCardNumber)
+                        : "已包含有效身份证明并附带身份证扫描件/复印件图片凭证";
                 return QualityCheckItemResult.pass(item, conclusion,
                         List.of(QualityEvidence.bid("身份证明/身份证正文", page.pageNumber(), snippet)));
             }
@@ -132,7 +147,9 @@ public final class IdAuthLetterCheckPolicy {
         boolean hasBackSide = text.contains("中华人民共和国居民身份证")
                 || text.contains("签发机关")
                 || text.contains("有效期限");
-        return hasFaceSide || hasBackSide || text.contains("身份证复印件") || text.contains("身份证扫描件");
+        return hasFaceSide || hasBackSide || text.contains("身份证复印件") || text.contains("身份证扫描件")
+                || text.contains("身份证（人像页）") || text.contains("身份证（国徽页）")
+                || text.contains("人像面") || text.contains("国徽面");
     }
 
     private static boolean hasSocialSecurityFeatures(final DocumentContent bidDoc) {

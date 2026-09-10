@@ -148,4 +148,25 @@ class IdAuthLetterCheckPolicyTest {
         assertThat(result.status()).isEqualTo(QualityCheckStatus.FAIL);
         assertThat(result.conclusion()).contains("未检索到法定代表人或委托代理人身份证件证明");
     }
+
+    @Test
+    @DisplayName("身份证页包含已附图片占位或图片标记时判定PASS")
+    void check_WhenImageEvidenceProvided_Pass() {
+        var pages = List.of(
+                new DocumentContent.PageContent(5, """
+                        附件三：法定代表人及委托代理人身份证明
+                        | 身份证（人像页） | 身份证（国徽页） |
+                        | 已附图片 | 已附图片 |
+                        委托代理人姓名：李四
+                        """, List.of())
+        );
+        var bidDoc = new DocumentContent("标书.docx", "hash_img_id", "", pages);
+
+        QualityCheckItemResult result = IdAuthLetterCheckPolicy.check(bidDoc);
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(result.conclusion()).contains("已包含有效身份证明并附带身份证扫描件/复印件图片凭证");
+        assertThat(result.evidences()).isNotEmpty();
+        assertThat(result.evidences().get(0).pageNumber()).isEqualTo(5);
+    }
 }

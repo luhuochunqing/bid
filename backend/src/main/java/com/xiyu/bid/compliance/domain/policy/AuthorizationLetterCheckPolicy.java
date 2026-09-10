@@ -31,6 +31,11 @@ public final class AuthorizationLetterCheckPolicy {
             "法定代表人身份证明", "法定代表人证明书", "法定代表人声明"
     };
 
+    /** 图片证据标识正则：Markdown 图片、HTML img 标签、或转义出的 [已附图片] / 已附图片 标记. */
+    static final Pattern IMAGE_EVIDENCE_PATTERN = Pattern.compile(
+            "!\\[[^\\]]*\\]\\([^)]+\\)|<img[^>]+>|\\[已附图片\\]|已附图片|\\[图片[^\\]]*\\]"
+    );
+
     private static final Pattern UNFILLED_PLACEHOLDER_PATTERN = Pattern.compile(
             "【(?:被授权人|受托人|委托代理人|姓名|身份证号|职务|授权期限|授权单位)[^】]*】|"
                     + "\\[(?:被授权人|受托人|委托代理人|姓名|身份证号|职务|授权期限|授权单位)[^\\]]*\\]|"
@@ -120,8 +125,9 @@ public final class AuthorizationLetterCheckPolicy {
                 || text.contains("授权期限") || text.contains("授权事项") || text.contains("代理权限")
                 || text.contains("委托事项") || text.contains("委托权限");
         boolean hasIdCard = ID_CARD_PATTERN.matcher(text).find();
+        boolean hasImage = IMAGE_EVIDENCE_PATTERN.matcher(text).find();
 
-        if (hasPrincipal && hasAgent && (hasStrongScope || hasIdCard)) {
+        if (hasPrincipal && hasAgent && (hasStrongScope || hasIdCard || hasImage)) {
             return QualityCheckItemResult.pass(item,
                     "已提供法定代表人授权委托书，委托人与受托人授权关系清晰明确，要素齐全", evidences);
         }
@@ -140,8 +146,9 @@ public final class AuthorizationLetterCheckPolicy {
 
         boolean allowLegalRepOnly = requirement != null && Boolean.TRUE.equals(requirement.allowLegalRepresentativeOnly());
         boolean hasPrincipal = text.contains("法定代表人") || text.contains("身份证");
+        boolean hasImage = IMAGE_EVIDENCE_PATTERN.matcher(text).find();
 
-        if (allowLegalRepOnly && hasPrincipal) {
+        if (allowLegalRepOnly && (hasPrincipal || hasImage)) {
             return QualityCheckItemResult.pass(item,
                     "已附法定代表人身份证明，符合招标文件关于法定代表人亲自参加的合规规定（免除授权委托书）", evidences);
         }
