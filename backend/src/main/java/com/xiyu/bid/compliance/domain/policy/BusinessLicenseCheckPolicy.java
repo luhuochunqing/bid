@@ -1,3 +1,7 @@
+// Input: 投标文件 DocumentContent + 可选契约 BusinessLicenseRequirement
+// Output: 营业执照核查结果 QualityCheckItemResult（PASS/FAIL/MANUAL）及证据
+// Pos: compliance/domain/policy/ - 标书营业执照与主体资格证明核查策略 (FP-Java)
+// 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 package com.xiyu.bid.compliance.domain.policy;
 
 import com.xiyu.bid.compliance.domain.BidQualityCheckItem;
@@ -12,7 +16,7 @@ import java.util.regex.Pattern;
 
 /**
  * 标书营业执照与主体资格证明核查策略（FP-Java纯核心，无Spring/无IO/无异常）.
- * 严格防范目录点线超前命中假通过与未填占位模板放行.
+ * 严格防范目录点线超前命中假通过与未填占位模板放行，支持已粘贴图片凭据放行.
  */
 public final class BusinessLicenseCheckPolicy {
 
@@ -26,6 +30,11 @@ public final class BusinessLicenseCheckPolicy {
     /** GB 32100-2015 18位统一社会信用代码标准正则（剔除易混淆字母 I, O, Z, S, V）. */
     private static final Pattern USCC_PATTERN = Pattern.compile(
             "[0-9A-HJ-NPQRTUWXY]{2}\\d{6}[0-9A-HJ-NPQRTUWXY]{10}");
+
+    /** 图片证据标识正则：Markdown 图片、HTML img 标签、或转义出的 [已附图片] / 已附图片 标记. */
+    static final Pattern IMAGE_EVIDENCE_PATTERN = Pattern.compile(
+            "!\\[[^\\]]*\\]\\([^)]+\\)|<img[^>]+>|\\[已附图片\\]|已附图片|\\[图片[^\\]]*\\]"
+    );
 
     private BusinessLicenseCheckPolicy() {
     }
@@ -91,14 +100,23 @@ public final class BusinessLicenseCheckPolicy {
                     || text.contains("登记证书") || text.contains("执业许可证");
             String matchedCert = matchAllowedCertificate(text, allowedCerts);
 
-            if (hasUscc && hasLicenseKeyword && (hasRegistrationFacts || hasAuthorityOrSeal)
-                    && (allowedCerts.isEmpty() || matchedCert != null)) {
+            boolean hasImageEvidence = IMAGE_EVIDENCE_PATTERN.matcher(text).find();
+
+            if (hasLicenseKeyword && (allowedCerts.isEmpty() || matchedCert != null)) {
                 String docType = matchedCert != null ? matchedCert
                         : (text.contains("事业单位法人证书") ? "事业单位法人证书" : "营业执照");
-                String snippet = extractSnippet(text, usccCode != null ? usccCode : docType, 200);
-                String conclusion = "已包含" + docType + "且识别到有效统一社会信用代码: " + usccCode + "，主体资格要素齐备";
-                return QualityCheckItemResult.pass(item, conclusion,
-                        List.of(QualityEvidence.bid(docType + "正文", page.pageNumber(), snippet)));
+                if (hasUscc && (hasRegistrationFacts || hasAuthorityOrSeal)) {
+                    String snippet = extractSnippet(text, usccCode != null ? usccCode : docType, 200);
+                    String conclusion = "已包含" + docType + "且识别到有效统一社会信用代码: " + usccCode + "，主体资格要素齐备";
+                    return QualityCheckItemResult.pass(item, conclusion,
+                            List.of(QualityEvidence.bid(docType + "正文", page.pageNumber(), snippet)));
+                }
+                if (hasImageEvidence) {
+                    String snippet = extractSnippet(text, docType, 200);
+                    String conclusion = "已包含" + docType + "扫描件图片凭证，主体资格证明齐备";
+                    return QualityCheckItemResult.pass(item, conclusion,
+                            List.of(QualityEvidence.bid(docType + "正文", page.pageNumber(), snippet)));
+                }
             }
 
             // 事业单位法人证书或未提取到标准USCC但包含明确法人登记号的特例

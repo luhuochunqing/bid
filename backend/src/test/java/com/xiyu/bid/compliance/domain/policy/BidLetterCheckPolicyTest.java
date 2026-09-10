@@ -121,4 +121,26 @@ class BidLetterCheckPolicyTest {
         assertThat(result.evidences().get(0).sourceTitle()).isEqualTo("报价函章节");
         assertThat(result.evidences().get(0).quote()).contains("上海西域机电系统有限公司");
     }
+
+    @Test
+    @DisplayName("招标文件固定模板称谓（致采购人或采购代理机构）不误判为抬头不一致")
+    void checkBidLetterFormat_genericBoilerplateSalutation_doesNotTriggerMismatch() {
+        String bidPage = """
+                投标函
+                致采购人或采购代理机构：
+                我方已仔细研究了中国中检MRO工业品供应商入围采购项目招标文件的全部内容，愿意参与投标。
+                我方承诺在招标文件规定的投标有效期90日历天内不修改、不撤销投标文件。
+                投标人：西域智慧供应链（上海）股份公司（盖章）
+                法定代表人：张三（签字或盖章）
+                日期：2026年09月10日
+                """;
+        DocumentContent doc = DocumentContent.fromText("bid.pdf", "hash_bid_generic", bidPage);
+        BidLetterRequirement req = new BidLetterRequirement(
+                "投标函", "中国检验认证集团", 90, "致中国检验认证集团");
+
+        QualityCheckItemResult result = BasicInfoCheckPolicy.checkBidLetterFormat(doc, req);
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(result.conclusion()).contains("投标函/报价函格式规范，要素完备");
+    }
 }

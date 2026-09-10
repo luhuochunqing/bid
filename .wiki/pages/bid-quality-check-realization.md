@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [质量核查, compliance, LLM 混合裁决, 证据链, FP-Java, 语义RAG, 结构化输出, 资质智能匹配, 三级穿透]
 created: 2026-08-20
-updated: 2026-09-06
-health_checked: 2026-09-06
+updated: 2026-09-10
+health_checked: 2026-09-10
 sources:
   - specs/049-bid-quality-check-realization/spec.md
   - src/views/Project/stages/components/QualityCheckDrawer.vue
@@ -335,6 +335,11 @@ drawer 结构：
 
 40. **政采与非招标“响应担保”同义词盲区与【不涉及】结论前缀规范**（2026-09-06）：竞争性谈判、询价等采购模式法定使用“响应担保/响应保证金”（如“不要求递交响应担保”）；`DeterministicDepositExtractor` 遗漏该词表导致确定性免收识别失效、第 24 项退款信息表因缺乏联动误报待确认。解法：词表扩充“响应担保/不要求递交”，全链路免收项统一输出 `【不涉及】` 结论前缀，消解用户对未附回单为何通过的困惑。
 41. **质检引擎保留大模型深度条款证据链与前端自适应【不涉及】标签**（2026-09-06）：大模型对免收项的深度裁决具有不可替代的证据价值（精确提取招标文件第3.4款与标书文件五“本项目不适用”对应关系）。严禁用生硬确定性模板覆盖大模型输出；后端保留完整证据并冠以统一 `【不涉及】` 前缀，前端通过 `isNotApplicableItem` 自适应将标签渲染为 `不涉及`（info tag），彻底消解“未附回单却显示通过”的用户误解。
+42. **标书大图片证据保留与证照凭证放行机制**（2026-09-10）：
+    - **Sidecar 图片占位符保留语义**：`document-converter-sidecar/app.py` 中 `_suppress_docx_image_inlining` 改造为返回带 `alt="已附图片"` 和 `src="embedded-image"` 的占位元素，解决 `markdownify` 将空 `<img src="" />` 剔除导致表格单元格完全留白（`| | |`）的问题。
+    - **确定性核查策略支持图片凭证**：`IdAuthLetterCheckPolicy`、`BusinessLicenseCheckPolicy`、`AuthorizationLetterCheckPolicy` 引入 `IMAGE_EVIDENCE_PATTERN`，识别到表格或正文中粘贴的证照图片或 `已附图片` 标记时判定 PASS，消除无外部公安库对比下硬性要求纯文本 18 位号码的局限。
+    - **通用示范称谓与后缀放行**：`BidLetterCheckPolicy` 与 `AdjudicationGuidelines` 准则 4 放行“致采购人或采购代理机构：”等标准招标文件模板抬头及说明性项目名称后缀（如“（项目名称）”），避免误判为占位模板。
+    - **百度 PaddleOCR-VL 客户端集成**：引入 `BaiduPaddleVlClient`，支持将文档及图片提交至百度 PaddleOCR-VL 进行版面分析与结构化 Markdown 提取，支持优雅降级。
 
 ## 6. 后续任务（Backlog）
 

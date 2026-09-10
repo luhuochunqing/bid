@@ -251,4 +251,25 @@ class BusinessLicenseCheckPolicyTest {
 
         assertThat(result.status()).isNotEqualTo(QualityCheckStatus.PASS);
     }
+
+    @Test
+    @DisplayName("营业执照正文包含已附图片或图片标记时判定PASS")
+    void check_WhenLicenseImageEvidenceAttached_ReturnsPass() {
+        var pages = List.of(
+            new DocumentContent.PageContent(4, """
+                第三章 资格审查资料
+                一、营业执照（复印件）
+                ![已附图片](embedded-image)
+                """, List.of())
+        );
+        var bidDoc = new DocumentContent("投标书.docx", "hash_license_img", "", pages);
+        var req = new BusinessLicenseRequirement(true, List.of("营业执照"), "复印件", "需提供有效营业执照复印件");
+
+        QualityCheckItemResult result = BusinessLicenseCheckPolicy.check(bidDoc, req);
+
+        assertThat(result.status()).isEqualTo(QualityCheckStatus.PASS);
+        assertThat(result.conclusion()).contains("已包含营业执照扫描件图片凭证，主体资格证明齐备");
+        assertThat(result.evidences()).isNotEmpty();
+        assertThat(result.evidences().get(0).pageNumber()).isEqualTo(4);
+    }
 }
