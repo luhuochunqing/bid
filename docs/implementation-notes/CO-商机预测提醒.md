@@ -86,14 +86,14 @@
 
 迁移会把所有历史记录视为事件已完成，因此不能把测试项目 ID 硬编码进通用迁移。测试环境部署后，
 先执行 `UPDATE opportunity_prediction_reminder_log SET event_published_at=NULL, event_publish_claim_token=NULL, event_publish_claimed_at=NULL WHERE project_id=983;`，
-再触发扫描。验收条件：站内信/企微不新增，SDK 日志显示 10 字段事件受理成功，
+再触发扫描。验收条件：站内信/企微不新增，SDK 日志显示 11 字段事件受理成功，
 该行 `event_published_at` 被补写，扫描结果 `eventRetried=1`。
 
-### 11. 商机事件固定 10 字段
+### 11. 商机事件固定 11 字段
 
-`OpportunityPredictionEventPublisher.buildData` 固定按接口文档顺序输出 10 个 key。除必填数字
+`OpportunityPredictionEventPublisher.buildData` 固定按客户最新确认顺序输出 11 个 key。除必填数字
 `projectId` 外，字符串、数值和日期无值时均输出空字符串，不能省略字段。该规则由
-`publish_emptyOptionalFields_keepsTenFieldContract` 使用项目 983 空值样本锁定。
+`publish_emptyOptionalFields_keepsElevenFieldContract` 使用项目 983 空值样本锁定。新增 `projectType` 位于 `customerType` 后；`ProjectInitiationDetails.projectType` 优先，缺失时从关联 Tender 归一化回退，publisher 再转中文标签。
 
 ## 文件变更
 
@@ -132,9 +132,9 @@
 - `OpportunityPredictionPolicyTest` 13 例（既有，回归通过）
 - `OpportunityPredictionReminderPolicyTest` 6 例（判定四分支）
 - `OpportunityPredictionAlertMessageTest` 4 例（有/无截止句 + 空值兜底）
-- `OpportunityPredictionReminderServiceTest` 5 例（命中通知 / 已提醒去重 / 未来跳过 / 无接收人跳过 / 空扫描）
+- `OpportunityPredictionReminderServiceTest` 7 例（命中通知 / 字段来源优先级与回退 / 已提醒去重 / 未来跳过 / 无接收人跳过 / 空扫描）
 - `OpportunityPredictionEventRetryTest` 5 例（首次失败释放 / 待重试成功 / 连续失败不重复通知 / 多实例领取互斥 / system actor 缺失时仍重试）
 - `OpportunityPredictionReminderTransactionBoundaryTest` 5 例（真实 Spring/JPA 提交、通知失败回滚、领取互斥、失败/超时恢复、后续项目失败不回滚前项）
-- `OpportunityPredictionEventPublisherTest` 增加空值样本，断言固定 10 个字段且无值传空字符串
+- `OpportunityPredictionEventPublisherTest` 增加空值样本，断言固定 11 个字段且无值传空字符串
 - 本次专项与架构门禁：`mvn clean -Dtest=ProjectAccessGuardCoverageTest,OpportunityPredictionEventPublisherTest,OpportunityPredictionEventRetryTest,OpportunityPredictionReminderServiceTest,OpportunityPredictionReminderTransactionBoundaryTest,ArchitectureTest,FlywayRollbackScriptCoverageTest,EntityTableMigrationCoverageTest,ResponsibilityArchitectureTest test` 通过（退出码 0）
 - 全量后端回归执行 9577 例：发现并修复本次新增事务类缺少后台任务权限基线；其余失败为本地 MySQL 容器在套件中途断开（60 errors）以及既有无关用例 `CompetitionIntelControllerIntegrationTest`、`GoldenCasesReplayTest`，不作为本次通过证据

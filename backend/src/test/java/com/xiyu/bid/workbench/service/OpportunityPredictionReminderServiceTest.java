@@ -106,6 +106,7 @@ class OpportunityPredictionReminderServiceTest {
         Tender tender = Tender.builder()
                 .id(100L)
                 .purchaserName("招标主体X")
+                .projectType("集采")                 // 与立项详情冲突，验证立项详情优先
                 .bidOpeningTime(LocalDateTime.of(2025, 8, 15, 9, 0))
                 .build();
         User manager = User.builder().id(50L).enabled(true).build();
@@ -113,7 +114,8 @@ class OpportunityPredictionReminderServiceTest {
         when(projectRepository.findAll()).thenReturn(List.of(project));
         when(projectResultRepository.findByProjectIdIn(List.of(1L))).thenReturn(List.of(result));
         when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(1L))).thenReturn(List.of(
-                ProjectInitiationDetails.builder().projectId(1L).projectLeaderName("王五").build()));
+                ProjectInitiationDetails.builder().projectId(1L).projectLeaderName("王五")
+                        .projectType("OFFICE").build()));
         when(tenderRepository.findAllById(Set.of(100L))).thenReturn(List.of(tender));
         when(userRepository.findByIdIn(Set.of(50L))).thenReturn(List.of(manager));
         when(transactionService.findState(1L)).thenReturn(Optional.empty());
@@ -151,6 +153,7 @@ class OpportunityPredictionReminderServiceTest {
         assertEquals("客户1", evt.customer());                // 招标主体取项目客户
         assertEquals("王五", evt.projectLeaderName());        // 来自 project_initiation_details
         assertEquals("LOCAL_SOE", evt.customerType());        // 后端码，publisher 序列化时转中文
+        assertEquals("OFFICE", evt.projectType());             // 后端码，publisher 序列化时转中文
         assertEquals("2025-08-15", evt.bidOpenTime());        // tender.bidOpeningTime → yyyy-MM-dd
         assertEquals(new BigDecimal("3"), evt.servicePeriodYears());
         assertEquals(LocalDate.of(2026, 6, 1), evt.servicePeriodEndDate());
@@ -200,8 +203,8 @@ class OpportunityPredictionReminderServiceTest {
     }
 
     @Test
-    @DisplayName("项目负责人/客户类型回退：立项详情缺失且 Project.customerType 为空时取关联标讯（对齐表格 enrich 链）")
-    void shouldFallbackToTenderForLeaderNameAndCustomerType() {
+    @DisplayName("项目负责人/客户类型/项目类型回退：项目字段缺失时取关联标讯（对齐表格 enrich 链）")
+    void shouldFallbackToTenderForLeaderNameCustomerTypeAndProjectType() {
         Project project = Project.builder()
                 .id(6L)
                 .name("测试项目6")
@@ -222,12 +225,14 @@ class OpportunityPredictionReminderServiceTest {
                 .purchaserName("采购人Z")
                 .projectManagerName("标讯项目经理赵六")   // 立项详情缺失时项目负责人回退源
                 .customerType("央企")                   // Project.customerType 空时客户类型回退源（中文别名，验证归一化为 CENTRAL_SOE）
+                .projectType("工业品")                 // 立项详情缺失时项目类型回退源（中文别名）
                 .bidOpeningTime(LocalDateTime.of(2025, 8, 15, 9, 0))
                 .build();
 
         when(projectRepository.findAll()).thenReturn(List.of(project));
         when(projectResultRepository.findByProjectIdIn(List.of(6L))).thenReturn(List.of(result));
-        when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(6L))).thenReturn(List.of()); // 立项详情缺失
+        when(projectInitiationDetailsRepository.findByProjectIdIn(List.of(6L))).thenReturn(List.of(
+                ProjectInitiationDetails.builder().projectId(6L).projectType("   ").build()));
         when(tenderRepository.findAllById(Set.of(600L))).thenReturn(List.of(tender));
         when(userRepository.findByIdIn(Set.of(90L)))
                 .thenReturn(List.of(User.builder().id(90L).enabled(true).build()));
@@ -240,10 +245,12 @@ class OpportunityPredictionReminderServiceTest {
                 ArgumentCaptor.forClass(OpportunityPredictionEventPayload.class);
         verify(eventPublisher).publish(evtCaptor.capture());
         OpportunityPredictionEventPayload evt = evtCaptor.getValue();
-        // 立项详情缺失 → 项目负责人回退标讯项目经理（对齐表格 ProjectListEnrichmentSupport 兜底）
+        // 立项详情有效值缺失 → 项目负责人回退标讯项目经理
         assertEquals("标讯项目经理赵六", evt.projectLeaderName());
         // Project.customerType 为 null → 客户类型回退标讯并经 normalizeCustomerType 归一化（央企→CENTRAL_SOE，对齐表格 populateFromTender）
         assertEquals("CENTRAL_SOE", evt.customerType());
+        // 立项详情项目类型为空白 → 回退标讯并归一化（工业品→INDUSTRIAL）
+        assertEquals("INDUSTRIAL", evt.projectType());
         // 预测逻辑同样用兜底 customerType：央企规则提前 6 月（2026-06-01 → 2025-12-01），而非默认 3 月
         assertEquals(LocalDate.of(2025, 12, 1), evt.predictedBidDate());
     }

@@ -44,7 +44,7 @@ class OpportunityPredictionEventPublisherTest {
     }
 
     private static OpportunityPredictionEventPayload fullPayload() {
-        return new OpportunityPredictionEventPayload(1L, "测试项目", "WON", "客户A", "张三", "LOCAL_SOE",
+        return new OpportunityPredictionEventPayload(1L, "测试项目", "WON", "客户A", "张三", "LOCAL_SOE", "INDUSTRIAL",
                 "2025-08-15", new BigDecimal("3"), LocalDate.of(2026, 6, 1), LocalDate.of(2026, 3, 1));
     }
 
@@ -58,17 +58,17 @@ class OpportunityPredictionEventPublisherTest {
         verify(interactiveService).sendEvent(eq("OpportunityPrediction"), eq("bid"), data.capture(), any());
         assertThat(data.getValue()).isEqualTo(
                 "{\"projectId\":1,\"projectName\":\"测试项目\",\"resultType\":\"已中标\",\"customer\":\"客户A\","
-                        + "\"projectLeaderName\":\"张三\",\"customerType\":\"地方国企\",\"bidOpenTime\":\"2025-08-15\","
+                        + "\"projectLeaderName\":\"张三\",\"customerType\":\"地方国企\",\"projectType\":\"工业品\",\"bidOpenTime\":\"2025-08-15\","
                         + "\"servicePeriodYears\":3,\"servicePeriodEndDate\":\"2026-06-01\","
                         + "\"predictedBidDate\":\"2026-03-01\"}");
     }
 
     @Test
-    @DisplayName("空字段仍固定输出10个key并传空字符串")
-    void publish_emptyOptionalFields_keepsTenFieldContract() {
+    @DisplayName("空字段仍固定输出11个key并传空字符串")
+    void publish_emptyOptionalFields_keepsElevenFieldContract() {
         when(interactiveService.sendEvent(any(), any(), any(), any())).thenReturn(new SendEventRespDto(true));
         OpportunityPredictionEventPayload payload = new OpportunityPredictionEventPayload(
-                983L, null, null, "测试客户", null, null, null, null, null, null);
+                983L, null, null, "测试客户", null, null, null, null, null, null, null);
 
         assertThat(publisher(true).publish(payload)).isTrue();
 
@@ -76,7 +76,7 @@ class OpportunityPredictionEventPublisherTest {
         verify(interactiveService).sendEvent(eq("OpportunityPrediction"), eq("bid"), data.capture(), any());
         assertThat(data.getValue()).isEqualTo(
                 "{\"projectId\":983,\"projectName\":\"\",\"resultType\":\"\",\"customer\":\"测试客户\","
-                        + "\"projectLeaderName\":\"\",\"customerType\":\"\",\"bidOpenTime\":\"\","
+                        + "\"projectLeaderName\":\"\",\"customerType\":\"\",\"projectType\":\"\",\"bidOpenTime\":\"\","
                         + "\"servicePeriodYears\":\"\",\"servicePeriodEndDate\":\"\","
                         + "\"predictedBidDate\":\"\"}");
     }

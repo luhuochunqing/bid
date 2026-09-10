@@ -1,9 +1,9 @@
 // Input: Project / ProjectResult / Tender 实体
-// Output: 派生字段（结果类型、招标主体、项目负责人、客户类型）+ 站内信 payload Map
+// Output: 派生字段（结果类型、招标主体、项目负责人、客户类型、项目类型）+ 站内信 payload Map
 // Pos: Service/业务层 - workbench 商机预测提醒纯派生辅助（无副作用、无依赖注入）
 // 维护声明:
 //   - 纯函数集中于此，编排逻辑留在 OpportunityPredictionReminderService；
-//   - customer/projectLeaderName/customerType 口径对齐商机预测表格 enrich 链
+//   - customer/projectLeaderName/customerType/projectType 口径对齐商机预测表格 enrich 链
 //     （WorkbenchOpportunityQueryService.toDto 消费 ProjectQueryService.getAllProjects 的 enrich 结果）；
 //   - 与 ProjectListEnrichmentSupport 同构（final + 私有构造 + 静态方法）。
 package com.xiyu.bid.workbench.service;
@@ -98,6 +98,18 @@ final class OpportunityPredictionReminderSupport {
         return normalized != null ? normalized : tender.getCustomerType();
     }
 
+    /** 项目类型：立项详情优先，缺失时按商机列表口径从关联标讯归一化回退。 */
+    static String resolveProjectType(String initiationProjectType, Tender tender) {
+        if (StringUtils.hasText(initiationProjectType)) {
+            return initiationProjectType;
+        }
+        if (tender == null || tender.getProjectType() == null) {
+            return null;
+        }
+        String normalized = InitiationFieldPolicy.normalizeProjectType(tender.getProjectType());
+        return normalized != null ? normalized : tender.getProjectType();
+    }
+
     /** 站内信 payload：保序组装项目标识 + 招标主体 + 服务期止 + 预测招标日 + 深链。 */
     static Map<String, Object> buildPayload(Project project, String purchaserName,
                                             LocalDate servicePeriodEndDate, LocalDate predicted) {
@@ -113,14 +125,15 @@ final class OpportunityPredictionReminderSupport {
         return payload;
     }
 
-    /** 组装事件库 10 字段载荷，序列化与中文映射由 publisher 负责。 */
+    /** 组装事件库 11 字段载荷，序列化与中文映射由 publisher 负责。 */
     static OpportunityPredictionEventPayload buildEventPayload(
             Project project, String resultType, String projectLeaderName, String customer,
-            String customerType, LocalDate bidOpenTime, java.math.BigDecimal servicePeriodYears,
+            String customerType, String projectType, LocalDate bidOpenTime,
+            java.math.BigDecimal servicePeriodYears,
             LocalDate servicePeriodEndDate, LocalDate predicted) {
         return new OpportunityPredictionEventPayload(
                 project.getId(), project.getName(), resultType, customer, projectLeaderName, customerType,
-                bidOpenTime != null ? bidOpenTime.toString() : null,
+                projectType, bidOpenTime != null ? bidOpenTime.toString() : null,
                 servicePeriodYears, servicePeriodEndDate, predicted);
     }
 

@@ -9,6 +9,7 @@ import com.xiyu.bid.entity.Project;
 import com.xiyu.bid.entity.RoleProfileCatalog;
 import com.xiyu.bid.entity.Tender;
 import com.xiyu.bid.entity.User;
+import com.xiyu.bid.integration.tenderevent.domain.OpportunityPredictionEventPayload;
 import com.xiyu.bid.integration.tenderevent.infrastructure.sdk.OpportunityPredictionEventPublisher;
 import com.xiyu.bid.notification.core.NotificationType;
 import com.xiyu.bid.notification.dto.CreateNotificationRequest;
@@ -27,7 +28,6 @@ import com.xiyu.bid.workbench.entity.OpportunityPredictionReminderLog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
 import java.time.Duration;
@@ -87,12 +87,12 @@ public class OpportunityPredictionReminderService {
         Map<Long, ProjectResult> resultByProject = projectResultRepository.findByProjectIdIn(projectIds).stream()
                 .collect(Collectors.toMap(ProjectResult::getProjectId, r -> r, (a, b) -> a));
 
-        // 项目负责人姓名存于 project_initiation_details（Project 实体无此字段），批量取一次避免 N+1
-        Map<Long, String> leaderNameByProject =
+        // 项目负责人和项目类型存于 project_initiation_details，批量取一次避免 N+1
+        Map<Long, ProjectInitiationDetails> initiationByProject =
                 projectInitiationDetailsRepository.findByProjectIdIn(projectIds).stream()
-                        .filter(d -> StringUtils.hasText(d.getProjectLeaderName()))
+                        .filter(d -> d.getProjectId() != null)
                         .collect(Collectors.toMap(ProjectInitiationDetails::getProjectId,
-                                ProjectInitiationDetails::getProjectLeaderName, (a, b) -> a));
+                                d -> d, (a, b) -> a));
 
         Set<Long> tenderIds = projects.stream().map(Project::getTenderId)
                 .filter(Objects::nonNull).collect(Collectors.toSet());
@@ -116,7 +116,7 @@ public class OpportunityPredictionReminderService {
             try {
                 ProcessOutcome outcome = processProject(project, resultByProject.get(project.getId()),
                         tenderById.get(project.getTenderId()),
-                        leaderNameByProject.get(project.getId()), today, roleRecipients,
+                        initiationByProject.get(project.getId()), today, roleRecipients,
                         enabledManagerById, systemActor);
                 switch (outcome) {
                     case NOTIFIED -> notified++;
@@ -136,7 +136,8 @@ public class OpportunityPredictionReminderService {
 
     /** 处理单个项目：命中提醒窗口则发通知 + 落日志 + 发事件。 */
     private ProcessOutcome processProject(Project project, ProjectResult result, Tender tender,
-                                          String projectLeaderName, LocalDate today, List<Long> roleRecipients,
+                                          ProjectInitiationDetails initiationDetails, LocalDate today,
+                                          List<Long> roleRecipients,
                                           Map<Long, User> enabledManagerById, Long systemActor) {
         String resultType = OpportunityPredictionReminderSupport.resolveResultType(project, result);
         LocalDate bidOpenTime = tender != null && tender.getBidOpeningTime() != null
@@ -151,8 +152,10 @@ public class OpportunityPredictionReminderService {
 
         String purchaserName = OpportunityPredictionReminderSupport.resolvePurchaserName(project, tender);
         String customer = OpportunityPredictionReminderSupport.resolveCustomer(project, tender);
-        String resolvedLeaderName = OpportunityPredictionReminderSupport
-                .resolveProjectLeaderName(projectLeaderName, tender);
+        String resolvedLeaderName = OpportunityPredictionReminderSupport.resolveProjectLeaderName(
+                initiationDetails != null ? initiationDetails.getProjectLeaderName() : null, tender);
+        String resolvedProjectType = OpportunityPredictionReminderSupport.resolveProjectType(
+                initiationDetails != null ? initiationDetails.getProjectType() : null, tender);
 
         var existingState = transactionService.findState(project.getId());
         if (existingState.isPresent()) {
@@ -160,8 +163,9 @@ public class OpportunityPredictionReminderService {
             if (state.eventPublishedAt() != null) {
                 return ProcessOutcome.SKIPPED;
             }
-            return retryClaimedEvent(project, resultType, resolvedLeaderName, customer, resolvedCustomerType,
-                    bidOpenTime, servicePeriodYears, servicePeriodEndDate, state.predictedBidDate());
+            return retryClaimedEvent(project, OpportunityPredictionReminderSupport.buildEventPayload(
+                    project, resultType, resolvedLeaderName, customer, resolvedCustomerType, resolvedProjectType,
+                    bidOpenTime, servicePeriodYears, servicePeriodEndDate, state.predictedBidDate()));
         }
         if (!OpportunityPredictionReminderPolicy.shouldNotify(predicted, today, null)) {
             return ProcessOutcome.SKIPPED;
@@ -200,25 +204,21 @@ public class OpportunityPredictionReminderService {
         transactionService.createNotificationAndClaim(
                 reminderLog, notificationRequest, systemActor, claimToken, claimedAt);
 
-        publishClaimedEvent(project, resultType, resolvedLeaderName, customer, resolvedCustomerType,
-                bidOpenTime, servicePeriodYears, servicePeriodEndDate, predicted, claimToken);
+        OpportunityPredictionEventPayload eventPayload = OpportunityPredictionReminderSupport.buildEventPayload(
+                project, resultType, resolvedLeaderName, customer, resolvedCustomerType, resolvedProjectType,
+                bidOpenTime, servicePeriodYears, servicePeriodEndDate, predicted);
+        publishClaimedEvent(project, eventPayload, claimToken);
         return ProcessOutcome.NOTIFIED;
     }
-
     /** 已有提醒只领取并补发事件；领取失败表示其他实例正在处理。 */
-    private ProcessOutcome retryClaimedEvent(Project project, String resultType, String projectLeaderName,
-                                             String customer, String customerType, LocalDate bidOpenTime,
-                                             BigDecimal servicePeriodYears, LocalDate servicePeriodEndDate,
-                                             LocalDate predicted) {
+    private ProcessOutcome retryClaimedEvent(Project project, OpportunityPredictionEventPayload eventPayload) {
         String claimToken = newClaimToken();
         LocalDateTime claimedAt = LocalDateTime.now();
         if (!transactionService.claimPendingEvent(project.getId(), claimToken, claimedAt,
                 claimedAt.minus(EVENT_CLAIM_TIMEOUT))) {
             return ProcessOutcome.SKIPPED;
         }
-        boolean accepted = publishClaimedEvent(project, resultType, projectLeaderName, customer, customerType,
-                bidOpenTime, servicePeriodYears, servicePeriodEndDate, predicted, claimToken);
-        if (accepted) {
+        if (publishClaimedEvent(project, eventPayload, claimToken)) {
             log.info("[商机预测提醒] event retry accepted for project id={}", project.getId());
             return ProcessOutcome.EVENT_RETRIED;
         }
@@ -226,13 +226,9 @@ public class OpportunityPredictionReminderService {
     }
 
     /** SDK 在事务外调用；令牌条件更新防止旧实例覆盖新领取者。 */
-    private boolean publishClaimedEvent(Project project, String resultType, String projectLeaderName,
-                                        String customer, String customerType, LocalDate bidOpenTime,
-                                        BigDecimal servicePeriodYears, LocalDate servicePeriodEndDate,
-                                        LocalDate predicted, String claimToken) {
-        boolean accepted = publishEvent(project, resultType, projectLeaderName, customer, customerType,
-                bidOpenTime, servicePeriodYears, servicePeriodEndDate, predicted);
-        if (!accepted) {
+    private boolean publishClaimedEvent(Project project, OpportunityPredictionEventPayload eventPayload,
+                                        String claimToken) {
+        if (!publishEvent(eventPayload)) {
             transactionService.releaseEventClaim(project.getId(), claimToken);
             return false;
         }
@@ -271,16 +267,12 @@ public class OpportunityPredictionReminderService {
     }
 
     /** 事件库发布失败转换为值，由领取状态决定后续补偿。 */
-    private boolean publishEvent(Project project, String resultType, String projectLeaderName, String customer,
-                                 String customerType, LocalDate bidOpenTime, BigDecimal servicePeriodYears,
-                                 LocalDate servicePeriodEndDate, LocalDate predicted) {
+    private boolean publishEvent(OpportunityPredictionEventPayload eventPayload) {
         try {
-            return eventPublisher.publish(OpportunityPredictionReminderSupport.buildEventPayload(
-                    project, resultType, projectLeaderName, customer, customerType, bidOpenTime,
-                    servicePeriodYears, servicePeriodEndDate, predicted));
+            return eventPublisher.publish(eventPayload);
         } catch (RuntimeException ex) {
             log.warn("[商机预测提醒] event publish failed for project id={}: {}",
-                    project.getId(), ex.getMessage());
+                    eventPayload.projectId(), ex.getMessage());
             return false;
         }
     }

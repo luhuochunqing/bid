@@ -19,7 +19,7 @@ import org.slf4j.MDC;
  *
  * <p>直接走 SDK sendEvent 标准通道推送事件总线，
  * {@code data} 携带商机预测表格全量展示字段（项目名称/项目状态/招标主体/项目负责人/
- * 客户类型/开标时间/服务周期/预测招标时间，枚举转中文），链路追踪头写入 HTTP Header，
+ * 客户类型/项目类型/开标时间/服务周期/预测招标时间，枚举转中文），链路追踪头写入 HTTP Header，
  * 与标讯事件线上行为一致。
  *
  * <p>复用 {@code xiyu.integrations.tender-event.sdk.enabled} 开关：关闭时不发送、不抛异常。
@@ -76,6 +76,7 @@ public class OpportunityPredictionEventPublisher {
         data.put("customer", valueOrEmpty(payload.customer()));
         data.put("projectLeaderName", valueOrEmpty(payload.projectLeaderName()));
         data.put("customerType", valueOrEmpty(TenderEventEnumLabels.customerTypeLabel(payload.customerType())));
+        data.put("projectType", valueOrEmpty(TenderEventEnumLabels.projectTypeLabel(payload.projectType())));
         data.put("bidOpenTime", valueOrEmpty(payload.bidOpenTime()));
         data.put("servicePeriodYears",
                 payload.servicePeriodYears() != null ? payload.servicePeriodYears() : "");

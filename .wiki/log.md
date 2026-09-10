@@ -834,6 +834,13 @@
 - 根因：一个 `notified_at` 同时代表站内提醒和事件投递完成，且编排层忽略 `publish=false`
 - 修复：新增 `event_published_at` 独立状态；扫描移除长事务，通知日志/领取/确认/释放使用独立短事务，SDK 在事务外调用；首次失败后只重推事件
 - 并发：领取令牌由条件 UPDATE 原子竞争，同一时刻仅一个 Pod 调用 SDK；失败释放，进程中断 10 分钟后可恢复
-- 契约：商机事件固定输出接口文档约定的 10 个 key，无值字段传空字符串
+- 契约：商机事件固定输出客户最新确认的 11 个 key（新增 projectType），无值字段传空字符串
 - 迁移：历史记录按 `notified_at` 回填避免批量重放，项目 983 在测试环境按项目单独置空验收
+- 回填：更新 [[opportunity-prediction-reminder]]
+
+## [2026-09-10] fix | 商机预测事件增加项目类型
+- 触发：客户在原 10 字段基础上要求增加“项目类型”
+- 契约：`projectType` 放在 `customerType` 后，固定 11 个 key；空值传 `""`
+- 口径：ProjectInitiationDetails.projectType 优先，缺失时回退 Tender.projectType 并经 InitiationFieldPolicy.normalizeProjectType 归一化，publisher 统一转中文标签
+- 验证：全字段与项目 983 空值 JSON 精确断言，提醒服务覆盖立项详情值和 Tender 中文值回退
 - 回填：更新 [[opportunity-prediction-reminder]]

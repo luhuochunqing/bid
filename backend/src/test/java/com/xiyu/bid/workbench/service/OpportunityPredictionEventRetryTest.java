@@ -5,6 +5,8 @@ package com.xiyu.bid.workbench.service;
 
 import com.xiyu.bid.alerts.service.SystemActorResolver;
 import com.xiyu.bid.entity.Project;
+import com.xiyu.bid.entity.Tender;
+import com.xiyu.bid.integration.tenderevent.domain.OpportunityPredictionEventPayload;
 import com.xiyu.bid.integration.tenderevent.infrastructure.sdk.OpportunityPredictionEventPublisher;
 import com.xiyu.bid.notification.service.NotificationRecipientResolver;
 import com.xiyu.bid.project.entity.ProjectResult;
@@ -17,10 +19,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -86,13 +90,19 @@ class OpportunityPredictionEventRetryTest {
         when(transactionService.claimPendingEvent(eq(983L), any(), any(), any())).thenReturn(true);
         when(eventPublisher.publish(any())).thenReturn(true);
         when(transactionService.completeEventPublish(eq(983L), any(), any())).thenReturn(true);
+        when(tenderRepository.findAllById(Set.of(9830L))).thenReturn(List.of(Tender.builder()
+                .id(9830L).projectType("工业品")
+                .bidOpeningTime(LocalDateTime.of(2025, 8, 15, 9, 0)).build()));
 
         var outcome = service.runScan(TODAY);
 
         assertEquals(0, outcome.notified());
         assertEquals(1, outcome.eventRetried());
         verify(transactionService, never()).createNotificationAndClaim(any(), any(), any(), any(), any());
-        verify(eventPublisher).publish(any());
+        ArgumentCaptor<OpportunityPredictionEventPayload> payloadCaptor =
+                ArgumentCaptor.forClass(OpportunityPredictionEventPayload.class);
+        verify(eventPublisher).publish(payloadCaptor.capture());
+        assertEquals("INDUSTRIAL", payloadCaptor.getValue().projectType());
     }
 
     @Test
