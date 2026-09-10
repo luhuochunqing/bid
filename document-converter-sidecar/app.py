@@ -148,6 +148,120 @@ def _get_convert_pool() -> ProcessPoolExecutor:
     return _CONVERT_POOL
 
 
+def _is_large_docx(docx_path: str, threshold_bytes: int = 10 * 1024 * 1024) -> bool:
+    """Check whether a .docx file's word/document.xml exceeds the given uncompressed size threshold."""
+    import zipfile
+
+    try:
+        with zipfile.ZipFile(docx_path) as z:
+            info = z.getinfo("word/document.xml")
+            return info.file_size > threshold_bytes
+    except Exception:
+        return False
+
+
+def _extract_docx_streaming_sax(docx_path: str) -> str:
+    """Memory-efficient streaming SAX extractor for .docx documents.
+
+    Bypasses python-docx and mammoth DOM generation by streaming `word/document.xml`
+    via `xml.etree.ElementTree.iterparse`. Maintains O(1) memory by clearing elements
+    as soon as they are processed.
+    """
+    import zipfile
+    import xml.etree.ElementTree as ET
+
+    try:
+        with zipfile.ZipFile(docx_path) as z:
+            if "word/document.xml" not in z.namelist():
+                return ""
+            with z.open("word/document.xml") as f:
+                chunks = []
+                current_p = []
+                current_cell = []
+                current_row = []
+                table_rows = []
+                in_cell = False
+                heading_level = 0
+
+                context = ET.iterparse(f, events=("start", "end"))
+                _, root = next(context)
+
+                for event, elem in context:
+                    tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
+
+                    if event == "start":
+                        if tag == "tc":
+                            in_cell = True
+                            current_cell = []
+                        elif tag == "tr":
+                            current_row = []
+                        elif tag == "tbl":
+                            table_rows = []
+                        elif tag == "p":
+                            heading_level = 0
+                        elif tag == "pStyle":
+                            val = elem.attrib.get(
+                                "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val",
+                                elem.attrib.get("val", "")
+                            )
+                            val_lower = val.lower()
+                            if "heading" in val_lower or "标题" in val_lower:
+                                for digit in "123456":
+                                    if digit in val:
+                                        heading_level = int(digit)
+                                        break
+                                if heading_level == 0:
+                                    heading_level = 1
+                    elif event == "end":
+                        if tag == "t" and elem.text:
+                            current_p.append(elem.text)
+                        elif tag == "tab":
+                            current_p.append("\t")
+                        elif tag == "br":
+                            current_p.append("\n")
+                        elif tag == "p":
+                            p_text = "".join(current_p).strip()
+                            current_p = []
+                            if in_cell:
+                                if p_text:
+                                    current_cell.append(p_text)
+                            else:
+                                if p_text:
+                                    if heading_level > 0:
+                                        prefix = "#" * min(heading_level, 6) + " "
+                                        chunks.append(prefix + p_text + "\n\n")
+                                    else:
+                                        chunks.append(p_text + "\n\n")
+                            heading_level = 0
+                        elif tag == "tc":
+                            in_cell = False
+                            cell_text = " ".join(current_cell).replace("\n", " ").replace("|", "\\|").strip()
+                            current_row.append(cell_text)
+                            current_cell = []
+                        elif tag == "tr":
+                            if current_row:
+                                table_rows.append(current_row)
+                                current_row = []
+                        elif tag == "tbl":
+                            if table_rows:
+                                max_cols = max(len(r) for r in table_rows)
+                                if max_cols > 0:
+                                    normalized = [r + [""] * (max_cols - len(r)) for r in table_rows]
+                                    chunks.append("| " + " | ".join(normalized[0]) + " |\n")
+                                    chunks.append("| " + " | ".join(["---"] * max_cols) + " |\n")
+                                    for r in normalized[1:]:
+                                        chunks.append("| " + " | ".join(r) + " |\n")
+                                    chunks.append("\n")
+                            table_rows = []
+
+                        elem.clear()
+                root.clear()
+                return "".join(chunks).strip()
+    except Exception as e:
+        logger.warning("Streaming SAX extraction failed for %s: %s", docx_path, e)
+        return ""
+
+
 def _convert_worker(path: str) -> Any:
     from types import SimpleNamespace
 
@@ -164,7 +278,24 @@ def _convert_worker(path: str) -> Any:
                 return SimpleNamespace(text_content=pdf_md, markdown=pdf_md, pages=pdf_pages)
         except Exception as e:
             logger.warning("Custom PDF conversion failed, falling back to markitdown: %s", e)
-    result = md.convert(path)
+
+    if path.lower().endswith(".docx"):
+        if _is_large_docx(path):
+            logger.info("Docx document.xml exceeds threshold; using streaming SAX parser: %s", path)
+            sax_text = _extract_docx_streaming_sax(path)
+            if sax_text and len(sax_text.strip()) >= 50:
+                return SimpleNamespace(text_content=sax_text, markdown=sax_text, pages=[])
+        try:
+            result = md.convert(path)
+        except Exception as e:
+            logger.warning("markitdown failed on docx (%s), falling back to streaming SAX: %s", e, path)
+            sax_text = _extract_docx_streaming_sax(path)
+            if sax_text and len(sax_text.strip()) >= 50:
+                return SimpleNamespace(text_content=sax_text, markdown=sax_text, pages=[])
+            raise
+    else:
+        result = md.convert(path)
+
     # Normalize to a payload that always carries a `pages` list (markitdown has none —
     # docx physical pagination is unobtainable; Java side falls back to virtual pagination).
     pages = getattr(result, "pages", None)

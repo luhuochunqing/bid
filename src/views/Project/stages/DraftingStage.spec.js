@@ -194,9 +194,10 @@ describe('DraftingStage bidFiles 持久化与下载阶段守卫 - CO-381', () =>
 
     expect(downloadWithFilenameMock).toHaveBeenCalledTimes(1)
     // 第一个参数是 URL，含 documentId=3001
-    const [url, fallbackName] = downloadWithFilenameMock.mock.calls[0]
+    const [url, fallbackName, options] = downloadWithFilenameMock.mock.calls[0]
     expect(url).toContain('/documents/3001/download')
     expect(fallbackName).toBe('投标文件.pdf')
+    expect(options).toEqual({ native: true })
   })
 
   it('EVALUATING 阶段：点击文件名不触发下载（文件只读）', async () => {
@@ -228,9 +229,10 @@ describe('DraftingStage bidFiles 持久化与下载阶段守卫 - CO-381', () =>
     await link.trigger('click')
 
     expect(downloadWithFilenameMock).toHaveBeenCalledTimes(1)
-    const [url, fallbackName] = downloadWithFilenameMock.mock.calls[0]
+    const [url, fallbackName, options] = downloadWithFilenameMock.mock.calls[0]
     expect(url).toContain('/documents/3001/download')
     expect(fallbackName).toBe('投标文件.pdf')
+    expect(options).toEqual({ native: true })
   })
 
   it('RETROSPECTIVE 阶段：点击文件名提示阶段只读不可下载', async () => {

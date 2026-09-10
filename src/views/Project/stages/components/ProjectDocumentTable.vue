@@ -112,7 +112,7 @@ async function handleDownload(row) {
     return
   }
   try {
-    await downloadWithFilename(downloadUrl, row.name || 'download')
+    await downloadWithFilename(downloadUrl, row.name || 'download', { native: true })
   } catch {
     ElMessage.error('文件下载失败')
   }

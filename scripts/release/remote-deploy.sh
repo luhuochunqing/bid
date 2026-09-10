@@ -122,7 +122,7 @@ if [[ -f "$SIDECAR_ARCHIVE" ]]; then
       printf '==> 重新启动 xiyu-sidecar 容器...\n'
       $DOCKER_BIN rm -f xiyu-sidecar 2>/dev/null || true
       $DOCKER_BIN run -d --name xiyu-sidecar --restart=always -p 8000:8000 \
-        --memory=1g --memory-swap=1g \
+        --memory=3g --memory-swap=3g \
         -e SIDECAR_HOST=0.0.0.0 -e SIDECAR_PORT=8000 -e SIDECAR_MAX_UPLOAD_MB=3072 \
         document-converter-sidecar:latest
       printf '%s\n' "$NEW_SIDECAR_HASH" > "$SIDECAR_DIR/.deployed_sha256"

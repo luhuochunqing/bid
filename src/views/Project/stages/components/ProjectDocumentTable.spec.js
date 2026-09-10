@@ -6,17 +6,19 @@ import ElementPlus from 'element-plus'
 const getDocumentsMock = vi.hoisted(() => vi.fn())
 const uploadDocumentMock = vi.hoisted(() => vi.fn())
 const deleteDocumentMock = vi.hoisted(() => vi.fn())
+const downloadWithFilenameMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@/api/modules/projects.js', () => ({
   projectsApi: {
     getDocuments: getDocumentsMock,
     uploadDocument: uploadDocumentMock,
     deleteDocument: deleteDocumentMock,
+    getDocumentDownloadUrl: vi.fn((projectId, docId) => `/api/projects/${projectId}/documents/${docId}/download`),
   },
 }))
 
 vi.mock('@/utils/download.js', () => ({
-  downloadWithFilename: vi.fn(),
+  downloadWithFilename: downloadWithFilenameMock,
 }))
 
 // 只 mock ElMessage / ElMessageBox（避免调用真实通知 API），其余 element-plus 用真实组件
@@ -242,5 +244,61 @@ describe('ProjectDocumentTable — emit change event after upload/delete', () =>
 
     expect(wrapper.emitted('change')).toBeTruthy()
     expect(wrapper.emitted('change').length).toBeGreaterThanOrEqual(1)
+  })
+})
+
+describe('ProjectDocumentTable — download handling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getDocumentsMock.mockReset()
+    downloadWithFilenameMock.mockReset()
+    getDocumentsMock.mockResolvedValue({ success: true, data: generateDocs(1) })
+  })
+
+  it('点击下载按钮时调用 downloadWithFilename 并携带 { native: true } 选项', async () => {
+    const wrapper = mountTable({ canDownload: true })
+    await flushPromises()
+
+    const downloadButton = wrapper.findAll('.el-button').find((btn) => btn.text().includes('下载'))
+    expect(downloadButton).toBeDefined()
+
+    await downloadButton.trigger('click')
+    await flushPromises()
+
+    expect(downloadWithFilenameMock).toHaveBeenCalledWith(
+      '/api/projects/1/documents/1/download',
+      'doc-1.pdf',
+      { native: true }
+    )
+  })
+
+  it('当下载地址为空时提示文件地址不可用且不发起下载', async () => {
+    const { projectsApi } = await import('@/api/modules/projects.js')
+    const { ElMessage } = await import('element-plus')
+    vi.mocked(projectsApi.getDocumentDownloadUrl).mockReturnValueOnce('')
+
+    const wrapper = mountTable({ canDownload: true })
+    await flushPromises()
+
+    const downloadButton = wrapper.findAll('.el-button').find((btn) => btn.text().includes('下载'))
+    await downloadButton.trigger('click')
+    await flushPromises()
+
+    expect(ElMessage.info).toHaveBeenCalledWith('文件地址不可用')
+    expect(downloadWithFilenameMock).not.toHaveBeenCalled()
+  })
+
+  it('当下载发生异常时提示文件下载失败', async () => {
+    const { ElMessage } = await import('element-plus')
+    downloadWithFilenameMock.mockRejectedValueOnce(new Error('Network failure'))
+
+    const wrapper = mountTable({ canDownload: true })
+    await flushPromises()
+
+    const downloadButton = wrapper.findAll('.el-button').find((btn) => btn.text().includes('下载'))
+    await downloadButton.trigger('click')
+    await flushPromises()
+
+    expect(ElMessage.error).toHaveBeenCalledWith('文件下载失败')
   })
 })
