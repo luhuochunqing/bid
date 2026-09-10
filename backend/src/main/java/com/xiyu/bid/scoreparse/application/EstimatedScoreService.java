@@ -126,7 +126,7 @@ public class EstimatedScoreService {
 
     private KnowledgeMatchResult dispatchMatch(String category, ScoreItem item) {
         String detail = item.getDetail();
-        List<String> keywords = categoryPolicy.extractKeywords(detail, KEYWORD_LIMIT);
+        List<String> keywords = categoryPolicy.extractKeywords(item.getDim(), detail, KEYWORD_LIMIT);
         LocalDate today = LocalDate.now();
         return switch (category) {
             case KnowledgeCategoryPolicy.CATEGORY_CERT -> certMatchService.match(new CertMatchRequest(
@@ -134,7 +134,8 @@ public class EstimatedScoreService {
             case KnowledgeCategoryPolicy.CATEGORY_PERSON -> personMatchService.match(new PersonMatchRequest(
                     keywords, null, categoryPolicy.extractCount(detail, "人")));
             case KnowledgeCategoryPolicy.CATEGORY_PROJECT -> projectMatchService.match(new ProjectMatchRequest(
-                    keywords, null, null, categoryPolicy.extractCount(detail, "个|项|份")));
+                    keywords, categoryPolicy.extractSignedAfter(detail), null,
+                    categoryPolicy.extractProjectRequiredCount(detail, item.getWeight())));
             case KnowledgeCategoryPolicy.CATEGORY_WAREHOUSE -> warehouseMatchService.match(
                     new WarehouseMatchRequest(null, null, categoryPolicy.extractMinArea(detail), null));
             case KnowledgeCategoryPolicy.CATEGORY_BRAND -> brandMatchService.match(new BrandMatchRequest(

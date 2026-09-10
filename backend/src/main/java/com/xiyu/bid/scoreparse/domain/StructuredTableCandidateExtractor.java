@@ -22,7 +22,7 @@ public final class StructuredTableCandidateExtractor {
     private static final Pattern HEADER_ROW = Pattern.compile(
             "评分因素|评审因素|评分项|评审项|序号|编号|条款号|条款内容|编列内容|评审内容|评分标准|分值$");
     private static final Pattern PURE_WEIGHT_PATTERN = Pattern.compile("^(\\d+(?:\\.\\d+)?)\\s*(?:分|%)?$");
-    private static final Pattern NON_DIM_TEXT = Pattern.compile("^(?:\\d+(?:\\.\\d+)?(?:分|%)?|最低分|最高分|分值|满分|权重|得分|/|／|-)$");
+    private static final Pattern NON_DIM_TEXT = Pattern.compile("^(?:\\d+(?:\\.\\d+)?(?:分|%)?|最低分|最高分|分值|满分|权重|得分|/|／|-|.*(?:评标基准价|基准折扣率|投标报价折扣率|分值计算|价格得分计算|计算公式).*)$");
     private static final Pattern CONTAINS_HAN = Pattern.compile("[\\p{IsHan}]");
     private static final int DIM_MAX_CHARS = 20;
     private static final int MAX_PARENT_DIM_COLS = 3;
@@ -272,13 +272,13 @@ public final class StructuredTableCandidateExtractor {
         for (int i = 0; i < texts.size(); i++) {
             String t = texts.get(i).trim();
             if (t.isEmpty() || (i == 0 && (CODE_PATTERN.matcher(t).matches() || SECTION_HEADING.matcher(t).matches()))
-                    || GRADE_SCORE.matcher(t).find()) continue;
+                    || GRADE_SCORE.matcher(t).find() || NON_DIM_TEXT.matcher(t).find()) continue;
             if (t.length() <= DIM_MAX_CHARS && CONTAINS_HAN.matcher(t).find()) {
                 if (best == null || t.length() > best.length()) best = t;
             }
         }
         if (best != null) best = best.replaceAll("[：:（(]\\s*\\d+(?:\\.\\d+)?\\s*(?:分|%|分值)\\s*[）)]?", "").trim();
-        return (best == null || best.isBlank()) ? null : best;
+        return (best == null || best.isBlank() || NON_DIM_TEXT.matcher(best).find()) ? null : best;
     }
 
     private static BigDecimal maxGradeScore(String text) {

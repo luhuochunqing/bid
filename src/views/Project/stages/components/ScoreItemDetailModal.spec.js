@@ -86,4 +86,45 @@ describe('ScoreItemDetailModal.vue', () => {
     wrapper.vm.handleClosed()
     expect(wrapper.emitted('close')).toBeTruthy()
   })
+
+  it('hides table cell evidence row when extractionMethod is LEGACY_FALLBACK and no cell IDs exist', () => {
+    const wrapper = mount(ScoreItemDetailModal, {
+      props: {
+        visible: true,
+        mode: 'est',
+        item: {
+          ...mockItem,
+          extractionMethod: 'LEGACY_FALLBACK',
+          sourceCellIds: [],
+          validationStatus: 'AUTO_APPROVED',
+          confidence: 1.0,
+        },
+      },
+      global: { stubs: globalStubs },
+    })
+
+    expect(wrapper.text()).not.toContain('表格单元格证据')
+    expect(wrapper.text()).not.toContain('LEGACY_FALLBACK')
+  })
+
+  it('renders table cell evidence row when cell IDs exist', () => {
+    const wrapper = mount(ScoreItemDetailModal, {
+      props: {
+        visible: true,
+        mode: 'est',
+        item: {
+          ...mockItem,
+          extractionMethod: 'STRUCTURED_TABLE',
+          sourceCellIds: ['T1-R2-C3'],
+          validationStatus: 'AUTO_APPROVED',
+          confidence: 1.0,
+        },
+      },
+      global: { stubs: globalStubs },
+    })
+
+    expect(wrapper.text()).toContain('表格单元格证据')
+    expect(wrapper.text()).toContain('单元格：T1-R2-C3')
+    expect(wrapper.text()).toContain('表格结构化提取')
+  })
 })

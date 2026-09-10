@@ -24,11 +24,11 @@
         <div class="detail-value detail-location-text">📄 {{ item.location }}</div>
       </div>
 
-      <div v-if="evidenceCellIds.length || item?.extractionMethod" class="detail-row">
+      <div v-if="hasCellEvidence" class="detail-row">
         <div class="detail-label">表格单元格证据</div>
         <div class="detail-value detail-evidence-text">
           <span v-if="item?.validationStatus" class="pill" :class="validationStatusClass" style="margin-right: 6px;" :title="validationStatusTitle">{{ validationStatusText }}</span>
-          <span v-if="item?.extractionMethod" class="pill info" style="margin-right: 6px;">{{ item.extractionMethod }}</span>
+          <span v-if="extractionMethodDisplay" class="pill info" style="margin-right: 6px;">{{ extractionMethodDisplay }}</span>
           <span v-if="evidenceCellIds.length" class="doc-tag" style="margin-right: 6px;">单元格：{{ evidenceCellIds.join(', ') }}</span>
           <span v-if="item?.confidence != null" class="doc-tag">置信度 {{ (item.confidence * 100).toFixed(0) }}%</span>
           <div v-if="weightEvidenceText" class="weight-evidence-text" style="margin-top: 4px; font-size: 12px; color: var(--text-muted);">
@@ -198,6 +198,25 @@ const weightEvidenceText = computed(() => {
     return we.rawText || we.text || we.description || JSON.stringify(we)
   }
   return ''
+})
+
+const hasCellEvidence = computed(() => {
+  if (evidenceCellIds.value.length > 0 || weightEvidenceText.value) return true
+  const method = props.item?.extractionMethod
+  if (method && method !== 'LEGACY_FALLBACK' && method !== 'UNKNOWN') return true
+  return false
+})
+
+const EXTRACTION_METHOD_MAP = {
+  STRUCTURED_TABLE: '表格结构化提取',
+  EVIDENCE_PIPELINE: '证据管道提取',
+  CELL: '单元格映射',
+}
+
+const extractionMethodDisplay = computed(() => {
+  const method = props.item?.extractionMethod
+  if (!method || method === 'LEGACY_FALLBACK') return ''
+  return EXTRACTION_METHOD_MAP[method] || method
 })
 
 const VALIDATION_STATUS_MAP = {

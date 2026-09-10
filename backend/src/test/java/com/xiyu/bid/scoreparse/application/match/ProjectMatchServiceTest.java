@@ -1,5 +1,6 @@
 package com.xiyu.bid.scoreparse.application.match;
 
+import com.xiyu.bid.performance.domain.valueobject.CustomerType;
 import com.xiyu.bid.performance.domain.valueobject.ProjectType;
 import com.xiyu.bid.performance.infrastructure.persistence.entity.PerformanceRecordEntity;
 import com.xiyu.bid.performance.infrastructure.persistence.repository.PerformanceRecordJpaRepository;
@@ -176,5 +177,53 @@ class ProjectMatchServiceTest {
         List<String> filtered = ProjectMatchService.filterSpecificProjectKeywords(raw);
         assertThat(filtered).contains("电力", "电商", "电力供应情况", "一般纳税人");
         assertThat(filtered).doesNotContain("优秀得7分");
+    }
+
+    @Test
+    @DisplayName("客户类型解析：央企/中央企业/地方国企/政府")
+    void parseCustomerType_recognizesKeywords() {
+        assertThat(ProjectMatchService.parseCustomerType("央企")).isEqualTo(CustomerType.CENTRAL_SOE);
+        assertThat(ProjectMatchService.parseCustomerType("中央企业")).isEqualTo(CustomerType.CENTRAL_SOE);
+        assertThat(ProjectMatchService.parseCustomerType("中央金融企业")).isEqualTo(CustomerType.CENTRAL_SOE);
+        assertThat(ProjectMatchService.parseCustomerType("国企")).isEqualTo(CustomerType.LOCAL_SOE);
+        assertThat(ProjectMatchService.parseCustomerType("地方国企")).isEqualTo(CustomerType.LOCAL_SOE);
+        assertThat(ProjectMatchService.parseCustomerType("长句含有央企但超过10字")).isNull();
+    }
+
+    @Test
+    @DisplayName("1374 央企业绩匹配：央企+MRO+2022年起 → 命中央企MRO合同")
+    void match_centralSOE_matchesCentralSOEContracts() {
+        PerformanceRecordEntity row1 = PerformanceRecordEntity.builder()
+                .id(908L)
+                .contractName("中核集团电子商城 MRO工业品电商引入项目框架协议")
+                .customerType(CustomerType.CENTRAL_SOE)
+                .industry("国防军工")
+                .projectType(ProjectType.INDUSTRIAL)
+                .signingDate(LocalDate.of(2023, 1, 1))
+                .build();
+        PerformanceRecordEntity row2 = PerformanceRecordEntity.builder()
+                .id(956L)
+                .contractName("中国大唐集团有限公司MRO工业品电商项目2023-2026年度长协采购协议")
+                .customerType(CustomerType.CENTRAL_SOE)
+                .industry("电力")
+                .projectType(ProjectType.INDUSTRIAL)
+                .signingDate(LocalDate.of(2023, 5, 1))
+                .build();
+
+        when(repository.findAll(any(Specification.class))).thenReturn(List.of(row1, row2));
+
+        ProjectMatchRequest request = new ProjectMatchRequest(
+                List.of("央企", "MRO"),
+                LocalDate.of(2022, 1, 1),
+                null,
+                2
+        );
+
+        KnowledgeMatchResult result = service.match(request);
+
+        assertThat(result.tier()).isEqualTo("FULL");
+        assertThat(result.matchRatio()).isEqualTo(100);
+        assertThat(result.matched()).hasSize(2);
+        assertThat(result.matchDetail()).contains("命中业绩 2/2");
     }
 }
