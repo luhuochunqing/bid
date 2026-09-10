@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [首页, 导航, wiki]
 created: 2026-09-05
-updated: 2026-09-05
-health_checked: 2026-09-05
+updated: 2026-09-10
+health_checked: 2026-09-10
 sources:
   - docs/specs/WIKI.md
   - .wiki/INDEX.md
@@ -58,6 +58,7 @@ backlinks:
 - [[duplicate-implementation-gate]] — 重复实现门禁（防造轮子）
 - [[dynamic-form-engine]] — 动态表单自定义引擎
 - [[engineering-discipline]] — 工程纪律手册 — 反复修复的根因、根治与预防
+- [[event-library-integration-rca]] — 事件库两次集成反复失败根因复盘
 - [[evaluation-form-field-adjustments]] — 评估表字段文案调整与 GAP 文本框下线
 - [[flyway-migration-pitfalls]] — Flyway 迁移陷阱集
 - [[frontend-pitfalls]] — 前端 Vue3 / Element Plus 陷阱集
