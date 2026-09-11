@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [质量核查, compliance, LLM 混合裁决, 证据链, FP-Java, 语义RAG, 结构化输出, 资质智能匹配, 三级穿透]
 created: 2026-08-20
-updated: 2026-09-10
-health_checked: 2026-09-10
+updated: 2026-09-11
+health_checked: 2026-09-11
 sources:
   - specs/049-bid-quality-check-realization/spec.md
   - src/views/Project/stages/components/QualityCheckDrawer.vue
@@ -16,6 +16,7 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckProgressUpdater.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/QualificationDetail.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/QualificationMatchPolicy.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/QualificationDetailReconciler.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/BidDocumentQualityEngine.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/BasicInfoCheckPolicy.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/LlmAdjudicator.java
@@ -340,6 +341,9 @@ drawer 结构：
     - **确定性核查策略支持图片凭证**：`IdAuthLetterCheckPolicy`、`BusinessLicenseCheckPolicy`、`AuthorizationLetterCheckPolicy` 引入 `IMAGE_EVIDENCE_PATTERN`，识别到表格或正文中粘贴的证照图片或 `已附图片` 标记时判定 PASS，消除无外部公安库对比下硬性要求纯文本 18 位号码的局限。
     - **通用示范称谓与后缀放行**：`BidLetterCheckPolicy` 与 `AdjudicationGuidelines` 准则 4 放行“致采购人或采购代理机构：”等标准招标文件模板抬头及说明性项目名称后缀（如“（项目名称）”），避免误判为占位模板。
     - **百度 PaddleOCR-VL 客户端集成**：引入 `BaiduPaddleVlClient`，支持将文档及图片提交至百度 PaddleOCR-VL 进行版面分析与结构化 Markdown 提取，支持优雅降级。
+43. **资质比对明细与总项状态一致性校准（`QualificationDetailReconciler`，2026-09-11）**：
+    - **双轨脱节根治与强制状态校准**：大模型综合裁决输出整体结论，资质比对策略（`QualificationMatchPolicy`）在后处理中独立生成 `qualDetails` 明细清单。建立纯核心策略 `QualificationDetailReconciler`，在结果持久化前执行确定性校准门禁：若明细存在任一 `EXPIRED`（过期）或 `UNMATCHED`（未匹配），总项强制降级为 `FAIL`，任务整体合规状态同步置为 `NON_COMPLIANT` 并累加风险分；若存在 `ATTENTION`（需关注/标书有材料但资质库缺失）且无硬性失败，总项降级为 `MANUAL_REVIEW`；杜绝“明细未匹配但结论显示通过”的逻辑割裂；
+    - **长句说明剥离与标书检索候选词展开**：针对招标专用资质要求常附带长句括号说明（如“银行基本账户开户许可证（取消开户许可证的须提供基本存款账户银行备案资料...）”）导致 60 字精确匹配致盲问题，`QualificationDetailReconciler.buildBidSearchCues` 自动剥离括号注释，提取核心词，并对银行基本账户开户类资质自动展开“基本存款账户”、“开户许可证”、“开户证明”等候选词列表，确保标书正文包含有效开户凭证时能准确定位并置为 `ATTENTION` 待复核，消除漏检误报。
 
 ## 6. 后续任务（Backlog）
 

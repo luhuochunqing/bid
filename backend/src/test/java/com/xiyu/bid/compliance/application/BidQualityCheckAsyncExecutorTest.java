@@ -374,4 +374,59 @@ class BidQualityCheckAsyncExecutorTest {
         // 验证任务顺利推进并完成
         verify(progressUpdater).completeTask(eq(resultId), any(), anyInt(), anyString(), anyInt(), anyInt(), anyInt(), anyInt());
     }
+
+    @Test
+    @DisplayName("端到端一致性校验：当资质明细存在 UNMATCHED 时，即使 LLM 给出 PASS 也强制降级为 FAIL")
+    void testExecuteAsync_QualificationUnmatched_ForcesFailAndNonCompliant() {
+        Long resultId = 3L;
+        Long projectId = 1359L;
+        String taskId = "task-1359";
+
+        String tenderText = """
+                3.2 专用资格条件
+                3.2.1 资质要求：
+                ①具有电力工程施工总承包特级资质。
+                """;
+
+        DocumentContent bidDoc = DocumentContent.fromText("bid-1359.pdf", "hash_bid_1359", "正文仅包含普通说明，无任何电力特级资质");
+        DocumentContent tenderDoc = DocumentContent.fromText("tender-1359.pdf", "hash_tender_1359", tenderText);
+
+        when(targetLoader.loadBidDocument(projectId)).thenReturn(bidDoc);
+        when(tenderDocumentLoader.loadTenderDocument(projectId)).thenReturn(tenderDoc);
+        when(resultRepository.findTopByBidFileHashAndTenderFileHashAndStatusOrderByCheckedAtDesc(
+                eq("hash_bid_1359"), eq("hash_tender_1359"), eq(ComplianceCheckResult.TaskStatus.COMPLETED)))
+                .thenReturn(Optional.empty());
+
+        when(requirementsExtractor.extract(tenderDoc)).thenReturn(TenderRequirements.missingSentinel());
+        when(kbLoader.queryKnowledgeBases(any())).thenReturn(KnowledgeQueryOutcome.empty());
+        when(kbLoader.findAllQualifications()).thenReturn(List.of()); // 资质库空，标书无证明 -> UNMATCHED
+        // 模拟 LLM 误判 PASS
+        when(aiProvider.chatCompletionJsonObject(anyString(), anyInt()))
+                .thenReturn("{\"status\":\"PASS\",\"conclusion\":\"AI 通读标书后误判通过\"}");
+
+        asyncExecutor.executeAsync(resultId, projectId, taskId, false);
+
+        org.mockito.ArgumentCaptor<ComplianceCheckResult.Status> statusCaptor =
+                org.mockito.ArgumentCaptor.forClass(ComplianceCheckResult.Status.class);
+        org.mockito.ArgumentCaptor<String> detailsJsonCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+
+        verify(progressUpdater).completeTask(
+                eq(resultId),
+                statusCaptor.capture(),
+                anyInt(),
+                detailsJsonCaptor.capture(),
+                anyInt(),
+                anyInt(),
+                anyInt(),
+                anyInt());
+
+        // 验证整体状态被判定为 NON_COMPLIANT（因为存在未匹配硬性资质）
+        assertThat(statusCaptor.getValue()).isEqualTo(ComplianceCheckResult.Status.NON_COMPLIANT);
+
+        // 验证 QUALIFICATION_MATCH 在 JSON 详情中被硬核降级为 FAIL
+        String json = detailsJsonCaptor.getValue();
+        assertThat(json).contains("\"itemCode\":\"QUALIFICATION_MATCH\"");
+        assertThat(json).contains("\"status\":\"FAIL\"");
+        assertThat(json).contains("【资质未匹配】");
+    }
 }

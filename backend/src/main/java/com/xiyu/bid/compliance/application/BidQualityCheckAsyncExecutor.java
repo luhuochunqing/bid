@@ -18,6 +18,7 @@ import com.xiyu.bid.compliance.domain.policy.KnowledgeQueryOutcome;
 import com.xiyu.bid.compliance.domain.policy.PriceRequirement;
 import com.xiyu.bid.compliance.domain.policy.LlmAdjudicator;
 import com.xiyu.bid.compliance.domain.policy.LlmVerdict;
+import com.xiyu.bid.compliance.domain.policy.QualificationDetailReconciler;
 import com.xiyu.bid.compliance.domain.policy.QualificationMatchPolicy;
 import com.xiyu.bid.compliance.domain.policy.SemanticRulesLane;
 import com.xiyu.bid.compliance.domain.policy.TenderRequirements;
@@ -139,7 +140,7 @@ public class BidQualityCheckAsyncExecutor {
             if (!qualDetails.isEmpty()) {
                 itemResults = itemResults.stream()
                         .map(r -> BidQualityCheckItem.QUALIFICATION_MATCH.getCode().equals(r.itemCode())
-                                ? r.withDetails(qualDetails)
+                                ? QualificationDetailReconciler.reconcile(r, qualDetails)
                                 : r)
                         .toList();
             }

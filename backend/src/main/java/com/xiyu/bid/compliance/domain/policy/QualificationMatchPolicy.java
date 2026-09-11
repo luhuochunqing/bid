@@ -147,7 +147,7 @@ public final class QualificationMatchPolicy {
                     hit.map(EvidenceHit::quote).orElse(""), null,
                     "企业资质库中证书「" + certName + "」" + note + "，存在实质性偏离或废标风险");
         }
-        return locateInBid(bidDoc, List.of(req, normalize(req))).map(h -> new QualificationDetail(
+        return locateInBid(bidDoc, QualificationDetailReconciler.buildBidSearchCues(req)).map(h -> new QualificationDetail(
                 req, "", "ATTENTION", h.pageNumber(), h.quote(), null,
                 "资质库未维护该证书，但在标书第 " + h.pageNumber() + " 页检索到证明材料，请人工核查有效性"))
                 .orElseGet(() -> new QualificationDetail(

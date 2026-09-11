@@ -252,4 +252,29 @@ class QualificationMatchPolicyTest {
         assertThat(details.get(0).matchedCertName()).isEqualTo("中华人民共和国增值电信业务经营许可证");
         assertThat(details.get(0).status()).isEqualTo("MATCHED");
     }
+
+    @Test
+    @DisplayName("长句复合资质要求：剥离括号注释并正确定位标书证明材料，置为 ATTENTION 而非 UNMATCHED")
+    void testBuildDetails_LongRequirementWithBrackets_LocatesInBidAndSetsAttention() {
+        LocalDate today = LocalDate.of(2026, 9, 11);
+        List<Qualification> certs = List.of(); // 资质库未维护该项
+
+        List<DocumentContent.PageContent> pages = List.of(
+                new DocumentContent.PageContent(1, "封面 目录", List.of()),
+                new DocumentContent.PageContent(12, "附件：基本存款账户开户证明，开户银行：中国工商银行上海分行，账号：123456789", List.of())
+        );
+        DocumentContent bidDoc = new DocumentContent("bid.pdf", "hash", "基本存款账户开户证明", pages);
+
+        List<String> requirements = List.of(
+                "银行基本账户开户许可证（取消开户许可证的须提供基本存款账户银行备案资料，包括单位名称、开户银行、账号、法定代表人或单位负责人等信息）"
+        );
+
+        List<QualificationDetail> details = QualificationMatchPolicy.buildDetails(requirements, certs, bidDoc, today);
+
+        assertThat(details).hasSize(1);
+        QualificationDetail d = details.get(0);
+        assertThat(d.status()).isEqualTo("ATTENTION");
+        assertThat(d.bidPageNumber()).isEqualTo(12);
+        assertThat(d.remark()).contains("资质库未维护该证书，但在标书第 12 页检索到证明材料，请人工核查有效性");
+    }
 }
