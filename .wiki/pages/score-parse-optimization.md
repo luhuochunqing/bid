@@ -4,7 +4,7 @@ space: engineering
 category: lessons-learned
 tags: []
 created: 2026-09-05
-updated: 2026-09-07
+updated: 2026-09-11
 health_checked: 2026-09-05
 sources:
   - docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md
@@ -253,4 +253,21 @@ markdown 输入
 3. **前端证据展示体验治理**：
    - `ScoreItemDetailModal.vue` 在无真实单元格证据且为旧流水线兜底时隐藏证据卡片；增加 `extractionMethodDisplay` 字典映射中文名称。
 
+## 2026-09-11 评分标准 3 列表格内嵌分值提取与结构化权威通道防污染加固（项目 1381）
 
+### 问题
+张家口银行项目 1381（电商平台采购项目，总分 100 分）：
+评分标准为 3 列（序号、评分因素、评分标准），分值内嵌在维度括号内（如 `投标报价（40分）`、`公司综合实力（6分）`，共 8 项合计 100 分）。AI 评分解析仅解析出 1 项（公司综合实力 6分）。
+
+### 根因与修复
+1. **表格通道原生权威标记对齐**：
+   - `ScoreGlobalMergeOrchestrator` Phase 3a 结构化安全回注机制基于 `"STRUCTURED_TABLE"` 标记；
+   - `CellAnchoredScoreExtractor` 抽取的候选将 `semanticPattern` 从 `"TABLE_GRID"` 统一升级为 `"STRUCTURED_TABLE"`，使其天然享受原生权威回注免检权；
+   - `cleanDimName` 优化汉字断词换行清洗，平滑剔除多余空格。
+2. **合并策略防污染加固**：
+   - `ScoreItemMergePolicy` 在 `enrich` 时强化结构化通道与原文背书保护：后置为 `STRUCTURED_TABLE` 或有原文背书时，锁定结构化通道的 `detail`、`sourceText`、`code` 与权重；
+   - 封堵 `isPriceMerge` 漏洞：严禁结构化表格与非结构化通道拼接，并强制要求双方均具有原文背书（`hasSourceBacking`），防止 LLM 概括/幻觉文本注入价格评分项。
+3. **验证保障**：
+   - 补充张家口银行真实 3 列表格单测，验证 8 项 100 分闭环、`STRUCTURED_TABLE` 标记及原文背书完整性；
+   - 补充前置无背书 LLM 候选与后置表格候选合并测试；
+   - 针对性测试与全量 `scoreparse` 模块 726 个单测全部 PASS。

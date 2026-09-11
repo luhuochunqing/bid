@@ -202,4 +202,77 @@ class CellAnchoredScoreExtractorTest {
 
         assertThat(candidates).isEmpty();
     }
+
+    @Test
+    void extract_zhangjiakouBank_threeColumnsWithBracketWeightsInDim() {
+        String markdown = """
+                | 序号 | 评分因素 | 评分标准 |
+                |---|---|---|
+                | 1 | 投标报价<br>（40分） | 1. 通过资格审查的投标人的投标报价为有效报价；2. 投标报价得分=宣传品报价得分+办公用品及办公耗材报价得分；3. 宣传品基准价为平均值。4. 宣传品报价得分满分30分；5. 办公用品报价得分满分10分。 |
+                | 2 | 公司综合实<br>力<br>（6分） | 投标人具有以下有效期内的认证证书：(1) ISO 9001；(2) ISO 14001；(3) ISO 45001；(4) ISO 20000；(5) ISO 27001；(6) ISO 27701。每有一项加1分，最高得6分。 |
+                | 3 | 类似业绩<br>（10分） | 投标人自2023年5月1日以来每有一个类似服务案例的得2分，本项满分为10分。注：须提供业绩合同或协议及发票复印件。 |
+                | 4 | 技术方案<br>（10分） | 投标人需提供详细的技术方案，能够完整描述出整个项目的具体组织、实施步骤，平台功能介绍等。优秀得7.1-10.0分，一般得4.1-7.0分，较差得0-4.0分。 |
+                | 4 | 供货方案<br>（10分） | 投标人需提供详细的供货方案，包括但不限于货源组织、供货保障措施等。优秀得7.1-10.0分，一般得4.1-7.0分，较差得0-4.0分。 |
+                | 5 | 人员配备<br>（6分） | 投标人针对本项目需提供专业团队，包括但不限于项目负责人、技术负责人等。优秀得4.1-6.0分，一般得2.1-4.0分，较差得0-2.0分。 |
+                | 6 | 质量管理方<br>案（10分） | 投标人针对本项目制定的质量管理方案，包括商品安全溯源、货源质量保障等。优秀得7.1-10.0分，一般得4.1-7.0分，较差得0-4.0分。 |
+                | 7 | 售后服务方<br>案（8分） | 根据投标人的售后服务方案及承诺进行综合评审。优秀得6.1-8.0分，一般得4.1-6.0分，较差得0-4.0分。 |
+                | 合计<br>得分 | 满分<br>（100分） |  |
+                """;
+
+        TableGrid grid = TableGridExtractor.extract(markdown);
+        TableColumnMapping mapping = HeuristicTableColumnMapper.infer(grid);
+        ColumnTypeCrossVerifier.ValidationResult vr = ColumnTypeCrossVerifier.verify(grid, mapping);
+        assertThat(vr.valid()).isTrue();
+
+        List<ScoreCandidate> candidates = CellAnchoredScoreExtractor.extract(grid, mapping);
+        assertThat(candidates).hasSize(8);
+
+        // 验证原生权威标记为 STRUCTURED_TABLE
+        assertThat(candidates).allMatch(c -> "STRUCTURED_TABLE".equals(c.semanticPattern()));
+
+        // 验证权重总和闭环为 100 分
+        BigDecimal total = candidates.stream()
+                .map(ScoreCandidate::weight)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(total).isEqualByComparingTo(new BigDecimal("100"));
+
+        // 验证各打分项权重与平滑清洗后的维度名称
+        assertThat(candidates.get(0).code()).isEqualTo("1");
+        assertThat(candidates.get(0).dim()).isEqualTo("投标报价");
+        assertThat(candidates.get(0).weight()).isEqualByComparingTo(new BigDecimal("40"));
+
+        assertThat(candidates.get(1).code()).isEqualTo("2");
+        assertThat(candidates.get(1).dim()).isEqualTo("公司综合实力");
+        assertThat(candidates.get(1).weight()).isEqualByComparingTo(new BigDecimal("6"));
+
+        assertThat(candidates.get(2).code()).isEqualTo("3");
+        assertThat(candidates.get(2).dim()).isEqualTo("类似业绩");
+        assertThat(candidates.get(2).weight()).isEqualByComparingTo(new BigDecimal("10"));
+
+        assertThat(candidates.get(3).code()).isEqualTo("4");
+        assertThat(candidates.get(3).dim()).isEqualTo("技术方案");
+        assertThat(candidates.get(3).weight()).isEqualByComparingTo(new BigDecimal("10"));
+
+        assertThat(candidates.get(4).code()).isEqualTo("4");
+        assertThat(candidates.get(4).dim()).isEqualTo("供货方案");
+        assertThat(candidates.get(4).weight()).isEqualByComparingTo(new BigDecimal("10"));
+
+        assertThat(candidates.get(5).code()).isEqualTo("5");
+        assertThat(candidates.get(5).dim()).isEqualTo("人员配备");
+        assertThat(candidates.get(5).weight()).isEqualByComparingTo(new BigDecimal("6"));
+
+        assertThat(candidates.get(6).code()).isEqualTo("6");
+        assertThat(candidates.get(6).dim()).isEqualTo("质量管理方案");
+        assertThat(candidates.get(6).weight()).isEqualByComparingTo(new BigDecimal("10"));
+
+        assertThat(candidates.get(7).code()).isEqualTo("7");
+        assertThat(candidates.get(7).dim()).isEqualTo("售后服务方案");
+        assertThat(candidates.get(7).weight()).isEqualByComparingTo(new BigDecimal("8"));
+
+        // 验证每个候选均具备 sourceText 且包含 detail（原文背书成立）
+        for (ScoreCandidate c : candidates) {
+            assertThat(c.sourceText()).isNotBlank();
+            assertThat(c.sourceText()).contains(c.detail());
+        }
+    }
 }

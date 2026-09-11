@@ -335,4 +335,26 @@ class ScoreItemMergePolicyTest {
         assertThat(merged.get(0).dim()).isEqualTo("自有物流配送车辆数量");
         assertThat(merged.get(0).weight()).isEqualByComparingTo("2");
     }
+
+    @Test
+    void merge_unbackedLlmBeforeStructuredTable_preservesStructuredDetailAndSourceText() {
+        // 场景：前置 LLM 通道召回了概括长文本且无原文背书（或空 sourceText），后置结构化表格通道抽取了真实表格行
+        // 合并时必须优先保留结构化表格的 detail、sourceText、code 及 STRUCTURED_TABLE 模式，防止被前置通道污染
+        ScoreCandidate unbackedLlm = new ScoreCandidate("1", "投标报价",
+                "投标人应根据招标文件要求进行合理报价，总分40分，报价过高或过低将扣分。（LLM概括说明）",
+                new BigDecimal("40"), "OBJECTIVE", null, "", "P12", "GLOBAL_MERGE");
+        String tableRawRow = "1 | 投标报价（40分） | 满足招标文件要求且投标价格最低的投标报价为评标基准价得满分";
+        ScoreCandidate structuredTable = new ScoreCandidate("1", "投标报价",
+                "满足招标文件要求且投标价格最低的投标报价为评标基准价得满分",
+                new BigDecimal("40"), "OBJECTIVE", null, tableRawRow, "P12", "STRUCTURED_TABLE");
+
+        List<ScoreCandidate> merged = policy.merge(List.of(unbackedLlm, structuredTable));
+        assertThat(merged).hasSize(1);
+        ScoreCandidate result = merged.get(0);
+        assertThat(result.semanticPattern()).isEqualTo("STRUCTURED_TABLE");
+        assertThat(result.detail()).isEqualTo("满足招标文件要求且投标价格最低的投标报价为评标基准价得满分");
+        assertThat(result.sourceText()).isEqualTo(tableRawRow);
+        assertThat(result.code()).isEqualTo("1");
+        assertThat(result.weight()).isEqualByComparingTo("40");
+    }
 }

@@ -138,7 +138,7 @@ public final class CellAnchoredScoreExtractor {
                     null,
                     sourceRow,
                     "R" + (r + 1),
-                    "TABLE_GRID",
+                    "STRUCTURED_TABLE",
                     currentParentDim.isBlank() ? null : currentParentDim,
                     dimensionSource(rawDimCell, finalDim, currentParentDim, detail)));
         }
@@ -168,7 +168,7 @@ public final class CellAnchoredScoreExtractor {
             String subDim = parentDim.isBlank() ? rawMatch : parentDim + "/" + rawMatch;
             list.add(new ScoreCandidate(
                     code, subDim, detail, subWeight, null, null,
-                    sourceRow, "R" + rowNum + "_" + (list.size() + 1), "TABLE_GRID"
+                    sourceRow, "R" + rowNum + "_" + (list.size() + 1), "STRUCTURED_TABLE"
             ));
         }
         if (list.size() < 2) {
@@ -244,8 +244,10 @@ public final class CellAnchoredScoreExtractor {
 
     private static String cleanDimName(String raw) {
         if (raw == null) return "";
-        return raw.replaceAll("[：:（(]\\s*\\d+(?:\\.\\d+)?\\s*(?:分|%|分值)\\s*[）)]?", "")
-                .replaceAll("<br\\s*/?>", " ")
+        String withoutWeight = raw.replaceAll("[：:（(]\\s*\\d+(?:\\.\\d+)?\\s*(?:分|%|分值)\\s*[）)]?", "");
+        String smoothed = withoutWeight.replaceAll("(?<=[\\p{IsHan}])\\s*<br\\s*/?>\\s*(?=[\\p{IsHan}])", "")
+                .replaceAll("(?<=[\\p{IsHan}])\\s*\\R\\s*(?=[\\p{IsHan}])", "");
+        return smoothed.replaceAll("<br\\s*/?>", " ")
                 .replace("\n", " ").replaceAll("\\s+", " ").trim();
     }
 

@@ -3,6 +3,15 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-11] fix | 评分标准 3 列表格内嵌分值提取与结构化权威通道防污染加固（项目 1381）
+
+- 触发：张家口银行项目 1381（电商平台采购）3 列表格内嵌括号分值，AI 评分标准解析只提取出 1 项。
+- 方案：
+  - 标记升级：`CellAnchoredScoreExtractor` 抽取结果升级为 `STRUCTURED_TABLE`，接入 `ScoreGlobalMergeOrchestrator` Phase 3a 结构化安全回注机制；优化 `cleanDimName` 汉字断词换行清洗；
+  - 权威防污染：`ScoreItemMergePolicy` 在 `enrich` 与 `isPriceMerge` 中强化结构化通道与原文背书保护，严禁无背书 LLM 通道冲刷覆盖真实表格细则与原文；
+  - 知识沉淀：更新 [[score-parse-optimization]]；追加 lessons-learned.md §354。
+- 结果：针对性测试 53/53 通过，scoreparse 模块 726/726 全绿。
+
 ## [2026-09-07] fix | 项目 1371 评分项解析精度根治、Sidecar 发布闭环与跨行分值重叠消重
 
 - 触发：用户在项目 1371（通用技术MRO项目）中反馈 AI 评分项标准解析不准（缺失为 82 分或膨胀为 104 分）。
