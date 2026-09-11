@@ -165,9 +165,12 @@ public class ScoreItemMergePolicy {
         BigDecimal mergedWeight = resolveAuthoritativeWeight(base, later, baseIsStructured, laterIsStructured);
         String mergedDim = resolveAuthoritativeDim(base, later, baseIsStructured, laterIsStructured);
 
-        // 报价类跨 chunk 互补：定性评审项（如报价质量）禁止跨 chunk 行级反复追加
+        // 报价类跨 chunk 互补：定性评审项（如报价质量）禁止跨 chunk 行级反复追加；
+        // 结构化表格具有确定性权威，禁止与非结构化通道拼接污染；无原文背书候选禁止参与拼接
         boolean isPriceMerge = isPriceDim(normalize(base.dim())) && isPriceDim(normalize(later.dim()))
                 && !isQualitativeScoring(base) && !isQualitativeScoring(later)
+                && !(baseIsStructured ^ laterIsStructured)
+                && hasSourceBacking(base) && hasSourceBacking(later)
                 && base.detail() != null && later.detail() != null
                 && !normalizePunctuation(base.detail()).equals(normalizePunctuation(later.detail()))
                 && !normalizePunctuation(later.detail()).contains(normalizePunctuation(base.detail()))
@@ -189,20 +192,38 @@ public class ScoreItemMergePolicy {
                     + "\n" + (later.sourceText() == null ? "" : later.sourceText());
             sourceText = mergedSource.trim().isEmpty() ? base.sourceText() : mergedSource.trim();
         } else {
-            boolean laterDetailPreferred = hasSourceBacking(later)
+            boolean laterStructuredAuthority = laterIsStructured && !baseIsStructured;
+            boolean laterHasBackingWhileBaseNot = hasSourceBacking(later) && !hasSourceBacking(base);
+            boolean laterLongerWithBacking = (!baseIsStructured || laterIsStructured)
+                    && hasSourceBacking(later)
                     && lengthOf(later.detail()) > lengthOf(base.detail());
-            detail = laterDetailPreferred ? later.detail() : (base.detail() != null ? base.detail() : later.detail());
-            sourceText = laterDetailPreferred ? later.sourceText() : (base.sourceText() != null ? base.sourceText() : later.sourceText());
+            boolean preferLater = laterStructuredAuthority || laterHasBackingWhileBaseNot || laterLongerWithBacking;
+
+            detail = preferLater ? (later.detail() != null ? later.detail() : base.detail())
+                    : (base.detail() != null ? base.detail() : later.detail());
+            if (preferLater) {
+                sourceText = (later.sourceText() != null && !later.sourceText().isBlank())
+                        ? later.sourceText() : base.sourceText();
+            } else {
+                sourceText = (base.sourceText() != null && !base.sourceText().isBlank())
+                        ? base.sourceText() : later.sourceText();
+            }
         }
         String mergedParentDim = base.parentDim() != null && !base.parentDim().isBlank()
                 ? base.parentDim() : later.parentDim();
         String mergedDimSource = base.dimSource() != null && !"UNKNOWN".equals(base.dimSource())
                 ? base.dimSource() : later.dimSource();
-        return new ScoreCandidate(base.code() != null ? base.code() : later.code(), mergedDim,
+        String mergedCode = (laterIsStructured && !baseIsStructured && later.code() != null && !later.code().isBlank())
+                ? later.code()
+                : (base.code() != null && !base.code().isBlank() ? base.code() : later.code());
+        String mergedPattern = (baseIsStructured || laterIsStructured)
+                ? "STRUCTURED_TABLE"
+                : (later.semanticPattern() != null ? later.semanticPattern() : base.semanticPattern());
+        return new ScoreCandidate(mergedCode, mergedDim,
                 detail, mergedWeight, base.scoreTypeGuess() != null ? base.scoreTypeGuess() : later.scoreTypeGuess(),
                 later.contextNote() != null ? later.contextNote() : base.contextNote(),
                 sourceText, later.location() != null ? later.location() : base.location(),
-                later.semanticPattern() != null ? later.semanticPattern() : base.semanticPattern(),
+                mergedPattern,
                 mergedParentDim, mergedDimSource);
     }
 
