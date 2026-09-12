@@ -10,6 +10,7 @@ import com.xiyu.bid.scoreparse.domain.ScoreFact;
 import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.ScoreParsePipeline;
 import com.xiyu.bid.scoreparse.domain.StructuredTableCandidateExtractor;
+import com.xiyu.bid.scoreparse.domain.TableCompleteness;
 import com.xiyu.bid.scoreparse.domain.WeightSumCheck;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
 import com.xiyu.bid.scoreparse.repository.ScoreParseTaskRepository;
@@ -17,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -81,10 +83,10 @@ final class StructuredTableExtractionHandler {
             return Result.ok(List.of());
         }
         var shadow = ScoreFactShadowPipeline.run(artifact, tenderSectionText);
-        boolean structureBroken = shadow.tables().stream()
-                .anyMatch(table -> !table.structurallyValid());
-        if (structureBroken) {
-            log.warn("DocumentArtifact v2 结构校验失败，保留现有评分项不覆盖: file={}, tables={}",
+        boolean allStructureBroken = !shadow.tables().isEmpty()
+                && shadow.tables().stream().allMatch(table -> !table.structurallyValid());
+        if (allStructureBroken) {
+            log.warn("DocumentArtifact v2 全部评分表结构校验失败，保留现有评分项不覆盖: file={}, tables={}",
                     fileName, shadow.tables().size());
             return Result.structureIncomplete("STRUCTURE_DEFECT");
         }
@@ -92,15 +94,20 @@ final class StructuredTableExtractionHandler {
         List<ScoreFact> facts = shadow.tables().stream()
                 .flatMap(table -> table.facts().stream())
                 .toList();
-        List<ScoreCandidate> leafCandidates = completeness.leafFacts().stream()
+        // spec 062：聚合所有 AUTO_APPROVED 表的 AUTO_APPROVED 叶子候选（不再要求整份文档 AUTO_APPROVED）
+        List<ScoreCandidate> leafCandidates = shadow.tableCompletenesses().stream()
+                .filter(table -> table.completeness() != null
+                        && table.completeness().decision() == ScoreParseDecision.AUTO_APPROVED)
+                .flatMap(table -> table.completeness().leafFacts().stream())
                 .map(ScoreFact::toCandidate)
                 .flatMap(Optional::stream)
                 .toList();
         log.info("Evidence pipeline 结构化事实抽取完成: file={}, facts={}, leafCandidates={}, "
-                        + "declaredTotal={}, declaredTotalSource={}, decision={}, fallback={}",
+                        + "declaredTotal={}, declaredTotalSource={}, decision={}, fallback={}, splitTables={}",
                 fileName, facts.size(), leafCandidates.size(), completeness.declaredTotalScore(),
-                completeness.declaredTotalSource(), completeness.decision(), completeness.fallbackReason());
-        return Result.evidencePipeline(facts, leafCandidates, completeness);
+                completeness.declaredTotalSource(), completeness.decision(), completeness.fallbackReason(),
+                shadow.tableCompletenesses().size());
+        return Result.evidencePipeline(facts, leafCandidates, completeness, shadow.tableCompletenesses());
     }
 
     private static boolean shouldFallbackPdfToLegacy(String fileName,
@@ -155,7 +162,18 @@ final class StructuredTableExtractionHandler {
                 ? ScoreParseDecision.PARSE_FAILED
                 : completeness.decision();
         String fallbackReason = completeness == null ? "COMPLETENESS_DEFECT" : completeness.fallbackReason();
-        WeightSumCheck.Result weightResult = evidenceWeightResult(candidates, completeness, decision);
+        // spec 062：权重合计信号基于全部表叶子候选（不以落库过滤集为准），
+        // 保证文档级 REVIEW_REQUIRED 时 originalTotalWeight 仍反映全部事实权重。
+        List<ScoreCandidate> allLeafCandidates = structured.tableCompletenesses().stream()
+                .filter(table -> table.completeness() != null)
+                .flatMap(table -> table.completeness().leafFacts().stream())
+                .map(ScoreFact::toCandidate)
+                .flatMap(Optional::stream)
+                .toList();
+        WeightSumCheck.Result weightResult = evidenceWeightResult(allLeafCandidates, completeness, decision);
+        List<Map<String, Object>> tableSplits = structured.tableCompletenesses().stream()
+                .map(StructuredTableExtractionHandler::tableSplitView)
+                .toList();
         task.setRunSummary(RunSummaryAssembler.assemble(
                 new RecallOutcome(List.of(), 0),
                 candidates.size(),
@@ -165,7 +183,8 @@ final class StructuredTableExtractionHandler {
                 "",
                 ScoreParsePipeline.EVIDENCE_PIPELINE_V1,
                 decision.name(),
-                fallbackReason).json());
+                fallbackReason,
+                tableSplits).json());
         task.setPipelineVersion(ScoreParsePipeline.EVIDENCE_PIPELINE_V1);
         task.setDecisionStatus(decision.name());
         task.setFallbackReason(fallbackReason);
@@ -179,6 +198,14 @@ final class StructuredTableExtractionHandler {
                     declaredTotal.stripTrailingZeros().toPlainString()));
         }
         taskRepository.save(task);
+        structured.tableCompletenesses().forEach(table -> {
+            var tableCompleteness = table.completeness();
+            log.info("Evidence pipeline 分表拆分: taskId={}, tableId={}, declaredTotal={}, decision={}, fallback={}",
+                    taskId, table.tableId(),
+                    tableCompleteness == null ? null : tableCompleteness.declaredTotalScore(),
+                    tableCompleteness == null ? null : tableCompleteness.decision(),
+                    tableCompleteness == null ? null : tableCompleteness.fallbackReason());
+        });
         if (!structured.facts().isEmpty()) {
             itemPersistenceService.persistFactsAndEvidence(task.getProjectId(), task.getId(), structured.facts());
         }
@@ -187,17 +214,32 @@ final class StructuredTableExtractionHandler {
             progressService.clearProgress(taskId);
             return;
         }
-        if (decision == ScoreParseDecision.AUTO_APPROVED && !candidates.isEmpty()) {
+        // spec 062：任一表通过即落库通过表（决策保持文档级聚合值，不阻塞按表落库）
+        if (!candidates.isEmpty()) {
             updateProgress(taskId, 90, "Evidence Pipeline 评分项落库", stateService, progressService);
             itemPersistenceService.persistItems(task.getProjectId(), task.getId(), candidates);
             updateProgress(taskId, 95, "阶段 1 预计得分计算", stateService, progressService);
             estimatedScoreService.estimateForProject(task.getProjectId());
+            if (decision != ScoreParseDecision.AUTO_APPROVED) {
+                log.warn("Evidence Pipeline 部分表判定需复核，已落库通过表评分项: taskId={}, decision={}, fallback={}",
+                        taskId, decision, fallbackReason);
+            }
         } else {
             log.warn("Evidence Pipeline 判定需复核，保留现有评分项不覆盖: taskId={}, decision={}, fallback={}",
                     taskId, decision, fallbackReason);
         }
         stateService.markCompleted(taskId);
         progressService.clearProgress(taskId);
+    }
+
+    private static Map<String, Object> tableSplitView(TableCompleteness table) {
+        var completeness = table.completeness();
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("tableId", table.tableId());
+        view.put("declaredTotal", completeness == null ? null : completeness.declaredTotalScore());
+        view.put("decision", completeness == null ? "" : completeness.decision().name());
+        view.put("fallbackReason", completeness == null ? "" : completeness.fallbackReason());
+        return view;
     }
 
     private static WeightSumCheck.Result evidenceWeightResult(
@@ -232,21 +274,24 @@ final class StructuredTableExtractionHandler {
                   String failureReason,
                   boolean evidencePipeline,
                   List<ScoreFact> facts,
-                  ScoreCompletenessPolicy.ScoreCompletenessResult completeness) {
+                  ScoreCompletenessPolicy.ScoreCompletenessResult completeness,
+                  List<TableCompleteness> tableCompletenesses) {
 
         static Result ok(List<ScoreCandidate> candidates) {
-            return new Result(candidates, false, null, false, List.of(), null);
+            return new Result(candidates, false, null, false, List.of(), null, List.of());
         }
 
         static Result structureIncomplete(String failureReason) {
-            return new Result(List.of(), true, failureReason, false, List.of(), null);
+            return new Result(List.of(), true, failureReason, false, List.of(), null, List.of());
         }
 
         static Result evidencePipeline(List<ScoreFact> facts,
                                        List<ScoreCandidate> candidates,
-                                       ScoreCompletenessPolicy.ScoreCompletenessResult completeness) {
+                                       ScoreCompletenessPolicy.ScoreCompletenessResult completeness,
+                                       List<TableCompleteness> tableCompletenesses) {
             return new Result(candidates, false, null, true,
-                    facts == null ? List.of() : List.copyOf(facts), completeness);
+                    facts == null ? List.of() : List.copyOf(facts), completeness,
+                    tableCompletenesses == null ? List.of() : List.copyOf(tableCompletenesses));
         }
     }
 }
