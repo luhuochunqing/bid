@@ -4,8 +4,8 @@ space: engineering
 category: guide
 tags: [score-parse, spec059, 评分解析, DocumentArtifact, CanonicalTableGrid, ScoreFact]
 created: 2026-09-02
-updated: 2026-09-03
-health_checked: 2026-09-05
+updated: 2026-09-12
+health_checked: 2026-09-12
 sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreParseDecision.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreParseAppService.java
@@ -17,6 +17,8 @@ sources:
   - docs/lessons/scoreparse-golden-corpus/index.md
   - backend/src/test/java/com/xiyu/bid/scoreparse/application/ScoreCompletenessAcceptanceTest.java
   - backend/src/test/java/com/xiyu/bid/scoreparse/application/Incident1358RealCorpusGoldenTest.java
+  - src/composables/projectDetail/useScoreParseDrawer.js
+  - src/views/Project/stages/components/ScoreParseDrawer.vue
 backlinks:
   - _index
 ---
@@ -239,3 +241,13 @@ Fix A+B 的回归锚点仍是单元/验收级合成夹具，无法证明真实 1
 - 金标登记：`docs/lessons/scoreparse-golden-corpus/index.md`
 - Push gate 拦截事项：lint 模块依赖 / Wiki 健康检查需要 .wiki/ 变更配套
 - FP-Java 不变量：所有新增 record 的硬不变量走 Optional<validate>()，不抛业务异常
+
+## 人工复核「保留」按钮防重复提交（2026-09-12）
+
+- **背景**：`ScoreParseReviewPanel` 的「记录已复核，保留现有项」点击后只向 `score_parse_review` 落一条审计（`action=RETAIN_ORIGINAL`），`task.decisionStatus` 仍为 `REVIEW_REQUIRED` → 面板与"待人工复核"徽章持续显示、按钮可无限重复点击，向审计表插入重复记录（实测项目出现"审计 2 条"= 点击两次）。
+- **语义（非 bug）**：保留按钮只做**审计留痕，不改变 decisionStatus**；闭环证据是 `score_parse_review` 记录数，面板持续显示属设计如此。
+- **修复**：`useScoreParseDrawer.js` 新增 `reviewSubmitted` 状态：
+  - `submitReviewRetention` 成功后置 `true` → 按钮 disabled
+  - `loadReviewSnapshotIfNeeded` 加载快照时若 `audits` 已含 `RETAIN_ORIGINAL` 同样置灰（刷新 / 重开抽屉不复活按钮）
+  - `ScoreParseDrawer.vue` 绑定 `:submitting="reviewSubmitting || reviewSubmitted"`
+- **验证**：`useScoreParseDrawer.spec.js` 28 例全绿（新增 2 例：提交后置灰、刷新后已有审计置灰）。
