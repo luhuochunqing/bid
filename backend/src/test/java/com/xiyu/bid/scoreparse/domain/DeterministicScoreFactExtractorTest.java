@@ -124,6 +124,22 @@ class DeterministicScoreFactExtractorTest {
     }
 
     @Test
+    void misaligned_summary_row_does_not_leak_into_facts() {
+        CanonicalTableGrid grid = grid(List.of(
+                cell("t-0001-r0-c0", 0, 0, "编号"),
+                cell("t-0001-r0-c1", 0, 1, "评分因素"),
+                cell("t-0001-r0-c2", 0, 2, "评分标准"),
+                cell("t-0001-r0-c3", 0, 3, "分值"),
+                cell("t-0001-r1-c0", 1, 0, "合计"),
+                cell("t-0001-r1-c1", 1, 1, "12"),
+                cell("t-0001-r1-c2", 1, 2, "100"),
+                cell("t-0001-r1-c3", 1, 3, "")
+        ), 2, 4);
+
+        assertTrue(DeterministicScoreFactExtractor.extract(grid, mapping()).isEmpty());
+    }
+
+    @Test
     void rule_award_value_is_not_used_as_item_weight() {
         CanonicalTableGrid grid = grid(List.of(
                 cell("t-0001-r0-c0", 0, 0, "编号"),

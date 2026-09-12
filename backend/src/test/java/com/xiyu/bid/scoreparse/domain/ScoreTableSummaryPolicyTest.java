@@ -53,6 +53,20 @@ class ScoreTableSummaryPolicyTest {
         assertThat(ScoreTableSummaryPolicy.isSummaryRow("合计\n得分", "满分\n（100分）")).isTrue();
     }
 
+    @Test
+    void summaryRecognitionSurvivesMisalignedSummaryCells() {
+        CanonicalTableGrid grid = grid(List.of(
+                cell(0, 0, "编号"), cell(0, 1, "评分因素"), cell(0, 2, "评分标准"),
+                cell(1, 0, "合计"), cell(1, 1, "12"), cell(1, 2, "100")
+        ), 2);
+
+        assertThat(ScoreTableSummaryPolicy.extractDeclaredTotals(grid, mapping()))
+                .extracting(ScoreTableSummaryPolicy.DeclaredTotalEvidence::value)
+                .containsExactly(new BigDecimal("100.00"));
+        assertThat(ScoreTableSummaryPolicy.isSummaryRow(
+                grid.cellsInRow(1))).isTrue();
+    }
+
     private static TableColumnMapping mapping() {
         return new TableColumnMapping(0, -1, 1, 2, -1, 1, false);
     }

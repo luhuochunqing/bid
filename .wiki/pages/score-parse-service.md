@@ -18,6 +18,8 @@ sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreParseReviewAppService.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreReviewCandidateFactMapper.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreTableSummaryPolicy.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreCompletenessPolicy.java
+  - backend/src/test/resources/scoreparse-golden/case-misaligned-summary-row.md
   - document-converter-sidecar/converter.py
   - backend/src/test/java/com/xiyu/bid/scoreparse/golden/GoldenCasesReplaySupport.java
   - backend/src/test/java/com/xiyu/bid/scoreparse/golden/ScoreParseRealCorpusRecorderTest.java
@@ -446,3 +448,23 @@ trigger（同步<1s，互斥校验+建任务）
 - `ScoreParseAppServiceTest#parse_project1381PdfStructuredSummary_persistsAllEightItems`
 
 > 维护纪律：评分表总分属于表格结构事实。只要结构化汇总行可用，就不得再让 Markdown 正文正则覆盖它；正文解析仅是无结构化证据时的兼容通道。
+
+## 14. 错位合计行与无固定分值价格公式防复发（2026-09-12）
+
+### 生产证据
+
+- 项目 1377 新招标文件上传成功，`/review` 返回 `COMPLETED`、41 条 facts；失败发生在完整性裁决，不是上传、Sidecar 或 HTTP 请求失败。
+- 结构化评分表实际包含 `合计 | 12 | 100`；列映射按固定 code/dimension 列读取时无法识别该行，旧逻辑把合计数值泄漏进叶子事实，叶子权重累计为 381。
+- `折扣率评价` 是有规则但无固定最高分的价格公式。原始 `ScoreFact.weight` 为 null，持久化/前端展示阶段才可能显示为 0；在持久化前把该事实一律当作缺证据，导致 `MISSING_EVIDENCE`，最终 `/items` 为空。
+
+### 修复契约
+
+- `ScoreTableSummaryPolicy.isSummaryRow(rowCells)` 跨越列映射，按“汇总标签 + 总分标记或纯数字单元格”识别错位合计行；提取行内最大合理纯数字作为总分证据，并保留物理单元格出处。
+- `DeterministicScoreFactExtractor` 使用同一汇总行判定，汇总行只进入总分证据，不进入评分 facts。
+- `ScoreCompletenessPolicy` 仅豁免“价格公式语义命中且无固定分值”的事实；正分评分项、未知权重事实和其他零分事实仍要求可定位证据。
+
+### 防复发边界
+
+- 单元测试覆盖错位合计行、合计行不泄漏、原始 null 分值价格公式不阻断正分项；golden 夹具 `case-misaligned-summary-row` 保留脱敏版式样本。
+- 门禁要求评分解析主代码变更同步夹具或回放测试；禁止通过 `SCOREPARSE_GATE_SKIP` 绕过新版式回归。
+- 这能根治本次“合计错位 + 价格公式误阻断”故障类，但任意新文档版式仍需新增脱敏夹具和结构化证据验证；发布后必须对项目 1377 重解析，验收 `/review`、`/items` 与页面三层结果。
