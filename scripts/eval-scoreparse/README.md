@@ -23,6 +23,8 @@ backend/src/test/resources/scoreparse-golden/
 ├── case-weight-gap-mixed.expected.json      对应金标标注（threshold 0.5）
 ├── case-1374-redundant-formula.md           项目1374回归：冗余价格公式行 + 评标基准价重复行（fix 1919ecb41）
 ├── case-1374-redundant-formula.expected.json  对应金标标注（threshold 0.95，expectTotal 100）
+├── case-declared-total-80.md                 Task2回归：声明总分80 + 评分项合计80 不按100误判
+├── case-declared-total-80.expected.json      对应金标标注（threshold 0.95，expectTotal 80）
 ├── case-3col-embedded-bracket-weight.md     3列内嵌分值 + 维度名 br 换行（fix a1b3b7c55）
 └── case-3col-embedded-bracket-weight.expected.json  对应金标标注（threshold 0.95，strictDim）
 ```

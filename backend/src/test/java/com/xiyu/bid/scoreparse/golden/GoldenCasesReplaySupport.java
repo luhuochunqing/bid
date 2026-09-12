@@ -374,6 +374,17 @@ final class GoldenCasesReplaySupport {
         return ONE_HUNDRED;
     }
 
+    static BigDecimal expectedTotal(JsonNode expectedRoot) {
+        if (expectedRoot.hasNonNull("expectTotal")) {
+            return new BigDecimal(expectedRoot.get("expectTotal").asText());
+        }
+        return ONE_HUNDRED;
+    }
+
+    static BigDecimal normalizationTolerance() {
+        return NORMALIZATION_TOLERANCE;
+    }
+
     static WeightNormalizationPolicy.Result normalizeCandidates(List<ScoreCandidate> candidates) {
         return new WeightNormalizationPolicy().normalize(candidates);
     }

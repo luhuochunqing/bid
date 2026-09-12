@@ -5532,4 +5532,47 @@ SDK 自身仍每约 3 秒更新 `lastRenewalTime`。这排除了 advertised 地�
 | **通道权威性等级对齐** | 表格直抽具备 100% 逐字保真，却标记为普通 pattern 导致无法享受最高安全回注 | 确定性表格直抽通道必须对齐到系统顶层最高权威标记（`STRUCTURED_TABLE`），天然豁免大模型概括词句判幻觉阻断 |
 | **多通道合并原文穿透与防污染** | 前置通道先入池，用弱信息甚至空串覆盖后置权威通道的真实原文背书与细则 | 多通道合并策略中必须以“结构化权威优先”和“原文背书优先”为铁律，禁止无背书长文本冲刷有背书精准确切文本 |
 
+---
 
+## 355. AI 评分解析 task2：Evidence Pipeline 主链路接入与 REVIEW_REQUIRED 不覆盖旧项（2026-09-12）
+
+### 问题背景
+
+PR #2620 已经补上 Sidecar v1 schema mismatch 的 fail-fast 防线，但 task2 仍存在两个链路级缺口：
+
+1. `SidecarDocumentArtifactExtractor`、`ScoreFactShadowPipeline`、`ScoreCompletenessPolicy` 已经具备 v2 DocumentArtifact → CanonicalTableGrid → ScoreFact → completeness 的证据化能力，但生产 `ScoreParseAppService` 仍优先走旧 v1 table extractor / markdown / LLM 后处理；Evidence Pipeline 停留在“影子只读验证器”，无法承担最终落库决策。
+2. legacy 后处理把 `REVIEW_REQUIRED` 仍当成“可展示有效项”直接覆盖 `score_item` 并触发估分。权重缺口、结构不完整、完整性回补触发等状态本质是不可信结果，继续覆盖旧项会把“待复核”伪装成新的生产评分标准。
+
+### 根因分析
+
+- **状态机与落库边界混淆**：`COMPLETED` 只是异步任务终态，不等于解析结果可覆盖业务评分项。真正决定是否覆盖的是 `ScoreParseDecision`。
+- **影子链路未接主流程**：v2 artifact 的事实与证据已经可验证，但 AppService 没有在 docx 主入口优先消费 `SidecarDocumentArtifactExtractor`。
+- **历史妥协被测试固化**：旧测试命名与断言仍写着 `REVIEW_REQUIRED still persists`，把事故期为了“先展示”的权宜逻辑变成了回归保护。
+
+### 落地规则
+
+1. **docx 主链路优先走 Evidence Pipeline**：
+   - `StructuredTableExtractionHandler` 在存在 `SidecarDocumentArtifactExtractor` 时调用 v2 `/extract-tables`；
+   - 成功后执行 `ScoreFactShadowPipeline.run`，并把招标正文传入 `ScoreCompletenessPolicy` 解析声明总分，得出 `AUTO_APPROVED / REVIEW_REQUIRED / PARSE_FAILED / STRUCTURE_INCOMPLETE`；
+   - `run_summary` 与 task 字段写入 `EVIDENCE_PIPELINE_V1`、决策状态、fallback reason。
+2. **只有 `AUTO_APPROVED` 可覆盖 `score_item`**：
+   - `AUTO_APPROVED`：双写 facts/evidence，覆盖 `score_item`，触发预计得分；
+   - `REVIEW_REQUIRED`：只写 facts/evidence 与 task 复核状态，保留旧 `score_item`，不触发估分；
+   - `STRUCTURE_INCOMPLETE`：完成任务但保留旧项；
+   - `PARSE_FAILED`：失败终态，保留旧项。
+3. **AppService 继续保持纯编排**：Evidence 完成收口放在 `StructuredTableExtractionHandler.markEvidencePipelineCompleted`，`ScoreParseAppService` 保持 300 行以内。
+
+### 回归锚点
+
+- `ScoreParseAppServiceTest#parse_docxEvidencePipelineAutoApproved_skipsLegacyRecallAndPersistsFacts`
+- `ScoreParseAppServiceTest#parse_docxEvidencePipelineReviewRequired_preservesExistingItemsButPersistsFacts`
+- `ScoreParseAppServiceTest#parse_reviewRequired_preservesExistingItemsWithReviewFlag`
+- `ScoreCompletenessAcceptanceTest#invariant3_reviewRequired_preservesExistingItemsWithReviewFlag`
+
+### 经验教训与规范
+
+| 维度 | 常见陷阱 | 规范与对策 |
+|---|---|---|
+| **任务终态 vs 业务可信度** | 把异步任务 `COMPLETED` 当作“可覆盖评分项”的信号 | 覆盖 `score_item` 必须以 `ScoreParseDecision.AUTO_APPROVED` 为唯一门槛 |
+| **影子验证器孤岛** | 领域链路已可验证，但主流程继续绕回 legacy 路径 | 影子链路成熟后必须接入生产入口，并用“跳过 legacy recall”的断言锁定 |
+| **复核态误覆盖** | `REVIEW_REQUIRED` 仍写入正式评分项，导致旧可用结果被半成品洗掉 | `REVIEW_REQUIRED` 只能保留 facts/evidence 与复核原因，不覆盖旧项、不估分 |

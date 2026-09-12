@@ -18,10 +18,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Artifact → CanonicalTableGrid → ScoreFact 影子组装管道（spec 059）。
+ * Artifact → CanonicalTableGrid → ScoreFact 组装管道（spec 059）。
  * <p>把 Phase 1 的结构契约与 Phase 2 的确定性抽取串成一条可端到端验证的
- * <b>只读</b>管道：不落库、不调 LLM、不调归一化。生产链路切换在 Phase 3/4
- * 进行；在此之前本管道承担：
+ * <b>纯转换/校验</b>管道：不落库、不调 LLM、不调归一化。生产主链路调用本管道后，
+ * 仍由 application 层根据 {@link ScoreCompletenessPolicy.ScoreCompletenessResult}
+ * 决定是否覆盖兼容 {@code score_item}。本管道承担：
  * <ul>
  *   <li>影子执行验证器——Sidecar 抽取结果可随时用本管道比对确定性产物；</li>
  *   <li>迁移前对照基线——金标语料（docs/lessons/scoreparse-golden-corpus）
@@ -41,10 +42,14 @@ public final class ScoreFactShadowPipeline {
      * 由调用方按 {@code STRUCTURE_INCOMPLETE} 处理——绝不回退旧字符串表格。
      */
     public static ShadowResult run(DocumentArtifact artifact) {
+        return run(artifact, null);
+    }
+
+    public static ShadowResult run(DocumentArtifact artifact, String tenderSectionText) {
         if (artifact == null) {
             return new ShadowResult(List.of(), 0,
                     new ScoreFactValidator.ValidationResult(false, false, List.of("artifact is null")),
-                    ScoreCompletenessPolicy.evaluateCompleteness(List.of(), null, false));
+                    ScoreCompletenessPolicy.evaluateCompleteness(List.of(), tenderSectionText, false));
         }
         List<TableOutcome> outcomes = new ArrayList<>();
         int skipped = 0;
@@ -66,7 +71,7 @@ public final class ScoreFactShadowPipeline {
         boolean allValid = outcomes.stream().allMatch(TableOutcome::structurallyValid);
         return new ShadowResult(List.copyOf(outcomes), skipped,
                 ScoreFactValidator.validateScoringSet(allFacts),
-                ScoreCompletenessPolicy.evaluateCompleteness(allFacts, null, allValid));
+                ScoreCompletenessPolicy.evaluateCompleteness(allFacts, tenderSectionText, allValid));
     }
 
     /**

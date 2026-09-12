@@ -868,3 +868,10 @@
 - 根因：v1 表格客户端没有统一校验响应头/响应体 schemaVersion 与 v2 DocumentArtifact 形态；结构化通道失败被当成普通召回失败，而非结构缺失业务状态。
 - 修复：新增 `SidecarSchemaContract` 与 `StructuredTableExtractionHandler`，schema mismatch 直接映射 `STRUCTURE_INCOMPLETE/STRUCTURE_DEFECT`，任务完成但不持久化新项、不触发预计得分；`GoldenCasesReplaySupport` 收口金标 PRF、strictDim、sourceText、expectTotal 口径。
 - 回填：更新 [[score-parse-service]] §PR #2620 Sidecar 协议漂移与结构缺失保留策略。
+
+## [2026-09-12] fix | 评分解析 task2 Evidence Pipeline 主链路收敛
+
+- 触发：PR #2620 合并后继续 task2，要求把 AI 评分解析全链路最终收敛。
+- 根因：v2 `SidecarDocumentArtifactExtractor` / `ScoreFactShadowPipeline` 仍是影子链路，生产解析继续绕回 legacy；同时 `REVIEW_REQUIRED` 仍覆盖 `score_item` 并估分，导致待复核半成品洗掉旧可用评分项。
+- 修复：docx 主链路优先执行 `DocumentArtifact → CanonicalTableGrid → ScoreFact → ScoreCompletenessPolicy`，写入 `EVIDENCE_PIPELINE_V1`；只有 `AUTO_APPROVED` 可覆盖评分项并估分，`REVIEW_REQUIRED/STRUCTURE_INCOMPLETE/PARSE_FAILED` 均保留旧项。Evidence REVIEW 仍双写 facts/evidence 供复核。
+- 回填：更新 [[score-parse-service]] §Task2 Evidence Pipeline 主链路收敛与复核态保留旧项；新增 lessons-learned §355。

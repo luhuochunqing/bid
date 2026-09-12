@@ -11,6 +11,7 @@ import com.xiyu.bid.scoreparse.domain.RecallOutcome;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.WeightSumCheck;
+import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
 import com.xiyu.bid.scoreparse.entity.ScoreParseTask;
 import com.xiyu.bid.scoreparse.infrastructure.openai.LlmTableScoreExtractor;
@@ -92,6 +93,8 @@ class ScoreParseAppServiceTest {
     @Mock
     private ObjectProvider<ScoreGlobalMergeExecutor> mergeExecutorProvider;
     @Mock
+    private ObjectProvider<SidecarDocumentArtifactExtractor> artifactExtractorProvider;
+    @Mock
     private ObjectProvider<LlmTableScoreExtractor> llmTableScoreExtractorProvider;
     @Mock
     private ObjectProvider<ScoreTableSchemaMapper> schemaMapperProvider;
@@ -103,6 +106,7 @@ class ScoreParseAppServiceTest {
         // spec 057：治理链入 PostProcessor——真实领域策略+真编排器（executor 缺席即 fail-open，
         // 归并裁决语义由 OrchestratorTest / PostProcessorTest 各自专项覆盖）
         lenient().when(mergeExecutorProvider.getIfAvailable()).thenReturn(null);
+        lenient().when(artifactExtractorProvider.getIfAvailable()).thenReturn(null);
         lenient().when(llmTableScoreExtractorProvider.getIfAvailable()).thenReturn(null);
         lenient().when(schemaMapperProvider.getIfAvailable()).thenReturn(null);
         postProcessor = new ScoreCandidatePostProcessor(scoreAnalyzer,
@@ -113,7 +117,7 @@ class ScoreParseAppServiceTest {
                 stateService, progressService, snapshotRepository,
                 projectAccessScopeService, scoreAnalyzer, estimatedScoreService,
                 itemPersistenceService, initiationTenderTextResolver, sidecarTableExtractor,
-                postProcessor, llmTableScoreExtractorProvider, schemaMapperProvider);
+                artifactExtractorProvider, postProcessor, llmTableScoreExtractorProvider, schemaMapperProvider);
         ReflectionTestUtils.setField(service, "self", service);
     }
 
@@ -211,10 +215,9 @@ class ScoreParseAppServiceTest {
     }
 
     @Test
-    void parse_reviewRequired_stillPersistsItemsWithReviewFlag() {
-        // spec 059 修复：REVIEW_REQUIRED 不再 all-or-nothing 丢弃整批结果。
-        // 权重合计 50+30=80 不符 100 → 决策 REVIEW_REQUIRED，但解析产出的有效项仍须落库展示，
-        // 复核标记保留在 task 上供前端提示；禁止静默丢弃（1358 漏识别事故根因）。
+    void parse_reviewRequired_preservesExistingItemsWithReviewFlag() {
+        // task2 收敛：权重合计 50+30=80 不符 100 → 决策 REVIEW_REQUIRED，
+        // 只能记录任务复核状态，禁止覆盖既有 score_item 或触发估分。
         ScoreParseTask task = mockParseFlowReturning(List.of(
                 candidate("A1", "资质", "具备 CMMI 认证", "50"),
                 candidate("A2", "业绩", "近三年业绩", "30")));
@@ -222,10 +225,8 @@ class ScoreParseAppServiceTest {
         service.executeParseAsync(TASK_ID);
 
         verify(stateService).markCompleted(TASK_ID);
-        assertThat(capturedPersistedCandidates().getValue())
-                .extracting(ScoreCandidate::code)
-                .containsExactly("A1", "A2");
-        verify(estimatedScoreService).estimateForProject(PROJECT_ID);
+        verify(itemPersistenceService, never()).persistItems(any(), any(), anyList());
+        verify(estimatedScoreService, never()).estimateForProject(any());
         assertThat(task.getDecisionStatus()).isEqualTo("REVIEW_REQUIRED");
         assertThat(task.getFallbackReason()).isEqualTo("WEIGHT_SUM_MISMATCH");
     }
@@ -241,7 +242,7 @@ class ScoreParseAppServiceTest {
                 stateService, progressService, snapshotRepository,
                 projectAccessScopeService, scoreAnalyzer, estimatedScoreService,
                 itemPersistenceService, initiationTenderTextResolver, sidecarTableExtractor,
-                mockPostProcessor, llmTableScoreExtractorProvider, schemaMapperProvider);
+                artifactExtractorProvider, mockPostProcessor, llmTableScoreExtractorProvider, schemaMapperProvider);
         ReflectionTestUtils.setField(structureService, "self", structureService);
 
         ScoreParseTask task = mockParseFlowReturning(defaultCandidates());
@@ -288,10 +289,118 @@ class ScoreParseAppServiceTest {
         assertThat(task.getRunSummary()).isNotBlank();
     }
 
+    @Test
+    void parse_docxEvidencePipelineAutoApproved_skipsLegacyRecallAndPersistsFacts() throws Exception {
+        ScoreParseTask task = docxTaskWithBytes();
+        SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
+        when(artifactExtractorProvider.getIfAvailable()).thenReturn(artifactExtractor);
+        when(artifactExtractor.extract(any(byte[].class), eq("bid.docx")))
+                .thenReturn(evidenceArtifact("60", "40"));
+
+        service.executeParseAsync(TASK_ID);
+
+        verify(scoreAnalyzer, never()).recallCandidates(anyString(), isNull(), any());
+        verify(sidecarTableExtractor, never()).extract(any(byte[].class), anyString());
+        verify(itemPersistenceService).persistFactsAndEvidence(eq(PROJECT_ID), eq(5L), anyList());
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(5L), anyList());
+        verify(estimatedScoreService).estimateForProject(PROJECT_ID);
+        verify(stateService).markCompleted(TASK_ID);
+        assertThat(task.getPipelineVersion()).isEqualTo("EVIDENCE_PIPELINE_V1");
+        assertThat(task.getDecisionStatus()).isEqualTo("AUTO_APPROVED");
+        assertThat(task.getFallbackReason()).isNull();
+        assertThat(task.getRunSummary()).contains("\"pipelineVersion\":\"EVIDENCE_PIPELINE_V1\"");
+    }
+
+    @Test
+    void parse_docxEvidencePipelineReviewRequired_preservesExistingItemsButPersistsFacts() throws Exception {
+        ScoreParseTask task = docxTaskWithBytes();
+        SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
+        when(artifactExtractorProvider.getIfAvailable()).thenReturn(artifactExtractor);
+        when(artifactExtractor.extract(any(byte[].class), eq("bid.docx")))
+                .thenReturn(evidenceArtifact("60", "20"));
+
+        service.executeParseAsync(TASK_ID);
+
+        verify(scoreAnalyzer, never()).recallCandidates(anyString(), isNull(), any());
+        verify(itemPersistenceService).persistFactsAndEvidence(eq(PROJECT_ID), eq(5L), anyList());
+        verify(itemPersistenceService, never()).persistItems(any(), any(), anyList());
+        verify(estimatedScoreService, never()).estimateForProject(any());
+        verify(stateService).markCompleted(TASK_ID);
+        assertThat(task.getPipelineVersion()).isEqualTo("EVIDENCE_PIPELINE_V1");
+        assertThat(task.getDecisionStatus()).isEqualTo("REVIEW_REQUIRED");
+        assertThat(task.getFallbackReason()).isEqualTo("WEIGHT_SUM_MISMATCH");
+        assertThat(task.getOriginalTotalWeight()).isEqualByComparingTo("80");
+        assertThat(task.getNormalizationWarning()).contains("保留旧评分项待复核");
+    }
+
+    @Test
+    void parse_docxEvidencePipelineAutoApproved_usesDeclaredTotalInsteadOfHardcoded100() throws Exception {
+        ScoreParseTask task = docxTaskWithBytes("本项目评分总分：80分。");
+        SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
+        when(artifactExtractorProvider.getIfAvailable()).thenReturn(artifactExtractor);
+        when(artifactExtractor.extract(any(byte[].class), eq("bid.docx")))
+                .thenReturn(evidenceArtifact("60", "20"));
+
+        service.executeParseAsync(TASK_ID);
+
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(5L), anyList());
+        verify(estimatedScoreService).estimateForProject(PROJECT_ID);
+        assertThat(task.getDecisionStatus()).isEqualTo("AUTO_APPROVED");
+        assertThat(task.getOriginalTotalWeight()).isNull();
+        assertThat(task.getNormalizationWarning()).isNull();
+        assertThat(task.getRunSummary())
+                .contains("\"finalTotalWeight\":80")
+                .contains("\"decisionStatus\":\"AUTO_APPROVED\"");
+    }
+
     private List<ScoreCandidate> defaultCandidates() {
         return List.of(
                 candidate("A1", "资质", "具备 CMMI 5 级认证证书", "60"),
                 candidate("A2", "业绩", "近三年类似项目业绩不少于 3 个", "40"));
+    }
+
+    private ScoreParseTask docxTaskWithBytes() throws Exception {
+        return docxTaskWithBytes("评分办法：总分100分。");
+    }
+
+    private ScoreParseTask docxTaskWithBytes(String text) throws Exception {
+        ScoreParseTask task = ScoreParseTask.builder()
+                .id(5L).taskId(TASK_ID).projectId(PROJECT_ID).taskType("PARSE").status("PENDING").build();
+        when(taskRepository.findByTaskId(TASK_ID)).thenReturn(Optional.of(task));
+        when(initiationTenderTextResolver.resolveIntake(PROJECT_ID))
+                .thenReturn(TenderIntake.found(new TenderTextSource(
+                        "bid.docx", "doc-insight://t/1", text)));
+        when(initiationTenderTextResolver.loadBytes("doc-insight://t/1"))
+                .thenReturn("docx-bytes".getBytes(StandardCharsets.UTF_8));
+        return task;
+    }
+
+    private DocumentArtifact evidenceArtifact(String firstWeight, String secondWeight) {
+        return new DocumentArtifact(
+                new DocumentArtifact.ArtifactMeta("doc-1", "sha256:test", "DOCX", "table-v2"),
+                List.of(new DocumentArtifact.CanonicalTable(
+                        "t-0000", null, "评分标准", 3, 4, List.of(), List.of(
+                                artifactCell("t-0000-r0-c0", 0, 0, "编号"),
+                                artifactCell("t-0000-r0-c1", 0, 1, "评分因素"),
+                                artifactCell("t-0000-r0-c2", 0, 2, "评分标准"),
+                                artifactCell("t-0000-r0-c3", 0, 3, "分值"),
+                                artifactCell("t-0000-r1-c0", 1, 0, "A1"),
+                                artifactCell("t-0000-r1-c1", 1, 1, "商务资质"),
+                                artifactCell("t-0000-r1-c2", 1, 2, "资质证书齐全"),
+                                artifactCell("t-0000-r1-c3", 1, 3, firstWeight),
+                                artifactCell("t-0000-r2-c0", 2, 0, "A2"),
+                                artifactCell("t-0000-r2-c1", 2, 1, "技术方案"),
+                                artifactCell("t-0000-r2-c2", 2, 2, "方案完整可行"),
+                                artifactCell("t-0000-r2-c3", 2, 3, secondWeight)),
+                        true)),
+                List.of());
+    }
+
+    private DocumentArtifact.CanonicalTable.CanonicalCellDto artifactCell(
+            String id, int row, int column, String text) {
+        return new DocumentArtifact.CanonicalTable.CanonicalCellDto(
+                id, row, column, text, text, 1, 1, false,
+                "/w:document[1]/w:body[1]/w:tbl[1]/w:tr[" + (row + 1) + "]/w:tc[" + (column + 1) + "]");
     }
 
     private ScoreParseTask mockParseFlowReturning(List<ScoreCandidate> recalled) {

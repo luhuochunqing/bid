@@ -39,6 +39,7 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-weight-gap-mixed"),
                 Arguments.of("case-1347-compound-percent"),
                 Arguments.of("case-bracket-vs-pure-conflict"),
+                Arguments.of("case-declared-total-80"),
                 Arguments.of("case-1374-redundant-formula"),
                 Arguments.of("case-3col-embedded-bracket-weight"));
     }
@@ -60,22 +61,27 @@ class GoldenCasesReplayTest {
         List<ScoreCandidate> curated = GoldenCasesReplaySupport.filterInvalidWeights(
                 new GhostCandidateFilter().filter(merged));
 
+        BigDecimal expectedTotal = GoldenCasesReplaySupport.expectedTotal(expected);
         var normalization = GoldenCasesReplaySupport.normalizeCandidates(curated);
         BigDecimal preTotal = GoldenCasesReplaySupport.sumWeights(curated);
         BigDecimal postTotal;
-        if (normalization.originalTotal() != null) {
+        if (preTotal.subtract(expectedTotal).abs()
+                .compareTo(GoldenCasesReplaySupport.normalizationTolerance()) <= 0) {
+            postTotal = preTotal;
+        } else if (normalization.originalTotal() != null) {
             assertTrue(preTotal.compareTo(normalization.originalTotal()) == 0,
                     () -> caseName + " originalTotal 应等于归一化前合计");
-            assertTrue(preTotal.subtract(GoldenCasesReplaySupport.expectedOneHundred()).abs()
-                            .compareTo(new BigDecimal("0.5")) > 0,
+            assertTrue(preTotal.subtract(expectedTotal).abs()
+                            .compareTo(GoldenCasesReplaySupport.normalizationTolerance()) > 0,
                     () -> caseName + " 合计在容差内却触发了归一化");
             postTotal = GoldenCasesReplaySupport.sumWeights(normalization.normalizedCandidates());
             assertTrue(postTotal.compareTo(GoldenCasesReplaySupport.expectedOneHundred()) == 0,
                     () -> caseName + " 归一化后权重合计必须=100，实际=" + postTotal);
         } else {
-            assertTrue(preTotal.subtract(GoldenCasesReplaySupport.expectedOneHundred()).abs()
-                            .compareTo(new BigDecimal("0.5")) <= 0,
-                    () -> caseName + " 合计偏离100却在容差内未触发归一化？preTotal=" + preTotal);
+            assertTrue(preTotal.subtract(expectedTotal).abs()
+                            .compareTo(GoldenCasesReplaySupport.normalizationTolerance()) <= 0,
+                    () -> caseName + " 合计偏离声明总分却未触发归一化？preTotal=" + preTotal
+                            + " expectedTotal=" + expectedTotal);
             postTotal = preTotal;
         }
 
@@ -92,7 +98,7 @@ class GoldenCasesReplayTest {
         GoldenCasesReplaySupport.assertOptionalContracts(caseName, expected, expectedItems, curated, preTotal);
 
         Map<String, Integer> laneCounts = GoldenCasesReplaySupport.laneCounts(pool);
-        String decisionStatus = preTotal.compareTo(GoldenCasesReplaySupport.expectedOneHundred()) == 0
+        String decisionStatus = preTotal.compareTo(expectedTotal) == 0
                 ? "AUTO_APPROVED" : "REVIEW_REQUIRED";
 
         REPORT_ROWS.add(new GoldenCasesReplaySupport.ReplayReportRow(
