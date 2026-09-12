@@ -31,6 +31,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -259,6 +260,32 @@ class ScoreParseAppServiceTest {
         verify(estimatedScoreService, never()).estimateForProject(any());
         verify(stateService).markCompleted(TASK_ID);
         assertThat(task.getDecisionStatus()).isEqualTo("STRUCTURE_INCOMPLETE");
+    }
+
+    @Test
+    void parse_docxStructuredMismatch_marksStructureIncompleteAndSkipRecall() throws Exception {
+        ScoreParseTask task = ScoreParseTask.builder()
+                .id(5L).taskId(TASK_ID).projectId(PROJECT_ID).taskType("PARSE").status("PENDING").build();
+        when(taskRepository.findByTaskId(TASK_ID)).thenReturn(Optional.of(task));
+        TenderTextSource source = new TenderTextSource("bid.docx", "doc-insight://t/1", "评分办法：...");
+        when(initiationTenderTextResolver.resolveIntake(PROJECT_ID))
+                .thenReturn(TenderIntake.found(source));
+        when(initiationTenderTextResolver.loadBytes("doc-insight://t/1"))
+                .thenReturn("docx-bytes".getBytes(StandardCharsets.UTF_8));
+        when(sidecarTableExtractor.extract(any(byte[].class), eq("bid.docx")))
+                .thenThrow(new IllegalStateException("Sidecar 表格提取协议版本不匹配：期望 X-Schema-Version=1.0，实际响应体 v2。"));
+
+        service.executeParseAsync(TASK_ID);
+
+        verify(scoreAnalyzer, never()).recallCandidates(anyString(), isNull(), any());
+        verify(itemPersistenceService, never()).persistItems(any(), any(), anyList());
+        verify(estimatedScoreService, never()).estimateForProject(any());
+        verify(sidecarTableExtractor).extract(any(byte[].class), eq("bid.docx"));
+        verify(stateService).markCompleted(TASK_ID);
+        assertThat(task.getPipelineVersion()).isEqualTo("LEGACY_FALLBACK");
+        assertThat(task.getDecisionStatus()).isEqualTo("STRUCTURE_INCOMPLETE");
+        assertThat(task.getFallbackReason()).isEqualTo("STRUCTURE_DEFECT");
+        assertThat(task.getRunSummary()).isNotBlank();
     }
 
     private List<ScoreCandidate> defaultCandidates() {
