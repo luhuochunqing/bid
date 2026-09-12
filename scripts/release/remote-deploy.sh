@@ -124,12 +124,16 @@ if [[ -f "$SIDECAR_ARCHIVE" ]]; then
       # 内存 4g（1373 根治：428MB PDF 全量解析曾以 ~2.98GB RSS 撞 3g 上限被 OOM-kill；
       # 测试服 7.4GB/可用 4.5GB、生产 15GB/可用 11GB，4g 双环境均安全；5g+ 无 swap 下有宿主 OOM 风险）
       # 鉴权：SIDECAR_SHARED_KEY 由部署调用方 source /etc/xiyu-bid/backend.env 提供；
-      # 设置后 sidecar 校验 X-Sidecar-Key（后端适配器以同一 key 发送头），未设置则保持开发态不启用
-      $DOCKER_BIN run -d --name xiyu-sidecar --restart=always -p 8000:8000 \
+      # 设置后 sidecar 校验 X-Sidecar-Key（后端适配器以同一 key 发送头），未设置则保持开发态不启用。
+      # ⚠️ 禁止用 "${SIDECAR_SHARED_KEY:-}" 无条件下发：空字符串会使 sidecar 端
+      # _SHARED_KEY 非 None，误启用鉴权导致 401（2026-09-12 解析降级根因）。
+      SIDECAR_RUN_ARGS=(run -d --name xiyu-sidecar --restart=always -p 8000:8000 \
         --memory=4g --memory-swap=4g \
-        -e SIDECAR_HOST=0.0.0.0 -e SIDECAR_PORT=8000 -e SIDECAR_MAX_UPLOAD_MB=3072 \
-        -e SIDECAR_SHARED_KEY="${SIDECAR_SHARED_KEY:-}" \
-        document-converter-sidecar:latest
+        -e SIDECAR_HOST=0.0.0.0 -e SIDECAR_PORT=8000 -e SIDECAR_MAX_UPLOAD_MB=3072)
+      if [[ -n "${SIDECAR_SHARED_KEY:-}" ]]; then
+        SIDECAR_RUN_ARGS+=(-e "SIDECAR_SHARED_KEY=${SIDECAR_SHARED_KEY}")
+      fi
+      $DOCKER_BIN "${SIDECAR_RUN_ARGS[@]}" document-converter-sidecar:latest
       printf '%s\n' "$NEW_SIDECAR_HASH" > "$SIDECAR_DIR/.deployed_sha256"
       printf '✅ Sidecar 容器升级完成\n'
       # ── Sidecar 健康门禁（发布闭环 Stage D：后端停止前拦截，失败零影响）──

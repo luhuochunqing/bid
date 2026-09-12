@@ -353,9 +353,14 @@ md = MarkItDown()
 # ---------------------------------------------------------------------------
 
 async def _check_auth(x_sidecar_key: str | None = Header(default=None)) -> None:
-    """Reject requests with wrong/missing key when SIDECAR_SHARED_KEY is configured."""
-    if _SHARED_KEY is None:
-        return  # auth disabled in dev mode
+    """Reject requests with wrong/missing key when SIDECAR_SHARED_KEY is configured.
+
+    Uses `not _SHARED_KEY` (not `is None`) so an empty-string env var also disables
+    auth — otherwise every request 401s (2026-09-12 parsing-degradation root cause,
+    see scripts/release/remote-deploy.sh).
+    """
+    if not _SHARED_KEY:
+        return  # auth disabled when key is unset or empty
     if x_sidecar_key is None or not secrets.compare_digest(x_sidecar_key, _SHARED_KEY):
         raise HTTPException(status_code=401, detail="认证失败")
 
