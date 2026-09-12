@@ -4,8 +4,8 @@ space: engineering
 category: module
 tags: [评分标准, scoreparse, LLM, 知识库匹配, 异步任务, 阶段打分]
 created: 2026-08-15
-updated: 2026-09-07
-health_checked: 2026-09-07
+updated: 2026-09-12
+health_checked: 2026-09-12
 sources:
   - specs/041-ai-score-parse-backend/spec.md
   - specs/041-ai-score-parse-backend/plan.md
@@ -13,6 +13,9 @@ sources:
   - specs/046-fix-score-parse-ghost/spec.md
   - specs/047-fix-score-weight-gap/spec.md
   - backend/src/main/java/com/xiyu/bid/scoreparse/
+  - backend/src/main/java/com/xiyu/bid/scoreparse/application/SidecarSchemaContract.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/application/StructuredTableExtractionHandler.java
+  - backend/src/test/java/com/xiyu/bid/scoreparse/golden/GoldenCasesReplaySupport.java
   - docs/implementation-notes/ai-score-parse-backend.md
   - specs/048-score-parse-image-multimodal/spec.md
   - docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md
@@ -238,6 +241,15 @@ trigger（同步<1s，互斥校验+建任务）
 - **全局归并降级为排序/过滤（Phase 3）**：`ScoreGlobalMergeOrchestrator` 对结构化通道结果只做排序与过滤，禁止 LLM 替换其字段值，防止归并环节把已保真的结果洗成概括文本。
 - **归一化告警不再静默洗白（Phase 2）**：`WeightNormalizationPolicy.WARNING_THRESHOLD = 0.05`，缩放幅度 >5% 时产出 warning。落库走 `V1206__add_score_task_normalization_warning.sql` **独立列**（非塞进 `run_summary`）→ DTO Summary 字段 → 前端告警条。
   - **边界决策**：`run_summary` 是内部遥测（开发者查库复盘 lanes/aligned/merge 计数），`normalization_warning` 是用户可见的正确性信号，受众不同故通道不同。`RunSummaryAssembler` 无需改动。依据 `docs/reviews/057-design-detour-review.md` P5。
+
+## PR #2620 Sidecar 协议漂移与结构缺失保留策略（2026-09-12）
+
+- **根因**：`SidecarTableExtractor` 仍按 v1 `/extract-tables` 表格协议消费响应，但 sidecar 可能返回 v2 `DocumentArtifact` 形态或 `schemaVersion` 非 1.x。旧实现把协议漂移当普通失败降级 markdown，导致已知结构缺失仍继续走启发式召回，最终可能覆盖既有评分项。
+- **协议防线**：`SidecarSchemaContract` 是唯一 v1 表格协议守卫。它同时检查响应头 `X-Schema-Version`、响应体 `schemaVersion` 和 v2 `artifact` 形态；发现不匹配立即 fail-fast，并给出升级到 `SidecarDocumentArtifactExtractor` 或回退 sidecar 版本的明确提示。
+- **业务语义**：docx 结构化通道失败不是“没有表格”，而是“结构不可信”。`StructuredTableExtractionHandler` 将这类失败映射为 `STRUCTURE_INCOMPLETE / STRUCTURE_DEFECT`，任务可 `markCompleted`，但禁止 `persistItems` 和 `estimateForProject`，以保留旧 `score_item`，避免用不完整结果覆盖可用数据。
+- **编排边界**：`ScoreParseAppService` 只保留流程编排，结构化抽取和结构缺失任务收口放在同包 Handler；主服务维持 300 行 line-budget 内（当前约 282 行），后续不要把 Sidecar 协议判断或 run summary 组装塞回 AppService。
+- **金标维护性**：`GoldenCasesReplayTest` 只保留回放流程；匹配、PRF、报告 JSON、`strictDim`、`sourceText`、`expectTotal` 等口径集中到 `GoldenCasesReplaySupport`。新增金标断言必须先进入 Support，避免测试类重新膨胀。
+- **验证锚点**：`ScoreParseAppServiceTest.parse_docxStructuredMismatch_marksStructureIncompleteAndSkipRecall` 锁定 v2 mismatch 不再进入 markdown/LLM 召回；`SidecarTableExtractorTest` 锁定协议 mismatch；`GoldenCasesReplayTest` 覆盖 PR #2620 新增 1374 与 3 列内嵌权重夹具。
 - **Prompt 硬编码治理（Phase 3）**：`ScoreParsePrompts` 三个 build 方法（`buildCandidateExtractionPrompt` / `buildGapRecheckPrompt` / `buildGlobalMergePrompt`）清除项目 1358 特定维度名，项目词汇改由注册表注入。回归守卫 `prompts_containNoProjectSpecificDimensionNames` 反向断言三个 prompt 均不含项目特定维度名。
 - **escape-hatch 词汇注册表（Phase 5）**：`ScoreVocabularyRegistry`（Builder + 不可变 `Entry` record，global/project 两级）提供 `matches` / `isWeightInRange` / `getEntries` / `matchesAny` / `findMatch` / `toPromptExamples`；`ScoreVocabularyConfiguration` 注册 8 条全局词汇 Bean。纯核心无框架依赖（FP-Java，受 `preflight-domain-purity` 守卫）。
 - **真实文档金标 CI（Phase 4）**：`RealProjectScoreParsingTest` 去掉 `@Disabled`，入库 case-1347 / case-1362 真实文档，建立回归防御。
@@ -301,4 +313,3 @@ trigger（同步<1s，互斥校验+建任务）
    - **条款编号过滤**：清洗形如 `3.3(1)` 等非语义条款编号，防止污染父维度；
    - **维度防自包含**：将最内层跨行父级（如“资源实力”）作为该行 `dim`，上级分类作为 `parentDim`，消除自引用；
    - **金标测试保障**：固化真实 14 张表格入参为金标 `1371_tables_v1.json`，全表提取严格 16 项（商务 56 分 + 技术 44 分 = 100.0 分严格收敛）。
-

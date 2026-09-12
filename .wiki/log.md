@@ -861,3 +861,10 @@
 - 修复：Sidecar 按 10 页分块重开（`SIDECAR_PDF_CHUNK_PAGES`，峰值 O(块)，189MB→74MB，输出字节一致）；Java 超时按 >50MB 分档 ×5（`resolveTimeoutSeconds` 纯函数）；容器 3g→4g（双宿主余量已测算）。
 - 验证：pytest 83 passed；mvn 定向 12/12 + Loader 13/13 + ArchitectureTest 32/32 全绿；checkstyle 零新增违规。
 - 回填：更新 [[bid-quality-multifile-check]] §5；lessons-learned.md §352。
+
+## [2026-09-12] fix | PR #2620 Sidecar schema mismatch 保留旧评分项
+
+- 触发：AI 评分解析 PR #2620 反复修改仍可能在 Sidecar 协议漂移后继续降级 markdown，导致结构不可信结果覆盖既有 score_item。
+- 根因：v1 表格客户端没有统一校验响应头/响应体 schemaVersion 与 v2 DocumentArtifact 形态；结构化通道失败被当成普通召回失败，而非结构缺失业务状态。
+- 修复：新增 `SidecarSchemaContract` 与 `StructuredTableExtractionHandler`，schema mismatch 直接映射 `STRUCTURE_INCOMPLETE/STRUCTURE_DEFECT`，任务完成但不持久化新项、不触发预计得分；`GoldenCasesReplaySupport` 收口金标 PRF、strictDim、sourceText、expectTotal 口径。
+- 回填：更新 [[score-parse-service]] §PR #2620 Sidecar 协议漂移与结构缺失保留策略。
