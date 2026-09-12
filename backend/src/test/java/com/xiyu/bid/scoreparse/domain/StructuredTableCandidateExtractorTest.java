@@ -404,6 +404,21 @@ class StructuredTableCandidateExtractorTest {
                 && c.weight() != null && c.weight().compareTo(new BigDecimal("4")) == 0);
         assertThat(candidates).anyMatch(c -> "个性化需求响应度".equals(c.dim())
                 && c.weight() != null && c.weight().compareTo(new BigDecimal("3")) == 0);
+
+        // 权重收敛断言（Stage A Task1）：商务 13 项收敛 100、技术 25 项收敛 100、报价 1 项 0 分不计入，
+        // 杜绝跨大类权重串扰或公式行泄漏导致的分表失衡
+        BigDecimal bizSum = candidates.stream()
+                .filter(c -> c.parentDim() != null && c.parentDim().startsWith("商务"))
+                .map(ScoreCandidate::weight)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal techSum = candidates.stream()
+                .filter(c -> c.parentDim() != null && c.parentDim().startsWith("技术"))
+                .map(ScoreCandidate::weight)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertThat(bizSum).isEqualByComparingTo("100");
+        assertThat(techSum).isEqualByComparingTo("100");
     }
 
     @Test

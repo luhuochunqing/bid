@@ -67,8 +67,8 @@ class GoldenCasesReplayTest {
     private static final List<ReplayReportRow> REPORT_ROWS =
             Collections.synchronizedList(new ArrayList<>());
 
-    /** 期望标注条目（expected.json items 元素） */
-    record ExpectedItem(String code, String dim, String detail, BigDecimal weight) {
+    /** 期望标注条目（expected.json items 元素；sourceText 为可选原文背书锚点） */
+    record ExpectedItem(String code, String dim, String detail, BigDecimal weight, String sourceText) {
     }
 
     /** 匹配谓词计算结果：tp/fp/fn 与 P/R/F1 */
@@ -80,7 +80,9 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-dual-section-renumber"),
                 Arguments.of("case-weight-gap-mixed"),
                 Arguments.of("case-1347-compound-percent"),
-                Arguments.of("case-bracket-vs-pure-conflict"));
+                Arguments.of("case-bracket-vs-pure-conflict"),
+                Arguments.of("case-1374-redundant-formula"),
+                Arguments.of("case-3col-embedded-bracket-weight"));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -141,6 +143,42 @@ class GoldenCasesReplayTest {
         assertTrue(prf.f1() >= threshold,
                 () -> caseName + " 金标回放 F1=" + prf.f1() + " < threshold=" + threshold
                         + LINE_SEPARATOR + describeMismatch(curated, expectedItems));
+
+        // ── 可选契约断言（expected.json 声明即生效；老用例无字段则跳过）──
+        // expectTotal：权重收敛——归一化前合计必须收敛到声明值（如 1374 案防 101 分膨胀）。
+        if (expected.hasNonNull("expectTotal")) {
+            BigDecimal expectTotal = new BigDecimal(expected.get("expectTotal").asText());
+            assertTrue(preTotal.compareTo(expectTotal) == 0,
+                    () -> caseName + " 权重未收敛：归一化前合计=" + preTotal + "，期望=" + expectTotal);
+        }
+        // strictDim / sourceText：贪心配对成功项上的维度精确性与原文背书。
+        boolean strictDim = expected.path("strictDim").asBoolean(false);
+        boolean needsPairing = strictDim
+                || expectedItems.stream().anyMatch(e -> e.sourceText() != null && !e.sourceText().isBlank());
+        if (needsPairing) {
+            List<int[]> pairs = pairGreedy(curated, expectedItems);
+            if (strictDim) {
+                for (int[] pair : pairs) {
+                    ExpectedItem exp = expectedItems.get(pair[0]);
+                    ScoreCandidate pred = curated.get(pair[1]);
+                    if (!exp.dim().isBlank()) {
+                        assertTrue(collapseWhitespace(pred.dim()).equals(exp.dim()),
+                                () -> caseName + " 维度漂移：期望=[" + exp.dim() + "] 实际=["
+                                        + pred.dim() + "] 明细=" + head(exp.detail()));
+                    }
+                }
+            }
+            for (int[] pair : pairs) {
+                ExpectedItem exp = expectedItems.get(pair[0]);
+                ScoreCandidate pred = curated.get(pair[1]);
+                if (exp.sourceText() != null && !exp.sourceText().isBlank()) {
+                    assertTrue(pred.sourceText() != null
+                                    && squash(pred.sourceText()).contains(squash(exp.sourceText())),
+                            () -> caseName + " 原文背书缺失：期望锚点=[" + exp.sourceText() + "] 明细="
+                                    + head(exp.detail()));
+                }
+            }
+        }
 
         Map<String, Integer> laneCounts = new LinkedHashMap<>();
         laneCounts.put("regex", regexSectionsRaw);
@@ -207,6 +245,31 @@ class GoldenCasesReplayTest {
         return text == null ? "" : text.trim().replaceAll("\\s+", "");
     }
 
+    /** 维度比对用归一化：trim 并把连续空白折叠为单个空格（<br> 残留空格可被 strictDim 捕获） */
+    static String collapseWhitespace(String text) {
+        return text == null ? "" : text.trim().replaceAll("\\s+", " ");
+    }
+
+    /**
+     * 与 {@link #computePrF1} 同序贪心配对，返回 [期望下标, 预测下标] 清单，供 strictDim /
+     * sourceText 断言复用同一配对语义（配对失败项不返回，只校验命中项）。
+     */
+    static List<int[]> pairGreedy(List<ScoreCandidate> predicted, List<ExpectedItem> expectedItems) {
+        boolean[] consumed = new boolean[predicted.size()];
+        List<int[]> pairs = new ArrayList<>();
+        for (int e = 0; e < expectedItems.size(); e++) {
+            ExpectedItem exp = expectedItems.get(e);
+            for (int i = 0; i < predicted.size(); i++) {
+                if (!consumed[i] && matches(predicted.get(i), exp)) {
+                    consumed[i] = true;
+                    pairs.add(new int[]{e, i});
+                    break;
+                }
+            }
+        }
+        return pairs;
+    }
+
     // ───────────────────────── 夹具读取与映射 ─────────────────────────
 
     private static String readFixture(String fileName) {
@@ -227,7 +290,8 @@ class GoldenCasesReplayTest {
                     node.path("code").asText(""),
                     node.path("dim").asText(""),
                     node.path("detail").asText(),
-                    node.hasNonNull("weight") ? new BigDecimal(node.get("weight").asText()) : null));
+                    node.hasNonNull("weight") ? new BigDecimal(node.get("weight").asText()) : null,
+                    node.path("sourceText").asText("")));
         }
         return items;
     }

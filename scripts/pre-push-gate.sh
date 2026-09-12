@@ -620,6 +620,30 @@ else
   fi
 fi
 
+# ── 9.11. scoreparse 版式修复金标门禁（Stage A Task1，2026-09-12） ──
+# 工程背景：
+#   项目 1374 曾因冗余价格公式行未去重 + “评标基准价为”独立成项导致权重 101 膨胀
+#   （fix 1919ecb41）；3 列内嵌分值表曾因维度名 <br> 未平滑导致维度带空格
+#   （fix a1b3b7c55）。两轮修复均靠 GoldenCasesReplayTest 金标夹具锁定回归面。
+# 本门禁：commit 范围触及 scoreparse 解析主代码（domain/application/infrastructure），
+#   必须同步新增或更新 scoreparse 金标夹具或回放/提取测试，否则 fail。
+#   新版式修复无 fixture 即 fail（等效说明见 scripts/eval-scoreparse/README.md §门禁）。
+# 逃生阀：SCOREPARSE_GATE_SKIP=1（仅限非版式逻辑变更，需在 PR 描述说明理由）
+echo "── scoreparse 金标门禁 ──"
+SP_PROD_CHANGED=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -cE '^backend/src/main/java/.*/scoreparse/(domain|application|infrastructure)/' || true)
+SP_FIXTURE_CHANGED=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -cE 'scoreparse-golden/|GoldenCasesReplayTest\.java|CellAnchoredScoreExtractorTest\.java|StructuredTableCandidateExtractorTest\.java|ScoreTableRecallLaneTest\.java|ScoreItemMergePolicyTest\.java|ScoreGlobalMergeOrchestratorTest\.java' || true)
+if [ ! -d "$ROOT_DIR/backend/src/main" ]; then
+  skip "scoreparse 金标门禁（无 Java 源码）"
+elif [ "${SP_PROD_CHANGED:-0}" -eq 0 ]; then
+  skip "scoreparse 金标门禁（未触及 scoreparse 解析主代码）"
+elif [ "${SCOREPARSE_GATE_SKIP:-0}" = "1" ]; then
+  skip "scoreparse 金标门禁（SCOREPARSE_GATE_SKIP=1 逃生阀）"
+elif [ "${SP_FIXTURE_CHANGED:-0}" -eq 0 ]; then
+  fail "scoreparse 金标门禁 — 本次推送改了 scoreparse 解析主代码（${SP_PROD_CHANGED} 个文件）但无金标夹具/回放测试同步变更。新版式修复无 fixture 即 fail：在 backend/src/test/resources/scoreparse-golden/ 新增 <case>.md + <case>.expected.json 并在 GoldenCasesReplayTest#cases() 注册（指南见 scripts/eval-scoreparse/README.md §如何新增 case）。逃生阀：SCOREPARSE_GATE_SKIP=1"
+else
+  pass "scoreparse 金标门禁（解析变更 + 夹具/测试同步）"
+fi
+
 # ── 10. 路由-E2E 兼容性检查 ────────────────────────────
 echo "── 路由-E2E 兼容 ──"
 STAGED_ROUTES=$(git diff --name-only "$GATE_BASE"..HEAD 2>/dev/null | grep -cE '^src/(router|views)/' || true)

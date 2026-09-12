@@ -128,6 +128,27 @@ class ScoreTableRecallLaneTest {
                     && c.weight() != null && c.weight().compareTo(new BigDecimal("15")) == 0);
             assertThat(list).anyMatch(c -> ((c.dim() != null && c.dim().contains("品类覆盖率")) || (c.detail() != null && c.detail().contains("品类覆盖率")))
                     && c.weight() != null && c.weight().compareTo(new BigDecimal("8")) == 0);
+
+            // 权重收敛断言（Stage A Task1）：两张百分制分表各自收敛 100（商务 13 项 parentDim 非空 →100，
+            // 技术 25 项 parentDim 为空 →100），杜绝跨表权重串扰或漏提导致的单表失衡
+            List<ScoreCandidate> bizItems = list.stream()
+                    .filter(c -> c.parentDim() != null && !c.parentDim().isBlank())
+                    .toList();
+            List<ScoreCandidate> techItems = list.stream()
+                    .filter(c -> c.parentDim() == null || c.parentDim().isBlank())
+                    .toList();
+            assertThat(bizItems).hasSize(13);
+            assertThat(techItems).hasSize(25);
+            BigDecimal bizTotal = bizItems.stream()
+                    .map(ScoreCandidate::weight)
+                    .filter(java.util.Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal techTotal = techItems.stream()
+                    .map(ScoreCandidate::weight)
+                    .filter(java.util.Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            assertThat(bizTotal).isEqualByComparingTo(new BigDecimal("100"));
+            assertThat(techTotal).isEqualByComparingTo(new BigDecimal("100"));
         }
     }
 }

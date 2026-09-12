@@ -20,7 +20,11 @@ backend/src/test/resources/scoreparse-golden/
 ├── case-dual-section-renumber.md            双评分章节跨维度重号 + 前附表噪声章
 ├── case-dual-section-renumber.expected.json 对应金标标注（threshold 0.6）
 ├── case-weight-gap-mixed.md                 权重缺口90 + 幽灵行混合形态
-└── case-weight-gap-mixed.expected.json      对应金标标注（threshold 0.5）
+├── case-weight-gap-mixed.expected.json      对应金标标注（threshold 0.5）
+├── case-1374-redundant-formula.md           项目1374回归：冗余价格公式行 + 评标基准价重复行（fix 1919ecb41）
+├── case-1374-redundant-formula.expected.json  对应金标标注（threshold 0.95，expectTotal 100）
+├── case-3col-embedded-bracket-weight.md     3列内嵌分值 + 维度名 br 换行（fix a1b3b7c55）
+└── case-3col-embedded-bracket-weight.expected.json  对应金标标注（threshold 0.95，strictDim）
 ```
 
 ## 两层执行说明
@@ -43,24 +47,45 @@ node -e "JSON.parse(require('fs').readFileSync('backend/target/scoreparse-golden
 
 ```json
 {
+  "synthetic": true,
+  "desensitization": "脱敏方式一句话（如：全文字段合成改写，项目名以××掩码替代）",
   "focus": "一句话描述该案防的回归形态",
   "threshold": 0.6,
+  "expectTotal": 100,
+  "strictDim": true,
   "laneHints": ["table"],
   "items": [
-    { "code": "1", "dim": "商务-方案完整性", "detail": "<逐字表格原文短语>", "weight": 8 }
+    { "code": "1", "dim": "商务-方案完整性", "detail": "<逐字表格原文短语>", "weight": 8, "sourceText": "<原文背书锚点短语>" }
   ]
 }
 ```
 
 | 字段 | 必填 | 语义 |
 |---|---|---|
+| `synthetic` | 是（新案） | 脱敏声明：必须为 `true`，配套 `desensitization` 说明改写方式（FR-08：真实客户文件禁止入库） |
+| `desensitization` | 是（新案） | 脱敏方式：保留了哪些版式特征、替换了哪些敏感字段 |
 | `focus` | 是 | 注释性文字：该案针对的失败形态（对应 docs/lessons 编号），不参与判定 |
 | `threshold` | 是 | 该案 F1 的最低硬门限；`GoldenCasesReplayTest` 断言 `F1 ≥ threshold` |
+| `expectTotal` | 否 | 权重收敛值：声明即断言归一化前合计必须等于该值（如 1374 案防 101 分膨胀声明 100） |
+| `strictDim` | 否 | 维度精确性：为 `true` 时对配对命中项逐条断言预测 dim（空白折叠后）逐字等于标注 dim（3列案借此锁定 `<br>` 平滑无残留空格） |
 | `laneHints` | 否 | 文档性标注：期望供给该案候选的主要 lane（如 `table`=表格行直抽）；仅用于报告解读，不参与判定 |
 | `items[].code` | 否 | 原文编号标签（如 `1`）；**判定时不使用 code**——跨维度重号场景下同编号是常态而非冲突 |
 | `items[].dim` | 是* | 评分项名称标签。expected 中允许加 `商务-`/`技术-` 类前缀便于人工区隔重号项；因判定不看 dim，前缀不影响结果。*表格整行降级类候选可能 dim=null，标注时仍应给出名称 |
 | `items[].detail` | 是 | **必须逐字复制夹具 md 中的条款原文短语**（表格列单元格全文或段落级原文句）。这是匹配谓词的锚点：改写、缩写、增删标点都会直接改变匹配结果 |
 | `items[].weight` | 是* | 该项的真实分值（数字）。判定要求双方 weight 存在且差 ≤0.5，缺 null 即永不匹配。*若夹具该项本无分值则省略，但等于宣告该项不可由谓词命中 |
+| `items[].sourceText` | 否 | 原文背书锚点：detail 中的短语子串；声明即断言配对命中的预测候选 `sourceText` 归一化后包含该锚点 |
+
+## 门禁：新版式修复无 fixture 即 fail
+
+- `scripts/pre-push-gate.sh` §9.11（scoreparse 金标门禁）：commit 范围触及
+  `backend/src/main/java/**/scoreparse/(domain|application|infrastructure)/` 解析主代码，
+  但无 `scoreparse-golden/` 夹具或回放/提取测试（`GoldenCasesReplayTest` /
+  `CellAnchoredScoreExtractorTest` / `StructuredTableCandidateExtractorTest` /
+  `ScoreTableRecallLaneTest` / `ScoreItemMergePolicyTest` /
+  `ScoreGlobalMergeOrchestratorTest`）同步变更时，门禁 fail 阻断推送。
+  逃生阀：`SCOREPARSE_GATE_SKIP=1`（仅限非版式逻辑变更，需在 PR 描述说明理由）。
+- 本地复核等价命令：`mvn -f backend/pom.xml test -Dtest='GoldenCasesReplayTest'`
+  全绿 + `npm run eval:scoreparse:report` 确认 case 数符合预期。
 
 标注纪律：
 
@@ -93,6 +118,8 @@ node -e "JSON.parse(require('fs').readFileSync('backend/target/scoreparse-golden
    - expected 按"字段规范"填写；detail 逐字来自 md。
 2. 在 `GoldenCasesReplayTest#cases()` 的 `Stream.of(...)` 里追加一行 `Arguments.of("<case>")`。
 3. 单跑核对：`mvn -f backend/pom.xml test -Dtest='GoldenCasesReplayTest'`，确认目标值合理后再定 threshold（给足余量，避免把脆断点当门限）。
+   确定性 1.0 的合成夹具（如 detail 逐字命中、合计恰 100）可定 0.95：6 项案单个 FP 即
+   F1≈0.923、8 项案单个 FP 即 F1≈0.941，0.95 恰好拦截单项泄漏/缺失，同时容忍零漂移。
 4. 更新本文档上方"目录布局"，并在该案 focus 中引用对应 lessons 编号。
 
 ## 报告字段
