@@ -32,7 +32,7 @@ final class StructuredTableExtractionHandler {
                           SidecarDocumentArtifactExtractor artifactExtractor,
                           SidecarTableExtractor sidecarTableExtractor) {
         String fileName = source.fileName();
-        if (fileName == null || !fileName.toLowerCase().endsWith(".docx")) {
+        if (!supportsStructuredEvidence(fileName)) {
             return Result.ok(List.of());
         }
         try {
@@ -61,12 +61,24 @@ final class StructuredTableExtractionHandler {
         }
     }
 
+    private static boolean supportsStructuredEvidence(String fileName) {
+        if (fileName == null) {
+            return false;
+        }
+        String lower = fileName.toLowerCase();
+        return lower.endsWith(".docx") || lower.endsWith(".pdf");
+    }
+
     private static Result extractEvidencePipeline(byte[] content,
                                                   String fileName,
                                                   String tenderSectionText,
                                                   SidecarDocumentArtifactExtractor artifactExtractor)
             throws IOException, InterruptedException {
         var artifact = artifactExtractor.extract(content, fileName);
+        if (shouldFallbackPdfToLegacy(fileName, artifact)) {
+            log.warn("PDF 未抽取到结构化评分表，回落 legacy markdown 召回: file={}", fileName);
+            return Result.ok(List.of());
+        }
         var shadow = ScoreFactShadowPipeline.run(artifact, tenderSectionText);
         boolean structureBroken = shadow.tables().stream()
                 .anyMatch(table -> !table.structurallyValid());
@@ -86,6 +98,15 @@ final class StructuredTableExtractionHandler {
         log.info("Evidence pipeline 结构化事实抽取完成: file={}, facts={}, leafCandidates={}, decision={}, fallback={}",
                 fileName, facts.size(), leafCandidates.size(), completeness.decision(), completeness.fallbackReason());
         return Result.evidencePipeline(facts, leafCandidates, completeness);
+    }
+
+    private static boolean shouldFallbackPdfToLegacy(String fileName,
+                                                    com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact artifact) {
+        if (fileName == null || !fileName.toLowerCase().endsWith(".pdf")) {
+            return false;
+        }
+        return artifact == null || artifact.tables().stream()
+                .noneMatch(table -> table != null && Boolean.TRUE.equals(table.isScoreTable()));
     }
 
     static void markIncomplete(ScoreParseTask task,

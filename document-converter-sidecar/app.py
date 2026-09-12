@@ -28,7 +28,7 @@ from markitdown import MarkItDown
 
 import mammoth
 
-from converter import extract_headings
+from converter import extract_headings, extract_pdf_tables_artifact
 from image_extractor import extract_images
 from table_extractor import extract_tables, extract_tables_artifact, SCHEMA_VERSION
 
@@ -575,7 +575,7 @@ async def extract_document_tables(
     x_sidecar_key: str | None = Header(default=None),
     schema_version: str | None = Header(default=None, alias="X-Schema-Version"),
 ) -> dict[str, Any]:
-    """Extract structured tables (with merged-cell info) from an uploaded .docx.
+    """Extract structured tables (with merged-cell info) from an uploaded .docx/.pdf.
 
     Default contract (spec 059 Phase 1):
         schemaVersion = "2.0" — versioned DocumentArtifact with cell IDs,
@@ -583,8 +583,8 @@ async def extract_document_tables(
 
     Legacy v1 callers can request the old shape via ``X-Schema-Version: 1.0`` —
     useful while the Java backend (Phase 5) is rolled over to v2.
-    Returns JSON {tables[], warnings}.  Only .docx is supported — other types
-    return an empty tables list (caller falls back to markdown recall).
+    Returns JSON {tables[], warnings}.  .docx preserves Word merge metadata;
+    .pdf emits physical-page/cell coordinates for Evidence Pipeline routing.
     Auth matches /convert (X-Sidecar-Key / 401).
     """
     await _check_auth(x_sidecar_key)
@@ -626,7 +626,11 @@ async def extract_document_tables(
                 logger.exception("Table extraction failed for file %s", file.filename)
                 raise HTTPException(status_code=500, detail="表格提取失败")
         try:
-            artifact = extract_tables_artifact(tmp_path)
+            artifact = (
+                extract_pdf_tables_artifact(tmp_path)
+                if original_suffix == ".pdf"
+                else extract_tables_artifact(tmp_path)
+            )
             artifact["schemaVersion"] = SCHEMA_VERSION
             return JSONResponse(content=artifact, headers=v2_headers)
         except ValueError as exc:

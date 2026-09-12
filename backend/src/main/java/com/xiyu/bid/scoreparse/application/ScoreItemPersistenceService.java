@@ -198,6 +198,21 @@ public class ScoreItemPersistenceService {
         }
     }
 
+    /**
+     * REVIEW_REQUIRED 候选快照：不覆盖正式 score_item，只写入 score_parse_fact 供复核 UI 展示最新候选。
+     */
+    @Transactional
+    public void persistReviewCandidateFacts(Long projectId, Long parseTaskId, List<ScoreCandidate> candidates) {
+        List<com.xiyu.bid.scoreparse.domain.ScoreFact> facts =
+                ScoreReviewCandidateFactMapper.toFacts(parseTaskId, candidates);
+        if (facts.isEmpty()) {
+            return;
+        }
+        persistFactsAndEvidence(projectId, parseTaskId, facts);
+        log.info("已保存 REVIEW_REQUIRED 候选事实快照: projectId={}, parseTaskId={}, facts={}",
+                projectId, parseTaskId, facts.size());
+    }
+
     private boolean isFingerprintUnchanged(List<ScoreItem> oldItems, List<ScoreCandidate> candidates) {
         if (oldItems == null || candidates == null || oldItems.size() != candidates.size()) {
             return false;

@@ -6,7 +6,10 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.entity.ScoreItem;
+import com.xiyu.bid.scoreparse.entity.ScoreParseFact;
 import com.xiyu.bid.scoreparse.repository.ScoreItemRepository;
+import com.xiyu.bid.scoreparse.repository.ScoreParseEvidenceRepository;
+import com.xiyu.bid.scoreparse.repository.ScoreParseFactRepository;
 import com.xiyu.bid.scoreparse.repository.ScoreResultRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,12 +42,16 @@ class ScoreItemPersistenceServiceTest {
     private ScoreItemRepository itemRepository;
     @Mock
     private ScoreResultRepository resultRepository;
+    @Mock
+    private ScoreParseFactRepository factRepository;
+    @Mock
+    private ScoreParseEvidenceRepository evidenceRepository;
 
     private ScoreItemPersistenceService service;
 
     @BeforeEach
     void setUp() {
-        service = new ScoreItemPersistenceService(itemRepository, resultRepository);
+        service = new ScoreItemPersistenceService(itemRepository, resultRepository, factRepository, evidenceRepository);
     }
 
     @Test
@@ -214,6 +221,35 @@ class ScoreItemPersistenceServiceTest {
         List<ScoreItem> items = saved.getValue();
         assertThat(items).hasSize(1);
         assertThat(items.get(0).getDim()).isEqualTo("商务部分");
+    }
+
+    @Test
+    void reviewRequiredCandidates_arePersistedAsReviewFactsWithoutOverwritingScoreItems() {
+        List<ScoreCandidate> candidates = List.of(
+                new ScoreCandidate("2", "公司综合实力", "具备 ISO9001 认证得6分",
+                        new BigDecimal("6"), "OBJECTIVE", null,
+                        "投标人具有有效期内的认证证书，每有一项加1分，最高得6分。", "P12", "LEGACY_REVIEW_CANDIDATE"));
+
+        service.persistReviewCandidateFacts(PROJECT_ID, PARSE_TASK_ID, candidates);
+
+        verify(itemRepository, never()).deleteByProjectId(PROJECT_ID);
+        verify(itemRepository, never()).saveAll(anyList());
+        verify(factRepository).deleteByProjectId(PROJECT_ID);
+        verify(evidenceRepository).deleteByParseTaskId(PARSE_TASK_ID);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<ScoreParseFact>> savedFacts = ArgumentCaptor.forClass(List.class);
+        verify(factRepository).saveAll(savedFacts.capture());
+        assertThat(savedFacts.getValue()).hasSize(1);
+        ScoreParseFact fact = savedFacts.getValue().get(0);
+        assertThat(fact.getProjectId()).isEqualTo(PROJECT_ID);
+        assertThat(fact.getParseTaskId()).isEqualTo(PARSE_TASK_ID);
+        assertThat(fact.getCode()).isEqualTo("2");
+        assertThat(fact.getDimension()).isEqualTo("公司综合实力");
+        assertThat(fact.getWeight()).isEqualByComparingTo("6");
+        assertThat(fact.getValidationStatus()).isEqualTo("REVIEW_REQUIRED");
+        assertThat(fact.getExtractionMethod()).isEqualTo("LEGACY_REVIEW_CANDIDATE");
+        assertThat(fact.getSourceText()).contains("认证证书");
     }
 
     @SuppressWarnings("unchecked")
