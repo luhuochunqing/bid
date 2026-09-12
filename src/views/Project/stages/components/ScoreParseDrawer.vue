@@ -66,7 +66,7 @@
           :facts="reviewFacts"
           :audits="reviewAudits"
           :loading="reviewLoading"
-          :submitting="reviewSubmitting"
+          :submitting="reviewSubmitting || reviewSubmitted"
           :error="reviewError"
           :pipeline-version="pipelineVersion"
           :artifact-sha256="artifactSha256"
@@ -214,7 +214,7 @@ const {
   subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
   openDetail, open, runScoring, reparse,
   decisionStatus, decisionBadgeType, decisionBadgeText, reviewReason,
-  reviewRequired, reviewFacts, reviewAudits, reviewLoading, reviewSubmitting, reviewError, pipelineVersion, artifactSha256,
+  reviewRequired, reviewFacts, reviewAudits, reviewLoading, reviewSubmitting, reviewSubmitted, reviewError, pipelineVersion, artifactSha256,
   submitReviewRetention,
 } = useScoreParseDrawer(props, emit)
 
