@@ -29,6 +29,8 @@ public final class ScoreTableSummaryPolicy {
     private static final BigDecimal MAX_REASONABLE_TOTAL = BigDecimal.valueOf(1000);
     private static final Pattern SCORE_VALUE_PATTERN = Pattern.compile(
             "(?<!\\d)(\\d{1,4}(?:\\.\\d+)?)\\s*分");
+    private static final Pattern SUMMARY_NUMERIC_CELL_PATTERN = Pattern.compile(
+            "^[~≈]?\\s*(\\d{1,4}(?:\\.\\d+)?)\\s*$");
 
     private ScoreTableSummaryPolicy() {
     }
@@ -46,9 +48,10 @@ public final class ScoreTableSummaryPolicy {
                     .toList();
             String code = textAt(rowCells, mapping.codeCol());
             String dimension = textAt(rowCells, mapping.dimCol());
-            if (!isSummaryRow(code, dimension)) {
+            if (!isSummaryRow(code, dimension) && !isSummaryRow(rowCells)) {
                 continue;
             }
+            BigDecimal largestNumericCell = null;
             for (CanonicalCell cell : rowCells) {
                 if (!cell.isUsableOrigin()) {
                     continue;
@@ -61,6 +64,33 @@ public final class ScoreTableSummaryPolicy {
                                 value, grid.tableId(), row, cell.cellId(), matcher.group(0)));
                     }
                 }
+                Matcher numericCell = SUMMARY_NUMERIC_CELL_PATTERN.matcher(cell.rawText().trim());
+                if (numericCell.matches()) {
+                    BigDecimal value = parseScore(numericCell.group(1));
+                    if (value != null && (largestNumericCell == null || value.compareTo(largestNumericCell) > 0)) {
+                        largestNumericCell = value;
+                    }
+                }
+            }
+            if (evidence.isEmpty() && largestNumericCell != null) {
+                BigDecimal summaryTotal = largestNumericCell;
+                CanonicalCell totalCell = rowCells.stream()
+                        .filter(CanonicalCell::isUsableOrigin)
+                        .filter(cell -> SUMMARY_NUMERIC_CELL_PATTERN.matcher(cell.rawText().trim()).matches())
+                        .filter(cell -> {
+                            Matcher matcher = SUMMARY_NUMERIC_CELL_PATTERN.matcher(cell.rawText().trim());
+                            if (!matcher.matches()) {
+                                return false;
+                            }
+                            BigDecimal value = parseScore(matcher.group(1));
+                            return value != null && value.compareTo(summaryTotal) == 0;
+                        })
+                        .findFirst()
+                        .orElse(null);
+                if (totalCell != null) {
+                    evidence.add(new DeclaredTotalEvidence(
+                            summaryTotal, grid.tableId(), row, totalCell.cellId(), totalCell.rawText().trim()));
+                }
             }
         }
         return List.copyOf(evidence);
@@ -70,6 +100,29 @@ public final class ScoreTableSummaryPolicy {
         String codeText = normalizeCompact(code);
         String dimensionText = normalizeCompact(dimension);
         return isSummaryLabel(codeText) && hasTotalMarker(dimensionText);
+    }
+
+    /** Recognize summary rows even when merged/shifted cells defeat column mapping. */
+    public static boolean isSummaryRow(List<CanonicalCell> rowCells) {
+        if (rowCells == null || rowCells.isEmpty()) {
+            return false;
+        }
+        boolean hasSummaryLabel = rowCells.stream()
+                .filter(CanonicalCell::isUsableOrigin)
+                .map(CanonicalCell::rawText)
+                .map(ScoreTableSummaryPolicy::normalizeCompact)
+                .anyMatch(ScoreTableSummaryPolicy::isSummaryLabel);
+        boolean hasTotalMarker = rowCells.stream()
+                .filter(CanonicalCell::isUsableOrigin)
+                .map(CanonicalCell::rawText)
+                .map(ScoreTableSummaryPolicy::normalizeCompact)
+                .anyMatch(ScoreTableSummaryPolicy::hasTotalMarker);
+        boolean hasNumericTotal = rowCells.stream()
+                .filter(CanonicalCell::isUsableOrigin)
+                .map(CanonicalCell::rawText)
+                .map(String::trim)
+                .anyMatch(text -> SUMMARY_NUMERIC_CELL_PATTERN.matcher(text).matches());
+        return hasSummaryLabel && (hasTotalMarker || hasNumericTotal);
     }
 
     private static String textAt(List<CanonicalCell> cells, int column) {

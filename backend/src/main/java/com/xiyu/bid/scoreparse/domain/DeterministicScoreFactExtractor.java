@@ -76,7 +76,8 @@ public final class DeterministicScoreFactExtractor {
             if (sourceText.isBlank()) {
                 continue;
             }
-            if (ScoreTableSummaryPolicy.isSummaryRow(code, dimension)) {
+            if (ScoreTableSummaryPolicy.isSummaryRow(code, dimension)
+                    || ScoreTableSummaryPolicy.isSummaryRow(rowCells)) {
                 continue;
             }
 

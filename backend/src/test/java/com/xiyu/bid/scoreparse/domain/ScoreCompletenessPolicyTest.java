@@ -126,6 +126,22 @@ class ScoreCompletenessPolicyTest {
     }
 
     @Test
+    void evaluate_zeroWeightUnboundedFormula_doesNotBlockPositiveFacts() {
+        ScoreFact positive = createFact("positive", null, "商务", 100.0);
+        ScoreFact formula = new ScoreFact(
+                "formula", "t1", List.of("formula-cell"), "折扣率评价 | 价格得分=100-n×差异", "", "折扣率评价",
+                null, null, ScoreRule.MAX_SCORE, null,
+                "STRUCTURED_TABLE_DETERMINISTIC", 0.0, ScoreFact.ValidationStatus.REVIEW_REQUIRED);
+
+        var result = ScoreCompletenessPolicy.evaluateCompleteness(
+                List.of(positive, formula), "满分 100 分。");
+
+        assertThat(result.decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+        assertThat(result.missingEvidenceCount()).isZero();
+        assertThat(result.leafWeightSum()).isEqualByComparingTo("100.00");
+    }
+
+    @Test
     void evaluate_declaredTotalPrefersOverallTotalOverLocalFullScorePhrases() {
         ScoreFact f1 = createFact("f1", null, "投标报价", 40.0);
         ScoreFact f2 = createFact("f2", null, "公司综合实力", 6.0);

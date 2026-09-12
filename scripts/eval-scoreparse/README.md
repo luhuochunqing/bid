@@ -31,7 +31,9 @@ backend/src/test/resources/scoreparse-golden/
 ├── case-3col-embedded-bracket-weight.md     3列内嵌分值 + 维度名 br 换行（fix a1b3b7c55）
 ├── case-3col-embedded-bracket-weight.expected.json  对应金标标注（threshold 0.95，strictDim）
 ├── case-1381-pdf-preliminary-and-summary.md  项目1381类PDF：初步评审表上下文 + 8项评分表 + 合计行
-└── case-1381-pdf-preliminary-and-summary.expected.json  对应金标标注（threshold 0.95，strictDim，expectTotal 100）
+├── case-1381-pdf-preliminary-and-summary.expected.json  对应金标标注（threshold 0.95，strictDim，expectTotal 100）
+├── case-misaligned-summary-row.md            错位合计行：多个纯数字单元格时仍识别整表总分
+└── case-misaligned-summary-row.expected.json 对应金标标注（threshold 0.95，strictDim，expectTotal 100）
 ```
 
 ## 两层执行说明

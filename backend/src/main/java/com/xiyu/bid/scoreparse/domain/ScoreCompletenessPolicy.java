@@ -82,12 +82,14 @@ public final class ScoreCompletenessPolicy {
             } else {
                 leafFacts.add(f);
             }
-            if (f.sourceCellIds() == null || f.sourceCellIds().isEmpty()
-                    || f.weightEvidence() == null || !f.weightEvidence().isLocatable()) {
+            boolean optionalUnboundedPriceFormula = (f.weight() == null
+                    || f.weight().compareTo(BigDecimal.ZERO) == 0)
+                    && ScoreTableSectionPolicy.isPriceFormula(List.of(f.dimension(), f.sourceText()));
+            if (!optionalUnboundedPriceFormula && (f.sourceCellIds() == null || f.sourceCellIds().isEmpty()
+                    || f.weightEvidence() == null || !f.weightEvidence().isLocatable())) {
                 missingEvidenceCount++;
             }
         }
-
         if (missingEvidenceCount > 0) {
             defects.add(String.format("存在 %d 个事实缺失原文单元格证据或分值定位", missingEvidenceCount));
         }
@@ -247,7 +249,6 @@ public final class ScoreCompletenessPolicy {
                 leaves.size(), parents.size(), missing, List.copyOf(defects),
                 List.copyOf(leaves), List.copyOf(parents));
     }
-
     public enum DeclaredTotalSource {
         STRUCTURED_SUMMARY_ROW,
         TENDER_TEXT,
@@ -260,7 +261,6 @@ public final class ScoreCompletenessPolicy {
             List<String> defects
     ) {
     }
-
     public record ScoreCompletenessResult(
             boolean complete,
             ScoreParseDecision decision,
