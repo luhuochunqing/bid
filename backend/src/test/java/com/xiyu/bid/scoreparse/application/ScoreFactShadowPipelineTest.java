@@ -4,6 +4,7 @@
 package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
+import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import org.junit.jupiter.api.Test;
 
@@ -124,6 +125,33 @@ class ScoreFactShadowPipelineTest {
                 "结构缺口必须原样暴露，不得回退旧字符串表格");
         assertTrue(result.tables().get(0).facts().isEmpty());
         assertFalse(result.scoring().scoringComplete());
+    }
+
+    @Test
+    void completeness_uses_declared_total_from_tender_text() {
+        DocumentArtifact.CanonicalTable eightyPointTable = new DocumentArtifact.CanonicalTable(
+                "t-0000", null, "评分标准", 3, 4, List.of(),
+                List.of(
+                        cell("t-0000-r0-c0", 0, 0, "编号"),
+                        cell("t-0000-r0-c1", 0, 1, "评分因素"),
+                        cell("t-0000-r0-c2", 0, 2, "评分标准"),
+                        cell("t-0000-r0-c3", 0, 3, "分值"),
+                        cell("t-0000-r1-c0", 1, 0, "A1"),
+                        cell("t-0000-r1-c1", 1, 1, "商务部分"),
+                        cell("t-0000-r1-c2", 1, 2, "商务能力完整"),
+                        cell("t-0000-r1-c3", 1, 3, "60"),
+                        cell("t-0000-r2-c0", 2, 0, "A2"),
+                        cell("t-0000-r2-c1", 2, 1, "技术部分"),
+                        cell("t-0000-r2-c2", 2, 2, "技术方案完整"),
+                        cell("t-0000-r2-c3", 2, 3, "20")),
+                true);
+
+        ScoreFactShadowPipeline.ShadowResult result = ScoreFactShadowPipeline.run(
+                artifact(List.of(eightyPointTable)), "本项目评分总分：80分。");
+
+        assertEquals(ScoreParseDecision.AUTO_APPROVED, result.completeness().decision());
+        assertEquals(new BigDecimal("80.00"), result.completeness().declaredTotalScore());
+        assertEquals(new BigDecimal("80.00"), result.completeness().leafWeightSum());
     }
 
     @Test

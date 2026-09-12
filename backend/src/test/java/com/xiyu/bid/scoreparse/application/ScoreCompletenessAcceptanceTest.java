@@ -78,6 +78,8 @@ class ScoreCompletenessAcceptanceTest {
     @Mock
     private ObjectProvider<ScoreGlobalMergeExecutor> mergeExecutorProvider;
     @Mock
+    private ObjectProvider<SidecarDocumentArtifactExtractor> artifactExtractorProvider;
+    @Mock
     private ObjectProvider<com.xiyu.bid.scoreparse.infrastructure.openai.LlmTableScoreExtractor> llmTableScoreExtractorProvider;
     @Mock
     private ObjectProvider<com.xiyu.bid.scoreparse.infrastructure.openai.ScoreTableSchemaMapper> schemaMapperProvider;
@@ -87,6 +89,7 @@ class ScoreCompletenessAcceptanceTest {
     @BeforeEach
     void setUp() {
         lenient().when(mergeExecutorProvider.getIfAvailable()).thenReturn(null);
+        lenient().when(artifactExtractorProvider.getIfAvailable()).thenReturn(null);
         lenient().when(llmTableScoreExtractorProvider.getIfAvailable()).thenReturn(null);
         lenient().when(schemaMapperProvider.getIfAvailable()).thenReturn(null);
 
@@ -100,7 +103,7 @@ class ScoreCompletenessAcceptanceTest {
                 stateService, progressService, snapshotRepository,
                 projectAccessScopeService, scoreAnalyzer, estimatedScoreService,
                 itemPersistenceService, initiationTenderTextResolver, sidecarTableExtractor,
-                postProcessor, llmTableScoreExtractorProvider, schemaMapperProvider);
+                artifactExtractorProvider, postProcessor, llmTableScoreExtractorProvider, schemaMapperProvider);
         ReflectionTestUtils.setField(appService, "self", appService);
     }
 
@@ -163,7 +166,7 @@ class ScoreCompletenessAcceptanceTest {
     }
 
     @Test
-    void invariant3_reviewRequired_stillPersistsWithReviewFlag() {
+    void invariant3_reviewRequired_preservesExistingItemsWithReviewFlag() {
         // 模拟解析产出合计 80 分（不满足 100 分）
         ScoreParseTask task = ScoreParseTask.builder()
                 .id(10L).taskId(TASK_ID).projectId(PROJECT_ID)
@@ -185,10 +188,9 @@ class ScoreCompletenessAcceptanceTest {
         assertThat(task.getDecisionStatus()).isEqualTo("REVIEW_REQUIRED");
         assertThat(task.getFallbackReason()).isEqualTo("WEIGHT_SUM_MISMATCH");
 
-        // spec 059 Fix A：REVIEW_REQUIRED 不再 all-or-nothing 丢弃整批结果——有效项仍落库展示，
-        // 复核标记留在 task 上供前端提示，禁止静默丢弃成功解析（详见 lessons-learned §217）。
-        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(10L), anyList());
-        verify(estimatedScoreService).estimateForProject(PROJECT_ID);
+        // task2 收敛：REVIEW_REQUIRED 只记录复核状态，不覆盖旧 score_item，不触发估分。
+        verify(itemPersistenceService, org.mockito.Mockito.never()).persistItems(any(), any(), anyList());
+        verify(estimatedScoreService, org.mockito.Mockito.never()).estimateForProject(any());
     }
 
     @Test

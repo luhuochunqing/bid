@@ -62,6 +62,7 @@ public class ScoreParseAppService {
     private final ScoreItemPersistenceService itemPersistenceService;
     private final InitiationTenderTextResolver initiationTenderTextResolver;
     private final SidecarTableExtractor sidecarTableExtractor;
+    private final ObjectProvider<SidecarDocumentArtifactExtractor> artifactExtractorProvider;
     private final ScoreCandidatePostProcessor postProcessor;
     private final ObjectProvider<LlmTableScoreExtractor> llmTableScoreExtractorProvider;
     private final ObjectProvider<ScoreTableSchemaMapper> schemaMapperProvider;
@@ -152,10 +153,18 @@ public class ScoreParseAppService {
         updateProgress(taskId, 5, "READ_DOCUMENT", "读取招标文件");
 
         var structuredCandidates = StructuredTableExtractionHandler.extract(
-                source, initiationTenderTextResolver, sidecarTableExtractor);
+                source, initiationTenderTextResolver,
+                artifactExtractorProvider == null ? null : artifactExtractorProvider.getIfAvailable(),
+                sidecarTableExtractor);
         if (structuredCandidates.structureIncomplete()) {
             StructuredTableExtractionHandler.markIncomplete(task, taskId, structuredCandidates.failureReason(),
                     taskRepository, stateService, progressService);
+            return;
+        }
+        if (structuredCandidates.evidencePipeline()) {
+            StructuredTableExtractionHandler.markEvidencePipelineCompleted(
+                    task, taskId, structuredCandidates, taskRepository, stateService,
+                    progressService, itemPersistenceService, estimatedScoreService);
             return;
         }
         RecallOutcome outcome = scoreAnalyzer.recallCandidates(source.text(), null,
@@ -187,14 +196,15 @@ public class ScoreParseAppService {
             task.setOriginalTotalWeight(processed.originalTotal());
         }
         taskRepository.save(task);
-        // REVIEW_REQUIRED 也落库（复核标记留在 task 上供前端提示），仅 STRUCTURE_INCOMPLETE 保留现有项；详见 lessons §217。
-        if (!valid.isEmpty() && processed.decisionStatus() != ScoreParseDecision.STRUCTURE_INCOMPLETE) {
+        // task2 收敛纪律：只有 AUTO_APPROVED 可覆盖旧 score_item；
+        // REVIEW_REQUIRED / STRUCTURE_INCOMPLETE / PARSE_FAILED 都保留旧项，避免不完整结果洗掉可用数据。
+        if (!valid.isEmpty() && processed.decisionStatus() == ScoreParseDecision.AUTO_APPROVED) {
             updateProgress(taskId, 90, "PERSIST", "评分项落库");
             itemPersistenceService.persistItems(task.getProjectId(), task.getId(), valid);
             updateProgress(taskId, 95, "ESTIMATE", "阶段 1 预计得分计算");
             estimatedScoreService.estimateForProject(task.getProjectId());
         } else {
-            log.warn("解析结构损坏或无有效项，保留现有评分项不覆盖: taskId={}, decision={}", taskId, processed.decisionStatus());
+            log.warn("解析结果未自动通过，保留现有评分项不覆盖: taskId={}, decision={}", taskId, processed.decisionStatus());
         }
         log.info("解析任务完成: taskId={}, items={}, totalWeight={}, decision={}",
                 taskId, valid.size(), processed.weightResult().totalWeight(), processed.decisionStatus());

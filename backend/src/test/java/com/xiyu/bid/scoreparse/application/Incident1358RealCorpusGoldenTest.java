@@ -99,6 +99,8 @@ class Incident1358RealCorpusGoldenTest {
     @Mock
     private ObjectProvider<ScoreGlobalMergeExecutor> mergeExecutorProvider;
     @Mock
+    private ObjectProvider<SidecarDocumentArtifactExtractor> artifactExtractorProvider;
+    @Mock
     private ObjectProvider<com.xiyu.bid.scoreparse.infrastructure.openai.LlmTableScoreExtractor> llmTableScoreExtractorProvider;
     @Mock
     private ObjectProvider<com.xiyu.bid.scoreparse.infrastructure.openai.ScoreTableSchemaMapper> schemaMapperProvider;
@@ -108,6 +110,7 @@ class Incident1358RealCorpusGoldenTest {
     @BeforeEach
     void setUp() {
         lenient().when(mergeExecutorProvider.getIfAvailable()).thenReturn(null);
+        lenient().when(artifactExtractorProvider.getIfAvailable()).thenReturn(null);
         lenient().when(llmTableScoreExtractorProvider.getIfAvailable()).thenReturn(null);
         lenient().when(schemaMapperProvider.getIfAvailable()).thenReturn(null);
 
@@ -121,7 +124,7 @@ class Incident1358RealCorpusGoldenTest {
                 stateService, progressService, snapshotRepository,
                 projectAccessScopeService, scoreAnalyzer, estimatedScoreService,
                 itemPersistenceService, initiationTenderTextResolver, sidecarTableExtractor,
-                postProcessor, llmTableScoreExtractorProvider, schemaMapperProvider);
+                artifactExtractorProvider, postProcessor, llmTableScoreExtractorProvider, schemaMapperProvider);
         ReflectionTestUtils.setField(appService, "self", appService);
     }
 

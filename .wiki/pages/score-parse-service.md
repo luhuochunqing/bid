@@ -254,6 +254,22 @@ trigger（同步<1s，互斥校验+建任务）
 - **escape-hatch 词汇注册表（Phase 5）**：`ScoreVocabularyRegistry`（Builder + 不可变 `Entry` record，global/project 两级）提供 `matches` / `isWeightInRange` / `getEntries` / `matchesAny` / `findMatch` / `toPromptExamples`；`ScoreVocabularyConfiguration` 注册 8 条全局词汇 Bean。纯核心无框架依赖（FP-Java，受 `preflight-domain-purity` 守卫）。
 - **真实文档金标 CI（Phase 4）**：`RealProjectScoreParsingTest` 去掉 `@Disabled`，入库 case-1347 / case-1362 真实文档，建立回归防御。
 
+## Task2 Evidence Pipeline 主链路收敛与复核态保留旧项（2026-09-12）
+
+- **根因**：PR #2620 只解决了 Sidecar 协议漂移后的保留策略，但 `SidecarDocumentArtifactExtractor` + `ScoreFactShadowPipeline` 仍未进入生产主链路；docx 解析继续绕回 legacy v1 table extractor / markdown / LLM 后处理。与此同时 legacy `REVIEW_REQUIRED` 仍会覆盖 `score_item` 并触发估分，把不完整结果伪装成正式评分标准。
+- **主链路接入**：`StructuredTableExtractionHandler` 在存在 v2 artifact extractor 时优先执行 `DocumentArtifact → CanonicalTableGrid → ScoreFact → ScoreCompletenessPolicy`。成功后写入 `pipelineVersion=EVIDENCE_PIPELINE_V1`、`decisionStatus` 与 `fallbackReason`；v2 成功路径不再调用 `scoreAnalyzer.recallCandidates`，避免回到 markdown/LLM legacy 召回。
+- **声明总分参与完整性**：Evidence Pipeline 将招标正文传入 `ScoreCompletenessPolicy`，按“总分/满分/合计 X 分”解析声明总分；没有声明时才回退默认 100 分，避免 80 分制文件被误判为复核态。
+- **落库纪律**：`ScoreParseDecision.AUTO_APPROVED` 是覆盖 `score_item` 与触发 `estimateForProject` 的唯一门槛。`REVIEW_REQUIRED` 只写 facts/evidence 与任务复核状态，保留旧 `score_item`；`STRUCTURE_INCOMPLETE` 与 `PARSE_FAILED` 同样不得覆盖旧项。
+- **复核证据保留**：Evidence Pipeline 的 `REVIEW_REQUIRED` 仍调用 `persistFactsAndEvidence`，保留单元格证据、权重证据与完整性缺陷，供复核 UI/API 使用；但不写兼容 `score_item`，避免半成品进入阶段 1/2 打分链路。
+- **编排边界**：Evidence 完成收口放在 `StructuredTableExtractionHandler.markEvidencePipelineCompleted`；`ScoreParseAppService` 保持纯编排并回到 300 行以内（当前 291 行）。
+- **回归锚点**：
+  - `ScoreParseAppServiceTest#parse_docxEvidencePipelineAutoApproved_skipsLegacyRecallAndPersistsFacts`
+  - `ScoreParseAppServiceTest#parse_docxEvidencePipelineReviewRequired_preservesExistingItemsButPersistsFacts`
+  - `ScoreParseAppServiceTest#parse_reviewRequired_preservesExistingItemsWithReviewFlag`
+  - `ScoreCompletenessAcceptanceTest#invariant3_reviewRequired_preservesExistingItemsWithReviewFlag`
+
+> 后续维护规则：任何人想让 `REVIEW_REQUIRED` 再次覆盖 `score_item`，必须先改产品决策并补人工复核闭环；不能只改测试断言绕过。
+
 ### 陷阱：结构化通道对列布局高度敏感
 
 | 列布局 | 结果 |
