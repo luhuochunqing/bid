@@ -20,6 +20,8 @@ vi.mock('element-plus', async (importOriginal) => {
 vi.mock('@/api/modules/scoreParse.js', () => ({
   scoreParseApi: {
     getItems: vi.fn(),
+    getReview: vi.fn(),
+    submitReview: vi.fn(),
     triggerParse: vi.fn(),
     getParseStatus: vi.fn(),
     triggerScoring: vi.fn(),
@@ -47,6 +49,8 @@ describe('useScoreParseDrawer.js', () => {
     vi.clearAllMocks()
     emit = vi.fn()
     scoreParseApi.getItems.mockResolvedValue({ data: { items: REAL_ITEMS, summary: null, sourceFileName: '国家级数据中心扩容项目招标文件.pdf', parseTime: '2026-08-15T14:00:00' } })
+    scoreParseApi.getReview.mockResolvedValue({ data: { facts: [], audits: [] } })
+    scoreParseApi.submitReview.mockResolvedValue({ data: { facts: [], audits: [{ action: 'RETAIN_ORIGINAL' }] } })
     scoreParseApi.triggerParse.mockResolvedValue({ data: { taskId: 't-parse', status: 'PENDING' } })
     scoreParseApi.getParseStatus.mockResolvedValue({ data: { taskId: 't-parse', status: 'COMPLETED', progress: 100, completedAt: '2026-08-15T14:00:00' } })
     scoreParseApi.triggerScoring.mockResolvedValue({ data: { taskId: 't-score', status: 'PENDING' } })
@@ -441,5 +445,54 @@ describe('useScoreParseDrawer.js', () => {
     expect(drawer.reviewReason.value).toBe('权重合计80分不符合100分预期')
     expect(drawer.pipelineVersion.value).toBe('EVIDENCE_PIPELINE_V1')
     expect(drawer.artifactSha256.value).toBe('sha256-test-1234')
+  })
+
+  it('loads review facts for REVIEW_REQUIRED and records retention audit', async () => {
+    scoreParseApi.getItems.mockResolvedValue({
+      data: {
+        items: REAL_ITEMS,
+        meta: {
+          decisionStatus: 'REVIEW_REQUIRED',
+          reviewReason: '权重合计80分不符合100分预期',
+          pipelineVersion: 'EVIDENCE_PIPELINE_V1',
+        },
+      },
+    })
+    scoreParseApi.getReview.mockResolvedValue({
+      data: {
+        facts: [
+          {
+            factId: 'fact-1',
+            code: 'A1',
+            dimension: '资质',
+            weight: 50,
+            sourceText: '具备 CMMI 认证',
+            evidences: [{ cellId: 'c1', quotedText: 'CMMI 认证' }],
+          },
+        ],
+        audits: [],
+      },
+    })
+    scoreParseApi.submitReview.mockResolvedValue({
+      data: {
+        facts: [],
+        audits: [{ action: 'RETAIN_ORIGINAL', reason: '保留现有正式评分项' }],
+      },
+    })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1, autoScore: false, autoParse: false })
+
+    expect(scoreParseApi.getReview).toHaveBeenCalledWith(99)
+    expect(drawer.reviewRequired.value).toBe(true)
+    expect(drawer.reviewFacts.value[0].factId).toBe('fact-1')
+
+    await drawer.submitReviewRetention()
+
+    expect(scoreParseApi.submitReview).toHaveBeenCalledWith(99, expect.objectContaining({
+      actions: [expect.objectContaining({ action: 'RETAIN_ORIGINAL' })],
+    }))
+    expect(drawer.reviewAudits.value[0].action).toBe('RETAIN_ORIGINAL')
+    expect(ElMessage.success).toHaveBeenCalledWith('复核记录已保存')
   })
 })

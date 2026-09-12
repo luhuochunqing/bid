@@ -29,6 +29,10 @@ export function useScoreParseDrawer(props, emit) {
   const fallbackReason = ref('')
   const pipelineVersion = ref('')
   const artifactSha256 = ref('')
+  const reviewSnapshot = ref(null)
+  const reviewLoading = ref(false)
+  const reviewSubmitting = ref(false)
+  const reviewError = ref('')
 
   const decisionBadgeType = computed(() => {
     switch (decisionStatus.value) {
@@ -49,6 +53,10 @@ export function useScoreParseDrawer(props, emit) {
       default: return ''
     }
   })
+
+  const reviewRequired = computed(() => decisionStatus.value === 'REVIEW_REQUIRED' || decisionStatus.value === 'STRUCTURE_INCOMPLETE')
+  const reviewFacts = computed(() => Array.isArray(reviewSnapshot.value?.facts) ? reviewSnapshot.value.facts : [])
+  const reviewAudits = computed(() => Array.isArray(reviewSnapshot.value?.audits) ? reviewSnapshot.value.audits : [])
 
   const scoreItems = ref([])
   const scoreResults = ref({})
@@ -104,12 +112,13 @@ export function useScoreParseDrawer(props, emit) {
       if (meta.bidFileName) bidFileName.value = meta.bidFileName
       if (meta.scoreTime) scoreTime.value = formatTime(meta.scoreTime)
       if (meta.lastScoringHint) scoringHint.value = meta.lastScoringHint
-      if (meta.decisionStatus) decisionStatus.value = meta.decisionStatus
-      if (meta.reviewReason) reviewReason.value = meta.reviewReason
-      if (meta.fallbackReason) fallbackReason.value = meta.fallbackReason
-      if (meta.pipelineVersion) pipelineVersion.value = meta.pipelineVersion
-      if (meta.artifactSha256) artifactSha256.value = meta.artifactSha256
+      decisionStatus.value = meta.decisionStatus || ''
+      reviewReason.value = meta.reviewReason || ''
+      fallbackReason.value = meta.fallbackReason || ''
+      pipelineVersion.value = meta.pipelineVersion || ''
+      artifactSha256.value = meta.artifactSha256 || ''
       circuitHint.value = circuitHintFromMeta(meta)
+      await loadReviewSnapshotIfNeeded()
       emit('parsed', { dangerCount: statsDangerCount.value, warnCount: statsNeutralCount.value })
 
       let hasResults = false
@@ -237,6 +246,38 @@ export function useScoreParseDrawer(props, emit) {
     await startParse({ silent: false })
   }
 
+  async function loadReviewSnapshotIfNeeded() {
+    reviewError.value = ''
+    if (!reviewRequired.value) {
+      reviewSnapshot.value = null
+      return
+    }
+    reviewLoading.value = true
+    try {
+      reviewSnapshot.value = (await scoreParseApi.getReview(props.projectId))?.data || null
+    } catch (e) {
+      reviewError.value = e?.response?.data?.msg || '复核证据加载失败'
+    } finally {
+      reviewLoading.value = false
+    }
+  }
+
+  async function submitReviewRetention() {
+    if (!reviewRequired.value) return
+    reviewSubmitting.value = true
+    try {
+      reviewSnapshot.value = (await scoreParseApi.submitReview(props.projectId, {
+        reason: '人工确认本次待复核结果暂不覆盖正式评分项，保留现有评分标准',
+        actions: [{ action: 'RETAIN_ORIGINAL', reason: '保留现有正式评分项，待后续重新解析或人工调整' }],
+      }))?.data || reviewSnapshot.value
+      ElMessage.success('复核记录已保存')
+    } catch (e) {
+      notifyErrorUnlessRateLimit(e, '复核记录保存失败')
+    } finally {
+      reviewSubmitting.value = false
+    }
+  }
+
   return {
     visible, loading, error, isSection1Expanded, currentStage, scored, scoringOverlayVisible,
     sourceFileName, parseTime, bidFileName, scoreTime, scoringHint, circuitHint, normalizationWarning,
@@ -244,5 +285,7 @@ export function useScoreParseDrawer(props, emit) {
     totalWeight, objectiveWeight, subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount,
     estTotalScore, actualTotalScore, openDetail, open, runScoring, reparse,
     decisionStatus, decisionBadgeType, decisionBadgeText, reviewReason, fallbackReason, pipelineVersion, artifactSha256,
+    reviewRequired, reviewSnapshot, reviewFacts, reviewAudits, reviewLoading, reviewSubmitting, reviewError,
+    loadReviewSnapshotIfNeeded, submitReviewRetention,
   }
 }

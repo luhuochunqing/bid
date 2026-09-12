@@ -1,0 +1,13 @@
+{
+  "synthetic": true,
+  "desensitization": "全文合成改写，仅保留权重缺口与表格版式特征，无真实客户信息",
+  "focus": "lessons §356：facts/evidence 可见但权重合计80时进入 REVIEW_REQUIRED 复核闭环，不自动覆盖正式 score_item",
+  "threshold": 0.95,
+  "laneHints": ["table"],
+  "items": [
+    { "code": "1", "dim": "技术方案", "detail": "对业务架构、实施路径、关键风险和验收方式描述完整清晰的得25分，描述缺漏的酌情扣分。", "weight": 25 },
+    { "code": "2", "dim": "项目团队", "detail": "项目经理具备同类项目经验且团队分工明确的得20分，人员配置不足的酌情扣分。", "weight": 20 },
+    { "code": "3", "dim": "服务保障", "detail": "承诺7×24小时响应并提供不少于三年维护服务的得20分，响应机制不完整的酌情扣分。", "weight": 20 },
+    { "code": "4", "dim": "培训交付", "detail": "提供管理员、业务人员和运维人员分层培训计划且材料齐备的得15分，培训安排不足的酌情扣分。", "weight": 15 }
+  ]
+}

@@ -11,6 +11,7 @@
       导致 body 非 flex 布局、内容区撑满全高、打分遮罩文字落到内容中点而非可视区（2026-08-26 已改为全局规则）。
       遮罩展示期间锁定内容区滚动（.scroll-locked），避免轮询中用户滚动导致提示文字漂出可视区（2026-08-26）。
       为 e2e 布局契约用例新增 data-test 钩子：score-parse-content / score-parse-overlay-text / score-parse-reparse（2026-08-26）。一旦我被更新，务必更新我的开头注释。
+      REVIEW_REQUIRED / STRUCTURE_INCOMPLETE 增加 facts/evidence 复核快照与 score_parse_review 审计入口（2026-09-12）。
 -->
 <template>
   <el-drawer
@@ -59,6 +60,18 @@
             <span class="doc-time">解析时间 {{ parseTime }}</span>
           </div>
         </div>
+
+        <ScoreParseReviewPanel
+          v-if="reviewRequired"
+          :facts="reviewFacts"
+          :audits="reviewAudits"
+          :loading="reviewLoading"
+          :submitting="reviewSubmitting"
+          :error="reviewError"
+          :pipeline-version="pipelineVersion"
+          :artifact-sha256="artifactSha256"
+          @retain="submitReviewRetention"
+        />
 
         <div class="collapse-item expanded">
           <div class="collapse-header" @click="isSection1Expanded = !isSection1Expanded">
@@ -185,6 +198,7 @@
 <script setup>
 import { useScoreParseDrawer } from '@/composables/projectDetail/useScoreParseDrawer.js'
 import ScoreItemDetailModal from './ScoreItemDetailModal.vue'
+import ScoreParseReviewPanel from './ScoreParseReviewPanel.vue'
 import ScoreParseTable from './ScoreParseTable.vue'
 
 const props = defineProps({
@@ -200,6 +214,8 @@ const {
   subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount, estTotalScore, actualTotalScore,
   openDetail, open, runScoring, reparse,
   decisionStatus, decisionBadgeType, decisionBadgeText, reviewReason,
+  reviewRequired, reviewFacts, reviewAudits, reviewLoading, reviewSubmitting, reviewError, pipelineVersion, artifactSha256,
+  submitReviewRetention,
 } = useScoreParseDrawer(props, emit)
 
 defineExpose({ open, runScoring })
@@ -227,7 +243,6 @@ defineExpose({ open, runScoring })
 .normalization-warning .warning-icon { font-size: 14px; line-height: 1; }
 .normalization-warning .warning-text { font-weight: 500; }
 .btn-primary-sm:disabled { background: var(--gray-100); border-color: var(--gray-100); color: var(--gray-300); cursor: not-allowed; }
-
 .toolbar { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
 .toolbar-info { display: flex; align-items: center; gap: 12px; width: 100%; }
 .toolbar-info .doc-tag { display: inline-flex; align-items: center; gap: 4px; }

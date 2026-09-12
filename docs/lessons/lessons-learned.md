@@ -5576,3 +5576,29 @@ PR #2620 已经补上 Sidecar v1 schema mismatch 的 fail-fast 防线，但 task
 | **任务终态 vs 业务可信度** | 把异步任务 `COMPLETED` 当作“可覆盖评分项”的信号 | 覆盖 `score_item` 必须以 `ScoreParseDecision.AUTO_APPROVED` 为唯一门槛 |
 | **影子验证器孤岛** | 领域链路已可验证，但主流程继续绕回 legacy 路径 | 影子链路成熟后必须接入生产入口，并用“跳过 legacy recall”的断言锁定 |
 | **复核态误覆盖** | `REVIEW_REQUIRED` 仍写入正式评分项，导致旧可用结果被半成品洗掉 | `REVIEW_REQUIRED` 只能保留 facts/evidence 与复核原因，不覆盖旧项、不估分 |
+
+## 356. AI 评分解析 task3：人工复核闭环必须有可见快照与审计入口（2026-09-12）
+
+### 问题背景
+
+task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` / `STRUCTURE_INCOMPLETE` 不覆盖正式 `score_item`。但如果前端只展示“待人工复核”状态，而没有 facts/evidence 快照和复核审计入口，业务上仍然无法闭环：用户看不到需要复核的原文证据，也无法证明“已人工复核并决定保留现有评分项”。
+
+### 根因分析
+
+- **状态提示不等于工作流闭环**：`decisionStatus=REVIEW_REQUIRED` 只是信号，必须配套证据快照与动作入口。
+- **审计表未接应用层**：`score_parse_review` 表和实体已存在，但没有 Service/Controller 写入路径，导致 Phase 5 任务看似完成、实际不可用。
+- **前端状态易残留**：抽屉复用时，若只在 meta 字段有值时赋值，缺字段响应会沿用上一个项目的复核状态。
+
+### 落地规则
+
+1. 新增 `/api/projects/{projectId}/score-parse/review`：
+   - `GET` 返回最新解析任务的 facts/evidence 与 `score_parse_review` 审计记录；
+   - `POST` 只写复核审计，严禁借复核动作隐式覆盖正式 `score_item`。
+2. 前端在 `REVIEW_REQUIRED` / `STRUCTURE_INCOMPLETE` 时必须展示复核快照，并提供审计动作。
+3. 抽屉每次加载都必须重置 `decisionStatus/reviewReason/fallbackReason/pipelineVersion/artifactSha256`，避免复核状态串项。
+
+### 回归锚点
+
+- `ScoreParseReviewAppServiceTest#getReviewSnapshot_returnsFactsEvidenceAndAuditsForLatestParseTask`
+- `ScoreParseReviewAppServiceTest#submitReview_savesAuditOnlyAndReturnsSnapshot`
+- `useScoreParseDrawer.js#loads review facts for REVIEW_REQUIRED and records retention audit`
