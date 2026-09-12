@@ -4,6 +4,7 @@
 package com.xiyu.bid.scoreparse.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.scoreparse.domain.ScoreCompletenessPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import org.junit.jupiter.api.Test;
@@ -54,7 +55,7 @@ class PdfEvidencePipelineTest {
     }
 
     @Test
-    void project1381LikePdfSplitScoreTable_extractsAllEightScoreItemsAndTotal100()
+    void project1381LikePdfSplitScoreTable_usesStructuredTotalWhenMarkdownBreakTagsHide100()
             throws IOException, InterruptedException {
         byte[] pdfBytes = "%PDF-1.4 project 1381 split score table".getBytes(java.nio.charset.StandardCharsets.UTF_8);
         TenderTextSource source = new TenderTextSource(
@@ -62,7 +63,7 @@ class PdfEvidencePipelineTest {
                 "memory://project-1381-like.pdf",
                 """
                 投标报价得分：等于基准价的得满分30分，办公用品得满分10分。
-                合计 得分 满分 （100分）。
+                | 合计<br>得分 | 满分<br>（100分） | |
                 """);
         InitiationTenderTextResolver resolver = new InitiationTenderTextResolver(
                 null, null, null, null, null, null, url -> pdfBytes) {
@@ -85,6 +86,8 @@ class PdfEvidencePipelineTest {
         assertThat(result.evidencePipeline()).isTrue();
         assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
         assertThat(result.completeness().declaredTotalScore()).isEqualByComparingTo("100.00");
+        assertThat(result.completeness().declaredTotalSource())
+                .isEqualTo(ScoreCompletenessPolicy.DeclaredTotalSource.STRUCTURED_SUMMARY_ROW);
         assertThat(result.completeness().leafWeightSum()).isEqualByComparingTo("100.00");
         assertThat(result.candidates())
                 .extracting(candidate -> candidate.dim())
@@ -108,6 +111,32 @@ class PdfEvidencePipelineTest {
                         new BigDecimal("6"),
                         new BigDecimal("10"),
                         new BigDecimal("8"));
+    }
+
+    @Test
+    void project1381LikePdfWithoutStructuredSummary_keepsLossyMarkdownFallbackBehavior()
+            throws IOException, InterruptedException {
+        StructuredTableExtractionHandler.Result result = extractProject1381(
+                project1381ScoreArtifact(false, null));
+
+        assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
+        assertThat(result.completeness().fallbackReason()).isEqualTo("WEIGHT_SUM_MISMATCH");
+        assertThat(result.completeness().declaredTotalScore()).isEqualByComparingTo("30.00");
+        assertThat(result.completeness().declaredTotalSource())
+                .isEqualTo(ScoreCompletenessPolicy.DeclaredTotalSource.TENDER_TEXT);
+    }
+
+    @Test
+    void conflictingStructuredSummaryTotals_requireReviewInsteadOfGuessing()
+            throws IOException, InterruptedException {
+        StructuredTableExtractionHandler.Result result = extractProject1381(
+                project1381ScoreArtifact(true, "80"));
+
+        assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.REVIEW_REQUIRED);
+        assertThat(result.completeness().fallbackReason()).isEqualTo("DECLARED_TOTAL_CONFLICT");
+        assertThat(result.completeness().defects())
+                .anyMatch(defect -> defect.contains("结构化声明总分冲突")
+                        && defect.contains("100") && defect.contains("80"));
     }
 
     @Test
@@ -165,8 +194,38 @@ class PdfEvidencePipelineTest {
                 List.of());
     }
 
+    private static StructuredTableExtractionHandler.Result extractProject1381(DocumentArtifact artifact)
+            throws IOException, InterruptedException {
+        byte[] pdfBytes = "%PDF-1.4 project 1381 split score table"
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        TenderTextSource source = new TenderTextSource(
+                "project-1381-like.pdf",
+                "memory://project-1381-like.pdf",
+                "投标报价得分：等于基准价的得满分30分，办公用品得满分10分。\n"
+                        + "| 合计<br>得分 | 满分<br>（100分） | |");
+        InitiationTenderTextResolver resolver = new InitiationTenderTextResolver(
+                null, null, null, null, null, null, url -> pdfBytes) {
+            @Override
+            public byte[] loadBytes(String fileUrl) {
+                return pdfBytes;
+            }
+        };
+        SidecarDocumentArtifactExtractor artifactExtractor =
+                new SidecarDocumentArtifactExtractor("http://localhost:9", "", 1, new ObjectMapper()) {
+                    @Override
+                    public DocumentArtifact extract(byte[] content, String fileName) {
+                        return artifact;
+                    }
+                };
+        return StructuredTableExtractionHandler.extract(source, resolver, artifactExtractor, null);
+    }
+
     private static DocumentArtifact project1381ScoreArtifact() {
-        List<List<String>> rows = List.of(
+        return project1381ScoreArtifact(true, null);
+    }
+
+    private static DocumentArtifact project1381ScoreArtifact(boolean includeSummary, String conflictingTotal) {
+        List<List<String>> rows = new ArrayList<>(List.of(
                 List.of("序号", "评分因素", "评分标准"),
                 List.of("1", "投标报价\n（40分）", "报价规则中含局部满分30分和满分10分。"),
                 List.of("2", "公司综合实力\n（6分）", "证书清单每项1分，最高6分。"),
@@ -175,9 +234,14 @@ class PdfEvidencePipelineTest {
                 List.of("4", "供货方案\n（10分）", "供货保障措施完整得10分。"),
                 List.of("5", "人员配备\n（6分）", "人员配置优秀得4.1-6.0分。"),
                 List.of("6", "质量管理方案（10分）", "质量管理方案优秀得10分。"),
-                List.of("7", "售后服务方案（8分）", "售后服务优秀得8分。"),
-                List.of("合计\n得分", "满分\n（100分）", "")
-        );
+                List.of("7", "售后服务方案（8分）", "售后服务优秀得8分。")
+        ));
+        if (includeSummary) {
+            rows.add(List.of("合计\n得分", "满分\n（100分）", ""));
+        }
+        if (conflictingTotal != null) {
+            rows.add(List.of("总计\n得分", "满分\n（" + conflictingTotal + "分）", ""));
+        }
         List<DocumentArtifact.CanonicalTable.CanonicalCellDto> cells = new ArrayList<>();
         for (int row = 0; row < rows.size(); row++) {
             for (int col = 0; col < rows.get(row).size(); col++) {

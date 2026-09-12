@@ -18,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -65,7 +66,7 @@ final class StructuredTableExtractionHandler {
         if (fileName == null) {
             return false;
         }
-        String lower = fileName.toLowerCase();
+        String lower = fileName.toLowerCase(Locale.ROOT);
         return lower.endsWith(".docx") || lower.endsWith(".pdf");
     }
 
@@ -95,14 +96,16 @@ final class StructuredTableExtractionHandler {
                 .map(ScoreFact::toCandidate)
                 .flatMap(Optional::stream)
                 .toList();
-        log.info("Evidence pipeline 结构化事实抽取完成: file={}, facts={}, leafCandidates={}, decision={}, fallback={}",
-                fileName, facts.size(), leafCandidates.size(), completeness.decision(), completeness.fallbackReason());
+        log.info("Evidence pipeline 结构化事实抽取完成: file={}, facts={}, leafCandidates={}, "
+                        + "declaredTotal={}, declaredTotalSource={}, decision={}, fallback={}",
+                fileName, facts.size(), leafCandidates.size(), completeness.declaredTotalScore(),
+                completeness.declaredTotalSource(), completeness.decision(), completeness.fallbackReason());
         return Result.evidencePipeline(facts, leafCandidates, completeness);
     }
 
     private static boolean shouldFallbackPdfToLegacy(String fileName,
                                                     com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact artifact) {
-        if (fileName == null || !fileName.toLowerCase().endsWith(".pdf")) {
+        if (fileName == null || !fileName.toLowerCase(Locale.ROOT).endsWith(".pdf")) {
             return false;
         }
         return artifact == null || artifact.tables().stream()

@@ -3,6 +3,12 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-12] fix | 项目 1381 声明总分切换为结构化汇总行单一事实源
+
+- 触发：项目 1381 的 v2 Artifact 已抽出 8 项且合计 100，但 `/convert` Markdown 中 `<br>` 与列边界使正文正则漏掉表尾 100，误取报价细则“满分30分”，导致 `REVIEW_REQUIRED` 且 `/items` 继续保留旧 1 项。
+- 方案：新增 `ScoreTableSummaryPolicy` 提取带 cell 锚点的汇总行总分；完整性优先使用结构化唯一值，冲突时硬阻断，正文与默认值仅作兼容兜底；复核快照和日志记录 `declaredTotalSource`。
+- 页面更新：更新 [[score-parse-service]] §13；lessons-learned.md §358。
+
 ## [2026-09-12] fix | PDF 评分表证据链与 REVIEW_REQUIRED 候选可见性修复
 
 - 触发：项目 1381 类 PDF 招标文件解析后仍只显示旧 `score_item` 1 项，最新 REVIEW_REQUIRED 候选没有进入复核 UI。

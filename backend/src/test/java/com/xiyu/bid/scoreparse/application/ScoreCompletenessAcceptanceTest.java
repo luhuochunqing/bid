@@ -141,6 +141,7 @@ class ScoreCompletenessAcceptanceTest {
         ScoreParseReviewSnapshot snapshot = ScoreParseReviewSnapshot.from(TASK_ID, result, List.of(f1, f2));
         assertThat(snapshot.discrepancy()).isEqualByComparingTo("20.00");
         assertThat(snapshot.toMap()).containsEntry("fallbackReason", "WEIGHT_SUM_MISMATCH");
+        assertThat(snapshot.toMap()).containsEntry("declaredTotalSource", "TENDER_TEXT");
     }
 
     @Test

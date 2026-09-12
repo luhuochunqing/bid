@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
  * 评分完整性校验策略（spec 059 Phase 4）。
  * <p>在落库与决策前统一计算并校验 7 大维度：
  * <ol>
- *   <li>声明总分 (declaredTotalScore)：从正文中提取显式总分声明（默认 100 分）</li>
+ *   <li>声明总分 (declaredTotalScore)：结构化汇总行优先，正文兜底，最后默认 100 分</li>
  *   <li>末级权重合计 (leafWeightSum)：末级叶子事实权重总和必须精确等于声明总分</li>
  *   <li>父子重复 (parentChildOverlap)：被引用为父项的事实不得同时作为末级项计入总权重</li>
  *   <li>按大类声明的子项合计 (dimensionCategorySumMatch)：父项声明的分值必须精确等于其直接子项之和</li>
@@ -28,43 +28,49 @@ import java.util.regex.Pattern;
  * </ol>
  */
 public final class ScoreCompletenessPolicy {
-
     private static final BigDecimal DEFAULT_TOTAL_SCORE = BigDecimal.valueOf(100);
     private static final int MIN_REASONABLE_ITEM_COUNT = 3;
     private static final int LONG_SECTION_TEXT_THRESHOLD = 300;
-
     private static final Pattern DECLARED_TOTAL_PATTERN = Pattern.compile(
             "(?:总分|满分|分值构成|合计|总得分)[：:\\s\\n\\r（(]*?(\\d+(?:\\.\\d+)?)\\s*分"
     );
-
     private ScoreCompletenessPolicy() {
     }
-
     public static ScoreCompletenessResult evaluateCompleteness(List<ScoreFact> facts, String tenderSectionText) {
         return evaluateCompleteness(facts, tenderSectionText, true);
     }
-
     public static ScoreCompletenessResult evaluateCompleteness(
             List<ScoreFact> facts, String tenderSectionText, boolean structurallyValid) {
+        return evaluateCompleteness(facts, tenderSectionText, structurallyValid, List.of());
+    }
+    public static ScoreCompletenessResult evaluateCompleteness(
+            List<ScoreFact> facts,
+            String tenderSectionText,
+            boolean structurallyValid,
+            List<ScoreTableSummaryPolicy.DeclaredTotalEvidence> structuredTotalEvidence) {
         if (!structurallyValid) {
             return failureOutcome(
                     ScoreParseDecision.STRUCTURE_INCOMPLETE, "STRUCTURE_DEFECT",
-                    DEFAULT_TOTAL_SCORE, BigDecimal.ZERO, List.of("文档表格结构破损或存在未闭合单元格"),
+                    DEFAULT_TOTAL_SCORE, DeclaredTotalSource.DEFAULT_100,
+                    BigDecimal.ZERO, List.of("文档表格结构破损或存在未闭合单元格"),
                     List.of(), List.of(), 0);
         }
         if (facts == null || facts.isEmpty()) {
             return failureOutcome(
                     ScoreParseDecision.PARSE_FAILED, "ZERO_VALID_ITEMS",
-                    DEFAULT_TOTAL_SCORE, BigDecimal.ZERO, List.of("未提取到任何评分事实"),
+                    DEFAULT_TOTAL_SCORE, DeclaredTotalSource.DEFAULT_100,
+                    BigDecimal.ZERO, List.of("未提取到任何评分事实"),
                     List.of(), List.of(), 0);
         }
 
-        BigDecimal declaredTotal = extractDeclaredTotal(tenderSectionText);
+        DeclaredTotalResolution declaredTotalResolution = resolveDeclaredTotal(
+                structuredTotalEvidence, tenderSectionText);
+        BigDecimal declaredTotal = declaredTotalResolution.value();
         Set<String> parentIds = ScoreFact.parentIds(facts);
 
         List<ScoreFact> leafFacts = new ArrayList<>();
         List<ScoreFact> parentFacts = new ArrayList<>();
-        List<String> defects = new ArrayList<>();
+        List<String> defects = new ArrayList<>(declaredTotalResolution.defects());
         int missingEvidenceCount = 0;
 
         for (ScoreFact f : facts) {
@@ -139,21 +145,56 @@ public final class ScoreCompletenessPolicy {
         if (defects.isEmpty()) {
             return new ScoreCompletenessResult(
                     true, ScoreParseDecision.AUTO_APPROVED, null,
-                    declaredTotal, leafWeightSum, leafFacts.size(), parentFacts.size(),
+                    declaredTotal, declaredTotalResolution.source(),
+                    leafWeightSum, leafFacts.size(), parentFacts.size(),
                     0, List.of(), List.copyOf(leafFacts), List.copyOf(parentFacts));
         }
 
         String primaryFallback = resolvePrimaryFallback(defects);
         return new ScoreCompletenessResult(
                 false, ScoreParseDecision.REVIEW_REQUIRED, primaryFallback,
-                declaredTotal, leafWeightSum, leafFacts.size(), parentFacts.size(),
+                declaredTotal, declaredTotalResolution.source(),
+                leafWeightSum, leafFacts.size(), parentFacts.size(),
                 missingEvidenceCount, List.copyOf(defects),
                 List.copyOf(leafFacts), List.copyOf(parentFacts));
     }
 
-    private static BigDecimal extractDeclaredTotal(String text) {
+    private static DeclaredTotalResolution resolveDeclaredTotal(
+            List<ScoreTableSummaryPolicy.DeclaredTotalEvidence> structuredEvidence,
+            String text) {
+        Map<String, BigDecimal> structuredValues = new LinkedHashMap<>();
+        if (structuredEvidence != null) {
+            for (ScoreTableSummaryPolicy.DeclaredTotalEvidence evidence : structuredEvidence) {
+                if (evidence == null || evidence.value() == null) {
+                    continue;
+                }
+                BigDecimal normalized = evidence.value().setScale(2, RoundingMode.HALF_UP);
+                structuredValues.putIfAbsent(normalized.stripTrailingZeros().toPlainString(), normalized);
+            }
+        }
+        if (!structuredValues.isEmpty()) {
+            BigDecimal first = structuredValues.values().iterator().next();
+            if (structuredValues.size() == 1) {
+                return new DeclaredTotalResolution(
+                        first, DeclaredTotalSource.STRUCTURED_SUMMARY_ROW, List.of());
+            }
+            String values = String.join(", ", structuredValues.keySet());
+            return new DeclaredTotalResolution(
+                    first,
+                    DeclaredTotalSource.STRUCTURED_SUMMARY_ROW,
+                    List.of("结构化声明总分冲突: 评分表汇总行同时声明 [" + values + "] 分，禁止自动选择"));
+        }
+
+        BigDecimal textValue = extractDeclaredTotalFromText(text);
+        if (textValue != null) {
+            return new DeclaredTotalResolution(textValue, DeclaredTotalSource.TENDER_TEXT, List.of());
+        }
+        return new DeclaredTotalResolution(DEFAULT_TOTAL_SCORE, DeclaredTotalSource.DEFAULT_100, List.of());
+    }
+
+    private static BigDecimal extractDeclaredTotalFromText(String text) {
         if (text == null || text.isBlank()) {
-            return DEFAULT_TOTAL_SCORE;
+            return null;
         }
         Matcher m = DECLARED_TOTAL_PATTERN.matcher(text);
         BigDecimal best = null;
@@ -170,11 +211,14 @@ public final class ScoreCompletenessPolicy {
                 // 忽略异常，降级默认
             }
         }
-        return best == null ? DEFAULT_TOTAL_SCORE : best;
+        return best;
     }
 
     private static String resolvePrimaryFallback(List<String> defects) {
         for (String d : defects) {
+            if (d.contains("结构化声明总分冲突")) {
+                return "DECLARED_TOTAL_CONFLICT";
+            }
             if (d.contains("父子重复")) {
                 return "PARENT_CHILD_DUPLICATE";
             }
@@ -195,12 +239,26 @@ public final class ScoreCompletenessPolicy {
     }
 
     private static ScoreCompletenessResult failureOutcome(
-            ScoreParseDecision decision, String fallback, BigDecimal declared, BigDecimal sum,
+            ScoreParseDecision decision, String fallback, BigDecimal declared,
+            DeclaredTotalSource declaredTotalSource, BigDecimal sum,
             List<String> defects, List<ScoreFact> leaves, List<ScoreFact> parents, int missing) {
         return new ScoreCompletenessResult(
-                false, decision, fallback, declared, sum,
+                false, decision, fallback, declared, declaredTotalSource, sum,
                 leaves.size(), parents.size(), missing, List.copyOf(defects),
                 List.copyOf(leaves), List.copyOf(parents));
+    }
+
+    public enum DeclaredTotalSource {
+        STRUCTURED_SUMMARY_ROW,
+        TENDER_TEXT,
+        DEFAULT_100
+    }
+
+    private record DeclaredTotalResolution(
+            BigDecimal value,
+            DeclaredTotalSource source,
+            List<String> defects
+    ) {
     }
 
     public record ScoreCompletenessResult(
@@ -208,6 +266,7 @@ public final class ScoreCompletenessPolicy {
             ScoreParseDecision decision,
             String fallbackReason,
             BigDecimal declaredTotalScore,
+            DeclaredTotalSource declaredTotalSource,
             BigDecimal leafWeightSum,
             int leafCount,
             int parentCount,
@@ -228,6 +287,7 @@ public final class ScoreCompletenessPolicy {
             map.put("decision", decision.name());
             map.put("fallbackReason", fallbackReason);
             map.put("declaredTotalScore", declaredTotalScore);
+            map.put("declaredTotalSource", declaredTotalSource.name());
             map.put("leafWeightSum", leafWeightSum);
             map.put("discrepancy", declaredTotalScore.subtract(leafWeightSum).abs());
             map.put("leafCount", leafCount);

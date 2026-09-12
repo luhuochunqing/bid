@@ -93,7 +93,7 @@ backlinks:
 - [[root-cause-analysis-ijssgg]] — 立项招标文件上传 Bug 根因分析 (IJSSGG)
 - [[score-item-select-short-label]] — 评分项下拉短标签（ScoreItemSelect：短标签契约 / filterable 原文搜索陷阱 / 测试 stub 反模式）
 - [[score-parse-optimization]] — 评分解析优化记录
-- [[score-parse-service]] — AI 评分标准解析后端服务
+- [[score-parse-service]] — AI 评分标准解析后端服务（Evidence Pipeline、结构化汇总行总分单一事实源）
 - [[spec059-score-parse-evidence-pipeline]] — spec 059 评分解析证据化 Phase 0-4 落地结论 + 合入前评审与去噪重构
 - [[spring-pitfalls]] — Spring Boot 陷阱集
 - [[team-and-timeline]] — 团队与排期

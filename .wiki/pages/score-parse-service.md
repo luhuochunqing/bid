@@ -17,6 +17,7 @@ sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/StructuredTableExtractionHandler.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreParseReviewAppService.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreReviewCandidateFactMapper.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreTableSummaryPolicy.java
   - document-converter-sidecar/converter.py
   - backend/src/test/java/com/xiyu/bid/scoreparse/golden/GoldenCasesReplaySupport.java
   - backend/src/test/java/com/xiyu/bid/scoreparse/golden/ScoreParseRealCorpusRecorderTest.java
@@ -419,3 +420,29 @@ trigger（同步<1s，互斥校验+建任务）
 - 真实 PDF smoke：`extract_pdf_tables_artifact` 输出 20 张表、0 warning；第 20 页初步评审表 `isScoreTable=false`；第 24/25 页评分表合并为 10 行，含 8 个评分项 + 合计行。
 - Sidecar：19 个相关测试通过。
 - 后端：55 个 scoreparse 相关测试通过；1381 类 artifact 输出 8 项、权重合计 100、`AUTO_APPROVED`。
+
+## 13. 项目 1381 声明总分结构化单一事实源（2026-09-12）
+
+### 最终根因
+
+分页续表修复后，项目 1381 的 `/review` 已有 8 个事实且叶子权重合计 100，`/items` 仍只有旧的 1 项。直接证据是完整性结果为 `REVIEW_REQUIRED / WEIGHT_SUM_MISMATCH`，声明总分被误判为 30。
+
+原因不是 Artifact 缺数据，而是完整性策略继续从 `/convert` Markdown 解析声明总分。真实表尾在结构化 cell 中是 `合计\n得分 | 满分\n（100分）`，Markdown 则为 `合计<br>得分 | 满分<br>（100分）`；正则无法跨 `<br>` 和列边界命中 100，却命中了报价细则中的局部“满分30分”。旧合成测试把文字写成连续的 `合计 得分 满分 （100分）`，掩盖了生产输入差异。
+
+### 结构化总分契约
+
+- `ScoreTableSummaryPolicy` 从 `CanonicalTableGrid` 汇总行提取声明总分，并保留 `tableId/row/sourceCellId/quotedText`；它返回全部证据，不自行取最大值。
+- `DeterministicScoreFactExtractor` 与总分策略共享汇总行判定，保证汇总行既不会成为评分项，又能成为完整性证据。
+- `ScoreCompletenessPolicy` 的优先级固定为：结构化汇总行唯一值 → 招标正文兼容兜底 → 默认 100。
+- 多个不同结构化总分触发 `DECLARED_TOTAL_CONFLICT` 并进入人工复核，禁止选择最大值后自动覆盖。
+- `declaredTotalSource` 写入复核快照和服务日志；1381 同形态的正确值应为 `STRUCTURED_SUMMARY_ROW`。
+
+### 端到端回归锚点
+
+- `ScoreTableSummaryPolicyTest#extractsDeclaredTotalFromProject1381SummaryCells`
+- `PdfEvidencePipelineTest#project1381LikePdfSplitScoreTable_usesStructuredTotalWhenMarkdownBreakTagsHide100`
+- `PdfEvidencePipelineTest#project1381LikePdfWithoutStructuredSummary_keepsLossyMarkdownFallbackBehavior`
+- `PdfEvidencePipelineTest#conflictingStructuredSummaryTotals_requireReviewInsteadOfGuessing`
+- `ScoreParseAppServiceTest#parse_project1381PdfStructuredSummary_persistsAllEightItems`
+
+> 维护纪律：评分表总分属于表格结构事实。只要结构化汇总行可用，就不得再让 Markdown 正文正则覆盖它；正文解析仅是无结构化证据时的兼容通道。

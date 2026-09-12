@@ -76,7 +76,7 @@ public final class DeterministicScoreFactExtractor {
             if (sourceText.isBlank()) {
                 continue;
             }
-            if (isSummaryTotalRow(code, dimension)) {
+            if (ScoreTableSummaryPolicy.isSummaryRow(code, dimension)) {
                 continue;
             }
 
@@ -236,24 +236,6 @@ public final class DeterministicScoreFactExtractor {
         return TITLE_WEIGHT.matcher(raw).replaceAll("")
                 .replaceAll("\\s+", " ")
                 .trim();
-    }
-
-    private static boolean isSummaryTotalRow(String code, String dimension) {
-        String codeText = normalizeCompact(code);
-        String dimensionText = normalizeCompact(dimension);
-        return isSummaryLabel(codeText) && hasTotalMarker(dimensionText);
-    }
-
-    private static String normalizeCompact(String text) {
-        return text == null ? "" : text.replaceAll("\\s+", "");
-    }
-
-    private static boolean isSummaryLabel(String text) {
-        return text.equals("合计") || text.equals("总计") || text.equals("合计得分") || text.equals("总计得分");
-    }
-
-    private static boolean hasTotalMarker(String text) {
-        return text.contains("满分") || text.contains("总分") || text.contains("得分");
     }
 
     /**
