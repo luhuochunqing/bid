@@ -334,7 +334,7 @@ final class GoldenCasesReplaySupport {
 
     static void writeReplayReport(Path reportPath, List<ReplayReportRow> rows) {
         try {
-            StringBuilder json = new StringBuilder('{');
+            StringBuilder json = new StringBuilder().append('{');
             json.append("\"cases\":[");
             for (int i = 0; i < rows.size(); i++) {
                 if (i > 0) {

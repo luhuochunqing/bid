@@ -4,6 +4,8 @@
 # Pos: scripts/eval-scoreparse —— spec 057 US3 第二层模板；与 GITEE 无关，指向测试环境解析 API
 set -euo pipefail
 
+ROOT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || echo '')"
+
 # ── 语料目录门禁：未设置 → 明确 SKIP 原因并成功退出（CI 不挂）──
 if [[ -z "${XIYU_EVAL_CORPUS_DIR:-}" ]]; then
   echo "[eval-scoreparse:nightly] SKIP: 未设置 XIYU_EVAL_CORPUS_DIR。"
@@ -48,12 +50,23 @@ shopt -u nocaseglob
 
 if [[ ${count} -eq 0 ]]; then
   echo "[eval-scoreparse:nightly] SKIP: 目录下没有 *.docx / *.pdf 文件: ${CORPUS_DIR}"
-  exit 0
 fi
 
 echo "[eval-scoreparse:nightly] 共规划 ${count} 个语料的采集模板（未执行）。"
 
-ROOT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || echo '')"
+if [[ -f "${CORPUS_DIR}/incident-1358/candidates.json" ]]; then
+  echo ""
+  echo "[eval-scoreparse:nightly] 发现 1358 真实候选快照，执行本地 green path 验证:"
+  mvn -f "$ROOT_DIR/backend/pom.xml" \
+    -Dtest=Incident1358RealCorpusGoldenTest \
+    -DfailIfNoTests=false \
+    test
+else
+  echo ""
+  echo "[eval-scoreparse:nightly] SKIP: 未发现 ${CORPUS_DIR}/incident-1358/candidates.json。"
+  echo "  可先运行: XIYU_EVAL_CORPUS_DIR=${CORPUS_DIR} npm run eval:scoreparse:record-real-corpus"
+fi
+
 if [[ -f "$ROOT_DIR/backend/target/scoreparse-golden-report.json" ]]; then
   echo ""
   echo "[eval-scoreparse:nightly] 渲染最新金标评估指标汇总:"

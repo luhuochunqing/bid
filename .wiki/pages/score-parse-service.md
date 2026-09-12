@@ -17,6 +17,8 @@ sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/StructuredTableExtractionHandler.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreParseReviewAppService.java
   - backend/src/test/java/com/xiyu/bid/scoreparse/golden/GoldenCasesReplaySupport.java
+  - backend/src/test/java/com/xiyu/bid/scoreparse/golden/ScoreParseRealCorpusRecorderTest.java
+  - scripts/eval-scoreparse/record-real-corpus.sh
   - docs/implementation-notes/ai-score-parse-backend.md
   - specs/048-score-parse-image-multimodal/spec.md
   - docs/lessons/root-cause-analysis-score-parse-table-merge-cells.md
@@ -344,4 +346,11 @@ trigger（同步<1s，互斥校验+建任务）
    - **细则分优先消重**：检测跨行单元格（`rowspan > 1`），当提取到的 `bracketWeight` 属于该跨行大项且行内存在细则得分（`maxGradeScore < bracketWeight`）时，单项优先取 `maxGradeScore`（2分），消除 6+2+2 膨胀；
    - **条款编号过滤**：清洗形如 `3.3(1)` 等非语义条款编号，防止污染父维度；
    - **维度防自包含**：将最内层跨行父级（如“资源实力”）作为该行 `dim`，上级分类作为 `parentDim`，消除自引用；
-   - **金标测试保障**：固化真实 14 张表格入参为金标 `1371_tables_v1.json`，全表提取严格 16 项（商务 56 分 + 技术 44 分 = 100.0 分严格收敛）。
+  - **金标测试保障**：固化真实 14 张表格入参为金标 `1371_tables_v1.json`，全表提取严格 16 项（商务 56 分 + 技术 44 分 = 100.0 分严格收敛）。
+
+## 真实语料金标录制与 nightly green path（2026-09-12）
+
+- **边界**：真实客户文件、真实原文与 `candidates.json` 均只允许放在仓库外的 `XIYU_EVAL_CORPUS_DIR`；仓库只保留录制工具、脱敏期望和测试入口。
+- **录制入口**：`npm run eval:scoreparse:record-real-corpus` 调用 `scripts/eval-scoreparse/record-real-corpus.sh`，默认读取 `$XIYU_EVAL_CORPUS_DIR/incident-1358/source.md` 并写出 `$XIYU_EVAL_CORPUS_DIR/incident-1358/candidates.json`。
+- **验证入口**：`npm run eval:scoreparse:real-corpus` 运行 `Incident1358RealCorpusGoldenTest`，将本地候选快照送入生产后处理链，断言真实 1358 形态保持 `AUTO_APPROVED`、11 项全部落库、总分 100。
+- **nightly 行为**：`scripts/eval-scoreparse/nightly-full.sh` 若发现 `incident-1358/candidates.json` 会自动追加运行真实语料 green path；缺失时明确 SKIP，不阻塞 CI。

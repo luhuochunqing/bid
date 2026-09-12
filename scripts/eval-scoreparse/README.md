@@ -10,6 +10,7 @@
 scripts/eval-scoreparse/
 ├── README.md         ← 本文件：标注规范 + 匹配谓词口径 + 新增 case 指南
 ├── report.mjs        ← 渲染 golden-report.json 为 Markdown 表（stdout）
+├── record-real-corpus.sh ← 真实语料 candidates.json 录制入口（显式本地 env 才写）
 └── nightly-full.sh   ← 第二层全链路采集模板（缺语料目录明确 SKIP）
 ```
 
@@ -37,6 +38,49 @@ backend/src/test/resources/scoreparse-golden/
 |---|---|---|---|
 | 第一层 · 夹具回放 | `npm run eval:scoreparse:replay`（= `mvn -f backend/pom.xml test -Dtest='GoldenCasesReplayTest'`） | 纯确定性六件套：Locator→Extractor（正则结构通道）、TableRecallLane、MergePolicy、GhostFilter、（生产同序的权重有效性过滤）、WeightNormalization | 随默认后端测试套件执行，等效 pre-push 第一层门禁（waiver 见 specs/057/spec.md） |
 | 第二层 · 全链路采集 | `bash scripts/eval-scoreparse/nightly-full.sh` | 真实 docx/pdf 语料经 sidecar + LLM 全链路的端到端样本采集 | nightly / 手动；未设置 `XIYU_EVAL_CORPUS_DIR` 时打印 SKIP 原因并以 0 退出 |
+
+## 真实语料金标录制（本地 green path）
+
+真实客户文件、真实原文、离线候选快照均不得入仓；只能放在仓库外的
+`XIYU_EVAL_CORPUS_DIR`。仓库只保存录制工具、测试入口和脱敏期望。
+
+默认目录约定：
+
+```text
+$XIYU_EVAL_CORPUS_DIR/
+└── incident-1358/
+    ├── source.md        # 本地真实文档经 sidecar/文档提取链导出的 markdown，禁止入仓
+    └── candidates.json  # 录制器生成，禁止入仓
+```
+
+录制候选快照：
+
+```bash
+XIYU_EVAL_CORPUS_DIR=/secure/local/scoreparse-corpus \
+  npm run eval:scoreparse:record-real-corpus
+```
+
+如输入或输出路径不是默认值，可覆盖：
+
+```bash
+XIYU_EVAL_CORPUS_DIR=/secure/local/scoreparse-corpus \
+XIYU_SCOREPARSE_REAL_CASE=incident-1358 \
+XIYU_SCOREPARSE_MARKDOWN=/secure/local/scoreparse-corpus/incident-1358/source.md \
+XIYU_SCOREPARSE_CANDIDATES=/secure/local/scoreparse-corpus/incident-1358/candidates.json \
+  npm run eval:scoreparse:record-real-corpus
+```
+
+跑真实语料 green path：
+
+```bash
+XIYU_EVAL_CORPUS_DIR=/secure/local/scoreparse-corpus \
+  npm run eval:scoreparse:real-corpus
+```
+
+`Incident1358RealCorpusGoldenTest` 会读取
+`$XIYU_EVAL_CORPUS_DIR/incident-1358/candidates.json`，把候选快照送入生产后处理链，
+断言 1358 真实形态仍然 `AUTO_APPROVED`、11 项全部落库、总分 100、并触发预计得分。
+未设置 `XIYU_EVAL_CORPUS_DIR` 时测试按 JUnit 条件跳过，不阻塞 CI。
 
 渲染报告：
 
