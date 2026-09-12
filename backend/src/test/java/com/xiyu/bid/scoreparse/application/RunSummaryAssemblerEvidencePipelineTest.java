@@ -70,6 +70,30 @@ class RunSummaryAssemblerEvidencePipelineTest {
     }
 
     @Test
+    void tableSplits_serializedWithTableIdDeclaredTotalDecisionFallback() {
+        // spec 062 US2：run_summary 必须承载每张评分表的独立拆分明细，支撑人工复核定位
+        List<Map<String, Object>> splits = List.of(
+                Map.of("tableId", "m1-t0001", "declaredTotal", new BigDecimal("60.00"),
+                        "decision", "AUTO_APPROVED", "fallbackReason", ""),
+                Map.of("tableId", "m1-t0002", "declaredTotal", new BigDecimal("40.00"),
+                        "decision", "REVIEW_REQUIRED", "fallbackReason", "WEIGHT_SUM_MISMATCH"));
+        WeightSumCheck.Result weight = new WeightSumCheck().checkCandidates(List.of());
+        String json = RunSummaryAssembler.assemble(recall(2, 4), 7, view(), weight, 0,
+                "gemini-3.5-flash", ScoreParsePipeline.EVIDENCE_PIPELINE_V1,
+                ScoreParseDecision.REVIEW_REQUIRED.name(), "WEIGHT_SUM_MISMATCH", splits).json();
+
+        assertThat(json)
+                .contains("\"tableSplits\":[")
+                .contains("\"tableId\":\"m1-t0001\"")
+                .contains("\"declaredTotal\":60.00")
+                .contains("\"decision\":\"AUTO_APPROVED\"")
+                .contains("\"tableId\":\"m1-t0002\"")
+                .contains("\"declaredTotal\":40.00")
+                .contains("\"decision\":\"REVIEW_REQUIRED\"")
+                .contains("\"fallbackReason\":\"WEIGHT_SUM_MISMATCH\"");
+    }
+
+    @Test
     void legacyKeysRemainInOrder_pipelineKeysAppendedAtEnd() {
         // 旧字段必须保持原有顺序，否则可能破坏既有回放/审计断言。
         String json = assembleJson(ScoreParsePipeline.LEGACY_FALLBACK,

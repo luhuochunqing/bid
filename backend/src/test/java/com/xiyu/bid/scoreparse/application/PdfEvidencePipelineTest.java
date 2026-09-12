@@ -170,6 +170,78 @@ class PdfEvidencePipelineTest {
         assertThat(result.candidates()).isEmpty();
     }
 
+    @Test
+    void multiTableTender_eachOwnTotalSelfConsistent_currentlyBlockedByDeclaredTotalConflict()
+            throws IOException, InterruptedException {
+        // 期望行为：两张独立评分表（技术 60 / 商务 40）各自按本表声明总分独立校验，两表全自洽
+        // → 整份文档 AUTO_APPROVED → 两表全部评分项可落库为正式 score_item。
+        // Red 状态：当前实现合并校验触发"结构化声明总分冲突"→ REVIEW_REQUIRED，本断言失败。
+        StructuredTableExtractionHandler.Result result = extractMultiTable();
+
+        assertThat(result.evidencePipeline()).isTrue();
+        assertThat(result.facts()).hasSize(5);
+        assertThat(result.candidates()).hasSize(5);
+        assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+    }
+
+    private static StructuredTableExtractionHandler.Result extractMultiTable()
+            throws IOException, InterruptedException {
+        byte[] pdfBytes = "%PDF-1.4 multi-table tender".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        TenderTextSource source = new TenderTextSource(
+                "multi-table.pdf",
+                "memory://multi-table.pdf",
+                "评分标准由技术评分表和商务评分表两张独立评分表组成。");
+        InitiationTenderTextResolver resolver = new InitiationTenderTextResolver(
+                null, null, null, null, null, null, url -> pdfBytes) {
+            @Override
+            public byte[] loadBytes(String fileUrl) {
+                return pdfBytes;
+            }
+        };
+        SidecarDocumentArtifactExtractor artifactExtractor =
+                new SidecarDocumentArtifactExtractor("http://localhost:9", "", 1, new ObjectMapper()) {
+                    @Override
+                    public DocumentArtifact extract(byte[] content, String fileName) {
+                        return multiTableScoreArtifact();
+                    }
+                };
+        return StructuredTableExtractionHandler.extract(source, resolver, artifactExtractor, null);
+    }
+
+    private static DocumentArtifact multiTableScoreArtifact() {
+        List<List<String>> technicalRows = List.of(
+                List.of("序号", "评分因素", "评分标准"),
+                List.of("1", "技术方案\n（30分）", "方案优秀得满分30分。"),
+                List.of("2", "技术团队\n（20分）", "团队优秀得满分20分。"),
+                List.of("3", "技术培训\n（10分）", "培训完整得满分10分。"),
+                List.of("合计\n得分", "满分\n（60分）", ""));
+        List<List<String>> commercialRows = List.of(
+                List.of("序号", "评分因素", "评分标准"),
+                List.of("1", "商务报价\n（20分）", "报价合理得满分20分。"),
+                List.of("2", "售后服务\n（20分）", "服务完善得满分20分。"),
+                List.of("合计\n得分", "满分\n（40分）", ""));
+        return new DocumentArtifact(
+                new DocumentArtifact.ArtifactMeta("sha256:multi-table", "multi-table", "PDF", "pdf-table-v1"),
+                List.of(buildScoreTable("m1-t0001", technicalRows),
+                        buildScoreTable("m1-t0002", commercialRows)),
+                List.of());
+    }
+
+    private static DocumentArtifact.CanonicalTable buildScoreTable(String tableId, List<List<String>> rows) {
+        List<DocumentArtifact.CanonicalTable.CanonicalCellDto> cells = new ArrayList<>();
+        for (int row = 0; row < rows.size(); row++) {
+            for (int col = 0; col < rows.get(row).size(); col++) {
+                String text = rows.get(row).get(col);
+                cells.add(new DocumentArtifact.CanonicalTable.CanonicalCellDto(
+                        tableId + "-r" + row + "-c" + col, row, col, text,
+                        text.replaceAll("\\s+", " ").trim(), 1, 1, false,
+                        "pdf:page=1;table=" + tableId + ";row=" + row + ";col=" + col));
+            }
+        }
+        return new DocumentArtifact.CanonicalTable(
+                tableId, 1, "", rows.size(), rows.get(0).size(), List.of(), cells, true);
+    }
+
     private static DocumentArtifact pdfScoreArtifact() {
         List<List<String>> rows = List.of(
                 List.of("编号", "评分项", "评分标准", "分值"),
