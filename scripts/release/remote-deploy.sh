@@ -129,12 +129,35 @@ if [[ -f "$SIDECAR_ARCHIVE" ]]; then
         document-converter-sidecar:latest
       printf '%s\n' "$NEW_SIDECAR_HASH" > "$SIDECAR_DIR/.deployed_sha256"
       printf '✅ Sidecar 容器升级完成\n'
+      # ── Sidecar 健康门禁（发布闭环 Stage D：后端停止前拦截，失败零影响）──
+      # 重建后必须先证明新容器存活 + 版本指纹可读，否则直接退出；
+      # 此时旧 jar 仍在运行、前端未切换，服务未中断。
+      DEPLOYED_SIDECAR_SCHEMA="$(grep -E '^SCHEMA_VERSION' "$SIDECAR_DIR/table_extractor.py" 2>/dev/null | cut -d'"' -f2 | tr -d "'" || true)"
+      printf '==> Sidecar 表格契约版本：schemaVersion=%s（Java v1 期望 1.0 / v2 期望 2.0）\n' "${DEPLOYED_SIDECAR_SCHEMA:-未知}"
+      SIDECAR_HEALTH_URL="${SIDECAR_HEALTH_URL:-http://127.0.0.1:8000/health}"
+      SIDECAR_HEALTH_OK=0
+      for _i in $(seq 1 30); do
+        if curl -fsS --connect-timeout 3 "$SIDECAR_HEALTH_URL" 2>/dev/null | grep -q '"up"'; then
+          SIDECAR_HEALTH_OK=1
+          break
+        fi
+        sleep 2
+      done
+      if [[ "$SIDECAR_HEALTH_OK" != "1" ]]; then
+        printf '\n❌ Sidecar 健康检查失败（%s，30 次重试）——新容器未存活，停止 rollout。\n' "$SIDECAR_HEALTH_URL" >&2
+        printf '   旧版本仍在运行（后端未停止、前端未切换），服务未中断。处置：\n' >&2
+        printf '     docker logs --tail 50 xiyu-sidecar\n\n' >&2
+        exit 1
+      fi
+      printf '✅ Sidecar 健康检查通过（%s）\n' "$SIDECAR_HEALTH_URL"
     else
       printf '⚠️  未检测到可用 Docker 守护进程，跳过容器自动构建\n' >&2
     fi
   else
     printf '==> Sidecar 源码无变动（SHA-256: %s），跳过容器构建\n' "$NEW_SIDECAR_HASH"
-  fi
+    DEPLOYED_SIDECAR_SCHEMA="$(grep -E '^SCHEMA_VERSION' "$SIDECAR_DIR/table_extractor.py" 2>/dev/null | cut -d'"' -f2 | tr -d "'" || true)"
+    printf '    表格契约版本：schemaVersion=%s\n' "${DEPLOYED_SIDECAR_SCHEMA:-未知}"
+fi
 fi
 
 # ── AI Provider 守卫（任何服务变更之前，失败零影响）──

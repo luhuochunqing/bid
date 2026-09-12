@@ -259,3 +259,38 @@ class TestExtractTablesEndpoint:
                 )
         resp = await _run()
         assert resp.status_code in (400, 422)
+
+
+class TestExtractTablesVersionHeaders:
+    """Release gate: X-Schema-Version request/response echo (Stage D)."""
+
+    @pytest.mark.asyncio
+    async def test_v1_request_echoes_v1_header(self, app_instance):
+        doc = Document()
+        doc.add_table(rows=2, cols=2).cell(0, 0).text = "评分"
+        buf = io.BytesIO()
+        doc.save(buf)
+
+        resp = await _post_extract_tables(
+            app_instance, buf.getvalue(), "test.docx", headers={"X-Schema-Version": "1.0"})
+        assert resp.status_code == 200
+        assert resp.headers.get("x-schema-version") == "1.0"
+        data = resp.json()
+        assert "tables" in data and "warnings" in data
+        assert "schemaVersion" not in data  # v1 body shape unchanged
+
+    @pytest.mark.asyncio
+    async def test_default_request_echoes_v2_header(self, app_instance):
+        resp = await _post_extract_tables(app_instance, b"not a docx", "test.txt")
+        assert resp.status_code == 200
+        assert resp.headers.get("x-schema-version") == "2.0"
+        assert resp.json()["schemaVersion"] == "2.0"
+
+    @pytest.mark.asyncio
+    async def test_health_echoes_v2_header(self, app_instance):
+        async with AsyncClient(transport=ASGITransport(app=app_instance),
+                               base_url="http://test") as client:
+            resp = await client.get("/health")
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "up"}  # body unchanged
+        assert resp.headers.get("x-schema-version") == "2.0"

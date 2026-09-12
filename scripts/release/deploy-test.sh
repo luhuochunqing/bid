@@ -129,6 +129,8 @@ printf '==> Step 4: 上传到测试服务器\n'
 ssh -o StrictHostKeyChecking=no "$TEST_HOST" "mkdir -p $TEST_APP_ROOT/incoming"
 scp -o StrictHostKeyChecking=no "$RELEASE_ARCHIVE" "$TEST_HOST:$TEST_APP_ROOT/incoming/"
 scp -o StrictHostKeyChecking=no "$ROOT_DIR/scripts/release/remote-deploy.sh" "$TEST_HOST:$TEST_APP_ROOT/incoming/"
+scp -o StrictHostKeyChecking=no "$ROOT_DIR/scripts/release/smoke-sidecar.sh" "$TEST_HOST:$TEST_APP_ROOT/incoming/"
+scp -o StrictHostKeyChecking=no "$ROOT_DIR/backend/src/test/resources/scoreparse-golden/1371_tables_v1.json" "$TEST_HOST:$TEST_APP_ROOT/incoming/" 2>/dev/null || true
 scp -o StrictHostKeyChecking=no "$ROOT_DIR/scripts/release/flyway-repair-runner.sh" "$TEST_HOST:$TEST_APP_ROOT/bin/" 2>/dev/null || true
 printf '✅ 上传完成\n\n'
 
@@ -201,16 +203,14 @@ else
   printf '     修复：确认使用 deploy-test.sh 部署，勿手工拼凑 package-release.sh 命令\n' >&2
 fi
 
-# Sidecar /extract-tables 接口可用性校验（防静默降级门禁）
-printf '  Sidecar /extract-tables 校验：'
-SIDECAR_STATUS=$(ssh -o StrictHostKeyChecking=no "$TEST_HOST" 'curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:8000/extract-tables 2>/dev/null || echo "DOWN"')
-if [[ "$SIDECAR_STATUS" == "404" || "$SIDECAR_STATUS" == "DOWN" || "$SIDECAR_STATUS" == "000" ]]; then
-  printf '❌ 失败（HTTP %s）\n' "$SIDECAR_STATUS" >&2
-  printf '     根因：Sidecar 容器缺少 /extract-tables 端点或未启动，会导致评分表格解析全量降级到 Markdown！\n' >&2
-  printf '     修复：检查 document-converter-sidecar/Dockerfile.cn 是否包含 table_extractor.py 并重启容器\n' >&2
-  DEPLOY_EXIT=1
+# Sidecar 发布冒烟（Stage D：health 指纹 + 1371 回放 + 双版本探针，失败阻断部署）
+# 替代旧的裸 POST 空包探测：旧探测无版本头、不断言形态，v2 回落时同样放行。
+printf '  Sidecar 发布冒烟（smoke-sidecar.sh）：\n'
+if ssh -o StrictHostKeyChecking=no "$TEST_HOST" 'bash '"$TEST_APP_ROOT"'/incoming/smoke-sidecar.sh http://127.0.0.1:8000 '"$TEST_APP_ROOT"'/incoming/1371_tables_v1.json'; then
+  printf '  ✅ Sidecar 冒烟通过\n'
 else
-  printf '✅ 正常（HTTP %s，接口存活）\n' "$SIDECAR_STATUS"
+  printf '  ❌ Sidecar 冒烟失败（上面为明细，发布后评分表格解析会全量降级到 Markdown）\n' >&2
+  DEPLOY_EXIT=1
 fi
 
 # 部署失败时退出（放在 OBS / Sidecar 校验之后，确保诊断信息已收集后再退出）
