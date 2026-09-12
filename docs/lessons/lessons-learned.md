@@ -5637,3 +5637,32 @@ task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` 
 - 真实 1381 PDF smoke：第 20 页初步评审表 `isScoreTable=false`；第 24/25 页评分表合并为 10 行，包含 8 项 + 合计行，0 warning。
 - Sidecar 回归：`pytest document-converter-sidecar/tests/test_pdf_table_artifact.py document-converter-sidecar/tests/test_extract_tables_v2.py -q` → 19 passed。
 - 后端回归：`mvn -f backend/pom.xml -Dtest=DeterministicScoreFactExtractorTest,PdfEvidencePipelineTest,ScoreCompletenessPolicyTest,ScoreCompletenessAcceptanceTest,ScoreParseAppServiceTest test` → 55 tests passed。
+
+## 358. AI 评分解析 1381：声明总分必须来自结构化汇总行，不能依赖损失性 Markdown（2026-09-12）
+
+### 问题背景
+
+项目 1381 的 v2 Artifact 已稳定提取出 8 个评分事实，叶子权重合计也是 100，但完整性策略仍把声明总分判成 30，导致决策为 `REVIEW_REQUIRED / WEIGHT_SUM_MISMATCH`，按安全策略不覆盖正式 `score_item`，前端因而继续展示旧的 1 项。
+
+真实 Sidecar 输出揭示了此前合成测试未覆盖的关键差异：结构化 cell 保留 `合计\n得分` 与 `满分\n（100分）`，而 `/convert` Markdown 将其投影为 `| 合计<br>得分 | 满分<br>（100分） |`。正文正则无法跨 `<br>` 和管道列边界关联“满分”与“100分”，却会命中报价细则中的局部“满分30分/满分10分”，形成 30 分误判。此前测试手工写成连续文本 `合计 得分 满分 （100分）`，因此产生了假绿。
+
+### 根因规则
+
+1. **证据层级倒置**：完整性决策拥有 `CanonicalTableGrid`，却丢弃结构化汇总行，转而从损失性 Markdown 反推总分。
+2. **合成夹具过度理想化**：测试没有复刻真实转换器产生的 `<br>` 与列分隔，验证的是正则理想输入而非生产数据形态。
+3. **“取正文最大值”只能缓解，不能根治**：正文可能含多个局部满分或其他章节总分；最大值启发式没有表格行、列、cell 锚点，无法证明该数值就是评分表声明总分。
+
+### 落地规则
+
+- `ScoreTableSummaryPolicy` 在纯领域层从评分表汇总行提取声明总分，并保留 `tableId/row/sourceCellId/quotedText` 证据锚点；`DeterministicScoreFactExtractor` 复用同一汇总行判定，避免识别口径分叉。
+- `ScoreCompletenessPolicy` 按“结构化汇总行唯一值 → 招标正文兼容兜底 → 默认 100”解析声明总分，并输出 `declaredTotalSource`。
+- 同一批结构化汇总行出现多个不同总分时必须进入 `REVIEW_REQUIRED / DECLARED_TOTAL_CONFLICT`，禁止静默取最大值或任意一个值自动覆盖。
+- 真实事故回归必须使用 `/convert` 的原始 `<br>` 形态；同时保留“无结构化证据继续走正文”的兼容测试，防止修复误伤扫描件或纯文本输入。
+
+### 回归锚点
+
+- `ScoreTableSummaryPolicyTest#extractsDeclaredTotalFromProject1381SummaryCells`
+- `PdfEvidencePipelineTest#project1381LikePdfSplitScoreTable_usesStructuredTotalWhenMarkdownBreakTagsHide100`
+- `PdfEvidencePipelineTest#project1381LikePdfWithoutStructuredSummary_keepsLossyMarkdownFallbackBehavior`
+- `PdfEvidencePipelineTest#conflictingStructuredSummaryTotals_requireReviewInsteadOfGuessing`
+- `ScoreParseAppServiceTest#parse_project1381PdfStructuredSummary_persistsAllEightItems`

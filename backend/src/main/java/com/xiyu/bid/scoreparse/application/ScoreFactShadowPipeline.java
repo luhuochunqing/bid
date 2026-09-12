@@ -7,6 +7,7 @@ import com.xiyu.bid.scoreparse.domain.DeterministicScoreFactExtractor;
 import com.xiyu.bid.scoreparse.domain.ScoreCompletenessPolicy;
 import com.xiyu.bid.scoreparse.domain.ScoreFact;
 import com.xiyu.bid.scoreparse.domain.ScoreFactValidator;
+import com.xiyu.bid.scoreparse.domain.ScoreTableSummaryPolicy;
 import com.xiyu.bid.scoreparse.domain.grid.CanonicalTableGrid;
 import com.xiyu.bid.scoreparse.domain.grid.CanonicalTableGridFactory;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
@@ -68,10 +69,20 @@ public final class ScoreFactShadowPipeline {
         List<ScoreFact> allFacts = outcomes.stream()
                 .flatMap(outcome -> outcome.facts().stream())
                 .toList();
+        List<ScoreTableSummaryPolicy.DeclaredTotalEvidence> declaredTotals = collectDeclaredTotals(outcomes);
         boolean allValid = outcomes.stream().allMatch(TableOutcome::structurallyValid);
         return new ShadowResult(List.copyOf(outcomes), skipped,
                 ScoreFactValidator.validateScoringSet(allFacts),
-                ScoreCompletenessPolicy.evaluateCompleteness(allFacts, tenderSectionText, allValid));
+                ScoreCompletenessPolicy.evaluateCompleteness(
+                        allFacts, tenderSectionText, allValid, declaredTotals));
+    }
+
+    private static List<ScoreTableSummaryPolicy.DeclaredTotalEvidence> collectDeclaredTotals(
+            List<TableOutcome> outcomes) {
+        return outcomes.stream()
+                .flatMap(outcome -> ScoreTableSummaryPolicy.extractDeclaredTotals(
+                        outcome.grid(), outcome.mapping()).stream())
+                .toList();
     }
 
     /**
@@ -127,7 +138,7 @@ public final class ScoreFactShadowPipeline {
                 ScoreFactValidator.ValidationResult scoring) {
             this(tables, skippedTables, scoring, ScoreCompletenessPolicy.evaluateCompleteness(
                     tables.stream().flatMap(t -> t.facts().stream()).toList(), null,
-                    tables.stream().allMatch(TableOutcome::structurallyValid)));
+                    tables.stream().allMatch(TableOutcome::structurallyValid), collectDeclaredTotals(tables)));
         }
     }
 }

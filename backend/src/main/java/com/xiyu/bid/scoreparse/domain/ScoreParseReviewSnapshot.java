@@ -20,6 +20,7 @@ public record ScoreParseReviewSnapshot(
         ScoreParseDecision decisionStatus,
         String fallbackReason,
         BigDecimal declaredTotalScore,
+        ScoreCompletenessPolicy.DeclaredTotalSource declaredTotalSource,
         BigDecimal leafWeightSum,
         BigDecimal discrepancy,
         int leafCount,
@@ -42,7 +43,8 @@ public record ScoreParseReviewSnapshot(
         BigDecimal diff = completeness.declaredTotalScore().subtract(completeness.leafWeightSum()).abs();
         return new ScoreParseReviewSnapshot(
                 taskId, completeness.decision(), completeness.fallbackReason(),
-                completeness.declaredTotalScore(), completeness.leafWeightSum(), diff,
+                completeness.declaredTotalScore(), completeness.declaredTotalSource(),
+                completeness.leafWeightSum(), diff,
                 completeness.leafCount(), completeness.parentCount(), completeness.missingEvidenceCount(),
                 completeness.defects(), factViews);
     }
@@ -53,6 +55,7 @@ public record ScoreParseReviewSnapshot(
         map.put("decisionStatus", decisionStatus == null ? null : decisionStatus.name());
         map.put("fallbackReason", fallbackReason);
         map.put("declaredTotalScore", declaredTotalScore);
+        map.put("declaredTotalSource", declaredTotalSource == null ? null : declaredTotalSource.name());
         map.put("leafWeightSum", leafWeightSum);
         map.put("discrepancy", discrepancy);
         map.put("leafCount", leafCount);

@@ -34,6 +34,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -312,6 +313,42 @@ class ScoreParseAppServiceTest {
     }
 
     @Test
+    void parse_project1381PdfStructuredSummary_persistsAllEightItems() throws Exception {
+        ScoreParseTask task = ScoreParseTask.builder()
+                .id(5L).taskId(TASK_ID).projectId(PROJECT_ID).taskType("PARSE").status("PENDING").build();
+        when(taskRepository.findByTaskId(TASK_ID)).thenReturn(Optional.of(task));
+        when(initiationTenderTextResolver.resolveIntake(PROJECT_ID))
+                .thenReturn(TenderIntake.found(new TenderTextSource(
+                        "project-1381-like.pdf", "doc-insight://t/1381",
+                        "报价得满分30分，办公用品得满分10分。\n"
+                                + "| 合计<br>得分 | 满分<br>（100分） | |")));
+        when(initiationTenderTextResolver.loadBytes("doc-insight://t/1381"))
+                .thenReturn("pdf-bytes".getBytes(StandardCharsets.UTF_8));
+        SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
+        when(artifactExtractorProvider.getIfAvailable()).thenReturn(artifactExtractor);
+        when(artifactExtractor.extract(any(byte[].class), eq("project-1381-like.pdf")))
+                .thenReturn(project1381EvidenceArtifact());
+
+        service.executeParseAsync(TASK_ID);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<ScoreCandidate>> candidates = ArgumentCaptor.forClass(List.class);
+        verify(itemPersistenceService).persistItems(eq(PROJECT_ID), eq(5L), candidates.capture());
+        assertThat(candidates.getValue())
+                .extracting(ScoreCandidate::dim)
+                .containsExactly("投标报价", "公司综合实力", "类似业绩", "技术方案",
+                        "供货方案", "人员配备", "质量管理方案", "售后服务方案");
+        assertThat(candidates.getValue())
+                .extracting(ScoreCandidate::weight)
+                .containsExactly(new BigDecimal("40"), new BigDecimal("6"), new BigDecimal("10"),
+                        new BigDecimal("10"), new BigDecimal("10"), new BigDecimal("6"),
+                        new BigDecimal("10"), new BigDecimal("8"));
+        assertThat(task.getDecisionStatus()).isEqualTo("AUTO_APPROVED");
+        assertThat(task.getFallbackReason()).isNull();
+        verify(estimatedScoreService).estimateForProject(PROJECT_ID);
+    }
+
+    @Test
     void parse_docxEvidencePipelineReviewRequired_preservesExistingItemsButPersistsFacts() throws Exception {
         ScoreParseTask task = docxTaskWithBytes();
         SidecarDocumentArtifactExtractor artifactExtractor = mock(SidecarDocumentArtifactExtractor.class);
@@ -393,6 +430,32 @@ class ScoreParseAppServiceTest {
                                 artifactCell("t-0000-r2-c2", 2, 2, "方案完整可行"),
                                 artifactCell("t-0000-r2-c3", 2, 3, secondWeight)),
                         true)),
+                List.of());
+    }
+
+    private DocumentArtifact project1381EvidenceArtifact() {
+        List<List<String>> rows = List.of(
+                List.of("序号", "评分因素", "评分标准"),
+                List.of("1", "投标报价\n（40分）", "报价规则"),
+                List.of("2", "公司综合实力\n（6分）", "证书清单"),
+                List.of("3", "类似业绩\n（10分）", "类似案例"),
+                List.of("4", "技术方案\n（10分）", "技术方案"),
+                List.of("4", "供货方案\n（10分）", "供货保障"),
+                List.of("5", "人员配备\n（6分）", "人员配置"),
+                List.of("6", "质量管理方案（10分）", "质量管理"),
+                List.of("7", "售后服务方案（8分）", "售后服务"),
+                List.of("合计\n得分", "满分\n（100分）", ""));
+        List<DocumentArtifact.CanonicalTable.CanonicalCellDto> cells = new ArrayList<>();
+        for (int row = 0; row < rows.size(); row++) {
+            for (int column = 0; column < rows.get(row).size(); column++) {
+                cells.add(artifactCell("p24-t0007-r" + row + "-c" + column,
+                        row, column, rows.get(row).get(column)));
+            }
+        }
+        return new DocumentArtifact(
+                new DocumentArtifact.ArtifactMeta("doc-1381", "sha256:1381", "PDF", "pdf-table-v1"),
+                List.of(new DocumentArtifact.CanonicalTable(
+                        "p24-t0007", 24, "综合评分法", rows.size(), 3, List.of(), cells, true)),
                 List.of());
     }
 

@@ -26,3 +26,33 @@
 - 不删除现有 `WeightNormalizationPolicy`。
 - 不修改前端抽屉展示（Phase 5）。
 - 不引入 LLM 受限操作契约（属 Phase 3）。
+
+## 2026-09-12 增补：声明总分的结构化单一事实源
+
+### Problem
+
+项目 1381 的 PDF 已被 Sidecar 正确还原为 8 个评分项和表尾 `合计得分 / 满分（100分）`，但
+`ScoreCompletenessPolicy` 仍只在转换后的 Markdown 中搜索声明总分。Markdown 把表尾拆成
+`| 合计<br>得分 | 满分<br>（100分） |` 后，文本正则无法识别 100，反而把评分细则中的局部
+`满分30分` 当成全表声明总分，导致 8 项合计 100 被误判为 `WEIGHT_SUM_MISMATCH`，正式
+`score_item` 按安全策略保留旧值。
+
+### Required behavior
+
+- `isScoreTable=true` 且结构有效时，表尾汇总行必须直接从 `CanonicalTableGrid` 解析出带
+  `tableId`、`row`、`cellId` 的声明总分证据。
+- 同一批结构化汇总证据只有一个唯一分值时，该分值优先于 Markdown 文本启发式结果。
+- 多个结构化汇总行声明不同分值时必须 `REVIEW_REQUIRED`，不得用最大值、默认 100 或文本
+  正则静默裁决。
+- 没有结构化汇总证据时，保留正文声明和默认 100 的兼容兜底。
+- 汇总行识别由一个纯领域策略同时服务“跳过评分事实”和“提取声明总分”，禁止两套规则漂移。
+- 完整性快照必须记录声明总分来源，便于从 `/review` 解释判定依据。
+
+### Acceptance
+
+- 以项目 1381 的真实转换形态构造回归：Markdown 包含局部 30/10 分，表尾为 `<br>` 分隔，
+  Artifact 包含结构化 100 分汇总行；结果必须为 8 项、合计 100、`AUTO_APPROVED`，声明总分
+  来源为结构化汇总行。
+- 删除结构化汇总行后，同一 Markdown 必须继续复现 30 分误导并进入 `REVIEW_REQUIRED`，证明
+  测试命中的是结构化优先级而非默认 100 偶然通过。
+- 冲突的结构化汇总分值必须返回 `DECLARED_TOTAL_CONFLICT`。

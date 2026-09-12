@@ -54,3 +54,35 @@ CREATE INDEX idx_score_parse_task_decision ON score_parse_task (decision_status)
 | 新列默认值与历史数据冲突 | 全部新增列允许 NULL；Phase 0 不重写历史任务，仅新任务填值 |
 | 前端 Meta 字段缺失导致 layout 异常 | 仅追加可选字段，前端可选读取 |
 | 迁移文件版本号撞号 | `next-migration-version.sh --reserve` 预约；commit 前再校验 |
+
+## Phase 7：项目 1381 声明总分结构化收敛（2026-09-12）
+
+### 纯核心
+
+- 新增 `ScoreTableSummaryPolicy`：对 `CanonicalTableGrid + TableColumnMapping` 识别汇总行并提取
+  不可变声明总分证据；同时提供汇总行判定，供 `DeterministicScoreFactExtractor` 复用。
+- `ScoreCompletenessPolicy` 接收结构化总分证据：唯一值优先，冲突值硬阻断；无证据时才使用
+  Markdown 文本启发式/默认 100。`ScoreCompletenessResult` 增加 `declaredTotalSource`。
+
+### 命令式外壳
+
+- `ScoreFactShadowPipeline` 在每张评分表生成事实的同时收集汇总证据，并一次性传给完整性策略。
+- `StructuredTableExtractionHandler` 的持久化安全边界不变：仅 `AUTO_APPROVED` 覆盖 `score_item`；
+  `REVIEW_REQUIRED` 仍只保存事实和复核快照。
+
+### Red → Green
+
+1. 先把 `PdfEvidencePipelineTest` 的 1381 正文改成 Sidecar `/convert` 的真实 `<br>` 表格形态，
+   证明当前实现误取局部 30 分并失败。
+2. 新增 `ScoreTableSummaryPolicyTest`，覆盖 100 分结构化提取、汇总行不生成事实、冲突阻断。
+3. 实现纯核心和管道接线，只运行定向测试直至 Green。
+4. 运行 scoreparse 相关回归、ArchUnit/静态门禁与 Sidecar PDF 表格契约测试。
+
+### 风险与对策
+
+| 风险 | 对策 |
+|---|---|
+| 多张评分表各有小计，被误当成唯一总分 | 不同结构化分值视为冲突并转人工复核 |
+| 汇总行与事实过滤规则再次漂移 | 两处统一复用 `ScoreTableSummaryPolicy.isSummaryRow` |
+| 无表尾总分的既有文档行为改变 | 结构化证据为空时保持正文/默认 100 兼容路径 |
+| 为通过 1381 放宽字符串正则 | 回归输入保留 `<br>`，修复只允许来自 CanonicalTableGrid |

@@ -61,3 +61,15 @@
 - [x] T602 架构测试新增：`scoreparse.domain` 不依赖 Spring/HTTP/JPA；LLM/infrastructure 不得构造 `ScoreFact`。
 - [x] T603 CI 默认运行确定性金标；nightly 执行脱敏真实语料评估并出报告（lane/复核率/结构失败/证据覆盖率）。
 - [x] T604 删除自动归一化在生产链路调用；保留 legacy 只读适配器至存量任务迁移完成。
+
+## Phase 7：项目 1381 声明总分结构化收敛
+
+- [x] T701 用真实 `/convert` 的 `<br>` 汇总行形态改造 `PdfEvidencePipelineTest`，先得到
+  `declaredTotalScore=30 / REVIEW_REQUIRED` 的失败证据。
+- [x] T702 新增纯领域 `ScoreTableSummaryPolicy`，从 CanonicalTableGrid 汇总行提取带 cell 锚点的总分证据。
+- [x] T703 `DeterministicScoreFactExtractor` 复用统一汇总行判定，禁止汇总行进入 ScoreFact。
+- [x] T704 `ScoreCompletenessPolicy` 实现结构化唯一值优先、冲突硬阻断、正文/默认兼容兜底，并记录来源。
+- [x] T705 `ScoreFactShadowPipeline` 收集结构化总分证据并接入完整性判定。
+- [x] T706 覆盖结构化 100、无结构化证据、结构化冲突、1381 八项自动通过四类回归。
+- [x] T707 运行后端定向/相关回归、架构门禁及 Sidecar PDF 契约测试；回填执行证据。
+- [x] T708 更新 lessons、Wiki 页面、索引和日志，记录“结构化证据优先于损失性文本投影”的根因规则。
