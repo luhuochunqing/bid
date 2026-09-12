@@ -216,4 +216,33 @@ describe('ScoreParseDrawer.vue', () => {
     expect(wrapper.text()).toContain('人工复核闭环')
     expect(wrapper.text()).toContain('总体架构设计')
   })
+
+  it('shows a completed state instead of saving after retention already exists', async () => {
+    scoreParseApi.getItems.mockResolvedValue({
+      data: {
+        items: itemsFixture,
+        meta: { decisionStatus: 'REVIEW_REQUIRED' },
+      },
+    })
+    scoreParseApi.getReview.mockResolvedValue({
+      data: { facts: [], audits: [{ action: 'RETAIN_ORIGINAL' }] },
+    })
+
+    const wrapper = mount(ScoreParseDrawer, {
+      props: { projectId: 123 },
+      global: {
+        stubs: {
+          'el-drawer': { template: '<div class="el-drawer-mock" v-if="modelValue"><slot /></div>', props: ['modelValue'] },
+          'el-dialog': true,
+          'el-button': true,
+        },
+      },
+    })
+
+    await wrapper.vm.open({ stage: 1, autoScore: false })
+
+    const button = wrapper.find('[data-test="score-parse-review-retain"]')
+    expect(button.attributes('disabled')).toBeDefined()
+    expect(button.text()).toBe('已保留')
+  })
 })
