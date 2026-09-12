@@ -3,6 +3,15 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-12] fix | PDF 评分表证据链与 REVIEW_REQUIRED 候选可见性修复
+
+- 触发：项目 1381 类 PDF 招标文件解析后仍只显示旧 `score_item` 1 项，最新 REVIEW_REQUIRED 候选没有进入复核 UI。
+- 方案：
+  - Sidecar `/extract-tables` 支持 PDF 输出 v2 DocumentArtifact，保留 page/table/row/col cell 锚点；
+  - 后端 `.pdf` 进入 Evidence Pipeline；无结构表 PDF 回落 legacy recall 防止扫描件误伤；
+  - REVIEW_REQUIRED 有效候选写入 `score_parse_fact` 复核快照，不覆盖正式 `score_item`。
+- 页面更新：更新 [[score-parse-service]] §11；新增 `case-pdf-cert-list-single-item` 金标。
+
 ## [2026-09-12] fix | AI 评分解析 task3 人工复核闭环与审计入口
 
 - 触发：PR #2620 遗留 task3，task2 已保留 facts/evidence 但缺少可执行的人工复核快照 API、前端复核入口和 `score_parse_review` 写入闭环。

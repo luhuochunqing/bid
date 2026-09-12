@@ -203,6 +203,10 @@ public class ScoreParseAppService {
             itemPersistenceService.persistItems(task.getProjectId(), task.getId(), valid);
             updateProgress(taskId, 95, "ESTIMATE", "阶段 1 预计得分计算");
             estimatedScoreService.estimateForProject(task.getProjectId());
+        } else if (!valid.isEmpty() && processed.decisionStatus() == ScoreParseDecision.REVIEW_REQUIRED) {
+            itemPersistenceService.persistReviewCandidateFacts(task.getProjectId(), task.getId(), valid);
+            log.warn("解析结果未自动通过，已保存复核候选快照且保留现有评分项不覆盖: taskId={}, decision={}",
+                    taskId, processed.decisionStatus());
         } else {
             log.warn("解析结果未自动通过，保留现有评分项不覆盖: taskId={}, decision={}", taskId, processed.decisionStatus());
         }

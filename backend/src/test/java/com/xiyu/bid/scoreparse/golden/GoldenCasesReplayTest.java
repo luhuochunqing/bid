@@ -42,7 +42,8 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-declared-total-80"),
                 Arguments.of("case-review-required-80-gap"),
                 Arguments.of("case-1374-redundant-formula"),
-                Arguments.of("case-3col-embedded-bracket-weight"));
+                Arguments.of("case-3col-embedded-bracket-weight"),
+                Arguments.of("case-pdf-cert-list-single-item"));
     }
 
     @ParameterizedTest(name = "{0}")

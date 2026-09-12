@@ -9,9 +9,14 @@ Position: Imported by app.py (the HTTP shell). Heading analysis is pure; the PDF
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 from collections import Counter
+
+SCHEMA_VERSION = "2.0"
+PDF_TABLE_EXTRACTION_VERSION = "pdf-table-v1"
+_SCORE_TABLE_KEYWORDS = ("评分", "评审", "打分", "得分", "分值", "评分因素", "评审因素", "评标办法")
 
 # 报价评分参数关键词（与 Java 侧 backend/src/main/java/com/xiyu/bid/biddraftagent/domain/PriceScoringKeywords.java
 # 的 PRICE_PARAMS 保持同步；两处修改必须同步，Java 侧另有 ScoreParsePromptsTest.buildCandidateExtractionPrompt_mustContainCriticalPriceParams 校验与 prompt 的同步）
@@ -141,6 +146,107 @@ def convert_pdf_document(pdf_path: str) -> dict:
 def convert_pdf_to_markdown(pdf_path: str) -> str:
     """Convert a PDF file to markdown preserving tables and line breaks using pdfplumber."""
     return str(convert_pdf_document(pdf_path)["markdown"])
+
+
+def extract_pdf_tables_artifact(pdf_path: str) -> dict:
+    """Extract PDF tables into the sidecar DocumentArtifact v2 shape.
+
+    The docx extractor already emits a canonical cell grid for Evidence Pipeline.
+    PDF score tables must use the same contract so Java can run the same
+    deterministic fact extractor instead of falling back to lossy markdown/LLM.
+    """
+    import pdfplumber
+
+    artifact = {
+        "schemaVersion": SCHEMA_VERSION,
+        "artifact": _build_pdf_artifact_header(pdf_path),
+        "tables": [],
+        "warnings": [],
+    }
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            table_index = 0
+            for page_index, page in enumerate(pdf.pages):
+                tables = page.extract_tables() or []
+                for raw_table in tables:
+                    table = _normalise_pdf_table(raw_table)
+                    if not table:
+                        continue
+                    max_cols = max(len(row) for row in table)
+                    if max_cols <= 0:
+                        continue
+                    rows = [row + [""] * (max_cols - len(row)) for row in table]
+                    table_id = f"p{page_index + 1}-t{table_index:04d}"
+                    cells = []
+                    for row_idx, row in enumerate(rows):
+                        for col_idx, text in enumerate(row):
+                            cell_id = f"{table_id}-r{row_idx}-c{col_idx}"
+                            cells.append({
+                                "cellId": cell_id,
+                                "row": row_idx,
+                                "column": col_idx,
+                                "rawText": text,
+                                "normalizedText": _normalise_cell_text(text),
+                                "rowspan": 1,
+                                "colspan": 1,
+                                "isMergedContinue": False,
+                                "sourceXmlPath": (
+                                    f"pdf:page={page_index + 1};table={table_index};"
+                                    f"row={row_idx};col={col_idx}"
+                                ),
+                            })
+                    artifact["tables"].append({
+                        "tableId": table_id,
+                        "sourcePage": page_index + 1,
+                        "sourceSection": "",
+                        "rows": len(rows),
+                        "columns": max_cols,
+                        "mergedRegions": [],
+                        "cells": cells,
+                        "isScoreTable": _is_pdf_score_table(rows),
+                    })
+                    table_index += 1
+    except Exception as exc:
+        artifact["warnings"].append(f"pdf table extraction failed: {exc}")
+    return artifact
+
+
+def _build_pdf_artifact_header(path: str) -> dict:
+    sha256 = _file_sha256(path)
+    return {
+        "documentId": f"sha256:{sha256}",
+        "sha256": sha256,
+        "fileType": "PDF",
+        "extractionVersion": PDF_TABLE_EXTRACTION_VERSION,
+    }
+
+
+def _file_sha256(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(64 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _normalise_pdf_table(raw_table: list | None) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for raw_row in raw_table or []:
+        row = []
+        for cell in raw_row or []:
+            row.append("" if cell is None else str(cell).strip())
+        if any(cell for cell in row):
+            rows.append(row)
+    return rows
+
+
+def _normalise_cell_text(text: str) -> str:
+    return re.sub(r"\s+", " ", (text or "").replace("\x0c", " ")).strip()
+
+
+def _is_pdf_score_table(rows: list[list[str]]) -> bool:
+    sample = " ".join(" ".join(row) for row in rows[:6])
+    return any(keyword in sample for keyword in _SCORE_TABLE_KEYWORDS)
 
 
 def _merge_split_price_tables(markdown: str) -> str:

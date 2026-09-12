@@ -16,6 +16,8 @@ sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/SidecarSchemaContract.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/StructuredTableExtractionHandler.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreParseReviewAppService.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreReviewCandidateFactMapper.java
+  - document-converter-sidecar/converter.py
   - backend/src/test/java/com/xiyu/bid/scoreparse/golden/GoldenCasesReplaySupport.java
   - backend/src/test/java/com/xiyu/bid/scoreparse/golden/ScoreParseRealCorpusRecorderTest.java
   - scripts/eval-scoreparse/record-real-corpus.sh
@@ -354,3 +356,27 @@ trigger（同步<1s，互斥校验+建任务）
 - **录制入口**：`npm run eval:scoreparse:record-real-corpus` 调用 `scripts/eval-scoreparse/record-real-corpus.sh`，默认读取 `$XIYU_EVAL_CORPUS_DIR/incident-1358/source.md` 并写出 `$XIYU_EVAL_CORPUS_DIR/incident-1358/candidates.json`。
 - **验证入口**：`npm run eval:scoreparse:real-corpus` 运行 `Incident1358RealCorpusGoldenTest`，将本地候选快照送入生产后处理链，断言真实 1358 形态保持 `AUTO_APPROVED`、11 项全部落库、总分 100。
 - **nightly 行为**：`scripts/eval-scoreparse/nightly-full.sh` 若发现 `incident-1358/candidates.json` 会自动追加运行真实语料 green path；缺失时明确 SKIP，不阻塞 CI。
+
+## 11. PDF 评分表进入 Evidence Pipeline 与 REVIEW_REQUIRED 候选可见（2026-09-12）
+
+### 根因
+
+项目 1381 类 PDF 招标文件在前端只显示 1 条旧评分项，不是部署漏发，而是两条链路断裂叠加：
+
+1. `StructuredTableExtractionHandler` 过去只允许 `.docx` 进入 `DocumentArtifact → CanonicalTableGrid → ScoreFact` 证据链，`.pdf` 一律短路回 legacy markdown/LLM；
+2. Sidecar `/extract-tables` 过去只支持 docx，PDF 表格只能转成 markdown，单元格换行被写成 `<br>`，复杂评分表会被压成 lossy 文本；
+3. `REVIEW_REQUIRED` 为保护旧 `score_item` 不覆盖正式评分项，但旧链路候选没有写入 `score_parse_fact`，导致复核 UI 看不到最新候选，只能继续展示旧的 `score_item`。
+
+### 修复契约
+
+- **Sidecar**：`extract_pdf_tables_artifact(pdf_path)` 输出 v2 `DocumentArtifact`，`artifact.fileType=PDF`，每个 cell 带 `sourceXmlPath=pdf:page=...;table=...;row=...;col=...`；rawText 保留换行语义，不再把证据文本固化成 `<br>`。
+- **后端路由**：`.docx` 与 `.pdf` 都可进入 `StructuredTableExtractionHandler` 证据链；如果 PDF 没有可抽取评分表，则回落 legacy markdown 召回，避免扫描件/纯文本 PDF 被误判结构异常。
+- **复核可见性**：`ScoreParseAppService` 在 `REVIEW_REQUIRED` 且有有效候选时调用 `ScoreItemPersistenceService.persistReviewCandidateFacts`；候选通过 `ScoreReviewCandidateFactMapper` 写入 `score_parse_fact`，供 `/score-parse/review` 展示，**不覆盖正式 `score_item`**。
+
+### 回归锚点
+
+- `PdfEvidencePipelineTest#pdfTender_usesDocumentArtifactEvidencePipelineInsteadOfSkippingToLegacyMarkdown`
+- `PdfEvidencePipelineTest#pdfTenderWithoutExtractableScoreTables_fallsBackToLegacyRecallInsteadOfFailingTheTask`
+- `ScoreItemPersistenceServiceTest#reviewRequiredCandidates_arePersistedAsReviewFactsWithoutOverwritingScoreItems`
+- `document-converter-sidecar/tests/test_pdf_table_artifact.py`
+- 金标：`case-pdf-cert-list-single-item`
