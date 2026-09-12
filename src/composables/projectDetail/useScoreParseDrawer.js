@@ -33,6 +33,7 @@ export function useScoreParseDrawer(props, emit) {
   const reviewLoading = ref(false)
   const reviewSubmitting = ref(false)
   const reviewError = ref('')
+  const reviewSubmitted = ref(false)
 
   const decisionBadgeType = computed(() => {
     switch (decisionStatus.value) {
@@ -255,6 +256,8 @@ export function useScoreParseDrawer(props, emit) {
     reviewLoading.value = true
     try {
       reviewSnapshot.value = (await scoreParseApi.getReview(props.projectId))?.data || null
+      // 已提交过保留动作则置灰，防止刷新/重开抽屉后重复提交（2026-09-12）
+      reviewSubmitted.value = (reviewSnapshot.value?.audits ?? []).some(a => a.action === 'RETAIN_ORIGINAL')
     } catch (e) {
       reviewError.value = e?.response?.data?.msg || '复核证据加载失败'
     } finally {
@@ -270,6 +273,7 @@ export function useScoreParseDrawer(props, emit) {
         reason: '人工确认本次待复核结果暂不覆盖正式评分项，保留现有评分标准',
         actions: [{ action: 'RETAIN_ORIGINAL', reason: '保留现有正式评分项，待后续重新解析或人工调整' }],
       }))?.data || reviewSnapshot.value
+      reviewSubmitted.value = true
       ElMessage.success('复核记录已保存')
     } catch (e) {
       notifyErrorUnlessRateLimit(e, '复核记录保存失败')
@@ -285,7 +289,7 @@ export function useScoreParseDrawer(props, emit) {
     totalWeight, objectiveWeight, subjectiveWeight, statsOkCount, statsDangerCount, statsNeutralCount,
     estTotalScore, actualTotalScore, openDetail, open, runScoring, reparse,
     decisionStatus, decisionBadgeType, decisionBadgeText, reviewReason, fallbackReason, pipelineVersion, artifactSha256,
-    reviewRequired, reviewSnapshot, reviewFacts, reviewAudits, reviewLoading, reviewSubmitting, reviewError,
+    reviewRequired, reviewSnapshot, reviewFacts, reviewAudits, reviewLoading, reviewSubmitting, reviewSubmitted, reviewError,
     loadReviewSnapshotIfNeeded, submitReviewRetention,
   }
 }

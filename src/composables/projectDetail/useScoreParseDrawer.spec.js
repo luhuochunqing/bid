@@ -495,4 +495,43 @@ describe('useScoreParseDrawer.js', () => {
     expect(drawer.reviewAudits.value[0].action).toBe('RETAIN_ORIGINAL')
     expect(ElMessage.success).toHaveBeenCalledWith('复核记录已保存')
   })
+
+  it('disables duplicate retention after a successful submit (reviewSubmitted=true)', async () => {
+    scoreParseApi.getItems.mockResolvedValue({
+      data: {
+        items: REAL_ITEMS,
+        meta: { decisionStatus: 'REVIEW_REQUIRED', reviewReason: '待复核' },
+      },
+    })
+    scoreParseApi.getReview.mockResolvedValue({ data: { facts: [], audits: [] } })
+    scoreParseApi.submitReview.mockResolvedValue({
+      data: { facts: [], audits: [{ action: 'RETAIN_ORIGINAL' }] },
+    })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1, autoScore: false, autoParse: false })
+    expect(drawer.reviewSubmitted.value).toBe(false)
+
+    await drawer.submitReviewRetention()
+
+    expect(drawer.reviewSubmitted.value).toBe(true)
+  })
+
+  it('keeps review button disabled when audits already contain RETAIN_ORIGINAL (refresh/reopen)', async () => {
+    scoreParseApi.getItems.mockResolvedValue({
+      data: {
+        items: REAL_ITEMS,
+        meta: { decisionStatus: 'REVIEW_REQUIRED', reviewReason: '待复核' },
+      },
+    })
+    scoreParseApi.getReview.mockResolvedValue({
+      data: { facts: [], audits: [{ action: 'RETAIN_ORIGINAL' }] },
+    })
+
+    const drawer = useScoreParseDrawer(props, emit)
+    await drawer.open({ stage: 1, autoScore: false, autoParse: false })
+
+    expect(drawer.reviewSubmitted.value).toBe(true)
+    expect(drawer.reviewRequired.value).toBe(true)
+  })
 })
