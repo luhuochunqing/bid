@@ -126,6 +126,26 @@ class ScoreCompletenessPolicyTest {
     }
 
     @Test
+    void evaluate_declaredTotalPrefersOverallTotalOverLocalFullScorePhrases() {
+        ScoreFact f1 = createFact("f1", null, "投标报价", 40.0);
+        ScoreFact f2 = createFact("f2", null, "公司综合实力", 6.0);
+        ScoreFact f3 = createFact("f3", null, "类似业绩", 10.0);
+        ScoreFact f4 = createFact("f4", null, "技术方案", 10.0);
+        ScoreFact f5 = createFact("f5", null, "供货方案", 10.0);
+        ScoreFact f6 = createFact("f6", null, "人员配备", 6.0);
+        ScoreFact f7 = createFact("f7", null, "质量管理方案", 10.0);
+        ScoreFact f8 = createFact("f8", null, "售后服务方案", 8.0);
+
+        var result = ScoreCompletenessPolicy.evaluateCompleteness(
+                List.of(f1, f2, f3, f4, f5, f6, f7, f8),
+                "报价规则：等于基准价的得满分30分，另一部分得满分10分。合计 得分 满分 （100分）。");
+
+        assertThat(result.declaredTotalScore()).isEqualByComparingTo("100.00");
+        assertThat(result.leafWeightSum()).isEqualByComparingTo("100.00");
+        assertThat(result.decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+    }
+
+    @Test
     void evaluate_structurallyInvalid_returnsStructureIncomplete() {
         ScoreFact f1 = createFact("f1", null, "商务", 50.0);
         ScoreFact f2 = createFact("f2", null, "技术", 50.0);

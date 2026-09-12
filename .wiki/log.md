@@ -893,3 +893,11 @@
 - 根因：v2 `SidecarDocumentArtifactExtractor` / `ScoreFactShadowPipeline` 仍是影子链路，生产解析继续绕回 legacy；同时 `REVIEW_REQUIRED` 仍覆盖 `score_item` 并估分，导致待复核半成品洗掉旧可用评分项。
 - 修复：docx 主链路优先执行 `DocumentArtifact → CanonicalTableGrid → ScoreFact → ScoreCompletenessPolicy`，写入 `EVIDENCE_PIPELINE_V1`；只有 `AUTO_APPROVED` 可覆盖评分项并估分，`REVIEW_REQUIRED/STRUCTURE_INCOMPLETE/PARSE_FAILED` 均保留旧项。Evidence REVIEW 仍双写 facts/evidence 供复核。
 - 回填：更新 [[score-parse-service]] §Task2 Evidence Pipeline 主链路收敛与复核态保留旧项；新增 lessons-learned §355。
+
+## [2026-09-12] fix | 项目 1381 PDF 分页续表导致评分项丢失根因收敛
+
+- 触发：项目 1381 部署最新 PR 后 `/score-parse/items` 仍只显示 1 项，用户明确验收标准是招标文件评分表中的所有评分项。
+- 根因：PDF 第 25 页无表头续表被当成新表，首行“类似业绩（10分）”被跳过；第 20 页资格/形式/响应性评审表被误标 score table；完整性策略先命中报价规则里的局部“满分30分/10分”，未以表尾“满分（100分）”为基准。
+- 修复：Sidecar 合并 PDF 评分分页续表、过滤初步评审表；后端跳过合计汇总行，并从全文声明中选择合理最大总分。
+- 验证：真实 1381 PDF smoke 第 24/25 页合并为 8 项 + 合计行；Sidecar 19 tests passed；后端 scoreparse 55 tests passed。
+- 回填：更新 [[score-parse-service]] §12；新增 lessons-learned §357。

@@ -16,7 +16,6 @@ from collections import Counter
 
 SCHEMA_VERSION = "2.0"
 PDF_TABLE_EXTRACTION_VERSION = "pdf-table-v1"
-_SCORE_TABLE_KEYWORDS = ("评分", "评审", "打分", "得分", "分值", "评分因素", "评审因素", "评标办法")
 
 # 报价评分参数关键词（与 Java 侧 backend/src/main/java/com/xiyu/bid/biddraftagent/domain/PriceScoringKeywords.java
 # 的 PRICE_PARAMS 保持同步；两处修改必须同步，Java 侧另有 ScoreParsePromptsTest.buildCandidateExtractionPrompt_mustContainCriticalPriceParams 校验与 prompt 的同步）
@@ -165,6 +164,7 @@ def extract_pdf_tables_artifact(pdf_path: str) -> dict:
     }
     try:
         with pdfplumber.open(pdf_path) as pdf:
+            extracted_tables: list[dict] = []
             table_index = 0
             for page_index, page in enumerate(pdf.pages):
                 tables = page.extract_tables() or []
@@ -176,36 +176,47 @@ def extract_pdf_tables_artifact(pdf_path: str) -> dict:
                     if max_cols <= 0:
                         continue
                     rows = [row + [""] * (max_cols - len(row)) for row in table]
-                    table_id = f"p{page_index + 1}-t{table_index:04d}"
-                    cells = []
-                    for row_idx, row in enumerate(rows):
-                        for col_idx, text in enumerate(row):
-                            cell_id = f"{table_id}-r{row_idx}-c{col_idx}"
-                            cells.append({
-                                "cellId": cell_id,
-                                "row": row_idx,
-                                "column": col_idx,
-                                "rawText": text,
-                                "normalizedText": _normalise_cell_text(text),
-                                "rowspan": 1,
-                                "colspan": 1,
-                                "isMergedContinue": False,
-                                "sourceXmlPath": (
-                                    f"pdf:page={page_index + 1};table={table_index};"
-                                    f"row={row_idx};col={col_idx}"
-                                ),
-                            })
-                    artifact["tables"].append({
-                        "tableId": table_id,
+                    extracted_tables.append({
                         "sourcePage": page_index + 1,
-                        "sourceSection": "",
-                        "rows": len(rows),
-                        "columns": max_cols,
-                        "mergedRegions": [],
-                        "cells": cells,
-                        "isScoreTable": _is_pdf_score_table(rows),
+                        "sourceTableIndex": table_index,
+                        "rows": rows,
                     })
                     table_index += 1
+            for logical_index, table in enumerate(_merge_pdf_score_table_continuations(extracted_tables)):
+                rows = table["rows"]
+                max_cols = max(len(row) for row in rows)
+                table_id = f"p{table['sourcePage']}-t{logical_index:04d}"
+                cells = []
+                for row_idx, row in enumerate(rows):
+                    source_rows = table.get("sourceRows", [])
+                    source_row = source_rows[row_idx] if row_idx < len(source_rows) else {}
+                    for col_idx, text in enumerate(row):
+                        cell_id = f"{table_id}-r{row_idx}-c{col_idx}"
+                        cells.append({
+                            "cellId": cell_id,
+                            "row": row_idx,
+                            "column": col_idx,
+                            "rawText": text,
+                            "normalizedText": _normalise_cell_text(text),
+                            "rowspan": 1,
+                            "colspan": 1,
+                            "isMergedContinue": False,
+                            "sourceXmlPath": (
+                                f"pdf:page={source_row.get('page', table['sourcePage'])};"
+                                f"table={source_row.get('table', table.get('sourceTableIndex', logical_index))};"
+                                f"row={source_row.get('row', row_idx)};col={col_idx}"
+                            ),
+                        })
+                artifact["tables"].append({
+                    "tableId": table_id,
+                    "sourcePage": table["sourcePage"],
+                    "sourceSection": "",
+                    "rows": len(rows),
+                    "columns": max_cols,
+                    "mergedRegions": [],
+                    "cells": cells,
+                    "isScoreTable": _is_pdf_score_table(rows),
+                })
     except Exception as exc:
         artifact["warnings"].append(f"pdf table extraction failed: {exc}")
     return artifact
@@ -240,13 +251,72 @@ def _normalise_pdf_table(raw_table: list | None) -> list[list[str]]:
     return rows
 
 
+def _merge_pdf_score_table_continuations(tables: list[dict]) -> list[dict]:
+    merged: list[dict] = []
+    for table in tables:
+        rows = table["rows"]
+        enriched = {
+            **table,
+            "sourceRows": [
+                {"page": table["sourcePage"], "table": table["sourceTableIndex"], "row": idx}
+                for idx, _ in enumerate(rows)
+            ],
+        }
+        if merged and _is_pdf_score_table_continuation(merged[-1]["rows"], rows):
+            merged[-1]["rows"].extend(rows)
+            merged[-1]["sourceRows"].extend(enriched["sourceRows"])
+        else:
+            merged.append(enriched)
+    return merged
+
+
+def _is_pdf_score_table_continuation(previous: list[list[str]], current: list[list[str]]) -> bool:
+    if not previous or not current:
+        return False
+    if max(len(row) for row in previous) != max(len(row) for row in current):
+        return False
+    if not _has_pdf_score_header(previous):
+        return False
+    if _has_pdf_score_header(current):
+        return False
+    first_cell = _normalise_cell_text(current[0][0] if current[0] else "")
+    if not (re.fullmatch(r"\d+(?:[.、]\d+)?", first_cell) or "合计" in first_cell):
+        return False
+    return _has_pdf_weighted_score_item(current) or _has_pdf_total_row(current)
+
+
 def _normalise_cell_text(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "").replace("\x0c", " ")).strip()
 
 
 def _is_pdf_score_table(rows: list[list[str]]) -> bool:
-    sample = " ".join(" ".join(row) for row in rows[:6])
-    return any(keyword in sample for keyword in _SCORE_TABLE_KEYWORDS)
+    if not rows:
+        return False
+    sample = " ".join(" ".join(row) for row in rows[:8])
+    return (
+        _has_pdf_score_header(rows)
+        and (_has_pdf_weighted_score_item(rows) or _has_pdf_total_row(rows))
+        and not _is_pdf_preliminary_review_table(sample)
+    )
+
+
+def _has_pdf_score_header(rows: list[list[str]]) -> bool:
+    sample = " ".join(" ".join(row) for row in rows[:2])
+    return any(keyword in sample for keyword in ("评分因素", "评分项", "评分标准", "分值", "得分"))
+
+
+def _has_pdf_weighted_score_item(rows: list[list[str]]) -> bool:
+    sample = " ".join(" ".join(row) for row in rows)
+    return bool(re.search(r"[（(]\s*\d{1,3}(?:\.\d+)?\s*分\s*[）)]", sample))
+
+
+def _has_pdf_total_row(rows: list[list[str]]) -> bool:
+    sample = " ".join(" ".join(row) for row in rows)
+    return bool(re.search(r"(?:合计|满分|总分).{0,12}[（(]?\s*\d{1,3}(?:\.\d+)?\s*分", sample))
+
+
+def _is_pdf_preliminary_review_table(sample: str) -> bool:
+    return any(keyword in sample for keyword in ("资格评审标准", "形式评审标准", "响应性评审标准"))
 
 
 def _merge_split_price_tables(markdown: str) -> str:

@@ -104,6 +104,26 @@ class DeterministicScoreFactExtractorTest {
     }
 
     @Test
+    void detail_text_containing_summary_words_is_not_skipped_as_summary_row() {
+        CanonicalTableGrid grid = grid(List.of(
+                cell("t-0001-r0-c0", 0, 0, "编号"),
+                cell("t-0001-r0-c1", 0, 1, "评分因素"),
+                cell("t-0001-r0-c2", 0, 2, "评分标准"),
+                cell("t-0001-r0-c3", 0, 3, "分值"),
+                cell("t-0001-r1-c0", 1, 0, "A5"),
+                cell("t-0001-r1-c1", 1, 1, "综合评价（10分）"),
+                cell("t-0001-r1-c2", 1, 2, "按各子项合计得分进行综合评价。"),
+                cell("t-0001-r1-c3", 1, 3, "")
+        ), 2, 4);
+
+        List<ScoreFact> facts = DeterministicScoreFactExtractor.extract(grid, mapping());
+
+        assertEquals(1, facts.size());
+        assertEquals("综合评价", facts.get(0).dimension());
+        assertEquals(new BigDecimal("10"), facts.get(0).weight());
+    }
+
+    @Test
     void rule_award_value_is_not_used_as_item_weight() {
         CanonicalTableGrid grid = grid(List.of(
                 cell("t-0001-r0-c0", 0, 0, "编号"),

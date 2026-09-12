@@ -4,6 +4,7 @@
 package com.xiyu.bid.scoreparse.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
 import com.xiyu.bid.scoreparse.domain.grid.DocumentArtifact;
 import org.junit.jupiter.api.Test;
 
@@ -50,6 +51,63 @@ class PdfEvidencePipelineTest {
         assertThat(result.candidates())
                 .extracting(candidate -> candidate.weight())
                 .containsExactly(new BigDecimal("10"), new BigDecimal("20"), new BigDecimal("70"));
+    }
+
+    @Test
+    void project1381LikePdfSplitScoreTable_extractsAllEightScoreItemsAndTotal100()
+            throws IOException, InterruptedException {
+        byte[] pdfBytes = "%PDF-1.4 project 1381 split score table".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        TenderTextSource source = new TenderTextSource(
+                "project-1381-like.pdf",
+                "memory://project-1381-like.pdf",
+                """
+                投标报价得分：等于基准价的得满分30分，办公用品得满分10分。
+                合计 得分 满分 （100分）。
+                """);
+        InitiationTenderTextResolver resolver = new InitiationTenderTextResolver(
+                null, null, null, null, null, null, url -> pdfBytes) {
+            @Override
+            public byte[] loadBytes(String fileUrl) {
+                return pdfBytes;
+            }
+        };
+        SidecarDocumentArtifactExtractor artifactExtractor =
+                new SidecarDocumentArtifactExtractor("http://localhost:9", "", 1, new ObjectMapper()) {
+                    @Override
+                    public DocumentArtifact extract(byte[] content, String fileName) {
+                        return project1381ScoreArtifact();
+                    }
+                };
+
+        StructuredTableExtractionHandler.Result result = StructuredTableExtractionHandler.extract(
+                source, resolver, artifactExtractor, null);
+
+        assertThat(result.evidencePipeline()).isTrue();
+        assertThat(result.completeness().decision()).isEqualTo(ScoreParseDecision.AUTO_APPROVED);
+        assertThat(result.completeness().declaredTotalScore()).isEqualByComparingTo("100.00");
+        assertThat(result.completeness().leafWeightSum()).isEqualByComparingTo("100.00");
+        assertThat(result.candidates())
+                .extracting(candidate -> candidate.dim())
+                .containsExactly(
+                        "投标报价",
+                        "公司综合实力",
+                        "类似业绩",
+                        "技术方案",
+                        "供货方案",
+                        "人员配备",
+                        "质量管理方案",
+                        "售后服务方案");
+        assertThat(result.candidates())
+                .extracting(candidate -> candidate.weight())
+                .containsExactly(
+                        new BigDecimal("40"),
+                        new BigDecimal("6"),
+                        new BigDecimal("10"),
+                        new BigDecimal("10"),
+                        new BigDecimal("10"),
+                        new BigDecimal("6"),
+                        new BigDecimal("10"),
+                        new BigDecimal("8"));
     }
 
     @Test
@@ -104,6 +162,42 @@ class PdfEvidencePipelineTest {
                 new DocumentArtifact.ArtifactMeta("sha256:pdf", "pdf", "PDF", "pdf-table-v1"),
                 List.of(new DocumentArtifact.CanonicalTable(
                         "p1-t0000", 1, "", rows.size(), 4, List.of(), cells, true)),
+                List.of());
+    }
+
+    private static DocumentArtifact project1381ScoreArtifact() {
+        List<List<String>> rows = List.of(
+                List.of("序号", "评分因素", "评分标准"),
+                List.of("1", "投标报价\n（40分）", "报价规则中含局部满分30分和满分10分。"),
+                List.of("2", "公司综合实力\n（6分）", "证书清单每项1分，最高6分。"),
+                List.of("3", "类似业绩\n（10分）", "每有一个类似服务案例得2分，满分为10分。"),
+                List.of("4", "技术方案\n（10分）", "方案优秀得7.1-10.0分。"),
+                List.of("4", "供货方案\n（10分）", "供货保障措施完整得10分。"),
+                List.of("5", "人员配备\n（6分）", "人员配置优秀得4.1-6.0分。"),
+                List.of("6", "质量管理方案（10分）", "质量管理方案优秀得10分。"),
+                List.of("7", "售后服务方案（8分）", "售后服务优秀得8分。"),
+                List.of("合计\n得分", "满分\n（100分）", "")
+        );
+        List<DocumentArtifact.CanonicalTable.CanonicalCellDto> cells = new ArrayList<>();
+        for (int row = 0; row < rows.size(); row++) {
+            for (int col = 0; col < rows.get(row).size(); col++) {
+                String text = rows.get(row).get(col);
+                cells.add(new DocumentArtifact.CanonicalTable.CanonicalCellDto(
+                        "p24-t0007-r" + row + "-c" + col,
+                        row,
+                        col,
+                        text,
+                        text.replaceAll("\\s+", " ").trim(),
+                        1,
+                        1,
+                        false,
+                        "pdf:page=" + (row <= 2 ? 24 : 25) + ";table=7;row=" + row + ";col=" + col));
+            }
+        }
+        return new DocumentArtifact(
+                new DocumentArtifact.ArtifactMeta("sha256:project-1381", "project-1381", "PDF", "pdf-table-v1"),
+                List.of(new DocumentArtifact.CanonicalTable(
+                        "p24-t0007", 24, "", rows.size(), 3, List.of(), cells, true)),
                 List.of());
     }
 }
