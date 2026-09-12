@@ -25,6 +25,8 @@ backend/src/test/resources/scoreparse-golden/
 ├── case-1374-redundant-formula.expected.json  对应金标标注（threshold 0.95，expectTotal 100）
 ├── case-declared-total-80.md                 Task2回归：声明总分80 + 评分项合计80 不按100误判
 ├── case-declared-total-80.expected.json      对应金标标注（threshold 0.95，expectTotal 80）
+├── case-review-required-80-gap.md            Task3回归：事实项合计80 + 默认百分制缺口进入人工复核闭环
+├── case-review-required-80-gap.expected.json 对应金标标注（threshold 0.95，默认expectTotal 100）
 ├── case-3col-embedded-bracket-weight.md     3列内嵌分值 + 维度名 br 换行（fix a1b3b7c55）
 └── case-3col-embedded-bracket-weight.expected.json  对应金标标注（threshold 0.95，strictDim）
 ```

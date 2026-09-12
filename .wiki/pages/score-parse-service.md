@@ -15,6 +15,7 @@ sources:
   - backend/src/main/java/com/xiyu/bid/scoreparse/
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/SidecarSchemaContract.java
   - backend/src/main/java/com/xiyu/bid/scoreparse/application/StructuredTableExtractionHandler.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/application/ScoreParseReviewAppService.java
   - backend/src/test/java/com/xiyu/bid/scoreparse/golden/GoldenCasesReplaySupport.java
   - docs/implementation-notes/ai-score-parse-backend.md
   - specs/048-score-parse-image-multimodal/spec.md
@@ -269,6 +270,21 @@ trigger（同步<1s，互斥校验+建任务）
   - `ScoreCompletenessAcceptanceTest#invariant3_reviewRequired_preservesExistingItemsWithReviewFlag`
 
 > 后续维护规则：任何人想让 `REVIEW_REQUIRED` 再次覆盖 `score_item`，必须先改产品决策并补人工复核闭环；不能只改测试断言绕过。
+
+## Task3 人工复核闭环与 score_parse_review 审计入口（2026-09-12）
+
+- **闭环缺口**：task2 已规定 `REVIEW_REQUIRED` / `STRUCTURE_INCOMPLETE` 不覆盖正式 `score_item`，但如果前端只展示状态 badge、后端没有 `score_parse_review` 写入入口，业务上仍无法完成“看证据 → 做决定 → 留审计”的复核闭环。
+- **API 契约**：
+  - `GET /api/projects/{projectId}/score-parse/review`：返回最新 PARSE 任务的 `facts`、`evidences` 与既有 `audits`；
+  - `POST /api/projects/{projectId}/score-parse/review`：写入 `score_parse_review`，只记录 `RETAIN_ORIGINAL / MANUAL_ADJUST / EXCLUDE` 等复核动作，**不覆盖正式 `score_item`**。
+- **前端行为**：`ScoreParseDrawer` 在 `REVIEW_REQUIRED` / `STRUCTURE_INCOMPLETE` 时加载复核快照；`ScoreParseReviewPanel` 展示 facts/evidence 摘要与审计数量，并提供“记录已复核，保留现有项”动作。
+- **状态残留防线**：抽屉每次加载都重置 `decisionStatus/reviewReason/fallbackReason/pipelineVersion/artifactSha256`，避免上一个项目的待复核状态串到下一个项目。
+- **金标补强**：新增 `case-review-required-80-gap`，锁定“默认百分制下 facts 合计 80 → REVIEW_REQUIRED 复核缺口”场景，避免复核态被误改回自动可信覆盖。
+- **回归锚点**：
+  - `ScoreParseReviewAppServiceTest#getReviewSnapshot_returnsFactsEvidenceAndAuditsForLatestParseTask`
+  - `ScoreParseReviewAppServiceTest#submitReview_savesAuditOnlyAndReturnsSnapshot`
+  - `useScoreParseDrawer.spec.js#loads review facts for REVIEW_REQUIRED and records retention audit`
+  - `GoldenCasesReplayTest#case-review-required-80-gap`
 
 ### 陷阱：结构化通道对列布局高度敏感
 

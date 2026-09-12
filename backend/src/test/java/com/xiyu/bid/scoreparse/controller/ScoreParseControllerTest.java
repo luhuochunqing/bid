@@ -3,8 +3,10 @@ package com.xiyu.bid.scoreparse.controller;
 import com.xiyu.bid.dto.ApiResponse;
 import com.xiyu.bid.scoreparse.application.BidDocumentUploadService;
 import com.xiyu.bid.scoreparse.application.ScoreParseAppService;
+import com.xiyu.bid.scoreparse.application.ScoreParseReviewAppService;
 import com.xiyu.bid.scoreparse.application.ScoreScoringAppService;
 import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
+import com.xiyu.bid.scoreparse.dto.ScoreParseReviewDTO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,12 +37,16 @@ class ScoreParseControllerTest {
     @Mock
     private BidDocumentUploadService bidDocumentUploadService;
 
+    @Mock
+    private ScoreParseReviewAppService scoreParseReviewAppService;
+
     private ScoreParseController controller;
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        controller = new ScoreParseController(scoreParseAppService, scoreScoringAppService, bidDocumentUploadService);
+        controller = new ScoreParseController(scoreParseAppService, scoreScoringAppService,
+                bidDocumentUploadService, scoreParseReviewAppService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .defaultRequest(get("/").accept(MediaType.APPLICATION_JSON))
                 .build();
@@ -73,6 +79,20 @@ class ScoreParseControllerTest {
         when(scoreParseAppService.getItems(100L)).thenReturn(dto);
 
         ResponseEntity<ApiResponse<ScoreParseItemsDTO>> response = controller.getItems(100L);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getData()).isSameAs(dto);
+    }
+
+    @Test
+    void getReviewSnapshot_success_returnsReviewDTO() {
+        ScoreParseReviewDTO dto = new ScoreParseReviewDTO(100L, 9L, "task-1", "COMPLETED",
+                "REVIEW_REQUIRED", "WEIGHT_SUM_MISMATCH", "权重不匹配",
+                "EVIDENCE_PIPELINE_V1", "sha256", java.util.List.of(), java.util.List.of());
+        when(scoreParseReviewAppService.getReviewSnapshot(100L)).thenReturn(dto);
+
+        ResponseEntity<ApiResponse<ScoreParseReviewDTO>> response = controller.getReviewSnapshot(100L);
+
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getData()).isSameAs(dto);

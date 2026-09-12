@@ -40,6 +40,7 @@ class GoldenCasesReplayTest {
                 Arguments.of("case-1347-compound-percent"),
                 Arguments.of("case-bracket-vs-pure-conflict"),
                 Arguments.of("case-declared-total-80"),
+                Arguments.of("case-review-required-80-gap"),
                 Arguments.of("case-1374-redundant-formula"),
                 Arguments.of("case-3col-embedded-bracket-weight"));
     }

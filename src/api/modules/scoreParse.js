@@ -1,5 +1,5 @@
 // Input: httpClient and score-parse backend endpoints (spec 041, PR !2293)
-// Output: scoreParseApi - items/scoring/status/results accessors
+// Output: scoreParseApi - items/review/scoring/status/results accessors
 // Pos: src/api/modules/ - Frontend API module layer
 // 一旦我被更新，务必更新我的开头注释，以及所属的文件夹的 md。
 
@@ -13,6 +13,16 @@ export const scoreParseApi = {
   /** 阶段 1 评分项清单（含 estScore/estBasis/kbHit 与 summary 统计） */
   async getItems(projectId) {
     return httpClient.get(`/api/projects/${projectId}/score-parse/items`)
+  },
+
+  /** 人工复核快照（facts/evidence + score_parse_review 审计记录） */
+  async getReview(projectId) {
+    return httpClient.get(`/api/projects/${projectId}/score-parse/review`)
+  },
+
+  /** 提交人工复核审计记录；不覆盖正式 score_item */
+  async submitReview(projectId, body = {}) {
+    return httpClient.post(`/api/projects/${projectId}/score-parse/review`, body)
   },
 
   /** 触发评分标准解析（异步任务，返回 { taskId, status }；FR-021 覆盖旧解析结果） */

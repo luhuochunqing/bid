@@ -14,6 +14,8 @@ vi.mock('element-plus', async (importOriginal) => {
 vi.mock('@/api/modules/scoreParse.js', () => ({
   scoreParseApi: {
     getItems: vi.fn(),
+    getReview: vi.fn(),
+    submitReview: vi.fn(),
     triggerParse: vi.fn(),
     getParseStatus: vi.fn(),
     triggerScoring: vi.fn(),
@@ -40,6 +42,8 @@ describe('ScoreParseDrawer.vue', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     scoreParseApi.getItems.mockResolvedValue({ data: { items: itemsFixture, summary: null } })
+    scoreParseApi.getReview.mockResolvedValue({ data: { facts: [], audits: [] } })
+    scoreParseApi.submitReview.mockResolvedValue({ data: { facts: [], audits: [{ action: 'RETAIN_ORIGINAL' }] } })
     scoreParseApi.triggerScoring.mockResolvedValue({ data: { taskId: 't-score', status: 'PENDING' } })
     scoreParseApi.getScoringStatus.mockResolvedValue({ data: { taskId: 't-score', status: 'COMPLETED', progress: 100, completedAt: '2026-08-15T14:30:00' } })
     scoreParseApi.getResults.mockResolvedValue({ data: resultsFixture })
@@ -177,6 +181,21 @@ describe('ScoreParseDrawer.vue', () => {
         },
       },
     })
+    scoreParseApi.getReview.mockResolvedValue({
+      data: {
+        facts: [
+          {
+            factId: 'fact-1',
+            code: 'A1',
+            dimension: '技术方案',
+            weight: 10,
+            sourceText: '总体架构设计',
+            evidences: [{ cellId: 'c1', quotedText: '总体架构设计' }],
+          },
+        ],
+        audits: [],
+      },
+    })
     const wrapper = mount(ScoreParseDrawer, {
       props: { projectId: 123 },
       global: {
@@ -193,5 +212,8 @@ describe('ScoreParseDrawer.vue', () => {
     expect(badge.exists()).toBe(true)
     expect(badge.text()).toBe('待人工复核')
     expect(wrapper.text()).toContain('理由: 权重合计不符合预期')
+    expect(wrapper.find('[data-test="score-parse-review-panel"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('人工复核闭环')
+    expect(wrapper.text()).toContain('总体架构设计')
   })
 })

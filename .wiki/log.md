@@ -3,6 +3,15 @@
 > 按时间倒序记录所有 Wiki 操作。每条记录以 `## [日期] 操作类型 | 说明` 格式开头。
 > 可用 `grep "^## \[" .wiki/log.md | tail -5` 查看最近 5 条。
 
+## [2026-09-12] fix | AI 评分解析 task3 人工复核闭环与审计入口
+
+- 触发：PR #2620 遗留 task3，task2 已保留 facts/evidence 但缺少可执行的人工复核快照 API、前端复核入口和 `score_parse_review` 写入闭环。
+- 方案：
+  - 后端新增 `ScoreParseReviewAppService` 与 `/score-parse/review` GET/POST，GET 汇总 facts/evidence/audits，POST 只写审计、不覆盖正式 `score_item`；
+  - 前端新增 `ScoreParseReviewPanel`，`REVIEW_REQUIRED` / `STRUCTURE_INCOMPLETE` 时展示 facts/evidence 并支持记录“保留现有项”复核动作；
+  - 新增 `case-review-required-80-gap` 金标夹具，锁定权重缺口进入复核态而非自动可信覆盖。
+- 页面更新：更新 [[score-parse-service]] Task3 章节；lessons-learned.md §356。
+
 ## [2026-09-11] fix | 评分标准 3 列表格内嵌分值提取与结构化权威通道防污染加固（项目 1381）
 
 - 触发：张家口银行项目 1381（电商平台采购）3 列表格内嵌括号分值，AI 评分标准解析只提取出 1 项。

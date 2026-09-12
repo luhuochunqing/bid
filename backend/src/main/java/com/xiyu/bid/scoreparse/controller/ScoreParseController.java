@@ -9,11 +9,14 @@ import com.xiyu.bid.scoreparse.application.BidDocumentUploadService;
 import com.xiyu.bid.scoreparse.application.BidFileQuotaException;
 import com.xiyu.bid.scoreparse.application.OversizedBidTextException;
 import com.xiyu.bid.scoreparse.application.ScoreParseAppService;
+import com.xiyu.bid.scoreparse.application.ScoreParseReviewAppService;
 import com.xiyu.bid.scoreparse.application.ScoreScoringAppService;
 import com.xiyu.bid.scoreparse.dto.BidDocumentUploadDTO;
 import com.xiyu.bid.scoreparse.dto.ScoreParseCommand;
 import com.xiyu.bid.scoreparse.dto.ScoreParseItemsDTO;
 import com.xiyu.bid.scoreparse.dto.ScoreParseProgressDTO;
+import com.xiyu.bid.scoreparse.dto.ScoreParseReviewCommand;
+import com.xiyu.bid.scoreparse.dto.ScoreParseReviewDTO;
 import com.xiyu.bid.scoreparse.dto.ScoreParseTriggerDTO;
 import com.xiyu.bid.scoreparse.dto.ScoreScoringCommand;
 import com.xiyu.bid.scoreparse.dto.ScoreScoringResultsDTO;
@@ -23,6 +26,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -48,6 +52,7 @@ public class ScoreParseController {
     private final ScoreParseAppService scoreParseAppService;
     private final ScoreScoringAppService scoreScoringAppService;
     private final BidDocumentUploadService bidDocumentUploadService;
+    private final ScoreParseReviewAppService scoreParseReviewAppService;
 
     @Operation(summary = "触发评分标准解析", description = "四路召回 + LLM 结构化提取 + 闭环校验；已有进行中任务时返回该任务")
     @PostMapping("/parse")
@@ -77,6 +82,30 @@ public class ScoreParseController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<ScoreParseItemsDTO>> getItems(@PathVariable Long projectId) {
         return ResponseEntity.ok(ApiResponse.success(scoreParseAppService.getItems(projectId)));
+    }
+
+    @Operation(summary = "查询评分解析人工复核快照", description = "返回最新解析任务的 facts/evidence 与复核审计记录")
+    @GetMapping("/review")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<ScoreParseReviewDTO>> getReviewSnapshot(@PathVariable Long projectId) {
+        return ResponseEntity.ok(ApiResponse.success(scoreParseReviewAppService.getReviewSnapshot(projectId)));
+    }
+
+    @Operation(summary = "提交评分解析人工复核记录", description = "只记录 score_parse_review 审计，不覆盖正式 score_item")
+    @PostMapping("/review")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<ScoreParseReviewDTO>> submitReview(
+            @PathVariable Long projectId,
+            @RequestBody ScoreParseReviewCommand command,
+            Authentication authentication) {
+        try {
+            String operatorName = authentication == null ? null : authentication.getName();
+            return ResponseEntity.ok(ApiResponse.success("复核记录已保存",
+                    scoreParseReviewAppService.submitReview(projectId, command, operatorName)));
+        } catch (IllegalArgumentException exception) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error(400, exception.getMessage()));
+        }
     }
 
     @Operation(summary = "上传投标文件", description = "PDF/docx，≤50MB；阶段 2 实际打分的前置条件（契约 §4）")
