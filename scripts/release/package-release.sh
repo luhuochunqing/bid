@@ -97,16 +97,33 @@ cp -R "$ROOT_DIR/dist/." "$OUTPUT_DIR/frontend/"
 cp "$JAR_PATH" "$OUTPUT_DIR/backend/app.jar"
 
 printf '\n==> Packaging document-converter-sidecar\n'
+# 必需文件门禁：缺任一文件说明 sidecar 不完整，打包即失败（防 /extract-tables 缺端点静默上线）
+for _f in app.py table_extractor.py converter.py image_extractor.py requirements.txt Dockerfile.cn; do
+  if [[ ! -f "$ROOT_DIR/document-converter-sidecar/$_f" ]]; then
+    printf '❌ sidecar 缺少必需文件：document-converter-sidecar/%s\n' "$_f" >&2
+    exit 1
+  fi
+done
+# 表格契约版本指纹：与 Java SidecarTableExtractor.EXPECTED_SCHEMA_VERSION=1.0
+# / DocumentArtifact.SUPPORTED_SCHEMA_VERSION=2.0 对齐，写入 release-metadata 供部署比对
+SIDECAR_SCHEMA_VERSION="$(grep -E '^SCHEMA_VERSION' "$ROOT_DIR/document-converter-sidecar/table_extractor.py" | cut -d'"' -f2 | tr -d "'" || true)"
+if [[ ! "$SIDECAR_SCHEMA_VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
+  printf '❌ 无法从 table_extractor.py 解析 SCHEMA_VERSION（得到 "%s"）\n' "$SIDECAR_SCHEMA_VERSION" >&2
+  exit 1
+fi
 COPYFILE_DISABLE=1 tar -C "$ROOT_DIR/document-converter-sidecar" \
   --exclude='__pycache__' \
   --exclude='.pytest_cache' \
+  --exclude='.venv' \
+  --exclude='.runtime' \
+  --exclude='.DS_Store' \
   --exclude='tests' \
   --exclude='._*' \
   --exclude='*.pyc' \
   --exclude='.backup' \
   -czf "$OUTPUT_DIR/sidecar/sidecar.tar.gz" .
 SIDECAR_SHA256="$(shasum -a 256 "$OUTPUT_DIR/sidecar/sidecar.tar.gz" 2>/dev/null | cut -d' ' -f1 || sha256sum "$OUTPUT_DIR/sidecar/sidecar.tar.gz" | cut -d' ' -f1)"
-printf '✅ sidecar 打包完成（SHA-256: %s）\n' "$SIDECAR_SHA256"
+printf '✅ sidecar 打包完成（SHA-256: %s，schemaVersion=%s）\n' "$SIDECAR_SHA256" "$SIDECAR_SCHEMA_VERSION"
 
 # OBS 直传启用校验（第 84 次部署漏传 VITE_OBS_ENABLED=true 事故的硬门禁）
 # 当 VITE_OBS_ENABLED=true 时，Detail chunk 中 .upload( 调用数应 >=2；
@@ -144,6 +161,7 @@ cat > "$OUTPUT_DIR/release-metadata.json" <<EOF
   "jarName": "$(basename "$JAR_PATH")",
   "builtAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
   "sidecarSha256": "$SIDECAR_SHA256",
+  "sidecarSchemaVersion": "$SIDECAR_SCHEMA_VERSION",
   "sentryEnabled": $([ -n "${VITE_SENTRY_DSN:-}" ] && echo 'true' || echo 'false'),
   "obsEnabled": $([ "${VITE_OBS_ENABLED:-true}" == "true" ] && echo 'true' || echo 'false')
 }
