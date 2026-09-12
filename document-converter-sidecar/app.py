@@ -612,20 +612,25 @@ async def extract_document_tables(
         # v2 (default) returns DocumentArtifact; v1 (legacy) returns the old
         # {tables, warnings} shape.  Phase 5 will retire the v1 endpoint once
         # the Java backend fully adopts CanonicalTableGrid.
+        # Version echo (release gate): the Java v1 client fail-fasts when the
+        # response header/body is not v1, and release smoke fingerprints this
+        # header.  Bodies are unchanged (v1 has no schemaVersion field).
+        v1_headers = {"X-Schema-Version": "1.0"}
+        v2_headers = {"X-Schema-Version": SCHEMA_VERSION}
         if schema_version and schema_version.startswith("1."):
             try:
-                return extract_tables(tmp_path)
+                return JSONResponse(content=extract_tables(tmp_path), headers=v1_headers)
             except ValueError as exc:
-                return JSONResponse(status_code=422, content={"error": str(exc)})
+                return JSONResponse(status_code=422, content={"error": str(exc)}, headers=v1_headers)
             except Exception:
                 logger.exception("Table extraction failed for file %s", file.filename)
                 raise HTTPException(status_code=500, detail="表格提取失败")
         try:
             artifact = extract_tables_artifact(tmp_path)
             artifact["schemaVersion"] = SCHEMA_VERSION
-            return artifact
+            return JSONResponse(content=artifact, headers=v2_headers)
         except ValueError as exc:
-            return JSONResponse(status_code=422, content={"error": str(exc)})
+            return JSONResponse(status_code=422, content={"error": str(exc)}, headers=v2_headers)
         except Exception:
             logger.exception("Table extraction failed for file %s", file.filename)
             raise HTTPException(status_code=500, detail="表格提取失败")
@@ -637,8 +642,8 @@ async def extract_document_tables(
 
 @app.get("/health")
 def health_check() -> dict[str, str]:
-    """Liveness probe."""
-    return {"status": "up"}
+    """Liveness probe (X-Schema-Version header echoes the table contract version)."""
+    return JSONResponse(content={"status": "up"}, headers={"X-Schema-Version": SCHEMA_VERSION})
 
 
 # ---------------------------------------------------------------------------

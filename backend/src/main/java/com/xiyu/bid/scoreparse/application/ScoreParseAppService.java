@@ -5,7 +5,6 @@ package com.xiyu.bid.scoreparse.application;
 
 import com.xiyu.bid.biddraftagent.repository.BidTenderDocumentSnapshotRepository;
 import com.xiyu.bid.projectworkflow.repository.ProjectDocumentRepository;
-import com.xiyu.bid.scoreparse.domain.StructuredTableCandidateExtractor;
 import com.xiyu.bid.scoreparse.domain.RecallOutcome;
 import com.xiyu.bid.scoreparse.domain.ScoreCandidate;
 import com.xiyu.bid.scoreparse.domain.ScoreParseDecision;
@@ -34,7 +33,6 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
@@ -153,10 +151,17 @@ public class ScoreParseAppService {
         taskRepository.save(task);
         updateProgress(taskId, 5, "READ_DOCUMENT", "读取招标文件");
 
+        var structuredCandidates = StructuredTableExtractionHandler.extract(
+                source, initiationTenderTextResolver, sidecarTableExtractor);
+        if (structuredCandidates.structureIncomplete()) {
+            StructuredTableExtractionHandler.markIncomplete(task, taskId, structuredCandidates.failureReason(),
+                    taskRepository, stateService, progressService);
+            return;
+        }
         RecallOutcome outcome = scoreAnalyzer.recallCandidates(source.text(), null,
                 (progress, stage) -> updateProgress(taskId, progress, "RECALL", stage));
         task.setSkippedChunks(outcome.skippedChunks());
-        List<ScoreCandidate> tableCandidates = tryStructuredTableExtract(source);
+        List<ScoreCandidate> tableCandidates = structuredCandidates.candidates();
         if (tableCandidates.size() >= STRUCTURED_TABLE_MIN_CANDIDATES) {
             log.info("结构化表格提取命中候选: count={}", tableCandidates.size());
         } else {
@@ -259,30 +264,6 @@ public class ScoreParseAppService {
             }
         }
         return List.of();
-    }
-
-    /** Phase 1 结构化表格提取：仅 .docx 生效，失败降级 markdown 路径。 */
-    private List<ScoreCandidate> tryStructuredTableExtract(TenderTextSource source) {
-        String fileName = source.fileName();
-        if (fileName == null || !fileName.toLowerCase().endsWith(".docx")) {
-            return List.of();
-        }
-        try {
-            byte[] content = initiationTenderTextResolver.loadBytes(source.fileUrl());
-            if (content == null || content.length == 0) {
-                return List.of();
-            }
-            var report = StructuredTableCandidateExtractor.extractWithSectionReport(sidecarTableExtractor.extract(content, fileName));
-            if (!report.sectionDimMissTables().isEmpty()) log.warn("结构化表格章节推导缺失（疑似新措辞独立分表，需人工复核）: file={}, missTables={}", fileName, report.sectionDimMissTables());
-            return report.candidates();
-        } catch (RuntimeException | IOException exception) {
-            log.warn("结构化表格提取失败，降级到 markdown: file={}, msg={}", fileName, exception.getMessage());
-            return List.of();
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-            log.warn("结构化表格提取被中断: file={}", fileName);
-            return List.of();
-        }
     }
 
     private void updateProgress(String taskId, int progress, String stageKey, String stageText) {

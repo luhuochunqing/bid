@@ -3,13 +3,13 @@
 // Pos: scoreparse/application — /extract-tables 客户端（Phase 1 结构化表格提取通道）
 package com.xiyu.bid.scoreparse.application;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xiyu.bid.scoreparse.domain.SidecarTableExtraction;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -25,11 +25,18 @@ import java.util.UUID;
 /**
  * sidecar /extract-tables 客户端。
  * <p>双入口：OnDisk 临时文件流式上传（ofFile）；InMemory 全量 byte[] 直传（ofByteArray）。
- * 响应整包读，异常降级返回 empty（调用方负责回退到 markdown 路径）。
+ * 响应整包读；版本不匹配直接 fail-fast（由调用方走结构缺失/人工复核路径），
+ * 否则交给反序列化与正常路径。
  */
 @Component
 @Slf4j
 public class SidecarTableExtractor {
+
+    /** 本客户端期望的 Sidecar 表格协议版本（legacy v1 形态）。 */
+    public static final String EXPECTED_SCHEMA_VERSION = SidecarSchemaContract.EXPECTED_SCHEMA_VERSION;
+
+    /** Sidecar 版本协商头（请求发送 + 响应回显）。 */
+    public static final String SCHEMA_VERSION_HEADER = SidecarSchemaContract.SCHEMA_VERSION_HEADER;
 
     private final HttpClient httpClient;
     private final String sidecarUrl;
@@ -70,7 +77,7 @@ public class SidecarTableExtractor {
                 .uri(URI.create(sidecarUrl + "/extract-tables"))
                 .timeout(Duration.ofSeconds(extractTimeoutSeconds))
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                .header("X-Schema-Version", "1.0");
+                .header(SCHEMA_VERSION_HEADER, EXPECTED_SCHEMA_VERSION);
         if (!sharedKey.isBlank()) {
             requestBuilder.header(SidecarMultipart.SIDECAR_KEY_HEADER, sharedKey);
         }
@@ -87,8 +94,21 @@ public class SidecarTableExtractor {
             throw new IllegalStateException(
                     "调用结构化表格提取服务失败 HTTP " + status + "：" + SidecarMultipart.readErrorSnippet(response.body()));
         }
+        String responseSchemaVersion =
+                response.headers().firstValue(SCHEMA_VERSION_HEADER).orElse(null);
+        byte[] bodyBytes;
         try (InputStream body = response.body()) {
-            return parseResponse(body.readAllBytes());
+            bodyBytes = body.readAllBytes();
+        }
+        SidecarSchemaContract.requireV1Contract(readTreeLenient(bodyBytes), responseSchemaVersion);
+        return parseResponse(bodyBytes);
+    }
+
+    private JsonNode readTreeLenient(byte[] bodyBytes) {
+        try {
+            return objectMapper.readTree(bodyBytes);
+        } catch (IOException e) {
+            return null;
         }
     }
 
