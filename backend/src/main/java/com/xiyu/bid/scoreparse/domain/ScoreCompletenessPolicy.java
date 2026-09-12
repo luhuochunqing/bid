@@ -34,7 +34,7 @@ public final class ScoreCompletenessPolicy {
     private static final int LONG_SECTION_TEXT_THRESHOLD = 300;
 
     private static final Pattern DECLARED_TOTAL_PATTERN = Pattern.compile(
-            "(?:总分|满分|分值构成|合计|总得分)[：:\\s]*(\\d+(?:\\.\\d+)?)\\s*分"
+            "(?:总分|满分|分值构成|合计|总得分)[：:\\s\\n\\r（(]*?(\\d+(?:\\.\\d+)?)\\s*分"
     );
 
     private ScoreCompletenessPolicy() {
@@ -156,17 +156,21 @@ public final class ScoreCompletenessPolicy {
             return DEFAULT_TOTAL_SCORE;
         }
         Matcher m = DECLARED_TOTAL_PATTERN.matcher(text);
-        if (m.find()) {
+        BigDecimal best = null;
+        while (m.find()) {
             try {
                 BigDecimal val = new BigDecimal(m.group(1));
                 if (val.compareTo(BigDecimal.ZERO) > 0 && val.compareTo(BigDecimal.valueOf(1000)) <= 0) {
-                    return val.setScale(2, RoundingMode.HALF_UP);
+                    BigDecimal normalized = val.setScale(2, RoundingMode.HALF_UP);
+                    if (best == null || normalized.compareTo(best) > 0) {
+                        best = normalized;
+                    }
                 }
             } catch (NumberFormatException ignored) {
                 // 忽略异常，降级默认
             }
         }
-        return DEFAULT_TOTAL_SCORE;
+        return best == null ? DEFAULT_TOTAL_SCORE : best;
     }
 
     private static String resolvePrimaryFallback(List<String> defects) {

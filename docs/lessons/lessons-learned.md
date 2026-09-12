@@ -5602,3 +5602,38 @@ task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` 
 - `ScoreParseReviewAppServiceTest#getReviewSnapshot_returnsFactsEvidenceAndAuditsForLatestParseTask`
 - `ScoreParseReviewAppServiceTest#submitReview_savesAuditOnlyAndReturnsSnapshot`
 - `useScoreParseDrawer.js#loads review facts for REVIEW_REQUIRED and records retention audit`
+
+## 357. AI 评分解析 1381：验收标准必须回到招标文件评分表全量项（2026-09-12）
+
+### 问题背景
+
+项目 1381 在测试环境部署最新 PR 后仍只展示 1 个评分项。此前多轮修复已经证明 Sidecar、facts、复核快照等局部环节有输出，但用户看到的最终 `/score-parse/items` 仍严重丢项，说明验收口径偏离了业务目标：真正期望不是“链路某处有候选”，而是招标文件评分表中的所有评分项都出现在最终评分标准里。
+
+项目 1381 招标文件“综合评分法”表的完整期望是 8 项：投标报价 40、公司综合实力 6、类似业绩 10、技术方案 10、供货方案 10、人员配备 6、质量管理方案 10、售后服务方案 8，合计 100。原文中“技术方案/供货方案”均编号为 4，应保留原文编号，不自行重排。
+
+### 根因分析
+
+1. **PDF 分页续表断裂**：Sidecar 实际已经抽到“类似业绩（10分）”，但它位于无表头续表页。后端把续表首行当表头处理，导致第 3 项及后续结构错位或丢失。
+2. **非评分表污染**：第 20 页资格/形式/响应性评审表含“评审标准”等词，被宽松的 score table 识别误标为评分表，污染事实池。
+3. **总分声明取错局部满分**：投标报价规则里有“满分30分/满分10分”，完整性策略先命中局部满分，未优先识别表尾“满分（100分）”。
+4. **合计行进入候选风险**：表尾“合计/得分/满分（100分）”不是评分项，必须在事实抽取阶段剔除，否则会造成伪候选或权重判断噪声。
+
+### 落地规则
+
+- PDF 评分表识别必须同时满足“评分表头 + 权重评分项/合计行”，并显式排除资格评审、形式评审、响应性评审等初步评审表。
+- 遇到上一张表有评分表头、下一张表无表头但首列继续编号或合计，且列数一致时，应合并为同一逻辑评分表并保留原始 `pdf:page/table/row/col` 证据坐标。
+- 完整性策略解析声明总分时，应从全文候选中选择合理的最大正向总分，避免局部规则满分覆盖整表总分。
+- 评分事实抽取必须跳过“合计/满分/总分/得分”汇总行。
+
+### 回归锚点
+
+- `document-converter-sidecar/tests/test_pdf_table_artifact.py#test_pdf_score_table_detection_excludes_preliminary_review_table`
+- `document-converter-sidecar/tests/test_pdf_table_artifact.py#test_pdf_score_table_continuation_is_merged_for_project_1381_shape`
+- `PdfEvidencePipelineTest#project1381LikePdfSplitScoreTable_extractsAllEightScoreItemsAndTotal100`
+- `ScoreCompletenessPolicyTest#evaluate_declaredTotalPrefersOverallTotalOverLocalFullScorePhrases`
+
+### 验证证据
+
+- 真实 1381 PDF smoke：第 20 页初步评审表 `isScoreTable=false`；第 24/25 页评分表合并为 10 行，包含 8 项 + 合计行，0 warning。
+- Sidecar 回归：`pytest document-converter-sidecar/tests/test_pdf_table_artifact.py document-converter-sidecar/tests/test_extract_tables_v2.py -q` → 19 passed。
+- 后端回归：`mvn -f backend/pom.xml -Dtest=DeterministicScoreFactExtractorTest,PdfEvidencePipelineTest,ScoreCompletenessPolicyTest,ScoreCompletenessAcceptanceTest,ScoreParseAppServiceTest test` → 55 tests passed。

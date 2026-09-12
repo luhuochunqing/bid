@@ -380,3 +380,42 @@ trigger（同步<1s，互斥校验+建任务）
 - `ScoreItemPersistenceServiceTest#reviewRequiredCandidates_arePersistedAsReviewFactsWithoutOverwritingScoreItems`
 - `document-converter-sidecar/tests/test_pdf_table_artifact.py`
 - 金标：`case-pdf-cert-list-single-item`
+
+## 12. 项目 1381 PDF 分页续表验收：最终 items 必须等于评分表全量项（2026-09-12）
+
+### 业务验收口径
+
+评分解析的验收不能停在 Sidecar、facts 或复核快照局部可见。对项目 1381 这类招标文件，期望输出就是招标文件“综合评分法”表里的全部评分项：
+
+| 编号 | 评分项 | 权重 |
+|---|---|---:|
+| 1 | 投标报价 | 40 |
+| 2 | 公司综合实力 | 6 |
+| 3 | 类似业绩 | 10 |
+| 4 | 技术方案 | 10 |
+| 4 | 供货方案 | 10 |
+| 5 | 人员配备 | 6 |
+| 6 | 质量管理方案 | 10 |
+| 7 | 售后服务方案 | 8 |
+
+原文存在两个编号 `4`，系统应保留原文编号；验收重点是 8 个叶子评分项与合计 100。
+
+### 根因与修复
+
+- **分页续表断裂**：第 25 页无表头续表被当成新表，首行“类似业绩（10分）”被跳过。Sidecar 现在在列数一致、上一表有评分表头、下一表首列继续编号或合计时合并为同一逻辑评分表。
+- **初步评审表误入评分事实池**：资格评审、形式评审、响应性评审表不属于打分评分项。PDF score table 识别现在要求“评分表头 + 权重评分项/合计行”，并显式排除初步评审表。
+- **局部满分覆盖整表总分**：报价规则内“满分30分/满分10分”只是局部分值，完整性策略现在扫描全文声明总分并取合理最大值，使表尾“满分（100分）”成为完整性基准。
+- **汇总行防污染**：`合计/满分/总分/得分` 行不是评分项，事实抽取阶段直接跳过。
+
+### 回归锚点
+
+- `test_pdf_score_table_detection_excludes_preliminary_review_table`
+- `test_pdf_score_table_continuation_is_merged_for_project_1381_shape`
+- `PdfEvidencePipelineTest#project1381LikePdfSplitScoreTable_extractsAllEightScoreItemsAndTotal100`
+- `ScoreCompletenessPolicyTest#evaluate_declaredTotalPrefersOverallTotalOverLocalFullScorePhrases`
+
+### 已验证证据
+
+- 真实 PDF smoke：`extract_pdf_tables_artifact` 输出 20 张表、0 warning；第 20 页初步评审表 `isScoreTable=false`；第 24/25 页评分表合并为 10 行，含 8 个评分项 + 合计行。
+- Sidecar：19 个相关测试通过。
+- 后端：55 个 scoreparse 相关测试通过；1381 类 artifact 输出 8 项、权重合计 100、`AUTO_APPROVED`。
