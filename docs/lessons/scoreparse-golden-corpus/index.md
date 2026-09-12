@@ -51,7 +51,7 @@
 1. **双轨回放脚本**（`scripts/scoreparse-dual-replay.sh`）属 Phase 5 T505，落地前"只读回放"由上述单测基线代行。
 2. **SYN-CROSS-PAGE 页码锚点**：等真实脱敏语料标定 `sourcePage` 后补齐（Phase 6 T601）。
 3. **真实语料 nightly 评估**：Phase 6 T603 CI/nightly 接入后才有 lane/复核率报告。
-4. **1358 真实数据金标 green 路径**：`Incident1358RealCorpusGoldenTest` 已落地，但仅在本地 `XIYU_EVAL_CORPUS_DIR/incident-1358/candidates.json`（离线录制的真实候选快照）存在时运行；CI / 纯源码 worktree 自动跳过，green 路径需有真实语料的开发机验证。录制 `candidates.json` 的工具列为后续项；脱敏框架②（`incident1358_*`）已 CI 常驻兜底。
+4. **1358 真实数据金标 green 路径**：`Incident1358RealCorpusGoldenTest` 已落地，但仅在本地 `XIYU_EVAL_CORPUS_DIR/incident-1358/candidates.json`（离线录制的真实候选快照）存在时运行；CI / 纯源码 worktree 自动跳过，green 路径需有真实语料的开发机验证。`scripts/eval-scoreparse/record-real-corpus.sh` 已提供显式录制入口：输入仓库外 `source.md`，输出仓库外 `candidates.json`；脱敏框架②（`incident1358_*`）已 CI 常驻兜底。
 
 ## 状态
 
