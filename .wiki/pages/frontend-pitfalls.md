@@ -4,7 +4,7 @@ space: engineering
 category: guide
 tags: [前端, Vue3, Element Plus, reactive, ref, v-model, el-upload, el-form, 权限, E2E, scoped, teleport]
 created: 2026-07-10
-updated: 2026-09-09
+updated: 2026-09-13
 health_checked: 2026-09-13
 sources:
   - src/
@@ -913,7 +913,36 @@ const { selectedSet } = tree  // 解构注入字段，模板才可用
 
 ---
 
-## 24. 变更记录
+## 24. 静默 catch 块空语句触发 no-empty 与 E2E 临时日志污染
+
+### 24.1 事故
+
+在业务表单渲染或异步辅助数据加载（如附件预加载、日志加载、确认弹窗取消）中，常见类似 `try { ... } catch {}` 的裸空代码块；以及在 E2E 自动化测试排查用例时遗留 `console.log('[DEBUG ...]')`。
+
+```javascript
+// 陷阱 1：无注释裸空 catch 触发 no-empty 告警
+try {
+  const { data } = await http.get(`/api/attachments`)
+} catch {}
+
+// 陷阱 2：测试文件遗留未清理的 console.log 触发 no-console 告警
+console.log('[DEBUG edit-self] status:', createRes.status)
+```
+
+### 24.2 根因
+
+1. ESLint 的 `no-empty` 规则禁止除包含注释外的空语句块。开发者常认为静默降级不需要写任何处理，但缺失注释会导致后续维护者无法区分是“有意静默容错”还是“异常处理遗漏代码”。
+2. E2E 测试调试过程中打入的日志未在 PR 提交前彻底自检清除，长期堆积污染门禁 baseline。
+
+### 24.3 根治规则
+
+- **补全意图注释**：对于合理静默容错的 catch 块，必须在 block 内部显式补充业务意图注释（如 `// 附件加载失败静默降级，不阻塞表单渲染`），既满足 ESLint 规则又清晰传递工程意图。
+- **E2E 用例零日志交付**：调试完成后通过 `npm run lint` 统一检查，彻底移除临时打印。
+- **必要运行日志显式声明**：如 Sentry 或监控 SDK 初始化等确实需要控制台输出的底座工具，使用 `// eslint-disable-next-line no-console` 显式豁免。
+
+---
+
+## 25. 变更记录
 
 | 日期 | 变更内容 |
 |------|---------|
@@ -929,6 +958,7 @@ const { selectedSet } = tree  // 解构注入字段，模板才可用
 | 2026-08-28 | 新增 §21：选项模板复制导致非标准伪枚举渗透（商机预测与项目列表客户类型筛选区） |
 | 2026-09-05 | 新增 §22：全局注册 Element Plus 插件与样式导致 Vitest / JSDOM 测试崩溃与假死 |
 | 2026-09-09 | 新增 §23：文件删除接口 404 导致前端状态死锁与错误提示覆盖全局 429 |
+| 2026-09-13 | 新增 §24：静默 catch 块空语句触发 no-empty 与 E2E 临时日志污染（ESLint 基线警告治理） |
 
 
 
