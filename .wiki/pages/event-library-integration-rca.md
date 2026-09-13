@@ -4,8 +4,8 @@ space: engineering
 category: lessons
 tags: [integration, event-bus, event-sdk, tender, organization, root-cause]
 created: 2026-09-10
-updated: 2026-09-10
-health_checked: 2026-09-10
+updated: 2026-09-13
+health_checked: 2026-09-13
 sources:
   - .wiki/sources/customer/事件库SDK接入说明方案.doc
   - .wiki/sources/technical/西域投标系统对接技术规格书.md
@@ -18,8 +18,8 @@ sources:
   - docs/lessons/lessons-archive.md
 backlinks:
   - _index
-  - integration-tender-event-push
   - integration-organization-event-sdk
+  - integration-tender-event-push
 ---
 # 事件库两次集成反复失败根因复盘
 

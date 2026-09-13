@@ -5,7 +5,7 @@ category: guide
 tags: [超大文件, 流式解析, SAX, iterparse, mammoth, 前端下载, 原生下载, 内存治理, OOM]
 created: 2026-09-10
 updated: 2026-09-10
-health_checked: 2026-09-10
+health_checked: 2026-09-13
 sources:
   - document-converter-sidecar/app.py
   - scripts/release/remote-deploy.sh

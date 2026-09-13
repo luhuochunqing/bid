@@ -5,7 +5,7 @@ category: guide
 tags: [案例推荐, score_item, spec041, 裸响应, 二次解包, caseRecommendationApi]
 created: 2026-08-21
 updated: 2026-09-05
-health_checked: 2026-09-05
+health_checked: 2026-09-13
 sources:
   - src/api/modules/caseRecommendation.js
   - src/views/Project/stages/components/AiRecommendDrawer.vue

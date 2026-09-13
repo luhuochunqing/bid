@@ -5,7 +5,7 @@ category: integration
 tags: [integration, organization, event-sdk, event-bus, data-scope]
 created: 2026-04-28
 updated: 2026-09-10
-health_checked: 2026-09-10
+health_checked: 2026-09-13
 sources:
   - .wiki/sources/customer/事件库SDK接入说明方案.doc
   - .wiki/sources/technical/泊冉投标系统与西域对接技术相关内容.md
@@ -15,7 +15,6 @@ sources:
   - docs/integration/organization-role-filter-config.yml
 backlinks:
   - _index
-  - event-library-integration-rca
   - implementation/xiyu-pending-confirmations
   - integration-oa-crm
   - oss-organization-sync-playbook

@@ -62,15 +62,22 @@ function fixFrontmatter(pageAbsPath, content, dryRun) {
     changed = true
   }
 
-  // Fix stale updated
-  if (frontmatter.updated && dateDaysDiff(frontmatter.updated) > 30) {
+  // Fix missing updated
+  if (!frontmatter.updated) {
     const today = todayStr()
-    fixed = fixed.replace(
-      new RegExp(`updated:\\s*${frontmatter.updated}`),
-      `updated: ${today}`
-    )
+    if (fixed.startsWith('---')) {
+      fixed = fixed.replace('---', `---\nupdated: ${today}`)
+    } else {
+      fixed = `---\nupdated: ${today}\n---\n${fixed}`
+    }
     changed = true
   }
+
+  // Note on stale updated (>30 days):
+  // According to wiki-check.mjs & .wiki/WIKI.md §3.4:
+  // An updated date > 30 days is only stale if health_checked is ALSO stale (> 7 days).
+  // Once health_checked is refreshed to today, updated > 30 days is valid (content reviewed).
+  // We deliberately do NOT overwrite updated when content hasn't changed.
 
   if (changed && !dryRun) {
     fs.writeFileSync(pageAbsPath, fixed, 'utf8')

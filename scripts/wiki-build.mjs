@@ -198,6 +198,14 @@ function rebuildWikiHome(records) {
   const implementation = records.filter((record) => record.space === 'implementation').sort((a, b) => a.slug.localeCompare(b.slug))
   const today = isoDate()
 
+  const indexPath = path.join(pagesRoot, '_index.md')
+  let existingCreated = '2026-07-23'
+  if (fs.existsSync(indexPath)) {
+    const existing = fs.readFileSync(indexPath, 'utf8')
+    const { frontmatter } = parseFrontmatter(existing)
+    if (frontmatter.created) existingCreated = frontmatter.created
+  }
+
   const body = [
     '# 西域投标管理平台知识库',
     '',
@@ -235,7 +243,7 @@ function rebuildWikiHome(records) {
       tags: ['首页', '导航', 'wiki'],
       sources: ['docs/specs/WIKI.md', '.wiki/INDEX.md', '.wiki/PAGE_INDEX.md'],
       backlinks: [],
-      created: today,
+      created: existingCreated,
       updated: today,
       health_checked: today,
     },
@@ -271,6 +279,7 @@ function main() {
     const created = frontmatter.created || isoDate()
     const hasPendingSource = sources.some((sourcePath) => pendingPaths.has(sourcePath))
     const updated = hasPendingSource ? isoDate() : frontmatter.updated || isoDate()
+    const archive = frontmatter.archive !== undefined ? frontmatter.archive : undefined
 
     pageDrafts.push({
       pageAbsPath,
@@ -282,6 +291,7 @@ function main() {
       sources,
       created,
       updated,
+      archive,
       body,
       links: collectLinks(body),
     })
@@ -310,20 +320,21 @@ function main() {
   for (const draft of pageDrafts) {
     const pageBacklinks = (backlinks.get(draft.slug) || []).sort((a, b) => a.localeCompare(b))
 
-    const content = buildFrontmatter(
-      {
-        title: draft.title,
-        space: draft.space,
-        category: draft.category,
-        tags: draft.tags,
-        sources: draft.sources,
-        backlinks: pageBacklinks,
-        created: draft.created,
-        updated: draft.updated,
-        health_checked: today,
-      },
-      draft.body
-    )
+    const frontmatterObj = {
+      title: draft.title,
+      space: draft.space,
+      category: draft.category,
+      tags: draft.tags,
+      sources: draft.sources,
+      backlinks: pageBacklinks,
+      created: draft.created,
+      updated: draft.updated,
+      health_checked: today,
+    }
+    if (draft.archive !== undefined) {
+      frontmatterObj.archive = draft.archive
+    }
+    const content = buildFrontmatter(frontmatterObj, draft.body)
 
     fs.writeFileSync(draft.pageAbsPath, content, 'utf8')
 

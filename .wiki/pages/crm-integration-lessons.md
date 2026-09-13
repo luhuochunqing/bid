@@ -5,7 +5,7 @@ category: guide
 tags: [CRM, 集成, 踩坑, webhook, 商机状态, OAuth, CallerContext, OBS预签名]
 created: 2026-07-10
 updated: 2026-08-18
-health_checked: 2026-09-05
+health_checked: 2026-09-13
 sources:
   - backend/src/main/java/com/xiyu/bid/integration/external/TenderIntegrationCommandService.java
   - .wiki/pages/integration-oa-crm.md

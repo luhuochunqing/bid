@@ -5,7 +5,7 @@ category: guide
 tags: [项目搜索, 招标主体, ownerUnit, purchaser_name, 内存过滤, useProjectFilter]
 created: 2026-08-31
 updated: 2026-08-31
-health_checked: 2026-09-05
+health_checked: 2026-09-13
 sources:
   - backend/src/main/java/com/xiyu/bid/project/controller/ProjectController.java
   - backend/src/main/java/com/xiyu/bid/project/service/ProjectListEnrichmentSupport.java
