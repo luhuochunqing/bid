@@ -165,7 +165,12 @@ function handleCancelEdit() { router.push(editTenderId.value ? `/bidding/${editT
 
 async function fetchTenderDetail() {
   if (!createdTenderId.value) return
-  try { const res = await tendersApi.getDetail(createdTenderId.value); if (res?.success) tenderDetail.value = res.data } catch {}
+  try {
+    const res = await tendersApi.getDetail(createdTenderId.value)
+    if (res?.success) tenderDetail.value = res.data
+  } catch {
+    // 标讯详情预加载失败静默处理
+  }
 }
 
 async function openAssignDialog() {

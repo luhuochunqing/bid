@@ -65,8 +65,6 @@ test.describe('§3.3.1.4 结果确认 - 竞争对手情况表', () => {
   await expect(page.locator('.el-table__body-wrapper tbody tr')).toHaveCount(rowsAfterAdd - 1, { timeout: 5000 }).catch(() => {})
     const rowsAfterDel = await tableRows.count()
     expect(rowsAfterDel).toBe(rowsAfterAdd - 1)
-
-    console.log(`§3.3.1.4 E2E: 竞争对手表验证通过`)
   })
 
   /** 权限验证：STAFF 角色可提交结果 */
@@ -97,6 +95,5 @@ test.describe('§3.3.1.4 结果确认 - 竞争对手情况表', () => {
     // STAFF 权限：状态可能是 200/201/409（权限通过）/403（需要重启后端生效）
     // 仅确认服务可达且非 401 未认证
     expect(status).not.toBe(401)
-    console.log(`§3.3.1.4 STAFF 权限: 状态=${status}`)
   })
 })
