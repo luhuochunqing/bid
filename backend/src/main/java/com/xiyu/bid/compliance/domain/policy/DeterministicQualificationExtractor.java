@@ -30,9 +30,27 @@ public final class DeterministicQualificationExtractor {
     private static final Pattern NEXT_SECTION_PATTERN = Pattern.compile(
             "\\n\\s*(?:[一二三四五六七八九十\\d]+[、.\\s]*)?(?:采购文件|招标文件|响应文件的递交|投标文件的递交|开标|评标|招标范围|联系方式)");
 
-    /** 条目分割标号正则：①-⑩、（1）-（99）、1.-99.、3.1.1 等多级序号、中文一、二、等. */
+    /** 条目分割标号正则：①-⑩、（1）-（99）、1.-99.、3.1.1 等多级序号、中文一、二、Markdown 标题与表格行边界. */
     private static final Pattern BULLET_PATTERN = Pattern.compile(
-            "([①②③④⑤⑥⑦⑧⑨⑩]|(?:^|\\n|[；;。])\\s*(?:[（\\(]\\d+[）\\)]|\\d+\\.\\d+(?:\\.\\d+)*[、.\\s]*|\\d+[.、\\)]|[一二三四五六七八九十]+[、.]|[（\\(][一二三四五六七八九十]+[）\\)]))");
+            "([①②③④⑤⑥⑦⑧⑨⑩]|(?:^|\\n|[；;。])\\s*(?:[（\\(]\\d+[）\\)]|\\d+\\.\\d+(?:\\.\\d+)*[、.\\s]*|\\d+[.、\\)]|[一二三四五六七八九十]+[、.]|[（\\(][一二三四五六七八九十]+[）\\)])|\\n\\s*#{1,6}\\s+|\\n\\s*\\|)");
+
+    /** 单条专用资质有效长度上限（法定证书名不超过 100 字，杜绝评分细则与长句粘连渗透）. */
+    public static final int MAX_QUALIFICATION_LENGTH = 100;
+
+    /** 评分细则、表格说明与格式模板排除关键词（坚决阻断评分项与模板渗漏为有效资格与资质条目）. */
+    private static final List<String> SCORING_AND_TEMPLATE_EXCLUDE_KEYWORDS = List.of(
+            "评审细则", "评分细则", "评分标准", "商务评审", "技术评审", "价格评审", "打分",
+            "分值", "最高分", "最低分", "得分", "加权系数", "评审内容", "评审要素", "评审办法",
+            "填写认证名称", "有🞎", "无🞎", "应答文件格式", "格式模板", "响应说明",
+            "结构化响应表", "未取得认证", "取得认证的得", "取得1项", "取得2项",
+            "编制说明", "填表说明"
+    );
+
+    /** 违法失信与行政处罚关键词（属于通用资格或否决条款，严禁作为专用资质证书提取）. */
+    private static final List<String> PENALTY_AND_DISCREDIT_KEYWORDS = List.of(
+            "停产", "停业", "暂扣", "吊销", "被责令", "破产", "清算", "违法", "失信", "资信不良", "资格不符"
+    );
+
 
     /** 汉字之间因 OCR 或排版换行的折行修复正则. */
     private static final Pattern CHINESE_LINEBREAK_PATTERN = Pattern.compile("([\\u4e00-\\u9fa5])\\s*\\n\\s*([\\u4e00-\\u9fa5])");
@@ -181,11 +199,11 @@ public final class DeterministicQualificationExtractor {
     }
 
     private static boolean isLeadingPunctuation(final char c) {
-        return c == '；' || c == ';' || c == '。' || c == '，' || c == ',' || c == '、' || c == '：' || c == ':';
+        return c == '|' || c == '；' || c == ';' || c == '。' || c == '，' || c == ',' || c == '、' || c == '：' || c == ':';
     }
 
     private static boolean isTrailingPunctuation(final char c) {
-        return c == '；' || c == ';' || c == '。' || c == '，' || c == ',' || c == '：' || c == ':';
+        return c == '|' || c == '；' || c == ';' || c == '。' || c == '，' || c == ',' || c == '：' || c == ':';
     }
 
     static boolean isIntroductoryHeading(final String text) {
@@ -210,6 +228,9 @@ public final class DeterministicQualificationExtractor {
         if (!isValidText(clean) || isIntroductoryHeading(clean)) {
             return false;
         }
+        if (PENALTY_AND_DISCREDIT_KEYWORDS.stream().anyMatch(clean::contains)) {
+            return false;
+        }
         return SPECIFIC_CERTIFICATE_KEYWORDS.stream().anyMatch(clean::contains);
     }
 
@@ -229,7 +250,10 @@ public final class DeterministicQualificationExtractor {
     }
 
     private static boolean isValidText(final String clean) {
-        if (clean == null || clean.length() < 4) {
+        if (clean == null || clean.length() < 4 || clean.length() > MAX_QUALIFICATION_LENGTH) {
+            return false;
+        }
+        if (clean.contains("|") || clean.startsWith("---") || clean.startsWith(":---")) {
             return false;
         }
         if (isIntroductoryHeading(clean)) {
@@ -237,6 +261,9 @@ public final class DeterministicQualificationExtractor {
         }
         if ("/".equals(clean) || "无".equals(clean) || "不适用".equals(clean) || "不要求".equals(clean)
                 || clean.endsWith("：/") || clean.endsWith(":/")) {
+            return false;
+        }
+        if (SCORING_AND_TEMPLATE_EXCLUDE_KEYWORDS.stream().anyMatch(clean::contains)) {
             return false;
         }
         boolean isIgnoredPrefix = IGNORE_PREFIXES.stream().anyMatch(clean::startsWith);

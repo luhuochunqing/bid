@@ -16,6 +16,7 @@ sources:
   - backend/src/main/java/com/xiyu/bid/compliance/application/BidQualityCheckProgressUpdater.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/QualificationDetail.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/QualificationMatchPolicy.java
+  - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/DeterministicQualificationExtractor.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/QualificationDetailReconciler.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/BidDocumentQualityEngine.java
   - backend/src/main/java/com/xiyu/bid/compliance/domain/policy/BasicInfoCheckPolicy.java
@@ -344,6 +345,12 @@ drawer 结构：
 43. **资质比对明细与总项状态一致性校准（`QualificationDetailReconciler`，2026-09-11）**：
     - **双轨脱节根治与强制状态校准**：大模型综合裁决输出整体结论，资质比对策略（`QualificationMatchPolicy`）在后处理中独立生成 `qualDetails` 明细清单。建立纯核心策略 `QualificationDetailReconciler`，在结果持久化前执行确定性校准门禁：若明细存在任一 `EXPIRED`（过期）或 `UNMATCHED`（未匹配），总项强制降级为 `FAIL`，任务整体合规状态同步置为 `NON_COMPLIANT` 并累加风险分；若存在 `ATTENTION`（需关注/标书有材料但资质库缺失）且无硬性失败，总项降级为 `MANUAL_REVIEW`；杜绝“明细未匹配但结论显示通过”的逻辑割裂；
     - **长句说明剥离与标书检索候选词展开**：针对招标专用资质要求常附带长句括号说明（如“银行基本账户开户许可证（取消开户许可证的须提供基本存款账户银行备案资料...）”）导致 60 字精确匹配致盲问题，`QualificationDetailReconciler.buildBidSearchCues` 自动剥离括号注释，提取核心词，并对银行基本账户开户类资质自动展开“基本存款账户”、“开户许可证”、“开户证明”等候选词列表，确保标书正文包含有效开户凭证时能准确定位并置为 `ATTENTION` 待复核，消除漏检误报。
+44. **资质提取物理结构切块与评分细则/失信分流及表格结构化防误杀（2026-09-13）**：
+    - **物理版式边界强截断**：`DeterministicQualificationExtractor.BULLET_PATTERN` 正则引入 `\n\s*#{1,6}\s+|\n\s*\|`，任何 Markdown 标题或表格换行均作为物理块断点，彻底杜绝全文扫描时前附表履约提示跨章节粘连整套商务/技术评分细则（长达 5229 字符）的缺陷；
+    - **长度上限与评分/模板特征过滤**：规定 `MAX_QUALIFICATION_LENGTH = 100`（法定资质名称硬上限），并增加 `SCORING_AND_TEMPLATE_EXCLUDE_KEYWORDS` 排除评分标准、评审细则、打分、应答格式与编制说明等；
+    - **概念清晰分流**：将失信惩戒关键词（`PENALTY_AND_DISCREDIT_KEYWORDS` 如吊销许可证、停产停业等）从专用资质 `isSpecificCertificate` 中剔除，但保留在 `isGeneralCapacity` 通用主体资格中，保证失信被执行人等条款正常核验；
+    - **结构化标记过滤替代词汇黑名单**：杜绝将表格表头拆解词（如“认证机构”、“有效期限”、“佐证材料”）作为全局黑名单导致的误杀合法资质缺陷；采用结构化表格标记过滤（`clean.contains("|")` 强阻断表格跨列行），并补充正向防误杀单测；
+    - **一票否决核验层二次守卫与 Nullability 防护**：`QualificationVetoPolicy.checkMandatoryQualifications` 增加 `qualification == null || qualification.isBlank()` 严防 NPE，且跳过超长文本（>100字）与非专用资质项的 contains 阻断，杜绝不可控外部长文本导致一票否决误判。
 
 ## 6. 后续任务（Backlog）
 

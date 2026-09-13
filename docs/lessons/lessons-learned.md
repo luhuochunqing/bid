@@ -5738,3 +5738,37 @@ task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` 
 - Scoreparse 全包回归 774 项通过（2 项按既有真实语料环境条件跳过）；架构测试 14 项、golden replay 12 项通过，golden 汇总 F1=100%。
 
 > 发布纪律：代码、回归与文档通过只证明修复在当前工作树成立；合入、部署后仍必须对项目 1377 重新解析，并以 `/review`、`/items` 与页面三层一致为真实环境验收标准。
+
+## 361. 标书质检资质提取跨章节粘连与评分细则/失信惩戒混淆导致一票否决误判（2026-09-13，项目 1377 / 金标语料 1359）
+
+### 全链路证据与五个为什么
+
+1. 质检弹窗中【基本信息检查-资质匹配】与【分项合规检查-资格条件一票否决】双双报 FAIL，并包含数千字符长文本。
+2. 报 FAIL 是因为 `QualificationVetoPolicy.checkMandatoryQualifications` 对提取出的强制资质项在投标文件全文中做 `contains` 匹配失败。
+3. 资质项中出现了整套商务/技术评分细则（长达 5229 字符）以及“企业绿码国家级认证：有/无”等应答模板，投标文件中自然不可能一字不差匹配此巨幅段落。
+4. 评分细则和模板之所以被提取为 `mandatoryQualifications`，是因为招标文件缺少“三、投标人资格要求”独立章节标题，`DeterministicQualificationExtractor.locateSections` 退回全文扫描；同时 `BULLET_PATTERN` 未将 Markdown 标题（`##`、`###`）和表格边界（`|`）作为强切分点，导致前附表提示与跨章节评分细则粘合成超长 chunk；且 `isSpecificCertificate` 只要含“认证”即判定为资质，未设长度上限与评分/模板特征词过滤。
+5. 零号病人是切块粒度缺乏结构边界守卫，以及领域概念分类未做严谨分流（把评分细则、模板说明、失信惩戒与资质证书全混为一谈）。
+
+按工程纪律七类根因归类：主根因是**边界切分不完备与概念分流缺失**；伴随根因是**防御性门禁不足**（核验层盲目信任提取层输出的长文本，未设二次有效性防护）。
+
+### 根治契约
+
+- **结构化强截断**：`DeterministicQualificationExtractor.BULLET_PATTERN` 引入 `\n\s*#{1,6}\s+|\n\s*\|`，任何 Markdown 标题或表格换行均作为物理块断点，彻底杜绝前附表跨章节粘连评分细则或模板。
+- **长度与语义硬过滤**：
+  - 规定 `MAX_QUALIFICATION_LENGTH = 100`，字数超出 100 坚决不作为专用资质证书提取。
+  - 增加 `SCORING_AND_TEMPLATE_EXCLUDE_KEYWORDS`（评分标准、评审细则、打分、分值、应答格式、填写认证名称等），在候选提取阶段彻底阻断。
+  - **杜绝过拟合黑名单误杀**：严禁将表格表头局部词（如“认证机构”、“有效期限”、“佐证材料”）加入全局排除黑名单，以防误杀正规资质条款；改用物理结构标记拦截（`clean.contains("|")` 强阻断表格表头与跨列行）。
+- **专用资质与通用资格概念分流**：
+  - 失信惩戒关键词（`PENALTY_AND_DISCREDIT_KEYWORDS` 如吊销许可证、停产停业等）从专用资质 `isSpecificCertificate` 中剔除，但保留在 `isGeneralCapacity` 通用主体资格中，保证失信被执行人等条款正常核验。
+- **一票否决核验层二次守卫与 Nullability 攻击防护**：
+  - `QualificationVetoPolicy.checkMandatoryQualifications` 增加守卫：`qualification == null || qualification.isBlank()` 严防 NPE，且长度 > 100 或不符合 `isSpecificCertificate` 的项跳过 contains 阻断，杜绝外部不可控数据（包括 LLM 提取可能产生的幻觉长文本）导致一票否决误判。
+
+### 防回归证据
+
+- `DeterministicQualificationExtractorTest#extract_incident1377_doesNotExtractScoringRulesOrTemplates` 锁定 1359/1377 真实语料回归，断言绝不提取出包含评分细则或应答模板的脏数据。
+- `DeterministicQualificationExtractorTest#extract_legitimateQualificationWithCommonWords_isNotFalseExcluded` 锁定正向防误杀测试，确保包含“认证机构”、“有效期限”、“佐证材料”的正规资质证书条款 100% 被正确提取。
+- `QualificationVetoPolicyTest` 补充长文本、评分项及 null 元素跳过一票否决硬阻断的守卫用例。
+- 合规质检域核心套件（涵盖 `DeterministicQualificationExtractorTest`、`QualificationVetoPolicyTest`、`QualificationMatchPolicyTest`、`QualificationDetailReconcilerTest`、`QualificationGradePolicyTest`、`BidDocumentQualityEngineTest`、`BidQualityCheckAsyncExecutorTest` 等 90 个测试）100% 通过。
+- 单文件行数预算审计：`DeterministicQualificationExtractor.java`（275 行）与 `QualificationVetoPolicy.java`（203 行）严格维持在 300 行预算以内。
+
+> 维护纪律：文本提取必须依托物理版式边界（标题/表格）截断，禁止依赖纯换行猜测；严禁用局部业务词汇作全局排除黑名单，必须以结构化标记（表格竖线/格式前缀）阻断表格残留；一票否决等强阻断规则必须做空值、长度与资质类型二次门禁。
