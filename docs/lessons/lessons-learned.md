@@ -5772,3 +5772,40 @@ task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` 
 - 单文件行数预算审计：`DeterministicQualificationExtractor.java`（275 行）与 `QualificationVetoPolicy.java`（203 行）严格维持在 300 行预算以内。
 
 > 维护纪律：文本提取必须依托物理版式边界（标题/表格）截断，禁止依赖纯换行猜测；严禁用局部业务词汇作全局排除黑名单，必须以结构化标记（表格竖线/格式前缀）阻断表格残留；一票否决等强阻断规则必须做空值、长度与资质类型二次门禁。
+
+## 362. 标书质检一票否决检查结论冗长与确定性闭环断层治理（2026-09-13）
+
+### 全链路证据与五个为什么
+
+1. 质检弹窗中【资格条件一票否决】（`QUALIFICATION_VETO`）检查结论出现大段长篇叙述（数百字符），内容冗长模糊，且不通过时未列出招标文件的完整要求项。
+2. 结论冗长是因为旧逻辑在标书正文满足所有提取的硬性资质时直接返回 `Optional.empty()`，移交第二阶段 LLM lane 深度裁决；大模型在此场景下生成了大量套话与大段叙述。
+3. 第一阶段策略之所以在资质全部满足时不直接输出结论，是因为原有第一阶段策略被片面设计为“只拦截 FAIL、不自闭环 PASS”，将确定性成立的事实遗漏交给了具备随机性与废话倾向的 LLM。
+4. 在不通过分支上，旧逻辑遇到第一个未满足项时直接 break 并单项报错，未能对有效要求项与未满足项进行集合汇总。
+5. 零号病人是领域核验策略缺乏“确定性事实优先形成自闭环”的设计意识，把规则核验降级为单纯的单点拦截器，未将比对结果精炼清晰地向用户呈现。
+
+### 根治契约
+
+- **确定性闭环 PASS 与精炼结论**：
+  - 在 `QualificationVetoPolicy.checkMandatoryQualifications` 中，对提取并清洗后的专用资质集合 `validQualifications` 做全量正文核验；
+  - 若所有资质均在标书中得到满足，直接构造并返回 `QualityCheckItemResult.pass`：
+    - 结论格式：`"招标文件要求的一票否决资格项均已满足：【" + String.join("、", satisfied) + "】。"`
+    - 证据：同时组装招标文件资质要求定位与标书资质响应证明（物理跳过目录欺骗页）；
+    - 彻底阻断此场景退回 LLM lane，从根源上消除了数百字的大段叙述，实现毫秒级确定性响应。
+- **不通过分支聚合说明与精准对比**：
+  - 若存在未满足项（`!unsatisfied.isEmpty()`），汇总并清晰输出：
+    - 结论格式：`"招标文件要求了一票否决资格项【" + String.join("、", validQualifications) + "】，标书中未满足【" + String.join("、", unsatisfied) + "】。"`
+    - 建议操作：`"请在投标文件中补充对应资格项的证明材料或在企业知识库中维护有效记录"`
+    - 证据：组装招标文件未满足项定位与知识库匹配证据。
+- **去重与降级防护**：
+  - 资质列表去重保证文案中不重复显示同一证书；
+  - 若招标文件未提取出任何专用资质证书，则返回 `Optional.empty()`，保持既有通用条款或人工复核流程平滑运作。
+
+### 防回归证据
+
+- `QualificationVetoPolicyTest#checkFirstStage_allMandatoryQualificationsSatisfied_returnsPass` 锁定全部满足直接 PASS 并输出精炼结论。
+- `QualificationVetoPolicyTest#checkFirstStage_catalogDeceptionOnly_returnsFail` 锁定不通过时完整输出要求项与未满足项。
+- `QualificationVetoPolicyTest#checkFirstStage_duplicateQualifications_deduplicatedInConclusion` 锁定重复资质提取去重。
+- `BidDocumentQualityEngineTest` 32 项用例全绿，全量 1953 个策略测试通过。
+- `QualificationVetoPolicy.java` 行数严格维持在 237 行（<= 300 行）。
+
+> 维护纪律：第一阶段确定性核验策略若已具备完全充分的事实依据（如硬性资质全集比对），必须形成 PASS/FAIL 完整自闭环，禁止空转回退给大模型生成冗长废话；比较类结论必须精准列出要求基准与未满足项，禁止仅报单点错误。
