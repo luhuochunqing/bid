@@ -132,3 +132,16 @@ description: "任务清单：多表评分标准自动拆分（062）"
 - 严格 TDD：测试先 FAIL，再实现转 Green
 - 提交按逻辑分组：文档（spec/plan/data-model/quickstart/tasks）一个 commit，Red 测试一个 commit，实现一个 commit
 - 完成时须跑 `agent-finish-task.sh` 收尾门禁（wiki checkpoint + 三重合入检查）
+
+---
+
+## Phase 6: 1377 合并起始行兼容漂移（2026-09-13）
+
+- [x] T013 [US3] 将脱敏的“90 分普通项 + 10 分合并分组（5+5）+ 100 分汇总”写成 DocumentArtifact v2 fixture。
+- [x] T014 [US3] 在 `DeterministicScoreFactExtractorTest` 先写 RED：断言合并起始行同时产生父事实和首个叶子，父权重 10、叶子 5+5、父 ID 一致且证据类型正确。
+- [x] T015 [US3] 在 `ScoreFactShadowPipelineTest` 先写 RED：加载 fixture，断言表级 leafWeightSum=100、decision=AUTO_APPROVED、leafCount=3。
+- [x] T016 [US3] 最小修改 `DeterministicScoreFactExtractor`：仅对五项证据齐备的合并起始行生成 parent + first leaf，并让 continuation 指向 parent。
+- [x] T017 [US3] 补反例：普通行不拆、无唯一标题总分不拆、空细则不拆、无带分续行不拆、父/叶 factId 稳定且不同。
+- [x] T018 回归：抽取器、Shadow Pipeline、完整性、分表、PDF Evidence Pipeline 和 scoreparse golden 全绿。
+- [x] T019 架构与治理：FP-Java/维护性架构、agent lock、wiki、diff 检查通过，记录 S5/S6 工件。
+- [x] T020 知识沉淀：追加 lessons 的 5 Whys 与 `.wiki/pages/score-parse-service.md` 根因索引，不新建顶层文档。

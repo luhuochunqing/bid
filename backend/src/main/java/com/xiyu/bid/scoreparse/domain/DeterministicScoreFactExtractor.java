@@ -20,14 +20,7 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Extracts score facts deterministically from the canonical table structure.
- *
- * <p>The extractor never invents a weight. A fact is marked
- * {@code REVIEW_REQUIRED} when its weight is absent or ambiguous. Numbers in a
- * rule cell such as "优得 4 分" are classified as rule text only; they are not
- * treated as the item's maximum score.
- */
+/** Extracts evidence-bound score facts without inventing weights. */
 public final class DeterministicScoreFactExtractor {
     private static final Pattern NUMERIC_WEIGHT = Pattern.compile(
             "^[~≈]?\\s*(\\d{1,3}(?:\\.\\d+)?)\\s*(?:分|分值|%)?\\s*$");
@@ -40,21 +33,14 @@ public final class DeterministicScoreFactExtractor {
     private DeterministicScoreFactExtractor() {
     }
 
-    /**
-     * Extract score facts using a verified table mapping.
-     *
-     * @param grid canonical grid, including merge continuation cells
-     * @param mapping verified semantic column mapping
-     * @return facts in physical row order; no LLM or normalization is called
-     */
     public static List<ScoreFact> extract(CanonicalTableGrid grid, TableColumnMapping mapping) {
         if (grid == null || mapping == null || !grid.isStructurallyValid()) {
             return List.of();
         }
         int startRow = Math.min(Math.max(mapping.headerRows(), 0), grid.rows());
 
-        // ---- Pass 1: collect facts with empty parentFactId, keyed by row ----
         Map<Integer, ScoreFact> factByRow = new LinkedHashMap<>();
+        Map<Integer, ScoreFact> parentFactByOriginRow = new HashMap<>();
         for (int row = startRow; row < grid.rows(); row++) {
             List<CanonicalCell> rowCells = grid.cellsInRow(row).stream()
                     .sorted(Comparator.comparingInt(CanonicalCell::column))
@@ -81,43 +67,49 @@ public final class DeterministicScoreFactExtractor {
                 continue;
             }
 
+            List<String> sourceCellIds = rowCells.stream()
+                    .filter(cell -> !cell.isMergedContinue()).map(CanonicalCell::cellId).toList();
+            WeightResolution titleWeight = parseTitleWeight(dimCell);
+            WeightResolution explicitWeight = mapping.weightCol() < 0
+                    ? new WeightResolution(null, null, false)
+                    : parseExplicitWeight(cellAt(rowCells, mapping.weightCol()).orElse(null));
+            boolean splitMergedOrigin = dimCell != null && !dimCell.isMergedContinue()
+                    && dimCell.rowspan() > 1 && !detail.isBlank()
+                    && titleWeight.weight() != null && !titleWeight.ambiguous()
+                    && explicitWeight.weight() != null && !explicitWeight.ambiguous()
+                    && explicitWeight.weight().compareTo(BigDecimal.ZERO) > 0
+                    && hasScoredContinuation(grid, row, dimCell, mapping);
+            if (splitMergedOrigin) {
+                String parentId = factId(grid.tableId(), row, "", dimension, "parent");
+                parentFactByOriginRow.put(row, fact(parentId, grid.tableId(), List.of(dimCell.cellId()),
+                        dimCell.rawText(), "", dimension, titleWeight, ScoreRule.MAX_SCORE, "",
+                        ScoreFact.ValidationStatus.REVIEW_REQUIRED));
+                factByRow.put(row, fact(factId(grid.tableId(), row, code, dimension, "leaf"),
+                        grid.tableId(), sourceCellIds, sourceText, code, dimension, explicitWeight,
+                        classifyRule(detail), parentId, ScoreFact.ValidationStatus.AUTO_APPROVED));
+                continue;
+            }
             WeightResolution weight = resolveWeight(rowCells, dimCell, detailCell, mapping);
-            ScoreRule rule = classifyRule(detail);
             String factId = factId(grid.tableId(), row, code, dimension);
             ScoreFact.ValidationStatus status = weight.ambiguous() || weight.weight() == null
                     ? ScoreFact.ValidationStatus.REVIEW_REQUIRED
                     : ScoreFact.ValidationStatus.AUTO_APPROVED;
-            double confidence = status == ScoreFact.ValidationStatus.AUTO_APPROVED ? 1.0 : 0.0;
-            factByRow.put(row, new ScoreFact(
-                    factId,
-                    grid.tableId(),
-                    rowCells.stream().filter(cell -> !cell.isMergedContinue())
-                            .map(CanonicalCell::cellId).toList(),
-                    sourceText,
-                    code,
-                    dimension,
-                    weight.weight(),
-                    weight.evidence(),
-                    rule,
-                    "",
-                    METHOD,
-                    confidence,
-                    status));
+            factByRow.put(row, fact(factId, grid.tableId(), sourceCellIds, sourceText, code,
+                    dimension, weight, classifyRule(detail), "", status));
         }
 
-        // ---- Pass 2: resolve parent linkage from the grid's merged regions ----
-        // For each merged region's continuation row, remember the origin cellId;
-        // for each origin cellId, remember its fact's row. A continuation row
-        // references the origin row's factId; an origin row has no parent.
-        Map<Integer, String> originCellIdByRow = new HashMap<>();
+        Map<Integer, String> dimensionOriginCellIdByRow = new HashMap<>();
         for (MergedRegion region : grid.mergedRegions()) {
             Optional<CanonicalCell> originOpt = grid.findCell(region.startCellId());
             if (originOpt.isEmpty()) {
                 continue;
             }
             CanonicalCell origin = originOpt.get();
+            if (origin.column() != mapping.dimCol()) {
+                continue;
+            }
             for (int dr = 1; dr < region.rowspan(); dr++) {
-                originCellIdByRow.put(origin.row() + dr, origin.cellId());
+                dimensionOriginCellIdByRow.put(origin.row() + dr, origin.cellId());
             }
         }
         Map<String, Integer> originRowByCellId = new HashMap<>();
@@ -129,13 +121,19 @@ public final class DeterministicScoreFactExtractor {
             }
         }
 
-        List<ScoreFact> resolved = new ArrayList<>(factByRow.size());
+        List<ScoreFact> resolved = new ArrayList<>(factByRow.size() + parentFactByOriginRow.size());
         for (Map.Entry<Integer, ScoreFact> entry : factByRow.entrySet()) {
             int row = entry.getKey();
             ScoreFact fact = entry.getValue();
+            ScoreFact parent = parentFactByOriginRow.get(row);
+            if (parent != null) {
+                resolved.add(parent);
+                resolved.add(fact);
+                continue;
+            }
             String parentFactId = resolveParentFactId(
                     row, mapping.dimCol(), grid, factByRow,
-                    originCellIdByRow, originRowByCellId);
+                    parentFactByOriginRow, dimensionOriginCellIdByRow, originRowByCellId);
             resolved.add(fact.withParentFactId(parentFactId));
         }
         return List.copyOf(resolved);
@@ -157,9 +155,24 @@ public final class DeterministicScoreFactExtractor {
         if (title.weight() != null || title.ambiguous()) {
             return title;
         }
-        // A formula may be visible in the detail text, but without a declared
-        // maximum it cannot be converted into an automatic weight.
         return new WeightResolution(null, null, false);
+    }
+
+    private static boolean hasScoredContinuation(
+            CanonicalTableGrid grid, int originRow, CanonicalCell origin, TableColumnMapping mapping) {
+        if (mapping.weightCol() < 0) {
+            return false;
+        }
+        for (int row = originRow + 1; row < originRow + origin.rowspan(); row++) {
+            List<CanonicalCell> cells = grid.cellsInRow(row);
+            String detail = cellAt(cells, mapping.detailCol()).map(CanonicalCell::rawText).orElse("");
+            WeightResolution weight = parseExplicitWeight(cellAt(cells, mapping.weightCol()).orElse(null));
+            if (!detail.isBlank() && weight.weight() != null && !weight.ambiguous()
+                    && weight.weight().compareTo(BigDecimal.ZERO) > 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static WeightResolution parseExplicitWeight(CanonicalCell cell) {
@@ -226,6 +239,15 @@ public final class DeterministicScoreFactExtractor {
                 offset < 0 ? -1 : offset + quoted.length(), explanation);
     }
 
+    private static ScoreFact fact(String factId, String tableId, List<String> sourceCellIds,
+                                  String sourceText, String code, String dimension,
+                                  WeightResolution weight, ScoreRule rule, String parentFactId,
+                                  ScoreFact.ValidationStatus status) {
+        double confidence = status == ScoreFact.ValidationStatus.AUTO_APPROVED ? 1.0 : 0.0;
+        return new ScoreFact(factId, tableId, sourceCellIds, sourceText, code, dimension,
+                weight.weight(), weight.evidence(), rule, parentFactId, METHOD, confidence, status);
+    }
+
     private static java.util.Optional<CanonicalCell> cellAt(List<CanonicalCell> cells, int column) {
         return cells.stream().filter(cell -> cell.column() == column).findFirst();
     }
@@ -239,19 +261,13 @@ public final class DeterministicScoreFactExtractor {
                 .trim();
     }
 
-    /**
-     * Resolve parent linkage for a single row given the full grid and the
-     * fact map keyed by row.
-     * <p>Semantics: a row whose dimCell is a merge continuation references
-     * the origin row's factId; a row whose dimCell is a merge origin
-     * (rowspan&gt;1) or non-merged has no parent.
-     */
     private static String resolveParentFactId(
             int row,
             int dimCol,
             CanonicalTableGrid grid,
             Map<Integer, ScoreFact> factByRow,
-            Map<Integer, String> originCellIdByRow,
+            Map<Integer, ScoreFact> parentFactByOriginRow,
+            Map<Integer, String> dimensionOriginCellIdByRow,
             Map<String, Integer> originRowByCellId) {
         CanonicalCell dimCell = cellAt(
                 grid.cellsInRow(row).stream()
@@ -261,18 +277,22 @@ public final class DeterministicScoreFactExtractor {
         if (dimCell == null || !dimCell.isMergedContinue()) {
             return "";
         }
-        String originCellId = originCellIdByRow.get(row);
+        String originCellId = dimensionOriginCellIdByRow.get(row);
         Integer originRow = originRowByCellId.get(originCellId);
         if (originRow == null) {
             return "";
         }
-        ScoreFact originFact = factByRow.get(originRow);
+        ScoreFact originFact = parentFactByOriginRow.getOrDefault(originRow, factByRow.get(originRow));
         return originFact == null ? "" : originFact.factId();
     }
 
     private static String factId(String tableId, int row, String code, String dimension) {
         return "fact-" + Integer.toHexString((tableId + "|" + row + "|" + code + "|" + dimension)
                 .toLowerCase(Locale.ROOT).hashCode());
+    }
+
+    private static String factId(String tableId, int row, String code, String dimension, String role) {
+        return factId(tableId, row, code, dimension + "|" + role);
     }
 
     private record WeightResolution(BigDecimal weight, ScoreEvidence evidence, boolean ambiguous) {

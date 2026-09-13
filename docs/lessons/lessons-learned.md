@@ -5693,3 +5693,33 @@ task2 已经把 Evidence Pipeline 接入主链路，并规定 `REVIEW_REQUIRED` 
 - golden 夹具 `case-multi-table-tech-commercial`（两张独立评分表输入形态锁定，F1=1.0）
 
 > 维护纪律：多表拆分以"表"为基本校验单元，文档级聚合只做状态标记。新增多表形态回归必须同步金标夹具或回放测试。
+
+## 360. 合并维度原行兼具父总分与首个叶子时，事实模型必须一行双产物（2026-09-13，项目 1377）
+
+### 全链路证据与五个为什么
+
+1. 页面显示 0 项，是因为正式 `score_item` 没有被新解析结果覆盖。
+2. 没有覆盖，是因为 Evidence Pipeline 对相关评分表给出 `REVIEW_REQUIRED / WEIGHT_SUM_MISMATCH`。
+3. 权重失配，是因为表内叶子合计分别只有 95 / 86，而原始评分表声明总分为 100。
+4. 少掉的权重都位于纵向合并维度的起始物理行：该行同时包含“维度标题（组总分）”和“第一条细则 + 显式分值”。旧提取器每个物理行只生成一个事实，且显式分值优先，导致起始行被建成父事实，第一条叶子被吞掉。
+5. 零号病人是事实建模粒度错误：把“物理行”误当成“一条业务事实”，没有表达同一行同时承载父级结构事实与叶子评分事实的能力。
+
+按工程纪律七类根因归类：主根因是**追症状不追根因**；多轮 PR 只处理合计行、声明总分或分表裁决，没有验证每个真实叶子是否进入事实集。伴随根因是**测试不测根因**与**盲目相信已修复**：旧 golden 甚至把“原行首个叶子缺失”固化成期望数量，局部全绿不能证明生产版式完整。
+
+### 根治契约
+
+- `DeterministicScoreFactExtractor` 仅在五项结构证据同时成立时拆分合并起始行：维度单元格 `rowspan > 1`、标题存在唯一组总分、起始行存在非空细则、显式分值为正且唯一、合并范围内至少还有一条“非空细则 + 正显式分值”的续行。
+- 起始行生成两个不同 ID 的事实：父事实使用标题总分和标题单元格证据，状态为 `REVIEW_REQUIRED`，仅参与父子结构；首个叶子使用显式分值与整行证据，状态为 `AUTO_APPROVED`，并指向父事实。
+- 后续合并续行全部指向同一父事实；父链索引只接收映射后的维度列合并区域，防止同一行的编号列纵向合并覆盖维度 origin。自动评分只累计叶子，禁止父总分与子项重复相加。
+- 仅有空白续行的版式不得误拆；`rowspan` 本身不是父子评分组的充分证据。
+
+### 防回归证据
+
+- 新增脱敏 v2 Artifact 夹具 `merged-parent-first-leaf-table-v2.json`，锁定 90 分独立项 + 10 分合并组（5 + 5）的生产同形态。
+- `DeterministicScoreFactExtractorTest#merged_origin_with_group_total_and_first_leaf_emits_both_facts` 锁定编号列与维度列同时纵向合并时的父/首叶双事实、不同且可重放 ID、证据类型和完整父子关系。
+- `DeterministicScoreFactExtractorTest#merged_origin_requires_unambiguous_title_first_detail_and_scored_continuation` 锁定三类不拆分反例。
+- `ScoreFactShadowPipelineTest#merged_origin_fixture_preserves_parent_total_and_all_leaf_weights` 锁定端到端 3 个叶子合计 100、`AUTO_APPROVED`。
+- `GoldenCorpusBaselineTest` 的 1347 / 1362 语料同步纠正：父项仍不计分，但起始行首个子项必须保留。
+- Scoreparse 全包回归 774 项通过（2 项按既有真实语料环境条件跳过）；架构测试 14 项、golden replay 12 项通过，golden 汇总 F1=100%。
+
+> 发布纪律：代码、回归与文档通过只证明修复在当前工作树成立；合入、部署后仍必须对项目 1377 重新解析，并以 `/review`、`/items` 与页面三层一致为真实环境验收标准。

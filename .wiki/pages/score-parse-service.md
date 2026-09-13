@@ -23,6 +23,8 @@ sources:
   - specs/062-score-multi-table-split/spec.md
   - specs/062-score-multi-table-split/plan.md
   - backend/src/main/java/com/xiyu/bid/scoreparse/domain/ScoreTableSplitPolicy.java
+  - backend/src/main/java/com/xiyu/bid/scoreparse/domain/DeterministicScoreFactExtractor.java
+  - backend/src/test/resources/scoreparse-golden/merged-parent-first-leaf-table-v2.json
   - backend/src/test/resources/scoreparse-golden/case-multi-table-tech-commercial.md
   - document-converter-sidecar/converter.py
   - backend/src/test/java/com/xiyu/bid/scoreparse/golden/GoldenCasesReplaySupport.java
@@ -498,3 +500,37 @@ trigger（同步<1s，互斥校验+建任务）
 - golden 夹具 `case-multi-table-tech-commercial`（两张独立评分表输入形态锁定，F1=1.0）
 
 > 维护纪律：多表拆分以"表"为基本校验单元，文档级聚合只做状态标记。新增多表形态回归必须同步金标夹具或回放测试；`case-multi-table-tech-commercial` 已立基线。
+
+## 16. 合并维度起始行的父事实与首个叶子双产物（项目 1377，2026-09-13）
+
+### 故障链
+
+| 层级 | 证据 |
+|---|---|
+| UI | 评分标准 0 项 |
+| 持久化门禁 | `REVIEW_REQUIRED / WEIGHT_SUM_MISMATCH`，安全策略不覆盖正式项 |
+| 表内完整性 | 叶子合计 95 / 86，声明总分 100 |
+| 事实抽取 | 合并维度起始行只生成一个父事实，同行第一条显式分值细则消失 |
+| 零号病人 | “一物理行一事实”无法表达“父标题总分 + 同行首个叶子” |
+
+### 领域契约
+
+- 合并起始行只有在 `rowspan > 1`、唯一标题总分、起始行非空细则、起始行正显式分值、且合并范围内存在带正分的真实续行时，才拆成父事实与首叶事实。
+- 父事实：标题总分证据、`REVIEW_REQUIRED`、不进入自动评分；首叶事实：显式列证据、`AUTO_APPROVED`、`parentFactId` 指向父事实。
+- 所有续行叶子复用同一父事实；父链只索引映射后的维度列合并区域，避免同一行的编号列纵向合并覆盖维度 origin；事实 ID 加入 `parent/leaf` 角色，避免同一物理行碰撞。
+- 空白续行不构成评分组，必须保持单事实，防止仅凭合并版式误拆。
+
+### 副作用（Cross-Module Impact）
+
+- `ScoreCompletenessPolicy` 无需特判：它继续只累计叶子，完整的 5 + 5 等子项自然闭合到父总分。
+- `ScoreTableSplitPolicy` 无需修改：每张表拿到完整叶子后按表校验，避免 95 / 86 假性缺口。
+- 历史 1347 / 1362 golden 口径同步升级：防重复计父分与防吞首叶必须同时成立。
+- 无数据库、API 或前端契约变化；合入部署后需重新解析项目 1377 才会更新页面。
+
+### 验证锚点
+
+- `DeterministicScoreFactExtractorTest#merged_origin_with_group_total_and_first_leaf_emits_both_facts`
+- `DeterministicScoreFactExtractorTest#merged_origin_requires_unambiguous_title_first_detail_and_scored_continuation`
+- `ScoreFactShadowPipelineTest#merged_origin_fixture_preserves_parent_total_and_all_leaf_weights`
+- `GoldenCorpusBaselineTest#incident_1347_parent_and_children_never_scored_together`
+- `GoldenCorpusBaselineTest#incident_1362_category_weight_not_summed_with_children`

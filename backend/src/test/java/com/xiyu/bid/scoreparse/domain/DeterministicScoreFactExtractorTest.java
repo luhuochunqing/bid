@@ -14,6 +14,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DeterministicScoreFactExtractorTest {
@@ -55,6 +56,70 @@ class DeterministicScoreFactExtractorTest {
 
     private static TableColumnMapping mapping() {
         return new TableColumnMapping(0, -1, 1, 2, 3, 1, false);
+    }
+
+    private static CanonicalTableGrid mergedOriginGrid(
+            String title, String firstDetail, String continuationDetail, String continuationWeight) {
+        return gridWithMergedRegions(List.of(
+                cell("t-0001-r0-c0", 0, 0, "编号"),
+                cell("t-0001-r0-c1", 0, 1, "评审要素"),
+                cell("t-0001-r0-c2", 0, 2, "评审内容"),
+                cell("t-0001-r0-c3", 0, 3, "最高分"),
+                cellWithMerge("t-0001-r1-c0", 1, 0, "A1", 2, 1, false),
+                cellWithMerge("t-0001-r1-c1", 1, 1, title, 2, 1, false),
+                cell("t-0001-r1-c2", 1, 2, firstDetail),
+                cell("t-0001-r1-c3", 1, 3, "5"),
+                cellWithMerge("t-0001-r2-c0", 2, 0, "", 1, 1, true),
+                cellWithMerge("t-0001-r2-c1", 2, 1, "", 1, 1, true),
+                cell("t-0001-r2-c2", 2, 2, continuationDetail),
+                cell("t-0001-r2-c3", 2, 3, continuationWeight)
+        ), List.of(
+                new MergedRegionDto("t-0001-r1-c1", 2, 1),
+                new MergedRegionDto("t-0001-r1-c0", 2, 1)
+        ), 3, 4);
+    }
+
+    @Test
+    void merged_origin_with_group_total_and_first_leaf_emits_both_facts() {
+        CanonicalTableGrid grid = mergedOriginGrid(
+                "履约保障（10分）", "仓储能力满足要求", "配送能力满足要求", "5");
+
+        List<ScoreFact> facts = DeterministicScoreFactExtractor.extract(grid, mapping());
+
+        assertEquals(3, facts.size(), "one physical origin row carries parent and first-leaf semantics");
+        ScoreFact parent = facts.get(0);
+        ScoreFact firstLeaf = facts.get(1);
+        ScoreFact continuationLeaf = facts.get(2);
+
+        assertEquals("履约保障", parent.dimension());
+        assertEquals(0, parent.weight().compareTo(new BigDecimal("10")));
+        assertEquals(ScoreEvidence.Kind.DIMENSION_TITLE_MAX_SCORE, parent.weightEvidence().kind());
+        assertEquals(ScoreFact.ValidationStatus.REVIEW_REQUIRED, parent.validationStatus());
+
+        assertEquals(0, firstLeaf.weight().compareTo(new BigDecimal("5")));
+        assertEquals(ScoreEvidence.Kind.EXPLICIT_WEIGHT_COLUMN, firstLeaf.weightEvidence().kind());
+        assertEquals(parent.factId(), firstLeaf.parentFactId());
+        assertEquals(parent.factId(), continuationLeaf.parentFactId());
+        assertNotEquals(parent.factId(), firstLeaf.factId());
+        assertEquals(facts, DeterministicScoreFactExtractor.extract(grid, mapping()),
+                "repeated extraction must keep role-aware fact IDs stable");
+        assertFalse(ScoreFact.isLeaf(parent, facts));
+        assertTrue(ScoreFact.isLeaf(firstLeaf, facts));
+        assertTrue(ScoreFact.isLeaf(continuationLeaf, facts));
+    }
+
+    @Test
+    void merged_origin_requires_unambiguous_title_first_detail_and_scored_continuation() {
+        List<ScoreFact> ambiguousTitle = DeterministicScoreFactExtractor.extract(
+                mergedOriginGrid("履约保障（10分）（20分）", "仓储能力", "配送能力", "5"), mapping());
+        List<ScoreFact> blankFirstDetail = DeterministicScoreFactExtractor.extract(
+                mergedOriginGrid("履约保障（10分）", "", "配送能力", "5"), mapping());
+        List<ScoreFact> unscoredContinuation = DeterministicScoreFactExtractor.extract(
+                mergedOriginGrid("履约保障（10分）", "仓储能力", "配送能力", ""), mapping());
+
+        assertEquals(2, ambiguousTitle.size(), "ambiguous title total must not invent a parent fact");
+        assertEquals(2, blankFirstDetail.size(), "blank origin detail must not invent a first leaf");
+        assertEquals(2, unscoredContinuation.size(), "an unscored continuation does not prove a group");
     }
 
     @Test

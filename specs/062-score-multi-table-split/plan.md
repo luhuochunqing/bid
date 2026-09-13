@@ -163,3 +163,38 @@ Output: TableSplitResult
   走"清旧打分"分支，不触发 code 匹配保留，串号风险不落地，无需加 score_item 字段。
 - 交付顺序：Red 测试（PdfEvidencePipelineTest 多表用例）→ 纯核心 `ScoreTableSplitPolicy` → 管道接线 →
   全量回归 → ArchUnit/静态门禁。
+
+## 2026-09-13 修复切片：合并起始行双事实建模
+
+### 根因与边界
+
+`DeterministicScoreFactExtractor` 当前以 `Map<Integer, ScoreFact>` 固定“一物理行一事实”。纵向合并
+起始行被有效续行引用后成为父项，但该行最高分列实际属于第一个子项；由于 `resolveWeight` 优先显式列，
+父项错误取得首个子项分值，同时首个子项没有独立事实。修复只在五个可判定条件同时满足时拆分：
+
+1. 维度格是非 continuation 的合并起始格，且 `rowspan > 1`；
+2. 维度标题中存在唯一、可定位的括号总分；
+3. 本行细则非空；
+4. 显式最高分列可解析为正数。
+5. 合并范围内至少一个续行同时具有非空细则和正显式最高分，排除纯格式性空白合并。
+
+### 类型与数据流设计
+
+- 继续保持 `extract(CanonicalTableGrid, TableColumnMapping)` 公共签名不变。
+- Pass 1 保留 `factByRow` 作为每行叶子/普通事实索引，并新增 `parentFactByOriginRow` 保存仅在上述五个条件下创建的父事实。
+- 父事实：`factId(..., "parent")`、空 code、标题总分与 `DIMENSION_TITLE_MAX_SCORE` 证据、`REVIEW_REQUIRED`，避免进入自动计分集合。
+- 首个叶子：`factId(..., "leaf")`、保留 code/细则/全行证据、显式最高分与 `EXPLICIT_WEIGHT_COLUMN` 证据、父 ID 指向新父事实。
+- Pass 2 只索引映射后的维度列合并区域，continuation 优先链接 `parentFactByOriginRow`；编号列等其他纵向合并不得按行覆盖维度 origin，未拆分的历史形态仍链接原起始行事实。
+- 输出顺序固定为同一行的 parent → first leaf → 后续物理行，保证快照可读且 factId 重放稳定。
+
+### 拒绝方案
+
+- 不颠倒全局权重优先级：会破坏普通行的显式最高分真相。
+- 不放宽 `CATEGORY_SUM_MISMATCH`/`WEIGHT_SUM_MISMATCH`：会让错误层级自动落库。
+- 不按 181 归一化：两张独立 100 分表不能合并伪装成一张 100 分表。
+- 不修改 Sidecar：其 v2 Artifact 已完整表达 rowspan、continuation、标题和最高分，错误发生在后端语义投影。
+
+### 验证与回滚
+
+先用脱敏 v2 fixture 和纯核心单测锁定 RED，再做单文件生产修复；运行抽取、完整性、分表、PDF 兼容、
+架构和 golden 回放。回滚只需撤销本切片的抽取器变更；数据库与外部契约均无迁移、无状态变更。
